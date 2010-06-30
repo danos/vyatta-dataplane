@@ -237,6 +237,7 @@ npf_sources = files(
         'npf/nat/nat_cmd_op.c',
         'npf/nat/nat_pool.c',
         'npf/nat/nat_pool_event.c',
+        'npf/bstr.c',
         'npf/grouper2.c',
         'npf/npf_nat64.c',
         'npf/npf_addrgrp.c',

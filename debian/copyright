@@ -134,6 +134,13 @@ Copyright:
  2019 AT&T Intellectual Property.  All rights reserved.
 License: MPL-2.0
 
+Files:
+ src/npf/bstr.c
+ src/npf/bstr.h
+Copyright:
+ Copyright 2010 Derek Fawcus.
+License: BSD-3-Clause
+
 License: LGPL-2.1-only
  This package is free software; you can redistribute it and/or
  modify it under the terms of the GNU Lesser General Public
