@@ -115,6 +115,9 @@
 #include "vrf_internal.h"
 #include "fal.h"
 #include "ip_mcast_fal_interface.h"
+#include "pl_common.h"
+#include "pl_fused.h"
+#include "npf.h"
 
 /*
  * Multicast packets are punted to the slow path when they cannot be
@@ -1044,18 +1047,35 @@ static int mcast_ethernet_send(struct ifnet *in_ifp,
 			       struct rte_mbuf *m, int plen)
 {
 	struct iphdr *ip;
-	struct rte_ether_hdr *eth_hdr;
 
 	ip = iphdr(m);
 	decrement_ttl(ip);
 
-	mcast_dst_eth_addr_t eth_daddr = mcast_dst_eth_addr(ip->daddr);
-	eth_hdr = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
-	rte_ether_addr_copy(&eth_daddr.as_addr, &eth_hdr->d_addr);
-
-	mc_ip_output(in_ifp, m, out_vifp->v_ifp, ip);
 	out_vifp->v_pkt_out++;
 	out_vifp->v_bytes_out += plen;
+
+	struct ifnet *out_ifp = out_vifp->v_ifp;
+
+	if (unlikely(!(out_ifp->if_flags & IFF_UP)))
+		return -1;
+
+	struct next_hop nh = {
+		.flags = RTF_MULTICAST,
+		.u.ifp = out_ifp,
+	};
+	struct pl_packet pl_pkt = {
+		.mbuf = m,
+		.l2_pkt_type = pkt_mbuf_get_l2_traffic_type(m),
+		.l3_hdr = ip,
+		.in_ifp = in_ifp,
+		.out_ifp = out_ifp,
+		.nxt.v4 = &nh,
+		.l2_proto = ETH_P_IP,
+		.npf_flags = NPF_FLAG_CACHE_EMPTY,
+	};
+
+	pipeline_fused_ipv4_out(&pl_pkt);
+
 	return 0;
 }
 

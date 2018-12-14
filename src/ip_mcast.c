@@ -37,55 +37,6 @@
 #include "vplane_debug.h"
 #include "vplane_log.h"
 
-/* destination ethernet address is unique for each mcast group */
-static void mcast_eth_output(struct rte_mbuf *m, struct ifnet *ifp,
-			     struct ifnet *rcvif)
-{
-
-	struct rte_ether_hdr *eth_hdr;
-
-	/* set ethernet source address */
-	eth_hdr = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
-	rte_ether_addr_copy(&ifp->eth_addr, &eth_hdr->s_addr);
-
-	IPSTAT_INC_IFP(ifp, IPSTATS_MIB_OUTMCASTPKTS);
-	if_output(ifp, m, rcvif, ETH_P_IP);
-}
-
-static void mcast_ip_fragment(struct rte_mbuf *mm, struct ifnet *ifp)
-{
-	DP_DEBUG(MULTICAST, INFO, MCAST,
-		 "Multicast packet fragmentation unsupported on %s.\n",
-		 ifp->if_name);
-	IPSTAT_INC_IFP(ifp, IPSTATS_MIB_OUTDISCARDS);
-	rte_pktmbuf_free(mm);
-}
-
-/* fast-path output */
-int mc_ip_output(struct ifnet *rcvif,
-		 struct rte_mbuf *m, struct ifnet *ifp, struct iphdr *ip)
-{
-	/* Destination device is not up?  */
-	if (unlikely(!(ifp->if_flags & IFF_UP)))
-		return -1;
-
-	/*
-	 * is fragmentation necessary
-	 */
-	if (likely(ntohs(ip->tot_len) <= ifp->if_mtu))
-		mcast_eth_output(m, ifp, rcvif); /* send it */
-	else if (ip->frag_off & htons(IP_DF)) {
-		/* Handle with icmp reply needfrag for TCP MTU discovery */
-		IPSTAT_INC_IFP(rcvif, IPSTATS_MIB_FRAGFAILS);
-		icmp_error(rcvif, m, ICMP_DEST_UNREACH, ICMP_FRAG_NEEDED,
-			   htons(ifp->if_mtu));
-		rte_pktmbuf_free(m);
-	} else
-		mcast_ip_fragment(m, ifp); /* needs fragmentation */
-
-	return 0;
-}
-
 /*
  * Display old and new value of interface flags of interest to
  * multicast, after receipt of RTM_NEWLINK or RTM_DELLINK message.
