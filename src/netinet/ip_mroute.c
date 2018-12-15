@@ -1140,7 +1140,8 @@ static void vif_send(struct ifnet *in_ifp, struct vif *out_vifp,
 		return;
 	}
 
-	if (unlikely(out_ifp->if_type == IFT_TUNNEL_GRE)) {
+	if (unlikely(out_ifp->if_type == IFT_TUNNEL_GRE &&
+		     !(out_ifp->if_flags & IFF_NOARP))) {
 		mcast_tunnel_send(in_ifp,
 				  out_vifp, m, plen);
 		return;

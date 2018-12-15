@@ -1088,7 +1088,8 @@ static void mif6_send(struct ifnet *in_ifp, struct mif6 *out_mifp,
 		return;
 	}
 
-	if (unlikely(out_ifp->if_type == IFT_TUNNEL_GRE)) {
+	if (unlikely(out_ifp->if_type == IFT_TUNNEL_GRE &&
+		     !(out_ifp->if_flags & IFF_NOARP))) {
 		mcast6_tunnel_send(in_ifp, out_mifp, m, plen);
 		return;
 	}
