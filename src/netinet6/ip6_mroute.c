@@ -996,30 +996,6 @@ static void expire_upcalls(__attribute__((unused)) struct rte_timer *rtetm,
 }
 #endif
 
-static void mcast6_ethernet_send(struct mif6 *mifp, struct rte_mbuf *m,
-				 struct ifnet *in_ifp)
-{
-	struct ip6_hdr *ip6 = ip6hdr(m);
-	struct ifnet *out_ifp = mifp->m6_ifp;
-
-	struct next_hop nh = {
-		.flags = RTF_MULTICAST,
-		.u.ifp = out_ifp,
-	};
-	struct pl_packet pl_pkt = {
-		.mbuf = m,
-		.l2_pkt_type = pkt_mbuf_get_l2_traffic_type(m),
-		.l3_hdr = ip6,
-		.in_ifp = in_ifp,
-		.out_ifp = out_ifp,
-		.nxt.v6 = &nh,
-		.l2_proto = ETH_P_IPV6,
-		.npf_flags = NPF_FLAG_CACHE_EMPTY,
-	};
-
-	pipeline_fused_ipv6_out(&pl_pkt);
-}
-
 static void mcast6_tunnel_send(struct ifnet *in_ifp, struct mif6 *out_mifp,
 			      struct rte_mbuf *m, int plen)
 {
@@ -1096,7 +1072,25 @@ static void mif6_send(struct ifnet *in_ifp, struct mif6 *out_mifp,
 	out_mifp->m6_pkt_out++;
 	out_mifp->m6_bytes_out += plen;
 
-	mcast6_ethernet_send(out_mifp, m, in_ifp);
+	/*
+	 * Send the packet down the pipeline graph.
+	 */
+	struct next_hop nh = {
+		.flags = RTF_MULTICAST,
+		.u.ifp = out_ifp,
+	};
+	struct pl_packet pl_pkt = {
+		.mbuf = m,
+		.l2_pkt_type = pkt_mbuf_get_l2_traffic_type(m),
+		.l3_hdr = ip6,
+		.in_ifp = in_ifp,
+		.out_ifp = out_ifp,
+		.nxt.v6 = &nh,
+		.l2_proto = ETH_P_IPV6,
+		.npf_flags = NPF_FLAG_CACHE_EMPTY,
+	};
+
+	pipeline_fused_ipv6_out(&pl_pkt);
 }
 
 /*

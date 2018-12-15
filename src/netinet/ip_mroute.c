@@ -1042,36 +1042,6 @@ static void expire_upcalls(__attribute__((unused)) struct rte_timer *rtetm,
 }
 #endif
 
-static int mcast_ethernet_send(struct ifnet *in_ifp,
-			       struct vif *out_vifp,
-			       struct rte_mbuf *m)
-{
-	struct iphdr *ip;
-
-	ip = iphdr(m);
-
-	struct ifnet *out_ifp = out_vifp->v_ifp;
-
-	struct next_hop nh = {
-		.flags = RTF_MULTICAST,
-		.u.ifp = out_ifp,
-	};
-	struct pl_packet pl_pkt = {
-		.mbuf = m,
-		.l2_pkt_type = pkt_mbuf_get_l2_traffic_type(m),
-		.l3_hdr = ip,
-		.in_ifp = in_ifp,
-		.out_ifp = out_ifp,
-		.nxt.v4 = &nh,
-		.l2_proto = ETH_P_IP,
-		.npf_flags = NPF_FLAG_CACHE_EMPTY,
-	};
-
-	pipeline_fused_ipv4_out(&pl_pkt);
-
-	return 0;
-}
-
 static void mcast_tunnel_send(struct ifnet *in_ifp,  struct vif *out_vifp,
 			      struct rte_mbuf *m, int plen)
 {
@@ -1149,7 +1119,25 @@ static void vif_send(struct ifnet *in_ifp, struct vif *out_vifp,
 	out_vifp->v_pkt_out++;
 	out_vifp->v_bytes_out += plen;
 
-	mcast_ethernet_send(in_ifp, out_vifp, m);
+	/*
+	 * Send the packet down the pipeline graph.
+	 */
+	struct next_hop nh = {
+		.flags = RTF_MULTICAST,
+		.u.ifp = out_ifp,
+	};
+	struct pl_packet pl_pkt = {
+		.mbuf = m,
+		.l2_pkt_type = pkt_mbuf_get_l2_traffic_type(m),
+		.l3_hdr = ip,
+		.in_ifp = in_ifp,
+		.out_ifp = out_ifp,
+		.nxt.v4 = &nh,
+		.l2_proto = ETH_P_IP,
+		.npf_flags = NPF_FLAG_CACHE_EMPTY,
+	};
+
+	pipeline_fused_ipv4_out(&pl_pkt);
 }
 
 /*
