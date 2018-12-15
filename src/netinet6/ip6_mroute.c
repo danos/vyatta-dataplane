@@ -1031,7 +1031,6 @@ static void mcast6_tunnel_send(struct ifnet *in_ifp, struct mif6 *out_mifp,
 			      struct rte_mbuf *m, int plen)
 {
 	struct ifnet *out_ifp;
-	struct vrf *vrf;
 	struct ip6_hdr *ip6;
 	struct mcast_mgre_tun_walk_ctx mgre_tun_walk_ctx;
 
@@ -1068,25 +1067,6 @@ static void mcast6_tunnel_send(struct ifnet *in_ifp, struct mif6 *out_mifp,
 		IP6STAT_INC_IFP(out_ifp, IPSTATS_MIB_OUTMCASTPKTS);
 		vti_tunnel_out(in_ifp, out_ifp, m, ETH_P_IPV6);
 		return;
-	default:
-		/*
-		 * Punt for any tunnels unsupported in data plane.
-		 * Note that if packet successfully switched out
-		 * of some other interfaces in the olist in the
-		 * data plane, a  duplicate packet may be sent out
-		 * of these interfaces by the kernel. Essentially,
-		 * as things stand, option is potentially duplicate
-		 * packets on some interfaces or fail to transmit
-		 * packets on other interfaces in the olist.
-		 */
-		mcast_ip6_deliver(in_ifp, m);
-		vrf = vrf_get_rcu(if_vrfid(in_ifp));
-		if (vrf) {
-			struct mcast6_vrf *mvrf6 = &vrf->v_mvrf6;
-			MRT6STAT_INC(mvrf6, mrt6s_slowpath);
-		}
-		out_mifp->m6_pkt_out_punt++;
-		out_mifp->m6_bytes_out_punt += plen;
 	}
 }
 
@@ -1097,6 +1077,30 @@ static void mcast6_tunnel_send(struct ifnet *in_ifp, struct mif6 *out_mifp,
 static void mif6_send(struct ifnet *in_ifp, struct mif6 *out_mifp,
 		      struct rte_mbuf *m, int plen)
 {
+	struct ifnet *out_ifp = out_mifp->m6_ifp;
+
+	/*
+	 * Punt for any tunnels unsupported in data plane.
+	 *
+	 * Note that if a packet is successfully switched out of some
+	 * other interfaces in the olist in the data plane, a duplicate
+	 * packet may be sent out of these interfaces by the kernel.
+	 * Essentially, as things stand, the option is to potentially
+	 * duplicate packets on some interfaces or fail to transmit
+	 * packets on other interfaces in the olist.
+	 */
+	if (unlikely(out_ifp->if_type == IFT_TUNNEL_OTHER)) {
+		struct vrf *vrf = vrf_get_rcu(if_vrfid(in_ifp));
+		if (vrf) {
+			struct mcast6_vrf *mvrf6 = &vrf->v_mvrf6;
+			MRT6STAT_INC(mvrf6, mrt6s_slowpath);
+		}
+		out_mifp->m6_pkt_out_punt++;
+		out_mifp->m6_bytes_out_punt += plen;
+		mcast_ip6_deliver(in_ifp, m);
+		return;
+	}
+
 	if (unlikely(out_mifp->m6_flags & VIFF_TUNNEL)) {
 		mcast6_tunnel_send(in_ifp, out_mifp, m, plen);
 		return;

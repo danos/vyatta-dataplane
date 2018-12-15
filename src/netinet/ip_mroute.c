@@ -1083,7 +1083,6 @@ static void mcast_tunnel_send(struct ifnet *in_ifp,  struct vif *out_vifp,
 			      struct rte_mbuf *m, int plen)
 {
 	struct ifnet *out_ifp;
-	struct vrf *vrf;
 	struct iphdr *ip;
 	struct mcast_mgre_tun_walk_ctx mgre_tun_walk_ctx;
 
@@ -1119,25 +1118,6 @@ static void mcast_tunnel_send(struct ifnet *in_ifp,  struct vif *out_vifp,
 		IPSTAT_INC_VRF(if_vrf(in_ifp), IPSTATS_MIB_OUTMCASTPKTS);
 		vti_tunnel_out(in_ifp, out_ifp, m, ETH_P_IP);
 		return;
-	default:
-		/*
-		 * Punt for any tunnels unsupported in data plane.
-		 * Note that if packet successfully switched out
-		 * of some other interfaces in the olist in the
-		 * data plane, a  duplicate packet may be sent out
-		 * of these interfaces by the kernel. Essentially,
-		 * as things stand, option is potentially duplicate
-		 * packets on some interfaces or fail to transmit
-		 * packets on other interfaces in the olist.
-		 */
-		vrf = vrf_get_rcu(if_vrfid(in_ifp));
-		if (vrf) {
-			struct mcast_vrf *mvrf = &vrf->v_mvrf4;
-			MRTSTAT_INC(mvrf, mrts_slowpath);
-		}
-		out_vifp->v_pkt_out_punt++;
-		out_vifp->v_bytes_out_punt += plen;
-		mcast_ip_deliver(in_ifp, m);
 	}
 }
 
@@ -1148,6 +1128,30 @@ static void mcast_tunnel_send(struct ifnet *in_ifp,  struct vif *out_vifp,
 static void vif_send(struct ifnet *in_ifp, struct vif *out_vifp,
 		     struct rte_mbuf *m, int plen)
 {
+	struct ifnet *out_ifp = out_vifp->v_ifp;
+
+	/*
+	 * Punt for any tunnels unsupported in data plane.
+	 *
+	 * Note that if a packet is successfully switched out of some
+	 * other interfaces in the olist in the data plane, a duplicate
+	 * packet may be sent out of these interfaces by the kernel.
+	 * Essentially, as things stand, the option is to potentially
+	 * duplicate packets on some interfaces or fail to transmit
+	 * packets on other interfaces in the olist.
+	 */
+	if (unlikely(out_ifp->if_type == IFT_TUNNEL_OTHER)) {
+		struct vrf *vrf = vrf_get_rcu(if_vrfid(in_ifp));
+		if (vrf) {
+			struct mcast_vrf *mvrf = &vrf->v_mvrf4;
+			MRTSTAT_INC(mvrf, mrts_slowpath);
+		}
+		out_vifp->v_pkt_out_punt++;
+		out_vifp->v_bytes_out_punt += plen;
+		mcast_ip_deliver(in_ifp, m);
+		return;
+	}
+
 	if (unlikely(out_vifp->v_flags & VIFF_TUNNEL)) {
 		mcast_tunnel_send(in_ifp,
 				  out_vifp, m, plen);
