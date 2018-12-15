@@ -20,6 +20,7 @@
 #include "compiler.h"
 #include "if_var.h"
 #include "ip6_funcs.h"
+#include "netinet6/ip6_mroute.h"
 #include "npf/npf_cache.h"
 #include "npf_shim.h"
 #include "pktmbuf_internal.h"
@@ -124,6 +125,14 @@ ipv6_out_process_common(struct pl_packet *pkt, void *context __unused,
 	 */
 	if (unlikely(too_big)) {
 		if (!reassembled || npf_cache_mtu() > out_ifp->if_mtu) {
+			if (unlikely(nxt->flags & RTF_MULTICAST)) {
+				struct vrf *vrf = vrf_get_rcu(if_vrfid(in_ifp));
+				if (vrf) {
+					struct mcast6_vrf *mvrf6 =
+								&vrf->v_mvrf6;
+					MRT6STAT_INC(mvrf6, mrt6s_pkttoobig);
+				}
+			}
 			IP6STAT_INC_MBUF(pkt->mbuf, IPSTATS_MIB_FRAGFAILS);
 			icmp6_error(in_ifp, pkt->mbuf, ICMP6_PACKET_TOO_BIG, 0,
 				    htonl(out_ifp->if_mtu));

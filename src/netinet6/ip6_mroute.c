@@ -140,6 +140,9 @@
 #include "vrf_internal.h"
 #include "fal.h"
 #include "ip_mcast_fal_interface.h"
+#include "pl_common.h"
+#include "pl_fused.h"
+#include "npf.h"
 
 /*
  * Multicast packets are punted to the slow path when they cannot be
@@ -993,16 +996,11 @@ static void expire_upcalls(__attribute__((unused)) struct rte_timer *rtetm,
 }
 #endif
 
-static int mcast6_ethernet_send(struct mif6 *mifp, struct rte_mbuf *m,
-				struct ifnet *in_ifp)
+static void mcast6_ethernet_send(struct mif6 *mifp, struct rte_mbuf *m,
+				 struct ifnet *in_ifp)
 {
-	struct ifnet *ifp = mifp->m6_ifp;
 	struct ip6_hdr *ip6 = ip6hdr(m);
-	struct rte_ether_hdr *eth_hdr;
-	mcast_dst_eth_addr_t eth_daddr;
-
-	if (unlikely(rte_pktmbuf_pkt_len(m) > ifp->if_mtu))
-		return ICMP6_PACKET_TOO_BIG;
+	struct ifnet *out_ifp = mifp->m6_ifp;
 
 	/*
 	 * Time to decrement ttl since packet is being forwarded, not
@@ -1011,13 +1009,22 @@ static int mcast6_ethernet_send(struct mif6 *mifp, struct rte_mbuf *m,
 	 */
 	ip6->ip6_hlim--;
 
-	eth_hdr = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
-	eth_daddr = mcast6_dst_eth_addr(&ip6->ip6_dst);
-	rte_ether_addr_copy(&eth_daddr.as_addr, &eth_hdr->d_addr);
-	rte_ether_addr_copy(&ifp->eth_addr, &eth_hdr->s_addr);
+	struct next_hop nh = {
+		.flags = RTF_MULTICAST,
+		.u.ifp = out_ifp,
+	};
+	struct pl_packet pl_pkt = {
+		.mbuf = m,
+		.l2_pkt_type = pkt_mbuf_get_l2_traffic_type(m),
+		.l3_hdr = ip6,
+		.in_ifp = in_ifp,
+		.out_ifp = out_ifp,
+		.nxt.v6 = &nh,
+		.l2_proto = ETH_P_IPV6,
+		.npf_flags = NPF_FLAG_CACHE_EMPTY,
+	};
 
-	if_output(ifp, m, in_ifp, ETH_P_IPV6);
-	return 0;
+	pipeline_fused_ipv6_out(&pl_pkt);
 }
 
 static void mcast6_tunnel_send(struct ifnet *in_ifp, struct mif6 *out_mifp,
@@ -1090,22 +1097,12 @@ static void mcast6_tunnel_send(struct ifnet *in_ifp, struct mif6 *out_mifp,
 static void mif6_send(struct ifnet *in_ifp, struct mif6 *out_mifp,
 		      struct rte_mbuf *m, int plen)
 {
-	struct vrf *vrf;
-
 	if (unlikely(out_mifp->m6_flags & VIFF_TUNNEL)) {
 		mcast6_tunnel_send(in_ifp, out_mifp, m, plen);
 		return;
 	}
 
-	if (mcast6_ethernet_send(out_mifp, m, in_ifp) == ICMP6_PACKET_TOO_BIG) {
-		vrf = vrf_get_rcu(if_vrfid(in_ifp));
-		if (vrf) {
-			struct mcast6_vrf *mvrf6 = &vrf->v_mvrf6;
-			MRT6STAT_INC(mvrf6, mrt6s_pkttoobig);
-		}
-		icmp6_error(in_ifp, m, ICMP6_PACKET_TOO_BIG,
-			    0, htonl(out_mifp->m6_ifp->if_mtu));
-	}
+	mcast6_ethernet_send(out_mifp, m, in_ifp);
 }
 
 /*
