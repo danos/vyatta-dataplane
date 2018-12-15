@@ -1049,7 +1049,6 @@ static int mcast_ethernet_send(struct ifnet *in_ifp,
 	struct iphdr *ip;
 
 	ip = iphdr(m);
-	decrement_ttl(ip);
 
 	out_vifp->v_pkt_out++;
 	out_vifp->v_bytes_out += plen;
@@ -1083,13 +1082,9 @@ static void mcast_tunnel_send(struct ifnet *in_ifp,  struct vif *out_vifp,
 			      struct rte_mbuf *m, int plen)
 {
 	struct ifnet *out_ifp;
-	struct iphdr *ip;
 	struct mcast_mgre_tun_walk_ctx mgre_tun_walk_ctx;
 
 	out_ifp = out_vifp->v_ifp;
-	ip = iphdr(m);
-
-	decrement_ttl(ip);
 
 	/* Call GRE API which will invoke specified callback
 	 * for each end point in P2P or P2MP tunnel
@@ -1139,6 +1134,15 @@ static void vif_send(struct ifnet *in_ifp, struct vif *out_vifp,
 		mcast_ip_deliver(in_ifp, m);
 		return;
 	}
+
+	struct iphdr *ip = iphdr(m);
+
+	/*
+	 * Time to decrement ttl since packet is being forwarded, not
+	 * just punted. It was previously tested to ensure it is greater
+	 * than 1 so there is no need to test for ttl expire here.
+	 */
+	decrement_ttl(ip);
 
 	if (unlikely(out_ifp->if_type == IFT_TUNNEL_GRE &&
 		     !(out_ifp->if_flags & IFF_NOARP))) {

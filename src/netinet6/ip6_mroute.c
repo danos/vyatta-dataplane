@@ -1002,13 +1002,6 @@ static void mcast6_ethernet_send(struct mif6 *mifp, struct rte_mbuf *m,
 	struct ip6_hdr *ip6 = ip6hdr(m);
 	struct ifnet *out_ifp = mifp->m6_ifp;
 
-	/*
-	 * Time to decrement ttl since packet is being forwarded, not
-	 * just punted. It was previously tested to ensure it is greater
-	 * than 1 so there is no need to test for ttl expire here.
-	 */
-	ip6->ip6_hlim--;
-
 	struct next_hop nh = {
 		.flags = RTF_MULTICAST,
 		.u.ifp = out_ifp,
@@ -1031,13 +1024,9 @@ static void mcast6_tunnel_send(struct ifnet *in_ifp, struct mif6 *out_mifp,
 			      struct rte_mbuf *m, int plen)
 {
 	struct ifnet *out_ifp;
-	struct ip6_hdr *ip6;
 	struct mcast_mgre_tun_walk_ctx mgre_tun_walk_ctx;
 
 	out_ifp = out_mifp->m6_ifp;
-	ip6 = ip6hdr(m);
-
-	ip6->ip6_hlim--;
 
 	/* Call GRE API which will invoke specified callback
 	 * for each end point in P2P or P2MP tunnel
@@ -1087,6 +1076,15 @@ static void mif6_send(struct ifnet *in_ifp, struct mif6 *out_mifp,
 		mcast_ip6_deliver(in_ifp, m);
 		return;
 	}
+
+	struct ip6_hdr *ip6 = ip6hdr(m);
+
+	/*
+	 * Time to decrement ttl since packet is being forwarded, not
+	 * just punted. It was previously tested to ensure it is greater
+	 * than 1 so there is no need to test for ttl expire here.
+	 */
+	ip6->ip6_hlim--;
 
 	if (unlikely(out_ifp->if_type == IFT_TUNNEL_GRE &&
 		     !(out_ifp->if_flags & IFF_NOARP))) {
