@@ -1092,6 +1092,10 @@ static void mif6_send(struct ifnet *in_ifp, struct mif6 *out_mifp,
 		return;
 	}
 
+	/* OIL replication counts */
+	out_mifp->m6_pkt_out++;
+	out_mifp->m6_bytes_out += plen;
+
 	mcast6_ethernet_send(out_mifp, m, in_ifp);
 }
 
@@ -1174,8 +1178,6 @@ static int ip6_mdq(struct mcast6_vrf *mvrf6, struct rte_mbuf *m,
 	 * members downstream on the interface. */
 	cds_lfht_for_each_entry(mvrf6->mif6table, &iter, mifp, node) {
 		if (IF_ISSET(mifp->m6_mif_index, &rt->mf6c_ifset)) {
-			mifp->m6_pkt_out++;
-			mifp->m6_bytes_out += plen;
 			if (!mifp->m6_ifp)
 				continue;
 

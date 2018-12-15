@@ -1044,14 +1044,11 @@ static void expire_upcalls(__attribute__((unused)) struct rte_timer *rtetm,
 
 static int mcast_ethernet_send(struct ifnet *in_ifp,
 			       struct vif *out_vifp,
-			       struct rte_mbuf *m, int plen)
+			       struct rte_mbuf *m)
 {
 	struct iphdr *ip;
 
 	ip = iphdr(m);
-
-	out_vifp->v_pkt_out++;
-	out_vifp->v_bytes_out += plen;
 
 	struct ifnet *out_ifp = out_vifp->v_ifp;
 
@@ -1151,7 +1148,11 @@ static void vif_send(struct ifnet *in_ifp, struct vif *out_vifp,
 		return;
 	}
 
-	mcast_ethernet_send(in_ifp, out_vifp, m, plen);
+	/* OIL replication counts */
+	out_vifp->v_pkt_out++;
+	out_vifp->v_bytes_out += plen;
+
+	mcast_ethernet_send(in_ifp, out_vifp, m);
 }
 
 /*
