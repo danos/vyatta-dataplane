@@ -1052,9 +1052,6 @@ static int mcast_ethernet_send(struct ifnet *in_ifp,
 
 	struct ifnet *out_ifp = out_vifp->v_ifp;
 
-	if (unlikely(!(out_ifp->if_flags & IFF_UP)))
-		return -1;
-
 	struct next_hop nh = {
 		.flags = RTF_MULTICAST,
 		.u.ifp = out_ifp,
@@ -1213,7 +1210,12 @@ static int ip_mdq(struct mcast_vrf *mvrf, struct rte_mbuf *m, struct ip *ip,
 	cds_lfht_for_each_entry(mvrf->viftable, &iter, vifp, node) {
 		if (IF_ISSET(vifp->v_vif_index, &rt->mfc_ifset) &&
 		    ip->ip_ttl > vifp->v_threshold) {
-			if (!vifp->v_ifp)
+			struct ifnet *out_ifp = vifp->v_ifp;
+
+			if (!out_ifp)
+				continue;
+			const bool if_up = (out_ifp->if_flags & IFF_UP);
+			if (!if_up)
 				continue;
 
 			mh = mcast_create_l2l3_header(m, md,

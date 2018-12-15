@@ -1178,7 +1178,12 @@ static int ip6_mdq(struct mcast6_vrf *mvrf6, struct rte_mbuf *m,
 	 * members downstream on the interface. */
 	cds_lfht_for_each_entry(mvrf6->mif6table, &iter, mifp, node) {
 		if (IF_ISSET(mifp->m6_mif_index, &rt->mf6c_ifset)) {
-			if (!mifp->m6_ifp)
+			struct ifnet *out_ifp = mifp->m6_ifp;
+
+			if (!out_ifp)
+				continue;
+			const bool if_up = (out_ifp->if_flags & IFF_UP);
+			if (!if_up)
 				continue;
 
 			mh = mcast_create_l2l3_header(m, md,
