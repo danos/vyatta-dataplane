@@ -1103,7 +1103,7 @@ static void mif6_send(struct ifnet *in_ifp, struct mif6 *out_mifp,
  * Packet forwarding routine once entry in the cache is made
  */
 static int ip6_mdq(struct mcast6_vrf *mvrf6, struct rte_mbuf *m,
-		   struct ifnet *ifp, struct mf6c *rt)
+		   struct ifnet *in_ifp, struct mf6c *rt)
 {
 	struct ip6_hdr *ip6 = ip6hdr(m);
 	struct mif6 *mifp;
@@ -1114,7 +1114,7 @@ static int ip6_mdq(struct mcast6_vrf *mvrf6, struct rte_mbuf *m,
 
 	/* Don't forward if it didn't arrive on parent mif* for its origin.  */
 	mifp = get_mif_by_ifindex(rt->mf6c_parent);
-	if (mifp == NULL || mifp->m6_if_index != ifp->if_index) {
+	if (mifp == NULL || mifp->m6_if_index != in_ifp->if_index) {
 		/* if wrong iif */
 		MRT6STAT_INC(mvrf6, mrt6s_wrong_if);
 		rt->mf6c_wrong_if++;
@@ -1144,7 +1144,7 @@ static int ip6_mdq(struct mcast6_vrf *mvrf6, struct rte_mbuf *m,
 	 */
 	if (IN6_IS_ADDR_UNSPECIFIED(&ip6->ip6_src) ||
 	    IN6_IS_ADDR_UNSPECIFIED(&ip6->ip6_dst)) {
-		IP6STAT_INC_IFP(ifp, IPSTATS_MIB_INADDRERRORS);
+		IP6STAT_INC_IFP(in_ifp, IPSTATS_MIB_INADDRERRORS);
 		return RTF_BLACKHOLE;
 	}
 
@@ -1156,8 +1156,8 @@ static int ip6_mdq(struct mcast6_vrf *mvrf6, struct rte_mbuf *m,
 	 * Drop packets not on loopback interface that have a loopback source
 	 * or destination address.
 	 */
-	if (in6_setscope(&ip6->ip6_src, ifp, &iszone) ||
-	    in6_setscope(&ip6->ip6_dst, ifp, &idzone))
+	if (in6_setscope(&ip6->ip6_src, in_ifp, &iszone) ||
+	    in6_setscope(&ip6->ip6_dst, in_ifp, &idzone))
 		return RTF_REJECT;
 
 	mifp->m6_pkt_in++;
@@ -1185,7 +1185,7 @@ static int ip6_mdq(struct mcast6_vrf *mvrf6, struct rte_mbuf *m,
 						      sizeof(struct ip6_hdr));
 			if (mh) {
 				/* send the newly created packet chain */
-				mif6_send(ifp, mifp, mh, plen);
+				mif6_send(in_ifp, mifp, mh, plen);
 			} else {
 				rte_pktmbuf_free(md);
 				return -ENOBUFS;

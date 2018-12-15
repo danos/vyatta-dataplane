@@ -1159,7 +1159,7 @@ static void vif_send(struct ifnet *in_ifp, struct vif *out_vifp,
  * Packet forwarding routine once entry in the cache is made
  */
 static int ip_mdq(struct mcast_vrf *mvrf, struct rte_mbuf *m, struct ip *ip,
-		  struct ifnet *ifp, struct mfc *rt)
+		  struct ifnet *in_ifp, struct mfc *rt)
 {
 	struct vif *vifp;
 	int plen = ntohs(ip->ip_len);
@@ -1168,7 +1168,7 @@ static int ip_mdq(struct mcast_vrf *mvrf, struct rte_mbuf *m, struct ip *ip,
 
 	/* Don't forward if it didn't arrive on parent vif for its origin. */
 	vifp = get_vif_by_ifindex(rt->mfc_parent);
-	if (!vifp || (vifp->v_if_index != ifp->if_index)) {
+	if (!vifp || (vifp->v_if_index != in_ifp->if_index)) {
 		MRTSTAT_INC(mvrf, mrts_wrong_if);
 		++rt->mfc_wrong_if;
 
@@ -1220,7 +1220,7 @@ static int ip_mdq(struct mcast_vrf *mvrf, struct rte_mbuf *m, struct ip *ip,
 						      sizeof(struct iphdr));
 			if (mh) {
 				/* send the newly created packet chain */
-				vif_send(ifp, vifp, mh, plen);
+				vif_send(in_ifp, vifp, mh, plen);
 			} else {
 				rte_pktmbuf_free(md);
 				return -ENOBUFS;
