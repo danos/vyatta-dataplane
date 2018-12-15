@@ -1037,37 +1037,24 @@ static void mcast6_tunnel_send(struct ifnet *in_ifp, struct mif6 *out_mifp,
 	out_ifp = out_mifp->m6_ifp;
 	ip6 = ip6hdr(m);
 
-	switch (out_ifp->if_type) {
-	case IFT_TUNNEL_GRE:
-		ip6->ip6_hlim--;
+	ip6->ip6_hlim--;
 
-		/* Call GRE API which will invoke specified callback
-		 * for each end point in P2P or P2MP tunnel
-		 */
-		mgre_tun_walk_ctx.proto = ETH_P_IPV6;
-		mgre_tun_walk_ctx.mbuf = m;
-		mgre_tun_walk_ctx.in_ifp = in_ifp;
-		mgre_tun_walk_ctx.pkt_len = plen;
-		mgre_tun_walk_ctx.out_vif = out_mifp;
-		mgre_tun_walk_ctx.hdr_len = sizeof(struct ip6_hdr);
-		gre_tunnel_peer_walk(out_ifp,
-				     mcast_mgre_tunnel_endpoint_send,
-				     &mgre_tun_walk_ctx);
-		/*
-		 * Decrement ref count on original mbuf as new mbuf
-		 * was transmitted in replication loop.
-		 */
-		rte_pktmbuf_free(m);
-		return;
-
-	case IFT_TUNNEL_VTI:
-		ip6->ip6_hlim--;
-		out_mifp->m6_pkt_out++;
-		out_mifp->m6_bytes_out += plen;
-		IP6STAT_INC_IFP(out_ifp, IPSTATS_MIB_OUTMCASTPKTS);
-		vti_tunnel_out(in_ifp, out_ifp, m, ETH_P_IPV6);
-		return;
-	}
+	/* Call GRE API which will invoke specified callback
+	 * for each end point in P2P or P2MP tunnel
+	 */
+	mgre_tun_walk_ctx.proto = ETH_P_IPV6;
+	mgre_tun_walk_ctx.mbuf = m;
+	mgre_tun_walk_ctx.in_ifp = in_ifp;
+	mgre_tun_walk_ctx.pkt_len = plen;
+	mgre_tun_walk_ctx.out_vif = out_mifp;
+	mgre_tun_walk_ctx.hdr_len = sizeof(struct ip6_hdr);
+	gre_tunnel_peer_walk(out_ifp, mcast_mgre_tunnel_endpoint_send,
+			     &mgre_tun_walk_ctx);
+	/*
+	 * Decrement ref count on original mbuf as new mbuf
+	 * was transmitted in replication loop.
+	 */
+	rte_pktmbuf_free(m);
 }
 
 /*
@@ -1101,7 +1088,7 @@ static void mif6_send(struct ifnet *in_ifp, struct mif6 *out_mifp,
 		return;
 	}
 
-	if (unlikely(out_mifp->m6_flags & VIFF_TUNNEL)) {
+	if (unlikely(out_ifp->if_type == IFT_TUNNEL_GRE)) {
 		mcast6_tunnel_send(in_ifp, out_mifp, m, plen);
 		return;
 	}
