@@ -199,7 +199,7 @@ static int rpc_tuple_insert(struct npf_alg *rpc,
 	struct apt_match_key m = { 0 };
 	struct apt_tuple *at;
 
-	m.m_proto = npc->npc_next_proto;
+	m.m_proto = npf_cache_ipproto(npc);
 	m.m_ifx = npf_session_get_if_index(se);
 	m.m_alen = npc->npc_alen;
 	m.m_dport = dport;

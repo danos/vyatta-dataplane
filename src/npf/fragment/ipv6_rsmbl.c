@@ -290,7 +290,7 @@ ipv6_frag_process(struct cds_lfht *frag_table, struct ipv6_frag_pkt *fp,
 
 		fp->last_unfrg_hlen = npc->last_unfrg_hlen;
 		fp->last_unfrg_hofs = npc->last_unfrg_hofs;
-		fp->first_frg_proto = npc->npc_next_proto;
+		fp->first_frg_proto = npf_cache_ipproto(npc);
 	} else if (!npc->fh_more) {
 		/*
 		 * Last fragment
@@ -414,11 +414,11 @@ ipv6_frag_process(struct cds_lfht *frag_table, struct ipv6_frag_pkt *fp,
 			npc->last_unfrg_hofs = fp->last_unfrg_hofs;
 
 			/*
-			 * Update the caches next proto field, since
-			 * the next proto is no longer a fragmentation
+			 * Update the caches final proto field, since
+			 * the final proto is no longer a fragmentation
 			 * header.
 			 */
-			npc->npc_next_proto = fp->first_frg_proto;
+			npc->npc_proto_final = fp->first_frg_proto;
 
 			/*
 			 * Retrieve the senders mtu value that we
