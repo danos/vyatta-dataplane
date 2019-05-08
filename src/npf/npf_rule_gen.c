@@ -1152,7 +1152,7 @@ npf_gen_ncode_protocol_list(struct npf_rule_ctx *ctx, char *value)
 			return -EINVAL;
 		}
 		npf_grouper_add_proto(ctx, proto, 0);
-		npf_gennc_proto(ctx->nc_ctx, proto);
+		npf_gennc_proto_final(ctx->nc_ctx, proto);
 	}
 
 	return 0;
@@ -1287,7 +1287,7 @@ npf_gen_ncode(zhashx_t *config_ht, void **ncode, uint32_t *size,
 			 * Protocol check is done in the TCP flags ncode
 			 */
 			if (!tcp_flags)
-				npf_gennc_proto(ctx.nc_ctx, proto);
+				npf_gennc_proto_final(ctx.nc_ctx, proto);
 		}
 	}
 	value = zhashx_lookup(config_ht, "protocol-group");

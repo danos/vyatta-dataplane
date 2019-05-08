@@ -127,8 +127,8 @@ static const struct npf_instruction {
 			[0] = NPF_OPERAND_REL_ADDRESS,
 		},
 	},
-	[NPF_OPCODE_PROTO] = {
-		.name = "test proto",
+	[NPF_OPCODE_PROTO_FINAL] = {
+		.name = "test proto-final",
 		.op = {
 			[0] = NPF_OPERAND_VALUE,
 		},

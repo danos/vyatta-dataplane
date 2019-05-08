@@ -74,7 +74,7 @@ void npf_gennc_icmp(nc_ctx_t *ctx, int type, int code, bool ipv4, bool class);
 void npf_gennc_ip6_rt(nc_ctx_t *ctx, uint8_t type);
 void npf_gennc_tbl(nc_ctx_t *ctx, int opts, u_int tableid);
 void npf_gennc_tcpfl(nc_ctx_t *ctx, uint8_t tf, uint8_t tf_mask);
-void npf_gennc_proto(nc_ctx_t *ctx, uint8_t proto);
+void npf_gennc_proto_final(nc_ctx_t *ctx, uint8_t proto_final);
 void npf_ncgen_matchdscp(nc_ctx_t *ctx, uint64_t matchdscpset);
 void npf_gennc_etherpcp(nc_ctx_t *ctx, uint8_t pcp);
 void npf_gennc_ethertype(nc_ctx_t *ctx, uint16_t etype);

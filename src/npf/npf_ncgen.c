@@ -521,16 +521,16 @@ npf_gennc_tcpfl(nc_ctx_t *ctx, uint8_t tf, uint8_t tf_mask)
 }
 
 /*
- * npf_gennc_proto: fragment to match the protocol.
+ * npf_gennc_proto_final: match the L4 protocol.
  */
 void
-npf_gennc_proto(nc_ctx_t *ctx, uint8_t proto)
+npf_gennc_proto_final(nc_ctx_t *ctx, uint8_t proto_final)
 {
 	uint32_t *nc = npf_ncgen_getptr(ctx, 4 /* words */);
 
 	/* OP, code, type (2 words) */
-	*nc++ = NPF_OPCODE_PROTO;
-	*nc++ = proto;
+	*nc++ = NPF_OPCODE_PROTO_FINAL;
+	*nc++ = proto_final;
 
 	/* Comparison block (2 words). */
 	npf_ncgen_addjmp(ctx, &nc);

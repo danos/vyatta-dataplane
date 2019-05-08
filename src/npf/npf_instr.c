@@ -78,17 +78,17 @@ npf_match_mac(const struct rte_mbuf *nbuf, uint32_t opts, const char *filt)
 }
 
 /*
- * npf_match_proto: match layer 4 protocol.
+ * npf_match_proto_final: match the L4 protocol.
  */
 int
-npf_match_proto(const npf_cache_t *npc, uint32_t ap)
+npf_match_proto_final(const npf_cache_t *npc, uint32_t ap)
 {
-	const int proto = ap & 0xff;
+	const int proto_final = ap & 0xff;
 
 	if (!npf_iscached(npc, NPC_IP46))
 		return -1;
 
-	return (npf_cache_ipproto(npc) != proto) ? -1 : 0;
+	return (npf_cache_ipproto(npc) != proto_final) ? -1 : 0;
 }
 
 /*
