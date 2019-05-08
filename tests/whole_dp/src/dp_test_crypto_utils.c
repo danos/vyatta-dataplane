@@ -395,7 +395,7 @@ static void wait_for_npf_policy(const struct dp_test_crypto_policy *policy,
 	   "}";
 
 	if (policy->proto)
-		snprintf(proto_str, 100, "proto %d ", policy->proto);
+		snprintf(proto_str, 100, "proto-final %d ", policy->proto);
 
 	snprintf(vrf_str, 100, "out-%d", vrf_id);
 

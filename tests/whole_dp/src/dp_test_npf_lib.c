@@ -560,7 +560,7 @@ _dp_test_npf_ruleset_detach(struct dp_test_npf_ruleset_t *rset,
  * Example useage:
  *
  *	struct dp_test_npf_rule_t rules[] = {
- *		{"10", PASS, STATELESS, "proto=6"},
+ *		{"10", PASS, STATELESS, "proto-final=6"},
  *		RULE_DEF_BLOCK,
  *		NULL_RULE };
  *
@@ -592,7 +592,7 @@ _dp_test_fw_ruleset_add(struct dp_test_fw_ruleset_t *rset,
 	 * Add ruleset rules
 	 */
 	for (rule = rset->rules; rule && rule->rule; rule++) {
-		char *str = strstr(rule->npf, "proto=");
+		char *str = strstr(rule->npf, "proto-final=");
 
 		/*
 		 * If the npf rule has a protocol specified, it must be a
@@ -602,7 +602,7 @@ _dp_test_fw_ruleset_add(struct dp_test_fw_ruleset_t *rset,
 			char *endp;
 			ulong proto;
 
-			str += 6;
+			str += 12;
 			proto = strtoul(str, &endp, 10);
 			if (endp == str || proto > 255)
 				_dp_test_fail(
@@ -614,7 +614,7 @@ _dp_test_fw_ruleset_add(struct dp_test_fw_ruleset_t *rset,
 		 *
 		 * npf-ut add <class>:<name> <index> action=accept|drop
 		 *            [stateful=y]
-		 *	      [proto=<protocol>]
+		 *	      [proto-final=<protocol>]
 		 *            [src-addr=<addr>[/<mask>]]
 		 *            [src-port=<port>]
 		 *	      [dst-addr=<addr>[/<mask>]]

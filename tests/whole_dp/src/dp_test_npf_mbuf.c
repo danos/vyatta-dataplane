@@ -139,7 +139,7 @@ DP_START_TEST(npf_mbuf2, test)
 			.rule     = "10",
 			.pass     = PASS,
 			.stateful = false,
-			.npf      = "proto=6 src-port=49152 dst-port=80 "
+			.npf      = "proto-final=6 src-port=49152 dst-port=80 "
 			"src-addr=100.64.0.1 dst-addr=1.1.1.1"
 		},
 		RULE_DEF_BLOCK,

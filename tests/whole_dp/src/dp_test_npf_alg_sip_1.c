@@ -340,7 +340,7 @@ DP_START_TEST(sip1_1b, test)
 			.rule     = "10",
 			.pass     = PASS,
 			.stateful = true,
-			.npf      = "proto=17 dst-port=5060"
+			.npf      = "proto-final=17 dst-port=5060"
 		},
 		RULE_DEF_BLOCK,
 		NULL_RULE

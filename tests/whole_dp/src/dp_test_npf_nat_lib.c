@@ -35,13 +35,13 @@
  *
  * Source NAT example:
  *   npf-ut add snat:<ifname> <rule>  nat-type=snat [trans-addr=<trans-addr>]
- *     [trans-port <trans-port>] action=accept [proto=<proto>]
+ *     [trans-port <trans-port>] action=accept [proto-final=<proto>]
  *     [src-addr=<address>[/<mask>]] [src-port=<port>]
  *     [dst-addr=<address>[/<mask>]] [dst-port=<port>]
  *
  * Destination NAT example:
  *   npf-ut add dnat:<ifname> <rule>  nat-type=dnat [trans-addr=<trans-addr>]
- *     [trans-port <trans-port>] action=accept [proto=<proto>]
+ *     [trans-port <trans-port>] action=accept [proto-final=<proto>]
  *     [src-addr=<address>[/<mask>]] [src-port=<port>]
  *     [dst-addr=<address>[/<mask>]] [dst-port=<port>]
  */
@@ -135,7 +135,7 @@ dp_test_npf_nat_match_cmd(char *str, size_t len,
 	 */
 
 	if (nat->proto != NAT_NULL_PROTO)
-		l += spush(str+l, len-l, "proto=%d ", nat->proto);
+		l += spush(str+l, len-l, "proto-final=%d ", nat->proto);
 
 	if (from_addr != NULL) {
 		if (strchr(from_addr, ':') || strchr(from_addr, '.'))
@@ -344,7 +344,7 @@ dp_test_npf_nat_match_list(char *str, size_t len,
 	 * Note the trailing space at the end of the string.
 	 */
 	if (nat->proto != NAT_NULL_PROTO)
-		l += spush(str+l, len-l, "proto %d ", nat->proto);
+		l += spush(str+l, len-l, "proto-final %d ", nat->proto);
 
 	if (nat->from_addr || nat->from_port) {
 		l += spush(str+l, len-l, "from %s ",

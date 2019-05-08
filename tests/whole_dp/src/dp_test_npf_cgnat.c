@@ -3480,13 +3480,13 @@ DP_START_TEST_FULL_RUN(cgnat32b, test)
 			.rule     = "10",
 			.pass     = PASS,
 			.stateful = true,
-			.npf      = "proto=6 dst-port=179"
+			.npf      = "proto-final=6 dst-port=179"
 		},
 		{
 			.rule     = "10",
 			.pass     = PASS,
 			.stateful = true,
-			.npf      = "proto=6 src-port=179"
+			.npf      = "proto-final=6 src-port=179"
 		},
 		NULL_RULE
 	};

@@ -48,7 +48,7 @@
  * 2) Translates to this string command executed on the dataplane.
  *
  * cmd = "npf-ut add dnat:\"dpT10\" 10 nat-type=dnat trans-addr=90.90.90.90 "
- *       "action=accept src-addr=70.70.70.70";
+ *       "src-addr=70.70.70.70";
  *
  * 3) And this JSON show reply to the command "npf-op show all: dnat"
  *
@@ -65,7 +65,7 @@
  *                         "bytes":0,
  *                         "packets":0,
  *                         "action": "pass in ",
- *                         "match": "on dpT10 proto 6 from 100.0.100.100",
+ *                         "match": "on dpT10 proto-final 6 from 100.0.100.100",
  *                         "map": "dynamic 10.0.10.10 port 80-80 <- any",
  *                         "total_ts": 0,
  *                         "used_ts": 0
@@ -85,7 +85,7 @@ dp_test_cmd_replace_dnat(int rule_num, const char *ifname, const char *orig_ip,
 
 	dp_test_intf_real(ifname, real_if_name);
 	snprintf(cmd, sizeof(cmd), "npf-ut add dnat:%s %i nat-type=dnat "
-		 "trans-addr=%s trans-port=%i action=accept proto=%d "
+		 "trans-addr=%s trans-port=%i proto-final=%d "
 		 "src-addr=%s", real_if_name, rule_num,
 		 dnat_ip, dnat_port, proto, orig_ip);
 	dp_test_console_request_reply(cmd, false);
@@ -96,7 +96,7 @@ dp_test_cmd_replace_dnat(int rule_num, const char *ifname, const char *orig_ip,
 	char expected[TEST_MAX_REPLY_LEN];
 
 	snprintf(cmd, TEST_MAX_CMD_LEN, "npf-op show all: dnat");
-	snprintf(expected, TEST_MAX_REPLY_LEN, "proto %d from %s",
+	snprintf(expected, TEST_MAX_REPLY_LEN, "proto-final %d from %s",
 		 proto, orig_ip);
 	dp_test_check_state_show(cmd, expected, false);
 }
@@ -111,7 +111,7 @@ dp_test_cmd_delete_dnat(int rule_num, const char *ifname, const char *orig_ip,
 	char real_if_name[IFNAMSIZ];
 
 	snprintf(state_cmd, TEST_MAX_CMD_LEN, "npf-op show all: dnat");
-	snprintf(expected, TEST_MAX_REPLY_LEN, "proto %d from %s",
+	snprintf(expected, TEST_MAX_REPLY_LEN, "proto-final %d from %s",
 		 proto, orig_ip);
 
 	dp_test_check_state_show(state_cmd, expected, false);
@@ -148,7 +148,7 @@ dp_test_cmd_replace_snat(int rule_num, const char *ifname, const char *orig_ip,
 
 	snprintf(cmd, sizeof(cmd),
 		 "npf-ut add snat:%s %i nat-type=snat trans-addr=%s"
-		 "%s action=accept src-addr=%s",
+		 "%s src-addr=%s",
 		 real_if_name, rule_num, snat_ip, tmp, orig_ip);
 
 	dp_test_console_request_reply(cmd, false);

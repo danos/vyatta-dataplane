@@ -876,7 +876,7 @@ static const struct dp_test_command_t npf_cmd[] = {
 	 * clear the statistics, and dump the generated file
 	 */
 	{ /* add rule to a rule group */
-		"npf-ut add fw:FW1 10 action=accept proto=6 src-port=80",
+		"npf-ut add fw:FW1 10 action=accept proto-final=6 src-port=80",
 		EXP_EMPTY_STRING,
 		true,
 		false,
@@ -914,7 +914,7 @@ static const struct dp_test_command_t npf_cmd[] = {
 		"		  \"bytes\":0,"
 		"		  \"packets\":0,"
 		"		  \"action\":\"pass \","
-		"		  \"match\":\"proto 6 from any port 80 \""
+		"		  \"match\":\"proto-final 6 from any port 80 \""
 		"		}"
 		"	      }"
 		"	    }"

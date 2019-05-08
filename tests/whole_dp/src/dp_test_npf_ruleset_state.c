@@ -43,13 +43,13 @@ dpt_fw(const char *if_name, bool in, const char *fw_name, bool add)
 			.rule     = "10",
 			.pass     = PASS,
 			.stateful = STATELESS,
-			.npf      = "proto=17 dst-port=48879"
+			.npf      = "proto-final=17 dst-port=48879"
 		},
 		{
 			.rule     = "20",
 			.pass     = BLOCK,
 			.stateful = STATELESS,
-			.npf      = "proto=17 dst-port=48878"
+			.npf      = "proto-final=17 dst-port=48878"
 		},
 		RULE_DEF_BLOCK,
 		NULL_RULE

@@ -1272,8 +1272,8 @@ const char *npf_rules_check_cmds[] = {
 	"pipe 0 1 1",
 	"match 0 1 action=accept src-addr=1.1.1.11/32 handle=tag(1)",
 	"pipe 0 2 2",
-	"match 0 2 action=accept proto=6 dst-addr=2.2.2.11/32 dst-port=999 "
-		"handle=tag(2)",
+	"match 0 2 action=accept proto-final=6 dst-addr=2.2.2.11/32 "
+		"dst-port=999 handle=tag(2)",
 	"enable"
 };
 
@@ -1303,9 +1303,10 @@ DP_START_TEST(qos_basic_ipv4, npf_rules_check)
 	rc = json_object_object_get_ex(j_obj, "2", &j_rule);
 	dp_test_fail_unless(rc, "failed to get rule '2'\n");
 	dp_test_qos_check_rule(j_rule, "pass",
-			       "action=accept proto=6 dst-addr=2.2.2.11/32 "
+			       "action=accept proto-final=6 "
+			       "dst-addr=2.2.2.11/32 "
 			       "dst-port=999 handle=tag(2)",
-			       "proto 6 to 2.2.2.11/32 port 999",
+			       "proto-final 6 to 2.2.2.11/32 port 999",
 			       "apply tag(2)", 0, 0, debug);
 	json_object_put(j_obj);
 

@@ -658,7 +658,7 @@ DP_START_TEST(sess_limit_tcp, max_halfopen)
 		false,
 		"npf-ut add session-limiter:GROUP1 10 "
 		"action=accept "
-		"proto=6 dst-addr=200.201.202.203 dst-port=80 "
+		"proto-final=6 dst-addr=200.201.202.203 dst-port=80 "
 		"handle=session-limiter(parameter=PARAM1)");
 
 	dp_test_npf_cmd_fmt(
@@ -868,7 +868,7 @@ DP_START_TEST(sess_limit_tcp, max_rate)
 		false,
 		"npf-ut add session-limiter:GROUP1 10 "
 		"action=accept "
-		"proto=6 dst-addr=200.201.202.203 dst-port=80 "
+		"proto-final=6 dst-addr=200.201.202.203 dst-port=80 "
 		"handle=session-limiter(parameter=PARAM1)");
 
 	dp_test_npf_cmd_fmt(
@@ -1047,7 +1047,7 @@ DP_START_TEST(sess_limit_udp, max_halfopen)
 		false,
 		"npf-ut add session-limiter:GROUP1 10 "
 		"action=accept "
-		"proto=17 dst-addr=200.201.202.203 dst-port=80 "
+		"proto-final=17 dst-addr=200.201.202.203 dst-port=80 "
 		"handle=session-limiter(parameter=PARAM1)");
 
 	dp_test_npf_cmd_fmt(

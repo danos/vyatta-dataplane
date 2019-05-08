@@ -266,7 +266,7 @@ DP_START_TEST(alg_ftp1b, test)
 			.rule     = "10",
 			.pass     = PASS,
 			.stateful = true,
-			.npf      = "proto=6 dst-port=21"
+			.npf      = "proto-final=6 dst-port=21"
 		},
 		RULE_DEF_BLOCK,
 		NULL_RULE
@@ -495,7 +495,7 @@ DP_START_TEST(alg_ftp1c, test)
 			.rule     = "10",
 			.pass     = PASS,
 			.stateful = true,
-			.npf      = "proto=6 dst-port=21"
+			.npf      = "proto-final=6 dst-port=21"
 		},
 		RULE_DEF_BLOCK,
 		NULL_RULE

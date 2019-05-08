@@ -1976,14 +1976,21 @@ npf_get_rule_match_string(zhashx_t *config_ht, char *buf, size_t *used_buf_len,
 		buf_app_printf(buf, used_buf_len, total_buf_len,
 			       "family %s ", value);
 
-	value = zhashx_lookup(config_ht, "proto-final");
-	if (!value)
-		value = zhashx_lookup(config_ht, "proto-base");
-	if (!value)
-		value = zhashx_lookup(config_ht, "proto");
+	value = zhashx_lookup(config_ht, "proto-base");
+	if (value) {
+		buf_app_printf(buf, used_buf_len, total_buf_len,
+			       "proto-base %s ", value);
+	}
+
+	char const *proto_key = "proto-final";
+	value = zhashx_lookup(config_ht, proto_key);
+	if (!value) {
+		proto_key = "proto";
+		value = zhashx_lookup(config_ht, proto_key);
+	}
 	if (value)
 		buf_app_printf(buf, used_buf_len, total_buf_len,
-			       "proto %s ", value);
+			       "%s %s ", proto_key, value);
 
 	value = zhashx_lookup(config_ht, "protocol-group");
 	if (value)

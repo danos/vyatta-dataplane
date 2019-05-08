@@ -139,7 +139,7 @@ DP_START_TEST(icmpv4_1, test)
 				.dpt_icmp_id = 0,
 				.dpt_icmp_seq = 0,
 			},
-			.npf = "proto=1 icmpv4=8"
+			.npf = "proto-final=1 icmpv4=8"
 		},
 		{
 			.fwd_status = DP_TEST_FWD_FORWARDED,
@@ -149,7 +149,7 @@ DP_START_TEST(icmpv4_1, test)
 				.dpt_icmp_id = 0,
 				.dpt_icmp_seq = 0,
 			},
-			.npf = "proto=1 icmpv4=echo-request"
+			.npf = "proto-final=1 icmpv4=echo-request"
 		},
 		{
 			.fwd_status = DP_TEST_FWD_FORWARDED,
@@ -158,7 +158,7 @@ DP_START_TEST(icmpv4_1, test)
 			{
 				.udata32 = 0
 			},
-			"proto=1 icmpv4=3:3"
+			"proto-final=1 icmpv4=3:3"
 		},
 		{
 			.fwd_status = DP_TEST_FWD_FORWARDED,
@@ -167,7 +167,7 @@ DP_START_TEST(icmpv4_1, test)
 			{
 				.udata32 = 0
 			},
-			"proto=1 icmpv4=port-unreachable"
+			"proto-final=1 icmpv4=port-unreachable"
 		},
 		{
 			.fwd_status = DP_TEST_FWD_DROPPED,
@@ -176,7 +176,7 @@ DP_START_TEST(icmpv4_1, test)
 			{
 				.udata32 = 0
 			},
-			"proto=1 icmpv4=3:3"
+			"proto-final=1 icmpv4=3:3"
 		},
 		{
 			.fwd_status = DP_TEST_FWD_DROPPED,
@@ -185,7 +185,7 @@ DP_START_TEST(icmpv4_1, test)
 			{
 				.udata32 = 0
 			},
-			"proto=1 icmpv4=port-unreachable"
+			"proto-final=1 icmpv4=port-unreachable"
 		},
 	};
 
@@ -285,7 +285,7 @@ DP_START_TEST(icmpv4_2, test)
 			.rule     = "10",
 			.pass     = PASS,
 			.stateful = STATELESS,
-			.npf      = "proto=1 icmpv4-group=ICMP1"},
+			.npf      = "proto-final=1 icmpv4-group=ICMP1"},
 		RULE_DEF_BLOCK,
 		NULL_RULE };
 
@@ -413,7 +413,7 @@ DP_START_TEST(icmpv4_3, test)
 			.rule     = "10",
 			.pass     = BLOCK,
 			.stateful = STATELESS,
-			.npf      = "proto=1 icmpv4-group=ICMP1"},
+			.npf      = "proto-final=1 icmpv4-group=ICMP1"},
 		RULE_DEF_PASS,
 		NULL_RULE };
 
@@ -575,7 +575,7 @@ DP_START_TEST(icmpv6_1, test)
 				.dpt_icmp_id = 0,
 				.dpt_icmp_seq = 0,
 			},
-			.npf = "proto=58 icmpv6=128"
+			.npf = "proto-final=58 icmpv6=128"
 		},
 		{
 			.fwd_status = DP_TEST_FWD_FORWARDED,
@@ -585,7 +585,7 @@ DP_START_TEST(icmpv6_1, test)
 				.dpt_icmp_id = 0,
 				.dpt_icmp_seq = 0,
 			},
-			.npf = "proto=58 icmpv6=echo-request"
+			.npf = "proto-final=58 icmpv6=echo-request"
 		},
 		{
 			.fwd_status = DP_TEST_FWD_FORWARDED,
@@ -594,7 +594,7 @@ DP_START_TEST(icmpv6_1, test)
 			{
 				.udata32 = 0
 			},
-			.npf = "proto=58 icmpv6=1:4"
+			.npf = "proto-final=58 icmpv6=1:4"
 		},
 		{
 			.fwd_status = DP_TEST_FWD_FORWARDED,
@@ -603,7 +603,7 @@ DP_START_TEST(icmpv6_1, test)
 			{
 				.udata32 = 0
 			},
-			.npf = "proto=58 icmpv6=port-unreachable"
+			.npf = "proto-final=58 icmpv6=port-unreachable"
 		},
 		{
 			.fwd_status = DP_TEST_FWD_DROPPED,
@@ -612,7 +612,7 @@ DP_START_TEST(icmpv6_1, test)
 			{
 				.udata32 = 0
 			},
-			.npf = "proto=58 icmpv6=1:4"
+			.npf = "proto-final=58 icmpv6=1:4"
 		},
 		{
 			.fwd_status = DP_TEST_FWD_DROPPED,
@@ -621,7 +621,7 @@ DP_START_TEST(icmpv6_1, test)
 			{
 				.udata32 = 0
 			},
-			.npf = "proto=58 icmpv6=port-unreachable"
+			.npf = "proto-final=58 icmpv6=port-unreachable"
 		},
 	};
 
@@ -714,7 +714,7 @@ DP_START_TEST(icmpv6_2, test)
 			.rule     = "10",
 			.pass     = PASS,
 			.stateful = STATELESS,
-			.npf      = "proto=58 icmpv6-group=ICMP1"},
+			.npf      = "proto-final=58 icmpv6-group=ICMP1"},
 		RULE_DEF_BLOCK,
 		NULL_RULE };
 
@@ -841,7 +841,7 @@ DP_START_TEST(icmpv6_3, test)
 			.rule     = "10",
 			.pass     = BLOCK,
 			.stateful = STATELESS,
-			.npf      = "proto=58 icmpv6-group=ICMP1"},
+			.npf      = "proto-final=58 icmpv6-group=ICMP1"},
 		RULE_DEF_PASS,
 		NULL_RULE };
 
