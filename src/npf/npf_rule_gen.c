@@ -1260,19 +1260,20 @@ npf_gen_ncode(zhashx_t *config_ht, void **ncode, uint32_t *size,
 	ipv6_route = zhashx_lookup(config_ht, "ipv6-route");
 
 	/*
-	 * Handle protocol
+	 * Handle final protocol (in extension chain)
 	 */
-	value = zhashx_lookup(config_ht, "proto-final");
-	if (!value)
-		value = zhashx_lookup(config_ht, "proto-base");
-	if (!value)
-		value = zhashx_lookup(config_ht, "proto");
+	char const *proto_key = "proto-final";
+	value = zhashx_lookup(config_ht, proto_key);
+	if (!value) {
+		proto_key = "proto";
+		value = zhashx_lookup(config_ht, proto_key);
+	}
 	if (value) {
 		char *endp;
 		unsigned long proto = strtoul(value, &endp, 10);
 		if (endp == value || proto > 255) {
 			RTE_LOG(ERR, FIREWALL, "NPF: unexpected value in rule: "
-				"proto=%s\n", value);
+				"%s=%s\n", proto_key, value);
 			err = -EINVAL;
 			goto error;
 		}
@@ -1290,6 +1291,23 @@ npf_gen_ncode(zhashx_t *config_ht, void **ncode, uint32_t *size,
 				npf_gennc_proto_final(ctx.nc_ctx, proto);
 		}
 	}
+
+	/*
+	 * Handle base protocol in IP header
+	 */
+	value = zhashx_lookup(config_ht, "proto-base");
+	if (value) {
+		char *endp;
+		unsigned long proto_base = strtoul(value, &endp, 10);
+		if (endp == value || proto_base > 255) {
+			RTE_LOG(ERR, FIREWALL, "NPF: unexpected value in rule: "
+				"proto-base=%s\n", value);
+			err = -EINVAL;
+			goto error;
+		}
+		npf_gennc_proto_base(ctx.nc_ctx, proto_base);
+	}
+
 	value = zhashx_lookup(config_ht, "protocol-group");
 	if (value) {
 		err = npf_gen_ncode_protocol_group(&ctx, value);

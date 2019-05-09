@@ -92,6 +92,26 @@ npf_match_proto_final(const npf_cache_t *npc, uint32_t ap)
 }
 
 /*
+ * npf_match_proto_base: match the protocol in IPv4 or IPv6 header
+ */
+int
+npf_match_proto_base(const npf_cache_t *npc, uint32_t ap)
+{
+	const uint8_t proto_base = ap & 0xff;
+
+	if (likely(npf_iscached(npc, NPC_IP4))) {
+		const struct ip *ip = &npc->npc_ip.v4;
+		return (proto_base != ip->ip_p) ? -1 : 0;
+	}
+	if (likely(npf_iscached(npc, NPC_IP6))) {
+		const struct ip6_hdr *ip6 = &npc->npc_ip.v6;
+		return (proto_base != ip6->ip6_nxt) ? -1 : 0;
+	}
+
+	return -1;
+}
+
+/*
  * npf_match_pcp: match class of service in 802.1q frame
  */
 int

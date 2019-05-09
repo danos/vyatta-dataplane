@@ -206,7 +206,7 @@ typedef struct npf_cache {
 	uint32_t	npc_info;	/* Information flags */
 	uint16_t	npc_hlen;
 	uint8_t		npc_alen;	/* Size (v4/6) of addrs */
-	uint8_t		npc_proto_final;/* Last proto in chain */
+	uint8_t		npc_proto_final;/* Last header in chain */
 	enum npf_proto_idx npc_proto_idx;
 	uint8_t		npc_ipv6_routing_type;
 	uint8_t		npc_alg_flags;	/* Per-packet alg flags */

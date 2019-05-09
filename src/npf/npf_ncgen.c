@@ -539,6 +539,25 @@ npf_gennc_proto_final(nc_ctx_t *ctx, uint8_t proto_final)
 	npf_ncgen_putptr(ctx, nc);
 }
 
+/*
+ * npf_gennc_proto_base: match the protocol in IPv4 or IPv6 header
+ */
+void
+npf_gennc_proto_base(nc_ctx_t *ctx, uint8_t proto_base)
+{
+	uint32_t *nc = npf_ncgen_getptr(ctx, 4 /* words */);
+
+	/* OP, code, type (2 words) */
+	*nc++ = NPF_OPCODE_PROTO_BASE;
+	*nc++ = proto_base;
+
+	/* Comparison block (2 words). */
+	npf_ncgen_addjmp(ctx, &nc);
+
+	/* + 4 words. */
+	npf_ncgen_putptr(ctx, nc);
+}
+
 void
 npf_ncgen_matchdscp(nc_ctx_t *ctx, uint64_t matchdscpset)
 {

@@ -133,6 +133,12 @@ static const struct npf_instruction {
 			[0] = NPF_OPERAND_VALUE,
 		},
 	},
+	[NPF_OPCODE_PROTO_BASE] = {
+		.name = "test proto-base",
+		.op = {
+			[0] = NPF_OPERAND_VALUE,
+		},
+	},
 	[NPF_OPCODE_ETHERADDR] = {
 		.name = "test mac",
 		.op = {
