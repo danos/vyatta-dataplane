@@ -357,9 +357,6 @@ struct fal_object_list_t {
 	fal_object_t list[0];
 };
 
-/*
- * Structure for a list of uint32_t objects
- */
 struct fal_u32_list_t {
 	uint32_t count;
 	uint32_t list[0];
@@ -2016,7 +2013,25 @@ enum fal_packet_action_t {
 };
 
 enum fal_route_entry_attr_t {
+	/**
+	 * @brief Next hop group id
+	 *
+	 * This attribute only takes effect when ATTR_PACKET_ACTION is set to
+	 * FORWARD.
+	 *
+	 * @type fal_object_id_t
+	 * @flags CREATE_AND_SET
+	 * @default FAL_NULL_OBJECT_ID
+	 * @validonly FAL_ROUTE_ENTRY_ATTR_PACKET_ACTION ==
+	 *					FAL_PACKET_ACTION_FORWARD
+	 */
 	FAL_ROUTE_ENTRY_ATTR_NEXT_HOP_GROUP,	/* .objid */
+	/**
+	 * @brief Packet action
+	 *
+	 * @type fal_packet_action_t
+	 * @flags MANDATORY_ON_CREATE | CREATE_AND_SET
+	 */
 	FAL_ROUTE_ENTRY_ATTR_PACKET_ACTION,	/* .u32 - fal_packet_action_t */
 };
 
@@ -2270,6 +2285,23 @@ enum fal_next_hop_attr_t {
 	 * @flags CREATE_AND_SET
 	 */
 	FAL_NEXT_HOP_ATTR_USABILITY,			/* .i32 */
+	/**
+	 * @brief Next hop outgoing MPLS labels
+	 *
+	 * This gives the label stack to apply to the packet in bottom
+	 * to top (inner-most to outer-most) ordering in host byte
+	 * ordering. The following well-known labels are specific
+	 * semantics:
+	 *
+	 * * implicit-NULL - won't appear on the wire, but will
+	 *   indicate a penultimate-hop pop. Not valid for next-hop
+	 *   groups link to by IP routes. Must be the one and only
+	 *   label.
+	 *
+	 * @type fal_u32_list_t
+	 * @flags CREATE_ONLY
+	 */
+	FAL_NEXT_HOP_ATTR_MPLS_LABELSTACK,	/* .u32list */
 };
 
 /**
@@ -5992,5 +6024,82 @@ typedef void (*fal_bfd_session_state_change_notification_fn)(
 	struct fal_bfd_session_state_notification_t *data);
 
 /* End of BFD Definitions */
+
+enum fal_mpls_route_attr_t {
+	/**
+	 * @brief Next hop group id
+	 *
+	 * This attribute only takes effect when ATTR_PACKET_ACTION is set to
+	 * FORWARD.
+	 *
+	 * @type fal_object_id_t
+	 * @flags CREATE_AND_SET
+	 * @default FAL_NULL_OBJECT_ID
+	 * @validonly FAL_MPLS_ROUTE_ATTR_PACKET_ACTION ==
+	 *					FAL_PACKET_ACTION_FORWARD
+	 */
+	FAL_MPLS_ROUTE_ATTR_NEXT_HOP_GROUP,	/* .objid */
+	/**
+	 * @brief Packet action
+	 *
+	 * @type fal_packet_action_t
+	 * @flags MANDATORY_ON_CREATE | CREATE_AND_SET
+	 */
+	FAL_MPLS_ROUTE_ATTR_PACKET_ACTION,	/* .u32 - fal_packet_action_t */
+};
+
+struct fal_mpls_route_t {
+	/**
+	 * @brief MPLS label
+	 */
+	uint32_t label;
+};
+
+/**
+ * @brief Create an MPLS route
+ *
+ * @param[in] mpls_route MPLS route key
+ * @param[in] attr_count Number of attributes
+ * @param[in] attr_list The attributes and values for the route
+ *
+ * @return 0 on success or failure status.
+ */
+int fal_plugin_create_mpls_route(const struct fal_mpls_route_t *mpls_route,
+				 uint32_t attr_count,
+				 const struct fal_attribute_t *attr_list);
+
+/**
+ * @brief Delete an MPLS route
+ *
+ * @param[in] mpls_route MPLS route key
+ *
+ * @return 0 on success or failure status.
+ */
+int fal_plugin_delete_mpls_route(const struct fal_mpls_route_t *mpls_route);
+
+/**
+ * @brief Set an MPLS route attribute
+ *
+ * @param[in] mpls_route MPLS route key
+ * @param[in] attr The attribute to change and the new value
+ *
+ * @return 0 on success or failure status.
+ */
+int fal_plugin_set_mpls_route_attr(const struct fal_mpls_route_t *mpls_route,
+				   const struct fal_attribute_t *attr);
+
+/**
+ * @brief Get an MPLS route attribute
+ *
+ * @param[in] mpls_route MPLS route key
+ * @param[in] attr_count Number of attributes
+ * @param[in/out] attr_list A list of the attributes and their
+ *                          associated values
+ *
+ * @return 0 on success or failure status.
+ */
+int fal_plugin_get_mpls_route_attr(const struct fal_mpls_route_t *mpls_route,
+				   uint32_t attr_count,
+				   struct fal_attribute_t *attr_list);
 
 #endif /* VYATTA_DATAPLANE_FAL_PLUGIN_H */
