@@ -43,6 +43,7 @@
 #include "lcore_sched.h"
 #include "lpm/lpm.h"	/* Use Vyatta modified version */
 #include "mpls/mpls.h"
+#include "mpls/mpls_label_table.h"
 #include "pktmbuf_internal.h"
 #include "pd_show.h"
 #include "route.h"
@@ -2644,6 +2645,7 @@ route_handle_fal_l3_enable_change(struct ifnet *ifp)
 		 */
 		rt_lpm_walk_util(route_fal_upd_for_changed_nhl,
 				 &nhl->index);
+		mpls_update_all_routes_for_nh_change(AF_INET, nhl->index);
 
 		next_hop_list_fal_l3_enable_changed_finish(
 			AF_INET, nhl, old_nhg_obj, old_nh_objs);

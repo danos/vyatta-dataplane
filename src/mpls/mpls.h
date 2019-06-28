@@ -12,6 +12,7 @@
 #define MPLS_H
 
 #include <stdbool.h>
+#include <netinet/in.h>
 #include <rte_branch_prediction.h>
 
 #ifndef MPLS_LS_LABEL_MASK

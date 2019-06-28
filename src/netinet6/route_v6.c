@@ -44,6 +44,7 @@
 #include "json_writer.h"
 #include "lcore_sched.h"
 #include "lpm/lpm6.h"
+#include "mpls/mpls_label_table.h"
 #include "netinet6/route_v6.h"
 #include "netinet6/nd6_nbr.h"
 #include "pktmbuf_internal.h"
@@ -2854,6 +2855,7 @@ route6_handle_fal_l3_enable_change(struct ifnet *ifp)
 		 */
 		rt6_lpm_walk_util(route6_fal_upd_for_changed_nhl,
 				  &nhl->index);
+		mpls_update_all_routes_for_nh_change(AF_INET6, nhl->index);
 
 		next_hop_list_fal_l3_enable_changed_finish(
 			AF_INET6, nhl, old_nhg_obj, old_nh_objs);

@@ -72,4 +72,10 @@ void mpls_oam_v4_lookup(int labelspace, uint8_t nlabels,
 			struct mpls_oam_outinfo outinfo[],
 			unsigned int max_fanout);
 
+uint32_t *mpls_label_table_hw_stats_get(void);
+int mpls_label_table_get_pd_subset_data(json_writer_t *json,
+					enum pd_obj_state subset);
+
+void mpls_update_all_routes_for_nh_change(int family, uint32_t nhl_idx);
+
 #endif

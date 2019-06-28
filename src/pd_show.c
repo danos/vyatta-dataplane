@@ -11,6 +11,7 @@
 #include <rte_log.h>
 
 #include "json_writer.h"
+#include "mpls/mpls_label_table.h"
 #include "pd_show.h"
 #include "route.h"
 #include "vplane_log.h"
@@ -55,6 +56,8 @@ static const struct pd_show_cmd pd_show_cmd_table[] = {
 	  mroute_get_pd_subset_data,  "Show route" },
 	{ "mroute6",    NULL, mroute6_hw_stats_get,
 	  mroute6_get_pd_subset_data,  "Show route" },
+	{ "mpls-route", NULL, mpls_label_table_hw_stats_get,
+	  mpls_label_table_get_pd_subset_data,  "Show route" },
 	{ NULL, NULL, NULL, NULL, NULL },
 };
 

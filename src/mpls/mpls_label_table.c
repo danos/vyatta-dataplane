@@ -28,10 +28,12 @@
 #include <urcu/list.h>
 #include <urcu/uatomic.h>
 
+#include "fal.h"
 #include "json_writer.h"
 #include "main.h"
 #include "mpls/mpls.h"
 #include "mpls_label_table.h"
+#include "pd_show.h"
 #include "pktmbuf_internal.h"
 #include "route.h"
 #include "route_flags.h"
@@ -54,6 +56,9 @@ struct label_table_node {
 	uint32_t next_hop; /* idx of output info */
 	uint8_t nh_type;
 	uint8_t payload_type;
+	uint16_t pd_state : 15;
+	uint16_t pd_created : 1;
+	uint32_t padding1;
 	struct cds_lfht_node node;
 	struct rcu_head rcu_head;
 } __rte_cache_aligned;
@@ -77,6 +82,8 @@ struct label_table_set_entry {
 	struct cds_lfht *label_table;
 	struct rcu_head rcu_head;
 };
+
+static uint32_t mpls_route_hw_stats[PD_OBJ_STATE_LAST];
 
 /*
  * Setup mbuf pool for oam lookup.
@@ -176,6 +183,82 @@ free_label_table_set_entry_rcu(struct rcu_head *head)
 	free(ls_entry);
 }
 
+static void
+mpls_label_table_fal_create_or_upd(struct label_table_node *label_table_node,
+				   bool added_new)
+{
+	struct fal_attribute_t attr_list[] = {
+		{
+			.id = FAL_MPLS_ROUTE_ATTR_PACKET_ACTION,
+		},
+		{
+			.id = FAL_MPLS_ROUTE_ATTR_NEXT_HOP_GROUP,
+		},
+	};
+	struct fal_mpls_route_t fal_mpls_route = {
+		.label = label_table_node->in_label,
+	};
+	enum pd_obj_state nhl_pd_state;
+	bool update_pd_state = true;
+	struct next_hop *hops;
+	size_t size;
+	int family = label_table_node->nh_type == NH_TYPE_V4GW ?
+		AF_INET : AF_INET6;
+	int rc;
+
+	size = next_hop_list_get_fal_nhs(family, label_table_node->next_hop,
+					 &hops);
+
+	attr_list[0].value.u32 = fal_next_hop_group_packet_action(size, hops);
+	attr_list[1].value.objid = next_hop_list_get_fal_obj(
+		family, label_table_node->next_hop, &nhl_pd_state);
+
+	if (!added_new)
+		mpls_route_hw_stats[label_table_node->pd_state]--;
+
+	if (nhl_pd_state != PD_OBJ_STATE_FULL &&
+	    nhl_pd_state != PD_OBJ_STATE_NOT_NEEDED) {
+		label_table_node->pd_state = nhl_pd_state;
+		update_pd_state = false;
+	}
+
+	if (!label_table_node->pd_created) {
+		rc = fal_create_mpls_route(&fal_mpls_route,
+					   ARRAY_SIZE(attr_list), attr_list);
+		if (rc < 0) {
+			if (rc != -EOPNOTSUPP) {
+				RTE_LOG(ERR, MPLS,
+					"FAL create of label %d failed: %s\n",
+					label_table_node->in_label,
+					strerror(-rc));
+			}
+		} else
+			label_table_node->pd_created = true;
+		if (update_pd_state)
+			label_table_node->pd_state = fal_state_to_pd_state(rc);
+		mpls_route_hw_stats[label_table_node->pd_state]++;
+	} else {
+		rc = fal_set_mpls_route_attr(&fal_mpls_route, &attr_list[0]);
+		if (update_pd_state)
+			label_table_node->pd_state = fal_state_to_pd_state(rc);
+		if (rc < 0) {
+			RTE_LOG(ERR, MPLS,
+				"FAL set of label %d forwarding action failed: %s\n",
+				label_table_node->in_label, strerror(-rc));
+		}
+		rc = fal_set_mpls_route_attr(&fal_mpls_route, &attr_list[1]);
+		if (rc < 0) {
+			RTE_LOG(ERR, MPLS,
+				"FAL set of label %d next hop group failed: %s\n",
+				label_table_node->in_label, strerror(-rc));
+			if (update_pd_state)
+				label_table_node->pd_state =
+					fal_state_to_pd_state(rc);
+		}
+		mpls_route_hw_stats[label_table_node->pd_state]++;
+	}
+}
+
 static bool
 mpls_label_table_ins_lbl_internal(struct cds_lfht *label_table,
 				  uint32_t in_label, enum nh_type nh_type,
@@ -183,11 +266,12 @@ mpls_label_table_ins_lbl_internal(struct cds_lfht *label_table,
 				  struct next_hop *hops,
 				  size_t size)
 {
+	struct label_table_node *old_label_table_node;
 	struct label_table_node *label_table_node;
 	struct cds_lfht_node *node;
+	bool added_new = false;
 	uint32_t nextu_idx;
 	int rc;
-	bool added_new = false;
 
 	if (!label_table) {
 		RTE_LOG(ERR, MPLS,
@@ -243,6 +327,7 @@ mpls_label_table_ins_lbl_internal(struct cds_lfht *label_table,
 	label_table_node->in_label = in_label;
 	label_table_node->nh_type = nh_type;
 	label_table_node->payload_type = (uint8_t)payload_type;
+	label_table_node->pd_created = false;
 
 	rcu_read_lock();
 	node = cds_lfht_add_replace(label_table,
@@ -254,13 +339,16 @@ mpls_label_table_ins_lbl_internal(struct cds_lfht *label_table,
 		DP_DEBUG(MPLS_CTRL, DEBUG, MPLS,
 			 "Free the old label table entry for label %d\n",
 			 in_label);
-		label_table_node = caa_container_of(node,
-						  struct label_table_node,
-						  node);
-		free_label_table_node(label_table_node);
+		old_label_table_node = caa_container_of(node,
+							struct label_table_node,
+							node);
+		free_label_table_node(old_label_table_node);
 	} else {
 		added_new = true;
 	}
+
+	mpls_label_table_fal_create_or_upd(label_table_node, added_new);
+
 	DP_DEBUG(MPLS_CTRL, DEBUG, MPLS, "%s count = %lu\n", __func__,
 			mpls_label_table_count(label_table));
 	rcu_read_unlock();
@@ -272,6 +360,9 @@ static int
 mpls_label_table_rem_lbl_internal(struct cds_lfht *label_table,
 				  uint32_t in_label)
 {
+	struct fal_mpls_route_t fal_mpls_route = {
+		.label = in_label,
+	};
 	struct label_table_node *out, in;
 	struct cds_lfht_iter iter;
 	struct cds_lfht_node *node;
@@ -285,8 +376,21 @@ mpls_label_table_rem_lbl_internal(struct cds_lfht *label_table,
 	node = cds_lfht_iter_get_node(&iter);
 	if (node) {
 		out = caa_container_of(node, struct label_table_node, node);
+
+		mpls_route_hw_stats[out->pd_state]--;
+
+		if (out->pd_created) {
+			rc = fal_delete_mpls_route(&fal_mpls_route);
+			if (rc < 0) {
+				RTE_LOG(ERR, MPLS,
+					"FAL delete of label %d failed: %s\n",
+					in_label, strerror(-rc));
+			}
+		}
+
 		if (!cds_lfht_del(label_table, &out->node))
 			free_label_table_node(out);
+
 		rc = 0;
 	} else {
 		rc = -ENOENT;
@@ -632,7 +736,8 @@ void mpls_label_table_resize(int labelspace, uint32_t max_label)
 }
 
 static void
-mpls_label_table_dump(struct cds_lfht *label_table, json_writer_t *json)
+mpls_label_table_dump(struct cds_lfht *label_table, json_writer_t *json,
+		      enum pd_obj_state pd_state)
 {
 	struct label_table_node *label_table_entry;
 	struct cds_lfht_iter iter;
@@ -643,6 +748,11 @@ mpls_label_table_dump(struct cds_lfht *label_table, json_writer_t *json)
 	jsonw_start_array(json);
 	rcu_read_lock();
 	cds_lfht_for_each_entry(label_table, &iter, label_table_entry, node) {
+		/* use PD_OBJ_STATE_LAST to mean wildcard any state */
+		if (pd_state != PD_OBJ_STATE_LAST &&
+		    pd_state != label_table_entry->pd_state)
+			continue;
+
 		jsonw_start_object(json);
 		jsonw_uint_field(json, "address", label_table_entry->in_label);
 		switch (label_table_entry->nh_type) {
@@ -680,11 +790,32 @@ mpls_label_table_set_dump(FILE *fp, const int labelspace)
 
 		jsonw_start_object(json);
 		jsonw_uint_field(json, "lblspc", ls_entry->labelspace);
-		mpls_label_table_dump(ls_entry->label_table, json);
+		mpls_label_table_dump(ls_entry->label_table, json,
+				      PD_OBJ_STATE_LAST);
 		jsonw_end_object(json);
 	}
 	jsonw_end_array(json);
 	jsonw_destroy(&json);
+}
+
+int mpls_label_table_get_pd_subset_data(json_writer_t *json,
+					enum pd_obj_state subset)
+{
+	struct label_table_set_entry *ls_entry;
+
+	jsonw_name(json, "mpls_tables");
+	jsonw_start_array(json);
+	cds_list_for_each_entry_rcu(ls_entry, &label_table_set, entry) {
+		jsonw_start_object(json);
+		jsonw_uint_field(json, "lblspc", ls_entry->labelspace);
+		mpls_label_table_dump(ls_entry->label_table, json,
+				      subset);
+		jsonw_end_object(json);
+	}
+	jsonw_end_array(json);
+	jsonw_destroy(&json);
+
+	return 0;
 }
 
 void
@@ -844,4 +975,34 @@ mpls_oam_v4_lookup(int labelspace, uint8_t nlabels, const label_t *labels,
 
 	rte_pktmbuf_free(m);
 	rcu_read_unlock();
+}
+
+uint32_t *mpls_label_table_hw_stats_get(void)
+{
+	return mpls_route_hw_stats;
+}
+
+void
+mpls_update_all_routes_for_nh_change(int family, uint32_t nhl_idx)
+{
+	struct label_table_node *label_table_entry;
+	struct label_table_set_entry *ls_entry;
+	struct cds_lfht_iter iter;
+
+	cds_list_for_each_entry_rcu(ls_entry, &label_table_set, entry) {
+		cds_lfht_for_each_entry(ls_entry->label_table, &iter,
+					label_table_entry, node) {
+			if (family == AF_INET &&
+			    label_table_entry->nh_type != NH_TYPE_V4GW)
+				continue;
+			if (family == AF_INET6 &&
+			    label_table_entry->nh_type != NH_TYPE_V6GW)
+				continue;
+			if (nhl_idx != label_table_entry->next_hop)
+				continue;
+
+			mpls_label_table_fal_create_or_upd(label_table_entry,
+							   false);
+		}
+	}
 }

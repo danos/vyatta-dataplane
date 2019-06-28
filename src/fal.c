@@ -593,6 +593,23 @@ static struct fal_capture_ops *new_dyn_capture_ops(void *lib)
 	return ops;
 }
 
+static struct fal_mpls_ops *new_dyn_mpls_ops(void *lib)
+{
+	struct fal_mpls_ops *mpls_ops = calloc(1, sizeof(*mpls_ops));
+
+	if (!mpls_ops) {
+		RTE_LOG(ERR, DATAPLANE, "Could not allocate mpls ops\n");
+		return NULL;
+	}
+
+	mpls_ops->create_route = dlsym(lib, "fal_plugin_create_mpls_route");
+	mpls_ops->delete_route = dlsym(lib, "fal_plugin_delete_mpls_route");
+	mpls_ops->set_route_attr = dlsym(lib, "fal_plugin_set_mpls_route_attr");
+	mpls_ops->get_route_attr = dlsym(lib, "fal_plugin_get_mpls_route_attr");
+
+	return mpls_ops;
+}
+
 static void register_dyn_msg_handlers(void *lib)
 {
 	struct message_handler *handler =
@@ -624,6 +641,7 @@ static void register_dyn_msg_handlers(void *lib)
 	handler->ptp = new_dyn_ptp_ops(lib);
 	handler->capture = new_dyn_capture_ops(lib);
 	handler->bfd = new_dyn_bfd_ops(lib);
+	handler->mpls = new_dyn_mpls_ops(lib);
 
 	fal_register_message_handler(handler);
 }
@@ -3683,3 +3701,35 @@ int dp_fal_bfd_set_switch_attr(const struct fal_attribute_t *attr)
 }
 
 /* End of BFD functions */
+
+int fal_create_mpls_route(const struct fal_mpls_route_t *mpls_route,
+			  uint32_t attr_count,
+			  const struct fal_attribute_t *attr_list)
+{
+	return call_handler_def_ret(
+		mpls, -EOPNOTSUPP, create_route, mpls_route,
+		attr_count, attr_list);
+}
+
+int fal_delete_mpls_route(const struct fal_mpls_route_t *mpls_route)
+{
+	return call_handler_def_ret(
+		mpls, -EOPNOTSUPP, delete_route, mpls_route);
+}
+
+int fal_set_mpls_route_attr(const struct fal_mpls_route_t *mpls_route,
+			    const struct fal_attribute_t *attr)
+{
+	return call_handler_def_ret(
+		mpls, -EOPNOTSUPP, set_route_attr, mpls_route,
+		attr);
+}
+
+int fal_get_mpls_route_attr(const struct fal_mpls_route_t *mpls_route,
+			    uint32_t attr_count,
+			    struct fal_attribute_t *attr_list)
+{
+	return call_handler_def_ret(
+		mpls, -EOPNOTSUPP, get_route_attr, mpls_route,
+		attr_count, attr_list);
+}
