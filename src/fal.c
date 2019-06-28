@@ -1591,8 +1591,7 @@ next_hop_to_packet_action(const struct next_hop *nh)
 {
 	struct ifnet *ifp;
 
-	if (nh->flags & RTF_BLACKHOLE ||
-	    nh_outlabels_present(&nh->outlabels))
+	if (nh->flags & RTF_BLACKHOLE)
 		return FAL_PACKET_ACTION_DROP;
 
 	if (nh->flags & (RTF_LOCAL|RTF_BROADCAST|RTF_SLOWPATH|RTF_REJECT))
@@ -1625,10 +1624,17 @@ static const struct fal_attribute_t **next_hop_to_attr_list(
 		const struct next_hop *nh = &hops[i];
 		struct fal_attribute_t *nh_attr;
 		struct ifnet *ifp;
+		unsigned int max_attrs = 7;
 		unsigned int nh_attr_count;
+		struct fal_u32_list_t *label_list;
+		unsigned int label_count =
+			nh_outlabels_get_cnt(&nh->outlabels);
+		unsigned int label_idx;
 
 		nh_attr_list[i] = nh_attr = calloc(
-			6, sizeof(*nh_attr));
+			1, sizeof(*nh_attr) * max_attrs +
+			offsetof(typeof(*label_list),
+				 list[label_count]));
 		if (!nh_attr) {
 			while (i--)
 				free((struct fal_attribute_t *)
@@ -1637,6 +1643,8 @@ static const struct fal_attribute_t **next_hop_to_attr_list(
 			free(nh_attr_list);
 			return NULL;
 		}
+		label_list = (struct fal_u32_list_t *)&nh_attr[max_attrs];
+
 		nh_attr[0].id = FAL_NEXT_HOP_ATTR_NEXT_HOP_GROUP;
 		nh_attr[0].value.objid = nhg_object;
 		nh_attr[1].id = FAL_NEXT_HOP_ATTR_INTF;
@@ -1662,6 +1670,19 @@ static const struct fal_attribute_t **next_hop_to_attr_list(
 			nh_attr[nh_attr_count].id = FAL_NEXT_HOP_ATTR_USABILITY;
 			nh_attr[nh_attr_count].value.u32 =
 				FAL_NEXT_HOP_UNUSABLE;
+			nh_attr_count++;
+		}
+		if (label_count) {
+			nh_attr[nh_attr_count].id =
+				FAL_NEXT_HOP_ATTR_MPLS_LABELSTACK;
+			nh_attr[nh_attr_count].value.u32list =
+				label_list;
+			label_list->count = label_count;
+			for (label_idx = 0; label_idx < label_count;
+			     label_idx++)
+				label_list->list[label_idx] =
+					nh_outlabels_get_value(
+						&nh->outlabels, label_idx);
 			nh_attr_count++;
 		}
 		(*attr_count)[i] = nh_attr_count;
