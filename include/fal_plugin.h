@@ -2183,6 +2183,25 @@ int fal_plugin_ip_walk_routes(fal_plugin_route_walk_fn cb,
  * IP Nexthop Group operations
  */
 
+enum fal_next_hop_group_use {
+	/**
+	 * @brief The next hop group will be used for IP routing
+	 *
+	 * Give a hint that the next hop group won't be linked to from
+	 * MPLS label routes.
+	 */
+	FAL_NHG_USE_IP,
+	/**
+	 * @brief The next hop group will be used for MPLS label switching.
+	 *
+	 * Give a hint that the next hop group will only be used for
+	 * MPLS label switching, i.e. that the packet already has at
+	 * least one label on it when it is subjected to this
+	 * forwarding action.
+	 */
+	FAL_NHG_USE_MPLS_LABEL_SWITCH,
+};
+
 /**
  * @brief Create a next hop group object
  *
@@ -2240,6 +2259,14 @@ enum fal_next_hop_group_attr_t {
 	 * @flags READ_ONLY
 	 */
 	FAL_NEXT_HOP_GROUP_ATTR_NEXTHOP_OBJECT,	/* .objid */
+	/**
+	 * @brief Hint for how the next-hop-group will be used
+	 *
+	 * @type fal_next_hop_group_use
+	 * @default FAL_NHG_USE_IP,
+	 * @flags CREATE_ONLY
+	 */
+	FAL_NEXT_HOP_GROUP_ATTR_USE,
 };
 /**
  * @brief Query attributes for a next hop group object

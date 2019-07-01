@@ -165,7 +165,8 @@ route_nexthop6_new(struct next_hop *nh, uint16_t size,
 {
 	int rc;
 
-	rc = nexthop_new(AF_INET6, nh, size, RTPROT_UNSPEC, slot);
+	rc = nexthop_new(AF_INET6, nh, size, RTPROT_UNSPEC, FAL_NHG_USE_IP,
+			 slot);
 	if (rc >= 0)
 		return rc;
 
@@ -841,7 +842,8 @@ static int nexthop6_cmpfn(struct cds_lfht_node *node, const void *key)
 		caa_container_of(node, const struct next_hop_list, nh_node);
 	uint16_t i;
 
-	if (h_key->size != nl->nsiblings)
+	if (h_key->size != nl->nsiblings ||
+	    h_key->use != nl->use)
 		return false;
 
 	for (i = 0; i < h_key->size; i++) {
@@ -932,7 +934,8 @@ void nexthop_v6_tbl_init(void)
 	nh_common_register(AF_INET6, &nh6_common);
 
 	/* reserve a drop nexthop */
-	if (nexthop_new(AF_INET6, &nh_drop, 1, RTPROT_UNSPEC, &idx))
+	if (nexthop_new(AF_INET6, &nh_drop, 1, RTPROT_UNSPEC, FAL_NHG_USE_IP,
+			&idx))
 		rte_panic("%s: can't create drop nexthop\n", __func__);
 	nextl6_blackhole =
 		rcu_dereference(nh6_tbl.entry[idx]);
@@ -1655,13 +1658,23 @@ void rt6_print_nexthop(json_writer_t *json, uint32_t next_hop,
 		rcu_dereference(nh6_tbl.entry[next_hop]);
 	const struct next_hop *array;
 	unsigned int i, j;
-
+	const char *use_str = NULL;
 
 	jsonw_uint_field(json, "nh_index", next_hop);
 	if (unlikely(!nextl))
 		return;
 	array = rcu_dereference(nextl->siblings);
 	jsonw_uint_field(json, "nh_refcount", nextl->refcount);
+	switch (nextl->use) {
+	case FAL_NHG_USE_IP:
+		use_str = "ip";
+		break;
+	case FAL_NHG_USE_MPLS_LABEL_SWITCH:
+		use_str = "mpls-lswitch";
+		break;
+	}
+	if (use_str)
+		jsonw_string_field(json, "use", use_str);
 	if (v == RT_PRINT_NH_DETAIL &&
 	    fal_state_is_obj_present(nextl->pd_state)) {
 		/*

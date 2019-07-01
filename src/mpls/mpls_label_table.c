@@ -293,31 +293,23 @@ mpls_label_table_ins_lbl_internal(struct cds_lfht *label_table,
 
 	switch (nh_type) {
 	case NH_TYPE_V4GW:
-		rc = nexthop_new(AF_INET, hops, size, RTPROT_UNSPEC,
-				 &nextu_idx);
-		if (rc < 0) {
-			RTE_LOG(ERR, MPLS,
-				"Failed to create nexthops for label table entry: %s\n",
-				strerror(-rc));
-			free(label_table_node);
-			return false;
-		}
+	case NH_TYPE_V6GW:
 		break;
-	case NH_TYPE_V6GW: {
-		rc = nexthop_new(AF_INET6, hops, size, RTPROT_UNSPEC,
-				 &nextu_idx);
-		if (rc < 0) {
-			RTE_LOG(ERR, MPLS,
-				"Failed to create nexthops for label table entry: %s\n",
-				strerror(-rc));
-			free(label_table_node);
-			return false;
-		}
-		break;
-	}
 	default:
 		RTE_LOG(ERR, MPLS,
 			"Unsupported nh type %d\n", nh_type);
+		free(label_table_node);
+		return false;
+	}
+
+	rc = nexthop_new(nh_type == NH_TYPE_V4GW ? AF_INET : AF_INET6,
+			 hops, size, RTPROT_UNSPEC,
+			 FAL_NHG_USE_MPLS_LABEL_SWITCH,
+			 &nextu_idx);
+	if (rc < 0) {
+		RTE_LOG(ERR, MPLS,
+			"Failed to create nexthops for label table entry: %s\n",
+			strerror(-rc));
 		free(label_table_node);
 		return false;
 	}

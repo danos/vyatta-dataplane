@@ -1724,11 +1724,15 @@ fal_next_hop_group_packet_action(uint32_t nhops, const struct next_hop hops[])
 	return FAL_PACKET_ACTION_FORWARD;
 }
 
-int fal_ip_new_next_hops(size_t nhops, const struct next_hop hops[],
+
+int fal_ip_new_next_hops(enum fal_next_hop_group_use use,
+			 size_t nhops, const struct next_hop hops[],
 			 fal_object_t *nhg_object,
 			 fal_object_t *obj_list)
 {
 	const struct fal_attribute_t **nh_attr_list;
+	struct fal_attribute_t nhg_attrs[1];
+	uint32_t nhg_attr_count = 0;
 	uint32_t *nh_attr_count;
 	uint32_t i;
 	int ret;
@@ -1752,9 +1756,16 @@ int fal_ip_new_next_hops(size_t nhops, const struct next_hop hops[],
 	if (action != FAL_PACKET_ACTION_FORWARD)
 		return FAL_RC_NOT_REQ;
 
+	if (use != FAL_NHG_USE_IP) {
+		nhg_attrs[nhg_attr_count].id =
+			FAL_NEXT_HOP_GROUP_ATTR_USE;
+		nhg_attrs[nhg_attr_count].value.u32 = use;
+		nhg_attr_count++;
+	}
+
 	ret = call_handler_def_ret(ip, -EOPNOTSUPP,
-				   new_next_hop_group, 0, NULL,
-				   nhg_object);
+				   new_next_hop_group, nhg_attr_count,
+				   nhg_attrs, nhg_object);
 	if (ret < 0)
 		return ret;
 

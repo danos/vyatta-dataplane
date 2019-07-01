@@ -135,7 +135,7 @@ route_nexthop_new(const struct next_hop *nh, uint16_t size, uint8_t proto,
 {
 	int rc;
 
-	rc = nexthop_new(AF_INET, nh, size, proto, slot);
+	rc = nexthop_new(AF_INET, nh, size, proto, FAL_NHG_USE_IP, slot);
 	if (rc >= 0)
 		return rc;
 
@@ -729,7 +729,7 @@ nexthop_hashfn(const struct nexthop_hash_key *key,
 	       unsigned long seed __rte_unused)
 {
 	size_t size = key->size;
-	uint32_t hash_keys[size * 3];
+	uint32_t hash_keys[size * 3 + 1];
 	struct ifnet *ifp;
 	uint16_t i, j = 0;
 
@@ -740,7 +740,9 @@ nexthop_hashfn(const struct nexthop_hash_key *key,
 		hash_keys[j+2] = key->nh[i].flags & NH_FLAGS_CMP_MASK;
 	}
 
-	return rte_jhash_32b(hash_keys, size * 3, 0);
+	hash_keys[size * 3] = key->use;
+
+	return rte_jhash_32b(hash_keys, size * 3 + 1, 0);
 }
 
 static int nexthop_cmpfn(struct cds_lfht_node *node, const void *key)
@@ -750,12 +752,12 @@ static int nexthop_cmpfn(struct cds_lfht_node *node, const void *key)
 		caa_container_of(node, const struct next_hop_list, nh_node);
 	uint16_t i;
 
-	if (h_key->size != nl->nsiblings)
+	if (h_key->size != nl->nsiblings ||
+	    h_key->use != nl->use || h_key->proto != nl->proto)
 		return false;
 
 	for (i = 0; i < h_key->size; i++) {
-		if ((nl->proto != h_key->proto) ||
-		    (dp_nh_get_ifp(&nl->siblings[i]) !=
+		if ((dp_nh_get_ifp(&nl->siblings[i]) !=
 		     dp_nh_get_ifp(&h_key->nh[i])) ||
 		    ((nl->siblings[i].flags & NH_FLAGS_CMP_MASK) !=
 		     (h_key->nh[i].flags & NH_FLAGS_CMP_MASK)) ||
@@ -1495,7 +1497,8 @@ void nexthop_tbl_init(void)
 	nh_common_register(AF_INET, &nh4_common);
 
 	/* reserve a drop nexthop */
-	if (nexthop_new(AF_INET, &nh_drop, 1, RTPROT_UNSPEC, &idx))
+	if (nexthop_new(AF_INET, &nh_drop, 1, RTPROT_UNSPEC, FAL_NHG_USE_IP,
+			&idx))
 		rte_panic("%s: can't create drop nexthop\n", __func__);
 	nextl_blackhole =
 		rcu_dereference(nh_tbl.entry[idx]);
@@ -1680,6 +1683,7 @@ static void __rt_display(json_writer_t *json, in_addr_t *dst, uint8_t depth,
 {
 	char b1[INET_ADDRSTRLEN];
 	char b2[INET6_ADDRSTRLEN]; /* extra room for mask, not for ipv6 here */
+	const char *use_str = NULL;
 
 	jsonw_start_object(json);
 
@@ -1688,6 +1692,16 @@ static void __rt_display(json_writer_t *json, in_addr_t *dst, uint8_t depth,
 	jsonw_string_field(json, "prefix", b2);
 	jsonw_int_field(json, "scope", scope);
 	jsonw_uint_field(json, "proto", nextl->proto);
+	switch (nextl->use) {
+	case FAL_NHG_USE_IP:
+		use_str = "ip";
+		break;
+	case FAL_NHG_USE_MPLS_LABEL_SWITCH:
+		use_str = "mpls-lswitch";
+		break;
+	}
+	if (use_str)
+		jsonw_string_field(json, "use", use_str);
 	rt_print_nexthop(json, next_hop, RT_PRINT_NH_BRIEF);
 
 	jsonw_end_object(json);

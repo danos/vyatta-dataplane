@@ -1192,10 +1192,14 @@ static void next_hop_list_setup_back_ptrs(struct next_hop_list *nextl)
 
 /* Lookup (or create) nexthop based on hop information */
 int nexthop_new(int family, const struct next_hop *nh, uint16_t size,
-		uint8_t proto, uint32_t *slot)
+		uint8_t proto, enum fal_next_hop_group_use use, uint32_t *slot)
 {
 	struct nexthop_hash_key key = {
-				.nh = nh, .size = size, .proto = proto };
+		.nh = nh,
+		.size = size,
+		.proto = proto,
+		.use = use,
+	};
 	struct next_hop_list *nextl;
 	uint32_t rover;
 	uint32_t nh_iter;
@@ -1230,6 +1234,7 @@ int nexthop_new(int family, const struct next_hop *nh, uint16_t size,
 	nextl->refcount = 1;
 	nextl->index = rover;
 	nextl->proto = proto;
+	nextl->use = use;
 	if (size == 1)
 		nextl->hop0 = *nh;
 	else
@@ -1248,8 +1253,8 @@ int nexthop_new(int family, const struct next_hop *nh, uint16_t size,
 
 	nextl->primaries = next_hop_list_primary_count(nextl);
 
-	ret = fal_ip_new_next_hops(nextl->nsiblings, nextl->siblings,
-				   &nextl->nhg_fal_obj,
+	ret = fal_ip_new_next_hops(nextl->use, nextl->nsiblings,
+				   nextl->siblings, &nextl->nhg_fal_obj,
 				   nextl->nh_fal_obj);
 	if (ret < 0 && ret != -EOPNOTSUPP)
 		RTE_LOG(ERR, ROUTE,
@@ -1647,6 +1652,7 @@ next_hop_list_create_copy_start(int family __unused,
 	new_nextl->primaries = old->primaries;
 	new_nextl->index = old->index;
 	new_nextl->refcount = old->refcount;
+	new_nextl->use = old->use;
 
 	return new_nextl;
 }
@@ -1795,8 +1801,8 @@ next_hop_list_fal_l3_enable_changed(int family,
 	memcpy(*old_nh_objs, nextl->nh_fal_obj,
 	       sizeof(**old_nh_objs) * nextl->nsiblings);
 
-	ret = fal_ip_new_next_hops(nextl->nsiblings, nextl->siblings,
-				   &nextl->nhg_fal_obj,
+	ret = fal_ip_new_next_hops(nextl->use, nextl->nsiblings,
+				   nextl->siblings, &nextl->nhg_fal_obj,
 				   nextl->nh_fal_obj);
 	if (ret < 0 && ret != -EOPNOTSUPP) {
 		RTE_LOG(ERR, ROUTE,

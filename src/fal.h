@@ -792,7 +792,8 @@ void fal_ip4_upd_addr(unsigned int if_index,
 		      const struct if_addr *ifa);
 void fal_ip4_del_addr(unsigned int if_index,
 		      const struct if_addr *ifa);
-int fal_ip_new_next_hops(size_t nhops, const struct next_hop hops[],
+int fal_ip_new_next_hops(enum fal_next_hop_group_use use,
+			 size_t nhops, const struct next_hop hops[],
 			 fal_object_t *nhg_object, fal_object_t *obj);
 int fal_ip_del_next_hops(fal_object_t nhg_object, size_t nhops,
 			 const fal_object_t *obj);
