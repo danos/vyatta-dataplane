@@ -21,6 +21,7 @@
 #include "fal_plugin.h"
 #include "fal_bfd.h"
 #include "if_var.h"
+#include "ip6_funcs.h"
 #include "mpls/mpls.h"
 #include "nh_common.h"
 #include "route.h"
@@ -3481,8 +3482,16 @@ void fal_attr_set_ip_addr(struct fal_attribute_t *attr,
 		break;
 
 	case AF_INET6:
-		attr->value.ipaddr.addr_family = FAL_IP_ADDR_FAMILY_IPV6;
-		attr->value.ipaddr.addr.addr6 = ip->address.ip_v6;
+		if (IN6_IS_ADDR_V4MAPPED(&ip->address.ip_v6)) {
+			attr->value.ipaddr.addr_family =
+				FAL_IP_ADDR_FAMILY_IPV4;
+			attr->value.ipaddr.addr.addr4.s_addr =
+				V4MAPPED_IPV6_TO_IPV4(ip->address.ip_v6);
+		} else {
+			attr->value.ipaddr.addr_family =
+				FAL_IP_ADDR_FAMILY_IPV6;
+			attr->value.ipaddr.addr.addr6 = ip->address.ip_v6;
+		}
 		break;
 	}
 }
