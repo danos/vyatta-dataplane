@@ -568,7 +568,8 @@ void _dp_test_crypto_update_policy(const char *file, int line,
  * Delete an IPsec policy from the dataplane
  */
 void _dp_test_crypto_delete_policy(const char *file, int line,
-				   const struct dp_test_crypto_policy *policy)
+				   const struct dp_test_crypto_policy *policy,
+				   bool verify)
 {
 	struct xfrm_selector sel;
 	xfrm_address_t dst;
@@ -592,8 +593,40 @@ void _dp_test_crypto_delete_policy(const char *file, int line,
 					 policy->passthrough,
 				     file, line);
 
-	_wait_for_policy(policy, false, file, line);
+	if (verify)
+		_wait_for_policy(policy, false, file, line);
 }
+
+void _dp_test_crypto_check_policy_count(vrfid_t vrfid,
+					unsigned int num_policies, int af,
+					const char *file, int line)
+{
+#define POLL_CNT 3000
+	char cmd_str[100];
+	char exp_str[100];
+	static const char template[] = "{"
+					   "\"ipsec_policies\": {"
+					       "\"vrf\": %d,"
+					       "\"policy_count\": {"
+						   "\"%s\": %d,"
+					       " }"
+				       "}}";
+	json_object *jexp;
+
+	vrfid = dp_test_translate_vrf_id(vrfid);
+
+	snprintf(cmd_str, sizeof(cmd_str), "ipsec spd vrf_id %d", vrfid);
+	snprintf(exp_str, sizeof(exp_str), template, vrfid,
+		 af == AF_INET ? "ipv4" : "ipv6", num_policies);
+
+	jexp = dp_test_json_create("%s", exp_str);
+	dp_test_check_json_poll_state(cmd_str, jexp,
+				      DP_TEST_JSON_CHECK_SUBSET,
+				      false,
+				      POLL_CNT);
+	json_object_put(jexp);
+}
+
 
 /*
  * wait_for_sa()

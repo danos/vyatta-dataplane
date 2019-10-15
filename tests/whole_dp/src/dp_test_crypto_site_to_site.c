@@ -774,8 +774,8 @@ static void _teardown_policies(struct dp_test_crypto_policy *input,
 			       struct dp_test_crypto_policy *output,
 			       const char *file, int line)
 {
-	_dp_test_crypto_delete_policy(file, line, input);
-	_dp_test_crypto_delete_policy(file, line, output);
+	_dp_test_crypto_delete_policy(file, line, input, true);
+	_dp_test_crypto_delete_policy(file, line, output, true);
 }
 #define teardown_policies(input, output) \
 	_teardown_policies(input, output, __FILE__, __LINE__)
