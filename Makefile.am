@@ -487,6 +487,7 @@ dataplane_test_SOURCES += \
 	tests/whole_dp/src/dp_test_cross_connect.c \
 	tests/whole_dp/src/dp_test_crypto_block_policy.c \
 	tests/whole_dp/src/dp_test_crypto_multi_tunnel.c \
+	tests/whole_dp/src/dp_test_crypto_perf_scale.c \
 	tests/whole_dp/src/dp_test_crypto_policy.c \
 	tests/whole_dp/src/dp_test_crypto_site_to_site.c \
 	tests/whole_dp/src/dp_test_crypto_site_to_site_passthru.c \
