@@ -80,6 +80,7 @@
 #include "util.h"
 #include "vplane_debug.h"
 #include "vplane_log.h"
+#include "npf_grouper.h"
 
 struct npf_attpt_item;
 
@@ -316,8 +317,8 @@ npf_free_group(npf_rule_group_t *rg)
 	cds_list_del_rcu(&rg->rg_entry);
 
 	/* Release groupers */
-	g2_destroy(&rg->rg_grouper);
-	g2_destroy(&rg->rg_grouper6);
+	npf_grouper_destroy(&rg->rg_grouper);
+	npf_grouper_destroy(&rg->rg_grouper6);
 
 	free(rg->rg_name);
 	free(rg);
@@ -1298,30 +1299,33 @@ static int
 npf_add_rule_to_grouper(npf_rule_t *rl)
 {
 	struct npf_rule_grouper_info *info = &rl->r_state->rs_grouper_info;
+	int err;
 
 	/*
 	 * Insert the grouper entries for this rule into the grouper
 	 * associated with this group of rules.
 	 */
 	if (info->g_family != AF_INET6) {
-		if (!g2_create_rule(rl->r_state->rs_rule_group->rg_grouper,
-				    rl->r_state->rs_rule_no, rl))
-			return -ENOMEM;
-		if (!g2_add(rl->r_state->rs_rule_group->rg_grouper, 0,
-			NPC_GPR_SIZE_v4, info->g_v4_match, info->g_v4_mask))
-			return -EINVAL;
+		err = npf_grouper_add_rule(
+			AF_INET,
+			rl->r_state->rs_rule_group->rg_grouper,
+			rl->r_state->rs_rule_no, info->g_v4_match,
+			info->g_v4_mask, rl);
+		if (err)
+			return err;
 	}
 
 	/*
 	 * NAT64 might have a natpolicy, so always add IPv6 rule
 	 */
 	if (info->g_family != AF_INET) {
-		if (!g2_create_rule(rl->r_state->rs_rule_group->rg_grouper6,
-				    rl->r_state->rs_rule_no, rl))
-			return -ENOMEM;
-		if (!g2_add(rl->r_state->rs_rule_group->rg_grouper6, 0,
-			NPC_GPR_SIZE_v6, info->g_v6_match, info->g_v6_mask))
-			return -EINVAL;
+		err = npf_grouper_add_rule(
+			AF_INET6,
+			rl->r_state->rs_rule_group->rg_grouper6,
+			rl->r_state->rs_rule_no, info->g_v6_match,
+			info->g_v6_mask, rl);
+		if (err)
+			return err;
 	}
 
 	return 0;
@@ -1598,18 +1602,36 @@ npf_rproc_match(npf_cache_t *npc, struct rte_mbuf *m, const npf_rule_t *rl,
 	return true;
 }
 
-void
-npf_grouper_init(npf_rule_group_t *rg)
+int
+npf_match_setup(npf_rule_group_t *rg)
 {
-	rg->rg_grouper = g2_init(NPC_GPR_SIZE_v4);
-	rg->rg_grouper6 = g2_init(NPC_GPR_SIZE_v6);
+	int err;
+
+	err = npf_grouper_init(AF_INET, &rg->rg_grouper);
+	if (err)
+		return err;
+
+	err = npf_grouper_init(AF_INET6, &rg->rg_grouper6);
+	if (err) {
+		npf_grouper_destroy(&rg->rg_grouper);
+		return err;
+	}
+
+	return 0;
 }
 
 void
-npf_grouper_optimize(npf_rule_group_t *rg)
+npf_match_optimize(npf_rule_group_t *rg)
 {
-	g2_optimize(&rg->rg_grouper);
-	g2_optimize(&rg->rg_grouper6);
+	int err;
+
+	err = npf_grouper_build(&rg->rg_grouper);
+	if (err)
+		RTE_LOG(ERR, DATAPLANE, "Could not rebuild IPv4 grouper\n");
+
+	err = npf_grouper_build(&rg->rg_grouper6);
+	if (err)
+		RTE_LOG(ERR, DATAPLANE, "Could not rebuild IPv6 grouper\n");
 }
 
 static ALWAYS_INLINE
@@ -1647,6 +1669,7 @@ npf_ruleset_inspect(npf_cache_t *npc, struct rte_mbuf *nbuf,
 {
 	npf_rule_group_t *rg = NULL;
 	npf_rule_t *rl;
+	int match;
 
 	if (unlikely(ruleset == NULL))
 		return NULL;
@@ -1665,20 +1688,21 @@ npf_ruleset_inspect(npf_cache_t *npc, struct rte_mbuf *nbuf,
 			continue;
 
 		if (likely(npf_iscached(npc, NPC_GROUPER))) {
-			uint8_t *pkt = (uint8_t *)npc->npc_grouper;
-
 			if (likely(npf_iscached(npc, NPC_IP4))) {
 				if (rg->rg_grouper) {
-					rl = g2_eval4(rg->rg_grouper, pkt, &pd);
-					if (rl)
+					match = npf_grouper_match(
+						AF_INET, rg->rg_grouper, npc,
+						&pd, &rl);
+					if (match)
 						return rl;
 					continue;
 				}
 			} else if (npf_iscached(npc, NPC_IP6)) {
 				if (rg->rg_grouper6) {
-					rl = g2_eval6(rg->rg_grouper6, pkt,
-						      &pd);
-					if (rl)
+					match = npf_grouper_match(
+						AF_INET6, rg->rg_grouper6, npc,
+						&pd, &rl);
+					if (match)
 						return rl;
 					continue;
 				}

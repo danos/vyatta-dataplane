@@ -281,6 +281,7 @@ NPF_FILES = \
         src/npf/npf_dataplane_session.c \
         src/npf/npf_disassemble.c \
         src/npf/npf_event.c \
+        src/npf/npf_grouper.c \
         src/npf/npf_icmp.c \
         src/npf/npf_if.c \
         src/npf/npf_if_feat.c \
