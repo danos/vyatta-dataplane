@@ -286,6 +286,7 @@ NPF_FILES = \
         src/npf/npf_if.c \
         src/npf/npf_if_feat.c \
         src/npf/npf_instr.c \
+        src/npf/npf_match.c \
         src/npf/npf_mbuf.c \
         src/npf/npf_nat.c \
         src/npf/npf_ncgen.c \
