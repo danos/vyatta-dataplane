@@ -80,7 +80,7 @@
 #include "util.h"
 #include "vplane_debug.h"
 #include "vplane_log.h"
-#include "npf_grouper.h"
+#include "npf_match.h"
 
 struct npf_attpt_item;
 
@@ -120,8 +120,8 @@ struct npf_rule_group {
 
 	uint8_t rg_dir;			/* direction - IN, OUT, or both */
 
-	g2_config_t *rg_grouper;
-	g2_config_t *rg_grouper6;
+	npf_match_ctx_t *match_ctx_v4;
+	npf_match_ctx_t *match_ctx_v6;
 
 	struct cds_list_head rg_rules;	/* rules in this group */
 
@@ -317,8 +317,8 @@ npf_free_group(npf_rule_group_t *rg)
 	cds_list_del_rcu(&rg->rg_entry);
 
 	/* Release groupers */
-	npf_grouper_destroy(&rg->rg_grouper);
-	npf_grouper_destroy(&rg->rg_grouper6);
+	npf_match_destroy(rg->rg_ruleset->rs_type, AF_INET, &rg->match_ctx_v4);
+	npf_match_destroy(rg->rg_ruleset->rs_type, AF_INET6, &rg->match_ctx_v6);
 
 	free(rg->rg_name);
 	free(rg);
@@ -1299,6 +1299,8 @@ static int
 npf_add_rule_to_grouper(npf_rule_t *rl)
 {
 	struct npf_rule_grouper_info *info = &rl->r_state->rs_grouper_info;
+	enum npf_ruleset_type rs_type =
+		rl->r_state->rs_rule_group->rg_ruleset->rs_type;
 	int err;
 
 	/*
@@ -1306,9 +1308,9 @@ npf_add_rule_to_grouper(npf_rule_t *rl)
 	 * associated with this group of rules.
 	 */
 	if (info->g_family != AF_INET6) {
-		err = npf_grouper_add_rule(
-			AF_INET,
-			rl->r_state->rs_rule_group->rg_grouper,
+		err = npf_match_add_rule(
+			rs_type, AF_INET,
+			rl->r_state->rs_rule_group->match_ctx_v4,
 			rl->r_state->rs_rule_no, info->g_v4_match,
 			info->g_v4_mask, rl);
 		if (err)
@@ -1319,9 +1321,9 @@ npf_add_rule_to_grouper(npf_rule_t *rl)
 	 * NAT64 might have a natpolicy, so always add IPv6 rule
 	 */
 	if (info->g_family != AF_INET) {
-		err = npf_grouper_add_rule(
-			AF_INET6,
-			rl->r_state->rs_rule_group->rg_grouper6,
+		err = npf_match_add_rule(
+			rs_type, AF_INET6,
+			rl->r_state->rs_rule_group->match_ctx_v6,
 			rl->r_state->rs_rule_no, info->g_v6_match,
 			info->g_v6_mask, rl);
 		if (err)
@@ -1606,17 +1608,20 @@ int
 npf_match_setup(npf_rule_group_t *rg, uint32_t max_rules)
 {
 	int err;
+	enum npf_ruleset_type rs_type = rg->rg_ruleset->rs_type;
 
 	DP_DEBUG(NPF, DEBUG, DATAPLANE, "Creating ruleset of size %d\n",
 		 max_rules);
 
-	err = npf_grouper_init(AF_INET, &rg->rg_grouper);
+	err = npf_match_init(rs_type, AF_INET, rg->rg_name,
+			     max_rules, &rg->match_ctx_v4);
 	if (err)
 		return err;
 
-	err = npf_grouper_init(AF_INET6, &rg->rg_grouper6);
+	err = npf_match_init(rs_type, AF_INET6, rg->rg_name,
+			     max_rules, &rg->match_ctx_v6);
 	if (err) {
-		npf_grouper_destroy(&rg->rg_grouper);
+		npf_match_destroy(rs_type, AF_INET, &rg->match_ctx_v4);
 		return err;
 	}
 
@@ -1627,12 +1632,13 @@ void
 npf_match_optimize(npf_rule_group_t *rg)
 {
 	int err;
+	enum npf_ruleset_type rs_type = rg->rg_ruleset->rs_type;
 
-	err = npf_grouper_build(&rg->rg_grouper);
+	err = npf_match_build(rs_type, AF_INET, &rg->match_ctx_v4);
 	if (err)
 		RTE_LOG(ERR, DATAPLANE, "Could not rebuild IPv4 grouper\n");
 
-	err = npf_grouper_build(&rg->rg_grouper6);
+	err = npf_match_build(rs_type, AF_INET6, &rg->match_ctx_v6);
 	if (err)
 		RTE_LOG(ERR, DATAPLANE, "Could not rebuild IPv6 grouper\n");
 }
@@ -1686,24 +1692,28 @@ npf_ruleset_inspect(npf_cache_t *npc, struct rte_mbuf *nbuf,
 	};
 
 	cds_list_for_each_entry_rcu(rg, &ruleset->rs_groups, rg_entry) {
+		enum npf_ruleset_type rs_type = rg->rg_ruleset->rs_type;
+
 		/* Match the direction. */
 		if ((rg->rg_dir & dir) == 0)
 			continue;
 
 		if (likely(npf_iscached(npc, NPC_GROUPER))) {
 			if (likely(npf_iscached(npc, NPC_IP4))) {
-				if (rg->rg_grouper) {
-					match = npf_grouper_match(
-						AF_INET, rg->rg_grouper, npc,
+				if (rg->match_ctx_v4) {
+					match = npf_match_classify(
+						rs_type, AF_INET,
+						rg->match_ctx_v4, npc,
 						&pd, &rl);
 					if (match)
 						return rl;
 					continue;
 				}
 			} else if (npf_iscached(npc, NPC_IP6)) {
-				if (rg->rg_grouper6) {
-					match = npf_grouper_match(
-						AF_INET6, rg->rg_grouper6, npc,
+				if (rg->match_ctx_v6) {
+					match = npf_match_classify(
+						rs_type, AF_INET6,
+						rg->match_ctx_v6, npc,
 						&pd, &rl);
 					if (match)
 						return rl;
