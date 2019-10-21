@@ -57,6 +57,8 @@
 #include "npf/config/npf_config.h"
 #include "npf/config/npf_rule_group.h"
 #include "npf/config/npf_ruleset_type.h"
+#include "npf/npf_match.h"
+#include "npf/npf_rte_acl.h"
 #include "npf_shim.h"
 #include "pipeline/nodes/pl_nodes_common.h"
 #include "pktmbuf_internal.h"
@@ -2546,6 +2548,23 @@ void crypto_show_cache(FILE *f, const char *str)
 	jsonw_destroy(&wr);
 }
 
+static int crypto_npf_rte_acl_match(int af __rte_unused,
+				    npf_match_ctx_t *ctx __rte_unused,
+				    npf_cache_t *npc __rte_unused,
+				    void *data __rte_unused,
+				    npf_rule_t **rl __rte_unused)
+{
+	return 1;
+}
+
+static npf_match_cb_tbl crypto_npf_match_cb_tbl = {
+	.npf_match_init_cb     = npf_rte_acl_init,
+	.npf_match_add_rule_cb = npf_rte_acl_add_rule,
+	.npf_match_build_cb    = npf_rte_acl_build,
+	.npf_match_classify_cb = crypto_npf_rte_acl_match,
+	.npf_match_destroy_cb  = npf_rte_acl_destroy
+};
+
 /*
  * crypto_policy_init()
  *
@@ -2585,6 +2604,15 @@ int crypto_policy_init(void)
 	}
 
 	rte_timer_init(&crypto_npf_cfg_commit_all_timer);
+
+	/*
+	 * register packet match callbacks for crypto rulesets
+	 */
+	if (npf_match_register_cb_tbl(NPF_RS_IPSEC,
+				      &crypto_npf_match_cb_tbl)) {
+		POLICY_ERR("Failed to register npf callback table\n");
+		return -1;
+	}
 
 	return 0;
 }
