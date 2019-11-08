@@ -1,0 +1,4 @@
+usr/lib/python3/dist-packages/vyatta/proto
+usr/share/perl5/vyatta/proto
+usr/share/vyatta-dataplane/protobuf/DataplaneEnvelope.proto
+usr/share/vyatta-dataplane/protobuf/cpp_rl.proto

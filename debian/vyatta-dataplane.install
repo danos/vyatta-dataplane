@@ -1,0 +1,5 @@
+usr/sbin/dataplane
+tools/* lib/vplane
+debian/vfio_iommu_type1.conf etc/modprobe.d
+usr/share/vyatta/dataplane-drivers-default.conf
+etc/vyatta/dataplane-drivers.conf

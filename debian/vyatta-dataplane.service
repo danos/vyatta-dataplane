@@ -1,0 +1,37 @@
+[Unit]
+Description=Vyatta Dataplane
+Wants=system-preconfigure.service
+After=system-preconfigure.service
+Wants=system-configure.service
+Before=system-configure.service
+ConditionPathExists=/etc/vyatta/dataplane.conf
+ConditionKernelCommandLine=!no-dataplane
+
+[Service]
+Type=notify
+Restart=always
+LimitNOFILE=10000
+Nice=-20
+Slice=dataplane.slice
+Environment=TMP_EAL=/run/dataplane/eal-args
+Environment=HUGEPAGES=0
+Environment="DATAPLANE_ARGS=-u dataplane -g adm"
+Environment="DPDK_ARGS=--syslog local6 --log-level 7"
+EnvironmentFile=-/etc/default/dataplane
+EnvironmentFile=/run/dataplane/eal-args
+ExecStartPre=/bin/rm -f /run/dataplane/platform.conf
+ExecStartPre=/bin/run-parts /lib/vplane/prestart.d
+ExecStartPre=/bin/bash -c "echo -n 'DPDK_EAL_ARGS=${DPDK_ARGS} ' > $TMP_EAL; \
+  /lib/vplane/vplane-eal-args /etc/vyatta/dataplane.conf >> $TMP_EAL"
+ExecStartPre=/lib/vplane/vplane-dist-log
+ExecStartPre=/lib/vplane/vplane-hugepages set $HUGEPAGES
+ExecStartPre=/lib/vplane/vplane-xen
+ExecStartPre=/lib/vplane/vplane-modules load
+ExecStartPre=/lib/vplane/vplane-uio
+ExecStart=/usr/sbin/dataplane $DATAPLANE_ARGS -- $DPDK_EAL_ARGS
+ExecStopPost=/lib/vplane/vplane-hugepages clean
+ExecStopPost=/lib/vplane/vplane-modules unload
+ExecStartPost=/bin/run-parts /lib/vplane/poststart.d
+
+[Install]
+WantedBy=config-loaded.target

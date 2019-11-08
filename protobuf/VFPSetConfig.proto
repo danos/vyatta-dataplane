@@ -1,0 +1,25 @@
+// Copyright (c) 2019, AT&T Intellectual Property.  All rights reserved.
+//
+// SPDX-License-Identifier: LGPL-2.1-only
+//
+// VFP set configuration  protobuf definitions
+//
+
+syntax="proto2";
+
+message VFPSetConfig {
+	optional uint32 if_index = 1;
+ 	optional string if_name = 2;
+	enum VFPType {
+	     VFP_S2S_CRYPTO = 0;
+	}
+	optional VFPType type = 3;
+
+	//lock and unlock to make sure that the type
+	//of vfp can not change while still in use.
+	enum Action {
+	     VFP_ACTION_PUT = 0;
+	     VFP_ACTION_GET = 1;
+	}
+	optional Action action = 4;
+}

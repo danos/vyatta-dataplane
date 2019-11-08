@@ -1,0 +1,173 @@
+#! /bin/bash
+
+# vplane-hugepages: handle set/clean/show of hugepages
+# reservation.
+
+# If present /lib/vplane/hugemem-heuristic override by platform
+# specific heuristics. vCPE or other platforms may use it.
+
+# /etc/default/hugemem-hintr, if present, provides admin
+# configured values for HUGEMEM, DPDKMEM and OVERCOMMIT_HUGEMEM
+# to override the platform heuristics.
+
+# show can be used to query different values without setting
+# them. When called with NOHINT ENV set, it will not load
+# the /etc/default/hugemem-hint.
+# HUGEPAGES : nr_hugepages to be allocated
+# DPDK_ARG  : dataplane memory in MB)
+# MIN_HUGEMEM : minimum amount of huge page memory needed
+# MAX_HUGEMEM : maximum huge page memory allowed
+# OVERCOMMIT_HUGEPAGES : number of overcommit pages
+
+set -e
+
+declare -i "M=$(awk '/^MemTotal:/ { print $2 }' /proc/meminfo)"
+declare -i  "HUGE_SZ=$(awk '/^Hugepagesize:/ { print $2 }' /proc/meminfo)"
+
+if [[ $M -eq 0 ]]; then
+    echo "$0: can't read MemTotal from /proc/meminfo" >&2
+    exit 1
+fi
+
+declare -i MB=$(( M / 1024 ))
+if [[ $MB -lt 1536 ]]; then
+    echo "$0: Not enough memory: $M  kB" >&2
+    exit 1
+fi
+
+declare -i MIN_HUGEMEM=768
+declare -i MAX_HUGEMEM=$(( MB - 768 ))
+declare -i HUGEPAGES DPDK_ARG OVERCOMMIT_HUGEPAGES
+declare -i HUGEMEM DPDKMEM OVERCOMMIT_HUGEMEM
+
+# Original heuristics
+set_defaults() {
+    # no hugepages on Xen PV domU
+    if [[ $HUGE_SZ -eq 0 ]]; then
+	HUGEPAGES=0
+        DPDK_ARG=0
+        return
+    fi
+
+    HUGEPAGES=$(( 4194304 / HUGE_SZ ))
+    if [[ $MB -le 4096 ]]; then
+        HUGEPAGES=$(( ( M / 4 ) /  HUGE_SZ ))
+    elif [[ $MB -le 8192 ]]; then
+        HUGEPAGES=$(( ( M / 2 ) / HUGE_SZ ))
+    fi
+    DPDK_ARG=$(( ( HUGEPAGES * HUGE_SZ ) / 1024 )) # MB
+    OVERCOMMIT_HUGEPAGES=0
+}
+
+process_hints() {
+    # Validate and convert to HUGE PAGES
+    if [[ $HUGEMEM -lt $MIN_HUGEMEM || $HUGEMEM -gt $MAX_HUGEMEM \
+       || $DPDKMEM -lt $MIN_HUGEMEM || $DPDKMEM -gt $MAX_HUGEMEM \
+           || $HUGEMEM -lt $DPDKMEM ]] ; then
+        echo "$0: Ignoring hugepages hints from /etc/default/hugemem-hint" >&2
+        return 1
+    fi
+
+    HUGEPAGES=$(( ( HUGEMEM * 1024 ) / HUGE_SZ ))
+    DPDK_ARG=$DPDKMEM
+    [[ $DPDK_ARG -lt $MIN_HUGEMEM ]] && \
+        echo "Warning: too little memory ${DPDK_ARG}MB for dataplane" >&2
+    if [[ $OVERCOMMIT_HUGEMEM -gt 0 ]]; then
+        OVERCOMMIT_HUGEPAGES=$(( ( OVERCOMMIT_HUGEMEM * 1024 ) / HUGE_SZ ))
+    fi
+}
+
+# prints different variables
+show_vars() {
+    # Print HUGEPAGES with no args
+    [[ $# -eq 0 ]] && set -a HUGEPAGES
+
+    local values="${!1}"
+    shift
+    while [[ $# -ne 0 ]]; do
+        if [[ -z ${!1} ]]; then
+            echo "$0: Unknown/Unset variable $1" >&2
+            exit 1
+        fi
+        values="${values} ${!1}"
+        shift
+    done
+    [[ -z "$values" ]] || printf "%s" "${values}"
+}
+
+# Set huge page parameters
+set_hugepages() {
+    local pages
+
+    if [[ $HUGE_SZ -eq 0 ]]; then
+	echo "set_hugepages: ignoring Hugepagesize 0kB" >&2
+	return
+    fi
+
+    # If some huge pages already reserved, use them
+    pages=$(cat "/sys/kernel/mm/hugepages/hugepages-${HUGE_SZ}kB/nr_hugepages")
+    if [[ $pages -eq 0 ]]; then
+        pages=$HUGEPAGES
+        if [[ $pages -lt $1 ]]; then
+            pages=$1
+        fi
+        echo "$pages" > "/sys/kernel/mm/hugepages/hugepages-${HUGE_SZ}kB/nr_hugepages"
+    fi
+
+    if [ $OVERCOMMIT_HUGEPAGES -gt 0 ]; then
+        echo $OVERCOMMIT_HUGEPAGES > /proc/sys/vm/nr_overcommit_hugepages
+    fi
+
+    # mount hugetblfs if not already present
+    if [ ! -d /mnt/huge ] ; then
+        mkdir -p /mnt/huge
+    fi
+
+    if ! grep -q -w /mnt/huge /proc/mounts ; then
+        mount -t hugetlbfs nodev /mnt/huge
+    fi
+}
+
+clean_hugepages() {
+    # Don't destroy huge pages because they have been setup on boot
+    # or maybe difficult to impossible to get them back
+
+    if [ -d /mnt/huge ] ; then
+    umount /mnt/huge 2>/dev/null
+    rmdir /mnt/huge
+    fi
+}
+
+set_defaults
+
+if [[ -r /lib/vplane/hugemem_heuristic ]]; then
+    . /lib/vplane/hugemem_heuristic
+elif [[ -x /lib/vplane/vplane-hugepages-vcpe ]]; then # keep backward compatibility
+    HUGEPAGES=$(/lib/vplane/vplane-hugepages-vcpe hugepages)
+    DPDK_ARG=$(/lib/vplane/vplane-hugepages-vcpe dpdk)
+    OVERCOMMIT_HUGEPAGES=$(cat /proc/sys/vm/nr_overcommit_hugepages)
+fi
+
+if [[ $NOHINTS -eq 0 && -r /etc/default/hugemem-hint ]]; then
+    . /etc/default/hugemem-hint
+    process_hints
+fi
+
+if [ $# -lt 1 ]; then
+    echo "Usage:  $0 set MIN_PAGES | clean | show [HUGEPAGES|DPDK_ARG|OVERCOMMIT_HUGEPAGES]"
+    exit 1
+fi
+
+if [[ $1 = "set" && $# -eq 2 ]]; then
+    set_hugepages "$2"
+elif [[ $1 = "clean" ]]; then
+    clean_hugepages
+elif [[ "$1" = "show" ]]; then
+    shift
+    show_vars "$@"
+else
+    echo "Usage:  $0 set MIN_PAGES | clean"
+    exit 1
+fi
+
+exit 0

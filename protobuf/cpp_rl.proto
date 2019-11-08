@@ -1,0 +1,71 @@
+// Copyright (c) 2019, AT&T Intellectual Property.  All rights reserved.
+//
+// SPDX-License-Identifier: LGPL-2.1-only
+//
+// Control Plane Policing Rate Limiter protobuf definitions.
+
+// The CPP RL protobuf message conveys the config hierarchy to the dataplane:
+//
+//  CPP_limiter
+// +-------------------------------------------------------------------------+
+// |                                                                         |
+// |                           detection_interval                            |
+// |                                                                         |
+// |  CPP_attribute                         CPP_attribute                    |
+// | +-------------------------------+     +-------------------------------+ |
+// | |                               |     |                               | |
+// | |             attr              |     |             attr              | |
+// | |                               |     |                               | |
+// | |  CPP_parameter                |     |  CPP_parameter                | |
+// | | +----------+     +----------+ |     | +----------+     +----------+ | |
+// | | | rate_pps |     | rate_pps | |     | | rate_pps |     | rate_pps | | |
+// | | | rate_kbps| ... | rate_kbps| | ... | | rate_kbps| ... | rate_kbps| | |
+// | | +----------+     +----------+ |     | +----------+     +----------+ | |
+// | |                               |     |                               | |
+// | +-------------------------------+     +-------------------------------+ |
+// |                                                                         |
+// +-------------------------------------------------------------------------+
+
+syntax="proto2";
+
+package cpp_rl;
+
+// The CPP rate limiter message.
+message CPP_limiter {
+
+	// The CPP rate limiter attribute message.
+	message CPP_attribute {
+		enum cpp_attr_en {
+			CPP_ATTR_UNKNOWN = 0;
+			CPP_ATTR_LL_MULTICAST = 1;
+			CPP_ATTR_IPV6_EXT = 2;
+			CPP_ATTR_IPV4_FRAGMENT = 3;
+			CPP_ATTR_OSPF_MULTICAST = 4;
+			CPP_ATTR_OSPF = 5;
+			CPP_ATTR_BGP = 6;
+			CPP_ATTR_ICMP = 7;
+			CPP_ATTR_LDP_UDP = 8;
+			CPP_ATTR_BFD_UDP = 9;
+			CPP_ATTR_RSVP = 10;
+			CPP_ATTR_UDP = 11;
+			CPP_ATTR_TCP = 12;
+			CPP_ATTR_DEFAULT = 13;
+		}
+
+		// The CPP rate limiter attribute parameter message.
+		message CPP_parameter {
+			optional uint32 rate_pps = 1;
+			optional uint32 rate_kbps = 2;
+		}
+
+		// The CPP rate limiter attribute message.
+		// contains the attribute and a list of parameters.
+		optional cpp_attr_en attr = 1;
+		repeated CPP_parameter parameters = 2;
+	}
+
+	// The CPP rate limiter message contains the detection inverval
+	// (in seconds) and a list of attributes.
+	optional uint32 detection_interval = 1;
+	repeated CPP_attribute attributes = 2;
+}

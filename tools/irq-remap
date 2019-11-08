@@ -1,0 +1,136 @@
+#! /usr/bin/perl
+
+# Copyright (c) 2015-2016, Brocade Communications Systems, Inc.
+# All rights reserved.
+#
+# SPDX-License-Identifier: LGPL-2.1-only
+
+# This program is run by init script to remap interrupt affinity
+# mask of devices to avoid CPU's reserved for dataplane.
+#
+# Note:
+# It should not use libraries and other parts of the vRouter
+# controller environment to allow running dataplane standalone.
+
+use strict;
+use warnings;
+
+use File::Slurp;
+use Config::Tiny;
+
+my $DATAPLANE_CFG = '/etc/vyatta/dataplane.conf';
+
+# convert range "0-7" into a perl bit vector
+sub range_to_vector {
+    my $range  = shift;
+    my $result = '';
+
+    foreach my $str ( split /,/, $range ) {
+        if ( $str =~ /^ (\d+)-(\d+) $/x ) {
+            vec( $result, $_, 1 ) = 1 for ( $1 .. $2 );
+        } elsif ( $str =~ /^ (\d+) $/x ) {
+            vec( $result, $1, 1 ) = 1;
+        } else {
+            die "invalid range $str";
+        }
+    }
+
+    return $result;
+}
+
+# convert from bitvector into range for smp_affinity
+# ie. 1,0123ffff
+sub vector_to_mask {
+    my $vec = shift;
+    my @bytes = reverse unpack( '(H8)*', $vec );
+
+    my @res = map { reorder($_) } @bytes;
+
+    return join( ',', @res );
+}
+
+# find first set bit in perl vector -- not optimized
+sub first_set_bit {
+    my $vector = shift;
+
+    return index( unpack( 'b*', $vector ), '1' );
+}
+
+# The output of unpack has bytes in words in wrong sequence.
+# Only valid with byte string like "112233" -> "332211"
+sub reorder {
+    my $str = shift;
+
+    return join('', reverse split(/(..)/, $str));
+}
+
+# get range of online cpus from
+# /sys/devices/system/cpu/online returns "0-7"
+sub online_cpus {
+    my $cpus = read_file('/sys/devices/system/cpu/online');
+    die "Can't find online cpus" unless defined($cpus);
+
+    chomp $cpus;
+    return $cpus;
+}
+
+# Get bit vector of dataplane cpus
+sub dataplane_cpus {
+    my $online = shift;
+    my $cfg    = Config::Tiny->read($DATAPLANE_CFG);
+    my $isolated;
+
+    die "Can't read $DATAPLANE_CFG: $!\n"
+      unless $cfg;
+
+    my $cpumask = $cfg->{Dataplane}->{cpumask};
+    if ( defined($cpumask) ) {
+        $isolated = range_to_vector($cpumask);
+    } else {
+        $isolated = $online;
+    }
+
+    my $master = first_set_bit($isolated);
+    vec( $isolated, $master, 1 ) = 0
+      if ( $master >= 0 );
+
+    # never ban CPU 0
+    vec( $isolated, 0, 1 ) = 0;
+
+    return $isolated;
+}
+
+# Don't put IRQ's on dataplane cpus
+my $online       = range_to_vector( online_cpus() );
+my $isolated     = dataplane_cpus($online);
+my $control      = $online & ~$isolated;
+my $smp_affinity = scalar reverse( unpack( 'h*', $control ) );
+
+if ( $ENV{'SMP_DEBUG'} ) {
+    printf "online:   %s\n", scalar reverse( unpack( 'b*', $online ) );
+    printf "isolated: %s\n", scalar reverse( unpack( 'b*', $isolated ) );
+    printf "control:  %s\n", scalar reverse( unpack( 'b*', $control ) );
+    print "smp_affinity = $smp_affinity\n";
+}
+
+# Set affinity for later hot plug devices
+write_file( '/proc/irq/default_smp_affinity', $smp_affinity );
+
+# Remap existing IRQ's
+open( my $irqf, '<', '/proc/interrupts' )
+  or die "can't open /proc/interrupts: $!";
+
+while (<$irqf>) {
+    next unless /^ \s+ (\d+):/x;
+
+    my $irq = $1;
+    next if $irq == 0;
+
+    my $path = "/proc/irq/$irq/smp_affinity";
+    next unless -w $path;
+
+    # some interrupts can't be remapped so ignore errors
+    write_file( $path, { err_mode => 'quiet' }, $smp_affinity );
+}
+
+close $irqf;

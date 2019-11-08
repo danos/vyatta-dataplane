@@ -1,0 +1,3 @@
+usr/include/vyatta-dataplane/fal_plugin.h
+usr/include/vyatta-dataplane/bridge_flags.h
+usr/include/vyatta-dataplane/bridge_vlan_set.h

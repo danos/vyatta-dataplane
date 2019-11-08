@@ -1,0 +1,96 @@
+#Dataplane executable
+/dataplane
+/dataplane_test
+# Build results
+/obj-*
+# Debian rules
+build-stamp
+# RTE rules
+x86_64-vyatta-linuxapp-gcc
+_postinstall
+_postclean
+# Autotools
+Makefile.in
+/Makefile
+/ar-lib
+/autom4te.cache
+/aclocal.m4
+/build_config.*
+/compile
+/config.*
+/configure
+/depcomp
+/install-sh
+/missing
+/stamp-h1
+/test-driver
+/*.trs
+/*.log
+ylwrap
+debian/debhelper-build-stamp
+debian/libvyattafal-dev/
+debian/vyatta-dataplane-dev/
+debian/vyatta-dataplane-sample-plugin/
+ltmain.sh
+m4/libtool.m4
+m4/ltoptions.m4
+m4/ltsugar.m4
+m4/ltversion.m4
+m4/lt~obsolete.m4
+dynsyms
+funcsyms
+keep_symbols
+mini_debuginfo
+# Normal rules
+.*
+*.o
+*.o.*
+*.a
+*.s
+*.ko
+*.so
+*.so.dbg
+*.mod.c
+*.i
+*.lst
+*.symtypes
+*.order
+modules.builtin
+*.elf
+*.bin
+*.gz
+*.bz2
+*.lzma
+*.xz
+*.lzo
+*.gcno
+*.gcda
+
+# Ignore tags created by etags, ctags, gtags (GNU global) and cscope
+TAGS
+.TAGS
+!TAGS/
+tags
+.tags
+!tags/
+gtags.files
+GTAGS
+GRTAGS
+GPATH
+GSYMS
+cscope.files
+cscope.out
+cscope.in.out
+cscope.po.out
+
+# git files that we don't want to ignore even it they are dot-files
+!.gitignore
+
+*.orig
+*.rej
+*~
+\#*#
+
+#UT coverage files
+/*-coverage.info
+/*-coverage/

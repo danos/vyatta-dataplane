@@ -1,0 +1,10 @@
+.text.hot.ether_input_no_dyn_feats*
+.text.hot.forwarding_loop*
+.text.hot.poll_receive_queues*
+.text.hot.if_output*
+.text.hot.pkt_ring_burst*
+.text.hot.lla_match*
+.text.hot.ether_input*
+.text.hot.*
+.text.*
+.text

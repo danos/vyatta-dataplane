@@ -1,0 +1,93 @@
+#! /bin/bash
+#
+# This script does what dh_strip does in moving debug symbols to
+# another package, but also extracts symbols and adds them as a
+# minidebuginfo to the binary so that symbol backtrace decoding is
+# possible without the debug package being installed.
+#
+# Based on dh_strip
+
+if [[ $# -lt 1 ]]
+then
+    echo "Usage: $0 [--dbg-package=package]"
+    exit 1
+fi
+
+LONGOPTS="-l dbg-package: -l help -l verbose"
+SHORTOPTS="vh"
+ARGS=$(getopt  "$LONGOPTS" -- "$SHORTOPTS" "$@")
+if [ $? -ne 0 ]
+then
+    echo -e "$0 could not process option";
+    exit 1
+fi
+
+eval set -- "$ARGS"
+
+while [ $# -gt 0 ]; do
+    ARG=$1
+    case $ARG in
+	--help|-h)	shift; echo -e "$0 [options]\n"; exit 0;;
+	--verbose|-v)	shift; VERBOSE=1;;
+	--dbg-package)	shift; DBGPKG="$1"; shift;;
+	*)		break;;
+    esac
+done
+
+
+[[ "$DEB_BUILD_OPTIONS" =~ "nostrip" ]] && exit 0
+
+generate_minidebug_and_debug()
+{
+    # $1: binary
+    # $2: debug
+    local binary=$1
+    local debug=$2
+
+    nm -D ${binary} --format=posix --defined-only | awk '{ print $1 }' | \
+        sort > dynsyms
+    # Extract all the text symbols from the binary.
+    nm ${binary} --format=posix --defined-only \
+        | awk '{ if ($2 == "T" || $2 == "t" || $2 == "D") print $1 }' \
+        | sort > funcsyms
+
+    # Keep only the function symbols not already in the dynamic symbol
+    # table.
+    comm -13 dynsyms funcsyms > keep_symbols
+
+    # Create the full debuginfo
+    objcopy --only-keep-debug ${binary} ${debug}
+
+    # Make the mini debuginfo, keeping only a minimal set of symbols and
+    # removing some unnecessary sections.
+    objcopy -S --remove-section .gdb_index --remove-section .comment \
+            --keep-symbols=keep_symbols ${debug} mini_debuginfo
+
+    strip --strip-all -R .comment -R .note ${binary}
+
+    # Attach the mini debuginfo
+    xz mini_debuginfo
+    objcopy --add-section .gnu_debugdata=mini_debuginfo.xz ${binary}
+}
+
+
+for PKG in $(awk '/^Package:/ { print $2 }' < debian/control)
+do
+    for PROG in $(find debian/$PKG -path '*/usr/*' -type f -a \( -executable -o -name '*.so' \) )
+    do
+       if [ -n "$DBGPKG" ]; then
+	   build=$(readelf -n $PROG | awk '/Build ID:/ { print $3}')
+	   [ -n "$VERBOSE" ] && echo "build-id $PROG $build"
+	   dir=${build:0:2}
+	   debug_dir=debian/$DBGPKG/usr/lib/debug/.build-id/$dir
+	   debug_path=$debug_dir/${build:2}.debug
+
+	   install -d $debug_dir
+	   generate_minidebug_and_debug "$PROG" "$debug_path"
+	   chmod 644 $debug_path
+	   objcopy --add-gnu-debuglink $debug_path $PROG
+       else
+	   generate_minidebug_and_debug "$PROG" "$PROG.debug"
+       fi
+    done
+done

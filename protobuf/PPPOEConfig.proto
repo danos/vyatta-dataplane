@@ -1,0 +1,26 @@
+// Copyright (c) 2018, AT&T Intellectual Property.  All rights reserved.
+//
+// SPDX-License-Identifier: LGPL-2.1-only
+//
+// PPPOE protobuf definitions
+//
+
+syntax="proto2";
+
+message PPPOEConfig {
+	//PPPoE interface name
+	optional string pppname = 1;
+
+	//underlying interface name -
+	// expected to be an Ethernet interface
+	optional string undername = 2;
+
+	//PPP session ID
+	optional int32  session = 3;
+
+	//Originating MAC address to use in the PPPoE session
+	optional string ether = 4;
+
+	//Terminating MAC address to use in the PPPoE session
+	optional string peer_ether = 5;
+}

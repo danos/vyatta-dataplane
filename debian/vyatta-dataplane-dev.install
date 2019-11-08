@@ -1,0 +1,5 @@
+usr/include/vyatta-dataplane/json_writer.h
+usr/include/vyatta-dataplane/pl_common.h
+usr/include/vyatta-dataplane/pl_node.h
+usr/include/vyatta-dataplane/compiler.h
+usr/include/vyatta-dataplane/protobuf.h

@@ -1,0 +1,24 @@
+#! /bin/sh
+#
+# Make userid for dataplane
+
+set -e
+
+if [ "x$1" = xconfigure ]; then
+	if [ ! `getent group dataplane >/dev/null` ]; then
+		 deluser --quiet --system dataplane
+	fi
+	adduser --quiet --system --group --home /var/run/dataplane dataplane
+
+	# Required for route-broker interaction
+	usermod dataplane -a -G routeadm
+
+	log_dir=/var/log/dataplane
+	if [ -d $log_dir ]; then
+		rm -rf $log_dir
+	fi
+fi
+
+#DEBHELPER#
+
+exit 0

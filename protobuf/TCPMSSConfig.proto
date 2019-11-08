@@ -1,0 +1,25 @@
+// Copyright (c) 2018, AT&T Intellectual Property.  All rights reserved.
+//
+// SPDX-License-Identifier: LGPL-2.1-only
+
+// TCP MSS protobuf definitions
+
+syntax="proto2";
+
+message TCPMSSConfig {
+	enum AddressFamily {
+	     TCP_MSS_V4 = 0;
+	     TCP_MSS_V6 = 1;
+	}
+	enum MTUType {
+	     NONE = 0;
+	     MTU = 1;
+	     MTU_MINUS = 2;
+	     LIMIT = 3;
+	}
+	optional bool is_enable = 1;
+	optional AddressFamily af = 2;
+	optional string ifname = 3;
+	optional MTUType mtu_option = 4;
+	optional int32 value = 5;
+}

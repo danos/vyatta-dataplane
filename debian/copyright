@@ -1,0 +1,204 @@
+Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+
+Files: *
+Copyright:
+ 2017, AT&T Intellectual Property.  All rights reserved.
+ 2012-2017 Brocade Communications Systems, Inc.
+License: LGPL-2.1-only
+
+Files:
+ m4/ax_code_coverage.m4
+Copyright:
+ 2012, 2016 Philip Withnall
+ 2012 Xan Lopez
+ 2012 Christian Persch
+ 2012 Paolo Borelli
+ 2012 Dan Winship
+ 2015 Bastien ROUCARIES
+License: LGPLv2.1+
+ This package is free software; you can redistribute it and/or
+ modify it under the terms of the GNU Lesser General Public
+ License as published by the Free Software Foundation;
+ version 2.1
+ .
+ This package is distributed in the hope that it will be useful,
+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ Lesser General Public License for more details.
+ .
+ You should have received a copy of the GNU General Public License
+ along with this program. If not, see <https://www.gnu.org/licenses/>.
+ .
+ On Debian systems, the complete text of the GNU Lesser General
+ Public License can be found in "/usr/share/common-licenses/LGPL-2.1".
+
+Files:
+ m4/ax_cxx_compile_stdcxx.m4
+ m4/ax_valgrind_check.m4
+Copyright:
+ 2008 Benjamin Kosnik <bkoz@redhat.com>
+ 2012 Zack Weinberg <zackw@panix.com>
+ 2013 Roy Stogner <roystgnr@ices.utexas.edu>
+ 2014, 2015 Google Inc.; contributed by Alexey Sokolov <sokolov@google.com>
+ 2014, 2015, 2016 Philip Withnall <philip.withnall@collabora.co.uk>
+ 2015 Paul Norman <penorman@mac.com>
+ 2015 Moritz Klammler <moritz@klammler.eu>
+License: FSFAP
+ Copying and distribution of this file, with or without modification, are permitted in any medium without royalty provided the copyright notice and this notice are preserved. This file is offered as-is, without any warranty.
+
+Files:
+ src/ip_id.c
+ src/npf/alg/npf_alg_private.c
+ src/npf/npf.h
+ src/npf/npf_cache.c
+ src/npf/npf_cache.h
+ src/npf/npf_disassemble.c
+ src/npf/npf_disassemble.h
+ src/npf/npf_instr.c
+ src/npf/npf_instr.h
+ src/npf/npf_mbuf.c
+ src/npf/npf_mbuf.h
+ src/npf/npf_nat.c
+ src/npf/npf_nat.h
+ src/npf/npf_ncgen.c
+ src/npf/npf_ncgen.h
+ src/npf/npf_ncode.h
+ src/npf/npf_processor.c
+ src/npf/npf_ruleset.c
+ src/npf/npf_ruleset.h
+ src/npf/npf_session.c
+ src/npf/npf_session.h
+ src/npf/npf_state.c
+ src/npf/npf_state.h
+ src/npf/npf_state_tcp.c
+ src/npf/rproc/npf_ext_log.c
+ src/npf/rproc/npf_rproc.c
+ src/npf/rproc/npf_rproc.h
+Copyright:
+ 2008-2012 The NetBSD Foundation, Inc.
+ 2013-2016 by Brocade Communications Systems, Inc.
+ 2017-2019, AT&T Intellectual Property.
+License: LGPL-2.1-only and BSD-2-Clause-NETBSD
+
+Files:
+ src/sff8436.h
+ src/sff8472.h
+ src/sfp.c
+Copyright:
+ Copyright 1992-2012 The FreeBSD Project.
+ 2013 George V. Neville-Neil
+ 2014 Yandex LLC.
+ 2014 Alexander V. Chernikov.
+ 2017-2019, AT&T Intellectual Property.
+License: LGPL-2.1-only and BSD-2-Clause-FREEBSD
+
+Files:
+ src/if_llatbl.c
+ src/if_llatbl.h
+Copyright:
+ 2004 Luigi Rizzo, Alessandro Cerri.
+ 2004-2008 Qing Li.
+ 2008 Kip Macy.
+ 2017-2019, AT&T Intellectual Property
+License: LGPL-2.1-only and BSD-2-Clause
+
+Files:
+ src/arp.c
+ src/bpf_filter.c
+ src/if.c
+ src/if_ether.c
+ src/if_var.h
+ src/in.c
+ src/in_cksum.h
+ src/ip_icmp.c
+ src/ip_mroute.c
+ src/ip_mroute.h
+ src/ip_options.c
+ src/lpm/lpm.c
+ src/lpm/lpm.h
+ src/lpm/lpm6.c
+ src/lpm/lpm6.h
+ src/main.c
+ src/netinet6/in6.c
+ src/netinet6/in6.h
+ src/netinet6/in6_var.h
+ src/netinet6/ip6_mroute.c
+ src/netinet6/ip6_mroute.h
+ src/netinet6/ip6_options.c
+ src/netinet6/nd6.h
+ src/netinet6/nd6_nbr.c
+ src/npf/fragment/ipv4_frag_tbl.c
+ src/npf/fragment/ipv4_frag_tbl.h
+ src/npf/fragment/ipv4_rsmbl.c
+ src/pipeline/nodes/l3_arp.c
+ src/route_flags.h
+Copyright:
+ 1980, 1982, 1985-1986, 1988-1993 The Regents of the University of California.
+ 1989 Stephen Deering
+ 1995-1998, 2001 WIDE Project.
+ 2005 Andre Oppermann, Internet Business Solutions AG.
+ 2010-2016 Intel Corporation
+ 2011-2017 by Brocade Communications Systems, Inc.
+ 2017-2019, AT&T Intellectual Property.
+License: LGPL-2.1-only and BSD-3-Clause
+
+
+License: LGPL-2.1-only
+ This package is free software; you can redistribute it and/or
+ modify it under the terms of the GNU Lesser General Public
+ License as published by the Free Software Foundation;
+ version 2.1
+ .
+ This package is distributed in the hope that it will be useful,
+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ Lesser General Public License for more details.
+ .
+ You should have received a copy of the GNU General Public License
+ along with this program. If not, see <https://www.gnu.org/licenses/>.
+ .
+ On Debian systems, the complete text of the GNU Lesser General
+ Public License can be found in "/usr/share/common-licenses/LGPL-2.1".
+
+
+License: BSD-2-Clause-NETBSD
+ Copyright (c) 2008 The NetBSD Foundation, Inc. All rights reserved.
+ .
+ This code is derived from software contributed to The NetBSD Foundation by
+ .
+ Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
+ .
+ 1. Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.
+ 2. Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following disclaimer in the documentation and/or other materials provided with the distribution.
+ THIS SOFTWARE IS PROVIDED BY THE NETBSD FOUNDATION, INC. AND CONTRIBUTORS ``AS IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE FOUNDATION OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+
+License: BSD-2-Clause-FREEBSD
+ The FreeBSD Copyright
+ .
+ Copyright 1992-2012 The FreeBSD Project. All rights reserved.
+ .
+ Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
+ .
+ 1. Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.
+ 2. Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following disclaimer in the documentation and/or other materials provided with the distribution.
+ THIS SOFTWARE IS PROVIDED BY THE FREEBSD PROJECT ``AS IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE FREEBSD PROJECT OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ .
+ The views and conclusions contained in the software and documentation are those of the authors and should not be interpreted as representing official policies, either expressed or implied, of the FreeBSD Project.
+
+
+License: BSD-2-Clause
+ Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
+ .
+ 1. Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.
+ 2. Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following disclaimer in the documentation and/or other materials provided with the distribution.
+ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+
+License: BSD-3-Clause
+ Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
+ .
+ 1. Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.
+ 2. Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following disclaimer in the documentation and/or other materials provided with the distribution.
+ 3. Neither the name of the copyright holder nor the names of its contributors may be used to endorse or promote products derived from this software without specific prior written permission.
+ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.

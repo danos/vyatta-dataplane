@@ -1,0 +1,6 @@
+# Delete one of the entries that hashes to the same prefix-length.
+ffff:ffff:ffff:ffff:ffff:ffff:ffff:fffe;127
+# Delete a original entry that is marker and original. (after this it will be only a marker).
+ffff:ffff:0000:0000:0000:0000:0000:0000;32
+# Delete a non-exisitent entry.
+abcd:ef01:0000:0000:0000:0000:0000:0000;32

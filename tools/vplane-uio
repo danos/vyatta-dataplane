@@ -1,0 +1,651 @@
+#! /usr/bin/perl
+
+# Copyright (c) 2017-2019, AT&T Intellectual Property. All rights reserved.
+# Copyright (c) 2015-2016, Brocade Communications Systems, Inc.
+# All rights reserved.
+#
+# SPDX-License-Identifier: LGPL-2.1-only
+
+# This program is run by init script to unbind dataplane devices
+# from kernel. It is based on the python program in DPDK dpdk_nic_bind.py
+# but handles all devices rather than selectively requiring user to
+# manually do each one.
+
+use strict;
+use warnings;
+
+use Config::Tiny;
+use Cwd qw/abs_path/;
+use File::Basename;
+use File::Slurp;
+use File::Spec;
+
+my $DEBUG = 0;
+
+my $DATAPLANE_CFG         = "/etc/vyatta/dataplane.conf";
+my $VMBUS_NETWORK_DEVICE  = 'f8615163-df3e-46c5-913f-f2d2f965ed0e';
+my $PCI_BASE_CLASS_BRIDGE = 0x06;
+
+#
+# List of supported PCI device Id's generated from rte_pci_dev_ids.h in DPDK
+my @pci_devices = (
+
+    # Intel E1000
+    { vendor => 0x8086, device => 0x100e },
+    { vendor => 0x8086, device => 0x100f },
+    { vendor => 0x8086, device => 0x1011 },
+    { vendor => 0x8086, device => 0x1010 },
+    { vendor => 0x8086, device => 0x1012 },
+    { vendor => 0x8086, device => 0x101d },
+    { vendor => 0x8086, device => 0x105e },
+    { vendor => 0x8086, device => 0x105f },
+    { vendor => 0x8086, device => 0x1060 },
+    { vendor => 0x8086, device => 0x10d9 },
+    { vendor => 0x8086, device => 0x10da },
+    { vendor => 0x8086, device => 0x10a4 },
+    { vendor => 0x8086, device => 0x10d5 },
+    { vendor => 0x8086, device => 0x10a5 },
+    { vendor => 0x8086, device => 0x10bc },
+    { vendor => 0x8086, device => 0x107d },
+    { vendor => 0x8086, device => 0x107e },
+    { vendor => 0x8086, device => 0x107f },
+    { vendor => 0x8086, device => 0x10b9 },
+    { vendor => 0x8086, device => 0x109a },
+    { vendor => 0x8086, device => 0x10d3 },
+    { vendor => 0x8086, device => 0x10f6 },
+    { vendor => 0x8086, device => 0x150c },
+    { vendor => 0x8086, device => 0x153a },
+    { vendor => 0x8086, device => 0x153b },
+    { vendor => 0x8086, device => 0x155a },
+    { vendor => 0x8086, device => 0x1559 },
+    { vendor => 0x8086, device => 0x15a0 },
+    { vendor => 0x8086, device => 0x15a1 },
+    { vendor => 0x8086, device => 0x15a2 },
+    { vendor => 0x8086, device => 0x15a3 },
+
+    # Intel IGB
+    { vendor => 0x8086, device => 0x10c9 },
+    { vendor => 0x8086, device => 0x10e6 },
+    { vendor => 0x8086, device => 0x10e7 },
+    { vendor => 0x8086, device => 0x10e8 },
+    { vendor => 0x8086, device => 0x1526 },
+    { vendor => 0x8086, device => 0x150a },
+    { vendor => 0x8086, device => 0x1518 },
+    { vendor => 0x8086, device => 0x150d },
+    { vendor => 0x8086, device => 0x10a7 },
+    { vendor => 0x8086, device => 0x10a9 },
+    { vendor => 0x8086, device => 0x10d6 },
+    { vendor => 0x8086, device => 0x150e },
+    { vendor => 0x8086, device => 0x150f },
+    { vendor => 0x8086, device => 0x1510 },
+    { vendor => 0x8086, device => 0x1511 },
+    { vendor => 0x8086, device => 0x1516 },
+    { vendor => 0x8086, device => 0x1527 },
+    { vendor => 0x8086, device => 0x1521 },
+    { vendor => 0x8086, device => 0x1522 },
+    { vendor => 0x8086, device => 0x1523 },
+    { vendor => 0x8086, device => 0x1524 },
+    { vendor => 0x8086, device => 0x1546 },
+    { vendor => 0x8086, device => 0x1533 },
+    { vendor => 0x8086, device => 0x1534 },
+    { vendor => 0x8086, device => 0x1535 },
+    { vendor => 0x8086, device => 0x1536 },
+    { vendor => 0x8086, device => 0x1537 },
+    { vendor => 0x8086, device => 0x1538 },
+    { vendor => 0x8086, device => 0x1539 },
+    { vendor => 0x8086, device => 0x1f40 },
+    { vendor => 0x8086, device => 0x1f41 },
+    { vendor => 0x8086, device => 0x1f45 },
+    { vendor => 0x8086, device => 0x0438 },
+    { vendor => 0x8086, device => 0x043a },
+    { vendor => 0x8086, device => 0x043c },
+    { vendor => 0x8086, device => 0x0440 },
+
+    # Intel IXGBE
+    { vendor => 0x8086, device => 0x10b6 },
+    { vendor => 0x8086, device => 0x1508 },
+    { vendor => 0x8086, device => 0x10c6 },
+    { vendor => 0x8086, device => 0x10c7 },
+    { vendor => 0x8086, device => 0x10c8 },
+    { vendor => 0x8086, device => 0x150b },
+    { vendor => 0x8086, device => 0x10db },
+    { vendor => 0x8086, device => 0x10dd },
+    { vendor => 0x8086, device => 0x10ec },
+    { vendor => 0x8086, device => 0x10f1 },
+    { vendor => 0x8086, device => 0x10e1 },
+    { vendor => 0x8086, device => 0x10f4 },
+    { vendor => 0x8086, device => 0x10f7 },
+    { vendor => 0x8086, device => 0x1514 },
+    { vendor => 0x8086, device => 0x1517 },
+    { vendor => 0x8086, device => 0x10f8 },
+    { vendor => 0x8086, device => 0x000c },
+    { vendor => 0x8086, device => 0x10f9 },
+    { vendor => 0x8086, device => 0x10fb },
+    { vendor => 0x8086, device => 0x11a9 },
+    { vendor => 0x8086, device => 0x1f72 },
+    { vendor => 0x8086, device => 0x17d0 },
+    { vendor => 0x8086, device => 0x0470 },
+    { vendor => 0x8086, device => 0x152a },
+    { vendor => 0x8086, device => 0x1529 },
+    { vendor => 0x8086, device => 0x1507 },
+    { vendor => 0x8086, device => 0x154d },
+    { vendor => 0x8086, device => 0x154a },
+    { vendor => 0x8086, device => 0x1558 },
+    { vendor => 0x8086, device => 0x1557 },
+    { vendor => 0x8086, device => 0x10fc },
+    { vendor => 0x8086, device => 0x151c },
+    { vendor => 0x8086, device => 0x154f },
+    { vendor => 0x8086, device => 0x1528 },
+    { vendor => 0x8086, device => 0x1560 },
+    { vendor => 0x8086, device => 0x15ac },
+    { vendor => 0x8086, device => 0x15ad },
+    { vendor => 0x8086, device => 0x15ae },
+    { vendor => 0x8086, device => 0x1563 },
+    { vendor => 0x8086, device => 0x15aa },
+    { vendor => 0x8086, device => 0x15ab },
+    { vendor => 0x8086, device => 0x15b4 },
+    { vendor => 0x8086, device => 0x15c2 },
+    { vendor => 0x8086, device => 0x15c3 },
+    { vendor => 0x8086, device => 0x15c4 },
+    { vendor => 0x8086, device => 0x15c5 },
+    { vendor => 0x8086, device => 0x15c6 },
+    { vendor => 0x8086, device => 0x15c7 },
+    { vendor => 0x8086, device => 0x15c8 },
+    { vendor => 0x8086, device => 0x15ca },
+    { vendor => 0x8086, device => 0x15cc },
+    { vendor => 0x8086, device => 0x15ce },
+    { vendor => 0x8086, device => 0x15e4 },
+    { vendor => 0x8086, device => 0x15e5 },
+
+    # Intel I40E (Fortville)
+    { vendor => 0x8086, device => 0x1572 },
+    { vendor => 0x8086, device => 0x1574 },
+    { vendor => 0x8086, device => 0x157f },
+    { vendor => 0x8086, device => 0x1580 },
+    { vendor => 0x8086, device => 0x1581 },
+    { vendor => 0x8086, device => 0x1583 },
+    { vendor => 0x8086, device => 0x1584 },
+    { vendor => 0x8086, device => 0x1585 },
+    { vendor => 0x8086, device => 0x1586 },
+    { vendor => 0x8086, device => 0x1587 },
+    { vendor => 0x8086, device => 0x1588 },
+    { vendor => 0x8086, device => 0x1589 },
+    { vendor => 0x8086, device => 0x158a },
+    { vendor => 0x8086, device => 0x158b },
+    { vendor => 0x8086, device => 0x374c },
+    { vendor => 0x8086, device => 0x37d0 },
+    { vendor => 0x8086, device => 0x37d1 },
+    { vendor => 0x8086, device => 0x37d2 },
+    { vendor => 0x8086, device => 0x37d3 },
+
+    # Intel FM10K (Red Rock Canyon)
+    { vendor => 0x8086, device => 0x15a4 },
+    { vendor => 0x8086, device => 0x15d0 },
+
+    # Intel IGB VF
+    { vendor => 0x8086, device => 0x10ca },
+    { vendor => 0x8086, device => 0x152d },
+    { vendor => 0x8086, device => 0x1520 },
+    { vendor => 0x8086, device => 0x152f },
+
+    # Intel IXGBE VF
+    { vendor => 0x8086, device => 0x10ed },
+    { vendor => 0x8086, device => 0x152e },
+    { vendor => 0x8086, device => 0x1515 },
+    { vendor => 0x8086, device => 0x1530 },
+    { vendor => 0x8086, device => 0x1564 },
+    { vendor => 0x8086, device => 0x1565 },
+    { vendor => 0x8086, device => 0x15a8 },
+    { vendor => 0x8086, device => 0x15a9 },
+
+    # Intel I40E VF
+    { vendor => 0x8086, device => 0x154c },
+    { vendor => 0x8086, device => 0x1571 },
+    { vendor => 0x8086, device => 0x37cd },
+    { vendor => 0x8086, device => 0x37d9 },
+
+    # Intel FM10K VF
+    { vendor => 0x8086, device => 0x15a5 },
+
+    # Broadcom/Qlogic BNX2X
+    { vendor => 0x14e4, device => 0x168a },
+    { vendor => 0x14e4, device => 0x16a9 },
+    { vendor => 0x14e4, device => 0x164f },
+    { vendor => 0x14e4, device => 0x168e },
+    { vendor => 0x14e4, device => 0x16af },
+    { vendor => 0x14e4, device => 0x163d },
+    { vendor => 0x14e4, device => 0x163f },
+    { vendor => 0x14e4, device => 0x168d },
+    { vendor => 0x14e4, device => 0x16a1 },
+    { vendor => 0x14e4, device => 0x16a2 },
+    { vendor => 0x14e4, device => 0x16ad },
+
+    # Broadcom BNXT
+    { vendor => 0x14e4, device => 0x1614 },
+    { vendor => 0x14e4, device => 0x16c1 },
+    { vendor => 0x14e4, device => 0x16c8 },
+    { vendor => 0x14e4, device => 0x16c9 },
+    { vendor => 0x14e4, device => 0x16ca },
+    { vendor => 0x14e4, device => 0x16cb },
+    { vendor => 0x14e4, device => 0x16cc },
+    { vendor => 0x14e4, device => 0x16cd },
+    { vendor => 0x14e4, device => 0x16ce },
+    { vendor => 0x14e4, device => 0x16cf },
+    { vendor => 0x14e4, device => 0x16d0 },
+    { vendor => 0x14e4, device => 0x16d1 },
+    { vendor => 0x14e4, device => 0x16d2 },
+    { vendor => 0x14e4, device => 0x16d3 },
+    { vendor => 0x14e4, device => 0x16d4 },
+    { vendor => 0x14e4, device => 0x16d5 },
+    { vendor => 0x14e4, device => 0x16d6 },
+    { vendor => 0x14e4, device => 0x16d7 },
+    { vendor => 0x14e4, device => 0x16d8 },
+    { vendor => 0x14e4, device => 0x16d9 },
+    { vendor => 0x14e4, device => 0x16dc },
+    { vendor => 0x14e4, device => 0x16de },
+    { vendor => 0x14e4, device => 0x16df },
+    { vendor => 0x14e4, device => 0x16e0 },
+    { vendor => 0x14e4, device => 0x16e1 },
+    { vendor => 0x14e4, device => 0x16e2 },
+    { vendor => 0x14e4, device => 0x16e3 },
+    { vendor => 0x14e4, device => 0x16e4 },
+    { vendor => 0x14e4, device => 0x16e7 },
+    { vendor => 0x14e4, device => 0x16e8 },
+    { vendor => 0x14e4, device => 0x16e9 },
+    { vendor => 0x14e4, device => 0x16ea },
+    { vendor => 0x14e4, device => 0x16ec },
+    { vendor => 0x14e4, device => 0x16ee },
+
+    # Virtio
+    { vendor => 0x1af4, device => 0x1000 },
+
+    # Windriver Accelerated Virtual Port
+    { vendor => 0x1af4, device => 0x1110 },
+
+    # VMXNET3
+    { vendor => 0x15ad, device => 0x07b0 },
+
+    # Cavium ThunderNic
+    { vendor => 0x177d, device => 0xa034 },
+    { vendor => 0x177d, device => 0x0011 },
+);
+
+#
+## List of Mellanox IB device.
+my @ib_devices = (
+    # Mellanox mlx4 Nic
+    { vendor => 0x15b3, device => 0x1003 },
+    { vendor => 0x15b3, device => 0x1004 },
+    { vendor => 0x15b3, device => 0x1007 },
+
+    # Mellanox mlx5 Nic
+    { vendor => 0x15b3, device => 0x1013 },
+    { vendor => 0x15b3, device => 0x1014 },
+    { vendor => 0x15b3, device => 0x1015 },
+    { vendor => 0x15b3, device => 0x1016 },
+    { vendor => 0x15b3, device => 0x1017 },
+    { vendor => 0x15b3, device => 0x1018 },
+    { vendor => 0x15b3, device => 0x1019 },
+    { vendor => 0x15b3, device => 0x101a },
+    { vendor => 0x15b3, device => 0xa2d2 },
+    { vendor => 0x15b3, device => 0xa2d3 },
+);
+
+sub debug {
+    print @_ if $DEBUG;
+}
+
+sub pci_match {
+    my ( $id, $path ) = @_;
+    my $vendor = hex( read_value("$path/vendor") );
+    my $device = hex( read_value("$path/device") );
+
+    return
+      unless grep { $_->{vendor} == $vendor && $_->{device} == $device }
+      @pci_devices;
+}
+
+# how to identify network device in Hyper-v
+sub vmbus_match {
+    my ( $id, $path ) = @_;
+    my $class = read_value("$path/class_id");
+
+    return $class eq "{$VMBUS_NETWORK_DEVICE}";
+}
+
+# how to identify network device in xen
+sub xen_match {
+    my $id = shift;
+
+    return $id =~ /^vif-\d+$/;
+}
+
+sub ib_match {
+    my ( $id, $path ) = @_;
+    my $vendor = hex( read_value("$path/vendor") );
+    my $device = hex( read_value("$path/device") );
+
+    return
+      unless grep { $_->{vendor} == $vendor && $_->{device} == $device }
+      @ib_devices;
+}
+
+my @blacklisted_devices;
+
+# extract list of blacklisted network devices
+# then convert them into absolute device paths
+# and return a hash
+sub get_blacklist {
+    my $ini = Config::Tiny->read($DATAPLANE_CFG);
+
+    die "Can't read $DATAPLANE_CFG: $!\n"
+      unless $ini;
+
+    my $cfg = $ini->{'Dataplane'};
+    die "Can't find Dataplane section in $DATAPLANE_CFG\n"
+      unless defined($cfg);
+    my $blacklist = $cfg->{'blacklist'};
+    return unless defined($blacklist);
+
+    foreach my $ifname ( split /,/, $blacklist ) {
+        my $ifdev = "/sys/class/net/$ifname/device";
+
+        # skip non-existent devices (or pseudo)
+        next unless -l $ifdev;
+
+        # "/sys/devices/pci0000:00/0000:00:03.0/"
+        push @blacklisted_devices, abs_path($ifdev) . '/';
+    }
+}
+
+# Like read_file but handles newline from sysfs
+sub read_value {
+    my $filename = shift;
+    my $val      = read_file($filename);
+
+    chomp $val;
+    return $val;
+}
+
+sub echo {
+    my ( $val, $filename ) = @_;
+
+    print "echo $val > $filename\n" if $DEBUG;
+    write_file( $filename, $val . "\n" ) unless $DEBUG;
+}
+
+sub get_iommu_group {
+
+    my $devpath = shift;
+
+    # devpath may have trailing /
+    my $l = readlink File::Spec->catfile( $devpath, "iommu_group" );
+    if ( defined($l) ) {
+        debug("$l\n");
+        return basename($l);
+    }
+    return "";
+}
+
+# For PCI hotplug, the slot is passed as an arg in the form XXXX:XX:XX.X, only
+# a device matching that slot will be returned
+sub scan_bus {
+    my ( $type, $match, $match_dev, $iommu_groups ) = @_;
+    my $sys_bus = "/sys/bus/$type/devices";
+    my @alldev  = read_dir($sys_bus);
+    my @devices;
+
+    foreach my $dev_id (@alldev) {
+        my $path = "$sys_bus/$dev_id";
+        next if ( defined $match_dev && $match_dev ne $dev_id );
+        next unless $match->( $dev_id, $path );
+
+        # check if network device is a leaf of the bus device
+        my $devpath = abs_path($path) . '/';
+        next if grep { $_ =~ /^$devpath/ } @blacklisted_devices;
+        push @devices, $dev_id;
+        my $group = get_iommu_group($devpath);
+        if ($group) {
+            $iommu_groups->{$group} = 1;
+        }
+    }
+    return @devices;
+}
+
+my $vmbus_inited = 0;
+
+# This is where the real work...
+sub rebind_device {
+    my ( $type, $dev_id, $driver ) = @_;
+    my $bus_path = "/sys/bus/$type";
+    my $dev_path = "$bus_path/devices/$dev_id";
+
+    # tell new driver that it should use the new id
+    # only applies to PCI
+    my $drv_path = "$bus_path/drivers/$driver";
+    if ( -f "$drv_path/new_id" ) {
+        my $vendor = hex( read_value("$dev_path/vendor") );
+        my $device = hex( read_value("$dev_path/device") );
+        my $new_id = sprintf "%04x %04x", $vendor, $device;
+
+        if ($type eq "vmbus") {
+            if ($vmbus_inited == 0) {
+                echo $VMBUS_NETWORK_DEVICE, "$drv_path/new_id";
+                $vmbus_inited = 1;
+            }
+        } else {
+            echo $new_id, "$drv_path/new_id";
+        }
+    }
+
+    # Unbind old driver if any
+    my $old = readlink "$dev_path/driver";
+    if ( defined($old) ) {
+        my $xdriver = basename($old);
+        return if $xdriver eq $driver;
+
+        echo $dev_id, "$bus_path/drivers/$xdriver/unbind";
+    }
+
+    echo $dev_id, "$drv_path/bind";
+}
+
+sub iommu_present {
+    my $lscpu = `/usr/bin/lscpu`;
+
+    # The Xeon D-1518 seems to have poor IOMMU performance
+    # But cannot run igb_uio with Secure Level, so take the hit in that case
+    if ($lscpu =~ /Model name: .* D-1518 .*/ &&
+            (! -f "/sys/kernel/security/securelevel" ||
+            read_value("/sys/kernel/security/securelevel") != "1") &&
+            system('dmesg | grep -qF "Secure boot enabled"') != 0) {
+        return;
+    }
+
+    opendir( my $iommu, '/sys/kernel/iommu_groups' )
+      or return;    # no IOMMU configured
+
+    my $groups = grep { !/^\./ } readdir($iommu);
+    closedir($iommu);
+
+    return $groups > 0;
+}
+
+# with VFIO need to also rebind any other devices in same iommu_group
+# see kernel Documentation/vfio.txt
+sub iommu_rebind {
+    my ( $type, $dev_id, $group_path ) = @_;
+
+    foreach my $sub_id ( read_dir("$group_path/devices") ) {
+        next if $sub_id eq $dev_id;
+
+        # skip if a PCI bridge
+        my $class = hex( read_value("$group_path/devices/$sub_id/class") );
+        next if ( $class >> 16 ) == $PCI_BASE_CLASS_BRIDGE;
+
+        rebind_device( $type, $sub_id, "vfio-$type" );
+    }
+}
+
+sub rebind_bus {
+    my $bus      = shift;
+    my $do_iommu = shift;
+    my $type     = $bus->{type};
+    my $driver   = $bus->{driver};
+
+    foreach my $dev_id (@_) {
+        debug("rebind_device $type, $dev_id, $driver\n");
+        rebind_device( $type, $dev_id, $driver );
+
+        next unless $do_iommu;
+        my $group_path = "/sys/bus/$type/devices/$dev_id/iommu_group";
+        my $iommu      = readlink $group_path;
+        next unless defined($iommu);
+
+        debug("iommu_rebind $type, $dev_id, $group_path, $iommu\n");
+        iommu_rebind( $type, $dev_id, $group_path, basename($iommu) )
+          unless $DEBUG;
+    }
+}
+
+sub find_subsystem {
+    my ( $subsystem, $devpath ) = @_;
+    while ( $devpath ne "/sys" ) {
+
+        my $sub = readlink "$devpath/subsystem";
+        if ( defined($sub) && ( basename($sub) eq $subsystem ) ) {
+            return $devpath;
+        }
+        $devpath = dirname($devpath);
+    }
+    return "";
+}
+
+# Get a list of iommu_groups that contain controllers for block
+# devices that are in use on the system.
+# Returns a hash reference whose keys are the group numbers.
+sub get_block_iommu_groups {
+    my ($subsystem) = @_;
+    my %block_device_groups;
+    my @block_device_links = read_dir( "/sys/block", prefix => 1 );
+    foreach my $link (@block_device_links) {
+
+        # devpath in /sys/devices
+        my $devpath = abs_path($link);
+        my $controller_devpath = find_subsystem( 'pci', $devpath );
+        next unless $controller_devpath;
+        my $link = readlink "$controller_devpath/iommu_group";
+        if ( defined($link) ) {
+            my $group = basename($link);
+            $block_device_groups{$group} = 1;
+        }
+
+    }
+    return \%block_device_groups;
+}
+
+my @buses = (
+    {
+        driver => 'igb_uio',
+        type   => 'pci',
+        match  => \&pci_match,
+    },
+    {
+        driver => 'uio_hv_generic',
+        type   => 'vmbus',
+        match  => \&vmbus_match,
+    },
+    {
+        driver => 'xen_uio',
+        type   => 'xen',
+        match  => \&xen_match,
+    },
+    {
+        driver => 'net_mlx',
+        type   => 'ib',
+        match  => \&ib_match,
+    },
+);
+
+# main
+get_blacklist();
+
+foreach my $bus (@buses) {
+    my $type      = $bus->{type};
+    my $driver    = $bus->{driver};
+    my $do_iommu  = 0;
+    my $match_dev = $ARGV[0];
+
+    if ( $type ne 'pci' and $type ne 'ib') {
+        next unless -d "/sys/bus/$type/drivers/$driver";    # module not loaded
+    }
+    else {
+        next unless -d "/sys/bus/pci";                      # bus not enabled.
+    }
+
+    my %groups;
+    my $scan_bus_type = $type;
+    if ( $type eq 'ib' ) {
+        $scan_bus_type = 'pci';
+    }
+    my @devices = scan_bus( $scan_bus_type, $bus->{match}, $match_dev, \%groups );
+    if ( $type eq 'pci' ) {
+
+        # if IOMMU is present, use vfio if iommu is sufficiently capable.
+        if ( iommu_present() ) {
+            $do_iommu = 1;
+        }
+
+        debug("do_iommu=$do_iommu\n");
+        if ($do_iommu) {
+
+            # If any of the ethernet devices are in the same group
+            # as a block device controller, then do not use vfio-pci else
+            # the block device will disappear from the system.
+            my $block_groups = get_block_iommu_groups('pci');
+            foreach my $group ( keys %groups ) {
+                debug("checking ethernet group $group\n");
+                if ( $block_groups->{$group} ) {
+                    debug("Groups overlap, fall back to uio_igb\n");
+                    $do_iommu = 0;
+                    last;
+                }
+            }
+        }
+
+        if ($do_iommu) {
+            debug("Using iommu and vfio-pci\n");
+
+            my @cmd = ( "modprobe", "-s", "vfio-pci" );
+            system(@cmd) unless $DEBUG;
+            @cmd = ( "chmod", "a+x", "/dev/vfio" );
+            system(@cmd) unless $DEBUG;
+            $bus->{driver} = 'vfio-pci';
+        }
+        elsif ((-f "/sys/kernel/security/securelevel" &&
+                read_value("/sys/kernel/security/securelevel") == "1") ||
+                system('dmesg | grep -qF "Secure boot enabled"') == 0) {
+            print("Secure Level / Lockdown enabled and iommu/vfio not available\n");
+            exit(-1);
+        }
+        else {
+            debug("Using igb_uio\n");
+            my @cmd = ( "modprobe", "-s", "igb_uio" );
+            system(@cmd) unless $DEBUG;
+        }
+        rebind_bus( $bus, $do_iommu, @devices );
+    } elsif ($type eq 'ib') {
+        if (@devices) {
+            my @cmd = ( "modprobe", "-s", "ib_uverbs" );
+            system(@cmd) unless $DEBUG;
+            @cmd = ( "modprobe", "-s", "mlx4_ib" );
+            system(@cmd) unless $DEBUG;
+            @cmd = ( "modprobe", "-s", "mlx5_ib" );
+            system(@cmd) unless $DEBUG;
+        }
+    } elsif ($type eq 'vmbus') {
+        rebind_bus( $bus, 0, @devices );
+    } else {
+        die "Unsupported bus: $type?\n";
+    }
+}

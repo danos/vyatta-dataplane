@@ -1,0 +1,81 @@
+#! /bin/bash
+
+set -e
+
+: ${TMP_EAL:=/run/dataplane/eal-args}
+
+# Set domU for PV parameters
+set_domU_memsize() {
+    local memsize
+
+    # Determine available memory in units of mB
+    local mem=$(awk '/^MemTotal:/ { print $2 }' /proc/meminfo)
+    mem=$(( mem / 1024 ))
+
+    # Need a minimum amount of memory on system
+    # rte_dom0_mm reserves 2G so need more than that!
+    if [ $mem -lt 3072  ]; then
+	echo "Not enough memory: $mem MB "
+	exit 1
+    elif [ $mem -le 8192 ]; then
+	memsize=$(( mem / 2 ))
+    else
+	memsize=4096
+    fi
+
+    memsize=$(($memsize - (($memsize % 2))))
+    echo $memsize > "/sys/kernel/mm/dom0-mm/memsize-mB/memsize"
+}
+
+detect_domain()
+{
+    # first check if we are running Xen at all
+    if [ ! -d /proc/xen ] && ! grep -q xen /sys/hypervisor/type 2>/dev/null
+    then
+	echo "native"
+	return
+    fi
+
+    if grep -qi xen /proc/acpi/dsdt 2>/dev/null; then
+	echo "hvm"
+    elif [[ $(dmidecode -s system-product-name) == "HVM"* ]]; then
+	echo "hvm"
+    elif [ -d /proc/xen ]; then
+	if [ ! -f /proc/xen/capabilities ]; then
+	    echo "unknown: xenfs not mounted?!" >&2
+	    exit 1
+	fi
+
+	if $(grep -q control_d /proc/xen/capabilities); then
+	    echo "dom0"
+	else
+	    echo "pv"
+	fi
+    fi
+}
+
+: ${XEN_DOMAIN:=$(detect_domain)}
+
+if [[ $XEN_DOMAIN == "hvm" || $XEN_DOMAIN == "pv" ]]; then
+    echo "xen_uio"
+    modprobe xen_uio
+
+    DPDK_EAL_ARGS+=" --vdev=net_xen_netfront"
+
+    if [[ $XEN_DOMAIN == "pv" ]]; then
+	echo "rte_dom0_mm"
+	modprobe rte_dom0_mm
+	if [ $? -ne 0 ]
+	then echo "Xen memory reserve failed";
+	    exit 1
+	fi
+
+	set_domU_memsize
+
+	DPDK_EAL_ARGS+=" --xen-dom0"
+    fi
+
+    echo "DPDK_EAL_ARGS=${DPDK_EAL_ARGS}" >> $TMP_EAL
+fi
+
+exit 0

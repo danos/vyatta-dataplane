@@ -1,0 +1,15 @@
+/*-
+ * Copyright (c) 2017-2018, AT&T Intellectual Property. All rights reserved.
+ * Copyright (c) 2011-2016 by Brocade Communications Systems, Inc.
+ * All rights reserved.
+ *
+ * SPDX-License-Identifier: LGPL-2.1-only
+ */
+#ifndef _VERSION_H_
+#define _VERSION_H_
+
+#define DATAPLANE_PROGNAME "Dataplane"
+#define DATAPLANE_VERSION "@PACKAGE_VERSION@"
+#define DATAPLANE_COPYRIGHT "Copyright (c) @COPYRIGHT_YEAR@, AT&T Intellectual Property. All rights reserved."
+
+#endif

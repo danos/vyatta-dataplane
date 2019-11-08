@@ -1,0 +1,33 @@
+#! /bin/bash
+
+load_modules() {
+    set -e
+
+    if [ -d /sys/bus/vmbus ]; then
+	echo "uio_hv_generic";
+	modprobe uio_hv_generic
+    fi
+
+}
+
+unload_modules() {
+    for module in uio_pci_generic rte_dom0_mm xen_uio # uio_hv_generic
+	do [ -d /sys/module/$module ] && rmmod $module
+    done
+}
+
+if [ $# -ne 1 ]; then
+    echo "Usage:  $0 load|unload"
+    exit 1
+fi
+
+if [ $1 = "load" ]; then
+    load_modules
+elif [ $1 = "unload" ]; then
+    unload_modules
+else
+    echo "Usage:  $0 load|unload"
+    exit 1
+fi
+
+exit 0

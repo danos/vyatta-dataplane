@@ -1,0 +1,2820 @@
+/*
+ * Copyright (c) 2018-2019, AT&T Intellectual Property. All rights reserved.
+ * All rights reserved.
+ *
+ * SPDX-License-Identifier: LGPL-2.1-only
+ *
+ * Whole dataplane npf golden unit-tests
+ *
+ * There are a set of short, simple, test-cases what exercise one aspect
+ * related to npf.  They may be used as either a quick test run, or to help
+ * debug something, or as templates to copy for further tests.
+ */
+
+#include <libmnl/libmnl.h>
+#include <netinet/ip_icmp.h>
+
+#include "ip6_funcs.h"
+#include "ip_funcs.h"
+#include "in_cksum.h"
+#include "if_var.h"
+#include "main.h"
+
+#include "dp_test.h"
+#include "dp_test_str.h"
+#include "dp_test_lib.h"
+#include "dp_test_lib_exp.h"
+#include "dp_test_lib_pkt.h"
+#include "dp_test_lib_intf.h"
+#include "dp_test_pktmbuf_lib.h"
+#include "dp_test_netlink_state.h"
+#include "dp_test_console.h"
+#include "dp_test_json_utils.h"
+#include "dp_test_npf_lib.h"
+#include "dp_test_npf_fw_lib.h"
+#include "dp_test_npf_sess_lib.h"
+#include "dp_test_npf_nat_lib.h"
+
+/*
+ * Some tests do not work yet with the new session code
+ */
+#define DP_SESSIONS
+
+/*
+ * There are 6 main tests, each with multiple sub-tests (49 total).  Each test
+ * runs 2 pkts - 1 fwd and 1 reverse.  The descriptions below show what
+ * happens in the forwards direction only.
+ *
+ * 1. IPv4, rx on Dp1T0 and tx on dp1T1
+ * 2. IPv6, rx on Dp1T0 and tx on dp1T1
+ * 3. IPv4 Local to network
+ * 4. IPv4 Network to local
+ * 5. IPv6 Local to network
+ * 6. IPv6 Network to local
+ *
+ * To run a test case:
+ *   make -j4 dataplane_test_run CK_RUN_CASE=npf_golden1a
+ *
+ *              /------------- In -----------\  /------ Out ---------\
+ * Test Case	FW      sfull	DNAT	NAT64	SNAT	FW     	sfull
+ * npf_golden1	0	0	0	-	0	0	0
+ * npf_golden1a	1	0	0	-	0	0	0
+ * npf_golden1b	1	1	0	-	0	0	0
+ * npf_golden1c	0	0	1	-	0	0	0
+ * npf_golden1d	1	0	1	-	0	0	0
+ * npf_golden1e	1	1	1	-	0	0	0
+ * npf_golden1f	0	0	0	-	1	0	0
+ * npf_golden1g	0	0	0	-	1	1	0
+ * npf_golden1h	0	0	0	-	1	1	1
+ * npf_golden1i	0	0	1	-	1	0	0
+ * npf_golden1j	0	1	1	-	1	1	1
+ * npf_golden1k	1	1	0	-	0	1	1
+ *
+ * npf_golden2	0	0	-	0	-	0	0
+ * npf_golden2a	1	0	-	0	-	0	0
+ * npf_golden2b	1	1	-	0	-	0	0
+ * npf_golden2c	0	0	-	0	-	1	1
+ * npf_golden2d	0	0	-	1	0	0	0
+ * npf_golden2e	1	0	-	1	0	0	0
+ * npf_golden2f	1	1	-	1	0	0	0
+ * npf_golden2g	0	0	-	1	0	1	1
+ * npf_golden2h	0	0	-	1	1	1	1
+ * npf_golden2i	1	1	-	1	1	1	1
+ *
+ * npf_golden3	-	-	-	-	0	0	0
+ * npf_golden3a	-	-	-	-	0	1	0
+ * npf_golden3b	-	-	-	-	0	1	1
+ * npf_golden3c	-	-	-	-	1	0	0
+ * npf_golden3d	-	-	-	-	1	1	0
+ * npf_golden3e	-	-	-	-	1	1	1
+ *
+ * npf_golden3j	-	-	-	-	0	1	0 blk pkt
+ * npf_golden3k	-	-	-	-	0	1	1 blk pkt
+ * npf_golden3l	-	-	-	-	0	1	0 unm pkt
+ * npf_golden3m	-	-	-	-	0	1	1 unm pkt
+
+ * npf_golden4	0	0	0	0	-	-	-
+ * npf_golden4a	1	0	0	0	-	-	-
+ * npf_golden4b	1	1	0	0	-	-	-
+ * npf_golden4c	0	0	1	0	-	-	-
+ * npf_golden4d	1	0	1	0	-	-	-
+ * npf_golden4e	1	1	1	0	-	-	-
+ *
+ * npf_golden5	-	-	-	-	-	0	0
+ * npf_golden5a	-	-	-	-	-	1	0
+ * npf_golden5b	-	-	-	-	-	1	1
+ *
+ * npf_golden6	0	0	-	0	-	-	-
+ * npf_golden6a	1	0	-	0	-	-	-
+ * npf_golden6b	1	1	-	0	-	-	-
+ *
+ * make -j4 dataplane_test_run CK_RUN_SUITE=dp_test_npf_golden.c
+ * make -j4 dataplane_test_run CK_RUN_CASE=npf_golden1a
+ */
+
+
+/*
+ * FWD  - Received on dp1T0, transmitted on dp1T1 (if not dropped)
+ * BCK  - Received on dp1T1, transmitted on dp1T0 (if not dropped)
+ * S    - Stateful
+ */
+enum dp_test_golden_flags {
+	/* Input firewall on dp1T0 */
+	DPT_IN_FW		= 1 << 0,
+	DPT_IN_FW_S		= 1 << 1,
+	DPT_IN_FW_UNM		= 1 << 2,
+	DPT_IN_FW_BLK		= 1 << 3,
+
+	/* Output firewall on dp1T1 */
+	DPT_OUT_FW		= 1 << 4,
+	DPT_OUT_FW_S		= 1 << 5,
+	DPT_OUT_FW_UNM		= 1 << 6,
+	DPT_OUT_FW_BLK		= 1 << 7,
+
+	/* DNAT on input on dp1T0 */
+	DPT_IN_DNAT		= 1 << 8,
+	DPT_IN_DNAT_LOCAL	= 1 << 9,
+
+	/* SNAT on output on dp1T1 */
+	DPT_OUT_SNAT		= 1 << 10,
+	DPT_OUT_SNAT_LOCAL	= 1 << 11,
+
+	/* NAT64 on input on dp1T0 */
+	DPT_IN_NAT64		= 1 << 12,
+
+};
+
+struct dp_test_golden_ctx {
+	uint32_t     flags;
+	uint         count;  /* repeat count */
+	uint         fw_in;  /* expected pkt counts on rule */
+	uint         fw_out; /* expected pkt counts on rule */
+	int          exp_fwd; /* Forwarding expect status for fwd pkt */
+	int          exp_back;/* Forwarding expect status for fwd pkt */
+};
+
+enum test_fw {
+	TEST_FW_ADD,
+	TEST_FW_REMOVE,
+	TEST_FW_VERIFY
+};
+
+/*
+ * Firewall on input
+ */
+static void
+npf_golden_in_fw(enum test_fw action, struct dp_test_golden_ctx *ctx)
+{
+	if ((ctx->flags & DPT_IN_FW) == 0)
+		return;
+
+	/* UDP */
+	struct dp_test_npf_rule_t rset[] = {
+		{
+			.rule     = "10",
+			.pass     = PASS,
+			.stateful = (ctx->flags & DPT_IN_FW_S) != 0,
+			.npf      = "proto=17 dst-port=48879"
+		},
+		{
+			.rule     = "20",
+			.pass     = BLOCK,
+			.stateful = STATELESS,
+			.npf      = "proto=17 dst-port=48878"
+		},
+		RULE_DEF_BLOCK,
+		NULL_RULE
+	};
+
+	/* To get an "unmatched" result, remove the default block rule */
+	if (ctx->flags & DPT_IN_FW_UNM) {
+		rset[2].rule = NULL;
+		rset[2].npf = NULL;
+	}
+
+	struct dp_test_npf_ruleset_t fw = {
+		.rstype = "fw-in",
+		.name   = "IN_FW",
+		.enable = 1,
+		.attach_point   = "dp1T0",
+		.fwd    = FWD,
+		.dir    = "in",
+		.rules  = rset
+	};
+
+	if (action == TEST_FW_ADD)
+		dp_test_npf_fw_add(&fw, false);
+
+	if (action == TEST_FW_REMOVE)
+		dp_test_npf_fw_del(&fw, false);
+
+	if (action == TEST_FW_VERIFY)
+		dp_test_npf_verify_rule_pkt_count(NULL, &fw,
+						  fw.rules[0].rule,
+						  ctx->fw_in);
+}
+
+/*
+ * Firewall on output
+ */
+static void
+npf_golden_out_fw(enum test_fw action, struct dp_test_golden_ctx *ctx)
+{
+	if ((ctx->flags & DPT_OUT_FW) == 0)
+		return;
+
+	/* UDP */
+	struct dp_test_npf_rule_t rset[] = {
+		{
+			.rule     = "10",
+			.pass     = PASS,
+			.stateful = (ctx->flags & DPT_OUT_FW_S) != 0,
+			.npf      = "proto=17 src-port=57005"
+		},
+		{
+			.rule     = "20",
+			.pass     = BLOCK,
+			.stateful = STATELESS,
+			.npf      = "proto=17 src-port=57004"
+		},
+		RULE_DEF_BLOCK,
+		NULL_RULE
+	};
+
+	/* To get an "unmatched" result, remove the default block rule */
+	if (ctx->flags & DPT_OUT_FW_UNM) {
+		rset[2].rule = NULL;
+		rset[2].npf = NULL;
+	}
+
+	struct dp_test_npf_ruleset_t fw = {
+		.rstype = "fw-out",
+		.name   = "OUT_FW",
+		.enable = 1,
+		.attach_point   = "dp1T1",
+		.fwd    = FWD,
+		.dir    = "out",
+		.rules  = rset
+	};
+
+	if (action == TEST_FW_ADD)
+		dp_test_npf_fw_add(&fw, false);
+
+	if (action == TEST_FW_REMOVE)
+		dp_test_npf_fw_del(&fw, false);
+
+	if (action == TEST_FW_VERIFY) {
+		if ((ctx->flags &
+		     (DPT_OUT_FW_BLK | DPT_OUT_FW_UNM)) == 0)
+			dp_test_npf_verify_rule_pkt_count(NULL, &fw,
+							  fw.rules[0].rule,
+							  ctx->fw_out);
+		if ((ctx->flags & DPT_OUT_FW_BLK) != 0) {
+			dp_test_npf_verify_rule_pkt_count(NULL, &fw,
+							  fw.rules[0].rule,
+							  0);
+			dp_test_npf_verify_rule_pkt_count(NULL, &fw,
+							  fw.rules[1].rule,
+							  ctx->fw_out);
+		}
+	}
+}
+
+static void
+npf_golden_in_dnat(enum test_fw action, struct dp_test_golden_ctx *ctx)
+{
+	if ((ctx->flags & DPT_IN_DNAT) == 0)
+		return;
+
+	/*
+	 * Add DNAT rule. Change dest addr from 2.2.2.12 to 2.2.2.11
+	 */
+	struct dp_test_npf_nat_rule_t dnat = {
+		.desc		= "dnat rule",
+		.rule		= "10",
+		.ifname		= "dp1T0",
+		.proto		= IPPROTO_UDP,
+		.map		= "dynamic",
+		.from_addr	= NULL,
+		.from_port	= NULL,
+		.to_addr	= "2.2.2.12",
+		.to_port	= NULL,
+		.trans_addr	= "2.2.2.11",
+		.trans_port	= NULL
+	};
+
+	if (action == TEST_FW_ADD)
+		dp_test_npf_dnat_add(&dnat, true);
+
+	if (action == TEST_FW_REMOVE)
+		dp_test_npf_dnat_del(dnat.ifname, dnat.rule, true);
+}
+
+static void
+npf_golden_in_dnat_local(enum test_fw action, struct dp_test_golden_ctx *ctx)
+{
+	if ((ctx->flags & DPT_IN_DNAT_LOCAL) == 0)
+		return;
+
+	/*
+	 * Add DNAT rule. Change dest addr from 1.1.1.2 to 1.1.1.1
+	 */
+	struct dp_test_npf_nat_rule_t dnat = {
+		.desc		= "dnat rule",
+		.rule		= "10",
+		.ifname		= "dp1T0",
+		.proto		= IPPROTO_UDP,
+		.map		= "dynamic",
+		.from_addr	= NULL,
+		.from_port	= NULL,
+		.to_addr	= "1.1.1.2",
+		.to_port	= NULL,
+		.trans_addr	= "1.1.1.1",
+		.trans_port	= NULL
+	};
+
+	if (action == TEST_FW_ADD)
+		dp_test_npf_dnat_add(&dnat, true);
+
+	if (action == TEST_FW_REMOVE)
+		dp_test_npf_dnat_del(dnat.ifname, dnat.rule, true);
+}
+
+static void
+npf_golden_out_snat(enum test_fw action, struct dp_test_golden_ctx *ctx)
+{
+	if ((ctx->flags & DPT_OUT_SNAT) == 0)
+		return;
+
+	/*
+	 * Add SNAT rule. Change source addr from 1.1.1.11 to 1.1.1.13
+	 */
+	struct dp_test_npf_nat_rule_t snat = {
+		.desc		= "snat rule",
+		.rule		= "10",
+		.ifname		= "dp1T1",
+		.proto		= IPPROTO_UDP,
+		.map		= "dynamic",
+		.from_addr	= "1.1.1.11",
+		.from_port	= NULL,
+		.to_addr	= NULL,
+		.to_port	= NULL,
+		.trans_addr	= "1.1.1.13",
+		.trans_port	= NULL
+	};
+
+	dp_test_npf_snat_add(&snat, true);
+
+	if (action == TEST_FW_ADD)
+		dp_test_npf_snat_add(&snat, true);
+
+	if (action == TEST_FW_REMOVE)
+		dp_test_npf_snat_del(snat.ifname, snat.rule, true);
+}
+
+static void
+npf_golden_out_snat_local(enum test_fw action, struct dp_test_golden_ctx *ctx)
+{
+	if ((ctx->flags & DPT_OUT_SNAT_LOCAL) == 0)
+		return;
+
+	/*
+	 * Add SNAT rule. Change source addr from 2.2.2.2 to 2.2.2.3
+	 */
+	struct dp_test_npf_nat_rule_t snat = {
+		.desc		= "snat rule",
+		.rule		= "10",
+		.ifname		= "dp1T1",
+		.proto		= IPPROTO_UDP,
+		.map		= "dynamic",
+		.from_addr	= "2.2.2.2",
+		.from_port	= NULL,
+		.to_addr	= NULL,
+		.to_port	= NULL,
+		.trans_addr	= "2.2.2.3",
+		.trans_port	= NULL
+	};
+
+	dp_test_npf_snat_add(&snat, true);
+
+	if (action == TEST_FW_ADD)
+		dp_test_npf_snat_add(&snat, true);
+
+	if (action == TEST_FW_REMOVE)
+		dp_test_npf_snat_del(snat.ifname, snat.rule, true);
+}
+
+static void
+npf_golden_in_nat64(enum test_fw action, struct dp_test_golden_ctx *ctx)
+{
+	if ((ctx->flags & DPT_IN_NAT64) == 0)
+		return;
+
+	const struct dp_test_npf_nat64_rule_t rule96 = {
+		.rule		= "1",
+		.ifname		= "dp1T0",
+		.from_addr	= "2001:101:1::/96",
+		.to_addr	= "2001:101:2::/96",
+		.spl		= 96,
+		.dpl		= 96
+	};
+
+	if (action == TEST_FW_ADD) {
+		dp_test_npf_nat64_add(&rule96, true);
+		dp_test_npf_commit();
+	}
+
+	if (action == TEST_FW_REMOVE) {
+		dp_test_npf_nat64_del(&rule96, true);
+		dp_test_npf_commit();
+	}
+}
+
+/*
+ * Simple custom timeout for UDP to exercise tag rproc and custom timeout
+ * ruleset
+ */
+static void npf_custom_timeout(bool enable)
+{
+	if (enable)
+		dp_test_npf_cmd_fmt(
+			false,
+			"npf-ut add custom-timeout:1 1 proto=17 handle=tag(50)");
+	else
+		dp_test_npf_cmd_fmt(
+			false,
+			"npf-ut delete custom-timeout:1 1");
+
+	dp_test_npf_commit();
+}
+
+/*
+ * IPv4 Tests, Forwards pkt from interface dp1T0 to dp1T1, then reverse
+ * packet.
+ */
+static void _dp_test_npf_golden_1(struct dp_test_golden_ctx *ctx,
+				  const char *file, const char *func);
+#define dp_test_npf_golden_1(ctx) \
+	_dp_test_npf_golden_1(ctx, __FILE__, __func__)
+
+static void _dp_test_npf_golden_1(struct dp_test_golden_ctx *ctx,
+				  const char *file, const char *func)
+{
+	/* Setup interfaces and neighbours */
+	dp_test_nl_add_ip_addr_and_connected("dp1T0", "1.1.1.1/24");
+	dp_test_nl_add_ip_addr_and_connected("dp1T1", "2.2.2.2/24");
+	dp_test_nl_add_ip_addr_and_connected("dp1T2", "3.3.3.3/24");
+
+	dp_test_netlink_add_neigh("dp1T0", "1.1.1.11",
+				  "aa:bb:cc:dd:1:11");
+	dp_test_netlink_add_neigh("dp1T1", "2.2.2.11",
+				  "aa:bb:cc:dd:2:11");
+	dp_test_netlink_add_neigh("dp1T2", "3.3.3.11",
+				  "aa:bb:cc:dd:3:11");
+
+	/* Add one or more firewalls dependent on ctx flags */
+	npf_golden_in_fw(TEST_FW_ADD, ctx);
+	npf_golden_in_dnat(TEST_FW_ADD, ctx);
+	npf_golden_out_snat(TEST_FW_ADD, ctx);
+	npf_golden_out_fw(TEST_FW_ADD, ctx);
+
+	/*
+	 * UDP packet
+	 */
+	struct dp_test_pkt_desc_t pre_pkt = {
+		.text       = "Pre",
+		.len        = 20,
+		.ether_type = ETHER_TYPE_IPv4,
+		.l3_src     = "1.1.1.11",
+		.l2_src     = "aa:bb:cc:dd:1:11",
+		.l3_dst     = "2.2.2.11",
+		.l2_dst     = "aa:bb:cc:dd:2:11",
+		.proto      = IPPROTO_UDP,
+		.l4	 = {
+			.udp = {
+				.sport = 0xDEAD, /* 57005 */
+				.dport = 0xBEEF, /* 48879 */
+			}
+		},
+		.rx_intf    = "dp1T0",
+		.tx_intf    = "dp1T1"
+	};
+
+	if ((ctx->flags & DPT_IN_FW_BLK) != 0)
+		pre_pkt.l4.udp.dport = 48878;
+	else if ((ctx->flags & DPT_IN_FW_UNM) != 0)
+		pre_pkt.l4.udp.dport = 48877;
+
+	if ((ctx->flags & DPT_OUT_FW_BLK) != 0)
+		pre_pkt.l4.udp.sport = 57004;
+	else if ((ctx->flags & DPT_OUT_FW_UNM) != 0)
+		pre_pkt.l4.udp.sport = 57003;
+
+	struct dp_test_pkt_desc_t post_pkt;
+	struct dp_test_pkt_desc_t *pre_desc;
+	struct dp_test_pkt_desc_t *post_desc;
+	struct dp_test_expected *test_exp;
+	struct rte_mbuf *pre_pak, *post_pak;
+
+	uint repeat_count = ctx->count;
+	int exp_session = 0;
+	bool first_time = true;
+
+repeat:
+	post_pkt = pre_pkt;
+	pre_desc = &pre_pkt;
+	post_desc = &post_pkt;
+
+	if ((ctx->flags & DPT_IN_DNAT) != 0)
+		/* DNAT 2.2.2.12 -> 2.2.2.11 */
+		pre_desc->l3_dst = "2.2.2.12";
+
+	if ((ctx->flags & DPT_OUT_SNAT) != 0)
+		/* SNAT 1.1.1.11 ->  1.1.1.13 */
+		post_desc->l3_src = "1.1.1.13";
+
+	/*
+	 * Forwards packet
+	 */
+	pre_pak  = dp_test_v4_pkt_from_desc(pre_desc);
+	post_pak = dp_test_v4_pkt_from_desc(post_desc);
+
+	test_exp = dp_test_exp_from_desc(post_pak, post_desc);
+	rte_pktmbuf_free(post_pak);
+
+	/* If in-fw and dnat are cfgd, then they use the same session */
+	if (first_time && ctx->exp_fwd == DP_TEST_FWD_FORWARDED) {
+		first_time = false;
+
+		if ((ctx->flags & DPT_IN_FW_S) != 0 ||
+		    (ctx->flags & DPT_IN_DNAT) != 0)
+			exp_session++;
+
+		if ((ctx->flags & DPT_OUT_FW_S) != 0 ||
+		    (ctx->flags & DPT_OUT_SNAT) != 0)
+			exp_session++;
+	}
+
+	dp_test_exp_set_fwd_status(test_exp, ctx->exp_fwd);
+
+	spush(test_exp->description, sizeof(test_exp->description),
+	      "\nTest: \"%s\", Forwards, exp %s", func,
+	       ctx->exp_fwd == DP_TEST_FWD_FORWARDED ? "FORW":"DROP");
+
+	/* Run the test */
+	_dp_test_pak_receive(pre_pak, pre_desc->rx_intf, test_exp,
+			     file, func, __LINE__);
+
+	/* Check fw counts for first pkt */
+	if (repeat_count == ctx->count) {
+		npf_golden_in_fw(TEST_FW_VERIFY, ctx);
+		npf_golden_out_fw(TEST_FW_VERIFY, ctx);
+	}
+
+	dp_test_npf_session_count_verify(exp_session);
+
+	if (exp_session) {
+		if ((ctx->flags & DPT_IN_FW_S) != 0) {
+			if ((ctx->flags & DPT_IN_DNAT) != 0)
+				dp_test_nat_session_verify_desc(
+					false, 0x0D, pre_desc, post_desc);
+			else
+				dp_test_npf_session_verify_desc(
+					NULL, pre_desc, pre_desc->rx_intf,
+					SE_ACTIVE, SE_FLAGS_AE, true);
+		}
+
+		if ((ctx->flags & DPT_IN_FW_S) != 0 ||
+		    (ctx->flags & DPT_IN_DNAT) != 0) {
+
+			dp_test_npf_session_verify_desc(
+				NULL, pre_desc,	pre_desc->rx_intf,
+				SE_ACTIVE, SE_FLAGS_AE, true);
+
+		} else if ((ctx->flags & DPT_OUT_FW_S) != 0 ||
+			   (ctx->flags & DPT_OUT_SNAT) != 0) {
+
+			dp_test_npf_session_verify_desc(
+				NULL, pre_desc,	pre_desc->tx_intf,
+				SE_ACTIVE, SE_FLAGS_AE, true);
+		}
+	}
+
+	/*
+	 * Reverse packet
+	 */
+	pre_pak  = dp_test_reverse_v4_pkt_from_desc(post_desc);
+	post_pak = dp_test_reverse_v4_pkt_from_desc(pre_desc);
+
+	test_exp = dp_test_reverse_exp_from_desc(post_pak, pre_desc);
+	rte_pktmbuf_free(post_pak);
+
+	dp_test_exp_set_fwd_status(test_exp, ctx->exp_back);
+
+	spush(test_exp->description, sizeof(test_exp->description),
+	      "\nTest: \"%s\", Reverse, exp %s", func,
+	      ctx->exp_back == DP_TEST_FWD_FORWARDED ? "FORW":"DROP");
+
+	/* Run the test */
+	_dp_test_pak_receive(pre_pak, pre_desc->tx_intf, test_exp,
+			     file, func, __LINE__);
+
+	dp_test_npf_session_count_verify(exp_session);
+
+	if (ctx->count > 1) {
+		ctx->count--;
+		goto repeat;
+	}
+
+	/* Cleanup */
+
+	npf_golden_in_fw(TEST_FW_REMOVE, ctx);
+	npf_golden_in_dnat(TEST_FW_REMOVE, ctx);
+	npf_golden_out_snat(TEST_FW_REMOVE, ctx);
+	npf_golden_out_fw(TEST_FW_REMOVE, ctx);
+
+	dp_test_npf_cleanup();
+
+	dp_test_nl_del_ip_addr_and_connected("dp1T0", "1.1.1.1/24");
+	dp_test_nl_del_ip_addr_and_connected("dp1T1", "2.2.2.2/24");
+	dp_test_nl_del_ip_addr_and_connected("dp1T2", "3.3.3.3/24");
+
+	dp_test_netlink_del_neigh("dp1T0", "1.1.1.11",
+				  "aa:bb:cc:dd:1:11");
+	dp_test_netlink_del_neigh("dp1T1", "2.2.2.11",
+				  "aa:bb:cc:dd:2:11");
+	dp_test_netlink_del_neigh("dp1T2", "3.3.3.11",
+				  "aa:bb:cc:dd:3:11");
+}
+
+
+DP_DECL_TEST_SUITE(npf_golden);
+
+/*
+ * IPv4, no npf
+ */
+DP_DECL_TEST_CASE(npf_golden, npf_golden1, NULL, NULL);
+DP_START_TEST(npf_golden1, test)
+{
+	struct dp_test_golden_ctx ctx = {
+		.flags = 0,
+		.count = 1,
+		.fw_in = 0,
+		.fw_out = 0,
+		.exp_fwd = DP_TEST_FWD_FORWARDED,
+		.exp_back = DP_TEST_FWD_FORWARDED,
+	};
+
+	dp_test_npf_golden_1(&ctx);
+
+} DP_END_TEST;
+
+/*
+ * IPv4, In FW
+ */
+DP_DECL_TEST_CASE(npf_golden, npf_golden1a, NULL, NULL);
+DP_START_TEST(npf_golden1a, test)
+{
+	struct dp_test_golden_ctx ctx = {
+		.flags = 0,
+		.count = 1,
+		.fw_in = 1,
+		.fw_out = 0,
+		.exp_fwd = DP_TEST_FWD_FORWARDED,
+		.exp_back = DP_TEST_FWD_FORWARDED,
+	};
+	ctx.flags |= DPT_IN_FW;
+
+	dp_test_npf_golden_1(&ctx);
+
+} DP_END_TEST;
+
+/*
+ * IPv4, In sFW
+ */
+DP_DECL_TEST_CASE(npf_golden, npf_golden1b, NULL, NULL);
+DP_START_TEST(npf_golden1b, test)
+{
+	struct dp_test_golden_ctx ctx = {
+		.flags = 0,
+		.count = 1,
+		.fw_in = 1,
+		.fw_out = 0,
+		.exp_fwd = DP_TEST_FWD_FORWARDED,
+		.exp_back = DP_TEST_FWD_FORWARDED,
+	};
+	ctx.flags |= DPT_IN_FW;
+	ctx.flags |= DPT_IN_FW_S;
+
+	dp_test_npf_golden_1(&ctx);
+
+} DP_END_TEST;
+
+/*
+ *
+ */
+DP_DECL_TEST_CASE(npf_golden, npf_golden1c, NULL, NULL);
+DP_START_TEST(npf_golden1c, test)
+{
+	struct dp_test_golden_ctx ctx = {
+		.flags = 0,
+		.count = 1,
+		.fw_in = 0,
+		.fw_out = 0,
+		.exp_fwd = DP_TEST_FWD_FORWARDED,
+		.exp_back = DP_TEST_FWD_FORWARDED,
+	};
+	ctx.flags |= DPT_IN_DNAT;
+
+	dp_test_npf_golden_1(&ctx);
+
+} DP_END_TEST;
+
+/*
+ *
+ */
+DP_DECL_TEST_CASE(npf_golden, npf_golden1d, NULL, NULL);
+DP_START_TEST(npf_golden1d, test)
+{
+	struct dp_test_golden_ctx ctx = {
+		.flags = 0,
+		.count = 1,
+		.fw_in = 1,
+		.fw_out = 0,
+		.exp_fwd = DP_TEST_FWD_FORWARDED,
+		.exp_back = DP_TEST_FWD_FORWARDED,
+	};
+	ctx.flags |= DPT_IN_FW;
+	ctx.flags |= DPT_IN_DNAT;
+
+	dp_test_npf_golden_1(&ctx);
+
+} DP_END_TEST;
+
+/*
+ *
+ */
+DP_DECL_TEST_CASE(npf_golden, npf_golden1e, NULL, NULL);
+DP_START_TEST(npf_golden1e, test)
+{
+	struct dp_test_golden_ctx ctx = {
+		.flags = 0,
+		.count = 1,
+		.fw_in = 1,
+		.fw_out = 0,
+		.exp_fwd = DP_TEST_FWD_FORWARDED,
+		.exp_back = DP_TEST_FWD_FORWARDED,
+	};
+	ctx.flags |= DPT_IN_FW;
+	ctx.flags |= DPT_IN_FW_S;
+	ctx.flags |= DPT_IN_DNAT;
+
+	npf_custom_timeout(true);
+
+	dp_test_npf_golden_1(&ctx);
+
+	npf_custom_timeout(false);
+
+} DP_END_TEST;
+
+/*
+ *
+ */
+DP_DECL_TEST_CASE(npf_golden, npf_golden1f, NULL, NULL);
+DP_START_TEST(npf_golden1f, test)
+{
+	struct dp_test_golden_ctx ctx = {
+		.flags = 0,
+		.count = 1,
+		.fw_in = 0,
+		.fw_out = 0,
+		.exp_fwd = DP_TEST_FWD_FORWARDED,
+		.exp_back = DP_TEST_FWD_FORWARDED,
+	};
+	ctx.flags |= DPT_OUT_SNAT;
+
+	dp_test_npf_golden_1(&ctx);
+
+} DP_END_TEST;
+
+/*
+ *
+ */
+DP_DECL_TEST_CASE(npf_golden, npf_golden1g, NULL, NULL);
+DP_START_TEST(npf_golden1g, test)
+{
+	struct dp_test_golden_ctx ctx = {
+		.flags = 0,
+		.count = 1,
+		.fw_in = 0,
+		.fw_out = 1,
+		.exp_fwd = DP_TEST_FWD_FORWARDED,
+		.exp_back = DP_TEST_FWD_FORWARDED,
+	};
+	ctx.flags |= DPT_OUT_SNAT;
+	ctx.flags |= DPT_OUT_FW;
+
+	dp_test_npf_golden_1(&ctx);
+
+} DP_END_TEST;
+
+/*
+ *
+ */
+DP_DECL_TEST_CASE(npf_golden, npf_golden1h, NULL, NULL);
+DP_START_TEST(npf_golden1h, test)
+{
+	struct dp_test_golden_ctx ctx = {
+		.flags = 0,
+		.count = 1,
+		.fw_in = 0,
+		.fw_out = 1,
+		.exp_fwd = DP_TEST_FWD_FORWARDED,
+		.exp_back = DP_TEST_FWD_FORWARDED,
+	};
+	ctx.flags |= DPT_OUT_SNAT;
+	ctx.flags |= DPT_OUT_FW;
+	ctx.flags |= DPT_OUT_FW_S;
+
+	dp_test_npf_golden_1(&ctx);
+
+} DP_END_TEST;
+
+
+/*
+ * v4: In -> DNAT -> Out -> SNAT
+ */
+DP_DECL_TEST_CASE(npf_golden, npf_golden1i, NULL, NULL);
+DP_START_TEST(npf_golden1i, test)
+{
+	struct dp_test_golden_ctx ctx = {
+		.flags = 0,
+		.count = 1,
+		.fw_in = 0,
+		.fw_out = 0,
+		.exp_fwd = DP_TEST_FWD_FORWARDED,
+		.exp_back = DP_TEST_FWD_FORWARDED,
+	};
+	ctx.flags |= DPT_IN_DNAT;
+	ctx.flags |= DPT_OUT_SNAT;
+
+	dp_test_npf_golden_1(&ctx);
+
+} DP_END_TEST;
+
+/*
+ * v4: In -> sFW -> DNAT -> Out -> SNAT -> sFW
+ */
+DP_DECL_TEST_CASE(npf_golden, npf_golden1j, NULL, NULL);
+DP_START_TEST(npf_golden1j, test)
+{
+	struct dp_test_golden_ctx ctx = {
+		.flags = 0,
+		.count = 1,
+		.fw_in = 1,
+		.fw_out = 1,
+		.exp_fwd = DP_TEST_FWD_FORWARDED,
+		.exp_back = DP_TEST_FWD_FORWARDED,
+	};
+	ctx.flags |= DPT_IN_FW;
+	ctx.flags |= DPT_IN_FW_S;
+	ctx.flags |= DPT_IN_DNAT;
+	ctx.flags |= DPT_OUT_SNAT;
+	ctx.flags |= DPT_OUT_FW;
+	ctx.flags |= DPT_OUT_FW_S;
+
+	dp_test_npf_golden_1(&ctx);
+
+} DP_END_TEST;
+
+/*
+ * v4: In -> sFW -> Out -> sFW
+ */
+DP_DECL_TEST_CASE(npf_golden, npf_golden1k, NULL, NULL);
+DP_START_TEST(npf_golden1k, test)
+{
+	struct dp_test_golden_ctx ctx = {
+		.flags = 0,
+		.count = 2,
+		.fw_in = 1,
+		.fw_out = 1,
+		.exp_fwd = DP_TEST_FWD_FORWARDED,
+		.exp_back = DP_TEST_FWD_FORWARDED,
+	};
+	ctx.flags |= DPT_IN_FW;
+	ctx.flags |= DPT_IN_FW_S;
+	ctx.flags |= DPT_OUT_FW;
+	ctx.flags |= DPT_OUT_FW_S;
+
+	dp_test_npf_golden_1(&ctx);
+
+} DP_END_TEST;
+
+
+/*
+ * IPv6 Tests, Forwards pkt from interface dp1T0 to dp1T1, then reverse
+ * packet.
+ */
+static void _dp_test_npf_golden_2(struct dp_test_golden_ctx *ctx,
+				  const char *file, const char *func);
+#define dp_test_npf_golden_2(ctx) \
+	_dp_test_npf_golden_2(ctx, __FILE__, __func__)
+
+static void _dp_test_npf_golden_2(struct dp_test_golden_ctx *ctx,
+				  const char *file, const char *func)
+{
+	dp_test_nl_add_ip_addr_and_connected("dp1T0", "2001:101:1::101:101/96");
+	dp_test_nl_add_ip_addr_and_connected("dp1T1", "2001:101:2::202:202/96");
+
+	dp_test_nl_add_ip_addr_and_connected("dp1T0", "1.1.1.1/24");
+	dp_test_nl_add_ip_addr_and_connected("dp1T1", "2.2.2.2/24");
+
+	dp_test_netlink_add_neigh("dp1T0", "2001:101:1::101:10b",
+				  "aa:bb:cc:dd:1:11");
+	dp_test_netlink_add_neigh("dp1T0", "1.1.1.11",
+				  "aa:bb:cc:dd:1:11");
+
+	dp_test_netlink_add_neigh("dp1T1", "2001:101:2::202:20b",
+				  "aa:bb:cc:dd:2:11");
+	dp_test_netlink_add_neigh("dp1T1", "2.2.2.11",
+				  "aa:bb:cc:dd:2:11");
+
+	npf_golden_in_fw(TEST_FW_ADD, ctx);
+	npf_golden_out_fw(TEST_FW_ADD, ctx);
+
+	if ((ctx->flags & DPT_IN_NAT64) != 0) {
+		npf_golden_in_nat64(TEST_FW_ADD, ctx);
+
+		if ((ctx->flags & DPT_OUT_SNAT) != 0)
+			npf_golden_out_snat(TEST_FW_ADD, ctx);
+	}
+
+	/*
+	 * UDP packet
+	 */
+	struct dp_test_pkt_desc_t pre_pkt = {
+		.text       = "Pre",
+		.len        = 20,
+		.ether_type = ETHER_TYPE_IPv6,
+		.l3_src     = "2001:101:1::101:10b",
+		.l2_src     = "aa:bb:cc:dd:1:11",
+		.l3_dst     = "2001:101:2::202:20b",
+		.l2_dst     = "aa:bb:cc:dd:2:11",
+		.proto      = IPPROTO_UDP,
+		.l4	 = {
+			.udp = {
+				.sport = 0xDEAD,
+				.dport = 0xBEEF,
+			}
+		},
+		.rx_intf    = "dp1T0",
+		.tx_intf    = "dp1T1"
+	};
+
+	if ((ctx->flags & DPT_IN_FW_BLK) != 0)
+		pre_pkt.l4.udp.dport = 48878;
+	else if ((ctx->flags & DPT_IN_FW_UNM) != 0)
+		pre_pkt.l4.udp.dport = 48877;
+
+	if ((ctx->flags & DPT_OUT_FW_BLK) != 0)
+		pre_pkt.l4.udp.sport = 57004;
+	else if ((ctx->flags & DPT_OUT_FW_UNM) != 0)
+		pre_pkt.l4.udp.sport = 57003;
+
+	struct dp_test_pkt_desc_t post_pkt;
+	struct dp_test_pkt_desc_t *pre_desc;
+	struct dp_test_pkt_desc_t *post_desc;
+	struct dp_test_expected *test_exp;
+	struct rte_mbuf *pre_pak, *post_pak;
+
+	uint repeat_count = ctx->count;
+	int exp_session = 0;
+	bool first_time = true;
+
+repeat:
+	post_pkt = pre_pkt;
+	pre_desc = &pre_pkt;
+	post_desc = &post_pkt;
+
+	if ((ctx->flags & DPT_IN_NAT64) != 0) {
+		post_desc->ether_type = ETHER_TYPE_IPv4;
+
+		if ((ctx->flags & DPT_OUT_SNAT) != 0)
+			post_desc->l3_src     = "1.1.1.13";
+		else
+			post_desc->l3_src     = "1.1.1.11";
+
+		post_desc->l3_dst     = "2.2.2.11";
+	}
+
+	/*
+	 * Forwards packet
+	 */
+	pre_pak  = dp_test_v6_pkt_from_desc(pre_desc);
+	post_pak = dp_test_v6_pkt_from_desc(post_desc);
+
+	test_exp = dp_test_exp_from_desc(post_pak, post_desc);
+	rte_pktmbuf_free(post_pak);
+
+	/* If in-fw and dnat are cfgd, then they use the same session */
+	if (first_time && ctx->exp_fwd == DP_TEST_FWD_FORWARDED) {
+		first_time = false;
+
+		if ((ctx->flags & DPT_IN_FW_S) != 0)
+			exp_session++;
+
+		if ((ctx->flags & DPT_OUT_FW_S) != 0 ||
+		    (ctx->flags & DPT_OUT_SNAT) != 0 ||
+		    (ctx->flags & DPT_IN_NAT64) != 0)
+			exp_session++;
+
+		/* Nat64 created two sessions per flow */
+		if ((ctx->flags & DPT_IN_NAT64) != 0)
+			exp_session++;
+	}
+
+	dp_test_exp_set_fwd_status(test_exp, ctx->exp_fwd);
+
+	spush(test_exp->description, sizeof(test_exp->description),
+	      "\nTest: \"%s\", Forwards, exp %s", func,
+	      ctx->exp_fwd == DP_TEST_FWD_FORWARDED ? "FORW":"DROP");
+
+	/* Run the test */
+	dp_test_pak_receive(pre_pak, pre_desc->rx_intf, test_exp);
+
+	/* Check fw counts for first pkt */
+	if (repeat_count == ctx->count) {
+		if ((ctx->flags & DPT_IN_FW) != 0)
+			npf_golden_in_fw(TEST_FW_VERIFY, ctx);
+
+		if ((ctx->flags & DPT_OUT_FW) != 0)
+			npf_golden_out_fw(TEST_FW_VERIFY, ctx);
+	}
+
+	dp_test_npf_session_count_verify(exp_session);
+
+	if (exp_session) {
+		if ((ctx->flags & DPT_IN_NAT64) == 0) {
+			/* Temporarily ignore sessions if nat64 cfgd */
+			if ((ctx->flags & DPT_IN_FW_S) != 0) {
+
+				dp_test_npf_session_verify_desc(
+					NULL, pre_desc, pre_desc->rx_intf,
+					SE_ACTIVE, SE_FLAGS_AE, true);
+
+			} else if ((ctx->flags & DPT_OUT_FW_S) != 0) {
+
+				dp_test_npf_session_verify_desc(
+					NULL, post_desc, post_desc->tx_intf,
+					SE_ACTIVE, SE_FLAGS_AE, true);
+			}
+		}
+	}
+
+	/*
+	 * Reverse packet
+	 */
+	pre_pak  = dp_test_reverse_v6_pkt_from_desc(post_desc);
+	post_pak = dp_test_reverse_v6_pkt_from_desc(pre_desc);
+
+	test_exp = dp_test_reverse_exp_from_desc(post_pak, pre_desc);
+	rte_pktmbuf_free(post_pak);
+
+	dp_test_exp_set_fwd_status(test_exp, ctx->exp_back);
+
+	spush(test_exp->description, sizeof(test_exp->description),
+	      "\nTest: \"%s\", Reverse, exp %s", func,
+	      ctx->exp_back == DP_TEST_FWD_FORWARDED ? "FORW":"DROP");
+
+	/* Run the test */
+	dp_test_pak_receive(pre_pak, pre_desc->tx_intf, test_exp);
+
+	dp_test_npf_session_count_verify(exp_session);
+
+	if (ctx->count > 1) {
+		ctx->count--;
+		goto repeat;
+	}
+
+	/* Cleanup */
+
+	npf_golden_in_fw(TEST_FW_REMOVE, ctx);
+	npf_golden_out_fw(TEST_FW_REMOVE, ctx);
+
+	if ((ctx->flags & DPT_IN_NAT64) != 0) {
+		npf_golden_in_nat64(TEST_FW_REMOVE, ctx);
+
+		if ((ctx->flags & DPT_OUT_SNAT) != 0)
+			npf_golden_out_snat(TEST_FW_REMOVE, ctx);
+	}
+
+	dp_test_npf_cleanup();
+
+	dp_test_netlink_del_neigh("dp1T0", "2001:101:1::101:10b",
+				  "aa:bb:cc:dd:1:11");
+	dp_test_netlink_del_neigh("dp1T0", "1.1.1.11",
+				  "aa:bb:cc:dd:1:11");
+
+	dp_test_netlink_del_neigh("dp1T1", "2001:101:2::202:20b",
+				  "aa:bb:cc:dd:2:11");
+	dp_test_netlink_del_neigh("dp1T1", "2.2.2.11",
+				  "aa:bb:cc:dd:2:11");
+
+	dp_test_nl_del_ip_addr_and_connected("dp1T0", "2001:101:1::101:101/96");
+	dp_test_nl_del_ip_addr_and_connected("dp1T1", "2001:101:2::202:202/96");
+
+	dp_test_nl_del_ip_addr_and_connected("dp1T0", "1.1.1.1/24");
+	dp_test_nl_del_ip_addr_and_connected("dp1T1", "2.2.2.2/24");
+}
+
+/*
+ * IPv6, no npf
+ */
+DP_DECL_TEST_CASE(npf_golden, npf_golden2, NULL, NULL);
+DP_START_TEST(npf_golden2, test)
+{
+	struct dp_test_golden_ctx ctx = {
+		.flags = 0,
+		.count = 1,
+		.fw_in = 0, .fw_out = 0,
+		.exp_fwd = DP_TEST_FWD_FORWARDED,
+		.exp_back = DP_TEST_FWD_FORWARDED,
+	};
+
+
+	dp_test_npf_golden_2(&ctx);
+
+} DP_END_TEST;
+
+/*
+ * IPv6
+ */
+DP_DECL_TEST_CASE(npf_golden, npf_golden2a, NULL, NULL);
+DP_START_TEST(npf_golden2a, test)
+{
+	struct dp_test_golden_ctx ctx = {
+		.flags = 0, .count = 1,
+		.fw_in = 1, .fw_out = 0,
+		.exp_fwd = DP_TEST_FWD_FORWARDED,
+		.exp_back = DP_TEST_FWD_FORWARDED,
+	};
+	ctx.flags |= DPT_IN_FW;
+
+	dp_test_npf_golden_2(&ctx);
+
+} DP_END_TEST;
+
+/*
+ * IPv6
+ */
+DP_DECL_TEST_CASE(npf_golden, npf_golden2b, NULL, NULL);
+DP_START_TEST(npf_golden2b, test)
+{
+	struct dp_test_golden_ctx ctx = {
+		.flags = 0, .count = 1,
+		.fw_in = 1, .fw_out = 0,
+		.exp_fwd = DP_TEST_FWD_FORWARDED,
+		.exp_back = DP_TEST_FWD_FORWARDED,
+	};
+	ctx.flags |= DPT_IN_FW;
+	ctx.flags |= DPT_IN_FW_S;
+
+	dp_test_npf_golden_2(&ctx);
+
+} DP_END_TEST;
+
+/*
+ * IPv6
+ */
+DP_DECL_TEST_CASE(npf_golden, npf_golden2c, NULL, NULL);
+DP_START_TEST(npf_golden2c, test)
+{
+	struct dp_test_golden_ctx ctx = {
+		.flags = 0, .count = 1,
+		.fw_in = 0, .fw_out = 1,
+		.exp_fwd = DP_TEST_FWD_FORWARDED,
+		.exp_back = DP_TEST_FWD_FORWARDED,
+	};
+	ctx.flags |= DPT_OUT_FW;
+	ctx.flags |= DPT_OUT_FW_S;
+
+	dp_test_npf_golden_2(&ctx);
+
+} DP_END_TEST;
+
+/*
+ * IPv6
+ */
+DP_DECL_TEST_CASE(npf_golden, npf_golden2d, NULL, NULL);
+DP_START_TEST(npf_golden2d, test)
+{
+	struct dp_test_golden_ctx ctx = {
+		.flags = 0, .count = 1,
+		.fw_in = 0, .fw_out = 0,
+		.exp_fwd = DP_TEST_FWD_FORWARDED,
+		.exp_back = DP_TEST_FWD_FORWARDED,
+	};
+	ctx.flags |= DPT_IN_NAT64;
+
+	dp_test_npf_golden_2(&ctx);
+
+} DP_END_TEST;
+
+/*
+ * IPv6
+ */
+DP_DECL_TEST_CASE(npf_golden, npf_golden2e, NULL, NULL);
+DP_START_TEST(npf_golden2e, test)
+{
+	struct dp_test_golden_ctx ctx = {
+		.flags = 0, .count = 1,
+		.fw_in = 1, .fw_out = 0,
+		.exp_fwd = DP_TEST_FWD_FORWARDED,
+		.exp_back = DP_TEST_FWD_FORWARDED,
+	};
+	ctx.flags |= DPT_IN_FW;
+	ctx.flags |= DPT_IN_NAT64;
+
+	dp_test_npf_golden_2(&ctx);
+
+} DP_END_TEST;
+
+/*
+ * IPv6
+ */
+DP_DECL_TEST_CASE(npf_golden, npf_golden2f, NULL, NULL);
+DP_START_TEST(npf_golden2f, test)
+{
+	/*
+	 * Not working yet with the new session code.  If an input fw session
+	 * exists and nat64 is enabled, then the return pkt fails to find the
+	 * nat64 session.
+	 */
+#ifndef DP_SESSIONS
+	struct dp_test_golden_ctx ctx = {
+		.flags = 0, .count = 1,
+		.fw_in = 1, .fw_out = 0,
+		.exp_fwd = DP_TEST_FWD_FORWARDED,
+		.exp_back = DP_TEST_FWD_FORWARDED,
+	};
+	ctx.flags |= DPT_IN_FW;
+	ctx.flags |= DPT_IN_FW_S;
+	ctx.flags |= DPT_IN_NAT64;
+
+	dp_test_npf_golden_2(&ctx);
+
+#endif
+} DP_END_TEST;
+
+/*
+ * IPv6
+ */
+DP_DECL_TEST_CASE(npf_golden, npf_golden2g, NULL, NULL);
+DP_START_TEST(npf_golden2g, test)
+{
+	struct dp_test_golden_ctx ctx = {
+		.flags = 0, .count = 1,
+		.fw_in = 0, .fw_out = 1,
+		.exp_fwd = DP_TEST_FWD_FORWARDED,
+		.exp_back = DP_TEST_FWD_FORWARDED,
+	};
+	ctx.flags |= DPT_IN_NAT64;
+	ctx.flags |= DPT_OUT_FW;
+	ctx.flags |= DPT_OUT_FW_S;
+
+	dp_test_npf_golden_2(&ctx);
+
+} DP_END_TEST;
+
+/*
+ * IPv4, local to net
+ */
+static void _dp_test_npf_golden_3(struct dp_test_golden_ctx *ctx,
+				  const char *file, const char *func);
+#define dp_test_npf_golden_3(ctx) \
+	_dp_test_npf_golden_3(ctx, __FILE__, __func__)
+
+static void _dp_test_npf_golden_3(struct dp_test_golden_ctx *ctx,
+				  const char *file, const char *func)
+{
+	/* Setup interfaces and neighbours */
+	dp_test_nl_add_ip_addr_and_connected("dp1T0", "1.1.1.1/24");
+	dp_test_nl_add_ip_addr_and_connected("dp1T1", "2.2.2.2/24");
+
+	dp_test_netlink_add_neigh("dp1T0", "1.1.1.11",
+				  "aa:bb:cc:dd:1:11");
+	dp_test_netlink_add_neigh("dp1T1", "2.2.2.11",
+				  "aa:bb:cc:dd:2:11");
+
+	npf_golden_out_snat_local(TEST_FW_ADD, ctx);
+	npf_golden_out_fw(TEST_FW_ADD, ctx);
+
+	/*
+	 * UDP packet.  Local to net
+	 */
+	struct dp_test_pkt_desc_t pre_pkt = {
+		.text       = "Pre",
+		.len        = 20,
+		.ether_type = ETHER_TYPE_IPv4,
+		.l3_src     = "2.2.2.2",
+		.l2_src     = "0:0:a4:0:0:65",
+		.l3_dst     = "2.2.2.11",
+		.l2_dst     = "aa:bb:cc:dd:2:11",
+		.proto      = IPPROTO_UDP,
+		.l4	 = {
+			.udp = {
+				.sport = 0xDEAD, /* 57005 */
+				.dport = 0xBEEF,
+			}
+		},
+		.rx_intf    = "dp1T1",
+		.tx_intf    = "dp1T1"
+	};
+
+	if ((ctx->flags & DPT_IN_FW_BLK) != 0)
+		pre_pkt.l4.udp.dport = 48878;
+	else if ((ctx->flags & DPT_IN_FW_UNM) != 0)
+		pre_pkt.l4.udp.dport = 48877;
+
+	if ((ctx->flags & DPT_OUT_FW_BLK) != 0)
+		pre_pkt.l4.udp.sport = 57004;
+	else if ((ctx->flags & DPT_OUT_FW_UNM) != 0)
+		pre_pkt.l4.udp.sport = 57003;
+
+	struct dp_test_pkt_desc_t post_pkt;
+	struct dp_test_pkt_desc_t *pre_desc;
+	struct dp_test_pkt_desc_t *post_desc;
+	struct dp_test_expected *test_exp;
+	struct rte_mbuf *pre_pak, *post_pak;
+
+repeat:
+	post_pkt = pre_pkt;
+	pre_desc = &pre_pkt;
+	post_desc = &post_pkt;
+
+	if ((ctx->flags & DPT_OUT_SNAT_LOCAL) != 0)
+		/* SNAT  2.2.2.2 to 2.2.2.3*/
+		post_desc->l3_src = "2.2.2.3";
+
+	pre_pak  = dp_test_from_spath_v4_pkt_from_desc(pre_desc);
+	post_pak = dp_test_from_spath_v4_pkt_from_desc(post_desc);
+
+	test_exp = dp_test_exp_create(post_pak);
+	rte_pktmbuf_free(post_pak);
+
+	dp_test_exp_set_fwd_status(test_exp, ctx->exp_fwd);
+	dp_test_exp_set_oif_name(test_exp, pre_desc->tx_intf);
+
+	spush(test_exp->description, sizeof(test_exp->description),
+	      "\nTest: \"%s\", Forwards", func);
+
+	/* Run the test */
+	dp_test_send_slowpath_pkt(pre_pak, test_exp);
+
+	if ((ctx->flags & DPT_IN_FW) != 0)
+		npf_golden_in_fw(TEST_FW_VERIFY, ctx);
+
+	if ((ctx->flags & DPT_OUT_FW) != 0)
+		npf_golden_out_fw(TEST_FW_VERIFY, ctx);
+
+	uint sess_out_exp = 0;
+
+	if (((ctx->flags & DPT_OUT_FW_S) != 0 &&
+	     (ctx->flags & (DPT_OUT_FW_BLK | DPT_OUT_FW_UNM)) == 0) ||
+	    (ctx->flags & DPT_OUT_SNAT_LOCAL) != 0)
+		sess_out_exp++;
+
+	dp_test_npf_session_count_verify(sess_out_exp);
+
+	if (sess_out_exp) {
+		dp_test_npf_session_verify_desc(NULL, pre_desc,
+						pre_desc->tx_intf,
+						SE_ACTIVE,
+						SE_FLAGS_AE, true);
+	}
+
+	pre_pak  = dp_test_reverse_v4_pkt_from_desc(post_desc);
+	post_pak = dp_test_reverse_v4_pkt_from_desc(pre_desc);
+
+	test_exp = dp_test_exp_create(post_pak);
+	rte_pktmbuf_free(post_pak);
+
+	dp_test_exp_set_fwd_status(test_exp, ctx->exp_back);
+	dp_test_exp_set_oif_name(test_exp, pre_desc->tx_intf);
+
+	spush(test_exp->description, sizeof(test_exp->description),
+	      "\nTest: \"%s\", Reverse", func);
+
+	/* Run the test */
+	dp_test_pak_receive(pre_pak, pre_desc->tx_intf, test_exp);
+
+	dp_test_npf_session_count_verify(sess_out_exp);
+
+	if (ctx->count > 1) {
+		ctx->count--;
+		goto repeat;
+	}
+
+	/* Cleanup */
+
+	npf_golden_out_snat_local(TEST_FW_REMOVE, ctx);
+	npf_golden_out_fw(TEST_FW_REMOVE, ctx);
+
+	dp_test_npf_cleanup();
+
+	dp_test_nl_del_ip_addr_and_connected("dp1T0", "1.1.1.1/24");
+	dp_test_nl_del_ip_addr_and_connected("dp1T1", "2.2.2.2/24");
+
+	dp_test_netlink_del_neigh("dp1T0", "1.1.1.11",
+				  "aa:bb:cc:dd:1:11");
+	dp_test_netlink_del_neigh("dp1T1", "2.2.2.11",
+				  "aa:bb:cc:dd:2:11");
+}
+
+/*
+ * IPv4, local, no npf
+ */
+DP_DECL_TEST_CASE(npf_golden, npf_golden3, NULL, NULL);
+DP_START_TEST(npf_golden3, test)
+{
+	struct dp_test_golden_ctx ctx = {
+		.flags = 0, .count = 1,
+		.fw_in = 0, .fw_out = 0,
+		.exp_fwd = DP_TEST_FWD_FORWARDED,
+		.exp_back = DP_TEST_FWD_LOCAL,
+	};
+
+
+	dp_test_npf_golden_3(&ctx);
+
+} DP_END_TEST;
+
+/*
+ * IPv4, local, Out FW
+ */
+DP_DECL_TEST_CASE(npf_golden, npf_golden3a, NULL, NULL);
+DP_START_TEST(npf_golden3a, test)
+{
+	struct dp_test_golden_ctx ctx = {
+		.flags = 0, .count = 1, .fw_in = 0, .fw_out = 1,
+		.exp_fwd = DP_TEST_FWD_FORWARDED,
+		.exp_back = DP_TEST_FWD_LOCAL,
+	};
+	ctx.flags |= DPT_OUT_FW;
+
+	dp_test_npf_golden_3(&ctx);
+
+} DP_END_TEST;
+
+/*
+ * IPv4, local, Out sFW
+ */
+DP_DECL_TEST_CASE(npf_golden, npf_golden3b, NULL, NULL);
+DP_START_TEST(npf_golden3b, test)
+{
+	struct dp_test_golden_ctx ctx = {
+		.flags = 0, .count = 1, .fw_in = 0, .fw_out = 1,
+		.exp_fwd = DP_TEST_FWD_FORWARDED,
+		.exp_back = DP_TEST_FWD_LOCAL,
+	};
+	ctx.flags |= DPT_OUT_FW;
+	ctx.flags |= DPT_OUT_FW_S;
+
+	dp_test_npf_golden_3(&ctx);
+
+} DP_END_TEST;
+
+/*
+ * IPv4, local, Out SNAT
+ */
+DP_DECL_TEST_CASE(npf_golden, npf_golden3c, NULL, NULL);
+DP_START_TEST(npf_golden3c, test)
+{
+	struct dp_test_golden_ctx ctx = {
+		.flags = 0, .count = 1, .fw_in = 0, .fw_out = 0,
+		.exp_fwd = DP_TEST_FWD_FORWARDED,
+		.exp_back = DP_TEST_FWD_LOCAL,
+	};
+	ctx.flags |= DPT_OUT_SNAT_LOCAL;
+
+	dp_test_npf_golden_3(&ctx);
+
+} DP_END_TEST;
+
+/*
+ * IPv4, local, Out SNAT -> FW
+ */
+DP_DECL_TEST_CASE(npf_golden, npf_golden3d, NULL, NULL);
+DP_START_TEST(npf_golden3d, test)
+{
+	struct dp_test_golden_ctx ctx = {
+		.flags = 0, .count = 1, .fw_in = 0, .fw_out = 1,
+		.exp_fwd = DP_TEST_FWD_FORWARDED,
+		.exp_back = DP_TEST_FWD_LOCAL,
+	};
+	ctx.flags |= DPT_OUT_SNAT_LOCAL;
+	ctx.flags |= DPT_OUT_FW;
+
+	dp_test_npf_golden_3(&ctx);
+
+} DP_END_TEST;
+
+/*
+ * IPv4, local, Out SNAT -> FW
+ */
+DP_DECL_TEST_CASE(npf_golden, npf_golden3e, NULL, NULL);
+DP_START_TEST(npf_golden3e, test)
+{
+	struct dp_test_golden_ctx ctx = {
+		.flags = 0, .count = 1, .fw_in = 0, .fw_out = 1,
+		.exp_fwd = DP_TEST_FWD_FORWARDED,
+		.exp_back = DP_TEST_FWD_LOCAL,
+	};
+	ctx.flags |= DPT_OUT_SNAT_LOCAL;
+	ctx.flags |= DPT_OUT_FW;
+	ctx.flags |= DPT_OUT_FW_S;
+
+	dp_test_npf_golden_3(&ctx);
+
+} DP_END_TEST;
+
+/*
+ * 3j: IPv4, local, Out sFW, pkt matching block rule
+ *
+ * Packet will be sent, but no firewall rule stats will be incremented
+ */
+DP_DECL_TEST_CASE(npf_golden, npf_golden3j, NULL, NULL);
+DP_START_TEST(npf_golden3j, test)
+{
+	struct dp_test_golden_ctx ctx = {
+		.flags = 0, .count = 0, .fw_in = 0, .fw_out = 0,
+		.exp_fwd = DP_TEST_FWD_FORWARDED,
+		.exp_back = DP_TEST_FWD_LOCAL,
+	};
+	ctx.flags |= DPT_OUT_FW;
+	ctx.flags |= DPT_OUT_FW_BLK;
+
+	dp_test_npf_golden_3(&ctx);
+
+} DP_END_TEST;
+
+/*
+ * 3k: IPv4, local, Out sFW, pkt matching block rule
+ */
+DP_DECL_TEST_CASE(npf_golden, npf_golden3k, NULL, NULL);
+DP_START_TEST(npf_golden3k, test)
+{
+	struct dp_test_golden_ctx ctx = {
+		.flags = 0, .count = 1, .fw_in = 0, .fw_out = 0,
+		.exp_fwd = DP_TEST_FWD_FORWARDED,
+		.exp_back = DP_TEST_FWD_DROPPED,
+	};
+	ctx.flags |= DPT_OUT_FW;
+	ctx.flags |= DPT_OUT_FW_S;
+	ctx.flags |= DPT_OUT_FW_BLK;
+
+	dp_test_npf_golden_3(&ctx);
+
+} DP_END_TEST;
+
+/*
+ * 3l: IPv4, local, Out sFW, pkt matching no rule
+ */
+DP_DECL_TEST_CASE(npf_golden, npf_golden3l, NULL, NULL);
+DP_START_TEST(npf_golden3l, test)
+{
+	struct dp_test_golden_ctx ctx = {
+		.flags = 0, .count = 1, .fw_in = 0, .fw_out = 1,
+		.exp_fwd = DP_TEST_FWD_FORWARDED,
+		.exp_back = DP_TEST_FWD_LOCAL,
+	};
+	ctx.flags |= DPT_OUT_FW;
+	ctx.flags |= DPT_OUT_FW_UNM;
+
+	dp_test_npf_golden_3(&ctx);
+
+} DP_END_TEST;
+
+/*
+ * 3m: IPv4, local, Out sFW, pkt matching no rule
+ */
+DP_DECL_TEST_CASE(npf_golden, npf_golden3m, NULL, NULL);
+DP_START_TEST(npf_golden3m, test)
+{
+	struct dp_test_golden_ctx ctx = {
+		.flags = 0, .count = 1, .fw_in = 0, .fw_out = 1,
+		.exp_fwd = DP_TEST_FWD_FORWARDED,
+		.exp_back = DP_TEST_FWD_DROPPED,
+	};
+	ctx.flags |= DPT_OUT_FW;
+	ctx.flags |= DPT_OUT_FW_S;
+	ctx.flags |= DPT_OUT_FW_UNM;
+
+	dp_test_npf_golden_3(&ctx);
+
+} DP_END_TEST;
+
+
+/*
+ * IPv4, net to local
+ */
+static void _dp_test_npf_golden_4(struct dp_test_golden_ctx *ctx,
+				  const char *file, const char *func);
+#define dp_test_npf_golden_4(ctx) \
+	_dp_test_npf_golden_4(ctx, __FILE__, __func__)
+
+static void _dp_test_npf_golden_4(struct dp_test_golden_ctx *ctx,
+				  const char *file, const char *func)
+{
+	/* Setup interfaces and neighbours */
+	dp_test_nl_add_ip_addr_and_connected("dp1T0", "1.1.1.1/24");
+	dp_test_nl_add_ip_addr_and_connected("dp1T1", "2.2.2.2/24");
+
+	dp_test_netlink_add_neigh("dp1T0", "1.1.1.11",
+				  "aa:bb:cc:dd:1:11");
+	dp_test_netlink_add_neigh("dp1T1", "2.2.2.11",
+				  "aa:bb:cc:dd:2:11");
+
+	npf_golden_in_fw(TEST_FW_ADD, ctx);
+	npf_golden_in_dnat_local(TEST_FW_ADD, ctx);
+
+	/*
+	 * UDP packet.  Net to local
+	 */
+	struct dp_test_pkt_desc_t pre_pkt = {
+		.text       = "Pre",
+		.len        = 20,
+		.ether_type = ETHER_TYPE_IPv4,
+		.l3_src     = "1.1.1.11",
+		.l2_src     = "aa:bb:cc:dd:1:11",
+		.l3_dst     = "1.1.1.1",
+		.l2_dst     = "0:0:a4:0:0:65",
+		.proto      = IPPROTO_UDP,
+		.l4	 = {
+			.udp = {
+				.sport = 0xDEAD, /* 57005 */
+				.dport = 0xBEEF, /* 48879 */
+			}
+		},
+		.rx_intf    = "dp1T0",
+		.tx_intf    = "dp1T0"
+	};
+
+	if ((ctx->flags & DPT_IN_FW_BLK) != 0)
+		pre_pkt.l4.udp.dport = 48878;
+	else if ((ctx->flags & DPT_IN_FW_UNM) != 0)
+		pre_pkt.l4.udp.dport = 48877;
+
+	struct dp_test_pkt_desc_t post_pkt;
+	struct dp_test_pkt_desc_t *pre_desc;
+	struct dp_test_pkt_desc_t *post_desc;
+	struct dp_test_expected *test_exp;
+	struct rte_mbuf *pre_pak, *post_pak;
+
+repeat:
+	post_pkt = pre_pkt;
+	pre_desc = &pre_pkt;
+	post_desc = &post_pkt;
+
+	if ((ctx->flags & DPT_IN_DNAT_LOCAL) != 0)
+		/* DNAT 1.1.1.2 -> 1.1.1.1 */
+		pre_desc->l3_dst = "1.1.1.2";
+
+	pre_pak  = dp_test_v4_pkt_from_desc(pre_desc);
+	post_pak = dp_test_v4_pkt_from_desc(post_desc);
+
+	test_exp = dp_test_exp_create(post_pak);
+	rte_pktmbuf_free(post_pak);
+
+	dp_test_exp_set_fwd_status(test_exp, ctx->exp_fwd);
+	dp_test_exp_set_oif_name(test_exp, pre_desc->tx_intf);
+
+	spush(test_exp->description, sizeof(test_exp->description),
+	      "\nTest: \"%s\", Forwards", func);
+
+	/* Run the test */
+	dp_test_pak_receive(pre_pak, pre_desc->tx_intf, test_exp);
+
+	if ((ctx->flags & DPT_IN_FW) != 0)
+		npf_golden_in_fw(TEST_FW_VERIFY, ctx);
+
+	if ((ctx->flags & DPT_OUT_FW) != 0)
+		npf_golden_out_fw(TEST_FW_VERIFY, ctx);
+
+	uint sess_in_exp = 0;
+
+	/* If in-fw and dnat are cfgd, then they use the same session */
+	if ((ctx->flags & DPT_IN_FW_S) != 0 ||
+	    (ctx->flags & DPT_IN_DNAT_LOCAL) != 0)
+		sess_in_exp++;
+
+	dp_test_npf_session_count_verify(sess_in_exp);
+
+	if ((ctx->flags & DPT_IN_FW_S) != 0) {
+		if ((ctx->flags & DPT_IN_DNAT_LOCAL) != 0)
+			dp_test_nat_session_verify_desc(false, 0x0D,
+							pre_desc, post_desc);
+		else
+			dp_test_npf_session_verify_desc(NULL, pre_desc,
+							pre_desc->rx_intf,
+							SE_ACTIVE,
+							SE_FLAGS_AE, true);
+	}
+
+	if ((ctx->flags & DPT_IN_FW_S) != 0 ||
+	    (ctx->flags & DPT_IN_DNAT_LOCAL) != 0) {
+
+		dp_test_npf_session_verify_desc(NULL, pre_desc,
+						pre_desc->rx_intf,
+						SE_ACTIVE,
+						SE_FLAGS_AE, true);
+	} else if ((ctx->flags & DPT_OUT_FW_S) != 0 ||
+		 (ctx->flags & DPT_OUT_SNAT) != 0) {
+		dp_test_npf_session_verify_desc(NULL, pre_desc,
+						pre_desc->tx_intf,
+						SE_ACTIVE,
+						SE_FLAGS_AE, true);
+	}
+
+	/*
+	 * UDP packet.  Local to Net
+	 */
+	struct dp_test_pkt_desc_t pre_pkt2 = {
+		.text       = "Pre",
+		.len        = 20,
+		.ether_type = ETHER_TYPE_IPv4,
+		.l3_src     = "1.1.1.1",
+		.l2_src     = "0:0:a4:0:0:65",
+		.l3_dst     = "1.1.1.11",
+		.l2_dst     = "aa:bb:cc:dd:1:11",
+		.proto      = IPPROTO_UDP,
+		.l4	 = {
+			.udp = {
+				.sport = 0xBEEF, /* 48879 */
+				.dport = 0xDEAD, /* 57005 */
+			}
+		},
+		.rx_intf    = "dp1T0",
+		.tx_intf    = "dp1T0"
+	};
+
+	struct dp_test_pkt_desc_t post_pkt2 = pre_pkt2;
+	pre_desc = &pre_pkt2;
+	post_desc = &post_pkt2;
+
+	if ((ctx->flags & DPT_IN_DNAT_LOCAL) != 0)
+		/* Reverse DNAT, src 1.1.1.1 -> 1.1.1.2 */
+		post_desc->l3_src = "1.1.1.2";
+
+	pre_pak  = dp_test_from_spath_v4_pkt_from_desc(pre_desc);
+	post_pak = dp_test_from_spath_v4_pkt_from_desc(post_desc);
+
+	test_exp = dp_test_exp_create(post_pak);
+	rte_pktmbuf_free(post_pak);
+	dp_test_exp_set_fwd_status(test_exp, ctx->exp_back);
+	dp_test_exp_set_oif_name(test_exp, pre_desc->tx_intf);
+
+	spush(test_exp->description, sizeof(test_exp->description),
+	      "\nTest: \"%s\", Reverse", func);
+
+	/* Run the test */
+	dp_test_send_slowpath_pkt(pre_pak, test_exp);
+
+
+	if (ctx->count > 1) {
+		ctx->count--;
+		goto repeat;
+	}
+
+	/* Cleanup */
+
+	npf_golden_in_fw(TEST_FW_REMOVE, ctx);
+	npf_golden_in_dnat_local(TEST_FW_REMOVE, ctx);
+
+	dp_test_npf_cleanup();
+
+	dp_test_nl_del_ip_addr_and_connected("dp1T0", "1.1.1.1/24");
+	dp_test_nl_del_ip_addr_and_connected("dp1T1", "2.2.2.2/24");
+
+	dp_test_netlink_del_neigh("dp1T0", "1.1.1.11",
+				  "aa:bb:cc:dd:1:11");
+	dp_test_netlink_del_neigh("dp1T1", "2.2.2.11",
+				  "aa:bb:cc:dd:2:11");
+}
+
+
+/*
+ * IPv4, Net to local
+ */
+DP_DECL_TEST_CASE(npf_golden, npf_golden4, NULL, NULL);
+DP_START_TEST(npf_golden4, test)
+{
+	struct dp_test_golden_ctx ctx = {
+		.flags = 0, .count = 1, .fw_in = 0, .fw_out = 0,
+		.exp_fwd = DP_TEST_FWD_LOCAL,
+		.exp_back = DP_TEST_FWD_FORWARDED,
+	};
+
+	dp_test_npf_golden_4(&ctx);
+} DP_END_TEST;
+
+/*
+ * IPv4, Net to local, In FW
+ */
+DP_DECL_TEST_CASE(npf_golden, npf_golden4a, NULL, NULL);
+DP_START_TEST(npf_golden4a, test)
+{
+	struct dp_test_golden_ctx ctx = {
+		.flags = 0, .count = 1, .fw_in = 1, .fw_out = 0,
+		.exp_fwd = DP_TEST_FWD_LOCAL,
+		.exp_back = DP_TEST_FWD_FORWARDED,
+	};
+	ctx.flags |= DPT_IN_FW;
+
+	dp_test_npf_golden_4(&ctx);
+} DP_END_TEST;
+
+/*
+ * IPv4, Net to local, In sFW
+ */
+DP_DECL_TEST_CASE(npf_golden, npf_golden4b, NULL, NULL);
+DP_START_TEST(npf_golden4b, test)
+{
+	struct dp_test_golden_ctx ctx = {
+		.flags = 0, .count = 1, .fw_in = 1, .fw_out = 0,
+		.exp_fwd = DP_TEST_FWD_LOCAL,
+		.exp_back = DP_TEST_FWD_FORWARDED,
+	};
+	ctx.flags |= DPT_IN_FW;
+	ctx.flags |= DPT_IN_FW_S;
+
+	dp_test_npf_golden_4(&ctx);
+} DP_END_TEST;
+
+/*
+ * IPv4, Net to local, In DNAT
+ */
+DP_DECL_TEST_CASE(npf_golden, npf_golden4c, NULL, NULL);
+DP_START_TEST(npf_golden4c, test)
+{
+	struct dp_test_golden_ctx ctx = {
+		.flags = 0, .count = 1, .fw_in = 0, .fw_out = 0,
+		.exp_fwd = DP_TEST_FWD_LOCAL,
+		.exp_back = DP_TEST_FWD_FORWARDED,
+	};
+	ctx.flags |= DPT_IN_DNAT_LOCAL;
+
+	dp_test_npf_golden_4(&ctx);
+} DP_END_TEST;
+
+/*
+ * IPv4, Net to local, In FW -> DNAT
+ */
+DP_DECL_TEST_CASE(npf_golden, npf_golden4d, NULL, NULL);
+DP_START_TEST(npf_golden4d, test)
+{
+	struct dp_test_golden_ctx ctx = {
+		.flags = 0, .count = 1, .fw_in = 1, .fw_out = 0,
+		.exp_fwd = DP_TEST_FWD_LOCAL,
+		.exp_back = DP_TEST_FWD_FORWARDED,
+	};
+	ctx.flags |= DPT_IN_FW;
+	ctx.flags |= DPT_IN_DNAT_LOCAL;
+
+	dp_test_npf_golden_4(&ctx);
+} DP_END_TEST;
+
+/*
+ * IPv4, Net to local, In sFW -> DNAT
+ */
+DP_DECL_TEST_CASE(npf_golden, npf_golden4e, NULL, NULL);
+DP_START_TEST(npf_golden4e, test)
+{
+	struct dp_test_golden_ctx ctx = {
+		.flags = 0, .count = 1, .fw_in = 1, .fw_out = 0,
+		.exp_fwd = DP_TEST_FWD_LOCAL,
+		.exp_back = DP_TEST_FWD_FORWARDED,
+	};
+	ctx.flags |= DPT_IN_FW;
+	ctx.flags |= DPT_IN_FW_S;
+	ctx.flags |= DPT_IN_DNAT_LOCAL;
+
+	dp_test_npf_golden_4(&ctx);
+} DP_END_TEST;
+
+
+/*
+ * IPv6, local to net
+ */
+static void _dp_test_npf_golden_5(struct dp_test_golden_ctx *ctx,
+				  const char *file, const char *func);
+#define dp_test_npf_golden_5(ctx) \
+	_dp_test_npf_golden_5(ctx, __FILE__, __func__)
+
+static void _dp_test_npf_golden_5(struct dp_test_golden_ctx *ctx,
+				  const char *file, const char *func)
+{
+	/* Setup interfaces and neighbours */
+	dp_test_nl_add_ip_addr_and_connected("dp1T0", "2001:101:1::101:101/96");
+	dp_test_nl_add_ip_addr_and_connected("dp1T1", "2001:101:2::202:202/96");
+
+	dp_test_nl_add_ip_addr_and_connected("dp1T0", "1.1.1.1/24");
+	dp_test_nl_add_ip_addr_and_connected("dp1T1", "2.2.2.2/24");
+
+	dp_test_netlink_add_neigh("dp1T0", "2001:101:1::101:10b",
+				  "aa:bb:cc:dd:1:11");
+	dp_test_netlink_add_neigh("dp1T0", "1.1.1.11",
+				  "aa:bb:cc:dd:1:11");
+
+	dp_test_netlink_add_neigh("dp1T1", "2001:101:2::202:20b",
+				  "aa:bb:cc:dd:2:11");
+	dp_test_netlink_add_neigh("dp1T1", "2.2.2.11",
+				  "aa:bb:cc:dd:2:11");
+
+	npf_golden_out_fw(TEST_FW_ADD, ctx);
+
+
+	/*
+	 * UDP packet.  Local to net
+	 */
+	struct dp_test_pkt_desc_t pre_pkt = {
+		.text       = "Pre",
+		.len        = 20,
+		.ether_type = ETHER_TYPE_IPv6,
+		.l3_src     = "2001:101:2::202:202",
+		.l2_src     = "0:0:a4:0:0:65",
+		.l3_dst     = "2001:101:2::202:20b",
+		.l2_dst     = "aa:bb:cc:dd:2:11",
+		.proto      = IPPROTO_UDP,
+		.l4	 = {
+			.udp = {
+				.sport = 0xDEAD, /* 57005 */
+				.dport = 0xBEEF,
+			}
+		},
+		.rx_intf    = "dp1T1",
+		.tx_intf    = "dp1T1"
+	};
+
+	if ((ctx->flags & DPT_IN_FW_BLK) != 0)
+		pre_pkt.l4.udp.dport = 48878;
+	else if ((ctx->flags & DPT_IN_FW_UNM) != 0)
+		pre_pkt.l4.udp.dport = 48877;
+
+	if ((ctx->flags & DPT_OUT_FW_BLK) != 0)
+		pre_pkt.l4.udp.sport = 57004;
+	else if ((ctx->flags & DPT_OUT_FW_UNM) != 0)
+		pre_pkt.l4.udp.sport = 57003;
+
+	struct dp_test_pkt_desc_t post_pkt;
+	struct dp_test_pkt_desc_t *pre_desc;
+	struct dp_test_pkt_desc_t *post_desc;
+	struct dp_test_expected *test_exp;
+	struct rte_mbuf *pre_pak, *post_pak;
+
+repeat:
+	post_pkt = pre_pkt;
+	pre_desc = &pre_pkt;
+	post_desc = &post_pkt;
+
+	pre_pak  = dp_test_from_spath_pkt_from_desc(pre_desc);
+	post_pak = dp_test_from_spath_pkt_from_desc(post_desc);
+
+	test_exp = dp_test_exp_create(post_pak);
+	rte_pktmbuf_free(post_pak);
+	dp_test_exp_set_fwd_status(test_exp, ctx->exp_fwd);
+	dp_test_exp_set_oif_name(test_exp, pre_desc->tx_intf);
+
+	spush(test_exp->description, sizeof(test_exp->description),
+	      "\nTest: \"%s\", Forwards", func);
+
+	/* Run the test */
+	dp_test_send_slowpath_pkt(pre_pak, test_exp);
+
+	if ((ctx->flags & DPT_IN_FW) != 0)
+		npf_golden_in_fw(TEST_FW_VERIFY, ctx);
+
+	if ((ctx->flags & DPT_OUT_FW) != 0)
+		npf_golden_out_fw(TEST_FW_VERIFY, ctx);
+
+	uint sess_out_exp = 0;
+
+	if (((ctx->flags & DPT_OUT_FW_S) != 0 &&
+	     (ctx->flags & (DPT_OUT_FW_BLK | DPT_OUT_FW_UNM)) == 0) ||
+	    (ctx->flags & DPT_OUT_SNAT_LOCAL) != 0) {
+		sess_out_exp++;
+	}
+
+	dp_test_npf_session_count_verify(sess_out_exp);
+
+	if (sess_out_exp)
+		dp_test_npf_session_verify_desc(NULL, pre_desc,
+						pre_desc->tx_intf,
+						SE_ACTIVE,
+						SE_FLAGS_AE, true);
+
+	pre_pak  = dp_test_reverse_v6_pkt_from_desc(post_desc);
+	post_pak = dp_test_reverse_v6_pkt_from_desc(pre_desc);
+
+	test_exp = dp_test_exp_create(post_pak);
+	rte_pktmbuf_free(post_pak);
+
+	dp_test_exp_set_fwd_status(test_exp, ctx->exp_back);
+	dp_test_exp_set_oif_name(test_exp, pre_desc->tx_intf);
+
+	spush(test_exp->description, sizeof(test_exp->description),
+	      "\nTest: \"%s\", Reverse", func);
+
+	/* Run the test */
+	dp_test_pak_receive(pre_pak, pre_desc->tx_intf, test_exp);
+
+	dp_test_npf_session_count_verify(sess_out_exp);
+
+	if (ctx->count > 1) {
+		ctx->count--;
+		goto repeat;
+	}
+
+	/* Cleanup */
+
+	npf_golden_out_fw(TEST_FW_REMOVE, ctx);
+
+	dp_test_npf_cleanup();
+
+	dp_test_netlink_del_neigh("dp1T0", "2001:101:1::101:10b",
+				  "aa:bb:cc:dd:1:11");
+	dp_test_netlink_del_neigh("dp1T0", "1.1.1.11",
+				  "aa:bb:cc:dd:1:11");
+
+	dp_test_netlink_del_neigh("dp1T1", "2001:101:2::202:20b",
+				  "aa:bb:cc:dd:2:11");
+	dp_test_netlink_del_neigh("dp1T1", "2.2.2.11",
+				  "aa:bb:cc:dd:2:11");
+
+	dp_test_nl_del_ip_addr_and_connected("dp1T0", "2001:101:1::101:101/96");
+	dp_test_nl_del_ip_addr_and_connected("dp1T1", "2001:101:2::202:202/96");
+
+	dp_test_nl_del_ip_addr_and_connected("dp1T0", "1.1.1.1/24");
+	dp_test_nl_del_ip_addr_and_connected("dp1T1", "2.2.2.2/24");
+}
+
+/*
+ * IPv6, local, no npf
+ */
+DP_DECL_TEST_CASE(npf_golden, npf_golden5, NULL, NULL);
+DP_START_TEST(npf_golden5, test)
+{
+	struct dp_test_golden_ctx ctx = {
+		.flags = 0, .count = 1, .fw_in = 0, .fw_out = 0,
+		.exp_fwd = DP_TEST_FWD_FORWARDED,
+		.exp_back = DP_TEST_FWD_LOCAL,
+	};
+
+	dp_test_npf_golden_5(&ctx);
+} DP_END_TEST;
+
+/*
+ * IPv6, local, Out FW
+ */
+DP_DECL_TEST_CASE(npf_golden, npf_golden5a, NULL, NULL);
+DP_START_TEST(npf_golden5a, test)
+{
+	struct dp_test_golden_ctx ctx = {
+		.flags = 0, .count = 1, .fw_in = 0, .fw_out = 1,
+		.exp_fwd = DP_TEST_FWD_FORWARDED,
+		.exp_back = DP_TEST_FWD_LOCAL,
+	};
+	ctx.flags |= DPT_OUT_FW;
+
+	dp_test_npf_golden_5(&ctx);
+} DP_END_TEST;
+
+/*
+ * IPv6, local, Out sFW
+ */
+DP_DECL_TEST_CASE(npf_golden, npf_golden5b, NULL, NULL);
+DP_START_TEST(npf_golden5b, test)
+{
+	struct dp_test_golden_ctx ctx = {
+		.flags = 0, .count = 1, .fw_in = 0, .fw_out = 1,
+		.exp_fwd = DP_TEST_FWD_FORWARDED,
+		.exp_back = DP_TEST_FWD_LOCAL,
+	};
+	ctx.flags |= DPT_OUT_FW;
+	ctx.flags |= DPT_OUT_FW_S;
+
+	dp_test_npf_golden_5(&ctx);
+} DP_END_TEST;
+
+/*
+ * 5j: IPv6, local, Out sFW, pkt matching block rule
+ *
+ * Packet will be sent, but no firewall rule stats will be incremented
+ */
+DP_DECL_TEST_CASE(npf_golden, npf_golden5j, NULL, NULL);
+DP_START_TEST(npf_golden5j, test)
+{
+	struct dp_test_golden_ctx ctx = {
+		.flags = 0, .count = 0, .fw_in = 0, .fw_out = 0,
+		.exp_fwd = DP_TEST_FWD_FORWARDED,
+		.exp_back = DP_TEST_FWD_LOCAL,
+	};
+	ctx.flags |= DPT_OUT_FW;
+	ctx.flags |= DPT_OUT_FW_BLK;
+
+	dp_test_npf_golden_5(&ctx);
+
+} DP_END_TEST;
+
+DP_DECL_TEST_CASE(npf_golden, npf_golden5k, NULL, NULL);
+DP_START_TEST(npf_golden5k, test)
+{
+	struct dp_test_golden_ctx ctx = {
+		.flags = 0, .count = 0, .fw_in = 0, .fw_out = 0,
+		.exp_fwd = DP_TEST_FWD_FORWARDED,
+		.exp_back = DP_TEST_FWD_DROPPED,
+	};
+	ctx.flags |= DPT_OUT_FW;
+	ctx.flags |= DPT_OUT_FW_S;
+	ctx.flags |= DPT_OUT_FW_BLK;
+
+	dp_test_npf_golden_5(&ctx);
+
+} DP_END_TEST;
+
+/*
+ * 5l: IPv4, local, Out sFW, pkt matching no rule
+ */
+DP_DECL_TEST_CASE(npf_golden, npf_golden5l, NULL, NULL);
+DP_START_TEST(npf_golden5l, test)
+{
+	struct dp_test_golden_ctx ctx = {
+		.flags = 0, .count = 1, .fw_in = 0, .fw_out = 1,
+		.exp_fwd = DP_TEST_FWD_FORWARDED,
+		.exp_back = DP_TEST_FWD_LOCAL,
+	};
+	ctx.flags |= DPT_OUT_FW;
+	ctx.flags |= DPT_OUT_FW_UNM;
+
+	dp_test_npf_golden_5(&ctx);
+
+} DP_END_TEST;
+
+/*
+ * 5m: IPv6, local, Out sFW, pkt matching no rule
+ */
+DP_DECL_TEST_CASE(npf_golden, npf_golden5m, NULL, NULL);
+DP_START_TEST(npf_golden5m, test)
+{
+	struct dp_test_golden_ctx ctx = {
+		.flags = 0, .count = 1, .fw_in = 0, .fw_out = 1,
+		.exp_fwd = DP_TEST_FWD_FORWARDED,
+		.exp_back = DP_TEST_FWD_DROPPED,
+	};
+	ctx.flags |= DPT_OUT_FW;
+	ctx.flags |= DPT_OUT_FW_S;
+	ctx.flags |= DPT_OUT_FW_UNM;
+
+	dp_test_npf_golden_5(&ctx);
+
+} DP_END_TEST;
+
+
+/*
+ * IPv6, net to local
+ */
+static void _dp_test_npf_golden_6(struct dp_test_golden_ctx *ctx,
+				  const char *file, const char *func);
+#define dp_test_npf_golden_6(ctx) \
+	_dp_test_npf_golden_6(ctx, __FILE__, __func__)
+
+static void _dp_test_npf_golden_6(struct dp_test_golden_ctx *ctx,
+				  const char *file, const char *func)
+{
+	/* Setup interfaces and neighbours */
+	dp_test_nl_add_ip_addr_and_connected("dp1T0", "2001:101:1::101:101/96");
+	dp_test_nl_add_ip_addr_and_connected("dp1T1", "2001:101:2::202:202/96");
+
+	dp_test_nl_add_ip_addr_and_connected("dp1T0", "1.1.1.1/24");
+	dp_test_nl_add_ip_addr_and_connected("dp1T1", "2.2.2.2/24");
+
+	dp_test_netlink_add_neigh("dp1T0", "2001:101:1::101:10b",
+				  "aa:bb:cc:dd:1:11");
+	dp_test_netlink_add_neigh("dp1T0", "1.1.1.11",
+				  "aa:bb:cc:dd:1:11");
+
+	dp_test_netlink_add_neigh("dp1T1", "2001:101:2::202:20b",
+				  "aa:bb:cc:dd:2:11");
+	dp_test_netlink_add_neigh("dp1T1", "2.2.2.11",
+				  "aa:bb:cc:dd:2:11");
+
+	npf_golden_in_fw(TEST_FW_ADD, ctx);
+
+
+	/*
+	 * UDP packet.  Net to local
+	 */
+	struct dp_test_pkt_desc_t pre_pkt = {
+		.text       = "Pre",
+		.len        = 20,
+		.ether_type = ETHER_TYPE_IPv6,
+		.l3_src     = "2001:101:2::202:20b",
+		.l2_src     = "aa:bb:cc:dd:2:11",
+		.l3_dst     = "2001:101:2::202:202",
+		.l2_dst     = "0:0:a4:0:0:65",
+		.proto      = IPPROTO_UDP,
+		.l4	 = {
+			.udp = {
+				.sport = 0xDEAD,
+				.dport = 0xBEEF,
+			}
+		},
+		.rx_intf    = "dp1T0",
+		.tx_intf    = "dp1T0"
+	};
+
+	if ((ctx->flags & DPT_IN_FW_BLK) != 0)
+		pre_pkt.l4.udp.dport = 48878;
+	else if ((ctx->flags & DPT_IN_FW_UNM) != 0)
+		pre_pkt.l4.udp.dport = 48877;
+
+	if ((ctx->flags & DPT_OUT_FW_BLK) != 0)
+		pre_pkt.l4.udp.sport = 57004;
+	else if ((ctx->flags & DPT_OUT_FW_UNM) != 0)
+		pre_pkt.l4.udp.sport = 57003;
+
+	struct dp_test_pkt_desc_t post_pkt;
+	struct dp_test_pkt_desc_t *pre_desc;
+	struct dp_test_pkt_desc_t *post_desc;
+	struct dp_test_expected *test_exp;
+	struct rte_mbuf *pre_pak, *post_pak;
+
+repeat:
+	post_pkt = pre_pkt;
+	pre_desc = &pre_pkt;
+	post_desc = &post_pkt;
+
+	pre_pak  = dp_test_v6_pkt_from_desc(pre_desc);
+	post_pak = dp_test_v6_pkt_from_desc(post_desc);
+
+	test_exp = dp_test_exp_create(post_pak);
+	rte_pktmbuf_free(post_pak);
+
+	dp_test_exp_set_fwd_status(test_exp, ctx->exp_fwd);
+	dp_test_exp_set_oif_name(test_exp, pre_desc->tx_intf);
+
+	spush(test_exp->description, sizeof(test_exp->description),
+	      "\nTest: \"%s\", Forwards", func);
+
+	/* Run the test */
+	dp_test_pak_receive(pre_pak, pre_desc->tx_intf, test_exp);
+
+	if ((ctx->flags & DPT_IN_FW) != 0)
+		npf_golden_in_fw(TEST_FW_VERIFY, ctx);
+
+	if ((ctx->flags & DPT_OUT_FW) != 0)
+		npf_golden_out_fw(TEST_FW_VERIFY, ctx);
+
+	uint sess_in_exp = 0;
+
+	/* If in-fw and dnat are cfgd, then they use the same session */
+	if ((ctx->flags & DPT_IN_FW_S) != 0 ||
+	    (ctx->flags & DPT_IN_DNAT) != 0)
+		sess_in_exp++;
+
+	dp_test_npf_session_count_verify(sess_in_exp);
+
+	if ((ctx->flags & DPT_IN_FW_S) != 0) {
+		dp_test_npf_session_verify_desc(NULL, pre_desc,
+						pre_desc->rx_intf,
+						SE_ACTIVE,
+						SE_FLAGS_AE, true);
+	}
+
+	if ((ctx->flags & DPT_IN_FW_S) != 0 ||
+	    (ctx->flags & DPT_IN_DNAT) != 0) {
+
+		dp_test_npf_session_verify_desc(NULL, pre_desc,
+						pre_desc->rx_intf,
+						SE_ACTIVE,
+						SE_FLAGS_AE, true);
+	} else if ((ctx->flags & DPT_OUT_FW_S) != 0 ||
+		 (ctx->flags & DPT_OUT_SNAT) != 0) {
+		dp_test_npf_session_verify_desc(NULL, pre_desc,
+						pre_desc->tx_intf,
+						SE_ACTIVE,
+						SE_FLAGS_AE, true);
+	}
+
+	/*
+	 * UDP packet.  Local to Net
+	 */
+	struct dp_test_pkt_desc_t pre_pkt2 = {
+		.text       = "Pre",
+		.len        = 20,
+		.ether_type = ETHER_TYPE_IPv6,
+		.l3_src     = "2001:101:2::202:202",
+		.l2_src     = "0:0:a4:0:0:65",
+		.l3_dst     = "2001:101:2::202:20b",
+		.l2_dst     = "aa:bb:cc:dd:2:11",
+		.proto      = IPPROTO_UDP,
+		.l4	 = {
+			.udp = {
+				.sport = 0xBEEF,
+				.dport = 0xDEAD,
+			}
+		},
+		.rx_intf    = "dp1T0",
+		.tx_intf    = "dp1T0"
+	};
+	struct dp_test_pkt_desc_t post_pkt2 = pre_pkt2;
+	pre_desc = &pre_pkt2;
+	post_desc = &post_pkt2;
+
+	pre_pak  = dp_test_from_spath_pkt_from_desc(pre_desc);
+	post_pak = dp_test_from_spath_pkt_from_desc(post_desc);
+
+	test_exp = dp_test_exp_create(post_pak);
+	rte_pktmbuf_free(post_pak);
+
+	dp_test_exp_set_fwd_status(test_exp, ctx->exp_back);
+	dp_test_exp_set_oif_name(test_exp, pre_desc->tx_intf);
+
+	spush(test_exp->description, sizeof(test_exp->description),
+	      "\nTest: \"%s\", Reverse", func);
+
+	/* Run the test */
+	dp_test_send_slowpath_pkt(pre_pak, test_exp);
+
+	if (ctx->count > 1) {
+		ctx->count--;
+		goto repeat;
+	}
+
+	/* Cleanup */
+
+	npf_golden_in_fw(TEST_FW_REMOVE, ctx);
+
+	dp_test_npf_cleanup();
+
+	dp_test_netlink_del_neigh("dp1T0", "2001:101:1::101:10b",
+				  "aa:bb:cc:dd:1:11");
+	dp_test_nl_del_ip_addr_and_connected("dp1T0", "1.1.1.1/24");
+
+	dp_test_netlink_del_neigh("dp1T1", "2001:101:2::202:20b",
+				  "aa:bb:cc:dd:2:11");
+	dp_test_nl_del_ip_addr_and_connected("dp1T1", "2.2.2.2/24");
+
+	dp_test_nl_del_ip_addr_and_connected("dp1T0", "2001:101:1::101:101/96");
+	dp_test_nl_del_ip_addr_and_connected("dp1T1", "2001:101:2::202:202/96");
+
+	dp_test_netlink_del_neigh("dp1T0", "1.1.1.11",
+				  "aa:bb:cc:dd:1:11");
+	dp_test_netlink_del_neigh("dp1T1", "2.2.2.11",
+				  "aa:bb:cc:dd:2:11");
+}
+
+
+/*
+ * IPv6, Net to local
+ */
+DP_DECL_TEST_CASE(npf_golden, npf_golden6, NULL, NULL);
+DP_START_TEST(npf_golden6, test)
+{
+	struct dp_test_golden_ctx ctx = {
+		.flags = 0, .count = 1, .fw_in = 0, .fw_out = 0,
+		.exp_fwd = DP_TEST_FWD_LOCAL,
+		.exp_back = DP_TEST_FWD_FORWARDED,
+	};
+
+	dp_test_npf_golden_6(&ctx);
+} DP_END_TEST;
+
+/*
+ * IPv6, Net to local, In FW
+ */
+DP_DECL_TEST_CASE(npf_golden, npf_golden6a, NULL, NULL);
+DP_START_TEST(npf_golden6a, test)
+{
+	struct dp_test_golden_ctx ctx = {
+		.flags = 0, .count = 1, .fw_in = 1, .fw_out = 0,
+		.exp_fwd = DP_TEST_FWD_LOCAL,
+		.exp_back = DP_TEST_FWD_FORWARDED,
+	};
+	ctx.flags |= DPT_IN_FW;
+
+	dp_test_npf_golden_6(&ctx);
+} DP_END_TEST;
+
+/*
+ * IPv6, Net to local, In sFW
+ */
+DP_DECL_TEST_CASE(npf_golden, npf_golden6b, NULL, NULL);
+DP_START_TEST(npf_golden6b, test)
+{
+	struct dp_test_golden_ctx ctx = {
+		.flags = 0, .count = 1, .fw_in = 1, .fw_out = 0,
+		.exp_fwd = DP_TEST_FWD_LOCAL,
+		.exp_back = DP_TEST_FWD_FORWARDED,
+	};
+	ctx.flags |= DPT_IN_FW;
+	ctx.flags |= DPT_IN_FW_S;
+
+	dp_test_npf_golden_6(&ctx);
+} DP_END_TEST;
+
+/*
+ * IPv4, Local (kernel forwarded) to Net
+ */
+static void _dp_test_npf_golden_7(struct dp_test_golden_ctx *ctx,
+				  const char *file, const char *func);
+#define dp_test_npf_golden_7(ctx) \
+	_dp_test_npf_golden_7(ctx, __FILE__, __func__)
+
+static void _dp_test_npf_golden_7(struct dp_test_golden_ctx *ctx,
+				  const char *file, const char *func)
+{
+	/* Setup interfaces and neighbours */
+	dp_test_nl_add_ip_addr_and_connected("dp1T0", "1.1.1.1/24");
+	dp_test_nl_add_ip_addr_and_connected("dp1T1", "2.2.2.2/24");
+
+	dp_test_netlink_add_neigh("dp1T0", "1.1.1.11",
+				  "aa:bb:cc:dd:1:11");
+	dp_test_netlink_add_neigh("dp1T1", "2.2.2.11",
+				  "aa:bb:cc:dd:2:11");
+
+	npf_golden_out_fw(TEST_FW_ADD, ctx);
+
+
+	/*
+	 * UDP packet.  Src address in *not* a router address
+	 */
+	struct dp_test_pkt_desc_t pre_pkt = {
+		.text       = "Pre",
+		.len        = 20,
+		.ether_type = ETHER_TYPE_IPv4,
+		.l3_src     = "1.1.1.11",
+		.l2_src     = "aa:bb:cc:dd:1:11",
+		.l3_dst     = "2.2.2.11",
+		.l2_dst     = "aa:bb:cc:dd:2:11",
+		.proto      = IPPROTO_UDP,
+		.l4	 = {
+			.udp = {
+				.sport = 0xDEAD,
+				.dport = 0xBEEF,
+			}
+		},
+		.rx_intf    = "dp1T1",
+		.tx_intf    = "dp1T1"
+	};
+
+	if ((ctx->flags & DPT_OUT_FW_UNM) != 0)
+		pre_pkt.l4.udp.sport = 57003;
+	else if ((ctx->flags & DPT_OUT_FW_BLK) != 0)
+		pre_pkt.l4.udp.sport = 57004;
+
+	struct dp_test_pkt_desc_t post_pkt;
+	struct dp_test_pkt_desc_t *pre_desc;
+	struct dp_test_pkt_desc_t *post_desc;
+	struct dp_test_expected *test_exp;
+	struct rte_mbuf *pre_pak, *post_pak;
+
+repeat:
+	post_pkt = pre_pkt;
+	pre_desc = &pre_pkt;
+	post_desc = &post_pkt;
+
+	pre_pak  = dp_test_from_spath_v4_pkt_from_desc(pre_desc);
+	post_pak = dp_test_from_spath_v4_pkt_from_desc(post_desc);
+
+	test_exp = dp_test_exp_create(post_pak);
+	rte_pktmbuf_free(post_pak);
+
+	dp_test_exp_set_fwd_status(test_exp, ctx->exp_fwd);
+	dp_test_exp_set_oif_name(test_exp, pre_desc->tx_intf);
+
+	spush(test_exp->description, sizeof(test_exp->description),
+	      "\nTest: \"%s\", Forwards", func);
+
+	/* Run the test */
+	dp_test_send_slowpath_pkt(pre_pak, test_exp);
+
+	if ((ctx->flags & DPT_OUT_FW) != 0)
+		npf_golden_out_fw(TEST_FW_VERIFY, ctx);
+
+	uint sess_out_exp = 0;
+
+	if (((ctx->flags & DPT_OUT_FW_S) != 0 &&
+	     (ctx->flags & (DPT_OUT_FW_BLK | DPT_OUT_FW_UNM)) == 0) ||
+	    (ctx->flags & DPT_OUT_SNAT) != 0) {
+		sess_out_exp++;
+	}
+
+	dp_test_npf_session_count_verify(sess_out_exp);
+
+	if (sess_out_exp) {
+		dp_test_npf_session_verify_desc(NULL, pre_desc,
+						pre_desc->tx_intf,
+						SE_ACTIVE,
+						SE_FLAGS_AE, true);
+	}
+
+	if (ctx->count > 1) {
+		ctx->count--;
+		goto repeat;
+	}
+
+	/* Cleanup */
+
+	npf_golden_out_fw(TEST_FW_REMOVE, ctx);
+
+	dp_test_npf_cleanup();
+
+	dp_test_nl_del_ip_addr_and_connected("dp1T0", "1.1.1.1/24");
+	dp_test_nl_del_ip_addr_and_connected("dp1T1", "2.2.2.2/24");
+
+	dp_test_netlink_del_neigh("dp1T0", "1.1.1.11",
+				  "aa:bb:cc:dd:1:11");
+	dp_test_netlink_del_neigh("dp1T1", "2.2.2.11",
+				  "aa:bb:cc:dd:2:11");
+}
+
+
+/*
+ * IPv4, Local (kernel forwarded) to Net
+ */
+DP_DECL_TEST_CASE(npf_golden, npf_golden7, NULL, NULL);
+DP_START_TEST(npf_golden7, test)
+{
+	struct dp_test_golden_ctx ctx = {
+		.flags = 0, .count = 1,
+		.fw_in = 0, .fw_out = 0,
+		.exp_fwd = DP_TEST_FWD_FORWARDED,
+	};
+
+
+	dp_test_npf_golden_7(&ctx);
+
+} DP_END_TEST;
+
+/*
+ * IPv4, Local (kernel forwarded) to Net
+ */
+DP_DECL_TEST_CASE(npf_golden, npf_golden7a, NULL, NULL);
+DP_START_TEST(npf_golden7a, test)
+{
+	struct dp_test_golden_ctx ctx = {
+		.flags = 0, .count = 1,
+		.fw_in = 0, .fw_out = 1,
+		.exp_fwd = DP_TEST_FWD_FORWARDED,
+	};
+
+	ctx.flags |= DPT_OUT_FW;
+
+	dp_test_npf_golden_7(&ctx);
+
+} DP_END_TEST;
+
+/*
+ * IPv4, Local (kernel forwarded) to Net
+ */
+DP_DECL_TEST_CASE(npf_golden, npf_golden7b, NULL, NULL);
+DP_START_TEST(npf_golden7b, test)
+{
+	struct dp_test_golden_ctx ctx = {
+		.flags = 0, .count = 1,
+		.fw_in = 0, .fw_out = 1,
+		.exp_fwd = DP_TEST_FWD_DROPPED,
+	};
+
+	ctx.flags |= DPT_OUT_FW;
+	ctx.flags |= DPT_OUT_FW_BLK;
+
+	dp_test_npf_golden_7(&ctx);
+
+} DP_END_TEST;
+
+/*
+ * IPv4, Local (kernel forwarded) to Net
+ */
+DP_DECL_TEST_CASE(npf_golden, npf_golden7c, NULL, NULL);
+DP_START_TEST(npf_golden7c, test)
+{
+	struct dp_test_golden_ctx ctx = {
+		.flags = 0, .count = 1,
+		.fw_in = 0, .fw_out = 1,
+		.exp_fwd = DP_TEST_FWD_DROPPED,
+	};
+
+	ctx.flags |= DPT_OUT_FW;
+	ctx.flags |= DPT_OUT_FW_UNM;
+
+	dp_test_npf_golden_7(&ctx);
+
+} DP_END_TEST;
+
+
+/*
+ * IPv6, Local (kernel forwarded) to Net
+ */
+static void _dp_test_npf_golden_8(struct dp_test_golden_ctx *ctx,
+				  const char *file, const char *func);
+#define dp_test_npf_golden_8(ctx) \
+	_dp_test_npf_golden_8(ctx, __FILE__, __func__)
+
+static void _dp_test_npf_golden_8(struct dp_test_golden_ctx *ctx,
+				  const char *file, const char *func)
+{
+	/* Setup interfaces and neighbours */
+	dp_test_nl_add_ip_addr_and_connected("dp1T0", "2001:101:1::101:101/96");
+	dp_test_nl_add_ip_addr_and_connected("dp1T1", "2001:101:2::202:202/96");
+
+	dp_test_nl_add_ip_addr_and_connected("dp1T0", "1.1.1.1/24");
+	dp_test_nl_add_ip_addr_and_connected("dp1T1", "2.2.2.2/24");
+
+	dp_test_netlink_add_neigh("dp1T0", "2001:101:1::101:10b",
+				  "aa:bb:cc:dd:1:11");
+	dp_test_netlink_add_neigh("dp1T0", "1.1.1.11",
+				  "aa:bb:cc:dd:1:11");
+
+	dp_test_netlink_add_neigh("dp1T1", "2001:101:2::202:20b",
+				  "aa:bb:cc:dd:2:11");
+	dp_test_netlink_add_neigh("dp1T1", "2.2.2.11",
+				  "aa:bb:cc:dd:2:11");
+
+	npf_golden_out_fw(TEST_FW_ADD, ctx);
+
+
+	/*
+	 * UDP packet.  Local to net
+	 */
+	struct dp_test_pkt_desc_t pre_pkt = {
+		.text       = "Pre",
+		.len        = 20,
+		.ether_type = ETHER_TYPE_IPv6,
+		.l3_src     = "2001:101:1::101:10b",
+		.l2_src     = "aa:bb:cc:dd:1:11",
+		.l3_dst     = "2001:101:2::202:20b",
+		.l2_dst     = "aa:bb:cc:dd:2:11",
+		.proto      = IPPROTO_UDP,
+		.l4	 = {
+			.udp = {
+				.sport = 0xDEAD,
+				.dport = 0xBEEF,
+			}
+		},
+		.rx_intf    = "dp1T1",
+		.tx_intf    = "dp1T1"
+	};
+
+	if ((ctx->flags & DPT_OUT_FW_UNM) != 0)
+		pre_pkt.l4.udp.sport = 57003;
+	else if ((ctx->flags & DPT_OUT_FW_BLK) != 0)
+		pre_pkt.l4.udp.sport = 57004;
+
+	struct dp_test_pkt_desc_t post_pkt;
+	struct dp_test_pkt_desc_t *pre_desc;
+	struct dp_test_pkt_desc_t *post_desc;
+	struct dp_test_expected *test_exp;
+	struct rte_mbuf *pre_pak, *post_pak;
+
+repeat:
+	post_pkt = pre_pkt;
+	pre_desc = &pre_pkt;
+	post_desc = &post_pkt;
+
+	pre_pak  = dp_test_from_spath_pkt_from_desc(pre_desc);
+	post_pak = dp_test_from_spath_pkt_from_desc(post_desc);
+
+	test_exp = dp_test_exp_create(post_pak);
+	rte_pktmbuf_free(post_pak);
+
+	dp_test_exp_set_fwd_status(test_exp, ctx->exp_fwd);
+	dp_test_exp_set_oif_name(test_exp, pre_desc->tx_intf);
+
+	spush(test_exp->description, sizeof(test_exp->description),
+	      "\nTest: \"%s\", Forwards", func);
+
+	/* Run the test */
+	dp_test_send_slowpath_pkt(pre_pak, test_exp);
+
+	if ((ctx->flags & DPT_OUT_FW) != 0)
+		npf_golden_out_fw(TEST_FW_VERIFY, ctx);
+
+	uint sess_out_exp = 0;
+
+	if (((ctx->flags & DPT_OUT_FW_S) != 0 &&
+	     (ctx->flags & (DPT_OUT_FW_BLK | DPT_OUT_FW_UNM)) == 0) ||
+	    (ctx->flags & DPT_OUT_SNAT) != 0) {
+		sess_out_exp++;
+	}
+
+	dp_test_npf_session_count_verify(sess_out_exp);
+
+	if (sess_out_exp) {
+		dp_test_npf_session_verify_desc(NULL, pre_desc,
+						pre_desc->tx_intf,
+						SE_ACTIVE,
+						SE_FLAGS_AE, true);
+	}
+
+	if (ctx->count > 1) {
+		ctx->count--;
+		goto repeat;
+	}
+
+	/* Cleanup */
+
+	npf_golden_out_fw(TEST_FW_REMOVE, ctx);
+
+	dp_test_npf_cleanup();
+
+	dp_test_netlink_del_neigh("dp1T0", "2001:101:1::101:10b",
+				  "aa:bb:cc:dd:1:11");
+	dp_test_netlink_del_neigh("dp1T0", "1.1.1.11",
+				  "aa:bb:cc:dd:1:11");
+
+	dp_test_netlink_del_neigh("dp1T1", "2001:101:2::202:20b",
+				  "aa:bb:cc:dd:2:11");
+	dp_test_netlink_del_neigh("dp1T1", "2.2.2.11",
+				  "aa:bb:cc:dd:2:11");
+
+	dp_test_nl_del_ip_addr_and_connected("dp1T0", "2001:101:1::101:101/96");
+	dp_test_nl_del_ip_addr_and_connected("dp1T1", "2001:101:2::202:202/96");
+
+	dp_test_nl_del_ip_addr_and_connected("dp1T0", "1.1.1.1/24");
+	dp_test_nl_del_ip_addr_and_connected("dp1T1", "2.2.2.2/24");
+}
+
+/*
+ * IPv6, Local (kernel forwarded) to Net
+ */
+DP_DECL_TEST_CASE(npf_golden, npf_golden8, NULL, NULL);
+DP_START_TEST(npf_golden8, test)
+{
+	struct dp_test_golden_ctx ctx = {
+		.flags = 0, .count = 1,
+		.fw_in = 0, .fw_out = 0,
+		.exp_fwd = DP_TEST_FWD_FORWARDED,
+	};
+
+
+	dp_test_npf_golden_8(&ctx);
+
+} DP_END_TEST;
+
+/*
+ * IPv6, Local (kernel forwarded) to Net
+ */
+DP_DECL_TEST_CASE(npf_golden, npf_golden8a, NULL, NULL);
+DP_START_TEST(npf_golden8a, test)
+{
+	struct dp_test_golden_ctx ctx = {
+		.flags = 0, .count = 1,
+		.fw_in = 0, .fw_out = 1,
+		.exp_fwd = DP_TEST_FWD_FORWARDED,
+	};
+
+	ctx.flags |= DPT_OUT_FW;
+
+	dp_test_npf_golden_8(&ctx);
+
+} DP_END_TEST;
+
+/*
+ * IPv6, Local (kernel forwarded) to Net
+ */
+DP_DECL_TEST_CASE(npf_golden, npf_golden8b, NULL, NULL);
+DP_START_TEST(npf_golden8b, test)
+{
+	struct dp_test_golden_ctx ctx = {
+		.flags = 0, .count = 1,
+		.fw_in = 0, .fw_out = 1,
+		.exp_fwd = DP_TEST_FWD_DROPPED,
+	};
+
+	ctx.flags |= DPT_OUT_FW;
+	ctx.flags |= DPT_OUT_FW_BLK;
+
+	dp_test_npf_golden_8(&ctx);
+
+} DP_END_TEST;
+
+/*
+ * IPv6, Local (kernel forwarded) to Net
+ */
+DP_DECL_TEST_CASE(npf_golden, npf_golden8c, NULL, NULL);
+DP_START_TEST(npf_golden8c, test)
+{
+	struct dp_test_golden_ctx ctx = {
+		.flags = 0, .count = 1,
+		.fw_in = 0, .fw_out = 1,
+		.exp_fwd = DP_TEST_FWD_DROPPED,
+	};
+
+	ctx.flags |= DPT_OUT_FW;
+	ctx.flags |= DPT_OUT_FW_UNM;
+
+	dp_test_npf_golden_8(&ctx);
+
+} DP_END_TEST;

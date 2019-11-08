@@ -1,0 +1,12 @@
+// Copyright (c) 2019, AT&T Intellectual Property.  All rights reserved.
+//
+// SPDX-License-Identifier: LGPL-2.1-only
+//
+// Pipeline node statistics protobuf definitions
+//
+
+syntax="proto2";
+
+message PipelineStatsConfig {
+	optional bool enable_stats = 1;
+}

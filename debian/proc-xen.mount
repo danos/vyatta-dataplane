@@ -1,0 +1,11 @@
+[Unit]
+Description=Mount /proc/xen files
+ConditionPathExists=/proc/xen
+
+[Mount]
+What=xenfs
+Where=/proc/xen
+Type=xenfs
+
+[Install]
+WantedBy=local-fs.target

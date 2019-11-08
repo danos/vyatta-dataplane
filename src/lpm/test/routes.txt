@@ -1,0 +1,14 @@
+# Route at the right most prefix-lenght.
+ffff:ffff:ffff:ffff:ffff:ffff:ffff:fffe;127;1
+# route at the same hash entry.
+ffff:ffff:ffff:ffff:ffff:ffff:ffff:fffd;127;2
+# route for a random prefix-length right of the root.
+ffff:ffff:ffff:ffff:ffff:ffff:ffff:fff0;120;3
+# route for a left tree prefix-legnth.
+afff:ffff:ffff:ffff:ffff:ffff:ffff:ffff;4;4
+# Conversion of a marker entry into original route.
+ffff:ffff:0000:0000:0000:0000:0000:0000;32;5
+# Add a 128 bit route
+abcd:1234:5678:abcd:ef01:2345:6789:abcd;128;6
+# Add a 1 bit prefix-length route
+8000:0000:0000:0000:0000:0000:0000:0000;1;7

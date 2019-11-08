@@ -1,0 +1,49 @@
+// Copyright (c) 2019, AT&T Intellectual Property.  All rights reserved.
+//
+// SPDX-License-Identifier: LGPL-2.1-only
+//
+// Crypto Policy protobuf definitions
+//
+
+syntax="proto2";
+
+import "IPAddress.proto";
+
+message CryptoPolicyConfig {
+	enum Action {
+	     ATTACH = 0;
+	     DETACH = 1;
+	}
+	//attach = true, detach = false
+	optional Action action = 1;
+
+	//interface index
+	optional uint32 ifindex = 2;
+
+	//vrf index
+	optional uint32 vrf = 3;
+
+ 	//dest addr
+	optional IPAddress sel_daddr = 4;
+
+	//dest prefix length
+	optional uint32 sel_dprefix_len = 5;
+
+ 	//src addr
+	optional IPAddress sel_saddr = 6;
+
+	//src prefix length
+	optional uint32 sel_sprefix_len = 7;
+
+	//dest port number
+	optional uint32 sel_dport = 8;
+
+	//src port number
+	optional uint32 sel_sport = 9;
+
+	//protocol
+	optional uint32 sel_proto = 10;
+
+	//selector ifindex
+	optional uint32 sel_ifindex = 11;
+}

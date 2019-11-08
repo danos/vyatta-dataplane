@@ -1,0 +1,17 @@
+*.log
+*.debhelper
+*.substvars
+files
+tmp
+build
+control.modules
+autoreconf.*
+dataplane-modules
+dataplane-modules-*
+vyatta-dataplane
+vyatta-dataplane-dbg
+vyatta-dataplane-ent-hard-enf
+vyatta-dataplane-ent-hard-enf-dbg
+vyatta-dataplane-ent-soft-enf
+vyatta-dataplane-ent-soft-enf-dbg
+vyatta-dataplane-protocols-versions

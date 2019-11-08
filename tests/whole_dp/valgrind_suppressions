@@ -1,0 +1,139 @@
+{
+   <zmq poll leak>
+   Memcheck:Leak
+   match-leak-kinds: definite
+   fun:malloc
+   fun:zmq_poll
+   fun:zloop_start
+   fun:shadow_handler
+   fun:start_thread
+}
+{
+   <eal init>
+   Memcheck:Leak
+   match-leak-kinds: definite
+   fun:malloc
+   fun:strdup
+   fun:rte_eal_init
+   fun:__wrap_rte_eal_init
+   fun:main
+}
+{
+   <eal thread>
+   Memcheck:Leak
+   match-leak-kinds: possible
+   fun:calloc
+   fun:allocate_dtv
+   fun:_dl_allocate_tls
+   fun:allocate_stack
+   ...
+   fun:rte_eal_init
+   fun:__wrap_rte_eal_init
+   fun:main
+}
+{
+   <rcu thread>
+   Memcheck:Leak
+   match-leak-kinds: possible
+   fun:calloc
+   fun:allocate_dtv
+   fun:_dl_allocate_tls
+   fun:allocate_stack
+   fun:pthread_create@@GLIBC_2.2.5
+   ...
+   fun:get_default_call_rcu_data_qsbr
+   ...
+}
+{
+   <IPv4 Grouper reading icmp field for non icmp pak>
+   Memcheck:Value8
+   fun:g2_eval4
+   fun:npf_ruleset_inspect
+   fun:npf_hook_notrack
+   ...
+   fun:pipeline_fused_no_dyn_feats_ether_in
+   ...
+   fun:ether_input*
+   fun:process_burst
+   fun:poll_receive_queues
+   ...
+}
+{
+   <IPv6 Grouper reading icmp field for non icmp pak>
+   Memcheck:Value8
+   fun:g2_eval6
+   fun:npf_ruleset_inspect
+   ...
+   fun:pipeline_fused_no_dyn_feats_ether_in
+   ...
+   fun:ether_input*
+   fun:process_burst
+   fun:poll_receive_queues
+   ...
+}
+{
+   <Freeing of dpdk rte_rings>
+   Memcheck:Free
+   fun:rte_free
+   fun:rte_memzone_free
+   fun:rte_ring_free
+   ...
+}
+{
+   <Freeing of dpdk mbuf pools>
+   Memcheck:Leak
+   match-leak-kinds: definite
+   fun:rte_zmalloc
+   fun:rte_mempool_create_empty
+   fun:rte_mempool_create
+   fun:__wrap_rte_mempool_create
+   fun:__wrap_rte_pktmbuf_pool_create
+   fun:mbuf_pool_create
+   fun:mbuf_pool_init
+   fun:main
+}
+{
+   <Freeing of dpdk rte_rings>
+   Memcheck:Leak
+   match-leak-kinds: definite
+   fun:rte_zmalloc
+   fun:rte_ring_create
+   fun:dp_test_intf_dpdk_init
+   fun:__wrap_rte_eal_init
+   fun:main
+}
+{
+   <Libnuma error from dpdk 18.11>
+   Memcheck:Param
+   get_mempolicy(nodemask)
+   fun:syscall
+   obj:/usr/lib/x86_64-linux-gnu/libnuma.so.1.0.0
+   fun:call_init.part.0
+   fun:call_init
+   fun:_dl_init
+   obj:*
+}
+{
+   <mem leak in init with no tests being run>
+   Memcheck:Leak
+   match-leak-kinds: definite
+   fun:malloc
+   fun:install_handler
+   fun:call_init.part.0
+   fun:call_init
+   fun:_dl_init
+   obj:/lib/x86_64-linux-gnu/ld-2.24.so
+}
+{
+   <Freeing of mpls oam mbuf pool>
+   Memcheck:Leak
+   match-leak-kinds: definite
+   fun:rte_zmalloc
+   ...
+   fun:rte_mempool_create
+   fun:__wrap_rte_mempool_create
+   fun:__wrap_rte_pktmbuf_pool_create
+   fun:mbuf_pool_create
+   fun:mpls_oam_pool_init
+   ...
+}

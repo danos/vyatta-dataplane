@@ -1,0 +1,15 @@
+// Copyright (c) 2019, AT&T Intellectual Property.  All rights reserved.
+//
+// SPDX-License-Identifier: LGPL-2.1-only
+//
+// IP Address protobuf definitions
+//
+
+syntax="proto2";
+
+message IPAddress {
+	oneof address_oneof {
+	      uint32 ipv4_addr = 1;
+	      bytes ipv6_addr = 2;
+	}
+}

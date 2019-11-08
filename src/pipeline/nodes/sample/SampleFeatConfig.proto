@@ -1,0 +1,13 @@
+// Copyright (c) 2018, AT&T Intellectual Property.  All rights reserved.
+//
+// SPDX-License-Identifier: LGPL-2.1-only
+//
+// Sample feat protobuf definitions
+//
+
+syntax="proto2";
+
+message SampleFeatConfig {
+	optional bool is_active = 1;
+	optional string if_name = 2;
+}

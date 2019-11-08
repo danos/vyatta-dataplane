@@ -1,0 +1,19 @@
+// Copyright (c) 2018, AT&T Intellectual Property.  All rights reserved.
+//
+// SPDX-License-Identifier: LGPL-2.1-only
+//
+// Cross connect protobuf definitions
+//
+
+syntax="proto2";
+
+message XConnectConfig {
+	enum CommandType {
+	     ADD = 0;
+	     REMOVE = 1;
+	     UPDATE = 2;
+	}
+	optional CommandType cmd = 1;
+ 	optional string dp_ifname = 2;
+	optional string new_ifname = 3;
+}

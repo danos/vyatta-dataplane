@@ -1,0 +1,165 @@
+#! /usr/bin/perl
+#
+# This script looks at configuration and system to determine
+# the arguments for the DPDK Environment Abstraction Layer
+
+use strict;
+use warnings;
+
+use File::Slurp;
+use Config::Tiny;
+use Dpkg::Version;
+
+# Decode output of dmidecode command
+# This can be variable but in general looks like:
+# Handle 0x0029, DMI type 17, 34 bytes
+# Memory Device
+#	Array Handle: 0x0026
+#	Size: 4096 MB
+#	Form Factor: DIMM
+#	Locator: DIMMA2
+#	Bank Locator: P0_Node0_Channel0_Dimm1
+#	Type: DDR3
+#
+# On non-x86 dmidecode does not exist, assume one memory channel
+sub memory_channels {
+    return 1
+      unless -x '/usr/bin/dmidecode';
+
+    die "Must have root permissions\n"
+      unless ( $> == 0 );
+
+    open my $dmi, '-|', '/usr/bin/dmidecode -t 17'
+      or die "Can't run dmidecode";
+
+    my %dimms;
+    my ( $slot, $size, $skip );
+
+    while (<$dmi>) {
+        chomp;
+        if (/^Memory Device/) {
+
+            # store previous value
+            $dimms{$slot} = $size
+              if defined($slot) && defined($size) && !$skip;
+
+            $slot = undef;
+            $size = undef;
+        } elsif (/^\s+Form Factor: (.*)$/) {
+
+            # skip SPI and other non DIMM devices
+            $skip = !( $1 =~ /^DIMM/ );
+        } elsif (/^\s+Size: (.*)$/) {
+            $size = $1;
+        } elsif (/^\s*Locator: (.*)$/) {
+
+            # Locator can something like:
+            # DIMMA1, ChannelA-DIMM0, DIMM 0
+            $slot = $1;
+        }
+    }
+    close $dmi;
+
+    # store lastvalue
+    $dimms{$slot} = $size
+      if defined($slot) && defined($size) && !$skip;
+
+    # assume last character is 0/1 etc.
+    my %channels = map { substr( $_, 0, -1 ) => 1 } keys %dimms;
+    my $nchannel = scalar( keys %channels );
+
+    $nchannel = 1 if $nchannel == 0;
+    $nchannel = 4 if $nchannel > 4;
+    return $nchannel;
+}
+
+# get mask of online cpus
+# /sys/devices/system/cpu/online returns range of form "0-7"
+sub online_cpus {
+    my $cpus = read_file('/sys/devices/system/cpu/online');
+    die "Can't find online cpus" unless defined($cpus);
+
+    chomp $cpus;
+    return $cpus;
+}
+
+# take input of form 0-3,7 and produce a perl bit vector
+sub range_to_vector {
+    my $range  = shift;
+    my $result = '';
+
+    foreach my $str ( split /,/, $range ) {
+        if ( $str =~ /^ (\d+)-(\d+) $/x ) {
+            vec( $result, $_, 1 ) = 1 for ( $1 .. $2 );
+        } elsif ( $str =~ /^ (\d+) $/x ) {
+            vec( $result, $1, 1 ) = 1;
+        } else {
+            die "invalid range $str";
+        }
+    }
+
+    return $result;
+}
+
+# test if perl bit vector is empty
+sub empty_vector {
+    my $v = shift;
+
+    return ( unpack( 'B*', $v ) =~ /^ 0+ $/x );
+}
+
+my $hp_info = '/lib/vplane/vplane-hugepages';
+
+sub eal_arg {
+    my $arg = '';
+    if ( -x $hp_info ) {
+        my ( $h, $sz, $m ) =
+          split( ' ', `$hp_info show HUGEPAGES HUGE_SZ DPDK_ARG` );
+        $arg = "-m $m"
+          if ( $m * 1024 != $h * $sz );
+    }
+
+    # dpdk 18.05 changed the memory model, use legacy-mem to go back to reserved hugepages
+    my $dpdk_ver = `/usr/bin/ldd /usr/sbin/dataplane | grep librte | head -n 1 | sed "s/\\s*librte.*\\.so\\.\\(.*\\) =.*/\\1/"`;
+    chomp $dpdk_ver;
+    if ( version_compare($dpdk_ver, "18.05") >= 0 ) {
+        $arg = $arg . " --legacy-mem";
+    }
+
+    return $arg;
+}
+
+die "Usage: $0 <configfile>\n" if ( $#ARGV < 0 );
+
+my $cfg_file = $ARGV[0];
+my $cfg      = Config::Tiny->read($cfg_file);
+die "$cfg_file: $!\n"
+  unless defined($cfg);
+
+# default is to determine from DMI
+my $channels = memory_channels();
+
+# by default use all CPU's
+my $online = range_to_vector( online_cpus() );
+my $cpus   = $online;
+
+if ( defined( $cfg->{Dataplane} ) ) {
+    my $memchan = $cfg->{Dataplane}->{memchan};
+    $channels = $memchan if ( defined($memchan) );
+
+    my $cpumask = $cfg->{Dataplane}->{cpumask};
+    if ( defined($cpumask) ) {
+        $cpus &= range_to_vector($cpumask);
+
+        # if result is empty, fallback to all cpus
+        if ( empty_vector($cpus) ) {
+            warn "cpu mask $cpumask out of range, using all cpus\n";
+            $cpus = $online;
+        }
+    }
+}
+
+my $ealmask = scalar reverse( unpack( 'h*', $cpus ) );
+my $eal_mem = eal_arg();
+
+print "-n $channels -c $ealmask $eal_mem";

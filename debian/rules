@@ -1,0 +1,85 @@
+#!/usr/bin/make -f
+
+# Uncomment this to turn on verbose mode.
+#export DH_VERBOSE=1
+
+ifneq (,$(findstring coverage,$(DEB_BUILD_OPTIONS)))
+	CONFIGURE_COVERAGE_FLAGS = "--enable-code-coverage"
+else
+	CONFIGURE_COVERAGE_FLAGS = ""
+endif
+
+ifneq (,$(filter no_extra_tests,$(DEB_BUILD_OPTIONS)))
+	WHOLE_DP_TEST="--disable-whole_dp_test"
+else
+	WHOLE_DP_TEST=""
+endif
+
+ifneq (,$(filter no_dpi,$(DEB_BUILD_OPTIONS)))
+	DATAPLANE_DPI="--without-dpi"
+else
+	DATAPLANE_DPI=""
+endif
+
+ifneq (,$(filter no_lto,$(DEB_BUILD_OPTIONS)))
+	DATAPLANE_LTO="--without-lto"
+else
+	DATAPLANE_LTO=""
+endif
+
+# Don't override the optimisation flags as they differ for different
+# dataplane make targets
+export DEB_CFLAGS_MAINT_STRIP = -O2
+export DEB_CFLAGS_MAINT_APPEND
+export DEB_CXXFLAGS_MAINT_STRIP = -O2
+export DEB_CXXFLAGS_MAINT_APPEND
+
+# Some hardening options actually help with performance, but some harm it
+export DEB_BUILD_MAINT_OPTIONS=hardening=+format,-fortify,-stackprotector,+relro,+bindnow
+
+# Build in a separate directory
+%:
+	dh $@ --builddirectory=build --parallel --with autoreconf,systemd
+
+# --enable-dependency-tracking needed if using --builddirectory until Debian bug #807050 is fixed
+override_dh_auto_configure:
+	dh_auto_configure -- --enable-dependency-tracking \
+	$(CONFIGURE_COVERAGE_FLAGS) \
+	$(WHOLE_DP_TEST) \
+	$(DATAPLANE_DPI) \
+	$(DATAPLANE_LTO)
+
+override_dh_auto_test:
+ifneq (,$(filter pkg.vyatta-dataplane.valgrind,$(DEB_BUILD_PROFILES)))
+# -j1 is need until Debian bug 822105 is fixed, so that 'check' depends on 'dataplane_test'
+	VERBOSE=1 dh_auto_test -- -j1 check-valgrind
+else
+	VERBOSE=1 dh_auto_test
+endif
+
+override_dh_strip:
+	debian/bin/debug_strip --dbg-package=vyatta-dataplane-dbg
+
+override_dh_installchangelogs:
+
+# _ are replaced with - as the former are not allowed in package names.
+# The generated virtual packages have format:
+# vyatta-dataplane-<cfg|op>-<PROTO>-<VERSION>
+override_dh_gencontrol: OP_VERSIONS = $(shell build/dataplane --list_cmd_versions \
+					| sed "s/_/-/g ; \
+					       s/ /-/ ; \
+					       s/$$/,/ ; \
+					       s/^/vyatta-dataplane-op-/" \
+					| tr '\n' ' ')
+override_dh_gencontrol: CFG_VERSIONS = $(shell build/dataplane --list_msg_versions \
+					 | sed "s/_/-/g ; \
+						s/ /-/ ; \
+						s/$$/,/ ; \
+						s/^/vyatta-dataplane-cfg-/" \
+					 | tr '\n' ' ')
+override_dh_gencontrol:
+	dh_gencontrol -- -V'protocols:Provides=$(CFG_VERSIONS) $(OP_VERSIONS)'
+
+override_dh_systemd_enable:
+	dh_systemd_enable --name=vyatta-dataplane
+	dh_systemd_enable --name=proc-xen
