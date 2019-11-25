@@ -17,6 +17,14 @@
 
 typedef struct npf_match_ctx npf_match_ctx_t;
 
+struct npf_match_cb_data {
+	npf_cache_t *npc;
+	struct rte_mbuf *mbuf;
+	const struct ifnet *ifp;
+	int dir;
+	npf_session_t *se;
+};
+
 typedef	int (*npf_match_init_cb_t)(int af, const char *name,
 				   uint32_t max_rules,
 				   npf_match_ctx_t **ctx);
@@ -26,7 +34,8 @@ typedef int (*npf_match_add_rule_cb_t)(int af, npf_match_ctx_t *ctx,
 				       void *match_ctx);
 typedef	int (*npf_match_build_cb_t)(int af, npf_match_ctx_t **ctx);
 typedef	int (*npf_match_classify_cb_t)(int af, npf_match_ctx_t *ctx,
-				       npf_cache_t *npc, void *data,
+				       npf_cache_t *npc,
+				       struct npf_match_cb_data *data,
 				       npf_rule_t **rl);
 typedef int (*npf_match_destroy_cb_t)(int af, npf_match_ctx_t **ctx);
 
@@ -56,7 +65,8 @@ int npf_match_build(enum npf_ruleset_type rlset_type,
 
 int npf_match_classify(enum npf_ruleset_type rlset_type,
 		       int af, npf_match_ctx_t *ctx,
-		       npf_cache_t *npc, void *data, npf_rule_t **rl);
+		       npf_cache_t *npc, struct npf_match_cb_data *data,
+		       npf_rule_t **rl);
 
 int npf_match_destroy(enum npf_ruleset_type rlset_type,
 		      int af, npf_match_ctx_t **ctx);

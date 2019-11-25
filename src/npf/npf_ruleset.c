@@ -165,15 +165,6 @@ struct npf_rule {
 	uint8_t				r_rproc_handle:1;
 };
 
-/* Only used for grouper to callback into the processor */
-struct npf_grouper_cb_data {
-	npf_cache_t *npc;
-	struct rte_mbuf *mbuf;
-	const struct ifnet *ifp;
-	int dir;
-	npf_session_t *se;
-};
-
 npf_ruleset_t *
 npf_ruleset_create(enum npf_ruleset_type ruleset_type,
 		   enum npf_attach_type attach_type, const char *attach_point)
@@ -1661,7 +1652,7 @@ bool npf_rule_match(npf_cache_t *npc, struct rte_mbuf *nbuf,
 bool
 npf_rule_proc(const void *d, const void *r)
 {
-	const struct npf_grouper_cb_data *pd = d;
+	const struct npf_match_cb_data *pd = d;
 	const npf_rule_t *rl = r;
 
 	return npf_rule_match(pd->npc, pd->mbuf, pd->ifp, pd->dir, pd->se, rl);
@@ -1683,7 +1674,7 @@ npf_ruleset_inspect(npf_cache_t *npc, struct rte_mbuf *nbuf,
 	if (unlikely(ruleset == NULL))
 		return NULL;
 
-	struct npf_grouper_cb_data pd = {
+	struct npf_match_cb_data pd = {
 		.npc = npc,
 		.mbuf = nbuf,
 		.ifp = ifp,

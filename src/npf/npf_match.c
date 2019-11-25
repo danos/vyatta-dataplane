@@ -71,7 +71,8 @@ int npf_match_build(enum npf_ruleset_type rs_type,
 
 int npf_match_classify(enum npf_ruleset_type rs_type,
 		       int af, npf_match_ctx_t *ctx,
-		       npf_cache_t *npc, void *data, npf_rule_t **rl)
+		       npf_cache_t *npc, struct npf_match_cb_data *data,
+		       npf_rule_t **rl)
 {
 	npf_match_cb_tbl *tbl;
 
