@@ -1903,3 +1903,16 @@ npf_rulenc_dump(const npf_rule_t *rl)
 	printf("-> %s\n", rl->r_pass ? "pass" : "block");
 }
 #endif
+
+npf_rule_t *npf_rule_group_find_rule(npf_rule_group_t *rg,
+				     uint32_t rule_no)
+{
+	npf_rule_t *rl;
+
+	cds_list_for_each_entry(rl, &rg->rg_rules, r_entry) {
+		if (rule_no == rl->r_state->rs_rule_no)
+			return rl;
+	}
+
+	return NULL;
+}

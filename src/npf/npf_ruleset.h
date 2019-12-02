@@ -199,4 +199,14 @@ void npf_rulenc_dump(const npf_rule_t *rl);
 #endif
 int npf_flush_rulesets(void);
 
+/*
+ * Find a rule matching the rule number.
+ *
+ * Used by clients of rte-acl since there is no
+ * facility to store and directly return the pointer
+ * to the rule (as is done with grouper)
+ */
+npf_rule_t *npf_rule_group_find_rule(npf_rule_group_t *rg,
+				     uint32_t rule_no);
+
 #endif /* NPF_RULESET_H */
