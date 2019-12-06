@@ -13,6 +13,7 @@
 #define NPF_MATCH_H
 
 #include "npf/config/npf_ruleset_type.h"
+#include "npf/npf_ruleset.h"
 #include "npf/npf_cache.h"
 
 typedef struct npf_match_ctx npf_match_ctx_t;
@@ -23,6 +24,7 @@ struct npf_match_cb_data {
 	const struct ifnet *ifp;
 	int dir;
 	npf_session_t *se;
+	npf_rule_group_t *rg;
 };
 
 typedef	int (*npf_match_init_cb_t)(int af, const char *name,

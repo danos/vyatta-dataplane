@@ -2551,7 +2551,7 @@ void crypto_show_cache(FILE *f, const char *str)
 static int crypto_npf_rte_acl_match(int af __rte_unused,
 				    npf_match_ctx_t *ctx __rte_unused,
 				    npf_cache_t *npc __rte_unused,
-				    void *data __rte_unused,
+				    struct npf_match_cb_data *data __rte_unused,
 				    npf_rule_t **rl __rte_unused)
 {
 	return 1;

@@ -1689,6 +1689,13 @@ npf_ruleset_inspect(npf_cache_t *npc, struct rte_mbuf *nbuf,
 		if ((rg->rg_dir & dir) == 0)
 			continue;
 
+		/*
+		 * update rule group in context. The current rule group
+		 * being used is passed in the match context to enable
+		 * easy search for the rule when a match is found
+		 */
+		pd.rg = rg;
+
 		if (likely(npf_iscached(npc, NPC_GROUPER))) {
 			if (likely(npf_iscached(npc, NPC_IP4))) {
 				if (rg->match_ctx_v4) {
