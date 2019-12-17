@@ -601,7 +601,7 @@ void _dp_test_crypto_check_policy_count(vrfid_t vrfid,
 					unsigned int num_policies, int af,
 					const char *file, int line)
 {
-#define POLL_CNT 3000
+#define POLL_CNT 8000
 	char cmd_str[100];
 	char exp_str[100];
 	static const char template[] = "{"
