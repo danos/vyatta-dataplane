@@ -19,6 +19,7 @@
 #include "dp_test_lib_pb.h"
 #include "dp_test_console.h"
 #include "dp_test_controller.h"
+#include "dp_test_npf_lib.h"
 
 #include "main.h"
 #include "in_cksum.h"
@@ -943,6 +944,7 @@ static void s2s_common_teardown(vrfid_t vrfid,
 	 * Tear down topology
 	 */
 	s2s_teardown_interfaces(vrfid, with_vfp);
+	dp_test_npf_cleanup();
 }
 
 static void s2s_common_teardown6(vrfid_t vrfid,
@@ -961,6 +963,7 @@ static void s2s_common_teardown6(vrfid_t vrfid,
 	 * Tear down topology
 	 */
 	s2s_teardown_interfaces6(vrfid, with_vfp);
+	dp_test_npf_cleanup();
 }
 
 static void _build_pak_and_expected_encrypt(struct rte_mbuf **ping_pkt_p,
