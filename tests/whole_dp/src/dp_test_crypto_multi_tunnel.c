@@ -22,7 +22,7 @@
 #include "dp_test_crypto_utils.h"
 #include "dp_test_netlink_state_internal.h"
 #include "dp_test_lib_exp.h"
-
+#include "dp_test_npf_lib.h"
 /*
  *                    +-----------+  dp2T2
  *                    |           |
@@ -341,6 +341,7 @@ static void teardown_two_tunnels_two_peers(void)
 	dp_test_crypto_delete_sa(&tun_2_out_sa);
 
 	dp_test_crypto_check_sa_count(VRF_DEFAULT_ID, 0);
+	dp_test_npf_cleanup();
 }
 
 /*
@@ -533,6 +534,7 @@ static void teardown_two_tunnels_one_peer(void)
 	dp_test_crypto_delete_sa(&tun_3_out_sa);
 
 	dp_test_crypto_check_sa_count(VRF_DEFAULT_ID, 0);
+	dp_test_npf_cleanup();
 }
 
 /*
