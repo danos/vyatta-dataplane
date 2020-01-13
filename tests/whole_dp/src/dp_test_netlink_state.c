@@ -1456,6 +1456,24 @@ dp_test_netlink_route_nl(struct dp_test_route *route, uint16_t nl_type,
 						mnl_attr_put(nlh, RTA_GATEWAY,
 							     addr_size,
 							     &nh->nh_addr.addr);
+					} else if (route->prefix.addr.family ==
+						   AF_INET6 &&
+						   nh->nh_addr.family ==
+						   AF_INET) {
+						struct in6_addr v6addr;
+#define IN6_SET_ADDR_V4MAPPED(a6, a4) {			\
+		(a6)->s6_addr32[0] = 0;			\
+		(a6)->s6_addr32[1] = 0;			\
+		(a6)->s6_addr32[2] = htonl(0xffff);	\
+		(a6)->s6_addr32[3] = (a4);		\
+	}
+						IN6_SET_ADDR_V4MAPPED(
+							&v6addr,
+							nh->nh_addr.addr.ipv4);
+						mnl_attr_put(nlh,
+							     RTA_GATEWAY,
+							     sizeof(v6addr),
+							     &v6addr);
 					} else {
 						via.rtvia_family =
 							nh->nh_addr.family;
@@ -1549,6 +1567,18 @@ dp_test_netlink_route_nl(struct dp_test_route *route, uint16_t nl_type,
 					mnl_attr_put(nlh, RTA_GATEWAY,
 						     addr_size,
 						     &nh->nh_addr.addr);
+				} else if (route->prefix.addr.family ==
+					   AF_INET6 &&
+					   nh->nh_addr.family ==
+					   AF_INET) {
+					struct in6_addr v6addr;
+					IN6_SET_ADDR_V4MAPPED(
+						&v6addr,
+						nh->nh_addr.addr.ipv4);
+					mnl_attr_put(nlh,
+						     RTA_GATEWAY,
+						     sizeof(v6addr),
+						     &v6addr);
 				} else {
 					struct rtvia_v6 {
 						__kernel_sa_family_t rtvia_family;
