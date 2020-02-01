@@ -1623,6 +1623,17 @@ void fal_ip6_dump_neigh(unsigned int if_index,
 	fal_ip_dump_neigh(if_index, &faddr, wr);
 }
 
+static inline bool
+is_deagg_nh(struct ifnet *ifp, enum fal_next_hop_group_use use,
+	    unsigned int label_count,
+	    const union next_hop_outlabels *lbls)
+{
+	return ifp && is_lo(ifp) && use == FAL_NHG_USE_MPLS_LABEL_SWITCH &&
+		(label_count == 0 ||
+		 (label_count == 1 &&
+		  nh_outlabels_get_value(lbls, 0) == MPLS_IMPLICITNULL));
+}
+
 static enum fal_packet_action_t
 next_hop_to_packet_action(const struct next_hop *nh)
 {
@@ -1635,7 +1646,11 @@ next_hop_to_packet_action(const struct next_hop *nh)
 		return FAL_PACKET_ACTION_TRAP;
 
 	ifp = dp_nh_get_ifp(nh);
-	if (!ifp || ifp->fal_l3 == FAL_NULL_OBJECT_ID)
+	if (!ifp ||
+	    (ifp->fal_l3 == FAL_NULL_OBJECT_ID &&
+	     !is_deagg_nh(ifp, FAL_NHG_USE_MPLS_LABEL_SWITCH,
+			 nh_outlabels_get_cnt(&nh->outlabels),
+			  &nh->outlabels)))
 		return FAL_PACKET_ACTION_TRAP;
 
 	return FAL_PACKET_ACTION_FORWARD;
@@ -1643,7 +1658,8 @@ next_hop_to_packet_action(const struct next_hop *nh)
 
 static const struct fal_attribute_t **next_hop_to_attr_list(
 	fal_object_t nhg_object, size_t nhops,
-	const struct next_hop hops[], uint32_t **attr_count)
+	const struct next_hop hops[],
+	enum fal_next_hop_group_use use, uint32_t **attr_count)
 {
 	const struct fal_attribute_t **nh_attr_list;
 	size_t i;
@@ -1662,7 +1678,7 @@ static const struct fal_attribute_t **next_hop_to_attr_list(
 		struct fal_attribute_t *nh_attr;
 		struct ifnet *ifp;
 		unsigned int max_attrs = 7;
-		unsigned int nh_attr_count;
+		unsigned int nh_attr_count = 0;
 		struct fal_u32_list_t *label_list;
 		unsigned int label_count =
 			nh_outlabels_get_cnt(&nh->outlabels);
@@ -1682,14 +1698,27 @@ static const struct fal_attribute_t **next_hop_to_attr_list(
 		}
 		label_list = (struct fal_u32_list_t *)&nh_attr[max_attrs];
 
-		nh_attr[0].id = FAL_NEXT_HOP_ATTR_NEXT_HOP_GROUP;
-		nh_attr[0].value.objid = nhg_object;
-		nh_attr[1].id = FAL_NEXT_HOP_ATTR_INTF;
+		nh_attr[nh_attr_count].id = FAL_NEXT_HOP_ATTR_NEXT_HOP_GROUP;
+		nh_attr[nh_attr_count].value.objid = nhg_object;
+		nh_attr_count++;
 		ifp = dp_nh_get_ifp(nh);
-		nh_attr[1].value.u32 = ifp ? ifp->if_index : 0;
-		nh_attr[2].id = FAL_NEXT_HOP_ATTR_ROUTER_INTF;
-		nh_attr[2].value.u32 = ifp ? ifp->fal_l3 : FAL_NULL_OBJECT_ID;
-		nh_attr_count = 3;
+		if (is_deagg_nh(ifp, use, label_count, &nh->outlabels)) {
+			nh_attr[nh_attr_count].id =
+				FAL_NEXT_HOP_ATTR_VRF_LOOKUP;
+			nh_attr[nh_attr_count].value.objid =
+				get_vrf(ifp->if_vrfid)->v_fal_obj;
+			nh_attr_count++;
+		} else {
+			nh_attr[nh_attr_count].id = FAL_NEXT_HOP_ATTR_INTF;
+			nh_attr[nh_attr_count].value.u32 =
+				ifp ? ifp->if_index : 0;
+			nh_attr_count++;
+			nh_attr[nh_attr_count].id =
+				FAL_NEXT_HOP_ATTR_ROUTER_INTF;
+			nh_attr[nh_attr_count].value.u32 = ifp ? ifp->fal_l3 :
+				FAL_NULL_OBJECT_ID;
+			nh_attr_count++;
+		}
 		if (nh->flags & (RTF_GATEWAY | RTF_NEIGH_CREATED)) {
 			nh_attr[nh_attr_count].id = FAL_NEXT_HOP_ATTR_IP;
 			fal_attr_set_ip_addr(&nh_attr[nh_attr_count],
@@ -1789,7 +1818,7 @@ int fal_ip_new_next_hops(enum fal_next_hop_group_use use,
 		return ret;
 
 	nh_attr_list = next_hop_to_attr_list(*nhg_object, nhops, hops,
-					     &nh_attr_count);
+					     use, &nh_attr_count);
 	if (!nh_attr_list) {
 		ret = -ENOMEM;
 		goto error;
