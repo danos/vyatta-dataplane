@@ -867,10 +867,19 @@ enum fal_router_interface_attr_t {
 	/**
 	 * @brief VRF ID
 	 *
+	 * Deprecated in favour of FAL_ROUTER_INTERFACE_ATTR_VRF_OBJ.
+	 *
 	 * @flags MANDATORY_ON_CREATE
 	 * @type  uint32_t
 	 */
 	FAL_ROUTER_INTERFACE_ATTR_VRF_ID,
+	/**
+	 * @brief VRF object bound to
+	 *
+	 * @flags MANDATORY_ON_CREATE
+	 * @type  fal_object_t
+	 */
+	FAL_ROUTER_INTERFACE_ATTR_VRF_OBJ,
 	/**
 	 * @brief Associated Vlan
 	 *
@@ -2255,8 +2264,10 @@ enum fal_next_hop_attr_t {
 	/**
 	 * @brief Next hop router interface
 	 *
+	 * Mutually exclusive with FAL_NEXT_HOP_ATTR_VRF_LOOKUP
+	 *
 	 * @type fal_object_t
-	 * @flags MANDATORY_ON_CREATE | CREATE_ONLY
+	 * @flags CREATE_ONLY
 	 * @default FAL_NULL_OBJECT_ID
 	 */
 	FAL_NEXT_HOP_ATTR_ROUTER_INTF,		/* .objid */
@@ -2302,6 +2313,17 @@ enum fal_next_hop_attr_t {
 	 * @flags CREATE_ONLY
 	 */
 	FAL_NEXT_HOP_ATTR_MPLS_LABELSTACK,	/* .u32list */
+	/**
+	 * @brief VRF to perform lookup in
+	 *
+	 * Mutually exclusive with FAL_NEXT_HOP_ATTR_ROUTER_INTF and
+	 * label-stack must be empty.
+	 *
+	 * @type fal_object_t
+	 * @flags CREATE_ONLY
+	 * @default FAL_NULL_OBJECT_ID
+	 */
+	FAL_NEXT_HOP_ATTR_VRF_LOOKUP,		/* .objid */
 };
 
 /**
@@ -6101,5 +6123,66 @@ int fal_plugin_set_mpls_route_attr(const struct fal_mpls_route_t *mpls_route,
 int fal_plugin_get_mpls_route_attr(const struct fal_mpls_route_t *mpls_route,
 				   uint32_t attr_count,
 				   struct fal_attribute_t *attr_list);
+
+enum fal_vrf_attr_t {
+	/**
+	 * @brief VRF ID
+	 *
+	 * Application-generated ID for the VRF that may be used by
+	 * the FAL plugin for ease of debugging programming and packet
+	 * forwarding issues.
+	 *
+	 * @type uint32_t
+	 * @flags CREATE_ONLY | MANDATORY_ON_CREATE
+	 */
+	FAL_VRF_ATTR_ID,	/* .u32 */
+};
+
+/**
+ * @brief Create a VRF
+ *
+ * @param[in] attr_count Number of attributes
+ * @param[in] attr_list The attributes and values for the VRF
+ * @param[out] obj Object ID for the VRF returned
+ *
+ * @return 0 on success or failure status.
+ */
+int fal_plugin_create_vrf(uint32_t attr_count,
+			  const struct fal_attribute_t *attr_list,
+			  fal_object_t *obj);
+
+/**
+ * @brief Delete a VRF
+ *
+ * @param[in] obj Object ID for the VRF to be deleted
+ *
+ * @return 0 on success or failure status.
+ */
+int fal_plugin_delete_vrf(fal_object_t obj);
+
+/**
+ * @brief Set a VRF attribute
+ *
+ * @param[in] obj Object ID for the VRF to be updated
+ * @param[in] attr The attribute to change and the new value
+ *
+ * @return 0 on success or failure status.
+ */
+int fal_plugin_set_vrf_attr(fal_object_t obj,
+			    const struct fal_attribute_t *attr);
+
+/**
+ * @brief Get a VRF attribute
+ *
+ * @param[in] obj Object ID for the VRF to be queried
+ * @param[in] attr_count Number of attributes
+ * @param[in/out] attr_list A list of the attributes and their
+ *                          associated values
+ *
+ * @return 0 on success or failure status.
+ */
+int fal_plugin_get_vrf_attr(fal_object_t obj,
+			    uint32_t attr_count,
+			    struct fal_attribute_t *attr_list);
 
 #endif /* VYATTA_DATAPLANE_FAL_PLUGIN_H */
