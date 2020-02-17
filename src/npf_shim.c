@@ -63,29 +63,31 @@ npf_hook_notrack(const npf_ruleset_t *rlset, struct rte_mbuf **m,
 		 struct ifnet *ifp, int dir, uint16_t npf_flags,
 		 uint16_t eth_type)
 {
-	npf_cache_t npc, *n;
+	npf_cache_t npc, *n = NULL;
 	uint32_t tag_val = 0;
 	bool tag_set = false;
 	npf_rule_t *rl;
 
-	/*
-	 * Use the global per-core cache if the packet has been
-	 * reassembled, else use a local cache
-	 *
-	 * Note that both branches will clear any cached tag
-	 */
-	if (pktmbuf_mdata_exists(*m, PKT_MDATA_DEFRAG)) {
-		n = npf_get_cache(&npf_flags, *m, eth_type);
-		if (!n)
-			goto result;
-	} else {
-		n = &npc;
-		/* Initialize packet information cache.	 */
-		npf_cache_init(n);
+	if (npf_ruleset_uses_cache(rlset)) {
+		/*
+		 * Use the global per-core cache if the packet has been
+		 * reassembled, else use a local cache
+		 *
+		 * Note that both branches will clear any cached tag
+		 */
+		if (pktmbuf_mdata_exists(*m, PKT_MDATA_DEFRAG)) {
+			n = npf_get_cache(&npf_flags, *m, eth_type);
+			if (!n)
+				goto result;
+		} else {
+			n = &npc;
+			/* Initialize packet information cache.	 */
+			npf_cache_init(n);
 
-		/* Cache everything. drop if junk. */
-		if (unlikely(!npf_cache_all(n, *m, eth_type)))
-			goto result;
+			/* Cache everything. drop if junk. */
+			if (unlikely(!npf_cache_all(n, *m, eth_type)))
+				goto result;
+		}
 	}
 
 	rl = npf_ruleset_inspect(n, *m, rlset, NULL, ifp, dir);
