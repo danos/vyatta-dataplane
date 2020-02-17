@@ -172,6 +172,7 @@ bool npf_rule_stateful(const npf_rule_t *rl);
 enum npf_ruleset_type npf_type_of_ruleset(const npf_ruleset_t *ruleset);
 
 const char *npf_ruleset_get_name(npf_rule_group_t *rg);
+bool npf_ruleset_uses_cache(const npf_ruleset_t *ruleset);
 
 /*
  * Walk all ruleset groups in a ruleset config

@@ -1780,6 +1780,18 @@ npf_type_of_ruleset(const npf_ruleset_t *ruleset)
 	return ruleset ? ruleset->rs_type : NPF_RS_TYPE_COUNT;
 }
 
+/*
+ * returns true if the ruleset depends on the NPF cache
+ * having been populated. Currently the only exception to this is
+ * IPSec. The implementation should eventually move to a flag
+ * that expresses the dependency on the cache as opposed to
+ * specific ruleset types
+ */
+bool npf_ruleset_uses_cache(const npf_ruleset_t *ruleset)
+{
+	return (ruleset->rs_type != NPF_RS_IPSEC);
+}
+
 /* Update (as needed) all rules for a masquerade addr change */
 void npf_ruleset_update_masquerade(const struct ifnet *ifp,
 				   const npf_ruleset_t *rs)
