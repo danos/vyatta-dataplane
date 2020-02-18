@@ -81,6 +81,7 @@
 #include "vplane_debug.h"
 #include "vplane_log.h"
 #include "npf_match.h"
+#include "../ether.h"
 
 struct npf_attpt_item;
 
@@ -1695,6 +1696,26 @@ npf_ruleset_inspect(npf_cache_t *npc, struct rte_mbuf *nbuf,
 		 * easy search for the rule when a match is found
 		 */
 		pd.rg = rg;
+
+		if (!npc) {
+			uint16_t et = ethhdr(nbuf)->ether_type;
+			int af;
+			void *match_ctx;
+
+			if (et == htons(ETHER_TYPE_IPv4)) {
+				af = AF_INET;
+				match_ctx = rg->match_ctx_v4;
+			} else {
+				af = AF_INET6;
+				match_ctx = rg->match_ctx_v6;
+			}
+
+			match = npf_match_classify(rs_type, af, match_ctx,
+						   npc, &pd, &rl);
+			if (match)
+				return rl;
+			continue;
+		}
 
 		if (likely(npf_iscached(npc, NPC_GROUPER))) {
 			if (likely(npf_iscached(npc, NPC_IP4))) {
