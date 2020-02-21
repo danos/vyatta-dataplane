@@ -1603,9 +1603,12 @@ npf_rproc_match(npf_cache_t *npc, struct rte_mbuf *m, const npf_rule_t *rl,
 }
 
 int
-npf_match_setup(npf_rule_group_t *rg)
+npf_match_setup(npf_rule_group_t *rg, uint32_t max_rules)
 {
 	int err;
+
+	DP_DEBUG(NPF, DEBUG, DATAPLANE, "Creating ruleset of size %d\n",
+		 max_rules);
 
 	err = npf_grouper_init(AF_INET, &rg->rg_grouper);
 	if (err)

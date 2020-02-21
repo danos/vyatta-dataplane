@@ -99,7 +99,9 @@ npf_cfg_create_ruleset_group_cb(const struct npf_attpt_group *rsg, void *ctx)
 		return false;
 	}
 
-	info->error = npf_match_setup(rg);
+	uint32_t count = npf_cfg_rule_count(rgk->rgk_class, rgk->rgk_name);
+
+	info->error = npf_match_setup(rg, count);
 	if (info->error)
 		return false;
 

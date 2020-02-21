@@ -157,7 +157,7 @@ bool npf_rproc_action(npf_cache_t *npc, struct rte_mbuf **nbuf,
 		      npf_session_t *se, npf_rproc_result_t *result);
 bool npf_rproc_match(npf_cache_t *npc, struct rte_mbuf *m, const npf_rule_t *rl,
 		     const struct ifnet *ifp, int dir, npf_session_t *se);
-int npf_match_setup(npf_rule_group_t *rg);
+int npf_match_setup(npf_rule_group_t *rg, uint32_t max_rules);
 void npf_match_optimize(npf_rule_group_t *rg);
 bool npf_rule_proc(const void *d, const void *r);
 npf_rule_t *npf_ruleset_inspect(npf_cache_t *npc, struct rte_mbuf *nbuf,
