@@ -729,9 +729,12 @@ void mpls_label_table_resize(int labelspace, uint32_t max_label)
 
 static void
 mpls_label_table_dump(struct cds_lfht *label_table, json_writer_t *json,
-		      enum pd_obj_state pd_state)
+		      enum pd_obj_state pd_state, uint32_t label_filter)
 {
 	struct label_table_node *label_table_entry;
+	enum rt_print_nexthop_verbosity nh_v =
+		label_filter == MPLS_LABEL_ALL ? RT_PRINT_NH_BRIEF :
+		RT_PRINT_NH_DETAIL;
 	struct cds_lfht_iter iter;
 
 	if (!mpls_label_table_count(label_table))
@@ -745,16 +748,20 @@ mpls_label_table_dump(struct cds_lfht *label_table, json_writer_t *json,
 		    pd_state != label_table_entry->pd_state)
 			continue;
 
+		if (label_filter != MPLS_LABEL_ALL &&
+		    label_table_entry->in_label != label_filter)
+			continue;
+
 		jsonw_start_object(json);
 		jsonw_uint_field(json, "address", label_table_entry->in_label);
 		switch (label_table_entry->nh_type) {
 		case NH_TYPE_V4GW:
 			rt_print_nexthop(json, label_table_entry->next_hop,
-					 RT_PRINT_NH_BRIEF);
+					 nh_v);
 			break;
 		case NH_TYPE_V6GW:
 			rt6_print_nexthop(json, label_table_entry->next_hop,
-					  RT_PRINT_NH_BRIEF);
+					  nh_v);
 			break;
 		}
 		jsonw_uint_field(json, "payload",
@@ -769,7 +776,7 @@ mpls_label_table_dump(struct cds_lfht *label_table, json_writer_t *json,
 }
 
 void
-mpls_label_table_set_dump(FILE *fp, const int labelspace)
+mpls_label_table_set_dump(FILE *fp, int labelspace, uint32_t label_filter)
 {
 	struct label_table_set_entry *ls_entry;
 	json_writer_t *json = jsonw_new(fp);
@@ -783,7 +790,7 @@ mpls_label_table_set_dump(FILE *fp, const int labelspace)
 		jsonw_start_object(json);
 		jsonw_uint_field(json, "lblspc", ls_entry->labelspace);
 		mpls_label_table_dump(ls_entry->label_table, json,
-				      PD_OBJ_STATE_LAST);
+				      PD_OBJ_STATE_LAST, label_filter);
 		jsonw_end_object(json);
 	}
 	jsonw_end_array(json);
@@ -801,7 +808,7 @@ int mpls_label_table_get_pd_subset_data(json_writer_t *json,
 		jsonw_start_object(json);
 		jsonw_uint_field(json, "lblspc", ls_entry->labelspace);
 		mpls_label_table_dump(ls_entry->label_table, json,
-				      subset);
+				      subset, MPLS_LABEL_ALL);
 		jsonw_end_object(json);
 	}
 	jsonw_end_array(json);

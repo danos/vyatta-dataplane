@@ -22,6 +22,8 @@
 #include "nh_common.h"
 #include "route.h"
 
+#define MPLS_LABEL_ALL (1 << 20)
+
 struct cds_lfht;
 struct rte_mbuf;
 
@@ -63,7 +65,8 @@ mpls_label_table_lookup(struct cds_lfht *label_table, uint32_t in_label,
 	__attribute__((hot));
 
 void mpls_label_table_resize(int labelspace, uint32_t max_label);
-void mpls_label_table_set_dump(FILE *fp, const int labelspace);
+void mpls_label_table_set_dump(FILE *fp, int labelspace,
+			       uint32_t label_filter);
 void mpls_oam_v4_lookup(int labelspace, uint8_t nlabels,
 			const label_t *labels,
 			uint32_t saddr, uint32_t daddr,

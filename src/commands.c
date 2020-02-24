@@ -1896,6 +1896,7 @@ static const cmd_t cmd_table[] = {
 	{ 0,	"memory",	cmd_memory,	"Memory pool statistics" },
 	{ 0,	"mode",		cmd_power_show,	"Power management mode" },
 	{ 0,	"mpls",		cmd_mpls,	"Show mpls information" },
+	{ 1,	"mpls",		cmd_mpls,	"Show mpls information" },
 	{ 0,	"mstp-op",	cmd_mstp_op,	"MSTP operational commands" },
 	{ 0,	"mstp-ut",	cmd_mstp_ut,	"MSTP unit-test" },
 	{ 0,	"multicast",	cmd_multicast,	"Multicast information" },
