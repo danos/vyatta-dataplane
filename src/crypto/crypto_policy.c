@@ -2998,8 +2998,11 @@ bool crypto_policy_check_outbound(struct ifnet *in_ifp, struct rte_mbuf **mbuf,
 		 * No input and no output policy matched,  allow normal
 		 * processing
 		 */
-		if (likely(result.decision == NPF_DECISION_UNMATCHED))
+		if (likely(result.decision == NPF_DECISION_UNMATCHED)) {
+			crypto_flow_cache_add(flow_cache, NULL, *mbuf, v4,
+					      seen_by_crypto, XFRM_POLICY_OUT);
 			return false;
+		}
 
 		if (likely(result.tag_set)) {
 			dir = XFRM_POLICY_OUT;
