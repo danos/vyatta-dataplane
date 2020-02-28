@@ -2965,9 +2965,16 @@ bool crypto_policy_check_outbound(struct ifnet *in_ifp, struct rte_mbuf **mbuf,
 	 * - received an UNencrypted packet and we have cached the input
 	 *   policy check result.
 	 */
-	if (cache_entry && pr && (seen_by_crypto || ctx.in_rule_checked))
+	if (cache_entry) {
 		IPSEC_CNT_INC(FLOW_CACHE_HIT);
-	else {
+		if (!pr) {
+			/*
+			 * cleartext packet found in cache. Forward as-is
+			 */
+			if (ctx.no_rule_fwd)
+				return false;
+		}
+	} else {
 		const npf_ruleset_t *rlset =
 			npf_get_ruleset(npf_conf, NPF_RS_IPSEC);
 
