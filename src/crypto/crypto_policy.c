@@ -223,7 +223,8 @@ union crypto_ctx {
 	struct {
 		uint8_t in_rule_checked:1,
 			in_rule_drop:1,
-			PR_UNUSED:6;
+			no_rule_fwd:1,
+			PR_UNUSED:5;
 		char SPARE[7];
 	};
 };
