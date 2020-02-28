@@ -569,12 +569,20 @@ static void crypto_flow_cache_add(struct flow_cache *flow_cache,
 {
 	union crypto_ctx ctx;
 
-	if (!flow_cache || flow_cache_disabled || !pr)
+	if (!flow_cache || flow_cache_disabled)
 		return;
 
-	if (!seen_by_crypto) {
-		ctx.in_rule_checked = 1;
-		ctx.in_rule_drop = (pr->action == XFRM_POLICY_BLOCK);
+	if (pr) {
+		if (!seen_by_crypto) {
+			ctx.in_rule_checked = 1;
+			ctx.in_rule_drop = (pr->action == XFRM_POLICY_BLOCK);
+		}
+	} else {
+		if (dir == XFRM_POLICY_OUT) {
+			ctx.in_rule_checked = 0;
+			ctx.in_rule_drop = 0;
+			ctx.no_rule_fwd = 1;
+		}
 	}
 
 	IPSEC_CNT_INC(FLOW_CACHE_MISS);
