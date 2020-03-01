@@ -2732,13 +2732,17 @@ void crypto_show_cache(FILE *f, const char *str)
 				flow_cache_entry_get_info(cache_entry,
 							  (void **)&pr,
 							  &ctx.context);
-				jsonw_uint_field(wr, "PR_index",
-						 pr->rule_index);
-				jsonw_uint_field(wr, "PR_Tag", pr->tag);
+				if (pr) {
+					jsonw_uint_field(wr, "PR_index",
+							 pr->rule_index);
+					jsonw_uint_field(wr, "PR_Tag", pr->tag);
+				}
 				jsonw_uint_field(wr, "IN_rule_checked",
 						 ctx.in_rule_checked);
 				jsonw_uint_field(wr, "IN_rule_drop",
 						 ctx.in_rule_drop);
+				jsonw_uint_field(wr, "NO_rule_fwd",
+						 ctx.no_rule_fwd);
 				jsonw_end_object(wr);
 			}
 			jsonw_end_array(wr);
