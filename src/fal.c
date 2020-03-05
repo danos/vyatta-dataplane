@@ -1927,10 +1927,23 @@ int fal_ip4_upd_route(vrfid_t vrf_id, in_addr_t addr, uint8_t prefixlen,
 		FAL_ROUTE_ENTRY_ATTR_PACKET_ACTION,
 		.value.u32 = action
 	};
+
 	int ret = 0;
 
 	if (!fal_plugins_present())
 		return 0;
+
+	/*
+	 * If this happens then it indicates a bug in the conditions
+	 * evaluated by fal_next_hop_group_packet_action, or not
+	 * having created the next-hop-group object following a change
+	 * in state.
+	 */
+	if (action == FAL_PACKET_ACTION_FORWARD &&
+	    nhg_object == FAL_NULL_OBJECT_ID) {
+		RTE_LOG(ERR, ROUTE, "Missing next-hop-group object for route with action of forward\n");
+		return -EINVAL;
+	}
 
 	ret = fal_ip_upd_route(__vrf_id, &faddr, prefixlen,
 			       tableid, &pa_attr);
@@ -1967,6 +1980,18 @@ int fal_ip6_upd_route(vrfid_t vrf_id, const struct in6_addr *addr,
 
 	if (!fal_plugins_present())
 		return 0;
+
+	/*
+	 * If this happens then it indicates a bug in the conditions
+	 * evaluated by fal_next_hop_group_packet_action, or not
+	 * having created the next-hop-group object following a change
+	 * in state.
+	 */
+	if (action == FAL_PACKET_ACTION_FORWARD &&
+	    nhg_object == FAL_NULL_OBJECT_ID) {
+		RTE_LOG(ERR, ROUTE, "Missing next-hop-group object for route with action of forward\n");
+		return -EINVAL;
+	}
 
 	ret = fal_ip_upd_route(__vrf_id, &faddr, prefixlen,
 			       tableid, &pa_attr);
