@@ -146,13 +146,13 @@ struct policy_rule_key {
 	const struct xfrm_mark *mark;
 };
 
-#define PR_CACHE_HASH_MIN  8
-#define PR_CACHE_HASH_MAX  2048
+#define FLOW_CACHE_HASH_MIN  8
+#define FLOW_CACHE_HASH_MAX  2048
 
-#define PR_CACHE_MAX_COUNT  4096
-#define PR_CACHE_MAX_MARKER  (PR_CACHE_MAX_COUNT + 1)
+#define FLOW_CACHE_MAX_COUNT  4096
+#define FLOW_CACHE_MAX_MARKER  (FLOW_CACHE_MAX_COUNT + 1)
 
-bool policy_cache_disabled;
+bool flow_cache_disabled;
 
 /*
  * Lock free hash tables for policy rule database.
@@ -287,77 +287,77 @@ static bool tagmap_section_free(struct tagmap_section *tms, int bit)
 
 /* PR cache management */
 static inline void
-pr_cache_entry_free(struct rcu_head *head)
+flow_cache_entry_free(struct rcu_head *head)
 {
-	free(caa_container_of(head, struct policy_cache_rule,
-			      policy_cache_rcu));
+	free(caa_container_of(head, struct flow_cache_entry,
+			      flow_cache_rcu));
 }
 
 static inline void
-pr_cache_entry_destroy(struct policy_cache_rule *pr_cache)
+flow_cache_entry_destroy(struct flow_cache_entry *flow_cache)
 {
-	call_rcu(&pr_cache->policy_cache_rcu, pr_cache_entry_free);
+	call_rcu(&flow_cache->flow_cache_rcu, flow_cache_entry_free);
 }
 
 static inline int
-pr_cache_match(struct cds_lfht_node *node, const void *key)
+flow_cache_match(struct cds_lfht_node *node, const void *key)
 {
-	const struct pr_cache_hash_key *pr_cache_key = key;
-	const struct policy_cache_rule *pr_cache = caa_container_of(
-		node, const struct policy_cache_rule, pr_node);
+	const struct flow_cache_hash_key *flow_cache_key = key;
+	const struct flow_cache_entry *flow_cache = caa_container_of(
+		node, const struct flow_cache_entry, fl_node);
 
-	if ((pr_cache->key.src != pr_cache_key->src) ||
-	    (pr_cache->key.dst != pr_cache_key->dst) ||
-	    (pr_cache->key.proto != pr_cache_key->proto) ||
-	    (pr_cache->key.vrfid != pr_cache_key->vrfid))
+	if ((flow_cache->key.src != flow_cache_key->src) ||
+	    (flow_cache->key.dst != flow_cache_key->dst) ||
+	    (flow_cache->key.proto != flow_cache_key->proto) ||
+	    (flow_cache->key.vrfid != flow_cache_key->vrfid))
 		return 0;
 
 	return 1;
 }
 
-_Static_assert(sizeof(struct pr_cache_hash_key) % 4 == 0,
-	       "struct pr_cache_hash_key must be a multiple of 4 bytes");
+_Static_assert(sizeof(struct flow_cache_hash_key) % 4 == 0,
+	       "struct flow_cache_hash_key must be a multiple of 4 bytes");
 
 static inline uint32_t
-pr_cache_hash(const struct pr_cache_hash_key *h_key)
+flow_cache_hash(const struct flow_cache_hash_key *h_key)
 {
-	return rte_jhash(h_key, sizeof(*h_key) / 4, POLICY_CACHE_HASH_SEED);
+	return rte_jhash(h_key, sizeof(*h_key) / 4, FLOW_CACHE_HASH_SEED);
 }
 
 static inline void
-pr_cache_entry_remove(struct crypto_pkt_buffer *cpb,
+flow_cache_entry_remove(struct crypto_pkt_buffer *cpb,
 		      struct cds_lfht *table,
-		      struct policy_cache_rule *pr_cache)
+		      struct flow_cache_entry *flow_cache)
 {
 	/*
 	 * To avoid a race where an entry has been added but the count
 	 * hasn't been bumped
 	 */
-	if (rte_atomic16_read(&cpb->pr_cache_count) == 0)
+	if (rte_atomic16_read(&cpb->flow_cache_count) == 0)
 		return;
 
-	cds_lfht_del(table, &pr_cache->pr_node);
-	pr_cache_entry_destroy(pr_cache);
-	rte_atomic16_dec(&cpb->pr_cache_count);
+	cds_lfht_del(table, &flow_cache->fl_node);
+	flow_cache_entry_destroy(flow_cache);
+	rte_atomic16_dec(&cpb->flow_cache_count);
 }
 
 static int
-pr_cache_insert(struct cds_lfht *tbl, struct policy_cache_rule *pr_cache,
-		const struct pr_cache_hash_key *h_key)
+flow_cache_insert(struct cds_lfht *tbl, struct flow_cache_entry *flow_cache,
+		const struct flow_cache_hash_key *h_key)
 {
 	struct cds_lfht_node *ret_node;
 
-	cds_lfht_node_init(&pr_cache->pr_node);
-	uint32_t hash = pr_cache_hash(h_key);
+	cds_lfht_node_init(&flow_cache->fl_node);
+	uint32_t hash = flow_cache_hash(h_key);
 
-	ret_node = cds_lfht_add_unique(tbl, hash, pr_cache_match, h_key,
-				       &pr_cache->pr_node);
+	ret_node = cds_lfht_add_unique(tbl, hash, flow_cache_match, h_key,
+				       &flow_cache->fl_node);
 
-	return (ret_node != &pr_cache->pr_node) ? -1 : 0;
+	return (ret_node != &flow_cache->fl_node) ? -1 : 0;
 }
 
 static inline void
-pr_cache_parse_hdr4(struct rte_mbuf *m, struct pr_cache_hash_key *h)
+flow_cache_parse_hdr4(struct rte_mbuf *m, struct flow_cache_hash_key *h)
 {
 	const struct iphdr *ip = iphdr(m);
 
@@ -367,44 +367,44 @@ pr_cache_parse_hdr4(struct rte_mbuf *m, struct pr_cache_hash_key *h)
 	h->vrfid = pktmbuf_get_vrf(m);
 }
 
-static struct policy_cache_rule *
-pr_cache_lookup(struct rte_mbuf *m, bool v4)
+static struct flow_cache_entry *
+flow_cache_lookup(struct rte_mbuf *m, bool v4)
 {
 	struct cds_lfht_iter iter;
 	struct cds_lfht_node *node;
 	struct crypto_pkt_buffer *cpb = RTE_PER_LCORE(crypto_pkt_buffer);
-	struct pr_cache_hash_key h_key;
+	struct flow_cache_hash_key h_key;
 	struct cds_lfht *table;
 
 	/* Any host generated or v6 don't make use of the PR cache table*/
-	if (policy_cache_disabled || !cpb || !v4)
+	if (flow_cache_disabled || !cpb || !v4)
 		return NULL;
 
-	table = rcu_dereference(cpb->pr_cache_tbl);
+	table = rcu_dereference(cpb->flow_cache_tbl);
 	if (!table)
 		return NULL;
-	pr_cache_parse_hdr4(m, &h_key);
-	cds_lfht_lookup(table, pr_cache_hash(&h_key),
-			pr_cache_match, &h_key,
+	flow_cache_parse_hdr4(m, &h_key);
+	cds_lfht_lookup(table, flow_cache_hash(&h_key),
+			flow_cache_match, &h_key,
 			&iter);
 
 	node = cds_lfht_iter_get_node(&iter);
 	if (node)
-		return caa_container_of(node, struct policy_cache_rule,
-					pr_node);
+		return caa_container_of(node, struct flow_cache_entry,
+					fl_node);
 	else
 		return NULL;
 }
 
 static int
-pr_cache_add(struct crypto_pkt_buffer *cpb, struct policy_rule *pr,
+flow_cache_add(struct crypto_pkt_buffer *cpb, struct policy_rule *pr,
 	     struct rte_mbuf *m, bool v4, bool seen_by_crypto,
 	     int dir)
 {
-	struct policy_cache_rule *pr_cache;
+	struct flow_cache_entry *flow_cache;
 	int error;
-	struct pr_cache_hash_key h_key;
-	struct cds_lfht *table  = rcu_dereference(cpb->pr_cache_tbl);
+	struct flow_cache_hash_key h_key;
+	struct cds_lfht *table  = rcu_dereference(cpb->flow_cache_tbl);
 
 	/* Any v6 don't make use of the PR cache table */
 	if (!v4 || !table)
@@ -417,65 +417,65 @@ pr_cache_add(struct crypto_pkt_buffer *cpb, struct policy_rule *pr,
 	 * for unencrypted packets
 	 */
 	if (dir == XFRM_POLICY_IN) {
-		pr_cache = pr_cache_lookup(m, v4);
-		if (pr_cache) {
-			pr_cache->in_rule_checked = 1;
-			pr_cache->in_rule_drop =
+		flow_cache = flow_cache_lookup(m, v4);
+		if (flow_cache) {
+			flow_cache->in_rule_checked = 1;
+			flow_cache->in_rule_drop =
 				(pr->action == XFRM_POLICY_BLOCK);
 			return 0;
 		}
 	}
-	pr_cache_parse_hdr4(m, &h_key);
-	pr_cache = malloc_aligned(sizeof(struct policy_cache_rule));
-	if (unlikely(pr_cache == NULL))
+	flow_cache_parse_hdr4(m, &h_key);
+	flow_cache = malloc_aligned(sizeof(struct flow_cache_entry));
+	if (unlikely(flow_cache == NULL))
 		return -1;
 
-	pr_cache->key = h_key;
-	pr_cache->pr = pr;
+	flow_cache->key = h_key;
+	flow_cache->pr = pr;
 
-	error = pr_cache_insert(table, pr_cache, &h_key);
+	error = flow_cache_insert(table, flow_cache, &h_key);
 
 	if (unlikely(error != 0)) {
-		free(pr_cache);
+		free(flow_cache);
 		return -1;
 	}
 	if (!seen_by_crypto) {
-		pr_cache->in_rule_checked = 1;
-		pr_cache->in_rule_drop = (pr->action == XFRM_POLICY_BLOCK);
+		flow_cache->in_rule_checked = 1;
+		flow_cache->in_rule_drop = (pr->action == XFRM_POLICY_BLOCK);
 	}
-	rte_atomic16_inc(&cpb->pr_cache_count);
+	rte_atomic16_inc(&cpb->flow_cache_count);
 	return 0;
 }
 
 struct cds_lfht *
-pr_cache_init(void)
+flow_cache_init_lcore(void)
 {
-	struct cds_lfht *pr_cache_tbl;
+	struct cds_lfht *flow_cache_tbl;
 
-	pr_cache_tbl = cds_lfht_new(PR_CACHE_HASH_MIN,
-				    PR_CACHE_HASH_MIN,
-				    PR_CACHE_HASH_MAX,
-				    CDS_LFHT_AUTO_RESIZE,
-				    NULL);
-	if (pr_cache_tbl == NULL)
+	flow_cache_tbl = cds_lfht_new(FLOW_CACHE_HASH_MIN,
+				      FLOW_CACHE_HASH_MIN,
+				      FLOW_CACHE_HASH_MAX,
+				      CDS_LFHT_AUTO_RESIZE,
+				      NULL);
+	if (flow_cache_tbl == NULL)
 		POLICY_ERR("Failed to allocate PR cache table\n");
 
-	return pr_cache_tbl;
+	return flow_cache_tbl;
 }
 
 static inline void
-pr_cache_empty_table(struct crypto_pkt_buffer *cpb)
+flow_cache_empty_table(struct crypto_pkt_buffer *cpb)
 {
-	struct policy_cache_rule *pr_cache;
+	struct flow_cache_entry *flow_cache;
 	struct cds_lfht_iter iter;
 	struct cds_lfht *table;
 
-	table = rcu_dereference(cpb->pr_cache_tbl);
+	table = rcu_dereference(cpb->flow_cache_tbl);
 	if (!table)
 		return;
 
-	cds_lfht_for_each_entry(table, &iter, pr_cache, pr_node)
-		pr_cache_entry_remove(cpb, table, pr_cache);
+	cds_lfht_for_each_entry(table, &iter, flow_cache, fl_node)
+		flow_cache_entry_remove(cpb, table, flow_cache);
 }
 
 /*
@@ -483,7 +483,7 @@ pr_cache_empty_table(struct crypto_pkt_buffer *cpb)
  * rcu_callback it must be in clear_only mode.
  */
 static void
-pr_cache_invalidate(bool disable, bool clear_only)
+flow_cache_invalidate(bool disable, bool clear_only)
 {
 	unsigned int lcore_id;
 
@@ -494,20 +494,20 @@ pr_cache_invalidate(bool disable, bool clear_only)
 		if (unlikely(!cpb))
 			continue;
 
-		if (cpb->pr_cache_tbl) {
-			pr_cache_empty_table(cpb);
+		if (cpb->flow_cache_tbl) {
+			flow_cache_empty_table(cpb);
 			if (disable && !clear_only) {
-				if (cds_lfht_destroy(cpb->pr_cache_tbl,
+				if (cds_lfht_destroy(cpb->flow_cache_tbl,
 						     NULL))
 					POLICY_ERR(
 						"Cache tbl destroy failed\n");
 
 				rcu_assign_pointer(
-					cpb->pr_cache_tbl, NULL);
+					cpb->flow_cache_tbl, NULL);
 			}
 		} else {
 			if (!disable && !clear_only)
-				cpb->pr_cache_tbl = pr_cache_init();
+				cpb->flow_cache_tbl = flow_cache_init_lcore();
 		}
 	}
 
@@ -516,7 +516,7 @@ pr_cache_invalidate(bool disable, bool clear_only)
 }
 
 void
-pr_cache_timer_handler(struct rte_timer *timer __rte_unused,
+flow_cache_timer_handler(struct rte_timer *timer __rte_unused,
 		       void *arg __rte_unused)
 {
 	unsigned int lcore_id;
@@ -528,12 +528,12 @@ pr_cache_timer_handler(struct rte_timer *timer __rte_unused,
 		if (unlikely(!cpb))
 			continue;
 
-		if (cpb->pr_cache_tbl &&
-		    (rte_atomic16_read(&cpb->pr_cache_count) >
-		     PR_CACHE_MAX_COUNT)) {
+		if (cpb->flow_cache_tbl &&
+		    (rte_atomic16_read(&cpb->flow_cache_count) >
+		     FLOW_CACHE_MAX_COUNT)) {
 			POLICY_INFO("Clearing the cache on core %d: Aged out\n",
 				    lcore_id);
-			pr_cache_empty_table(cpb);
+			flow_cache_empty_table(cpb);
 		}
 	}
 }
@@ -990,7 +990,7 @@ static void policy_rule_rcu_invalidate(struct rcu_head *head)
 	 * we need to make sure that the policy rule is no longer in
 	 * any of the pr caches.
 	 */
-	pr_cache_invalidate(true, true);
+	flow_cache_invalidate(true, true);
 	/*
 	 * Now the PR is gone from the cache, but other threads
 	 * may still hold references to it, so wait for another
@@ -1689,7 +1689,7 @@ policy_rule_update(struct policy_rule *pr,
 		crypto_npf_cfg_commit_all(pr);
 		if ((pr->dir == XFRM_POLICY_OUT) &&
 		    (!was_vti_policy || !pr->vti_tunnel_policy))
-			pr_cache_invalidate(policy_cache_disabled, false);
+			flow_cache_invalidate(flow_cache_disabled, false);
 	} else if (changed) {
 		policy_rule_update_npf(pr);
 		crypto_npf_cfg_commit_all(pr);
@@ -1751,10 +1751,10 @@ int crypto_policy_add(const struct xfrm_userpolicy_info *usr_policy,
 	 * selection criteria, the cache is disabled.
 	 */
 	if (pr->dir == XFRM_POLICY_OUT) {
-		if (!policy_cache_disabled) {
-			policy_cache_disabled = ((pr->sel.sport > 0) ||
-						 (pr->sel.dport > 0));
-			pr_cache_invalidate(policy_cache_disabled, false);
+		if (!flow_cache_disabled) {
+			flow_cache_disabled = ((pr->sel.sport > 0) ||
+					       (pr->sel.dport > 0));
+			flow_cache_invalidate(flow_cache_disabled, false);
 		}
 
 		/*
@@ -1821,13 +1821,13 @@ static void crypto_policy_delete_internal(struct policy_rule *pr, vrfid_t vrfid)
 		 * we're deleting is one such, we may be able to enable
 		 * it if it was the only one.
 		 */
-		if (policy_cache_disabled &&
+		if (flow_cache_disabled &&
 		    ((pr->sel.sport > 0) || (pr->sel.dport > 0)) &&
 		    all_other_policies_can_be_cached(pr))
-			policy_cache_disabled = false;
+			flow_cache_disabled = false;
 
-		if (!policy_cache_disabled)
-			pr_cache_invalidate(policy_cache_disabled, false);
+		if (!flow_cache_disabled)
+			flow_cache_invalidate(flow_cache_disabled, false);
 	}
 
 	policy_rule_remove_from_hash_tables(pr);
@@ -2445,7 +2445,7 @@ void crypto_show_cache(FILE *f, const char *str)
 	jsonw_start_array(wr);
 
 	RTE_LCORE_FOREACH(i) {
-		struct policy_cache_rule *pr_cache;
+		struct flow_cache_entry *flow_cache;
 		struct cds_lfht_iter iter;
 		struct cds_lfht *table;
 		struct crypto_pkt_buffer *cpb = rcu_dereference(cpbdb[i]);
@@ -2456,45 +2456,45 @@ void crypto_show_cache(FILE *f, const char *str)
 		if (!cpb) {
 			disabled = true;
 		} else {
-			table = rcu_dereference(cpb->pr_cache_tbl);
+			table = rcu_dereference(cpb->flow_cache_tbl);
 			if (!table)
 				disabled = true;
 		}
 		if (disabled) {
-			jsonw_string_field(wr, "pr_cache", "disabled");
+			jsonw_string_field(wr, "flow_cache", "disabled");
 			continue;
 		}
-		jsonw_string_field(wr, "pr_cache", "enabled");
+		jsonw_string_field(wr, "flow_cache", "enabled");
 		jsonw_start_object(wr);
-		jsonw_uint_field(wr, "PR_Cache_count",
-				 rte_atomic16_read(&cpb->pr_cache_count));
+		jsonw_uint_field(wr, "Flow_Cache_count",
+				 rte_atomic16_read(&cpb->flow_cache_count));
 		jsonw_end_object(wr);
 		if (!detail)
 			continue;
 
 		jsonw_start_array(wr);
 		cds_lfht_for_each_entry(table, &iter,
-					pr_cache, pr_node) {
+					flow_cache, fl_node) {
 			jsonw_start_object(wr);
 			jsonw_string_field(wr, "dst",
 					   inet_ntop(AF_INET,
-						     &pr_cache->key.dst,
+						     &flow_cache->key.dst,
 						     addrbuf,
 						     sizeof(addrbuf)));
 			jsonw_string_field(wr, "src",
 					   inet_ntop(AF_INET,
-						     &pr_cache->key.src,
+						     &flow_cache->key.src,
 						     addrbuf,
 						     sizeof(addrbuf)));
-			jsonw_uint_field(wr, "proto", pr_cache->key.proto);
+			jsonw_uint_field(wr, "proto", flow_cache->key.proto);
 			jsonw_uint_field(wr, "PR_index",
-					 pr_cache->pr->rule_index);
+					 flow_cache->pr->rule_index);
 			jsonw_uint_field(wr, "PR_Tag",
-					 pr_cache->pr->tag);
+					 flow_cache->pr->tag);
 			jsonw_uint_field(wr, "IN_rule_checked",
-					 pr_cache->in_rule_checked);
+					 flow_cache->in_rule_checked);
 			jsonw_uint_field(wr, "IN_rule_drop",
-					 pr_cache->in_rule_drop);
+					 flow_cache->in_rule_drop);
 			jsonw_end_object(wr);
 		}
 		jsonw_end_array(wr);
@@ -2691,7 +2691,7 @@ bool crypto_policy_check_outbound(struct ifnet *in_ifp, struct rte_mbuf **mbuf,
 				  struct next_hop **nh)
 {
 	struct policy_rule *pr = NULL;
-	struct policy_cache_rule *pr_cache;
+	struct flow_cache_entry *flow_cache;
 	vrfid_t vrfid = pktmbuf_get_vrf(*mbuf);
 	bool v4 = (eth_type == htons(RTE_ETHER_TYPE_IPV4));
 	bool freed = false;
@@ -2705,7 +2705,7 @@ bool crypto_policy_check_outbound(struct ifnet *in_ifp, struct rte_mbuf **mbuf,
 	/*
 	 * Do we have a cached lookup result for this policy?
 	 */
-	pr_cache = pr_cache_lookup(*mbuf, v4);
+	flow_cache = flow_cache_lookup(*mbuf, v4);
 
 	/*
 	 * Use the PR cache under following conditions:
@@ -2713,10 +2713,10 @@ bool crypto_policy_check_outbound(struct ifnet *in_ifp, struct rte_mbuf **mbuf,
 	 * - received an UNencrypted packet and we have cached the input
 	 *   policy check result.
 	 */
-	if (pr_cache && pr_cache->pr &&
-	    (seen_by_crypto || pr_cache->in_rule_checked)) {
-		IPSEC_CNT_INC(PR_CACHE_HIT);
-		pr = pr_cache->pr;
+	if (flow_cache && flow_cache->pr &&
+	    (seen_by_crypto || flow_cache->in_rule_checked)) {
+		IPSEC_CNT_INC(FLOW_CACHE_HIT);
+		pr = flow_cache->pr;
 	} else {
 		struct crypto_pkt_buffer *cpb =
 			RTE_PER_LCORE(crypto_pkt_buffer);
@@ -2781,16 +2781,16 @@ bool crypto_policy_check_outbound(struct ifnet *in_ifp, struct rte_mbuf **mbuf,
 				return false;
 		}
 
-		if (cpb && !policy_cache_disabled && pr &&
-		    (rte_atomic16_read(&cpb->pr_cache_count) <
-		     PR_CACHE_MAX_MARKER)) {
-			IPSEC_CNT_INC(PR_CACHE_MISS);
-			if (pr_cache_add(cpb, pr, *mbuf, v4,
+		if (cpb && !flow_cache_disabled && pr &&
+		    (rte_atomic16_read(&cpb->flow_cache_count) <
+		     FLOW_CACHE_MAX_MARKER)) {
+			IPSEC_CNT_INC(FLOW_CACHE_MISS);
+			if (flow_cache_add(cpb, pr, *mbuf, v4,
 					 seen_by_crypto,
 					 dir) != 0)
-				IPSEC_CNT_INC(PR_CACHE_ADD_FAIL);
+				IPSEC_CNT_INC(FLOW_CACHE_ADD_FAIL);
 			else
-				IPSEC_CNT_INC(PR_CACHE_ADD);
+				IPSEC_CNT_INC(FLOW_CACHE_ADD);
 		}
 	}
 
@@ -2883,7 +2883,7 @@ crypto_policy_check_inbound(struct ifnet *in_ifp, struct rte_mbuf **mbuf,
 			    uint16_t eth_type)
 {
 	struct policy_rule *pr = NULL;
-	struct policy_cache_rule *pr_cache;
+	struct flow_cache_entry *flow_cache;
 	bool v4 = (eth_type == htons(RTE_ETHER_TYPE_IPV4));
 	bool freed = false;
 	vrfid_t vrfid = pktmbuf_get_vrf(*mbuf);
@@ -2898,10 +2898,10 @@ crypto_policy_check_inbound(struct ifnet *in_ifp, struct rte_mbuf **mbuf,
 	/*
 	 * Use the PR cache only if we have already cached the input check.
 	 */
-	pr_cache = pr_cache_lookup(*mbuf, v4);
-	if (pr_cache && pr_cache->pr && pr_cache->in_rule_checked) {
-		IPSEC_CNT_INC(PR_CACHE_HIT);
-		if (pr_cache->pr->action == XFRM_POLICY_BLOCK)
+	flow_cache = flow_cache_lookup(*mbuf, v4);
+	if (flow_cache && flow_cache->pr && flow_cache->in_rule_checked) {
+		IPSEC_CNT_INC(FLOW_CACHE_HIT);
+		if (flow_cache->pr->action == XFRM_POLICY_BLOCK)
 			goto drop;
 
 	} else {
@@ -2952,17 +2952,17 @@ crypto_policy_check_inbound(struct ifnet *in_ifp, struct rte_mbuf **mbuf,
 				 * We found an input policy, add it to the
 				 * PR cache and drop the packet.
 				 */
-				if (cpb && !policy_cache_disabled && pr &&
-				    (rte_atomic16_read(&cpb->pr_cache_count) <
-				     PR_CACHE_MAX_MARKER)) {
-					IPSEC_CNT_INC(PR_CACHE_MISS);
-					if (pr_cache_add(cpb, pr, *mbuf, v4,
+				if (cpb && !flow_cache_disabled && pr &&
+				    (rte_atomic16_read(&cpb->flow_cache_count) <
+				     FLOW_CACHE_MAX_MARKER)) {
+					IPSEC_CNT_INC(FLOW_CACHE_MISS);
+					if (flow_cache_add(cpb, pr, *mbuf, v4,
 							 false,
 							 XFRM_POLICY_IN) != 0)
 						IPSEC_CNT_INC(
-							PR_CACHE_ADD_FAIL);
+							FLOW_CACHE_ADD_FAIL);
 					else
-						IPSEC_CNT_INC(PR_CACHE_ADD);
+						IPSEC_CNT_INC(FLOW_CACHE_ADD);
 				}
 				if (pr->action == XFRM_POLICY_BLOCK)
 					goto drop;

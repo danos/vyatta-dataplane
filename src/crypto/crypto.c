@@ -78,7 +78,7 @@ struct crypto_pkt_buffer *cpbdb[RTE_MAX_LCORE];
 
 static struct crypto_dp g_crypto_dp;
 struct crypto_dp *crypto_dp_sp = &g_crypto_dp;
-static struct rte_timer pr_cache_timer;
+static struct rte_timer flow_cache_timer;
 
 /* between crypto and master thread */
 static zsock_t *crypto_master_pull;
@@ -136,10 +136,10 @@ static const char * const ipsec_counter_names[] = {
 	[DROPPED_NO_IFP] = "dropped no ifp",
 	[DROPPED_INVALID_PMD_DEV_ID] = "dropped invalid pmd dev id",
 	[DROPPED_NO_SPI_TO_SA] = "dropped no SA from SPI",
-	[PR_CACHE_ADD] = "Entry added to PR cache",
-	[PR_CACHE_ADD_FAIL] = "Failed to add entry to PR cache",
-	[PR_CACHE_HIT] = "hit PR cache",
-	[PR_CACHE_MISS] = "missed PR cache",
+	[FLOW_CACHE_ADD] = "Entry added to flow cache",
+	[FLOW_CACHE_ADD_FAIL] = "Failed to add entry to flow cache",
+	[FLOW_CACHE_HIT] = "hit flow cache",
+	[FLOW_CACHE_MISS] = "missed flow cache",
 	[DROPPED_NO_BIND] = "dropped feature attachment point missing",
 	[DROPPED_ON_FP_NO_PR] = "dropped on fp but no policy"
 };
@@ -1157,7 +1157,7 @@ static int dp_crypto_lcore_init(unsigned int lcore_id,
 		for (q = MIN_CRYPTO_XFRM; q < MAX_CRYPTO_XFRM; q++)
 			cpb->pmd_dev_id[q] = CRYPTO_PMD_INVALID_ID;
 
-		cpb->pr_cache_tbl = pr_cache_init();
+		cpb->flow_cache_tbl = flow_cache_init_lcore();
 		cpbdb[lcore_id] = cpb;
 
 		RTE_PER_LCORE(crypto_pkt_buffer) = cpb;
@@ -1267,9 +1267,9 @@ void dp_crypto_init(void)
 	crypto_incomplete_init();
 
 	crypto_engine_init();
-	rte_timer_init(&pr_cache_timer);
-	rte_timer_reset(&pr_cache_timer, rte_get_timer_hz(), PERIODICAL,
-			rte_get_master_lcore(), pr_cache_timer_handler, NULL);
+	rte_timer_init(&flow_cache_timer);
+	rte_timer_reset(&flow_cache_timer, rte_get_timer_hz(), PERIODICAL,
+			rte_get_master_lcore(), flow_cache_timer_handler, NULL);
 
 	CRYPTO_INFO("Crypto initialised\n");
 }

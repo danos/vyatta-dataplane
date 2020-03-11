@@ -16,22 +16,22 @@
 
 struct policy_rule;
 
-#define POLICY_CACHE_SIZE 4096
+#define FLOW_CACHE_SIZE 4096
 
-#define POLICY_CACHE_HASH_SEED 0xDEAFCAFE
+#define FLOW_CACHE_HASH_SEED 0xDEAFCAFE
 
-struct pr_cache_hash_key {
+struct flow_cache_hash_key {
 	uint32_t src;
 	uint32_t dst;
 	uint32_t proto;
 	vrfid_t vrfid;
 };
 
-struct policy_cache_rule {
-	struct cds_lfht_node pr_node;
-	struct rcu_head policy_cache_rcu;
+struct flow_cache_entry {
+	struct cds_lfht_node fl_node;
+	struct rcu_head flow_cache_rcu;
 	struct policy_rule *pr;
-	struct pr_cache_hash_key key;
+	struct flow_cache_hash_key key;
 	uint8_t in_rule_checked:1,
 		in_rule_drop:1,
 		PR_UNUSED:6;
@@ -39,6 +39,6 @@ struct policy_cache_rule {
 	char *padding[0]  __rte_cache_aligned;
 };
 
-void pr_cache_timer_handler(struct rte_timer *, void *arg);
+void flow_cache_timer_handler(struct rte_timer *tmr, void *arg);
 
 #endif /* CRYPTO_POLICY_CACHE_H */
