@@ -66,6 +66,8 @@
 
 struct cds_list_head;
 
+struct crypto_pkt_buffer *cpbdb[RTE_MAX_LCORE];
+
 /*
  * The return ring size needs to be a multiple of the the PMD ring, as
  * an RX thread could have many packets queued to many PMD rings.

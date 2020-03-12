@@ -57,6 +57,12 @@ struct crypto_pkt_buffer {
 
 RTE_DECLARE_PER_LCORE(struct crypto_pkt_buffer *, crypto_pkt_buffer);
 
+/*
+ * Crypto Pkt Buffer (CPB) DB, containing pointers to all the
+ * per CORE CPB.
+ */
+extern struct crypto_pkt_buffer *cpbdb[RTE_MAX_LCORE];
+
 int crypto_send_burst(struct crypto_pkt_buffer *cpb,
 		      enum crypto_xfrm xfrm, bool drop);
 

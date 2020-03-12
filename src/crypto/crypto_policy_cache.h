@@ -20,12 +20,6 @@ struct policy_rule;
 
 #define POLICY_CACHE_HASH_SEED 0xDEAFCAFE
 
-/*
- * Crypto Pkt Buffer (CPB) DB, containing pointers to all the
- * per CORE CPB.
- */
-struct crypto_pkt_buffer *cpbdb[RTE_MAX_LCORE];
-
 struct pr_cache_hash_key {
 	uint32_t src;
 	uint32_t dst;
