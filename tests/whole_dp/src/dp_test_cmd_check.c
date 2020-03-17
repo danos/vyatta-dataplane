@@ -1476,7 +1476,7 @@ json_object *
 dp_test_json_intf_add(json_object *intf_set, const char *ifname,
 		      const char *addr_prefix, bool uplink)
 {
-	struct ether_addr *mac_addr;
+	struct rte_ether_addr *mac_addr;
 	char real_ifname[IFNAMSIZ];
 	const char *link_str;
 	json_object *intfs;

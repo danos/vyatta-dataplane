@@ -913,7 +913,7 @@ static void dp_test_npf_1(const struct dp_test_bridge_ctx *ctx)
 
 	dp_test_npf_fw1(TEST_FW_ADD, ctx);
 
-	struct ether_addr *br1_eth;
+	struct rte_ether_addr *br1_eth;
 	char real_ifname[IFNAMSIZ];
 	char br1_eth_str[ETH_ADDR_STR_LEN];
 
@@ -1042,7 +1042,7 @@ static void dp_test_npf_2(const struct dp_test_bridge_ctx *ctx)
 
 	dp_test_npf_fw1(TEST_FW_ADD, ctx);
 
-	struct ether_addr *br1_eth;
+	struct rte_ether_addr *br1_eth;
 	char real_ifname[IFNAMSIZ];
 	char br1_eth_str[ETH_ADDR_STR_LEN];
 

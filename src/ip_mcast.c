@@ -46,7 +46,7 @@ static void mcast_eth_output(struct rte_mbuf *m, struct ifnet *ifp,
 
 	/* set ethernet source address */
 	eth_hdr = rte_pktmbuf_mtod(m, struct ether_hdr *);
-	ether_addr_copy(&ifp->eth_addr, &eth_hdr->s_addr);
+	rte_ether_addr_copy(&ifp->eth_addr, &eth_hdr->s_addr);
 
 	IPSTAT_INC_IFP(ifp, IPSTATS_MIB_OUTMCASTPKTS);
 	if_output(ifp, m, rcvif, ETH_P_IP);

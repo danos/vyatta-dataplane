@@ -49,7 +49,7 @@ struct ptp_peer_t {
 	struct fal_ip_address_t ipaddr;
 	fal_object_t obj_id;	/**< returned FAL object id */
 	struct ptp_port_t *port;
-	struct ether_addr mac;
+	struct rte_ether_addr mac;
 	bool installed;
 
 	struct rcu_head rcu;
@@ -747,7 +747,7 @@ void ptp_peer_update(struct ptp_peer_t *peer)
 {
 	struct ptp_port_t *port;
 	struct ifnet *ifp, *nh_ifp;
-	struct ether_addr newmac = { { 0 } };
+	struct rte_ether_addr newmac = { { 0 } };
 	char buf[INET_ADDRSTRLEN], buf2[INET_ADDRSTRLEN];
 	const char *peerip =
 		fal_ip_address_t_to_str(&peer->ipaddr, buf2, sizeof(buf2));
@@ -840,7 +840,7 @@ void ptp_peer_update(struct ptp_peer_t *peer)
 		DP_DEBUG(PTP, ERR, DATAPLANE,
 			 "%s: peer %s routed via switch interface.\n",
 			 __func__, peerip);
-		ether_addr_copy(&ifp->eth_addr, &newmac);
+		rte_ether_addr_copy(&ifp->eth_addr, &newmac);
 	} else {
 		DP_DEBUG(PTP, ERR, DATAPLANE,
 			 "%s: peer %s is unreachable from clock port.\n",
@@ -851,7 +851,7 @@ out:
 	/* If the MAC address changed (or finally resolved),
 	 * we need to update (or install) the peer in the FAL.
 	 */
-	if (!ether_addr_equal(&newmac, &peer->mac)) {
+	if (!rte_ether_addr_equal(&newmac, &peer->mac)) {
 		if (ptp_peer_uninstall(peer) < 0) {
 			RTE_LOG(ERR, DATAPLANE,
 				"%s: ptp_peer_uninstall for %s failed!\n",
@@ -859,7 +859,7 @@ out:
 			return;
 		}
 
-		ether_addr_copy(&newmac, &peer->mac);
+		rte_ether_addr_copy(&newmac, &peer->mac);
 		if (!ether_is_empty(&peer->mac)) {
 			DP_DEBUG(PTP, ERR, DATAPLANE, "%s: peer %s is at %s.\n",
 				 __func__, peerip, ether_ntoa_r(&newmac, buf));

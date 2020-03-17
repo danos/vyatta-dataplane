@@ -57,7 +57,7 @@ ether_input_no_dyn_feats(struct ifnet *ifp, struct rte_mbuf *m)
 int ether_if_set_l2_address(struct ifnet *ifp, uint32_t l2_addr_len,
 			    void *l2_addr)
 {
-	struct ether_addr *macaddr = l2_addr;
+	struct rte_ether_addr *macaddr = l2_addr;
 	char b1[32], b2[32];
 
 	if (l2_addr_len != ETHER_ADDR_LEN) {
@@ -67,7 +67,7 @@ int ether_if_set_l2_address(struct ifnet *ifp, uint32_t l2_addr_len,
 		return -EINVAL;
 	}
 
-	if (ether_addr_equal(&ifp->eth_addr, macaddr))
+	if (rte_ether_addr_equal(&ifp->eth_addr, macaddr))
 		return 1;
 
 	RTE_LOG(INFO, DATAPLANE, "%s change MAC from %s to %s\n",
@@ -82,7 +82,7 @@ int ether_if_set_l2_address(struct ifnet *ifp, uint32_t l2_addr_len,
 
 int ether_if_set_broadcast(struct ifnet *ifp, bool enable)
 {
-	static const struct ether_addr ea_broadcast = {
+	static const struct rte_ether_addr ea_broadcast = {
 		.addr_bytes = { 0xff, 0xff, 0xff, 0xff, 0xff, 0xff },
 	};
 

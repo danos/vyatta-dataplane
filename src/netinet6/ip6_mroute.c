@@ -1013,8 +1013,8 @@ static int mcast6_ethernet_send(struct mif6 *mifp, struct rte_mbuf *m,
 
 	eth_hdr = rte_pktmbuf_mtod(m, struct ether_hdr *);
 	eth_daddr = mcast6_dst_eth_addr(&ip6->ip6_dst);
-	ether_addr_copy(&eth_daddr.as_addr, &eth_hdr->d_addr);
-	ether_addr_copy(&ifp->eth_addr, &eth_hdr->s_addr);
+	rte_ether_addr_copy(&eth_daddr.as_addr, &eth_hdr->d_addr);
+	rte_ether_addr_copy(&ifp->eth_addr, &eth_hdr->s_addr);
 
 	if_output(ifp, m, in_ifp, ETH_P_IPV6);
 	return 0;

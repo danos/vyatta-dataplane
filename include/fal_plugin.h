@@ -419,7 +419,7 @@ union fal_attribute_value_t {
 	uint64_t u64;
 	fal_object_t objid;
 	const void *ptr;
-	struct ether_addr mac;
+	struct rte_ether_addr mac;
 	struct fal_ip_address_t ipaddr;
 	struct fal_object_list_t *objlist;
 	struct fal_qos_map_list_t *maplist;
@@ -745,7 +745,7 @@ void fal_plugin_l2_del_port(unsigned int if_index);
  * Add the address to the interface if_index
  */
 void fal_plugin_l2_new_addr(unsigned int if_index,
-			    const struct ether_addr *addr,
+			    const struct rte_ether_addr *addr,
 			    uint32_t attr_count,
 			    const struct fal_attribute_t *attr_list);
 
@@ -753,14 +753,14 @@ void fal_plugin_l2_new_addr(unsigned int if_index,
  * Update the addr on the interface if_index
  */
 void fal_plugin_l2_upd_addr(unsigned int if_index,
-			    const struct ether_addr *addr,
+			    const struct rte_ether_addr *addr,
 			    struct fal_attribute_t *attr);
 
 /*
  * Delete the address on the interface if_index
  */
 void fal_plugin_l2_del_addr(unsigned int if_index,
-			    const struct ether_addr *addr);
+			    const struct rte_ether_addr *addr);
 
 /* Router interface operations */
 
@@ -1424,7 +1424,7 @@ enum fal_br_neigh_entry_attr_t {
  */
 void fal_plugin_br_new_neigh(unsigned int child_ifindex,
 			     uint16_t vlanid,
-			     const struct ether_addr *dst,
+			     const struct rte_ether_addr *dst,
 			     uint32_t attr_count,
 			     const struct fal_attribute_t *attr_list);
 
@@ -1434,7 +1434,7 @@ void fal_plugin_br_new_neigh(unsigned int child_ifindex,
  */
 void fal_plugin_br_upd_neigh(unsigned int child_ifindex,
 			     uint16_t vlanid,
-			     const struct ether_addr *dst,
+			     const struct rte_ether_addr *dst,
 			     struct fal_attribute_t *attr);
 
 /*
@@ -1442,7 +1442,7 @@ void fal_plugin_br_upd_neigh(unsigned int child_ifindex,
  */
 void fal_plugin_br_del_neigh(unsigned int child_ifindex,
 			     uint16_t vlanid,
-			     const struct ether_addr *dst);
+			     const struct rte_ether_addr *dst);
 
 /**
  * @brief Iterator function for walk of bridge neighbours
@@ -1457,7 +1457,7 @@ void fal_plugin_br_del_neigh(unsigned int child_ifindex,
  * @return 0 on success. Negative errno on failure, terminating walk
  */
 typedef int (*fal_br_walk_neigh_fn)(uint16_t vlanid,
-				    const struct ether_addr *dst,
+				    const struct rte_ether_addr *dst,
 				    unsigned int child_ifindex,
 				    uint32_t attr_count,
 				    const struct fal_attribute_t *attr_list,
@@ -1477,7 +1477,7 @@ typedef int (*fal_br_walk_neigh_fn)(uint16_t vlanid,
  */
 int fal_plugin_br_walk_neigh(unsigned int bridge_ifindex,
 			     uint16_t vlanid,
-			     const struct ether_addr *dst,
+			     const struct rte_ether_addr *dst,
 			     unsigned int child_ifindex,
 			     fal_br_walk_neigh_fn cb,
 			     void *arg);

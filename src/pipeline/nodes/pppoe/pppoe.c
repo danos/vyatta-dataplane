@@ -341,14 +341,14 @@ ppp_do_encap(struct rte_mbuf *m, struct pppoe_connection *conn,
 	pheader->session = htons(conn->session);
 	if (output) {
 		memcpy(&pheader->eth_hdr.d_addr, &conn->peer_eth,
-				sizeof(struct ether_addr));
+				sizeof(struct rte_ether_addr));
 		memcpy(&pheader->eth_hdr.s_addr, &conn->my_eth,
-				sizeof(struct ether_addr));
+				sizeof(struct rte_ether_addr));
 	} else {
 		memcpy(&pheader->eth_hdr.d_addr, &conn->my_eth,
-				sizeof(struct ether_addr));
+				sizeof(struct rte_ether_addr));
 		memcpy(&pheader->eth_hdr.s_addr, &conn->peer_eth,
-				sizeof(struct ether_addr));
+				sizeof(struct rte_ether_addr));
 	}
 	pheader->eth_hdr.ether_type = htons(ETH_P_PPP_SES);
 	pheader->vertype = PPPOE_VER_TYPE(1, 1);

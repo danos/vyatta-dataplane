@@ -56,13 +56,13 @@
 
 struct ether_arp {
 	struct	arphdr ea_hdr;		/* fixed-size header */
-	struct ether_addr arp_sha;      /* sender hardware address */
+	struct rte_ether_addr arp_sha;      /* sender hardware address */
 	in_addr_t arp_spa;		/* sender protocol address */
-	struct ether_addr arp_tha;      /* target hardware address */
+	struct rte_ether_addr arp_tha;      /* target hardware address */
 	in_addr_t arp_tpa;		/* target protocol address */
 } __attribute__ ((__packed__));
 
-static struct ether_addr peer_mac, peer_mac2;
+static struct rte_ether_addr peer_mac, peer_mac2;
 static in_addr_t peer_ip, not_our_ip;
 static const char *iifmac;
 static struct arp_stats zero_arp_stats;

@@ -164,8 +164,8 @@ static inline struct rte_mbuf *vid_encap(uint16_t if_vlan,
 #endif
 
 IGNORE_SANITIZER
-static inline int ether_addr_equal(const struct ether_addr *e1,
-				   const struct ether_addr *e2)
+static inline int rte_ether_addr_equal(const struct rte_ether_addr *e1,
+				   const struct rte_ether_addr *e2)
 {
 	uint64_t e1_addr = shift16(*(const uint64_t *) e1);
 	uint64_t e2_addr = shift16(*(const uint64_t *) e2);
@@ -174,18 +174,19 @@ static inline int ether_addr_equal(const struct ether_addr *e1,
 }
 
 /*
- * A safe version of ether_addr_equal() that can be used safely
- * with ether_addr_copy(). The compiler might choose to re-order
- * parts of ether_addr_equal() before a copy.
+ * A safe version of rte_ether_addr_equal() that can be used safely
+ * with rte_ether_addr_copy(). The compiler might choose to re-order
+ * parts of rte_ether_addr_equal() before a copy.
  */
-static inline int ether_addr_equal_safe(const struct ether_addr *ea_from,
-					const struct ether_addr *ea_to)
+static inline int rte_ether_addr_equal_safe(
+					const struct rte_ether_addr *ea_from,
+					const struct rte_ether_addr *ea_to)
 {
 	return memcmp(ea_from, ea_to, sizeof(*ea_from)) == 0;
 }
 
 IGNORE_SANITIZER
-static inline uint32_t eth_addr_hash(const struct ether_addr *ea,
+static inline uint32_t eth_addr_hash(const struct rte_ether_addr *ea,
 				     unsigned int bits)
 {
 	uint64_t val = shift16(*(const uint64_t *) ea);
@@ -193,18 +194,18 @@ static inline uint32_t eth_addr_hash(const struct ether_addr *ea,
 	return hash64(val, bits);
 }
 
-static inline bool ether_is_empty(const struct ether_addr *mac)
+static inline bool ether_is_empty(const struct rte_ether_addr *mac)
 {
-	const struct ether_addr empty_mac = { { 0 } };
+	const struct rte_ether_addr empty_mac = { { 0 } };
 
-	return ether_addr_equal_safe(mac, &empty_mac);
+	return rte_ether_addr_equal_safe(mac, &empty_mac);
 }
 
 /*
  * is_link_local_ether_addr - Determine if given Ethernet address is
  * link-local.  Includes Spanning Tree multicast address.
  */
-static inline bool is_link_local_ether_addr(const struct ether_addr *ea)
+static inline bool is_link_local_ether_addr(const struct rte_ether_addr *ea)
 {
 	uint64_t ea_addr = clear_lsn(shift16(*(const uint64_t *) ea));
 

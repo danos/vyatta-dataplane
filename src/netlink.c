@@ -102,7 +102,7 @@ struct ifnet *lo_or_dummy_create(enum cont_src_en cont_src,
 				 unsigned int flags,
 				 const char *ifname,
 				 unsigned int mtu,
-				 const struct ether_addr *eth_addr)
+				 const struct rte_ether_addr *eth_addr)
 {
 	struct ifnet *ifp;
 	struct vfp_softc *vsc;
@@ -140,7 +140,7 @@ static struct ifnet *lo_create(enum cont_src_en cont_src,
 			       unsigned int flags,
 			       const char *ifname,
 			       unsigned int mtu,
-			       const struct ether_addr *eth_addr)
+			       const struct rte_ether_addr *eth_addr)
 {
 	struct ifnet *lo;
 
@@ -155,7 +155,7 @@ static struct ifnet *lo_create(enum cont_src_en cont_src,
 
 static struct ifnet *ppp_create(unsigned int ifindex, const char *ifname,
 				unsigned int mtu,
-				const struct ether_addr *eth_addr)
+				const struct rte_ether_addr *eth_addr)
 {
 	struct ifnet *ifp;
 
@@ -177,7 +177,7 @@ static struct ifnet *ppp_create(unsigned int ifindex, const char *ifname,
 static struct ifnet *other_tunnel_create(unsigned int ifindex,
 					 const char *ifname,
 					 unsigned int mtu,
-					 const struct ether_addr *eth_addr)
+					 const struct rte_ether_addr *eth_addr)
 {
 	struct ifnet *ifp;
 
@@ -200,7 +200,7 @@ static struct ifnet *other_tunnel_create(unsigned int ifindex,
 static struct ifnet *pimreg_tunnel_create(unsigned int ifindex,
 					 const char *ifname,
 					 unsigned int mtu,
-					 const struct ether_addr *eth_addr)
+					 const struct rte_ether_addr *eth_addr)
 {
 	struct ifnet *ifp;
 
@@ -355,7 +355,7 @@ static struct ifnet *unspec_link_create(const struct nlmsghdr *nlh,
 					const char *kind, struct nlattr *kdata,
 					enum cont_src_en cont_src)
 {
-	struct ether_addr *macaddr = NULL;
+	struct rte_ether_addr *macaddr = NULL;
 	unsigned int mtu = ETHER_MTU;
 	const uint16_t arphrd = ifi->ifi_type;
 	struct ifnet *parent_ifp = NULL;

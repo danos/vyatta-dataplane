@@ -180,7 +180,7 @@ dp_test_create_mbuf_chain(int n, const int *plen, uint16_t hlen)
 static void
 dp_test_pktmbuf_mac_set(struct rte_mbuf *m, const char *mac_str, bool src_mac)
 {
-	struct ether_addr *mac_field;
+	struct rte_ether_addr *mac_field;
 	struct ether_hdr *eth;
 
 	assert(m);
@@ -210,7 +210,7 @@ dp_test_pktmbuf_dmac_set(struct rte_mbuf *m, const char *dmac_str)
 static void
 dp_test_pktmbuf_mac_get(struct rte_mbuf *m, char *mac, bool src_mac)
 {
-	struct ether_addr *mac_field;
+	struct rte_ether_addr *mac_field;
 	struct ether_hdr *eth;
 
 	assert(m);
@@ -3504,9 +3504,9 @@ dp_test_mbuf_ethertype_is_mpls(struct rte_mbuf *m)
 
 struct ether_arp {
 	struct	arphdr ea_hdr;		/* fixed-size header */
-	struct ether_addr arp_sha;      /* sender hardware address */
+	struct rte_ether_addr arp_sha;      /* sender hardware address */
 	in_addr_t arp_spa;		/* sender protocol address */
-	struct ether_addr arp_tha;      /* target hardware address */
+	struct rte_ether_addr arp_tha;      /* target hardware address */
 	in_addr_t arp_tpa;		/* target protocol address */
 } __attribute__ ((__packed__));
 

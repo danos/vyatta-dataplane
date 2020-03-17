@@ -31,7 +31,7 @@ struct rte_mbuf;
 #define ND6_UNR_TOKEN 2
 #define ND6_MAXHOLD ARP_MAXHOLD
 
-struct ether_addr;
+struct rte_ether_addr;
 struct ifnet;
 
 struct nd6_nbr_cfg {
@@ -67,7 +67,7 @@ extern struct nd6_nbr_stats nd6nbrstat;
 
 int nd6_resolve(struct ifnet *in_ifp, struct ifnet *ifp,
 		struct rte_mbuf *m, const struct in6_addr *addr,
-		struct ether_addr *desten);
+		struct rte_ether_addr *desten);
 int nd6_input(struct ifnet *ifp, struct rte_mbuf *m);
 
 void nd6_nbr_walk(const struct ifnet *, ll_walkhash_f_t *, void *);
@@ -78,7 +78,7 @@ struct llentry *in6_lltable_lookup(struct ifnet *ifp, u_int flags,
 struct llentry *
 lla_lookup6(struct lltable *llt, const struct in6_addr *addr);
 int nd6_lladdr_add(struct ifnet *ifp, struct in6_addr *addr,
-		   const struct ether_addr *mac, uint16_t state,
+		   const struct rte_ether_addr *mac, uint16_t state,
 		   uint8_t ntf_flags);
 bool nd6_is_sol_na(struct rte_mbuf *m);
 int cmd_nd6_set_cfg(FILE *f, int argc, char **argv);
@@ -98,14 +98,14 @@ in6_lltable_find(struct ifnet *ifp, const struct in6_addr *addr)
  */
 static inline int
 nd6_resolve_fast(struct ifnet *in_ifp, struct ifnet *ifp, struct rte_mbuf *m,
-		 const struct in6_addr *addr, struct ether_addr *desten)
+		 const struct in6_addr *addr, struct rte_ether_addr *desten)
 {
 	struct llentry *la;
 
 	la = in6_lltable_find(ifp, addr);
 	if (likely(la && (la->la_flags & LLE_VALID))) {
 		rte_atomic16_clear(&la->ll_idle);
-		ether_addr_copy(&la->ll_addr, desten);
+		rte_ether_addr_copy(&la->ll_addr, desten);
 		return 0;
 	}
 

@@ -54,9 +54,9 @@ pppoe_in_process(struct pl_packet *pkt, void *context __unused)
 				sizeof(struct ether_hdr)));
 		m->l2_len = sizeof(struct ether_hdr);
 		memcpy(&eh->d_addr, &pppoe_hdr->eth_hdr.d_addr,
-				sizeof(struct ether_addr));
+				sizeof(struct rte_ether_addr));
 		memcpy(&eh->s_addr, &pppoe_hdr->eth_hdr.s_addr,
-				sizeof(struct ether_addr));
+				sizeof(struct rte_ether_addr));
 
 		switch (inner_proto) {
 		case PPP_IP:

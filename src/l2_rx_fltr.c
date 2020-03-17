@@ -59,7 +59,7 @@ l2_mcfltr_set_hw(struct ifnet *ifp)
 {
 	struct cds_lfht_iter iter;
 	struct l2_mcfltr_node *l2mf;
-	struct ether_addr l2mf_addr[L2_MCFLTRHASH_MAX];
+	struct rte_ether_addr l2mf_addr[L2_MCFLTRHASH_MAX];
 	int count = 0;
 	int ret;
 
@@ -108,7 +108,7 @@ l2_mcfltr_set_hw(struct ifnet *ifp)
  * Add/update an mcast filter table entry
  */
 static void
-l2_mcfltr_add_entry(struct ifnet *ifp, const struct ether_addr *dst)
+l2_mcfltr_add_entry(struct ifnet *ifp, const struct rte_ether_addr *dst)
 {
 	struct l2_mcfltr_node *bmf;
 
@@ -191,7 +191,7 @@ l2_rx_fltr_init(struct ifnet *ifp)
 }
 
 static void
-l2_mcfltr_del_entry(struct ifnet *ifp, const struct ether_addr *dst)
+l2_mcfltr_del_entry(struct ifnet *ifp, const struct rte_ether_addr *dst)
 {
 	struct l2_mcfltr_node *bmf = l2_mcfltr_node_lookup(ifp, dst);
 
@@ -310,7 +310,7 @@ void l2_rx_fltr_state_change(struct ifnet *ifp)
 static void
 l2_mcfltr_add_bonded_entry(struct ifnet *ifp, void *grp)
 {
-	const struct ether_addr *dst = grp;
+	const struct rte_ether_addr *dst = grp;
 
 	l2_mcfltr_add_entry(ifp, dst);
 }
@@ -321,7 +321,7 @@ l2_mcfltr_add_bonded_entry(struct ifnet *ifp, void *grp)
 static void
 l2_mcfltr_del_bonded_entry(struct ifnet *ifp, void *grp)
 {
-	const struct ether_addr *dst = grp;
+	const struct rte_ether_addr *dst = grp;
 
 	l2_mcfltr_del_entry(ifp, dst);
 }
@@ -329,7 +329,7 @@ l2_mcfltr_del_bonded_entry(struct ifnet *ifp, void *grp)
 /*
  * Process a netlink add address message
  */
-void l2_rx_fltr_add_addr(struct ifnet *ifp, const struct ether_addr *dst)
+void l2_rx_fltr_add_addr(struct ifnet *ifp, const struct rte_ether_addr *dst)
 {
 	DP_DEBUG(MULTICAST, INFO, MCAST,
 		 "Processing RTM_NEWADDR for %s; MAC address: %s.\n",
@@ -351,7 +351,8 @@ void l2_rx_fltr_add_addr(struct ifnet *ifp, const struct ether_addr *dst)
 		/* If adding to a bonded IF add to slaves (physical IF) */
 		if (ifp->if_team) {
 			int err;
-			struct ether_addr *grp = (struct ether_addr *)dst;
+			struct rte_ether_addr *grp =
+					(struct rte_ether_addr *) dst;
 			err = lag_walk_bond_slaves
 				(ifp, l2_mcfltr_add_bonded_entry, grp);
 			if (err < 0)
@@ -369,7 +370,7 @@ void l2_rx_fltr_add_addr(struct ifnet *ifp, const struct ether_addr *dst)
 /*
  * Process a delete address netlink message
  */
-void l2_rx_fltr_del_addr(struct ifnet *ifp, const struct ether_addr *dst)
+void l2_rx_fltr_del_addr(struct ifnet *ifp, const struct rte_ether_addr *dst)
 {
 	DP_DEBUG(MULTICAST, INFO, MCAST,
 		 "Processing RTM_DELADDR for %s; MAC address: %s.\n",
@@ -386,7 +387,8 @@ void l2_rx_fltr_del_addr(struct ifnet *ifp, const struct ether_addr *dst)
 		/* If deleting from a bonded IF delete from slaves (phys IF) */
 		if (ifp->if_team) {
 			int err;
-			struct ether_addr *grp = (struct ether_addr *)dst;
+			struct rte_ether_addr *grp =
+					(struct rte_ether_addr *) dst;
 			err = lag_walk_bond_slaves
 				(ifp, l2_mcfltr_del_bonded_entry, grp);
 			if (err < 0)

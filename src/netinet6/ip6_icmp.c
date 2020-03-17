@@ -506,7 +506,7 @@ void icmp6_redirect(struct ifnet *ifp, struct rte_mbuf *n,
 		struct nd_opt_hdr *nd_opt = (struct nd_opt_hdr *)(nd_rd + 1);
 		nd_opt->nd_opt_type = ND_OPT_TARGET_LINKADDR;
 		nd_opt->nd_opt_len = ICMP6_OPT_LEN(nd_opt_hdr, ETHER_ADDR_LEN);
-		ether_addr_copy(&ln->ll_addr, (void *)(nd_opt + 1));
+		rte_ether_addr_copy(&ln->ll_addr, (void *)(nd_opt + 1));
 	}
 
 	/* Add Redirected Header option */

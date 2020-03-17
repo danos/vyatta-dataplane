@@ -68,11 +68,12 @@ int
 npf_match_mac(const struct rte_mbuf *nbuf, uint32_t opts, const char *filt)
 {
 	const struct ether_hdr *eh = rte_pktmbuf_mtod(nbuf, struct ether_hdr *);
-	const struct ether_addr *addr;
+	const struct rte_ether_addr *addr;
 
 	addr = (opts & NC_MATCH_SRC) ? &eh->s_addr : &eh->d_addr;
 
-	return ether_addr_equal(addr, (struct ether_addr *)filt) ? 0 : -1;
+	return rte_ether_addr_equal(addr,
+				    (struct rte_ether_addr *)filt) ? 0 : -1;
 }
 
 /*

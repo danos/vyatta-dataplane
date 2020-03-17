@@ -144,7 +144,8 @@ ether_lookup_process_common(struct pl_packet *pkt, void *context __unused,
 	} else {
 		pkt->l2_pkt_type = L2_PKT_UNICAST;
 
-		if (unlikely(!ether_addr_equal(&ifp->eth_addr, &eth->d_addr)) &&
+		if (unlikely(!rte_ether_addr_equal(&ifp->eth_addr,
+						   &eth->d_addr)) &&
 		    (!(m->ol_flags & PKT_RX_VLAN) ||
 		     !ifp->if_vlantbl)) {
 			struct ifnet *macvlan_ifp;

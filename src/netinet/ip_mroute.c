@@ -1051,7 +1051,7 @@ static int mcast_ethernet_send(struct ifnet *in_ifp,
 
 	mcast_dst_eth_addr_t eth_daddr = mcast_dst_eth_addr(ip->daddr);
 	eth_hdr = rte_pktmbuf_mtod(m, struct ether_hdr *);
-	ether_addr_copy(&eth_daddr.as_addr, &eth_hdr->d_addr);
+	rte_ether_addr_copy(&eth_daddr.as_addr, &eth_hdr->d_addr);
 
 	mc_ip_output(in_ifp, m, out_vifp->v_ifp, ip);
 	out_vifp->v_pkt_out++;

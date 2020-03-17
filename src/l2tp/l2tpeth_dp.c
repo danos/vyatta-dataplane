@@ -63,11 +63,11 @@ l2tp_undo_encap(struct ifnet *ifp, struct rte_mbuf *m,
 	/* Replace the dest addr to be the shadow if's if we have
 	   replaced the original ether-hdr in routed case.
 	*/
-	if (ether_addr_equal(&eh->s_addr, &ifp->eth_addr)) {
+	if (rte_ether_addr_equal(&eh->s_addr, &ifp->eth_addr)) {
 		const struct ifnet *dp_ifp = ifnet_byport(m->port);
 
 		if (dp_ifp)
-			ether_addr_copy(&dp_ifp->eth_addr, &eh->d_addr);
+			rte_ether_addr_copy(&dp_ifp->eth_addr, &eh->d_addr);
 		else
 			return -1;
 	}

@@ -34,7 +34,7 @@
 #include "vrf.h"
 
 struct cds_lfht;
-struct ether_addr;
+struct rte_ether_addr;
 
 #ifndef ARRAY_SIZE
 #define ARRAY_SIZE(a) (sizeof(a) / sizeof(a[0]))
@@ -51,13 +51,13 @@ struct ether_addr;
 
 #ifndef _NETINET_ETHER_H
 /* Convert 48 bit Ethernet ADDRess to ASCII.  */
-char *ether_ntoa(const struct ether_addr *__addr);
-char *ether_ntoa_r(const struct ether_addr *__addr, char *__buf);
+char *ether_ntoa(const struct rte_ether_addr *__addr);
+char *ether_ntoa_r(const struct rte_ether_addr *__addr, char *__buf);
 
 /* Convert ASCII string S to 48 bit Ethernet address.  */
-struct ether_addr *ether_aton(const char *__asc);
-struct ether_addr *ether_aton_r(const char *__asc,
-					struct ether_addr *__addr);
+struct rte_ether_addr *ether_aton(const char *__asc);
+struct rte_ether_addr *ether_aton_r(const char *__asc,
+					struct rte_ether_addr *__addr);
 #endif
 
 /*

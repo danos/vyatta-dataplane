@@ -251,7 +251,7 @@ dp_test_netlink_interface_l2_all(const char *ifname, int mtu,
 		dp_test_assert_internal(0);
 
 	if (verify) {
-		struct ether_addr *mac_addr;
+		struct rte_ether_addr *mac_addr;
 		char cmd[TEST_MAX_CMD_LEN];
 		json_object *expected;
 		char ebuf[32];
@@ -540,7 +540,7 @@ dp_test_netlink_tunnel(const char *tun_name,
 		mnl_attr_put_u32(nlh, IFLA_MTU, 1476);
 		break;
 	}
-	mnl_attr_put(nlh, IFLA_ADDRESS, sizeof(struct ether_addr),
+	mnl_attr_put(nlh, IFLA_ADDRESS, sizeof(struct rte_ether_addr),
 		     dp_test_intf_name2mac(tun_name));
 	mnl_attr_put_strz(nlh, IFLA_IFNAME, tun_name);
 
@@ -777,7 +777,7 @@ _dp_test_verify_neigh(const char *ifname, const char *ipaddr,
 	bool ipv4_neigh = false;
 	struct dp_test_addr addr;
 	uint32_t v4_addr;
-	struct ether_addr mac;
+	struct rte_ether_addr mac;
 	char real_ifname[IFNAMSIZ];
 
 	dp_test_intf_real(ifname, real_ifname);
@@ -878,7 +878,7 @@ dp_test_netlink_neighbour(const char *ifname, const char *nh_addr_str,
 	char buf[MNL_SOCKET_BUFFER_SIZE];
 	struct nlmsghdr *nlh;
 	char topic[DP_TEST_TMP_BUF];
-	struct ether_addr mac;
+	struct rte_ether_addr mac;
 	char real_ifname[IFNAMSIZ];
 	bool ipv4_neigh = false;
 	uint32_t v4_addr;
@@ -1841,7 +1841,7 @@ dp_test_netlink_bridge(const char *br_name, uint16_t nlmsg_type, bool verify,
 	 * IFLA_PROTINFO
 	 */
 	mnl_attr_put_strz(nlh, IFLA_IFNAME, real_br_name);
-	mnl_attr_put(nlh, IFLA_ADDRESS, sizeof(struct ether_addr),
+	mnl_attr_put(nlh, IFLA_ADDRESS, sizeof(struct rte_ether_addr),
 		     dp_test_intf_name2mac(real_br_name));
 	if (nlmsg_type == RTM_NEWLINK)
 		mnl_attr_put_u8(nlh, IFLA_OPERSTATE, DP_TEST_IF_OPER_UP);
@@ -2214,7 +2214,7 @@ void _dp_test_netlink_set_bridge_vlan_filter(const char *br_name, bool verify,
 	 *        IFLA_BR_VLAN_FILTERING: u8
 	 */
 	mnl_attr_put_strz(nlh, IFLA_IFNAME, real_br_name);
-	mnl_attr_put(nlh, IFLA_ADDRESS, sizeof(struct ether_addr),
+	mnl_attr_put(nlh, IFLA_ADDRESS, sizeof(struct rte_ether_addr),
 		     dp_test_intf_name2mac(real_br_name));
 	if (nlmsg_type == RTM_NEWLINK)
 		mnl_attr_put_u8(nlh, IFLA_OPERSTATE, DP_TEST_IF_OPER_UP);
@@ -2395,7 +2395,7 @@ dp_test_netlink_vxlan(const char *vxlan_name, uint16_t nlmsg_type,
 	 * IFLA_OPERSTATE
 	 */
 	mnl_attr_put_strz(nlh, IFLA_IFNAME, vxlan_name);
-	mnl_attr_put(nlh, IFLA_ADDRESS, sizeof(struct ether_addr),
+	mnl_attr_put(nlh, IFLA_ADDRESS, sizeof(struct rte_ether_addr),
 		     dp_test_intf_name2mac(vxlan_name));
 	if (nlmsg_type == RTM_NEWLINK)
 		mnl_attr_put_u8(nlh, IFLA_OPERSTATE, DP_TEST_IF_OPER_UP);
@@ -2549,7 +2549,7 @@ dp_test_netlink_vlan(const char *vif_name, uint16_t nlmsg_type,
 	 */
 	mnl_attr_put_strz(nlh, IFLA_IFNAME, real_vif_name);
 	if (parent_name)
-		mnl_attr_put(nlh, IFLA_ADDRESS, sizeof(struct ether_addr),
+		mnl_attr_put(nlh, IFLA_ADDRESS, sizeof(struct rte_ether_addr),
 			     dp_test_intf_name2mac(real_parent_name));
 	if (nlmsg_type == RTM_NEWLINK)
 		mnl_attr_put_u8(nlh, IFLA_OPERSTATE, DP_TEST_IF_OPER_UP);
@@ -2656,7 +2656,7 @@ dp_test_netlink_macvlan(const char *vif_name, uint16_t nlmsg_type,
 	struct nlattr *vlan_info;
 	char topic[DP_TEST_TMP_BUF];
 	char real_parent_name[IFNAMSIZ];
-	struct ether_addr mac;
+	struct rte_ether_addr mac;
 	struct ifinfomsg *ifi;
 	struct nlmsghdr *nlh;
 	int if_index = 0;
@@ -2841,7 +2841,7 @@ dp_test_netlink_vti(const char *tun_name,
 		mnl_attr_put_u32(nlh, IFLA_MASTER, vrf_id);
 	}
 	mnl_attr_put_u32(nlh, IFLA_MTU, 1428);
-	mnl_attr_put(nlh, IFLA_ADDRESS, sizeof(struct ether_addr),
+	mnl_attr_put(nlh, IFLA_ADDRESS, sizeof(struct rte_ether_addr),
 		     dp_test_intf_name2mac(tun_name));
 	mnl_attr_put_strz(nlh, IFLA_IFNAME, tun_name);
 
@@ -2898,7 +2898,7 @@ dp_test_netlink_lo_or_vfp(const char *name, bool verify, uint16_t nl_type,
 	int if_index = dp_test_intf_name2index(name);
 	char buf[MNL_SOCKET_BUFFER_SIZE];
 	struct nlmsghdr *nlh;
-	struct ether_addr addr;
+	struct rte_ether_addr addr;
 
 	memset(&addr, 0, sizeof(addr));
 
@@ -3030,7 +3030,7 @@ dp_test_netlink_vrf_master(const char *name, bool verify, uint16_t nl_type,
 	int if_index = dp_test_intf_name2index(name);
 	char buf[MNL_SOCKET_BUFFER_SIZE];
 	struct nlmsghdr *nlh;
-	struct ether_addr addr;
+	struct rte_ether_addr addr;
 
 	memset(&addr, 0, sizeof(addr));
 

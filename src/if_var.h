@@ -266,7 +266,7 @@ struct ifnet {
 	struct npf_if	   *if_npf;	/* NPF specific info */
 	struct ifnet	   *if_parent;	/* real device for vlan */
 
-	struct ether_addr  eth_addr;
+	struct rte_ether_addr  eth_addr;
 	uint8_t            ip_encap_features;
 	uint8_t            ip6_encap_features;
 
@@ -322,7 +322,7 @@ struct ifnet {
 	uint16_t	   vif_cnt;
 	unsigned int	   if_pcount;	/* promiscuous mode */
 
-	struct ether_addr  perm_addr;   /* "permanent" MAC address */
+	struct rte_ether_addr  perm_addr;   /* "permanent" MAC address */
 
 	uint16_t	   mpls_labelspace;
 
@@ -645,12 +645,12 @@ if_vlan_lookup(const struct ifnet *ifp, uint16_t vid)
 }
 
 struct ifnet *if_alloc(const char *name, enum if_type type,
-		       unsigned int mtu, const struct ether_addr *eth_addr,
+		       unsigned int mtu, const struct rte_ether_addr *eth_addr,
 		       int socketid);
 void if_set_ifindex(struct ifnet *ifp, unsigned int ifindex);
 void if_unset_ifindex(struct ifnet *ifp);
 struct ifnet *if_hwport_alloc(unsigned int port,
-			      const struct ether_addr *eth_addr,
+			      const struct rte_ether_addr *eth_addr,
 			      int socketid);
 void if_free(struct ifnet *ifp);
 void netlink_if_free(struct ifnet *ifp);
@@ -658,7 +658,7 @@ void if_cleanup(enum cont_src_en cont_src);
 bool if_setup_vlan_storage(struct ifnet *ifp);
 void if_finish_create(struct ifnet *ifp, const char *ifi_type,
 		      const char *kind,
-		      const struct ether_addr *mac_addr);
+		      const struct rte_ether_addr *mac_addr);
 enum if_feat_mode_event;
 bool if_is_features_mode_active(struct ifnet *ifp,
 				enum if_feat_mode_event event);
@@ -942,8 +942,8 @@ void vfp_output(struct ifnet *ifp, struct rte_mbuf *m,
 int if_vlan_proto_set(struct ifnet *ifp, uint16_t proto);
 void if_qinq_created(struct ifnet *phy_ifp);
 void if_qinq_deleted(struct ifnet *phy_ifp);
-int if_add_l2_addr(struct ifnet *ifp, struct ether_addr *addr);
-int if_del_l2_addr(struct ifnet *ifp, struct ether_addr *addr);
+int if_add_l2_addr(struct ifnet *ifp, struct rte_ether_addr *addr);
+int if_del_l2_addr(struct ifnet *ifp, struct rte_ether_addr *addr);
 
 void ifpromisc(struct ifnet *ifp, int onswitch);
 void if_allmulti(struct ifnet *ifp, int onswitch);
@@ -984,10 +984,10 @@ void missed_nl_unspec_link_add(unsigned int ifindex,
 			       const struct nlmsghdr *nlh);
 void missed_nl_unspec_link_del(unsigned int ifindex);
 void missed_nl_unspec_addr_add(unsigned int ifindex,
-			       const struct ether_addr *addr,
+			       const struct rte_ether_addr *addr,
 			       const struct nlmsghdr *nlh);
 void missed_nl_unspec_addr_del(unsigned int ifindex,
-			       const struct ether_addr *addr);
+			       const struct rte_ether_addr *addr);
 void missed_nl_inet_addr_add(unsigned int ifindex,
 			     unsigned char family,
 			     const void *addr,

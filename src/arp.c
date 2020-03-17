@@ -194,7 +194,7 @@ arprequest(struct ifnet *ifp, struct sockaddr *sa)
 		return NULL;
 	}
 	memset(&eh->d_addr, 0xff, ETHER_ADDR_LEN);
-	ether_addr_copy(&ifp->eth_addr, &eh->s_addr);
+	rte_ether_addr_copy(&ifp->eth_addr, &eh->s_addr);
 	eh->ether_type = htons(ETHER_TYPE_ARP);
 
 	ah = (struct ether_arp *) (eh+1);
@@ -204,7 +204,8 @@ arprequest(struct ifnet *ifp, struct sockaddr *sa)
 	ah->arp_pln = sizeof(in_addr_t);	/* protocol address length */
 	ah->arp_op = htons(ARPOP_REQUEST);
 
-	ether_addr_copy(&ifp->eth_addr, (struct ether_addr *) ah->arp_sha);
+	rte_ether_addr_copy(&ifp->eth_addr,
+			    (struct rte_ether_addr *) ah->arp_sha);
 	memcpy(ah->arp_spa, &sip, sizeof(sip));
 	memset(ah->arp_tha, 0, ETHER_ADDR_LEN);
 	memcpy(ah->arp_tpa, &tip, sizeof(tip));
@@ -227,7 +228,7 @@ arprequest(struct ifnet *ifp, struct sockaddr *sa)
  * this request so error code doesn't really matter.
  */
 int arpresolve(struct ifnet *ifp, struct rte_mbuf *m,
-	       in_addr_t addr, struct ether_addr *desten)
+	       in_addr_t addr, struct rte_ether_addr *desten)
 {
 	struct llentry *la;
 
@@ -238,7 +239,7 @@ lookup:
 	if (likely(la && (la->la_flags & LLE_VALID))) {
 resolved:
 		rte_atomic16_clear(&la->ll_idle);
-		ether_addr_copy(&la->ll_addr, desten);
+		rte_ether_addr_copy(&la->ll_addr, desten);
 		return 0;
 	}
 
@@ -314,7 +315,7 @@ resolved:
 /* Optimized inline version of arpresolve. */
 ALWAYS_INLINE int
 arpresolve_fast(struct ifnet *ifp, struct rte_mbuf *m,
-		in_addr_t addr, struct ether_addr *desten)
+		in_addr_t addr, struct rte_ether_addr *desten)
 {
 	struct llentry *la = in_lltable_find(ifp, addr);
 
@@ -352,12 +353,12 @@ bool arp_input_validate(const struct ifnet *ifp, struct rte_mbuf *m)
 		goto drop;
 	}
 
-	if (is_multicast_ether_addr((struct ether_addr *) ah->arp_sha)) {
+	if (is_multicast_ether_addr((struct rte_ether_addr *) ah->arp_sha)) {
 		ARP_DEBUG("source hardware addresss is multicast.\n");
 		goto drop;
 	}
 
-	if (is_zero_ether_addr((struct ether_addr *) ah->arp_sha)) {
+	if (is_zero_ether_addr((struct rte_ether_addr *) ah->arp_sha)) {
 		ARP_DEBUG("source hardware address is invalid.\n");
 		goto drop;
 	}
@@ -381,12 +382,13 @@ bool arp_input_validate(const struct ifnet *ifp, struct rte_mbuf *m)
 		goto drop;
 	}
 
-	if (ether_addr_equal((struct ether_addr *) ah->arp_sha, &ifp->eth_addr)) {
+	if (rte_ether_addr_equal((struct rte_ether_addr *) ah->arp_sha,
+				 &ifp->eth_addr)) {
 		ARP_DEBUG("saw own arp?");
 		goto drop;	/* it's from me, ignore it. */
 	}
 
-	if (is_broadcast_ether_addr((struct ether_addr *)ah->arp_sha)) {
+	if (is_broadcast_ether_addr((struct rte_ether_addr *)ah->arp_sha)) {
 		ARP_DEBUG("link address is broadcast for IP address %s!\n",
 			  inet_ntop(AF_INET, ah->arp_spa,
 				    addrb, sizeof(addrb)));

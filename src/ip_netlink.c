@@ -69,7 +69,7 @@ static int inet_neigh_change(const struct nlmsghdr *nlh,
 {
 	struct ifnet *ifp;
 	const void *lladdr = NULL;
-	struct ether_addr ea;
+	struct rte_ether_addr ea;
 	const void *dst = anyaddr;
 	size_t llen = 0;
 
@@ -100,7 +100,7 @@ static int inet_neigh_change(const struct nlmsghdr *nlh,
 		lladdr = mnl_attr_get_payload(tb[NDA_LLADDR]);
 		if (llen < ETHER_ADDR_LEN && lladdr != NULL) {
 			memset(&ea, 0, ETHER_ADDR_LEN);
-			/* Don't use ether_addr_copy here */
+			/* Don't use rte_ether_addr_copy here */
 			lladdr = memcpy(&ea, lladdr, llen);
 			RTE_LOG(DEBUG, ROUTE,
 				"neighbor message with addrlen = %zd %s\n",

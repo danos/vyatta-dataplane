@@ -1025,7 +1025,7 @@ gre_tunnel_add_tep(struct ifnet *ifp, struct gre_info_st *tep)
 /* Create GRE tunnel in response to netlink */
 struct ifnet *
 gre_tunnel_create(int ifindex, const char *ifname,
-		  const struct ether_addr *addr, const unsigned int mtu,
+		  const struct rte_ether_addr *addr, const unsigned int mtu,
 		  struct nlattr *data)
 {
 	struct ifnet *ifp;

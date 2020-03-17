@@ -26,7 +26,7 @@
 #include "util.h"
 #include "vrf_internal.h"
 
-struct ether_addr;
+struct rte_ether_addr;
 struct fal_attribute_t;
 struct fal_ip_address_t;
 struct if_addr;
@@ -183,21 +183,21 @@ struct fal_bridge_ops {
 			 unsigned int child_ifindex);
 	void (*new_neigh)(unsigned int child_ifindex,
 			  uint16_t vlanid,
-			  const struct ether_addr *dst,
+			  const struct rte_ether_addr *dst,
 			  uint32_t attr_count,
 			  const struct fal_attribute_t *attr_list);
 	void (*upd_neigh)(unsigned int child_ifindex,
 			  uint16_t vlanid,
-			  const struct ether_addr *dst,
+			  const struct rte_ether_addr *dst,
 			  struct fal_attribute_t *attr);
 	void (*del_neigh)(unsigned int child_ifindex,
 			  uint16_t vlanid,
-			  const struct ether_addr *dst);
+			  const struct rte_ether_addr *dst);
 	void (*flush_neigh)(unsigned int bridge_ifindex,
 			    uint32_t attr_count,
 			    const struct fal_attribute_t *attr_list);
 	int (*walk_neigh)(unsigned int bridge_ifindex, uint16_t vlanid,
-			  const struct ether_addr *dst,
+			  const struct rte_ether_addr *dst,
 			  unsigned int child_ifindex,
 			  fal_br_walk_neigh_fn cb, void *arg);
 };
@@ -633,14 +633,14 @@ int fal_l2_upd_port(unsigned int if_index,
 		    struct fal_attribute_t *attr);
 void fal_l2_del_port(unsigned int if_index);
 void fal_l2_new_addr(unsigned int if_index,
-		     const struct ether_addr *addr,
+		     const struct rte_ether_addr *addr,
 		     uint32_t attr_count,
 		     const struct fal_attribute_t *attr_list);
 void fal_l2_upd_addr(unsigned int if_index,
-		     const struct ether_addr *addr,
+		     const struct rte_ether_addr *addr,
 		     struct fal_attribute_t *attr);
 void fal_l2_del_addr(unsigned int if_index,
-		     const struct ether_addr *addr);
+		     const struct rte_ether_addr *addr);
 
 /* Router Interface related APIs */
 int fal_create_router_interface(uint32_t attr_count,
@@ -698,25 +698,26 @@ void fal_br_del_port(unsigned int bridge_ifindex,
 		     unsigned int child_ifindex);
 void fal_br_new_neigh(unsigned int child_ifindex,
 		      uint16_t vlanid,
-		      const struct ether_addr *dst,
+		      const struct rte_ether_addr *dst,
 		      uint32_t attr_count,
 		      const struct fal_attribute_t *attr_list);
 void fal_br_upd_neigh(unsigned int child_ifindex,
 		      uint16_t vlanid,
-		      const struct ether_addr *dst,
+		      const struct rte_ether_addr *dst,
 		      struct fal_attribute_t *attr);
 void fal_br_del_neigh(unsigned int child_ifindex,
 		      uint16_t vlanid,
-		      const struct ether_addr *dst);
+		      const struct rte_ether_addr *dst);
 void fal_br_flush_neigh(unsigned int bridge_ifindex,
 			uint32_t attr_count,
 			const struct fal_attribute_t *attr);
 void fal_fdb_flush_mac(unsigned int bridge_ifindex, unsigned int child_ifindex,
-		       const struct ether_addr *mac);
+		       const struct rte_ether_addr *mac);
 void fal_fdb_flush(unsigned int bridge_ifindex, unsigned int child_ifindex,
 		   uint16_t vlanid, bool only_dynamic);
 int fal_br_walk_neigh(unsigned int bridge_ifindex, uint16_t vlanid,
-		      const struct ether_addr *dst, unsigned int child_ifindex,
+		      const struct rte_ether_addr *dst,
+		      unsigned int child_ifindex,
 		      fal_br_walk_neigh_fn cb, void *arg);
 
 int fal_vlan_get_stats(uint16_t vlan, uint32_t num_cntrs,

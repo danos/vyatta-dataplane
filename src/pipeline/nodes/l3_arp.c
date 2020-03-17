@@ -101,7 +101,7 @@ struct	ether_arp {
 
 /* Turn a request into a reply and send it */
 static int arp_reply(struct ifnet *ifp, struct rte_mbuf *m,
-		     const struct ether_addr *ea, in_addr_t taddr)
+		     const struct rte_ether_addr *ea, in_addr_t taddr)
 {
 	struct ether_hdr *eh = rte_pktmbuf_mtod(m, struct ether_hdr *);
 	struct ether_arp *ah = (struct ether_arp *) (eh + 1);
@@ -121,7 +121,8 @@ static int arp_reply(struct ifnet *ifp, struct rte_mbuf *m,
 	char b1[INET_ADDRSTRLEN], b2[ETH_ADDR_STR_LEN];
 	ARP_DEBUG("send reply for %s (%s) on %s\n",
 		  inet_ntop(AF_INET, &taddr, b1, sizeof(b1)),
-		  ether_ntoa_r((const struct ether_addr *)(ah->arp_sha), b2),
+		  ether_ntoa_r((const struct rte_ether_addr *)(ah->arp_sha),
+			       b2),
 		  ifp->if_name);
 
 	ARPSTAT_INC(if_vrfid(ifp), txreplies);
@@ -174,7 +175,7 @@ static bool arp_proxy(struct ifnet *ifp, in_addr_t addr, struct rte_mbuf *m,
  * only if the target IP address is configured on the incoming interface.
  * (Equivalent to arp_ignore=1 in Linux)
  */
-static int arp_ignore(struct ifnet *ifp, const struct ether_addr *enaddr,
+static int arp_ignore(struct ifnet *ifp, const struct rte_ether_addr *enaddr,
 		      in_addr_t src, in_addr_t target)
 {
 	struct if_addr *ifa;
@@ -224,7 +225,8 @@ arp_in_nothot_process(struct pl_packet *pkt, void *context __unused)
 	int resp;
 
 	eh = rte_pktmbuf_mtod(m, struct ether_hdr *);
-	vrrp_ifp = macvlan_get_vrrp_if(ifp, (struct ether_addr *)&eh->d_addr);
+	vrrp_ifp = macvlan_get_vrrp_if(ifp,
+				       (struct rte_ether_addr *)&eh->d_addr);
 	if (vrrp_ifp)
 		pkt->in_ifp = ifp = vrrp_ifp;
 
@@ -271,7 +273,7 @@ arp_in_nothot_process(struct pl_packet *pkt, void *context __unused)
 	if (op == ARPOP_REPLY)
 		ARPSTAT_INC(if_vrfid(ifp), rxreplies);
 
-	rc = arp_ignore(ifp, (struct ether_addr *) ah->arp_sha,
+	rc = arp_ignore(ifp, (struct rte_ether_addr *) ah->arp_sha,
 			isaddr, itaddr);
 	if (rc != 0) {
 		if (rc == -ENOENT && op == ARPOP_REQUEST &&
@@ -330,7 +332,7 @@ arp_in_nothot_process(struct pl_packet *pkt, void *context __unused)
 	la = in_lltable_lookup(ifp, garp ? 0 : LLE_CREATE, isaddr);
 	if (la) {
 		lladdr_update(ifp, la,
-			      (struct ether_addr *) ah->arp_sha, 0);
+			      (struct rte_ether_addr *) ah->arp_sha, 0);
 
 		/* Allow packet to bleed back to keep local tables in sync. */
 		if ((op == ARPOP_REPLY) || garp) {

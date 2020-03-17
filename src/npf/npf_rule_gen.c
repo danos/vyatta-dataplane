@@ -464,7 +464,7 @@ npf_gen_ncode_tcp_flags(nc_ctx_t *nc_ctx, char *tcp_flags)
 static int
 npf_gen_ncode_mac_addr(nc_ctx_t *nc_ctx, char *value, int options)
 {
-	struct ether_addr ma;
+	struct rte_ether_addr ma;
 	uint8_t *ab = ma.addr_bytes;
 
 	if (sscanf(value, "%2hhx:%2hhx:%2hhx:%2hhx:%2hhx:%2hhx",

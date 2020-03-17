@@ -153,10 +153,10 @@ static struct vxlan_vnitbl *vxlans;
 static void vxlan_timer(struct rte_timer *, void *);
 static void vxlan_rtupdate(struct ifnet *ifp,
 			  struct ip_addr *addr,
-			  const struct ether_addr *dst);
+			  const struct rte_ether_addr *dst);
 static struct vxlan_rtnode *
 vxlan_rtnode_lookup(struct vxlan_softc *sc,
-		    const struct ether_addr *addr);
+		    const struct rte_ether_addr *addr);
 
 /*
  * VNI Table functions
@@ -936,13 +936,13 @@ vxlan_snoop(enum vgpe_nxt_proto nxtproto, struct ifnet *ifp,
 	/* Don't learn my own address,
 	 *  other side might be setup the same way
 	 */
-	if (unlikely(ether_addr_equal(&eh->s_addr, &ifp->eth_addr)))
+	if (unlikely(rte_ether_addr_equal(&eh->s_addr, &ifp->eth_addr)))
 		return;
 
 	struct bridge_port *brport = rcu_dereference(ifp->if_brport);
 
 	if (unlikely(brport &&
-		     ether_addr_equal(
+		     rte_ether_addr_equal(
 			     &eh->s_addr,
 			     &bridge_port_get_bridge(brport)->eth_addr)))
 		return;
@@ -1201,7 +1201,7 @@ drop:
  */
 /* Given key (ether address) generate a hash */
 static inline unsigned long
-vxlan_rtnode_hash(const struct ether_addr *key)
+vxlan_rtnode_hash(const struct rte_ether_addr *key)
 {
 	return eth_addr_hash(key, VXLAN_RTHASH_BITS);
 }
@@ -1213,13 +1213,13 @@ static int vxlan_rtnode_match(struct cds_lfht_node *node,
 	const struct vxlan_rtnode *vxlrt
 		= caa_container_of(node, const struct vxlan_rtnode, vxlrt_node);
 
-	return ether_addr_equal(&vxlrt->vxlrt_addr, key);
+	return rte_ether_addr_equal(&vxlrt->vxlrt_addr, key);
 }
 
 /* Look up a vxlan route node for the specified destination. */
 static struct vxlan_rtnode *
 vxlan_rtnode_lookup(struct vxlan_softc *sc,
-		    const struct ether_addr *addr)
+		    const struct rte_ether_addr *addr)
 {
 	struct cds_lfht_iter iter;
 
@@ -1255,7 +1255,7 @@ vxlan_rtnode_insert(struct vxlan_softc *sc, struct vxlan_rtnode *vxlrt)
 static void
 vxlan_rtupdate(struct ifnet *ifp,
 	       struct ip_addr *addr,
-	       const struct ether_addr *dst)
+	       const struct rte_ether_addr *dst)
 {
 	struct vxlan_softc *sc = ifp->if_softc;
 	struct vxlan_rtnode *vxlrt;
@@ -1627,7 +1627,7 @@ setup_vxlan(struct ifnet *ifp, uint flags,
 /* Create vxlan in response to netlink */
 struct ifnet *
 vxlan_create(const struct ifinfomsg *ifi, const char *ifname,
-	     const struct ether_addr *addr,
+	     const struct rte_ether_addr *addr,
 	     struct nlattr *tb[], struct nlattr *data,
 	     enum cont_src_en cont_src, const struct nlmsghdr *nlh)
 {
@@ -1753,7 +1753,7 @@ static uint8_t ndmstate_to_flags(uint16_t state)
 
 static void vxlan_newneigh(int ifindex,
 			   struct in_addr *addr,
-			   const struct ether_addr *dst,
+			   const struct rte_ether_addr *dst,
 			   uint16_t state)
 {
 	struct ifnet *ifp;
@@ -1793,7 +1793,7 @@ static void vxlan_newneigh(int ifindex,
 	}
 }
 
-static void vxlan_delneigh(int ifindex, const struct ether_addr *dst)
+static void vxlan_delneigh(int ifindex, const struct rte_ether_addr *dst)
 {
 	struct ifnet *ifp;
 	struct vxlan_softc *sc;
@@ -1822,7 +1822,7 @@ int vxlan_neigh_change(const struct nlmsghdr *nlh,
 		       const struct ndmsg *ndm,
 		       struct nlattr *tb[])
 {
-	const struct ether_addr *lladdr;
+	const struct rte_ether_addr *lladdr;
 	struct in_addr ipaddr;
 	in_addr_t *ip;
 
@@ -2112,7 +2112,7 @@ static void vxlan_clear_all_macs(void)
 }
 
 
-static int vxlan_clear_one_mac(struct ifnet *ifp, struct ether_addr *mac)
+static int vxlan_clear_one_mac(struct ifnet *ifp, struct rte_ether_addr *mac)
 {
 	struct vxlan_rtnode *vxlrt;
 	struct vxlan_softc *sc = ifp->if_softc;
@@ -2129,7 +2129,7 @@ static int vxlan_clear_one_mac(struct ifnet *ifp, struct ether_addr *mac)
 static void vxlan_clear_macs(FILE *f, int argc, char *argv[])
 {
 	struct ifnet *ifp;
-	struct ether_addr mac;
+	struct rte_ether_addr mac;
 
 	if (argc == 1) {
 		vxlan_clear_all_macs();

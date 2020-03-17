@@ -1123,7 +1123,7 @@ static void if_unset_netconf(struct ifnet *ifp)
  * Note: it is floating (not in any table)
  */
 struct ifnet *if_alloc(const char *ifname, enum if_type type,
-		       unsigned int mtu, const struct ether_addr *eth_addr,
+		       unsigned int mtu, const struct rte_ether_addr *eth_addr,
 		       int socket)
 {
 	const struct ift_ops *ops;
@@ -1144,7 +1144,7 @@ struct ifnet *if_alloc(const char *ifname, enum if_type type,
 		return NULL;
 
 	if (eth_addr)
-		ether_addr_copy(eth_addr, &ifp->eth_addr);
+		rte_ether_addr_copy(eth_addr, &ifp->eth_addr);
 
 	if (strlen(ifname) >= IFNAMSIZ)
 		RTE_LOG(NOTICE, DATAPLANE,
@@ -1213,7 +1213,7 @@ void if_add_vlan(struct ifnet *ifp, struct rte_mbuf **m)
 	if_incr_out(ifp, *m);
 }
 
-int if_add_l2_addr(struct ifnet *ifp, struct ether_addr *addr)
+int if_add_l2_addr(struct ifnet *ifp, struct rte_ether_addr *addr)
 {
 	const struct ift_ops *ops;
 	int ret;
@@ -1249,7 +1249,7 @@ int if_add_l2_addr(struct ifnet *ifp, struct ether_addr *addr)
 	return ret;
 }
 
-int if_del_l2_addr(struct ifnet *ifp, struct ether_addr *addr)
+int if_del_l2_addr(struct ifnet *ifp, struct rte_ether_addr *addr)
 {
 	const struct ift_ops *ops;
 	int ret;
@@ -1566,7 +1566,7 @@ static void if_team_init(struct ifnet *ifp)
 
 static struct ifnet *
 if_hwport_init(const char *if_name, unsigned int portid,
-	       const struct ether_addr *eth, int socketid)
+	       const struct rte_ether_addr *eth, int socketid)
 {
 	struct ifnet *ifp;
 
@@ -1605,7 +1605,7 @@ if_hwport_init(const char *if_name, unsigned int portid,
  * Initialize a hardwired port.
  */
 struct ifnet *if_hwport_alloc(unsigned int portid,
-			      const struct ether_addr *eth, int socketid)
+			      const struct rte_ether_addr *eth, int socketid)
 {
 	struct ifnet *ifp;
 	char if_name[IFNAMSIZ];
@@ -1966,7 +1966,7 @@ struct missed_netlink {
 	enum missed_nl_type type;
 	uint32_t ifindex;
 	union {
-		struct ether_addr addr;
+		struct rte_ether_addr addr;
 		struct ip_addr ip;
 		unsigned int ifindex;
 	} keys;
@@ -2365,7 +2365,7 @@ static inline int missed_netlink_match_fn(struct cds_lfht_node *node,
 	if (missed->type == MISSED_UNSPEC_ADDR) {
 		if (memcmp(&missed->keys.addr,
 			   &missed_key->keys.addr,
-			   sizeof(struct ether_addr)) != 0)
+			   sizeof(struct rte_ether_addr)) != 0)
 			return 0;
 	}
 	if (missed->type == MISSED_INET_ADDR) {
@@ -2410,7 +2410,7 @@ static void missed_netlink_add(enum missed_nl_type type,
 
 	missed->type = type;
 	if (type == MISSED_UNSPEC_ADDR)
-		memcpy(&missed->keys.addr, addr, sizeof(struct ether_addr));
+		memcpy(&missed->keys.addr, addr, sizeof(struct rte_ether_addr));
 	if (type == MISSED_INET_ADDR)
 		memcpy(&missed->keys.ip.address.ip_v4,
 						addr, sizeof(struct in_addr));
@@ -2457,7 +2457,7 @@ static void missed_netlink_del(enum missed_nl_type type,
 	memset(&missed, 0, sizeof(missed));
 	missed.type = type;
 	if (type == MISSED_UNSPEC_ADDR)
-		memcpy(&missed.keys.addr, addr, sizeof(struct ether_addr));
+		memcpy(&missed.keys.addr, addr, sizeof(struct rte_ether_addr));
 	if (type == MISSED_INET_ADDR)
 		memcpy(&missed.keys.ip.address.ip_v4,
 						addr, sizeof(struct in_addr));
@@ -2512,14 +2512,14 @@ void missed_nl_child_link_del(unsigned int ifindex,
 }
 
 void missed_nl_unspec_addr_add(unsigned int ifindex,
-			       const struct ether_addr *addr,
+			       const struct rte_ether_addr *addr,
 			       const struct nlmsghdr *nlh)
 {
 	missed_netlink_add(MISSED_UNSPEC_ADDR, ifindex, addr, nlh);
 }
 
 void missed_nl_unspec_addr_del(unsigned int ifindex,
-			       const struct ether_addr *addr)
+			       const struct rte_ether_addr *addr)
 {
 	missed_netlink_del(MISSED_UNSPEC_ADDR, ifindex, addr);
 }
@@ -2646,7 +2646,7 @@ bool if_port_is_uplink(portid_t portid)
 	if (is_local_controller() || (portid == IF_PORT_ID_INVALID))
 		return false;
 
-	struct ether_addr mac_addr;
+	struct rte_ether_addr mac_addr;
 
 	rte_eth_macaddr_get(portid, &mac_addr);
 	return is_same_ether_addr(&mac_addr, &config.uplink_addr);
@@ -3072,7 +3072,7 @@ int if_set_l2_address(struct ifnet *ifp, uint32_t l2_addr_len, void *l2_addr)
 	 * Note: this assumes the L2 address is an Ethernet MAC. This
 	 * will have to be changed if this assumption ever changes.
 	 */
-	struct ether_addr old_mac_addr = ifp->eth_addr;
+	struct rte_ether_addr old_mac_addr = ifp->eth_addr;
 
 	if (ops->ifop_set_l2_address)
 		ret = ops->ifop_set_l2_address(ifp, l2_addr_len, l2_addr);
@@ -3158,7 +3158,7 @@ int if_get_poe(struct ifnet *ifp, bool *admin_status, bool *oper_status)
 
 void if_finish_create(struct ifnet *ifp, const char *ifi_type,
 		      const char *kind,
-		      const struct ether_addr *mac_addr)
+		      const struct rte_ether_addr *mac_addr)
 {
 	struct fal_attribute_t attrs[10];
 	unsigned int nattrs = 5;

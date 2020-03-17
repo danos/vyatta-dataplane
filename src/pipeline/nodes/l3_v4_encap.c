@@ -52,7 +52,7 @@ ipv4_encap_eth_from_nh4(struct rte_mbuf *mbuf, const struct next_hop *nh,
 	struct ether_hdr *eth_hdr = rte_pktmbuf_mtod(mbuf, struct ether_hdr *);
 	struct ifnet *out_ifp = dp_nh_get_ifp(nh); /* Needed for VRRP */
 
-	ether_addr_copy(&out_ifp->eth_addr, &eth_hdr->s_addr);
+	rte_ether_addr_copy(&out_ifp->eth_addr, &eth_hdr->s_addr);
 
 	/* If already resolved, use the link level encap */
 	struct llentry *lle = nh_get_lle(nh);

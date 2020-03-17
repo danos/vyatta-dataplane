@@ -1371,8 +1371,9 @@ DP_START_TEST_DONT_RUN(ip_arp_nh_scale,
 		       ip_arp_nh_scale)
 {
 	char nh_mac_str[18];
-	struct ether_addr start_eth_addr = { { 0xf0, 0x0, 0x0, 0x0, 0x0, 0x0 } };
-	struct ether_addr ether_addr;
+	struct rte_ether_addr start_eth_addr = {
+					{ 0xf0, 0x0, 0x0, 0x0, 0x0, 0x0 } };
+	struct rte_ether_addr rte_ether_addr;
 	int start_ip_addr = 0x02020301;
 	char ip_addr_str[INET_ADDRSTRLEN];
 	int ip_addr;
@@ -1386,14 +1387,14 @@ DP_START_TEST_DONT_RUN(ip_arp_nh_scale,
 
 	/* add neighbours */
 	ip_addr = start_ip_addr;
-	ether_addr = start_eth_addr;
-	ether = (uint32_t *)&ether_addr;
+	rte_ether_addr = start_eth_addr;
+	ether = (uint32_t *)&rte_ether_addr;
 	for (i = 0; i < num_neighs; i++) {
 		int tmp_ip = htonl(ip_addr);
 		if (!inet_ntop(AF_INET, &tmp_ip, ip_addr_str, INET_ADDRSTRLEN))
 			assert(0);
 
-		if (!ether_ntoa_r(&ether_addr, nh_mac_str))
+		if (!ether_ntoa_r(&rte_ether_addr, nh_mac_str))
 			assert(0);
 		dp_test_netlink_add_neigh("dp1T1", ip_addr_str, nh_mac_str);
 		ip_addr++;
@@ -1405,14 +1406,14 @@ DP_START_TEST_DONT_RUN(ip_arp_nh_scale,
 
 	/* del neighbours */
 	ip_addr = start_ip_addr;
-	ether_addr = start_eth_addr;
+	rte_ether_addr = start_eth_addr;
 	for (i = 0; i < num_neighs; i++) {
 		int tmp_ip = htonl(ip_addr);
 
 		if (!inet_ntop(AF_INET, &tmp_ip, ip_addr_str, INET_ADDRSTRLEN))
 			assert(0);
 
-		if (!ether_ntoa_r(&ether_addr, nh_mac_str))
+		if (!ether_ntoa_r(&rte_ether_addr, nh_mac_str))
 			assert(0);
 
 		dp_test_netlink_del_neigh("dp1T1", ip_addr_str, nh_mac_str);

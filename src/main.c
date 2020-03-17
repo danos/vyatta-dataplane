@@ -2798,7 +2798,7 @@ static int eth_port_init(portid_t portid)
 		goto fail;
 	}
 
-	struct ether_addr mac_addr;
+	struct rte_ether_addr mac_addr;
 	rte_eth_macaddr_get(portid, &mac_addr);
 
 	int socketid = port_config[portid].socketid;

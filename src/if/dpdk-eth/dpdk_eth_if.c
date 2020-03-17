@@ -495,7 +495,7 @@ out:
 static int dpdk_eth_if_set_l2_address(struct ifnet *ifp, uint32_t l2_addr_len,
 				      void *l2_addr)
 {
-	struct ether_addr *macaddr = l2_addr;
+	struct rte_ether_addr *macaddr = l2_addr;
 	char b1[32], b2[32];
 
 	if (l2_addr_len != ETHER_ADDR_LEN) {
@@ -505,7 +505,7 @@ static int dpdk_eth_if_set_l2_address(struct ifnet *ifp, uint32_t l2_addr_len,
 		return -EINVAL;
 	}
 
-	if (ether_addr_equal(&ifp->eth_addr, macaddr))
+	if (rte_ether_addr_equal(&ifp->eth_addr, macaddr))
 		return 1;
 
 	RTE_LOG(INFO, DATAPLANE, "%s change MAC from %s to %s\n",
@@ -581,7 +581,7 @@ static int dpdk_eth_if_init(struct ifnet *ifp)
 	sc->scd_ifp = ifp;
 	ifp->if_softc = sc;
 
-	ether_addr_copy(&ifp->eth_addr, &ifp->perm_addr);
+	rte_ether_addr_copy(&ifp->eth_addr, &ifp->perm_addr);
 
 	return 0;
 }

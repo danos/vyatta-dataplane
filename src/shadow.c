@@ -703,7 +703,7 @@ static void del_handler_tap_fd(zloop_t *loop, struct shadow_if_info *sii)
 
 static int
 shadow_send_event(enum shadow_ev type, portid_t port,
-		  const char *ifname, const struct ether_addr *eth)
+		  const char *ifname, const struct rte_ether_addr *eth)
 {
 	zsock_t *sock = zsock_new_req(shadow_inproc);
 	int rv;
@@ -739,7 +739,7 @@ shadow_port_needed(portid_t port)
 
 /* Initialize a shadow interface. */
 int shadow_init_port(portid_t port, const char *ifname,
-		     const struct ether_addr *eth)
+		     const struct rte_ether_addr *eth)
 {
 	if (!shadow_port_needed(port))
 		return 0;
@@ -880,7 +880,7 @@ static void shadow_cleanup(void *arg)
 static int shadow_handle_event(zloop_t *loop, zsock_t *sock,
 			       void *arg __rte_unused)
 {
-	const struct ether_addr *addr;
+	const struct rte_ether_addr *addr;
 	const char *ifname;
 	portid_t port;
 	uint8_t type;

@@ -123,7 +123,7 @@ void bridge_nl_modify(struct ifnet *ifp, struct nlattr *kdata)
  */
 struct ifnet *bridge_nl_create(int ifindex, const char *ifname,
 			       unsigned int mtu,
-			       const struct ether_addr *eth_addr,
+			       const struct rte_ether_addr *eth_addr,
 			       struct nlattr *kdata)
 {
 	struct ifnet *ifp = bridge_create(ifindex, ifname,

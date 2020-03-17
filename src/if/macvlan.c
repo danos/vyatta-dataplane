@@ -61,11 +61,11 @@ struct mvl_tbl {
 
 static struct mvl_tbl *macvlan_table_init(struct ifnet *ifp);
 static void macvlan_table_free(struct ifnet *ifp, int flush);
-static bool is_vrrp_mac_addr(struct ether_addr *ll_addr);
+static bool is_vrrp_mac_addr(struct rte_ether_addr *ll_addr);
 
 /* Given key (ether address) generate a hash using jhash */
 static inline unsigned long
-macvlan_hash(const struct ether_addr *key)
+macvlan_hash(const struct rte_ether_addr *key)
 {
 	return eth_addr_hash(key, MACVLAN_HASHTBL_BITS);
 }
@@ -77,11 +77,11 @@ macvlan_match(struct cds_lfht_node *node, const void *key)
 	const struct mvl_entry *mvle
 		= caa_container_of(node, const struct mvl_entry, mvl_node);
 
-	return ether_addr_equal(&mvle->ifp->eth_addr, key);
+	return rte_ether_addr_equal(&mvle->ifp->eth_addr, key);
 }
 
 static struct ifnet *
-macvlan_lookup(struct mvl_tbl *mvlt, const struct ether_addr *addr,
+macvlan_lookup(struct mvl_tbl *mvlt, const struct rte_ether_addr *addr,
 	       bool return_parent_if)
 {
 	/* lookup macvlan in hash by dest macaddr */
@@ -106,7 +106,7 @@ macvlan_lookup(struct mvl_tbl *mvlt, const struct ether_addr *addr,
 }
 
 static void
-macvlan_add_mac(struct ifnet *ifp, struct ether_addr *eth_addr)
+macvlan_add_mac(struct ifnet *ifp, struct rte_ether_addr *eth_addr)
 {
 	MVL_DEBUG("%s adding %s to parent %s\n", ifp->if_name,
 		ether_ntoa(eth_addr), ifp->if_parent->if_name);
@@ -114,7 +114,7 @@ macvlan_add_mac(struct ifnet *ifp, struct ether_addr *eth_addr)
 }
 
 static void
-macvlan_del_mac(struct ifnet *ifp, struct ether_addr *eth_addr)
+macvlan_del_mac(struct ifnet *ifp, struct rte_ether_addr *eth_addr)
 {
 	MVL_DEBUG("%s deleting %s from parent %s\n", ifp->if_name,
 		ether_ntoa(eth_addr), ifp->if_parent->if_name);
@@ -150,7 +150,7 @@ macvlan_entry_destroy(struct mvl_tbl *mvlt, struct mvl_entry *mvle)
 
 struct ifnet *
 macvlan_create(struct ifnet *ifp, const char *mvl_name,
-	       const struct ether_addr *eth_addr, int ifindex)
+	       const struct rte_ether_addr *eth_addr, int ifindex)
 {
 	struct ifnet *vifp;
 	int err;
@@ -209,7 +209,7 @@ macvlan_create(struct ifnet *ifp, const char *mvl_name,
 }
 
 static void
-macvlan_change_addr(struct ifnet *ifp, struct ether_addr *eth_addr)
+macvlan_change_addr(struct ifnet *ifp, struct rte_ether_addr *eth_addr)
 {
 	struct ifnet *pifp = ifp->if_parent;
 	struct mvl_entry *mvle, *omvle = ifp->if_softc;
@@ -222,7 +222,7 @@ macvlan_change_addr(struct ifnet *ifp, struct ether_addr *eth_addr)
 		return;
 	}
 	macvlan_del_mac(ifp, &ifp->eth_addr);
-	memcpy(&ifp->eth_addr, eth_addr, sizeof(struct ether_addr));
+	memcpy(&ifp->eth_addr, eth_addr, sizeof(struct rte_ether_addr));
 	mvle->ifp = ifp;
 	mvle->mode = omvle->mode;
 
@@ -399,7 +399,7 @@ macvlan_input(struct ifnet *ifp, struct rte_mbuf *m)
 }
 
 static bool
-is_vrrp_mac_addr(struct ether_addr *ll_addr)
+is_vrrp_mac_addr(struct rte_ether_addr *ll_addr)
 {
 	if (ll_addr->addr_bytes[0] == 0x00 &&
 		ll_addr->addr_bytes[1] == 0x00 &&
@@ -429,7 +429,7 @@ struct ifnet *macvlan_check_vrrp_if(struct ifnet *ifp)
 }
 
 struct ifnet *macvlan_get_vrrp_if(const struct ifnet *ifp,
-				  const struct ether_addr *dst_mac)
+				  const struct rte_ether_addr *dst_mac)
 {
 	struct mvl_tbl *mvlt
 		= rcu_dereference(ifp->if_macvlantbl);
@@ -446,7 +446,7 @@ void macvlan_output(struct ifnet *ifp, struct rte_mbuf *mbuf,
 static int macvlan_if_set_l2_address(struct ifnet *ifp, uint32_t l2_addr_len,
 				     void *l2_addr)
 {
-	struct ether_addr *macaddr = l2_addr;
+	struct rte_ether_addr *macaddr = l2_addr;
 	char b1[32], b2[32];
 
 	if (l2_addr_len != ETHER_ADDR_LEN) {
@@ -456,7 +456,7 @@ static int macvlan_if_set_l2_address(struct ifnet *ifp, uint32_t l2_addr_len,
 		return -EINVAL;
 	}
 
-	if (ether_addr_equal(&ifp->eth_addr, macaddr))
+	if (rte_ether_addr_equal(&ifp->eth_addr, macaddr))
 		return 1;
 
 	RTE_LOG(INFO, DATAPLANE, "%s change MAC from %s to %s\n",

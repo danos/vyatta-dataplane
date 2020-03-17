@@ -25,7 +25,7 @@
 static int vlan_if_set_l2_address(struct ifnet *ifp, uint32_t l2_addr_len,
 				  void *l2_addr)
 {
-	struct ether_addr *macaddr = l2_addr;
+	struct rte_ether_addr *macaddr = l2_addr;
 	char b1[32], b2[32];
 
 	if (l2_addr_len != ETHER_ADDR_LEN) {
@@ -35,7 +35,7 @@ static int vlan_if_set_l2_address(struct ifnet *ifp, uint32_t l2_addr_len,
 		return -EINVAL;
 	}
 
-	if (ether_addr_equal(&ifp->eth_addr, macaddr))
+	if (rte_ether_addr_equal(&ifp->eth_addr, macaddr))
 		return 1;
 
 	RTE_LOG(INFO, DATAPLANE, "%s change MAC from %s to %s\n",
@@ -43,14 +43,14 @@ static int vlan_if_set_l2_address(struct ifnet *ifp, uint32_t l2_addr_len,
 		ether_ntoa_r(&ifp->eth_addr, b1),
 		ether_ntoa_r(macaddr, b2));
 
-	if (ether_addr_equal(&ifp->if_parent->eth_addr, macaddr)) {
-		if (!ether_addr_equal(&ifp->eth_addr, macaddr))
+	if (rte_ether_addr_equal(&ifp->if_parent->eth_addr, macaddr)) {
+		if (!rte_ether_addr_equal(&ifp->eth_addr, macaddr))
 			if_del_l2_addr(ifp, &ifp->eth_addr);
 	} else {
-		if (!ether_addr_equal(&ifp->eth_addr, macaddr)) {
+		if (!rte_ether_addr_equal(&ifp->eth_addr, macaddr)) {
 			if_add_l2_addr(ifp, macaddr);
 
-			if (!ether_addr_equal(&ifp->eth_addr,
+			if (!rte_ether_addr_equal(&ifp->eth_addr,
 					      &ifp->if_parent->eth_addr))
 				if_del_l2_addr(ifp, &ifp->eth_addr);
 		}
@@ -110,7 +110,7 @@ vlan_if_delete(struct ifnet *ifp)
 		if_vlan_proto_set(pifp, ETH_P_8021Q);
 	}
 
-	if (!ether_addr_equal(&ifp->eth_addr, &pifp->eth_addr))
+	if (!rte_ether_addr_equal(&ifp->eth_addr, &pifp->eth_addr))
 		if_del_l2_addr(ifp, &ifp->eth_addr);
 
 	if (ifp->qinq_inner) {
@@ -339,7 +339,7 @@ vlan_callback_mac_addr_changed(struct ifnet *ifp, void *arg)
 	if (!ifp->if_vlan || ifp->if_parent != pifp)
 		return;
 
-	if (!ether_addr_equal(&ifp->eth_addr, &pifp->eth_addr))
+	if (!rte_ether_addr_equal(&ifp->eth_addr, &pifp->eth_addr))
 		if_add_l2_addr(ifp, &ifp->eth_addr);
 	else
 		if_del_l2_addr(ifp, &ifp->eth_addr);
