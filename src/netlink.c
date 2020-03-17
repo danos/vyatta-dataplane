@@ -356,7 +356,7 @@ static struct ifnet *unspec_link_create(const struct nlmsghdr *nlh,
 					enum cont_src_en cont_src)
 {
 	struct rte_ether_addr *macaddr = NULL;
-	unsigned int mtu = ETHER_MTU;
+	unsigned int mtu = RTE_ETHER_MTU;
 	const uint16_t arphrd = ifi->ifi_type;
 	struct ifnet *parent_ifp = NULL;
 	unsigned int if_idx = cont_src_ifindex(cont_src, ifi->ifi_index);

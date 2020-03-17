@@ -344,7 +344,7 @@ npf_gennc_mac_addr(nc_ctx_t *ctx, int opts, struct rte_ether_addr *addr)
 	 * last (unused) bytes are zero.
 	 */
 	nc[1] = 0;
-	memcpy(nc, addr, ETHER_ADDR_LEN);
+	memcpy(nc, addr, RTE_ETHER_ADDR_LEN);
 	nc += 2;
 
 	npf_ncgen_addjmp(ctx, &nc);

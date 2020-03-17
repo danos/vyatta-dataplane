@@ -170,7 +170,7 @@ ip6_local_deliver(struct ifnet *ifp, struct rte_mbuf *m)
 	 *
 	 * Run the local firewall,  and discard if so instructed.
 	 */
-	if (npf_local_fw(ifp, &m, htons(ETHER_TYPE_IPv6)))
+	if (npf_local_fw(ifp, &m, htons(RTE_ETHER_TYPE_IPV6)))
 		goto discard;
 
 	IP6STAT_INC_IFP(ifp, IPSTATS_MIB_INDELIVERS);
@@ -271,7 +271,7 @@ int ip6_fragment_mtu(struct ifnet *ifp, unsigned int mtu_size,
 		 */
 		rte_pktmbuf_prepend(m_frag, sizeof(struct rte_ether_hdr));
 		eth_hdr = rte_pktmbuf_mtod(m_frag, struct rte_ether_hdr *);
-		eth_hdr->ether_type = htons(ETHER_TYPE_IPv6);
+		eth_hdr->ether_type = htons(RTE_ETHER_TYPE_IPV6);
 		m_frag->l2_len = sizeof(struct rte_ether_hdr);
 
 		m_table[nfrags++] = m_frag;
@@ -676,7 +676,7 @@ void ip6_input_from_ipsec(struct ifnet *ifp, struct rte_mbuf *m)
 
 	/* Give IPsec a chance to consume it */
 	if (unlikely(crypto_policy_check_outbound(ifp, &m, RT_TABLE_MAIN,
-						  htons(ETHER_TYPE_IPv6),
+						  htons(RTE_ETHER_TYPE_IPV6),
 						  NULL)))
 		return;
 

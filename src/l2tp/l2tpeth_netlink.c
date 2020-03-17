@@ -581,7 +581,7 @@ rtnl_process_l2tp_session(const struct nlmsghdr *nlh)
 	 */
 
 	uint16_t mtu = tb[L2TP_ATTR_MTU] ?
-		       mnl_attr_get_u16(tb[L2TP_ATTR_MTU]) : ETHER_MTU;
+		       mnl_attr_get_u16(tb[L2TP_ATTR_MTU]) : RTE_ETHER_MTU;
 
 	switch (genlhdr->cmd) {
 	case L2TP_CMD_SESSION_GET:

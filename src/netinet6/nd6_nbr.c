@@ -115,7 +115,7 @@ static const char *const nd6_dbgstate[] = {
 static const struct in6_addr in6addr_allnodes =
 	IN6ADDR_LINKLOCAL_ALLNODES_INIT;
 
-static const char in6ether_allnodes[ETHER_ADDR_LEN] = {
+static const char in6ether_allnodes[RTE_ETHER_ADDR_LEN] = {
 	0x33, 0x33, 0x00, 0x00, 0x00, 0x01};
 
 static struct nd6_nbr_cfg nd6_cfg = {
@@ -597,10 +597,11 @@ nd6_na_output(struct ifnet *ifp, const struct rte_ether_addr *lladdr,
 		return;
 	}
 
-	dp_pktmbuf_l2_len(m) = ETHER_HDR_LEN;
+	dp_pktmbuf_l2_len(m) = RTE_ETHER_HDR_LEN;
 	paylen = sizeof(*nd_na);
 	if (tlladdr) {
-		optlen = (sizeof(struct nd_opt_hdr) + ETHER_ADDR_LEN + 7) & ~7;
+		optlen = (sizeof(struct nd_opt_hdr) +
+			  RTE_ETHER_ADDR_LEN + 7) & ~7;
 		paylen += optlen;
 	}
 	pktlen = sizeof(*eh) + sizeof(*ip6) + paylen;
@@ -609,7 +610,7 @@ nd6_na_output(struct ifnet *ifp, const struct rte_ether_addr *lladdr,
 	rte_ether_addr_copy(&ifp->eth_addr, &eh->s_addr);
 	if (lladdr)
 		rte_ether_addr_copy(lladdr, &eh->d_addr);
-	eh->ether_type = htons(ETHER_TYPE_IPv6);
+	eh->ether_type = htons(RTE_ETHER_TYPE_IPV6);
 
 	ip6 = (struct ip6_hdr *)(eh + 1);
 	ip6->ip6_flow = htonl(IPTOS_PREC_INTERNETCONTROL << 20);
@@ -645,7 +646,8 @@ nd6_na_output(struct ifnet *ifp, const struct rte_ether_addr *lladdr,
 		memset((void *)nd_opt, 0, optlen);
 		nd_opt->nd_opt_type = ND_OPT_TARGET_LINKADDR;
 		nd_opt->nd_opt_len = optlen >> 3;
-		memcpy((void *)(nd_opt + 1), &ifp->eth_addr, ETHER_ADDR_LEN);
+		memcpy((void *)(nd_opt + 1),
+		       &ifp->eth_addr, RTE_ETHER_ADDR_LEN);
 	} else {
 		flags &= ~ND_NA_FLAG_OVERRIDE;
 	}
@@ -1034,14 +1036,14 @@ nd6_ns_build(struct ifnet *ifp, const struct in6_addr *res_src,
 		return NULL;
 	}
 
-	dp_pktmbuf_l2_len(m) = ETHER_HDR_LEN;
-	optlen = (sizeof(struct nd_opt_hdr) + ETHER_ADDR_LEN + 7) & ~7;
+	dp_pktmbuf_l2_len(m) = RTE_ETHER_HDR_LEN;
+	optlen = (sizeof(struct nd_opt_hdr) + RTE_ETHER_ADDR_LEN + 7) & ~7;
 	paylen = sizeof(*nd_ns) + optlen;
 	pktlen = sizeof(*eh) + sizeof(*ip6) + paylen;
 
 	eh = (struct rte_ether_hdr *)rte_pktmbuf_append(m, pktlen);
 	rte_ether_addr_copy(&ifp->eth_addr, &eh->s_addr);
-	eh->ether_type = htons(ETHER_TYPE_IPv6);
+	eh->ether_type = htons(RTE_ETHER_TYPE_IPV6);
 
 	ip6 = (struct ip6_hdr *)(eh + 1);
 	ip6->ip6_flow = htonl(IPTOS_PREC_INTERNETCONTROL << 20);

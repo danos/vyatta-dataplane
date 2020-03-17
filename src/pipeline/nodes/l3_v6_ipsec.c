@@ -29,7 +29,7 @@ ipv6_ipsec_out_process(struct pl_packet *pkt, void *context __unused)
 
 	/* Returns true if packet was consumed by IPsec */
 	if (unlikely(crypto_policy_check_outbound(ifp, &m, pkt->tblid,
-						  htons(ETHER_TYPE_IPv6),
+						  htons(RTE_ETHER_TYPE_IPV6),
 						  &nh)))
 		return IPV6_IPSEC_CONSUME;
 

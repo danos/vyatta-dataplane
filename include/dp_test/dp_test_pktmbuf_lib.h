@@ -248,7 +248,7 @@ enum dp_test_pak_field_ {
  *   (void)dp_test_pktmbuf_eth_init(m, NULL, NULL, 0);
  *
  * To just check and set the mbuf l2_len and ether type:
- *   (void)dp_test_pktmbuf_eth_init(m, NULL, NULL, ETHER_TYPE_IPv4);
+ *   (void)dp_test_pktmbuf_eth_init(m, NULL, NULL, RTE_ETHER_TYPE_IPV4);
  */
 struct rte_ether_hdr *
 dp_test_pktmbuf_eth_init(struct rte_mbuf *m,

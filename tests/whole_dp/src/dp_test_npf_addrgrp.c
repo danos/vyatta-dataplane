@@ -1213,7 +1213,7 @@ DP_START_TEST(npf_addrgrp5, test1)
 	dp_test_fail_unless(pkt4, "IPv4 packet create\n");
 
 	dp_test_pktmbuf_eth_init(pkt4, "00:00:00:00:00:02", "00:00:00:00:00:01",
-				 ETHER_TYPE_IPv4);
+				 RTE_ETHER_TYPE_IPV4);
 
 	uint16_t exp_npc4 = NPC_GROUPER | NPC_L4PORTS | NPC_IP4;
 	uint i;
@@ -1395,7 +1395,7 @@ DP_START_TEST(npf_addrgrp7, test1)
 	dp_test_fail_unless(pkt4, "IPv4 packet create\n");
 
 	dp_test_pktmbuf_eth_init(pkt4, "00:00:00:00:00:02", "00:00:00:00:00:01",
-				 ETHER_TYPE_IPv4);
+				 RTE_ETHER_TYPE_IPV4);
 
 	uint16_t exp_npc4 = NPC_GROUPER | NPC_L4PORTS | NPC_IP4;
 	uint32_t addr;
@@ -1508,7 +1508,7 @@ DP_START_TEST(npf_addrgrp8, test1)
 	dp_test_fail_unless(pkt6, "IPv6 packet create\n");
 
 	dp_test_pktmbuf_eth_init(pkt6, "00:00:00:00:00:02", "00:00:00:00:00:01",
-				 ETHER_TYPE_IPv6);
+				 RTE_ETHER_TYPE_IPV6);
 
 	uint16_t exp_npc6 = NPC_GROUPER | NPC_L4PORTS | NPC_IP6;
 	npf_addr_t addr;

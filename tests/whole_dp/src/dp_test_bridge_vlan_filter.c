@@ -312,7 +312,7 @@ DP_START_TEST(broadcast_vlan_filter_2port_ipv4,
 	test_pak = dp_test_create_ipv4_pak("10.73.0.1", "3.3.3.3",
 					   1, &len);
 	(void)dp_test_pktmbuf_eth_init(test_pak, mac_bcast, mac_a,
-				       ETHER_TYPE_IPv4);
+				       RTE_ETHER_TYPE_IPV4);
 	dp_test_pktmbuf_vlan_init(test_pak, 10);
 
 	/* We expect the dataplane to flood to member ports and to slowpath */
@@ -332,7 +332,7 @@ DP_START_TEST(broadcast_vlan_filter_2port_ipv4,
 	/* Create frame from mac_b to mac_a, reply will be L2 unicast */
 	test_pak = dp_test_create_ipv4_pak("3.3.3.3", "10.73.0.1", 1, &len);
 	(void)dp_test_pktmbuf_eth_init(test_pak, mac_a, mac_b,
-				       ETHER_TYPE_IPv4);
+				       RTE_ETHER_TYPE_IPV4);
 	dp_test_pktmbuf_vlan_init(test_pak, 10);
 
 	/*
@@ -392,7 +392,7 @@ DP_START_TEST(broadcast_vlan_filter_2port_ipv6,
 	test_pak = dp_test_create_ipv6_pak("2001:1:1::2", "2002:2:2::2",
 					   1, &len);
 	(void)dp_test_pktmbuf_eth_init(test_pak, mac_bcast, mac_a,
-				       ETHER_TYPE_IPv6);
+				       RTE_ETHER_TYPE_IPV6);
 	dp_test_pktmbuf_vlan_init(test_pak, 10);
 
 	/* We expect the dataplane to flood to member ports and to slowpath */
@@ -413,7 +413,7 @@ DP_START_TEST(broadcast_vlan_filter_2port_ipv6,
 	test_pak = dp_test_create_ipv6_pak("2002:2:2::2", "2001:1:1::2",
 					   1, &len);
 	(void)dp_test_pktmbuf_eth_init(test_pak, mac_a, mac_b,
-				       ETHER_TYPE_IPv6);
+				       RTE_ETHER_TYPE_IPV6);
 	dp_test_pktmbuf_vlan_init(test_pak, 10);
 
 	/*
@@ -467,7 +467,7 @@ DP_START_TEST(broadcast_vlan_filter_2port_ipv4_multi,
 	test_pak = dp_test_create_ipv4_pak(ipv4_multi, "3.3.3.3",
 					   1, &len);
 	(void)dp_test_pktmbuf_eth_init(test_pak, mac_multi, mac_a,
-				       ETHER_TYPE_IPv4);
+				       RTE_ETHER_TYPE_IPV4);
 	dp_test_pktmbuf_vlan_init(test_pak, 10);
 
 	/* We expect the dataplane to flood to member ports and to slowpath */

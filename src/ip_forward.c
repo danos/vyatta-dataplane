@@ -171,7 +171,7 @@ ip_local_deliver(struct ifnet *ifp, struct rte_mbuf *m)
 	 *
 	 * Run the local firewall,  and discard if so instructed.
 	 */
-	if (npf_local_fw(ifp, &m, htons(ETHER_TYPE_IPv4)))
+	if (npf_local_fw(ifp, &m, htons(RTE_ETHER_TYPE_IPV4)))
 		goto discard;
 
 	IPSTAT_INC_VRF(vrf, IPSTATS_MIB_INDELIVERS);

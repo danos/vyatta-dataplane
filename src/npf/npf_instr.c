@@ -364,7 +364,7 @@ npf_match_dscp(const npf_cache_t *npc, const uint64_t set)
 int
 npf_match_etype(const struct rte_mbuf *nbuf, uint32_t etype)
 {
-	uint16_t ether_type = ethtype(nbuf, ETHER_TYPE_VLAN);
+	uint16_t ether_type = ethtype(nbuf, RTE_ETHER_TYPE_VLAN);
 
 	if (ether_type != etype)
 		return -1;

@@ -133,7 +133,7 @@ static bool bridge_intf_is_virt(struct ifnet *ifp)
 static bool bridge_pkt_exceeds_mtu(struct rte_mbuf *m,
 					  struct ifnet *out_ifp)
 {
-	if (rte_pktmbuf_pkt_len(m) - ETHER_HDR_LEN > out_ifp->if_mtu) {
+	if (rte_pktmbuf_pkt_len(m) - RTE_ETHER_HDR_LEN > out_ifp->if_mtu) {
 		/*
 		 * Transparent bridge shouldn't be doing any form of pkt
 		 * manipulation, fragmentation or otherwise, but because the
@@ -1293,12 +1293,12 @@ void bridge_output(struct ifnet *ifp, struct rte_mbuf *m,
 	const struct npf_config *npf_config = npf_if_conf(nif);
 
 	if (npf_active(npf_config, NPF_BRIDGE) &&
-	    eh->ether_type != htons(ETHER_TYPE_ARP)) {
+	    eh->ether_type != htons(RTE_ETHER_TYPE_ARP)) {
 		npf_result_t result;
 
 		result = npf_hook_notrack(npf_get_ruleset(npf_config,
 					  NPF_RS_BRIDGE), &m, ifp, PFIL_IN, 0,
-					  ethtype(m, ETHER_TYPE_VLAN));
+					  ethtype(m, RTE_ETHER_TYPE_VLAN));
 		if (result.decision != NPF_DECISION_PASS)
 			goto drop;
 
@@ -1329,7 +1329,7 @@ void bridge_output(struct ifnet *ifp, struct rte_mbuf *m,
 	 * This can happen when bridging between interfaces with different
 	 * mtu's.
 	 */
-	if (rte_pktmbuf_pkt_len(m) - ETHER_HDR_LEN > dif->if_mtu)
+	if (rte_pktmbuf_pkt_len(m) - RTE_ETHER_HDR_LEN > dif->if_mtu)
 		goto drop;	/* XXX add stat for this */
 
 	/* Count L3 forwarded and local packets as outbound on bridge */
@@ -1398,7 +1398,7 @@ bridge_input_local(struct rte_mbuf *m, struct ifnet *input_if,
 	/*
 	 * Have we exposed an inner vlan.
 	 */
-	if (ethhdr(m)->ether_type == htons(ETHER_TYPE_VLAN)) {
+	if (ethhdr(m)->ether_type == htons(RTE_ETHER_TYPE_VLAN)) {
 		struct pktmbuf_mdata *mdata;
 
 		mdata = pktmbuf_mdata(m);
@@ -1407,7 +1407,7 @@ bridge_input_local(struct rte_mbuf *m, struct ifnet *input_if,
 		   * data
 		   */
 		m->ol_flags |= PKT_RX_VLAN;
-		m->vlan_tci = vid_decap(m, ETHER_TYPE_VLAN);
+		m->vlan_tci = vid_decap(m, RTE_ETHER_TYPE_VLAN);
 		bridge_input_local(m, input_if, base_bridge);
 		return;
 	}
@@ -1505,12 +1505,12 @@ void bridge_input(struct bridge_port *port, struct rte_mbuf *m)
 	const struct npf_config *npf_config = npf_if_conf(nif);
 
 	if (npf_active(npf_config, NPF_BRIDGE) &&
-			       eh->ether_type != htons(ETHER_TYPE_ARP)) {
+			       eh->ether_type != htons(RTE_ETHER_TYPE_ARP)) {
 		npf_result_t result;
 
 		result = npf_hook_notrack(npf_get_ruleset(npf_config,
 					  NPF_RS_BRIDGE), &m, brif, PFIL_IN, 0,
-					  ethtype(m, ETHER_TYPE_VLAN));
+					  ethtype(m, RTE_ETHER_TYPE_VLAN));
 		if (result.decision != NPF_DECISION_PASS)
 			goto ignore;
 
@@ -1651,7 +1651,7 @@ static int notify_newport(int ifindex, const char *ifname,
 	master = mnl_attr_get_u32(tb[IFLA_MASTER]);
 
 	if (tb[IFLA_ADDRESS] && (mnl_attr_get_payload_len(tb[IFLA_ADDRESS]) ==
-				 ETHER_ADDR_LEN))
+				 RTE_ETHER_ADDR_LEN))
 		lladdr = mnl_attr_get_payload(tb[IFLA_ADDRESS]);
 
 	if (pinfo[IFLA_BRPORT_STATE]) {

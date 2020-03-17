@@ -410,9 +410,9 @@ void pktmbuf_ecn_set_ce(struct rte_mbuf *m)
 	const struct rte_ether_hdr *eh
 		= rte_pktmbuf_mtod(m, const struct rte_ether_hdr *);
 
-	if (eh->ether_type == htons(ETHER_TYPE_IPv4))
+	if (eh->ether_type == htons(RTE_ETHER_TYPE_IPV4))
 		ip_tos_set_ecn_ce(iphdr(m));
-	else if (eh->ether_type == htons(ETHER_TYPE_IPv6))
+	else if (eh->ether_type == htons(RTE_ETHER_TYPE_IPV6))
 		ip6_tos_set_ecn_ce(ip6hdr(m));
 }
 

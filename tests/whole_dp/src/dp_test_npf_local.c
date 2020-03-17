@@ -57,7 +57,7 @@ DP_START_TEST(ipv4, spath)
 	struct dp_test_pkt_desc_t v4_pktA = {
 		.text       = "Packet A, Local -> Neighbour 1",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv4,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
 		.l3_src     = "1.1.1.1",
 		.l2_src     = "0:0:0:0:0:0",
 		.l3_dst     = "1.1.1.2",
@@ -90,7 +90,7 @@ DP_START_TEST(ipv4, spath)
 	struct dp_test_pkt_desc_t v4_pktB = {
 		.text       = "Packet B, Neighbour 1 -> Local",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv4,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
 		.l3_src     = "1.1.1.2",
 		.l2_src     = "aa:bb:cc:dd:1:a1",
 		.l3_dst     = "1.1.1.1",
@@ -162,7 +162,7 @@ DP_START_TEST(ipv4, kernel_forwarded)
 	struct dp_test_pkt_desc_t v4_pktA = {
 		.text       = "Packet B, Non-local -> Neighbour 1",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv4,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
 		.l3_src     = "2.2.2.2",
 		.l2_src     = "aa:bb:cc:dd:2:a2",
 		.l3_dst     = "1.1.1.2",

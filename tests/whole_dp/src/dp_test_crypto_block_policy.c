@@ -174,7 +174,7 @@ generate_expectation(bool forward, struct udphdr *udphdr)
 		(void)dp_test_pktmbuf_eth_init(
 			pkt, PEER_MAC_ADDRESS,
 			dp_test_intf_name2mac_str("dp2T2"),
-			ETHER_TYPE_IPv4);
+			RTE_ETHER_TYPE_IPV4);
 		expectation = dp_test_exp_create(pkt);
 		rte_pktmbuf_free(pkt);
 		dp_test_exp_set_oif_name(expectation, "dp2T2");
@@ -274,7 +274,7 @@ DP_START_TEST(single_policy, single_allow_policy)
 
 	(void)dp_test_pktmbuf_eth_init(input_pkt,
 				       dp_test_intf_name2mac_str("dp1T1"),
-				       NULL, ETHER_TYPE_IPv4);
+				       NULL, RTE_ETHER_TYPE_IPV4);
 
 	dp_test_pak_receive(input_pkt, "dp1T1", expectation);
 
@@ -307,7 +307,7 @@ DP_START_TEST_FULL_RUN(single_policy, single_block_policy)
 
 	(void)dp_test_pktmbuf_eth_init(input_pkt,
 				       dp_test_intf_name2mac_str("dp1T1"),
-				       NULL, ETHER_TYPE_IPv4);
+				       NULL, RTE_ETHER_TYPE_IPV4);
 
 	dp_test_pak_receive(input_pkt, "dp1T1", expectation);
 
@@ -336,7 +336,7 @@ DP_START_TEST_FULL_RUN(single_policy, modfy_allow_to_block)
 
 	(void)dp_test_pktmbuf_eth_init(input_pkt,
 				       dp_test_intf_name2mac_str("dp1T1"),
-				       NULL, ETHER_TYPE_IPv4);
+				       NULL, RTE_ETHER_TYPE_IPV4);
 
 	dp_test_pak_receive(input_pkt, "dp1T1", expectation);
 
@@ -354,7 +354,7 @@ DP_START_TEST_FULL_RUN(single_policy, modfy_allow_to_block)
 
 	(void)dp_test_pktmbuf_eth_init(input_pkt,
 				       dp_test_intf_name2mac_str("dp1T1"),
-				       NULL, ETHER_TYPE_IPv4);
+				       NULL, RTE_ETHER_TYPE_IPV4);
 
 	dp_test_pak_receive(input_pkt, "dp1T1", expectation);
 
@@ -387,7 +387,7 @@ DP_START_TEST_FULL_RUN(single_policy, modfy_block_to_allow)
 
 	(void)dp_test_pktmbuf_eth_init(input_pkt,
 				       dp_test_intf_name2mac_str("dp1T1"),
-				       NULL, ETHER_TYPE_IPv4);
+				       NULL, RTE_ETHER_TYPE_IPV4);
 
 	dp_test_pak_receive(input_pkt, "dp1T1", expectation);
 
@@ -401,7 +401,7 @@ DP_START_TEST_FULL_RUN(single_policy, modfy_block_to_allow)
 
 	(void)dp_test_pktmbuf_eth_init(input_pkt,
 				       dp_test_intf_name2mac_str("dp1T1"),
-				       NULL, ETHER_TYPE_IPv4);
+				       NULL, RTE_ETHER_TYPE_IPV4);
 
 	dp_test_pak_receive(input_pkt, "dp1T1", expectation);
 

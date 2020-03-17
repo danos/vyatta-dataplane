@@ -153,7 +153,7 @@ static void _dp_test_qos_burst_send(int count, bool wait,
 	struct dp_test_pkt_desc_t v4_pkt_desc = {
 		.text       = "TCP IPv4",
 		.len        = 458, /* gives 512 byte packets */
-		.ether_type = ETHER_TYPE_IPv4,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
 		.l3_src     = "1.1.1.11",
 		.l2_src     = "aa:bb:cc:dd:1:a1",
 		.l3_dst     = "2.2.2.11",

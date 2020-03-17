@@ -908,7 +908,7 @@ dp_test_nat_validate(struct rte_mbuf *mbuf, struct ifnet *ifp,
 	struct rte_ether_hdr *eth;
 
 	eth = rte_pktmbuf_mtod(mbuf, struct rte_ether_hdr *);
-	if (eth->ether_type == htons(ETHER_TYPE_ARP)) {
+	if (eth->ether_type == htons(RTE_ETHER_TYPE_ARP)) {
 		char *tpa = (char *)(eth + 1) + 24;
 
 		spush(str, len,

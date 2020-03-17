@@ -476,7 +476,7 @@ DP_START_TEST(vrf_ip_fwd, vrf_basic_ipv4)
 	test_pak = dp_test_create_ipv4_pak("10.73.0.0", "10.73.2.0",
 					   1, &len);
 	dp_test_pktmbuf_eth_init(test_pak, dp_test_intf_name2mac_str("dp1T0"),
-				 NULL, ETHER_TYPE_IPv4);
+				 NULL, RTE_ETHER_TYPE_IPV4);
 
 	/* Create pak we expect to receive on the tx ring */
 	exp = dp_test_exp_create(test_pak);
@@ -485,7 +485,7 @@ DP_START_TEST(vrf_ip_fwd, vrf_basic_ipv4)
 	(void)dp_test_pktmbuf_eth_init(dp_test_exp_get_pak(exp),
 				       nh_mac_str,
 				       dp_test_intf_name2mac_str("dp2T1"),
-				       ETHER_TYPE_IPv4);
+				       RTE_ETHER_TYPE_IPV4);
 
 	dp_test_ipv4_decrement_ttl(dp_test_exp_get_pak(exp));
 
@@ -545,7 +545,7 @@ DP_START_TEST(vrf_ip_fwd, vrf_basic_ipv6)
 	test_pak = dp_test_create_ipv6_pak("2010:73::", "2010:73:2::",
 					   1, &len);
 	dp_test_pktmbuf_eth_init(test_pak, dp_test_intf_name2mac_str("dp1T0"),
-				 NULL, ETHER_TYPE_IPv6);
+				 NULL, RTE_ETHER_TYPE_IPV6);
 
 	/* Create pak we expect to receive on the tx ring */
 	exp = dp_test_exp_create(test_pak);
@@ -554,7 +554,7 @@ DP_START_TEST(vrf_ip_fwd, vrf_basic_ipv6)
 	(void)dp_test_pktmbuf_eth_init(dp_test_exp_get_pak(exp),
 				       nh_mac_str,
 				       dp_test_intf_name2mac_str("dp2T1"),
-				       ETHER_TYPE_IPv6);
+				       RTE_ETHER_TYPE_IPV6);
 
 	dp_test_ipv6_decrement_ttl(dp_test_exp_get_pak(exp));
 
@@ -615,7 +615,7 @@ DP_START_TEST(vrf_vif_ipv4, vrf_vif_ipv4)
 					   1, &len);
 	dp_test_pktmbuf_eth_init(test_pak,
 				 dp_test_intf_name2mac_str(l3_vif_intf),
-				 NULL, ETHER_TYPE_IPv4);
+				 NULL, RTE_ETHER_TYPE_IPV4);
 
 	/* Create pak we expect to receive on the tx ring */
 	exp = dp_test_exp_create(test_pak);
@@ -624,7 +624,7 @@ DP_START_TEST(vrf_vif_ipv4, vrf_vif_ipv4)
 	(void)dp_test_pktmbuf_eth_init(dp_test_exp_get_pak(exp),
 				       nh_mac_str,
 				       dp_test_intf_name2mac_str(l3_intf_tx),
-				       ETHER_TYPE_IPv4);
+				       RTE_ETHER_TYPE_IPV4);
 
 	dp_test_ipv4_decrement_ttl(dp_test_exp_get_pak(exp));
 

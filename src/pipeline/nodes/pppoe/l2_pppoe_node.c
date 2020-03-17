@@ -60,10 +60,10 @@ pppoe_in_process(struct pl_packet *pkt, void *context __unused)
 
 		switch (inner_proto) {
 		case PPP_IP:
-			eh->ether_type = htons(ETHER_TYPE_IPv4);
+			eh->ether_type = htons(RTE_ETHER_TYPE_IPV4);
 			return PPP_FORWARD_V4_ACCEPT;
 		case PPP_IPV6:
-			eh->ether_type = htons(ETHER_TYPE_IPv6);
+			eh->ether_type = htons(RTE_ETHER_TYPE_IPV6);
 			return PPP_FORWARD_V6_ACCEPT;
 		default:
 			/* Unsupported inner protocol */

@@ -51,7 +51,7 @@ DP_START_TEST(ip6_icmp, too_big)
 	test_pak = dp_test_create_ipv6_pak("2001:1:1::2", "2010:73:2::2",
 					   1, &len);
 	dp_test_pktmbuf_eth_init(test_pak, dp_test_intf_name2mac_str("dp1T0"),
-				 neigh1_mac_str, ETHER_TYPE_IPv6);
+				 neigh1_mac_str, RTE_ETHER_TYPE_IPV6);
 
 
 	/*
@@ -68,7 +68,7 @@ DP_START_TEST(ip6_icmp, too_big)
 	(void)dp_test_pktmbuf_eth_init(icmp_pak,
 				       neigh1_mac_str,
 				       dp_test_intf_name2mac_str("dp1T0"),
-				       ETHER_TYPE_IPv6);
+				       RTE_ETHER_TYPE_IPV6);
 
 	/* Forwarding code will have already decremented hop limit */
 	in6_inner = (struct ip6_hdr *)(icmp6 + 1);
@@ -122,7 +122,7 @@ DP_START_TEST(ip6_icmp, ttl)
 	test_pak = dp_test_create_ipv6_pak("2001:1:1::2", "2010:73:2::2",
 					   1, &len);
 	dp_test_pktmbuf_eth_init(test_pak, dp_test_intf_name2mac_str("dp1T0"),
-				 neigh1_mac_str, ETHER_TYPE_IPv6);
+				 neigh1_mac_str, RTE_ETHER_TYPE_IPV6);
 	ip6hdr(test_pak)->ip6_hlim = 1;
 
 	/*
@@ -139,7 +139,7 @@ DP_START_TEST(ip6_icmp, ttl)
 	(void)dp_test_pktmbuf_eth_init(icmp_pak,
 				       neigh1_mac_str,
 				       dp_test_intf_name2mac_str("dp1T0"),
-				       ETHER_TYPE_IPv6);
+				       RTE_ETHER_TYPE_IPV6);
 
 	exp = dp_test_exp_create(icmp_pak);
 	rte_pktmbuf_free(icmp_pak);

@@ -47,7 +47,7 @@ static void _build_and_send_pak(const char *src_addr, const char *dest_addr,
 	dp_test_pktmbuf_eth_init(test_pak,
 				 dp_test_intf_name2mac_str("dp1T0"),
 				 DP_TEST_INTF_DEF_SRC_MAC,
-				 ETHER_TYPE_IPv4);
+				 RTE_ETHER_TYPE_IPV4);
 	if (nh.arp) {
 		char intf_addr[INET_ADDRSTRLEN];
 
@@ -76,7 +76,7 @@ static void _build_and_send_pak(const char *src_addr, const char *dest_addr,
 					       nh.nh_mac_str,
 					       dp_test_intf_name2mac_str(
 						       nh.nh_int),
-					       ETHER_TYPE_IPv4);
+					       RTE_ETHER_TYPE_IPV4);
 		dp_test_ipv4_decrement_ttl(dp_test_exp_get_pak(exp));
 		dp_test_exp_set_oif_name(exp, nh.nh_int);
 	}

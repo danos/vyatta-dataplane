@@ -138,7 +138,7 @@ DP_START_TEST(dscp_ipv4, single_dscp)
 	struct dp_test_pkt_desc_t v4_pkt = {
 		.text       = "DSCP IPv4 single",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv4,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
 		.l3_src     = "1.1.1.11",
 		.l2_src     = "aa:bb:cc:dd:1:a1",
 		.l3_dst     = "2.2.2.11",
@@ -245,7 +245,7 @@ DP_START_TEST(dscp_ipv6, single_dscp)
 	struct dp_test_pkt_desc_t v6_pkt = {
 		.text       = "ICMP IPv6",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv6,
+		.ether_type = RTE_ETHER_TYPE_IPV6,
 		.l3_src     = "2001:1:1::2",
 		.l2_src     = "aa:bb:cc:dd:1:a1",
 		.l3_dst     = "2002:2:2::1",
@@ -464,7 +464,7 @@ DP_START_TEST(dscp_ipv4, group_dscp)
 	struct dp_test_pkt_desc_t v4_pkt = {
 		.text       = "DSCP IPv4",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv4,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
 		.l3_src     = "1.1.1.11",
 		.l2_src     = "aa:bb:cc:dd:1:a1",
 		.l3_dst     = "2.2.2.11",
@@ -584,7 +584,7 @@ DP_START_TEST(dscp_ipv6, group_dscp)
 	struct dp_test_pkt_desc_t v6_pkt = {
 		.text       = "ICMP IPv6",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv6,
+		.ether_type = RTE_ETHER_TYPE_IPV6,
 		.l3_src     = "2001:1:1::2",
 		.l2_src     = "aa:bb:cc:dd:1:a1",
 		.l3_dst     = "2002:2:2::1",

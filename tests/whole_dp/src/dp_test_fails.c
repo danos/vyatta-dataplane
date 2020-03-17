@@ -111,7 +111,7 @@ DP_START_TEST_DONT_RUN(rx_pkt, wrong_oif)
 
 	(void)dp_test_pktmbuf_eth_init(dp_test_exp_get_pak(exp),
 				       nh_mac_str, "aa:aa:aa:aa:aa:3",
-				       ETHER_TYPE_IPv4);
+				       RTE_ETHER_TYPE_IPV4);
 
 	dp_test_ipv4_decrement_ttl(dp_test_exp_get_pak(exp));
 
@@ -156,7 +156,7 @@ DP_START_TEST_DONT_RUN(rx_pkt, wrong_pkt)
 	/* deliberate error - should be aa:aa:aa:aa:aa:3 */
 	(void)dp_test_pktmbuf_eth_init(dp_test_exp_get_pak(exp),
 				       nh_mac_str, "aa:aa:aa:aa:aa:99",
-				       ETHER_TYPE_IPv4);
+				       RTE_ETHER_TYPE_IPV4);
 
 	dp_test_ipv4_decrement_ttl(dp_test_exp_get_pak(exp));
 
@@ -202,7 +202,7 @@ DP_START_TEST_DONT_RUN(cleanup, routes_and_ifaddrs)
 
 	(void)dp_test_pktmbuf_eth_init(dp_test_exp_get_pak(exp),
 				       nh_mac_str, "aa:aa:aa:aa:aa:2",
-				       ETHER_TYPE_IPv4);
+				       RTE_ETHER_TYPE_IPV4);
 
 	dp_test_ipv4_decrement_ttl(dp_test_exp_get_pak(exp));
 
@@ -249,7 +249,7 @@ DP_START_TEST_DONT_RUN(pkt_drop, no_route)
 
 	(void)dp_test_pktmbuf_eth_init(dp_test_exp_get_pak(exp),
 				       nh_mac_str, "aa:aa:aa:aa:aa:3",
-				       ETHER_TYPE_IPv4);
+				       RTE_ETHER_TYPE_IPV4);
 
 	dp_test_ipv4_decrement_ttl(dp_test_exp_get_pak(exp));
 

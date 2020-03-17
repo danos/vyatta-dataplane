@@ -143,7 +143,7 @@ bool npf_alg_bypass_cgnat(const struct ifnet *ifp, struct rte_mbuf *m)
 	npf_cache_init(npc);
 
 	/* Cache packet */
-	if (unlikely(!npf_cache_all(npc, m, htons(ETHER_TYPE_IPv4))))
+	if (unlikely(!npf_cache_all(npc, m, htons(RTE_ETHER_TYPE_IPV4))))
 		return false;
 
 	if (npf_iscached(npc, NPC_ICMP_ERR))

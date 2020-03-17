@@ -77,7 +77,7 @@ DP_START_TEST(dnat, test_dnat)
 	(void)dp_test_pktmbuf_eth_init(test_pak,
 				       dp_test_intf_name2mac_str("dp1T0"),
 				       DP_TEST_INTF_DEF_SRC_MAC,
-				       ETHER_TYPE_IPv4);
+				       RTE_ETHER_TYPE_IPV4);
 
 	/* Create pak we expect to receive on the tx ring */
 	exp = dp_test_exp_create(test_pak);
@@ -85,7 +85,7 @@ DP_START_TEST(dnat, test_dnat)
 	(void)dp_test_pktmbuf_eth_init(dp_test_exp_get_pak(exp),
 				       nh_mac_str_2,
 				       dp_test_intf_name2mac_str("dp2T1"),
-				       ETHER_TYPE_IPv4);
+				       RTE_ETHER_TYPE_IPV4);
 
 	/* Expect the DNAT to have occurred */
 	dp_test_set_iphdr(dp_test_exp_get_pak(exp), client_ip, server_ip);
@@ -107,7 +107,7 @@ DP_START_TEST(dnat, test_dnat)
 	(void)dp_test_pktmbuf_eth_init(test_pak,
 				       dp_test_intf_name2mac_str("dp2T1"),
 				       DP_TEST_INTF_DEF_SRC_MAC,
-				       ETHER_TYPE_IPv4);
+				       RTE_ETHER_TYPE_IPV4);
 
 	/* Create pak we expect to receive on the tx ring */
 	exp = dp_test_exp_create(test_pak);
@@ -116,7 +116,7 @@ DP_START_TEST(dnat, test_dnat)
 	(void)dp_test_pktmbuf_eth_init(dp_test_exp_get_pak(exp),
 				       nh_mac_str_1,
 				       dp_test_intf_name2mac_str("dp1T0"),
-				       ETHER_TYPE_IPv4);
+				       RTE_ETHER_TYPE_IPV4);
 
 	/* Expect the reverse DNAT to have occurred */
 	dp_test_set_iphdr(dp_test_exp_get_pak(exp), local_dnat_ip, client_ip);
@@ -233,7 +233,7 @@ DP_START_TEST(snat, test_snat)
 	(void)dp_test_pktmbuf_eth_init(test_pak,
 				       dp_test_intf_name2mac_str("dp1T0"),
 				       DP_TEST_INTF_DEF_SRC_MAC,
-				       ETHER_TYPE_IPv4);
+				       RTE_ETHER_TYPE_IPV4);
 
 	/* Create pak we expect to receive on the tx ring */
 	exp = dp_test_exp_create(test_pak);
@@ -242,7 +242,7 @@ DP_START_TEST(snat, test_snat)
 	(void)dp_test_pktmbuf_eth_init(dp_test_exp_get_pak(exp),
 				       nh_mac_str_2,
 				       dp_test_intf_name2mac_str("dp2T1"),
-				       ETHER_TYPE_IPv4);
+				       RTE_ETHER_TYPE_IPV4);
 
 	/* Expect the SNAT to have occurred */
 	dp_test_set_iphdr(dp_test_exp_get_pak(exp), local_snat_ip, server_ip);
@@ -277,14 +277,14 @@ DP_START_TEST(snat, test_snat)
 	(void)dp_test_pktmbuf_eth_init(test_pak,
 				       dp_test_intf_name2mac_str("dp2T1"),
 				       DP_TEST_INTF_DEF_SRC_MAC,
-				       ETHER_TYPE_IPv4);
+				       RTE_ETHER_TYPE_IPV4);
 
 	/* Create pak we expect to receive on the tx ring */
 	exp = dp_test_exp_create(test_pak);
 	dp_test_exp_set_oif_name(exp, "dp1T0");
 	(void)dp_test_pktmbuf_eth_init(dp_test_exp_get_pak(exp), nh_mac_str_1,
 				       dp_test_intf_name2mac_str("dp1T0"),
-				       ETHER_TYPE_IPv4);
+				       RTE_ETHER_TYPE_IPV4);
 
 	/* Expect the SNAT to have been undone */
 	dp_test_set_iphdr(dp_test_exp_get_pak(exp), server_ip, client_ip);
@@ -368,7 +368,7 @@ DP_START_TEST_DONT_RUN(dnat_snat, test_dnat_snat)
 	(void)dp_test_pktmbuf_eth_init(test_pak,
 				       dp_test_intf_name2mac_str("dp1T0"),
 				       DP_TEST_INTF_DEF_SRC_MAC,
-				       ETHER_TYPE_IPv4);
+				       RTE_ETHER_TYPE_IPV4);
 
 	/* Create pak we expect to receive on the tx ring */
 	exp = dp_test_exp_create(test_pak);
@@ -376,7 +376,7 @@ DP_START_TEST_DONT_RUN(dnat_snat, test_dnat_snat)
 	(void)dp_test_pktmbuf_eth_init(dp_test_exp_get_pak(exp),
 				       nh_mac_str_2,
 				       dp_test_intf_name2mac_str("dp2T1"),
-				       ETHER_TYPE_IPv4);
+				       RTE_ETHER_TYPE_IPV4);
 
 	/* Expect the DNAT and DNAT to have occurred */
 	dp_test_set_iphdr(dp_test_exp_get_pak(exp), local_snat_ip, server_ip);
@@ -413,7 +413,7 @@ DP_START_TEST_DONT_RUN(dnat_snat, test_dnat_snat)
 	(void)dp_test_pktmbuf_eth_init(test_pak,
 				       dp_test_intf_name2mac_str("dp2T1"),
 				       DP_TEST_INTF_DEF_SRC_MAC,
-				       ETHER_TYPE_IPv4);
+				       RTE_ETHER_TYPE_IPV4);
 
 	/* Create pak we expect to receive on the tx ring */
 	exp = dp_test_exp_create(test_pak);
@@ -421,7 +421,7 @@ DP_START_TEST_DONT_RUN(dnat_snat, test_dnat_snat)
 	(void)dp_test_pktmbuf_eth_init(dp_test_exp_get_pak(exp),
 				       nh_mac_str_1,
 				       dp_test_intf_name2mac_str("dp1T0"),
-				       ETHER_TYPE_IPv4);
+				       RTE_ETHER_TYPE_IPV4);
 
 	/* Expect the reverse SNAT and DNAT to have occurred */
 	dp_test_set_iphdr(dp_test_exp_get_pak(exp), local_dnat_ip, client_ip);

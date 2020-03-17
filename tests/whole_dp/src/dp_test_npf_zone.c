@@ -1250,7 +1250,7 @@ DP_START_TEST(zone20, test)
 	struct dp_test_pkt_desc_t udp_pkt = {
 		.text       = "UDP",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv6,
+		.ether_type = RTE_ETHER_TYPE_IPV6,
 		.l3_src     = "2001:101:1::11",
 		.l2_src     = "aa:bb:cc:dd:1:a1",
 		.l3_dst     = "2001:101:2::11",
@@ -1780,7 +1780,7 @@ DP_START_TEST(zone50, test)
 	input_packet = build_encrypted_input_packet();
 	(void)dp_test_pktmbuf_eth_init(input_packet,
 				       dp_test_intf_name2mac_str("dp2T2"),
-				       NULL, ETHER_TYPE_IPv4);
+				       NULL, RTE_ETHER_TYPE_IPV4);
 
 	/*
 	 * Ceate the expected decrypted ping packet
@@ -1789,7 +1789,7 @@ DP_START_TEST(zone50, test)
 	(void)dp_test_pktmbuf_eth_init(output_packet,
 				       CLIENT_LOCAL_MAC_ADDR,
 				       dp_test_intf_name2mac_str("dp1T1"),
-				       ETHER_TYPE_IPv4);
+				       RTE_ETHER_TYPE_IPV4);
 
 	/* Add zones config */
 	dpt_zone_cfg(&cfg, true, false);

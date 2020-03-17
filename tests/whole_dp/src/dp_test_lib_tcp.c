@@ -111,7 +111,7 @@ dpt_pdesc_v4_create(const char *text, uint8_t proto,
 
 	pkt->text = text;
 	pkt->proto = proto;
-	pkt->ether_type = ETHER_TYPE_IPv4;
+	pkt->ether_type = RTE_ETHER_TYPE_IPV4;
 	pkt->l2_src = l2_src;
 	pkt->l3_src = l3_src;
 	pkt->l4.tcp.sport = sport;
@@ -142,7 +142,7 @@ dpt_pdesc_v6_create(const char *text, uint8_t proto,
 
 	pkt->text = text;
 	pkt->proto = proto;
-	pkt->ether_type = ETHER_TYPE_IPv6;
+	pkt->ether_type = RTE_ETHER_TYPE_IPV6;
 	pkt->l2_src = l2_src;
 	pkt->l3_src = l3_src;
 	pkt->l4.tcp.sport = sport;
@@ -222,7 +222,7 @@ static void dpt_tcp_pak_receive(uint pktno, struct dpt_tcp_flow *call,
 	pre = call->desc[dir].pre;
 	post = call->desc[dir].pst;
 
-	is_v6 = (pre->ether_type == ETHER_TYPE_IPv6);
+	is_v6 = (pre->ether_type == RTE_ETHER_TYPE_IPV6);
 
 	/*
 	 * If data is a string, then dlen will be set to zero to indicate we

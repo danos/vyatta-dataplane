@@ -24,7 +24,7 @@
 
 #define DP_TEST_MAX_NHS 32
 #define DP_TEST_MAX_LBLS 16
-#define ETHER_TYPE_MPLS 0x8847
+#define RTE_ETHER_TYPE_MPLS 0x8847
 typedef uint32_t label_t;
 
 struct dp_test_prefix {

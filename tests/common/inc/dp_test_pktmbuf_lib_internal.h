@@ -47,7 +47,7 @@ struct erspan_type2_hdr {
 	uint32_t idx_dir;
 };
 
-#define ETHER_TYPE_MPLS 0x8847
+#define RTE_ETHER_TYPE_MPLS 0x8847
 typedef uint32_t label_t;
 #ifndef MPLS_LS_LABEL_SHIFT
 # define MPLS_LS_LABEL_SHIFT     12

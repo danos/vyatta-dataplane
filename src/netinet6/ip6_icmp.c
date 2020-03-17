@@ -134,7 +134,7 @@ icmp6_reflect(struct ifnet *ifp, struct rte_mbuf *m)
 {
 	struct rte_ether_hdr *eh = ethhdr(m);
 
-	eh->ether_type = htons(ETHER_TYPE_IPv6);
+	eh->ether_type = htons(RTE_ETHER_TYPE_IPV6);
 
 	ICMP6STAT_INC(pktmbuf_get_vrf(m), ICMP6_MIB_OUTMSGS);
 	ip6_lookup_and_originate(m, ifp);
@@ -452,11 +452,12 @@ void icmp6_redirect(struct ifnet *ifp, struct rte_mbuf *n,
 	/* offset for the Redirected Header option */
 	uint16_t rd_hdr_off = sizeof(struct nd_redirect);
 	if (add_target_ll)
-		rd_hdr_off += ICMP6_OPT_LEN(nd_opt_hdr, ETHER_ADDR_LEN) << 3;
+		rd_hdr_off += ICMP6_OPT_LEN(nd_opt_hdr,
+					    RTE_ETHER_ADDR_LEN) << 3;
 
 	/* how much of the original packet can we fit? */
 	uint16_t origoff = rd_hdr_off + sizeof(struct nd_opt_rd_hdr);
-	uint16_t origlen = rte_pktmbuf_data_len(n) - ETHER_HDR_LEN;
+	uint16_t origlen = rte_pktmbuf_data_len(n) - RTE_ETHER_HDR_LEN;
 	origlen = RTE_MIN(origlen, ICMP6_PLD_MAXLEN - origoff);
 
 	/* RFC4861 and comments in KAME say the original packet should be
@@ -468,7 +469,7 @@ void icmp6_redirect(struct ifnet *ifp, struct rte_mbuf *n,
 	origlen -= origlen % 8;
 
 	uint16_t plen = origoff + origlen + origpad;
-	uint16_t totallen = ETHER_HDR_LEN + sizeof(struct ip6_hdr) + plen;
+	uint16_t totallen = RTE_ETHER_HDR_LEN + sizeof(struct ip6_hdr) + plen;
 
 	struct rte_mbuf *m = pktmbuf_alloc(n->pool, pktmbuf_get_vrf(n));
 
@@ -505,7 +506,8 @@ void icmp6_redirect(struct ifnet *ifp, struct rte_mbuf *n,
 	if (add_target_ll) {
 		struct nd_opt_hdr *nd_opt = (struct nd_opt_hdr *)(nd_rd + 1);
 		nd_opt->nd_opt_type = ND_OPT_TARGET_LINKADDR;
-		nd_opt->nd_opt_len = ICMP6_OPT_LEN(nd_opt_hdr, ETHER_ADDR_LEN);
+		nd_opt->nd_opt_len = ICMP6_OPT_LEN(nd_opt_hdr,
+						   RTE_ETHER_ADDR_LEN);
 		rte_ether_addr_copy(&ln->ll_addr, (void *)(nd_opt + 1));
 	}
 

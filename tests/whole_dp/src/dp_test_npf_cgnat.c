@@ -3744,7 +3744,7 @@ DP_START_TEST_FULL_RUN(cgnat33, test)
 	struct dp_test_pkt_desc_t int_to_ext_pre = {
 		.text       = "IPv4 Inside to Outside UDP pre",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv4,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
 		.l3_src     = "100.64.0.1",
 		.l2_src     = "aa:bb:cc:dd:1:a1",
 		.l3_dst     = "1.1.1.1",
@@ -3766,7 +3766,7 @@ DP_START_TEST_FULL_RUN(cgnat33, test)
 	struct dp_test_pkt_desc_t int_to_ext_post = {
 		.text       = "IPv4 Outside to Inside UDP post",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv4,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
 		.l3_src     = "1.1.1.11",
 		.l2_src     = "aa:bb:cc:dd:2:b1",
 		.l3_dst     = "1.1.1.1",
@@ -3797,7 +3797,7 @@ DP_START_TEST_FULL_RUN(cgnat33, test)
 	struct dp_test_pkt_desc_t ext_to_int_pre = {
 		.text       = "IPv4 Outside to Inside UDP pre",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv4,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
 		.l3_src     = "1.1.1.1",
 		.l2_src     = "aa:bb:cc:dd:2:b1",
 		.l3_dst     = "1.1.1.11",
@@ -3819,7 +3819,7 @@ DP_START_TEST_FULL_RUN(cgnat33, test)
 	struct dp_test_pkt_desc_t ext_to_int_post = {
 		.text       = "IPv4 Outside to Inside UDP post",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv4,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
 		.l3_src     = "1.1.1.1",
 		.l2_src     = "aa:bb:cc:dd:1:a1",
 		.l3_dst     = "100.64.0.1",
@@ -3879,7 +3879,7 @@ DP_START_TEST_FULL_RUN(cgnat33, test)
 	(void)dp_test_pktmbuf_eth_init(icmp_pak,
 				       dp_test_intf_name2mac_str("dp1T0"),
 				       "aa:bb:cc:dd:1:a1",
-				       ETHER_TYPE_IPv4);
+				       RTE_ETHER_TYPE_IPV4);
 
 	/* Create expect */
 	payload_pak = dp_test_v4_pkt_from_desc(&ext_to_int_pre);
@@ -3906,7 +3906,7 @@ DP_START_TEST_FULL_RUN(cgnat33, test)
 	dp_test_ipv4_decrement_ttl(exp_pak);
 	(void)dp_test_pktmbuf_eth_init(exp_pak, "aa:bb:cc:dd:2:b1",
 				       dp_test_intf_name2mac_str("dp2T1"),
-				       ETHER_TYPE_IPv4);
+				       RTE_ETHER_TYPE_IPV4);
 
 	/* Send ICMP error message */
 	dp_test_pak_receive(icmp_pak, "dp1T0", test_exp);
@@ -3941,7 +3941,7 @@ DP_START_TEST_FULL_RUN(cgnat33, test)
 	(void)dp_test_pktmbuf_eth_init(icmp_pak,
 				       dp_test_intf_name2mac_str("dp2T1"),
 				       "aa:bb:cc:dd:2:b1",
-				       ETHER_TYPE_IPv4);
+				       RTE_ETHER_TYPE_IPV4);
 
 	/* Create expect */
 	payload_pak = dp_test_v4_pkt_from_desc(&int_to_ext_pre);
@@ -3968,7 +3968,7 @@ DP_START_TEST_FULL_RUN(cgnat33, test)
 	dp_test_ipv4_decrement_ttl(exp_pak);
 	(void)dp_test_pktmbuf_eth_init(exp_pak, "aa:bb:cc:dd:1:a1",
 				       dp_test_intf_name2mac_str("dp1T0"),
-				       ETHER_TYPE_IPv4);
+				       RTE_ETHER_TYPE_IPV4);
 
 	/* Send ICMP error message */
 	dp_test_pak_receive(icmp_pak, "dp2T1", test_exp);
@@ -4006,7 +4006,7 @@ DP_START_TEST_FULL_RUN(cgnat33, test)
 	(void)dp_test_pktmbuf_eth_init(icmp_pak,
 				       dp_test_intf_name2mac_str("dp1T0"),
 				       "aa:bb:cc:dd:1:a1",
-				       ETHER_TYPE_IPv4);
+				       RTE_ETHER_TYPE_IPV4);
 
 	/* Create expect */
 	payload_pak = dp_test_v4_pkt_from_desc(&ext_to_int_pre);
@@ -4035,7 +4035,7 @@ DP_START_TEST_FULL_RUN(cgnat33, test)
 	dp_test_ipv4_decrement_ttl(exp_pak);
 	(void)dp_test_pktmbuf_eth_init(exp_pak, "aa:bb:cc:dd:2:b1",
 				       dp_test_intf_name2mac_str("dp2T1"),
-				       ETHER_TYPE_IPv4);
+				       RTE_ETHER_TYPE_IPV4);
 
 	/* Send ICMP error message */
 	dp_test_pak_receive(icmp_pak, "dp1T0", test_exp);
@@ -4080,7 +4080,7 @@ DP_START_TEST_FULL_RUN(cgnat34, test)
 	struct dp_test_pkt_desc_t int_to_ext_pre = {
 		.text       = "IPv4 Inside to Outside UDP pre",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv4,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
 		.l3_src     = "100.64.0.1",
 		.l2_src     = "aa:bb:cc:dd:1:a1",
 		.l3_dst     = "1.1.1.1",
@@ -4107,7 +4107,7 @@ DP_START_TEST_FULL_RUN(cgnat34, test)
 	struct dp_test_pkt_desc_t int_to_ext_post = {
 		.text       = "IPv4 Outside to Inside TCP post",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv4,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
 		.l3_src     = "1.1.1.11",
 		.l2_src     = "aa:bb:cc:dd:2:b1",
 		.l3_dst     = "1.1.1.1",
@@ -4144,7 +4144,7 @@ DP_START_TEST_FULL_RUN(cgnat34, test)
 	struct dp_test_pkt_desc_t ext_to_int_pre = {
 		.text       = "IPv4 Outside to Inside TCP pre",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv4,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
 		.l3_src     = "1.1.1.1",
 		.l2_src     = "aa:bb:cc:dd:2:b1",
 		.l3_dst     = "1.1.1.11",
@@ -4171,7 +4171,7 @@ DP_START_TEST_FULL_RUN(cgnat34, test)
 	struct dp_test_pkt_desc_t ext_to_int_post = {
 		.text       = "IPv4 Outside to Inside TCP post",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv4,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
 		.l3_src     = "1.1.1.1",
 		.l2_src     = "aa:bb:cc:dd:1:a1",
 		.l3_dst     = "100.64.0.1",
@@ -4235,7 +4235,7 @@ DP_START_TEST_FULL_RUN(cgnat34, test)
 	(void)dp_test_pktmbuf_eth_init(icmp_pak,
 				       dp_test_intf_name2mac_str("dp1T0"),
 				       "aa:bb:cc:dd:1:a1",
-				       ETHER_TYPE_IPv4);
+				       RTE_ETHER_TYPE_IPV4);
 
 	/* Create expect */
 	payload_pak = dp_test_v4_pkt_from_desc(&ext_to_int_pre);
@@ -4262,7 +4262,7 @@ DP_START_TEST_FULL_RUN(cgnat34, test)
 	dp_test_ipv4_decrement_ttl(exp_pak);
 	(void)dp_test_pktmbuf_eth_init(exp_pak, "aa:bb:cc:dd:2:b1",
 				       dp_test_intf_name2mac_str("dp2T1"),
-				       ETHER_TYPE_IPv4);
+				       RTE_ETHER_TYPE_IPV4);
 
 	/* Send ICMP error message */
 	dp_test_pak_receive(icmp_pak, "dp1T0", test_exp);
@@ -4297,7 +4297,7 @@ DP_START_TEST_FULL_RUN(cgnat34, test)
 	(void)dp_test_pktmbuf_eth_init(icmp_pak,
 				       dp_test_intf_name2mac_str("dp2T1"),
 				       "aa:bb:cc:dd:2:b1",
-				       ETHER_TYPE_IPv4);
+				       RTE_ETHER_TYPE_IPV4);
 
 	/* Create expect */
 	payload_pak = dp_test_v4_pkt_from_desc(&int_to_ext_pre);
@@ -4324,7 +4324,7 @@ DP_START_TEST_FULL_RUN(cgnat34, test)
 	dp_test_ipv4_decrement_ttl(exp_pak);
 	(void)dp_test_pktmbuf_eth_init(exp_pak, "aa:bb:cc:dd:1:a1",
 				       dp_test_intf_name2mac_str("dp1T0"),
-				       ETHER_TYPE_IPv4);
+				       RTE_ETHER_TYPE_IPV4);
 
 	/* Send ICMP error message */
 	dp_test_pak_receive(icmp_pak, "dp2T1", test_exp);
@@ -4357,7 +4357,7 @@ DP_START_TEST_FULL_RUN(cgnat34, test)
 	(void)dp_test_pktmbuf_eth_init(icmp_pak,
 				       dp_test_intf_name2mac_str("dp1T0"),
 				       "aa:bb:cc:dd:1:a1",
-				       ETHER_TYPE_IPv4);
+				       RTE_ETHER_TYPE_IPV4);
 
 	/* Create expect */
 	payload_pak = dp_test_v4_pkt_from_desc(&ext_to_int_pre);
@@ -4382,7 +4382,7 @@ DP_START_TEST_FULL_RUN(cgnat34, test)
 	dp_test_ipv4_decrement_ttl(exp_pak);
 	(void)dp_test_pktmbuf_eth_init(exp_pak, "aa:bb:cc:dd:2:b1",
 				       dp_test_intf_name2mac_str("dp2T1"),
-				       ETHER_TYPE_IPv4);
+				       RTE_ETHER_TYPE_IPV4);
 
 	/* Send ICMP error message */
 	dp_test_pak_receive(icmp_pak, "dp1T0", test_exp);
@@ -4460,7 +4460,7 @@ DP_START_TEST_FULL_RUN(cgnat35, test)
 
 	(void)dp_test_pktmbuf_eth_init(test_pak,
 				       dp_test_intf_name2mac_str("dp3T3"),
-				       neigh3_mac_str, ETHER_TYPE_IPv4);
+				       neigh3_mac_str, RTE_ETHER_TYPE_IPV4);
 
 	/*
 	 * Expected packet
@@ -4477,7 +4477,7 @@ DP_START_TEST_FULL_RUN(cgnat35, test)
 	(void)dp_test_pktmbuf_eth_init(icmp_pak,
 				       neigh3_mac_str,
 				       dp_test_intf_name2mac_str("dp3T3"),
-				       ETHER_TYPE_IPv4);
+				       RTE_ETHER_TYPE_IPV4);
 
 	dp_test_set_pak_ip_field(ip, DP_TEST_SET_TOS,
 				 IPTOS_PREC_INTERNETCONTROL);
@@ -4589,7 +4589,7 @@ DP_START_TEST_FULL_RUN(cgnat36, test)
 
 	(void)dp_test_pktmbuf_eth_init(test_pak,
 				       dp_test_intf_name2mac_str("dp3T3"),
-				       neigh3_mac_str, ETHER_TYPE_IPv4);
+				       neigh3_mac_str, RTE_ETHER_TYPE_IPV4);
 
 	/*
 	 * Expected packet
@@ -4606,7 +4606,7 @@ DP_START_TEST_FULL_RUN(cgnat36, test)
 	(void)dp_test_pktmbuf_eth_init(icmp_pak,
 				       neigh3_mac_str,
 				       dp_test_intf_name2mac_str("dp3T3"),
-				       ETHER_TYPE_IPv4);
+				       RTE_ETHER_TYPE_IPV4);
 
 	dp_test_set_pak_ip_field(ip, DP_TEST_SET_TOS,
 				 IPTOS_PREC_INTERNETCONTROL);
@@ -4880,7 +4880,7 @@ DP_START_TEST_FULL_RUN(cgnat39, test)
 	struct dp_test_pkt_desc_t pre_pkt_UDP = {
 		.text       = "IPv4 UDP",
 		.len        = len,
-		.ether_type = ETHER_TYPE_IPv4,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
 		.l3_src     = pre_saddr,
 		.l2_src     = pre_smac,
 		.l3_dst     = pre_daddr,
@@ -4900,7 +4900,7 @@ DP_START_TEST_FULL_RUN(cgnat39, test)
 	struct dp_test_pkt_desc_t post_pkt_UDP = {
 		.text       = "IPv4 UDP",
 		.len        = len,
-		.ether_type = ETHER_TYPE_IPv4,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
 		.l3_src     = post_saddr,
 		.l2_src     = "aa:bb:cc:dd:2:b1",
 		.l3_dst     = post_daddr,
@@ -5015,7 +5015,7 @@ DP_START_TEST_FULL_RUN(cgnat40, test)
 		dp_test_pktmbuf_eth_init(test_pak,
 					 dp_test_intf_name2mac_str("dp1T0"),
 					 "aa:bb:cc:dd:1:a1",
-					 ETHER_TYPE_IPv4);
+					 RTE_ETHER_TYPE_IPV4);
 
 		exp_pak = dp_test_create_tcp_ipv4_pak(
 			"1.1.1.13", "1.1.1.1", 1024, 80, TH_SYN,
@@ -5024,7 +5024,7 @@ DP_START_TEST_FULL_RUN(cgnat40, test)
 		dp_test_pktmbuf_eth_init(exp_pak,
 					 dp_test_intf_name2mac_str("dp1T0"),
 					 "aa:bb:cc:dd:1:a1",
-					 ETHER_TYPE_IPv4);
+					 RTE_ETHER_TYPE_IPV4);
 
 		exp = dp_test_exp_create(exp_pak);
 		rte_pktmbuf_free(exp_pak);
@@ -5034,7 +5034,7 @@ DP_START_TEST_FULL_RUN(cgnat40, test)
 		(void)dp_test_pktmbuf_eth_init(
 			dp_test_exp_get_pak(exp), "aa:bb:cc:dd:2:b1",
 			dp_test_intf_name2mac_str("dp2T1"),
-			ETHER_TYPE_IPv4);
+			RTE_ETHER_TYPE_IPV4);
 
 		dp_test_ipv4_decrement_ttl(dp_test_exp_get_pak(exp));
 
@@ -5514,7 +5514,7 @@ end3:
 	struct dp_test_pkt_desc_t ins_pre = {
 		.text       = "Inside pre",
 		.len	    = 20,
-		.ether_type = ETHER_TYPE_IPv4,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
 		.l3_src     = subs_str,
 		.l2_src     = "aa:bb:cc:dd:1:a1",
 		.l3_dst     = "1.1.1.1",
@@ -5980,7 +5980,7 @@ DP_START_TEST(cgnat46, test)
 	(void)dp_test_pktmbuf_eth_init(test_pak,
 				       dp_test_intf_name2mac_str("dp2T1"),
 				       "aa:bb:cc:dd:2:b1",
-				       ETHER_TYPE_IPv4);
+				       RTE_ETHER_TYPE_IPV4);
 
 	exp_pak = dp_test_create_icmp_ipv4_pak("1.1.1.11",
 					       "1.1.1.1",
@@ -5994,7 +5994,7 @@ DP_START_TEST(cgnat46, test)
 	(void)dp_test_pktmbuf_eth_init(exp_pak,
 				       "aa:bb:cc:dd:2:b1",
 				       dp_test_intf_name2mac_str("dp2T1"),
-				       ETHER_TYPE_IPv4);
+				       RTE_ETHER_TYPE_IPV4);
 
 	/* Create pak we expect to see in local_packet */
 	exp = dp_test_exp_create(exp_pak);
@@ -7389,7 +7389,7 @@ _cgnat_udp(const char *rx_intf, const char *pre_smac, int pre_vlan,
 	struct dp_test_pkt_desc_t pre_pkt_UDP = {
 		.text       = "IPv4 UDP",
 		.len        = len,
-		.ether_type = ETHER_TYPE_IPv4,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
 		.l3_src     = pre_saddr,
 		.l2_src     = pre_smac,
 		.l3_dst     = pre_daddr,
@@ -7409,7 +7409,7 @@ _cgnat_udp(const char *rx_intf, const char *pre_smac, int pre_vlan,
 	struct dp_test_pkt_desc_t post_pkt_UDP = {
 		.text       = "IPv4 UDP",
 		.len        = len,
-		.ether_type = ETHER_TYPE_IPv4,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
 		.l3_src     = post_saddr,
 		.l2_src     = "aa:bb:cc:dd:2:b1",
 		.l3_dst     = post_daddr,
@@ -7476,7 +7476,7 @@ _cgnat_udp(const char *rx_intf, const char *pre_smac, int pre_vlan,
 		dp_test_pktmbuf_eth_init(
 			exp_pak, pre_pkt_UDP.l2_src,
 			dp_test_intf_name2mac_str(rx_intf),
-			ETHER_TYPE_IPv4);
+			RTE_ETHER_TYPE_IPV4);
 	} else {
 
 		exp_pak = dp_test_v4_pkt_from_desc(&post_pkt_UDP);
@@ -7495,7 +7495,7 @@ _cgnat_udp(const char *rx_intf, const char *pre_smac, int pre_vlan,
 			dp_test_exp_get_pak(test_exp),
 			post_dmac,
 			dp_test_intf_name2mac_str(tx_intf),
-			ETHER_TYPE_IPv4);
+			RTE_ETHER_TYPE_IPV4);
 	}
 
 	dp_test_exp_set_fwd_status(test_exp, status);
@@ -7527,7 +7527,7 @@ _cgnat_tcp(uint8_t flags, const char *rx_intf, const char *pre_smac,
 	struct dp_test_pkt_desc_t pre_pkt_TCP = {
 		.text       = "IPv4 TCP",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv4,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
 		.l3_src     = pre_saddr,
 		.l2_src     = pre_smac,
 		.l3_dst     = pre_daddr,
@@ -7552,7 +7552,7 @@ _cgnat_tcp(uint8_t flags, const char *rx_intf, const char *pre_smac,
 	struct dp_test_pkt_desc_t post_pkt_TCP = {
 		.text       = "IPv4 TCP",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv4,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
 		.l3_src     = post_saddr,
 		.l2_src     = "aa:bb:cc:dd:2:b1",
 		.l3_dst     = post_daddr,
@@ -7624,7 +7624,7 @@ _cgnat_tcp(uint8_t flags, const char *rx_intf, const char *pre_smac,
 		dp_test_pktmbuf_eth_init(
 			exp_pak, pre_pkt_TCP.l2_src,
 			dp_test_intf_name2mac_str(rx_intf),
-			ETHER_TYPE_IPv4);
+			RTE_ETHER_TYPE_IPV4);
 	} else {
 
 		exp_pak = dp_test_v4_pkt_from_desc(&post_pkt_TCP);
@@ -7662,7 +7662,7 @@ _cgnat_icmp(uint8_t icmp_type,
 	struct dp_test_pkt_desc_t pre_pkt_ICMP = {
 		.text       = "IPv4 ICMP",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv4,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
 		.l3_src     = pre_saddr,
 		.l2_src     = pre_smac,
 		.l3_dst     = pre_daddr,
@@ -7686,7 +7686,7 @@ _cgnat_icmp(uint8_t icmp_type,
 	struct dp_test_pkt_desc_t post_pkt_ICMP = {
 		.text       = "Packet A, IPv4 ICMP",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv4,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
 		.l3_src     = post_saddr,
 		.l2_src     = "aa:bb:cc:dd:2:b1",
 		.l3_dst     = post_daddr,

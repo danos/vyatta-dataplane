@@ -786,7 +786,7 @@ mpls_oam_v4_lookup(int labelspace, uint8_t nlabels, const label_t *labels,
 	/*
 	 * Reset L2 header to the end of the ethernet header
 	 */
-	m->l2_len = ETHER_HDR_LEN;
+	m->l2_len = RTE_ETHER_HDR_LEN;
 
 	npaths = 0;
 	paths = nexthop_get(out->next_hop, &npaths);

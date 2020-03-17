@@ -40,9 +40,9 @@ npf_icmp_err_session_find(int di, struct rte_mbuf *nbuf, npf_cache_t *npc,
 
 	/* Only valid for IPv4/IPv6 */
 	if (npf_iscached(npc, NPC_IP4))
-		ether_proto = htons(ETHER_TYPE_IPv4);
+		ether_proto = htons(RTE_ETHER_TYPE_IPV4);
 	else if (npf_iscached(npc, NPC_IP6))
-		ether_proto = htons(ETHER_TYPE_IPv6);
+		ether_proto = htons(RTE_ETHER_TYPE_IPV6);
 	else
 		return NULL;
 
@@ -111,7 +111,8 @@ npf_icmpv4_err_nat(npf_cache_t *npc,
 	npf_cache_init(&enpc);
 
 	/* Inspect the embedded packet. */
-	if (!npf_cache_all_at(&enpc, m, n_ptr, htons(ETHER_TYPE_IPv4), true))
+	if (!npf_cache_all_at(&enpc, m, n_ptr,
+			      htons(RTE_ETHER_TYPE_IPV4), true))
 		return 1;
 
 	/* Sanity checks - these should never occur */

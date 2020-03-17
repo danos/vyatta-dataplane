@@ -551,10 +551,10 @@ static bool npf_fetch_ip(npf_cache_t *npc, struct rte_mbuf *nbuf, void *n_ptr,
 			 uint16_t eth_proto)
 {
 	switch (ntohs(eth_proto)) {
-	case ETHER_TYPE_IPv4:
+	case RTE_ETHER_TYPE_IPV4:
 		return npf_fetch_ipv4(npc, nbuf, n_ptr);
 
-	case ETHER_TYPE_IPv6:
+	case RTE_ETHER_TYPE_IPV6:
 		return npf_fetch_ipv6(npc, nbuf, n_ptr);
 
 	default:
@@ -1580,7 +1580,7 @@ npf_ipv6_is_fragment(struct rte_mbuf *m, uint16_t *npf_flag)
 	 * packet will be fully cached, and the packet will not be
 	 * cached again.
 	 */
-	npf_cache_t *n = npf_get_cache(npf_flag, m, htons(ETHER_TYPE_IPv6));
+	npf_cache_t *n = npf_get_cache(npf_flag, m, htons(RTE_ETHER_TYPE_IPV6));
 
 	if (n && npf_iscached(n, NPC_IPFRAG) &&
 	    !npf_ip6_has_non_frag_ext_hdrs(n))

@@ -362,7 +362,7 @@ struct rte_mbuf *ipv4_handle_fragment(struct rte_mbuf *m)
 	/* prepare mbuf: setup l2_len/l3_len. */
 	ip = iphdr(m);
 	hlen = ip->ihl << 2;
-	m->l2_len = ETHER_HDR_LEN;
+	m->l2_len = RTE_ETHER_HDR_LEN;
 	m->l3_len = hlen;
 
 	mo = ipv4_frag_mbuf(m);

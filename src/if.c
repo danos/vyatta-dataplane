@@ -1199,7 +1199,7 @@ void if_add_vlan(struct ifnet *ifp, struct rte_mbuf **m)
 
 	if (ifp->qinq_inner) {
 		if_incr_out(ifp, *m);
-		vid_encap(ifp->if_vlan, m, ETHER_TYPE_VLAN);
+		vid_encap(ifp->if_vlan, m, RTE_ETHER_TYPE_VLAN);
 		ifp = ifp->if_parent;
 	}
 
@@ -1330,7 +1330,7 @@ int if_vlan_proto_set(struct ifnet *ifp, uint16_t proto)
 	 * and physical VLAN interfaces.
 	 */
 	if (ifp->qinq_inner) {
-		if (proto != ETHER_TYPE_VLAN)
+		if (proto != RTE_ETHER_TYPE_VLAN)
 			RTE_LOG(ERR, DATAPLANE,
 				"%s: can't change QinQ inner tpid - 0x%x\n",
 				ifp->if_name, proto);
@@ -1577,7 +1577,7 @@ if_hwport_init(const char *if_name, unsigned int portid,
 		return NULL;
 	}
 
-	ifp = if_alloc(if_name, IFT_ETHER, ETHER_MTU, eth, socketid);
+	ifp = if_alloc(if_name, IFT_ETHER, RTE_ETHER_MTU, eth, socketid);
 	if (!ifp)
 		return NULL;
 

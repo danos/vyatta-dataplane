@@ -499,7 +499,9 @@ char *if_port_info(const struct ifnet *ifp)
 	if (if_port_is_bkplane(port_id)) {
 		if_flags |= IFF_UP;
 		/* max_rx_pktlen is the frame size */
-		mtu = dev_info.max_rx_pktlen - ETHER_HDR_LEN - ETHER_CRC_LEN;
+		mtu = dev_info.max_rx_pktlen -
+		      RTE_ETHER_HDR_LEN -
+		      RTE_ETHER_CRC_LEN;
 	}
 
 	json_bus_info(wr, port_id, backplane_name);

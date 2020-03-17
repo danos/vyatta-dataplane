@@ -45,8 +45,8 @@ ip_fw_out_process_common(struct pl_packet *pkt, bool v4)
 
 		result = npf_hook_track(pkt->in_ifp, &m, nif, PFIL_OUT,
 					pkt->npf_flags,
-					v4 ? htons(ETHER_TYPE_IPv4) :
-					htons(ETHER_TYPE_IPv6));
+					v4 ? htons(RTE_ETHER_TYPE_IPV4) :
+					htons(RTE_ETHER_TYPE_IPV6));
 		if (unlikely(m != pkt->mbuf)) {
 			pkt->mbuf = m;
 			pkt->l3_hdr = dp_pktmbuf_mtol3(m, void *);

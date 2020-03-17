@@ -498,7 +498,7 @@ DP_START_TEST(vti, encrypt_a_packet)
 	input_packet = build_input_icmp_packet();
 	(void)dp_test_pktmbuf_eth_init(input_packet,
 				       dp_test_intf_name2mac_str("dp1T1"),
-				       NULL, ETHER_TYPE_IPv4);
+				       NULL, RTE_ETHER_TYPE_IPV4);
 
 	output_packet = build_expected_esp_packet(&encrypted_payload_len);
 
@@ -507,7 +507,7 @@ DP_START_TEST(vti, encrypt_a_packet)
 	(void)dp_test_pktmbuf_eth_init(output_packet,
 				       PEER_MAC_ADDR,
 				       dp_test_intf_name2mac_str("dp2T2"),
-				       ETHER_TYPE_IPv4);
+				       RTE_ETHER_TYPE_IPV4);
 
 	exp = dp_test_exp_create(output_packet);
 	rte_pktmbuf_free(output_packet);
@@ -551,7 +551,7 @@ DP_START_TEST(vti_toobig, vti_toobig)
 	test_pak = dp_test_create_ipv6_pak(CLIENT_LOCAL6, CLIENT_REMOTE6,
 					   1, &len);
 	dp_test_pktmbuf_eth_init(test_pak, dp_test_intf_name2mac_str("dp1T1"),
-				 CLIENT_LOCAL_MAC_ADDR, ETHER_TYPE_IPv6);
+				 CLIENT_LOCAL_MAC_ADDR, RTE_ETHER_TYPE_IPV6);
 
 	/*
 	 * Expected ICMP response
@@ -573,7 +573,7 @@ DP_START_TEST(vti_toobig, vti_toobig)
 	(void)dp_test_pktmbuf_eth_init(icmp_pak,
 				       CLIENT_LOCAL_MAC_ADDR,
 				       dp_test_intf_name2mac_str("dp1T1"),
-				       ETHER_TYPE_IPv6);
+				       RTE_ETHER_TYPE_IPV6);
 
 	in6_inner = (struct ip6_hdr *)(icmp6 + 1);
 	in6_inner->ip6_hlim--;
@@ -619,7 +619,7 @@ DP_START_TEST(vti, encrypt_a_packet_vrf)
 	input_packet = build_input_icmp_packet();
 	(void)dp_test_pktmbuf_eth_init(input_packet,
 				       dp_test_intf_name2mac_str("dp1T1"),
-				       NULL, ETHER_TYPE_IPv4);
+				       NULL, RTE_ETHER_TYPE_IPV4);
 
 	output_packet = build_expected_esp_packet(&encrypted_payload_len);
 
@@ -628,7 +628,7 @@ DP_START_TEST(vti, encrypt_a_packet_vrf)
 	(void)dp_test_pktmbuf_eth_init(output_packet,
 				       PEER_MAC_ADDR,
 				       dp_test_intf_name2mac_str("dp2T2"),
-				       ETHER_TYPE_IPv4);
+				       RTE_ETHER_TYPE_IPV4);
 
 	exp = dp_test_exp_create(output_packet);
 	rte_pktmbuf_free(output_packet);
@@ -751,7 +751,7 @@ DP_START_TEST(vti, return_enc_icmp)
 	input_packet = build_encrypted_input_packet();
 	(void)dp_test_pktmbuf_eth_init(input_packet,
 				       dp_test_intf_name2mac_str("dp2T2"),
-				       NULL, ETHER_TYPE_IPv4);
+				       NULL, RTE_ETHER_TYPE_IPV4);
 
 	/*
 	 * Expect an ICMP Unreachable
@@ -763,7 +763,7 @@ DP_START_TEST(vti, return_enc_icmp)
 	(void)dp_test_pktmbuf_eth_init(output_packet,
 				       PEER_MAC_ADDR,
 				       dp_test_intf_name2mac_str("dp2T2"),
-				       ETHER_TYPE_IPv4);
+				       RTE_ETHER_TYPE_IPV4);
 
 	exp = dp_test_exp_create(output_packet);
 	dp_test_exp_set_oif_name(exp, "dp2T2");
@@ -806,7 +806,7 @@ DP_START_TEST(vti, decrypt_a_packet)
 	input_packet = build_encrypted_input_packet();
 	(void)dp_test_pktmbuf_eth_init(input_packet,
 				       dp_test_intf_name2mac_str("dp2T2"),
-				       NULL, ETHER_TYPE_IPv4);
+				       NULL, RTE_ETHER_TYPE_IPV4);
 
 	/*
 	 * Ceate the expected decrypted ping packet
@@ -815,7 +815,7 @@ DP_START_TEST(vti, decrypt_a_packet)
 	(void)dp_test_pktmbuf_eth_init(output_packet,
 				       CLIENT_LOCAL_MAC_ADDR,
 				       dp_test_intf_name2mac_str("dp1T1"),
-				       ETHER_TYPE_IPv4);
+				       RTE_ETHER_TYPE_IPV4);
 
 	/*
 	 * Create an expectation for the decypted ICMP ping packet on dp1T1.
@@ -863,7 +863,7 @@ DP_START_TEST(vti, decrypt_a_packet_vrf)
 	input_packet = build_encrypted_input_packet();
 	(void)dp_test_pktmbuf_eth_init(input_packet,
 				       dp_test_intf_name2mac_str("dp2T2"),
-				       NULL, ETHER_TYPE_IPv4);
+				       NULL, RTE_ETHER_TYPE_IPV4);
 
 	/*
 	 * Ceate the expected decrypted ping packet
@@ -872,7 +872,7 @@ DP_START_TEST(vti, decrypt_a_packet_vrf)
 	(void)dp_test_pktmbuf_eth_init(output_packet,
 				       CLIENT_LOCAL_MAC_ADDR,
 				       dp_test_intf_name2mac_str("dp1T1"),
-				       ETHER_TYPE_IPv4);
+				       RTE_ETHER_TYPE_IPV4);
 
 	/*
 	 * Create an expectation for the decypted ICMP ping packet on dp1T1.
@@ -913,7 +913,7 @@ DP_START_TEST(vti, encrypt_a_packet_bind_dp2)
 	input_pak = build_input_icmp_packet();
 	(void)dp_test_pktmbuf_eth_init(input_pak,
 				       dp_test_intf_name2mac_str("dp1T1"),
-				       NULL, ETHER_TYPE_IPv4);
+				       NULL, RTE_ETHER_TYPE_IPV4);
 
 	output_pak = build_expected_esp_packet(&encrypted_payload_len);
 	dp_test_set_pak_ip_field(iphdr(output_pak), DP_TEST_SET_DF, 1);
@@ -921,7 +921,7 @@ DP_START_TEST(vti, encrypt_a_packet_bind_dp2)
 						PEER_MAC_ADDR,
 						dp_test_intf_name2mac_str
 						("dp2T2"),
-						ETHER_TYPE_IPv4);
+						RTE_ETHER_TYPE_IPV4);
 
 	exp = dp_test_exp_create(output_pak);
 	rte_pktmbuf_free(output_pak);

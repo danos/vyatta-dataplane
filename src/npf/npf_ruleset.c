@@ -1703,10 +1703,10 @@ npf_ruleset_inspect(npf_cache_t *npc, struct rte_mbuf *nbuf,
 		if (!npc) {
 			uint16_t et = ethhdr(nbuf)->ether_type;
 
-			if (et == htons(ETHER_TYPE_IPv4)) {
+			if (et == htons(RTE_ETHER_TYPE_IPV4)) {
 				af = AF_INET;
 				match_ctx = rg->match_ctx_v4;
-			} else if (et == htons(ETHER_TYPE_IPv6)) {
+			} else if (et == htons(RTE_ETHER_TYPE_IPV6)) {
 				af = AF_INET6;
 				match_ctx = rg->match_ctx_v6;
 			}

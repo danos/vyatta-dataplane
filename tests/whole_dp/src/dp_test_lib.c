@@ -652,7 +652,7 @@ dp_test_set_iphdr(struct rte_mbuf *m, const char *src, const char *dst)
 	struct iphdr *ip = (struct iphdr *)(eth + 1);
 	uint32_t addr;
 
-	eth->ether_type = htons(ETHER_TYPE_IPv4);
+	eth->ether_type = htons(RTE_ETHER_TYPE_IPV4);
 	ip->ihl = DP_TEST_PAK_DEFAULT_IHL;
 	ip->version = 4;
 	ip->tos = 0;
@@ -1032,7 +1032,7 @@ dp_test_pak_verify(struct rte_mbuf *m, struct ifnet *ifp,
 
 	/* Verify that the mbuf L2 length is valid for Ethernet frames */
 	_dp_test_fail_unless(
-		m->l2_len >= ETHER_HDR_LEN, file, line,
+		m->l2_len >= RTE_ETHER_HDR_LEN, file, line,
 		"(%d) Invalid mbuf L2 length for Ethernet pkt: %d",
 		check, m->l2_len);
 

@@ -2693,7 +2693,7 @@ bool crypto_policy_check_outbound(struct ifnet *in_ifp, struct rte_mbuf **mbuf,
 	struct policy_rule *pr = NULL;
 	struct policy_cache_rule *pr_cache;
 	vrfid_t vrfid = pktmbuf_get_vrf(*mbuf);
-	bool v4 = (eth_type == htons(ETHER_TYPE_IPv4));
+	bool v4 = (eth_type == htons(RTE_ETHER_TYPE_IPV4));
 	bool freed = false;
 	struct npf_config *npf_conf = vrf_get_npf_conf_rcu(vrfid);
 	bool seen_by_crypto;
@@ -2884,7 +2884,7 @@ crypto_policy_check_inbound(struct ifnet *in_ifp, struct rte_mbuf **mbuf,
 {
 	struct policy_rule *pr = NULL;
 	struct policy_cache_rule *pr_cache;
-	bool v4 = (eth_type == htons(ETHER_TYPE_IPv4));
+	bool v4 = (eth_type == htons(RTE_ETHER_TYPE_IPV4));
 	bool freed = false;
 	vrfid_t vrfid = pktmbuf_get_vrf(*mbuf);
 	struct npf_config *npf_conf = vrf_get_npf_conf_rcu(vrfid);
@@ -2998,7 +2998,7 @@ bool crypto_policy_check_inbound_terminating(struct ifnet *in_ifp,
 {
 	uint8_t proto;
 
-	if (eth_type == htons(ETHER_TYPE_IPv4)) {
+	if (eth_type == htons(RTE_ETHER_TYPE_IPV4)) {
 		struct iphdr *ip = iphdr(*mbuf);
 
 		proto = ip->protocol;

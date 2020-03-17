@@ -155,7 +155,7 @@ nat64_nat64_hook_v6_in(const char *ifname, struct dp_test_pkt_desc_t *pdesc,
 
 	/* Cache IPv6 packet */
 	npf_cache_init(npc);
-	rv = npf_cache_all(npc, mbuf, htons(ETHER_TYPE_IPv6));
+	rv = npf_cache_all(npc, mbuf, htons(RTE_ETHER_TYPE_IPV6));
 	dp_test_fail_unless(rv, "packet cache");
 	dp_test_fail_unless((npc->npc_info & NPC_IP6) != 0,
 			    "packet cache info %x",
@@ -264,7 +264,7 @@ nat64_nat64_hook_v4_out(const char *ifname, struct rte_mbuf *mbuf,
 
 	/* Cache IPv4 packet */
 	npf_cache_init(npc);
-	rv = npf_cache_all(npc, mbuf, htons(ETHER_TYPE_IPv4));
+	rv = npf_cache_all(npc, mbuf, htons(RTE_ETHER_TYPE_IPV4));
 	dp_test_fail_unless(rv, "packet cache");
 	dp_test_fail_unless((npc->npc_info & NPC_IP4) != 0,
 			    "packet cache info %x",
@@ -339,7 +339,7 @@ nat64_nat64_hook_v4_in(const char *ifname, struct dp_test_pkt_desc_t *pdesc,
 
 	/* Cache IPv4 packet */
 	npf_cache_init(npc);
-	rv = npf_cache_all(npc, mbuf, htons(ETHER_TYPE_IPv4));
+	rv = npf_cache_all(npc, mbuf, htons(RTE_ETHER_TYPE_IPV4));
 	dp_test_fail_unless(rv, "packet cache");
 	dp_test_fail_unless((npc->npc_info & NPC_IP4) != 0,
 			    "packet cache info %x",
@@ -441,7 +441,7 @@ nat64_nat64_hook_v6_out(const char *ifname, struct rte_mbuf *mbuf,
 
 	/* Cache IPv6 packet */
 	npf_cache_init(npc);
-	rv = npf_cache_all(npc, mbuf, htons(ETHER_TYPE_IPv6));
+	rv = npf_cache_all(npc, mbuf, htons(RTE_ETHER_TYPE_IPV6));
 	dp_test_fail_unless(rv, "packet cache");
 	dp_test_fail_unless((npc->npc_info & NPC_IP6) != 0,
 			    "packet cache info %x",
@@ -524,7 +524,7 @@ DP_START_TEST(nat64_a1, test1)
 	struct dp_test_pkt_desc_t v6_pktA_UDP = {
 		.text       = "IPv6 UDP",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv6,
+		.ether_type = RTE_ETHER_TYPE_IPV6,
 		.l3_src     = "2001:101:1::a0a:101",
 		.l2_src     = "aa:bb:cc:dd:1:a1",
 		.l3_dst     = "2001:101:2::a0a:201",
@@ -668,7 +668,7 @@ DP_START_TEST(nat64_a2, test)
 	struct dp_test_pkt_desc_t v4_pktA_UDP = {
 		.text       = "Packet A, IPv4 UDP",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv4,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
 		.l3_src     = "10.10.2.1",
 		.l2_src     = "aa:bb:cc:dd:1:a1",
 		.l3_dst     = "10.10.1.1",
@@ -834,7 +834,7 @@ DP_START_TEST(nat64_a3, test)
 	struct dp_test_pkt_desc_t v6_pktA_UDP = {
 		.text       = "IPv6 UDP",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv6,
+		.ether_type = RTE_ETHER_TYPE_IPV6,
 		.l3_src     = "2001:101:1::a0a:101",
 		.l2_src     = "aa:bb:cc:dd:1:a1",
 		.l3_dst     = "2001:101:2::a0a:201",
@@ -854,7 +854,7 @@ DP_START_TEST(nat64_a3, test)
 	struct dp_test_pkt_desc_t v4_pktA_UDP = {
 		.text       = "Packet A, IPv4 UDP",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv4,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
 		.l3_src     = "10.10.2.1",
 		.l2_src     = "aa:bb:cc:dd:1:a1",
 		.l3_dst     = "10.10.1.1",
@@ -1018,7 +1018,7 @@ DP_START_TEST(nat64_a4, test1)
 	struct dp_test_pkt_desc_t v6_pktA_UDP = {
 		.text       = "IPv6 UDP",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv6,
+		.ether_type = RTE_ETHER_TYPE_IPV6,
 		.l3_src     = "2001:101:1::a0a:101",
 		.l2_src     = "aa:bb:cc:dd:1:a1",
 		.l3_dst     = "2001:101:2::a0a:201",
@@ -1134,7 +1134,7 @@ static void _nat64_v6_to_v4_udp(uint16_t pre_sport, uint16_t pre_dport,
 	struct dp_test_pkt_desc_t v6_pktA_UDP = {
 		.text       = "Packet A, IPv6 UDP",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv6,
+		.ether_type = RTE_ETHER_TYPE_IPV6,
 		.l3_src     = v6_saddr,
 		.l2_src     = "aa:bb:cc:dd:1:a1",
 		.l3_dst     = v6_daddr,
@@ -1154,7 +1154,7 @@ static void _nat64_v6_to_v4_udp(uint16_t pre_sport, uint16_t pre_dport,
 	struct dp_test_pkt_desc_t v4_pktA_UDP = {
 		.text       = "Packet A, IPv4 UDP",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv4,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
 		.l3_src     = v4_saddr,
 		.l2_src     = "aa:bb:cc:dd:1:a1",
 		.l3_dst     = v4_daddr,
@@ -1203,7 +1203,7 @@ static void _nat64_v4_to_v6_udp(uint16_t pre_sport, uint16_t pre_dport,
 	struct dp_test_pkt_desc_t v4_pktA_UDP = {
 		.text       = "Packet A, IPv4 UDP",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv4,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
 		.l3_src     = v4_saddr,
 		.l2_src     = "aa:bb:cc:dd:1:a1",
 		.l3_dst     = v4_daddr,
@@ -1223,7 +1223,7 @@ static void _nat64_v4_to_v6_udp(uint16_t pre_sport, uint16_t pre_dport,
 	struct dp_test_pkt_desc_t v6_pktA_UDP = {
 		.text       = "Packet A, IPv6 UDP",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv6,
+		.ether_type = RTE_ETHER_TYPE_IPV6,
 		.l3_src     = v6_saddr,
 		.l2_src     = "aa:bb:cc:dd:2:b1",
 		.l3_dst     = v6_daddr,
@@ -1277,7 +1277,7 @@ static void _nat64_v6_to_v4_icmp(uint8_t icmp_type,
 	struct dp_test_pkt_desc_t v6_pktA_ICMP = {
 		.text       = "Packet A, IPv6 ICMP",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv6,
+		.ether_type = RTE_ETHER_TYPE_IPV6,
 		.l3_src     = v6_saddr,
 		.l2_src     = "aa:bb:cc:dd:1:a1",
 		.l3_dst     = v6_daddr,
@@ -1301,7 +1301,7 @@ static void _nat64_v6_to_v4_icmp(uint8_t icmp_type,
 	struct dp_test_pkt_desc_t v4_pktA_ICMP = {
 		.text       = "Packet A, IPv4 ICMP",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv4,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
 		.l3_src     = v4_saddr,
 		.l2_src     = "aa:bb:cc:dd:1:a1",
 		.l3_dst     = v4_daddr,
@@ -1358,7 +1358,7 @@ static void _nat64_v4_to_v6_icmp(uint8_t icmp_type,
 	struct dp_test_pkt_desc_t v4_pktA_ICMP = {
 		.text       = "Packet A, IPv4 ICMP",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv4,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
 		.l3_src     = v4_saddr,
 		.l2_src     = "aa:bb:cc:dd:1:a1",
 		.l3_dst     = v4_daddr,
@@ -1382,7 +1382,7 @@ static void _nat64_v4_to_v6_icmp(uint8_t icmp_type,
 	struct dp_test_pkt_desc_t v6_pktA_ICMP = {
 		.text       = "Packet A, IPv6 ICMP",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv6,
+		.ether_type = RTE_ETHER_TYPE_IPV6,
 		.l3_src     = v6_saddr,
 		.l2_src     = "aa:bb:cc:dd:2:b1",
 		.l3_dst     = v6_daddr,
@@ -3179,7 +3179,7 @@ DP_START_TEST(nat64_96, test1)
 	struct dp_test_pkt_desc_t v6_pktA_UDP = {
 		.text       = "Packet A, IPv6 UDP",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv6,
+		.ether_type = RTE_ETHER_TYPE_IPV6,
 		.l3_src     = "2001:101:1::a0a:101",
 		.l2_src     = "aa:bb:cc:dd:1:a1",
 		.l3_dst     = "2001:101:2::a0a:201",
@@ -3199,7 +3199,7 @@ DP_START_TEST(nat64_96, test1)
 	struct dp_test_pkt_desc_t v4_pktA_UDP = {
 		.text       = "Packet A, IPv4 UDP",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv4,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
 		.l3_src     = "10.10.1.1",
 		.l2_src     = "aa:bb:cc:dd:1:a1",
 		.l3_dst     = "10.10.2.1",
@@ -3219,7 +3219,7 @@ DP_START_TEST(nat64_96, test1)
 	struct dp_test_pkt_desc_t v6_pktA_PING = {
 		.text       = "Packet A, IPv6 PING",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv6,
+		.ether_type = RTE_ETHER_TYPE_IPV6,
 		.l3_src     = "2001:101:1::a0a:101",
 		.l2_src     = "aa:bb:cc:dd:1:a1",
 		.l3_dst     = "2001:101:2::a0a:201",
@@ -3243,7 +3243,7 @@ DP_START_TEST(nat64_96, test1)
 	struct dp_test_pkt_desc_t v4_pktA_PING = {
 		.text       = "Packet A, IPv4 PING",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv4,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
 		.l3_src     = "10.10.1.1",
 		.l2_src     = "aa:bb:cc:dd:1:a1",
 		.l3_dst     = "10.10.2.1",
@@ -3528,7 +3528,7 @@ DP_START_TEST(nat64_64, test1)
 	struct dp_test_pkt_desc_t v6_pktA_UDP = {
 		.text       = "Packet A, IPv6 UDP",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv6,
+		.ether_type = RTE_ETHER_TYPE_IPV6,
 		.l3_src     = "2001:101:1:0:a:a01:100:1",
 		.l2_src     = "aa:bb:cc:dd:1:a1",
 		.l3_dst     = "2001:101:2:0:a:a02:100:1",
@@ -3548,7 +3548,7 @@ DP_START_TEST(nat64_64, test1)
 	struct dp_test_pkt_desc_t v4_pktA_UDP = {
 		.text       = "Packet A, IPv4 UDP",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv4,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
 		.l3_src     = "10.10.1.1",
 		.l2_src     = "aa:bb:cc:dd:1:a1",
 		.l3_dst     = "10.10.2.1",
@@ -3568,7 +3568,7 @@ DP_START_TEST(nat64_64, test1)
 	struct dp_test_pkt_desc_t v6_pktA_PING = {
 		.text       = "Packet A, IPv6 PING",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv6,
+		.ether_type = RTE_ETHER_TYPE_IPV6,
 		.l3_src     = "2001:101:1:0:a:a01:100:1",
 		.l2_src     = "aa:bb:cc:dd:1:a1",
 		.l3_dst     = "2001:101:2:0:a:a02:100:1",
@@ -3592,7 +3592,7 @@ DP_START_TEST(nat64_64, test1)
 	struct dp_test_pkt_desc_t v4_pktA_PING = {
 		.text       = "Packet A, IPv4 PING",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv4,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
 		.l3_src     = "10.10.1.1",
 		.l2_src     = "aa:bb:cc:dd:1:a1",
 		.l3_dst     = "10.10.2.1",
@@ -3783,7 +3783,7 @@ DP_START_TEST(nat64_56, test1)
 	struct dp_test_pkt_desc_t v6_pktA_UDP = {
 		.text       = "Packet A, IPv6 UDP",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv6,
+		.ether_type = RTE_ETHER_TYPE_IPV6,
 		.l3_src     = "2001:101:1:a:a:101:0:1",
 		.l2_src     = "aa:bb:cc:dd:1:a1",
 		.l3_dst     = "2001:101:2:a:a:201:0:1",
@@ -3803,7 +3803,7 @@ DP_START_TEST(nat64_56, test1)
 	struct dp_test_pkt_desc_t v4_pktA_UDP = {
 		.text       = "Packet A, IPv4 UDP",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv4,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
 		.l3_src     = "10.10.1.1",
 		.l2_src     = "aa:bb:cc:dd:1:a1",
 		.l3_dst     = "10.10.2.1",
@@ -3823,7 +3823,7 @@ DP_START_TEST(nat64_56, test1)
 	struct dp_test_pkt_desc_t v6_pktA_PING = {
 		.text       = "Packet A, IPv6 PING",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv6,
+		.ether_type = RTE_ETHER_TYPE_IPV6,
 		.l3_src     = "2001:101:1:a:a:101:0:1",
 		.l2_src     = "aa:bb:cc:dd:1:a1",
 		.l3_dst     = "2001:101:2:a:a:201:0:1",
@@ -3847,7 +3847,7 @@ DP_START_TEST(nat64_56, test1)
 	struct dp_test_pkt_desc_t v4_pktA_PING = {
 		.text       = "Packet A, IPv4 PING",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv4,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
 		.l3_src     = "10.10.1.1",
 		.l2_src     = "aa:bb:cc:dd:1:a1",
 		.l3_dst     = "10.10.2.1",
@@ -4041,7 +4041,7 @@ DP_START_TEST(nat64_48, test1)
 	struct dp_test_pkt_desc_t v6_pktA_UDP = {
 		.text       = "Packet A, IPv6 UDP",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv6,
+		.ether_type = RTE_ETHER_TYPE_IPV6,
 		.l3_src     = "2001:101:1:a0a:1:100:0:1",
 		.l2_src     = "aa:bb:cc:dd:1:a1",
 		.l3_dst     = "2001:101:2:a0a:2:100:0:1",
@@ -4061,7 +4061,7 @@ DP_START_TEST(nat64_48, test1)
 	struct dp_test_pkt_desc_t v4_pktA_UDP = {
 		.text       = "Packet A, IPv4 UDP",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv4,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
 		.l3_src     = "10.10.1.1",
 		.l2_src     = "aa:bb:cc:dd:1:a1",
 		.l3_dst     = "10.10.2.1",
@@ -4081,7 +4081,7 @@ DP_START_TEST(nat64_48, test1)
 	struct dp_test_pkt_desc_t v6_pktA_PING = {
 		.text       = "Packet A, IPv6 PING",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv6,
+		.ether_type = RTE_ETHER_TYPE_IPV6,
 		.l3_src     = "2001:101:1:a0a:1:100:0:1",
 		.l2_src     = "aa:bb:cc:dd:1:a1",
 		.l3_dst     = "2001:101:2:a0a:2:100:0:1",
@@ -4105,7 +4105,7 @@ DP_START_TEST(nat64_48, test1)
 	struct dp_test_pkt_desc_t v4_pktA_PING = {
 		.text       = "Packet A, IPv4 PING",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv4,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
 		.l3_src     = "10.10.1.1",
 		.l2_src     = "aa:bb:cc:dd:1:a1",
 		.l3_dst     = "10.10.2.1",

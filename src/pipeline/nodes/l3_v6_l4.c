@@ -99,7 +99,7 @@ ipv6_l4_pre_process(struct pl_packet *pkt, void *context, struct ifnet *ifp)
 	struct ip6_frag *ip6_frag;
 
 	if (crypto_policy_check_inbound_terminating(ifp, &m,
-						    htons(ETHER_TYPE_IPv6)))
+						    htons(RTE_ETHER_TYPE_IPV6)))
 		return 0;
 
 	switch (ip6->ip6_nxt) {

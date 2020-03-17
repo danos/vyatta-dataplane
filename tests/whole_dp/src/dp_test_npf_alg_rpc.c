@@ -66,13 +66,13 @@ _pak_rcv_nat_udp(const char *rx_intf, const char *pre_smac, int pre_vlan,
 			_i, _j, _k, _l, _m, _n, _o, _p, _q)		\
 	_pak_rcv_nat_udp(_a, _b, _c, _d, _e, _f, _g, _h,		\
 			 _i, _j, _k, _l, _m, _n, _o, _p, _q,		\
-			 ETHER_TYPE_IPv4, __FILE__, __func__, __LINE__)
+			 RTE_ETHER_TYPE_IPV4, __FILE__, __func__, __LINE__)
 
 #define pak_rcv_nat_udp_v6(_a, _b, _c, _d, _e, _f, _g, _h,		\
 			   _i, _j, _k, _l, _m, _n, _o, _p, _q)		\
 	_pak_rcv_nat_udp(_a, _b, _c, _d, _e, _f, _g, _h,		\
 			 _i, _j, _k, _l, _m, _n, _o, _p, _q,		\
-			 ETHER_TYPE_IPv6, __FILE__, __func__, __LINE__)
+			 RTE_ETHER_TYPE_IPV6, __FILE__, __func__, __LINE__)
 
 /*
  * The rpc tuple is setup in the same direction as the SNAT.  Therefore the
@@ -934,14 +934,14 @@ _pak_rcv_nat_udp(const char *rx_intf, const char *pre_smac, int pre_vlan,
 		.tx_intf    = tx_intf
 	};
 
-	if (eth_type == ETHER_TYPE_IPv4)
+	if (eth_type == RTE_ETHER_TYPE_IPV4)
 		test_pak = dp_test_v4_pkt_from_desc(&pre_pkt_UDP);
 	else
 		test_pak = dp_test_v6_pkt_from_desc(&pre_pkt_UDP);
 
 	udp_payload_init(test_pak, &pre_pkt_UDP, payload, payload_len);
 
-	if (eth_type == ETHER_TYPE_IPv4)
+	if (eth_type == RTE_ETHER_TYPE_IPV4)
 		exp_pak = dp_test_v4_pkt_from_desc(&post_pkt_UDP);
 	else
 		exp_pak = dp_test_v6_pkt_from_desc(&post_pkt_UDP);

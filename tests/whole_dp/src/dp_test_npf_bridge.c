@@ -251,7 +251,7 @@ DP_START_TEST(bridge_local, to)
 	 * Bridge firewall, assigned on br1
 	 */
 	spush(npf10, sizeof(npf10),
-	      "ether-type=%u", ETHER_TYPE_IPv4);
+	      "ether-type=%u", RTE_ETHER_TYPE_IPV4);
 
 	spush(npf20, sizeof(npf20),
 	      "src-mac=%s", "aa:bb:cc:dd:01:a1");
@@ -301,7 +301,7 @@ DP_START_TEST(bridge_local, to)
 	struct dp_test_pkt_desc_t v4_pktA = {
 		.text       = "Neighbour 1 -> Neighbour 2",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv4,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
 		.l3_src     = "10.0.1.2",
 		.l2_src     = "aa:bb:cc:dd:1:a1",
 		.l3_dst     = "10.0.1.3",
@@ -347,7 +347,7 @@ DP_START_TEST(bridge_local, to)
 	struct dp_test_pkt_desc_t v4_pktB = {
 		.text       = "Neighbour 1 -> Bridge IP address",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv4,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
 		.l3_src     = "10.0.1.2",
 		.l2_src     = "aa:bb:cc:dd:1:a1",
 		.l3_dst     = "10.0.1.1",
@@ -443,7 +443,7 @@ DP_START_TEST(bridge_local, from)
 	 * Bridge firewall
 	 */
 	spush(npf10, sizeof(npf10),
-	      "ether-type=%u", ETHER_TYPE_IPv4);
+	      "ether-type=%u", RTE_ETHER_TYPE_IPV4);
 
 	spush(npf20, sizeof(npf20),
 	      "src-mac=%s", "aa:bb:cc:dd:01:a1");
@@ -495,7 +495,7 @@ DP_START_TEST(bridge_local, from)
 	struct dp_test_pkt_desc_t v4_pktA = {
 		.text       = "Neighbour 1 -> Neighbour 2",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv4,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
 		.l3_src     = "10.0.1.2",
 		.l2_src     = "aa:bb:cc:dd:1:a1",
 		.l3_dst     = "10.0.1.3",
@@ -547,7 +547,7 @@ DP_START_TEST(bridge_local, from)
 	struct dp_test_pkt_desc_t v4_pktC = {
 		.text       = "Neighbour 2 -> Neighbour 1",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv4,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
 		.l3_src     = "10.0.1.3",
 		.l2_src     = "aa:bb:cc:dd:2:a2",
 		.l3_dst     = "10.0.1.2",
@@ -602,7 +602,7 @@ DP_START_TEST(bridge_local, from)
 	test_pak = dp_test_create_l2_pak(
 		"FF:FF:FF:FF:FF:FF",
 		dp_test_intf_name2mac_str("br1"),
-		ETHER_TYPE_ARP, 1, &len);
+		RTE_ETHER_TYPE_ARP, 1, &len);
 	dp_test_fail_unless(test_pak, "Failed to create l2 pak");
 
 	/*
@@ -927,7 +927,7 @@ static void dp_test_npf_1(const struct dp_test_bridge_ctx *ctx)
 	struct dp_test_pkt_desc_t udp_pkt1 = {
 		.text       = "pkt1",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv4,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
 		.l3_src     = "1.1.1.11",
 		.l2_src     = "aa:bb:cc:dd:1:11",
 		.l3_dst     = "2.2.2.11",
@@ -970,7 +970,7 @@ static void dp_test_npf_1(const struct dp_test_bridge_ctx *ctx)
 	struct dp_test_pkt_desc_t udp_pkt2 = {
 		.text       = "pkt2",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv4,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
 		.l3_src     = "2.2.2.11",
 		.l2_src     = "aa:bb:cc:dd:2:11",
 		.l3_dst     = "1.1.1.11",
@@ -1056,7 +1056,7 @@ static void dp_test_npf_2(const struct dp_test_bridge_ctx *ctx)
 	struct dp_test_pkt_desc_t udp_pkt1 = {
 		.text       = "UDP pkt1",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv4,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
 		.l3_src     = "2.2.2.11",
 		.l2_src     = "aa:bb:cc:dd:2:11",
 		.l3_dst     = "1.1.1.11",
@@ -1100,7 +1100,7 @@ static void dp_test_npf_2(const struct dp_test_bridge_ctx *ctx)
 	struct dp_test_pkt_desc_t udp_pkt2 = {
 		.text       = "UDP pkt3",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv4,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
 		.l3_src     = "1.1.1.11",
 		.l2_src     = "aa:bb:cc:dd:1:11",
 		.l3_dst     = "2.2.2.11",

@@ -131,7 +131,7 @@ dpdk_lag_create(const struct ifinfomsg *ifi, struct nlattr *tb[])
 	if (tb[IFLA_ADDRESS]) {
 		size_t addrlen = mnl_attr_get_payload_len(tb[IFLA_ADDRESS]);
 
-		if (addrlen != ETHER_ADDR_LEN)
+		if (addrlen != RTE_ETHER_ADDR_LEN)
 			return NULL;
 		macaddr = mnl_attr_get_payload(tb[IFLA_ADDRESS]);
 	}

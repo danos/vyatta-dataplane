@@ -237,10 +237,10 @@ _dp_test_pkt_from_desc(const struct dp_test_pkt_desc_t *pdesc,
 	struct rte_mbuf *mbuf;
 
 	switch (pdesc->ether_type) {
-	case ETHER_TYPE_IPv4:
+	case RTE_ETHER_TYPE_IPV4:
 		mbuf = _dp_test_v4_pkt_from_desc(pdesc, file, line);
 		break;
-	case ETHER_TYPE_IPv6:
+	case RTE_ETHER_TYPE_IPV6:
 		mbuf = _dp_test_v6_pkt_from_desc(pdesc, file, line);
 		break;
 	default:
@@ -414,10 +414,10 @@ _dp_test_exp_from_desc(struct rte_mbuf *mbuf,
 	 * Decrement TTL and recalc checksum for routed packets
 	 */
 	switch (pdesc->ether_type) {
-	case ETHER_TYPE_IPv4:
+	case RTE_ETHER_TYPE_IPV4:
 		dp_test_ipv4_decrement_ttl(exp_mbuf);
 		break;
-	case ETHER_TYPE_IPv6:
+	case RTE_ETHER_TYPE_IPV6:
 		dp_test_ipv6_decrement_ttl(exp_mbuf);
 		break;
 	default:

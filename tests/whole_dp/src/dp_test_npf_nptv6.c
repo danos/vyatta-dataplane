@@ -960,7 +960,7 @@ DP_START_TEST(nptv6_4, test)
 	struct dp_test_pkt_desc_t pkt1_pre = {
 		.text       = "Internal to external, pre",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv6,
+		.ether_type = RTE_ETHER_TYPE_IPV6,
 		.l3_src     = int_addr,               /* <--- Orig */
 		.l2_src     = "aa:bb:cc:dd:1:a1",
 		.l3_dst     = "2001:DB8:1::2",
@@ -979,7 +979,7 @@ DP_START_TEST(nptv6_4, test)
 	struct dp_test_pkt_desc_t pkt1_post = {
 		.text       = "Internal to external, post",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv6,
+		.ether_type = RTE_ETHER_TYPE_IPV6,
 		.l3_src     = ext_addr,              /* <--- Translated */
 		.l2_src     = "aa:bb:cc:dd:1:a1",
 		.l3_dst     = "2001:DB8:1::2",
@@ -998,7 +998,7 @@ DP_START_TEST(nptv6_4, test)
 	struct dp_test_pkt_desc_t pkt2_pre = {
 		.text       = "External to internal, pre",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv6,
+		.ether_type = RTE_ETHER_TYPE_IPV6,
 		.l3_src     = "2001:DB8:1::2",
 		.l2_src     = "aa:bb:cc:dd:2:b1",
 		.l3_dst     = ext_addr,             /* Before nptv6 */
@@ -1017,7 +1017,7 @@ DP_START_TEST(nptv6_4, test)
 	struct dp_test_pkt_desc_t pkt2_post = {
 		.text       = "External to internal, post",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv6,
+		.ether_type = RTE_ETHER_TYPE_IPV6,
 		.l3_src     = "2001:DB8:1::2",
 		.l2_src     = "aa:bb:cc:dd:2:b1",
 		.l3_dst     = int_addr,             /* After nptv6 */
@@ -1138,7 +1138,7 @@ DP_START_TEST(nptv6_5, test)
 	struct dp_test_pkt_desc_t pkt1_pre = {
 		.text       = "Internal to external, pre",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv6,
+		.ether_type = RTE_ETHER_TYPE_IPV6,
 		.l3_src     = "FD01:203:405:1::2",  /* <--- Orig */
 		.l2_src     = "aa:bb:cc:dd:1:a1",
 		.l3_dst     = "2001:DB8:1::2",
@@ -1157,7 +1157,7 @@ DP_START_TEST(nptv6_5, test)
 	struct dp_test_pkt_desc_t pkt1_post = {
 		.text       = "Internal to external, post",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv6,
+		.ether_type = RTE_ETHER_TYPE_IPV6,
 		.l3_src     = "2001:DB8:1:d550::2",  /* <--- Translated */
 		.l2_src     = "aa:bb:cc:dd:1:a1",
 		.l3_dst     = "2001:DB8:1::2",
@@ -1176,7 +1176,7 @@ DP_START_TEST(nptv6_5, test)
 	struct dp_test_pkt_desc_t pkt2_pre = {
 		.text       = "External to internal, pre",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv6,
+		.ether_type = RTE_ETHER_TYPE_IPV6,
 		.l3_src     = "2001:DB8:1::2",
 		.l2_src     = "aa:bb:cc:dd:2:b1",
 		.l3_dst     = "2001:DB8:1:d550::2",  /* Before nptv6 */
@@ -1195,7 +1195,7 @@ DP_START_TEST(nptv6_5, test)
 	struct dp_test_pkt_desc_t pkt2_post = {
 		.text       = "External to internal, post",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv6,
+		.ether_type = RTE_ETHER_TYPE_IPV6,
 		.l3_src     = "2001:DB8:1::2",
 		.l2_src     = "aa:bb:cc:dd:2:b1",
 		.l3_dst     = "FD01:203:405:1::2",  /* After nptv6 */
@@ -1315,7 +1315,7 @@ DP_START_TEST(nptv6_6, test)
 	struct dp_test_pkt_desc_t pkt1_pre = {
 		.text       = "Internal to external, pre",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv6,
+		.ether_type = RTE_ETHER_TYPE_IPV6,
 		.l3_src     = "FD01:203:405::2",  /* <--- Orig */
 		.l2_src     = "aa:bb:cc:dd:1:a1",
 		.l3_dst     = "2001:DB8:1::2",
@@ -1334,7 +1334,7 @@ DP_START_TEST(nptv6_6, test)
 	struct dp_test_pkt_desc_t pkt1_post = {
 		.text       = "Internal to external, post",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv6,
+		.ether_type = RTE_ETHER_TYPE_IPV6,
 		.l3_src     = "2001:DB8:1:0:d54f::2",  /* <--- Translated */
 		.l2_src     = "aa:bb:cc:dd:1:a1",
 		.l3_dst     = "2001:DB8:1::2",
@@ -1353,7 +1353,7 @@ DP_START_TEST(nptv6_6, test)
 	struct dp_test_pkt_desc_t pkt2_pre = {
 		.text       = "External to internal, pre",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv6,
+		.ether_type = RTE_ETHER_TYPE_IPV6,
 		.l3_src     = "2001:DB8:1::2",
 		.l2_src     = "aa:bb:cc:dd:2:b1",
 		.l3_dst     = "2001:DB8:1:0:d54f::2",  /* Before nptv6 */
@@ -1372,7 +1372,7 @@ DP_START_TEST(nptv6_6, test)
 	struct dp_test_pkt_desc_t pkt2_post = {
 		.text       = "External to internal, post",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv6,
+		.ether_type = RTE_ETHER_TYPE_IPV6,
 		.l3_src     = "2001:DB8:1::2",
 		.l2_src     = "aa:bb:cc:dd:2:b1",
 		.l3_dst     = "FD01:203:405::2",  /* After nptv6 */
@@ -1533,7 +1533,7 @@ DP_START_TEST(nptv6_9, test)
 	struct dp_test_pkt_desc_t pkt1_pre = {
 		.text	    = "Internal to external, pre",
 		.len	    = 20,
-		.ether_type = ETHER_TYPE_IPv6,
+		.ether_type = RTE_ETHER_TYPE_IPV6,
 		.l3_src	    = "fd01:203:405:1:ffff:ffff:ffff:ffff",
 		.l2_src	    = "aa:bb:cc:dd:1:a1",
 		.l3_dst	    = "2001:DB8:1::2",
@@ -1584,7 +1584,7 @@ DP_START_TEST(nptv6_9, test)
 		icmp6);
 	dp_test_pktmbuf_eth_init(test_exp->exp_pak[0], "aa:bb:cc:dd:1:a1",
 				 dp_test_intf_name2mac_str("dp1T0"),
-				 ETHER_TYPE_IPv6);
+				 RTE_ETHER_TYPE_IPV6);
 
 	dp_test_exp_set_oif_name(test_exp, "dp1T0");
 	dp_test_exp_set_fwd_status(test_exp, DP_TEST_FWD_FORWARDED);
@@ -1656,7 +1656,7 @@ DP_START_TEST(nptv6_9b, test)
 	struct dp_test_pkt_desc_t pkt1_pre = {
 		.text	    = "Internal to external, pre",
 		.len	    = 20,
-		.ether_type = ETHER_TYPE_IPv6,
+		.ether_type = RTE_ETHER_TYPE_IPV6,
 		.l3_src	    = "fd01:203:405:1:ffff:ffff:ffff:ffff",
 		.l2_src	    = "aa:bb:cc:dd:1:a1",
 		.l3_dst	    = "2001:DB8:1::2",
@@ -1707,7 +1707,7 @@ DP_START_TEST(nptv6_9b, test)
 		icmp6);
 	dp_test_pktmbuf_eth_init(test_exp->exp_pak[0], "aa:bb:cc:dd:1:a1",
 				 dp_test_intf_name2mac_str("dp1T0"),
-				 ETHER_TYPE_IPv6);
+				 RTE_ETHER_TYPE_IPV6);
 
 	dp_test_exp_set_oif_name(test_exp, "dp1T0");
 	dp_test_exp_set_fwd_status(test_exp, DP_TEST_FWD_DROPPED);
@@ -1800,7 +1800,7 @@ DP_START_TEST(nptv6_10, test)
 	struct dp_test_pkt_desc_t pkt1_pre = {
 		.text       = "Internal to external, pre",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv6,
+		.ether_type = RTE_ETHER_TYPE_IPV6,
 		.l3_src     = "fd01:203:405:1::2",          /* <--- Orig */
 		.l2_src     = "aa:bb:cc:dd:1:a1",
 		.l3_dst     = "2001:DB8:1::2",
@@ -1819,7 +1819,7 @@ DP_START_TEST(nptv6_10, test)
 	struct dp_test_pkt_desc_t pkt1_post = {
 		.text       = "Internal to external, post",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv6,
+		.ether_type = RTE_ETHER_TYPE_IPV6,
 		.l3_src     = "2001:DB8:1:0:d550::2",   /* <--- Translated */
 		.l2_src     = "aa:bb:cc:dd:1:a1",
 		.l3_dst     = "2001:DB8:1::2",
@@ -1838,7 +1838,7 @@ DP_START_TEST(nptv6_10, test)
 	struct dp_test_pkt_desc_t pkt2_pre = {
 		.text       = "External to internal, pre",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv6,
+		.ether_type = RTE_ETHER_TYPE_IPV6,
 		.l3_src     = "2001:DB8:1::2",
 		.l2_src     = "aa:bb:cc:dd:2:b1",
 		.l3_dst     = "2001:DB8:1:0:d550::2",  /* Before nptv6 */
@@ -1857,7 +1857,7 @@ DP_START_TEST(nptv6_10, test)
 	struct dp_test_pkt_desc_t pkt2_post = {
 		.text       = "External to internal, post",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv6,
+		.ether_type = RTE_ETHER_TYPE_IPV6,
 		.l3_src     = "2001:DB8:1::2",
 		.l2_src     = "aa:bb:cc:dd:2:b1",
 		.l3_dst     = "FD01:203:405:1::2",  /* After nptv6 */
@@ -1912,7 +1912,7 @@ DP_START_TEST(nptv6_10, test)
 	dp_test_pktmbuf_eth_init(test_pak,
 				 dp_test_intf_name2mac_str("dp1T1"),
 				 pkt2_pre.l2_src,
-				 ETHER_TYPE_IPv6);
+				 RTE_ETHER_TYPE_IPV6);
 
 	/*
 	 * ICMPv6 packet after translator
@@ -1937,7 +1937,7 @@ DP_START_TEST(nptv6_10, test)
 	dp_test_pktmbuf_eth_init(exp_pak,
 				 pkt2_post.l2_dst,
 				 dp_test_intf_name2mac_str("dp1T0"),
-				 ETHER_TYPE_IPv6);
+				 RTE_ETHER_TYPE_IPV6);
 
 	test_exp = dp_test_exp_create_m(NULL, 1);
 	dp_test_exp_set_pak_m(test_exp, 0, exp_pak);
@@ -2031,7 +2031,7 @@ DP_START_TEST(nptv6_11, test)
 	struct dp_test_pkt_desc_t pkt1_pre = {
 		.text       = "Internal to external, pre",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv6,
+		.ether_type = RTE_ETHER_TYPE_IPV6,
 		.l3_src     = "fd01:203:405:1::2",          /* <--- Orig */
 		.l2_src     = "aa:bb:cc:dd:1:a1",
 		.l3_dst     = "2001:DB8:1::2",
@@ -2050,7 +2050,7 @@ DP_START_TEST(nptv6_11, test)
 	struct dp_test_pkt_desc_t pkt1_post = {
 		.text       = "Internal to external, post",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv6,
+		.ether_type = RTE_ETHER_TYPE_IPV6,
 		.l3_src     = "2001:DB8:1:0:d550::2",   /* <--- Translated */
 		.l2_src     = "aa:bb:cc:dd:1:a1",
 		.l3_dst     = "2001:DB8:1::2",
@@ -2069,7 +2069,7 @@ DP_START_TEST(nptv6_11, test)
 	struct dp_test_pkt_desc_t pkt2_pre = {
 		.text       = "External to internal, pre",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv6,
+		.ether_type = RTE_ETHER_TYPE_IPV6,
 		.l3_src     = "2001:DB8:1::2",
 		.l2_src     = "aa:bb:cc:dd:2:b1",
 		.l3_dst     = "2001:DB8:1:0:d550::2",  /* Before nptv6 */
@@ -2088,7 +2088,7 @@ DP_START_TEST(nptv6_11, test)
 	struct dp_test_pkt_desc_t pkt2_post = {
 		.text       = "External to internal, post",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv6,
+		.ether_type = RTE_ETHER_TYPE_IPV6,
 		.l3_src     = "2001:DB8:1::2",
 		.l2_src     = "aa:bb:cc:dd:2:b1",
 		.l3_dst     = "FD01:203:405:1::2",  /* After nptv6 */
@@ -2142,7 +2142,7 @@ DP_START_TEST(nptv6_11, test)
 	dp_test_pktmbuf_eth_init(test_pak,
 				 dp_test_intf_name2mac_str("dp1T0"),
 				 pkt1_pre.l2_src,
-				 ETHER_TYPE_IPv6);
+				 RTE_ETHER_TYPE_IPV6);
 
 	/*
 	 * ICMPv6 packet after translator
@@ -2167,7 +2167,7 @@ DP_START_TEST(nptv6_11, test)
 	dp_test_pktmbuf_eth_init(exp_pak,
 				 pkt1_post.l2_dst,
 				 dp_test_intf_name2mac_str("dp1T1"),
-				 ETHER_TYPE_IPv6);
+				 RTE_ETHER_TYPE_IPV6);
 
 	test_exp = dp_test_exp_create_m(NULL, 1);
 	dp_test_exp_set_pak_m(test_exp, 0, exp_pak);
@@ -2258,7 +2258,7 @@ DP_START_TEST(nptv6_12, test)
 	struct dp_test_pkt_desc_t pkt1_pre = {
 		.text	    = "Internal to external, pre",
 		.len	    = 20,
-		.ether_type = ETHER_TYPE_IPv6,
+		.ether_type = RTE_ETHER_TYPE_IPV6,
 		.l3_src	    = "fd01:203:405:1:2aaf::",
 		.l2_src	    = "aa:bb:cc:dd:1:a1",
 		.l3_dst	    = "2001:DB8:1::2",
@@ -2309,7 +2309,7 @@ DP_START_TEST(nptv6_12, test)
 		icmp6);
 	dp_test_pktmbuf_eth_init(test_exp->exp_pak[0], "aa:bb:cc:dd:1:a1",
 				 dp_test_intf_name2mac_str("dp1T0"),
-				 ETHER_TYPE_IPv6);
+				 RTE_ETHER_TYPE_IPV6);
 
 	dp_test_exp_set_oif_name(test_exp, "dp1T0");
 	dp_test_exp_set_fwd_status(test_exp, DP_TEST_FWD_FORWARDED);
@@ -2381,7 +2381,7 @@ DP_START_TEST(nptv6_13, test)
 	struct dp_test_pkt_desc_t pkt1_pre = {
 		.text	    = "Internal to external, pre",
 		.len	    = 20,
-		.ether_type = ETHER_TYPE_IPv6,
+		.ether_type = RTE_ETHER_TYPE_IPV6,
 		.l3_src	    = "fd01:203:405:1::2",
 		.l2_src	    = "aa:bb:cc:dd:1:a1",
 		.l3_dst	    = "2001:DB8:1::2",
@@ -2432,7 +2432,7 @@ DP_START_TEST(nptv6_13, test)
 		icmp6);
 	dp_test_pktmbuf_eth_init(test_exp->exp_pak[0], "aa:bb:cc:dd:1:a1",
 				 dp_test_intf_name2mac_str("dp1T0"),
-				 ETHER_TYPE_IPv6);
+				 RTE_ETHER_TYPE_IPV6);
 
 	dp_test_exp_set_oif_name(test_exp, "dp1T0");
 	dp_test_exp_set_fwd_status(test_exp, DP_TEST_FWD_FORWARDED);
@@ -2512,7 +2512,7 @@ DP_START_TEST(nptv6_14, test)
 	struct dp_test_pkt_desc_t pkt1_pre = {
 		.text       = "Internal to external, pre",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv6,
+		.ether_type = RTE_ETHER_TYPE_IPV6,
 		.l3_src     = "FD01:203:405::2",  /* <--- Orig */
 		.l2_src     = "aa:bb:cc:dd:1:a1",
 		.l3_dst     = "2001:DB8:1::2",
@@ -2531,7 +2531,7 @@ DP_START_TEST(nptv6_14, test)
 	struct dp_test_pkt_desc_t pkt1_post = {
 		.text       = "Internal to external, post",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv6,
+		.ether_type = RTE_ETHER_TYPE_IPV6,
 		.l3_src     = "2001:DB8:1:0:d54f::2",  /* <--- Translated */
 		.l2_src     = "aa:bb:cc:dd:1:a1",
 		.l3_dst     = "2001:DB8:1::2",
@@ -2550,7 +2550,7 @@ DP_START_TEST(nptv6_14, test)
 	struct dp_test_pkt_desc_t pkt2_pre = {
 		.text       = "External to internal, pre",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv6,
+		.ether_type = RTE_ETHER_TYPE_IPV6,
 		.l3_src     = "2001:DB8:1::2",
 		.l2_src     = "aa:bb:cc:dd:2:b1",
 		.l3_dst     = "2001:DB8:1:0:d54f::2",  /* Before nptv6 */
@@ -2569,7 +2569,7 @@ DP_START_TEST(nptv6_14, test)
 	struct dp_test_pkt_desc_t pkt2_post = {
 		.text       = "External to internal, post",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv6,
+		.ether_type = RTE_ETHER_TYPE_IPV6,
 		.l3_src     = "2001:DB8:1::2",
 		.l2_src     = "aa:bb:cc:dd:2:b1",
 		.l3_dst     = "FD01:203:405::2",  /* After nptv6 */

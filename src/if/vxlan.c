@@ -333,10 +333,10 @@ int vxlan_ipv4_set_encap(struct vxlan_vninode *vnode, struct rte_mbuf *m,
 		return -ENOMEM;
 
 	/* Update L2 length in packet as vxlan_ipv4_encap includes ether_hdr */
-	dp_pktmbuf_l2_len(m) = ETHER_HDR_LEN;
+	dp_pktmbuf_l2_len(m) = RTE_ETHER_HDR_LEN;
 
 	/* ethernet header */
-	vhdr->ether_header.ether_type = htons(ETHER_TYPE_IPv4);
+	vhdr->ether_header.ether_type = htons(RTE_ETHER_TYPE_IPV4);
 
 	/* IPv4 header construction */
 	iph = &vhdr->ip_header;
@@ -386,10 +386,10 @@ int vxlan_ipv6_set_encap(struct vxlan_vninode *vnode, struct rte_mbuf *m,
 		return -ENOMEM;
 
 	/* Update L2 length in packet as vxlan_ipv6_encap includes ether_hdr */
-	dp_pktmbuf_l2_len(m) = ETHER_HDR_LEN;
+	dp_pktmbuf_l2_len(m) = RTE_ETHER_HDR_LEN;
 
 	/* ethernet header */
-	vhdr->ether_header.ether_type = htons(ETHER_TYPE_IPv6);
+	vhdr->ether_header.ether_type = htons(RTE_ETHER_TYPE_IPV6);
 
 	/* IPv6 header construction */
 	ip6h = &vhdr->ip6_header;
@@ -659,16 +659,16 @@ void vxlan_query_payload_eth(struct rte_ether_hdr *eh, uint8_t *tos_tc,
 	struct ip6_hdr *ip6h;
 	struct iphdr *iph;
 
-	if (eh->ether_type == htons(ETHER_TYPE_IPv4)) {
+	if (eh->ether_type == htons(RTE_ETHER_TYPE_IPV4)) {
 		iph = (struct iphdr *)((uintptr_t)eh + sizeof(*eh));
 		vxlan_query_payload_ip4(iph, tos_tc, NULL, NULL);
-	} else if (eh->ether_type == htons(ETHER_TYPE_IPv6)) {
+	} else if (eh->ether_type == htons(RTE_ETHER_TYPE_IPV6)) {
 		ip6h = (struct ip6_hdr *)((uintptr_t)eh + sizeof(*eh));
 		vxlan_query_payload_ip6(ip6h, tos_tc, NULL, NULL);
 	}
 
 	*entropy = (uint8_t *)eh;
-	*entropy_len = ETHER_ADDR_LEN * 2;
+	*entropy_len = RTE_ETHER_ADDR_LEN * 2;
 }
 
 /*
@@ -901,12 +901,12 @@ vxlan_snoop(enum vgpe_nxt_proto nxtproto, struct ifnet *ifp,
 	void *vxlan_end = vxlan + 1;
 	struct ip_addr ipaddr;
 
-	if (ether_type == htons(ETHER_TYPE_IPv4)) {
+	if (ether_type == htons(RTE_ETHER_TYPE_IPV4)) {
 		const struct iphdr *oip = l3hdr;
 
 		ipaddr.type = AF_INET;
 		ipaddr.address.ip_v4.s_addr = oip->saddr;
-	} else if (ether_type == htons(ETHER_TYPE_IPv6)) {
+	} else if (ether_type == htons(RTE_ETHER_TYPE_IPV6)) {
 		const struct ip6_hdr *oip6 = l3hdr;
 
 		ipaddr.type = AF_INET6;
@@ -1029,7 +1029,7 @@ vxlan_recv_encap(struct rte_mbuf *m, uint16_t ether_type,
 			goto drop;
 		}
 
-		set_spath_rx_meta_data(m, ifp, ETHER_TYPE_TEB,
+		set_spath_rx_meta_data(m, ifp, RTE_ETHER_TYPE_TEB,
 				       TUN_META_FLAGS_DEFAULT);
 		ether_input(ifp, m);
 		return;
@@ -1042,13 +1042,13 @@ vxlan_recv_encap(struct rte_mbuf *m, uint16_t ether_type,
 				goto drop;
 			}
 
-			set_spath_rx_meta_data(m, ifp, ETHER_TYPE_TEB,
+			set_spath_rx_meta_data(m, ifp, RTE_ETHER_TYPE_TEB,
 					       TUN_META_FLAGS_DEFAULT);
 			ether_input(ifp, m);
 			return;
 		case VGPE_NXT_IPV4:
 			/* The vxlan payload had no L2 header, add one now. */
-			if (ethhdr_prepend(m, ETHER_TYPE_IPv4) == NULL) {
+			if (ethhdr_prepend(m, RTE_ETHER_TYPE_IPV4) == NULL) {
 				cntr = VXLAN_STATS_INDISCARDS_PKT_HEADROOM;
 				goto drop;
 			}
@@ -1058,14 +1058,14 @@ vxlan_recv_encap(struct rte_mbuf *m, uint16_t ether_type,
 				.l2_pkt_type = L2_PKT_UNICAST,
 				.in_ifp = ifp,
 			};
-			set_spath_rx_meta_data(m, ifp, ETHER_TYPE_IPv4,
+			set_spath_rx_meta_data(m, ifp, RTE_ETHER_TYPE_IPV4,
 					       TUN_META_FLAGS_DEFAULT);
 			if (unlikely(ifp->capturing))
 				capture_burst(ifp, &m, 1);
 			pipeline_fused_ipv4_validate(&pl_pkt);
 			return;
 		case VGPE_NXT_IPV6: {
-			if (ethhdr_prepend(m, ETHER_TYPE_IPv6) == NULL) {
+			if (ethhdr_prepend(m, RTE_ETHER_TYPE_IPV6) == NULL) {
 				cntr = VXLAN_STATS_INDISCARDS_PKT_HEADROOM;
 				goto drop;
 			}
@@ -1074,7 +1074,7 @@ vxlan_recv_encap(struct rte_mbuf *m, uint16_t ether_type,
 				.mbuf = m,
 				.in_ifp = ifp,
 			};
-			set_spath_rx_meta_data(m, ifp, ETHER_TYPE_IPv6,
+			set_spath_rx_meta_data(m, ifp, RTE_ETHER_TYPE_IPV6,
 					       TUN_META_FLAGS_DEFAULT);
 			if (unlikely(ifp->capturing))
 				capture_burst(ifp, &m, 1);
@@ -1108,7 +1108,7 @@ static int vxlan_recv_encap_ipv4(struct rte_mbuf *m,
 		return 0;
 	}
 
-	vxlan_recv_encap(m, htons(ETHER_TYPE_IPv4), ip, udp);
+	vxlan_recv_encap(m, htons(RTE_ETHER_TYPE_IPV4), ip, udp);
 	return 0;
 }
 
@@ -1119,7 +1119,7 @@ static int vxlan_recv_encap_ipv6(struct rte_mbuf *m,
 {
 	struct ip6_hdr *ip6 = l3hdr;
 
-	vxlan_recv_encap(m, htons(ETHER_TYPE_IPv6), ip6, udp);
+	vxlan_recv_encap(m, htons(RTE_ETHER_TYPE_IPV6), ip6, udp);
 	return 0;
 }
 

@@ -129,7 +129,7 @@ DP_START_TEST(npf_snat_overrun_1, test1)
 	struct dp_test_pkt_desc_t v4_pktA_pre = {
 		.text       = "Forw, Host1 Ins -> Host3 Outs, pre-NAT",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv4,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
 		.l3_src     = "10.0.1.1",
 		.l2_src     = "aa:bb:cc:dd:2:b1",
 		.l3_dst     = "172.0.2.3",
@@ -153,7 +153,7 @@ DP_START_TEST(npf_snat_overrun_1, test1)
 	struct dp_test_pkt_desc_t v4_pktA_post = {
 		.text       = "Forw, Host1 Ins -> Host3 Outs, post-NAT",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv4,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
 		.l3_src     = "172.0.2.1",
 		.l2_src     = dp_test_intf_name2mac_str("dp2T1"),
 		.l3_dst     = "172.0.2.3",

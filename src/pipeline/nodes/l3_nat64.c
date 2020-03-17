@@ -261,7 +261,8 @@ ALWAYS_INLINE unsigned int ipv6_nat64_in_process(struct pl_packet *pkt,
 	/*
 	 * Packet is IPv6
 	 */
-	rv = nat64_in_process_common(pkt, nif, V6_PKT, htons(ETHER_TYPE_IPv6));
+	rv = nat64_in_process_common(pkt, nif,
+				     V6_PKT, htons(RTE_ETHER_TYPE_IPV6));
 
 	return rv;
 }
@@ -284,7 +285,7 @@ ALWAYS_INLINE unsigned int ipv4_nat64_out_process(struct pl_packet *pkt,
 	/*
 	 * Packet is IPv4
 	 */
-	rv = nat64_out_process_common(pkt, V4_PKT, htons(ETHER_TYPE_IPv4));
+	rv = nat64_out_process_common(pkt, V4_PKT, htons(RTE_ETHER_TYPE_IPV4));
 
 	return rv;
 }
@@ -307,7 +308,8 @@ ALWAYS_INLINE unsigned int ipv4_nat46_in_process(struct pl_packet *pkt,
 	/*
 	 * Packet is IPv4
 	 */
-	rv = nat64_in_process_common(pkt, nif, V4_PKT, htons(ETHER_TYPE_IPv4));
+	rv = nat64_in_process_common(pkt, nif,
+				     V4_PKT, htons(RTE_ETHER_TYPE_IPV4));
 
 	return rv;
 }
@@ -330,7 +332,7 @@ ALWAYS_INLINE unsigned int ipv6_nat46_out_process(struct pl_packet *pkt,
 	/*
 	 * Packet is IPv6
 	 */
-	rv = nat64_out_process_common(pkt, V6_PKT, htons(ETHER_TYPE_IPv6));
+	rv = nat64_out_process_common(pkt, V6_PKT, htons(RTE_ETHER_TYPE_IPV6));
 	return rv;
 }
 

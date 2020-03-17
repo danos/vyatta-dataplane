@@ -89,7 +89,7 @@ static int inet_neigh_change(const struct nlmsghdr *nlh,
 		dst = mnl_attr_get_payload(tb[NDA_DST]);
 
 	if (llen) {
-		if (llen > ETHER_ADDR_LEN) {
+		if (llen > RTE_ETHER_ADDR_LEN) {
 			/* We do not support neighbours with IPv6 as the NH.*/
 			RTE_LOG(DEBUG, ROUTE,
 				"neighbor message with addrlen = %zd not processed\n",
@@ -98,8 +98,8 @@ static int inet_neigh_change(const struct nlmsghdr *nlh,
 		}
 
 		lladdr = mnl_attr_get_payload(tb[NDA_LLADDR]);
-		if (llen < ETHER_ADDR_LEN && lladdr != NULL) {
-			memset(&ea, 0, ETHER_ADDR_LEN);
+		if (llen < RTE_ETHER_ADDR_LEN && lladdr != NULL) {
+			memset(&ea, 0, RTE_ETHER_ADDR_LEN);
 			/* Don't use rte_ether_addr_copy here */
 			lladdr = memcpy(&ea, lladdr, llen);
 			RTE_LOG(DEBUG, ROUTE,

@@ -88,7 +88,7 @@ npf_log_mac_fields(const struct rte_mbuf *mbuf,
 		   char const *mprefix, char *macs_buf,
 		   char const *eprefix, char *etype_buf)
 {
-	if (dp_pktmbuf_l2_len(mbuf) != ETHER_HDR_LEN &&
+	if (dp_pktmbuf_l2_len(mbuf) != RTE_ETHER_HDR_LEN &&
 	    dp_pktmbuf_l2_len(mbuf) != VLAN_HDR_LEN)
 		return;
 
@@ -118,7 +118,7 @@ npf_log_mac_fields(const struct rte_mbuf *mbuf,
 	*bp++ = '\0';
 
 	/* Now the ethertype */
-	uint16_t etype = ntohs(ethtype(mbuf, ETHER_TYPE_VLAN));
+	uint16_t etype = ntohs(ethtype(mbuf, RTE_ETHER_TYPE_VLAN));
 
 	snprintf(etype_buf, BUF_SIZE, "%s%04X", eprefix, etype);
 }
@@ -557,9 +557,9 @@ simple_ip:
 
 	uint16_t ether_proto;
 	if (npf_iscached(npc, NPC_IP4))
-		ether_proto = htons(ETHER_TYPE_IPv4);
+		ether_proto = htons(RTE_ETHER_TYPE_IPV4);
 	else
-		ether_proto = htons(ETHER_TYPE_IPv6);
+		ether_proto = htons(RTE_ETHER_TYPE_IPV6);
 
 	void *n_ptr = dp_pktmbuf_mtol3(mbuf, char *) + npf_cache_hlen(npc);
 

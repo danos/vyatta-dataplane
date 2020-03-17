@@ -68,7 +68,7 @@ static struct ifnet *vlan_lookup(struct ifnet *ifp,
 		ifstat = &ifp->if_data[lcore_id];
 		++ifstat->ifi_ivlan;
 
-		vid = vid_from_pkt(m, ETHER_TYPE_VLAN);
+		vid = vid_from_pkt(m, RTE_ETHER_TYPE_VLAN);
 
 		ifp = if_vlan_lookup(ifp, vid);
 		if (!ifp)
@@ -78,7 +78,7 @@ static struct ifnet *vlan_lookup(struct ifnet *ifp,
 			goto drop;
 
 		if_incr_in(ifp, m);
-		vid_decap(m, ETHER_TYPE_VLAN);
+		vid_decap(m, RTE_ETHER_TYPE_VLAN);
 	}
 
 	return ifp;

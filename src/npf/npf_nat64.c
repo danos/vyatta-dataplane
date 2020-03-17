@@ -386,9 +386,9 @@ npf_4to6_convert(struct rte_mbuf **m, npf_cache_t *npc,
 	char *l4hdr = (char *)(ip6 + 1);
 
 	/* fix up ether type */
-	if ((*m)->l2_len == ETHER_HDR_LEN) {
+	if ((*m)->l2_len == RTE_ETHER_HDR_LEN) {
 		struct rte_ether_hdr *eth = (struct rte_ether_hdr *)l2;
-		eth->ether_type = htons(ETHER_TYPE_IPv6);
+		eth->ether_type = htons(RTE_ETHER_TYPE_IPV6);
 	}
 
 	ip6->ip6_flow = 0;
@@ -481,9 +481,9 @@ npf_6to4_convert(struct rte_mbuf **m, npf_cache_t *npc,
 	char *l4hdr = (char *)(ip + 1);
 
 	/* fix up ether type */
-	if ((*m)->l2_len == ETHER_HDR_LEN) {
+	if ((*m)->l2_len == RTE_ETHER_HDR_LEN) {
 		struct rte_ether_hdr *eth = (struct rte_ether_hdr *)l2;
-		eth->ether_type = htons(ETHER_TYPE_IPv4);
+		eth->ether_type = htons(RTE_ETHER_TYPE_IPV4);
 	}
 
 	ip->ihl = sizeof(struct iphdr) >> 2; /* fixed 20 bytes for now */

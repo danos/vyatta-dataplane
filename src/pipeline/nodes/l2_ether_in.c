@@ -23,7 +23,7 @@ ether_in_process(struct pl_packet *pkt, void *context __unused)
 	struct rte_mbuf *mbuf = pkt->mbuf;
 
 	mbuf->tx_offload = 0;
-	dp_pktmbuf_l2_len(mbuf) = ETHER_HDR_LEN;
+	dp_pktmbuf_l2_len(mbuf) = RTE_ETHER_HDR_LEN;
 
 	return ETHER_IN_ACCEPT;
 }

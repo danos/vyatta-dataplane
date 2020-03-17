@@ -49,14 +49,15 @@ static inline struct rte_ether_hdr *ethhdr(struct rte_mbuf *m)
 /* ethtype in host byte order, return ptr to pkmbuf new data_start */
 static inline char *ethhdr_prepend(struct rte_mbuf *m, uint16_t ethtype)
 {
-	char *data_start = rte_pktmbuf_prepend(m, ETHER_HDR_LEN);
+	char *data_start = rte_pktmbuf_prepend(m, RTE_ETHER_HDR_LEN);
 	struct rte_ether_hdr *eh;
 
 	if (!data_start)
 		return NULL;
-	m->l2_len = ETHER_HDR_LEN;
+	m->l2_len = RTE_ETHER_HDR_LEN;
 	eh = ethhdr(m);
-	eh->d_addr.addr_bytes[0] &= ~ETHER_GROUP_ADDR; /* Clear multicast bit */
+	/* Clear multicast bit */
+	eh->d_addr.addr_bytes[0] &= ~RTE_ETHER_GROUP_ADDR;
 	eh->ether_type = htons(ethtype);
 	return data_start;
 }
@@ -110,7 +111,7 @@ static inline uint16_t vid_decap(struct rte_mbuf *m, uint16_t etype)
 
 	vid = ntohs(eth->vh.vlan_tci);
 	memmove((char *) eth + sizeof(struct rte_vlan_hdr),
-		eth, 2 * ETHER_ADDR_LEN);
+		eth, 2 * RTE_ETHER_ADDR_LEN);
 
 	rte_pktmbuf_adj(m, sizeof(struct rte_vlan_hdr));
 
@@ -134,7 +135,7 @@ static inline struct rte_mbuf *vid_encap(uint16_t if_vlan,
 	if (unlikely(vhdr == NULL))
 		return NULL;
 
-	memmove(&vhdr->eh, eth, 2 * ETHER_ADDR_LEN);
+	memmove(&vhdr->eh, eth, 2 * RTE_ETHER_ADDR_LEN);
 	vhdr->vh.eth_proto = eth->ether_type;
 	vhdr->eh.ether_type = htons(etype);
 	vhdr->vh.vlan_tci = htons(if_vlan);

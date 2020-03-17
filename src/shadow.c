@@ -115,7 +115,7 @@ local_shadow_if(struct rte_mbuf *m, struct ifnet *inp_ifp)
 	if (pktmbuf_mdata_invar_exists(m, PKT_MDATA_INVAR_SPATH)) {
 		struct pktmbuf_mdata *mdata = pktmbuf_mdata(m);
 
-		if (mdata->md_spath.pi.proto != htons(ETHER_TYPE_TEB) &&
+		if (mdata->md_spath.pi.proto != htons(RTE_ETHER_TYPE_TEB) &&
 		    unlikely(!rte_pktmbuf_adj(m, sizeof(struct rte_ether_hdr))))
 			return NULL;
 
@@ -396,11 +396,11 @@ static uint8_t
 shadow_feature_if_output(struct ifnet *ifp, struct rte_mbuf *m,
 			 struct rte_ether_hdr *hdr)
 {
-	if (hdr->ether_type == htons(ETHER_TYPE_IPv4)) {
+	if (hdr->ether_type == htons(RTE_ETHER_TYPE_IPV4)) {
 		if (ip_spath_output(ifp, m) < 0)
 			/* pak freed, but not yet counted */
 			return 1;
-	} else if (hdr->ether_type == htons(ETHER_TYPE_IPv6)) {
+	} else if (hdr->ether_type == htons(RTE_ETHER_TYPE_IPV6)) {
 		if (ip6_spath_output(ifp, m) < 0)
 			/* pak freed, but not yet counted */
 			return 1;
@@ -419,11 +419,11 @@ static int shadow_output(struct shadow_if_info *sii, struct rte_mbuf *m,
 	if (!(ifp->if_flags & IFF_UP))
 		return -1;
 
-	dp_pktmbuf_l2_len(m) = ETHER_HDR_LEN;
+	dp_pktmbuf_l2_len(m) = RTE_ETHER_HDR_LEN;
 
 	master = rcu_dereference(ifp->aggregator);
 
-	if (unlikely(hdr->ether_type == htons(ETHER_TYPE_SLOW))) {
+	if (unlikely(hdr->ether_type == htons(RTE_ETHER_TYPE_SLOW))) {
 		if (master) {
 			int ret = lag_etype_slow_tx(master, ifp, m);
 
@@ -449,7 +449,8 @@ static int shadow_output(struct shadow_if_info *sii, struct rte_mbuf *m,
 
 			if (vifp->qinq_outer) {
 				struct ifnet *cvlan;
-				uint16_t vid = vid_decap(m, ETHER_TYPE_VLAN);
+				uint16_t vid = vid_decap(m,
+							 RTE_ETHER_TYPE_VLAN);
 
 				cvlan = if_vlan_lookup(vifp,
 						       vid & VLAN_VID_MASK);
@@ -548,7 +549,7 @@ int spath_reader(zloop_t *loop __rte_unused, zmq_pollitem_t *item,
 		if (rte_pktmbuf_prepend(m,
 					sizeof(struct rte_ether_hdr)) == NULL)
 			goto drop;
-		dp_pktmbuf_l2_len(m) = ETHER_HDR_LEN;
+		dp_pktmbuf_l2_len(m) = RTE_ETHER_HDR_LEN;
 		ether = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
 		ether->ether_type = pi.proto;
 
@@ -560,7 +561,7 @@ int spath_reader(zloop_t *loop __rte_unused, zmq_pollitem_t *item,
 		 */
 		set_spath_rx_meta_data(m, NULL, ntohs(pi.proto),
 				       TUN_META_FLAGS_NONE);
-		if (likely(pi.proto == ETHER_TYPE_IPv4))
+		if (likely(pi.proto == RTE_ETHER_TYPE_IPV4))
 			dp_pktmbuf_l3_len(m) = iphdr(m)->ihl << 2;
 	}
 
@@ -594,8 +595,8 @@ int spath_reader(zloop_t *loop __rte_unused, zmq_pollitem_t *item,
 		 * output features we need to run before encryption.
 		 */
 
-		if (likely((ntohs(pi.proto)) == ETHER_TYPE_IPv4) ||
-		    likely((ntohs(pi.proto)) == ETHER_TYPE_IPv6)) {
+		if (likely((ntohs(pi.proto)) == RTE_ETHER_TYPE_IPV4) ||
+		    likely((ntohs(pi.proto)) == RTE_ETHER_TYPE_IPV6)) {
 			struct next_hop nh46 = {.u.ifp = s2s_ifp};
 
 			if (s2s_ifp)
@@ -623,7 +624,7 @@ int spath_reader(zloop_t *loop __rte_unused, zmq_pollitem_t *item,
 					 is_s2s_feat_attach(ifp))) {
 		if (is_bridge(ifp) || is_l2vlan(ifp)) {
 			ether = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
-			dp_pktmbuf_l2_len(m) = ETHER_HDR_LEN;
+			dp_pktmbuf_l2_len(m) = RTE_ETHER_HDR_LEN;
 			shadow_feature_if_output(ifp, m, ether);
 		} else if (is_gre(ifp)) {
 			const in_addr_t *dst;
@@ -634,9 +635,9 @@ int spath_reader(zloop_t *loop __rte_unused, zmq_pollitem_t *item,
 				dst = mgre_nbma_to_tun_addr(ifp, &meta.mark);
 
 			bool consumed = false;
-			if (likely(pi.proto == htons(ETHER_TYPE_IPv4)))
+			if (likely(pi.proto == htons(RTE_ETHER_TYPE_IPV4)))
 				consumed = ip_spath_filter(ifp, &m);
-			else if (likely(pi.proto == htons(ETHER_TYPE_IPv6)))
+			else if (likely(pi.proto == htons(RTE_ETHER_TYPE_IPV6)))
 				consumed = ip6_spath_filter(ifp, &m);
 			if (!consumed)
 				gre_tunnel_fragment_and_send(
@@ -655,14 +656,15 @@ int spath_reader(zloop_t *loop __rte_unused, zmq_pollitem_t *item,
 					  ntohs(ether->ether_type));
 			}
 		} else {
-			if (likely(pi.proto == htons(ETHER_TYPE_IPv4))) {
+			if (likely(pi.proto == htons(RTE_ETHER_TYPE_IPV4))) {
 				struct pl_packet pl_pkt = {
 					.mbuf = m,
 					.l2_pkt_type = L2_PKT_UNICAST,
 					.in_ifp = ifp,
 				};
 				pipeline_fused_ipv4_validate(&pl_pkt);
-			} else if (likely(pi.proto == htons(ETHER_TYPE_IPv6))) {
+			} else if (likely(pi.proto ==
+						htons(RTE_ETHER_TYPE_IPV6))) {
 				struct pl_packet pl_pkt = {
 					.mbuf = m,
 					.in_ifp = ifp,

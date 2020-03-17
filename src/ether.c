@@ -60,7 +60,7 @@ int ether_if_set_l2_address(struct ifnet *ifp, uint32_t l2_addr_len,
 	struct rte_ether_addr *macaddr = l2_addr;
 	char b1[32], b2[32];
 
-	if (l2_addr_len != ETHER_ADDR_LEN) {
+	if (l2_addr_len != RTE_ETHER_ADDR_LEN) {
 		RTE_LOG(NOTICE, DATAPLANE,
 			"link address is not ethernet (len=%u)!\n",
 			l2_addr_len);

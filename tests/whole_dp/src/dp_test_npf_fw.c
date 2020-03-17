@@ -460,7 +460,7 @@ DP_START_TEST(fw_ipv4, fwd)
 	struct dp_test_pkt_desc_t v4_pktA = {
 		.text       = "A fwd IPv4 n1->n1",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv4,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
 		.l3_src     = "1.1.1.2",
 		.l2_src     = "aa:bb:cc:dd:1:a1",
 		.l3_dst     = "2.2.2.1",
@@ -480,7 +480,7 @@ DP_START_TEST(fw_ipv4, fwd)
 	struct dp_test_pkt_desc_t v4_pktB = {
 		.text       = "B rev IPv4 n1->n1",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv4,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
 		.l3_src     = "2.2.2.1",
 		.l2_src     = "aa:bb:cc:dd:2:b1",
 		.l3_dst     = "1.1.1.2",
@@ -499,7 +499,7 @@ DP_START_TEST(fw_ipv4, fwd)
 	struct dp_test_pkt_desc_t v4_pktD = {
 		.text       = "D rev IPv4 n2->n2",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv4,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
 		.l3_src     = "2.2.2.3",
 		.l2_src     = "aa:bb:cc:dd:2:b3",
 		.l3_dst     = "1.1.1.3",
@@ -608,7 +608,7 @@ DP_START_TEST(fw_ipv6, fwd)
 	struct dp_test_pkt_desc_t v6_pktA = {
 		.text       = "A fwd IPv6 n1->n1",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv6,
+		.ether_type = RTE_ETHER_TYPE_IPV6,
 		.l3_src     = "2001:1:1::2",
 		.l2_src     = "aa:bb:cc:dd:1:a1",
 		.l3_dst     = "2002:2:2::1",
@@ -628,7 +628,7 @@ DP_START_TEST(fw_ipv6, fwd)
 	struct dp_test_pkt_desc_t v6_pktB = {
 		.text       = "B rev IPv6 n1->n1",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv6,
+		.ether_type = RTE_ETHER_TYPE_IPV6,
 		.l3_src     = "2002:2:2::1",
 		.l2_src     = "aa:bb:cc:dd:2:b1",
 		.l3_dst     = "2001:1:1::2",
@@ -647,7 +647,7 @@ DP_START_TEST(fw_ipv6, fwd)
 	struct dp_test_pkt_desc_t v6_pktD = {
 		.text       = "D fwd IPv6 n2->n2",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv6,
+		.ether_type = RTE_ETHER_TYPE_IPV6,
 		.l3_src     = "2002:2:2::3",
 		.l2_src     = "aa:bb:cc:dd:2:b3",
 		.l3_dst     = "2001:1:1::3",
@@ -749,7 +749,7 @@ DP_START_TEST(fw_ipv4, matching)
 	struct dp_test_pkt_desc_t v4_pkt = {
 		.text       = "IPv4 UDP",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv4,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
 		.l3_src     = "1.1.1.2",
 		.l2_src     = "aa:bb:cc:dd:1:a1",
 		.l3_dst     = "2.2.2.1",
@@ -937,7 +937,7 @@ DP_START_TEST(fw_ipv6, matching)
 	struct dp_test_pkt_desc_t v6_pkt = {
 		.text       = "IPv6 UDP",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv6,
+		.ether_type = RTE_ETHER_TYPE_IPV6,
 		.l3_src     = "2001:1:1::2",
 		.l2_src     = "aa:bb:cc:dd:1:a1",
 		.l3_dst     = "2002:2:2::1",
@@ -1211,7 +1211,7 @@ DP_START_TEST(fw_ipv4, stateful)
 	struct dp_test_pkt_desc_t v4_pktA = {
 		.text       = "A fwd IPv4 n1->n1",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv4,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
 		.l3_src     = "1.1.1.2",
 		.l2_src     = "aa:bb:cc:dd:1:a1",
 		.l3_dst     = "2.2.2.1",
@@ -1329,7 +1329,7 @@ DP_START_TEST(fw_ipv4, large_ruleset)
 	struct dp_test_pkt_desc_t v4_pkt = {
 		.text       = "IPv4 UDP",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv4,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
 		.l3_src     = "1.1.1.2",
 		.l2_src     = "aa:bb:cc:dd:1:a1",
 		.l3_dst     = "2.2.2.1",
@@ -1497,7 +1497,7 @@ DP_START_TEST(fw_ipv4, port_range1)
 	struct dp_test_pkt_desc_t v4_pkt = {
 		.text       = "IPv4 UDP",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv4,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
 		.l3_src     = "1.1.1.2",
 		.l2_src     = "aa:bb:cc:dd:1:a1",
 		.l3_dst     = "2.2.2.1",
@@ -1702,7 +1702,7 @@ DP_START_TEST(fw_ipv4, mrules)
 	struct dp_test_pkt_desc_t v4_pkt1 = {
 		.text       = "IPv4 UDP",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv4,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
 		.l3_src     = "1.1.1.2",
 		.l2_src     = "aa:bb:cc:dd:1:a1",
 		.l3_dst     = "2.2.2.1",
@@ -1721,7 +1721,7 @@ DP_START_TEST(fw_ipv4, mrules)
 	struct dp_test_pkt_desc_t v4_pkt2 = {
 		.text       = "ICMP IPv4",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv4,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
 		.l3_src     = "1.1.1.2",
 		.l2_src     = "aa:bb:cc:dd:1:a1",
 		.l3_dst     = "2.2.2.3",
@@ -1856,7 +1856,7 @@ DP_START_TEST(fw_ipv6, mrules)
 	struct dp_test_pkt_desc_t v6_pkt1 = {
 		.text       = "IPv6 UDP",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv6,
+		.ether_type = RTE_ETHER_TYPE_IPV6,
 		.l3_src     = "2001:1:1::2",
 		.l2_src     = "aa:bb:cc:dd:1:a1",
 		.l3_dst     = "2002:2:2::1",
@@ -1875,7 +1875,7 @@ DP_START_TEST(fw_ipv6, mrules)
 	struct dp_test_pkt_desc_t v6_pkt2 = {
 		.text       = "ICMP IPv6",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv6,
+		.ether_type = RTE_ETHER_TYPE_IPV6,
 		.l3_src     = "2001:1:1::2",
 		.l2_src     = "aa:bb:cc:dd:1:a1",
 		.l3_dst     = "2002:2:2::3",
@@ -2010,7 +2010,7 @@ DP_START_TEST(fw_ipv4, address_groups)
 	struct dp_test_pkt_desc_t v4_pkt1 = {
 		.text       = "IPv4 UDP",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv4,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
 		.l3_src     = "1.1.1.2",
 		.l2_src     = "aa:bb:cc:dd:1:a1",
 		.l3_dst     = "2.2.2.1",
@@ -2214,7 +2214,7 @@ DP_START_TEST(fw_ipv4, macvlan)
 	dp_test_pktmbuf_eth_init(test_pak,
 				 macvlan_mac,
 				 DP_TEST_INTF_DEF_SRC_MAC,
-				 ETHER_TYPE_IPv4);
+				 RTE_ETHER_TYPE_IPV4);
 
 	exp = dp_test_exp_create(test_pak);
 	dp_test_exp_set_fwd_status(exp, DP_TEST_FWD_DROPPED);
@@ -2232,13 +2232,13 @@ DP_START_TEST(fw_ipv4, macvlan)
 	dp_test_pktmbuf_eth_init(test_pak,
 				 macvlan_mac,
 				 DP_TEST_INTF_DEF_SRC_MAC,
-				 ETHER_TYPE_IPv4);
+				 RTE_ETHER_TYPE_IPV4);
 
 	exp = dp_test_exp_create(test_pak);
 	dp_test_pktmbuf_eth_init(dp_test_exp_get_pak(exp),
 				 nh_mac_str,
 				 dp_test_intf_name2mac_str("dp2T1"),
-				 ETHER_TYPE_IPv4);
+				 RTE_ETHER_TYPE_IPV4);
 	dp_test_ipv4_decrement_ttl(dp_test_exp_get_pak(exp));
 
 	dp_test_exp_set_oif_name(exp, "dp2T1");
@@ -2303,7 +2303,7 @@ DP_START_TEST(fw_ipv4, macvlan_multicast)
 	dp_test_pktmbuf_eth_init(test_pak,
 				 vrrp_multicast_mac,
 				 DP_TEST_INTF_DEF_SRC_MAC,
-				 ETHER_TYPE_IPv4);
+				 RTE_ETHER_TYPE_IPV4);
 
 	exp = dp_test_exp_create(test_pak);
 	dp_test_exp_set_fwd_status(exp, DP_TEST_FWD_DROPPED);
@@ -2321,13 +2321,13 @@ DP_START_TEST(fw_ipv4, macvlan_multicast)
 	dp_test_pktmbuf_eth_init(test_pak,
 				 vrrp_multicast_mac,
 				 DP_TEST_INTF_DEF_SRC_MAC,
-				 ETHER_TYPE_IPv4);
+				 RTE_ETHER_TYPE_IPV4);
 
 	exp = dp_test_exp_create(test_pak);
 	dp_test_pktmbuf_eth_init(dp_test_exp_get_pak(exp),
 				 nh_mac_str,
 				 dp_test_intf_name2mac_str("dp1T1"),
-				 ETHER_TYPE_IPv4);
+				 RTE_ETHER_TYPE_IPV4);
 	dp_test_ipv4_decrement_ttl(dp_test_exp_get_pak(exp));
 
 	dp_test_exp_set_oif_name(exp, "dp1T1");

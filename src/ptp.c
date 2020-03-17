@@ -812,7 +812,8 @@ void ptp_peer_update(struct ptp_peer_t *peer)
 
 				m = arprequest(ifp, (struct sockaddr *) &taddr);
 				if (m)
-					if_output(ifp, m, NULL, ETHER_TYPE_ARP);
+					if_output(ifp, m, NULL,
+						  RTE_ETHER_TYPE_ARP);
 			} else if (peer->ipaddr.addr_family ==
 				   FAL_IP_ADDR_FAMILY_IPV6) {
 				m = pktmbuf_alloc(mbuf_pool(0),
@@ -828,7 +829,7 @@ void ptp_peer_update(struct ptp_peer_t *peer)
 						 &peer->ipaddr.addr.addr6,
 						 &newmac))
 					if_output(ifp, m, NULL,
-						  ETHER_TYPE_IPv6);
+						  RTE_ETHER_TYPE_IPV6);
 			} else {
 				RTE_LOG(ERR, DATAPLANE,
 					"%s: peer %s bad address family?\n",

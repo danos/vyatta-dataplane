@@ -81,9 +81,9 @@
  */
 struct	ether_arp {
 	struct	arphdr ea_hdr;		/* fixed-size header */
-	u_int8_t arp_sha[ETHER_ADDR_LEN];/* sender hardware address */
+	u_int8_t arp_sha[RTE_ETHER_ADDR_LEN];/* sender hardware address */
 	u_int8_t arp_spa[4];		/* sender protocol address */
-	u_int8_t arp_tha[ETHER_ADDR_LEN];/* target hardware address */
+	u_int8_t arp_tha[RTE_ETHER_ADDR_LEN];/* target hardware address */
 	u_int8_t arp_tpa[4];		/* target protocol address */
 };
 #define	arp_hrd	ea_hdr.ar_hrd
@@ -186,28 +186,28 @@ arprequest(struct ifnet *ifp, struct sockaddr *sa)
 		return NULL;
 	}
 
-	dp_pktmbuf_l2_len(m) = ETHER_HDR_LEN;
+	dp_pktmbuf_l2_len(m) = RTE_ETHER_HDR_LEN;
 	eh = (struct rte_ether_hdr *) rte_pktmbuf_append(m, len);
 	if (!eh) {
 		ARP_DEBUG("no space in packet for arp request\n");
 		rte_pktmbuf_free(m);
 		return NULL;
 	}
-	memset(&eh->d_addr, 0xff, ETHER_ADDR_LEN);
+	memset(&eh->d_addr, 0xff, RTE_ETHER_ADDR_LEN);
 	rte_ether_addr_copy(&ifp->eth_addr, &eh->s_addr);
-	eh->ether_type = htons(ETHER_TYPE_ARP);
+	eh->ether_type = htons(RTE_ETHER_TYPE_ARP);
 
 	ah = (struct ether_arp *) (eh+1);
 	ah->arp_hrd = htons(ARPHRD_ETHER);
-	ah->arp_pro = htons(ETHER_TYPE_IPv4);
-	ah->arp_hln = ETHER_ADDR_LEN;		/* hardware address length */
+	ah->arp_pro = htons(RTE_ETHER_TYPE_IPV4);
+	ah->arp_hln = RTE_ETHER_ADDR_LEN;	/* hardware address length */
 	ah->arp_pln = sizeof(in_addr_t);	/* protocol address length */
 	ah->arp_op = htons(ARPOP_REQUEST);
 
 	rte_ether_addr_copy(&ifp->eth_addr,
 			    (struct rte_ether_addr *) ah->arp_sha);
 	memcpy(ah->arp_spa, &sip, sizeof(sip));
-	memset(ah->arp_tha, 0, ETHER_ADDR_LEN);
+	memset(ah->arp_tha, 0, RTE_ETHER_ADDR_LEN);
 	memcpy(ah->arp_tpa, &tip, sizeof(tip));
 
 	ARPSTAT_INC(if_vrfid(ifp), txrequests);
@@ -306,7 +306,7 @@ resolved:
 
 		m = arprequest(ifp, (struct sockaddr *) &taddr);
 		if (m)
-			if_output(ifp, m, NULL, ETHER_TYPE_ARP);
+			if_output(ifp, m, NULL, RTE_ETHER_TYPE_ARP);
 	}
 
 	return -EWOULDBLOCK;
@@ -341,7 +341,7 @@ bool arp_input_validate(const struct ifnet *ifp, struct rte_mbuf *m)
 
 	ah = (struct ether_arp *) (eh + 1);
 	if (ah->arp_hrd != htons(ARPHRD_ETHER) ||
-	    ah->arp_pro != htons(ETHER_TYPE_IPv4)) {
+	    ah->arp_pro != htons(RTE_ETHER_TYPE_IPV4)) {
 		ARP_DEBUG("ignore arp for hrd %#x protocol %#x\n",
 			ntohs(ah->arp_hrd), ntohs(ah->arp_pro));
 		goto drop;

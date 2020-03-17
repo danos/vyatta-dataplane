@@ -49,16 +49,16 @@ l2tp_undo_encap(struct ifnet *ifp, struct rte_mbuf *m,
 	if (tx_vlan) {
 		struct ether_vlan_hdr *vhdr = (struct ether_vlan_hdr *)
 			(rte_pktmbuf_mtod(m, char *) +
-			 session->hdr_len + ETHER_HDR_LEN);
+			 session->hdr_len + RTE_ETHER_HDR_LEN);
 		eh = (struct rte_ether_hdr *)
 			((char *)vhdr +  sizeof(struct rte_vlan_hdr));
 
-		memmove(&vhdr->eh, eh, 2 * ETHER_ADDR_LEN);
+		memmove(&vhdr->eh, eh, 2 * RTE_ETHER_ADDR_LEN);
 		vlan = sizeof(struct rte_vlan_hdr);
 	} else
 		eh = (struct rte_ether_hdr *)
 			(rte_pktmbuf_mtod(m, char *) +
-			 session->hdr_len + ETHER_HDR_LEN);
+			 session->hdr_len + RTE_ETHER_HDR_LEN);
 
 	/* Replace the dest addr to be the shadow if's if we have
 	   replaced the original ether-hdr in routed case.
@@ -72,7 +72,7 @@ l2tp_undo_encap(struct ifnet *ifp, struct rte_mbuf *m,
 			return -1;
 	}
 
-	if (rte_pktmbuf_adj(m, session->hdr_len + ETHER_HDR_LEN + vlan)
+	if (rte_pktmbuf_adj(m, session->hdr_len + RTE_ETHER_HDR_LEN + vlan)
 		== NULL)
 		return -1;
 
@@ -94,8 +94,8 @@ static int l2tp_add_vlan(struct rte_mbuf *m, uint8_t offset)
 	struct rte_ether_hdr *eh = (struct rte_ether_hdr *)
 		((char *)vhdr +  sizeof(struct rte_vlan_hdr));
 
-	memmove(&vhdr->eh, eh, 2 * ETHER_ADDR_LEN);
-	vhdr->eh.ether_type = htons(ETHER_TYPE_VLAN);
+	memmove(&vhdr->eh, eh, 2 * RTE_ETHER_ADDR_LEN);
+	vhdr->eh.ether_type = htons(RTE_ETHER_TYPE_VLAN);
 	vhdr->vh.vlan_tci = htons(m->vlan_tci);
 	vhdr->vh.eth_proto = eh->ether_type;
 	m->ol_flags &= ~PKT_TX_VLAN_PKT;
@@ -130,7 +130,7 @@ l2tp_output(struct ifnet *ifp, struct rte_mbuf *m, uint16_t rx_vlan)
 		goto drop;
 	}
 
-	uint8_t encap_len = session->hdr_len + ETHER_HDR_LEN;
+	uint8_t encap_len = session->hdr_len + RTE_ETHER_HDR_LEN;
 	struct l2tpv3_encap *encap = (struct l2tpv3_encap *)
 		rte_pktmbuf_prepend(m, encap_len +
 			    (tx_vlan ? sizeof(struct rte_vlan_hdr) : 0));
@@ -139,7 +139,7 @@ l2tp_output(struct ifnet *ifp, struct rte_mbuf *m, uint16_t rx_vlan)
 			"Not enough space in mbuf to allocate l2tp hdr\n");
 		goto drop;
 	}
-	dp_pktmbuf_l2_len(m) = ETHER_HDR_LEN;
+	dp_pktmbuf_l2_len(m) = RTE_ETHER_HDR_LEN;
 
 	/*
 	 * L2tp interface supports only default VRF as of yet
@@ -160,12 +160,12 @@ l2tp_output(struct ifnet *ifp, struct rte_mbuf *m, uint16_t rx_vlan)
 	uint8_t proto = 0;
 	uint8_t offset = 0;
 
-	if (etype == ETHER_TYPE_IPv4) {
+	if (etype == RTE_ETHER_TYPE_IPV4) {
 		tos = orig_ip->tos;
 		ttl = orig_ip->ttl;
 		proto = orig_ip->protocol;
 		offset = sizeof(struct iphdr);
-	} else if (etype == ETHER_TYPE_IPv6) {
+	} else if (etype == RTE_ETHER_TYPE_IPV6) {
 		tos = ip6_tclass(*(uint32_t *)orig_ip);
 		ttl = ((struct ip6_hdr *)orig_ip)->ip6_hlim;
 		proto = ((struct ip6_hdr *)orig_ip)->ip6_nxt;
@@ -178,7 +178,7 @@ l2tp_output(struct ifnet *ifp, struct rte_mbuf *m, uint16_t rx_vlan)
 	if (flags & L2TP_ENCAP_IPV4) {
 		struct iphdr *ip_header = (struct iphdr *)encap->iphdr;
 
-		encap->ether_header.ether_type = htons(ETHER_TYPE_IPv4);
+		encap->ether_header.ether_type = htons(RTE_ETHER_TYPE_IPV4);
 
 		ip_header->ihl = sizeof(struct iphdr) >> 2;
 		ip_header->version = IPVERSION;
@@ -197,7 +197,7 @@ l2tp_output(struct ifnet *ifp, struct rte_mbuf *m, uint16_t rx_vlan)
 	} else {
 		struct ip6_hdr *ip_header = (struct ip6_hdr *)encap->iphdr;
 
-		encap->ether_header.ether_type = htons(ETHER_TYPE_IPv6);
+		encap->ether_header.ether_type = htons(RTE_ETHER_TYPE_IPV6);
 		ip_hdr_len = sizeof(struct ip6_hdr);
 
 		ip6_ver_tc_flow_hdr(ip_header, tos, 0);
@@ -285,8 +285,8 @@ l2tp_output(struct ifnet *ifp, struct rte_mbuf *m, uint16_t rx_vlan)
 
 	bool is_ipv4 = flags & L2TP_ENCAP_IPV4;
 
-	uint16_t eth_type
-		= is_ipv4 ? htons(ETHER_TYPE_IPv4) : htons(ETHER_TYPE_IPv6);
+	uint16_t eth_type = is_ipv4 ? htons(RTE_ETHER_TYPE_IPV4) :
+				      htons(RTE_ETHER_TYPE_IPV6);
 	struct ifnet *dp_ifp = NULL;
 
 	if (crypto_policy_outbound_match(ifp, &m, eth_type)) {

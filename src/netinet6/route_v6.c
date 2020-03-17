@@ -774,7 +774,7 @@ struct next_hop *rt6_lookup_fast(struct vrf *vrf,
 	if (unlikely(lpm6_lookup(lpm, dst->s6_addr, &index) != 0))
 		return NULL;
 
-	nh = nexthop_select(AF_INET6, index, m, ETHER_TYPE_IPv6);
+	nh = nexthop_select(AF_INET6, index, m, RTE_ETHER_TYPE_IPV6);
 	if (nh && unlikely(nh->flags & RTF_NOROUTE))
 		return NULL;
 	return nh;

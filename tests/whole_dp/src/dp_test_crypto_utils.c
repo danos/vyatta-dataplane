@@ -200,7 +200,7 @@ dp_test_create_esp_ipv4_pak(const char *saddr, const char *daddr,
 	if (!pak)
 		return NULL;
 
-	if (!dp_test_pktmbuf_eth_init(pak, NULL, NULL, ETHER_TYPE_IPv4)) {
+	if (!dp_test_pktmbuf_eth_init(pak, NULL, NULL, RTE_ETHER_TYPE_IPV4)) {
 		rte_pktmbuf_free(pak);
 		return NULL;
 	}
@@ -298,7 +298,7 @@ dp_test_create_esp_ipv6_pak(const char *saddr, const char *daddr,
 	if (!pak)
 		return NULL;
 
-	if (!dp_test_pktmbuf_eth_init(pak, NULL, NULL, ETHER_TYPE_IPv6)) {
+	if (!dp_test_pktmbuf_eth_init(pak, NULL, NULL, RTE_ETHER_TYPE_IPV6)) {
 		rte_pktmbuf_free(pak);
 		return NULL;
 	}
@@ -852,7 +852,7 @@ generate_exp_unreachable(struct rte_mbuf *input_pkt, int payload_len,
 	(void)dp_test_pktmbuf_eth_init(icmp_pak,
 				       dmac,
 				       dp_test_intf_name2mac_str(oif),
-				       ETHER_TYPE_IPv4);
+				       RTE_ETHER_TYPE_IPV4);
 
 	dp_test_set_pak_ip_field(ip, DP_TEST_SET_TOS,
 				 IPTOS_PREC_INTERNETCONTROL);
@@ -886,7 +886,7 @@ generate_exp_unreachable6(struct rte_mbuf *input_pkt, int payload_len,
 	(void)dp_test_pktmbuf_eth_init(icmp_pak,
 				       dmac,
 				       dp_test_intf_name2mac_str(oif),
-				       ETHER_TYPE_IPv6);
+				       RTE_ETHER_TYPE_IPV6);
 
 	exp = dp_test_exp_create(icmp_pak);
 

@@ -132,7 +132,7 @@ DP_START_TEST(npf_snat, test1)
 	struct dp_test_pkt_desc_t v4_pktA_pre = {
 		.text       = "Forw, Host1 Ins -> Host3 Outs, pre-NAT",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv4,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
 		.l3_src     = "10.0.1.1",
 		.l2_src     = "aa:bb:cc:dd:2:b1",
 		.l3_dst     = "172.0.2.3",
@@ -156,7 +156,7 @@ DP_START_TEST(npf_snat, test1)
 	struct dp_test_pkt_desc_t v4_pktA_post = {
 		.text       = "Forw, Host1 Ins -> Host3 Outs, post-NAT",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv4,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
 		.l3_src     = "172.0.2.1",
 		.l2_src     = dp_test_intf_name2mac_str("dp2T1"),
 		.l3_dst     = "172.0.2.3",
@@ -208,7 +208,7 @@ DP_START_TEST(npf_snat, test1)
 	struct dp_test_pkt_desc_t v4_pktB_pre = {
 		.text       = "Back, Host3 Outs -> Host1 Ins, pre-NAT",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv4,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
 		.l3_src     = "172.0.2.3",
 		.l2_src     = "aa:bb:cc:dd:1:a1",
 		.l3_dst     = "172.0.2.1",
@@ -232,7 +232,7 @@ DP_START_TEST(npf_snat, test1)
 	struct dp_test_pkt_desc_t v4_pktB_post = {
 		.text       = "Back, Host3 Outs -> Host1 Ins, post-NAT",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv4,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
 		.l3_src     = "172.0.2.3",
 		.l2_src     = dp_test_intf_name2mac_str("dp1T0"),
 		.l3_dst     = "10.0.1.1",
@@ -393,7 +393,7 @@ DP_START_TEST(npf_snat_masquerade, test1)
 	struct dp_test_pkt_desc_t v4_pkt1_pre = {
 		.text       = "Forw, Ins host1 -> Outs host3, Pre-NAT",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv4,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
 		.l3_src     = "10.0.1.1",
 		.l2_src     = "aa:bb:cc:dd:2:b1",
 		.l3_dst     = "172.0.2.3",
@@ -417,7 +417,7 @@ DP_START_TEST(npf_snat_masquerade, test1)
 	struct dp_test_pkt_desc_t v4_pkt1_post = {
 		.text       = "Forw, Ins host1 -> Outs host3, Post-NAT",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv4,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
 		.l3_src     = "172.0.2.254",
 		.l2_src     = dp_test_intf_name2mac_str("dp2T1"),
 		.l3_dst     = "172.0.2.3",
@@ -472,7 +472,7 @@ DP_START_TEST(npf_snat_masquerade, test1)
 	struct dp_test_pkt_desc_t v4_pkt2_pre = {
 		.text       = "Back, Outs host3 -> Outs UUT intf, Pre-NAT",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv4,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
 		.l3_src     = "172.0.2.3",
 		.l2_src     = "aa:bb:cc:dd:1:a3",
 		.l3_dst     = "172.0.2.254",
@@ -496,7 +496,7 @@ DP_START_TEST(npf_snat_masquerade, test1)
 	struct dp_test_pkt_desc_t v4_pkt2_post = {
 		.text       = "Back, Outs host -> Outs UUT intf, Post-NAT",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv4,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
 		.l3_src     = "172.0.2.3",
 		.l2_src     = dp_test_intf_name2mac_str("dp1T0"),
 		.l3_dst     = "10.0.1.1",
@@ -581,7 +581,7 @@ DP_START_TEST(npf_snat_masquerade, test1)
 	struct dp_test_pkt_desc_t v4_pkt4_pre = {
 		.text       = "Forw, Ins host2 p1000 -> Outs host3, Pre-NAT",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv4,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
 		.l3_src     = "10.0.1.2",
 		.l2_src     = "aa:bb:cc:dd:2:b2",
 		.l3_dst     = "172.0.2.3",
@@ -605,7 +605,7 @@ DP_START_TEST(npf_snat_masquerade, test1)
 	struct dp_test_pkt_desc_t v4_pkt4_post = {
 		.text       = "Forw, Ins host2 p1000 -> Outs host3, Post-NAT",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv4,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
 		.l3_src     = "172.0.2.254",
 		.l2_src     = dp_test_intf_name2mac_str("dp2T1"),
 		.l3_dst     = "172.0.2.3",
@@ -667,7 +667,7 @@ DP_START_TEST(npf_snat_masquerade, test1)
 	struct dp_test_pkt_desc_t v4_pkt5_pre = {
 		.text       = "Back, Outs host3 -> Outs UUT p1001, Pre-NAT",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv4,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
 		.l3_src     = "172.0.2.3",
 		.l2_src     = "aa:bb:cc:dd:1:a3",
 		.l3_dst     = "172.0.2.254",
@@ -691,7 +691,7 @@ DP_START_TEST(npf_snat_masquerade, test1)
 	struct dp_test_pkt_desc_t v4_pkt5_post = {
 		.text       = "Back, Outs n1 -> Outs UUT p1001, Post-NAT",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv4,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
 		.l3_src     = "172.0.2.3",
 		.l2_src     = dp_test_intf_name2mac_str("dp1T0"),
 		.l3_dst     = "10.0.1.2",
@@ -819,7 +819,7 @@ DP_START_TEST(npf_dnat, test1)
 	struct dp_test_pkt_desc_t v4_pktA_pre = {
 		.text       = "Forw, host3 outs -> host1 ins, pre-NAT",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv4,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
 		.l3_src     = "172.0.2.3",
 		.l2_src     = "aa:bb:cc:dd:1:a3",
 		.l3_dst     = "172.0.2.1",
@@ -843,7 +843,7 @@ DP_START_TEST(npf_dnat, test1)
 	struct dp_test_pkt_desc_t v4_pktA_post = {
 		.text       = "Forw, host3 outs -> host1 ins, post-NAT",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv4,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
 		.l3_src     = "172.0.2.3",
 		.l2_src     = dp_test_intf_name2mac_str("dp1T0"),
 		.l3_dst     = "10.0.1.1",
@@ -893,7 +893,7 @@ DP_START_TEST(npf_dnat, test1)
 	struct dp_test_pkt_desc_t v4_pktB_pre = {
 		.text       = "Back, host1 ins -> host3 outs, pre-NAT",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv4,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
 		.l3_src     = "10.0.1.1",
 		.l2_src     = "aa:bb:cc:dd:2:b1",
 		.l3_dst     = "172.0.2.3",
@@ -917,7 +917,7 @@ DP_START_TEST(npf_dnat, test1)
 	struct dp_test_pkt_desc_t v4_pktB_post = {
 		.text       = "Back, host1 ins -> host3 outs, post-NAT",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv4,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
 		.l3_src     = "172.0.2.1",
 		.l2_src     = dp_test_intf_name2mac_str("dp2T1"),
 		.l3_dst     = "172.0.2.3",
@@ -1101,7 +1101,7 @@ DP_START_TEST_DONT_RUN(npf_bidir_nat, test1)
 	struct dp_test_pkt_desc_t v4_pktA_pre = {
 		.text       = "Fwd, host3 outs -> host1 ins, pre-NAT",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv4,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
 		.l3_src     = "172.0.2.3",
 		.l2_src     = "aa:bb:cc:dd:1:a3",
 		.l3_dst     = "172.0.2.1",
@@ -1125,7 +1125,7 @@ DP_START_TEST_DONT_RUN(npf_bidir_nat, test1)
 	struct dp_test_pkt_desc_t v4_pktA_post = {
 		.text       = "Fwd, host3 outs -> host1 ins, post-NAT",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv4,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
 		.l3_src     = "10.0.1.3",
 		.l2_src     = dp_test_intf_name2mac_str("dp1T0"),
 		.l3_dst     = "10.0.1.1",
@@ -1180,7 +1180,7 @@ DP_START_TEST_DONT_RUN(npf_bidir_nat, test1)
 	struct dp_test_pkt_desc_t v4_pktB_pre = {
 		.text       = "Back, host 1 ins -> host3 outs, pre-NAT",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv4,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
 		.l3_src     = "10.0.1.1",
 		.l2_src     = "aa:bb:cc:dd:2:b1",
 		.l3_dst     = "10.0.1.3",
@@ -1204,7 +1204,7 @@ DP_START_TEST_DONT_RUN(npf_bidir_nat, test1)
 	struct dp_test_pkt_desc_t v4_pktB_post = {
 		.text       = "Back, host 1 ins -> host3 outs, post-NAT",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv4,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
 		.l3_src     = "172.0.2.1",
 		.l2_src     = dp_test_intf_name2mac_str("dp2T1"),
 		.l3_dst     = "172.0.2.3",
@@ -1409,7 +1409,7 @@ DP_START_TEST_DONT_RUN(npf_bidir_nat2, test1)
 	struct dp_test_pkt_desc_t v4_pktA_pre = {
 		.text       = "Fwd, host3 outs -> host1 ins, pre-NAT",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv4,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
 		.l3_src     = "172.0.2.3",
 		.l2_src     = "aa:bb:cc:dd:1:a3",
 		.l3_dst     = "172.0.2.1",
@@ -1433,7 +1433,7 @@ DP_START_TEST_DONT_RUN(npf_bidir_nat2, test1)
 	struct dp_test_pkt_desc_t v4_pktA_post = {
 		.text       = "Fwd, host3 outs -> host1 ins, post-NAT",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv4,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
 		.l3_src     = "172.0.2.3",
 		.l2_src     = dp_test_intf_name2mac_str("dp1T0"),
 		.l3_dst     = "10.0.1.1",
@@ -1488,7 +1488,7 @@ DP_START_TEST_DONT_RUN(npf_bidir_nat2, test1)
 	struct dp_test_pkt_desc_t v4_pktB_pre = {
 		.text       = "Rev, host 1 ins -> host3 outs, pre-NAT",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv4,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
 		.l3_src     = "10.0.1.1",
 		.l2_src     = "aa:bb:cc:dd:2:b1",
 		.l3_dst     = "172.0.2.3",
@@ -1512,7 +1512,7 @@ DP_START_TEST_DONT_RUN(npf_bidir_nat2, test1)
 	struct dp_test_pkt_desc_t v4_pktB_post = {
 		.text       = "Rev, host 1 ins -> host3 outs, post-NAT",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv4,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
 		.l3_src     = "172.0.2.1",
 		.l2_src     = dp_test_intf_name2mac_str("dp2T1"),
 		.l3_dst     = "172.0.2.3",
@@ -1601,7 +1601,7 @@ DP_START_TEST_DONT_RUN(npf_bidir_nat2, test1)
 	struct dp_test_pkt_desc_t v4_pktC_pre = {
 		.text       = "Fwd, host2 ins -> host3 outs, pre-NAT",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv4,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
 		.l3_src     = "10.0.1.2",
 		.l2_src     = "aa:bb:cc:dd:2:b2",
 		.l3_dst     = "172.0.2.3",
@@ -1625,7 +1625,7 @@ DP_START_TEST_DONT_RUN(npf_bidir_nat2, test1)
 	struct dp_test_pkt_desc_t v4_pktC_post = {
 		.text       = "Fwd, host2 ins -> host3 outs, pre-NAT",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv4,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
 		.l3_src     = "172.0.2.2",
 		.l2_src     = dp_test_intf_name2mac_str("dp2T1"),
 		.l3_dst     = "172.0.2.3",
@@ -1765,7 +1765,7 @@ DP_START_TEST(npf_snat, addr_ranges)
 	struct dp_test_pkt_desc_t v4_pktA_pre = {
 		.text       = "Forw, Host1 Ins -> Host3 Outs, pre-NAT",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv4,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
 		.l3_src     = "10.0.1.1",
 		.l2_src     = "aa:bb:cc:dd:2:b1",
 		.l3_dst     = "172.0.2.3",
@@ -1789,7 +1789,7 @@ DP_START_TEST(npf_snat, addr_ranges)
 	struct dp_test_pkt_desc_t v4_pktA_post = {
 		.text       = "Forw, Host1 Ins -> Host3 Outs, pre-NAT",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv4,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
 		.l3_src     = "172.0.2.18",
 		.l2_src     = "aa:bb:cc:dd:2:b1",
 		.l3_dst     = "172.0.2.3",
@@ -1841,7 +1841,7 @@ DP_START_TEST(npf_snat, addr_ranges)
 	struct dp_test_pkt_desc_t v4_pktB_pre = {
 		.text       = "Forw, Host2 Ins -> Host3 Outs, pre-NAT",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv4,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
 		.l3_src     = "10.0.1.2",
 		.l2_src     = "aa:bb:cc:dd:2:b2",
 		.l3_dst     = "172.0.2.3",
@@ -1865,7 +1865,7 @@ DP_START_TEST(npf_snat, addr_ranges)
 	struct dp_test_pkt_desc_t v4_pktB_post = {
 		.text       = "Forw, Host2 Ins -> Host3 Outs, post-NAT",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv4,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
 		.l3_src     = "172.0.2.19",
 		.l2_src     = "aa:bb:cc:dd:2:b2",
 		.l3_dst     = "172.0.2.3",
@@ -2022,7 +2022,7 @@ DP_START_TEST(npf_snat_exclude, test1)
 	struct dp_test_pkt_desc_t v4_pkt1_pre = {
 		.text       = "Fwd, Ins host1 -> Outs host3, pre-NAT",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv4,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
 		.l3_src     = "10.0.1.1",
 		.l2_src     = "aa:bb:cc:dd:2:b1",
 		.l3_dst     = "172.0.2.3",
@@ -2046,7 +2046,7 @@ DP_START_TEST(npf_snat_exclude, test1)
 	struct dp_test_pkt_desc_t v4_pkt1_post = {
 		.text       = "Fwd, Ins host1 -> Outs host3, post-NAT",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv4,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
 		.l3_src     = "172.0.2.254",
 		.l2_src     = "aa:bb:cc:dd:2:b1",
 		.l3_dst     = "172.0.2.3",
@@ -2102,7 +2102,7 @@ DP_START_TEST(npf_snat_exclude, test1)
 	struct dp_test_pkt_desc_t v4_pkt2_pre = {
 		.text       = "Rev, Outs host3 -> Outs UUT intf, pre-NAT",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv4,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
 		.l3_src     = "172.0.2.3",
 		.l2_src     = "aa:bb:cc:dd:1:a1",
 		.l3_dst     = "172.0.2.254",
@@ -2126,7 +2126,7 @@ DP_START_TEST(npf_snat_exclude, test1)
 	struct dp_test_pkt_desc_t v4_pkt2_post = {
 		.text       = "Rev, Outs host3 -> Outs UUT intf, post-NAT",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv4,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
 		.l3_src     = "172.0.2.3",
 		.l2_src     = "aa:bb:cc:dd:1:a1",
 		.l3_dst     = "10.0.1.1",
@@ -2182,7 +2182,7 @@ DP_START_TEST(npf_snat_exclude, test1)
 	struct dp_test_pkt_desc_t v4_pkt3_pre = {
 		.text       = "Fwd, Ins host2 p1000 -> Outs host3, pre-NAT",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv4,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
 		.l3_src     = "10.0.1.2",
 		.l2_src     = "aa:bb:cc:dd:2:b2",
 		.l3_dst     = "172.0.2.3",
@@ -2307,7 +2307,7 @@ DP_START_TEST(npf_snat_port_range, test1)
 	struct dp_test_pkt_desc_t v4_pktA_pre = {
 		.text       = "Forw, Host1 Ins -> Host3 Outs, pre-NAT",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv4,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
 		.l3_src     = "10.0.1.1",
 		.l2_src     = "aa:bb:cc:dd:2:b1",
 		.l3_dst     = "172.0.2.3",
@@ -2331,7 +2331,7 @@ DP_START_TEST(npf_snat_port_range, test1)
 	struct dp_test_pkt_desc_t v4_pktA_post = {
 		.text       = "Forw, Host1 Ins -> Host3 Outs, post-NAT",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv4,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
 		.l3_src     = "172.0.2.18",
 		.l2_src     = dp_test_intf_name2mac_str("dp2T1"),
 		.l3_dst     = "172.0.2.3",
@@ -2406,7 +2406,7 @@ DP_START_TEST(npf_snat_port_range, test1)
 	struct dp_test_pkt_desc_t v4_pktB_pre = {
 		.text       = "Back, Host3 Outs -> Host1 Ints, pre-NAT",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv4,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
 		.l3_src     = "172.0.2.3",
 		.l2_src     = "aa:bb:cc:dd:1:a1",
 		.l3_dst     = "172.0.2.18",
@@ -2430,7 +2430,7 @@ DP_START_TEST(npf_snat_port_range, test1)
 	struct dp_test_pkt_desc_t v4_pktB_post = {
 		.text       = "Back, Host3 Outs -> Host1 Ints, post-NAT",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv4,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
 		.l3_src     = "172.0.2.3",
 		.l2_src     = "aa:bb:cc:dd:1:a1",
 		.l3_dst     = "10.0.1.1",
@@ -2495,7 +2495,7 @@ DP_START_TEST(npf_snat_port_range, test1)
 	struct dp_test_pkt_desc_t v4_pktC_pre = {
 		.text       = "Forw, Host1 Ins -> Host3 Outs, pre-NAT",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv4,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
 		.l3_src     = "10.0.1.1",
 		.l2_src     = "aa:bb:cc:dd:2:b1",
 		.l3_dst     = "172.0.2.3",
@@ -2519,7 +2519,7 @@ DP_START_TEST(npf_snat_port_range, test1)
 	struct dp_test_pkt_desc_t v4_pktC_post = {
 		.text       = "Forw, Host1 Ins -> Host3 Outs, post-NAT",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv4,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
 		.l3_src     = "172.0.2.18",
 		.l2_src     = "aa:bb:cc:dd:2:b1",
 		.l3_dst     = "172.0.2.3",
@@ -2690,7 +2690,7 @@ DP_START_TEST(npf_snat_groups, test1)
 	struct dp_test_pkt_desc_t v4_pkt1_pre = {
 		.text       = "Fwd, Ins host1 -> Outs host3, pre-NAT",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv4,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
 		.l3_src     = "10.0.1.1",
 		.l2_src     = "aa:bb:cc:dd:2:b1",
 		.l3_dst     = "172.0.2.3",
@@ -2714,7 +2714,7 @@ DP_START_TEST(npf_snat_groups, test1)
 	struct dp_test_pkt_desc_t v4_pkt1_post = {
 		.text       = "Fwd, Ins host1 -> Outs host3, post-NAT",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv4,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
 		.l3_src     = "172.0.2.254",
 		.l2_src     = "aa:bb:cc:dd:2:b1",
 		.l3_dst     = "172.0.2.3",

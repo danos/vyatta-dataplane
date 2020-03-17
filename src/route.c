@@ -687,7 +687,7 @@ struct next_hop *rt_lookup_fast(struct vrf *vrf, in_addr_t dst,
 	if (unlikely(lpm_lookup(lpm, ntohl(dst), &idx) != 0))
 		return NULL;
 
-	nh = nexthop_select(AF_INET, idx, m, ETHER_TYPE_IPv4);
+	nh = nexthop_select(AF_INET, idx, m, RTE_ETHER_TYPE_IPV4);
 	if (nh && unlikely(nh->flags & RTF_NOROUTE))
 		return NULL;
 	return nh;

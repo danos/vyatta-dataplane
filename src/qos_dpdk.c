@@ -593,7 +593,7 @@ static
 int qos_npf_classify(struct ifnet *ifp, const struct sched_info *qinfo,
 		     struct rte_mbuf **m)
 {
-	uint16_t ether_type = ethtype(*m, ETHER_TYPE_VLAN);
+	uint16_t ether_type = ethtype(*m, RTE_ETHER_TYPE_VLAN);
 	uint32_t subport, pipe = 0, q = DEFAULT_Q;
 	npf_result_t result = { .decision = NPF_DECISION_PASS };
 
@@ -639,9 +639,9 @@ int qos_npf_classify(struct ifnet *ifp, const struct sched_info *qinfo,
 	if (vlan != 0 && !qmap->dscp_enabled && qmap->pcp_enabled) {
 		q = qmap->pcp2q[pcp];
 	} else {
-		if (ether_type == htons(ETHER_TYPE_IPv4))
+		if (ether_type == htons(RTE_ETHER_TYPE_IPV4))
 			dscp = ip_dscp_get(iphdr(*m));
-		else if (ether_type == htons(ETHER_TYPE_IPv6))
+		else if (ether_type == htons(RTE_ETHER_TYPE_IPV6))
 			dscp = ip6_dscp_get(ip6hdr(*m));
 
 		/*

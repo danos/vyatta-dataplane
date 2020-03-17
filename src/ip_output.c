@@ -51,7 +51,7 @@ void ip_output(struct rte_mbuf *m, bool srced_forus)
 	struct iphdr *ip = iphdr(m);
 	struct ifnet *ifp;
 
-	eh->ether_type = htons(ETHER_TYPE_IPv4);
+	eh->ether_type = htons(RTE_ETHER_TYPE_IPV4);
 
 	/* Do route lookup */
 	nxt = dp_rt_lookup(srced_forus ? ip->saddr : ip->daddr,
@@ -256,7 +256,7 @@ void ip_fragment_mtu(struct ifnet *ifp, unsigned int mtu, struct rte_mbuf *m0,
 		}
 
 		m = pktmbuf_allocseg(m0->pool, pktmbuf_get_vrf(m0),
-				     sz + ETHER_HDR_LEN + hlen);
+				     sz + RTE_ETHER_HDR_LEN + hlen);
 		if (m == NULL)
 			goto drop;
 

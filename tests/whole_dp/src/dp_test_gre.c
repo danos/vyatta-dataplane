@@ -109,7 +109,7 @@ gre_test_build_expected_pak(struct dp_test_expected **expected,
 		dp_test_pktmbuf_eth_init(m,
 					 "aa:bb:cc:dd:ee:ff",
 					 dp_test_intf_name2mac_str("dp2T2"),
-					 ETHER_TYPE_IPv4);
+					 RTE_ETHER_TYPE_IPV4);
 
 		dp_test_exp_set_pak_m(exp, i, m);
 
@@ -337,7 +337,7 @@ DP_START_TEST(gre_encap, simple_encap)
 				    1, &len);
 	(void)dp_test_pktmbuf_eth_init(m, dp_test_intf_name2mac_str("dp1T1"),
 				       DP_TEST_INTF_DEF_SRC_MAC,
-				       ETHER_TYPE_IPv4);
+				       RTE_ETHER_TYPE_IPV4);
 	inner_ip = iphdr(m);
 	dp_test_set_pak_ip_field(inner_ip, DP_TEST_SET_IP_ECN,
 				 IPTOS_ECN_NOT_ECT);
@@ -352,7 +352,7 @@ DP_START_TEST(gre_encap, simple_encap)
 				    1, &len);
 	(void)dp_test_pktmbuf_eth_init(m, dp_test_intf_name2mac_str("dp1T1"),
 				       DP_TEST_INTF_DEF_SRC_MAC,
-				       ETHER_TYPE_IPv4);
+				       RTE_ETHER_TYPE_IPV4);
 	inner_ip = iphdr(m);
 	dp_test_set_pak_ip_field(inner_ip, DP_TEST_SET_IP_ECN,
 				 IPTOS_ECN_ECT1);
@@ -367,7 +367,7 @@ DP_START_TEST(gre_encap, simple_encap)
 				    1, &len);
 	(void)dp_test_pktmbuf_eth_init(m, dp_test_intf_name2mac_str("dp1T1"),
 				       DP_TEST_INTF_DEF_SRC_MAC,
-				       ETHER_TYPE_IPv4);
+				       RTE_ETHER_TYPE_IPV4);
 	inner_ip = iphdr(m);
 	dp_test_set_pak_ip_field(inner_ip,
 				 DP_TEST_SET_IP_ECN, IPTOS_ECN_ECT0);
@@ -382,7 +382,7 @@ DP_START_TEST(gre_encap, simple_encap)
 				    1, &len);
 	(void)dp_test_pktmbuf_eth_init(m, dp_test_intf_name2mac_str("dp1T1"),
 				       DP_TEST_INTF_DEF_SRC_MAC,
-				       ETHER_TYPE_IPv4);
+				       RTE_ETHER_TYPE_IPV4);
 	inner_ip = iphdr(m);
 	dp_test_set_pak_ip_field(inner_ip, DP_TEST_SET_IP_ECN,
 				 IPTOS_ECN_CE);
@@ -417,7 +417,7 @@ DP_START_TEST(gre_encap, simple_encap)
 				    1, &len);
 	(void)dp_test_pktmbuf_eth_init(m, dp_test_intf_name2mac_str("dp1T1"),
 				       DP_TEST_INTF_DEF_SRC_MAC,
-				       ETHER_TYPE_IPv4);
+				       RTE_ETHER_TYPE_IPV4);
 	inner_ip = iphdr(m);
 	gre_test_build_expected_pak(&exp_no_frag, &inner_ip,
 				    exp_ip_outer, 1);
@@ -429,7 +429,7 @@ DP_START_TEST(gre_encap, simple_encap)
 				    1, &len);
 	(void)dp_test_pktmbuf_eth_init(m, dp_test_intf_name2mac_str("dp1T1"),
 				       DP_TEST_INTF_DEF_SRC_MAC,
-				       ETHER_TYPE_IPv4);
+				       RTE_ETHER_TYPE_IPV4);
 	inner_ip = iphdr(m);
 	gre_test_build_expected_pak(&exp_no_frag, &inner_ip,
 				    exp_ip_outer, 1);
@@ -441,7 +441,7 @@ DP_START_TEST(gre_encap, simple_encap)
 				    1, &len);
 	(void)dp_test_pktmbuf_eth_init(m, dp_test_intf_name2mac_str("dp1T1"),
 				       DP_TEST_INTF_DEF_SRC_MAC,
-				       ETHER_TYPE_IPv4);
+				       RTE_ETHER_TYPE_IPV4);
 	/*
 	 * Set frag 0 which is the last x bytes of the pak,
 	 * then frag 1 which is the first 'mtu' bytes
@@ -474,7 +474,7 @@ DP_START_TEST(gre_encap, simple_encap)
 				    1, &len);
 	(void)dp_test_pktmbuf_eth_init(m, dp_test_intf_name2mac_str("dp1T1"),
 				       DP_TEST_INTF_DEF_SRC_MAC,
-				       ETHER_TYPE_IPv4);
+				       RTE_ETHER_TYPE_IPV4);
 	inner_ip = iphdr(m);
 	dp_test_set_pak_ip_field(inner_ip, DP_TEST_SET_DF, 1);
 	gre_test_build_expected_pak(&exp_no_frag, &inner_ip,
@@ -489,7 +489,7 @@ DP_START_TEST(gre_encap, simple_encap)
 	(void)dp_test_pktmbuf_eth_init(m,
 				       dp_test_intf_name2mac_str("dp1T1"),
 				       DP_TEST_INTF_DEF_SRC_MAC,
-				       ETHER_TYPE_IPv4);
+				       RTE_ETHER_TYPE_IPV4);
 	inner_ip = iphdr(m);
 	dp_test_set_pak_ip_field(inner_ip, DP_TEST_SET_DF, 1);
 	gre_test_build_expected_pak(&exp_no_frag, &inner_ip,
@@ -504,7 +504,7 @@ DP_START_TEST(gre_encap, simple_encap)
 	(void)dp_test_pktmbuf_eth_init(m,
 				       dp_test_intf_name2mac_str("dp1T1"),
 				       DP_TEST_INTF_DEF_SRC_MAC,
-				       ETHER_TYPE_IPv4);
+				       RTE_ETHER_TYPE_IPV4);
 
 	inner_ip = iphdr(m);
 	dp_test_set_pak_ip_field(inner_ip, DP_TEST_SET_DF, 1);
@@ -544,7 +544,7 @@ DP_START_TEST(gre_encap, simple_encap_ipv6)
 	m = dp_test_create_ipv6_pak("1:1:1::2", "10::1", 1, &len);
 	(void)dp_test_pktmbuf_eth_init(m, dp_test_intf_name2mac_str("dp1T1"),
 				       DP_TEST_INTF_DEF_SRC_MAC,
-				       ETHER_TYPE_IPv6);
+				       RTE_ETHER_TYPE_IPV6);
 	inner_ip = ip6hdr(m);
 	ip6_ver_tc_flow_hdr(inner_ip, IPTOS_ECN_NOT_ECT, 0);
 	gre_test_build_expected_pak_ipv6(&exp_no_frag, &inner_ip,
@@ -558,7 +558,7 @@ DP_START_TEST(gre_encap, simple_encap_ipv6)
 				    1, &len);
 	(void)dp_test_pktmbuf_eth_init(m, dp_test_intf_name2mac_str("dp1T1"),
 				       DP_TEST_INTF_DEF_SRC_MAC,
-				       ETHER_TYPE_IPv6);
+				       RTE_ETHER_TYPE_IPV6);
 	inner_ip = ip6hdr(m);
 	ip6_ver_tc_flow_hdr(inner_ip, IPTOS_ECN_ECT1, 0);
 	gre_test_build_expected_pak_ipv6(&exp_no_frag, &inner_ip,
@@ -572,7 +572,7 @@ DP_START_TEST(gre_encap, simple_encap_ipv6)
 				    1, &len);
 	(void)dp_test_pktmbuf_eth_init(m, dp_test_intf_name2mac_str("dp1T1"),
 				       DP_TEST_INTF_DEF_SRC_MAC,
-				       ETHER_TYPE_IPv6);
+				       RTE_ETHER_TYPE_IPV6);
 	inner_ip = ip6hdr(m);
 	ip6_ver_tc_flow_hdr(inner_ip, IPTOS_ECN_ECT0, 0);
 	gre_test_build_expected_pak_ipv6(&exp_no_frag, &inner_ip,
@@ -586,7 +586,7 @@ DP_START_TEST(gre_encap, simple_encap_ipv6)
 				    1, &len);
 	(void)dp_test_pktmbuf_eth_init(m, dp_test_intf_name2mac_str("dp1T1"),
 				       DP_TEST_INTF_DEF_SRC_MAC,
-				       ETHER_TYPE_IPv6);
+				       RTE_ETHER_TYPE_IPV6);
 	inner_ip = ip6hdr(m);
 	ip6_ver_tc_flow_hdr(inner_ip, IPTOS_ECN_CE, 0);
 	gre_test_build_expected_pak_ipv6(&exp_no_frag, &inner_ip,
@@ -614,7 +614,7 @@ DP_START_TEST(gre_encap, simple_encap_ipv6)
 				    1, &len);
 	dp_test_pktmbuf_eth_init(m, dp_test_intf_name2mac_str("dp1T1"),
 				 DP_TEST_INTF_DEF_SRC_MAC,
-				 ETHER_TYPE_IPv6);
+				 RTE_ETHER_TYPE_IPV6);
 	inner_ip = ip6hdr(m);
 	gre_test_build_expected_pak_ipv6(&exp_no_frag, &inner_ip,
 					 exp_ip_outer, 1);
@@ -626,7 +626,7 @@ DP_START_TEST(gre_encap, simple_encap_ipv6)
 				    1, &len);
 	dp_test_pktmbuf_eth_init(m, dp_test_intf_name2mac_str("dp1T1"),
 				 DP_TEST_INTF_DEF_SRC_MAC,
-				 ETHER_TYPE_IPv6);
+				 RTE_ETHER_TYPE_IPV6);
 	inner_ip = ip6hdr(m);
 	gre_test_build_expected_pak_ipv6(&exp_no_frag, &inner_ip,
 					 exp_ip_outer, 1);
@@ -638,7 +638,7 @@ DP_START_TEST(gre_encap, simple_encap_ipv6)
 				    1, &len);
 	dp_test_pktmbuf_eth_init(m, dp_test_intf_name2mac_str("dp1T1"),
 				 DP_TEST_INTF_DEF_SRC_MAC,
-				 ETHER_TYPE_IPv6);
+				 RTE_ETHER_TYPE_IPV6);
 	inner_ip = ip6hdr(m);
 	exp_icmp = dp_test_exp_create_m(NULL, 1);
 
@@ -656,7 +656,7 @@ DP_START_TEST(gre_encap, simple_encap_ipv6)
 		icmp6);
 	dp_test_pktmbuf_eth_init(exp_icmp->exp_pak[0], "aa:bb:cc:dd:ee:ff",
 				 dp_test_intf_name2mac_str("dp1T1"),
-				 ETHER_TYPE_IPv6);
+				 RTE_ETHER_TYPE_IPV6);
 	dp_test_exp_set_oif_name(exp_icmp, "dp1T1");
 	dp_test_exp_set_fwd_status(exp_icmp, DP_TEST_FWD_FORWARDED);
 
@@ -723,7 +723,7 @@ DP_START_TEST(gre_encap, ignore_df)
 				    1, &len);
 	(void)dp_test_pktmbuf_eth_init(m, dp_test_intf_name2mac_str("dp1T1"),
 				       DP_TEST_INTF_DEF_SRC_MAC,
-				       ETHER_TYPE_IPv4);
+				       RTE_ETHER_TYPE_IPV4);
 	inner_ip = iphdr(m);
 	dp_test_set_pak_ip_field(inner_ip, DP_TEST_SET_DF, 1);
 	gre_test_build_expected_pak(&exp_no_frag, &inner_ip,
@@ -736,7 +736,7 @@ DP_START_TEST(gre_encap, ignore_df)
 				    1, &len);
 	(void)dp_test_pktmbuf_eth_init(m, dp_test_intf_name2mac_str("dp1T1"),
 				       DP_TEST_INTF_DEF_SRC_MAC,
-				       ETHER_TYPE_IPv4);
+				       RTE_ETHER_TYPE_IPV4);
 	inner_ip = iphdr(m);
 	dp_test_set_pak_ip_field(inner_ip, DP_TEST_SET_DF, 1);
 	gre_test_build_expected_pak(&exp_no_frag, &inner_ip,
@@ -749,7 +749,7 @@ DP_START_TEST(gre_encap, ignore_df)
 				    1, &len);
 	(void)dp_test_pktmbuf_eth_init(m, dp_test_intf_name2mac_str("dp1T1"),
 				       DP_TEST_INTF_DEF_SRC_MAC,
-				       ETHER_TYPE_IPv4);
+				       RTE_ETHER_TYPE_IPV4);
 	inner_ip = iphdr(m);
 	dp_test_set_pak_ip_field(inner_ip, DP_TEST_SET_DF, 1);
 
@@ -794,7 +794,7 @@ static inline void dp_test_gre_tos_encap(bool inherit, uint8_t val)
 				    1, &len);
 	(void)dp_test_pktmbuf_eth_init(m, dp_test_intf_name2mac_str("dp1T1"),
 				       DP_TEST_INTF_DEF_SRC_MAC,
-				       ETHER_TYPE_IPv4);
+				       RTE_ETHER_TYPE_IPV4);
 	inner_ip = iphdr(m);
 	dp_test_set_pak_ip_field(inner_ip, DP_TEST_SET_TOS,
 				 0);
@@ -808,7 +808,7 @@ static inline void dp_test_gre_tos_encap(bool inherit, uint8_t val)
 				    1, &len);
 	(void)dp_test_pktmbuf_eth_init(m, dp_test_intf_name2mac_str("dp1T1"),
 				       DP_TEST_INTF_DEF_SRC_MAC,
-				       ETHER_TYPE_IPv4);
+				       RTE_ETHER_TYPE_IPV4);
 	inner_ip = iphdr(m);
 	dp_test_set_pak_ip_field(inner_ip, DP_TEST_SET_TOS,
 				 0xc0);
@@ -867,7 +867,7 @@ DP_START_TEST(gre_encap, no_route)
 					   1, &len);
 	dp_test_pktmbuf_eth_init(test_pak, dp_test_intf_name2mac_str("dp1T1"),
 				 DP_TEST_INTF_DEF_SRC_MAC,
-				 ETHER_TYPE_IPv4);
+				 RTE_ETHER_TYPE_IPV4);
 
 	/*
 	 * Expect the packet to be dropped - an ICMP might attempt to
@@ -901,7 +901,7 @@ dp_test_gre_build_encapped_pak(const struct iphdr *payload_ip,
 	(void)dp_test_pktmbuf_eth_init(m,
 				       dp_test_intf_name2mac_str("dp2T2"),
 				       DP_TEST_INTF_DEF_SRC_MAC,
-				       ETHER_TYPE_IPv4);
+				       RTE_ETHER_TYPE_IPV4);
 	return m;
 }
 
@@ -922,7 +922,7 @@ static struct dp_test_expected *gre_test_build_expected_ecn_pak(
 	(void)dp_test_pktmbuf_eth_init(exp_mbuf,
 				       dp_test_intf_name2mac_str("dp1T1"),
 				       DP_TEST_INTF_DEF_SRC_MAC,
-				       ETHER_TYPE_IPv4);
+				       RTE_ETHER_TYPE_IPV4);
 	dp_test_set_pak_ip_field(iphdr(exp_mbuf), DP_TEST_SET_TTL,
 				 DP_TEST_PAK_DEFAULT_TTL - 2);
 	exp = dp_test_exp_create_m(NULL, 1);
@@ -1169,7 +1169,7 @@ DP_START_TEST(gre_decap, invalid_paks)
 					IPPROTO_GRE, 1, &len);
 	dp_test_pktmbuf_eth_init(m, dp_test_intf_name2mac_str("dp1T1"),
 				 DP_TEST_INTF_DEF_SRC_MAC,
-				 ETHER_TYPE_IPv4);
+				 RTE_ETHER_TYPE_IPV4);
 	exp = dp_test_exp_create(m);
 	dp_test_exp_set_fwd_status(exp, DP_TEST_FWD_DROPPED);
 	dp_test_pak_receive(m, "dp1T1", exp);
@@ -1180,7 +1180,7 @@ DP_START_TEST(gre_decap, invalid_paks)
 					IPPROTO_GRE, 1, &len);
 	(void)dp_test_pktmbuf_eth_init(m, dp_test_intf_name2mac_str("dp1T1"),
 				       DP_TEST_INTF_DEF_SRC_MAC,
-				       ETHER_TYPE_IPv4);
+				       RTE_ETHER_TYPE_IPV4);
 	gre = (struct gre_hdr *)(iphdr(m) + 1);
 	memset(gre, 0, sizeof(struct gre_hdr) - 1);
 	exp = dp_test_exp_create(m);
@@ -1193,7 +1193,7 @@ DP_START_TEST(gre_decap, invalid_paks)
 					IPPROTO_GRE, 1, &len);
 	(void)dp_test_pktmbuf_eth_init(m, dp_test_intf_name2mac_str("dp1T1"),
 				       DP_TEST_INTF_DEF_SRC_MAC,
-				       ETHER_TYPE_IPv4);
+				       RTE_ETHER_TYPE_IPV4);
 	gre = (struct gre_hdr *)(iphdr(m) + 1);
 	memset(gre, 0, sizeof(struct gre_hdr) + 4 - 1);
 	gre->flags |= GRE_CSUM;
@@ -1207,7 +1207,7 @@ DP_START_TEST(gre_decap, invalid_paks)
 					IPPROTO_GRE, 1, &len);
 	(void)dp_test_pktmbuf_eth_init(m, dp_test_intf_name2mac_str("dp1T1"),
 				       DP_TEST_INTF_DEF_SRC_MAC,
-				       ETHER_TYPE_IPv4);
+				       RTE_ETHER_TYPE_IPV4);
 	gre = (struct gre_hdr *)(iphdr(m) + 1);
 	memset(gre, 0, sizeof(struct gre_hdr) + 4 - 1);
 	gre->flags |= GRE_KEY;
@@ -1221,7 +1221,7 @@ DP_START_TEST(gre_decap, invalid_paks)
 					IPPROTO_GRE, 1, &len);
 	(void)dp_test_pktmbuf_eth_init(m, dp_test_intf_name2mac_str("dp1T1"),
 				       DP_TEST_INTF_DEF_SRC_MAC,
-				       ETHER_TYPE_IPv4);
+				       RTE_ETHER_TYPE_IPV4);
 	gre = (struct gre_hdr *)(iphdr(m) + 1);
 	memset(gre, 0, sizeof(struct gre_hdr) + 4 - 1);
 	gre->flags |= GRE_SEQ;
@@ -1249,7 +1249,7 @@ DP_START_TEST(mgre_encap, simple_encap)
 	m = dp_test_create_ipv4_pak("1.1.1.2", "10.0.0.1",
 				    1, &len);
 	(void)dp_test_pktmbuf_eth_init(m, dp_test_intf_name2mac_str("dp1T1"),
-				       NULL, ETHER_TYPE_IPv4);
+				       NULL, RTE_ETHER_TYPE_IPV4);
 	exp = dp_test_exp_create(m);
 	dp_test_ipv4_decrement_ttl(dp_test_exp_get_pak(exp));
 	dp_test_exp_set_fwd_status(exp, DP_TEST_FWD_LOCAL);
@@ -1260,7 +1260,7 @@ DP_START_TEST(mgre_encap, simple_encap)
 	m = dp_test_create_ipv4_pak("1.1.1.2", "10.0.0.1",
 				    1, &len);
 	(void)dp_test_pktmbuf_eth_init(m, dp_test_intf_name2mac_str("dp1T1"),
-				       NULL, ETHER_TYPE_IPv4);
+				       NULL, RTE_ETHER_TYPE_IPV4);
 	ip_inner = iphdr(m);
 	gre_test_build_expected_pak(&exp, &ip_inner,
 				    &exp_ip_outer, 1);
@@ -1271,7 +1271,7 @@ DP_START_TEST(mgre_encap, simple_encap)
 	m = dp_test_create_ipv4_pak("1.1.1.2", "10.0.0.1",
 				    1, &len);
 	(void)dp_test_pktmbuf_eth_init(m, dp_test_intf_name2mac_str("dp1T1"),
-				       NULL, ETHER_TYPE_IPv4);
+				       NULL, RTE_ETHER_TYPE_IPV4);
 	ip_inner = iphdr(m);
 	gre_test_build_expected_pak(&exp, &ip_inner,
 				    &exp_ip_outer, 1);
@@ -1283,7 +1283,7 @@ DP_START_TEST(mgre_encap, simple_encap)
 	m = dp_test_create_ipv4_pak("1.1.1.2", "10.0.0.1",
 				    1, &len);
 	(void)dp_test_pktmbuf_eth_init(m, dp_test_intf_name2mac_str("dp1T1"),
-				       NULL, ETHER_TYPE_IPv4);
+				       NULL, RTE_ETHER_TYPE_IPV4);
 	exp = dp_test_exp_create(m);
 	dp_test_ipv4_decrement_ttl(dp_test_exp_get_pak(exp));
 	dp_test_exp_set_fwd_status(exp, DP_TEST_FWD_LOCAL);
@@ -1342,7 +1342,7 @@ DP_START_TEST(gre_vrf_encap, simple_vrf_encap)
 				    1, &len);
 	(void)dp_test_pktmbuf_eth_init(m, dp_test_intf_name2mac_str("dp1T1"),
 				       DP_TEST_INTF_DEF_SRC_MAC,
-				       ETHER_TYPE_IPv4);
+				       RTE_ETHER_TYPE_IPV4);
 	inner_ip = iphdr(m);
 	dp_test_set_pak_ip_field(inner_ip, DP_TEST_SET_IP_ECN,
 				 IPTOS_ECN_NOT_ECT);
@@ -1358,7 +1358,7 @@ DP_START_TEST(gre_vrf_encap, simple_vrf_encap)
 				    1, &len);
 	(void)dp_test_pktmbuf_eth_init(m, dp_test_intf_name2mac_str("dp1T1"),
 				       DP_TEST_INTF_DEF_SRC_MAC,
-				       ETHER_TYPE_IPv4);
+				       RTE_ETHER_TYPE_IPV4);
 	inner_ip = iphdr(m);
 	dp_test_set_pak_ip_field(inner_ip, DP_TEST_SET_IP_ECN,
 				 IPTOS_ECN_ECT1);
@@ -1373,7 +1373,7 @@ DP_START_TEST(gre_vrf_encap, simple_vrf_encap)
 				    1, &len);
 	(void)dp_test_pktmbuf_eth_init(m, dp_test_intf_name2mac_str("dp1T1"),
 				       DP_TEST_INTF_DEF_SRC_MAC,
-				       ETHER_TYPE_IPv4);
+				       RTE_ETHER_TYPE_IPV4);
 	inner_ip = iphdr(m);
 	dp_test_set_pak_ip_field(inner_ip,
 				 DP_TEST_SET_IP_ECN, IPTOS_ECN_ECT0);
@@ -1388,7 +1388,7 @@ DP_START_TEST(gre_vrf_encap, simple_vrf_encap)
 				    1, &len);
 	(void)dp_test_pktmbuf_eth_init(m, dp_test_intf_name2mac_str("dp1T1"),
 				       DP_TEST_INTF_DEF_SRC_MAC,
-				       ETHER_TYPE_IPv4);
+				       RTE_ETHER_TYPE_IPV4);
 	inner_ip = iphdr(m);
 	dp_test_set_pak_ip_field(inner_ip, DP_TEST_SET_IP_ECN,
 				 IPTOS_ECN_CE);
@@ -1427,7 +1427,7 @@ DP_START_TEST(gre_vrf_encap, simple_vrf_encap)
 				    1, &len);
 	(void)dp_test_pktmbuf_eth_init(m, dp_test_intf_name2mac_str("dp1T1"),
 				       DP_TEST_INTF_DEF_SRC_MAC,
-				       ETHER_TYPE_IPv4);
+				       RTE_ETHER_TYPE_IPV4);
 	inner_ip = iphdr(m);
 	gre_test_build_expected_pak(&exp_no_frag, &inner_ip,
 				    exp_ip_outer, 1);
@@ -1439,7 +1439,7 @@ DP_START_TEST(gre_vrf_encap, simple_vrf_encap)
 				    1, &len);
 	(void)dp_test_pktmbuf_eth_init(m, dp_test_intf_name2mac_str("dp1T1"),
 				       DP_TEST_INTF_DEF_SRC_MAC,
-				       ETHER_TYPE_IPv4);
+				       RTE_ETHER_TYPE_IPV4);
 	inner_ip = iphdr(m);
 	gre_test_build_expected_pak(&exp_no_frag, &inner_ip,
 				    exp_ip_outer, 1);
@@ -1451,7 +1451,7 @@ DP_START_TEST(gre_vrf_encap, simple_vrf_encap)
 				    1, &len);
 	(void)dp_test_pktmbuf_eth_init(m, dp_test_intf_name2mac_str("dp1T1"),
 				       DP_TEST_INTF_DEF_SRC_MAC,
-				       ETHER_TYPE_IPv4);
+				       RTE_ETHER_TYPE_IPV4);
 	/*
 	 * Set frag 0 which is the last x bytes of the pak,
 	 * then frag 1 which is the first 'mtu' bytes
@@ -1483,7 +1483,7 @@ DP_START_TEST(gre_vrf_encap, simple_vrf_encap)
 				    1, &len);
 	(void)dp_test_pktmbuf_eth_init(m, dp_test_intf_name2mac_str("dp1T1"),
 				       DP_TEST_INTF_DEF_SRC_MAC,
-				       ETHER_TYPE_IPv4);
+				       RTE_ETHER_TYPE_IPV4);
 	inner_ip = iphdr(m);
 	dp_test_set_pak_ip_field(inner_ip, DP_TEST_SET_DF, 1);
 	gre_test_build_expected_pak(&exp_no_frag, &inner_ip,
@@ -1498,7 +1498,7 @@ DP_START_TEST(gre_vrf_encap, simple_vrf_encap)
 	(void)dp_test_pktmbuf_eth_init(m,
 				       dp_test_intf_name2mac_str("dp1T1"),
 				       DP_TEST_INTF_DEF_SRC_MAC,
-				       ETHER_TYPE_IPv4);
+				       RTE_ETHER_TYPE_IPV4);
 	inner_ip = iphdr(m);
 	dp_test_set_pak_ip_field(inner_ip, DP_TEST_SET_DF, 1);
 	gre_test_build_expected_pak(&exp_no_frag, &inner_ip,
@@ -1513,7 +1513,7 @@ DP_START_TEST(gre_vrf_encap, simple_vrf_encap)
 	(void)dp_test_pktmbuf_eth_init(m,
 				       dp_test_intf_name2mac_str("dp1T1"),
 				       DP_TEST_INTF_DEF_SRC_MAC,
-				       ETHER_TYPE_IPv4);
+				       RTE_ETHER_TYPE_IPV4);
 
 	inner_ip = iphdr(m);
 	dp_test_set_pak_ip_field(inner_ip, DP_TEST_SET_DF, 1);

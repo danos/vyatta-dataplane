@@ -1290,10 +1290,10 @@ dp_test_create_l2_pak(const char *d_addr,
 	*/
 	switch (ether_type) {
 
-	case ETHER_TYPE_IPv4:
+	case RTE_ETHER_TYPE_IPV4:
 		hlen =  sizeof(struct iphdr);
 		break;
-	case ETHER_TYPE_IPv6:
+	case RTE_ETHER_TYPE_IPV6:
 		hlen =  sizeof(struct ip6_hdr);
 		break;
 	default:
@@ -1363,7 +1363,7 @@ dp_test_insert_8021q_hdr(struct rte_mbuf *pak, uint16_t vlan_id,
 
 	assert(vhdr != NULL);
 
-	memmove(&vhdr->eh, eth, 2 * ETHER_ADDR_LEN);
+	memmove(&vhdr->eh, eth, 2 * RTE_ETHER_ADDR_LEN);
 	vhdr->eh.ether_type = htons(vlan_ether_type);
 	vhdr->vh.vlan_tci = htons(vlan_id);
 	vhdr->vh.eth_proto = htons(payload_ether_type);
@@ -1437,7 +1437,7 @@ dp_test_create_raw_ipv4_pak(const char *saddr, const char *daddr,
 	/*
 	 * Init headers in first mbuf
 	 */
-	if (!dp_test_pktmbuf_eth_init(pak, NULL, NULL, ETHER_TYPE_IPv4)) {
+	if (!dp_test_pktmbuf_eth_init(pak, NULL, NULL, RTE_ETHER_TYPE_IPV4)) {
 		rte_pktmbuf_free(pak);
 		return NULL;
 	}
@@ -1492,7 +1492,7 @@ dp_test_create_udp_ipv4_pak(const char *saddr, const char *daddr,
 	/*
 	 * Init headers in first mbuf
 	 */
-	if (!dp_test_pktmbuf_eth_init(pak, NULL, NULL, ETHER_TYPE_IPv4)) {
+	if (!dp_test_pktmbuf_eth_init(pak, NULL, NULL, RTE_ETHER_TYPE_IPV4)) {
 		rte_pktmbuf_free(pak);
 		return NULL;
 	}
@@ -1536,7 +1536,7 @@ dp_test_create_raw_ipv6_pak(const char *saddr, const char *daddr,
 	if (!pak)
 		return NULL;
 
-	if (!dp_test_pktmbuf_eth_init(pak, NULL, NULL, ETHER_TYPE_IPv6)) {
+	if (!dp_test_pktmbuf_eth_init(pak, NULL, NULL, RTE_ETHER_TYPE_IPV6)) {
 		rte_pktmbuf_free(pak);
 		return NULL;
 	}
@@ -1606,7 +1606,7 @@ dp_test_create_udp_ipv6_pak(const char *saddr, const char *daddr,
 	if (!pak)
 		return NULL;
 
-	if (!dp_test_pktmbuf_eth_init(pak, NULL, NULL, ETHER_TYPE_IPv6)) {
+	if (!dp_test_pktmbuf_eth_init(pak, NULL, NULL, RTE_ETHER_TYPE_IPV6)) {
 		rte_pktmbuf_free(pak);
 		return NULL;
 	}
@@ -1686,7 +1686,7 @@ dp_test_create_tcp_ipv4_pak(const char *saddr, const char *daddr,
 	if (!pak)
 		return NULL;
 
-	if (!dp_test_pktmbuf_eth_init(pak, NULL, NULL, ETHER_TYPE_IPv4)) {
+	if (!dp_test_pktmbuf_eth_init(pak, NULL, NULL, RTE_ETHER_TYPE_IPV4)) {
 		rte_pktmbuf_free(pak);
 		return NULL;
 	}
@@ -1754,7 +1754,7 @@ dp_test_create_tcp_ipv6_pak(const char *saddr, const char *daddr,
 	if (!pak)
 		return NULL;
 
-	if (!dp_test_pktmbuf_eth_init(pak, NULL, NULL, ETHER_TYPE_IPv6)) {
+	if (!dp_test_pktmbuf_eth_init(pak, NULL, NULL, RTE_ETHER_TYPE_IPV6)) {
 		rte_pktmbuf_free(pak);
 		return NULL;
 	}
@@ -1824,7 +1824,7 @@ dp_test_create_icmp_ipv4_pak(const char *saddr, const char *daddr,
 	if (!pak)
 		return NULL;
 
-	if (!dp_test_pktmbuf_eth_init(pak, NULL, NULL, ETHER_TYPE_IPv4)) {
+	if (!dp_test_pktmbuf_eth_init(pak, NULL, NULL, RTE_ETHER_TYPE_IPV4)) {
 		rte_pktmbuf_free(pak);
 		return NULL;
 	}
@@ -1897,7 +1897,7 @@ dp_test_create_icmp_ipv6_pak(const char *saddr, const char *daddr,
 	if (!pak)
 		return NULL;
 
-	if (!dp_test_pktmbuf_eth_init(pak, NULL, NULL, ETHER_TYPE_IPv6)) {
+	if (!dp_test_pktmbuf_eth_init(pak, NULL, NULL, RTE_ETHER_TYPE_IPV6)) {
 		rte_pktmbuf_free(pak);
 		return NULL;
 	}
@@ -1949,7 +1949,7 @@ dp_test_create_gre_pak(uint16_t ethertype, const char *saddr, const char *daddr,
 	uint16_t hlen;
 
 	/* Create mbuf chain */
-	if (ethertype == ETHER_TYPE_IPv4)
+	if (ethertype == RTE_ETHER_TYPE_IPV4)
 		hlen = sizeof(*ip) + sizeof(*gre);
 	else
 		hlen = sizeof(*ip6) + sizeof(*gre);
@@ -1961,7 +1961,7 @@ dp_test_create_gre_pak(uint16_t ethertype, const char *saddr, const char *daddr,
 		rte_pktmbuf_free(pak);
 		return NULL;
 	}
-	if (ethertype == ETHER_TYPE_IPv4) {
+	if (ethertype == RTE_ETHER_TYPE_IPV4) {
 		ip = dp_test_pktmbuf_ip_init(pak, saddr, daddr, IPPROTO_GRE);
 		if (!ip) {
 			rte_pktmbuf_free(pak);
@@ -2017,7 +2017,7 @@ dp_test_create_gre_ipv4_pak(const char *saddr, const char *daddr,
 			    uint32_t gre_key, uint32_t gre_seq,
 			    void **payload)
 {
-	return dp_test_create_gre_pak(ETHER_TYPE_IPv4, saddr, daddr, n,
+	return dp_test_create_gre_pak(RTE_ETHER_TYPE_IPV4, saddr, daddr, n,
 				      len, gre_prot, gre_key, gre_seq,
 				      payload);
 }
@@ -2042,7 +2042,7 @@ dp_test_create_gre_ipv6_pak(const char *saddr, const char *daddr,
 			    uint32_t gre_key, uint32_t gre_seq,
 			    void **payload)
 {
-	return dp_test_create_gre_pak(ETHER_TYPE_IPv6, saddr, daddr, n,
+	return dp_test_create_gre_pak(RTE_ETHER_TYPE_IPV6, saddr, daddr, n,
 				      len, gre_prot, gre_key, gre_seq,
 				      payload);
 }
@@ -2096,7 +2096,7 @@ dp_test_create_gre_pptp_ipv4_pak(const char *saddr, const char *daddr,
 	if (!m)
 		return NULL;
 
-	if (!dp_test_pktmbuf_eth_init(m, NULL, NULL, ETHER_TYPE_IPv4)) {
+	if (!dp_test_pktmbuf_eth_init(m, NULL, NULL, RTE_ETHER_TYPE_IPV4)) {
 		rte_pktmbuf_free(m);
 		return NULL;
 	}
@@ -2201,7 +2201,7 @@ dp_test_create_erspan_ipv4_pak(const char *saddr, const char *daddr,
 	if (!pak)
 		return NULL;
 
-	if (!dp_test_pktmbuf_eth_init(pak, NULL, NULL, ETHER_TYPE_IPv4)) {
+	if (!dp_test_pktmbuf_eth_init(pak, NULL, NULL, RTE_ETHER_TYPE_IPV4)) {
 		rte_pktmbuf_free(pak);
 		return NULL;
 	}
@@ -2277,7 +2277,7 @@ _dp_test_create_mpls_pak(uint8_t nlabels,
 	/*
 	 * Init L2
 	 */
-	if (!dp_test_pktmbuf_eth_init(pak, NULL, NULL, ETHER_TYPE_MPLS)) {
+	if (!dp_test_pktmbuf_eth_init(pak, NULL, NULL, RTE_ETHER_TYPE_MPLS)) {
 		rte_pktmbuf_free(pak);
 		return NULL;
 	}
@@ -2983,7 +2983,7 @@ dp_test_get_pak_eth_ip_field(const struct rte_mbuf *m,
 	eth = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
 
 	switch (ntohs(eth->ether_type)) {
-	case ETHER_TYPE_IPv4:
+	case RTE_ETHER_TYPE_IPV4:
 		assert(m->l3_len >= sizeof(struct iphdr));
 		iph = iphdr(m);
 		assert(m->l3_len == iph->ihl * 4);
@@ -3006,7 +3006,7 @@ dp_test_get_pak_eth_ip_field(const struct rte_mbuf *m,
 			assert(false);
 		}
 		break;
-	case ETHER_TYPE_IPv6:
+	case RTE_ETHER_TYPE_IPV6:
 		assert(m->l3_len >= sizeof(struct ip6_hdr));
 		ip6h = (struct ip6_hdr *)((uintptr_t)eth + sizeof(*eth));
 		switch (field) {
@@ -3158,7 +3158,7 @@ dp_test_create_l2_pak_from_data(const char *d_addr, const char *s_addr,
 	 * then the IP header checksum will be zero.  Set it here regardless.
 	 */
 
-	if (eth->ether_type == htons(ETHER_TYPE_IPv4)) {
+	if (eth->ether_type == htons(RTE_ETHER_TYPE_IPV4)) {
 		/* Set IP checksum (its zero in hex stream from Wireshark) */
 		struct iphdr *ip;
 
@@ -3493,8 +3493,8 @@ dp_test_mbuf_ethertype_is_ip(struct rte_mbuf *m)
 {
 	uint16_t ether_type = dp_test_mbuf_ethertype(m);
 
-	return (ether_type == ETHER_TYPE_IPv4) ||
-		(ether_type == ETHER_TYPE_IPv6);
+	return (ether_type == RTE_ETHER_TYPE_IPV4) ||
+		(ether_type == RTE_ETHER_TYPE_IPV6);
 }
 
 bool
@@ -3502,7 +3502,7 @@ dp_test_mbuf_ethertype_is_mpls(struct rte_mbuf *m)
 {
 	uint16_t ether_type = dp_test_mbuf_ethertype(m);
 
-	return (ether_type == ETHER_TYPE_MPLS);
+	return (ether_type == RTE_ETHER_TYPE_MPLS);
 }
 
 struct ether_arp {
@@ -3535,7 +3535,7 @@ dp_test_create_arp_pak(ushort op, const char *s_mac, const char *d_mac,
 	if (!pak)
 		return NULL;
 
-	eth = dp_test_pktmbuf_eth_init(pak, d_mac, s_mac, ETHER_TYPE_ARP);
+	eth = dp_test_pktmbuf_eth_init(pak, d_mac, s_mac, RTE_ETHER_TYPE_ARP);
 	if (!eth) {
 		rte_pktmbuf_free(pak);
 		return NULL;
@@ -3545,8 +3545,8 @@ dp_test_create_arp_pak(ushort op, const char *s_mac, const char *d_mac,
 
 	arp = (struct ether_arp *) (eth+1);
 	arp->ea_hdr.ar_hrd = htons(ARPHRD_ETHER);
-	arp->ea_hdr.ar_pro = htons(ETHER_TYPE_IPv4);
-	arp->ea_hdr.ar_hln = ETHER_ADDR_LEN;
+	arp->ea_hdr.ar_pro = htons(RTE_ETHER_TYPE_IPV4);
+	arp->ea_hdr.ar_hln = RTE_ETHER_ADDR_LEN;
 	arp->ea_hdr.ar_pln = sizeof(in_addr_t);
 	arp->ea_hdr.ar_op = htons(op);
 	if (ether_aton_r(sha, &arp->arp_sha) == NULL)

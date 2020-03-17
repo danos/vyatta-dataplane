@@ -178,7 +178,7 @@ DP_START_TEST(lswap_fwd_simple, simple)
 	(void)dp_test_pktmbuf_eth_init(test_pak,
 				       dp_test_intf_name2mac_str("dp1T1"),
 				       NULL,
-				       ETHER_TYPE_MPLS);
+				       RTE_ETHER_TYPE_MPLS);
 
 	/*
 	 * Expected packet
@@ -192,7 +192,7 @@ DP_START_TEST(lswap_fwd_simple, simple)
 	(void)dp_test_pktmbuf_eth_init(expected_pak,
 				       nh_mac_str,
 				       dp_test_intf_name2mac_str("dp2T2"),
-				       ETHER_TYPE_MPLS);
+				       RTE_ETHER_TYPE_MPLS);
 
 	exp = dp_test_exp_create(expected_pak);
 	rte_pktmbuf_free(expected_pak);
@@ -248,7 +248,7 @@ DP_START_TEST(lswap_fwd_simple, multilabel)
 		(void)dp_test_pktmbuf_eth_init(test_pak,
 				       dp_test_intf_name2mac_str("dp1T1"),
 				       NULL,
-				       ETHER_TYPE_MPLS);
+				       RTE_ETHER_TYPE_MPLS);
 
 		/*
 		 * Expected packet
@@ -261,7 +261,7 @@ DP_START_TEST(lswap_fwd_simple, multilabel)
 		(void)dp_test_pktmbuf_eth_init(expected_pak,
 				       nh_mac_str,
 				       dp_test_intf_name2mac_str("dp2T2"),
-				       ETHER_TYPE_MPLS);
+				       RTE_ETHER_TYPE_MPLS);
 
 		exp = dp_test_exp_create(expected_pak);
 		rte_pktmbuf_free(expected_pak);
@@ -313,7 +313,7 @@ DP_START_TEST(lswap_fwd_simple, nondp_intf)
 	(void)dp_test_pktmbuf_eth_init(test_pak,
 				       dp_test_intf_name2mac_str("dp1T1"),
 				       NULL,
-				       ETHER_TYPE_MPLS);
+				       RTE_ETHER_TYPE_MPLS);
 
 	exp = dp_test_exp_create(test_pak);
 	dp_test_exp_set_fwd_status(exp, DP_TEST_FWD_LOCAL);
@@ -353,7 +353,7 @@ DP_START_TEST(lswap_fwd_simple, noroute)
 	(void)dp_test_pktmbuf_eth_init(test_pak,
 				       dp_test_intf_name2mac_str("dp1T1"),
 				       NULL,
-				       ETHER_TYPE_MPLS);
+				       RTE_ETHER_TYPE_MPLS);
 
 	exp = dp_test_exp_create(test_pak);
 	dp_test_exp_set_fwd_status(exp, DP_TEST_FWD_DROPPED);
@@ -391,7 +391,7 @@ DP_START_TEST(lswap_fwd_simple, fwding_disabled)
 	(void)dp_test_pktmbuf_eth_init(test_pak,
 				       dp_test_intf_name2mac_str("dp1T1"),
 				       NULL,
-				       ETHER_TYPE_MPLS);
+				       RTE_ETHER_TYPE_MPLS);
 
 	exp = dp_test_exp_create(test_pak);
 	dp_test_exp_set_fwd_status(exp, DP_TEST_FWD_DROPPED);
@@ -440,7 +440,7 @@ DP_START_TEST(lswap_fwd_simple, simple6)
 	(void)dp_test_pktmbuf_eth_init(test_pak,
 				       dp_test_intf_name2mac_str("dp1T1"),
 				       NULL,
-				       ETHER_TYPE_MPLS);
+				       RTE_ETHER_TYPE_MPLS);
 
 	/*
 	 * Expected packet
@@ -454,7 +454,7 @@ DP_START_TEST(lswap_fwd_simple, simple6)
 	(void)dp_test_pktmbuf_eth_init(expected_pak,
 				       nh_mac_str,
 				       dp_test_intf_name2mac_str("dp2T2"),
-				       ETHER_TYPE_MPLS);
+				       RTE_ETHER_TYPE_MPLS);
 
 	exp = dp_test_exp_create(expected_pak);
 	rte_pktmbuf_free(expected_pak);
@@ -511,7 +511,7 @@ DP_START_TEST(lswap_fwd_expnull, simple)
 	(void)dp_test_pktmbuf_eth_init(test_pak,
 				       dp_test_intf_name2mac_str("dp1T1"),
 				       NULL,
-				       ETHER_TYPE_MPLS);
+				       RTE_ETHER_TYPE_MPLS);
 
 	/*
 	 * Expected packet
@@ -525,7 +525,7 @@ DP_START_TEST(lswap_fwd_expnull, simple)
 	(void)dp_test_pktmbuf_eth_init(expected_pak,
 				       nh_mac_str,
 				       dp_test_intf_name2mac_str("dp2T2"),
-				       ETHER_TYPE_MPLS);
+				       RTE_ETHER_TYPE_MPLS);
 
 	exp = dp_test_exp_create(expected_pak);
 	rte_pktmbuf_free(expected_pak);
@@ -582,7 +582,7 @@ DP_START_TEST(pop_lbl_fwd, simple)
 	(void)dp_test_pktmbuf_eth_init(test_pak,
 				       dp_test_intf_name2mac_str("dp1T1"),
 				       NULL,
-				       ETHER_TYPE_MPLS);
+				       RTE_ETHER_TYPE_MPLS);
 
 	/*
 	 * Expected packet
@@ -596,7 +596,7 @@ DP_START_TEST(pop_lbl_fwd, simple)
 	(void)dp_test_pktmbuf_eth_init(expected_pak,
 				       nh_mac_str,
 				       dp_test_intf_name2mac_str("dp2T2"),
-				       ETHER_TYPE_MPLS);
+				       RTE_ETHER_TYPE_MPLS);
 
 	exp = dp_test_exp_create(expected_pak);
 	rte_pktmbuf_free(payload_pak);
@@ -651,7 +651,7 @@ DP_START_TEST(pop_lbl_fwd, unlabeled_nh)
 	(void)dp_test_pktmbuf_eth_init(test_pak,
 				       dp_test_intf_name2mac_str("dp1T1"),
 				       NULL,
-				       ETHER_TYPE_MPLS);
+				       RTE_ETHER_TYPE_MPLS);
 
 	exp = dp_test_exp_create(test_pak);
 
@@ -697,7 +697,7 @@ DP_START_TEST(imp_fwd_simple, simple)
 	(void)dp_test_pktmbuf_eth_init(test_pak,
 				       dp_test_intf_name2mac_str("dp1T1"),
 				       NULL,
-				       ETHER_TYPE_IPv4);
+				       RTE_ETHER_TYPE_IPV4);
 
 	/*
 	 * Expected packet
@@ -710,7 +710,7 @@ DP_START_TEST(imp_fwd_simple, simple)
 	(void)dp_test_pktmbuf_eth_init(expected_pak,
 				       nh_mac_str,
 				       dp_test_intf_name2mac_str("dp2T2"),
-				       ETHER_TYPE_MPLS);
+				       RTE_ETHER_TYPE_MPLS);
 
 	ip = dp_test_get_mpls_pak_payload(expected_pak);
 	dp_test_set_pak_ip_field(ip, DP_TEST_SET_TTL,
@@ -763,7 +763,7 @@ DP_START_TEST(imp_fwd_simple, twolabels)
 	(void)dp_test_pktmbuf_eth_init(test_pak,
 				       dp_test_intf_name2mac_str("dp1T1"),
 				       NULL,
-				       ETHER_TYPE_IPv4);
+				       RTE_ETHER_TYPE_IPV4);
 
 	/*
 	 * Expected packet
@@ -777,7 +777,7 @@ DP_START_TEST(imp_fwd_simple, twolabels)
 	(void)dp_test_pktmbuf_eth_init(expected_pak,
 				       nh_mac_str,
 				       dp_test_intf_name2mac_str("dp2T2"),
-				       ETHER_TYPE_MPLS);
+				       RTE_ETHER_TYPE_MPLS);
 
 	ip = dp_test_get_mpls_pak_payload(expected_pak);
 	dp_test_set_pak_ip_field(ip, DP_TEST_SET_TTL,
@@ -832,7 +832,7 @@ DP_START_TEST(imp_fwd_simple, threelabels)
 	(void)dp_test_pktmbuf_eth_init(test_pak,
 				       dp_test_intf_name2mac_str("dp1T1"),
 				       NULL,
-				       ETHER_TYPE_IPv4);
+				       RTE_ETHER_TYPE_IPV4);
 
 	/*
 	 * Expected packet
@@ -848,7 +848,7 @@ DP_START_TEST(imp_fwd_simple, threelabels)
 	(void)dp_test_pktmbuf_eth_init(expected_pak,
 				       nh_mac_str,
 				       dp_test_intf_name2mac_str("dp2T2"),
-				       ETHER_TYPE_MPLS);
+				       RTE_ETHER_TYPE_MPLS);
 
 	ip = dp_test_get_mpls_pak_payload(expected_pak);
 	dp_test_set_pak_ip_field(ip, DP_TEST_SET_TTL,
@@ -917,7 +917,7 @@ DP_START_TEST(imp_fwd_simple, nlabels)
 		(void)dp_test_pktmbuf_eth_init(
 			test_pak,
 			dp_test_intf_name2mac_str("dp1T1"),
-			NULL, ETHER_TYPE_IPv4);
+			NULL, RTE_ETHER_TYPE_IPV4);
 
 		/*
 		 * Expected packet
@@ -928,7 +928,7 @@ DP_START_TEST(imp_fwd_simple, nlabels)
 			expected_pak,
 			nh_mac_str,
 			dp_test_intf_name2mac_str("dp2T2"),
-			ETHER_TYPE_MPLS);
+			RTE_ETHER_TYPE_MPLS);
 
 		ip = dp_test_get_mpls_pak_payload(expected_pak);
 		dp_test_set_pak_ip_field(ip, DP_TEST_SET_TTL,
@@ -981,7 +981,7 @@ DP_START_TEST(imp_fwd_simple, unlabeled)
 	(void)dp_test_pktmbuf_eth_init(test_pak,
 				       dp_test_intf_name2mac_str("dp1T1"),
 				       NULL,
-				       ETHER_TYPE_IPv4);
+				       RTE_ETHER_TYPE_IPV4);
 
 	exp = dp_test_exp_create(test_pak);
 	dp_test_exp_set_oif_name(exp, "dp2T2");
@@ -989,7 +989,7 @@ DP_START_TEST(imp_fwd_simple, unlabeled)
 	(void)dp_test_pktmbuf_eth_init(dp_test_exp_get_pak(exp),
 				       nh_mac_str,
 				       dp_test_intf_name2mac_str("dp2T2"),
-				       ETHER_TYPE_IPv4);
+				       RTE_ETHER_TYPE_IPV4);
 	dp_test_ipv4_decrement_ttl(dp_test_exp_get_pak(exp));
 
 	dp_test_pak_receive(test_pak, "dp1T1", exp);
@@ -1033,7 +1033,7 @@ DP_START_TEST(imp_fwd_simple, nondp_intf)
 	(void)dp_test_pktmbuf_eth_init(test_pak,
 				       dp_test_intf_name2mac_str("dp1T1"),
 				       NULL,
-				       ETHER_TYPE_IPv4);
+				       RTE_ETHER_TYPE_IPV4);
 
 	exp = dp_test_exp_create(test_pak);
 	dp_test_exp_set_fwd_status(exp, DP_TEST_FWD_LOCAL);
@@ -1080,7 +1080,7 @@ DP_START_TEST(imp_fwd_simple, drop)
 	(void)dp_test_pktmbuf_eth_init(test_pak,
 				       dp_test_intf_name2mac_str("dp1T1"),
 				       NULL,
-				       ETHER_TYPE_IPv4);
+				       RTE_ETHER_TYPE_IPV4);
 
 	exp = dp_test_exp_create(test_pak);
 	dp_test_exp_set_fwd_status(exp, DP_TEST_FWD_DROPPED);
@@ -1096,7 +1096,7 @@ DP_START_TEST(imp_fwd_simple, drop)
 	(void)dp_test_pktmbuf_eth_init(test_pak,
 				       dp_test_intf_name2mac_str("dp1T1"),
 				       NULL,
-				       ETHER_TYPE_IPv4);
+				       RTE_ETHER_TYPE_IPV4);
 
 	exp = dp_test_exp_create(test_pak);
 	dp_test_exp_set_fwd_status(exp, DP_TEST_FWD_DROPPED);
@@ -1141,7 +1141,7 @@ DP_START_TEST(imp_ipv6_fwd_simple, simple)
 	(void)dp_test_pktmbuf_eth_init(test_pak,
 				       dp_test_intf_name2mac_str("dp1T1"),
 				       DP_TEST_INTF_DEF_SRC_MAC,
-				       ETHER_TYPE_IPv6);
+				       RTE_ETHER_TYPE_IPV6);
 	/*
 	 * Expected packet
 	 */
@@ -1156,7 +1156,7 @@ DP_START_TEST(imp_ipv6_fwd_simple, simple)
 	(void)dp_test_pktmbuf_eth_init(expected_pak,
 				       nh_mac_str,
 				       dp_test_intf_name2mac_str("dp1T2"),
-				       ETHER_TYPE_MPLS);
+				       RTE_ETHER_TYPE_MPLS);
 
 	exp = dp_test_exp_create(expected_pak);
 	rte_pktmbuf_free(payload_pak);
@@ -1204,7 +1204,7 @@ DP_START_TEST(imp_ipv6_fwd_simple, twolabels)
 	(void)dp_test_pktmbuf_eth_init(test_pak,
 				       dp_test_intf_name2mac_str("dp1T1"),
 				       DP_TEST_INTF_DEF_SRC_MAC,
-				       ETHER_TYPE_IPv6);
+				       RTE_ETHER_TYPE_IPV6);
 	/*
 	 * Expected packet
 	 */
@@ -1220,7 +1220,7 @@ DP_START_TEST(imp_ipv6_fwd_simple, twolabels)
 	(void)dp_test_pktmbuf_eth_init(expected_pak,
 				       nh_mac_str,
 				       dp_test_intf_name2mac_str("dp1T2"),
-				       ETHER_TYPE_MPLS);
+				       RTE_ETHER_TYPE_MPLS);
 
 	exp = dp_test_exp_create(expected_pak);
 	rte_pktmbuf_free(payload_pak);
@@ -1269,7 +1269,7 @@ DP_START_TEST(imp_ipv6_fwd_simple, threelabels)
 	(void)dp_test_pktmbuf_eth_init(test_pak,
 				       dp_test_intf_name2mac_str("dp1T1"),
 				       DP_TEST_INTF_DEF_SRC_MAC,
-				       ETHER_TYPE_IPv6);
+				       RTE_ETHER_TYPE_IPV6);
 	/*
 	 * Expected packet
 	 */
@@ -1287,7 +1287,7 @@ DP_START_TEST(imp_ipv6_fwd_simple, threelabels)
 	(void)dp_test_pktmbuf_eth_init(expected_pak,
 				       nh_mac_str,
 				       dp_test_intf_name2mac_str("dp1T2"),
-				       ETHER_TYPE_MPLS);
+				       RTE_ETHER_TYPE_MPLS);
 
 	exp = dp_test_exp_create(expected_pak);
 	rte_pktmbuf_free(payload_pak);
@@ -1351,7 +1351,7 @@ DP_START_TEST(imp_ipv6_fwd_simple, nlabels)
 			test_pak,
 			dp_test_intf_name2mac_str("dp1T1"),
 			DP_TEST_INTF_DEF_SRC_MAC,
-			ETHER_TYPE_IPv6);
+			RTE_ETHER_TYPE_IPV6);
 
 		/*
 		 * Expected packet
@@ -1366,7 +1366,7 @@ DP_START_TEST(imp_ipv6_fwd_simple, nlabels)
 			expected_pak,
 			nh_mac_str,
 			dp_test_intf_name2mac_str("dp1T2"),
-			ETHER_TYPE_MPLS);
+			RTE_ETHER_TYPE_MPLS);
 
 		exp = dp_test_exp_create(expected_pak);
 		rte_pktmbuf_free(payload_pak);
@@ -1413,7 +1413,7 @@ DP_START_TEST(imp_ipv6_fwd_simple, unlabeled)
 	(void)dp_test_pktmbuf_eth_init(test_pak,
 				       dp_test_intf_name2mac_str("dp1T1"),
 				       DP_TEST_INTF_DEF_SRC_MAC,
-				       ETHER_TYPE_IPv6);
+				       RTE_ETHER_TYPE_IPV6);
 	/*
 	 * Expected packet
 	 */
@@ -1424,7 +1424,7 @@ DP_START_TEST(imp_ipv6_fwd_simple, unlabeled)
 	(void)dp_test_pktmbuf_eth_init(dp_test_exp_get_pak(exp),
 				       nh_mac_str,
 				       dp_test_intf_name2mac_str("dp1T2"),
-				       ETHER_TYPE_IPv6);
+				       RTE_ETHER_TYPE_IPV6);
 
 	/* now send test pak and check we get expected back */
 	dp_test_pak_receive(test_pak, "dp1T1", exp);
@@ -1465,7 +1465,7 @@ DP_START_TEST(imp_ipv6_fwd_simple, nondp_intf)
 	(void)dp_test_pktmbuf_eth_init(test_pak,
 				       dp_test_intf_name2mac_str("dp1T1"),
 				       DP_TEST_INTF_DEF_SRC_MAC,
-				       ETHER_TYPE_IPv6);
+				       RTE_ETHER_TYPE_IPV6);
 	/*
 	 * Expected packet
 	 */
@@ -1545,7 +1545,7 @@ DP_START_TEST(disp_fwd_expnull, simple)
 					      1, &len);
 	dp_test_pktmbuf_eth_init(payload_pak,
 				 dp_test_intf_name2mac_str("dp1T1"),
-				 NULL, ETHER_TYPE_IPv4);
+				 NULL, RTE_ETHER_TYPE_IPV4);
 
 	/*
 	 * Test that the firewall rule is working
@@ -1566,7 +1566,7 @@ DP_START_TEST(disp_fwd_expnull, simple)
 	(void)dp_test_pktmbuf_eth_init(test_pak,
 				       dp_test_intf_name2mac_str("dp1T1"),
 				       NULL,
-				       ETHER_TYPE_MPLS);
+				       RTE_ETHER_TYPE_MPLS);
 
 	/* encapsulated ip packet will be same as payload packet except
 	 *  TTL will have been decremented and it has an ether header
@@ -1578,7 +1578,7 @@ DP_START_TEST(disp_fwd_expnull, simple)
 	(void)dp_test_pktmbuf_eth_init(expected_pak,
 				       nh_mac_str,
 				       dp_test_intf_name2mac_str("dp2T2"),
-				       ETHER_TYPE_IPv4);
+				       RTE_ETHER_TYPE_IPV4);
 
 	exp = dp_test_exp_create(expected_pak);
 	rte_pktmbuf_free(expected_pak);
@@ -1635,7 +1635,7 @@ DP_START_TEST(disp_fwd_expnull, invalid_paks)
 	(void)dp_test_pktmbuf_eth_init(test_pak,
 				       dp_test_intf_name2mac_str("dp1T1"),
 				       NULL,
-				       ETHER_TYPE_MPLS);
+				       RTE_ETHER_TYPE_MPLS);
 
 	/*
 	 * Test 1 - check that the payload packet without errors is
@@ -1649,7 +1649,7 @@ DP_START_TEST(disp_fwd_expnull, invalid_paks)
 	(void)dp_test_pktmbuf_eth_init(expected_pak,
 				       nh_mac_str,
 				       dp_test_intf_name2mac_str("dp2T2"),
-				       ETHER_TYPE_IPv4);
+				       RTE_ETHER_TYPE_IPV4);
 
 	exp = dp_test_exp_create(expected_pak);
 	rte_pktmbuf_free(expected_pak);
@@ -1673,7 +1673,7 @@ DP_START_TEST(disp_fwd_expnull, invalid_paks)
 	(void)dp_test_pktmbuf_eth_init(test_pak,
 				       dp_test_intf_name2mac_str("dp1T1"),
 				       NULL,
-				       ETHER_TYPE_MPLS);
+				       RTE_ETHER_TYPE_MPLS);
 
 	exp = dp_test_exp_create(test_pak);
 	dp_test_exp_set_fwd_status(exp, DP_TEST_FWD_DROPPED);
@@ -1692,7 +1692,7 @@ DP_START_TEST(disp_fwd_expnull, invalid_paks)
 	(void)dp_test_pktmbuf_eth_init(test_pak,
 				       dp_test_intf_name2mac_str("dp1T1"),
 				       NULL,
-				       ETHER_TYPE_MPLS);
+				       RTE_ETHER_TYPE_MPLS);
 
 	exp = dp_test_exp_create(test_pak);
 	dp_test_exp_set_fwd_status(exp, DP_TEST_FWD_DROPPED);
@@ -1709,7 +1709,7 @@ DP_START_TEST(disp_fwd_expnull, invalid_paks)
 	(void)dp_test_pktmbuf_eth_init(test_pak,
 				       dp_test_intf_name2mac_str("dp1T1"),
 				       NULL,
-				       ETHER_TYPE_MPLS);
+				       RTE_ETHER_TYPE_MPLS);
 
 	exp = dp_test_exp_create(test_pak);
 	dp_test_exp_set_fwd_status(exp, DP_TEST_FWD_DROPPED);
@@ -1728,7 +1728,7 @@ DP_START_TEST(disp_fwd_expnull, invalid_paks)
 	(void)dp_test_pktmbuf_eth_init(test_pak,
 				       dp_test_intf_name2mac_str("dp1T1"),
 				       NULL,
-				       ETHER_TYPE_MPLS);
+				       RTE_ETHER_TYPE_MPLS);
 
 	exp = dp_test_exp_create(test_pak);
 	dp_test_exp_set_fwd_status(exp, DP_TEST_FWD_DROPPED);
@@ -1748,7 +1748,7 @@ DP_START_TEST(disp_fwd_expnull, invalid_paks)
 	(void)dp_test_pktmbuf_eth_init(test_pak,
 				       dp_test_intf_name2mac_str("dp1T1"),
 				       NULL,
-				       ETHER_TYPE_MPLS);
+				       RTE_ETHER_TYPE_MPLS);
 
 	exp = dp_test_exp_create(test_pak);
 	dp_test_exp_set_fwd_status(exp, DP_TEST_FWD_DROPPED);
@@ -1769,7 +1769,7 @@ DP_START_TEST(disp_fwd_expnull, invalid_paks)
 	(void)dp_test_pktmbuf_eth_init(test_pak,
 				       dp_test_intf_name2mac_str("dp1T1"),
 				       NULL,
-				       ETHER_TYPE_MPLS);
+				       RTE_ETHER_TYPE_MPLS);
 
 	exp = dp_test_exp_create(test_pak);
 	dp_test_exp_set_fwd_status(exp, DP_TEST_FWD_DROPPED);
@@ -1817,7 +1817,7 @@ DP_START_TEST(disp_fwd_expnull, local)
 	(void)dp_test_pktmbuf_eth_init(test_pak,
 				       dp_test_intf_name2mac_str("dp1T1"),
 				       NULL,
-				       ETHER_TYPE_MPLS);
+				       RTE_ETHER_TYPE_MPLS);
 
 	/*
 	 * Decapsulated ip packet will be same as payload packet -
@@ -1831,7 +1831,7 @@ DP_START_TEST(disp_fwd_expnull, local)
 	(void)dp_test_pktmbuf_eth_init(expected_pak,
 				       dp_test_intf_name2mac_str("dp1T1"),
 				       NULL,
-				       ETHER_TYPE_IPv4);
+				       RTE_ETHER_TYPE_IPV4);
 
 	/* This should be a no-op */
 	dp_test_netlink_set_mpls_forwarding("dp2T2", false);
@@ -1883,7 +1883,7 @@ DP_START_TEST(disp_fwd_ipv4, simple)
 	(void)dp_test_pktmbuf_eth_init(test_pak,
 				       dp_test_intf_name2mac_str("dp1T1"),
 				       NULL,
-				       ETHER_TYPE_MPLS);
+				       RTE_ETHER_TYPE_MPLS);
 
 	/* encapsulated ip packet will be same as test packet except
 	 *  TTL will have been decremented.
@@ -1895,7 +1895,7 @@ DP_START_TEST(disp_fwd_ipv4, simple)
 	(void)dp_test_pktmbuf_eth_init(expected_pak,
 				       nh_mac_str,
 				       dp_test_intf_name2mac_str("dp2T2"),
-				       ETHER_TYPE_IPv4);
+				       RTE_ETHER_TYPE_IPV4);
 
 	exp = dp_test_exp_create(expected_pak);
 	rte_pktmbuf_free(expected_pak);
@@ -1945,7 +1945,7 @@ DP_START_TEST(disp_fwd_ipv4, invalid_pak)
 	(void)dp_test_pktmbuf_eth_init(payload_pak,
 				       nh_mac_str,
 				       dp_test_intf_name2mac_str("dp2T2"),
-				       ETHER_TYPE_IPv4);
+				       RTE_ETHER_TYPE_IPV4);
 
 	test_pak = dp_test_create_mpls_pak(1, (label_t []){52},
 					   (uint8_t[]){DP_TEST_PAK_DEFAULT_TTL},
@@ -1953,7 +1953,7 @@ DP_START_TEST(disp_fwd_ipv4, invalid_pak)
 	(void)dp_test_pktmbuf_eth_init(test_pak,
 				       dp_test_intf_name2mac_str("dp1T1"),
 				       NULL,
-				       ETHER_TYPE_MPLS);
+				       RTE_ETHER_TYPE_MPLS);
 
 	ip = dp_test_get_mpls_pak_payload(test_pak);
 	/*
@@ -2010,7 +2010,7 @@ DP_START_TEST(disp_fwd_ipv4, deag)
 					      1, &len);
 	dp_test_pktmbuf_eth_init(payload_pak,
 				 dp_test_intf_name2mac_str("dp1T1"),
-				 NULL, ETHER_TYPE_IPv4);
+				 NULL, RTE_ETHER_TYPE_IPV4);
 
 	/* test packet is payload encapsulated with local label */
 	labels[0] = 122;
@@ -2022,7 +2022,7 @@ DP_START_TEST(disp_fwd_ipv4, deag)
 	(void)dp_test_pktmbuf_eth_init(test_pak,
 				       dp_test_intf_name2mac_str("dp1T1"),
 				       NULL,
-				       ETHER_TYPE_MPLS);
+				       RTE_ETHER_TYPE_MPLS);
 
 	/* encapsulated ip packet will be same as payload packet except
 	 * TTL will have been decremented and it has an ether header
@@ -2034,7 +2034,7 @@ DP_START_TEST(disp_fwd_ipv4, deag)
 	(void)dp_test_pktmbuf_eth_init(expected_pak,
 				       nh_mac_str,
 				       dp_test_intf_name2mac_str("dp2T2"),
-				       ETHER_TYPE_IPv4);
+				       RTE_ETHER_TYPE_IPV4);
 
 	exp = dp_test_exp_create(expected_pak);
 	rte_pktmbuf_free(expected_pak);
@@ -2091,7 +2091,7 @@ DP_START_TEST(disp_fwd_ipv4, forus)
 						      1, &len);
 		dp_test_pktmbuf_eth_init(payload_pak,
 					 dp_test_intf_name2mac_str("dp1T1"),
-					 NULL, ETHER_TYPE_IPv4);
+					 NULL, RTE_ETHER_TYPE_IPV4);
 
 		/* Test packet is payload encapsulated with local label */
 		labels[0] = 122;
@@ -2102,7 +2102,7 @@ DP_START_TEST(disp_fwd_ipv4, forus)
 		dp_test_pktmbuf_eth_init(test_pak,
 					 dp_test_intf_name2mac_str("dp1T1"),
 					 NULL,
-					 ETHER_TYPE_MPLS);
+					 RTE_ETHER_TYPE_MPLS);
 
 		expected_pak = payload_pak;
 		if (test_data[i].ipttlpropagate) {
@@ -2166,7 +2166,7 @@ DP_START_TEST(disp_fwd_ipv4, no_payload_type)
 	(void)dp_test_pktmbuf_eth_init(test_pak,
 				       dp_test_intf_name2mac_str("dp1T1"),
 				       NULL,
-				       ETHER_TYPE_MPLS);
+				       RTE_ETHER_TYPE_MPLS);
 
 	/* encapsulated ip packet will be same as test packet except
 	 *  TTL will have been decremented.
@@ -2178,7 +2178,7 @@ DP_START_TEST(disp_fwd_ipv4, no_payload_type)
 	(void)dp_test_pktmbuf_eth_init(expected_pak,
 				       nh_mac_str,
 				       dp_test_intf_name2mac_str("dp2T2"),
-				       ETHER_TYPE_IPv4);
+				       RTE_ETHER_TYPE_IPV4);
 
 	exp = dp_test_exp_create(expected_pak);
 	rte_pktmbuf_free(expected_pak);
@@ -2235,7 +2235,7 @@ DP_START_TEST(disp_fwd_vpnv4, simple)
 	(void)dp_test_pktmbuf_eth_init(test_pak,
 				       dp_test_intf_name2mac_str("dp1T1"),
 				       NULL,
-				       ETHER_TYPE_MPLS);
+				       RTE_ETHER_TYPE_MPLS);
 
 	/* encapsulated ip packet will be same as test packet except
 	 *  TTL will have been decremented.
@@ -2247,7 +2247,7 @@ DP_START_TEST(disp_fwd_vpnv4, simple)
 	(void)dp_test_pktmbuf_eth_init(expected_pak,
 				       nh_mac_str,
 				       dp_test_intf_name2mac_str("dp1T0"),
-				       ETHER_TYPE_IPv4);
+				       RTE_ETHER_TYPE_IPV4);
 
 	exp = dp_test_exp_create(expected_pak);
 	rte_pktmbuf_free(expected_pak);
@@ -2309,7 +2309,7 @@ DP_START_TEST(disp_fwd_vpnv4, deag)
 					      1, &len);
 	dp_test_pktmbuf_eth_init(payload_pak,
 				 dp_test_intf_name2mac_str("dp1T1"),
-				 NULL, ETHER_TYPE_IPv4);
+				 NULL, RTE_ETHER_TYPE_IPV4);
 
 	/* test packet is payload encapsulated with local label */
 	labels[0] = 122;
@@ -2321,7 +2321,7 @@ DP_START_TEST(disp_fwd_vpnv4, deag)
 	(void)dp_test_pktmbuf_eth_init(test_pak,
 				       dp_test_intf_name2mac_str("dp1T1"),
 				       NULL,
-				       ETHER_TYPE_MPLS);
+				       RTE_ETHER_TYPE_MPLS);
 
 	/* encapsulated ip packet will be same as payload packet except
 	 * TTL will have been decremented and it has an ether header
@@ -2333,7 +2333,7 @@ DP_START_TEST(disp_fwd_vpnv4, deag)
 	(void)dp_test_pktmbuf_eth_init(expected_pak,
 				       nh_mac_str,
 				       dp_test_intf_name2mac_str("dp1T0"),
-				       ETHER_TYPE_IPv4);
+				       RTE_ETHER_TYPE_IPV4);
 
 	exp = dp_test_exp_create(expected_pak);
 	rte_pktmbuf_free(expected_pak);
@@ -2383,7 +2383,7 @@ DP_START_TEST(disp_fwd_vpnv4, forus)
 					      1, &len);
 	dp_test_pktmbuf_eth_init(payload_pak,
 				 dp_test_intf_name2mac_str("dp1T1"),
-				 NULL, ETHER_TYPE_IPv4);
+				 NULL, RTE_ETHER_TYPE_IPV4);
 
 	/* Test packet is payload encapsulated with local label */
 	labels[0] = 122;
@@ -2396,7 +2396,7 @@ DP_START_TEST(disp_fwd_vpnv4, forus)
 	(void)dp_test_pktmbuf_eth_init(test_pak,
 				       dp_test_intf_name2mac_str("dp1T1"),
 				       NULL,
-				       ETHER_TYPE_MPLS);
+				       RTE_ETHER_TYPE_MPLS);
 
 	/* Expect test packet to be punted to kernel */
 	expected_pak = test_pak;
@@ -2449,7 +2449,7 @@ DP_START_TEST(disp_fwd_ipv6, simple)
 	(void)dp_test_pktmbuf_eth_init(test_pak,
 				       dp_test_intf_name2mac_str("dp1T1"),
 				       NULL,
-				       ETHER_TYPE_MPLS);
+				       RTE_ETHER_TYPE_MPLS);
 
 	/* encapsulated ip packet will be same as test packet except
 	 *  TTL will have been decremented.
@@ -2461,7 +2461,7 @@ DP_START_TEST(disp_fwd_ipv6, simple)
 	(void)dp_test_pktmbuf_eth_init(expected_pak,
 				       nh_mac_str,
 				       dp_test_intf_name2mac_str("dp2T2"),
-				       ETHER_TYPE_IPv6);
+				       RTE_ETHER_TYPE_IPV6);
 
 	exp = dp_test_exp_create(expected_pak);
 	rte_pktmbuf_free(expected_pak);
@@ -2509,7 +2509,7 @@ DP_START_TEST(disp_fwd_ipv6, invalid_pak)
 	(void)dp_test_pktmbuf_eth_init(payload_pak,
 				       nh_mac_str,
 				       dp_test_intf_name2mac_str("dp2T2"),
-				       ETHER_TYPE_IPv6);
+				       RTE_ETHER_TYPE_IPV6);
 
 	test_pak = dp_test_create_mpls_pak(1, (label_t []){52},
 					   (uint8_t[]){DP_TEST_PAK_DEFAULT_TTL},
@@ -2517,7 +2517,7 @@ DP_START_TEST(disp_fwd_ipv6, invalid_pak)
 	(void)dp_test_pktmbuf_eth_init(test_pak,
 				       dp_test_intf_name2mac_str("dp1T1"),
 				       NULL,
-				       ETHER_TYPE_MPLS);
+				       RTE_ETHER_TYPE_MPLS);
 
 	ip6 = dp_test_get_mpls_pak_payload(test_pak);
 	/*
@@ -2575,7 +2575,7 @@ DP_START_TEST(disp_fwd_ipv6, no_payload_type)
 	(void)dp_test_pktmbuf_eth_init(test_pak,
 				       dp_test_intf_name2mac_str("dp1T1"),
 				       NULL,
-				       ETHER_TYPE_MPLS);
+				       RTE_ETHER_TYPE_MPLS);
 
 	/* encapsulated ip packet will be same as test packet except
 	 *  TTL will have been decremented.
@@ -2587,7 +2587,7 @@ DP_START_TEST(disp_fwd_ipv6, no_payload_type)
 	(void)dp_test_pktmbuf_eth_init(expected_pak,
 				       nh_mac_str,
 				       dp_test_intf_name2mac_str("dp2T2"),
-				       ETHER_TYPE_IPv6);
+				       RTE_ETHER_TYPE_IPV6);
 
 	exp = dp_test_exp_create(expected_pak);
 	rte_pktmbuf_free(expected_pak);
@@ -2645,7 +2645,7 @@ DP_START_TEST(disp_fwd_vpnv6, simple)
 	(void)dp_test_pktmbuf_eth_init(test_pak,
 				       dp_test_intf_name2mac_str("dp1T1"),
 				       NULL,
-				       ETHER_TYPE_MPLS);
+				       RTE_ETHER_TYPE_MPLS);
 
 	/* encapsulated ip packet will be same as test packet except
 	 *  TTL will have been decremented.
@@ -2657,7 +2657,7 @@ DP_START_TEST(disp_fwd_vpnv6, simple)
 	(void)dp_test_pktmbuf_eth_init(expected_pak,
 				       nh_mac_str,
 				       dp_test_intf_name2mac_str("dp1T0"),
-				       ETHER_TYPE_IPv6);
+				       RTE_ETHER_TYPE_IPV6);
 
 	exp = dp_test_exp_create(expected_pak);
 	rte_pktmbuf_free(expected_pak);
@@ -2718,7 +2718,7 @@ DP_START_TEST(disp_fwd_vpnv6, deag)
 					      1, &len);
 	dp_test_pktmbuf_eth_init(payload_pak,
 				 dp_test_intf_name2mac_str("dp1T1"),
-				 NULL, ETHER_TYPE_IPv6);
+				 NULL, RTE_ETHER_TYPE_IPV6);
 
 	/* test packet is payload encapsulated with local label */
 	labels[0] = 122;
@@ -2730,7 +2730,7 @@ DP_START_TEST(disp_fwd_vpnv6, deag)
 	(void)dp_test_pktmbuf_eth_init(test_pak,
 				       dp_test_intf_name2mac_str("dp1T1"),
 				       NULL,
-				       ETHER_TYPE_MPLS);
+				       RTE_ETHER_TYPE_MPLS);
 
 	/* encapsulated ip packet will be same as payload packet except
 	 * TTL will have been decremented and it has an ether header
@@ -2742,7 +2742,7 @@ DP_START_TEST(disp_fwd_vpnv6, deag)
 	(void)dp_test_pktmbuf_eth_init(expected_pak,
 				       nh_mac_str,
 				       dp_test_intf_name2mac_str("dp1T0"),
-				       ETHER_TYPE_IPv6);
+				       RTE_ETHER_TYPE_IPV6);
 
 	exp = dp_test_exp_create(expected_pak);
 	rte_pktmbuf_free(expected_pak);
@@ -2793,7 +2793,7 @@ DP_START_TEST(disp_fwd_vpnv6, forus)
 					      1, &len);
 	dp_test_pktmbuf_eth_init(payload_pak,
 				 dp_test_intf_name2mac_str("dp1T1"),
-				 NULL, ETHER_TYPE_IPv6);
+				 NULL, RTE_ETHER_TYPE_IPV6);
 
 	/* Test packet is payload encapsulated with local label */
 	labels[0] = 122;
@@ -2806,7 +2806,7 @@ DP_START_TEST(disp_fwd_vpnv6, forus)
 	(void)dp_test_pktmbuf_eth_init(test_pak,
 				       dp_test_intf_name2mac_str("dp1T1"),
 				       NULL,
-				       ETHER_TYPE_MPLS);
+				       RTE_ETHER_TYPE_MPLS);
 
 	/* Expect test packet to be punted to kernel */
 	expected_pak = test_pak;
@@ -2863,7 +2863,7 @@ DP_START_TEST(imp_fwd_ecmp_simple, ecmp)
 	(void)dp_test_pktmbuf_eth_init(test_pak1,
 				       dp_test_intf_name2mac_str("dp1T1"),
 				       NULL,
-				       ETHER_TYPE_IPv4);
+				       RTE_ETHER_TYPE_IPV4);
 
 	/*
 	 * Expected packet1
@@ -2876,7 +2876,7 @@ DP_START_TEST(imp_fwd_ecmp_simple, ecmp)
 	(void)dp_test_pktmbuf_eth_init(expected_pak1,
 				       nh_mac_str1,
 				       dp_test_intf_name2mac_str("dp2T2"),
-				       ETHER_TYPE_MPLS);
+				       RTE_ETHER_TYPE_MPLS);
 
 	ip = dp_test_get_mpls_pak_payload(expected_pak1);
 	dp_test_set_pak_ip_field(ip, DP_TEST_SET_TTL,
@@ -2896,7 +2896,7 @@ DP_START_TEST(imp_fwd_ecmp_simple, ecmp)
 	(void)dp_test_pktmbuf_eth_init(test_pak2,
 				       dp_test_intf_name2mac_str("dp1T1"),
 				       NULL,
-				       ETHER_TYPE_IPv4);
+				       RTE_ETHER_TYPE_IPV4);
 	/*
 	 * Expected packet2
 	 */
@@ -2908,7 +2908,7 @@ DP_START_TEST(imp_fwd_ecmp_simple, ecmp)
 	(void)dp_test_pktmbuf_eth_init(expected_pak2,
 				       nh_mac_str2,
 				       dp_test_intf_name2mac_str("dp3T3"),
-				       ETHER_TYPE_MPLS);
+				       RTE_ETHER_TYPE_MPLS);
 
 	ip = dp_test_get_mpls_pak_payload(expected_pak2);
 	dp_test_set_pak_ip_field(ip, DP_TEST_SET_TTL,
@@ -2974,7 +2974,7 @@ DP_START_TEST(imp_fwd_ecmp_simple, ecmp_ipv6)
 	(void)dp_test_pktmbuf_eth_init(test_pak1,
 				       dp_test_intf_name2mac_str("dp1T1"),
 				       DP_TEST_INTF_DEF_SRC_MAC,
-				       ETHER_TYPE_IPv6);
+				       RTE_ETHER_TYPE_IPV6);
 
 	/*
 	 * Expected packet1
@@ -2990,7 +2990,7 @@ DP_START_TEST(imp_fwd_ecmp_simple, ecmp_ipv6)
 	(void)dp_test_pktmbuf_eth_init(expected_pak1,
 				       nh_mac_str1,
 				       dp_test_intf_name2mac_str("dp2T2"),
-				       ETHER_TYPE_MPLS);
+				       RTE_ETHER_TYPE_MPLS);
 
 	exp1 = dp_test_exp_create(expected_pak1);
 	rte_pktmbuf_free(payload_pak1);
@@ -3007,7 +3007,7 @@ DP_START_TEST(imp_fwd_ecmp_simple, ecmp_ipv6)
 	(void)dp_test_pktmbuf_eth_init(test_pak2,
 				       dp_test_intf_name2mac_str("dp1T1"),
 				       DP_TEST_INTF_DEF_SRC_MAC,
-				       ETHER_TYPE_IPv6);
+				       RTE_ETHER_TYPE_IPV6);
 	/*
 	 * Expected packet2
 	 */
@@ -3022,7 +3022,7 @@ DP_START_TEST(imp_fwd_ecmp_simple, ecmp_ipv6)
 	(void)dp_test_pktmbuf_eth_init(expected_pak2,
 				       nh_mac_str2,
 				       dp_test_intf_name2mac_str("dp3T3"),
-				       ETHER_TYPE_MPLS);
+				       RTE_ETHER_TYPE_MPLS);
 
 	exp2 = dp_test_exp_create(expected_pak2);
 	rte_pktmbuf_free(payload_pak2);
@@ -3093,11 +3093,11 @@ DP_START_TEST(lswap_fwd_ecmp_simple, ecmp)
 	(void)dp_test_pktmbuf_eth_init(test_pak1,
 				       dp_test_intf_name2mac_str("dp1T1"),
 				       NULL,
-				       ETHER_TYPE_MPLS);
+				       RTE_ETHER_TYPE_MPLS);
 	(void)dp_test_pktmbuf_eth_init(test_pak2,
 				       dp_test_intf_name2mac_str("dp1T1"),
 				       NULL,
-				       ETHER_TYPE_MPLS);
+				       RTE_ETHER_TYPE_MPLS);
 	/*
 	 * expected paks
 	 */
@@ -3109,7 +3109,7 @@ DP_START_TEST(lswap_fwd_ecmp_simple, ecmp)
 	(void)dp_test_pktmbuf_eth_init(expected_pak1,
 				       nh_mac_str1,
 				       dp_test_intf_name2mac_str("dp2T2"),
-				       ETHER_TYPE_MPLS);
+				       RTE_ETHER_TYPE_MPLS);
 	expected_labels[0] = 33;
 	expected_pak2 = dp_test_create_mpls_pak(
 		1, expected_labels,
@@ -3118,7 +3118,7 @@ DP_START_TEST(lswap_fwd_ecmp_simple, ecmp)
 	(void)dp_test_pktmbuf_eth_init(expected_pak2,
 				       nh_mac_str2,
 				       dp_test_intf_name2mac_str("dp3T3"),
-				       ETHER_TYPE_MPLS);
+				       RTE_ETHER_TYPE_MPLS);
 
 	exp1 = dp_test_exp_create(expected_pak1);
 	dp_test_exp_set_oif_name(exp1, "dp2T2");
@@ -3312,7 +3312,7 @@ label_swap_monitor(const struct rte_mbuf *mpls_pak,
 			expected_pak,
 			nh_mac_str[nh_idx],
 			dp_test_intf_name2mac_str(lswap->nh[nh_idx].nh_int),
-			ETHER_TYPE_IPv4);
+			RTE_ETHER_TYPE_IPV4);
 
 	} else if ((num_labels > 1) &&
 		   (!lswap->nh[nh_idx].num_labels ||
@@ -3340,7 +3340,7 @@ label_swap_monitor(const struct rte_mbuf *mpls_pak,
 			expected_pak,
 			nh_mac_str[nh_idx],
 			dp_test_intf_name2mac_str(lswap->nh[nh_idx].nh_int),
-			ETHER_TYPE_MPLS);
+			RTE_ETHER_TYPE_MPLS);
 	} else if (num_labels > 1 || lswap->nh[nh_idx].num_labels) {
 		/* label swap - top label is outlabel for nh */
 
@@ -3374,7 +3374,7 @@ label_swap_monitor(const struct rte_mbuf *mpls_pak,
 			expected_pak,
 			nh_mac_str[nh_idx],
 			dp_test_intf_name2mac_str(lswap->nh[nh_idx].nh_int),
-			ETHER_TYPE_MPLS);
+			RTE_ETHER_TYPE_MPLS);
 	} else {
 		/* Unsupported combination */
 		assert(0);
@@ -3436,7 +3436,7 @@ label_imp_monitor(const struct rte_mbuf *ip_pak,
 	/*
 	 * hash the mpls packet
 	 */
-	hash_val = ecmp_mbuf_hash(payload_pak, ETHER_TYPE_IPv4);
+	hash_val = ecmp_mbuf_hash(payload_pak, RTE_ETHER_TYPE_IPV4);
 	nh_idx = ecmp_lookup(lswap->nh_cnt, hash_val);
 	expected_oif = lswap->nh[nh_idx].nh_int;
 
@@ -3467,7 +3467,7 @@ label_imp_monitor(const struct rte_mbuf *ip_pak,
 			expected_pak,
 			nh_mac_str[nh_idx],
 			dp_test_intf_name2mac_str(lswap->nh[nh_idx].nh_int),
-			ETHER_TYPE_MPLS);
+			RTE_ETHER_TYPE_MPLS);
 	} else {
 		/* Unsupported combination */
 		assert(0);
@@ -3517,7 +3517,7 @@ dp_test_mpls_test_pkt(struct flow_fields *flow,
 	(void)dp_test_pktmbuf_eth_init(payload_pak,
 				       dp_test_intf_name2mac_str("dp1T1"),
 				       NULL,
-				       ETHER_TYPE_IPv4);
+				       RTE_ETHER_TYPE_IPV4);
 	/*
 	 * also set the l4 payload
 	 */
@@ -3543,7 +3543,7 @@ dp_test_mpls_test_pkt(struct flow_fields *flow,
 	(void)dp_test_pktmbuf_eth_init(mpls_pak,
 				       dp_test_intf_name2mac_str("dp1T1"),
 				       NULL,
-				       ETHER_TYPE_MPLS);
+				       RTE_ETHER_TYPE_MPLS);
 	return mpls_pak;
 }
 
@@ -3575,7 +3575,7 @@ dp_test_mpls_test_ip_pkt(struct flow_fields *flow,
 	(void)dp_test_pktmbuf_eth_init(ip_pak,
 				       dp_test_intf_name2mac_str("dp1T1"),
 				       NULL,
-				       ETHER_TYPE_IPv4);
+				       RTE_ETHER_TYPE_IPV4);
 	/*
 	 * also set the l4 payload
 	 */
@@ -3821,7 +3821,8 @@ DP_START_TEST_FULL_RUN(disp_fwd_ecmp, payloadv4)
 			struct dp_test_expected *exp;
 
 			exp = label_swap_monitor(test_pak, flow.num_labels+1,
-						 labels, ttls, ETHER_TYPE_IPv4,
+						 labels, ttls,
+						 RTE_ETHER_TYPE_IPV4,
 						 payload_pak, lswap, nh_mac_str,
 						 &hash_val, &nh_idx);
 			dp_test_pak_rx_for(test_pak, "dp1T1", exp,
@@ -3956,7 +3957,8 @@ DP_START_TEST_FULL_RUN(lswap_fwd_ecmp, payloadv4)
 			struct dp_test_expected *exp;
 
 			exp = label_swap_monitor(test_pak, flow.num_labels+1,
-						 labels, ttls, ETHER_TYPE_IPv4,
+						 labels, ttls,
+						 RTE_ETHER_TYPE_IPV4,
 						 payload_pak, lswap, nh_mac_str,
 						 &hash_val, &nh_idx);
 			dp_test_pak_receive(test_pak, "dp1T1", exp);
@@ -4043,7 +4045,7 @@ DP_START_TEST(rx_router_alert, simple)
 	(void)dp_test_pktmbuf_eth_init(test_pak,
 				       dp_test_intf_name2mac_str("dp1T1"),
 				       NULL,
-				       ETHER_TYPE_MPLS);
+				       RTE_ETHER_TYPE_MPLS);
 	/*
 	 * Expected packet - looks *exactly* the same as test packet
 	 * including ttls.
@@ -4170,7 +4172,7 @@ DP_START_TEST(mpls_ttl, imposition)
 						   1, &len);
 		dp_test_pktmbuf_eth_init(test_pak,
 					 dp_test_intf_name2mac_str("dp1T1"),
-					 NULL, ETHER_TYPE_IPv4);
+					 NULL, RTE_ETHER_TYPE_IPV4);
 
 		/*
 		 * Expected packet
@@ -4181,7 +4183,7 @@ DP_START_TEST(mpls_ttl, imposition)
 		dp_test_pktmbuf_eth_init(expected_pak,
 					 nh_mac_str,
 					 dp_test_intf_name2mac_str("dp2T2"),
-					 ETHER_TYPE_MPLS);
+					 RTE_ETHER_TYPE_MPLS);
 
 		ip = dp_test_get_mpls_pak_payload(expected_pak);
 		ip->ttl = DP_TEST_PAK_DEFAULT_TTL - 1;
@@ -4269,7 +4271,7 @@ DP_START_TEST(mpls_ttl, pop)
 		(void)dp_test_pktmbuf_eth_init(
 			test_pak,
 			dp_test_intf_name2mac_str("dp1T1"),
-			NULL, ETHER_TYPE_MPLS);
+			NULL, RTE_ETHER_TYPE_MPLS);
 
 		/*
 		 * Expected packet
@@ -4280,7 +4282,7 @@ DP_START_TEST(mpls_ttl, pop)
 		(void)dp_test_pktmbuf_eth_init(
 			expected_pak, nh_mac_str,
 			dp_test_intf_name2mac_str("dp2T2"),
-			ETHER_TYPE_MPLS);
+			RTE_ETHER_TYPE_MPLS);
 
 		exp = dp_test_exp_create(expected_pak);
 		rte_pktmbuf_free(expected_pak);
@@ -4390,7 +4392,7 @@ DP_START_TEST(mpls_ttl, v4_disposition)
 		(void)dp_test_pktmbuf_eth_init(
 			test_pak,
 			dp_test_intf_name2mac_str("dp1T1"),
-			NULL, ETHER_TYPE_MPLS);
+			NULL, RTE_ETHER_TYPE_MPLS);
 
 		/*
 		 * Expected packet
@@ -4406,7 +4408,7 @@ DP_START_TEST(mpls_ttl, v4_disposition)
 			(void)dp_test_pktmbuf_eth_init(
 				expected_pak, nh_mac_str1,
 				dp_test_intf_name2mac_str(test_data[i].oif),
-				ETHER_TYPE_IPv4);
+				RTE_ETHER_TYPE_IPV4);
 			dp_test_set_pak_ip_field(ip, DP_TEST_SET_TOS,
 						 IPTOS_PREC_INTERNETCONTROL);
 			exp = dp_test_exp_create(expected_pak);
@@ -4419,7 +4421,7 @@ DP_START_TEST(mpls_ttl, v4_disposition)
 			(void)dp_test_pktmbuf_eth_init(
 				expected_pak, nh_mac_str2,
 				dp_test_intf_name2mac_str(test_data[i].oif),
-				ETHER_TYPE_IPv4);
+				RTE_ETHER_TYPE_IPV4);
 			exp = dp_test_exp_create(expected_pak);
 		}
 		rte_pktmbuf_free(expected_pak);
@@ -4534,7 +4536,7 @@ DP_START_TEST(mpls_ttl, v6_disposition)
 		(void)dp_test_pktmbuf_eth_init(
 			test_pak,
 			dp_test_intf_name2mac_str("dp1T1"),
-			NULL, ETHER_TYPE_MPLS);
+			NULL, RTE_ETHER_TYPE_MPLS);
 
 		/*
 		 * Expected packet
@@ -4549,7 +4551,7 @@ DP_START_TEST(mpls_ttl, v6_disposition)
 			(void)dp_test_pktmbuf_eth_init(
 				expected_pak, nh_mac_str1,
 				dp_test_intf_name2mac_str(test_data[i].oif),
-				ETHER_TYPE_IPv6);
+				RTE_ETHER_TYPE_IPV6);
 			exp = dp_test_exp_create(expected_pak);
 			rte_pktmbuf_free(payload_pak);
 		} else {
@@ -4559,7 +4561,7 @@ DP_START_TEST(mpls_ttl, v6_disposition)
 			(void)dp_test_pktmbuf_eth_init(
 				expected_pak, nh_mac_str2,
 				dp_test_intf_name2mac_str(test_data[i].oif),
-				ETHER_TYPE_IPv6);
+				RTE_ETHER_TYPE_IPV6);
 			exp = dp_test_exp_create(expected_pak);
 		}
 		rte_pktmbuf_free(expected_pak);
@@ -4691,7 +4693,7 @@ DP_START_TEST(mpls_icmp, ttl_v4)
 						   payload_pak);
 		dp_test_pktmbuf_eth_init(test_pak,
 					 dp_test_intf_name2mac_str("dp1T1"),
-					 NULL, ETHER_TYPE_MPLS);
+					 NULL, RTE_ETHER_TYPE_MPLS);
 
 		copy_from = dp_pktmbuf_mtol3(payload_pak, struct iphdr *);
 
@@ -4756,14 +4758,14 @@ DP_START_TEST(mpls_icmp, ttl_v4)
 				expected_pak,
 				nh_mac_str,
 				dp_test_intf_name2mac_str("dp2T2"),
-				ETHER_TYPE_MPLS);
+				RTE_ETHER_TYPE_MPLS);
 		} else {
 			expected_pak = icmp_pak;
 			dp_test_pktmbuf_eth_init(
 				expected_pak,
 				nh_mac_str,
 				dp_test_intf_name2mac_str("dp2T2"),
-				ETHER_TYPE_IPv4);
+				RTE_ETHER_TYPE_IPV4);
 		}
 
 		exp = dp_test_exp_create(expected_pak);
@@ -4830,7 +4832,7 @@ DP_START_TEST(mpls_icmp, invalid_paks)
 	(void)dp_test_pktmbuf_eth_init(test_pak,
 				       dp_test_intf_name2mac_str("dp1T1"),
 				       NULL,
-				       ETHER_TYPE_MPLS);
+				       RTE_ETHER_TYPE_MPLS);
 
 	exp = dp_test_exp_create(test_pak);
 	dp_test_exp_set_fwd_status(exp, DP_TEST_FWD_DROPPED);
@@ -4854,7 +4856,7 @@ DP_START_TEST(mpls_icmp, invalid_paks)
 	(void)dp_test_pktmbuf_eth_init(test_pak,
 				       dp_test_intf_name2mac_str("dp1T1"),
 				       NULL,
-				       ETHER_TYPE_MPLS);
+				       RTE_ETHER_TYPE_MPLS);
 
 	exp = dp_test_exp_create(test_pak);
 	dp_test_exp_set_fwd_status(exp, DP_TEST_FWD_DROPPED);
@@ -4878,7 +4880,7 @@ DP_START_TEST(mpls_icmp, invalid_paks)
 	(void)dp_test_pktmbuf_eth_init(test_pak,
 				       dp_test_intf_name2mac_str("dp1T1"),
 				       NULL,
-				       ETHER_TYPE_MPLS);
+				       RTE_ETHER_TYPE_MPLS);
 
 	exp = dp_test_exp_create(test_pak);
 	dp_test_exp_set_fwd_status(exp, DP_TEST_FWD_DROPPED);
@@ -4900,7 +4902,7 @@ DP_START_TEST(mpls_icmp, invalid_paks)
 	(void)dp_test_pktmbuf_eth_init(test_pak,
 				       dp_test_intf_name2mac_str("dp1T1"),
 				       NULL,
-				       ETHER_TYPE_MPLS);
+				       RTE_ETHER_TYPE_MPLS);
 
 	exp = dp_test_exp_create(test_pak);
 	dp_test_exp_set_fwd_status(exp, DP_TEST_FWD_DROPPED);
@@ -4981,7 +4983,7 @@ DP_START_TEST(mpls_icmpv6, ttl_v6)
 						   payload_pak);
 		dp_test_pktmbuf_eth_init(test_pak,
 					 dp_test_intf_name2mac_str("dp1T1"),
-					 NULL, ETHER_TYPE_MPLS);
+					 NULL, RTE_ETHER_TYPE_MPLS);
 
 		copy_from = dp_pktmbuf_mtol3(payload_pak, struct ip6_hdr *);
 
@@ -5046,14 +5048,14 @@ DP_START_TEST(mpls_icmpv6, ttl_v6)
 				expected_pak,
 				nh_mac_str,
 				dp_test_intf_name2mac_str("dp2T2"),
-				ETHER_TYPE_MPLS);
+				RTE_ETHER_TYPE_MPLS);
 		} else {
 			expected_pak = icmp6_pak;
 			dp_test_pktmbuf_eth_init(
 				expected_pak,
 				nh_mac_str,
 				dp_test_intf_name2mac_str("dp2T2"),
-				ETHER_TYPE_IPv6);
+				RTE_ETHER_TYPE_IPV6);
 		}
 
 		exp = dp_test_exp_create(expected_pak);
@@ -5127,7 +5129,7 @@ DP_START_TEST(mpls_fragment, ip_imposition)
 	(void)dp_test_pktmbuf_eth_init(test_pak,
 				       dp_test_intf_name2mac_str("dp1T1"),
 				       DP_TEST_INTF_DEF_SRC_MAC,
-				       ETHER_TYPE_IPv4);
+				       RTE_ETHER_TYPE_IPV4);
 
 	/*
 	 * Expected packet
@@ -5166,7 +5168,7 @@ DP_START_TEST(mpls_fragment, ip_imposition)
 		(uint8_t []){DP_TEST_PAK_DEFAULT_TTL - 1}, m);
 	dp_test_pktmbuf_eth_init(expected_pak, nh_mac_str,
 				 dp_test_intf_name2mac_str("dp1T0"),
-				 ETHER_TYPE_MPLS);
+				 RTE_ETHER_TYPE_MPLS);
 	rte_pktmbuf_free(m);
 	exp->exp_pak[0] = expected_pak;
 
@@ -5187,7 +5189,7 @@ DP_START_TEST(mpls_fragment, ip_imposition)
 	rte_pktmbuf_free(m);
 	dp_test_pktmbuf_eth_init(expected_pak, nh_mac_str,
 				 dp_test_intf_name2mac_str("dp1T0"),
-				 ETHER_TYPE_MPLS);
+				 RTE_ETHER_TYPE_MPLS);
 	exp->exp_pak[1] = expected_pak;
 
 	/* now send test pak and check we get expected back */
@@ -5246,7 +5248,7 @@ DP_START_TEST(mpls_fragment, fragmentv4)
 
 	(void)dp_test_pktmbuf_eth_init(test_pak,
 				       dp_test_intf_name2mac_str("dp1T1"),
-				       NULL, ETHER_TYPE_MPLS);
+				       NULL, RTE_ETHER_TYPE_MPLS);
 
 	/*
 	 * Expected packet
@@ -5283,7 +5285,7 @@ DP_START_TEST(mpls_fragment, fragmentv4)
 		(uint8_t []){DP_TEST_PAK_DEFAULT_TTL - 1}, m);
 	dp_test_pktmbuf_eth_init(expected_pak, nh_mac_str,
 				 dp_test_intf_name2mac_str("dp1T0"),
-				 ETHER_TYPE_MPLS);
+				 RTE_ETHER_TYPE_MPLS);
 	rte_pktmbuf_free(m);
 	exp->exp_pak[0] = expected_pak;
 
@@ -5303,7 +5305,7 @@ DP_START_TEST(mpls_fragment, fragmentv4)
 	rte_pktmbuf_free(m);
 	dp_test_pktmbuf_eth_init(expected_pak, nh_mac_str,
 				 dp_test_intf_name2mac_str("dp1T0"),
-				 ETHER_TYPE_MPLS);
+				 RTE_ETHER_TYPE_MPLS);
 	exp->exp_pak[1] = expected_pak;
 
 	/* now send test pak and check we get expected back */
@@ -5361,7 +5363,7 @@ DP_START_TEST(mpls_fragment, lswitch_three_labels)
 
 	(void)dp_test_pktmbuf_eth_init(test_pak,
 				       dp_test_intf_name2mac_str("dp1T1"),
-				       NULL, ETHER_TYPE_MPLS);
+				       NULL, RTE_ETHER_TYPE_MPLS);
 
 	/*
 	 * Expected packet
@@ -5399,7 +5401,7 @@ DP_START_TEST(mpls_fragment, lswitch_three_labels)
 	expected_pak = dp_test_create_mpls_pak(2, expected_labels, ttls, m);
 	dp_test_pktmbuf_eth_init(expected_pak, nh_mac_str,
 				 dp_test_intf_name2mac_str("dp1T0"),
-				 ETHER_TYPE_MPLS);
+				 RTE_ETHER_TYPE_MPLS);
 	rte_pktmbuf_free(m);
 	exp->exp_pak[0] = expected_pak;
 
@@ -5417,7 +5419,7 @@ DP_START_TEST(mpls_fragment, lswitch_three_labels)
 	rte_pktmbuf_free(m);
 	dp_test_pktmbuf_eth_init(expected_pak, nh_mac_str,
 				 dp_test_intf_name2mac_str("dp1T0"),
-				 ETHER_TYPE_MPLS);
+				 RTE_ETHER_TYPE_MPLS);
 	exp->exp_pak[1] = expected_pak;
 
 	/* now send test pak and check we get expected back */
@@ -5477,7 +5479,7 @@ DP_START_TEST(mpls_fragment, lswitch_four_labels)
 
 	(void)dp_test_pktmbuf_eth_init(test_pak,
 				       dp_test_intf_name2mac_str("dp1T1"),
-				       NULL, ETHER_TYPE_MPLS);
+				       NULL, RTE_ETHER_TYPE_MPLS);
 
 	/*
 	 * Expected packet
@@ -5517,7 +5519,7 @@ DP_START_TEST(mpls_fragment, lswitch_four_labels)
 	expected_pak = dp_test_create_mpls_pak(3, expected_labels, ttls, m);
 	dp_test_pktmbuf_eth_init(expected_pak, nh_mac_str,
 				 dp_test_intf_name2mac_str("dp1T0"),
-				 ETHER_TYPE_MPLS);
+				 RTE_ETHER_TYPE_MPLS);
 	rte_pktmbuf_free(m);
 	exp->exp_pak[0] = expected_pak;
 
@@ -5535,7 +5537,7 @@ DP_START_TEST(mpls_fragment, lswitch_four_labels)
 	rte_pktmbuf_free(m);
 	dp_test_pktmbuf_eth_init(expected_pak, nh_mac_str,
 				 dp_test_intf_name2mac_str("dp1T0"),
-				 ETHER_TYPE_MPLS);
+				 RTE_ETHER_TYPE_MPLS);
 	exp->exp_pak[1] = expected_pak;
 
 	/* now send test pak and check we get expected back */
@@ -5597,7 +5599,7 @@ DP_START_TEST(mpls_icmp, frag_needed_v4_lswitch)
 
 	(void)dp_test_pktmbuf_eth_init(test_pak,
 				       dp_test_intf_name2mac_str("dp1T1"),
-				       NULL, ETHER_TYPE_MPLS);
+				       NULL, RTE_ETHER_TYPE_MPLS);
 
 	/*
 	 * Expected packet
@@ -5655,7 +5657,7 @@ DP_START_TEST(mpls_icmp, frag_needed_v4_lswitch)
 	(void)dp_test_pktmbuf_eth_init(expected_pak,
 				       nh_mac_str,
 				       dp_test_intf_name2mac_str("dp1T0"),
-				       ETHER_TYPE_MPLS);
+				       RTE_ETHER_TYPE_MPLS);
 
 	exp = dp_test_exp_create(expected_pak);
 	rte_pktmbuf_free(expected_pak);
@@ -5711,7 +5713,7 @@ DP_START_TEST(mpls_icmp, frag_needed_v4_imp)
 
 	(void)dp_test_pktmbuf_eth_init(test_pak,
 				       dp_test_intf_name2mac_str("dp1T1"),
-				       NULL, ETHER_TYPE_IPv4);
+				       NULL, RTE_ETHER_TYPE_IPV4);
 
 	/*
 	 * Expected packet
@@ -5752,7 +5754,7 @@ DP_START_TEST(mpls_icmp, frag_needed_v4_imp)
 	(void)dp_test_pktmbuf_eth_init(icmp_pak,
 				       nh_mac_str,
 				       dp_test_intf_name2mac_str("dp1T0"),
-				       ETHER_TYPE_IPv4);
+				       RTE_ETHER_TYPE_IPV4);
 
 	exp = dp_test_exp_create(icmp_pak);
 	rte_pktmbuf_free(icmp_pak);
@@ -5821,7 +5823,7 @@ static void mpls_fragment_v4_invalid_paks(bool df)
 
 	(void)dp_test_pktmbuf_eth_init(test_pak,
 				       dp_test_intf_name2mac_str("dp1T1"),
-				       NULL, ETHER_TYPE_MPLS);
+				       NULL, RTE_ETHER_TYPE_MPLS);
 
 	exp = dp_test_exp_create(test_pak);
 	dp_test_exp_set_fwd_status(exp, DP_TEST_FWD_DROPPED);
@@ -5838,7 +5840,7 @@ static void mpls_fragment_v4_invalid_paks(bool df)
 	(void)dp_test_pktmbuf_eth_init(test_pak,
 				       dp_test_intf_name2mac_str("dp1T1"),
 				       NULL,
-				       ETHER_TYPE_MPLS);
+				       RTE_ETHER_TYPE_MPLS);
 
 	exp = dp_test_exp_create(test_pak);
 	dp_test_exp_set_fwd_status(exp, DP_TEST_FWD_DROPPED);
@@ -5853,7 +5855,7 @@ static void mpls_fragment_v4_invalid_paks(bool df)
 	(void)dp_test_pktmbuf_eth_init(test_pak,
 				       dp_test_intf_name2mac_str("dp1T1"),
 				       NULL,
-				       ETHER_TYPE_MPLS);
+				       RTE_ETHER_TYPE_MPLS);
 
 	exp = dp_test_exp_create(test_pak);
 	dp_test_exp_set_fwd_status(exp, DP_TEST_FWD_DROPPED);
@@ -5870,7 +5872,7 @@ static void mpls_fragment_v4_invalid_paks(bool df)
 	(void)dp_test_pktmbuf_eth_init(test_pak,
 				       dp_test_intf_name2mac_str("dp1T1"),
 				       NULL,
-				       ETHER_TYPE_MPLS);
+				       RTE_ETHER_TYPE_MPLS);
 
 	exp = dp_test_exp_create(test_pak);
 	dp_test_exp_set_fwd_status(exp, DP_TEST_FWD_DROPPED);
@@ -5888,7 +5890,7 @@ static void mpls_fragment_v4_invalid_paks(bool df)
 	(void)dp_test_pktmbuf_eth_init(test_pak,
 				       dp_test_intf_name2mac_str("dp1T1"),
 				       NULL,
-				       ETHER_TYPE_MPLS);
+				       RTE_ETHER_TYPE_MPLS);
 
 	exp = dp_test_exp_create(test_pak);
 	dp_test_exp_set_fwd_status(exp, DP_TEST_FWD_DROPPED);
@@ -5907,7 +5909,7 @@ static void mpls_fragment_v4_invalid_paks(bool df)
 	(void)dp_test_pktmbuf_eth_init(test_pak,
 				       dp_test_intf_name2mac_str("dp1T1"),
 				       NULL,
-				       ETHER_TYPE_MPLS);
+				       RTE_ETHER_TYPE_MPLS);
 
 	exp = dp_test_exp_create(test_pak);
 	dp_test_exp_set_fwd_status(exp, DP_TEST_FWD_DROPPED);
@@ -6264,7 +6266,7 @@ DP_START_TEST_FULL_RUN(mpls_oam, v4_ecmp_lswitch)
 						   payload_pak);
 		(void)dp_test_pktmbuf_eth_init(test_pak,
 					dp_test_intf_name2mac_str("dp1T1"),
-					NULL, ETHER_TYPE_MPLS);
+					NULL, RTE_ETHER_TYPE_MPLS);
 
 		first_path = (bitmask & ((uint64_t)1 << j));
 
@@ -6279,7 +6281,7 @@ DP_START_TEST_FULL_RUN(mpls_oam, v4_ecmp_lswitch)
 			(void)dp_test_pktmbuf_eth_init(expected_pak,
 					nh_mac_str1,
 					dp_test_intf_name2mac_str("dp2T2"),
-					ETHER_TYPE_MPLS);
+					RTE_ETHER_TYPE_MPLS);
 
 			exp = dp_test_exp_create(expected_pak);
 			dp_test_exp_set_oif_name(exp, "dp2T2");
@@ -6287,7 +6289,7 @@ DP_START_TEST_FULL_RUN(mpls_oam, v4_ecmp_lswitch)
 			(void)dp_test_pktmbuf_eth_init(expected_pak,
 					nh_mac_str2,
 					dp_test_intf_name2mac_str("dp3T3"),
-					ETHER_TYPE_MPLS);
+					RTE_ETHER_TYPE_MPLS);
 
 			exp = dp_test_exp_create(expected_pak);
 			dp_test_exp_set_oif_name(exp, "dp3T3");
@@ -6402,7 +6404,7 @@ DP_START_TEST_FULL_RUN(mpls_oam, v4_ecmp_lswitch_two_labels)
 						   payload_pak);
 		(void)dp_test_pktmbuf_eth_init(test_pak,
 					dp_test_intf_name2mac_str("dp1T1"),
-					NULL, ETHER_TYPE_MPLS);
+					NULL, RTE_ETHER_TYPE_MPLS);
 
 		first_path = (bitmask & ((uint64_t)1 << j));
 
@@ -6419,7 +6421,7 @@ DP_START_TEST_FULL_RUN(mpls_oam, v4_ecmp_lswitch_two_labels)
 			(void)dp_test_pktmbuf_eth_init(expected_pak,
 					nh_mac_str1,
 					dp_test_intf_name2mac_str("dp2T2"),
-					ETHER_TYPE_MPLS);
+					RTE_ETHER_TYPE_MPLS);
 
 			exp = dp_test_exp_create(expected_pak);
 			dp_test_exp_set_oif_name(exp, "dp2T2");
@@ -6427,7 +6429,7 @@ DP_START_TEST_FULL_RUN(mpls_oam, v4_ecmp_lswitch_two_labels)
 			(void)dp_test_pktmbuf_eth_init(expected_pak,
 					nh_mac_str2,
 					dp_test_intf_name2mac_str("dp3T3"),
-					ETHER_TYPE_MPLS);
+					RTE_ETHER_TYPE_MPLS);
 
 			exp = dp_test_exp_create(expected_pak);
 			dp_test_exp_set_oif_name(exp, "dp3T3");
@@ -6544,7 +6546,7 @@ DP_START_TEST(mpls_oam, v4_ecmp_lswitch_three_labels)
 						   payload_pak);
 		(void)dp_test_pktmbuf_eth_init(test_pak,
 					dp_test_intf_name2mac_str("dp1T1"),
-					NULL, ETHER_TYPE_MPLS);
+					NULL, RTE_ETHER_TYPE_MPLS);
 
 		first_path = (bitmask & ((uint64_t)1 << j));
 
@@ -6563,7 +6565,7 @@ DP_START_TEST(mpls_oam, v4_ecmp_lswitch_three_labels)
 			(void)dp_test_pktmbuf_eth_init(expected_pak,
 					nh_mac_str1,
 					dp_test_intf_name2mac_str("dp2T2"),
-					ETHER_TYPE_MPLS);
+					RTE_ETHER_TYPE_MPLS);
 
 			exp = dp_test_exp_create(expected_pak);
 			dp_test_exp_set_oif_name(exp, "dp2T2");
@@ -6571,7 +6573,7 @@ DP_START_TEST(mpls_oam, v4_ecmp_lswitch_three_labels)
 			(void)dp_test_pktmbuf_eth_init(expected_pak,
 					nh_mac_str2,
 					dp_test_intf_name2mac_str("dp3T3"),
-					ETHER_TYPE_MPLS);
+					RTE_ETHER_TYPE_MPLS);
 
 			exp = dp_test_exp_create(expected_pak);
 			dp_test_exp_set_oif_name(exp, "dp3T3");
@@ -6643,7 +6645,7 @@ DP_START_TEST(imp_fwd_outlabels, v4_single)
 		(void)dp_test_pktmbuf_eth_init(
 			test_pak,
 			dp_test_intf_name2mac_str("dp1T1"),
-			NULL, ETHER_TYPE_IPv4);
+			NULL, RTE_ETHER_TYPE_IPV4);
 
 		/*
 		 * Expected packet
@@ -6654,7 +6656,7 @@ DP_START_TEST(imp_fwd_outlabels, v4_single)
 			expected_pak,
 			nh_mac_str,
 			dp_test_intf_name2mac_str("dp2T2"),
-			ETHER_TYPE_MPLS);
+			RTE_ETHER_TYPE_MPLS);
 
 		ip = dp_test_get_mpls_pak_payload(expected_pak);
 		dp_test_set_pak_ip_field(ip, DP_TEST_SET_TTL,
@@ -6713,7 +6715,7 @@ DP_START_TEST(imp_fwd_outlabels, v4_ecmp)
 	(void)dp_test_pktmbuf_eth_init(test_pak1,
 				       dp_test_intf_name2mac_str("dp1T1"),
 				       NULL,
-				       ETHER_TYPE_IPv4);
+				       RTE_ETHER_TYPE_IPV4);
 
 	/*
 	 * Expected packet1
@@ -6726,7 +6728,7 @@ DP_START_TEST(imp_fwd_outlabels, v4_ecmp)
 	(void)dp_test_pktmbuf_eth_init(expected_pak1,
 				       nh_mac_str1,
 				       dp_test_intf_name2mac_str("dp2T2"),
-				       ETHER_TYPE_MPLS);
+				       RTE_ETHER_TYPE_MPLS);
 
 	ip = dp_test_get_mpls_pak_payload(expected_pak1);
 	dp_test_set_pak_ip_field(ip, DP_TEST_SET_TTL,
@@ -6746,7 +6748,7 @@ DP_START_TEST(imp_fwd_outlabels, v4_ecmp)
 	(void)dp_test_pktmbuf_eth_init(test_pak2,
 				       dp_test_intf_name2mac_str("dp1T1"),
 				       NULL,
-				       ETHER_TYPE_IPv4);
+				       RTE_ETHER_TYPE_IPV4);
 	/*
 	 * Expected packet2
 	 */
@@ -6758,7 +6760,7 @@ DP_START_TEST(imp_fwd_outlabels, v4_ecmp)
 	(void)dp_test_pktmbuf_eth_init(expected_pak2,
 				       nh_mac_str2,
 				       dp_test_intf_name2mac_str("dp3T3"),
-				       ETHER_TYPE_MPLS);
+				       RTE_ETHER_TYPE_MPLS);
 
 	ip = dp_test_get_mpls_pak_payload(expected_pak2);
 	dp_test_set_pak_ip_field(ip, DP_TEST_SET_TTL,

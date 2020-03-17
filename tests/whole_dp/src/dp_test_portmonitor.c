@@ -100,7 +100,7 @@ DP_START_TEST(mirroring, span)
 	(void)dp_test_pktmbuf_eth_init(test_pak,
 				       dp_test_intf_name2mac_str("dp1T1"),
 				       DP_TEST_INTF_DEF_SRC_MAC,
-				       ETHER_TYPE_IPv4);
+				       RTE_ETHER_TYPE_IPV4);
 
 	/* We expect 2 packets, one local and one mirrored */
 	exp = dp_test_exp_create_m(test_pak, 2);
@@ -146,7 +146,7 @@ DP_START_TEST(mirroring, span_filter)
 	(void)dp_test_pktmbuf_eth_init(test_pak,
 				       dp_test_intf_name2mac_str("dp1T1"),
 				       DP_TEST_INTF_DEF_SRC_MAC,
-				       ETHER_TYPE_IPv4);
+				       RTE_ETHER_TYPE_IPV4);
 
 	/* We expect 1 packet, local, mirrored is blocked */
 	exp = dp_test_exp_create_m(test_pak, 1);
@@ -195,7 +195,7 @@ DP_START_TEST(mirroring, rspan_source)
 	(void)dp_test_pktmbuf_eth_init(test_pak,
 				       dp_test_intf_name2mac_str("dp1T1"),
 				       DP_TEST_INTF_DEF_SRC_MAC,
-				       ETHER_TYPE_IPv4);
+				       RTE_ETHER_TYPE_IPV4);
 
 	/* We expect 2 packets, one local and one mirrored */
 	exp = dp_test_exp_create_m(test_pak, 2);
@@ -253,7 +253,7 @@ DP_START_TEST(mirroring, rspan_source_filter)
 	(void)dp_test_pktmbuf_eth_init(test_pak,
 				       dp_test_intf_name2mac_str("dp1T1"),
 				       DP_TEST_INTF_DEF_SRC_MAC,
-				       ETHER_TYPE_IPv4);
+				       RTE_ETHER_TYPE_IPV4);
 
 	/* We expect 1 packet, local, mirrored is blocked */
 	exp = dp_test_exp_create_m(test_pak, 1);
@@ -358,7 +358,7 @@ erspan_build_expected_pak(struct dp_test_expected **expected,
 	exp->fwd_result[1] = DP_TEST_FWD_FORWARDED;
 
 	inner_ip = iphdr(tpak);
-	len = ntohs(inner_ip->tot_len) + ETHER_HDR_LEN;
+	len = ntohs(inner_ip->tot_len) + RTE_ETHER_HDR_LEN;
 	m = dp_test_create_erspan_ipv4_pak("1.1.2.1", "1.1.2.2",
 					   &len, gre_prot, erspanid, srcidx,
 					   tpak->vlan_tci, dir,
@@ -405,7 +405,7 @@ DP_START_TEST(mirroring, erspan_source)
 	(void)dp_test_pktmbuf_eth_init(test_pak,
 				       dp_test_intf_name2mac_str("dp1T1"),
 				       DP_TEST_INTF_DEF_SRC_MAC,
-				       ETHER_TYPE_IPv4);
+				       RTE_ETHER_TYPE_IPV4);
 
 	/* We expect 2 packets, one local and one mirrored */
 	exp = dp_test_exp_create_m(test_pak, 2);
@@ -452,7 +452,7 @@ DP_START_TEST(mirroring, erspan_source_filter)
 	(void)dp_test_pktmbuf_eth_init(test_pak,
 				       dp_test_intf_name2mac_str("dp1T1"),
 				       DP_TEST_INTF_DEF_SRC_MAC,
-				       ETHER_TYPE_IPv4);
+				       RTE_ETHER_TYPE_IPV4);
 
 	/* We expect 1 packet, local, mirrored is blocked */
 	exp = dp_test_exp_create_m(test_pak, 1);
@@ -503,7 +503,7 @@ DP_START_TEST(mirroring, erspan_vlan_source)
 	(void)dp_test_pktmbuf_eth_init(test_pak,
 				       dp_test_intf_name2mac_str("dp1T1"),
 				       DP_TEST_INTF_DEF_SRC_MAC,
-				       ETHER_TYPE_IPv4);
+				       RTE_ETHER_TYPE_IPV4);
 
 	/* We expect 2 packets, one local and one mirrored */
 	exp = dp_test_exp_create_m(test_pak, 2);
@@ -523,7 +523,7 @@ DP_START_TEST(mirroring, erspan_vlan_source)
 	(void)dp_test_pktmbuf_eth_init(test_pak,
 				       dp_test_intf_name2mac_str("dp2T1"),
 				       DP_TEST_INTF_DEF_SRC_MAC,
-				       ETHER_TYPE_IPv4);
+				       RTE_ETHER_TYPE_IPV4);
 
 	/* We expect 2 packets, one local and one mirrored */
 	exp = dp_test_exp_create_m(test_pak, 2);
@@ -532,7 +532,7 @@ DP_START_TEST(mirroring, erspan_vlan_source)
 	dp_test_pktmbuf_eth_init(dp_test_exp_get_pak_m(exp, 0),
 				 nh_mac_str,
 				 dp_test_intf_name2mac_str("dp1T1"),
-				 ETHER_TYPE_IPv4);
+				 RTE_ETHER_TYPE_IPV4);
 	dp_test_ipv4_decrement_ttl(dp_test_exp_get_pak_m(exp, 0));
 	dp_test_exp_set_vlan_tci_m(exp, 0, 10);
 

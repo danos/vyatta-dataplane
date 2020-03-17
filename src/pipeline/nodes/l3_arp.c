@@ -84,9 +84,9 @@
  */
 struct	ether_arp {
 	struct	arphdr ea_hdr;		/* fixed-size header */
-	u_int8_t arp_sha[ETHER_ADDR_LEN];/* sender hardware address */
+	u_int8_t arp_sha[RTE_ETHER_ADDR_LEN];/* sender hardware address */
 	u_int8_t arp_spa[4];		/* sender protocol address */
-	u_int8_t arp_tha[ETHER_ADDR_LEN];/* target hardware address */
+	u_int8_t arp_tha[RTE_ETHER_ADDR_LEN];/* target hardware address */
 	u_int8_t arp_tpa[4];		/* target protocol address */
 };
 #define	arp_hrd	ea_hdr.ar_hrd
@@ -109,14 +109,14 @@ static int arp_reply(struct ifnet *ifp, struct rte_mbuf *m,
 
 	ah->arp_op = htons(ARPOP_REPLY);
 
-	memcpy(ah->arp_tha, ah->arp_sha, ETHER_ADDR_LEN);
-	memcpy(ah->arp_sha, ea, ETHER_ADDR_LEN);
+	memcpy(ah->arp_tha, ah->arp_sha, RTE_ETHER_ADDR_LEN);
+	memcpy(ah->arp_sha, ea, RTE_ETHER_ADDR_LEN);
 
 	memcpy(ah->arp_tpa, ah->arp_spa, sizeof(struct in_addr));
 	memcpy(ah->arp_spa, &taddr, sizeof(struct in_addr));
 
-	memcpy(&eh->d_addr, ah->arp_tha, ETHER_ADDR_LEN);
-	memcpy(&eh->s_addr, ah->arp_sha, ETHER_ADDR_LEN);
+	memcpy(&eh->d_addr, ah->arp_tha, RTE_ETHER_ADDR_LEN);
+	memcpy(&eh->s_addr, ah->arp_sha, RTE_ETHER_ADDR_LEN);
 
 	char b1[INET_ADDRSTRLEN], b2[ETH_ADDR_STR_LEN];
 	ARP_DEBUG("send reply for %s (%s) on %s\n",
@@ -129,7 +129,7 @@ static int arp_reply(struct ifnet *ifp, struct rte_mbuf *m,
 
 	if (is_gre(ifp) && !(ifp->if_flags & IFF_NOARP)) {
 		memcpy(&dst_ip, ah->arp_tpa, sizeof(ah->arp_tpa));
-		if (!gre_tunnel_encap(ifp, ifp, &dst_ip, m, ETHER_TYPE_ARP))
+		if (!gre_tunnel_encap(ifp, ifp, &dst_ip, m, RTE_ETHER_TYPE_ARP))
 			return ARP_IN_NOTHOT_FINISH;
 	}
 	return ARP_IN_NOTHOT_L2_OUT;
@@ -284,7 +284,7 @@ arp_in_nothot_process(struct pl_packet *pkt, void *context __unused)
 				  ifp->if_name);
 			ARPSTAT_INC(if_vrfid(ifp), proxy);
 			pkt->in_ifp = NULL;
-			pkt->l2_proto = ETHER_TYPE_ARP;
+			pkt->l2_proto = RTE_ETHER_TYPE_ARP;
 			pkt->out_ifp = ifp;
 			return resp;
 		}
@@ -359,7 +359,7 @@ reply:
 	 * Shortcut.. the receiving interface is the target.
 	 */
 	pkt->in_ifp = NULL;
-	pkt->l2_proto = ETHER_TYPE_ARP;
+	pkt->l2_proto = RTE_ETHER_TYPE_ARP;
 	pkt->out_ifp = ifp;
 	return arp_reply(ifp, m, &ifp->eth_addr, itaddr);
 }

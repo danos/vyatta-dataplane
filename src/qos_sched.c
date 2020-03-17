@@ -2172,7 +2172,7 @@ static int cmd_qos_port(struct ifnet *ifp, int argc, char **argv)
 		argc -= 2, argv += 2;
 	}
 
-	if (subports == 0 || subports > ETHER_MAX_VLAN_ID) {
+	if (subports == 0 || subports > RTE_ETHER_MAX_VLAN_ID) {
 		DP_DEBUG(QOS, ERR, DATAPLANE,
 			 "bad subports value: %u\n", subports);
 		return -EINVAL;

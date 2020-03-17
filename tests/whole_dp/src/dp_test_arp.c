@@ -983,14 +983,14 @@ DP_START_TEST(l3_arp_vlan, l3_arp_vlan_proto)
 					 PEER_MAC, DONTCARE_MAC,
 					 PEER_IP, OUR_IP, 0);
 	dp_test_insert_8021q_hdr(arp_pak, vlan_id, ETH_P_8021AD,
-				 ETHER_TYPE_ARP);
+				 RTE_ETHER_TYPE_ARP);
 
 	exp_pak = dp_test_create_arp_pak(ARPOP_REPLY,
 					 iifmac, PEER_MAC,
 					 iifmac, PEER_MAC,
 					 OUR_IP, PEER_IP, 0);
 	dp_test_insert_8021q_hdr(exp_pak, vlan_id, ETH_P_8021AD,
-				 ETHER_TYPE_ARP);
+				 RTE_ETHER_TYPE_ARP);
 
 	exp = dp_test_exp_create_with_packet(exp_pak);
 
@@ -1020,7 +1020,7 @@ DP_START_TEST(l3_arp_vlan, l3_arp_vlan_proto)
 					 PEER_MAC, DONTCARE_MAC,
 					 PEER_IP, OUR_IP, 0);
 	dp_test_insert_8021q_hdr(arp_pak, vlan_id, ETH_P_8021AD,
-				 ETHER_TYPE_ARP);
+				 RTE_ETHER_TYPE_ARP);
 	dp_test_insert_8021q_hdr(arp_pak, vlan_id, ETH_P_8021AD,
 				 ETH_P_8021AD);
 
@@ -1218,7 +1218,7 @@ DP_START_TEST(arp_macvlan, req_dp_parent)
 	dp_test_pktmbuf_eth_init(ip_pak,
 				 dp_test_intf_name2mac_str(IIFNAME2),
 				 DP_TEST_INTF_DEF_SRC_MAC,
-				 ETHER_TYPE_IPv4);
+				 RTE_ETHER_TYPE_IPV4);
 
 	exp_pak = dp_test_create_arp_pak(ARPOP_REQUEST,
 					 macvlan_mac, BCAST_MAC,
@@ -1240,7 +1240,7 @@ DP_START_TEST(arp_macvlan, req_dp_parent)
 	exp_pak = dp_test_create_ipv4_pak("10.42.42.42", PEER_IP,
 					  1, &len);
 	dp_test_pktmbuf_eth_init(exp_pak, PEER_MAC, macvlan_mac,
-				 ETHER_TYPE_IPv4);
+				 RTE_ETHER_TYPE_IPV4);
 	dp_test_ipv4_decrement_ttl(exp_pak);
 
 	exp = dp_test_exp_create_m(NULL, 2);
@@ -1441,7 +1441,7 @@ DP_START_TEST(bridge_arp_req_l3_fwd, bridge_arp_req_l3_fwd)
 	(void)dp_test_pktmbuf_eth_init(ip_pak,
 				       dp_test_intf_name2mac_str(IIFNAME2),
 				       DP_TEST_INTF_DEF_SRC_MAC,
-				       ETHER_TYPE_IPv4);
+				       RTE_ETHER_TYPE_IPV4);
 
 	exp_pak = dp_test_create_arp_pak(ARPOP_REQUEST,
 					 dp_test_intf_name2mac_str(bname),

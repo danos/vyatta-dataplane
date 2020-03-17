@@ -42,10 +42,10 @@ DP_START_TEST(ip_fwd_2, if_fwd_2)
 					      1, &len);
 	dp_test_pktmbuf_eth_init(rx_pak_n[0],
 				 dp_test_intf_name2mac_str("dp1T0"),
-				 DP_TEST_INTF_DEF_SRC_MAC, ETHER_TYPE_IPv4);
+				 DP_TEST_INTF_DEF_SRC_MAC, RTE_ETHER_TYPE_IPV4);
 	dp_test_pktmbuf_eth_init(rx_pak_n[1],
 				 dp_test_intf_name2mac_str("dp1T0"),
-				 DP_TEST_INTF_DEF_SRC_MAC, ETHER_TYPE_IPv4);
+				 DP_TEST_INTF_DEF_SRC_MAC, RTE_ETHER_TYPE_IPV4);
 
 	/* Create pak we expect to receive on the tx ring */
 	exp = dp_test_exp_create_m(rx_pak_n[0], 1);
@@ -56,11 +56,11 @@ DP_START_TEST(ip_fwd_2, if_fwd_2)
 	(void)dp_test_pktmbuf_eth_init(dp_test_exp_get_pak_m(exp, 0),
 				       nh_mac_str,
 				       dp_test_intf_name2mac_str("dp2T1"),
-				       ETHER_TYPE_IPv4);
+				       RTE_ETHER_TYPE_IPV4);
 	(void)dp_test_pktmbuf_eth_init(dp_test_exp_get_pak_m(exp, 1),
 				       nh_mac_str,
 				       dp_test_intf_name2mac_str("dp2T1"),
-				       ETHER_TYPE_IPv4);
+				       RTE_ETHER_TYPE_IPV4);
 
 	dp_test_ipv4_decrement_ttl(dp_test_exp_get_pak_m(exp, 0));
 	dp_test_ipv4_decrement_ttl(dp_test_exp_get_pak_m(exp, 1));
@@ -98,7 +98,7 @@ DP_START_TEST(ip_fwd_n, if_fwd_n)
 		dp_test_pktmbuf_eth_init(rx_pak_n[i],
 					 dp_test_intf_name2mac_str("dp1T0"),
 					 DP_TEST_INTF_DEF_SRC_MAC,
-					 ETHER_TYPE_IPv4);
+					 RTE_ETHER_TYPE_IPV4);
 
 		/* Create paks we expect to receive on the tx ring */
 		if (i == 0)
@@ -109,7 +109,7 @@ DP_START_TEST(ip_fwd_n, if_fwd_n)
 		dp_test_pktmbuf_eth_init(dp_test_exp_get_pak_m(exp, i),
 					 nh_mac_str,
 					 dp_test_intf_name2mac_str("dp2T1"),
-					 ETHER_TYPE_IPv4);
+					 RTE_ETHER_TYPE_IPV4);
 		dp_test_ipv4_decrement_ttl(dp_test_exp_get_pak_m(exp, i));
 		dp_test_exp_set_oif_name_m(exp, i, "dp2T1");
 	}
