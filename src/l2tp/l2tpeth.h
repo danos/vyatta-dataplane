@@ -148,7 +148,7 @@ struct l2tpv3_ip_encap {
 struct l2tpv3_encap {
 	struct rte_ether_hdr ether_header;
 	char iphdr[0];
-} __attribute__((packed));
+} __attribute__((packed)) __attribute__((aligned(2)));
 
 
 typedef void l2tp_iter_func_t(void *, void *arg);

@@ -60,7 +60,7 @@ struct ether_arp {
 	in_addr_t arp_spa;		/* sender protocol address */
 	struct rte_ether_addr arp_tha;      /* target hardware address */
 	in_addr_t arp_tpa;		/* target protocol address */
-} __attribute__ ((__packed__));
+} __attribute__ ((__packed__)) __attribute__((aligned(2)));
 
 static struct rte_ether_addr peer_mac, peer_mac2;
 static in_addr_t peer_ip, not_our_ip;

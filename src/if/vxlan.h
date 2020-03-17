@@ -118,14 +118,14 @@ struct vxlan_ipv4_encap {
 	struct iphdr		ip_header __attribute__ ((__packed__));
 	struct rte_udp_hdr		udp_header;
 	struct rte_vxlan_hdr	vxlan_header;
-} __attribute__ ((__packed__));
+} __attribute__ ((__packed__)) __attribute__((aligned(2)));
 
 struct vxlan_ipv6_encap {
 	struct rte_ether_hdr	ether_header;
 	struct ip6_hdr		ip6_header __attribute__ ((__packed__));
 	struct rte_udp_hdr		udp_header;
 	struct rte_vxlan_hdr	vxlan_header;
-} __attribute__ ((__packed__));
+} __attribute__ ((__packed__)) __attribute__((aligned(2)));
 
 #define VXLAN_OVERHEAD (sizeof(struct vxlan_ipv6_encap))
 #define VXLAN_MTU (1500 - VXLAN_OVERHEAD)
