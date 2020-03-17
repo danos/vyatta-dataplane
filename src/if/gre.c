@@ -1673,7 +1673,7 @@ int ip_gre_tunnel_in(struct rte_mbuf **m0, struct iphdr *ip)
 			return 1;
 		break;
 	case ETH_P_TEB:
-		if (rte_pktmbuf_data_len(m) < sizeof(struct ether_hdr)) {
+		if (rte_pktmbuf_data_len(m) < sizeof(struct rte_ether_hdr)) {
 			if_incr_error(tun_ifp);
 			rte_pktmbuf_free(m);
 			return 0;
@@ -1762,7 +1762,7 @@ gre_tunnel_add_encap(struct ifnet *tunnel_ifp, struct rte_mbuf *m,
 {
 	struct gre_hdr *gre;
 	struct iphdr *ip = NULL;
-	struct ether_hdr *eth_hdr;
+	struct rte_ether_hdr *eth_hdr;
 
 	/* Copy GRE header into mbuf then set the pak specific fields */
 	gre = (struct gre_hdr *)(hdr + ETHER_HDR_LEN + sizeof(struct iphdr));
@@ -1811,7 +1811,7 @@ gre_tunnel_add_encap(struct ifnet *tunnel_ifp, struct rte_mbuf *m,
 	ip->check = 0;
 	ip->check = dp_in_cksum_hdr(ip);
 
-	eth_hdr = (struct ether_hdr *)hdr;
+	eth_hdr = (struct rte_ether_hdr *)hdr;
 	eth_hdr->ether_type = htons(ETH_P_IP);
 
 	pktmbuf_prepare_encap_out(m);
@@ -1883,8 +1883,8 @@ gre_tunnel_fragment_and_send(struct ifnet *input_ifp, struct ifnet *tunnel_ifp,
 	}
 	case ETH_P_TEB:
 	{
-		const struct ether_hdr *eh
-			= rte_pktmbuf_mtod(m, struct ether_hdr *);
+		const struct rte_ether_hdr *eh
+			= rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
 
 		inner_len = rte_pktmbuf_pkt_len(m);
 		dont_frag = true;
@@ -2039,7 +2039,7 @@ gre_tunnel_encap(struct ifnet *input_ifp, struct ifnet *tunnel_ifp,
 	vrfid_t t_vrfid;
 	unsigned int eh_offset;
 	unsigned int ip_offset;
-	const struct ether_hdr *eh;
+	const struct rte_ether_hdr *eh;
 	uint16_t ether_type;
 
 	sc = rcu_dereference(tunnel_ifp->if_softc);
@@ -2112,7 +2112,7 @@ gre_tunnel_encap(struct ifnet *input_ifp, struct ifnet *tunnel_ifp,
 		eh_offset = (proto == ETH_P_ERSPAN_TYPEII ?
 					sizeof(struct erspan_v2_hdr) :
 					sizeof(struct erspan_v3_hdr));
-		eh = rte_pktmbuf_mtod_offset(m, const struct ether_hdr *,
+		eh = rte_pktmbuf_mtod_offset(m, const struct rte_ether_hdr *,
 						eh_offset);
 		ether_type = eh->ether_type;
 		ip_offset = eh_offset + ETHER_HDR_LEN;
@@ -2133,8 +2133,8 @@ gre_tunnel_encap(struct ifnet *input_ifp, struct ifnet *tunnel_ifp,
 		break;
 	case ETH_P_TEB:
 	{
-		const struct ether_hdr *eh
-			= rte_pktmbuf_mtod(m, struct ether_hdr *);
+		const struct rte_ether_hdr *eh
+			= rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
 
 		inner_len = rte_pktmbuf_pkt_len(m) - len_adjust;
 		inner_ttl = 0;
@@ -2202,7 +2202,7 @@ gre6_tunnel_add_encap(struct ifnet *tunnel_ifp, struct rte_mbuf *m,
 {
 	struct gre_hdr *gre;
 	struct ip6_hdr *ip6 = NULL;
-	struct ether_hdr *eth_hdr;
+	struct rte_ether_hdr *eth_hdr;
 
 	/* Copy GRE header into mbuf then set the pak specific fields */
 	gre = (struct gre_hdr *)(hdr + ETHER_HDR_LEN + sizeof(struct ip6_hdr));
@@ -2234,7 +2234,7 @@ gre6_tunnel_add_encap(struct ifnet *tunnel_ifp, struct rte_mbuf *m,
 	ip6->ip6_plen = htons(inner_len + greinfo->gre_size);
 	ip6_ip_ecn_encap(&ip6->ip6_flow, inner_tos);
 
-	eth_hdr = (struct ether_hdr *)hdr;
+	eth_hdr = (struct rte_ether_hdr *)hdr;
 	eth_hdr->ether_type = htons(ETH_P_IPV6);
 
 	pktmbuf_prepare_encap_out(m);

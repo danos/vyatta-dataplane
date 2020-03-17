@@ -1125,7 +1125,7 @@ DP_START_TEST(bridge_gre, unicast)
 		"1.1.2.2", "1.1.2.1", 1, &gre_pl_len, ETH_P_TEB, 0, 0,
 		&gre_payload);
 	memcpy(gre_payload, rte_pktmbuf_mtod(payload_pak,
-					     const struct ether_hdr *),
+					     const struct rte_ether_hdr *),
 	       gre_pl_len);
 	dp_test_set_pak_ip_field(iphdr(test_pak), DP_TEST_SET_DF, 1);
 	dp_test_pktmbuf_eth_init(test_pak, dp_test_intf_name2mac_str("dp1T1"),
@@ -1151,7 +1151,7 @@ DP_START_TEST(bridge_gre, unicast)
 		"1.1.2.1", "1.1.2.2", 1, &gre_pl_len, ETH_P_TEB, 0, 0,
 		&gre_payload);
 	memcpy(gre_payload, rte_pktmbuf_mtod(test_pak,
-					     const struct ether_hdr *),
+					     const struct rte_ether_hdr *),
 	       gre_pl_len);
 	dp_test_set_pak_ip_field(iphdr(expected_pak), DP_TEST_SET_DF, 1);
 	dp_test_pktmbuf_eth_init(expected_pak, mac_ip_neigh,
@@ -1175,7 +1175,7 @@ DP_START_TEST(bridge_gre, unicast)
 		"1.1.2.1", "1.1.2.2", 1, &gre_pl_len, ETH_P_TEB, 0, 0,
 		&gre_payload);
 	memcpy(gre_payload,
-	       rte_pktmbuf_mtod(test_pak, const struct ether_hdr *),
+	       rte_pktmbuf_mtod(test_pak, const struct rte_ether_hdr *),
 	       gre_pl_len);
 	dp_test_set_pak_ip_field(iphdr(expected_pak), DP_TEST_SET_DF, 1);
 	dp_test_pktmbuf_eth_init(expected_pak, mac_ip_neigh,
@@ -1199,7 +1199,7 @@ DP_START_TEST(bridge_gre, unicast)
 		"1.1.2.2", "1.1.2.1", 1, &gre_pl_len, ETH_P_TEB, 0, 0,
 		&gre_payload);
 	memcpy(gre_payload, rte_pktmbuf_mtod(payload_pak,
-					     const struct ether_hdr *),
+					     const struct rte_ether_hdr *),
 	       gre_pl_len);
 	dp_test_set_pak_ip_field(iphdr(test_pak), DP_TEST_SET_DF, 1);
 	dp_test_pktmbuf_eth_init(test_pak, dp_test_intf_name2mac_str("dp1T1"),
@@ -1224,7 +1224,7 @@ DP_START_TEST(bridge_gre, unicast)
 		"1.1.2.1", "1.1.2.2", 1, &gre_pl_len, ETH_P_TEB, 0, 0,
 		&gre_payload);
 	memcpy(gre_payload, rte_pktmbuf_mtod(test_pak,
-					     const struct ether_hdr *),
+					     const struct rte_ether_hdr *),
 	       gre_pl_len);
 	dp_test_set_pak_ip_field(iphdr(expected_pak), DP_TEST_SET_DF, 1);
 	dp_test_pktmbuf_eth_init(expected_pak, mac_ip_neigh,
@@ -1398,7 +1398,7 @@ DP_START_TEST(bridge_gre, vlan)
 		"1.1.2.2", "1.1.2.1", 1, &gre_pl_len, ETH_P_TEB, 0, 0,
 		&gre_payload);
 	memcpy(gre_payload, rte_pktmbuf_mtod(payload_pak,
-					     const struct ether_hdr *),
+					     const struct rte_ether_hdr *),
 	       gre_pl_len);
 	dp_test_set_pak_ip_field(iphdr(test_pak), DP_TEST_SET_DF, 1);
 	dp_test_pktmbuf_eth_init(test_pak, dp_test_intf_name2mac_str("dp1T1"),
@@ -1426,7 +1426,7 @@ DP_START_TEST(bridge_gre, vlan)
 		"1.1.2.1", "1.1.2.2", 1, &gre_pl_len, ETH_P_TEB, 0, 0,
 		&gre_payload);
 	memcpy(gre_payload, rte_pktmbuf_mtod(test_pak,
-					     const struct ether_hdr *),
+					     const struct rte_ether_hdr *),
 	       gre_pl_len);
 	dp_test_set_pak_ip_field(iphdr(expected_pak), DP_TEST_SET_DF, 1);
 	dp_test_pktmbuf_eth_init(expected_pak, mac_ip_neigh,

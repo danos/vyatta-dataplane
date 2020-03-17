@@ -535,13 +535,13 @@ icmp_do_error(struct rte_mbuf *n, int type, int code, uint32_t info,
 static void icmp_do_reflect(const struct ifnet *rcvif, struct rte_mbuf *m_in,
 			    struct rte_mbuf *m_out)
 {
-	struct ether_hdr *eh;
+	struct rte_ether_hdr *eh;
 	struct ifnet *vrrp_ifp;
 
 	if (!m_out)
 		return;
 
-	eh = rte_pktmbuf_mtod(m_in, struct ether_hdr *);
+	eh = rte_pktmbuf_mtod(m_in, struct rte_ether_hdr *);
 	vrrp_ifp = macvlan_get_vrrp_if(rcvif,
 				       (struct rte_ether_addr *)&eh->d_addr);
 	if (vrrp_ifp)
@@ -612,14 +612,15 @@ icmp_do_echo_reply(struct ifnet *ifp, struct rte_mbuf *n, bool reflect)
 	/* preserve the input port number for use by shadow interface */
 	m->port = n->port;
 
-	struct ether_hdr *neh = rte_pktmbuf_mtod(m, struct ether_hdr *);
+	struct rte_ether_hdr *neh = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
 
 	/* Ethernet source addr is interface address */
 	rte_ether_addr_copy(&ifp->eth_addr, &neh->s_addr);
 
 	if (reflect) {
 		/* Echo req source ether is echo reply dest ether */
-		struct ether_hdr *oeh = rte_pktmbuf_mtod(n, struct ether_hdr *);
+		struct rte_ether_hdr *oeh =
+				rte_pktmbuf_mtod(n, struct rte_ether_hdr *);
 		rte_ether_addr_copy(&oeh->s_addr, &neh->d_addr);
 	}
 

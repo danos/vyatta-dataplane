@@ -27,6 +27,7 @@
 #include <rte_ether.h>
 #include <rte_timer.h>
 #include <rte_udp.h>
+#include <rte_vxlan.h>
 
 #include "control.h"
 #include "ip_addr.h"
@@ -113,17 +114,17 @@ struct vxlan_vnitbl {
 };
 
 struct vxlan_ipv4_encap {
-	struct ether_hdr	ether_header;
+	struct rte_ether_hdr	ether_header;
 	struct iphdr		ip_header __attribute__ ((__packed__));
-	struct udp_hdr		udp_header;
-	struct vxlan_hdr	vxlan_header;
+	struct rte_udp_hdr		udp_header;
+	struct rte_vxlan_hdr	vxlan_header;
 } __attribute__ ((__packed__));
 
 struct vxlan_ipv6_encap {
-	struct ether_hdr	ether_header;
+	struct rte_ether_hdr	ether_header;
 	struct ip6_hdr		ip6_header __attribute__ ((__packed__));
-	struct udp_hdr		udp_header;
-	struct vxlan_hdr	vxlan_header;
+	struct rte_udp_hdr		udp_header;
+	struct rte_vxlan_hdr	vxlan_header;
 } __attribute__ ((__packed__));
 
 #define VXLAN_OVERHEAD (sizeof(struct vxlan_ipv6_encap))

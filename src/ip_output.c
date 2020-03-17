@@ -47,7 +47,7 @@
 void ip_output(struct rte_mbuf *m, bool srced_forus)
 {
 	struct next_hop *nxt;
-	struct ether_hdr *eh = ethhdr(m);
+	struct rte_ether_hdr *eh = ethhdr(m);
 	struct iphdr *ip = iphdr(m);
 	struct ifnet *ifp;
 

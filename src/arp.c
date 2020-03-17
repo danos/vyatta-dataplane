@@ -153,11 +153,11 @@ struct rte_mbuf *
 arprequest(struct ifnet *ifp, struct sockaddr *sa)
 {
 	struct rte_mbuf *m;
-	struct ether_hdr *eh;
+	struct rte_ether_hdr *eh;
 	struct ether_arp *ah;
 	in_addr_t sip;
 	const unsigned len
-		= sizeof(struct ether_hdr) + sizeof(struct ether_arp);
+		= sizeof(struct rte_ether_hdr) + sizeof(struct ether_arp);
 	char b1[INET_ADDRSTRLEN];
 	char b2[INET_ADDRSTRLEN];
 
@@ -187,7 +187,7 @@ arprequest(struct ifnet *ifp, struct sockaddr *sa)
 	}
 
 	dp_pktmbuf_l2_len(m) = ETHER_HDR_LEN;
-	eh = (struct ether_hdr *) rte_pktmbuf_append(m, len);
+	eh = (struct rte_ether_hdr *) rte_pktmbuf_append(m, len);
 	if (!eh) {
 		ARP_DEBUG("no space in packet for arp request\n");
 		rte_pktmbuf_free(m);
@@ -327,13 +327,13 @@ arpresolve_fast(struct ifnet *ifp, struct rte_mbuf *m,
 
 bool arp_input_validate(const struct ifnet *ifp, struct rte_mbuf *m)
 {
-	struct ether_hdr *eh;
+	struct rte_ether_hdr *eh;
 	struct ether_arp *ah;
 	in_addr_t itaddr, isaddr;
 	uint16_t op;
 	char addrb[INET_ADDRSTRLEN];
 
-	eh = rte_pktmbuf_mtod(m, struct ether_hdr *);
+	eh = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
 	if (rte_pktmbuf_data_len(m) < sizeof(*eh) + sizeof(*ah)) {
 		ARP_DEBUG("runt packet len %u\n", rte_pktmbuf_data_len(m));
 		goto drop;
@@ -404,14 +404,14 @@ drop:
 
 bool arp_is_arp_reply(struct ifnet *ifp, struct rte_mbuf *m)
 {
-	struct ether_hdr *eh;
+	struct rte_ether_hdr *eh;
 	struct ether_arp *ah;
 	uint16_t op;
 
 	if (!arp_input_validate(ifp, m))
 		return false;
 
-	eh = rte_pktmbuf_mtod(m, struct ether_hdr *);
+	eh = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
 	ah = (struct ether_arp *) (eh + 1);
 	op = ntohs(ah->arp_op);
 	if (op == ARPOP_REPLY)

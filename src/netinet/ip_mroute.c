@@ -1044,13 +1044,13 @@ static int mcast_ethernet_send(struct ifnet *in_ifp,
 			       struct rte_mbuf *m, int plen)
 {
 	struct iphdr *ip;
-	struct ether_hdr *eth_hdr;
+	struct rte_ether_hdr *eth_hdr;
 
 	ip = iphdr(m);
 	decrement_ttl(ip);
 
 	mcast_dst_eth_addr_t eth_daddr = mcast_dst_eth_addr(ip->daddr);
-	eth_hdr = rte_pktmbuf_mtod(m, struct ether_hdr *);
+	eth_hdr = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
 	rte_ether_addr_copy(&eth_daddr.as_addr, &eth_hdr->d_addr);
 
 	mc_ip_output(in_ifp, m, out_vifp->v_ifp, ip);

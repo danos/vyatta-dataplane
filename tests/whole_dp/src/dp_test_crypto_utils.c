@@ -223,7 +223,7 @@ dp_test_create_esp_ipv4_pak(const char *saddr, const char *daddr,
 
 	/* recalculation checksum */
 	ip->check = 0;
-	ip->check = rte_ipv4_cksum((const struct ipv4_hdr *)ip);
+	ip->check = rte_ipv4_cksum((const struct rte_ipv4_hdr *)ip);
 
 	/* Payload offset and length */
 	uint32_t poff = pak->l2_len + pak->l3_len + udphdrlen + sizeof(*esp);

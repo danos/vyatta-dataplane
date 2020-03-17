@@ -616,7 +616,8 @@ void dp_test_free_route(struct dp_test_route *route)
 uint16_t
 dp_test_calc_udptcp_chksum(struct rte_mbuf *m)
 {
-	const struct ipv4_hdr *ip = dp_pktmbuf_mtol3(m, struct ipv4_hdr *);
+	const struct rte_ipv4_hdr *ip =
+			dp_pktmbuf_mtol3(m, struct rte_ipv4_hdr *);
 	const struct tcphdr *tcp = (const struct tcphdr *)(ip + 1);
 	uint16_t cksum;
 
@@ -628,7 +629,7 @@ dp_test_calc_udptcp_chksum(struct rte_mbuf *m)
 void
 dp_test_set_tcphdr(struct rte_mbuf *m, uint16_t src_port, uint16_t dst_port)
 {
-	struct ether_hdr *eth = rte_pktmbuf_mtod(m, struct ether_hdr *);
+	struct rte_ether_hdr *eth = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
 	struct iphdr *ip = (struct iphdr *)(eth + 1);
 	struct tcphdr *tcp = (struct tcphdr *)(ip + 1);
 
@@ -647,7 +648,7 @@ dp_test_set_tcphdr(struct rte_mbuf *m, uint16_t src_port, uint16_t dst_port)
 void
 dp_test_set_iphdr(struct rte_mbuf *m, const char *src, const char *dst)
 {
-	struct ether_hdr *eth = rte_pktmbuf_mtod(m, struct ether_hdr *);
+	struct rte_ether_hdr *eth = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
 	struct iphdr *ip = (struct iphdr *)(eth + 1);
 	uint32_t addr;
 

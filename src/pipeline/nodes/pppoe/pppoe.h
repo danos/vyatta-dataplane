@@ -21,7 +21,7 @@
 
 /* A PPPoE Packet, including Ethernet headers */
 struct pppoe_packet {
-	struct ether_hdr eth_hdr;   /* Ethernet header */
+	struct rte_ether_hdr eth_hdr;   /* Ethernet header */
 	uint8_t vertype; /* PPPoE Version and Type (must both be 1) */
 	uint8_t code;	/* PPPoE code */
 	uint16_t session;	/* PPPoE session */

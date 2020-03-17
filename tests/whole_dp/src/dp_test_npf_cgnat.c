@@ -1387,7 +1387,7 @@ cgnat16_cb(struct rte_mbuf *mbuf, struct ifnet *ifp,
 	/* update tcp checksum */
 	udp->check = 0;
 
-	cksum = rte_ipv4_udptcp_cksum((const struct ipv4_hdr *)ip,
+	cksum = rte_ipv4_udptcp_cksum((const struct rte_ipv4_hdr *)ip,
 				      (const void *)udp);
 	udp->check = (cksum == 0xffff) ? 0000 : cksum;
 
@@ -7471,7 +7471,7 @@ _cgnat_udp(const char *rx_intf, const char *pre_smac, int pre_vlan,
 		/* Set TOS, then reset checksum */
 		ip->tos = 0xc0;
 		ip->check = 0;
-		ip->check = rte_ipv4_cksum((const struct ipv4_hdr *)ip);
+		ip->check = rte_ipv4_cksum((const struct rte_ipv4_hdr *)ip);
 
 		dp_test_pktmbuf_eth_init(
 			exp_pak, pre_pkt_UDP.l2_src,
@@ -7619,7 +7619,7 @@ _cgnat_tcp(uint8_t flags, const char *rx_intf, const char *pre_smac,
 		/* Set TOS, then reset checksum */
 		ip->tos = 0xc0;
 		ip->check = 0;
-		ip->check = rte_ipv4_cksum((const struct ipv4_hdr *)ip);
+		ip->check = rte_ipv4_cksum((const struct rte_ipv4_hdr *)ip);
 
 		dp_test_pktmbuf_eth_init(
 			exp_pak, pre_pkt_TCP.l2_src,

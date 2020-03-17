@@ -208,7 +208,7 @@ gre_test_build_expected_icmp_pak(struct dp_test_expected **exp,
 
 	for (i = 0; i < num_paks; i++) {
 		/* Jump over the ether hdr before checking. */
-		expected->check_start[i] = sizeof(struct ether_hdr);
+		expected->check_start[i] = sizeof(struct rte_ether_hdr);
 
 		expected->exp_pak[i] = dp_test_create_icmp_ipv4_pak(
 			"1.1.1.1", "1.1.1.2", ICMP_DEST_UNREACH,
@@ -928,7 +928,7 @@ static struct dp_test_expected *gre_test_build_expected_ecn_pak(
 	exp = dp_test_exp_create_m(NULL, 1);
 	exp->exp_pak[0] = exp_mbuf;
 	dp_test_exp_set_oif_name(exp, "dp1T1");
-	exp->check_start[0] = sizeof(struct ether_hdr);
+	exp->check_start[0] = sizeof(struct rte_ether_hdr);
 	exp->check_len[0] =
 		rte_pktmbuf_data_len(exp_mbuf) - exp->check_start[0];
 	*exp_mbuf_p = exp_mbuf;

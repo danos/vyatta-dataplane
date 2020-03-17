@@ -214,7 +214,7 @@ static struct dp_test_expected *gre6_test_build_expected_decapped_pak(
 	exp = dp_test_exp_create_m(NULL, 1);
 	exp->exp_pak[0] = exp_mbuf;
 	dp_test_exp_set_oif_name(exp, "dp1T1");
-	exp->check_start[0] = sizeof(struct ether_hdr);
+	exp->check_start[0] = sizeof(struct rte_ether_hdr);
 	exp->check_len[0] =
 		rte_pktmbuf_data_len(exp_mbuf) - exp->check_start[0];
 	*exp_mbuf_p = exp_mbuf;

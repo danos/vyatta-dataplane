@@ -261,7 +261,7 @@ l2tp_session_set_info(struct l2tp_session *session, uint32_t session_id,
 		hdr_len += 4;
 		session->flags &= ~L2TP_ENCAP_UDP;
 	} else {
-		hdr_len += 8 + sizeof(struct udp_hdr);
+		hdr_len += 8 + sizeof(struct rte_udp_hdr);
 		session->flags |= L2TP_ENCAP_UDP;
 	}
 	session->flags |= L2TP_LNS_MODE;

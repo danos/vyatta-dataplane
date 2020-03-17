@@ -415,13 +415,13 @@ nd6_entry_amend(struct ifnet *ifp, struct llentry *la, uint8_t state,
 
 			for (i = 0; i < la->la_numheld; ++i) {
 				struct rte_mbuf *m = la->la_held[i];
-				struct ether_hdr *eh;
+				struct rte_ether_hdr *eh;
 
 				if (!m)
 					break;
 
 				eh = rte_pktmbuf_mtod(m,
-						      struct ether_hdr *);
+						      struct rte_ether_hdr *);
 
 				la->la_held[i] = NULL;
 				rte_ether_addr_copy(enaddr, &eh->d_addr);
@@ -580,7 +580,7 @@ nd6_na_output(struct ifnet *ifp, const struct rte_ether_addr *lladdr,
 	      int tlladdr)
 {
 	struct rte_mbuf *m;
-	struct ether_hdr *eh;
+	struct rte_ether_hdr *eh;
 	struct ip6_hdr *ip6;
 	struct nd_neighbor_advert *nd_na;
 	const struct in6_addr *src;
@@ -605,7 +605,7 @@ nd6_na_output(struct ifnet *ifp, const struct rte_ether_addr *lladdr,
 	}
 	pktlen = sizeof(*eh) + sizeof(*ip6) + paylen;
 
-	eh = (struct ether_hdr *)rte_pktmbuf_append(m, pktlen);
+	eh = (struct rte_ether_hdr *)rte_pktmbuf_append(m, pktlen);
 	rte_ether_addr_copy(&ifp->eth_addr, &eh->s_addr);
 	if (lladdr)
 		rte_ether_addr_copy(lladdr, &eh->d_addr);
@@ -1016,7 +1016,7 @@ nd6_ns_build(struct ifnet *ifp, const struct in6_addr *res_src,
 	     const struct rte_ether_addr *dst_mac)
 {
 	struct rte_mbuf *m;
-	struct ether_hdr *eh;
+	struct rte_ether_hdr *eh;
 	struct ip6_hdr *ip6;
 	struct nd_neighbor_solicit *nd_ns;
 	const struct in6_addr *src;
@@ -1039,7 +1039,7 @@ nd6_ns_build(struct ifnet *ifp, const struct in6_addr *res_src,
 	paylen = sizeof(*nd_ns) + optlen;
 	pktlen = sizeof(*eh) + sizeof(*ip6) + paylen;
 
-	eh = (struct ether_hdr *)rte_pktmbuf_append(m, pktlen);
+	eh = (struct rte_ether_hdr *)rte_pktmbuf_append(m, pktlen);
 	rte_ether_addr_copy(&ifp->eth_addr, &eh->s_addr);
 	eh->ether_type = htons(ETHER_TYPE_IPv6);
 

@@ -387,7 +387,7 @@ npf_4to6_convert(struct rte_mbuf **m, npf_cache_t *npc,
 
 	/* fix up ether type */
 	if ((*m)->l2_len == ETHER_HDR_LEN) {
-		struct ether_hdr *eth = (struct ether_hdr *)l2;
+		struct rte_ether_hdr *eth = (struct rte_ether_hdr *)l2;
 		eth->ether_type = htons(ETHER_TYPE_IPv6);
 	}
 
@@ -482,7 +482,7 @@ npf_6to4_convert(struct rte_mbuf **m, npf_cache_t *npc,
 
 	/* fix up ether type */
 	if ((*m)->l2_len == ETHER_HDR_LEN) {
-		struct ether_hdr *eth = (struct ether_hdr *)l2;
+		struct rte_ether_hdr *eth = (struct rte_ether_hdr *)l2;
 		eth->ether_type = htons(ETHER_TYPE_IPv4);
 	}
 

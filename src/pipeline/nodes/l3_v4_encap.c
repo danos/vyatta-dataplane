@@ -49,7 +49,8 @@ static ALWAYS_INLINE bool
 ipv4_encap_eth_from_nh4(struct rte_mbuf *mbuf, const struct next_hop *nh,
 			in_addr_t addr)
 {
-	struct ether_hdr *eth_hdr = rte_pktmbuf_mtod(mbuf, struct ether_hdr *);
+	struct rte_ether_hdr *eth_hdr =
+				rte_pktmbuf_mtod(mbuf, struct rte_ether_hdr *);
 	struct ifnet *out_ifp = dp_nh_get_ifp(nh); /* Needed for VRRP */
 
 	rte_ether_addr_copy(&out_ifp->eth_addr, &eth_hdr->s_addr);

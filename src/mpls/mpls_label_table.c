@@ -700,7 +700,7 @@ mpls_oam_v4_lookup(int labelspace, uint8_t nlabels, const label_t *labels,
 	struct label_table_node *out;
 	struct next_hop *paths;
 	struct rte_mbuf *m;
-	struct ether_hdr *eth;
+	struct rte_ether_hdr *eth;
 	label_t *lbl_stack;
 	struct iphdr *ip;
 	struct udphdr *udp;
@@ -736,17 +736,17 @@ mpls_oam_v4_lookup(int labelspace, uint8_t nlabels, const label_t *labels,
 
 	hlen = nlabels * sizeof(label_t);
 	payload = sizeof(struct udphdr) + sizeof(struct iphdr);
-	if (!rte_pktmbuf_append(m, sizeof(struct ether_hdr) + hlen +
+	if (!rte_pktmbuf_append(m, sizeof(struct rte_ether_hdr) + hlen +
 				payload)) {
 		rte_pktmbuf_free(m);
 		rcu_read_unlock();
 		return;
 	}
 
-	eth = rte_pktmbuf_mtod(m, struct ether_hdr *);
+	eth = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
 	memset(eth, 0, sizeof(*eth));
 	eth->ether_type = htons(ETH_P_MPLS_UC);
-	m->l2_len = sizeof(struct ether_hdr);
+	m->l2_len = sizeof(struct rte_ether_hdr);
 
 	/*
 	 * MPLS Incoming Label Stack

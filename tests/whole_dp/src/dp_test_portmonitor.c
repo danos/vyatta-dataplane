@@ -346,7 +346,7 @@ erspan_build_expected_pak(struct dp_test_expected **expected,
 	int len;
 	struct dp_test_expected *exp;
 	struct iphdr *inner_ip;
-	struct ether_hdr *payload;
+	struct rte_ether_hdr *payload;
 	void *erspan_payload;
 	struct rte_mbuf *m;
 	uint8_t *dont_care_start;
@@ -365,7 +365,7 @@ erspan_build_expected_pak(struct dp_test_expected **expected,
 					   &erspan_payload);
 	if (!m)
 		return;
-	payload = rte_pktmbuf_mtod(tpak, struct ether_hdr *);
+	payload = rte_pktmbuf_mtod(tpak, struct rte_ether_hdr *);
 	memcpy(erspan_payload, payload, len);
 	rte_pktmbuf_free(exp->exp_pak[1]);
 	exp->exp_pak[1] = m;

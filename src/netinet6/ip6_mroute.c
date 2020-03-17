@@ -998,7 +998,7 @@ static int mcast6_ethernet_send(struct mif6 *mifp, struct rte_mbuf *m,
 {
 	struct ifnet *ifp = mifp->m6_ifp;
 	struct ip6_hdr *ip6 = ip6hdr(m);
-	struct ether_hdr *eth_hdr;
+	struct rte_ether_hdr *eth_hdr;
 	mcast_dst_eth_addr_t eth_daddr;
 
 	if (unlikely(rte_pktmbuf_pkt_len(m) > ifp->if_mtu))
@@ -1011,7 +1011,7 @@ static int mcast6_ethernet_send(struct mif6 *mifp, struct rte_mbuf *m,
 	 */
 	ip6->ip6_hlim--;
 
-	eth_hdr = rte_pktmbuf_mtod(m, struct ether_hdr *);
+	eth_hdr = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
 	eth_daddr = mcast6_dst_eth_addr(&ip6->ip6_dst);
 	rte_ether_addr_copy(&eth_daddr.as_addr, &eth_hdr->d_addr);
 	rte_ether_addr_copy(&ifp->eth_addr, &eth_hdr->s_addr);

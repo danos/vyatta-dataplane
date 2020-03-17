@@ -27,8 +27,8 @@
 struct ifnet;
 
 struct ether_vlan_hdr {
-	struct ether_hdr eh;
-	struct vlan_hdr  vh;
+	struct rte_ether_hdr eh;
+	struct rte_vlan_hdr  vh;
 };
 
 #define VLAN_HDR_LEN  sizeof(struct ether_vlan_hdr)
@@ -41,16 +41,16 @@ void ether_input(struct ifnet *ifp, struct rte_mbuf *m)
 void ether_input_no_dyn_feats(struct ifnet *ifp, struct rte_mbuf *m)
 	__hot_func __rte_cache_aligned;
 
-static inline struct ether_hdr *ethhdr(struct rte_mbuf *m)
+static inline struct rte_ether_hdr *ethhdr(struct rte_mbuf *m)
 {
-	return rte_pktmbuf_mtod(m, struct ether_hdr *);
+	return rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
 }
 
 /* ethtype in host byte order, return ptr to pkmbuf new data_start */
 static inline char *ethhdr_prepend(struct rte_mbuf *m, uint16_t ethtype)
 {
 	char *data_start = rte_pktmbuf_prepend(m, ETHER_HDR_LEN);
-	struct ether_hdr *eh;
+	struct rte_ether_hdr *eh;
 
 	if (!data_start)
 		return NULL;
@@ -76,12 +76,12 @@ static inline uint16_t ethtype(const struct rte_mbuf *m,
 
 static inline uint16_t vid_from_pkt(struct rte_mbuf *m, uint16_t etype)
 {
-	struct ether_hdr *eth = rte_pktmbuf_mtod(m, struct ether_hdr *);
+	struct rte_ether_hdr *eth = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
 
 	if (eth->ether_type != htons(etype))
 		return 0;
 
-	struct vlan_hdr *vh = (struct vlan_hdr *) (eth + 1);
+	struct rte_vlan_hdr *vh = (struct rte_vlan_hdr *) (eth + 1);
 
 	return ntohs(vh->vlan_tci) & VLAN_VID_MASK;
 }
@@ -109,10 +109,10 @@ static inline uint16_t vid_decap(struct rte_mbuf *m, uint16_t etype)
 		return 0;
 
 	vid = ntohs(eth->vh.vlan_tci);
-	memmove((char *) eth + sizeof(struct vlan_hdr),
+	memmove((char *) eth + sizeof(struct rte_vlan_hdr),
 		eth, 2 * ETHER_ADDR_LEN);
 
-	rte_pktmbuf_adj(m, sizeof(struct vlan_hdr));
+	rte_pktmbuf_adj(m, sizeof(struct rte_vlan_hdr));
 
 	return vid;
 }
@@ -121,14 +121,15 @@ static inline struct rte_mbuf *vid_encap(uint16_t if_vlan,
 				  struct rte_mbuf **m, uint16_t etype)
 {
 	if (unlikely(pktmbuf_prepare_for_header_change(m,
-		     sizeof(struct ether_hdr)) != 0))
+		     sizeof(struct rte_ether_hdr)) != 0))
 		return NULL;
 
-	struct ether_hdr *eth = rte_pktmbuf_mtod(*m, struct ether_hdr *);
+	struct rte_ether_hdr *eth =
+				rte_pktmbuf_mtod(*m, struct rte_ether_hdr *);
 	struct ether_vlan_hdr *vhdr;
 
 	vhdr = (struct ether_vlan_hdr *) rte_pktmbuf_prepend(*m,
-		sizeof(struct vlan_hdr));
+		sizeof(struct rte_vlan_hdr));
 
 	if (unlikely(vhdr == NULL))
 		return NULL;

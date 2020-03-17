@@ -905,9 +905,9 @@ dp_test_nat_validate(struct rte_mbuf *mbuf, struct ifnet *ifp,
 	 * When this is the case then the dataplane will send an ARP request.
 	 * Catch this here and format a suitable error message.
 	 */
-	struct ether_hdr *eth;
+	struct rte_ether_hdr *eth;
 
-	eth = rte_pktmbuf_mtod(mbuf, struct ether_hdr *);
+	eth = rte_pktmbuf_mtod(mbuf, struct rte_ether_hdr *);
 	if (eth->ether_type == htons(ETHER_TYPE_ARP)) {
 		char *tpa = (char *)(eth + 1) + 24;
 

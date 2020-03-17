@@ -103,7 +103,7 @@ struct	ether_arp {
 static int arp_reply(struct ifnet *ifp, struct rte_mbuf *m,
 		     const struct rte_ether_addr *ea, in_addr_t taddr)
 {
-	struct ether_hdr *eh = rte_pktmbuf_mtod(m, struct ether_hdr *);
+	struct rte_ether_hdr *eh = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
 	struct ether_arp *ah = (struct ether_arp *) (eh + 1);
 	in_addr_t dst_ip;
 
@@ -213,7 +213,7 @@ arp_in_nothot_process(struct pl_packet *pkt, void *context __unused)
 {
 	struct ifnet *ifp = pkt->in_ifp;
 	struct rte_mbuf *m = pkt->mbuf;
-	struct ether_hdr *eh;
+	struct rte_ether_hdr *eh;
 	struct ether_arp *ah;
 	struct llentry *la;
 	in_addr_t itaddr, isaddr;
@@ -224,7 +224,7 @@ arp_in_nothot_process(struct pl_packet *pkt, void *context __unused)
 	struct ifnet *vrrp_ifp;
 	int resp;
 
-	eh = rte_pktmbuf_mtod(m, struct ether_hdr *);
+	eh = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
 	vrrp_ifp = macvlan_get_vrrp_if(ifp,
 				       (struct rte_ether_addr *)&eh->d_addr);
 	if (vrrp_ifp)

@@ -143,7 +143,7 @@ void
 dp_test_pktmbuf_smac_set(struct rte_mbuf *m, const char *mac_str);
 
 
-struct ether_hdr *
+struct rte_ether_hdr *
 dp_test_pktmbuf_eth_prepend(struct rte_mbuf *m, const char *d_addr,
 			    const char *s_addr, uint16_t ether_type);
 
@@ -355,11 +355,11 @@ dp_test_pktmbuf_gre_prepend(struct rte_mbuf *m, uint16_t prot, uint32_t key);
 void
 dp_test_pktmbuf_gre_adj(struct rte_mbuf *m);
 
-struct vxlan_hdr *
+struct rte_vxlan_hdr *
 dp_test_pktmbuf_vxlan_init(struct rte_mbuf *m, uint32_t vx_flags,
 			   uint32_t vx_vni);
 
-struct vxlan_hdr *
+struct rte_vxlan_hdr *
 dp_test_pktmbuf_vxlan_prepend(struct rte_mbuf *m, uint32_t vx_flags,
 			      uint32_t vx_vni);
 

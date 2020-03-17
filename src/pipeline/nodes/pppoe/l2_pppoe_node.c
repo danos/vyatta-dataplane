@@ -48,11 +48,11 @@ pppoe_in_process(struct pl_packet *pkt, void *context __unused)
 		pkt->in_ifp = ppp;
 
 		/* Trim ONLY PPP overhead, keep length for ether_hdr */
-		struct ether_hdr *eh =
-			(struct ether_hdr *)rte_pktmbuf_adj(
+		struct rte_ether_hdr *eh =
+			(struct rte_ether_hdr *)rte_pktmbuf_adj(
 			m, (sizeof(struct pppoe_packet) -
-				sizeof(struct ether_hdr)));
-		m->l2_len = sizeof(struct ether_hdr);
+				sizeof(struct rte_ether_hdr)));
+		m->l2_len = sizeof(struct rte_ether_hdr);
 		memcpy(&eh->d_addr, &pppoe_hdr->eth_hdr.d_addr,
 				sizeof(struct rte_ether_addr));
 		memcpy(&eh->s_addr, &pppoe_hdr->eth_hdr.s_addr,

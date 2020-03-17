@@ -250,7 +250,7 @@ enum dp_test_pak_field_ {
  * To just check and set the mbuf l2_len and ether type:
  *   (void)dp_test_pktmbuf_eth_init(m, NULL, NULL, ETHER_TYPE_IPv4);
  */
-struct ether_hdr *
+struct rte_ether_hdr *
 dp_test_pktmbuf_eth_init(struct rte_mbuf *m,
 			 const char *d_addr,
 			 const char *s_addr,

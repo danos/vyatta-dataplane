@@ -615,7 +615,7 @@ dp_test_sip_alg_parse(struct rte_mbuf *nbuf, bool verify_sip,
 	uint16_t plen;
 	char payload[SIP_MESSAGE_MAX_LENGTH + 1];
 	int rc;
-	const struct ether_hdr *eh;
+	const struct rte_ether_hdr *eh;
 	uint16_t ether_type;
 
 	if (!nbuf || !err)
@@ -629,7 +629,7 @@ dp_test_sip_alg_parse(struct rte_mbuf *nbuf, bool verify_sip,
 
 	ether_type = 0;
 	if (nbuf->l2_len >= ETHER_ADDR_LEN) {
-		eh = rte_pktmbuf_mtod(nbuf, struct ether_hdr *);
+		eh = rte_pktmbuf_mtod(nbuf, struct rte_ether_hdr *);
 		ether_type = eh->ether_type;
 	} else if (nbuf->l2_len == 0) {
 		if (dp_test_mbuf_is_ipv4(nbuf))

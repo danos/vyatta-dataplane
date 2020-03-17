@@ -102,7 +102,7 @@ ether_lookup_process_common(struct pl_packet *pkt, void *context __unused,
 {
 	struct rte_mbuf *m = pkt->mbuf;
 	struct ifnet *ifp = pkt->in_ifp;
-	const struct ether_hdr *eth;
+	const struct rte_ether_hdr *eth;
 	struct if_data *ifstat;
 
 	switch (mode) {

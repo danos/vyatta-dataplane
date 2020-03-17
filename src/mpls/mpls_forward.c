@@ -802,7 +802,7 @@ static inline void nh_eth_output_mpls(enum nh_type nh_type,
 				      struct mpls_label_cache *cache,
 				      struct ifnet *input_ifp)
 {
-	struct ether_hdr *hdr;
+	struct rte_ether_hdr *hdr;
 	unsigned int len;
 
 	/*

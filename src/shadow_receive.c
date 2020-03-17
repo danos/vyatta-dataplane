@@ -445,8 +445,8 @@ int tuntap_write(int fd, struct rte_mbuf *m, struct ifnet *ifp)
 	if (m->ol_flags & PKT_RX_VLAN) {
 		bool sw_qinq_inner = false;
 		uint16_t sw_outer_vlan;
-		const struct ether_hdr *oeh
-			= rte_pktmbuf_mtod(m, const struct ether_hdr *);
+		const struct rte_ether_hdr *oeh
+			= rte_pktmbuf_mtod(m, const struct rte_ether_hdr *);
 
 		if (!ifp) {
 			/*
@@ -468,8 +468,8 @@ int tuntap_write(int fd, struct rte_mbuf *m, struct ifnet *ifp)
 
 		if (!ifp->qinq_inner && !sw_qinq_inner) {
 			struct {
-				struct ether_hdr eh;
-				struct vlan_hdr vh;
+				struct rte_ether_hdr eh;
+				struct rte_vlan_hdr vh;
 			} *vhdr = alloca(sizeof(*vhdr));
 
 			memcpy(&vhdr->eh, oeh, 2 * ETHER_ADDR_LEN);
@@ -482,9 +482,9 @@ int tuntap_write(int fd, struct rte_mbuf *m, struct ifnet *ifp)
 			++n;
 		} else {
 			struct {
-				struct ether_hdr eh;
-				struct vlan_hdr vh1;
-				struct vlan_hdr vh2;
+				struct rte_ether_hdr eh;
+				struct rte_vlan_hdr vh1;
+				struct rte_vlan_hdr vh2;
 			} *qinqhdr = alloca(sizeof(*qinqhdr));
 
 			memcpy(&qinqhdr->eh, oeh, 2 * ETHER_ADDR_LEN);
@@ -532,7 +532,7 @@ int tuntap_write(int fd, struct rte_mbuf *m, struct ifnet *ifp)
  */
 bool local_packet_filter(const struct ifnet *ifp, struct rte_mbuf *m)
 {
-	const struct ether_hdr *eh = ethhdr(m);
+	const struct rte_ether_hdr *eh = ethhdr(m);
 
 	/* Filter out unwanted multicasts */
 	if (rte_is_multicast_ether_addr(&eh->d_addr) &&

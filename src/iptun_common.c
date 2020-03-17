@@ -230,8 +230,8 @@ int
 iptun_eth_hdr_fixup(struct rte_mbuf *m, uint16_t next_prot,
 		     uint16_t decap_size)
 {
-	struct ether_hdr *orig_eth;
-	struct ether_hdr *new_eth;
+	struct rte_ether_hdr *orig_eth;
+	struct rte_ether_hdr *new_eth;
 
 	/*
 	 * Have found a tunnel, so remove the outer IP and other
@@ -240,8 +240,8 @@ iptun_eth_hdr_fixup(struct rte_mbuf *m, uint16_t next_prot,
 	 * protocol accurately reflects the next header and has a
 	 * correct source and dest addr set.
 	 */
-	orig_eth = rte_pktmbuf_mtod(m, struct ether_hdr *);
-	new_eth = (struct ether_hdr *)rte_pktmbuf_adj(m, decap_size);
+	orig_eth = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
+	new_eth = (struct rte_ether_hdr *)rte_pktmbuf_adj(m, decap_size);
 	if (unlikely(!new_eth))
 		return -1;
 

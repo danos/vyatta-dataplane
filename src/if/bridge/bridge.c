@@ -1087,7 +1087,8 @@ static int
 bridge_forward(struct bridge_softc *sc, struct ifnet *ifp,
 	       struct rte_mbuf *m, struct ifnet *brif)
 {
-	const struct ether_hdr *eh = rte_pktmbuf_mtod(m, struct ether_hdr *);
+	const struct rte_ether_hdr *eh =
+				rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
 	struct bridge_rtnode *brt;
 	struct ifnet *dif;
 	struct bridge_port *port = NULL;
@@ -1281,7 +1282,8 @@ static void bridge_flood(struct bridge_softc *sc, struct ifnet *in_ifp,
 void bridge_output(struct ifnet *ifp, struct rte_mbuf *m,
 		   struct ifnet *in_ifp)
 {
-	const struct ether_hdr *eh = rte_pktmbuf_mtod(m, struct ether_hdr *);
+	const struct rte_ether_hdr *eh =
+				rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
 	struct bridge_rtnode *brt;
 	struct ifnet *dif;
 	struct bridge_port *port = NULL;
@@ -1301,7 +1303,7 @@ void bridge_output(struct ifnet *ifp, struct rte_mbuf *m,
 			goto drop;
 
 		/* Set eh again in case buffer in m changed. */
-		eh = rte_pktmbuf_mtod(m, struct ether_hdr *);
+		eh = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
 	}
 
 	brt = bridge_rtnode_lookup(sc, &eh->d_addr, vlan);
@@ -1428,7 +1430,8 @@ void bridge_input(struct bridge_port *port, struct rte_mbuf *m)
 	struct ifnet *ifp = bridge_port_get_interface(port);
 	struct ifnet *brif = bridge_port_get_bridge(ifp->if_brport);
 	struct bridge_softc *sc = brif->if_softc;
-	const struct ether_hdr *eh = rte_pktmbuf_mtod(m, struct ether_hdr *);
+	const struct rte_ether_hdr *eh =
+				rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
 	struct if_data *ifstat = &ifp->if_data[dp_lcore_id()];
 	struct pktmbuf_mdata *mdata;
 
@@ -1512,7 +1515,7 @@ void bridge_input(struct bridge_port *port, struct rte_mbuf *m)
 			goto ignore;
 
 		/* Set eh again in case buffer in m changed. */
-		eh = rte_pktmbuf_mtod(m, struct ether_hdr *);
+		eh = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
 	}
 	if (unlikely(rte_ether_addr_equal(&eh->d_addr, &brif->eth_addr))) {
 		/* "to us" unicast pkts should always be consumed */

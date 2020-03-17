@@ -132,7 +132,7 @@ ip6_select_source(struct ifnet *ifp, const struct in6_addr *addr)
 void
 icmp6_reflect(struct ifnet *ifp, struct rte_mbuf *m)
 {
-	struct ether_hdr *eh = ethhdr(m);
+	struct rte_ether_hdr *eh = ethhdr(m);
 
 	eh->ether_type = htons(ETHER_TYPE_IPv6);
 

@@ -1837,7 +1837,7 @@ DP_START_TEST_DONT_RUN(ip6_fwd, ll_dst)
 	nd_opt->nd_opt_type = ND_OPT_SOURCE_LINKADDR;
 	nd_opt->nd_opt_len = optlen >> 3;
 	rte_ether_addr_copy(&rte_pktmbuf_mtod(test_pak,
-					      struct ether_hdr *)->d_addr,
+					      struct rte_ether_hdr *)->d_addr,
 			(struct rte_ether_addr *)(nd_opt + 1));
 
 	icmp6->icmp6_cksum = 0;

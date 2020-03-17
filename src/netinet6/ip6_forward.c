@@ -201,7 +201,7 @@ int ip6_fragment_mtu(struct ifnet *ifp, unsigned int mtu_size,
 {
 	struct rte_mbuf *m_table[IPV6_MAX_FRAGS];
 	struct ip6_hdr *in_ip6, *frag_ip6;
-	struct ether_hdr *eth_hdr;
+	struct rte_ether_hdr *eth_hdr;
 	struct ip6_frag *ip6f;
 	struct rte_mbuf *m_frag;
 	uint32_t fh_id = random();
@@ -269,10 +269,10 @@ int ip6_fragment_mtu(struct ifnet *ifp, unsigned int mtu_size,
 		/*
 		 * Fixup fragment L2 header
 		 */
-		rte_pktmbuf_prepend(m_frag, sizeof(struct ether_hdr));
-		eth_hdr = rte_pktmbuf_mtod(m_frag, struct ether_hdr *);
+		rte_pktmbuf_prepend(m_frag, sizeof(struct rte_ether_hdr));
+		eth_hdr = rte_pktmbuf_mtod(m_frag, struct rte_ether_hdr *);
 		eth_hdr->ether_type = htons(ETHER_TYPE_IPv6);
-		m_frag->l2_len = sizeof(struct ether_hdr);
+		m_frag->l2_len = sizeof(struct rte_ether_hdr);
 
 		m_table[nfrags++] = m_frag;
 	}
@@ -308,7 +308,7 @@ ip6_refragment_packet(struct ifnet *o_ifp, struct rte_mbuf *m,
 		      void *ctx, ip6_output_fn_t output_fn)
 {
 	struct rte_mbuf *m_table[IPV6_MAX_FRAGS_PER_SET];
-	struct ether_hdr *eth_hdr, eth_copy;
+	struct rte_ether_hdr *eth_hdr, eth_copy;
 	uint16_t l2_len;
 	int32_t nfrags;
 	uint32_t fh_id;
@@ -328,7 +328,7 @@ ip6_refragment_packet(struct ifnet *o_ifp, struct rte_mbuf *m,
 	 * addresses, but we don't know that just yet so just copy the
 	 * complete header.
 	 */
-	eth_hdr = rte_pktmbuf_mtod(m, struct ether_hdr *);
+	eth_hdr = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
 
 	rte_ether_addr_copy(&eth_hdr->d_addr, &eth_copy.d_addr);
 	rte_ether_addr_copy(&eth_hdr->s_addr, &eth_copy.s_addr);
@@ -378,17 +378,17 @@ ip6_refragment_packet(struct ifnet *o_ifp, struct rte_mbuf *m,
 			 */
 			fh = (struct ip6_frag *)
 				(rte_pktmbuf_mtod(m, char *) +
-				 sizeof(struct ipv6_hdr));
+				 sizeof(struct rte_ipv6_hdr));
 			fh->ip6f_ident = htonl(fh_id);
 
 			/* Prepend space for l2 hdr */
-			rte_pktmbuf_prepend(m, sizeof(struct ether_hdr));
-			m->l2_len = sizeof(struct ether_hdr);
+			rte_pktmbuf_prepend(m, sizeof(struct rte_ether_hdr));
+			m->l2_len = sizeof(struct rte_ether_hdr);
 
 			/*
 			 * Write the ethernet header
 			 */
-			eth_hdr = rte_pktmbuf_mtod(m, struct ether_hdr *);
+			eth_hdr = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
 
 			rte_ether_addr_copy(&eth_copy.d_addr, &eth_hdr->d_addr);
 			rte_ether_addr_copy(&eth_copy.s_addr, &eth_hdr->s_addr);

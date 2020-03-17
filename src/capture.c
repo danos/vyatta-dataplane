@@ -458,10 +458,10 @@ static int capture_write(struct rte_mbuf *m, struct ifnet *ifp)
 
 	/* ... then PCAP header */
 	if (m->ol_flags & (PKT_TX_VLAN_PKT|PKT_RX_VLAN)) {
-		pcap.caplen += sizeof(struct vlan_hdr);
+		pcap.caplen += sizeof(struct rte_vlan_hdr);
 		if (pcap.caplen > cap_info->snaplen)
 			pcap.caplen = cap_info->snaplen;
-		pcap.len += sizeof(struct vlan_hdr);
+		pcap.len += sizeof(struct rte_vlan_hdr);
 	}
 
 	zmsg_addmem(msg, &pcap, sizeof(pcap));
@@ -472,11 +472,11 @@ static int capture_write(struct rte_mbuf *m, struct ifnet *ifp)
 	 * in a temporary buffer.
 	 */
 	if (m->ol_flags & (PKT_TX_VLAN_PKT|PKT_RX_VLAN)) {
-		const struct ether_hdr *eh
-			= rte_pktmbuf_mtod(m, struct ether_hdr *);
+		const struct rte_ether_hdr *eh
+			= rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
 		struct {
-			struct ether_hdr eh;
-			struct vlan_hdr  vh;
+			struct rte_ether_hdr eh;
+			struct rte_vlan_hdr  vh;
 		} vhdr;
 
 		memcpy(&vhdr.eh, eh, 2 * ETHER_ADDR_LEN);

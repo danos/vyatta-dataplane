@@ -146,7 +146,7 @@ struct l2tpv3_ip_encap {
 } __attribute__((packed));
 
 struct l2tpv3_encap {
-	struct ether_hdr ether_header;
+	struct rte_ether_hdr ether_header;
 	char iphdr[0];
 } __attribute__((packed));
 

@@ -1134,7 +1134,7 @@ static int esp_output_inner(int new_family, struct sadb_sa *sa,
 	unsigned char *udp_base;
 	char *hdr,  *tail = NULL;
 	struct udphdr *udp = NULL;
-	struct ether_hdr *eth_hdr;
+	struct rte_ether_hdr *eth_hdr;
 	unsigned char *new_l3hdr;
 	struct esp_hdr_ctx h;
 
@@ -1253,7 +1253,7 @@ static int esp_output_inner(int new_family, struct sadb_sa *sa,
 			      crypto_session_iv_len(sa->session),
 			      tail - crypto_session_iv_len(sa->session));
 
-	eth_hdr = (struct ether_hdr *)hdr;
+	eth_hdr = (struct rte_ether_hdr *)hdr;
 	eth_hdr->ether_type = htons(h.out_ethertype);
 
 	crypto_sadb_increment_counters(sa, plaintext_size_orig -

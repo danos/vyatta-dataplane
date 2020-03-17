@@ -142,7 +142,7 @@ DP_START_TEST(slow_dp_pkt, test_spath_gre)
 		"1.1.2.1", "1.1.2.2", 1, &gre_pl_len, ETH_P_TEB, 0, 0,
 		&gre_payload);
 	memcpy(gre_payload, rte_pktmbuf_mtod(payload_pak,
-				const struct ether_hdr *), gre_pl_len);
+				const struct rte_ether_hdr *), gre_pl_len);
 	dp_test_set_pak_ip_field(iphdr(test_pak), DP_TEST_SET_DF, 1);
 	dp_test_pktmbuf_eth_init(test_pak,
 				 nh_mac_str,
@@ -169,7 +169,7 @@ DP_START_TEST(slow_dp_pkt, test_spath_gre)
 		"1.1.2.1", "1.1.2.2", 1, &gre_pl_len, ETH_P_TEB, 0, 0,
 		&gre_payload);
 	memcpy(gre_payload, rte_pktmbuf_mtod(payload_pak,
-				const struct ether_hdr *), gre_pl_len);
+				const struct rte_ether_hdr *), gre_pl_len);
 	dp_test_set_pak_ip_field(iphdr(test_pak), DP_TEST_SET_DF, 1);
 	dp_test_pktmbuf_eth_init(test_pak,
 				 nh_mac_str,

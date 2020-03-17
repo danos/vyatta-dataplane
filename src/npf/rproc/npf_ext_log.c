@@ -92,8 +92,8 @@ npf_log_mac_fields(const struct rte_mbuf *mbuf,
 	    dp_pktmbuf_l2_len(mbuf) != VLAN_HDR_LEN)
 		return;
 
-	const struct ether_hdr *eth
-		= rte_pktmbuf_mtod(mbuf, struct ether_hdr *);
+	const struct rte_ether_hdr *eth
+		= rte_pktmbuf_mtod(mbuf, struct rte_ether_hdr *);
 
 	unsigned int pl;
 	char *bp;

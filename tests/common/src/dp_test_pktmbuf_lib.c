@@ -23,6 +23,7 @@
 #include <rte_log.h>
 #include <rte_ether.h>
 #include <rte_ip.h>
+#include <rte_vxlan.h>
 #include <util.h>
 #include <ip_funcs.h>
 
@@ -181,11 +182,11 @@ static void
 dp_test_pktmbuf_mac_set(struct rte_mbuf *m, const char *mac_str, bool src_mac)
 {
 	struct rte_ether_addr *mac_field;
-	struct ether_hdr *eth;
+	struct rte_ether_hdr *eth;
 
 	assert(m);
 	assert(mac_str);
-	eth = rte_pktmbuf_mtod(m, struct ether_hdr *);
+	eth = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
 	if (src_mac)
 		mac_field = &eth->s_addr;
 	else
@@ -211,11 +212,11 @@ static void
 dp_test_pktmbuf_mac_get(struct rte_mbuf *m, char *mac, bool src_mac)
 {
 	struct rte_ether_addr *mac_field;
-	struct ether_hdr *eth;
+	struct rte_ether_hdr *eth;
 
 	assert(m);
 	assert(mac);
-	eth = rte_pktmbuf_mtod(m, struct ether_hdr *);
+	eth = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
 	if (src_mac)
 		mac_field = &eth->s_addr;
 	else
@@ -248,24 +249,24 @@ dp_test_pktmbuf_dmac_get(struct rte_mbuf *m, char *dmac_str)
  *
  * @return  Pointer to eth header if successful, else NULL
  */
-static struct ether_hdr *
+static struct rte_ether_hdr *
 dp_test_pktmbuf_eth(struct rte_mbuf *m,
 		    const char *d_addr,
 		    const char *s_addr,
 		    uint16_t ether_type,
 		    bool prepend)
 {
-	struct ether_hdr *eth;
+	struct rte_ether_hdr *eth;
 
 	if (m->l2_len == 0 || prepend) {
-		m->l2_len = sizeof(struct ether_hdr);
-		eth = (struct ether_hdr *)rte_pktmbuf_prepend(m, m->l2_len);
+		m->l2_len = sizeof(struct rte_ether_hdr);
+		eth = (struct rte_ether_hdr *)rte_pktmbuf_prepend(m, m->l2_len);
 		if (!eth) {
 			DP_PKTMBUF_DBG("Failed to prepend eth header\n");
 			return NULL;
 		}
 	} else {
-		eth = rte_pktmbuf_mtod(m, struct ether_hdr *);
+		eth = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
 	}
 
 	eth->ether_type = htons(ether_type);
@@ -282,14 +283,14 @@ dp_test_pktmbuf_eth(struct rte_mbuf *m,
 	return eth;
 }
 
-struct ether_hdr *
+struct rte_ether_hdr *
 dp_test_pktmbuf_eth_init(struct rte_mbuf *m, const char *d_addr,
 			 const char *s_addr, uint16_t ether_type)
 {
 	return dp_test_pktmbuf_eth(m, d_addr, s_addr, ether_type, false);
 }
 
-struct ether_hdr *
+struct rte_ether_hdr *
 dp_test_pktmbuf_eth_prepend(struct rte_mbuf *m, const char *d_addr,
 			    const char *s_addr, uint16_t ether_type)
 {
@@ -308,24 +309,24 @@ void
 dp_test_pktmbuf_eth_hdr_replace(struct rte_mbuf *m_target,
 				struct rte_mbuf *m_origin)
 {
-	struct ether_hdr *eth_target, *eth_origin;
+	struct rte_ether_hdr *eth_target, *eth_origin;
 
 	assert(m_target);
 	assert(m_origin);
 	if (m_target->l2_len == 0) {
-		m_target->l2_len = sizeof(struct ether_hdr);
-		eth_target = (struct ether_hdr *)
+		m_target->l2_len = sizeof(struct rte_ether_hdr);
+		eth_target = (struct rte_ether_hdr *)
 			rte_pktmbuf_prepend(m_target, m_target->l2_len);
 		if (!eth_target) {
 			DP_PKTMBUF_DBG("Failed to replace eth header\n");
 			return;
 		}
 	}
-	assert(m_origin->l2_len >= sizeof(struct ether_hdr));
-	eth_target = rte_pktmbuf_mtod(m_target, struct ether_hdr *);
-	eth_origin = rte_pktmbuf_mtod(m_origin, struct ether_hdr *);
-	memcpy(eth_target, eth_origin, sizeof(struct ether_hdr));
-	m_origin->l2_len = sizeof(struct ether_hdr);
+	assert(m_origin->l2_len >= sizeof(struct rte_ether_hdr));
+	eth_target = rte_pktmbuf_mtod(m_target, struct rte_ether_hdr *);
+	eth_origin = rte_pktmbuf_mtod(m_origin, struct rte_ether_hdr *);
+	memcpy(eth_target, eth_origin, sizeof(struct rte_ether_hdr));
+	m_origin->l2_len = sizeof(struct rte_ether_hdr);
 }
 
 /**
@@ -395,7 +396,7 @@ dp_test_pktmbuf_ip(struct rte_mbuf *m, const char *src, const char *dst,
 
 	/* Set checksum */
 	ip->check = 0;
-	ip->check = rte_ipv4_cksum((const struct ipv4_hdr *)ip);
+	ip->check = rte_ipv4_cksum((const struct rte_ipv4_hdr *)ip);
 
 	return ip;
 }
@@ -508,7 +509,7 @@ dp_test_ipv4_udptcp_cksum(const struct rte_mbuf *m, const struct iphdr *ip,
 		cur_len += seg->data_len;
 	}
 
-	return rte_ipv4_udptcp_cksum((const struct ipv4_hdr *)ip, buf);
+	return rte_ipv4_udptcp_cksum((const struct rte_ipv4_hdr *)ip, buf);
 }
 
 /**
@@ -545,7 +546,7 @@ dp_test_ipv6_udptcp_cksum(const struct rte_mbuf *m, const struct ip6_hdr *ip6,
 	cksum = ((cksum & 0xffff0000) >> 16) + (cksum & 0xffff);
 
 	/* checksum pseudo IPv6 header */
-	cksum += rte_ipv6_phdr_cksum((const struct ipv6_hdr *)ip6, 0);
+	cksum += rte_ipv6_phdr_cksum((const struct rte_ipv6_hdr *)ip6, 0);
 
 	cksum = ((cksum & 0xffff0000) >> 16) + (cksum & 0xffff);
 	cksum = (~cksum) & 0xffff;
@@ -627,7 +628,7 @@ dp_test_ipv6_icmp_cksum(const struct rte_mbuf *m, const struct ip6_hdr *ip6,
 	cksum = ((cksum & 0xffff0000) >> 16) + (cksum & 0xffff);
 
 	/* checksum pseudo IPv6 header */
-	cksum += rte_ipv6_phdr_cksum((const struct ipv6_hdr *)ip6, 0);
+	cksum += rte_ipv6_phdr_cksum((const struct rte_ipv6_hdr *)ip6, 0);
 	cksum = ((cksum & 0xffff0000) >> 16) + (cksum & 0xffff);
 
 	cksum = (~cksum) & 0xffff;
@@ -637,16 +638,16 @@ dp_test_ipv6_icmp_cksum(const struct rte_mbuf *m, const struct ip6_hdr *ip6,
 	return cksum;
 }
 
-static struct vxlan_hdr *
+static struct rte_vxlan_hdr *
 dp_test_pktmbuf_vxlan(struct rte_mbuf *m, uint32_t vx_flags, uint32_t vx_vni,
 		      bool prepend)
 {
-	struct vxlan_hdr *vxlan;
+	struct rte_vxlan_hdr *vxlan;
 	uint16_t hlen;
 
 	if (prepend) {
-		vxlan = (struct vxlan_hdr *)
-			rte_pktmbuf_prepend(m, sizeof(struct vxlan_hdr));
+		vxlan = (struct rte_vxlan_hdr *)
+			rte_pktmbuf_prepend(m, sizeof(struct rte_vxlan_hdr));
 		if (!vxlan) {
 			DP_PKTMBUF_DBG("Failed to prepend vxlan header\n");
 			return NULL;
@@ -656,10 +657,10 @@ dp_test_pktmbuf_vxlan(struct rte_mbuf *m, uint32_t vx_flags, uint32_t vx_vni,
 		m->l4_len = 0;
 	} else {
 		/* There is no _mtol5 function so calc l5 */
-		vxlan = dp_pktmbuf_mtol4(m, struct vxlan_hdr *) + 1;
+		vxlan = dp_pktmbuf_mtol4(m, struct rte_vxlan_hdr *) + 1;
 	}
 
-	hlen = m->l2_len + m->l3_len + m->l4_len + sizeof(struct vxlan_hdr);
+	hlen = m->l2_len + m->l3_len + m->l4_len + sizeof(struct rte_vxlan_hdr);
 
 	/* Is there room for VXLAN hdr in first mbuf? */
 	if (hlen > m->data_len) {
@@ -674,14 +675,14 @@ dp_test_pktmbuf_vxlan(struct rte_mbuf *m, uint32_t vx_flags, uint32_t vx_vni,
 	return vxlan;
 }
 
-struct vxlan_hdr *
+struct rte_vxlan_hdr *
 dp_test_pktmbuf_vxlan_init(struct rte_mbuf *m, uint32_t vx_flags,
 			   uint32_t vx_vni)
 {
 	return dp_test_pktmbuf_vxlan(m, vx_flags, vx_vni, false);
 }
 
-struct vxlan_hdr *
+struct rte_vxlan_hdr *
 dp_test_pktmbuf_vxlan_prepend(struct rte_mbuf *m, uint32_t vx_flags,
 			      uint32_t vx_vni)
 {
@@ -1346,8 +1347,8 @@ dp_test_pktmbuf_vlan_clear(struct rte_mbuf *m)
 }
 
 struct ether_vlan_hdr {
-	struct ether_hdr eh;
-	struct vlan_hdr vh;
+	struct rte_ether_hdr eh;
+	struct rte_vlan_hdr vh;
 };
 
 void
@@ -1355,9 +1356,10 @@ dp_test_insert_8021q_hdr(struct rte_mbuf *pak, uint16_t vlan_id,
 			 uint16_t vlan_ether_type,
 			 uint16_t payload_ether_type)
 {
-	struct ether_hdr *eth = rte_pktmbuf_mtod(pak, struct ether_hdr *);
+	struct rte_ether_hdr *eth =
+			rte_pktmbuf_mtod(pak, struct rte_ether_hdr *);
 	struct ether_vlan_hdr *vhdr = (struct ether_vlan_hdr *)
-		rte_pktmbuf_prepend(pak, sizeof(struct vlan_hdr));
+		rte_pktmbuf_prepend(pak, sizeof(struct rte_vlan_hdr));
 
 	assert(vhdr != NULL);
 
@@ -1365,7 +1367,7 @@ dp_test_insert_8021q_hdr(struct rte_mbuf *pak, uint16_t vlan_id,
 	vhdr->eh.ether_type = htons(vlan_ether_type);
 	vhdr->vh.vlan_tci = htons(vlan_id);
 	vhdr->vh.eth_proto = htons(payload_ether_type);
-	dp_pktmbuf_l2_len(pak) += sizeof(struct vlan_hdr);
+	dp_pktmbuf_l2_len(pak) += sizeof(struct rte_vlan_hdr);
 }
 
 struct rte_mbuf *
@@ -2298,7 +2300,7 @@ _dp_test_create_mpls_pak(uint8_t nlabels,
 	 * set the data len to the end of the mpls header
 	 */
 	rte_pktmbuf_data_len(pak) =
-		sizeof(struct ether_hdr) + (nlabels * sizeof(label_t));
+		sizeof(struct rte_ether_hdr) + (nlabels * sizeof(label_t));
 	pak->l2_len = rte_pktmbuf_data_len(pak);
 	pak->pkt_len = rte_pktmbuf_data_len(pak);
 
@@ -2325,7 +2327,7 @@ _dp_test_create_mpls_pak(uint8_t nlabels,
 		 * l2 header to be end of the ethernet header as that
 		 * is what the dplane expects when receiving a packet.
 		 */
-		pak->l2_len = sizeof(struct ether_hdr);
+		pak->l2_len = sizeof(struct rte_ether_hdr);
 	}
 	return pak;
 }
@@ -2524,14 +2526,14 @@ dp_test_fill_ipv6hdr_frag(struct rte_mbuf *pkt_in, struct rte_mbuf *pkt_out,
 			  uint16_t plen,
 			  uint16_t fofs, uint32_t mf, uint32_t fh_id)
 {
-	struct ipv6_hdr *dst, *src;
+	struct rte_ipv6_hdr *dst, *src;
 	struct ip6_frag *fh;
 	uint16_t offlg;
 	int l3_len;
 	uint8_t nxt_proto;
 
-	src = dp_pktmbuf_mtol3(pkt_in, struct ipv6_hdr *);
-	dst = dp_pktmbuf_mtol3(pkt_out, struct ipv6_hdr *);
+	src = dp_pktmbuf_mtol3(pkt_in, struct rte_ipv6_hdr *);
+	dst = dp_pktmbuf_mtol3(pkt_out, struct rte_ipv6_hdr *);
 	l3_len = pkt_in->l3_len;
 
 	/*
@@ -2539,7 +2541,7 @@ dp_test_fill_ipv6hdr_frag(struct rte_mbuf *pkt_in, struct rte_mbuf *pkt_out,
 	 * ext. headers and the fragmentation header itself,
 	 * but not the IPv6 header.
 	 */
-	plen += l3_len + sizeof(struct ip6_frag) - sizeof(struct ipv6_hdr);
+	plen += l3_len + sizeof(struct ip6_frag) - sizeof(struct rte_ipv6_hdr);
 
 	memcpy(dst, src, l3_len);
 	dst->payload_len = htons(plen);
@@ -2587,7 +2589,7 @@ dp_test_ipv6_fragment_packet(struct rte_mbuf *pkt_in,
 	uint32_t pkt_len;
 	char *buf;
 
-	if (pkt_in->l3_len < sizeof(struct ipv6_hdr))
+	if (pkt_in->l3_len < sizeof(struct rte_ipv6_hdr))
 		return -EINVAL;
 
 	/* Check header length matches mbuf pkt_len */
@@ -2856,7 +2858,8 @@ dp_test_ipv4_fragment_packet(struct rte_mbuf *pkt_in,
 			dst_ip->frag_off |= htons(IP_MF);
 		dst_ip->tot_len = htons(plen + out_pkt->l3_len);
 		dst_ip->check = 0;
-		dst_ip->check = rte_ipv4_cksum((const struct ipv4_hdr *)dst_ip);
+		dst_ip->check =
+			rte_ipv4_cksum((const struct rte_ipv4_hdr *) dst_ip);
 
 		/* Append space to fragment, and write fragment payload */
 		memcpy(rte_pktmbuf_append(out_pkt, plen), payload + offset,
@@ -2972,12 +2975,12 @@ dp_test_get_pak_eth_ip_field(const struct rte_mbuf *m,
 			     enum dp_test_pak_field_ip field,
 			     struct dp_test_addr *ip_addr, uint32_t *val)
 {
-	struct ether_hdr *eth;
+	struct rte_ether_hdr *eth;
 	struct ip6_hdr *ip6h;
 	struct iphdr *iph;
 
-	assert(m->l2_len == sizeof(struct ether_hdr));
-	eth = rte_pktmbuf_mtod(m, struct ether_hdr *);
+	assert(m->l2_len == sizeof(struct rte_ether_hdr));
+	eth = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
 
 	switch (ntohs(eth->ether_type)) {
 	case ETHER_TYPE_IPv4:
@@ -3125,7 +3128,7 @@ dp_test_create_l2_pak_from_data(const char *d_addr, const char *s_addr,
 				uint16_t ether_type, char *data, int len)
 {
 	struct rte_mbuf *m;
-	struct ether_hdr *eth;
+	struct rte_ether_hdr *eth;
 
 	m = dp_test_create_mbuf_chain(1, &len, 0);
 	if (!m)
@@ -3139,7 +3142,7 @@ dp_test_create_l2_pak_from_data(const char *d_addr, const char *s_addr,
 
 	m->l2_len = 14;
 
-	eth = rte_pktmbuf_mtod(m, struct ether_hdr *);
+	eth = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
 
 	/* Optionally overwrite ethernet header */
 	if (d_addr && s_addr) {
@@ -3161,7 +3164,7 @@ dp_test_create_l2_pak_from_data(const char *d_addr, const char *s_addr,
 
 		ip = (struct iphdr *)(rte_pktmbuf_mtod(m, char *) + m->l2_len);
 		ip->check = 0;
-		ip->check = rte_ipv4_cksum((const struct ipv4_hdr *)ip);
+		ip->check = rte_ipv4_cksum((const struct rte_ipv4_hdr *)ip);
 	}
 
 	return m;
@@ -3475,12 +3478,12 @@ bool dp_test_mbuf_is_ipv6(struct rte_mbuf *m)
 static uint16_t
 dp_test_mbuf_ethertype(struct rte_mbuf *pak)
 {
-	struct ether_hdr *eth;
+	struct rte_ether_hdr *eth;
 
-	if (pak->l2_len < sizeof(struct ether_hdr))
+	if (pak->l2_len < sizeof(struct rte_ether_hdr))
 		return 0;
 
-	eth = rte_pktmbuf_mtod(pak, struct ether_hdr *);
+	eth = rte_pktmbuf_mtod(pak, struct rte_ether_hdr *);
 
 	return ntohs(eth->ether_type);
 }
@@ -3523,7 +3526,7 @@ dp_test_create_arp_pak(ushort op, const char *s_mac, const char *d_mac,
 		       uint16_t vlan_id)
 {
 	struct rte_mbuf  *pak;
-	struct ether_hdr *eth;
+	struct rte_ether_hdr *eth;
 	struct ether_arp *arp;
 	in_addr_t         ipaddr;
 	int               len = 0;

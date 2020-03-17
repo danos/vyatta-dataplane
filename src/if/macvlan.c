@@ -385,8 +385,8 @@ struct ifnet *macvlan_get_vrrp_ip_if(struct ifnet *ifp, struct sockaddr *target)
 struct ifnet *
 macvlan_input(struct ifnet *ifp, struct rte_mbuf *m)
 {
-	const struct ether_hdr *eth
-		= rte_pktmbuf_mtod(m, struct ether_hdr *);
+	const struct rte_ether_hdr *eth
+		= rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
 	struct mvl_tbl *mvlt
 		= rcu_dereference(ifp->if_macvlantbl);
 

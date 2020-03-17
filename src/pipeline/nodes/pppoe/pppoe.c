@@ -335,7 +335,7 @@ ppp_do_encap(struct rte_mbuf *m, struct pppoe_connection *conn,
 	struct pppoe_packet *pheader =
 		(struct pppoe_packet *)rte_pktmbuf_prepend(
 			m, sizeof(struct pppoe_packet) -
-			sizeof(struct ether_hdr));
+			sizeof(struct rte_ether_hdr));
 	if (unlikely(!pheader))
 		return false;
 	pheader->session = htons(conn->session);

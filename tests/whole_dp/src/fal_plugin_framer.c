@@ -42,15 +42,15 @@
 #define DSA_SET_CFI(_x)	 \
 	(_x->tag[1] |= 0x1)
 
-static inline struct ether_hdr *ethhdr(struct rte_mbuf *m)
+static inline struct rte_ether_hdr *ethhdr(struct rte_mbuf *m)
 {
-	return rte_pktmbuf_mtod(m, struct ether_hdr *);
+	return rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
 }
 
 int plugin_framer_rcv(struct rte_mbuf *mbuf, uint16_t *dpdk_port,
 		      union fal_pkt_feature_info *feat_info)
 {
-	struct ether_hdr *eh = ethhdr(mbuf);
+	struct rte_ether_hdr *eh = ethhdr(mbuf);
 	struct  edsa_hdr *edsa = (struct edsa_hdr *)&eh->ether_type;
 	uint8_t hw_device, hw_port;
 	int rc;
@@ -92,7 +92,7 @@ int plugin_framer_rcv(struct rte_mbuf *mbuf, uint16_t *dpdk_port,
 
 int32_t plugin_framer_tx(void *sw_port, void *fal_info, struct rte_mbuf **mbuf)
 {
-	struct ether_hdr *eh = ethhdr(*mbuf);
+	struct rte_ether_hdr *eh = ethhdr(*mbuf);
 
 	uint16_t proto;
 	uint8_t dev, port;

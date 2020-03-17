@@ -192,10 +192,10 @@ void lladdr_update(struct ifnet *ifp, struct llentry *la,
 		/* now valid: release any pending packets */
 		for (int i = 0; i < la_numheld; i++) {
 			struct rte_mbuf *m = la_held[i];
-			struct ether_hdr *eh;
+			struct rte_ether_hdr *eh;
 
 			/* fill in destination in held packet and send it */
-			eh = rte_pktmbuf_mtod(m, struct ether_hdr *);
+			eh = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
 
 			rte_ether_addr_copy(enaddr, &eh->d_addr);
 			/*
