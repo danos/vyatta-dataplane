@@ -1566,7 +1566,7 @@ static void crypto_npf_cfg_commit_all_timer_handler(
 	crypto_npf_cfg_commit_count = 0;
 }
 
-#define CRYPTO_NPF_CFG_COMMIT_FORCE_COUNT 100
+#define CRYPTO_NPF_CFG_COMMIT_FORCE_COUNT 2000
 /*
  * As the npf commit is slow and does a rebuild of the entire state
  * batch up the calls to it. This can possibly delay the application of
