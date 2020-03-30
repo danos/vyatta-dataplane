@@ -601,7 +601,8 @@ void _dp_test_crypto_check_policy_count(vrfid_t vrfid,
 					unsigned int num_policies, int af,
 					const char *file, int line)
 {
-#define POLL_CNT 8000
+#define POLL_CNT 1000
+#define POLL_INTERVAL 50
 	char cmd_str[100];
 	char exp_str[100];
 	static const char template[] = "{"
@@ -620,10 +621,9 @@ void _dp_test_crypto_check_policy_count(vrfid_t vrfid,
 		 af == AF_INET ? "ipv4" : "ipv6", num_policies);
 
 	jexp = dp_test_json_create("%s", exp_str);
-	dp_test_check_json_poll_state(cmd_str, jexp,
-				      DP_TEST_JSON_CHECK_SUBSET,
-				      false,
-				      POLL_CNT);
+	dp_test_check_json_poll_state_interval(cmd_str, jexp,
+					       DP_TEST_JSON_CHECK_SUBSET,
+					       false, POLL_CNT, POLL_INTERVAL);
 	json_object_put(jexp);
 }
 
