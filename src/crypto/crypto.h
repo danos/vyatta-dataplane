@@ -78,7 +78,7 @@ int udp_esp_dp6(struct rte_mbuf *m, void *ip,
 		struct udphdr *udp, struct ifnet *ifp);
 
 void crypto_sadb_show_summary(FILE *f, vrfid_t vrfid);
-void crypto_policy_show_summary(FILE *f, vrfid_t vrfid);
+void crypto_policy_show_summary(FILE *f, vrfid_t vrfid, bool brief);
 void crypto_policy_bind_show_summary(FILE *f, vrfid_t vrfid);
 void crypto_show_summary(FILE *f);
 void crypto_add_listener(const char *url);

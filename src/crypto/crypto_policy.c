@@ -2396,7 +2396,7 @@ void crypto_policy_bind_show_summary(FILE *f, vrfid_t vrfid)
 	jsonw_destroy(&wr);
 }
 
-void crypto_policy_show_summary(FILE *f, vrfid_t vrfid)
+void crypto_policy_show_summary(FILE *f, vrfid_t vrfid, bool brief)
 {
 	json_writer_t *wr;
 	const struct policy_rule *pr;
@@ -2425,22 +2425,24 @@ void crypto_policy_show_summary(FILE *f, vrfid_t vrfid)
 	jsonw_uint_field(wr, "ipv6", vrf_ctx ?
 			 vrf_ctx->crypto_live_ipv6_policies : 0);
 	jsonw_end_object(wr);
-	jsonw_name(wr, "policies");
-	jsonw_start_array(wr);
 
-	cds_lfht_for_each_entry(output_policy_rule_tag_ht, &iter, pr,
-				tag_ht_node) {
-		if (dp_vrf_get_external_id(pr->vrfid) == vrfid)
-			policy_rule_to_json(wr, pr);
+	if (!brief) {
+		jsonw_name(wr, "policies");
+		jsonw_start_array(wr);
+
+		cds_lfht_for_each_entry(output_policy_rule_tag_ht, &iter, pr,
+					tag_ht_node) {
+			if (dp_vrf_get_external_id(pr->vrfid) == vrfid)
+				policy_rule_to_json(wr, pr);
+		}
+
+		cds_lfht_for_each_entry(input_policy_rule_tag_ht, &iter, pr,
+					tag_ht_node) {
+			if (dp_vrf_get_external_id(pr->vrfid) == vrfid)
+				policy_rule_to_json(wr, pr);
+		}
+		jsonw_end_array(wr);
 	}
-
-	cds_lfht_for_each_entry(input_policy_rule_tag_ht, &iter, pr,
-				tag_ht_node) {
-		if (dp_vrf_get_external_id(pr->vrfid) == vrfid)
-			policy_rule_to_json(wr, pr);
-	}
-
-	jsonw_end_array(wr);
 	jsonw_end_object(wr);
 	jsonw_destroy(&wr);
 }
