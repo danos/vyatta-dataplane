@@ -656,7 +656,8 @@ poll_for_matching_state_pb(zloop_t *loop, int poller, void *arg)
 
 static bool
 dp_test_wait_for_expected_json(struct dp_test_show_cmd_poll_state *cmd,
-			       json_object **actual_resp)
+			       json_object **actual_resp,
+			       unsigned int poll_interval)
 {
 	zloop_t *loop = zloop_new();
 	int timer;
@@ -666,7 +667,7 @@ dp_test_wait_for_expected_json(struct dp_test_show_cmd_poll_state *cmd,
 	/*
 	 * loop every millisec, for up to dp_test_wait_sec.
 	 */
-	timer = zloop_timer(loop, dp_test_wait_sec, 0,
+	timer = zloop_timer(loop, poll_interval, 0,
 			    poll_for_matching_state, cmd);
 	dp_test_assert_internal(timer >= 0);
 
@@ -704,13 +705,16 @@ dp_test_wait_for_expected_pb(struct dp_test_show_cmd_poll_state *cmd)
 	return cmd->result;
 }
 
-void
-_dp_test_check_json_poll_state(const char *cmd_str, json_object *expected_json,
-			  json_object *filter_json,
-			  enum dp_test_check_json_mode mode,
-			  bool negate_match, int poll_cnt,
-			  const char *file, const char *func __unused,
-			  int line)
+static void
+_dp_test_check_json_poll_state_internal(const char *cmd_str,
+					json_object *expected_json,
+					json_object *filter_json,
+					enum dp_test_check_json_mode mode,
+					bool negate_match, int poll_cnt,
+					unsigned int poll_interval,
+					const char *file,
+					const char *func __unused,
+					int line)
 {
 	if (!poll_cnt)
 		poll_cnt = DP_TEST_POLL_COUNT;
@@ -745,7 +749,8 @@ _dp_test_check_json_poll_state(const char *cmd_str, json_object *expected_json,
 		break;
 	}
 
-	result = dp_test_wait_for_expected_json(&cmd, &actual_json);
+	result = dp_test_wait_for_expected_json(&cmd, &actual_json,
+						poll_interval);
 	if (cmd.mismatches)
 		dp_test_json_mismatch_print(cmd.mismatches, 2, mismatch_str,
 					    sizeof(mismatch_str));
@@ -778,6 +783,35 @@ _dp_test_check_json_poll_state(const char *cmd_str, json_object *expected_json,
 	json_object_put(actual_json);
 }
 
+void
+_dp_test_check_json_poll_state(const char *cmd_str, json_object *expected_json,
+			       json_object *filter_json,
+			       enum dp_test_check_json_mode mode,
+			       bool negate_match, int poll_cnt,
+			       const char *file, const char *func,
+			       int line)
+{
+	_dp_test_check_json_poll_state_internal(cmd_str, expected_json,
+						filter_json, mode, negate_match,
+						poll_cnt, DP_TEST_POLL_INTERVAL,
+						file, func, line);
+}
+
+void
+_dp_test_check_json_poll_state_interval(const char *cmd_str,
+					json_object *expected_json,
+					json_object *filter_json,
+					enum dp_test_check_json_mode mode,
+					bool negate_match, int poll_cnt,
+					unsigned int poll_interval,
+					const char *file, const char *func,
+					int line)
+{
+	_dp_test_check_json_poll_state_internal(cmd_str, expected_json,
+						filter_json, mode, negate_match,
+						poll_cnt, poll_interval,
+						file, func, line);
+}
 
 void
 _dp_test_check_pb_poll_state(char *buf, int len,
