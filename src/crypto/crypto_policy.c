@@ -1202,8 +1202,8 @@ static bool policy_rule_add_to_npf(struct policy_rule *pr)
 		 dp_vrf_get_external_id(pr->vrfid));
 
 	bool attach_group =
-		(vrf_ctx->crypto_live_ipv4_policies +
-		 vrf_ctx->crypto_live_ipv6_policies == 0);
+		(vrf_ctx->crypto_total_ipv4_policies +
+		 vrf_ctx->crypto_total_ipv6_policies == 0);
 
 	if (attach_group) {
 		group_name_by_vrf(attach_buf, sizeof(attach_buf),
@@ -1264,17 +1264,17 @@ static bool policy_rule_add_to_npf(struct policy_rule *pr)
 		     pr->rule_index, buffer);
 
 	if (pr->sel.family == AF_INET) {
-		if (++vrf_ctx->crypto_live_ipv4_policies == 1)
+		if (++vrf_ctx->crypto_total_ipv4_policies == 1)
 			pl_node_add_feature_by_inst(&ipv4_ipsec_out_feat,
 						    get_vrf(pr->vrfid));
 		POLICY_DEBUG("Active IPv4 policies: %d\n",
-			     vrf_ctx->crypto_live_ipv4_policies);
+			     vrf_ctx->crypto_total_ipv4_policies);
 	} else {
-		if (++vrf_ctx->crypto_live_ipv6_policies == 1)
+		if (++vrf_ctx->crypto_total_ipv6_policies == 1)
 			pl_node_add_feature_by_inst(&ipv6_ipsec_out_feat,
 						    get_vrf(pr->vrfid));
 		POLICY_DEBUG("Active IPv6 policies: %d\n",
-			     vrf_ctx->crypto_live_ipv6_policies);
+			     vrf_ctx->crypto_total_ipv6_policies);
 	}
 
 	return true;
@@ -1335,8 +1335,8 @@ static void policy_rule_remove_from_npf(struct policy_rule *pr,
 			  dp_vrf_get_external_id(pr->vrfid));
 
 	bool detach_group =
-		(vrf_ctx->crypto_live_ipv4_policies +
-		 vrf_ctx->crypto_live_ipv6_policies == 1);
+		(vrf_ctx->crypto_total_ipv4_policies +
+		 vrf_ctx->crypto_total_ipv6_policies == 1);
 
 	int rule_ret = npf_cfg_rule_delete(NPF_RULE_CLASS_IPSEC, group_name,
 					   rule_index, NULL);
@@ -1368,17 +1368,17 @@ static void policy_rule_remove_from_npf(struct policy_rule *pr,
 	}
 
 	if (pr->sel.family == AF_INET) {
-		if (!--vrf_ctx->crypto_live_ipv4_policies)
+		if (!--vrf_ctx->crypto_total_ipv4_policies)
 			pl_node_remove_feature_by_inst(&ipv4_ipsec_out_feat,
 					       get_vrf(pr->vrfid));
 		POLICY_DEBUG("Remaining IPv4 policies: %d\n",
-			     vrf_ctx->crypto_live_ipv4_policies);
+			     vrf_ctx->crypto_total_ipv4_policies);
 	} else {
-		if (!--vrf_ctx->crypto_live_ipv6_policies)
+		if (!--vrf_ctx->crypto_total_ipv6_policies)
 			pl_node_remove_feature_by_inst(&ipv6_ipsec_out_feat,
 						       get_vrf(pr->vrfid));
 		POLICY_DEBUG("Remaining IPv6 policies: %d\n",
-			     vrf_ctx->crypto_live_ipv6_policies);
+			     vrf_ctx->crypto_total_ipv6_policies);
 	}
 }
 
@@ -1555,15 +1555,33 @@ static void policy_update_pending_vfp_bind(vrfid_t vrfid,
 static uint32_t crypto_npf_cfg_commit_count;
 static struct rte_timer crypto_npf_cfg_commit_all_timer;
 
+static void crypto_npf_cfg_commit_flush(void)
+{
+	vrfid_t vrf_id;
+	struct vrf *vrf;
+	struct crypto_vrf_ctx *vrf_ctx;
+
+	npf_cfg_commit_all();
+	VRF_FOREACH(vrf, vrf_id) {
+		vrf_ctx = crypto_vrf_find(vrf_id);
+		if (!vrf_ctx)
+			continue;
+
+		vrf_ctx->crypto_live_ipv4_policies =
+			vrf_ctx->crypto_total_ipv4_policies;
+		vrf_ctx->crypto_live_ipv6_policies =
+			vrf_ctx->crypto_total_ipv6_policies;
+	}
+	crypto_npf_cfg_commit_count = 0;
+}
+
 static void crypto_npf_cfg_commit_all_timer_handler(
 	struct rte_timer *timer __rte_unused,
 	void *arg __rte_unused)
 {
 	ASSERT_MASTER();
 	if (crypto_npf_cfg_commit_count)
-		npf_cfg_commit_all();
-
-	crypto_npf_cfg_commit_count = 0;
+		crypto_npf_cfg_commit_flush();
 }
 
 #define CRYPTO_NPF_CFG_COMMIT_FORCE_COUNT 2000
@@ -1585,10 +1603,8 @@ static void crypto_npf_cfg_commit_all(struct policy_rule *pr __unused)
 	crypto_npf_cfg_commit_count++;
 
 	/* Force the commit if we have batched up too many */
-	if (crypto_npf_cfg_commit_count == CRYPTO_NPF_CFG_COMMIT_FORCE_COUNT) {
-		npf_cfg_commit_all();
-		crypto_npf_cfg_commit_count = 0;
-	}
+	if (crypto_npf_cfg_commit_count == CRYPTO_NPF_CFG_COMMIT_FORCE_COUNT)
+		crypto_npf_cfg_commit_flush();
 }
 
 static bool
@@ -2418,7 +2434,14 @@ void crypto_policy_show_summary(FILE *f, vrfid_t vrfid, bool brief)
 	jsonw_start_object(wr);
 	jsonw_uint_field(wr, "rekey_requests", crypto_rekey_requests);
 	jsonw_end_object(wr);
-	jsonw_name(wr, "policy_count");
+	jsonw_name(wr, "total_policy_count");
+	jsonw_start_object(wr);
+	jsonw_uint_field(wr, "ipv4", vrf_ctx ?
+			 vrf_ctx->crypto_total_ipv4_policies : 0);
+	jsonw_uint_field(wr, "ipv6", vrf_ctx ?
+			 vrf_ctx->crypto_total_ipv6_policies : 0);
+	jsonw_end_object(wr);
+	jsonw_name(wr, "live_policy_count");
 	jsonw_start_object(wr);
 	jsonw_uint_field(wr, "ipv4", vrf_ctx ?
 			 vrf_ctx->crypto_live_ipv4_policies : 0);

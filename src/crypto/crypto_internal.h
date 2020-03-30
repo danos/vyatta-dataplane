@@ -500,6 +500,17 @@ struct crypto_vrf_ctx {
 	struct cds_lfht *sadb_hash_table;
 	struct cds_lfht *s2s_bind_hash_table;
 	vrfid_t vrfid;
+	/*
+	 * total policy counts indicate the number
+	 * of policies added to NPF prior to any commit
+	 * occurring
+	 */
+	uint32_t crypto_total_ipv4_policies;
+	uint32_t crypto_total_ipv6_policies;
+	/*
+	 * live policy counts indicate the number
+	 * of policies active after the NPF commit is done
+	 */
 	uint32_t crypto_live_ipv6_policies;
 	uint32_t crypto_live_ipv4_policies;
 	unsigned int count_of_sas;
