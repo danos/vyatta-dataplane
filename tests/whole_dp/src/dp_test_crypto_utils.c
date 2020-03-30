@@ -607,7 +607,7 @@ void _dp_test_crypto_check_policy_count(vrfid_t vrfid,
 	static const char template[] = "{"
 					   "\"ipsec_policies\": {"
 					       "\"vrf\": %d,"
-					       "\"policy_count\": {"
+					       "\"live_policy_count\": {"
 						   "\"%s\": %d,"
 					       " }"
 				       "}}";
@@ -615,7 +615,7 @@ void _dp_test_crypto_check_policy_count(vrfid_t vrfid,
 
 	vrfid = dp_test_translate_vrf_id(vrfid);
 
-	snprintf(cmd_str, sizeof(cmd_str), "ipsec spd vrf_id %d", vrfid);
+	snprintf(cmd_str, sizeof(cmd_str), "ipsec spd vrf_id %d brief", vrfid);
 	snprintf(exp_str, sizeof(exp_str), template, vrfid,
 		 af == AF_INET ? "ipv4" : "ipv6", num_policies);
 
