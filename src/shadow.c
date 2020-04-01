@@ -561,8 +561,6 @@ int spath_reader(zloop_t *loop __rte_unused, zmq_pollitem_t *item,
 		 */
 		set_spath_rx_meta_data(m, NULL, ntohs(pi.proto),
 				       TUN_META_FLAGS_NONE);
-		if (likely(pi.proto == RTE_ETHER_TYPE_IPV4))
-			dp_pktmbuf_l3_len(m) = iphdr(m)->ihl << 2;
 	}
 
 	pktmbuf_mdata_set(m, PKT_MDATA_FROM_US);
@@ -584,6 +582,14 @@ int spath_reader(zloop_t *loop __rte_unused, zmq_pollitem_t *item,
 				}
 			}
 		}
+		/*
+		 * Need to setup the L3 len in the mbuf if this is an
+		 * IPv4 packet.  Site to site packets , are
+		 * arriving with their proto in the reverse byte
+		 * order.
+		 */
+		if (ntohs(pi.proto) == RTE_ETHER_TYPE_IPV4)
+			dp_pktmbuf_l3_len(m) = iphdr(m)->ihl << 2;
 	}
 
 	if (!ifp) {
