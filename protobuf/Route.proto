@@ -1,0 +1,90 @@
+// Copyright (c) 2020, AT&T Intellectual Property.  All rights reserved.
+//
+// SPDX-License-Identifier: LGPL-2.1-only
+//
+// Route definitions
+//
+// Note: defaults are optimised for scale (BGP) convergence case
+//
+
+syntax="proto2";
+
+option go_package = "github.com/danos/vyatta-dataplane/protobuf/go/Route";
+
+import "IPAddress.proto";
+import "IPAddressOrLabel.proto";
+
+message Path {
+	enum PathType {
+		// Packet should be dropped
+		BLACKHOLE = 0;
+		// Packet should generate ICMP unreachable
+		UNREACHABLE = 1;
+		// Packet should be subject to local delivery
+		LOCAL = 2;
+		// Unicast packet forwarding
+		UNICAST = 3;
+	}
+
+	// The type of the path
+	optional PathType type = 1 [default = UNICAST];
+
+	// The nexthop of the path. If omitted this this indicates an
+	// attached (interface) route.
+	optional IPAddress nexthop = 2;
+
+	// The interface index, as determined by the kernel and
+	// advertised in RTM_NEWLINK messages.
+	// Currently, this should always be present, since recursive
+	// route resolution isn't performed in the dataplane.
+	optional uint32 ifindex = 3;
+
+	// MPLS label stack in host network order, with labels listed
+	// from top-most (closest to L2 header) to bottom-most
+	// (closest to payload). Labels should not include
+	// implicit-null.
+	repeated uint32 mpls_labels = 4 [packed=true];
+
+	// Bottom-of-stack only traffic towards this destination
+	optional bool mpls_bos_only = 5;
+
+	// Preferred source address for originating packets destined
+	// to this path
+	optional IPAddress preferred_source = 6;
+}
+
+message Route {
+	enum PayloadType {
+		// For IP routes, n/a. For MPLS routes, either IPv4 or IPv6.
+		UNSPEC = 0;
+		IPV4 = 1;
+		IPV6 = 2;
+	}
+
+	// Prefix address of the route.
+	// Currently expected to always be present.
+	optional IPAddressOrLabel prefix = 1;
+
+	// The length of the prefix for IP routes
+	optional uint32 prefix_length = 2;
+
+	// Table ID of the route. This ID encodes both VRF and PBR table IDs
+	// Default is RT_TABLE_MAIN
+	optional uint32 table_id = 3 [default = 254];
+
+	// The paths of the route. No paths is equivalent to a blackhole
+	repeated Path paths = 4;
+
+	// Type of payload carried by this route. Currently applicable
+	// only for MPLS routes
+	optional PayloadType payload_type = 5 [default = UNSPEC];
+
+	// Scope of the route. Crude routing metric, but with higher
+	// number being more preferred and lower number being less
+	// preferred. Should be < 256. Default is RT_SCOPE_UNIVERSE.
+	optional uint32 scope = 6 [default = 0];
+
+	// Routing protocol, with well known values defined by
+	// linux/rtnetlink.h. Should be < 256. Default is RTPROT_ZEBRA.
+	optional uint32 routing_protocol = 7 [default = 11];
+}

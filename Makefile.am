@@ -403,7 +403,10 @@ PROTO_FILES = \
 	protobuf/SpeedConfig.proto \
 	protobuf/GArpConfig.proto \
 	protobuf/CgnatLogging.proto \
-	protobuf/BreakoutConfig.proto
+	protobuf/BreakoutConfig.proto \
+	protobuf/IPAddressOrLabel.proto \
+	protobuf/Route.proto \
+	protobuf/RibUpdate.proto
 
 
 SAMPLE_PROTO_FILES = src/pipeline/nodes/sample/SampleFeatConfig.proto \
