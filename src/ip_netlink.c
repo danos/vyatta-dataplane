@@ -216,6 +216,106 @@ static int handle_route(vrfid_t vrf_id, uint16_t type, const struct rtmsg *rtm,
 	return 0;
 }
 
+static int handle_route6(vrfid_t vrf_id, uint16_t type,
+			 const struct rtmsg *rtm, uint32_t table,
+			 const void *dest, const void *gateway,
+			 unsigned int ifindex, uint8_t scope,
+			 struct nlattr *mpath, uint32_t nl_flags,
+			 uint16_t num_labels, label_t *labels)
+{
+	uint32_t depth = rtm->rtm_dst_len;
+	struct in6_addr dst = *(const struct in6_addr *)dest;
+	struct ifnet *ifp = dp_ifnet_byifindex(ifindex);
+	struct ip_addr ip_addr = {
+		.type = AF_INET6,
+		.address.ip_v6 = *(struct in6_addr *)gateway,
+	};
+	struct next_hop *next;
+	uint32_t size;
+	uint32_t flags = 0;
+	bool missing_ifp = false;
+	bool exp_ifp = true;
+
+	if (rtm->rtm_type != RTN_UNICAST  &&
+	    rtm->rtm_type != RTN_LOCAL &&
+	    rtm->rtm_type != RTN_BLACKHOLE &&
+	    rtm->rtm_type != RTN_UNREACHABLE)
+		return 0;
+
+	if (rtm->rtm_family != AF_INET6)
+		return 0;
+
+	if (IN6_IS_ADDR_LOOPBACK(&dst))
+		return 0;
+
+	if (IN6_IS_ADDR_UNSPEC_LINKLOCAL(&dst))
+		return 0;
+
+	/*
+	 * If LOCAL unicast then ensure we replace any connected
+	 * /128 which may have preceded it unless it's linklocal
+	 * which need not be unique.
+	 * Also ignore any ff00::/8 summary routes for multicast.
+	 */
+	if (rtm->rtm_type == RTN_LOCAL) {
+		if (!IN6_IS_ADDR_LINKLOCAL(&dst))
+			nl_flags |= NLM_F_REPLACE;
+	} else if (rtm->rtm_type == RTN_UNICAST &&
+		   IN6_IS_ADDR_MULTICAST(&dst) && depth == 8) {
+		return 0;
+	}
+
+	if (type == RTM_NEWROUTE) {
+		if (rtm->rtm_type == RTN_BLACKHOLE) {
+			flags |= RTF_BLACKHOLE;
+			exp_ifp = false;
+		} else if (rtm->rtm_type == RTN_UNREACHABLE) {
+			flags |= RTF_REJECT;
+			exp_ifp = false;
+		} else if (rtm->rtm_type == RTN_LOCAL) {
+			flags |= RTF_LOCAL;
+			/* no need to store ifp for local routes */
+			ifp = NULL;
+			exp_ifp = false;
+		} else if ((num_labels == 0) &&
+			   (!ifp || is_lo(ifp))) {
+			flags |= RTF_SLOWPATH;
+		}
+
+		if (num_labels > 0 && !is_lo(ifp))
+			/* Output label rather than local label */
+			flags |= RTF_OUTLABEL;
+
+		if (!(nl_flags & NL_FLAG_ANY_ADDR))
+			flags |= RTF_GATEWAY;
+
+		if (mpath) {
+			next = ecmp6_create(mpath, &size, &missing_ifp);
+			if (missing_ifp)
+				return -1;
+		} else {
+			if (exp_ifp && !ifp && !is_ignored_interface(ifindex))
+				return -1;
+			size = 1;
+			next = nexthop_create(ifp, &ip_addr, flags, num_labels,
+					      labels);
+		}
+
+		if (unlikely(!next))
+			return 0;
+
+		rcu_read_unlock();
+		rt6_add(vrf_id, &dst, depth, table, scope, next, size);
+		rcu_read_lock();
+		free(next);
+	} else if (type == RTM_DELROUTE) {
+		rt6_delete(vrf_id, &dst, depth, table, scope,
+			   rtm->rtm_type == RTN_LOCAL);
+	}
+
+	return 0;
+}
+
 #ifdef DP_DEBUG
 static const char *mroute_ntop(int af, const void *src, char *dst,
 			       socklen_t size)

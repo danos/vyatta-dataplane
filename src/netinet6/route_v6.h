@@ -15,6 +15,7 @@
 #include <linux/netlink.h>
 
 #include "compiler.h"
+#include "nh_common.h"
 #include "json_writer.h"
 #include "mpls/mpls.h"
 #include "pd_show.h"
@@ -62,10 +63,12 @@ bool rt6_valid_tblid(vrfid_t vrfid, uint32_t tbl_id) __hot_func;
 
 struct rtmsg;
 
-int handle_route6(vrfid_t vrf_id, uint16_t type, const struct rtmsg *rtm,
-		  uint32_t table, const void *dest, const void *nexthop,
-		  unsigned int ifindex, uint8_t scope, struct nlattr *mpath,
-		  uint32_t nl_flags, uint16_t num_labels, label_t *labels);
+int rt6_add(vrfid_t vrf_id, struct in6_addr *dst, uint32_t prefix_len,
+	    uint32_t table, int16_t scope, struct next_hop hops[],
+	    size_t size);
+int rt6_delete(vrfid_t vrf_id, const struct in6_addr *dst,
+	       uint8_t prefix_len, uint32_t id, uint16_t scope,
+	       bool is_local);
 bool is_local_ipv6(vrfid_t vrf_id, const struct in6_addr *dst);
 
 void rt6_flush_all(enum cont_src_en cont_src);
