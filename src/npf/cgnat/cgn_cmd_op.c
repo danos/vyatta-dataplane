@@ -114,7 +114,6 @@ static void cgn_show_summary(FILE *f, int argc __unused, char **argv __unused)
 	count = 0;
 	count += cgn_rc_read(CGN_DIR_OUT, CGN_S1_EEXIST);
 	count += cgn_rc_read(CGN_DIR_OUT, CGN_S2_EEXIST);
-	count += cgn_rc_read(CGN_DIR_OUT, CGN_APM_ENOENT);
 	count += cgn_rc_read(CGN_DIR_OUT, CGN_SRC_ENOENT);
 	jsonw_uint_field(json, "ethread", count);
 
@@ -122,12 +121,13 @@ static void cgn_show_summary(FILE *f, int argc __unused, char **argv __unused)
 	count += cgn_rc_read(CGN_DIR_OUT, CGN_BUF_ENOL3);
 	count += cgn_rc_read(CGN_DIR_OUT, CGN_BUF_ENOL4);
 	count += cgn_rc_read(CGN_DIR_OUT, CGN_BUF_ENOMEM);
-	count += cgn_rc_read(CGN_DIR_OUT, CGN_BUF_ENOSPC);
 	count += cgn_rc_read(CGN_DIR_IN, CGN_BUF_ENOL3);
 	count += cgn_rc_read(CGN_DIR_IN, CGN_BUF_ENOL4);
 	count += cgn_rc_read(CGN_DIR_IN, CGN_BUF_ENOMEM);
-	count += cgn_rc_read(CGN_DIR_IN, CGN_BUF_ENOSPC);
 	jsonw_uint_field(json, "embuf", count);
+
+	jsonw_uint_field(json, "icmp_echoreq",
+			 cgn_rc_read(CGN_DIR_IN, CGN_ICMP_ECHOREQ));
 
 	jsonw_uint_field(json, "pcp_ok",
 			 cgn_rc_read(CGN_DIR_OUT, CGN_PCP_OK));

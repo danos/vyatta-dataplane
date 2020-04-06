@@ -66,7 +66,6 @@ enum cgn_rc_en {
 	 */
 	CGN_S1_EEXIST,	/* Lost race to insert sentry in table */
 	CGN_S2_EEXIST,	/* Lost race to insert sentry in table */
-	CGN_APM_ENOENT,	/* apm destroyed while waiting for lock */
 	CGN_SRC_ENOENT,	/* src destroyed while waiting for lock */
 
 	/*
@@ -75,7 +74,6 @@ enum cgn_rc_en {
 	CGN_BUF_ENOL3,	/* IP header not available */
 	CGN_BUF_ENOL4,	/* L4 header not available */
 	CGN_BUF_ENOMEM,	/* Prep for hdr change failed */
-	CGN_BUF_ENOSPC,	/* Cannot advance beyond end of buffer */
 
 	/*
 	 * Other
@@ -154,8 +152,6 @@ static inline const char *cgn_rc_str(int error)
 		return "APM_ENOSPC";
 	case CGN_BLK_ENOSPC:
 		return "BLK_ENOSPC";
-	case CGN_APM_ENOENT:
-		return "APM_ENOENT";
 	case CGN_PB_ENOMEM:
 		return "PB_ENOMEM";
 	case CGN_S1_ENOSPC:
@@ -172,8 +168,6 @@ static inline const char *cgn_rc_str(int error)
 		return "BUF_ENOL4";
 	case CGN_BUF_ENOMEM:
 		return "BUF_ENOMEM";
-	case CGN_BUF_ENOSPC:
-		return "BUF_ENOSPC";
 	case CGN_BUF_ICMP:
 		return "BUF_ICMP";
 	case CGN_BUF_PROTO:
@@ -276,9 +270,6 @@ static inline const char *cgn_rc_detail_str(int error)
 		return "Lost race to insert session into table";
 	case CGN_S2_EEXIST:
 		return "Lost race to insert destination session into table";
-	case CGN_APM_ENOENT:
-		return "Public address destroyed while waiting "
-			"for lock";
 	case CGN_SRC_ENOENT:
 		return "Subscriber address destroyed while "
 			"waiting for lock";
@@ -292,8 +283,6 @@ static inline const char *cgn_rc_detail_str(int error)
 		return "L4 header not available in message buffer";
 	case CGN_BUF_ENOMEM:
 		return "Prepare message buffer for header change failed";
-	case CGN_BUF_ENOSPC:
-		return "Cannot advance beyond end of message buffer";
 
 	/*
 	 * Other
