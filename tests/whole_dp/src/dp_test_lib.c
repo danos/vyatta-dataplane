@@ -1179,6 +1179,20 @@ dp_test_intf_name2tx_ring(const char *if_name)
 	return dp_test_intf_name2ring(if_name, DP_TEST_TX_RING_BASE_NAME);
 }
 
+int dp_test_pak_get_from_ring(const char *if_name,
+			      struct rte_mbuf **bufs,
+			      int count)
+{
+	struct rte_ring *ring;
+
+	ring = dp_test_intf_name2tx_ring(if_name);
+	count = rte_ring_mc_dequeue_burst(ring,
+					  (void **)bufs,
+					  count,
+					  NULL);
+	return count;
+}
+
 /*
  * Loop over all the tx rings checking for packets. For any that are
  * received, run the verify cb and then free the mbuf.
@@ -1189,18 +1203,16 @@ static void dp_test_verify_tx(bool wait_for_first)
 {
 	int i, j, count;
 	struct ifnet *ifp;
-	struct rte_ring *ring;
 	struct rte_mbuf *bufs[64];
 	int timeout = USEC_PER_SEC;
 
 	while (1) {
 		for (i = 0; i < dp_test_intf_count_local(); i++) {
 			ifp = ifnet_byport(i);
-			ring = dp_test_intf_name2tx_ring(ifp->if_name);
-			count = rte_ring_mc_dequeue_burst(ring,
-							  (void **)bufs,
-							  64,
-							  NULL);
+			count = dp_test_pak_get_from_ring(
+				ifp->if_name,
+				(struct rte_mbuf **)&bufs,
+				64);
 			if (count) {
 				for (j = 0; j < count; j++) {
 					(*dp_test_exp_get_validate_cb(
@@ -1297,6 +1309,25 @@ dp_test_wait_until_local_processed(struct dp_test_expected *expected,
 	}
 }
 
+void dp_test_pak_add_to_ring(const char *iif_name,
+			     struct rte_mbuf **paks_to_send,
+			     uint32_t num_paks,
+			     bool wait_until_processed)
+{
+	struct rte_ring *ring;
+
+	ring = dp_test_intf_name2rx_ring(iif_name);
+	dp_test_assert_internal(ring);
+	/*
+	 * Enqueue onto the ring, which will then be picked up
+	 * by the driver at the next poll.
+	 */
+	rte_ring_mp_enqueue_burst(ring, (void **)paks_to_send, num_paks, NULL);
+
+	if (wait_until_processed)
+		dp_test_intf_wait_until_processed(ring);
+}
+
 /*
  * Global expected pak that the wrapped end of the processing path can access
  * so that it can verify the contents.
@@ -1331,16 +1362,7 @@ dp_test_pak_inject(struct rte_mbuf **paks_to_send, uint32_t num_paks,
 	/*
 	 * Copy the mbufs into the ring for the interface.
 	 */
-	struct rte_ring *ring;
-
-	ring = dp_test_intf_name2rx_ring(iif_name);
-	dp_test_assert_internal(ring);
-	/*
-	 * Enqueue onto the ring, which will then be picked up
-	 * by the driver at the next poll.
-	 */
-	rte_ring_mp_enqueue_burst(ring, (void **)paks_to_send, num_paks, NULL);
-	dp_test_intf_wait_until_processed(ring);
+	dp_test_pak_add_to_ring(iif_name, paks_to_send, num_paks, true);
 	if (local_paks)
 		dp_test_wait_until_local_processed(expected, num_paks,
 				local_paks);

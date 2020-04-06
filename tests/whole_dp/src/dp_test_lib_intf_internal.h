@@ -285,4 +285,13 @@ dp_test_upstream_vrf_lookup_db(uint32_t vrf_id, char *vrf_name,
 bool
 dp_test_upstream_vrf_add_db(uint32_t vrf_id, char *vrf_name, uint32_t *tableid);
 
+void dp_test_pak_add_to_ring(const char *iif_name,
+			     struct rte_mbuf **paks_to_send,
+			     uint32_t num_paks,
+			     bool wait_until_processed);
+
+int dp_test_pak_get_from_ring(const char *if_name,
+			      struct rte_mbuf **bufs,
+			      int count);
+
 #endif /* _DP_TEST_LIB_INTF_INTERNAL_H_ */
