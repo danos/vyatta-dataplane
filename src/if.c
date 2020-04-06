@@ -85,6 +85,7 @@
 #include "if_var.h"
 #include "ip_addr.h"
 #include "ip_icmp.h"
+#include "ip_rt_protobuf.h"
 #include "json_writer.h"
 #include "l2_rx_fltr.h"
 #include "l2tp/l2tpeth.h"
@@ -1944,8 +1945,10 @@ struct incomplete_route {
 	uint8_t scope;
 	uint8_t proto;
 
-	/* netlink message */
-	struct nlmsghdr *nlh;
+	/* route update message */
+	void *data;
+	size_t size;
+	bool protobuf;
 };
 
 enum missed_nl_type {
@@ -2024,7 +2027,7 @@ incomplete_route_free(struct rcu_head *head)
 	struct incomplete_route *route;
 
 	route = caa_container_of(head, struct incomplete_route, rcu);
-	free(route->nlh);
+	free(route->data);
 	free(route);
 }
 
@@ -2166,7 +2169,11 @@ void incomplete_routes_make_complete(void)
 	cds_lfht_for_each_entry(incomplete_routes, &iter,
 				route, hash_node) {
 		/* CONT_SRC_UPLINK does not use the rib broker */
-		notify_route(route->nlh, CONT_SRC_MAIN);
+		if (route->protobuf)
+			ip_route_pb_handler(route->data, route->size,
+					    CONT_SRC_MAIN);
+		else
+			notify_route(route->data, CONT_SRC_MAIN);
 	}
 }
 
@@ -2174,7 +2181,7 @@ static uint32_t incomplete_route_hash(struct incomplete_route *route)
 {
 	int num_words;
 
-	num_words = (offsetof(struct incomplete_route, nlh) -
+	num_words = (offsetof(struct incomplete_route, data) -
 		     offsetof(struct incomplete_route, dest) + 3) / 4;
 	return rte_jhash_32b((uint32_t *)&route->dest, num_words, 0);
 }
@@ -2204,13 +2211,14 @@ static inline int incomplete_route_match_fn(struct cds_lfht_node *node,
 }
 
 /*
- * Add an incomplete route in netlink format. If we already have an
- * entry for that key then update the message to new one.
+ * Add an incomplete route. If we already have an entry for that key
+ * then update the message to new one.
  */
-void incomplete_route_add_nl(const void *dst,
-			     uint8_t family, uint8_t depth, uint32_t table,
-			     uint8_t scope, uint8_t proto,
-			     const struct nlmsghdr *nlh)
+static bool
+incomplete_route_add(const void *dst,
+		      uint8_t family, uint8_t depth, uint32_t table,
+		      uint8_t scope, uint8_t proto, void *data, size_t size,
+		      bool protobuf)
 {
 	struct incomplete_route *route;
 	struct cds_lfht_node *ret_node;
@@ -2218,7 +2226,7 @@ void incomplete_route_add_nl(const void *dst,
 	route = calloc(1, sizeof(*route));
 	if (!route) {
 		incomplete_stats.mem_fails++;
-		return;
+		return false;
 	}
 
 	switch (family) {
@@ -2237,13 +2245,9 @@ void incomplete_route_add_nl(const void *dst,
 	route->table = table;
 	route->scope = scope;
 	route->proto = proto;
-	route->nlh = malloc(nlh->nlmsg_len);
-	if (!route->nlh) {
-		free(route);
-		incomplete_stats.mem_fails++;
-		return;
-	}
-	memcpy(route->nlh, nlh, nlh->nlmsg_len);
+	route->data = data;
+	route->size = size;
+	route->protobuf = protobuf;
 
 	ret_node = cds_lfht_add_replace(incomplete_routes,
 					incomplete_route_hash(route),
@@ -2260,6 +2264,51 @@ void incomplete_route_add_nl(const void *dst,
 					 hash_node);
 		call_rcu(&route->rcu, incomplete_route_free);
 	}
+
+	return true;
+}
+
+/*
+ * Add an incomplete route in netlink format. If we already have an
+ * entry for that key then update the message to new one.
+ */
+void incomplete_route_add_nl(const void *dst,
+			     uint8_t family, uint8_t depth, uint32_t table,
+			     uint8_t scope, uint8_t proto,
+			     const struct nlmsghdr *nlh)
+{
+	void *data = malloc(nlh->nlmsg_len);
+	bool protobuf = false;
+
+	if (!data) {
+		incomplete_stats.mem_fails++;
+		return;
+	}
+	memcpy(data, nlh, nlh->nlmsg_len);
+
+	if (!incomplete_route_add(dst, family, depth, table, scope, proto,
+				  data, nlh->nlmsg_len, protobuf))
+		free(data);
+}
+
+/* Add incomplete protobuf route */
+void incomplete_route_add_pb(const void *dst,
+			     uint8_t family, uint8_t depth, uint32_t table,
+			     uint8_t scope, uint8_t proto,
+			     void *data, size_t size)
+{
+	void *data_cpy = malloc(size);
+	bool protobuf = true;
+
+	if (!data_cpy) {
+		incomplete_stats.mem_fails++;
+		return;
+	}
+	memcpy(data_cpy, data, size);
+
+	if (!incomplete_route_add(dst, family, depth, table, scope, proto,
+				  data_cpy, size, protobuf))
+		free(data_cpy);
 }
 
 void incomplete_route_del(const void *dst,

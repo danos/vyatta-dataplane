@@ -167,6 +167,7 @@ CORE_FILES = \
 	src/ip_netlink.c \
 	src/ip_options.c \
 	src/ip_output.c \
+	src/ip_rt_protobuf.c \
 	src/iptun_common.c \
 	src/json_writer.c \
 	src/l2_rx_fltr.c \
