@@ -67,6 +67,10 @@ void capture_init(uint16_t mbuf_sz)
 	return;
 }
 
+void capture_destroy(void)
+{
+}
+
 int
 rtnl_process_team(const struct nlmsghdr *nlh, void *data __unused)
 {

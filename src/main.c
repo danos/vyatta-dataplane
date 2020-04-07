@@ -3622,6 +3622,7 @@ main(int argc, char **argv)
 
 	dp_crypto_shutdown();
 
+	capture_destroy();
 	device_server_destroy();
 	shadow_destroy();
 	console_destroy();

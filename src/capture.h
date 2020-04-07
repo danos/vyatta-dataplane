@@ -78,6 +78,7 @@ static inline bool capture_if_use_common_cap_points(const struct ifnet *ifp)
 }
 
 /* Capture interface */
+void capture_destroy(void);
 void capture_init(uint16_t);
 void capture_cancel(struct ifnet *ifp);
 void capture_hardware(const struct ifnet *ifp, struct rte_mbuf *mbuf)

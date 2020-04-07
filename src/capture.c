@@ -35,6 +35,7 @@
 
 #include "capture.h"
 #include "config_internal.h"
+#include "event.h"
 #include "fal.h"
 #include "if_var.h"
 #include "ip_addr.h"
@@ -60,6 +61,13 @@ static rte_spinlock_t capture_time_lock;
 static struct timeval capture_tod;
 static uint64_t capture_base;
 static uint64_t capture_hz;
+
+static zsock_t *capture_sock_master;
+static zsock_t *capture_sock_console;
+
+typedef int (*fal_func_t)(void *arg);
+
+static int capture_master_send(fal_func_t func, void *arg);
 
 static void capture_time_resync(struct timeval *tod, uint64_t *base,
 				uint64_t *hz)
@@ -512,18 +520,54 @@ static void capture_flush(const struct capture_info *cap_info)
 		rte_pktmbuf_free(m);
 }
 
+/*
+ * Bind or unbind the FAL capture object to/from the interface. This
+ * action function runs in the context of the master thread.
+ */
+
+struct capture_hw_bind_args {
+	uint32_t ifindex;
+	fal_object_t obj;
+};
+
+static int capture_hw_bind(void *arg)
+{
+	struct capture_hw_bind_args *bind_args = arg;
+	struct fal_attribute_t portattr;
+
+	portattr.id = FAL_PORT_ATTR_CAPTURE_BIND;
+	portattr.value.objid = bind_args->obj;
+	return fal_l2_upd_port(bind_args->ifindex, &portattr);
+}
+
 static void capture_hw_stop(const struct ifnet *ifp,
 			    struct capture_info *cap_info)
 {
-	struct fal_attribute_t portattr = {
-		.id = FAL_PORT_ATTR_CAPTURE_BIND,
-		.value.objid = FAL_NULL_OBJECT_ID
-	};
+	struct capture_hw_bind_args args;
 
 	if (cap_info->falobj == 0)
 		return;
 
-	fal_l2_upd_port(ifp->if_index, &portattr);
+	args.ifindex = ifp->if_index;
+	args.obj = FAL_NULL_OBJECT_ID;
+
+	/*
+	 * Termination is triggered from normal capture cancellation
+	 * and deletion of the interface (capture_cancel()). The
+	 * former is in the context of the capture thread (loop
+	 * termination), the latter is in the context of the master
+	 * thread.
+	 *
+	 * In the interface deletion case, trying to schedule the
+	 * unbind action on the master thread is never going to work
+	 * (deadlock as we're already running on the master
+	 * thread). Update the FAL directly.
+	 */
+	if (is_master_thread())
+		capture_hw_bind(&args);
+	else
+		capture_master_send(capture_hw_bind, &args);
+
 	fal_capture_delete(cap_info->falobj);
 	cap_info->falobj = 0;
 }
@@ -534,7 +578,6 @@ static void capture_cleanup(void *arg)
 	struct capture_info *cap_info = ifp->cap_info;
 	struct capture_filter *cap_filter, *next_filter;
 
-	capture_hw_stop(ifp, cap_info);
 	capture_flush(cap_info);
 	close(cap_info->cap_wake);
 	zsock_destroy(&cap_info->cap_pub);
@@ -708,6 +751,7 @@ void capture_cancel(struct ifnet *ifp)
 	cap_info = ifp->cap_info;
 	ifp->hw_capturing = 0;
 	ifp->capturing = 0;
+	capture_hw_stop(ifp, cap_info);
 	pthread_cancel(cap_info->cap_thread);
 	pthread_join(cap_info->cap_thread, &join_res);
 
@@ -728,7 +772,7 @@ static bool capture_hw_start(FILE *f, const struct ifnet *ifp,
 		{ .id = FAL_CAPTURE_ATTR_BANDWIDTH,
 		  .value.u32 = cap_info->bandwidth }
 	};
-	struct fal_attribute_t portattr;
+	struct capture_hw_bind_args args;
 	fal_object_t obj;
 	int rc;
 
@@ -748,9 +792,9 @@ static bool capture_hw_start(FILE *f, const struct ifnet *ifp,
 	/*
 	 * Bind the object to the interface (turn on packet capture)
 	 */
-	portattr.id = FAL_PORT_ATTR_CAPTURE_BIND;
-	portattr.value.objid = obj;
-	rc = fal_l2_upd_port(ifp->if_index, &portattr);
+	args.ifindex = ifp->if_index;
+	args.obj = obj;
+	rc = capture_master_send(capture_hw_bind, &args);
 	if (rc < 0) {
 		fal_capture_delete(obj);
 
@@ -1022,6 +1066,66 @@ int cmd_capture(FILE *f, int argc, char **argv)
 }
 
 /*
+ * In order to maintain serialisation with other FAL updates, the FAL
+ * updates to packet capture must be run within the context of the
+ * master thread (as opposed to the console or capture threads).
+ *
+ * Use a simple synchronous RPC-like mechanism to schedule FAL action
+ * routines on the master thread.
+ */
+static int capture_master_receive(void *arg)
+{
+	zsock_t *sock = (zsock_t *)arg;
+	fal_func_t func;
+	void *func_arg;
+	int func_rc;
+
+	if (zsock_recv(sock, "pp", &func, &func_arg) < 0) {
+		RTE_LOG(ERR, DATAPLANE,
+			"%s() failed to get action from console\n", __func__);
+		return -EIO;
+	}
+
+	func_rc = (*func)(func_arg);
+
+	if (zsock_send(sock, "i", func_rc) < 0) {
+		RTE_LOG(ERR, DATAPLANE,
+			"%s() failed to send response to console\n", __func__);
+		return -EIO;
+	}
+
+	return 0;
+}
+
+static int capture_master_send(fal_func_t func, void *arg)
+{
+	int func_rc;
+
+	if (zsock_send(capture_sock_console, "pp", func, arg) < 0) {
+		RTE_LOG(ERR, DATAPLANE,
+			"%s() failed to send action to master\n",
+			__func__);
+		return -EIO;
+	}
+
+	if (zsock_recv(capture_sock_console, "i", &func_rc) < 0) {
+		RTE_LOG(ERR, DATAPLANE,
+			"%s() failed to get response from master\n",
+			__func__);
+		return -EIO;
+	}
+
+	return func_rc;
+}
+
+void capture_destroy(void)
+{
+	dp_unregister_event_socket(zsock_resolve(capture_sock_master));
+	zsock_destroy(&capture_sock_master);
+	zsock_destroy(&capture_sock_console);
+}
+
+/*
  * Setup mbuf pool for packet capture.
  */
 void capture_init(uint16_t mbuf_sz)
@@ -1039,4 +1143,16 @@ void capture_init(uint16_t mbuf_sz)
 
 	rte_spinlock_init(&capture_time_lock);
 	capture_time_resync(NULL, NULL, NULL);
+
+	capture_sock_master = zsock_new_pair("@inproc://capture_master_event");
+	if (capture_sock_master == NULL)
+		rte_panic("capture master socket failed");
+
+	capture_sock_console = zsock_new_pair(">inproc://capture_master_event");
+	if (capture_sock_master == NULL)
+		rte_panic("capture console socket failed");
+
+	dp_register_event_socket(zsock_resolve(capture_sock_master),
+				 capture_master_receive,
+				 capture_sock_master);
 }
