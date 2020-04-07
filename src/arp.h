@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2011-2017 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -16,6 +16,8 @@ struct ifnet;
 struct rte_mbuf;
 struct ether_addr;
 struct sockaddr;
+struct lltable;
+struct llentry;
 
 bool arp_input_validate(const struct ifnet *ifp, struct rte_mbuf *m);
 int arpresolve(struct ifnet *ifp, struct rte_mbuf *m,
@@ -57,5 +59,7 @@ void arp_walk(const struct ifnet *, ll_walkhash_f_t *, void *);
 struct rte_mbuf *arprequest(struct ifnet *ifp, struct sockaddr *sa);
 
 bool arp_is_arp_reply(struct ifnet *ifp, struct rte_mbuf *m);
+
+void arp_entry_destroy(struct lltable *llt, struct llentry *lle);
 
 #endif /* ARP_H */

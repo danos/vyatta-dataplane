@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2017 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -48,10 +48,12 @@ struct cmd_entry {
 	cmd_handler _hndlr;
 };
 
-#define SD_FILTER_NAT	0x01
-#define SD_FILTER_NAT64	0x02
-#define SD_FILTER_NAT46	0x04
-#define SD_FILTER_ALG	0x08
+#define SD_FILTER_NONE		0x00
+#define SD_FILTER_NAT		0x01
+#define SD_FILTER_NAT64		0x02
+#define SD_FILTER_NAT46		0x04
+#define SD_FILTER_ALG		0x08
+#define SD_FILTER_CONN_ID	0x10
 
 struct session_dump {
 	FILE	*sd_fp;
@@ -60,6 +62,7 @@ struct session_dump {
 	void	*sd_data;
 	bool	sd_features;
 	uint8_t sd_filter;
+	ulong	sd_conn_id;
 };
 
 /* Parameters for session expiration by filtering */
@@ -68,6 +71,7 @@ struct session_dump {
 #define FILTER_BY_ANY_SRC_ID	0x04
 #define FILTER_BY_ANY_DST_ID	0x08
 #define FILTER_BY_ID		0x10
+#define FILTER_BY_ANY_PROTO	0x20
 
 struct session_filter_params {
 	uint32_t	sf_srcip[4];
@@ -78,6 +82,7 @@ struct session_filter_params {
 	uint8_t		sf_d_af;
 	uint16_t	sf_flags;
 	uint64_t	sf_id;
+	uint16_t	sf_proto;
 };
 
 /*
@@ -174,6 +179,9 @@ static int cmd_session_json(struct session *s, void *data)
 		if ((sd->sd_filter & SD_FILTER_ALG) &&
 		    !session_is_alg(s))
 			return 0;
+		if ((sd->sd_filter & SD_FILTER_CONN_ID) &&
+		    (s->se_id != sd->sd_conn_id))
+			return 0;
 	}
 
 	/* Skip? */
@@ -234,6 +242,19 @@ static int cmd_session_json(struct session *s, void *data)
 				cmd_feature_json, json);
 		jsonw_end_array(json);
 	}
+
+	/* Session counters */
+	jsonw_name(json, "counters");
+	jsonw_start_object(json);
+	jsonw_uint_field(json, "packets_in",
+			 rte_atomic64_read(&s->se_pkts_in));
+	jsonw_uint_field(json, "bytes_in",
+			 rte_atomic64_read(&s->se_bytes_in));
+	jsonw_uint_field(json, "packets_out",
+			 rte_atomic64_read(&s->se_pkts_out));
+	jsonw_uint_field(json, "bytes_out",
+			 rte_atomic64_read(&s->se_bytes_out));
+	jsonw_end_object(json); /* End of counters */
 
 	jsonw_end_object(json);
 
@@ -311,30 +332,20 @@ static void cmd_session_show_summary(FILE *fp)
 	jsonw_destroy(&json);
 }
 
-static void cmd_session_show(FILE *fp, bool features, uint8_t filter,
-			     int start, int count)
+static void cmd_session_show(struct session_dump *sd)
 {
-	struct session_dump sd;
-	json_writer_t *json;
+	json_writer_t *json = jsonw_new(sd->sd_fp);
+	sd->sd_data = json;
 
-	sd.sd_fp = fp;
-	sd.sd_start = start;
-	sd.sd_count = count;
-	sd.sd_features = features;
-	sd.sd_filter = filter;
-
-	json = jsonw_new(fp);
-	sd.sd_data = json;
-
-	if (count <= 0 || count >= MAX_JSON_SESSIONS)
-		sd.sd_count = MAX_JSON_SESSIONS;
+	if (sd->sd_count <= 0 || sd->sd_count >= MAX_JSON_SESSIONS)
+		sd->sd_count = MAX_JSON_SESSIONS;
 
 	jsonw_name(json, "config");
 	jsonw_start_object(json);
 	jsonw_name(json, "sessions");
 	jsonw_start_object(json);
 
-	session_table_walk(cmd_session_json, &sd);
+	session_table_walk(cmd_session_json, sd);
 
 	jsonw_end_object(json);
 	jsonw_end_object(json);
@@ -404,7 +415,7 @@ static int cmd_session_expire_id(struct session *s, void *data)
 /* Init session filter params */
 static int cmd_init_sf(FILE *f, struct session_filter_params *sf,
 		const char *saddr, const char *sid, const char *daddr,
-		const char *did)
+		const char *did, const char *proto)
 {
 	int tmp;
 
@@ -456,6 +467,17 @@ static int cmd_init_sf(FILE *f, struct session_filter_params *sf,
 	} else
 		sf->sf_flags |= FILTER_BY_ANY_DST_ID;
 
+	/* protocol */
+	if (strncmp(proto, "any", 3)) {
+		tmp = arg_to_int(proto);
+		if (tmp < 0 || tmp > USHRT_MAX) {
+			cmd_err(f, "invalid filter protocol: %s\n", proto);
+			return -1;
+		}
+		sf->sf_proto = tmp;
+	} else
+		sf->sf_flags |= FILTER_BY_ANY_PROTO;
+
 	return 0;
 }
 
@@ -478,18 +500,27 @@ static bool cmd_filter_match(struct sentry *sen,
 	uint32_t if_index;
 	uint16_t sid;
 	uint16_t did;
+	uint16_t proto;
 	const void *daddr;
 	const void *saddr;
 	int af;
 
 	session_sentry_extract(sen, &if_index, &af, &saddr, &sid, &daddr, &did);
+	proto = sen->sen_protocol;
+
+	/* protocol */
+	if (!(sf->sf_flags & FILTER_BY_ANY_PROTO) &&
+		proto != sf->sf_proto)
+		return false;
 
 	/* Source port/id */
-	if (!(sf->sf_flags & FILTER_BY_ANY_SRC_ID) && sid != sf->sf_src_id)
+	if (!(sf->sf_flags & FILTER_BY_ANY_SRC_ID) &&
+		ntohs(sid) != sf->sf_src_id)
 		return false;
 
 	/* Destination port/id */
-	if (!(sf->sf_flags & FILTER_BY_ANY_DST_ID) && did != sf->sf_dst_id)
+	if (!(sf->sf_flags & FILTER_BY_ANY_DST_ID) &&
+		ntohs(did) != sf->sf_dst_id)
 		return false;
 
 	/* Source addr */
@@ -699,6 +730,24 @@ static int cmd_op_walk_sessions_summary(FILE *f, int argc __unused,
 static int
 cmd_op_delete_sessions(FILE *f, int argc, char **argv)
 {
+	/*
+	 * argv:   [1  ] [2] [3  ] [4] [5  ] [6] [7  ] [8] [9  ] [10]
+	 * cli ex: saddr any sport 300 daddr any dport any proto any
+	 */
+	enum {
+		FT_SRC_ADDR_NAME = 1,
+		FT_SRC_ADDR_VALUE = 2,
+		FT_SRC_PORT_NAME = 3,
+		FT_SRC_PORT_VALUE = 4,
+		FT_DST_ADDR_NAME = 5,
+		FT_DST_ADDR_VALUE = 6,
+		FT_DST_PORT_NAME = 7,
+		FT_DST_PORT_VALUE = 8,
+		FT_PROTO_NAME = 9,
+		FT_PROTO_VALUE = 10,
+		NUM_FLT_PARAMS = 11
+	};
+
 	struct session_filter_params sf = { {0} };
 	int rc;
 
@@ -722,7 +771,17 @@ cmd_op_delete_sessions(FILE *f, int argc, char **argv)
 		return 0;
 	}
 	if (strcmp(argv[0], "filter") == 0) {
-		rc = cmd_init_sf(f, &sf, argv[2], argv[4], argv[6], argv[8]);
+		if (argc < NUM_FLT_PARAMS) {
+			cmd_err(f, "%s", err_str_missing_arg);
+			return -1;
+		}
+
+		rc = cmd_init_sf(f, &sf,
+				argv[FT_SRC_ADDR_VALUE],
+				argv[FT_SRC_PORT_VALUE],
+				argv[FT_DST_ADDR_VALUE],
+				argv[FT_DST_PORT_VALUE],
+				argv[FT_PROTO_VALUE]);
 		if (rc)
 			return rc;
 		sentry_table_walk(cmd_sentry_expire_filter, &sf);
@@ -773,13 +832,31 @@ static int cmd_op_walk_sessions(FILE *f, int argc, char **argv)
 	int start = 0;
 	int count = 0;
 	int rc;
+	ulong conn_id = 0;
+	bool have_conn_id = false;
 
+	/* Parse an initial "id N" connection ID, if any */
+	if (argc >= 1 && !strcmp(argv[0], "id")) {
+		conn_id = arg_to_long(argv[1]);
+		have_conn_id = true;
+		argc -= 2;
+		argv += 2;
+	}
+
+	/* Now parse the "start" and "count" limits, if any */
 	rc = cmd_parse_limits(f, argc, argv, &start, &count);
 	if (rc)
 		return rc;
 
-	/* No feature json */
-	cmd_session_show(f, false, 0, start, count);
+	struct session_dump sd = {
+		.sd_fp = f,
+		.sd_features = false,	/* No feature json */
+		.sd_filter = have_conn_id ? SD_FILTER_CONN_ID : SD_FILTER_NONE,
+		.sd_conn_id = conn_id,
+		.sd_start = start,
+		.sd_count = count,
+	};
+	cmd_session_show(&sd);
 	return 0;
 }
 
@@ -793,8 +870,15 @@ static int cmd_op_walk_sessions_full(FILE *f, int argc, char **argv)
 	if (rc)
 		return rc;
 
-	/* Include feature json */
-	cmd_session_show(f, true, 0, start, count);
+	struct session_dump sd = {
+		.sd_fp = f,
+		.sd_features = true,	/* Include feature json */
+		.sd_filter = 0,
+		.sd_conn_id = 0,
+		.sd_start = start,
+		.sd_count = count,
+	};
+	cmd_session_show(&sd);
 	return 0;
 }
 
@@ -811,8 +895,15 @@ static int cmd_op_walk_sessions_nat64(FILE *f, int argc, char **argv)
 	if (rc)
 		return rc;
 
-	/* Include feature json */
-	cmd_session_show(f, true, SD_FILTER_NAT64, start, count);
+	struct session_dump sd = {
+		.sd_fp = f,
+		.sd_features = true,	/* Include feature json */
+		.sd_filter = SD_FILTER_NAT64,
+		.sd_conn_id = 0,
+		.sd_start = start,
+		.sd_count = count,
+	};
+	cmd_session_show(&sd);
 	return 0;
 }
 
@@ -829,8 +920,15 @@ static int cmd_op_walk_sessions_nat46(FILE *f, int argc, char **argv)
 	if (rc)
 		return rc;
 
-	/* Include feature json */
-	cmd_session_show(f, true, SD_FILTER_NAT46, start, count);
+	struct session_dump sd = {
+		.sd_fp = f,
+		.sd_features = true,	/* Include feature json */
+		.sd_filter = SD_FILTER_NAT46,
+		.sd_conn_id = 0,
+		.sd_start = start,
+		.sd_count = count,
+	};
+	cmd_session_show(&sd);
 	return 0;
 }
 

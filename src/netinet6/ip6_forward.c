@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2011-2017 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -29,19 +29,20 @@
 #include <string.h>
 #include <sys/socket.h>
 
-#include "bridge_port.h"
 #include "compat.h"
 #include "compiler.h"
 #include "crypto/crypto.h"
 #include "crypto/crypto_forward.h"
 #include "ether.h"
+#include "if/bridge/bridge_port.h"
+#include "if/macvlan.h"
 #include "if_var.h"
 #include "in6.h"
+#include "ip_forward.h"
 #include "ip6_funcs.h"
 #include "ip_funcs.h"
 #include "ip_mcast.h"
 #include "l2tp/l2tpeth.h"
-#include "macvlan.h"
 #include "main.h"
 #include "mpls/mpls.h"
 #include "mpls/mpls_forward.h"
@@ -51,8 +52,9 @@
 #include "npf/fragment/ipv6_rsmbl.h"
 #include "npf/npf_cache.h"
 #include "npf/npf_if.h"
+#include "npf/zones/npf_zone_public.h"
 #include "npf_shim.h"
-#include "pktmbuf.h"
+#include "pktmbuf_internal.h"
 #include "pl_common.h"
 #include "pipeline/nodes/pl_nodes_common.h"
 #include "pl_fused.h"
@@ -64,7 +66,7 @@
 #include "urcu.h"
 #include "util.h"
 #include "vplane_log.h"
-#include "vrf.h"
+#include "vrf_internal.h"
 
 enum ip6_packet_validity {
 	IP6_PKT_VALID,
@@ -75,19 +77,17 @@ enum ip6_packet_validity {
 
 /*
  * Resolve the L3 nexthop and add the L2 encap
- *
- * Returns true if the packet should be sent, false if consumed.
  */
 ALWAYS_INLINE bool
-ip6_l2_resolve_and_output(struct ifnet *in_ifp, struct rte_mbuf *m,
-			  struct next_hop_v6 *nh, uint16_t proto)
+dp_ip6_l2_nh_output(struct ifnet *in_ifp, struct rte_mbuf *m,
+		    struct next_hop_v6 *nh, uint16_t proto)
 {
 	struct pl_packet pl_pkt = {
 		.mbuf = m,
 		.l2_pkt_type = pkt_mbuf_get_l2_traffic_type(m),
 		.l3_hdr = ip6hdr(m),
 		.in_ifp = in_ifp,
-		.out_ifp = nh6_get_ifp(nh),
+		.out_ifp = dp_nh6_get_ifp(nh),
 		.nxt.v6 = nh,
 		.l2_proto = proto,
 	};
@@ -101,9 +101,23 @@ ip6_l2_resolve_and_output(struct ifnet *in_ifp, struct rte_mbuf *m,
 }
 
 /*
+ * Returns true if the packet should be sent, false if consumed.
+ */
+ALWAYS_INLINE bool
+dp_ip6_l2_intf_output(struct ifnet *in_ifp, struct rte_mbuf *m,
+		      struct ifnet *out_ifp, uint16_t proto)
+{
+	struct next_hop_v6 nh6;
+
+	memset(&nh6, 0, sizeof(nh6));
+	nh6_set_ifp(&nh6, out_ifp);
+	return dp_ip6_l2_nh_output(in_ifp, m, &nh6, proto);
+}
+
+/*
  * l2tp can't use any of the ports registered via udp_handler_register
  */
-static int ip6_udp_tunnel_in(struct rte_mbuf *m, struct ifnet *ifp)
+int ip6_udp_tunnel_in(struct rte_mbuf *m, struct ifnet *ifp)
 {
 	return udp_input(m, AF_INET6, ifp);
 }
@@ -118,54 +132,16 @@ static int ip6_udp_tunnel_in(struct rte_mbuf *m, struct ifnet *ifp)
  * 1 not consumed,
  */
 
-static int ip6_tunnel_input(struct rte_mbuf *m, struct ifnet *ifp)
+int ip6_l4_input(struct rte_mbuf *m, struct ifnet *ifp)
 {
-	struct ip6_hdr *ip6 = ip6hdr(m);
-	int rc = -1;
-	uint32_t spi;
-	struct ip6_frag *ip6_frag;
+	struct pl_packet pl_pkt = {
+		.mbuf = m,
+		.in_ifp = ifp,
+	};
 
-	if (crypto_policy_check_inbound_terminating(ifp, &m,
-						    htons(ETHER_TYPE_IPv6)))
-		return 0;
+	pipeline_fused_ipv6_l4(&pl_pkt);
 
-	switch (ip6->ip6_nxt) {
-	case IPPROTO_UDP:
-		rc = ip6_udp_tunnel_in(m, ifp);
-		break;
-	case IPPROTO_L2TPV3:
-		rc = l2tp_ipv6_recv_encap(m, ip6,
-			(unsigned char *)ip6 + sizeof(struct ip6_hdr));
-		break;
-	case IPPROTO_GRE:
-		rc = ip6_gre_tunnel_in(&m, ip6);
-		break;
-	case IPPROTO_ESP:
-		spi = crypto_retrieve_spi((unsigned char *)ip6 +
-					  pktmbuf_l3_len(m));
-		rc = crypto_enqueue_inbound_v6(m, ifp, spi);
-		break;
-	case IPPROTO_FRAGMENT:
-		/*
-		 * If it is a fragment, and the next proto is ESP send
-		 * to the crypto code. It will reassemble it and then find
-		 * the SPI, so pass in 0.
-		 */
-		ip6_frag = (struct ip6_frag *)(ip6 + 1);
-		if (ip6_frag->ip6f_nxt == IPPROTO_ESP) {
-			rc = crypto_enqueue_inbound_v6(m, ifp, 0);
-			break;
-		}
-		return 1;
-	default:
-		return 1;
-		/* other protocols */
-	}
-	if (rc < 0) {
-		IP6STAT_INC_IFP(ifp, IPSTATS_MIB_INDISCARDS);
-		rte_pktmbuf_free(m);
-	}
-	return rc;
+	return 0;
 }
 
 /*
@@ -174,10 +150,6 @@ static int ip6_tunnel_input(struct rte_mbuf *m, struct ifnet *ifp)
 void __cold_func
 ip6_local_deliver(struct ifnet *ifp, struct rte_mbuf *m)
 {
-	/* Check for l2tp tunnels */
-	if (unlikely(ip6_tunnel_input(m, ifp) <= 0))
-		return;
-
 	/* Check if the nd will take care of the packet. */
 	if (nd6_input(ifp, m) == 0)
 		return;
@@ -264,7 +236,7 @@ int ip6_fragment_mtu(struct ifnet *ifp, unsigned int mtu_size,
 		m_frag->data_len += IPV6_FRAG_OVRHD;
 		m_frag->pkt_len += IPV6_FRAG_OVRHD;
 		if (ip_mbuf_copy(m_frag, m_in,
-				 pktmbuf_l2_len(m_in) +
+				 dp_pktmbuf_l2_len(m_in) +
 				 sizeof(struct ip6_hdr) + frag_off,
 				 copy_len)) {
 			rte_pktmbuf_free(m_frag);
@@ -439,7 +411,7 @@ struct next_hop_v6 *ip6_lookup(struct rte_mbuf *m, struct ifnet *ifp,
 	struct next_hop_v6 *nxt;
 
 	/* Lookup route */
-	nxt = rt6_lookup(&ip6->ip6_dst, tbl_id, m);
+	nxt = dp_rt6_lookup(&ip6->ip6_dst, tbl_id, m);
 
 	/* no nexthop found, send icmp error */
 	if (unlikely(!nxt)) {
@@ -456,7 +428,7 @@ struct next_hop_v6 *ip6_lookup(struct rte_mbuf *m, struct ifnet *ifp,
  slow_path: __cold_label;
 	if (hlim_decremented)
 		ip6->ip6_hlim += IPV6_HLIMDEC;
-	ip6_local_deliver(ifp, m);
+	ip6_l4_input(m, ifp);
 	return NULL;
 }
 
@@ -482,7 +454,7 @@ void ip6_out_features(struct rte_mbuf *m, struct ifnet *ifp,
 	};
 
 	/* nxt->ifp may be changed by netlink messages. */
-	struct ifnet *nxt_ifp = nh6_get_ifp(nxt);
+	struct ifnet *nxt_ifp = dp_nh6_get_ifp(nxt);
 
 	/* Destination device is not up? */
 	if (!nxt_ifp || !(nxt_ifp->if_flags & IFF_UP)) {
@@ -573,7 +545,7 @@ ip6_validate_packet(struct rte_mbuf *m, const struct ip6_hdr *ip6)
 	 * Is packet big enough.
 	 * (i.e is there a valid IP header in first segment)
 	 */
-	if (rte_pktmbuf_data_len(m) < pktmbuf_l2_len(m) + sizeof(*ip6))
+	if (rte_pktmbuf_data_len(m) < dp_pktmbuf_l2_len(m) + sizeof(*ip6))
 		goto bad_packet;
 
 	/*
@@ -583,14 +555,14 @@ ip6_validate_packet(struct rte_mbuf *m, const struct ip6_hdr *ip6)
 		goto bad_packet;
 
 	/* Runt? */
-	len = rte_pktmbuf_pkt_len(m) - pktmbuf_l2_len(m) - sizeof(*ip6);
+	len = rte_pktmbuf_pkt_len(m) - dp_pktmbuf_l2_len(m) - sizeof(*ip6);
 	ip6_len = ntohs(ip6->ip6_plen);
 
 	/* Packet is less than what the ip header tell us */
 	if (unlikely(len < ip6_len))
 		goto pkt_truncated;
 
-	pktmbuf_l3_len(m) = sizeof(*ip6);
+	dp_pktmbuf_l3_len(m) = sizeof(*ip6);
 
 	/*
 	 * Is packet longer than IP header tells us?
@@ -600,20 +572,13 @@ ip6_validate_packet(struct rte_mbuf *m, const struct ip6_hdr *ip6)
 
 	/*
 	 * RFC 4291 - Source address sanity checks.
-	 *    The following are not allowed: multicast, loopback, V4 mapped.
+	 *    The following are not allowed: multicast, loopback
+	 * draft-itojun-v6ops-v4mapped-harmful-02:
+	 *    Don't allow V4 mapped source either.
 	 */
 	if (unlikely(IN6_IS_ADDR_MULTICAST(&ip6->ip6_src)) ||
 	    unlikely(IN6_IS_ADDR_LOOPBACK(&ip6->ip6_src)) ||
 	    unlikely(IN6_IS_ADDR_V4MAPPED(&ip6->ip6_src)))
-		goto bad_addr;
-
-	/*
-	 * RFC 4291 - Unicast destination address sanity checks.
-	 *    The following are not allowed: unspecified, loopback, V4 mapped.
-	 */
-	if (unlikely(IN6_IS_ADDR_UNSPECIFIED(&ip6->ip6_dst)) ||
-	    unlikely(IN6_IS_ADDR_LOOPBACK(&ip6->ip6_dst)) ||
-	    unlikely(IN6_IS_ADDR_V4MAPPED(&ip6->ip6_dst)))
 		goto bad_addr;
 
 	/*
@@ -726,7 +691,7 @@ void ip6_input_from_ipsec(struct ifnet *ifp, struct rte_mbuf *m)
 	return;
 
  slow_path: __cold_label;
-	ip6_local_deliver(ifp, m);
+	ip6_l4_input(m, ifp);
 }
 
 ALWAYS_INLINE
@@ -737,8 +702,8 @@ void ip6_output(struct rte_mbuf *m, bool srced_forus)
 	struct ifnet *ifp;
 
 	/* Lookup route */
-	nxt = rt6_lookup(srced_forus ? &ip6->ip6_src : &ip6->ip6_dst,
-			 RT_TABLE_MAIN, m);
+	nxt = dp_rt6_lookup(srced_forus ? &ip6->ip6_src : &ip6->ip6_dst,
+			    RT_TABLE_MAIN, m);
 	if (!nxt) {
 		/*
 		 * Since there is no output interface count against
@@ -749,7 +714,7 @@ void ip6_output(struct rte_mbuf *m, bool srced_forus)
 	}
 
 	/* ifp can be changed by nxt->ifp. use protected deref. */
-	ifp = nh6_get_ifp(nxt);
+	ifp = dp_nh6_get_ifp(nxt);
 
 	if (unlikely(ifp == NULL)) {
 		if (net_ratelimit()) {
@@ -894,8 +859,11 @@ ip6_spath_filter_internal(struct ifnet *ifp, struct ifnet *l2_ifp,
 	 */
 	if (IN6_IS_ADDR_LINKLOCAL(&ip6->ip6_src) ||
 	    IN6_IS_ADDR_UNSPECIFIED(&ip6->ip6_src) ||
-	    is_local_ipv6(if_vrfid(ifp), &ip6->ip6_src))
+	    is_local_ipv6(if_vrfid(ifp), &ip6->ip6_src)) {
 		npf_flags |= NPF_FLAG_FROM_US | NPF_FLAG_FROM_LOCAL;
+		if (npf_zone_local_is_set())
+			npf_flags |= NPF_FLAG_FROM_ZONE;
+	}
 
 	/*
 	 * The kernel can L2 forward some bridged packets (i.e. IP broadcasts

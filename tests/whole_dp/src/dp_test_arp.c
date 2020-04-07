@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2018, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2015-2017 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -19,12 +19,16 @@
 
 #include "dp_test.h"
 #include "dp_test_controller.h"
-#include "dp_test_netlink_state.h"
-#include "dp_test_lib.h"
+#include "dp_test_netlink_state_internal.h"
+#include "dp_test_lib_internal.h"
 #include "dp_test_lib_exp.h"
-#include "dp_test_lib_intf.h"
-#include "dp_test_pktmbuf_lib.h"
+#include "dp_test_lib_intf_internal.h"
+#include "dp_test_lib_pb.h"
+#include "dp_test_pktmbuf_lib_internal.h"
 #include "dp_test_cmd_state.h"
+
+#include "protobuf/GArpConfig.pb-c.h"
+#include "protobuf/DataplaneEnvelope.pb-c.h"
 
 /*
  * Arp for interface address
@@ -72,8 +76,8 @@ dp_test_zero_arp_stats(const char *ifname)
 	struct vrf *vrf;
 
 	ifindex = dp_test_intf_name2index(ifname);
-	ifp = ifnet_byifindex(ifindex);
-	vrf = vrf_get_rcu_from_external(ifp->if_vrfid);
+	ifp = dp_ifnet_byifindex(ifindex);
+	vrf = dp_vrf_get_rcu_from_external(ifp->if_vrfid);
 
 	if (vrf)
 		memset(&vrf->v_arpstat, 0, sizeof(vrf->v_arpstat));
@@ -86,8 +90,8 @@ dp_test_zero_arp_stats(const char *ifname)
 		struct vrf *vrf;					\
 									\
 		ifindex = dp_test_intf_name2index(ifname);		\
-		ifp = ifnet_byifindex(ifindex);				\
-		vrf = vrf_get_rcu_from_external(ifp->if_vrfid);		\
+		ifp = dp_ifnet_byifindex(ifindex);			\
+		vrf = dp_vrf_get_rcu_from_external(ifp->if_vrfid);	\
 									\
 		if (vrf) {						\
 			dp_test_fail_unless(vrf->v_arpstat.stat == value, \
@@ -108,8 +112,8 @@ static void _dp_test_verify_all_arp_stats_zero(const char *ifname,
 	struct vrf *vrf;
 
 	ifindex = dp_test_intf_name2index(ifname);
-	ifp = ifnet_byifindex(ifindex);
-	vrf = vrf_get_rcu_from_external(ifp->if_vrfid);
+	ifp = dp_ifnet_byifindex(ifindex);
+	vrf = dp_vrf_get_rcu_from_external(ifp->if_vrfid);
 
 	if (vrf) {
 		_dp_test_fail_unless(
@@ -444,37 +448,71 @@ static void dp_test_verify_garp_state(const char *file, const char *func,
 	ctx.rep_str = garp_rep_str;
 
 	if (ifname) {
-		ifp = ifnet_byifname(ifname);
+		ifp = dp_ifnet_byifname(ifname);
 		dp_test_verify_intf_garp_state(ifp, &ctx);
 	} else
-		ifnet_walk(dp_test_verify_intf_garp_state, &ctx);
+		dp_ifnet_walk(dp_test_verify_intf_garp_state, &ctx);
+}
+
+static void
+dp_test_create_and_send_garp_msg(const char *ifname,
+				 const bool set,
+				 const GArpConfig__ArpOp op,
+				 const GArpConfig__GarpPktAction action)
+{
+	int len;
+	GArpConfig garp = GARP_CONFIG__INIT;
+	garp.ifname = (char *)ifname;
+	garp.set = set;
+	garp.has_set = true;
+	garp.op = op;
+	garp.has_op = true;
+	garp.action = action;
+	garp.has_action = true;
+
+	len = garp_config__get_packed_size(&garp);
+
+	void *buf2 = malloc(len);
+	dp_test_assert_internal(buf2);
+
+	garp_config__pack(&garp, buf2);
+
+	dp_test_lib_pb_wrap_and_send_pb("vyatta:cmd_arp_cfg", buf2, len);
+}
+
+static void
+dp_test_garp_execute(const char *ifname,
+		     const bool set,
+		     const GArpConfig__ArpOp op,
+		     const GArpConfig__GarpPktAction action)
+{
+	dp_test_create_and_send_garp_msg(ifname, set, op, action);
 }
 
 static void dp_test_garp_drop(int arp_op, const char *peer_mac,
 			      const char *exp_peer_mac,
 			      const char *file, const char *function, int line)
 {
-	const char *op_str;
 	const char *exp_req, *exp_rep;
 	struct dp_test_expected *exp;
 	struct rte_mbuf *arp_pak;
 	char real_ifname[IFNAMSIZ];
+	GArpConfig__ArpOp garp_op;
 
 	if (arp_op == ARPOP_REQUEST) {
-		op_str = "request";
+		garp_op = GARP_CONFIG__ARP_OP__ARPOP_REQUEST;
 		exp_req = "Drop";
 		exp_rep = "Update";
 	} else {
-		op_str = "reply";
+		garp_op = GARP_CONFIG__ARP_OP__ARPOP_REPLY;
 		exp_req = "Update";
 		exp_rep = "Drop";
 	}
 
 	/* set default action to drop */
-	dp_test_send_config_src(dp_test_cont_src_get(),
-				"arp gratuitous SET %s %s drop",
-				dp_test_intf_real(IIFNAME, real_ifname),
-				op_str);
+	dp_test_garp_execute(dp_test_intf_real(IIFNAME, real_ifname),
+			     true, garp_op,
+			     GARP_CONFIG__GARP_PKT_ACTION__GARP_PKT_DROP);
 
 	dp_test_verify_garp_state(file, function, line,
 				  real_ifname, exp_req, exp_rep);
@@ -505,9 +543,9 @@ static void dp_test_garp_drop(int arp_op, const char *peer_mac,
 	dp_test_verify_all_arp_stats_zero(IIFNAME);
 
 	/* restore default operation */
-	dp_test_send_config_src(dp_test_cont_src_get(),
-				"arp gratuitous DELETE %s %s drop",
-				real_ifname, op_str);
+	dp_test_garp_execute(dp_test_intf_real(IIFNAME, real_ifname),
+			     false, garp_op,
+			     GARP_CONFIG__GARP_PKT_ACTION__GARP_PKT_DROP);
 	dp_test_verify_garp_state(file, function, line,
 				  real_ifname, "Update", "Update");
 }
@@ -678,33 +716,38 @@ DP_START_TEST(garp, garp_cmd)
 	char real_ifname[IFNAMSIZ];
 
 	/* set default action to drop */
-	dp_test_send_config_src(dp_test_cont_src_get(),
-				"arp gratuitous SET all request drop");
-	dp_test_send_config_src(dp_test_cont_src_get(),
-				"arp gratuitous SET all reply drop");
+	dp_test_garp_execute("", true, GARP_CONFIG__ARP_OP__ARPOP_REQUEST,
+			     GARP_CONFIG__GARP_PKT_ACTION__GARP_PKT_DROP);
+
+	dp_test_garp_execute("", true, GARP_CONFIG__ARP_OP__ARPOP_REPLY,
+			     GARP_CONFIG__GARP_PKT_ACTION__GARP_PKT_DROP);
+
 	dp_test_verify_garp_state(__FILE__, __func__, __LINE__, NULL,
 				  "Drop", "Drop");
 
 	/* override one action on one interface */
 	dp_test_intf_real("dp1T3", real_ifname);
-	dp_test_send_config_src(dp_test_cont_src_get(),
-				"arp gratuitous SET %s request update",
-				real_ifname);
+
+	dp_test_garp_execute(real_ifname, true,
+			     GARP_CONFIG__ARP_OP__ARPOP_REQUEST,
+			     GARP_CONFIG__GARP_PKT_ACTION__GARP_PKT_UPDATE);
+
 	dp_test_verify_garp_state(__FILE__, __func__, __LINE__, real_ifname,
 				  "Update", "Drop");
 
 	/* clear one action on one interface */
-	dp_test_send_config_src(dp_test_cont_src_get(),
-				"arp gratuitous DELETE %s request update",
-				real_ifname);
+	dp_test_garp_execute(real_ifname, false,
+			     GARP_CONFIG__ARP_OP__ARPOP_REQUEST,
+			     GARP_CONFIG__GARP_PKT_ACTION__GARP_PKT_UPDATE);
+
 	dp_test_verify_garp_state(__FILE__, __func__, __LINE__, real_ifname,
 				  "Drop", "Drop");
 
 	/* restore default action */
-	dp_test_send_config_src(dp_test_cont_src_get(),
-				"arp gratuitous DELETE all request drop");
-	dp_test_send_config_src(dp_test_cont_src_get(),
-				"arp gratuitous DELETE all reply drop");
+	dp_test_garp_execute("", false, GARP_CONFIG__ARP_OP__ARPOP_REQUEST,
+			     GARP_CONFIG__GARP_PKT_ACTION__GARP_PKT_DROP);
+	dp_test_garp_execute("", false, GARP_CONFIG__ARP_OP__ARPOP_REPLY,
+			     GARP_CONFIG__GARP_PKT_ACTION__GARP_PKT_DROP);
 	dp_test_verify_garp_state(__FILE__, __func__, __LINE__, NULL,
 				  "Update", "Update");
 } DP_END_TEST;
@@ -1419,6 +1462,8 @@ DP_START_TEST(bridge_arp_req_l3_fwd, bridge_arp_req_l3_fwd)
 
 	/* Clean Up */
 	dp_test_neigh_clear_entry(bname, PEER_IP);
+	DP_TEST_VERIFY_AND_CLEAR_ARP_STAT(bname, dropped, 1);
+
 	dp_test_nl_del_ip_addr_and_connected(bname, OUR_IP "/24");
 	dp_test_nl_del_ip_addr_and_connected(IIFNAME2, OUR_IP2 "/24");
 	dp_test_intf_bridge_remove_port(bname, bport);

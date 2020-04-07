@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2019, AT&T Intellectual Property. All rights reserved.
+ * Copyright (c) 2018-2020, AT&T Intellectual Property. All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  *
@@ -20,12 +20,12 @@
 #include "fal_plugin.h"
 
 #include "dp_test.h"
-#include "dp_test_lib.h"
+#include "dp_test_lib_internal.h"
 #include "dp_test_lib_exp.h"
 #include "dp_test_lib_pkt.h"
-#include "dp_test_lib_intf.h"
-#include "dp_test_pktmbuf_lib.h"
-#include "dp_test_netlink_state.h"
+#include "dp_test_lib_intf_internal.h"
+#include "dp_test_pktmbuf_lib_internal.h"
+#include "dp_test_netlink_state_internal.h"
 #include "dp_test_console.h"
 #include "dp_test_controller.h"
 #include "dp_test_json_utils.h"
@@ -1012,8 +1012,8 @@ _dp_test_qos_hw_get_json_child(json_object *j_parent, const char *name,
 void
 _dp_test_qos_hw_check_sched_group(json_object *j_obj, int32_t level,
 				  int32_t max_children,
-				  int32_t current_children, bool debug,
-				  const char *file, const int line)
+				  int32_t current_children, uint8_t lpq,
+				  bool debug, const char *file, const int line)
 {
 	int32_t int_value;
 	bool rc;
@@ -1039,8 +1039,8 @@ _dp_test_qos_hw_check_sched_group(json_object *j_obj, int32_t level,
 
 		_dp_test_fail_unless(rc && max_children == int_value, file,
 				     line,
-				     "%s failed to match max-children %d\n",
-				     __func__, max_children);
+				     "%s failed to match max-children %d int_val %d\n",
+				     __func__, max_children, int_value);
 	}
 
 	if (current_children >= 0) {
@@ -1051,20 +1051,32 @@ _dp_test_qos_hw_check_sched_group(json_object *j_obj, int32_t level,
 
 		_dp_test_fail_unless(rc && current_children == int_value, file,
 				     line,
-				     "%s failed to match current-children %d\n",
-				     __func__, current_children);
+				     "%s failed to match current-children %d int_val %d\n",
+				     __func__, current_children, int_value);
+	}
+
+	if (lpq > 0) {
+		rc = dp_test_json_int_field_from_obj(j_obj,
+						     "local-priority-des",
+						     &int_value);
+		if (debug)
+			dp_test_qos_json_dump(j_obj);
+
+		_dp_test_fail_unless(rc && lpq == int_value, file,
+				     line,
+				     "%s failed to match lpq %d int_val %d\n",
+				     __func__, lpq, int_value);
 	}
 }
 
 void
 _dp_test_qos_hw_check_ingress_map(json_object *j_map_obj, int32_t map_type,
-				  struct tc_queue_pair *map_list,
-				  bool local_priority, bool debug,
+				  struct des_dp_pair *map_list,
+				  bool debug,
 				  const char *file, const int line)
 {
 	json_object *j_map_list_obj;
 	int32_t int_value;
-	bool bool_value = false;
 	uint32_t length;
 	uint8_t max_cp;
 	uint8_t cp;
@@ -1085,12 +1097,6 @@ _dp_test_qos_hw_check_ingress_map(json_object *j_map_obj, int32_t map_type,
 				     __func__, map_type);
 	}
 
-	rc = dp_test_json_boolean_field_from_obj(j_map_obj, "local-priority",
-						 &bool_value);
-	_dp_test_fail_unless(rc && bool_value == local_priority, file, line,
-			     "%s failed to match local-priority %d\n",
-			     __func__, local_priority);
-
 	struct dp_test_json_search_key key[] = {
 		{ "map-list", NULL, -1 },
 	};
@@ -1099,23 +1105,21 @@ _dp_test_qos_hw_check_ingress_map(json_object *j_map_obj, int32_t map_type,
 	_dp_test_fail_unless(j_map_list_obj != NULL, file, line,
 			     "%s failed to find map-list array\n", __func__);
 
-	max_cp = map_type == FAL_QOS_MAP_TYPE_DSCP_TO_TC ?
+	max_cp = map_type == FAL_QOS_MAP_TYPE_DSCP_TO_DESIGNATOR ?
 		FAL_QOS_MAP_DSCP_VALUES : FAL_QOS_MAP_PCP_VALUES;
 	length = json_object_array_length(j_map_list_obj);
 
-	struct tc_queue_pair json_map[FAL_QOS_MAP_DSCP_VALUES] = { { 0 } };
+	struct des_dp_pair json_map[FAL_QOS_MAP_DSCP_VALUES] = { { 0 } };
 
 	for (i = 0; i < length; i++) {
 		json_object *j_map_entry;
 		const char *cp_bitmap_str;
 		uint64_t cp_bitmap;
-		int queue;
 		int dp;
-		int tc;
+		int des;
 		bool rc1;
 		bool rc2;
 		bool rc3;
-		bool rc4;
 
 		j_map_entry = json_object_array_get_idx(j_map_list_obj, i);
 
@@ -1123,13 +1127,11 @@ _dp_test_qos_hw_check_ingress_map(json_object *j_map_obj, int32_t map_type,
 							"cp-bitmap",
 							&cp_bitmap_str);
 		rc2 = dp_test_json_int_field_from_obj(j_map_entry,
-						      "traffic-class", &tc);
-		rc3 = dp_test_json_int_field_from_obj(j_map_entry, "queue",
-						      &queue);
-		rc4 = dp_test_json_int_field_from_obj(j_map_entry,
+						      "designator", &des);
+		rc3 = dp_test_json_int_field_from_obj(j_map_entry,
 						      "drop-precedence",
 						      &dp);
-		_dp_test_fail_unless(rc1 && rc2 && rc3 && rc4, file, line,
+		_dp_test_fail_unless(rc1 && rc2 && rc3, file, line,
 				     "%s failed to extract map from map-list\n",
 				     __func__);
 
@@ -1137,24 +1139,22 @@ _dp_test_qos_hw_check_ingress_map(json_object *j_map_obj, int32_t map_type,
 
 		for (cp = 0; cp < max_cp; cp++) {
 			if (cp_bitmap & (1ul << cp)) {
-				json_map[cp].tc = tc;
-				json_map[cp].queue = queue;
+				json_map[cp].des = des;
 				json_map[cp].dp = dp;
 			}
 		}
 	}
 
 	for (cp = 0; cp < max_cp; cp++) {
-		_dp_test_fail_unless(json_map[cp].tc == map_list[cp].tc &&
-				     json_map[cp].queue == map_list[cp].queue &&
+		_dp_test_fail_unless(json_map[cp].des == map_list[cp].des &&
 				     json_map[cp].dp == map_list[cp].dp,
 				     file, line,
-				     "%s failed to match code-point %u tc: "
-				     "%u queue: %u drop-precedence %u vs "
-				     "tc: %d queue: %d drop-precedence %d\n",
-				     __func__, cp, map_list[cp].tc,
-				     map_list[cp].queue, map_list[cp].dp,
-				     json_map[cp].tc, json_map[cp].queue,
+				     "%s failed to match code-point %u des %u"
+				     " drop-precedence %u vs "
+				     "des %d drop-precedence %d\n",
+				     __func__, cp, map_list[cp].des,
+				     map_list[cp].dp,
+				     json_map[cp].des,
 				     json_map[cp].dp);
 	}
 
@@ -1321,11 +1321,10 @@ _dp_test_qos_hw_check_scheduler(json_object *j_obj, const char *type,
 void
 _dp_test_qos_hw_check_queue(json_object *j_obj, int32_t id,
 			    int32_t queue_limit, int32_t queue_index,
-			    bool local_priority, bool debug, const char *file,
-			    const int line)
+			    uint8_t designation,
+			    bool debug, const char *file, const int line)
 {
 	int32_t int_value;
-	bool bool_value = false;
 	bool rc;
 
 	_dp_test_fail_unless(j_obj != NULL, file, line, "null queue\n");
@@ -1363,11 +1362,17 @@ _dp_test_qos_hw_check_queue(json_object *j_obj, int32_t id,
 				     __func__, queue_index);
 	}
 
-	rc = dp_test_json_boolean_field_from_obj(j_obj, "local-priority",
-						 &bool_value);
-	_dp_test_fail_unless(rc && bool_value == local_priority, file, line,
-			     "%s failed to match local-priority %d\n",
-			     __func__, local_priority);
+	if (designation > 0) {
+		rc = dp_test_json_int_field_from_obj(j_obj, "designation",
+						     &int_value);
+		if (debug)
+			dp_test_qos_json_dump(j_obj);
+
+		_dp_test_fail_unless(rc && (int)designation == int_value,
+				     file, line,
+				     "%s failed to match designation %d\n",
+				     __func__, designation);
+	}
 }
 
 void
@@ -1510,7 +1515,6 @@ _dp_test_qos_check_mark_map(const char *map_name, int8_t *pcp_values,
 	struct dp_test_qos_json_array_iterate_argblk argblk;
 	json_object *j_obj;
 	json_object *j_pcp_values;
-	struct dp_test_json_mismatches *mismatches = NULL;
 
 	struct dp_test_json_search_key key[] = {
 		{ "mark-maps", NULL, 0 },
@@ -1518,13 +1522,11 @@ _dp_test_qos_check_mark_map(const char *map_name, int8_t *pcp_values,
 	};
 
 	j_obj = _dp_test_qos_get_json_mark_map(key, ARRAY_SIZE(key), __func__,
-						 debug, file, line);
-	if (!j_obj) {
-		(void)dp_test_json_mismatch_print(mismatches, 2, NULL, 0);
+					       debug, file, line);
+	if (!j_obj)
 		_dp_test_qos_json_error(debug, file, line, j_obj,
 					"%s failed to find json object",
 					__func__);
-	}
 
 	struct dp_test_json_find_key pcp_key[] = {
 		{ "pcp-values", NULL }
@@ -1554,10 +1556,41 @@ _dp_test_qos_check_mark_map(const char *map_name, int8_t *pcp_values,
 void _dp_test_qos_delete_config_from_if(const char *if_name, bool debug,
 					const char *file, const int line)
 {
-	uint32_t ifindex = dp_test_intf_name2index(if_name);
+	char real[IFNAMSIZ];
 
-	dp_test_send_config_src(dp_test_cont_src_get(), "qos %u disable",
-				ifindex);
+	dp_test_send_config_src(dp_test_cont_src_get(), "qos %s disable",
+				dp_test_intf_real(if_name, real));
+}
+
+void _dp_test_qos_send_config(const char *cmd_list[], int num_cmds, bool debug,
+			      const char *file, const int line)
+
+{
+	int i = 0;
+
+	for (i = 0; i < num_cmds; i++) {
+		dp_test_send_config_src(dp_test_cont_src_get(),
+					"qos global-object-cmd %s",
+					cmd_list[i]);
+	}
+}
+
+void _dp_test_qos_send_cmd(const char *cmd, bool debug,
+			   const char *file, const int line)
+{
+		dp_test_send_config_src(dp_test_cont_src_get(),
+					"qos global-object-cmd %s", cmd);
+}
+
+void _dp_test_qos_send_if_cmd(const char *if_name,
+			      const char *cmd, bool debug,
+			      const char *file, const int line)
+
+{
+	char real[IFNAMSIZ];
+
+	dp_test_send_config_src(dp_test_cont_src_get(), "qos %s %s",
+				dp_test_intf_real(if_name, real), cmd);
 }
 
 void _dp_test_qos_attach_config_to_if(const char *if_name,
@@ -1565,10 +1598,10 @@ void _dp_test_qos_attach_config_to_if(const char *if_name,
 				      const char *file, const int line)
 
 {
-	uint32_t ifindex = dp_test_intf_name2index(if_name);
 	uint32_t i = 0;
 	uint32_t subports = 0;
 	int32_t items = -1;
+	char real[IFNAMSIZ];
 
 	while (!strstr(cmd_list[i], "enable")) {
 		/*
@@ -1582,10 +1615,12 @@ void _dp_test_qos_attach_config_to_if(const char *if_name,
 		/*
 		 * Update the numeric port-id with the required value
 		 */
-		dp_test_send_config_src(dp_test_cont_src_get(), "qos %u %s",
-					ifindex, cmd_list[i++]);
+		dp_test_send_config_src(dp_test_cont_src_get(), "qos %s %s",
+					dp_test_intf_real(if_name, real),
+					cmd_list[i++]);
 	}
-	dp_test_send_config_src(dp_test_cont_src_get(), "qos %u %s", ifindex,
+	dp_test_send_config_src(dp_test_cont_src_get(), "qos %s %s",
+				dp_test_intf_real(if_name, real),
 				cmd_list[i++]);
 
 	/*

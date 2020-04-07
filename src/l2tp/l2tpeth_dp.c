@@ -1,7 +1,7 @@
 /*
  * L2TPETH Forwarding
  *
- * Copyright (c) 2017-2018, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2014-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -30,11 +30,11 @@
 #include "ip_funcs.h"
 #include "l2tpeth.h"
 #include "netinet6/ip6_funcs.h"
-#include "pktmbuf.h"
+#include "pktmbuf_internal.h"
 #include "urcu.h"
 #include "vplane_debug.h"
 #include "vplane_log.h"
-#include "vrf.h"
+#include "vrf_internal.h"
 
 #define L2TP_HDR_VER_3 0x0003
 
@@ -139,7 +139,7 @@ l2tp_output(struct ifnet *ifp, struct rte_mbuf *m, uint16_t rx_vlan)
 			"Not enough space in mbuf to allocate l2tp hdr\n");
 		goto drop;
 	}
-	pktmbuf_l2_len(m) = ETHER_HDR_LEN;
+	dp_pktmbuf_l2_len(m) = ETHER_HDR_LEN;
 
 	/*
 	 * L2tp interface supports only default VRF as of yet
@@ -192,9 +192,8 @@ l2tp_output(struct ifnet *ifp, struct rte_mbuf *m, uint16_t rx_vlan)
 		memcpy(&ip_header->saddr, &session->s_addr, sizeof(uint32_t));
 		memcpy(&ip_header->daddr, &session->d_addr, sizeof(uint32_t));
 
-		ip_header->check = 0;
-		ip_header->check = in_cksum_hdr(ip_header);
-		pktmbuf_l3_len(m) = ip_header->ihl << 2;
+		dp_set_cksum_hdr(ip_header);
+		dp_pktmbuf_l3_len(m) = ip_header->ihl << 2;
 	} else {
 		struct ip6_hdr *ip_header = (struct ip6_hdr *)encap->iphdr;
 
@@ -215,7 +214,7 @@ l2tp_output(struct ifnet *ifp, struct rte_mbuf *m, uint16_t rx_vlan)
 
 	/* udp hdr */
 	uint16_t *udp_cksum = NULL;
-	uint16_t orig_cksum;
+	uint16_t orig_cksum = 0;
 	struct ip6_hdr *ip6hdr = NULL;
 	struct udp_hdr *udp_header = (struct udp_hdr *)
 		((char *)encap->iphdr + ip_hdr_len);

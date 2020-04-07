@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2018, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  */
@@ -158,7 +158,7 @@ bool
 npf_fetch_tcpopts(const npf_cache_t *npc, struct rte_mbuf *nbuf,
 		  uint16_t *mss, uint8_t *wscale)
 {
-	void *n_ptr = pktmbuf_mtol4(nbuf, void *);
+	void *n_ptr = dp_pktmbuf_mtol4(nbuf, void *);
 	const struct tcphdr *th = &npc->npc_l4.tcp;
 	int topts_len, step;
 
@@ -256,7 +256,7 @@ void npf_store_tcp_options(npf_cache_t *npc, struct rte_mbuf *nbuf, void *buf)
 bool npf_store_tcp_mss(const npf_cache_t *npc, struct rte_mbuf *nbuf,
 		       uint16_t *mss)
 {
-	void *n_ptr = pktmbuf_mtol4(nbuf, void *);
+	void *n_ptr = dp_pktmbuf_mtol4(nbuf, void *);
 	const struct tcphdr *th = &npc->npc_l4.tcp;
 	uint topts_len, step;
 
@@ -529,8 +529,8 @@ npf_fetch_ipv6(npf_cache_t *npc, struct rte_mbuf *nbuf, void *n_ptr)
 	}
 
 	/* Store the l3_len, if not calculated earlier. */
-	if (pktmbuf_l3_len(nbuf) == 0)
-		pktmbuf_l3_len(nbuf) = npc->npc_hlen;
+	if (dp_pktmbuf_l3_len(nbuf) == 0)
+		dp_pktmbuf_l3_len(nbuf) = npc->npc_hlen;
 
 	npc->last_unfrg_hlen = last_unfrg_hlen;
 	npc->last_unfrg_hofs = last_unfrg_hofs;
@@ -567,7 +567,7 @@ void npf_recache_ip_ttl(npf_cache_t *npc, struct rte_mbuf *nbuf)
 {
 	if (!npf_iscached(npc, NPC_IP46))
 		return;
-	char *n_ptr = pktmbuf_mtol3(nbuf, char *);
+	char *n_ptr = dp_pktmbuf_mtol3(nbuf, char *);
 
 	/* This reads TTL/PROTO/CHECKSUM */
 	if (npf_iscached(npc, NPC_IP4)) {
@@ -1147,15 +1147,15 @@ void npf_udp_cksum(npf_cache_t *npc, struct rte_mbuf *nbuf)
 	uint16_t cksum;
 	void *l3hdr;
 
-	l3hdr = pktmbuf_mtol3(nbuf, void *);
+	l3hdr = dp_pktmbuf_mtol3(nbuf, void *);
 	udp = (struct udphdr *)(rte_pktmbuf_mtod(nbuf, char *) +
 				nbuf->l2_len + npf_cache_hlen(npc));
 	udp->check = 0;
 
 	if (npf_iscached(npc, NPC_IP4))
-		cksum = in4_cksum_mbuf(nbuf, l3hdr, udp);
+		cksum = dp_in4_cksum_mbuf(nbuf, l3hdr, udp);
 	else if (npf_iscached(npc, NPC_IP6))
-		cksum = in6_cksum_mbuf(nbuf, l3hdr, udp);
+		cksum = dp_in6_cksum_mbuf(nbuf, l3hdr, udp);
 	else
 		return;
 
@@ -1175,15 +1175,15 @@ void npf_tcp_cksum(npf_cache_t *npc, struct rte_mbuf *nbuf)
 	uint16_t cksum;
 	void *l3hdr;
 
-	l3hdr = pktmbuf_mtol3(nbuf, void *);
+	l3hdr = dp_pktmbuf_mtol3(nbuf, void *);
 	tcp = (struct tcphdr *)(rte_pktmbuf_mtod(nbuf, char *) +
 				nbuf->l2_len + npf_cache_hlen(npc));
 	tcp->check = 0;
 
 	if (npf_iscached(npc, NPC_IP4))
-		cksum = in4_cksum_mbuf(nbuf, l3hdr, tcp);
+		cksum = dp_in4_cksum_mbuf(nbuf, l3hdr, tcp);
 	else if (npf_iscached(npc, NPC_IP6))
-		cksum = in6_cksum_mbuf(nbuf, l3hdr, tcp);
+		cksum = dp_in6_cksum_mbuf(nbuf, l3hdr, tcp);
 	else
 		return;
 
@@ -1206,25 +1206,25 @@ npf_ipv4_cksum(struct rte_mbuf *nbuf, int proto, char *l4hdr)
 	struct icmp *icmp;
 	struct iphdr *l3hdr;
 
-	l3hdr = pktmbuf_mtol3(nbuf, struct iphdr *);
+	l3hdr = dp_pktmbuf_mtol3(nbuf, struct iphdr *);
 
 	switch (proto) {
 	case IPPROTO_TCP:
 		tcp = (struct tcphdr *)l4hdr;
 		tcp->check = 0;
-		tcp->check = in4_cksum_mbuf(nbuf, l3hdr, tcp);
+		tcp->check = dp_in4_cksum_mbuf(nbuf, l3hdr, tcp);
 		break;
 	case IPPROTO_UDP:
 		udp = (struct udphdr *)l4hdr;
 		udp->check = 0;
-		udp->check = in4_cksum_mbuf(nbuf, l3hdr, udp);
+		udp->check = dp_in4_cksum_mbuf(nbuf, l3hdr, udp);
 		/* Do not encode the 'no checksum' value */
 		udp->check = (udp->check == 0) ? 0xffff : udp->check;
 		break;
 	case IPPROTO_ICMP:
 		icmp = (struct icmp *)l4hdr;
 		icmp->icmp_cksum = 0;
-		icmp->icmp_cksum = in4_cksum_mbuf(nbuf, NULL, icmp);
+		icmp->icmp_cksum = dp_in4_cksum_mbuf(nbuf, NULL, icmp);
 		break;
 	case IPPROTO_SCTP: /* CRC without pseudo-header */
 	default:
@@ -1246,25 +1246,25 @@ void npf_ipv6_cksum(struct rte_mbuf *nbuf, int proto, char *l4hdr)
 	struct icmp6_hdr *icmp6;
 	struct ip6_hdr *l3hdr;
 
-	l3hdr = pktmbuf_mtol3(nbuf, struct ip6_hdr *);
+	l3hdr = dp_pktmbuf_mtol3(nbuf, struct ip6_hdr *);
 
 	switch (proto) {
 	case IPPROTO_TCP:
 		tcp = (struct tcphdr *)l4hdr;
 		tcp->check = 0;
-		tcp->check = in6_cksum_mbuf(nbuf, l3hdr, tcp);
+		tcp->check = dp_in6_cksum_mbuf(nbuf, l3hdr, tcp);
 		break;
 	case IPPROTO_UDP:
 		udp = (struct udphdr *)l4hdr;
 		udp->check = 0;
-		udp->check = in6_cksum_mbuf(nbuf, l3hdr, udp);
+		udp->check = dp_in6_cksum_mbuf(nbuf, l3hdr, udp);
 		/* Do not encode the 'no checksum' value */
 		udp->check = (udp->check == 0) ? 0xffff : udp->check;
 		break;
 	case IPPROTO_ICMPV6:
 		icmp6 = (struct icmp6_hdr *)l4hdr;
 		icmp6->icmp6_cksum = 0;
-		icmp6->icmp6_cksum = in6_cksum_mbuf(nbuf, l3hdr, icmp6);
+		icmp6->icmp6_cksum = dp_in6_cksum_mbuf(nbuf, l3hdr, icmp6);
 		break;
 	case IPPROTO_SCTP: /* CRC without pseudo-header */
 	default:
@@ -1622,7 +1622,7 @@ uint8_t npf_proto_idx_from_str(const char *proto)
 
 int npf_prepare_for_l4_header_change(struct rte_mbuf **m, npf_cache_t *npc)
 {
-	uint header_len = pktmbuf_l2_len(*m) + npf_cache_hlen(npc);
+	uint header_len = dp_pktmbuf_l2_len(*m) + npf_cache_hlen(npc);
 
 	/* Include minimum L4 header for handled L4 protocols. */
 	switch (npf_cache_ipproto(npc)) {

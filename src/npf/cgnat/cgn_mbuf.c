@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2019-2020, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -11,7 +11,7 @@
 #include <errno.h>
 
 #include "in_cksum.h"
-#include "pktmbuf.h"
+#include "pktmbuf_internal.h"
 #include "if_var.h"
 
 #include "npf/npf_mbuf.h"
@@ -19,6 +19,7 @@
 
 #include "npf/cgnat/cgn.h"
 #include "npf/cgnat/cgn_errno.h"
+#include "npf/cgnat/cgn_if.h"
 #include "npf/cgnat/cgn_mbuf.h"
 
 /*
@@ -218,18 +219,21 @@ int cgn_cache_all(struct rte_mbuf *m, uint l3_offset, struct ifnet *ifp,
 		return -CGN_BUF_ENOL3;
 
 	cpk->cpk_info     = 0;
-	cpk->cpk_ifindex  = ifp->if_index;
 	cpk->cpk_ipproto  = ip->protocol;
 	cpk->cpk_proto    = nat_proto_from_ipproto(ip->protocol);
 	cpk->cpk_vrfid    = pktmbuf_get_vrf(m);
-	cpk->cpk_len      = rte_pktmbuf_pkt_len(m) - pktmbuf_l2_len(m);
+	cpk->cpk_len      = rte_pktmbuf_pkt_len(m) - dp_pktmbuf_l2_len(m);
 	cpk->cpk_l3_len   = ip->ihl << 2;
 	cpk->cpk_hlen     = cpk->cpk_l3_len;
 	cpk->cpk_keepalive = true;
+	cpk->cpk_pkt_instd = true;
 	cpk->cpk_sid      = 0;
 	cpk->cpk_did      = 0;
 	cpk->cpk_l4ports  = false;
 	cpk->cpk_cksum    = 0;
+	cpk->cpk_ifindex = ifp->if_index;
+	cpk->cpk_key.k_ifindex = cgn_if_key_index(ifp);
+	cpk->cpk_key.k_expired = false;
 
 	if (dir == CGN_DIR_IN || icmp_err)
 		cpk->cpk_keepalive = false;
@@ -241,6 +245,9 @@ int cgn_cache_all(struct rte_mbuf *m, uint l3_offset, struct ifnet *ifp,
 
 	cpk->cpk_saddr = ip->saddr;
 	cpk->cpk_daddr = ip->daddr;
+
+	/* Setup direction dependent part of hash key */
+	cgn_pkt_key_init(cpk, dir);
 
 	return 0;
 }

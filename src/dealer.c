@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2018, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2015-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -15,7 +15,7 @@
 #include <string.h>
 #include <zmq.h>
 
-#include "config.h"
+#include "config_internal.h"
 #include "dealer.h"
 #include "vplane_debug.h"
 #include "vplane_log.h"

@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2017-2018, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2017 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -21,15 +21,15 @@
 
 #include "main.h"
 #include "if_var.h"
-#include "vrf.h"
+#include "vrf_internal.h"
 
 #include "compat.h"
 
-#include "dp_test_cmd_check.h"
+#include "dp_test/dp_test_cmd_check.h"
 #include "dp_test_console.h"
-#include "dp_test_lib.h"
-#include "dp_test_lib_intf.h"
-#include "dp_test_netlink_state.h"
+#include "dp_test_lib_internal.h"
+#include "dp_test_lib_intf_internal.h"
+#include "dp_test_netlink_state_internal.h"
 #include "dp_test_str.h"
 #include "dp_test.h"
 
@@ -139,7 +139,7 @@ static void dp_test_hide_interface(const char *ifname,
 	portid_t portid;
 
 	dp_test_intf_real(ifname, saved_ifname);
-	*ifp = ifnet_byifname(saved_ifname);
+	*ifp = dp_ifnet_byifname(saved_ifname);
 	dp_test_assert_internal(*ifp != NULL);
 	*saved_ifindex = (*ifp)->if_index;
 

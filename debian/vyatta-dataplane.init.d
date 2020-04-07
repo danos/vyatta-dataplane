@@ -106,7 +106,7 @@ start() {
     rm -f $DATAPLANE_SOCKET
     start-stop-daemon --start --oknodo --quiet --name dataplane \
       --pidfile $DATAPLANE_PID --make-pidfile --startas $DATAPLANE \
-      --background --nicelevel -20 -- $DATAPLANE_ARGS -- $DPDK_ARGS
+      --background --nicelevel -10 -- $DATAPLANE_ARGS -- $DPDK_ARGS
 
     wait_for_dataplane
 

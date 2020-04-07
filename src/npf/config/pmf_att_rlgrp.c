@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2019-2020, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -97,6 +97,8 @@ static TAILQ_HEAD(, pmf_rlset_ext) att_rlsets
 	= TAILQ_HEAD_INITIALIZER(att_rlsets);
 
 static bool deferrals;
+
+static bool commit_pending;
 
 /* ---- */
 
@@ -820,6 +822,9 @@ pmf_arlg_group_modify(void *vctx, struct npf_cfg_rule_group_event *ev)
 	default:
 		return;
 	}
+
+	/* This came from config, expect a commit */
+	commit_pending = true;
 }
 
 /*
@@ -971,6 +976,9 @@ pmf_arlg_attpt_grp_ev_handler(enum npf_attpt_ev_type event,
 		TAILQ_REMOVE(&ears->ears_groups, earg, earg_list);
 		free(earg);
 	}
+
+	/* This came from config, expect a commit */
+	commit_pending = true;
 }
 
 /*
@@ -1010,7 +1018,7 @@ pmf_arlg_attpt_rls_updn(struct npf_attpt_rlset *ars, bool is_up)
 	if (!ears)
 		return;
 
-	struct ifnet *iface = ifnet_byifname(ears->ears_ifname);
+	struct ifnet *iface = dp_ifnet_byifname(ears->ears_ifname);
 	if (is_up) {
 		if (!iface)
 			return;
@@ -1107,7 +1115,7 @@ pmf_arlg_attpt_rls_ev_handler(enum npf_attpt_ev_type event,
 		}
 
 		/* Fill in the index */
-		struct ifnet *iface = ifnet_byifname(if_name);
+		struct ifnet *iface = dp_ifnet_byifname(if_name);
 		if (iface) {
 			ears->ears_ifp = iface;
 			ears->ears_flags |= PMF_EARSF_IFP;
@@ -1128,30 +1136,54 @@ pmf_arlg_attpt_ap_ev_handler(enum npf_attpt_ev_type event,
 	struct npf_attpt_rlset *ars;
 	bool is_up = (event == NPF_ATTPT_EV_UP);
 
-	if (npf_attpt_rlset_find(ap, NPF_RS_ACL_IN, &ars) == 0)
+	bool any_sets = false;
+	if (npf_attpt_rlset_find(ap, NPF_RS_ACL_IN, &ars) == 0) {
 		pmf_arlg_attpt_rls_updn(ars, is_up);
-	if (npf_attpt_rlset_find(ap, NPF_RS_ACL_OUT, &ars) == 0)
+		any_sets = true;
+	}
+	if (npf_attpt_rlset_find(ap, NPF_RS_ACL_OUT, &ars) == 0) {
 		pmf_arlg_attpt_rls_updn(ars, is_up);
+		any_sets = true;
+	}
+
+	/* If this occurs outside of config, force a commit */
+	if (any_sets && !commit_pending)
+		pmf_hw_commit();
 }
 
 static void
-pmf_arlg_if_create_finished(struct ifnet *ifp)
+pmf_arlg_if_feat_mode_change(struct ifnet *ifp,
+			     enum if_feat_mode_event event)
 {
 	struct npf_attpt_item *ap;
+
+	if (event != IF_FEAT_MODE_EVENT_L3_FAL_ENABLED &&
+	    event != IF_FEAT_MODE_EVENT_L3_ENABLED)
+		return;
+
 	if (npf_attpt_item_find_any(NPF_ATTACH_TYPE_INTERFACE,
 				    ifp->if_name, &ap) != 0)
 		return;
 
 	struct npf_attpt_rlset *ars;
 
-	if (npf_attpt_rlset_find(ap, NPF_RS_ACL_IN, &ars) == 0)
+	bool any_sets = false;
+	if (npf_attpt_rlset_find(ap, NPF_RS_ACL_IN, &ars) == 0) {
 		pmf_arlg_attpt_rls_if_created(ars);
-	if (npf_attpt_rlset_find(ap, NPF_RS_ACL_OUT, &ars) == 0)
+		any_sets = true;
+	}
+	if (npf_attpt_rlset_find(ap, NPF_RS_ACL_OUT, &ars) == 0) {
 		pmf_arlg_attpt_rls_if_created(ars);
+		any_sets = true;
+	}
+
+	/* If this occurs outside of config, force a commit */
+	if (any_sets && !commit_pending)
+		pmf_hw_commit();
 }
 
 static const struct dp_event_ops pmf_arlg_events = {
-	.if_create_finished = pmf_arlg_if_create_finished,
+	.if_feat_mode_change = pmf_arlg_if_feat_mode_change,
 };
 
 static void
@@ -1194,6 +1226,7 @@ pmf_arlg_commit(void)
 
 	pmf_hw_commit();
 	deferrals = false;
+	commit_pending = false;
 }
 
 void pmf_arlg_init(void)

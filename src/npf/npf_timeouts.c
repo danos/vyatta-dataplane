@@ -154,7 +154,7 @@ struct npf_timeout *npf_timeout_create_instance(void)
 {
 	struct npf_timeout *to;
 
-	to = malloc_aligned(sizeof(struct npf_timeout));
+	to = zmalloc_aligned(sizeof(struct npf_timeout));
 	if (to) {
 		timeout_init(to);
 		rte_atomic32_init(&to->to_refcnt);

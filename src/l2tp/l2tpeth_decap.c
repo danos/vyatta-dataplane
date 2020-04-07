@@ -1,7 +1,7 @@
 /*
  * Functions for handling l2tpeth data path operations.
  *
- * Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2014-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -21,16 +21,16 @@
 #include <string.h>
 #include <urcu/list.h>
 
-#include "bridge.h"
-#include "bridge_port.h"
 #include "ether.h"
+#include "if/bridge/bridge.h"
+#include "if/bridge/bridge_port.h"
 #include "if_var.h"
 #include "in_cksum.h"
 #include "l2tpeth.h"
-#include "pktmbuf.h"
+#include "pktmbuf_internal.h"
 #include "urcu.h"
 #include "util.h"
-#include "vrf.h"
+#include "vrf_internal.h"
 
 
 #define chk_bit(x, m1, m2) (((x) & (m1)) == (m2))
@@ -265,7 +265,7 @@ int l2tp_udpv4_recv_encap(struct rte_mbuf *m, const struct iphdr *ip,
 
 int l2tp_ipv4_recv_encap(struct rte_mbuf *m, const struct iphdr *ip)
 {
-	const uint8_t *l2tp = pktmbuf_mtol4(m, const uint8_t *);
+	const uint8_t *l2tp = dp_pktmbuf_mtol4(m, const uint8_t *);
 	struct l2tp_session *s;
 	vrfid_t vrfid = pktmbuf_get_vrf(m);
 	unsigned int offset;

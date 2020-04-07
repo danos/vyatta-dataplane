@@ -1,7 +1,7 @@
 /*
  * l3_v4_rpf.c
  *
- * Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2016, 2017 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -40,7 +40,7 @@ verify_path(in_addr_t src, struct ifnet *ifp, uint32_t tbl,
 	if (!src)
 		return true;
 
-	nxt = rt_lookup(src, tbl, m);
+	nxt = dp_rt_lookup(src, tbl, m);
 	if (nxt == NULL)
 		return false;
 
@@ -51,7 +51,7 @@ verify_path(in_addr_t src, struct ifnet *ifp, uint32_t tbl,
 	/* if ifp is in strict mode, check for that incoming
 	 * interface matches the route.
 	 */
-	if (ifp->ip_rpf_strict && nh4_get_ifp(nxt) != ifp)
+	if (ifp->ip_rpf_strict && dp_nh4_get_ifp(nxt) != ifp)
 		return false;
 
 	/* found valid route */
@@ -59,7 +59,7 @@ verify_path(in_addr_t src, struct ifnet *ifp, uint32_t tbl,
 }
 
 ALWAYS_INLINE unsigned int
-ipv4_rpf_process(struct pl_packet *pkt)
+ipv4_rpf_process(struct pl_packet *pkt, void *context __unused)
 {
 	struct iphdr *ip = pkt->l3_hdr;
 	struct ifnet *ifp = pkt->in_ifp;

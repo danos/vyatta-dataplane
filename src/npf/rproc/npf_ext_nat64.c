@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2019-2020, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -62,10 +62,16 @@ nat64_create(struct nat64 **n6p, npf_rule_t *rl)
 		uint32_t match_mask = 0;
 		uint8_t addr_sz = 4;
 
+		/*
+		 * Either an address group or a start-stop range (from a cfgd
+		 * range or prefix) should exist.
+		 */
 		if (new->n6_src.nm_addr_table_id != NPF_TBLID_NONE) {
 			table_id = new->n6_src.nm_addr_table_id;
 			flags |= NPF_NAT_TABLE;
-		}
+		} else if (new->n6_src.nm_start_addr.s6_addr32[0] == 0 ||
+			   new->n6_src.nm_stop_addr.s6_addr32[0] == 0)
+			return -EINVAL;
 
 		/*
 		 * Create an address-port map and set r_natp pointer in rule
@@ -145,6 +151,42 @@ nat64_process_range(uint8_t *addr_sz, npf_addr_t *taddr,
 }
 
 /*
+ * Get address range from an IPv4 prefix.  All addresses params are in network
+ * order.
+ */
+static void nat64_prefix_to_range(uint32_t net_prefix, uint8_t plen,
+				  uint32_t *start, uint32_t *stop)
+{
+	uint32_t prefix = ntohl(net_prefix);
+
+	plen = MIN(plen, 32);
+
+	/* Convert prefix to address range */
+	if (plen == 32) {
+		*start = htonl(prefix);
+		*stop = htonl(prefix);
+		return;
+	}
+
+	uint32_t first, last, mask;
+
+	first = prefix;
+	mask = 0xFFFFFFFFUL << (32 - plen);
+	last = (first | ~mask);
+	first = (first & mask);
+
+	if (plen < 31) {
+		if ((first & 0xFF) == 0)
+			first += 1;
+		if ((last & 0xFF) == 255)
+			last -= 1;
+	}
+
+	*start = htonl(first);
+	*stop = htonl(last);
+}
+
+/*
  * Parse nat64 rproc parameters
  *
  * This parses one "item=value" pair from inside the braces of a rule
@@ -166,6 +208,12 @@ nat64_parse_params(struct nat64 *n6, char *item, char *value)
 
 		if (rc < 0)
 			return -EINVAL;
+
+		nat64_prefix_to_range(n6->n6_src.nm_addr.s6_addr32[0],
+				      n6->n6_src.nm_mask,
+				      &n6->n6_src.nm_start_addr.s6_addr32[0],
+				      &n6->n6_src.nm_stop_addr.s6_addr32[0]);
+
 	} else if (!strcmp(item, "daddr")) {
 		/*
 		 * Destination address or prefix
@@ -176,6 +224,12 @@ nat64_parse_params(struct nat64 *n6, char *item, char *value)
 
 		if (rc < 0)
 			return -EINVAL;
+
+		nat64_prefix_to_range(n6->n6_dst.nm_addr.s6_addr32[0],
+				      n6->n6_dst.nm_mask,
+				      &n6->n6_dst.nm_start_addr.s6_addr32[0],
+				      &n6->n6_dst.nm_stop_addr.s6_addr32[0]);
+
 	} else if (!strcmp(item, "spl")) {
 		char *endp;
 		ulong pfxlen;
@@ -281,6 +335,15 @@ nat64_validate_mapping(struct nat64_map *nm, bool is_src)
 	case NPF_NAT64_OVERLOAD:
 		/* Only v4 source addr pools are supported */
 		if (!is_src || nm->nm_af != AF_INET)
+			return -EINVAL;
+
+		/*
+		 * Either and address-group or a start/stop address should be
+		 * setup
+		 */
+		if (nm->nm_addr_table_id == NPF_TBLID_NONE &&
+		    (nm->nm_start_addr.s6_addr32[0] == 0 ||
+		     nm->nm_stop_addr.s6_addr32[0] == 0))
 			return -EINVAL;
 		break;
 	case NPF_NAT64_NONE:

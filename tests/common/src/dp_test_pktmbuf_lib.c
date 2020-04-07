@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2019, AT&T Intellectual Property. All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property. All rights reserved.
  * Copyright (c) 2015-2017 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -27,7 +27,7 @@
 #include <ip_funcs.h>
 
 #include "compiler.h"
-#include "dp_test_pktmbuf_lib.h"
+#include "dp_test_pktmbuf_lib_internal.h"
 #include "in_cksum.h"
 #include "netinet6/ip6_funcs.h"
 
@@ -359,7 +359,7 @@ dp_test_pktmbuf_ip(struct rte_mbuf *m, const char *src, const char *dst,
 		m->l3_len = sizeof(struct iphdr);
 	} else {
 		m->l3_len = sizeof(struct iphdr);
-		ip = pktmbuf_mtol3(m, struct iphdr *);
+		ip = dp_pktmbuf_mtol3(m, struct iphdr *);
 	}
 
 	hlen = m->l2_len + sizeof(*ip);
@@ -446,7 +446,7 @@ dp_test_pktmbuf_ip6_init(struct rte_mbuf *m,
 		return NULL;
 	}
 
-	ip6 = pktmbuf_mtol3(m, struct ip6_hdr *);
+	ip6 = dp_pktmbuf_mtol3(m, struct ip6_hdr *);
 	m->l3_len = sizeof(*ip6);
 	plen = m->pkt_len - m->l2_len - m->l3_len;
 
@@ -656,7 +656,7 @@ dp_test_pktmbuf_vxlan(struct rte_mbuf *m, uint32_t vx_flags, uint32_t vx_vni,
 		m->l4_len = 0;
 	} else {
 		/* There is no _mtol5 function so calc l5 */
-		vxlan = pktmbuf_mtol4(m, struct vxlan_hdr *) + 1;
+		vxlan = dp_pktmbuf_mtol4(m, struct vxlan_hdr *) + 1;
 	}
 
 	hlen = m->l2_len + m->l3_len + m->l4_len + sizeof(struct vxlan_hdr);
@@ -733,7 +733,7 @@ dp_test_pktmbuf_udp(struct rte_mbuf *m, uint16_t sport, uint16_t dport,
 		return NULL;
 	}
 
-	udp = pktmbuf_mtol4(m, struct udphdr *);
+	udp = dp_pktmbuf_mtol4(m, struct udphdr *);
 
 	memset(udp, 0, sizeof(*udp));
 	udp->source = htons(sport);
@@ -876,7 +876,7 @@ dp_test_pktmbuf_tcp_init(struct rte_mbuf *m,
 		return NULL;
 	}
 
-	tcp = pktmbuf_mtol4(m, struct tcphdr *);
+	tcp = dp_pktmbuf_mtol4(m, struct tcphdr *);
 
 	memset(tcp, 0, l4_len);
 	tcp->source = htons(sport);
@@ -957,7 +957,7 @@ dp_test_pktmbuf_icmp_init(struct rte_mbuf *m, uint8_t icmp_type,
 
 	du.udata32 = data;
 
-	icmp = pktmbuf_mtol4(m, struct icmphdr *);
+	icmp = dp_pktmbuf_mtol4(m, struct icmphdr *);
 	memset(icmp, 0, sizeof(*icmp));
 	icmp->type = icmp_type;
 	icmp->code = icmp_code;
@@ -1009,8 +1009,8 @@ dp_test_pktmbuf_icmp6_init(struct rte_mbuf *m, uint8_t icmp6_type,
 		return NULL;
 	}
 
-	ip6 = pktmbuf_mtol3(m, struct ip6_hdr *);
-	icmp6 = pktmbuf_mtol4(m, struct icmp6_hdr *);
+	ip6 = dp_pktmbuf_mtol3(m, struct ip6_hdr *);
+	icmp6 = dp_pktmbuf_mtol4(m, struct icmp6_hdr *);
 	memset(icmp6, 0, sizeof(*icmp6));
 	icmp6->icmp6_type = icmp6_type;
 	icmp6->icmp6_code = icmp6_code;
@@ -1094,7 +1094,7 @@ dp_test_pktmbuf_gre(struct rte_mbuf *m, uint16_t prot, uint32_t checksum,
 	} else {
 		assert(m->l2_len);
 		assert(m->l3_len);
-		gre = pktmbuf_mtol4(m, struct gre_base_hdr *);
+		gre = dp_pktmbuf_mtol4(m, struct gre_base_hdr *);
 
 	}
 
@@ -1145,7 +1145,7 @@ dp_test_pktmbuf_erspan_init(struct rte_mbuf *m, uint16_t erspanid,
 	if (hdr_type == ERSPAN_TYPEII) {
 		char *hdr;
 		struct erspan_type2_hdr *erspan;
-		hdr = pktmbuf_mtol4(m, char *) + sizeof(*erspan);
+		hdr = dp_pktmbuf_mtol4(m, char *) + sizeof(*erspan);
 		erspan = (struct erspan_type2_hdr *)hdr;
 		erspan->ver_sid = htonl((hdr_type << 28) |
 					(vlan << 16) |
@@ -1365,7 +1365,7 @@ dp_test_insert_8021q_hdr(struct rte_mbuf *pak, uint16_t vlan_id,
 	vhdr->eh.ether_type = htons(vlan_ether_type);
 	vhdr->vh.vlan_tci = htons(vlan_id);
 	vhdr->vh.eth_proto = htons(payload_ether_type);
-	pktmbuf_l2_len(pak) += sizeof(struct vlan_hdr);
+	dp_pktmbuf_l2_len(pak) += sizeof(struct vlan_hdr);
 }
 
 struct rte_mbuf *
@@ -1839,7 +1839,8 @@ dp_test_create_icmp_ipv4_pak(const char *saddr, const char *daddr,
 	uint32_t plen = pak->pkt_len - poff;
 
 	if (payload) {
-		memcpy(pktmbuf_mtol4(pak, struct icmphdr *) + 1, payload, plen);
+		memcpy(dp_pktmbuf_mtol4(pak, struct icmphdr *) + 1,
+		       payload, plen);
 	} else {
 		/* Write test pattern to mbuf payload */
 		if (dp_test_pktmbuf_payload_init(pak, poff, NULL, plen) == 0) {
@@ -1911,8 +1912,8 @@ dp_test_create_icmp_ipv6_pak(const char *saddr, const char *daddr,
 	uint32_t plen = pak->pkt_len - poff;
 
 	if (payload) {
-		memcpy(pktmbuf_mtol4(pak, struct icmp6_hdr *) + 1, payload,
-		       plen);
+		memcpy(dp_pktmbuf_mtol4(pak, struct icmp6_hdr *) + 1,
+		       payload, plen);
 	} else {
 		/* Write test pattern to mbuf payload */
 		if (dp_test_pktmbuf_payload_init(pak, poff, NULL, plen) == 0) {
@@ -2111,7 +2112,7 @@ dp_test_create_gre_pptp_ipv4_pak(const char *saddr, const char *daddr,
 	 * Init the bits and flags.  We only set the key bit,
 	 * ack bit (if present) and version to 1.
 	 */
-	gre = pktmbuf_mtol4(m, struct gre_base_hdr *);
+	gre = dp_pktmbuf_mtol4(m, struct gre_base_hdr *);
 	memset(gre, 0, gre_hlen);
 
 	flags = GRE_FLAG_KEY | GRE_FLAG_VER_1;
@@ -2157,7 +2158,7 @@ dp_test_create_gre_pptp_ipv4_pak(const char *saddr, const char *daddr,
 	}
 
 	if (payload)
-		*payload = pktmbuf_mtol4(m, char *) + hlen  + 1;
+		*payload = dp_pktmbuf_mtol4(m, char *) + hlen  + 1;
 
 	return m;
 }
@@ -2282,7 +2283,7 @@ _dp_test_create_mpls_pak(uint8_t nlabels,
 	/*
 	 * Init mpls head
 	 */
-	lbl_stack = pktmbuf_mtol3(pak, label_t *);
+	lbl_stack = dp_pktmbuf_mtol3(pak, label_t *);
 
 	for (i = 0; i < nlabels; i++)
 		*lbl_stack++ = htonl(labels[i] << MPLS_LS_LABEL_SHIFT |
@@ -2311,8 +2312,8 @@ _dp_test_create_mpls_pak(uint8_t nlabels,
 		/*
 		 * Copy l3 from payload into our l3
 		 */
-		copy_from = pktmbuf_mtol3(payload, struct iphdr *);
-		ip = pktmbuf_mtol3(pak, struct iphdr *);
+		copy_from = dp_pktmbuf_mtol3(payload, struct iphdr *);
+		ip = dp_pktmbuf_mtol3(pak, struct iphdr *);
 		memcpy(ip, copy_from, rte_pktmbuf_data_len(payload) -
 		       payload->l2_len);
 		pak->l3_len = sizeof(struct iphdr);
@@ -2334,7 +2335,7 @@ dp_test_get_mpls_pak_payload(const struct rte_mbuf *m)
 {
 	label_t *lbl_stack;
 
-	lbl_stack = pktmbuf_mtol3(m, label_t *);
+	lbl_stack = dp_pktmbuf_mtol3(m, label_t *);
 
 	for (; ; lbl_stack++) {
 		if (ntohl(*lbl_stack) & (1 << MPLS_LS_S_SHIFT)) {
@@ -2483,7 +2484,7 @@ dp_test_ipv6_scan_non_frag_hdrs(struct rte_mbuf *m, uint8_t *l3_len,
 	uint8_t *n_ptr;
 	uint8_t nxt, len;
 
-	ip6 = pktmbuf_mtol3(m, struct ip6_hdr *);
+	ip6 = dp_pktmbuf_mtol3(m, struct ip6_hdr *);
 	*l3_len = sizeof(*ip6);
 	n_ptr = (uint8_t *)ip6 + sizeof(*ip6);
 	*last_pcol = ip6->ip6_nxt;
@@ -2529,8 +2530,8 @@ dp_test_fill_ipv6hdr_frag(struct rte_mbuf *pkt_in, struct rte_mbuf *pkt_out,
 	int l3_len;
 	uint8_t nxt_proto;
 
-	src = pktmbuf_mtol3(pkt_in, struct ipv6_hdr *);
-	dst = pktmbuf_mtol3(pkt_out, struct ipv6_hdr *);
+	src = dp_pktmbuf_mtol3(pkt_in, struct ipv6_hdr *);
+	dst = dp_pktmbuf_mtol3(pkt_out, struct ipv6_hdr *);
 	l3_len = pkt_in->l3_len;
 
 	/*
@@ -2590,7 +2591,7 @@ dp_test_ipv6_fragment_packet(struct rte_mbuf *pkt_in,
 		return -EINVAL;
 
 	/* Check header length matches mbuf pkt_len */
-	ip6 = pktmbuf_mtol3(pkt_in, struct ip6_hdr *);
+	ip6 = dp_pktmbuf_mtol3(pkt_in, struct ip6_hdr *);
 	pkt_len = ntohs(ip6->ip6_plen) + pkt_in->l2_len + sizeof(struct ip6_hdr);
 
 	if (pkt_len != pkt_in->pkt_len)
@@ -2727,7 +2728,7 @@ dp_test_ipv6_append_non_frag_ext_hdr(struct rte_mbuf *m,
 	if (frag_l3_len != m->l3_len)
 		return NULL;
 
-	ip6 = pktmbuf_mtol3(m, struct ip6_hdr *);
+	ip6 = dp_pktmbuf_mtol3(m, struct ip6_hdr *);
 
 	/* Insert space between last ext hdr and l4 hdr */
 	new_ext = (struct ip6_ext *)dp_test_pktmbuf_insert(m,
@@ -2776,7 +2777,7 @@ dp_test_ipv4_fragment_packet(struct rte_mbuf *pkt_in,
 		return -EINVAL;
 
 	/* Check header length matches mbuf pkt_len */
-	ip = pktmbuf_mtol3(pkt_in, struct iphdr *);
+	ip = dp_pktmbuf_mtol3(pkt_in, struct iphdr *);
 	pkt_len = ntohs(ip->tot_len) + pkt_in->l2_len;
 
 	if (pkt_len != pkt_in->pkt_len)
@@ -2838,7 +2839,7 @@ dp_test_ipv4_fragment_packet(struct rte_mbuf *pkt_in,
 		struct iphdr *src_ip, *dst_ip;
 
 		/* Append space for IP header, and copy */
-		src_ip = pktmbuf_mtol3(pkt_in, struct iphdr *);
+		src_ip = dp_pktmbuf_mtol3(pkt_in, struct iphdr *);
 		dst_ip = (struct iphdr *)rte_pktmbuf_append(out_pkt,
 							    pkt_in->l3_len);
 		memcpy(dst_ip, src_ip, pkt_in->l3_len);
@@ -3087,7 +3088,7 @@ dp_test_ipv6_decrement_ttl(struct rte_mbuf *m)
 
 	if (!m)
 		return;
-	ip6 = pktmbuf_mtol3(m, struct ip6_hdr *);
+	ip6 = dp_pktmbuf_mtol3(m, struct ip6_hdr *);
 	ip6->ip6_hlim = ip6->ip6_hlim - 1;
 }
 

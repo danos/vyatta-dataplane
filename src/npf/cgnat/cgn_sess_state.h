@@ -36,7 +36,8 @@ struct cgn_state {
 	uint8_t		st_state;
 	uint8_t		st_proto;
 	uint8_t		st_hist;
-	uint8_t		st_pad1[3];
+	uint8_t		st_pad1[1];
+	uint16_t	st_dst_port; /* Outbound dest port */
 	rte_atomic16_t	st_idle;     /* keeps an estbd session alive */
 
 	/*
@@ -45,10 +46,10 @@ struct cgn_state {
 	 * st_int_rtt - round-trip time from cgnat device to subscriber.
 	 *              (Time from server SYN/ACK to subscriber ACK)
 	 *
-	 * milliseconds.
+	 * microseconds.
 	 */
-	uint16_t	st_ext_rtt;
-	uint16_t	st_int_rtt;
+	uint64_t	st_ext_rtt;
+	uint64_t	st_int_rtt;
 
 	rte_spinlock_t	st_lock;
 };
@@ -166,6 +167,14 @@ enum cgn_state_etime_tcp {
 
 extern uint32_t cgn_sess_tcp_etime[];
 
+/*
+ * Get or set TCP or UDP per-port Established expiry times
+ */
+void cgn_cgn_port_tcp_etime_set(uint16_t port, uint32_t timeout);
+uint32_t cgn_cgn_port_tcp_etime_get(uint16_t port);
+void cgn_cgn_port_udp_etime_set(uint16_t port, uint32_t timeout);
+uint32_t cgn_cgn_port_udp_etime_get(uint16_t port);
+
 
 static inline const char *cgn_tcp_state_str(enum cgn_tcp_state state)
 {
@@ -258,7 +267,7 @@ static inline const char *cgn_dir_str(uint dir)
 }
 
 /* Initialize session state */
-void cgn_sess_state_init(struct cgn_state *st, uint8_t proto);
+void cgn_sess_state_init(struct cgn_state *st, uint8_t proto, uint16_t port);
 
 /*
  * Evaluate session state for packet
@@ -266,6 +275,7 @@ void cgn_sess_state_init(struct cgn_state *st, uint8_t proto);
  * statep	Pointer to state variable in 3-tuple or 5-tuple session
  * cpk		Packet decomposition
  * dir		Forwards or backwards
+ * start_time	Session start time, unix epoch microseconds
  */
 void cgn_sess_state_inspect(struct cgn_state *ss, struct cgn_packet *cpk,
 			    int dir, uint64_t start_time);
@@ -273,13 +283,13 @@ void cgn_sess_state_inspect(struct cgn_state *ss, struct cgn_packet *cpk,
 /*
  * Get state-dependent expiry time
  */
-uint32_t cgn_sess_state_expiry_time(uint8_t proto, uint8_t state);
+uint32_t cgn_sess_state_expiry_time(uint8_t proto, uint16_t port,
+				    uint8_t state);
 
 /*
- * Timeout event.  Returns timeout value for state (regardless of if it
- * changed or not).
+ * Timeout event.  Returns true if session is closed.
  */
-uint32_t cgn_sess_state_timeout(struct cgn_state *st);
+bool cgn_sess_state_timeout(struct cgn_state *st);
 
 /*
  * Force a session to closed state

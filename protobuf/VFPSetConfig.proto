@@ -7,6 +7,8 @@
 
 syntax="proto2";
 
+option go_package = "github.com/danos/vyatta-dataplane/protobuf/go/VFPSetConfig";
+
 message VFPSetConfig {
 	optional uint32 if_index = 1;
  	optional string if_name = 2;

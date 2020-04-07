@@ -334,6 +334,7 @@ rule_add(struct lpm6 *lpm, uint8_t *ip, uint32_t next_hop,
 	r->next_hop = next_hop;
 	r->scope = scope;
 	r->tracker_count = 0;
+	memset(&r->pd_state, 0, sizeof(r->pd_state));
 	RB_INIT(&r->tracker_head);
 
 	old = RB_INSERT(lpm6_rules_tree, head, r);

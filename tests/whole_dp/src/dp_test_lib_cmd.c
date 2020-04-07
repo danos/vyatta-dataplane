@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2018, AT&T Intellectual Property. All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property. All rights reserved.
  * Copyright (c) 2017 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -11,7 +11,7 @@
 
 #include "dp_test.h"
 #include "dp_test_console.h"
-#include "dp_test_lib_intf.h"
+#include "dp_test_lib_intf_internal.h"
 
 /* reset connection to the main vplaned */
 void

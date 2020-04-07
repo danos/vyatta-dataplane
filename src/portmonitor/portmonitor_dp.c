@@ -1,7 +1,7 @@
 /*
  * SPAN, RSPAN and ERSPAN Port Monitoring
  *
- * Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2015-2017 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -21,7 +21,7 @@
 
 #include "capture.h"
 #include "ether.h"
-#include "gre.h"
+#include "if/gre.h"
 #include "if_var.h"
 #include "main.h"
 #include "npf/npf.h"
@@ -29,7 +29,7 @@
 #include "npf/config/npf_ruleset_type.h"
 #include "npf/npf_if.h"
 #include "npf_shim.h"
-#include "pktmbuf.h"
+#include "pktmbuf_internal.h"
 #include "portmonitor/portmonitor.h"
 #include "portmonitor/portmonitor_hw.h"
 #include "urcu.h"
@@ -234,7 +234,7 @@ static void portmonitor_source_output(struct ifnet *ifp,
 	if (!dest_ifp)
 		return;
 
-	pktmbuf_l2_len(*m) = ETHER_HDR_LEN;
+	dp_pktmbuf_l2_len(*m) = ETHER_HDR_LEN;
 
 	struct npf_if *nif = rcu_dereference(ifp->if_npf);
 	if (direction == PORTMONITOR_DIRECTION_RX) {

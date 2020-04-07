@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  */
@@ -50,7 +50,7 @@
 #include <string.h>
 
 #include "json_writer.h"
-#include "vrf.h"
+#include "vrf_internal.h"
 #include "npf/npf.h"
 #include "npf/config/npf_config.h"
 #include "npf/config/npf_ruleset_type.h"
@@ -61,6 +61,7 @@
 #include "npf/npf_vrf.h"
 #include "npf/rproc/npf_rproc.h"
 #include "npf_shim.h"
+#include "npf/npf_pack.h"
 
 struct rte_mbuf;
 
@@ -150,7 +151,7 @@ void npf_state_set_icmp_strict(bool value)
  * direction in a case of connection-orientated protocol.  Returns true on
  * success and false otherwise (e.g. if protocol is not supported).
  */
-void npf_state_init(vrfid_t vrfid, uint8_t proto_idx, npf_state_t *nst)
+bool npf_state_init(vrfid_t vrfid, uint8_t proto_idx, npf_state_t *nst)
 {
 	assert(NPF_ANY_SESSION_LAST < 255);
 	assert(NPF_TCPS_LAST < 255);
@@ -160,7 +161,10 @@ void npf_state_init(vrfid_t vrfid, uint8_t proto_idx, npf_state_t *nst)
 	rte_spinlock_init(&nst->nst_lock);
 
 	/* Take reference on vrf npf timeout struct */
-	nst->nst_to = npf_timeout_ref_get(vrf_get_npf_timeout_rcu(vrfid));
+	struct npf_timeout *to = vrf_get_npf_timeout_rcu(vrfid);
+	if (!to)
+		return false;
+	nst->nst_to = npf_timeout_ref_get(to);
 
 	if (proto_idx == NPF_PROTO_IDX_TCP) {
 		nst->nst_state = NPF_TCPS_NONE;
@@ -169,6 +173,8 @@ void npf_state_init(vrfid_t vrfid, uint8_t proto_idx, npf_state_t *nst)
 		nst->nst_state = NPF_ANY_SESSION_NONE;
 		stats_inc(proto_idx, NPF_ANY_SESSION_NONE);
 	}
+
+	return true;
 }
 
 /* Called from npf_session_destroy */
@@ -534,3 +540,26 @@ npf_state_dump(const npf_state_t *nst __unused)
 	);
 }
 #endif
+
+int npf_state_npf_pack_update(npf_state_t *nst, struct npf_pack_npf_state *st,
+			      uint8_t state, uint8_t proto_idx)
+{
+	bool state_changed = false;
+
+	if (!nst || !st)
+		return -EINVAL;
+
+	memcpy(&nst->nst_tcpst[NPF_FLOW_FORW], &st->nst_tcpst[NPF_FLOW_FORW],
+	       sizeof(npf_tcpstate_t));
+	memcpy(&nst->nst_tcpst[NPF_FLOW_BACK], &st->nst_tcpst[NPF_FLOW_BACK],
+	       sizeof(npf_tcpstate_t));
+
+	if (proto_idx == NPF_PROTO_IDX_TCP) {
+		npf_state_tcp_state_set(nst, state, &state_changed);
+	} else {
+		npf_state_generic_state_set(nst, proto_idx,
+					    state, &state_changed);
+	}
+
+	return 0;
+}

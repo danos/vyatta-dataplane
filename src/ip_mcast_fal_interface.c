@@ -1,7 +1,11 @@
-/* Copyright (c) 2019, AT&T Intellectual Property. */
+/*
+ * Copyright (c) 2019-2020, AT&T Intellectual Property.
+ *
+ * SPDX-License-Identifier: LGPL-2.1-only
+ */
 #include "fal.h"
 #include "fal_plugin.h"
-#include "vrf.h"
+#include "vrf_internal.h"
 #include "vplane_debug.h"
 #include "ip_mcast_fal_interface.h"
 

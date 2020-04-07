@@ -2,7 +2,7 @@
  * l3_v4_post_route_lookup.c
  *
  *
- * Copyright (c) 2017-2018, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2016, 2017 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -17,13 +17,13 @@
 #include <stdint.h>
 
 #include "compiler.h"
+#include "if/macvlan.h"
 #include "if_var.h"
-#include "macvlan.h"
 #include "mpls/mpls.h"
 #include "mpls/mpls_forward.h"
 #include "netinet6/ip6_funcs.h"
 #include "nh.h"
-#include "pktmbuf.h"
+#include "pktmbuf_internal.h"
 #include "pl_common.h"
 #include "pl_fused.h"
 #include "route_flags.h"
@@ -33,7 +33,7 @@
 static RTE_DEFINE_PER_LCORE(struct next_hop_v6, ll_nexthop);
 
 ALWAYS_INLINE unsigned int
-ipv6_post_route_lookup_process(struct pl_packet *pkt)
+ipv6_post_route_lookup_process(struct pl_packet *pkt, void *context __unused)
 {
 	struct next_hop_v6 *nxt = pkt->nxt.v6;
 	struct ifnet *ifp = pkt->in_ifp;
@@ -56,8 +56,24 @@ ipv6_post_route_lookup_process(struct pl_packet *pkt)
 
 	ip6->ip6_hlim -= IPV6_HLIMDEC;
 	/* Immediately drop blackholed traffic. */
-	if (unlikely(nxt->flags & RTF_BLACKHOLE))
+	if (unlikely(nxt->flags & RTF_BLACKHOLE)) {
+		/*
+		 * These are address errors, but we use the LPM to check for
+		 * them.
+		 */
+		if (unlikely(IN6_IS_ADDR_UNSPECIFIED(&ip6->ip6_dst)) ||
+		    unlikely(IN6_IS_ADDR_LOOPBACK(&ip6->ip6_dst)) ||
+		    unlikely(IN6_IS_ADDR_V4MAPPED(&ip6->ip6_dst))) {
+			if (pkt->in_ifp)
+				IP6STAT_INC_IFP(pkt->in_ifp,
+						IPSTATS_MIB_INADDRERRORS);
+			rte_pktmbuf_free(pkt->mbuf);
+			pkt->mbuf = NULL;
+			return IPV6_POST_ROUTE_LOOKUP_FINISH;
+		}
+
 		return IPV6_POST_ROUTE_LOOKUP_DROP;
+	}
 
 	if (unlikely(nxt->flags & RTF_REJECT)) {
 		icmp6_error(ifp, pkt->mbuf, ICMP6_DST_UNREACH,
@@ -75,7 +91,7 @@ ipv6_post_route_lookup_process(struct pl_packet *pkt)
 	}
 
 	/* nxt->ifp may be changed by netlink messages. */
-	struct ifnet *nxt_ifp = nh6_get_ifp(nxt);
+	struct ifnet *nxt_ifp = dp_nh6_get_ifp(nxt);
 
 	/* Destination device is not up? */
 	if (unlikely(!nxt_ifp || !(nxt_ifp->if_flags & IFF_UP))) {

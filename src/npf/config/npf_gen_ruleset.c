@@ -30,16 +30,16 @@ struct npf_attpt_rlset;
 void
 npf_replace_ruleset(npf_ruleset_t **dp_ruleset, npf_ruleset_t *new_dp_ruleset)
 {
-	npf_ruleset_t *old_dp_ruleset;
+	npf_ruleset_t *old_dp_ruleset = *dp_ruleset;
 
-	old_dp_ruleset = rcu_xchg_pointer(dp_ruleset, new_dp_ruleset);
+	if (new_dp_ruleset && old_dp_ruleset)
+		npf_ref_stats(old_dp_ruleset, new_dp_ruleset);
+
+	rcu_xchg_pointer(dp_ruleset, new_dp_ruleset);
 
 	/* Perform cleanup on the old ruleset */
-	if (old_dp_ruleset) {
-		if (new_dp_ruleset)
-			npf_copy_stats(old_dp_ruleset, new_dp_ruleset);
+	if (old_dp_ruleset)
 		npf_ruleset_free(old_dp_ruleset);
-	}
 }
 
 struct create_ruleset_info {

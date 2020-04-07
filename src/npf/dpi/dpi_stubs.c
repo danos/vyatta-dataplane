@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2016-2017 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -19,8 +19,8 @@
 #include <stdint.h>
 
 #include "compiler.h"
-#include "dpi_public.h"
-#include "npf/dpi/dpi.h"
+#include "dpi.h"
+#include "npf/dpi/dpi_internal.h"
 #include "npf/npf_cache.h"
 #include "npf/rproc/npf_rproc.h"
 #include "app_cmds.h"
@@ -116,22 +116,22 @@ const npf_rproc_ops_t npf_dpi_ops = {
 	.ro_match  = NULL,
 };
 
-int dpi_enable(struct ifnet *ifp __unused)
+int dp_dpi_enable(struct ifnet *ifp __unused)
 {
 	return 0;
 }
 
-int dpi_disable(struct ifnet *ifp __unused)
+int dp_dpi_disable(struct ifnet *ifp __unused)
 {
 	return 0;
 }
 
-bool dpi_is_enabled(void)
+bool dp_dpi_is_enabled(void)
 {
 	return false;
 }
 
-uint32_t dpi_get_app_id(struct rte_mbuf *mbuf __unused)
+uint32_t dp_dpi_get_app_id(struct rte_mbuf *mbuf __unused)
 {
 	return DPI_APP_NA;
 }

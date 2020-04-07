@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2018, AT&T Intellectual Property. All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property. All rights reserved.
  * Copyright (c) 2015-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -10,12 +10,12 @@
 
 #include "dp_test.h"
 #include "dp_test_console.h"
-#include "dp_test_lib.h"
+#include "dp_test_lib_internal.h"
 #include "dp_test_lib_exp.h"
-#include "dp_test_lib_intf.h"
+#include "dp_test_lib_intf_internal.h"
 #include "dp_test_lib_pkt.h"
-#include "dp_test_pktmbuf_lib.h"
-#include "dp_test_netlink_state.h"
+#include "dp_test_pktmbuf_lib_internal.h"
+#include "dp_test_netlink_state_internal.h"
 
 #include "ip_funcs.h"
 #include "in_cksum.h"
@@ -1326,7 +1326,7 @@ DP_START_TEST(bridge_gre, frag)
 	ip = iphdr(payload_pak);
 	ip->tot_len = htons(2000);
 	ip->check = 0;
-	ip->check = in_cksum_hdr(ip);
+	ip->check = dp_in_cksum_hdr(ip);
 
 	exp = dp_test_exp_create(payload_pak);
 	dp_test_exp_set_fwd_status(exp, DP_TEST_FWD_DROPPED);

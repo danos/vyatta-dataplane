@@ -1,3 +1,9 @@
+/*
+ * Copyright (c) 2018,2020, AT&T Intellectual Property.  All rights reserved.
+ *
+ * SPDX-License-Identifier: LGPL-2.1-only
+ */
+
 #ifndef _DP_TEST_JSON_UTILS_H_
 #define _DP_TEST_JSON_UTILS_H_
 

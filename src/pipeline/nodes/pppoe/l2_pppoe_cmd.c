@@ -1,6 +1,7 @@
 /*
  * l2_pppoe_cmd.c
  *
+ * Copyright (c) 2018-2020, AT&T Intellectual Property. All rights reserved.
  * Copyright (c) 2018-2019 AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
@@ -66,34 +67,34 @@ _pppoe_cmd_handler(PPPOEConfig *pppoe_msg, struct pb_msg *msg)
 	struct ether_addr peer_eth;
 
 	pppname = pppoe_msg->pppname;
-	ppp_inter = ifnet_byifname(pppname);
+	ppp_inter = dp_ifnet_byifname(pppname);
 	if (!ppp_inter)
 		return 0;
 
 	under_name = pppoe_msg->undername;
-	underlying = ifnet_byifname(under_name);
+	underlying = dp_ifnet_byifname(under_name);
 
 	if (!ether_aton_r(pppoe_msg->ether, &my_eth)) {
-		pb_cmd_err(msg, "not a valid session id: %s\n",
+		dp_pb_cmd_err(msg, "not a valid session id: %s\n",
 			pppoe_msg->ether);
 		return -1;
 	}
 
 	if (!ether_aton_r(pppoe_msg->peer_ether, &peer_eth)) {
-		pb_cmd_err(msg, "not a valid ethernet net address: %s\n",
+		dp_pb_cmd_err(msg, "not a valid ethernet net address: %s\n",
 			   pppoe_msg->peer_ether);
 		return -1;
 	}
 
 	if (ppp_inter->if_softc) {
-		pb_cmd_err(msg, "Can not modify PPP connection.");
+		dp_pb_cmd_err(msg, "Can not modify PPP connection.");
 		return -1;
 	}
 	ppp_inter->if_softc = zmalloc_aligned(sizeof(struct pppoe_connection));
 	if (!ppp_inter->if_softc) {
 		RTE_LOG(ERR, PPPOE,
 			"Out of memory allocating connection struct.");
-		pb_cmd_err(msg,
+		dp_pb_cmd_err(msg,
 			"Out of memory allocating connection struct.");
 		return -1;
 	}
@@ -111,7 +112,7 @@ _pppoe_cmd_handler(PPPOEConfig *pppoe_msg, struct pb_msg *msg)
 		conn->underlying_ifindex = underlying->if_index;
 
 		if (!pppoe_init_session(ppp_inter, conn->session)) {
-			pb_cmd_err(msg,
+			dp_pb_cmd_err(msg,
 				"could not initialize pppoe session\n");
 			free(ppp_inter->if_softc);
 			ppp_inter->if_softc = NULL;

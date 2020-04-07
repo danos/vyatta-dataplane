@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2019-2020, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -23,6 +23,7 @@
 #include "util.h"
 #include "soft_ticks.h"
 
+#include "npf/npf_addrgrp.h"
 #include "npf/nat/nat_proto.h"
 #include "npf/nat/nat_pool.h"
 
@@ -51,13 +52,25 @@ static rte_atomic32_t cgn_src_used;
 static int32_t cgn_src_max = CGN_SRC_TABLE_MAX;
 static bool cgn_src_table_full;
 
+/* Subscriber table threshold, time, and timer */
+static int32_t subscriber_table_threshold_cfg;  /* configured percent */
+static int32_t subscriber_table_threshold;      /* threshold value */
+static bool subscriber_table_threshold_been_below = true;
+static uint32_t subscriber_table_threshold_time;
+static struct rte_timer subscriber_table_threshold_timer;
+
+static void subscriber_table_threshold_timer_expiry(
+		struct rte_timer *timer __unused,
+		void *arg __unused);
+
 /*
  * Update stats in source from a session.  Called periodically from the
  * session gc routine, and when a session is destroyed.
  */
 void cgn_source_update_stats(struct cgn_source *src,
 			     uint64_t pkts_out, uint64_t bytes_out,
-			     uint64_t pkts_in, uint64_t bytes_in)
+			     uint64_t pkts_in, uint64_t bytes_in,
+			     uint64_t unk_pkts_in)
 {
 	assert(src);
 	if (src) {
@@ -65,6 +78,7 @@ void cgn_source_update_stats(struct cgn_source *src,
 		src->sr_bytes_out += bytes_out;
 		src->sr_pkts_in += pkts_in;
 		src->sr_bytes_in += bytes_in;
+		src->sr_unk_pkts_in += unk_pkts_in;
 	}
 }
 
@@ -80,16 +94,32 @@ void cgn_source_put(struct cgn_source *src)
 	rte_atomic32_dec(&src->sr_refcnt);
 }
 
+/* Increment 3-tuple sessions created in subscriber */
 void cgn_source_stats_sess_created(struct cgn_source *src)
 {
 	if (src)
 		rte_atomic32_inc(&src->sr_sess_created);
 }
 
+/* Increment 3-tuple sessions destroyed in subscriber */
 void cgn_source_stats_sess_destroyed(struct cgn_source *src)
 {
 	if (src)
 		rte_atomic32_inc(&src->sr_sess_destroyed);
+}
+
+/* Increment 2-tuple sessions created in subscriber */
+void cgn_source_stats_sess2_created(struct cgn_source *src)
+{
+	if (src)
+		rte_atomic32_inc(&src->sr_sess2_created);
+}
+
+/* Increment 2-tuple sessions destroyed in subscriber */
+void cgn_source_stats_sess2_destroyed(struct cgn_source *src)
+{
+	if (src)
+		rte_atomic32_inc(&src->sr_sess2_destroyed);
 }
 
 struct nat_pool *cgn_source_get_pool(struct cgn_source *src)
@@ -116,6 +146,9 @@ cgn_source_add_block(struct cgn_source *src, uint8_t proto,
 	/* Take reference on source */
 	cgn_source_get(src);
 
+	/* Set pointer to src in the port-block */
+	apm_block_set_source(pb, src);
+
 	/* Set active_block for the requested protocol */
 	src->sr_active_block[proto] = pb;
 
@@ -138,7 +171,9 @@ cgn_source_add_block(struct cgn_source *src, uint8_t proto,
 	}
 
 	if (nat_pool_log_pba(np))
-		apm_log_block_alloc(pb, src->sr_addr);
+		apm_log_block_alloc(pb, src->sr_addr,
+				    cgn_policy_get_name(src->sr_policy),
+				    nat_pool_name(np));
 
 	return 0;
 }
@@ -146,49 +181,120 @@ cgn_source_add_block(struct cgn_source *src, uint8_t proto,
 /*
  * cgn_session_destroy -> cgn_map_put
  */
-int
+void
 cgn_source_del_block(struct cgn_source *src, struct apm_port_block *pb,
 		     struct nat_pool *np)
 {
-	assert(!rte_spinlock_is_locked(&src->sr_lock));
-	rte_spinlock_lock(&src->sr_lock);
-
-	/*
-	 * Was src destroyed while we waited for lock?  This should never
-	 * happen in normal operation as only the master thread destroys
-	 * sessions, and hence calls cgn_map_put and cgn_source_del_block.
-	 */
-	if ((src->sr_flags & SF_DEAD) != 0) {
-		rte_spinlock_unlock(&src->sr_lock);
-		return -1;
-	}
+	assert(rte_spinlock_is_locked(&src->sr_lock));
 
 	if (nat_pool_log_pba(np))
-		apm_log_block_release(pb, src->sr_addr);
+		apm_log_block_release(pb, src->sr_addr,
+				      cgn_policy_get_name(src->sr_policy),
+				      nat_pool_name(np));
 
+	/* Remove port-block from source's port-block list */
 	cds_list_del_rcu(apm_block_get_list_node(pb));
 	src->sr_block_count--;
+
+	/*
+	 * If this source no longer has any port-blocks then the
+	 * paired-address must be cleared.
+	 *
+	 * If its not cleared, and this is was the last port-block in-use on
+	 * the public address, then there is a short window where two
+	 * subscribers could end up using the same public address.
+	 */
+	if (src->sr_block_count == 0)
+		src->sr_paired_addr = 0;
+
+	/* Clear src ptr in the port-block */
+	apm_block_set_source(pb, NULL);
 
 	/* Release reference on source */
 	cgn_source_put(src);
 
 	uint8_t p;
-	for (p = NAT_PROTO_FIRST; p < NAT_PROTO_COUNT; p++)
+	for (p = NAT_PROTO_FIRST; p < NAT_PROTO_COUNT; p++) {
+		/* This block can no longer be the Active block */
 		if (pb == src->sr_active_block[p])
 			src->sr_active_block[p] = NULL;
 
-	/* Had the mbpu limit been previously reached? */
-	if (src->sr_mbpu_full &&
-	    src->sr_block_count < nat_pool_get_mbpu(np)) {
-		cgn_log_subscriber_mbpu_avail(src->sr_addr,
-					      src->sr_block_count,
-					      nat_pool_get_mbpu(np));
-		src->sr_mbpu_full = false;
+		/* Had the mbpu limit been previously reached? */
+		if (src->sr_mbpu_full[p]) {
+			src->sr_mbpu_full[p] = false;
+
+			cgn_log_resource_subscriber_mbpu(
+				CGN_RESOURCE_AVAILABLE, src->sr_addr,
+				nat_ipproto_from_proto(p),
+				src->sr_block_count, nat_pool_get_mbpu(np));
+		}
 	}
+}
 
-	rte_spinlock_unlock(&src->sr_lock);
+/*
+ * Generate subscriber table threshold log
+ * and restart timer if required.
+ */
+static void subscriber_table_threshold_log(int32_t val, int32_t max)
+{
+	cgn_log_resource_subscriber_table(
+		CGN_RESOURCE_THRESHOLD, val, max);
 
-	return 0;
+	if (subscriber_table_threshold_time)
+		rte_timer_reset(&subscriber_table_threshold_timer,
+			subscriber_table_threshold_time * rte_get_timer_hz(),
+			SINGLE, rte_get_master_lcore(),
+			subscriber_table_threshold_timer_expiry,
+			NULL);
+}
+
+/*
+ * Warn if over the configured subscriber table threshold
+ */
+static void subscriber_table_threshold_check(int32_t val)
+{
+	if (subscriber_table_threshold &&
+	    subscriber_table_threshold_been_below &&
+	    (val >= subscriber_table_threshold) &&
+	    (!rte_timer_pending(&subscriber_table_threshold_timer))) {
+
+		subscriber_table_threshold_been_below = false;
+		subscriber_table_threshold_log(val, cgn_src_max);
+	}
+}
+
+/*
+ * Set subscriber table threshold
+ *
+ * threshold is in percent; interval is in seconds.
+ */
+void subscriber_table_threshold_set(int32_t threshold, uint32_t interval)
+{
+	rte_timer_stop(&subscriber_table_threshold_timer);
+	subscriber_table_threshold =
+		(cgn_src_max * threshold + 99) / 100;
+	subscriber_table_threshold_time = interval;
+	subscriber_table_threshold_been_below = true;
+
+	/* Warn if over configured threshold */
+	int32_t val = rte_atomic32_read(&cgn_src_used);
+	subscriber_table_threshold_check(val);
+}
+
+/*
+ * Handle subscriber table threshold timer expiry.
+ */
+static void subscriber_table_threshold_timer_expiry(
+		struct rte_timer *timer __unused,
+		void *arg __unused)
+{
+	int32_t val = rte_atomic32_read(&cgn_src_used);
+
+	if (subscriber_table_threshold &&
+		(val >= subscriber_table_threshold)) {
+
+		subscriber_table_threshold_log(val, cgn_src_max);
+	}
 }
 
 /*
@@ -196,14 +302,22 @@ cgn_source_del_block(struct cgn_source *src, struct apm_port_block *pb,
  */
 static bool cgn_src_slot_get(void)
 {
-	if (rte_atomic32_add_return(&cgn_src_used, 1) <= cgn_src_max)
+	int32_t val = rte_atomic32_add_return(&cgn_src_used, 1);
+
+	/* Warn if over configured threshold */
+	subscriber_table_threshold_check(val);
+
+	/* Error if table is full */
+
+	if (val <= cgn_src_max)
 		return true;
 
 	rte_atomic32_dec(&cgn_src_used);
 
 	if (!cgn_src_table_full)
-		RTE_LOG(ERR, CGNAT, "SUBSCRIBER_TABLE_FULL count=%u/%u\n",
-			rte_atomic32_read(&cgn_src_used), cgn_src_max);
+		cgn_log_resource_subscriber_table(
+			CGN_RESOURCE_FULL, rte_atomic32_read(&cgn_src_used),
+			cgn_src_max);
 
 	/*
 	 * Mark src table as full.  This is reset in the gc when the src count
@@ -216,13 +330,30 @@ static bool cgn_src_slot_get(void)
 
 static void cgn_src_slot_put(void)
 {
-	rte_atomic32_dec(&cgn_src_used);
+	int32_t val = rte_atomic32_sub_return(&cgn_src_used, 1);
+
+	if (val < subscriber_table_threshold)
+		subscriber_table_threshold_been_below = true;
 }
 
 /* Get subscriber hash table used and max counts */
 int32_t cgn_source_get_used(void)
 {
 	return rte_atomic32_read(&cgn_src_used);
+}
+
+/*
+ * Set maximum subscriber table entries;
+ * recalc subscriber table threshold.
+ */
+void cgn_source_set_max(int32_t val)
+{
+	if (val > CGN_SRC_TABLE_MAX)
+		val = CGN_SRC_TABLE_MAX;
+
+	cgn_src_max = val;
+	subscriber_table_threshold_set(subscriber_table_threshold_cfg,
+				       subscriber_table_threshold_time);
 }
 
 int32_t cgn_source_get_max(void)
@@ -269,6 +400,57 @@ cgn_source_create(struct cgn_policy *cp, uint32_t addr, vrfid_t vrfid,
 	return src;
 }
 
+/*
+ * Notification that a new policy has been added.
+ *
+ * Note that this is done after the policy is added to the policy hash table,
+ * but *before* it it added to the interface list.  Hence it is not yet
+ * findable by packets.
+ *
+ * cgnat subscriber structures hold a reference on cgnat policies.  It is
+ * possible for a policy to be unconfigured and reconfigured *before* any
+ * subscribers pointing to the original policy structure have been garbage
+ * collected.
+ *
+ * For each subscriber check if it is still referencing the old policy.  If so
+ * then we need to release the reference on the old policy and take a
+ * reference on the new policy.
+ */
+void cgn_source_policy_added(struct cgn_policy *cp)
+{
+	struct cds_lfht_iter iter;
+	struct cgn_source *src;
+
+	if (!cgn_src_ht)
+		return;
+
+	cds_lfht_for_each_entry(cgn_src_ht, &iter, src, sr_node) {
+		uint32_t addr = htonl(src->sr_addr);
+
+		/*
+		 * There should be no subscribers pointing to the new policy
+		 * just yet, but check anyway.
+		 */
+		if (src->sr_policy == cp)
+			continue;
+
+		/* Is subscriber addr in match address-group? */
+		if (npf_addrgrp_lookup_v4_by_handle(cp->cp_match_ag,
+						    addr) != 0)
+			continue;  /* No */
+
+		if (src->sr_policy) {
+			/* Release reference on the old policy */
+			cgn_policy_dec_source_count(src->sr_policy);
+			cgn_policy_put(src->sr_policy);
+		}
+
+		/* Take reference on the new policy */
+		src->sr_policy = cgn_policy_get(cp);
+		cgn_policy_inc_source_count(src->sr_policy);
+	}
+}
+
 static void cgn_source_rcu_free(struct rcu_head *head)
 {
 	struct cgn_source *src = caa_container_of(head, struct cgn_source,
@@ -296,7 +478,8 @@ static void cgn_source_destroy(struct cgn_source *src)
 		cgn_log_subscriber_end(
 			src->sr_addr, src->sr_start_time, soft_ticks,
 			src->sr_pkts_out_tot, src->sr_bytes_out_tot,
-			src->sr_pkts_in_tot, src->sr_bytes_in_tot,
+			src->sr_pkts_in_tot,
+			src->sr_bytes_in_tot,
 			src->sr_sess_created_tot);
 
 	cgn_policy_dec_source_count(src->sr_policy);
@@ -548,6 +731,143 @@ static uint cgn_count2rate(uint count, uint interval)
 	return rate;
 }
 
+static inline uint cgn_sess_rate_index_next(uint cur)
+{
+	if (likely(++cur < CGN_SESS_RATE_CNTRS))
+		return cur;
+	return 0;
+}
+
+static inline uint cgn_sess_rate_index_prev(uint cur)
+{
+	if (likely(cur > 0))
+		return cur - 1;
+	return CGN_SESS_RATE_CNTRS - 1;
+}
+
+/*
+ * Clear or update stats for one subscriber.
+ *
+ * These stats are only ever updated from either the session or subscriber
+ * garbage collection walks.  They are never changed by a forwarding thread.
+ *
+ * Total sessions created and total sessions destroyed counts only ever
+ * increment.  We do not zero either of these.
+ */
+static void
+cgn_source_clear_or_update_stats_one(struct cgn_source *src, bool clear)
+{
+	/* Add periodic stats to totals and update stats in policy */
+	cgn_source_stats_periodic(src);
+
+	if (clear) {
+		uint i;
+
+		/* Clear sessions-created samples */
+		for (i = 0; i < CGN_SESS_RATE_5MIN; i++)
+			src->sr_sess_rate[i] = 0;
+
+		/* Max session rates */
+		src->sr_sess_rate_max = 0;
+		src->sr_sess_rate_max_time = 0UL;
+		src->sr_sess_rate_1m_max = 0;
+		src->sr_sess_rate_1m_max_time = 0UL;
+
+		/* Packet and byte counts */
+		src->sr_pkts_out_tot = 0UL;
+		src->sr_bytes_out_tot = 0UL;
+		src->sr_pkts_in_tot = 0UL;
+		src->sr_bytes_in_tot = 0UL;
+		src->sr_unk_pkts_in_tot = 0UL;
+	}
+}
+
+static void
+cgn_source_clear_or_update_stats(struct cgn_source_fltr *fltr, bool clear)
+{
+	struct cds_lfht_iter iter;
+	struct cgn_source *src;
+
+	/*
+	 * If a host mask is specified in filter, then just lookup address.
+	 */
+	if (fltr->sf_mask == 0xffffffff) {
+		src = cgn_source_lookup(fltr->sf_addr, VRF_DEFAULT_ID);
+		if (src)
+			cgn_source_clear_or_update_stats_one(src, clear);
+
+		/* Nothing more to do */
+		return;
+	}
+
+	cds_lfht_for_each_entry(cgn_src_ht, &iter, src, sr_node) {
+		if (fltr->sf_mask &&
+		    (src->sr_addr & fltr->sf_mask) != fltr->sf_addr)
+			continue;
+
+		cgn_source_clear_or_update_stats_one(src, clear);
+	}
+}
+
+/*
+ * Clear or update subscriber stats
+ *
+ * cgn-op {clear| update} subscriber [address 100.64.0.0/30] stats
+ */
+void cgn_source_clear_or_update(int argc, char **argv, bool clear)
+{
+	struct cgn_source_fltr fltr = { 0 };
+	bool stats = false;
+
+	fltr.sf_all = true;
+
+	/* Remove "cgn-op {clear| update} subscriber" */
+	argc -= 3;
+	argv += 3;
+
+	while (argc > 0) {
+		if (!strcmp(argv[0], "address") && argc >= 2) {
+			npf_addr_t npf_addr;
+			npf_netmask_t pl;
+			sa_family_t fam;
+			uint32_t addr;
+			bool negate;
+			ulong tmp;
+			int rc;
+
+			rc = npf_parse_ip_addr(argv[1], &fam, &npf_addr,
+					       &pl, &negate);
+			if (rc < 0)
+				return;
+
+			pl = MIN(32, pl);
+			memcpy(&addr, &npf_addr, 4);
+			fltr.sf_addr = ntohl(addr);
+
+			tmp = (0xFFFFFFFF << (32 - pl)) & 0xFFFFFFFF;
+			fltr.sf_mask = tmp;
+			fltr.sf_addr &= fltr.sf_mask;
+			fltr.sf_all = false;
+
+			argc -= 2;
+			argv += 2;
+
+		} else if (argc >= 1 && !strcmp(argv[0], "statistics")) {
+			stats = true;
+			argc -= 1;
+			argv += 1;
+
+		} else {
+			/* Unknown option */
+			argc -= 1;
+			argv += 1;
+		}
+	}
+
+	if (stats)
+		cgn_source_clear_or_update_stats(&fltr, clear);
+}
+
 /*
  * cgn_source_jsonw_one
  */
@@ -611,62 +931,69 @@ cgn_source_jsonw_one(json_writer_t *json, uint detail __unused,
 	jsonw_uint_field(json, "in_pkts", pkts);
 	jsonw_uint_field(json, "in_bytes", bytes);
 
+	jsonw_uint_field(json, "unk_pkts_in",
+		src->sr_unk_pkts_in + src->sr_unk_pkts_in_tot);
+
 	/* Sessions stats */
 	uint32_t sess_crtd, sess_dstrd;
+	uint32_t sess2_crtd, sess2_dstrd;
 
 	sess_crtd = rte_atomic32_read(&src->sr_sess_created);
 	sess_dstrd = rte_atomic32_read(&src->sr_sess_destroyed);
+	sess2_crtd = rte_atomic32_read(&src->sr_sess2_created);
+	sess2_dstrd = rte_atomic32_read(&src->sr_sess2_destroyed);
 
 	jsonw_uint_field(json, "sess_crtd",
 			 src->sr_sess_created_tot + sess_crtd);
 	jsonw_uint_field(json, "sess_dstrd",
 			 src->sr_sess_destroyed_tot + sess_dstrd);
 
+	jsonw_uint_field(json, "sess2_crtd",
+			 src->sr_sess2_created_tot + sess2_crtd);
+	jsonw_uint_field(json, "sess2_dstrd",
+			 src->sr_sess2_destroyed_tot + sess2_dstrd);
+
 	/*
 	 * Session rates.  We start at the last value recorded, and work
 	 * backwards from there.
 	 */
-	uint i = src->sr_sess_rate_cur, n;
+	uint i, n;
 	uint rate_max = 0, rate_20s, rate_1m = 0, rate_5m = 0;
 
-	if (i == 0)
-		i = CGN_SESS_RATE_CNTRS - 1;
-	else
-		i -= 1;
+	i = src->sr_sess_rate_index;
 
-	rate_20s = src->sr_sess_rate[i];
+	for (n = 0; n < CGN_SESS_RATE_5MIN; n++) {
+		i = cgn_sess_rate_index_prev(i);
 
-	for (n = 0; n < CGN_SESS_RATE_CNTRS; n++) {
-		if ((n * CGN_SRC_GC_INTERVAL) < 60)
+		if (n == 0)
+			rate_20s = src->sr_sess_rate[i];
+
+		if (n < CGN_SESS_RATE_1MIN)
 			rate_1m += src->sr_sess_rate[i];
 
 		rate_5m += src->sr_sess_rate[i];
-
-		/* Decrement i */
-		if (i == 0)
-			i = CGN_SESS_RATE_CNTRS - 1;
-		else
-			i -= 1;
 	}
 
-	/* Convert to sessions per second */
-	uint ivals_per_min = 60 / CGN_SRC_GC_INTERVAL;
-
-	rate_max = cgn_count2rate(src->sr_sess_rate_max, CGN_SRC_GC_INTERVAL);
-
+	/* Current session rates in sessions per second */
 	rate_20s = cgn_count2rate(rate_20s, CGN_SRC_GC_INTERVAL);
-	rate_1m = cgn_count2rate(rate_1m,
-				 CGN_SRC_GC_INTERVAL * ivals_per_min);
-	rate_5m = cgn_count2rate(rate_5m,
-				 CGN_SRC_GC_INTERVAL * ivals_per_min * 5);
+	rate_1m = cgn_count2rate(rate_1m, 60);
+	rate_5m = cgn_count2rate(rate_5m, 300);
 
 	jsonw_uint_field(json, "sess_rate_20s", rate_20s);
 	jsonw_uint_field(json, "sess_rate_1m", rate_1m);
 	jsonw_uint_field(json, "sess_rate_5m", rate_5m);
 
+	/* 20 sec max */
+	rate_max = cgn_count2rate(src->sr_sess_rate_max, CGN_SRC_GC_INTERVAL);
 	jsonw_uint_field(json, "sess_rate_max", rate_max);
 	jsonw_uint_field(json, "sess_rate_max_tm",
 			 cgn_ticks2timestamp(src->sr_sess_rate_max_time));
+
+	/* 1 minute max */
+	rate_max = cgn_count2rate(src->sr_sess_rate_1m_max, 60);
+	jsonw_uint_field(json, "sess_rate_1m_max", rate_max);
+	jsonw_uint_field(json, "sess_rate_1m_max_tm",
+			 cgn_ticks2timestamp(src->sr_sess_rate_1m_max_time));
 
 	jsonw_end_object(json);
 }
@@ -895,26 +1222,62 @@ void cgn_source_list(FILE *f, int argc, char **argv)
 static void
 cgn_source_stats_periodic(struct cgn_source *src)
 {
+	uint n, i;
+
 	assert(rte_spinlock_is_locked(&src->sr_lock));
 
 	/*
 	 * Sessions created and destroyed
 	 */
-	uint32_t sess_crtd, sess_dstd;
+	uint32_t sess_crtd, sess_dstd, sess_crtd_1m;
+	uint32_t sess2_crtd, sess2_dstd;
 
 	sess_crtd = rte_atomic32_exchange(
 		(volatile uint32_t *)&src->sr_sess_created.cnt, 0);
 	sess_dstd = rte_atomic32_exchange(
 		(volatile uint32_t *)&src->sr_sess_destroyed.cnt, 0);
+	sess2_crtd = rte_atomic32_exchange(
+		(volatile uint32_t *)&src->sr_sess2_created.cnt, 0);
+	sess2_dstd = rte_atomic32_exchange(
+		(volatile uint32_t *)&src->sr_sess2_destroyed.cnt, 0);
 
 	src->sr_sess_created_tot += sess_crtd;
 	src->sr_sess_destroyed_tot += sess_dstd;
+	src->sr_sess2_created_tot += sess2_crtd;
+	src->sr_sess2_destroyed_tot += sess2_dstd;
 
-	src->sr_sess_rate[src->sr_sess_rate_cur] = sess_crtd;
+	/* Check 1 minute max session rate *before* adding to samples */
+	sess_crtd_1m = sess_crtd;
+	i = src->sr_sess_rate_index;
 
-	if (++src->sr_sess_rate_cur >= CGN_SESS_RATE_CNTRS)
-		src->sr_sess_rate_cur = 0;
+	for (n = 0; n < CGN_SESS_RATE_1MIN - 1; n++) {
+		i = cgn_sess_rate_index_prev(i);
+		sess_crtd_1m += src->sr_sess_rate[i];
+	}
 
+	if (sess_crtd_1m > src->sr_sess_rate_1m_max) {
+		uint rate_max;
+
+		src->sr_sess_rate_1m_max = sess_crtd_1m;
+		src->sr_sess_rate_1m_max_time = soft_ticks;
+
+		/* Convert count to sessions-per-sec rate */
+		rate_max = cgn_count2rate(src->sr_sess_rate_1m_max,
+					  60);
+
+		/* Update policy */
+		cgn_policy_update_sess_rate(src->sr_policy,
+					    src->sr_addr,
+					    rate_max,
+					    src->sr_sess_rate_1m_max_time);
+	}
+
+	/* Add sess_crtd to sample array*/
+	src->sr_sess_rate[src->sr_sess_rate_index] = sess_crtd;
+	src->sr_sess_rate_index =
+		cgn_sess_rate_index_next(src->sr_sess_rate_index);
+
+	/* Check 20 sec max session rate */
 	if (sess_crtd > src->sr_sess_rate_max) {
 		src->sr_sess_rate_max = sess_crtd;
 		src->sr_sess_rate_max_time = soft_ticks;
@@ -927,17 +1290,20 @@ cgn_source_stats_periodic(struct cgn_source *src)
 	src->sr_bytes_out_tot += src->sr_bytes_out;
 	src->sr_pkts_in_tot += src->sr_pkts_in;
 	src->sr_bytes_in_tot += src->sr_bytes_in;
+	src->sr_unk_pkts_in_tot += src->sr_unk_pkts_in;
 
 	/* Update stats in policy */
 	cgn_policy_update_stats(src->sr_policy,
 				src->sr_pkts_out, src->sr_bytes_out,
 				src->sr_pkts_in, src->sr_bytes_in,
-				sess_crtd, sess_dstd);
+				src->sr_unk_pkts_in,
+				sess_crtd, sess_dstd, sess2_crtd, sess2_dstd);
 
 	src->sr_pkts_out = 0UL;
 	src->sr_bytes_out = 0UL;
 	src->sr_pkts_in = 0UL;
 	src->sr_bytes_in = 0UL;
+	src->sr_unk_pkts_in = 0UL;
 }
 
 /*
@@ -985,7 +1351,7 @@ unlock:
 	rte_spinlock_unlock(&src->sr_lock);
 }
 
-static void cgn_source_gc_walk(void)
+static void cgn_source_gc(struct rte_timer *timer, void *arg __unused)
 {
 	struct cds_lfht_iter iter;
 	struct cgn_source *src;
@@ -993,6 +1359,7 @@ static void cgn_source_gc_walk(void)
 	if (!cgn_src_ht)
 		return;
 
+	/* Walk the source table */
 	cds_lfht_for_each_entry(cgn_src_ht, &iter, src, sr_node)
 		cgn_source_gc_inspect(src);
 
@@ -1000,37 +1367,47 @@ static void cgn_source_gc_walk(void)
 	if (cgn_src_table_full &&
 	    rte_atomic32_read(&cgn_src_used) < cgn_src_max) {
 
-		RTE_LOG(ERR, CGNAT, "SUBSCRIBER_TABLE_AVAILABLE count=%u/%u\n",
+		 cgn_log_resource_subscriber_table(
+			CGN_RESOURCE_AVAILABLE,
 			rte_atomic32_read(&cgn_src_used), cgn_src_max);
 
 		cgn_src_table_full = false;
 	}
-}
 
-static void cgn_source_gc(struct rte_timer *timer __unused, void *arg __unused)
-{
-	/* Walk the source table */
-	cgn_source_gc_walk();
-
-	/* Restart timer if dataplane still running */
-	if (running)
-		rte_timer_reset(&cgn_src_timer,
+	/* Restart timer if the dataplane is still running */
+	if (running && timer)
+		rte_timer_reset(timer,
 				CGN_SRC_GC_INTERVAL * rte_get_timer_hz(),
 				SINGLE, rte_get_master_lcore(), cgn_source_gc,
 				NULL);
 }
 
 /*
- * Unit-test only.
+ * Called from unit-test and from cgn_source_uninit.
  */
 void cgn_source_cleanup(void)
 {
+	uint i;
+
 	rte_timer_stop(&cgn_src_timer);
-	cgn_source_gc_walk();
-	cgn_source_gc_walk(); /* SF_EXPIRED */
-	cgn_source_gc_walk(); /* SF_DEAD */
+
+	for (i = 0; i <= CGN_SRC_GC_COUNT; i++)
+		/* Do not restart gc timer */
+		cgn_source_gc(NULL, NULL);
 }
 
+/*
+ * Called via hidden vplsh command.  Used by unit-test and by dev testers.
+ */
+void cgn_source_gc_pass(void)
+{
+	rte_timer_stop(&cgn_src_timer);
+	cgn_source_gc(&cgn_src_timer, NULL);
+}
+
+/*
+ * Called from DP_EVT_INIT event handler
+ */
 void cgn_source_init(void)
 {
 	if (cgn_src_ht)
@@ -1043,23 +1420,23 @@ void cgn_source_init(void)
 
 	rte_timer_init(&cgn_src_timer);
 	rte_timer_reset(&cgn_src_timer,
-			(CGN_SRC_GC_INTERVAL + 5) * rte_get_timer_hz(),
+			CGN_SRC_GC_INTERVAL * rte_get_timer_hz(),
 			SINGLE, rte_get_master_lcore(), cgn_source_gc,
 			NULL);
 }
 
-
+/*
+ * Called from DP_EVT_UNINIT event handler
+ */
 void cgn_source_uninit(void)
 {
-	uint i;
-
 	if (!cgn_src_ht)
 		return;
 
-	rte_timer_stop(&cgn_src_timer);
+	/* Do three passes of the garbage collector */
+	cgn_source_cleanup();
 
-	for (i = 0; i <= CGN_SRC_GC_COUNT; i++)
-		cgn_source_gc_walk();
+	assert(rte_atomic32_read(&cgn_src_used) == 0);
 
 	dp_ht_destroy_deferred(cgn_src_ht);
 	cgn_src_ht = NULL;

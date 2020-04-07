@@ -1,17 +1,17 @@
 /*
- * Copyright (c) 2018-2019, AT&T Intellectual Property.
+ * Copyright (c) 2018-2020, AT&T Intellectual Property.
  * All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
 
-#include "dp_test_macros.h"
+#include "dp_test/dp_test_macros.h"
 #include "util.h"
 #include "dp_test.h"
 #include "dp_test_controller.h"
 #include "dp_test_cmd_state.h"
 #include "dp_test_console.h"
-#include "dp_test_lib_intf.h"
+#include "dp_test_lib_intf_internal.h"
 #include "bridge_vlan_set.h"
 
 DP_DECL_TEST_SUITE(storm_ctl);
@@ -144,7 +144,8 @@ _dp_test_verify_storm_ctl_state(bool monitoring, int count,
 					  "               },",
 					  storm_ctl_traffic_type_to_str(i),
 					  cfg_rate[i],
-					  cfg_rate[i] + FAL_BUMPS_RATE_BY,
+					  stats[i] ?
+					  cfg_rate[i] + FAL_BUMPS_RATE_BY : 0,
 					  stats[i]);
 		}
 	}
@@ -306,6 +307,9 @@ DP_START_TEST(add_profile, profile_for_intf)
 				{0, 0},
 				{0, 0}, };
 
+	dp_test_send_config_src(dp_test_cont_src_get(),
+				"switchport dpT10 hw-switching enable");
+
 	/* Set unicast bandwidth-level */
 	dp_test_send_config_src(dp_test_cont_src_get(),
 				"storm-ctl SET profile PR1 unicast bandwidth-level 10000000");
@@ -374,6 +378,9 @@ DP_START_TEST(add_profile, profile_for_intf)
 	bandwidth[1][1] = 0;
 	dp_test_verify_storm_ctl_profile("PR1", false);
 
+	dp_test_send_config_src(dp_test_cont_src_get(),
+				"switchport dpT10 hw-switching disable");
+
 } DP_END_TEST;
 
 DP_START_TEST(add_profile, profile_for_vlan)
@@ -387,6 +394,9 @@ DP_START_TEST(add_profile, profile_for_vlan)
 	uint32_t cfg_rate1[3] = { 0 };
 	uint32_t cfg_rate2[3] = { 0 };
 	uint64_t stats[3] = { 10, 10, 10 };  /* Always have 10 pkts accepted */
+
+	dp_test_send_config_src(dp_test_cont_src_get(),
+				"switchport dpT10 hw-switching enable");
 
 	/* Set unicast bandwidth-level on PR1 */
 	dp_test_send_config_src(dp_test_cont_src_get(),
@@ -493,4 +503,83 @@ DP_START_TEST(add_profile, profile_for_vlan)
 	dp_test_intf_switch_del("switch0");
 	bridge_vlan_set_free(allowed_vlans);
 
+	dp_test_send_config_src(dp_test_cont_src_get(),
+				"switchport dpT10 hw-switching disable");
+} DP_END_TEST;
+
+DP_START_TEST(add_profile, profile_update_hw_switch)
+{
+	int bandwidth1[3][2] = { {0, 0},
+				 {0, 0},
+				 {0, 0}, };
+	uint32_t cfg_rate1[3] = { 0 };
+	uint64_t stats_no_hw_switch[3] = { 0, 0, 0 };
+	uint64_t stats[3] = { 10, 10, 10 };  /* Always have 10 pkts accepted */
+
+	/* Set unicast bandwidth-level on PR1 */
+	dp_test_send_config_src(dp_test_cont_src_get(),
+				"storm-ctl SET profile PR1 unicast bandwidth-level 250");
+	bandwidth1[0][0] = 250;
+	dp_test_verify_storm_ctl_profile_state("PR1", 0,
+					       SC_ACTION_NO_SHUT, bandwidth1);
+
+	/* Set multicast bandwidth-percent on PR1*/
+	dp_test_send_config_src(dp_test_cont_src_get(),
+				"storm-ctl SET profile PR1 multicast bandwidth-percent 50");
+	bandwidth1[1][1] = 5000;
+	dp_test_verify_storm_ctl_profile_state("PR1", 0,
+					       SC_ACTION_NO_SHUT, bandwidth1);
+
+	struct bridge_vlan_set *allowed_vlans = bridge_vlan_set_create();
+
+	bridge_vlan_set_add(allowed_vlans, 1);
+
+	dp_test_intf_switch_create("switch0");
+	dp_test_intf_bridge_enable_vlan_filter("switch0");
+
+	dp_test_intf_switch_add_port("switch0", "dpT10");
+	dp_test_intf_bridge_port_set_vlans("switch0", "dpT10",
+					   0, allowed_vlans, NULL);
+
+	/* Apply PR1 to vlan 1 and verify it is there */
+	dp_test_send_config_src(dp_test_cont_src_get(),
+				"storm-ctl SET dpT10 vlan 1 profile PR1");
+	cfg_rate1[0] = 250;
+	/*
+	 * rate stored as percent * 100 in DP, but in fal is converted to kbps
+	 * based on a link speed of 10G
+	 */
+	cfg_rate1[1] = 5000 * 1000;
+	dp_test_verify_storm_ctl_intf_state(SC_MON_ON, 1, "dpT10", 1, "PR1",
+					    cfg_rate1, stats_no_hw_switch);
+
+	/*
+	 * now enable hw-switching and check that the stats report
+	 * non-zero values now.
+	 */
+	dp_test_send_config_src(dp_test_cont_src_get(),
+				"switchport dpT10 hw-switching enable");
+
+	dp_test_verify_storm_ctl_intf_state(SC_MON_ON, 1, "dpT10", 1, "PR1",
+					    cfg_rate1, stats);
+
+	/* Remove PR1 from vlan 1 and verify it is gone */
+	dp_test_send_config_src(dp_test_cont_src_get(),
+				"storm-ctl DELETE dpT10 vlan 1");
+	dp_test_verify_storm_ctl_no_intf_state("dpT10", 2, "PR1");
+
+	dp_test_send_config_src(dp_test_cont_src_get(),
+				"storm-ctl DELETE profile PR1 multicast bandwidth-percent");
+	dp_test_send_config_src(dp_test_cont_src_get(),
+				"storm-ctl DELETE profile PR1 unicast bandwidth-level");
+
+	dp_test_verify_storm_ctl_profile("PR1", false);
+	dp_test_verify_storm_ctl_state(SC_MON_OFF, 0);
+
+	dp_test_intf_switch_remove_port("switch0", "dpT10");
+	dp_test_intf_switch_del("switch0");
+	bridge_vlan_set_free(allowed_vlans);
+
+	dp_test_send_config_src(dp_test_cont_src_get(),
+				"switchport dpT10 hw-switching disable");
 } DP_END_TEST;

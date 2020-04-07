@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2017 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -30,16 +30,18 @@
 
 #include "compiler.h"
 #include "dp_event.h"
+#include "dp_session.h"
 #include "if_var.h"
 #include "main.h"
 #include "netinet6/in6.h"
 #include "npf_shim.h"
 #include "netinet6/ip6_funcs.h"
-#include "pktmbuf.h"
+#include "pktmbuf_internal.h"
 #include "session.h"
 #include "session_feature.h"
 #include "urcu.h"
 #include "vplane_log.h"
+#include "npf_pack.h"
 
 /*
  * Session implementation for dataplane features.
@@ -186,6 +188,8 @@ static inline int time_after(time_t t0, time_t t1)
 static rte_atomic32_t	sessions_used;
 static int32_t		sessions_max = DEFAULT_MAX_SESSIONS;
 static bool		session_gc_run = true;
+
+static int32_t		user_data_id = -1;
 
 /* Global session logging configuration */
 static struct session_log_cfg session_global_log_cfg;
@@ -340,9 +344,8 @@ void se_expire(struct session *s)
 {
 	uint16_t exp = s->se_flags & ~SESSION_EXPIRED;
 
-	if (rte_atomic16_cmpset(&s->se_flags, exp, (exp | SESSION_EXPIRED))) {
+	if (rte_atomic16_cmpset(&s->se_flags, exp, (exp | SESSION_EXPIRED)))
 		session_feature_session_expire(s);
-	}
 }
 
 static inline void sl_unlink(struct session_link *sl)
@@ -426,8 +429,9 @@ int reclaim_session(struct session *s, uint64_t uptime)
 	int rc = 0;
 
 	/* Expired is the same as a timeout */
-	if (s->se_flags & SESSION_EXPIRED)
+	if (s->se_flags & SESSION_EXPIRED) {
 		return 1;
+	}
 
 	if (!s->se_idle) {
 		/* Session not idle, update etime */
@@ -560,7 +564,7 @@ unsigned long sentry_hash(const struct sentry_packet *sp)
 {
 	unsigned long hash;
 
-	hash = rte_jhash_2words(sp->sp_vrfid, sp->sp_protocol, sp->sp_ifindex);
+	hash = rte_jhash_1word(sp->sp_protocol, sp->sp_ifindex);
 	return rte_jhash_32b(sp->sp_addrids, sp->sp_len, hash);
 }
 
@@ -879,7 +883,7 @@ static int pkt_parse_ipv4(struct rte_mbuf *m, uint32_t if_index,
 	uint16_t did;
 
 	/* Ensure IP header is available */
-	off = pktmbuf_l2_len(m);
+	off = dp_pktmbuf_l2_len(m);
 	ip = (struct iphdr *)rte_pktmbuf_read(m, off,
 					      sizeof(struct iphdr), buf);
 	if (!ip)
@@ -894,7 +898,7 @@ static int pkt_parse_ipv4(struct rte_mbuf *m, uint32_t if_index,
 	/* Length of the array match */
 	sp->sp_len = SENTRY_LEN_IPV4;
 
-	off = pktmbuf_l2_len(m) + pktmbuf_l3_len(m);
+	off = dp_pktmbuf_l2_len(m) + dp_pktmbuf_l3_len(m);
 	rc = se_parse_ids(m, off, ip->protocol, &sid, &did);
 	if (rc)
 		return rc;
@@ -1236,6 +1240,10 @@ static struct session *se_create(struct sentry_packet *sp, uint32_t timeout,
 
 	s->se_vrfid = sp->sp_vrfid;
 	s->se_create_time = rte_get_timer_cycles();
+	rte_atomic64_init(&s->se_pkts_in);
+	rte_atomic64_init(&s->se_bytes_in);
+	rte_atomic64_init(&s->se_pkts_out);
+	rte_atomic64_init(&s->se_bytes_out);
 	se_init_logging(s);
 
 	return s;
@@ -1465,7 +1473,7 @@ int session_link(struct session *parent, struct session *child)
 		return 0;
 	}
 
-	cds_list_add_tail(&psl->sl_children, &csl->sl_link);
+	cds_list_add_tail(&csl->sl_link, &psl->sl_children);
 	rte_atomic16_inc(&parent->se_link_cnt);
 	csl->sl_parent = parent;
 
@@ -1697,3 +1705,277 @@ static void __attribute__ ((constructor)) session_event_init(void)
 	dp_event_register(&ops);
 }
 
+
+int session_npf_pack_stats_pack(struct session *s,
+				struct npf_pack_session_stats *stats)
+{
+	if (!s || !stats)
+		return -EINVAL;
+
+	stats->se_pkts_in = rte_atomic64_read(&s->se_pkts_in);
+	stats->se_bytes_in = rte_atomic64_read(&s->se_bytes_in);
+	stats->se_pkts_out = rte_atomic64_read(&s->se_pkts_out);
+	stats->se_bytes_out = rte_atomic64_read(&s->se_bytes_out);
+
+	return 0;
+}
+
+int session_npf_pack_stats_restore(struct session *s,
+				   struct npf_pack_session_stats *stats)
+{
+	if (!s || !stats)
+		return -EINVAL;
+
+	rte_atomic64_set(&s->se_pkts_in, stats->se_pkts_in);
+	rte_atomic64_set(&s->se_bytes_in, stats->se_bytes_in);
+	rte_atomic64_set(&s->se_pkts_out, stats->se_pkts_out);
+	rte_atomic64_set(&s->se_bytes_out, stats->se_bytes_out);
+
+	return 0;
+}
+
+int session_npf_pack_sentry_pack(struct session *s,
+				 struct npf_pack_sentry *sen)
+{
+	struct sentry *s_sen;
+	struct sentry_packet *sp_forw;
+	struct sentry_packet *sp_back;
+	struct ifnet *ifp;
+	int i;
+
+	if (!s || !sen)
+		return -EINVAL;
+
+	s_sen = s->se_sen;
+	if (!s_sen)
+		return -EINVAL;
+
+	ifp = dp_ifnet_byifindex(s_sen->sen_ifindex);
+	if (!ifp)
+		return -EINVAL;
+	strncpy(sen->ifname, ifp->if_name, IFNAMSIZ);
+
+	sp_forw = &sen->sp_forw;
+	sp_forw->sp_sentry_flags = s_sen->sen_flags;
+	if (s_sen->sen_flags & SENTRY_IPv4)
+		sp_forw->sp_sentry_flags = SENTRY_IPv4;
+	else
+		sp_forw->sp_sentry_flags = SENTRY_IPv6;
+	sp_forw->sp_protocol = s_sen->sen_protocol;
+	sp_forw->sp_len = s_sen->sen_len;
+	for (i = 0; i < s_sen->sen_len; i++)
+		sp_forw->sp_addrids[i] = s_sen->sen_addrids[i];
+
+	sp_back = &sen->sp_back;
+	memset(sp_back, 0, sizeof(struct sentry_packet));
+	sentry_packet_reverse(sp_forw, sp_back);
+
+	return 0;
+}
+
+int session_npf_pack_sentry_restore(struct npf_pack_sentry *sen,
+				    struct ifnet **ifp)
+{
+	struct ifnet *s_ifp;
+
+	if (!sen)
+		return -EINVAL;
+
+	s_ifp = dp_ifnet_byifname(sen->ifname);
+	if (!s_ifp)
+		return -EINVAL;
+
+	sen->sp_forw.sp_vrfid = s_ifp->if_vrfid;
+	sen->sp_back.sp_vrfid = s_ifp->if_vrfid;
+	sen->sp_forw.sp_ifindex = s_ifp->if_index;
+	sen->sp_back.sp_ifindex = s_ifp->if_index;
+
+	*ifp = s_ifp;
+
+	return 0;
+}
+
+int session_npf_pack_pack(struct session *s, struct npf_pack_dp_session *dps,
+			  struct npf_pack_sentry *sen,
+			  struct npf_pack_session_stats *stats)
+{
+	if (!s || !dps || !sen || !stats)
+		return -EINVAL;
+
+	dps->se_id = s->se_id;
+	dps->se_flags = s->se_flags;
+	dps->se_protocol = s->se_protocol;
+	dps->se_custom_timeout = s->se_custom_timeout;
+	dps->se_timeout = s->se_timeout;
+	dps->se_etime = s->se_etime;
+	dps->se_protocol_state = s->se_protocol_state;
+	dps->se_nat = session_is_nat(s);
+	dps->se_nat64 = session_is_nat64(s);
+	dps->se_nat46 = session_is_nat46(s);
+
+	if (session_npf_pack_stats_pack(s, stats))
+		return -EINVAL;
+
+	return session_npf_pack_sentry_pack(s, sen);
+}
+
+struct session *session_npf_pack_restore(struct npf_pack_dp_session *dps,
+					 struct npf_pack_sentry *sen,
+					 struct npf_pack_session_stats *stats)
+{
+	struct session *s;
+	struct sentry_packet sp_forw;
+	struct sentry_packet sp_back;
+	struct sentry_packet *forw = &sp_forw;
+	struct sentry_packet *back = &sp_back;
+	struct sentry *sen_forw;
+	struct ifnet *ifp;
+	bool created = false;
+	int rc;
+
+	if (!dps || !sen)
+		return NULL;
+
+	rc = session_npf_pack_sentry_restore(sen, &ifp);
+	if (rc)
+		return NULL;
+
+	rc = slot_get();
+	if (rc)
+		return NULL;
+
+	s = session_alloc();
+	if (!s) {
+		slot_put();
+		return NULL;
+	}
+
+	s->se_vrfid = ifp->if_vrfid;
+	s->se_flags = dps->se_flags;
+	s->se_protocol = dps->se_protocol;
+	s->se_custom_timeout = dps->se_custom_timeout;
+	s->se_timeout = dps->se_timeout;
+	s->se_etime = dps->se_etime;
+	s->se_protocol_state = dps->se_protocol_state;
+	s->se_nat = dps->se_nat;
+	s->se_nat64 = dps->se_nat64;
+	s->se_nat46 = dps->se_nat46;
+
+	s->se_create_time = rte_get_timer_cycles();
+	rte_atomic64_init(&s->se_pkts_in);
+	rte_atomic64_init(&s->se_bytes_in);
+	rte_atomic64_init(&s->se_pkts_out);
+	rte_atomic64_init(&s->se_bytes_out);
+	se_init_logging(s);
+
+	memcpy(forw, &sen->sp_forw, sizeof(struct sentry_packet));
+	memcpy(back, &sen->sp_back, sizeof(struct sentry_packet));
+	rc = sentry_packet_insert_both(s, forw, back, SENTRY_INIT,
+				       &sen_forw, &created);
+	if (rc || !created)
+		goto error;
+
+	/* Add the session to the session hash table.  */
+	cds_lfht_add(session_ht, s->se_id, &s->se_node);
+	s->se_flags = SESSION_INSERTED;
+
+	if (session_npf_pack_stats_restore(s, stats))
+		goto error;
+
+	return s;
+
+error:
+	slot_put();
+	free(s);
+	return NULL;
+}
+
+uint32_t session_get_npf_pack_timeout(struct session *s)
+{
+	if (s)
+		return se_timeout(s);
+	return 0;
+}
+
+int dp_session_user_data_register(void)
+{
+	int old = uatomic_cmpxchg(&user_data_id, -1, 0);
+	if (old != -1)
+		return -EBUSY;
+	return 0;
+}
+
+int dp_session_user_data_unregister(int id)
+{
+	int old = uatomic_cmpxchg(&user_data_id, -1, id);
+	if (old != id)
+		return -ENOENT;
+	return 0;
+
+}
+
+bool dp_session_set_private(int id __unused,
+			    struct session *session, void *data)
+{
+	void *old;
+
+	if (!session)
+		return 0;
+
+	if (data == NULL) {
+		old = rcu_xchg_pointer(&session->se_private, NULL);
+		return old != NULL;
+	}
+
+	old = rcu_cmpxchg_pointer(&session->se_private, NULL, data);
+	return old == NULL;
+}
+
+void *dp_session_get_private(int id __unused,
+			     const struct session *session)
+{
+	if (!session)
+		return NULL;
+
+	return rcu_dereference(session->se_private);
+}
+
+bool dp_session_is_established(const struct session *session)
+{
+	if (!session)
+		return false;
+	return npf_state_is_established(session->se_protocol,
+					session->se_protocol_state);
+}
+
+bool dp_session_is_expired(const struct session *session)
+{
+	return !session || (session->se_flags & SESSION_EXPIRED);
+}
+
+enum dp_session_state dp_session_get_state(const struct session *session)
+{
+	uint8_t proto_idx = npf_proto_idx_from_proto(session->se_protocol);
+	uint8_t state =
+	    npf_state_get_generic_state(session->se_protocol, proto_idx);
+
+	switch (state) {
+	case NPF_ANY_SESSION_NEW:
+		return SESSION_STATE_NEW;
+	case NPF_ANY_SESSION_ESTABLISHED:
+		return SESSION_STATE_ESTABLISHED;
+	case NPF_ANY_SESSION_TERMINATING:
+		return SESSION_STATE_TERMINATING;
+	case NPF_ANY_SESSION_CLOSED:
+		return SESSION_STATE_CLOSED;
+	default:
+		return SESSION_STATE_NONE;
+	};
+}
+
+uint64_t dp_session_unique_id(const struct session *session)
+{
+	if (!session)
+		return 0;
+	return session->se_id;
+}

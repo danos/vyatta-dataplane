@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2018, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2011-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  */
@@ -46,9 +46,10 @@
 #include "npf/npf_cache.h"
 #include "npf/npf_ruleset.h"
 #include "util.h"
-#include "vrf.h"
+#include "vrf_internal.h"
 
 struct rte_mbuf;
+struct npf_pack_npf_state;
 
 /* Forward Declarations */
 typedef struct npf_cache npf_cache_t;
@@ -202,7 +203,7 @@ static inline bool npf_state_is_closing(uint8_t proto, uint8_t state)
 
 void npf_state_stats_create(void);
 void npf_state_stats_destroy(void);
-void npf_state_init(vrfid_t vrfid, uint8_t proto_idx, npf_state_t *nst);
+bool npf_state_init(vrfid_t vrfid, uint8_t proto_idx, npf_state_t *nst);
 void npf_state_destroy(npf_state_t *nst, uint8_t proto_idx);
 bool npf_state_inspect(const npf_cache_t *npc, struct rte_mbuf *nbuf,
 		       npf_state_t *nst, bool forw);
@@ -241,5 +242,8 @@ uint8_t npf_state_tcp(const npf_cache_t *npc, struct rte_mbuf *nbuf,
 uint32_t npf_state_get_tcp_seq(int di, npf_state_t *nst);
 
 void npf_state_set_tcp_strict(bool value);
+
+int npf_state_npf_pack_update(npf_state_t *nst, struct npf_pack_npf_state *st,
+			      uint8_t state, uint8_t proto_idx);
 
 #endif  /* NPF_STATE_H */

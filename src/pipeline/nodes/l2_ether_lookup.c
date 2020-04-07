@@ -1,7 +1,7 @@
 /*
  * l2_ether_lookup.c
  *
- * Copyright (c) 2017-2018, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2016, 2017 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -19,9 +19,9 @@
 #include "compiler.h"
 #include "ether.h"
 #include "if_var.h"
-#include "macvlan.h"
+#include "if/macvlan.h"
 #include "main.h"
-#include "pktmbuf.h"
+#include "pktmbuf_internal.h"
 #include "pl_common.h"
 #include "pl_fused.h"
 #include "pl_node.h"
@@ -97,7 +97,8 @@ no_vlan: __cold_label;
  *    dp0portx [vlan ] [macvlan]
  */
 ALWAYS_INLINE unsigned int
-ether_lookup_process_common(struct pl_packet *pkt, enum pl_mode mode)
+ether_lookup_process_common(struct pl_packet *pkt, void *context __unused,
+			    enum pl_mode mode)
 {
 	struct rte_mbuf *m = pkt->mbuf;
 	struct ifnet *ifp = pkt->in_ifp;
@@ -189,9 +190,9 @@ no_address: __cold_label;
 }
 
 ALWAYS_INLINE unsigned int
-ether_lookup_process(struct pl_packet *p)
+ether_lookup_process(struct pl_packet *p, void *context)
 {
-	return ether_lookup_process_common(p, PL_MODE_REGULAR);
+	return ether_lookup_process_common(p, context, PL_MODE_REGULAR);
 }
 
 static int
@@ -204,20 +205,37 @@ ether_lookup_feat_change(struct pl_node *node,
 	return pl_node_feat_change_u16(&ifp->ether_in_features, feat, action);
 }
 
+static int
+ether_lookup_feat_change_all(struct pl_feature_registration *feat,
+			     enum pl_node_feat_action action)
+{
+	return if_node_instance_feat_change_all(feat, action,
+						ether_lookup_feat_change);
+}
+
 ALWAYS_INLINE bool
 ether_lookup_feat_iterate(struct pl_node *node, bool first,
-			  unsigned int *feature_id, void **context)
+			  unsigned int *feature_id, void **context,
+			  void **storage_ctx)
 {
+	bool ret;
 	struct ifnet *ifp = ether_lookup_node_to_ifp(node);
 
-	return pl_node_feat_iterate_u16(&ifp->ether_in_features, first,
-					feature_id, context);
+	ret = pl_node_feat_iterate_u16(&ifp->ether_in_features, first,
+				       feature_id, context);
+	if (ret)
+		*storage_ctx = if_node_instance_get_storage_internal(
+			ifp,
+			PL_FEATURE_POINT_ETHER_LOOKUP_ID,
+			*feature_id);
+
+	return ret;
 }
 
 static struct pl_node *
 ether_lookup_node_lookup(const char *name)
 {
-	struct ifnet *ifp = ifnet_byifname(name);
+	struct ifnet *ifp = dp_ifnet_byifname(name);
 	return ifp ? ifp_to_ether_lookup_node(ifp) : NULL;
 }
 
@@ -227,8 +245,13 @@ PL_REGISTER_NODE(ether_lookup_node) = {
 	.type = PL_PROC,
 	.handler = ether_lookup_process,
 	.feat_change = ether_lookup_feat_change,
+	.feat_change_all = ether_lookup_feat_change_all,
 	.feat_iterate = ether_lookup_feat_iterate,
 	.lookup_by_name = ether_lookup_node_lookup,
+	.feat_reg_context = if_node_instance_register_storage,
+	.feat_unreg_context = if_node_instance_unregister_storage,
+	.feat_get_context = if_node_instance_get_storage,
+	.feat_setup_cleanup_cb = if_node_instance_set_cleanup_cb,
 	.num_next = ETHER_LOOKUP_NUM,
 	.next = {
 		[ETHER_LOOKUP_ACCEPT] = "ether-forward",

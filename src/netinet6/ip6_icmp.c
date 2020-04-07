@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2011-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -35,7 +35,7 @@
 #include "ip6_funcs.h"
 #include "ip_funcs.h"
 #include "nd6_nbr.h"
-#include "pktmbuf.h"
+#include "pktmbuf_internal.h"
 #include "route_flags.h"
 #include "route_v6.h"
 #include "snmp_mib.h"
@@ -186,7 +186,7 @@ icmp6_do_exthdr(struct rte_mbuf *m, uint16_t class, uint8_t ctype, void *buf,
 	u_int16_t total_len;
 	int hlen;
 
-	hlen = pktmbuf_l3_len(m);
+	hlen = dp_pktmbuf_l3_len(m);
 	icmpv6 = (struct icmp6_hdr *) ((char *) ip6 + hlen);
 	switch (icmpv6->icmp6_type) {
 	case ICMP6_TIME_EXCEEDED:
@@ -289,7 +289,7 @@ struct rte_mbuf *icmp6_do_error(struct ifnet *rcvif, struct rte_mbuf *n,
 			.rcvif = rcvif,
 			.saddr = NULL,
 		};
-		ifnet_walk(icmp6_lookup_minscope, &ctx);
+		dp_ifnet_walk(icmp6_lookup_minscope, &ctx);
 		saddr = ctx.saddr;
 	}
 
@@ -303,14 +303,19 @@ struct rte_mbuf *icmp6_do_error(struct ifnet *rcvif, struct rte_mbuf *n,
 		return NULL;
 
 	/* Copy up to ICPMV6_PLD_MAXLEN bytes from the orignal packet */
-	unsigned int icmplen = RTE_MIN(ICMP6_PLD_MAXLEN - sizeof(struct icmp6_hdr),
-			  (unsigned int) rte_pktmbuf_data_len(n) - pktmbuf_l2_len(n));
+	unsigned int icmplen = RTE_MIN(ICMP6_PLD_MAXLEN -
+				       sizeof(struct icmp6_hdr),
+				       (unsigned int) rte_pktmbuf_data_len(n)
+				       - dp_pktmbuf_l2_len(n));
 	uint16_t plen = sizeof(struct icmp6_hdr) + icmplen;
 	if (!rte_pktmbuf_append(m,
-			pktmbuf_l2_len(n) + sizeof(struct ip6_hdr) + plen))
+			dp_pktmbuf_l2_len(n) + sizeof(struct ip6_hdr) + plen))
 		rte_panic("out of space to append icmp\n");
 
-	pktmbuf_l2_len(m) = pktmbuf_l2_len(n);
+	dp_pktmbuf_l2_len(m) = dp_pktmbuf_l2_len(n);
+
+	/* preserve the input port number for use by shadow interface */
+	m->port = n->port;
 
 	/*
 	 * OK, ICMP6 can be generated.
@@ -472,7 +477,10 @@ void icmp6_redirect(struct ifnet *ifp, struct rte_mbuf *n,
 	if (!rte_pktmbuf_append(m, totallen))
 		rte_panic("out of space to append icmp\n");
 
-	pktmbuf_l2_len(m) = pktmbuf_l2_len(n);
+	dp_pktmbuf_l2_len(m) = dp_pktmbuf_l2_len(n);
+
+	/* preserve the input port number for use by shadow interface */
+	m->port = n->port;
 
 	/* ip6 */
 	struct ip6_hdr *ip6 = ip6hdr(m);

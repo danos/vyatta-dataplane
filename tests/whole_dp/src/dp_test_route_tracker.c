@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019, AT&T Intellectual Property. All rights reserved.
+ * Copyright (c) 2019-2020, AT&T Intellectual Property. All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  *
@@ -18,12 +18,13 @@
 #include "dp_test.h"
 #include "dp_test_controller.h"
 #include "dp_test_console.h"
-#include "dp_test_netlink_state.h"
-#include "dp_test_lib.h"
-#include "dp_test_lib_intf.h"
+#include "dp_test_netlink_state_internal.h"
+#include "dp_test_lib_internal.h"
+#include "dp_test_lib_intf_internal.h"
 #include "dp_test_lib_exp.h"
+#include "dp_test_cmd_state.h"
 
-#include "dp_test_pktmbuf_lib.h"
+#include "dp_test_pktmbuf_lib_internal.h"
 #include "dp_test_route_tracker.h"
 
 DP_DECL_TEST_SUITE(route_tracker);
@@ -84,13 +85,13 @@ static int dp_test_cmd_route_tracker_cfg(FILE *f, int argc, char **argv)
 
 	if (add) {
 		dp_test_assert_internal(tracker_ctx[index].used == false);
-		rt_tracker_add(vrf, &addr,
+		dp_rt_tracker_add(vrf, &addr,
 			       &tracker_ctx[index],
 			       dp_test_route_tracker_cb);
 		tracker_ctx[index].used = true;
 	} else {
 		dp_test_assert_internal(tracker_ctx[index].used);
-		rt_tracker_delete(vrf, &addr,
+		dp_rt_tracker_delete(vrf, &addr,
 				  &tracker_ctx[index]);
 		tracker_ctx[index].used = false;
 	}
@@ -278,4 +279,64 @@ DP_START_TEST(route_tracker, route_tracker_simple)
 {
 	rt_tracker_test(v4_interface_addr, v4_routes, v4_trackers, v4_cover);
 	rt_tracker_test(v6_interface_addr, v6_routes, v6_trackers, v6_cover);
+} DP_END_TEST;
+
+#define IIFNAME "dp1T0"
+#define PEER_MAC "be:ef:60:d:f0:d"
+#define PEER_IP "1.1.1.2"
+#define OUR_IP  "1.1.1.1"
+#define OUR_ADDRESS  "1.1.1.1/24"
+#define PEER_ROUTE  "1.1.1.2/32 nh 1.1.1.2 int:dp1T0"
+
+DP_START_TEST(route_tracker, route_tracker_race)
+{
+	cmd_rt_tracker_cfg_test_set(dp_test_cmd_route_tracker_cfg);
+
+	/* Set up the interface addresses */
+	dp_test_nl_add_ip_addr_and_connected(IIFNAME, OUR_ADDRESS);
+
+	/* Add a tracker and ensure it is resolved through the connected */
+	dp_test_send_config_src(dp_test_cont_src_get(),
+				"tracker-ut ADD %s 0", PEER_IP);
+	dp_test_verify_tracker(PEER_IP, 1, "1.1.1.0/24");
+
+	/*
+	 * Add a neigh entry, which will end up creating /32 neigh_created
+	 * route and as a result the tracker should be updated to point
+	 * to this new rule/route.
+	 */
+	dp_test_netlink_add_neigh(IIFNAME, PEER_IP, PEER_MAC);
+
+	/* ARP based route should now resolve the tracker with a /32 cover */
+	dp_test_verify_tracker(PEER_IP, 1, "1.1.1.2/32");
+
+	/*
+	 * This is a higher scope route and as a result should replace the
+	 * ARP created route/rule but the tracker should resolve via the
+	 * /32
+	 */
+	dp_test_netlink_add_route(PEER_ROUTE);
+
+	/* Should still be reoslved with the /32 cover */
+	dp_test_verify_tracker(PEER_IP, 1, "1.1.1.2/32");
+
+	/*
+	 * Now remove the neigh entry and the tracker should remain unaffected
+	 */
+	dp_test_neigh_clear_entry(IIFNAME, PEER_IP);
+	dp_test_verify_tracker(PEER_IP, 1, "1.1.1.2/32");
+
+	/*
+	 * Now get rid of the /32 route and the tracker should re-resolve via
+	 * the /24 connected route
+	 */
+	dp_test_netlink_del_route(PEER_ROUTE);
+	dp_test_verify_tracker(PEER_IP, 1, "1.1.1.0/24");
+
+	/* Clean Up */
+	dp_test_nl_del_ip_addr_and_connected("dp1T0", OUR_ADDRESS);
+	dp_test_send_config_src(dp_test_cont_src_get(),
+				"tracker-ut DELETE %s 0", PEER_IP);
+	dp_test_verify_tracker_gone(PEER_IP);
+	cmd_rt_tracker_cfg_test_set(NULL);
 } DP_END_TEST;

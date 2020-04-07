@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2018-2020, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -220,7 +220,7 @@ nptv6_validate_params(struct nptv6 *np)
 
 	in6_prefix_cpy(&outer, &np->np_out_prefix, np->np_out_prefixlen);
 
-	if (in6_prefix_eq(&inner, &outer, MAX(np->np_in_prefixlen,
+	if (dp_in6_prefix_eq(&inner, &outer, MAX(np->np_in_prefixlen,
 					      np->np_out_prefixlen)))
 		return -EINVAL;
 
@@ -662,7 +662,7 @@ nptv6_translate_icmp(const struct nptv6 *np, const struct in6_addr *pfx,
 	uint plen;
 	int rc;
 
-	n_ptr = rte_pktmbuf_mtod_offset(mbuf, char *, pktmbuf_l2_len(mbuf));
+	n_ptr = rte_pktmbuf_mtod_offset(mbuf, char *, dp_pktmbuf_l2_len(mbuf));
 
 	if (dir == PFIL_IN) {
 		/*
@@ -670,7 +670,7 @@ nptv6_translate_icmp(const struct nptv6 *np, const struct in6_addr *pfx,
 		 * prefix matches the external network prefix
 		 */
 		rc = nbuf_advfetch(&mbuf, &n_ptr,
-				   pktmbuf_l3_len(mbuf) +
+				   dp_pktmbuf_l3_len(mbuf) +
 				   sizeof(struct icmp6_hdr) +
 				   offsetof(struct ip6_hdr, ip6_src),
 				   sizeof(addr), &addr);
@@ -685,7 +685,7 @@ nptv6_translate_icmp(const struct nptv6 *np, const struct in6_addr *pfx,
 		 * prefix matches the internal network prefix
 		 */
 		rc = nbuf_advfetch(&mbuf, &n_ptr,
-				   pktmbuf_l3_len(mbuf) +
+				   dp_pktmbuf_l3_len(mbuf) +
 				   sizeof(struct icmp6_hdr) +
 				   offsetof(struct ip6_hdr, ip6_dst),
 				   sizeof(addr), &addr);
@@ -696,7 +696,7 @@ nptv6_translate_icmp(const struct nptv6 *np, const struct in6_addr *pfx,
 		plen = np->np_in_prefixlen;
 	}
 
-	if (!in6_prefix_eq(&addr, match, plen))
+	if (!dp_in6_prefix_eq(&addr, match, plen))
 		return;
 
 	/*
@@ -724,7 +724,7 @@ nptv6_translate(npf_cache_t *npc, struct rte_mbuf **nbuf, void *arg,
 	struct in6_addr trans;
 	int icmp;
 
-	uint hdr_len = pktmbuf_l2_len(*nbuf) + pktmbuf_l3_len(*nbuf);
+	uint hdr_len = dp_pktmbuf_l2_len(*nbuf) + dp_pktmbuf_l3_len(*nbuf);
 
 	if (unlikely(npf_iscached(npc, NPC_ICMP_ERR)))
 		hdr_len += sizeof(struct icmp6_hdr) + sizeof(struct ip6_hdr);
@@ -791,7 +791,7 @@ nptv6_translate(npf_cache_t *npc, struct rte_mbuf **nbuf, void *arg,
 	/*
 	 * Write the translated address back to the packet, and update cache
 	 */
-	void *n_ptr = pktmbuf_mtol3(mbuf, void *);
+	void *n_ptr = dp_pktmbuf_mtol3(mbuf, void *);
 
 	npf_rwrip6(npc, mbuf, n_ptr, np->np_dir, &trans);
 

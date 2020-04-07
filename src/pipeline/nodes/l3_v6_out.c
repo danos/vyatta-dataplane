@@ -2,7 +2,7 @@
  * l3_v6_out.c
  *
  *
- * Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2016, 2017 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -22,7 +22,7 @@
 #include "ip6_funcs.h"
 #include "npf/npf_cache.h"
 #include "npf_shim.h"
-#include "pktmbuf.h"
+#include "pktmbuf_internal.h"
 #include "pl_common.h"
 #include "pl_fused.h"
 #include "pl_node.h"
@@ -99,7 +99,8 @@ ipv6_out_features(struct pl_packet *pkt, enum pl_mode mode)
 }
 
 ALWAYS_INLINE unsigned int
-ipv6_out_process_common(struct pl_packet *pkt, enum pl_mode mode)
+ipv6_out_process_common(struct pl_packet *pkt, void *context __unused,
+			enum pl_mode mode)
 {
 	if (!ipv6_out_features(pkt, mode))
 		return IPV6_OUT_FINISH;
@@ -144,9 +145,9 @@ ipv6_out_process_common(struct pl_packet *pkt, enum pl_mode mode)
 }
 
 ALWAYS_INLINE unsigned int
-ipv6_out_process(struct pl_packet *p)
+ipv6_out_process(struct pl_packet *p, void *context __unused)
 {
-	return ipv6_out_process_common(p, PL_MODE_REGULAR);
+	return ipv6_out_process_common(p, context, PL_MODE_REGULAR);
 }
 
 static int
@@ -160,20 +161,37 @@ ipv6_out_feat_change(struct pl_node *node,
 				       action);
 }
 
+static int
+ipv6_out_feat_change_all(struct pl_feature_registration *feat,
+			 enum pl_node_feat_action action)
+{
+	return if_node_instance_feat_change_all(feat, action,
+						ipv6_out_feat_change);
+}
+
 ALWAYS_INLINE bool
 ipv6_out_feat_iterate(struct pl_node *node, bool first,
-		      unsigned int *feature_id, void **context)
+		      unsigned int *feature_id, void **context,
+		      void **storage_ctx)
 {
 	struct ifnet *ifp = ipv6_out_node_to_ifp(node);
+	bool ret;
 
-	return pl_node_feat_iterate_u16(&ifp->ip6_out_features, first,
-					feature_id, context);
+	ret = pl_node_feat_iterate_u16(&ifp->ip6_out_features, first,
+				       feature_id, context);
+	if (ret)
+		*storage_ctx = if_node_instance_get_storage_internal(
+			ifp,
+			PL_FEATURE_POINT_IPV6_OUT_ID,
+			*feature_id);
+
+	return ret;
 }
 
 static struct pl_node *
 ipv6_out_node_lookup(const char *name)
 {
-	struct ifnet *ifp = ifnet_byifname(name);
+	struct ifnet *ifp = dp_ifnet_byifname(name);
 	return ifp ? ifp_to_ipv6_out_node(ifp) : NULL;
 }
 
@@ -183,8 +201,13 @@ PL_REGISTER_NODE(ipv6_out_node) = {
 	.type = PL_PROC,
 	.handler = ipv6_out_process,
 	.feat_change = ipv6_out_feat_change,
+	.feat_change_all = ipv6_out_feat_change_all,
 	.feat_iterate = ipv6_out_feat_iterate,
 	.lookup_by_name = ipv6_out_node_lookup,
+	.feat_reg_context = if_node_instance_register_storage,
+	.feat_unreg_context = if_node_instance_unregister_storage,
+	.feat_get_context = if_node_instance_get_storage,
+	.feat_setup_cleanup_cb = if_node_instance_set_cleanup_cb,
 	.num_next = IPV6_OUT_NUM,
 	.next = {
 		[IPV6_OUT_ENCAP] = "ipv6-encap",

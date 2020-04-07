@@ -1,8 +1,10 @@
-// Copyright (c) 2018, AT&T Intellectual Property.  All rights reserved.
+// Copyright (c) 2018-2019, AT&T Intellectual Property.  All rights reserved.
 //
 // SPDX-License-Identifier: LGPL-2.1-only
 
 syntax="proto2";
+
+option go_package = "github.com/danos/vyatta-dataplane/protobuf/go/DataplaneEnvelope";
 
 message DataplaneEnvelope {
 	required string type = 1; //unique message name

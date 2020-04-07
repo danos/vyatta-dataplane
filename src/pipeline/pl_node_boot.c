@@ -1,7 +1,7 @@
 /*
  * pl_node_boot.c
  *
- * Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2016, 2017 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -18,9 +18,12 @@
 #include <sys/queue.h>
 
 #include "json_writer.h"
+#include "main.h"
+#include "pipeline.h"
 #include "pl_commands.h"
 #include "pl_common.h"
 #include "pl_internal.h"
+#include "pl_node.h"
 #include "util.h"
 #include "vplane_log.h"
 
@@ -166,8 +169,8 @@ pl_feature_node_alloc_id(struct pl_feature_registration *feat,
 	struct pl_feature_registration *before_feat = NULL;
 	struct pl_feature_registration *after_feat = NULL;
 	char *default_domain = parse_domain(feat->name);
-	char *before_feat_name;
-	char *after_feat_name;
+	char *before_feat_name = NULL;
+	char *after_feat_name = NULL;
 	unsigned int max = UINT_MAX;
 	unsigned int min = 0;
 	unsigned int id;
@@ -186,7 +189,6 @@ pl_feature_node_alloc_id(struct pl_feature_registration *feat,
 			RTE_LOG(WARNING, DATAPLANE,
 				"unknown before feature %s for feature %s\n",
 				before_feat_name, feat->name);
-		free(before_feat_name);
 	}
 	if (feat->visit_after) {
 		after_feat_name = construct_name_and_domain(
@@ -199,7 +201,17 @@ pl_feature_node_alloc_id(struct pl_feature_registration *feat,
 			RTE_LOG(WARNING, DATAPLANE,
 				"unknown after feature %s for feature %s\n",
 				after_feat_name, feat->name);
-		free(after_feat_name);
+	}
+
+	if (feat->feature_type == PL_FEAT_CASE) {
+		/*
+		 * This is a case feature so doesn't have before/after.
+		 * IDs are first come first served.
+		 */
+		if (feat->visit_after || feat->visit_before)
+			rte_panic("Case feature %s has before/after features\n",
+				  feat->name);
+		min = feat->feature_point_node->max_feature_reg_idx + 1;
 	}
 
 	free(default_domain);
@@ -215,6 +227,9 @@ pl_feature_node_alloc_id(struct pl_feature_registration *feat,
 			before_feat->id, before_feat_name,
 			after_feat->id, after_feat_name, feat->name);
 
+	free(before_feat_name);
+	free(after_feat_name);
+
 
 	for (id = min; id <= max; id++) {
 		/* id 0 is reserved */
@@ -222,8 +237,8 @@ pl_feature_node_alloc_id(struct pl_feature_registration *feat,
 			continue;
 
 		/* candidate id already allocated */
-		if (feat->node->max_feature_reg_idx > id &&
-		    feat->node->feature_regs[id])
+		if (feat->feature_point_node->max_feature_reg_idx > id &&
+		    feat->feature_point_node->feature_regs[id])
 			continue;
 
 		/* found an unallocated id */
@@ -241,6 +256,17 @@ pl_feature_node_alloc_id(struct pl_feature_registration *feat,
 		feat->visit_after ? feat->visit_after : "");
 }
 
+/*
+ * Incrementing node id counter. Each dynamic node takes the next node id
+ * and increments the counter.
+ */
+static int next_dyn_node_id = PL_NODE_NUM_IDS;
+
+int pl_get_max_node_count(void)
+{
+	return next_dyn_node_id;
+}
+
 void
 pl_graph_validate(void)
 {
@@ -253,7 +279,6 @@ pl_graph_validate(void)
 	char *default_domain;
 	uint16_t next_idx;
 	char *node_name;
-	int next_dyn_node_id = PL_NODE_NUM_IDS;
 
 	if (!name_hash)
 		rte_panic("unable to allocate pipeline graph node name hash\n");
@@ -328,9 +353,17 @@ pl_graph_validate(void)
 			rte_panic(
 				"unknown feature point node %s for feature %s\n",
 				node_name, feat->name);
+		if (node->feat_type_find && (feat->feat_type == 0))
+			rte_panic(
+				"feature point node %s expects a qualifier from %s\n",
+				feat->feature_point, feat->name);
+
 		free(node_name);
 		feat->feature_point_node = node;
 		free(default_domain);
+
+		if (feat->node->feat_setup_cleanup_cb)
+			feat->node->feat_setup_cleanup_cb(feat);
 	}
 
 	/* check feature point constraints */
@@ -365,6 +398,26 @@ pl_graph_validate(void)
 				feat->name,
 				feat_point_node->feature_regs[feat->id]->name);
 		feat_point_node->feature_regs[feat->id] = feat;
+		/*
+		 * If the feature point node is case based then add it
+		 * to the hash table, if we want to always have it enabled.
+		 */
+		if (!feat->always_on)
+			continue;
+
+		if (feat_point_node->feat_type_find) {
+			if (!feat_point_node->feat_type_insert)
+				rte_panic(
+					"Cannot add features to feat attach node %s\n",
+					feat_point_node->name);
+			if (feat_point_node->feat_type_insert(
+				    feat_point_node,
+				    feat,
+				    feat->feat_type) != 0)
+				rte_panic(
+					"Unable to add feat type: %s to feat attach node %s\n",
+					feat->name, feat_point_node->name);
+		}
 	}
 
 	zhashx_destroy(&name_hash);
@@ -411,10 +464,10 @@ pl_dump_nodes(json_writer_t *json)
 	TAILQ_FOREACH(node, &pl_node_reg_list, links) {
 		jsonw_name(json, node->name);
 		jsonw_start_object(json);
+		jsonw_uint_field(json, "node-id", node->node_decl_id);
+
 		jsonw_uint_field(json, "pkt-count",
 				 pl_get_node_stats(node->node_decl_id));
-		jsonw_string_field(json, "disable",
-				   node->disable ? "true" : "false");
 		jsonw_name(json, "next");
 		jsonw_start_array(json);
 		int i;
@@ -445,4 +498,283 @@ pl_dump_nodes(json_writer_t *json)
 		}
 	}
 	jsonw_end_object(json);
+}
+
+int dp_pipeline_register_node(const char *name,
+			      int num_next_nodes,
+			      const char **next_node_names,
+			      enum pl_node_type node_type,
+			      pl_proc handler)
+{
+
+	struct pl_node_registration *pl_node;
+	int i;
+
+	if (!name || num_next_nodes == 0 || !next_node_names || !handler)
+		return -EINVAL;
+
+	if (!strchr(name, ':'))
+		return -EINVAL;
+
+	for (i = 0; i < num_next_nodes; i++) {
+		/* domain is not required, use 'vyatta' if not given */
+		if (!next_node_names[i])
+			return -EINVAL;
+	}
+
+	/* Extra size for the flexible array of next nodes at end of struct */
+	pl_node = calloc(1, sizeof(*pl_node) +
+			 (sizeof(char *) * num_next_nodes));
+	if (!pl_node)
+		return -ENOMEM;
+
+	pl_node->name = name;
+	pl_node->type = node_type;
+	pl_node->handler = handler;
+	pl_node->num_next = num_next_nodes;
+
+	for (i = 0; i < num_next_nodes; i++)
+		pl_node->next[i] = next_node_names[i];
+
+	pl_add_node_registration(pl_node);
+
+	return 0;
+}
+
+static int
+pipeline_register_feature_internal(struct dp_pipeline_feat_registration *feat,
+				   enum pl_feat_type feature_type)
+{
+	struct pl_feature_registration *pl_feat;
+
+	/* plugin_name, visit_before and visit_after are optional */
+	if (!feat || !feat->name || !feat->node_name || !feat->feature_point)
+		return -EINVAL;
+
+	/* names being registered must include a domain */
+	if (!strchr(feat->name, ':') ||
+	    !strchr(feat->node_name, ':'))
+		return -EINVAL;
+
+	/* a visit requirement only makes sense for a LIST feature*/
+	if (feature_type == PL_FEAT_CASE) {
+		if (feat->visit_after || feat->visit_before)
+			return -EINVAL;
+	}
+
+	pl_feat = calloc(1, sizeof(*pl_feat));
+	if (!pl_feat)
+		return -ENOMEM;
+
+	pl_feat->plugin_name = feat->plugin_name;
+	pl_feat->name = feat->name;
+	pl_feat->node_name = feat->node_name;
+	pl_feat->feature_point = feat->feature_point;
+	pl_feat->visit_after = feat->visit_after;
+	pl_feat->visit_before = feat->visit_before;
+	pl_feat->feat_type = feat->value;
+	pl_feat->cleanup_cb = feat->cleanup_cb;
+	pl_feat->feature_type = feature_type;
+	/*
+	 * Always on only adds value in the 'fused' path, and that can not
+	 * happen for external feature plugins so don't support it.
+	 */
+	pl_feat->always_on = false;
+
+	pl_add_feature_registration(pl_feat);
+
+	return 0;
+}
+
+int
+dp_pipeline_register_list_feature(struct dp_pipeline_feat_registration *feat)
+{
+	return pipeline_register_feature_internal(feat, PL_FEAT_LIST);
+}
+
+int
+dp_pipeline_register_case_feature(struct dp_pipeline_feat_registration *feat)
+{
+	return pipeline_register_feature_internal(feat, PL_FEAT_CASE);
+}
+
+static struct pl_feature_registration *
+pl_feat_registration_find_by_name(const char *name)
+{
+	struct pl_feature_registration *pl_feat;
+
+	TAILQ_FOREACH(pl_feat, &pl_feature_reg_list, links) {
+		if (strcmp(name, pl_feat->name) == 0)
+			return pl_feat;
+	}
+
+	return NULL;
+}
+
+int dp_pipeline_enable_feature_by_inst(const char *name,
+				       const char *instance)
+{
+	struct pl_feature_registration *pl_feat;
+
+	if (!name || !instance)
+		return -EINVAL;
+
+	pl_feat = pl_feat_registration_find_by_name(name);
+	if (!pl_feat)
+		return -EINVAL;
+
+	return pl_node_add_feature(pl_feat, instance);
+}
+
+int dp_pipeline_disable_feature_by_inst(const char *name,
+					const char *instance)
+{
+	struct pl_feature_registration *pl_feat;
+
+	if (!name || !instance)
+		return -EINVAL;
+
+	pl_feat = pl_feat_registration_find_by_name(name);
+	if (!pl_feat)
+		return -EINVAL;
+
+	return pl_node_remove_feature(pl_feat, instance);
+}
+
+int dp_pipeline_enable_global_feature(const char *name)
+{
+	struct pl_feature_registration *pl_feat;
+
+	if (!name)
+		return -EINVAL;
+
+	pl_feat = pl_feat_registration_find_by_name(name);
+	if (!pl_feat)
+		return -EINVAL;
+
+	return pl_node_enable_global_feature(pl_feat);
+}
+
+int dp_pipeline_disable_global_feature(const char *name)
+{
+	struct pl_feature_registration *pl_feat;
+
+	if (!name)
+		return -EINVAL;
+
+	pl_feat = pl_feat_registration_find_by_name(name);
+	if (!pl_feat)
+		return -EINVAL;
+
+	return pl_node_disable_global_feature(pl_feat);
+}
+
+void pl_show_plugin_state(json_writer_t *json, const char *plugin_name)
+{
+	struct pl_feature_registration *feat;
+	const char *type;
+
+	jsonw_name(json, "feature_registrations");
+	jsonw_start_array(json);
+
+	TAILQ_FOREACH(feat, &pl_feature_reg_list, links) {
+		if (feat && feat->plugin_name &&
+		    strcmp(plugin_name, feat->plugin_name) == 0) {
+
+			jsonw_start_object(json);
+
+			jsonw_string_field(json, "node-name",
+					   feat->node_name);
+			jsonw_string_field(json, "feature-point",
+					   feat->feature_point_node->name);
+
+			if (feat->feature_type == PL_FEAT_LIST) {
+				type = "list";
+				if (feat->visit_before)
+					jsonw_string_field(json,
+							   "before",
+							   feat->visit_before);
+				if (feat->visit_after)
+					jsonw_string_field(json,
+							   "after",
+							   feat->visit_after);
+			} else {
+				type = "case";
+				jsonw_uint_field(json, "case-value",
+						 ntohs(feat->feat_type));
+			}
+			jsonw_string_field(json, "feature-type", type);
+			jsonw_end_object(json);
+		}
+	}
+
+	jsonw_end_array(json);
+}
+
+uint32_t
+pl_feat_point_node_get_max_features(enum pl_feature_point_id feat_point)
+{
+	struct pl_node_registration *node;
+
+	if (feat_point == PL_FEATURE_POINT_NONE_ID ||
+	    feat_point >= PL_FEATURE_POINT_NUM_IDS)
+		return 0;
+
+	TAILQ_FOREACH(node, &pl_node_reg_list, links) {
+		if ((enum pl_feature_point_id)node->feature_point_id ==
+		    feat_point)
+			return node->max_feature_reg_idx;
+	}
+	return 0;
+}
+
+int dp_pipeline_register_inst_storage(const char *name,
+				      const char *node_inst_name,
+				      void *context)
+{
+	struct pl_feature_registration *pl_feat;
+
+	ASSERT_MASTER();
+
+	/* Not providing a callback cleanup is allowed */
+	if (!name || !node_inst_name || !context)
+		return -EINVAL;
+
+	pl_feat = pl_feat_registration_find_by_name(name);
+	if (!pl_feat)
+		return -EINVAL;
+
+	return pl_node_register_storage(pl_feat, node_inst_name, context);
+}
+
+int dp_pipeline_unregister_inst_storage(const char *name,
+					const char *node_inst_name)
+{
+	struct pl_feature_registration *pl_feat;
+
+	ASSERT_MASTER();
+
+	if (!name || !node_inst_name)
+		return -EINVAL;
+
+	pl_feat = pl_feat_registration_find_by_name(name);
+	if (!pl_feat)
+		return -EINVAL;
+
+	return pl_node_unregister_storage(pl_feat, node_inst_name);
+}
+
+void *dp_pipeline_get_inst_storage(const char *node_name,
+				   const char *node_inst_name)
+{
+	struct pl_feature_registration *pl_feat;
+
+	if (!node_name || !node_inst_name)
+		return NULL;
+
+	pl_feat = pl_feat_registration_find_by_name(node_name);
+	if (!pl_feat)
+		return NULL;
+
+	return pl_node_get_storage(pl_feat, node_inst_name);
 }

@@ -398,6 +398,18 @@ npf_action_group_rule_cb(void *param, struct npf_cfg_rule_walk_state *state)
 	return true;
 }
 
+void npf_action_group_show_policer(struct npf_act_grp *act_grp,
+				   struct qos_show_context *context)
+{
+	json_writer_t *wr = context->wr;
+
+	do {
+		if (act_grp->policer_hndl)
+			policer_show(wr, act_grp->policer_hndl);
+		act_grp = act_grp->next;
+	} while (act_grp);
+}
+
 static void
 npf_action_group_json(json_writer_t *json, npf_rule_t *rl __unused,
 		      const char *params __unused, void *handle)

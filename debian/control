@@ -3,47 +3,83 @@ Section: non-free/net
 Priority: optional
 Maintainer: Vyatta Package Maintainers <DL-vyatta-help@att.com>
 Standards-Version: 3.9.8
-Build-Depends: debhelper (>= 9), dh-autoreconf, pkg-config,
-	       libdpdk-dev (>= 18.11-0vyatta4), libnuma-dev,
-	       libinih-dev,
-	       libmnl-dev, libcap-dev, liburcu-dev (>= 0.8.0),
-	       libzmq3-dev (>= 4.0.4), libbsd-dev, libczmq-dev,
-	       libxen-dev, libosip2-dev,
-	       cpputest, check, lcov,
-	       libpcap-dev (>= 1.7.0), libjson-c-dev,
-	       libssl-dev, debhelper (>= 9.20160709) | dh-systemd (>= 10.2.4),
-	       autoconf-archive (>= 20150925),
-	       libsystemd-dev, libvyatta-dpdk-swport-dev (>= 0.1.15),
-	       valgrind <pkg.vyatta-dataplane.valgrind>,
-	       python3, protobuf-c-compiler, libprotobuf-c-dev,
-	       protobuf-compiler, perl (>= 5.8.8),
-	       libgoogle-protocolbuffers-perl,
-	       bvnos-linux-libc-dev-vyatta (>> 4.19.16-0vyatta6),
+Build-Depends: autoconf-archive (>= 20150925),
+               bvnos-linux-libc-dev-vyatta (>> 4.19.16-0vyatta6),
+               check,
+               cpputest,
+               debhelper (>= 9),
+               debhelper (>= 9.20160709) | dh-systemd (>= 10.2.4),
+               dh-autoreconf,
+               dh-exec,
+               golang-goprotobuf-dev,
+               lcov,
+               libbsd-dev,
+               libcap-dev,
+               libczmq-dev,
+               libdpdk-dev (>= 18.11-0vyatta4),
+               libgoogle-protocolbuffers-perl,
+               libinih-dev,
+               libjson-c-dev,
+               libmnl-dev,
+               libnuma-dev,
+               libosip2-dev,
+               libpcap-dev (>= 1.7.0),
+               libprotobuf-c-dev,
+               libprotobuf-dev,
+               libssl-dev,
+               libsystemd-dev,
+               liburcu-dev (>= 0.8.0),
+               libvyatta-dpdk-swport-dev (>= 0.1.21),
+               libxen-dev,
+               libzmq3-dev (>= 4.0.4),
+               perl (>= 5.8.8),
+               pkg-config,
+               protobuf-c-compiler,
+               protobuf-compiler,
+               python3,
+               valgrind <pkg.vyatta-dataplane.valgrind>
 
 Package: vyatta-dataplane
 Section: non-free/net
 Architecture: any
 Recommends: dpdk-modules
-Depends:  libconfig-tiny-perl, libfile-slurp-perl,
-	  adduser, dmidecode [amd64],
-	  lsb-base (>= 3.0-6), rsyslog, vyatta-cpu-shield (>> 0.2.6),
-          vyatta-platform-util,
-	  ${perl:Depends}, ${shlibs:Depends}, ${misc:Depends}
-Provides: fal-policer-clear-stats,
-          fal-router-interface,
-          fal-vlan-feat-create,
-          fal-port-attr-hw-mirroring,
-          fal-backplane,
-          fal-qos-hw-info,
-          fal-tun,
-          fal-ptp,
-          fal-ptp-peer-resolution,
-          fal-acl,
-          fal-ipmc,
+Depends: adduser,
+         dmidecode [amd64],
+         libconfig-tiny-perl,
+         libfile-slurp-perl,
+         lsb-base (>= 3.0-6),
+         mstflint,
+         rsyslog,
+         vyatta-cpu-shield (>> 0.2.6),
+         vyatta-platform-util,
+         ${misc:Depends},
+         ${perl:Depends},
+         ${shlibs:Depends}
+Provides: fal-acl,
           fal-acl-commit,
-          fal-cmd-ret,
+          fal-backplane,
+          fal-bfd-hw,
           fal-br-walk-neigh,
+          fal-buffer-errors,
+          fal-cmd-ret,
+          fal-ipmc,
+          fal-l2-upd-port-status,
+          fal-lag,
+          fal-nh-router-intf,
+          fal-packet-capture,
+          fal-policer-clear-stats,
+          fal-port-attr-hw-mirroring,
+          fal-ptp,
+          fal-ptp-g8275p2,
+          fal-ptp-peer-resolution,
+          fal-qos-hw-info,
+          fal-qos-queue-designation,
+          fal-rif-stats,
+          fal-route-walk,
+          fal-router-interface,
+          fal-tun,
           fal-tun-dscp,
+          fal-vlan-feat-create
 Description: Vyatta optimized dataplane
  Vyatta dataplane is the set of tools to provide performance optimized routing
  and forwarding. It supports IPv4, IPv6, firewalling, bridging and more.
@@ -51,7 +87,13 @@ Description: Vyatta optimized dataplane
 Package: vyatta-dataplane-dev
 Section: non-free/devel
 Architecture: any
-Depends: ${misc:Depends}
+Depends: check,
+         libdpdk-dev (>= 18.11-0vyatta4),
+         libjson-c-dev,
+         libvyattafal-dev,
+         vyatta-dataplane-sample-plugin,
+         ${misc:Depends},
+         ${shlibs:Depends}
 Description: Vyatta dataplane pipeline node build support
  Set of headers required for dataplane compilation
 
@@ -65,7 +107,9 @@ Description: Vyatta dataplane protocol buffer files and support
 Package: vyatta-dataplane-sample-plugin
 Section: non-free/net
 Architecture: any
-Depends:  vyatta-dataplane, ${shlibs:Depends}, ${misc:Depends}
+Depends: vyatta-dataplane | vyatta-dataplane-dev,
+         ${misc:Depends},
+         ${shlibs:Depends}
 Description: Vyatta dataplane sample plugin library
  A sample pipeline plugin for the Vyatta dataplane that illustrates
  how a plugin can work.
@@ -73,23 +117,33 @@ Description: Vyatta dataplane sample plugin library
 Package: libvyattafal-dev
 Section: non-free/libdevel
 Architecture: any
-Depends: ${misc:Depends}, libdpdk-dev
-Provides: fal-dev-policer-clear-stats,
-          fal-dev-router-interface,
-          fal-dev-vlan-feat-create,
-          fal-dev-vlan-rx-stats-range,
-          fal-dev-port-attr-hw-mirroring,
+Depends: libdpdk-dev, ${misc:Depends}
+Provides: fal-dev-acl,
           fal-dev-backplane,
-          fal-dev-qos-hw-info,
-          fal-dev-cpp-rl,
-          fal-dev-qos-incremental-stats,
-          fal-dev-tun,
-          fal-dev-ptp,
-          fal-dev-acl,
-          fal-dev-ipmc,
-          fal-dev-cmd-ret,
+          fal-dev-bfd-hw,
           fal-dev-br-walk-neigh,
+          fal-dev-cmd-ret,
+          fal-dev-cpp-rl,
+          fal-dev-ipmc,
+          fal-dev-l2-upd-port-status,
+          fal-dev-l3-dump,
+          fal-dev-lag,
+          fal-dev-nh-router-intf,
+          fal-dev-packet-capture,
+          fal-dev-policer-clear-stats,
+          fal-dev-port-attr-hw-mirroring,
+          fal-dev-ptp,
+          fal-dev-ptp-g8275p2,
+          fal-dev-qos-hw-info,
+          fal-dev-qos-incremental-stats,
+          fal-dev-qos-queue-designation,
+          fal-dev-rif-stats,
+          fal-dev-route-walk,
+          fal-dev-router-interface,
+          fal-dev-tun,
           fal-dev-tun-dscp,
+          fal-dev-vlan-feat-create,
+          fal-dev-vlan-rx-stats-range
 Description: Forwarding Abstraction Library plugin development files
  An API for dataplane FAL plugins
 
@@ -108,3 +162,23 @@ Description: dataplane runtime protocols versions tracking meta-package
  This meta-package will provide a virtual package for each of
  the runtime protocols spoken by vyatta-dataplane, including
  their versions.
+
+Package: golang-github-danos-vyatta-dataplane-protobuf-dev
+Architecture: all
+Depends: golang-goprotobuf-dev, ${misc:Depends}
+Description: Provides Go language bindings for the datplane API.
+ Go bindings for the dataplane API.
+
+Package: libvyatta-dataplane-proto1
+Architecture: any
+Depends: ${misc:Depends}, ${shlibs:Depends}
+Multi-Arch: same
+Description: Provides C++ language bindings for the dataplane API.
+ C++ bindings for the dataplane API.
+
+Package: libvyatta-dataplane-proto-dev
+Section: non-free/libdevel
+Architecture: any
+Depends: libvyatta-dataplane-proto1 (= ${binary:Version}), ${misc:Depends}
+Description: Provides C++ headers for the dataplane API.
+ C++ headers for the dataplane API.

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  */
@@ -46,11 +46,12 @@ typedef struct npf_natpolicy npf_natpolicy_t;
 #include <stdint.h>
 #include <sys/types.h>
 
-#include "alg/npf_alg_public.h"
+#include "alg/alg_npf.h"
 #include "npf/npf.h"
 #include "npf/npf_cache.h"
 #include "npf/npf_session.h"
-#include "pktmbuf.h"
+#include "npf/npf_apm.h"
+#include "pktmbuf_internal.h"
 #include "util.h"
 
 /* Forward Declarations */
@@ -58,6 +59,7 @@ struct ifnet;
 struct npf_config;
 struct npf_session;
 struct rte_mbuf;
+struct npf_pack_npf_nat;
 
 typedef struct npf_cache npf_cache_t;
 typedef struct npf_session npf_session_t;
@@ -115,7 +117,7 @@ void npf_nat_get_trans(const npf_nat_t *nt, npf_addr_t *addr, in_port_t *tport);
 void npf_nat_get_orig(const npf_nat_t *nt, npf_addr_t *addr, in_port_t *oport);
 void npf_nat_set_trans(npf_nat_t *nt, const npf_addr_t *addr, in_port_t tport);
 void npf_nat_set_orig(npf_nat_t *nt, const npf_addr_t *addr, in_port_t oport);
-void npf_nat_setalg(npf_nat_t *nt, const struct npf_alg *alg);
+void npf_nat_setalg(npf_nat_t *nt, struct npf_alg *alg);
 const struct npf_alg *npf_nat_getalg(npf_nat_t *nt);
 npf_natpolicy_t *npf_nat_get_policy(const npf_nat_t *nt);
 npf_rule_t *npf_nat_get_rule(const npf_nat_t *nt);
@@ -135,4 +137,9 @@ npf_nat_clone_and_undo(struct rte_mbuf *m, const struct ifnet *in_ifp,
 struct rte_mbuf *
 npf_nat_copy_and_undo(struct rte_mbuf *m, const struct ifnet *in_ifp,
 		      const struct ifnet *out_ifp);
+int npf_nat_npf_pack_pack(npf_nat_t *nt, struct npf_pack_npf_nat *nat,
+			  struct sentry_packet *sp_back);
+int npf_nat_npf_pack_restore(struct npf_session *se,
+			     struct npf_pack_npf_nat *nat,
+			     struct ifnet *ifp);
 #endif /* NPF_NAT_H */

@@ -105,21 +105,16 @@ int
 npf_match_table(const npf_cache_t *npc,	uint32_t opts, const u_int tid)
 {
 	npf_addr_t *addr;
-	struct npf_addrgrp *ag;
 
 	if (opts & NC_MATCH_SRC)
 		addr = npf_cache_srcip(npc);
 	else
 		addr = npf_cache_dstip(npc);
 
-	ag = npf_addrgrp_tid_lookup(tid);
-	if (!ag)
-		return -EINVAL;
-
 	if (npf_iscached(npc, NPC_IP4))
-		return npf_addrgrp_lookup(AG_IPv4, ag, addr);
+		return npf_addrgrp_lookup(AG_IPv4, tid, addr);
 	else if (npf_iscached(npc, NPC_IP6))
-		return npf_addrgrp_lookup(AG_IPv6, ag, addr);
+		return npf_addrgrp_lookup(AG_IPv6, tid, addr);
 
 	return -1;
 }

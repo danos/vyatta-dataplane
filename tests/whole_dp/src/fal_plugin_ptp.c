@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2019, AT&T Intellectual Property. All rights reserved.
+ * Copyright (c) 2019-2020, AT&T Intellectual Property. All rights reserved.
  * Copyright (c) 2019 AT&T Intellectual Property.
  * All rights reserved.
  *
@@ -14,8 +14,9 @@
 #include <stdio.h>
 #include <sys/socket.h>
 
+#include "dp_test.h"
 #include "json_writer.h"
-#include "dp_test_macros.h"
+#include "dp_test/dp_test_macros.h"
 #include "util.h"
 
 #define LOG(l, t, ...)						\
@@ -118,6 +119,14 @@ int fal_plugin_create_ptp_clock(uint32_t attr_count,
 	dp_test_fail_unless(attr,
 			    "Must specify priority2 during create");
 
+	/* if set, it will be set to 100ns */
+	attr = get_attribute(FAL_PTP_CLOCK_ANTENNA_DELAY,
+			     attr_count,
+			     attr_list);
+	if (attr)
+		dp_test_fail_unless(attr->value.i32 == 100,
+				    "antenna-delay should be 100 during create");
+
 	*clock_obj = fal_test_plugin_ptp_next_obj++;
 	ptp_clock = *clock_obj;
 
@@ -185,7 +194,6 @@ int fal_plugin_create_ptp_port(uint32_t attr_count,
 	if (num_ptp_ports == MAX_PTP_PORTS)
 		return -ENOMEM;
 
-	ptp_domain_number = attr->value.u8;
 	*port_obj = fal_test_plugin_ptp_next_obj++;
 	ptp_ports[num_ptp_ports].obj_id = *port_obj;
 	ptp_ports[num_ptp_ports].vlan_id = vlan_id;

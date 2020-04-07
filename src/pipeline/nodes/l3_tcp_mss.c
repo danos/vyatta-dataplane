@@ -1,7 +1,7 @@
 /*
  * TCP MSS Clamp pipeline feature node
  *
- * Copyright (c) 2017-2018, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -27,7 +27,7 @@
 #include "if_var.h"
 #include "in_cksum.h"
 #include "npf/npf_mbuf.h"
-#include "pktmbuf.h"
+#include "pktmbuf_internal.h"
 #include "pl_common.h"
 #include "pl_fused.h"
 #include "pl_node.h"
@@ -103,7 +103,7 @@ tcp_fetch_mss(struct rte_mbuf *mbuf, uint16_t l3_len, int opts_len,
 	 * buffer.  This returns NULL if the packet is fragmented such that
 	 * all the requested data is not in the packet.
 	 */
-	opts = (uint8_t *)rte_pktmbuf_read(mbuf, pktmbuf_l2_len(mbuf) +
+	opts = (uint8_t *)rte_pktmbuf_read(mbuf, dp_pktmbuf_l2_len(mbuf) +
 					   l3_len + sizeof(struct tcphdr),
 					   opts_len, buf);
 	if (!opts)
@@ -201,7 +201,7 @@ tcp_mss_clamp(struct rte_mbuf **mbuf, enum tcp_mss_af af, struct ifnet *ifp,
 	 */
 	rc = pktmbuf_prepare_for_header_change(
 		mbuf,
-		pktmbuf_l2_len(*mbuf) +
+		dp_pktmbuf_l2_len(*mbuf) +
 		l3_len +
 		sizeof(struct tcphdr) + opts_len);
 	if (rc)
@@ -209,7 +209,7 @@ tcp_mss_clamp(struct rte_mbuf **mbuf, enum tcp_mss_af af, struct ifnet *ifp,
 
 	/* Update MSS in mbuf */
 	n_ptr = rte_pktmbuf_mtod_offset(*mbuf, char *,
-					pktmbuf_l2_len(*mbuf) + l3_len);
+					dp_pktmbuf_l2_len(*mbuf) + l3_len);
 	rc = nbuf_advstore(mbuf, &n_ptr, mss_offset, sizeof(mss), &mss);
 	if (rc)
 		return;
@@ -223,7 +223,7 @@ tcp_mss_clamp(struct rte_mbuf **mbuf, enum tcp_mss_af af, struct ifnet *ifp,
 
 	/* Update TCP checksum in mbuf */
 	n_ptr = rte_pktmbuf_mtod_offset(*mbuf, char *,
-					pktmbuf_l2_len(*mbuf) + l3_len);
+					dp_pktmbuf_l2_len(*mbuf) + l3_len);
 
 	rc = nbuf_advfetch(mbuf, &n_ptr,
 			   offsetof(struct tcphdr, check),
@@ -283,7 +283,7 @@ tcp_mss_process_common(struct rte_mbuf **mbuf, uint8_t *l3_hdr,
  * IPv4 input node
  */
 ALWAYS_INLINE unsigned int
-ipv4_tcp_mss_in_process(struct pl_packet *pkt)
+ipv4_tcp_mss_in_process(struct pl_packet *pkt, void *context __unused)
 {
 	struct rte_mbuf *mbuf = pkt->mbuf;
 	struct iphdr *ip = pkt->l3_hdr;
@@ -302,7 +302,7 @@ ipv4_tcp_mss_in_process(struct pl_packet *pkt)
 	/* mbuf may have changed */
 	if (mbuf != pkt->mbuf) {
 		pkt->mbuf = mbuf;
-		pkt->l3_hdr = pktmbuf_mtol3(mbuf, void *);
+		pkt->l3_hdr = dp_pktmbuf_mtol3(mbuf, void *);
 	}
 
 	return IPV4_TCP_MSS_IN_CONTINUE;
@@ -312,7 +312,7 @@ ipv4_tcp_mss_in_process(struct pl_packet *pkt)
  * IPv6 input node
  */
 ALWAYS_INLINE unsigned int
-ipv6_tcp_mss_in_process(struct pl_packet *pkt)
+ipv6_tcp_mss_in_process(struct pl_packet *pkt, void *context __unused)
 {
 	struct rte_mbuf *mbuf = pkt->mbuf;
 	uint8_t ipproto;
@@ -326,14 +326,14 @@ ipv6_tcp_mss_in_process(struct pl_packet *pkt)
 	if (ipproto != IPPROTO_TCP)
 		return IPV6_TCP_MSS_IN_CONTINUE;
 
-	l3_len -= pktmbuf_l2_len(pkt->mbuf);
+	l3_len -= dp_pktmbuf_l2_len(pkt->mbuf);
 	tcp_mss_process_common(&mbuf, pkt->l3_hdr, TCP_MSS_V6, pkt->in_ifp,
 			       l3_len);
 
 	/* mbuf may have changed */
 	if (mbuf != pkt->mbuf) {
 		pkt->mbuf = mbuf;
-		pkt->l3_hdr = pktmbuf_mtol3(mbuf, void *);
+		pkt->l3_hdr = dp_pktmbuf_mtol3(mbuf, void *);
 	}
 
 	return IPV6_TCP_MSS_IN_CONTINUE;
@@ -379,7 +379,7 @@ PL_REGISTER_FEATURE(ipv6_tcp_mss_in_feat) = {
  * IPv4 output node
  */
 ALWAYS_INLINE unsigned int
-ipv4_tcp_mss_out_process(struct pl_packet *pkt)
+ipv4_tcp_mss_out_process(struct pl_packet *pkt, void *context __unused)
 {
 	struct rte_mbuf *mbuf = pkt->mbuf;
 	struct iphdr *ip = pkt->l3_hdr;
@@ -398,7 +398,7 @@ ipv4_tcp_mss_out_process(struct pl_packet *pkt)
 	/* mbuf may have changed */
 	if (mbuf != pkt->mbuf) {
 		pkt->mbuf = mbuf;
-		pkt->l3_hdr = pktmbuf_mtol3(mbuf, void *);
+		pkt->l3_hdr = dp_pktmbuf_mtol3(mbuf, void *);
 	}
 
 	return IPV4_TCP_MSS_OUT_CONTINUE;
@@ -408,7 +408,7 @@ ipv4_tcp_mss_out_process(struct pl_packet *pkt)
  * IPv6 output node
  */
 ALWAYS_INLINE unsigned int
-ipv6_tcp_mss_out_process(struct pl_packet *pkt)
+ipv6_tcp_mss_out_process(struct pl_packet *pkt, void *context __unused)
 {
 	struct rte_mbuf *mbuf = pkt->mbuf;
 	uint8_t ipproto;
@@ -422,14 +422,14 @@ ipv6_tcp_mss_out_process(struct pl_packet *pkt)
 	if (ipproto != IPPROTO_TCP)
 		return IPV6_TCP_MSS_OUT_CONTINUE;
 
-	l3_len -= pktmbuf_l2_len(pkt->mbuf);
+	l3_len -= dp_pktmbuf_l2_len(pkt->mbuf);
 	tcp_mss_process_common(&mbuf, pkt->l3_hdr, TCP_MSS_V6, pkt->out_ifp,
 			       l3_len);
 
 	/* mbuf may have changed */
 	if (mbuf != pkt->mbuf) {
 		pkt->mbuf = mbuf;
-		pkt->l3_hdr = pktmbuf_mtol3(mbuf, void *);
+		pkt->l3_hdr = dp_pktmbuf_mtol3(mbuf, void *);
 	}
 
 	return IPV6_TCP_MSS_OUT_CONTINUE;
@@ -598,7 +598,7 @@ tcp_mss_feat_enable_cmd(TCPMSSConfig *tcpmss_msg, struct pb_msg *msg)
 	struct ifnet *ifp;
 	int rc;
 
-	ifp = ifnet_byifname(tcpmss_msg->ifname);
+	ifp = dp_ifnet_byifname(tcpmss_msg->ifname);
 	if (!ifp) {
 		enum tcp_mss_af af = TCP_MSS_V4;
 		if (tcpmss_msg->af == TCPMSSCONFIG__ADDRESS_FAMILY__TCP_MSS_V6)
@@ -621,14 +621,14 @@ tcp_mss_feat_enable_cmd(TCPMSSConfig *tcpmss_msg, struct pb_msg *msg)
 		else if (tcpmss_msg->mtu_option == TCPMSSCONFIG__MTUTYPE__LIMIT)
 			ifp->tcp_mss_type[tcpmss_msg->af] = TCP_MSS_LIMIT;
 		else {
-			pb_cmd_err(msg, "Bad option %d\n",
-				   tcpmss_msg->mtu_option);
+			dp_pb_cmd_err(msg, "Bad option %d\n",
+				      tcpmss_msg->mtu_option);
 			return -EINVAL;
 		}
 
 		/* 'val' is allowed to be 1-UINT16_MAX */
 		if (tcpmss_msg->value == 0 || tcpmss_msg->value > UINT16_MAX) {
-			pb_cmd_err(msg, "Bad value %d\n", tcpmss_msg->value);
+			dp_pb_cmd_err(msg, "Bad value %d\n", tcpmss_msg->value);
 			return -EINVAL;
 		}
 
@@ -663,9 +663,10 @@ tcp_mss_feat_disable_cmd(TCPMSSConfig *tcpmss_msg, struct pb_msg *msg)
 	if (!ret)
 		return 1;
 
-	ifp = ifnet_byifname(tcpmss_msg->ifname);
+	ifp = dp_ifnet_byifname(tcpmss_msg->ifname);
 	if (!ifp) {
-		pb_cmd_err(msg, "Missing interface %s\n", tcpmss_msg->ifname);
+		dp_pb_cmd_err(msg, "Missing interface %s\n",
+			      tcpmss_msg->ifname);
 		return -EINVAL;
 	}
 
@@ -712,7 +713,7 @@ tcp_mss_feat_cmd(struct pb_msg *msg)
  * Replay any stored configuration now that the interface has been created
  */
 static void
-tcp_mss_event_if_index_set(struct ifnet *ifp, uint32_t ifindex __unused)
+tcp_mss_event_if_index_set(struct ifnet *ifp)
 {
 	struct tcp_mss_if_list_entry *le;
 

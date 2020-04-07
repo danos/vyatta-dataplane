@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2018, AT&T Intellectual Property. All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property. All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -28,11 +28,11 @@
 
 #include "dp_test.h"
 #include "dp_test_controller.h"
-#include "dp_test_netlink_state.h"
-#include "dp_test_lib.h"
-#include "dp_test_lib_intf.h"
+#include "dp_test_netlink_state_internal.h"
+#include "dp_test_lib_internal.h"
+#include "dp_test_lib_intf_internal.h"
 #include "dp_test_lib_exp.h"
-#include "dp_test_pktmbuf_lib.h"
+#include "dp_test_pktmbuf_lib_internal.h"
 #include "dp_test_npf_fw_lib.h"
 
 DP_DECL_TEST_SUITE(npf_tblset);
@@ -43,7 +43,7 @@ DP_DECL_TEST_CASE(npf_tblset, npf_tblset_case1, NULL, NULL);
 
 static uint32_t *td[DSET_SZ] = {0};
 
-static int id[DSET_SZ] = {0};
+static uint32_t id[DSET_SZ] = {0};
 
 static uint32_t g_data[DSET_SZ] = {
 	0xba5eba11,
@@ -73,17 +73,9 @@ npf_test_tbl_walk_cb(const char *name, uint id, void *data, void *ctx)
 	return 0;
 }
 
-/*
- * Walk callback to remove and destroy each entry
- */
-static int
-npf_test_tbl_destroy_cb(const char *name, uint id, void *data, void *ctx)
+static void npf_test_tbl_entry_free_cb(void *data __unused)
 {
-	struct npf_tbl *nt = ctx;
-
-	dp_test_fail_unless(npf_tbl_entry_remove(nt, data) == 0,
-			    "npf_tbl_entry_remove");
-	return 0;
+	/* Nothing to do */
 }
 
 /*
@@ -93,12 +85,13 @@ DP_START_TEST(npf_tblset_case1, test1)
 {
 	struct npf_tbl *nt;
 	uint32_t *tmp, *entry1, *entry2;
-	int rc, entry1_id;
+	int rc;
+	uint32_t entry1_id, entry2_id;
 
 	/*
 	 * Create a tableset with 8 entries initially.
 	 */
-	uint8_t tbl_id    = 0;
+	uint8_t tbl_id = 0;
 	uint tbl_sz    = 8;
 	uint tbl_sz_max = 128;
 	uint tbl_entry_sz  = sizeof(uint32_t);
@@ -108,6 +101,8 @@ DP_START_TEST(npf_tblset_case1, test1)
 			    tbl_flags);
 	dp_test_fail_unless(nt, "npf_tbl_create");
 
+	/* Set entry-free function */
+	npf_tbl_set_entry_freefn(nt, npf_test_tbl_entry_free_cb);
 
 	/* Create entry "TABLE1" */
 	entry1 = npf_tbl_entry_create(nt, "TABLE1");
@@ -117,8 +112,9 @@ DP_START_TEST(npf_tblset_case1, test1)
 	*entry1 = g_data[0];
 
 	/* Insert entry into table */
-	entry1_id = npf_tbl_entry_insert(nt, entry1);
-	dp_test_fail_unless(entry1_id >= 0, "npf_tbl_entry_insert");
+	npf_tbl_entry_insert(nt, entry1, &entry1_id);
+	dp_test_fail_unless(entry1_id != NPF_TBLID_NONE,
+			    "npf_tbl_entry_insert");
 
 	dp_test_fail_unless(npf_tbl_size(nt) == 1,
 			    "Table size %u", npf_tbl_size(nt));
@@ -136,7 +132,7 @@ DP_START_TEST(npf_tblset_case1, test1)
 	dp_test_fail_unless(entry2, "npf_tbl_entry_create");
 
 	/* Try and insert duplicate entry into table */
-	rc = npf_tbl_entry_insert(nt, entry2);
+	rc = npf_tbl_entry_insert(nt, entry2, &entry2_id);
 	dp_test_fail_unless(rc < 0, "npf_tbl_entry_insert");
 
 	/* Destroyed duplicate entry */
@@ -167,10 +163,10 @@ DP_START_TEST(npf_tblset_case1, test1)
 
 		*td[i] = g_data[i];
 
-		id[i] = npf_tbl_entry_insert(nt, td[i]);
-		dp_test_fail_unless(id[i] >= 0,
-				    "npf_tbl_entry_insert id[%u] = %d",
-				    i, id[i]);
+		rc = npf_tbl_entry_insert(nt, td[i], &id[i]);
+		dp_test_fail_unless(rc == 0,
+				    "npf_tbl_entry_insert id[%u], rc = %d",
+				    i, rc);
 	}
 
 	dp_test_fail_unless(npf_tbl_size(nt) == ARRAY_SIZE(td),
@@ -191,8 +187,8 @@ DP_START_TEST(npf_tblset_case1, test1)
 
 	*td[i] = g_data[i];
 
-	id[i] = npf_tbl_entry_insert(nt, td[i]);
-	dp_test_fail_unless(id[i] >= 0, "npf_tbl_entry_insert");
+	rc = npf_tbl_entry_insert(nt, td[i], &id[i]);
+	dp_test_fail_unless(rc == 0, "npf_tbl_entry_insert");
 
 
 	/* Lookup by ID */
@@ -209,12 +205,7 @@ DP_START_TEST(npf_tblset_case1, test1)
 	/* Walk all entries */
 	npf_tbl_walk(nt, npf_test_tbl_walk_cb, NULL);
 
-	/* Destroy all entries */
-	npf_tbl_walk(nt, npf_test_tbl_destroy_cb, nt);
-	for (i = 0; i < ARRAY_SIZE(td); i++)
-		td[i] = NULL;
-
-	/* Destroy table */
+	/* Destroy table with entries */
 	rc = npf_tbl_destroy(nt);
 	dp_test_fail_unless(!rc, "npf_tbl_destroy");
 

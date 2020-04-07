@@ -1,13 +1,13 @@
 /*
- * Copyright (c) 2018, AT&T Intellectual Property.
+ * Copyright (c) 2018-2020, AT&T Intellectual Property.
  * All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
 #include <stdio.h>
-#include "dp_test_lib.h"
-#include "dp_test_macros.h"
-#include "dp_test_netlink_state.h"
+#include "dp_test_lib_internal.h"
+#include "dp_test/dp_test_macros.h"
+#include "dp_test_netlink_state_internal.h"
 #include "fal_plugin_test.h"
 #include <vyatta_swport.h>
 #include  "fal_plugin.h"
@@ -249,7 +249,7 @@ fal_plugin_add_ut_framer_hdr(const char *name, struct rte_mbuf *mbuf)
 		else
 			return -1;
 
-	return plugin_framer_tx(fal_sw_port->sw_port, fal_sw_port, mbuf);
+	return plugin_framer_tx(fal_sw_port->sw_port, fal_sw_port, &mbuf);
 }
 
 int __externally_visible

@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2018-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2018-2020, AT&T Intellectual Property.  All rights reserved.
  *
  *   BSD LICENSE
  *
@@ -341,6 +341,7 @@ rule_add(struct lpm *lpm, uint32_t ip_masked, uint8_t depth,
 	r->next_hop = next_hop;
 	r->scope = scope;
 	r->tracker_count = 0;
+	memset(&r->pd_state, 0, sizeof(r->pd_state));
 	RB_INIT(&r->tracker_head);
 
 	old = RB_INSERT(lpm_rules_tree, head, r);
@@ -789,7 +790,7 @@ lpm_tracker_find_next(struct lpm_rule *rule,
 	struct rt_tracker_info key;
 	uint32_t ip_masked;
 
-	ip_masked = (ip & lpm_depth_to_mask(depth));
+	ip_masked = htonl(ip & lpm_depth_to_mask(depth));
 	key.dst_addr.type = AF_INET;
 	key.dst_addr.address.ip_v4.s_addr = ip_masked;
 
@@ -1440,6 +1441,22 @@ lpm_tbl8_count(const struct lpm *lpm)
 			++count;
 	}
 	return count;
+}
+
+int
+lpm_nexthop_lookup(struct lpm *lpm, uint32_t ip, uint8_t depth,
+		   int16_t scope, uint32_t *next_hop)
+{
+	struct lpm_rule *r;
+	uint32_t ip_masked;
+
+	ip_masked = (ip & lpm_depth_to_mask(depth));
+	r = rule_find(lpm, ip_masked, depth, scope);
+	if (!r)
+		return -ENOENT;
+
+	*next_hop = r->next_hop;
+	return 0;
 }
 
 int

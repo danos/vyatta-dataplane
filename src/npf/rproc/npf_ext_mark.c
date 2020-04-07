@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2013-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -23,7 +23,7 @@
 #include "npf/npf_mbuf.h"
 #include "npf/rproc/npf_rproc.h"
 #include "npf/npf_ruleset.h"
-#include "pktmbuf.h"
+#include "pktmbuf_internal.h"
 #include "util.h"
 #include "vplane_log.h"
 #include "qos.h"

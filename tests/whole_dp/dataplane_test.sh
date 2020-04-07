@@ -19,4 +19,4 @@ if [ -z "$VALGRIND" ]; then
     CATCHSEGV="catchsegv"
 fi
 
-${CATCHSEGV} ./dataplane_test "$@"
+${CATCHSEGV} ./dataplane_test -P .libs "$@"

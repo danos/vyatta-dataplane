@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2018, AT&T Intellectual Property. All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property. All rights reserved.
  * Copyright (c) 2015-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -10,10 +10,10 @@
 #include "ip_funcs.h"
 
 #include "dp_test.h"
-#include "dp_test_netlink_state.h"
-#include "dp_test_lib.h"
+#include "dp_test_netlink_state_internal.h"
+#include "dp_test_lib_internal.h"
 #include "dp_test_lib_exp.h"
-#include "dp_test_pktmbuf_lib.h"
+#include "dp_test_pktmbuf_lib_internal.h"
 #include "dp_test_controller.h"
 
 DP_DECL_TEST_SUITE(ip_icmp_suite);

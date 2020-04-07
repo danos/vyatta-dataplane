@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2017-2018, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2015-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -14,11 +14,11 @@
 #include <stdlib.h>
 #include <stdbool.h>
 
-#include "dp_test_lib.h"
-#include "dp_test_lib_intf.h"
-#include "dp_test_pktmbuf_lib.h"
+#include "dp_test_lib_internal.h"
+#include "dp_test_lib_intf_internal.h"
+#include "dp_test_pktmbuf_lib_internal.h"
 #include "dp_test_lib_exp.h"
-#include "dp_test_macros.h"
+#include "dp_test/dp_test_macros.h"
 
 /*
  * struct dp_test_ctx_free_rec

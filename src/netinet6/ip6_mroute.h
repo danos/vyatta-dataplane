@@ -97,6 +97,8 @@ struct mrt6stat {
 struct mcast6_vrf {
 	struct cds_lfht *mf6ctable;
 	struct mrt6stat stat;
+	struct cds_lfht *mif6table;
+	struct if_set mf6c_ifset;
 	fal_object_t	v_fal_obj;	   /* fal object                */
 	fal_object_t	v_fal_rpf;	   /* fal rpf group object      */
 	struct fal_object_list_t *v_fal_rpf_lst;/* fal rpf members object  */
@@ -114,6 +116,7 @@ struct mif6 {
 	unsigned char	     m6_flags;	        /* MIFF flags defined above   */
 	struct ifnet	     *m6_ifp;		/* pointer to interface       */
 	unsigned int	     m6_if_index;	/* interface device index     */
+	unsigned char        m6_mif_index;      /* per-vrf mif index */
 	uint64_t	     m6_pkt_in;	        /* # pkts in on interface     */
 	uint64_t	     m6_pkt_out;	/* # pkts out on interface    */
 	uint64_t	     m6_pkt_out_punt;	/* # pkts punted at output    */

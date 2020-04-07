@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  */
@@ -44,7 +44,7 @@
 #include "npf/npf.h"
 #include "npf/npf_cache.h"
 #include "npf/npf_session.h"
-#include "pktmbuf.h"
+#include "pktmbuf_internal.h"
 
 struct rte_mbuf;
 

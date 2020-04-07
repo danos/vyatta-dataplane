@@ -90,9 +90,9 @@ int plugin_framer_rcv(struct rte_mbuf *mbuf, uint16_t *dpdk_port,
 	return -1;
 }
 
-int32_t plugin_framer_tx(void *sw_port, void *fal_info, struct rte_mbuf *mbuf)
+int32_t plugin_framer_tx(void *sw_port, void *fal_info, struct rte_mbuf **mbuf)
 {
-	struct ether_hdr *eh = ethhdr(mbuf);
+	struct ether_hdr *eh = ethhdr(*mbuf);
 
 	uint16_t proto;
 	uint8_t dev, port;
@@ -104,7 +104,7 @@ int32_t plugin_framer_tx(void *sw_port, void *fal_info, struct rte_mbuf *mbuf)
 		char *new_eh;
 		struct edsa_hdr *edsa_hdr;
 
-		new_eh = rte_pktmbuf_prepend(mbuf, DSA_TAG_LEN);
+		new_eh = rte_pktmbuf_prepend(*mbuf, DSA_TAG_LEN);
 		if (!new_eh)
 			return -1;
 
@@ -132,7 +132,7 @@ int32_t plugin_framer_tx(void *sw_port, void *fal_info, struct rte_mbuf *mbuf)
 		char *new_eh;
 		struct edsa_hdr *edsa_hdr;
 
-		new_eh = rte_pktmbuf_prepend(mbuf, EDSA_HLEN);
+		new_eh = rte_pktmbuf_prepend(*mbuf, EDSA_HLEN);
 		memmove(new_eh, new_eh + EDSA_HLEN, 2 * ETH_ALEN);
 		/*
 		 * Construct untagged FROM_CPU DSA tag.

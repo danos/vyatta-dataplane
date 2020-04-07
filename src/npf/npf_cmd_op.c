@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2011-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -21,7 +21,7 @@
 #include "commands.h"
 #include "control.h"
 #include "compiler.h"
-#include "npf/alg/npf_alg_public.h"
+#include "npf/alg/alg_npf.h"
 #include "npf/config/npf_attach_point.h"
 #include "npf/config/npf_config.h"
 #include "npf/config/npf_config_state.h"
@@ -35,10 +35,11 @@
 #include "npf/npf_session.h"
 #include "npf/npf_state.h"
 #include "npf/npf_timeouts.h"
+#include "npf/zones/npf_zone_public.h"
 #include "npf/rproc/npf_ext_session_limit.h"
 #include "npf/rproc/npf_ext_nptv6.h"
 #include "npf_shim.h"
-#include "vrf.h"
+#include "vrf_internal.h"
 
 static zhash_t *g_npf_op_cmds;
 
@@ -146,6 +147,15 @@ cmd_dump_attach_points(FILE *f, int argc __unused, char **argv __unused)
 {
 	npf_dump_attach_points(f);
 	return 0;
+}
+
+/*
+ * show one or more zones
+ */
+static int
+cmd_show_zones(FILE *f, int argc, char **argv)
+{
+	return npf_zone_show(f, argc, argv);
 }
 
 static int get_ruleset_selection(FILE *f, struct ruleset_select *sel, int argc,
@@ -423,6 +433,7 @@ static int
 cmd_npf_show_addrgrp_opt(FILE *f, int argc, char **argv)
 {
 	struct npf_show_ag_ctl ctl = {0};
+	int rc = 0;
 
 	cmd_npf_show_addrgrp_args(argc, argv, &ctl);
 
@@ -432,15 +443,17 @@ cmd_npf_show_addrgrp_opt(FILE *f, int argc, char **argv)
 	}
 	if (ctl.af[AG_IPv4] == ctl.af[AG_IPv6]) {
 		npf_cmd_err(f, "IPv4 or IPv6 should be specified");
-		return -1;
+		rc = -1;
+		goto cleanup;
 	}
 
 	npf_addrgrp_show_json_opt(f, &ctl);
 
+cleanup:
 	if (ctl.name)
 		free(ctl.name);
 
-	return 0;
+	return rc;
 }
 
 /*
@@ -520,6 +533,7 @@ enum {
 	DUMP_GROUPS,
 	DUMP_ACLS,
 	DUMP_ATTACH_POINTS,
+	SHOW_ZONES,
 	SHOW_STATE,
 	SHOW,
 	CLEAR,
@@ -588,6 +602,10 @@ static const struct npf_command npf_cmd_op[] = {
 	[DUMP_ATTACH_POINTS] = {
 		.tokens = "dump attach-points",
 		.handler = cmd_dump_attach_points,
+	},
+	[SHOW_ZONES] = {
+		.tokens = "show zones",
+		.handler = cmd_show_zones,
 	},
 	[SHOW_STATE] = {
 		.tokens = "state",

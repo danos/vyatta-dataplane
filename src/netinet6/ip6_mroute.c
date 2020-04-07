@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2014-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  */
@@ -118,7 +118,7 @@
 #include <rte_timer.h>
 
 #include "crypto/vti.h"
-#include "gre.h"
+#include "if/gre.h"
 #include "if_var.h"
 #include "in6.h"
 #include "in6_var.h"
@@ -130,14 +130,14 @@
 #include "main.h"
 #include "netinet6/ip6_mroute.h"
 #include "pd_show.h"
-#include "pktmbuf.h"
+#include "pktmbuf_internal.h"
 #include "route_flags.h"
 #include "snmp_mib.h"
 #include "urcu.h"
 #include "util.h"
 #include "vplane_debug.h"
 #include "vplane_log.h"
-#include "vrf.h"
+#include "vrf_internal.h"
 #include "fal.h"
 #include "ip_mcast_fal_interface.h"
 
@@ -156,11 +156,7 @@ static struct rte_meter_srtcm_params mfc_meter_params = {
 	.ebs = PUNT_FUZZ	                /* effectively zero */
 };
 
-#ifdef HAVE_RTE_METER_SRTCM_PROFILE_CONFIG
 static struct rte_meter_srtcm_profile mfc_meter_profile;
-#endif
-
-static struct cds_lfht *mif6table;
 
 #define UPCALL_TIMER 1
 #ifdef UPCALL_TIMER
@@ -220,7 +216,7 @@ static void rt6_show_subset(struct vrf *vrf, struct mf6c *rt, void *arg)
 		subset->vrf = vrf->v_id;
 		jsonw_start_object(subset->json);
 		jsonw_uint_field(subset->json, "vrf_id",
-				 vrf_get_external_id(vrf->v_id));
+				 dp_vrf_get_external_id(vrf->v_id));
 		jsonw_end_object(subset->json);
 	}
 
@@ -343,8 +339,18 @@ struct mif6* get_mif_by_ifindex(unsigned int ifindex)
 	struct mif6 *mifp = NULL;
 	struct cds_lfht_iter iter;
 	struct cds_lfht_node *retnode;
+	struct ifnet *ifp = dp_ifnet_byifindex(ifindex);
+	struct vrf *vrf;
 
-	cds_lfht_lookup(mif6table, ifindex, mif6_match, &ifindex, &iter);
+	if (!ifp)
+		return NULL;
+
+	vrf = vrf_get_rcu(if_vrfid(ifp));
+	if (!vrf)
+		return NULL;
+
+	cds_lfht_lookup(vrf->v_mvrf6.mif6table, ifindex, mif6_match, &ifindex,
+			&iter);
 	retnode = cds_lfht_iter_get_node(&iter);
 	if (retnode)
 		mifp = caa_container_of(retnode, struct mif6, node);
@@ -387,12 +393,12 @@ void mrt6_purge(struct ifnet *ifp)
 				   "%s is input interface so delete MFC.",
 				   ifp->if_name);
 			expire_mf6c(vrf, rt);
-		} else if (IF_ISSET(mifp->m6_if_index, &rt->mf6c_ifset)) {
+		} else if (IF_ISSET(mifp->m6_mif_index, &rt->mf6c_ifset)) {
 			mfc6_debug(vrf->v_id, &rt->mf6c_origin,
 				   &rt->mf6c_mcastgrp,
 				   "Removing %s from olist.",
 				   ifp->if_name);
-		IF_CLR(mifp->m6_if_index, &rt->mf6c_ifset);
+			IF_CLR(mifp->m6_mif_index, &rt->mf6c_ifset);
 		}
 	}
 	del_m6if(mifp->m6_if_index);
@@ -404,8 +410,22 @@ void mrt6_purge(struct ifnet *ifp)
 int add_m6if(mifi_t ifindex)
 {
 	struct mif6 *mifp;
-	struct ifnet *ifp;
+	struct ifnet *ifp = dp_ifnet_byifindex(ifindex);
 	struct cds_lfht_node *retnode;
+	struct cds_lfht *mif6table;
+	unsigned char mif6_index;
+	struct vrf *vrf;
+
+	if (!ifp) {
+		DP_DEBUG(MULTICAST, ERR, MCAST,
+			 "Failure adding IPv6 MIF index %d.\n", ifindex);
+		return -EINVAL;
+	}
+
+	vrf =  vrf_get_rcu(if_vrfid(ifp));
+
+	if (!vrf)
+		return -EINVAL;
 
 	if (ifindex <= 0)
 		return -EINVAL;
@@ -413,36 +433,44 @@ int add_m6if(mifi_t ifindex)
 	if (get_mif_by_ifindex(ifindex))
 		return -EEXIST;
 
-	DP_DEBUG(MULTICAST, INFO, MCAST, "Adding IPv6 VIF %s.\n",
-		 ifnet_indextoname(ifindex));
+	mif6table = vrf->v_mvrf6.mif6table;
+	if (!mif6table)
+		return -EINVAL;
 
-	mifp = malloc(sizeof(struct mif6));
-	if (!mifp)
+	if (mcast_iftable_get_free_slot(&vrf->v_mvrf6.mf6c_ifset, ifindex,
+					&mif6_index) != 0)
+		return -EDQUOT;
+
+	DP_DEBUG(MULTICAST, INFO, MCAST, "Adding IPv6 VIF to slot %d (%d).\n",
+		 mif6_index, ifindex);
+
+	mifp = calloc(1, sizeof(struct mif6));
+	if (!mifp) {
+		IF_CLR(mif6_index, &vrf->v_mvrf6.mf6c_ifset);
 		return -ENOMEM;
-	memset(mifp, 0, sizeof(*mifp));
-
-	ifp = ifnet_byifindex(ifindex);
+	}
 
 	mifp->m6_if_index = ifindex;
+	mifp->m6_mif_index = mif6_index;
 	mifp->m6_ifp	  = ifp;
 	mifp->m6_flags	  = VIFF_USE_IFINDEX;
-	mifp->m6_flags	  |= (ifp) ? 0:VIFF_REGISTER;
-	mifp->m6_flags  |=
-		(ifp && is_tunnel(ifp)) ? VIFF_TUNNEL:0;
+	mifp->m6_flags	  |= (is_tunnel_pimreg(ifp)) ? VIFF_REGISTER:0;
+	mifp->m6_flags    |= (ifp && is_tunnel(ifp)) ? VIFF_TUNNEL:0;
 
 	cds_lfht_node_init(&mifp->node);
 	retnode = cds_lfht_add_replace(mif6table, mifp->m6_if_index,
 			mif6_match, &mifp->m6_if_index, &mifp->node);
 	if (retnode) {
 		mifp = caa_container_of(retnode, struct mif6, node);
+		IF_CLR(mifp->m6_mif_index, &vrf->v_mvrf6.mf6c_ifset);
 		call_rcu(&mifp->rcu_head, mif6_free);
 	}
-	if (ifp) {
-		ip6_mcast_fal_int_enable(mifp, mif6table);
-		if (!(ifp->if_flags & IFF_MULTICAST))
-			return -EOPNOTSUPP;
-		if_allmulti(ifp, 1);
-	}
+
+	ip6_mcast_fal_int_enable(mifp, mif6table);
+	if (!(ifp->if_flags & IFF_MULTICAST))
+		return -EOPNOTSUPP;
+	if_allmulti(ifp, 1);
+
 	return 0;
 }
 
@@ -452,9 +480,19 @@ static void update_mfc6_count(vrfid_t vrf_id, struct mf6c *rt,
 	struct mif6 *mifp;
 	struct cds_lfht_iter iter;
 	int i;
+	struct vrf *vrf = vrf_get_rcu(vrf_id);
+	struct cds_lfht *mif6table;
+
+	if (vrf == NULL) {
+		DP_DEBUG(MULTICAST, ERR, MCAST, "MFC invalid vrf ID %d\n",
+			 vrf_id);
+		return;
+	}
+
+	mif6table = vrf->v_mvrf6.mif6table;
 
 	cds_lfht_for_each_entry(mif6table, &iter, mifp, node) {
-		i = mifp->m6_if_index;
+		i = mifp->m6_mif_index;
 		if (IF_ISSET(i, &rt->mf6c_ifset) !=
 		    IF_ISSET(i, &mfccp->mf6cc_ifset)) {
 
@@ -507,16 +545,20 @@ static void update_mfc6_params(vrfid_t vrf_id, struct mf6c *rt,
 {
 	int controller = 0;
 	struct mif6 *mifp;
+	struct vrf *vrf = vrf_get_rcu(vrf_id);
 	struct cds_lfht_iter iter;
 	int i;
+
+	if (!vrf)
+		return;
 
 	debug_update_mfc6_params(vrf_id, rt, mfccp);
 
 	rt->mf6c_parent = mfccp->mf6cc_parent;
 	rt->mf6c_ifset	= mfccp->mf6cc_ifset;
 
-	cds_lfht_for_each_entry(mif6table, &iter, mifp, node) {
-		i = mifp->m6_if_index;
+	cds_lfht_for_each_entry(vrf->v_mvrf6.mif6table, &iter, mifp, node) {
+		i = mifp->m6_mif_index;
 		if (!IF_ISSET(i, &rt->mf6c_ifset))
 			continue;
 
@@ -564,7 +606,16 @@ static void update_mfc6_params(vrfid_t vrf_id, struct mf6c *rt,
 int del_m6if(mifi_t mifi)
 {
 	struct mif6 *mifp;
-	struct ifnet *ifp;
+	struct ifnet *ifp = dp_ifnet_byifindex(mifi);
+	struct vrf *vrf;
+
+	if (!ifp)
+		return -EINVAL;
+
+	vrf =  vrf_get_rcu(if_vrfid(ifp));
+
+	if (!vrf)
+		return -EINVAL;
 
 	mifp = get_mif_by_ifindex(mifi);
 	if (mifp == NULL)
@@ -574,12 +625,11 @@ int del_m6if(mifi_t mifi)
 		 "Deleting IPv6 VIF %s.\n",
 		 ifnet_indextoname(mifi));
 
-	ifp = mifp->m6_ifp;
-	if (ifp)
-		if_allmulti(ifp, 0);
+	if_allmulti(ifp, 0);
 
-	if (!cds_lfht_del(mif6table, &mifp->node)) {
-		ip6_mcast_fal_int_disable(mifp, mif6table);
+	IF_CLR(mifp->m6_mif_index, &vrf->v_mvrf6.mf6c_ifset);
+	if (!cds_lfht_del(vrf->v_mvrf6.mif6table, &mifp->node)) {
+		ip6_mcast_fal_int_disable(mifp, vrf->v_mvrf6.mif6table);
 		call_rcu(&mifp->rcu_head, mif6_free);
 	}
 
@@ -613,14 +663,10 @@ static bool init_m6fc_params(vrfid_t vrf_id, struct mf6c *rt,
 	update_mfc6_count(vrf_id, rt, mfccp);
 	update_mfc6_params(vrf_id, rt, mfccp);
 
-#ifdef HAVE_RTE_METER_SRTCM_PROFILE_CONFIG
 	ret = rte_meter_srtcm_profile_config(&mfc_meter_profile,
 						&mfc_meter_params);
 	if (ret == 0)
 		ret = rte_meter_srtcm_config(&rt->meter, &mfc_meter_profile);
-#else
-	ret = rte_meter_srtcm_config(&rt->meter, &mfc_meter_params);
-#endif
 	if (ret != 0) {
 		RTE_LOG(NOTICE, MCAST,
 			"Failure configuring metering algorithm; pkts will not be punted to slow path (Err = %d)\n",
@@ -646,6 +692,10 @@ ip6_mroute_add_fal_objects(vrfid_t vrf_id, struct vmf6cctl *mfccp,
 {
 	enum pd_obj_state old_pd_state;
 	int rc;
+	struct vrf *vrf = vrf_get_rcu(vrf_id);
+
+	if (!vrf)
+		return;
 
 	old_pd_state = rt->mfc_pd_state;
 
@@ -654,7 +704,7 @@ ip6_mroute_add_fal_objects(vrfid_t vrf_id, struct vmf6cctl *mfccp,
 			   "Updating FAL object 0x%lx for mroute",
 			   rt->mf6c_fal_obj);
 		rc = fal_ip6_upd_mroute(rt->mf6c_fal_obj, rt, mfccp,
-					mif6table);
+					vrf->v_mvrf6.mif6table);
 		if (rc && rc != -EOPNOTSUPP)
 			mfc6_debug(vrf_id, &rt->mf6c_origin,
 				   &rt->mf6c_mcastgrp,
@@ -666,7 +716,8 @@ ip6_mroute_add_fal_objects(vrfid_t vrf_id, struct vmf6cctl *mfccp,
 				   &rt->mf6c_mcastgrp,
 				   "Creating FAL objects for mroute");
 
-		rc = fal_ip6_new_mroute(vrf_id, mfccp, rt, mif6table);
+		rc = fal_ip6_new_mroute(vrf_id, mfccp, rt,
+					vrf->v_mvrf6.mif6table);
 		if (rc && rc != -EOPNOTSUPP)
 			mfc6_debug(vrf_id, &rt->mf6c_origin,
 				   &rt->mf6c_mcastgrp,
@@ -802,9 +853,7 @@ static bool ip6_punt_rate_limit(struct mf6c *rt)
 	enum rte_meter_color color;
 
 	color = rte_meter_srtcm_color_blind_check(&rt->meter,
-#ifdef HAVE_RTE_METER_SRTCM_PROFILE_CONFIG
 						   &mfc_meter_profile,
-#endif
 						   rte_rdtsc(),
 						   PUNT_1PKT);
 	if (color != e_RTE_METER_RED) {
@@ -1132,12 +1181,12 @@ static int ip6_mdq(struct mcast6_vrf *mvrf6, struct rte_mbuf *m,
 	if (!md)
 		return -ENOBUFS;
 
-	rte_pktmbuf_adj(md, pktmbuf_l2_len(md) + sizeof(struct ip6_hdr));
+	rte_pktmbuf_adj(md, dp_pktmbuf_l2_len(md) + sizeof(struct ip6_hdr));
 
 	/* For each mif, forward a copy of the packet if there are group
 	 * members downstream on the interface. */
-	cds_lfht_for_each_entry(mif6table, &iter, mifp, node) {
-		if (IF_ISSET(mifp->m6_if_index, &rt->mf6c_ifset)) {
+	cds_lfht_for_each_entry(mvrf6->mif6table, &iter, mifp, node) {
+		if (IF_ISSET(mifp->m6_mif_index, &rt->mf6c_ifset)) {
 			mifp->m6_pkt_out++;
 			mifp->m6_bytes_out += plen;
 			if (!mifp->m6_ifp)
@@ -1206,7 +1255,7 @@ static void sg6_cnt_update(struct vrf *vrf, struct mf6c *rt,
 		flags = 1;
 	}
 
-	send_sg6_cnt(&sr, vrf_get_external_id(vrf->v_id), flags);
+	send_sg6_cnt(&sr, dp_vrf_get_external_id(vrf->v_id), flags);
 }
 
 /*
@@ -1261,8 +1310,9 @@ void mrt6_dump(FILE *f, struct vrf *vrf)
 		olist_index = 0;
 		olist_buf[olist_index] = '\0';
 
-		cds_lfht_for_each_entry(mif6table, &iter_mif, mifp, node) {
-			if (IF_ISSET(mifp->m6_if_index,	&mfc->mf6c_ifset)) {
+		cds_lfht_for_each_entry(vrf->v_mvrf6.mif6table, &iter_mif,
+					mifp, node) {
+			if (IF_ISSET(mifp->m6_mif_index, &mfc->mf6c_ifset)) {
 
 				olist_index += snprintf(olist_buf + olist_index,
 							sizeof(olist_buf) -
@@ -1385,12 +1435,12 @@ void mvif6_dump(FILE *f, __attribute__((unused)) struct vrf *vrf)
 	jsonw_name(wr, "mif6");
 	jsonw_start_array(wr);
 
-	cds_lfht_for_each_entry(mif6table, &iter, mifp, node) {
+	cds_lfht_for_each_entry(vrf->v_mvrf6.mif6table, &iter, mifp, node) {
 		if (mifp->m6_flags) {
 			jsonw_start_object(wr);
 			jsonw_string_field(wr, "interface", mifp->m6_ifp ?
 					  mifp->m6_ifp->if_name : "non-vplane");
-			jsonw_int_field(wr, "if_index", mifp->m6_if_index);
+			jsonw_int_field(wr, "if_index", mifp->m6_mif_index);
 			jsonw_int_field(wr, "flags", mifp->m6_flags);
 			jsonw_uint_field(wr, "pkt_in", mifp->m6_pkt_in);
 			jsonw_uint_field(wr, "pkt_out",	mifp->m6_pkt_out);
@@ -1469,6 +1519,17 @@ int mcast6_vrf_init(struct vrf *vrf)
 	vrf->v_mvrf6.v_fal_rpf_lst = NULL;
 
 	vrf->v_mvrf6.mf6ctable = mf6ctable;
+
+	vrf->v_mvrf6.mif6table = cds_lfht_new(MFC_MAX_MVIFS, MFC_MAX_MVIFS,
+					MFC_MAX_MVIFS, CDS_LFHT_ACCOUNTING,
+					NULL);
+	if (!vrf->v_mvrf6.mif6table) {
+		RTE_LOG(ERR, MCAST,
+			"%s: cds_lfht_new mif6table failed vrf %s\n", __func__,
+			vrf->v_name);
+		return -1;
+	}
+	memset(&(vrf->v_mvrf6.mf6c_ifset), 0, sizeof(struct if_set));
 	return 0;
 }
 
@@ -1485,6 +1546,10 @@ void mcast6_vrf_uninit(struct vrf *vrf)
 
 	dp_ht_destroy_deferred(vrf->v_mvrf6.mf6ctable);
 	vrf->v_mvrf6.mf6ctable = NULL;
+
+	dp_ht_destroy_deferred(vrf->v_mvrf6.mif6table);
+	vrf->v_mvrf6.mif6table = NULL;
+
 }
 
 int mcast_stop_ipv6(void)
@@ -1492,10 +1557,6 @@ int mcast_stop_ipv6(void)
 #ifdef UPCALL_TIMER
 	rte_timer_stop(&expire_upcalls_ch);
 #endif
-
-	if (cds_lfht_destroy(mif6table, NULL))
-		RTE_LOG(ERR, MCAST,
-			"Destroying IPv6 VIF table failed.\n");
 
 	return 0;
 }
@@ -1532,10 +1593,7 @@ static void expire_mf6c(struct vrf *vrf, struct mf6c *rt)
 
 void mcast_init_ipv6(void)
 {
-	mif6table = cds_lfht_new(MFC_MAX_MVIFS, MFC_MAX_MVIFS, MFC_MAX_MVIFS,
-				 CDS_LFHT_ACCOUNTING, NULL);
-	if (!mif6table)
-		rte_panic("mcast_init_ipv6: cds_lfht_new failed\n");
+
 #ifdef UPCALL_TIMER
 	rte_timer_init(&expire_upcalls_ch);
 	rte_timer_reset(&expire_upcalls_ch, EXPIRE_TIMEOUT, PERIODICAL,

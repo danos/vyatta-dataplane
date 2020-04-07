@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2011-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -33,13 +33,14 @@
 #include "commands.h"
 #include "ecmp.h"
 #include "if_var.h"
+#include "ip_forward.h"
 #include "ip_funcs.h"
 #include "json_writer.h"
 #include "mpls/mpls.h"
 #include "mpls/mpls_forward.h"
 #include "netinet6/in6.h"
 #include "netinet6/route_v6.h"
-#include "pktmbuf.h"
+#include "pktmbuf_internal.h"
 #include "route.h"
 #include "route_flags.h"
 #include "util.h"
@@ -91,8 +92,8 @@ static bool nexthop_fill(struct nlattr *ntb_gateway, struct nlattr *ntb_encap,
 
 	nh_outlabels_set(&next->outlabels, 0, NULL);
 
-	nh4_set_ifp(next, ifnet_byifindex(nhp->rtnh_ifindex));
-	if (!nh4_get_ifp(next) && !is_ignored_interface(nhp->rtnh_ifindex))
+	nh4_set_ifp(next, dp_ifnet_byifindex(nhp->rtnh_ifindex));
+	if (!dp_nh4_get_ifp(next) && !is_ignored_interface(nhp->rtnh_ifindex))
 		return true;
 	if (ntb_gateway) {
 		next->gateway = mnl_attr_get_u32(ntb_gateway);
@@ -116,7 +117,7 @@ static bool nexthop_fill(struct nlattr *ntb_gateway, struct nlattr *ntb_encap,
 		nh_outlabels_set(&next->outlabels, num_labels, labels);
 	}
 
-	ifp = nh4_get_ifp(next);
+	ifp = dp_nh4_get_ifp(next);
 	if ((!ifp || ifp->if_type == IFT_LOOP) &&
 	    num_labels == 0)
 		/* no dp interface or via loopback */
@@ -214,8 +215,8 @@ static bool nexthop_fill_mpls(struct nlattr *ntb_via, struct nlattr *ntb_newdst,
 	/* initialize out labels to NULL */
 	nh_outlabels_set(&next->outlabels, 0, NULL);
 
-	nh4_set_ifp(next, ifnet_byifindex(nhp->rtnh_ifindex));
-	if (!nh4_get_ifp(next) && !is_ignored_interface(nhp->rtnh_ifindex))
+	nh4_set_ifp(next, dp_ifnet_byifindex(nhp->rtnh_ifindex));
+	if (!dp_nh4_get_ifp(next) && !is_ignored_interface(nhp->rtnh_ifindex))
 		return true;
 	if (ntb_via) {
 		const struct rtvia *via;
@@ -238,7 +239,7 @@ static bool nexthop_fill_mpls(struct nlattr *ntb_via, struct nlattr *ntb_newdst,
 	}
 
 	ret = nexthop_fill_mpls_common(ntb_newdst, &next->outlabels, bos_only);
-	if (!nh4_get_ifp(next))
+	if (!dp_nh4_get_ifp(next))
 		next->flags |= RTF_SLOWPATH;
 
 	return ret;
@@ -269,8 +270,8 @@ static bool nexthop6_fill_mpls(const struct nlattr *ntb_via,
 	/* initialise out labels to NULL */
 	nh_outlabels_set(&next->outlabels, 0, NULL);
 
-	nh6_set_ifp(next, ifnet_byifindex(nhp->rtnh_ifindex));
-	if (!nh6_get_ifp(next) && !is_ignored_interface(nhp->rtnh_ifindex))
+	nh6_set_ifp(next, dp_ifnet_byifindex(nhp->rtnh_ifindex));
+	if (!dp_nh6_get_ifp(next) && !is_ignored_interface(nhp->rtnh_ifindex))
 		return true;
 	if (ntb_via) {
 		const struct rtvia *via;
@@ -298,7 +299,7 @@ static bool nexthop6_fill_mpls(const struct nlattr *ntb_via,
 	}
 
 	ret = nexthop_fill_mpls_common(ntb_newdst, &next->outlabels, bos_only);
-	if (!nh6_get_ifp(next))
+	if (!dp_nh6_get_ifp(next))
 		next->flags |= RTF_SLOWPATH;
 
 	return ret;
@@ -427,8 +428,8 @@ static bool nexthop6_fill(struct nlattr *ntb_gateway,
 
 	nh_outlabels_set(&next->outlabels, 0, NULL);
 
-	nh6_set_ifp(next, ifnet_byifindex(nhp->rtnh_ifindex));
-	if (!nh6_get_ifp(next) && !is_ignored_interface(nhp->rtnh_ifindex))
+	nh6_set_ifp(next, dp_ifnet_byifindex(nhp->rtnh_ifindex));
+	if (!dp_nh6_get_ifp(next) && !is_ignored_interface(nhp->rtnh_ifindex))
 		return true;
 
 	if (ntb_gateway) {
@@ -454,7 +455,7 @@ static bool nexthop6_fill(struct nlattr *ntb_gateway,
 		nh_outlabels_set(&next->outlabels, num_labels, labels);
 	}
 
-	ifp = nh6_get_ifp(next);
+	ifp = dp_nh6_get_ifp(next);
 	if ((!ifp || ifp->if_type == IFT_LOOP) &&
 	    num_labels == 0)
 		/* no dp interface or via loopback */
@@ -719,9 +720,9 @@ ecmp_mbuf_hash(const struct rte_mbuf *m, uint16_t ether_type)
 	if (ether_type == ETH_P_MPLS_UC)
 		return mpls_ecmp_hash(m);
 	else if (ether_type == ETHER_TYPE_IPv6)
-		return ecmp_ipv6_hash(m, pktmbuf_l2_len(m));
+		return ecmp_ipv6_hash(m, dp_pktmbuf_l2_len(m));
 	else
-		return ecmp_ipv4_hash(m, pktmbuf_l2_len(m));
+		return ecmp_ipv4_hash(m, dp_pktmbuf_l2_len(m));
 }
 
 static unsigned int
@@ -818,4 +819,28 @@ int cmd_ecmp(FILE *f, int argc, char **argv)
 
 	fprintf(f, CMD_ECMP_USAGE);
 	return -1;
+}
+
+uint32_t dp_ecmp_hash(const struct ecmp_hash_param *hash_param)
+{
+	struct iphdr iph;
+	struct ip6_hdr ip6h;
+	uint32_t hash = 0;
+	uint32_t l4key = htonl((hash_param->src_port << 16) |
+				hash_param->dst_port);
+
+	if (hash_param->src_ip.type == hash_param->dst_ip.type) {
+		if (hash_param->src_ip.type == AF_INET) {
+			iph.saddr = hash_param->src_ip.address.ip_v4.s_addr;
+			iph.daddr = hash_param->dst_ip.address.ip_v4.s_addr;
+			iph.protocol = hash_param->protocol;
+			hash = ecmp_iphdr_hash(&iph, l4key);
+		} else if (hash_param->src_ip.type == AF_INET6) {
+			ip6h.ip6_src = hash_param->src_ip.address.ip_v6;
+			ip6h.ip6_dst = hash_param->dst_ip.address.ip_v6;
+			ip6h.ip6_nxt = hash_param->protocol;
+			hash = ecmp_ip6hdr_hash(&ip6h, l4key);
+		}
+	}
+	return hash;
 }

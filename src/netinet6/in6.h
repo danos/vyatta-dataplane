@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2018, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (C) 1995, 1996, 1997, and 1998 WIDE Project.
  * All rights reserved.
  *
@@ -74,10 +74,10 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "ip.h"
+
 struct ifnet;
 
-#define IPV6_VERSION            0x60
-#define IPV6_VERSION_MASK       0xf0
 #if __BYTE_ORDER == __BIG_ENDIAN
 #define IPV6_FLOWINFO_MASK	0x0fffffff	/* flow info (28 bits) */
 #define IPV6_FLOWLABEL_MASK	0x000fffff	/* flow label (20 bits) */
@@ -89,9 +89,6 @@ struct ifnet;
 #else
 # error	"Please include <bits/endian.h>"
 #endif
-
-
-#define IPV6_DEFAULT_HOPLIMIT	64
 
 /*
  * Local definition for masks

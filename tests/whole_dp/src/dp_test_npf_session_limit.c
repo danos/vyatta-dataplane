@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2017 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -19,13 +19,13 @@
 
 #include "dp_test.h"
 #include "dp_test_str.h"
-#include "dp_test_lib.h"
+#include "dp_test_lib_internal.h"
 #include "dp_test_lib_exp.h"
 #include "dp_test_lib_pkt.h"
-#include "dp_test_lib_intf.h"
+#include "dp_test_lib_intf_internal.h"
 #include "dp_test_lib_tcp.h"
-#include "dp_test_pktmbuf_lib.h"
-#include "dp_test_netlink_state.h"
+#include "dp_test_pktmbuf_lib_internal.h"
+#include "dp_test_netlink_state_internal.h"
 #include "dp_test_console.h"
 #include "dp_test_json_utils.h"
 #include "dp_test_npf_lib.h"
@@ -219,7 +219,7 @@ print_sess_limiter(void)
  * Callback from dp_test_tcp_pak_receive
  */
 static void forwarded_cb(const char *str,
-			 uint pktno, enum dp_test_tcp_dir dir,
+			 uint pktno, bool forw,
 			 uint8_t flags,
 			 struct dp_test_pkt_desc_t *pre,
 			 struct dp_test_pkt_desc_t *post,
@@ -234,7 +234,7 @@ static void forwarded_cb(const char *str,
 	/*
 	 * Fixup MAC header
 	 */
-	if (dir == FWD) {
+	if (forw) {
 		post_copy.l2_src = dp_test_intf_name2mac_str("dp2T1");
 		post_copy.l2_dst = "aa:bb:cc:18:0:1";
 	} else {
@@ -261,7 +261,7 @@ static void forwarded_cb(const char *str,
  * Callback from dp_test_tcp_pak_receive
  */
 static void dropped_cb(const char *str,
-		       uint pktno, enum dp_test_tcp_dir dir,
+		       uint pktno, bool forw,
 		       uint8_t flags,
 		       struct dp_test_pkt_desc_t *pre,
 		       struct dp_test_pkt_desc_t *post,
@@ -276,7 +276,7 @@ static void dropped_cb(const char *str,
 	/*
 	 * Fixup MAC header
 	 */
-	if (dir == FWD) {
+	if (forw) {
 		post_copy.l2_src = dp_test_intf_name2mac_str("dp2T1");
 		post_copy.l2_dst = "aa:bb:cc:18:0:1";
 	} else {
@@ -319,67 +319,33 @@ _dp_test_create_tcp_sessions(uint nsessions, const char *exp_state,
 	/*
 	 * TCP packet
 	 */
-	struct dp_test_pkt_desc_t fwd_pkt = {
-		.text       = "Fwd",
-		.len	= 0,
-		.ether_type = ETHER_TYPE_IPv4,
-		.l3_src     = "100.101.102.103",
-		.l2_src     = "aa:bb:cc:16:0:20",
-		.l3_dst     = "200.201.202.203",
-		.l2_dst     = dp1T0_mac,
-		.proto      = IPPROTO_TCP,
-		.l4	 = {
-			.tcp = {
-				.sport = 49152,
-				.dport = dport,
-				.flags = 0,
-				.seq = 0,
-				.ack = 0,
-				.win = 8192,
-				.opts = NULL
-			}
-		},
-		.rx_intf    = "dp1T0",
-		.tx_intf    = "dp2T1"
-	};
+	struct dp_test_pkt_desc_t *fwd_pkt, *back_pkt;
 
-	struct dp_test_pkt_desc_t back_pkt = {
-		.text       = "Back",
-		.len	= 0,
-		.ether_type = ETHER_TYPE_IPv4,
-		.l3_src     = "200.201.202.203",
-		.l2_src     = "aa:bb:cc:18:0:1",
-		.l3_dst     = "100.101.102.103",
-		.l2_dst     = dp2T1_mac,
-		.proto      = IPPROTO_TCP,
-		.l4	 = {
-			.tcp = {
-				.sport = dport,
-				.dport = 49152,
-				.flags = 0,
-				.seq = 0,
-				.ack = 0,
-				.win = 8192,
-				.opts = NULL
-			}
-		},
-		.rx_intf    = "dp2T1",
-		.tx_intf    = "dp1T0"
-	};
+	fwd_pkt = dpt_pdesc_v4_create(
+		"Fwd", IPPROTO_TCP,
+		"aa:bb:cc:16:0:20", "100.101.102.103", 49152,
+		dp1T0_mac, "200.201.202.203", dport,
+		"dp1T0", "dp2T1");
 
-	struct dp_test_tcp_call tcp_call = {
-		.str[0] = '\0',
-		.isn = {0, 0},
-		.desc[DP_DIR_FORW] = {
-			.pre = &fwd_pkt,
-			.post = &fwd_pkt,
+	back_pkt = dpt_pdesc_v4_create(
+		"Back", IPPROTO_TCP,
+		"aa:bb:cc:18:0:1", "200.201.202.203", dport,
+		dp2T1_mac, "100.101.102.103", 49152,
+		"dp2T1", "dp1T0");
+
+	struct dpt_tcp_flow tcp_call = {
+		.text[0] = '\0',	/* description */
+		.isn = {0, 0},		/* initial seq no */
+		.desc[DPT_FORW] = {	/* Forw pkt descriptors */
+			.pre = fwd_pkt,
+			.pst = fwd_pkt,
 		},
-		.desc[DP_DIR_BACK] = {
-			.pre = &back_pkt,
-			.post = &back_pkt,
+		.desc[DPT_BACK] = {	/* Back pkt descriptors */
+			.pre = back_pkt,
+			.pst = back_pkt,
 		},
-		.test_cb = forwarded_cb,
-		.post_cb = NULL,
+		.test_cb = forwarded_cb, /* Prep and send pkt */
+		.post_cb = NULL,	/* Fixup pkt exp */
 	};
 
 	/*
@@ -403,7 +369,7 @@ _dp_test_create_tcp_sessions(uint nsessions, const char *exp_state,
 	};
 
 	/*
-	 * How many pakts do we need to sent to get session is required state?
+	 * How many pkts do we need to send to get session in required state?
 	 */
 	for (i = 0; i < ARRAY_SIZE(tcp_pkt1_state); i++) {
 		if (!strcmp(exp_state, tcp_pkt1_state[i])) {
@@ -422,19 +388,19 @@ _dp_test_create_tcp_sessions(uint nsessions, const char *exp_state,
 	/*
 	 * TCP call packets
 	 */
-	struct dp_test_tcp_flow_pkt tcp_pkt1[] = {
-		{DP_DIR_FORW, TH_SYN, 0, NULL},
-		{DP_DIR_BACK, TH_SYN | TH_ACK, 0, NULL},
-		{DP_DIR_FORW, TH_ACK, 0, NULL},	   /* NPF_TCPS_ESTABLISHED */
-		{DP_DIR_BACK, TH_ACK, 20, NULL},
-		{DP_DIR_FORW, TH_ACK, 50, NULL},
-		{DP_DIR_FORW, TH_ACK | TH_FIN, 10, NULL},
-		{DP_DIR_FORW, TH_ACK, 0, NULL},
-		{DP_DIR_FORW, TH_ACK | TH_FIN, 0, NULL},
-		{DP_DIR_BACK, TH_ACK, 0, NULL},
-		{DP_DIR_FORW, TH_ACK, 0, NULL},
-		{DP_DIR_BACK, TH_ACK | TH_FIN, 0, NULL},
-		{DP_DIR_FORW, TH_ACK, 0, NULL},
+	struct dpt_tcp_flow_pkt tcp_pkt1[] = {
+		{DPT_FORW, TH_SYN, 0, NULL, 0, NULL },
+		{DPT_BACK, TH_SYN | TH_ACK, 0, NULL, 0, NULL },
+		{DPT_FORW, TH_ACK, 0, NULL, 0, NULL }, /* ESTABLISHED */
+		{DPT_BACK, TH_ACK, 20, NULL, 0, NULL },
+		{DPT_FORW, TH_ACK, 50, NULL, 0, NULL },
+		{DPT_FORW, TH_ACK | TH_FIN, 10, NULL, 0, NULL },
+		{DPT_FORW, TH_ACK, 0, NULL, 0, NULL },
+		{DPT_FORW, TH_ACK | TH_FIN, 0, NULL, 0, NULL },
+		{DPT_BACK, TH_ACK, 0, NULL, 0, NULL },
+		{DPT_FORW, TH_ACK, 0, NULL, 0, NULL },
+		{DPT_BACK, TH_ACK | TH_FIN, 0, NULL, 0, NULL },
+		{DPT_FORW, TH_ACK, 0, NULL, 0, NULL },
 	};
 
 	dp_test_fail_unless(
@@ -447,8 +413,8 @@ _dp_test_create_tcp_sessions(uint nsessions, const char *exp_state,
 	for (i = 0; i < nsessions; i++) {
 		bool exp_created = i < exp_sessions;
 
-		fwd_pkt.l4.tcp.sport = src_port++;
-		back_pkt.l4.tcp.dport = fwd_pkt.l4.tcp.sport;
+		fwd_pkt->l4.tcp.sport = src_port++;
+		back_pkt->l4.tcp.dport = fwd_pkt->l4.tcp.sport;
 
 		/* Do we expect this session to be created or dropped? */
 		if (exp_created)
@@ -456,28 +422,29 @@ _dp_test_create_tcp_sessions(uint nsessions, const char *exp_state,
 		else
 			tcp_call.test_cb = dropped_cb;
 
-		spush(tcp_call.str, sizeof(tcp_call.str),
-		      "%s %d: TCP Sess %u, port %u, exp to be %s (%s)",
-		      basename(file), line, i+1, fwd_pkt.l4.tcp.sport,
-		      exp_created ? "created" : "dropped", exp_state);
+		spush(tcp_call.text, sizeof(tcp_call.text),
+		      "%s %d: TCP Sess %u, port %u, exp to be %s (%s), "
+		      "npkts %u",
+		      basename(file), line, i+1, fwd_pkt->l4.tcp.sport,
+		      exp_created ? "created" : "dropped", exp_state, npkts);
 
 		/* Create the session */
-		dp_test_tcp_call(&tcp_call, tcp_pkt1, npkts, NULL, 0);
+		dpt_tcp_call(&tcp_call, tcp_pkt1, npkts, 0, 0, NULL, 0);
 
 		/* Do we expect session to be created? */
 		if (exp_created) {
 			/* Verify the session exists and is active */
-			dp_test_npf_session_verify_desc(NULL, &fwd_pkt,
-							fwd_pkt.rx_intf,
+			dp_test_npf_session_verify_desc(NULL, fwd_pkt,
+							fwd_pkt->rx_intf,
 							SE_ACTIVE,
 							SE_FLAGS_AE, true);
 			/* Verify the session state */
-			dp_test_npf_session_state(fwd_pkt.l3_src,
-						  fwd_pkt.l4.tcp.sport,
-						  fwd_pkt.l3_dst,
-						  fwd_pkt.l4.tcp.dport,
+			dp_test_npf_session_state(fwd_pkt->l3_src,
+						  fwd_pkt->l4.tcp.sport,
+						  fwd_pkt->l3_dst,
+						  fwd_pkt->l4.tcp.dport,
 						  IPPROTO_TCP,
-						  fwd_pkt.rx_intf, &state);
+						  fwd_pkt->rx_intf, &state);
 
 			state_str = dp_test_npf_sess_state_str(IPPROTO_TCP,
 							       state);
@@ -488,8 +455,8 @@ _dp_test_create_tcp_sessions(uint nsessions, const char *exp_state,
 					    tcp_pkt1_state[npkts-1]);
 		} else {
 			/* Verify the session does *not* exist */
-			dp_test_npf_session_verify_desc(NULL, &fwd_pkt,
-							fwd_pkt.rx_intf,
+			dp_test_npf_session_verify_desc(NULL, fwd_pkt,
+							fwd_pkt->rx_intf,
 							0, 0, false);
 		}
 
@@ -497,6 +464,8 @@ _dp_test_create_tcp_sessions(uint nsessions, const char *exp_state,
 			print_sess_limiter();
 	}
 
+	free(fwd_pkt);
+	free(back_pkt);
 }
 
 #define dp_test_create_tcp_sessions(n, h, exp, dport)		\

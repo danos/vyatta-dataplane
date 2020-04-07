@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2017 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -22,6 +22,9 @@
 
 struct ifnet;
 struct rte_mbuf;
+struct npf_pack_dp_session;
+struct npf_pack_sentry;
+struct npf_pack_session_stats;
 
 /*
  * For polling during UT cleanup.
@@ -170,7 +173,7 @@ struct session {
 	rte_atomic16_t		se_sen_cnt;	/* Sentry count */
 	uint16_t		se_flags;
 	uint8_t			se_protocol;
-	uint8_t			pad[1];
+	uint8_t			pad1;
 	struct session_link	*se_link;	/* For linking of sessions */
 	struct sentry		*se_sen;	/* Cached INIT sentry */
 	uint64_t		se_id;		/* id of this session */
@@ -188,10 +191,22 @@ struct session {
 	uint8_t			se_log_creation:1;
 	uint8_t			se_log_deletion:1;
 	uint8_t			se_log_periodic:1;
+	rte_atomic16_t		pad2;
 	uint32_t		se_log_interval;
 	uint64_t		se_ltime;	/* time of next periodic log */
 	uint64_t		se_create_time;	/* time session was created */
+	rte_atomic64_t		se_pkts_in;
+	rte_atomic64_t		se_bytes_in;
+	/* --- cacheline 2 boundary (128 bytes) --- */
+	rte_atomic64_t		se_pkts_out;
+	rte_atomic64_t		se_bytes_out;
+	void			*se_private;
 };
+
+static_assert(offsetof(struct session, se_rcu_head) == 64,
+	      "first cache line exceeded");
+static_assert(offsetof(struct session, se_pkts_out) == 128,
+	      "second cache line exceeded");
 
 /* For UTs, counts of various sessions */
 struct session_counts {
@@ -788,11 +803,52 @@ void session_gc(void);
  */
 struct session *session_alloc(void);
 
+int session_npf_pack_pack(struct session *s, struct npf_pack_dp_session *dps,
+			  struct npf_pack_sentry *sen,
+			  struct npf_pack_session_stats *stats);
+int session_npf_pack_sentry_pack(struct session *s,
+				 struct npf_pack_sentry *sen);
+struct session *session_npf_pack_restore(struct npf_pack_dp_session *dps,
+					 struct npf_pack_sentry *sen,
+					 struct npf_pack_session_stats *stats);
+int session_npf_pack_sentry_restore(struct npf_pack_sentry *sen,
+				    struct ifnet **ifp);
+uint32_t session_get_npf_pack_timeout(struct session *s);
+int session_npf_pack_stats_pack(struct session *s,
+				struct npf_pack_session_stats *stats);
+int session_npf_pack_stats_restore(struct session *s,
+				   struct npf_pack_session_stats *stats);
+
 static inline uint64_t session_get_id(struct session *s)
 {
 	if (s)
 		return s->se_id;
 	return 0;
+}
+
+/**
+ * Save session stats.
+ *
+ * The specified number of bytes and one packet are added to
+ * the specified session's counters
+ *
+ * @param s        The session
+ * @param dir_in   True if the direction is "in"; false for "out"
+ * @param bytes    Byte count to add to the session
+ */
+static inline void se_save_stats(struct session *s,
+				 bool dir_in,
+				 uint64_t bytes)
+{
+	assert(s);
+
+	if (dir_in) {
+		rte_atomic64_inc(&s->se_pkts_in);
+		rte_atomic64_add(&s->se_bytes_in, bytes);
+	} else {
+		rte_atomic64_inc(&s->se_pkts_out);
+		rte_atomic64_add(&s->se_bytes_out, bytes);
+	}
 }
 
 #endif /* _SESSION_H_ */

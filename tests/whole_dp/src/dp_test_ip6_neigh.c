@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2018, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2018-2020, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -8,6 +8,7 @@
 #include <linux/random.h>
 
 #include "ip_funcs.h"
+#include "in6.h"
 #include "in_cksum.h"
 #include "if_var.h"
 #include "main.h"
@@ -15,11 +16,11 @@
 #include "dp_test.h"
 #include "dp_test_cmd_state.h"
 #include "dp_test_controller.h"
-#include "dp_test_netlink_state.h"
-#include "dp_test_lib.h"
-#include "dp_test_lib_intf.h"
+#include "dp_test_netlink_state_internal.h"
+#include "dp_test_lib_internal.h"
+#include "dp_test_lib_intf_internal.h"
 #include "dp_test_lib_exp.h"
-#include "dp_test_pktmbuf_lib.h"
+#include "dp_test_pktmbuf_lib_internal.h"
 
 struct nh_info {
 	const char *nh_int;
@@ -1211,5 +1212,76 @@ DP_START_TEST(ip_neigh_nh_share,
 	dp_test_nl_del_ip_addr_and_connected("dp1T1", "2002:2:2::2/64");
 	dp_test_nl_del_ip_addr_and_connected("dp1T2", "2003:3:3::3/64");
 	dp_test_nl_del_ip_addr_and_connected("dp1T2", "2004:4:4::4/64");
+
+} DP_END_TEST;
+
+DP_DECL_TEST_CASE(ip_neigh_suite, ip_neigh_nh_scale, NULL, NULL);
+/*
+ * Not run by default due to the time taken to set up and remove all
+ * the neigh entries. This test is usefuls for testing efficiency of
+ * the route processing code, with minor additions into the code
+ * to print out time taken processing routes.
+ */
+DP_START_TEST_DONT_RUN(ip_neigh_nh_scale,
+		       ip_neigh_nh_scale)
+{
+	char nh_mac_str[18];
+	struct ether_addr start_eth_addr = {
+		{ 0xf0, 0x0, 0x0, 0x0, 0x0, 0x0 }
+	};
+	struct ether_addr ether_addr;
+	struct in6_addr ip_addr, start_ip_addr, tmp_ip_addr;
+	char ip_addr_str[INET6_ADDRSTRLEN] = "2002:2:2::3";
+	int i;
+	int num_neighs = 3000;
+	uint32_t *ether;
+	uint32_t tmp_s6_addr32;
+
+	/* Set up the interface addresses */
+	dp_test_nl_add_ip_addr_and_connected("dp1T0", "2001:1:1::1/64");
+	dp_test_nl_add_ip_addr_and_connected("dp1T1", "2002:2:2::2/64");
+
+	/* Initialise IP and MAC addresses */
+	if (!inet_pton(AF_INET6, ip_addr_str, &start_ip_addr))
+		assert(0);
+	ip_addr = start_ip_addr;
+	ether_addr = start_eth_addr;
+	ether = (uint32_t *)&ether_addr;
+
+	/* Add neighbours */
+	for (i = 0; i < num_neighs; i++) {
+		tmp_ip_addr = ip_addr;
+		if (!inet_ntop(AF_INET6, &tmp_ip_addr, ip_addr_str,
+			       INET6_ADDRSTRLEN))
+			assert(0);
+		if (!ether_ntoa_r(&ether_addr, nh_mac_str))
+			assert(0);
+		dp_test_netlink_add_neigh("dp1T1", ip_addr_str, nh_mac_str);
+		tmp_s6_addr32 = ntohl(ip_addr.s6_addr32[3]);
+		ip_addr.s6_addr32[3] = htonl(++tmp_s6_addr32);
+		(*ether)++;
+	}
+
+	dp_test_netlink_add_route("3003:3:3::3/128 nh 2002:2:2::3 int:dp1T1");
+	dp_test_netlink_del_route("3003:3:3::3/128 nh 2002:2:2::3 int:dp1T1");
+
+	/* Delete neighbours */
+	ip_addr = start_ip_addr;
+	ether_addr = start_eth_addr;
+	for (i = 0; i < num_neighs; i++) {
+		tmp_ip_addr = ip_addr;
+		if (!inet_ntop(AF_INET6, &tmp_ip_addr, ip_addr_str,
+			       INET6_ADDRSTRLEN))
+			assert(0);
+		if (!ether_ntoa_r(&ether_addr, nh_mac_str))
+			assert(0);
+		dp_test_netlink_del_neigh("dp1T1", ip_addr_str, nh_mac_str);
+		tmp_s6_addr32 = ntohl(ip_addr.s6_addr32[3]);
+		ip_addr.s6_addr32[3] = htonl(++tmp_s6_addr32);
+		(*ether)++;
+	}
+
+	dp_test_nl_del_ip_addr_and_connected("dp1T0", "2001:1:1::1/64");
+	dp_test_nl_del_ip_addr_and_connected("dp1T1", "2002:2:2::2/64");
 
 } DP_END_TEST;

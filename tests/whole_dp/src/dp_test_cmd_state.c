@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018, AT&T Intellectual Property. All rights reserved.
+ * Copyright (c) 2018-2020, AT&T Intellectual Property. All rights reserved.
  * Copyright (c) 2015-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -17,13 +17,13 @@
 #include "if_llatbl.h"
 #include "netinet6/nd6_nbr.h"
 
-#include "dp_test_macros.h"
-#include "dp_test_lib.h"
-#include "dp_test_lib_intf.h"
-#include "dp_test_cmd_check.h"
+#include "dp_test/dp_test_macros.h"
+#include "dp_test_lib_internal.h"
+#include "dp_test_lib_intf_internal.h"
+#include "dp_test/dp_test_cmd_check.h"
 #include "dp_test_controller.h"
 #include "dp_test_console.h"
-#include "dp_test_netlink_state.h"
+#include "dp_test_netlink_state_internal.h"
 
 /*
  * Example CLI -> string cmd for nat
@@ -199,7 +199,7 @@ _dp_test_neigh_clear_entry(const char *ifname, const char *ipaddr,
 	struct llentry *lle;
 
 	ifindex = dp_test_intf_name2index(ifname);
-	ifp = ifnet_byifindex(ifindex);
+	ifp = dp_ifnet_byifindex(ifindex);
 
 	_dp_test_fail_unless(dp_test_addr_str_to_addr(ipaddr, &addr),
 			     file, line,

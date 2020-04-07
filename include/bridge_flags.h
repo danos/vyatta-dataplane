@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2017-2018, AT&T Intellectual Property.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.
  * All rights reserved.
  * Copyright (c) 2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
@@ -7,8 +7,8 @@
  * SPDX-License-Identifier: LGPL-2.1-only
  */
 
-#ifndef BRIDGE_FLAGS_H
-#define BRIDGE_FLAGS_H
+#ifndef VYATTA_DATAPLANE_BRIDGE_FLAGS_H
+#define VYATTA_DATAPLANE_BRIDGE_FLAGS_H
 
 /* Bridge STP port states */
 enum bridge_ifstate {
@@ -30,4 +30,4 @@ enum bridge_ifstate {
 #define STP_INST_MAX   (STP_INST_COUNT - 1)
 #define STP_INST_IST   0
 
-#endif /* BRIDGE_FLAGS_H */
+#endif /* VYATTA_DATAPLANE_BRIDGE_FLAGS_H */

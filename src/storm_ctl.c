@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2018-2019, AT&T Intellectual Property.
+ * Copyright (c) 2018-2020, AT&T Intellectual Property.
  * All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
@@ -8,17 +8,20 @@
  */
 
 #include <errno.h>
-#include <control.h>
-#include <commands.h>
-#include <dp_event.h>
-#include <vplane_log.h>
-#include <if_var.h>
-#include <fal.h>
 #include <rte_jhash.h>
 #include <rte_timer.h>
-#include <zmq_dp.h>
-#include <master.h>
-#include "bridge_port.h"
+
+#include "control.h"
+#include "commands.h"
+#include "dp_event.h"
+#include "event.h"
+#include "fal.h"
+#include "if/bridge/bridge_port.h"
+#include "if_var.h"
+#include "master.h"
+#include "vplane_debug.h"
+#include "vplane_log.h"
+#include "zmq_dp.h"
 
 enum dp_storm_ctl_threshold {
 	DP_STORM_CTL_THRESHOLD_NONE = 0,
@@ -98,7 +101,7 @@ static struct cds_lfht *storm_ctl_profile_tbl;
 static bool storm_ctl_monitor_running;
 
 static void
-storm_ctl_event_if_index_set(struct ifnet *ifp, uint32_t ifindex);
+storm_ctl_event_if_index_set(struct ifnet *ifp);
 static void
 storm_ctl_event_if_index_unset(struct ifnet *ifp, uint32_t ifindex);
 static void storm_ctl_trigger_actions(struct storm_ctl_instance *instance,
@@ -111,7 +114,7 @@ static const struct dp_event_ops storm_ctl_event_ops = {
 };
 
 static void
-storm_ctl_event_if_index_set(struct ifnet *ifp, uint32_t ifindex __unused)
+storm_ctl_event_if_index_set(struct ifnet *ifp)
 {
 	struct cfg_if_list_entry *le;
 
@@ -220,7 +223,7 @@ static void storm_ctl_compare_stats(struct ifnet *ifp, void *arg __rte_unused)
 static void storm_ctl_tmr_hdlr(struct rte_timer *timer __rte_unused,
 			       void *arg __rte_unused)
 {
-	ifnet_walk(storm_ctl_compare_stats, NULL);
+	dp_ifnet_walk(storm_ctl_compare_stats, NULL);
 }
 
 /*
@@ -377,6 +380,29 @@ static int storm_ctl_del_instance(struct if_storm_ctl_info *sc_info,
 	return 0;
 }
 
+static bool
+storm_control_can_create_in_fal(struct ifnet *ifp, uint16_t vlan)
+{
+	if (if_check_any_except_emb_feat(
+		    ifp, IF_EMB_FEAT_BRIDGE_MEMBER)) {
+		DP_DEBUG(STORM_CTL, DEBUG, DATAPLANE,
+			 "interface %s not ready for FAL updates due to embellished features\n",
+			 ifp->if_name);
+		return false;
+	}
+
+	if (vlan &&
+	    (!ifp->if_brport ||
+	     !bridge_port_is_vlan_member(ifp->if_brport, vlan))) {
+		DP_DEBUG(STORM_CTL, DEBUG, DATAPLANE,
+			 "interface %s vlan %u not ready for FAL updates due to VLAN not created\n",
+			 ifp->if_name, vlan);
+		return false;
+	}
+
+	return true;
+}
+
 static enum fal_port_attr_t
 fal_traffic_t_to_storm_ctl_type(enum fal_traffic_type traffic)
 {
@@ -463,12 +489,12 @@ static uint64_t
 storm_ctl_policy_get_fal_rate(struct dp_storm_ctl_policy *policy,
 			      struct ifnet *ifp)
 {
-	struct if_link_status link;
+	struct dp_ifnet_link_status link;
 
 	if (policy->threshold_type == DP_STORM_CTL_THRESHOLD_ABS)
 		return policy->threshold_val;
 	else if (policy->threshold_type == DP_STORM_CTL_THRESHOLD_PCT) {
-		if_get_link_status(ifp, &link);
+		dp_ifnet_link_status(ifp, &link);
 		return ((uint64_t)link.link_speed * 1000 *
 			policy->threshold_val)/10000;
 	}
@@ -586,6 +612,9 @@ static int fal_policer_modify_profile(struct storm_ctl_profile *profile,
 
 	struct fal_attribute_t policer_bind_attr = {};
 	int rv;
+
+	if (!storm_control_can_create_in_fal(instance->sci_ifp, vlan))
+		return 0;
 
 	if (!instance->sci_fal_obj[traf])
 		fal_policer_apply_profile(profile, vlan,
@@ -709,19 +738,22 @@ static void storm_ctl_fal_update_profile(struct storm_ctl_profile *profile)
 				    &profile->scp_policies[i],
 				    &instance->sci_policy[i]))
 				continue;
-
-			rv = fal_policer_modify_profile(profile,
-							instance->sci_vlan,
-							instance, i);
-			if (rv) {
-				RTE_LOG(ERR, STORM_CTL,
-					"Could not update %s threshold for interface %s vlan %d\n",
-					fal_traffic_type_to_str(i),
-					instance->sci_ifp->if_name,
-					instance->sci_vlan);
-			} else
-				instance->sci_policy[i] =
-					profile->scp_policies[i];
+			if (storm_control_can_create_in_fal(
+				    instance->sci_ifp, instance->sci_vlan)) {
+				rv = fal_policer_modify_profile(
+					profile, instance->sci_vlan,
+					instance, i);
+				if (rv) {
+					RTE_LOG(ERR, STORM_CTL,
+						"Could not update %s threshold for interface %s vlan %d\n",
+						fal_traffic_type_to_str(i),
+						instance->sci_ifp->if_name,
+						instance->sci_vlan);
+					continue;
+				}
+			}
+			instance->sci_policy[i] =
+				profile->scp_policies[i];
 		}
 	}
 }
@@ -1205,7 +1237,7 @@ static int send_storm_ctl_notification(struct storm_ctl_instance *instance,
 	if (result < 0)
 		goto err;
 
-	return send_dp_event(msg);
+	return dp_send_event_to_vplaned(msg);
 err:
 	if (instance->sci_vlan)
 		snprintf(vlan_str, 13, " (vlan %d)", instance->sci_vlan);
@@ -1244,9 +1276,89 @@ static void storm_ctl_trigger_actions(struct storm_ctl_instance *instance,
 		send_storm_ctl_notification(instance, tr_type, pkt_drops);
 }
 
-int storm_ctl_set_profile_on_intf(bool set, struct ifnet *ifp,
-				  struct storm_ctl_profile *profile,
-				  uint16_t vlan);
+static int storm_ctl_set_profile_on_intf(bool set, struct ifnet *ifp,
+					 struct storm_ctl_profile *profile,
+					 uint16_t vlan)
+{
+	struct storm_ctl_instance *instance;
+	enum fal_traffic_type i;
+	int rv = 0;
+	char vlan_str[13] = "";
+	int interval = 0;
+
+	if (profile)
+		interval = profile->scp_recovery_interval;
+
+	if (vlan)
+		snprintf(vlan_str, 13, "(vlan %d)", vlan);
+	else
+		storm_ctl_update_intf_recovery_interval(ifp,
+							interval);
+
+	instance = storm_ctl_find_instance(ifp->sc_info, vlan);
+
+	if (set) {
+		if (instance && instance->sci_profile == profile)
+			/* No change */
+			return 0;
+
+		if (instance) {
+			/* delete the old then add a new */
+			storm_ctl_del_instance(ifp->sc_info, vlan);
+		}
+		instance = storm_ctl_add_instance(ifp, ifp->sc_info, vlan,
+						  profile);
+		if (!instance) {
+			RTE_LOG(ERR, STORM_CTL,
+				"Could not set profile %s on intf %s%s\n",
+				profile->scp_name, ifp->if_name, vlan_str);
+			return -ENOMEM;
+		}
+
+		instance->sci_ifp = ifp;
+		/* Copy across the rates from the parent profile */
+		for (i = FAL_TRAFFIC_UCAST; i < FAL_TRAFFIC_MAX; i++) {
+			if (storm_ctl_fal_update_needed(
+				    &profile->scp_policies[i],
+				    &instance->sci_policy[i])) {
+				if (storm_control_can_create_in_fal(
+					    instance->sci_ifp, vlan))
+					fal_policer_apply_profile(profile, vlan,
+								  instance, i);
+				instance->sci_policy[i] =
+					profile->scp_policies[i];
+			}
+		}
+
+		if (rv && rv != -EOPNOTSUPP)
+			RTE_LOG(ERR, STORM_CTL,
+				"Could not add profile %s to %s (%d)\n",
+				profile->scp_name, ifp->if_name, rv);
+
+	} else {
+		if (!instance) {
+			RTE_LOG(ERR, STORM_CTL,
+				"Could not find storm control instance on %s%s\n",
+				ifp->if_name, vlan_str);
+			return -ENOENT;
+		}
+		if (!instance->sci_profile) {
+			RTE_LOG(ERR, STORM_CTL,
+				"Could not remove profile from intf %s%s\n",
+				ifp->if_name, vlan_str);
+			return -ENOENT;
+		}
+
+		for (i = FAL_TRAFFIC_UCAST; i < FAL_TRAFFIC_MAX; i++) {
+			/* Delete only if there was a create */
+			if (instance->sci_fal_obj[i])
+				fal_policer_unapply_profile(ifp, vlan,
+							    instance, i);
+		}
+		storm_ctl_del_instance(ifp->sc_info, vlan);
+	}
+	return rv;
+}
 
 /*
  * storm-ctl SET <ifname> vlan <vlan-id> profile <profile-name>
@@ -1298,93 +1410,6 @@ static int storm_ctl_set_intf_vlan_cfg(bool set, struct ifnet *ifp,
 	return 0;
 }
 
-int storm_ctl_set_profile_on_intf(bool set, struct ifnet *ifp,
-				  struct storm_ctl_profile *profile,
-				  uint16_t vlan)
-{
-	struct storm_ctl_instance *instance;
-	enum fal_traffic_type i;
-	int rv = 0;
-	char vlan_str[13] = "";
-	int interval = 0;
-
-	if (profile)
-		interval = profile->scp_recovery_interval;
-
-	if (vlan)
-		snprintf(vlan_str, 13, "(vlan %d)", vlan);
-	else
-		storm_ctl_update_intf_recovery_interval(ifp,
-							interval);
-
-	instance = storm_ctl_find_instance(ifp->sc_info, vlan);
-
-	if (set) {
-		if (instance && instance->sci_profile == profile)
-			/* No change */
-			return 0;
-
-		if (instance) {
-			/* delete the old then add a new */
-			storm_ctl_del_instance(ifp->sc_info, vlan);
-		}
-		instance = storm_ctl_add_instance(ifp, ifp->sc_info, vlan,
-						  profile);
-		if (!instance) {
-			RTE_LOG(ERR, STORM_CTL,
-				"Could not set profile %s on intf %s%s\n",
-				profile->scp_name, ifp->if_name, vlan_str);
-			return -ENOMEM;
-		}
-
-		instance->sci_ifp = ifp;
-		/* Copy across the rates from the parent profile */
-		for (i = FAL_TRAFFIC_UCAST; i < FAL_TRAFFIC_MAX; i++) {
-			if (storm_ctl_fal_update_needed(
-				    &profile->scp_policies[i],
-				    &instance->sci_policy[i])) {
-
-				if (!vlan ||
-				    (ifp->if_brport &&
-				     bridge_port_is_vlan_member(ifp->if_brport,
-								vlan)))
-					fal_policer_apply_profile(profile, vlan,
-								  instance, i);
-				instance->sci_policy[i] =
-					profile->scp_policies[i];
-			}
-		}
-
-		if (rv && rv != -EOPNOTSUPP)
-			RTE_LOG(ERR, STORM_CTL,
-				"Could not add profile %s to %s (%d)\n",
-				profile->scp_name, ifp->if_name, rv);
-
-	} else {
-		if (!instance) {
-			RTE_LOG(ERR, STORM_CTL,
-				"Could not find storm control instance on %s%s\n",
-				ifp->if_name, vlan_str);
-			return -ENOENT;
-		}
-		if (!instance->sci_profile) {
-			RTE_LOG(ERR, STORM_CTL,
-				"Could not remove profile from intf %s%s\n",
-				ifp->if_name, vlan_str);
-			return -ENOENT;
-		}
-
-		for (i = FAL_TRAFFIC_UCAST; i < FAL_TRAFFIC_MAX; i++) {
-			/* Delete only if there was a create */
-			if (instance->sci_fal_obj[i])
-				fal_policer_unapply_profile(ifp, vlan,
-							    instance, i);
-		}
-		storm_ctl_del_instance(ifp->sc_info, vlan);
-	}
-	return rv;
-}
-
 /*
  * storm-ctl <SET> <ifname> profile <profile>
  * storm-ctl <DELETE> <ifname> profile <profile>
@@ -1400,7 +1425,7 @@ static int storm_ctl_set_intf_cfg(bool set, FILE *f, int argc, char **argv)
 		goto error;
 
 	ifname = argv[2];
-	ifp = ifnet_byifname(ifname);
+	ifp = dp_ifnet_byifname(ifname);
 	if (!ifp) {
 		if (!cfg_list_storm && storm_ctl_replay_init()) {
 			RTE_LOG(ERR, DATAPLANE,
@@ -1547,7 +1572,7 @@ static struct ifnet *storm_ctl_intf_check(char *ifname, FILE *f)
 {
 	struct ifnet *ifp;
 
-	ifp = ifnet_byifname(ifname);
+	ifp = dp_ifnet_byifname(ifname);
 	if (!ifp) {
 		fprintf(f, "Could not find interface %s\n",
 			ifname);
@@ -1765,7 +1790,7 @@ static int cmd_storm_ctl_show(FILE *f, int argc, char **argv)
 	if (ifp)
 		storm_ctl_show_intf(ifp, wr);
 	else
-		ifnet_walk(storm_ctl_show_intf, wr);
+		dp_ifnet_walk(storm_ctl_show_intf, wr);
 	jsonw_end_array(wr);
 	jsonw_end_object(wr);
 	jsonw_destroy(&wr);
@@ -1824,7 +1849,7 @@ static int cmd_storm_ctl_clear(FILE *f, int argc, char **argv)
 		goto error;
 
 	if (argc == 4) {
-		ifp = ifnet_byifname(argv[3]);
+		ifp = dp_ifnet_byifname(argv[3]);
 		if (!ifp) {
 			fprintf(f, "Could not find interface %s",
 				argv[3]);
@@ -1835,7 +1860,7 @@ static int cmd_storm_ctl_clear(FILE *f, int argc, char **argv)
 	if (ifp)
 		storm_ctl_clear_intf_stats(ifp, NULL);
 	else
-		ifnet_walk(storm_ctl_clear_intf_stats, NULL);
+		dp_ifnet_walk(storm_ctl_clear_intf_stats, NULL);
 
 	return 0;
 
@@ -1886,6 +1911,10 @@ storm_ctl_if_vlan_add(struct ifnet *ifp,
 	if (!instance)
 		return;
 
+	if (!storm_control_can_create_in_fal(
+		    instance->sci_ifp, instance->sci_vlan))
+		return;
+
 	/* Apply rates from the profile */
 	for (int i = FAL_TRAFFIC_UCAST; i < FAL_TRAFFIC_MAX; i++) {
 		fal_policer_apply_profile(instance->sci_profile,
@@ -1908,38 +1937,110 @@ storm_ctl_if_vlan_del(struct ifnet *ifp,
 
 	/* Apply rates from the profile */
 	for (int i = FAL_TRAFFIC_UCAST; i < FAL_TRAFFIC_MAX; i++) {
-		fal_policer_unapply_profile(instance->sci_ifp, vlan,
-					    instance, i);
+		if (instance->sci_fal_obj[i])
+			fal_policer_unapply_profile(instance->sci_ifp, vlan,
+						    instance, i);
 	}
 }
 
 static void
-storm_ctl_if_index_pre_unset(struct ifnet *ifp)
+storm_ctl_if_fal_apply(struct ifnet *ifp)
 {
 	struct storm_ctl_instance *instance;
 	struct cds_lfht_iter iter;
 
-	if (!ifp->sc_info || !ifp->sc_info->sc_instance_tbl)
-		return;
+	DP_DEBUG(STORM_CTL, DEBUG, DATAPLANE,
+		 "trigger FAL apply storm control to interface %s\n",
+		 ifp->if_name);
+
+	cds_lfht_for_each_entry(ifp->sc_info->sc_instance_tbl, &iter,
+				instance, sci_node) {
+		if (instance->sci_vlan &&
+		    (!ifp->if_brport ||
+		     !bridge_port_is_vlan_member(ifp->if_brport,
+						 instance->sci_vlan)))
+			continue;
+		for (int i = FAL_TRAFFIC_UCAST; i < FAL_TRAFFIC_MAX; i++) {
+			fal_policer_apply_profile(instance->sci_profile,
+						  instance->sci_vlan,
+						  instance, i);
+		}
+	}
+}
+
+static void
+storm_ctl_if_fal_unapply(struct ifnet *ifp)
+{
+	struct storm_ctl_instance *instance;
+	struct cds_lfht_iter iter;
+
+	DP_DEBUG(STORM_CTL, DEBUG, DATAPLANE,
+		 "trigger FAL unapply storm control to interface %s\n",
+		 ifp->if_name);
 
 	cds_lfht_for_each_entry(ifp->sc_info->sc_instance_tbl, &iter,
 				instance, sci_node) {
 		for (int i = FAL_TRAFFIC_UCAST; i < FAL_TRAFFIC_MAX; i++) {
-			fal_policer_unapply_profile(instance->sci_ifp,
-						    instance->sci_vlan,
-						    instance, i);
+			if (instance->sci_fal_obj[i])
+				fal_policer_unapply_profile(instance->sci_ifp,
+							    instance->sci_vlan,
+							    instance, i);
 		}
+	}
+}
+
+static void
+storm_ctl_if_del(struct ifnet *ifp)
+{
+	struct storm_ctl_instance *instance;
+	struct cds_lfht_iter iter;
+
+	cds_lfht_for_each_entry(ifp->sc_info->sc_instance_tbl, &iter,
+				instance, sci_node) {
 		storm_ctl_del_instance_internal(ifp->sc_info->sc_instance_tbl,
 						instance);
 	}
 	storm_ctl_del_ctx(ifp);
 }
 
+static void
+storm_ctl_if_feat_mode_change(struct ifnet *ifp,
+			     enum if_feat_mode_event event)
+{
+	if (!ifp->sc_info || !ifp->sc_info->sc_instance_tbl)
+		/* nothing to do */
+		return;
+
+	switch (event) {
+	case IF_FEAT_MODE_EVENT_L2_FAL_ENABLED:
+		if (storm_control_can_create_in_fal(ifp, 0))
+			storm_ctl_if_fal_apply(ifp);
+		break;
+	case IF_FEAT_MODE_EVENT_L2_FAL_DISABLED:
+		storm_ctl_if_fal_unapply(ifp);
+		break;
+	case IF_FEAT_MODE_EVENT_EMB_FEAT_CHANGED:
+		if (storm_control_can_create_in_fal(ifp, 0))
+			storm_ctl_if_fal_apply(ifp);
+		else
+			storm_ctl_if_fal_unapply(ifp);
+		break;
+	case IF_FEAT_MODE_EVENT_L2_DELETED:
+		DP_DEBUG(STORM_CTL, DEBUG, DATAPLANE,
+			 "trigger storm control delete for interface %s\n",
+			 ifp->if_name);
+		storm_ctl_if_del(ifp);
+		break;
+	default:
+		break;
+	}
+}
+
 static const struct dp_event_ops storm_ctl_events = {
 	.if_link_change = storm_ctl_if_link_change,
 	.if_vlan_add = storm_ctl_if_vlan_add,
 	.if_vlan_del = storm_ctl_if_vlan_del,
-	.if_index_pre_unset = storm_ctl_if_index_pre_unset,
+	.if_feat_mode_change = storm_ctl_if_feat_mode_change,
 };
 
 DP_STARTUP_EVENT_REGISTER(storm_ctl_events);

@@ -1,5 +1,6 @@
 /*
- * Copyright (c) 2018, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2018-2020, AT&T Intellectual Property. All rights reserved.
+ * Copyright (c) 2018,2020 AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -13,9 +14,9 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "config.h"
+#include "config_internal.h"
 #include "control.h"
-#include "event.h"
+#include "event_internal.h"
 #include "master.h"
 #include "netlink.h"
 #include "route_broker.h"
@@ -98,8 +99,8 @@ open_route_broker_data_sock(enum cont_src_en cont_src,
 
 	cont_src_set_broker_data(cont_src, data_sock);
 
-	register_event_socket(zsock_resolve(data_sock), route_recv,
-			      data_sock);
+	dp_register_event_socket(zsock_resolve(data_sock), route_recv,
+				 data_sock);
 	return 0;
 }
 
@@ -361,13 +362,13 @@ void route_broker_unsubscribe(enum cont_src_en cont_src)
 	zsock_t *broker_data = cont_src_get_broker_data(cont_src);
 
 	if (broker_ctrl) {
-		unregister_event_socket(zsock_resolve(broker_ctrl));
+		dp_unregister_event_socket(zsock_resolve(broker_ctrl));
 		zsock_destroy(&broker_ctrl);
 		cont_src_set_broker_ctrl(cont_src, NULL);
 	}
 
 	if (broker_data) {
-		unregister_event_socket(zsock_resolve(broker_data));
+		dp_unregister_event_socket(zsock_resolve(broker_data));
 		zsock_destroy(&broker_data);
 		cont_src_set_broker_data(cont_src, NULL);
 		rte_timer_stop(&broker_keepalive_timer[cont_src]);

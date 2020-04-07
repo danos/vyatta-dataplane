@@ -18,6 +18,7 @@ enum npf_ruleset_type {
 	NPF_RS_FW_OUT,
 	NPF_RS_DNAT,
 	NPF_RS_SNAT,
+	NPF_RS_ZONE,
 	NPF_RS_LOCAL,
 	NPF_RS_BRIDGE,
 	NPF_RS_IPSEC,

@@ -9,6 +9,9 @@
 
 #include "npf/npf_addr.h"
 
+void cgn_cfg_replay(struct ifnet *ifp);
+void cgn_cfg_replay_clear(struct ifnet *ifp);
+
 /* npf_rule_gen.c */
 int npf_parse_ip_addr(char *value, sa_family_t *fam, npf_addr_t *addr,
 		      npf_netmask_t *masklen, bool *negate);

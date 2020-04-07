@@ -1,19 +1,19 @@
 /*
- * Copyright (c) 2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2019-2020, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
 
 #include "dp_test.h"
 #include "dp_test_console.h"
-#include "dp_test_lib.h"
+#include "dp_test_lib_internal.h"
 #include "dp_test_lib_exp.h"
-#include "dp_test_lib_intf.h"
+#include "dp_test_lib_intf_internal.h"
 #include "dp_test_lib_pkt.h"
-#include "dp_test_pktmbuf_lib.h"
-#include "dp_test_netlink_state.h"
+#include "dp_test_pktmbuf_lib_internal.h"
+#include "dp_test_netlink_state_internal.h"
 
-#include "bridge.h"
+#include "if/bridge/bridge.h"
 #include "ip_funcs.h"
 
 #define dp_test_clear_vlan_stats(name) \

@@ -1,5 +1,37 @@
-usr/include/vyatta-dataplane/json_writer.h
-usr/include/vyatta-dataplane/pl_common.h
-usr/include/vyatta-dataplane/pl_node.h
+#! /usr/bin/dh-exec
+
 usr/include/vyatta-dataplane/compiler.h
-usr/include/vyatta-dataplane/protobuf.h
+usr/include/vyatta-dataplane/config.h
+usr/include/vyatta-dataplane/debug.h
+usr/include/vyatta-dataplane/dpi.h
+usr/include/vyatta-dataplane/dp_test_cmd_check.h usr/include/vyatta-dataplane/dp_test
+usr/include/vyatta-dataplane/dp_test_lib.h usr/include/vyatta-dataplane/dp_test
+usr/include/vyatta-dataplane/dp_test_lib_intf.h usr/include/vyatta-dataplane/dp_test
+usr/include/vyatta-dataplane/dp_test_firewall_lib.h usr/include/vyatta-dataplane/dp_test
+usr/include/vyatta-dataplane/dp_test_macros.h usr/include/vyatta-dataplane/dp_test
+usr/include/vyatta-dataplane/dp_test_netlink_state.h usr/include/vyatta-dataplane/dp_test
+usr/include/vyatta-dataplane/dp_test_pktmbuf_lib.h usr/include/vyatta-dataplane/dp_test
+usr/include/vyatta-dataplane/dp_test_session_lib.h usr/include/vyatta-dataplane/dp_test
+usr/include/vyatta-dataplane/event.h
+usr/include/vyatta-dataplane/fal_bfd.h
+usr/include/vyatta-dataplane/dp_session.h
+usr/include/vyatta-dataplane/feature_commands.h
+usr/include/vyatta-dataplane/feature_plugin.h
+usr/include/vyatta-dataplane/interface.h
+usr/include/vyatta-dataplane/ip.h
+usr/include/vyatta-dataplane/ip_checksum.h
+usr/include/vyatta-dataplane/ip_forward.h
+usr/include/vyatta-dataplane/json_writer.h
+usr/include/vyatta-dataplane/lcore_sched.h
+usr/include/vyatta-dataplane/pipeline.h
+usr/include/vyatta-dataplane/pktmbuf.h
+usr/include/vyatta-dataplane/urcu.h
+usr/include/vyatta-dataplane/vrf.h
+
+/usr/lib/${DEB_HOST_MULTIARCH}/pkgconfig/vyatta-dataplane-dev.pc
+
+usr/bin/dataplane_test
+/usr/lib/${DEB_HOST_MULTIARCH}/vyatta-dataplane/fal_plugin_test.so
+tests/whole_dp/dummyfs/* usr/share/vyatta-dataplane/tests/whole_dp/dummyfs
+usr/share/vyatta/dataplane-drivers-default.conf usr/share/vyatta-dataplane/tests
+tests/whole_dp/src/platform.conf usr/share/vyatta-dataplane/tests/whole_dp/dummyfs/run/dataplane/

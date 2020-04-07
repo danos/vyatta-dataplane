@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2019, AT&T Intellectual Property. All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property. All rights reserved.
  * Copyright (c) 2015-2017 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -7,21 +7,22 @@
  *
  * Check dataplane internal state using operational commands
  */
-#include "dp_test_cmd_check.h"
+#include "dp_test/dp_test_cmd_check.h"
 
 #include <czmq.h>
 
+#include "if_var.h"
 #include "mpls/mpls.h"
 #include "npf/npf_if.h"
 
-#include "dp_test_lib.h"
+#include "dp_test_lib_internal.h"
 #include "dp_test_controller.h"
 #include "dp_test_console.h"
 #include "dp_test_json_utils.h"
-#include "dp_test_lib_intf.h"
+#include "dp_test_lib_intf_internal.h"
 #include "dp_test.h"
 #include "dp_test_npf_lib.h"
-#include "vrf.h"
+#include "vrf_internal.h"
 
 #define STRINGIFZ(x) #x
 #define STRINGIFY(x) STRINGIFZ(x)
@@ -96,13 +97,7 @@ char expected_route_stats_str[DP_TEST_TMP_BUF];
 char parse_err_str[10000];
 static char mismatch_str[10000];
 
-#define DP_TEST_POLL_INTERVAL 1 /* ms */
-#define DP_TEST_POLL_TOTAL_TIME 2000 /* ms */
-#define DP_TEST_POLL_COUNT (DP_TEST_POLL_TOTAL_TIME / DP_TEST_POLL_INTERVAL)
-
-#define DP_TEST_WAIT_SEC_DEFAULT 1
-
-static uint32_t dp_test_wait_sec = DP_TEST_WAIT_SEC_DEFAULT;
+uint32_t dp_test_wait_sec = DP_TEST_WAIT_SEC_DEFAULT;
 
 void dp_test_wait_set(uint8_t wait_sec)
 {
@@ -285,9 +280,9 @@ static struct cmd_expect_json cmd_expect_clean_json[] = {
 		"     \"tbl8s\":"
 		"       {"
 		"         \"used\":"
-		"           0,"
+		"           14," /* for reserved routes */
 		"         \"free\":"
-		"           256"
+		"           242"
 		"       },"
 		"     \"nexthop\": "		\
 		"       { "			\
@@ -541,6 +536,12 @@ dp_test_json_create(const char *fmt_str, ...)
 
 struct dp_test_show_cmd_poll_state {
 	char request_str[DP_TEST_TMP_BUF]; /* poll req */
+	void *pb_req;
+	int pb_req_len;
+	void *pb_resp;
+	int pb_resp_len;
+	dp_test_state_pb_cb pb_func;
+	void *pb_arg;
 	json_object *json_resp; /* latest reply */
 	int poll_cnt;
 
@@ -618,6 +619,36 @@ poll_for_matching_state(zloop_t *loop, int poller, void *arg)
 		(cmd->poll_cnt == 0)) ? -1 : 0;
 }
 
+static int
+poll_for_matching_state_pb(zloop_t *loop, int poller, void *arg)
+{
+	struct dp_test_show_cmd_poll_state *cmd = arg;
+
+	--(cmd->poll_cnt);
+
+	zmsg_t *resp_msg;
+	dp_test_console_request_pb(cmd->pb_req, cmd->pb_req_len,
+				   &resp_msg,
+				   cmd->print);
+
+	char *resp;
+	int resp_len = 0;
+	if (resp_msg && zmsg_size(resp_msg) > 0) {
+		zframe_t *frame = zmsg_first(resp_msg);
+		resp = (char *)zframe_data(frame);
+		resp_len = zframe_size(frame);
+	}
+
+	if (resp_len > 0)
+		cmd->result = cmd->pb_func(resp, resp_len, cmd->pb_arg);
+
+	zmsg_destroy(&resp_msg);
+
+	/* return -1 to stop if we got what we want or run out of retries */
+	return (cmd->result ||
+		(cmd->poll_cnt == 0)) ? -1 : 0;
+}
+
 static bool
 dp_test_wait_for_expected_json(struct dp_test_show_cmd_poll_state *cmd,
 			       json_object **actual_resp)
@@ -641,6 +672,29 @@ dp_test_wait_for_expected_json(struct dp_test_show_cmd_poll_state *cmd,
 
 	if (actual_resp)
 		*actual_resp = cmd->json_resp;
+
+	return cmd->result;
+}
+
+static bool
+dp_test_wait_for_expected_pb(struct dp_test_show_cmd_poll_state *cmd)
+{
+	zloop_t *loop = zloop_new();
+	int timer;
+
+	assert(loop);
+
+	/*
+	 * loop every millisec, for up to dp_test_wait_sec.
+	 */
+	timer = zloop_timer(loop, dp_test_wait_sec, 0,
+			    poll_for_matching_state_pb, cmd);
+	dp_test_assert_internal(timer >= 0);
+
+	zloop_start(loop);
+	zloop_destroy(&loop);
+
+	dp_test_wait_sec = DP_TEST_WAIT_SEC_DEFAULT;
 
 	return cmd->result;
 }
@@ -719,6 +773,39 @@ _dp_test_check_json_poll_state(const char *cmd_str, json_object *expected_json,
 	json_object_put(actual_json);
 }
 
+
+void
+_dp_test_check_pb_poll_state(char *buf, int len,
+			     dp_test_state_pb_cb cb,
+			     void *arg,
+			     int poll_cnt,
+			     const char *file, const char *func __unused,
+			     int line)
+{
+	if (!poll_cnt)
+		poll_cnt = DP_TEST_POLL_COUNT;
+	struct dp_test_show_cmd_poll_state cmd = {
+		.pb_req = buf,
+		.pb_req_len = len,
+		.pb_func = cb,
+		.pb_arg = arg,
+		.print = false,
+		.json_resp = NULL,
+		.required_superset = NULL,
+		.required_subset = NULL,
+		.required_exact = NULL,
+		.poll_cnt = poll_cnt,
+		.mismatches = NULL,
+		.result = false,
+	};
+
+	bool result = dp_test_wait_for_expected_pb(&cmd);
+	if (!result) {
+		printf("failed to get response\n");
+		abort();
+	}
+}
+
 void
 _dp_test_check_json_state(const char *cmd_str, json_object *expected_json,
 			  json_object *filter_json,
@@ -730,6 +817,19 @@ _dp_test_check_json_state(const char *cmd_str, json_object *expected_json,
 	_dp_test_check_json_poll_state(cmd_str, expected_json, filter_json,
 				       mode, negate_match, DP_TEST_POLL_COUNT,
 				       file, func, line);
+}
+
+void
+_dp_test_check_pb_state(char *buf, int len,
+			dp_test_state_pb_cb cb,
+			void *arg,
+			const char *file, const char *func __unused,
+			int line)
+{
+	_dp_test_check_pb_poll_state(buf, len,
+				     cb, arg,
+				     DP_TEST_POLL_COUNT,
+				     file, func, line);
 }
 
 /*
@@ -1405,6 +1505,7 @@ dp_test_json_intf_add(json_object *intf_set, const char *ifname,
 		"  \"mtu\": 1500, "
 		"  \"flags\": 69699, "
 		"  \"hw_forwarding\": 0, "
+		"  \"hw_l3\": 0, "
 		"  \"tpid_offloaded\": 1, "
 		"  \"ip_forwarding\": %u, "
 		"  \"ip_proxy_arp\": 0, "
@@ -1508,6 +1609,7 @@ dp_test_json_intf_add_lo(json_object *intf_set, const char *ifname)
 				   "  \"mtu\": 0, "
 				   "  \"flags\": 73, "
 				   "  \"hw_forwarding\": 0, "
+				   "  \"hw_l3\": 0, "
 				   "  \"tpid_offloaded\": 1, "
 				   "  \"ip_forwarding\": 0, "
 				   "  \"ip_proxy_arp\": 0, "

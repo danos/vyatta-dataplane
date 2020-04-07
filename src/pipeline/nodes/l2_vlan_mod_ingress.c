@@ -1,7 +1,7 @@
 /*
  * l2_vlan_mod_ingress.c
  * *
- * Copyright (c) 2019, AT&T Intellectual Property. All rights reserved.
+ * Copyright (c) 2019-2020, AT&T Intellectual Property. All rights reserved.
  * All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
@@ -54,7 +54,7 @@ static struct rte_mbuf *vlan_modify_ingress(struct ifnet *ifp,
 }
 
 inline __attribute__((always_inline)) unsigned int
-vlan_modify_in_check_process(struct pl_packet *pkt)
+vlan_modify_in_check_process(struct pl_packet *pkt, void *context __unused)
 {
 	struct rte_mbuf *ret;
 

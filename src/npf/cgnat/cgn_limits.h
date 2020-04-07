@@ -49,16 +49,11 @@
 #define CGN_SESSIONS_MAX	CGN_SESSION_HT_MAX
 
 /**************************************************************************
- * CGNAT Nested Session Table (public src addr and port)
+ * CGNAT Nested Session Table (destination addr and port)
  **************************************************************************/
 
-#define CGN_SESS2_HT_INIT	4
-#define CGN_SESS2_HT_MIN	4
-#define CGN_SESS2_HT_MAX	64
-#define CGN_SESS2_HT_FLAGS	(CDS_LFHT_AUTO_RESIZE | CDS_LFHT_ACCOUNTING)
-
 /* MUST be less than USHRT_MAX */
-#define CGN_DEST_SESSIONS_MAX	CGN_SESS2_HT_MAX
+#define CGN_DEST_SESSIONS_MAX	64
 
 /**************************************************************************
  * CGNAT Source (private address, vrfid) Table

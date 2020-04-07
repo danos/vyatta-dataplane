@@ -54,6 +54,10 @@ set_defaults() {
         HUGEPAGES=$(( ( M / 4 ) /  HUGE_SZ ))
     elif [[ $MB -le 8192 ]]; then
         HUGEPAGES=$(( ( M / 2 ) / HUGE_SZ ))
+    # MemTotal does not account memory allocated for kernel binary code and
+    # bits. For systems >=64Gb, check conservatively to account for that.
+    elif [[ $MB -ge 61440 ]]; then
+        HUGEPAGES=$(( 16777216 / HUGE_SZ ))
     fi
     DPDK_ARG=$(( ( HUGEPAGES * HUGE_SZ ) / 1024 )) # MB
     OVERCOMMIT_HUGEPAGES=0

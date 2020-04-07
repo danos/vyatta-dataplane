@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2019-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2011-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -29,7 +29,7 @@
 #include "ip6_funcs.h"
 #include "ip_funcs.h"
 #include "netinet6/in6.h"
-#include "pktmbuf.h"
+#include "pktmbuf_internal.h"
 #include "vplane_log.h"
 #include "urcu.h"
 #include "util.h"
@@ -43,6 +43,7 @@
 #include "npf/npf_ruleset.h"
 #include "npf/rproc/npf_rproc.h"
 #include "npf/rproc/npf_ext_nat64.h"
+#include "npf/npf_pack.h"
 
 struct ifnet;
 struct rte_mbuf;
@@ -94,6 +95,23 @@ npf_rule_t *
 npf_nat64_get_rule(struct npf_nat64 *n64)
 {
 	return n64 ? n64->n64_rule : NULL;
+}
+
+uint8_t npf_nat64_is_v6(struct npf_nat64 *n64)
+{
+	return n64->n64_v6 ? 1 : 0;
+}
+
+uint8_t npf_nat64_is_linked(struct npf_nat64 *n64)
+{
+	return n64->n64_linked ? 1 : 0;
+}
+
+void npf_nat64_get_trans(struct npf_nat64 *n64,
+			npf_addr_t *addr, in_port_t *port)
+{
+	memcpy(addr, &n64->n64_t_addr, sizeof(npf_addr_t));
+	*port = n64->n64_t_port;
 }
 
 /*
@@ -362,7 +380,7 @@ npf_4to6_convert(struct rte_mbuf **m, npf_cache_t *npc,
 	l2 = new_l2;
 
 	/* Reset the L3 length */
-	pktmbuf_l3_len(*m) = sizeof(struct ip6_hdr);
+	dp_pktmbuf_l3_len(*m) = sizeof(struct ip6_hdr);
 
 	struct ip6_hdr *ip6 = ip6hdr(*m);
 	char *l4hdr = (char *)(ip6 + 1);
@@ -457,7 +475,7 @@ npf_6to4_convert(struct rte_mbuf **m, npf_cache_t *npc,
 	l2 = new_l2;
 
 	/* Reset the L3 length */
-	pktmbuf_l3_len(*m) = sizeof(struct iphdr);
+	dp_pktmbuf_l3_len(*m) = sizeof(struct iphdr);
 
 	struct iphdr *ip = iphdr(*m);
 	char *l4hdr = (char *)(ip + 1);
@@ -751,6 +769,12 @@ npf_nat64_session_destroy(struct npf_session *se)
 	npf_session_set_nat64(se, NULL);
 }
 
+/* Get rproc_id */
+int npf_nat64_get_rproc_id(struct npf_nat64 *n64)
+{
+	return n64->n64_rproc_id;
+}
+
 /*
  * Is this a nat64 session?
  */
@@ -906,7 +930,7 @@ npf_nat64_session_json(json_writer_t *json, npf_session_t *se)
  * so that nat64 has another opportunity to create an egress session and link
  * it to the ingress session.
  */
-static npf_decision_t
+npf_decision_t
 npf_nat64_6to4_in(npf_action_t *action, const struct npf_config *npf_config,
 		  npf_session_t **sep, struct ifnet *ifp, npf_cache_t *npc,
 		  struct rte_mbuf **m, uint16_t *npf_flag)
@@ -1126,7 +1150,7 @@ error:
  * #3 is the unlikely scenario. It may occur if orthogonal nat64 and nat46
  * rules create ingress sessions simultaneously.
  */
-static npf_decision_t
+npf_decision_t
 npf_nat64_6to4_out(npf_session_t **sep, struct ifnet *ifp, npf_cache_t *npc,
 		   struct rte_mbuf **m, uint16_t *npf_flag)
 {
@@ -1213,7 +1237,7 @@ stats:
  * so that nat64 has another opportunity to create an egress session and link
  * it to the ingress session.
  */
-static npf_decision_t
+npf_decision_t
 npf_nat64_4to6_in(npf_action_t *action, const struct npf_config *npf_config,
 		  npf_session_t **sep, struct ifnet *ifp, npf_cache_t *npc,
 		  struct rte_mbuf **m, uint16_t *npf_flag)
@@ -1428,7 +1452,7 @@ error:
  * #3 is the unlikely scenario. It may occur if orthogonal nat64 and nat46
  * rules create ingress sessions simultaneously.
  */
-static npf_decision_t
+npf_decision_t
 npf_nat64_4to6_out(npf_session_t **sep, struct ifnet *ifp, npf_cache_t *npc,
 		   struct rte_mbuf **m, uint16_t *npf_flag)
 {
@@ -1489,52 +1513,73 @@ stats:
 	return NPF_DECISION_PASS;
 }
 
-/*
- * For NAT 6-to-4 the packet flow sequence is:
- *
- *   request:   v6(in) -> v4(in) -> v4(out)
- *   response:  v4(in) -> v6(in) -> v6(out)
- *
- * Two session are created for the first packet in a data flow - An IPv6
- * session at v6(in) and an IPv4 session at v4(out).
- *
- * NAT 4-to-6 for a new packet flow is similar.
- *
- * nat64_hook is called at input when either of the following are true:
- *
- *  1. A NAT64 rule exists on the interface, or
- *  2. A NAT64 session is found on ingress
- *
- * nat64_hook is called at output when:
- *
- *  1. The NPF_FLAG_NAT64 flag is set
- *
- * The NPF_FLAG_NAT64 flag is set by the NAT64 ingress routine if an egress
- * session does not exists (typically only for the first packet only of a
- * flow).
- */
-npf_decision_t
-nat64_hook(npf_action_t *action, const struct npf_config *npf_config,
-	   npf_session_t **sep, struct ifnet *ifp, npf_cache_t *npc,
-	   struct rte_mbuf **m, int dir, uint16_t *npf_flag)
+int npf_nat64_npf_pack_pack(struct npf_nat64 *n64,
+			    struct npf_pack_npf_nat64 *cn64)
 {
-	npf_decision_t decision;
+	npf_rule_t *rule;
 
-	if (npf_iscached(npc, NPC_IP4)) {
-		if (likely(dir == PFIL_IN))
-			decision = npf_nat64_4to6_in(action, npf_config, sep,
-						     ifp, npc, m, npf_flag);
-		else
-			decision = npf_nat64_6to4_out(sep, ifp, npc, m,
-						      npf_flag);
-	} else {
-		if (likely(dir == PFIL_IN))
-			decision = npf_nat64_6to4_in(action, npf_config, sep,
-						     ifp, npc, m, npf_flag);
-		else
-			decision = npf_nat64_4to6_out(sep, ifp, npc, m,
-						      npf_flag);
+	if (!n64 || !cn64)
+		return -EINVAL;
+
+	rule = npf_nat64_get_rule(n64);
+	cn64->n64_rule_hash = (rule ? npf_rule_get_hash(rule) : 0);
+	cn64->n64_rproc_id = npf_nat64_get_rproc_id(n64);
+	cn64->n64_map_flags = n64->n64_map_flags;
+	cn64->n64_v6 = npf_nat64_is_v6(n64);
+	cn64->n64_linked = npf_nat64_is_linked(n64);
+	npf_nat64_get_trans(n64, &cn64->n64_t_addr, &cn64->n64_t_port);
+
+	return 0;
+}
+
+int npf_nat64_npf_pack_restore(struct npf_session *se,
+			       struct npf_pack_npf_nat64 *nat64)
+{
+	struct npf_nat64 *n64;
+	npf_rule_t *rl;
+	int rc = -EINVAL;
+
+	if (!se || !nat64)
+		return -EINVAL;
+
+	/* Create a nat64 struct */
+	n64 = zmalloc(sizeof(struct npf_nat64));
+	if (!n64)
+		return -ENOMEM;
+
+	rl = nat64->n64_rule_hash ?
+		npf_get_rule_by_hash(nat64->n64_rule_hash) : NULL;
+
+	if (rl) {
+		n64->n64_rule = npf_rule_get(rl);
+		n64->n64_np = npf_rule_get_natpolicy(rl);
 	}
 
-	return decision;
+	n64->n64_rproc_id = nat64->n64_rproc_id;
+	n64->n64_map_flags = nat64->n64_map_flags;
+	n64->n64_vrfid = npf_session_get_vrfid(se);
+
+	memcpy(&n64->n64_t_addr, &nat64->n64_t_addr, sizeof(npf_addr_t));
+	n64->n64_t_port = nat64->n64_t_port;
+
+	n64->n64_v6 = nat64->n64_v6;
+	if (!nat64->n64_linked)
+		goto error;
+
+	rte_spinlock_init(&n64->n64_lock);
+	n64->n64_stats_in  = zmalloc_aligned(NAT64_STATS_SIZE);
+	n64->n64_stats_out = zmalloc_aligned(NAT64_STATS_SIZE);
+	if (!n64->n64_stats_in || !n64->n64_stats_out) {
+		rc = -ENOMEM;
+		goto error;
+	}
+
+	npf_session_set_nat64(se, n64);
+
+	return 0;
+
+error:
+	npf_rule_put(n64->n64_rule);
+	free(n64);
+	return rc;
 }

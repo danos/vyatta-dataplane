@@ -1,6 +1,6 @@
 /* pppoe.h
  *
- * Copyright (c) 2017-2018, AT&T Intellectual Property. All rights reserved.
+ * Copyright (c) 2018-2019, AT&T Intellectual Property. All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -14,7 +14,7 @@
 #include <linux/ppp_defs.h>
 #include <urcu.h>
 
-#include "include/pl_common.h"
+#include "pl_common.h"
 #include "if_var.h"
 
 #define PPPOE_VER_TYPE(v, t)(((v) << 4) | (t))

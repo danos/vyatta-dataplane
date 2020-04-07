@@ -1,0 +1,34 @@
+// Copyright (c) 2019, AT&T Intellectual Property.  All rights reserved.
+//
+// SPDX-License-Identifier: LGPL-2.1-only
+//
+// cmd_arp_cfg protobuf definitions
+//
+
+syntax="proto2";
+
+option go_package = "github.com/danos/vyatta-dataplane/protobuf/go/GArpConfig";
+
+message GArpConfig {
+	enum garp_pkt_action {
+	     GARP_PKT_DROP = 0;
+	     GARP_PKT_UPDATE = 1;
+	}
+
+	enum arp_op {
+	     ARPOP_REQUEST = 1;
+	     ARPOP_REPLY = 2;
+	}
+
+	//Interface name
+	optional string ifname = 1;
+
+	//Set or delete
+	optional bool set = 2;
+
+	//Arp option (request or reply)
+	optional arp_op op = 3;
+
+	//garp action (drop or update)
+	optional garp_pkt_action action  = 4;
+}

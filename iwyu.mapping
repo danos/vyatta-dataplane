@@ -18,4 +18,10 @@
   { include: ["\"czmq_library.h\"", "private", "<czmq.h>", "public"] },
   { include: ["\"pl_fused_gen.h\"", "private", "\"pl_fused.h\"", "public"] },
   { include: ["<asm/int-ll64.h>", "private", "<linux/types.h>", "public"] },
+  { include: ["<bits/stdint-uintn.h>", "private", "<stdint.h>", "public"] },
+  { include: ["<bits/stdint-intn.h>", "private", "<stdint.h>", "public"] },
+  { include: ["<bits/types/struct_timespec.h>", "private", "<sys/time.h>", "public"] },
+  { include: ["<bits/types/cookie_io_functions_t.h>", "private", "<stdio.h>", "public"] },
+  { include: ["<bits/getopt_core.h>", "private", "<getopt.h>", "public"] },
+  { include: ["<bits/types/time_t.h>", "private", "<time.h>", "public"] },
 ]

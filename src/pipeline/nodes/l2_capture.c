@@ -1,7 +1,7 @@
 /*
  * l2_capture.c
  *
- * Copyright (c) 2017-2018, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2016, 2017 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -13,7 +13,7 @@
 #include "pl_fused.h"
 
 ALWAYS_INLINE unsigned int
-capture_in_process(struct pl_packet *pkt)
+capture_in_process(struct pl_packet *pkt, void *context __unused)
 {
 	struct rte_mbuf *m = pkt->mbuf;
 

@@ -27,17 +27,12 @@ be dynamically invoked in a runtime constructed graph.
 Nodes should never be called directly (currently through their *_fused()
 generated entry points).
 
-## Unit Testing
-
-Vyatta-dataplane unit tests are done in a harness that builds the whole
-dataplane.
+## Whole dataplane unit tests
 
 The unit tests are executed as part of the default package build and **must**
 be kept passing with every commit.
 
 You should consider adding unit tests for any new functionality being add.
-
-### Whole dataplane tests
 
 The majority of the dataplane is built into a process and APIs are provided to
 inject state/traffic and verify the processing of the state, using [libcheck][5].

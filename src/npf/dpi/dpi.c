@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2016-2017 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -23,7 +23,7 @@
 #include <time.h>
 #include <dpi/protodef.h>       /* For Q_PROTO_BASE and Q_PROTO_MAX */
 
-#include "npf/dpi/dpi.h"
+#include "npf/dpi/dpi_internal.h"
 #include "npf/dpi/dpi_private.h"
 #include "npf/npf.h" /* For get_time_uptime() */
 #include "npf/npf_cache.h"
@@ -33,7 +33,7 @@
 #include "npf_shim.h"
 #include "npf/config/npf_config.h"
 #include "npf/npf_ruleset.h"
-#include "pktmbuf.h"
+#include "pktmbuf_internal.h"
 #include "qmdpi_const.h"
 #include "qmdpi_struct.h"
 #include "util.h"
@@ -212,7 +212,8 @@ dpi_process(struct qmdpi_worker *worker, npf_cache_t *npc,
 	 * are actually UDP, and handle them here with the appropriate
 	 * adjustment.
 	 */
-	uint16_t data_offset = pktmbuf_l2_len(mbuf) + pktmbuf_l3_len(mbuf);
+	uint16_t data_offset = dp_pktmbuf_l2_len(mbuf) +
+		dp_pktmbuf_l3_len(mbuf);
 	uint16_t data_len = rte_pktmbuf_data_len(mbuf) - data_offset;
 	switch (npf_cache_ipproto(npc)) {
 	case IPPROTO_TCP: {

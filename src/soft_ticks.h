@@ -10,7 +10,7 @@
  * Export of soft_ticks from master.c
  */
 
-/* Milliseconds */
+/* Milliseconds.  Updated every 10 milliseconds. */
 extern volatile uint64_t soft_ticks;
 
 #endif /* _SOFT_TICKS_H_ */

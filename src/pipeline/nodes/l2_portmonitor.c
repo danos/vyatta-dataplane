@@ -1,7 +1,7 @@
 /*
  * l2_portmonitor.c
  *
- * Copyright (c) 2017-2018, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2016, 2017 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -10,13 +10,13 @@
 #include <rte_branch_prediction.h>
 
 #include "compiler.h"
-#include "pktmbuf.h"
+#include "pktmbuf_internal.h"
 #include "pl_common.h"
 #include "pl_fused.h"
 #include "portmonitor/portmonitor.h"
 
 ALWAYS_INLINE unsigned int
-portmonitor_in_process(struct pl_packet *pkt)
+portmonitor_in_process(struct pl_packet *pkt, void *context __unused)
 {
 	struct rte_mbuf *m = pkt->mbuf;
 
@@ -27,7 +27,7 @@ portmonitor_in_process(struct pl_packet *pkt)
 
 	if (unlikely(m != pkt->mbuf)) {
 		pkt->mbuf = m;
-		pkt->l3_hdr = pktmbuf_mtol3(m, void *);
+		pkt->l3_hdr = dp_pktmbuf_mtol3(m, void *);
 	}
 
 	return PORTMONITOR_IN_ACCEPT;

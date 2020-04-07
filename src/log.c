@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2013-2017 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -13,7 +13,8 @@
 #include <sys/types.h>
 #include <syslog.h>
 
-#include "config.h"
+#include "config_internal.h"
+#include "main.h"
 
 static ssize_t
 do_log_write(__attribute__((unused)) void *c, const char *buf, size_t bufsize)

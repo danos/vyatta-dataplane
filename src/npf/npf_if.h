@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2017 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -21,7 +21,8 @@
 
 struct ifnet;
 struct npf_config;
-struct cgn_intf;
+struct npf_zone_intf;
+struct npf_zone;
 
 struct npf_if {
 	struct npf_config	nif_conf;
@@ -29,6 +30,7 @@ struct npf_if {
 	struct ifnet		*nif_ifp;
 };
 
+bool npf_if_zone_is_enabled(const struct npf_if *nif);
 void npf_if_sessions_handling_enable(struct ifnet *ifp, bool nif_exists);
 void npf_if_sessions_handling_disable(struct ifnet *ifp, bool lock);
 
@@ -45,11 +47,33 @@ npf_if_active(struct npf_if *nif, uint32_t bitmask)
 	if (unlikely(!nif))
 		return false;
 
+	if ((bitmask & NPF_ZONE) && npf_if_zone_is_enabled(nif))
+		return true;
+
 	struct npf_config *nif_conf = npf_if_conf(nif);
 	if (npf_active(nif_conf, bitmask))
 		return true;
 
 	if ((bitmask & NPF_IF_SESSION) && uatomic_read(&nif->nif_sess))
+		return true;
+
+	return false;
+}
+
+/*
+ * Is SNAT configured in this interface?
+ */
+static inline bool npf_snat_active(struct ifnet *ifp)
+{
+	struct npf_if *nif;
+	struct npf_config *nif_conf;
+
+	nif = rcu_dereference(ifp->if_npf);
+	if (!nif)
+		return false;
+
+	nif_conf = npf_if_conf(nif);
+	if (npf_active(nif_conf, NPF_SNAT))
 		return true;
 
 	return false;
@@ -99,7 +123,7 @@ void npf_if_reference_one(struct ifnet *ifp, void *arg);
 void npf_if_release_all(void);
 void npf_if_release_one(struct ifnet *ifp, void *arg);
 
-void npf_if_enable(struct ifnet *ifp, uint32_t ifindex);
+void npf_if_enable(struct ifnet *ifp);
 void npf_if_disable(struct ifnet *ifp, uint32_t ifindex);
 void npf_if_rename(struct ifnet *ifp, const char *old_ifname);
 
@@ -112,5 +136,11 @@ void npf_if_cleanup(void);
  */
 void npf_if_addr_change(enum cont_src_en cont_src, struct ifnet *ifp,
 		uint32_t if_index, int af, const void *addr);
+
+int npf_if_zone_assign(struct ifnet *ifp, struct npf_zone_intf *zif,
+		       bool lock);
+struct npf_zone_intf *npf_if_zone_intf(struct ifnet *ifp);
+struct npf_zone *npf_nif_zone(const struct npf_if *nif);
+struct npf_zone *npf_if_zone(const struct ifnet *ifp);
 
 #endif /* NPF_IF_H */

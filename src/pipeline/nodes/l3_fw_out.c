@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2019, AT&T Intellectual Property. All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property. All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  *
@@ -15,7 +15,7 @@
 #include "npf/npf.h"
 #include "npf/npf_if.h"
 #include "npf_shim.h"
-#include "pktmbuf.h"
+#include "pktmbuf_internal.h"
 #include "pl_common.h"
 #include "pl_fused.h"
 #include "urcu.h"
@@ -38,10 +38,8 @@ ip_fw_out_process_common(struct pl_packet *pkt, bool v4)
 
 	struct npf_if *nif = rcu_dereference(ifp->if_npf);
 
-	/* Output NPF Firewall and NAT */
-	if  (npf_if_active(nif, bitmask) ||
-	     (nif &&
-	      (pkt->npf_flags & (NPF_FLAG_FROM_IPV6 | NPF_FLAG_FROM_IPV4)))) {
+	/* Output NPF Firewall and NAT or Zone and NAT */
+	if  (npf_if_active(nif, bitmask)) {
 		npf_result_t result;
 		struct rte_mbuf *m = pkt->mbuf;
 
@@ -51,24 +49,30 @@ ip_fw_out_process_common(struct pl_packet *pkt, bool v4)
 					htons(ETHER_TYPE_IPv6));
 		if (unlikely(m != pkt->mbuf)) {
 			pkt->mbuf = m;
-			pkt->l3_hdr = pktmbuf_mtol3(m, void *);
+			pkt->l3_hdr = dp_pktmbuf_mtol3(m, void *);
 		}
 		if (unlikely(result.decision != NPF_DECISION_PASS))
 			return v4 ? IPV4_FW_OUT_DROP : IPV6_FW_OUT_DROP;
-		/* Discard result.flags as no change can happen */
-	}
+
+		/* Update npf_flags for nat64 */
+		pkt->npf_flags = result.flags;
+
+	} else if ((pkt->npf_flags & NPF_FLAG_FROM_ZONE) &&
+		   !(pkt->npf_flags & NPF_FLAG_FROM_US))
+		/* Zone to non-zone (no fw) -> drop */
+		return v4 ? IPV4_FW_OUT_DROP : IPV6_FW_OUT_DROP;
 
 	return v4 ? IPV4_FW_OUT_ACCEPT : IPV6_FW_OUT_ACCEPT;
 }
 
 ALWAYS_INLINE unsigned int
-ipv4_fw_out_process(struct pl_packet *pkt)
+ipv4_fw_out_process(struct pl_packet *pkt, void *context __unused)
 {
 	return ip_fw_out_process_common(pkt, V4_PKT);
 }
 
 ALWAYS_INLINE unsigned int
-ipv6_fw_out_process(struct pl_packet *pkt)
+ipv6_fw_out_process(struct pl_packet *pkt, void *context __unused)
 {
 	return ip_fw_out_process_common(pkt, V6_PKT);
 }

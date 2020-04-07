@@ -12,6 +12,7 @@
 #ifndef _CGN_ERRNO_H_
 #define _CGN_ERRNO_H_
 
+#include "npf/cgnat/cgn.h"
 
 /*
  * cgnat error numbers
@@ -23,14 +24,16 @@
  * Any error or exception starting "CGN_S2_" do not prevent translation.  They
  * just mean a nested session was not created and activated.
  */
-enum cgn_errno {
-	CGN_OK = 0,
+enum cgn_rc_en {
+	CGN_RC_OK = 0,
 
 	/*
 	 * Operational or config decisions
 	 */
 	CGN_PCY_ENOENT,	/* Src did not match policy */
 	CGN_SESS_ENOENT, /* Inbound pkt did not match a session */
+	CGN_POOL_ENOENT, /* Inbound pkt not addressed to pool addr */
+	CGN_PCY_BYPASS,	/* SNAT-alg pkts bypassed CGNAT */
 
 	/*
 	 * Packet buffer exceptions
@@ -76,27 +79,71 @@ enum cgn_errno {
 
 	/*
 	 * Other
+	 *
+	 * Note that CGN_RC_UNKWN must be the first in the 'Other' section as
+	 * the op commands use this to mark the start of this section.
 	 */
-	CGN_ERR_UNKWN,	/* Unknown error */
+	CGN_RC_UNKWN,	/* Unknown return code */
+	CGN_HAIRPINNED,	/* Packets hairpinned */
+	CGN_ICMP_ECHOREQ, /* Echo req to CGNAT pool addr */
+
+	/*
+	 * PCP.  All PCP requests will increment either CGN_PCP_OK or
+	 * CGN_PCP_ERR.  If CGN_PCP_ERR is incremented then the specific
+	 * reason for this will also be incremented.  That specific reason may
+	 * be one of the specific to PCP errors or it may be a generic CGNAT
+	 * error.
+	 */
+	CGN_PCP_OK,	/* PCP request succeeded */
+	CGN_PCP_ERR,	/* PCP request failed */
+	CGN_PCP_EINVAL,	/* PCP Invalid argument */
+	CGN_PCP_ENOSPC,	/* PCP one or both of reqd src or trans addrs inuse */
 };
 
-#define CGN_ERRNO_LAST	CGN_ERR_UNKWN
-#define CGN_ERRNO_SZ	(CGN_ERRNO_LAST + 1)
+#define CGN_RC_LAST	CGN_PCP_ENOSPC
+#define CGN_RC_SZ	(CGN_RC_LAST + 1)
 
-extern rte_atomic64_t cgn_errors[][CGN_ERRNO_SZ];
+struct cgn_rc_dir {
+	uint64_t	count[CGN_RC_SZ];
+};
 
-static inline const char *cgn_errno_str(int error)
+struct cgn_rc_t {
+	struct cgn_rc_dir dir[CGN_DIR_SZ];
+};
+
+extern struct cgn_rc_t *cgn_rc;
+
+static ALWAYS_INLINE void cgn_rc_inc(enum cgn_dir dir, int error)
+{
+	assert(dir < CGN_DIR_SZ);
+	assert(cgn_rc);
+
+	if (error < 0)
+		error = -error;
+	if (unlikely(error > CGN_RC_LAST))
+		error = CGN_RC_UNKWN;
+
+	if (likely(cgn_rc != NULL))
+		cgn_rc[dp_lcore_id()].dir[dir].count[error]++;
+}
+
+uint64_t cgn_rc_read(enum cgn_dir dir, enum cgn_rc_en rc);
+void cgn_rc_clear(enum cgn_dir dir, enum cgn_rc_en rc);
+
+static inline const char *cgn_rc_str(int error)
 {
 	if (error < 0)
 		error = -error;
 
-	switch (error) {
-	case CGN_OK:
+	switch ((enum cgn_rc_en)error) {
+	case CGN_RC_OK:
 		return "ok";
 	case CGN_SRC_ENOMEM:
 		return "SRC_ENOMEM";
 	case CGN_SRC_ENOENT:
 		return "SRC_ENOENT";
+	case CGN_POOL_ENOENT:
+		return "POOL_ENOENT";
 	case CGN_MBU_ENOSPC:
 		return "MBU_ENOSPC";
 	case CGN_SRC_ENOSPC:
@@ -133,6 +180,8 @@ static inline const char *cgn_errno_str(int error)
 		return "BUF_PROTO";
 	case CGN_PCY_ENOENT:
 		return "PCY_ENOENT";
+	case CGN_PCY_BYPASS:
+		return "PCY_BYPASS";
 	case CGN_SESS_ENOENT:
 		return "SESS_ENOENT";
 	case CGN_POOL_ENOSPC:
@@ -141,19 +190,31 @@ static inline const char *cgn_errno_str(int error)
 		return "S2_EEXIST";
 	case CGN_S2_ENOMEM:
 		return "S2_ENOMEM";
-	case CGN_ERR_UNKWN:
-		return "ERR_UNKWN";
+	case CGN_HAIRPINNED:
+		return "CGN_HAIRPINNED";
+	case CGN_ICMP_ECHOREQ:
+		return "ICMP_ECHOREQ";
+	case CGN_PCP_OK:
+		return "PCP_OK";
+	case CGN_PCP_ERR:
+		return "PCP_ERR";
+	case CGN_PCP_EINVAL:
+		return "PCP_EINVAL";
+	case CGN_PCP_ENOSPC:
+		return "PCP_ENOSPC";
+	case CGN_RC_UNKWN:
+		break;
 	}
-	return "ERR_UNKWN2";
+	return "ERR_UNKWN";
 }
 
-static inline const char *cgn_errno_detail_str(int error)
+static inline const char *cgn_rc_detail_str(int error)
 {
 	if (error < 0)
 		error = -error;
 
-	switch (error) {
-	case CGN_OK:
+	switch ((enum cgn_rc_en)error) {
+	case CGN_RC_OK:
 		return "ok";
 
 	/*
@@ -163,6 +224,10 @@ static inline const char *cgn_errno_detail_str(int error)
 		return "Subscriber address did not match a CGNAT policy";
 	case CGN_SESS_ENOENT:
 		return "Packet did not match a CGNAT session";
+	case CGN_POOL_ENOENT:
+		return "Destination address did not match CGNAT pool";
+	case CGN_PCY_BYPASS:
+		return "CGNAT bypassed by SNAT-ALG packets";
 
 	/*
 	 * Packet buffer exceptions
@@ -233,12 +298,24 @@ static inline const char *cgn_errno_detail_str(int error)
 	/*
 	 * Other
 	 */
-	case CGN_ERR_UNKWN:
-		return "Unknown error";
+	case CGN_HAIRPINNED:
+		return "Packets hairpinned";
+	case CGN_ICMP_ECHOREQ:
+		return "ICMP Echo Request for CGNAT public address";
+
+	case CGN_PCP_OK:
+		return "Successful PCP requests";
+	case CGN_PCP_ERR:
+		return "Failed PCP requests";
+	case CGN_PCP_EINVAL:
+		return "PCP invalid or missing argument";
+	case CGN_PCP_ENOSPC:
+		return "PCP public address and port not available";
+
+	case CGN_RC_UNKWN:
+		break;
 	}
 	return "Unknown";
 }
-
-void cgn_error_inc(int error, int dir);
 
 #endif

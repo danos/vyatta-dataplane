@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2019, AT&T Intellectual Property. All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property. All rights reserved.
  * Copyright (c) 2015 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -17,14 +17,14 @@
 
 #include "npf/npf_state.h"
 #include "npf/npf_timeouts.h"
-#include "npf/alg/npf_alg_public.h"
-#include "npf/alg/npf_alg_private.h"
+#include "npf/alg/alg_npf.h"
+#include "npf/alg/alg.h"
 
 #include "dp_test.h"
-#include "dp_test_lib.h"
-#include "dp_test_lib_intf.h"
-#include "dp_test_pktmbuf_lib.h"
-#include "dp_test_netlink_state.h"
+#include "dp_test_lib_internal.h"
+#include "dp_test_lib_intf_internal.h"
+#include "dp_test_pktmbuf_lib_internal.h"
+#include "dp_test_netlink_state_internal.h"
 #include "dp_test_console.h"
 #include "dp_test_json_utils.h"
 #include "dp_test_npf_fw_lib.h"
@@ -133,6 +133,133 @@ _dp_test_npf_cmd_fmt(bool print, const char *file, int line,
 	vsnprintf(cmd, TEST_MAX_CMD_LEN, fmt_str, ap);
 	_dp_test_npf_cmd(cmd, print, file, line);
 	va_end(ap);
+}
+
+/*
+ * Create an address group and (optionally) add one address or prefix
+ */
+void _dpt_addr_grp_create(const char *name, const char *addr,
+			  const char *file, int line)
+{
+		_dp_test_npf_cmd_fmt(false, file, line,
+				     "npf-ut fw table create %s", name);
+
+		if (addr)
+			_dp_test_npf_cmd_fmt(false, file, line,
+					     "npf-ut fw table add %s %s",
+					     name, addr);
+}
+
+/*
+ * Destroy an address group
+ */
+void _dpt_addr_grp_destroy(const char *name, const char *addr,
+			   const char *file, int line)
+{
+	if (addr)
+		_dp_test_npf_cmd_fmt(false, file, line,
+				     "npf-ut fw table remove %s %s",
+				     name, addr);
+
+	_dp_test_npf_cmd_fmt(false, file, line,
+			     "npf-ut fw table delete %s", name);
+}
+
+
+/*
+ * Create and attach a CGNAT policy. e.g.
+ *
+ * cgnat_policy_add("POLICY1", 10, "100.64.0.0/12", "POOL1",
+ *                  "dp2T1", CGN_MAP_EIM, CGN_FLTR_EIF, CGN_3TUPLE, true);
+ *
+ * Note that this creates a match address-group, e.g. "POLICY1_AG"
+ */
+void
+_cgnat_policy_add(const char *policy, uint pri, const char *src,
+		  const char *pool, const char *intf,
+		  enum cgn_map_type eim, enum cgn_fltr_type eif,
+		  bool log_sess, bool check_feat,
+		  bool add_or_change,
+		  const char *file, const char *func, int line)
+{
+	char real_ifname[IFNAMSIZ];
+	char addr_grp[60];
+
+	dp_test_intf_real(intf, real_ifname);
+
+	snprintf(addr_grp, sizeof(addr_grp), "%s_AG", policy);
+
+	/* Add match address-group */
+	if (add_or_change)
+		_dpt_addr_grp_create(addr_grp, src, file, line);
+
+	/* Add cgnat policy */
+	_dp_test_npf_cmd_fmt(false, file, line,
+			     "cgn-ut policy add %s priority=%u "
+			     "match-ag=%s pool=%s log-sess-all=%s",
+			     policy, pri, addr_grp, pool,
+			     log_sess ? "yes" : "no");
+
+	_dp_test_npf_cmd_fmt(false, file, line,
+			     "cgn-ut policy attach name=%s intf=%s",
+			     policy, real_ifname);
+
+	/* Check cgnat feature is enabled */
+	if (check_feat) {
+		dp_test_wait_for_pl_feat(intf, "vyatta:ipv4-cgnat-in",
+					 "ipv4-validate");
+		dp_test_wait_for_pl_feat(intf, "vyatta:ipv4-cgnat-out",
+					 "ipv4-out");
+	}
+}
+
+void
+_cgnat_policy_add2(const char *policy, uint pri, const char *src,
+		   const char *pool, const char *intf,
+		   const char *other,
+		   const char *file, const char *func, int line)
+{
+	char real_ifname[IFNAMSIZ];
+	char addr_grp[60];
+
+	dp_test_intf_real(intf, real_ifname);
+
+	snprintf(addr_grp, sizeof(addr_grp), "%s_AG", policy);
+
+	/* Add match address-group */
+	_dpt_addr_grp_create(addr_grp, src, file, line);
+
+	/* Add cgnat policy */
+	_dp_test_npf_cmd_fmt(false, file, line,
+			     "cgn-ut policy add %s priority=%u "
+			     "match-ag=%s pool=%s %s",
+			     policy, pri, addr_grp, pool,
+			     other ? other : "");
+
+	_dp_test_npf_cmd_fmt(false, file, line,
+			     "cgn-ut policy attach name=%s intf=%s",
+			     policy, real_ifname);
+}
+
+void
+_cgnat_policy_del(const char *policy, uint pri, const char *intf,
+		 const char *file, const char *func, int line)
+{
+	char real_ifname[IFNAMSIZ];
+	char addr_grp[60];
+
+	dp_test_intf_real(intf, real_ifname);
+
+	_dp_test_npf_cmd_fmt(false, file, line,
+			     "cgn-ut policy detach name=%s intf=%s",
+			    policy, real_ifname);
+
+	/* Delete cgnat policy */
+	_dp_test_npf_cmd_fmt(false, file, line,
+			     "cgn-ut policy delete %s", policy);
+
+	snprintf(addr_grp, sizeof(addr_grp), "%s_AG", policy);
+	_dpt_addr_grp_destroy(addr_grp, NULL, file, line);
 }
 
 
@@ -291,6 +418,8 @@ dp_test_npf_ruleset_attach_type(const char *rstype)
 	case NPF_RS_NAT64:
 	case NPF_RS_NAT46:
 		return "interface";
+	case NPF_RS_ZONE:
+		return "zone";
 	case NPF_RS_IPSEC:
 		/* TBD */
 		break;
@@ -343,6 +472,8 @@ dp_test_npf_ruleset_attach_point(struct dp_test_npf_ruleset_t *rset)
 	case NPF_RS_NAT46:
 		/* Attach-point is interface name */
 		return dp_test_intf_real_buf(rset->attach_point);
+	case NPF_RS_ZONE:
+		return rset->attach_point;
 	case NPF_RS_IPSEC:
 		/* TBD */
 		return NULL;
@@ -433,6 +564,7 @@ _dp_test_npf_ruleset_detach(struct dp_test_npf_ruleset_t *rset,
 
 /*
  * Add an npf ruleset.  Attach to attach_point if rset->attach_point is set
+ * (not zones).
  *
  * Example useage:
  *
@@ -452,11 +584,11 @@ _dp_test_npf_ruleset_detach(struct dp_test_npf_ruleset_t *rset,
  *	};
  *	dp_test_npf_fw_add(&rset, false);
  *
- * The ruleset class name is one of: fw, fw-internal, pbr, qos, ipsec,
- * custom-timeout, session-limiter, app-firewall.
+ * The ruleset class name is one of: fw, fw-internal (intra zone class), pbr,
+ * qos, ipsec, custom-timeout, session-limiter, app-firewall.
  */
 void
-_dp_test_npf_ruleset_add(struct dp_test_npf_ruleset_t *rset,
+_dp_test_fw_ruleset_add(struct dp_test_fw_ruleset_t *rset,
 			 const char *class, bool debug, bool verify,
 			 const char *file, int line)
 {
@@ -519,7 +651,7 @@ _dp_test_npf_ruleset_add(struct dp_test_npf_ruleset_t *rset,
  * ruleset
  */
 void
-_dp_test_npf_ruleset_del(struct dp_test_npf_ruleset_t *rset,
+_dp_test_fw_ruleset_del(struct dp_test_fw_ruleset_t *rset,
 			 const char *class, bool debug, bool verify,
 			 const char *file, int line)
 {
@@ -624,6 +756,10 @@ dp_test_npf_json_get_rs_groups(const char *rstype,
  *  }
  *]
  *
+ * For zones, there is an attach point for each interface in the zone.  The
+ * attach point is the receive interface.  The groups array in that ruleset
+ * contains an "out" entry for every other interface in the zone.
+ *
  * For custom-timeout, the attach_point is the VRF ID, i.e. "1" for default
  * VRF.
  */
@@ -710,6 +846,10 @@ _dp_test_npf_json_get_rs(const char *rstype, const char *attach_point,
 
 		key[KEY_INDEX_ATTACH_TYPE].val = "interface";
 		key[KEY_INDEX_ATTACH_POINT].val = real_ifname;
+		break;
+	case NPF_RS_ZONE:
+		key[KEY_INDEX_ATTACH_TYPE].val = "zone";
+		key[KEY_INDEX_ATTACH_POINT].val = attach_point;
 		break;
 	case NPF_RS_IPSEC:
 		/* TBD */
@@ -837,7 +977,7 @@ json_match_intf(json_object *jobj, void *arg)
  * Returns json object.  json_object_put should be called once the caller has
  * finished with the object.
  *
- * Example useage:
+ * Example useage (zones):
  *
  * jarray = dp_test_npf_json_get_rs("fw-in", "dp1T0", "in");
  * jobj = dp_test_npf_json_get_rs_intf(jarray, "dp2T1");
@@ -918,6 +1058,7 @@ dp_test_npf_json_get_rs_rule(json_object *jrset, const char *rule)
  * jrset = dp_test_npf_json_get_ruleset("dnat",  "dp1T0", "in",  NULL);
  * jrset = dp_test_npf_json_get_ruleset("snat",  "dp1T0", "out", NULL);
  * jrset = dp_test_npf_json_get_ruleset("nat64",  "dp1T0", "in",  "NAT64_1");
+ * jrset = dp_test_npf_json_get_ruleset("zone",  "dp1T0", "out", "dp2T1");
  */
 json_object *
 _dp_test_npf_json_get_ruleset(const char *rstype, const char *attach_point,
@@ -948,6 +1089,7 @@ _dp_test_npf_json_get_ruleset(const char *rstype, const char *attach_point,
 
 	/*
 	 * For nat64 and nat46, the attach point is an interface.
+	 * For zone, the ruleset name is the 'to' interface.
 	 */
 	if (t == NPF_RS_NAT64 || t == NPF_RS_NAT46)
 		dp_test_intf_real(attach_point, real_ifname);
@@ -991,6 +1133,7 @@ _dp_test_npf_json_get_ruleset(const char *rstype, const char *attach_point,
  * jrule = dp_test_npf_json_get_rule("dnat",  "dp1T0", "in",  NULL,    "10");
  * jrule = dp_test_npf_json_get_rule("snat",  "dp1T0", "out", NULL,    "10");
  * jrule = dp_test_npf_json_get_rule("nat64", NULL,    "in",  "dp1T0", "1");
+ * jrule = dp_test_npf_json_get_rule("zone",  "dp1T0", "out", "dp2T1", "1");
  */
 json_object *
 _dp_test_npf_json_get_rule(const char *rstype, const char *attach_point,
@@ -1101,6 +1244,7 @@ _dp_test_npf_rule_pkt_count(struct dp_test_npf_ruleset_t *rset,
  * _dp_test_npf_verify_pkt_count(NULL, "dnat", "dp1T0", "in", NULL, "10", 0);
  * _dp_test_npf_verify_pkt_count(NULL, "snat", "dp1T0", "out", NULL, "10", 2);
  * _dp_test_npf_verify_pkt_count(NULL, "nat64", NULL,  "in", "dp1T0", "1", 1);
+ * _dp_test_npf_verify_pkt_count(NULL, "zone", "dp1T0", "out", "dp2T1", "1", 2);
  */
 void
 _dp_test_npf_verify_pkt_count(const char *desc,
@@ -1231,8 +1375,6 @@ dp_test_npf_flush_rulesets(void)
 {
 	dp_test_console_request_reply("npf-op flush", false);
 }
-
-void dp_test_npf_clear_cgnat(void);
 
 void
 dp_test_npf_cleanup(void)

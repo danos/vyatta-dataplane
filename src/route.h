@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2017-2019, AT&T Intellectual Property. All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property. All rights reserved.
  * Copyright (c) 2011-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -13,12 +13,14 @@
 #include <stdint.h>
 #include <stdio.h>
 
+#include "fal_plugin.h"
 #include "compiler.h"
 #include "control.h"
+#include "ip_forward.h"
 #include "json_writer.h"
 #include "mpls/mpls.h"
 #include "pd_show.h"
-#include "pktmbuf.h"
+#include "pktmbuf_internal.h"
 #include "route_flags.h"
 #include "urcu.h"
 #include "util.h"
@@ -64,17 +66,14 @@ int nexthop_new(const struct next_hop *nh, uint16_t size, uint8_t proto,
 struct next_hop *nexthop_select(uint32_t nh_idx, const struct rte_mbuf *m,
 				uint16_t ether_type);
 struct next_hop *nexthop_get(uint32_t nh_idx, uint8_t *size);
-void rt_print_nexthop(json_writer_t *json, uint32_t next_hop);
+void rt_print_nexthop(json_writer_t *json, uint32_t next_hop,
+		      enum rt_print_nexthop_verbosity v);
 
 /*
  * IPv4 route table apis.
  */
 int route_init(struct vrf *vrf);
 void route_uninit(struct vrf *vrf, struct route_head *rt_head);
-bool route_link_vrf_to_table(struct vrf *vrf, uint32_t tableid);
-bool route_unlink_vrf_from_table(struct vrf *vrf);
-struct next_hop *rt_lookup(in_addr_t dst, uint32_t tbl_id,
-			   const struct rte_mbuf *m) __hot_func;
 struct next_hop *rt_lookup_fast(struct vrf *vrf, in_addr_t dst,
 				uint32_t tblid,
 				const struct rte_mbuf *m);
@@ -101,6 +100,8 @@ void rt_if_handle_in_dataplane(struct ifnet *ifp);
 void rt_if_punt_to_slowpath(struct ifnet *ifp);
 int rt_show(struct route_head *rt_head, json_writer_t *json, uint32_t tblid,
 	    const struct in_addr *addr);
+int rt_show_exact(struct route_head *rt_head, json_writer_t *json,
+		  uint32_t tblid, const struct in_addr *addr, uint8_t plen);
 void nexthop_tbl_init(void);
 bool rt_valid_tblid(vrfid_t vrfid, uint32_t tblid);
 int rt_local_show(struct route_head *rt_head, uint32_t id, FILE *f);
@@ -115,8 +116,6 @@ nexthop_is_local(const struct next_hop *nh)
 struct ifnet *nhif_dst_lookup(const struct vrf *vrf,
 			      in_addr_t dst,
 			      bool *connected);
-int nh_lookup_by_index(uint32_t nhindex, uint32_t hash, in_addr_t *nh,
-		       uint32_t *nh_ifindex);
 
 void routing_insert_arp_safe(struct llentry *lle, bool arp_change);
 void routing_remove_arp_safe(struct llentry *lle);
@@ -126,4 +125,9 @@ uint32_t *route_hw_stats_get(void);
 
 int route_get_pd_subset_data(json_writer_t *json, enum pd_obj_state subset);
 
+int rt_show_platform_routes(const struct fal_ip_address_t *pfx,
+			    uint8_t prefixlen,
+			    uint32_t attr_count,
+			    const struct fal_attribute_t *attr_list,
+			    void *arg);
 #endif

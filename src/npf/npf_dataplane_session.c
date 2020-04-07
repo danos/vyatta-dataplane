@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -186,7 +186,6 @@ int npf_dataplane_session_establish(npf_session_t *se, npf_cache_t *npc,
 		else
 			session_set_nat46(s);
 	}
-
 	return rc;
 bad:
 	if (created)

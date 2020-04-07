@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -29,21 +29,17 @@ static void dp_evt_notify(enum dp_evt evt, uint32_t cont_src,
 		if (ops->if_create)
 			ops->if_create(obj);
 		break;
-	case DP_EVT_IF_CREATE_FINISHED:
-		if (ops->if_create_finished)
-			ops->if_create_finished(obj);
-		break;
 	case DP_EVT_IF_DELETE:
 		if (ops->if_delete)
 			ops->if_delete(obj);
 		break;
 	case DP_EVT_IF_INDEX_SET:
 		if (ops->if_index_set)
-			ops->if_index_set(obj, val);
+			ops->if_index_set(obj);
 		break;
-	case DP_EVT_IF_INDEX_PRE_UNSET:
-		if (ops->if_index_pre_unset)
-			ops->if_index_pre_unset(obj);
+	case DP_EVT_IF_FEAT_MODE_CHANGE:
+		if (ops->if_feat_mode_change)
+			ops->if_feat_mode_change(obj, val);
 		break;
 	case DP_EVT_IF_INDEX_UNSET:
 		if (ops->if_index_unset)
@@ -96,10 +92,6 @@ static void dp_evt_notify(enum dp_evt evt, uint32_t cont_src,
 			ops->if_vlan_del(obj, val);
 		break;
 
-	case DP_EVT_IF_HW_SWITCHING_CHANGE:
-		if (ops->if_hw_switching_change)
-			ops->if_hw_switching_change(obj, val);
-		break;
 	case DP_EVT_INIT:
 		if (ops->init)
 			ops->init();

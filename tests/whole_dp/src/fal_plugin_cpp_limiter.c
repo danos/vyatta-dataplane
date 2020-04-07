@@ -275,3 +275,24 @@ int fal_plugin_set_switch_attribute(const struct fal_attribute_t *attr)
 
 	return ret;
 }
+
+int fal_plugin_get_switch_attribute(uint32_t attr_count,
+				    struct fal_attribute_t *attr_list)
+{
+	struct fal_attribute_t *attr;
+
+	for (uint32_t i = 0; i < attr_count; i++) {
+		attr = &attr_list[i];
+		switch (attr->id) {
+		case FAL_SWITCH_ATTR_MAX_BURST_SIZE:
+			attr->value.u32 = 130048;
+			break;
+		default:
+			ERROR("%s(%d): unknown switch attribute %d\n",
+			      __func__, attr_count, attr->id);
+			return -EINVAL;
+		}
+	}
+
+	return 0;
+}

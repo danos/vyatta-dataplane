@@ -1,30 +1,40 @@
 /*
  * IPv6 Commands
  *
- * Copyright (c) 2018, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2018-2019, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
 
-#include <stdbool.h>
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <sys/param.h>
-#include <getopt.h>
-
-#include "commands.h"
 #include "ip6_funcs.h"
+#include "vplane_log.h"
 
-int cmd_ip6(FILE *f, int argc, char **argv)
+#include "protobuf.h"
+#include "protobuf/IP6RedirectsConfig.pb-c.h"
+
+static int
+ip6_cmd_handler(struct pb_msg *msg)
 {
-	if (argc == 3 && !strcmp(argv[1], "redirects")) {
-		bool enable = !strcmp(argv[2], "enable");
+	void *payload = (void *)((char *)msg->msg);
+	int len = msg->msg_len;
 
-		ip6_redirects_set(enable);
-		return 0;
+	IP6RedirectsConfig *smsg =
+		ip6_redirects_config__unpack(NULL, len, payload);
+
+	if (!smsg) {
+		RTE_LOG(ERR, DATAPLANE,
+			"failed to read IP6RedirectsConfig protobuf command\n");
+		return -1;
 	}
-	fprintf(f, "ip6 command invalid\n");
-	return -1;
+
+	ip6_redirects_set(smsg->enable_redirects);
+
+	ip6_redirects_config__free_unpacked(smsg, NULL);
+
+	return 0;
 }
+
+PB_REGISTER_CMD(ip6_cmd) = {
+	.cmd = "vyatta:ip6",
+	.handler = ip6_cmd_handler,
+};

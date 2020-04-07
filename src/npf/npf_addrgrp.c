@@ -71,6 +71,8 @@ struct ptree_table;
  * entries or with prefixes.
  *
  * Changes to an address-groups ptree are protected by a read-write lock.
+ * There is one 'writer' (master thread) and multiple 'readers' (forwarding
+ * threads).  The readers are only blocked when the writer holds the lock.
  *
  *
  * g_addrgrp_table[]
@@ -200,10 +202,14 @@ struct npf_addrgrp_entry {
  * added to the ptrees.
  *
  * Each list entry may be either a prefix or range.
+ *
+ * ag_lock in an RTE Read-Write lock.  The lock is used to protect data that
+ * allows multiple readers in parallel, but only one writer. All readers are
+ * blocked until the writer is finished writing.
  */
 struct npf_addrgrp {
 	char               *ag_name;
-	int                 ag_tid;  /* Index of ag in tableset */
+	uint32_t            ag_tid;  /* Index of ag in tableset */
 	rte_rwlock_t        ag_lock;
 	bool                ag_any[AG_MAX];  /* 0.0.0.0/0 or ::/0 */
 	zlist_t            *ag_list[AG_MAX];
@@ -216,6 +222,9 @@ struct npf_addrgrp {
 #define AG_ALEN2AF(_alen) ((_alen) == 4 ? AG_IPv4 : AG_IPv6)
 #define AG_AF2ALEN(_af)   ((_af) == AG_IPv4 ? AG_KLEN_IPv4 : AG_KLEN_IPv6)
 #define AG_AF2INET(_af)   ((_af) == AG_IPv4 ? AF_INET : AF_INET6)
+
+/* Forward reference */
+static void npf_tbl_entry_free_cb(void *data);
 
 /*
  * We store NPF_NO_NETMASK (255) in the prefix list to allow for the user to
@@ -259,7 +268,7 @@ static inline uint8_t *ap_prefix(struct npf_addrgrp_entry *ae)
 /*
  * Get the address-group for an address family and table ID
  */
-struct npf_addrgrp *npf_addrgrp_tid_lookup(int tid)
+static struct npf_addrgrp *npf_addrgrp_tid_lookup(int tid)
 {
 	struct npf_tbl *table;
 
@@ -278,11 +287,15 @@ struct npf_addrgrp *npf_addrgrp_tid_lookup(int tid)
  * Lookup an address in an address-group.  Called from forwarding thread.
  */
 int
-npf_addrgrp_lookup(enum npf_addrgrp_af af, struct npf_addrgrp *ag,
-		   npf_addr_t *addr)
+npf_addrgrp_lookup(enum npf_addrgrp_af af, uint32_t tid, npf_addr_t *addr)
 {
+	struct npf_addrgrp *ag;
 	struct ptree_node *pn;
 
+	if (unlikely(!npf_tbl_id_is_valid(tid)))
+		return -EINVAL;
+
+	ag = npf_addrgrp_tid_lookup(tid);
 	if (unlikely(!ag))
 		return -EINVAL;
 
@@ -301,7 +314,10 @@ npf_addrgrp_lookup(enum npf_addrgrp_af af, struct npf_addrgrp *ag,
 	return (pn != NULL) ? 0 : -ENOENT;
 }
 
-int npf_addrgrp_lookup_v4(struct npf_addrgrp *ag, uint32_t addr)
+/*
+ * Base IPv4 lookup function
+ */
+static ALWAYS_INLINE int ag_lookup_v4(struct npf_addrgrp *ag, uint32_t addr)
 {
 	struct ptree_node *pn;
 
@@ -321,14 +337,40 @@ int npf_addrgrp_lookup_v4(struct npf_addrgrp *ag, uint32_t addr)
 	return (pn != NULL) ? 0 : -ENOENT;
 }
 
-int npf_addrgrp_lookup_v6(struct npf_addrgrp *ag, uint8_t *addr)
+/*
+ * Lookup an IPv4 address-group by table ID
+ */
+int npf_addrgrp_lookup_v4(uint32_t tid, uint32_t addr)
+{
+	struct npf_addrgrp *ag;
+
+	if (unlikely(!npf_tbl_id_is_valid(tid)))
+		return -EINVAL;
+
+	ag = npf_addrgrp_tid_lookup(tid);
+
+	return ag_lookup_v4(ag, addr);
+}
+
+/*
+ * Lookup an IPv4 address-group by handle
+ */
+int npf_addrgrp_lookup_v4_by_handle(struct npf_addrgrp *ag, uint32_t addr)
+{
+	return ag_lookup_v4(ag, addr);
+}
+
+/*
+ * Base IPv6 lookup function
+ */
+static ALWAYS_INLINE int ag_lookup_v6(struct npf_addrgrp *ag, uint8_t *addr)
 {
 	struct ptree_node *pn;
 
 	if (unlikely(!ag))
 		return -EINVAL;
 
-	/* If 0.0.0.0/0 then we always match */
+	/* If 0::0/0 then we always match */
 	if (ag->ag_any[AG_IPv6])
 		return 0;
 
@@ -339,6 +381,29 @@ int npf_addrgrp_lookup_v6(struct npf_addrgrp *ag, uint8_t *addr)
 	rte_rwlock_read_unlock(&ag->ag_lock);
 
 	return (pn != NULL) ? 0 : -ENOENT;
+}
+
+/*
+ * Lookup an IPv6 address-group by table ID
+ */
+int npf_addrgrp_lookup_v6(uint32_t tid, uint8_t *addr)
+{
+	struct npf_addrgrp *ag;
+
+	if (unlikely(!npf_tbl_id_is_valid(tid)))
+		return -EINVAL;
+
+	ag = npf_addrgrp_tid_lookup(tid);
+
+	return ag_lookup_v6(ag, addr);
+}
+
+/*
+ * Lookup an IPv6 address-group by handle
+ */
+int npf_addrgrp_lookup_v6_by_handle(struct npf_addrgrp *ag, uint8_t *addr)
+{
+	return ag_lookup_v6(ag, addr);
 }
 
 /*
@@ -357,25 +422,11 @@ npf_addrgrp_tbl_create(void)
 		if (!table)
 			return -1;
 
+		npf_tbl_set_entry_freefn(table, npf_tbl_entry_free_cb);
+
 		rcu_assign_pointer(g_addrgrp_table, table);
 	}
 	return 0;
-}
-
-static int _npf_addrgrp_destroy(struct npf_addrgrp *ag);
-static void npf_addrgrp_data_destroy(struct npf_addrgrp *ag);
-
-/*
- * Callback for each address-group in the tableset
- */
-static int
-npf_addrgrp_destroy_cb(const char *name __unused, uint id __unused, void *data,
-		       void *ctx __unused)
-{
-	struct npf_addrgrp *ag = data;
-
-	/* Destroy address group */
-	return _npf_addrgrp_destroy(ag);
 }
 
 /*
@@ -389,15 +440,10 @@ npf_addrgrp_tbl_destroy(void)
 	if (!g_addrgrp_table)
 		return -EINVAL;
 
-	if (npf_tbl_size(g_addrgrp_table) > 0)
-		npf_tbl_walk(g_addrgrp_table, npf_addrgrp_destroy_cb, NULL);
-
-	if (npf_tbl_size(g_addrgrp_table) != 0)
-		return -EEXIST;
-
 	table = g_addrgrp_table;
 	g_addrgrp_table = NULL;
 
+	/* Remove each entry from table and free memory */
 	npf_tbl_destroy(table);
 
 	return 0;
@@ -471,44 +517,85 @@ npf_addrgrp_tid2name(uint32_t tid)
 int npf_addrgrp_name2tid(const char *name, uint32_t *tid)
 {
 	struct npf_tbl *table;
-	int id;
+	uint32_t id;
+
+	/* Always set tid in case the return value is not checked */
+	*tid = NPF_TBLID_NONE;
 
 	table = rcu_dereference(g_addrgrp_table);
 	if (!table)
 		return -1;
 
 	id = npf_tbl_name2id(table, name);
-	if (id < 0)
-		return id;
+	if (id == NPF_TBLID_NONE)
+		return -ENOENT;
 
-	*tid = (uint32_t)id;
+	*tid = id;
 	return 0;
 }
 
 /*
- * Get an address-groups table ID
+ * Get an address-group handle from a table ID.  If this is to be stored by a
+ * client then the client should take a reference on the address-group by
+ * calling npf_addrgrp_get.
  */
-int npf_addrgrp_get_tid(struct npf_addrgrp *ag)
+struct npf_addrgrp *npf_addrgrp_tid2handle(uint32_t tid)
 {
-	if (ag)
-		return ag->ag_tid;
-	return -ENOENT;
+	if (unlikely(!npf_tbl_id_is_valid(tid)))
+		return NULL;
+
+	return npf_addrgrp_tid_lookup(tid);
 }
 
-char *npf_addrgrp_handle2name(struct npf_addrgrp *ag)
+/*
+ * Get an address-group name from a handle.
+ */
+const char *npf_addrgrp_handle2name(struct npf_addrgrp *ag)
 {
 	return ag ? ag->ag_name : NULL;
 }
 
 /*
+ * Update a client address group handle.
+ *
+ * When a client stores a pointer to an address-group (as opposed to a table
+ * ID) then it must hold a reference on that address-group while the pointer
+ * is valid.
+ */
+void npf_addrgrp_update_handle(const char *old_name, const char *new_name,
+			       struct npf_addrgrp **agp)
+{
+	struct npf_addrgrp *old_ag, *new_ag = NULL;
+
+	if ((!old_name && !new_name) ||
+	    (old_name && new_name && !strcmp(old_name, new_name)))
+		/* Nothing to do */
+		return;
+
+	if (new_name)
+		new_ag = npf_addrgrp_lookup_name(new_name);
+
+	if (new_ag)
+		/* Take reference on new address-group */
+		npf_addrgrp_get(new_ag);
+
+	/* Update client handle */
+	old_ag = rcu_xchg_pointer(agp, new_ag);
+
+	if (old_ag)
+		/* Release reference on old address-group */
+		npf_addrgrp_put(old_ag);
+}
+
+/*
  * Create an address-group, and insert it into address-group tableset
  */
-struct npf_addrgrp *npf_addrgrp_create(const char *name)
+struct npf_addrgrp *npf_addrgrp_cfg_add(const char *name)
 {
 	struct npf_addrgrp *ag;
 	int rc;
 
-	/* Create address-group tableset */
+	/* Create global address-group tableset */
 	rc = npf_addrgrp_tbl_create();
 	if (rc < 0)
 		return NULL;
@@ -521,6 +608,8 @@ struct npf_addrgrp *npf_addrgrp_create(const char *name)
 	ag = npf_tbl_entry_create(g_addrgrp_table, name);
 	if (!ag)
 		return NULL;
+
+	ag->ag_tid = NPF_TBLID_NONE;
 
 	/* Initialize address-group data */
 	rte_rwlock_init(&ag->ag_lock);
@@ -541,18 +630,17 @@ struct npf_addrgrp *npf_addrgrp_create(const char *name)
 
 	ag->ag_name = strdup(name);
 
-	/* Add entry to tableset */
-	ag->ag_tid = npf_tbl_entry_insert(g_addrgrp_table, ag);
-
-	if (ag->ag_tid < 0)
+	/*
+	 * Adding entry to tableset must be last.  Note that this takes a
+	 * reference on the address-groups container.
+	 */
+	rc = npf_tbl_entry_insert(g_addrgrp_table, ag, &ag->ag_tid);
+	if (rc < 0)
 		goto error;
 
 	return ag;
 
 error:
-	/* free address group lists and trees */
-	npf_addrgrp_data_destroy(ag);
-
 	/* free (uninserted) tableset entry */
 	npf_tbl_entry_destroy(ag);
 
@@ -562,12 +650,10 @@ error:
 /*
  * Destroy the address-group specific data of an address-group
  *
- * zlist_destroy takes care of freeing each list entry through either the
- * callback function, npf_addrgrp_entry_free, or free (in no callback
- * specified).
+ * Called via callback from the tableset when the address-groups containing
+ * structure is freed.
  */
-static void
-npf_addrgrp_data_destroy(struct npf_addrgrp *ag)
+static void npf_addrgrp_destroy(struct npf_addrgrp *ag)
 {
 	/*
 	 * The zlist free function callbacks will take care of removing
@@ -593,30 +679,60 @@ npf_addrgrp_data_destroy(struct npf_addrgrp *ag)
 
 	rte_rwlock_write_unlock(&ag->ag_lock);
 
-	if (ag->ag_name)
+	if (ag->ag_name) {
 		free(ag->ag_name);
+		ag->ag_name = NULL;
+	}
 }
 
-static int
-_npf_addrgrp_destroy(struct npf_addrgrp *ag)
+/*
+ * Callback from tableset to destroy an entry.
+
+ * This is called as a result of npf_addrgrp_cfg_delete calling
+ * npf_tbl_entry_remove.  It is called after the entry is removed from the
+ * zhash table *and* after an RCU quiescent period has elapsed.
+ */
+static void npf_tbl_entry_free_cb(void *data)
 {
+	struct npf_addrgrp *ag = data;
+
 	if (!ag)
-		return -EINVAL;
+		return;
+	npf_addrgrp_destroy(ag);
+}
 
-	/* free lists and trees */
-	npf_addrgrp_data_destroy(ag);
+/*
+ * Take reference on address-group container.
+ *
+ * The first reference is taken via npf_tbl_entry_insert when the
+ * address-group is inserted into the g_addrgrp_table tableset.
+ *
+ * When the last reference is removed, the address-group is removed from
+ * g_addrgrp_table and freed.  This usually occurs when the address-group is
+ * unconfigured, but may be a later time if something else holds a reference
+ * on the group.
+ */
+struct npf_addrgrp *npf_addrgrp_get(struct npf_addrgrp *ag)
+{
+	return npf_tbl_entry_get(ag);
+}
 
-	/* Remove addr table from tableset and destroy it */
-	return npf_tbl_entry_remove(g_addrgrp_table, ag);
+/*
+ * Release reference on address-grou containerp.  Address-group is destroyed
+ * when last reference is removed.
+ */
+void npf_addrgrp_put(struct npf_addrgrp *ag)
+{
+	npf_tbl_entry_put(ag);
 }
 
 /*
  * Remove an address-group from tableset, and destroy it.
  */
-int
-npf_addrgrp_destroy(const char *name)
+int npf_addrgrp_cfg_delete(const char *name)
 {
 	struct npf_addrgrp *ag;
+	int rc;
 
 	if (!g_addrgrp_table)
 		return -EINVAL;
@@ -626,7 +742,27 @@ npf_addrgrp_destroy(const char *name)
 	if (!ag)
 		return -ENOENT;
 
-	return _npf_addrgrp_destroy(ag);
+	assert(ag->ag_tid != NPF_TBLID_NONE);
+
+	/*
+	 * Remove address-group from tableset and free the memory.  The
+	 * address-group function npf_tbl_entry_free_cb is called after an rcu
+	 * period.  The sequence is:
+	 *
+	 * npf_addrgrp_cfg_delete
+	 *   npf_tbl_entry_remove
+	 *     zhash_delete
+	 *       npf_tbl_zhash_delete_cb
+	 *         _npf_tbl_entry_put
+	 *           npf_tbl_entry_free_rcu
+	 *             _npf_tbl_entry_destroy
+	 *               npf_tbl_entry_free_cb
+	 *                 npf_addrgrp_destroy
+	 *               free container
+	 */
+	rc = npf_tbl_entry_remove(g_addrgrp_table, ag);
+
+	return rc;
 }
 
 /*
@@ -855,6 +991,12 @@ npf_addrgrp_range_overlap(uint8_t *x1, uint8_t *x2,
 static void set_host_bits(uint8_t *a, int alen, int mask)
 {
 	int i, b;
+
+	/*
+	 * If mask is NPF_NO_NETMASK then change it to 32 or 128 for host bits
+	 * calculation.
+	 */
+	mask = MIN(mask, alen * 8);
 
 	/* Start at least significant byte */
 	for (i = alen - 1, b = alen*8 - mask; i >= 0 && b > 7; i--, b -= 8)
@@ -1099,7 +1241,7 @@ npf_addrgrp_prefix_insert_list(zlist_t *list, zlist_free_fn free_fn,
 }
 
 /*
- * Return true if any hosts bits are set
+ * Return true if any addr is a prefix and mask and any hosts bits are set
  */
 static bool
 host_bits_set(uint8_t *addr, uint8_t alen, uint8_t mask)
@@ -1107,7 +1249,9 @@ host_bits_set(uint8_t *addr, uint8_t alen, uint8_t mask)
 	int i, b;
 	uint8_t *a = addr;
 
-	if (mask == alen*8)
+	/* Host addresses will have a mask of either 32, 128, or 255 */
+	if (mask >= alen*8)
+		/* Host address */
 		return false;
 
 	/*
@@ -1170,7 +1314,6 @@ int npf_addrgrp_prefix_insert(const char *name, npf_addr_t *addr,
 	struct npf_addrgrp_entry *ae;
 	struct npf_addrgrp *ag;
 	enum npf_addrgrp_af af;
-	bool new = false;
 	int rc;
 
 	if (alen != AG_KLEN_IPv4 && alen != AG_KLEN_IPv6)
@@ -1184,27 +1327,16 @@ int npf_addrgrp_prefix_insert(const char *name, npf_addr_t *addr,
 		if (!is_addr_zero(addr->s6_addr, alen))
 			return -EINVAL;
 	} else {
-		/*
-		 * If mask is NPF_NO_NETMASK then change to 32 or 128 for host
-		 * bits check
-		 */
-		uint8_t mm = MIN(mask, alen * 8);
-
-		/*
-		 * check no host bits are set
-		 */
-		if (host_bits_set(addr->s6_addr, alen, mm))
+		/* If not a host address, check no host bits are set */
+		if (host_bits_set(addr->s6_addr, alen, mask))
 			return -EINVAL;
 	}
 
-	/* Create an address-group if one doesn't already exist */
+	/* An address-group should already exist */
 	ag = npf_addrgrp_lookup_name(name);
-	if (!ag) {
-		ag = npf_addrgrp_create(name);
-		if (!ag)
-			return -EINVAL;
-		new = true;
-	}
+	if (!ag)
+		return -ENOENT;
+
 	af = AG_ALEN2AF(alen);
 
 	/* Only one 0.0.0.0/0 (or ::/0) allowed */
@@ -1217,8 +1349,6 @@ int npf_addrgrp_prefix_insert(const char *name, npf_addr_t *addr,
 	 */
 	ae = npf_addrgrp_list_prefix_lookup(ag, addr->s6_addr, mask, alen);
 	if (ae) {
-		assert(!new);
-
 		if (ae->ae_type == NPF_ADDRGRP_TYPE_RANGE)
 			return -EEXIST;
 
@@ -1236,11 +1366,8 @@ int npf_addrgrp_prefix_insert(const char *name, npf_addr_t *addr,
 
 	ae = npf_addrgrp_prefix_insert_list(list, npf_addrgrp_entry_free,
 					    addr->s6_addr, alen, mask, ag);
-	if (!ae) {
-		if (new)
-			_npf_addrgrp_destroy(ag);
+	if (!ae)
 		return -ENOMEM;
-	}
 
 	/*
 	 * Special case of 0.0.0.0/0 (or ::/0).  We just set a boolean, and do
@@ -1264,9 +1391,6 @@ int npf_addrgrp_prefix_insert(const char *name, npf_addr_t *addr,
 	rte_rwlock_write_unlock(&ag->ag_lock);
 
 	assert(rc == 0);
-
-	if (rc < 0 && new)
-		_npf_addrgrp_destroy(ag);
 
 	return rc;
 }
@@ -1513,7 +1637,6 @@ int npf_addrgrp_range_insert(const char *name, npf_addr_t *start,
 {
 	struct npf_addrgrp_entry *ae, *cur_ae = NULL;
 	struct npf_addrgrp *ag;
-	bool new = false;
 
 	if (alen != AG_KLEN_IPv4 && alen != AG_KLEN_IPv6)
 		return -EINVAL;
@@ -1522,14 +1645,10 @@ int npf_addrgrp_range_insert(const char *name, npf_addr_t *start,
 	if (npf_addrgrp_addr_cmp(start->s6_addr, end->s6_addr, alen) >= 0)
 		return -EINVAL;
 
-	/* Create an address-group if one doesn't already exist */
+	/* An address-group  should already exist */
 	ag = npf_addrgrp_lookup_name(name);
-	if (!ag) {
-		ag = npf_addrgrp_create(name);
-		if (!ag)
-			return -EINVAL;
-		new = true;
-	}
+	if (!ag)
+		return -ENOENT;
 
 	/*
 	 * Does the new range overlap with an existing prefix entry or range
@@ -1568,11 +1687,8 @@ int npf_addrgrp_range_insert(const char *name, npf_addr_t *start,
 
 	ae = npf_addrgrp_range_insert_list(list, start->s6_addr, end->s6_addr,
 					   alen, ag);
-	if (!ae) {
-		if (new)
-			_npf_addrgrp_destroy(ag);
+	if (!ae)
 		return -ENOMEM;
-	}
 
 	/*
 	 * Convert range to minimal set of CIDR notation blocks, and add to
@@ -1631,16 +1747,8 @@ int npf_addrgrp_prefix_remove(const char *name, npf_addr_t *addr,
 		if (!is_addr_zero(addr->s6_addr, alen))
 			return -EINVAL;
 	} else {
-		/*
-		 * If mask is NPF_NO_NETMASK then change to 32 or 128 for host
-		 * bits check
-		 */
-		uint8_t tmp = MIN(mask, alen * 8);
-
-		/*
-		 * check no host bits are set
-		 */
-		if (host_bits_set(addr->s6_addr, alen, tmp))
+		/* If not a host address, check no host bits are set */
+		if (host_bits_set(addr->s6_addr, alen, mask))
 			return -EINVAL;
 	}
 
@@ -1720,6 +1828,16 @@ int npf_addrgrp_range_remove(const char *name, npf_addr_t *start,
 /*
  * Walk address-group tree
  */
+static int
+_npf_addrgrp_tree_walk(enum npf_addrgrp_af af, struct npf_addrgrp *ag,
+		       pt_walk_cb *cb, void *ctx)
+{
+	if (ptree_get_table_leaf_count(ag->ag_tree[af]) == 0)
+		return 0;
+
+	return ptree_walk(ag->ag_tree[af], PT_UP, cb, ctx);
+}
+
 int
 npf_addrgrp_tree_walk(enum npf_addrgrp_af af, int tid,
 		      pt_walk_cb *cb, void *ctx)
@@ -1733,10 +1851,7 @@ npf_addrgrp_tree_walk(enum npf_addrgrp_af af, int tid,
 	if (af != AG_IPv4 && af != AG_IPv6)
 		return -EINVAL;
 
-	if (ptree_get_table_leaf_count(ag->ag_tree[af]) == 0)
-		return 0;
-
-	return ptree_walk(ag->ag_tree[af], PT_UP, cb, ctx);
+	return _npf_addrgrp_tree_walk(af, ag, cb, ctx);
 }
 
 /*
@@ -1813,19 +1928,24 @@ npf_addrgrp_ipv4_range_walk(int tid, ag_ipv4_range_cb *cb, void *ctx)
 
 /*
  * Determine how many addresses are included in a table
+ *
+ * The user may want to specify 'count_all' to count the all-zero and all-ones
+ * addresses of prefixes.  For example, if the address-group is used for
+ * address matching then they probably want to set this to true.  However if
+ * the address-group is used as an address pool (e.g. SNAT NAT policy) then
+ * they should set this to false since the all-zero and all-ones addresses are
+ * not used.
  */
 uint64_t
-npf_addrgrp_naddrs(enum npf_addrgrp_af af, int tid)
+npf_addrgrp_naddrs_by_handle(enum npf_addrgrp_af af, struct npf_addrgrp *ag,
+			     bool count_all)
 {
 	struct npf_addrgrp_entry *ae;
 	struct npf_addrgrp_entry *ap;
-	struct npf_addrgrp *ag;
 	zlist_t *list;
 	uint64_t naddrs = 0;
 	uint8_t alen = AG_AF2ALEN(af);
 
-	ag = npf_addrgrp_tid_lookup(tid);
-	assert(ag != NULL);
 	if (!ag)
 		return 0;
 
@@ -1837,7 +1957,7 @@ npf_addrgrp_naddrs(enum npf_addrgrp_af af, int tid)
 	for (ae = zlist_first(list); ae != NULL; ae = zlist_next(list)) {
 		if (ae->ae_type == NPF_ADDRGRP_TYPE_PREFIX)
 			naddrs += npf_addrgrp_useable_addrs(ae->ap_mask[0],
-							    alen, false);
+							    alen, count_all);
 		else {
 			for (ap = zlist_first(ae->ar_list); ap != NULL;
 			     ap = zlist_next(ae->ar_list)) {
@@ -1848,6 +1968,18 @@ npf_addrgrp_naddrs(enum npf_addrgrp_af af, int tid)
 	}
 
 	return naddrs;
+}
+
+uint64_t
+npf_addrgrp_naddrs(enum npf_addrgrp_af af, int tid, bool count_all)
+{
+	struct npf_addrgrp *ag;
+
+	ag = npf_addrgrp_tid_lookup(tid);
+	if (!ag)
+		return 0;
+
+	return npf_addrgrp_naddrs_by_handle(af, ag, count_all);
 }
 
 
@@ -1977,8 +2109,7 @@ npf_addrgrp_jsonw_tree(json_writer_t *json, struct npf_addrgrp *ag,
 		npf_addrgrp_jsonw_prefix(json, af, (uint8_t *)addr, 0);
 	}
 
-	npf_addrgrp_tree_walk(af, ag->ag_tid,
-			      npf_addrgrp_jsonw_tree_cb, json);
+	_npf_addrgrp_tree_walk(af, ag, npf_addrgrp_jsonw_tree_cb, json);
 
 	jsonw_end_array(json);
 }
@@ -1986,7 +2117,7 @@ npf_addrgrp_jsonw_tree(json_writer_t *json, struct npf_addrgrp *ag,
 /*
  * Write json for an address-group
  */
-static void
+void
 npf_addrgrp_jsonw(json_writer_t *json, struct npf_addrgrp *ag,
 		  struct npf_show_ag_ctl *ctl)
 {

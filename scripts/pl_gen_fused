@@ -3,7 +3,7 @@
 # Module: pl_gen_fused
 #
 # **** License ****
-# Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
+# Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
 #
 # SPDX-License-Identifier: LGPL-2.1-only
 # **** End License ****
@@ -56,6 +56,7 @@ class NodeDecl:
         self.__references_self = False
         self.num_next = None
         self.feat_iterate = None
+        self.feat_type_find = None
 
     def set_handler(self, handler):
         self.handler = handler
@@ -87,9 +88,14 @@ class NodeDecl:
     def set_feat_iterate(self, feat_iterate):
         self.feat_iterate = feat_iterate
 
+    def set_feat_type_find(self, feat_type_find):
+        self.feat_type_find = feat_type_find
+
     @property
     def fused_no_dyn_feats_handler(self):
         if self.feat_iterate is not None:
+            return self.handler.replace('_process', '_fused_no_dyn_feats')
+        if self.feat_type_find is not None:
             return self.handler.replace('_process', '_fused_no_dyn_feats')
         return self.fused_handler
 
@@ -140,6 +146,8 @@ class FeatureDecl:
         self.visit_before = None
         self.__visit_after = None
         self.next_feature = None
+        self.feat_type = None
+        self.always_on = None
 
     def set_name(self, name):
         self.name = remove_quotes(name)
@@ -158,6 +166,12 @@ class FeatureDecl:
 
     def set_visit_after(self, visit_after):
         self.__visit_after = remove_quotes(visit_after)
+
+    def set_feat_type(self, feat_type):
+        self.feat_type = feat_type
+
+    def set_always_on(self, always_on):
+        self.always_on = always_on
 
     @property
     def domain(self):
@@ -236,6 +250,7 @@ def parse_source_file(filename):
                         'type': parsing_node_decl.set_type,
                         'num_next': parsing_node_decl.set_num_next_sym,
                         'feat_iterate':  parsing_node_decl.set_feat_iterate,
+                        'feat_type_find':  parsing_node_decl.set_feat_type_find,
                     }
                     field_start = line.find('.')
                     if field_start < 0:
@@ -259,7 +274,8 @@ def parse_source_file(filename):
                         parsing_feature_decl.node_name,
                         parsing_feature_decl.feature_point,
                         parsing_feature_decl.id,
-                        parsing_feature_decl.visit_after))
+                        parsing_feature_decl.visit_after,
+                        parsing_feature_decl.feat_type))
                 parsing_feature_decl.validate()
                 if not parsing_feature_decl.feature_point in feats_for_feat_point:
                     feats_for_feat_point[parsing_feature_decl.feature_point] = {}
@@ -273,6 +289,8 @@ def parse_source_file(filename):
                     'visit_after': parsing_feature_decl.set_visit_after,
                     'visit_before':  parsing_feature_decl.set_visit_before,
                     'id': parsing_feature_decl.set_id,
+                    'feat_type': parsing_feature_decl.set_feat_type,
+                    'always_on':  parsing_feature_decl.set_always_on,
                 }
                 field_start = line.find('.')
                 if field_start < 0:
@@ -299,7 +317,7 @@ def write_indent(f, indent_lvl, string):
         indent_lvl = 0
     f.write('{}{}\n'.format('\t' * indent_lvl, string))
 
-def gen_invoke_fused_node(f, indent_lvl, from_feature_point, dyn_feats, node):
+def gen_invoke_fused_node(f, indent_lvl, from_feature_point, dyn_feats, from_case_feature, node):
     """
     Generate the action of invoking a node
 
@@ -342,7 +360,7 @@ def gen_invoke_fused_node(f, indent_lvl, from_feature_point, dyn_feats, node):
         if node.next_nodes:
             raise RuntimeError(
                 'continue node {} cannot have next nodes'.format(node.name))
-        if not from_feature_point:
+        if not from_feature_point or from_case_feature:
             write_indent(f, indent_lvl, 'return true;')
         else:
             write_indent(f, indent_lvl, 'continue;')
@@ -352,22 +370,27 @@ def gen_invoke_fused_node(f, indent_lvl, from_feature_point, dyn_feats, node):
             raise RuntimeError(
                 'output node {} cannot have next nodes'.format(node.name))
         if dyn_feats:
-            write_indent(f, indent_lvl, '{}{}(pl_pkt);'.format(resp_assign, node.fused_handler))
+            write_indent(f, indent_lvl, '{}{}(pl_pkt, NULL);'.format(resp_assign, node.fused_handler))
         else:
-            write_indent(f, indent_lvl, '{}{}(pl_pkt);'.format(resp_assign, node.fused_no_dyn_feats_handler))
+            write_indent(f, indent_lvl, '{}{}(pl_pkt, NULL);'.format(resp_assign, node.fused_no_dyn_feats_handler))
         if from_feature_point:
             write_indent(f, indent_lvl, 'return false;')
         else:
             write_indent(f, indent_lvl, 'goto cleanup;')
         return
     elif node.node_type == 'PL_PROC':
+        if from_feature_point and not from_case_feature:
+            storage_ctx = "storage_ctx"
+        else:
+            storage_ctx = "NULL"
+
         if node.references_self:
             write_indent(f, indent_lvl, 'do {')
             indent_lvl = indent_lvl + 1
         if dyn_feats:
-            write_indent(f, indent_lvl, '{}{}(pl_pkt);'.format(resp_assign, node.fused_handler))
+            write_indent(f, indent_lvl, '{}{}(pl_pkt, {});'.format(resp_assign, node.fused_handler, storage_ctx))
         else:
-            write_indent(f, indent_lvl, '{}{}(pl_pkt);'.format(resp_assign, node.fused_no_dyn_feats_handler))
+            write_indent(f, indent_lvl, '{}{}(pl_pkt, {});'.format(resp_assign, node.fused_no_dyn_feats_handler, storage_ctx))
     else:
         raise RuntimeError(
             'invalid node type: {} for node {}'.format(node.node_type, node.name))
@@ -386,7 +409,7 @@ def gen_invoke_fused_node(f, indent_lvl, from_feature_point, dyn_feats, node):
 
         write_indent(f, indent_lvl, '{}if (unlikely(resp == {})) {{'.format(else_str, disp))
         else_str = '} else '
-        r = gen_invoke_fused_node(f, indent_lvl + 1, from_feature_point, dyn_feats, nodes[next_node])
+        r = gen_invoke_fused_node(f, indent_lvl + 1, from_feature_point, dyn_feats, from_case_feature, nodes[next_node])
         if r == True:
             ret = True
     if len(node.next_nodes) > 1:
@@ -395,7 +418,7 @@ def gen_invoke_fused_node(f, indent_lvl, from_feature_point, dyn_feats, node):
         indent_lvl = indent_lvl - 1
         write_indent(f, indent_lvl, '}} while (unlikely(resp == {}));'.format(self_ref_disp))
     write_indent(f, indent_lvl, '')
-    r = gen_invoke_fused_node(f, indent_lvl, from_feature_point, dyn_feats, nodes[node.get_next_node(node.default_disp)])
+    r = gen_invoke_fused_node(f, indent_lvl, from_feature_point, dyn_feats, from_case_feature, nodes[node.get_next_node(node.default_disp)])
     if r == True:
         ret = True
 
@@ -415,7 +438,7 @@ def gen_fused_graph(f, entry, dyn_feats):
 
     f_temp = io.StringIO()
 
-    ret = gen_invoke_fused_node(f_temp, 1, False, dyn_feats, node)
+    ret = gen_invoke_fused_node(f_temp, 1, False, dyn_feats, False, node)
     if (ret == True):
         write_indent(f, 1, 'int resp;')
         write_indent(f, 0, '')
@@ -428,6 +451,93 @@ def gen_fused_graph(f, entry, dyn_feats):
     write_indent(f, 1, 'return false;')
     write_indent(f, 0, '}')
 
+def gen_fused_feature_invoke_by_case_find(f, node, feat_point, dyn_feats):
+    """
+    Generate fused feature find functions for the given node.
+
+    Finds the node based on the value without having to do an external lookup
+    """
+    if feat_point in feats_for_feat_point:
+        features = dict(feats_for_feat_point[feat_point])
+    else:
+        features = {}
+
+    resp_written = False
+    head_features = dict(features)
+
+    write_indent(f, 0, 'inline __attribute__((always_inline)) unsigned int')
+    if dyn_feats:
+        write_indent(f, 0, '{}_fused(unsigned int feat)'.format(node.feat_type_find))
+    else:
+        write_indent(f, 0, '{}_fused_no_dyn_features(unsigned int feat)'.format(node.feat_type_find))
+
+    write_indent(f, 0, '{')
+    write_indent(f, 1, '')
+    write_indent(f, 1, 'switch (feat) {')
+    for feature in head_features.values():
+        while True:
+            if feature.always_on:
+                write_indent(f, 1, 'case {}:'.format(feature.feat_type))
+                write_indent(f, 2, 'return {};'.format(feature.id))
+            if not feature.next_feature:
+                break
+            feature = feature.next_feature
+    write_indent(f, 1, 'default:')
+    write_indent(f, 2, 'break;')
+    write_indent(f, 1, '}')
+    if dyn_feats:
+        write_indent(f, 1, 'return {}(feat);'.format(node.feat_type_find))
+    else:
+        write_indent(f, 1, 'return 0;')
+    write_indent(f, 0, '}')
+
+def gen_fused_feature_invoke_by_case(f, node, feat_point, dyn_feats):
+    """
+    Generate fused feature invocation for the given feature point
+    based on the feature type
+
+    Only the registered feature for the type is invoked
+    """
+
+    print("::{} {} {}".format(node, feat_point, dyn_feats))
+    if feat_point in feats_for_feat_point:
+        features = dict(feats_for_feat_point[feat_point])
+    else:
+        features = {}
+
+    resp_written = False
+    head_features = dict(features)
+
+    write_indent(f, 0, 'inline __attribute__((always_inline)) bool')
+    if dyn_feats:
+        write_indent(f, 0, 'pipeline_fused_{}_features(struct pl_packet *pl_pkt, unsigned int feat)'.format(node.c_name))
+    else:
+        write_indent(f, 0, 'pipeline_fused_{}_no_dyn_features(struct pl_packet *pl_pkt, unsigned int feat)'.format(node.c_name))
+
+    write_indent(f, 0, '{')
+    write_indent(f, 1, 'int resp = true;')
+
+    write_indent(f, 1, '')
+    write_indent(f, 1, 'switch (feat) {')
+
+    write_indent(f, 1, 'case 0:')
+    write_indent(f, 2, 'return true;')
+    for feature in head_features.values():
+        while True:
+            write_indent(f, 1, 'case {}:'.format(feature.id))
+            gen_invoke_fused_node(f, 2, True, dyn_feats, True, nodes[feature.node_name])
+            write_indent(f, 2, '')
+            if not feature.next_feature:
+                break
+            feature = feature.next_feature
+    write_indent(f, 1, 'default:')
+    write_indent(f, 2, 'if (!pl_node_invoke_feature({}_node_ptr, feat, pl_pkt, NULL))'.format(node.c_name))
+    write_indent(f, 3, 'return false;')
+    write_indent(f, 2, 'break;')
+    write_indent(f, 1, '}')
+    write_indent(f, 1, 'return resp;')
+    write_indent(f, 0, '}')
+
 def gen_fused_features_invoke(f, feat_point, dyn_feats):
     """
     Generate fused feature invocation for the given feature point
@@ -438,12 +548,19 @@ def gen_fused_features_invoke(f, feat_point, dyn_feats):
     if not feat_point in nodes:
         raise RuntimeError('Unknown feature point node: {}'.format(feat_point))
     node = nodes[feat_point]
+
+    if node.feat_type_find:
+        gen_fused_feature_invoke_by_case(f, node, feat_point, dyn_feats)
+        gen_fused_feature_invoke_by_case_find(f, node, feat_point, dyn_feats)
+        return
+
     if not node.feat_iterate:
         raise RuntimeError('Entry-point node not feature point: {}'.format(feat_point))
     if feat_point in feats_for_feat_point:
         features = dict(feats_for_feat_point[feat_point])
     else:
         features = {}
+
     write_indent(f, 0, 'inline __attribute__((always_inline)) bool')
     if dyn_feats:
         write_indent(f, 0, 'pipeline_fused_{}_features(struct pl_packet *pl_pkt, struct pl_node *node)'.format(node.c_name))
@@ -452,6 +569,7 @@ def gen_fused_features_invoke(f, feat_point, dyn_feats):
     write_indent(f, 0, '{')
     write_indent(f, 1, 'unsigned int feature = ~0u;')
     write_indent(f, 1, 'void *context;')
+    write_indent(f, 1, 'void *storage_ctx;')
     write_indent(f, 1, 'bool more;')
     resp_written = False
     head_features = dict(features)
@@ -474,23 +592,23 @@ def gen_fused_features_invoke(f, feat_point, dyn_feats):
             features[feature.visit_after].next_feature = feature
             del head_features[feature.name]
     write_indent(f, 1, '')
-    write_indent(f, 1, 'for (more = {}(node, true, &feature, &context);'.format(node.feat_iterate))
+    write_indent(f, 1, 'for (more = {}(node, true, &feature, &context, &storage_ctx);'.format(node.feat_iterate))
     write_indent(f, 1, '     more;')
-    write_indent(f, 1, '     more = {}(node, false, &feature, &context)) {{'.format(node.feat_iterate))
+    write_indent(f, 1, '     more = {}(node, false, &feature, &context, &storage_ctx)) {{'.format(node.feat_iterate))
     write_indent(f, 2, 'switch (feature) {')
     for feature in head_features.values():
         while True:
             if feature.id is None:
                 continue
             write_indent(f, 2, 'case {}:'.format(feature.id))
-            gen_invoke_fused_node(f, 3, True, dyn_feats, nodes[feature.node_name])
+            gen_invoke_fused_node(f, 3, True, dyn_feats, False, nodes[feature.node_name])
             write_indent(f, 3, '')
             if not feature.next_feature:
                 break
             feature = feature.next_feature
     if dyn_feats:
         write_indent(f, 2, 'default:')
-        write_indent(f, 3, 'if (!pl_node_invoke_feature({}_node_ptr, feature, pl_pkt))'.format(node.c_name))
+        write_indent(f, 3, 'if (!pl_node_invoke_feature({}_node_ptr, feature, pl_pkt, storage_ctx))'.format(node.c_name))
         write_indent(f, 4, 'return false;')
         write_indent(f, 3, 'continue;')
     write_indent(f, 2, '}')
@@ -535,7 +653,11 @@ def gen_fused_impl(f, includes, entry_points, feat_points):
     for node_name in sorted(nodes.keys()):
         node = nodes[node_name]
         write_indent(f, 1, 'if (strcmp(node->name, "{}") == 0) {{'.format(node.name))
-        write_indent(f, 2, 'node->node_decl_id = PL_NODE_{}_ID; return; }}'.format(node.c_name.upper()))
+        write_indent(f, 2, 'node->node_decl_id = PL_NODE_{}_ID;'.format(node.c_name.upper()))
+        if node.feat_iterate or node.feat_type_find:
+            write_indent(f, 2, 'node->feature_point_id = PL_FEATURE_POINT_{}_ID; return; }}'.format(node.c_name.upper()))
+        else:
+            write_indent(f, 2, 'node->feature_point_id = PL_FEATURE_POINT_NONE_ID; return; }')
     f.write('}\n')
 
 def gen_node_disps(f, node):
@@ -563,34 +685,39 @@ def gen_node_fused_func_decls(f):
     for node_name in sorted(nodes.keys()):
         node = nodes[node_name]
         gen_node_disps(f, node)
-        write_indent(f, 0, 'extern unsigned int {}(struct pl_packet *);'.format(node.handler));
-        if node.feat_iterate is not None:
+        write_indent(f, 0, 'extern unsigned int {}(struct pl_packet *, void *context);'.format(node.handler));
+        if node.feat_iterate is not None or node.feat_type_find is not None:
             write_indent(f, 0, '')
-            write_indent(f, 0, 'extern unsigned int {}_common(struct pl_packet *, enum pl_mode);'.format(node.handler));
+            write_indent(f, 0, 'extern unsigned int {}_common(struct pl_packet *, void *context __unused, enum pl_mode);'.format(node.handler));
             write_indent(f, 0, 'inline static __attribute__((always_inline)) unsigned int')
-            write_indent(f, 0, '{}(struct pl_packet *pl_pkt)'.format(node.fused_handler))
+            write_indent(f, 0, '{}(struct pl_packet *pl_pkt, void *context)'.format(node.fused_handler))
             write_indent(f, 0, '{')
             write_indent(f, 1, 'pl_inc_node_stat(PL_NODE_{}_ID);'.format(node.c_name.upper()))
-            write_indent(f, 1, 'return {}_common(pl_pkt, PL_MODE_FUSED);'.format(node.handler))
+            write_indent(f, 1, 'return {}_common(pl_pkt, context, PL_MODE_FUSED);'.format(node.handler))
             write_indent(f, 0, '}')
             write_indent(f, 0, '')
             write_indent(f, 0, 'inline static __attribute__((always_inline)) unsigned int')
-            write_indent(f, 0, '{}(struct pl_packet *pl_pkt)'.format(node.fused_no_dyn_feats_handler))
+            write_indent(f, 0, '{}(struct pl_packet *pl_pkt, void *context)'.format(node.fused_no_dyn_feats_handler))
             write_indent(f, 0, '{')
             write_indent(f, 1, 'pl_inc_node_stat(PL_NODE_{}_ID);'.format(node.c_name.upper()))
-            write_indent(f, 1, 'return {}_common(pl_pkt, PL_MODE_FUSED_NO_DYN_FEATS);'.format(node.handler))
+            write_indent(f, 1, 'return {}_common(pl_pkt, context, PL_MODE_FUSED_NO_DYN_FEATS);'.format(node.handler))
             write_indent(f, 0, '}')
             write_indent(f, 0, '')
-            write_indent(f, 0, 'bool')
-            write_indent(f, 0, '{}(struct pl_node *node, bool first, unsigned int *feature_id, void **context);'.format(node.feat_iterate))
+            if node.feat_iterate is not None:
+                write_indent(f, 0, 'bool')
+                write_indent(f, 0, '{}(struct pl_node *node, bool first, unsigned int *feature_id, void **context, void **storage_ctx);'.format(node.feat_iterate))
+            elif node.feat_type_find is not None:
+                write_indent(f, 0, 'int')
+                write_indent(f, 0, '{}(uint32_t feat_type);'.format(node.feat_type_find))
+                write_indent(f, 0, 'unsigned int {}_fused(unsigned int feat);'.format(node.feat_type_find))
+                write_indent(f, 0, 'unsigned int {}_fused_no_dyn_features(unsigned int feat);'.format(node.feat_type_find))
         else:
             write_indent(f, 0, 'inline static __attribute__((always_inline)) unsigned int')
-            write_indent(f, 0, '{}(struct pl_packet *pl_pkt)'.format(node.fused_handler))
+            write_indent(f, 0, '{}(struct pl_packet *pl_pkt, void *context)'.format(node.fused_handler))
             write_indent(f, 0, '{')
             write_indent(f, 1, 'pl_inc_node_stat(PL_NODE_{}_ID);'.format(node.c_name.upper()))
-            write_indent(f, 1, 'return {}(pl_pkt);'.format(node.handler))
+            write_indent(f, 1, 'return {}(pl_pkt, context);'.format(node.handler))
             write_indent(f, 0, '}')
-            write_indent(f, 0, '')
 
 def gen_fused_header(f, c_file_name, entry_points, feat_points):
     """Generate fused header file"""
@@ -613,6 +740,15 @@ def gen_fused_header(f, c_file_name, entry_points, feat_points):
         write_indent(f, 1, 'PL_NODE_{}_ID,'.format(node.c_name.upper()))
     f.write('PL_NODE_NUM_IDS};\n');
 
+    f.write('\n')
+    f.write('enum pl_feature_point_id {\n')
+    write_indent(f, 1, 'PL_FEATURE_POINT_NONE_ID,')
+    for node_name in sorted(nodes.keys()):
+        node = nodes[node_name]
+        if node.feat_iterate or node.feat_type_find:
+            write_indent(f, 1, 'PL_FEATURE_POINT_{}_ID,'.format(node.c_name.upper()))
+    f.write('PL_FEATURE_POINT_NUM_IDS};\n');
+
     gen_node_fused_func_decls(f)
     write_indent(f, 0, '/* Fused-mode graph entry points */')
     if entry_points is not None:
@@ -631,13 +767,20 @@ def gen_fused_header(f, c_file_name, entry_points, feat_points):
                 raise RuntimeError(
                     'Unknown feature point node: {}'.format(feat_point))
             node = nodes[feat_point]
-            if not node.feat_iterate:
-                raise RuntimeError(
-                    'Feature point {} not declared as feature point node {}'.format(feat_point))
-            f.write('bool\n')
-            f.write('pipeline_fused_{}_features(struct pl_packet *pl_pkt, struct pl_node *node);\n'.format(node.c_name))
-            f.write('bool\n')
-            f.write('pipeline_fused_{}_no_dyn_features(struct pl_packet *pl_pkt, struct pl_node *node);\n'.format(node.c_name))
+            if not node.feat_type_find:
+                if not node.feat_iterate:
+                    raise RuntimeError(
+                        'Feature point {} not declared as feature point node {}'.format(feat_point))
+                f.write('bool\n')
+                f.write('pipeline_fused_{}_features(struct pl_packet *pl_pkt, struct pl_node *node);\n'.format(node.c_name))
+                f.write('bool\n')
+                f.write('pipeline_fused_{}_no_dyn_features(struct pl_packet *pl_pkt, struct pl_node *node);\n'.format(node.c_name))
+            else:
+                f.write('bool\n')
+                f.write('pipeline_fused_{}_features(struct pl_packet *pl_pkt, unsigned int feat);\n'.format(node.c_name))
+                f.write('bool\n')
+                f.write('pipeline_fused_{}_no_dyn_features(struct pl_packet *pl_pkt, unsigned int feat);\n'.format(node.c_name))
+
             f.write('\n')
     f.write('#endif /* __{}__ */\n'.format(c_file_name))
 

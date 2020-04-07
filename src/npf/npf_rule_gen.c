@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -1095,7 +1095,7 @@ static int
 npf_gen_ncode_dscp_group(struct npf_rule_ctx *ctx, char *value)
 {
 	int err;
-	uint64_t dscp_set;
+	uint64_t dscp_set = 0UL;
 
 	err = npf_dscp_group_getmask(value, &dscp_set);
 	if (err)
@@ -1584,7 +1584,7 @@ npf_process_nat_ip_masq(uint32_t *flags, uint8_t *addr_sz, npf_addr_t *taddr,
 	*flags |= NPF_NAT_MASQ;
 	*addr_sz = 4;
 
-	ifp = ifnet_byifname(attach_point);
+	ifp = dp_ifnet_byifname(attach_point);
 	if (!ifp) {
 		RTE_LOG(ERR, FIREWALL, "masquerade: interface \"%s\" does "
 			"not exist\n", attach_point);

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2011-2017 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -18,7 +18,7 @@
 #include "if_var.h"
 #include "npf/npf.h"
 #include "npf/npf_apm.h"
-#include "npf/alg/npf_alg_public.h"
+#include "npf/alg/alg_npf.h"
 #include "npf/config/npf_attach_point.h"
 #include "npf/config/npf_config.h"
 #include "npf/config/npf_rule_group.h"
@@ -30,21 +30,21 @@
 #include "npf/npf_event.h"
 #include "npf/npf_if.h"
 #include "npf/npf_if_feat.h"
-#include "npf/npf_nat64.h"
 #include "npf/npf_nat.h"
 #include "npf/npf_ruleset.h"
 #include "npf/npf_session.h"
 #include "npf/npf_state.h"
 #include "npf/npf_timeouts.h"
+#include "npf/zones/npf_zone_public.h"
 #include "npf/rproc/npf_rproc.h"
 #include "npf/rproc/npf_ext_session_limit.h"
 #include "npf_shim.h"
 #include "npf/rproc/npf_ext_log.h"
 #include "npf/nat/nat_pool_public.h"
-#include "pktmbuf.h"
+#include "pktmbuf_internal.h"
 #include "urcu.h"
 #include "vplane_log.h"
-#include "vrf.h"
+#include "vrf_internal.h"
 #include "ip_icmp.h"
 
 struct npf_ruleset;
@@ -308,7 +308,8 @@ npf_hook_track(struct ifnet *in_ifp, struct rte_mbuf **m,
 	}
 
 	/*
-	 * Determine the ruleset type and any reverse ruleset
+	 * Determine the ruleset type and any reverse ruleset,
+	 * allowing for possible stateful ZBF pass session.
 	 */
 	bool reverse_stateful;
 
@@ -328,6 +329,14 @@ npf_hook_track(struct ifnet *in_ifp, struct rte_mbuf **m,
 
 		rlset_type = NPF_RS_FW_OUT;
 		reverse_stateful = fw_active & NPF_FW_STATE_IN;
+
+		if (unlikely((npf_flags & NPF_FLAG_FROM_ZONE) ||
+			     npf_nif_zone(nif))) {
+			if (npf_zone_hook(in_ifp, nif, npf_flags, &fw_config,
+					  &decision, &rlset_type,
+					  &reverse_stateful))
+				goto done;
+		}
 	}
 
 	/* Inspect FW ruleset */
@@ -371,6 +380,16 @@ pass:
 	if (dir == PFIL_IN) {
 		npf_nat_t *nt = npf_session_get_nat(se);
 		if (nt) {
+			/*
+			 * If destined for local, bypass DNAT.  The session is
+			 * only marked as local when the first packet passes
+			 * through npf_local_fw.
+			 */
+			if (unlikely(npf_session_is_local_zone_nat(se))) {
+				action = NPF_ACTION_TO_LOCAL;
+				goto stats;
+			}
+
 			error = nat_do_subsequent(npc, m, se, nt, dir);
 		    dnat_result:
 			if (unlikely(error)) {
@@ -401,22 +420,6 @@ stats:
 	}
 
 done:
-	if (decision != NPF_DECISION_BLOCK) {
-		/* ALLOWABLE: UNMATCHED AND PASS */
-		if ((dir == PFIL_IN && (npf_active(fw_config,
-						   NAT64_OR_NAT46(eth_type)) ||
-					npf_session_is_nat64(se))) ||
-		    (npf_flags & (NPF_FLAG_FROM_IPV6 | NPF_FLAG_FROM_IPV4))) {
-			decision = nat64_hook(&action, nif_config, &se, ifp,
-					      npc, m, dir, &npf_flags);
-
-			/*
-			 * Note, after this point session may be IPv6 and
-			 * packet IPv4 (or vice-versa)
-			 */
-		}
-	}
-
 	if (se) {
 		if (decision != NPF_DECISION_BLOCK) {
 			/* N.B. se may be consumed */
@@ -426,6 +429,11 @@ done:
 				struct pktmbuf_mdata *mdata = pktmbuf_mdata(*m);
 				mdata->md_session = se;
 				pktmbuf_mdata_set(*m, PKT_MDATA_SESSION);
+
+				/* Save session stats. */
+				if (decision == NPF_DECISION_PASS)
+					npf_save_stats(se, dir,
+						       rte_pktmbuf_pkt_len(*m));
 			} else {
 				if (error != -ENOSTR)
 					decision = NPF_DECISION_BLOCK;
@@ -450,6 +458,7 @@ result:
 			       ICMP_DEST_UNREACH, ICMP_FRAG_NEEDED,
 			       htons(ifp->if_mtu), ifp);
 	}
+
 
 	return (npf_result_t) {
 		.decision = decision,
@@ -523,7 +532,7 @@ bool npf_local_fw(struct ifnet *ifp, struct rte_mbuf **m, uint16_t ether_type)
 	const struct npf_config *npf_config = npf_if_conf(nif);
 
 	npf_cache_t npc;
-	void *n_ptr = pktmbuf_mtol3(*m, void *);
+	void *n_ptr = dp_pktmbuf_mtol3(*m, void *);
 
 	npf_cache_init(&npc);
 
@@ -537,9 +546,25 @@ bool npf_local_fw(struct ifnet *ifp, struct rte_mbuf **m, uint16_t ether_type)
 	if (se && npf_session_get_if_index(se) != ifp->if_index)
 		se = NULL;
 
+	/* If "passing" session found - skip the zones ruleset inspection */
 	npf_rule_t *rl = NULL;
-	if (se)
-		(void)npf_session_is_pass(se, &rl);
+	if (se) {
+		if ((npf_session_is_pass(se, &rl) ||
+		     npf_session_is_nat_pinhole(se, PFIL_IN) ||
+		     npf_session_is_child(se)))
+			goto skip_local_zone;
+	}
+
+	/*
+	 * Local zone firewall
+	 */
+	if (unlikely(npf_zone_local_is_set() &&
+		     !npf_iscached(&npc, NPC_IPFRAG))) {
+		if (npf_local_zone_hook(ifp, m, &npc, se, nif))
+			return true;	/* discard */
+	}
+
+skip_local_zone:
 
 	/* Log any firewall matched rule now */
 	if (unlikely(npf_rule_has_rproc_logger(rl)))
@@ -549,7 +574,8 @@ bool npf_local_fw(struct ifnet *ifp, struct rte_mbuf **m, uint16_t ether_type)
 	 * Do we need to DNAT?  Either we bypassed DNAT in npf_hook_track, or
 	 * we undid DNAT above.
 	 */
-	if (se && npf_active(npf_config, NPF_DNAT) &&
+	if (se && (npf_session_is_local_zone_nat(se) ||
+		   npf_active(npf_config, NPF_DNAT)) &&
 	    !pktmbuf_mdata_exists(*m, PKT_MDATA_DNAT)) {
 
 		if (npf_local_dnat(m, &npc, se))
@@ -605,6 +631,7 @@ void npf_reset_config(enum cont_src_en cont_src)
 	npf_sess_limit_inst_destroy();
 	npf_timeout_reset();
 	npf_alg_reset(true);
+	npf_zone_inst_destroy();
 }
 
 void npf_print_state_stats(json_writer_t *json)

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2004 Luigi Rizzo, Alessandro Cerri. All rights reserved.
  * Copyright (c) 2004-2008 Qing Li. All rights reserved.
  * Copyright (c) 2008 Kip Macy. All rights reserved.
@@ -81,12 +81,20 @@ struct llentry {
 	uint8_t			la_numheld;
 	uint8_t			la_asked;
 	uint8_t			la_state;
+	uint8_t			pad1[3];
 	rte_spinlock_t		ll_lock;
+	uint8_t			pad2[4];
 	struct sockaddr_storage ll_sock;
+	/* --- cacheline 2 boundary (128 bytes) was 48 bytes ago --- */
 	uint64_t		ll_expire;
 	struct rcu_head		ll_rcu;
+	/* --- cacheline 3 boundary (192 bytes) was 8 bytes ago --- */
 	struct rte_mbuf		*la_held[ARP_MAXHOLD];
 };
+
+static_assert(offsetof(struct llentry, ll_sock) < 64,
+	      "first cache line exceeded");
+
 LIST_HEAD(llentries, llentry);
 
 static inline struct sockaddr *ll_sockaddr(struct llentry *lle)
@@ -101,7 +109,8 @@ struct lltable {
 	struct rte_timer	lle_timer;
 	uint16_t		lle_unrtoken;
 	rte_atomic16_t		lle_restoken;
-	rte_atomic16_t		lle_size;
+	rte_atomic32_t		lle_size;
+	uint64_t		lle_refresh_expire;
 };
 
 /*
@@ -127,6 +136,13 @@ struct lltable {
 #define	LLE_DELETE	0x0400	/* delete on a lookup - match LLE_IFADDR */
 #define	LLE_CREATE	0x0800	/* create on a lookup miss */
 
+/*
+ * mask of internal flags, i.e. that are set in the LLE, but shouldn't
+ * be displayed to the user.
+ */
+#define LLE_INTERNAL_MASK (LLE_FWDING | LLE_CREATED_IN_HW |	\
+			   LLE_HW_UPD_PENDING)
+
 struct lltable *lltable_new(struct ifnet *ifp);
 void lltable_stop_timer(struct lltable *);
 void lltable_free_rcu(struct lltable *);
@@ -136,6 +152,8 @@ typedef unsigned int lltable_iter_func_t(struct lltable *, struct llentry *,
 unsigned int lltable_walk(struct lltable *llt, lltable_iter_func_t func,
 			  void *arg);
 void lltable_flush(struct lltable *);
+bool lltable_fal_l3_change(struct lltable *llt, bool enable);
+
 /* Final destroy on master thread */
 void __llentry_destroy(struct lltable *llt, struct llentry *lle);
 /* Destroy on any thread */
@@ -189,7 +207,8 @@ static ALWAYS_INLINE bool
 llentry_copy_mac(struct llentry *la,  struct ether_addr *desten)
 {
 	if (likely(la && (la->la_flags & LLE_VALID))) {
-		rte_atomic16_clear(&la->ll_idle);
+		if (rte_atomic16_read(&la->ll_idle))
+			rte_atomic16_clear(&la->ll_idle);
 		ether_addr_copy((struct ether_addr *)&la->ll_addr, desten);
 		return true;
 	}
@@ -203,5 +222,13 @@ llentry_has_been_used_and_clear(struct llentry *lle);
 /* Check if an lle has been used in HW or SW */
 bool
 llentry_has_been_used(struct llentry *lle);
+
+/*
+ * Issue updates that have been deferred from a non-master thread.
+ *
+ * Should be called without lle spinlock held.
+ */
+void
+llentry_issue_pending_fal_updates(struct llentry *lle);
 
 #endif	/* IF_LLATBL_H */

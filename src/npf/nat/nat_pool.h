@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2019-2020, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -10,12 +10,16 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <rte_atomic.h>
+#include <rte_timer.h>
 #include <netinet/in.h>
 
 #include "urcu.h"
 #include "npf/nat/nat_proto.h"
 #include "npf/nat/nat_pool_public.h"
 
+
+/* Max length of names, enforced by config, is 42 */
+#define NAT_POOL_NAME_MAX	43
 
 enum nat_pool_type {
 	NPT_CGNAT,
@@ -30,12 +34,15 @@ enum nat_pool_type {
  * NAT pool address ranges may be configured as a range or a prefix and
  * length.  All types are converted to a useable range.
  *
- * NPA_PREFIX    prefix and mask. First and last address are *not* useable
+ * NPA_PREFIX    prefix and mask. First and last address *are* useable
+ *               (except .0 and .255)
+ * NPA_SUBNET    prefix and mask. First and last address are *not* useable
  * NPA_RANGE     address range
  */
 enum nat_pool_range_type {
 	NPA_PREFIX,
 	NPA_RANGE,
+	NPA_SUBNET,
 };
 
 /*
@@ -81,14 +88,19 @@ enum nat_port_allcn {
  * the type configured, all nat_pool_range entries are converted to a useable
  * range and stored in na_addr_start and naddr_stop.  Prefixes and addresses
  * are in host byte order.
+ *
+ * When an address range is created from a prefix and mask less than 31 then
+ * the first and last addresses are omitted from the range.
+ *
+ * pr_shared - Allow multiple subscribers to use each address in this range.
  */
 struct nat_pool_range {
-	char			*pr_name;
+	char			pr_name[NAT_POOL_NAME_MAX];
 	uint32_t		pr_prefix;
 	uint8_t			pr_mask;
 	enum nat_pool_range_type pr_type;
 	uint8_t			pr_range;	/* Range number */
-	uint8_t			pr_pad1[1];
+	bool			pr_shared;
 
 	/* address range */
 	uint32_t		pr_addr_start;
@@ -96,15 +108,29 @@ struct nat_pool_range {
 	uint32_t		pr_naddrs;
 };
 
+/*
+ * Set of address ranges.
+ *
+ * The addresses are all added to a 'hidden' address-group pointed to by
+ * nr_ag.  This is hidden in that it is removed from the address-group
+ * tableset after creation, and so will not be found by the config.
+ *
+ * nr_used is a count of the number of pool addresses with *no* free port
+ * blocks.
+ */
 struct nat_pool_ranges {
 	uint8_t			nr_nranges;	/* number of addr ranges */
 	uint32_t		nr_naddrs;	/* total address count */
+	rte_atomic32_t		nr_used;	/* addresses in use */
+	struct npf_addrgrp	*nr_ag;		/* addr-grp of pool addrs */
 	struct nat_pool_range	nr_range[NAT_POOL_MAX_RANGES];
 
 	/*
 	 * Record of last allocated address per differentiated protocol.
 	 */
 	rte_atomic32_t		nr_addr_hint[NAT_PROTO_COUNT];
+
+	struct rcu_head		nr_rcu_head;
 };
 
 /*
@@ -117,7 +143,7 @@ struct nat_pool {
 	uint16_t		np_flags;
 
 	/* Pool identity */
-	char			*np_name;
+	char			np_name[NAT_POOL_NAME_MAX];
 	enum nat_pool_type	np_type;  /* cgnat or ? */
 
 	/* Config for address allocation */
@@ -141,13 +167,6 @@ struct nat_pool {
 	uint16_t		np_nports;
 
 	/*
-	 * Total # of private addrs in rules or policies attached to this
-	 * pool.
-	 */
-	uint32_t		np_nusers;
-	uint64_t		np_nuser_addrs;
-
-	/*
 	 * Mapping stats.
 	 */
 	rte_atomic32_t		np_map_active;	/* Active mappings */
@@ -163,22 +182,21 @@ struct nat_pool {
 	/* address ranges */
 	struct nat_pool_ranges	*np_ranges;
 
-	/*
-	 * We rely on the yang data model to keep the addr group in existence
-	 * while a nat pool is using it.
-	 */
-	struct npf_addrgrp	*np_blacklist;
+	struct npf_addrgrp	*np_blacklist;	/* address group */
+
+	/* NAT pool threshold and timer */
+	int32_t			np_threshold;
+	bool			np_threshold_been_below;
+	struct rte_timer	np_threshold_timer;
 };
 
 /*
  * Get next address in an address pool
  */
-uint32_t nat_pool_next_addr(struct nat_pool *np, uint32_t addr);
+uint32_t nat_pool_next_addr(struct nat_pool *np, uint32_t addr,
+			    struct nat_pool_range **prp);
 
-/*
- * Get the range index that an address is in.  Returns -1 if address is not in
- * any range.
- */
+/* Which address range is an address in? */
 int nat_pool_addr_range(struct nat_pool *np, uint32_t addr);
 
 /* Return true if address-pool paired is enabled */
@@ -276,5 +294,10 @@ nat_pool_incr_block_limit(struct nat_pool *np)
 {
 	rte_atomic64_inc(&np->np_pb_limit);
 }
+
+int np_threshold_set(struct nat_pool *np, void *arg);
+void np_threshold_set_all(int32_t threshold, uint32_t interval);
+void np_threshold_get(struct nat_pool *np);
+void np_threshold_put(struct nat_pool *np);
 
 #endif

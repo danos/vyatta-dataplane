@@ -55,6 +55,11 @@
  * This is for attaching rules to a VRF id, and the name should be
  * the id associated wth the VRF.
  *
+ * NPF_ATTACH_TYPE_ZONE
+ *
+ * This is for attaching rules to a zone pairing, and the name should be of
+ * the form "FROM_ZONE>TO_ZONE".
+ *
  * NPF_ATTACH_TYPE_ALL
  *
  * This is used to indicate that there is no associated attach type. It
@@ -73,6 +78,7 @@ enum npf_attach_type {
 	NPF_ATTACH_TYPE_GLOBAL,
 	NPF_ATTACH_TYPE_QOS,
 	NPF_ATTACH_TYPE_VRF,
+	NPF_ATTACH_TYPE_ZONE,
 	NPF_ATTACH_TYPE_COUNT	/** This must be the last value */
 };
 

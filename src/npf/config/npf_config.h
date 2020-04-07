@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2016-2017 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -35,6 +35,7 @@ struct npf_config {
 
 	unsigned long		nc_stateful;
 	bool			nc_dirty_rulesets[NPF_RS_TYPE_COUNT];
+	bool			nc_attached;
 	enum npf_attach_type	nc_attach_type;
 	const char		*nc_attach_point;
 	struct rcu_head		nc_rcu;
@@ -54,6 +55,7 @@ enum npf_active_bits {
 	NPF_FW_OUT =		BIT(NPF_RS_FW_OUT),
 	NPF_DNAT =		BIT(NPF_RS_DNAT),
 	NPF_SNAT =		BIT(NPF_RS_SNAT),
+	NPF_ZONE =		BIT(NPF_RS_ZONE),
 	NPF_LOCAL =		BIT(NPF_RS_LOCAL),
 	NPF_BRIDGE =		BIT(NPF_RS_BRIDGE),
 	NPF_IPSEC =		BIT(NPF_RS_IPSEC),
@@ -75,17 +77,25 @@ enum npf_active_bits {
 	NPF_IF_SESSION =	BIT(NPF_RS_TYPE_COUNT+3),
 
 	/* All causes for calling npf_hook_track() */
-	NPF_V4_TRACK_IN =	NPF_FW_STATE_OUT |
-					NPF_FW_IN | NPF_DNAT | NPF_NAT46,
+	NPF_V4_TRACK_IN =	NPF_FW_STATE_OUT | NPF_FW_IN | NPF_DNAT,
 	NPF_V4_TRACK_OUT =	NPF_FW_STATE_IN |
-					NPF_FW_OUT | NPF_SNAT,
-	NPF_V6_TRACK_IN =	NPF_FW_STATE_OUT |
-					NPF_FW_IN | NPF_NAT64,
-	NPF_V6_TRACK_OUT =	NPF_FW_STATE_IN | NPF_FW_OUT,
+					NPF_FW_OUT | NPF_ZONE | NPF_SNAT,
+	NPF_V6_TRACK_IN =	NPF_FW_STATE_OUT | NPF_FW_IN,
+	NPF_V6_TRACK_OUT =	NPF_FW_STATE_IN |
+					NPF_FW_OUT | NPF_ZONE,
 };
 
 #define NAT64_OR_NAT46(_eth_type) ((_eth_type == htons(ETHER_TYPE_IPv4)) ? \
 				   NPF_NAT46 : NPF_NAT64)
+
+/**
+ * Free the npf config attach point.
+ *
+ * @param npf_conf Pointer to structure registered earlier with
+ *	  npf_attpt_item_set_up(), which is used to point to rulesets when
+ *	  they are in use. This is associated with the attach point.
+ */
+void npf_config_release(struct npf_config *npf_conf);
 
 /**
  * Initialise the configuration code.

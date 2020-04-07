@@ -30,6 +30,8 @@ syntax="proto2";
 
 package cpp_rl;
 
+option go_package = "github.com/danos/vyatta-dataplane/protobuf/go/cpp_rl";
+
 // The CPP rate limiter message.
 message CPP_limiter {
 

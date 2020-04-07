@@ -1,7 +1,7 @@
 /*
  * l3_v4_route_lookup.c
  *
- * Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2016, 2017 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -20,7 +20,7 @@
 #include "ip_icmp.h"
 #include "ip_mcast.h"
 #include "main.h"
-#include "pktmbuf.h"
+#include "pktmbuf_internal.h"
 
 #include "pl_common.h"
 #include "pl_fused.h"
@@ -28,7 +28,7 @@
 #include "pl_nodes_common.h"
 #include "route.h"
 #include "snmp_mib.h"
-#include "vrf.h"
+#include "vrf_internal.h"
 
 struct pl_node;
 
@@ -52,7 +52,8 @@ ipv4_route_lookup_node_to_vrf(struct pl_node *node)
 }
 
 static ALWAYS_INLINE unsigned int
-_ipv4_route_lookup_process_common(struct pl_packet *pkt, enum pl_mode mode,
+_ipv4_route_lookup_process_common(struct pl_packet *pkt, void *context __unused,
+				  enum pl_mode mode,
 				  enum ipv4_route_lookup_mode lkup_mode)
 {
 	struct ifnet *ifp = pkt->in_ifp;
@@ -147,23 +148,24 @@ _ipv4_route_lookup_process_common(struct pl_packet *pkt, enum pl_mode mode,
 }
 
 ALWAYS_INLINE unsigned int
-ipv4_route_lookup_process_common(struct pl_packet *pkt, enum pl_mode mode)
+ipv4_route_lookup_process_common(struct pl_packet *pkt, void *context __unused,
+				 enum pl_mode mode)
 {
-	return _ipv4_route_lookup_process_common(pkt, mode,
+	return _ipv4_route_lookup_process_common(pkt, context, mode,
 						 IPV4_LKUP_MODE_ROUTER);
 }
 
 ALWAYS_INLINE unsigned int
-ipv4_route_lookup_process(struct pl_packet *pkt)
+ipv4_route_lookup_process(struct pl_packet *pkt, void *context)
 {
-	return _ipv4_route_lookup_process_common(pkt, PL_MODE_REGULAR,
+	return _ipv4_route_lookup_process_common(pkt, context, PL_MODE_REGULAR,
 						 IPV4_LKUP_MODE_ROUTER);
 }
 
 ALWAYS_INLINE unsigned int
-ipv4_route_lookup_host_process(struct pl_packet *pkt)
+ipv4_route_lookup_host_process(struct pl_packet *pkt, void *context)
 {
-	return _ipv4_route_lookup_process_common(pkt, PL_MODE_REGULAR,
+	return _ipv4_route_lookup_process_common(pkt, context, PL_MODE_REGULAR,
 						 IPV4_LKUP_MODE_HOST);
 }
 
@@ -180,9 +182,13 @@ ipv4_route_lookup_feat_change(struct pl_node *node,
 
 ALWAYS_INLINE bool
 ipv4_route_lookup_feat_iterate(struct pl_node *node, bool first,
-				    unsigned int *feature_id, void **context)
+			       unsigned int *feature_id, void **context,
+			       void **storage_ctx)
 {
 	struct vrf *vrf = ipv4_route_lookup_node_to_vrf(node);
+
+	if (first)
+		*storage_ctx = NULL;
 
 	return pl_node_feat_iterate_u16(&vrf->v_ip_post_rlkup_features, first,
 					feature_id, context);

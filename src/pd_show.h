@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018, AT&T Intellectual Property.
+ * Copyright (c) 2018-2019, AT&T Intellectual Property.
  * All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
@@ -39,4 +39,7 @@ struct pd_obj_state_and_flags {
 int cmd_pd(FILE *f, int argc, char **argv);
 
 enum pd_obj_state fal_state_to_pd_state(int fal_state);
+
+bool fal_state_is_obj_present(enum pd_obj_state pd_obj_state);
+
 #endif /* PD_SHOW_H */

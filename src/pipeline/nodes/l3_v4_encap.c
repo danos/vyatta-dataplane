@@ -1,7 +1,7 @@
 /*
  * l3_v4_encap.c
  *
- * Copyright (c) 2018-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2019-2020, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -49,7 +49,7 @@ ipv4_encap_eth_from_nh4(struct rte_mbuf *mbuf, const struct next_hop *nh,
 			in_addr_t addr)
 {
 	struct ether_hdr *eth_hdr = rte_pktmbuf_mtod(mbuf, struct ether_hdr *);
-	struct ifnet *out_ifp = nh4_get_ifp(nh); /* Needed for VRRP */
+	struct ifnet *out_ifp = dp_nh4_get_ifp(nh); /* Needed for VRRP */
 
 	ether_addr_copy(&out_ifp->eth_addr, &eth_hdr->s_addr);
 
@@ -104,7 +104,7 @@ static ALWAYS_INLINE unsigned int
 ipv4_encap_process_internal(struct pl_packet *pkt, enum pl_mode mode)
 {
 	if (!ipv4_encap_features(pkt, mode))
-		return IPV4_ENCAP_DROPPED;
+		return IPV4_ENCAP_FEAT_CONSUME;
 
 	struct next_hop *nh = pkt->nxt.v4;
 	struct ifnet *in_ifp = pkt->in_ifp;
@@ -136,46 +136,52 @@ ipv4_encap_process_internal(struct pl_packet *pkt, enum pl_mode mode)
 	if (unlikely(out_ifp->if_type == IFT_TUNNEL_GRE)) {
 		if (unlikely(!gre_tunnel_encap(in_ifp, out_ifp, &addr,
 					       mbuf, l2_proto)))
-			return IPV4_ENCAP_FAIL;
+			return IPV4_ENCAP_NEIGH_RES_CONSUME;
 		return IPV4_ENCAP_L2_OUT;
 	}
 
 	/* Assume all other interface types use ethernet encap. */
 	if (!ipv4_encap_eth_from_nh4(mbuf, nh, addr))
-		return IPV4_ENCAP_FAIL;
+		return IPV4_ENCAP_NEIGH_RES_CONSUME;
 
 	return IPV4_ENCAP_L2_OUT;
 }
 
 ALWAYS_INLINE unsigned int
-ipv4_encap_process_common(struct pl_packet *pkt, enum pl_mode mode)
+ipv4_encap_process_common(struct pl_packet *pkt, void *context __unused,
+			  enum pl_mode mode)
 {
 	struct ifnet *out_ifp = pkt->out_ifp;
 
 	int rc = ipv4_encap_process_internal(pkt, mode);
 
-	if (rc == IPV4_ENCAP_L2_OUT)
+	/*
+	 * Either way the packet has been handed to "lower layers" to
+	 * be transmitted.
+	 */
+	if (rc == IPV4_ENCAP_L2_OUT || rc == IPV4_ENCAP_NEIGH_RES_CONSUME)
 		IPSTAT_INC_IFP(out_ifp, IPSTATS_MIB_OUTFORWDATAGRAMS);
 
 	return rc;
 }
 
 ALWAYS_INLINE unsigned int
-ipv4_encap_only_process_common(struct pl_packet *pkt, enum pl_mode mode)
+ipv4_encap_only_process_common(struct pl_packet *pkt, void *context __unused,
+			       enum pl_mode mode)
 {
 	return ipv4_encap_process_internal(pkt, mode);
 }
 
 ALWAYS_INLINE unsigned int
-ipv4_encap_process(struct pl_packet *p)
+ipv4_encap_process(struct pl_packet *p, void *context)
 {
-	return ipv4_encap_process_common(p, PL_MODE_REGULAR);
+	return ipv4_encap_process_common(p, context, PL_MODE_REGULAR);
 }
 
 ALWAYS_INLINE unsigned int
-ipv4_encap_only_process(struct pl_packet *p)
+ipv4_encap_only_process(struct pl_packet *p, void *context)
 {
-	return ipv4_encap_only_process_common(p, PL_MODE_REGULAR);
+	return ipv4_encap_only_process_common(p, context, PL_MODE_REGULAR);
 }
 
 static int
@@ -189,27 +195,46 @@ ipv4_encap_feat_change(struct pl_node *node,
 				      action);
 }
 
+static int
+ipv4_encap_feat_change_all(struct pl_feature_registration *feat,
+			   enum pl_node_feat_action action)
+{
+	return if_node_instance_feat_change_all(feat, action,
+						ipv4_encap_feat_change);
+}
+
 ALWAYS_INLINE bool
 ipv4_encap_feat_iterate(struct pl_node *node, bool first,
-			unsigned int *feature_id, void **context)
+			unsigned int *feature_id, void **context,
+			void **storage_ctx)
 {
 	struct ifnet *ifp = ipv4_encap_node_to_ifp(node);
+	bool ret;
 
-	return pl_node_feat_iterate_u8(&ifp->ip_encap_features, first,
-				       feature_id, context);
+	ret = pl_node_feat_iterate_u8(&ifp->ip_encap_features, first,
+				      feature_id, context);
+	if (ret)
+		*storage_ctx = if_node_instance_get_storage_internal(
+			ifp,
+			PL_FEATURE_POINT_IPV4_ENCAP_ID,
+			*feature_id);
+
+	return ret;
 }
 
 ALWAYS_INLINE bool
 ipv4_encap_only_feat_iterate(struct pl_node *node, bool first,
-			     unsigned int *feature_id, void **context)
+			     unsigned int *feature_id, void **context,
+			     void **storage_ctx)
 {
-	return ipv4_encap_feat_iterate(node, first, feature_id, context);
+	return ipv4_encap_feat_iterate(node, first, feature_id, context,
+				       storage_ctx);
 }
 
 static struct pl_node *
 ipv4_encap_node_lookup(const char *name)
 {
-	struct ifnet *ifp = ifnet_byifname(name);
+	struct ifnet *ifp = dp_ifnet_byifname(name);
 	return ifp ? ifp_to_ipv4_encap_node(ifp) : NULL;
 }
 
@@ -219,13 +244,18 @@ PL_REGISTER_NODE(ipv4_encap_node) = {
 	.type = PL_PROC,
 	.handler = ipv4_encap_process,
 	.feat_change = ipv4_encap_feat_change,
+	.feat_change_all = ipv4_encap_feat_change_all,
 	.feat_iterate = ipv4_encap_feat_iterate,
 	.lookup_by_name = ipv4_encap_node_lookup,
+	.feat_reg_context = if_node_instance_register_storage,
+	.feat_unreg_context = if_node_instance_unregister_storage,
+	.feat_get_context = if_node_instance_get_storage,
+	.feat_setup_cleanup_cb = if_node_instance_set_cleanup_cb,
 	.num_next = IPV4_ENCAP_NUM,
 	.next = {
 		[IPV4_ENCAP_L2_OUT] = "l2-out",
-		[IPV4_ENCAP_DROPPED] = "term-finish",
-		[IPV4_ENCAP_FAIL] = "term-finish",
+		[IPV4_ENCAP_FEAT_CONSUME] = "term-finish",
+		[IPV4_ENCAP_NEIGH_RES_CONSUME] = "term-finish",
 	}
 };
 
@@ -238,8 +268,8 @@ PL_REGISTER_NODE(ipv4_encap_only_node) = {
 	.num_next = IPV4_ENCAP_ONLY_NUM,
 	.next = {
 		[IPV4_ENCAP_ONLY_L2_OUT] = "term-noop",
-		[IPV4_ENCAP_ONLY_DROPPED] = "term-finish",
-		[IPV4_ENCAP_ONLY_FAIL] = "term-finish",
+		[IPV4_ENCAP_ONLY_FEAT_CONSUME] = "term-finish",
+		[IPV4_ENCAP_ONLY_NEIGH_RES_CONSUME] = "term-finish",
 	}
 };
 

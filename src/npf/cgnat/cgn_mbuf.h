@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2019-2020, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -16,7 +16,8 @@
 #include <netinet/tcp.h>
 #include <netinet/udp.h>
 
-#include "pktmbuf.h"
+#include "pktmbuf_internal.h"
+#include "npf/cgnat/cgn_hash_key.h"
 
 /*
  * cgn_packet - decomposition of a packet
@@ -32,12 +33,14 @@
  * initialised by cgn_cache_all.
  */
 struct cgn_packet {
+	struct cgn_3tuple_key	cpk_key; /* hash lookup key */
+
+	uint32_t	cpk_ifindex;
 	uint32_t	cpk_info;
 	vrfid_t		cpk_vrfid;	/* VRF id */
-	uint32_t	cpk_ifindex;	/* Interface index */
-	bool		cpk_keepalive;	/* Can we clear idle flag? */
+	uint8_t		cpk_keepalive:1; /* Can we clear idle flag? */
+	uint8_t		cpk_pkt_instd:1;
 	uint8_t		cpk_tcp_flags;
-	uint8_t		cpk_ipproto;	/* ip protocol */
 	uint8_t		cpk_proto;	/* tcp, udp, other enum */
 	uint8_t		cpk_l4ports;	/* true if there are l4ports*/
 	uint16_t	cpk_cksum;	/* l4 checksum */
@@ -49,6 +52,26 @@ struct cgn_packet {
 	uint32_t	cpk_hlen;	/* l3 + l4 */
 	size_t		cpk_len;	/* l3 + l4 + data */
 };
+
+#define cpk_ipproto	cpk_key.k_ipproto
+
+/*
+ * Init the direction dependent part of the hash key in the packet cache
+ * structure.
+ */
+static inline void cgn_pkt_key_init(struct cgn_packet *cpk, int dir)
+{
+	if (dir == CGN_DIR_OUT) {
+		/* Hash key is source address and port */
+		cpk->cpk_key.k_addr = cpk->cpk_saddr;
+		cpk->cpk_key.k_port = cpk->cpk_sid;
+	} else {
+		/* Hash key is destination address and port */
+		cpk->cpk_key.k_addr = cpk->cpk_daddr;
+		cpk->cpk_key.k_port = cpk->cpk_did;
+	}
+	assert(cpk->cpk_key.k_addr != 0);
+}
 
 #define ICMP_ERROR_MIN_L4_SIZE	8
 
@@ -152,4 +175,4 @@ int cgn_cache_all(struct rte_mbuf *m, uint l3_offset, struct ifnet *ifp,
 void cgn_rwrcksums(struct cgn_packet *sp, void *n_ptr,
 		   uint16_t l3_chk_delta, uint16_t l4_chk_delta);
 
-#endif
+#endif /* _CGN_MBUF_H_ */

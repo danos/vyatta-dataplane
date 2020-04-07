@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2017-2018, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2015-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -1071,7 +1071,7 @@ int cipher_setup_ctx(const struct xfrm_algo *algo_crypt,
 			.version = IPVERSION,
 			.protocol = sa->udp_encap ? IPPROTO_UDP : IPPROTO_ESP,
 		};
-		sa->iphdr.check = in_cksum_hdr(&sa->iphdr);
+		sa->iphdr.check = dp_in_cksum_hdr(&sa->iphdr);
 	} else {
 		struct ip6_hdr *ip6_hdr =  &sa->ip6_hdr;
 
@@ -1153,7 +1153,6 @@ void crypto_engine_summary(json_writer_t *wr, const struct sadb_sa *sa)
 
 	jsonw_string_field(wr, "digest", sa->session->md_name ?
 			   sa->session->md_name : "null");
-	jsonw_uint_field(wr, "replay_window", sa->replay_window);
 }
 
 static int crypto_chain_dump_set_iv(struct crypto_visitor_ctx *ctx,

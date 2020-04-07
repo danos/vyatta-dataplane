@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2018-2020, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -7,14 +7,14 @@
 #include <rte_branch_prediction.h>
 
 #include "compiler.h"
-#include "pktmbuf.h"
+#include "pktmbuf_internal.h"
 #include "pl_node.h"
 #include "pl_fused.h"
 #include "fal.h"
 #include "portmonitor/portmonitor_hw.h"
 
 ALWAYS_INLINE unsigned int
-portmonitor_hw_in_process(struct pl_packet *pkt)
+portmonitor_hw_in_process(struct pl_packet *pkt, void *context __unused)
 {
 	struct ifnet *ifp;
 	struct rte_mbuf *m = pkt->mbuf;

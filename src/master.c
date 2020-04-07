@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2011-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -40,12 +40,13 @@
 
 #include "commands.h"
 #include "compiler.h"
-#include "config.h"
+#include "config_internal.h"
 #include "control.h"
 #include "dealer.h"
 #include "dp_event.h"
 #include "dpmsg.h"
-#include "event.h"
+#include "event_internal.h"
+#include "if/dpdk-eth/hotplug.h"
 #include "if_ether.h"
 #include "if_var.h"
 #include "ip_addr.h"
@@ -63,9 +64,8 @@
 #include "util.h"
 #include "vplane_debug.h"
 #include "vplane_log.h"
-#include "vrf.h"
+#include "vrf_internal.h"
 #include "zmq_dp.h"
-#include "hotplug.h"
 
 /* Frequency of updates to soft_ticks */
 #define SOFT_CLOCK_HZ	    100
@@ -202,7 +202,7 @@ static bool check_uplink_route(enum cont_src_en cont_src)
 }
 
 /* Send an event to be published by vplaned */
-int send_dp_event(zmsg_t *msg)
+int dp_send_event_to_vplaned(zmsg_t *msg)
 {
 	zsock_t *csocket = cont_socket_get(CONT_SRC_MAIN);
 	int result;
@@ -471,9 +471,6 @@ static void handle_port_response(enum cont_src_en cont_src,
 				 cont_src_name(cont_src), ifp->if_port,
 				 ifindex, ifname);
 
-			if (is_team(ifp))
-				return;
-
 			int rc = shadow_init_port(ifp->if_port, ifname,
 						  &ifp->eth_addr);
 
@@ -578,7 +575,7 @@ static int async_response(void *cont_src_ptr)
 		 */
 		if (process_ready(cont_src, msg) < 0) {
 			RTE_LOG(ERR, DATAPLANE,
-				"master(%s) unexpected message in ready",
+				"master(%s) unexpected message in ready\n",
 				cont_src_name(cont_src));
 			reset_dataplane(cont_src, true);
 		}
@@ -790,8 +787,8 @@ static void expire_response(struct rte_timer *t __unused, void *arg)
 	struct response *rsp = arg;
 
 	RTE_LOG(ERR, DATAPLANE,
-		"master(%s) controller response timeout [%"PRIu64"]\n",
-		cont_src_name(rsp->rsp_cont_src), rsp->seqno);
+		"master(%s) controller response for port %u timeout [seqno %"PRIu64"]\n",
+		cont_src_name(rsp->rsp_cont_src), rsp->portid, rsp->seqno);
 	reset_dataplane(rsp->rsp_cont_src, true);
 
 
@@ -830,8 +827,14 @@ static int setup_interfaces(uint8_t startid, uint8_t num_ports,
 				continue;
 		}
 
-		RTE_LOG(NOTICE, DATAPLANE, "master(%s) port %d (%s)\n",
-			cont_src_name(cont_src), portid, ifp->if_name);
+		/*
+		 * Bonding interfaces are represented by kernel
+		 * interfaces created by the control plane, and not
+		 * interfaces created by the dataplane so we don't
+		 * need to issue a newport request to the controller.
+		 */
+		if (is_team(ifp))
+			continue;
 
 		struct response *expected = malloc(sizeof(*expected));
 
@@ -912,6 +915,14 @@ void send_port_status(uint32_t port_id, const struct rte_eth_link *link)
 
 	/* If connection to controller is not up yet (ignore) */
 	if (!csocket)
+		return;
+
+	/*
+	 * Unlike regular ports, the link state of bonding interfaces
+	 * isn't owned by the dataplane but is determined by higher
+	 * levels of the system, so don't try to override it.
+	 */
+	if (is_team(ifp))
 		return;
 
 	zmsg_t *msg = zmsg_new();
@@ -1099,7 +1110,7 @@ static void master_control_intf(struct ifnet *ifp, uint8_t family,
 
 	if (add) {
 		if (control_addr) {
-			if (!addr_eq(&config.local_ip, &ctrladdr))
+			if (!dp_addr_eq(&config.local_ip, &ctrladdr))
 				RTE_LOG(ERR, DATAPLANE,
 					"control inf was set. Ignoring %s\n",
 					addr_str);
@@ -1282,11 +1293,7 @@ void master_loop(void)
 
 			/* Connect shadow interfaces to controller */
 			rc = setup_interfaces(0,
-#ifdef HAVE_RTE_ETH_DEV_COUNT_AVAIL
-					      rte_eth_dev_count_avail(),
-#else
-					      rte_eth_dev_count(),
-#endif
+					      nb_ports,
 					      cont_src, false);
 			if (rc < 0)
 				reset_dataplane(cont_src, true);
@@ -1296,9 +1303,9 @@ void master_loop(void)
 			break;
 
 		case MASTER_RESYNC_NEEDED:
-			unregister_event_socket(
-					zsock_resolve(
-						cont_socket_get(cont_src)));
+			dp_unregister_event_socket(
+				zsock_resolve(
+					cont_socket_get(cont_src)));
 			register_event_socket_src(
 					zsock_resolve(
 						cont_socket_get(cont_src)),

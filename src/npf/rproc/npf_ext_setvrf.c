@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2017 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -16,7 +16,7 @@
 #include "npf/npf.h"
 #include "npf/rproc/npf_rproc.h"
 #include "npf/npf_ruleset.h"
-#include "pktmbuf.h"
+#include "pktmbuf_internal.h"
 #include "vplane_log.h"
 
 struct ifnet;
@@ -59,7 +59,7 @@ npf_setvrf(npf_cache_t *npc __unused, struct rte_mbuf **m, void *arg,
 		return true;
 
 	vrfid = (uintptr_t)arg;
-	vrf = vrf_get_rcu_from_external(vrfid);
+	vrf = dp_vrf_get_rcu_from_external(vrfid);
 	pktmbuf_set_vrf(*m, vrf ? vrf->v_id : VRF_INVALID_ID);
 	return true;
 }

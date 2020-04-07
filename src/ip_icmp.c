@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 1982, 1986, 1988, 1993
  *	The Regents of the University of California.  All rights reserved.
  *
@@ -49,18 +49,19 @@
 #include <sys/types.h>
 #include <urcu/list.h>
 
+#include "if/macvlan.h"
 #include "if_var.h"
 #include "in_cksum.h"
 #include "ip_funcs.h"
 #include "ip_icmp.h"
-#include "pktmbuf.h"
+#include "pktmbuf_internal.h"
 #include "route.h"
 #include "snmp_mib.h"
 #include "urcu.h"
 #include "util.h"
+#include "nh.h"
 #include "npf/npf_nat.h"
 #include "npf/cgnat/cgn.h"
-#include "macvlan.h"
 #include "fal.h"
 #include "netinet6/ip6_funcs.h"
 #include "vplane_log.h"
@@ -161,7 +162,7 @@ icmp_prepare_send(struct rte_mbuf *m)
 
 	ip = iphdr(m);
 	hlen = ip->ihl << 2;
-	ip->id = ip_randomid(0);
+	ip->id = dp_ip_randomid(0);
 	ip->check = 0;
 	ip->check = in_cksum(ip, hlen);
 
@@ -190,6 +191,45 @@ icmp_send(struct rte_mbuf *m, bool srced_forus)
 	icmp_out_inc(pktmbuf_get_vrf(m), icp->type);
 
 	ip_output(m, srced_forus);
+}
+
+/*
+ * Send an ICMP packet *without* doing a route lookup.  Assumes that the dest
+ * ether address already contains the next-hop ether address.
+ */
+static bool
+icmp_send_no_route(struct rte_mbuf *m, struct ifnet *in_ifp,
+		   struct ifnet *out_ifp)
+{
+	struct iphdr *ip;
+	int hlen;
+	struct icmphdr *icp;
+	struct next_hop singlehop_nh;
+	struct next_hop *nh = NULL;
+
+	if (!(out_ifp->if_flags & IFF_UP)) {
+		rte_pktmbuf_free(m);
+		return false;
+	}
+
+	icmp_prepare_send(m);
+
+	ip = iphdr(m);
+	hlen = ip->ihl << 2;
+	icp = (struct icmphdr *) ((char *)ip + hlen);
+
+	icmp_out_inc(pktmbuf_get_vrf(m), icp->type);
+
+	memset(&singlehop_nh, 0, sizeof(singlehop_nh));
+	nh4_set_ifp(&singlehop_nh, out_ifp);
+	nh = &singlehop_nh;
+
+	if (dp_ip_l2_nh_output(in_ifp, m, nh, ETH_P_IP)) {
+		IPSTAT_INC_IFP(out_ifp, IPSTATS_MIB_OUTPKTS);
+		return true;
+	}
+
+	return false;
 }
 
 /*
@@ -361,10 +401,12 @@ icmp_do_error(struct rte_mbuf *n, int type, int code, uint32_t info,
 	struct rte_mbuf *m;
 	unsigned int icmplen, icmpelen, pktlen;
 
-	if (n->ol_flags & PKT_RX_SEEN_BY_CRYPTO)
-		return NULL;
+	if (n->ol_flags & PKT_RX_SEEN_BY_CRYPTO) {
+		if (!inif || (inif->if_type != IFT_TUNNEL_VTI))
+			return NULL;
+	}
 
-	oiphlen = pktmbuf_l3_len(n);
+	oiphlen = dp_pktmbuf_l3_len(n);
 
 	/*
 	 * Don't send error:
@@ -385,7 +427,7 @@ icmp_do_error(struct rte_mbuf *n, int type, int code, uint32_t info,
 		return NULL;
 
 	/* Drop if IP header plus 8 bytes is not contiguous in first mbuf. */
-	pktlen = rte_pktmbuf_data_len(n) - pktmbuf_l2_len(n);
+	pktlen = rte_pktmbuf_data_len(n) - dp_pktmbuf_l2_len(n);
 	if (oiphlen + sizeof(struct icmphdr) > pktlen)
 		return NULL;
 
@@ -451,8 +493,9 @@ icmp_do_error(struct rte_mbuf *n, int type, int code, uint32_t info,
 	 * reply should bypass as well.
 	 */
 	mlen = sizeof(struct iphdr) + sizeof(struct icmphdr) + icmplen;
-	rte_pktmbuf_pkt_len(m) = rte_pktmbuf_data_len(m) = mlen + pktmbuf_l2_len(n);
-	pktmbuf_l2_len(m) = pktmbuf_l2_len(n);
+	rte_pktmbuf_pkt_len(m) = rte_pktmbuf_data_len(m) =
+		mlen + dp_pktmbuf_l2_len(n);
+	dp_pktmbuf_l2_len(m) = dp_pktmbuf_l2_len(n);
 
 	nip = iphdr(m);
 	icp = (struct icmphdr *) ((char *) nip + sizeof(struct iphdr));
@@ -528,6 +571,104 @@ icmp_error_out(const struct ifnet *rcvif, struct rte_mbuf *n,
 	icmp_do_reflect(rcvif, n, m);
 }
 
+/*
+ * Send ICMP echo reply out the rcv interface in response to an echo request.
+ */
+static struct rte_mbuf *
+icmp_do_echo_reply(struct ifnet *ifp, struct rte_mbuf *n, bool reflect)
+{
+	const struct iphdr *oip = iphdr(n);
+	struct iphdr *nip;
+	struct icmphdr *nicmp;
+	struct rte_mbuf *m;
+	uint pktlen;
+
+	/* Drop if there are any IP options */
+	if (dp_pktmbuf_l3_len(n) > sizeof(struct iphdr))
+		return NULL;
+
+	/* Drop if IP header plus 8 bytes is not contiguous in first mbuf. */
+	pktlen = rte_pktmbuf_data_len(n) - dp_pktmbuf_l2_len(n);
+
+	if (sizeof(struct iphdr) + sizeof(struct icmphdr) > pktlen)
+		return NULL;
+
+	/* Make a copy of the ICMP Request packet */
+	m = pktmbuf_copy(n, n->pool);
+	if (m == NULL)
+		return NULL;
+
+	/*
+	 * Drop if the new packet is not all in the one mbuf.  The ICMP
+	 * checksum is calculated over the ICMP header and ICMP data, and this
+	 * assumes these are contiguous.
+	 */
+	if (rte_pktmbuf_data_len(m) != rte_pktmbuf_pkt_len(m)) {
+		rte_pktmbuf_free(m);
+		return NULL;
+	}
+
+	/* preserve the input port number for use by shadow interface */
+	m->port = n->port;
+
+	struct ether_hdr *neh = rte_pktmbuf_mtod(m, struct ether_hdr *);
+
+	/* Ethernet source addr is interface address */
+	ether_addr_copy(&ifp->eth_addr, &neh->s_addr);
+
+	if (reflect) {
+		/* Echo req source ether is echo reply dest ether */
+		struct ether_hdr *oeh = rte_pktmbuf_mtod(n, struct ether_hdr *);
+		ether_addr_copy(&oeh->s_addr, &neh->d_addr);
+	}
+
+	nip = iphdr(m);
+
+	/* Swap source and dest IP addrs from icmp request */
+	nip->saddr	= oip->daddr;
+	nip->daddr	= oip->saddr;
+
+	nip->ihl	= 5;
+	nip->version	= IPVERSION;
+	nip->tos	= 0;
+	nip->tot_len	= oip->tot_len;
+	nip->frag_off	= 0;
+	nip->protocol	= IPPROTO_ICMP;
+	nip->ttl	= IPDEFTTL;
+
+	/* Change the icmp type to ICMP_ECHOREPLY */
+	nicmp = (struct icmphdr *)((char *)nip + sizeof(struct iphdr));
+	nicmp->type = ICMP_ECHOREPLY;
+
+	pktmbuf_mdata_set(m, PKT_MDATA_FROM_US);
+	return m;
+}
+
+/*
+ * Send ICMP echo reply out the receive interface in response to an echo
+ * request.
+ *
+ * Returns true if successful.
+ */
+bool icmp_echo_reply_out(struct ifnet *rcvifp, struct rte_mbuf *n,
+			 bool reflect)
+{
+	struct rte_mbuf *m;
+	bool rv = true;
+
+	m = icmp_do_echo_reply(rcvifp, n, reflect);
+	if (!m)
+		return false;
+
+	if (reflect)
+		/* Reflect reply directly back to sender */
+		rv = icmp_send_no_route(m, rcvifp, rcvifp);
+	else
+		icmp_send(m, false);
+
+	return rv;
+}
+
 u_int16_t
 icmp_common_exthdr(struct rte_mbuf *m, uint16_t cnum, uint8_t ctype,
 		   void *buf, void *ip_hdr, int hlen, u_int16_t ip_total_len,
@@ -578,7 +719,7 @@ icmp_common_exthdr(struct rte_mbuf *m, uint16_t cnum, uint8_t ctype,
 	ieh->ieh_cksum = in_cksum(ieh, sizeof(hdr) + len);
 
 	rte_pktmbuf_pkt_len(m) = rte_pktmbuf_data_len(m) =
-		hlen + off + sizeof(hdr) + len + pktmbuf_l2_len(m);
+		hlen + off + sizeof(hdr) + len + dp_pktmbuf_l2_len(m);
 
 	return hlen + off + sizeof(hdr) + len;
 }
@@ -592,7 +733,7 @@ icmp_do_exthdr(struct rte_mbuf *m, uint16_t class, uint8_t ctype, void *buf,
 	struct icmphdr *icp;
 	int hlen;
 
-	hlen = pktmbuf_l3_len(m);
+	hlen = dp_pktmbuf_l3_len(m);
 	icp = (struct icmphdr *) ((char *) ip + hlen);
 	if (icp->type != ICMP_TIME_EXCEEDED && icp->type != ICMP_DEST_UNREACH &&
 	    icp->type != ICMP_PARAMETERPROB)

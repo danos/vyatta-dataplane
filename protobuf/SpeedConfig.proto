@@ -1,0 +1,27 @@
+// Copyright (c) 2019, AT&T Intellectual Property.  All rights reserved.
+//
+// SPDX-License-Identifier: LGPL-2.1-only
+//
+// cmd_speed protobuf definitions
+//
+
+syntax="proto2";
+
+option go_package = "github.com/danos/vyatta-dataplane/protobuf/go/SpeedConfig";
+
+message SpeedConfig {
+	enum Duplex {
+	     HALF = 0;
+	     FULL = 1;
+	     AUTO = -1;
+	}
+
+	optional string ifname = 1;
+
+	oneof speed {
+	      uint32 numspeed = 2;
+	      string auto = 3;
+	}
+
+	optional Duplex duplex_option = 4;
+}

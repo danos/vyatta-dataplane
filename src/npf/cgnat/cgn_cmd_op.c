@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2019-2020, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -14,7 +14,7 @@
 
 #include "commands.h"
 #include "compiler.h"
-#include "config.h"
+#include "config_internal.h"
 #include "if_var.h"
 #include "util.h"
 #include "vplane_log.h"
@@ -31,6 +31,7 @@
 #include "npf/cgnat/cgn_policy.h"
 #include "npf/cgnat/cgn_session.h"
 #include "npf/cgnat/cgn_source.h"
+#include "npf/cgnat/cgn_log_protobuf_zmq.h"
 
 
 static void cgn_show_summary(FILE *f, int argc __unused, char **argv __unused)
@@ -57,10 +58,17 @@ static void cgn_show_summary(FILE *f, int argc __unused, char **argv __unused)
 	jsonw_uint_field(json, "subs_table_max", cgn_source_get_max());
 
 	jsonw_uint_field(json, "apm_table_used", apm_get_used());
-	jsonw_uint_field(json, "apm_table_max", apm_get_max());
+	jsonw_uint_field(json, "apm_table_max", 0); /* deprecated */
 
 	jsonw_uint_field(json, "pkts_hairpinned",
-			 rte_atomic64_read(&cgn_hairpinned_pkts));
+			 cgn_rc_read(CGN_DIR_OUT, CGN_HAIRPINNED));
+
+	if (rte_atomic64_read(&cgn_sess2_ht_created) > 0) {
+		jsonw_uint_field(json, "sess_ht_created",
+				 rte_atomic64_read(&cgn_sess2_ht_created));
+		jsonw_uint_field(json, "sess_ht_destroyed",
+				 rte_atomic64_read(&cgn_sess2_ht_destroyed));
+	}
 
 	/*
 	 * Also summarize select error counts.  Mosts counts will only ever
@@ -69,50 +77,62 @@ static void cgn_show_summary(FILE *f, int argc __unused, char **argv __unused)
 	 */
 	uint64_t count;
 
-	count = rte_atomic64_read(&cgn_errors[CGN_DIR_OUT][CGN_PCY_ENOENT]);
+	count = cgn_rc_read(CGN_DIR_OUT, CGN_PCY_ENOENT);
 	jsonw_uint_field(json, "nopolicy", count);
 
-	count = rte_atomic64_read(&cgn_errors[CGN_DIR_IN][CGN_SESS_ENOENT]);
+	count = cgn_rc_read(CGN_DIR_IN, CGN_SESS_ENOENT);
 	jsonw_uint_field(json, "nosess", count);
 
-	count = rte_atomic64_read(&cgn_errors[CGN_DIR_OUT][CGN_BUF_PROTO]);
-	count += rte_atomic64_read(&cgn_errors[CGN_DIR_OUT][CGN_BUF_ICMP]);
+	count = cgn_rc_read(CGN_DIR_OUT, CGN_PCY_BYPASS);
+	jsonw_uint_field(json, "bypass", count);
+
+	count = cgn_rc_read(CGN_DIR_IN, CGN_POOL_ENOENT);
+	jsonw_uint_field(json, "nopool", count);
+
+	count = cgn_rc_read(CGN_DIR_OUT, CGN_BUF_PROTO);
+	count += cgn_rc_read(CGN_DIR_OUT, CGN_BUF_ICMP);
 	jsonw_uint_field(json, "etrans", count);
 
 	count = 0;
-	count += rte_atomic64_read(&cgn_errors[CGN_DIR_OUT][CGN_S1_ENOMEM]);
-	count += rte_atomic64_read(&cgn_errors[CGN_DIR_OUT][CGN_S2_ENOMEM]);
-	count += rte_atomic64_read(&cgn_errors[CGN_DIR_OUT][CGN_PB_ENOMEM]);
-	count += rte_atomic64_read(&cgn_errors[CGN_DIR_OUT][CGN_SRC_ENOMEM]);
+	count += cgn_rc_read(CGN_DIR_OUT, CGN_S1_ENOMEM);
+	count += cgn_rc_read(CGN_DIR_OUT, CGN_S2_ENOMEM);
+	count += cgn_rc_read(CGN_DIR_OUT, CGN_PB_ENOMEM);
+	count += cgn_rc_read(CGN_DIR_OUT, CGN_APM_ENOMEM);
+	count += cgn_rc_read(CGN_DIR_OUT, CGN_SRC_ENOMEM);
 	jsonw_uint_field(json, "enomem", count);
 
 	count = 0;
-	count += rte_atomic64_read(&cgn_errors[CGN_DIR_OUT][CGN_MBU_ENOSPC]);
-	count += rte_atomic64_read(&cgn_errors[CGN_DIR_OUT][CGN_SRC_ENOSPC]);
-	count += rte_atomic64_read(&cgn_errors[CGN_DIR_OUT][CGN_BLK_ENOSPC]);
-	count += rte_atomic64_read(&cgn_errors[CGN_DIR_OUT][CGN_APM_ENOSPC]);
-	count += rte_atomic64_read(&cgn_errors[CGN_DIR_OUT][CGN_POOL_ENOSPC]);
-	count += rte_atomic64_read(&cgn_errors[CGN_DIR_OUT][CGN_S1_ENOSPC]);
-	count += rte_atomic64_read(&cgn_errors[CGN_DIR_OUT][CGN_S2_ENOSPC]);
+	count += cgn_rc_read(CGN_DIR_OUT, CGN_MBU_ENOSPC);
+	count += cgn_rc_read(CGN_DIR_OUT, CGN_SRC_ENOSPC);
+	count += cgn_rc_read(CGN_DIR_OUT, CGN_BLK_ENOSPC);
+	count += cgn_rc_read(CGN_DIR_OUT, CGN_APM_ENOSPC);
+	count += cgn_rc_read(CGN_DIR_OUT, CGN_POOL_ENOSPC);
+	count += cgn_rc_read(CGN_DIR_OUT, CGN_S1_ENOSPC);
+	count += cgn_rc_read(CGN_DIR_OUT, CGN_S2_ENOSPC);
 	jsonw_uint_field(json, "enospc", count);
 
 	count = 0;
-	count += rte_atomic64_read(&cgn_errors[CGN_DIR_OUT][CGN_S1_EEXIST]);
-	count += rte_atomic64_read(&cgn_errors[CGN_DIR_OUT][CGN_S2_EEXIST]);
-	count += rte_atomic64_read(&cgn_errors[CGN_DIR_OUT][CGN_APM_ENOENT]);
-	count += rte_atomic64_read(&cgn_errors[CGN_DIR_OUT][CGN_SRC_ENOENT]);
+	count += cgn_rc_read(CGN_DIR_OUT, CGN_S1_EEXIST);
+	count += cgn_rc_read(CGN_DIR_OUT, CGN_S2_EEXIST);
+	count += cgn_rc_read(CGN_DIR_OUT, CGN_APM_ENOENT);
+	count += cgn_rc_read(CGN_DIR_OUT, CGN_SRC_ENOENT);
 	jsonw_uint_field(json, "ethread", count);
 
 	count = 0;
-	count += rte_atomic64_read(&cgn_errors[CGN_DIR_OUT][CGN_BUF_ENOL3]);
-	count += rte_atomic64_read(&cgn_errors[CGN_DIR_OUT][CGN_BUF_ENOL4]);
-	count += rte_atomic64_read(&cgn_errors[CGN_DIR_OUT][CGN_BUF_ENOMEM]);
-	count += rte_atomic64_read(&cgn_errors[CGN_DIR_OUT][CGN_BUF_ENOSPC]);
-	count += rte_atomic64_read(&cgn_errors[CGN_DIR_IN][CGN_BUF_ENOL3]);
-	count += rte_atomic64_read(&cgn_errors[CGN_DIR_IN][CGN_BUF_ENOL4]);
-	count += rte_atomic64_read(&cgn_errors[CGN_DIR_IN][CGN_BUF_ENOMEM]);
-	count += rte_atomic64_read(&cgn_errors[CGN_DIR_IN][CGN_BUF_ENOSPC]);
+	count += cgn_rc_read(CGN_DIR_OUT, CGN_BUF_ENOL3);
+	count += cgn_rc_read(CGN_DIR_OUT, CGN_BUF_ENOL4);
+	count += cgn_rc_read(CGN_DIR_OUT, CGN_BUF_ENOMEM);
+	count += cgn_rc_read(CGN_DIR_OUT, CGN_BUF_ENOSPC);
+	count += cgn_rc_read(CGN_DIR_IN, CGN_BUF_ENOL3);
+	count += cgn_rc_read(CGN_DIR_IN, CGN_BUF_ENOL4);
+	count += cgn_rc_read(CGN_DIR_IN, CGN_BUF_ENOMEM);
+	count += cgn_rc_read(CGN_DIR_IN, CGN_BUF_ENOSPC);
 	jsonw_uint_field(json, "embuf", count);
+
+	jsonw_uint_field(json, "pcp_ok",
+			 cgn_rc_read(CGN_DIR_OUT, CGN_PCP_OK));
+	jsonw_uint_field(json, "pcp_err",
+			 cgn_rc_read(CGN_DIR_OUT, CGN_PCP_ERR));
 
 	jsonw_end_object(json);
 	jsonw_destroy(&json);
@@ -129,12 +149,12 @@ static void cgn_show_errors_dir(json_writer_t *json, int dir, const char *name)
 	jsonw_name(json, name);
 	jsonw_start_array(json);
 
-	for (err = 1; err <= CGN_ERRNO_LAST; err++) {
+	for (err = 1; err <= CGN_RC_LAST; err++) {
 		jsonw_start_object(json);
 
-		count = rte_atomic64_read(&cgn_errors[dir][err]);
-		jsonw_string_field(json, "name", cgn_errno_str(err));
-		jsonw_string_field(json, "desc", cgn_errno_detail_str(err));
+		count = cgn_rc_read(dir, err);
+		jsonw_string_field(json, "name", cgn_rc_str(err));
+		jsonw_string_field(json, "desc", cgn_rc_detail_str(err));
 		jsonw_uint_field(json, "errno", err);
 		jsonw_uint_field(json, "count", count);
 
@@ -165,6 +185,16 @@ static void cgn_show_errors(FILE *f, int argc __unused, char **argv __unused)
 	jsonw_destroy(&json);
 }
 
+static void cgn_clear_errors(int argc __unused, char **argv __unused)
+{
+	uint err;
+
+	for (err = 1; err <= CGN_RC_LAST; err++) {
+		cgn_rc_clear(CGN_DIR_OUT, err);
+		cgn_rc_clear(CGN_DIR_IN, err);
+	}
+}
+
 /*
  * Unit-test specific op commands
  */
@@ -173,8 +203,20 @@ static int cgn_op_ut(FILE *f __unused, int argc, char **argv)
 	if (argc < 3)
 		return 0;
 
-	if (!strcmp(argv[2], "gc"))
-		cgn_session_gc_pass();
+	if (!strcmp(argv[2], "gc")) {
+		if (argc < 4) {
+			cgn_session_gc_pass();
+			cgn_source_gc_pass();
+			apm_gc_pass();
+		} else {
+			if (!strcmp(argv[3], "session"))
+				cgn_session_gc_pass();
+			else if (!strcmp(argv[3], "subs"))
+				cgn_source_gc_pass();
+			else if (!strcmp(argv[3], "pub"))
+				apm_gc_pass();
+		}
+	}
 
 	return 0;
 }
@@ -191,8 +233,30 @@ int cmd_cgn_op(FILE *f, int argc, char **argv)
 	 * Clear ...
 	 */
 	if (!strcmp(argv[1], "clear")) {
-		if (!strcmp(argv[2], "session"))
+		if (!strcmp(argv[2], "policy"))
+			cgn_policy_clear(argc, argv);
+
+		else if (!strcmp(argv[2], "subscriber"))
+			cgn_source_clear_or_update(argc, argv, true);
+
+		else if (!strcmp(argv[2], "session"))
 			cgn_session_clear(f, argc, argv);
+
+		else if (!strcmp(argv[2], "errors"))
+			cgn_clear_errors(argc, argv);
+
+		return 0;
+	}
+
+	/*
+	 * Update ...
+	 */
+	if (!strcmp(argv[1], "update")) {
+		if (!strcmp(argv[2], "subscriber"))
+			cgn_source_clear_or_update(argc, argv, false);
+
+		else if (!strcmp(argv[2], "session"))
+			cgn_session_update(f, argc, argv);
 
 		return 0;
 	}
@@ -218,6 +282,12 @@ int cmd_cgn_op(FILE *f, int argc, char **argv)
 
 		else if (!strcmp(argv[2], "summary"))
 			cgn_show_summary(f, argc, argv);
+
+		else if (!strcmp(argv[2], "zmq"))
+			cgn_show_zmq(f);
+
+		else if (!strcmp(argv[2], "interface"))
+			cgn_show_interface(f, argc, argv);
 
 		return 0;
 	}

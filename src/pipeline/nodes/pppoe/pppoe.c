@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018, AT&T Intellectual Property. All rights reserved.
+ * Copyright (c) 2018-2020, AT&T Intellectual Property. All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  *
@@ -109,7 +109,7 @@ static void pppoe_invalidate_conn(struct ifnet *ifp, uint32_t old_ifindex)
  * and have this interface as the one they need.
  */
 static void
-pppoe_track_if_index_set(struct ifnet *new_ifp, uint32_t ifindex __unused)
+pppoe_track_if_index_set(struct ifnet *new_ifp)
 {
 	struct pppoe_connection *conn;
 
@@ -425,8 +425,15 @@ ppp_tunnel_delete(struct ifnet *ifp)
 		pppoe_no_track_underlying_interfaces();
 }
 
+static enum dp_ifnet_iana_type
+ppp_iana_type(struct ifnet *ifp __unused)
+{
+	return DP_IFTYPE_IANA_PPP;
+}
+
 static const struct ift_ops ppp_if_ops = {
 	.ifop_uninit = ppp_tunnel_delete,
+	.ifop_iana_type = ppp_iana_type,
 };
 
 static void ppp_init(void)

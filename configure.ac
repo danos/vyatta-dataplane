@@ -123,7 +123,7 @@ PKG_CHECK_MODULES(LIBURCU_CDS, [liburcu-cds >= 0.8.0])
 PKG_CHECK_MODULES(LIBURCU_QSBR, [liburcu-qsbr >= 0.8.0])
 PKG_CHECK_MODULES(LIBMNL, [libmnl])
 PKG_CHECK_MODULES(LIBOSIP2, [libosip2])
-PKG_CHECK_MODULES_STATIC(DPDK, [libdpdk >= 17.05])
+PKG_CHECK_MODULES_STATIC(DPDK, [libdpdk >= 18.11])
 PKG_CHECK_MODULES(SWPORT, [vyatta-dpdk-swport >= 0.1.3])
 PKG_CHECK_MODULES([PROTOBUF_C], [libprotobuf-c >= 1.0.0])
 
@@ -186,197 +186,6 @@ rte_eth_dev_callback_register(0, 0, foo, NULL);
 ])
 CFLAGS=$CFLAGS_BACK
 
-CFLAGS_BACK=$CFLAGS
-CFLAGS+=" $DPDK_CFLAGS -Werror"
-AC_MSG_CHECKING([whether rte_mempool_generic_get/put have a flags argument])
-AC_COMPILE_IFELSE(
-	[AC_LANG_PROGRAM(
-		[[
-#include <rte_mempool.h>
-		]],
-		[[
-rte_mempool_generic_get(NULL, NULL, 0, NULL, 0);
-		]])
-	],[
-		AC_MSG_RESULT([yes])
-		AC_DEFINE(HAVE_RTE_MEMPOOL_GENERIC_FLAGS, [1],
-		    [whether rte_mempool_generic_get/put have a flags argument])
-	],[
-		AC_MSG_RESULT([no])
-])
-CFLAGS=$CFLAGS_BACK
-
-CFLAGS_BACK=$CFLAGS
-CFLAGS+=" $DPDK_CFLAGS -Werror"
-AC_MSG_CHECKING([whether rte_eth_dev_reset has non-blocking flag])
-AC_COMPILE_IFELSE(
-	[AC_LANG_PROGRAM(
-		[[
-#include <rte_ethdev.h>
-		]],
-		[[
-rte_eth_dev_reset(0, 0);
-		]])
-	],[
-		AC_MSG_RESULT([yes])
-		AC_DEFINE(HAVE_RTE_ETH_DEV_RESET_2_ARGS, [1],
-		    [whether rte_eth_dev_reset has non-blocking flag])
-	],[
-		AC_MSG_RESULT([no])
-])
-CFLAGS=$CFLAGS_BACK
-
-CFLAGS_BACK=$CFLAGS
-CFLAGS+=" $DPDK_CFLAGS -Werror"
-AC_MSG_CHECKING([whether rte_mempool_virt2iova is available])
-AC_COMPILE_IFELSE(
-	[AC_LANG_PROGRAM(
-		[[
-#include <rte_mempool.h>
-		]],
-		[[
-rte_mempool_virt2iova(0);
-		]])
-	],[
-		AC_MSG_RESULT([yes])
-		AC_DEFINE(HAVE_RTE_MEMPOOL_VIRT2IOVA, [1],
-		    [whether rte_mempool_virt2iova is available])
-	],[
-		AC_MSG_RESULT([no])
-])
-CFLAGS=$CFLAGS_BACK
-
-CFLAGS_BACK=$CFLAGS
-CFLAGS+=" $DPDK_CFLAGS -Werror"
-AC_MSG_CHECKING([whether rte_eal_cleanup is available])
-AC_COMPILE_IFELSE(
-	[AC_LANG_PROGRAM(
-		[[
-#include <rte_eal.h>
-		]],
-		[[
-rte_eal_cleanup();
-		]])
-	],[
-		AC_MSG_RESULT([yes])
-		AC_DEFINE(HAVE_RTE_EAL_CLEANUP, [1],
-		    [whether rte_eal_cleanup is available])
-	],[
-		AC_MSG_RESULT([no])
-])
-CFLAGS=$CFLAGS_BACK
-
-CFLAGS_BACK=$CFLAGS
-CFLAGS+=" $DPDK_CFLAGS -Werror"
-AC_MSG_CHECKING([whether rte_eth_dev_count_avail is available])
-AC_COMPILE_IFELSE(
-	[AC_LANG_PROGRAM(
-		[[
-#include <rte_ethdev.h>
-		]],
-		[[
-rte_eth_dev_count_avail();
-		]])
-	],[
-		AC_MSG_RESULT([yes])
-		AC_DEFINE(HAVE_RTE_ETH_DEV_COUNT_AVAIL, [1],
-		    [whether rte_eth_dev_count_avail is available])
-	],[
-		AC_MSG_RESULT([no])
-])
-CFLAGS=$CFLAGS_BACK
-
-CFLAGS_BACK=$CFLAGS
-CFLAGS+=" $DPDK_CFLAGS -Werror -Wno-deprecated-declarations"
-AC_MSG_CHECKING([whether rte_devargs_add is available])
-AC_COMPILE_IFELSE(
-	[AC_LANG_PROGRAM(
-		[[
-#include <rte_devargs.h>
-		]],
-		[[
-rte_devargs_add(0, 0);
-		]])
-	],[
-		AC_MSG_RESULT([yes])
-		AC_DEFINE(HAVE_RTE_DEVARGS_ADD, [1],
-		    [whether rte_devargs_add is available])
-	],[
-		AC_MSG_RESULT([no])
-])
-CFLAGS=$CFLAGS_BACK
-
-CFLAGS_BACK=$CFLAGS
-CFLAGS+=" $DPDK_CFLAGS -Werror -Wno-deprecated-declarations"
-AC_MSG_CHECKING([whether rte_meter_srtcm_profile_config is available])
-AC_COMPILE_IFELSE(
-	[AC_LANG_PROGRAM(
-		[[
-#include <rte_meter.h>
-		]],
-		[[
-rte_meter_srtcm_profile_config(0, 0);
-		]])
-	],[
-		AC_MSG_RESULT([yes])
-		AC_DEFINE(HAVE_RTE_METER_SRTCM_PROFILE_CONFIG, [1],
-		    [whether rte_meter_srtcm_profile_config is available])
-	],[
-		AC_MSG_RESULT([no])
-])
-CFLAGS=$CFLAGS_BACK
-
-CFLAGS_BACK=$CFLAGS
-CFLAGS+=" $DPDK_CFLAGS -Werror -Wno-deprecated-declarations"
-AC_MSG_CHECKING([whether rte_dev_remove is available])
-AC_COMPILE_IFELSE(
-	[AC_LANG_PROGRAM(
-		[[
-#include <rte_dev.h>
-		]],
-		[[
-rte_dev_remove(0);
-		]])
-	],[
-		AC_MSG_RESULT([yes])
-		AC_DEFINE(HAVE_RTE_DEV_REMOVE, [1],
-		    [whether rte_dev_remove is available])
-	],[
-		AC_MSG_RESULT([no])
-])
-CFLAGS=$CFLAGS_BACK
-
-CFLAGS_BACK=$CFLAGS
-CFLAGS+=" $DPDK_CFLAGS -Werror -Wno-deprecated-declarations"
-AC_MSG_CHECKING([whether rte_dev_probe is available])
-AC_COMPILE_IFELSE(
-	[AC_LANG_PROGRAM(
-		[[
-#include <rte_dev.h>
-		]],
-		[[
-rte_dev_probe(0);
-		]])
-	],[
-		AC_MSG_RESULT([yes])
-		AC_DEFINE(HAVE_RTE_DEV_PROBE, [1],
-		    [whether rte_dev_probe is available])
-	],[
-		AC_MSG_RESULT([no])
-])
-CFLAGS=$CFLAGS_BACK
-
-CFLAGS_BACK=$CFLAGS
-CFLAGS+=" $DPDK_CFLAGS -Werror"
-AC_CHECK_HEADERS(rte_bus_pci.h)
-AC_CHECK_HEADERS(rte_ethdev_driver.h)
-CFLAGS=$CFLAGS_BACK
-
-CFLAGS_BACK=$CFLAGS
-CFLAGS+=" $DPDK_CFLAGS -Werror"
-AC_CHECK_MEMBER([struct rte_eth_dev_info.device], [CFLAGS_BACK="$CFLAGS_BACK -DHAVE_RTE_ETH_DEV_INFO_DEVICE"], [], [[#include <rte_ethdev.h>]])
-CFLAGS=$CFLAGS_BACK
-
 AC_SUBST(COPYRIGHT_YEAR, [`date +%Y`])
 
 AC_ARG_WITH([systemd],
@@ -405,6 +214,27 @@ AS_HELP_STRING([--disable-whole_dp_test], [disable whole_dp unit tests]),
 esac],[whole_dp_test=true])
 AM_CONDITIONAL([WHOLE_DP_TEST], [test "x$whole_dp_test" = "xtrue"])
 
+# Run all the whole_dp unit tests. By default only a representative set of
+# them are run.
+AC_ARG_ENABLE([whole_dp_all_tests],
+AS_HELP_STRING([--enable-whole_dp_all_tests], [enable all whole_dp unit tests]),
+[case "${enableval}" in
+  yes) whole_dp_all_tests=true ;;
+  no)  whole_dp_all_tests=false ;;
+  *) AC_MSG_ERROR([bad value ${enableval} for --enable-whole_dp_all_tests]) ;;
+esac],[whole_dp_all_tests=false])
+AM_CONDITIONAL([WHOLE_DP_ALL_TESTS], [test "x$whole_dp_all_tests" = "xtrue"])
+
+# Run with the address sanitizer enabled.
+AC_ARG_ENABLE([dataplane_sanitizer],
+AS_HELP_STRING([--enable-dataplane_sanitizer], [enable the address sanitizer]),
+[case "${enableval}" in
+  yes) dataplane_sanitizer=true ;;
+  no)  dataplane_sanitizer=false ;;
+  *) AC_MSG_ERROR([bad value ${enableval} for --enable-dataplane_sanitizer]) ;;
+esac],[dataplane_sanitizer=false])
+AM_CONDITIONAL([DATAPLANE_SANITIZER], [test "x$dataplane_sanitizer" = "xtrue"])
+
 # Needed so dataplane_test can find it's hardcoded config
 # files during a VPATH build.
 AC_CONFIG_LINKS(dataplane-drivers-default.conf:dataplane-drivers-default.conf)
@@ -419,5 +249,8 @@ AC_CONFIG_LINKS(tests/whole_dp/dummyfs/sys/devices/system/cpu/cpu1/topology/phys
 AC_CONFIG_LINKS(tests/whole_dp/dummyfs/sys/devices/system/cpu/cpu1/topology/thread_siblings:tests/whole_dp/dummyfs/sys/devices/system/cpu/cpu1/topology/thread_siblings)
 AC_CONFIG_LINKS(tests/whole_dp/dummyfs/sys/module/.dummy:tests/whole_dp/dummyfs/sys/module/.dummy)
 
-AC_CONFIG_FILES([Makefile src/version.h])
+PKG_PROG_PKG_CONFIG
+PKG_INSTALLDIR
+
+AC_CONFIG_FILES([Makefile src/version.h protobuf/vyatta-dataplane-proto.pc debian/vyatta-dataplane-dev.pc debian/libvyattafal.pc])
 AC_OUTPUT

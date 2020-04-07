@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2017-2018, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2015-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -70,7 +70,6 @@ static inline void crypto_send(struct crypto_pkt_buffer *cpb)
 						false);
 }
 
-void dp_crypto_per_lcore_init(unsigned int lcore_id);
 void dp_crypto_init(void);
 unsigned int dp_crypto_poll(struct cds_list_head *pmd_list);
 void dp_crypto_shutdown(void);

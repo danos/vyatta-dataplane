@@ -1,7 +1,7 @@
 /*
  * Copyright (C) 1995, 1996, 1997, and 1998 WIDE Project.
  * All rights reserved.
- * Copyright (c) 2017, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017,2019-2020, AT&T Intellectual Property.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -70,7 +70,7 @@
 
 #include "if_var.h"
 #include "ip6_funcs.h"
-#include "pktmbuf.h"
+#include "pktmbuf_internal.h"
 #include "snmp_mib.h"
 
 /*
@@ -197,7 +197,7 @@ ip6_hopopts_input(struct rte_mbuf *m, struct ifnet *iif, uint32_t *rtalertp)
 	struct ip6_hbh *hbh;
 
 	/* validation of the length of the header */
-	l3_data_len = rte_pktmbuf_data_len(m) - pktmbuf_l2_len(m);
+	l3_data_len = rte_pktmbuf_data_len(m) - dp_pktmbuf_l2_len(m);
 	if (l3_data_len - sizeof(struct ip6_hdr) < sizeof(*hbh)) {
 		IP6STAT_INC(if_vrfid(iif), IPSTATS_MIB_INHDRERRORS);
 		rte_pktmbuf_free(m);

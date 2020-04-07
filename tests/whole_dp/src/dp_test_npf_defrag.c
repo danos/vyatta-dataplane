@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2019-2020, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  *
@@ -21,11 +21,11 @@
 #include "dp_test.h"
 #include "dp_test_controller.h"
 #include "dp_test_console.h"
-#include "dp_test_netlink_state.h"
-#include "dp_test_cmd_check.h"
-#include "dp_test_lib.h"
-#include "dp_test_pktmbuf_lib.h"
-#include "dp_test_lib_intf.h"
+#include "dp_test_netlink_state_internal.h"
+#include "dp_test/dp_test_cmd_check.h"
+#include "dp_test_lib_internal.h"
+#include "dp_test_lib_intf_internal.h"
+#include "dp_test_pktmbuf_lib_internal.h"
 #include "dp_test_lib_exp.h"
 #include "dp_test_lib_pkt.h"
 #include "dp_test_npf_lib.h"
@@ -67,6 +67,21 @@ _defrag_multi(const char *rx_intf, const char *pre_smac, int pre_vlan,
 	_defrag_multi(_a, _b, _c, _d, _e, _f, _g, _h,			\
 		      _i, _j, _k, _l, _m, _n, _o,			\
 		      __FILE__, __func__, __LINE__)
+
+static void
+_defrag_duplicate(const char *rx_intf, const char *pre_smac, int pre_vlan,
+		const char *pre_saddr, uint16_t pre_sport,
+		const char *pre_daddr, uint16_t pre_dport,
+		const char *post_saddr, uint16_t post_sport,
+		const char *post_daddr, uint16_t post_dport,
+		const char *post_dmac, int post_vlan, const char *tx_intf,
+		int status, int duplicate_index,
+		const char *file, const char *func, int line);
+#define defrag_duplicate(_a, _b, _c, _d, _e, _f, _g, _h,                \
+			_i, _j, _k, _l, _m, _n, _o, _p)                 \
+		_defrag_duplicate(_a, _b, _c, _d, _e, _f, _g, _h,       \
+			_i, _j, _k, _l, _m, _n, _o, _p,                 \
+			__FILE__, __func__, __LINE__)
 
 /*
  * defrag1 - Tests defrag with SNAT and UDP.
@@ -307,6 +322,66 @@ DP_START_TEST(defrag4, test)
 
 } DP_END_TEST;
 
+DP_DECL_TEST_CASE(npf_defrag, defrag5, defrag_setup, defrag_teardown);
+DP_START_TEST(defrag5, test)
+{
+		struct dp_test_npf_rule_t rset[] = {
+		{
+			.rule     = "10",
+			.pass     = PASS,
+			.stateful = false,
+			.npf      = "proto=17"
+		},
+		{
+			.rule     = "20",
+			.pass     = PASS,
+			.stateful = false,
+			.npf      = "proto=6"
+		},
+		RULE_DEF_BLOCK,
+		NULL_RULE
+	};
+
+	struct dp_test_npf_ruleset_t fw = {
+		.rstype = "fw-in",
+		.name   = "IN_FW",
+		.enable = 1,
+		.attach_point   = "dp1T0",
+		.fwd    = FWD,
+		.dir    = "in",
+		.rules  = rset
+	};
+
+	dp_test_npf_fw_add(&fw, false);
+
+	/* Check defrag feature is enabled */
+	dp_test_wait_for_pl_feat("dp1T0", "vyatta:ipv4-defrag-in",
+				"ipv4-validate");
+	dp_test_wait_for_pl_feat("dp1T0", "vyatta:ipv4-defrag-out",
+				"ipv4-out");
+
+	defrag_duplicate("dp1T0", "aa:bb:cc:dd:1:a1", 0,
+			"100.64.0.1", 49152, "1.1.1.1", 80,
+			"100.64.0.1", 49152, "1.1.1.1", 80,
+			"aa:bb:cc:dd:2:b1", 0, "dp2T1",
+			DP_TEST_FWD_FORWARDED, 0);
+
+	defrag_duplicate("dp1T0", "aa:bb:cc:dd:1:a1", 0,
+			"100.64.0.1", 49152, "1.1.1.1", 80,
+			"100.64.0.1", 49152, "1.1.1.1", 80,
+			"aa:bb:cc:dd:2:b1", 0, "dp2T1",
+			DP_TEST_FWD_FORWARDED, 1);
+
+	/* Cleanup */
+	dp_test_npf_fw_del(&fw, false);
+
+	/* Check defrag feature is disabled */
+	dp_test_wait_for_pl_feat_gone("dp1T0", "vyatta:ipv4-defrag-in",
+					"ipv4-validate");
+	dp_test_wait_for_pl_feat_gone("dp1T0", "vyatta:ipv4-defrag-out",
+					"ipv4-out");
+
+} DP_END_TEST;
 
 static void defrag_setup(void)
 {
@@ -514,7 +589,7 @@ _defrag_send_frag(struct rte_mbuf *frag,
 	_dp_test_pak_receive(frag, pkt->rx_intf, test_exp, file, func, line);
 }
 
-#define defrag_send_frag(_a, _b, _c)					\
+#define defrag_send_frag(_a, _b, _c)				\
 	_defrag_send_frag(_a, _b, _c, __FILE__, __func__, __LINE__)
 
 
@@ -617,3 +692,82 @@ _defrag_multi(const char *rx_intf, const char *pre_smac, int pre_vlan,
 	/* Last TCP fragment */
 	defrag_send_frag(frag_pkts2[2], &pkt_TCP, DP_TEST_FWD_FORWARDED);
 }
+
+
+
+/*
+ * defrag_multi
+ *
+ * Interleave two sets of packet fragments.  Only difference in the packets is
+ * the protocol (TCP and UDP).
+ */
+static void
+_defrag_duplicate(const char *rx_intf, const char *pre_smac, int pre_vlan,
+		const char *pre_saddr, uint16_t pre_sport,
+		const char *pre_daddr, uint16_t pre_dport,
+		const char *post_saddr, uint16_t post_sport,
+		const char *post_daddr, uint16_t post_dport,
+		const char *post_dmac, int post_vlan, const char *tx_intf,
+		int status, int duplicate_index,
+		const char *file, const char *func, int line)
+{
+	/* IPv4 UDP packet */
+	struct dp_test_pkt_desc_t pkt_UDP = {
+		.text       = "IPv4 UDP",
+		.len        = 1200,
+		.ether_type = ETHER_TYPE_IPv4,
+		.l3_src     = pre_saddr,
+		.l2_src     = pre_smac,
+		.l3_dst     = pre_daddr,
+		.l2_dst     = "aa:bb:cc:dd:2:b1",
+		.proto      = IPPROTO_UDP,
+		.l4         = {
+				.udp = {
+				.sport = pre_sport,
+				.dport = pre_dport
+			}
+		},
+		.rx_intf    = rx_intf,
+		.tx_intf    = tx_intf
+	};
+
+	/* Fragment UDP test pak */
+	struct rte_mbuf *frag_pkts1[4] =  { 0 };
+	uint16_t frag_sizes1[4] = { 400, 400, 400, 8 };
+
+	defrag_create_frags(&pkt_UDP, frag_pkts1, frag_sizes1, 4);
+
+	_defrag_send_frag(frag_pkts1[3], &pkt_UDP, DP_TEST_FWD_DROPPED,
+			file, func, line);
+
+	if (duplicate_index == 3) {
+		/* 1st UDP fragment */
+		_defrag_send_frag(frag_pkts1[3], &pkt_UDP, DP_TEST_FWD_DROPPED,
+				file, func, line);
+	}
+
+	/* 2nd UDP fragment */
+	_defrag_send_frag(frag_pkts1[0], &pkt_UDP, DP_TEST_FWD_DROPPED,
+				file, func, line);
+
+	if (duplicate_index == 0) {
+		/* 2nd UDP fragment */
+		_defrag_send_frag(frag_pkts1[0], &pkt_UDP, DP_TEST_FWD_DROPPED,
+				file, func, line);
+	}
+
+	/* 3rd UDP fragment */
+	_defrag_send_frag(frag_pkts1[1], &pkt_UDP, DP_TEST_FWD_DROPPED,
+				file, func, line);
+
+	if (duplicate_index == 1) {
+		/* 3rd UDP fragment */
+		_defrag_send_frag(frag_pkts1[1], &pkt_UDP, DP_TEST_FWD_DROPPED,
+				file, func, line);
+	}
+
+	/* Last UDP fragment */
+	_defrag_send_frag(frag_pkts1[2], &pkt_UDP, DP_TEST_FWD_FORWARDED,
+			file, func, line);
+}
+

@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2017-2018, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2011-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -26,13 +26,24 @@ struct rte_mbuf;
 #define ND6_REACHABLE_TIME 30
 #define ND6_SCAVENGE_TIME (20 * 60) /* Remove stale entries after 20 minutes */
 #define ND6_DELAY_TIME 5
-#define ND6_MAX_ENTRY 16384
-#define ND6_RES_TOKEN 128
+#define ND6_MAX_ENTRY 8192 /* Same as yang default for consistency */
+#define ND6_RES_TOKEN 100
 #define ND6_UNR_TOKEN 2
 #define ND6_MAXHOLD ARP_MAXHOLD
 
 struct ether_addr;
 struct ifnet;
+
+struct nd6_nbr_cfg {
+	uint8_t		nd6_ns_retries;
+	uint16_t	nd6_reachable_time;
+	uint16_t	nd6_scavenge_time;
+	uint16_t	nd6_delay_time;
+	int32_t		nd6_max_entry;
+	int16_t		nd6_res_token;
+	uint16_t	nd6_unr_token;
+	uint8_t		nd6_maxhold;
+};
 
 struct nd6_nbr_stats {
 	uint64_t received;	/* # of ND packets received by this host. */
@@ -70,6 +81,8 @@ int nd6_lladdr_add(struct ifnet *ifp, struct in6_addr *addr,
 		   const struct ether_addr *mac, uint16_t state,
 		   uint8_t ntf_flags);
 bool nd6_is_sol_na(struct rte_mbuf *m);
+int cmd_nd6_set_cfg(FILE *f, int argc, char **argv);
+int cmd_nd6_get_cfg(FILE *f);
 
 /* Minimized inline link address lookup */
 static inline struct llentry *

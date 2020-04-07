@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2013-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -10,9 +10,9 @@
 #define VPLANE_LOG_H
 
 #include <rte_log.h>
+#include "debug.h"
 
 /* USER1 - infrastructure */
-#define RTE_LOGTYPE_DATAPLANE	RTE_LOGTYPE_USER1
 #define RTE_LOGTYPE_SHADOW	RTE_LOGTYPE_USER1
 #define RTE_LOGTYPE_DIST	RTE_LOGTYPE_USER1
 #define RTE_LOGTYPE_FAL		RTE_LOGTYPE_USER1

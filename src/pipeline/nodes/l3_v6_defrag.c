@@ -1,7 +1,7 @@
 /*
  * l3_v6_defrag.c
  *
- * Copyright (c) 2018-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2018-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2016, 2017 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -25,12 +25,13 @@
 #include "urcu.h"
 
 ALWAYS_INLINE unsigned int
-ipv6_defrag_in_process(struct pl_packet *pkt)
+ipv6_defrag_in_process(struct pl_packet *pkt, void *context __unused)
 {
 	pkt->npf_flags = NPF_FLAG_CACHE_EMPTY;
 
 	/*
-	 * Use firewall configuration for firewall and NAT
+	 * If there is a zone use zone configuration for zone and NAT
+	 * Otherwise use firewall configuration for firewall and NAT
 	 */
 	struct npf_if *nif = rcu_dereference(pkt->in_ifp->if_npf);
 
@@ -104,13 +105,13 @@ ipv6_defrag_out_internal(struct pl_packet *pkt)
 }
 
 ALWAYS_INLINE unsigned int
-ipv6_defrag_out_process(struct pl_packet *pkt)
+ipv6_defrag_out_process(struct pl_packet *pkt, void *context __unused)
 {
 	return ipv6_defrag_out_internal(pkt);
 }
 
 ALWAYS_INLINE unsigned int
-ipv6_defrag_out_spath_process(struct pl_packet *pkt)
+ipv6_defrag_out_spath_process(struct pl_packet *pkt, void *context __unused)
 {
 	return ipv6_defrag_out_internal(pkt);
 }

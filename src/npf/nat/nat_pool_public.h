@@ -35,12 +35,15 @@ void nat_pool_clear_active(struct nat_pool *np);
 /* Log port-block alloc and release? */
 bool nat_pool_log_pba(struct nat_pool *np);
 
-/* Incr/decr number of users of a pool */
-void nat_pool_incr_nusers(struct nat_pool *np, uint32_t naddrs);
-void nat_pool_decr_nusers(struct nat_pool *np, uint32_t naddrs);
-
 /* Is this a blacklisted address? */
 bool nat_pool_is_blacklist_addr(struct nat_pool *np, uint32_t addr);
+
+/*
+ * Check if an address in in a NAT pool.  'addr' is in network-byte order.
+ * This should be reasonably efficient as it looks up the address-group
+ * representation of the NAT pool (i.e. a Patricia Tree lookup).
+ */
+bool nat_pool_is_pool_addr(const struct nat_pool *np, uint32_t addr);
 
 /* lookup nat pool in hash table */
 struct nat_pool *nat_pool_lookup(const char *name);
@@ -60,5 +63,27 @@ void nat_pool_show(FILE *f, int argc, char **argv);
 /* init/uninit of nat pool module */
 void nat_pool_init(void);
 void nat_pool_uninit(void);
+
+/**************************************************************************
+ * NAT Pool to Client API
+ **************************************************************************/
+
+/*
+ * Allow space for 2 clients
+ */
+#define NP_CLIENT_MAX_OPS	2
+
+/* Per-client functions */
+struct np_client_ops {
+	/* Get the number of users and addresses using this NAT pool */
+	void (*np_client_counts)(struct nat_pool *np, uint32_t *nusers,
+				 uint64_t *naddrs);
+};
+
+/* Register client ops */
+bool nat_pool_client_register(const struct np_client_ops *ops);
+
+/* Unregister event ops */
+void nat_pool_client_unregister(const struct np_client_ops *ops);
 
 #endif

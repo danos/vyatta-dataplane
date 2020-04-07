@@ -3,7 +3,7 @@
  *
  * Copyright (c) 2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
- * Copyright (c) 2017, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017,2019-2020, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -20,7 +20,7 @@
 
 #include "compiler.h"
 #include "l2tp/l2tpeth.h"
-#include "pktmbuf.h"
+#include "pktmbuf_internal.h"
 #include "snmp_mib.h"
 #include "udp_handler.h"
 
@@ -110,18 +110,18 @@ int udp_input(struct rte_mbuf *m, int af, struct ifnet *input_ifp)
 		return -1;
 	}
 
-	udp = pktmbuf_mtol4(m, struct udphdr *);
+	udp = dp_pktmbuf_mtol4(m, struct udphdr *);
 
 	if ((udp_handler_lookup(af, udp->dest, &handler) >= 0) &&
-	    !handler(m, pktmbuf_mtol3(m, void *), udp, input_ifp)) {
+	    !handler(m, dp_pktmbuf_mtol3(m, void *), udp, input_ifp)) {
 		UDPSTAT_INC(UDP_MIB_INDATAGRAMS);
 		return 0;
 	}
 
 	if (af == AF_INET)
 		return l2tp_udpv4_recv_encap(
-			m, pktmbuf_mtol3(m, const void *), udp);
+			m, dp_pktmbuf_mtol3(m, const void *), udp);
 	else
 		return l2tp_udpv6_recv_encap(
-			m, pktmbuf_mtol3(m, const void *), udp);
+			m, dp_pktmbuf_mtol3(m, const void *), udp);
 }

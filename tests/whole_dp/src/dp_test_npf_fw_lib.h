@@ -15,10 +15,137 @@
 #include <stdbool.h>
 #include <json-c/json.h>
 
+#include "dp_test_lib_pkt.h"
 #include "dp_test_npf_lib.h"
 
-const char *
-dp_test_npf_fw_str(struct dp_test_npf_ruleset_t *fw);
+/*
+ * Zone test config structure
+ *
+ * Simple zone config for two interface zones and a local zone.  Example:
+ *
+ *	struct dpt_zone_cfg cfg = {
+ *		.private = {
+ *			.name = "PRIVATE",
+ *			.intf = { "dp1T0", "dp1T1", NULL },
+ *			.local = false,
+ *		},
+ *		.public = {
+ *			.name = "PUBLIC",
+ *			.intf = { "dp1T2", "dp1T3", NULL },
+ *			.local = false,
+ *		},
+ *		.pub_to_priv = {
+ *			.name		= "PUB_TO_PRIV",
+ *			.pass		= BLOCK,
+ *			.stateful	= STATELESS,
+ *			.npf		= "",
+ *		},
+ *		.local = { 0 },
+ *		.priv_to_pub = {
+ *			.name		= "PRIV_TO_PUB",
+ *			.pass		= PASS,
+ *			.stateful	= STATELESS,
+ *			.npf		= "",
+ *		},
+ *		.local_to_priv = { 0 },
+ *		.priv_to_local = { 0 },
+ *		.local_to_pub = { 0 },
+ *		.pub_to_local = { 0 },
+ *	};
+ *
+ *	dpt_zone_cfg(&cfg, true, false); // enable
+ *	dpt_zone_cfg(&cfg, false, false); // disable
+ *
+ */
+#define INTF_PER_ZONE 3
+
+struct dpt_zone {
+	/* Zone name */
+	const char *name;
+
+	/* Zone member interfaces */
+	const char *intf[INTF_PER_ZONE];
+
+	/* Local zone if true */
+	bool        local;
+};
+
+/* Zone ruleset and rule variables */
+struct dpt_zone_rule {
+	const char  *name;	/* No rule added if NULL */
+	bool         pass;	/* BLOCK or PASS */
+	bool         stateful;	/* STATELESS or STATEFUL */
+	const char  *npf;	/* npf rule */
+};
+
+struct dpt_zone_cfg {
+	struct dpt_zone		private;
+	struct dpt_zone		public;
+	struct dpt_zone		local;
+	struct dpt_zone_rule	pub_to_priv;
+	struct dpt_zone_rule	priv_to_pub;
+	struct dpt_zone_rule	local_to_priv;
+	struct dpt_zone_rule	priv_to_local;
+	struct dpt_zone_rule	local_to_pub;
+	struct dpt_zone_rule	pub_to_local;
+};
+
+void dpt_zone_cfg(struct dpt_zone_cfg *cfg, bool add, bool debug);
+
+
+/*
+ * npf zones
+ */
+const char *dp_test_zone_attach_point_name(const char *from_zone,
+					   const char *to_zone);
+
+void _dp_test_zone_add(const char *zname, const char *file, int line);
+
+#define dp_test_zone_add(name) \
+	_dp_test_zone_add(name, __FILE__, __LINE__)
+
+
+void _dp_test_zone_remove(const char *zname, const char *file, int line);
+
+#define dp_test_zone_remove(name)			\
+	_dp_test_zone_remove(name, __FILE__, __LINE__)
+
+void _dp_test_zone_local(const char *zname, bool set,
+			 const char *file, int line);
+
+#define dp_test_zone_local(name, set)				\
+	_dp_test_zone_local(name, set, __FILE__, __LINE__)
+
+
+void _dp_test_zone_policy_add(const char *zone, const char *policy,
+			      const char *file, int line);
+
+#define dp_test_zone_policy_add(zn, pl)				\
+	_dp_test_zone_policy_add(zn, pl, __FILE__, __LINE__)
+
+
+void _dp_test_zone_policy_del(const char *zone, const char *policy,
+			      const char *file, int line);
+
+#define dp_test_zone_policy_del(zn, pl)				\
+	_dp_test_zone_policy_del(zn, pl, __FILE__, __LINE__)
+
+/*
+ * Add a zone
+ */
+void _dp_test_zone_intf_add(const char *zname, const char *ifname,
+			    const char *file, int line);
+
+#define dp_test_zone_intf_add(zn, ifn)				\
+	_dp_test_zone_intf_add(zn, ifn, __FILE__, __LINE__)
+
+
+void _dp_test_zone_intf_del(const char *zname, const char *ifname,
+			    const char *file, int line);
+
+#define dp_test_zone_intf_del(zn, ifn)				\
+	_dp_test_zone_intf_del(zn, ifn, __FILE__, __LINE__)
+
 
 /*
  * Address group
@@ -67,6 +194,16 @@ _dp_test_npf_fw_addr_group_addr_del(const char *table, const char *addr,
 #define dp_test_npf_fw_addr_group_addr_del(table, addr)			\
 	_dp_test_npf_fw_addr_group_addr_del(table, addr, __FILE__, __LINE__)
 
+#define NPF_ZONES_SHOW_INTFS 0x01
+#define NPF_ZONES_SHOW_POLS  0x02
+#define NPF_ZONES_SHOW_RSETS 0x04
+#define NPF_ZONES_SHOW_ALL   (NPF_ZONES_SHOW_INTFS | NPF_ZONES_SHOW_POLS | \
+			      NPF_ZONES_SHOW_RSETS)
+
+void dp_test_zone_print_zones(const char *zone, const char *policy,
+			      uint8_t flags);
+
+
 /*
  * Add a port group
  *
@@ -90,5 +227,78 @@ _dp_test_npf_fw_port_group_del(const char *name,
 
 #define dp_test_npf_fw_port_group_del(name)				\
 	_dp_test_npf_fw_port_group_del(name, __FILE__, __LINE__)
+
+/*
+ * Utilities for parsing the json output of "npf fw list"
+ */
+
+/*
+ * Return the json object for a specific firewall zone group
+ *
+ * The returned json object has its ref count incremented, so json_object_put
+ * should be called once the caller has finished with the object.
+ */
+json_object *
+dp_test_npf_json_get_fw_zone(const char *name, const char *from_intf,
+			     const char *to_intf);
+
+/*
+ * Wrapper around UDP test packet
+ */
+void
+_dpt_udp(const char *rx_intf, const char *pre_smac,
+	 const char *pre_saddr, uint16_t pre_sport,
+	 const char *pre_daddr, uint16_t pre_dport,
+	 const char *post_saddr, uint16_t post_sport,
+	 const char *post_daddr, uint16_t post_dport,
+	 const char *post_dmac, const char *tx_intf,
+	 int status, int pre_vlan, int post_vlan,
+	 const char *file, const char *func, int line);
+
+#define dpt_udp(_a, _b, _c, _d, _e, _f, _g, _h,				\
+		_i, _j, _k, _l, _m)					\
+	_dpt_udp(_a, _b, _c, _d, _e, _f, _g, _h,			\
+		 _i, _j, _k, _l, _m, 0, 0,				\
+		 __FILE__, __func__, __LINE__)
+
+#define dpt_vlan_udp(_a, _b, _c, _d, _e, _f, _g, _h,			\
+		     _i, _j, _k, _l, _m, _n, _o)			\
+	_dpt_udp(_a, _b, _c, _d, _e, _f, _g, _h,			\
+		 _i, _j, _k, _l, _m, _n, _o,				\
+		 __FILE__, __func__, __LINE__)
+
+void
+_dpt_tcp(uint8_t flags,
+	 const char *rx_intf, const char *pre_smac,
+	 const char *pre_saddr, uint16_t pre_sport,
+	 const char *pre_daddr, uint16_t pre_dport,
+	 const char *post_saddr, uint16_t post_sport,
+	 const char *post_daddr, uint16_t post_dport,
+	 const char *post_dmac, const char *tx_intf,
+	 int status, int pre_vlan, int post_vlan,
+	 const char *file, const char *func, int line);
+
+#define dpt_tcp(_a, _b, _c, _d, _e, _f, _g, _h,				\
+		_i, _j, _k, _l, _m, _n)					\
+	_dpt_tcp(_a, _b, _c, _d, _e, _f, _g, _h,			\
+		 _i, _j, _k, _l, _m, _n, 0, 0,				\
+		 __FILE__, __func__, __LINE__)
+
+void
+_dpt_icmp(uint8_t icmp_type,
+	  const char *rx_intf, const char *pre_smac,
+	  const char *pre_saddr, uint16_t pre_icmp_id,
+	  const char *pre_daddr,
+	  const char *post_saddr, uint16_t post_icmp_id,
+	  const char *post_daddr,
+	  const char *post_dmac, const char *tx_intf,
+	  int status, int pre_vlan, int post_vlan,
+	  const char *file, const char *func, int line);
+
+#define dpt_icmp(_a, _b, _c, _d, _e, _f, _g, _h,			\
+		 _i, _j, _k, _l)					\
+	_dpt_icmp(_a, _b, _c, _d, _e, _f, _g,				\
+		  _h, _i, _j, _k, _l, 0, 0,				\
+		  __FILE__, __func__, __LINE__)
 
 #endif

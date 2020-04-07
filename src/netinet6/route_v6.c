@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2017-2019, AT&T Intellectual Property. All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property. All rights reserved.
  * Copyright (c) 2011-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -37,6 +37,7 @@
 #include "dp_event.h"
 #include "ecmp.h"
 #include "fal.h"
+#include "ip_forward.h"
 #include "if_var.h"
 #include "in6_var.h"
 #include "ip6_funcs.h"
@@ -44,13 +45,14 @@
 #include "lpm/lpm6.h"
 #include "netinet6/route_v6.h"
 #include "netinet6/nd6_nbr.h"
-#include "pktmbuf.h"
+#include "pktmbuf_internal.h"
 #include "route_flags.h"
 #include "route_v6.h"
 #include "urcu.h"
 #include "vplane_debug.h"
 #include "vplane_log.h"
-#include "vrf.h"
+#include "vrf_internal.h"
+#include "vrf_if.h"
 
 #define NEXTHOP6_HASH_TBL_MIN  (UINT8_MAX + 1)
 #define NEXTHOP6_HASH_TBL_SIZE RTE_FBK_HASH_ENTRIES_MAX
@@ -128,6 +130,8 @@ static pthread_mutex_t route6_mutex = PTHREAD_MUTEX_INITIALIZER;
 static uint32_t route6_sw_stats[PD_OBJ_STATE_LAST];
 static uint32_t route6_hw_stats[PD_OBJ_STATE_LAST];
 
+#define IN6ADDR_V4MAPPED_INIT { { { 0,0,0,0,0,0,0,0,0,0,0xff,0xff,0,0,0,0 } } }
+
 static const struct reserved_route {
 	struct in6_addr addr;
 	int prefix_length;
@@ -139,6 +143,30 @@ static const struct reserved_route {
 		.prefix_length = 0,
 		.flags = RTF_NOROUTE | RTF_REJECT,
 		.scope = LPM_SCOPE_PAN_DIMENSIONAL,
+	},
+	/*
+	 * RFC 4291 - Unicast destination address sanity checks.
+	 *    The following are not allowed: unspecified, loopback
+	 * draft-itojun-v6ops-v4mapped-harmful-02:
+	 *    Don't allow V4 mapped either.
+	 */
+	{
+		.addr = IN6ADDR_ANY_INIT,
+		.prefix_length = 128,
+		.flags = RTF_BLACKHOLE,
+		.scope = RT_SCOPE_HOST,
+	},
+	{
+		.addr = IN6ADDR_LOOPBACK_INIT,
+		.prefix_length = 128,
+		.flags = RTF_BLACKHOLE,
+		.scope = RT_SCOPE_HOST,
+	},
+	{
+		.addr = IN6ADDR_V4MAPPED_INIT,
+		.prefix_length = 96,
+		.flags = RTF_BLACKHOLE,
+		.scope = RT_SCOPE_HOST,
 	},
 };
 
@@ -216,7 +244,8 @@ route_lpm6_add(vrfid_t vrf_id, struct lpm6 *lpm,
 		return rc;
 	}
 
-	if (nextu->pd_state != PD_OBJ_STATE_FULL) {
+	if (nextu->pd_state != PD_OBJ_STATE_FULL &&
+	    nextu->pd_state != PD_OBJ_STATE_NOT_NEEDED) {
 		pd_state->state = nextu->pd_state;
 		nextu = nextu6_blackhole;
 		update_pd_state = false;
@@ -310,7 +339,8 @@ route_lpm6_delete(vrfid_t vrf_id, struct lpm6 *lpm,
 
 		bool update_new_pd_state = true;
 
-		if (nextu->pd_state != PD_OBJ_STATE_FULL) {
+		if (nextu->pd_state != PD_OBJ_STATE_FULL &&
+		    nextu->pd_state != PD_OBJ_STATE_NOT_NEEDED) {
 			new_pd_state->state = nextu->pd_state;
 			nextu = nextu6_blackhole;
 			update_new_pd_state = false;
@@ -361,10 +391,7 @@ route_lpm6_update(vrfid_t vrf_id __unused, struct lpm6 *lpm,
 		  const struct in6_addr *ip, uint8_t depth,
 		  uint32_t *old_nh,
 		  uint32_t next_hop, int16_t scope,
-		  uint32_t tableid __unused,
-		  struct next_hop_v6 hops[] __unused,
-		  size_t nhops __unused,
-		  fal_object_t nhg_object __unused)
+		  uint32_t tableid)
 {
 	int rc;
 	struct pd_obj_state_and_flags pd_state;
@@ -430,7 +457,8 @@ route_lpm6_update(vrfid_t vrf_id __unused, struct lpm6 *lpm,
 	struct next_hop_v6_u *nextu =
 		rcu_dereference(nh6_tbl.entry[next_hop]);
 
-	if (nextu->pd_state != PD_OBJ_STATE_FULL) {
+	if (nextu->pd_state != PD_OBJ_STATE_FULL &&
+	    nextu->pd_state != PD_OBJ_STATE_NOT_NEEDED) {
 		new_pd_state->state = nextu->pd_state;
 		nextu = nextu6_blackhole;
 		update_new_pd_state = false;
@@ -641,19 +669,6 @@ static struct lpm6 *rt6_create_lpm(uint32_t id, struct vrf *vrf)
 
 	rcu_assign_pointer(vrf->v_rt6_head.rt6_table[id], lpm);
 
-	if (vrf->v_id == VRF_DEFAULT_ID && id != RT_TABLE_MAIN) {
-		struct vrf *dst_vrf;
-		vrfid_t vrf_id;
-
-		VRF_FOREACH_KERNEL(dst_vrf, vrf_id) {
-			if (rt_lpm_v6_resize(&dst_vrf->v_rt6_head, id) < 0)
-				return NULL;
-
-			rcu_assign_pointer(dst_vrf->v_rt6_head.rt6_table[id],
-					   lpm);
-		}
-	}
-
 	return lpm;
 }
 
@@ -669,37 +684,6 @@ int route_v6_init(struct vrf *vrf)
 		return -1;
 	}
 
-	/*
-	 * All tables other than default alias tables in the default VRF.
-	 * This is necessary in order to easily support PBR setvrf + tableid.
-	 */
-	if (is_nondefault_vrf(vrf->v_id)) {
-		struct vrf *default_vrf = vrf_get_rcu(VRF_DEFAULT_ID);
-		struct route6_head *rt6_head = &default_vrf->v_rt6_head;
-		uint32_t id;
-
-		/*
-		 * Stash the main table LPM point so it can be freed
-		 * and also so it can be assigned over RT_TABLE_MAIN
-		 * when unaliasing later.
-		 */
-		rcu_assign_pointer(vrf->v_rt6_head.rt6_table[RT_TABLE_UNSPEC],
-				   lpm);
-
-		for (id = 1; id < rt6_head->rt6_rtm_max; id++) {
-			struct lpm6 *src_lpm = rt6_head->rt6_table[id];
-
-			if (!src_lpm || id == RT_TABLE_MAIN)
-				continue;
-
-			if (rt_lpm_v6_resize(&vrf->v_rt6_head, id) < 0)
-				return -1;
-
-			rcu_assign_pointer(vrf->v_rt6_head.rt6_table[id],
-					   src_lpm);
-		}
-	}
-
 	return 0;
 }
 
@@ -712,14 +696,6 @@ void route_v6_uninit(struct vrf *vrf, struct route6_head *rt6_head)
 
 	for (id = 0; id < rt6_head->rt6_rtm_max; id++) {
 		struct lpm6 *lpm = rt6_head->rt6_table[id];
-
-		/*
-		 * Only free the unspec table as all the others
-		 * could be aliases.
-		 */
-		if (is_nondefault_vrf(vrf->v_id) &&
-		    id != RT_TABLE_UNSPEC)
-			continue;
 
 		if (lpm) {
 			if (!lpm6_is_empty(lpm)) {
@@ -745,44 +721,6 @@ static struct lpm6 *rt6_get_lpm(struct route6_head *rt6_head, uint32_t id)
 		return NULL;
 
 	return rcu_dereference(rt6_head->rt6_table[id]);
-}
-
-bool route6_link_vrf_to_table(struct vrf *vrf, uint32_t tableid)
-{
-	struct vrf *default_vrf = vrf_get_rcu(VRF_DEFAULT_ID);
-	struct route6_head *rt6_head = &default_vrf->v_rt6_head;
-	struct lpm6 *new_lpm;
-
-	new_lpm = rt6_get_lpm(rt6_head, tableid);
-	if (!new_lpm) {
-		new_lpm = rt6_create_lpm(tableid, default_vrf);
-		if (!new_lpm)
-			return false;
-	}
-
-	/*
-	 * Alias the main table to the given tableid in the default
-	 * VRF.
-	 */
-	rcu_assign_pointer(vrf->v_rt6_head.rt6_table[RT_TABLE_MAIN],
-			   new_lpm);
-
-	return true;
-}
-
-bool route6_unlink_vrf_from_table(struct vrf *vrf)
-{
-	struct lpm6 *old_main_lpm = vrf->v_rt6_head.rt6_table[
-		RT_TABLE_UNSPEC];
-
-	/*
-	 * Unalias the main table. We require the pointer to be valid
-	 * so we use the table we initially created the VRF with.
-	 */
-	rcu_assign_pointer(vrf->v_rt6_head.rt6_table[RT_TABLE_MAIN],
-			   old_main_lpm);
-
-	return true;
 }
 
 /* Do lookahead into route table and get first prefix match table  */
@@ -854,7 +792,7 @@ struct next_hop_v6 *nexthop6_select(uint32_t index, const struct rte_mbuf *m,
 					ecmp_mbuf_hash(m, ether_type));
 }
 
-int nh6_lookup_by_index(uint32_t nhindex, uint32_t hash,
+int dp_nh6_lookup_by_index(uint32_t nhindex, uint32_t hash,
 			struct in6_addr *nh, uint32_t *ifindex)
 {
 	const struct next_hop_v6_u *nextu;
@@ -879,7 +817,7 @@ int nh6_lookup_by_index(uint32_t nhindex, uint32_t hash,
 	else
 		*nh = in6addr_any;
 
-	ifp = nh6_get_ifp(next);
+	ifp = dp_nh6_get_ifp(next);
 	if (!ifp)
 		return -1;
 
@@ -904,7 +842,7 @@ bool rt6_valid_tblid(vrfid_t vrfid, uint32_t tbl_id)
  * Returns RCU protected nexthop structure or NULL.
  */
 ALWAYS_INLINE
-struct next_hop_v6 *rt6_lookup(const struct in6_addr *dst, uint32_t tbl_id,
+struct next_hop_v6 *dp_rt6_lookup(const struct in6_addr *dst, uint32_t tbl_id,
 			       const struct rte_mbuf *m)
 {
 	vrfid_t vrfid = pktmbuf_get_vrf(m);
@@ -1097,7 +1035,7 @@ nexthop6_hashfn(const struct nexthop6_hash_key *key,
 	for (i = 0; i < size; i++, j += IPV6_NH_HASH_KEY_SIZE) {
 		memcpy(&hash_keys[j], &key->nh[i].gateway,
 		       sizeof(key->nh[i].gateway));
-		ifp = nh6_get_ifp(&key->nh[i]);
+		ifp = dp_nh6_get_ifp(&key->nh[i]);
 		hash_keys[j+4] = ifp ? ifp->if_index : 0;
 		hash_keys[j+5] = key->nh[i].flags & NH_FLAGS_CMP_MASK;
 	}
@@ -1117,8 +1055,8 @@ static int nexthop6_cmpfn(struct cds_lfht_node *node, const void *key)
 		return false;
 
 	for (i = 0; i < h_key->size; i++) {
-		if ((nh6_get_ifp(&nu->siblings[i]) !=
-		     nh6_get_ifp(&h_key->nh[i])) ||
+		if ((dp_nh6_get_ifp(&nu->siblings[i]) !=
+		     dp_nh6_get_ifp(&h_key->nh[i])) ||
 		    (!IN6_ARE_ADDR_EQUAL(&nu->siblings[i].gateway,
 					 &h_key->nh[i].gateway)) ||
 		    ((nu->siblings[i].flags & NH_FLAGS_CMP_MASK) !=
@@ -1298,14 +1236,11 @@ nexthop6_new(struct next_hop_v6 *nh, size_t size, uint32_t *slot)
 	ret = fal_ip6_new_next_hops(nextu->nsiblings, nextu->siblings,
 				    &nextu->nhg_fal_obj,
 				    nextu->nh_fal_obj);
-	if (ret < 0) {
-		if (ret != -EOPNOTSUPP)
-			RTE_LOG(ERR, ROUTE,
-				"FAL IPv6 next-hop-group create failed: %s\n",
-				strerror(-ret));
-		nextu->pd_state = fal_state_to_pd_state(ret);
-	} else
-		nextu->pd_state = PD_OBJ_STATE_FULL;
+	if (ret < 0 && ret != -EOPNOTSUPP)
+		RTE_LOG(ERR, ROUTE,
+			"FAL IPv6 next-hop-group create failed: %s\n",
+			strerror(-ret));
+	nextu->pd_state = fal_state_to_pd_state(ret);
 
 	nh6_iter = rover;
 	do {
@@ -1349,7 +1284,7 @@ static struct next_hop_v6 *nextu6_find_path_using_ifp(struct next_hop_v6_u *nhu,
 	for (i = 0; i < nhu->nsiblings; i++) {
 		struct next_hop_v6 *next = array + i;
 
-		if (nh6_get_ifp(next) == ifp) {
+		if (dp_nh6_get_ifp(next) == ifp) {
 			*sibling = i;
 			return next;
 		}
@@ -1392,10 +1327,9 @@ void nexthop6_put(uint32_t idx)
 				nh6_tbl.neigh_created--;
 		}
 
-		if (nextu->pd_state == PD_OBJ_STATE_FULL) {
+		if (fal_state_is_obj_present(nextu->pd_state)) {
 			ret = fal_ip6_del_next_hops(nextu->nhg_fal_obj,
 						    nextu->nsiblings,
-						    nextu->siblings,
 						    nextu->nh_fal_obj);
 			if (ret < 0) {
 				RTE_LOG(ERR, ROUTE,
@@ -1632,6 +1566,7 @@ route6_nh_replace(struct next_hop_v6_u *nextu, uint32_t nh_idx,
 	new_nextu->nhg_fal_obj = nextu->nhg_fal_obj;
 	memcpy(new_nextu->nh_fal_obj, nextu->nh_fal_obj,
 	       new_nextu->nsiblings * sizeof(*new_nextu->nh_fal_obj));
+	new_nextu->pd_state = nextu->pd_state;
 
 	assert(nh6_tbl.entry[nh_idx] == nextu);
 	rcu_xchg_pointer(&nh6_tbl.entry[nh_idx], new_nextu);
@@ -1654,7 +1589,7 @@ static void route6_change_process_nh(struct next_hop_v6_u *nhu,
 	array = rcu_dereference(nhu->siblings);
 	for (i = 0; i < nhu->nsiblings; i++) {
 		const struct next_hop_v6 *next = array + i;
-		const struct ifnet *ifp = nh6_get_ifp(next);
+		const struct ifnet *ifp = dp_nh6_get_ifp(next);
 
 		if (!ifp)
 			/* happens for local routes */
@@ -1718,7 +1653,7 @@ routing_neigh_add_gw_nh_replace_cb(struct next_hop_v6 *next,
 	if (!nh6_is_gw(next) || !IN6_ARE_ADDR_EQUAL(&next->gateway,
 						    &ip->s6_addr))
 		return NH_NO_CHANGE;
-	if (nh6_get_ifp(next) != ifp)
+	if (dp_nh6_get_ifp(next) != ifp)
 		return NH_NO_CHANGE;
 	if (nh6_is_local(next) || nh6_is_neigh_present(next))
 		return NH_NO_CHANGE;
@@ -1788,7 +1723,7 @@ route_change_link_neigh(struct vrf *vrf, struct lpm6 *lpm,
 	array = rcu_dereference(nextu->siblings);
 	for (i = 0; i < nextu->nsiblings; i++) {
 		const struct next_hop_v6 *next = array + i;
-		const struct ifnet *ifp = nh6_get_ifp(next);
+		const struct ifnet *ifp = dp_nh6_get_ifp(next);
 
 		if (!ifp)
 			/* happens for local routes */
@@ -1893,7 +1828,7 @@ route_delete_relink_neigh(struct lpm6 *lpm, uint8_t *ip, uint8_t depth)
 	array = rcu_dereference(nextu->siblings);
 	for (i = 0; i < nextu->nsiblings; i++) {
 		const struct next_hop_v6 *next = array + i;
-		const struct ifnet *ifp = nh6_get_ifp(next);
+		const struct ifnet *ifp = dp_nh6_get_ifp(next);
 
 		if (!ifp)
 			/* happens for local routes */
@@ -1969,14 +1904,6 @@ static int rt6_delete(vrfid_t vrf_id, const struct in6_addr *dst,
 	}
 	pthread_mutex_unlock(&route6_mutex);
 
-	/*unlock the VRF if this is the last route in this LPM*/
-	if (rt6_lpm_is_empty(lpm)) {
-		if (!is_nondefault_vrf(vrf->v_id))
-			vrf_delete_by_ptr(vrf);
-		else
-			vrf_delete(VRF_DEFAULT_ID);
-	}
-
 	if (err)
 		/*
 		 * Expected now we get all deletes from RIB and still act on
@@ -2038,9 +1965,7 @@ static int rt6_insert(struct vrf *vrf, struct lpm6 *lpm,
 	route_delete_unlink_neigh(vrf, lpm, table_id, dst->s6_addr, prefix_len);
 	if (replace)
 		err = route_lpm6_update(vrf->v_id, lpm, dst, prefix_len,
-					    &old_index, *idx, scope, table_id,
-					    hops, size,
-					    nh6_tbl.entry[*idx]->nhg_fal_obj);
+					&old_index, *idx, scope, table_id);
 	else
 		err = route_lpm6_add(vrf->v_id, lpm, dst, prefix_len, *idx,
 				     scope, table_id);
@@ -2086,35 +2011,15 @@ static int rt6_add(vrfid_t vrf_id, struct in6_addr *dst, uint32_t prefix_len,
 		return -ENOENT;
 
 	vrf = vrf_get_rcu(vrf_id);
-	lpm = vrf ? rt6_get_lpm(&vrf->v_rt6_head, table) : NULL;
+	if (!vrf)
+		return -ENOENT;
+	lpm = rt6_get_lpm(&vrf->v_rt6_head, table);
 	if (lpm == NULL) {
-		if (is_nondefault_vrf(vrf_id)) {
-			/*
-			 * Should have a VRF by this point since we
-			 * needed it to find the VRF ID from the table ID
-			 */
-			if (!vrf)
-				return -ENOENT;
-			/* Add refcount on default VRF */
-			if (!vrf_find_or_create(VRF_DEFAULT_ID))
-				return -ENOENT;
-		} else {
-			vrf = vrf_find_or_create(vrf_id);
-			if (vrf == NULL)
-				return -ENOENT;
-		}
-
 		lpm = rt6_create_lpm(table, vrf);
 		if (lpm == NULL) {
 			err_code = -ENOENT;
 			goto err;
 		}
-	} else if (rt6_lpm_is_empty(lpm)) {
-		/* incr ref count when first route is added*/
-		if (!is_nondefault_vrf(vrf->v_id))
-			vrf = vrf_find_or_create(vrf_id);
-		else if (!vrf_find_or_create(VRF_DEFAULT_ID))
-			return -ENOENT;
 	}
 
 	pthread_mutex_lock(&route6_mutex);
@@ -2131,14 +2036,8 @@ static int rt6_add(vrfid_t vrf_id, struct in6_addr *dst, uint32_t prefix_len,
 		goto err;
 
 	return 0;
-err:
-	if (vrf && (lpm == NULL || (lpm && rt6_lpm_is_empty(lpm)))) {
-		if (!is_nondefault_vrf(vrf->v_id))
-			vrf_delete_by_ptr(vrf);
-		else
-			vrf_delete(VRF_DEFAULT_ID);
-	}
 
+err:
 	return err_code;
 }
 
@@ -2158,13 +2057,12 @@ static void rt6_flush(struct vrf *vrf)
 	unsigned int id;
 	struct route6_head rt6_head = vrf->v_rt6_head;
 
+	if (vrf->v_id == VRF_INVALID_ID)
+		return;
+
 	pthread_mutex_lock(&route6_mutex);
 	for (id = 0; id < rt6_head. rt6_rtm_max; id++) {
 		struct lpm6 *lpm = rt6_head.rt6_table[id];
-
-		if (is_nondefault_vrf(vrf->v_id) &&
-		    id != RT_TABLE_UNSPEC)
-			continue;
 
 		if (lpm != NULL && !rt6_lpm_is_empty(lpm)) {
 			lpm6_delete_all(lpm, flush6_cleanup, NULL);
@@ -2173,10 +2071,6 @@ static void rt6_flush(struct vrf *vrf)
 					"Failed to replace v6 reserved routes %s\n",
 					vrf->v_name);
 			}
-			if (!is_nondefault_vrf(vrf->v_id))
-				vrf_delete_by_ptr(vrf);
-			else
-				vrf_delete(VRF_DEFAULT_ID);
 		}
 	}
 	pthread_mutex_unlock(&route6_mutex);
@@ -2196,7 +2090,8 @@ void rt6_flush_all(enum cont_src_en cont_src)
 }
 
 
-void rt6_print_nexthop(json_writer_t *json, uint32_t next_hop)
+void rt6_print_nexthop(json_writer_t *json, uint32_t next_hop,
+		       enum rt_print_nexthop_verbosity v)
 {
 	const struct next_hop_v6_u *nextu =
 		rcu_dereference(nh6_tbl.entry[next_hop]);
@@ -2209,6 +2104,18 @@ void rt6_print_nexthop(json_writer_t *json, uint32_t next_hop)
 		return;
 	array = rcu_dereference(nextu->siblings);
 	jsonw_uint_field(json, "nh_refcount", nextu->refcount);
+	if (v == RT_PRINT_NH_DETAIL &&
+	    fal_state_is_obj_present(nextu->pd_state)) {
+		/*
+		 * name disambuigates between next-hop-group state
+		 * and possible future route state given we don't have a
+		 * separate JSON object for the two.
+		 */
+		jsonw_name(json, "nhg_platform_state");
+		jsonw_start_object(json);
+		fal_ip_dump_next_hop_group(nextu->nhg_fal_obj, json);
+		jsonw_end_object(json);
+	}
 	jsonw_name(json, "next_hop");
 	jsonw_start_array(json);
 	for (i = 0; i < nextu->nsiblings; i++) {
@@ -2250,7 +2157,7 @@ void rt6_print_nexthop(json_writer_t *json, uint32_t next_hop)
 		if (next->flags & RTF_NEIGH_CREATED)
 			jsonw_bool_field(json, "neigh_created", true);
 
-		ifp = nh6_get_ifp(next);
+		ifp = dp_nh6_get_ifp(next);
 		if (ifp && !(next->flags & RTF_DEAD))
 			jsonw_string_field(json, "ifname", ifp->if_name);
 
@@ -2264,6 +2171,19 @@ void rt6_print_nexthop(json_writer_t *json, uint32_t next_hop)
 				jsonw_uint(json, label);
 
 			jsonw_end_array(json);
+		}
+
+		/*
+		 * FAL may access hardware which may be slow or may otherwise
+		 * increase the data returned greatly, so only output this
+		 * information if requested.
+		 */
+		if (v == RT_PRINT_NH_DETAIL &&
+		    fal_state_is_obj_present(nextu->pd_state)) {
+			jsonw_name(json, "platform_state");
+			jsonw_start_object(json);
+			fal_ip_dump_next_hop(nextu->nh_fal_obj[i], json);
+			jsonw_end_object(json);
 		}
 
 		jsonw_end_object(json);
@@ -2286,7 +2206,7 @@ static void __rt6_display(json_writer_t *json, const uint8_t *addr,
 
 	jsonw_string_field(json, "prefix", buf);
 	jsonw_uint_field(json, "scope", scope);
-	rt6_print_nexthop(json, next_hop);
+	rt6_print_nexthop(json, next_hop, RT_PRINT_NH_BRIEF);
 
 	jsonw_end_object(json);
 }
@@ -2428,16 +2348,9 @@ static void rt6_lpm_walk_util(
 				.arg = arg,
 			};
 
-			if (lpm && !rt6_lpm_is_empty(lpm)) {
+			if (lpm && !rt6_lpm_is_empty(lpm))
 				lpm6_walk_all_safe(lpm, rt6_vrf_lpm_walk_cb,
 						       &ctx);
-				if (rt6_lpm_is_empty(lpm)) {
-					if (!is_nondefault_vrf(vrf->v_id))
-						vrf_delete_by_ptr(vrf);
-					else
-						vrf_delete(VRF_DEFAULT_ID);
-				}
-			}
 		}
 	}
 }
@@ -2458,7 +2371,7 @@ static void rt6_if_dead(struct vrf *vrf, uint32_t table_id,
 	for (i = 0; i < nextu->nsiblings; i++) {
 		struct next_hop_v6 *nh = nextu->siblings + i;
 
-		if (nh6_get_ifp(nh) == ifp) {
+		if (dp_nh6_get_ifp(nh) == ifp) {
 			/* No longer check if connected, as kernel will not
 			 * signal explicitly for flushing
 			 */
@@ -2503,7 +2416,7 @@ static void rt6_if_clear_slowpath_flag(
 	for (i = 0; i < nextu->nsiblings; i++) {
 		struct next_hop_v6 *nh = nextu->siblings + i;
 
-		if (nh6_get_ifp(nh) == ifp)
+		if (dp_nh6_get_ifp(nh) == ifp)
 			nh->flags &= ~RTF_SLOWPATH;
 	}
 }
@@ -2525,7 +2438,7 @@ static void rt6_if_set_slowpath_flag(
 	for (i = 0; i < nextu->nsiblings; i++) {
 		struct next_hop_v6 *nh = nextu->siblings + i;
 
-		if (nh6_get_ifp(nh) == ifp)
+		if (dp_nh6_get_ifp(nh) == ifp)
 			nh->flags |= RTF_SLOWPATH;
 	}
 }
@@ -2697,10 +2610,10 @@ static int rt6_stats(struct route6_head *rt6_head, json_writer_t *json,
 }
 
 static int rt6_show(struct route6_head *rt6_head, json_writer_t *json,
-		    uint32_t tbl_id, const char *addr)
+		    uint32_t tbl_id, const struct in6_addr *dst)
 {
 	struct lpm6 *lpm6 = rt6_get_lpm(rt6_head, tbl_id);
-	struct in6_addr dst;
+	char b1[INET6_ADDRSTRLEN];
 	uint32_t next_hop;
 
 	if (lpm6 == NULL) {
@@ -2708,18 +2621,42 @@ static int rt6_show(struct route6_head *rt6_head, json_writer_t *json,
 		return 0;
 	}
 
-	if (inet_pton(AF_INET6, addr, &dst) == 0) {
-		RTE_LOG(ERR, ROUTE6, "invalid address\n");
-		return -1;
+	jsonw_start_object(json);
+	jsonw_string_field(json, "address",
+			   inet_ntop(AF_INET6, dst, b1, sizeof(b1)));
+
+	if (lpm6_lookup(lpm6, dst->s6_addr, &next_hop) != 0)
+		jsonw_string_field(json, "state", "nomatch");
+	else
+		rt6_print_nexthop(json, next_hop, RT_PRINT_NH_DETAIL);
+	jsonw_end_object(json);
+
+	return 0;
+}
+
+static int rt6_show_exact(struct route6_head *rt6_head, json_writer_t *json,
+			  uint32_t tbl_id, const struct in6_addr *dst,
+			  uint8_t plen)
+{
+	struct lpm6 *lpm6 = rt6_get_lpm(rt6_head, tbl_id);
+	char b2[INET6_ADDRSTRLEN + sizeof("/255")];
+	char b1[INET6_ADDRSTRLEN];
+	uint32_t next_hop;
+
+	if (lpm6 == NULL) {
+		RTE_LOG(ERR, ROUTE6, "Unknown route table\n");
+		return 0;
 	}
 
 	jsonw_start_object(json);
-	jsonw_string_field(json, "address", addr);
+	sprintf(b2, "%s/%u",
+		inet_ntop(AF_INET6, dst, b1, sizeof(b1)), plen);
+	jsonw_string_field(json, "prefix", b2);
 
-	if (lpm6_lookup(lpm6, dst.s6_addr, &next_hop) != 0)
+	if (lpm6_lookup_exact(lpm6, dst->s6_addr, plen, &next_hop) != 0)
 		jsonw_string_field(json, "state", "nomatch");
 	else
-		rt6_print_nexthop(json, next_hop);
+		rt6_print_nexthop(json, next_hop, RT_PRINT_NH_DETAIL);
 	jsonw_end_object(json);
 
 	return 0;
@@ -2735,12 +2672,6 @@ int cmd_route6(FILE *f, int argc, char **argv)
 		vrf_id = strtoul(argv[2], NULL, 10);
 		argc -= 2;
 		argv += 2;
-	}
-
-	vrf = vrf_get_rcu_from_external(vrf_id);
-	if (vrf == NULL) {
-		fprintf(f, "no vrf exist\n");
-		return -1;
 	}
 
 	if (argc > 1 && strcmp(argv[1], "table") == 0) {
@@ -2760,6 +2691,21 @@ int cmd_route6(FILE *f, int argc, char **argv)
 		/* skip "table N" */
 		argc -= 2;
 		argv += 2;
+	}
+
+	if (vrf_is_vrf_table_id(tblid)) {
+		if (vrf_lookup_by_tableid(tblid, &vrf_id, &tblid) < 0) {
+			fprintf(f, "no vrf exists for table %u\n", tblid);
+			return -1;
+		}
+		vrf = vrf_get_rcu(vrf_id);
+	} else {
+		vrf = dp_vrf_get_rcu_from_external(vrf_id);
+	}
+
+	if (vrf == NULL) {
+		fprintf(f, "no vrf exists\n");
+		return -1;
 	}
 
 	json_writer_t *json = jsonw_new(f);
@@ -2822,21 +2768,77 @@ int cmd_route6(FILE *f, int argc, char **argv)
 		err = rt6_stats(&vrf->v_rt6_head, json, tblid);
 		jsonw_end_object(json);
 	} else if (strcmp(argv[1], "lookup") == 0) {
+		struct in6_addr in6;
+		long plen = -1;
+
 		if (argc == 2) {
 			fprintf(f, "missing address\n");
 			goto error;
 		}
 
+		if (inet_pton(AF_INET6, argv[2], &in6) == 0) {
+			RTE_LOG(ERR, ROUTE6, "invalid address\n");
+			goto error;
+		}
+
+		if (argc > 3) {
+			plen = strtol(argv[3], NULL, 10);
+			if (plen < 0 || plen > 128) {
+				fprintf(f, "invalid prefix length\n");
+				goto error;
+			}
+		}
+
 		jsonw_name(json, "route6_lookup");
 		jsonw_start_array(json);
-		err = rt6_show(&vrf->v_rt6_head, json, tblid, argv[2]);
+		if (plen >= 0)
+			err = rt6_show_exact(&vrf->v_rt6_head, json, tblid,
+					     &in6, plen);
+		else
+			err = rt6_show(&vrf->v_rt6_head, json, tblid, &in6);
 		jsonw_end_array(json);
+	} else if (strcmp(argv[1], "platform") == 0) {
+
+		long cnt = UINT32_MAX;
+
+		if (argc > 2) {
+			cnt = strtol(argv[2], NULL, 10);
+			if (cnt < 0 || cnt > UINT32_MAX) {
+				fprintf(f, "invalid count\n");
+				goto error;
+			}
+		}
+		struct fal_attribute_t attr_list[] = {
+			{ FAL_ROUTE_WALK_ATTR_VRFID,
+			.value.u32 = vrf_id },
+			{ FAL_ROUTE_WALK_ATTR_TABLEID,
+			.value.u32 = tblid },
+			{ FAL_ROUTE_WALK_ATTR_CNT,
+			.value.u32 = cnt },
+			{ FAL_ROUTE_WALK_ATTR_FAMILY,
+			.value.u32 = FAL_IP_ADDR_FAMILY_IPV6 },
+			{ FAL_ROUTE_WALK_ATTR_TYPE,
+			.value.u32 = FAL_ROUTE_WALK_TYPE_ALL },
+		};
+
+		jsonw_name(json, "route6_platform_show");
+
+		jsonw_start_array(json);
+
+		err = fal_ip_walk_routes(rt_show_platform_routes,
+					 RTE_DIM(attr_list),
+					 attr_list, json);
+		jsonw_end_array(json);
+
+		/*TODO For scale, get_next from a prefix can be added */
+
 	} else {
 		fprintf(f,
 			"Usage: route6 [vrf_id ID] [table N] [show]\n"
 			"       route6 [vrf_id ID] [table N] all\n"
 			"       route6 [vrf_id ID] [table N] summary\n"
-			"       route6 [vrf_id ID] [table N] lookup ADDR\n");
+			"       route6 [vrf_id ID] [table N] lookup ADDR <PREFIXLENGTH>\n"
+			"       route6 [vrf_id ID] [table N] platform [cnt]\n");
 	}
 
 error:
@@ -2851,7 +2853,7 @@ int handle_route6(vrfid_t vrf_id, uint16_t type, const struct rtmsg *rtm,
 {
 	uint32_t depth = rtm->rtm_dst_len;
 	struct in6_addr dst = *(const struct in6_addr *)dest;
-	struct ifnet *ifp = ifnet_byifindex(ifindex);
+	struct ifnet *ifp = dp_ifnet_byifindex(ifindex);
 	struct in6_addr gw = *(struct in6_addr *)gateway;
 	struct next_hop_v6 *next;
 	uint32_t size;
@@ -2966,7 +2968,7 @@ struct ifnet *nhif_dst_lookup6(const struct vrf *vrf,
 	if (next == NULL)
 		return NULL;
 
-	ifp = nh6_get_ifp(next);
+	ifp = dp_nh6_get_ifp(next);
 	if (ifp && connected)
 		*connected = nh6_is_connected(next);
 
@@ -3043,7 +3045,7 @@ routing_neigh_del_gw_nh_replace_cb(struct next_hop_v6 *next,
 	if (!nh6_is_gw(next) || !IN6_ARE_ADDR_EQUAL(&next->gateway,
 						    &ip->s6_addr))
 		return NH_NO_CHANGE;
-	if (nh6_get_ifp(next) != ifp)
+	if (dp_nh6_get_ifp(next) != ifp)
 		return NH_NO_CHANGE;
 	if (nh6_is_local(next) || !nh6_is_neigh_present(next))
 		return NH_NO_CHANGE;
@@ -3095,7 +3097,7 @@ static enum nh_change routing_neigh_add_nh_replace_cb(struct next_hop_v6 *next,
 
 	if (nh6_is_neigh_present(next) || nh6_is_neigh_created(next))
 		return NH_NO_CHANGE;
-	if (args->ifp != nh6_get_ifp(next))
+	if (args->ifp != dp_nh6_get_ifp(next))
 		return NH_NO_CHANGE;
 
 	if (args->count)
@@ -3115,7 +3117,7 @@ static enum nh_change routing_neigh_del_nh_replace_cb(struct next_hop_v6 *next,
 
 	if (!nh6_is_connected(next) || !nh6_is_neigh_present(next))
 		return NH_NO_CHANGE;
-	if (ifp != nh6_get_ifp(next))
+	if (ifp != dp_nh6_get_ifp(next))
 		return NH_NO_CHANGE;
 
 	return NH_CLEAR_NEIGH_PRESENT;
@@ -3300,7 +3302,7 @@ static void rt6_show_subset(struct vrf *vrf, uint32_t tableid,
 		subset->vrf = vrf->v_id;
 		jsonw_start_object(subset->json);
 		jsonw_uint_field(subset->json, "vrf_id",
-				 vrf_get_external_id(vrf->v_id));
+				 dp_vrf_get_external_id(vrf->v_id));
 		jsonw_uint_field(subset->json, "table",
 				 tableid);
 		jsonw_end_object(subset->json);
@@ -3327,6 +3329,7 @@ int route6_get_pd_subset_data(json_writer_t *json,
 
 static const struct dp_event_ops route6_events = {
 	.if_index_unset = rt6_if_delete,
+	.vrf_delete = rt6_flush,
 };
 
 DP_STARTUP_EVENT_REGISTER(route6_events);

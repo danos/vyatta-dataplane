@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2019-2020, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -9,35 +9,24 @@
 
 struct ifnet;
 struct cgn_policy;
+struct cgn_intf;
 
-struct cgn_intf {
-	struct ifnet		*ci_ifp;
-	struct cds_list_head	ci_policy_list;
-};
-
+uint32_t cgn_if_key_index(const struct ifnet *ifp);
+struct ifnet *cgn_if_get_ifp(struct cgn_intf *ci);
+struct cds_list_head *cgn_if_get_policy_list(struct ifnet *ifp);
 void cgn_if_feat_enable(struct ifnet *ifp, bool enable);
 
 int cgn_if_add_policy(struct ifnet *ifp, struct cgn_policy *cp);
 int cgn_if_del_policy(struct ifnet *ifp, struct cgn_policy *cp);
 
-/* Garbage collect the cgn interface structure */
-void cgn_if_gc_intf(struct ifnet *ifp, bool if_unset);
+void cgn_show_interface(FILE *f, int argc, char **argv);
 
-/*
- * Called from npf callbacks for DP_EVT_IF_INDEX_SET and DP_EVT_IF_INDEX_UNSET
- * events.
- */
-void cgn_nif_index_set(struct ifnet *ifp);
-void cgn_nif_index_unset(struct ifnet *ifp);
+/* Called from DP_EVT_IF_INDEX_UNSET event */
+void cgn_if_disable(struct ifnet *ifp);
 
 struct cgn_policy *cgn_if_find_policy_by_name(struct ifnet *ifp,
 					      const char *name);
 struct cgn_policy *cgn_if_find_policy_by_addr(struct ifnet *ifp,
 					      uint32_t addr);
 
-/* npf/npf_if.c */
-struct cgn_intf *npf_if_get_cgn(struct ifnet *ifp);
-int npf_if_set_cgn(struct ifnet *ifp, struct cgn_intf *cgn);
-int npf_if_clear_cgn(struct ifnet *ifp, bool lock);
-
-#endif
+#endif /* _CGN_IF_H_ */

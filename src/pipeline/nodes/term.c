@@ -1,7 +1,7 @@
 /*
  * term.c
  *
- * Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2016, 2017 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -28,7 +28,7 @@
 #include "snmp_mib.h"
 
 ALWAYS_INLINE unsigned int
-term_v4_to_v6_process(struct pl_packet *pkt)
+term_v4_to_v6_process(struct pl_packet *pkt, void *context __unused)
 {
 	pkt->npf_flags |= NPF_FLAG_CACHE_EMPTY;
 	pktmbuf_prepare_encap_out(pkt->mbuf);
@@ -45,7 +45,7 @@ PL_REGISTER_NODE(term_v4_to_v6_node) = {
 };
 
 ALWAYS_INLINE unsigned int
-term_v6_to_v4_process(struct pl_packet *pkt)
+term_v6_to_v4_process(struct pl_packet *pkt, void *context __unused)
 {
 	pkt->npf_flags |= NPF_FLAG_CACHE_EMPTY;
 	pktmbuf_prepare_encap_out(pkt->mbuf);
@@ -63,41 +63,7 @@ PL_REGISTER_NODE(term_v6_to_v4_node) = {
 };
 
 ALWAYS_INLINE unsigned int
-term_drop_process(struct pl_packet *pkt)
-{
-	rte_pktmbuf_free(pkt->mbuf);
-	pkt->mbuf = NULL;
-	return 0;
-}
-
-/* Register Node */
-PL_REGISTER_NODE(term_drop_node) = {
-	.name = "vyatta:term-drop",
-	.type = PL_OUTPUT,
-	.handler = term_drop_process,
-	.num_next = 0,
-};
-
-ALWAYS_INLINE unsigned int
-ipv6_drop_process(struct pl_packet *pkt)
-{
-	if (pkt->in_ifp)
-		IP6STAT_INC_IFP(pkt->in_ifp, IPSTATS_MIB_INDISCARDS);
-	rte_pktmbuf_free(pkt->mbuf);
-	pkt->mbuf = NULL;
-	return 0;
-}
-
-/* Register Node */
-PL_REGISTER_NODE(ipv6_drop_node) = {
-	.name = "vyatta:ipv6-drop",
-	.type = PL_OUTPUT,
-	.handler = ipv6_drop_process,
-	.num_next = 0,
-};
-
-ALWAYS_INLINE unsigned int
-ipv4_local_process(struct pl_packet *pkt)
+ipv4_local_process(struct pl_packet *pkt, void *context __unused)
 {
 	ip_local_deliver(pkt->in_ifp, pkt->mbuf);
 	return 0;
@@ -112,7 +78,7 @@ PL_REGISTER_NODE(ipv4_local_node) = {
 };
 
 ALWAYS_INLINE unsigned int
-ipv6_local_process(struct pl_packet *pkt)
+ipv6_local_process(struct pl_packet *pkt, void *context __unused)
 {
 	ip6_local_deliver(pkt->in_ifp, pkt->mbuf);
 	return 0;
@@ -127,22 +93,7 @@ PL_REGISTER_NODE(ipv6_local_node) = {
 };
 
 ALWAYS_INLINE unsigned int
-l2_local_process(struct pl_packet *pkt)
-{
-	local_packet(pkt->in_ifp, pkt->mbuf);
-	return 0;
-}
-
-/* Register Node */
-PL_REGISTER_NODE(l2_local_node) = {
-	.name = "vyatta:l2-local",
-	.type = PL_OUTPUT,
-	.handler = l2_local_process,
-	.num_next = 0,
-};
-
-ALWAYS_INLINE unsigned int
-term_finish_process(struct pl_packet *p __unused)
+term_finish_process(struct pl_packet *p __unused, void *context __unused)
 {
 	return 0;
 }
@@ -167,7 +118,7 @@ PL_REGISTER_NODE(term_finish_node) = {
  * feature processing.
  */
 ALWAYS_INLINE unsigned int
-term_noop_process(struct pl_packet *p __unused)
+term_noop_process(struct pl_packet *p __unused, void *context __unused)
 {
 	return 0;
 }
@@ -181,7 +132,7 @@ PL_REGISTER_NODE(term_noop_node) = {
 };
 
 ALWAYS_INLINE unsigned int
-l2_out_process(struct pl_packet *pkt)
+l2_out_process(struct pl_packet *pkt, void *context __unused)
 {
 	if_output(pkt->out_ifp, pkt->mbuf, pkt->in_ifp, pkt->l2_proto);
 	return 0;

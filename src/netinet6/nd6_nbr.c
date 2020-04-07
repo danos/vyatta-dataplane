@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2014-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  */
@@ -65,9 +65,11 @@
 
 #include "arp.h"
 #include "compiler.h"
+#include "dp_event.h"
 #include "ether.h"
 #include "fal.h"
 #include "fal_plugin.h"
+#include "if/macvlan.h"
 #include "if_ether.h"
 #include "if_llatbl.h"
 #include "if_var.h"
@@ -78,7 +80,7 @@
 #include "main.h"
 #include "nd6.h"
 #include "nd6_nbr.h"
-#include "pktmbuf.h"
+#include "pktmbuf_internal.h"
 #include "snmp_mib.h"
 #include "urcu.h"
 #include "util.h"
@@ -115,6 +117,17 @@ static const struct in6_addr in6addr_allnodes =
 
 static const char in6ether_allnodes[ETHER_ADDR_LEN] = {
 	0x33, 0x33, 0x00, 0x00, 0x00, 0x01};
+
+static struct nd6_nbr_cfg nd6_cfg = {
+	.nd6_ns_retries		= ND6_NS_RETRIES,
+	.nd6_reachable_time	= ND6_REACHABLE_TIME,
+	.nd6_scavenge_time	= ND6_SCAVENGE_TIME,
+	.nd6_delay_time		= ND6_DELAY_TIME,
+	.nd6_max_entry		= ND6_MAX_ENTRY,
+	.nd6_res_token		= ND6_RES_TOKEN,
+	.nd6_unr_token		= ND6_UNR_TOKEN,
+	.nd6_maxhold		= ND6_MAXHOLD,
+};
 
 static void nd6_log_conflict(struct ifnet *ifp, const struct ether_addr *lladdr,
 			     struct in6_addr *saddr)
@@ -325,28 +338,26 @@ nd6_change_state(struct ifnet *ifp, struct llentry *lle, uint8_t state,
 	lle->ll_expire = rte_get_timer_cycles() + expire * rte_get_timer_hz();
 }
 
+/* should be called with la->ll_lock held */
 static inline void
 nd6_update_lla(struct ifnet *ifp, struct llentry *la,
 	       const struct ether_addr *enaddr)
 {
-	struct sockaddr_in6 *sin6 = satosin6(ll_sockaddr(la));
-	struct fal_attribute_t dst_attr = {
-		FAL_NEIGH_ENTRY_ATTR_DST_MAC_ADDRESS, .value.mac = *enaddr };
 	char buf[ETH_ADDR_STR_LEN];
-	char b[INET6_ADDRSTRLEN];
-	int ret;
 
 	ND6_DEBUG("%s/%s LLA %s\n", ifp->if_name, lladdr_ntop6(la),
 		  ether_ntoa_r(enaddr, buf));
 
 	ll_addr_set(la, enaddr);
-	ret = fal_ip6_upd_neigh(ifp->if_index, sin6, &dst_attr);
-	if (ret < 0) {
-		RTE_LOG(NOTICE, DATAPLANE,
-			"FAL neighbour MAC update for %s, %s failed: %s\n",
-			inet_ntop(AF_INET6, &sin6->sin6_addr, b, sizeof(b)),
-			ifp->if_name, strerror(-ret));
-	}
+	la->la_flags |= LLE_HW_UPD_PENDING;
+
+	/*
+	 * Fire the timer for this table immediately on the master
+	 * thread so that FAL updates can be issued.
+	 */
+	rte_timer_reset(&ifp->if_lltable6->lle_timer, 0,
+			SINGLE, rte_get_master_lcore(),
+			in6_lladdr_timer, ifp->if_lltable6);
 }
 
 /*
@@ -384,7 +395,8 @@ nd6_entry_amend(struct ifnet *ifp, struct llentry *la, uint8_t state,
 		/*
 		 * Invalid (incomplete) entry.
 		 */
-		if (rte_atomic16_read(&llt->lle_restoken) < ND6_RES_TOKEN)
+		if (rte_atomic16_read(&llt->lle_restoken) <
+		    nd6_cfg.nd6_res_token)
 			rte_atomic16_inc(&llt->lle_restoken);
 
 		nd6_update_lla(ifp, la, enaddr);
@@ -485,8 +497,10 @@ nd6_create_valid(struct ifnet *ifp, const struct in6_addr *addr,
 	char b[INET6_ADDRSTRLEN];
 	int ret;
 
-	if (rte_atomic16_read(&llt->lle_size) >= ND6_MAX_ENTRY)
+	if (rte_atomic32_read(&llt->lle_size) >= nd6_cfg.nd6_max_entry) {
+		ND6NBR_INC(tablimit);
 		return NULL;
+	}
 
 	lle = llentry_new(&sin6, sizeof(sin6), ifp);
 	if (!lle)
@@ -519,15 +533,27 @@ nd6_create_valid(struct ifnet *ifp, const struct in6_addr *addr,
 		nd6_entry_amend(ifp, lle, ND6_LLINFO_REACHABLE, enaddr, secs,
 				(LLE_VALID | flags));
 	} else {
-		rte_atomic16_inc(&llt->lle_size);
-		ret = fal_ip6_new_neigh(ifp->if_index, &sin6,
-					RTE_DIM(attr_list), attr_list);
-		if (ret < 0 && ret != -EOPNOTSUPP) {
-			RTE_LOG(NOTICE, DATAPLANE,
-				"FAL new neighbour for %s, %s failed: %s\n",
-				inet_ntop(AF_INET6, &sin6.sin6_addr,
-					  b, sizeof(b)),
-				ifp->if_name, strerror(-ret));
+		rte_atomic32_inc(&llt->lle_size);
+		if (is_master_thread() && if_is_features_mode_active(
+			    lle->ifp, IF_FEAT_MODE_EVENT_L3_FAL_ENABLED)) {
+			ret = fal_ip6_new_neigh(ifp->if_index, &sin6,
+						RTE_DIM(attr_list), attr_list);
+			if (ret < 0 && ret != -EOPNOTSUPP) {
+				RTE_LOG(NOTICE, DATAPLANE,
+					"FAL new neighbour for %s, %s failed: %s\n",
+					inet_ntop(AF_INET6, &sin6.sin6_addr,
+						  b, sizeof(b)),
+					ifp->if_name, strerror(-ret));
+			}
+			if (ret >= 0) {
+				rte_spinlock_lock(&lle->ll_lock);
+				lle->la_flags |= LLE_CREATED_IN_HW;
+				rte_spinlock_unlock(&lle->ll_lock);
+			}
+		} else {
+			rte_spinlock_lock(&lle->ll_lock);
+			lle->la_flags |= LLE_HW_UPD_PENDING;
+			rte_spinlock_unlock(&lle->ll_lock);
 		}
 	}
 
@@ -570,7 +596,7 @@ nd6_na_output(struct ifnet *ifp, const struct ether_addr *lladdr,
 		return;
 	}
 
-	pktmbuf_l2_len(m) = ETHER_HDR_LEN;
+	dp_pktmbuf_l2_len(m) = ETHER_HDR_LEN;
 	paylen = sizeof(*nd_na);
 	if (tlladdr) {
 		optlen = (sizeof(struct nd_opt_hdr) + ETHER_ADDR_LEN + 7) & ~7;
@@ -659,6 +685,10 @@ nd6_ns_input(struct ifnet *ifp, struct rte_mbuf *m, unsigned int off,
 	uint32_t flags;
 	int rc;
 	bool punt = false;
+	struct ifnet *vrrp_ifp;
+	struct sockaddr sock_storage;
+	struct sockaddr_in6 *ip_storage =
+		(struct sockaddr_in6 *) &sock_storage;
 
 	ND6NBR_INC(nsrx);
 
@@ -711,7 +741,10 @@ nd6_ns_input(struct ifnet *ifp, struct rte_mbuf *m, unsigned int off,
 	 * Check for us. Also detect impersonators
 	 */
 	rc = nd6_forus(ifp, &saddr6, &taddr6);
-	if (unlikely(rc != 0)) {
+	ip_storage->sin6_family = AF_INET6;
+	ip_storage->sin6_addr = taddr6;
+	vrrp_ifp = macvlan_get_vrrp_ip_if(ifp, &sock_storage);
+	if (unlikely(rc != 0 && vrrp_ifp == NULL)) {
 		if (rc == -EADDRINUSE) {
 			nd6_log_conflict(ifp, lladdr, &saddr6);
 		} else {
@@ -737,13 +770,14 @@ nd6_ns_input(struct ifnet *ifp, struct rte_mbuf *m, unsigned int off,
 		la = in6_lltable_lookup(ifp, 0, &saddr6);
 		if (!la) {
 			nd6_create_valid(ifp, &saddr6, ND6_LLINFO_STALE,
-					 lladdr, ND6_SCAVENGE_TIME, 0);
+					 lladdr, nd6_cfg.nd6_scavenge_time, 0);
 			if (nd6_sync)
 				punt = true;
 		} else {
 			if (!ether_addr_equal(lladdr, &la->ll_addr)) {
 				nd6_entry_amend(ifp, la, ND6_LLINFO_STALE,
-						lladdr, ND6_SCAVENGE_TIME,
+						lladdr,
+						nd6_cfg.nd6_scavenge_time,
 						LLE_VALID);
 				if (nd6_sync)
 					punt = true;
@@ -903,7 +937,7 @@ nd6_na_input(struct ifnet *ifp, struct rte_mbuf *m,
 
 		if (is_solicited) {
 			state = ND6_LLINFO_REACHABLE;
-			time = ND6_REACHABLE_TIME;
+			time = nd6_cfg.nd6_reachable_time;
 		} else {
 			state = ND6_LLINFO_STALE;
 			time = ND6_SCAVENGE_TIME;
@@ -938,7 +972,7 @@ nd6_na_input(struct ifnet *ifp, struct rte_mbuf *m,
 	if (!is_override && llchange) {
 		if (la->la_state == ND6_LLINFO_REACHABLE)
 			nd6_change_state(ifp, la, ND6_LLINFO_STALE,
-					 ND6_SCAVENGE_TIME);
+					 nd6_cfg.nd6_scavenge_time);
 		rte_spinlock_unlock(&la->ll_lock);
 		goto done;
 	}
@@ -948,7 +982,7 @@ nd6_na_input(struct ifnet *ifp, struct rte_mbuf *m,
 			nd6_update_lla(ifp, la, lladdr);
 			if (!is_solicited)
 				nd6_change_state(ifp, la, ND6_LLINFO_STALE,
-						 ND6_SCAVENGE_TIME);
+						 nd6_cfg.nd6_scavenge_time);
 		}
 		if (is_solicited && (la->la_state != ND6_LLINFO_REACHABLE))
 			nd6_change_state(ifp, la, ND6_LLINFO_REACHABLE,
@@ -999,7 +1033,7 @@ nd6_ns_build(struct ifnet *ifp, const struct in6_addr *res_src,
 		return NULL;
 	}
 
-	pktmbuf_l2_len(m) = ETHER_HDR_LEN;
+	dp_pktmbuf_l2_len(m) = ETHER_HDR_LEN;
 	optlen = (sizeof(struct nd_opt_hdr) + ETHER_ADDR_LEN + 7) & ~7;
 	paylen = sizeof(*nd_ns) + optlen;
 	pktlen = sizeof(*eh) + sizeof(*ip6) + paylen;
@@ -1114,8 +1148,8 @@ resolved:
 			rte_pktmbuf_free(m);
 			return -ENOMEM;
 		}
-		if (unlikely(rte_atomic16_read(&llt->lle_size) >=
-			     ND6_MAX_ENTRY)) {
+		if (unlikely(rte_atomic32_read(&llt->lle_size) >=
+			     nd6_cfg.nd6_max_entry)) {
 			ND6NBR_INC(tablimit);
 			rte_pktmbuf_free(m);
 			return -ENOMEM;
@@ -1141,7 +1175,7 @@ resolved:
 		goto resolved;
 	}
 
-	if (unlikely(la->la_flags == LLE_DELETED)) {
+	if (unlikely(la->la_flags & LLE_DELETED)) {
 		rte_spinlock_unlock(&la->ll_lock);
 		goto lookup;
 	}
@@ -1152,12 +1186,12 @@ resolved:
 	 */
 	if (in_ifp)
 		pktmbuf_save_ifp(m, in_ifp);
-	if (la->la_numheld >= ND6_MAXHOLD) {
+	if (la->la_numheld >= nd6_cfg.nd6_maxhold) {
 		ND6NBR_INC(dropped);
 		rte_pktmbuf_free(la->la_held[0]);
 		memmove(&la->la_held[0], &la->la_held[1],
-			(ND6_MAXHOLD - 1) * sizeof(la->la_held[0]));
-		la->la_held[ND6_MAXHOLD - 1] = m;
+			(nd6_cfg.nd6_maxhold - 1) * sizeof(la->la_held[0]));
+		la->la_held[nd6_cfg.nd6_maxhold - 1] = m;
 	} else {
 		la->la_held[la->la_numheld++] = m;
 	}
@@ -1193,7 +1227,7 @@ int nd6_input(struct ifnet *ifp, struct rte_mbuf *m)
 	if (ip6->ip6_nxt != IPPROTO_ICMPV6)
 		return 1;
 
-	off = pktmbuf_l2_len(m) + sizeof(*ip6);
+	off = dp_pktmbuf_l2_len(m) + sizeof(*ip6);
 	icmp6 = ip6_exthdr(m, off, sizeof(*icmp6));
 	if (unlikely(!icmp6)) {
 		IP6STAT_INC(if_vrfid(ifp), IPSTATS_MIB_INDISCARDS);
@@ -1261,7 +1295,7 @@ bool nd6_is_sol_na(struct rte_mbuf *m)
 	if (likely(ip6->ip6_nxt != IPPROTO_ICMPV6))
 		return false;
 
-	off = pktmbuf_l2_len(m) + sizeof(*ip6);
+	off = dp_pktmbuf_l2_len(m) + sizeof(*ip6);
 	icmp6 = ip6_exthdr(m, off, sizeof(*icmp6));
 	if (unlikely(!icmp6))
 		return false;
@@ -1314,13 +1348,13 @@ nd6_entry_destroy(struct lltable *llt, struct llentry *lle)
 	 * Update resolution tokens
 	 */
 	if (!(lle->la_flags & LLE_VALID) &&
-	    rte_atomic16_read(&llt->lle_restoken) < ND6_RES_TOKEN)
+	    rte_atomic16_read(&llt->lle_restoken) < nd6_cfg.nd6_res_token)
 		rte_atomic16_inc(&llt->lle_restoken);
 
 	pkts_dropped = llentry_destroy(llt, lle);
 
 	ND6NBR_ADD(dropped, pkts_dropped);
-	rte_atomic16_dec(&llt->lle_size);
+	rte_atomic32_dec(&llt->lle_size);
 }
 
 /*
@@ -1389,16 +1423,41 @@ in6_lltable_lookup(struct ifnet *ifp, u_int flags,
 			llentry_free(lle);
 			lle = caa_container_of(node, struct llentry, ll_node);
 		} else {
-			rte_atomic16_inc(&llt->lle_size);
-			ret = fal_ip6_new_neigh(ifp->if_index, &sin6,
-						RTE_DIM(attr_list), attr_list);
-			if (ret < 0 && ret != -EOPNOTSUPP) {
-				RTE_LOG(NOTICE, DATAPLANE,
-					"FAL new neighbour for %s, %s failed: %s\n",
-					inet_ntop(AF_INET6, &sin6.sin6_addr,
-						  b, sizeof(b)),
-					ifp->if_name, strerror(-ret));
+			rte_atomic32_inc(&llt->lle_size);
+			if (is_master_thread() && if_is_features_mode_active(
+				    lle->ifp,
+				    IF_FEAT_MODE_EVENT_L3_FAL_ENABLED)) {
+				ret = fal_ip6_new_neigh(ifp->if_index, &sin6,
+							RTE_DIM(attr_list),
+							attr_list);
+				if (ret < 0 && ret != -EOPNOTSUPP) {
+					RTE_LOG(NOTICE, DATAPLANE,
+						"FAL new neighbour for %s, %s failed: %s\n",
+						inet_ntop(AF_INET6,
+							  &sin6.sin6_addr,
+							  b, sizeof(b)),
+						ifp->if_name, strerror(-ret));
+				}
+				if (ret >= 0) {
+					rte_spinlock_lock(&lle->ll_lock);
+					lle->la_flags |= LLE_CREATED_IN_HW;
+					rte_spinlock_unlock(&lle->ll_lock);
+				}
+			} else {
+				rte_spinlock_lock(&lle->ll_lock);
+				lle->la_flags |= LLE_HW_UPD_PENDING;
+				rte_spinlock_unlock(&lle->ll_lock);
 			}
+
+			/*
+			 * Fire the timer for this table immediately
+			 * on master. It doesn't matter if it fails as
+			 * it will get picked up on the next firing in
+			 * that case.
+			 */
+			rte_timer_reset(&ifp->if_lltable6->lle_timer, 0,
+					SINGLE, rte_get_master_lcore(),
+					in6_lladdr_timer, ifp->if_lltable6);
 
 			/*
 			 * Count outstanding resolutions
@@ -1460,7 +1519,7 @@ nd6_lladdr_add(struct ifnet *ifp, struct in6_addr *addr,
 		flags = LLE_STATIC;
 	} else if (state & NUD_REACHABLE) {
 		flags = LLE_CTRL;
-		secs = ND6_REACHABLE_TIME;
+		secs = nd6_cfg.nd6_reachable_time;
 	}
 
 	if (state & NUD_FAILED) {
@@ -1561,7 +1620,7 @@ nd6_resolve_timeout(struct lltable *llt, struct llentry *lle,
 {
 	struct ifnet *ifp = llt->llt_ifp;
 
-	if (++lle->la_asked <= ND6_NS_RETRIES) {
+	if (++lle->la_asked <= nd6_cfg.nd6_ns_retries) {
 		struct sockaddr_in6 *sin6 = satosin6(ll_sockaddr(lle));
 
 		/*
@@ -1594,7 +1653,7 @@ nd6_reachable_timeout(struct lltable *llt, struct llentry *lle)
 {
 	struct ifnet *ifp = llt->llt_ifp;
 
-	nd6_change_state(ifp, lle, ND6_LLINFO_STALE, ND6_SCAVENGE_TIME);
+	nd6_change_state(ifp, lle, ND6_LLINFO_STALE, nd6_cfg.nd6_scavenge_time);
 
 	return NULL;
 }
@@ -1642,7 +1701,7 @@ in6_ll_age(struct lltable *llt, struct llentry *lle, uint64_t cur_time)
 		rte_spinlock_lock(&lle->ll_lock);
 		if (lle->la_state == ND6_LLINFO_STALE)
 			nd6_change_state(ifp, lle, ND6_LLINFO_DELAY,
-					 ND6_DELAY_TIME);
+					 nd6_cfg.nd6_delay_time);
 		rte_spinlock_unlock(&lle->ll_lock);
 
 		return;
@@ -1710,7 +1769,7 @@ nd6_cache_purge(struct lltable *llt)
 }
 
 static void
-nd6_cache_age(struct lltable *llt)
+nd6_cache_age(struct lltable *llt, bool refresh_timer_expired)
 {
 	struct llentry *lle;
 	struct cds_lfht_iter iter;
@@ -1724,13 +1783,15 @@ nd6_cache_age(struct lltable *llt)
 			continue;
 		}
 
+		llentry_issue_pending_fal_updates(lle);
+
 		if ((lle->la_flags & (LLE_VALID | LLE_FWDING)) == LLE_VALID)
 			llentry_routing_install(lle);
 
 		if (lle->la_flags & LLE_STATIC)
 			continue;
 
-		if (lle->ll_expire == 0)
+		if (lle->ll_expire == 0 || !refresh_timer_expired)
 			continue;
 		else
 			in6_ll_age(llt, lle, cur_time);
@@ -1744,21 +1805,146 @@ void in6_lladdr_timer(struct rte_timer *tim __rte_unused, void *arg)
 {
 	struct lltable *llt = arg;
 	struct ifnet *ifp = llt->llt_ifp;
+	bool refresh_timer_fired = false;
+	uint64_t cur_time = rte_get_timer_cycles();
 
-	/*
-	 * Refresh resolution tokens
-	 */
-	rte_atomic16_set(&llt->lle_restoken, ND6_RES_TOKEN);
-	llt->lle_unrtoken = ND6_UNR_TOKEN;
+	if (llt->lle_refresh_expire < cur_time) {
+		refresh_timer_fired = true;
+
+		/*
+		 * Refresh resolution tokens
+		 */
+		rte_atomic16_set(&llt->lle_restoken, nd6_cfg.nd6_res_token);
+		llt->lle_unrtoken = nd6_cfg.nd6_unr_token;
+
+		/* one second later */
+		llt->lle_refresh_expire = cur_time + rte_get_timer_hz();
+	}
 
 	rcu_read_lock();
 	if (!(ifp->if_flags & IFF_UP))
 		nd6_cache_purge(llt);
 	else
-		nd6_cache_age(llt);
+		nd6_cache_age(llt, refresh_timer_fired);
 
-	rte_timer_reset(&llt->lle_timer, rte_get_timer_hz(),
+	cur_time = rte_get_timer_cycles();
+	rte_timer_reset(&llt->lle_timer,
+			llt->lle_refresh_expire < cur_time ? 0 :
+			llt->lle_refresh_expire - cur_time,
 			SINGLE, rte_get_master_lcore(),
 			in6_lladdr_timer, llt);
 	rcu_read_unlock();
 }
+
+/*
+ * nd6 {set|delete} all <param name> <param value>
+ */
+int cmd_nd6_set_cfg(FILE *f, int argc, char **argv)
+{
+	bool set = false;
+	int val = 0;
+
+	if (!argc || strcmp(argv[0], "nd6"))
+		goto error;
+
+	if (!strcmp(argv[1], "set")) {
+		if (argc < 5)
+			goto error;
+		if (get_signed(argv[4], &val) < 0)
+			goto error;
+		if (val <= 0)
+			goto error;
+		set = true;
+	} else if (!strcmp(argv[1], "delete")) {
+		if (argc < 4)
+			goto error;
+	} else {
+		goto error;
+	}
+
+	if (strcmp(argv[2], "all")) {
+		fprintf(f, "Per-interface ND param config not supported\n");
+		goto error;
+	}
+
+	if (!strcmp(argv[3], "max-entry")) {
+		/*
+		 * Changes to cache size only impact subsequent resolutions.
+		 * So if cache size is reduced to less than the number of
+		 * entries for an interface, then the latter number decreases
+		 * only as entries fail to re-resolve.
+		 */
+		nd6_cfg.nd6_max_entry = set ? val : ND6_MAX_ENTRY;
+		ND6_DEBUG("Cfg param nd6_max_entry (cache size) set to: %d\n",
+			  nd6_cfg.nd6_max_entry);
+	} else if (!strcmp(argv[3], "res-token")) {
+		/*
+		 * Changes to resolution throttling only impact subsequent
+		 * resolutions. So if this limit is reduced to less than the
+		 * number of pending resolutions for an interface in a given
+		 * second, these are not affected. Value must be a +ve int16_t.
+		 */
+		if (val >= 1 << 15)
+			goto error;
+		nd6_cfg.nd6_res_token = set ? val : ND6_RES_TOKEN;
+		ND6_DEBUG("Cfg param nd6_res_token (resolution throttling) set "
+			  "to: %d\n", nd6_cfg.nd6_res_token);
+	} else {
+		goto error;
+	}
+
+	return 0;
+
+error:
+	fprintf(f,
+		"Usage: nd6 {set|delete} all {max-entry|res-token} <value>\n");
+	return -1;
+}
+
+int cmd_nd6_get_cfg(FILE *f)
+{
+	json_writer_t *wr = jsonw_new(f);
+
+	if (!wr) {
+		RTE_LOG(NOTICE, DATAPLANE,
+			"nd6: Error creating JSON object for cfg params\n");
+		return -1;
+	}
+
+	jsonw_pretty(wr, true);
+
+	jsonw_uint_field(wr, "NS retries",	   nd6_cfg.nd6_ns_retries);
+	jsonw_uint_field(wr, "Reachable time",	   nd6_cfg.nd6_reachable_time);
+	jsonw_uint_field(wr, "Scavenge time",	   nd6_cfg.nd6_scavenge_time);
+	jsonw_uint_field(wr, "Delay time",	   nd6_cfg.nd6_delay_time);
+	jsonw_int_field(wr, "Max entries",	   nd6_cfg.nd6_max_entry);
+	jsonw_int_field(wr, "Resolution tokens",   nd6_cfg.nd6_res_token);
+	jsonw_uint_field(wr, "Unreachable tokens", nd6_cfg.nd6_unr_token);
+	jsonw_uint_field(wr, "Max hold",	   nd6_cfg.nd6_maxhold);
+
+	jsonw_destroy(&wr);
+
+	return 0;
+}
+
+static void
+nd6_lladdr_if_feat_mode_change(struct ifnet *ifp,
+			       enum if_feat_mode_event event)
+{
+	if (event != IF_FEAT_MODE_EVENT_L3_FAL_ENABLED &&
+	    event != IF_FEAT_MODE_EVENT_L3_FAL_DISABLED)
+		return;
+
+	if (lltable_fal_l3_change(
+		    ifp->if_lltable6,
+		    event == IF_FEAT_MODE_EVENT_L3_FAL_ENABLED))
+		rte_timer_reset(&ifp->if_lltable6->lle_timer, 0,
+				SINGLE, rte_get_master_lcore(),
+				in6_lladdr_timer, ifp->if_lltable6);
+}
+
+static const struct dp_event_ops nd6_lladdr_events = {
+	.if_feat_mode_change = nd6_lladdr_if_feat_mode_change,
+};
+
+DP_STARTUP_EVENT_REGISTER(nd6_lladdr_events);

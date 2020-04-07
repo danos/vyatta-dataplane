@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2019, AT&T Intellectual Property.
+ * Copyright (c) 2018-2020, AT&T Intellectual Property.
  * All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
@@ -10,7 +10,7 @@
 #include <stdlib.h>
 
 #include "assert.h"
-#include "bridge.h"
+#include "if/bridge/bridge.h"
 #include "bridge_flags.h"
 #include "if_var.h"
 #include "mstp.h"
@@ -1022,7 +1022,7 @@ mstp_setup_cmd(FILE *f, int argc, char **argv, int minargs, const char *func,
 	}
 
 	argc--, argv++; /* skip 'mstp' */
-	bridge = ifnet_byifname(argv[0]);
+	bridge = dp_ifnet_byifname(argv[0]);
 	if (!bridge || !bridge->if_softc ||
 	    bridge->if_type != IFT_BRIDGE) {
 		fprintf(f, "Unknown bridge: %s\n", argv[0]);
@@ -1045,6 +1045,7 @@ mstp_setup_cmd(FILE *f, int argc, char **argv, int minargs, const char *func,
 	cmd->revision = 0;
 	cmd->mstid = -1;
 	cmd->msti_vlan_count = 0;
+	cmd->msti_state = __STP_IFSTATE_MAX;
 	return 0;
 }
 

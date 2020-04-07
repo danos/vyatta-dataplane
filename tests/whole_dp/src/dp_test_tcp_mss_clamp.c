@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2018, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2015-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -22,12 +22,13 @@
 #include "dp_test.h"
 #include "dp_test_controller.h"
 #include "dp_test_console.h"
-#include "dp_test_netlink_state.h"
-#include "dp_test_cmd_check.h"
-#include "dp_test_lib.h"
-#include "dp_test_pktmbuf_lib.h"
-#include "dp_test_lib_intf.h"
+#include "dp_test_netlink_state_internal.h"
+#include "dp_test/dp_test_cmd_check.h"
+#include "dp_test_lib_internal.h"
+#include "dp_test_lib_intf_internal.h"
+#include "dp_test_pktmbuf_lib_internal.h"
 #include "dp_test_lib_exp.h"
+#include "dp_test_lib_pb.h"
 #include "dp_test_lib_pkt.h"
 #include "dp_test_lib_tcp.h"
 
@@ -42,8 +43,6 @@ dp_test_create_and_send_tcpmss_msg(bool enable,
 				   int mtu_val)
 {
 	int len;
-	void *buf;
-
 	TCPMSSConfig tcpmsscon = TCPMSSCONFIG__INIT;
 
 	/* set values here */
@@ -67,23 +66,7 @@ dp_test_create_and_send_tcpmss_msg(bool enable,
 
 	tcpmssconfig__pack(&tcpmsscon, buf2);
 
-	DataplaneEnvelope msg = DATAPLANE_ENVELOPE__INIT;
-	msg.type = strdup("vyatta:tcp-mss");
-	msg.msg.data = buf2;
-	msg.msg.len = len;
-
-	len = dataplane_envelope__get_packed_size(&msg);
-
-	buf = malloc(len);
-	dp_test_assert_internal(buf);
-
-	dataplane_envelope__pack(&msg, buf);
-
-	free(buf2);
-	free(msg.type);
-
-	dp_test_send_config_src_pb(dp_test_cont_src_get(), buf, len);
-	free(buf);
+	dp_test_lib_pb_wrap_and_send_pb("vyatta:tcp-mss", buf2, len);
 }
 
 /*
@@ -248,7 +231,7 @@ dp_test_tcp_mss_opt(uint8_t flags, uint8_t *opts,
  */
 static void
 dp_test_tcp_test_cb(const char *str,
-			uint pktno, enum dp_test_tcp_dir dir,
+			uint pktno, bool forw,
 			uint8_t flags,
 			struct dp_test_pkt_desc_t *pre,
 			struct dp_test_pkt_desc_t *post,
@@ -337,122 +320,53 @@ DP_START_TEST(tcp_mss_clamp_ipv4, test1)
 				  "aa:bb:cc:18:0:1");
 
 
-	struct dp_test_pkt_desc_t ins_pre = {
-		.text       = "Inside pre",
-		.len	= 0,
-		.ether_type = ETHER_TYPE_IPv4,
-		.l3_src     = "100.101.102.103",
-		.l2_src     = "aa:bb:cc:16:0:20",
-		.l3_dst     = "200.201.202.203",
-		.l2_dst     = dp1T0_mac,
-		.proto      = IPPROTO_TCP,
-		.l4	 = {
-			.tcp = {
-				.sport = 49152,
-				.dport = 80,
-				.flags = 0,
-				.seq = 0,
-				.ack = 0,
-				.win = 8192,
-				.opts = NULL
-			}
-		},
-		.rx_intf    = "dp1T0",
-		.tx_intf    = "dp2T1"
-	};
+	struct dp_test_pkt_desc_t *ins_pre, *ins_post;
+	struct dp_test_pkt_desc_t *outs_pre, *outs_post;
 
-	struct dp_test_pkt_desc_t ins_post = {
-		.text       = "Inside post",
-		.len	= 0,
-		.ether_type = ETHER_TYPE_IPv4,
-		.l3_src     = "100.101.102.103",
-		.l2_src     = dp2T1_mac,
-		.l3_dst     = "200.201.202.203",
-		.l2_dst     = "aa:bb:cc:18:0:1",
-		.proto      = IPPROTO_TCP,
-		.l4	 = {
-			.tcp = {
-				.sport = 49152,
-				.dport = 80,
-				.flags = 0,
-				.seq = 0,
-				.ack = 0,
-				.win = 8192,
-				.opts = NULL
-			}
-		},
-		.rx_intf    = "dp1T0",
-		.tx_intf    = "dp2T1"
-	};
+	ins_pre = dpt_pdesc_v4_create(
+		"Inside pre", IPPROTO_TCP,
+		"aa:bb:cc:16:0:20", "100.101.102.103", 49152,
+		dp1T0_mac, "200.201.202.203", 80,
+		"dp1T0", "dp2T1");
 
-	struct dp_test_pkt_desc_t outs_pre = {
-		.text       = "Outside pre",
-		.len	= 0,
-		.ether_type = ETHER_TYPE_IPv4,
-		.l3_src     = "200.201.202.203",
-		.l2_src     = "aa:bb:cc:18:0:1",
-		.l3_dst     = "100.101.102.103",
-		.l2_dst     = dp2T1_mac,
-		.proto      = IPPROTO_TCP,
-		.l4	 = {
-			.tcp = {
-				.sport = 80,
-				.dport = 49152,
-				.flags = 0,
-				.seq = 0,
-				.ack = 0,
-				.win = 8192,
-				.opts = NULL
-			}
-		},
-		.rx_intf    = "dp2T1",
-		.tx_intf    = "dp1T0"
-	};
+	ins_post = dpt_pdesc_v4_create(
+		"Inside post", IPPROTO_TCP,
+		dp2T1_mac, "100.101.102.103", 49152,
+		"aa:bb:cc:18:0:1", "200.201.202.203", 80,
+		"dp1T0", "dp2T1");
 
-	struct dp_test_pkt_desc_t outs_post = {
-		.text       = "Outside post",
-		.len	= 0,
-		.ether_type = ETHER_TYPE_IPv4,
-		.l3_src     = "200.201.202.203",
-		.l2_src     = dp1T0_mac,
-		.l3_dst     = "100.101.102.103",
-		.l2_dst     = "aa:bb:cc:16:0:20",
-		.proto      = IPPROTO_TCP,
-		.l4	 = {
-			.tcp = {
-				.sport = 80,
-				.dport = 49152,
-				.flags = 0,
-				.seq = 0,
-				.ack = 0,
-				.win = 8192,
-				.opts = NULL
-			}
-		},
-		.rx_intf    = "dp2T1",
-		.tx_intf    = "dp1T0"
-	};
+	outs_pre = dpt_pdesc_v4_create(
+		"Outside pre", IPPROTO_TCP,
+		"aa:bb:cc:18:0:1", "200.201.202.203", 80,
+		dp2T1_mac, "100.101.102.103", 49152,
+		"dp2T1", "dp1T0");
 
-	struct dp_test_tcp_call tcp_call = {
-		.str[0] = '\0',
+	outs_post = dpt_pdesc_v4_create(
+		"Outside post", IPPROTO_TCP,
+		dp1T0_mac, "200.201.202.203", 80,
+		"aa:bb:cc:16:0:20", "100.101.102.103", 49152,
+		"dp2T1", "dp1T0");
+
+	struct dpt_tcp_flow tcp_call = {
+		.text[0] = '\0',
 		.isn = {0, 0},
-		.desc[DP_DIR_FORW] = {
-			.pre = &ins_pre,
-			.post = &ins_post,
+		.desc[DPT_FORW] = {
+			.pre = ins_pre,
+			.pst = ins_post,
 		},
-		.desc[DP_DIR_BACK] = {
-			.pre = &outs_pre,
-			.post = &outs_post,
+		.desc[DPT_BACK] = {
+			.pre = outs_pre,
+			.pst = outs_post,
 		},
 		.test_cb = dp_test_tcp_test_cb,
 		.post_cb = NULL,
 	};
 
-	struct dp_test_tcp_flow_pkt tcp_pkt1[] = {
-		{DP_DIR_FORW, TH_SYN, 0, NULL},
-		{DP_DIR_BACK, TH_SYN | TH_ACK, 0, NULL},
-		{DP_DIR_FORW, TH_ACK, 0, NULL},
-		{DP_DIR_BACK, TH_ACK, 20, NULL},
+	struct dpt_tcp_flow_pkt tcp_pkt1[] = {
+		{DPT_FORW, TH_SYN, 0, NULL, 0, NULL},
+		{DPT_BACK, TH_SYN | TH_ACK, 0, NULL, 0, NULL},
+		{DPT_FORW, TH_ACK, 0, NULL, 0, NULL},
+		{DPT_BACK, TH_ACK, 20, NULL, 0, NULL},
 		/* call truncated ... */
 	};
 
@@ -480,7 +394,7 @@ DP_START_TEST(tcp_mss_clamp_ipv4, test1)
 	ctx.pre_mss    = 1600;
 	ctx.mtu        = 1500;
 
-	spush(tcp_call.str, sizeof(tcp_call.str),
+	spush(tcp_call.text, sizeof(tcp_call.text),
 	      "TCP mss clamp Test 1.1 - mtu");
 
 	/* Enable the feature and check it's there */
@@ -496,7 +410,7 @@ DP_START_TEST(tcp_mss_clamp_ipv4, test1)
 	dp_test_wait_for_pl_feat("dp1T0", "vyatta:ipv4-tcp-mss-out",
 				 "ipv4-out");
 
-	dp_test_tcp_call(&tcp_call, tcp_pkt1, ARRAY_SIZE(tcp_pkt1), &ctx, 0);
+	dpt_tcp_call(&tcp_call, tcp_pkt1, ARRAY_SIZE(tcp_pkt1), 0, 0, &ctx, 0);
 
 
 	/*****************************************************************
@@ -511,7 +425,7 @@ DP_START_TEST(tcp_mss_clamp_ipv4, test1)
 	/* IP + TCP (ignore options) */
 	ctx.l3l4_size  = 20 + 20;
 
-	spush(tcp_call.str, sizeof(tcp_call.str),
+	spush(tcp_call.text, sizeof(tcp_call.text),
 	      "TCP mss clamp Test 1.2 - mtu-minus");
 
 	/* Enable the feature and check it's there */
@@ -527,7 +441,7 @@ DP_START_TEST(tcp_mss_clamp_ipv4, test1)
 	dp_test_wait_for_pl_feat("dp1T0", "vyatta:ipv4-tcp-mss-out",
 				 "ipv4-out");
 
-	dp_test_tcp_call(&tcp_call, tcp_pkt1, ARRAY_SIZE(tcp_pkt1), &ctx, 0);
+	dpt_tcp_call(&tcp_call, tcp_pkt1, ARRAY_SIZE(tcp_pkt1), 0, 0, &ctx, 0);
 
 
 	/*****************************************************************
@@ -542,7 +456,7 @@ DP_START_TEST(tcp_mss_clamp_ipv4, test1)
 	/* IP + TCP */
 	ctx.l3l4_size  = 20 + 20;
 
-	spush(tcp_call.str, sizeof(tcp_call.str),
+	spush(tcp_call.text, sizeof(tcp_call.text),
 	      "TCP mss clamp Test 1.3 - limit on input interface");
 
 	/* Enable the feature and check it's there */
@@ -558,7 +472,7 @@ DP_START_TEST(tcp_mss_clamp_ipv4, test1)
 	dp_test_wait_for_pl_feat("dp1T0", "vyatta:ipv4-tcp-mss-out",
 				 "ipv4-out");
 
-	dp_test_tcp_call(&tcp_call, tcp_pkt1, ARRAY_SIZE(tcp_pkt1), &ctx, 0);
+	dpt_tcp_call(&tcp_call, tcp_pkt1, ARRAY_SIZE(tcp_pkt1), 0, 0, &ctx, 0);
 
 
 	/* Disable the feature */
@@ -594,7 +508,7 @@ DP_START_TEST(tcp_mss_clamp_ipv4, test1)
 	/* IP + TCP */
 	ctx.l3l4_size  = 20 + 20;
 
-	spush(tcp_call.str, sizeof(tcp_call.str),
+	spush(tcp_call.text, sizeof(tcp_call.text),
 	      "TCP mss clamp Test 1.4 - limit on output interface");
 
 	/* Enable the feature and check it's there */
@@ -609,7 +523,7 @@ DP_START_TEST(tcp_mss_clamp_ipv4, test1)
 
 	dp_test_wait_for_pl_feat("dp2T1", "vyatta:ipv4-tcp-mss-out",
 				 "ipv4-out");
-	dp_test_tcp_call(&tcp_call, tcp_pkt1, ARRAY_SIZE(tcp_pkt1), &ctx, 0);
+	dpt_tcp_call(&tcp_call, tcp_pkt1, ARRAY_SIZE(tcp_pkt1), 0, 0, &ctx, 0);
 
 
 	/* Disable the feature */
@@ -639,7 +553,7 @@ DP_START_TEST(tcp_mss_clamp_ipv4, test1)
 	/* IP + TCP */
 	ctx.l3l4_size  = 20 + 20;
 
-	spush(tcp_call.str, sizeof(tcp_call.str),
+	spush(tcp_call.text, sizeof(tcp_call.text),
 	      "TCP mss clamp Test 1.5 - limit on both interfaces");
 
 	/* Enable the feature on dp1T0 and check it's there */
@@ -668,7 +582,7 @@ DP_START_TEST(tcp_mss_clamp_ipv4, test1)
 	dp_test_wait_for_pl_feat("dp2T1", "vyatta:ipv4-tcp-mss-out",
 				 "ipv4-out");
 
-	dp_test_tcp_call(&tcp_call, tcp_pkt1, ARRAY_SIZE(tcp_pkt1), &ctx, 0);
+	dpt_tcp_call(&tcp_call, tcp_pkt1, ARRAY_SIZE(tcp_pkt1), 0, 0, &ctx, 0);
 
 
 	/* Disable the feature on dp1T0 */
@@ -698,6 +612,11 @@ DP_START_TEST(tcp_mss_clamp_ipv4, test1)
 	dp_test_wait_for_pl_feat_gone("dp2T1", "vyatta:ipv4-tcp-mss-out",
 				      "ipv4-out");
 
+
+	free(ins_pre);
+	free(ins_post);
+	free(outs_pre);
+	free(outs_post);
 
 	/*************************************************************
 	 * Cleanup
@@ -739,123 +658,53 @@ DP_START_TEST(tcp_mss_clamp_ipv6, test1)
 	dp_test_netlink_add_neigh("dp2T1", "2002:2:2::1",
 				  "aa:bb:cc:dd:2:b1");
 
+	struct dp_test_pkt_desc_t *ins_pre, *ins_post;
+	struct dp_test_pkt_desc_t *outs_pre, *outs_post;
 
-	struct dp_test_pkt_desc_t ins_pre = {
-		.text       = "Inside pre",
-		.len	= 0,
-		.ether_type = ETHER_TYPE_IPv6,
-		.l3_src     = "2001:1:1::2",
-		.l2_src     = "aa:bb:cc:dd:1:a1",
-		.l3_dst     = "2002:2:2::1",
-		.l2_dst     = dp1T0_mac,
-		.proto      = IPPROTO_TCP,
-		.l4	 = {
-			.tcp = {
-				.sport = 0xDEAD,
-				.dport = 0xBEEF,
-				.flags = 0,
-				.seq = 0,
-				.ack = 0,
-				.win = 8192,
-				.opts = NULL
-			}
-		},
-		.rx_intf    = "dp1T0",
-		.tx_intf    = "dp2T1"
-	};
+	ins_pre = dpt_pdesc_v6_create(
+		"Inside pre", IPPROTO_TCP,
+		"aa:bb:cc:dd:1:a1", "2001:1:1::2", 0xDEAD,
+		dp1T0_mac, "2002:2:2::1", 0xBEEF,
+		"dp1T0", "dp2T1");
 
-	struct dp_test_pkt_desc_t ins_post = {
-		.text       = "Inside post",
-		.len	= 0,
-		.ether_type = ETHER_TYPE_IPv6,
-		.l3_src     = "2001:1:1::2",
-		.l2_src     = dp2T1_mac,
-		.l3_dst     = "2002:2:2::1",
-		.l2_dst     = "aa:bb:cc:dd:2:b1",
-		.proto      = IPPROTO_TCP,
-		.l4	 = {
-			.tcp = {
-				.sport = 0xDEAD,
-				.dport = 0xBEEF,
-				.flags = 0,
-				.seq = 0,
-				.ack = 0,
-				.win = 8192,
-				.opts = NULL
-			}
-		},
-		.rx_intf    = "dp1T0",
-		.tx_intf    = "dp2T1"
-	};
+	ins_post = dpt_pdesc_v6_create(
+		"Inside post", IPPROTO_TCP,
+		dp2T1_mac, "2001:1:1::2", 0xDEAD,
+		"aa:bb:cc:dd:2:b1", "2002:2:2::1", 0xBEEF,
+		"dp1T0", "dp2T1");
 
-	struct dp_test_pkt_desc_t outs_pre = {
-		.text       = "Outside pre",
-		.len	= 0,
-		.ether_type = ETHER_TYPE_IPv6,
-		.l3_src     = "2002:2:2::1",
-		.l2_src     = "aa:bb:cc:dd:2:b1",
-		.l3_dst     = "2001:1:1::2",
-		.l2_dst     = dp2T1_mac,
-		.proto      = IPPROTO_TCP,
-		.l4	 = {
-			.tcp = {
-				.sport = 0xBEEF,
-				.dport = 0xDEAD,
-				.flags = 0,
-				.seq = 0,
-				.ack = 0,
-				.win = 8192,
-				.opts = NULL
-			}
-		},
-		.rx_intf    = "dp2T1",
-		.tx_intf    = "dp1T0"
-	};
+	outs_pre = dpt_pdesc_v6_create(
+		"Outside pre", IPPROTO_TCP,
+		"aa:bb:cc:dd:2:b1", "2002:2:2::1", 0xBEEF,
+		dp2T1_mac, "2001:1:1::2", 0xDEAD,
+		"dp2T1", "dp1T0");
 
-	struct dp_test_pkt_desc_t outs_post = {
-		.text       = "Outside post",
-		.len	= 0,
-		.ether_type = ETHER_TYPE_IPv6,
-		.l3_src     = "2002:2:2::1",
-		.l2_src     = dp1T0_mac,
-		.l3_dst     = "2001:1:1::2",
-		.l2_dst     = "aa:bb:cc:dd:1:a1",
-		.proto      = IPPROTO_TCP,
-		.l4	 = {
-			.tcp = {
-				.sport = 0xBEEF,
-				.dport = 0xDEAD,
-				.flags = 0,
-				.seq = 0,
-				.ack = 0,
-				.win = 8192,
-				.opts = NULL
-			}
-		},
-		.rx_intf    = "dp2T1",
-		.tx_intf    = "dp1T0"
-	};
+	outs_post = dpt_pdesc_v6_create(
+		"Outside post", IPPROTO_TCP,
+		dp1T0_mac, "2002:2:2::1", 0xBEEF,
+		"aa:bb:cc:dd:1:a1", "2001:1:1::2", 0xDEAD,
+		"dp2T1", "dp1T0");
 
-	struct dp_test_tcp_call tcp_call = {
-		.str[0] = '\0',
+	struct dpt_tcp_flow tcp_call = {
+		.text[0] = '\0',
 		.isn = {0, 0},
-		.desc[DP_DIR_FORW] = {
-			.pre = &ins_pre,
-			.post = &ins_post,
+		.desc[DPT_FORW] = {
+			.pre = ins_pre,
+			.pst = ins_post,
 		},
-		.desc[DP_DIR_BACK] = {
-			.pre = &outs_pre,
-			.post = &outs_post,
+		.desc[DPT_BACK] = {
+			.pre = outs_pre,
+			.pst = outs_post,
 		},
 		.test_cb = dp_test_tcp_test_cb,
 		.post_cb = NULL,
 	};
 
-	struct dp_test_tcp_flow_pkt tcp_pkt1[] = {
-		{DP_DIR_FORW, TH_SYN, 0, NULL},
-		{DP_DIR_BACK, TH_SYN | TH_ACK, 0, NULL},
-		{DP_DIR_FORW, TH_ACK, 0, NULL},
-		{DP_DIR_BACK, TH_ACK, 20, NULL},
+	struct dpt_tcp_flow_pkt tcp_pkt1[] = {
+		{DPT_FORW, TH_SYN, 0, NULL, 0, NULL},
+		{DPT_BACK, TH_SYN | TH_ACK, 0, NULL, 0, NULL},
+		{DPT_FORW, TH_ACK, 0, NULL, 0, NULL},
+		{DPT_BACK, TH_ACK, 20, NULL, 0, NULL},
 		/* call truncated ... */
 	};
 
@@ -878,7 +727,7 @@ DP_START_TEST(tcp_mss_clamp_ipv6, test1)
 		.l3l4_size  = 40 + 20,
 	};
 
-	spush(tcp_call.str, sizeof(tcp_call.str),
+	spush(tcp_call.text, sizeof(tcp_call.text),
 	      "npf TCP mss clamp Test 2.1 - mtu");
 
 	/* Enable the feature and check it's there */
@@ -894,7 +743,7 @@ DP_START_TEST(tcp_mss_clamp_ipv6, test1)
 	dp_test_wait_for_pl_feat("dp1T0", "vyatta:ipv6-tcp-mss-out",
 				 "ipv6-out");
 
-	dp_test_tcp_call(&tcp_call, tcp_pkt1, ARRAY_SIZE(tcp_pkt1), &ctx, 0);
+	dpt_tcp_call(&tcp_call, tcp_pkt1, ARRAY_SIZE(tcp_pkt1), 0, 0, &ctx, 0);
 
 
 	/*****************************************************************
@@ -908,7 +757,7 @@ DP_START_TEST(tcp_mss_clamp_ipv6, test1)
 	/* IP + TCP */
 	ctx.l3l4_size  = 40 + 20;
 
-	spush(tcp_call.str, sizeof(tcp_call.str),
+	spush(tcp_call.text, sizeof(tcp_call.text),
 	      "npf TCP mss clamp Test 2.2 - mtu-minus");
 
 	/* Enable the feature and check it's there */
@@ -924,7 +773,7 @@ DP_START_TEST(tcp_mss_clamp_ipv6, test1)
 	dp_test_wait_for_pl_feat("dp1T0", "vyatta:ipv6-tcp-mss-out",
 				 "ipv6-out");
 
-	dp_test_tcp_call(&tcp_call, tcp_pkt1, ARRAY_SIZE(tcp_pkt1), &ctx, 0);
+	dpt_tcp_call(&tcp_call, tcp_pkt1, ARRAY_SIZE(tcp_pkt1), 0, 0, &ctx, 0);
 
 
 	/*****************************************************************
@@ -939,7 +788,7 @@ DP_START_TEST(tcp_mss_clamp_ipv6, test1)
 	/* IP + TCP */
 	ctx.l3l4_size  = 40 + 20;
 
-	spush(tcp_call.str, sizeof(tcp_call.str),
+	spush(tcp_call.text, sizeof(tcp_call.text),
 	      "npf TCP mss clamp Test 2.3 - limit on input interface");
 
 	/* Enable the feature and check it's there */
@@ -955,7 +804,7 @@ DP_START_TEST(tcp_mss_clamp_ipv6, test1)
 	dp_test_wait_for_pl_feat("dp1T0", "vyatta:ipv6-tcp-mss-out",
 				 "ipv6-out");
 
-	dp_test_tcp_call(&tcp_call, tcp_pkt1, ARRAY_SIZE(tcp_pkt1), &ctx, 0);
+	dpt_tcp_call(&tcp_call, tcp_pkt1, ARRAY_SIZE(tcp_pkt1), 0, 0, &ctx, 0);
 
 
 	/* Disable the feature */
@@ -984,7 +833,7 @@ DP_START_TEST(tcp_mss_clamp_ipv6, test1)
 	/* IP + TCP */
 	ctx.l3l4_size  = 40 + 20;
 
-	spush(tcp_call.str, sizeof(tcp_call.str),
+	spush(tcp_call.text, sizeof(tcp_call.text),
 	      "npf TCP mss clamp Test 2.4 - limit on output interface");
 
 	/* Enable the feature and check it's there */
@@ -1000,7 +849,7 @@ DP_START_TEST(tcp_mss_clamp_ipv6, test1)
 	dp_test_wait_for_pl_feat("dp2T1", "vyatta:ipv6-tcp-mss-out",
 				 "ipv6-out");
 
-	dp_test_tcp_call(&tcp_call, tcp_pkt1, ARRAY_SIZE(tcp_pkt1), &ctx, 0);
+	dpt_tcp_call(&tcp_call, tcp_pkt1, ARRAY_SIZE(tcp_pkt1), 0, 0, &ctx, 0);
 
 
 	/* Disable the feature */
@@ -1028,7 +877,7 @@ DP_START_TEST(tcp_mss_clamp_ipv6, test1)
 	/* IP + TCP */
 	ctx.l3l4_size  = 40 + 20;
 
-	spush(tcp_call.str, sizeof(tcp_call.str),
+	spush(tcp_call.text, sizeof(tcp_call.text),
 	      "npf TCP mss clamp Test 2.5 - limit on both interface");
 
 	/* Enable the feature on dp1T0 and check it's there */
@@ -1057,7 +906,7 @@ DP_START_TEST(tcp_mss_clamp_ipv6, test1)
 	dp_test_wait_for_pl_feat("dp2T1", "vyatta:ipv6-tcp-mss-out",
 				 "ipv6-out");
 
-	dp_test_tcp_call(&tcp_call, tcp_pkt1, ARRAY_SIZE(tcp_pkt1), &ctx, 0);
+	dpt_tcp_call(&tcp_call, tcp_pkt1, ARRAY_SIZE(tcp_pkt1), 0, 0, &ctx, 0);
 
 
 	/* Disable the feature on dp1T0 */
@@ -1085,6 +934,11 @@ DP_START_TEST(tcp_mss_clamp_ipv6, test1)
 
 	dp_test_wait_for_pl_feat_gone("dp2T1", "vyatta:ipv6-tcp-mss-out",
 				      "ipv6-out");
+
+	free(ins_pre);
+	free(ins_post);
+	free(outs_pre);
+	free(outs_post);
 
 	/*************************************************************
 	 * Cleanup

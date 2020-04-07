@@ -10,6 +10,9 @@
 
 int protobuf_get_ipaddr(IPAddress *addr_msg, struct ip_addr *addr)
 {
+	if (!addr_msg)
+		return -1;
+
 	if (addr_msg->address_oneof_case ==
 	    IPADDRESS__ADDRESS_ONEOF_IPV4_ADDR) {
 		memcpy(&addr->address.ip_v4,

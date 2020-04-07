@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2011-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -21,7 +21,7 @@
 #include "compiler.h"
 #include "if_var.h"
 #include "main.h"
-#include "pktmbuf.h"
+#include "pktmbuf_internal.h"
 #include "util.h"
 
 struct ifnet;
@@ -138,7 +138,7 @@ static inline struct rte_mbuf *vid_encap(uint16_t if_vlan,
 	vhdr->eh.ether_type = htons(etype);
 	vhdr->vh.vlan_tci = htons(if_vlan);
 	/* NB VLAN_HDR_LEN includes the ethernet header as well */
-	pktmbuf_l2_len(*m) = VLAN_HDR_LEN;
+	dp_pktmbuf_l2_len(*m) = VLAN_HDR_LEN;
 
 	return *m;
 }
@@ -163,6 +163,7 @@ static inline struct rte_mbuf *vid_encap(uint16_t if_vlan,
   #endif
 #endif
 
+IGNORE_SANITIZER
 static inline int ether_addr_equal(const struct ether_addr *e1,
 				   const struct ether_addr *e2)
 {
@@ -183,6 +184,7 @@ static inline int ether_addr_equal_safe(const struct ether_addr *ea_from,
 	return memcmp(ea_from, ea_to, sizeof(*ea_from)) == 0;
 }
 
+IGNORE_SANITIZER
 static inline uint32_t eth_addr_hash(const struct ether_addr *ea,
 				     unsigned int bits)
 {

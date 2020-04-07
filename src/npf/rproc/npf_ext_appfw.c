@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2017 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -20,7 +20,7 @@
 
 #include "compiler.h"
 #include "npf/config/npf_rule_group.h"
-#include "npf/dpi/dpi.h"
+#include "npf/dpi/dpi_internal.h"
 #include "npf/npf.h"
 #include "npf/rproc/npf_rproc.h"
 #include "npf/npf_cache.h"

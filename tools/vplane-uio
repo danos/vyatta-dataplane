@@ -1,6 +1,6 @@
 #! /usr/bin/perl
 
-# Copyright (c) 2017-2019, AT&T Intellectual Property. All rights reserved.
+# Copyright (c) 2017-2020, AT&T Intellectual Property. All rights reserved.
 # Copyright (c) 2015-2016, Brocade Communications Systems, Inc.
 # All rights reserved.
 #
@@ -258,6 +258,7 @@ my @pci_devices = (
 
     # Virtio
     { vendor => 0x1af4, device => 0x1000 },
+    { vendor => 0x1af4, device => 0x1041 },
 
     # Windriver Accelerated Virtual Port
     { vendor => 0x1af4, device => 0x1110 },
@@ -268,6 +269,107 @@ my @pci_devices = (
     # Cavium ThunderNic
     { vendor => 0x177d, device => 0xa034 },
     { vendor => 0x177d, device => 0x0011 },
+
+    # Chelsio T5 adapters
+    { vendor => 0x1425, device => 0x5000 },
+    { vendor => 0x1425, device => 0x5001 },
+    { vendor => 0x1425, device => 0x5002 },
+    { vendor => 0x1425, device => 0x5003 },
+    { vendor => 0x1425, device => 0x5004 },
+    { vendor => 0x1425, device => 0x5005 },
+    { vendor => 0x1425, device => 0x5006 },
+    { vendor => 0x1425, device => 0x5007 },
+    { vendor => 0x1425, device => 0x5008 },
+    { vendor => 0x1425, device => 0x5009 },
+    { vendor => 0x1425, device => 0x500a },
+    { vendor => 0x1425, device => 0x500d },
+    { vendor => 0x1425, device => 0x500e },
+    { vendor => 0x1425, device => 0x5010 },
+    { vendor => 0x1425, device => 0x5011 },
+    { vendor => 0x1425, device => 0x5012 },
+    { vendor => 0x1425, device => 0x5013 },
+    { vendor => 0x1425, device => 0x5014 },
+    { vendor => 0x1425, device => 0x5015 },
+    { vendor => 0x1425, device => 0x5016 },
+    { vendor => 0x1425, device => 0x5017 },
+    { vendor => 0x1425, device => 0x5018 },
+    { vendor => 0x1425, device => 0x5019 },
+    { vendor => 0x1425, device => 0x501a },
+    { vendor => 0x1425, device => 0x501b },
+    { vendor => 0x1425, device => 0x5080 },
+    { vendor => 0x1425, device => 0x5081 },
+    { vendor => 0x1425, device => 0x5082 },
+    { vendor => 0x1425, device => 0x5083 },
+    { vendor => 0x1425, device => 0x5084 },
+    { vendor => 0x1425, device => 0x5085 },
+    { vendor => 0x1425, device => 0x5086 },
+    { vendor => 0x1425, device => 0x5087 },
+    { vendor => 0x1425, device => 0x5088 },
+    { vendor => 0x1425, device => 0x5089 },
+    { vendor => 0x1425, device => 0x5090 },
+    { vendor => 0x1425, device => 0x5091 },
+    { vendor => 0x1425, device => 0x5092 },
+    { vendor => 0x1425, device => 0x5093 },
+    { vendor => 0x1425, device => 0x5094 },
+    { vendor => 0x1425, device => 0x5095 },
+    { vendor => 0x1425, device => 0x5096 },
+    { vendor => 0x1425, device => 0x5097 },
+    { vendor => 0x1425, device => 0x5098 },
+    { vendor => 0x1425, device => 0x5099 },
+    { vendor => 0x1425, device => 0x509A },
+    { vendor => 0x1425, device => 0x509B },
+    { vendor => 0x1425, device => 0x509c },
+    { vendor => 0x1425, device => 0x509d },
+    { vendor => 0x1425, device => 0x509e },
+    { vendor => 0x1425, device => 0x509f },
+    { vendor => 0x1425, device => 0x50a0 },
+    { vendor => 0x1425, device => 0x50a1 },
+    { vendor => 0x1425, device => 0x50a2 },
+    { vendor => 0x1425, device => 0x50a3 },
+    { vendor => 0x1425, device => 0x50a4 },
+    { vendor => 0x1425, device => 0x50a5 },
+    { vendor => 0x1425, device => 0x50a6 },
+    { vendor => 0x1425, device => 0x50a7 },
+    { vendor => 0x1425, device => 0x50a8 },
+    { vendor => 0x1425, device => 0x50a9 },
+    { vendor => 0x1425, device => 0x50aa },
+    { vendor => 0x1425, device => 0x50ab },
+    { vendor => 0x1425, device => 0x50ac },
+    { vendor => 0x1425, device => 0x50ad },
+    { vendor => 0x1425, device => 0x50ae },
+    { vendor => 0x1425, device => 0x50af },
+    { vendor => 0x1425, device => 0x50b0 },
+
+    # Chelsio T6 adapters
+    { vendor => 0x1425, device => 0x6001 },
+    { vendor => 0x1425, device => 0x6002 },
+    { vendor => 0x1425, device => 0x6003 },
+    { vendor => 0x1425, device => 0x6004 },
+    { vendor => 0x1425, device => 0x6005 },
+    { vendor => 0x1425, device => 0x6006 },
+    { vendor => 0x1425, device => 0x6007 },
+    { vendor => 0x1425, device => 0x6008 },
+    { vendor => 0x1425, device => 0x6009 },
+    { vendor => 0x1425, device => 0x600d },
+    { vendor => 0x1425, device => 0x6011 },
+    { vendor => 0x1425, device => 0x6014 },
+    { vendor => 0x1425, device => 0x6015 },
+    { vendor => 0x1425, device => 0x6080 },
+    { vendor => 0x1425, device => 0x6081 },
+    { vendor => 0x1425, device => 0x6082 },
+    { vendor => 0x1425, device => 0x6083 },
+    { vendor => 0x1425, device => 0x6084 },
+    { vendor => 0x1425, device => 0x6085 },
+    { vendor => 0x1425, device => 0x6086 },
+    { vendor => 0x1425, device => 0x6087 },
+    { vendor => 0x1425, device => 0x6088 },
+    { vendor => 0x1425, device => 0x6089 },
+    { vendor => 0x1425, device => 0x608a },
+    { vendor => 0x1425, device => 0x608b },
+
+    # Amazon ena adapters
+    { vendor => 0x1D0F, device => 0xEC20 },
+    { vendor => 0x1D0F, device => 0xEC21 },
 );
 
 #

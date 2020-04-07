@@ -1,7 +1,7 @@
 /*
  * l3_dpi.c
  *
- * Copyright (c) 2018-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2018-2020, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -19,8 +19,8 @@
 #include "npf/npf.h"
 #include "npf/npf_cache.h"
 #include "npf/npf_session.h"
-#include "npf/dpi/dpi.h"
-#include "pktmbuf.h"
+#include "npf/dpi/dpi_internal.h"
+#include "pktmbuf_internal.h"
 #include "pl_common.h"
 #include "pl_fused.h"
 #include "util.h"

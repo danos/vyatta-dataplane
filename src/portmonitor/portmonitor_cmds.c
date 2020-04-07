@@ -1,7 +1,7 @@
 /*
  * Port Monitoring Command Processing
  *
- * Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2015-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -47,7 +47,7 @@ static uint8_t num_srcif_for_all_sessions;
 static struct cfg_if_list *portmonitor_cfg_list;
 
 static void
-portmonitor_event_if_index_set(struct ifnet *ifp, uint32_t ifindex);
+portmonitor_event_if_index_set(struct ifnet *ifp);
 static void
 portmonitor_event_if_index_unset(struct ifnet *ifp, uint32_t ifindex);
 
@@ -57,7 +57,7 @@ static const struct dp_event_ops portmonitor_event_ops = {
 };
 
 static void
-portmonitor_event_if_index_set(struct ifnet *ifp, uint32_t ifindex __unused)
+portmonitor_event_if_index_set(struct ifnet *ifp)
 {
 	struct cfg_if_list_entry *le;
 
@@ -349,7 +349,7 @@ static void portmonitor_srcif_delete(struct portmonitor_srcif *pmsrcif)
 	const struct portmonitor_info *pminfo;
 	struct ifnet *ifp;
 
-	ifp = ifnet_byifname(pmsrcif->ifname);
+	ifp = dp_ifnet_byifname(pmsrcif->ifname);
 	if (ifp == NULL) {
 		RTE_LOG(ERR, DATAPLANE,
 			"PM: cannot delete source, no such interface %s\n",
@@ -372,9 +372,18 @@ static void portmonitor_srcif_delete(struct portmonitor_srcif *pmsrcif)
 }
 
 static void
-pm_event_if_hw_switching_change(struct ifnet *ifp,
-				bool enable)
+pm_event_if_feat_mode_change(struct ifnet *ifp,
+			     enum if_feat_mode_event event)
 {
+	bool enable;
+
+	if (event == IF_FEAT_MODE_EVENT_L2_FAL_ENABLED)
+		enable = true;
+	else if (event == IF_FEAT_MODE_EVENT_L2_FAL_DISABLED)
+		enable = false;
+	else
+		return;
+
 	RTE_LOG(INFO, DATAPLANE,
 		"Portmonitor(%s):Intf %s, hw forwarding changed to %s\n",
 		__func__,
@@ -383,7 +392,7 @@ pm_event_if_hw_switching_change(struct ifnet *ifp,
 }
 
 static const struct dp_event_ops pm_event_ops = {
-	.if_hw_switching_change = pm_event_if_hw_switching_change
+	.if_feat_mode_change = pm_event_if_feat_mode_change,
 };
 
 static void portmonitor_del_all_srcif(uint8_t session_id)
@@ -425,7 +434,7 @@ static struct ifnet *get_vif(const char *ifname, uint16_t vid)
 	char if_name[IFNAMSIZ];
 
 	snprintf(if_name, IFNAMSIZ, "%s.%d", ifname, vid);
-	return ifnet_byifname(if_name);
+	return dp_ifnet_byifname(if_name);
 }
 
 static int portmonitor_session_del_srcif(struct portmonitor_session *pmsess,
@@ -711,7 +720,7 @@ static int portmonitor_session_set_srcif(FILE *f,
 			return -1;
 		}
 	} else {
-		ifp = ifnet_byifname(ifname);
+		ifp = dp_ifnet_byifname(ifname);
 		if (!ifp) {
 			fprintf(f, "Unknown source interface %s\n", ifname);
 			return -1;
@@ -800,7 +809,7 @@ static int portmonitor_session_set_dstif(FILE *f,
 			return -1;
 		}
 	} else {
-		ifp = ifnet_byifname(ifname);
+		ifp = dp_ifnet_byifname(ifname);
 		if (!ifp) {
 			fprintf(f, "Unknown destination interface %s\n", ifname);
 			return -1;
@@ -1178,7 +1187,7 @@ int cmd_portmonitor(FILE *f, int argc, char **argv)
 				fprintf(f, "Invalid direction %s\n", argv[7]);
 				return -1;
 			}
-			if (!ifnet_byifname(argv[5])) {
+			if (!dp_ifnet_byifname(argv[5])) {
 				if (portmonitor_replay_init() < 0) {
 					RTE_LOG(ERR, DATAPLANE,
 						"Portmonitor could not set up replay cache\n");
@@ -1199,7 +1208,7 @@ int cmd_portmonitor(FILE *f, int argc, char **argv)
 				fprintf(f, "Invalid vid %s\n", argv[6]);
 				return -1;
 			}
-			if (!ifnet_byifname(argv[5])) {
+			if (!dp_ifnet_byifname(argv[5])) {
 				if (portmonitor_replay_init() < 0) {
 					RTE_LOG(ERR, DATAPLANE,
 						"Portmonitor could not set up replay cache\n");

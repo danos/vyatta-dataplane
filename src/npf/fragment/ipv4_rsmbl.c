@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2011-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  */
@@ -54,10 +54,12 @@
 #include "ip_funcs.h"
 #include "ipv4_frag_tbl.h"
 #include "ipv4_rsmbl.h"
-#include "pktmbuf.h"
+#include "pipeline.h"
+#include "pl_fused_gen.h"
+#include "pktmbuf_internal.h"
 #include "snmp_mib.h"
 #include "util.h"
-#include "vrf.h"
+#include "vrf_internal.h"
 
 struct cds_lfht;
 
@@ -175,37 +177,51 @@ ipv4_frag_process(struct cds_lfht *frag_tables, struct ipv4_frag_pkt *fp,
 {
 	uint32_t idx = 0;
 	vrfid_t vrf_id = pktmbuf_get_vrf(mb);
+	struct pl_packet pkt = {
+		.mbuf = mb,
+		.l2_pkt_type = pkt_mbuf_get_l2_traffic_type(mb),
+	};
 
 	/* Lock the frag pkt */
 	rte_spinlock_lock(&fp->pkt_lock);
 
-	fp->frag_size += len;
-
 	if (ofs == 0) {
-		/* this is the first fragment. */
-		idx = (fp->frags[FIRST_FRAG_IDX].mb == NULL) ?
-			FIRST_FRAG_IDX : UINT32_MAX;
+		/* is this a repeat of the first fragment? */
+		if (fp->frags[FIRST_FRAG_IDX].mb == NULL)
+			idx = FIRST_FRAG_IDX;
+		else
+			goto done;
 	} else if (more_frags == 0) {
 		/* this is the last fragment. */
 		fp->total_size = ofs + len;
 		idx = (fp->frags[LAST_FRAG_IDX].mb == NULL) ?
 			LAST_FRAG_IDX : UINT32_MAX;
 	} else {
-		/* this is the intermediate fragment. */
+		/* this is an intermediate fragment. */
 		idx = fp->last_idx;
+		/*
+		 * Check if its a duplicate intermediate fragment
+		 * by checking the offset of the previous fragment
+		 */
+		if (fp->frags[fp->last_idx - 1].ofs == ofs) {
+			mb = NULL;
+			goto done;
+		}
+
 		if (idx < ARRAY_SIZE(fp->frags))
 			fp->last_idx++;
 	}
 
-	/*
-	 * errorneous packet: either exceeed max allowed number of fragments,
-	 * or duplicate first/last fragment encountered.
-	 * TODO: Could issue ICMP Packet Too Big. Probably not necessary
-	 */
+	/* errorneous packet: exceeded max allowed number of fragments */
 	if (idx >= ARRAY_SIZE(fp->frags)) {
 		ipv4_frag_free(frag_tables, fp);
 		IPSTAT_INC(vrf_id, IPSTATS_MIB_REASMFAILS);
 		rte_pktmbuf_free(mb);	/* drop bad packet as well */
+		mb = NULL;
+		goto done;
+	}
+
+	if (unlikely(!pipeline_fused_l2_consume(&pkt))) {
 		mb = NULL;
 		goto done;
 	}
@@ -215,9 +231,11 @@ ipv4_frag_process(struct cds_lfht *frag_tables, struct ipv4_frag_pkt *fp,
 	/* Remove session if we enqueue or reassemble */
 	pktmbuf_mdata_clear(mb, PKT_MDATA_SESSION_SENTRY);
 
+	fp->frag_size += len;
 	fp->frags[idx].ofs = ofs;
 	fp->frags[idx].len = len;
 	fp->frags[idx].mb = mb;
+
 
 	mb = NULL;
 

@@ -1,10 +1,12 @@
-// Copyright (c) 2018, AT&T Intellectual Property.  All rights reserved.
+// Copyright (c) 2018-2019, AT&T Intellectual Property.  All rights reserved.
 //
 // SPDX-License-Identifier: LGPL-2.1-only
 
 // TCP MSS protobuf definitions
 
 syntax="proto2";
+
+option go_package = "github.com/danos/vyatta-dataplane/protobuf/go/TCPMSSConfig";
 
 message TCPMSSConfig {
 	enum AddressFamily {

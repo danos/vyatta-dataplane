@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2019, AT&T Intellectual Property. All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property. All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -33,11 +33,11 @@
 #include "dp_test_console.h"
 #include "dp_test_json_utils.h"
 #include "dp_test_controller.h"
-#include "dp_test_netlink_state.h"
-#include "dp_test_lib.h"
-#include "dp_test_lib_intf.h"
+#include "dp_test_netlink_state_internal.h"
+#include "dp_test_lib_internal.h"
+#include "dp_test_lib_intf_internal.h"
 #include "dp_test_lib_exp.h"
-#include "dp_test_pktmbuf_lib.h"
+#include "dp_test_pktmbuf_lib_internal.h"
 #include "dp_test_npf_fw_lib.h"
 
 static bool print_tbls;
@@ -465,18 +465,13 @@ static int addr_cmp(uint8_t *a1, uint8_t *a2, int alen)
 static bool
 dp_test_addrgrp_tree_lookup(const char *group, const char *addr_str)
 {
-	struct npf_addrgrp *ag;
 	uint8_t klen, af, mask;
 	npf_addr_t addr;
-	int tid;
+	uint32_t tid;
 	int rc;
 
-	ag = npf_addrgrp_lookup_name(group);
-	if (!ag)
-		return false;
-
-	tid = npf_addrgrp_get_tid(ag);
-	if (tid < 0)
+	rc = npf_addrgrp_name2tid(group, &tid);
+	if (rc < 0 || !npf_addrgrp_tid_valid(tid))
 		return false;
 
 	klen = dp_test_string2key(addr_str, addr.s6_addr, &af, &mask);
@@ -487,7 +482,7 @@ dp_test_addrgrp_tree_lookup(const char *group, const char *addr_str)
 	 * This is the function called from the forwarding-threads.
 	 * It does a shortest match lookup to verify address-group membership.
 	 */
-	rc = npf_addrgrp_lookup((klen == 4) ? AG_IPv4 : AG_IPv6, ag, &addr);
+	rc = npf_addrgrp_lookup((klen == 4) ? AG_IPv4 : AG_IPv6, tid, &addr);
 	return rc == 0;
 }
 
@@ -947,7 +942,7 @@ DP_START_TEST(npf_addrgrp2, test1)
 
 	dp_test_addrgrp_prefix_add("ADDRGRP2", "10.0.0.25/32", true);
 
-	naddrs = npf_addrgrp_naddrs(AG_IPv4, tid);
+	naddrs = npf_addrgrp_naddrs(AG_IPv4, tid, false);
 	dp_test_fail_unless(naddrs == 1,
 			    "%s contains %lu addresses, expected 1",
 			    "ADDRGRP2", naddrs);
@@ -955,7 +950,7 @@ DP_START_TEST(npf_addrgrp2, test1)
 	dp_test_addrgrp_range_add("ADDRGRP2", "10.0.0.10", "10.0.0.15",
 				  true, true);
 
-	naddrs = npf_addrgrp_naddrs(AG_IPv4, tid);
+	naddrs = npf_addrgrp_naddrs(AG_IPv4, tid, false);
 	dp_test_fail_unless(naddrs == 7,
 			    "%s contains %lu addresses, expected 7",
 			    "ADDRGRP2", naddrs);
@@ -1175,7 +1170,7 @@ DP_START_TEST(npf_addrgrp5, test1)
 
 	/* Get interface */
 	dp_test_intf_real("dp1T0", real_ifname);
-	ifp = ifnet_byifname(real_ifname);
+	ifp = dp_ifnet_byifname(real_ifname);
 	dp_test_fail_unless(ifp, "ifp for %s", real_ifname);
 
 	dp_test_npf_fw_addr_group_add("ADDR_GRP0");
@@ -1241,7 +1236,7 @@ DP_START_TEST(npf_addrgrp5, test1)
 		{ "1.1.1.6", NPF_DECISION_PASS },
 		{ "1.1.1.7", NPF_DECISION_BLOCK },
 	};
-	struct iphdr *ip = pktmbuf_mtol3(pkt4, struct iphdr *);
+	struct iphdr *ip = dp_pktmbuf_mtol3(pkt4, struct iphdr *);
 
 	/*
 	 * Lookup addresses in test_arr1 and verify decision
@@ -1374,7 +1369,7 @@ DP_START_TEST(npf_addrgrp7, test1)
 
 	/* Get interface */
 	dp_test_intf_real("dp1T0", real_ifname);
-	ifp = ifnet_byifname(real_ifname);
+	ifp = dp_ifnet_byifname(real_ifname);
 	dp_test_fail_unless(ifp, "ifp for %s", real_ifname);
 
 	dp_test_npf_fw_addr_group_add("ADDR_GRP0");
@@ -1487,7 +1482,7 @@ DP_START_TEST(npf_addrgrp8, test1)
 
 	/* Get interface */
 	dp_test_intf_real("dp1T0", real_ifname);
-	ifp = ifnet_byifname(real_ifname);
+	ifp = dp_ifnet_byifname(real_ifname);
 	dp_test_fail_unless(ifp, "ifp for %s", real_ifname);
 
 	dp_test_npf_fw_addr_group_add("ADDR_GRP0");
@@ -1584,7 +1579,7 @@ DP_START_TEST(npf_addrgrp9, test1)
 	dp_test_addrgrp_prefix_add("ADDRGRP9", "10.0.0.25", true);
 
 	/* Expect 1 entry */
-	naddrs = npf_addrgrp_naddrs(AG_IPv4, tid);
+	naddrs = npf_addrgrp_naddrs(AG_IPv4, tid, false);
 	dp_test_fail_unless(naddrs == 1, "expected 1, got %lu", naddrs);
 
 	/* Is 10.0.0.25 in ptree? */
@@ -1595,14 +1590,14 @@ DP_START_TEST(npf_addrgrp9, test1)
 	dp_test_addrgrp_prefix_add("ADDRGRP9", "10.0.0.25/32", true);
 
 	/* Still expect 1 entry */
-	naddrs = npf_addrgrp_naddrs(AG_IPv4, tid);
+	naddrs = npf_addrgrp_naddrs(AG_IPv4, tid, false);
 	dp_test_fail_unless(naddrs == 1, "expected 1, got %lu", naddrs);
 
 	/* Remove 10.0.0.25/32 */
 	dp_test_addrgrp_prefix_remove("ADDRGRP9", "10.0.0.25/32", true, true);
 
 	/* Still expect 1 entry */
-	naddrs = npf_addrgrp_naddrs(AG_IPv4, tid);
+	naddrs = npf_addrgrp_naddrs(AG_IPv4, tid, false);
 	dp_test_fail_unless(naddrs == 1, "expected 1, got %lu", naddrs);
 
 	/* Is 10.0.0.25 in ptree? */
@@ -1613,7 +1608,7 @@ DP_START_TEST(npf_addrgrp9, test1)
 	dp_test_addrgrp_prefix_remove("ADDRGRP9", "10.0.0.25", true, false);
 
 	/* Expect 0 entries */
-	naddrs = npf_addrgrp_naddrs(AG_IPv4, tid);
+	naddrs = npf_addrgrp_naddrs(AG_IPv4, tid, false);
 	dp_test_fail_unless(naddrs == 0, "expected 0, got %lu", naddrs);
 
 	/* Is 10.0.0.25 in ptree? */
@@ -1628,7 +1623,7 @@ DP_START_TEST(npf_addrgrp9, test1)
 	dp_test_addrgrp_prefix_add("ADDRGRP9", "10.0.0.25/32", true);
 
 	/* Expect 1 entry */
-	naddrs = npf_addrgrp_naddrs(AG_IPv4, tid);
+	naddrs = npf_addrgrp_naddrs(AG_IPv4, tid, false);
 	dp_test_fail_unless(naddrs == 1, "expected 1, got %lu", naddrs);
 
 	/* Is 10.0.0.25 in ptree? */
@@ -1639,14 +1634,14 @@ DP_START_TEST(npf_addrgrp9, test1)
 	dp_test_addrgrp_prefix_add("ADDRGRP9", "10.0.0.25", true);
 
 	/* Still expect 1 entry */
-	naddrs = npf_addrgrp_naddrs(AG_IPv4, tid);
+	naddrs = npf_addrgrp_naddrs(AG_IPv4, tid, false);
 	dp_test_fail_unless(naddrs == 1, "expected 1, got %lu", naddrs);
 
 	/* Remove 10.0.0.25 */
 	dp_test_addrgrp_prefix_remove("ADDRGRP9", "10.0.0.25", true, true);
 
 	/* Still expect 1 entry */
-	naddrs = npf_addrgrp_naddrs(AG_IPv4, tid);
+	naddrs = npf_addrgrp_naddrs(AG_IPv4, tid, false);
 	dp_test_fail_unless(naddrs == 1, "expected 1, got %lu", naddrs);
 
 	/* Is 10.0.0.25 in ptree? */
@@ -1657,7 +1652,7 @@ DP_START_TEST(npf_addrgrp9, test1)
 	dp_test_addrgrp_prefix_remove("ADDRGRP9", "10.0.0.25/32", true, false);
 
 	/* Expect 0 entries */
-	naddrs = npf_addrgrp_naddrs(AG_IPv4, tid);
+	naddrs = npf_addrgrp_naddrs(AG_IPv4, tid, false);
 	dp_test_fail_unless(naddrs == 0, "expected 0, got %lu", naddrs);
 
 	/* Is 10.0.0.25 in ptree? */
@@ -1669,4 +1664,86 @@ DP_START_TEST(npf_addrgrp9, test1)
 	dp_test_fail_unless(npf_addrgrp_nentries("ADDRGRP9") == 0,
 			    "ADDRGRP9 not empty");
 	dp_test_addrgrp_destroy("ADDRGRP9");
+} DP_END_TEST;
+
+
+/*
+ * npf_addrgrp10
+ */
+DP_DECL_TEST_CASE(npf_addrgrp, npf_addrgrp10, NULL, NULL);
+DP_START_TEST(npf_addrgrp10, test1)
+{
+	struct npf_addrgrp *ag, *tmp;
+	uint32_t tid;
+	int rc;
+
+	dp_test_addrgrp_create("ADDRGRP10");
+	dp_test_addrgrp_prefix_add("ADDRGRP10", "10.0.0.0/24", true);
+
+	rc = npf_addrgrp_name2tid("ADDRGRP10", &tid);
+	dp_test_fail_unless(rc == 0, "npf_addrgrp_name2tid");
+
+	ag = npf_addrgrp_tid2handle(tid);
+	dp_test_fail_unless(ag, "npf_addrgrp_tid2handle");
+
+	/* Take reference of address-group */
+	npf_addrgrp_get(ag);
+
+	/*
+	 * Lookup using npf_addrgrp_lookup_v4_by_handle
+	 */
+	uint32_t ipaddr;
+	inet_pton(AF_INET, "10.0.0.1", &ipaddr);
+
+	rc = npf_addrgrp_lookup_v4_by_handle(ag, ipaddr);
+	dp_test_fail_unless(rc == 0, "Lookup by handle failed");
+
+	dp_test_addrgrp_prefix_remove("ADDRGRP10", "10.0.0.0/24", true, false);
+
+	/* Unconfigure address-group */
+	dp_test_addrgrp_destroy("ADDRGRP10");
+
+	/*
+	 * Addr-group should no longer be findable since we have deleted it
+	 * from the tableset.
+	 */
+	tmp = npf_addrgrp_tid2handle(tid);
+	dp_test_fail_unless(tmp == NULL, "Addr-group not found");
+
+	/* Lookup of address should fail (but not crash) */
+	rc = npf_addrgrp_lookup_v4_by_handle(ag, ipaddr);
+	dp_test_fail_unless(rc != 0, "Lookup by handle succeeded");
+
+	/* Release reference on address-group */
+	npf_addrgrp_put(ag);
+
+} DP_END_TEST;
+
+
+/*
+ * npf_addrgrp11 - Test that a host address and address range with contigous
+ * addresses can be configured.
+ */
+DP_DECL_TEST_CASE(npf_addrgrp, npf_addrgrp11, NULL, NULL);
+DP_START_TEST(npf_addrgrp11, test1)
+{
+	dp_test_addrgrp_create("ADDRGRP11");
+
+	dp_test_addrgrp_prefix_add("ADDRGRP11", "10.136.166.206", true);
+	dp_test_addrgrp_range_add("ADDRGRP11",
+				  "10.136.166.207", "10.136.166.208",
+				  true, true);
+	dp_test_addrgrp_prefix_add("ADDRGRP11", "10.136.166.209", true);
+
+	dp_test_addrgrp_prefix_remove("ADDRGRP11", "10.136.166.206",
+				      true, false);
+	dp_test_addrgrp_range_remove("ADDRGRP11",
+				     "10.136.166.207", "10.136.166.208",
+				  true, false);
+	dp_test_addrgrp_prefix_remove("ADDRGRP11", "10.136.166.209",
+				      true, false);
+
+	/* Unconfigure address-group */
+	dp_test_addrgrp_destroy("ADDRGRP11");
+
 } DP_END_TEST;

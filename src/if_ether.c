@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 1982, 1986, 1988, 1993
  *	The Regents of the University of California.  All rights reserved.
  *
@@ -50,6 +50,7 @@
 #include "arp.h"
 #include "compat.h"
 #include "control.h"
+#include "dp_event.h"
 #include "ether.h"
 #include "fal.h"
 #include "fal_plugin.h"
@@ -58,7 +59,7 @@
 #include "if_var.h"
 #include "main.h"
 #include "netinet6/nd6_nbr.h"
-#include "pktmbuf.h"
+#include "pktmbuf_internal.h"
 #include "urcu.h"
 #include "util.h"
 #include "vplane_debug.h"
@@ -111,7 +112,11 @@ void ll_addr_set(struct llentry *lle, const struct ether_addr *eth)
 void lladdr_update(struct ifnet *ifp, struct llentry *la,
 		   const struct ether_addr *enaddr, uint16_t flags)
 {
+	struct rte_mbuf *la_held[ARP_MAXHOLD];
+	struct ether_addr old_enaddr;
 	char b1[20], b2[20];
+	int la_numheld = 0;
+	bool was_valid;
 
 	if (!enaddr) {
 		RTE_LOG(ERR, LLADDR, "update with no mac addr\n");
@@ -119,68 +124,71 @@ void lladdr_update(struct ifnet *ifp, struct llentry *la,
 	}
 
 	rte_spinlock_lock(&la->ll_lock);
-	if (la->la_flags & LLE_VALID) {
-		if (ether_addr_equal(enaddr, &la->ll_addr)) {
-			rte_spinlock_unlock(&la->ll_lock);
-			return;
-		}
+	was_valid = la->la_flags & LLE_VALID;
+	if (!was_valid)
+		flags |= LLE_VALID;
 
-		/* static update can update an existing static entry */
+	/* static update can update an existing static entry */
 
-		if (la->la_flags & LLE_STATIC && !(flags & LLE_STATIC)) {
-			rte_spinlock_unlock(&la->ll_lock);
-			RTE_LOG(NOTICE, LLADDR,
-				"%s attempt to modify static entry %s on %s\n",
-				ether_ntoa_r(enaddr, b1),
-				lladdr_ntop(la),
-				ifp->if_name);
-
-			return;
-		}
-
-		ll_addr_set(la, enaddr);
-		la->la_flags |= flags;
-		/*
-		 * We have had an address change so it needs to be signalled
-		 * to the hardware, mark it as incomplete in the hardware so
-		 * that the master thread can pick this up and send an update
-		 */
-		la->la_flags |= LLE_HW_UPD_PENDING;
-		rte_timer_reset(&ifp->if_lltable->lle_timer, 0,
-				SINGLE, rte_get_master_lcore(),
-				lladdr_timer, ifp->if_lltable);
-
+	if (la->la_flags & LLE_STATIC && !(flags & LLE_STATIC)) {
 		rte_spinlock_unlock(&la->ll_lock);
+		RTE_LOG(NOTICE, LLADDR,
+			"%s attempt to modify static entry %s on %s\n",
+			ether_ntoa_r(enaddr, b1),
+			lladdr_ntop(la),
+			ifp->if_name);
+		return;
+	}
 
-		LLADDR_DEBUG("%s moved from %s to %s on %s\n",
-			     lladdr_ntop(la),
-			     ether_ntoa_r(&la->ll_addr, b1),
-			     ether_ntoa_r(enaddr, b2),
-			     ifp->if_name);
-
-	} else {
+	old_enaddr = la->ll_addr;
+	if (!was_valid || !ether_addr_equal(enaddr, &la->ll_addr)) {
 		ll_addr_set(la, enaddr);
-		rte_wmb();
-		la->la_flags |= (LLE_VALID | flags);
 		/*
-		 * Fire the timer for this table immediately on master. It
-		 * doesn't matter if it fails as it will get picked up on
-		 * the next firing in that case.
+		 * Ensure the write to the address is seen by readers
+		 * before the write to the flags below.
 		 */
+		rte_wmb();
+		/*
+		 * We have had an address change so it needs
+		 * to be signalled to the hardware, mark it as
+		 * incomplete in the hardware so that the
+		 * master thread can pick this up and send an
+		 * update
+		 */
+		if (if_is_features_mode_active(
+			    ifp, IF_FEAT_MODE_EVENT_L3_FAL_ENABLED))
+			la->la_flags |= LLE_HW_UPD_PENDING;
+
+		/* fire timer to update hardware and/or install routes */
 		rte_timer_reset(&ifp->if_lltable->lle_timer, 0,
 				SINGLE, rte_get_master_lcore(),
 				lladdr_timer, ifp->if_lltable);
+	}
+	la->la_flags |= flags;
 
-		int la_numheld = la->la_numheld;
-		struct rte_mbuf *la_held[ARP_MAXHOLD];
-
+	if (!was_valid) {
+		la_numheld = la->la_numheld;
 		for (int i = 0; i < la_numheld; ++i) {
 			la_held[i] = la->la_held[i];
 			la->la_held[i] = NULL;
 		}
 		la->la_numheld = 0;
-		rte_spinlock_unlock(&la->ll_lock);
+	}
 
+	rte_spinlock_unlock(&la->ll_lock);
+
+	if (was_valid)
+		LLADDR_DEBUG("%s moved from %s to %s on %s\n",
+			     lladdr_ntop(la),
+			     ether_ntoa_r(&old_enaddr, b1),
+			     ether_ntoa_r(enaddr, b2),
+			     ifp->if_name);
+	else
+		LLADDR_DEBUG("entry for %s resolved to %s\n",
+			     lladdr_ntop(la),
+			     ether_ntoa_r(enaddr, b1));
+
+	if (!was_valid) {
 		/* now valid: release any pending packets */
 		for (int i = 0; i < la_numheld; i++) {
 			struct rte_mbuf *m = la_held[i];
@@ -200,10 +208,6 @@ void lladdr_update(struct ifnet *ifp, struct llentry *la,
 			 */
 			if_output(ifp, m, NULL, htons(eh->ether_type));
 		}
-
-		LLADDR_DEBUG("entry for %s resolved to %s\n",
-			     lladdr_ntop(la),
-			     ether_ntoa_r(enaddr, b1));
 	}
 
 	/* entry updated */
@@ -245,7 +249,8 @@ lladdr_add(struct ifnet *ifp, struct sockaddr *sock,
 		return -1;
 	}
 
-	if (state & (NUD_STALE|NUD_REACHABLE|NUD_NOARP|NUD_PERMANENT)) {
+	if (state & (NUD_STALE|NUD_REACHABLE|NUD_NOARP|NUD_PERMANENT|
+		     NUD_DELAY|NUD_PROBE)) {
 		uint16_t new_flags = 0;
 
 		if (state & NUD_PERMANENT)
@@ -330,12 +335,13 @@ void lladdr_nl_event(int family, struct ifnet *ifp, uint16_t type,
 
 	switch (type) {
 	case RTM_NEWNEIGH:
+		/*
+		 * We are only interested in valid neighbour entries,
+		 * i.e. ones with a link-layer address present.
+		 */
 		if (lladdr)
 			lladdr_add(ifp, (struct sockaddr *) &saddr, lladdr,
 				   ndm->ndm_state, ndm->ndm_flags);
-		else
-			RTE_LOG(NOTICE, LLADDR,
-				"NEWNEIGH without link layer address?\n");
 		break;
 
 	case RTM_DELNEIGH:
@@ -381,13 +387,10 @@ static void ll_probe(struct lltable *llt, struct llentry *la)
 		if (m)
 			if_output(ifp, m, NULL, htons(ethhdr(m)->ether_type));
 	} else {
-		unsigned int pkts_dropped;
-
-		pkts_dropped = llentry_destroy(llt, la);
+		arp_entry_destroy(llt, la);
 		rte_spinlock_unlock(&la->ll_lock);
 
 		ARPSTAT_INC(if_vrfid(ifp), timeouts);
-		ARPSTAT_ADD(if_vrfid(ifp), dropped, pkts_dropped);
 
 		LLADDR_DEBUG("retries exhausted for %s\n", lladdr_ntop(la));
 	}
@@ -406,7 +409,7 @@ static void ll_age(struct lltable *llt, struct llentry *lle, uint64_t cur_time)
 		LLADDR_DEBUG("expire entry for %s, flags %#x\n",
 			     lladdr_ntop(lle), lle->la_flags);
 		rte_spinlock_lock(&lle->ll_lock);
-		llentry_destroy(llt, lle);
+		arp_entry_destroy(llt, lle);
 		rte_spinlock_unlock(&lle->ll_lock);
 	}
 }
@@ -433,17 +436,18 @@ llentry_routing_install(struct llentry *lle)
 /* walk the ll addr table and look for entries that have been used  */
 void lladdr_timer(struct rte_timer *tim __rte_unused, void *arg)
 {
-	int ret = 0;
-	bool new = false;
-	bool upd = false;
-	uint32_t attr_count = 0;
 	struct lltable *llt = arg;
 	struct llentry *lle;
-	char b[INET_ADDRSTRLEN];
-	struct sockaddr_in *sin;
 	struct cds_lfht_iter iter;
-	struct fal_attribute_t attr_list[2];
+	bool refresh_timer_expired = false;
 	uint64_t cur_time = rte_get_timer_cycles();
+
+	if (llt->lle_refresh_expire < cur_time) {
+		refresh_timer_expired = true;
+
+		/* one second later */
+		llt->lle_refresh_expire = cur_time + rte_get_timer_hz();
+	}
 
 	rcu_read_lock();
 	cds_lfht_for_each_entry(llt->llt_hash, &iter, lle, ll_node) {
@@ -451,49 +455,15 @@ void lladdr_timer(struct rte_timer *tim __rte_unused, void *arg)
 		 * If the delete flag is set (which can be done on any
 		 * core) do the actual delete here on master
 		 */
-		sin = (struct sockaddr_in *) ll_sockaddr(lle);
 		if (lle->la_flags & LLE_DELETED) {
 			rte_spinlock_lock(&lle->ll_lock);
 			__llentry_destroy(llt, lle);
 			rte_spinlock_unlock(&lle->ll_lock);
 			continue;
 		}
-		rte_spinlock_lock(&lle->ll_lock);
-		if (lle->la_flags & LLE_HW_UPD_PENDING) {
-			if (lle->la_flags & LLE_VALID) {
-				lle->la_flags &= ~LLE_HW_UPD_PENDING;
-				upd = true;
-				attr_list[0].id =
-					FAL_NEIGH_ENTRY_ATTR_DST_MAC_ADDRESS;
-				attr_list[0].value.mac = lle->ll_addr;
-				attr_count++;
-			}
-			if (!(lle->la_flags & LLE_CREATED_IN_HW)) {
-				new = true;
-				lle->la_flags |= LLE_CREATED_IN_HW;
-			}
-		}
-		rte_spinlock_unlock(&lle->ll_lock);
 
-		if (new) {
-			ret = fal_ip4_new_neigh(lle->ifp->if_index,
-						sin, attr_count, attr_list);
-			if (ret < 0 && ret != -EOPNOTSUPP) {
-				RTE_LOG(NOTICE, DATAPLANE,
-					"FAL new neighbour %s, %s failed: %s\n",
-					inet_ntop(AF_INET, &sin, b, sizeof(b)),
-					lle->ifp->if_name, strerror(-ret));
-			}
-		} else if (upd) {
-			ret = fal_ip4_upd_neigh(lle->ifp->if_index, sin,
-						attr_list);
-			if (ret < 0) {
-				RTE_LOG(NOTICE, DATAPLANE,
-					"FAL neighbour mac update for %s, %s failed: %s\n",
-					inet_ntop(AF_INET, &sin, b, sizeof(b)),
-					lle->ifp->if_name, strerror(-ret));
-			}
-		}
+		llentry_issue_pending_fal_updates(lle);
+
 		if ((lle->la_flags & (LLE_VALID | LLE_FWDING)) == LLE_VALID)
 			llentry_routing_install(lle);
 
@@ -502,16 +472,20 @@ void lladdr_timer(struct rte_timer *tim __rte_unused, void *arg)
 
 		/* retry incomplete entry */
 		if ((lle->la_flags & (LLE_LOCAL | LLE_VALID)) == LLE_LOCAL) {
-			if (lltable_probe_timer_is_enabled())
+			if (lltable_probe_timer_is_enabled() &&
+			    refresh_timer_expired)
 				ll_probe(llt, lle);
-		} else if (lle->ll_expire == 0) {
+		} else if (lle->ll_expire == 0 || !refresh_timer_expired) {
 			continue;
 		} else if (lle->la_flags & LLE_VALID || lle->la_flags == 0) {
 			ll_age(llt, lle, cur_time);
 		}
 	}
 
-	rte_timer_reset(&llt->lle_timer, rte_get_timer_hz(),
+	cur_time = rte_get_timer_cycles();
+	rte_timer_reset(&llt->lle_timer,
+			llt->lle_refresh_expire < cur_time ? 0 :
+			llt->lle_refresh_expire - cur_time,
 			SINGLE, rte_get_master_lcore(),
 			lladdr_timer, llt);
 
@@ -530,5 +504,27 @@ static void lladdr_flush(struct ifnet *ifp, void *cont_src_p)
 
 void lladdr_flush_all(enum cont_src_en cont_src)
 {
-	ifnet_walk(lladdr_flush, &cont_src);
+	dp_ifnet_walk(lladdr_flush, &cont_src);
 }
+
+static void
+lladdr_if_feat_mode_change(struct ifnet *ifp,
+			   enum if_feat_mode_event event)
+{
+	if (event != IF_FEAT_MODE_EVENT_L3_FAL_ENABLED &&
+	    event != IF_FEAT_MODE_EVENT_L3_FAL_DISABLED)
+		return;
+
+	if (lltable_fal_l3_change(
+		    ifp->if_lltable,
+		    event == IF_FEAT_MODE_EVENT_L3_FAL_ENABLED))
+		rte_timer_reset(&ifp->if_lltable->lle_timer, 0,
+				SINGLE, rte_get_master_lcore(),
+				lladdr_timer, ifp->if_lltable);
+}
+
+static const struct dp_event_ops lladdr_events = {
+	.if_feat_mode_change = lladdr_if_feat_mode_change,
+};
+
+DP_STARTUP_EVENT_REGISTER(lladdr_events);

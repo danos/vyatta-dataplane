@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2018-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2018-2020, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  *
@@ -8,13 +8,14 @@
 
 #include "dp_test.h"
 #include "dp_test_str.h"
-#include "dp_test_lib.h"
+#include "dp_test_lib_internal.h"
 #include "dp_test_lib_exp.h"
+#include "dp_test_lib_pb.h"
 #include "dp_test_lib_pkt.h"
-#include "dp_test_pktmbuf_lib.h"
+#include "dp_test_pktmbuf_lib_internal.h"
 #include "dp_test_controller.h"
 #include "dp_test_json_utils.h"
-#include "dp_test_netlink_state.h"
+#include "dp_test_netlink_state_internal.h"
 #include "dp_test_console.h"
 
 #include "pipeline/nodes/pppoe/pppoe.h"
@@ -33,13 +34,13 @@ DP_DECL_TEST_SUITE(ppp);
 #define SESS_INVALID false
 
 static void
-dp_test_create_pppoe_msg(const char *ppp_intf,
-			 const char *real_intf,
-			 const char *src_mac,
-			 const char *dst_mac,
-			 int session_id,
-			 void **buf, int *len)
+dp_test_create_and_send_pppoe_msg(const char *ppp_intf,
+				  const char *real_intf,
+				  const char *src_mac,
+				  const char *dst_mac,
+				  int session_id)
 {
+	int len;
 	PPPOEConfig con = PPPOECONFIG__INIT;
 	con.has_session = true;
 	con.session = session_id;
@@ -48,25 +49,13 @@ dp_test_create_pppoe_msg(const char *ppp_intf,
 	con.ether = (char *)src_mac;
 	con.peer_ether = (char *)dst_mac;
 
-	*len = pppoeconfig__get_packed_size(&con);
-	void *buf2 = malloc(*len);
+	len = pppoeconfig__get_packed_size(&con);
+	void *buf2 = malloc(len);
 	dp_test_assert_internal(buf2);
 
 	pppoeconfig__pack(&con, buf2);
-	DataplaneEnvelope msg = DATAPLANE_ENVELOPE__INIT;
-	msg.type = strdup("vyatta:pppoe");
-	msg.msg.data = buf2;
-	msg.msg.len = *len;
 
-	*len = dataplane_envelope__get_packed_size(&msg);
-
-	*buf = malloc(*len);
-	dp_test_assert_internal(*buf);
-
-	dataplane_envelope__pack(&msg, *buf);
-
-	free(buf2);
-	free(msg.type);
+	dp_test_lib_pb_wrap_and_send_pb("vyatta:pppoe", buf2, len);
 }
 
 static void
@@ -81,20 +70,11 @@ _dp_test_create_pppoe_session(const char *ppp_intf, const char *under_intf,
 
 	dp_test_intf_real(under_intf, real_ifname);
 
-	if (create) {
-		int len;
-		void *buf;
-
-		dp_test_create_pppoe_msg(ppp_intf,
-					 real_ifname,
-					 src_mac, dst_mac,
-					 session_id,
-					 &buf, &len);
-
-		dp_test_send_config_src_pb(dp_test_cont_src_get(),
-					   buf, len);
-		free(buf);
-	}
+	if (create)
+		dp_test_create_and_send_pppoe_msg(ppp_intf,
+						  real_ifname,
+						  src_mac, dst_mac,
+						  session_id);
 
 	if  (verify) {
 		expected = dp_test_json_create("{"

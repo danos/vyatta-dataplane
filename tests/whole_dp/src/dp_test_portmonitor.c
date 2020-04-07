@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2018, AT&T Intellectual Property. All rights reserved.
+ * Copyright (c) 2018-2020, AT&T Intellectual Property. All rights reserved.
  * Copyright (c) 2015-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -18,16 +18,16 @@
 #include "in_cksum.h"
 #include "if_var.h"
 #include "main.h"
-#include "gre.h"
+#include "if/gre.h"
 #include "iptun_common.h"
 
 #include "dp_test.h"
 #include "dp_test_controller.h"
-#include "dp_test_netlink_state.h"
-#include "dp_test_cmd_check.h"
-#include "dp_test_lib.h"
-#include "dp_test_pktmbuf_lib.h"
-#include "dp_test_lib_intf.h"
+#include "dp_test_netlink_state_internal.h"
+#include "dp_test/dp_test_cmd_check.h"
+#include "dp_test_lib_internal.h"
+#include "dp_test_lib_intf_internal.h"
+#include "dp_test_pktmbuf_lib_internal.h"
 #include "dp_test_lib_exp.h"
 #include "dp_test_lib_portmonitor.h"
 
@@ -371,7 +371,7 @@ erspan_build_expected_pak(struct dp_test_expected **expected,
 	exp->exp_pak[1] = m;
 
 	/* Check packet after ether hdr */
-	exp->check_start[1] = pktmbuf_l2_len(exp->exp_pak[1]);
+	exp->check_start[1] = dp_pktmbuf_l2_len(exp->exp_pak[1]);
 	exp->check_len[1] = rte_pktmbuf_data_len(exp->exp_pak[0]) -
 				exp->check_start[1];
 

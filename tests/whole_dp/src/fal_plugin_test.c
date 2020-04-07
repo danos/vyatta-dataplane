@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2017-2019, AT&T Intellectual Property.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.
  * All rights reserved.
  * Copyright (c) 2017 by Brocade Communications Systems, Inc.
  * All rights reserved.
@@ -15,9 +15,12 @@
 #include <stdio.h>
 #include <sys/socket.h>
 
-#include "dp_test_macros.h"
+#include "dp_test.h"
+#include "dp_test_lib_internal.h"
+#include "dp_test/dp_test_macros.h"
 #include "util.h"
 #include  "fal_plugin_sw_port.h"
+#include  "dp_test_lib_internal.h"
 
 #define LOG(l, t, ...)						\
 	rte_log(RTE_LOG_ ## l,					\
@@ -136,10 +139,23 @@ int fal_plugin_l2_get_attrs(unsigned int if_index,
 			    uint32_t attr_count,
 			    struct fal_attribute_t *attr_list)
 {
+	uint32_t i;
+
 	DEBUG("%s(if_index %d, attr_count %d, ...)\n",
 					__func__, if_index, attr_count);
 
-	return -1;
+	for (i = 0; i < attr_count; i++) {
+		switch (attr_list[i].id) {
+		/* Any old non zero value */
+		case FAL_PORT_ATTR_QOS_INGRESS_MAP_ID:
+			attr_list[i].value.objid = 0xff;
+			break;
+		default:
+			DEBUG("%s requested %u\n", __func__, attr_list[i].id);
+			break;
+		}
+	}
+	return 0;
 }
 
 static const char *fal_port_attr_t_to_str(enum fal_port_attr_t val)
@@ -191,18 +207,25 @@ static const char *fal_port_attr_t_to_str(enum fal_port_attr_t val)
 		return "mcast-storm_ctl";
 	case FAL_PORT_ATTR_FDB_AGING_TIME:
 		return "fdb-aging-time";
+	case FAL_PORT_ATTR_QOS_INGRESS_MAP_ID:
+		return "ingress-map-id";
+	case FAL_PORT_ATTR_CAPTURE_BIND:
+		return "capture-bind";
+	case FAL_PORT_ATTR_HW_CAPTURE:
+		return "hw-capture";
 	}
 	assert(0);
 	return "ERROR";
 }
 
-void fal_plugin_l2_upd_port(unsigned int if_index,
-			    struct fal_attribute_t *attr)
+int fal_plugin_l2_upd_port(unsigned int if_index,
+			   struct fal_attribute_t *attr)
 {
 	DEBUG("%s(if_index %d, { id %d %s %p })\n",
 	      __func__, if_index, attr->id,
 	      fal_port_attr_t_to_str(attr->id),
 	      attr->value.ptr);
+	return 0;
 }
 
 void fal_plugin_l2_del_port(unsigned int if_index)

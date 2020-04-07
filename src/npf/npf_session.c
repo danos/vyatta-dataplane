@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  */
@@ -64,10 +64,10 @@
 #include "if_var.h"
 #include "json_writer.h"
 #include "npf/npf.h"
-#include "npf/alg/npf_alg_public.h"
+#include "npf/alg/alg_npf.h"
 #include "npf/config/npf_config.h"
 #include "npf/config/npf_ruleset_type.h"
-#include "npf/dpi/dpi.h"
+#include "npf/dpi/dpi_internal.h"
 #include "npf/rproc/npf_rproc.h"
 #include "npf/rproc/npf_ext_session_limit.h"
 #include "npf/npf_dataplane_session.h"
@@ -75,6 +75,7 @@
 #include "npf/npf_if.h"
 #include "npf/npf_nat.h"
 #include "npf/npf_nat64.h"
+#include "npf/npf_pack.h"
 #include "npf/npf_ruleset.h"
 #include "npf/npf_session.h"
 #include "npf/npf_state.h"
@@ -82,7 +83,8 @@
 #include "npf/npf_cache.h"
 #include "npf/npf_rule_gen.h"
 #include "npf_shim.h"
-#include "pktmbuf.h"
+#include "pktmbuf_internal.h"
+#include "session/session_watch.h"
 #include "urcu.h"
 #include "vplane_log.h"
 
@@ -113,6 +115,11 @@ struct npf_session {
 	uint8_t			s_proto_idx;
 };
 
+static_assert(offsetof(struct npf_session, s_nat) == 64,
+	      "first cache line exceeded");
+static_assert(offsetof(struct npf_session, s_parent) == 128,
+	      "second cache line exceeded");
+
 /*
  * Session flags:
  * - PFIL_IN and PFIL_OUT values are reserved for direction.
@@ -121,6 +128,7 @@ struct npf_session {
  * - SE_EXPIRE: explicitly expire the session.
  * - SE_GC_PASS_TWO: in the 2nd pass of the GC process
  * - SE_SECONDARY: an ALG created secondary flow
+ * - SE_LOCAL_ZONE_NAT: Indicates NAT session for local traffic
  * - SE_IF_DISABLED: The interface associated with this session was disabled
  */
 #define	SE_ACTIVE		0x004
@@ -128,6 +136,7 @@ struct npf_session {
 #define	SE_EXPIRE		0x010
 #define	SE_GC_PASS_TWO		0x020
 #define	SE_SECONDARY		0x040
+#define	SE_LOCAL_ZONE_NAT	0x080
 #define	SE_IF_DISABLED		0x100
 #define	SE_NAT_PINHOLE		0x200
 
@@ -381,6 +390,17 @@ static void sess_set_expired(npf_session_t *se)
 	}
 }
 
+void npf_session_set_local_zone_nat(npf_session_t *se)
+{
+	if (se && !(se->s_flags & SE_LOCAL_ZONE_NAT))
+		se->s_flags |= SE_LOCAL_ZONE_NAT;
+}
+
+bool npf_session_is_local_zone_nat(npf_session_t *se)
+{
+	return se && (se->s_flags & SE_LOCAL_ZONE_NAT);
+}
+
 /* Clear parent */
 static void sess_clear_parent(npf_session_t *se)
 {
@@ -594,6 +614,18 @@ void npf_session_update_state(npf_session_t *se)
 }
 
 /*
+ * Calls session watch hook if needed
+ */
+static inline void npf_session_do_watch(npf_session_t *se,
+					enum dp_session_hook hook)
+{
+	if (!is_watch_on())
+		return;
+
+	if (se->s_session)
+		session_do_watch(se->s_session, hook);
+}
+/*
  * Callback from npf_state.c after a session changes state.
  */
 void
@@ -619,10 +651,10 @@ npf_session_state_change(npf_state_t *nst, uint8_t old_state,
 	if (handle && state != old_state)
 		npf_sess_limit_state_change(handle, proto_idx,
 					    old_state, state);
-
 	if (npf_state_get_generic_state(proto_idx, state) ==
 	    NPF_ANY_SESSION_CLOSED)
 		sess_set_expired(se);
+	npf_session_do_watch(se, SESSION_STATE_CHANGE);
 }
 
 /*
@@ -720,7 +752,8 @@ npf_session_inspect_or_create(npf_cache_t *npc, struct rte_mbuf *nbuf,
 	se = npf_session_inspect(npc, nbuf, ifp, di, error, internal_hairpin);
 	if (se) {
 		/*
-		 * Allow through packets matching sessions for:
+		 * ZBF skip processing tries to approximate IBF behaviour.
+		 * So this allows through packets matching sessions for:
 		 *  1) Stateful firewall rules
 		 *  2) ALG enabled secondary flows
 		 *  3) Reverse NAT traffic
@@ -966,7 +999,10 @@ npf_session_establish(npf_cache_t *npc, struct rte_mbuf *nbuf,
 	se->s_vrfid = pktmbuf_get_vrf(nbuf);
 
 	/* Initialize protocol state. */
-	npf_state_init(se->s_vrfid, npc->npc_proto_idx, &se->s_state);
+	if (!npf_state_init(se->s_vrfid, npc->npc_proto_idx, &se->s_state)) {
+		*error = -ENOENT;
+		goto fail;
+	}
 
 	se->s_proto = proto;
 	se->s_if_idx = ifp->if_index;
@@ -1030,6 +1066,8 @@ int npf_session_activate(npf_session_t *se, const struct ifnet *ifp,
 
 		if (npf_nat64_session_log_enabled(se->s_nat64))
 			npf_session_nat64_log(se, true);
+
+		npf_session_do_watch(se, SESSION_ACTIVATE);
 	}
 
 	return 0;
@@ -1073,7 +1111,7 @@ void npf_session_destroy(npf_session_t *se)
 
 	/* Decrement per-interface count if activated and still valid */
 	if ((se->s_flags & (SE_IF_DISABLED|SE_ACTIVE)) == SE_ACTIVE) {
-		struct ifnet *ifp = ifnet_byifindex(se->s_if_idx);
+		struct ifnet *ifp = dp_ifnet_byifindex(se->s_if_idx);
 
 		if (ifp)
 			npf_if_session_dec(ifp);
@@ -1220,6 +1258,9 @@ void npf_session_expire(npf_session_t *se)
 		sess_close(se);
 		session_link_walk(se->s_session, true, sess_expire,
 				&se->s_if_idx);
+
+		/* Send out expiry only if the watch was acked before */
+		npf_session_do_watch(se, SESSION_EXPIRE);
 	}
 }
 
@@ -1391,7 +1432,7 @@ int npf_session_json_nat(json_writer_t *json, npf_session_t *se)
 
 void npf_session_feature_json(json_writer_t *json, npf_session_t *se)
 {
-	struct ifnet *ifp = ifnet_byifindex(se->s_if_idx);
+	struct ifnet *ifp = dp_ifnet_byifindex(se->s_if_idx);
 
 	if (ifp)
 		jsonw_string_field(json, "interface", ifp->if_name);
@@ -1518,6 +1559,26 @@ npf_session_log_parent_id(char *buf, size_t *used_buf_len,
 }
 
 static inline void
+npf_session_log_counters(char *buf, size_t *used_buf_len,
+			 const size_t total_buf_len,
+			 struct session *s __unused,
+			 enum session_log_event event)
+{
+	/* Only emit this for deletion and periodic events,
+	 * and specifically not for creation events.
+	 */
+	if (event == SESSION_LOG_DELETION ||
+	    event == SESSION_LOG_PERIODIC) {
+		buf_app_printf(buf, used_buf_len, total_buf_len,
+		       " out=%lu/%lu in=%lu/%lu",
+		       rte_atomic64_read(&s->se_pkts_out),
+		       rte_atomic64_read(&s->se_bytes_out),
+		       rte_atomic64_read(&s->se_pkts_in),
+		       rte_atomic64_read(&s->se_bytes_in));
+	}
+}
+
+static inline void
 npf_session_log_rule_info(char *buf, size_t *used_buf_len,
 			  const size_t total_buf_len, npf_session_t *se)
 {
@@ -1633,10 +1694,11 @@ void npf_session_feature_log(enum session_log_event event, struct session *s,
 	session_sentry_extract(sen, &if_index, &af, &saddr, &sid, &daddr, &did);
 
 	buf_app_printf(buf, &used_buf_len, sizeof(buf),
-		       " ifname=%s session-id=%lu proto=%s(%u)",
+		       " ifname=%s session-id=%lu proto=%s(%u) dir=%s",
 		       ifnet_indextoname_safe(if_index), s->se_id,
 		       npf_get_protocol_name_from_num(s->se_protocol),
-		       s->se_protocol);
+		       s->se_protocol,
+		       npf_session_forward_dir(se, PFIL_IN) ? "in" : "out");
 
 	npf_session_log_addrs(buf, &used_buf_len, sizeof(buf), af,
 			      saddr, daddr);
@@ -1646,8 +1708,7 @@ void npf_session_feature_log(enum session_log_event event, struct session *s,
 
 	npf_session_log_parent_id(buf, &used_buf_len, sizeof(buf), s);
 
-	/* NB: fn will be created when per-session statistics is added */
-	// npf_session_log_counters(buf, &used_buf_len, sizeof(buf), s);
+	npf_session_log_counters(buf, &used_buf_len, sizeof(buf), s, event);
 
 	npf_session_log_rule_info(buf, &used_buf_len, sizeof(buf), se);
 
@@ -1664,3 +1725,173 @@ void npf_session_feature_log(enum session_log_event event, struct session *s,
 	RTE_LOG(NOTICE, FIREWALL, "%s\n", buf);
 }
 
+void npf_save_stats(npf_session_t *se, int dir, uint64_t bytes)
+{
+	assert(se);
+
+	if (se->s_session) {
+		se_save_stats(se->s_session,
+			      dir == PFIL_IN ? true : false,
+			      bytes);
+		npf_session_do_watch(se, SESSION_STATS_UPDATE);
+	}
+}
+
+int npf_session_npf_pack_state_pack(struct npf_session *se,
+				    struct npf_pack_npf_state *state)
+{
+	npf_state_t *nst;
+
+	if (!se || !state)
+		return -EINVAL;
+
+	nst = &se->s_state;
+	memcpy(&state->nst_tcpst[0], &nst->nst_tcpst[0],
+			sizeof(npf_tcpstate_t));
+	memcpy(&state->nst_tcpst[1], &nst->nst_tcpst[1],
+			sizeof(npf_tcpstate_t));
+
+	state->nst_state = nst->nst_state;
+
+	return 0;
+}
+
+int npf_session_npf_pack_state_restore(struct npf_session *se,
+				       struct npf_pack_npf_state *state,
+				       vrfid_t vrfid)
+{
+	npf_state_t *nst;
+
+	if (!se || !state)
+		return -EINVAL;
+
+	nst = &se->s_state;
+	npf_state_init(vrfid, se->s_proto_idx, nst);
+
+	rte_spinlock_lock(&nst->nst_lock);
+
+	if (npf_state_npf_pack_update(nst, state, state->nst_state,
+				      se->s_proto_idx)) {
+		rte_spinlock_unlock(&nst->nst_lock);
+		return -EINVAL;
+	}
+
+	rte_spinlock_unlock(&nst->nst_lock);
+
+	return 0;
+}
+
+int npf_session_npf_pack_state_update(struct npf_session *se,
+				      struct npf_pack_npf_state *state)
+{
+	npf_state_t *nst;
+	uint8_t old_state, new_state;
+	struct session *s;
+
+	if (!se || !state)
+		return -EINVAL;
+
+	nst = &se->s_state;
+
+	rte_spinlock_lock(&nst->nst_lock);
+
+	old_state = nst->nst_state;
+	new_state = state->nst_state;
+	if (old_state == new_state) {
+		rte_spinlock_unlock(&nst->nst_lock);
+		return 0;
+	}
+
+	if (npf_state_npf_pack_update(nst, state, new_state,
+				      se->s_proto_idx)) {
+		rte_spinlock_unlock(&nst->nst_lock);
+		return -EINVAL;
+	}
+
+	rte_spinlock_unlock(&nst->nst_lock);
+
+	npf_session_state_change(nst, old_state,
+				 new_state, se->s_proto_idx);
+
+	s = se->s_session;
+	if (s)
+		s->se_etime = get_dp_uptime() +
+				  session_get_npf_pack_timeout(s);
+
+	return 0;
+}
+
+int npf_session_npf_pack_pack(npf_session_t *se,
+			      struct npf_pack_npf_session *fw,
+			      struct npf_pack_npf_state *state)
+{
+	npf_rule_t *rule;
+
+	if (!se || !fw)
+		return -EINVAL;
+
+	fw->s_flags = se->s_flags;
+	rule = npf_session_get_fw_rule(se);
+	fw->s_fw_rule_hash = (rule ? npf_rule_get_hash(rule) : 0);
+	rule = npf_session_get_rproc_rule(se);
+	fw->s_rproc_rule_hash = (rule ? npf_rule_get_hash(rule) : 0);
+	return npf_session_npf_pack_state_pack(se, state);
+}
+
+struct npf_session *
+npf_session_npf_pack_restore(struct npf_pack_npf_session *fw,
+			     struct npf_pack_npf_state *state,
+			     vrfid_t vrfid, uint8_t protocol,
+			     uint32_t ifindex)
+{
+	npf_rule_t *fw_rl;
+	npf_rule_t *rproc_rl;
+	npf_session_t *se;
+
+	if (!fw || !state)
+		return NULL;
+
+	se = zmalloc_aligned(sizeof(*se));
+	if (!se)
+		return NULL;
+
+	fw_rl = fw->s_fw_rule_hash ?
+			npf_get_rule_by_hash(fw->s_fw_rule_hash) : NULL;
+	if (fw_rl)
+		npf_session_add_fw_rule(se, fw_rl);
+	rproc_rl = fw->s_rproc_rule_hash ?
+			npf_get_rule_by_hash(fw->s_rproc_rule_hash) : NULL;
+	if (rproc_rl)
+		npf_session_add_rproc_rule(se, rproc_rl);
+
+	se->s_flags = fw->s_flags;
+	se->s_vrfid = vrfid;
+	se->s_if_idx = ifindex;
+	se->s_proto = protocol;
+	se->s_proto_idx = npf_proto_idx_from_proto(protocol);
+
+	if (npf_session_npf_pack_state_restore(se, state, vrfid))
+		goto error;
+
+	rte_spinlock_init(&se->s_state.nst_lock);
+
+	return se;
+
+error:
+	if (fw_rl)
+		npf_rule_put(fw_rl);
+	if (rproc_rl)
+		npf_rule_put(rproc_rl);
+	free(se);
+	return NULL;
+}
+
+int npf_session_npf_pack_activate(struct npf_session *se, struct ifnet *ifp)
+{
+	if (!se || !ifp)
+		return -EINVAL;
+
+	npf_if_session_inc(ifp);
+	se->s_flags |= SE_ACTIVE;
+	return 0;
+}

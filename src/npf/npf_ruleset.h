@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  */
@@ -52,7 +52,7 @@ typedef uint16_t                rule_no_t;
 #include "npf/config/npf_rule_group.h"
 #include "npf/config/npf_ruleset_type.h"
 #include "npf/npf.h"
-#include "pktmbuf.h"
+#include "pktmbuf_internal.h"
 
 /* Forward Declarations */
 struct ifnet;
@@ -71,11 +71,17 @@ typedef struct {
 	uint8_t		_unused : 2;
 } npf_rproc_result_t;
 
+/*
+ * This structures primary use is in a per-core array, and so it is aligned
+ * to 64-byte boundary to ensure that different cores access different cache
+ * lines.
+ */
 struct npf_rule_stats {
 	uint64_t	pkts_ct;
 	uint64_t	bytes_ct;
 	uint64_t	map_ports; /* NAT mapped ports stats */
-	uint64_t	pad[5];
+	rte_atomic64_t  refcnt;    /* only refcnt of index 0 is used */
+	uint64_t	pad[4];
 };
 
 /**
@@ -109,12 +115,13 @@ void npf_ruleset_gc_init(void);
 npf_ruleset_t *npf_ruleset_create(enum npf_ruleset_type ruleset_type,
 				  enum npf_attach_type attach_type,
 				  const char *attach_point);
-void npf_ruleset_update_masquerade(const struct ifnet *ifp, npf_ruleset_t *rs);
+void npf_ruleset_update_masquerade(const struct ifnet *ifp,
+				   const npf_ruleset_t *rs);
 void npf_rule_set_natpolicy(npf_rule_t *rl, npf_natpolicy_t *np);
 npf_natpolicy_t *npf_rule_get_natpolicy(const npf_rule_t *rl);
 void npf_free_group(npf_rule_group_t *rg);
 void npf_ruleset_free(npf_ruleset_t *ruleset);
-void npf_copy_stats(npf_ruleset_t *from, npf_ruleset_t *to);
+void npf_ref_stats(npf_ruleset_t *old, npf_ruleset_t *new);
 void npf_clear_stats(const npf_ruleset_t *ruleset,
 		     enum npf_rule_class group_class, const char *group_name,
 		     rule_no_t rule_no);

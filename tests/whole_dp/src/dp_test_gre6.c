@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2019-2020, AT&T Intellectual Property.  All rights reserved.
  * All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
@@ -17,18 +17,18 @@
 #include "in_cksum.h"
 #include "if_var.h"
 #include "main.h"
-#include "gre.h"
+#include "if/gre.h"
 #include "iptun_common.h"
 #include "netinet6/ip6_funcs.h"
 #include "compat.h"
 
 #include "dp_test.h"
 #include "dp_test_controller.h"
-#include "dp_test_netlink_state.h"
-#include "dp_test_cmd_check.h"
-#include "dp_test_lib.h"
-#include "dp_test_pktmbuf_lib.h"
-#include "dp_test_lib_intf.h"
+#include "dp_test_netlink_state_internal.h"
+#include "dp_test/dp_test_cmd_check.h"
+#include "dp_test_lib_internal.h"
+#include "dp_test_lib_intf_internal.h"
+#include "dp_test_pktmbuf_lib_internal.h"
 #include "dp_test_lib_exp.h"
 
 /*

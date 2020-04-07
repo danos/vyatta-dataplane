@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2017-2019, AT&T Intellectual Property.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.
  * All rights reserved.
  * Copyright (c) 2015-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
@@ -24,14 +24,18 @@
 #include "netlink.h"
 #include "npf_shim.h"
 #include "commands.h"
-#include "dp_test_lib.h"
-#include "dp_test_lib_intf.h"
+#include "dp_test_lib_internal.h"
+#include "dp_test_lib_intf_internal.h"
 #include "capture.h"
 
 #include "dp_test.h"
 
 int spath_pipefd[2] = {0};
 int shadow_pipefd[DATAPLANE_MAX_PORTS] = {0};
+
+void capture_hardware(const struct ifnet *ifp, struct rte_mbuf *mbuf)
+{
+}
 
 void
 capture_burst(const struct ifnet *ifp, struct rte_mbuf *pkts[], unsigned int n)
@@ -73,7 +77,7 @@ void ip_id_init(void)
 {
 }
 
-uint16_t ip_randomid(uint16_t salt)
+uint16_t dp_ip_randomid(uint16_t salt)
 {
 	return 0;
 }

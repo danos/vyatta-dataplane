@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2015-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -8,7 +8,7 @@
  * Routines to generate/send netlink state, from test controller to
  * dataplane over ZMQ.
  */
-#include "dp_test_netlink_state.h"
+#include "dp_test_netlink_state_internal.h"
 
 #include <stdio.h>
 #include <linux/if_arp.h>
@@ -25,15 +25,15 @@
 #include <rte_mbuf.h>
 
 #include "main.h"
+#include "if/bridge/bridge.h"
 #include "if_var.h"
-#include "vxlan.h"
-#include "vrf.h"
-#include "bridge.h"
+#include "if/vxlan.h"
+#include "vrf_internal.h"
 
 #include "dp_test_controller.h"
-#include "dp_test_cmd_check.h"
-#include "dp_test_lib.h"
-#include "dp_test_lib_intf.h"
+#include "dp_test/dp_test_cmd_check.h"
+#include "dp_test_lib_internal.h"
+#include "dp_test_lib_intf_internal.h"
 #include "dp_test_str.h"
 #include "dp_test.h"
 #include "dp_test_crypto_lib.h"
@@ -1081,8 +1081,8 @@ dp_test_netlink_ip_address(const char *ifname, const char *prefix_str,
 	 * Attributes are:
 	 *
 	 * IFA_UNSPEC,
-	 * IFA_ADDRESS:          Host Address
-	 *  ---- IFA_LOCAL,
+	 *  ---- IFA_ADDRESS:    Subnet (or Peer) Address
+	 * IFA_LOCAL:            Host Address
 	 * IFA_LABEL,
 	 * IFA_BROADCAST:        Subnet Broadcast
 	 *  ---- IFA_ANYCAST,
@@ -1090,7 +1090,7 @@ dp_test_netlink_ip_address(const char *ifname, const char *prefix_str,
 	 *  ---- IFA_MULTICAST,
 	 *  ---- IFA_FLAGS,
 	 */
-	mnl_attr_put(nlh, IFA_ADDRESS, dp_test_addr_size(&prefix.addr),
+	mnl_attr_put(nlh, IFA_LOCAL, dp_test_addr_size(&prefix.addr),
 		     &prefix.addr.addr);
 	mnl_attr_put_strz(nlh, IFA_LABEL, real_ifname);
 	if (prefix.addr.family == AF_INET)

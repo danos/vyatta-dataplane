@@ -1,7 +1,7 @@
 /*
  * Common nexthop and nexthop_u processing
  *
- * Copyright (c) 2017-2018, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2015 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -63,25 +63,8 @@ nh_get_flags(enum nh_type nh_type, union next_hop_v4_or_v6_ptr nh)
 	return nh.v4->flags;
 }
 
-static ALWAYS_INLINE struct ifnet *
-nh4_get_ifp(const struct next_hop *next_hop)
-{
-	if (next_hop->flags & (RTF_NEIGH_CREATED | RTF_NEIGH_PRESENT))
-		return rcu_dereference(next_hop->u.lle->ifp);
-
-	return rcu_dereference(next_hop->u.ifp);
-}
-
-static ALWAYS_INLINE void
-nh4_set_ifp(struct next_hop *next_hop, struct ifnet *ifp)
-{
-	if (next_hop->flags & (RTF_NEIGH_CREATED | RTF_NEIGH_PRESENT)) {
-		rte_panic("Can't set interface for NH with linked arp");
-		return;
-	}
-
-	rcu_assign_pointer(next_hop->u.ifp, ifp);
-}
+void
+nh4_set_ifp(struct next_hop *next_hop, struct ifnet *ifp);
 
 static ALWAYS_INLINE bool
 nh4_is_neigh_created(const struct next_hop *next_hop)
@@ -104,23 +87,8 @@ nh4_get_lle(const struct next_hop *next_hop)
 	return NULL;
 }
 
-static ALWAYS_INLINE void
-nh6_set_ifp(struct next_hop_v6 *next_hop, struct ifnet *ifp)
-{
-	if (next_hop->flags & (RTF_NEIGH_CREATED | RTF_NEIGH_PRESENT)) {
-		rte_panic("Can't set interface for NH6 with linked neigh");
-		return;
-	}
-	next_hop->u.ifp = ifp;
-}
-
-static ALWAYS_INLINE struct ifnet *
-nh6_get_ifp(const struct next_hop_v6 *next_hop)
-{
-	if (next_hop->flags & (RTF_NEIGH_CREATED | RTF_NEIGH_PRESENT))
-		return next_hop->u.lle->ifp;
-	return next_hop->u.ifp;
-}
+void
+nh6_set_ifp(struct next_hop_v6 *next_hop, struct ifnet *ifp);
 
 static ALWAYS_INLINE bool
 nh6_is_neigh_created(const struct next_hop_v6 *next_hop)
@@ -147,10 +115,10 @@ static ALWAYS_INLINE struct ifnet *
 nh_get_if(enum nh_type nh_type, union next_hop_v4_or_v6_ptr nh)
 {
 	if (nh_type == NH_TYPE_V6GW)
-		return nh6_get_ifp(nh.v6);
+		return dp_nh6_get_ifp(nh.v6);
 
 	assert(nh_type == NH_TYPE_V4GW);
-	return nh4_get_ifp(nh.v4);
+	return dp_nh4_get_ifp(nh.v4);
 }
 
 static inline union next_hop_v4_or_v6_ptr

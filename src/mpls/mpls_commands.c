@@ -3,7 +3,7 @@
  *
  * Copyright (c) 2015 by Brocade Communications Systems, Inc.
  * All rights reserved.
- * Copyright (c) 2017, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017,2019-2020, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -92,12 +92,12 @@ static int cmd_mifconfig(FILE *f, int argc, char **argv)
 	jsonw_name(wr, "interfaces");
 	jsonw_start_array(wr);
 	if (argc == 3)
-		ifnet_walk(mifconfig_up, wr);
+		dp_ifnet_walk(mifconfig_up, wr);
 	else if (argc > 3 && strcmp(argv[3], "-a") == 0)
-		ifnet_walk(mifconfig, wr);
+		dp_ifnet_walk(mifconfig, wr);
 	else {
 		while (--argc > 0) {
-			struct ifnet *ifp = ifnet_byifname(*++argv);
+			struct ifnet *ifp = dp_ifnet_byifname(*++argv);
 
 			if (ifp)
 				mifconfig(ifp, wr);

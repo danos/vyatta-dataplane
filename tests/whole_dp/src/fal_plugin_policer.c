@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2018-2019, AT&T Intellectual Property.
+ * Copyright (c) 2018-2020, AT&T Intellectual Property.
  * All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
@@ -12,7 +12,8 @@
 #include <stdio.h>
 #include <bsd/sys/tree.h>
 
-#include "dp_test_macros.h"
+#include "dp_test.h"
+#include "dp_test/dp_test_macros.h"
 #include "fal_plugin_test.h"
 
 #define LOG(l, t, ...)						\

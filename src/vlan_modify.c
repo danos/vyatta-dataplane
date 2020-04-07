@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2019-2020, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  *
@@ -428,7 +428,7 @@ vlan_mod_flt_get_classify_vlan(struct vlan_mod_filter_list_entry *entry,
 static bool
 vlan_mod_enable_fwding(struct vlan_mod_chain_list_entry *entry)
 {
-	struct ifnet *intf = ifnet_byifindex(entry->key.ifindex);
+	struct ifnet *intf = dp_ifnet_byifindex(entry->key.ifindex);
 	struct vlan_mod_tbl_entry *vlan_mod_tbl;
 	static struct vlan_mod_tbl_entry *vlan_mod_default;
 
@@ -616,6 +616,8 @@ vlan_mod_flt_alloc_filter_entry(struct vlan_mod_tc_filter_key *key)
 	struct vlan_mod_filter_list_entry *entry;
 
 	entry = zmalloc_aligned(sizeof(*entry));
+	if (!entry)
+		return NULL;
 	entry->key = *key;
 
 	return entry;
@@ -905,7 +907,7 @@ vlan_mod_flt_chain_entry_delete(struct vlan_mod_chain_list_entry *chain_entry)
 	} else {
 		struct ifnet *intf;
 
-		intf = ifnet_byifindex(chain_entry->key.ifindex);
+		intf = dp_ifnet_byifindex(chain_entry->key.ifindex);
 		if (!intf) {
 			RTE_LOG(ERR, DATAPLANE,
 				"vlan_mod: no intf %d\n",
@@ -1101,7 +1103,7 @@ static void vlan_mod_show_entry_chain(json_writer_t *wr,
 	struct ifnet *intf;
 
 	if (!append) {
-		intf = ifnet_byifindex(chain->key.ifindex);
+		intf = dp_ifnet_byifindex(chain->key.ifindex);
 		if (!intf) {
 			RTE_LOG(ERR, DATAPLANE, "vlan_mod: no intf %d\n",
 				chain->key.ifindex);
@@ -1135,7 +1137,7 @@ static void vlan_mod_show_fwding_table(json_writer_t *wr,
 	struct vlan_mod_tbl_entry *vlan_mod_tbl, *vlan_mod_default;
 	struct vlan_mod_ft_cls_action *act;
 
-	intf = ifnet_byifindex(entry->key.ifindex);
+	intf = dp_ifnet_byifindex(entry->key.ifindex);
 	if (!intf) {
 		RTE_LOG(ERR, DATAPLANE, "vlan_mod: no intf %d\n",
 			entry->key.ifindex);
@@ -1222,7 +1224,7 @@ void vlan_mod_cmd(FILE *f, int argc, char **argv)
 	bool intf_mode = false;
 
 	wr = jsonw_new(f);
-	if (!wr || !filter_chain_head)
+	if (!wr)
 		return;
 	if ((argc == 2) && (streq(argv[1], "intf")))
 		intf_mode = true;
@@ -1239,6 +1241,12 @@ void vlan_mod_cmd(FILE *f, int argc, char **argv)
 	}
 	jsonw_name(wr, "intfs");
 	jsonw_start_array(wr);
+
+	if (!filter_chain_head) {
+		jsonw_end_array(wr);
+		jsonw_destroy(&wr);
+		return;
+	}
 
 	cds_list_for_each_entry_rcu(entry,
 				    &filter_chain_head->list_head,

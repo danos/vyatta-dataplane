@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2019-2020, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -18,9 +18,19 @@
 
 struct apm;
 struct nat_pool;
+struct cgn_source;
 struct apm_port_block;
 
 #define PORTS_PER_BITMAP	64
+
+/*
+ * The APMS_LIMIT define and apms_limit variable are *not* enforced, and the apm
+ * table is allowed to grow as big as required.  The limiting factor will be
+ * the number of addresses in the relevant address pools.  apms_limit is only
+ * used to provide some indication (via logs and show output) of how full the
+ * apm table is.
+ */
+#define APMS_LIMIT 32768
 
 /*
  * public address (apm) table entry.  Each entry is defined by: public source
@@ -75,6 +85,9 @@ struct apm {
 	/* Port block pointer array.  MUST be last. */
 	struct apm_port_block	*apm_blocks[];
 };
+
+static_assert(offsetof(struct apm, apm_np) == 64,
+	      "first cache line exceeded");
 
 /* apm entry removal bits. */
 #define APM_EXPIRED	0x01
@@ -148,12 +161,23 @@ uint16_t apm_block_get_nports(struct apm_port_block *pb);
 /* Get pointer to list node */
 struct cds_list_head *apm_block_get_list_node(struct apm_port_block *pb);
 
+/* Set src ptr in port-block */
+void apm_block_set_source(struct apm_port_block *pb, struct cgn_source *src);
+
+/* Get the src ptr if this port-block is in a source list */
+struct cgn_source *apm_block_get_source(struct apm_port_block *pb);
+
 /* Get port and blocks used counts from a list of port blocks */
 void apm_source_block_list_get_counts(struct cds_list_head *list,
 				      uint *nports, uint *ports_used);
 
-void apm_log_block_alloc(struct apm_port_block *pb, uint32_t src_addr);
-void apm_log_block_release(struct apm_port_block *pb, uint32_t src_addr);
+void apm_log_block_alloc(struct apm_port_block *pb, uint32_t src_addr,
+			 const char *policy_name, const char *pool_name);
+void apm_log_block_release(struct apm_port_block *pb, uint32_t src_addr,
+			   const char *policy_name, const char *pool_name);
+
+/* Threshold */
+void apm_table_threshold_set(int32_t threshold, uint32_t interval);
 
 /* jsonw port-blocks from a source list */
 void apm_source_port_block_list_jsonw(json_writer_t *json,
@@ -172,6 +196,13 @@ uint16_t apm_block_alloc_first_free_port(struct apm_port_block *pb,
  */
 uint16_t apm_block_alloc_random_port(struct apm_port_block *pb,
 				     uint8_t proto);
+
+/*
+ * Allocate a specified port.  Used by PCP.
+ */
+uint16_t
+apm_block_alloc_specific_port(struct apm_port_block *pb, uint8_t proto,
+			      uint16_t port);
 
 /* Release a port in a port-block */
 bool apm_block_release_port(struct apm_port_block *pb, uint8_t proto,
@@ -196,13 +227,13 @@ void apm_block_destroy(struct apm_port_block *pb);
 
 void apm_public_list(FILE *f, int argc, char **argv);
 
-/* Get apm table used and max counts */
+/* Get apm table used count */
 int32_t apm_get_used(void);
-int32_t apm_get_max(void);
 
 void apm_show(FILE *f, int argc, char **argv);
 
 void apm_cleanup(void);
+void apm_gc_pass(void);
 
 void apm_init(void);
 void apm_uninit(void);

@@ -281,6 +281,25 @@ lpm_delete_all(struct lpm *lpm, lpm_walk_func_t func, void *arg);
 int
 lpm_lookup(const struct lpm *lpm, uint32_t ip, uint32_t *next_hop);
 
+/*
+ * Lookup an IP in the LPM table and return exact match
+ * @param lpm
+ *   LPM object handle
+ * @param ip
+ *   IP to be looked up in the LPM table
+ * @param depth
+ *   Prefix length
+ * @param scope
+ *   Scope of the rule
+ * @param next_hop
+ *   Next hop of the best exact match (valid on lookup hit only)
+ * @return
+ *   -EINVAL for incorrect arguments, -ENOENT on lookup miss, 0 on lookup hit
+ */
+int
+lpm_nexthop_lookup(struct lpm *lpm, uint32_t ip,
+		   uint8_t depth, int16_t scope, uint32_t *next_hop);
+
 /**
  * Lookup an IP in the LPM table and return exact match
  *

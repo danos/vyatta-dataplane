@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2017, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017,2019-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2015-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -19,8 +19,8 @@
  */
 #include <check.h>
 #include <stdio.h>
-#include "dp_test_cmd_check.h"
-#include "dp_test_macros.h"
+#include "dp_test/dp_test_cmd_check.h"
+#include "dp_test/dp_test_macros.h"
 
 
 #include "if_var.h"
@@ -45,7 +45,6 @@ int dp_test_debug_get(void);
 /* The entry point into the dataplane test process */
 int dataplane_test_main(int argc, char **argv);
 int dp_test_run_tests(void *ctx);
-Suite *dp_test_get_suite(const char *filename);
 
 int __wrap_main(int argc, char **argv);
 int __real_main(int argc, char **argv);
@@ -69,5 +68,8 @@ int __wrap_rte_eal_init(int argc, char **argv);
 int __real_rte_eal_init(int argc, char **argv);
 FILE *__wrap_popen(const char *command, const char *type);
 int __wrap_pclose(FILE *stream);
+
+extern bool from_external;
+extern char dp_ut_dummyfs_dir[PATH_MAX];
 
 #endif /* _DP_TEST_H_ */

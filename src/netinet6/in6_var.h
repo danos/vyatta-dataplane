@@ -28,7 +28,7 @@
  */
 
 /*
- * Copyright (c) 2018, AT&T Intellectual Property. All rights reserved.
+ * Copyright (c) 2018-2020, AT&T Intellectual Property. All rights reserved.
  * Copyright (c) 1985, 1986, 1993
  *	The Regents of the University of California.  All rights reserved.
  *
@@ -89,30 +89,6 @@
 					 */
 #define IN6_IFF_AUTOCONF        0x40    /* autoconfigurable address. */
 #define IN6_IFF_TEMPORARY       0x80    /* temporary (anonymous) address. */
-
-
-/* fast prefix compare  */
-static inline bool in6_prefix_eq(const struct in6_addr *a1,
-				 const struct in6_addr *a2,
-				 unsigned int prefix_len)
-{
-	const uint32_t *p1 = a1->s6_addr32;
-	const uint32_t *p2 = a2->s6_addr32;
-
-	while (prefix_len >= 32) {
-		if (*p1++ != *p2++)
-			return false;
-		prefix_len -= 32;
-	}
-
-	if (likely(prefix_len == 0))
-		return true;
-
-	uint32_t m = htonl(~0ul << (32 - prefix_len));
-
-	/* find bits that differ, and mask in network byte order */
-	return ((*p1 ^ *p2) & m) == 0;
-}
 
 /* fast IPv6 prefix copy */
 static inline void in6_prefix_cpy(struct in6_addr *dest,

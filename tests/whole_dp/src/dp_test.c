@@ -1,11 +1,12 @@
 /*
- * Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2015-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
-
+#include <dirent.h>
+#include <dlfcn.h>
 #include <errno.h>
 #include <getopt.h>
 #include <time.h>
@@ -25,11 +26,12 @@
 
 #include "dp_test_controller.h"
 #include "dp_test.h"
-#include "dp_test_lib.h"
-#include "dp_test_lib_intf.h"
-#include "dp_test_cmd_check.h"
-#include "dp_test_pktmbuf_lib.h"
+#include "dp_test_lib_internal.h"
+#include "dp_test_lib_intf_internal.h"
+#include "dp_test/dp_test_cmd_check.h"
+#include "dp_test_pktmbuf_lib_internal.h"
 #include "dp_test_console.h"
+#include "dp_test/dp_test_macros.h"
 #include "dp_test_route_broker.h"
 
 /* DPDK debug level */
@@ -143,9 +145,24 @@ dp_test_usage(int status)
 	       " -u, --uplink         Run uplink tests (remote controller)\n"
 	       " -h, --help           Display this help and exit\n"
 	       " -p, --poison         Poison mbuf data before each test\n"
+	       " -F --feat_plugin_dir Extra directory to check for feat plugins\n"
+	       " -P  --plugin-directory Unit-Test plugin directory\n"
 	       " -r, --routing-domain Use routing-domain VRF model\n"
+	       " -E, --external       When being run from plugin code\n"
+	       " -C, --cfg            Extra config that a caller wants to pass\n"
+	       "                      into the tests. It represents a line in\n"
+	       "                      the 'dataplane' section of the config\n"
+	       "                      file.  It should be text based. As the\n"
+	       "                      config typically represents socket\n"
+	       "                      locations they should have the pid\n"
+	       "                      in them. As the pid is not available\n"
+	       "                      until the tests are run the strings\n"
+	       "                      should contain %%d in places where the\n"
+	       "                      pid is to be inserted. For example\n"
+	       "                      val_1=aaa-%%d  If multiple lines are\n"
+	       "                      needed then the option can be used\n"
+	       "                      multiple times\n"
 	       "ENV VARS:\n"
-
 	       " CK_RUN_SUITE          Run a single suite\n"
 	       " CK_RUN_CASE           Run a single test\n"
 	       "  eg CK_RUN_CASE=bridge_unicast dp_test\n",
@@ -153,6 +170,19 @@ dp_test_usage(int status)
 
 	exit(status);
 }
+
+#define MAX_UT_PLUGIN_DIR_LEN 128
+
+static char dp_ut_plugin_dir[MAX_UT_PLUGIN_DIR_LEN] = ".";
+char dp_ut_dummyfs_dir[PATH_MAX] = "tests/whole_dp/dummyfs/";
+static char drv_cfgfile[PATH_MAX] = "dataplane-drivers-default.conf";
+static const char *dp_feat_plugin_dir = ".";
+
+/*
+ * Is the test being run from an external code tree, in which case a different
+ * set of paths are used.
+ */
+bool from_external;
 
 static void
 dp_test_debug_default(void)
@@ -207,6 +237,8 @@ dp_test_debug_arg(const char *optarg)
 bool dp_test_poison;
 uint32_t count = 1; /* The number of times to run each test */
 
+static char *extra_cfg_buf;
+
 static int
 dp_test_parse_args(int argc, char **argv)
 {
@@ -220,10 +252,14 @@ dp_test_parse_args(int argc, char **argv)
 		{ "poison",   no_argument,       NULL, 'p' },
 		{ "count",    required_argument, NULL, 'c' },
 		{ "routing-domain", no_argument, NULL, 'r' },
+		{ "feat_plugin_dir", required_argument, NULL, 'F'},
+		{ "plugin-directory", required_argument, NULL, 'P' },
+		{ "external", no_argument, NULL, 'E' },
+		{ "cfg", required_argument, NULL, 'C' },
 		{ NULL, 0, NULL, 0}
 	};
 
-	while ((opt = getopt_long(argc, argv, "c:d:uhpr",
+	while ((opt = getopt_long(argc, argv, "c:d:P:F:uhprEC:",
 				  lgopts, &option_index)) != EOF) {
 
 		switch (opt) {
@@ -242,7 +278,18 @@ dp_test_parse_args(int argc, char **argv)
 		case 'c':
 			count = strtoul(optarg, NULL, 0);
 			break;
-
+		case 'F':
+			dp_feat_plugin_dir = optarg;
+			break;
+		case 'P':
+			memcpy(dp_ut_plugin_dir, optarg,
+			       strnlen(optarg, MAX_UT_PLUGIN_DIR_LEN));
+			printf("%s: plug-in directory\n", dp_ut_plugin_dir);
+			break;
+		case 'E':
+			from_external = true;
+			printf("UTs being run from external repo, using paths from dev package\n");
+			break;
 		default:
 			fprintf(stderr, "Unknown option %c\n", opt);
 			dp_test_usage(1);
@@ -384,6 +431,36 @@ int stat(const char *path, struct stat *buf)
 	return 0;
 }
 
+int dp_test_add_to_cfg_file(int argc, char **argv)
+{
+	int i;
+	int size = 0;
+	int remaining;
+	char *ptr;
+
+	if (argc > DP_MAX_EXTRA_CFG_LINES)
+		return -EINVAL;
+
+	for (i = 0; i < argc; i++)
+		size += strlen(argv[i]);
+
+	size += argc * 2;
+
+	extra_cfg_buf = malloc(size);
+	if (!extra_cfg_buf)
+		return -ENOMEM;
+
+	remaining = size;
+	ptr = extra_cfg_buf;
+	for (i = 0; i < argc; i++) {
+		size = snprintf(ptr, remaining, "%s\n", argv[i]);
+		remaining -= size;
+		ptr += size;
+	}
+
+	return 0;
+}
+
 static char *get_conf_file_name(void)
 {
 	static char cfgfile[32];
@@ -394,7 +471,6 @@ static char *get_conf_file_name(void)
 }
 
 static void generate_conf_file(const char *cfgfile, const char *console_ep,
-			       const char *console_ep_uplink,
 			       char *req_ipc, char *req_ipc_uplink,
 			       const char *broker_ctrl_ep)
 {
@@ -406,6 +482,9 @@ static void generate_conf_file(const char *cfgfile, const char *console_ep,
 		perror("fopen");
 		exit(2);
 	}
+
+	if (!extra_cfg_buf)
+		extra_cfg_buf = (char *)"";
 
 	const char *controller_ip_str, *dp_ip_str, *comment_str, *uplink_mac;
 	const char *control_intf;
@@ -432,11 +511,11 @@ static void generate_conf_file(const char *cfgfile, const char *console_ep,
 		 "%s%s\n"  /* vr defines local ip */
 		 "%s%s\n"  /* uplink uses dynamic address for local ip */
 		 "control=%s\n"
-		 "control-uplink=%s\n"
 		 "interface=lo\n"
 		 "uuid=%i\n"
 		 "dataplane-id=%i\n"
 		 "uplink-mac=%s\n"
+		 "%s\n"
 		 "[RIB]\n"
 		 "%s%s\n"  /* vr defines local ip */
 		 "control=%s\n",
@@ -450,10 +529,10 @@ static void generate_conf_file(const char *cfgfile, const char *console_ep,
 		 control_intf ? "control-interface=" : "",
 		 control_intf ? control_intf : "",
 		 console_ep,
-		 console_ep_uplink,
 		 uuid,
 		 dp_id,
 		 uplink_mac,
+		 extra_cfg_buf,
 		 dp_ip_str ? "ip=" : "",
 		 dp_ip_str ? dp_ip_str : "",
 		 broker_ctrl_ep);
@@ -475,19 +554,93 @@ static const char *get_rte_file_prefix(void)
 	return file_prefix;
 }
 
-static void cleanup_temp_files(const char *cfgfile,
-			       const char *rte_file_prefix)
+static void cleanup_temp_files(const char *cfgfile)
 {
-	char buffer[PATH_MAX];
-
 	if (unlink(cfgfile))
 		perror("unlink dp config file");
-	/* refer to eal_runtime_config_path in dpdk */
-	snprintf(buffer, sizeof(buffer), "%s/.%s_config", getenv("HOME"),
-		 rte_file_prefix);
-	if (unlink(buffer))
-		perror("unlink dpdk config file");
 }
+
+static void unit_test_load_plugin(const char *buf)
+{
+	int (*unit_test_plugin_init)(const char **name);
+	int rv;
+	void *handle;
+	const char *signature_buf;
+
+	handle = dlopen(buf, RTLD_NOW);
+	if (handle == NULL) {
+		RTE_LOG(ERR, DATAPLANE,
+			"failed to load unit_test plug-in: %s\n",
+			dlerror());
+		return;
+	}
+
+	/* Check it has an init func */
+	unit_test_plugin_init = dlsym(handle, "dp_ut_plugin_init");
+	if (!unit_test_plugin_init) {
+		/* Not a unit_test plugin library */
+		dlclose(handle);
+		return;
+	}
+
+	RTE_LOG(INFO, DATAPLANE,
+		"loaded unit-test plug-in: %s\n", buf);
+	rv = unit_test_plugin_init(&signature_buf);
+	if (rv) {
+		RTE_LOG(INFO, DATAPLANE,
+			"Failed to initialised unit-test plug-in: %s\n", buf);
+		dlclose(handle);
+		return;
+	}
+
+	RTE_LOG(INFO, DATAPLANE,
+		"initialised unit plug-in: %s %s\n", buf, signature_buf);
+}
+
+
+static void unit_test_load_plugins(const char *directory)
+{
+	/*
+	 * Iterate through directory loading pipeline plugins
+	 */
+	DIR *dp;
+	struct dirent *ep;
+
+	dp = opendir(directory);
+	RTE_LOG(INFO, DATAPLANE, "Checking for unit-test plugins in %s\n",
+		directory);
+
+	if (dp != NULL)	{
+		while ((ep = readdir(dp))) {
+			/* restrict to .so files only */
+			char *tmp = strrchr(ep->d_name, '.');
+
+			if (!tmp)
+				continue;
+			if (strcmp(tmp, ".so") != 0)
+				continue;
+
+			char buf[1024];
+
+			snprintf(buf, 1024, "%s/%s",
+				 directory, ep->d_name);
+			unit_test_load_plugin(buf);
+		}
+	} else {
+		/*
+		 * The directory not existing is normal so don't log
+		 * an error in that case.
+		 */
+		if (errno != ENOENT)
+			RTE_LOG(ERR, DATAPLANE,
+				"error opening unit-test plug-in directory \"%s\": %s\n",
+				directory, strerror(errno));
+		return;
+	}
+	closedir(dp);
+}
+
+
 
 bool dp_test_fal_plugin_called;
 
@@ -496,10 +649,7 @@ bool dp_test_abort_on_fail = true;
 int __wrap_main(int argc, char **argv)
 {
 	char *cfgfile = get_conf_file_name();
-	const char *drv_cfgfile = "dataplane-drivers-default.conf";
 	const char *console_ep = dp_test_console_set_endpoint(CONT_SRC_MAIN);
-	const char *console_ep_uplink =
-		dp_test_console_set_endpoint(CONT_SRC_UPLINK);
 	char *broker_ctrl_ep;
 	char *req_ipc, *req_ipc_uplink = NULL;
 	const char *rte_file_prefix = get_rte_file_prefix();
@@ -507,6 +657,7 @@ int __wrap_main(int argc, char **argv)
 		"/usr/sbin/dataplane_test",
 		"-f", cfgfile,
 		"-c", drv_cfgfile,
+		"-F", dp_feat_plugin_dir,
 		"-C", console_ep,
 		"-g", "root",
 		"--",
@@ -542,6 +693,20 @@ int __wrap_main(int argc, char **argv)
 	ret = dp_test_parse_args(argc, argv);
 	if (ret < 0)
 		return -1;
+
+	if (from_external) {
+		/* Setup paths if running from an external src tree */
+		strncpy(dp_ut_dummyfs_dir,
+			"/usr/share/vyatta-dataplane/tests/whole_dp/dummyfs/",
+			PATH_MAX);
+		strncpy(drv_cfgfile,
+			"/usr/share/vyatta-dataplane/tests/dataplane-drivers-default.conf",
+			PATH_MAX);
+	}
+
+	/* Load unit-test plugins if present */
+	unit_test_load_plugins(dp_ut_plugin_dir);
+
 	/* Start req and pub threads to emulate vplaned */
 	dp_test_actor = zactor_new(dp_test_thread_run, NULL);
 	if (!dp_test_actor) {
@@ -554,7 +719,7 @@ int __wrap_main(int argc, char **argv)
 	dp_test_broker_actor = zactor_new(dp_test_broker_thread_run, NULL);
 	broker_ctrl_ep = zstr_recv(dp_test_broker_actor);
 
-	generate_conf_file(cfgfile, console_ep, console_ep_uplink, req_ipc,
+	generate_conf_file(cfgfile, console_ep, req_ipc,
 			   req_ipc_uplink, broker_ctrl_ep);
 	zstr_free(&broker_ctrl_ep);
 	zstr_free(&req_ipc);
@@ -577,7 +742,7 @@ int __wrap_main(int argc, char **argv)
 	zsock_recv(dp_test_actor, "i", &dp_test_thread_internal_retval);
 	zactor_destroy(&dp_test_actor);
 	zactor_destroy(&dp_test_broker_actor);
-	cleanup_temp_files(cfgfile, rte_file_prefix);
+	cleanup_temp_files(cfgfile);
 
 	/*
 	 * Since return code is see by shell as a uchar we effectively return -

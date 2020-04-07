@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2017-2018, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2015-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -16,20 +16,20 @@
 #include <netinet/ip_icmp.h>
 #include "ip_funcs.h"
 #include "in_cksum.h"
+#include "if/gre.h"
 #include "if_var.h"
 #include "main.h"
-#include "gre.h"
 #include "iptun_common.h"
 #include "netinet6/ip6_funcs.h"
 #include "compat.h"
 
 #include "dp_test.h"
 #include "dp_test_controller.h"
-#include "dp_test_netlink_state.h"
-#include "dp_test_cmd_check.h"
-#include "dp_test_lib.h"
-#include "dp_test_pktmbuf_lib.h"
-#include "dp_test_lib_intf.h"
+#include "dp_test_netlink_state_internal.h"
+#include "dp_test/dp_test_cmd_check.h"
+#include "dp_test_lib_internal.h"
+#include "dp_test_lib_intf_internal.h"
+#include "dp_test_pktmbuf_lib_internal.h"
 #include "dp_test_lib_exp.h"
 
 
@@ -183,7 +183,7 @@ gre_test_build_expected_pak_ipv6(struct dp_test_expected **expected,
 		 * subsequent exp paks are not set up correctly for the full
 		 * data len.
 		 */
-		exp->check_start[i] = pktmbuf_l2_len(exp->exp_pak[i]);
+		exp->check_start[i] = dp_pktmbuf_l2_len(exp->exp_pak[i]);
 		exp->check_len[i] = rte_pktmbuf_data_len(exp->exp_pak[0]) -
 			exp->check_start[i];
 	}

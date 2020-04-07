@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2018-2019, AT&T Intellectual Property.
+ * Copyright (c) 2018-2020, AT&T Intellectual Property.
  * All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
@@ -10,6 +10,10 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <bsd/sys/tree.h>
+
+#include "dp_test.h"
+#include "dp_test/dp_test_macros.h"
+#include "fal_plugin_test.h"
 
 #define LOG(l, t, ...)						\
 	rte_log(RTE_LOG_ ## l,					\
@@ -33,12 +37,13 @@ struct fal_bcm_code_point {
 	uint8_t queue_id;
 	uint8_t drop_precedence;
 	uint8_t dot1p;
+	uint8_t des;
 };
 
 struct fal_bcm_qos_map {
 	uint8_t map_type;
 	struct fal_bcm_code_point code_points[FAL_QOS_MAP_DSCP_VALUES];
-	bool local_priority;      /* Can only be true for ingress-map types */
+	bool system_default;
 };
 
 struct fal_bcm_qos_queue {
@@ -53,7 +58,7 @@ struct fal_bcm_qos_queue {
 	uint8_t queue_index;
 	uint8_t queue_type;
 	uint8_t tc;
-	bool local_priority;
+	uint8_t designator;
 };
 
 struct fal_bcm_qos_sched {
@@ -77,6 +82,7 @@ struct fal_bcm_qos_sched_group {
 	uint8_t sched_level;
 	uint8_t max_children;
 	uint16_t vlan;
+	uint8_t local_prio_des;
 	TAILQ_HEAD(children, fal_bcm_qos_sched_group) child_list;
 	TAILQ_HEAD(queues, fal_bcm_qos_queue) queue_list;
 };
@@ -97,6 +103,11 @@ struct fal_bcm_qos_wred {
 	uint8_t filter_weight;
 };
 
+struct fal_bcm_qos_ext_buf_cntr {
+	uint32_t buf_free;
+	uint32_t dropped;
+};
+
 /**
  * @brief New QOS Map
  *
@@ -113,14 +124,12 @@ int fal_plugin_qos_new_map(fal_object_t switch_id,
 			   fal_object_t *new_map_id)
 {
 	uint8_t map_type = FAL_QOS_MAP_TYPE_MAX + 1;
-	bool local_priority = false;
+	bool sys_def = false;
 	struct fal_qos_map_list_t *map_list = NULL;
 	uint32_t i;
 	int ret = 0;
 
-	INFO("%s, attr-count: %u\n", __func__, attr_count);
-
-	*new_map_id = FAL_QOS_NULL_OBJECT_ID;
+	DEBUG("%s, attr-count: %u\n", __func__, attr_count);
 
 	for (i = 0; i < attr_count; i++) {
 		switch (attr_list[i].id) {
@@ -132,8 +141,8 @@ int fal_plugin_qos_new_map(fal_object_t switch_id,
 			map_list = attr_list[i].value.maplist;
 			break;
 
-		case FAL_QOS_MAP_ATTR_LOCAL_PRIORITY_QUEUE:
-			local_priority = attr_list[i].value.booldata;
+		case FAL_QOS_MAP_ATTR_INGRESS_SYSTEM_DEFAULT:
+			sys_def = attr_list[i].value.booldata;
 			break;
 
 		default:
@@ -152,14 +161,45 @@ int fal_plugin_qos_new_map(fal_object_t switch_id,
 		      __func__);
 		return -EINVAL;
 	}
-	if ((map_type == FAL_QOS_MAP_TYPE_DOT1P_TO_TC &&
-	     map_list->count != FAL_QOS_MAP_PCP_VALUES) ||
-	    (map_type == FAL_QOS_MAP_TYPE_DSCP_TO_TC &&
-	     map_list->count != FAL_QOS_MAP_DSCP_VALUES) ||
-	    (map_type == FAL_QOS_MAP_TYPE_DSCP_TO_DOT1P &&
-	     map_list->count != FAL_QOS_MAP_DSCP_VALUES)) {
-		ERROR("%s: mismatch between map-type (%u) and map-list count "
-		      "(%u)\n", __func__, map_type, map_list->count);
+	switch (map_type) {
+	case FAL_QOS_MAP_TYPE_DSCP_TO_DESIGNATOR:
+	case FAL_QOS_MAP_TYPE_DSCP_TO_DOT1P:
+		*new_map_id = FAL_QOS_NULL_OBJECT_ID;
+		if (map_list->count != FAL_QOS_MAP_DSCP_VALUES) {
+			ERROR("%s: map-type (%u), expected %d values, got %d\n",
+			      __func__, map_type, FAL_QOS_MAP_DSCP_VALUES,
+			      map_list->count);
+			return -EINVAL;
+		}
+		break;
+	case FAL_QOS_MAP_TYPE_DOT1P_TO_DESIGNATOR:
+		*new_map_id = FAL_QOS_NULL_OBJECT_ID;
+		if (map_list->count != FAL_QOS_MAP_PCP_VALUES) {
+			ERROR("%s: map-type (%u), expected %d values, got %d\n",
+			      __func__, map_type, FAL_QOS_MAP_PCP_VALUES,
+			      map_list->count);
+			return -EINVAL;
+		}
+		break;
+
+	case FAL_QOS_MAP_TYPE_DESIGNATOR_TO_DOT1P:
+		if (map_list->count != FAL_QOS_MAP_DESIGNATION_VALUES) {
+			ERROR("%s: map-type (%u), expected %d values, got %d\n",
+			      __func__, map_type,
+			      FAL_QOS_MAP_DESIGNATION_VALUES,
+			      map_list->count);
+			return -EINVAL;
+		}
+		if (*new_map_id) {
+			DEBUG("%s, egress-map already setup %"PRIxPTR"\n",
+			      __func__, *new_map_id);
+			return 0;
+		}
+		break;
+
+	default:
+		ERROR("%s: unsupported map-type (%u)\n", __func__,
+		      map_type);
 		return -EINVAL;
 	}
 
@@ -173,26 +213,20 @@ int fal_plugin_qos_new_map(fal_object_t switch_id,
 			return -ENOMEM;
 
 		map->map_type = map_type;
-		map->local_priority = local_priority;
-		if (map_type == FAL_QOS_MAP_TYPE_DOT1P_TO_TC) {
-			for (i = 0; i < FAL_QOS_MAP_PCP_VALUES; i++) {
-				cp = map_list->list[i].key.dot1p;
+		map->system_default = sys_def;
+		if (map_type == FAL_QOS_MAP_TYPE_DSCP_TO_DESIGNATOR ||
+		    map_type == FAL_QOS_MAP_TYPE_DOT1P_TO_DESIGNATOR) {
+			for (i = 0; i < map_list->count; i++) {
+				cp = map_type ==
+					FAL_QOS_MAP_TYPE_DSCP_TO_DESIGNATOR ?
+					map_list->list[i].key.dscp :
+					map_list->list[i].key.dot1p;
 				map->code_points[cp].tc_id =
-					map_list->list[i].value.tc;
-				map->code_points[cp].queue_id =
-					map_list->list[i].value.wrr;
+					map_list->list[i].value.des;
 				map->code_points[cp].drop_precedence =
 					map_list->list[i].value.dp;
-			}
-		} else if (map_type == FAL_QOS_MAP_TYPE_DSCP_TO_TC) {
-			for (i = 0; i < FAL_QOS_MAP_DSCP_VALUES; i++) {
-				cp = map_list->list[i].key.dscp;
-				map->code_points[cp].tc_id =
-					map_list->list[i].value.tc;
-				map->code_points[cp].queue_id =
-					map_list->list[i].value.wrr;
-				map->code_points[cp].drop_precedence =
-					map_list->list[i].value.dp;
+				map->code_points[cp].des =
+					map_list->list[i].value.des;
 			}
 		} else if (map_type == FAL_QOS_MAP_TYPE_DSCP_TO_DOT1P) {
 			for (i = 0; i < FAL_QOS_MAP_DSCP_VALUES; i++) {
@@ -200,6 +234,12 @@ int fal_plugin_qos_new_map(fal_object_t switch_id,
 				map->code_points[cp].dot1p =
 					map_list->list[i].value.dot1p;
 				map->code_points[cp].drop_precedence = 0;
+			}
+		} else if (map_type == FAL_QOS_MAP_TYPE_DESIGNATOR_TO_DOT1P) {
+			for (i = 0; i < map_list->count; i++) {
+				cp = map_list->list[i].key.des;
+				map->code_points[cp].dot1p =
+					map_list->list[i].value.dot1p;
 			}
 		} else {
 			ERROR("%s: unsupported map type: %u\n",
@@ -223,7 +263,7 @@ int fal_plugin_qos_del_map(fal_object_t map_id)
 {
 	struct fal_bcm_qos_map *map = (struct fal_bcm_qos_map *)map_id;
 
-	INFO("%s - %lx\n", __func__, map_id);
+	DEBUG("%s - %lx\n", __func__, map_id);
 
 	if (map_id == FAL_QOS_NULL_OBJECT_ID)
 		return -EINVAL;
@@ -248,7 +288,7 @@ int fal_plugin_qos_upd_map(fal_object_t map_id,
 	uint8_t cp;
 	uint8_t i;
 
-	INFO("%s - %lx\n", __func__, map_id);
+	DEBUG("%s - %lx\n", __func__, map_id);
 
 	if (map_id == FAL_QOS_NULL_OBJECT_ID ||
 	    attr->id != FAL_QOS_MAP_ATTR_MAP_TO_VALUE_LIST)
@@ -256,28 +296,24 @@ int fal_plugin_qos_upd_map(fal_object_t map_id,
 
 	map_list = attr->value.maplist;
 
-	if (map->map_type == FAL_QOS_MAP_TYPE_DOT1P_TO_TC) {
+	if (map->map_type == FAL_QOS_MAP_TYPE_DOT1P_TO_DESIGNATOR) {
 		if (map_list->count != FAL_QOS_MAP_PCP_VALUES)
 			return -EINVAL;
 
 		for (i = 0; i < FAL_QOS_MAP_PCP_VALUES; i++) {
 			cp = map_list->list[i].key.dot1p;
-			map->code_points[cp].tc_id = map_list->list[i].value.tc;
-			map->code_points[cp].queue_id =
-				map_list->list[i].value.wrr;
+			map->code_points[cp].des = map_list->list[i].value.des;
 			map->code_points[cp].drop_precedence =
 				map_list->list[i].value.dp;
 		}
-	} else if (map->map_type == FAL_QOS_MAP_TYPE_DSCP_TO_TC) {
+	} else if (map->map_type == FAL_QOS_MAP_TYPE_DSCP_TO_DESIGNATOR) {
 		if (map_list->count != FAL_QOS_MAP_DSCP_VALUES)
 			return -EINVAL;
 
 		for (i = 0; i < FAL_QOS_MAP_DSCP_VALUES; i++) {
 			cp = map_list->list[i].key.dscp;
-			map->code_points[cp].tc_id =
-				map_list->list[i].value.tc;
-			map->code_points[cp].queue_id =
-				map_list->list[i].value.wrr;
+			map->code_points[cp].des =
+				map_list->list[i].value.des;
 			map->code_points[cp].drop_precedence =
 				map_list->list[i].value.dp;
 		}
@@ -312,7 +348,7 @@ int fal_plugin_qos_get_map_attrs(fal_object_t map_id, uint32_t attr_count,
 	uint32_t i;
 	int ret = 0;
 
-	INFO("%s - %lx, attr-count: %u\n", __func__, map_id, attr_count);
+	DEBUG("%s - %lx, attr-count: %u\n", __func__, map_id, attr_count);
 
 	if (map == FAL_QOS_NULL_OBJECT_ID)
 		return -EINVAL;
@@ -327,10 +363,6 @@ int fal_plugin_qos_get_map_attrs(fal_object_t map_id, uint32_t attr_count,
 			map_list = attr_list[i].value.maplist;
 			break;
 
-		case FAL_QOS_MAP_ATTR_LOCAL_PRIORITY_QUEUE:
-			attr_list[i].value.booldata = map->local_priority;
-			break;
-
 		default:
 			ERROR("%s: unknown qos map attribute-id %u\n",
 			      __func__, attr_list[i].id);
@@ -340,31 +372,27 @@ int fal_plugin_qos_get_map_attrs(fal_object_t map_id, uint32_t attr_count,
 	}
 
 	if (map_list) {
-		if (map->map_type == FAL_QOS_MAP_TYPE_DOT1P_TO_TC) {
-			if (map_list->count != FAL_QOS_MAP_PCP_VALUES)
+		if (map->map_type == FAL_QOS_MAP_TYPE_DSCP_TO_DESIGNATOR ||
+		    map->map_type == FAL_QOS_MAP_TYPE_DOT1P_TO_DESIGNATOR) {
+			uint count =
+				map->map_type ==
+				FAL_QOS_MAP_TYPE_DSCP_TO_DESIGNATOR ?
+				FAL_QOS_MAP_DSCP_VALUES :
+				FAL_QOS_MAP_PCP_VALUES;
+
+			if (map_list->count != count)
 				return -EINVAL;
 
-			for (i = 0; i < FAL_QOS_MAP_PCP_VALUES; i++) {
-				map_list->list[i].key.dot1p = i;
-				map_list->list[i].value.tc =
-					map->code_points[i].tc_id;
-				map_list->list[i].value.wrr =
-					map->code_points[i].queue_id;
+			for (i = 0; i < count; i++) {
+				if (map->map_type ==
+				    FAL_QOS_MAP_TYPE_DSCP_TO_DESIGNATOR)
+					map_list->list[i].key.dscp = i;
+				else
+					map_list->list[i].key.dot1p = i;
 				map_list->list[i].value.dp =
 					map->code_points[i].drop_precedence;
-			}
-		} else if (map->map_type == FAL_QOS_MAP_TYPE_DSCP_TO_TC) {
-			if (map_list->count != FAL_QOS_MAP_DSCP_VALUES)
-				return -EINVAL;
-
-			for (i = 0; i < FAL_QOS_MAP_DSCP_VALUES; i++) {
-				map_list->list[i].key.dscp = i;
-				map_list->list[i].value.tc =
-					map->code_points[i].tc_id;
-				map_list->list[i].value.wrr =
-					map->code_points[i].queue_id;
-				map_list->list[i].value.dp =
-					map->code_points[i].drop_precedence;
+				map_list->list[i].value.des =
+					map->code_points[i].des;
 			}
 		} else { /* map->map_type == FAL_QOS_MAP_TYPE_DSCP_TO_DOT1P */
 			if (map_list->count != FAL_QOS_MAP_DSCP_VALUES)
@@ -376,7 +404,8 @@ int fal_plugin_qos_get_map_attrs(fal_object_t map_id, uint32_t attr_count,
 					map->code_points[i].dot1p;
 				map_list->list[i].value.dp =
 					map->code_points[i].drop_precedence;
-;
+				map_list->list[i].value.des =
+					map->code_points[i].des;
 			}
 		}
 	}
@@ -405,12 +434,12 @@ int fal_plugin_qos_new_queue(fal_object_t switch_id, uint32_t attr_count,
 	uint16_t queue_limit = 0;
 	uint8_t queue_type = FAL_QOS_QUEUE_TYPE_MAX + 1; /* invalid value */
 	uint8_t queue_index = 0;
-	uint8_t tc;
-	bool local_priority = false;
+	uint8_t tc = 0;
+	uint8_t designator = 0;
 	uint32_t i;
 	int ret = 0;
 
-	INFO("%s - attr-count: %u\n", __func__, attr_count);
+	DEBUG("%s - attr-count: %u\n", __func__, attr_count);
 
 	for (i = 0; i < attr_count; i++) {
 		switch (attr_list[i].id) {
@@ -446,8 +475,8 @@ int fal_plugin_qos_new_queue(fal_object_t switch_id, uint32_t attr_count,
 			tc = attr_list[i].value.u8;
 			break;
 
-		case FAL_QOS_QUEUE_ATTR_LOCAL_PRIORITY:
-			local_priority = attr_list[i].value.booldata;
+		case FAL_QOS_QUEUE_ATTR_DESIGNATOR:
+			designator = attr_list[i].value.u8;
 			break;
 
 		default:
@@ -484,7 +513,7 @@ int fal_plugin_qos_new_queue(fal_object_t switch_id, uint32_t attr_count,
 		queue->queue_type = queue_type;
 		queue->queue_limit = queue_limit;
 		queue->tc = tc;
-		queue->local_priority = local_priority;
+		queue->designator = designator;
 
 		parent_group = (struct fal_bcm_qos_sched_group *)parent_id;
 		TAILQ_INSERT_TAIL(&parent_group->queue_list, queue, peer_list);
@@ -507,7 +536,7 @@ int fal_plugin_qos_del_queue(fal_object_t queue_id)
 		(struct fal_bcm_qos_queue *)queue_id;
 	int ret = 0;
 
-	INFO("%s - %lx\n", __func__, queue_id);
+	DEBUG("%s - %lx\n", __func__, queue_id);
 
 	if (!queue)
 		return -EINVAL;
@@ -544,7 +573,7 @@ int fal_plugin_qos_upd_queue(fal_object_t queue_id,
 	struct fal_bcm_qos_sched_group *parent_group;
 	int ret = 0;
 
-	INFO("%s: queue: %lx, attribute-id: %u, object-id: %lx\n",
+	DEBUG("%s: queue: %lx, attribute-id: %u, object-id: %lx\n",
 	     __func__, queue_id, attr->id, attr->value.objid);
 
 	/*
@@ -581,7 +610,7 @@ int fal_plugin_qos_upd_queue(fal_object_t queue_id,
 	case FAL_QOS_QUEUE_ATTR_BUFFER_ID:
 	case FAL_QOS_QUEUE_ATTR_QUEUE_LIMIT:
 	case FAL_QOS_QUEUE_ATTR_TC:
-	case FAL_QOS_QUEUE_ATTR_LOCAL_PRIORITY:
+	case FAL_QOS_QUEUE_ATTR_DESIGNATOR:
 		ERROR("%s: cannot update queue attribute-id %u\n",
 		      __func__, attr->id);
 		ret = -EINVAL;
@@ -613,7 +642,7 @@ int fal_plugin_qos_get_queue_attrs(fal_object_t queue_id, uint32_t attr_count,
 	uint32_t i;
 	int ret = 0;
 
-	INFO("%s - %lx, attr-count: %u\n", __func__, queue_id, attr_count);
+	DEBUG("%s - %lx, attr-count: %u\n", __func__, queue_id, attr_count);
 
 	if (!queue)
 		return -EINVAL;
@@ -652,8 +681,8 @@ int fal_plugin_qos_get_queue_attrs(fal_object_t queue_id, uint32_t attr_count,
 			attr_list[i].value.u8 = queue->tc;
 			break;
 
-		case FAL_QOS_QUEUE_ATTR_LOCAL_PRIORITY:
-			attr_list[i].value.booldata = queue->local_priority;
+		case FAL_QOS_QUEUE_ATTR_DESIGNATOR:
+			attr_list[i].value.u8 = queue->designator;
 			break;
 
 		default:
@@ -741,7 +770,7 @@ int fal_plugin_qos_get_queue_stats(fal_object_t queue_id,
 			break;
 
 		default:
-			ERROR("%s: unknown qos queue counter-id %u\n",
+			DEBUG("%s: unknown qos queue counter-id %u\n",
 			      __func__, counter_ids[i]);
 			rv = -EINVAL;
 			break;
@@ -852,7 +881,7 @@ int fal_plugin_qos_clear_queue_stats(fal_object_t queue_id,
 				     uint32_t number_of_counters,
 				     const uint32_t *counter_ids)
 {
-	INFO("%s - %lx - to be implemented\n", __func__, queue_id);
+	DEBUG("%s - %lx - to be implemented\n", __func__, queue_id);
 	return 0;
 }
 
@@ -880,7 +909,7 @@ int fal_plugin_qos_new_scheduler(fal_object_t switch_id, uint32_t attr_count,
 	uint32_t i;
 	int ret = 0;
 
-	INFO("%s - attr-count: %u\n", __func__, attr_count);
+	DEBUG("%s - attr-count: %u\n", __func__, attr_count);
 	for (i = 0; i < attr_count; i++) {
 		switch (attr_list[i].id) {
 		case FAL_QOS_SCHEDULER_ATTR_SCHEDULING_TYPE:
@@ -954,7 +983,7 @@ int fal_plugin_qos_del_scheduler(fal_object_t scheduler_id)
 	struct fal_bcm_qos_sched *sched =
 		(struct fal_bcm_qos_sched *)scheduler_id;
 
-	INFO("%s - %lx\n", __func__, scheduler_id);
+	DEBUG("%s - %lx\n", __func__, scheduler_id);
 	if (!sched)
 		return -EINVAL;
 
@@ -977,7 +1006,7 @@ int fal_plugin_qos_upd_scheduler(fal_object_t scheduler_id,
 		(struct fal_bcm_qos_sched *)scheduler_id;
 	int ret = 0;
 
-	INFO("%s - %lx\n", __func__, scheduler_id);
+	DEBUG("%s - %lx\n", __func__, scheduler_id);
 
 	if (!sched)
 		return -EINVAL;
@@ -1065,7 +1094,7 @@ int fal_plugin_qos_get_scheduler_attrs(fal_object_t scheduler_id,
 	uint32_t i;
 	int ret = 0;
 
-	INFO("%s - %lx, attr-count: %u\n", __func__, scheduler_id, attr_count);
+	DEBUG("%s - %lx, attr-count: %u\n", __func__, scheduler_id, attr_count);
 
 	if (!sched)
 		return -EINVAL;
@@ -1129,13 +1158,15 @@ int fal_plugin_qos_new_sched_group(fal_object_t switch_id,
 	fal_object_t egress_map_id = FAL_QOS_NULL_OBJECT_ID;
 	uint8_t max_children = 0;
 	uint8_t sched_level;
-	uint16_t vlan;
+	uint16_t vlan = 0;
 	bool sg_index_present = false;
 	bool sched_level_present = false;
+	uint8_t lp_des;
+	bool lp_des_present = false;
 	uint32_t i;
 	int ret = 0;
 
-	INFO("%s - attr-count: %u\n", __func__, attr_count);
+	DEBUG("%s - attr-count: %u\n", __func__, attr_count);
 
 	for (i = 0; i < attr_count; i++) {
 		switch (attr_list[i].id) {
@@ -1171,6 +1202,11 @@ int fal_plugin_qos_new_sched_group(fal_object_t switch_id,
 
 		case FAL_QOS_SCHED_GROUP_ATTR_VLAN_ID:
 			vlan = attr_list[i].value.u16;
+			break;
+
+		case FAL_QOS_SCHED_GROUP_ATTR_LOCAL_PRIORITY_DESIGNATOR:
+			lp_des = attr_list[i].value.u8;
+			lp_des_present = true;
 			break;
 
 		default:
@@ -1216,6 +1252,7 @@ int fal_plugin_qos_new_sched_group(fal_object_t switch_id,
 		sched_group->ingress_map_id = ingress_map_id;
 		sched_group->egress_map_id = egress_map_id;
 		sched_group->vlan = vlan;
+		sched_group->local_prio_des = lp_des_present ? lp_des : -1;
 		TAILQ_INIT(&sched_group->child_list);
 		TAILQ_INIT(&sched_group->queue_list);
 		if (parent_id != FAL_QOS_NULL_OBJECT_ID) {
@@ -1246,7 +1283,7 @@ int fal_plugin_qos_del_sched_group(fal_object_t sched_group_id)
 		(struct fal_bcm_qos_sched_group *)sched_group_id;
 	int ret = 0;
 
-	INFO("%s - %lx\n", __func__, sched_group_id);
+	DEBUG("%s - %lx\n", __func__, sched_group_id);
 
 	if (!sched_group)
 		return -EINVAL;
@@ -1300,13 +1337,14 @@ int fal_plugin_qos_upd_sched_group(fal_object_t sched_group_id,
 	if (sched_group == FAL_QOS_NULL_OBJECT_ID)
 		return -EINVAL;
 
-	INFO("%s - %lx\n", __func__, sched_group_id);
+	DEBUG("%s - %lx\n", __func__, sched_group_id);
 
 	switch (attr->id) {
 	case FAL_QOS_SCHED_GROUP_ATTR_SG_INDEX:
 	case FAL_QOS_SCHED_GROUP_ATTR_LEVEL:
 	case FAL_QOS_SCHED_GROUP_ATTR_MAX_CHILDREN:
 	case FAL_QOS_SCHED_GROUP_ATTR_VLAN_ID:
+	case FAL_QOS_SCHED_GROUP_ATTR_LOCAL_PRIORITY_DESIGNATOR:
 		ERROR("%s: cannot update sched-group attribute-id %u\n",
 		      __func__, attr->id);
 		ret = -EINVAL;
@@ -1404,7 +1442,7 @@ int fal_plugin_qos_get_sched_group_attrs(fal_object_t sched_group_id,
 	uint32_t child_count = 0;
 	uint32_t i;
 
-	INFO("%s - %lx, attr-count: %u\n",
+	DEBUG("%s - %lx, attr-count: %u\n",
 	     __func__, sched_group_id, attr_count);
 
 	if (!sched_group)
@@ -1469,8 +1507,12 @@ int fal_plugin_qos_get_sched_group_attrs(fal_object_t sched_group_id,
 			attr_list[i].value.u16 = sched_group->vlan;
 			break;
 
+		case FAL_QOS_SCHED_GROUP_ATTR_LOCAL_PRIORITY_DESIGNATOR:
+			attr_list[i].value.u8 = sched_group->local_prio_des;
+			break;
+
 		default:
-			INFO("%s - attr-id %u not yet implemented\n",
+			DEBUG("%s - attr-id %u not yet implemented\n",
 			     __func__, attr_list[i].id);
 			break;
 		}
@@ -1509,7 +1551,7 @@ int fal_plugin_qos_new_wred(fal_object_t switch_id, uint32_t attr_count,
 	uint32_t i;
 	int ret = 0;
 
-	INFO("%s - attr-count: %u\n", __func__, attr_count);
+	DEBUG("%s - attr-count: %u\n", __func__, attr_count);
 
 	for (i = 0; i < attr_count; i++) {
 		switch (attr_list[i].id) {
@@ -1617,7 +1659,7 @@ int fal_plugin_qos_del_wred(fal_object_t wred_id)
 {
 	struct fal_bcm_qos_wred *wred = (struct fal_bcm_qos_wred *)wred_id;
 
-	INFO("%s - %lx\n", __func__, wred_id);
+	DEBUG("%s - %lx\n", __func__, wred_id);
 
 	if (!wred)
 		return -EINVAL;
@@ -1637,7 +1679,7 @@ int fal_plugin_qos_del_wred(fal_object_t wred_id)
 int fal_plugin_qos_upd_wred(fal_object_t wred_id,
 			    const struct fal_attribute_t *attr)
 {
-	INFO("%s - %lx - to be implemented\n", __func__, wred_id);
+	DEBUG("%s - %lx - to be implemented\n", __func__, wred_id);
 	return 0;
 }
 
@@ -1656,7 +1698,7 @@ int fal_plugin_qos_get_wred_attrs(fal_object_t wred_id, uint32_t attr_count,
 	struct fal_bcm_qos_wred *wred =	(struct fal_bcm_qos_wred *)wred_id;
 	uint32_t i;
 
-	INFO("%s - %lx, attr_count: %u\n",  __func__, wred_id, attr_count);
+	DEBUG("%s - %lx, attr_count: %u\n",  __func__, wred_id, attr_count);
 
 	if (!wred)
 		return -EINVAL;
@@ -1716,11 +1758,43 @@ int fal_plugin_qos_get_wred_attrs(fal_object_t wred_id, uint32_t attr_count,
 			break;
 
 		default:
-			INFO("%s - attr-id %u not yet implemented\n",
+			DEBUG("%s - attr-id %u not yet implemented\n",
 			     __func__, attr_list[i].id);
 			break;
 		}
 	}
+
+	return 0;
+}
+
+/**
+ * @brief Get value from hardware counter registers
+ *
+ * @param[in] cntr_ids   Array for IDs of counters
+ * @param[in] num_cntrs  Number of ID in 'cntr_ids'
+ * @param[inout] cntrs   Array for value of counters
+ *
+ * @return 0 on success, failure otherwise
+ */
+int fal_plugin_qos_get_counters(const uint32_t *cntr_ids, uint32_t num_cntrs,
+			uint64_t *cntrs)
+{
+	static int idx;
+	struct fal_bcm_qos_ext_buf_cntr buf_cntr[] = {
+		{50000, 0}, {3000, 0}, {50000, 0}, {50000, 1}, {3000, 0},
+		{3000, 1}, {3000, 0}
+	};
+	int array_size = ARRAY_SIZE(buf_cntr);
+
+	for (uint32_t i = 0; i < num_cntrs; i++) {
+		if (cntr_ids[i] == FAL_QOS_EXTERNAL_BUFFER_COUNTER_ID)
+			cntrs[i] = buf_cntr[idx].buf_free;
+		else if (cntr_ids[i] ==
+			FAL_QOS_EXTERNAL_BUFFER_PKT_REJECT_COUNTER_ID)
+			cntrs[i] = buf_cntr[idx].dropped;
+	}
+
+	idx = (idx + 1) % array_size;
 
 	return 0;
 }

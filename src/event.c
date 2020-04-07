@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2017-2018, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2011-2017 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -16,7 +16,7 @@
 #include <string.h>
 #include <zmq.h>
 
-#include "event.h"
+#include "event_internal.h"
 #include "urcu.h"
 #include "vplane_log.h"
 
@@ -108,13 +108,13 @@ static void rebuild_poll_list(void)
  * Register a function to be called by get_next_event
  * when file descriptor has data available.
  */
-static void register_event(int fd, void *socket, ev_callback_t rdfunc,
-			   void *arg, enum cont_src_en cont_src)
+static int register_event(int fd, void *socket, ev_callback_t rdfunc,
+			  void *arg, enum cont_src_en cont_src)
 {
 	struct event *ev = malloc(sizeof(*ev));
 
 	if (ev == NULL)
-		rte_panic("%s(): out of memory\n", __func__);
+		return -ENOMEM;
 
 	ev->arg = arg;
 	ev->cont_src = cont_src;
@@ -127,6 +127,8 @@ static void register_event(int fd, void *socket, ev_callback_t rdfunc,
 	LIST_INSERT_HEAD(&todo.list, ev, next);
 	todo.dirty = 1;
 	rte_spinlock_unlock(&event_list_lock);
+
+	return 0;
 }
 
 void register_event_fd(int fd, ev_callback_t rdfunc, void *arg)
@@ -134,9 +136,9 @@ void register_event_fd(int fd, ev_callback_t rdfunc, void *arg)
 	register_event(fd, NULL, rdfunc, arg, CONT_SRC_MAIN);
 }
 
-void register_event_socket(void *socket, ev_callback_t rdfunc, void *arg)
+int dp_register_event_socket(void *socket, ev_callback_t rdfunc, void *arg)
 {
-	register_event(-1, socket, rdfunc, arg, CONT_SRC_MAIN);
+	return register_event(-1, socket, rdfunc, arg, CONT_SRC_MAIN);
 }
 
 void register_event_socket_src(void *socket, ev_callback_t rdfunc, void *arg,
@@ -159,17 +161,24 @@ static void delete_event(struct event *ev)
 	rte_spinlock_unlock(&event_list_lock);
 }
 
-void unregister_event_socket(void *socket)
+int dp_unregister_event_socket(void *socket)
 {
 	struct event *ev, *ev2;
+	bool found = false;
 
 	rte_spinlock_lock(&event_list_lock);
 	LIST_FOREACH_SAFE(ev, &todo.list, next, ev2) {
 		if (ev->socket != socket)
 			continue;
 		__delete_event(ev);
+		found = true;
 	}
 	rte_spinlock_unlock(&event_list_lock);
+
+	if (found)
+		return 0;
+
+	return -ENOENT;
 }
 
 /*

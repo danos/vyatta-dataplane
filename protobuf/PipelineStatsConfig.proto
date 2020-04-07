@@ -7,6 +7,8 @@
 
 syntax="proto2";
 
+option go_package = "github.com/danos/vyatta-dataplane/protobuf/go/PipelineStatsConfig";
+
 message PipelineStatsConfig {
 	optional bool enable_stats = 1;
 }

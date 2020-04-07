@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2017-2019, AT&T Intellectual Property.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.
  * All rights reserved.
  * Copyright (c) 2011-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
@@ -16,8 +16,6 @@
 #include "json_writer.h"
 
 struct ifnet;
-
-typedef int (*cmd_func_t)(FILE *f, int argc, char **argv);
 
 int cmd_arp(FILE *f, int argc, char **argv);
 int cmd_arp_cfg(FILE *f, int argc, char **argv);
@@ -45,11 +43,8 @@ int cmd_gre(FILE *f, int argc, char **argv);
 int cmd_mpls(FILE *f, int argc, char **argv);
 int cmd_affinity_cfg(FILE *f, int argc, char **argv);
 int cmd_xconnect_cfg(FILE *f, int argc, char **argv);
-int cmd_speed(FILE *f, int argc, char **argv);
 int cmd_poe(FILE *f, int argc, char **argv);
 int cmd_ip(FILE *f, int argc, char **argv);
-int cmd_ip6(FILE *f, int argc, char **argv);
-int cmd_breakout(FILE *f, int argc, char **argv);
 int cmd_cpp_rl_op(FILE *f, int argc, char **argv);
 
 void list_all_cmd_versions(FILE *f);

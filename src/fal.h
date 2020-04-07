@@ -1,5 +1,5 @@
  /*-
- * Copyright (c) 2017-2019, AT&T Intellectual Property.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.
  * All rights reserved.
  * Copyright (c) 2016-2017 by Brocade Communications Systems, Inc.
  * All rights reserved.
@@ -24,7 +24,7 @@
 #include "route.h"
 #include "netinet/ip_mroute.h"
 #include "util.h"
-#include "vrf.h"
+#include "vrf_internal.h"
 
 struct ether_addr;
 struct fal_attribute_t;
@@ -45,25 +45,28 @@ struct fal_ipmc_entry_t;
  * or set to NULL.
  */
 struct message_handler {
-	struct l2_ops *l2;
-	struct rif_ops *rif;
-	struct tun_ops *tun;
-	struct bridge_ops *bridge;
-	struct vlan_ops *vlan;
-	struct stp_ops *stp;
-	struct ip_ops *ip;
-	struct ipmc_ops *ipmc;
-	struct acl_ops *acl;
-	struct qos_ops *qos;
-	struct lacp_ops *lacp;
-	struct sys_ops *sys;
-	struct policer_ops *policer;
-	struct sw_ops *sw;
-	struct mirror_ops *mirror;
-	struct vlan_feat_ops *vlan_feat;
-	struct backplane_ops *backplane;
-	struct cpp_rl_ops *cpp_rl;
-	struct ptp_ops *ptp;
+	struct fal_l2_ops *l2;
+	struct fal_rif_ops *rif;
+	struct fal_tun_ops *tun;
+	struct fal_lag_ops *lag;
+	struct fal_bridge_ops *bridge;
+	struct fal_vlan_ops *vlan;
+	struct fal_stp_ops *stp;
+	struct fal_ip_ops *ip;
+	struct fal_ipmc_ops *ipmc;
+	struct fal_acl_ops *acl;
+	struct fal_qos_ops *qos;
+	struct fal_lacp_ops *lacp;
+	struct fal_sys_ops *sys;
+	struct fal_policer_ops *policer;
+	struct fal_sw_ops *sw;
+	struct fal_mirror_ops *mirror;
+	struct fal_vlan_feat_ops *vlan_feat;
+	struct fal_backplane_ops *backplane;
+	struct fal_cpp_rl_ops *cpp_rl;
+	struct fal_ptp_ops *ptp;
+	struct fal_capture_ops *capture;
+	struct fal_bfd_ops *bfd;
 
 	LIST_ENTRY(message_handler) link;
 };
@@ -72,15 +75,15 @@ struct message_handler {
  * l2_ops provide an interface for a receiver 'recv' to work with the data
  * parsed from AF_UNSPEC netlink messages.
  */
-struct l2_ops {
+struct fal_l2_ops {
 	void (*new_port)(unsigned int if_index,
 			 uint32_t attr_count,
 			 const struct fal_attribute_t *attr_list);
 	int (*get_attrs)(unsigned int if_index,
 			 uint32_t attr_count,
 			 struct fal_attribute_t *attr_list);
-	void (*upd_port)(unsigned int if_index,
-			 struct fal_attribute_t *attr);
+	int (*upd_port)(unsigned int if_index,
+			struct fal_attribute_t *attr);
 	void (*del_port)(unsigned int if_index);
 	void (*new_addr)(unsigned int if_index,
 			 const void *addr,
@@ -96,20 +99,24 @@ struct l2_ops {
 /*
  * rif_ops provides an interface for controlling (l3) router intf
  */
-struct rif_ops {
+struct fal_rif_ops {
 	int (*create_intf)(uint32_t attr_count,
 			   const struct fal_attribute_t *attr,
 			   fal_object_t *obj);
 	int (*delete_intf)(fal_object_t obj);
 	int (*set_attr)(fal_object_t obj,
 			const struct fal_attribute_t *attr);
+	int (*get_stats)(fal_object_t obj, uint32_t cntr_count,
+			 const enum fal_router_interface_stat_t *cntr_ids,
+			 uint64_t *cntrs);
+	void (*dump)(fal_object_t obj, json_writer_t *wr);
 };
 
 /*
  * tun_ops provides an interface for controlling tunnel initiator
  * and terminator
  */
-struct tun_ops {
+struct fal_tun_ops {
 	int (*create_tun)(uint32_t attr_count,
 			  const struct fal_attribute_t *attr,
 			  fal_object_t *obj);
@@ -118,7 +125,32 @@ struct tun_ops {
 			const struct fal_attribute_t *attr);
 };
 
-struct stp_ops {
+/*
+ * lag_ops provides an interface for controlling LAG
+ */
+struct fal_lag_ops {
+	int (*create_lag)(uint32_t attr_count,
+			  const struct fal_attribute_t *attr,
+			  fal_object_t *obj);
+	int (*delete_lag)(fal_object_t obj);
+	int (*set_lag_attr)(fal_object_t obj, uint32_t attr_count,
+			    const struct fal_attribute_t *attr);
+	int (*get_lag_attr)(fal_object_t obj,
+			    uint32_t attr_count,
+			    struct fal_attribute_t *attr_list);
+	void (*dump)(fal_object_t obj, json_writer_t *wr);
+	int (*create_lag_member)(uint32_t attr_count,
+				 const struct fal_attribute_t *attr,
+				 fal_object_t *obj);
+	int (*delete_lag_member)(fal_object_t obj);
+	int (*set_lag_member_attr)(fal_object_t obj,
+				   const struct fal_attribute_t *attr);
+	int (*get_lag_member_attr)(fal_object_t obj,
+				   uint32_t attr_count,
+				   struct fal_attribute_t *attr_list);
+};
+
+struct fal_stp_ops {
 	int (*create)(unsigned int bridge_ifindex, uint32_t attr_count,
 		      const struct fal_attribute_t *attr_list,
 		      fal_object_t *obj);
@@ -140,7 +172,7 @@ struct stp_ops {
  * bridge_ops provide the ability for a receiver 'hdlr' to work with data
  * parsed from AF_BRIDGE netlink messages.
  */
-struct bridge_ops {
+struct fal_bridge_ops {
 	void (*new_port)(unsigned int bridge_ifindex,
 			 unsigned int child_ifindex,
 			 uint32_t attr_count,
@@ -170,7 +202,7 @@ struct bridge_ops {
 			  fal_br_walk_neigh_fn cb, void *arg);
 };
 
-struct vlan_ops {
+struct fal_vlan_ops {
 	int (*get_stats)(uint16_t vlan, uint32_t num_cntrs,
 			 const enum fal_vlan_stat_type *cntr_ids,
 			 uint64_t *cntrs);
@@ -182,7 +214,7 @@ struct vlan_ops {
  * ip_ops provide the ability for a receiver 'hdlr' to work with data
  * parsed from AF_INET netlink messages.
  */
-struct ip_ops {
+struct fal_ip_ops {
 	void (*new_addr)(unsigned int if_index,
 			 struct fal_ip_address_t *ipaddr,
 			 uint8_t prefixlen,
@@ -208,6 +240,9 @@ struct ip_ops {
 			       const struct fal_attribute_t *attr_list);
 	int (*del_neigh)(unsigned int if_index,
 			 struct fal_ip_address_t *ipaddr);
+	void (*dump_neigh)(unsigned int if_index,
+			   struct fal_ip_address_t *ipaddr,
+			   json_writer_t *wr);
 	int (*new_route)(uint32_t vrf_id,
 			 struct fal_ip_address_t *ipaddr,
 			 uint8_t prefixlen,
@@ -223,12 +258,27 @@ struct ip_ops {
 			 struct fal_ip_address_t *ipaddr,
 			 uint8_t prefixlen,
 			 uint32_t tableid);
+	int (*get_route_attrs)(uint32_t vrf_id,
+			       struct fal_ip_address_t *ipaddr,
+			       uint8_t prefixlen,
+			       uint32_t tableid,
+			       uint32_t attr_count,
+			       const struct fal_attribute_t *attr_list);
+	int  (*walk_routes)(fal_plugin_route_walk_fn cb,
+			    uint32_t attr_count,
+			    const struct fal_attribute_t *attr_list,
+			    void *arg);
 	int (*new_next_hop_group)(uint32_t attr_count,
 				  const struct fal_attribute_t *attr_list,
 				  fal_object_t *obj);
 	int (*upd_next_hop_group)(fal_object_t obj,
 				  const struct fal_attribute_t *attr);
 	int (*del_next_hop_group)(fal_object_t obj);
+	int (*get_next_hop_group_attrs)(
+		fal_object_t obj,
+		uint32_t attr_count,
+		const struct fal_attribute_t *attr_list);
+	void (*dump_next_hop_group)(fal_object_t obj, json_writer_t *wr);
 	int (*new_next_hops)(uint32_t nh_count,
 			     const uint32_t *attr_count,
 			     const struct fal_attribute_t **attr_list,
@@ -237,9 +287,13 @@ struct ip_ops {
 			    const struct fal_attribute_t *attr);
 	int (*del_next_hops)(uint32_t nh_count,
 			     const fal_object_t *obj_list);
+	int (*get_next_hop_attrs)(fal_object_t obj,
+				  uint32_t attr_count,
+				  const struct fal_attribute_t *attr_list);
+	void (*dump_next_hop)(fal_object_t obj, json_writer_t *wr);
 };
 
-struct acl_ops {
+struct fal_acl_ops {
 	/* A "table" corresponds to a named "group" */
 	int (*create_table)(uint32_t attr_count,
 			    const struct fal_attribute_t *attr,
@@ -282,7 +336,7 @@ struct acl_ops {
  * ipmc_ops provide the ability for a receiver 'hdlr' to work with data
  * parsed from AF_INET multicast netlink messages.
  */
-struct ipmc_ops {
+struct fal_ipmc_ops {
 	int (*create_entry)(const struct fal_ipmc_entry_t *ipmc_entry,
 			    uint32_t attr_count,
 			    const struct fal_attribute_t *attr_list,
@@ -341,7 +395,7 @@ struct ipmc_ops {
 };
 
 /* qos_ops provide ability handle vyatta-dataplane QoS configuration commands */
-struct qos_ops {
+struct fal_qos_ops {
 	/* QoS queue object functions */
 	int (*new_queue)(fal_object_t switch_id,
 			 uint32_t attr_count,
@@ -408,16 +462,20 @@ struct qos_ops {
 			const struct fal_attribute_t *attr);
 	int (*get_wred_attrs)(fal_object_t wred_id, uint32_t attr_count,
 			      struct fal_attribute_t *attr_list);
+	int (*get_counters)(const uint32_t *cntr_ids,
+			    uint32_t num_cntrs,
+			    uint64_t *cntrs);
+	void (*dump_buf_errors)(json_writer_t *wr);
 };
 
-struct sw_ops {
+struct fal_sw_ops {
 	int (*set_attribute)(const struct fal_attribute_t *attr);
 	int (*get_attribute)(uint32_t attr_count,
 			     struct fal_attribute_t *attr_list);
 };
 
 /* sys_ops provide ability to handle system level events */
-struct sys_ops {
+struct fal_sys_ops {
 	void (*cleanup)(void);
 	void (*command)(FILE *f, int argc, char **argv);
 	int (*command_ret)(FILE *f, int argc, char **argv);
@@ -427,7 +485,7 @@ struct sys_ops {
  * policer ops are used for setting up storm control and
  * other traffic policing operations.
  */
-struct policer_ops {
+struct fal_policer_ops {
 	/* The policer APIs follow SAI approach */
 	int (*create)(uint32_t attr_count,
 		      const struct fal_attribute_t *attr_list,
@@ -453,7 +511,7 @@ struct policer_ops {
  * Portmirror/portmonitor operations used for setting,updating and
  * deleting portmonitor session
  */
-struct mirror_ops {
+struct fal_mirror_ops {
 	int (*session_create)(uint32_t attr_count,
 			      const struct fal_attribute_t *attr_list,
 			      fal_object_t *mr_obj_id);
@@ -469,16 +527,19 @@ struct mirror_ops {
  * Vlan_feature operations user for setting, updating and creating a vlan
  * feature.
  */
-struct vlan_feat_ops {
+struct fal_vlan_feat_ops {
 	int (*vlan_feature_create)(uint32_t attr_count,
 				   const struct fal_attribute_t *attr_list,
 				   fal_object_t *fal_obj_id);
 	int (*vlan_feature_delete)(fal_object_t fal_obj_id);
 	int (*vlan_feature_set_attr)(fal_object_t fal_obj_id,
 				     const struct fal_attribute_t *attr);
+	int (*vlan_feature_get_attr)(fal_object_t fal_obj_id,
+				     uint32_t attr_count,
+				     struct fal_attribute_t *attr_list);
 };
 
-struct backplane_ops {
+struct fal_backplane_ops {
 	int (*backplane_bind)(unsigned int bp_ifindex, unsigned int ifindex);
 	void (*backplane_dump)(unsigned int bp_ifindex, json_writer_t *wr);
 };
@@ -487,7 +548,7 @@ struct backplane_ops {
  * cpp_rl_ops are used for setting up control plane policing rate limiter
  * operations
  */
-struct cpp_rl_ops {
+struct fal_cpp_rl_ops {
 	/* CPP rate limiter object functions */
 	int (*create)(uint32_t attr_count,
 		      const struct fal_attribute_t *attr_list,
@@ -497,7 +558,7 @@ struct cpp_rl_ops {
 			 struct fal_attribute_t *attr_list);
 };
 
-struct ptp_ops {
+struct fal_ptp_ops {
 	int (*create_ptp_clock)(uint32_t attr_count,
 				const struct fal_attribute_t *attr_list,
 				fal_object_t *clock_obj);
@@ -514,14 +575,46 @@ struct ptp_ops {
 	int (*delete_ptp_peer)(fal_object_t peer_obj);
 };
 
+struct fal_capture_ops {
+	int (*create)(uint32_t attr_count,
+		      const struct fal_attribute_t *attr_list,
+		      fal_object_t *obj);
+	void (*delete)(fal_object_t obj);
+};
+
+enum fal_rc {
+	/* All good */
+	FAL_RC_SUCCESS = 0,
+	/* Object not required in FAL plugin */
+	FAL_RC_NOT_REQ = 1,
+};
+
+struct fal_bfd_ops {
+	int (*create_session)(fal_object_t *bfd_session_id,
+			uint32_t attr_count,
+			const struct fal_attribute_t *attr_list);
+	int (*delete_session)(fal_object_t bfd_session_id);
+	int (*set_session_attr)(fal_object_t bfd_session_id,
+			uint32_t attr_count,
+			const struct fal_attribute_t *attr_list);
+	int (*get_session_attr)(fal_object_t bfd_session_id,
+			uint32_t attr_count,
+			const struct fal_attribute_t *attr_list);
+	int (*get_session_stats)(fal_object_t bfd_session_id,
+			uint32_t num_counters,
+			const enum fal_bfd_session_stat_t *counter_ids,
+			uint64_t *counters);
+};
+
 void fal_init(void);
 void fal_init_plugins(void);
 void fal_cleanup(void);
 int  cmd_fal(FILE *f, int argc, char **argv);
 bool fal_plugins_present(void);
 int str_to_fal_ip_address_t(char *str, struct fal_ip_address_t *ipaddr);
-const char *fal_ip_address_t_to_str(struct fal_ip_address_t *ipaddr,
+const char *fal_ip_address_t_to_str(const struct fal_ip_address_t *ipaddr,
 				    char *dst, socklen_t size);
+bool fal_is_ipaddr_empty(const struct fal_ip_address_t *ipaddr);
 
 void fal_register_message_handler(struct message_handler *handler);
 void fal_delete_message_handler(struct message_handler *handler);
@@ -535,8 +628,8 @@ void fal_l2_new_port(unsigned int if_index,
 int fal_l2_get_attrs(unsigned int if_index,
 		     uint32_t attr_count,
 		     struct fal_attribute_t *attr_list);
-void fal_l2_upd_port(unsigned int if_index,
-		     struct fal_attribute_t *attr);
+int fal_l2_upd_port(unsigned int if_index,
+		    struct fal_attribute_t *attr);
 void fal_l2_del_port(unsigned int if_index);
 void fal_l2_new_addr(unsigned int if_index,
 		     const struct ether_addr *addr,
@@ -555,6 +648,13 @@ int fal_create_router_interface(uint32_t attr_count,
 int fal_delete_router_interface(fal_object_t obj);
 int fal_set_router_interface_attr(fal_object_t obj,
 				  const struct fal_attribute_t *attr);
+int
+fal_get_router_interface_stats(fal_object_t obj,
+			       uint32_t cntr_count,
+			       const enum fal_router_interface_stat_t *cntr_ids,
+			       uint64_t *cntrs);
+void
+fal_dump_router_interface(fal_object_t obj, json_writer_t *wr);
 
 /* Tunnel APIs */
 int fal_create_tunnel(uint32_t attr_count,
@@ -564,6 +664,28 @@ int fal_delete_tunnel(fal_object_t obj);
 int fal_set_tunnel_attr(fal_object_t obj,
 			uint32_t attr_count,
 			const struct fal_attribute_t *attr_list);
+
+/* LAG APIs*/
+int fal_create_lag(uint32_t attr_count,
+		   struct fal_attribute_t *attr_list,
+		   fal_object_t *obj);
+int fal_delete_lag(fal_object_t obj);
+int fal_set_lag_attr(fal_object_t obj,
+		     uint32_t attr_count,
+		     const struct fal_attribute_t *attr_list);
+int fal_get_lag_attr(fal_object_t obj,
+		     uint32_t attr_count,
+		     struct fal_attribute_t *attr_list);
+void fal_dump_lag(fal_object_t obj, json_writer_t *wr);
+int fal_create_lag_member(uint32_t attr_count,
+			  struct fal_attribute_t *attr_list,
+			  fal_object_t *obj);
+int fal_delete_lag_member(fal_object_t obj);
+int fal_set_lag_member_attr(fal_object_t obj,
+			    const struct fal_attribute_t *attr);
+int fal_get_lag_member_attr(fal_object_t obj,
+			    uint32_t attr_count,
+			    struct fal_attribute_t *attr_list);
 
 void fal_br_new_port(unsigned int bridge_ifindex,
 		     unsigned int child_ifindex,
@@ -625,6 +747,10 @@ int fal_get_switch_attrs(uint32_t attr_count,
 
 int fal_set_switch_attr(const struct fal_attribute_t *attr);
 
+int fal_ip_new_neigh(unsigned int if_index,
+		     const struct sockaddr *sa,
+		     uint32_t attr_count,
+		     const struct fal_attribute_t *attr_list);
 int fal_ip_upd_neigh(unsigned int if_index,
 		     const struct sockaddr *sa,
 		     const struct fal_attribute_t *attr);
@@ -642,6 +768,9 @@ int fal_ip4_upd_neigh(unsigned int if_index,
 		      struct fal_attribute_t *attr);
 int fal_ip4_del_neigh(unsigned int if_index,
 		      const struct sockaddr_in *sin);
+void fal_ip4_dump_neigh(unsigned int if_index,
+			const struct sockaddr_in *sin,
+			json_writer_t *wr);
 void fal_ip4_new_addr(unsigned int if_index,
 		      const struct if_addr *ifa);
 void fal_ip4_upd_addr(unsigned int if_index,
@@ -651,7 +780,6 @@ void fal_ip4_del_addr(unsigned int if_index,
 int fal_ip4_new_next_hops(size_t nhops, const struct next_hop hops[],
 			  fal_object_t *nhg_object, fal_object_t *obj);
 int fal_ip4_del_next_hops(fal_object_t nhg_object, size_t nhops,
-			  const struct next_hop *hops,
 			  const fal_object_t *obj);
 int fal_ip4_new_route(vrfid_t vrf_id, in_addr_t addr, uint8_t prefixlen,
 		      uint32_t tableid, struct next_hop hops[],
@@ -661,6 +789,18 @@ int fal_ip4_upd_route(vrfid_t vrf_id, in_addr_t addr, uint8_t prefixlen,
 		      size_t size, fal_object_t nhg_object);
 int fal_ip4_del_route(vrfid_t vrf_id, in_addr_t addr, uint8_t prefixlen,
 		      uint32_t tableid);
+int fal_ip4_get_route_attrs(vrfid_t vrf_id, in_addr_t addr, uint8_t prefixlen,
+			    uint32_t tableid, uint32_t attr_count,
+			    const struct fal_attribute_t *attr_list);
+int fal_ip6_get_route_attrs(vrfid_t vrf_id, const struct in6_addr *addr,
+			    uint8_t prefixlen, uint32_t tableid,
+			    uint32_t attr_count,
+			    const struct fal_attribute_t *attr_list);
+int fal_ip_walk_routes(fal_plugin_route_walk_fn cb,
+		       uint32_t attr_cnt,
+		       struct fal_attribute_t *attr_list,
+		       void *arg);
+
 int fal_create_ipmc_rpf_group(uint32_t *ifindex_list, uint32_t num_int,
 			      fal_object_t *rpf_group_id,
 			      struct fal_object_list_t **rpf_member_list);
@@ -687,6 +827,9 @@ int fal_ip6_upd_neigh(unsigned int if_index,
 		      struct fal_attribute_t *attr);
 int fal_ip6_del_neigh(unsigned int if_index,
 		      const struct sockaddr_in6 *sin6);
+void fal_ip6_dump_neigh(unsigned int if_index,
+			const struct sockaddr_in6 *sin6,
+			json_writer_t *wr);
 void fal_ip6_new_addr(unsigned int if_index,
 		      const struct if_addr *ifa);
 void fal_ip6_upd_addr(unsigned int if_index,
@@ -696,8 +839,15 @@ void fal_ip6_del_addr(unsigned int if_index,
 int fal_ip6_new_next_hops(size_t nhops, const struct next_hop_v6 hops[],
 			  fal_object_t *group_obj, fal_object_t *obj);
 int fal_ip6_del_next_hops(fal_object_t group_obj, size_t nhops,
-			  const struct next_hop_v6 *hops,
 			  const fal_object_t *obj);
+int fal_ip_get_next_hop_group_attrs(fal_object_t nhg_object,
+				    uint32_t attr_count,
+				    struct fal_attribute_t *attr_list);
+void fal_ip_dump_next_hop_group(fal_object_t nhg_object, json_writer_t *wr);
+int fal_ip_get_next_hop_attrs(fal_object_t nh_object,
+			      uint32_t attr_count,
+			      struct fal_attribute_t *attr_list);
+void fal_ip_dump_next_hop(fal_object_t nh_object, json_writer_t *wr);
 int fal_ip6_new_route(vrfid_t vrf_id, const struct in6_addr *addr,
 		      uint8_t prefixlen, uint32_t tableid,
 		      struct next_hop_v6 hops[], size_t size,
@@ -833,6 +983,9 @@ int fal_qos_get_wred_attrs(fal_object_t wred_id, uint32_t attr_count,
 			  struct fal_attribute_t *attr_list);
 void fal_qos_dump_map(fal_object_t obj, json_writer_t *wr);
 void fal_qos_dump_sched_group(fal_object_t obj, json_writer_t *wr);
+void fal_qos_dump_buf_errors(json_writer_t *wr);
+int fal_qos_get_counters(const uint32_t *cntr_ids, uint32_t num_cntrs,
+			uint64_t *cntrs);
 
 int fal_mirror_session_create(uint32_t attr_count,
 			      const struct fal_attribute_t *attr_list,
@@ -852,6 +1005,9 @@ int fal_vlan_feature_create(uint32_t attr_count,
 int fal_vlan_feature_delete(fal_object_t fal_obj_id);
 int fal_vlan_feature_set_attr(fal_object_t fal_obj_id,
 			      const struct fal_attribute_t *attr);
+int fal_vlan_feature_get_attr(fal_object_t obj,
+			      uint32_t attr_count,
+			      struct fal_attribute_t *attr_list);
 
 int fal_backplane_bind(unsigned int bp_ifindex, unsigned int ifindex);
 void fal_backplane_dump(unsigned int bp_ifindex, json_writer_t *wr);
@@ -906,5 +1062,10 @@ int fal_acl_get_counter_attr(fal_object_t counter_id,
 			     uint32_t attr_count,
 			     struct fal_attribute_t *attr_list);
 /* End of ACL related functions */
+
+int fal_capture_create(uint32_t attr_count,
+		       const struct fal_attribute_t *attr_list,
+		       fal_object_t *obj);
+void fal_capture_delete(fal_object_t obj);
 
 #endif /* FAL_H */

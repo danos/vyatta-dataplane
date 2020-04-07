@@ -1,4 +1,5 @@
 /*
+ * Copyright (c) 2019-2020, AT&T Intellectual Property. All rights reserved.
  * Copyright (c) 2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -11,9 +12,9 @@
  * single test.
  */
 #include "dp_test_lib_exp.h"
-#include "dp_test_lib_intf.h"
-#include "dp_test_macros.h"
-#include "dp_test_netlink_state.h"
+#include "dp_test_lib_intf_internal.h"
+#include "dp_test/dp_test_macros.h"
+#include "dp_test_netlink_state_internal.h"
 
 DP_DECL_TEST_SUITE(ip_suite_n);
 

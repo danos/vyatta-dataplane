@@ -42,6 +42,7 @@ to avoid the need to ensure the settings in the chroot match those
 outside. Note that binding `/proc` isn't necessary to build and run the
 unit tests, but it avoids warnings if gdb is used on a running process.
 
+
 ## Running VR Tests
 These are run automatically as part of `make check` and the package build.
 However, they can be run manually using `make -j4 dataplane_test_run`.
@@ -63,6 +64,29 @@ The test binary can be directly executed, which is particularly useful with GDB:
  * `-d<n>` controls debugging logging
 
 Use `./dataplane_test -h` for more help
+
+## Adding tests via plugins
+The dataplane supports adding features via plugins that live in different git repos.
+To be able to test this there is support for adding UT plugins too. These can then
+be used to test the feature plugins.
+
+The vyatta-dataplane-dev package will install all the files needed to build the
+feature plugins against the dataplane and also to build and run the unit tests.
+
+To run the unit tests from outside the dataplane source tree you need to run in
+'external' mode. This is done by passing in the -E flag. Doing this causes the
+tests to use some different paths for files, pulling in the ones that are provided
+by the dev package.
+
+For example, the bfd dataplane plugin will run the tests as:
+`/usr/bin/dataplane_test -d 0 -E`
+
+When doing this the feat plugins will be picked up from:
+`/usr/lib/*/vyatta-dataplane/pipeline/plugins/sample_plugin.so`
+
+And the unit test plugins will be picked up from the directory that the test binary
+is invoked from.
+
 
 ## Checking for memory leaks
 
@@ -162,7 +186,7 @@ the next test.
 
 ### Why did we choose this model
 
-We chose this model (as opposed to per file tests) because we wanted to be able to
+We chose this model (as opposed to the per file tests) because we wanted to be able to
 test the dataplane as a whole.  This approach gives the following benefits:
 
 - test the dataplane from observable input/output

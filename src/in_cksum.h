@@ -1,6 +1,6 @@
 /*-
  *
- * Copyright (c) 2017-2018, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  *
  * Copyright (c) 1990 The Regents of the University of California.
  * All rights reserved.
@@ -47,6 +47,8 @@
 #include <rte_common.h>
 #include <rte_config.h>
 #include <stdint.h>
+
+#include "ip_checksum.h"
 
 struct ip6_hdr;
 struct rte_mbuf;
@@ -150,58 +152,6 @@ uint16_t in_cksum(const void *addr, int len);
 
 uint16_t in6_cksum(const struct ip6_hdr *, uint8_t, uint32_t, uint32_t);
 
-#if defined RTE_ARCH_I686 || defined RTE_ARCH_X86_64
-/*
- * It it useful to have an Internet checksum routine which is inlineable
- * and optimized specifically for the task of computing IP header checksums
- * in the normal case (where there are no options and the header length is
- * therefore always exactly five 32-bit words.
- */
-static inline uint32_t in_cksum_hdr(const struct iphdr *ip)
-{
-	/*
-	 * Avoid violating type aliasing rules
-	 */
-	union ip32u {
-		struct iphdr ip;
-		uint32_t u32[5];
-	} const *ipu = (const union ip32u *)ip;
-	uint32_t sum = 0;
-
-	asm("addl %1, %0\n"
-	    "adcl %2, %0\n"
-	    "adcl %3, %0\n"
-	    "adcl %4, %0\n"
-	    "adcl %5, %0\n"
-	    "adcl $0, %0"
-	    : "+r" (sum)
-	    : "g" (ipu->u32[0]),
-	      "g" (ipu->u32[1]),
-	      "g" (ipu->u32[2]),
-	      "g" (ipu->u32[3]),
-	      "g" (ipu->u32[4])
-	    : "cc"
-	    );
-
-	sum = (sum & 0xffff) + (sum >> 16);
-	sum = (sum & 0xffff) + (sum >> 16);
-
-	return ~sum;
-}
-
-#else
-
-#include <rte_ip.h>
-
-/* Portable version using DPDK checksum code. */
-static inline uint16_t in_cksum_hdr(const struct iphdr *ip)
-{
-	uint16_t sum = rte_raw_cksum(ip, sizeof(*ip));
-
-	return ~sum;
-}
-#endif
-
 /**
  * Compute checksum of IP header.
  * Since IP options are rare, optimize for the case of no options
@@ -209,45 +159,9 @@ static inline uint16_t in_cksum_hdr(const struct iphdr *ip)
 static inline uint16_t ip_checksum(const struct iphdr *ip, uint16_t hlen)
 {
 	if (likely(hlen == sizeof(struct iphdr)))
-		return in_cksum_hdr(ip);
+		return dp_in_cksum_hdr(ip);
 	else
 		return in_cksum(ip, hlen);
 }
-
-/**
- * Checksum a TCP, UDP or ICMP IPv4 packet.
- *
- * The IPv4 header should not contains options. The layer 4 checksum
- * must be set to 0 in the packet by the caller. The l4 header must be
- * in the first mbuf.
- *
- * @param pak [in] Pointer to mbuf chain
- * @param ip  [in] Pointer to the contiguous IP header.  Set to NULL for
- *                 ICMP (the pseudo hdr is not checksummed)
- * @param l4_hdr [in] Pointer to the beginning of the L4 header
- *
- * @return
- *   The complemented checksum to set in the IPv4 TCP, UDP or ICMP header
- */
-uint16_t
-in4_cksum_mbuf(const struct rte_mbuf *, const struct iphdr *,
-	       const void *);
-
-/**
- * Checksum a TCP, UDP or ICMP IPv6 packet.
- *
- * The layer 4 checksum must be set to 0 in the packet by the
- * caller. The l4 header must be in the first mbuf.
- *
- * @param pak [in] Pointer to mbuf chain
- * @param ip  [in] Pointer to the contiguous IPv6 header.
- * @param l4_hdr [in] Pointer to the beginning of the L4 header
- *
- * @return
- *   The complemented checksum to set in the IPv4 TCP, UDP or ICMPv6 header
- */
-uint16_t
-in6_cksum_mbuf(const struct rte_mbuf *, const struct ip6_hdr *,
-	       const void *);
 
 #endif /* IN_CKSUM_H */

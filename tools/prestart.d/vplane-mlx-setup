@@ -1,0 +1,50 @@
+#! /usr/bin/perl
+
+use strict;
+use warnings;
+
+#
+# As per the performance tuning guide from Mellanox, the following parameters
+# need to be set to achieve the best performance from the NIC:
+# 1. PCI maximum read request size needs to be set to 1024 bytes. The value is
+#    set using a PCI write to the upper nibble of word 68. The mapping from the
+#    the upper nibble to the request size is as follows:
+#    0 - 128B, 1 - 256B, 2 - 512B, 3 - 1024B, 4 - 2048B and 5 - 4096B
+#
+# 2. Compression of Completion Queue Events (CQE) - This is used to reduce PCIe
+#    bandwidth usage resulting in better performance
+#
+# References:
+# 1. https://community.mellanox.com/s/article/understanding-pcie-configuration-for-maximum-performance
+# 2. https://fast.dpdk.org/doc/perf/DPDK_18_11_Mellanox_NIC_performance_report.pdf
+# 3. https://community.mellanox.com/s/article/understanding-mlx5-ethtool-counters
+#
+sub mlx_setup {
+    my @mlx_pcis =
+      `lspci | grep Mellanox | grep 'ConnectX-5 Ex' | cut -d ' ' -f 1`;
+
+    foreach my $pci (@mlx_pcis) {
+        $pci =~ s/\n//;
+
+        my $cur_val = `setpci -s $pci 68.w`;
+        $cur_val =~ s/\n//;
+
+        my $new_val = sprintf( "0x%04x", 3 << 12 | hex($cur_val) & 0xfff );
+
+        `setpci -s $pci 68.w=$new_val`;
+        my $val =
+          `lspci -vvv -s $pci | grep -o "MaxReadReq.*" | cut -d ' ' -f 2`;
+        $val =~ s/\n//;
+        system(
+            "logger PCI read request size for device $pci set to $val bytes");
+
+        #
+        # Enable compression of completion queue events
+        #
+        `mstconfig -d $pci set CQE_COMPRESSION=1`;
+    }
+}
+
+mlx_setup();
+
+1;

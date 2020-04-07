@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2017-2018, AT&T Intellectual Property. All rights reserved.
+ * Copyright (c) 2017-2019, AT&T Intellectual Property. All rights reserved.
  * Copyright (c) 2015-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -31,6 +31,7 @@ void crypto_sadb_new_sa(const struct xfrm_usersa_info *sa_info,
 			vrfid_t vrf_id);
 
 void crypto_sadb_del_sa(const struct xfrm_usersa_info *sa_info, vrfid_t vrfid);
+void crypto_sadb_flush_vrf(struct crypto_vrf_ctx *vrf_ctx);
 
 struct sadb_sa *sadb_lookup_inbound(uint32_t spi);
 

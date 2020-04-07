@@ -1,0 +1,159 @@
+// Copyright (c) 2019, AT&T Intellectual Property.  All rights reserved.
+//
+// SPDX-License-Identifier: LGPL-2.1-only
+//
+// CGNAT logging protobuf definitions
+//
+
+syntax = "proto2";
+
+option go_package = "github.com/danos/vyatta-dataplane/protobuf/go/CgnatLogging";
+
+message CgnatLog {
+    optional string cgnInstance = 1;
+    oneof logType {
+        PortAllocationLog portAllocationLog = 2;
+        SessionLog sessionLog = 3;
+        SubscriberLog subscriberLog = 4;
+        ConstraintLog constraintLog = 5;
+    }
+}
+
+// following is based on "google/protobuf/timestamp.proto"
+message Timestamp {
+    optional int64 seconds = 1;
+    optional int32 nanos = 2;
+}
+
+enum PortAllocationEventType {
+    PB_EVENT_UNKNOWN = 0;
+    PB_EVENT_ALLOCATED = 1;
+    PB_EVENT_RELEASED = 2;
+}
+
+message PortAllocationLog {
+    optional PortAllocationEventType eventType = 1;
+    optional uint32 subscriberAddress = 2;
+    optional string policyName = 3;
+    optional uint32 natAllocatedAddress = 4;
+    optional string poolName = 5;
+    optional uint32 startPortNumber = 6;
+    optional uint32 endPortNumber = 7;
+    optional Timestamp startTimestamp = 8;
+    optional Timestamp endTimestamp = 9;
+}
+
+enum SessionEventType {
+    SESSION_EVENT_UNKNOWN = 0;
+    SESSION_EVENT_CREATE = 1;
+    SESSION_EVENT_ACTIVE = 2;
+    SESSION_EVENT_END = 3;
+}
+
+enum Direction {
+    DIRECTION_OTHER = 0;
+    DIRECTION_IN = 1;
+    DIRECTION_OUT = 2;
+}
+
+enum SessionState {
+    SESSION_OTHER = 0;
+    SESSION_NONE = 1;
+    SESSION_OPENING = 2;
+    SESSION_ESTABLISHED = 3;
+    SESSION_TRANSITORY = 4;
+    SESSION_C_FIN_RCV = 5;
+    SESSION_S_FIN_RCV = 6;
+    SESSION_CS_FIN_RCV = 7;
+    SESSION_CLOSED = 8;
+}
+
+message SessionLog {
+    optional SessionEventType eventType = 1;
+    optional uint64 sessionId = 2;
+    optional uint32 subSessionId = 3;
+    optional string ifName = 4;
+    optional uint32 protocol = 5;
+    optional Direction direction = 6;
+    optional uint32 subscriberAddress = 7;
+    optional uint32 subscriberPort = 8;
+    optional uint32 natAllocatedAddress = 9;
+    optional uint32 natAllocatedPort = 10;
+    optional uint32 destinationAddress = 11;
+    optional uint32 destinationPort = 12;
+    optional Timestamp startTimestamp = 13;
+    optional Timestamp currentTimestamp = 14;
+    optional SessionState state = 15;
+    optional uint32 stateHistory = 16;
+    optional uint64 inBytes = 17;
+    optional uint64 outBytes = 18;
+    optional uint64 inPackets = 19;
+    optional uint64 outPackets = 20;
+    optional uint64 networkRoundTripTime = 21;
+    optional uint64 internetRoundTripTime = 22;
+}
+
+enum SubscriberEventType {
+    SUBSCRIBER_EVENT_UNKNOWN = 0;
+    SUBSCRIBER_EVENT_START = 1;
+    SUBSCRIBER_EVENT_END = 2;
+}
+
+message SubscriberLog {
+    optional SubscriberEventType eventType = 1;
+    optional uint32 subscriberAddress = 2;
+    optional uint64 sessionCount = 3;
+    optional uint64 inBytes = 4;
+    optional uint64 outBytes = 5;
+    optional uint64 inPackets = 6;
+    optional uint64 outPackets = 7;
+    optional Timestamp startTimestamp = 8;
+    optional Timestamp endTimestamp = 9;
+}
+
+enum ConstraintEventType {
+    CONSTRAINT_EVENT_UNKNOWN = 0;
+    CONSTRAINT_EVENT_SUBSCRIBER_TABLE = 1;
+    CONSTRAINT_EVENT_SESSION_TABLE = 2;
+    CONSTRAINT_EVENT_SESSION_CLEAR = 3;
+    CONSTRAINT_EVENT_DEST_SESSIONS = 4;
+    CONSTRAINT_EVENT_NAT_POOL = 5;
+    CONSTRAINT_EVENT_MAPPING_TABLE = 6;
+    CONSTRAINT_EVENT_BLOCKS_PER_SUBSCRIBER = 7;
+    CONSTRAINT_EVENT_BLOCKS_FOR_NAT_ALLOC_ADDR = 8;
+}
+
+enum ConstraintLimit {
+    CONSTRAINT_LIMIT_UNKNOWN = 0;
+    CONSTRAINT_LIMIT_FULL = 1;
+    CONSTRAINT_LIMIT_AVAILABLE = 2;
+    CONSTRAINT_LIMIT_THRESHOLD = 3;
+}
+
+message ConstraintLog {
+    optional ConstraintEventType eventType = 1;
+    optional ConstraintLimit constraintLimit = 2;
+    optional Timestamp timestamp = 3;
+    optional uint32 count = 4;
+    optional uint32 maxCount = 5;
+
+    // The following are used for eventType CONSTRAINT_EVENT_DEST_SESSIONS.
+    // subscriberAddress is also used for eventType
+    //    CONSTRAINT_EVENT_BLOCKS_PER_SUBSCRIBER.
+    // natAllocatedAddress is also used for eventType
+    //    CONSTRAINT_EVENT_BLOCKS_FOR_NAT_ALLOC_ADDR.
+    optional string ifName = 6;
+    optional uint64 sessionId = 7;
+    optional uint32 protocol = 8;
+    optional uint32 subscriberAddress = 9;
+    optional uint32 subscriberPort = 10;
+    optional uint32 natAllocatedAddress = 11;
+    optional uint32 natAllocatedPort = 12;
+
+    // used for eventType CONSTRAINT_EVENT_SESSION_CLEAR to indicate the
+    // clear command
+    optional string desc = 13;
+
+    // used for eventType CONSTRAINT_EVENT_NAT_POOL
+    optional string poolName = 14;
+}

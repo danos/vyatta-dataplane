@@ -1,7 +1,7 @@
 /*
  * Handle L2TPv3 GeNetlink events
  *
- * Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2014-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -139,7 +139,7 @@ static void l2tp_xconnect_update(struct ifnet *dpifp,
 		struct ifnet *old_dpifp;
 
 		old_session->flags |= L2TP_LNS_MODE;
-		old_dpifp = ifnet_byifindex(old_session->xconnect_ifidx);
+		old_dpifp = dp_ifnet_byifindex(old_session->xconnect_ifidx);
 		if (old_dpifp) {
 			cross_connect_unlink(old_dpifp, true);
 			cross_connect_unlink(l2tpifp, true);
@@ -339,7 +339,8 @@ l2tp_genl_session_create_modify(uint32_t tunnel_id, uint32_t session_id,
 	if (old_session) {
 		if (old_session->xconnect_ifidx)
 			l2tp_xconnect_update(
-				  ifnet_byifindex(old_session->xconnect_ifidx),
+				  dp_ifnet_byifindex(
+				  old_session->xconnect_ifidx),
 				  old_session,
 				  session,
 				  session->ifp,
@@ -652,7 +653,7 @@ l2tpeth_attach_session(const char *ifname, struct l2tp_session *session,
 {
 	struct ifnet *ifp;
 
-	ifp = ifnet_byifname(ifname);
+	ifp = dp_ifnet_byifname(ifname);
 	if (!ifp) {
 		ifp = l2tpeth_create_internal(ifname, mtu, NULL);
 		if (!ifp)
@@ -698,7 +699,7 @@ l2tpeth_create(int ifindex, const char *ifname, unsigned int mtu,
 	}
 
 	/* Try to reuse an existing interface */
-	ifp = ifnet_byifname(ifname);
+	ifp = dp_ifnet_byifname(ifname);
 	if (ifp)
 		ifp = l2tpeth_reuse(ifp, addr);
 	else
@@ -800,7 +801,7 @@ void l2tp_init_stats(struct l2tp_session *session)
 
 int l2tp_set_xconnect(char *cmd, char *dpifname, char *l2tpifname, char *ttl)
 {
-	struct ifnet *dpifp = ifnet_byifname(dpifname);
+	struct ifnet *dpifp = dp_ifnet_byifname(dpifname);
 
 	if (unlikely(dpifp == NULL)) {
 		RTE_LOG(ERR, L2TP,
@@ -809,7 +810,7 @@ int l2tp_set_xconnect(char *cmd, char *dpifname, char *l2tpifname, char *ttl)
 		return -1;
 	}
 
-	struct ifnet *l2tpifp = ifnet_byifname(l2tpifname);
+	struct ifnet *l2tpifp = dp_ifnet_byifname(l2tpifname);
 
 	if (unlikely(l2tpifp == NULL)) {
 		RTE_LOG(ERR, L2TP,

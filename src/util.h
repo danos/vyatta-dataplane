@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2017-2019, AT&T Intellectual Property. All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property. All rights reserved.
  * Copyright (c) 2011-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -26,10 +26,12 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <string.h>
+#include <sys/capability.h>
 #include <time.h>
 
 #include "compiler.h"
 #include "urcu.h"
+#include "vrf.h"
 
 struct cds_lfht;
 struct ether_addr;
@@ -63,9 +65,6 @@ struct ether_addr *ether_aton_r(const char *__asc,
  * Protects against compiler optimization of ordered operations.
  */
 #define barrier() asm volatile("" : : : "memory")
-
-/* vrfid type */
-typedef uint32_t vrfid_t;
 
 struct free_huge_info {
 	void *ptr;
@@ -169,6 +168,7 @@ int get_signed(const char *str, int *ptr);
 int get_signed_char(const char *str, signed char *ptr);
 int get_unsigned_short(const char *str, unsigned short *ptr);
 int get_unsigned_char(const char *str, unsigned char *ptr);
+float get_float(const char *str, float *ptr);
 int net_ratelimit(void);
 bool secondary_cpu(unsigned int id);
 int str_unsplit(char *, size_t, int, char **);
@@ -190,5 +190,8 @@ bool get_switch_dev_info(const char *drv_name,
 						 const char *drv_dev_name,
 						 int *switch_id,
 						 char *dev_name);
+
+int change_capability(cap_value_t capability, bool on);
+void renice(int value);
 
 #endif  /* UTIL_H */

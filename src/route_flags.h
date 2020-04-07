@@ -30,7 +30,7 @@
  */
 
 /*-
- * Copyright (c) 2017-2018, AT&T Intellectual Property.
+ * Copyright (c) 2017-2019, AT&T Intellectual Property.
  * All rights reserved.
  * Copyright (c) 2011-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
@@ -63,5 +63,10 @@
  * local optimisations.
  */
 #define NH_FLAGS_CMP_MASK ~(RTF_NEIGH_CREATED | RTF_NEIGH_PRESENT)
+
+enum rt_print_nexthop_verbosity {
+	RT_PRINT_NH_BRIEF,
+	RT_PRINT_NH_DETAIL,
+};
 
 #endif /* ROUTE_FLAGS_H */

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2017 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -17,8 +17,8 @@
 #include "compiler.h"
 #include "pl_node.h"
 #include "pipeline/nodes/pl_nodes_common.h"
-#include "dpi_public.h"
-#include "npf/dpi/dpi.h"
+#include "dpi.h"
+#include "npf/dpi/dpi_internal.h"
 #include "npf/npf_session.h"
 #include "npf/npf_if.h"
 #include "if_feat.h"
@@ -50,7 +50,7 @@ static void dpi_if_feature_disable(struct ifnet *ifp)
 
 /* Enable DPI on the given interface. */
 int
-dpi_enable(struct ifnet *ifp)
+dp_dpi_enable(struct ifnet *ifp)
 {
 	if (!dpi_init())
 		return -ENOMEM;
@@ -66,7 +66,7 @@ dpi_enable(struct ifnet *ifp)
 
 /* Disable DPI on the given interface. */
 int
-dpi_disable(struct ifnet *ifp)
+dp_dpi_disable(struct ifnet *ifp)
 {
 	if (!ifp)
 		return -EINVAL;
@@ -81,14 +81,14 @@ dpi_disable(struct ifnet *ifp)
 
 /* Indicate whether DPI is enabled. */
 bool
-dpi_is_enabled(void)
+dp_dpi_is_enabled(void)
 {
 	return (dpi_enabled_count != 0);
 }
 
 /* Return the L7 DPI application ID. */
 uint32_t
-dpi_get_app_id(struct rte_mbuf *mbuf)
+dp_dpi_get_app_id(struct rte_mbuf *mbuf)
 {
 	/* First find the session - this should already be present */
 	npf_session_t *se = npf_session_find_cached(mbuf);

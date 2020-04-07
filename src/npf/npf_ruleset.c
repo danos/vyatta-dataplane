@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  */
@@ -85,12 +85,6 @@ struct npf_attpt_item;
 
 #define SHOW_BUF_LEN		8192
 
-/*
- * Size of counter per-cpu array based on highest active lcore.
- */
-#define NPF_RULE_STATS_SIZE	(sizeof(struct npf_rule_stats) * \
-				(get_lcore_max() + 1))
-
 /* For GC of rulesets */
 static CDS_LIST_HEAD(ruleset_reap);
 static struct rte_timer ruleset_gc_timer;
@@ -143,7 +137,7 @@ struct npf_rule_group {
 
 /* Struct containing rule generation and state data.  */
 struct npf_rule_state {
-	uint32_t			rs_hash;	/* used for csync */
+	uint32_t			rs_hash;
 	npf_rule_group_t		*rs_rule_group;
 	char				*rs_config_line;
 	zhashx_t			*rs_config_ht;	/* var=value hash */
@@ -201,6 +195,31 @@ npf_ruleset_create(enum npf_ruleset_type ruleset_type,
 	return ruleset;
 }
 
+static struct npf_rule_stats *
+npf_rule_stats_get(struct npf_rule_stats *rl_stats)
+{
+	rte_atomic64_inc(&(rl_stats[0].refcnt));
+	return rl_stats;
+}
+
+static void npf_rule_stats_put(struct npf_rule_stats *rl_stats)
+{
+	if (rte_atomic64_dec_and_test(&(rl_stats[0].refcnt)))
+		free(rl_stats);
+}
+
+static struct npf_rule_stats *npf_rule_stats_alloc(void)
+{
+	/* Allocate stats with highest lcore id as an array indice */
+	struct npf_rule_stats *rl_stats = zmalloc_aligned(
+		sizeof(struct npf_rule_stats) * (get_lcore_max() + 1));
+
+	if (!rl_stats)
+		return NULL;
+
+	return npf_rule_stats_get(rl_stats);
+}
+
 /* Allocate a rule and its subsystems */
 static npf_rule_t *npf_alloc_rule(void)
 {
@@ -214,8 +233,7 @@ static npf_rule_t *npf_alloc_rule(void)
 
 	rte_atomic32_set(&rl->r_refcnt, 1);
 
-	/* Allocate stats w/ highest lcore id as array indice */
-	rl->r_stats = zmalloc_aligned(NPF_RULE_STATS_SIZE);
+	rl->r_stats = npf_rule_stats_alloc();
 	if (!rl->r_stats)
 		goto bad_stats;
 
@@ -233,7 +251,7 @@ static npf_rule_t *npf_alloc_rule(void)
 bad_rproc:
 	free(rl->r_state);
 bad_state:
-	free(rl->r_stats);
+	npf_rule_stats_put(rl->r_stats);
 bad_stats:
 	free(rl);
 	return NULL;
@@ -257,7 +275,7 @@ static void rule_free(npf_rule_t *rl)
 	free(rl->r_state->rs_config_line);
 	free(rl->r_state->rs_rproc);
 	free(rl->r_state);
-	free(rl->r_stats);
+	npf_rule_stats_put(rl->r_stats);
 	free(rl->r_ncode);
 	free(rl);
 }
@@ -532,15 +550,15 @@ void npf_rule_update_map_stats(npf_rule_t *rl, int nr_maps, uint32_t map_flags)
 		rl->r_stats[id].map_ports += ports;
 }
 
-static void rule_copy_stats(npf_rule_t *from, npf_rule_t *to)
+static void rule_ref_stats(npf_rule_t *old, npf_rule_t *new)
 {
-	unsigned int i;
-
-	FOREACH_DP_LCORE(i) {
-		to->r_stats[i].pkts_ct += from->r_stats[i].pkts_ct;
-		to->r_stats[i].bytes_ct += from->r_stats[i].bytes_ct;
-		to->r_stats[i].map_ports += from->r_stats[i].map_ports;
-	}
+	/*
+	 * Release the statistics block allocated initially for the new
+	 * rule, and instead reference the statistics associated with the
+	 * old rule.
+	 */
+	npf_rule_stats_put(new->r_stats);
+	new->r_stats = npf_rule_stats_get(old->r_stats);
 }
 
 /*
@@ -557,23 +575,23 @@ npf_ncode_equal(void *nc1, size_t nc1_size, void *nc2, size_t nc2_size)
 }
 
 /*
- * Copy stats from old rule to new rule if the rule is materially unchanged,
- * i.e. if the ncode and action are unchanged.
+ * Reference stats of the old rule by the new rule if the rule is materially
+ * unchanged, i.e. if the ncode and action are unchanged.
  */
 static void
-npf_copy_stats_if_rule_unchanged(npf_rule_t *rl_from, npf_rule_t *rl_to)
+npf_ref_stats_if_rule_unchanged(npf_rule_t *rl_old, npf_rule_t *rl_new)
 {
 	/* Is bytecode different? */
-	if (!npf_ncode_equal(rl_from->r_ncode, rl_from->r_nc_size,
-			    rl_to->r_ncode, rl_to->r_nc_size))
+	if (!npf_ncode_equal(rl_old->r_ncode, rl_old->r_nc_size,
+			    rl_new->r_ncode, rl_new->r_nc_size))
 		return;
 
 	/* Has action changed? */
-	if (rl_from->r_pass != rl_to->r_pass)
+	if (rl_old->r_pass != rl_new->r_pass)
 		return;
 
-	/* Rules are deemed unchanged, so copy stats */
-	rule_copy_stats(rl_from, rl_to);
+	/* Rules are deemed unchanged, so reference the stats */
+	rule_ref_stats(rl_old, rl_new);
 }
 
 static npf_rule_t *
@@ -591,16 +609,15 @@ npf_find_rule(struct cds_list_head *from_rules, npf_rule_t *match)
 }
 
 static void
-npf_copy_stats_group(npf_rule_group_t *rg_from,
-			 npf_rule_group_t *rg_to)
+npf_ref_stats_group(npf_rule_group_t *rg_old, npf_rule_group_t *rg_new)
 {
-	npf_rule_t *rl_from, *rl_to;
+	npf_rule_t *rl_old, *rl_new;
 
-	cds_list_for_each_entry(rl_to, &rg_to->rg_rules, r_entry) {
-		rl_from = npf_find_rule(&rg_from->rg_rules, rl_to);
+	cds_list_for_each_entry(rl_new, &rg_new->rg_rules, r_entry) {
+		rl_old = npf_find_rule(&rg_old->rg_rules, rl_new);
 
-		if (rl_from)
-			npf_copy_stats_if_rule_unchanged(rl_from, rl_to);
+		if (rl_old)
+			npf_ref_stats_if_rule_unchanged(rl_old, rl_new);
 	}
 }
 
@@ -619,7 +636,7 @@ npf_find_rule_group(struct cds_list_head *from_groups, npf_rule_group_t *match)
 }
 
 /*
- * Implements a copy of byte/packet statistics on rule
+ * References the byte/packet/map_ports statistics on rule
  * change. A rule is considered changed if the rule number changes
  * and/or the byte code changes. This leaves the following
  * behavior as a further enhancement:
@@ -634,15 +651,15 @@ npf_find_rule_group(struct cds_list_head *from_groups, npf_rule_group_t *match)
  * has been validated.
  */
 void
-npf_copy_stats(npf_ruleset_t *from, npf_ruleset_t *to)
+npf_ref_stats(npf_ruleset_t *old, npf_ruleset_t *new)
 {
-	npf_rule_group_t *rg_from, *rg_to;
+	npf_rule_group_t *rg_old, *rg_new;
 
-	cds_list_for_each_entry(rg_to, &to->rs_groups, rg_entry) {
-		rg_from = npf_find_rule_group(&from->rs_groups, rg_to);
+	cds_list_for_each_entry(rg_new, &new->rs_groups, rg_entry) {
+		rg_old = npf_find_rule_group(&old->rs_groups, rg_new);
 
-		if (rg_from)
-			npf_copy_stats_group(rg_from, rg_to);
+		if (rg_old)
+			npf_ref_stats_group(rg_old, rg_new);
 	}
 }
 
@@ -761,7 +778,7 @@ npf_rule_get_ifp(const npf_rule_t *rl)
 	    attach_type != NPF_ATTACH_TYPE_INTERFACE)
 		return NULL;
 
-	return ifnet_byifname(attach_point);
+	return dp_ifnet_byifname(attach_point);
 }
 
 static npf_rule_t *
@@ -1148,8 +1165,17 @@ npf_rule_hash(npf_rule_t *rl)
 	uint32_t hash = 0;
 	const char *rg_name = rg->rg_name;
 
-	if (rg_name)
-		hash = rte_jhash(rg_name, strlen(rg_name), hash);
+	if (rg_name) {
+		/*
+		 * The jhash reads in 4 byte words, so make sure
+		 * that it doesn't read off the end of allocated mem.
+		 */
+		char __rg_name[RTE_ALIGN(strlen(rg_name), 4)]
+			__rte_aligned(sizeof(uint32_t));
+
+		memcpy(__rg_name, rg_name, strlen(rg_name));
+		hash = rte_jhash(__rg_name, strlen(rg_name), hash);
+	}
 
 	hash = rte_jhash_3words(rl->r_state->rs_rule_no, rl->r_nc_size,
 			rg->rg_dir, hash);
@@ -1720,7 +1746,8 @@ npf_type_of_ruleset(const npf_ruleset_t *ruleset)
 }
 
 /* Update (as needed) all rules for a masquerade addr change */
-void npf_ruleset_update_masquerade(const struct ifnet *ifp, npf_ruleset_t *rs)
+void npf_ruleset_update_masquerade(const struct ifnet *ifp,
+				   const npf_ruleset_t *rs)
 {
 	npf_rule_group_t *rg;
 	npf_rule_t *rl;

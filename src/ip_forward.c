@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2011-2017 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -28,31 +28,33 @@
 #include <rte_mbuf.h>
 
 #include "arp.h"
-#include "bridge_port.h"
 #include "compat.h"
 #include "compiler.h"
-#include "config.h"
+#include "config_internal.h"
 #include "crypto/crypto.h"
 #include "crypto/crypto_forward.h"
-#include "gre.h"
+#include "if/bridge/bridge_port.h"
+#include "if/gre.h"
+#include "if/macvlan.h"
 #include "if_llatbl.h"
 #include "if_var.h"
 #include "in_cksum.h"
+#include "ip_forward.h"
 #include "ip_funcs.h"
 #include "ip_icmp.h"
 #include "ip_mcast.h"
 #include "ip_options.h"
 #include "ip_ttl.h"
 #include "l2tp/l2tpeth.h"
-#include "macvlan.h"
 #include "main.h"
 #include "mpls/mpls.h"
 #include "mpls/mpls_forward.h"
 #include "nh.h"
 #include "npf/npf.h"
 #include "npf/npf_if.h"
+#include "npf/zones/npf_zone_public.h"
 #include "npf_shim.h"
-#include "pktmbuf.h"
+#include "pktmbuf_internal.h"
 #include "pl_common.h"
 #include "pl_fused.h"
 #include "route.h"
@@ -61,7 +63,7 @@
 #include "udp_handler.h"
 #include "urcu.h"
 #include "ip_addr.h"
-#include "vrf.h"
+#include "vrf_internal.h"
 
 /* MTU cutoff for PMTU in IP processing */
 unsigned int slowpath_mtu;
@@ -70,15 +72,15 @@ unsigned int slowpath_mtu;
 uint64_t udpstats[UDP_MIB_MAX];
 
 ALWAYS_INLINE bool
-ip_l2_resolve_and_output(struct ifnet *in_ifp, struct rte_mbuf *m,
-			 struct next_hop *nh, uint16_t proto)
+dp_ip_l2_nh_output(struct ifnet *in_ifp, struct rte_mbuf *m,
+		   struct next_hop *nh, uint16_t proto)
 {
 	struct pl_packet pl_pkt = {
 		.mbuf = m,
 		.l2_pkt_type = pkt_mbuf_get_l2_traffic_type(m),
 		.l3_hdr = iphdr(m),
 		.in_ifp = in_ifp,
-		.out_ifp = nh4_get_ifp(nh),
+		.out_ifp = dp_nh4_get_ifp(nh),
 		.nxt.v4 = nh,
 		.l2_proto = proto,
 	};
@@ -91,11 +93,23 @@ ip_l2_resolve_and_output(struct ifnet *in_ifp, struct rte_mbuf *m,
 	return true;
 }
 
+ALWAYS_INLINE bool
+dp_ip_l2_intf_output(struct ifnet *in_ifp, struct rte_mbuf *m,
+		     struct ifnet *out_ifp, uint16_t proto)
+{
+	struct next_hop nh;
+
+	memset(&nh, 0, sizeof(nh));
+	nh4_set_ifp(&nh, out_ifp);
+
+	return dp_ip_l2_nh_output(in_ifp, m, &nh, proto);
+}
+
 /*
  * l2tp can't use any of the ports registered via udp_handler_register
  */
-static int ip_udp_tunnel_in(struct rte_mbuf **m, struct iphdr *ip,
-			    struct ifnet *ifp)
+int ip_udp_tunnel_in(struct rte_mbuf **m, struct iphdr *ip,
+		     struct ifnet *ifp)
 {
 	struct rte_mbuf *m0 = *m;
 
@@ -116,40 +130,14 @@ static int ip_udp_tunnel_in(struct rte_mbuf **m, struct iphdr *ip,
  */
 int l4_input(struct rte_mbuf **m, struct ifnet *ifp)
 {
-	struct iphdr *ip = iphdr(*m);
-	int rc, spi;
+	struct pl_packet pl_pkt = {
+		.mbuf = *m,
+		.in_ifp = ifp,
+	};
 
-	if (crypto_policy_check_inbound_terminating(ifp, m,
-						    htons(ETHER_TYPE_IPv4)))
-		return 0;
+	pipeline_fused_ipv4_l4(&pl_pkt);
 
-	switch (ip->protocol) {
-	case IPPROTO_UDP:
-		rc = ip_udp_tunnel_in(m, ip, ifp);
-		break;
-
-	case IPPROTO_L2TPV3:
-		rc = l2tp_ipv4_recv_encap(*m, ip);
-		break;
-
-	case IPPROTO_GRE:
-		rc = ip_gre_tunnel_in(m, ip);
-		break;
-
-	case IPPROTO_ESP:
-		spi = crypto_retrieve_spi((unsigned char *)ip +
-					  pktmbuf_l3_len(*m));
-		rc = crypto_enqueue_inbound_v4(*m, ip, ifp, spi);
-		break;
-
-	default:
-		return 1;
-	}
-
-	if (rc < 0) {
-		IPSTAT_INC_IFP(ifp, IPSTATS_MIB_INDISCARDS);
-	}
-	return rc;
+	return 0;
 }
 
 /*
@@ -219,7 +207,7 @@ struct next_hop *ip_lookup(struct rte_mbuf *m, struct ifnet *ifp,
 	/*
 	 * Lookup route
 	 */
-	nxt = rt_lookup(ip->daddr, tbl_id, m);
+	nxt = dp_rt_lookup(ip->daddr, tbl_id, m);
 
 	/*
 	 * No route to destination?
@@ -268,7 +256,7 @@ void ip_out_features(struct rte_mbuf *m, struct ifnet *ifp,
 	};
 
 	/* nxt->ifp may be changed by netlink messages. */
-	struct ifnet *nxt_ifp = nh4_get_ifp(nxt);
+	struct ifnet *nxt_ifp = dp_nh4_get_ifp(nxt);
 
 	/* Destination device is not up? */
 	if (!nxt_ifp || !(nxt_ifp->if_flags & IFF_UP)) {
@@ -362,7 +350,7 @@ enum ip_packet_validity ip_validate_packet(
 	unsigned int len, ip_len, pkt_len;
 	uint16_t hlen;
 
-	assert(pktmbuf_l2_len(m) ==
+	assert(dp_pktmbuf_l2_len(m) ==
 	       (const char *)ip - rte_pktmbuf_mtod(m, char *));
 
 	*needs_slow_path = false;
@@ -371,7 +359,7 @@ enum ip_packet_validity ip_validate_packet(
 	 * Is packet big enough.
 	 * (i.e is there a valid IP header in first segment)
 	 */
-	len = rte_pktmbuf_data_len(m) - pktmbuf_l2_len(m);
+	len = rte_pktmbuf_data_len(m) - dp_pktmbuf_l2_len(m);
 	if (len < sizeof(struct iphdr))
 		goto bad_hdr;
 
@@ -387,7 +375,7 @@ enum ip_packet_validity ip_validate_packet(
 	hlen = ip->ihl << 2;
 	if (hlen < sizeof(struct iphdr) || hlen > len)
 		goto bad_hdr;
-	pktmbuf_l3_len(m) = hlen;
+	dp_pktmbuf_l3_len(m) = hlen;
 
 	/*
 	 * Checksum correct?
@@ -410,7 +398,7 @@ enum ip_packet_validity ip_validate_packet(
 	    ip_dooptions(m, needs_slow_path))
 		goto bad_hdr;
 
-	pkt_len = rte_pktmbuf_pkt_len(m) - pktmbuf_l2_len(m);
+	pkt_len = rte_pktmbuf_pkt_len(m) - dp_pktmbuf_l2_len(m);
 
 	/*
 	 * Is IP length longer than packet we have got?
@@ -594,11 +582,14 @@ ip_spath_filter_internal(struct ifnet *ifp, struct ifnet *l2_ifp,
 	struct rte_mbuf *m = *mp;
 	struct iphdr *ip = iphdr(m);
 
-	pktmbuf_l3_len(m) = ip->ihl << 2;
+	dp_pktmbuf_l3_len(m) = ip->ihl << 2;
 
 	/* The kernel can still forward some packets, identify them.  */
-	if (!ip->saddr || is_local_ipv4(if_vrfid(ifp), ip->saddr))
+	if (!ip->saddr || is_local_ipv4(if_vrfid(ifp), ip->saddr)) {
 		npf_flags |= NPF_FLAG_FROM_US | NPF_FLAG_FROM_LOCAL;
+		if (npf_zone_local_is_set())
+			npf_flags |= NPF_FLAG_FROM_ZONE;
+	}
 
 	/*
 	 * The kernel can L2 forward some bridged packets (i.e. IP broadcasts

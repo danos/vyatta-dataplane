@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2011-2017 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -18,7 +18,7 @@
 #include "npf/npf.h"
 #include "session/session.h"
 #include "util.h"
-#include "vrf.h"
+#include "vrf_internal.h"
 
 struct ifnet;
 /* Forward Declarations */

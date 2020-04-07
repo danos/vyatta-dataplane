@@ -1,7 +1,7 @@
 /*
  * pl_node.c
  *
- * Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2016, 2017 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -78,6 +78,24 @@ pl_node_add_feature_by_inst(struct pl_feature_registration *feat, void *node)
 	return ret;
 }
 
+static int
+pl_node_add_feature_all_inst(struct pl_feature_registration *feat)
+{
+	int ret;
+
+	if (!feat->feature_point_node->feat_change_all)
+		return -ENOTSUP;
+
+	ret = feat->feature_point_node->feat_change_all(feat, PL_NODE_FEAT_ADD);
+
+	if (ret == 0 && feat->dynamic) {
+		if (uatomic_add_return(&dyn_feat_inst_count, 1) == 1)
+			set_packet_input_func(ether_input);
+	}
+
+	return ret;
+}
+
 int
 pl_node_remove_feature_by_inst(struct pl_feature_registration *feat, void *node)
 {
@@ -88,6 +106,24 @@ pl_node_remove_feature_by_inst(struct pl_feature_registration *feat, void *node)
 
 	ret = feat->feature_point_node->feat_change(
 		node, feat, PL_NODE_FEAT_REM);
+
+	if (ret == 0 && feat->dynamic) {
+		if (uatomic_add_return(&dyn_feat_inst_count, -1) == 0)
+			set_packet_input_func(NULL);
+	}
+
+	return ret;
+}
+
+static int
+pl_node_remove_feature_all_inst(struct pl_feature_registration *feat)
+{
+	int ret;
+
+	if (!feat->feature_point_node->feat_change_all)
+		return -ENOTSUP;
+
+	ret = feat->feature_point_node->feat_change_all(feat, PL_NODE_FEAT_REM);
 
 	if (ret == 0 && feat->dynamic) {
 		if (uatomic_add_return(&dyn_feat_inst_count, -1) == 0)
@@ -134,13 +170,15 @@ pl_node_is_feature_enabled(struct pl_feature_registration *feat, void *node)
 	unsigned int feature_id;
 	void *context;
 	bool more;
+	void *storage_ctx;
 
 	iter_fn = feat->feature_point_node->feat_iterate;
 	if (!iter_fn)
 		return false;
 
-	for (more = iter_fn(node, true, &feature_id, &context); more;
-	     more = iter_fn(node, false, &feature_id, &context))
+	for (more = iter_fn(node, true, &feature_id, &context, &storage_ctx);
+	     more;
+	     more = iter_fn(node, false, &feature_id, &context, &storage_ctx))
 		if (feature_id == feat->id)
 			return true;
 
@@ -149,11 +187,26 @@ pl_node_is_feature_enabled(struct pl_feature_registration *feat, void *node)
 
 ALWAYS_INLINE bool
 pl_node_invoke_feature(struct pl_node_registration *node_reg,
-		       unsigned int feature, struct pl_packet *pkt)
+		       unsigned int feature, struct pl_packet *pkt,
+		       void *storage_ctx)
 {
 	assert(feature < node_reg->max_feature_reg_idx);
 	return pl_graph_walk(node_reg->feature_regs[feature]->node,
-			     pkt);
+			     pkt, storage_ctx);
+}
+
+inline __attribute__((always_inline)) bool
+pl_node_invoke_feature_by_type(struct pl_node_registration *node_reg,
+			       uint32_t feature_type, struct pl_packet *pkt)
+{
+	unsigned int feature_id;
+
+	if (!node_reg->feat_type_find)
+		return true;
+
+	feature_id = node_reg->feat_type_find(feature_type);
+	/* The case features are enabled globally not per instance */
+	return pl_node_invoke_feature(node_reg, feature_id, pkt, NULL);
 }
 
 /*
@@ -170,14 +223,17 @@ pl_node_invoke_enabled_features(
 	unsigned int feature_id;
 	void *context;
 	bool more;
+	void *storage_ctx;
 
 	iter_fn = node_reg->feat_iterate;
 	if (!iter_fn)
 		return true;
 
-	for (more = iter_fn(node, true, &feature_id, &context); more;
-	     more = iter_fn(node, false, &feature_id, &context)) {
-		if (!pl_node_invoke_feature(node_reg, feature_id, pkt))
+	for (more = iter_fn(node, true, &feature_id, &context, &storage_ctx);
+	     more;
+	     more = iter_fn(node, false, &feature_id, &context, &storage_ctx)) {
+		if (!pl_node_invoke_feature(node_reg, feature_id,
+					    pkt, storage_ctx))
 			return false;
 	}
 
@@ -202,13 +258,15 @@ pl_node_iter_features(struct pl_node_registration *node_reg,
 	unsigned int feature_id;
 	void *context;
 	bool more;
+	void *storage_ctx;
 
 	iter_fn = node_reg->feat_iterate;
 	if (!iter_fn)
 		return false;
 
-	for (more = iter_fn(node, true, &feature_id, &context); more;
-	     more = iter_fn(node, false, &feature_id, &context)) {
+	for (more = iter_fn(node, true, &feature_id, &context, &storage_ctx);
+	     more;
+	     more = iter_fn(node, false, &feature_id, &context, &storage_ctx)) {
 		assert(feature_id < node_reg->max_feature_reg_idx);
 		if (!callback(node_reg->feature_regs[feature_id],
 			      user_context))
@@ -228,13 +286,14 @@ pl_node_iter_features(struct pl_node_registration *node_reg,
  */
 bool
 pl_graph_walk(struct pl_node_registration *node_reg,
-	      struct pl_packet *pkt)
+	      struct pl_packet *pkt,
+	      void *storage_ctx)
 {
 	int resp;
 
 	while (true) {
 		pl_inc_node_stat(node_reg->node_decl_id);
-		resp = node_reg->handler(pkt);
+		resp = node_reg->handler(pkt, storage_ctx);
 
 		switch (node_reg->type) {
 		case PL_OUTPUT:
@@ -247,6 +306,7 @@ pl_graph_walk(struct pl_node_registration *node_reg,
 
 		assert(resp < node_reg->num_next);
 		node_reg = node_reg->next_nodes[resp];
+		storage_ctx = NULL;
 	}
 
 	return true;
@@ -345,4 +405,121 @@ pl_get_node_stats(int id)
 	for (i = 0; i <= get_lcore_max(); ++i)
 		ct +=  *(g_pl_node_stats + pl_node_stats_id(id, i));
 	return ct;
+}
+
+static int
+pl_node_enable_global_case_feature(struct pl_feature_registration *pl_feat)
+{
+
+	if (!pl_feat->feature_point_node->feat_type_find)
+		return -ENOTSUP;
+
+	if (!pl_feat->feature_point_node->feat_type_insert ||
+	    !pl_feat->feature_point_node->feat_type_remove)
+		return -ENOTSUP;
+
+	if (pl_feat->feature_point_node->feat_type_insert(
+		    pl_feat->feature_point_node,
+		    pl_feat,
+		    pl_feat->feat_type) != 0)
+		return -EINVAL;
+
+	if (uatomic_add_return(&dyn_feat_inst_count, 1) == 1)
+		set_packet_input_func(ether_input);
+
+	return 0;
+}
+
+int pl_node_enable_global_feature(struct pl_feature_registration *pl_feat)
+{
+	if (!pl_feat)
+		return -EINVAL;
+
+	if (pl_feat->feature_point_node->feat_type_find)
+		return pl_node_enable_global_case_feature(pl_feat);
+
+	return pl_node_add_feature_all_inst(pl_feat);
+}
+
+static int
+pl_node_disable_global_case_feature(struct pl_feature_registration *pl_feat)
+{
+	if (!pl_feat)
+		return -EINVAL;
+
+	if (!pl_feat->feature_point_node->feat_type_find)
+		return -ENOTSUP;
+
+	if (!pl_feat->feature_point_node->feat_type_insert ||
+	    !pl_feat->feature_point_node->feat_type_remove)
+		return -ENOTSUP;
+
+	if (pl_feat->feature_point_node->feat_type_remove(
+		    pl_feat->feature_point_node,
+		    pl_feat,
+		    pl_feat->feat_type) != 0)
+		return -EINVAL;
+
+	if (uatomic_add_return(&dyn_feat_inst_count, -1) == 0)
+		set_packet_input_func(NULL);
+
+	return 0;
+}
+
+int pl_node_disable_global_feature(struct pl_feature_registration *pl_feat)
+{
+	if (!pl_feat)
+		return -EINVAL;
+
+	if (pl_feat->feature_point_node->feat_type_find)
+		return pl_node_disable_global_case_feature(pl_feat);
+
+	return pl_node_remove_feature_all_inst(pl_feat);
+}
+
+int pl_node_register_storage(struct pl_feature_registration *feat,
+			     const char *node_inst_name,
+			     void *context)
+{
+	struct pl_node *node;
+
+	if (!feat->feature_point_node->feat_reg_context)
+		return -ENOTSUP;
+
+	node = feat->feature_point_node->lookup_by_name(node_inst_name);
+	if (!node)
+		return -ENODEV;
+
+	return feat->feature_point_node->feat_reg_context(node, feat,
+							  context);
+}
+
+int pl_node_unregister_storage(struct pl_feature_registration *feat,
+			       const char *node_inst_name)
+{
+	struct pl_node *node;
+
+	if (!feat->feature_point_node->feat_unreg_context)
+		return -ENOTSUP;
+
+	node = feat->feature_point_node->lookup_by_name(node_inst_name);
+	if (!node)
+		return -ENODEV;
+
+	return feat->feature_point_node->feat_unreg_context(node, feat);
+}
+
+void *pl_node_get_storage(struct pl_feature_registration *feat,
+			  const char *node_inst_name)
+{
+	struct pl_node *node;
+
+	if (!feat->feature_point_node->feat_get_context)
+		return NULL;
+
+	node = feat->feature_point_node->lookup_by_name(node_inst_name);
+	if (!node)
+		return NULL;
+
+	return feat->feature_point_node->feat_get_context(node, feat);
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2018-2020, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  *
@@ -26,6 +26,11 @@
 struct tc_queue_pair {
 	uint tc;
 	uint queue;
+	uint dp;
+};
+
+struct des_dp_pair {
+	uint des;
 	uint dp;
 };
 
@@ -272,26 +277,24 @@ _dp_test_qos_hw_get_json_child(json_object *j_parent, const char *name,
 void
 _dp_test_qos_hw_check_sched_group(json_object *j_obj, int32_t level,
 				  int32_t max_children,
-				  int32_t current_children, bool debug,
-				  const char *file, const int line);
+				  int32_t current_children, uint8_t lpq,
+				  bool debug, const char *file, const int line);
 
 #define dp_test_qos_hw_check_sched_group(j_obj, level, max_children,	     \
-					 current_children, debug)	     \
+					 current_children, lpq, debug)	     \
 	_dp_test_qos_hw_check_sched_group(j_obj, level, max_children,	     \
-					  current_children, debug, __FILE__, \
-					  __LINE__)
+					  current_children, lpq, debug,      \
+					  __FILE__, __LINE__)
 
 void
 _dp_test_qos_hw_check_ingress_map(json_object *j_map_obj, int32_t map_type,
-				  struct tc_queue_pair *map_list,
-				  bool local_priority, bool debug,
+				  struct des_dp_pair *map_list,
+				  bool debug,
 				  const char *file, const int line);
 
-#define dp_test_qos_hw_check_ingress_map(j_map_obj, map_type, map_list,    \
-					 local_priority, debug)		   \
+#define dp_test_qos_hw_check_ingress_map(j_map_obj, map_type, map_list, debug)\
 	_dp_test_qos_hw_check_ingress_map(j_map_obj, map_type, map_list,   \
-					  local_priority, debug, __FILE__, \
-					  __LINE__)
+					  debug, __FILE__, __LINE__)
 
 void
 _dp_test_qos_hw_check_egress_map(json_object *j_map_obj, int32_t map_type,
@@ -319,14 +322,14 @@ _dp_test_qos_hw_check_scheduler(json_object *j_obj, const char *type,
 void
 _dp_test_qos_hw_check_queue(json_object *j_obj, int32_t id,
 			    int32_t queue_limit, int32_t queue_index,
-			    bool local_priority, bool debug, const char *file,
-			    const int line);
+			    uint8_t designation,
+			    bool debug, const char *file, const int line);
 
 #define dp_test_qos_hw_check_queue(j_obj, id, queue_limit, queue_index,  \
-				   local_priority, debug)		 \
+				   designation, debug)	 \
 	_dp_test_qos_hw_check_queue(j_obj, id, queue_limit, queue_index, \
-				    local_priority, debug, __FILE__,     \
-				    __LINE__)
+				    designation, debug,  \
+				    __FILE__, __LINE__)
 
 void
 _dp_test_qos_hw_check_wred_colour(json_object *j_obj, const char *colour,
@@ -453,6 +456,28 @@ _dp_test_qos_attach_config_to_if(const char *if_name, const char *cmd_list[],
 #define dp_test_qos_attach_config_to_if(if_name, cmd_list, debug)  \
 	_dp_test_qos_attach_config_to_if(if_name, cmd_list, debug, \
 					 __FILE__, __LINE__)
+
+void
+_dp_test_qos_send_config(const char *cmd_list[], int num_cmds,
+			 bool debug, const char *file, const int line);
+
+#define dp_test_qos_send_config(cmd_list, num_cmds, debug)  \
+	_dp_test_qos_send_config(cmd_list, num_cmds, debug, \
+					 __FILE__, __LINE__)
+
+void
+_dp_test_qos_send_cmd(const char *cmd, bool debug,
+		      const char *file, const int line);
+
+#define dp_test_qos_send_cmd(cmd, debug)  \
+	_dp_test_qos_send_cmd(cmd, debug, __FILE__, __LINE__)
+
+void
+_dp_test_qos_send_if_cmd(const char *if_name, const char *cmd, bool debug,
+		      const char *file, const int line);
+
+#define dp_test_qos_send_if_cmd(if_name, cmd, debug)  \
+	_dp_test_qos_send_if_cmd(if_name, cmd, debug, __FILE__, __LINE__)
 
 /*
  * QoS packet test functions

@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2017-2018, AT&T Intellectual Property.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.
  * All rights reserved.
  * Copyright (c) 2011-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
@@ -104,6 +104,16 @@ static inline void bitmask_copy(bitmask_t *a,
 	for (unsigned int pos = 0; pos < BITMASK_SZ; pos++)
 		CMM_STORE_SHARED(a->_bits[pos],
 				 CMM_LOAD_SHARED(b->_bits[pos]));
+}
+
+static inline bool bitmask_equal(const bitmask_t *a,
+				 const bitmask_t *b)
+{
+	for (unsigned int pos = 0; pos < BITMASK_SZ; pos++)
+		if (CMM_LOAD_SHARED(a->_bits[pos]) !=
+		    CMM_LOAD_SHARED(b->_bits[pos]))
+			return false;
+	return true;
 }
 
 int bitmask_parse(bitmask_t *msk, const char *str);

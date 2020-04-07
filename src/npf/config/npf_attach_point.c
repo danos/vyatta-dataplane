@@ -1117,6 +1117,7 @@ static const char *npf_attach_type_names[NPF_ATTACH_TYPE_COUNT] = {
 	[NPF_ATTACH_TYPE_GLOBAL] = "global",
 	[NPF_ATTACH_TYPE_QOS] = "qos",
 	[NPF_ATTACH_TYPE_VRF] = "vrf",
+	[NPF_ATTACH_TYPE_ZONE] = "zone",
 };
 
 const char *npf_get_attach_type_name(enum npf_attach_type attach_type)

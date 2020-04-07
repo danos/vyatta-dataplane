@@ -1,6 +1,6 @@
 
 /*-
- * Copyright (c) 2018-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2018-2020, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -27,8 +27,8 @@
  */
 static char *qos_get_dscp_grp(struct sched_info *qinfo, uint32_t qid, int i)
 {
-	struct rte_sched_pipe_params *pp;
-	struct rte_red_pipe_params *wred_params;
+	struct qos_pipe_params *pp;
+	struct qos_red_pipe_params *wred_params;
 	int profile;
 
 	profile = rte_sched_get_profile_for_pipe(qinfo->dev_info.dpdk.port,
@@ -37,7 +37,7 @@ static char *qos_get_dscp_grp(struct sched_info *qinfo, uint32_t qid, int i)
 		return NULL;
 
 	pp = &qinfo->port_params.pipe_profiles[profile];
-	wred_params = rte_red_find_q_params(pp, qid);
+	wred_params = qos_red_find_q_params(pp, qid);
 	if (wred_params)
 		return wred_params->red_q_params.grp_names[i];
 
@@ -269,9 +269,8 @@ int qos_dpdk_port(struct ifnet *ifp,
 
 int qos_dpdk_disable(struct ifnet *ifp, struct sched_info *qinfo)
 {
+	qos_dpdk_stop(ifp, qinfo);
 	rcu_assign_pointer(ifp->if_qos, NULL);
-
-	disable_transmit_thread(ifp->if_port);
 
 	qos_subport_npf_free(qinfo);
 	call_rcu(&qinfo->rcu, qos_sched_free_rcu);
@@ -282,26 +281,28 @@ int qos_dpdk_disable(struct ifnet *ifp, struct sched_info *qinfo)
 int qos_dpdk_enable(struct ifnet *ifp,
 		    struct sched_info *qinfo)
 {
-	/* If link is already up, then start now */
-	struct if_link_status link;
+	struct dp_ifnet_link_status link;
 
-	if_get_link_status(ifp, &link);
+	if (!ifp->hw_forwarding) {
+		/* If link is already up, then start now */
+		dp_ifnet_link_status(ifp, &link);
 
-	if (link.link_status &&
-	    qos_sched_start(ifp, link.link_speed) < 0) {
-		DP_DEBUG(QOS_DP, ERR, DATAPLANE, "Qos start failed\n");
-		qinfo->enabled = false;
-		return -ENODEV;
+		if (link.link_status &&
+		    link.link_speed != ETH_SPEED_NUM_NONE &&
+		    qos_sched_start(ifp, link.link_speed) < 0) {
+			DP_DEBUG(QOS_DP, ERR, DATAPLANE, "Qos start failed\n");
+			qinfo->enabled = false;
+			return -ENODEV;
+		} else {
+			DP_DEBUG(QOS_DP, DEBUG, DATAPLANE,
+				 "link status %s, speed %d, QoS not started\n",
+				 link.link_status ? "up" : "down",
+				 link.link_speed);
+		}
+	} else {
+		DP_DEBUG(QOS_DP, DEBUG, DATAPLANE,
+			 "interface not sw forwarding, QoS not started\n");
 	}
-
-	if (enable_transmit_thread(ifp->if_port) < 0) {
-		DP_DEBUG(QOS_DP, ERR, DATAPLANE,
-			 "Transmit thread setup failed\n");
-		qinfo->enabled = false;
-		return -ENODEV;
-	}
-
-	ifp->qos_software_fwd = 1;
 
 	return 0;
 }
@@ -316,7 +317,7 @@ static void qos_dpdk_port_free_rcu(void *arg)
  * If the subport doesn't have its TC queue-limits explicitly defined inherit
  * the port's queue-limits.
  */
-static uint32_t qos_sched_subport_qsize(struct rte_sched_port_params *pp,
+static uint32_t qos_sched_subport_qsize(struct qos_port_params *pp,
 					uint32_t *qsize)
 {
 	uint32_t queue_array_size = 0;
@@ -333,6 +334,111 @@ static uint32_t qos_sched_subport_qsize(struct rte_sched_port_params *pp,
 		pp->n_pipes_per_subport * sizeof(struct rte_mbuf *));
 }
 
+static void qos_copy_red_params(struct rte_red_params
+						dpdk[][e_RTE_METER_COLORS],
+				struct subport_info *sinfo)
+{
+	int i, j;
+
+	for (i = 0; i < RTE_SCHED_TRAFFIC_CLASSES_PER_PIPE; i++) {
+		for (j = 0; j < e_RTE_METER_COLORS; j++) {
+			dpdk[i][j].min_th =
+				(uint16_t)sinfo->red_params[i][j].min_th;
+			dpdk[i][j].max_th =
+				(uint16_t)sinfo->red_params[i][j].max_th;
+			dpdk[i][j].maxp_inv =
+				(uint16_t)sinfo->red_params[i][j].maxp_inv;
+			dpdk[i][j].wq_log2 =
+				(uint16_t)sinfo->red_params[i][j].wq_log2;
+		}
+	}
+}
+
+static int qos_dpdk_setup_params(struct ifnet *ifp, struct sched_info *qinfo,
+				 struct rte_sched_port_params *dpdk_port_params)
+{
+	struct qos_port_params *qos_params = &qinfo->port_params;
+	int socketid = rte_eth_dev_socket_id(ifp->if_port);
+	unsigned int i, j;
+	struct rte_sched_pipe_params *pipe_profiles;
+
+	pipe_profiles = calloc(qos_params->n_pipe_profiles,
+			       sizeof(*pipe_profiles));
+	if (!pipe_profiles)
+		return -1;
+
+	dpdk_port_params->pipe_profiles = pipe_profiles;
+
+	if (socketid < 0) /* SOCKET_ID_ANY */
+		socketid = 0;
+
+	dpdk_port_params->socket = socketid;
+	dpdk_port_params->n_pipe_profiles = qos_params->n_pipe_profiles;
+	dpdk_port_params->rate = qos_params->rate;
+	dpdk_port_params->mtu = qos_params->mtu;
+	dpdk_port_params->frame_overhead = qos_params->frame_overhead;
+	dpdk_port_params->n_subports_per_port = qos_params->n_subports_per_port;
+	dpdk_port_params->n_pipes_per_subport = qos_params->n_pipes_per_subport;
+	for (i = 0; i < RTE_SCHED_TRAFFIC_CLASSES_PER_PIPE; i++)
+		dpdk_port_params->qsize[i] = qos_params->qsize[i];
+	for (i = 0; i < qos_params->n_pipe_profiles; i++) {
+		struct rte_sched_pipe_params *to = &pipe_profiles[i];
+		struct qos_pipe_params *from =
+				qos_params->pipe_profiles + i;
+		struct qos_red_pipe_params *wred_params = NULL;
+
+		to->tc_period = from->shaper.tc_period;
+		to->tb_size = from->shaper.tb_size;
+#ifdef RTE_SCHED_SUBPORT_TC_OV
+		to->tc_tc_ov_weight = from->shaper.tc_ov_weight;
+#endif
+		to->tb_rate = from->shaper.tb_rate;
+		for (j = 0; j < RTE_SCHED_QUEUES_PER_PIPE; j++)
+			to->wrr_weights[j] = from->wrr_weights[j];
+		for (j = 0; j < RTE_SCHED_TRAFFIC_CLASSES_PER_PIPE; j++)
+			to->tc_rate[j] = from->shaper.tc_rate[j];
+		SLIST_FOREACH(wred_params, &from->red_head, list) {
+			struct rte_red_pipe_params *qred_info;
+			int err, k;
+
+			qred_info = rte_red_alloc_q_params(to,
+							wred_params->qindex);
+			if (!qred_info)
+				return -ENOMEM;
+			for (k = 0; k < wred_params->red_q_params.num_maps;
+			     k++) {
+				struct qos_red_q_params *params;
+				params = &wred_params->red_q_params;
+
+				err = rte_red_init_q_params(
+						&qred_info->red_q_params,
+						params->qparams[k].max_th,
+						params->qparams[k].min_th,
+						params->qparams[k].maxp_inv,
+						params->dscp_set[k],
+						params->grp_names[k]);
+				if (err < 0)
+					return -ENOMEM;
+				qred_info->red_q_params.qparams[k].wq_log2 =
+					params->qparams[k].wq_log2;
+			}
+		}
+	}
+	return 0;
+}
+
+static void qos_dpdk_free_params(struct rte_sched_port_params *dpdk_port_params)
+{
+	unsigned int i;
+
+	for (i = 0; i < dpdk_port_params->n_pipe_profiles; i++) {
+		struct rte_sched_pipe_params *pp =
+					dpdk_port_params->pipe_profiles + i;
+		rte_red_free_q_params(pp, i);
+	}
+	free(dpdk_port_params->pipe_profiles);
+}
+
 /* Allocate and initialize a handle to QoS scheduler.
  * Only called by master thread.
  */
@@ -343,6 +449,18 @@ int qos_dpdk_start(struct ifnet *ifp, struct sched_info *qinfo,
 	unsigned int subport, pipe;
 	int ret;
 	uint32_t q_array_size;
+	struct rte_sched_port_params dpdk_port_params = {0};
+	const uint32_t max_burst_size = QOS_MAX_BURST_SIZE_DPDK;
+
+	if (enable_transmit_thread(ifp->if_port) < 0) {
+		DP_DEBUG(QOS_DP, ERR, DATAPLANE,
+			 "Transmit thread setup failed on %s, portid %u\n",
+			 ifp->if_name, ifp->if_port);
+		qinfo->enabled = false;
+		return -ENODEV;
+	}
+
+	ifp->qos_software_fwd = 1;
 
 	/*
 	 * Allow subports to inherit their queue sizes from the port, and
@@ -361,29 +479,46 @@ int qos_dpdk_start(struct ifnet *ifp, struct sched_info *qinfo,
 		 */
 		qos_sched_subport_params_check(
 			&sinfo->params, &sinfo->subport_rate,
-			sinfo->sp_tc_rates.tc_rate, max_pkt_len, bps);
+			sinfo->sp_tc_rates.tc_rate, max_pkt_len,
+			max_burst_size, bps);
 	}
 
-	qos_sched_pipe_check(qinfo, max_pkt_len, bps);
+	qos_sched_pipe_check(qinfo, max_pkt_len, max_burst_size, bps);
 
-	port = rte_sched_port_config_v2(&qinfo->port_params, q_array_size);
+	if (qos_dpdk_setup_params(ifp, qinfo, &dpdk_port_params)) {
+		qos_dpdk_free_params(&dpdk_port_params);
+		DP_DEBUG(QOS_DP, ERR, DATAPLANE,
+			 "QoS DPDK config setup failed\n");
+		goto out_disable_tx;
+	}
+
+	port = rte_sched_port_config_v2(&dpdk_port_params, q_array_size);
 	if (port == NULL) {
 		DP_DEBUG(QOS_DP, ERR, DATAPLANE,
 			 "QoS config port failed\n");
-		return -1;
+		qos_dpdk_free_params(&dpdk_port_params);
+		goto out_disable_tx;
 	}
 
 	for (subport = 0; subport < qinfo->n_subports; subport++) {
 		struct subport_info *sinfo = &qinfo->subport[subport];
-		struct rte_sched_subport_params *params = &sinfo->params;
+		struct qos_shaper_conf *qos_params = &sinfo->params;
+		struct rte_sched_subport_params dpdk_params;
 		uint16_t qsize[RTE_SCHED_TRAFFIC_CLASSES_PER_PIPE];
+		struct rte_red_params
+			dpdk_red_params[RTE_SCHED_TRAFFIC_CLASSES_PER_PIPE]
+				       [e_RTE_METER_COLORS];
 		int i;
 
 		for (i = 0; i < RTE_SCHED_TRAFFIC_CLASSES_PER_PIPE; i++)
 			qsize[i] = (uint16_t)sinfo->qsize[i];
 
-		ret = rte_sched_subport_config_v2(port, subport, params,
-						  &qsize[0], sinfo->red_params);
+		assert(sizeof(dpdk_params) == sizeof(*qos_params));
+		memcpy(&dpdk_params, qos_params, sizeof(*qos_params));
+		qos_copy_red_params(dpdk_red_params, sinfo);
+
+		ret = rte_sched_subport_config_v2(port, subport, &dpdk_params,
+						  &qsize[0], dpdk_red_params);
 		if (ret != 0) {
 			DP_DEBUG(QOS_DP, ERR, DATAPLANE,
 				 "Qos config subport %u failed: %d\n",
@@ -396,7 +531,7 @@ int qos_dpdk_start(struct ifnet *ifp, struct sched_info *qinfo,
 
 			ret = rte_sched_pipe_config_v2(port, subport,
 						       pipe, profile,
-						       &qinfo->port_params);
+						       &dpdk_port_params);
 			if  (ret != 0) {
 				DP_DEBUG(QOS_DP, ERR, DATAPLANE,
 					 "Qos config pipe subport %u pipe %u"
@@ -418,14 +553,19 @@ int qos_dpdk_start(struct ifnet *ifp, struct sched_info *qinfo,
 	old_port = qinfo->dev_info.dpdk.port;
 	rcu_assign_pointer(qinfo->dev_info.dpdk.port, port);
 	defer_rcu(qos_dpdk_port_free_rcu, old_port);
+	qos_dpdk_free_params(&dpdk_port_params);
 	return 0;
 
  out_free_sched:
 	rte_sched_port_free(port);
+	qos_dpdk_free_params(&dpdk_port_params);
+ out_disable_tx:
+	ifp->qos_software_fwd = 0;
+	disable_transmit_thread(ifp->if_port);
 	return -1;
 }
 
-int qos_dpdk_stop(__unused struct ifnet *ifp, struct sched_info *qinfo)
+int qos_dpdk_stop(struct ifnet *ifp, struct sched_info *qinfo)
 {
 	struct rte_sched_port *port = qinfo->dev_info.dpdk.port;
 
@@ -434,6 +574,9 @@ int qos_dpdk_stop(__unused struct ifnet *ifp, struct sched_info *qinfo)
 
 	rcu_assign_pointer(qinfo->dev_info.dpdk.port, NULL);
 	defer_rcu(qos_dpdk_port_free_rcu, port);
+
+	ifp->qos_software_fwd = 0;
+	disable_transmit_thread(ifp->if_port);
 
 	return 0;
 }

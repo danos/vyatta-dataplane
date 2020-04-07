@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2015-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -19,12 +19,12 @@
 
 #include "dp_test.h"
 #include "dp_test_controller.h"
-#include "dp_test_netlink_state.h"
-#include "dp_test_lib.h"
-#include "dp_test_lib_intf.h"
+#include "dp_test_netlink_state_internal.h"
+#include "dp_test_lib_internal.h"
+#include "dp_test_lib_intf_internal.h"
 #include "dp_test_lib_exp.h"
-#include "dp_test_pktmbuf_lib.h"
-#include "vrf.h"
+#include "dp_test_pktmbuf_lib_internal.h"
+#include "vrf_internal.h"
 
 #define TEST_VRF 50
 
@@ -323,8 +323,8 @@ DP_START_TEST(vrf_cfg, out_of_seq_vrfmaster_v4)
 	dp_test_fail_unless(ret, "maximum vrf limit reached\n");
 
 	/* Add the VRF route, although we don't know it's a VRF route yet */
-	dp_test_nl_add_route_fmt(true, "tbl:%d 2.2.2.0/24 nh int:dp1T1",
-				 tableid);
+	dp_test_nl_add_route_incomplete_fmt(
+		"tbl:%d 2.2.2.0/24 nh int:dp1T1", tableid);
 
 	/* The route shouldn't be there */
 	dp_test_wait_for_route_gone("vrf:50 2.2.2.0/24 nh int:dp1T1", true,
@@ -342,14 +342,11 @@ DP_START_TEST(vrf_cfg, out_of_seq_vrfmaster_v4)
 	_dp_test_intf_vrf_master_create(vrf_name, TEST_VRF,
 					tableid, __FILE__, __LINE__);
 
-	/* Check the route still appears in the VRF still */
-	dp_test_wait_for_route("vrf:50 2.2.2.0/24 nh int:dp1T1", true);
+	/* Check the route has been deleted */
+	dp_test_wait_for_route_gone("vrf:50 2.2.2.0/24 nh int:dp1T1", true,
+				    __FILE__, __func__, __LINE__);
 
-	/* Now clean up and verify the route isn't deleted implicitly */
 	dp_test_netlink_del_vrf(TEST_VRF, 1);
-
-	dp_test_nl_del_route_fmt(true, "tbl:%d 2.2.2.0/24 nh int:dp1T1",
-				 tableid);
 } DP_END_TEST;
 
 DP_START_TEST(vrf_cfg, out_of_seq_vrfmaster_v6)
@@ -363,8 +360,8 @@ DP_START_TEST(vrf_cfg, out_of_seq_vrfmaster_v6)
 	dp_test_fail_unless(ret, "maximum vrf limit reached\n");
 
 	/* Add the VRF route, although we don't know it's a VRF route yet */
-	dp_test_nl_add_route_fmt(true, "tbl:%d 2:2:2::/64 nh int:dp1T1",
-				 tableid);
+	dp_test_nl_add_route_incomplete_fmt(
+		"tbl:%d 2:2:2::/64 nh int:dp1T1", tableid);
 
 	/* The route shouldn't be there */
 	dp_test_wait_for_route_gone("vrf:50 2:2:2::/64 nh int:dp1T1", true,
@@ -382,14 +379,11 @@ DP_START_TEST(vrf_cfg, out_of_seq_vrfmaster_v6)
 	_dp_test_intf_vrf_master_create(vrf_name, TEST_VRF,
 					tableid, __FILE__, __LINE__);
 
-	/* Check the route still appears in the VRF still */
-	dp_test_wait_for_route("vrf:50 2:2:2::/64 nh int:dp1T1", true);
+	/* Check the route has been deleted */
+	dp_test_wait_for_route_gone("vrf:50 2:2:2::/64 nh int:dp1T1", true,
+				    __FILE__, __func__, __LINE__);
 
-	/* Now clean up and verify the route isn't deleted implicitly */
 	dp_test_netlink_del_vrf(TEST_VRF, 1);
-
-	dp_test_nl_del_route_fmt(true, "tbl:%d 2:2:2::/64 nh int:dp1T1",
-				 tableid);
 } DP_END_TEST;
 
 DP_DECL_TEST_CASE(vrf_suite, vrf_ip6_cfg, NULL, NULL);

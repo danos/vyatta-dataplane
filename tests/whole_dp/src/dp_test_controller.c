@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2015-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -29,10 +29,10 @@
 #include "compat.h"
 
 #include "dp_test_controller.h"
-#include "dp_test_netlink_state.h"
+#include "dp_test_netlink_state_internal.h"
 #include "dp_test_json_utils.h"
-#include "dp_test_lib.h"
-#include "dp_test_lib_intf.h"
+#include "dp_test_lib_internal.h"
+#include "dp_test_lib_intf_internal.h"
 #include "dp_test.h"
 #include "dp_test_route_broker.h"
 
@@ -337,8 +337,8 @@ send_eom(snapshot_t *snap, zsock_t *sock, zframe_t **envelope)
 	nlmsg_send(msg, sock, false);
 }
 
-static int
-zmsg_popu32(zmsg_t *msg, uint32_t *p)
+int
+dp_test_zmsg_popu32(zmsg_t *msg, uint32_t *p)
 {
 	zframe_t *frame = zmsg_pop(msg);
 
@@ -447,7 +447,7 @@ connect_request(zsock_t *sock, zmsg_t *msg, zframe_t **envelope)
 	char *control = NULL;
 	char *uuid = NULL;
 
-	if (zmsg_popu32(msg, &version) < 0) {
+	if (dp_test_zmsg_popu32(msg, &version) < 0) {
 		err("no version in connect");
 		return;
 	}
@@ -556,7 +556,7 @@ ifquery_request(snapshot_t *snap, zsock_t *sock, zmsg_t *msg,
 {
 	uint32_t ifindex;
 
-	if (zmsg_popu32(msg, &ifindex) < 0) {
+	if (dp_test_zmsg_popu32(msg, &ifindex) < 0) {
 		err("no ifindex in connect");
 		return;
 	}
@@ -630,6 +630,24 @@ config_error(zmsg_t *msg)
 }
 
 static void
+ext_buf_congestion(zmsg_t *msg)
+{
+
+}
+
+static dp_test_event_msg_hdlr *msg_call_back;
+
+void dp_test_register_event_msg(dp_test_event_msg_hdlr handler)
+{
+	msg_call_back = handler;
+}
+
+void dp_test_unregister_event_msg(void)
+{
+	msg_call_back = NULL;
+}
+
+static void
 dp_event_msg(zmsg_t *msg)
 {
 	char *event = zmsg_popstr(msg);
@@ -638,9 +656,14 @@ dp_event_msg(zmsg_t *msg)
 
 	if (streq(event, "CONFERR"))
 		config_error(msg);
-	else
+	else if (streq(event, "QosExtBufCongestion"))
+		ext_buf_congestion(msg);
+	else if (msg_call_back) {
+		if ((msg_call_back)(event, msg))
+			dp_test_assert_internal(0);
+	} else {
 		dp_test_assert_internal(0);
-
+	}
 	free(event);
 }
 
@@ -850,8 +873,8 @@ static int address_topic(const struct nlmsghdr *nlh, char *buf, size_t len)
 		return -1;
 	}
 
-	if (tb[IFA_ADDRESS])
-		addr = mnl_attr_get_payload(tb[IFA_ADDRESS]);
+	if (tb[IFA_LOCAL])
+		addr = mnl_attr_get_payload(tb[IFA_LOCAL]);
 	else {
 		notice("missing address in netlink message\n");
 		return -1;
@@ -1338,19 +1361,18 @@ extract_topic(const char *line)
 	return NULL;
 }
 
-void dp_test_send_config_src(enum cont_src_en cont_src,
-			     const char *cmd_fmt_str, ...)
+
+static
+void dp_test_send_config_inner(enum cont_src_en cont_src,
+			       const char *cmd_fmt_str, va_list ap)
 {
 	char cmd[DP_TEST_TMP_BUF];
 	char *cmd_copy;
 	nlmsg_t *nmsg;
 	char *topic;
-	va_list ap;
 	int len;
 
-	va_start(ap, cmd_fmt_str);
 	len = vsnprintf(cmd, sizeof(cmd), cmd_fmt_str, ap);
-	va_end(ap);
 	dp_test_assert_internal(len < DP_TEST_TMP_BUF);
 
 	cmd_copy = strdup(cmd);
@@ -1370,6 +1392,25 @@ void dp_test_send_config_src(enum cont_src_en cont_src,
 
 	/* and publish original */
 	nlmsg_send(nmsg, cont_info[cont_src].pub_sock, false);
+}
+
+void dp_test_send_config_src(enum cont_src_en cont_src,
+			     const char *cmd_fmt_str, ...)
+{
+	va_list ap;
+
+	va_start(ap, cmd_fmt_str);
+	dp_test_send_config_inner(cont_src, cmd_fmt_str, ap);
+	va_end(ap);
+}
+
+void dp_test_send_config(const char *cmd_fmt_str, ...)
+{
+	va_list args;
+
+	va_start(args, cmd_fmt_str);
+	dp_test_send_config_inner(dp_test_cont_src_get(), cmd_fmt_str, args);
+	va_end(args);
 }
 
 void dp_test_send_config_src_pb(enum cont_src_en cont_src,

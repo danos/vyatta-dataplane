@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2018, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2015-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -24,7 +24,7 @@
 
 #include "npf/npf.h"
 #include "util.h"
-#include "vrf.h"
+#include "vrf_internal.h"
 
 typedef struct npf_apm npf_apm_t;
 

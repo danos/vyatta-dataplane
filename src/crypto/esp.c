@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2015-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -26,15 +26,16 @@
 #include "crypto/crypto_sadb.h"
 #include "in6.h"
 #include "ip_funcs.h"
+#include "util.h"
 #include "vplane_log.h"
-#include "vrf.h"
+#include "vrf_internal.h"
 
 #include <linux/xfrm.h>
 #include <string.h>
 
 #include "../in_cksum.h"
 #include "../iptun_common.h"
-#include "../pktmbuf.h"
+#include "../pktmbuf_internal.h"
 #include "crypto.h"
 #include "crypto_internal.h"
 #include "esp.h"
@@ -217,22 +218,36 @@ int esp_replay_check(const uint8_t *esp,
 	const uint32_t replay_window = sa->replay_window;
 	const uint32_t pkt_seq = ntohl(*(const uint32_t *)(esp+4));
 	uint32_t delta;
+	int ret = 0;
 
-	if (unlikely(!pkt_seq))
-		return -1; /* Invalid seq in packet. Auditable event? */
+	if (unlikely(!pkt_seq)) {
+		ret = -1; /* Invalid seq in packet. Auditable event? */
+		goto err;
+	}
 
 	if (likely(pkt_seq > sa->seq))
 		return 0;
 
 	delta = sa->seq - pkt_seq;
 
-	if (delta >= replay_window)
-		return -2; /* Wrap or replay. Auditable event? */
+	if (delta >= replay_window) {
+		ret = -2; /* Wrap or replay. Auditable event? */
+		goto err;
+	}
 
-	if (sa->replay_bitmap & (1U << delta))
-		return -3; /* Replay. Auditable event? */
+	if (sa->replay_bitmap & (1U << delta)) {
+		ret = -3; /* Replay. Auditable event? */
+		goto err;
+	}
 
 	return 0;
+
+err:
+	if (net_ratelimit())
+		ESP_INFO("Replay check failed for SPI %#x."
+			" (Packet seq: %#x / SA seq: %#x / Replay Bitmap: %#lx)\n",
+			sa->spi, pkt_seq, sa->seq, sa->replay_bitmap);
+	return ret;
 }
 
 /*
@@ -562,7 +577,7 @@ static int esp_generate_chain(struct sadb_sa *sa,
 		chain.v_ops->set_iv(chain.v_ctx, iv_len, iv);
 
 	/* set ICV and callback */
-	chain.icv_offset = pktmbuf_l2_len(mbuf) + l3_hdr_len +
+	chain.icv_offset = dp_pktmbuf_l2_len(mbuf) + l3_hdr_len +
 		text_total_len;
 
 	if (sa->udp_encap)
@@ -609,7 +624,7 @@ esp_input_tunl_fixup4(struct sadb_sa *sa,
 	if (sa->flags & XFRM_STATE_DECAP_DSCP) {
 		ip_dscp_set(ip->tos, new_ip);
 		new_ip->check = 0;
-		new_ip->check = in_cksum_hdr(new_ip);
+		new_ip->check = dp_in_cksum_hdr(new_ip);
 	}
 	if (!(sa->flags & XFRM_STATE_NOECN)) {
 		if (ip_tos_ecn_decap(ip->tos, (char *)new_ip,
@@ -648,7 +663,7 @@ static void esp_input_tran_fixup4(void *new_l3, unsigned int new_total,
 	ip->protocol = next_hdr;
 	ip->tot_len = htons(new_total);
 	ip->check = 0;
-	ip->check = in_cksum_hdr(ip);
+	ip->check = dp_in_cksum_hdr(ip);
 }
 
 static void esp_input_tran_fixup6(void *new_l3, unsigned int new_total,
@@ -662,9 +677,10 @@ static void esp_input_tran_fixup6(void *new_l3, unsigned int new_total,
 	ip6->ip6_plen = htons(new_total - sizeof(struct ip6_hdr));
 }
 
-static void esp_input_nat_l4cksum_fixup(struct rte_mbuf *m)
+static void esp_input_nat_l4cksum_fixup(int family, struct rte_mbuf *m)
 {
-	struct iphdr *ip;
+	void *l3_hdr;
+	uint16_t protocol;
 	struct udphdr *udp;
 	struct tcphdr *tcp;
 
@@ -674,19 +690,26 @@ static void esp_input_nat_l4cksum_fixup(struct rte_mbuf *m)
 	 * UDP fixup = option #3
 	 * TCP fixup = option #2
 	 */
-	ip = pktmbuf_mtol3(m, struct iphdr *);
-	switch (ip->protocol) {
+	l3_hdr = dp_pktmbuf_mtol3(m, void *);
+	if (family == AF_INET)
+		protocol = ((struct iphdr *)l3_hdr)->protocol;
+	else
+		protocol = ((struct ip6_hdr *)l3_hdr)->ip6_nxt;
+	switch (protocol) {
 	case IPPROTO_UDP:
 		if (pktmbuf_udp_header_is_usable(m)) {
-			udp = pktmbuf_mtol4(m, struct udphdr *);
+			udp = dp_pktmbuf_mtol4(m, struct udphdr *);
 			udp->check = 0;
 		}
 		break;
 	case IPPROTO_TCP:
 		if (pktmbuf_tcp_header_is_usable(m)) {
-			tcp = pktmbuf_mtol4(m, struct tcphdr *);
+			tcp = dp_pktmbuf_mtol4(m, struct tcphdr *);
 			tcp->check = 0;
-			tcp->check = in4_cksum_mbuf(m, ip, tcp);
+			if (family == AF_INET)
+				tcp->check = dp_in4_cksum_mbuf(m, l3_hdr, tcp);
+			else
+				tcp->check = dp_in6_cksum_mbuf(m, l3_hdr, tcp);
 		}
 		break;
 	default:
@@ -731,12 +754,12 @@ static int esp_input_inner(int family, struct rte_mbuf *m, void *l3_hdr,
 		struct ip6_hdr *ip6 = l3_hdr;
 
 		base_len = ntohs(ip6->ip6_plen) + sizeof(struct ip6_hdr);
-		iphlen = pktmbuf_l3_len(m);
+		iphlen = dp_pktmbuf_l3_len(m);
 		if (sa->mode == XFRM_MODE_TRANSPORT)
 			prev_off = ip6_findprevoff(m);
 	}
 
-	esp =  pktmbuf_mtol4(m, unsigned char *);
+	esp =  dp_pktmbuf_mtol4(m, unsigned char *);
 	if (sa->udp_encap) {
 		esp += sizeof(struct udphdr);
 		udp_len = sizeof(struct udphdr);
@@ -745,7 +768,6 @@ static int esp_input_inner(int family, struct rte_mbuf *m, void *l3_hdr,
 	if (unlikely(sa->replay_window &&
 		     esp_replay_check(esp, sa) < 0)) {
 		crypto_sadb_seq_drop_inc(sa);
-		ESP_INFO("Replay check failed for SPI 0x%x\n", sa->spi);
 		return -1;
 	}
 
@@ -851,12 +873,8 @@ static int esp_input_inner(int family, struct rte_mbuf *m, void *l3_hdr,
 	/*
 	 * RFC 3948: Section 3.1.2
 	 */
-	if (next_hdr == IPPROTO_IPIP) {
-		if (unlikely(sa->udp_encap == 1 &&
-			     sa->mode == XFRM_MODE_TRANSPORT)) {
-			esp_input_nat_l4cksum_fixup(m);
-		}
-	}
+	if (unlikely(sa->udp_encap == 1 && sa->mode == XFRM_MODE_TRANSPORT))
+		esp_input_nat_l4cksum_fixup(family, m);
 
 	/* Count the decapped payload against the receiving SA */
 	crypto_sadb_increment_counters(sa, new_total - counter_modify, 1);
@@ -998,7 +1016,7 @@ static int esp_out_proc_exthdr6(struct rte_mbuf *m, struct ip6_hdr *ip6,
 	uint16_t off, base;
 
 	*proto = ip6->ip6_nxt;
-	base = pktmbuf_l2_len(m);
+	base = dp_pktmbuf_l2_len(m);
 	off = base + sizeof(struct ip6_hdr);
 
 	for (;;) {

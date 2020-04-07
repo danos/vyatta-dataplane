@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2004 Luigi Rizzo, Alessandro Cerri. All rights reserved.
  * Copyright (c) 2004-2008 Qing Li. All rights reserved.
  * Copyright (c) 2008 Kip Macy. All rights reserved.
@@ -44,13 +44,14 @@
 #include <string.h>
 #include <sys/socket.h>
 
+#include "dp_event.h"
 #include "fal.h"
 #include "if_ether.h"
 #include "if_llatbl.h"
 #include "if_var.h"
 #include "main.h"
 #include "nd6_nbr.h"
-#include "pktmbuf.h"
+#include "pktmbuf_internal.h"
 #include "urcu.h"
 #include "util.h"
 #include "vplane_log.h"
@@ -109,42 +110,54 @@ llentry_routing_uninstall(struct llentry *lle)
 	}
 }
 
+static int
+llentry_fal_destroy(struct lltable *llt, struct llentry *lle)
+{
+	struct ifnet *ifp = llt->llt_ifp;
+	char b[INET6_ADDRSTRLEN];
+	int ret = 0;
+
+	llentry_routing_uninstall(lle);
+
+	if (lle->la_flags & LLE_CREATED_IN_HW) {
+		if (lle->ll_sock.ss_family == AF_INET) {
+			ret = fal_ip4_del_neigh(ifp->if_index,
+						satosin(ll_sockaddr(lle)));
+			if (ret < 0) {
+				RTE_LOG(NOTICE, DATAPLANE,
+					"FAL neighbour del for %s, %s failed: %s\n",
+					inet_ntop(lle->ll_sock.ss_family,
+					   &satosin(ll_sockaddr(lle))->sin_addr,
+						  b, sizeof(b)),
+					ifp->if_name, strerror(-ret));
+			}
+		} else if (lle->ll_sock.ss_family == AF_INET6) {
+			ret = fal_ip6_del_neigh(ifp->if_index,
+						satosin6(ll_sockaddr(lle)));
+			if (ret < 0) {
+				RTE_LOG(NOTICE, DATAPLANE,
+					"FAL neighbour del for %s, %s failed: %s\n",
+					inet_ntop(lle->ll_sock.ss_family,
+						  &satosin6(
+						   ll_sockaddr(lle))->sin6_addr,
+						  b, sizeof(b)),
+					ifp->if_name, strerror(-ret));
+			}
+		}
+	}
+
+	return ret;
+}
+
 /* Drops entry, and frees the pending packets.
  * Final free done after RCU grace period.
  */
 void
 __llentry_destroy(struct lltable *llt, struct llentry *lle)
 {
-	struct ifnet *ifp = llt->llt_ifp;
-	char b[INET6_ADDRSTRLEN];
-	int ret;
+	llentry_routing_uninstall(lle);
 
-	if (lle->ll_sock.ss_family == AF_INET) {
-		llentry_routing_uninstall(lle);
-		ret = fal_ip4_del_neigh(ifp->if_index,
-					satosin(ll_sockaddr(lle)));
-		if (ret < 0) {
-			RTE_LOG(NOTICE, DATAPLANE,
-				"FAL neighbour del for %s, %s failed: %s\n",
-				inet_ntop(lle->ll_sock.ss_family,
-					  &satosin(ll_sockaddr(lle))->sin_addr,
-					  b, sizeof(b)),
-				ifp->if_name, strerror(-ret));
-		}
-	} else if (lle->ll_sock.ss_family == AF_INET6) {
-		llentry_routing_uninstall(lle);
-		ret = fal_ip6_del_neigh(ifp->if_index,
-					satosin6(ll_sockaddr(lle)));
-		if (ret < 0) {
-			RTE_LOG(NOTICE, DATAPLANE,
-				"FAL neighbour del for %s, %s failed: %s\n",
-				inet_ntop(lle->ll_sock.ss_family,
-					  &satosin6(
-						  ll_sockaddr(lle))->sin6_addr,
-					  b, sizeof(b)),
-				ifp->if_name, strerror(-ret));
-		}
-	}
+	llentry_fal_destroy(llt, lle);
 
 	cds_lfht_del(llt->llt_hash, &lle->ll_node);
 	call_rcu(&lle->ll_rcu, llentry_free_rcu);
@@ -247,13 +260,63 @@ lltable_new(struct ifnet *ifp)
 	rte_timer_init(&llt->lle_timer);
 	llt->lle_unrtoken = 0;
 	rte_atomic16_set(&llt->lle_restoken, ND6_RES_TOKEN);
-	rte_atomic16_clear(&llt->lle_size);
+	rte_atomic32_clear(&llt->lle_size);
 
 	return llt;
 }
 
+static unsigned
+lltable_fal_l3_enable_cb(struct lltable *llt __unused, struct llentry *lle,
+			 void *arg)
+{
+	bool *any_entries = arg;
+
+	lle->la_flags |= LLE_HW_UPD_PENDING;
+	*any_entries = true;
+
+	return 0;
+}
+
+static unsigned
+lltable_fal_l3_disable_cb(struct lltable *llt, struct llentry *lle,
+			  void *arg __unused)
+{
+	int ret;
+
+	lle->la_flags &= ~LLE_HW_UPD_PENDING;
+	/*
+	 * Do it straight away rather than deferring to timer callback
+	 * because we are on the master thread and the FAL router
+	 * interface object that these entries depend on is about to
+	 * be deleted.
+	 */
+	ret = llentry_fal_destroy(llt, lle);
+	if (!ret)
+		lle->la_flags &= ~LLE_CREATED_IN_HW;
+
+	return 0;
+}
+
+bool
+lltable_fal_l3_change(struct lltable *llt, bool enable)
+{
+	bool any_entries = false;
+
+	if (enable)
+		lltable_walk(llt, lltable_fal_l3_enable_cb, &any_entries);
+	else
+		lltable_walk(llt, lltable_fal_l3_disable_cb, NULL);
+
+	return any_entries;
+}
+
 void llentry_free(struct llentry *lle)
 {
+	if (lle->la_numheld != 0)
+		RTE_LOG(ERR, DATAPLANE,
+			"%s(%p) possible mbuf leak (%#x %d)\n",
+			__func__, lle, lle->la_flags, lle->la_numheld);
+
 	rte_free(lle);
 }
 
@@ -264,6 +327,7 @@ struct llentry *llentry_new(const void *c, size_t len, struct ifnet *ifp)
 	lle = rte_zmalloc_socket("llentry", sizeof(*lle) + len,
 				 RTE_CACHE_LINE_SIZE, ifp->if_socket);
 	if (lle) {
+		cds_lfht_node_init(&lle->ll_node);
 		rte_atomic16_clear(&lle->ll_idle);
 		rte_spinlock_init(&lle->ll_lock);
 
@@ -344,4 +408,69 @@ bool
 llentry_has_been_used(struct llentry *lle)
 {
 	return _llentry_has_been_used(lle, false);
+}
+
+void
+llentry_issue_pending_fal_updates(struct llentry *lle)
+{
+	struct fal_attribute_t attr_list[2];
+	char b[INET6_ADDRSTRLEN];
+	uint32_t attr_count = 0;
+	bool new = false;
+	bool upd = false;
+	void *addr_ptr;
+	int ret = 0;
+
+	addr_ptr = lle->ll_sock.ss_family == AF_INET ?
+		(void *)&satosin(ll_sockaddr(lle))->sin_addr :
+		(void *)&satosin6(ll_sockaddr(lle))->sin6_addr;
+
+	rte_spinlock_lock(&lle->ll_lock);
+	if (lle->la_flags & LLE_HW_UPD_PENDING) {
+		if (lle->la_flags & LLE_VALID) {
+			if (lle->la_flags & LLE_CREATED_IN_HW)
+				upd = true;
+			attr_list[0].id =
+				FAL_NEIGH_ENTRY_ATTR_DST_MAC_ADDRESS;
+			attr_list[0].value.mac = lle->ll_addr;
+			attr_count++;
+		}
+		if (!(lle->la_flags & LLE_CREATED_IN_HW) &&
+		    if_is_features_mode_active(
+			    lle->ifp,
+			    IF_FEAT_MODE_EVENT_L3_FAL_ENABLED))
+			new = true;
+		lle->la_flags &= ~LLE_HW_UPD_PENDING;
+	}
+	rte_spinlock_unlock(&lle->ll_lock);
+
+	if (new) {
+		ret = fal_ip_new_neigh(lle->ifp->if_index,
+					ll_sockaddr(lle), attr_count,
+					attr_list);
+		if (ret < 0 && ret != -EOPNOTSUPP) {
+			RTE_LOG(NOTICE, DATAPLANE,
+				"FAL new neighbour %s, %s failed: %s\n",
+				inet_ntop(lle->ll_sock.ss_family,
+					  addr_ptr,
+					  b, sizeof(b)),
+				lle->ifp->if_name, strerror(-ret));
+		}
+		if (ret >= 0) {
+			rte_spinlock_lock(&lle->ll_lock);
+			lle->la_flags |= LLE_CREATED_IN_HW;
+			rte_spinlock_unlock(&lle->ll_lock);
+		}
+	} else if (upd) {
+		ret = fal_ip_upd_neigh(lle->ifp->if_index, ll_sockaddr(lle),
+				       attr_list);
+		if (ret < 0) {
+			RTE_LOG(NOTICE, DATAPLANE,
+				"FAL neighbour mac update for %s, %s failed: %s\n",
+				inet_ntop(lle->ll_sock.ss_family,
+					  addr_ptr,
+					  b, sizeof(b)),
+				lle->ifp->if_name, strerror(-ret));
+		}
+	}
 }

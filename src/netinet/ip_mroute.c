@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2014-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  */
@@ -94,7 +94,7 @@
 #include <rte_timer.h>
 
 #include "crypto/vti.h"
-#include "gre.h"
+#include "if/gre.h"
 #include "if_var.h"
 #include "ip_funcs.h"
 #include "ip_icmp.h"
@@ -105,14 +105,14 @@
 #include "json_writer.h"
 #include "netinet/ip_mroute.h"
 #include "pd_show.h"
-#include "pktmbuf.h"
+#include "pktmbuf_internal.h"
 #include "route_flags.h"
 #include "snmp_mib.h"
 #include "urcu.h"
 #include "util.h"
 #include "vplane_debug.h"
 #include "vplane_log.h"
-#include "vrf.h"
+#include "vrf_internal.h"
 #include "fal.h"
 #include "ip_mcast_fal_interface.h"
 
@@ -131,11 +131,7 @@ static struct rte_meter_srtcm_params mfc_meter_params = {
 	.ebs = PUNT_FUZZ	                /* effectively zero */
 };
 
-#ifdef HAVE_RTE_METER_SRTCM_PROFILE_CONFIG
 static struct rte_meter_srtcm_profile mfc_meter_profile;
-#endif
-
-static struct cds_lfht *viftable;
 
 static struct rte_timer mrt_stats_timer;
 static void mrt_stats(struct rte_timer *, void *arg);
@@ -196,7 +192,7 @@ static void rt_show_subset(struct vrf *vrf, struct mfc *rt, void *arg)
 		subset->vrf = vrf->v_id;
 		jsonw_start_object(subset->json);
 		jsonw_uint_field(subset->json, "vrf_id",
-				 vrf_get_external_id(vrf->v_id));
+				 dp_vrf_get_external_id(vrf->v_id));
 		jsonw_end_object(subset->json);
 	}
 
@@ -317,8 +313,18 @@ struct vif *get_vif_by_ifindex(unsigned int ifindex)
 	struct vif *vifp = NULL;
 	struct cds_lfht_iter iter;
 	struct cds_lfht_node *retnode;
+	struct ifnet *ifp = dp_ifnet_byifindex(ifindex);
+	struct vrf *vrf;
 
-	cds_lfht_lookup(viftable, ifindex, vif_match, &ifindex, &iter);
+	if (!ifp)
+		return NULL;
+
+	vrf = vrf_get_rcu(if_vrfid(ifp));
+	if (!vrf)
+		return NULL;
+
+	cds_lfht_lookup(vrf->v_mvrf4.viftable, ifindex, vif_match, &ifindex,
+			&iter);
 	retnode = cds_lfht_iter_get_node(&iter);
 	if (retnode) {
 		vifp = caa_container_of(retnode, struct vif, node);
@@ -368,12 +374,12 @@ void mrt4_purge(struct ifnet *ifp)
 				  "%s is input interface so delete MFC.",
 				  ifp->if_name);
 			expire_mfc(vrf, rt);
-		} else if (IF_ISSET(v_if_index, &rt->mfc_ifset)) {
+		} else if (IF_ISSET(vifp->v_vif_index, &rt->mfc_ifset)) {
 			mfc_debug(vrf->v_id, &rt->mfc_origin,
 				  &rt->mfc_mcastgrp,
 				  "Removing %s from olist.",
 				  ifp->if_name);
-			IF_CLR(v_if_index, &rt->mfc_ifset);
+			IF_CLR(vifp->v_vif_index, &rt->mfc_ifset);
 		}
 	}
 	del_vif(v_if_index);
@@ -385,8 +391,22 @@ void mrt4_purge(struct ifnet *ifp)
 int add_vif(int ifindex)
 {
 	struct vif *vifp;
-	struct ifnet *ifp;
+	struct ifnet *ifp = dp_ifnet_byifindex(ifindex);
 	struct cds_lfht_node *retnode;
+	struct cds_lfht *viftable;
+	unsigned char vif_index;
+	struct vrf *vrf;
+
+	if (!ifp) {
+		DP_DEBUG(MULTICAST, ERR, MCAST,
+			 "Failure adding IPv4 VIF index %d.\n", ifindex);
+		return -EINVAL;
+	}
+
+	vrf =  vrf_get_rcu(if_vrfid(ifp));
+
+	if (!vrf)
+		return -EINVAL;
 
 	if (ifindex <= 0)
 		return -EINVAL;
@@ -394,37 +414,47 @@ int add_vif(int ifindex)
 	if (get_vif_by_ifindex(ifindex))
 		return -EEXIST;
 
-	DP_DEBUG(MULTICAST, INFO, MCAST, "Adding IPv4 VIF %s.\n",
-		 ifnet_indextoname(ifindex));
+	viftable = vrf->v_mvrf4.viftable;
 
-	vifp = malloc(sizeof(struct vif));
-	if (!vifp)
+	if (!viftable)
+		return -EINVAL;
+
+	if (mcast_iftable_get_free_slot(&vrf->v_mvrf4.mfc_ifset, ifindex,
+					&vif_index) != 0)
+		return -EDQUOT;
+
+	DP_DEBUG(MULTICAST, INFO, MCAST, "Adding IPv4 VIF to slot %d (%d).\n",
+		 vif_index, ifindex);
+
+	vifp = calloc(1, sizeof(struct vif));
+	if (!vifp) {
+		IF_CLR(vif_index, &vrf->v_mvrf4.mfc_ifset);
 		return -ENOMEM;
-	memset(vifp, 0, sizeof(*vifp));
-
-	ifp = ifnet_byifindex(ifindex);
+	}
 
 	vifp->v_if_index  = ifindex;
+	vifp->v_vif_index = vif_index;
 	vifp->v_ifp       = ifp;
 	vifp->v_threshold = 1;
 
 	vifp->v_flags = VIFF_USE_IFINDEX;
-	vifp->v_flags |= (ifp) ? 0:VIFF_REGISTER;
-	vifp->v_flags |= (ifp && is_tunnel(ifp)) ? VIFF_TUNNEL:0;
+	vifp->v_flags |= (is_tunnel_pimreg(ifp)) ? VIFF_REGISTER:0;
+	vifp->v_flags |= (is_tunnel(ifp)) ? VIFF_TUNNEL:0;
 
 	cds_lfht_node_init(&vifp->node);
 	retnode = cds_lfht_add_replace(viftable, vifp->v_if_index,
 			vif_match, &vifp->v_if_index, &vifp->node);
 	if (retnode) {
 		vifp = caa_container_of(retnode, struct vif, node);
+		IF_CLR(vifp->v_vif_index, &vrf->v_mvrf4.mfc_ifset);
 		call_rcu(&vifp->rcu_head, vif_free);
 	}
-	if (ifp) {
-		ip_mcast_fal_int_enable(vifp, viftable);
-		if (!(ifp->if_flags & IFF_MULTICAST))
-			return -EOPNOTSUPP;
-		if_allmulti(ifp, 1);
-	}
+
+	ip_mcast_fal_int_enable(vifp, viftable);
+	if (!(ifp->if_flags & IFF_MULTICAST))
+		return -EOPNOTSUPP;
+	if_allmulti(ifp, 1);
+
 	return 0;
 }
 
@@ -435,6 +465,16 @@ int add_vif(int ifindex)
 int del_vif(vifi_t vifi)
 {
 	struct vif *vifp;
+	struct ifnet *ifp = dp_ifnet_byifindex(vifi);
+	struct vrf *vrf;
+
+	if (!ifp)
+		return -EINVAL;
+
+	vrf =  vrf_get_rcu(if_vrfid(ifp));
+
+	if (!vrf)
+		return -EINVAL;
 
 	vifp = get_vif_by_ifindex(vifi);
 	if (!vifp)
@@ -447,8 +487,9 @@ int del_vif(vifi_t vifi)
 	if (vifp->v_ifp)
 		if_allmulti(vifp->v_ifp, 0);
 
-	if (!cds_lfht_del(viftable, &vifp->node)) {
-		ip_mcast_fal_int_disable(vifp, viftable);
+	IF_CLR(vifp->v_vif_index, &vrf->v_mvrf4.mfc_ifset);
+	if (!cds_lfht_del(vrf->v_mvrf4.viftable, &vifp->node)) {
+		ip_mcast_fal_int_disable(vifp, vrf->v_mvrf4.viftable);
 		call_rcu(&vifp->rcu_head, vif_free);
 	}
 	return 0;
@@ -460,12 +501,22 @@ static void debug_update_mfc_count(vrfid_t vrf_id, struct mfc *rt,
 	struct vif *vifp;
 	struct cds_lfht_iter iter;
 	int i;
+	struct vrf *vrf = vrf_get_rcu(vrf_id);
+	struct cds_lfht *viftable;
+
+	if (vrf == NULL) {
+		mfc_debug(vrf_id, &rt->mfc_origin, &rt->mfc_mcastgrp,
+			  "MFC invalid vrf ID");
+		return;
+	}
+
+	viftable = vrf->v_mvrf4.viftable;
 
 	mfc_debug(vrf_id, &rt->mfc_origin, &rt->mfc_mcastgrp,
 		  "MFC count parameters being updated/initialised.");
 
 	cds_lfht_for_each_entry(viftable, &iter, vifp, node) {
-		i = vifp->v_if_index;
+		i = vifp->v_vif_index;
 
 		if (IF_ISSET(i, &rt->mfc_ifset) !=
 		    IF_ISSET(i, &mfccp->mfcc_ifset)) {
@@ -474,7 +525,7 @@ static void debug_update_mfc_count(vrfid_t vrf_id, struct mfc *rt,
 				mfc_debug(vrf_id, &rt->mfc_origin,
 					  &rt->mfc_mcastgrp,
 					  "%s added to olist (new olist size is %u).",
-					  ifnet_indextoname(i),
+					  ifnet_indextoname(vifp->v_if_index),
 					  rt->mfc_olist_size);
 			} else {
 				if (rt->mfc_olist_size)
@@ -482,14 +533,14 @@ static void debug_update_mfc_count(vrfid_t vrf_id, struct mfc *rt,
 				mfc_debug(vrf_id, &rt->mfc_origin,
 					  &rt->mfc_mcastgrp,
 					  "%s removed from olist (new olist size is %u).",
-					  ifnet_indextoname(i),
+					  ifnet_indextoname(vifp->v_if_index),
 					  rt->mfc_olist_size);
 			}
 		} else if (IF_ISSET(i, &rt->mfc_ifset)) {
 			mfc_debug(vrf_id, &rt->mfc_origin,
 				  &rt->mfc_mcastgrp,
 				  "%s already present in olist (size is %u).",
-				  ifnet_indextoname(i),
+				  ifnet_indextoname(vifp->v_if_index),
 				  rt->mfc_olist_size);
 		}
 	}
@@ -498,12 +549,16 @@ static void debug_update_mfc_count(vrfid_t vrf_id, struct mfc *rt,
  * update an mfc entry without resetting counters and S,G addresses.
  */
 static void update_mfc_params(vrfid_t vrf_id, struct mfc *rt,
-		struct vmfcctl *mfccp)
+			      struct vmfcctl *mfccp)
 {
 	int controller = 0;
 	struct vif *vifp;
+	struct vrf *vrf = vrf_get_rcu(vrf_id);
 	struct cds_lfht_iter iter;
 	int i;
+
+	if (!vrf)
+		return;
 
 	if (rt->mfc_parent != mfccp->mfcc_parent) {
 		mfc_debug(vrf_id, &rt->mfc_origin, &rt->mfc_mcastgrp,
@@ -517,8 +572,8 @@ static void update_mfc_params(vrfid_t vrf_id, struct mfc *rt,
 	rt->mfc_parent = mfccp->mfcc_parent;
 	rt->mfc_ifset = mfccp->mfcc_ifset;
 
-	cds_lfht_for_each_entry(viftable, &iter, vifp, node) {
-		i = vifp->v_if_index;
+	cds_lfht_for_each_entry(vrf->v_mvrf4.viftable, &iter, vifp, node) {
+		i = vifp->v_vif_index;
 
 		if (!IF_ISSET(i, &rt->mfc_ifset))
 			continue;
@@ -529,7 +584,7 @@ static void update_mfc_params(vrfid_t vrf_id, struct mfc *rt,
 			mfc_debug(vrf_id, &rt->mfc_origin,
 				  &rt->mfc_mcastgrp,
 				  "%s is register VIF.",
-				  ifnet_indextoname(i));
+				  ifnet_indextoname(vifp->v_if_index));
 			continue;
 		}
 
@@ -538,12 +593,12 @@ static void update_mfc_params(vrfid_t vrf_id, struct mfc *rt,
 		 * Punt stream to controller to let PIM do wrong-vif
 		 * processing to fix this problem.
 		 */
-		if (i == rt->mfc_parent) {
+		if (vifp->v_if_index == rt->mfc_parent) {
 			controller++;
 			mfc_debug(vrf_id, &rt->mfc_origin,
 				  &rt->mfc_mcastgrp,
 				  "%s is both incoming and outgoing interface.",
-				  ifnet_indextoname(i));
+				  ifnet_indextoname(vifp->v_if_index));
 		}
 	}
 
@@ -585,14 +640,10 @@ static bool init_mfc_params(vrfid_t vrf_id,
 	debug_update_mfc_count(vrf_id, rt, mfccp);
 	update_mfc_params(vrf_id, rt, mfccp);
 
-#ifdef HAVE_RTE_METER_SRTCM_PROFILE_CONFIG
 	ret = rte_meter_srtcm_profile_config(&mfc_meter_profile,
 						&mfc_meter_params);
 	if (ret == 0)
 		ret = rte_meter_srtcm_config(&rt->meter, &mfc_meter_profile);
-#else
-	ret = rte_meter_srtcm_config(&rt->meter, &mfc_meter_params);
-#endif
 	if (ret != 0) {
 		RTE_LOG(NOTICE, MCAST,
 			"Failure configuring metering algorithm; pkts will not be punted to slow path (Err = %d)\n",
@@ -648,6 +699,10 @@ ip_mroute_add_fal_objects(vrfid_t vrf_id, struct vmfcctl *mfccp, struct mfc *rt)
 {
 	enum pd_obj_state old_pd_state;
 	int rc;
+	struct vrf *vrf = vrf_get_rcu(vrf_id);
+
+	if (!vrf)
+		return;
 
 	old_pd_state = rt->mfc_pd_state;
 	if (rt->mfc_fal_obj) {
@@ -655,7 +710,7 @@ ip_mroute_add_fal_objects(vrfid_t vrf_id, struct vmfcctl *mfccp, struct mfc *rt)
 			  "Updating FAL object 0x%lx for mroute",
 			  rt->mfc_fal_obj);
 		rc = fal_ip4_upd_mroute(rt->mfc_fal_obj, rt, mfccp,
-					viftable);
+					vrf->v_mvrf4.viftable);
 		if (rc && rc != -EOPNOTSUPP)
 			mfc_debug(vrf_id, &rt->mfc_origin,
 				  &rt->mfc_mcastgrp,
@@ -667,7 +722,8 @@ ip_mroute_add_fal_objects(vrfid_t vrf_id, struct vmfcctl *mfccp, struct mfc *rt)
 				  &rt->mfc_mcastgrp,
 				  "Creating FAL object for mroute");
 
-		rc = fal_ip4_new_mroute(vrf_id, mfccp, rt, viftable);
+		rc = fal_ip4_new_mroute(vrf_id, mfccp, rt,
+					vrf->v_mvrf4.viftable);
 		if (rc && rc != -EOPNOTSUPP)
 			mfc_debug(vrf_id, &rt->mfc_origin,
 				  &rt->mfc_mcastgrp,
@@ -808,9 +864,7 @@ static bool ip_punt_rate_limit(struct mfc *rt)
 	inet_ntop(AF_INET, &rt->mfc_mcastgrp, ga, sizeof(ga));
 #endif
 	color = rte_meter_srtcm_color_blind_check(&rt->meter,
-#ifdef HAVE_RTE_METER_SRTCM_PROFILE_CONFIG
 						   &mfc_meter_profile,
-#endif
 						   rte_rdtsc(),
 						   PUNT_1PKT);
 	if (color == e_RTE_METER_GREEN) {
@@ -1133,13 +1187,13 @@ static int ip_mdq(struct mcast_vrf *mvrf, struct rte_mbuf *m, struct ip *ip,
 	if (!md)
 		return -ENOBUFS;
 
-	rte_pktmbuf_adj(md, pktmbuf_l2_len(md) + sizeof(struct iphdr));
+	rte_pktmbuf_adj(md, dp_pktmbuf_l2_len(md) + sizeof(struct iphdr));
 
 	/* For each dataplane vif, forward if:
 	 *	- the ifset bit is set for this interface.
 	 *	- there are group members downstream on interface */
-	cds_lfht_for_each_entry(viftable, &iter, vifp, node) {
-		if (IF_ISSET(vifp->v_if_index, &rt->mfc_ifset) &&
+	cds_lfht_for_each_entry(mvrf->viftable, &iter, vifp, node) {
+		if (IF_ISSET(vifp->v_vif_index, &rt->mfc_ifset) &&
 		    ip->ip_ttl > vifp->v_threshold) {
 			if (!vifp->v_ifp)
 				continue;
@@ -1209,7 +1263,7 @@ static void sg_cnt_update(struct vrf *vrf, struct mfc *rt,
 		flags = 1;
 	}
 
-	send_sg_cnt(&req, vrf_get_external_id(vrf->v_id), flags);
+	send_sg_cnt(&req, dp_vrf_get_external_id(vrf->v_id), flags);
 }
 
 /*
@@ -1262,8 +1316,9 @@ void mrt_dump(FILE *f, struct vrf *vrf)
 	cds_lfht_for_each_entry(vrf->v_mvrf4.mfchashtbl, &iter, rt, node) {
 		olist_index = 0;
 
-		cds_lfht_for_each_entry(viftable, &iter_vif, vifp, node) {
-			if (IF_ISSET(vifp->v_if_index, &rt->mfc_ifset)) {
+		cds_lfht_for_each_entry(vrf->v_mvrf4.viftable, &iter_vif,
+					vifp, node) {
+			if (IF_ISSET(vifp->v_vif_index, &rt->mfc_ifset)) {
 				olist_index += snprintf(olist_buf + olist_index,
 							sizeof(olist_buf) -
 							olist_index,
@@ -1383,11 +1438,11 @@ void mvif_dump(FILE *f, __attribute__((unused)) struct vrf *vrf)
 	jsonw_name(wr, "mif");
 	jsonw_start_array(wr);
 
-	cds_lfht_for_each_entry(viftable, &iter, vifp, node) {
+	cds_lfht_for_each_entry(vrf->v_mvrf4.viftable, &iter, vifp, node) {
 		jsonw_start_object(wr);
 		jsonw_string_field(wr, "interface", vifp->v_ifp ?
 				  vifp->v_ifp->if_name : "non-vplane");
-		jsonw_int_field(wr, "if_index",	vifp->v_if_index);
+		jsonw_int_field(wr, "if_index",	vifp->v_vif_index);
 		jsonw_int_field(wr, "threshold", vifp->v_threshold);
 		jsonw_int_field(wr, "flags", vifp->v_flags);
 		jsonw_uint_field(wr, "pkt_in", vifp->v_pkt_in);
@@ -1466,6 +1521,15 @@ int mcast_vrf_init(struct vrf *vrf)
 	vrf->v_mvrf4.v_fal_rpf_lst = NULL;
 
 	vrf->v_mvrf4.mfchashtbl = mfctbl;
+	vrf->v_mvrf4.viftable = cds_lfht_new(MFC_MAX_MVIFS, MFC_MAX_MVIFS,
+					     MFC_MAX_MVIFS, CDS_LFHT_ACCOUNTING,
+					     NULL);
+	if (!vrf->v_mvrf4.viftable) {
+		RTE_LOG(ERR, MCAST, "%s: cds_lfht_new viftable failed vrf %s\n",
+			__func__, vrf->v_name);
+		return -1;
+	}
+	memset(&(vrf->v_mvrf4.mfc_ifset), 0, sizeof(struct if_set));
 	return 0;
 }
 
@@ -1482,6 +1546,10 @@ void mcast_vrf_uninit(struct vrf *vrf)
 
 	dp_ht_destroy_deferred(vrf->v_mvrf4.mfchashtbl);
 	vrf->v_mvrf4.mfchashtbl = NULL;
+
+	dp_ht_destroy_deferred(vrf->v_mvrf4.viftable);
+	vrf->v_mvrf4.viftable = NULL;
+
 }
 
 int mcast_stop_ipv4(void)
@@ -1491,19 +1559,19 @@ int mcast_stop_ipv4(void)
 #endif
 	rte_timer_stop(&mrt_stats_timer);
 
-	if (cds_lfht_destroy(viftable, NULL))
-		RTE_LOG(ERR, MCAST,
-			"Destroying IPv4 VIF table failed.\n");
-
 	return 0;
 }
 
+static const struct ift_ops pimreg_if_ops = {
+};
+
 void mcast_init_ipv4(void)
 {
-	viftable = cds_lfht_new(MFC_MAX_MVIFS, MFC_MAX_MVIFS, MFC_MAX_MVIFS,
-				CDS_LFHT_ACCOUNTING, NULL);
-	if (!viftable)
-		rte_panic("%s: cds_lfht_new viftable failed\n", __func__);
+	int ret;
+
+	ret = if_register_type(IFT_TUNNEL_PIMREG, &pimreg_if_ops);
+	if (ret < 0)
+		rte_panic("Failed to register PIMREG type: %s", strerror(-ret));
 
 #ifdef UPCALL_TIMER
 	rte_timer_init(&expire_upcalls_ch);

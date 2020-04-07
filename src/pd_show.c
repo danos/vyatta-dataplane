@@ -165,10 +165,23 @@ enum pd_obj_state fal_state_to_pd_state(int fal_state)
 	switch (fal_state) {
 	case 0:
 		return PD_OBJ_STATE_FULL;
+	case FAL_RC_NOT_REQ:
+		return PD_OBJ_STATE_NOT_NEEDED;
 	case -ENOSPC:
 		return PD_OBJ_STATE_NO_RESOURCE;
 	case -EOPNOTSUPP:
 		return PD_OBJ_STATE_NO_SUPPORT;
 	}
 	return PD_OBJ_STATE_ERROR;
+}
+
+bool fal_state_is_obj_present(enum pd_obj_state pd_obj_state)
+{
+	switch (pd_obj_state) {
+	case PD_OBJ_STATE_FULL:
+	case PD_OBJ_STATE_PARTIAL:
+		return true;
+	default:
+		return false;
+	}
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2018, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -11,6 +11,7 @@
 #include <libmnl/libmnl.h>
 
 #include "ip_funcs.h"
+#include "netinet6/ip6_funcs.h"
 #include "in_cksum.h"
 #include "if_var.h"
 #include "main.h"
@@ -18,14 +19,14 @@
 #include "dp_test.h"
 #include "dp_test_controller.h"
 #include "dp_test_cmd_state.h"
-#include "dp_test_netlink_state.h"
-#include "dp_test_lib.h"
+#include "dp_test_netlink_state_internal.h"
+#include "dp_test_lib_internal.h"
 #include "dp_test_str.h"
 #include "dp_test_lib_exp.h"
-#include "dp_test_lib_intf.h"
+#include "dp_test_lib_intf_internal.h"
 #include "dp_test_lib_pkt.h"
 #include "dp_test_lib_tcp.h"
-#include "dp_test_pktmbuf_lib.h"
+#include "dp_test_pktmbuf_lib_internal.h"
 #include "dp_test_console.h"
 
 
@@ -90,11 +91,78 @@ dp_test_tcp_flag2str(uint8_t flags, const char *delim)
 	return str;
 }
 
+
+/***************************************************************************
+ * TCP Flow Testing
+ **************************************************************************/
+
+/*
+ * Create an IPv4 TCP or UDP packet descriptor
+ */
+struct dp_test_pkt_desc_t *
+dpt_pdesc_v4_create(const char *text, uint8_t proto,
+		    const char *l2_src, const char *l3_src, uint16_t sport,
+		    const char *l2_dst, const char *l3_dst, uint16_t dport,
+		    const char *rx_intf, const char *tx_intf)
+{
+	struct dp_test_pkt_desc_t *pkt;
+
+	pkt = calloc(1, sizeof(*pkt));
+
+	pkt->text = text;
+	pkt->proto = proto;
+	pkt->ether_type = ETHER_TYPE_IPv4;
+	pkt->l2_src = l2_src;
+	pkt->l3_src = l3_src;
+	pkt->l4.tcp.sport = sport;
+	pkt->l4.tcp.dport = dport;
+	pkt->l2_dst = l2_dst;
+	pkt->l3_dst = l3_dst;
+	pkt->rx_intf = rx_intf;
+	pkt->tx_intf = tx_intf;
+
+	if (proto == IPPROTO_TCP)
+		pkt->l4.tcp.win = 8192;
+
+	return pkt;
+}
+
+/*
+ * Create an IPv6 TCP or UDP packet descriptor
+ */
+struct dp_test_pkt_desc_t *
+dpt_pdesc_v6_create(const char *text, uint8_t proto,
+		    const char *l2_src, const char *l3_src, uint16_t sport,
+		    const char *l2_dst, const char *l3_dst, uint16_t dport,
+		    const char *rx_intf, const char *tx_intf)
+{
+	struct dp_test_pkt_desc_t *pkt;
+
+	pkt = calloc(1, sizeof(*pkt));
+
+	pkt->text = text;
+	pkt->proto = proto;
+	pkt->ether_type = ETHER_TYPE_IPv6;
+	pkt->l2_src = l2_src;
+	pkt->l3_src = l3_src;
+	pkt->l4.tcp.sport = sport;
+	pkt->l4.tcp.dport = dport;
+	pkt->l2_dst = l2_dst;
+	pkt->l3_dst = l3_dst;
+	pkt->rx_intf = rx_intf;
+	pkt->tx_intf = tx_intf;
+
+	if (proto == IPPROTO_TCP)
+		pkt->l4.tcp.win = 8192;
+
+	return pkt;
+}
+
 /*
  * Write TCP payload, and re-calc checksums
  */
-void
-dp_test_tcp_write_payload(struct rte_mbuf *m, uint plen, const char *payload)
+static void
+dpt_tcp_write_v4_payload(struct rte_mbuf *m, uint plen, const char *payload)
 {
 	struct iphdr *ip;
 	struct tcphdr *tcp;
@@ -117,47 +185,106 @@ dp_test_tcp_write_payload(struct rte_mbuf *m, uint plen, const char *payload)
 }
 
 static void
-dp_test_tcp_pak_receive(uint pktno,
-			struct dp_test_tcp_call *call,
-			enum dp_test_tcp_dir dir, uint8_t flags,
-			uint dlen, char *data,
-			void *ctx_ptr, uint ctx_uint)
+dpt_tcp_write_v6_payload(struct rte_mbuf *m, uint plen, const char *payload)
+{
+	struct ip6_hdr *ip6;
+	struct tcphdr *tcp;
+	char *datap;
+
+	if (!m || plen == 0 || !payload)
+		return;
+
+	ip6 = ip6hdr(m);
+	tcp = (struct tcphdr *)(ip6 + 1);
+	tcp->check = 0;
+
+	datap = (char *)tcp + (tcp->doff << 2);
+	memcpy(datap, payload, plen);
+
+	tcp->check = dp_test_ipv6_udptcp_cksum(m, ip6, tcp);
+}
+
+/*
+ * Setup and inject packet for a TCP flow
+ */
+static void dpt_tcp_pak_receive(uint pktno, struct dpt_tcp_flow *call,
+				struct dpt_tcp_flow_pkt *df,
+				void *ctx_ptr, uint ctx_uint)
 {
 	struct dp_test_pkt_desc_t *pre;
 	struct dp_test_pkt_desc_t *post;
-	enum dp_test_tcp_dir rev = DP_DIR_REVERSE(dir);
+	bool dir = df->forw;
+	bool rev = (dir == DPT_FORW) ? DPT_BACK : DPT_FORW;
+	uint8_t flags = df->flags;
 	char str[80];
+	bool is_v6;
 
-	spush(str, sizeof(str),
-	      "%s, Pkt #%u %s, flags 0x%x", call->str, pktno,
-	      dir == DP_DIR_FORW ? "FORW":"BACK", flags);
+	pre = call->desc[dir].pre;
+	post = call->desc[dir].pst;
+
+	is_v6 = (pre->ether_type == ETHER_TYPE_IPv6);
 
 	/*
-	 * Make copies of the pre and post pkt descriptors in case test_cb
-	 * wants to modify them.
+	 * If data is a string, then dlen will be set to zero to indicate we
+	 * need to call strlen for it.
 	 */
-	struct dp_test_pkt_desc_t pre_copy = *call->desc[dir].pre;
-	struct dp_test_pkt_desc_t post_copy = *call->desc[dir].post;
+	if (df->pre_dlen == 0 && df->pre_data != NULL) {
+		df->pre_dlen = strnlen(df->pre_data, 2000);
+		dp_test_fail_unless(df->pre_dlen < 2000,
+				    "Pre data is not a string");
+	}
 
-	pre = &pre_copy;
-	post = &post_copy;
+	if (df->pst_dlen == 0 && df->pst_data != NULL) {
+		df->pst_dlen = strnlen(df->pst_data, 2000);
+		dp_test_fail_unless(df->pst_dlen < 2000,
+				    "Pst data is not a string");
+	}
 
+	const char *dir_str = (dir == DPT_FORW) ? "FORW":"BACK";
+
+	spush(str, sizeof(str),
+	      "[%2u] %s %s, flags 0x%02x", pktno, call->text,
+	      dir_str, flags);
+
+	/*
+	 * Adjust the pre and post pkt descriptors
+	 */
 	pre->l4.tcp.flags = flags;
 	post->l4.tcp.flags = flags;
-	pre->len = post->len = dlen;
+
+	/* Post data is same as pre data unless otherwise specd */
+	if (df->pst_dlen == 0 || !df->pst_data) {
+		df->pst_dlen = df->pre_dlen;
+		df->pst_data = df->pre_data;
+	}
+
+	pre->len = df->pre_dlen;
+	post->len = df->pst_dlen;
 
 	pre->l4.tcp.seq = call->seq[dir] + call->isn[dir];
 	post->l4.tcp.seq = call->seq[dir] + call->isn[dir];
 
+	/*
+	 * Pre  ACK value is local ack number
+	 * Post ACK value is remote seq number
+	 */
 	pre->l4.tcp.ack = call->ack[dir];
-	post->l4.tcp.ack = call->ack[dir];
+	post->l4.tcp.ack = call->seq[rev];
 
-	if (flags & (TH_FIN | TH_SYN))
+	if (flags & (TH_FIN | TH_SYN)) {
 		call->seq[dir] += 1;
-	else
-		call->seq[dir] += post->len;
+		call->ack[rev] += 1;
+	} else {
+		/*
+		 * New local SEQ is SEQ + pre length
+		 */
+		call->seq[dir] += pre->len;
 
-	call->ack[rev] = call->seq[dir];
+		/*
+		 * New remote ACK is ACK + post length
+		 */
+		call->ack[rev] += post->len;
+	}
 
 	/*
 	 * Callback may change the packet, result and/or next callback
@@ -170,12 +297,32 @@ dp_test_tcp_pak_receive(uint pktno,
 		struct rte_mbuf *pre_pak, *post_pak;
 		struct dp_test_expected *test_exp;
 
-		pre_pak = dp_test_v4_pkt_from_desc(pre);
-		post_pak = dp_test_v4_pkt_from_desc(post);
+		if (!is_v6) {
+			pre_pak = dp_test_v4_pkt_from_desc(pre);
+			post_pak = dp_test_v4_pkt_from_desc(post);
 
-		if (dlen > 0 && data) {
-			dp_test_tcp_write_payload(pre_pak, dlen, data);
-			dp_test_tcp_write_payload(post_pak, dlen, data);
+			if (df->pre_dlen > 0 && df->pre_data)
+				dpt_tcp_write_v4_payload(
+					pre_pak, df->pre_dlen,
+					df->pre_data);
+
+			if (df->pst_dlen > 0 && df->pst_data)
+				dpt_tcp_write_v4_payload(
+					post_pak, df->pst_dlen,
+					df->pst_data);
+		} else {
+			pre_pak = dp_test_v6_pkt_from_desc(pre);
+			post_pak = dp_test_v6_pkt_from_desc(post);
+
+			if (df->pre_dlen > 0 && df->pre_data)
+				dpt_tcp_write_v6_payload(
+					pre_pak, df->pre_dlen,
+					df->pre_data);
+
+			if (df->pst_dlen > 0 && df->pst_data)
+				dpt_tcp_write_v6_payload(
+					post_pak, df->pst_dlen,
+					df->pst_data);
 		}
 
 		test_exp = dp_test_exp_from_desc(post_pak, post);
@@ -191,6 +338,7 @@ dp_test_tcp_pak_receive(uint pktno,
 
 	if (call->post_cb)
 		(*call->post_cb)(pktno, dir, flags, pre, post, str);
+
 }
 
 /*
@@ -199,41 +347,40 @@ dp_test_tcp_pak_receive(uint pktno,
  * call      Packet descriptors for forw and back packets
  * df_array  Array of direction, flags and pkt size tuples,
  *           one for each packet to be sent
+ * df_array_size
+ * first     Index of first pkt in df_array
+ * last      Index of last pkt in df_array (if > 0 and < df_array_size)
  * ctx_ptr   Pointer context to pass to test_cb
  * ctx_uint  Uint context to pass to test_cb
  */
-void
-dp_test_tcp_call(struct dp_test_tcp_call *call,
-		 struct dp_test_tcp_flow_pkt *df_array,
-		 size_t df_array_size,
-		 void *ctx_ptr, uint ctx_uint)
+void dpt_tcp_call(struct dpt_tcp_flow *call, struct dpt_tcp_flow_pkt *df_array,
+		  size_t df_array_size, uint first, uint last,
+		  void *ctx_ptr, uint ctx_uint)
 {
-	struct dp_test_tcp_desc *forw, *back;
+	struct dpt_tcp_flow_pkt_desc *forw, *back;
 	uint pktno;
 
-	forw = &call->desc[DP_DIR_FORW];
-	back = &call->desc[DP_DIR_BACK];
+	forw = &call->desc[DPT_FORW];
+	back = &call->desc[DPT_BACK];
 
-	call->seq[DP_DIR_FORW] = 0;
-	call->seq[DP_DIR_BACK] = 0;
-	call->ack[DP_DIR_FORW] = 0;
-	call->ack[DP_DIR_BACK] = 0;
+	call->seq[DPT_FORW] = 0;
+	call->seq[DPT_BACK] = 0;
+	call->ack[DPT_FORW] = 0;
+	call->ack[DPT_BACK] = 0;
 
 	forw->pre->l4.tcp.seq = 0;
 	forw->pre->l4.tcp.ack = 0;
-	forw->post->l4.tcp.seq = 0;
-	forw->post->l4.tcp.ack = 0;
+	forw->pst->l4.tcp.seq = 0;
+	forw->pst->l4.tcp.ack = 0;
 	back->pre->l4.tcp.seq = 0;
 	back->pre->l4.tcp.ack = 0;
-	back->post->l4.tcp.seq = 0;
-	back->post->l4.tcp.ack = 0;
+	back->pst->l4.tcp.seq = 0;
+	back->pst->l4.tcp.ack = 0;
 
-	for (pktno = 0; pktno < df_array_size; pktno++) {
-		dp_test_tcp_pak_receive(pktno, call,
-					df_array[pktno].dir,
-					df_array[pktno].flags,
-					df_array[pktno].dlen,
-					df_array[pktno].data,
-					ctx_ptr, ctx_uint);
-	}
+	if (last == 0 || last >= df_array_size)
+		last = df_array_size - 1;
+
+	for (pktno = first; pktno <= last; pktno++)
+		dpt_tcp_pak_receive(pktno, call, &df_array[pktno],
+				    ctx_ptr, ctx_uint);
 }

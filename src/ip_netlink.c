@@ -1,7 +1,7 @@
 /*
  * Handle IPv4 rtnetlink events
  *
- * Copyright (c) 2017-2019, AT&T Intellectual Property. All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property. All rights reserved.
  * Copyright (c) 2011-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -35,7 +35,7 @@
 #include "control.h"
 #include "ecmp.h"
 #include "dp_event.h"
-#include "gre.h"
+#include "if/gre.h"
 #include "if_ether.h"
 #include "if_var.h"
 #include "ip_addr.h"
@@ -56,7 +56,7 @@
 #include "util.h"
 #include "vplane_debug.h"
 #include "vplane_log.h"
-#include "vrf.h"
+#include "vrf_internal.h"
 #include "vrf_if.h"
 
 static const char anyaddr[16];
@@ -74,7 +74,7 @@ static int inet_neigh_change(const struct nlmsghdr *nlh,
 	size_t llen = 0;
 
 	/* ignore neighbor updates for non DPDK interfaces */
-	ifp = ifnet_byifindex(cont_src_ifindex(cont_src, ndm->ndm_ifindex));
+	ifp = dp_ifnet_byifindex(cont_src_ifindex(cont_src, ndm->ndm_ifindex));
 	if (!ifp)
 		return MNL_CB_OK;
 
@@ -147,7 +147,7 @@ static int handle_route(vrfid_t vrf_id, uint16_t type, const struct rtmsg *rtm,
 	rcu_read_unlock();
 
 	if (type == RTM_NEWROUTE) {
-		struct ifnet *ifp = ifnet_byifindex(ifindex);
+		struct ifnet *ifp = dp_ifnet_byifindex(ifindex);
 		uint32_t gw = 0;
 		uint32_t flags = 0;
 		struct next_hop *next;
@@ -274,7 +274,7 @@ static int inet_mroute_ifset(struct nlattr *tb[], struct vmfcctl *mfcc)
 			continue;
 		}
 		vifp->v_threshold = nhp->rtnh_hops;
-		IF_SET(vifp->v_if_index, &mfcc->mfcc_ifset);
+		IF_SET(vifp->v_vif_index, &mfcc->mfcc_ifset);
 		if_count++;
 	}
 	mfcc->if_count = if_count;
@@ -324,7 +324,7 @@ static int inet_mroute6_ifset(struct nlattr *tb[], struct vmf6cctl *mf6cc)
 			 */
 			continue;
 		}
-		IF_SET(nhp->rtnh_ifindex, &mf6cc->mf6cc_ifset);
+		IF_SET(mifp->m6_mif_index, &mf6cc->mf6cc_ifset);
 		if_count++;
 	}
 	mf6cc->if_count = if_count;
@@ -474,26 +474,40 @@ static int inet_route_change(const struct nlmsghdr *nlh,
 	label_t labels[NH_MAX_OUT_LABELS];
 	uint16_t num_labels = 0;
 	vrfid_t vrf_id = VRF_DEFAULT_ID;
+	uint32_t kernel_table;
 	uint32_t table;
 
 	if (tb[RTA_TABLE])
-		table = mnl_attr_get_u32(tb[RTA_TABLE]);
+		kernel_table = mnl_attr_get_u32(tb[RTA_TABLE]);
 	else
-		table = rtm->rtm_table;
+		kernel_table = rtm->rtm_table;
 
-	if (vrf_id == VRF_DEFAULT_ID) {
-		struct ifnet *vrf_master = vrfmaster_lookup_by_tableid(table);
-		if (vrf_master) {
-			vrf_id = vrfmaster_get_vrfid(vrf_master);
-			table = RT_TABLE_MAIN;
+	table = kernel_table;
+
+	if (rtm->rtm_type == RTN_MULTICAST) {
+		/*
+		 * Multicast routes do not come down out of order
+		 * w.r.t. netlink link updates, since they don't use
+		 * the route broker and the controller ensures that
+		 * during replay the link updates are played out
+		 * first. So they don't need incomplete route handling
+		 * when either the VRF or the interfaces contained in
+		 * the route update don't exist - instead these are
+		 * logged and treated as an error.
+		 */
+		if (vrf_is_vrf_table_id(kernel_table) &&
+		    vrf_lookup_by_tableid(kernel_table, &vrf_id,
+					  &table) < 0) {
+			RTE_LOG(NOTICE, ROUTE,
+				"unknown VRF table %d\n", kernel_table);
+			return MNL_CB_ERROR;
 		}
-	}
 
-	if (!netlink_uplink_vrf(cont_src, &vrf_id))
-		return MNL_CB_ERROR;
+		if (!netlink_uplink_vrf(cont_src, &vrf_id))
+			return MNL_CB_ERROR;
 
-	if (rtm->rtm_type == RTN_MULTICAST)
 		return inet_mroute_change(vrf_id, nlh, rtm, tb);
+	}
 
 	if (tb[RTA_DST])
 		dest = mnl_attr_get_payload(tb[RTA_DST]);
@@ -557,9 +571,29 @@ static int inet_route_change(const struct nlmsghdr *nlh,
 	 * Delete any existing entry for this prefix in the incomplete cache.
 	 * If still incomplete it will get re-added with correct details
 	 */
-	incomplete_route_del(vrf_id, dest, rtm->rtm_family,
-			     rtm->rtm_dst_len, table,
+	incomplete_route_del(dest, rtm->rtm_family,
+			     rtm->rtm_dst_len, kernel_table,
 			     rtm->rtm_scope, rtm->rtm_protocol);
+
+	if (vrf_is_vrf_table_id(kernel_table) &&
+	    vrf_lookup_by_tableid(kernel_table, &vrf_id, &table) < 0) {
+		/*
+		 * Route came down before the vrfmaster device
+		 * RTM_NEWLINK - defer route installation until it
+		 * arrives.
+		 */
+		incomplete_route_add(dest,
+				     rtm->rtm_family,
+				     rtm->rtm_dst_len,
+				     kernel_table,
+				     rtm->rtm_scope,
+				     rtm->rtm_protocol,
+				     nlh);
+		return MNL_CB_OK;
+	}
+
+	if (!netlink_uplink_vrf(cont_src, &vrf_id))
+		return MNL_CB_ERROR;
 
 	switch (rtm->rtm_family) {
 	case AF_INET:
@@ -567,10 +601,10 @@ static int inet_route_change(const struct nlmsghdr *nlh,
 				 dest, nexthop, ifindex,
 				 rtm->rtm_scope, tb[RTA_MULTIPATH],
 				 nlh->nlmsg_flags, num_labels, labels) < 0) {
-			incomplete_route_add(vrf_id, dest,
+			incomplete_route_add(dest,
 					     rtm->rtm_family,
 					     rtm->rtm_dst_len,
-					     table,
+					     kernel_table,
 					     rtm->rtm_scope,
 					     rtm->rtm_protocol,
 					     nlh);
@@ -583,11 +617,10 @@ static int inet_route_change(const struct nlmsghdr *nlh,
 				  rtm->rtm_scope, tb[RTA_MULTIPATH],
 				  nlh->nlmsg_flags | nl_flags,
 				  num_labels, labels) < 0) {
-			incomplete_route_add(vrf_id,
-					     dest,
+			incomplete_route_add(dest,
 					     rtm->rtm_family,
 					     rtm->rtm_dst_len,
-					     table,
+					     kernel_table,
 					     rtm->rtm_scope,
 					     rtm->rtm_protocol,
 					     nlh);
@@ -607,11 +640,13 @@ static int inet_addr_change(const struct nlmsghdr *nlh,
 {
 	const void *addr, *broadcast = NULL;
 	int ifindex = cont_src_ifindex(cont_src, ifa->ifa_index);
-	struct ifnet *ifp = ifnet_byifindex(ifindex);
+	struct ifnet *ifp = dp_ifnet_byifindex(ifindex);
 
 	switch (nlh->nlmsg_type) {
 	case RTM_NEWADDR:
-		if (tb[IFA_ADDRESS]) {
+		if (tb[IFA_LOCAL]) {
+			addr = mnl_attr_get_payload(tb[IFA_LOCAL]);
+		} else if (tb[IFA_ADDRESS]) {
 			addr = mnl_attr_get_payload(tb[IFA_ADDRESS]);
 		} else {
 			RTE_LOG(ERR, ROUTE, "missing address in RTM_NEWADDR\n");
@@ -639,7 +674,9 @@ static int inet_addr_change(const struct nlmsghdr *nlh,
 		break;
 
 	case RTM_DELADDR:
-		if (tb[IFA_ADDRESS]) {
+		if (tb[IFA_LOCAL]) {
+			addr = mnl_attr_get_payload(tb[IFA_LOCAL]);
+		} else if (tb[IFA_ADDRESS]) {
 			addr = mnl_attr_get_payload(tb[IFA_ADDRESS]);
 		} else {
 			RTE_LOG(ERR, ROUTE, "missing address in RTM_DELADDR\n");
@@ -683,15 +720,10 @@ static void inet_netconf_change_mroute(int ifindex, struct nlattr *tb[],
 		return;
 	}
 
-	if ((unsigned int)ifindex < MFC_MAX_MVIFS) {
-		if (af == AF_INET)
-			add_vif(ifindex);
-		else
-			add_m6if(ifindex);
-	} else
-		DP_DEBUG(MULTICAST, ERR, MCAST,
-			 "interface %s ifindex (%d) out of multicast range\n",
-			 ifnet_indextoname(ifindex), ifindex);
+	if (af == AF_INET)
+		add_vif(ifindex);
+	else
+		add_m6if(ifindex);
 }
 
 /* Attribute changed */
@@ -760,7 +792,7 @@ static int inet_netconf_change(const struct nlmsghdr *nlh,
 		return MNL_CB_OK;	/* NETCONFA_IFINDEX_ALL */
 
 	unsigned int ifindex = cont_src_ifindex(cont_src, signed_ifindex);
-	ifp = ifnet_byifindex(ifindex);
+	ifp = dp_ifnet_byifindex(ifindex);
 	if (!ifp && !is_ignored_interface(ifindex)) {
 		if (nlh->nlmsg_type == RTM_NEWNETCONF)
 			missed_nl_inet_netconf_add(ifindex,

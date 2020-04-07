@@ -13,6 +13,7 @@
 #include <string.h>
 
 #include "commands.h"
+#include "feature_commands.h"
 #include "pl_commands.h"
 #include "pl_common.h"
 #include "pl_internal.h"

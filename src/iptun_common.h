@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2015-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -12,9 +12,10 @@
 #define IPTUN_COMMON_H
 
 #include <stdint.h>
-#include "vrf.h"
-#include "if_var.h"
+#include "util.h"
 #include "fal_plugin.h"
+#include "interface.h"
+#include "ip_addr.h"
 
 struct iphdr;
 struct rte_mbuf;

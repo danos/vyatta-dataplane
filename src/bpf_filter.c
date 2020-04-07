@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
  */
 /*-
  * SPDX-License-Identifier: (LGPL-2.1-only AND BSD-3-Clause)
@@ -38,7 +38,7 @@
  *
  *      @(#)bpf_filter.c	8.1 (Berkeley) 6/10/93
  */
-
+#include <stdint.h>
 #include <sys/param.h>
 
 #if !defined(_KERNEL)

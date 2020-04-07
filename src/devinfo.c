@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -14,9 +14,7 @@
 #include <rte_ethdev.h>
 #include <rte_log.h>
 #include <rte_pci.h>
-#ifdef HAVE_RTE_BUS_PCI_H
 #include <rte_bus_pci.h>
-#endif
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -201,6 +199,23 @@ static unsigned int get_dev_port(const struct rte_pci_addr *loc)
 	return dev_port;
 }
 
+/* The cxgbe PMD encodes the port in the name
+ * of the instance.
+ */
+
+static unsigned int get_dev_port_cxgbe(int portid)
+{
+	const struct rte_eth_dev *dev = &rte_eth_devices[portid];
+	char *p;
+	int dev_port = 0;
+
+	p = strchr(dev->data->name, '_');
+	if (p)
+		dev_port = atoi(++p);
+
+	return dev_port;
+}
+
 #define PCI_BASE_CLASS_NETWORK 0x02
 
 static bool is_ethernet_device(const char *path)
@@ -294,14 +309,10 @@ static void json_bus_info(json_writer_t *wr, portid_t portid,
 			return;
 	}
 
-#ifdef HAVE_RTE_ETH_DEV_INFO_DEVICE
 	const struct rte_bus *bus = rte_bus_find_by_device(dev_info.device);
 	struct rte_pci_device *pci = NULL;
 	if (bus && streq(bus->name, "pci"))
 		pci = RTE_DEV_TO_PCI(dev_info.device);
-#else
-	const struct rte_pci_device *pci = dev_info.pci_dev;
-#endif
 	if (pci) {
 		const struct rte_pci_addr *loc = &pci->addr;
 		char buf[PATH_MAX];
@@ -326,6 +337,11 @@ static void json_bus_info(json_writer_t *wr, portid_t portid,
 			jsonw_uint_field(wr, "slot", (unsigned int)slot);
 
 		int dev_port = get_dev_port(loc);
+
+		if (dev_info.driver_name &&
+		    strcasestr(dev_info.driver_name, "net_cxgbe") != NULL)
+			dev_port = get_dev_port_cxgbe(portid);
+
 		if (dev_port > 0)
 			jsonw_uint_field(wr, "dev-port", (unsigned int)dev_port);
 
@@ -394,7 +410,8 @@ out:
 			"Some devices have duplicate BIOS indexes!\n");
 
 	free(dev_index);
-	closedir(devs);
+	if (devs)
+		closedir(devs);
 }
 
 /* Provide JSON string describing all info about a DPDK port. */

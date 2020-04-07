@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2019, AT&T Intellectual Property. All rights reserved.
+ * Copyright (c) 2018-2020, AT&T Intellectual Property. All rights reserved.
  * Copyright (c) 2015-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -18,12 +18,12 @@
 
 #include "dp_test.h"
 #include "dp_test_controller.h"
-#include "dp_test_netlink_state.h"
-#include "dp_test_lib.h"
-#include "dp_test_lib_intf.h"
+#include "dp_test_netlink_state_internal.h"
+#include "dp_test_lib_internal.h"
+#include "dp_test_lib_intf_internal.h"
 #include "dp_test_lib_exp.h"
 
-#include "dp_test_pktmbuf_lib.h"
+#include "dp_test_pktmbuf_lib_internal.h"
 
 DP_DECL_TEST_SUITE(ip_suite);
 
@@ -53,7 +53,7 @@ DP_START_TEST(ip_cfg, route_add_del)
  * Verifying adding and deleting a scale of routes such that the LPM
  * grows
  */
-DP_START_TEST(ip_cfg, route_add_del_scale)
+DP_START_TEST_FULL_RUN(ip_cfg, route_add_del_scale)
 {
 	json_object *expected_json;
 	char summary_cmd[256];
@@ -483,7 +483,7 @@ DP_START_TEST(ip_rx, invalid_paks)
 	ip = iphdr(test_pak);
 	ip->ihl = DP_TEST_PAK_DEFAULT_IHL - 1;
 	ip->check = 0;
-	ip->check = in_cksum_hdr(ip);
+	ip->check = dp_in_cksum_hdr(ip);
 
 	exp = dp_test_exp_create(test_pak);
 	dp_test_exp_set_fwd_status(exp, DP_TEST_FWD_DROPPED);
@@ -507,7 +507,7 @@ DP_START_TEST(ip_rx, invalid_paks)
 	ip = iphdr(test_pak);
 	ip->tot_len = htons(2000);
 	ip->check = 0;
-	ip->check = in_cksum_hdr(ip);
+	ip->check = dp_in_cksum_hdr(ip);
 
 	exp = dp_test_exp_create(test_pak);
 	dp_test_exp_set_fwd_status(exp, DP_TEST_FWD_DROPPED);
@@ -521,7 +521,7 @@ DP_START_TEST(ip_rx, invalid_paks)
 	ip = iphdr(test_pak);
 	ip->tot_len = htons(sizeof(struct iphdr) - 1);
 	ip->check = 0;
-	ip->check = in_cksum_hdr(ip);
+	ip->check = dp_in_cksum_hdr(ip);
 
 	exp = dp_test_exp_create(test_pak);
 	dp_test_exp_set_fwd_status(exp, DP_TEST_FWD_DROPPED);
@@ -535,7 +535,7 @@ DP_START_TEST(ip_rx, invalid_paks)
 	dp_test_fail_unless(inet_pton(AF_INET, "127.0.0.1", &ip->daddr) == 1,
 			    "Couldn't parse ip address");
 	ip->check = 0;
-	ip->check = in_cksum_hdr(ip);
+	ip->check = dp_in_cksum_hdr(ip);
 
 	exp = dp_test_exp_create(test_pak);
 	dp_test_exp_set_fwd_status(exp, DP_TEST_FWD_DROPPED);
@@ -549,7 +549,7 @@ DP_START_TEST(ip_rx, invalid_paks)
 	dp_test_fail_unless(inet_pton(AF_INET, "127.0.0.1", &ip->daddr) == 1,
 			    "Couldn't parse ip address");
 	ip->check = 0;
-	ip->check = in_cksum_hdr(ip);
+	ip->check = dp_in_cksum_hdr(ip);
 
 	exp = dp_test_exp_create(test_pak);
 	dp_test_exp_set_fwd_status(exp, DP_TEST_FWD_DROPPED);
@@ -575,7 +575,7 @@ DP_START_TEST(ip_rx, invalid_paks)
 	ip = iphdr(test_pak);
 	ip->version = 6;
 	ip->check = 0;
-	ip->check = in_cksum_hdr(ip);
+	ip->check = dp_in_cksum_hdr(ip);
 
 	exp = dp_test_exp_create(test_pak);
 	dp_test_exp_set_fwd_status(exp, DP_TEST_FWD_DROPPED);
@@ -828,8 +828,8 @@ dp_test_frag_setup_exp(struct rte_mbuf **test_p, const char *nh_mac_str,
 		}
 		dp_test_exp_set_pak_m(exp, i, m);
 
-		foff += rte_pktmbuf_pkt_len(m) - pktmbuf_l2_len(m) -
-			pktmbuf_l3_len(m);
+		foff += rte_pktmbuf_pkt_len(m) - dp_pktmbuf_l2_len(m) -
+			dp_pktmbuf_l3_len(m);
 	}
 
 	/* And the last pak out has the start of the initial packet */
@@ -852,7 +852,7 @@ dp_test_frag_setup_exp(struct rte_mbuf **test_p, const char *nh_mac_str,
 	return exp;
 }
 
-DP_START_TEST(ip_fwd, fragment_smoke)
+DP_START_TEST_FULL_RUN(ip_fwd, fragment_smoke)
 {
 	struct dp_test_expected *exp;
 	struct rte_mbuf *test_pak;
@@ -901,7 +901,7 @@ DP_START_TEST(ip_fwd, fragment_smoke)
 	dp_test_netlink_set_interface_mtu("dp1T1", 1500);
 } DP_END_TEST;
 
-DP_START_TEST(ip_fwd, fragment_boundary_values)
+DP_START_TEST_FULL_RUN(ip_fwd, fragment_boundary_values)
 {
 	struct dp_test_expected *exp;
 	struct rte_mbuf *test_pak;
@@ -1004,7 +1004,7 @@ DP_START_TEST(ip_fwd, fragment_boundary_values)
 	dp_test_netlink_set_interface_mtu("dp1T1", 1500);
 } DP_END_TEST;
 
-DP_START_TEST(ip_fwd, fragment)
+DP_START_TEST_FULL_RUN(ip_fwd, fragment)
 {
 	struct dp_test_expected *exp;
 	struct rte_mbuf *test_pak;
@@ -2220,7 +2220,7 @@ static void _build_and_send_pak(const char *src_addr, const char *dest_addr,
  * entries in the lpm due to the connecteds, so test more.
  */
 DP_DECL_TEST_CASE(ip_suite, ip_route_scopes_and_covers, NULL, NULL);
-DP_START_TEST(ip_route_scopes_and_covers, ip_route_scopes_and_covers)
+DP_START_TEST_FULL_RUN(ip_route_scopes_and_covers, ip_route_scopes_and_covers)
 {
 	struct nh_info nh1_0 = {.nh_mac_str = "11:11:11:11:11:0",
 				.nh_addr = "1.1.1.1",

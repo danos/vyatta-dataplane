@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2011-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -19,10 +19,9 @@
 
 #include "compiler.h"
 #include "ip_funcs.h"
-#include "vrf.h"
+#include "ip_forward.h"
 
 #define IPV6_HLIMDEC 1
-#define IPV6_DEF_HLIM 64
 
 #define V4MAPPED_IPV6_TO_IPV4(A)	((A).s6_addr32[3])
 
@@ -40,7 +39,7 @@ struct ifnet;
 
 static inline struct ip6_hdr *ip6hdr(const struct rte_mbuf *m)
 {
-	return pktmbuf_mtol3(m, struct ip6_hdr *);
+	return dp_pktmbuf_mtol3(m, struct ip6_hdr *);
 }
 
 static inline void ip6_ver_tc_flow_hdr(struct ip6_hdr *hdr, uint32_t tc,
@@ -141,11 +140,10 @@ ip6_local_deliver(struct ifnet *ifp, struct rte_mbuf *m)
 bool
 ip6_l2_resolve(struct ifnet *in_ifp, struct rte_mbuf *m,
 	       const struct next_hop_v6 *nh, uint16_t proto);
-bool
-ip6_l2_resolve_and_output(struct ifnet *in_ifp, struct rte_mbuf *m,
-			  struct next_hop_v6 *nh, uint16_t proto);
-
 void
 ip6_refragment_packet(struct ifnet *o_ifp, struct rte_mbuf *m,
 		      void *ctx, ip6_output_fn_t output_fn);
+
+int ip6_udp_tunnel_in(struct rte_mbuf *m, struct ifnet *ifp);
+int ip6_l4_input(struct rte_mbuf *m, struct ifnet *ifp);
 #endif /*IP6_FUNCS_H*/

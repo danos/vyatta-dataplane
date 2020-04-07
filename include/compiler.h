@@ -1,5 +1,10 @@
-#ifndef COMPILER_H
-#define COMPILER_H
+/*
+ * Copyright (c) 2018-2020, AT&T Intellectual Property.  All rights reserved.
+ *
+ * SPDX-License-Identifier: LGPL-2.1-only
+ */
+#ifndef VYATTA_DATAPLANE_COMPILER_H
+#define VYATTA_DATAPLANE_COMPILER_H
 
 /* For CLANG vs GCC differences */
 #ifdef __clang__
@@ -50,4 +55,4 @@
 #define unlikely(expr) expect_hint((expr), 0)
 #endif /* unlikely */
 
-#endif /* COMPILER_H */
+#endif /* VYATTA_DATAPLANE_COMPILER_H */

@@ -1,12 +1,12 @@
 #ifndef _NPF_VRF_H_
 #define _NPF_VRF_H_
 /*
- * Copyright (c) 2019, AT&T Intellectual Property. All rights reserved.
+ * Copyright (c) 2019-2020, AT&T Intellectual Property. All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
 
-#include "vrf.h"
+#include "vrf_internal.h"
 #include "util.h"
 #include "npf/config/npf_ruleset_type.h"
 

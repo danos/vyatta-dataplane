@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2018, AT&T Intellectual Property.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.
  * All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
@@ -9,7 +9,7 @@
 
 #include "dp_test_controller.h"
 #include "dp_test_lib_cmd.h"
-#include "dp_test_macros.h"
+#include "dp_test/dp_test_macros.h"
 
 #include "bitmask.h"
 

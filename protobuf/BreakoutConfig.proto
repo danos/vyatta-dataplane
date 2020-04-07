@@ -1,0 +1,37 @@
+// Copyright (c) 2020, AT&T Intellectual Property.  All rights reserved.
+//
+// SPDX-License-Identifier: LGPL-2.1-only
+//
+// Interface breakout config definitions
+//
+
+syntax="proto2";
+
+option go_package = "github.com/danos/vyatta-dataplane/protobuf/go/BreakoutConfig";
+
+message BreakoutConfig {
+	enum Action {
+		SET	= 0;
+		DELETE	= 1;
+	}
+
+	message BreakoutIfConfig {
+		optional Action	action = 1;
+
+		// Interface to break out into multiple sub-interfaces
+		// Required for both SET and DELETE
+		optional string ifname = 2;
+
+		// Number of sub-interfaces to break out into
+		// Required for SET
+		optional uint32 numsubports = 3;
+
+		// Name of interface that is reserved in order to
+		// break out this one
+		optional string reservedifname = 4;
+	}
+
+	oneof mtype {
+		BreakoutIfConfig breakoutif = 1;
+	}
+}

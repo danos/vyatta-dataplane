@@ -183,4 +183,6 @@ void mvif6_dump(FILE *f, struct vrf *vrf);
 void send_sg_cnt(struct sioc_sg_req *rq, vrfid_t vrf_id, uint32_t flags);
 void send_sg6_cnt(struct sioc_sg_req6 *rq, vrfid_t vrf_id, uint32_t flags);
 
+int mcast_iftable_get_free_slot(struct if_set *mfc_ifset, int ifindex,
+				unsigned char *vif_index);
 #endif

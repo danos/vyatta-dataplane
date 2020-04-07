@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2019-2020, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -39,6 +39,7 @@
 #include "npf/apm/apm.h"
 #include "npf/cgnat/cgn_errno.h"
 #include "npf/cgnat/cgn_log.h"
+#include "npf/cgnat/cgn_map.h"
 
 
 /* npf_rule_gen.c */
@@ -52,11 +53,14 @@ int npf_parse_ip_addr(char *value, sa_family_t *fam, npf_addr_t *addr,
 #define APM_GC_COUNT	2
 
 #define ONE_THOUSAND		(1<<10)
+
+/*
+ * Start with 128 buckets, and allow to grow to any size (size will be limited
+ * by number of addresses in the CGNAT address pools).
+ */
 #define APM_HT_INIT		128
 #define APM_HT_MIN		(4 * ONE_THOUSAND)
-#define APM_HT_MAX		(32 * ONE_THOUSAND)
-
-#define APMS_MAX		APM_HT_MAX
+#define APM_HT_MAX		0
 
 /*
  * port block
@@ -64,6 +68,7 @@ int npf_parse_ip_addr(char *value, sa_family_t *fam, npf_addr_t *addr,
 struct apm_port_block {
 	struct cds_list_head	pb_list_node;	/* source list node */
 	struct apm		*pb_apm;	/* back ptr */
+	struct cgn_source	*pb_src;	/* ptr to source */
 	struct rcu_head		pb_rcu_head;
 	uint64_t		pb_start_time;
 	uint16_t		pb_port_start;  /* first port in block */
@@ -101,11 +106,8 @@ struct apm_match {
 	vrfid_t  vrfid;
 };
 
-/* APM table used and max */
+/* APM table used count */
 static rte_atomic32_t apms_used;
-static int32_t apms_max = APMS_MAX;
-static bool apm_table_full;
-
 
 /*
  * Find first clear bit in a 64-bit word, starting at LSB, bit 1.  Returns 0
@@ -153,6 +155,21 @@ uint16_t apm_block_get_nports(struct apm_port_block *pb)
 struct cds_list_head *apm_block_get_list_node(struct apm_port_block *pb)
 {
 	return &pb->pb_list_node;
+}
+
+/*
+ * pb_src is non-NULL *only* while a port-block is in a sources port-block
+ * list.  When pb_src is set then that sources lock must be held when changing
+ * the port-block.
+ */
+void apm_block_set_source(struct apm_port_block *pb, struct cgn_source *src)
+{
+	pb->pb_src = src;
+}
+
+struct cgn_source *apm_block_get_source(struct apm_port_block *pb)
+{
+	return pb->pb_src;
 }
 
 /*
@@ -252,6 +269,44 @@ apm_block_alloc_random_port(struct apm_port_block *pb, uint8_t proto)
 }
 
 /*
+ * Allocate a specific port from a port-block.  Used by PCP.
+ */
+uint16_t
+apm_block_alloc_specific_port(struct apm_port_block *pb, uint8_t proto,
+			      uint16_t port)
+{
+	uint16_t bm;
+	uint16_t bm_start, bit;
+	uint64_t mask;
+
+	if (pb->pb_ports_used[proto] == pb->pb_nports)
+		return 0;
+
+	assert(port >= pb->pb_port_start);
+	assert(port <= pb->pb_port_end);
+
+	/* Which bitmap in the block? */
+	bm = (port - pb->pb_port_start) / PORTS_PER_BITMAP;
+
+	/* Which bit in the bitmap? */
+	bm_start = (bm * PORTS_PER_BITMAP) + pb->pb_port_start;
+	bit = port - bm_start;
+
+	mask = UINT64_C(1) << bit;
+
+	if ((pb->pb_map[proto][bm] & mask) == UINT64_C(0)) {
+		pb->pb_ports_used[proto]++;
+
+		/* Set bit */
+		pb->pb_map[proto][bm] |= (UINT64_C(1) << bit);
+		return port;
+	}
+
+	/* Fail if port is not free */
+	return 0;
+}
+
+/*
  * Release a port in a port-block
  */
 bool
@@ -320,6 +375,45 @@ uint16_t apm_block_list_first_free_port(struct cds_list_head *list,
 }
 
 /*
+ * Called from apm_block_create when apm_blocks_used >= apm_nblocks
+ */
+static inline void apm_pb_full(struct apm *apm)
+{
+	if (!apm->apm_pb_full) {
+		/* Mark this address as full */
+		apm->apm_pb_full = true;
+
+		/* Log address is full */
+		cgn_log_resource_public_pb(CGN_RESOURCE_FULL, apm->apm_addr,
+					   apm->apm_blocks_used,
+					   apm->apm_nblocks);
+
+		/* Increment and check address pool threshold */
+		np_threshold_get(apm->apm_np);
+
+	}
+}
+
+/*
+ * Called from apm_block_destroy when a block is freed.
+ */
+static inline void apm_pb_available(struct apm *apm)
+{
+	if (apm->apm_pb_full) {
+		/* Mark this address as available */
+		apm->apm_pb_full = false;
+
+		/* Log address is available */
+		cgn_log_resource_public_pb(CGN_RESOURCE_AVAILABLE,
+					   apm->apm_addr, apm->apm_blocks_used,
+					   apm->apm_nblocks);
+
+		/* Decrement and check address pool threshold */
+		np_threshold_put(apm->apm_np);
+	}
+}
+
+/*
  * Create a port-block and add it to apm block array.
  *
  * Each port block has a dynamic array of 64-bit bitmaps at its end.
@@ -330,6 +424,8 @@ apm_block_create(struct apm *apm, uint16_t block)
 	struct apm_port_block *pb;
 	uint16_t nmaps;
 	size_t sz;
+
+	assert(rte_spinlock_is_locked(&apm->apm_lock));
 
 	/* How many 64-bit bitmaps do we need? */
 	nmaps = apm->apm_port_block_sz / PORTS_PER_BITMAP;
@@ -372,6 +468,9 @@ apm_block_create(struct apm *apm, uint16_t block)
 	apm->apm_blocks[block] = pb;
 	apm->apm_blocks_used++;
 
+	if (apm->apm_blocks_used >= apm->apm_nblocks)
+		apm_pb_full(apm);
+
 	return pb;
 }
 
@@ -405,64 +504,57 @@ void apm_block_destroy(struct apm_port_block *pb)
 	apm->apm_blocks[pb->pb_block] = NULL;
 	apm->apm_blocks_used--;
 
-	if (apm->apm_pb_full) {
-		cgn_log_public_pb_avail(apm->apm_addr,
-					apm->apm_blocks_used,
-					apm->apm_nblocks);
-		apm->apm_pb_full = false;
-	}
-
-	if (apm->apm_np && apm->apm_np->np_full) {
-		RTE_LOG(NOTICE, CGNAT, "NP_AVAILABLE name=%s\n",
-			apm->apm_np->np_name);
-		apm->apm_np->np_full = false;
-	}
+	apm_pb_available(apm);
+	cgn_alloc_pool_available(apm->apm_np, apm);
 
 	call_rcu(&pb->pb_rcu_head, apm_block_rcu_free);
 }
 
-void apm_log_block_alloc(struct apm_port_block *pb, uint32_t src_addr)
+void apm_log_block_alloc(struct apm_port_block *pb, uint32_t src_addr,
+			 const char *policy_name, const char *pool_name)
 {
 	cgn_log_pb_alloc(src_addr,
 			 pb->pb_apm->apm_addr,
 			 pb->pb_port_start, pb->pb_port_end,
-			 pb->pb_start_time);
+			 pb->pb_start_time,
+			 policy_name, pool_name);
 }
 
-void apm_log_block_release(struct apm_port_block *pb, uint32_t src_addr)
+void apm_log_block_release(struct apm_port_block *pb, uint32_t src_addr,
+			   const char *policy_name, const char *pool_name)
 {
 	cgn_log_pb_release(src_addr,
-			 pb->pb_apm->apm_addr,
-			 pb->pb_port_start, pb->pb_port_end,
-			   pb->pb_start_time, soft_ticks);
+			   pb->pb_apm->apm_addr,
+			   pb->pb_port_start, pb->pb_port_end,
+			   pb->pb_start_time, soft_ticks,
+			   policy_name, pool_name);
+}
+
+/* Deprecated */
+void
+apm_table_threshold_set(int32_t threshold __unused, uint32_t interval __unused)
+{
 }
 
 /*
- * Is there space in the apm table?
+ * Note that there is no max value for the apm table.  We allow the hash table
+ * to grow as much as it needs to.  The apms_used count is only used to
+ * provide show state.
  */
-static bool apm_slot_get(void)
+static inline void apm_slot_get(void)
 {
-	if (rte_atomic32_add_return(&apms_used, 1) <= apms_max)
-		return true;
-
-	rte_atomic32_dec(&apms_used);
-
-	if (!apm_table_full)
-		RTE_LOG(ERR, CGNAT, "APM_TABLE_FULL count=%u/%u\n",
-			rte_atomic32_read(&apms_used), apms_max);
-
-	/*
-	 * Mark apm table as full.  This is reset in the gc when the apm count
-	 * reduces.
-	 */
-	apm_table_full = true;
-
-	return false;
+	rte_atomic32_inc(&apms_used);
 }
 
-static void apm_slot_put(void)
+static inline void apm_slot_put(void)
 {
 	rte_atomic32_dec(&apms_used);
+}
+
+/* Get apm table used count */
+int32_t apm_get_used(void)
+{
+	return rte_atomic32_read(&apms_used);
 }
 
 /*
@@ -481,10 +573,8 @@ apm_create(uint32_t addr, vrfid_t vrfid, struct nat_pool *np,
 	struct apm *apm;
 	size_t sz;
 
-	if (!apm_slot_get()) {
-		*error = -CGN_APM_ENOSPC;
-		return NULL;
-	}
+	/* Increment apms_used count */
+	apm_slot_get();
 
 	sz = sizeof(*apm) + nblocks * sizeof(struct apm_port_block *);
 
@@ -536,7 +626,7 @@ static void apm_destroy(struct apm *apm)
 	/* Remove from hash table */
 	cds_lfht_del(apm_ht, &apm->apm_node);
 
-	/* Release slot */
+	/* Decrement apms_used count */
 	apm_slot_put();
 
 	/* Release nat pool */
@@ -644,17 +734,6 @@ apm_create_and_insert(uint32_t addr, vrfid_t vrfid, struct nat_pool *np,
 		(void)apm_insert(&apm);
 
 	return apm;
-}
-
-/* Get apm table used count */
-int32_t apm_get_used(void)
-{
-	return rte_atomic32_read(&apms_used);
-}
-
-int32_t apm_get_max(void)
-{
-	return apms_max;
 }
 
 /*
@@ -1083,7 +1162,7 @@ unlock:
 	rte_spinlock_unlock(&apm->apm_lock);
 }
 
-static void apm_gc_walk(void)
+static void apm_gc(struct rte_timer *timer, void *arg __unused)
 {
 	struct cds_lfht_iter iter;
 	struct apm *apm;
@@ -1091,44 +1170,44 @@ static void apm_gc_walk(void)
 	if (!apm_ht)
 		return;
 
+	/* Walk the apm table */
 	cds_lfht_for_each_entry(apm_ht, &iter, apm, apm_node)
 		apm_gc_inspect(apm);
 
-	/* Is table still full? */
-	if (apm_table_full &&
-	    rte_atomic32_read(&apms_used) < apms_max) {
-
-		RTE_LOG(ERR, CGNAT, "APM_TABLE_AVAILABLE count=%u/%u\n",
-			rte_atomic32_read(&apms_used), apms_max);
-
-		apm_table_full = false;
-	}
-}
-
-static void apm_gc(struct rte_timer *timer __unused, void *arg __unused)
-{
-	/* Walk the apm table */
-	apm_gc_walk();
-
 	/* Restart timer if dataplane still running */
-	if (running)
-		rte_timer_reset(&apm_timer,
+	if (running && timer)
+		rte_timer_reset(timer,
 				APM_GC_INTERVAL * rte_get_timer_hz(),
 				SINGLE, rte_get_master_lcore(), apm_gc,
 				NULL);
 }
 
 /*
- * Unit-test only.
+ * Called from unit-test and from apm_uninit.
  */
 void apm_cleanup(void)
 {
+	uint i;
+
 	rte_timer_stop(&apm_timer);
-	apm_gc_walk();
-	apm_gc_walk(); /* APM_EXPIRED */
-	apm_gc_walk(); /* APM_DEAD */
+
+	for (i = 0; i <= APM_GC_COUNT; i++)
+		/* Do not restart gc timer */
+		apm_gc(NULL, NULL);
 }
 
+/*
+ * Called via hidden vplsh command.  Used by unit-test and by dev testers.
+ */
+void apm_gc_pass(void)
+{
+	rte_timer_stop(&apm_timer);
+	apm_gc(&apm_timer, NULL);
+}
+
+/*
+ * Called from DP_EVT_INIT event handler
+ */
 void apm_init(void)
 {
 	if (apm_ht)
@@ -1136,7 +1215,7 @@ void apm_init(void)
 
 	apm_ht = cds_lfht_new(
 		APM_HT_INIT, APM_HT_MIN, APM_HT_MAX,
-		CDS_LFHT_AUTO_RESIZE | CDS_LFHT_ACCOUNTING,
+		CDS_LFHT_AUTO_RESIZE,
 		NULL);
 
 	rte_timer_init(&apm_timer);
@@ -1146,18 +1225,18 @@ void apm_init(void)
 			NULL);
 }
 
-
+/*
+ * Called from DP_EVT_UNINIT event handler
+ */
 void apm_uninit(void)
 {
-	uint i;
-
 	if (!apm_ht)
 		return;
 
-	rte_timer_stop(&apm_timer);
+	/* Do three passes of the garbage collector */
+	apm_cleanup();
 
-	for (i = 0; i <= APM_GC_COUNT; i++)
-		apm_gc_walk();
+	assert(apm_get_used() == 0);
 
 	dp_ht_destroy_deferred(apm_ht);
 	apm_ht = NULL;

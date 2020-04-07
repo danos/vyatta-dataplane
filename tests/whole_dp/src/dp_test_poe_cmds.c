@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018, AT&T Intellectual Property.
+ * Copyright (c) 2018-2020, AT&T Intellectual Property.
  * All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
@@ -8,10 +8,10 @@
 #include <stdbool.h>
 
 #include "dp_test.h"
-#include "dp_test_lib.h"
-#include "dp_test_cmd_check.h"
+#include "dp_test_lib_internal.h"
+#include "dp_test/dp_test_cmd_check.h"
 #include "dp_test_console.h"
-#include "dp_test_lib_intf.h"
+#include "dp_test_lib_intf_internal.h"
 #include "dp_test_json_utils.h"
 
 struct dp_test_command_t {

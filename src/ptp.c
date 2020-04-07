@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019, AT&T Intellectual Property.
+ * Copyright (c) 2019-2020, AT&T Intellectual Property.
  * All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
@@ -14,10 +14,10 @@
 #include <rte_timer.h>
 
 #include "control.h"
-#include "bridge_port.h"
 #include "dp_event.h"
 #include "ether.h"
 #include "fal.h"
+#include "if/bridge/bridge_port.h"
 #include "if_llatbl.h"
 #include "netinet6/nd6_nbr.h"
 #include "ptp.h"
@@ -161,6 +161,14 @@ static int get_signed_char_token(const char *token, signed char *ptr)
 	return get_signed_char(str, ptr);
 }
 
+static int get_signed_token(const char *token, int *ptr)
+{
+	char *str;
+
+	str = check_token(token);
+	return get_signed(str, ptr);
+}
+
 static int get_bool_token(const char *token, bool *ptr)
 {
 	char *str;
@@ -272,6 +280,11 @@ static int ptp_clock_create(FILE *f, uint32_t clock_id, int argc, char **argv)
 
 			if (strcmp(profile_string, "default-profile") == 0)
 				profile = FAL_PTP_CLOCK_DEFAULT_PROFILE;
+			else if (strcmp(profile_string, "g82752-profile") == 0)
+				profile = FAL_PTP_CLOCK_G82752_PROFILE;
+			else if (strcmp(profile_string,
+					"g82752-apts-profile") == 0)
+				profile = FAL_PTP_CLOCK_G82752_APTS_PROFILE;
 			else {
 				fprintf(f, "ptp: bad profile: %s\n",
 					profile_string);
@@ -280,6 +293,16 @@ static int ptp_clock_create(FILE *f, uint32_t clock_id, int argc, char **argv)
 
 			attrs[num_attrs].id = FAL_PTP_CLOCK_PROFILE;
 			attrs[num_attrs].value.u32 = profile;
+
+		} else if (strstr(*argv, "antenna-delay=")) {
+			int antenna_delay;
+
+			rc = get_signed_token(*argv, &antenna_delay);
+			if (rc < 0)
+				goto error;
+
+			attrs[num_attrs].id = FAL_PTP_CLOCK_ANTENNA_DELAY;
+			attrs[num_attrs].value.i32 = antenna_delay;
 
 		} else {
 			fprintf(f, "ptp: bad option: %s\n", *argv);
@@ -401,7 +424,7 @@ int ptp_port_create(FILE *f, uint16_t port_id, int argc, char **argv)
 			char *ifname;
 
 			ifname = strchr(*argv, '=') + 1;
-			ifp = ifnet_byifname(ifname);
+			ifp = dp_ifnet_byifname(ifname);
 			if (!ifp) {
 				// TBD -- create a replay cache
 				goto error;
@@ -625,14 +648,6 @@ int ptp_port_delete(FILE *f, uint16_t port_id, int argc, char **argv)
 
 error:
 	return rc;
-}
-
-static
-bool is_ipaddr_empty(struct fal_ip_address_t *ipaddr)
-{
-	struct fal_ip_address_t empty_ipaddr = { 0 };
-
-	return memcmp(ipaddr, &empty_ipaddr, sizeof(empty_ipaddr)) == 0;
 }
 
 static
@@ -961,7 +976,7 @@ next_option:
 		goto error;
 	}
 
-	if (is_ipaddr_empty(&peer->ipaddr)) {
+	if (fal_is_ipaddr_empty(&peer->ipaddr)) {
 		fprintf(f, "ptp: ip address required for peer\n");
 		goto error;
 	}
@@ -1080,7 +1095,7 @@ int ptp_peer_delete(FILE *f, int argc, char **argv)
 		goto error;
 	}
 
-	if (is_ipaddr_empty(&ipaddr)) {
+	if (fal_is_ipaddr_empty(&ipaddr)) {
 		fprintf(f, "ptp: ip address required for peer\n");
 		goto error;
 	}

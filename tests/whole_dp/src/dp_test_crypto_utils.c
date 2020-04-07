@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2015-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -15,18 +15,18 @@
 
 #include <rte_mbuf.h>
 
-#include "pktmbuf.h"
+#include "pktmbuf_internal.h"
 #include "ip_funcs.h"
 #include "util.h"
 #include "crypto/crypto.h"
 
-#include "dp_test_lib.h"
+#include "dp_test_lib_internal.h"
 #include "dp_test_lib_exp.h"
-#include "dp_test_macros.h"
-#include "dp_test_pktmbuf_lib.h"
+#include "dp_test/dp_test_macros.h"
+#include "dp_test_pktmbuf_lib_internal.h"
 #include "dp_test_crypto_utils.h"
-#include "dp_test_netlink_state.h"
-#include "dp_test_cmd_check.h"
+#include "dp_test_netlink_state_internal.h"
+#include "dp_test/dp_test_cmd_check.h"
 #include "dp_test_crypto_lib.h"
 #include "dp_test_json_utils.h"
 
@@ -142,7 +142,7 @@ dp_test_pktmbuf_esp_init(struct rte_mbuf *m, uint16_t udphdrlen,
 		return NULL;
 	}
 
-	esp = pktmbuf_mtol4(m, struct ip_esp_hdr *);
+	esp = dp_pktmbuf_mtol4(m, struct ip_esp_hdr *);
 	esp = (struct ip_esp_hdr *)((unsigned char *)esp + udphdrlen);
 	memset(esp, 0, sizeof(*esp));
 	esp->spi = spi;
@@ -156,7 +156,7 @@ dp_test_create_transport_hdr(struct rte_mbuf *m, struct iphdr *iphdr)
 	struct iphdr *ip;
 
 	m->l3_len = sizeof(*iphdr);
-	ip = pktmbuf_mtol3(m, struct iphdr *);
+	ip = dp_pktmbuf_mtol3(m, struct iphdr *);
 
 	memmove(ip, iphdr, sizeof(*iphdr));
 
@@ -258,7 +258,7 @@ dp_test_create_transport_hdr6(struct rte_mbuf *m, struct ip6_hdr *ip6_hdr)
 	struct ip6_hdr *ip6;
 
 	m->l3_len = sizeof(*ip6_hdr);
-	ip6 = pktmbuf_mtol3(m, struct ip6_hdr *);
+	ip6 = dp_pktmbuf_mtol3(m, struct ip6_hdr *);
 
 	memmove(ip6, ip6_hdr, sizeof(*ip6_hdr));
 

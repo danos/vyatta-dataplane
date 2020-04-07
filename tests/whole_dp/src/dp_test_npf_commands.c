@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2019, AT&T Intellectual Property. All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property. All rights reserved.
  * Copyright (c) 2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -19,12 +19,12 @@
 
 #include "dp_test.h"
 #include "dp_test_str.h"
-#include "dp_test_lib.h"
+#include "dp_test_lib_internal.h"
 #include "dp_test_lib_exp.h"
-#include "dp_test_lib_intf.h"
+#include "dp_test_lib_intf_internal.h"
 #include "dp_test_lib_pkt.h"
-#include "dp_test_pktmbuf_lib.h"
-#include "dp_test_netlink_state.h"
+#include "dp_test_pktmbuf_lib_internal.h"
+#include "dp_test_netlink_state_internal.h"
 #include "dp_test_console.h"
 #include "dp_test_json_utils.h"
 #include "dp_test_npf_lib.h"
@@ -207,7 +207,7 @@ static const struct dp_test_command_t npf_cmd[] = {
 		/* table doesn't exist */
 		"npf-ut fw table add ADDR_GRP2 12.0.0.1",
 		EXP_EMPTY_STRING,
-		true,
+		false,
 		false,
 	},
 	{
@@ -243,8 +243,8 @@ static const struct dp_test_command_t npf_cmd[] = {
 	},
 	{
 		"npf-ut fw table delete ADDR_GRP2",
-		EXP_EMPTY_STRING,
-		true,
+		"npf address-group ADDR_GRP2 not found",
+		false,
 		false,
 	},
 	/* cmd_npf_fw_session_log_add */

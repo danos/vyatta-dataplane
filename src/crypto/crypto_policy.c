@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2017-2019, AT&T Intellectual Property. All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property. All rights reserved.
  * Copyright (c) 2015-2017 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -59,7 +59,7 @@
 #include "npf/config/npf_ruleset_type.h"
 #include "npf_shim.h"
 #include "pipeline/nodes/pl_nodes_common.h"
-#include "pktmbuf.h"
+#include "pktmbuf_internal.h"
 #include "pl_node.h"
 #include "route.h"
 #include "route_flags.h"
@@ -69,7 +69,7 @@
 #include "urcu.h"
 #include "vplane_debug.h"
 #include "vplane_log.h"
-#include "vrf.h"
+#include "vrf_internal.h"
 
 #include "protobuf.h"
 #include "protobuf_util.h"
@@ -843,7 +843,8 @@ policy_rule_set_peer_info(struct policy_rule *pr,
 {
 	struct ifnet *ifp;
 
-	ifp = pr->feat_attach ? nh4_get_ifp(&pr->feat_attach->next.nh) : NULL;
+	ifp = pr->feat_attach ?
+		dp_nh4_get_ifp(&pr->feat_attach->next.nh) : NULL;
 	pr->reqid = tmpl->reqid;
 	pr->output_peer_af = tmpl->family;
 	memcpy(&pr->output_peer, dst, sizeof(pr->output_peer));
@@ -1150,7 +1151,7 @@ static bool policy_rule_update_npf(struct policy_rule *pr)
 		return true;
 
 	group_name_by_vrf(group_name, sizeof(group_name), pr->dir,
-			  vrf_get_external_id(pr->vrfid));
+			  dp_vrf_get_external_id(pr->vrfid));
 
 	if (!policy_rule_build_npf_str(pr, buffer, POLICY_RULE_BUFSIZE))
 		return false;
@@ -1198,7 +1199,7 @@ static bool policy_rule_add_to_npf(struct policy_rule *pr)
 		return false;
 
 	snprintf(vrf_buf, sizeof(vrf_buf), "%d",
-		 vrf_get_external_id(pr->vrfid));
+		 dp_vrf_get_external_id(pr->vrfid));
 
 	bool attach_group =
 		(vrf_ctx->crypto_live_ipv4_policies +
@@ -1207,7 +1208,7 @@ static bool policy_rule_add_to_npf(struct policy_rule *pr)
 	if (attach_group) {
 		group_name_by_vrf(attach_buf, sizeof(attach_buf),
 				  XFRM_POLICY_IN,
-				  vrf_get_external_id(pr->vrfid));
+				  dp_vrf_get_external_id(pr->vrfid));
 
 		int attach_ret =
 			npf_cfg_attach_dir_group(
@@ -1225,7 +1226,7 @@ static bool policy_rule_add_to_npf(struct policy_rule *pr)
 
 		group_name_by_vrf(attach_buf, sizeof(attach_buf),
 				  XFRM_POLICY_OUT,
-				  vrf_get_external_id(pr->vrfid));
+				  dp_vrf_get_external_id(pr->vrfid));
 		attach_ret =
 			npf_cfg_attach_dir_group(
 				NPF_ATTACH_TYPE_VRF, vrf_buf,
@@ -1243,7 +1244,7 @@ static bool policy_rule_add_to_npf(struct policy_rule *pr)
 	}
 
 	group_name_by_vrf(group_name, sizeof(group_name), pr->dir,
-			  vrf_get_external_id(pr->vrfid));
+			  dp_vrf_get_external_id(pr->vrfid));
 
 	int rule_ret = npf_cfg_rule_add(NPF_RULE_CLASS_IPSEC, group_name,
 					pr->rule_index, buffer);
@@ -1280,12 +1281,12 @@ static bool policy_rule_add_to_npf(struct policy_rule *pr)
 
 failed_add_rule:
 	group_name_by_vrf(attach_buf, sizeof(attach_buf), XFRM_POLICY_OUT,
-			  vrf_get_external_id(pr->vrfid));
+			  dp_vrf_get_external_id(pr->vrfid));
 	npf_cfg_detach_group(NPF_ATTACH_TYPE_VRF, vrf_buf,
 			     NPF_RS_IPSEC, NPF_RULE_CLASS_IPSEC, attach_buf);
 failed_attach_group:
 	group_name_by_vrf(attach_buf, sizeof(attach_buf), XFRM_POLICY_IN,
-			  vrf_get_external_id(pr->vrfid));
+			  dp_vrf_get_external_id(pr->vrfid));
 	npf_cfg_detach_group(NPF_ATTACH_TYPE_VRF, vrf_buf,
 			     NPF_RS_IPSEC, NPF_RULE_CLASS_IPSEC, attach_buf);
 	return false;
@@ -1328,10 +1329,10 @@ static void policy_rule_remove_from_npf(struct policy_rule *pr,
 		return;
 
 	snprintf(vrf_buf, sizeof(vrf_buf), "%d",
-		 vrf_get_external_id(pr->vrfid));
+		 dp_vrf_get_external_id(pr->vrfid));
 
 	group_name_by_vrf(group_name, sizeof(group_name), pr->dir,
-			  vrf_get_external_id(pr->vrfid));
+			  dp_vrf_get_external_id(pr->vrfid));
 
 	bool detach_group =
 		(vrf_ctx->crypto_live_ipv4_policies +
@@ -1352,13 +1353,13 @@ static void policy_rule_remove_from_npf(struct policy_rule *pr,
 		if (detach_group) {
 			group_name_by_vrf(attach_buf, sizeof(attach_buf),
 					  XFRM_POLICY_OUT,
-					  vrf_get_external_id(pr->vrfid));
+					  dp_vrf_get_external_id(pr->vrfid));
 			npf_cfg_detach_group(NPF_ATTACH_TYPE_VRF, vrf_buf,
 					     NPF_RS_IPSEC, NPF_RULE_CLASS_IPSEC,
 					     attach_buf);
 
 			snprintf(attach_buf, sizeof(attach_buf), "in-%d",
-				 vrf_get_external_id(pr->vrfid));
+				 dp_vrf_get_external_id(pr->vrfid));
 			npf_cfg_detach_group(NPF_ATTACH_TYPE_VRF, vrf_buf,
 					     NPF_RS_IPSEC, NPF_RULE_CLASS_IPSEC,
 					     attach_buf);
@@ -1511,7 +1512,7 @@ static void policy_bind_feat_attach(vrfid_t vrfid,
 		rcu_assign_pointer(pr->feat_attach, attach);
 	}
 
-	ifp = ifnet_byifindex(ifindex);
+	ifp = dp_ifnet_byifindex(ifindex);
 	if (!ifp) {
 		POLICY_DEBUG("Failed bind lookup for ifi %u\n", ifindex);
 		return;
@@ -1797,19 +1798,8 @@ int crypto_policy_update(const struct xfrm_userpolicy_info *usr_policy,
  *
  * MUST be called from the main thread
  */
-void crypto_policy_delete(const struct xfrm_userpolicy_id *id,
-			  const struct xfrm_mark *mark,
-			  vrfid_t vrfid)
+static void crypto_policy_delete_internal(struct policy_rule *pr, vrfid_t vrfid)
 {
-	struct policy_rule *pr;
-
-	pr = policy_rule_find_by_selector(vrfid, &id->sel, mark, id->dir);
-	if (!pr) {
-		/*  This is a legitimate outcome on DP restart */
-		POLICY_INFO("Cannot delete policy: not found\n");
-		return;
-	}
-
 	policy_rule_remove_from_npf(pr, pr->vti_tunnel_policy, pr->rule_index);
 	crypto_npf_cfg_commit_all(pr);
 	if (pr->dir == XFRM_POLICY_OUT) {
@@ -1832,6 +1822,42 @@ void crypto_policy_delete(const struct xfrm_userpolicy_id *id,
 	policy_rule_destroy(pr);
 
 	crypto_vrf_check_remove(crypto_vrf_find(vrfid));
+}
+
+void crypto_policy_delete(const struct xfrm_userpolicy_id *id,
+			  const struct xfrm_mark *mark,
+			  vrfid_t vrfid)
+{
+	struct policy_rule *pr;
+
+	pr = policy_rule_find_by_selector(vrfid, &id->sel, mark, id->dir);
+	if (!pr) {
+		/*
+		 * Might have been removed by a flush,
+		 * or never received if there was a dp restart
+		 */
+		return;
+	}
+
+	crypto_policy_delete_internal(pr, vrfid);
+}
+
+void crypto_policy_flush_vrf(struct crypto_vrf_ctx *vrf_ctx)
+{
+	struct cds_lfht_iter iter;
+	struct policy_rule *pr;
+
+	POLICY_DEBUG("Flush all policies for VRF %d\n", vrf_ctx->vrfid);
+
+	cds_lfht_for_each_entry(vrf_ctx->input_policy_rule_sel_ht,
+				&iter, pr, sel_ht_node) {
+		crypto_policy_delete_internal(pr, vrf_ctx->vrfid);
+	}
+
+	cds_lfht_for_each_entry(vrf_ctx->output_policy_rule_sel_ht,
+				&iter, pr, sel_ht_node) {
+		crypto_policy_delete_internal(pr, vrf_ctx->vrfid);
+	}
 }
 
 int crypto_policy_get_vti_reqid(vrfid_t vrfid,
@@ -1962,9 +1988,9 @@ crypto_policy_handle_packet_outbound_checks(struct rte_mbuf *mbuf,
 	 * we allow the packet to be fragmented post encryption.
 	 */
 	if (pr->output_peer_af == AF_INET)
-		*nxt_ifp = nh4_get_ifp(nxt);
+		*nxt_ifp = dp_nh4_get_ifp(nxt);
 	else
-		*nxt_ifp = nh6_get_ifp(nxt6);
+		*nxt_ifp = dp_nh6_get_ifp(nxt6);
 
 	if (!*nxt_ifp)
 		return;
@@ -2318,14 +2344,14 @@ static void policy_rule_to_json(json_writer_t *wr,
 	jsonw_uint_field(wr, "index", pr->rule_index);
 
 	if (pr->sel.family == AF_INET && pr->feat_attach) {
-		ifp = nh4_get_ifp(&pr->feat_attach->next.nh);
+		ifp = dp_nh4_get_ifp(&pr->feat_attach->next.nh);
 		if (ifp)
 			jsonw_string_field(wr, "virtual-feature-point",
 					   ifp->if_name);
 	}
 
 	if (pr->sel.family == AF_INET6 && pr->feat_attach) {
-		ifp = nh6_get_ifp(&pr->feat_attach->next.nh6);
+		ifp = dp_nh6_get_ifp(&pr->feat_attach->next.nh6);
 		if (ifp)
 			jsonw_string_field(wr, "virtual-feature-point",
 					   ifp->if_name);
@@ -2361,7 +2387,7 @@ void crypto_policy_bind_show_summary(FILE *f, vrfid_t vrfid)
 		jsonw_uint_field(wr, "virtual-feature-point_ifi",
 				 bind->ifindex);
 
-		ifp = ifnet_byifindex(bind->ifindex);
+		ifp = dp_ifnet_byifindex(bind->ifindex);
 		if (ifp)
 			jsonw_string_field(wr, "virtual-feature-point_name",
 					   ifp->if_name);
@@ -2404,13 +2430,13 @@ void crypto_policy_show_summary(FILE *f, vrfid_t vrfid)
 
 	cds_lfht_for_each_entry(output_policy_rule_tag_ht, &iter, pr,
 				tag_ht_node) {
-		if (vrf_get_external_id(pr->vrfid) == vrfid)
+		if (dp_vrf_get_external_id(pr->vrfid) == vrfid)
 			policy_rule_to_json(wr, pr);
 	}
 
 	cds_lfht_for_each_entry(input_policy_rule_tag_ht, &iter, pr,
 				tag_ht_node) {
-		if (vrf_get_external_id(pr->vrfid) == vrfid)
+		if (dp_vrf_get_external_id(pr->vrfid) == vrfid)
 			policy_rule_to_json(wr, pr);
 	}
 
@@ -2726,9 +2752,9 @@ bool crypto_policy_check_outbound(struct ifnet *in_ifp, struct rte_mbuf **mbuf,
 			struct ifnet *ifp = NULL;
 
 			if (v4 && nh->v4)
-				ifp = nh4_get_ifp(nh->v4);
+				ifp = dp_nh4_get_ifp(nh->v4);
 			else if (nh->v6)
-				ifp = nh6_get_ifp(nh->v6);
+				ifp = dp_nh6_get_ifp(nh->v6);
 
 			if (!ifp || pr->sel.ifindex != (int)ifp->if_index)
 				/* We don't have a match */
@@ -2768,7 +2794,8 @@ bool crypto_policy_check_outbound(struct ifnet *in_ifp, struct rte_mbuf **mbuf,
 
 			if (v4) {
 				if (attach) {
-					vfp_ifp = nh4_get_ifp(&attach->next.nh);
+					vfp_ifp =
+					dp_nh4_get_ifp(&attach->next.nh);
 
 					if (!vfp_ifp) {
 						IPSEC_CNT_INC(DROPPED_NO_BIND);
@@ -2792,7 +2819,7 @@ bool crypto_policy_check_outbound(struct ifnet *in_ifp, struct rte_mbuf **mbuf,
 								     pr);
 			} else {
 				if (attach) {
-					vfp_ifp = nh6_get_ifp(
+					vfp_ifp = dp_nh6_get_ifp(
 						&attach->next.nh6);
 
 					if (!vfp_ifp) {
@@ -2982,7 +3009,7 @@ bool crypto_policy_check_inbound_terminating(struct ifnet *in_ifp,
 	}
 
 	if (proto == IPPROTO_UDP) {
-		struct udphdr *udp = pktmbuf_mtol4(*mbuf, struct udphdr *);
+		struct udphdr *udp = dp_pktmbuf_mtol4(*mbuf, struct udphdr *);
 
 		if (udp->uh_dport == htons(IKE_PORT))
 			return false;
@@ -3009,11 +3036,12 @@ struct ifnet *crypto_policy_feat_attach_by_reqid(uint32_t reqid)
 		if (pr->reqid == reqid) {
 			if (pr->sel.family == AF_INET)
 				return pr->feat_attach ?
-					nh4_get_ifp(&pr->feat_attach->next.nh) :
-					NULL;
+				dp_nh4_get_ifp(&pr->feat_attach->next.nh) :
+				NULL;
 			else
 				return pr->feat_attach ?
-				       nh6_get_ifp(&pr->feat_attach->next.nh6) :
+				       dp_nh6_get_ifp(
+				       &pr->feat_attach->next.nh6) :
 				       NULL;
 		}
 		cds_lfht_next(output_policy_rule_tag_ht, &iter);
@@ -3051,15 +3079,12 @@ void crypto_policy_update_pending_if(struct ifnet *ifp)
 	}
 }
 
-/* Unbind a policy and virtual feature point. */
-static int policy_feat_detach(vrfid_t vrfid, const struct xfrm_selector *sel,
-			      uint ifindex __unused)
+static int policy_feat_detach_internal(vrfid_t vrfid,
+				       const struct xfrm_selector *sel,
+				       struct s2s_binding *bind)
 {
 	struct policy_rule *pr;
 	struct xfrm_mark mark;
-	struct s2s_binding *bind;
-
-	bind = policy_bind_lookup(vrfid, sel);
 
 	if (bind)
 		policy_bind_del(bind);
@@ -3072,6 +3097,31 @@ static int policy_feat_detach(vrfid_t vrfid, const struct xfrm_selector *sel,
 		policy_feat_attach_destroy(pr);
 	}
 	return 0;
+}
+
+/* Unbind a policy and virtual feature point. */
+static int policy_feat_detach(vrfid_t vrfid, const struct xfrm_selector *sel,
+			      uint ifindex __unused)
+{
+	struct s2s_binding *bind;
+
+	bind = policy_bind_lookup(vrfid, sel);
+
+	return policy_feat_detach_internal(vrfid, sel, bind);
+}
+
+void policy_feat_flush_vrf(struct crypto_vrf_ctx *vrf_ctx)
+{
+	struct s2s_binding *bind;
+	struct cds_lfht_iter iter;
+
+	POLICY_DEBUG("Flush all feature bindings for VRF %d\n",
+		     vrf_ctx->vrfid);
+
+	cds_lfht_for_each_entry(vrf_ctx->s2s_bind_hash_table,
+				&iter, bind, bind_ht_node) {
+		policy_feat_detach_internal(vrf_ctx->vrfid, &bind->sel, bind);
+	}
 }
 
 /* Bind a policy and virtual feature point. */
@@ -3155,7 +3205,7 @@ static int crypto_policy_cmd_handler(struct pb_msg *msg)
 	}
 
 	vrf_id = cp_msg->vrf;
-	vrf = vrf_get_rcu_from_external(vrf_id);
+	vrf = dp_vrf_get_rcu_from_external(vrf_id);
 	if (vrf)
 		vrf_id = vrf->v_id;
 
@@ -3223,7 +3273,7 @@ static int crypto_policy_cmd_handler(struct pb_msg *msg)
 
 	if (cp_msg->has_sel_ifindex) {
 		sel.ifindex = cp_msg->sel_ifindex;
-		ifp = ifnet_byifindex(sel.ifindex);
+		ifp = dp_ifnet_byifindex(sel.ifindex);
 		if (ifp && ifp->if_type == IFT_VRFMASTER)
 			sel.ifindex = 0;
 	} else

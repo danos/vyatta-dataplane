@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2018-2019, AT&T Intellectual Property.
+ * Copyright (c) 2018-2020, AT&T Intellectual Property.
  * All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
@@ -8,7 +8,6 @@
  */
 
 #include <stdio.h>
-#include "bridge.h"
 #include "control.h"
 #include "fal.h"
 #include "if_var.h"
@@ -21,7 +20,7 @@
 struct cfg_if_list *cfg_list;
 
 static void
-switchport_event_if_index_set(struct ifnet *ifp, uint32_t ifindex);
+switchport_event_if_index_set(struct ifnet *ifp);
 static void
 switchport_event_if_index_unset(struct ifnet *ifp, uint32_t ifindex);
 
@@ -31,7 +30,7 @@ static const struct dp_event_ops switchport_event_ops = {
 };
 
 static void
-switchport_event_if_index_set(struct ifnet *ifp, uint32_t ifindex __unused)
+switchport_event_if_index_set(struct ifnet *ifp)
 {
 	struct cfg_if_list_entry *le;
 
@@ -80,7 +79,6 @@ static int switchport_replay_init(void)
 int cmd_switchport(FILE *f, int argc, char **argv)
 {
 	struct ifnet *ifp;
-	struct fal_attribute_t attr;
 
 	if (argc != 4) {
 		if (f) {
@@ -93,7 +91,7 @@ int cmd_switchport(FILE *f, int argc, char **argv)
 		return -EINVAL;
 	}
 
-	ifp = ifnet_byifname(argv[1]);
+	ifp = dp_ifnet_byifname(argv[1]);
 	if (!ifp) {
 		if (!cfg_list && switchport_replay_init()) {
 			RTE_LOG(ERR, DATAPLANE,
@@ -109,20 +107,16 @@ int cmd_switchport(FILE *f, int argc, char **argv)
 	}
 
 	if (!strcmp(argv[2], "hw-switching")) {
-		if (!strcmp(argv[3], "enable")) {
-			attr.value.u8 = FAL_PORT_HW_SWITCHING_ENABLE;
+		if (!strcmp(argv[3], "enable"))
 			ifp->hw_forwarding = true;
-		} else if (!strcmp(argv[3], "disable")) {
-			attr.value.u8 = FAL_PORT_HW_SWITCHING_DISABLE;
+		else if (!strcmp(argv[3], "disable"))
 			ifp->hw_forwarding = false;
-		} else
+		else
 			return -EINVAL;
-		attr.id = FAL_PORT_ATTR_HW_SWITCH_MODE;
-		fal_l2_upd_port(ifp->if_index, &attr);
-		dp_event(DP_EVT_IF_HW_SWITCHING_CHANGE, 0, ifp,
-			 ifp->hw_forwarding, 0, NULL);
-		/* TODO move bridge code to using event */
-		bridge_upd_hw_forwarding(ifp);
+		if_change_features_mode(ifp,
+					ifp->hw_forwarding ?
+					IF_FEAT_MODE_FLAG_L2_FAL_ENABLE :
+					IF_FEAT_MODE_FLAG_L2_FAL_DISABLE);
 		return 0;
 	}
 

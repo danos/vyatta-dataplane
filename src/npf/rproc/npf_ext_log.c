@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  */
 
 /*
@@ -67,7 +67,7 @@
 #include "npf/npf_cache.h"
 #include "npf/npf_session.h"
 #include "npf/rproc/npf_ext_log.h"
-#include "pktmbuf.h"
+#include "pktmbuf_internal.h"
 #include "util.h"
 
 #define BUF_SIZE        64
@@ -88,8 +88,8 @@ npf_log_mac_fields(const struct rte_mbuf *mbuf,
 		   char const *mprefix, char *macs_buf,
 		   char const *eprefix, char *etype_buf)
 {
-	if (pktmbuf_l2_len(mbuf) != ETHER_HDR_LEN &&
-	    pktmbuf_l2_len(mbuf) != VLAN_HDR_LEN)
+	if (dp_pktmbuf_l2_len(mbuf) != ETHER_HDR_LEN &&
+	    dp_pktmbuf_l2_len(mbuf) != VLAN_HDR_LEN)
 		return;
 
 	const struct ether_hdr *eth
@@ -561,7 +561,7 @@ simple_ip:
 	else
 		ether_proto = htons(ETHER_TYPE_IPv6);
 
-	void *n_ptr = pktmbuf_mtol3(mbuf, char *) + npf_cache_hlen(npc);
+	void *n_ptr = dp_pktmbuf_mtol3(mbuf, char *) + npf_cache_hlen(npc);
 
 	/* Find the start of the packet embedded in the ICMP error. */
 	n_ptr = nbuf_advance(&mbuf, n_ptr, ICMP_MINLEN);

@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2011-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -9,15 +9,17 @@
  */
 
 #include <errno.h>
+#include <netinet/udp.h>
 #include <rte_ether.h>
 #include <rte_mbuf.h>
 #include <rte_memcpy.h>
 #include <string.h>
 
+#include "debug.h"
 #include "if_var.h"
 #include "ip_funcs.h"
 #include "netinet6/ip6_funcs.h"
-#include "pktmbuf.h"
+#include "pktmbuf_internal.h"
 
 struct rte_mempool;
 
@@ -80,25 +82,75 @@ char *pktmbuf_append_alloc(struct rte_mbuf *m, uint16_t len)
 	return rte_pktmbuf_append(m, len);
 }
 
+ALWAYS_INLINE void
+dp_pktmbuf_mdata_invar_ptr_set(struct rte_mbuf *m,
+			       uint32_t feature_id,
+			       void *ptr)
+{
+	struct pktmbuf_mdata *mdata = pktmbuf_mdata(m);
+
+	/* userdata repurposed as flags + vrf field */
+	mdata->md_feature_ptrs[feature_id] = ptr;
+	m->udata64 |=
+		((PKT_MDATA_INVAR_FEATURE_PTRS << feature_id) & UINT16_MAX)
+		<< 16;
+}
+
+ALWAYS_INLINE bool
+dp_pktmbuf_mdata_invar_ptr_get(const struct rte_mbuf *m,
+			       uint32_t feature_id,
+			       void **ptr)
+{
+	assert(feature_id < DP_PKTMBUF_MAX_INVAR_FEATURE_PTRS);
+
+	if (m->udata64 &
+	    (((PKT_MDATA_INVAR_FEATURE_PTRS << feature_id) & UINT16_MAX)
+	     << 16)) {
+		struct pktmbuf_mdata *mdata = pktmbuf_mdata(m);
+
+		*ptr = mdata->md_feature_ptrs[feature_id];
+		return true;
+	}
+	return false;
+}
+
+ALWAYS_INLINE void
+dp_pktmbuf_mdata_invar_ptr_clear(struct rte_mbuf *m,
+				 uint32_t feature_id)
+{
+	m->udata64 &= ~((uint64_t)
+			(((PKT_MDATA_INVAR_FEATURE_PTRS << feature_id) &
+			  UINT16_MAX) << 16));
+}
+
 void pktmbuf_move_mdata(struct rte_mbuf *md, struct rte_mbuf *ms)
 {
-	if (!pktmbuf_mdata_invar_exists(ms, PKT_MDATA_INVAR_FLOW |
-					PKT_MDATA_INVAR_SPATH |
-					PKT_MDATA_INVAR_ALT_FLOW |
-					PKT_MDATA_INVAR_NAT64) &&
-	    !pktmbuf_mdata_exists(ms, PKT_MDATA_SESSION |
+	int i;
+	int found = 0;
+	void *ptr;
+
+	if (pktmbuf_mdata_invar_exists(ms, PKT_MDATA_INVAR_SPATH |
+				       PKT_MDATA_INVAR_NAT64) ||
+	    pktmbuf_mdata_exists(ms, PKT_MDATA_SESSION |
 				  PKT_MDATA_CGNAT_SESSION |
 				  PKT_MDATA_DPI_SEEN |
 				  PKT_MDATA_SESSION_SENTRY))
+		found = true;
+
+	for (i = 0; i < DP_PKTMBUF_MAX_INVAR_FEATURE_PTRS; i++)
+		found |= dp_pktmbuf_mdata_invar_ptr_get(ms, i, &ptr);
+
+	if (!found)
 		return;
 
 	struct pktmbuf_mdata *mdatad = pktmbuf_mdata(md);
 	struct pktmbuf_mdata *mdatas = pktmbuf_mdata(ms);
 
-	if (pktmbuf_mdata_invar_exists(ms, PKT_MDATA_INVAR_FLOW)) {
-		pktmbuf_mdata_invar_set(md, PKT_MDATA_INVAR_FLOW);
-		mdatad->md_flowp = mdatas->md_flowp;
-		pktmbuf_mdata_invar_clear(ms, PKT_MDATA_INVAR_FLOW);
+	for (i = 0; i < DP_PKTMBUF_MAX_INVAR_FEATURE_PTRS; i++) {
+		if (dp_pktmbuf_mdata_invar_ptr_get(ms, i, &ptr)) {
+			dp_pktmbuf_mdata_invar_ptr_set(md, i, ptr);
+			dp_pktmbuf_mdata_invar_ptr_clear(ms, i);
+		}
 	}
 
 	if (pktmbuf_mdata_exists(ms, PKT_MDATA_SESSION)) {
@@ -129,12 +181,6 @@ void pktmbuf_move_mdata(struct rte_mbuf *md, struct rte_mbuf *ms)
 		pktmbuf_mdata_invar_set(md, PKT_MDATA_INVAR_SPATH);
 		mdatad->md_spath = mdatas->md_spath;
 		pktmbuf_mdata_invar_clear(ms, PKT_MDATA_INVAR_SPATH);
-	}
-
-	if (pktmbuf_mdata_invar_exists(ms, PKT_MDATA_INVAR_ALT_FLOW)) {
-		pktmbuf_mdata_invar_set(md, PKT_MDATA_INVAR_ALT_FLOW);
-		mdatad->md_flow = mdatas->md_flow;
-		pktmbuf_mdata_invar_clear(ms, PKT_MDATA_INVAR_ALT_FLOW);
 	}
 
 	if (pktmbuf_mdata_exists(ms, PKT_MDATA_DPI_SEEN)) {
@@ -386,7 +432,7 @@ struct ifnet *pktmbuf_restore_ifp(struct rte_mbuf *m)
 	struct ifnet *ifp;
 
 	if (pktmbuf_mdata_exists(m, PKT_MDATA_IFINDEX)) {
-		ifp = ifnet_byifindex(pktmbuf_mdata(m)->md_ifindex.ifindex);
+		ifp = dp_ifnet_byifindex(pktmbuf_mdata(m)->md_ifindex.ifindex);
 		pktmbuf_mdata_clear(m, PKT_MDATA_IFINDEX);
 	} else {
 		assert(m->port < DATAPLANE_MAX_PORTS);
@@ -402,12 +448,12 @@ int pktmbuf_tcp_header_is_usable(struct rte_mbuf *m)
 	unsigned int tcphlen;
 	struct tcphdr *tcp;
 
-	l2l3hlen = pktmbuf_l2_len(m) + pktmbuf_l3_len(m);
+	l2l3hlen = dp_pktmbuf_l2_len(m) + dp_pktmbuf_l3_len(m);
 	tcphlen = l2l3hlen + sizeof(struct tcphdr);
 	if (rte_pktmbuf_data_len(m) <= tcphlen)
 		return 0;	/* can not overlay header */
 
-	tcp = pktmbuf_mtol4(m, struct tcphdr *);
+	tcp = dp_pktmbuf_mtol4(m, struct tcphdr *);
 	if (rte_pktmbuf_pkt_len(m) - l2l3hlen < ntohs(tcp->th_off)*4)
 		return 0;	/* truncated */
 
@@ -421,15 +467,85 @@ int pktmbuf_udp_header_is_usable(struct rte_mbuf *m)
 	unsigned int udphlen;
 	struct udphdr *udp;
 
-	l2l3hlen = pktmbuf_l2_len(m) + pktmbuf_l3_len(m);
+	l2l3hlen = dp_pktmbuf_l2_len(m) + dp_pktmbuf_l3_len(m);
 	udphlen = l2l3hlen + sizeof(struct udphdr);
 	if (rte_pktmbuf_data_len(m) <= udphlen)
 		return 0;	/* can not overlay header */
 
-	udp = pktmbuf_mtol4(m, struct udphdr *);
+	udp = dp_pktmbuf_mtol4(m, struct udphdr *);
 	if (rte_pktmbuf_pkt_len(m) - l2l3hlen < ntohs(udp->len))
 		return 0;	/* truncated */
 
 	return 1;
 
+}
+
+struct rte_mbuf *dp_pktmbuf_alloc_from_default(vrfid_t vrf_id)
+{
+	return pktmbuf_alloc(mbuf_pool(0), vrf_id);
+}
+
+vrfid_t
+dp_pktmbuf_get_vrf(const struct rte_mbuf *m)
+{
+	return pktmbuf_get_vrf(m);
+}
+
+void dp_pktmbuf_mark_locally_generated(struct rte_mbuf *m)
+{
+	pktmbuf_mdata_set(m, PKT_MDATA_FROM_US);
+}
+
+static char *pktmbuf_mdata_feat_regs[DP_PKTMBUF_MAX_INVAR_FEATURE_PTRS];
+
+int dp_pktmbuf_mdata_invar_feature_register(const char *name)
+{
+	int i;
+
+	ASSERT_MASTER();
+
+	if (!name)
+		return -EINVAL;
+
+	for (i = 0; i < DP_PKTMBUF_MAX_INVAR_FEATURE_PTRS; i++) {
+		if (!pktmbuf_mdata_feat_regs[i]) {
+			pktmbuf_mdata_feat_regs[i] =
+				strdup(name);
+			if (!pktmbuf_mdata_feat_regs[i]) {
+				RTE_LOG(ERR, DATAPLANE,
+					"Feature %s registration for meta data failed\n",
+					name);
+				return -ENOMEM;
+			}
+			RTE_LOG(INFO, DATAPLANE,
+				"Feature %s registered for meta data ptr %d\n",
+				name, i);
+			return i;
+		}
+	}
+
+	return -ENOSPC;
+}
+
+int dp_pktmbuf_mdata_invar_feature_unregister(const char *name, int slot)
+{
+	ASSERT_MASTER();
+
+	if (!name)
+		return -EINVAL;
+
+	if (!pktmbuf_mdata_feat_regs[slot])
+		return -EINVAL;
+
+	if (strcmp(pktmbuf_mdata_feat_regs[slot], name))
+		return -EINVAL;
+
+	free(pktmbuf_mdata_feat_regs[slot]);
+	pktmbuf_mdata_feat_regs[slot] = NULL;
+
+	RTE_LOG(INFO, DATAPLANE,
+		"Feature %s unregistered for meta data ptr %d\n",
+		name, slot);
+
+	return 0;
 }

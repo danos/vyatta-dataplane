@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2017-2019, AT&T Intellectual Property.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.
  * All rights reserved.
  * Copyright (c) 2011-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
@@ -26,15 +26,19 @@
 
 #include "commands.h"
 #include "compiler.h"
-#include "config.h"
+#include "config_internal.h"
 #include "control.h"
 #include "crypto/crypto_policy.h"
 #include "dpmsg.h"
-#include "event.h"
+#include "event_internal.h"
+#include "feature_commands.h"
+#include "feature_plugin_internal.h"
+#include "if/dpdk-eth/vhost.h"
 #include "if_var.h"
 #include "ip_addr.h"
 #include "master.h"
 #include "mstp.h"
+#include "netinet6/nd6_nbr.h"
 #include "netlink.h"
 #include "npf/config/npf_config.h"
 #include "pl_commands.h"
@@ -44,10 +48,9 @@
 #include "session/session_cmds.h"
 #include "urcu.h"
 #include "util.h"
-#include "vhost.h"
 #include "vplane_debug.h"
 #include "vplane_log.h"
-#include "vrf.h"
+#include "vrf_internal.h"
 #include "storm_ctl.h"
 #include "backplane.h"
 #include "ptp.h"
@@ -276,7 +279,7 @@ static int report_config_error(const char *cmd, int code)
 	if (result < 0)
 		goto err;
 
-	return send_dp_event(msg);
+	return dp_send_event_to_vplaned(msg);
 
 err:
 	zmsg_destroy(&msg);
@@ -340,8 +343,8 @@ static int process_config_cmd(enum cont_src_en cont_src,
 		result = report_config_error(cmd_log, rc);
 		if (result < 0)
 			RTE_LOG(ERR, DATAPLANE,
-				"Failed to send cmd report for cmd "
-				"\"%s\": %s\n", cmd_log, strerror(result));
+				"Failed to send cmd report for cmd \"%s\": %s\n",
+				cmd_log, strerror(-result));
 
 		RTE_LOG(NOTICE, DATAPLANE,
 			"(%s) cmd [ %s ] : %s\n", cont_src_name(cont_src),
@@ -466,23 +469,20 @@ static const struct msg_handler message_handlers_main[] = {
 	{ 0,	"address",	process_netlink_data,	 NULL },
 	{ 0,	"affinity",	process_config_cmd,	 cmd_affinity_cfg },
 	{ 1,	"affinity",	process_config_cmd,	 cmd_affinity_cfg },
-	{ 0,    "arp",          process_config_cmd,      cmd_arp_cfg },
 	{ 0,    "backplane",    process_config_cmd,      cmd_backplane_cfg },
-	{ 0,    "breakout",     process_config_cmd,      cmd_breakout },
 	{ 0,	"bridge_link",	process_netlink_data,	 NULL },
 	{ 0,	"cgn-cfg",	process_config_cmd,	 cmd_cgn },
 	{ 0,	"ecmp",		process_config_cmd,	 NULL },
 	{ 0,	"ip4",		process_config_cmd,	 cmd_ip },
 	{ 0,	"ipsec",	process_config_cmd,	 NULL },
-	{ 0,	"ip6",		process_config_cmd,	 cmd_ip6 },
 	{ 0,	"l2tpeth",	process_config_cmd,	 NULL },
 	{ 0,	"l2tp_",	process_l2tp_cmd,	 NULL },
 	{ 0,	"link",		process_netlink_data,	 NULL },
-	{ 0,	"speed",	process_config_cmd,	 cmd_speed },
 	{ 0,	"mode",		process_config_cmd,	 cmd_power_cfg },
 	{ 0,	"mpls",		process_config_cmd,	 NULL },
 	{ 0,	"mstp",		process_config_cmd,	 cmd_mstp },
 	{ 0,	"nat-cfg",	process_config_cmd,	 cmd_nat },
+	{ 0,	"nd6",		process_config_cmd,	 cmd_nd6_set_cfg },
 	{ 0,	"neigh",	process_netlink_data,	 NULL },
 	{ 0,	"netconf",	process_netlink_data,	 NULL },
 	{ 2,	"npf-cfg",	process_config_cmd,	 cmd_npf_cfg },
@@ -491,7 +491,7 @@ static const struct msg_handler message_handlers_main[] = {
 	{ 0,	"portmonitor",	process_config_cmd,	 NULL },
 	{ 0,	"protobuf",	process_pb_cmd,          NULL },
 	{ 0,	"ptp",		process_config_cmd,      cmd_ptp_cfg },
-	{ 4,	"qos",		process_config_cmd,	 cmd_qos_cfg },
+	{ 10,	"qos",		process_config_cmd,	 cmd_qos_cfg },
 	{ 0,	"route",	process_netlink_data,	 NULL },
 	{ 3,    "storm-ctl",    process_config_cmd,      cmd_storm_ctl_cfg },
 	{ 0,	"tablemap",	process_config_cmd,	 cmd_tablemap_cfg },
@@ -551,6 +551,43 @@ static const struct msg_handler ready_handlers[] = {
 	{ 0,    NULL,           NULL }
 };
 
+/*
+ * Dynamically registered handlers
+ */
+struct dynamic_cfg_command_entry {
+	struct msg_handler handler;
+	struct cds_list_head list_entry;
+};
+
+static struct cds_list_head dynamic_cfg_command_list_head =
+	CDS_LIST_HEAD_INIT(dynamic_cfg_command_list_head);
+
+static const struct msg_handler *
+find_msg_handler(const struct msg_handler *handlers,
+		 const char *name, int len)
+{
+	const struct msg_handler *h;
+	struct dynamic_cfg_command_entry *dynamic_cmd;
+
+	for (h = handlers; h->topic; ++h) {
+		if (memcmp(name, h->topic, MIN(len, strlen(h->topic))))
+			continue;
+
+		return h;
+	}
+
+	/* And check the dynamically registered commands too */
+	cds_list_for_each_entry_rcu(dynamic_cmd, &dynamic_cfg_command_list_head,
+				    list_entry) {
+		if (memcmp(name, dynamic_cmd->handler.topic,
+			   MIN(len, strlen(dynamic_cmd->handler.topic))))
+			continue;
+		return &dynamic_cmd->handler;
+	}
+
+	return NULL;
+}
+
 static int
 process_topic_msg(enum cont_src_en cont_src,
 		  const struct msg_handler *handlers, dpmsg_t *dpmsg)
@@ -558,15 +595,13 @@ process_topic_msg(enum cont_src_en cont_src,
 	const struct msg_handler *h;
 	int ret;
 
-	for (h = handlers; h->topic; ++h) {
-		if (memcmp(zmq_msg_data(&dpmsg->topic_msg), h->topic,
-				MIN(zmq_msg_size(&dpmsg->topic_msg),
-						strlen(h->topic))))
-			continue;
-
+	h = find_msg_handler(handlers,
+			     zmq_msg_data(&dpmsg->topic_msg),
+			     zmq_msg_size(&dpmsg->topic_msg));
+	if (h) {
 		rcu_read_lock();
 		ret = (*h->handler)(cont_src, zmq_msg_data(&dpmsg->data_msg),
-				zmq_msg_size(&dpmsg->data_msg), h);
+				    zmq_msg_size(&dpmsg->data_msg), h);
 		rcu_read_unlock();
 
 		return ret;
@@ -579,6 +614,63 @@ process_topic_msg(enum cont_src_en cont_src,
 		cont_src_name(cont_src), (int)zmq_msg_size(&dpmsg->topic_msg),
 		(char *)zmq_msg_data(&dpmsg->topic_msg));
 	return -1;
+}
+
+int dp_feature_register_string_cfg_handler(const char *name,
+					   feature_string_op_fn *fn)
+{
+	struct dynamic_cfg_command_entry *dynamic_cfg_cmd;
+	const struct msg_handler *cmd;
+
+	if (!name || !fn)
+		return -EINVAL;
+
+	cmd = find_msg_handler(message_handlers_main, name, strlen(name));
+	if (cmd) {
+		RTE_LOG(ERR, DATAPLANE,
+			 "Can not register op cmd. Cmd %s already exists\n",
+			 cmd->topic);
+		return -EINVAL;
+	}
+
+	dynamic_cfg_cmd = calloc(1, sizeof(*dynamic_cfg_cmd));
+	if (!dynamic_cfg_cmd) {
+		RTE_LOG(ERR, DATAPLANE,
+			 "Can not register op cmd. No memory\n");
+		return -EINVAL;
+	}
+
+	dynamic_cfg_cmd->handler.version = 0;
+	dynamic_cfg_cmd->handler.topic = strdup(name);
+	if (!dynamic_cfg_cmd->handler.topic) {
+		RTE_LOG(ERR, DATAPLANE,
+			 "Can not register op cmd. No memory\n");
+		free(dynamic_cfg_cmd);
+		return -EINVAL;
+	}
+	dynamic_cfg_cmd->handler.handler = process_config_cmd;
+	dynamic_cfg_cmd->handler.cmd_handler = fn;
+
+	cds_list_add_rcu(&dynamic_cfg_cmd->list_entry,
+			 &dynamic_cfg_command_list_head);
+	return 0;
+}
+
+void feature_unregister_all_string_cfg_handlers(void)
+{
+	struct dynamic_cfg_command_entry *cmd = NULL;
+	struct cds_list_head *this_entry, *next;
+
+	cds_list_for_each_safe(this_entry, next,
+			       &dynamic_cfg_command_list_head) {
+		cmd = cds_list_entry(this_entry,
+				     struct dynamic_cfg_command_entry,
+				     list_entry);
+
+		cds_list_del_rcu(&cmd->list_entry);
+		free((char *)cmd->handler.topic);
+		free(cmd);
+	}
 }
 
 /* Process message either from pub-sub socket
@@ -709,12 +801,12 @@ void controller_unsubscribe(enum cont_src_en cont_src)
 	zsock_t *subscriber = cont_src_info[cont_src].subscriber;
 
 	if (csocket) {
-		unregister_event_socket(zsock_resolve(csocket));
+		dp_unregister_event_socket(zsock_resolve(csocket));
 		zsock_destroy(&cont_src_info[cont_src].csocket);
 	}
 
 	if (subscriber) {
-		unregister_event_socket(zsock_resolve(subscriber));
+		dp_unregister_event_socket(zsock_resolve(subscriber));
 		zsock_destroy(&cont_src_info[cont_src].subscriber);
 	}
 }
@@ -725,6 +817,7 @@ void controller_init(enum cont_src_en cont_src)
 	const struct msg_handler *h;
 	char *publish_url = NULL;
 	zsock_t *subscriber;
+	struct dynamic_cfg_command_entry *dynamic_cmd;
 
 	switch (cont_src) {
 	case CONT_SRC_MAIN:
@@ -757,6 +850,11 @@ void controller_init(enum cont_src_en cont_src)
 
 	for (h = message_handlers[cont_src]; h->topic; ++h)
 		zsock_set_subscribe(subscriber, h->topic);
+
+	/* And subscribe for the dynamically handled events */
+	cds_list_for_each_entry_rcu(dynamic_cmd, &dynamic_cfg_command_list_head,
+				    list_entry)
+		zsock_set_subscribe(subscriber, dynamic_cmd->handler.topic);
 
 	cont_src_info[cont_src].subscriber = subscriber;
 }
@@ -871,6 +969,45 @@ void controller_init_event_handler(enum cont_src_en cont_src)
 				  &cont_src_info[cont_src], cont_src);
 }
 
+/*
+ * Traverse a set of cached commands on a list, removing those
+ * for a given interface, and if supplied, calling the handler for
+ * those commands. If the list is empty after traversal, it's destroyed.
+ *
+ * Suitable to be called on an if_index set or unset event.
+ */
+int cfg_if_list_replay(struct cfg_if_list **cfg_list, const char *ifname,
+		       cmd_func_t handler)
+{
+	struct cfg_if_list *if_list = *cfg_list;
+	struct cfg_if_list_entry *entry, *temp_entry;
+	int rv;
+
+	if (!if_list)
+		return 0;
+
+	cds_list_for_each_entry_safe(entry, temp_entry, &if_list->if_list,
+				     le_node) {
+		if (strcmp(ifname, entry->le_ifname))
+			continue;
+
+		if (handler) {
+			rv = handler(NULL, entry->le_argc, entry->le_argv);
+			if (rv)
+				return rv;
+		}
+
+		rv = cfg_if_list_del(if_list, ifname);
+		if (rv)
+			return rv;
+	}
+
+	if (!if_list->if_list_count)
+		return cfg_if_list_destroy(cfg_list);
+
+	return 0;
+}
+
 struct cfg_if_list_entry *
 cfg_if_list_lookup(struct cfg_if_list *if_list, const char *ifname)
 {
@@ -899,16 +1036,18 @@ struct cfg_if_list *cfg_if_list_create(void)
 	return if_list;
 }
 
-int cfg_if_list_add(struct cfg_if_list *if_list, const char *ifname,
-		    int argc, char *argv[])
+static int
+cfg_if_list_add_internal(struct cfg_if_list *if_list, const char *ifname,
+			 int argc, char *argv[], bool multiple_per_if)
 {
-	struct cfg_if_list_entry *le;
+	struct cfg_if_list_entry *le = NULL;
 	int i, size;
 
 	if (strlen(ifname) + 1 > IFNAMSIZ)
 		return -EINVAL;
 
-	le = cfg_if_list_lookup(if_list, ifname);
+	if (!multiple_per_if)
+		le = cfg_if_list_lookup(if_list, ifname);
 	if (!le) {
 		le = zmalloc_aligned(sizeof(*le));
 		if (!le)
@@ -949,6 +1088,26 @@ int cfg_if_list_add(struct cfg_if_list *if_list, const char *ifname,
 	}
 
 	return 0;
+}
+
+/*
+ * Only 1 entry is allowed per interface and a subsequent add will
+ * overwrite the entry.
+ */
+int cfg_if_list_add(struct cfg_if_list *if_list, const char *ifname,
+		    int argc, char *argv[])
+{
+	return cfg_if_list_add_internal(if_list, ifname, argc, argv, false);
+}
+
+/*
+ * Multiple entries are allowed per interface and a subsequent add will
+ * be added at the tail of the list.
+ */
+int cfg_if_list_add_multi(struct cfg_if_list *if_list, const char *ifname,
+			  int argc, char *argv[])
+{
+	return cfg_if_list_add_internal(if_list, ifname, argc, argv, true);
 }
 
 int cfg_if_list_bin_add(struct cfg_if_list *if_list, const char *ifname,
@@ -1022,4 +1181,16 @@ int cfg_if_list_destroy(struct cfg_if_list **if_list)
 	free(*if_list);
 	*if_list = NULL;
 	return 0;
+}
+
+int cfg_if_list_cache_command(struct cfg_if_list **if_list, const char *ifname,
+			      int argc, char **argv)
+{
+	if (!*if_list) {
+		*if_list = cfg_if_list_create();
+		if (!*if_list)
+			return -ENOMEM;
+	}
+
+	return cfg_if_list_add_multi(*if_list, ifname, argc, argv);
 }

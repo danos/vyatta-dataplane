@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2011-2017 by Brocade Communications Systems, Inc.
  * All rights reserved.
  */
@@ -89,20 +89,22 @@
 
 #include "address.h"
 #include "bitmask.h"
-#include "bridge.h"
 #include "capture.h"
 #include "commands.h"
 #include "compat.h"
 #include "compiler.h"
-#include "config.h"
+#include "config_internal.h"
 #include "crypto/crypto_forward.h"
 #include "crypto/crypto_main.h"
 #include "crypto/vti.h"
 #include "dp_event.h"
 #include "ether.h"
-#include "event.h"
+#include "event_internal.h"
 #include "fal.h"
-#include "gre.h"
+#include "feature_plugin_internal.h"
+#include "if/dpdk-eth/dpdk_eth_if.h"
+#include "if/dpdk-eth/dpdk_eth_linkwatch.h"
+#include "if/dpdk-eth/vhost.h"
 #include "if_llatbl.h"
 #include "if_var.h"
 #include "ip_funcs.h"
@@ -112,7 +114,6 @@
 #include "l2_rx_fltr.h"
 #include "l2tp/l2tpeth.h"
 #include "lag.h"
-#include "macvlan.h"
 #include "main.h"
 #include "master.h"
 #include "mpls/mpls_label_table.h"
@@ -120,26 +121,24 @@
 #include "npf/fragment/ipv4_rsmbl.h"
 #include "npf_shim.h"
 #include "pipeline/pl_internal.h"
-#include "pktmbuf.h"
+#include "pktmbuf_internal.h"
 #include "portmonitor/portmonitor.h"
 #include "power.h"
 #include "qos.h"
 #include "route.h"
 #include "session/session.h"
 #include "shadow.h"
+#include "lcore_sched.h"
+#include "lcore_sched_internal.h"
 #include "udp_handler.h"
 #include "urcu.h"
 #include "util.h"
 #include "version.h"
-#include "vhost.h"
 #include "vplane_debug.h"
 #include "vplane_log.h"
-#include "vrf.h"
-#include "vxlan.h"
+#include "vrf_internal.h"
 #include "pipeline/nodes/pppoe/pppoe.h"
 #include "backplane.h"
-#include "vlan_modify.h"
-#include "dpdk_eth_if.h"
 
 packet_input_t packet_input_func __hot_data = ether_input_no_dyn_feats;
 
@@ -252,6 +251,13 @@ struct lcore_conf {
 	struct rate_stats rx_poll_stats[MAX_RX_QUEUE_PER_CORE];
 	struct rate_stats tx_poll_stats[MAX_TX_QUEUE_PER_CORE];
 	struct rate_stats crypt_stats;
+	bool ded_to_feature;
+
+	/* State for when a feature has registered to use this core */
+	uint8_t do_feature;
+	struct dp_lcore_feat feat;
+	struct rate_stats feat_rx_stats;
+	struct rate_stats feat_tx_stats;
 } __rte_cache_aligned;
 
 static struct lcore_conf *lcore_conf[RTE_MAX_LCORE];
@@ -283,6 +289,7 @@ static struct port_conf {
 	struct rte_mempool *rx_pool;	/* Receive buffer pool */
 	struct rte_eth_txconf tx_conf;
 	struct rte_eth_rxconf rx_conf;
+	enum rte_eth_rx_mq_mode rx_mq_mode;
 } __rte_cache_aligned port_config[DATAPLANE_MAX_PORTS] __hot_data;
 
 /* Per socket mbuf pool */
@@ -290,6 +297,9 @@ static struct rte_mempool *numa_pool[RTE_MAX_NUMA_NODES];
 
 /* Single CPU forwarding thread */
 static pthread_t single_forward_thread;
+
+/* DPDK owner for ports */
+struct rte_eth_dev_owner owner = { .id = RTE_ETH_DEV_NO_OWNER };
 
 /* Program name for log and usage message */
 char *progname;
@@ -305,13 +315,12 @@ bitmask_t poll_port_mask;		/* should be polled */
 /* port should be polled and is link up */
 bitmask_t active_port_mask __hot_data;
 
-uint64_t dp_debug = DP_DBG_DEFAULT;
+uint16_t nb_ports;
 
 static bool daemon_mode;		/* become daemon */
 static unsigned int avail_cores;		/* number of forwarding cores */
-static bool single_cpu;			/* is dataplane running on uP */
+bool single_cpu;			/* is dataplane running on uP */
 static const char *pid_file;		/* record pid of master thread */
-static const char *config_file = VYATTA_SYSCONF_DIR"/dataplane.conf";
 static const char *drv_cfg_file =
 	VYATTA_DATA_DIR"/dataplane-drivers-default.conf";
 static const char *drv_override_cfg_file =
@@ -330,21 +339,20 @@ static pthread_t master_pthread;
 /*
  * Default Ethernet configuration
  * Modified as needed to support different MTU
+ *
+ * We may need to transmit a jumbo frame, or prepend to a
+ * cloned packet and both of these require multiple segment
+ * support for TX, so request it.
  */
 static const struct rte_eth_conf eth_base_conf = {
 	.rxmode = {
 		.mq_mode	= ETH_MQ_RX_RSS,
 		.max_rx_pkt_len = ETHER_MAX_LEN,
 		.split_hdr_size = 0,
-#if RTE_VERSION < RTE_VERSION_NUM(18,8,0,0)
-		.header_split   = 0, /**< Header Split disabled */
-		.hw_ip_checksum = 0, /**< IP checksum offload disabled */
-		.hw_vlan_filter = 1,
-		.hw_vlan_strip  = 1,
-		.jumbo_frame    = 0,
-		.hw_strip_crc   = 1,
-		.enable_scatter = 0,
-#endif
+	},
+	.txmode = {
+		.offloads	= DEV_TX_OFFLOAD_MULTI_SEGS |
+				  DEV_TX_OFFLOAD_VLAN_INSERT,
 	},
 	.rx_adv_conf = {
 		.rss_conf = {
@@ -500,7 +508,7 @@ static void pkt_burst_init(unsigned int lcore_id, uint16_t qid)
 }
 
 
-void pkt_burst_free(void)
+void dp_pkt_burst_free(void)
 {
 	unsigned int lcore_id = rte_lcore_id();
 
@@ -511,7 +519,7 @@ void pkt_burst_free(void)
 	rte_free(RTE_PER_LCORE(pkt_burst));
 }
 
-void pkt_burst_setup(void)
+void dp_pkt_burst_setup(void)
 {
 	unsigned int lcore_id = rte_lcore_id();
 
@@ -602,7 +610,7 @@ static __hot_func void pkt_ring_drain(void)
 	crypto_send(cpb);
 }
 
-static __hot_func
+ALWAYS_INLINE __hot_func
 void pkt_ring_output(struct ifnet *ifp, struct rte_mbuf *m)
 {
 	portid_t portid = ifp->if_port;
@@ -630,8 +638,7 @@ void pkt_ring_output(struct ifnet *ifp, struct rte_mbuf *m)
 
 	if (likely(pb != NULL)) {
 		if (unlikely(ifp->portmonitor) &&
-		    __use_directpath(pb->port,
-				     ifp->qos_software_fwd))
+		    __use_directpath(portid, ifp->qos_software_fwd))
 			portmonitor_src_phy_tx_output(ifp, &m, 1);
 
 		/* If changing flows to another port */
@@ -675,7 +682,7 @@ full_hwq: __cold_label;
 	return;
 }
 
-void pkt_burst_flush(void)
+void dp_pkt_burst_flush(void)
 {
 	unsigned int lcore_id = rte_lcore_id();
 
@@ -686,145 +693,6 @@ void pkt_burst_flush(void)
 
 	if (pb->count > 0)
 		pkt_ring_burst(pb, true);
-}
-
-static struct rte_mbuf *
-if_output_features(struct ifnet *ifp, struct rte_mbuf **m)
-{
-	if (unlikely(ifp->vlan_modify))
-		if (unlikely(!vlan_modify_egress(ifp, m)))
-			return NULL;
-
-	if (unlikely(ifp->portmonitor))
-		portmonitor_src_vif_tx_output(ifp, m);
-
-	if (unlikely(ifp->capturing) &&
-	    capture_if_use_common_cap_points(ifp))
-		capture_burst(ifp, m, 1);
-
-	return *m;
-}
-
-static void unsup_tunnel_output(struct ifnet *ifp, struct rte_mbuf *m,
-				struct ifnet *input_ifp, uint16_t proto)
-{
-	if (!input_ifp) {
-		rte_pktmbuf_free(m);
-		if_incr_dropped(ifp);
-		return;
-	}
-
-	switch (proto) {
-	case ETH_P_IP:
-		/*
-		 * Assume the packet has been forwarded and thus its
-		 * ttl has been decremented.
-		 */
-		increment_ttl(iphdr(m));
-		ip_local_deliver(ifp, m);
-		break;
-	case ETH_P_IPV6:
-		ip6hdr(m)->ip6_hlim += IPV6_HLIMDEC;
-		ip6_local_deliver(ifp, m);
-		break;
-	default:
-		local_packet(ifp, m);
-		break;
-	}
-}
-
-/* Packet on virtual feature point */
-static void vfp_output(struct ifnet *ifp, struct rte_mbuf *m,
-		       struct ifnet *input_ifp, uint16_t proto)
-{
-	struct vfp_softc *vsc = ifp->if_softc;
-
-	switch (vsc->vfp_type) {
-	case VFP_S2S_CRYPTO:
-		crypto_policy_post_features_outbound(ifp, input_ifp, m, proto);
-		break;
-	case VFP_NONE:
-		/* Packet on loopback shouldn't reach here */
-		assert(0);
-		rte_pktmbuf_free(m);
-		if_incr_dropped(ifp);
-		break;
-	}
-}
-
-/*
- * Transmit one packet
- *
- * The expectation is that for !IFF_NOARP interfaces then the packet
- * will be properly L2 encapsulated at this point such that it can be
- * sent to the L2 neighbour.
- *
- * For IFF_NOARP interfaces then the packet will be L2 encapsulated
- * during send.
- *
- * The reason for this asymmetry is to keep the address resolution
- * above this layer for multipoint interfaces, yet to keep things
- * simple and fast for point-to-point interfaces to avoid needing to
- * perform an extra encap step before calling this function.
- *
- * The proto passed in is the link-layer protocol used for
- * point-to-point interfaces.
- */
-__hot_func __rte_cache_aligned
-void if_output(struct ifnet *ifp, struct rte_mbuf *m,
-	       struct ifnet *input_ifp, uint16_t proto)
-{
-	uint16_t rx_vlan = pktmbuf_get_rxvlanid(m);
-
-	if (ifp->if_type == IFT_L2VLAN) {
-		if_add_vlan(ifp, &m);
-
-		if (!if_output_features(ifp, &m))
-			goto out;
-
-		ifp = ifp->if_parent;
-
-		/* for the case where original ifp was for QinQ */
-		if (ifp->if_type == IFT_L2VLAN) {
-			if (!if_output_features(ifp, &m))
-				goto out;
-			ifp = ifp->if_parent;
-		}
-	}
-
-	if (!if_output_features(ifp, &m))
-		goto out;
-
-	if (likely(ifp->if_type == IFT_ETHER))
-		pkt_ring_output(ifp, m);
-	else if (ifp->if_type == IFT_BRIDGE)
-		bridge_output(ifp, m, input_ifp);
-	else if (ifp->if_type == IFT_VXLAN)
-		vxlan_output(ifp, m, proto);
-	else if (ifp->if_type == IFT_L2TPETH)
-		l2tp_output(ifp, m, rx_vlan);
-	else if (ifp->if_type == IFT_TUNNEL_GRE)
-		gre_tunnel_send(input_ifp, ifp, m, proto);
-	else if (ifp->if_type == IFT_TUNNEL_VTI)
-		vti_tunnel_out(input_ifp, ifp, m, proto);
-	else if (ifp->if_type == IFT_PPP)
-		ppp_tunnel_output(ifp, m, input_ifp, proto);
-	else if (ifp->if_type == IFT_TUNNEL_OTHER)
-		unsup_tunnel_output(ifp, m, input_ifp, proto);
-	else if (ifp->if_type == IFT_LOOP)
-		vfp_output(ifp, m, input_ifp, proto);
-	else if (ifp->if_type == IFT_MACVLAN)
-		macvlan_output(ifp, m, input_ifp, proto);
-	else {
-		/*
-		 * Packets for other interface types shouldn't reach
-		 * this point.
-		 */
-out:
-		assert(0);
-		rte_pktmbuf_free(m);
-		if_incr_dropped(ifp);
-	}
 }
 
 static __hot_func void
@@ -1138,7 +1006,7 @@ forwarding_loop(unsigned int lcore_id)
 	enum lcore_state state;
 
 	RTE_PER_LCORE(_dp_lcore_id) = lcore_id;
-	dp_crypto_per_lcore_init(lcore_id);
+	dp_lcore_events_init(lcore_id);
 
 	pkt_burst_init(lcore_id, conf->tx_qid);
 
@@ -1195,7 +1063,8 @@ forwarding_loop(unsigned int lcore_id)
 	} while (likely(state != LCORE_STATE_EXIT));
 	rcu_unregister_thread();
 
-	pkt_burst_free();
+	dp_lcore_events_teardown(lcore_id);
+	dp_pkt_burst_free();
 
 	RTE_LOG(DEBUG, DATAPLANE,
 		"stopped core %d\n", lcore_id);
@@ -1213,7 +1082,18 @@ launch_one_lcore(void *arg __unused)
 	RTE_LOG(DEBUG, DATAPLANE,
 		"start core %d\n", lcore);
 
-	forwarding_loop(lcore);
+	renice(-20);
+
+	if (CMM_LOAD_SHARED(lcore_conf[lcore]->do_feature)) {
+		RTE_PER_LCORE(_dp_lcore_id) = lcore;
+		dp_lcore_events_init(lcore);
+
+		lcore_conf[lcore]->feat.dp_lcore_feat_fn(lcore, NULL);
+
+		dp_lcore_events_teardown(lcore);
+	} else {
+		forwarding_loop(lcore);
+	}
 
 	return 0;
 }
@@ -1266,7 +1146,7 @@ out:
 	return ret;
 }
 
-static int
+int
 eth_port_configure(portid_t portid, struct rte_eth_conf *dev_conf)
 {
 	struct port_conf *port_conf = &port_config[portid];
@@ -1318,167 +1198,6 @@ eth_port_configure(portid_t portid, struct rte_eth_conf *dev_conf)
 	}
 
 	return 0;
-}
-
-static void reconfigure_slave(struct ifnet *ifp, void *arg)
-{
-	struct rte_eth_conf *conf = arg;
-	struct rte_eth_conf *slave_conf;
-	struct rte_eth_dev *slave_dev;
-
-	/* Ensure slave is stopped as stopping master does not do this */
-	rte_eth_dev_stop(ifp->if_port);
-
-	/*
-	 * Update slave config to match the master jumbo config
-	 * so that it will accept a jumbo mtu change.
-	 * Leave everything else alone.
-	 * When the master is restarted, it will configure the slave,
-	 * set up its queues, and start it, so don't call
-	 * rte_eth_dev_configure() directly here.
-	 */
-	slave_dev = &rte_eth_devices[ifp->if_port];
-	slave_conf = &slave_dev->data->dev_conf;
-#if RTE_VERSION >= RTE_VERSION_NUM(18,8,0,0)
-	if (conf->rxmode.offloads & DEV_RX_OFFLOAD_SCATTER)
-		slave_conf->rxmode.offloads |= DEV_RX_OFFLOAD_SCATTER;
-	else
-		slave_conf->rxmode.offloads &= ~(DEV_RX_OFFLOAD_SCATTER);
-	if (conf->rxmode.offloads & DEV_RX_OFFLOAD_JUMBO_FRAME)
-		slave_conf->rxmode.offloads |= DEV_RX_OFFLOAD_JUMBO_FRAME;
-	else
-		slave_conf->rxmode.offloads &= ~(DEV_RX_OFFLOAD_JUMBO_FRAME);
-#else
-	slave_conf->rxmode.enable_scatter = conf->rxmode.enable_scatter;
-	slave_conf->rxmode.jumbo_frame = conf->rxmode.jumbo_frame;
-#endif
-}
-
-/*
- * Reconfigure a port, stopping the port if necessary and
- * performing any necessary work after restarting the port.
- *
- * reconfigure_port_cb can be used to perform any additional
- * operations before the port is restarted.
- */
-int reconfigure_port(struct ifnet *ifp,
-		     struct rte_eth_conf *dev_conf,
-		     reconfigure_port_cb_fn reconfigure_port_cb)
-{
-	portid_t portid = ifp->if_port;
-	int err;
-	struct rte_eth_dev *dev = &rte_eth_devices[portid];
-	int dev_started = dev->data->dev_started;
-
-	if (dev_started)
-		stop_port(ifp->if_port);
-
-	err = eth_port_configure(portid, dev_conf);
-
-	if (!err && reconfigure_port_cb)
-		err = reconfigure_port_cb(ifp, dev_conf);
-
-	/*
-	 * If we brought the port down then bring it back up, even if there
-	 * was an error.
-	 */
-	if (dev_started) {
-		start_port(ifp->if_port, ifp->if_flags);
-		if (is_team(ifp))
-			lag_refresh_actor_state(ifp);
-		/* Reprogram HW multicast filter after restarting port */
-		l2_rx_fltr_state_change(ifp);
-	}
-
-	if (err && reconfigure_port_cb)
-		/*
-		 * Try again if it failed when the port was down. Some
-		 * drivers such as igb require the port to be brought
-		 * back up after the jumbo cfg is set before the mtu
-		 * can be set into the jumbo range.
-		 */
-		err = reconfigure_port_cb(ifp, dev_conf);
-
-	return err;
-}
-
-static int reconfigure_pkt_len_cb(struct ifnet *ifp,
-				  struct rte_eth_conf *dev_conf)
-{
-	int err;
-
-	/* Reconfigure slaves to match master jumbo config */
-	if (is_team(ifp))
-		lag_walk_bond_slaves(ifp, reconfigure_slave, dev_conf);
-
-	err = rte_eth_dev_set_mtu(ifp->if_port, ifp->if_mtu_adjusted);
-	if (err == -ENOTSUP)
-		err = 0;
-
-	return err;
-}
-
-/* Change hardware MTU, can only be called if stopped. */
-int reconfigure_pkt_len(struct ifnet *ifp, uint32_t mtu)
-{
-	struct rte_eth_conf dev_conf;
-	struct rte_eth_dev *eth_dev = &rte_eth_devices[ifp->if_port];
-
-	memcpy(&dev_conf, &eth_dev->data->dev_conf, sizeof(dev_conf));
-
-#if RTE_VERSION >= RTE_VERSION_NUM(18,8,0,0)
-	if (mtu > ETHER_MTU) {
-		struct rte_eth_dev_info dev_info;
-		rte_eth_dev_info_get(ifp->if_port, &dev_info);
-		if (dev_info.rx_offload_capa & DEV_RX_OFFLOAD_JUMBO_FRAME)
-			dev_conf.rxmode.offloads |= DEV_RX_OFFLOAD_JUMBO_FRAME;
-		if (dev_info.rx_offload_capa & DEV_RX_OFFLOAD_SCATTER)
-			dev_conf.rxmode.offloads |= DEV_RX_OFFLOAD_SCATTER;
-	} else {
-		dev_conf.rxmode.offloads &= ~(DEV_RX_OFFLOAD_JUMBO_FRAME |
-			DEV_RX_OFFLOAD_SCATTER);
-	}
-#else
-	if (mtu > ETHER_MTU) {
-		dev_conf.rxmode.jumbo_frame = 1;
-		dev_conf.rxmode.enable_scatter = 1;
-	} else {
-		dev_conf.rxmode.jumbo_frame = 0;
-		dev_conf.rxmode.enable_scatter = 0;
-	}
-#endif
-	dev_conf.rxmode.max_rx_pkt_len = mtu + ETHER_HDR_LEN + ETHER_CRC_LEN;
-
-	return reconfigure_port(ifp, &dev_conf, reconfigure_pkt_len_cb);
-}
-
-void set_speed(struct ifnet *ifp, uint32_t link_speeds)
-{
-	struct rte_eth_conf dev_conf;
-	struct rte_eth_dev *eth_dev;
-
-	if (ifp->if_type != IFT_ETHER) {
-		RTE_LOG(ERR, DATAPLANE,
-			"%s: %s not valid local port\n",
-			__func__, ifp->if_name);
-		return;
-	}
-
-	if (ifp->unplugged)
-		return;
-
-	eth_dev = &rte_eth_devices[ifp->if_port];
-	memcpy(&dev_conf, &eth_dev->data->dev_conf, sizeof(dev_conf));
-
-	if (dev_conf.link_speeds == link_speeds)
-		return;
-
-	RTE_LOG(INFO, DATAPLANE,
-		"%s: setting %s to link_speeds 0x%x\n",
-		__func__, ifp->if_name, link_speeds);
-
-	dev_conf.link_speeds = link_speeds;
-	reconfigure_port(ifp, &dev_conf, NULL);
 }
 
 uint64_t get_link_modes(struct ifnet *ifp)
@@ -1539,6 +1258,7 @@ usage(int status)
 	       " OPTIONS:\n"
 	       " -d, --daemon              Run in daemon mode.\n"
 	       " -f, --file FILE           Use configuration file\n"
+	       " -F, --feat_plugin_dir     Extra directory to check for feat plugins\n"
 	       " -h, --help                Display this help and exit\n"
 	       " -i, --pid_file FILE       Set process id file name\n"
 	       " -p, --port_mask PORTMASK  Bitmask of ports to configure\n"
@@ -1579,6 +1299,7 @@ parse_args(int argc, char **argv)
 		{ "port_mask", required_argument, NULL, 'p' },
 		{ "daemon",   no_argument,	 NULL, 'd' },
 		{ "file",     required_argument, NULL, 'f' },
+		{ "feat_plugin_dir", required_argument, NULL, 'F' },
 		{ "user",     required_argument, NULL, 'u' },
 		{ "group",    required_argument, NULL, 'g' },
 		{ "debug",    required_argument, NULL, 'D' },
@@ -1589,7 +1310,7 @@ parse_args(int argc, char **argv)
 		{ NULL, 0, NULL, 0}
 	};
 
-	while ((opt = getopt_long(argc, argv, "hvdi:p:u:g:o:f:c:N:D:C:s",
+	while ((opt = getopt_long(argc, argv, "hvdi:p:u:g:o:f:c:N:D:C:sF:",
 				  lgopts, &option_index)) != EOF) {
 
 		switch (opt) {
@@ -1608,7 +1329,11 @@ parse_args(int argc, char **argv)
 			break;
 
 		case 'f':
-			config_file = optarg;
+			set_config_file(optarg);
+			break;
+
+		case 'F':
+			set_feat_plugin_dir(optarg);
 			break;
 
 		case 'c':
@@ -1655,6 +1380,7 @@ parse_args(int argc, char **argv)
 
 		case 'D':
 			dp_debug = strtoul(optarg, NULL, 0);
+			dp_debug_init = dp_debug;
 			break;
 
 		case ARGS_LIST_CMDS:
@@ -1691,21 +1417,25 @@ void scale_rate_stats(struct rate_stats *stats, uint64_t *packets,
 {
 	struct timeval now, diff;
 	uint64_t scaled;
+	uint64_t time_diff_usec;
 
 	gettimeofday(&now, NULL);
 	timersub(&now, &stats->last_time, &diff);
 	stats->last_time = now;
+
+	time_diff_usec = diff.tv_sec * USEC_PER_SEC + diff.tv_usec;
+	if (time_diff_usec == 0)
+		time_diff_usec = 1;
+
 	/* scale the packts to reflect 1 second */
 	scaled = *packets - stats->last_packets;
-	scaled = (scaled  * USEC_PER_SEC) /
-		(diff.tv_sec * USEC_PER_SEC + diff.tv_usec);
+	scaled = (scaled  * USEC_PER_SEC) / time_diff_usec;
 	stats->packet_rate = scaled;
 	stats->last_packets = *packets;
 
 	if (bytes) {
 		scaled = *bytes - stats->last_bytes;
-		scaled = (scaled  * USEC_PER_SEC) /
-			(diff.tv_sec * USEC_PER_SEC + diff.tv_usec);
+		scaled = (scaled  * USEC_PER_SEC) / time_diff_usec;
 		stats->byte_rate = scaled;
 		stats->last_bytes = *bytes;
 	}
@@ -1751,7 +1481,7 @@ static void stop_cpus(void)
 		const struct lcore_conf *conf = lcore_conf[lcore];
 
 		if (forwarding_or_crypto_engine_lcore(conf) ||
-		    !conf->running)
+		    !conf->running || conf->ded_to_feature)
 			continue;
 
 		stop_one_cpu(lcore);
@@ -1835,19 +1565,6 @@ void unassign_queues(portid_t portid)
 	stop_cpus();
 }
 
-static bool any_assigned_queues(portid_t portid)
-{
-	unsigned int lcore;
-
-	FOREACH_FORWARD_LCORE(lcore) {
-		struct lcore_conf *conf = lcore_conf[lcore];
-
-		if (bitmask_isset(&conf->portmask, portid))
-			return true;
-	}
-	return false;
-}
-
 /* Compute load based on how much work CPU core is doing
  * Try and put Rx queue on primary HT and Tx on secondary HT
  * Use same NUMA socket if possible.
@@ -1905,11 +1622,46 @@ static int next_available_lcore(int socket_id,
 	return best;
 }
 
+static bitmask_t online_slave_mask(void)
+{
+	unsigned int lcore;
+	bitmask_t online;
+
+	memset(&online, 0, sizeof(online));
+
+	FOREACH_FORWARD_LCORE(lcore) {
+		if (lcore_conf[lcore]->ded_to_feature)
+			continue;
+
+		bitmask_set(&online, lcore);
+	}
+
+	return online;
+}
+
+/*
+ * Ensures only online forwarding cores are in the mask returned.
+ * Note that if there are none in the set, then all online cores
+ * are returned in the mask.
+ */
+static bitmask_t cpu_affinity_online(const bitmask_t *cpu_affinity_mask)
+{
+	bitmask_t mask = online_slave_mask();
+
+	bitmask_and(&mask, cpu_affinity_mask, &mask);
+
+	if (bitmask_isempty(&mask))
+		mask = online_slave_mask();
+
+	return mask;
+}
+
 /* Assign all receive queues for a port */
-static int assign_port_receive_queues(portid_t portid, bitmask_t *allowed)
+static int assign_port_receive_queues(portid_t portid)
 {
 	struct port_conf *port_conf = &port_config[portid];
 	unsigned int q;
+	bitmask_t allowed = cpu_affinity_online(&port_conf->rx_cpu_affinity);
 
 	for (q = 0; q < port_conf->rx_queues; q++) {
 		struct lcore_conf *conf;
@@ -1919,7 +1671,7 @@ static int assign_port_receive_queues(portid_t portid, bitmask_t *allowed)
 			continue;
 
 		lcore = next_available_lcore(port_conf->socketid,
-					     allowed,
+					     &allowed,
 					     false);
 		if (lcore < 0) {
 			RTE_LOG(ERR, DATAPLANE,
@@ -1943,9 +1695,10 @@ static int assign_port_receive_queues(portid_t portid, bitmask_t *allowed)
 			return -ENOMEM;
 		}
 found:
-		bitmask_clear(allowed, lcore);
-		if (bitmask_isempty(allowed))
-			*allowed = port_conf->rx_cpu_affinity; /* start over */
+		bitmask_clear(&allowed, lcore);
+		if (bitmask_isempty(&allowed))
+			allowed = cpu_affinity_online(		/* start over */
+				&port_conf->rx_cpu_affinity);
 		_CMM_STORE_SHARED(conf->num_rxq, conf->num_rxq + 1);
 
 		DP_DEBUG(INIT, DEBUG, DATAPLANE,
@@ -1971,9 +1724,10 @@ found:
 }
 
 /* Assign lcores that will handle transmit queues (bottom half) */
-static int assign_port_transmit_queues(portid_t portid, bitmask_t *allowed)
+static int assign_port_transmit_queues(portid_t portid)
 {
 	struct port_conf *port_conf = &port_config[portid];
+	bitmask_t allowed = cpu_affinity_online(&port_conf->tx_cpu_affinity);
 	struct ifnet *ifp = ifport_table[portid];
 	uint16_t q;
 	uint8_t r;
@@ -1992,7 +1746,7 @@ static int assign_port_transmit_queues(portid_t portid, bitmask_t *allowed)
 			continue;
 
 		lcore = next_available_lcore(port_conf->socketid,
-					     allowed,
+					     &allowed,
 					     true);
 		if (lcore < 0) {
 			RTE_LOG(ERR, DATAPLANE,
@@ -2017,9 +1771,10 @@ static int assign_port_transmit_queues(portid_t portid, bitmask_t *allowed)
 		}
 
 found:
-		bitmask_clear(allowed, lcore);
-		if (bitmask_isempty(allowed))
-			*allowed = port_conf->tx_cpu_affinity; /* start over */
+		bitmask_clear(&allowed, lcore);
+		if (bitmask_isempty(&allowed))
+			allowed = cpu_affinity_online(		/* start over */
+				&port_conf->tx_cpu_affinity);
 		_CMM_STORE_SHARED(conf->num_txq, conf->num_txq + 1);
 
 		struct lcore_tx_queue *txq = &conf->tx_poll[i];
@@ -2092,7 +1847,8 @@ static void start_cpus(void)
 	FOREACH_FORWARD_LCORE(lcore) {
 		const struct lcore_conf *conf = lcore_conf[lcore];
 
-		if (!forwarding_or_crypto_engine_lcore(conf) || conf->running)
+		if ((!forwarding_or_crypto_engine_lcore(conf) &&
+		     !conf->ded_to_feature) || conf->running)
 			continue;
 
 		(void)start_one_cpu(lcore);
@@ -2122,12 +1878,9 @@ static bool transmit_thread_running(portid_t portid)
 /* Start queues for new port. */
 int assign_queues(portid_t portid)
 {
-	const struct port_conf *port_conf = &port_config[portid];
-	bitmask_t rxtmpmask = port_conf->rx_cpu_affinity;
-	bitmask_t txtmpmask = port_conf->tx_cpu_affinity;
 	int rc;
 
-	rc = assign_port_receive_queues(portid, &rxtmpmask);
+	rc = assign_port_receive_queues(portid);
 	if (rc != 0)
 		goto exit;
 
@@ -2135,7 +1888,7 @@ int assign_queues(portid_t portid)
 		if (transmit_thread_running(portid))
 			goto startcpus;
 
-		rc = assign_port_transmit_queues(portid, &txtmpmask);
+		rc = assign_port_transmit_queues(portid);
 		if (rc != 0) {
 			unsigned int lcore;
 
@@ -2159,14 +1912,15 @@ exit:
 /* Called from QoS when transmit needs to be activated. */
 int enable_transmit_thread(portid_t portid)
 {
-	const struct port_conf *port_conf = &port_config[portid];
-	bitmask_t tmpmask = port_conf->tx_cpu_affinity;
 	int ret;
+
+	if (!dpdk_eth_if_port_started(portid))
+		return -1;
 
 	if (transmit_thread_running(portid))
 		return 0;
 
-	ret = assign_port_transmit_queues(portid, &tmpmask);
+	ret = assign_port_transmit_queues(portid);
 	if (ret == 0)
 		start_cpus();
 
@@ -2402,6 +2156,11 @@ retry:
 		pool = mbuf_pool_create(name, nbufs, NUMA_POOL_MBUF_CACHE_SIZE,
 					bufsz, socketid);
 		if (pool == NULL) {
+			RTE_LOG(NOTICE, DATAPLANE,
+				"Failed to create pool %s of %u mbufs size %uM in socket %d\n",
+				name, nbufs, (bufsz * nbufs) / (1024*1024u),
+				socketid);
+
 			if (rte_errno != ENOMEM)
 				rte_panic("mbuf  %s create failed: %s\n",
 					  name, rte_strerror(rte_errno));
@@ -2410,26 +2169,19 @@ retry:
 				rte_panic("mbuf %s no space for %u bufs\n",
 					  name, nbufs);
 
-			RTE_LOG(NOTICE, DATAPLANE,
-				"Not enough memory for pool of %u mbufs size %uM\n",
-				nbufs, (bufsz * nbufs) / (1024*1024u));
 			nbufs /= 2;
 			goto retry;
 		}
 
-		DP_DEBUG(INIT, DEBUG, DATAPLANE,
-			 "Created %s mbuf pool size %u %uM\n", name,
-			 nbufs,  (bufsz * nbufs) / (1024*1024u));
+		RTE_LOG(INFO, DATAPLANE,
+			"Created %s mbuf pool size %u %uM in socket %d\n", name,
+			nbufs,  (bufsz * nbufs) / (1024*1024u), socketid);
 
 		numa_pool[socketid] = pool;
 	}
 
 	/* Assign mbuf pool for each device */
-#ifdef HAVE_RTE_ETH_DEV_COUNT_AVAIL
 	for (portid = 0; portid < rte_eth_dev_count_avail(); ++portid) {
-#else
-	for (portid = 0; portid < rte_eth_dev_count(); ++portid) {
-#endif
 		struct port_conf *port_conf = &port_config[portid];
 
 		port_conf->rx_pool = numa_pool[port_conf->socketid];
@@ -2554,18 +2306,17 @@ get_driver_param(const char *driver_name, uint32_t speed_capa)
 	return param;
 }
 
-static bitmask_t online_slave_mask(void)
+static bitmask_t all_slave_mask(void)
 {
 	unsigned int lcore;
-	bitmask_t online;
+	bitmask_t all;
 
-	memset(&online, 0, sizeof(online));
+	memset(&all, 0, sizeof(all));
 
-	FOREACH_FORWARD_LCORE(lcore) {
-		bitmask_set(&online, lcore);
-	}
+	FOREACH_FORWARD_LCORE(lcore)
+		bitmask_set(&all, lcore);
 
-	return online;
+	return all;
 }
 
 static bitmask_t fwding_core_mask(void)
@@ -2578,7 +2329,7 @@ static bitmask_t fwding_core_mask(void)
 
 	FOREACH_FORWARD_LCORE(lcore) {
 		conf = lcore_conf[lcore];
-		if (forwarding_lcore(conf))
+		if (forwarding_lcore(conf) || conf->ded_to_feature)
 			bitmask_set(&fwding, lcore);
 	}
 
@@ -2771,10 +2522,11 @@ int set_master_worker_vhost_event_fd(void)
 	return 0;
 }
 
-static int port_initial_conf(portid_t portid, struct rte_eth_conf *dev_conf)
+static int port_conf_final(portid_t portid, struct rte_eth_conf *dev_conf)
 {
 	struct rte_eth_dev *dev = &rte_eth_devices[portid];
 	struct rte_eth_dev_info dev_info;
+	struct port_conf *port_conf = &port_config[portid];
 
 	if (!dev_conf)
 		return -1;
@@ -2786,46 +2538,31 @@ static int port_initial_conf(portid_t portid, struct rte_eth_conf *dev_conf)
 	dev_conf->intr_conf.lsc = (dev->data->dev_flags &
 				   RTE_ETH_DEV_INTR_LSC) ? 1 : 0;
 
+	dev_conf->rxmode.offloads = port_conf->rx_conf.offloads;
+	dev_conf->rxmode.mq_mode = port_conf->rx_mq_mode;
+
 	/* DPDK 18.08 errors if offload flags don't match PMD caps */
-#if RTE_VERSION >= RTE_VERSION_NUM(18, 8, 0, 0)
 	if (dev_info.rx_offload_capa & DEV_RX_OFFLOAD_VLAN_FILTER)
 		dev_conf->rxmode.offloads |= DEV_RX_OFFLOAD_VLAN_FILTER;
 	if (dev_info.rx_offload_capa & DEV_RX_OFFLOAD_VLAN_STRIP)
 		dev_conf->rxmode.offloads |= DEV_RX_OFFLOAD_VLAN_STRIP;
-	/* Default in 18.11, flag is gone */
-#if RTE_VERSION < RTE_VERSION_NUM(18, 11, 0, 0)
-	if (dev_info.rx_offload_capa & DEV_RX_OFFLOAD_CRC_STRIP)
-		dev_conf->rxmode.offloads |= DEV_RX_OFFLOAD_CRC_STRIP;
-#endif
 	dev_conf->rx_adv_conf.rss_conf.rss_hf &=
 					dev_info.flow_type_rss_offloads;
-#endif
 
-	/* Want VLAN offload, refcount and multisegment */
-#if RTE_VERSION >= RTE_VERSION_NUM(18, 8, 0, 0)
-	dev_conf->txmode.offloads &= ~(DEV_TX_OFFLOAD_SCTP_CKSUM |
-		DEV_TX_OFFLOAD_TCP_CKSUM | DEV_TX_OFFLOAD_UDP_CKSUM);
-	/*
-	 * We may need to transmit a jumbo frame, or prepend to a
-	 * cloned packet and both of these require multiple segment
-	 * support for TX, so request it.
-	 *
-	 * However, not on net_ring - it doesn't care about
-	 * multi-segment packets, but doesn't advertise support ether.
+	/* If we want VLAN offload, but don't have it,
+	 * continue but issue a warning.
 	 */
-	if (strcmp(dev_info.driver_name, "net_ring") &&
-	    strcmp(dev_info.driver_name, "net_bonding"))
-		dev_conf->txmode.offloads |=
-			DEV_TX_OFFLOAD_MULTI_SEGS;
+	if (port_conf->tx_conf.offloads & DEV_TX_OFFLOAD_VLAN_INSERT) {
+		if (!(dev_info.tx_offload_capa & DEV_TX_OFFLOAD_VLAN_INSERT)) {
+			port_conf->tx_conf.offloads &=
+						~DEV_TX_OFFLOAD_VLAN_INSERT;
+			RTE_LOG(ERR, DATAPLANE,
+				"Driver %s missing vlan insertion capability\n",
+				dev_info.driver_name);
+		}
+	}
 
-	if (dev_info.tx_offload_capa & DEV_TX_OFFLOAD_VLAN_INSERT) {
-		if (!is_device_mlx5(portid))
-			dev_conf->txmode.offloads |= DEV_TX_OFFLOAD_VLAN_INSERT;
-	} else
-		RTE_LOG(ERR, DATAPLANE,
-			"Driver %s missing vlan insertion capability\n",
-			dev_info.driver_name);
-#endif
+	dev_conf->txmode.offloads = port_conf->tx_conf.offloads;
 
 	DP_DEBUG(INIT, INFO, DATAPLANE,
 		 "Port %d, tx_offloads 0x%lx, rx_offloads 0x%lx\n",
@@ -2834,7 +2571,7 @@ static int port_initial_conf(portid_t portid, struct rte_eth_conf *dev_conf)
 	return 0;
 }
 
-static int port_conf_init_portid(portid_t portid)
+static int port_conf_init(portid_t portid)
 {
 	struct port_conf *port_conf = &port_config[portid];
 	int socketid = rte_eth_dev_socket_id(portid);
@@ -2845,6 +2582,7 @@ static int port_conf_init_portid(portid_t portid)
 	uint16_t q;
 	uint8_t r;
 	uint16_t pf_max_rx_queues, pf_max_tx_queues;
+	uint8_t tx_desc_vm_multiplier;
 
 	if (socketid < 0) /* SOCKET_ID_ANY */
 		socketid = 0;
@@ -2857,8 +2595,13 @@ static int port_conf_init_portid(portid_t portid)
 	port_conf->rx_desc = parm->rx_desc;
 	port_conf->tx_desc = parm->tx_desc;
 	if (hypervisor_id() &&
-	    !(parm->drv_flags & DRV_PARAM_VIRTUAL))
-		port_conf->tx_desc = 8 * port_conf->tx_desc;
+	    !(parm->drv_flags & DRV_PARAM_VIRTUAL)) {
+		if (parm->tx_desc_vm_multiplier)
+			tx_desc_vm_multiplier = parm->tx_desc_vm_multiplier;
+		else
+			tx_desc_vm_multiplier = MAX_TX_DESC_VM_MULTIPLIER;
+		port_conf->tx_desc = tx_desc_vm_multiplier * port_conf->tx_desc;
+	}
 	if (port_conf->rx_desc > dev_info.rx_desc_lim.nb_max) {
 		port_conf->rx_desc = dev_info.rx_desc_lim.nb_max;
 		DP_DEBUG(INIT, INFO, DATAPLANE,
@@ -2875,8 +2618,8 @@ static int port_conf_init_portid(portid_t portid)
 	port_conf->tx_queues = rte_lcore_count();
 
 	port_conf->buf_size = dev_info.min_rx_bufsize + MBUF_OVERHEAD;
-	port_conf->rx_cpu_affinity = online_slave_mask();
-	port_conf->tx_cpu_affinity = online_slave_mask();
+	port_conf->rx_cpu_affinity = all_slave_mask();
+	port_conf->tx_cpu_affinity = all_slave_mask();
 	bitmask_zero(&port_conf->tx_enabled_queues);
 	bitmask_zero(&port_conf->rx_enabled_queues);
 
@@ -3011,15 +2754,23 @@ static int port_conf_init_portid(portid_t portid)
 	/* Overhead of every Tx queue being full */
 	port_conf->buffers +=  port_conf->tx_desc * port_conf->tx_queues;
 
-	/* Want VLAN offload, refcount and multisegment */
+	/* Defaults from PMD and eth_base_conf */
 	port_conf->tx_conf = dev_info.default_txconf;
-#if RTE_VERSION < RTE_VERSION_NUM(18, 8, 0, 0)
-	port_conf->tx_conf.txq_flags = ETH_TXQ_FLAGS_NOXSUMS;
-#endif
+	port_conf->tx_conf.offloads |= eth_base_conf.txmode.offloads;
+	port_conf->rx_conf = dev_info.default_rxconf;
+	port_conf->rx_conf.offloads |= eth_base_conf.rxmode.offloads;
+	port_conf->rx_mq_mode = eth_base_conf.rxmode.mq_mode;
 
 	/* This avoids head of line blocking when one queue is overloaded. */
-	port_conf->rx_conf = dev_info.default_rxconf;
 	port_conf->rx_conf.rx_drop_en = 1;
+
+	/* Set offloads from conf file */
+	port_conf->rx_conf.offloads |= parm->rx_offloads;
+	port_conf->rx_conf.offloads &= ~parm->neg_rx_offloads;
+	port_conf->tx_conf.offloads |= parm->tx_offloads;
+	port_conf->tx_conf.offloads &= ~parm->neg_tx_offloads;
+	if (parm->rx_mq_mode_set)
+		port_conf->rx_mq_mode = parm->rx_mq_mode;
 
 	DP_DEBUG(INIT, INFO, DATAPLANE,
 		 "Port %u %s on socket %d (mbufs %u) (rx %u) (tx %u)\n",
@@ -3029,13 +2780,80 @@ static int port_conf_init_portid(portid_t portid)
 	return 0;
 }
 
+/* setup data structures per-port */
+static int eth_port_init(portid_t portid)
+{
+	int rc;
+
+	rc = rte_eth_dev_owner_set(portid, &owner);
+	if (rc < 0) {
+		RTE_LOG(NOTICE, DATAPLANE, "Port%d failed to set owner!\n",
+					   portid);
+		goto fail;
+	}
+
+	rc = eth_port_config(portid);
+	if (rc < 0) {
+		RTE_LOG(NOTICE, DATAPLANE,
+			"Port%d failed to configure!\n", portid);
+		goto fail;
+	}
+
+	struct ether_addr mac_addr;
+	rte_eth_macaddr_get(portid, &mac_addr);
+
+	int socketid = port_config[portid].socketid;
+	struct ifnet *ifp
+		= if_hwport_alloc(portid, &mac_addr, socketid);
+
+	if (!ifp) {
+		/* only happens if name lookup is confused. */
+		RTE_LOG(ERR, DATAPLANE,
+			"Failed to create ifp for port %u\n", portid);
+		rc = -EINVAL;
+		goto fail;
+	}
+
+	const struct rte_eth_dev *dev = &rte_eth_devices[portid];
+	DP_DEBUG(INIT, DEBUG, DATAPLANE,
+		 "%u: %s address %s\n", portid,
+		 dev->data->name, ether_ntoa(&mac_addr));
+
+	rcu_assign_pointer(ifport_table[portid], ifp);
+	return 0;
+
+fail:
+	bitmask_clear(&enabled_port_mask, portid);
+	return rc;
+}
+
+/* teardown data structures per-portid  */
+static void eth_port_uninit(portid_t portid)
+{
+	uint8_t q;
+	struct port_conf *port_conf = &port_config[portid];
+	int rc;
+
+	shadow_uninit_port(portid);
+	linkwatch_port_unconfig(portid);
+	bitmask_clear(&enabled_port_mask, portid);
+
+	for (q = 0; q < MAX_TX_QUEUE_PER_PORT; q++) {
+		if (port_conf->pkt_ring[q]) {
+			rte_ring_free(port_conf->pkt_ring[q]);
+			port_conf->pkt_ring[q] = NULL;
+		}
+	}
+
+	rc = rte_eth_dev_owner_unset(portid, owner.id);
+	if (rc < 0)
+		RTE_LOG(NOTICE, DATAPLANE, "Port%d failed to unset owner!\n",
+					   portid);
+}
+
 int insert_port(portid_t port_id)
 {
-#ifdef HAVE_RTE_DEV_REMOVE
 	struct rte_eth_dev_info dev_info;
-#else
-	char name[RTE_ETH_NAME_MAX_LEN];
-#endif
 
 	if (port_id >= DATAPLANE_MAX_PORTS) {
 		RTE_LOG(ERR, DATAPLANE,
@@ -3048,7 +2866,7 @@ int insert_port(portid_t port_id)
 	bitmask_clear(&linkup_port_mask, port_id);
 	if_enable_poll(port_id);
 
-	if (port_conf_init_portid(port_id) < 0) {
+	if (port_conf_init(port_id) < 0) {
 		RTE_LOG(ERR, DATAPLANE,
 			"insert_port(%u): ring init failed\n", port_id);
 		goto failed;
@@ -3060,7 +2878,7 @@ int insert_port(portid_t port_id)
 		goto failed;
 	}
 
-	if (eth_port_init(port_id, 1) != 0) {
+	if (eth_port_init(port_id) != 0) {
 		RTE_LOG(ERR, DATAPLANE,
 			"insert_port(%u): failed to init port\n", port_id);
 		goto failed;
@@ -3070,20 +2888,23 @@ int insert_port(portid_t port_id)
 		RTE_LOG(ERR, DATAPLANE,
 			"insert_port(%u): cannot setup interface\n",
 			port_id);
-		eth_port_uninit_portid(port_id);
+		eth_port_uninit(port_id);
 		goto failed;
 	}
 
 	return 0;
 
 failed:
-#ifdef HAVE_RTE_DEV_REMOVE
 	rte_eth_dev_info_get(port_id, &dev_info);
 	rte_dev_remove(dev_info.device);
-#else
-	rte_eth_dev_detach(port_id, name);
-#endif
 	return -1;
+}
+
+void remove_port(portid_t port_id)
+{
+	eth_port_uninit(port_id);
+	teardown_interface_portid(port_id);
+	ifport_table[port_id] = NULL;
 }
 
 static bitmask_t generate_crypto_engine_set(void)
@@ -3218,6 +3039,19 @@ void crypto_unassign_from_engine(int lcore)
 	}
 }
 
+static void
+reassign_queues_for_all_ports(void)
+{
+	portid_t portid;
+
+	for (portid = 0; portid < DATAPLANE_MAX_PORTS; ++portid) {
+		struct port_conf *port_conf = &port_config[portid];
+
+		set_port_affinity(portid, &port_conf->rx_cpu_affinity,
+				  &port_conf->tx_cpu_affinity);
+	}
+}
+
 /* Configure ethernet port */
 int eth_port_config(portid_t portid)
 {
@@ -3229,7 +3063,7 @@ int eth_port_config(portid_t portid)
 	};
 	struct rte_eth_conf dev_conf;
 
-	ret = port_initial_conf(portid, &dev_conf);
+	ret = port_conf_final(portid, &dev_conf);
 	if (ret < 0)
 		return ret;
 
@@ -3447,7 +3281,7 @@ static void set_privilege(void)
 	caps = cap_from_text(
 		"cap_net_admin=pe cap_net_raw=pe cap_chown=pe "
 		"cap_dac_override=pe cap_ipc_lock=pe "
-		"cap_sys_admin=p");
+		"cap_sys_admin=p cap_sys_nice=pe");
 	if (!caps)
 		rte_panic("%s: cap_from_text failed:%s\n",
 			  __func__, strerror(errno));
@@ -3457,7 +3291,7 @@ static void set_privilege(void)
 	cap_free(caps);
 }
 
-static void port_conf_init(uint8_t start_id, uint8_t num_ports)
+static void init_port_configurations(uint8_t start_id, uint8_t num_ports)
 {
 	portid_t portid;
 
@@ -3466,7 +3300,7 @@ static void port_conf_init(uint8_t start_id, uint8_t num_ports)
 		if (!bitmask_isset(&enabled_port_mask, portid))
 			continue;
 
-		if (port_conf_init_portid(portid) < 0) {
+		if (port_conf_init(portid) < 0) {
 			RTE_LOG(ERR, DATAPLANE,
 				"port_conf_init failed for port %u\n", portid);
 			bitmask_clear(&enabled_port_mask, portid);
@@ -3475,7 +3309,7 @@ static void port_conf_init(uint8_t start_id, uint8_t num_ports)
 }
 
 /* setup data structures per-port */
-int eth_port_init(uint8_t start_id, uint8_t num_ports)
+static void init_eth_ports(uint8_t start_id, uint8_t num_ports)
 {
 	portid_t portid;
 	int rc;
@@ -3488,56 +3322,11 @@ int eth_port_init(uint8_t start_id, uint8_t num_ports)
 			continue;
 		}
 
-		rc = eth_port_config(portid);
+		rc = eth_port_init(portid);
 		if (rc < 0) {
 			RTE_LOG(NOTICE, DATAPLANE,
 				"Port%d failed to configure!\n", portid);
 			continue;
-		}
-
-		struct ether_addr mac_addr;
-		rte_eth_macaddr_get(portid, &mac_addr);
-
-		int socketid = port_config[portid].socketid;
-		struct ifnet *ifp
-			= if_hwport_alloc(portid, &mac_addr, socketid);
-
-		if (!ifp) {
-			/* only happens if name lookup is confused. */
-			RTE_LOG(ERR, DATAPLANE,
-				"Failed to create ifp for port %u\n", portid);
-			rc = -EINVAL;
-			goto fail;
-		}
-
-		const struct rte_eth_dev *dev = &rte_eth_devices[portid];
-		DP_DEBUG(INIT, DEBUG, DATAPLANE,
-			 "%u: %s address %s\n", portid,
-			 dev->data->name, ether_ntoa(&mac_addr));
-
-		rcu_assign_pointer(ifport_table[portid], ifp);
-	}
-	return 0;
-
-fail:
-	bitmask_clear(&enabled_port_mask, portid);
-	return rc;
-}
-
-/* teardown data structures per-portid  */
-void eth_port_uninit_portid(portid_t portid)
-{
-	uint8_t q;
-	struct port_conf *port_conf = &port_config[portid];
-
-	shadow_uninit_port(portid);
-	linkwatch_port_unconfig(portid);
-	bitmask_clear(&enabled_port_mask, portid);
-
-	for (q = 0; q < MAX_TX_QUEUE_PER_PORT; q++) {
-		if (port_conf->pkt_ring[q]) {
-			rte_ring_free(port_conf->pkt_ring[q]);
-			port_conf->pkt_ring[q] = NULL;
 		}
 	}
 }
@@ -3637,7 +3426,6 @@ int
 main(int argc, char **argv)
 {
 	int ret;
-	portid_t nb_ports;
 	uint16_t max_mbuf_sz = RTE_MBUF_DEFAULT_BUF_SIZE;
 	zactor_t *vplane_auth = NULL;
 	struct call_rcu_data *rcu_data;
@@ -3666,7 +3454,7 @@ main(int argc, char **argv)
 	argc -= ret;
 	argv += ret;
 
-	parse_config(config_file);
+	parse_config();
 
 	parse_platform_config(PLATFORM_FILE);
 
@@ -3721,6 +3509,7 @@ main(int argc, char **argv)
 	}
 
 	open_log();
+	debug_init();
 
 	RTE_LOG(INFO, DATAPLANE,
 		"%s version %s - %s\n",
@@ -3739,13 +3528,14 @@ main(int argc, char **argv)
 
 	rte_timer_subsystem_init();
 
+	snprintf(owner.name, RTE_ETH_MAX_OWNER_NAME_LEN, "%s", progname);
+	ret = rte_eth_dev_owner_new(&owner.id);
+	if (ret < 0)
+		rte_panic("Can't get owner id\n");
+
 	parse_driver_config(&driver_param, drv_cfg_file);
 	parse_driver_config(&driver_param, drv_override_cfg_file);
-#ifdef HAVE_RTE_ETH_DEV_COUNT_AVAIL
 	nb_ports = rte_eth_dev_count_avail();
-#else
-	nb_ports = rte_eth_dev_count();
-#endif
 	if (nb_ports > DATAPLANE_MAX_PORTS) {
 		DP_DEBUG(INIT, NOTICE, DATAPLANE,
 			 "Too many Ethernet ports %u, downgrade to %u\n",
@@ -3770,30 +3560,28 @@ main(int argc, char **argv)
 	lcore_init();
 	link_state_init();
 
-	port_conf_init(0, nb_ports);
+	init_port_configurations(0, nb_ports);
 	if (nb_ports)
 		max_mbuf_sz = mbuf_pool_init();
 
+	udp_handler_init();
+
+	feature_load_plugins();
+	pl_graph_validate();
+
 	dp_event(DP_EVT_INIT, 0, NULL, 0, 0, NULL);
 
-	pl_load_plugins();
-	pl_graph_validate();
 	shadow_init();
 	npf_init();
 	session_init();
 	nexthop_tbl_init();
 	ip6_init();
-
-	if (eth_port_init(0, nb_ports) != 0)
-		rte_panic("Can't init eth ports\n");
-
-	udp_handler_init();
+	init_eth_ports(0, nb_ports);
 	fragment_tables_timer_init();
 	mcast_init_ipv4();
 	mcast_init_ipv6();
 	mpls_init();
 
-	vxlan_init();
 	ip_id_init();
 
 	inet_netlink_init();
@@ -3806,6 +3594,8 @@ main(int argc, char **argv)
 	vrf_init();
 	qos_init();
 	master_worker_thread_init();
+	/* needs to be after features have had a chance to register */
+	dp_lcore_events_init(rte_lcore_id());
 
 	console_setup();
 	device_server_init();
@@ -3832,12 +3622,10 @@ main(int argc, char **argv)
 
 	dp_crypto_shutdown();
 
-	vxlan_destroy();
 	device_server_destroy();
 	shadow_destroy();
 	console_destroy();
 	zactor_destroy(&vplane_auth);
-	udp_handler_destroy();
 	interface_cleanup();
 	incomplete_interface_cleanup();
 	pkt_ring_destroy();
@@ -3848,6 +3636,9 @@ main(int argc, char **argv)
 
 	dp_event(DP_EVT_UNINIT, 0, NULL, 0, 0, NULL);
 
+	dp_lcore_events_teardown(rte_lcore_id());
+	feature_unload_plugins();
+	udp_handler_destroy();
 	platform_config_cleanup();
 	fal_cleanup();
 	master_worker_thread_cleanup();
@@ -3859,9 +3650,7 @@ main(int argc, char **argv)
 
 	lcore_cleanup();
 
-#ifdef HAVE_RTE_EAL_CLEANUP
 	rte_eal_cleanup();
-#endif
 
 	RTE_LOG(NOTICE, DATAPLANE, "normal exit\n");
 
@@ -3906,6 +3695,20 @@ void load_estimator(void)
 			scale_rate_stats(&conf->crypt_stats, &packets, NULL);
 			dp_crypto_periodic(&conf->crypt.pmd_list);
 		}
+
+		if (conf->do_feature) {
+			if (conf->feat.dp_lcore_feat_get_rx) {
+				conf->feat.dp_lcore_feat_get_rx(id, &packets);
+				scale_rate_stats(&conf->feat_rx_stats, &packets,
+						 NULL);
+			}
+			if (conf->feat.dp_lcore_feat_get_tx) {
+				conf->feat.dp_lcore_feat_get_tx(id, &packets);
+				scale_rate_stats(&conf->feat_tx_stats, &packets,
+						 NULL);
+			}
+
+		}
 	}
 }
 
@@ -3919,6 +3722,7 @@ void show_per_core(FILE *f)
 	unsigned int id, i;
 	char tmp[BITMASK_STRSZ];
 	bitmask_t fwding_cores;
+	char feat_name[DP_LCORE_FEAT_MAX_NAME_SIZE + 2];
 
 	if (!wr)
 		return;
@@ -3957,6 +3761,21 @@ void show_per_core(FILE *f)
 			jsonw_string_field(wr, "directpath",
 					   use_directpath(ifp->if_port) ? "yes"
 					   : "no");
+			jsonw_end_object(wr);
+		}
+
+		if (conf->do_feature && conf->feat.dp_lcore_feat_get_rx) {
+			jsonw_start_object(wr);
+			snprintf(feat_name, sizeof(feat_name), "[%s]",
+				 conf->feat.name);
+			jsonw_string_field(wr, "interface", feat_name);
+			jsonw_uint_field(wr, "queue", 0);
+			jsonw_uint_field(wr, "packets",
+					 conf->feat_rx_stats.last_packets);
+			jsonw_uint_field(wr, "rate",
+					 conf->feat_rx_stats.packet_rate);
+			jsonw_uint_field(wr, "idle", 0);
+			jsonw_string_field(wr, "directpath", "no");
 			jsonw_end_object(wr);
 		}
 		jsonw_end_array(wr);
@@ -3998,6 +3817,19 @@ void show_per_core(FILE *f)
 			jsonw_uint_field(wr, "idle", cpq->gov.nap);
 			jsonw_end_object(wr);
 		}
+		if (conf->do_feature && conf->feat.dp_lcore_feat_get_tx) {
+			jsonw_start_object(wr);
+			snprintf(feat_name, sizeof(feat_name), "[%s]",
+				 conf->feat.name);
+			jsonw_string_field(wr, "interface", feat_name);
+			jsonw_uint_field(wr, "packets",
+					 conf->feat_tx_stats.last_packets);
+			jsonw_uint_field(wr, "rate",
+					 conf->feat_tx_stats.packet_rate);
+			jsonw_uint_field(wr, "idle", 0);
+			jsonw_end_object(wr);
+		}
+
 		jsonw_end_array(wr);
 		jsonw_end_object(wr);
 	}
@@ -4040,16 +3872,20 @@ static void show_ifp_affinity(struct ifnet *ifp, void *arg)
 	jsonw_name(wr, ifp->if_name);
 	jsonw_start_object(wr);
 
+	bitmask_t affinity_online;
 	bitmask_t cpu_affinity;
 	bitmask_or(&cpu_affinity, &port_conf->rx_cpu_affinity,
 		   &port_conf->tx_cpu_affinity);
-	bitmask_sprint(&cpu_affinity, tmp, sizeof(tmp));
+	affinity_online = cpu_affinity_online(&cpu_affinity);
+	bitmask_sprint(&affinity_online, tmp, sizeof(tmp));
 	jsonw_string_field(wr, "affinity", tmp);
 
-	bitmask_sprint(&port_conf->rx_cpu_affinity, tmp, sizeof(tmp));
+	affinity_online = cpu_affinity_online(&port_conf->rx_cpu_affinity);
+	bitmask_sprint(&affinity_online, tmp, sizeof(tmp));
 	jsonw_string_field(wr, "rx_affinity", tmp);
 
-	bitmask_sprint(&port_conf->tx_cpu_affinity, tmp, sizeof(tmp));
+	affinity_online = cpu_affinity_online(&port_conf->tx_cpu_affinity);
+	bitmask_sprint(&affinity_online, tmp, sizeof(tmp));
 	jsonw_string_field(wr, "tx_affinity", tmp);
 
 	bitmask_sprint(&rx_mask, tmp, sizeof(tmp));
@@ -4071,10 +3907,10 @@ int show_affinity(FILE *f, int argc, char **argv)
 
 	jsonw_pretty(wr, true);
 	if (argc == 1)
-		ifnet_walk(show_ifp_affinity, wr);
+		dp_ifnet_walk(show_ifp_affinity, wr);
 	else {
 		while (--argc > 0) {
-			struct ifnet *ifp = ifnet_byifname(*++argv);
+			struct ifnet *ifp = dp_ifnet_byifname(*++argv);
 
 			if (!ifp) {
 				fprintf(f, "Unknown interface: %s\n", *argv);
@@ -4093,26 +3929,19 @@ void set_port_affinity(portid_t portid, const bitmask_t *rx_mask,
 		       const bitmask_t *tx_mask)
 {
 	struct port_conf *port_conf = &port_config[portid];
-	bitmask_t online_rx_mask;
-	bitmask_t online_tx_mask;
 
-	online_rx_mask = online_tx_mask = online_slave_mask();
-	if (rx_mask) {
-		bitmask_and(&online_rx_mask, rx_mask, &online_rx_mask);
-		if (bitmask_isempty(&online_rx_mask))
-			online_rx_mask = online_slave_mask();
-	}
-	if (tx_mask) {
-		bitmask_and(&online_tx_mask, tx_mask, &online_tx_mask);
-		if (bitmask_isempty(&online_tx_mask))
-			online_tx_mask = online_slave_mask();
-	}
+	if (rx_mask)
+		port_conf->rx_cpu_affinity = *rx_mask;
+	else
+		port_conf->rx_cpu_affinity = all_slave_mask();
 
-	port_conf->rx_cpu_affinity = online_rx_mask;
-	port_conf->tx_cpu_affinity = online_tx_mask;
+	if (tx_mask)
+		port_conf->tx_cpu_affinity = *tx_mask;
+	else
+		port_conf->tx_cpu_affinity = all_slave_mask();
 
 	/* reassign queues to make the affinity take effect */
-	if (any_assigned_queues(portid)) {
+	if (dpdk_eth_if_port_started(portid)) {
 		unassign_queues(portid);
 		assign_queues(portid);
 	}
@@ -4131,4 +3960,182 @@ void
 switch_port_process_burst(portid_t portid, struct rte_mbuf *pkts[], uint16_t nb)
 {
 	process_burst(portid, pkts, nb);
+}
+
+bool dp_lcore_is_active(unsigned int lcore)
+{
+	const struct lcore_conf *conf;
+
+	if (lcore >= get_lcore_max())
+		return false;
+
+	conf = lcore_conf[lcore];
+	if (CMM_LOAD_SHARED(conf->running))
+		return true;
+
+	return false;
+}
+
+enum dp_lcore_use dp_lcore_get_current_use(unsigned int lcore)
+{
+	struct lcore_conf *conf;
+
+	if (lcore > get_lcore_max())
+		return DP_LCORE_INVALID;
+
+	if (lcore == rte_get_master_lcore())
+		return DP_LCORE_MASTER;
+
+	conf = lcore_conf[lcore];
+	/*
+	 * Crypto is not considered to be 'FEATURE' as it can run alongside
+	 * forwarders, i.e crypto does not take dedicated control of the core
+	 */
+	if (conf->do_feature)
+		return DP_LCORE_FEATURE;
+
+	return DP_LCORE_FORWARDER;
+}
+
+int
+dp_allocate_lcore_to_feature(unsigned int lcore,
+			     struct dp_lcore_feat *feat)
+{
+	struct lcore_conf *conf;
+	portid_t portid;
+	unsigned int id;
+	enum dp_lcore_use core_use;
+	int core_count;
+	const bitmask_t all_slaves = all_slave_mask();
+
+	if (!feat->dp_lcore_feat_fn)
+		return -EINVAL;
+
+	if (lcore > get_lcore_max()) {
+		RTE_LOG(ERR, DATAPLANE,
+			"Request to allocate invalid core %d to feature\n",
+			lcore);
+		return -EINVAL;
+	}
+
+	conf = lcore_conf[lcore];
+	if (dp_lcore_get_current_use(lcore) == DP_LCORE_MASTER) {
+		RTE_LOG(ERR, DATAPLANE,
+			"Request to allocate master core %d to feature\n",
+			lcore);
+		return -EINVAL;
+	}
+
+	if (dp_lcore_get_current_use(lcore) == DP_LCORE_FEATURE) {
+		RTE_LOG(ERR, DATAPLANE,
+			"Request to allocate feature core %d to feature\n",
+			lcore);
+		return -EINVAL;
+	}
+
+	/*
+	 * If crypto is on this core (either due to config or arbitrary
+	 * allocation then reject). This may change with some of the crypto
+	 * rework being planned.
+	 */
+	if (conf->do_crypto) {
+		RTE_LOG(ERR, DATAPLANE,
+			"Request to allocate crypto core %d to feature\n",
+			lcore);
+		return -EINVAL;
+	}
+
+	/* Check all ports to see if one is configured for this core */
+	for (portid = 0; portid < DATAPLANE_MAX_PORTS; ++portid) {
+		struct port_conf *port_conf = &port_config[portid];
+
+		/*
+		 * If the affinity is the same as the all_slave_mask
+		 * then not configured.
+		 */
+		if (bitmask_equal(&all_slaves, &port_conf->rx_cpu_affinity) &&
+		    bitmask_equal(&all_slaves, &port_conf->tx_cpu_affinity))
+			continue;
+
+		if (bitmask_isset(&port_conf->rx_cpu_affinity, lcore) ||
+		    bitmask_isset(&port_conf->tx_cpu_affinity, lcore)) {
+			RTE_LOG(ERR, DATAPLANE,
+				"Request to allocate cfged forwarding core %d to feature\n",
+				lcore);
+			return -EBUSY;
+		}
+	}
+
+	/* Must have at least one forwarder left after this change. */
+	core_count = 0;
+	FOREACH_FORWARD_LCORE(id) {
+		if (id == lcore)
+			continue;
+		core_use = dp_lcore_get_current_use(id);
+		if (core_use == DP_LCORE_FORWARDER)
+			core_count++;
+	}
+	if (core_count == 0) {
+		RTE_LOG(ERR, DATAPLANE,
+			"Request to allocate feature core %d would leave no forwarders\n",
+			lcore);
+		return -EINVAL;
+	}
+
+	/*
+	 * Indicate that the core is dedicated to a feature, and so should
+	 * not be used for forwarding.
+	 */
+	conf->ded_to_feature = true;
+
+	/*
+	 * Cause the ports to be reassigned, so that the forwarding thread
+	 * will no longer use this core
+	 */
+	reassign_queues_for_all_ports();
+
+	conf->feat = *feat;
+	CMM_STORE_SHARED(conf->do_feature, true);
+
+	/* wait for the core to be available to start a thread on it again */
+	stop_one_cpu(lcore);
+	start_one_cpu(lcore);
+
+	return 0;
+}
+
+int dp_unallocate_lcore_from_feature(unsigned int lcore)
+{
+	struct lcore_conf *conf;
+
+	if (lcore > get_lcore_max()) {
+		RTE_LOG(ERR, DATAPLANE,
+			"Request to unallocate invalid core %d from feature\n",
+			lcore);
+		return -EINVAL;
+	}
+
+	conf = lcore_conf[lcore];
+	if (dp_lcore_get_current_use(lcore) != DP_LCORE_FEATURE) {
+		RTE_LOG(ERR, DATAPLANE,
+			"Request to unallocate feature core %d, but not a feature core\n",
+			lcore);
+		return -EINVAL;
+	}
+
+	if (CMM_LOAD_SHARED(conf->do_feature)) {
+		CMM_STORE_SHARED(conf->do_feature, false);
+		memset(&conf->feat, 0, sizeof(conf->feat));
+		conf->ded_to_feature = false;
+
+		stop_one_cpu(lcore);
+
+		reassign_queues_for_all_ports();
+	} else {
+		RTE_LOG(ERR, DATAPLANE,
+			"Request to unallocate feature core %d, but not a feature core\n",
+			lcore);
+		return -EINVAL;
+	}
+	return 0;
 }

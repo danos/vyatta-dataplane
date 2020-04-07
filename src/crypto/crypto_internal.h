@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2018, AT&T Intellectual Property. All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property. All rights reserved.
  * Copyright (c) 2015-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -25,7 +25,7 @@
 #include "crypto_main.h"
 #include "json_writer.h"
 #include "vplane_log.h"
-#include "vrf.h"
+#include "vrf_internal.h"
 
 #define CRYPTO_DATA_ERR(args...)			\
 	DP_DEBUG(CRYPTO_DATA, ERR, CRYPTO, args)
@@ -123,16 +123,20 @@ struct crypto_session {
 	uint16_t nonce_len;     /* in bytes */
 	char iv[EVP_MAX_IV_LENGTH];
 	/*
-	 * Max nonce slips into 2rd cacheline, however normal use case
+	 * Max nonce slips into 2nd cacheline, however normal use case
 	 * aes128g/256gcm is 4 bytes and so it is within first cache
 	 * line
+	 *
+	 * NB nonce is at offset 50.
 	 */
 	unsigned char nonce[EVP_MAX_IV_LENGTH];
-	/* Cacheline1 */
+	/* --- cacheline 1 boundary (64 bytes) was 2 bytes ago --- */
 	uint16_t key_len;	/* in bytes */
 	uint16_t auth_alg_key_len; /* in bytes */
 	uint8_t key[EVP_MAX_KEY_LENGTH];
+	/* --- cacheline 2 boundary (128 bytes) was 6 bytes ago --- */
 	char auth_alg_name[64];
+	/* --- cacheline 3 boundary (192 bytes) was 6 bytes ago --- */
 	char auth_alg_key[EVP_MAX_KEY_LENGTH];
 
 	const EVP_CIPHER *cipher;
@@ -168,7 +172,7 @@ struct sadb_sa {
 	uint8_t udp_encap;
 	uint16_t id;
 	struct crypto_session *session;
-	/* Cacheline 1 boundary */
+	/* --- cacheline 1 boundary (64 bytes) --- */
 	uint16_t udp_sport;
 	uint16_t udp_dport;
 	uint32_t seq;
@@ -178,8 +182,8 @@ struct sadb_sa {
 	uint64_t packet_limit;
 	uint64_t byte_count;
 	uint64_t byte_limit;
-	/* Cacheline 2 boundary */
 	xfrm_address_t dst;
+	/* --- cacheline 2 boundary (128 bytes) --- */
 	struct cds_list_head peer_links;
 	uint32_t reqid;
 	int pmd_dev_id;
@@ -187,14 +191,22 @@ struct sadb_sa {
 	xfrm_address_t src;
 	uint32_t seq_drop;
 	int del_pmd_dev_id;
-	/* Cacheline 3 boundary */
+	/* --- cacheline 3 boundary (192 bytes) --- */
 	uint8_t replay_window;
 	uint8_t pending_del;
 	uint64_t replay_bitmap;
 	struct ip6_hdr ip6_hdr;
 	struct ifnet *feat_attach_ifp;
 	vrfid_t overlay_vrf_id;
+	uint64_t epoch;
 };
+
+static_assert(offsetof(struct sadb_sa, udp_sport) == 64,
+	      "first cache line exceeded");
+static_assert(offsetof(struct sadb_sa, peer_links) == 128,
+	      "second cache line exceeded");
+static_assert(offsetof(struct sadb_sa, replay_window) == 192,
+	      "third cache line exceeded");
 
 struct crypto_chain_elem;
 
@@ -564,7 +576,8 @@ typedef bool (*crypto_pmd_walker_cb)(int pmd_dev_id, enum crypto_xfrm,
 				     uint32_t *packets);
 unsigned int crypto_pmd_walk_per_xfrm(struct cds_list_head *pmd_head,
 					      crypto_pmd_walker_cb cb);
-void crypto_pmd_inc_pending_del(int pmd_dev_id, enum crypto_xfrm xfrm);
+void crypto_pmd_mod_pending_del(int pmd_dev_id, enum crypto_xfrm xfrm,
+				bool inc);
 void crypto_pmd_dec_pending_del(int pmd_dev_id, enum crypto_xfrm xfrm);
 struct crypto_vrf_ctx *crypto_vrf_find(vrfid_t vrfid);
 struct crypto_vrf_ctx *crypto_vrf_find_external(vrfid_t vrfid);

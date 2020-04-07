@@ -1,7 +1,7 @@
 /*
  * l2_ether_in.c
  *
- * Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2016, 2017 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -28,7 +28,7 @@
 #include "pl_fused.h"
 
 ALWAYS_INLINE unsigned int
-ether_forward_process(struct pl_packet *pkt)
+ether_forward_process(struct pl_packet *pkt, void *context __unused)
 {
 	uint16_t et = ethhdr(pkt->mbuf)->ether_type;
 
@@ -42,6 +42,8 @@ ether_forward_process(struct pl_packet *pkt)
 		mpls_labeled_input(pkt->in_ifp, pkt->mbuf);
 	else if (et == htons(ETH_P_PPP_DISC) || et == htons(ETH_P_PPP_SES))
 		return ETHER_FORWARD_PPPOE_ACCEPT;
+	else if (et == htons(ETH_P_SLOW))
+		return ETHER_FORWARD_LOCAL;
 	else if (unlikely(et != htons(ETH_P_LLDP))) {
 		/* Assume 802.2 is used for IEEE control protocols */
 		if (unlikely(ntohs(et) > ETH_P_802_3_MIN)) {
@@ -62,9 +64,7 @@ ether_forward_process(struct pl_packet *pkt)
 PL_REGISTER_NODE(ether_forward_node) = {
 	.name = "vyatta:ether-forward",
 	.type = PL_PROC,
-	.init = NULL,
 	.handler = ether_forward_process,
-	.disable = false,
 	.num_next = ETHER_FORWARD_NUM,
 	.next = {
 		[ETHER_FORWARD_V4_ACCEPT] = "ipv4-validate",

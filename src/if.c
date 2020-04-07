@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2017-2019, AT&T Intellectual Property.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.
  * All rights reserved.
  * Copyright (c) 1980, 1986, 1993
  *	The Regents of the University of California.  All rights reserved.
@@ -62,58 +62,60 @@
 #include <rte_malloc.h>
 #include <rte_mbuf.h>
 #include <rte_memory.h>
-#include <rte_pci.h>
 #include <rte_sched.h>
 #include <rte_timer.h>
-#ifdef HAVE_RTE_BUS_PCI_H
-#include <rte_bus_pci.h>
-#endif
 
-#include "bridge.h"
 #include "capture.h"
 #include "commands.h"
 #include "compiler.h"
-#include "config.h"
+#include "config_internal.h"
 #include "control.h"
 #include "pipeline/nodes/cross_connect/cross_connect.h"
 #include "crypto/crypto_policy.h"
 #include "crypto/vti.h"
 #include "dp_event.h"
-#include "dpdk_eth_if.h"
 #include "ether.h"
 #include "fal.h"
-#include "gre.h"
+#include "if/bridge/bridge.h"
+#include "if/dpdk-eth/dpdk_eth_if.h"
+#include "if/gre.h"
+#include "if/macvlan.h"
+#include "if/vxlan.h"
 #include "if_llatbl.h"
 #include "if_var.h"
 #include "ip_addr.h"
+#include "ip_icmp.h"
 #include "json_writer.h"
 #include "l2_rx_fltr.h"
 #include "l2tp/l2tpeth.h"
 #include "lag.h"
-#include "macvlan.h"
 #include "main.h"
 #include "master.h"
 #include "netinet6/in6.h"
+#include "netinet6/ip6_funcs.h"
 #include "netlink.h"
 #include "pipeline/nodes/pl_nodes_common.h"
-#include "pktmbuf.h"
+#include "pktmbuf_internal.h"
+#include "pl_fused_gen.h"
 #include "pl_node.h"
 #include "portmonitor/portmonitor.h"
 #include "pipeline/nodes/pppoe/pppoe.h"
 #include "qos.h"
 #include "urcu.h"
 #include "util.h"
+#include "vlan_modify.h"
 #include "vplane_debug.h"
 #include "vplane_log.h"
-#include "vrf.h"
+#include "vrf_internal.h"
 #include "vrf_if.h"
-#include "vxlan.h"
 #include "backplane.h"
 
 #include "protobuf.h"
 #include "protobuf/VFPSetConfig.pb-c.h"
 
 struct pl_feature_registration;
+
+static void **if_node_instance_cleanup_cbs;
 
 /* A child interface should only inherit the parents if_port value if it is
  * valid.
@@ -262,11 +264,14 @@ void interface_init(void)
 void interface_cleanup(void)
 {
 	struct cds_lfht_iter iter;
-	struct ifnet *ifp;
+	struct ifnet *ifp, *tmp;
 	struct if_type_reg *if_reg;
 
-	cds_lfht_for_each_entry(ifnet_hash, &iter,
-				ifp, ifindex_hash) {
+	/*
+	 * Walk in newest first order, thus guaranteeing that children
+	 * are deleted before parents, as parents are created first.
+	 */
+	cds_list_for_each_entry_safe(ifp, tmp, &ifnet_list, if_list) {
 		if_free(ifp);
 	}
 	cds_lfht_destroy(ifnet_hash, NULL);
@@ -311,7 +316,7 @@ static inline int interface_ifname_match_fn(struct cds_lfht_node *node,
  * Lookup ifnet information by the kernel ifindex.
  * Only called from master thread (no locking)
  */
-struct ifnet *ifnet_byifindex(unsigned int ifindex)
+struct ifnet *dp_ifnet_byifindex(unsigned int ifindex)
 {
 	struct ifnet *ifp = NULL;
 	struct cds_lfht_iter iter;
@@ -349,7 +354,7 @@ struct ifnet *ifnet_byifname_cont_src(enum cont_src_en cont_src,
 	return ifp;
 }
 
-struct ifnet *ifnet_byifname(const char *ifname)
+struct ifnet *dp_ifnet_byifname(const char *ifname)
 {
 	struct ifnet *ifp;
 
@@ -381,7 +386,7 @@ struct ifnet *ifnet_byethname(const char *ethname)
 	return NULL;
 }
 
-void ifnet_walk(ifnet_iter_func_t func, void *arg)
+void dp_ifnet_walk(dp_ifnet_iter_func_t func, void *arg)
 {
 	struct ifnet *ifp;
 	struct cds_lfht_iter iter;
@@ -389,6 +394,23 @@ void ifnet_walk(ifnet_iter_func_t func, void *arg)
 	cds_lfht_for_each_entry(ifname_hash, &iter, ifp, ifname_hash) {
 		(func)(ifp, arg);
 	}
+}
+
+int dp_ifnet_addr_walk(struct ifnet *ifp, dp_ifnet_addr_iter_func_t func,
+		       void *arg)
+{
+	struct if_addr *ifa;
+	struct sockaddr *sa;
+	int status;
+
+	cds_list_for_each_entry(ifa, &ifp->if_addrhead, ifa_link) {
+		sa = (struct sockaddr *) &ifa->ifa_addr;
+		status = (func)(sa, ifa->ifa_prefixlen, arg);
+		if (status)
+			return status;
+	}
+
+	return 0;
 }
 
 static void
@@ -422,13 +444,8 @@ void if_unset_ifindex(struct ifnet *ifp)
 	if (ifp->if_index == 0)
 		return;
 
-	/*
-	 * notify features of impending interface deletion
-	 * This allows features to notify plugins to perform the
-	 * necessary cleanup before the interface is deleted
-	 */
-	dp_event(DP_EVT_IF_INDEX_PRE_UNSET, 0, ifp, 0, 0, NULL);
-	fal_l2_del_port(ifp->if_index);
+	if_change_features_mode(ifp, IF_FEAT_MODE_FLAG_L2_DISABLE);
+
 	cds_lfht_del(ifnet_hash, &ifp->ifindex_hash);
 	ifp->if_index = 0;
 	cds_list_del(&ifp->if_list);
@@ -477,7 +494,220 @@ void if_set_ifindex(struct ifnet *ifp, unsigned int ifindex)
 	ifname_hash_insert(ifp);
 	cds_list_add_rcu(&ifp->if_list, &ifnet_list);
 out:
-	dp_event(DP_EVT_IF_INDEX_SET, 0, ifp, ifindex, 0, NULL);
+	dp_event(DP_EVT_IF_INDEX_SET, 0, ifp, 0, 0, NULL);
+}
+
+static int if_is_hw_switching_enabled(struct ifnet *ifp)
+{
+	const struct ift_ops *ops;
+
+	ops = if_get_ops(ifp);
+	if (!ops)
+		return true;
+
+	/*
+	 * ask the interface since the ifp->hw_forwarding field is
+	 * overloaded and we need this to be true for interface types
+	 * that support L3 in the FAL that don't have support for
+	 * hardware-switching disable state (e.g. switch vifs).
+	 */
+	if (ops->ifop_is_hw_switching_enabled)
+		return ops->ifop_is_hw_switching_enabled(ifp);
+
+	/* default to true so that we attempt to create L3 FAL objects */
+	return true;
+}
+
+static enum if_embellish_feat
+if_get_emb_feats(struct ifnet *ifp)
+{
+	enum if_embellish_feat feat_present = IF_EMB_FEAT_NONE;
+
+	if (ifp->if_brport)
+		feat_present |= IF_EMB_FEAT_BRIDGE_MEMBER;
+	if (ifp->aggregator)
+		feat_present |= IF_EMB_FEAT_LAG_MEMBER;
+	if (ifp->unplugged)
+		feat_present |= IF_EMB_FEAT_UNPLUGGED;
+	if (!if_is_hw_switching_enabled(ifp))
+		feat_present |= IF_EMB_FEAT_HW_SWITCHING_DISABLED;
+	if (ifp->unplugged)
+		feat_present |= IF_EMB_FEAT_UNPLUGGED;
+	if (ifp->if_broken_out)
+		feat_present |= IF_EMB_FEAT_BREAK_OUT;
+	if (ifp->aggregator)
+		feat_present |= IF_EMB_FEAT_LAG_MEMBER;
+
+	return feat_present;
+}
+
+bool if_check_any_emb_feat(struct ifnet *ifp, enum if_embellish_feat feat_any)
+{
+	return if_get_emb_feats(ifp) & feat_any;
+}
+
+bool if_check_any_except_emb_feat(struct ifnet *ifp,
+				  enum if_embellish_feat feat_except)
+{
+	return if_get_emb_feats(ifp) & ~feat_except;
+}
+
+void if_notify_emb_feat_change(struct ifnet *ifp)
+{
+	if_change_features_mode(ifp, IF_FEAT_MODE_FLAG_EMB_FEAT_CHANGED);
+}
+
+static int if_l3_enable(struct ifnet *ifp)
+{
+	const struct ift_ops *ops;
+	int ret = 0;
+
+	ops = if_get_ops(ifp);
+	if (!ops)
+		return 0;
+
+	if (ops->ifop_l3_enable)
+		ret = ops->ifop_l3_enable(ifp);
+
+	return ret;
+}
+
+static int if_l3_disable(struct ifnet *ifp)
+{
+	const struct ift_ops *ops;
+	int ret = 0;
+
+	ops = if_get_ops(ifp);
+	if (!ops)
+		return 0;
+
+	if (ops->ifop_l3_disable)
+		ret = ops->ifop_l3_disable(ifp);
+
+	return ret;
+}
+
+static bool
+_if_is_features_mode_active(struct ifnet *ifp,
+			    enum if_feat_mode_event event,
+			    enum if_feat_mode_flags flags)
+{
+	bool l3_enabled;
+	bool l3_hw_enabled;
+	bool l2_enabled;
+	bool emb_feat_changed;
+	bool l2_hw_enabled;
+
+	l2_enabled = !(flags & IF_FEAT_MODE_FLAG_L2_DISABLE);
+	l2_hw_enabled = l2_enabled &&
+		!if_check_any_emb_feat(ifp, IF_EMB_FEAT_HW_SWITCHING_DISABLED);
+	emb_feat_changed = flags & IF_FEAT_MODE_FLAG_EMB_FEAT_CHANGED;
+
+	l3_enabled = l2_enabled &&
+		!if_check_any_except_emb_feat(
+			ifp, IF_EMB_FEATS_ALLOW_L3) &&
+		!(flags & IF_FEAT_MODE_FLAG_L3_DISABLE);
+	l3_hw_enabled = l3_enabled && l2_hw_enabled;
+
+	switch (event) {
+	case IF_FEAT_MODE_EVENT_L3_FAL_ENABLED:
+		return l3_hw_enabled;
+	case IF_FEAT_MODE_EVENT_L3_ENABLED:
+		return l3_enabled;
+	case IF_FEAT_MODE_EVENT_EMB_FEAT_CHANGED:
+		return emb_feat_changed;
+	case IF_FEAT_MODE_EVENT_L2_FAL_ENABLED:
+		return l2_hw_enabled;
+	case IF_FEAT_MODE_EVENT_L2_CREATED:
+		return l2_enabled;
+	default:
+		return false;
+	}
+}
+
+bool if_is_features_mode_active(struct ifnet *ifp,
+				enum if_feat_mode_event event)
+{
+	return _if_is_features_mode_active(ifp, event,
+					   IF_FEAT_MODE_FLAG_NONE);
+}
+
+void if_change_features_mode(struct ifnet *ifp, enum if_feat_mode_flags flags)
+{
+	bool l3_enabled;
+	bool l3_hw_enabled;
+	bool l2_enabled;
+	bool emb_feat_changed;
+	int ret;
+
+	l2_enabled = _if_is_features_mode_active(
+		ifp, IF_FEAT_MODE_EVENT_L2_CREATED, flags);
+	emb_feat_changed = _if_is_features_mode_active(
+		ifp, IF_FEAT_MODE_EVENT_EMB_FEAT_CHANGED, flags);
+	l3_enabled = _if_is_features_mode_active(
+		ifp, IF_FEAT_MODE_EVENT_L3_ENABLED, flags);
+	l3_hw_enabled = _if_is_features_mode_active(
+		ifp, IF_FEAT_MODE_EVENT_L3_FAL_ENABLED, flags);
+
+	if (flags & IF_FEAT_MODE_FLAG_L2_FAL_ENABLE) {
+		struct fal_attribute_t attr = {
+			.id = FAL_PORT_ATTR_HW_SWITCH_MODE,
+			.value.u8 = FAL_PORT_HW_SWITCHING_ENABLE,
+		};
+
+		fal_l2_upd_port(ifp->if_index, &attr);
+
+		dp_event(DP_EVT_IF_FEAT_MODE_CHANGE, 0, ifp,
+			 IF_FEAT_MODE_EVENT_L2_FAL_ENABLED, 0, NULL);
+	}
+
+	if (l3_enabled && !ifp->if_l3_enabled) {
+		ifp->if_l3_enabled = true;
+		dp_event(DP_EVT_IF_FEAT_MODE_CHANGE, 0, ifp,
+			 IF_FEAT_MODE_EVENT_L3_ENABLED, 0, NULL);
+	}
+
+	if (l3_hw_enabled && !ifp->fal_l3) {
+		ret = if_l3_enable(ifp);
+		if (ret == 0)
+			dp_event(DP_EVT_IF_FEAT_MODE_CHANGE, 0, ifp,
+				 IF_FEAT_MODE_EVENT_L3_FAL_ENABLED, 0, NULL);
+	} else if (!l3_hw_enabled && ifp->fal_l3) {
+		dp_event(DP_EVT_IF_FEAT_MODE_CHANGE, 0, ifp,
+			 IF_FEAT_MODE_EVENT_L3_FAL_DISABLED, 0, NULL);
+		if_l3_disable(ifp);
+	}
+
+	if (!l3_enabled && ifp->if_l3_enabled) {
+		ifp->if_l3_enabled = false;
+		dp_event(DP_EVT_IF_FEAT_MODE_CHANGE, 0, ifp,
+			 IF_FEAT_MODE_EVENT_L3_DISABLED, 0, NULL);
+	}
+
+	if (emb_feat_changed)
+		dp_event(DP_EVT_IF_FEAT_MODE_CHANGE, 0, ifp,
+			 IF_FEAT_MODE_EVENT_EMB_FEAT_CHANGED, 0, NULL);
+
+	if (flags & IF_FEAT_MODE_FLAG_L2_FAL_DISABLE) {
+		struct fal_attribute_t attr = {
+			.id = FAL_PORT_ATTR_HW_SWITCH_MODE,
+			.value.u8 = FAL_PORT_HW_SWITCHING_DISABLE,
+		};
+
+		/*
+		 * notify features to give them a chance to clean up
+		 * first, if required
+		 */
+		dp_event(DP_EVT_IF_FEAT_MODE_CHANGE, 0, ifp,
+			 IF_FEAT_MODE_EVENT_L2_FAL_DISABLED, 0, NULL);
+		fal_l2_upd_port(ifp->if_index, &attr);
+	}
+
+	if (!l2_enabled) {
+		dp_event(DP_EVT_IF_FEAT_MODE_CHANGE, 0, ifp,
+			 IF_FEAT_MODE_EVENT_L2_DELETED, 0, NULL);
+		fal_l2_del_port(ifp->if_index);
+	}
 }
 
 /*
@@ -517,10 +747,6 @@ if_set_vrf(struct ifnet *ifp, vrfid_t vrf_id)
 		 */
 		if (ifp->if_type == IFT_VRFMASTER &&
 		    vrf_id != VRF_DEFAULT_ID) {
-			uint32_t vrf_tableid = vrfmaster_get_tableid(ifp);
-
-			route_link_vrf_to_table(vrf, vrf_tableid);
-			route6_link_vrf_to_table(vrf, vrf_tableid);
 			vrf_set_external_id(vrf, ifp->if_index);
 
 			dp_event(DP_EVT_VRF_CREATE, 0, vrf, 0, 0, NULL);
@@ -543,6 +769,323 @@ if_set_vrf(struct ifnet *ifp, vrfid_t vrf_id)
 	dp_event(DP_EVT_IF_VRF_SET, 0, ifp, 0, 0, NULL);
 }
 
+/*
+ * Allocate space on the interface to be able to store context for
+ * a given feature on the if. The callbacks are per feature type, not
+ * per interface, so they hang off a global array of cbs.
+ */
+int if_allocate_feature_space(struct ifnet *ifp,
+			      enum pl_feature_point_id fp)
+{
+	bool alloced_fp = false;
+	uint32_t size;
+	void **fp_ctxts = NULL;
+	void **feat_ctxts = NULL;
+
+	size = pl_feat_point_node_get_max_features(fp);
+	if (size == 0)
+		return -EINVAL;
+
+	fp_ctxts = rcu_dereference(ifp->node_instance_contexts);
+	if (!fp_ctxts) {
+		/*
+		 * We have to allocate the top level feature point array. We
+		 * will also need to allocate the feature array for the given
+		 * feature point below.
+		 */
+		fp_ctxts = zmalloc_aligned(PL_FEATURE_POINT_NUM_IDS *
+					   (sizeof(void *)));
+		if (!fp_ctxts)
+			return -ENOMEM;
+
+		alloced_fp = true;
+	}
+
+	if (alloced_fp || !fp_ctxts[fp]) {
+		/* The feature point doesn't have a feature array  yet */
+		feat_ctxts = zmalloc_aligned(size * sizeof(void *));
+		if (!feat_ctxts)
+			goto cleanup_on_failure;
+
+		/*
+		 * Now that all the allocs have succeeded set the pointers to
+		 * make things reachable.
+		 */
+		rcu_assign_pointer(fp_ctxts[fp], feat_ctxts);
+
+		if (alloced_fp)
+			rcu_assign_pointer(ifp->node_instance_contexts,
+					   fp_ctxts);
+
+	}
+
+	return 0;
+
+cleanup_on_failure:
+	free(fp_ctxts);
+	free(feat_ctxts);
+	return -ENOMEM;
+}
+
+static void if_free_feature_space(struct ifnet *ifp)
+{
+	int i, j;
+	dp_pipeline_inst_cleanup_cb *cb_func;
+	int size;
+	void **fp_cbs = NULL;
+	void **fp_ctxts = NULL;
+
+	if (!ifp->node_instance_contexts)
+		return;
+
+	/*
+	 * This is only called in an call_rcu callback when the interface is
+	 * going away so don't need to worry about users accessing it.
+	 */
+	for (i = 0; i < PL_FEATURE_POINT_NUM_IDS; i++) {
+		fp_ctxts = ifp->node_instance_contexts[i];
+		if (if_node_instance_cleanup_cbs)
+			fp_cbs = if_node_instance_cleanup_cbs[i];
+
+		if (fp_cbs && fp_ctxts) {
+			size = pl_feat_point_node_get_max_features(i);
+			for (j = 0; j < size; j++) {
+				if (fp_cbs[j] && fp_ctxts[j]) {
+					cb_func = fp_cbs[j];
+					cb_func(ifp->if_name, fp_ctxts[j]);
+				}
+			}
+		}
+		free(fp_ctxts);
+	}
+
+	if (ifp->node_instance_contexts)
+		free(ifp->node_instance_contexts);
+}
+
+int
+if_node_instance_register_storage(struct pl_node *node,
+				  struct pl_feature_registration *feat,
+				  void *context)
+{
+	int rv;
+	struct ifnet *ifp = (struct ifnet *)node;
+	void **feat_ctxts;
+	enum pl_feature_point_id fp_id;
+
+	fp_id = feat->feature_point_node->feature_point_id;
+	rv = if_allocate_feature_space(ifp, fp_id);
+	if (rv)
+		return rv;
+
+	feat_ctxts = rcu_dereference(ifp->node_instance_contexts[fp_id]);
+	rcu_assign_pointer(feat_ctxts[feat->id], context);
+
+	return 0;
+}
+
+int
+if_node_instance_unregister_storage(struct pl_node *node,
+				    struct pl_feature_registration *feat)
+{
+	struct ifnet *ifp = (struct ifnet *)node;
+	void **feat_ctxts;
+	void **fp_ctxts;
+	enum pl_feature_point_id fp_id;
+
+	fp_id = feat->feature_point_node->feature_point_id;
+	fp_ctxts = rcu_dereference(ifp->node_instance_contexts);
+	if (!fp_ctxts)
+		return -ENOENT;
+
+	feat_ctxts = rcu_dereference(fp_ctxts[fp_id]);
+	if (feat_ctxts[feat->id]) {
+		rcu_assign_pointer(feat_ctxts[feat->id], NULL);
+		/* Memory freed on shutdown */
+		return 0;
+	}
+
+	return -ENOENT;
+}
+
+ALWAYS_INLINE void *
+if_node_instance_get_storage_internal(struct ifnet *ifp,
+				      enum pl_feature_point_id feat_point,
+				      int feat)
+{
+	void **feat_ctxts;
+	void **fp_ctxts;
+
+	fp_ctxts = rcu_dereference(ifp->node_instance_contexts);
+	if (!fp_ctxts)
+		return NULL;
+
+	feat_ctxts = rcu_dereference(fp_ctxts[feat_point]);
+	if (feat_ctxts)
+		return feat_ctxts[feat];
+
+	return NULL;
+}
+
+ALWAYS_INLINE void *
+if_node_instance_get_storage(struct pl_node *node,
+			     struct pl_feature_registration *feat)
+{
+	struct ifnet *ifp = (struct ifnet *)node;
+
+	return if_node_instance_get_storage_internal(
+		ifp,
+		feat->feature_point_node->feature_point_id,
+		feat->id);
+}
+
+/*
+ * Set the cleanup callback for interface node instances. All memory
+ * allocated will only be released on shutdown.
+ */
+int
+if_node_instance_set_cleanup_cb(struct pl_feature_registration *feat)
+{
+	enum pl_feature_point_id fp_id;
+	uint32_t size;
+	void **fp_cbs = NULL;
+	void **feat_cbs = NULL;
+
+	if (!feat->node->feat_setup_cleanup_cb)
+		return 0;
+
+	fp_id = feat->feature_point_node->feature_point_id;
+
+	if (!if_node_instance_cleanup_cbs) {
+		fp_cbs = calloc(PL_FEATURE_POINT_NUM_IDS, (sizeof(void *)));
+		if (!fp_cbs)
+			return -ENOMEM;
+		rcu_assign_pointer(if_node_instance_cleanup_cbs, fp_cbs);
+	}
+
+	if (!fp_cbs[fp_id]) {
+		size = pl_feat_point_node_get_max_features(fp_id);
+		if (size == 0)
+			return 0;
+
+		feat_cbs = calloc(size, sizeof(void *));
+		if (!feat_cbs)
+			return -ENOMEM;
+		rcu_assign_pointer(fp_cbs[fp_id], feat_cbs);
+	}
+
+	feat_cbs[feat->id] = feat->node->feat_setup_cleanup_cb;
+	return 0;
+}
+
+static struct cds_list_head if_node_instance_all_list_head =
+	CDS_LIST_HEAD_INIT(if_node_instance_all_list_head);
+
+
+struct if_node_instance_all_ctx {
+	struct pl_feature_registration *pl_feat;
+	pl_node_feat_change *feat_change;
+	enum pl_node_feat_action action;
+	int rv;
+	struct cds_list_head  list_entry;
+};
+
+static void if_node_instance_feat_change_all_cb(struct ifnet *ifp, void *arg)
+{
+	struct if_node_instance_all_ctx *context = arg;
+
+	context->rv |= context->feat_change((struct pl_node *)ifp,
+					    context->pl_feat,
+					    context->action);
+}
+
+static void if_node_instance_all_int_create_cb(struct ifnet *ifp)
+{
+	struct cds_list_head *this_entry, *next;
+	struct if_node_instance_all_ctx *context;
+
+	/* Walk the list of feature and enable them for this interface */
+	cds_list_for_each_safe(this_entry, next,
+			       &if_node_instance_all_list_head) {
+
+		context = cds_list_entry(this_entry,
+					 struct if_node_instance_all_ctx,
+					 list_entry);
+
+		if_node_instance_feat_change_all_cb(ifp, context);
+	}
+}
+
+
+struct dp_event_ops if_node_instance_all_int_event_ops = {
+	.if_create = if_node_instance_all_int_create_cb,
+};
+
+int if_node_instance_feat_change_all(struct pl_feature_registration *pl_feat,
+				     enum pl_node_feat_action action,
+				     pl_node_feat_change *feat_change)
+{
+	struct if_node_instance_all_ctx *context;
+	struct cds_list_head *this_entry, *next;
+	bool found = false;
+	bool rv;
+
+	if (!pl_feat)
+		return -EINVAL;
+
+	cds_list_for_each_safe(this_entry, next,
+			       &if_node_instance_all_list_head) {
+		context = cds_list_entry(this_entry,
+					 struct if_node_instance_all_ctx,
+					 list_entry);
+		if (context->pl_feat == pl_feat) {
+			found = true;
+			break;
+		}
+	}
+
+	if (action == PL_NODE_FEAT_ADD) {
+		if (found)
+			return -EINVAL;
+
+		context = malloc(sizeof(*context));
+		if (!context)
+			return -ENOMEM;
+
+		context->pl_feat = pl_feat;
+		context->feat_change = feat_change;
+		context->action = action;
+		context->rv = 0;
+
+		if (cds_list_empty(&if_node_instance_all_list_head))
+			/* Register for event notification for new interfaces */
+			dp_event_register(&if_node_instance_all_int_event_ops);
+
+		/* Track the features to enable on new interfaces */
+		cds_list_add_rcu(&context->list_entry,
+				 &if_node_instance_all_list_head);
+	} else {
+		if (!found)
+			return -ENOENT;
+		context->action = action;
+		context->rv = 0;
+	}
+
+	dp_ifnet_walk(if_node_instance_feat_change_all_cb, context);
+	rv = context->rv;
+	if (action == PL_NODE_FEAT_REM) {
+		cds_list_del_rcu(&context->list_entry);
+		free(context);
+
+		if (cds_list_empty(&if_node_instance_all_list_head))
+			dp_event_unregister(
+				&if_node_instance_all_int_event_ops);
+
+	}
+
+	return rv;
+}
+
 /* Callback from RCU to free interface */
 static void if_free_rcu(struct rcu_head *head)
 {
@@ -559,6 +1102,7 @@ static void if_free_rcu(struct rcu_head *head)
 	if (ifp->vlan_feat_table)
 		dp_ht_destroy_deferred(ifp->vlan_feat_table);
 
+	if_free_feature_space(ifp);
 	rte_free(ifp->if_vlantbl);
 	rte_free(ifp);
 }
@@ -673,7 +1217,7 @@ void if_add_vlan(struct ifnet *ifp, struct rte_mbuf **m)
 int if_add_l2_addr(struct ifnet *ifp, struct ether_addr *addr)
 {
 	const struct ift_ops *ops;
-	int ret = 0;
+	int ret;
 	char buf[32];
 
 	/*
@@ -689,16 +1233,17 @@ int if_add_l2_addr(struct ifnet *ifp, struct ether_addr *addr)
 
 	if (ops->ifop_add_l2_addr)
 		ret = ops->ifop_add_l2_addr(ifp, addr);
+	else
+		ret = -ENOTSUP;
 
-	if (ret < -ENOTSUP) {
+	if (ret < 0) {
+		/* we use promisc mode as a fallback */
+		ifpromisc(ifp, 1);
 		DP_DEBUG(INIT, ERR, DATAPLANE,
-			 "%s can't add MAC address %s: %s\n",
+			 "%s, failed to add MAC address %s: %s setting interface to promisc\n",
 			 ifp->if_name,
 			 ether_ntoa_r(addr, buf),
 			 strerror(-ret));
-	} else {
-		/* we use promisc mode as a fallback */
-		ifpromisc(ifp, 1);
 		ret = 0;
 	}
 
@@ -708,7 +1253,7 @@ int if_add_l2_addr(struct ifnet *ifp, struct ether_addr *addr)
 int if_del_l2_addr(struct ifnet *ifp, struct ether_addr *addr)
 {
 	const struct ift_ops *ops;
-	int ret = 0;
+	int ret;
 	char buf[32];
 
 	/*
@@ -724,16 +1269,17 @@ int if_del_l2_addr(struct ifnet *ifp, struct ether_addr *addr)
 
 	if (ops->ifop_del_l2_addr)
 		ret = ops->ifop_del_l2_addr(ifp, addr);
+	else
+		ret = -ENOTSUP;
 
-	if (ret < -ENOTSUP) {
+	if (ret < 0) {
+		/* we use promisc mode as a fallback */
+		ifpromisc(ifp, 0);
 		DP_DEBUG(INIT, ERR, DATAPLANE,
-			 "%s can't remove MAC address %s: %s\n",
+			 "%s, failed to remove MAC address %s: %s setting interface to non-promisc\n",
 			 ifp->if_name,
 			 ether_ntoa_r(addr, buf),
 			 strerror(-ret));
-	} else {
-		/* we use promisc mode as a fallback */
-		ifpromisc(ifp, 0);
 		ret = 0;
 	}
 
@@ -756,14 +1302,8 @@ if_qinq_created(struct ifnet *phy_ifp)
 {
 	phy_ifp->qinq_vif_cnt++;
 
-	if (phy_ifp->qinq_vif_cnt == 1)  {
-		if (phy_ifp->if_team)
-			lag_walk_bond_slaves(phy_ifp,
-					     lag_set_phy_qinq_mtu_slave,
-					     NULL);
-
+	if (phy_ifp->qinq_vif_cnt == 1)
 		if_set_mtu(phy_ifp, phy_ifp->if_mtu, true);
-	}
 }
 
 void
@@ -771,14 +1311,8 @@ if_qinq_deleted(struct ifnet *phy_ifp)
 {
 	phy_ifp->qinq_vif_cnt--;
 
-	if (phy_ifp->qinq_vif_cnt == 0) {
-		if (phy_ifp->if_team)
-			lag_walk_bond_slaves(phy_ifp,
-					     lag_set_phy_qinq_mtu_slave,
-					     NULL);
-
+	if (phy_ifp->qinq_vif_cnt == 0)
 		if_set_mtu(phy_ifp, phy_ifp->if_mtu, true);
-	}
 }
 
 int if_vlan_proto_set(struct ifnet *ifp, uint16_t proto)
@@ -898,18 +1432,13 @@ if_free(struct ifnet *ifp)
 			"No ops registered during free for interface type %d",
 			ifp->if_type);
 
-	if (ops && ops->ifop_pre_uninit)
-		ops->ifop_pre_uninit(ifp);
+	/* Layer 3 & 2 feature cleanup */
 
-	/* First make ifp unreachable by ifindex and ifname */
-	if_unset_ifindex(ifp);
-	cds_lfht_del(ifname_hash, &ifp->ifname_hash);
-
-	/* Send event prior to freeing features */
 	dp_event(DP_EVT_IF_DELETE, 0, ifp, 0, 0, NULL);
-
+	if_change_features_mode(ifp, IF_FEAT_MODE_FLAG_L3_DISABLE);
 	if_clean(ifp);
 
+	/* remove any features left over that didn't clean themselves up */
 	pl_node_iter_features(ipv4_validate_node_ptr, ifp,
 			      if_remove_pl_feat, ifp);
 	pl_node_iter_features(ipv4_out_node_ptr, ifp,
@@ -918,6 +1447,13 @@ if_free(struct ifnet *ifp)
 			      if_remove_pl_feat, ifp);
 	pl_node_iter_features(ipv6_out_node_ptr, ifp,
 			      if_remove_pl_feat, ifp);
+
+	/* Layer 2 cleanup */
+
+	if_unset_ifindex(ifp);
+	cds_lfht_del(ifname_hash, &ifp->ifname_hash);
+
+	/* Layer 1 cleanup */
 
 	/*
 	 * Turn off promiscuous mode if left on so we don't leak
@@ -1026,19 +1562,7 @@ void if_allmulti(struct ifnet *ifp, int onoff)
 
 static void if_team_init(struct ifnet *ifp)
 {
-	struct rte_eth_dev_info dev_info;
-
-	if (ifp->if_type != IFT_ETHER)
-		return;
-
-	rte_eth_dev_info_get(ifp->if_port, &dev_info);
-
-	DP_DEBUG(INIT, DEBUG, DATAPLANE,
-		"%d:%s dev_info.driver_name %s\n",
-		ifp->if_index, ifp->if_name, dev_info.driver_name);
-
-	if (strstr(dev_info.driver_name, "rte_bond_pmd") != NULL)
-		ifp->if_team = 1;
+	ifp->if_team = lag_is_team(ifp);
 }
 
 static struct ifnet *
@@ -1150,6 +1674,9 @@ bool if_stats(struct ifnet *ifp, struct if_data *stats)
 	int ret;
 
 	memset(sum, 0, sizeof(struct if_data));
+
+	if (ifp->unplugged)
+		return false;
 
 	FOREACH_DP_LCORE(lcore) {
 		const uint64_t *pcpu
@@ -1286,7 +1813,18 @@ static void if_perf_timer(struct rte_timer *tim __rte_unused, void *arg)
 	changed |= if_perf_update(&ifp->if_txpps, swstats.ifi_opackets);
 	changed |= if_perf_update(&ifp->if_txbps, swstats.ifi_obytes);
 
-	if (changed && ifp->if_type != IFT_ETHER)
+	/*
+	 * also send update if any counters where we may not have
+	 * successfully RX'd or TX'd a packet are non-zero, since they
+	 * won't have triggered a change above.
+	 */
+	changed |= swstats.ifi_ierrors != 0 ||
+		swstats.ifi_oerrors != 0 ||
+		swstats.ifi_idropped != 0 ||
+		ifi_odropped(&swstats) != 0;
+
+	if (changed && (ifp->if_type != IFT_ETHER ||
+			is_team(ifp)))
 		send_if_stats(ifp, &swstats);
 }
 
@@ -1311,6 +1849,33 @@ static void if_stats_disable(struct ifnet *ifp)
 	if_perf_clear(&ifp->if_txbps);
 }
 
+int dp_ifnet_mib_counters(struct ifnet *ifp,
+			  struct dp_ifnet_mib_counters *counters)
+{
+	struct if_data stats;
+
+	if_stats(ifp, &stats);
+
+	if (!counters)
+		return -1;
+
+	counters->dp_ifnet_mib_counter_inoctets = stats.ifi_ibytes;
+	counters->dp_ifnet_mib_counter_inucastpkts = stats.ifi_ipackets;
+	counters->dp_ifnet_mib_counter_inmulticastpkts = stats.ifi_imulticast;
+	counters->dp_ifnet_mib_counter_inbroadcastpkts = stats.ifi_imulticast;
+	counters->dp_ifnet_mib_counter_indiscards = stats.ifi_idropped;
+	counters->dp_ifnet_mib_counter_inerrors = stats.ifi_ierrors;
+	counters->dp_ifnet_mib_counter_inunknownprotos = stats.ifi_unknown;
+	counters->dp_ifnet_mib_counter_outoctets = stats.ifi_obytes;
+	counters->dp_ifnet_mib_counter_outucastpkts = stats.ifi_opackets;
+	counters->dp_ifnet_mib_counter_outmulticastpkts = 0;
+	counters->dp_ifnet_mib_counter_outbroadcastpkts = 0;
+	counters->dp_ifnet_mib_counter_outdiscards = ifi_odropped(&stats);
+	counters->dp_ifnet_mib_counter_outerrors = stats.ifi_oerrors;
+
+	return 0;
+}
+
 int if_blink(struct ifnet *ifp, bool on)
 {
 	const struct ift_ops *ops;
@@ -1320,7 +1885,7 @@ int if_blink(struct ifnet *ifp, bool on)
 	if (!ops)
 		return -EINVAL;
 
-	if (ops->ifop_set_mtu)
+	if (ops->ifop_blink)
 		rc = ops->ifop_blink(ifp, on);
 
 	return rc;
@@ -1375,7 +1940,6 @@ struct incomplete_route {
 	/* keys */
 	struct ip_addr dest;
 	uint32_t label;
-	vrfid_t vrf_id;
 	uint32_t table;
 	uint8_t depth;
 	uint8_t scope;
@@ -1632,8 +2196,6 @@ static inline int incomplete_route_match_fn(struct cds_lfht_node *node,
 		return 0;
 	if (route->table != route_key->table)
 		return 0;
-	if (route->vrf_id != route_key->vrf_id)
-		return 0;
 	if (route->label != route_key->label)
 		return 0;
 	if (memcmp(&route->dest, &route_key->dest, sizeof(struct ip_addr)))
@@ -1646,7 +2208,7 @@ static inline int incomplete_route_match_fn(struct cds_lfht_node *node,
  * Add an incomplete route. If we already have an entry for that key then
  * update the message to new one.
  */
-void incomplete_route_add(vrfid_t vrf_id, const void *dst,
+void incomplete_route_add(const void *dst,
 			  uint8_t family, uint8_t depth, uint32_t table,
 			  uint8_t scope, uint8_t proto,
 			  const struct nlmsghdr *nlh)
@@ -1676,7 +2238,6 @@ void incomplete_route_add(vrfid_t vrf_id, const void *dst,
 	route->table = table;
 	route->scope = scope;
 	route->proto = proto;
-	route->vrf_id = vrf_id;
 	route->nlh = malloc(nlh->nlmsg_len);
 	if (!route->nlh) {
 		free(route);
@@ -1702,7 +2263,7 @@ void incomplete_route_add(vrfid_t vrf_id, const void *dst,
 	}
 }
 
-void incomplete_route_del(vrfid_t vrf_id, const void *dst,
+void incomplete_route_del(const void *dst,
 			  uint8_t family, uint8_t depth,
 			  uint32_t table, uint8_t scope,
 			  uint8_t proto)
@@ -1730,7 +2291,6 @@ void incomplete_route_del(vrfid_t vrf_id, const void *dst,
 	route.table = table;
 	route.scope = scope;
 	route.proto = proto;
-	route.vrf_id = vrf_id;
 
 	cds_lfht_lookup(incomplete_routes,
 			incomplete_route_hash(&route),
@@ -2154,6 +2714,18 @@ const char *iftype_name(uint8_t type)
 	}
 }
 
+enum dp_ifnet_iana_type dp_ifnet_iana_type(struct ifnet *ifp)
+{
+	const struct ift_ops *ops = if_get_ops(ifp);
+	if (!ops)
+		return DP_IFTYPE_IANA_OTHER;
+
+	if (!ops->ifop_iana_type)
+		return DP_IFTYPE_IANA_OTHER;
+
+	return ops->ifop_iana_type(ifp);
+}
+
 bool if_ignore_df(const struct ifnet *ifp)
 {
 	return is_gre(ifp) && gre_tunnel_ignore_df(ifp);
@@ -2279,13 +2851,11 @@ static int vfp_set_cfg(struct pb_msg *msg)
 	void *payload = msg->msg;
 	int len = msg->msg_len;
 
-	VFPSetConfig *vfp_msg =
-		vfpset_config__unpack(NULL, len,
-				       payload);
+	VFPSetConfig *vfp_msg = vfpset_config__unpack(NULL, len, payload);
 	if (!vfp_msg) {
 		RTE_LOG(ERR, DATAPLANE,
 			"failed to read vfp-set protobuf command\n");
-		goto done;
+		return -1;
 	}
 
 	struct ifnet *vfp;
@@ -2305,7 +2875,7 @@ static int vfp_set_cfg(struct pb_msg *msg)
 	if (!vfp_msg->has_action)
 		goto done;
 
-	vfp = ifnet_byifindex(vfp_msg->if_index);
+	vfp = dp_ifnet_byifindex(vfp_msg->if_index);
 	if (!vfp) {
 		/* Interface delete netlink may already have deleted it. */
 		if (vfp_msg->action != VFPSET_CONFIG__ACTION__VFP_ACTION_GET)
@@ -2386,7 +2956,7 @@ int cmd_set_vfp(FILE *f __unused, int argc, char **argv)
 	else
 		return -1;
 
-	vfp = ifnet_byifindex(ifindex);
+	vfp = dp_ifnet_byifindex(ifindex);
 	if (!vfp) {
 		/* Interface delete netlink may already have deleted it. */
 		if (!is_get)
@@ -2634,12 +3204,11 @@ void if_finish_create(struct ifnet *ifp, const char *ifi_type,
 	}
 	fal_l2_new_port(ifp->if_index, nattrs, attrs);
 
+	ifp->if_created = true;
+	if_change_features_mode(ifp, IF_FEAT_MODE_FLAG_NONE);
+
 	incomplete_routes_make_complete();
 	missed_netlink_replay(ifp->if_index);
-
-	ifp->if_created = true;
-	if_create_finished(ifp, mac_addr);
-	dp_event(DP_EVT_IF_CREATE_FINISHED, 0, ifp, 0, 0, NULL);
 }
 
 int if_start(struct ifnet *ifp)
@@ -2787,37 +3356,20 @@ int if_set_broadcast(struct ifnet *ifp, bool enable)
 	return ret;
 }
 
-void if_create_finished(struct ifnet *ifp, const struct ether_addr *mac_addr)
+void dp_ifnet_link_status(struct ifnet *ifp,
+			  struct dp_ifnet_link_status *if_link)
 {
 	const struct ift_ops *ops;
+	int ret = -EOPNOTSUPP;
 
 	ops = if_get_ops(ifp);
-	if (!ops)
-		return;
+	if (ops && ops->ifop_get_link_status)
+		ret = ops->ifop_get_link_status(ifp, if_link);
 
-	if (ops->ifop_create_finished)
-		ops->ifop_create_finished(ifp, mac_addr);
-}
-
-void if_get_link_status(struct ifnet *ifp,
-			struct if_link_status *if_link)
-{
-	struct rte_eth_link link;
-
-	if (ifp->if_type == IFT_ETHER && ifp->if_local_port &&
-	    !ifp->unplugged) {
-		memset(&link, 0, sizeof(link));
-		rte_eth_link_get_nowait(ifp->if_port, &link);
-
-		if_link->link_status = link.link_status;
-		if_link->link_duplex =
-			link.link_duplex ? IF_LINK_DUPLEX_FULL :
-			IF_LINK_DUPLEX_HALF;
-		if_link->link_speed = link.link_speed;
-	} else {
+	if (ret < 0) {
 		if_link->link_status = ifp->if_flags & IFF_RUNNING;
-		if_link->link_speed = IF_LINK_SPEED_UNKNOWN;
-		if_link->link_duplex = IF_LINK_DUPLEX_UNKNOWN;
+		if_link->link_speed = DP_IFNET_LINK_SPEED_UNKNOWN;
+		if_link->link_duplex = DP_IFNET_LINK_DUPLEX_UNKNOWN;
 	}
 }
 
@@ -2935,13 +3487,16 @@ fal_if_update_forwarding(struct ifnet *ifp, uint8_t family, bool multicast)
 	bool fwd_enable = (ifp->if_flags & IFF_UP);
 	struct fal_attribute_t state;
 	int ret;
+	const char *family_str;
 
 	switch (family) {
 	case AF_INET:
 		if (multicast) {
+			family_str = "IPv4 Multicast";
 			state.id = FAL_ROUTER_INTERFACE_ATTR_V4_MCAST_ENABLE;
 			fwd_enable = ifp->ip_mc_forwarding;
 		} else {
+			family_str = "IPv4";
 			state.id = FAL_ROUTER_INTERFACE_ATTR_ADMIN_V4_STATE;
 			if (pl_node_is_feature_enabled(
 				    &ipv4_in_no_forwarding_feat, ifp))
@@ -2950,9 +3505,11 @@ fal_if_update_forwarding(struct ifnet *ifp, uint8_t family, bool multicast)
 		break;
 	case AF_INET6:
 		if (multicast) {
+			family_str = "IPv6 Multicast";
 			state.id = FAL_ROUTER_INTERFACE_ATTR_V6_MCAST_ENABLE;
 			fwd_enable = ifp->ip6_mc_forwarding;
 		} else {
+			family_str = "IPv6";
 			state.id = FAL_ROUTER_INTERFACE_ATTR_ADMIN_V6_STATE;
 			if (pl_node_is_feature_enabled(
 				    &ipv6_in_no_forwarding_feat, ifp))
@@ -2960,6 +3517,7 @@ fal_if_update_forwarding(struct ifnet *ifp, uint8_t family, bool multicast)
 		}
 		break;
 	case AF_MPLS:
+		family_str = "MPLS";
 		state.id = FAL_ROUTER_INTERFACE_ATTR_ADMIN_MPLS_STATE;
 		if (!rcu_dereference(ifp->mpls_label_table))
 			fwd_enable = false;
@@ -2981,8 +3539,7 @@ fal_if_update_forwarding(struct ifnet *ifp, uint8_t family, bool multicast)
 	} else
 		RTE_LOG(NOTICE, DATAPLANE,
 			"%s Forwarding %s for %s\n",
-			((family == AF_INET) ? "IPv4" :
-			 ((family == AF_INET6) ? "IPv6" : "MPLS")),
+			family_str,
 			fwd_enable ? "enabled" : "disabled", ifp->if_name);
 
 }
@@ -2997,10 +3554,10 @@ fal_if_update_forwarding_all(struct ifnet *ifp)
 	fal_if_update_forwarding(ifp, AF_INET6, true);
 }
 
-void
-if_create_l3_intf(struct ifnet *ifp, const struct ether_addr *mac_addr)
+int
+if_fal_create_l3_intf(struct ifnet *ifp)
 {
-	struct fal_attribute_t l3_attrs[10];
+	struct fal_attribute_t l3_attrs[11];
 	unsigned int l3_nattrs = 2;
 	int ret = 0;
 
@@ -3029,13 +3586,36 @@ if_create_l3_intf(struct ifnet *ifp, const struct ether_addr *mac_addr)
 		l3_attrs[l3_nattrs].value.u16 = ifp->if_mtu;
 		l3_nattrs++;
 	}
-	if (mac_addr) {
+	if (!is_zero_ether_addr(&ifp->eth_addr)) {
 		l3_attrs[l3_nattrs].id =
 			FAL_ROUTER_INTERFACE_ATTR_SRC_MAC_ADDRESS;
-		memcpy(&l3_attrs[l3_nattrs].value.mac, mac_addr,
+		memcpy(&l3_attrs[l3_nattrs].value.mac, &ifp->eth_addr,
 		       sizeof(l3_attrs[l3_nattrs].value.mac));
 		l3_nattrs++;
 	}
+
+	l3_attrs[l3_nattrs].id = FAL_ROUTER_INTERFACE_ATTR_V4_MCAST_ENABLE;
+	l3_attrs[l3_nattrs].value.booldata = ifp->ip_mc_forwarding;
+	l3_nattrs++;
+
+	l3_attrs[l3_nattrs].id = FAL_ROUTER_INTERFACE_ATTR_ADMIN_V4_STATE;
+	l3_attrs[l3_nattrs].value.booldata = !pl_node_is_feature_enabled(
+		&ipv4_in_no_forwarding_feat, ifp);
+	l3_nattrs++;
+
+	l3_attrs[l3_nattrs].id = FAL_ROUTER_INTERFACE_ATTR_V6_MCAST_ENABLE;
+	l3_attrs[l3_nattrs].value.booldata = ifp->ip6_mc_forwarding;
+	l3_nattrs++;
+
+	l3_attrs[l3_nattrs].id = FAL_ROUTER_INTERFACE_ATTR_ADMIN_V6_STATE;
+	l3_attrs[l3_nattrs].value.booldata = !pl_node_is_feature_enabled(
+		&ipv6_in_no_forwarding_feat, ifp);
+	l3_nattrs++;
+
+	l3_attrs[l3_nattrs].id = FAL_ROUTER_INTERFACE_ATTR_ADMIN_MPLS_STATE;
+	l3_attrs[l3_nattrs].value.booldata =
+		!!rcu_dereference(ifp->mpls_label_table);
+	l3_nattrs++;
 
 	ret = fal_create_router_interface(l3_nattrs, l3_attrs,
 					  &ifp->fal_l3);
@@ -3043,30 +3623,37 @@ if_create_l3_intf(struct ifnet *ifp, const struct ether_addr *mac_addr)
 		RTE_LOG(ERR, DATAPLANE,
 			"Invalid L3 object ID returned for %s\n",
 			ifp->if_name);
-		return;
+		return -EINVAL;
 	}
-	if ((ret < 0) && (ret != -EOPNOTSUPP))
+	if (ret == -EOPNOTSUPP)
+		ret = 0;
+	if (ret < 0)
 		RTE_LOG(ERR, DATAPLANE,
 			"Failed to create L3 FAL object for %s, %d (%s)\n",
 			ifp->if_name, ret, strerror(ret));
+
+	return ret;
 }
 
-void
-if_delete_l3_intf(struct ifnet *ifp)
+int
+if_fal_delete_l3_intf(struct ifnet *ifp)
 {
 	int ret = 0;
 
 	if (!ifp->fal_l3)
-		return;
+		return 0;
 
 	ret = fal_delete_router_interface(ifp->fal_l3);
 	if (ret == 0)
 		ifp->fal_l3 = 0;
 
-	if ((ret < 0) && (ret != -EOPNOTSUPP))
+	if (ret == -EOPNOTSUPP)
+		ret = 0;
+	if (ret < 0)
 		RTE_LOG(ERR, DATAPLANE,
 			"Failed to delete L3 FAL object for %s, %d (%s)\n",
 			ifp->if_name, ret, strerror(ret));
+	return ret;
 }
 
 int
@@ -3120,4 +3707,497 @@ int if_get_backplane(struct ifnet *ifp, unsigned int *ifindex)
 		return -EOPNOTSUPP;
 
 	return ops->ifop_get_backplane(ifp, ifindex);
+}
+
+int if_set_speed(struct ifnet *ifp, bool autoneg,
+		 uint32_t forced_speed, int duplex)
+{
+	const struct ift_ops *ops;
+	int ret = -EOPNOTSUPP;
+
+	/*
+	 * Don't make any changes if the device has been hot
+	 * unplugged. Only bad things can happen.
+	 */
+	if (ifp->unplugged)
+		return 0;
+
+	if (autoneg)
+		RTE_LOG(INFO, DATAPLANE,
+			"%s setting to auto-negotiate", ifp->if_name);
+	else
+		RTE_LOG(INFO, DATAPLANE,
+			"%s setting to forced speed %uMbps\n",
+			ifp->if_name, forced_speed);
+
+	ops = if_get_ops(ifp);
+	if (!ops)
+		return -EINVAL;
+
+	if (ops->ifop_set_speed)
+		ret = ops->ifop_set_speed(ifp, autoneg, forced_speed,
+					  duplex);
+
+	if (ret < 0) {
+		RTE_LOG(ERR, DATAPLANE,
+			"%s setting speed %sautoneg speed %ubps failed: %s\n",
+			ifp->if_name, autoneg ? "" : "not ",
+			forced_speed, strerror(-ret));
+	}
+
+	return ret;
+}
+
+/* Show link state (only applies to physical ports) */
+static void show_link_state(json_writer_t *wr, struct ifnet *ifp)
+{
+	struct dp_ifnet_link_status link;
+
+	dp_ifnet_link_status(ifp, &link);
+
+	jsonw_name(wr, "link");
+	jsonw_start_object(wr);
+	jsonw_bool_field(wr, "up", link.link_status);
+	if (link.link_duplex != DP_IFNET_LINK_DUPLEX_UNKNOWN)
+		jsonw_string_field(wr, "duplex",
+				   link.link_duplex ==
+				   DP_IFNET_LINK_DUPLEX_FULL ?
+				   "full" : "half");
+	if (link.link_speed != DP_IFNET_LINK_SPEED_UNKNOWN)
+		jsonw_uint_field(wr, "speed", link.link_speed);
+	jsonw_end_object(wr);
+}
+
+/* Device performance statistics
+ * TODO add a instance counter to avoid race with timer
+ */
+static void show_perf_info(json_writer_t *wr, const char *name,
+			   const struct if_perf *stats)
+{
+	char label[32];
+	int i;
+
+	jsonw_uint_field(wr, name, if_scaled(stats->cur));
+
+	snprintf(label, sizeof(label), "%s_avg", name);
+	jsonw_name(wr, label);
+	jsonw_start_array(wr);
+	for (i = 0; i < 3; i++)
+		jsonw_uint(wr, if_scaled(stats->avg[i]));
+	jsonw_end_array(wr);
+}
+
+/* Interface performance counters
+ * Only maintained on physical and vif ports now.
+ */
+static void show_perf_stats(json_writer_t *wr, struct ifnet *ifp)
+{
+	show_perf_info(wr, "tx_pps", &ifp->if_txpps);
+	show_perf_info(wr, "tx_bps", &ifp->if_txbps);
+	show_perf_info(wr, "rx_pps", &ifp->if_rxpps);
+	show_perf_info(wr, "rx_bps", &ifp->if_rxbps);
+}
+
+static void show_stats(json_writer_t *wr, struct ifnet *ifp)
+{
+	struct if_data stats;
+
+	jsonw_name(wr, "statistics");
+	jsonw_start_object(wr);
+
+	if_stats(ifp, &stats);
+	jsonw_uint_field(wr, "rx_packets", stats.ifi_ipackets);
+	jsonw_uint_field(wr, "rx_errors", stats.ifi_ierrors);
+	jsonw_uint_field(wr, "tx_packets", stats.ifi_opackets);
+	jsonw_uint_field(wr, "tx_errors", stats.ifi_oerrors);
+	jsonw_uint_field(wr, "rx_bytes", stats.ifi_ibytes);
+	jsonw_uint_field(wr, "tx_bytes", stats.ifi_obytes);
+
+	if_dump_state(ifp, wr, IF_DS_STATS);
+
+	show_perf_stats(wr, ifp);
+
+	jsonw_uint_field(wr, "rx_dropped", stats.ifi_idropped);
+	jsonw_uint_field(wr, "tx_dropped", ifi_odropped(&stats));
+	jsonw_uint_field(wr, "tx_dropped_txring", stats.ifi_odropped_txring);
+	jsonw_uint_field(wr, "tx_dropped_hwq", stats.ifi_odropped_hwq);
+	jsonw_uint_field(wr, "tx_dropped_proto", stats.ifi_odropped_proto);
+	jsonw_uint_field(wr, "rx_bridge", stats.ifi_ibridged);
+	jsonw_uint_field(wr, "rx_multicast", stats.ifi_imulticast);
+	jsonw_uint_field(wr, "rx_vlan", stats.ifi_ivlan);
+	jsonw_uint_field(wr, "rx_bad_vid", stats.ifi_no_vlan);
+	jsonw_uint_field(wr, "rx_bad_address", stats.ifi_no_address);
+	jsonw_uint_field(wr, "rx_non_ip", stats.ifi_unknown);
+
+	jsonw_end_object(wr);
+}
+
+static void
+show_xstats(json_writer_t *wr, struct ifnet *ifp)
+{
+	jsonw_name(wr, "xstatistics");
+	jsonw_start_object(wr);
+
+	if_dump_state(ifp, wr, IF_DS_XSTATS);
+
+	jsonw_end_object(wr);
+}
+
+static void show_if_l2_filter(json_writer_t *wr, struct ifnet *ifp)
+{
+	struct cds_lfht_iter iter;
+	struct l2_mcfltr_node *l2mf;
+	struct cds_lfht *tmp_hash;
+
+	jsonw_name(wr, "l2_mcast_filters");
+
+	jsonw_start_object(wr);
+
+	jsonw_uint_field(wr, "if_allmcast_ref", ifp->if_allmcast_ref);
+	jsonw_string_field(wr, "sw_filter", !ifp->if_allmcast_ref
+			   ? (!ifp->if_mac_filtr_active
+			      ? "promiscuous" : "active") : "disabled");
+	jsonw_string_field(wr, "hw_filter", ifp->if_mac_filtr_supported ?
+			   (!ifp->if_mac_filtr_active ?
+			    "promiscuous" : "active") : "unsupported");
+	jsonw_name(wr, "addresses");
+	jsonw_start_array(wr);
+	tmp_hash = rcu_dereference(ifp->if_mcfltr_hash);
+	if (tmp_hash) {
+		cds_lfht_for_each_entry(tmp_hash, &iter, l2mf, l2mf_node) {
+			char ebuf[32];
+
+			jsonw_string(wr, ether_ntoa_r(&l2mf->l2mf_addr, ebuf));
+		}
+	}
+	jsonw_end_array(wr);
+	jsonw_end_object(wr);
+}
+
+static bool print_pl_feats(struct pl_feature_registration *feat_reg,
+			   void *context)
+{
+	json_writer_t *wr = context;
+
+	jsonw_string(wr, feat_reg->name);
+
+	return true;
+}
+
+static void show_af_ifconfig(json_writer_t *wr, struct ifnet *ifp)
+{
+	jsonw_name(wr, "ipv4");
+
+	jsonw_start_object(wr);
+	jsonw_uint_field(wr, "forwarding",
+			 !pl_node_is_feature_enabled(
+				 &ipv4_in_no_forwarding_feat, ifp));
+	jsonw_uint_field(wr, "proxy_arp", ifp->ip_proxy_arp);
+	jsonw_string_field(wr, "garp_req_op",
+			   (ifp->ip_garp_op.garp_req_action == GARP_PKT_DROP) ?
+			   "Drop" : "Update");
+	jsonw_string_field(wr, "garp_rep_op",
+			   (ifp->ip_garp_op.garp_rep_action == GARP_PKT_DROP) ?
+			    "Drop" : "Update");
+	jsonw_uint_field(wr, "mc_forwarding", ifp->ip_mc_forwarding);
+	jsonw_uint_field(wr, "redirects", ip_redirects_get());
+	if (pl_node_is_feature_enabled(&ipv4_rpf_feat, ifp)) {
+		if (ifp->ip_rpf_strict)
+			jsonw_uint_field(wr, "rp_filter", 1);
+		else
+			jsonw_uint_field(wr, "rp_filter", 2);
+	} else {
+		jsonw_uint_field(wr, "rp_filter", 0);
+	}
+	jsonw_name(wr, "validate_features");
+	jsonw_start_array(wr);
+	pl_node_iter_features(ipv4_validate_node_ptr, ifp, print_pl_feats, wr);
+	jsonw_end_array(wr);
+	jsonw_name(wr, "out_features");
+	jsonw_start_array(wr);
+	pl_node_iter_features(ipv4_out_node_ptr, ifp, print_pl_feats, wr);
+	jsonw_end_array(wr);
+	jsonw_end_object(wr);
+
+	jsonw_name(wr, "ipv6");
+
+	jsonw_start_object(wr);
+	jsonw_uint_field(wr, "forwarding",
+			 !pl_node_is_feature_enabled(
+				 &ipv6_in_no_forwarding_feat, ifp));
+	jsonw_uint_field(wr, "mc_forwarding", ifp->ip6_mc_forwarding);
+	jsonw_uint_field(wr, "redirects", ip6_redirects_get());
+	jsonw_name(wr, "validate_features");
+	jsonw_start_array(wr);
+	pl_node_iter_features(ipv6_validate_node_ptr, ifp, print_pl_feats, wr);
+	jsonw_end_array(wr);
+	jsonw_name(wr, "out_features");
+	jsonw_start_array(wr);
+	pl_node_iter_features(ipv6_out_node_ptr, ifp, print_pl_feats, wr);
+	jsonw_end_array(wr);
+	jsonw_end_object(wr);
+}
+
+struct ifconfig_ctx {
+	bool verbose;
+	json_writer_t *wr;
+};
+
+/* Show information generic interface in JSON */
+static void ifconfig(struct ifnet *ifp, void *arg)
+{
+	struct ifconfig_ctx *ctx = arg;
+	struct bridge_port *brport;
+	json_writer_t *wr = ctx->wr;
+	struct ifnet *parent;
+	char ebuf[32];
+
+	jsonw_start_object(wr);
+
+	jsonw_string_field(wr, "name", ifp->if_name);
+	jsonw_uint_field(wr, "vrf_id",
+			 dp_vrf_get_external_id(ifp->if_vrfid));
+	jsonw_uint_field(wr, "ifindex", ifp->if_index);
+	jsonw_uint_field(wr, "cont_src", ifp->if_cont_src);
+	parent = rcu_dereference(ifp->if_parent);
+	if (parent)
+		jsonw_string_field(wr, "parent", parent->if_name);
+	brport = rcu_dereference(ifp->if_brport);
+	if (brport)
+		jsonw_string_field(wr, "bridge",
+				   bridge_port_get_bridge(brport)->if_name);
+	jsonw_uint_field(wr, "role", if_role(ifp));
+	jsonw_uint_field(wr, "mtu", ifp->if_mtu);
+	jsonw_uint_field(wr, "flags", ifp->if_flags);
+	jsonw_uint_field(wr, "hw_forwarding", ifp->hw_forwarding);
+	jsonw_uint_field(wr, "hw_l3", ifp->fal_l3 ? 1 : 0);
+	jsonw_uint_field(wr, "tpid_offloaded", ifp->tpid_offloaded);
+
+	/*
+	 * These are deprecated in favour of the ipv4/ipv6 sub-objects
+	 * but are retained for compatibility.
+	 */
+	jsonw_uint_field(wr, "ip_forwarding",
+			 !pl_node_is_feature_enabled(
+				 &ipv4_in_no_forwarding_feat, ifp));
+	jsonw_uint_field(wr, "ip_proxy_arp", ifp->ip_proxy_arp);
+	jsonw_uint_field(wr, "ip_mc_forwarding", ifp->ip_mc_forwarding);
+	if (pl_node_is_feature_enabled(&ipv4_rpf_feat, ifp)) {
+		if (ifp->ip_rpf_strict)
+			jsonw_uint_field(wr, "ip_rp_filter", 1);
+		else
+			jsonw_uint_field(wr, "ip_rp_filter", 2);
+	} else {
+		jsonw_uint_field(wr, "ip_rp_filter", 0);
+	}
+	jsonw_uint_field(wr, "ip6_forwarding",
+			 !pl_node_is_feature_enabled(
+				 &ipv6_in_no_forwarding_feat, ifp));
+	jsonw_uint_field(wr, "ip6_mc_forwarding", ifp->ip6_mc_forwarding);
+
+	jsonw_uint_field(wr, "dp_id", 0);
+	jsonw_string_field(wr, "ether",
+			   ether_ntoa_r(&ifp->eth_addr, ebuf));
+	if (!is_zero_ether_addr(&ifp->perm_addr))
+		jsonw_string_field(wr, "perm_addr",
+				   ether_ntoa_r(&ifp->perm_addr, ebuf));
+
+	jsonw_name(wr, "ether_lookup_features");
+	jsonw_start_array(wr);
+	pl_node_iter_features(ether_lookup_node_ptr, ifp, print_pl_feats, wr);
+	jsonw_end_array(wr);
+
+	jsonw_string_field(wr, "type", iftype_name(ifp->if_type));
+
+	if_dump_state(ifp, wr, IF_DS_STATE);
+	if (ctx->verbose)
+		if_dump_state(ifp, wr, IF_DS_STATE_VERBOSE);
+	if_dump_state(ifp, wr, IF_DS_DEV_INFO);
+
+	show_link_state(wr, ifp);
+	show_address(wr, ifp);
+	show_stats(wr, ifp);
+	show_xstats(wr, ifp);
+	show_if_l2_filter(wr, ifp);
+	show_af_ifconfig(wr, ifp);
+
+	if (ifp->fal_l3) {
+		jsonw_name(wr, "router_intf_platform_state");
+		jsonw_start_object(wr);
+		fal_dump_router_interface(ifp->fal_l3, wr);
+		jsonw_end_object(wr);
+	}
+
+	jsonw_end_object(wr);
+}
+
+static void ifconfig_up(struct ifnet *ifp, void *arg)
+{
+	if (ifp->if_flags & IFF_UP)
+		ifconfig(ifp, arg);
+}
+
+int cmd_ifconfig(FILE *f, int argc, char **argv)
+{
+	struct ifconfig_ctx ctx;
+	json_writer_t *wr = jsonw_new(f);
+	if (!wr)
+		return -1;
+
+	jsonw_pretty(wr, true);
+	jsonw_name(wr, "interfaces");
+	jsonw_start_array(wr);
+	ctx.wr = wr;
+	ctx.verbose = false;
+	if (argc == 1)
+		dp_ifnet_walk(ifconfig_up, &ctx);
+	else if (strcmp(argv[1], "-a") == 0)
+		dp_ifnet_walk(ifconfig, &ctx);
+	else {
+		if (strcmp(argv[1], "-v") == 0) {
+			ctx.verbose = true;
+			argc--, argv++;
+		}
+		while (--argc > 0) {
+			struct ifnet *ifp = dp_ifnet_byifname(*++argv);
+			if (ifp)
+				ifconfig(ifp, &ctx);
+		}
+	}
+	jsonw_end_array(wr);
+	jsonw_destroy(&wr);
+
+	return 0;
+}
+
+static struct rte_mbuf *
+if_output_features(struct ifnet *input_ifp, struct ifnet *ifp,
+		   struct rte_mbuf **m)
+{
+	struct pl_packet pkt = {
+		.mbuf = *m,
+		.l2_pkt_type = pkt_mbuf_get_l2_traffic_type(*m),
+		.in_ifp = input_ifp,
+		.out_ifp = ifp,
+	};
+
+	if (unlikely(!pipeline_fused_l2_output(&pkt)))
+		return NULL;
+
+	if (unlikely(ifp->vlan_modify))
+		if (unlikely(!vlan_modify_egress(ifp, m)))
+			return NULL;
+
+	if (unlikely(ifp->portmonitor))
+		portmonitor_src_vif_tx_output(ifp, m);
+
+	if (unlikely(ifp->capturing) &&
+	    capture_if_use_common_cap_points(ifp))
+		capture_burst(ifp, m, 1);
+
+	return *m;
+}
+
+/*
+ * Transmit one packet
+ *
+ * The expectation is that for !IFF_NOARP interfaces then the packet
+ * will be properly L2 encapsulated at this point such that it can be
+ * sent to the L2 neighbour.
+ *
+ * For IFF_NOARP interfaces then the packet will be L2 encapsulated
+ * during send.
+ *
+ * The reason for this asymmetry is to keep the address resolution
+ * above this layer for multipoint interfaces, yet to keep things
+ * simple and fast for point-to-point interfaces to avoid needing to
+ * perform an extra encap step before calling this function.
+ *
+ * The proto passed in is the link-layer protocol used for
+ * point-to-point interfaces.
+ */
+__hot_func __rte_cache_aligned
+void if_output(struct ifnet *ifp, struct rte_mbuf *m,
+	       struct ifnet *input_ifp, uint16_t proto)
+{
+	uint16_t rx_vlan = pktmbuf_get_rxvlanid(m);
+
+	if (ifp->if_type == IFT_L2VLAN) {
+		if_add_vlan(ifp, &m);
+
+		if (!if_output_features(input_ifp, ifp, &m))
+			goto out;
+
+		ifp = ifp->if_parent;
+
+		/* for the case where original ifp was for QinQ */
+		if (ifp->if_type == IFT_L2VLAN) {
+			if (!if_output_features(input_ifp, ifp, &m))
+				goto out;
+			ifp = ifp->if_parent;
+		}
+	}
+
+	if (!if_output_features(input_ifp, ifp, &m))
+		goto out;
+
+	if (likely(ifp->if_type == IFT_ETHER))
+		pkt_ring_output(ifp, m);
+	else if (ifp->if_type == IFT_BRIDGE)
+		bridge_output(ifp, m, input_ifp);
+	else if (ifp->if_type == IFT_VXLAN)
+		vxlan_output(ifp, m, proto);
+	else if (ifp->if_type == IFT_L2TPETH)
+		l2tp_output(ifp, m, rx_vlan);
+	else if (ifp->if_type == IFT_TUNNEL_GRE)
+		gre_tunnel_send(input_ifp, ifp, m, proto);
+	else if (ifp->if_type == IFT_TUNNEL_VTI)
+		vti_tunnel_out(input_ifp, ifp, m, proto);
+	else if (ifp->if_type == IFT_PPP)
+		ppp_tunnel_output(ifp, m, input_ifp, proto);
+	else if (ifp->if_type == IFT_TUNNEL_OTHER)
+		unsup_tunnel_output(ifp, m, input_ifp, proto);
+	else if (ifp->if_type == IFT_LOOP)
+		vfp_output(ifp, m, input_ifp, proto);
+	else if (ifp->if_type == IFT_MACVLAN)
+		macvlan_output(ifp, m, input_ifp, proto);
+	else {
+		/*
+		 * Packets for other interface types shouldn't reach
+		 * this point.
+		 */
+out:
+		assert(0);
+		rte_pktmbuf_free(m);
+		if_incr_dropped(ifp);
+	}
+}
+
+/* Return ifindex for the ifp */
+unsigned int dp_ifnet_ifindex(const struct ifnet *ifp)
+{
+	return ifp->if_index;
+}
+
+const char *dp_ifnet_ifname(const struct ifnet *ifp)
+{
+	return ifp->if_name;
+}
+
+vrfid_t dp_ifnet_vrfid(const struct ifnet *ifp)
+{
+	return if_vrfid(ifp);
+}
+
+fal_object_t dp_ifnet_fal_l3_if(const struct ifnet *ifp)
+{
+	return ifp->fal_l3;
+}
+
+bool dp_ifnet_is_bridge_member(struct ifnet *ifp)
+{
+	if (ifp->if_brport)
+		return true;
+
+	return false;
 }

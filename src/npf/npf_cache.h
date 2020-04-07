@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  */
@@ -62,13 +62,13 @@
 #include "in_cksum.h"
 #include "npf/npf.h"
 #include "npf/npf_mbuf.h"
-#include "pktmbuf.h"
+#include "pktmbuf_internal.h"
 
 typedef uint32_t tcp_seq;
 
 struct rte_mbuf;
 
-#define npf_iphdr(m) (pktmbuf_mtol3(m, struct iphdr *))
+#define npf_iphdr(m) (dp_pktmbuf_mtol3(m, struct iphdr *))
 
 enum npf_proto_idx {
 	NPF_PROTO_IDX_TCP,

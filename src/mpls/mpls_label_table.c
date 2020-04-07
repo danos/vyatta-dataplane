@@ -1,7 +1,7 @@
 /*
  * MPLS label table manipulation
  *
- * Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2015 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -32,7 +32,7 @@
 #include "main.h"
 #include "mpls/mpls.h"
 #include "mpls_label_table.h"
-#include "pktmbuf.h"
+#include "pktmbuf_internal.h"
 #include "route.h"
 #include "route_flags.h"
 #include "route_v6.h"
@@ -40,7 +40,7 @@
 #include "util.h"
 #include "vplane_debug.h"
 #include "vplane_log.h"
-#include "vrf.h"
+#include "vrf_internal.h"
 
 struct cds_lfht;
 
@@ -631,10 +631,12 @@ mpls_label_table_dump(struct cds_lfht *label_table, json_writer_t *json)
 		jsonw_uint_field(json, "address", label_table_entry->in_label);
 		switch (label_table_entry->nh_type) {
 		case NH_TYPE_V4GW:
-			rt_print_nexthop(json, label_table_entry->next_hop);
+			rt_print_nexthop(json, label_table_entry->next_hop,
+					 RT_PRINT_NH_BRIEF);
 			break;
 		case NH_TYPE_V6GW:
-			rt6_print_nexthop(json, label_table_entry->next_hop);
+			rt6_print_nexthop(json, label_table_entry->next_hop,
+					  RT_PRINT_NH_BRIEF);
 			break;
 		}
 		jsonw_uint_field(json, "payload",
@@ -733,7 +735,7 @@ mpls_oam_v4_lookup(int labelspace, uint8_t nlabels, const label_t *labels,
 	/*
 	 * MPLS Incoming Label Stack
 	 */
-	lbl_stack = pktmbuf_mtol3(m, label_t *);
+	lbl_stack = dp_pktmbuf_mtol3(m, label_t *);
 	for (i = 0; i < nlabels; i++)
 		if (i == nlabels - 1)
 			*lbl_stack++ = htonl(labels[i] << MPLS_LS_LABEL_SHIFT |
@@ -747,7 +749,7 @@ mpls_oam_v4_lookup(int labelspace, uint8_t nlabels, const label_t *labels,
 	/*
 	 * IP Header
 	 */
-	ip = pktmbuf_mtol3(m, struct iphdr *);
+	ip = dp_pktmbuf_mtol3(m, struct iphdr *);
 	ip->ihl = 5;
 	ip->version = 4;
 	ip->tot_len = htons(payload);
@@ -760,7 +762,7 @@ mpls_oam_v4_lookup(int labelspace, uint8_t nlabels, const label_t *labels,
 	/*
 	 * UDP MPLS Echo Request
 	 */
-	udp = pktmbuf_mtol4(m, struct udphdr *);
+	udp = dp_pktmbuf_mtol4(m, struct udphdr *);
 	memset(udp, 0, sizeof(struct udphdr));
 	udp->source = htons(sport);
 	udp->dest = htons(dport);
@@ -778,7 +780,7 @@ mpls_oam_v4_lookup(int labelspace, uint8_t nlabels, const label_t *labels,
 			continue;
 		for (oi = 0; oi < max_fanout; oi++) {
 			if (!outinfo[oi].inuse) {
-				outinfo[oi].ifp = nh4_get_ifp(nh.v4);
+				outinfo[oi].ifp = dp_nh4_get_ifp(nh.v4);
 				outinfo[oi].gateway = nh.v4->gateway;
 				outinfo[oi].outlabels = nh.v4->outlabels;
 				outinfo[oi].bitmask = 0;
@@ -802,14 +804,14 @@ mpls_oam_v4_lookup(int labelspace, uint8_t nlabels, const label_t *labels,
 
 		for (oi = 0; oi < max_fanout; oi++) {
 			if (!outinfo[oi].inuse) {
-				outinfo[oi].ifp = nh4_get_ifp(nh.v4);
+				outinfo[oi].ifp = dp_nh4_get_ifp(nh.v4);
 				outinfo[oi].gateway = nh.v4->gateway;
 				outinfo[oi].outlabels = nh.v4->outlabels;
 				outinfo[oi].bitmask = ((uint64_t)1 << i);
 				outinfo[oi].inuse = true;
 				break;
 			}
-			if ((outinfo[oi].ifp == nh4_get_ifp(nh.v4)) &&
+			if ((outinfo[oi].ifp == dp_nh4_get_ifp(nh.v4)) &&
 			    (outinfo[oi].gateway == nh.v4->gateway) &&
 			     nh_outlabels_cmpfn(&outinfo[oi].outlabels,
 						&nh.v4->outlabels)) {

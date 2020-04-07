@@ -1,7 +1,7 @@
 /*
  * Simple data capture output.
  *
- * Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2011-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -34,12 +34,13 @@
 #include <zmq.h>
 
 #include "capture.h"
-#include "config.h"
+#include "config_internal.h"
+#include "fal.h"
 #include "if_var.h"
 #include "ip_addr.h"
 #include "main.h"
 #include "pipeline/nodes/pl_nodes_common.h"
-#include "pktmbuf.h"
+#include "pktmbuf_internal.h"
 #include "pl_node.h"
 #include "urcu.h"
 #include "util.h"
@@ -304,14 +305,15 @@ static void capture_get_timestamp(struct rte_mbuf *m, struct timeval *tv)
 	rte_spinlock_unlock(&capture_time_lock);
 
 	/* Check if we should resync the time base */
-	if (us >= CAPTURE_TIME_RESYNC_USECS) {
+	if (us >= CAPTURE_TIME_RESYNC_USECS ||
+	    us + CAPTURE_TIME_RESYNC_USECS <= 0) {
 		capture_time_resync(tv, &base, &hz);
 		us = capture_usec_from_tod_base(ts, base, hz);
 	}
 
 	tv->tv_sec += us / USEC_PER_SEC;
 	tv->tv_usec += us % USEC_PER_SEC;
-	if (tv->tv_usec > USEC_PER_SEC) {
+	if (tv->tv_usec >= USEC_PER_SEC) {
 		++tv->tv_sec;
 		tv->tv_usec -= USEC_PER_SEC;
 	} else if (tv->tv_usec < 0) {
@@ -370,6 +372,19 @@ static int capture_enqueue(struct capture_info *cap_info,
 	return ret;
 }
 
+/*
+ * Add a hardware snooped packet, received directly from the platform
+ * backplane, to the capture ring.
+ */
+void capture_hardware(const struct ifnet *ifp, struct rte_mbuf *mbuf)
+{
+	mbuf->udata64 = rte_get_timer_cycles();
+
+	if (unlikely(!ifp->hw_capturing) ||
+	    (unlikely(capture_enqueue(ifp->cap_info, &mbuf, 1) == 0)))
+		rte_pktmbuf_free(mbuf);
+}
+
 /* Put mbuf(s) in capture ring. */
 void capture_burst(const struct ifnet *ifp,
 		   struct rte_mbuf *pkts[], unsigned int n)
@@ -380,7 +395,7 @@ void capture_burst(const struct ifnet *ifp,
 	if (n == 0 || capture_mbuf_copy(pkts, snap, n) < 0)
 		return;
 
-	if (unlikely(capture_enqueue(ifp->cap_info, snap, n) < 0))
+	if (unlikely(capture_enqueue(ifp->cap_info, snap, n) == 0))
 		pktmbuf_free_bulk(snap, n);
 }
 
@@ -497,12 +512,29 @@ static void capture_flush(const struct capture_info *cap_info)
 		rte_pktmbuf_free(m);
 }
 
+static void capture_hw_stop(const struct ifnet *ifp,
+			    struct capture_info *cap_info)
+{
+	struct fal_attribute_t portattr = {
+		.id = FAL_PORT_ATTR_CAPTURE_BIND,
+		.value.objid = FAL_NULL_OBJECT_ID
+	};
+
+	if (cap_info->falobj == 0)
+		return;
+
+	fal_l2_upd_port(ifp->if_index, &portattr);
+	fal_capture_delete(cap_info->falobj);
+	cap_info->falobj = 0;
+}
+
 static void capture_cleanup(void *arg)
 {
 	struct ifnet *ifp = arg;
 	struct capture_info *cap_info = ifp->cap_info;
 	struct capture_filter *cap_filter, *next_filter;
 
+	capture_hw_stop(ifp, cap_info);
 	capture_flush(cap_info);
 	close(cap_info->cap_wake);
 	zsock_destroy(&cap_info->cap_pub);
@@ -632,16 +664,24 @@ static void *capture_thread(void *arg)
 			ifpromisc(ifp, 1);
 	}
 
-	ifp->capturing = 1;
-	if (capture_if_use_common_cap_points(ifp))
+	if (cap_info->falobj != 0)
+		ifp->hw_capturing = 1;
+	else
+		ifp->capturing = 1;
+
+	if (ifp->capturing && capture_if_use_common_cap_points(ifp))
 		pl_node_add_feature_by_inst(&capture_ether_in_feat, ifp);
-	RTE_LOG(INFO, DATAPLANE, "Capture started on %s\n",
-		ifp->if_name);
+
+	RTE_LOG(INFO, DATAPLANE, "%sCapture started on %s\n",
+		ifp->hw_capturing ? "Hardware " : "", ifp->if_name);
 
 	capture_loop(ifp);
 
-	if (capture_if_use_common_cap_points(ifp))
+	if (ifp->capturing && capture_if_use_common_cap_points(ifp))
 		pl_node_remove_feature_by_inst(&capture_ether_in_feat, ifp);
+
+	capture_hw_stop(ifp, cap_info);
+	ifp->hw_capturing = 0;
 	ifp->capturing = 0;
 
 	synchronize_rcu();	/* all threads stop capturing */
@@ -666,6 +706,7 @@ void capture_cancel(struct ifnet *ifp)
 	if (!ifp || !ifp->cap_info)
 		return;
 	cap_info = ifp->cap_info;
+	ifp->hw_capturing = 0;
 	ifp->capturing = 0;
 	pthread_cancel(cap_info->cap_thread);
 	pthread_join(cap_info->cap_thread, &join_res);
@@ -678,9 +719,57 @@ void capture_cancel(struct ifnet *ifp)
 	rte_free(cap_info);
 }
 
+static bool capture_hw_start(FILE *f, const struct ifnet *ifp,
+			     struct capture_info *cap_info)
+{
+	struct fal_attribute_t capattr[] = {
+		{ .id = FAL_CAPTURE_ATTR_COPY_LENGTH,
+		  .value.u32 = cap_info->snaplen },
+		{ .id = FAL_CAPTURE_ATTR_BANDWIDTH,
+		  .value.u32 = cap_info->bandwidth }
+	};
+	struct fal_attribute_t portattr;
+	fal_object_t obj;
+	int rc;
+
+	if (cap_info->is_swonly || !if_is_hwport((struct ifnet *)ifp))
+		return true;
+
+	rc = fal_capture_create(ARRAY_SIZE(capattr), capattr, &obj);
+	if (rc == -EOPNOTSUPP)
+		return true;
+
+	if (rc < 0) {
+		fprintf(f, "capture_start: hardware setup failed: %s\n",
+			strerror(-rc));
+		return false;
+	}
+
+	/*
+	 * Bind the object to the interface (turn on packet capture)
+	 */
+	portattr.id = FAL_PORT_ATTR_CAPTURE_BIND;
+	portattr.value.objid = obj;
+	rc = fal_l2_upd_port(ifp->if_index, &portattr);
+	if (rc < 0) {
+		fal_capture_delete(obj);
+
+		if (rc == -EOPNOTSUPP)
+			return true;
+
+		fprintf(f, "capture_start: hardware enable failed: %s\n",
+			strerror(-rc));
+		return false;
+	}
+
+	cap_info->falobj = obj;
+	return true;
+}
+
 static struct capture_info *capture_new(FILE *f, const char *addrstr,
 					struct ifnet *ifp,
-					bool is_promisc, unsigned int snaplen)
+					bool is_promisc, unsigned int snaplen,
+					bool swonly, unsigned int bandwidth)
 {
 	struct capture_info *cap_info;
 	int cap_pub_port, cap_pcapin_port;
@@ -695,6 +784,8 @@ static struct capture_info *capture_new(FILE *f, const char *addrstr,
 
 	cap_info->is_promisc = is_promisc;
 	cap_info->snaplen = snaplen;
+	cap_info->is_swonly = swonly;
+	cap_info->bandwidth = bandwidth;
 
 	snprintf(rname, RTE_RING_NAMESIZE, "capture_%s", ifp->if_name);
 	cap_info->cap_ring = rte_ring_create(rname, CAPTURE_RING_SZ,
@@ -748,6 +839,10 @@ static struct capture_info *capture_new(FILE *f, const char *addrstr,
 		fprintf(f, "capture_start: wakeup fd create failed");
 		goto cleanup_pcapin_fail;
 	}
+
+	if (!capture_hw_start(f, ifp, cap_info))
+		goto cleanup_pcapin_fail;
+
 	return cap_info;
 
  cleanup_pcapin_fail:
@@ -766,7 +861,8 @@ static struct capture_info *capture_new(FILE *f, const char *addrstr,
  * are currently in use then do the necessary setup.
  */
 static int capture_start(FILE *f, struct ifnet *ifp,
-			 bool is_promisc, unsigned int snaplen)
+			 bool is_promisc, unsigned int snaplen,
+			 bool swonly, unsigned int bandwidth)
 {
 	struct capture_info *cap_info = ifp->cap_info;
 	char addrstr[INET6_ADDRSTRLEN];
@@ -781,7 +877,8 @@ static int capture_start(FILE *f, struct ifnet *ifp,
 
 	if (cap_info == NULL) {
 		cap_info = capture_new(f, addrstr,
-				       ifp, is_promisc, snaplen);
+				       ifp, is_promisc, snaplen,
+				       swonly, bandwidth);
 		if (cap_info == NULL)
 			return -1;
 
@@ -792,6 +889,7 @@ static int capture_start(FILE *f, struct ifnet *ifp,
 			fprintf(f, "capture_start: pthread create failed");
 			zsock_destroy(&cap_info->cap_pcapin);
 			zsock_destroy(&cap_info->cap_pub);
+			capture_hw_stop(ifp, cap_info);
 			ifp->cap_info = NULL;
 			rte_ring_free(cap_info->cap_ring);
 			rte_free(cap_info);
@@ -823,10 +921,41 @@ static int capture_start(FILE *f, struct ifnet *ifp,
 	return 0;
 }
 
+static int
+capture_show(FILE *f, const struct ifnet *ifp)
+{
+	const struct capture_info *cap_info = ifp->cap_info;
+	json_writer_t *wr = jsonw_new(f);
+	struct fal_attribute_t portattr = {
+		.id = FAL_PORT_ATTR_HW_CAPTURE,
+	};
+
+	if (wr == NULL)
+		return -1;
+
+	jsonw_name(wr, "capture");
+	jsonw_start_object(wr);
+	jsonw_string_field(wr, "interface", ifp->if_name);
+	jsonw_bool_field(wr, "active", cap_info != 0);
+	jsonw_bool_field(wr, "hardware-support",
+			 fal_l2_get_attrs(ifp->if_index, 1, &portattr) == 0);
+	if (cap_info != NULL) {
+		jsonw_uint_field(wr, "snaplen", cap_info->snaplen);
+		jsonw_bool_field(wr, "promiscuous", cap_info->is_promisc);
+		jsonw_bool_field(wr, "hw-capture", ifp->hw_capturing);
+		jsonw_bool_field(wr, "software-only", cap_info->is_swonly);
+		jsonw_uint_field(wr, "bandwidth", cap_info->bandwidth);
+	}
+	jsonw_end_object(wr);
+	jsonw_destroy(&wr);
+	return 0;
+}
+
 /*
  * Handler for capture command.
  *
- * capture start <interface> <is_promisc> <snaplen>
+ * capture start <interface> <is_promisc> <snaplen> <swonly> <bandwidth>
+ * capture show  <interface>
  */
 int cmd_capture(FILE *f, int argc, char **argv)
 {
@@ -834,14 +963,16 @@ int cmd_capture(FILE *f, int argc, char **argv)
 	struct ifnet *ifp;
 	bool is_promisc;
 	unsigned int snaplen;
+	bool swonly = false;
+	unsigned int bandwidth = 0;
 
-	if (argc < 5) {
-		fprintf(f, "capture: invalid arguments");
+	if (argc < 3) {
+		fprintf(f, "capture: invalid arguments (%d)", argc);
 		return -1;
 	}
 
 	intf = argv[2];
-	ifp = ifnet_byifname(intf);
+	ifp = dp_ifnet_byifname(intf);
 	if (ifp == NULL) {
 		fprintf(f, "capture: interface %s not found", intf);
 		return -1;
@@ -852,6 +983,14 @@ int cmd_capture(FILE *f, int argc, char **argv)
 		return -1;
 	}
 
+	if (streq(argv[1], "show"))
+		return capture_show(f, ifp);
+
+	if (argc < 5) {
+		fprintf(f, "capture: invalid arguments (%d)", argc);
+		return -1;
+	}
+
 	if (strcmp(argv[1], "start")) {
 		fprintf(f, "capture: unknown command\n");
 		return -1;
@@ -859,8 +998,27 @@ int cmd_capture(FILE *f, int argc, char **argv)
 
 	is_promisc = (*argv[3] == '1');
 	snaplen = strtoul(argv[4], NULL, 10);
+	if (argc > 5) {
+		unsigned int value;
 
-	return capture_start(f, ifp, is_promisc, snaplen);
+		if (get_unsigned(argv[5], &value) == 0)
+			swonly = value > 0;
+
+		/*
+		 * Usable backplane bandwidth is in Kbit/sec, with a
+		 * maximum value of 1 Gbit/sec.
+		 */
+		if ((get_unsigned(argv[6], &value) < 0) ||
+		    (value > (1*1000*1000))) {
+			fprintf(f, "capture: invalid bandwidth %s\n",
+				argv[6]);
+			return -1;
+		}
+
+		bandwidth = value;
+	}
+
+	return capture_start(f, ifp, is_promisc, snaplen, swonly, bandwidth);
 }
 
 /*

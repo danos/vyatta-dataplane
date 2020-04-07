@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2017-2018, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -25,8 +25,6 @@ int teardown_interface_portid(portid_t portid);
 int cmd_master(FILE *f, int argc, char **argv);
 
 bool dp_test_master_ready(enum cont_src_en cont_src);
-
-int send_dp_event(zmsg_t *msg);
 
 /* For whole dp tests */
 void enable_soft_clock_override(void);

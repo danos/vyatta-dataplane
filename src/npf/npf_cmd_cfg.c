@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2011-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -24,9 +24,9 @@
 
 #include "commands.h"
 #include "compiler.h"
-#include "config.h"
+#include "config_internal.h"
 #include "npf/npf.h"
-#include "npf/alg/npf_alg_public.h"
+#include "npf/alg/alg_npf.h"
 #include "npf/config/npf_attach_point.h"
 #include "npf/config/npf_auto_attach.h"
 #include "npf/config/npf_config.h"
@@ -41,8 +41,10 @@
 #include "npf/npf_state.h"
 #include "npf/npf_timeouts.h"
 #include "npf/rproc/npf_ext_session_limit.h"
+#include "npf/zones/npf_zone_public.h"
 #include "util.h"
 #include "vplane_log.h"
+#include "qos_public.h"
 
 #define NPF_MAX_CMDLINE 1024
 
@@ -109,8 +111,10 @@ cmd_npf_addrgrp_create(FILE *f, int argc, char **argv)
 		return -EEXIST;
 	}
 
-	/* Create table and insert into the address-group tableset */
-	t = npf_addrgrp_create(name);
+	/*
+	 * Create an address-group and insert into the address-group tableset
+	 */
+	t = npf_addrgrp_cfg_add(name);
 	if (t == NULL) {
 		RTE_LOG(ERR, DATAPLANE,
 			"Could not create npf address-group \"%s\"\n",
@@ -144,10 +148,10 @@ cmd_npf_addrgrp_delete(FILE *f, int argc, char **argv)
 	}
 
 	/*
-	 * Remove the table from the hash table immediately.  Remove from
-	 * tableset and free after RCU grace period.
+	 * Remove from tableset immediately.  Only free memory when ref count
+	 * is zero.
 	 */
-	npf_addrgrp_destroy(name);
+	npf_addrgrp_cfg_delete(name);
 
 	return 0;
 }
@@ -217,16 +221,9 @@ cmd_npf_addrgrp_entry_add(FILE *f, int argc, char **argv)
 
 	/* Does this address-group exist? */
 	if (npf_addrgrp_lookup_name(name) == NULL) {
-		struct npf_addrgrp *t;
-
-		/* Create table and insert into the address-group tableset */
-		t = npf_addrgrp_create(name);
-		if (t == NULL) {
-			RTE_LOG(ERR, DATAPLANE,
-				"Could not create npf address-group \"%s\"\n",
-				name);
-			return -ENOSPC;
-		}
+		RTE_LOG(ERR, DATAPLANE,	"address-group \"%s\" does not exist\n",
+			name);
+		return -ENOENT;
 	}
 
 	/* masklen will be set to NPF_NO_NETMASK if no mask is present */
@@ -497,6 +494,9 @@ cmd_add_rule(FILE *f, int argc, char **argv)
 	if (group_class == NPF_RULE_CLASS_APP_FW)
 		npf_dirty_app_fw_users();
 
+	if (group_class == NPF_RULE_CLASS_DSCP_GROUP)
+		qos_sched_res_grp_update(group);
+
 	return 0;
 }
 
@@ -657,6 +657,48 @@ cmd_commit(FILE *f, int argc, char **argv __unused)
 	return 0;
 }
 
+static int
+cmd_npf_zone_add(FILE *f, int argc, char **argv)
+{
+	return npf_zone_cfg_add(f, argc, argv);
+}
+
+static int
+cmd_npf_zone_remove(FILE *f, int argc, char **argv)
+{
+	return npf_zone_cfg_remove(f, argc, argv);
+}
+
+static int
+cmd_npf_zone_local(FILE *f, int argc, char **argv)
+{
+	return npf_zone_cfg_local(f, argc, argv);
+}
+
+static int
+cmd_npf_zone_policy_add(FILE *f, int argc, char **argv)
+{
+	return npf_zone_cfg_policy_add(f, argc, argv);
+}
+
+static int
+cmd_npf_zone_policy_remove(FILE *f, int argc, char **argv)
+{
+	return npf_zone_cfg_policy_remove(f, argc, argv);
+}
+
+static int
+cmd_npf_zone_intf_add(FILE *f, int argc, char **argv)
+{
+	return npf_zone_cfg_intf_add(f, argc, argv);
+}
+
+static int
+cmd_npf_zone_intf_remove(FILE *f, int argc, char **argv)
+{
+	return npf_zone_cfg_intf_remove(f, argc, argv);
+}
+
 enum {
 	FW_ALG,
 	FW_TABLE_CREATE,
@@ -672,6 +714,13 @@ enum {
 	FW_GLOBAL_TCPSTRICT_ENABLE,
 	FW_GLOBAL_TCPSTRICT_DISABLE,
 	FW_GLOBAL_TIMEOUT,
+	FW_ZONE_ADD,
+	FW_ZONE_REMOVE,
+	FW_ZONE_LOCAL,
+	FW_ZONE_INTF_ADD,
+	FW_ZONE_INTF_REMOVE,
+	FW_ZONE_POLICY_ADD,
+	FW_ZONE_POLICY_REMOVE,
 	ADD_RULE,
 	DELETE_RULE,
 	ATTACH_GROUP,
@@ -748,6 +797,34 @@ static const struct npf_command npf_cmd_cfg[] = {
 	[FW_GLOBAL_TIMEOUT] = {
 		.tokens = "fw global timeout",
 		.handler = cmd_npf_global_timeout,
+	},
+	[FW_ZONE_ADD] = {
+		.tokens = "zone add",
+		.handler = cmd_npf_zone_add,
+	},
+	[FW_ZONE_REMOVE] = {
+		.tokens = "zone remove",
+		.handler = cmd_npf_zone_remove,
+	},
+	[FW_ZONE_LOCAL] = {
+		.tokens = "zone local",
+		.handler = cmd_npf_zone_local,
+	},
+	[FW_ZONE_POLICY_ADD] = {
+		.tokens = "zone policy add",
+		.handler = cmd_npf_zone_policy_add,
+	},
+	[FW_ZONE_POLICY_REMOVE] = {
+		.tokens = "zone policy remove",
+		.handler = cmd_npf_zone_policy_remove,
+	},
+	[FW_ZONE_INTF_ADD] = {
+		.tokens = "zone intf add",
+		.handler = cmd_npf_zone_intf_add,
+	},
+	[FW_ZONE_INTF_REMOVE] = {
+		.tokens = "zone intf remove",
+		.handler = cmd_npf_zone_intf_remove,
 	},
 	[ADD_RULE] = {
 		.tokens = "add",

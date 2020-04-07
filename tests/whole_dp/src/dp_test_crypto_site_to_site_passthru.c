@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2019, AT&T Intellectual Property. All rights reserved.
+ * Copyright (c) 2019-2020, AT&T Intellectual Property. All rights reserved.
  * All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
@@ -8,13 +8,13 @@
  */
 
 #include "dp_test.h"
-#include "dp_test_lib.h"
-#include "dp_test_netlink_state.h"
+#include "dp_test_lib_internal.h"
+#include "dp_test_netlink_state_internal.h"
 #include "dp_test_crypto_utils.h"
-#include "dp_test_pktmbuf_lib.h"
+#include "dp_test_pktmbuf_lib_internal.h"
 #include "dp_test_crypto_lib.h"
 #include "dp_test_lib_exp.h"
-#include "dp_test_lib_intf.h"
+#include "dp_test_lib_intf_internal.h"
 #include "dp_test_console.h"
 #include "dp_test_controller.h"
 
@@ -1006,32 +1006,32 @@ DP_DECL_TEST_SUITE(site_to_site_suite);
 
 DP_DECL_TEST_CASE(site_to_site_suite, passthrough, NULL, NULL);
 
-DP_START_TEST(passthrough, encrypt)
+DP_START_TEST_FULL_RUN(passthrough, encrypt)
 {
 	encrypt_main(VRF_DEFAULT_ID);
 }  DP_END_TEST;
 
-DP_START_TEST(passthrough, encrypt_vrf)
+DP_START_TEST_FULL_RUN(passthrough, encrypt_vrf)
 {
 	encrypt_main(TEST_VRF);
 }  DP_END_TEST;
 
-DP_START_TEST(passthrough, rx_pkt_on_int)
+DP_START_TEST_FULL_RUN(passthrough, rx_pkt_on_int)
 {
 	rx_pkt_on_int(VRF_DEFAULT_ID);
 } DP_END_TEST;
 
-DP_START_TEST(passthrough, encrypt6)
+DP_START_TEST_FULL_RUN(passthrough, encrypt6)
 {
 	encrypt6_main(VRF_DEFAULT_ID);
 }  DP_END_TEST;
 
-DP_START_TEST(passthrough, encrypt6_vrf)
+DP_START_TEST_FULL_RUN(passthrough, encrypt6_vrf)
 {
 	encrypt6_main(TEST_VRF);
 }  DP_END_TEST;
 
-DP_START_TEST(passthrough, rx_pkt_on_int6)
+DP_START_TEST_FULL_RUN(passthrough, rx_pkt_on_int6)
 {
 	rx_pkt_on_int6(VRF_DEFAULT_ID);
 } DP_END_TEST;

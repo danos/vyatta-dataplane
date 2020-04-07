@@ -3,6 +3,9 @@
 /dataplane_test
 # Build results
 /obj-*
+# Protobuf generated files
+protobuf/*.pb.h
+protobuf/*.pb-c.[ch]
 # Debian rules
 build-stamp
 # RTE rules
@@ -91,6 +94,11 @@ cscope.po.out
 *~
 \#*#
 
+#UT executables
+/tests/per_file/*_test
+
 #UT coverage files
 /*-coverage.info
 /*-coverage/
+#cppucheck log files
+tests/per_file/cpputest_*.xml

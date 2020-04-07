@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  */
@@ -100,11 +100,12 @@
 #include <sys/socket.h>
 
 #include "compiler.h"
-#include "config.h"
+#include "config_internal.h"
 #include "in_cksum.h"
 #include "if_var.h"
+#include "ip_funcs.h"
 #include "npf/npf.h"
-#include "npf/alg/npf_alg_public.h"
+#include "npf/alg/alg_npf.h"
 #include "npf/config/npf_config.h"
 #include "npf/config/npf_ruleset_type.h"
 #include "npf/npf_addrgrp.h"
@@ -115,8 +116,10 @@
 #include "npf/npf_nat.h"
 #include "npf/npf_ruleset.h"
 #include "npf/rproc/npf_ext_log.h"
+#include "npf/npf_pack.h"
 #include "npf_tblset.h"
-#include "pktmbuf.h"
+#include "npf_addr.h"
+#include "pktmbuf_internal.h"
 #include "urcu.h"
 #include "vplane_log.h"
 
@@ -909,7 +912,7 @@ static int
 npf_nat_translate(npf_cache_t *npc, struct rte_mbuf *nbuf,
 		  npf_nat_t *nt, const bool forw, const int di)
 {
-	void *n_ptr = pktmbuf_mtol3(nbuf, void *);
+	void *n_ptr = dp_pktmbuf_mtol3(nbuf, void *);
 
 	int rc = npf_nat_translate_at(npc, nbuf, nt, forw, di,
 				      n_ptr, false);
@@ -1381,12 +1384,12 @@ void npf_nat_set_orig(npf_nat_t *nt, const npf_addr_t *addr, in_port_t port)
 /*
  * npf_nat_setalg: associate an ALG with the NAT entry.
  */
-void npf_nat_setalg(npf_nat_t *nt, const struct npf_alg *alg)
+void npf_nat_setalg(npf_nat_t *nt, struct npf_alg *alg)
 {
 	if (alg)
 		/* Take reference on alg */
-		alg = npf_alg_get((struct npf_alg *)alg);
-	else
+		alg = npf_alg_get(alg);
+	else if (nt->nt_alg)
 		/* Release reference on alg */
 		npf_alg_put((struct npf_alg *)nt->nt_alg);
 
@@ -1405,7 +1408,7 @@ const struct npf_alg *npf_nat_getalg(npf_nat_t *nt)
 
 static uint64_t npf_natpolicy_table_range(const npf_natpolicy_t *np)
 {
-	return npf_addrgrp_naddrs(AG_IPv4, np->n_table_id);
+	return npf_addrgrp_naddrs(AG_IPv4, np->n_table_id, false);
 }
 
 /* get mapping range from nat policy */
@@ -1581,4 +1584,91 @@ npf_nat_info(npf_nat_t *nat, int *type, npf_addr_t *addr,
 	npf_nat_get_trans(nat, addr, port);
 
 	return true;
+}
+
+int npf_nat_npf_pack_pack(npf_nat_t *nt, struct npf_pack_npf_nat *nat,
+			  struct sentry_packet *sp_back)
+{
+	npf_rule_t *rule;
+
+	if (!nat)
+		return -EINVAL;
+
+	rule = npf_nat_get_rule(nt);
+	nat->nt_rule_hash = (rule ? npf_rule_get_hash(rule) : 0);
+
+	nat->nt_l3_chk = nt->nt_l3_chk;
+	nat->nt_l4_chk = nt->nt_l4_chk;
+	nat->nt_map_flags = npf_nat_get_map_flags(nt);
+	nat->nt_taddr = nt->nt_taddr;
+	nat->nt_tport = nt->nt_tport;
+	nat->nt_oaddr = nt->nt_oaddr;
+	nat->nt_oport = nt->nt_oport;
+
+	/* Set translation address in back sentry */
+	switch (nt->nt_natpolicy->n_type) {
+	case NPF_NATIN:
+		sp_back->sp_addrids[1] = nt->nt_taddr;
+		break;
+	case NPF_NATOUT:
+		sp_back->sp_addrids[2] = nt->nt_taddr;
+		break;
+	}
+
+	return 0;
+}
+
+int npf_nat_npf_pack_restore(struct npf_session *se,
+			     struct npf_pack_npf_nat *nat,
+			     struct ifnet *ifp)
+{
+	npf_nat_t *nt;
+	npf_rule_t *rl;
+	npf_natpolicy_t *np;
+	int rc = -ENOENT;
+
+	if (!se || !nat || !ifp)
+		return -EINVAL;
+
+	/* Create a nat struct */
+	nt = zmalloc_aligned(sizeof(npf_nat_t));
+	if (!nt)
+		return -ENOMEM;
+
+	rl = nat->nt_rule_hash ? npf_get_rule_by_hash(nat->nt_rule_hash) : NULL;
+	if (!rl)
+		goto error;
+
+	nt->nt_rl = npf_rule_get(rl);
+
+	np = npf_rule_get_natpolicy(rl);
+	if (!np || np->n_apm)
+		goto error;
+	nt->nt_natpolicy = np;
+
+	nt->nt_l3_chk = nat->nt_l3_chk;
+	nt->nt_l4_chk = nat->nt_l4_chk;
+	nt->nt_map_flags = nat->nt_map_flags;
+	nt->nt_taddr = nat->nt_taddr;
+	nt->nt_tport = nat->nt_tport;
+	nt->nt_oaddr = nat->nt_oaddr;
+	nt->nt_oport = nat->nt_oport;
+
+	vrfid_t vrfid = npf_session_get_vrfid(se);
+
+	rc = npf_nat_alloc_map(nt->nt_natpolicy, rl, nt->nt_map_flags, vrfid,
+			(npf_addr_t *) &nt->nt_taddr, &nt->nt_tport, 1);
+	if (rc)
+		goto error;
+
+	nt->nt_mtu = ifp->if_mtu;
+	nt->nt_session = se;
+	npf_session_setnat(se, nt,
+			(nt->nt_natpolicy->n_flags & NPF_NAT_PINHOLE));
+
+	return 0;
+error:
+	npf_rule_put(nt->nt_rl);
+	free(nt);
+	return rc;
 }

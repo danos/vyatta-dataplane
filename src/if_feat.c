@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2019-2020, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -15,9 +15,9 @@
 #include <urcu.h>
 
 #include "util.h"
-#include "vrf.h"
+#include "vrf_internal.h"
 #include "if_var.h"
-#include "dpi_public.h"
+#include "dpi.h"
 #include "pl_node.h"
 #include "pipeline/nodes/pl_nodes_common.h"
 #include "vplane_log.h"
@@ -143,7 +143,7 @@ if_feat_all_refcnt_incr_cb(struct ifnet *ifp, void *arg)
 
 void if_feat_all_refcnt_incr(enum if_feat_flag ffl)
 {
-	ifnet_walk(if_feat_all_refcnt_incr_cb, &ffl);
+	dp_ifnet_walk(if_feat_all_refcnt_incr_cb, &ffl);
 }
 
 /*
@@ -160,7 +160,7 @@ if_feat_all_refcnt_decr_cb(struct ifnet *ifp, void *arg)
 
 void if_feat_all_refcnt_decr(enum if_feat_flag ffl)
 {
-	ifnet_walk(if_feat_all_refcnt_decr_cb, &ffl);
+	dp_ifnet_walk(if_feat_all_refcnt_decr_cb, &ffl);
 }
 
 /*

@@ -3,7 +3,7 @@
 /*-
  * Copyright (c) 2008 The NetBSD Foundation, Inc.
  * All rights reserved.
- * Copyright (c) 2017, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017,2019-2020, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: (LGPL-2.1-only AND BSD-2-Clause-NETBSD)
  *
@@ -86,7 +86,7 @@ void ip_id_init(void)
 	}
 }
 
-uint16_t ip_randomid(uint16_t salt)
+uint16_t dp_ip_randomid(uint16_t salt)
 {
 	uint32_t r, k, id;
 

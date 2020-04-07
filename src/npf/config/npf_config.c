@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2018, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2016-2017 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -32,11 +32,20 @@ enum npf_commit_type {
 	NPF_COMMIT_DELETE
 };
 
+void npf_config_release(struct npf_config *npf_conf)
+{
+	assert(npf_conf->nc_attached == false);
+
+	free((void *)npf_conf->nc_attach_point);
+	npf_conf->nc_attach_point = NULL;
+}
+
 static void npf_config_free_rcu(struct rcu_head *head)
 {
 	struct npf_config *npf_conf =
 		caa_container_of(head, struct npf_config, nc_rcu);
 
+	npf_config_release(npf_conf);
 	free(npf_conf);
 }
 
@@ -69,7 +78,7 @@ static int npf_config_alloc(struct npf_config **npf_confp,
 	char *attach_point;
 	int rc;
 
-	if (*npf_confp != NULL && (*npf_confp)->nc_attach_point != NULL)
+	if (*npf_confp != NULL && (*npf_confp)->nc_attached)
 		return 0;	/* already allocated and associated */
 
 	attach_point = strdup(apk->apk_point);
@@ -91,6 +100,7 @@ static int npf_config_alloc(struct npf_config **npf_confp,
 
 	(*npf_confp)->nc_attach_type = apk->apk_type;
 	(*npf_confp)->nc_attach_point = attach_point;
+	(*npf_confp)->nc_attached = true;
 
 	return 0;
 }
@@ -203,10 +213,9 @@ static void npf_cfg_commit(struct npf_attpt_item *ap, enum npf_commit_type type)
 	/* Mark all the rulesets as clean. */
 	memset(npf_conf->nc_dirty_rulesets, 0, NPF_RS_TYPE_COUNT);
 
-	if (npf_conf->nc_active_flags == 0 && npf_conf->nc_attach_point) {
+	if (npf_conf->nc_active_flags == 0 && npf_conf->nc_attached) {
 
-		free((void *)npf_conf->nc_attach_point);
-		npf_conf->nc_attach_point = NULL;
+		npf_conf->nc_attached = false;
 
 		npf_attpt_item_fn_ctx *npf_attpt_item_fn =
 			npf_attpt_item_up_fn_context(ap);
@@ -464,13 +473,28 @@ void npf_show_attach_point_rulesets(json_writer_t *json,
 		if (((rulesets & ruleset_type_bit) != 0) &&
 		    npf_active(npf_conf, ruleset_type_bit)) {
 
+			/* Get the ruleset early;
+			 * show nothing unless there's a ruleset.
+			 */
+			const npf_ruleset_t *ruleset =
+				npf_get_ruleset(npf_conf, ruleset_type);
+
+			if (!ruleset)
+				continue;
+
 			if (!attach_point_json_printed) {
+				/* Get the attach point early;
+				 * show nothing if it has already been deleted.
+				 */
+				const char *ap = rcu_dereference(
+						npf_conf->nc_attach_point);
+				if (!ap)
+					break;
 				jsonw_start_object(json);
 				jsonw_string_field(json, "attach_type",
 					npf_get_attach_type_name(
 					npf_conf->nc_attach_type));
-				jsonw_string_field(json, "attach_point",
-						   npf_conf->nc_attach_point);
+				jsonw_string_field(json, "attach_point", ap);
 				jsonw_name(json, "rulesets");
 				jsonw_start_array(json);
 
@@ -481,8 +505,7 @@ void npf_show_attach_point_rulesets(json_writer_t *json,
 					   npf_get_ruleset_type_name(
 						   ruleset_type));
 
-			npf_json_ruleset(npf_get_ruleset(npf_conf,
-					 ruleset_type), json);
+			npf_json_ruleset(ruleset, json);
 
 			jsonw_end_object(json);
 		}
@@ -565,10 +588,14 @@ static void npf_clear_attach_point_rulesets(struct npf_attpt_item *ap,
 		if (((sel->rulesets & ruleset_type_bit) != 0) &&
 		    npf_active(npf_conf, ruleset_type_bit)) {
 
-			npf_clear_stats(
-				npf_get_ruleset(npf_conf, ruleset_type),
-				sel->group_class, sel->group_name,
-				sel->rule_no);
+			/* Only clear stats when there's a ruleset. */
+			const npf_ruleset_t *ruleset =
+				npf_get_ruleset(npf_conf, ruleset_type);
+
+			if (ruleset)
+				npf_clear_stats(ruleset,
+					sel->group_class, sel->group_name,
+					sel->rule_no);
 		}
 	}
 }

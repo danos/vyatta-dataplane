@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2018, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2015-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -335,6 +335,13 @@ void l2_rx_fltr_add_addr(struct ifnet *ifp, const struct ether_addr *dst)
 		 "Processing RTM_NEWADDR for %s; MAC address: %s.\n",
 		 ifp->if_name, ether_ntoa(dst));
 
+	/*
+	 * If unplugged the interface will shortly be removed, so
+	 * don't even update the software state.
+	 */
+	if (ifp->unplugged)
+		return;
+
 	if (is_multicast_ether_addr(dst)) {
 		l2_mcfltr_add_entry(ifp, dst);
 		/* If adding to a vlan also add to parent (real IF) */
@@ -367,6 +374,13 @@ void l2_rx_fltr_del_addr(struct ifnet *ifp, const struct ether_addr *dst)
 	DP_DEBUG(MULTICAST, INFO, MCAST,
 		 "Processing RTM_DELADDR for %s; MAC address: %s.\n",
 		 ifp->if_name, ether_ntoa(dst));
+
+	/*
+	 * If unplugged the interface will shortly be removed, so
+	 * don't even update the software state.
+	 */
+	if (ifp->unplugged)
+		return;
 
 	if (is_multicast_ether_addr(dst)) {
 		/* If deleting from a bonded IF delete from slaves (phys IF) */

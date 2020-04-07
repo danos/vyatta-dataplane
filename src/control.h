@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2018, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2018-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -33,6 +33,9 @@ zsock_t *cont_socket_get(enum cont_src_en cont_src);
 
 unsigned int cont_src_ifindex(enum cont_src_en cont_src, int ifindex);
 
+/* Generic command handler for console or config messages */
+typedef int (*cmd_func_t)(FILE *f, int argc, char **argv);
+
 /* Helper functions to handle interface config replay */
 
 /*
@@ -52,15 +55,23 @@ struct cfg_if_list {
 };
 
 struct cfg_if_list *cfg_if_list_create(void);
+int cfg_if_list_replay(struct cfg_if_list **cfg_list, const char *ifname,
+		       cmd_func_t handler);
 struct cfg_if_list_entry *
 cfg_if_list_lookup(struct cfg_if_list *if_list,
 				   const char *ifname);
+/* 1 entry per interface, will overwrite if already present */
 int cfg_if_list_add(struct cfg_if_list *if_list, const char *ifname,
 					int argc, char *argv[]);
+/* multiple entries per interface */
+int cfg_if_list_add_multi(struct cfg_if_list *if_list, const char *ifname,
+			  int argc, char *argv[]);
 int cfg_if_list_bin_add(struct cfg_if_list *if_list, const char *ifname,
 			char *msg, int len);
 int cfg_if_list_del(struct cfg_if_list *if_list, const char *ifname);
 int cfg_if_list_destroy(struct cfg_if_list **if_list);
+int cfg_if_list_cache_command(struct cfg_if_list **if_list, const char *ifname,
+			      int argc, char **argv);
 
 zsock_t *cont_src_get_broker_ctrl(enum cont_src_en cont_src);
 zsock_t *cont_src_get_broker_data(enum cont_src_en cont_src);

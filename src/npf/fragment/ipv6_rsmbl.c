@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2011-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -25,10 +25,10 @@
 #include "npf/fragment/ipv6_rsmbl_tbl.h"
 #include "npf/npf_cache.h"
 #include "npf/npf_session.h"
-#include "pktmbuf.h"
+#include "pktmbuf_internal.h"
 #include "snmp_mib.h" /* IPv6 stats */
 #include "util.h"
-#include "vrf.h"
+#include "vrf_internal.h"
 
 struct cds_lfht;
 
@@ -228,6 +228,10 @@ ipv6_frag_process(struct cds_lfht *frag_table, struct ipv6_frag_pkt *fp,
 	struct ip6_hdr	*ip6;
 	uint32_t idx = 0;
 	vrfid_t vrf_id = pktmbuf_get_vrf(m);
+	struct pl_packet pkt = {
+		.mbuf = m,
+		.l2_pkt_type = pkt_mbuf_get_l2_traffic_type(m),
+	};
 
 	/*
 	 * Payload length (everything after the initial IPv6 hdr)
@@ -265,8 +269,10 @@ ipv6_frag_process(struct cds_lfht *frag_table, struct ipv6_frag_pkt *fp,
 		/*
 		 * First fragment
 		 */
-		idx = (fp->frags[FIRST_FRAG_IDX].mb == NULL) ?
-			FIRST_FRAG_IDX : UINT32_MAX;
+		if (fp->frags[FIRST_FRAG_IDX].mb == NULL)
+			idx = FIRST_FRAG_IDX;
+		else
+			goto done;
 		/*
 		 * 'fp->frag_size' is the accumulated number of bytes
 		 * that will comprise the reassembled packet.
@@ -301,6 +307,10 @@ ipv6_frag_process(struct cds_lfht *frag_table, struct ipv6_frag_pkt *fp,
 		 * Intermediate fragment
 		 */
 		idx = fp->last_idx;
+		if (fp->frags[fp->last_idx - 1].ofs == npc->fh_offset) {
+			m = NULL;
+			goto done;
+		}
 		if (idx < IPV6_MAX_FRAGS_PER_SET)
 			fp->last_idx++;
 
@@ -315,8 +325,8 @@ ipv6_frag_process(struct cds_lfht *frag_table, struct ipv6_frag_pkt *fp,
 		fp->mtu = plen + sizeof(struct ip6_hdr);
 
 	/*
-	 * errorneous packet: either exceeed max allowed number of
-	 * fragments, or duplicate first/last fragment encountered.
+	 * errorneous packet: exceeded max allowed number of
+	 * fragments.
 	 */
 	if (idx >= ARRAY_SIZE(fp->frags) ||
 		fp->frags[idx].mb != NULL) {
@@ -327,12 +337,18 @@ ipv6_frag_process(struct cds_lfht *frag_table, struct ipv6_frag_pkt *fp,
 		goto done;
 	}
 
+	if (unlikely(!pipeline_fused_l2_consume(&pkt))) {
+		m = NULL;
+		goto done;
+	}
+
 	fp->frags[idx].ofs = npc->fh_offset;
 	/* Payload bytes in this fragment */
 	fp->frags[idx].len = plen - extra_hlen;
 	fp->frags[idx].mb = m;
 
 	pktmbuf_mdata_clear(m, PKT_MDATA_SESSION_SENTRY);
+
 	m = NULL;
 
 	if (likely(fp->frag_size < fp->total_size)) {

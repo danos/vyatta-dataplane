@@ -1,7 +1,7 @@
 /*
  * MPLS forwarder
  *
- * Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2015-2017 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -45,7 +45,7 @@
 #include "nh.h"
 #include "npf/npf.h"
 #include "npf_shim.h"
-#include "pktmbuf.h"
+#include "pktmbuf_internal.h"
 #include "route.h"
 #include "route_flags.h"
 #include "route_v6.h"
@@ -54,7 +54,7 @@
 #include "util.h"
 #include "vplane_debug.h"
 #include "vplane_log.h"
-#include "vrf.h"
+#include "vrf_internal.h"
 
 struct mplshdr;
 
@@ -161,7 +161,7 @@ mplshdr_safe(struct rte_mbuf *m)
 	 * Validate that the remaining non-L2 data in the first
 	 * segment is long enough to contain at least one label
 	 */
-	len = rte_pktmbuf_data_len(m) - pktmbuf_l2_len(m);
+	len = rte_pktmbuf_data_len(m) - dp_pktmbuf_l2_len(m);
 	if (unlikely(len < sizeof(struct mplshdr)))
 		return NULL;
 
@@ -203,7 +203,7 @@ mpls_label_cache_adjust(struct rte_mbuf *m, struct mpls_label_cache *cache,
 			uint8_t l2_len)
 {
 	return (cache->num_labels * sizeof(struct mplshdr)) -
-		(pktmbuf_l2_len(m) - l2_len);
+		(dp_pktmbuf_l2_len(m) - l2_len);
 }
 
 /*
@@ -248,7 +248,7 @@ mpls_label_cache_write(struct rte_mbuf *m,
 		hdr->ls = label.ls;
 	}
 
-	pktmbuf_l2_len(m) = l2_len;
+	dp_pktmbuf_l2_len(m) = l2_len;
 
 	/*
 	 * If not pushing any labels, update TTL in top-most label
@@ -296,7 +296,7 @@ swap_labels(struct rte_mbuf *m,
 	/*
 	 * Make swapped label part of l2_len as we don't care about it anymore
 	 */
-	pktmbuf_l2_len(m) += sizeof(struct mplshdr);
+	dp_pktmbuf_l2_len(m) += sizeof(struct mplshdr);
 
 	return true;
 }
@@ -309,7 +309,7 @@ pop_label(struct rte_mbuf *m)
 	/*
 	 * Make this label part of l2_len as we don't care about it anymore
 	 */
-	pktmbuf_l2_len(m) += sizeof(struct mplshdr);
+	dp_pktmbuf_l2_len(m) += sizeof(struct mplshdr);
 
 	if (mpls_ls_get_bos(hdr->ls))
 		return true;
@@ -354,7 +354,7 @@ is_mpls_oam(const struct ifnet *ifp, const struct rte_mbuf *m)
 
 	hdr = mplshdr(m);
 	lssize = 1;
-	len = rte_pktmbuf_data_len(m) - pktmbuf_l2_len(m) - sizeof(*hdr);
+	len = rte_pktmbuf_data_len(m) - dp_pktmbuf_l2_len(m) - sizeof(*hdr);
 	while (!mpls_ls_get_bos(hdr->ls)) {
 		if (++lssize > MAX_LABEL_STACK_DEPTH)
 			return false;
@@ -402,10 +402,10 @@ mpls_error(struct ifnet *ifp, struct rte_mbuf *m,
 	/*
 	 * Note offset of popped labels and restore original packet
 	 */
-	pop_offset = pktmbuf_l2_len(m) - ETHER_HDR_LEN;
-	pktmbuf_l2_len(m) = ETHER_HDR_LEN;
+	pop_offset = dp_pktmbuf_l2_len(m) - ETHER_HDR_LEN;
+	dp_pktmbuf_l2_len(m) = ETHER_HDR_LEN;
 
-	len = rte_pktmbuf_data_len(m) - pktmbuf_l2_len(m);
+	len = rte_pktmbuf_data_len(m) - dp_pktmbuf_l2_len(m);
 
 	/*
 	 * Find the IP header, within reason
@@ -469,8 +469,8 @@ mpls_error(struct ifnet *ifp, struct rte_mbuf *m,
 
 	switch (payload_type) {
 	case MPT_IPV4: {
-		pktmbuf_l2_len(m) += (lssize * sizeof(struct mplshdr));
-		pktmbuf_l3_len(m) = ip->ihl << 2;
+		dp_pktmbuf_l2_len(m) += (lssize * sizeof(struct mplshdr));
+		dp_pktmbuf_l3_len(m) = ip->ihl << 2;
 
 		if (!ip_valid_packet(m, ip)) {
 			DBG_MPLS_PKTERR(ifp, m,
@@ -482,7 +482,7 @@ mpls_error(struct ifnet *ifp, struct rte_mbuf *m,
 		if (n == NULL)
 			return NULL;
 
-		pktmbuf_l3_len(n) = pktmbuf_l3_len(m);
+		dp_pktmbuf_l3_len(n) = dp_pktmbuf_l3_len(m);
 		if (icmp_do_exthdr(n, ICMP_EXT_MPLS_LS,
 				   ICMP_EXT_MPLS_LS_INCOMING, lstack,
 				   lssize * sizeof(struct mplshdr))) {
@@ -513,14 +513,14 @@ mpls_error(struct ifnet *ifp, struct rte_mbuf *m,
 		icmp_prepare_send(n);
 
 		/* restore original l2 length */
-		pktmbuf_l2_len(n) -= (lssize * sizeof(struct mplshdr));
+		dp_pktmbuf_l2_len(n) -= (lssize * sizeof(struct mplshdr));
 
 		break;
 	}
 
 	case MPT_IPV6:
-		pktmbuf_l2_len(m) += (lssize * sizeof(struct mplshdr));
-		pktmbuf_l3_len(m) = sizeof(*ip6);
+		dp_pktmbuf_l2_len(m) += (lssize * sizeof(struct mplshdr));
+		dp_pktmbuf_l3_len(m) = sizeof(*ip6);
 
 		ip6 = (struct ip6_hdr *)ip;
 		if (!ip6_valid_packet(m, ip6)) {
@@ -535,7 +535,7 @@ mpls_error(struct ifnet *ifp, struct rte_mbuf *m,
 		if (n == NULL)
 			return NULL;
 
-		pktmbuf_l3_len(n) = pktmbuf_l3_len(m);
+		dp_pktmbuf_l3_len(n) = dp_pktmbuf_l3_len(m);
 		if (icmp6_do_exthdr(n, ICMP_EXT_MPLS_LS,
 				    ICMP_EXT_MPLS_LS_INCOMING, lstack,
 				    lssize * sizeof(struct mplshdr))) {
@@ -548,7 +548,7 @@ mpls_error(struct ifnet *ifp, struct rte_mbuf *m,
 		icmp6_prepare_send(n);
 
 		/* restore original l2 length */
-		pktmbuf_l2_len(n) -= (lssize * sizeof(struct mplshdr));
+		dp_pktmbuf_l2_len(n) -= (lssize * sizeof(struct mplshdr));
 
 		break;
 	default:
@@ -559,8 +559,8 @@ mpls_error(struct ifnet *ifp, struct rte_mbuf *m,
 	 * Copy layer 2 header and label stack to new packet
 	 * Restore pop offset in new packet
 	 */
-	memcpy(ethhdr(n), ethhdr(m), pktmbuf_l2_len(m));
-	pktmbuf_l2_len(n) += pop_offset;
+	memcpy(ethhdr(n), ethhdr(m), dp_pktmbuf_l2_len(m));
+	dp_pktmbuf_l2_len(n) += pop_offset;
 
 	/*
 	 * Set default TTL in all labels in the packet - those in label cache
@@ -603,7 +603,7 @@ mpls_oam_ip_exception(struct rte_mbuf *m)
 	unsigned int len;
 
 	/* Check for OAM packet when pop last label and forward to IP */
-	len = rte_pktmbuf_data_len(m) - pktmbuf_l2_len(m);
+	len = rte_pktmbuf_data_len(m) - dp_pktmbuf_l2_len(m);
 	if (!is_mpls_ip_oam(iphdr(m), len))
 		return false;
 
@@ -612,7 +612,7 @@ mpls_oam_ip_exception(struct rte_mbuf *m)
 	 * punt to OAM daemon (if listening) or else drop the packet rather
 	 * than forward it.
 	 */
-	pktmbuf_l2_len(m) = ETHER_HDR_LEN;
+	dp_pktmbuf_l2_len(m) = ETHER_HDR_LEN;
 	hdr = mplshdr(m);
 	mpls_ls_set_ttl(&hdr->ls, 1);
 	return true;
@@ -737,7 +737,7 @@ mpls_ecmp_hash(const struct rte_mbuf *m)
 	bos = mpls_ls_get_bos(hdr->ls);
 	hdr++;
 
-	len = rte_pktmbuf_data_len(m) - pktmbuf_l2_len(m);
+	len = rte_pktmbuf_data_len(m) - dp_pktmbuf_l2_len(m);
 
 	for (label_cnt = 0; label_cnt < MAX_MP_SELECT_LABELS && !bos;
 	     label_cnt++) {
@@ -762,12 +762,14 @@ mpls_ecmp_hash(const struct rte_mbuf *m)
 		    likely(len >= l3offs + sizeof(struct iphdr)))
 			hash = rte_jhash_1word(
 				hash,
-				ecmp_ipv4_hash(m, pktmbuf_l2_len(m) + l3offs));
+				ecmp_ipv4_hash(m,
+					       dp_pktmbuf_l2_len(m) + l3offs));
 		else if (v4hdr->version == 6 &&
 			 likely(len >= l3offs + sizeof(struct ip6_hdr)))
 			hash = rte_jhash_1word(
 				hash,
-				ecmp_ipv6_hash(m, pktmbuf_l2_len(m) + l3offs));
+				ecmp_ipv6_hash(m,
+					       dp_pktmbuf_l2_len(m) + l3offs));
 	}
 	return hash;
 }
@@ -804,7 +806,7 @@ static inline void nh_eth_output_mpls(enum nh_type nh_type,
 	/*
 	 * Start of buffer should be one eth hdr before the current label.
 	 */
-	assert(pktmbuf_l2_len(m) == ETHER_HDR_LEN);
+	assert(dp_pktmbuf_l2_len(m) == ETHER_HDR_LEN);
 	/*
 	 * Set the ethertype (the src and dest mac addrs will be in
 	 * the output function.
@@ -819,36 +821,38 @@ static inline void nh_eth_output_mpls(enum nh_type nh_type,
 				.flags = RTF_GATEWAY,
 				.gateway = V4MAPPED_IPV6_TO_IPV4(
 					nh.v6->gateway),
-				.u.ifp = nh6_get_ifp(nh.v6),
+				.u.ifp = dp_nh6_get_ifp(nh.v6),
 			};
 
-			if (ip_l2_resolve_and_output(input_ifp, m, &v4nh,
-						     ETH_P_MPLS_UC))
-				mpls_if_incr_out_ucastpkts(nh6_get_ifp(nh.v6),
-							   len);
+			if (dp_ip_l2_nh_output(input_ifp, m, &v4nh,
+					       ETH_P_MPLS_UC))
+				mpls_if_incr_out_ucastpkts(
+						dp_nh6_get_ifp(nh.v6),
+						len);
 		} else {
 			struct next_hop_v6 v6nh = {
 				.flags = RTF_GATEWAY,
 				.gateway = nh.v6->gateway,
-				.u.ifp = nh6_get_ifp(nh.v6),
+				.u.ifp = dp_nh6_get_ifp(nh.v6),
 			};
 
-			if (ip6_l2_resolve_and_output(input_ifp, m,
-							&v6nh, ETH_P_MPLS_UC))
-				mpls_if_incr_out_ucastpkts(nh6_get_ifp(nh.v6),
-							   len);
+			if (dp_ip6_l2_nh_output(input_ifp, m,
+						&v6nh, ETH_P_MPLS_UC))
+				mpls_if_incr_out_ucastpkts(
+						dp_nh6_get_ifp(nh.v6),
+						len);
 		}
 	} else {
 		assert(nh_type == NH_TYPE_V4GW);
 		struct next_hop v4nh = {
 			.flags = RTF_GATEWAY,
 			.gateway = nh.v4->gateway,
-			.u.ifp = nh4_get_ifp(nh.v4),
+			.u.ifp = dp_nh4_get_ifp(nh.v4),
 		};
 
-		if (ip_l2_resolve_and_output(input_ifp, m, &v4nh,
-					     ETH_P_MPLS_UC))
-			mpls_if_incr_out_ucastpkts(nh4_get_ifp(nh.v4), len);
+		if (dp_ip_l2_nh_output(input_ifp, m, &v4nh,
+				       ETH_P_MPLS_UC))
+			mpls_if_incr_out_ucastpkts(dp_nh4_get_ifp(nh.v4), len);
 	}
 }
 
@@ -887,7 +891,7 @@ nh_mpls_frag_out(struct ifnet *out_ifp, struct rte_mbuf *m, void *obj)
 	}
 
 	/* Copy any remaining labels into the fragment */
-	pktmbuf_l2_len(m) = ETHER_HDR_LEN + fobj->pop_offset;
+	dp_pktmbuf_l2_len(m) = ETHER_HDR_LEN + fobj->pop_offset;
 	hdr = mplshdr(m);
 	memcpy(hdr, fobj->remaining_labels, offset - fobj->pop_offset);
 
@@ -915,11 +919,11 @@ nh_mpls_ip_fragment(struct ifnet *out_ifp, enum mpls_payload_type payload_type,
 	 * Note offset of popped labels and reset pkt back to original state
 	 */
 	fobj.remaining_labels = mplshdr(m);
-	fobj.pop_offset = pktmbuf_l2_len(m) - ETHER_HDR_LEN;
-	pktmbuf_l2_len(m) = ETHER_HDR_LEN;
+	fobj.pop_offset = dp_pktmbuf_l2_len(m) - ETHER_HDR_LEN;
+	dp_pktmbuf_l2_len(m) = ETHER_HDR_LEN;
 
 	if (have_labels) {
-		len = rte_pktmbuf_data_len(m) - pktmbuf_l2_len(m);
+		len = rte_pktmbuf_data_len(m) - dp_pktmbuf_l2_len(m);
 
 		hdr = mplshdr(m);
 		for (num_labels = 1; ; hdr++, num_labels++) {
@@ -950,11 +954,11 @@ nh_mpls_ip_fragment(struct ifnet *out_ifp, enum mpls_payload_type payload_type,
 	if (payload_type == MPT_IPV4) {
 		const struct iphdr *ip;
 
-		pktmbuf_l2_len(m) += offset;
+		dp_pktmbuf_l2_len(m) += offset;
 
 		ip = iphdr(m);
 		if (!ip_valid_packet(m, ip)) {
-			pktmbuf_l2_len(m) -= offset;
+			dp_pktmbuf_l2_len(m) -= offset;
 			DBG_MPLS_PKTERR(out_ifp, m,
 				 "Packet needing fragmentation not valid\n");
 			mpls_if_incr_out_errors(out_ifp);
@@ -964,7 +968,7 @@ nh_mpls_ip_fragment(struct ifnet *out_ifp, enum mpls_payload_type payload_type,
 
 		/* check for ip df bit */
 		if (ip->frag_off & htons(IP_DF)) {
-			pktmbuf_l2_len(m) = pktmbuf_l2_len(m) -
+			dp_pktmbuf_l2_len(m) = dp_pktmbuf_l2_len(m) -
 				offset + fobj.pop_offset;
 			if (have_labels) {
 				icmp = mpls_icmp_df(out_ifp, m, cache,
@@ -994,8 +998,8 @@ nh_mpls_ip_fragment(struct ifnet *out_ifp, enum mpls_payload_type payload_type,
 			rte_pktmbuf_free(m);
 			return;
 		}
-		pktmbuf_l2_len(m) = ETHER_HDR_LEN;
-		pktmbuf_l3_len(m) = ip->ihl << 2;
+		dp_pktmbuf_l2_len(m) = ETHER_HDR_LEN;
+		dp_pktmbuf_l3_len(m) = ip->ihl << 2;
 
 		mpls_if_incr_out_fragment_pkts(out_ifp);
 
@@ -1031,7 +1035,7 @@ nh_mpls_forward(enum mpls_payload_type payload_type,
 	struct ifnet *out_ifp;
 	int adjust;
 
-	assert(pktmbuf_l2_len(m) >= ETHER_HDR_LEN);
+	assert(dp_pktmbuf_l2_len(m) >= ETHER_HDR_LEN);
 
 	/*
 	 * Check for fragmentation
@@ -1101,15 +1105,15 @@ mpls_forward_to_ipv4(struct ifnet *ifp, bool local,
 	/*
 	 * Disposition to ipv4.
 	 */
-	assert(pktmbuf_l2_len(m) >= ETHER_HDR_LEN);
+	assert(dp_pktmbuf_l2_len(m) >= ETHER_HDR_LEN);
 	/*
 	 * Fixup mbuf before we give it back to ip.
 	 * Adjust the pkt start to be one eth hdr in
 	 * front of current l2 offset - to componsate
 	 * for any pops.
 	 */
-	pop_offset = pktmbuf_l2_len(m) - ETHER_HDR_LEN;
-	pktmbuf_l2_len(m) = ETHER_HDR_LEN;
+	pop_offset = dp_pktmbuf_l2_len(m) - ETHER_HDR_LEN;
+	dp_pktmbuf_l2_len(m) = ETHER_HDR_LEN;
 
 	if (!rte_pktmbuf_adj(m, pop_offset)) {
 		DBG_MPLS_PKTERR(ifp, m,
@@ -1127,7 +1131,7 @@ mpls_forward_to_ipv4(struct ifnet *ifp, bool local,
 	 * Is packet big enough.
 	 * (i.e is there a valid IP header in first segment)
 	 */
-	len = rte_pktmbuf_data_len(m) - pktmbuf_l2_len(m);
+	len = rte_pktmbuf_data_len(m) - dp_pktmbuf_l2_len(m);
 	if (unlikely(len < sizeof(struct iphdr))) {
 		DBG_MPLS_PKTERR(ifp, m,
 			 "Truncated packet during forward as IPv4 (%u). Dropping...\n",
@@ -1138,7 +1142,7 @@ mpls_forward_to_ipv4(struct ifnet *ifp, bool local,
 		return;
 	}
 
-	pktmbuf_set_vrf(m, if_vrfid(nh4_get_ifp(v4nh)));
+	pktmbuf_set_vrf(m, if_vrfid(dp_nh4_get_ifp(v4nh)));
 
 	ip = iphdr(m);
 	if (!local && unlikely(!mpls_propagate_ttl_to_ip(ip, ttl, pop))) {
@@ -1156,7 +1160,7 @@ mpls_forward_to_ipv4(struct ifnet *ifp, bool local,
 		 * ifp must be non-NULL, but all we've got is the
 		 * output ifp so use that.
 		 */
-		ifp = nh4_get_ifp(v4nh);
+		ifp = dp_nh4_get_ifp(v4nh);
 		if (!ifp) {
 			rte_pktmbuf_free(m);
 			return;
@@ -1178,7 +1182,7 @@ static void mpls_forward_to_ipv6(struct ifnet *ifp, bool local,
 	/*
 	 * Disposition to ipv6.
 	 */
-	assert(pktmbuf_l2_len(m) >= ETHER_HDR_LEN);
+	assert(dp_pktmbuf_l2_len(m) >= ETHER_HDR_LEN);
 
 	/*
 	 * Fixup mbuf before we give it back to ip.
@@ -1186,8 +1190,8 @@ static void mpls_forward_to_ipv6(struct ifnet *ifp, bool local,
 	 * front of current l2 offset - to componsate
 	 * for any pops.
 	 */
-	pop_offset = pktmbuf_l2_len(m) - ETHER_HDR_LEN;
-	pktmbuf_l2_len(m) = ETHER_HDR_LEN;
+	pop_offset = dp_pktmbuf_l2_len(m) - ETHER_HDR_LEN;
+	dp_pktmbuf_l2_len(m) = ETHER_HDR_LEN;
 
 	if (!rte_pktmbuf_adj(m, pop_offset)) {
 		DBG_MPLS_PKTERR(ifp, m,
@@ -1205,7 +1209,7 @@ static void mpls_forward_to_ipv6(struct ifnet *ifp, bool local,
 	 * Is packet big enough.
 	 * (i.e is there a valid IPv6 header in first segment)
 	 */
-	len = rte_pktmbuf_data_len(m) - pktmbuf_l2_len(m);
+	len = rte_pktmbuf_data_len(m) - dp_pktmbuf_l2_len(m);
 	if (unlikely(len < sizeof(struct ip6_hdr))) {
 		DBG_MPLS_PKTERR(ifp, m,
 			"Truncated packet during forward as IPv6 (%u). Dropping...\n",
@@ -1216,7 +1220,7 @@ static void mpls_forward_to_ipv6(struct ifnet *ifp, bool local,
 		return;
 	}
 
-	pktmbuf_set_vrf(m, if_vrfid(nh6_get_ifp(v6nh)));
+	pktmbuf_set_vrf(m, if_vrfid(dp_nh6_get_ifp(v6nh)));
 
 	ip6 = ip6hdr(m);
 	if (!local && unlikely(!mpls_propagate_ttl_to_ip6(ip6, ttl, pop))) {
@@ -1242,7 +1246,7 @@ static void mpls_forward_to_ipv6(struct ifnet *ifp, bool local,
 		 * ifp must be non-NULL, but all we've got is the
 		 * output ifp so use that.
 		 */
-		ifp = nh6_get_ifp(v6nh);
+		ifp = dp_nh6_get_ifp(v6nh);
 		if (!ifp) {
 			rte_pktmbuf_free(m);
 			return;
@@ -1331,8 +1335,8 @@ static bool mpls_reswitch_as_ipv4(struct ifnet *input_ifp,
 	 * means setting the ether header to be in front of our
 	 * current label and setting the ethertype to be ip.
 	 */
-	assert(pktmbuf_l2_len(m) >= ETHER_HDR_LEN);
-	pop_offset = pktmbuf_l2_len(m) - ETHER_HDR_LEN;
+	assert(dp_pktmbuf_l2_len(m) >= ETHER_HDR_LEN);
+	pop_offset = dp_pktmbuf_l2_len(m) - ETHER_HDR_LEN;
 
 	memmove((uint8_t *)ethhdr(m) + pop_offset, ethhdr(m), ETH_HLEN);
 	if (!rte_pktmbuf_adj(m, pop_offset)) {
@@ -1342,7 +1346,7 @@ static bool mpls_reswitch_as_ipv4(struct ifnet *input_ifp,
 		return false;
 	}
 	ethhdr(m)->ether_type = htons(ETHER_TYPE_IPv4);
-	pktmbuf_l2_len(m) = ETHER_HDR_LEN;
+	dp_pktmbuf_l2_len(m) = ETHER_HDR_LEN;
 
 	if (likely(input_ifp != NULL)) {
 		/* Propagate or decrement (if not local) the ttl */
@@ -1442,8 +1446,8 @@ static bool mpls_reswitch_as_ipv6(struct ifnet *input_ifp,
 	 * means setting the ether header to be in front of our
 	 * current label and setting the ethertype to be ipv6.
 	 */
-	assert(pktmbuf_l2_len(m) >= ETHER_HDR_LEN);
-	pop_offset = pktmbuf_l2_len(m) - ETHER_HDR_LEN;
+	assert(dp_pktmbuf_l2_len(m) >= ETHER_HDR_LEN);
+	pop_offset = dp_pktmbuf_l2_len(m) - ETHER_HDR_LEN;
 
 	memmove((uint8_t *)ethhdr(m) + pop_offset, ethhdr(m), ETH_HLEN);
 	if (!rte_pktmbuf_adj(m, pop_offset)) {
@@ -1453,7 +1457,7 @@ static bool mpls_reswitch_as_ipv6(struct ifnet *input_ifp,
 		return false;
 	}
 	ethhdr(m)->ether_type = htons(ETHER_TYPE_IPv6);
-	pktmbuf_l2_len(m) = ETHER_HDR_LEN;
+	dp_pktmbuf_l2_len(m) = ETHER_HDR_LEN;
 
 	if (likely(input_ifp != NULL)) {
 		/* Propagate or decrement (if not local) the ttl */
@@ -1474,7 +1478,7 @@ static bool mpls_reswitch_as_ipv6(struct ifnet *input_ifp,
 
 		/* Is it for a local address on this host? */
 		if (is_local) {
-			ip6_local_deliver(input_ifp, m);
+			ip6_l4_input(m, input_ifp);
 			return true;
 		}
 
@@ -1512,7 +1516,7 @@ mpls_labeled_forward(struct ifnet *input_ifp, bool local,
 	if (unlikely(!hdr)) {
 		DBG_MPLS_PKTERR(input_ifp, m,
 				"mpls_labeled_input truncated packet %u if %s(%d)\n",
-				rte_pktmbuf_data_len(m) - pktmbuf_l2_len(m),
+				rte_pktmbuf_data_len(m) - dp_pktmbuf_l2_len(m),
 				local ? "(local)" : input_ifp->if_name,
 				local ? 0 : input_ifp->if_index);
 		goto drop;
@@ -1586,15 +1590,15 @@ mpls_labeled_forward(struct ifnet *input_ifp, bool local,
 			return;
 		} else if (unlikely(ret == NH_FWD_RESWITCH_IPv4)) {
 			if (!mpls_reswitch_as_ipv4(
-				    input_ifp, m, nh4_get_ifp(nh.v4) ?
-				    if_vrfid(nh6_get_ifp(nh.v6)) :
+				    input_ifp, m, dp_nh4_get_ifp(nh.v4) ?
+				    if_vrfid(dp_nh6_get_ifp(nh.v6)) :
 				    VRF_DEFAULT_ID, ttl))
 				goto drop;
 			return;
 		} else if (unlikely(ret == NH_FWD_RESWITCH_IPv6)) {
 			if (!mpls_reswitch_as_ipv6(
-				    input_ifp, m, nh6_get_ifp(nh.v6) ?
-				    if_vrfid(nh6_get_ifp(nh.v6)) :
+				    input_ifp, m, dp_nh6_get_ifp(nh.v6) ?
+				    if_vrfid(dp_nh6_get_ifp(nh.v6)) :
 				    VRF_DEFAULT_ID, ttl))
 				goto drop;
 			return;
@@ -1606,7 +1610,7 @@ mpls_labeled_forward(struct ifnet *input_ifp, bool local,
 			 * labels here so that we can simply reset
 			 * the L2 len to ethernet.
 			 */
-			pktmbuf_l2_len(m) = ETHER_HDR_LEN;
+			dp_pktmbuf_l2_len(m) = ETHER_HDR_LEN;
 			if (unlikely(local))
 				break;
 			/*
@@ -1750,7 +1754,7 @@ void mpls_unlabeled_input(struct ifnet *input_ifp, struct rte_mbuf *m,
 		 * labels here so that we can simply reset
 		 * the L2 len to ethernet.
 		 */
-		pktmbuf_l2_len(m) = ETHER_HDR_LEN;
+		dp_pktmbuf_l2_len(m) = ETHER_HDR_LEN;
 		if (nht == NH_TYPE_V4GW) {
 			struct iphdr *ip = iphdr(m);
 

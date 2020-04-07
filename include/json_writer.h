@@ -4,15 +4,15 @@
  * This takes care of the annoying bits of JSON syntax like the commas
  * after elements
  *
- * Copyright (c) 2017-2018, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2011-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
 
-#ifndef JSON_WRITER_H
-#define JSON_WRITER_H
+#ifndef VYATTA_DATAPLANE_JSON_WRITER_H
+#define VYATTA_DATAPLANE_JSON_WRITER_H
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -59,4 +59,4 @@ void jsonw_end_array(json_writer_t *self);
 /* Override default exception handling */
 typedef void (jsonw_err_handler_fn)(const char *);
 
-#endif /* JSON_WRITER_H */
+#endif /* VYATTA_DATAPLANE_JSON_WRITER_H */

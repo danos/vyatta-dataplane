@@ -1,7 +1,7 @@
 /*
  * l2_bridge_in.c
  *
- * Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2016, 2017 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -13,8 +13,8 @@
 #include <stddef.h>
 
 #include "compiler.h"
-#include "bridge.h"
-#include "bridge_port.h"
+#include "if/bridge/bridge.h"
+#include "if/bridge/bridge_port.h"
 #include "if_var.h"
 #include "pl_common.h"
 #include "pl_fused.h"
@@ -29,7 +29,7 @@ bridge_has_vlan_filter(struct ifnet *master)
 }
 
 ALWAYS_INLINE unsigned int
-bridge_in_process(struct pl_packet *pkt)
+bridge_in_process(struct pl_packet *pkt, void *context __unused)
 {
 	struct ifnet *ifp = pkt->in_ifp;
 	struct rte_mbuf *m = pkt->mbuf;

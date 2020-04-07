@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2018, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -60,7 +60,9 @@ struct npf_tbl_entry {
 	char            *te_name;	/* entry name */
 	struct rcu_head  te_rcu;	/* rcu for freeing an entry */
 	struct npf_tbl  *te_tbl;	/* back pointer to table */
-	uint             te_id;		/* ID/index */
+	uint32_t         te_id;		/* ID/index */
+	rte_atomic32_t   te_refcnt;
+	npf_tbl_entry_free_fn *te_free_fn;
 #ifndef NDEBUG
 	uint32_t         te_memguard;	/* used to verify te_data ptr */
 #endif
@@ -79,6 +81,7 @@ struct npf_tbl {
 	struct rcu_head        nt_rcu;	/* rcu for freeing struct npf_tbl */
 	uint8_t                nt_flags;
 	uint32_t               nt_id;   /* user table id */
+	npf_tbl_entry_free_fn  *nt_entry_free_fn;
 	/* Start search for next available table index at nt_hint */
 	uint                   nt_hint; /* used to find a free slot */
 	uint                   nt_entry_data_sz; /* size of te_data */
@@ -199,6 +202,12 @@ npf_tbl_create(uint32_t id, uint tbl_sz, uint tbl_sz_max, uint data_sz,
 	return nt;
 }
 
+void npf_tbl_set_entry_freefn(struct npf_tbl *nt,
+			      npf_tbl_entry_free_fn *free_fn)
+{
+	nt->nt_entry_free_fn = free_fn;
+}
+
 static void
 npf_tbl_destroy_rcu(struct rcu_head *head)
 {
@@ -211,6 +220,26 @@ npf_tbl_destroy_rcu(struct rcu_head *head)
 }
 
 /*
+ * Destroy all table entries
+ */
+static int npf_tbl_destroy_entries(struct npf_tbl *nt)
+{
+	struct npf_tbl_entry *te;
+	uint i;
+	int rc = 0;
+
+	for (i = 0; i < nt->nt_sz; i++) {
+		te = nt->nt_table[i];
+		if (te) {
+			rc = npf_tbl_entry_remove(nt, te->te_data);
+			if (rc)
+				return rc;
+		}
+	}
+	return 0;
+}
+
+/*
  * Destroy table.
  */
 int
@@ -218,6 +247,9 @@ npf_tbl_destroy(struct npf_tbl *nt)
 {
 	if (!nt)
 		return -EINVAL;
+
+	/* Delete and free all table entries */
+	npf_tbl_destroy_entries(nt);
 
 	/* Table must be empty */
 	if (nt->nt_nentries != 0)
@@ -310,21 +342,26 @@ static int npf_tbl_resize(struct npf_tbl *nt)
  * created, and is set to the next slot when a slot filled.  Except when a
  * slot is emptied, in which case 'hint' becomes the lower of the current
  * 'hint' and the newly emptied slot.
+ *
+ * Returns 0 for success, or less thanb 0 for error.
  */
 static int
-npf_tbl_entry_id_alloc(struct npf_tbl *nt, uint hint)
+npf_tbl_entry_id_alloc(struct npf_tbl *nt, uint32_t hint, uint32_t *id)
 {
-	uint i, id = hint;
+	uint32_t i, tmp = hint;
 
 	if (nt->nt_nentries >= nt->nt_sz)
 		return -ENOSPC;
 
 	for (i = 0; i < nt->nt_sz; i++) {
-		if (!nt->nt_table[id])
-			return id;
+		if (!nt->nt_table[tmp]) {
+			/* Empty slot found */
+			*id = tmp;
+			return 0;
+		}
 
-		if (++id >= nt->nt_sz)
-			id = 0;
+		if (++tmp >= nt->nt_sz)
+			tmp = 0;
 	}
 
 	/* should never get here if nt_nentries is accurate */
@@ -347,6 +384,8 @@ npf_tbl_entry_create(struct npf_tbl *nt, const char *name)
 		return NULL;
 
 	te->te_name = strdup(name);
+	rte_atomic32_set(&te->te_refcnt, 0);
+	te->te_free_fn = nt->nt_entry_free_fn;
 #ifndef NDEBUG
 	te->te_memguard = TS_MEMGUARD;
 #endif
@@ -360,8 +399,8 @@ npf_tbl_entry_create(struct npf_tbl *nt, const char *name)
  *
  * Path #1:
  *
- * npf_tbl_entry_remove -> zhash_delete -> npf_tbl_hash_freefn -> call_rcu ->
- * npf_tbl_entry_free_rcu -> _npf_tbl_entry_destroy
+ * npf_tbl_entry_remove -> zhash_delete -> npf_tbl_zhash_delete_cb
+ *   -> call_rcu -> npf_tbl_entry_free_rcu -> _npf_tbl_entry_destroy
  *
  * Path #2:
  *
@@ -373,6 +412,10 @@ _npf_tbl_entry_destroy(struct npf_tbl_entry *te)
 	/* do not destroy an entry if it is still in a table */
 	if (!te || te->te_tbl)
 		return -EINVAL;
+
+	/* Let client cleanup its data first */
+	if (te->te_free_fn)
+		(*te->te_free_fn)(te->te_data);
 
 	if (te->te_name)
 		free(te->te_name);
@@ -408,24 +451,65 @@ npf_tbl_entry_free_rcu(struct rcu_head *head)
 }
 
 /*
- * Callback via the zhash_delete function.
+ * Take reference on table entry
  */
-static void npf_tbl_hash_freefn(void *data)
+static struct npf_tbl_entry *_npf_tbl_entry_get(struct npf_tbl_entry *te)
+{
+	if (te)
+		rte_atomic32_inc(&te->te_refcnt);
+	return te;
+}
+
+void *npf_tbl_entry_get(void *td)
+{
+	struct npf_tbl_entry *te;
+
+	te = npf_tbl_data2entry(td);
+	if (!te)
+		return NULL;
+
+	_npf_tbl_entry_get(te);
+	return td;
+}
+
+/*
+ * Release reference on table entry
+ */
+static void _npf_tbl_entry_put(struct npf_tbl_entry *te)
+{
+	if (te && rte_atomic32_dec_and_test(&te->te_refcnt))
+		call_rcu(&te->te_rcu, npf_tbl_entry_free_rcu);
+}
+
+void npf_tbl_entry_put(void *td)
+{
+	struct npf_tbl_entry *te;
+
+	te = npf_tbl_data2entry(td);
+	if (!te)
+		return;
+	_npf_tbl_entry_put(te);
+}
+
+/*
+ * Callback from zhash_delete
+ */
+static void npf_tbl_zhash_delete_cb(void *data)
 {
 	struct npf_tbl_entry *te = data;
 
-	/* Remove from tableset array after RCU grace period */
-	call_rcu(&te->te_rcu, npf_tbl_entry_free_rcu);
+	_npf_tbl_entry_put(te);
 }
 
 /*
  * Insert an entry into a table
  */
-int
-npf_tbl_entry_insert(struct npf_tbl *nt, void *td)
+int npf_tbl_entry_insert(struct npf_tbl *nt, void *td, uint32_t *tid)
 {
 	struct npf_tbl_entry *te;
-	int id, rc;
+	int rc;
+
+	*tid = NPF_TBLID_NONE;
 
 	if (!nt || (nt->nt_flags & TS_TBL_ACTIVE) == 0)
 		return -EINVAL;
@@ -438,36 +522,39 @@ npf_tbl_entry_insert(struct npf_tbl *nt, void *td)
 		return -EEXIST;
 
 	/* Get a free slot in the table */
-	id = npf_tbl_entry_id_alloc(nt, nt->nt_hint);
+	rc = npf_tbl_entry_id_alloc(nt, nt->nt_hint, tid);
 
 	/* Try and resize table if it is full */
-	if (id == -ENOSPC) {
+	if (rc == -ENOSPC) {
 		rc = npf_tbl_resize(nt);
 		if (rc < 0)
 			return rc;
-		id = npf_tbl_entry_id_alloc(nt, nt->nt_hint);
+		rc = npf_tbl_entry_id_alloc(nt, nt->nt_hint, tid);
 	}
-	if (id < 0)
-		return id;
+	if (rc < 0)
+		return rc;
 
 	/* Insert into hash table */
 	if (zhash_insert(nt->nt_hash, te->te_name, te) < 0)
 		return -EEXIST;
 
 	/* Insert into table array */
-	te->te_id = id;
+	te->te_id = *tid;
 	rcu_assign_pointer(nt->nt_table[te->te_id], te);
 
 	nt->nt_nentries++;
-	nt->nt_hint = id + 1;
+	nt->nt_hint = *tid + 1;
 
 	/* mark entry as being inserted into table */
 	te->te_tbl = nt;
 
-	/* Set hash table free function. */
-	zhash_freefn(nt->nt_hash, te->te_name, npf_tbl_hash_freefn);
+	/* Set zhash_delete callback function. */
+	zhash_freefn(nt->nt_hash, te->te_name, npf_tbl_zhash_delete_cb);
 
-	return id;
+	/* Take reference on table entry */
+	_npf_tbl_entry_get(te);
+
+	return 0;
 }
 
 /*
@@ -500,7 +587,12 @@ npf_tbl_entry_remove(struct npf_tbl *nt, void *td)
 	/* mark entry as being removed from table */
 	te->te_tbl = NULL;
 
-	/* Schedule the entry destruction via zhash free fn */
+	/*
+	 * Schedule the entry destruction via zhash free fn.
+	 *
+	 * This will call _npf_tbl_entry_put to release the reference we took
+	 * when inserted.
+	 */
 	zhash_delete(nt->nt_hash, te->te_name);
 
 	return 0;
@@ -531,8 +623,7 @@ npf_tbl_walk(struct npf_tbl *nt, npf_tbl_walk_cb *cb, void *ctx)
 /*
  * Lookup entry name is hash table, and return entry ID.
  */
-int
-npf_tbl_name2id(struct npf_tbl *nt, const char *name)
+uint32_t npf_tbl_name2id(struct npf_tbl *nt, const char *name)
 {
 	struct npf_tbl_entry *te;
 
@@ -540,7 +631,7 @@ npf_tbl_name2id(struct npf_tbl *nt, const char *name)
 	if (te)
 		return te->te_id;
 
-	return -ENOENT;
+	return NPF_TBLID_NONE;
 }
 
 /*

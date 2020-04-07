@@ -1,7 +1,7 @@
 /*
  * l3_acl.c
  *
- * Copyright (c) 2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2019-2020, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -22,7 +22,7 @@
 #include "npf/rproc/npf_ext_log.h"
 #include "npf/config/npf_config.h"
 #include "npf/config/npf_ruleset_type.h"
-#include "pktmbuf.h"
+#include "pktmbuf_internal.h"
 #include "pl_common.h"
 #include "pl_fused.h"
 #include "util.h"
@@ -109,7 +109,7 @@ accept:
 
 	if (unlikely(m != pkt->mbuf)) {
 		pkt->mbuf = m;
-		pkt->l3_hdr = pktmbuf_mtol3(m, void *);
+		pkt->l3_hdr = dp_pktmbuf_mtol3(m, void *);
 	}
 
 	if (decision == NPF_DECISION_PASS)
@@ -124,25 +124,25 @@ drop:
 
 
 ALWAYS_INLINE unsigned int
-ipv4_acl_process_in(struct pl_packet *pkt)
+ipv4_acl_process_in(struct pl_packet *pkt, void *context __unused)
 {
 	return ip_acl_process_common(pkt, V4_PKT, PFIL_IN);
 }
 
 ALWAYS_INLINE unsigned int
-ipv6_acl_process_in(struct pl_packet *pkt)
+ipv6_acl_process_in(struct pl_packet *pkt, void *context __unused)
 {
 	return ip_acl_process_common(pkt, V6_PKT, PFIL_IN);
 }
 
 ALWAYS_INLINE unsigned int
-ipv4_acl_process_out(struct pl_packet *pkt)
+ipv4_acl_process_out(struct pl_packet *pkt, void *context __unused)
 {
 	return ip_acl_process_common(pkt, V4_PKT, PFIL_OUT);
 }
 
 ALWAYS_INLINE unsigned int
-ipv6_acl_process_out(struct pl_packet *pkt)
+ipv6_acl_process_out(struct pl_packet *pkt, void *context __unused)
 {
 	return ip_acl_process_common(pkt, V6_PKT, PFIL_OUT);
 }

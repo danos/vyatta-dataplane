@@ -68,6 +68,14 @@ static const struct npf_ruleset_features {
 		.log_level = RTE_LOGTYPE_FIREWALL,
 		.log_name = "snat",
 	},
+	[NPF_RS_ZONE] = {
+		.name = "zone",
+		.flags = NPF_RS_FLAG_DIR_OUT | NPF_RS_FLAG_APP_FW
+			| NPF_RS_FLAG_FEAT_GBL,
+		.feat_flags = IF_FEAT_FLAG_DEFRAG | IF_FEAT_FLAG_FW,
+		.log_level = RTE_LOGTYPE_FIREWALL,
+		.log_name = "fw",
+	},
 	[NPF_RS_LOCAL] = {
 		.name = "local",
 		.flags = NPF_RS_FLAG_NOTRACK | NPF_RS_FLAG_DIR_IN,
@@ -109,7 +117,7 @@ static const struct npf_ruleset_features {
 		.name = "nat64",
 		.flags = NPF_RS_FLAG_NOTABLES | NPF_RS_FLAG_DIR_IN
 			| NPF_RS_FLAG_FEAT_GBL,
-		.feat_flags = IF_FEAT_FLAG_DEFRAG | IF_FEAT_FLAG_FW,
+		.feat_flags = IF_FEAT_FLAG_DEFRAG | IF_FEAT_FLAG_NAT64,
 		.log_level = RTE_LOGTYPE_FIREWALL,
 		.log_name = "nat64",
 	},
@@ -117,7 +125,7 @@ static const struct npf_ruleset_features {
 		.name = "nat46",
 		.flags = NPF_RS_FLAG_NOTABLES | NPF_RS_FLAG_DIR_IN
 			| NPF_RS_FLAG_FEAT_GBL,
-		.feat_flags = IF_FEAT_FLAG_DEFRAG | IF_FEAT_FLAG_FW,
+		.feat_flags = IF_FEAT_FLAG_DEFRAG | IF_FEAT_FLAG_NAT64,
 		.log_level = RTE_LOGTYPE_FIREWALL,
 		.log_name = "nat46",
 	},

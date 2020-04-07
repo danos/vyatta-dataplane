@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2017-2018, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2015-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -13,28 +13,8 @@
 #include <stdbool.h>
 #include <string.h>
 
+#include "ip.h"
 #define IP_ADDR_LEN sizeof(struct in_addr)
-
-/* structure to be used by functions that can take either IPv4 or IPv6 addr */
-struct ip_addr {
-	uint32_t type;
-	union {
-		struct in_addr ip_v4;
-		struct in6_addr ip_v6;
-	} address;
-};
-
-static inline bool addr_eq(const struct ip_addr *addr1,
-			   const struct ip_addr *addr2)
-{
-	if (addr1->type == AF_INET && addr2->type == AF_INET)
-		return addr1->address.ip_v4.s_addr ==
-			addr2->address.ip_v4.s_addr;
-	else if (addr1->type == AF_INET6 && addr2->type == AF_INET6)
-		return IN6_ARE_ADDR_EQUAL(&addr1->address.ip_v6,
-					  &addr2->address.ip_v6);
-	return false;
-}
 
 /*
  * Checks if address is set, true if set, false otherwise

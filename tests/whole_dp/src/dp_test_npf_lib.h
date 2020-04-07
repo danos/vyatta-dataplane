@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2015 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -17,105 +17,17 @@
 #include "npf/npf_ruleset.h"
 #include "npf/config/npf_ruleset_type.h"
 
-/*
- * A firewall comprises a single firewall group structure and one or
- * more firewall rule structures.
- *
- * First step is to create a firewall rules array, terminated with NULL_RULE:
- *
- *	struct dp_test_npf_rule_t rules[] = {
- *		{
- *			.rule     = "10",
- *			.pass     = PASS,
- *			.stateful = STATELESS,
- *			.npf      = "pass proto 6"},
- *		RULE_DEF_BLOCK,
- *		NULL_RULE };
- *
- * There are some predefined rules below, e.g. RULE_DEF_BLOCK is the same as
- * sonfiguring the default action to 'block'
- *
- * Second step is to create the firewall group:
- *
- *	struct dp_test_npf_ruleset_t fw = {
- *              .rstype = "fw-in",
- *		.name   = "FW1_IN",
- *		.enable = 1,
- *		.intf   = "dp2T1",
- *		.fwd    = FWD,
- *		.dir    = "in",
- *		.rules  = rules
- *	};
- *
- * The firewall group is added to the dataplane and assigned to an interface
- * by calling:
- *
- *      dp_test_npf_fw_add(&fw, false)
- */
+#include "dp_test/dp_test_firewall_lib.h"
 
 /*
- * Simple, *short* definitions that make the dp_test_npf_fw.c test matrix
- * more readable.
+ * Defines for backward compatibility.
  */
-#define STATELESS false
-#define STATEFUL  true
+#define dp_test_npf_rule_t	dp_test_fw_rule_t
+#define dp_test_npf_ruleset_t	dp_test_fw_ruleset_t
 
-#define BLOCK false
-#define PASS true
+#define NPF_PROTO_TCP		FW_PROTO_TCP
+#define NPF_PROTO_UDP		FW_PROTO_UDP
 
-#define ASSIGN true
-#define REMOVE false
-
-#define FORWARDS false
-#define REVERSE true
-
-/*
- * Firewall rule
- */
-struct dp_test_npf_rule_t {
-	const char  *rule;	/* Rule number e.g. "10" */
-	bool         pass;	/* BLOCK or PASS */
-	bool         stateful;	/* STATELESS or STATEFUL */
-	const char  *npf;	/* Actual rule e.g. "pass proto 6" */
-};
-
-/*
- * npf ruleset
- *
- * If 'attach_point' is non-NULL then the ruleset is attached to that
- * attach_point when dp_test_npf_ruleset_add is called.
- *
- * 'fwd' is a convenience variable to describe if the ruleset is used in the
- * forwards or reverse packet flow for a particular test.  It is not used by
- * any library code.  Currently it is only used by the test arrays in
- * dp_test_npf_fw.c.  Other users may ignore it.
- */
-struct dp_test_npf_ruleset_t {
-	const char   *rstype;	/* Feature name e.g. "fw-in" */
-	const char   *name;	/* Ruleset name e.g. "FW1" */
-	bool          enable;
-	const char   *attach_point; /* Attach point e.g. interface name */
-	bool          fwd;	/* true for forwards direction */
-	const char    *dir;	/* "in" or "out" */
-	/*
-	 * Array of rules, terminated by a rule with NULL_RULE
-	 */
-	struct dp_test_npf_rule_t  *rules;
-};
-
-/*
- * Note, the dataplane has changed to only accept protocol numbers. and
- * not strings
- */
-#define NPF_PROTO_TCP		"proto=6"
-#define NPF_PROTO_UDP		"proto=17"
-
-/*
- * npf rule (struct dp_test_npf_rule_t) templates
- */
-#define NULL_RULE		{NULL, BLOCK, STATELESS, NULL}
-#define RULE_DEF_PASS		{"10000", PASS, STATELESS, ""}
-#define RULE_DEF_BLOCK		{"10000", BLOCK, STATELESS, ""}
 #define RULE_1_PASS		{"1", PASS, STATELESS, ""}
 #define RULE_10_PASS_TO_ANY	{"10", PASS, STATELESS, ""}
 #define RULE_10_PASS_FM_ANY	{"10", PASS, STATELESS, ""}
@@ -136,13 +48,6 @@ extern struct dp_test_npf_rule_t rule_10_block_tcp[];
 extern struct dp_test_npf_rule_t rule_10_pass_udp[];
 extern struct dp_test_npf_rule_t rule_10_pass_udp_sf[];
 extern struct dp_test_npf_rule_t rule_10_block_udp[];
-
-/* dp_test_npf_ruleset_t 'fwd' field */
-#define FWD true
-#define REV false
-
-/* struct dp_test_npf_ruleset_t templates */
-#define NULL_FW {NULL, NULL, 0, NULL, 0,  "-", NULL}
 
 /*
  * Returns "action=accept" or "action=drop"
@@ -179,6 +84,68 @@ _dp_test_npf_cmd_fmt(bool print, const char *file, int line,
 #define dp_test_npf_cmd_fmt(print, fmt_str, ...)	\
 	_dp_test_npf_cmd_fmt(print, __FILE__, __LINE__, \
 			     fmt_str, ##__VA_ARGS__)
+
+/*
+ * Simple config to create an address-group and (optionally) add one prefix or
+ * address.
+ */
+void _dpt_addr_grp_create(const char *name, const char *addr,
+			  const char *file, int line);
+
+#define dpt_addr_grp_create(a, b)			\
+	_dpt_addr_grp_create(a, b, __FILE__, __LINE__)
+
+void _dpt_addr_grp_destroy(const char *name, const char *addr,
+			   const char *file, int line);
+
+#define dpt_addr_grp_destroy(a, b)			\
+	_dpt_addr_grp_destroy(a, b, __FILE__, __LINE__)
+
+/*
+ * Create and attach a CGNAT policy, e.g.
+ *
+ * cgnat_policy_add("POLICY1", 10, "100.64.0.0/12", "POOL1",
+ *                  "dp2T1", CGN_MAP_EIM, CGN_FLTR_EIF, CGN_3TUPLE, true);
+ *
+ * Note that this creates a match address-group, e.g. "POLICY1_AG"
+ */
+#include "npf/cgnat/cgn_policy.h"
+#define CGN_3TUPLE false
+#define CGN_5TUPLE true
+
+void _cgnat_policy_add(const char *policy, uint pri, const char *src,
+		       const char *pool, const char *intf,
+		       enum cgn_map_type eim, enum cgn_fltr_type eif,
+		       bool log_sess, bool check_feat,
+		       bool add_or_change,
+		       const char *file, const char *func, int line);
+
+#define cgnat_policy_add(_a, _b, _c, _d, _e, _f, _g, _h, _i)		\
+	_cgnat_policy_add(_a, _b, _c, _d, _e, _f, _g, _h, _i, true,	\
+			  __FILE__, __func__, __LINE__)
+
+#define cgnat_policy_change(_a, _b, _c, _d, _e, _f, _g, _h, _i)	\
+	_cgnat_policy_add(_a, _b, _c, _d, _e, _f, _g, _h, _i,	\
+			  false, __FILE__, __func__, __LINE__)
+
+void _cgnat_policy_add2(const char *policy, uint pri, const char *src,
+			const char *pool, const char *intf,
+			const char *other,
+			const char *file, const char *func, int line);
+#define cgnat_policy_add2(_a, _b, _c, _d, _e, _f)		\
+	_cgnat_policy_add2(_a, _b, _c, _d, _e, _f,		\
+			   __FILE__, __func__, __LINE__)
+
+
+/*
+ * cgnat_policy_del("POLICY1", 10, "dp2T1");
+ */
+void _cgnat_policy_del(const char *policy, uint pri, const char *intf,
+		       const char *file, const char *func, int line);
+
+#define cgnat_policy_del(_a, _b, _c)					\
+	_cgnat_policy_del(_a, _b, _c, __FILE__, __func__, __LINE__)
+
 
 /*
  * Clear npf counters for one or more or all npf ruleset types/classes
@@ -219,45 +186,24 @@ void
 dp_test_npf_cleanup(void);
 
 
-/*
- * Add an npf ruleset.  Attach to attach_point if rset->attach_point is set.
- *
- * If 'verify' is set we check the ruleset has been added to the dataplane.
- */
-void
-_dp_test_npf_ruleset_add(struct dp_test_npf_ruleset_t *ruleset,
-			 const char *class, bool debug, bool verify,
-			 const char *file, int line);
-
 #define dp_test_npf_ruleset_add(rs, class, debug)			\
-	_dp_test_npf_ruleset_add(rs, class, debug,			\
+	_dp_test_fw_ruleset_add(rs, class, debug,			\
 				 true, __FILE__, __LINE__)
 
 #define dp_test_npf_fw_add(rs, debug)					\
-	_dp_test_npf_ruleset_add(rs, "fw", debug,			\
+	_dp_test_fw_ruleset_add(rs, "fw", debug,			\
 				 true, __FILE__, __LINE__)
 
 #define dp_test_npf_fw_intnl_add(rs, debug)		   \
-	_dp_test_npf_ruleset_add(rs, "fw-internal", debug, \
+	_dp_test_fw_ruleset_add(rs, "fw-internal", debug, \
 				 true, __FILE__, __LINE__)
 
-/*
- * Remove an npf ruleset from and interface and delete it
- *
- * If 'verify' is set we check the ruleset has been removed from the
- * dataplane.
- */
-void
-_dp_test_npf_ruleset_del(struct dp_test_npf_ruleset_t *ruleset,
-			 const char *class, bool debug, bool verify,
-			 const char *file, int line);
-
 #define dp_test_npf_fw_del(fw, debug)				\
-	_dp_test_npf_ruleset_del(fw, "fw", debug,		\
+	_dp_test_fw_ruleset_del(fw, "fw", debug,		\
 				 true, __FILE__, __LINE__)
 
 #define dp_test_npf_fw_intnl_del(fw, debug)				\
-	_dp_test_npf_ruleset_del(fw, "fw-internal", debug,		\
+	_dp_test_fw_ruleset_del(fw, "fw-internal", debug,		\
 				 true, __FILE__, __LINE__)
 
 /*
@@ -272,7 +218,11 @@ _dp_test_npf_ruleset_del(struct dp_test_npf_ruleset_t *ruleset,
  * finished with the object.
  *
  * For most rulesets (fw-in, fw-out, dnat, snat, local, session-rproc, bridge,
- * pbr), the attach_point is an interface.
+ * pbr, zone), the attach_point is an interface.
+ *
+ * For zones, there is an attach point for each interface in the zone.  The
+ * attach point is the receive interface.  The groups array in that ruleset
+ * contains an "out" entry for every other interface in the zone.
  *
  * For custom-timeout, the attach_point is the VRF ID, i.e. "1" for default
  * VRF.
@@ -312,7 +262,7 @@ json_object *_dp_test_npf_json_get_rs_name(json_object *jarray,
  * Returns json object.  json_object_put should be called once the caller has
  * finished with the object.
  *
- * Example useage:
+ * Example useage (zones):
  *
  * jarray = dp_test_npf_json_get_rs("fw-in", "dp1T0", "in");
  * jobj = dp_test_npf_json_get_rs_intf(jarray, "dp2T1");
@@ -360,6 +310,7 @@ json_object *dp_test_npf_json_get_rs_rule(json_object *jrset,
  * jrset = dp_test_npf_json_get_ruleset("dnat",  "dp1T0", "in",  NULL);
  * jrset = dp_test_npf_json_get_ruleset("snat",  "dp1T0", "out", NULL);
  * jrset = dp_test_npf_json_get_ruleset("nat64",  NULL,   "in",  "dp1T0");
+ * jrset = dp_test_npf_json_get_ruleset("zone",  "dp1T0", "out", "dp2T1");
  */
 json_object *
 _dp_test_npf_json_get_ruleset(const char *rstype, const char *attach_point,
@@ -382,6 +333,7 @@ _dp_test_npf_json_get_ruleset(const char *rstype, const char *attach_point,
  * jrule = dp_test_npf_json_get_rule("dnat",  "dp1T0", "in",  NULL,    "10");
  * jrule = dp_test_npf_json_get_rule("snat",  "dp1T0", "out", NULL,    "10");
  * jrule = dp_test_npf_json_get_rule("nat64", NULL,    "in",  "dp1T0", "1");
+ * jrule = dp_test_npf_json_get_rule("zone",  "dp1T0", "out", "dp2T1", "1");
  */
 json_object *
 _dp_test_npf_json_get_rule(const char *rstype, const char *attach_point,
@@ -427,6 +379,7 @@ _dp_test_npf_rule_pkt_count(struct dp_test_npf_ruleset_t *rset,
  * _dp_test_npf_verify_pkt_count(NULL, "dnat", "dp1T0", "in", NULL, "10", 0);
  * _dp_test_npf_verify_pkt_count(NULL, "snat", "dp1T0", "out", NULL, "10", 2);
  * _dp_test_npf_verify_pkt_count(NULL, "nat64", NULL, "in", "dp1T0", "1", 1);
+ * _dp_test_npf_verify_pkt_count(NULL, "zone", "dp1T0", "out", "dp2T1", "1", 2);
  */
 void
 _dp_test_npf_verify_pkt_count(const char *desc,
@@ -475,7 +428,7 @@ __dp_test_npf_verify_rule_pkt_count(const char *desc,
  * uint16_t exp_npc4;
  *
  * dp_test_intf_real("dp1T0", real_ifname);
- * ifp = ifnet_byifname(real_ifname);
+ * ifp = dp_ifnet_byifname(real_ifname);
  * nif = rcu_dereference(ifp->if_npf);
  * npf_config = npf_if_conf(nif);
  * rlset = npf_get_ruleset(npf_config, NPF_RS_FW_IN);

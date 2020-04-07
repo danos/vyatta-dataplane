@@ -51,17 +51,30 @@ enum npf_addrgrp_af {
  * with read-write lock.
  *
  * @param af   Address-group address family.  AG_IPv4 or AG_IPv6.
- * @param ag   Address-group handle
+ * @param tid  Address-group table ID
  * @param addr Address to lookup
  * @return 0 if address found else a negative error code if not found:
- *         -EINVAL if address-group not found
+ *         -EINVAL if tid is invalid or address group is not found
  *         -ENOENT if entry in address-group not found
  */
-int npf_addrgrp_lookup(enum npf_addrgrp_af af, struct npf_addrgrp *ag,
-		       npf_addr_t *addr);
+int npf_addrgrp_lookup(enum npf_addrgrp_af af, uint32_t tid, npf_addr_t *addr);
 
 /**
  * @brief Lookup an IPv4 address in an address-group.
+ *
+ * Called from forwarding thread, so access to underlying ptree is protected
+ * with read-write lock.
+ *
+ * @param tid  Address-group table ID
+ * @param addr IPv4 address to lookup
+ * @return 0 if address found else a negative error code if not found:
+ *         -EINVAL if tid is invalid or address group is not found
+ *         -ENOENT if entry in address-group not found
+ */
+int npf_addrgrp_lookup_v4(uint32_t tid, uint32_t addr);
+
+/**
+ * @brief Lookup an IPv4 address in an address-group by handle
  *
  * Called from forwarding thread, so access to underlying ptree is protected
  * with read-write lock.
@@ -72,10 +85,24 @@ int npf_addrgrp_lookup(enum npf_addrgrp_af af, struct npf_addrgrp *ag,
  *         -EINVAL if ag is NULL
  *         -ENOENT if entry in address-group not found
  */
-int npf_addrgrp_lookup_v4(struct npf_addrgrp *ag, uint32_t addr);
+int npf_addrgrp_lookup_v4_by_handle(struct npf_addrgrp *ag, uint32_t addr);
 
 /**
  * @brief Lookup an IPv6 address in an address-group.
+ *
+ * Called from forwarding thread, so access to underlying ptree is protected
+ * with read-write lock.
+ *
+ * @param tid  Address-group table ID
+ * @param addr IPv6 address to lookup
+ * @return 0 if address found else a negative error code if not found:
+ *         -EINVAL if tid is invalid or address group is not found
+ *         -ENOENT if entry in address-group not found
+ */
+int npf_addrgrp_lookup_v6(uint32_t tid, uint8_t *addr);
+
+/**
+ * @brief Lookup an IPv6 address in an address-group by handle.
  *
  * Called from forwarding thread, so access to underlying ptree is protected
  * with read-write lock.
@@ -86,12 +113,7 @@ int npf_addrgrp_lookup_v4(struct npf_addrgrp *ag, uint32_t addr);
  *         -EINVAL if ag is NULL
  *         -ENOENT if entry in address-group not found
  */
-int npf_addrgrp_lookup_v6(struct npf_addrgrp *ag, uint8_t *addr);
-
-/**
- * @brief Get name from address group handle
- */
-char *npf_addrgrp_handle2name(struct npf_addrgrp *ag);
+int npf_addrgrp_lookup_v6_by_handle(struct npf_addrgrp *ag, uint8_t *addr);
 
 
 /*************************************************************************
@@ -102,11 +124,6 @@ char *npf_addrgrp_handle2name(struct npf_addrgrp *ag);
  * @brief Get number of address-groups in the address-group tableset
  */
 uint npf_addrgrp_ntables(void);
-
-/**
- * @brief Lookup an address group for a given table ID
- */
-struct npf_addrgrp *npf_addrgrp_tid_lookup(int tid);
 
 /**
  * @brief Is this a valid address-group table ID?
@@ -122,14 +139,22 @@ bool npf_addrgrp_tid_valid(uint32_t tid);
 const char *npf_addrgrp_tid2name(uint32_t tid);
 
 /**
+ * @brief Get an address-group name from a handle.
+ */
+const char *npf_addrgrp_handle2name(struct npf_addrgrp *ag);
+
+/**
  * @brief Address-group name to table ID
  */
 int npf_addrgrp_name2tid(const char *name, uint32_t *tid);
 
 /**
- * @brief Get an address-groups table ID
+ * @brief Get an address-group handle from a table ID.
+ *
+ * If the handle is to be stored by a client then the client should take a
+ * reference on the address-group by calling npf_addrgrp_get.
  */
-int npf_addrgrp_get_tid(struct npf_addrgrp *ag);
+struct npf_addrgrp *npf_addrgrp_tid2handle(uint32_t tid);
 
 /**
  * @brief Lookup an address-group by name
@@ -137,14 +162,20 @@ int npf_addrgrp_get_tid(struct npf_addrgrp *ag);
 struct npf_addrgrp *npf_addrgrp_lookup_name(const char *name);
 
 /**
+ * @brief Update a client address group handle
+ */
+void npf_addrgrp_update_handle(const char *old_name, const char *new_name,
+			       struct npf_addrgrp **agp);
+
+/**
  * @brief Create an address-group and insert it into tableset
  */
-struct npf_addrgrp *npf_addrgrp_create(const char *name);
+struct npf_addrgrp *npf_addrgrp_cfg_add(const char *name);
 
 /**
  * @brief Remove an address-group from the tableset and destroy it
  */
-int npf_addrgrp_destroy(const char *name);
+int npf_addrgrp_cfg_delete(const char *name);
 
 /**
  * @brief Destroy address-group tableset
@@ -158,6 +189,16 @@ int npf_addrgrp_tbl_destroy(void);
 /*************************************************************************
  * Address-group management api
  *************************************************************************/
+
+/**
+ * @brief Take a reference on an address-group
+ */
+struct npf_addrgrp *npf_addrgrp_get(struct npf_addrgrp *ag);
+
+/**
+ * @brief Release reference on address-group
+ */
+void npf_addrgrp_put(struct npf_addrgrp *ag);
 
 /**
  * @brief Returns number of entries in an address-group
@@ -264,8 +305,17 @@ int npf_addrgrp_ipv4_range_walk(int tid, ag_ipv4_range_cb *cb, void *ctx);
 
 /**
  * @brief Get number of useable addresses in an address-group
+ *
+ * The user may want to specify 'count_all' to count the all-zero and all-ones
+ * addresses of prefixes.  For example, if the address-group is used for
+ * address matching then they probably want to set this to true.  However if
+ * the address-group is used as an address pool (e.g. SNAT NAT policy) then
+ * they should set this to false since the all-zero and all-ones addresses are
+ * not used.
  */
-uint64_t npf_addrgrp_naddrs(enum npf_addrgrp_af af, int tid);
+uint64_t npf_addrgrp_naddrs_by_handle(enum npf_addrgrp_af af,
+				      struct npf_addrgrp *ag, bool count_all);
+uint64_t npf_addrgrp_naddrs(enum npf_addrgrp_af af, int tid, bool count_all);
 
 
 /********************************************************************
@@ -278,7 +328,7 @@ uint64_t npf_addrgrp_naddrs(enum npf_addrgrp_af af, int tid);
 struct npf_show_ag_ctl {
 	json_writer_t *json;
 	char *name;      /* show this named address-group or .. */
-	int tid;         /* .. show address-group with this ID */
+	uint32_t tid;    /* .. show address-group with this ID */
 	bool list;       /* show list entries */
 	bool range_pfxs; /* show list entry range prefixes */
 	bool tree;       /* show tree entries */
@@ -400,5 +450,11 @@ void npf_addrgrp_show_json(FILE *fp, struct npf_show_ag_ctl *ctl);
  * }
  */
 void npf_addrgrp_show_json_opt(FILE *fp, struct npf_show_ag_ctl *ctl);
+
+/**
+ * @brief Return json for an address-group by handle
+ */
+void npf_addrgrp_jsonw(json_writer_t *json, struct npf_addrgrp *ag,
+		       struct npf_show_ag_ctl *ctl);
 
 #endif

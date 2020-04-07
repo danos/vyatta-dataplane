@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2017-2018, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2015-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -15,12 +15,12 @@
 #include "ip_funcs.h"
 
 #include "dp_test.h"
-#include "dp_test_lib.h"
-#include "dp_test_macros.h"
-#include "dp_test_lib_intf.h"
-#include "dp_test_pktmbuf_lib.h"
+#include "dp_test_lib_internal.h"
+#include "dp_test_lib_intf_internal.h"
+#include "dp_test/dp_test_macros.h"
+#include "dp_test_pktmbuf_lib_internal.h"
 #include "dp_test_crypto_utils.h"
-#include "dp_test_netlink_state.h"
+#include "dp_test_netlink_state_internal.h"
 #include "dp_test_lib_exp.h"
 
 /*
@@ -164,7 +164,7 @@ static struct dp_test_expected *create_expected_packet(const char *src,
 	 * Validate just the L2 header, IP header and the eight
 	 * bytes of the ESP header (including the SPI).
 	 */
-	dp_test_exp_set_check_len(exp, (pktmbuf_l2_len(pak) +
+	dp_test_exp_set_check_len(exp, (dp_pktmbuf_l2_len(pak) +
 					sizeof(struct iphdr) + 8));
 	rte_pktmbuf_free(pak);
 	free(payload);
@@ -356,7 +356,7 @@ static void teardown_two_tunnels_two_peers(void)
  * is used based on the IP and ESP headers of the encrypted packet. It
  * does NOT check that the packet is correctly encrypted.
  */
-DP_START_TEST(multi_s2s_tunnel, two_tunnels_two_peers)
+DP_START_TEST_FULL_RUN(multi_s2s_tunnel, two_tunnels_two_peers)
 {
 	struct dp_test_expected *exp1, *exp2;
 	struct rte_mbuf *pkt_tun1, *pkt_tun2;
@@ -548,7 +548,7 @@ static void teardown_two_tunnels_one_peer(void)
  * is used based on the IP and ESP headers of the encrypted packet. It
  * does NOT check that the packet is correctly encrypted.
  */
-DP_START_TEST(multi_s2s_tunnel, two_tunnels_one_peer)
+DP_START_TEST_FULL_RUN(multi_s2s_tunnel, two_tunnels_one_peer)
 {
 	struct rte_mbuf *pkt_tun1, *pkt_tun3;
 	struct dp_test_expected *exp1, *exp3;
@@ -681,7 +681,7 @@ static void teardown_more_than_one_sa_for_tunnel(void)
  * is used based on the IP and ESP headers of the encrypted packet. It
  * does NOT check that the packet is correctly encrypted.
  */
-DP_START_TEST(multi_s2s_tunnel, more_than_one_sa_for_tunnel)
+DP_START_TEST_FULL_RUN(multi_s2s_tunnel, more_than_one_sa_for_tunnel)
 {
 	struct dp_test_expected *exp3;
 	struct rte_mbuf *pkt_tun3;

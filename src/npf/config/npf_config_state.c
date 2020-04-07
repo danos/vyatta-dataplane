@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2018-2020, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -30,10 +30,12 @@
  * gettree /service/nat json | python -mjson.tool
  * gettree /interfaces/dataplane/dp0p1s1/firewall json | python -mjson.tool
  * gettree /interfaces/dataplane/dp0p1s1/policy json | python -mjson.tool
+ * gettree /security/zone-policy json | python -mjson.tool
  *
  * As well as invoking the script directly:
  *
  * /opt/vyatta/sbin/npf-get-state-pbr
+ * /opt/vyatta/sbin/npf-get-state-zones
  * /opt/vyatta/sbin/npf-get-state-fw
  * /opt/vyatta/sbin/npf-get-state-nat
  *
@@ -42,6 +44,7 @@
  * npf-op state all: fw-in fw-out bridge local
  * npf-op state all: nat64 snat dnat
  * npf-op state all: pbr
+ * npf-op state all: zone
  */
 
 
@@ -81,6 +84,9 @@ static const struct npf_rs_state_subtree {
 		.subtree = {"ipv6-to-ipv4", NULL, NULL},
 		.subtree_count = 1,
 	},
+	[NPF_RS_ZONE] = {
+		.subtree_count = 0,
+	},
 	[NPF_RS_IPSEC] = {
 		.subtree_count = 0,
 	},
@@ -119,6 +125,8 @@ struct npf_ruleset_state_ctx {
 	struct ruleset_select	*sel;
 	/* Set false after first ruleset has been added to json */
 	bool			first;
+	/* Zones use this to store current inout zone name */
+	char			*name;
 	enum npf_ruleset_type	rs_type;
 };
 
@@ -177,8 +185,8 @@ static bool npf_show_state_rule_cb(npf_rule_t *rl, void *ctx)
 
 /*
  * Callback for each ruleset of a given type on an attach-point.  Used for
- * interface types (fw-in, fw-out, local, bridge and pbr).  (nat uses a
- * different callback function)
+ * interface types (fw-in, fw-out, local, bridge and pbr) and zones.  (nat
+ * uses a different callback function)
  */
 static bool npf_show_state_ruleset_cb(npf_rule_group_t *rg, void *ctx)
 {
@@ -262,6 +270,17 @@ static void npf_show_state_intf_rs(json_writer_t *json,
 	if (!npf_active(npf_conf, rs_type_bit))
 		return;
 
+	/* Get the ruleset early;
+	 * show nothing unless there's a ruleset.
+	 */
+	const npf_ruleset_t *ruleset = npf_get_ruleset(npf_conf, rs_type);
+
+	if (!ruleset)
+		return;
+
+	if (!npf_conf->nc_attached)
+		return;
+
 	/*
 	 * Only start the outer json array once we know there is at least one
 	 * ruleset.
@@ -315,8 +334,6 @@ static void npf_show_state_intf_rs(json_writer_t *json,
 	}
 
 	npf_show_state_subtree_start(json, rs_type);
-
-	const npf_ruleset_t *ruleset = npf_get_ruleset(npf_conf, rs_type);
 
 	jsonw_name(json, "name");
 	jsonw_start_array(json);
@@ -391,6 +408,7 @@ npf_show_ruleset_state_intf(json_writer_t *json, struct ruleset_select *sel)
 		.json	= json,
 		.sel	= sel,
 		.first	= true,
+		.name	= NULL,
 	};
 
 	jsonw_pretty(json, true);
@@ -481,7 +499,11 @@ npf_show_state_nat_rs(json_writer_t *json __unused,
 	if (!npf_active(npf_conf, rs_type_bit))
 		return;
 
+	/* Show nothing unless there's a ruleset. */
 	const npf_ruleset_t *ruleset = npf_get_ruleset(npf_conf, rs_type);
+
+	if (!ruleset)
+		return;
 
 	npf_ruleset_group_walk(ruleset, info->sel,
 			       npf_show_state_nat_ruleset_cb, info);
@@ -526,6 +548,7 @@ npf_show_ruleset_state_nat(json_writer_t *json, struct ruleset_select *sel)
 		.json	= json,
 		.sel	= sel,
 		.first	= true,
+		.name	= NULL,
 	};
 
 	jsonw_pretty(json, true);
@@ -562,6 +585,217 @@ npf_show_ruleset_state_nat(json_writer_t *json, struct ruleset_select *sel)
 	return 0;
 }
 
+/************************************************************************
+ * Zones
+ *
+ * Zone attach point names are a mashup of "FROM_ZONE>TO_ZONE", e.g.
+ * ZONE1>ZONE2, ZONE1>ZONE3, ZONE2>ZONE1 etc.
+ *
+ * This is formatted differently so we end up with this format:
+ *
+ * {
+ *     "zone": [
+ *         {
+ *             "input-zone-name": "ZONE1",
+ *             "to": [
+ *                 {
+ *                     "output-zone-name": "ZONE2",
+ *                     "name": {
+ *                         <rulesets>
+ *                     ]
+ *                 },
+ *                 {
+ *                     "output-zone-name": "ZONE3",
+ *                     "name": {
+ *                         <rulesets>
+ *                     ]
+ *                 }
+ *             ]
+ *         },
+ *         {
+ *             "input-zone-name": "ZONE2",
+ *             "to": [
+ *             ]
+ *         }
+ *     ]
+ * }
+ */
+
+/*
+ * Start input zone object
+ */
+static void
+npf_zone_state_input_zone_start(json_writer_t *json,
+				struct npf_ruleset_state_ctx *info,
+				char *input_zone)
+{
+	/*
+	 * Store the input zone name in the ctx structure until we end the
+	 * input zone
+	 */
+	info->name = input_zone;
+
+	/* start input zone */
+	jsonw_start_object(json);
+	jsonw_string_field(json, "input-zone-name", input_zone);
+
+	/* start 'to' array */
+	jsonw_name(json, "to");
+	jsonw_start_array(json);
+}
+
+/*
+ * End input zone object
+ */
+static void
+npf_zone_state_input_zone_end(json_writer_t *json,
+			      struct npf_ruleset_state_ctx *info)
+{
+	/* end 'to' array */
+	jsonw_end_array(json);
+
+	/* end input zone */
+	jsonw_end_object(json);
+
+	/* We are finished with the input zone name */
+	free(info->name);
+	info->name = NULL;
+}
+
+static void npf_show_state_zone_rs(json_writer_t *json,
+				   struct npf_config *npf_conf,
+				   struct npf_ruleset_state_ctx *info)
+{
+	enum npf_ruleset_type rs_type = NPF_RS_ZONE;
+	unsigned long rs_type_bit = BIT(rs_type);
+	char *p, *input_zone, *output_zone;
+	bool free_input_zone = false;
+
+	if (!npf_active(npf_conf, rs_type_bit))
+		return;
+
+	/* Get the ruleset early;
+	 * show nothing unless there's a ruleset.
+	 */
+	const npf_ruleset_t *ruleset = npf_get_ruleset(npf_conf, rs_type);
+
+	if (!ruleset)
+		return;
+
+	if (!npf_conf->nc_attached)
+		return;
+
+	if (info->first) {
+		jsonw_name(json, "zone");
+		jsonw_start_array(json);
+		info->first = false;
+	}
+
+	/*
+	 * Split attach point string to get 'from' and 'to' zone names
+	 */
+	input_zone = strdup(npf_conf->nc_attach_point);
+	if (!input_zone)
+		return;
+
+	/* Attach point name is of the form "PRIVATE>PUBLIC" */
+	p = strstr(input_zone, ">");
+	if (!p) {
+		free(input_zone);
+		return;
+	}
+	*p = '\0';
+	output_zone = p+1;
+
+	/* End previous input zone object? */
+	if (info->name && strcmp(input_zone, info->name) != 0)
+		npf_zone_state_input_zone_end(json, info);
+
+	/* New input zone object? */
+	if (!info->name)
+		/* Yes. 'input_zone' is stored in 'info' structure */
+		npf_zone_state_input_zone_start(json, info, input_zone);
+	else
+		/* No. Remember to free 'input_zone' later on */
+		free_input_zone = true;
+
+	jsonw_start_object(json);
+	jsonw_string_field(json, "output-zone-name", output_zone);
+
+	jsonw_name(json, "name");
+	jsonw_start_array(json);
+
+	npf_ruleset_group_walk(ruleset, info->sel,
+			       npf_show_state_ruleset_cb, info);
+
+	jsonw_end_array(json);
+
+	jsonw_end_object(json); /* output-zone-name */
+
+	if (free_input_zone)
+		free(input_zone);
+}
+
+static void
+npf_show_state_zone(json_writer_t *json, struct npf_attpt_item *ap,
+		    struct npf_ruleset_state_ctx *info)
+{
+	struct npf_config **npf_conf_p = npf_attpt_item_up_data_context(ap);
+	if (!npf_conf_p)
+		return;
+
+	struct npf_config *npf_conf = *npf_conf_p;
+	if (!npf_conf)
+		return;
+
+	npf_show_state_zone_rs(json, npf_conf, info);
+}
+
+static bool
+npf_show_state_zone_cb(struct npf_attpt_item *ap, void *ctx)
+{
+	struct npf_ruleset_state_ctx *info = ctx;
+
+	npf_show_state_zone(info->json, ap, info);
+	return true;
+}
+
+/*
+ * npf_show_ruleset_state_zone
+ */
+static int
+npf_show_ruleset_state_zone(json_writer_t *json, struct ruleset_select *sel)
+{
+	struct npf_ruleset_state_ctx info = {
+		.json	= json,
+		.sel	= sel,
+		.first	= true,
+		.name	= NULL, /* Used for input_zone_name */
+	};
+
+	jsonw_pretty(json, true);
+
+	if (sel->attach_type == NPF_ATTACH_TYPE_ALL) {
+		npf_attpt_item_walk_up(npf_show_state_zone_cb, &info);
+	} else {
+		struct npf_attpt_item *ap;
+		if (npf_attpt_item_find_up(sel->attach_type,
+					   sel->attach_point, &ap) >= 0) {
+			npf_show_state_zone(json, ap, &info);
+		}
+	}
+
+	/* Was an inout zone started? */
+	if (info.name)
+		npf_zone_state_input_zone_end(json, &info);
+
+	/* Was zone array started? */
+	if (!info.first)
+		jsonw_end_array(json);
+
+	return 0;
+}
+
 /*
  * npf_show_ruleset_state
  *
@@ -570,6 +804,7 @@ npf_show_ruleset_state_nat(json_writer_t *json, struct ruleset_select *sel)
  */
 #define RULESET_INTF (NPF_FW_IN | NPF_FW_OUT | NPF_BRIDGE | NPF_LOCAL | NPF_PBR)
 #define RULESET_NAT  (NPF_SNAT | NPF_DNAT | NPF_NAT64 | NPF_NAT46)
+#define RULESET_ZONE (NPF_ZONE)
 
 int
 npf_show_ruleset_state(FILE *fp, struct ruleset_select *sel)
@@ -588,6 +823,11 @@ npf_show_ruleset_state(FILE *fp, struct ruleset_select *sel)
 
 	if ((sel->rulesets & RULESET_NAT) != 0) {
 		npf_show_ruleset_state_nat(json, sel);
+		goto done;
+	}
+
+	if ((sel->rulesets & RULESET_ZONE) != 0) {
+		npf_show_ruleset_state_zone(json, sel);
 		goto done;
 	}
 

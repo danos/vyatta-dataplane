@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2015-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -28,6 +28,7 @@
 #include "npf/npf_addrgrp.h"
 #include "npf/npf_apm.h"
 #include "npf/npf_nat.h"
+#include "npf/npf_pack.h"
 #include "npf_tblset.h"
 #include "urcu.h"
 #include "util.h"
@@ -142,7 +143,6 @@ rte_atomic64_t		pm_mem_used;
 struct port_section {
 	unsigned long	ps_bm[PM_SECTION_WORDS];/* section bitmap */
 	uint16_t	ps_used;		/* bits allocated */
-	uint16_t	pad[3];			/* Pad to cache line */
 };
 
 struct port_map {
@@ -263,6 +263,8 @@ static void map_rcu_free(struct rcu_head *head)
 
 	/* Sanity, can only happen with a bug */
 	for (i = 0; i < PM_SECTION_CNT; i++) {
+		assert((pm->pm_sections[i] && pm->pm_sections[i]->ps_used)
+		       == 0);
 		if (pm->pm_sections[i] && pm->pm_sections[i]->ps_used)
 			rte_panic("NPF port map: section: %d used: %d\n",
 						i, pm->pm_sections[i]->ps_used);
@@ -1076,4 +1078,3 @@ npf_apm_get_allocated(vrfid_t vrfid, npf_addr_t ipaddr, in_port_t port)
 
 	return false;
 }
-

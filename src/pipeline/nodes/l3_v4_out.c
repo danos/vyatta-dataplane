@@ -1,7 +1,7 @@
 /*
  * l3_v4_out.c
  *
- * Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2016, 2017 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -96,7 +96,8 @@ ipv4_out_features(struct pl_packet *pkt, enum pl_mode mode)
 }
 
 ALWAYS_INLINE unsigned int
-ipv4_out_process_common(struct pl_packet *pkt, enum pl_mode mode)
+ipv4_out_process_common(struct pl_packet *pkt, void *context __unused,
+			enum pl_mode mode)
 {
 	if (!ipv4_out_features(pkt, mode))
 		return IPV4_OUT_FINISH;
@@ -136,9 +137,9 @@ ipv4_out_process_common(struct pl_packet *pkt, enum pl_mode mode)
 }
 
 ALWAYS_INLINE unsigned int
-ipv4_out_process(struct pl_packet *p)
+ipv4_out_process(struct pl_packet *p, void *context)
 {
-	return ipv4_out_process_common(p, PL_MODE_REGULAR);
+	return ipv4_out_process_common(p, context, PL_MODE_REGULAR);
 }
 
 static int
@@ -152,20 +153,38 @@ ipv4_out_feat_change(struct pl_node *node,
 				       action);
 }
 
+static int
+ipv4_out_feat_change_all(struct pl_feature_registration *feat,
+			 enum pl_node_feat_action action)
+{
+	return if_node_instance_feat_change_all(feat, action,
+						ipv4_out_feat_change);
+}
+
 ALWAYS_INLINE bool
 ipv4_out_feat_iterate(struct pl_node *node, bool first,
-		      unsigned int *feature_id, void **context)
+		      unsigned int *feature_id, void **context,
+		      void **storage_ctx)
 {
 	struct ifnet *ifp = ipv4_out_node_to_ifp(node);
+	bool ret;
 
-	return pl_node_feat_iterate_u16(&ifp->ip_out_features, first,
-					feature_id, context);
+
+	ret = pl_node_feat_iterate_u16(&ifp->ip_out_features, first,
+				       feature_id, context);
+	if (ret)
+		*storage_ctx = if_node_instance_get_storage_internal(
+			ifp,
+			PL_FEATURE_POINT_IPV4_OUT_ID,
+			*feature_id);
+
+	return ret;
 }
 
 static struct pl_node *
 ipv4_out_node_lookup(const char *name)
 {
-	struct ifnet *ifp = ifnet_byifname(name);
+	struct ifnet *ifp = dp_ifnet_byifname(name);
 	return ifp ? ifp_to_ipv4_out_node(ifp) : NULL;
 }
 
@@ -175,8 +194,13 @@ PL_REGISTER_NODE(ipv4_out_node) = {
 	.type = PL_PROC,
 	.handler = ipv4_out_process,
 	.feat_change = ipv4_out_feat_change,
+	.feat_change_all = ipv4_out_feat_change_all,
 	.feat_iterate = ipv4_out_feat_iterate,
 	.lookup_by_name = ipv4_out_node_lookup,
+	.feat_reg_context = if_node_instance_register_storage,
+	.feat_unreg_context = if_node_instance_unregister_storage,
+	.feat_get_context = if_node_instance_get_storage,
+	.feat_setup_cleanup_cb = if_node_instance_set_cleanup_cb,
 	.num_next = IPV4_OUT_NUM,
 	.next = {
 		[IPV4_OUT_ENCAP] = "ipv4-encap",

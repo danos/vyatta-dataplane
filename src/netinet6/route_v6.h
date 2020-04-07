@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2011-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -54,12 +54,8 @@ struct next_hop_v6 {
 void nexthop_v6_tbl_init(void);
 int route_v6_init(struct vrf *vrf);
 void route_v6_uninit(struct vrf *vrf, struct route6_head *rt6_head);
-bool route6_link_vrf_to_table(struct vrf *vrf, uint32_t tableid);
-bool route6_unlink_vrf_from_table(struct vrf *vrf);
 struct rte_mbuf;
 
-struct next_hop_v6 *rt6_lookup(const struct in6_addr *dst, uint32_t tbl_id,
-			       const struct rte_mbuf *m);
 struct next_hop_v6 *nexthop6_select(uint32_t nh_idx,
 				    const struct rte_mbuf *m,
 				    uint16_t ether_type);
@@ -69,7 +65,9 @@ struct next_hop_v6 *nexthop6_create(
 	uint16_t num_labels, label_t *labels);
 void nexthop6_put(uint32_t idx);
 int nexthop6_new(struct next_hop_v6 *nh, size_t size, uint32_t *slot);
-void rt6_print_nexthop(json_writer_t *json, uint32_t next_hop);
+void rt6_print_nexthop(json_writer_t *json, uint32_t next_hop,
+		       enum rt_print_nexthop_verbosity v);
+
 struct next_hop_v6 *rt6_lookup_fast(struct vrf *vrf,
 				    const struct in6_addr *dst, uint32_t tbl_id,
 				    const struct rte_mbuf *m);
@@ -96,8 +94,6 @@ void rt6_if_punt_to_slowpath(struct ifnet *ifp);
 struct ifnet *nhif_dst_lookup6(const struct vrf *vrf,
 			       const struct in6_addr *dst,
 			       bool *connected);
-int nh6_lookup_by_index(uint32_t nhindex, uint32_t hash,
-			struct in6_addr *nh, uint32_t *ifindex);
 
 void routing6_insert_neigh_safe(struct llentry *lle, bool neigh_change);
 void routing6_remove_neigh_safe(struct llentry *lle);

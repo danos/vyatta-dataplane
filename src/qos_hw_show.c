@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2018-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2018-2020, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -261,7 +261,7 @@ void qos_hw_show_queue(fal_object_t queue, uint32_t id, json_writer_t *wr)
 	uint32_t queue_type;
 	uint8_t queue_index;
 	uint8_t tc;
-	bool local_priority;
+	uint8_t designator;
 	int ret;
 
 	struct fal_attribute_t attr_list[] = {
@@ -281,8 +281,8 @@ void qos_hw_show_queue(fal_object_t queue, uint32_t id, json_writer_t *wr)
 		  .value.u32 = 0 },
 		{ .id = FAL_QOS_QUEUE_ATTR_TC,
 		  .value.u8 = 0xFF },
-		{ .id = FAL_QOS_QUEUE_ATTR_LOCAL_PRIORITY,
-		  .value.booldata = false },
+		{ .id = FAL_QOS_QUEUE_ATTR_DESIGNATOR,
+		  .value.u8 = 0 },
 	};
 
 	ret = fal_qos_get_queue_attrs(queue, ARRAY_SIZE(attr_list), attr_list);
@@ -301,7 +301,7 @@ void qos_hw_show_queue(fal_object_t queue, uint32_t id, json_writer_t *wr)
 	scheduler_id = attr_list[5].value.objid;
 	queue_limit = attr_list[6].value.u32;
 	tc = attr_list[7].value.u8;
-	local_priority = attr_list[8].value.booldata;
+	designator = attr_list[8].value.u8;
 
 	jsonw_name(wr, "queue");
 	jsonw_start_object(wr);
@@ -310,7 +310,7 @@ void qos_hw_show_queue(fal_object_t queue, uint32_t id, json_writer_t *wr)
 	jsonw_uint_field(wr, "queue-limit", queue_limit);
 	jsonw_uint_field(wr, "queue-index", queue_index);
 	jsonw_uint_field(wr, "tc", tc);
-	jsonw_bool_field(wr, "local-priority", local_priority);
+	jsonw_uint_field(wr, "designation", designator);
 
 	if (scheduler_id != FAL_QOS_NULL_OBJECT_ID)
 		qos_hw_show_scheduler(scheduler_id, wr);
@@ -322,13 +322,12 @@ void qos_hw_show_queue(fal_object_t queue, uint32_t id, json_writer_t *wr)
 }
 
 static
-void qos_hw_show_to_tc_map_list(uint8_t map_type,
+void qos_hw_show_to_tc_map_list(uint8_t map_type __unused,
 				struct fal_qos_map_list_t *map_list,
 				json_writer_t *wr)
 {
 	uint64_t cp_bitmap[RTE_SCHED_QUEUES_PER_PIPE *
 			   (QOS_MAX_DROP_PRECEDENCE + 1)] = { 0 };
-	uint32_t queue;
 	uint32_t tc;
 	uint32_t dp;
 	uint32_t mli;
@@ -338,47 +337,33 @@ void qos_hw_show_to_tc_map_list(uint8_t map_type,
 		struct fal_qos_map_t *map = &map_list->list[mli];
 		uint8_t key;
 
-		if (map_type == FAL_QOS_MAP_TYPE_DOT1P_TO_TC)
-			key = map->key.dot1p;
-		else /* map_type == FAL_QOS_MAP_TYPE_DSCP_TO_TC */
-			key = map->key.dscp;
+		key = map->key.dscp;
 
 		if (mli != key)
 			DP_DEBUG(QOS, ERR, DATAPLANE,
 				 "map-list not in order\n");
 
 		bmi = (map->value.dp * RTE_SCHED_QUEUES_PER_PIPE) +
-			(map->value.tc * RTE_SCHED_QUEUES_PER_TRAFFIC_CLASS) +
-			map->value.wrr;
+			(map->value.des * RTE_SCHED_QUEUES_PER_TRAFFIC_CLASS);
 
 		cp_bitmap[bmi] |= (1ul << key);
 	}
 
-
 	for (tc = 0; tc < RTE_SCHED_TRAFFIC_CLASSES_PER_PIPE; tc++) {
-		for (queue = 0; queue < RTE_SCHED_QUEUES_PER_TRAFFIC_CLASS;
-		     queue++) {
-			for (dp = 0; dp <= QOS_MAX_DROP_PRECEDENCE; dp++) {
-				bmi = (dp * RTE_SCHED_QUEUES_PER_PIPE) +
-					(tc *
-					 RTE_SCHED_QUEUES_PER_TRAFFIC_CLASS) +
-					queue;
+		for (dp = 0; dp <= QOS_MAX_DROP_PRECEDENCE; dp++) {
+			bmi = (dp * RTE_SCHED_QUEUES_PER_PIPE) +
+				(tc *
+				 RTE_SCHED_QUEUES_PER_TRAFFIC_CLASS);
 
-				if (cp_bitmap[bmi]) {
-					char str_bitmap[22];
+			if (cp_bitmap[bmi]) {
+				char str_bitmap[22];
 
-					jsonw_start_object(wr);
-					snprintf(str_bitmap, 21, "%lu",
-						 cp_bitmap[bmi]);
-					jsonw_string_field(wr, "cp-bitmap",
-							   str_bitmap);
-					jsonw_uint_field(wr, "traffic-class",
-							 tc);
-					jsonw_uint_field(wr, "queue", queue);
-					jsonw_uint_field(wr, "drop-precedence",
-							 dp);
-					jsonw_end_object(wr);
-				}
+				jsonw_start_object(wr);
+				snprintf(str_bitmap, 21, "%lu", cp_bitmap[bmi]);
+				jsonw_string_field(wr, "cp-bitmap", str_bitmap);
+				jsonw_uint_field(wr, "designator", tc);
+				jsonw_uint_field(wr, "drop-precedence", dp);
+				jsonw_end_object(wr);
 			}
 		}
 	}
@@ -421,30 +406,29 @@ qos_hw_show_to_dot1p_map_list(struct fal_qos_map_list_t *map_list,
 
 static
 void qos_hw_show_map_list(uint8_t map_type, struct fal_qos_map_list_t *map_list,
-			  bool local_priority, json_writer_t *wr)
+			  json_writer_t *wr)
 {
-	if (map_type != FAL_QOS_MAP_TYPE_DOT1P_TO_TC &&
-	    map_type != FAL_QOS_MAP_TYPE_DSCP_TO_TC &&
-	    map_type != FAL_QOS_MAP_TYPE_DSCP_TO_DOT1P) {
+	switch (map_type) {
+	case FAL_QOS_MAP_TYPE_DSCP_TO_DESIGNATOR:
+	case FAL_QOS_MAP_TYPE_DOT1P_TO_DESIGNATOR:
+		jsonw_name(wr, "ingress-map");
+		break;
+	case FAL_QOS_MAP_TYPE_DSCP_TO_DOT1P:
+	case FAL_QOS_MAP_TYPE_DESIGNATOR_TO_DOT1P:
+		jsonw_name(wr, "egress-map");
+		break;
+	default:
 		DP_DEBUG(QOS, ERR, DATAPLANE,
 			 "unsupported map-type: %u\n", map_type);
 		return;
 	}
 
-	if (map_type == FAL_QOS_MAP_TYPE_DOT1P_TO_TC ||
-	    map_type == FAL_QOS_MAP_TYPE_DSCP_TO_TC)
-		jsonw_name(wr, "ingress-map");
-	else
-		jsonw_name(wr, "egress-map");
-
 	jsonw_start_object(wr);
 	jsonw_uint_field(wr, "map-type", map_type);
-	jsonw_bool_field(wr, "local-priority", local_priority);
 	jsonw_name(wr, "map-list");
 	jsonw_start_array(wr);
 
-	if (map_type == FAL_QOS_MAP_TYPE_DOT1P_TO_TC ||
-	    map_type == FAL_QOS_MAP_TYPE_DSCP_TO_TC)
+	if (map_type == FAL_QOS_MAP_TYPE_DSCP_TO_DESIGNATOR)
 		qos_hw_show_to_tc_map_list(map_type, map_list, wr);
 	else
 		qos_hw_show_to_dot1p_map_list(map_list, wr);
@@ -467,6 +451,9 @@ const uint8_t qos_map_entries[FAL_QOS_MAP_TYPE_MAX + 1] = {
 	8,  /* FAL_QOS_MAP_TYPE_TC_AND_COLOR_TO_DOT1P */
 	8,  /* FAL_QOS_MAP_TYPE_TC_TO_PRIORITY_GROUP */
 	64, /* FAL_QOS_MAP_TYPE_DSCP_TO_DOT1P */
+	64, /* FAL_QOS_MAP_TYPE_DSCP_TO_DESIGNATOR */
+	8,  /* FAL_QOS_MAP_TYPE_DOT1P_TO_DESIGNATOR */
+	8,  /* FAL_QOS_MAP_TYPE_DESIGNATOR_TO_DOT1P */
 };
 
 static
@@ -474,14 +461,11 @@ void qos_hw_show_map(fal_object_t map, json_writer_t *wr)
 {
 	struct fal_qos_map_list_t map_list;
 	uint8_t map_type;
-	bool local_priority;
 	int ret;
 
 	struct fal_attribute_t attr_list[] = {
 		{ .id = FAL_QOS_MAP_ATTR_TYPE,
 		  .value.u8 = FAL_QOS_MAP_TYPE_MAX + 1 },
-		{ .id = FAL_QOS_MAP_ATTR_LOCAL_PRIORITY_QUEUE,
-		  .value.booldata = false }
 	};
 
 	/*
@@ -514,13 +498,11 @@ void qos_hw_show_map(fal_object_t map, json_writer_t *wr)
 		DP_DEBUG(QOS, ERR, DATAPLANE,
 			"FAL failed to get map attributes, status: %d\n", ret);
 	else {
-		local_priority = attr_list[1].value.booldata;
 		if (map_list.count != qos_map_entries[map_type])
 			DP_DEBUG(QOS, ERR, DATAPLANE,
 				 "wrong map-list count returned\n");
 		else
-			qos_hw_show_map_list(map_type, &map_list,
-					     local_priority, wr);
+			qos_hw_show_map_list(map_type, &map_list, wr);
 	}
 }
 
@@ -596,6 +578,7 @@ void qos_hw_show_sched_group(fal_object_t sched_group, uint32_t id,
 	uint32_t max_children;
 	uint8_t level;
 	uint16_t vlan;
+	uint8_t lp_des;
 	int ret;
 
 	struct fal_attribute_t attr_list[] = {
@@ -617,6 +600,8 @@ void qos_hw_show_sched_group(fal_object_t sched_group, uint32_t id,
 		  .value.objid = FAL_QOS_NULL_OBJECT_ID },
 		{ .id = FAL_QOS_SCHED_GROUP_ATTR_VLAN_ID,
 		  .value.u16 = 0 },
+		{ .id = FAL_QOS_SCHED_GROUP_ATTR_LOCAL_PRIORITY_DESIGNATOR,
+		  .value.u8 = 0 },
 	};
 
 	ret = fal_qos_get_sched_group_attrs(sched_group, ARRAY_SIZE(attr_list),
@@ -639,6 +624,7 @@ void qos_hw_show_sched_group(fal_object_t sched_group, uint32_t id,
 	ingress_map_id = attr_list[6].value.objid;
 	egress_map_id = attr_list[7].value.objid;
 	vlan = attr_list[8].value.u16;
+	lp_des = attr_list[9].value.u8;
 
 	jsonw_name(wr, "sched-group");
 	jsonw_start_object(wr);
@@ -651,13 +637,14 @@ void qos_hw_show_sched_group(fal_object_t sched_group, uint32_t id,
 	jsonw_uint_field(wr, "max-children", max_children);
 	jsonw_uint_field(wr, "current-children", child_count);
 
-	if (level == FAL_QOS_SCHED_GROUP_LEVEL_PIPE &&
-	    ingress_map_id != FAL_QOS_NULL_OBJECT_ID)
-		qos_hw_show_map(ingress_map_id, wr);
+	if (level == FAL_QOS_SCHED_GROUP_LEVEL_PIPE) {
+		jsonw_uint_field(wr, "local-priority-des", lp_des);
+		if (ingress_map_id != FAL_QOS_NULL_OBJECT_ID)
+			qos_hw_show_map(ingress_map_id, wr);
 
-	if (level == FAL_QOS_SCHED_GROUP_LEVEL_PIPE &&
-	    egress_map_id != FAL_QOS_NULL_OBJECT_ID)
-		qos_hw_show_map(egress_map_id, wr);
+		if (egress_map_id != FAL_QOS_NULL_OBJECT_ID)
+			qos_hw_show_map(egress_map_id, wr);
+	}
 
 	/*
 	 * Don't show the vlan for subport 0 which corresponds to
@@ -719,4 +706,9 @@ void qos_hw_dump_subport(json_writer_t *wr, const struct sched_info *qinfo,
 
 	if (subport_sg)
 		fal_qos_dump_sched_group(subport_sg, wr);
+}
+
+void qos_hw_dump_buf_errors(json_writer_t *wr)
+{
+	fal_qos_dump_buf_errors(wr);
 }

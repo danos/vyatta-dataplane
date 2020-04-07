@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2015-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -15,7 +15,7 @@
 
 #include <linux/xfrm.h>
 #include <netinet/udp.h>
-#include "vrf.h"
+#include "vrf_internal.h"
 
 struct dp_test_expected;
 

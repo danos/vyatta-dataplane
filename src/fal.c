@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2017-2019, AT&T Intellectual Property.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.
  * All rights reserved.
  * Copyright (c) 2016-2017 by Brocade Communications Systems, Inc.
  * All rights reserved.
@@ -19,6 +19,7 @@
 #include "compiler.h"
 #include "fal.h"
 #include "fal_plugin.h"
+#include "fal_bfd.h"
 #include "if_var.h"
 #include "mpls/mpls.h"
 #include "nh.h"
@@ -28,14 +29,14 @@
 #include "vplane_debug.h"
 #include "vplane_log.h"
 #include "bridge_vlan_set.h"
-#include "hotplug.h"
+#include "if/dpdk-eth/hotplug.h"
 
 struct ether_addr;
 
 int __externally_visible
 fal_port_byifindex(int ifindex, uint16_t *portid)
 {
-	struct ifnet *ifp = ifnet_byifindex(ifindex);
+	struct ifnet *ifp = dp_ifnet_byifindex(ifindex);
 
 	if (ifp == NULL || ifp->if_type != IFT_ETHER ||
 	    !ifp->if_local_port)
@@ -50,9 +51,9 @@ void fal_init(void)
 {
 }
 
-static struct l2_ops *new_dyn_l2_ops(void *lib)
+static struct fal_l2_ops *new_dyn_l2_ops(void *lib)
 {
-	struct l2_ops *l2_ops = calloc(1, sizeof(struct l2_ops));
+	struct fal_l2_ops *l2_ops = calloc(1, sizeof(struct fal_l2_ops));
 
 	if (!l2_ops) {
 		RTE_LOG(ERR, DATAPLANE, "Could not allocate l2 ops\n");
@@ -69,9 +70,9 @@ static struct l2_ops *new_dyn_l2_ops(void *lib)
 	return l2_ops;
 }
 
-static struct rif_ops *new_dyn_rif_ops(void *lib)
+static struct fal_rif_ops *new_dyn_rif_ops(void *lib)
 {
-	struct rif_ops *rif_ops = calloc(1, sizeof(struct rif_ops));
+	struct fal_rif_ops *rif_ops = calloc(1, sizeof(struct fal_rif_ops));
 
 	if (!rif_ops) {
 		RTE_LOG(ERR, DATAPLANE, "Could not allocate rif ops\n");
@@ -81,12 +82,15 @@ static struct rif_ops *new_dyn_rif_ops(void *lib)
 	rif_ops->create_intf = dlsym(lib, "fal_plugin_create_router_interface");
 	rif_ops->delete_intf = dlsym(lib, "fal_plugin_delete_router_interface");
 	rif_ops->set_attr = dlsym(lib, "fal_plugin_set_router_interface_attr");
+	rif_ops->get_stats = dlsym(lib,
+				   "fal_plugin_get_router_interface_stats");
+	rif_ops->dump = dlsym(lib, "fal_plugin_dump_router_interface");
 	return rif_ops;
 }
 
-static struct tun_ops *new_dyn_tun_ops(void *lib)
+static struct fal_tun_ops *new_dyn_tun_ops(void *lib)
 {
-	struct tun_ops *tun_ops = calloc(1, sizeof(struct tun_ops));
+	struct fal_tun_ops *tun_ops = calloc(1, sizeof(struct fal_tun_ops));
 
 	if (!tun_ops) {
 		RTE_LOG(ERR, DATAPLANE, "Could not allocate tun ops\n");
@@ -98,9 +102,31 @@ static struct tun_ops *new_dyn_tun_ops(void *lib)
 	return tun_ops;
 }
 
-static struct bridge_ops *new_dyn_bridge_ops(void *lib)
+static struct fal_lag_ops *new_dyn_lag_ops(void *lib)
 {
-	struct bridge_ops *bridge_ops = calloc(1, sizeof(struct bridge_ops));
+	struct fal_lag_ops *lag_ops = calloc(1, sizeof(*lag_ops));
+
+	if (!lag_ops) {
+		RTE_LOG(ERR, DATAPLANE, "Could not allocate LAG ops\n");
+		return NULL;
+	}
+	lag_ops->create_lag = dlsym(lib, "fal_plugin_create_lag");
+	lag_ops->delete_lag = dlsym(lib, "fal_plugin_delete_lag");
+	lag_ops->set_lag_attr = dlsym(lib, "fal_plugin_set_lag_attr");
+	lag_ops->get_lag_attr = dlsym(lib, "fal_plugin_get_lag_attr");
+	lag_ops->dump = dlsym(lib, "fal_plugin_dump_lag");
+	lag_ops->create_lag_member = dlsym(lib, "fal_plugin_create_lag_member");
+	lag_ops->delete_lag_member = dlsym(lib, "fal_plugin_delete_lag_member");
+	lag_ops->set_lag_member_attr =
+		dlsym(lib, "fal_plugin_set_lag_member_attr");
+	lag_ops->get_lag_member_attr =
+		dlsym(lib, "fal_plugin_get_member_lag_attr");
+	return lag_ops;
+}
+
+static struct fal_bridge_ops *new_dyn_bridge_ops(void *lib)
+{
+	struct fal_bridge_ops *bridge_ops = calloc(1, sizeof(*bridge_ops));
 
 	if (!bridge_ops) {
 		RTE_LOG(ERR, DATAPLANE, "Could not allocate bridge ops\n");
@@ -118,9 +144,9 @@ static struct bridge_ops *new_dyn_bridge_ops(void *lib)
 	return bridge_ops;
 }
 
-static struct vlan_ops *new_dyn_vlan_ops(void *lib)
+static struct fal_vlan_ops *new_dyn_vlan_ops(void *lib)
 {
-	struct vlan_ops *vlan_ops = calloc(1, sizeof(struct vlan_ops));
+	struct fal_vlan_ops *vlan_ops = calloc(1, sizeof(struct fal_vlan_ops));
 
 	if (!vlan_ops) {
 		RTE_LOG(ERR, DATAPLANE, "Could not allocate vlan_ops\n");
@@ -131,9 +157,9 @@ static struct vlan_ops *new_dyn_vlan_ops(void *lib)
 	return vlan_ops;
 }
 
-static struct stp_ops *new_dyn_stp_ops(void *lib)
+static struct fal_stp_ops *new_dyn_stp_ops(void *lib)
 {
-	struct stp_ops *stp_ops = calloc(1, sizeof(struct stp_ops));
+	struct fal_stp_ops *stp_ops = calloc(1, sizeof(struct fal_stp_ops));
 
 	if (!stp_ops) {
 		RTE_LOG(ERR, DATAPLANE, "Could not allocate stp_ops ops\n");
@@ -151,9 +177,9 @@ static struct stp_ops *new_dyn_stp_ops(void *lib)
 	return stp_ops;
 }
 
-static struct ip_ops *new_dyn_ip_ops(void *lib)
+static struct fal_ip_ops *new_dyn_ip_ops(void *lib)
 {
-	struct ip_ops *ip_ops = calloc(1, sizeof(struct ip_ops));
+	struct fal_ip_ops *ip_ops = calloc(1, sizeof(struct fal_ip_ops));
 
 	if (!ip_ops) {
 		RTE_LOG(ERR, DATAPLANE, "Could not allocate ip ops\n");
@@ -166,25 +192,36 @@ static struct ip_ops *new_dyn_ip_ops(void *lib)
 	ip_ops->new_neigh = dlsym(lib, "fal_plugin_ip_new_neigh");
 	ip_ops->upd_neigh = dlsym(lib, "fal_plugin_ip_upd_neigh");
 	ip_ops->get_neigh_attrs = dlsym(lib, "fal_plugin_ip_get_neigh_attrs");
+	ip_ops->dump_neigh = dlsym(lib, "fal_plugin_ip_dump_neigh");
 	ip_ops->del_neigh = dlsym(lib, "fal_plugin_ip_del_neigh");
 	ip_ops->new_route = dlsym(lib, "fal_plugin_ip_new_route");
 	ip_ops->upd_route = dlsym(lib, "fal_plugin_ip_upd_route");
 	ip_ops->del_route = dlsym(lib, "fal_plugin_ip_del_route");
+	ip_ops->get_route_attrs = dlsym(lib, "fal_plugin_ip_get_route_attrs");
+	ip_ops->walk_routes = dlsym(lib, "fal_plugin_ip_walk_routes");
 	ip_ops->new_next_hop_group = dlsym(
 		lib, "fal_plugin_ip_new_next_hop_group");
 	ip_ops->upd_next_hop_group = dlsym(
 		lib, "fal_plugin_ip_upd_next_hop_group");
 	ip_ops->del_next_hop_group = dlsym(
 		lib, "fal_plugin_ip_del_next_hop_group");
+	ip_ops->get_next_hop_group_attrs = dlsym(
+		lib, "fal_plugin_ip_get_next_hop_group_attrs");
+	ip_ops->dump_next_hop_group = dlsym(
+		lib, "fal_plugin_ip_dump_next_hop_group");
 	ip_ops->new_next_hops = dlsym(lib, "fal_plugin_ip_new_next_hops");
 	ip_ops->upd_next_hop = dlsym(lib, "fal_plugin_ip_upd_next_hop");
 	ip_ops->del_next_hops = dlsym(lib, "fal_plugin_ip_del_next_hops");
+	ip_ops->get_next_hop_attrs = dlsym(
+		lib, "fal_plugin_ip_get_next_hop_attrs");
+	ip_ops->dump_next_hop = dlsym(
+		lib, "fal_plugin_ip_dump_next_hop");
 	return ip_ops;
 }
 
-static struct acl_ops *new_dyn_acl_ops(void *lib)
+static struct fal_acl_ops *new_dyn_acl_ops(void *lib)
 {
-	struct acl_ops *acl_ops = calloc(1, sizeof(struct acl_ops));
+	struct fal_acl_ops *acl_ops = calloc(1, sizeof(struct fal_acl_ops));
 
 	if (!acl_ops) {
 		RTE_LOG(ERR, DATAPLANE, "Could not allocate acl ops\n");
@@ -211,9 +248,9 @@ static struct acl_ops *new_dyn_acl_ops(void *lib)
 	return acl_ops;
 }
 
-static struct ipmc_ops *new_dyn_ipmc_ops(void *lib)
+static struct fal_ipmc_ops *new_dyn_ipmc_ops(void *lib)
 {
-	struct ipmc_ops *ipmc_ops = calloc(1, sizeof(struct ipmc_ops));
+	struct fal_ipmc_ops *ipmc_ops = calloc(1, sizeof(struct fal_ipmc_ops));
 
 	ipmc_ops->create_entry = dlsym(lib, "fal_plugin_create_ip_mcast_entry");
 	ipmc_ops->delete_entry = dlsym(lib, "fal_plugin_delete_ip_mcast_entry");
@@ -256,9 +293,9 @@ static struct ipmc_ops *new_dyn_ipmc_ops(void *lib)
 	return ipmc_ops;
 }
 
-static struct qos_ops *new_dyn_qos_ops(void *lib)
+static struct fal_qos_ops *new_dyn_qos_ops(void *lib)
 {
-	struct qos_ops *qos_ops = calloc(1, sizeof(struct qos_ops));
+	struct fal_qos_ops *qos_ops = calloc(1, sizeof(struct fal_qos_ops));
 
 	if (!qos_ops) {
 		RTE_LOG(ERR, DATAPLANE, "Could not allocate qos ops\n");
@@ -301,12 +338,16 @@ static struct qos_ops *new_dyn_qos_ops(void *lib)
 	qos_ops->del_wred = dlsym(lib, "fal_plugin_qos_del_wred");
 	qos_ops->upd_wred = dlsym(lib, "fal_plugin_qos_upd_wred");
 	qos_ops->get_wred_attrs = dlsym(lib, "fal_plugin_qos_get_wred_attrs");
+	qos_ops->get_counters = dlsym(lib, "fal_plugin_qos_get_counters");
+	qos_ops->dump_buf_errors =
+		dlsym(lib, "fal_plugin_dump_memory_buffer_errors");
+
 	return qos_ops;
 }
 
-static struct sw_ops *new_dyn_switch_ops(void *lib)
+static struct fal_sw_ops *new_dyn_switch_ops(void *lib)
 {
-	struct sw_ops *sw_ops = calloc(1, sizeof(*sw_ops));
+	struct fal_sw_ops *sw_ops = calloc(1, sizeof(*sw_ops));
 
 	if (!sw_ops) {
 		RTE_LOG(ERR, DATAPLANE, "Could not allocate sw ops\n");
@@ -318,9 +359,9 @@ static struct sw_ops *new_dyn_switch_ops(void *lib)
 	return sw_ops;
 }
 
-static struct sys_ops *new_dyn_sys_ops(void *lib)
+static struct fal_sys_ops *new_dyn_sys_ops(void *lib)
 {
-	struct sys_ops *sops = calloc(1, sizeof(struct sys_ops));
+	struct fal_sys_ops *sops = calloc(1, sizeof(struct fal_sys_ops));
 
 	if (!sops) {
 		RTE_LOG(ERR, DATAPLANE, "Could not allocate sys ops\n");
@@ -333,9 +374,9 @@ static struct sys_ops *new_dyn_sys_ops(void *lib)
 	return sops;
 }
 
-static struct policer_ops *new_dyn_policer_ops(void *lib)
+static struct fal_policer_ops *new_dyn_policer_ops(void *lib)
 {
-	struct policer_ops *policer_ops = calloc(1, sizeof(struct policer_ops));
+	struct fal_policer_ops *policer_ops = calloc(1, sizeof(*policer_ops));
 
 	if (!policer_ops) {
 		RTE_LOG(ERR, DATAPLANE, "Could not allocate policer ops\n");
@@ -355,9 +396,9 @@ static struct policer_ops *new_dyn_policer_ops(void *lib)
 	return policer_ops;
 }
 
-static struct mirror_ops *new_dyn_mirror_ops(void *lib)
+static struct fal_mirror_ops *new_dyn_mirror_ops(void *lib)
 {
-	struct mirror_ops *mr_ops = calloc(1, sizeof(struct mirror_ops));
+	struct fal_mirror_ops *mr_ops = calloc(1, sizeof(*mr_ops));
 
 	if (!mr_ops) {
 		RTE_LOG(ERR, DATAPLANE, "Could not allocate mirror ops\n");
@@ -374,10 +415,10 @@ static struct mirror_ops *new_dyn_mirror_ops(void *lib)
 	return mr_ops;
 }
 
-static struct vlan_feat_ops *new_dyn_vlan_feat_ops(void *lib)
+static struct fal_vlan_feat_ops *new_dyn_vlan_feat_ops(void *lib)
 {
-	struct vlan_feat_ops *vlan_feat_ops =
-		calloc(1, sizeof(struct vlan_feat_ops));
+	struct fal_vlan_feat_ops *vlan_feat_ops =
+		calloc(1, sizeof(struct fal_vlan_feat_ops));
 
 	if (!vlan_feat_ops) {
 		RTE_LOG(ERR, DATAPLANE, "Could not allocate vlan_feat ops\n");
@@ -389,13 +430,15 @@ static struct vlan_feat_ops *new_dyn_vlan_feat_ops(void *lib)
 		lib, "fal_plugin_vlan_feature_delete");
 	vlan_feat_ops->vlan_feature_set_attr = dlsym(
 		lib, "fal_plugin_vlan_feature_set_attr");
+	vlan_feat_ops->vlan_feature_get_attr = dlsym(
+		lib, "fal_plugin_vlan_feature_get_attr");
 	return vlan_feat_ops;
 }
 
-static struct backplane_ops *new_dyn_backplane_ops(void *lib)
+static struct fal_backplane_ops *new_dyn_backplane_ops(void *lib)
 {
-	struct backplane_ops *backplane_ops =
-		calloc(1, sizeof(struct backplane_ops));
+	struct fal_backplane_ops *backplane_ops =
+		calloc(1, sizeof(struct fal_backplane_ops));
 
 	if (!backplane_ops) {
 		RTE_LOG(ERR, DATAPLANE, "Could not allocate backplane ops\n");
@@ -408,9 +451,9 @@ static struct backplane_ops *new_dyn_backplane_ops(void *lib)
 	return backplane_ops;
 }
 
-static struct cpp_rl_ops *new_dyn_cpp_rl_ops(void *lib)
+static struct fal_cpp_rl_ops *new_dyn_cpp_rl_ops(void *lib)
 {
-	struct cpp_rl_ops *cpp_rl_ops = calloc(1, sizeof(*cpp_rl_ops));
+	struct fal_cpp_rl_ops *cpp_rl_ops = calloc(1, sizeof(*cpp_rl_ops));
 
 	if (!cpp_rl_ops) {
 		RTE_LOG(ERR, DATAPLANE, "Could not allocate cpp_rl ops\n");
@@ -425,11 +468,11 @@ static struct cpp_rl_ops *new_dyn_cpp_rl_ops(void *lib)
 	return cpp_rl_ops;
 }
 
-static struct ptp_ops *new_dyn_ptp_ops(void *lib)
+static struct fal_ptp_ops *new_dyn_ptp_ops(void *lib)
 {
-	struct ptp_ops *ptp_ops;
+	struct fal_ptp_ops *ptp_ops;
 
-	ptp_ops = calloc(1, sizeof(struct ptp_ops));
+	ptp_ops = calloc(1, sizeof(struct fal_ptp_ops));
 	if (!ptp_ops) {
 		RTE_LOG(ERR, DATAPLANE, "Could not allocate ptp ops\n");
 		return NULL;
@@ -449,6 +492,43 @@ static struct ptp_ops *new_dyn_ptp_ops(void *lib)
 	return ptp_ops;
 }
 
+static struct fal_bfd_ops *new_dyn_bfd_ops(void *lib)
+{
+	struct fal_bfd_ops *bfd_ops;
+
+	bfd_ops = calloc(1, sizeof(*bfd_ops));
+	if (!bfd_ops) {
+		RTE_LOG(ERR, DATAPLANE, "Could not allocate bfd ops\n");
+		return NULL;
+	}
+
+	bfd_ops->create_session = dlsym(lib, "fal_plugin_bfd_create_session");
+	bfd_ops->delete_session = dlsym(lib, "fal_plugin_bfd_delete_session");
+	bfd_ops->set_session_attr = dlsym(lib,
+		"fal_plugin_bfd_set_session_attribute");
+	bfd_ops->get_session_attr = dlsym(lib,
+		"fal_plugin_bfd_get_session_attribute");
+	bfd_ops->get_session_stats = dlsym(lib,
+		"fal_plugin_bfd_get_session_stats");
+
+	return bfd_ops;
+}
+
+static struct fal_capture_ops *new_dyn_capture_ops(void *lib)
+{
+	struct fal_capture_ops *ops;
+
+	ops = calloc(1, sizeof(struct fal_capture_ops));
+	if (ops == NULL) {
+		RTE_LOG(ERR, DATAPLANE, "Could not allocate capture ops\n");
+		return NULL;
+	}
+
+	ops->create = dlsym(lib, "fal_plugin_capture_create");
+	ops->delete = dlsym(lib, "fal_plugin_capture_delete");
+	return ops;
+}
+
 static void register_dyn_msg_handlers(void *lib)
 {
 	struct message_handler *handler =
@@ -461,6 +541,7 @@ static void register_dyn_msg_handlers(void *lib)
 
 	handler->l2 = new_dyn_l2_ops(lib);
 	handler->rif = new_dyn_rif_ops(lib);
+	handler->lag = new_dyn_lag_ops(lib);
 	handler->tun = new_dyn_tun_ops(lib);
 	handler->bridge = new_dyn_bridge_ops(lib);
 	handler->vlan = new_dyn_vlan_ops(lib);
@@ -477,6 +558,8 @@ static void register_dyn_msg_handlers(void *lib)
 	handler->backplane = new_dyn_backplane_ops(lib);
 	handler->cpp_rl = new_dyn_cpp_rl_ops(lib);
 	handler->ptp = new_dyn_ptp_ops(lib);
+	handler->capture = new_dyn_capture_ops(lib);
+	handler->bfd = new_dyn_bfd_ops(lib);
 
 	fal_register_message_handler(handler);
 }
@@ -561,6 +644,8 @@ static void free_message_handler(struct message_handler *handler)
 	free(handler->vlan_feat);
 	free(handler->backplane);
 	free(handler->cpp_rl);
+	free(handler->capture);
+	free(handler->bfd);
 	free(handler);
 }
 
@@ -578,7 +663,7 @@ bool fal_plugins_present(void)
 
 #define call_handler(op_type, fn, args...)				\
 	{								\
-		struct op_type ## _ops *interface = NULL;		\
+		struct fal_ ## op_type ## _ops *interface = NULL;	\
 		if (fal_handler) {					\
 			interface = fal_handler->op_type;		\
 			if (interface && interface->fn)			\
@@ -588,7 +673,7 @@ bool fal_plugins_present(void)
 
 #define call_handler_def_ret(op_type, def_ret, fn, args...)		\
 	({								\
-		struct op_type ## _ops *interface = NULL;		\
+		struct fal_ ## op_type ## _ops *interface = NULL;	\
 		int ret = def_ret;					\
 		if (fal_handler) {					\
 			interface = fal_handler->op_type;		\
@@ -648,7 +733,7 @@ int fal_l2_get_attrs(unsigned int if_index,
 		     uint32_t attr_count,
 		     struct fal_attribute_t *attr_list)
 {
-	struct l2_ops *interface;
+	struct fal_l2_ops *interface;
 	int rc = -1;
 
 	if (fal_handler) {
@@ -662,10 +747,11 @@ int fal_l2_get_attrs(unsigned int if_index,
 	return rc;
 }
 
-void fal_l2_upd_port(unsigned int if_index,
-		     struct fal_attribute_t *attr)
+int fal_l2_upd_port(unsigned int if_index,
+		    struct fal_attribute_t *attr)
 {
-	call_handler(l2, upd_port, if_index, attr);
+	return call_handler_def_ret(l2, -EOPNOTSUPP, upd_port,
+				    if_index, attr);
 }
 
 void fal_l2_del_port(unsigned int if_index)
@@ -718,6 +804,22 @@ int fal_set_router_interface_attr(fal_object_t obj,
 				    obj, attr);
 }
 
+int
+fal_get_router_interface_stats(fal_object_t obj,
+			       uint32_t cntr_count,
+			       const enum fal_router_interface_stat_t *cntr_ids,
+			       uint64_t *cntrs)
+{
+	return call_handler_def_ret(rif, -EOPNOTSUPP, get_stats,
+				    obj, cntr_count, cntr_ids, cntrs);
+}
+
+void
+fal_dump_router_interface(fal_object_t obj, json_writer_t *wr)
+{
+	call_handler(rif, dump, obj, wr);
+}
+
 /* Tunnel operations */
 
 int
@@ -742,6 +844,76 @@ int fal_set_tunnel_attr(fal_object_t obj,
 {
 	return call_handler_def_ret(tun, -EOPNOTSUPP, set_attr,
 				    obj, attr_count, attr_list);
+}
+
+/* LAG operations */
+int fal_create_lag(uint32_t attr_count,
+		   struct fal_attribute_t *attr_list,
+		   fal_object_t *obj)
+{
+	return call_handler_def_ret(lag, -EOPNOTSUPP, create_lag,
+				    attr_count, attr_list, obj);
+}
+
+int fal_delete_lag(fal_object_t obj)
+{
+	return call_handler_def_ret(lag, -EOPNOTSUPP, delete_lag,
+				    obj);
+}
+
+int fal_set_lag_attr(fal_object_t obj,
+		     uint32_t attr_count,
+		     const struct fal_attribute_t *attr_list)
+{
+	return call_handler_def_ret(lag, -EOPNOTSUPP, set_lag_attr,
+				    obj, attr_count, attr_list);
+
+}
+
+int fal_get_lag_attr(fal_object_t obj,
+		     uint32_t attr_count,
+		     struct fal_attribute_t *attr_list)
+{
+	return call_handler_def_ret(lag, -EOPNOTSUPP, get_lag_attr,
+				    obj, attr_count, attr_list);
+
+}
+
+void
+fal_dump_lag(fal_object_t obj, json_writer_t *wr)
+{
+	call_handler(lag, dump, obj, wr);
+}
+
+int fal_create_lag_member(uint32_t attr_count,
+			  struct fal_attribute_t *attr_list,
+			  fal_object_t *obj)
+{
+	return call_handler_def_ret(lag, -EOPNOTSUPP, create_lag_member,
+				    attr_count, attr_list, obj);
+}
+
+int fal_delete_lag_member(fal_object_t obj)
+{
+	return call_handler_def_ret(lag, -EOPNOTSUPP, delete_lag_member,
+				    obj);
+}
+
+int fal_set_lag_member_attr(fal_object_t obj,
+			    const struct fal_attribute_t *attr)
+{
+	return call_handler_def_ret(lag, -EOPNOTSUPP, set_lag_member_attr,
+				    obj, attr);
+
+}
+
+int fal_get_lag_member_attr(fal_object_t obj,
+			    uint32_t attr_count,
+			    struct fal_attribute_t *attr_list)
+{
+	return call_handler_def_ret(lag, -EOPNOTSUPP, get_lag_member_attr,
+				    obj, attr_count, attr_list);
+
 }
 
 /* Bridge operations */
@@ -1118,10 +1290,10 @@ void fal_ip6_del_addr(unsigned int if_index, const struct if_addr *ifa)
 	fal_ip_del_addr(if_index, &faddr, ifa->ifa_prefixlen);
 }
 
-static int fal_ip_new_neigh(unsigned int if_index,
-			    struct fal_ip_address_t *ipaddr,
-			    uint32_t attr_count,
-			    const struct fal_attribute_t *attr_list)
+static int _fal_ip_new_neigh(unsigned int if_index,
+			     struct fal_ip_address_t *ipaddr,
+			     uint32_t attr_count,
+			     const struct fal_attribute_t *attr_list)
 {
 	return call_handler_def_ret(
 		ip, -EOPNOTSUPP, new_neigh, if_index, ipaddr, attr_count,
@@ -1167,6 +1339,33 @@ int fal_ip_get_neigh_attrs(unsigned int if_index,
 		attr_count, attr_list);
 }
 
+int fal_ip_new_neigh(unsigned int if_index,
+		     const struct sockaddr *sa,
+		     uint32_t attr_count,
+		     const struct fal_attribute_t *attr_list)
+{
+	struct fal_ip_address_t ipaddr = { 0 };
+
+	switch (sa->sa_family) {
+	case AF_INET:
+		ipaddr.addr_family = FAL_IP_ADDR_FAMILY_IPV4;
+		ipaddr.addr.ip4 =
+			((const struct sockaddr_in *)sa)->sin_addr.s_addr;
+		break;
+	case AF_INET6:
+		ipaddr.addr_family = FAL_IP_ADDR_FAMILY_IPV6;
+		ipaddr.addr.addr6 =
+			((const struct sockaddr_in6 *)sa)->sin6_addr;
+		break;
+	default:
+		return -EOPNOTSUPP;
+	}
+
+	return _fal_ip_new_neigh(if_index, &ipaddr, attr_count,
+				 attr_list);
+}
+
+
 int fal_ip_upd_neigh(unsigned int if_index,
 		     const struct sockaddr *sa,
 		     const struct fal_attribute_t *attr)
@@ -1201,6 +1400,13 @@ static int fal_ip_del_neigh(unsigned int if_index,
 		ip, -EOPNOTSUPP, del_neigh, if_index, ipaddr);
 }
 
+static void fal_ip_dump_neigh(unsigned int if_index,
+			     struct fal_ip_address_t *ipaddr,
+			     json_writer_t *wr)
+{
+	call_handler(ip, dump_neigh, if_index, ipaddr, wr);
+}
+
 int fal_ip4_new_neigh(unsigned int if_index,
 		      const struct sockaddr_in *sin,
 		      uint32_t attr_count,
@@ -1214,7 +1420,7 @@ int fal_ip4_new_neigh(unsigned int if_index,
 	if (!fal_plugins_present())
 		return 0;
 
-	return fal_ip_new_neigh(if_index, &faddr, attr_count, attr_list);
+	return _fal_ip_new_neigh(if_index, &faddr, attr_count, attr_list);
 }
 
 int fal_ip6_new_neigh(unsigned int if_index,
@@ -1230,7 +1436,7 @@ int fal_ip6_new_neigh(unsigned int if_index,
 	if (!fal_plugins_present())
 		return 0;
 
-	return fal_ip_new_neigh(if_index, &faddr, attr_count, attr_list);
+	return _fal_ip_new_neigh(if_index, &faddr, attr_count, attr_list);
 }
 
 int fal_ip4_upd_neigh(unsigned int if_index,
@@ -1291,14 +1497,44 @@ int fal_ip6_del_neigh(unsigned int if_index,
 	return fal_ip_del_neigh(if_index, &faddr);
 }
 
+void fal_ip4_dump_neigh(unsigned int if_index,
+			const struct sockaddr_in *sin,
+			json_writer_t *wr)
+{
+	struct fal_ip_address_t faddr = {
+		.addr_family = FAL_IP_ADDR_FAMILY_IPV4,
+		.addr.ip4 = sin->sin_addr.s_addr
+	};
+
+	fal_ip_dump_neigh(if_index, &faddr, wr);
+}
+
+void fal_ip6_dump_neigh(unsigned int if_index,
+			const struct sockaddr_in6 *sin6,
+			json_writer_t *wr)
+{
+	struct fal_ip_address_t faddr = {
+		.addr_family = FAL_IP_ADDR_FAMILY_IPV6,
+		.addr.addr6 = sin6->sin6_addr
+	};
+
+	fal_ip_dump_neigh(if_index, &faddr, wr);
+}
+
 static enum fal_packet_action_t
 next_hop_to_packet_action(const struct next_hop *nh)
 {
+	struct ifnet *ifp;
+
 	if (nh->flags & RTF_BLACKHOLE ||
 	    nh_outlabels_present(&nh->outlabels))
 		return FAL_PACKET_ACTION_DROP;
 
 	if (nh->flags & (RTF_LOCAL|RTF_BROADCAST|RTF_SLOWPATH|RTF_REJECT))
+		return FAL_PACKET_ACTION_TRAP;
+
+	ifp = dp_nh4_get_ifp(nh);
+	if (!ifp || ifp->fal_l3 == FAL_NULL_OBJECT_ID)
 		return FAL_PACKET_ACTION_TRAP;
 
 	return FAL_PACKET_ACTION_FORWARD;
@@ -1307,11 +1543,17 @@ next_hop_to_packet_action(const struct next_hop *nh)
 static enum fal_packet_action_t
 next_hop6_to_packet_action(const struct next_hop_v6 *nh)
 {
+	struct ifnet *ifp;
+
 	if (nh->flags & RTF_BLACKHOLE ||
 	    nh_outlabels_present(&nh->outlabels))
 		return FAL_PACKET_ACTION_DROP;
 
 	if (nh->flags & (RTF_LOCAL|RTF_BROADCAST|RTF_SLOWPATH|RTF_REJECT))
+		return FAL_PACKET_ACTION_TRAP;
+
+	ifp = dp_nh6_get_ifp(nh);
+	if (!ifp || ifp->fal_l3 == FAL_NULL_OBJECT_ID)
 		return FAL_PACKET_ACTION_TRAP;
 
 	return FAL_PACKET_ACTION_FORWARD;
@@ -1340,7 +1582,7 @@ static const struct fal_attribute_t **next_hop_to_attr_list(
 		struct fal_ip_address_t *addr;
 
 		nh_attr_list[i] = nh_attr = calloc(
-			1, sizeof(*nh_attr) * 3);
+			1, sizeof(*nh_attr) * 4);
 		if (!nh_attr) {
 			while (i--)
 				free((struct fal_attribute_t *)
@@ -1349,20 +1591,21 @@ static const struct fal_attribute_t **next_hop_to_attr_list(
 			free(nh_attr_list);
 			return NULL;
 		}
-		addr = &nh_attr[2].value.ipaddr;
 		nh_attr[0].id = FAL_NEXT_HOP_ATTR_NEXT_HOP_GROUP;
 		nh_attr[0].value.objid = nhg_object;
 		nh_attr[1].id = FAL_NEXT_HOP_ATTR_INTF;
-		ifp = nh4_get_ifp(nh);
+		ifp = dp_nh4_get_ifp(nh);
 		nh_attr[1].value.u32 = ifp ? ifp->if_index : 0;
+		nh_attr[2].id = FAL_NEXT_HOP_ATTR_ROUTER_INTF;
+		nh_attr[2].value.u32 = ifp ? ifp->fal_l3 : FAL_NULL_OBJECT_ID;
 		if (nh->flags & (RTF_GATEWAY | RTF_NEIGH_CREATED)) {
-			nh_attr[2].id = FAL_NEXT_HOP_ATTR_IP;
-			nh_attr[2].value.ptr = addr;
+			nh_attr[3].id = FAL_NEXT_HOP_ATTR_IP;
+			addr = &nh_attr[3].value.ipaddr;
 			addr->addr_family = FAL_IP_ADDR_FAMILY_IPV4;
 			addr->addr.ip4 = nh->gateway;
-			(*attr_count)[i] = 3;
+			(*attr_count)[i] = 4;
 		} else {
-			(*attr_count)[i] = 2;
+			(*attr_count)[i] = 3;
 		}
 	}
 
@@ -1392,7 +1635,7 @@ static const struct fal_attribute_t **next_hop6_to_attr_list(
 		struct fal_ip_address_t *addr;
 
 		nh_attr_list[i] = nh_attr = calloc(
-			1, sizeof(*nh_attr) * 3);
+			1, sizeof(*nh_attr) * 4);
 		if (!nh_attr) {
 			while (i--)
 				free((struct fal_attribute_t *)
@@ -1401,20 +1644,21 @@ static const struct fal_attribute_t **next_hop6_to_attr_list(
 			free(nh_attr_list);
 			return NULL;
 		}
-		addr = &nh_attr[2].value.ipaddr;
 		nh_attr[0].id = FAL_NEXT_HOP_ATTR_NEXT_HOP_GROUP;
 		nh_attr[0].value.objid = nhg_object;
 		nh_attr[1].id = FAL_NEXT_HOP_ATTR_INTF;
-		ifp = nh6_get_ifp(nh);
+		ifp = dp_nh6_get_ifp(nh);
 		nh_attr[1].value.u32 = ifp ? ifp->if_index : 0;
+		nh_attr[2].id = FAL_NEXT_HOP_ATTR_ROUTER_INTF;
+		nh_attr[2].value.u32 = ifp ? ifp->fal_l3 : FAL_NULL_OBJECT_ID;
 		if (nh->flags & (RTF_GATEWAY | RTF_NEIGH_CREATED)) {
-			nh_attr[2].id = FAL_NEXT_HOP_ATTR_IP;
-			nh_attr[2].value.ptr = addr;
+			nh_attr[3].id = FAL_NEXT_HOP_ATTR_IP;
+			addr = &nh_attr[3].value.ipaddr;
 			addr->addr_family = FAL_IP_ADDR_FAMILY_IPV6;
 			addr->addr.addr6 = nh->gateway;
-			(*attr_count)[i] = 3;
+			(*attr_count)[i] = 4;
 		} else {
-			(*attr_count)[i] = 2;
+			(*attr_count)[i] = 3;
 		}
 	}
 
@@ -1435,19 +1679,19 @@ int fal_ip4_new_next_hops(size_t nhops, const struct next_hop hops[],
 		return -EINVAL;
 
 	if (!fal_plugins_present())
-		return 0;
+		return -EOPNOTSUPP;
 
 	for (i = 0; i < nhops; i++) {
 		/*
 		 * Don't create next_hop_group if there is at least
 		 * one nexthop that needs to do something special, since
 		 * we can't represent this in the next_hop
-		 * attributes. This will be represent instead using
+		 * attributes. This will be represented instead using
 		 * route attributes.
 		 */
 		if (next_hop_to_packet_action(&hops[i]) !=
 		    FAL_PACKET_ACTION_FORWARD)
-			return 0;
+			return FAL_RC_NOT_REQ;
 	}
 
 	ret = call_handler_def_ret(ip, -EOPNOTSUPP,
@@ -1495,19 +1739,19 @@ int fal_ip6_new_next_hops(size_t nhops, const struct next_hop_v6 hops[],
 		return -EINVAL;
 
 	if (!fal_plugins_present())
-		return 0;
+		return -EOPNOTSUPP;
 
 	for (i = 0; i < nhops; i++) {
 		/*
 		 * Don't create next_hop_group if there is at least
 		 * one nexthop that needs to do something special, since
 		 * we can't represent this in the next_hop
-		 * attributes. This will be represent instead using
+		 * attributes. This will be represented instead using
 		 * route attributes.
 		 */
 		if (next_hop6_to_packet_action(&hops[i]) !=
 		    FAL_PACKET_ACTION_FORWARD)
-			return 0;
+			return FAL_RC_NOT_REQ;
 	}
 
 	ret = call_handler_def_ret(ip, -EOPNOTSUPP,
@@ -1542,27 +1786,12 @@ error:
 }
 
 int fal_ip4_del_next_hops(fal_object_t nhg_object, size_t nhops,
-			  const struct next_hop *hops,
 			  const fal_object_t *obj_list)
 {
-	uint32_t i;
 	int ret;
 
 	if (!fal_plugins_present())
-		return 0;
-
-	for (i = 0; i < nhops; i++) {
-		/*
-		 * Don't create next_hop_group if there is at least
-		 * one nexthop that needs to do something special, since
-		 * we can't represent this in the next_hop
-		 * attributes. This will be represent instead using
-		 * route attributes.
-		 */
-		if (next_hop_to_packet_action(&hops[i]) !=
-		    FAL_PACKET_ACTION_FORWARD)
-			return 0;
-	}
+		return -EOPNOTSUPP;
 
 	ret = call_handler_def_ret(ip, -EOPNOTSUPP, del_next_hops,
 				   nhops, obj_list);
@@ -1575,27 +1804,12 @@ int fal_ip4_del_next_hops(fal_object_t nhg_object, size_t nhops,
 }
 
 int fal_ip6_del_next_hops(fal_object_t nhg_object, size_t nhops,
-			  const struct next_hop_v6 *hops,
 			  const fal_object_t *obj_list)
 {
-	uint32_t i;
 	int ret;
 
 	if (!fal_plugins_present())
-		return 0;
-
-	for (i = 0; i < nhops; i++) {
-		/*
-		 * Don't create next_hop_group if there is at least
-		 * one nexthop that needs to do something special, since
-		 * we can't represent this in the next_hop
-		 * attributes. This will be represent instead using
-		 * route attributes.
-		 */
-		if (next_hop6_to_packet_action(&hops[i]) !=
-		    FAL_PACKET_ACTION_FORWARD)
-			return 0;
-	}
+		return -EOPNOTSUPP;
 
 	ret = call_handler_def_ret(ip, -EOPNOTSUPP, del_next_hops,
 				   nhops, obj_list);
@@ -1605,6 +1819,34 @@ int fal_ip6_del_next_hops(fal_object_t nhg_object, size_t nhops,
 					   nhg_object);
 
 	return ret;
+}
+
+int fal_ip_get_next_hop_group_attrs(fal_object_t nhg_object,
+				    uint32_t attr_count,
+				    struct fal_attribute_t *attr_list)
+{
+	return call_handler_def_ret(
+		ip, -EOPNOTSUPP, get_next_hop_group_attrs, nhg_object,
+		attr_count, attr_list);
+}
+
+void fal_ip_dump_next_hop_group(fal_object_t nhg_object, json_writer_t *wr)
+{
+	call_handler(ip, dump_next_hop_group, nhg_object, wr);
+}
+
+int fal_ip_get_next_hop_attrs(fal_object_t nh_object,
+			      uint32_t attr_count,
+			      struct fal_attribute_t *attr_list)
+{
+	return call_handler_def_ret(
+		ip, -EOPNOTSUPP, get_next_hop_attrs, nh_object,
+		attr_count, attr_list);
+}
+
+void fal_ip_dump_next_hop(fal_object_t nh_object, json_writer_t *wr)
+{
+	call_handler(ip, dump_next_hop, nh_object, wr);
 }
 
 static int fal_ip_new_route(unsigned int vrf_id,
@@ -1638,6 +1880,27 @@ static int fal_ip_del_route(unsigned int vrf_id,
 	return call_handler_def_ret(
 		ip, -EOPNOTSUPP, del_route, vrf_id, ipaddr, prefixlen,
 		tableid);
+}
+
+static int fal_ip_get_route_attrs(unsigned int vrf_id,
+				  struct fal_ip_address_t *ipaddr,
+				  uint8_t prefixlen,
+				  uint32_t tableid,
+				  uint32_t attr_count,
+				  const struct fal_attribute_t *attr_list)
+{
+	return call_handler_def_ret(
+		ip, -EOPNOTSUPP, get_route_attrs, vrf_id, ipaddr, prefixlen,
+		tableid, attr_count, attr_list);
+}
+
+int fal_ip_walk_routes(fal_plugin_route_walk_fn cb,
+		       uint32_t attr_cnt,
+		       struct fal_attribute_t *attr_list,
+		       void *arg)
+{
+	return call_handler_def_ret(ip, -EOPNOTSUPP, walk_routes, cb,
+				    attr_cnt, attr_list, arg);
 }
 
 static enum fal_packet_action_t
@@ -1818,6 +2081,35 @@ int fal_ip6_del_route(vrfid_t vrf_id, const struct in6_addr *addr,
 		return 0;
 
 	return fal_ip_del_route(__vrf_id, &faddr, prefixlen, tableid);
+}
+
+int fal_ip4_get_route_attrs(vrfid_t vrf_id, in_addr_t addr, uint8_t prefixlen,
+			    uint32_t tableid, uint32_t attr_count,
+			    const struct fal_attribute_t *attr_list)
+{
+	uint32_t __vrf_id = vrf_id;
+	struct fal_ip_address_t faddr = {
+		.addr_family = FAL_IP_ADDR_FAMILY_IPV4,
+		.addr.ip4 = addr
+	};
+
+	return fal_ip_get_route_attrs(__vrf_id, &faddr, prefixlen,
+				      tableid, attr_count, attr_list);
+}
+
+int fal_ip6_get_route_attrs(vrfid_t vrf_id, const struct in6_addr *addr,
+			    uint8_t prefixlen, uint32_t tableid,
+			    uint32_t attr_count,
+			    const struct fal_attribute_t *attr_list)
+{
+	uint32_t __vrf_id = vrf_id;
+	struct fal_ip_address_t faddr = {
+		.addr_family = FAL_IP_ADDR_FAMILY_IPV6,
+		.addr.addr6 = *addr
+	};
+
+	return fal_ip_get_route_attrs(__vrf_id, &faddr, prefixlen,
+				      tableid, attr_count, attr_list);
 }
 
 /* IP Multicast operations */
@@ -2093,7 +2385,7 @@ int fal_create_ipmc_rpf_group(uint32_t *ifindex_list, uint32_t num_int,
 	rpf_attr[0].value.objid = *rpf_group_id;
 	for (i = 0; i < num_int; i++) {
 		rpf_attr[1].id = FAL_RPF_GROUP_MEMBER_ATTR_RPF_INTERFACE_ID;
-		ifp = ifnet_byifindex(ifindex_list[i]);
+		ifp = dp_ifnet_byifindex(ifindex_list[i]);
 		if (!ifp || !ifp->fal_l3) {
 			DP_DEBUG(MULTICAST, ERR, MCAST,
 				 "FAL failed to create RPF member bad ifp %s.\n",
@@ -2151,7 +2443,7 @@ static int fal_ip4_iterate_ipmc_olist(unsigned char count,
 	struct cds_lfht_iter iter;
 
 	cds_lfht_for_each_entry(iftable, &iter, vifp, node) {
-		if (IF_ISSET(vifp->v_if_index, mfcc_ifset)) {
+		if (IF_ISSET(vifp->v_vif_index, mfcc_ifset)) {
 			if (i >= count) {
 				DP_DEBUG(MULTICAST, ERR, MCAST,
 					 "FAL Too many IPMC members %d(%d).\n",
@@ -2200,7 +2492,7 @@ static int fal_ip6_iterate_ipmc_olist(unsigned char count,
 	struct cds_lfht_iter iter;
 
 	cds_lfht_for_each_entry(iftable, &iter, mifp, node) {
-		if (IF_ISSET(mifp->m6_if_index, mfc_ifset)) {
+		if (IF_ISSET(mifp->m6_mif_index, mfc_ifset)) {
 			if (i >= count) {
 				DP_DEBUG(MULTICAST, ERR, MCAST,
 					 "FAL Too many IPMC members %d(%d).\n",
@@ -2860,7 +3152,7 @@ int str_to_fal_ip_address_t(char *str, struct fal_ip_address_t *ipaddr)
  *
  * Returns 1 on success and 0 on failure.
  */
-const char *fal_ip_address_t_to_str(struct fal_ip_address_t *ipaddr,
+const char *fal_ip_address_t_to_str(const struct fal_ip_address_t *ipaddr,
 				    char *dst, socklen_t size)
 {
 	if (ipaddr->addr_family == FAL_IP_ADDR_FAMILY_IPV4)
@@ -2870,6 +3162,13 @@ const char *fal_ip_address_t_to_str(struct fal_ip_address_t *ipaddr,
 		return inet_ntop(AF_INET6, &ipaddr->addr.ip6, dst, size);
 
 	return NULL;
+}
+
+bool fal_is_ipaddr_empty(const struct fal_ip_address_t *ipaddr)
+{
+	struct fal_ip_address_t empty_ipaddr = { 0 };
+
+	return memcmp(ipaddr, &empty_ipaddr, sizeof(empty_ipaddr)) == 0;
 }
 
 /* QoS functions */
@@ -3038,6 +3337,19 @@ void fal_qos_dump_sched_group(fal_object_t sg, json_writer_t *wr)
 	call_handler(qos, dump_sched_group, sg, wr);
 }
 
+int fal_qos_get_counters(const uint32_t *cntr_ids,
+				uint32_t num_cntrs,
+				uint64_t *cntrs)
+{
+	return call_handler_def_ret(qos, -EOPNOTSUPP, get_counters,
+				cntr_ids, num_cntrs, cntrs);
+}
+
+void fal_qos_dump_buf_errors(json_writer_t *wr)
+{
+	call_handler(qos, dump_buf_errors, wr);
+}
+
 int __externally_visible
 fal_attach_device(const char *devargs)
 {
@@ -3098,6 +3410,15 @@ int fal_vlan_feature_set_attr(fal_object_t obj,
 {
 	return call_handler_def_ret(vlan_feat, -EOPNOTSUPP,
 				    vlan_feature_set_attr, obj, attr);
+}
+
+int fal_vlan_feature_get_attr(fal_object_t obj,
+			      uint32_t attr_count,
+			      struct fal_attribute_t *attr_list)
+{
+	return call_handler_def_ret(vlan_feat, -EOPNOTSUPP,
+				    vlan_feature_get_attr, obj, attr_count,
+				    attr_list);
 }
 
 int fal_backplane_bind(unsigned int bp_ifindex, unsigned int ifindex)
@@ -3305,3 +3626,69 @@ int fal_acl_get_counter_attr(fal_object_t counter_id,
 }
 
 /* End of ACL functions */
+
+int fal_capture_create(uint32_t attr_count,
+		       const struct fal_attribute_t *attr_list,
+		       fal_object_t *obj)
+{
+	return call_handler_def_ret(capture, -EOPNOTSUPP,
+				    create, attr_count,
+				    attr_list, obj);
+}
+
+void fal_capture_delete(fal_object_t obj)
+{
+	call_handler(capture, delete, obj);
+}
+
+/* Start of BFD functions */
+
+int dp_fal_bfd_create_session(fal_object_t *bfd_session_id,
+	uint32_t attr_count, const struct fal_attribute_t *attr_list)
+{
+	return call_handler_def_ret(bfd, -EOPNOTSUPP, create_session,
+			bfd_session_id, attr_count, attr_list);
+}
+
+int dp_fal_bfd_delete_session(fal_object_t bfd_session_id)
+{
+	return call_handler_def_ret(bfd, -EOPNOTSUPP, delete_session,
+			bfd_session_id);
+}
+
+int dp_fal_bfd_set_session_attribute(fal_object_t bfd_session_id,
+	uint32_t attr_count, const struct fal_attribute_t *attr_list)
+{
+	return call_handler_def_ret(bfd, -EOPNOTSUPP, set_session_attr,
+			bfd_session_id, attr_count, attr_list);
+}
+
+int dp_fal_bfd_get_session_attribute(fal_object_t bfd_session_id,
+	uint32_t attr_count, struct fal_attribute_t *attr_list)
+{
+	return call_handler_def_ret(bfd, -EOPNOTSUPP, get_session_attr,
+			bfd_session_id, attr_count, attr_list);
+}
+
+int dp_fal_bfd_get_session_stats(fal_object_t bfd_session_id,
+	uint32_t number_of_counters,
+	const enum fal_bfd_session_stat_t *counter_ids,
+	uint64_t *counters)
+{
+	return call_handler_def_ret(bfd, -EOPNOTSUPP, get_session_stats,
+			bfd_session_id, number_of_counters,
+			counter_ids, counters);
+}
+
+int dp_fal_bfd_get_switch_attrs(uint32_t attr_count,
+	struct fal_attribute_t *attr_list)
+{
+	return fal_get_switch_attrs(attr_count, attr_list);
+}
+
+int dp_fal_bfd_set_switch_attr(const struct fal_attribute_t *attr)
+{
+	return fal_set_switch_attr(attr);
+}
+
+/* End of BFD functions */

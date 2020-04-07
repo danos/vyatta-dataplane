@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2018-2019, AT&T Intellectual Property. All rights reserved.
+ * Copyright (c) 2018-2020, AT&T Intellectual Property. All rights reserved.
  * Copyright (c) 2018 by AT&T Intellectual Property. All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
@@ -19,11 +19,11 @@
 
 #include "dp_test.h"
 #include "dp_test_str.h"
-#include "dp_test_lib.h"
+#include "dp_test_lib_internal.h"
 #include "dp_test_lib_exp.h"
-#include "dp_test_lib_intf.h"
-#include "dp_test_pktmbuf_lib.h"
-#include "dp_test_netlink_state.h"
+#include "dp_test_lib_intf_internal.h"
+#include "dp_test_pktmbuf_lib_internal.h"
+#include "dp_test_netlink_state_internal.h"
 #include "dp_test_console.h"
 #include "dp_test_controller.h"
 #include "dp_test_json_utils.h"
@@ -65,7 +65,7 @@ DP_DECL_TEST_CASE(qos_basic, qos_basic_ipv4, NULL, NULL);
  */
 
 const char *qos_lib_selftest_cmds[] = {
-	"port subports 1 pipes 1 profiles 2 overhead 24",
+	"port subports 1 pipes 1 profiles 2 overhead 24 ql_packets",
 	"subport 0 rate 1250000000 size 5000000 period 40",
 	"subport 0 queue 0 rate 1250000000 size 5000000",
 	"subport 0 queue 1 rate 1250000000 size 5000000",
@@ -342,7 +342,7 @@ DP_START_TEST(qos_basic_ipv4, qos_lib_selftest)
  */
 
 const char *basic_pkt_fwd_cmds[] = {
-	"port subports 1 pipes 1 profiles 2 overhead 24",
+	"port subports 1 pipes 1 profiles 2 overhead 24 ql_packets",
 	"subport 0 rate 1250000000 size 5000000 period 40",
 	"subport 0 queue 0 rate 1250000000 size 5000000",
 	"subport 0 queue 1 rate 1250000000 size 5000000",
@@ -424,7 +424,7 @@ DP_START_TEST(qos_basic_ipv4, basic_pkt_fwd)
  */
 
 const char *basic_pkt_classify_cmds[] = {
-	"port subports 1 pipes 2 profiles 1 overhead 24",
+	"port subports 1 pipes 2 profiles 1 overhead 24 ql_packets",
 	"subport 0 rate 1250000000 size 5000000 period 40",
 	"subport 0 queue 0 rate 1250000000 size 5000000",
 	"subport 0 queue 1 rate 1250000000 size 5000000",
@@ -598,7 +598,7 @@ DP_START_TEST(qos_basic_ipv4, basic_pkt_classify)
  */
 
 const char *basic_dscp_map_cmds[] = {
-	"port subports 1 pipes 1 profiles 2 overhead 24",
+	"port subports 1 pipes 1 profiles 2 overhead 24 ql_packets",
 	"subport 0 rate 1250000000 size 5000000 period 40",
 	"subport 0 queue 0 rate 1250000000 size 5000000",
 	"subport 0 queue 1 rate 1250000000 size 5000000",
@@ -837,7 +837,7 @@ DP_START_TEST(qos_basic_ipv4, basic_dscp_map)
  */
 
 const char *basic_vlan_pkt_fwd_cmds[] = {
-	"port subports 2 pipes 1 profiles 3 overhead 24",
+	"port subports 2 pipes 1 profiles 3 overhead 24 ql_packets",
 	"subport 0 rate 1250000000 size 5000000 period 40",
 	"subport 0 queue 0 rate 1250000000 size 5000000",
 	"subport 0 queue 1 rate 1250000000 size 5000000",
@@ -965,7 +965,7 @@ DP_START_TEST(qos_basic_ipv4, basic_vlan_pkt_fwd)
  */
 
 const char *basic_pkt_remark_cmds[] = {
-	"port subports 1 pipes 2 profiles 1 overhead 24",
+	"port subports 1 pipes 2 profiles 1 overhead 24 ql_packets",
 	"subport 0 rate 1250000000 size 5000000 period 40",
 	"subport 0 queue 0 rate 1250000000 size 5000000",
 	"subport 0 queue 1 rate 1250000000 size 5000000",
@@ -1063,7 +1063,7 @@ DP_START_TEST(qos_basic_ipv4, basic_pkt_remark)
  */
 
 const char *basic_pkt_drop_cmds[] = {
-	"port subports 1 pipes 1 profiles 1 overhead 24",
+	"port subports 1 pipes 1 profiles 1 overhead 24 ql_packets",
 	"subport 0 rate 1250000000 size 5000000 period 40",
 	"subport 0 queue 0 rate 1250000000 size 5000000",
 	"param 0 limit packets  1",
@@ -1132,7 +1132,7 @@ DP_START_TEST(qos_basic_ipv4, basic_pkt_drop)
  */
 
 const char *vlan_subport_map_cmds[] = {
-	"port subports 3 pipes 1 profiles 3 overhead 24",
+	"port subports 3 pipes 1 profiles 3 overhead 24 ql_packets",
 	"subport 0 rate 1250000000 size 5000000 period 40",
 	"subport 0 queue 0 rate 1250000000 size 5000000",
 	"subport 0 queue 1 rate 1250000000 size 5000000",
@@ -1242,7 +1242,7 @@ DP_START_TEST(qos_basic_ipv4, vlan_subport_map)
  */
 
 const char *npf_rules_check_cmds[] = {
-	"port subports 1 pipes 3 profiles 3 overhead 24",
+	"port subports 1 pipes 3 profiles 3 overhead 24 ql_packets",
 	"subport 0 rate 1250000000 size 5000000 period 40",
 	"subport 0 queue 0 rate 1250000000 size 5000000",
 	"subport 0 queue 1 rate 1250000000 size 5000000",

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019, AT&T Intellectual Property.
+ * Copyright (c) 2019-2020, AT&T Intellectual Property.
  * All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
@@ -11,15 +11,13 @@
 #include <string.h>
 #include <rte_log.h>
 #include <rte_ethdev.h>
-#ifdef HAVE_RTE_BUS_PCI_H
 #include <rte_bus_pci.h>
-#endif
 #include <rte_pci.h>
 #include "backplane.h"
-#include "bridge.h"
 #include "control.h"
 #include "dp_event.h"
 #include "fal.h"
+#include "if/bridge/bridge.h"
 #include "if_var.h"
 #include "json_writer.h"
 #include "vplane_log.h"
@@ -46,15 +44,11 @@ static int backplane_port_get_index_and_name(uint16_t dpdk_port, int *index,
 	unsigned int i;
 
 	rte_eth_dev_info_get(dpdk_port, &dev);
-#ifdef HAVE_RTE_ETH_DEV_INFO_DEVICE
 	const struct rte_bus *bus = rte_bus_find_by_device(dev.device);
 	struct rte_pci_device *pci = NULL;
 
 	if (bus && streq(bus->name, "pci"))
 		pci = RTE_DEV_TO_PCI(dev.device);
-#else
-	const struct rte_pci_device *pci = dev.pci_dev;
-#endif
 	if (!pci)
 		return -ENOENT;
 
@@ -107,7 +101,7 @@ static int backplane_cache_ifindex(struct ifnet *ifp)
 }
 
 static void
-backplane_event_if_index_set(struct ifnet *ifp, uint32_t ifindex __unused)
+backplane_event_if_index_set(struct ifnet *ifp)
 {
 	struct cfg_if_list_entry *le, *tmp_le;
 
@@ -119,15 +113,15 @@ backplane_event_if_index_set(struct ifnet *ifp, uint32_t ifindex __unused)
 			return;
 		cds_list_for_each_entry_safe(le, tmp_le, &bp_cfg_list->if_list,
 					     le_node) {
-			ifp = ifnet_byifname(le->le_ifname);
+			ifp = dp_ifnet_byifname(le->le_ifname);
 			if (!ifp)
 				continue;
 			RTE_LOG(INFO, BACKPLANE,
 				"Replaying backplane command %s for interface %s\n",
 				le->le_buf, ifp->if_name);
 
-			cfg_if_list_del(bp_cfg_list, ifp->if_name);
 			cmd_backplane_cfg(NULL, le->le_argc, le->le_argv);
+			cfg_if_list_del(bp_cfg_list, ifp->if_name);
 		}
 		backplane_replay_destroy();
 		return;
@@ -143,8 +137,8 @@ backplane_event_if_index_set(struct ifnet *ifp, uint32_t ifindex __unused)
 		"Replaying backplane command %s for interface %s\n",
 		le->le_buf, ifp->if_name);
 
-	cfg_if_list_del(bp_cfg_list, ifp->if_name);
 	cmd_backplane_cfg(NULL, le->le_argc, le->le_argv);
+	cfg_if_list_del(bp_cfg_list, ifp->if_name);
 	backplane_replay_destroy();
 }
 
@@ -199,8 +193,8 @@ int cmd_backplane_cfg(FILE *f, int argc, char **argv)
 	if (strcmp(argv[1], "SET"))
 		goto error;
 
-	ifp = ifnet_byifname(argv[2]);
-	bp_ifp = ifnet_byifname(argv[3]);
+	ifp = dp_ifnet_byifname(argv[2]);
+	bp_ifp = dp_ifnet_byifname(argv[3]);
 	if (!ifp || !bp_ifp) {
 		if (!bp_cfg_list && backplane_replay_init()) {
 			RTE_LOG(ERR, BACKPLANE,
@@ -247,7 +241,7 @@ error:
 static void backplane_show(json_writer_t *wr, unsigned int i)
 {
 	struct ifnet *ifp;
-	struct if_link_status link;
+	struct dp_ifnet_link_status link;
 
 	jsonw_start_object(wr);
 	jsonw_name(wr, "pci_address");
@@ -258,9 +252,9 @@ static void backplane_show(json_writer_t *wr, unsigned int i)
 	jsonw_uint_field(wr, "function", bp_intfs[i].pci_addr.function);
 	jsonw_end_object(wr);
 	jsonw_uint_field(wr, "ifindex", bp_intfs[i].ifindex);
-	ifp = ifnet_byifindex(bp_intfs[i].ifindex);
+	ifp = dp_ifnet_byifindex(bp_intfs[i].ifindex);
 	if (ifp) {
-		if_get_link_status(ifp, &link);
+		dp_ifnet_link_status(ifp, &link);
 
 		jsonw_string_field(wr, "name", ifp->if_name);
 		jsonw_string_field(wr, "link_state",
@@ -288,7 +282,7 @@ int cmd_backplane_op(FILE *f, int argc, char **argv)
 	}
 
 	if (argc == 3) {
-		ifp = ifnet_byifname(argv[2]);
+		ifp = dp_ifnet_byifname(argv[2]);
 		if (!ifp) {
 			fprintf(f, "Could not find backplane interface %s\n",
 				argv[2]);

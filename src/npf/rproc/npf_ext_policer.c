@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2013-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -24,7 +24,7 @@
 #include "npf/config/npf_attach_point.h"
 #include "npf/rproc/npf_rproc.h"
 #include "npf/npf_ruleset.h"
-#include "pktmbuf.h"
+#include "pktmbuf_internal.h"
 #include "qos.h"
 #include "util.h"
 #include "vplane_log.h"
@@ -237,10 +237,10 @@ npf_policer_destroy(void *handle)
 }
 
 static inline void
-update_tokens(int32_t credit, struct npf_policer *po, const uint64_t ticks)
+update_tokens(uint32_t credit, struct npf_policer *po, const uint64_t ticks)
 {
 	po->time += ticks;
-	if (credit > (int32_t)(po->rate + po->burst))
+	if (credit > (po->rate + po->burst))
 		credit = po->rate + po->burst;
 	rte_atomic32_set(&po->credit, credit);
 }
@@ -266,7 +266,7 @@ npf_policer(npf_cache_t *npc, struct rte_mbuf **nbuf, void *arg,
 
 	if (po->type == POLICE_BYTES) {
 		uint64_t	lapsed;
-		int		intervals;
+		unsigned int	intervals;
 
 		rte_spinlock_lock(&po->lock);
 
@@ -302,7 +302,7 @@ npf_policer(npf_cache_t *npc, struct rte_mbuf **nbuf, void *arg,
 		 * report L3 bytes sent/dropped, for token bucket we include
 		 * the L2 overhead if configured.
 		 */
-		tokens = rte_pktmbuf_pkt_len(*nbuf) - pktmbuf_l2_len(*nbuf);
+		tokens = rte_pktmbuf_pkt_len(*nbuf) - dp_pktmbuf_l2_len(*nbuf);
 		tok_with_oh = tokens + po->overhead;
 		if (tok_with_oh < 0)
 			tok_with_oh = 1;
@@ -340,7 +340,7 @@ npf_policer(npf_cache_t *npc, struct rte_mbuf **nbuf, void *arg,
 		}
 		rte_spinlock_unlock(&po->lock);
 
-		tokens = rte_pktmbuf_pkt_len(*nbuf) - pktmbuf_l2_len(*nbuf);
+		tokens = rte_pktmbuf_pkt_len(*nbuf) - dp_pktmbuf_l2_len(*nbuf);
 	}
 
 	core = dp_lcore_id();
@@ -368,6 +368,47 @@ npf_policer(npf_cache_t *npc, struct rte_mbuf **nbuf, void *arg,
 	}
 
 	return true;
+}
+
+static void
+policer_get_stats(void *arg, unsigned int *excess,
+		  unsigned int *excess_bytes)
+{
+	struct npf_policer *po = arg;
+	unsigned int id;
+
+	*excess = *excess_bytes = 0;
+
+	FOREACH_DP_LCORE(id) {
+		*excess += po->cntrs[id].excess;
+		*excess_bytes += po->cntrs[id].bytes_excess;
+	}
+}
+
+void policer_show(json_writer_t *wr, void *arg)
+{
+	struct npf_policer *po = arg;
+	unsigned int excess, excess_b;
+	uint32_t credit;
+
+	policer_get_stats(po, &excess, &excess_b);
+	if (!excess)
+		return;
+
+	credit = rte_atomic32_read(&po->credit);
+	jsonw_start_object(wr);
+	jsonw_uint_field(wr, "time", po->time);
+	jsonw_uint_field(wr, "tc", po->tc);
+	jsonw_uint_field(wr, "credit", credit);
+	jsonw_uint_field(wr, "rate", po->rate);
+	jsonw_uint_field(wr, "burst", po->burst);
+	jsonw_int_field(wr, "overhead", po->overhead);
+	jsonw_int_field(wr, "action", po->action);
+	jsonw_int_field(wr, "mark_val", po->mark_val);
+	jsonw_int_field(wr, "loc", po->lock.locked);
+	jsonw_uint_field(wr, "soft_ticks", soft_ticks);
+	jsonw_uint_field(wr, "lapsed", (soft_ticks - po->time));
+	jsonw_end_object(wr);
 }
 
 static void

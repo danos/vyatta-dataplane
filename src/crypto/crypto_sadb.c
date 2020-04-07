@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2017-2018, AT&T Intellectual Property. All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property. All rights reserved.
  * Copyright (c) 2015-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -34,7 +34,7 @@
 #include "util.h"
 #include "vplane_debug.h"
 #include "vplane_log.h"
-#include "vrf.h"
+#include "vrf_internal.h"
 
 #define SADB_DEBUG(args...)				\
 	DP_DEBUG(CRYPTO, DEBUG, SADB, args)
@@ -60,9 +60,15 @@ struct sadb_peer {
 	uint16_t family;
 	char SPARE[6];
 	struct rcu_head peer_rcu;
-	/* Cacheline1  -8 bytes */
+	/* --- cacheline 1 boundary (64 bytes) was 8 bytes ago --- */
 	struct crypto_overhead_list observers;
 };
+
+/* peer_rcu and observers are both control plane fields.
+ * Ensure that the other fields do not reach into the 2nd cache line.
+ */
+static_assert(offsetof(struct sadb_peer, peer_rcu) < 64,
+	      "first cache line exceeded");
 
 /*
  * Key for hash table entries for the F(spi,dest) to
@@ -73,6 +79,8 @@ struct sadb_spi_out_key {
 	uint32_t spi;
 	uint16_t family;
 };
+
+static uint64_t sa_epoch;
 
 /*
  * Hash seed used when hashing the spi and dest address
@@ -399,6 +407,13 @@ static struct sadb_peer *sadb_lookup_or_create_peer(const xfrm_address_t *dst,
 	struct sadb_peer *peer;
 	struct crypto_vrf_ctx *vrf_ctx;
 
+	/*
+	 * Lookup/create VRF context
+	 */
+	vrf_ctx = crypto_vrf_get(vrfid);
+	if (!vrf_ctx)
+		return NULL;
+
 	peer = sadb_lookup_peer(dst, family, vrfid);
 	if (peer)
 		return peer;
@@ -415,12 +430,6 @@ static struct sadb_peer *sadb_lookup_or_create_peer(const xfrm_address_t *dst,
 	cds_lfht_node_init(&peer->ht_node);
 	TAILQ_INIT(&peer->observers);
 
-	/*
-	 * Lookup/create VRF context
-	 */
-	vrf_ctx = crypto_vrf_get(vrfid);
-	if (!vrf_ctx)
-		return NULL;
 
 	key.dst = &peer->dst;
 	key.family = peer->family;
@@ -515,6 +524,35 @@ static void sadb_refresh_osbervers_of_sa(struct sadb_sa *sa,
 }
 
 /*
+ * Look up for an old SA. Return the least old one.
+ */
+static struct sadb_sa *
+sadb_find_old_sa(struct sadb_sa *sa, vrfid_t vrfid, struct sadb_peer **ret_peer)
+{
+	struct sadb_peer *peer;
+	struct cds_list_head *this_entry;
+	struct sadb_sa *tmp_sa, *match_sa = NULL;
+
+	peer = sadb_lookup_peer(&sa->dst, sa->family, vrfid);
+	if (!peer)
+		return NULL;
+
+	cds_list_for_each(this_entry, &peer->sa_list) {
+		tmp_sa = cds_list_entry(this_entry, struct sadb_sa,
+					peer_links);
+		if (tmp_sa->reqid == sa->reqid &&
+		    tmp_sa->spi != sa->spi) {
+			if (!match_sa)
+				match_sa = tmp_sa;
+			else if (match_sa->epoch < tmp_sa->epoch)
+				match_sa = tmp_sa;
+		}
+	}
+
+	*ret_peer = peer;
+	return match_sa;
+}
+/*
  * Look up for a duplicate SA.
  */
 static struct sadb_sa *
@@ -524,7 +562,7 @@ sadb_find_matching_sa(struct sadb_sa *sa, bool ign_pending_del, vrfid_t vrfid)
 	struct cds_list_head *this_entry;
 	struct sadb_sa *tmp_sa;
 
-	peer = sadb_lookup_or_create_peer(&sa->dst, sa->family, vrfid);
+	peer = sadb_lookup_peer(&sa->dst, sa->family, vrfid);
 	if (!peer)
 		return NULL;
 
@@ -732,6 +770,7 @@ void crypto_sadb_new_sa(const struct xfrm_usersa_info *sa_info,
 	sa->byte_limit = lft->hard_byte_limit;
 	sa->packet_limit = lft->hard_packet_limit;
 	sa->overlay_vrf_id = vrf_id;
+	sa->epoch = ++sa_epoch;
 
 	if (sa_info->family == AF_INET) {
 		if (is_local_ipv4(VRF_DEFAULT_ID, sa_info->id.daddr.a4))
@@ -761,8 +800,9 @@ void crypto_sadb_new_sa(const struct xfrm_usersa_info *sa_info,
 	retiring_sa = sadb_find_matching_sa(sa, false, vrf_id);
 	if (retiring_sa) {
 		retiring_sa->pending_del = true;
-		crypto_pmd_inc_pending_del(retiring_sa->pmd_dev_id,
-					   crypto_sa_to_xfrm(retiring_sa));
+		crypto_pmd_mod_pending_del(retiring_sa->pmd_dev_id,
+					   crypto_sa_to_xfrm(retiring_sa),
+					   true);
 	}
 
 	sa->del_pmd_dev_id = sa->pmd_dev_id =
@@ -804,28 +844,38 @@ static void sadb_sa_rcu_free(struct rcu_head *head)
 	sadb_sa_destroy(sa);
 }
 
-/*
- * crypto_sadb_del_sa()
- *
- * Delete an SA from the SADB and free the memory
- *
- * This function is called from the main thread only.
- */
-void crypto_sadb_del_sa(const struct xfrm_usersa_info *sa_info, vrfid_t vrfid)
+static void crypto_sadb_resurrect_sa(struct sadb_sa *sa, vrfid_t vrfid)
+{
+	struct sadb_peer *peer = NULL;
+	struct sadb_sa *old_sa = sadb_find_old_sa(sa, vrfid, &peer);
+
+	if (!old_sa || !peer)
+		return;
+
+	SADB_DEBUG("Resurrect old SA %x\n", ntohl(old_sa->spi));
+
+	old_sa->pending_del = false;
+	crypto_pmd_mod_pending_del(old_sa->pmd_dev_id,
+				   crypto_sa_to_xfrm(old_sa), false);
+	/*
+	 * Update the crypto overhead of any observers that
+	 * are registered for this peer and reqid.
+	 */
+	sadb_refresh_osbervers_of_sa(old_sa, peer, false);
+}
+
+static void crypto_sadb_del_sa_internal(const xfrm_address_t *dst,
+					const xfrm_address_t *src,
+					uint32_t spi,
+					uint16_t family,
+					struct crypto_vrf_ctx *vrf_ctx,
+					bool resurrect_old_sa)
 {
 	static struct sadb_sa *sa;
-	struct crypto_vrf_ctx *vrf_ctx;
 
-	if (!sa_info) {
-		SADB_ERR("Bad parameters on attempt to update SA\n");
-		return;
-	}
+	ASSERT_MASTER();
 
-	SADB_DEBUG("DELSA SPI = %x VRF %d\n", ntohl(sa_info->id.spi), vrfid);
-
-	vrf_ctx = crypto_vrf_find(vrfid);
-	if (!vrf_ctx)
-		return;
+	SADB_DEBUG("DELSA SPI = %x VRF %d\n", ntohl(spi), vrf_ctx->vrfid);
 
 	/*
 	 * Trigger the deletion of the SA, and set its pmd_dev_id to
@@ -835,22 +885,24 @@ void crypto_sadb_del_sa(const struct xfrm_usersa_info *sa_info, vrfid_t vrfid)
 	 * flow. The PMD detatch is handled in the rcu callback for the
 	 * sa delete.
 	 */
-	sa = sadb_remove_sa(&sa_info->id.daddr,
-			    &sa_info->saddr,
-			    sa_info->id.spi,
-			    sa_info->family,
-			    vrfid);
+	sa = sadb_remove_sa(dst, src, spi, family, vrf_ctx->vrfid);
 
 	if (!sa) {
 		char dstip_str[INET6_ADDRSTRLEN];
 
-		inet_ntop(sa_info->family, &sa_info->id.daddr,
+		inet_ntop(family, &dst,
 			  dstip_str, sizeof(dstip_str));
 
 		SADB_ERR("SA delete for %s SPI %x failed: not found\n",
-			 dstip_str, ntohl(sa_info->id.spi));
+			 dstip_str, ntohl(spi));
 		return;
 	}
+
+	/* If this is an active SA, then we need to restore an old SA
+	 * if one exists
+	 */
+	if (resurrect_old_sa && !sa->pending_del)
+		crypto_sadb_resurrect_sa(sa, vrf_ctx->vrfid);
 
 	crypto_remove_sa_from_pmd(sa->del_pmd_dev_id,
 				  crypto_sa_to_xfrm(sa),
@@ -859,6 +911,61 @@ void crypto_sadb_del_sa(const struct xfrm_usersa_info *sa_info, vrfid_t vrfid)
 	vrf_ctx->count_of_sas--;
 
 	crypto_vrf_check_remove(vrf_ctx);
+}
+
+/*
+ * crypto_sadb_del_sa()
+ *
+ * Delete an SA from the SADB and free the memory
+ *
+ * This function is called from the main thread only.
+ */
+void crypto_sadb_del_sa(const struct xfrm_usersa_info *sa_info, vrfid_t vrfid)
+{
+	struct crypto_vrf_ctx *vrf_ctx;
+
+	if (!sa_info)
+		return;
+
+	vrf_ctx = crypto_vrf_find(vrfid);
+	if (!vrf_ctx)
+		return;
+
+	crypto_sadb_del_sa_internal(&sa_info->id.daddr,
+				    &sa_info->saddr,
+				    sa_info->id.spi,
+				    sa_info->family,
+				    vrf_ctx,
+				    true);
+}
+
+void crypto_sadb_flush_vrf(struct crypto_vrf_ctx *vrf_ctx)
+{
+	struct cds_lfht_iter iter;
+	struct sadb_sa *sa;
+
+	SADB_DEBUG("Flush all SAs for VRF %d\n", vrf_ctx->vrfid);
+
+	cds_lfht_for_each_entry(vrf_ctx->spi_out_hash_table,
+				&iter, sa, spi_ht_node) {
+		crypto_sadb_del_sa_internal(&sa->dst,
+					    &sa->src,
+					    sa->spi,
+					    sa->family,
+					    vrf_ctx,
+					    false);
+	}
+
+	cds_lfht_for_each_entry(spi_in_hash_table,
+				&iter, sa, spi_ht_node) {
+		if (sa->overlay_vrf_id == vrf_ctx->vrfid)
+			crypto_sadb_del_sa_internal(&sa->dst,
+						    &sa->src,
+						    sa->spi,
+						    sa->family,
+						    vrf_ctx,
+						    false);
+	}
 }
 
 /*
@@ -960,7 +1067,7 @@ void crypto_sadb_show_summary(FILE *f, vrfid_t vrfid)
 	struct crypto_vrf_ctx *vrf_ctx;
 	struct ifnet *ifp;
 
-	if (!vrf_get_rcu_from_external(vrfid))
+	if (!dp_vrf_get_rcu_from_external(vrfid))
 		return;
 
 	wr = jsonw_new(f);
@@ -1002,6 +1109,11 @@ void crypto_sadb_show_summary(FILE *f, vrfid_t vrfid)
 			jsonw_string_field(wr, "pending_delete",
 					   sa->pending_del ? "Yes" : "No");
 			crypto_engine_summary(wr, sa);
+			jsonw_uint_field(wr, "replay_window",
+					 sa->replay_window);
+			jsonw_uint_field(wr, "replay_bitmap",
+					 sa->replay_bitmap);
+			jsonw_uint_field(wr, "seq", sa->seq);
 			jsonw_uint_field(wr, "af", sa->family);
 			jsonw_string_field(wr, "dst",
 					   xfrm_addr_to_str(sa->family,

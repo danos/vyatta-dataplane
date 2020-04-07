@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2019, AT&T Intellectual Property. All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property. All rights reserved.
  * Copyright (c) 2015 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -19,16 +19,17 @@
 #include "session/session.h"
 
 #include "dp_test.h"
-#include "dp_test_lib.h"
-#include "dp_test_lib_intf.h"
-#include "dp_test_pktmbuf_lib.h"
-#include "dp_test_netlink_state.h"
+#include "dp_test_lib_internal.h"
+#include "dp_test_lib_intf_internal.h"
+#include "dp_test_pktmbuf_lib_internal.h"
+#include "dp_test_netlink_state_internal.h"
+#include "dp_test/dp_test_cmd_check.h"
 #include "dp_test_console.h"
 #include "dp_test_json_utils.h"
 #include "dp_test_npf_lib.h"
 #include "dp_test_npf_nat_lib.h"
 #include "dp_test_npf_sess_lib.h"
-#include "dp_test_session_lib.h"
+#include "dp_test_session_internal_lib.h"
 
 /*
  * Parameters required to identify a session
@@ -53,27 +54,29 @@ struct dp_test_npf_json_session_match_t {
  * Verify the npf global session count
  */
 void
-_dp_test_npf_session_count_verify(uint exp_count, bool warn,
-				  const char *file, int line)
+_dp_test_session_count_verify(uint exp_count, bool warn,
+				  const char *file, const char *func, int line)
 {
 	uint count = 0;
 	bool rv;
 
 	rv = dp_test_npf_session_count(&count);
 
-	_dp_test_fail_unless(rv, file, line, "Failed to get session count\n");
+	_dp_test_fail_unless(rv, file, line,
+			     "Failed to get session count (%s)\n", func);
 
 	if (count != exp_count) {
 		char str[80];
 
 		snprintf(str, sizeof(str),
-			 "FW  session count expected %d, actual %d",
-			 exp_count, count);
+			 "FW  session count expected %d, actual %d (%s)",
+			 exp_count, count, func);
 
 		if (warn)
-			printf("\nWarning: %s %d %s\n", file, line, str);
+			printf("\nWarning: %s %s %d %s\n",
+			       file, func, line, str);
 		else
-			_dp_test_fail(file, line, "\n%s\n", str);
+			_dp_test_fail(file, line, "\n%s (%s)\n", str, func);
 	}
 }
 
@@ -110,8 +113,8 @@ _dp_test_npf_tcp_session_count_verify(uint exp_count, bool warn,
  * Verify the npf global UDP session count
  */
 void
-_dp_test_npf_udp_session_count_verify(uint exp_count, bool warn,
-				      const char *file, int line)
+_dp_test_session_udp_count_verify(uint exp_count, bool warn,
+				  const char *file, int line)
 {
 	uint count = 0;
 	bool rv;
@@ -177,7 +180,7 @@ dp_test_npf_expire_sessions(void)
  * Clear all npf sessions
  */
 void
-dp_test_npf_clear_sessions(void)
+dp_test_sessions_clear(void)
 {
 
 	/*
@@ -265,7 +268,7 @@ dp_test_npf_session_state_from_json(json_object *jobj)
  * @return true if found
  **/
 bool
-_dp_test_npf_session_verify(char *desc,
+_dp_test_session_verify(char *desc,
 			    const char *saddr, uint16_t src_id,
 			    const char *daddr, uint16_t dst_id,
 			    uint8_t proto, const char *intf,
@@ -321,6 +324,155 @@ error:
 	return false;
 }
 
+struct dp_test_npf_poll_cmd {
+	int poll_cnt;
+	bool result;
+	json_object *response;
+	/* fields to match on */
+	const char *saddr;
+	uint16_t src_id;
+	const char *daddr;
+	uint16_t dst_id;
+	uint8_t proto;
+	const char *intf;
+	uint32_t exp_flags;
+	uint32_t flags_mask;
+	int pkts_in;
+	int bytes_in;
+	int pkts_out;
+	int bytes_out;
+};
+
+static int
+_dp_test_npf_session_verify_count_internal(zloop_t *loop, int poller,
+					   void *arg)
+{
+	struct dp_test_npf_poll_cmd *cmd = arg;
+	char real_ifname[IFNAMSIZ];
+	json_object *jobj;
+	json_object *counter_obj;
+	unsigned int index = 0;
+	int found_pkts_in;
+	int found_bytes_in;
+	int found_pkts_out;
+	int found_bytes_out;
+
+	--(cmd->poll_cnt);
+
+	dp_test_intf_real(cmd->intf, real_ifname);
+
+	jobj = dp_test_npf_json_get_session(cmd->saddr, cmd->src_id,
+					    cmd->daddr, cmd->dst_id,
+					    cmd->proto, real_ifname,
+					    cmd->exp_flags, cmd->flags_mask,
+					    &index);
+
+	if (cmd->response)
+		json_object_put(cmd->response);
+	cmd->response = jobj;
+	if (jobj) {
+		if (!json_object_object_get_ex(jobj, "counters", &counter_obj))
+			goto done;
+
+		if (!dp_test_json_int_field_from_obj(counter_obj, "packets_in",
+						     &found_pkts_in))
+			goto done;
+		if (!dp_test_json_int_field_from_obj(counter_obj, "bytes_in",
+						     &found_bytes_in))
+			goto done;
+		if (!dp_test_json_int_field_from_obj(counter_obj, "packets_out",
+						     &found_pkts_out))
+			goto done;
+		if (!dp_test_json_int_field_from_obj(counter_obj, "bytes_out",
+						     &found_bytes_out))
+			goto done;
+		/* We have values for all of them */
+		if (cmd->pkts_in == found_pkts_in &&
+		    cmd->bytes_in == found_bytes_in &&
+		    cmd->pkts_out == found_pkts_out &&
+		    cmd->bytes_out == found_bytes_out) {
+			cmd->result = true;
+			return -1;
+		}
+	}
+done:
+	cmd->result = false;
+	if (cmd->poll_cnt == 0)
+		return -1;
+	return 0;
+}
+
+/*
+ * Verify the presence/absence of an npf session. the counts must match as
+ * well as the values identifying the session.  Poll for a matching session
+ * for the standard poll delay and record a test failure if not found.
+ *
+ * @param desc       [in] Optional text to be prepended to any error message
+ * @param saddr      [in] Source address string
+ * @param src_id     [in] Source ID in host order (TCP port, ICMP id)
+ * @param daddr      [in] Dest address string
+ * @param dst_id     [in] Dest ID in host order (TCP port, ICMP id)
+ * @param proto      [in] IP protocol
+ * @param intf       [in] Interface string, e.g. "dp2T1"
+ * @param exp_flags  [in] Expected flags, e.g. SE_ACTIVE | SE_PASS
+ * @param flags_mask [in] Flags mask, e.g. SE_FLAGS_MASK
+ * @param pkts_in    [in] expected count
+ * @param bytes_in   [in] expected count
+ * @param pkts_out   [in] expected count
+ * @param bytes_out  [in] expected count
+ *
+ * @return true if found
+ */
+void
+_dp_test_session_verify_count(char *desc,
+				  const char *saddr, uint16_t src_id,
+				  const char *daddr, uint16_t dst_id,
+				  uint8_t proto, const char *intf,
+				  uint32_t exp_flags,
+				  uint32_t flags_mask,
+				  int pkts_in, int bytes_in,
+				  int pkts_out,
+				  int bytes_out, const char *file,
+				  int line)
+{
+	zloop_t *loop = zloop_new();
+	int timer;
+	struct dp_test_npf_poll_cmd cmd = {
+		.poll_cnt = DP_TEST_POLL_COUNT,
+		.saddr = saddr,
+		.src_id = src_id,
+		.daddr = daddr,
+		.dst_id = dst_id,
+		.proto = proto,
+		.intf = intf,
+		.exp_flags = exp_flags,
+		.flags_mask = flags_mask,
+		.pkts_in = pkts_in,
+		.bytes_in = bytes_in,
+		.pkts_out = pkts_out,
+		.bytes_out = bytes_out,
+	};
+	const char *str;
+
+	timer = zloop_timer(loop, dp_test_wait_sec, 0,
+			    _dp_test_npf_session_verify_count_internal, &cmd);
+	dp_test_assert_internal(timer >= 0);
+
+	zloop_start(loop);
+	zloop_destroy(&loop);
+
+	if (cmd.result) {
+		json_object_put(cmd.response);
+		return;
+	}
+
+	str = json_object_to_json_string_ext(cmd.response,
+					     JSON_C_TO_STRING_PRETTY);
+	_dp_test_fail(file, line, "Did not find the expected counts:\n%s\n",
+		      str ? str : "");
+}
+
+
 /**
  * Verify the presence/absence of an npf session.  The 5-tuple is derived from
  * a packet descriptor.
@@ -345,7 +497,7 @@ _dp_test_npf_session_verify_desc(char *text, struct dp_test_pkt_desc_t *pkt,
 
 	dp_test_npf_extract_ids_from_pkt_desc(pkt, &src_id, &dst_id);
 
-	return _dp_test_npf_session_verify(text,
+	return _dp_test_session_verify(text,
 					   pkt->l3_src, src_id,
 					   pkt->l3_dst, dst_id,
 					   pkt->proto, intf,

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2019, AT&T Intellectual Property. All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property. All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  *
@@ -29,15 +29,17 @@
 #include <rte_ether.h>
 #include <rte_log.h>
 
-#include "config.h"
+#include "config_internal.h"
+#include "fal_plugin.h"
 #include "main.h"
 #include "util.h"
 #include "vplane_debug.h"
 #include "vplane_log.h"
 
+static const char *config_file = VYATTA_SYSCONF_DIR"/dataplane.conf";
+
 #define DEFAULT_CONTROLLER_REQ_PORT	4415
 #define DEFAULT_CONTROLLER_REQ_IPC	"ipc:///var/run/vyatta/vplaned.req"
-
 
 struct config_param config;
 struct platform_param platform_cfg;
@@ -119,11 +121,7 @@ static void parse_blacklist(char *list)
 		if (get_eth_pci_addr(ifname, addr_str, sizeof(addr_str)))
 			continue;
 
-#ifdef HAVE_RTE_DEVARGS_ADD
 		if (rte_devargs_add(RTE_DEVTYPE_BLACKLISTED_PCI,
-#else
-		if (rte_eal_devargs_add(RTE_DEVTYPE_BLACKLISTED_PCI,
-#endif
 					addr_str) < 0)
 			/* can't use rte_log yet, EAL not started */
 			fprintf(stderr,
@@ -198,7 +196,7 @@ static int parse_entry(void *user, const char *section,
 			cfg->port_update = atoi(value);
 		else if (strcmp(name, "uuid") == 0)
 			return copy_str(&cfg->uuid, value);
-		else if (strcmp(name, "dataplane-id") == 0)
+		else  if (strcmp(name, "dataplane-id") == 0)
 			cfg->dp_index = atoi(value);
 		else if (strcmp(name, "uplink-mac") == 0)
 			return ether_aton_r(value, &cfg->uplink_addr) != NULL;
@@ -213,7 +211,7 @@ static int parse_entry(void *user, const char *section,
 }
 
 /* convert from generic IP address to ZMQ bind URL */
-static char *addr_to_tcp(const struct ip_addr *addr, uint16_t port)
+char *addr_to_tcp(const struct ip_addr *addr, uint16_t port)
 {
 	char abuf[INET6_ADDRSTRLEN];
 	char pbuf[32];
@@ -264,13 +262,18 @@ static char *default_endpoint_dataplane_uplink(void)
 	return strdup("ipc://*");
 }
 
-/* Load config file and do sanity checks */
-void parse_config(const char *cfgfile)
+void set_config_file(const char *filename)
 {
-	FILE *f = fopen(cfgfile, "r");
+	config_file = filename;
+}
+
+/* Load config file and do sanity checks */
+void parse_config(void)
+{
+	FILE *f = fopen(config_file, "r");
 
 	if (f == NULL) {
-		perror(cfgfile);
+		perror(config_file);
 		exit(EXIT_FAILURE);
 	}
 
@@ -281,7 +284,7 @@ void parse_config(const char *cfgfile)
 
 	if (rc) {
 		fprintf(stderr, "Config file format error %s line %d\n",
-			cfgfile, rc);
+			config_file, rc);
 		exit(EXIT_FAILURE);
 	}
 
@@ -359,6 +362,76 @@ void parse_config(const char *cfgfile)
 				"Failed to allocate default request URL\n");
 				exit(EXIT_FAILURE);
 		}
+	}
+}
+
+struct str_val {
+	const char *str;
+	uint64_t   value;
+};
+
+struct str_val rx_offload_strs[] = {
+	{ "keep_crc", DEV_RX_OFFLOAD_KEEP_CRC },
+};
+
+#define MAX_RX_OFFLOAD_STRS (sizeof(rx_offload_strs) / \
+						sizeof(rx_offload_strs[0]))
+
+struct str_val tx_offload_strs[] = {
+	{ "dev_tx_offload_multi_segs", DEV_TX_OFFLOAD_MULTI_SEGS },
+	{ "dev_tx_offload_vlan_insert", DEV_TX_OFFLOAD_VLAN_INSERT },
+};
+
+#define MAX_TX_OFFLOAD_STRS (sizeof(tx_offload_strs) / \
+						sizeof(tx_offload_strs[0]))
+
+static void parse_option_strs(char *value,
+			      struct str_val *option_strs,
+			      uint8_t max_option_strs,
+			      uint64_t *option_flags,
+			      uint64_t *neg_option_flags)
+{
+	const char sep[] = " ,\t\r\n";
+	const char *option_str;
+
+	for (option_str = strtok(value, sep); option_str != NULL;
+	     option_str = strtok(NULL, sep)) {
+		bool is_negation = false;
+
+		if (option_str[0] == '!') {
+			is_negation = true;
+			option_str++;
+		}
+
+		for (uint8_t i = 0; i < max_option_strs; i++) {
+			if (strcmp(option_str, option_strs[i].str) == 0) {
+				if (is_negation)
+					*neg_option_flags |=
+						option_strs[i].value;
+				else
+					*option_flags |=
+						option_strs[i].value;
+			}
+		}
+	}
+}
+
+struct str_val rx_mq_mode_strs[] = {
+	{ "eth_mq_rx_none", ETH_MQ_RX_NONE },
+	{ "eth_mq_rx_rss", ETH_MQ_RX_RSS },
+};
+
+#define MAX_RX_MQ_MODE_STRS (sizeof(rx_mq_mode_strs) / \
+						sizeof(rx_mq_mode_strs[0]))
+
+static void parse_enum_str(char *value,
+			   struct str_val *enum_strs,
+			   uint8_t max_enum_strs,
+			   uint64_t *enum_flag)
+{
+	for (uint8_t i = 0; i < max_enum_strs; i++) {
+		if (strcmp(value, enum_strs[i].str) == 0)
+			*enum_flag = enum_strs[i].value;
 	}
 }
 
@@ -512,6 +585,43 @@ static int parse_driver_entry(void *user, const char *section,
 			param->drv_flags |= DRV_PARAM_USE_ALL_TXQ;
 		}
 	}
+	if (strcmp(name, "rx_offloads") == 0) {
+		parse_option_strs(strdupa(value), rx_offload_strs,
+				  MAX_RX_OFFLOAD_STRS,
+				  &param->rx_offloads,
+				  &param->neg_rx_offloads);
+		DP_DEBUG(INIT, INFO, DATAPLANE,
+			 "Set rx offloads for %s, 0x%lx, !0x%lx\n",
+			 section, param->rx_offloads, param->neg_rx_offloads);
+	}
+	if (strcmp(name, "tx_offloads") == 0) {
+		parse_option_strs(strdupa(value), tx_offload_strs,
+				  MAX_TX_OFFLOAD_STRS,
+				  &param->tx_offloads,
+				  &param->neg_tx_offloads);
+		DP_DEBUG(INIT, INFO, DATAPLANE,
+			 "Set tx offloads for %s, 0x%lx, !0x%lx\n",
+			 section, param->tx_offloads, param->neg_tx_offloads);
+	}
+	if (strcmp(name, "rx_mq_mode") == 0) {
+		param->rx_mq_mode_set = true;
+		parse_enum_str(strdupa(value), rx_mq_mode_strs,
+			       MAX_RX_MQ_MODE_STRS,
+			       &param->rx_mq_mode);
+		DP_DEBUG(INIT, INFO, DATAPLANE,
+			 "Set rx mq_mode for %s, 0x%lx\n",
+			 section, param->rx_mq_mode);
+	}
+	if (strcmp(name, "tx_desc_vm_multiplier") == 0) {
+		val = strtoul(value, &end, 10);
+		/* make sure val is sane */
+		if (val <= MAX_TX_DESC_VM_MULTIPLIER) {
+			DP_DEBUG(INIT, INFO, DATAPLANE,
+				 "Setting TX bufs vm multiplier for %s, %lu\n",
+				 section, val);
+			param->tx_desc_vm_multiplier = val;
+                }
+        }
 
 	return 1; /* good */
 }
@@ -634,6 +744,11 @@ backplane_port_parsed:
 			if (value)
 				cfg->fal_plugin = strdup(value);
 		}
+	} else if (strcasecmp(section, "hardware-features") == 0) {
+		if (strcmp(name, "bonding.hardware-members-only") == 0) {
+			if (value)
+				cfg->hardware_lag = atoi(value);
+		}
 	}
 	return 1;
 }
@@ -678,4 +793,31 @@ void platform_config_cleanup(void)
 	backplane_list_destroy();
 
 	free(platform_cfg.fal_plugin);
+}
+
+int dp_parse_config_files(dp_parse_config_fn *parser_fn,
+			  void *arg)
+{
+	FILE *f;
+	int rc;
+
+	/* The main config file must exist */
+	f  = fopen(config_file, "r");
+	if (f == NULL)
+		return -ENOENT;
+
+	rc = ini_parse_file(f, parser_fn, arg);
+	fclose(f);
+	if (rc)
+		return rc;
+
+	/* The platform config file may exist */
+	f  = fopen(PLATFORM_FILE, "r");
+	if (!f)
+		return 0;
+
+	rc = ini_parse_file(f, parser_fn, arg);
+	fclose(f);
+
+	return rc;
 }

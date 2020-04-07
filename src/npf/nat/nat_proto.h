@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2019-2020, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -32,6 +32,20 @@ static inline uint8_t nat_proto_from_ipproto(uint8_t ipproto)
 		return NAT_PROTO_UDP;
 	}
 	return NAT_PROTO_OTHER;
+}
+
+/*
+ * Only works for TCP and UDP.  Used for logging.
+ */
+static inline uint8_t nat_ipproto_from_proto(uint8_t proto)
+{
+	switch (proto) {
+	case NAT_PROTO_TCP:
+		return IPPROTO_TCP;
+	case NAT_PROTO_UDP:
+		return IPPROTO_UDP;
+	}
+	return 0;
 }
 
 static inline const char *nat_proto_str(uint8_t proto)

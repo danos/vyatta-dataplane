@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2019, AT&T Intellectual Property.
+ * Copyright (c) 2018-2020, AT&T Intellectual Property.
  * All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
@@ -7,18 +7,18 @@
 
 #include <stdbool.h>
 
-#include "bridge.h"
+#include "if/bridge/bridge.h"
 
 #include <linux/if_bridge.h> // conflicts with netinet/in.h
 
 #include "dp_test.h"
-#include "dp_test_lib.h"
-#include "dp_test_cmd_check.h"
+#include "dp_test_lib_internal.h"
+#include "dp_test/dp_test_cmd_check.h"
 #include "dp_test_console.h"
 #include "dp_test_controller.h"
-#include "dp_test_lib_intf.h"
+#include "dp_test_lib_intf_internal.h"
 #include "dp_test_json_utils.h"
-#include "dp_test_netlink_state.h"
+#include "dp_test_netlink_state_internal.h"
 
 #define MSTI_CHECK_VLAN_STATE(_expst, _port, _vlan)			\
 	do {enum bridge_ifstate state;					\
@@ -157,8 +157,8 @@ DP_START_TEST(mstp_fwd_1, mstp_fwd_vlan_state)
 
 	dp_test_intf_real(p1, port1_name);
 	dp_test_intf_real(p2, port2_name);
-	struct ifnet *port1 = ifnet_byifname(port1_name);
-	struct ifnet *port2 = ifnet_byifname(port2_name);
+	struct ifnet *port1 = dp_ifnet_byifname(port1_name);
+	struct ifnet *port2 = dp_ifnet_byifname(port2_name);
 
 	mstp_msti_add(sw, msti, "10:1000");
 
@@ -242,8 +242,8 @@ DP_START_TEST(mstp_fwd_1, mstp_fwd_vlan_drop)
 
 	dp_test_intf_real(p1, port1_name);
 	dp_test_intf_real(p2, port2_name);
-	struct ifnet *port1 = ifnet_byifname(port1_name);
-	struct ifnet *port2 = ifnet_byifname(port2_name);
+	struct ifnet *port1 = dp_ifnet_byifname(port1_name);
+	struct ifnet *port2 = dp_ifnet_byifname(port2_name);
 
 	mstp_msti_add(sw, msti, "10");
 	MSTP_MSTI_SET_STATE(sw, BR_STATE_LEARNING, port1, msti);
@@ -347,9 +347,9 @@ DP_START_TEST(mstp_fwd_1, mstp_fwd_vlan)
 	dp_test_intf_real(p1, port1_name);
 	dp_test_intf_real(p2, port2_name);
 	dp_test_intf_real(p3, port3_name);
-	struct ifnet *port1 = ifnet_byifname(port1_name);
-	struct ifnet *port2 = ifnet_byifname(port2_name);
-	struct ifnet *port3 = ifnet_byifname(port3_name);
+	struct ifnet *port1 = dp_ifnet_byifname(port1_name);
+	struct ifnet *port2 = dp_ifnet_byifname(port2_name);
+	struct ifnet *port3 = dp_ifnet_byifname(port3_name);
 
 	mstp_msti_add(sw, msti, "10");
 	MSTP_MSTI_SET_STATE(sw, BR_STATE_FORWARDING, port1, msti);
@@ -436,8 +436,8 @@ DP_START_TEST(mstp_fwd_1, mstp_fwd_vlan_flush)
 
 	dp_test_intf_real(p1, port1_name);
 	dp_test_intf_real(p2, port2_name);
-	struct ifnet *port1 = ifnet_byifname(port1_name);
-	struct ifnet *port2 = ifnet_byifname(port2_name);
+	struct ifnet *port1 = dp_ifnet_byifname(port1_name);
+	struct ifnet *port2 = dp_ifnet_byifname(port2_name);
 
 	mstp_msti_add(sw, msti, "10:1000");
 	MSTP_MSTI_SET_STATE(sw, BR_STATE_FORWARDING, port1, msti);

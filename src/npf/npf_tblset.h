@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2018, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -127,6 +127,17 @@ uint32_t npf_tbl_id(struct npf_tbl *nt);
 uint npf_tbl_size(struct npf_tbl *nt);
 
 /**
+ * @brief Set entry free function
+ *
+ * Free or tidy client data
+ */
+typedef void (npf_tbl_entry_free_fn)(void *data);
+
+void npf_tbl_set_entry_freefn(struct npf_tbl *nt,
+			      npf_tbl_entry_free_fn *free_fn);
+
+
+/**
  * @brief Create a table entry
  *
  * @param nt Table handle
@@ -175,10 +186,11 @@ int npf_tbl_entry_destroy(void *td);
  *
  * @param nt Table handle
  * @param td Pointer to entry data object within table entry
- * @return Table ID greater or equal to 0 if successful, less than 0 if
- *         unsuccessful
+ * @param tid Pointer to the table ID allocated by this function.
+ *            Set to NPF_TBLID_NONE if unsuccessful.
+ * @return 0 if successful, less than 0 if unsuccessful
  */
-int npf_tbl_entry_insert(struct npf_tbl *nt, void *td);
+int npf_tbl_entry_insert(struct npf_tbl *nt, void *td, uint32_t *tid);
 
 /**
  * @brief Remove entry from table and destroy it
@@ -201,6 +213,16 @@ int npf_tbl_entry_insert(struct npf_tbl *nt, void *td);
  *	}
  */
 int npf_tbl_entry_remove(struct npf_tbl *nt, void *td);
+
+/**
+ * @brief Take reference on table entry
+ */
+void *npf_tbl_entry_get(void *td);
+
+/**
+ * @brief Release reference on table entry
+ */
+void npf_tbl_entry_put(void *td);
 
 /**
  * @brief Table walk callback function
@@ -246,9 +268,9 @@ int npf_tbl_walk(struct npf_tbl *nt, npf_tbl_walk_cb *cb, void *ctx);
  *
  * @param nt Table handle
  * @param name Table entry name
- * @return Table ID or -ENOENT if not found
+ * @return Table ID or NPF_TBLID_NONE if not found
  */
-int npf_tbl_name2id(struct npf_tbl *nt, const char *name);
+uint32_t npf_tbl_name2id(struct npf_tbl *nt, const char *name);
 
 /**
  * @brief Get the table entry name for a given table entry ID
@@ -280,5 +302,18 @@ void *npf_tbl_name_lookup(struct npf_tbl *nt, const char *name);
  * @return Pointer to user data within table entry or NULL if not found
  */
 void *npf_tbl_id_lookup(struct npf_tbl *nt, uint id);
+
+/**
+ * @brief Is this table ID valid?
+ *
+ * May be called from a forwarding thread.
+ *
+ * @param id Table entry ID
+ * @return true if valid, else false
+ */
+static ALWAYS_INLINE bool npf_tbl_id_is_valid(uint id)
+{
+	return id != NPF_TBLID_NONE;
+}
 
 #endif /*  NPF_TBLSET_H */

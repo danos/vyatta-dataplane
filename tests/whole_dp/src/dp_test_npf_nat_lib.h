@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019, AT&T Intellectual Property. All rights reserved.
+ * Copyright (c) 2019-2020, AT&T Intellectual Property. All rights reserved.
  * Copyright (c) 2015 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -44,6 +44,15 @@ struct dp_test_npf_nat_rule_t {
  */
 void dp_test_npf_nat_set_debug(bool on);
 bool dp_test_npf_nat_get_debug(void);
+
+/* Simple SNAT and DNAT config */
+void dpt_snat_cfg(const char *intf, uint8_t ipproto,
+		  const char *from_addr, const char *trans_addr,
+		  bool add);
+
+void dpt_dnat_cfg(const char *intf, uint8_t ipproto,
+		  const char *to_addr, const char *trans_addr,
+		  bool add);
 
 /*
  * Add a NAT rule
@@ -172,23 +181,23 @@ enum dp_test_nat_dir {
  * non-zero delay.
  */
 void
-_dp_test_npf_nat_pak_receive(const char *descr,
-			     struct dp_test_pkt_desc_t *pre,
-			     struct dp_test_pkt_desc_t *post,
-			     enum dp_test_nat_dir dir,
-			     enum dp_test_trans_type ttype,
-			     bool verify_sess,
-			     uint count, uint delay,
-			     const char *file, int line);
+_dpt_npf_nat_pak_receive(const char *descr,
+			 struct dp_test_pkt_desc_t *pre,
+			 struct dp_test_pkt_desc_t *post,
+			 enum dp_test_nat_dir dir,
+			 enum dp_test_trans_type ttype,
+			 bool verify_sess,
+			 uint count, uint delay,
+			 const char *file, int line);
 
-#define dp_test_npf_nat_pak_receive(descr, pre, post, dir, ttype, vs)	\
-	_dp_test_npf_nat_pak_receive(descr, pre, post, dir, ttype,	\
-				     vs, 1, 0, __FILE__, __LINE__)
+#define dpt_npf_nat_pak_receive(descr, pre, post, dir, ttype, vs)	\
+	_dpt_npf_nat_pak_receive(descr, pre, post, dir, ttype,		\
+				 vs, 1, 0, __FILE__, __LINE__)
 
-#define dp_test_npf_nat_pak_receive_n(descr, pre, post, dir, ttype, vs, \
-				      count, dly)			\
-	_dp_test_npf_nat_pak_receive(descr, pre, post, dir, ttype, vs,	\
-				     count, dly, __FILE__, __LINE__)
+#define dpt_npf_nat_pak_receive_n(descr, pre, post, dir, ttype, vs,	\
+				  count, dly)				\
+	_dpt_npf_nat_pak_receive(descr, pre, post, dir, ttype, vs,	\
+				 count, dly, __FILE__, __LINE__)
 
 /*
  * NAT validation context.  Expectation is as follows:

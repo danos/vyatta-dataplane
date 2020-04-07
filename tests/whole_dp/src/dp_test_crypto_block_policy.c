@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -16,13 +16,14 @@
 #include "ip_funcs.h"
 
 #include "dp_test.h"
-#include "dp_test_lib.h"
+#include "dp_test_lib_internal.h"
 #include "dp_test_lib_exp.h"
-#include "dp_test_macros.h"
-#include "dp_test_lib_intf.h"
-#include "dp_test_pktmbuf_lib.h"
+#include "dp_test_lib_intf_internal.h"
+#include "dp_test_pktmbuf_lib_internal.h"
 #include "dp_test_crypto_utils.h"
-#include "dp_test_netlink_state.h"
+#include "dp_test_netlink_state_internal.h"
+#include "dp_test/dp_test_macros.h"
+
 
 /*
  * The tests in this module check the operation of IPsec BLOCK policies
@@ -287,7 +288,7 @@ DP_START_TEST(single_policy, single_allow_policy)
  * This checks that a packet is correctly encrypted when it
  * matches a policy with an action of ALLOW
  */
-DP_START_TEST(single_policy, single_block_policy)
+DP_START_TEST_FULL_RUN(single_policy, single_block_policy)
 {
 	struct dp_test_expected *expectation;
 	struct rte_mbuf *input_pkt;
@@ -320,7 +321,7 @@ DP_START_TEST(single_policy, single_block_policy)
  * This checks that a policy can be modified from ALLOW
  * to BLOCK and that traffic is no longer forwarded.
  */
-DP_START_TEST(single_policy, modfy_allow_to_block)
+DP_START_TEST_FULL_RUN(single_policy, modfy_allow_to_block)
 {
 	struct dp_test_expected *expectation;
 	struct rte_mbuf *input_pkt;
@@ -367,7 +368,7 @@ DP_START_TEST(single_policy, modfy_allow_to_block)
  * This checks that a policy can be modified from BLOCK
  * to ALLOW and that traffic is then encrypted and forwarded.
  */
-DP_START_TEST(single_policy, modfy_block_to_allow)
+DP_START_TEST_FULL_RUN(single_policy, modfy_block_to_allow)
 {
 	struct dp_test_expected *expectation;
 	struct rte_mbuf *input_pkt;

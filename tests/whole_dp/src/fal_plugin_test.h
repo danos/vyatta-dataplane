@@ -1,3 +1,9 @@
+/*
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
+ *
+ * SPDX-License-Identifier: LGPL-2.1-only
+ */
+
 #ifndef FAL_PLUGIN_TEST_H
 #define FAL_PLUGIN_TEST_H
 #include <stdbool.h>

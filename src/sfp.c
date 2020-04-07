@@ -54,6 +54,7 @@
 #include <json_writer.h>
 #include <rte_dev_info.h>
 #include <transceiver.h>
+#include <ieee754.h>
 
 struct _nv {
 	int v;
@@ -319,7 +320,6 @@ static struct _nv warning_flags[] = {
 	{ 0x00,  NULL }
 };
 
-
 static struct _nv rx_pwr_aw_chan_upper_flags[] = {
 	{ 0x4, "rx_power_low_warn"  },
 	{ 0x5, "rx_power_high_warn" },
@@ -384,6 +384,41 @@ static struct _nv voltage_alarm_warn_flags[] = {
 	{ 0x5, "vcc_high_warn" },
 	{ 0x4, "vcc_low_warn"  },
 	{ 0x00,  NULL }
+};
+
+#define SFP_CALIB_CONST_RX_PWR_SIZE    4
+#define SFP_CALIB_CONST_RX_PWR_CNT     5
+#define SFP_CALIB_CONST_SL_OFF_START   0x4c
+#define SFP_CALIB_CONST_SL_OFF_SIZE    2
+
+/*
+ * Type of calibration constant
+ * The enum values are in the order in which the
+ * entries appear in EEPROM
+ */
+enum sfp_calib_const_type {
+	SFP_CALIB_CONST_LASER_BIAS,
+	SFP_CALIB_CONST_TX_PWR,
+	SFP_CALIB_CONST_TEMPERATURE,
+	SFP_CALIB_CONST_VOLTAGE,
+	SFP_CALIB_CONST_MAX
+};
+
+static const char *sfp_calib_const_strs[SFP_CALIB_CONST_MAX] = {
+	"tx_laser",
+	"tx_pwr",
+	"temperature",
+	"voltage"
+};
+
+struct slope_off {
+	float    slope;
+	int16_t  offset;
+};
+
+struct sfp_calibration_constants {
+	union ieee754_float rx_pwr[SFP_CALIB_CONST_RX_PWR_CNT];
+	struct slope_off    slope_offs[SFP_CALIB_CONST_MAX];
 };
 
 /*
@@ -1041,15 +1076,21 @@ print_qsfp_vendor(const struct rte_dev_eeprom_info *eeprom_info,
  */
 static void
 convert_sff_temp(json_writer_t *wr, const char *field_name,
-		 uint8_t *xbuf)
+		 uint8_t *xbuf,
+		 const struct sfp_calibration_constants *c_consts)
 {
 	int16_t temp;
 	double d;
+	const struct slope_off *so;
 
 	temp = (xbuf[0] > 0x7f) ? xbuf[0] - (0xff + 1) : xbuf[0];
 
 	d = (double)temp + (double)xbuf[1] / 256;
 
+	if (c_consts) {
+		so = &c_consts->slope_offs[SFP_CALIB_CONST_TEMPERATURE];
+		d = (so->slope * d) + so->offset;
+	}
 	jsonw_float_field(wr, field_name, d);
 }
 
@@ -1059,11 +1100,18 @@ convert_sff_temp(json_writer_t *wr, const char *field_name,
  */
 static void
 convert_sff_voltage(json_writer_t *wr, const char *field_name,
-		    uint8_t *xbuf)
+		    uint8_t *xbuf,
+		    const struct sfp_calibration_constants *c_consts)
 {
 	double d;
+	const struct slope_off *so;
 
 	d = (double)((xbuf[0] << 8) | xbuf[1]);
+
+	if (c_consts) {
+		so = &c_consts->slope_offs[SFP_CALIB_CONST_VOLTAGE];
+		d = (so->slope * d) + so->offset;
+	}
 	jsonw_float_field(wr, field_name, d / 10000);
 }
 
@@ -1073,46 +1121,72 @@ convert_sff_voltage(json_writer_t *wr, const char *field_name,
  */
 static void
 convert_sff_power(json_writer_t *wr, const char *field_name,
-		  uint8_t *xbuf)
+		  uint8_t *xbuf, bool rx,
+		  const struct sfp_calibration_constants *c_consts)
 {
-	double mW;
+	double mW, tmp_mW;
+	int i;
 
-	mW = (xbuf[0] << 8) + xbuf[1];
+	tmp_mW = (xbuf[0] << 8) + xbuf[1];
+
+	if (c_consts) {
+		if (rx) {
+			mW = (c_consts->rx_pwr[0].f +
+			      c_consts->rx_pwr[1].f * tmp_mW);
+			for (i = 2; i < SFP_CALIB_CONST_RX_PWR_CNT; i++)
+				mW += c_consts->rx_pwr[i].f * tmp_mW *
+					pow(10, i);
+		} else {
+			const struct slope_off *so =
+				&c_consts->slope_offs[SFP_CALIB_CONST_TX_PWR];
+
+			mW = (so->slope * tmp_mW) + so->offset;
+		}
+	} else
+		mW = tmp_mW;
 
 	jsonw_float_field(wr, field_name, mW / 10000);
 }
 
 static void
 convert_sff_bias(json_writer_t *wr, const char *field_name,
-		 uint8_t *xbuf)
+		 uint8_t *xbuf,
+		 const struct sfp_calibration_constants *c_consts)
 {
 	double mA;
+	const struct slope_off *so;
 
 	mA = (xbuf[0] << 8) + xbuf[1];
 
+	if (c_consts) {
+		so = &c_consts->slope_offs[SFP_CALIB_CONST_LASER_BIAS];
+		mA = (so->slope * mA) + so->offset;
+	}
 	jsonw_float_field(wr, field_name, mA / 500);
 }
 
 static void
 print_sfp_temp(const struct rte_dev_eeprom_info *eeprom_info,
+	       const struct sfp_calibration_constants *c_consts,
 	       json_writer_t *wr)
 {
 	uint8_t xbuf[2];
 
 	memset(xbuf, 0, sizeof(xbuf));
 	get_eeprom_data(eeprom_info, SFF_8472_DIAG, SFF_8472_TEMP, 2, xbuf);
-	convert_sff_temp(wr, "temperature_C", xbuf);
+	convert_sff_temp(wr, "temperature_C", xbuf, c_consts);
 }
 
 static void
 print_sfp_voltage(const struct rte_dev_eeprom_info *eeprom_info,
+		  const struct sfp_calibration_constants *c_consts,
 		  json_writer_t *wr)
 {
 	uint8_t xbuf[2];
 
 	memset(xbuf, 0, sizeof(xbuf));
 	get_eeprom_data(eeprom_info, SFF_8472_DIAG, SFF_8472_VCC, 2, xbuf);
-	convert_sff_voltage(wr, "voltage_V", xbuf);
+	convert_sff_voltage(wr, "voltage_V", xbuf, c_consts);
 }
 
 static void
@@ -1215,6 +1289,95 @@ print_qsfp_encoding(const struct rte_dev_eeprom_info *eeprom_info,
 }
 
 static void
+get_sfp_calibration_constants(const struct rte_dev_eeprom_info *eeprom_info,
+			      struct sfp_calibration_constants *c_consts,
+			      json_writer_t *wr)
+{
+	uint16_t i, offset, cursor;
+	uint8_t xbuf[4];
+	union ieee754_float rx_pwr;
+	char json_field_name[30], json_str[40];
+
+	jsonw_name(wr, "raw_calibration_data");
+	jsonw_start_object(wr);
+	cursor = SFF_8472_RX_POWER4;
+	for (i = 0; i < SFP_CALIB_CONST_RX_PWR_CNT; i++) {
+		get_eeprom_data(eeprom_info, SFF_8472_DIAG,
+				cursor, SFP_CALIB_CONST_RX_PWR_SIZE,
+				xbuf);
+		snprintf(json_field_name, 30, "%2d: rx_pwr_%d",
+			 cursor, SFP_CALIB_CONST_MAX - i);
+		snprintf(json_str, 40, "%02x %02x %02x %02x",
+			 xbuf[0], xbuf[1], xbuf[2], xbuf[3]);
+		jsonw_string_field(wr, json_field_name, json_str);
+
+		rx_pwr.ieee.negative = (xbuf[0] & 0x80) >> 7;
+		rx_pwr.ieee.exponent = (((xbuf[0] & 0x7f) << 1) |
+					((xbuf[1] & 0x80) >> 7));
+		rx_pwr.ieee.mantissa += (((xbuf[1] & 0x7f) << 16) |
+					 (xbuf[2] << 8) | xbuf[3]);
+
+		c_consts->rx_pwr[SFP_CALIB_CONST_MAX - i] = rx_pwr;
+		cursor += SFP_CALIB_CONST_RX_PWR_SIZE;
+	}
+
+	cursor = SFF_8472_TX_I_SLOPE;
+	for (i = 0; i < SFP_CALIB_CONST_MAX; i++) {
+		get_eeprom_data(eeprom_info, SFF_8472_DIAG,
+				cursor, SFP_CALIB_CONST_SL_OFF_SIZE,
+				xbuf);
+
+		snprintf(json_field_name, 30, "%02d: %s_slope",
+			 cursor, sfp_calib_const_strs[i]);
+		snprintf(json_str, 40, "%02x %02x", xbuf[0], xbuf[1]);
+		jsonw_string_field(wr, json_field_name, json_str);
+
+		c_consts->slope_offs[i].slope = (float)xbuf[0] +
+			(float)xbuf[1]/256;
+		cursor += SFP_CALIB_CONST_SL_OFF_SIZE;
+
+		get_eeprom_data(eeprom_info, SFF_8472_DIAG,
+				cursor, SFP_CALIB_CONST_SL_OFF_SIZE,
+				(uint8_t *)&offset);
+
+		snprintf(json_field_name, 30, "%02d: %s_offset",
+			 cursor, sfp_calib_const_strs[i]);
+		snprintf(json_str, 40, "%02x %02x", ((uint8_t *)&offset)[0],
+			 ((uint8_t *)&offset)[1]);
+		jsonw_string_field(wr, json_field_name, json_str);
+
+		c_consts->slope_offs[i].offset = ntohs(offset);
+		cursor += SFP_CALIB_CONST_SL_OFF_SIZE;
+	}
+	jsonw_end_object(wr);
+}
+
+static void
+print_sfp_calibration_constants(struct sfp_calibration_constants *c_consts,
+				json_writer_t *wr)
+{
+#define CONST_STR_LEN 20
+	char const_str[CONST_STR_LEN];
+	uint8_t i;
+
+	for (i = 0; i < SFP_CALIB_CONST_RX_PWR_CNT; i++) {
+		snprintf(const_str, CONST_STR_LEN, "rx_pwr_%1d", i);
+		jsonw_float_field(wr, const_str, c_consts->rx_pwr[i].f);
+	}
+
+	for (i = 0; i < SFP_CALIB_CONST_MAX; i++) {
+		snprintf(const_str, CONST_STR_LEN, "%s_slope",
+			 sfp_calib_const_strs[i]);
+		jsonw_float_field(wr, const_str,
+				  c_consts->slope_offs[i].slope);
+		snprintf(const_str, CONST_STR_LEN, "%s_offset",
+			 sfp_calib_const_strs[i]);
+		jsonw_int_field(wr, const_str,
+				c_consts->slope_offs[i].offset);
+	}
+}
+
+static void
 print_qsfp_temp(const struct rte_dev_eeprom_info *eeprom_info,
 		json_writer_t *wr)
 {
@@ -1222,7 +1385,7 @@ print_qsfp_temp(const struct rte_dev_eeprom_info *eeprom_info,
 
 	memset(xbuf, 0, sizeof(xbuf));
 	get_eeprom_data(eeprom_info, SFF_8436_BASE, SFF_8436_TEMP, 2, xbuf);
-	convert_sff_temp(wr, "temperature_C", xbuf);
+	convert_sff_temp(wr, "temperature_C", xbuf, NULL);
 }
 
 static void
@@ -1233,40 +1396,43 @@ print_qsfp_voltage(const struct rte_dev_eeprom_info *eeprom_info,
 
 	memset(xbuf, 0, sizeof(xbuf));
 	get_eeprom_data(eeprom_info, SFF_8436_BASE, SFF_8436_VCC, 2, xbuf);
-	convert_sff_voltage(wr, "voltage_V", xbuf);
+	convert_sff_voltage(wr, "voltage_V", xbuf, NULL);
 }
 
 static void
 print_sfp_rx_power(const struct rte_dev_eeprom_info *eeprom_info,
+		   const struct sfp_calibration_constants *c_consts,
 		   json_writer_t *wr)
 {
 	uint8_t xbuf[2];
 
 	memset(xbuf, 0, sizeof(xbuf));
 	get_eeprom_data(eeprom_info, SFF_8472_DIAG, SFF_8472_RX_POWER, 2, xbuf);
-	convert_sff_power(wr, "rx_power_mW", xbuf);
+	convert_sff_power(wr, "rx_power_mW", xbuf, true, c_consts);
 }
 
 static void
 print_sfp_tx_power(const struct rte_dev_eeprom_info *eeprom_info,
+		   const struct sfp_calibration_constants *c_consts,
 		   json_writer_t *wr)
 {
 	uint8_t xbuf[2];
 
 	memset(xbuf, 0, sizeof(xbuf));
 	get_eeprom_data(eeprom_info, SFF_8472_DIAG, SFF_8472_TX_POWER, 2, xbuf);
-	convert_sff_power(wr, "tx_power_mW", xbuf);
+	convert_sff_power(wr, "tx_power_mW", xbuf, false, c_consts);
 }
 
 static void
 print_sfp_laser_bias(const struct rte_dev_eeprom_info *eeprom_info,
+		     const struct sfp_calibration_constants *c_consts,
 		     json_writer_t *wr)
 {
 	uint8_t xbuf[2];
 
 	memset(xbuf, 0, sizeof(xbuf));
 	get_eeprom_data(eeprom_info, SFF_8472_DIAG, SFF_8472_TX_BIAS, 2, xbuf);
-	convert_sff_bias(wr, "laser_bias", xbuf);
+	convert_sff_bias(wr, "laser_bias", xbuf, c_consts);
 }
 
 static void
@@ -1278,7 +1444,7 @@ print_qsfp_rx_power(const struct rte_dev_eeprom_info *eeprom_info,
 	memset(xbuf, 0, sizeof(xbuf));
 	get_eeprom_data(eeprom_info, SFF_8436_BASE,
 			SFF_8436_RX_CH1_MSB + (chan * 2), 2, xbuf);
-	convert_sff_power(wr, "rx_power_mW", xbuf);
+	convert_sff_power(wr, "rx_power_mW", xbuf, true, NULL);
 }
 
 static void
@@ -1290,7 +1456,7 @@ print_qsfp_tx_power(const struct rte_dev_eeprom_info *eeprom_info,
 	memset(xbuf, 0, sizeof(xbuf));
 	get_eeprom_data(eeprom_info, SFF_8436_BASE,
 			SFF_8436_TX_CH1_MSB + (chan * 2), 2, xbuf);
-	convert_sff_power(wr, "tx_power_mW", xbuf);
+	convert_sff_power(wr, "tx_power_mW", xbuf, false, NULL);
 }
 
 static void
@@ -1302,7 +1468,7 @@ print_qsfp_laser_bias(const struct rte_dev_eeprom_info *eeprom_info,
 	memset(xbuf, 0, sizeof(xbuf));
 	get_eeprom_data(eeprom_info, SFF_8436_BASE,
 			SFF_8436_TX_BIAS_CH1_MSB + (chan * 2), 2, xbuf);
-	convert_sff_power(wr, "laser_bias", xbuf);
+	convert_sff_bias(wr, "laser_bias", xbuf, NULL);
 }
 
 static void
@@ -1344,16 +1510,16 @@ print_qsfp_temp_thresholds(const struct rte_dev_eeprom_info *eeprom_info,
 	memset(xbuf, 0, sizeof(xbuf));
 	if (!get_eeprom_data(eeprom_info, SFF_8436_BASE,
 			     SFF_8636_TEMP_HIGH_ALARM, 2, xbuf))
-		convert_sff_temp(wr, "high_temp_alarm_thresh", xbuf);
+		convert_sff_temp(wr, "high_temp_alarm_thresh", xbuf, NULL);
 	if (!get_eeprom_data(eeprom_info, SFF_8436_BASE,
 			     SFF_8636_TEMP_LOW_ALARM, 2, xbuf))
-		convert_sff_temp(wr, "low_temp_alarm_thresh", xbuf);
+		convert_sff_temp(wr, "low_temp_alarm_thresh", xbuf, NULL);
 	if (!get_eeprom_data(eeprom_info, SFF_8436_BASE,
 			     SFF_8636_TEMP_HIGH_WARN, 2, xbuf))
-		convert_sff_temp(wr, "high_temp_warn_thresh", xbuf);
+		convert_sff_temp(wr, "high_temp_warn_thresh", xbuf, NULL);
 	if (!get_eeprom_data(eeprom_info, SFF_8436_BASE,
 			     SFF_8636_TEMP_LOW_WARN, 2, xbuf))
-		convert_sff_temp(wr, "low_temp_warn_thresh", xbuf);
+		convert_sff_temp(wr, "low_temp_warn_thresh", xbuf, NULL);
 }
 
 static void
@@ -1365,16 +1531,20 @@ print_qsfp_voltage_thresholds(const struct rte_dev_eeprom_info *eeprom_info,
 	memset(xbuf, 0, sizeof(xbuf));
 	if (!get_eeprom_data(eeprom_info, SFF_8436_BASE,
 			    SFF_8636_VOLTAGE_HIGH_ALARM, 2, xbuf))
-		convert_sff_voltage(wr, "high_voltage_alarm_thresh", xbuf);
+		convert_sff_voltage(wr, "high_voltage_alarm_thresh",
+				    xbuf, NULL);
 	if (!get_eeprom_data(eeprom_info, SFF_8436_BASE,
 			     SFF_8636_VOLTAGE_LOW_ALARM, 2, xbuf))
-		convert_sff_voltage(wr, "low_voltage_alarm_thresh", xbuf);
+		convert_sff_voltage(wr, "low_voltage_alarm_thresh",
+				    xbuf, NULL);
 	if (!get_eeprom_data(eeprom_info, SFF_8436_BASE,
 			     SFF_8636_VOLTAGE_HIGH_WARN, 2, xbuf))
-		convert_sff_voltage(wr, "high_voltage_warn_thresh", xbuf);
+		convert_sff_voltage(wr, "high_voltage_warn_thresh",
+				    xbuf, NULL);
 	if (!get_eeprom_data(eeprom_info, SFF_8436_BASE,
 			     SFF_8636_VOLTAGE_LOW_WARN, 2, xbuf))
-		convert_sff_voltage(wr, "low_voltage_warn_thresh", xbuf);
+		convert_sff_voltage(wr, "low_voltage_warn_thresh",
+				    xbuf, NULL);
 }
 
 static void
@@ -1386,16 +1556,16 @@ print_qsfp_bias_thresholds(const struct rte_dev_eeprom_info *eeprom_info,
 	memset(xbuf, 0, sizeof(xbuf));
 	if (!get_eeprom_data(eeprom_info, SFF_8436_BASE,
 			     SFF_8636_TX_BIAS_HIGH_ALARM, 2, xbuf))
-		convert_sff_bias(wr, "high_bias_alarm_thresh", xbuf);
+		convert_sff_bias(wr, "high_bias_alarm_thresh", xbuf, NULL);
 	if (!get_eeprom_data(eeprom_info, SFF_8436_BASE,
 			     SFF_8636_TX_BIAS_LOW_ALARM, 2, xbuf))
-		convert_sff_bias(wr, "low_bias_alarm_thresh", xbuf);
+		convert_sff_bias(wr, "low_bias_alarm_thresh", xbuf, NULL);
 	if (!get_eeprom_data(eeprom_info, SFF_8436_BASE,
 			     SFF_8636_TX_BIAS_HIGH_WARN, 2, xbuf))
-		convert_sff_bias(wr, "high_bias_warn_thresh", xbuf);
+		convert_sff_bias(wr, "high_bias_warn_thresh", xbuf, NULL);
 	if (!get_eeprom_data(eeprom_info, SFF_8436_BASE,
 			     SFF_8636_TX_BIAS_LOW_WARN, 2, xbuf))
-		convert_sff_bias(wr, "low_bias_warn_thresh", xbuf);
+		convert_sff_bias(wr, "low_bias_warn_thresh", xbuf, NULL);
 }
 
 static void
@@ -1407,16 +1577,20 @@ print_qsfp_tx_power_thresholds(const struct rte_dev_eeprom_info *eeprom_info,
 	memset(xbuf, 0, sizeof(xbuf));
 	if (!get_eeprom_data(eeprom_info, SFF_8436_BASE,
 			     SFF_8636_TX_POWER_HIGH_ALARM, 2, xbuf))
-		convert_sff_power(wr, "high_tx_power_alarm_thresh", xbuf);
+		convert_sff_power(wr, "high_tx_power_alarm_thresh", xbuf,
+				  false, NULL);
 	if (!get_eeprom_data(eeprom_info, SFF_8436_BASE,
 			     SFF_8636_TX_POWER_LOW_ALARM, 2, xbuf))
-		convert_sff_power(wr, "low_tx_power_alarm_thresh", xbuf);
+		convert_sff_power(wr, "low_tx_power_alarm_thresh", xbuf,
+				  false, NULL);
 	if (!get_eeprom_data(eeprom_info, SFF_8436_BASE,
 			     SFF_8636_TX_POWER_HIGH_WARN, 2, xbuf))
-		convert_sff_power(wr, "high_tx_power_warn_thresh", xbuf);
+		convert_sff_power(wr, "high_tx_power_warn_thresh", xbuf,
+				  false, NULL);
 	if (!get_eeprom_data(eeprom_info, SFF_8436_BASE,
 			     SFF_8636_TX_POWER_LOW_WARN, 2, xbuf))
-		convert_sff_power(wr, "low_tx_power_warn_thresh", xbuf);
+		convert_sff_power(wr, "low_tx_power_warn_thresh", xbuf,
+				  false, NULL);
 }
 
 static void
@@ -1428,16 +1602,20 @@ print_qsfp_rx_power_thresholds(const struct rte_dev_eeprom_info *eeprom_info,
 	memset(xbuf, 0, sizeof(xbuf));
 	if (!get_eeprom_data(eeprom_info, SFF_8436_BASE,
 			     SFF_8636_RX_POWER_HIGH_ALARM, 2, xbuf))
-		convert_sff_power(wr, "high_rx_power_alarm_thresh", xbuf);
+		convert_sff_power(wr, "high_rx_power_alarm_thresh", xbuf,
+				  true, NULL);
 	if (!get_eeprom_data(eeprom_info, SFF_8436_BASE,
 			     SFF_8636_RX_POWER_LOW_ALARM, 2, xbuf))
-		convert_sff_power(wr, "low_rx_power_alarm_thresh", xbuf);
+		convert_sff_power(wr, "low_rx_power_alarm_thresh", xbuf,
+				  true, NULL);
 	if (!get_eeprom_data(eeprom_info, SFF_8436_BASE,
 			     SFF_8636_RX_POWER_HIGH_WARN, 2, xbuf))
-		convert_sff_power(wr, "high_rx_power_warn_thresh", xbuf);
+		convert_sff_power(wr, "high_rx_power_warn_thresh", xbuf,
+				  true, NULL);
 	if (!get_eeprom_data(eeprom_info, SFF_8436_BASE,
 			     SFF_8636_RX_POWER_LOW_WARN, 2, xbuf))
-		convert_sff_power(wr, "low_rx_power_warn_thresh", xbuf);
+		convert_sff_power(wr, "low_rx_power_warn_thresh", xbuf,
+				  true, NULL);
 }
 
 static void
@@ -1460,16 +1638,16 @@ print_temp_thresholds(const struct rte_dev_eeprom_info *eeprom_info,
 	memset(xbuf, 0, sizeof(xbuf));
 	if (!get_eeprom_data(eeprom_info, SFF_8472_DIAG,
 			     SFF_8472_TEMP_HIGH_ALM, 2, xbuf))
-		convert_sff_temp(wr, "high_temp_alarm_thresh", xbuf);
+		convert_sff_temp(wr, "high_temp_alarm_thresh", xbuf, NULL);
 	if (!get_eeprom_data(eeprom_info, SFF_8472_DIAG,
 			     SFF_8472_TEMP_LOW_ALM, 2, xbuf))
-		convert_sff_temp(wr, "low_temp_alarm_thresh", xbuf);
+		convert_sff_temp(wr, "low_temp_alarm_thresh", xbuf, NULL);
 	if (!get_eeprom_data(eeprom_info, SFF_8472_DIAG,
 			     SFF_8472_TEMP_HIGH_WARN, 2, xbuf))
-		convert_sff_temp(wr, "high_temp_warn_thresh", xbuf);
+		convert_sff_temp(wr, "high_temp_warn_thresh", xbuf, NULL);
 	if (!get_eeprom_data(eeprom_info, SFF_8472_DIAG,
 			     SFF_8472_TEMP_LOW_WARN, 2, xbuf))
-		convert_sff_temp(wr, "low_temp_warn_thresh", xbuf);
+		convert_sff_temp(wr, "low_temp_warn_thresh", xbuf, NULL);
 }
 
 static void
@@ -1481,16 +1659,20 @@ print_voltage_thresholds(const struct rte_dev_eeprom_info *eeprom_info,
 	memset(xbuf, 0, sizeof(xbuf));
 	if (!get_eeprom_data(eeprom_info, SFF_8472_DIAG,
 			    SFF_8472_VOLTAGE_HIGH_ALM, 2, xbuf))
-		convert_sff_voltage(wr, "high_voltage_alarm_thresh", xbuf);
+		convert_sff_voltage(wr, "high_voltage_alarm_thresh", xbuf,
+				    NULL);
 	if (!get_eeprom_data(eeprom_info, SFF_8472_DIAG,
 			     SFF_8472_VOLTAGE_LOW_ALM, 2, xbuf))
-		convert_sff_voltage(wr, "low_voltage_alarm_thresh", xbuf);
+		convert_sff_voltage(wr, "low_voltage_alarm_thresh", xbuf,
+				    NULL);
 	if (!get_eeprom_data(eeprom_info, SFF_8472_DIAG,
 			     SFF_8472_VOLTAGE_HIGH_WARN, 2, xbuf))
-		convert_sff_voltage(wr, "high_voltage_warn_thresh", xbuf);
+		convert_sff_voltage(wr, "high_voltage_warn_thresh", xbuf,
+				    NULL);
 	if (!get_eeprom_data(eeprom_info, SFF_8472_DIAG,
 			     SFF_8472_VOLTAGE_LOW_WARN, 2, xbuf))
-		convert_sff_voltage(wr, "low_voltage_warn_thresh", xbuf);
+		convert_sff_voltage(wr, "low_voltage_warn_thresh", xbuf,
+				    NULL);
 }
 
 static void
@@ -1502,16 +1684,16 @@ print_bias_thresholds(const struct rte_dev_eeprom_info *eeprom_info,
 	memset(xbuf, 0, sizeof(xbuf));
 	if (!get_eeprom_data(eeprom_info, SFF_8472_DIAG,
 			     SFF_8472_BIAS_HIGH_ALM, 2, xbuf))
-		convert_sff_bias(wr, "high_bias_alarm_thresh", xbuf);
+		convert_sff_bias(wr, "high_bias_alarm_thresh", xbuf, NULL);
 	if (!get_eeprom_data(eeprom_info, SFF_8472_DIAG,
 			     SFF_8472_BIAS_LOW_ALM, 2, xbuf))
-		convert_sff_bias(wr, "low_bias_alarm_thresh", xbuf);
+		convert_sff_bias(wr, "low_bias_alarm_thresh", xbuf, NULL);
 	if (!get_eeprom_data(eeprom_info, SFF_8472_DIAG,
 			     SFF_8472_BIAS_HIGH_WARN, 2, xbuf))
-		convert_sff_bias(wr, "high_bias_warn_thresh", xbuf);
+		convert_sff_bias(wr, "high_bias_warn_thresh", xbuf, NULL);
 	if (!get_eeprom_data(eeprom_info, SFF_8472_DIAG,
 			     SFF_8472_BIAS_LOW_WARN, 2, xbuf))
-		convert_sff_bias(wr, "low_bias_warn_thresh", xbuf);
+		convert_sff_bias(wr, "low_bias_warn_thresh", xbuf, NULL);
 }
 
 static void
@@ -1523,16 +1705,20 @@ print_tx_power_thresholds(const struct rte_dev_eeprom_info *eeprom_info,
 	memset(xbuf, 0, sizeof(xbuf));
 	if (!get_eeprom_data(eeprom_info, SFF_8472_DIAG,
 			     SFF_8472_TX_POWER_HIGH_ALM, 2, xbuf))
-		convert_sff_power(wr, "high_tx_power_alarm_thresh", xbuf);
+		convert_sff_power(wr, "high_tx_power_alarm_thresh", xbuf,
+				  false, NULL);
 	if (!get_eeprom_data(eeprom_info, SFF_8472_DIAG,
 			     SFF_8472_TX_POWER_LOW_ALM, 2, xbuf))
-		convert_sff_power(wr, "low_tx_power_alarm_thresh", xbuf);
+		convert_sff_power(wr, "low_tx_power_alarm_thresh", xbuf,
+				  false, NULL);
 	if (!get_eeprom_data(eeprom_info, SFF_8472_DIAG,
 			     SFF_8472_TX_POWER_HIGH_WARN, 2, xbuf))
-		convert_sff_power(wr, "high_tx_power_warn_thresh", xbuf);
+		convert_sff_power(wr, "high_tx_power_warn_thresh", xbuf,
+				  false, NULL);
 	if (!get_eeprom_data(eeprom_info, SFF_8472_DIAG,
 			     SFF_8472_TX_POWER_LOW_WARN, 2, xbuf))
-		convert_sff_power(wr, "low_tx_power_warn_thresh", xbuf);
+		convert_sff_power(wr, "low_tx_power_warn_thresh", xbuf,
+				  false, NULL);
 }
 
 static void
@@ -1544,16 +1730,20 @@ print_rx_power_thresholds(const struct rte_dev_eeprom_info *eeprom_info,
 	memset(xbuf, 0, sizeof(xbuf));
 	if (!get_eeprom_data(eeprom_info, SFF_8472_DIAG,
 			     SFF_8472_RX_POWER_HIGH_ALM, 2, xbuf))
-		convert_sff_power(wr, "high_rx_power_alarm_thresh", xbuf);
+		convert_sff_power(wr, "high_rx_power_alarm_thresh", xbuf,
+				  false, NULL);
 	if (!get_eeprom_data(eeprom_info, SFF_8472_DIAG,
 			     SFF_8472_RX_POWER_LOW_ALM, 2, xbuf))
-		convert_sff_power(wr, "low_rx_power_alarm_thresh", xbuf);
+		convert_sff_power(wr, "low_rx_power_alarm_thresh", xbuf,
+				  false, NULL);
 	if (!get_eeprom_data(eeprom_info, SFF_8472_DIAG,
 			     SFF_8472_RX_POWER_HIGH_WARN, 2, xbuf))
-		convert_sff_power(wr, "high_rx_power_warn_thresh", xbuf);
+		convert_sff_power(wr, "high_rx_power_warn_thresh", xbuf,
+				  false, NULL);
 	if (!get_eeprom_data(eeprom_info, SFF_8472_DIAG,
 			     SFF_8472_RX_POWER_LOW_WARN, 2, xbuf))
-		convert_sff_power(wr, "low_rx_power_warn_thresh", xbuf);
+		convert_sff_power(wr, "low_rx_power_warn_thresh", xbuf,
+				  false, NULL);
 }
 
 static void
@@ -1714,7 +1904,8 @@ print_sfp_status(const struct rte_eth_dev_module_info *module_info,
 		 const struct rte_dev_eeprom_info *eeprom_info,
 		 json_writer_t *wr)
 {
-	uint8_t diag_type, flags;
+	struct sfp_calibration_constants c_consts, *c_const_p;
+	uint8_t diag_type;
 	int do_diag = 0;
 
 	/* Read diagnostic monitoring type */
@@ -1726,8 +1917,7 @@ print_sfp_status(const struct rte_eth_dev_module_info *module_info,
 	 * Read monitoring data IFF it is supplied AND is
 	 * internally calibrated
 	 */
-	flags = SFF_8472_DDM_DONE | SFF_8472_DDM_INTERNAL;
-	if ((diag_type & flags) == flags)
+	if (diag_type & SFF_8472_DDM_DONE)
 		do_diag = 1;
 
 	/* Transceiver type */
@@ -1751,11 +1941,18 @@ print_sfp_status(const struct rte_eth_dev_module_info *module_info,
 	 * Request current measurements iff they are provided:
 	 */
 	if (do_diag != 0) {
-		print_sfp_temp(eeprom_info, wr);
-		print_sfp_voltage(eeprom_info, wr);
-		print_sfp_rx_power(eeprom_info, wr);
-		print_sfp_tx_power(eeprom_info, wr);
-		print_sfp_laser_bias(eeprom_info, wr);
+		if (diag_type & SFF_8472_DDM_EXTERNAL) {
+			c_const_p = &c_consts;
+			get_sfp_calibration_constants(eeprom_info, c_const_p,
+						      wr);
+			print_sfp_calibration_constants(c_const_p, wr);
+		} else
+			c_const_p = NULL;
+		print_sfp_temp(eeprom_info, c_const_p, wr);
+		print_sfp_voltage(eeprom_info, c_const_p, wr);
+		print_sfp_rx_power(eeprom_info, c_const_p, wr);
+		print_sfp_tx_power(eeprom_info, c_const_p, wr);
+		print_sfp_laser_bias(eeprom_info, c_const_p, wr);
 	}
 	print_sfp_thresholds(eeprom_info, wr);
 	print_sfp_alarm_flags(eeprom_info, wr);

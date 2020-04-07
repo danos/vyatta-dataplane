@@ -1,7 +1,7 @@
 /*
  * Public functions defined in ip_icmp.c
  *
- * Copyright (c) 2017-2018, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2011-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -35,5 +35,7 @@ struct rte_mbuf *icmp_do_error(struct rte_mbuf *n, int type, int code,
 int icmp_do_exthdr(struct rte_mbuf *m, uint16_t class, uint8_t ctype, void *buf,
 			unsigned int len);
 void icmp_prepare_send(struct rte_mbuf *m);
+bool icmp_echo_reply_out(struct ifnet *rcvifp, struct rte_mbuf *n,
+			 bool reflect);
 
 #endif

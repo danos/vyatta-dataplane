@@ -1,9 +1,0 @@
-ffff:ffff:ffff:ffff:ffff:ffff:ffff:fffe;3
-ffff:ffff:ffff:ffff:ffff:ffff:ffff:fffd;2
-ffff:ffff:ffff:ffff:ffff:ffff:ffff:fff0;3
-ffff:ffff:ffff:ffff:0000:0000:0000:0000;-1
-afff:0000:0000:0000:0000:0000:0000:0000;4
-#Search for a marker...
-ffff:fff0:0000:0000:0000:0000:0000:0000;-1
-abcd:1234:5678:abcd:ef01:2345:6789:abcd;6
-8000:0000:0000:0000:0000:0000:0000:1234;7

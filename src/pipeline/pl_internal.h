@@ -2,7 +2,7 @@
  * pl_internal.h
  *
  *
- * Copyright (c) 2017-2019, AT&T Intellectual Property. All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property. All rights reserved.
  * Copyright (c) 2016, 2017 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -12,6 +12,7 @@
 #define PL_INTERNAL_H
 
 #include "compiler.h"
+#include "json_writer.h"
 #include "util.h"
 
 extern int g_stats_enabled __hot_data;
@@ -31,9 +32,9 @@ pl_inc_node_stat(int node_id)
 		     pl_node_stats_id(node_id, dp_lcore_id())));
 }
 
-void pl_load_plugins(void);
 void pl_graph_validate(void);
 
 uint64_t pl_get_node_stats(int id);
 
+void pl_show_plugin_state(json_writer_t *json, const char *plugin_name);
 #endif /* PL_INTERNAL_H */

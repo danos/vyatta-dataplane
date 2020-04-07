@@ -137,3 +137,16 @@
    fun:mpls_oam_pool_init
    ...
 }
+{
+   <urcu lfht resize worker>
+   Memcheck:Leak
+   match-leak-kinds: possible
+   fun:calloc
+   fun:allocate_dtv
+   fun:_dl_allocate_tls
+   fun:allocate_stack
+   fun:pthread_create@@GLIBC_2.2.5
+   fun:urcu_workqueue_create
+   fun:_cds_lfht_new
+   ...
+}

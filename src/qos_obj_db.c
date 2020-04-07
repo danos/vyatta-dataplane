@@ -260,7 +260,7 @@ void
 qos_obj_db_sw_get(struct qos_obj_db_obj *db_obj,
 		  enum qos_obj_sw_state *sw_state)
 {
-	assert(db_obj != NULL || sw_state != NULL);
+	assert(db_obj != NULL && sw_state != NULL);
 
 	*sw_state = db_obj->sw_state;
 }

@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2017, AT&T Intellectual Property.
+ * Copyright (c) 2017,2019-2020, AT&T Intellectual Property.
  * All rights reserved.
  * Copyright (c) 2017 by Brocade Communications Systems, Inc.
  * All rights reserved.
@@ -7,8 +7,8 @@
  * SPDX-License-Identifier: LGPL-2.1-only
  */
 
-#ifndef BRIDGE_VLAN_SET_H
-#define BRIDGE_VLAN_SET_H
+#ifndef VYATTA_DATAPLANE_BRIDGE_VLAN_SET_H
+#define VYATTA_DATAPLANE_BRIDGE_VLAN_SET_H
 
 #include <stdint.h>
 #include <stdbool.h>
@@ -70,4 +70,4 @@ void bridge_vlan_set_synchronize(struct bridge_vlan_set *old,
 				 bridge_vlan_synchronize_cb remove_cb,
 				 void *cb_data);
 
-#endif /* BRIDGE_VLAN_SET_H */
+#endif /* VYATTA_DATAPLANE_BRIDGE_VLAN_SET_H */

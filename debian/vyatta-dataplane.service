@@ -11,12 +11,12 @@ ConditionKernelCommandLine=!no-dataplane
 Type=notify
 Restart=always
 LimitNOFILE=10000
-Nice=-20
+Nice=-10
 Slice=dataplane.slice
 Environment=TMP_EAL=/run/dataplane/eal-args
 Environment=HUGEPAGES=0
 Environment="DATAPLANE_ARGS=-u dataplane -g adm"
-Environment="DPDK_ARGS=--syslog local6 --log-level 7"
+Environment="DPDK_ARGS=--syslog local6 --log-level 8"
 EnvironmentFile=-/etc/default/dataplane
 EnvironmentFile=/run/dataplane/eal-args
 ExecStartPre=/bin/rm -f /run/dataplane/platform.conf

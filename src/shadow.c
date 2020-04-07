@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2019, AT&T Intellectual Property. All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property. All rights reserved.
  * Copyright (c) 2011-2017 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -47,18 +47,18 @@
 
 #include "compat.h"
 #include "compiler.h"
-#include "config.h"
+#include "config_internal.h"
 #include "crypto/crypto_forward.h"
 #include "crypto/vti.h"
 #include "ether.h"
-#include "gre.h"
+#include "if/gre.h"
 #include "if_var.h"
 #include "ip_funcs.h"
 #include "json_writer.h"
 #include "lag.h"
 #include "main.h"
 #include "nh.h"
-#include "pktmbuf.h"
+#include "pktmbuf_internal.h"
 #include "pl_common.h"
 #include "pl_fused.h"
 #include "route.h"
@@ -148,12 +148,9 @@ local_shadow_if(struct rte_mbuf *m, struct ifnet *inp_ifp)
  *
  * Always consumes (free) mbuf
  */
-void local_packet(struct ifnet *ifp, struct rte_mbuf *m)
+void local_packet_internal(struct ifnet *ifp, struct rte_mbuf *m)
 {
 	unsigned int free_space;
-
-	if (!local_packet_filter(ifp, m))
-		goto drop;
 
 	struct shadow_if_info *sii = local_shadow_if(m, ifp);
 	if (unlikely(!sii)) {
@@ -171,7 +168,7 @@ void local_packet(struct ifnet *ifp, struct rte_mbuf *m)
 		struct pktmbuf_mdata *mdata = pktmbuf_mdata(m);
 		struct ifnet *member_ifp;
 
-		member_ifp = ifnet_byifindex(
+		member_ifp = dp_ifnet_byifindex(
 			mdata->md_bridge.member_ifindex);
 		if (member_ifp)
 			ifp = member_ifp;
@@ -207,7 +204,39 @@ full:   __cold_label;
 
 drop:	__cold_label;
 	if_incr_dropped(ifp);
-	rte_pktmbuf_free(m);
+	{
+		struct pl_packet pkt = {
+			.mbuf = m,
+			.l2_pkt_type = pkt_mbuf_get_l2_traffic_type(m),
+			.in_ifp = ifp
+		};
+		pipeline_fused_term_drop(&pkt);
+	}
+}
+
+/*
+ * Pass received packets  into the Linux TCP/IP stack.
+ * Use ring to pass packets to master thread.
+ *
+ * Always consumes (free) mbuf
+ */
+void local_packet(struct ifnet *ifp, struct rte_mbuf *m)
+{
+	struct pl_packet pkt = {
+		.mbuf = m,
+		.l2_pkt_type = pkt_mbuf_get_l2_traffic_type(m),
+		.in_ifp = ifp
+	};
+
+	if (!local_packet_filter(ifp, m))
+		goto drop;
+
+	pipeline_fused_l2_local(&pkt);
+	return;
+
+drop:	__cold_label;
+	if_incr_dropped(ifp);
+	pipeline_fused_term_drop(&pkt);
 }
 
 /*
@@ -390,7 +419,7 @@ static int shadow_output(struct shadow_if_info *sii, struct rte_mbuf *m,
 	if (!(ifp->if_flags & IFF_UP))
 		return -1;
 
-	pktmbuf_l2_len(m) = ETHER_HDR_LEN;
+	dp_pktmbuf_l2_len(m) = ETHER_HDR_LEN;
 
 	master = rcu_dereference(ifp->aggregator);
 
@@ -499,7 +528,7 @@ int spath_reader(zloop_t *loop __rte_unused, zmq_pollitem_t *item,
 		goto drop;
 	}
 
-	ifp = ifnet_byifindex(meta.iif);
+	ifp = dp_ifnet_byifindex(meta.iif);
 
 	if (ifp)
 		cont_src = ifp->if_cont_src;
@@ -518,7 +547,7 @@ int spath_reader(zloop_t *loop __rte_unused, zmq_pollitem_t *item,
 		     !(is_bridge(ifp) || is_l2vlan(ifp)))) {
 		if (rte_pktmbuf_prepend(m, sizeof(struct ether_hdr)) == NULL)
 			goto drop;
-		pktmbuf_l2_len(m) = ETHER_HDR_LEN;
+		dp_pktmbuf_l2_len(m) = ETHER_HDR_LEN;
 		ether = rte_pktmbuf_mtod(m, struct ether_hdr *);
 		ether->ether_type = pi.proto;
 
@@ -531,7 +560,7 @@ int spath_reader(zloop_t *loop __rte_unused, zmq_pollitem_t *item,
 		set_spath_rx_meta_data(m, NULL, ntohs(pi.proto),
 				       TUN_META_FLAGS_NONE);
 		if (likely(pi.proto == ETHER_TYPE_IPv4))
-			pktmbuf_l3_len(m) = iphdr(m)->ihl << 2;
+			dp_pktmbuf_l3_len(m) = iphdr(m)->ihl << 2;
 	}
 
 	pktmbuf_mdata_set(m, PKT_MDATA_FROM_US);
@@ -543,7 +572,7 @@ int spath_reader(zloop_t *loop __rte_unused, zmq_pollitem_t *item,
 		 * or if no ifindex in the selector then the vrf master.
 		 */
 		if (meta.flags & TUN_META_FLAG_MARK) {
-			struct ifnet *temp_ifp = ifnet_byifindex(meta.mark);
+			struct ifnet *temp_ifp = dp_ifnet_byifindex(meta.mark);
 
 			if (temp_ifp) {
 				pktmbuf_set_vrf(m, if_vrfid(temp_ifp));
@@ -563,7 +592,8 @@ int spath_reader(zloop_t *loop __rte_unused, zmq_pollitem_t *item,
 		 * feature point configured which might have
 		 * output features we need to run before encryption.
 		 */
-		if (likely((pi.proto) == ETHER_TYPE_IPv4)) {
+
+		if (likely((ntohs(pi.proto)) == ETHER_TYPE_IPv4)) {
 			struct next_hop nh4 = {.u.ifp = s2s_ifp};
 
 			if (s2s_ifp)
@@ -572,14 +602,14 @@ int spath_reader(zloop_t *loop __rte_unused, zmq_pollitem_t *item,
 			if (unlikely
 			    (crypto_policy_check_outbound(host_ifp, &m,
 							  RT_TABLE_MAIN,
-							  htons(pi.proto),
+							  pi.proto,
 							  &nh)))
 				goto rcu_offline;
 			else if (nh.v4)
-				ifp = nh4_get_ifp(nh.v4);
+				ifp = dp_nh4_get_ifp(nh.v4);
 			else
 				goto drop;
-		} else if (likely((pi.proto) == ETHER_TYPE_IPv6)) {
+		} else if (likely((ntohs(pi.proto)) == ETHER_TYPE_IPv6)) {
 			struct next_hop_v6 nh6 = {.u.ifp = s2s_ifp};
 
 			if (s2s_ifp)
@@ -588,11 +618,11 @@ int spath_reader(zloop_t *loop __rte_unused, zmq_pollitem_t *item,
 			if (unlikely
 			    (crypto_policy_check_outbound(host_ifp, &m,
 							  RT_TABLE_MAIN,
-							  htons(pi.proto),
+							  pi.proto,
 							  &nh)))
 				goto rcu_offline;
 			else if (nh.v6)
-				ifp = nh6_get_ifp(nh.v6);
+				ifp = dp_nh6_get_ifp(nh.v6);
 			else
 				goto drop;
 		}
@@ -607,7 +637,7 @@ int spath_reader(zloop_t *loop __rte_unused, zmq_pollitem_t *item,
 					 is_s2s_feat_attach(ifp))) {
 		if (is_bridge(ifp) || is_l2vlan(ifp)) {
 			ether = rte_pktmbuf_mtod(m, struct ether_hdr *);
-			pktmbuf_l2_len(m) = ETHER_HDR_LEN;
+			dp_pktmbuf_l2_len(m) = ETHER_HDR_LEN;
 			shadow_feature_if_output(ifp, m, ether);
 		} else if (is_gre(ifp)) {
 			const in_addr_t *dst;
@@ -627,9 +657,7 @@ int spath_reader(zloop_t *loop __rte_unused, zmq_pollitem_t *item,
 					host_ifp, ifp, dst, m,
 					ntohs(pi.proto));
 		} else if (is_vti(ifp) || is_s2s_feat_attach(ifp)) {
-			/* Fix ether proto endian-ness */
 			ether = rte_pktmbuf_mtod(m, struct ether_hdr *);
-			ether->ether_type = ntohs(ether->ether_type);
 			struct iphdr *ip = iphdr(m);
 			bool consumed = false;
 			if (likely(ip->version == 4))

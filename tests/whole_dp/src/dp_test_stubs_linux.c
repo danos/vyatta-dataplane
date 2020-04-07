@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2015-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -8,34 +8,57 @@
  * Linux-specific stubs.
  */
 
-#include <stdbool.h>
-#include <dlfcn.h>
-#include <stdio.h>
 #include <dirent.h>
-#include <stdarg.h>
-#include <string.h>
+#include <dlfcn.h>
 #include <fcntl.h>
-#include <unistd.h>
+#include <stdarg.h>
+#include <stdbool.h>
+#include <stdio.h>
+#include <string.h>
+#include <sys/param.h>
 #include <sys/stat.h>
+#include <unistd.h>
+
+#include "dp_test.h"
+
+const char *pl_path =
+	"/usr/lib/x86_64-linux-gnu/vyatta-dataplane/pipeline/plugins";
 
 static bool starts_with_proc_or_sys(const char *path)
 {
 	if (!path)
 		return 0;
+	int pathlen = strlen(path);
+	bool match = false;
 
-	return !memcmp(path, "/proc", strlen("/proc")) ||
-		!memcmp(path, "/sys", strlen("/sys")) ||
-		!memcmp(path, "/run", strlen("/run"));
+	match = !memcmp(path, "/proc", MIN(pathlen, strlen("/proc"))) ||
+		!memcmp(path, "/sys", MIN(pathlen, strlen("/sys"))) ||
+		!memcmp(path, "/run", MIN(pathlen, strlen("/run")));
+
+	if (!from_external)
+		/*
+		 * Don't redirect paths if running in external mode as these
+		 * need to be picked up from where the dev package put them
+		 */
+		match |= !memcmp(path, pl_path, MIN(pathlen, strlen(pl_path)));
+
+	return match;
 }
 
 static int redirect_path(const char *orig_path, char *redir_path, size_t size)
 {
-	if (size < strlen("tests/whole_dp/dummyfs/") + strlen(orig_path)) {
+	if (size < strlen(dp_ut_dummyfs_dir) + strlen(orig_path)) {
 		*redir_path = 0;
 		return -1;
 	}
 
-	strcpy(redir_path, "tests/whole_dp/dummyfs/");
+	if (strncmp(orig_path, pl_path, strlen(pl_path)) == 0) {
+		strcpy(redir_path, ".libs");
+		strcat(redir_path, orig_path + strlen(pl_path));
+		return 0;
+	}
+
+	strcpy(redir_path, dp_ut_dummyfs_dir);
 	strcat(redir_path, orig_path);
 
 	return 0;
@@ -196,4 +219,24 @@ int __xstat64(int ver, const char *pathname, struct stat64 *buf)
 	}
 
 	return real_xstat64(ver, pathname, buf);
+}
+
+void *dlopen(const char *filename, int flags)
+{
+	static void *(*real_dlopen)(const char *filename, int flags);
+
+	if (!real_dlopen)
+		real_dlopen = dlsym(RTLD_NEXT, "dlopen");
+
+	/*
+	 * Redirect /proc and /sys to our dummy filesystem
+	 */
+	if (starts_with_proc_or_sys(filename)) {
+		char redirname[PATH_MAX];
+
+		if (!redirect_path(filename, redirname, sizeof(redirname)))
+			return real_dlopen(redirname, flags);
+	}
+
+	return real_dlopen(filename, flags);
 }

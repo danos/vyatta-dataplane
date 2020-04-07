@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2011-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -15,8 +15,9 @@
 #include <rte_ether.h>
 
 #include "compiler.h"
+#include "ip.h"
 #include "iptun_common.h"
-#include "pktmbuf.h"
+#include "pktmbuf_internal.h"
 #include "util.h"
 
 /* Is this address limited broadcast */
@@ -49,7 +50,7 @@ struct next_hop;
 
 static inline struct iphdr *iphdr(const struct rte_mbuf *m)
 {
-	return pktmbuf_mtol3(m, struct iphdr *);
+	return dp_pktmbuf_mtol3(m, struct iphdr *);
 }
 
 static inline bool ip_is_fragment(const struct iphdr *ip)
@@ -98,6 +99,18 @@ void ip_local_deliver(struct ifnet *ifp, struct rte_mbuf *m)
 	__cold_func;
 
 int l4_input(struct rte_mbuf **m, struct ifnet *ifp);
+
+int ip_udp_tunnel_in(struct rte_mbuf **m, struct iphdr *ip,
+		     struct ifnet *ifp);
+
+void ip_forward_egress(struct ifnet *out_ifp, struct rte_mbuf *,
+		       in_addr_t nh_addr, struct ifnet *in_ifp)
+	__hot_func;
+int
+ip_spath_output_with_eth_encap(struct ifnet *out_ifp, struct rte_mbuf *m,
+			       in_addr_t nh_addr);
+
+struct nlattr;
 
 static inline void ip_tos_ecn_clear(uint8_t *tos)
 {
@@ -165,7 +178,6 @@ static inline void ip_tos_set_ecn_ce(struct iphdr *ip)
 }
 
 void ip_id_init(void);
-uint16_t ip_randomid(uint16_t salt);
 u_int16_t icmp_common_exthdr(struct rte_mbuf *m, uint16_t cnum, uint8_t ctype,
 			     void *buf, void *ip_hdr, int hlen,
 			     u_int16_t ip_total_len, void *dataun,
@@ -173,10 +185,6 @@ u_int16_t icmp_common_exthdr(struct rte_mbuf *m, uint16_t cnum, uint8_t ctype,
 
 bool ip_l2_resolve(struct ifnet *in_ifp, struct rte_mbuf *m,
 		   struct next_hop *nh, uint16_t proto);
-bool ip_l2_resolve_and_output(struct ifnet *in_ifp,
-			      struct rte_mbuf *m,
-			      struct next_hop *nh,
-			      uint16_t proto);
 
 bool ip_validate_packet_and_count(struct rte_mbuf *m, const struct iphdr *ip,
 				  struct ifnet *ifp, bool *needs_slow_path);

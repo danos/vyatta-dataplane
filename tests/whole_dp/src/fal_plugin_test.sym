@@ -64,6 +64,7 @@ fal_plugin_qos_new_wred
 fal_plugin_qos_del_wred
 fal_plugin_qos_upd_wred
 fal_plugin_qos_get_wred_attrs
+fal_plugin_qos_get_counters
 fal_plugin_mirror_session_create
 fal_plugin_mirror_session_deletete
 fal_plugin_mirror_session_set_attr
@@ -82,6 +83,7 @@ fal_plugin_vlan_get_stats
 fal_plugin_create_cpp_limiter
 fal_plugin_remove_cpp_limiter
 fal_plugin_get_cpp_limiter_attribute
+fal_plugin_get_switch_attribute
 fal_plugin_set_switch_attribute
 fal_plugin_create_ptp_clock
 fal_plugin_delete_ptp_clock

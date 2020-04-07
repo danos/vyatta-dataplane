@@ -2,7 +2,7 @@
  * l3_v4_post_route_lookup.c
  *
  *
- * Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2016, 2017 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -17,15 +17,15 @@
 #include <rte_mbuf.h>
 
 #include "compiler.h"
+#include "if/macvlan.h"
 #include "if_var.h"
 #include "ip_funcs.h"
 #include "ip_icmp.h"
 #include "ip_ttl.h"
-#include "macvlan.h"
 #include "mpls/mpls.h"
 #include "mpls/mpls_forward.h"
 #include "nh.h"
-#include "pktmbuf.h"
+#include "pktmbuf_internal.h"
 #include "pl_common.h"
 #include "pl_fused.h"
 #include "route.h"
@@ -34,7 +34,7 @@
 #include "urcu.h"
 
 ALWAYS_INLINE unsigned int
-ipv4_post_route_lookup_process(struct pl_packet *pkt)
+ipv4_post_route_lookup_process(struct pl_packet *pkt, void *context __unused)
 {
 	struct next_hop *nxt = pkt->nxt.v4;
 	struct ifnet *ifp = pkt->in_ifp;
@@ -77,7 +77,7 @@ ipv4_post_route_lookup_process(struct pl_packet *pkt)
 	}
 
 	/* nxt->ifp may be changed by netlink messages. */
-	struct ifnet *nxt_ifp = nh4_get_ifp(nxt);
+	struct ifnet *nxt_ifp = dp_nh4_get_ifp(nxt);
 
 	/* Destination device is not up? */
 	if (unlikely(!nxt_ifp || !(nxt_ifp->if_flags & IFF_UP))) {

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2019, AT&T Intellectual Property. All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property. All rights reserved.
  * Copyright (c) 2015 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -26,12 +26,12 @@
 #include "dp_test.h"
 #include "dp_test_controller.h"
 #include "dp_test_cmd_state.h"
-#include "dp_test_netlink_state.h"
-#include "dp_test_lib.h"
+#include "dp_test_netlink_state_internal.h"
+#include "dp_test_lib_internal.h"
 #include "dp_test_lib_exp.h"
-#include "dp_test_lib_intf.h"
+#include "dp_test_lib_intf_internal.h"
 #include "dp_test_lib_pkt.h"
-#include "dp_test_pktmbuf_lib.h"
+#include "dp_test_pktmbuf_lib_internal.h"
 #include "dp_test_console.h"
 #include "dp_test_json_utils.h"
 #include "dp_test_npf_sess_lib.h"
@@ -141,7 +141,7 @@ nat64_nat64_hook_v6_in(const char *ifname, struct dp_test_pkt_desc_t *pdesc,
 
 	/* Get interface pointers */
 	dp_test_intf_real(ifname, real_ifname);
-	ifp = ifnet_byifname(real_ifname);
+	ifp = dp_ifnet_byifname(real_ifname);
 	dp_test_fail_unless(ifp, "ifp for %s", ifname);
 
 	/* Get npf config pointers */
@@ -175,8 +175,8 @@ nat64_nat64_hook_v6_in(const char *ifname, struct dp_test_pkt_desc_t *pdesc,
 		dp_test_fail_unless(se6,
 				    "An IPv6 session should already exist");
 	}
-	decision = nat64_hook(&action, npf_config, &se6, ifp, npc, &mbuf,
-			      PFIL_IN, npf_flags);
+	decision = npf_nat64_6to4_in(&action, npf_config, &se6,
+				     ifp, npc, &mbuf, npf_flags);
 
 	/*
 	 * Verify outcome of nat64_hook
@@ -246,7 +246,6 @@ nat64_nat64_hook_v4_out(const char *ifname, struct rte_mbuf *mbuf,
 	struct npf_config *npf_config;
 	char real_ifname[IFNAMSIZ];
 	npf_decision_t decision;
-	npf_action_t action;
 	npf_session_t *se4;
 	struct npf_if *nif;
 	struct ifnet *ifp;
@@ -255,7 +254,7 @@ nat64_nat64_hook_v4_out(const char *ifname, struct rte_mbuf *mbuf,
 
 	/* Get interface pointers */
 	dp_test_intf_real(ifname, real_ifname);
-	ifp = ifnet_byifname(real_ifname);
+	ifp = dp_ifnet_byifname(real_ifname);
 	dp_test_fail_unless(ifp, "ifp for %s", ifname);
 
 	/* Get npf config pointers */
@@ -283,8 +282,7 @@ nat64_nat64_hook_v4_out(const char *ifname, struct rte_mbuf *mbuf,
 		dp_test_fail_unless(se4,
 				    "An IPv4 session should already exist");
 
-	decision = nat64_hook(&action, npf_config, &se4, ifp, npc, &mbuf,
-			      PFIL_OUT, npf_flags);
+	decision = npf_nat64_6to4_out(&se4, ifp, npc, &mbuf, npf_flags);
 
 	dp_test_fail_unless(decision == NPF_DECISION_PASS,
 			    "Expected PASS, got %s",
@@ -327,7 +325,7 @@ nat64_nat64_hook_v4_in(const char *ifname, struct dp_test_pkt_desc_t *pdesc,
 
 	/* Get interface pointers */
 	dp_test_intf_real(ifname, real_ifname);
-	ifp = ifnet_byifname(real_ifname);
+	ifp = dp_ifnet_byifname(real_ifname);
 	dp_test_fail_unless(ifp, "ifp for %s", ifname);
 
 	/* Get npf config pointers */
@@ -361,8 +359,8 @@ nat64_nat64_hook_v4_in(const char *ifname, struct dp_test_pkt_desc_t *pdesc,
 		dp_test_fail_unless(se4,
 				    "An IPv4 session should already exist");
 	}
-	decision = nat64_hook(&action, npf_config, &se4, ifp, npc, &mbuf,
-			       PFIL_IN, npf_flags);
+	decision = npf_nat64_4to6_in(&action, npf_config, &se4,
+				     ifp, npc, &mbuf, npf_flags);
 
 	/*
 	 * Verify outcome of nat64_hook
@@ -425,7 +423,6 @@ nat64_nat64_hook_v6_out(const char *ifname, struct rte_mbuf *mbuf,
 	struct npf_config *npf_config;
 	char real_ifname[IFNAMSIZ];
 	npf_decision_t decision;
-	npf_action_t action;
 	npf_session_t *se6;
 	struct npf_if *nif;
 	struct ifnet *ifp;
@@ -434,7 +431,7 @@ nat64_nat64_hook_v6_out(const char *ifname, struct rte_mbuf *mbuf,
 
 	/* Get interface pointers */
 	dp_test_intf_real(ifname, real_ifname);
-	ifp = ifnet_byifname(real_ifname);
+	ifp = dp_ifnet_byifname(real_ifname);
 	dp_test_fail_unless(ifp, "ifp for %s", ifname);
 
 	/* Get npf config pointers */
@@ -462,8 +459,7 @@ nat64_nat64_hook_v6_out(const char *ifname, struct rte_mbuf *mbuf,
 		dp_test_fail_unless(se6,
 				    "An IPv6 session should already exist");
 
-	decision = nat64_hook(&action, npf_config, &se6, ifp, npc, &mbuf,
-			       PFIL_OUT, npf_flags);
+	decision = npf_nat64_4to6_out(&se6, ifp, npc, &mbuf, npf_flags);
 
 	dp_test_fail_unless(decision == NPF_DECISION_PASS,
 			    "Expected PASS, got %s",
@@ -1678,7 +1674,7 @@ DP_START_TEST(nat64_b3, test1)
 		"npf-ut add nat64:NAT64_GRP1 10 action=accept "
 		"src-addr=2001:101:1::/96 dst-addr=2001:101:2::/96 "
 		"handle=nat64("
-		"stype=overload,srange=10.10.1.1-10.10.1.8,"
+		"stype=overload,saddr=10.10.1.0/28,"
 		"dtype=one2one,daddr=10.10.2.1/32)");
 	dp_test_npf_commit();
 

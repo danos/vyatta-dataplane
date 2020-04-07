@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2019, AT&T Intellectual Property. All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property. All rights reserved.
  * Copyright (c) 2011-2017 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -25,7 +25,11 @@
 #include <rte_log.h>
 #include <rte_spinlock.h>
 #include <rte_timer.h>
+#include <sys/capability.h>
 #include <sys/mman.h>
+#include <sys/resource.h>
+#include <sys/time.h>
+#include <syscall.h>
 
 #include "bitmask.h"
 #include "urcu.h"
@@ -451,6 +455,25 @@ int get_bool(const char *str, bool *ptr)
 	return 0;
 }
 
+/* convert string to float value.
+ * returns 0 on success, -errno on error
+ */
+float get_float(const char *str, float *ptr)
+{
+	char *endp = NULL;
+	float val;
+
+	errno = 0;
+	val = strtof(str, &endp);
+	if (*str == '\0' || !endp || *endp)
+		return -EINVAL;
+	if (errno == ERANGE)
+		return -ERANGE;
+
+	*ptr = val;
+	return 0;
+}
+
 static unsigned char xdigit(int c)
 {
 	if (isdigit(c))
@@ -569,57 +592,9 @@ int defer_rcu_huge(void *ptr, size_t sz)
 	return 0;
 }
 
-static struct rte_timer dp_ht_defer_timer = RTE_TIMER_INITIALIZER;
-struct cds_list_head dp_ht_defer_list = CDS_LIST_HEAD_INIT(dp_ht_defer_list);
-static rte_spinlock_t dp_ht_defer_lock = RTE_SPINLOCK_INITIALIZER;
-
-struct dp_ht_defer_entry {
-	struct cds_list_head list;
-	struct cds_lfht *table;
-};
-
-static void dp_ht_destroy_event(struct rte_timer *tim __rte_unused,
-				void *arg __rte_unused)
-{
-	struct dp_ht_defer_entry *entry;
-	struct dp_ht_defer_entry *next;
-
-	rte_spinlock_lock(&dp_ht_defer_lock);
-	cds_list_for_each_entry_safe(entry, next, &dp_ht_defer_list, list) {
-		if (!cds_lfht_destroy(entry->table, NULL))
-			RTE_LOG(ERR, DATAPLANE,
-				"hash table could not be deleted");
-		cds_list_del(&entry->list);
-		free(entry);
-	}
-	rte_spinlock_unlock(&dp_ht_defer_lock);
-}
-
-/*
- * We can't call cds_lfht_destroy from a call_rcu thread. In that case
- * we can call this func which will queue it and set a timer event so that
- * the master thread can destroy it.
- */
 void dp_ht_destroy_deferred(struct cds_lfht *table)
 {
-	struct dp_ht_defer_entry *new;
-
-	new = malloc(sizeof(*new));
-	if (!new) {
-		RTE_LOG(ERR, DATAPLANE,
-			"No mem to store hash table for later destruction");
-		return;
-	}
-
-	new->table = table;
-	rte_spinlock_lock(&dp_ht_defer_lock);
-	cds_list_add_tail(&new->list, &dp_ht_defer_list);
-	rte_spinlock_unlock(&dp_ht_defer_lock);
-
-	/* fire the timer immediately on master */
-	rte_timer_reset(&dp_ht_defer_timer, 0, SINGLE,
-			rte_get_master_lcore(), dp_ht_destroy_event, NULL);
-
+	cds_lfht_destroy(table, NULL);
 }
 
 static inline bool is_switch_driver(const char *driver_name)
@@ -659,4 +634,78 @@ bool get_switch_dev_info(const char *drv_name, const char *drv_dev_name,
 	}
 
 	return true;
+}
+
+/*
+ * Add or remove a flag from the effective capability set.
+ * Note the flag must already be present in the permitted set.
+ */
+int
+change_capability(cap_value_t capability, bool on)
+{
+	cap_t caps;
+	cap_value_t cap_flag[1];
+	int rc;
+
+	if (!cap_valid(capability)) {
+		RTE_LOG(ERR, DATAPLANE,
+			"Invalid capability %d\n", capability);
+		return -1;
+	}
+
+	caps = cap_get_proc();
+	if (caps == NULL) {
+		RTE_LOG(ERR, DATAPLANE,
+			"Failed to get current capabilities\n");
+		return -1;
+	}
+
+	cap_flag[0] = capability;
+	rc = cap_set_flag(caps, CAP_EFFECTIVE, 1, cap_flag,
+			  on ? CAP_SET : CAP_CLEAR);
+	if (rc < 0) {
+		RTE_LOG(ERR, DATAPLANE,
+			"Failed to %s flag for capability %d\n",
+			on ? "set" : "clear", capability);
+		goto out;
+	}
+
+	rc = cap_set_proc(caps);
+	if (rc < 0)
+		RTE_LOG(ERR, DATAPLANE,
+			"Failed to %s capability %d\n",
+			on ? "enable" : "disable", capability);
+
+out:
+	cap_free(caps);
+	return rc;
+}
+
+/*
+ * There is no wrapper for this function. The value returned by
+ * gettid is the thread id and this is not the same as the pid
+ * or the POSIX thread id. It represents the value used by
+ * the kernel's native thread implementation.
+ */
+static unsigned long gettid(void)
+{
+	return syscall(SYS_gettid);
+}
+
+/* Change the nice value of the current thread (not pthread) */
+void renice(int value)
+{
+	int rc;
+
+	if (change_capability(CAP_SYS_NICE, true) == 0) {
+		rc = setpriority(PRIO_PROCESS, gettid(), value);
+		if (rc < 0)
+			RTE_LOG(ERR, DATAPLANE,
+				"%s: failed to set thread priority: %s\n",
+				__func__,  strerror(errno));
+		change_capability(CAP_SYS_NICE, false);
+	} else
+		RTE_LOG(ERR, DATAPLANE,
+			"%s: failed to set CAP_SYS_NICE: %s\n",
+			__func__,  strerror(errno));
 }

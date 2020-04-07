@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2019, AT&T Intellectual Property.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.
  * All rights reserved.
  * Copyright (c) 2016-2017 by Brocade Communication Systems, Inc.
  * All rights reserved.
@@ -280,15 +280,15 @@
  * conflicts in a later version of SAI.
  */
 
-#ifndef FAL_PLUGIN_H
-#define FAL_PLUGIN_H
+#ifndef VYATTA_DATAPLANE_FAL_PLUGIN_H
+#define VYATTA_DATAPLANE_FAL_PLUGIN_H
 
 #include <stdint.h>
 #include <netinet/in.h>
 #include <rte_ether.h>
 #include <stdbool.h>
 #include <linux/if.h>
-#include <json_writer.h>
+#include "json_writer.h"
 
 #define PLATFORM_FILE  "/run/dataplane/platform.conf"
 
@@ -317,6 +317,32 @@ enum fal_traffic_type {
 	FAL_TRAFFIC_BCAST,
 	FAL_TRAFFIC_MAX
 };
+
+/* Off the chip external packet bundle buffer counters to be
+ * stored in an array.
+ */
+enum fal_qos_external_buf_counters {
+	FAL_QOS_EXTERNAL_BUFFER_DESC_FREE = 0,
+	FAL_QOS_EXTERNAL_BUFFER_PKT_REJECT,
+
+	/* Add J2 QOS external buffer counters */
+	FAL_QOS_EXTERNAL_BUFFER_MAX_COUNTER
+};
+
+/* Off the chip external packet bundle buffer counter ids for FAL to
+ * retrieve from ASIC.
+ */
+enum fal_qos_external_buf_counter_ids {
+	FAL_QOS_EXTERNAL_BUFFER_COUNTER_ID = 0,
+	FAL_QOS_EXTERNAL_BUFFER_PKT_REJECT_COUNTER_ID,
+
+	/* Add J2 QOS external buffer counter ids */
+	FAL_QOS_EXTERNAL_BUFFER_MAX_ID
+};
+
+int fal_plugin_qos_get_counters(const uint32_t *cntr_ids,
+				uint32_t num_cntrs,
+				uint64_t *cntrs);
 
 /*
  * Context handle used for FAL plugins to store state against a given
@@ -354,7 +380,9 @@ struct fal_qos_map_params_t {
 	uint8_t dscp;
 	uint8_t dot1p;
 	uint8_t tc;
+	uint8_t des;
 	uint8_t wrr;
+	uint8_t des_used;
 	union {
 		int dp; /* deprecated */
 		enum fal_packet_colour color;
@@ -368,8 +396,10 @@ struct fal_qos_map_t {
 
 #define FAL_QOS_MAP_DSCP_VALUES 64
 #define FAL_QOS_MAP_PCP_VALUES 8
+#define	FAL_QOS_MAP_DESIGNATION_VALUES 8
 
 struct fal_qos_map_list_t {
+	uint8_t des_used;
 	uint32_t count;
 	struct fal_qos_map_t list[FAL_QOS_MAP_DSCP_VALUES];
 };
@@ -385,6 +415,7 @@ union fal_attribute_value_t {
 	int8_t i8;
 	uint16_t u16;
 	uint32_t u32;
+	int32_t i32;
 	uint64_t u64;
 	fal_object_t objid;
 	const void *ptr;
@@ -609,6 +640,37 @@ enum fal_port_attr_t {
 	 * @default 0
 	 */
 	FAL_PORT_ATTR_FDB_AGING_TIME,
+
+	/**
+	 * @brief Enable ingress QoS classification on port
+	 *
+	 * Set map id = FAL_NULL_OBJECT_ID to remove map
+	 * @type fal_object_t
+	 * @flags CREATE_AND_SET
+	 * @default FAL_NULL_OBJECT_ID
+	 *
+	 */
+	FAL_PORT_ATTR_QOS_INGRESS_MAP_ID,
+
+	/**
+	 * @brief Enable (bind) or disable (unbind) packet capture on this port
+	 *
+	 * Pass a capture object to enable packet capture, pass
+	 * FAL_NULL_OBJECT_ID to disable packet capture.
+	 *
+	 * @type fal_object_t
+	 * @flags CREATE_AND_SET
+	 * @default FAL_NULL_OBJECT_ID
+	 */
+	FAL_PORT_ATTR_CAPTURE_BIND,
+
+	/**
+	 * @brief Is hardware packet capture enabled on this port
+	 *
+	 * @type bool
+	 * @flags READ_ONLY
+	 */
+	FAL_PORT_ATTR_HW_CAPTURE,
 };
 
 enum fal_port_hw_switching_t {
@@ -638,8 +700,8 @@ int fal_plugin_l2_get_attrs(unsigned int if_index,
 /*
  * Update the attributes on interface if_index
  */
-void fal_plugin_l2_upd_port(unsigned int if_index,
-			    struct fal_attribute_t *attr);
+int fal_plugin_l2_upd_port(unsigned int if_index,
+			   struct fal_attribute_t *attr);
 
 /*
  * Delete the interface if_index
@@ -843,6 +905,30 @@ enum fal_router_interface_attr_t {
 };
 
 /**
+ * @brief Router interface stat counter IDs in
+ * fal_plugin_get_router_interface_stats() call
+ */
+enum fal_router_interface_stat_t {
+	FAL_ROUTER_INTERFACE_STAT_MIN,
+
+	/** Ingress byte stat count */
+	FAL_ROUTER_INTERFACE_STAT_IN_OCTETS = FAL_ROUTER_INTERFACE_STAT_MIN,
+
+	/** Ingress packet stat count */
+	FAL_ROUTER_INTERFACE_STAT_IN_PACKETS,
+
+	FAL_ROUTER_INTERFACE_STAT_IN_MAX,
+
+	/** Egress byte stat count */
+	FAL_ROUTER_INTERFACE_STAT_OUT_OCTETS = FAL_ROUTER_INTERFACE_STAT_IN_MAX,
+
+	/** Egress packet stat count */
+	FAL_ROUTER_INTERFACE_STAT_OUT_PACKETS,
+
+	FAL_ROUTER_INTERFACE_STAT_MAX,
+};
+
+/**
  * @brief Create router interface
  *
  * @param[in]  attr_count Number of attributes
@@ -875,6 +961,29 @@ int fal_plugin_delete_router_interface(fal_object_t obj);
 int
 fal_plugin_set_router_interface_attr(fal_object_t obj,
 				     const struct fal_attribute_t *attr_list);
+
+/**
+ * @brief Get router interface stats
+ *
+ * @param[in]  obj        Router interface object ID
+ * @param[in]  cntr_count Number of counters in the array
+ * @param[in]  cntr_ids   Specifies the array of counter IDs
+ * @param[out] cntrs      Counters array of resulting counter values
+ *
+ * @return 0 on success, error code for failure
+ */
+int fal_plugin_get_router_interface_stats(
+	fal_object_t obj, uint32_t cntr_count,
+	const enum fal_router_interface_stat_t *cntr_ids,
+	uint64_t *cntrs);
+
+/**
+ * @brief Dump router interface
+ *
+ * @param[in]  obj Object id for router intf
+ * @param[inout] json JSON writer object
+ */
+void fal_plugin_dump_router_interface(fal_object_t obj, json_writer_t *wr);
 
 /* Tunnel operations */
 
@@ -1102,6 +1211,173 @@ void fal_plugin_br_upd_port(unsigned int child_ifindex,
 void fal_plugin_br_del_port(unsigned int bridge_ifindex,
 			    unsigned int child_ifindex);
 
+/* LAG operations */
+
+enum fal_lag_attr_t {
+	/**
+	 * @brief Start of LAG attributes
+	 */
+	FAL_LAG_ATTR_START,
+
+	/**
+	 * @brief LAG port list
+	 *
+	 * @flags READ_ONLY
+	 * @type fal_object_list_t
+	 * @objects FAL_OBJECT_TYPE_LAG_MEMBER
+	 */
+	FAL_LAG_ATTR_PORT_LIST = FAL_LAG_ATTR_START,
+
+	FAL_LAG_ATTR_MAX
+};
+
+enum fal_lag_member_attr_t {
+	/**
+	 * @brief Start of LAG member attributes
+	 */
+	FAL_LAG_MEMBER_ATTR_START,
+
+	/**
+	 * @brief LAG ID
+	 *
+	 * @type fal_object_id_t
+	 * @flags MANDATORY_ON_CREATE | CREATE_ONLY
+	 * @objects FAL_OBJECT_TYPE_LAG
+	 */
+	FAL_LAG_MEMBER_ATTR_LAG_ID = FAL_LAG_MEMBER_ATTR_START,
+
+	/**
+	 * @brief LAG member port IF Index
+	 *
+	 * @type uint32_t
+	 * @flags MANDATORY_ON_CREATE
+	 */
+	FAL_LAG_MEMBER_ATTR_IFINDEX,
+
+	/**
+	 * @brief Disable traffic distribution to this port as part of LAG
+	 *
+	 * @flags CREATE_AND_SET
+	 * @type bool
+	 * @default false
+	 */
+	FAL_LAG_MEMBER_ATTR_EGRESS_DISABLE,
+
+	/**
+	 * @brief Disable traffic collection from this port as part of LAG
+	 *
+	 * @flags CREATE_AND_SET
+	 * @type bool
+	 * @default false
+	 */
+	FAL_LAG_MEMBER_ATTR_INGRESS_DISABLE,
+
+	FAL_LAG_MEMBER_ATTR_MAX
+};
+
+/**
+ * @brief Create a LAG interface
+ *
+ * @param[in]  attr_count Number of attributes
+ * @param[in]  attr_list  Array of attributes
+ * @param[out] obj        Object id for LAG intf, non-zero on success
+ *
+ * @return 0 on success, error code for failure
+ */
+int fal_plugin_create_lag(uint32_t attr_count,
+			  struct fal_attribute_t *attr_list,
+			  fal_object_t *obj);
+
+/**
+ * @brief Delete a LAG interface
+ *
+ * @param[in]  obj Object id for the LAG
+ *
+ * @return 0 on success, error code for failure
+ */
+int fal_plugin_delete_lag(fal_object_t obj);
+
+/**
+ * @brief Set attributes on the LAG
+ *
+ * @param[in] obj    Object id for the LAG
+ * @param[in] nattrs Number of attributes
+ * @param[in] attr   Array of Attribute
+ *
+ * @return 0 on success.
+ */
+int
+fal_plugin_set_lag_attr(fal_object_t obj, uint32_t nattrs,
+			const struct fal_attribute_t *attr_list);
+
+/**
+ * @brief Get attributes fn the LAG
+ *
+ * @param[in] obj    Object id for the LAG
+ * @param[in] nattrs Number of attributes
+ * @param[in] attr   Array of Attribute
+ *
+ * @return 0 on success.
+ */
+int
+fal_plugin_get_lag_attr(fal_object_t obj, uint32_t nattrs,
+			struct fal_attribute_t *attr_list);
+
+/**
+ * @brief Dump LAG interface
+ *
+ * @param[in]    obj  Object id for the LAG
+ * @param[inout] json JSON writer object
+ */
+void fal_plugin_dump_lag(fal_object_t obj, json_writer_t *wr);
+
+/* LAG member functions */
+
+/**
+ * @brief Create a LAG member
+ *
+ * @param[in]  attr_count Number of attributes
+ * @param[in]  attr_list  Array of attributes
+ * @param[out] obj        Object id for LAG member
+ *
+ * @return 0 on success, error code for failure
+ */
+int fal_plugin_create_lag_member(uint32_t attr_count,
+				 struct fal_attribute_t *attr_list,
+				 fal_object_t *obj);
+
+/**
+ * @brief Delete a LAG member
+ *
+ * @param[in] obj Object id for LAG member
+ *
+ * @return 0 on success, error code for failure
+ */
+int fal_plugin_delete_lag_member(fal_object_t obj);
+
+/**
+ * @brief Set LAG member's attribute
+ *
+ * @param[in]  obj  Object id of the LAG member
+ * @param[in]  attr Attribute to be updated
+ *
+ * @return 0 on success, error code for failure
+ */
+int fal_plugin_set_lag_member_attr(fal_object_t obj,
+				   const struct fal_attribute_t *attr);
+
+/**
+ * @brief Get LAG member's attributea
+ *
+ * @param[in]     obj        Object id of the LAG member
+ * @param[in]     attr_count Number of attributes
+ * @param[inout]  attr_list  List of attributes
+ *
+ * @return 0 on success, error code for failure
+ */
+int fal_plugin_get_lag_member_attr(fal_object_t obj,
+				   uint32_t attr_count,
+				   struct fal_attribute_t *attr_list);
 
 /*
  * Bridge neighbor operations
@@ -1356,6 +1632,69 @@ enum fal_switch_attr_t {
 	 * @default false
 	 */
 	FAL_SWITCH_ATTR_PUNT_PVST,
+
+	/**
+	 * @brief Maximum allocated bundle buffer descriptors
+	 *
+	 * @type .u32
+	 * @flags READ_ONLY
+	 * @default false
+	 */
+	FAL_SWITCH_ATTR_MAX_BUF_DESCRIPTOR,
+
+	/**
+	 * @brief The maximum burst size supported by the platform
+	 *
+	 * @type .u32
+	 * @flags READ_ONLY
+	 * @default 0
+	 */
+	FAL_SWITCH_ATTR_MAX_BURST_SIZE,
+
+	/**
+	 * @brief Set Switch BFD session state change event notification
+	 * callback function passed to the adapter.
+	 *
+	 * Use fal_bfd_session_state_change_notification_fn as notification
+	 * function.
+	 *
+	 * @type .ptr
+	 * @flags CREATE_AND_SET
+	 * @default NULL
+	 */
+	FAL_SWITCH_ATTR_BFD_SESSION_STATE_NOTIFY,
+
+	/**
+	 * @brief Max number of BFD IPv4 session supported in on-chip BFD
+	 *
+	 * @type .u32
+	 * @flags READ_ONLY
+	 */
+	FAL_SWITCH_ATTR_MAX_BFD_IPV4_SESSION,
+
+	/**
+	 * @brief Max number of BFD IPv6 session supported in on-chip BFD
+	 *
+	 * @type .u32
+	 * @flags READ_ONLY
+	 */
+	FAL_SWITCH_ATTR_MAX_BFD_IPV6_SESSION,
+
+	/**
+	 * @brief Max number of UDP source ports supported in on-chip IPv4 BFD
+	 *
+	 * @type .u32
+	 * @flags READ_ONLY
+	 */
+	FAL_SWITCH_ATTR_MAX_BFD_IPV4_UDP_SRC_PORT_CNT,
+
+	/**
+	 * @brief Max number of UDP source ports supported in on-chip IPv6 BFD
+	 *
+	 * @type .u32
+	 * @flags READ_ONLY
+	 */
+	FAL_SWITCH_ATTR_MAX_BFD_IPV6_UDP_SRC_PORT_CNT,
 };
 
 /*
@@ -1483,6 +1822,17 @@ int fal_plugin_ip_get_neigh_attrs(unsigned int if_index,
 int fal_plugin_ip_del_neigh(unsigned int if_index,
 			    struct fal_ip_address_t *ipaddr);
 
+/**
+ * @brief Dump info for an IP neighbor
+ *
+ * @param[in] if_index Index of interface to dump neighbour on
+ * @param[in] ipaddr Address of neighbour to dump
+ * @param[inout] json writer object
+ */
+void fal_plugin_ip_dump_neigh(unsigned int if_index,
+			      struct fal_ip_address_t *ipaddr,
+			      json_writer_t *wr);
+
 /*
  * IP Route operations
  */
@@ -1504,6 +1854,23 @@ enum fal_route_entry_attr_t {
 	FAL_ROUTE_ENTRY_ATTR_PACKET_ACTION,	/* .u32 - fal_packet_action_t */
 };
 
+/* Route walk type enum */
+enum fal_route_walk_type_t {
+	FAL_ROUTE_WALK_TYPE_ALL,
+};
+
+/*
+ * Route walk attributes
+ */
+
+enum fal_route_walk_attr_t {
+	FAL_ROUTE_WALK_ATTR_VRFID,	/* .u32 - Vrf id */
+	FAL_ROUTE_WALK_ATTR_TABLEID,	/* .u32 - Table id */
+	FAL_ROUTE_WALK_ATTR_CNT,	/* .u32 - count */
+	FAL_ROUTE_WALK_ATTR_FAMILY,	/* .u32 - fal_ip_addr_family_t */
+	FAL_ROUTE_WALK_ATTR_TYPE,	/* .u32 - fal_route_walk_type_t */
+};
+
 int fal_plugin_ip_new_route(unsigned int vrf_id,
 			    struct fal_ip_address_t *ipaddr,
 			    uint8_t prefixlen,
@@ -1521,6 +1888,53 @@ int fal_plugin_ip_del_route(unsigned int vrf_id,
 			    struct fal_ip_address_t *ipaddr,
 			    uint8_t prefixlen,
 			    uint32_t tableid);
+
+/**
+ * @brief Query attributes for a route
+ *
+ * @param[in] vrf VRF ID of the route to be queried
+ * @param[in] ipaddr Network address of the route to be queried
+ * @param[in] prefixlen Prefix length of the route to be queried
+ * @param[in] tableid Prefix length of the route to be queried
+ * @param[in] attr_count Count of the attributes
+ * @param[inout] attr_list List of attributes to query
+ *
+ * @return 0 on success. Negative errno on failure.
+ */
+int fal_plugin_ip_get_route_attrs(unsigned int vrf_id,
+				  struct fal_ip_address_t *ipaddr,
+				  uint8_t prefixlen,
+				  uint32_t tableid,
+				  uint32_t attr_count,
+				  struct fal_attribute_t *attr_list);
+
+/**
+ * @brief Iterator function for walk of routes
+ *
+ * @param[in] prefix
+ * @param[in] prefixlen
+ * @param[in] attr_count attribute counts
+ * @param[in] attr_list List of attributes
+ * @param[in] arg Arg passed to the walker function
+ * @return 0 on success. Negative errno on failure
+ */
+typedef int (*fal_plugin_route_walk_fn)(const struct fal_ip_address_t *pfx,
+					uint8_t prefixlen,
+					uint32_t attr_count,
+					const struct
+					fal_attribute_t *attr_list,
+					void *arg);
+
+/**
+ * @brief Walk routes
+ * @param[in] attr_cnt number of fal attributes
+ * @param[in] attr_list list of FAL attributes
+ * @param[inout] json writer object
+ */
+int fal_plugin_ip_walk_routes(fal_plugin_route_walk_fn cb,
+			      uint32_t attr_cnt,
+			      struct fal_attribute_t *attr_list,
+			      void *arg);
 
 /*
  * IP Nexthop Group operations
@@ -1559,6 +1973,44 @@ int fal_plugin_ip_upd_next_hop_group(fal_object_t obj,
  */
 int fal_plugin_ip_del_next_hop_group(fal_object_t obj);
 
+/**
+ * @brief Dump info for a next hop group object
+ *
+ * @param[in] obj Object ID of the next-hop-group to be dumped
+ * @param[inout] json writer object
+ */
+void fal_plugin_ip_dump_next_hop_group(fal_object_t obj,
+				       json_writer_t *wr);
+
+enum fal_next_hop_group_attr_t {
+	/**
+	 * @brief Next hop group next hop count
+	 *
+	 * @type uint32_t
+	 * @flags READ_ONLY
+	 */
+	FAL_NEXT_HOP_GROUP_ATTR_NEXTHOP_COUNT,	/* .u32 */
+	/**
+	 * @brief Next hop group next hop object
+	 *
+	 * @type fal_object_id_t
+	 * @flags READ_ONLY
+	 */
+	FAL_NEXT_HOP_GROUP_ATTR_NEXTHOP_OBJECT,	/* .objid */
+};
+/**
+ * @brief Query attributes for a next hop group object
+ *
+ * @param[in] obj Object ID of the next-hop-group to be queried
+ * @param[in] attr_count Count of the attributes
+ * @param[inout] attr_list List of attributes to query
+ *
+ * @return 0 on success. Negative errno on failure.
+ */
+int fal_plugin_ip_get_next_hop_group_attrs(fal_object_t obj,
+					   uint32_t attr_count,
+					   struct fal_attribute_t *attr_list);
+
 /*
  * IP Nexthop operations
  */
@@ -1571,12 +2023,22 @@ enum fal_next_hop_attr_t {
 	 */
 	FAL_NEXT_HOP_ATTR_NEXT_HOP_GROUP,	/* .objid */
 	/**
-	 * @brief Next hop interface
+	 * @brief Next hop interface's if index
+	 *
+	 * Deprecated in favour of FAL_NEXT_HOP_ATTR_ROUTER_INTF.
 	 *
 	 * @type uint32_t
 	 * @flags MANDATORY_ON_CREATE | CREATE_ONLY
 	 */
 	FAL_NEXT_HOP_ATTR_INTF,			/* .u32 */
+	/**
+	 * @brief Next hop router interface
+	 *
+	 * @type fal_object_t
+	 * @flags MANDATORY_ON_CREATE | CREATE_ONLY
+	 * @default FAL_NULL_OBJECT_ID
+	 */
+	FAL_NEXT_HOP_ATTR_ROUTER_INTF,		/* .objid */
 	/**
 	 * @brief Next hop IP address
 	 *
@@ -1627,6 +2089,28 @@ int fal_plugin_ip_upd_next_hop(fal_object_t obj,
  */
 int fal_plugin_ip_del_next_hops(uint32_t nh_count,
 				const fal_object_t *obj_list);
+
+/**
+ * @brief Query attributes for a next hop object
+ *
+ * @param[in] obj Object ID of the next-hop to be queried
+ * @param[in] attr_count Count of the attributes
+ * @param[inout] attr_list List of attributes to query
+ *
+ * @return 0 on success. Negative errno on failure.
+ */
+int fal_plugin_ip_get_next_hop_attrs(fal_object_t obj,
+				     uint32_t attr_count,
+				     struct fal_attribute_t *attr_list);
+
+/**
+ * @brief Dump info for a next hop object
+ *
+ * @param[in] obj Object ID of the next-hop to be dumped
+ * @param[inout] json writer object
+ */
+void fal_plugin_ip_dump_next_hop(fal_object_t obj,
+				 json_writer_t *wr);
 
 /*
  * IP Multicast Route operations
@@ -2131,7 +2615,8 @@ union fal_pkt_feature_info {
  */
 enum fal_feat_framer_ret_value {
 	FAL_RET_ETHER_INPUT,
-	FAL_RET_PORTMONITOR_HW_INPUT
+	FAL_RET_PORTMONITOR_HW_INPUT,
+	FAL_RET_CAPTURE_HW_INPUT
 };
 
 /*
@@ -2459,8 +2944,16 @@ enum fal_qos_queue_attr_t {
 	 */
 	FAL_QOS_QUEUE_ATTR_LOCAL_PRIORITY = 0x00000008,
 
+	/**
+	 * @brief Designator used to classify traffic to the queue
+	 *
+	 * @type uint8_t
+	 * @flags MANDATORY_ON_CREATE | CREATE_AND_SET
+	 */
+	FAL_QOS_QUEUE_ATTR_DESIGNATOR = 0x00000009,
+
 	/** Max value */
-	FAL_QOS_QUEUE_ATTR_MAX = FAL_QOS_QUEUE_ATTR_LOCAL_PRIORITY,
+	FAL_QOS_QUEUE_ATTR_MAX = FAL_QOS_QUEUE_ATTR_DESIGNATOR,
 };
 
 /**
@@ -2672,8 +3165,17 @@ enum fal_qos_map_type_t {
 	/** QOS Map to set DSCP to DOT1P */
 	FAL_QOS_MAP_TYPE_DSCP_TO_DOT1P = 0x00000008,
 
+	/** QOS Map to set DSCP to designator */
+	FAL_QOS_MAP_TYPE_DSCP_TO_DESIGNATOR = 0x00000009,
+
+	/** QOS Map to set DOT1P to designator */
+	FAL_QOS_MAP_TYPE_DOT1P_TO_DESIGNATOR = 0x0000000a,
+
+	/** QOS Map to set designator to DOT1P */
+	FAL_QOS_MAP_TYPE_DESIGNATOR_TO_DOT1P = 0x0000000b,
+
 	/** Max value */
-	FAL_QOS_MAP_TYPE_MAX = FAL_QOS_MAP_TYPE_DSCP_TO_DOT1P,
+	FAL_QOS_MAP_TYPE_MAX = FAL_QOS_MAP_TYPE_DESIGNATOR_TO_DOT1P,
 };
 
 /**
@@ -2720,8 +3222,23 @@ enum fal_qos_map_attr_t {
 	 */
 	FAL_QOS_MAP_ATTR_LOCAL_PRIORITY_QUEUE = 0x00000002,
 
+	/**
+	 * @brief System default setting
+	 *
+	 * A map may be applied as the system default for ingress
+	 * classification. If a QoS policy is applied to any port or
+	 * port/vlan then this map is applied to all ingress ports and
+	 * port/vlans that do not have a specific ingress map applied
+	 *
+	 * Defaults: not required
+	 *
+	 * @type boolean
+	 * @flags MANDATORY_ON_CREATE | CREATE_AND_SET
+	 */
+	FAL_QOS_MAP_ATTR_INGRESS_SYSTEM_DEFAULT = 0x00000003,
+
 	/** Max value */
-	FAL_QOS_MAP_ATTR_MAX = FAL_QOS_MAP_ATTR_LOCAL_PRIORITY_QUEUE,
+	FAL_QOS_MAP_ATTR_MAX = FAL_QOS_MAP_ATTR_INGRESS_SYSTEM_DEFAULT,
 };
 
 /**
@@ -3054,8 +3571,22 @@ enum fal_qos_sched_group_attr_t {
 	 */
 	FAL_QOS_SCHED_GROUP_ATTR_EGRESS_MAP_ID = 0x00000009,
 
+	/**
+	 * @brief Scheduler group local priority queue designator
+	 *
+	 * The designator to be applied to locally generated priority traffic
+	 * to classify it to the local priority queue.
+	 * This is only valid when the level == 3, i.e. the sched-group
+	 * represents a vyatta pipe.
+	 *
+	 * @type uint8_t
+	 * @flags MANDATORY_ON_CREATE| CREATE_AND_SET
+	 */
+	FAL_QOS_SCHED_GROUP_ATTR_LOCAL_PRIORITY_DESIGNATOR = 0x0000000a,
+
 	/* Max value */
-	FAL_QOS_SCHED_GROUP_ATTR_MAX = FAL_QOS_SCHED_GROUP_ATTR_EGRESS_MAP_ID,
+	FAL_QOS_SCHED_GROUP_ATTR_MAX =
+		FAL_QOS_SCHED_GROUP_ATTR_LOCAL_PRIORITY_DESIGNATOR,
 };
 
 /**
@@ -3113,6 +3644,8 @@ int fal_plugin_qos_get_sched_group_attrs(fal_object_t sched_group_id,
  */
 void fal_plugin_qos_dump_sched_group(fal_object_t sg,
 				     json_writer_t *wr);
+
+void fal_plugin_dump_memory_buffer_errors(json_writer_t *wr);
 
 /**
  * @brief Enum defining WRED profile attributes
@@ -3460,6 +3993,17 @@ enum fal_vlan_feature_attr_t {
 	 *
 	 */
 	FAL_VLAN_FEATURE_ATTR_MULTICAST_STORM_CONTROL_POLICER_ID,
+
+	/**
+	 * @brief Enable ingress QoS classification on vlan on port
+	 *
+	 * Set map id = FAL_NULL_OBJECT_ID to remove map
+	 * @type fal_object_t
+	 * @flags CREATE_AND_SET
+	 * @default FAL_NULL_OBJECT_ID
+	 *
+	 */
+	FAL_VLAN_FEATURE_ATTR_QOS_INGRESS_MAP_ID,
 };
 
 /**
@@ -3492,6 +4036,21 @@ int fal_plugin_vlan_feature_delete(fal_object_t obj);
  */
 int fal_plugin_vlan_feature_set_attr(fal_object_t obj,
 				     const struct fal_attribute_t *attr);
+
+/**
+ * @brief Get vlan_feature attribute
+ *
+ * @param[in] obj vlan_feature object id
+ * @param[in] attr_count Number of attributes
+ * @param[inout] attr_list Array of attributes
+ *
+ * @return 0 on success. If an attribute in attr_list is
+ *	   unsupported by the FAL plugin, it should return
+ *	   an error.
+ */
+int fal_plugin_vlan_feature_get_attr(fal_object_t obj,
+				     uint32_t attr_count,
+				     struct fal_attribute_t *attr_list);
 
 /**
  * @brief set backplane port
@@ -3710,11 +4269,23 @@ enum fal_ptp_clock_attr_t {
 	 */
 	FAL_PTP_CLOCK_PROFILE,
 
+	/**
+	 * @brief An antenna delay in nanoseconds that should
+	 *	  be applied to the clock's GPS. Only useful
+	 *	  with the G.8275.2 APTS profile.
+	 * @type int32_t
+	 * @flags CREATE_ONLY
+	 */
+	FAL_PTP_CLOCK_ANTENNA_DELAY,
+
 	FAL_PTP_CLOCK_MAX
 };
 
 enum fal_ptp_clock_profile_t {
 	FAL_PTP_CLOCK_DEFAULT_PROFILE = 1, /** IEEE 1588-2008 default profile */
+	FAL_PTP_CLOCK_G82752_PROFILE = 2, /** G.8275.2 Telecom profile */
+	FAL_PTP_CLOCK_G82752_APTS_PROFILE = 3,
+					/** G.8275.2 w/ APTS Telecom profile */
 };
 
 /**
@@ -4557,4 +5128,526 @@ int fal_plugin_acl_get_counter_attr(fal_object_t counter_id,
 			     struct fal_attribute_t *attr_list);
 /* End of ACL Stuff */
 
-#endif /* FAL_PLUGIN_H */
+/*
+ * Packet capture (snooping) attributes & functions
+ */
+
+enum fal_capture_attr_t {
+	/**
+	 * @brief Capture copy (crop) size - how much of the frame to
+	 * capture
+	 * @flags CREATE_ONLY
+	 * @type  uint32_t
+	 * @default 0 (copy whole frame)
+	 */
+	FAL_CAPTURE_ATTR_COPY_LENGTH,
+
+	/**
+	 * @brief How much backplane bandwidth to be used by captured
+	 * frames (Kbits/sec)
+	 * @flags CREATE_ONLY
+	 * @type uint32_t
+	 * @default 0 (2000Kbps)
+	 */
+	FAL_CAPTURE_ATTR_BANDWIDTH,
+};
+
+int fal_plugin_capture_create(uint32_t attr_count,
+			      const struct fal_attribute_t *attr_list,
+			      fal_object_t *obj);
+void fal_plugin_capture_delete(fal_object_t obj);
+
+/* BFD Definitions */
+
+/**
+ * @brief FAL session type of BFD
+ */
+enum fal_bfd_session_type_t {
+	/** Demand Active Mode */
+	FAL_BFD_SESSION_TYPE_DEMAND_ACTIVE = 0,
+
+	/** Demand Passive Mode */
+	FAL_BFD_SESSION_TYPE_DEMAND_PASSIVE,
+
+	/** Asynchronous Active Mode */
+	FAL_BFD_SESSION_TYPE_ASYNC_ACTIVE,
+
+	/** Asynchronous Passive Mode */
+	FAL_BFD_SESSION_TYPE_ASYNC_PASSIVE,
+};
+
+/**
+ * @brief FAL type of encapsulation tunnel for BFD
+ */
+enum fal_bfd_encapsulation_type_t {
+	/**
+	 * @brief IP in IP Encapsulation | L2 Ethernet header | IP header |
+	 * Inner IP header | Original BFD packet
+	 */
+	FAL_BFD_ENCAPSULATION_TYPE_IP_IN_IP,
+
+	/**
+	 * @brief L3 GRE Tunnel Encapsulation | L2 Ethernet header | IP header |
+	 * GRE header | Original BFD packet
+	 */
+	FAL_BFD_ENCAPSULATION_TYPE_L3_GRE_TUNNEL,
+};
+
+/**
+ * @brief FAL BFD session state
+ */
+enum fal_bfd_session_state_t {
+	/** BFD Session is in Admin down */
+	FAL_BFD_SESSION_STATE_ADMIN_DOWN,
+
+	/** BFD Session is Down */
+	FAL_BFD_SESSION_STATE_DOWN,
+
+	/** BFD Session is in Initialization */
+	FAL_BFD_SESSION_STATE_INIT,
+
+	/** BFD Session is Up */
+	FAL_BFD_SESSION_STATE_UP,
+};
+
+/**
+ * @brief FAL BFD session diagnostic
+ */
+enum fal_bfd_session_diag_t {
+	/** No Diagnostic */
+	FAL_BFD_DIAG_NONE,
+
+	/** Control Detection Time Expired */
+	FAL_BFD_DIAG_DETECT_EXPIRE,
+
+	/** Echo Function Failed */
+	FAL_BFD_DIAG_ECHO_FAIL,
+
+	/** Neighbor Signaled Session Down */
+	FAL_BFD_DIAG_NEIGH_DOWN,
+
+	/** Forwarding Plane Reset */
+	FAL_BFD_DIAG_FWD_RESET,
+
+	/** Path Down */
+	FAL_BFD_DIAG_PATH_DOWN,
+
+	/** Concatenated Path Down */
+	FAL_BFD_DIAG_CONCAT_DOWN,
+
+	/** Administratively Down */
+	FAL_BFD_DIAG_ADMIN_DOWN,
+
+	/** Reverse Concatenated Path Down */
+	FAL_BFD_DIAG_REV_CONCAT_DOWN,
+};
+
+/**
+ * @ brief BFD PDU flags
+ */
+union fal_bfd_pdu_flags_t {
+	struct {
+		/** BFD PDU flags byte value */
+		uint8_t flags;
+		/** BFD Param changed, 0 - not changed, 1 - changed */
+		uint8_t param_changed;
+		uint8_t reserved1;
+		uint8_t reserved2;
+	};
+	uint32_t val;
+};
+
+/**
+ * @brief Defines the operational status of the BFD session
+ */
+struct fal_bfd_session_state_notification_t {
+	/** BFD Session id */
+	fal_object_t bfd_session_id;
+
+	/** BFD session state */
+	enum fal_bfd_session_state_t session_state;
+
+	/** BFD remote session state */
+	enum fal_bfd_session_state_t remote_state;
+
+	/** BFD local session diagnostic */
+	enum fal_bfd_session_diag_t local_diag;
+
+	/** BFD remote session diagnostic */
+	enum fal_bfd_session_diag_t remote_diag;
+
+	/** BFD remote PDU flag bits */
+	union fal_bfd_pdu_flags_t remote_pdu_flags;
+};
+
+/**
+ * @brief FAL attributes for BFD session
+ */
+enum fal_bfd_session_attr_t {
+	/**
+	 * @brief Start of attributes
+	 */
+	FAL_BFD_SESSION_ATTR_START,
+
+	/**
+	 * @brief BFD Session type DEMAND/ASYNCHRONOUS
+	 *
+	 * @type u8
+	 * @flags MANDATORY_ON_CREATE | CREATE_ONLY
+	 */
+	FAL_BFD_SESSION_ATTR_TYPE = FAL_BFD_SESSION_ATTR_START,
+
+	/**
+	 * @brief Router interface ojbect
+	 *
+	 * @type fal_object_t
+	 * @flags CREATE_AND_SET
+	 */
+	FAL_BFD_SESSION_ATTR_ROUTER_INTERFACE,
+
+	/**
+	 * @brief Local discriminator
+	 *
+	 * @type u32
+	 * @flags MANDATORY_ON_CREATE | CREATE_ONLY
+	 */
+	FAL_BFD_SESSION_ATTR_LOCAL_DISCRIMINATOR,
+
+	/**
+	 * @brief Remote discriminator
+	 *
+	 * @type u32
+	 * @flags MANDATORY_ON_CREATE | CREATE_ONLY
+	 */
+	FAL_BFD_SESSION_ATTR_REMOTE_DISCRIMINATOR,
+
+	/**
+	 * @brief UDP Source port
+	 *
+	 * @type u32
+	 * @flags MANDATORY_ON_CREATE | CREATE_ONLY
+	 */
+	FAL_BFD_SESSION_ATTR_UDP_SRC_PORT,
+
+	/**
+	 * @brief Encapsulation type
+	 *
+	 * @type u8 fal_bfd_encapsulation_type_t
+	 * @flags CREATE_ONLY
+	 */
+	FAL_BFD_SESSION_ATTR_BFD_ENCAPSULATION_TYPE,
+
+	/**
+	 * @brief IP header version
+	 *
+	 * @type u8
+	 * @flags MANDATORY_ON_CREATE | CREATE_ONLY
+	 */
+	FAL_BFD_SESSION_ATTR_IPHDR_VERSION,
+
+	/**
+	 * @brief IP header TOS
+	 *
+	 * @type u8
+	 * @flags CREATE_AND_SET
+	 * @default 0
+	 */
+	FAL_BFD_SESSION_ATTR_TOS,
+
+	/**
+	 * @brief IP header TTL
+	 *
+	 * @type u8
+	 * @flags CREATE_AND_SET
+	 * @default 255
+	 */
+	FAL_BFD_SESSION_ATTR_TTL,
+
+	/**
+	 * @brief Source IP
+	 *
+	 * @type ipaddr
+	 * @flags MANDATORY_ON_CREATE | CREATE_ONLY
+	 */
+	FAL_BFD_SESSION_ATTR_SRC_IP_ADDRESS,
+
+	/**
+	 * @brief Destination IP
+	 *
+	 * @type ipaddr
+	 * @flags MANDATORY_ON_CREATE | CREATE_ONLY
+	 */
+	FAL_BFD_SESSION_ATTR_DST_IP_ADDRESS,
+
+	/**
+	 * @brief Tunnel IP header TOS
+	 *
+	 * @type u8
+	 * @flags CREATE_AND_SET
+	 * @default 0
+	 * @validonly FAL_BFD_SESSION_ATTR_BFD_ENCAPSULATION_TYPE ==
+	 * FAL_BFD_ENCAPSULATION_TYPE_IP_IN_IP
+	 */
+	FAL_BFD_SESSION_ATTR_TUNNEL_TOS,
+
+	/**
+	 * @brief Tunnel IP header TTL
+	 *
+	 * @type u8
+	 * @flags CREATE_AND_SET
+	 * @default 255
+	 * @validonly FAL_BFD_SESSION_ATTR_BFD_ENCAPSULATION_TYPE ==
+	 * FAL_BFD_ENCAPSULATION_TYPE_IP_IN_IP
+	 */
+	FAL_BFD_SESSION_ATTR_TUNNEL_TTL,
+
+	/**
+	 * @brief Tunnel source IP
+	 *
+	 * @type ipaddr
+	 * @flags MANDATORY_ON_CREATE | CREATE_ONLY
+	 * @condition FAL_BFD_SESSION_ATTR_BFD_ENCAPSULATION_TYPE ==
+	 * FAL_BFD_ENCAPSULATION_TYPE_IP_IN_IP
+	 */
+	FAL_BFD_SESSION_ATTR_TUNNEL_SRC_IP_ADDRESS,
+
+	/**
+	 * @brief Tunnel destination IP
+	 *
+	 * @type ipaddr
+	 * @flags MANDATORY_ON_CREATE | CREATE_ONLY
+	 * @condition FAL_BFD_SESSION_ATTR_BFD_ENCAPSULATION_TYPE ==
+	 * FAL_BFD_ENCAPSULATION_TYPE_IP_IN_IP
+	 */
+	FAL_BFD_SESSION_ATTR_TUNNEL_DST_IP_ADDRESS,
+
+	/**
+	 * @brief Multi hop BFD session
+	 *
+	 * @type bool
+	 * @flags CREATE_ONLY
+	 * @default false
+	 */
+	FAL_BFD_SESSION_ATTR_MULTIHOP,
+
+	/**
+	 * @brief Minimum Transmit interval in microseconds
+	 *
+	 * @type u32
+	 * @flags MANDATORY_ON_CREATE | CREATE_AND_SET
+	 */
+	FAL_BFD_SESSION_ATTR_MIN_TX,
+
+	/**
+	 * @brief Minimum Receive interval in microseconds
+	 *
+	 * @type u32
+	 * @flags MANDATORY_ON_CREATE | CREATE_AND_SET
+	 */
+	FAL_BFD_SESSION_ATTR_MIN_RX,
+
+	/**
+	 * @brief Detection time Multiplier of local endpoint
+	 *
+	 * @type u8
+	 * @flags MANDATORY_ON_CREATE | CREATE_AND_SET
+	 */
+	FAL_BFD_SESSION_ATTR_DETECT_MULT,
+
+	/**
+	 * @brief Minimum Remote Transmit interval in microseconds
+	 *
+	 * @type u32
+	 * @flags READ_ONLY
+	 */
+	FAL_BFD_SESSION_ATTR_REMOTE_MIN_TX,
+
+	/**
+	 * @brief Minimum Remote Receive interval in microseconds
+	 *
+	 * @type u32
+	 * @flags READ_ONLY
+	 */
+	FAL_BFD_SESSION_ATTR_REMOTE_MIN_RX,
+
+	/**
+	 * @brief Detection time Multiplier of remote endpoint
+	 *
+	 * @type u8
+	 * @flags READ_ONLY
+	 */
+	FAL_BFD_SESSION_ATTR_REMOTE_DETECT_MULT,
+
+	/**
+	 * @brief BFD session detectation time in microseconds
+	 *
+	 * @type u32
+	 * @flags CREATE_AND_SET
+	 */
+	FAL_BFD_SESSION_ATTR_DETECTION_TIME,
+
+	/**
+	 * @brief BFD Session state
+	 *
+	 * @type u8 fal_bfd_session_state_t
+	 * @flags READ_ONLY
+	 */
+	FAL_BFD_SESSION_ATTR_STATE,
+
+	/**
+	 * @brief BFD Remote Session state
+	 *
+	 * @type u8 fal_bfd_session_state_t
+	 * @flags READ_ONLY
+	 */
+	FAL_BFD_SESSION_ATTR_REMOTE_STATE,
+
+	/**
+	 * @brief BFD Local diagnostic
+	 *
+	 * @type u8 fal_bfd_session_diag_t
+	 * @flags READ_ONLY
+	 */
+	FAL_BFD_SESSION_ATTR_LOCAL_DIAG,
+
+	/**
+	 * @brief BFD Remote diagnostic
+	 *
+	 * @type u8 fal_bfd_session_diag_t
+	 * @flags READ_ONLY
+	 */
+	FAL_BFD_SESSION_ATTR_REMOTE_DIAG,
+
+	/**
+	 * @brief Next hop for a multi hop BFD session
+	 *
+	 * @type ipaddr
+	 * @flags CREATE_AND_SET
+	 * @validonly FAL_BFD_SESSION_ATTR_MULTIHOP == true
+	 */
+	FAL_BFD_SESSION_ATTR_NEXTHOP,
+
+	/**
+	 * @brief BFD packet drop precedence in egress traffic,
+	 *        BFD should use FAL_PACKET_COLOUR_GREEN
+	 *
+	 * @type  enum fal_packet_colour
+	 * @flags MANDATORY_ON_CREATE | CREATE_AND_SET
+	 */
+	FAL_BFD_SESSION_ATTR_PKT_COLOUR,
+
+	/**
+	 * @brief BFD packet priority queue in egress traffic,
+	 *        Value range: 0-7. BFD should be applied to highest prioirty
+	 *
+	 * @type u32
+	 * @flags MANDATORY_ON_CREATE | CREATE_AND_SET
+	 */
+	FAL_BFD_SESSION_ATTR_PKT_DESIGNATOR,
+
+	/**
+	 * @brief End of attributes
+	 */
+	FAL_BFD_SESSION_ATTR_END,
+
+};
+
+/**
+ * @brief BFD Session counter IDs in fal_get_bfd_session_stats() call
+ */
+enum fal_bfd_session_stat_t {
+	/** Ingress packet stat count */
+	FAL_BFD_SESSION_STAT_IN_PACKETS,
+
+	/** Egress packet stat count */
+	FAL_BFD_SESSION_STAT_OUT_PACKETS,
+
+	/** Packet Drop stat count */
+	FAL_BFD_SESSION_STAT_DROP_PACKETS
+
+};
+
+/**
+ * @brief Create BFD session.
+ *
+ * @param[out] bfd_session_id BFD session id
+ * @param[in] attr_count Number of attributes
+ * @param[in] attr_list Value of attributes
+ *
+ * @return 0 if operation is successful otherwise a different
+ * error code is returned.
+ */
+int fal_plugin_bfd_create_session(fal_object_t *bfd_session_id,
+				  uint32_t attr_count,
+				  const struct fal_attribute_t *attr_list);
+
+/**
+ * @brief Delete BFD session.
+ *
+ * @param[in] bfd_session_id BFD session id
+ *
+ * @return 0 if operation is successful otherwise a different
+ * error code is returned.
+ */
+int fal_plugin_bfd_delete_session(fal_object_t bfd_session_id);
+
+/**
+ * @brief Set BFD session attributes.
+ *
+ * @param[in] bfd_session_id BFD session id
+ * @param[in] attr_count Number of attributes
+ * @param[in] attr_list Value of attributes
+ *
+ * @return 0 if operation is successful otherwise a different
+ * error code is returned.
+ */
+int fal_plugin_bfd_set_session_attribute(fal_object_t bfd_session_id,
+				  uint32_t attr_count,
+				  const struct fal_attribute_t *attr_list);
+
+/**
+ * @brief Get BFD session attributes.
+ *
+ * @param[in] bfd_session_id BFD session id
+ * @param[in] attr_count Number of attributes
+ * @param[inout] attr_list Value of attribute
+ *
+ * @return 0 if operation is successful otherwise a different
+ * error code is returned.
+ */
+int fal_plugin_bfd_get_session_attribute(fal_object_t bfd_session_id,
+				  uint32_t attr_count,
+				  struct fal_attribute_t *attr_list);
+
+/**
+ * @brief Get BFD session statistics counters.
+ *
+ * @param[in] bfd_session_id BFD session id
+ * @param[in] number_of_counters Number of counters in the array
+ * @param[in] counter_ids Specifies the array of counter ids
+ * @param[out] counters Array of resulting counter values.
+ *
+ * @return 0 on success, failure status code on error
+ */
+int fal_plugin_bfd_get_session_stats(fal_object_t bfd_session_id,
+			      uint32_t number_of_counters,
+			      const enum fal_bfd_session_stat_t *counter_ids,
+			      uint64_t *counters);
+
+/**
+ * @brief BFD session state change notification
+ *
+ * Passed as a parameter to FAL_SWITCH_ATTR_BFD_SESSION_STATE_NOTIFY
+ *
+ * @count data[count]
+ *
+ * @param[in] count Number of notifications
+ * @param[in] data Array of BFD session state
+ */
+typedef void (*fal_bfd_session_state_change_notification_fn)(
+	uint32_t count,
+	struct fal_bfd_session_state_notification_t *data);
+
+/* End of BFD Definitions */
+
+#endif /* VYATTA_DATAPLANE_FAL_PLUGIN_H */

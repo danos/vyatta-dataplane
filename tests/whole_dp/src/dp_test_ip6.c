@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2019, AT&T Intellectual Property. All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property. All rights reserved.
  * Copyright (c) 2015-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -10,10 +10,10 @@
 #include "ip6_funcs.h"
 
 #include "dp_test.h"
-#include "dp_test_netlink_state.h"
-#include "dp_test_lib.h"
+#include "dp_test_netlink_state_internal.h"
+#include "dp_test_lib_internal.h"
 #include "dp_test_lib_exp.h"
-#include "dp_test_pktmbuf_lib.h"
+#include "dp_test_pktmbuf_lib_internal.h"
 #include "dp_test_console.h"
 #include "dp_test_cmd_state.h"
 
@@ -68,9 +68,9 @@ DP_START_TEST(ip6_cfg, route_add_del_scale)
 		"     \"tbl8s\":"
 		"       {"
 		"         \"used\":"
-		"           0,"
+		"           14,"
 		"         \"free\":"
-		"           256"
+		"           242"
 		"       },"
 		"  },"
 		"}");
@@ -115,9 +115,9 @@ DP_START_TEST(ip6_cfg, route_add_del_scale)
 		"     \"tbl8s\":"
 		"       {"
 		"         \"used\":"
-		"           0,"
+		"           14,"
 		"         \"free\":"
-		"           512"
+		"           498"
 		"       },"
 		"  },"
 		"}");

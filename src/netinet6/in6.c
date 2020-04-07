@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2018, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2014-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  */
@@ -86,7 +86,7 @@
 #include "in6_var.h"
 #include "ip6_funcs.h"
 #include "pipeline/nodes/pl_nodes_common.h"
-#include "pktmbuf.h"
+#include "pktmbuf_internal.h"
 #include "pl_node.h"
 #include "urcu.h"
 
@@ -153,7 +153,8 @@ in6ifa_ifplocaladdr(const struct ifnet *ifp, const struct in6_addr *addr)
 			continue;
 
 		struct sockaddr_in6 *sin6 = satosin6(sa);
-		if (in6_prefix_eq(addr, &sin6->sin6_addr, ifa->ifa_prefixlen))
+		if (dp_in6_prefix_eq(addr, &sin6->sin6_addr,
+				     ifa->ifa_prefixlen))
 			return ifa;
 	}
 
@@ -202,6 +203,7 @@ in6_domifattach(struct ifnet *ifp)
 
 	llt = lltable_new(ifp);
 
+	llt->lle_refresh_expire = rte_get_timer_cycles() + rte_get_timer_hz();
 	rte_timer_reset(&llt->lle_timer, rte_get_timer_hz(),
 			SINGLE, rte_get_master_lcore(),
 			in6_lladdr_timer, llt);
@@ -310,7 +312,7 @@ uint16_t ip6_findpayload(struct rte_mbuf *m, uint16_t *offset)
 	struct ip6_ext *ip6e;
 	struct ip6_frag *fh;
 
-	uint16_t off = pktmbuf_l2_len(m) + sizeof(*ip6);
+	uint16_t off = dp_pktmbuf_l2_len(m) + sizeof(*ip6);
 	uint16_t proto = ip6->ip6_nxt;
 
 	for (;;) {

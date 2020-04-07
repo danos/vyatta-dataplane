@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2015-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -22,11 +22,10 @@
 #include "dp_test.h"
 #include "dp_test_controller.h"
 #include "dp_test_console.h"
-#include "dp_test_netlink_state.h"
-#include "dp_test_cmd_check.h"
-#include "dp_test_lib.h"
-#include "dp_test_pktmbuf_lib.h"
-#include "dp_test_lib_intf.h"
+#include "dp_test_netlink_state_internal.h"
+#include "dp_test/dp_test_cmd_check.h"
+#include "dp_test_lib_intf_internal.h"
+#include "dp_test_pktmbuf_lib_internal.h"
 #include "dp_test_lib_exp.h"
 
 DP_DECL_TEST_SUITE(pbr_suite);
@@ -572,8 +571,9 @@ DP_START_TEST(pbr_drop, v6)
 #define STRINGIFY(x) STRINGIFZ(x)
 
 static void
-pbr_vrf_teardown(void)
+_pbr_vrf_teardown(void)
 {
+
 	pbr_del_policy(PBR_IN_IFN, "pbr:pbr4");
 	dp_test_netlink_del_route(dp_test_default_route_ipv4);
 	dp_test_netlink_del_neigh(PBR_OUT_IFN, PBR_OUT_NH4, PBR_OUT_NH4_MAC);
@@ -594,7 +594,19 @@ pbr_vrf_teardown(void)
 }
 
 static void
-pbr_vrf_setup(void)
+pbr_vrf_teardown(void)
+{
+	vrfid_t xvrfid = dp_test_translate_vrf_id(TEST_VRF);
+	dp_test_send_config_src(dp_test_cont_src_get(),
+				"tablemap %d %d 0 %d",
+				TEST_VRF,
+				TEST_TABLEID,
+				xvrfid);
+	_pbr_vrf_teardown();
+}
+
+static void
+_pbr_vrf_setup(void)
 {
 	pbr_del_policy(PBR_IN_IFN, "pbr:pbr4");
 	dp_test_nl_add_ip_addr_and_connected(PBR_IN_IFN, PBR_IN_IFN_ADDR4);
@@ -614,6 +626,13 @@ pbr_vrf_setup(void)
 	dp_test_netlink_add_route(dp_test_default_route_ipv6);
 	dp_test_netlink_add_neigh(PBR_OUT_IFN, PBR_OUT_NH6, PBR_OUT_NH6_MAC);
 
+}
+
+static void
+pbr_vrf_setup(void)
+{
+	_pbr_vrf_setup();
+
 	vrfid_t xvrfid = dp_test_translate_vrf_id(TEST_VRF);
 	dp_test_send_config_src(dp_test_cont_src_get(),
 				"tablemap %d %d %d %d",
@@ -621,6 +640,7 @@ pbr_vrf_setup(void)
 				TEST_TABLEID, MAPPED_TABLEID_1,
 				xvrfid);
 }
+
 
 DP_DECL_TEST_CASE(pbr_suite, pbr_x_vrf, pbr_vrf_setup, pbr_vrf_teardown);
 
@@ -735,7 +755,7 @@ DP_START_TEST(pbr_x_vrf, v4_tableid)
 	 */
 	pbr_set_policy_ip_vrf(PBR_IN_IFN, "pbr:pbr4", 10, PBR_ACCEPT,
 			      PBR_ACCEPT_SHOW, PBR_IPV4, NULL, dstpfx,
-			      TEST_VRF, MAPPED_TABLEID_1);
+			      TEST_VRF, TEST_TABLEID);
 	dp_test_netlink_add_route("vrf:" STRINGIFY(TEST_VRF) " "
 				  "tbl:" STRINGIFY(MAPPED_TABLEID_1) " "
 				  PBR_TEST_4DST "/32 nh "
@@ -782,7 +802,7 @@ DP_START_TEST(pbr_x_vrf, v6_tableid)
 	 */
 	pbr_set_policy_ip_vrf(PBR_IN_IFN, "pbr:pbr6", 10, PBR_ACCEPT,
 			      PBR_ACCEPT_SHOW, PBR_IPV6, NULL, dstpfx,
-			      TEST_VRF, MAPPED_TABLEID_1);
+			      TEST_VRF, TEST_TABLEID);
 	dp_test_netlink_add_route("vrf:" STRINGIFY(TEST_VRF) " "
 				  "tbl:" STRINGIFY(MAPPED_TABLEID_1) " "
 				  PBR_TEST_6DST "/128 nh "
@@ -811,10 +831,25 @@ DP_START_TEST(pbr_x_vrf, v6_tableid)
 static void
 pbr_in_vrf_teardown(void)
 {
+	vrfid_t xvrfid;
+
+	xvrfid = dp_test_translate_vrf_id(TEST_VRF);
+
+	dp_test_send_config_src(dp_test_cont_src_get(),
+			"tablemap %d %d 0 %d",
+			TEST_VRF,
+			POLICY_PBR_TABLEID_2,
+			xvrfid);
+	dp_test_send_config_src(dp_test_cont_src_get(),
+			"tablemap %d %d 0 %d",
+			TEST_VRF,
+			POLICY_PBR_TABLEID_1,
+			xvrfid);
+
 	dp_test_netlink_set_interface_vrf(PBR_TEST_IFN, VRF_DEFAULT_ID);
 	dp_test_netlink_set_interface_vrf(PBR_IN_IFN, VRF_DEFAULT_ID);
 
-	pbr_vrf_teardown();
+	_pbr_vrf_teardown();
 }
 
 static void
@@ -826,7 +861,7 @@ pbr_in_vrf_setup(void)
 	xvrfid = dp_test_translate_vrf_id(TEST_VRF);
 	dp_test_netlink_del_vrf(TEST_VRF, 0);
 
-	pbr_vrf_setup();
+	_pbr_vrf_setup();
 
 	dp_test_netlink_set_interface_vrf(PBR_TEST_IFN, TEST_VRF);
 	dp_test_netlink_set_interface_vrf(PBR_IN_IFN, TEST_VRF);
@@ -973,8 +1008,7 @@ DP_START_TEST(pbr_in_vrf_no_map, v4_tableid)
 	pbr_set_policy_ip(PBR_IN_IFN, "pbr:pbr4", 10, PBR_ACCEPT,
 			      PBR_ACCEPT_SHOW, PBR_IPV4, NULL, dstpfx,
 			      POLICY_NON_PBR_TABLEID);
-	dp_test_netlink_add_route("vrf:" STRINGIFY(TEST_VRF) " "
-				  "tbl:" STRINGIFY(POLICY_NON_PBR_TABLEID) " "
+	dp_test_netlink_add_route("tbl:" STRINGIFY(POLICY_NON_PBR_TABLEID) " "
 				  PBR_TEST_4DST "/32 nh " PBR_TEST_NH4
 				  " int:" PBR_TEST_IFN);
 	dp_test_netlink_add_neigh(PBR_TEST_IFN, PBR_TEST_NH4, PBR_TEST_NH4_MAC);
@@ -982,6 +1016,7 @@ DP_START_TEST(pbr_in_vrf_no_map, v4_tableid)
 	exp = PBR_V4PAK(PBR_TEST_4SRC, PBR_TEST_4DST,
 			PBR_TEST_IFN, PBR_TEST_NH4_MAC,
 			&test_pak);
+	dp_test_exp_set_fwd_status(exp, DP_TEST_FWD_DROPPED);
 
 	dp_test_check_state_show("npf-op show all: pbr", "\"packets\": 0",
 				 pbr_debug);
@@ -990,8 +1025,7 @@ DP_START_TEST(pbr_in_vrf_no_map, v4_tableid)
 	dp_test_check_state_show("npf-op show all: pbr", "\"packets\": 1",
 				 pbr_debug);
 
-	dp_test_netlink_del_route("vrf:" STRINGIFY(TEST_VRF) " "
-				  "tbl:" STRINGIFY(POLICY_NON_PBR_TABLEID) " "
+	dp_test_netlink_del_route("tbl:" STRINGIFY(POLICY_NON_PBR_TABLEID) " "
 				  PBR_TEST_4DST "/32 nh " PBR_TEST_NH4
 				  " int:" PBR_TEST_IFN);
 	dp_test_netlink_del_neigh(PBR_TEST_IFN, PBR_TEST_NH4, PBR_TEST_NH4_MAC);
@@ -1011,8 +1045,7 @@ DP_START_TEST(pbr_in_vrf_no_map, v6_tableid)
 	pbr_set_policy_ip(PBR_IN_IFN, "pbr:pbr6", 10, PBR_ACCEPT,
 			      PBR_ACCEPT_SHOW, PBR_IPV6, NULL, dstpfx,
 			      POLICY_NON_PBR_TABLEID);
-	dp_test_netlink_add_route("vrf:" STRINGIFY(TEST_VRF) " "
-				  "tbl:" STRINGIFY(POLICY_NON_PBR_TABLEID) " "
+	dp_test_netlink_add_route("tbl:" STRINGIFY(POLICY_NON_PBR_TABLEID) " "
 				  PBR_TEST_6DST "/128 nh "
 				  PBR_TEST_NH6 " int:" PBR_TEST_IFN);
 	dp_test_netlink_add_neigh(PBR_TEST_IFN, PBR_TEST_NH6, PBR_TEST_NH6_MAC);
@@ -1020,6 +1053,7 @@ DP_START_TEST(pbr_in_vrf_no_map, v6_tableid)
 	exp = PBR_V6PAK(PBR_TEST_6SRC, PBR_TEST_6DST,
 			PBR_TEST_IFN, PBR_TEST_NH6_MAC,
 			&test_pak);
+	dp_test_exp_set_fwd_status(exp, DP_TEST_FWD_DROPPED);
 
 	dp_test_check_state_show("npf-op show all: pbr", "\"packets\": 0",
 				 pbr_debug);
@@ -1028,8 +1062,7 @@ DP_START_TEST(pbr_in_vrf_no_map, v6_tableid)
 	dp_test_check_state_show("npf-op show all: pbr", "\"packets\": 1",
 				 pbr_debug);
 
-	dp_test_netlink_del_route("vrf:" STRINGIFY(TEST_VRF) " "
-				  "tbl:" STRINGIFY(POLICY_NON_PBR_TABLEID) " "
+	dp_test_netlink_del_route("tbl:" STRINGIFY(POLICY_NON_PBR_TABLEID) " "
 				  PBR_TEST_6DST "/128 nh "
 				  PBR_TEST_NH6 " int:" PBR_TEST_IFN);
 	dp_test_netlink_del_neigh(PBR_TEST_IFN, PBR_TEST_NH6, PBR_TEST_NH6_MAC);
@@ -1057,7 +1090,7 @@ pbr_in_vrf_setup_config_before_netlink(void)
 			POLICY_PBR_TABLEID_2, MAPPED_TABLEID_2,
 			xvrfid);
 
-	pbr_vrf_setup();
+	_pbr_vrf_setup();
 
 	dp_test_netlink_set_interface_vrf(PBR_TEST_IFN, TEST_VRF);
 	dp_test_netlink_set_interface_vrf(PBR_IN_IFN, TEST_VRF);

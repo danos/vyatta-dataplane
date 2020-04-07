@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018, AT&T Intellectual Property. All rights reserved.
+ * Copyright (c) 2018-2020, AT&T Intellectual Property. All rights reserved.
  * Copyright (c) 2018 ATT, Inc.
  * All rights reserved.
  *
@@ -11,18 +11,16 @@
 #include <dlfcn.h>
 #include "ether.h"
 #include "dp_test.h"
-#include "dp_test_lib.h"
+#include "dp_test_lib_internal.h"
 #include "dp_test_lib_exp.h"
-#include "dp_test_lib_intf.h"
+#include "dp_test_lib_intf_internal.h"
 #include "dp_test_lib_pkt.h"
-#include "dp_test_pktmbuf_lib.h"
-#include "dp_test_netlink_state.h"
+#include "dp_test_pktmbuf_lib_internal.h"
+#include "dp_test_netlink_state_internal.h"
 #include "fal_plugin_framer.h"
 #include "ip_funcs.h"
 #include "in_cksum.h"
 #include "fal.h"
-
-#define DP_TEST_FAL_PLUGIN ".libs/fal_plugin_test.so"
 
 static int (*fal_plugin_add_hdr)(const char *name, struct rte_mbuf *mbuf);
 static int (*fal_plugin_rx_qdirect)(const char *name, struct rte_mbuf *mbuf);
@@ -32,7 +30,7 @@ static int (*fal_plugin_bp_from_swport)(const char *name, uint16_t *dpdk_port);
 
 static void dp_test_load_fal_plugin(void)
 {
-	void *lib = dlopen(DP_TEST_FAL_PLUGIN, RTLD_LAZY);
+	void *lib = dlopen(platform_cfg.fal_plugin, RTLD_LAZY);
 
 	dp_test_assert_internal(lib);
 	fal_plugin_add_hdr = dlsym(lib, "fal_plugin_add_ut_framer_hdr");

@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 1982, 1986, 1991, 1993
  *	The Regents of the University of California.  All rights reserved.
  * Copyright (C) 2001 WIDE Project.  All rights reserved.
@@ -49,6 +49,7 @@
 #include <sys/types.h>
 #include <urcu/list.h>
 
+#include "dp_event.h"
 #include "fal.h"
 #include "if_ether.h"
 #include "if_llatbl.h"
@@ -85,7 +86,11 @@ in_lltable_lookup(struct ifnet *ifp, u_int flags, in_addr_t addr)
 		if (lle == NULL)
 			return NULL;
 
-		lle->la_flags = (flags | LLE_HW_UPD_PENDING) & ~LLE_CREATE;
+		lle->la_flags = flags & ~LLE_CREATE;
+		if (if_is_features_mode_active(
+			    ifp, IF_FEAT_MODE_EVENT_L3_FAL_ENABLED))
+			lle->la_flags |= LLE_HW_UPD_PENDING;
+
 		struct cds_lfht_node *node;
 		node = cds_lfht_add_unique(llt->llt_hash, hash,
 					   lla_match, &addr, &lle->ll_node);
@@ -96,7 +101,8 @@ in_lltable_lookup(struct ifnet *ifp, u_int flags, in_addr_t addr)
 			lle = caa_container_of(node, struct llentry, ll_node);
 		} else {
 			/* if on master thread */
-			if (is_master_thread()) {
+			if (is_master_thread() && if_is_features_mode_active(
+				    ifp, IF_FEAT_MODE_EVENT_L3_FAL_ENABLED)) {
 				ret = fal_ip4_new_neigh(lle->ifp->if_index,
 							&sin, 0, NULL);
 				if (ret < 0 && ret != -EOPNOTSUPP) {
@@ -106,20 +112,21 @@ in_lltable_lookup(struct ifnet *ifp, u_int flags, in_addr_t addr)
 							  sizeof(b)),
 						lle->ifp->if_name,
 						strerror(-ret));
-				} else {
+				}
+				if (ret >= 0) {
 					rte_spinlock_lock(&lle->ll_lock);
 					lle->la_flags |= LLE_CREATED_IN_HW;
 					rte_spinlock_unlock(&lle->ll_lock);
 				}
-			} else {
-				/*
-				 * Fire the timer so it can be sourced in
-				 * the hardware on the master thread
-				 */
-				rte_timer_reset(&llt->lle_timer, 0,
-						SINGLE, rte_get_master_lcore(),
-						lladdr_timer, llt);
 			}
+			/*
+			 * Fire the timer so it can be sourced in the
+			 * hardware on the master thread and/or
+			 * neighbour-sourced routes installed.
+			 */
+			rte_timer_reset(&llt->lle_timer, 0,
+					SINGLE, rte_get_master_lcore(),
+					lladdr_timer, llt);
 		}
 	} else if (unlikely(flags & LLE_DELETE)) {
 		/*
@@ -131,7 +138,7 @@ in_lltable_lookup(struct ifnet *ifp, u_int flags, in_addr_t addr)
 		if ((lle->la_flags & LLE_STATIC) ||
 		    !llentry_has_been_used(lle)) {
 			rte_spinlock_lock(&lle->ll_lock);
-			llentry_destroy(llt, lle);
+			arp_entry_destroy(llt, lle);
 			rte_spinlock_unlock(&lle->ll_lock);
 			lle = NULL;
 		}
@@ -147,6 +154,7 @@ in_domifattach(struct ifnet *ifp)
 
 	llt = lltable_new(ifp);
 
+	llt->lle_refresh_expire = rte_get_timer_cycles() + rte_get_timer_hz();
 	rte_timer_reset(&llt->lle_timer, rte_get_timer_hz(),
 			SINGLE, rte_get_master_lcore(),
 			lladdr_timer, llt);
@@ -243,7 +251,7 @@ void ifa_add(int ifindex, int family, uint32_t scope,
 	struct sockaddr_in *sin;
 	struct sockaddr_in6 *sin6;
 
-	ifp = ifnet_byifindex(ifindex);
+	ifp = dp_ifnet_byifindex(ifindex);
 	if (!ifp)
 		return;
 
@@ -335,7 +343,7 @@ void ifa_remove(int ifindex, int family, const void *addr, uint8_t prefixlen)
 	struct ifnet *ifp;
 	struct if_addr *ifa;
 
-	ifp = ifnet_byifindex(ifindex);
+	ifp = dp_ifnet_byifindex(ifindex);
 	if (!ifp)
 		return;
 

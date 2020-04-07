@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2019, AT&T Intellectual Property. All rights reserved.
+ * Copyright (c) 2019-2020, AT&T Intellectual Property. All rights reserved.
  * Copyright (c) 2019 AT&T Intellectual Property. All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
@@ -14,7 +14,7 @@
 #include <stdio.h>
 
 #include "urcu.h"
-#include "vrf.h"
+#include "vrf_internal.h"
 
 typedef void (*tracker_change_notif)(void *cb_ctx);
 
@@ -38,12 +38,6 @@ struct rt_tracker_info {
 	bool                 tracking;
 };
 
-
-struct rt_tracker_info *
-rt_tracker_add(struct vrf *vrf, struct ip_addr *addr, void *cb_ctx,
-	       tracker_change_notif cb);
-void
-rt_tracker_delete(const struct vrf *vrf, struct ip_addr *addr, void *cb_ctx);
 void rt_tracker_uninit(struct vrf *vrf);
 
 uint32_t

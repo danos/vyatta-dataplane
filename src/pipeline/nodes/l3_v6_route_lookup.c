@@ -1,7 +1,7 @@
 /*
  * l3_v6_route_lookup.c
  *
- * Copyright (c) 2017-2018, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2016, 2017 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -19,7 +19,7 @@
 #include "if_var.h"
 #include "ip_mcast.h"
 #include "netinet6/ip6_funcs.h"
-#include "pktmbuf.h"
+#include "pktmbuf_internal.h"
 #include "pl_common.h"
 #include "pl_fused.h"
 #include "pl_node.h"
@@ -27,7 +27,7 @@
 #include "route_flags.h"
 #include "route_v6.h"
 #include "snmp_mib.h"
-#include "vrf.h"
+#include "vrf_internal.h"
 
 struct pl_node;
 
@@ -51,7 +51,8 @@ ipv6_route_lookup_node_to_vrf(struct pl_node *node)
 }
 
 static ALWAYS_INLINE unsigned int
-_ipv6_route_lookup_process_common(struct pl_packet *pkt, enum pl_mode mode,
+_ipv6_route_lookup_process_common(struct pl_packet *pkt, void *context __unused,
+				  enum pl_mode mode,
 				  enum ipv6_route_lookup_mode lkup_mode)
 {
 	struct ip6_hdr *ip6 = pkt->l3_hdr;
@@ -66,7 +67,7 @@ _ipv6_route_lookup_process_common(struct pl_packet *pkt, enum pl_mode mode,
 			return IPV6_ROUTE_LOOKUP_FINISH;
 
 		if (rtalert != ~0u)
-			return IPV6_ROUTE_LOOKUP_LOCAL;
+			return IPV6_ROUTE_LOOKUP_L4;
 	}
 
 	vrf = vrf_get_rcu_fast(pktmbuf_get_vrf(pkt->mbuf));
@@ -79,7 +80,7 @@ _ipv6_route_lookup_process_common(struct pl_packet *pkt, enum pl_mode mode,
 	 * till crypto out bound policy check is done
 	 */
 	if (nxt && unlikely(nxt->flags & RTF_LOCAL))
-		return IPV6_ROUTE_LOOKUP_LOCAL;
+		return IPV6_ROUTE_LOOKUP_L4;
 
 	if (unlikely(IN6_IS_ADDR_MULTICAST(&ip6->ip6_dst))) {
 		IP6STAT_INC_IFP(ifp, IPSTATS_MIB_INMCASTPKTS);
@@ -141,22 +142,23 @@ _ipv6_route_lookup_process_common(struct pl_packet *pkt, enum pl_mode mode,
 }
 
 ALWAYS_INLINE unsigned int
-ipv6_route_lookup_process_common(struct pl_packet *pkt, enum pl_mode mode)
+ipv6_route_lookup_process_common(struct pl_packet *pkt, void *context __unused,
+				 enum pl_mode mode)
 {
-	return _ipv6_route_lookup_process_common(pkt, mode,
+	return _ipv6_route_lookup_process_common(pkt, context, mode,
 						 IPV6_LKUP_MODE_ROUTER);
 }
 
 ALWAYS_INLINE unsigned int
-ipv6_route_lookup_process(struct pl_packet *pkt)
+ipv6_route_lookup_process(struct pl_packet *pkt, void *context)
 {
-	return ipv6_route_lookup_process_common(pkt, PL_MODE_REGULAR);
+	return ipv6_route_lookup_process_common(pkt, context, PL_MODE_REGULAR);
 }
 
 ALWAYS_INLINE unsigned int
-ipv6_route_lookup_host_process(struct pl_packet *pkt)
+ipv6_route_lookup_host_process(struct pl_packet *pkt, void *context)
 {
-	return _ipv6_route_lookup_process_common(pkt, PL_MODE_REGULAR,
+	return _ipv6_route_lookup_process_common(pkt, context, PL_MODE_REGULAR,
 						 IPV6_LKUP_MODE_HOST);
 }
 
@@ -173,9 +175,14 @@ ipv6_route_lookup_feat_change(struct pl_node *node,
 
 ALWAYS_INLINE bool
 ipv6_route_lookup_feat_iterate(struct pl_node *node, bool first,
-			       unsigned int *feature_id, void **context)
+			       unsigned int *feature_id, void **context,
+			       void **storage_ctx)
+
 {
 	struct vrf *vrf = ipv6_route_lookup_node_to_vrf(node);
+
+	if (first)
+		*storage_ctx = NULL;
 
 	return pl_node_feat_iterate_u16(&vrf->v_ipv6_post_rlkup_features,
 					first, feature_id, context);
@@ -191,7 +198,7 @@ PL_REGISTER_NODE(ipv6_route_lookup_node) = {
 	.num_next = IPV6_ROUTE_LOOKUP_NUM,
 	.next = {
 		[IPV6_ROUTE_LOOKUP_ACCEPT] = "ipv6-post-route-lookup",
-		[IPV6_ROUTE_LOOKUP_LOCAL]  = "ipv6-local",
+		[IPV6_ROUTE_LOOKUP_L4]     = "ipv6-l4",
 		[IPV6_ROUTE_LOOKUP_DROP]   = "ipv6-drop",
 		[IPV6_ROUTE_LOOKUP_FINISH] = "term-finish"
 	}
@@ -205,7 +212,7 @@ _Static_assert(IPV6_ROUTE_LOOKUP_NUM == (int)IPV6_ROUTE_LOOKUP_HOST_NUM,
 	       "route-lookup and route-lookup-host next node defs differ");
 _Static_assert(IPV6_ROUTE_LOOKUP_ACCEPT == (int)IPV6_ROUTE_LOOKUP_HOST_ACCEPT,
 	       "route-lookup and route-lookup-host next node defs differ");
-_Static_assert(IPV6_ROUTE_LOOKUP_LOCAL == (int)IPV6_ROUTE_LOOKUP_HOST_LOCAL,
+_Static_assert(IPV6_ROUTE_LOOKUP_L4 == (int)IPV6_ROUTE_LOOKUP_HOST_L4,
 	       "route-lookup and route-lookup-host next node defs differ");
 _Static_assert(IPV6_ROUTE_LOOKUP_DROP == (int)IPV6_ROUTE_LOOKUP_HOST_DROP,
 	       "route-lookup and route-lookup-host next node defs differ");
@@ -219,7 +226,7 @@ PL_REGISTER_NODE(ipv6_route_lookup_host_node) = {
 	.num_next = IPV6_ROUTE_LOOKUP_HOST_NUM,
 	.next = {
 		[IPV6_ROUTE_LOOKUP_HOST_ACCEPT] = "ipv6-post-route-lookup",
-		[IPV6_ROUTE_LOOKUP_HOST_LOCAL]  = "ipv6-local",
+		[IPV6_ROUTE_LOOKUP_HOST_L4]     = "ipv6-l4",
 		[IPV6_ROUTE_LOOKUP_HOST_DROP]   = "ipv6-drop",
 		[IPV6_ROUTE_LOOKUP_HOST_FINISH] = "term-finish"
 	}

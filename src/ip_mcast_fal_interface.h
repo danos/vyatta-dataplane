@@ -1,4 +1,8 @@
-/* Copyright (c) 2019, AT&T Intellectual Property. */
+/*
+ * Copyright (c) 2019, AT&T Intellectual Property.
+ *
+ * SPDX-License-Identifier: LGPL-2.1-only
+ */
 
 #ifndef __IP_MCAST_FAL_INTERFACE_H__
 #define __IP_MCAST_FAL_INTERFACE_H__

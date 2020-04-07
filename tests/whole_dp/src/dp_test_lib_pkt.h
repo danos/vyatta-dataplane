@@ -1,6 +1,6 @@
 /**
  *
- * Copyright (c) 2017, AT&T Intellectual Property. All rights reserved.
+ * Copyright (c) 2017,2019-2020, AT&T Intellectual Property. All rights reserved.
  * Copyright (c) 2015 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -50,7 +50,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
-#include "dp_test_lib_intf.h"
+#include "dp_test_lib_intf_internal.h"
 
 /**
  * @brief Packet descriptor

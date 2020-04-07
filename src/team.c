@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2018, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2015-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -155,7 +155,7 @@ static int process_team_portlist(const struct nlmsghdr *nlh)
 	}
 
 	if (info.port_ifindex) {
-		info.ifp_slave = ifnet_byifindex(info.port_ifindex);
+		info.ifp_slave = dp_ifnet_byifindex(info.port_ifindex);
 
 		if (info.ifp_slave == NULL) {
 			DP_DEBUG(LAG, ERR, DATAPLANE,
@@ -294,10 +294,10 @@ static int process_team_options(const struct team_option_info *info)
 		/* future work */
 		return MNL_CB_OK;
 	else if (!strcmp(info->name, "activeport")) {
-		struct ifnet *ifp_slave = ifnet_byifindex(info->data.u32);
+		struct ifnet *ifp_slave = dp_ifnet_byifindex(info->data.u32);
 
 		if (ifp_slave)
-			lag_activeport(info->ifp_master, ifp_slave);
+			lag_set_activeport(info->ifp_master, ifp_slave);
 		else
 			DP_DEBUG(LAG, ERR, DATAPLANE,
 				 "team cannot find activeport ifindex %u\n",
@@ -340,7 +340,7 @@ static int process_team_optionlist(const struct nlmsghdr *nlh)
 	}
 
 	if (info.port_ifindex) {
-		info.ifp_slave = ifnet_byifindex(info.port_ifindex);
+		info.ifp_slave = dp_ifnet_byifindex(info.port_ifindex);
 		if (!info.ifp_slave ||
 				info.ifp_slave->aggregator != info.ifp_master) {
 			DP_DEBUG(LAG, ERR, DATAPLANE,

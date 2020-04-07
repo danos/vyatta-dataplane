@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2017-2018, AT&T Intellectual Property. All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property. All rights reserved.
  * Copyright (c) 2015-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -13,8 +13,8 @@
 #include <czmq.h>
 
 #include "dp_test_controller.h"
-#include "dp_test_lib.h"
-#include "dp_test_lib_intf.h"
+#include "dp_test_lib_internal.h"
+#include "dp_test_lib_intf_internal.h"
 #include "dp_test.h"
 #include "dp_test_console.h"
 
@@ -124,6 +124,52 @@ dp_test_console_request_w_err_src(enum cont_src_en cont_src,
 	return reply;
 }
 
+/*
+ * Execute a console request and return either the response and/or
+ * an error state flag (if one is provided).
+ * Protobuf version
+ */
+void
+dp_test_console_request_pb_src(enum cont_src_en cont_src,
+			       const char *req, int req_len,
+			       zmsg_t **resp_msg,
+			       bool print)
+{
+	int ret;
+	zsock_t *cmd_sock;
+
+	/*
+	 * Create ephemeral ZMQ channel to the console for sending
+	 * show commands etc. to the dataplane.
+	 */
+	cmd_sock = zsock_new_req(cont_src_console[cont_src].console_ep);
+	dp_test_assert_internal(cmd_sock);
+
+	/*
+	 * Create request message
+	 */
+	zmsg_t *msg = zmsg_new();
+	zmsg_addstr(msg, "protobuf");
+	zmsg_addmem(msg, req, req_len);
+	if (print)
+		printf("console: send protobuf command of size: %d", req_len);
+
+	/*
+	 * Send message and await reply
+	 */
+	ret = zmsg_send(&msg, cmd_sock);
+	if (ret == -1)
+		dp_test_assert_internal(0);
+
+	*resp_msg = zmsg_recv(cmd_sock);
+	dp_test_assert_internal(*resp_msg);
+
+	/*
+	 * Kill ZMQ connection.
+	 */
+	zsock_destroy(&cmd_sock);
+}
+
 char *
 dp_test_console_request_w_err(const char *request,
 			      bool *err_ret, bool print)
@@ -132,6 +178,18 @@ dp_test_console_request_w_err(const char *request,
 
 	return dp_test_console_request_w_err_src(cont_src, request,
 						 err_ret, print);
+}
+
+void
+dp_test_console_request_pb(const char *req, int req_len,
+			   zmsg_t **resp_msg,
+			   bool print)
+{
+	enum cont_src_en cont_src = dp_test_cont_src_get();
+	dp_test_console_request_pb_src(cont_src,
+				       req, req_len,
+				       resp_msg,
+				       print);
 }
 
 char *

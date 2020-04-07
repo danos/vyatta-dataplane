@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2018, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2015-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -47,7 +47,10 @@ struct capture_info {
 	struct capture_filter_list filters;
 	struct timespec last_beat;
 	bool is_promisc;
+	bool is_swonly;
 	unsigned int snaplen;
+	unsigned int bandwidth;
+	fal_object_t falobj;
 };
 
 /* This should be expanded to all vplane interface types */
@@ -77,6 +80,8 @@ static inline bool capture_if_use_common_cap_points(const struct ifnet *ifp)
 /* Capture interface */
 void capture_init(uint16_t);
 void capture_cancel(struct ifnet *ifp);
+void capture_hardware(const struct ifnet *ifp, struct rte_mbuf *mbuf)
+	__attribute__((cold));
 void capture_burst(const struct ifnet *ifp, struct rte_mbuf *pkts[], unsigned int n)
 	__attribute__((cold));
 int cmd_capture(FILE *f, int argc, char **argv);

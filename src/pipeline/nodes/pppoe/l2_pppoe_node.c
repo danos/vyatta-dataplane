@@ -1,7 +1,7 @@
 /*
  * l2_pppoe_node.c
  *
- * Copyright (c) 2018-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2018-2020, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  *
@@ -14,7 +14,7 @@
 #include "pppoe.h"
 
 ALWAYS_INLINE unsigned int
-pppoe_in_process(struct pl_packet *pkt)
+pppoe_in_process(struct pl_packet *pkt, void *context __unused)
 {
 	struct rte_mbuf *m = pkt->mbuf;
 	struct pppoe_packet *pppoe_hdr =
@@ -80,9 +80,7 @@ pppoe_in_process(struct pl_packet *pkt)
 PL_REGISTER_NODE(pppoe_in_node) = {
 	.name = "vyatta:pppoe-in",
 	.type = PL_PROC,
-	.init = NULL,
 	.handler = pppoe_in_process,
-	.disable = false,
 	.num_next = PPP_FORWARD_NUM,
 	.next = {
 		[PPP_FORWARD_V4_ACCEPT] = "ipv4-validate",

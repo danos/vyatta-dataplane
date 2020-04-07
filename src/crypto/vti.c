@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2017-2018, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2015-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -43,14 +43,14 @@
 #include "ip6_funcs.h"
 #include "ip_funcs.h"
 #include "ip_icmp.h"
-#include "pktmbuf.h"
+#include "pktmbuf_internal.h"
 #include "shadow.h"
 #include "snmp_mib.h"
 #include "urcu.h"
 #include "util.h"
 #include "vplane_debug.h"
 #include "vplane_log.h"
-#include "vrf.h"
+#include "vrf_internal.h"
 #include "vti.h"
 
 struct ether_addr;
@@ -734,9 +734,16 @@ int vti_get_peer_addr(const struct ifnet *ifp, uint32_t *af, void **addr)
 	return -1;
 }
 
+static enum dp_ifnet_iana_type
+vti_iana_type(struct ifnet *ifp __unused)
+{
+	return DP_IFTYPE_IANA_TUNNEL;
+}
+
 static const struct ift_ops vti_if_ops = {
 	.ifop_set_mtu = vti_tunnel_set_mtu,
 	.ifop_uninit = vti_tunnel_delete,
+	.ifop_iana_type = vti_iana_type,
 };
 
 static void vti_type_init(void)

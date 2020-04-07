@@ -1,7 +1,7 @@
 /*
  * Cross-Connect
  *
- * Copyright (c) 2018-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2018-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2014-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -21,12 +21,12 @@
 #include "if_var.h"
 #include "main.h"
 #include "pipeline/nodes/pl_nodes_common.h"
-#include "pktmbuf.h"
+#include "pktmbuf_internal.h"
 #include "pl_node.h"
 #include "urcu.h"
 #include "util.h"
 #include "vplane_log.h"
-#include "vrf.h"
+#include "vrf_internal.h"
 
 /*
  * conn_cfg_list are used to store
@@ -109,12 +109,12 @@ cross_connect_unlink(struct ifnet *src_ifp, bool config)
 static void
 conn_update(const char *ifname1, const char *ifname2)
 {
-	struct ifnet *src_ifp = ifnet_byifname(ifname1);
+	struct ifnet *src_ifp = dp_ifnet_byifname(ifname1);
 	bool insert = false;
 	struct conn_session *session;
 
 	if (src_ifp)
-		cross_connect_link(src_ifp, ifnet_byifname(ifname2),
+		cross_connect_link(src_ifp, dp_ifnet_byifname(ifname2),
 				   true);
 
 	session = conn_session_byname(ifname1);
@@ -150,7 +150,7 @@ int cross_connect_set(const XConnectConfig__CommandType cmd,
 		      const char *ifname1, const char *ifname2)
 {
 	if (cmd == XCONNECT_CONFIG__COMMAND_TYPE__REMOVE) {
-		struct ifnet *src_ifp = ifnet_byifname(ifname1);
+		struct ifnet *src_ifp = dp_ifnet_byifname(ifname1);
 
 		if (src_ifp)
 			cross_connect_unlink(src_ifp, true);
@@ -178,21 +178,21 @@ void cross_connect_rename(struct ifnet *ifp, const char *ifname)
 	cds_list_for_each_entry_rcu(conn, &conn_cfg_list, conn_list) {
 		if (strncmp(conn->local_if_name, ifname, IFNAMSIZ) == 0 ||
 		    strncmp(conn->peer_if_name, ifname, IFNAMSIZ) == 0) {
-			struct ifnet *src_ifp = ifnet_byifname(
+			struct ifnet *src_ifp = dp_ifnet_byifname(
 				conn->local_if_name);
 			if (!src_ifp)
 				continue;
 
 			cross_connect_unlink(src_ifp, false);
 			cross_connect_link(src_ifp,
-					   ifnet_byifname(conn->peer_if_name),
+					   dp_ifnet_byifname(
+						   conn->peer_if_name),
 					   false);
 		}
 	}
 }
 
-static void notify_cross_connect_new_link(struct ifnet *intf,
-					  uint32_t idx __unused)
+static void notify_cross_connect_new_link(struct ifnet *intf)
 {
 	struct conn_session *conn;
 
@@ -200,11 +200,12 @@ static void notify_cross_connect_new_link(struct ifnet *intf,
 		if (strncmp(conn->local_if_name, intf->if_name, IFNAMSIZ)
 		    == 0)
 			cross_connect_link(intf,
-					   ifnet_byifname(conn->peer_if_name),
+					   dp_ifnet_byifname(
+						   conn->peer_if_name),
 					   true);
 
 		if (strncmp(conn->peer_if_name, intf->if_name, IFNAMSIZ) == 0) {
-			struct ifnet *src_ifp = ifnet_byifname(
+			struct ifnet *src_ifp = dp_ifnet_byifname(
 				conn->local_if_name);
 			if (src_ifp)
 				cross_connect_link(src_ifp, intf, false);
@@ -223,7 +224,7 @@ static void conn_del_if(struct ifnet *ifp, void *arg)
 static void notify_cross_connect_del_link(struct ifnet *intf,
 					  uint32_t idx __unused)
 {
-	ifnet_walk(conn_del_if, intf);
+	dp_ifnet_walk(conn_del_if, intf);
 }
 
 static const struct dp_event_ops cross_connect_events = {

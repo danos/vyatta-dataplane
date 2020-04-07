@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2013-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -18,7 +18,7 @@
  * Flags controlling which debug messages show up in the
  * system log.
  *
- * Keep this in sync with debug_bits[] in commands.c
+ * Keep this in sync with debug_bits[] in debug.c
  */
 #define DP_DBG_INIT		(1u << 0)
 #define DP_DBG_LINK		(1u << 1)
@@ -50,12 +50,13 @@
 #define DP_DBG_MULTICAST	(1u << 27)
 #define DP_DBG_MPLS_CTRL	(1u << 28)
 #define DP_DBG_MPLS_PKTERR	(1ull << 29)
-#define DP_DBG_DPI		(1ull << 31) /* Deep Packet Inspection */
-#define DP_DBG_QOS_DP		(1ull << 32)
-#define DP_DBG_QOS_HW		(1ull << 33)
-#define DP_DBG_STORM_CTL        (1ull << 34)
-#define DP_DBG_CPP_RL		(1ull << 35)
-#define DP_DBG_PTP		(1ull << 36)
+#define DP_DBG_DPI		(1ull << 30) /* Deep Packet Inspection */
+#define DP_DBG_QOS_DP		(1ull << 31)
+#define DP_DBG_QOS_HW		(1ull << 32)
+#define DP_DBG_STORM_CTL        (1ull << 33)
+#define DP_DBG_CPP_RL		(1ull << 34)
+#define DP_DBG_PTP		(1ull << 35)
+#define DP_DBG_CGNAT		(1ull << 36)
 
 /* Default to only debugging startup and link events.
  * Skip ARP and route since they can flood log.
@@ -64,6 +65,7 @@
 	(DP_DBG_INIT | DP_DBG_LINK | DP_DBG_NETLINK_IF)
 
 extern uint64_t dp_debug;
+extern uint64_t dp_debug_init;
 
 /*
  * Macro to selectively enable logging by feature.
@@ -80,4 +82,7 @@ extern uint64_t dp_debug;
  */
 #define DP_DEBUG_ENABLED(m) (unlikely(dp_debug & DP_DBG_##m))
 
+int cmd_debug(FILE *f, int argc, char **argv);
+int cmd_log(FILE *f, int argc, char **argv);
+void debug_init(void);
 #endif /* _MAIN_H_ */

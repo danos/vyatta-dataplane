@@ -1,7 +1,7 @@
 /*
  * l2_cross_connect_node.c
  *
- * Copyright (c) 2018-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2018-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2016, 2017 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -18,7 +18,7 @@
 #include "urcu.h"
 
 ALWAYS_INLINE unsigned int
-cross_connect_process(struct pl_packet *pkt)
+cross_connect_process(struct pl_packet *pkt, void *context __unused)
 {
 	struct ifnet *ifp = pkt->in_ifp;
 	struct rte_mbuf *m = pkt->mbuf;

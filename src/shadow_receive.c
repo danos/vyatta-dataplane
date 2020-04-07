@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2012-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -38,20 +38,20 @@
 #include <rte_log.h>
 #include <rte_mbuf.h>
 
-#include "bridge_port.h"
 #include "compat.h"
-#include "config.h"
+#include "config_internal.h"
 #include "ether.h"
+#include "if/bridge/bridge_port.h"
 #include "if_var.h"
 #include "l2_rx_fltr.h"
 #include "l2tp/l2tpeth.h"
-#include "pktmbuf.h"
+#include "pktmbuf_internal.h"
 #include "pipeline/nodes/pppoe/pppoe.h"
 #include "shadow.h"
 #include "urcu.h"
 #include "util.h"
 #include "vplane_log.h"
-#include "vrf.h"
+#include "vrf_internal.h"
 
 struct mnl_socket;
 struct rte_mempool;
@@ -207,7 +207,7 @@ int spath_receive(zmq_pollitem_t *item, struct tun_pi *pi,
 		return -1;
 	}
 
-	ifp = ifnet_byifindex(meta->iif);
+	ifp = dp_ifnet_byifindex(meta->iif);
 	if (ifp) {
 		portid = ifp->if_port == IF_PORT_ID_INVALID ? 0 : ifp->if_port;
 		vrf_id = if_vrfid(ifp);
@@ -508,8 +508,9 @@ int tuntap_write(int fd, struct rte_mbuf *m, struct ifnet *ifp)
 		}
 
 		/* Skip original Ethernet header in the data packet */
-		iov[n].iov_base = pktmbuf_mtol3(m, char *);
-		iov[n].iov_len  = rte_pktmbuf_data_len(m) - pktmbuf_l2_len(m);
+		iov[n].iov_base = dp_pktmbuf_mtol3(m, char *);
+		iov[n].iov_len  = rte_pktmbuf_data_len(m) -
+			dp_pktmbuf_l2_len(m);
 		++n;
 
 		m = m->next;

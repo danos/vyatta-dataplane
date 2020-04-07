@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2017-2018, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2015-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -20,15 +20,15 @@
 #include "if_var.h"
 #include "main.h"
 #include "crypto/vti.h"
-#include "vrf.h"
+#include "vrf_internal.h"
 
 #include "dp_test.h"
 #include "dp_test_controller.h"
-#include "dp_test_netlink_state.h"
-#include "dp_test_cmd_check.h"
-#include "dp_test_lib.h"
-#include "dp_test_pktmbuf_lib.h"
-#include "dp_test_lib_intf.h"
+#include "dp_test_netlink_state_internal.h"
+#include "dp_test/dp_test_cmd_check.h"
+#include "dp_test_lib_internal.h"
+#include "dp_test_lib_intf_internal.h"
+#include "dp_test_pktmbuf_lib_internal.h"
 #include "dp_test_crypto_utils.h"
 #include "dp_test_lib_exp.h"
 
@@ -326,7 +326,7 @@ static int vti_count_of_vtis(void)
 {
 	int count = 0;
 
-	ifnet_walk(vti_count, &count);
+	dp_ifnet_walk(vti_count, &count);
 	return count;
 }
 
@@ -420,6 +420,46 @@ static struct rte_mbuf *build_expected_esp_packet(int *payload_len)
 		0x07, 0xee, 0xde, 0x55, 0xcf, 0x9d, 0xaf, 0xda, 0x9e, 0x7b,
 		0x8c, 0x98, 0xf6, 0xf8, 0x59, 0x0f, 0xd7, 0xbd, 0xc9, 0x24,
 		0x01, 0xcd, 0x42, 0x38
+	};
+
+	*payload_len = sizeof(encrypted_payload);
+
+	return dp_test_create_esp_ipv4_pak(PORT_EAST, PEER, 1,
+					   payload_len,
+					   encrypted_payload,
+					   SPI_OUTBOUND,
+					   1 /* seq no */,
+					   0 /* ip ID */,
+					   255 /* ttl */,
+					   NULL /* udp/esp */,
+					   NULL /* transport_hdr*/);
+}
+
+/*
+ * build_expected_esp_icmp_unreach_packet()
+ *
+ * This helper function creates an output ESP packet containing an
+ * encrypted ICMP unreachable packet.
+ */
+static struct rte_mbuf *build_expected_esp_icmp_unreach_packet(int *payload_len)
+{
+	const char encrypted_payload[] = {
+		0x64, 0xc8, 0x6e, 0x89, 0x53, 0x45, 0x54, 0xd6, 0xb1, 0x0c,
+		0x8c, 0xca, 0xc4, 0x44, 0xbf, 0xd3, 0xae, 0x78, 0x67, 0x31,
+		0x71, 0x81, 0x55, 0x53, 0xf1, 0x93, 0x8b, 0x2d, 0xf8, 0x7e,
+		0x01, 0x7a, 0xc4, 0x1b, 0xd9, 0xa8, 0xd8, 0x6d, 0xd4, 0xc2,
+		0xe1, 0xcb, 0x39, 0x0f, 0xc5, 0x2d, 0x8a, 0xf6, 0x3b, 0x81,
+		0xad, 0x59, 0xc7, 0x48, 0xfc, 0x43, 0xeb, 0xa3, 0x83, 0x79,
+		0x0b, 0x06, 0xd5, 0x12, 0x6e, 0xb0, 0xee, 0x9a, 0x50, 0x1b,
+		0x6f, 0x00, 0xeb, 0x90, 0xb1, 0xd0, 0xbc, 0xd0, 0x18, 0x7a,
+		0x9d, 0xd0, 0xb3, 0x9c, 0x1b, 0xaa, 0xd1, 0xde, 0x88, 0x18,
+		0x7f, 0xe6, 0xc3, 0x36, 0xd3, 0x81, 0x7f, 0x33, 0xc6, 0x36,
+		0x87, 0xa6, 0x93, 0x03, 0xb5, 0xef, 0x9f, 0x6a, 0xbe, 0x08,
+		0x1f, 0x6e, 0x21, 0x57, 0x93, 0x07, 0xe2, 0x3e, 0x98, 0x2f,
+		0x25, 0x66, 0x0d, 0x8f, 0xf6, 0x2d, 0x80, 0x6c, 0xb4, 0x29,
+		0xea, 0xae, 0x74, 0xf3, 0x2d, 0x7b, 0x9e, 0x20, 0x67, 0xd3,
+		0x99, 0x94, 0x0e, 0x10, 0x15, 0x18, 0x7c, 0xf5, 0x67, 0x98,
+		0xfb, 0x24, 0x30, 0x1f, 0x40, 0xf0
 	};
 
 	*payload_len = sizeof(encrypted_payload);
@@ -685,6 +725,62 @@ static struct rte_mbuf *build_expected_icmp_packet(int *payload_len)
 
 	return packet;
 }
+
+/*
+ * TEST: return_enc_icmp
+ *
+ * This test checks that an ICMP error generated as a result of processing
+ * a packet received on a VTI interface will be returned.
+ */
+DP_START_TEST(vti, return_enc_icmp)
+{
+	struct rte_mbuf *output_packet;
+	struct rte_mbuf *input_packet;
+	struct dp_test_expected *exp;
+	int encrypted_payload_len = 0;
+	struct iphdr *ip;
+
+	vti_setup_tunnel(VRF_DEFAULT_ID, OUTPUT_MARK);
+	vti_setup_policies_and_sas(VRF_DEFAULT_ID);
+	dp_test_fail_unless((vti_count_of_vtis() == 1),
+			    "Expected VTI to be created");
+
+	/*
+	 * Create the input encrypted packet.
+	 */
+	input_packet = build_encrypted_input_packet();
+	(void)dp_test_pktmbuf_eth_init(input_packet,
+				       dp_test_intf_name2mac_str("dp2T2"),
+				       NULL, ETHER_TYPE_IPv4);
+
+	/*
+	 * Expect an ICMP Unreachable
+	 */
+	output_packet = build_expected_esp_icmp_unreach_packet(
+		&encrypted_payload_len);
+	ip = dp_pktmbuf_mtol3(output_packet, struct iphdr *);
+	dp_test_set_pak_ip_field(ip, DP_TEST_SET_TOS, 0xc0);
+	(void)dp_test_pktmbuf_eth_init(output_packet,
+				       PEER_MAC_ADDR,
+				       dp_test_intf_name2mac_str("dp2T2"),
+				       ETHER_TYPE_IPv4);
+
+	exp = dp_test_exp_create(output_packet);
+	dp_test_exp_set_oif_name(exp, "dp2T2");
+	rte_pktmbuf_free(output_packet);
+
+	/* Set low MTU on outif to provoke unreachable */
+	dp_test_netlink_set_interface_mtu("dp1T1", 64);
+
+	dp_test_pak_receive(input_packet, "dp2T2", exp);
+	dp_test_crypto_check_sad_packets(VRF_DEFAULT_ID, 1, 84);
+
+	dp_test_netlink_set_interface_mtu("dp1T1", 1500);
+	vti_teardown_tunnel(VRF_DEFAULT_ID);
+	vti_teardown_sas_and_policy();
+	dp_test_fail_unless((vti_count_of_vtis() == 0),
+			    "Expected VTI to be deleted");
+} DP_END_TEST;
 
 /*
  * TEST: decrypt_a_packet

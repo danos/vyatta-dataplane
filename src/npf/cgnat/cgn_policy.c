@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2019-2020, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -26,6 +26,7 @@
 #include "npf/cgnat/cgn_limits.h"
 #include "npf/cgnat/cgn_policy.h"
 #include "npf/cgnat/cgn_session.h"
+#include "npf/cgnat/cgn_source.h"
 
 
 /*
@@ -45,8 +46,15 @@ struct match {
 	const char *name;
 };
 
+static void cgn_policy_destroy(struct cgn_policy *cp, bool rcu_free);
+static void cgn_policy_free_sess_rate(struct cgn_policy *cp);
+
 /*
  * Record destination?  i.e. create nested 2-tuple session.
+ *
+ * This is determined from either a per-policy configuration
+ * (cp_log_sess_all), of from an address-group of subscriber addresses and/or
+ * prefixes (cp_log_sess_ag).
  */
 bool cgn_policy_record_dest(struct cgn_policy *cp, uint32_t addr, int dir)
 {
@@ -57,7 +65,8 @@ bool cgn_policy_record_dest(struct cgn_policy *cp, uint32_t addr, int dir)
 		return true;
 
 	if (cp->cp_log_sess_ag)
-		return npf_addrgrp_lookup_v4(cp->cp_log_sess_ag, addr) == 0;
+		return npf_addrgrp_lookup_v4_by_handle(
+			cp->cp_log_sess_ag, addr) == 0;
 
 	return false;
 }
@@ -168,6 +177,28 @@ struct nat_pool *cgn_policy_get_pool(struct cgn_policy *cp)
 	return NULL;
 }
 
+const char *cgn_policy_get_name(struct cgn_policy *cp)
+{
+	if (cp)
+		return cp->cp_name;
+	return NULL;
+}
+
+/*
+ * Get the number of addresses that a cgnat policy might match, i.e. the
+ * number of subscribers covered by this policy.
+ */
+static uint32_t cgn_policy_naddrs(struct cgn_policy *cp)
+{
+	uint32_t naddrs = 0;
+
+	if (cp->cp_match_ag)
+		naddrs += npf_addrgrp_naddrs_by_handle(AG_IPv4,
+						       cp->cp_match_ag, true);
+
+	return naddrs;
+}
+
 /*
  * Attach policy to nat pool
  */
@@ -175,17 +206,13 @@ static int
 cgn_policy_attach_pool(struct cgn_policy *cp, const char *pool_name)
 {
 	struct nat_pool *np;
-	uint32_t naddrs;
 
 	np = nat_pool_lookup(pool_name);
 	if (!np)
 		return -ENOENT;
 
-	naddrs = npf_prefix_to_useable_naddrs4(cp->cp_prefix_len);
-
 	/* Take reference on pool */
 	cp->cp_pool = nat_pool_get(np);
-	nat_pool_incr_nusers(np, naddrs);
 
 	return 0;
 }
@@ -193,13 +220,9 @@ cgn_policy_attach_pool(struct cgn_policy *cp, const char *pool_name)
 static void
 cgn_policy_detach_pool(struct cgn_policy *cp)
 {
-	uint32_t naddrs;
-
 	if (!cp->cp_pool)
 		return;
 
-	naddrs = npf_prefix_to_useable_naddrs4(cp->cp_prefix_len);
-	nat_pool_decr_nusers(cp->cp_pool, naddrs);
 	nat_pool_put(cp->cp_pool);
 	cp->cp_pool = NULL;
 }
@@ -213,9 +236,9 @@ static struct cgn_policy *cgn_policy_create(struct cgn_policy_cfg *cpc)
 	int rc;
 
 	/*
-	 * name source prefix prefix must be configured.
+	 * Policy name and match address-group must be configured.
 	 */
-	if (!cpc->cp_name || cpc->cp_prefix == 0)
+	if (strlen(cpc->cp_name) == 0 || !cpc->cp_match_ag_name)
 		return NULL;
 
 	sz = sizeof(struct cgn_policy);
@@ -224,12 +247,9 @@ static struct cgn_policy *cgn_policy_create(struct cgn_policy_cfg *cpc)
 	if (!cp)
 		return NULL;
 
-	cp->cp_name = strdup(cpc->cp_name);
-
+	strncpy(cp->cp_name, cpc->cp_name, sizeof(cp->cp_name));
 	rte_atomic32_set(&cp->cp_refcnt, 0);
-
-	cp->cp_prefix = cpc->cp_prefix;
-	cp->cp_prefix_len = cpc->cp_prefix_len;
+	cp->cp_match_ag = NULL;
 	CDS_INIT_LIST_HEAD(&cp->cp_list_node);
 	cp->cp_priority = cpc->cp_priority;
 
@@ -241,56 +261,100 @@ static struct cgn_policy *cgn_policy_create(struct cgn_policy_cfg *cpc)
 	cp->cp_log_sess_end = cpc->cp_log_sess_end;
 	cp->cp_log_sess_periodic = cpc->cp_log_sess_periodic;
 	cp->cp_log_subs = cpc->cp_log_subs;
+	cp->cp_log_sess_ag = NULL;
 
+	CDS_INIT_LIST_HEAD(&cp->cp_sess_rate_list);
+	cp->cp_sess_rate_count = 0;
+
+	/* Is a log address-group specified? */
 	if (cpc->cp_log_sess_name) {
+		/* We store a pointer the address group */
 		cp->cp_log_sess_ag =
 			npf_addrgrp_lookup_name(cpc->cp_log_sess_name);
+
+		if (!cp->cp_log_sess_ag)
+			goto error;
+
+		/* Take reference on ag since we are storing ptr */
+		npf_addrgrp_get(cp->cp_log_sess_ag);
 	}
 
 	if (cp->cp_log_sess_all ||
 	    cp->cp_map_type == CGN_MAP_EDM || cp->cp_fltr_type == CGN_FLTR_EDF)
 		cp->cp_sess2_enabled = true;
 
-	unsigned long mask;
+	/* Match address-group */
+	if (cpc->cp_match_ag_name) {
+		/* We store a pointer the address group */
+		cp->cp_match_ag =
+			npf_addrgrp_lookup_name(cpc->cp_match_ag_name);
 
-	mask = (0xFFFFFFFF << (32 - cp->cp_prefix_len)) & 0xFFFFFFFF;
-	cp->cp_mask = mask;
-	cp->cp_mask = htonl(cp->cp_mask);
+		if (!cp->cp_match_ag)
+			/* Should never happen */
+			goto error;
+
+		/*
+		 * We take reference on the match address-group *only* because
+		 * we are storing a pointer to the address-group instead of a
+		 * table ID.
+		 */
+		npf_addrgrp_get(cp->cp_match_ag);
+	}
 
 	/*
 	 * Find cgnat pool.  Takes a reference on the cgnat pool if found.
 	 */
 	rc = cgn_policy_attach_pool(cp, cpc->cp_pool_name);
-	if (rc < 0) {
-		free(cp);
-		return NULL;
-	}
+	if (rc < 0)
+		goto error;
 
 	return cp;
+
+error:
+	cgn_policy_destroy(cp, false);
+	return NULL;
+}
+
+static void cgn_policy_free(struct cgn_policy *cp)
+{
+	cgn_policy_free_sess_rate(cp);
+	free(cp);
 }
 
 static void cgn_policy_rcu_free(struct rcu_head *head)
 {
 	struct cgn_policy *cp = caa_container_of(head, struct cgn_policy,
 						 cp_rcu_head);
-	free(cp->cp_name);
-	cp->cp_name = NULL;
-
-	free(cp);
+	cgn_policy_free(cp);
 }
 
 /*
  * cgn_policy_destroy
  */
-static void cgn_policy_destroy(struct cgn_policy *cp)
+static void cgn_policy_destroy(struct cgn_policy *cp, bool rcu_free)
 {
+	struct npf_addrgrp *ag;
+
 	/*
 	 * Only detach from pool when all references on the policy have been
 	 * removed.
 	 */
 	cgn_policy_detach_pool(cp);
 
-	call_rcu(&cp->cp_rcu_head, cgn_policy_rcu_free);
+	/* Release reference on match address-group */
+	ag = rcu_xchg_pointer(&cp->cp_match_ag, NULL);
+	if (ag)
+		npf_addrgrp_put(ag);
+
+	/* Release reference on session lof address-group */
+	ag = rcu_xchg_pointer(&cp->cp_log_sess_ag, NULL);
+	if (ag)
+		npf_addrgrp_put(ag);
+
+	if (rcu_free)
+		call_rcu(&cp->cp_rcu_head, cgn_policy_rcu_free);
+	else
+		cgn_policy_free(cp);
 }
 
 /*
@@ -308,7 +372,7 @@ struct cgn_policy *cgn_policy_get(struct cgn_policy *cp)
 void cgn_policy_put(struct cgn_policy *cp)
 {
 	if (cp && rte_atomic32_dec_and_test(&cp->cp_refcnt))
-		cgn_policy_destroy(cp);
+		cgn_policy_destroy(cp, true);
 }
 
 void cgn_policy_inc_source_count(struct cgn_policy *cp)
@@ -330,7 +394,9 @@ void cgn_policy_dec_source_count(struct cgn_policy *cp)
 void cgn_policy_update_stats(struct cgn_policy *cp,
 			     uint64_t pkts_out, uint64_t bytes_out,
 			     uint64_t pkts_in, uint64_t bytes_in,
-			     uint64_t sess_created, uint64_t sess_destroyed)
+			     uint64_t unk_pkts_in,
+			     uint64_t sess_created, uint64_t sess_destroyed,
+			     uint64_t sess2_created, uint64_t sess2_destroyed)
 {
 	if (!cp)
 		return;
@@ -339,16 +405,174 @@ void cgn_policy_update_stats(struct cgn_policy *cp,
 	cp->cp_bytes[CGN_DIR_OUT] += bytes_out;
 	cp->cp_pkts[CGN_DIR_IN] += pkts_in;
 	cp->cp_bytes[CGN_DIR_IN] += bytes_in;
+	cp->cp_unk_pkts_in += unk_pkts_in;
 
 	cp->cp_sess_created += sess_created;
 	cp->cp_sess_destroyed += sess_destroyed;
+	cp->cp_sess2_created += sess2_created;
+	cp->cp_sess2_destroyed += sess2_destroyed;
+}
+
+/*
+ * Create a new subscriber max session rate entry
+ */
+static struct cgn_policy_sess_rate *
+cgn_policy_sess_rate_create(uint32_t subs_addr, uint32_t sess_rate_max,
+			    uint64_t sess_rate_max_time)
+{
+	struct cgn_policy_sess_rate *new;
+	struct cds_list_head *node;
+
+	new = malloc(sizeof(*new));
+	if (!new)
+		return NULL;
+
+	node = &new->ps_list_node;
+	CDS_INIT_LIST_HEAD(node);
+	new->ps_subs_addr = subs_addr;
+	new->ps_sess_rate_max = sess_rate_max;
+	new->ps_sess_rate_max_time = sess_rate_max_time;
+
+	return new;
+}
+
+/*
+ * Update the list of subscribers with the highest 1 minute average session
+ * rates
+ */
+void cgn_policy_update_sess_rate(struct cgn_policy *cp,
+				 uint32_t subs_addr,
+				 uint32_t sess_rate_max,
+				 uint64_t sess_rate_max_time)
+{
+	struct cgn_policy_sess_rate *cur, *tail, *new = NULL;
+
+	if (!cp)
+		return;
+
+	/*
+	 * If the list is full *and* sess_rate_max is less than the last value
+	 * in the list then there is nothing to do.
+	 */
+	if (cp->cp_sess_rate_count >= CGN_POLICY_SESS_RATE_MAX) {
+		tail = caa_container_of(cp->cp_sess_rate_list.prev,
+					struct cgn_policy_sess_rate,
+					ps_list_node);
+		if (sess_rate_max < tail->ps_sess_rate_max)
+			return;
+	}
+
+	struct cds_list_head *node, *next, *new_node;
+
+	/*
+	 * Iterate through list looking for correct place to insert
+	 */
+	cds_list_for_each_safe(node, next, &cp->cp_sess_rate_list) {
+		cur = caa_container_of(node, struct cgn_policy_sess_rate,
+				       ps_list_node);
+
+		/*
+		 * Insert before 'cur' if rates are greater or equal
+		 */
+		if (!new && sess_rate_max >= cur->ps_sess_rate_max) {
+
+			/* Are we updating the same subscriber? */
+			if (subs_addr == cur->ps_subs_addr) {
+				cur->ps_sess_rate_max = sess_rate_max;
+				cur->ps_sess_rate_max_time = sess_rate_max_time;
+				return;
+			}
+
+			/* Insert a new node before current node */
+			new = cgn_policy_sess_rate_create(subs_addr,
+							  sess_rate_max,
+							  sess_rate_max_time);
+			if (!new)
+				return;
+
+			new_node = &new->ps_list_node;
+			new_node->next = node;
+			new_node->prev = node->prev;
+			node->prev = new_node;
+			new_node->prev->next = new_node;
+			cp->cp_sess_rate_count++;
+
+			/*
+			 * Calling 'continue' here means the next 'cur' will
+			 * be the list node *after* the one we have just
+			 * inserted (since we are using the 'safe' form of the
+			 * loop).
+			 */
+			continue;
+		}
+
+		/*
+		 * If we have already added a new node, then check if there
+		 * already is an entry for this subscriber lower down in the
+		 * list.
+		 */
+		if (new && new->ps_subs_addr == cur->ps_subs_addr) {
+			cds_list_del(&cur->ps_list_node);
+			free(cur);
+			cp->cp_sess_rate_count--;
+			return;
+		}
+	}
+
+	/*
+	 * If a new node was added, and we have exceeded the max then delete
+	 * the last node in list
+	 */
+	if (new && cp->cp_sess_rate_count > CGN_POLICY_SESS_RATE_MAX) {
+		node = cp->cp_sess_rate_list.prev;
+		tail = caa_container_of(node, struct cgn_policy_sess_rate,
+				       ps_list_node);
+
+		cds_list_del(node);
+		free(tail);
+		cp->cp_sess_rate_count--;
+	}
+
+	/*
+	 * If a new node was *not* added, and there is space at the end of the
+	 * list, then create and add a new node.
+	 */
+	if (!new && cp->cp_sess_rate_count < CGN_POLICY_SESS_RATE_MAX) {
+		/* Insert new entry at tail */
+		new = cgn_policy_sess_rate_create(subs_addr,
+						  sess_rate_max,
+						  sess_rate_max_time);
+		if (!new)
+			return;
+
+		cds_list_add_tail(&new->ps_list_node, &cp->cp_sess_rate_list);
+		cp->cp_sess_rate_count++;
+	}
+}
+
+/*
+ * Free session rate list
+ */
+static void cgn_policy_free_sess_rate(struct cgn_policy *cp)
+{
+	struct cgn_policy_sess_rate *node, *next;
+
+	cds_list_for_each_entry_safe(node, next, &cp->cp_sess_rate_list,
+				     ps_list_node) {
+		cds_list_del(&node->ps_list_node);
+		cp->cp_sess_rate_count--;
+		free(node);
+	}
 }
 
 struct cgn_policy_stats {
 	uint64_t	ps_sess_created;
 	uint64_t	ps_sess_destroyed;
+	uint64_t	ps_sess2_created;
+	uint64_t	ps_sess2_destroyed;
 	uint64_t	ps_pkts[CGN_DIR_SZ];
 	uint64_t	ps_bytes[CGN_DIR_SZ];
+	uint64_t	ps_unk_pkts_in;
 };
 
 /*
@@ -357,20 +581,23 @@ struct cgn_policy_stats {
 static void cgn_policy_jsonw_summary_cb(struct ifnet *ifp, void *arg)
 {
 	struct cgn_policy_stats *ps = arg;
+	struct cds_list_head *policy_list;
 	struct cgn_policy *cp;
-	struct cgn_intf *ci;
 
-	ci = npf_if_get_cgn(ifp);
-	if (!ci)
+	policy_list = cgn_if_get_policy_list(ifp);
+	if (!policy_list)
 		return;
 
-	cds_list_for_each_entry(cp, &ci->ci_policy_list, cp_list_node) {
+	cds_list_for_each_entry(cp, policy_list, cp_list_node) {
 		ps->ps_sess_created += cp->cp_sess_created;
 		ps->ps_sess_destroyed += cp->cp_sess_destroyed;
+		ps->ps_sess2_created += cp->cp_sess2_created;
+		ps->ps_sess2_destroyed += cp->cp_sess2_destroyed;
 		ps->ps_pkts[CGN_DIR_OUT] += cp->cp_pkts[CGN_DIR_OUT];
 		ps->ps_bytes[CGN_DIR_OUT] += cp->cp_bytes[CGN_DIR_OUT];
 		ps->ps_pkts[CGN_DIR_IN] += cp->cp_pkts[CGN_DIR_IN];
 		ps->ps_bytes[CGN_DIR_IN] += cp->cp_bytes[CGN_DIR_IN];
+		ps->ps_unk_pkts_in += cp->cp_unk_pkts_in;
 	}
 }
 
@@ -382,14 +609,17 @@ void cgn_policy_jsonw_summary(json_writer_t *json)
 	struct cgn_policy_stats ps = {0};
 
 	/* For each interface */
-	ifnet_walk(cgn_policy_jsonw_summary_cb, &ps);
+	dp_ifnet_walk(cgn_policy_jsonw_summary_cb, &ps);
 
 	jsonw_uint_field(json, "sess_created", ps.ps_sess_created);
 	jsonw_uint_field(json, "sess_destroyed", ps.ps_sess_destroyed);
+	jsonw_uint_field(json, "sess2_created", ps.ps_sess2_created);
+	jsonw_uint_field(json, "sess2_destroyed", ps.ps_sess2_destroyed);
 	jsonw_uint_field(json, "pkts_out", ps.ps_pkts[CGN_DIR_OUT]);
 	jsonw_uint_field(json, "bytes_out", ps.ps_bytes[CGN_DIR_OUT]);
 	jsonw_uint_field(json, "pkts_in", ps.ps_pkts[CGN_DIR_IN]);
 	jsonw_uint_field(json, "bytes_in", ps.ps_bytes[CGN_DIR_IN]);
+	jsonw_uint_field(json, "unk_pkts_in", ps.ps_unk_pkts_in);
 }
 
 
@@ -403,26 +633,28 @@ struct cgn_policy_show_ctx {
 static void
 cgn_policy_jsonw_one(json_writer_t *json, struct cgn_policy *cp)
 {
-	char ad_str[16], pfx_str[24];
-	uint32_t naddrs;
+	char ad_str[16];
+	const char *name;
+	struct ifnet *ifp;
 
-	inet_ntop(AF_INET, &cp->cp_prefix,
-		  ad_str, sizeof(ad_str));
-	snprintf(pfx_str, 24, "%s/%u", ad_str, cp->cp_prefix_len);
-	naddrs = npf_prefix_to_useable_naddrs4(cp->cp_prefix_len);
+	ifp = cgn_if_get_ifp(cp->cp_ci);
 
 	jsonw_start_object(json);
 
 	jsonw_string_field(json, "name", cp->cp_name);
-	jsonw_string_field(json, "prefix", pfx_str);
-	if (cp->cp_ci && cp->cp_ci->ci_ifp)
-		jsonw_string_field(json, "interface",
-				   cp->cp_ci->ci_ifp->if_name);
+
+	name = npf_addrgrp_handle2name(cp->cp_match_ag);
+	jsonw_string_field(json, "match_group",
+			   name ? name : "(unknown)");
+
+	if (ifp)
+		jsonw_string_field(json, "interface", ifp->if_name);
 	else
 		jsonw_string_field(json, "interface", "");
+
 	jsonw_uint_field(json, "priority", cp->cp_priority);
 
-	jsonw_uint_field(json, "naddrs", naddrs);
+	jsonw_uint_field(json, "naddrs", cgn_policy_naddrs(cp));
 	if (cp->cp_pool)
 		jsonw_string_field(json, "pool", nat_pool_name(cp->cp_pool));
 	else
@@ -435,6 +667,8 @@ cgn_policy_jsonw_one(json_writer_t *json, struct cgn_policy *cp)
 
 	jsonw_uint_field(json, "sess_created", cp->cp_sess_created);
 	jsonw_uint_field(json, "sess_destroyed", cp->cp_sess_destroyed);
+	jsonw_uint_field(json, "sess2_created", cp->cp_sess2_created);
+	jsonw_uint_field(json, "sess2_destroyed", cp->cp_sess2_destroyed);
 
 	jsonw_uint_field(json, "out_pkts", cp->cp_pkts[CGN_DIR_OUT]);
 	jsonw_uint_field(json, "out_bytes", cp->cp_bytes[CGN_DIR_OUT]);
@@ -442,16 +676,52 @@ cgn_policy_jsonw_one(json_writer_t *json, struct cgn_policy *cp)
 	jsonw_uint_field(json, "in_pkts", cp->cp_pkts[CGN_DIR_IN]);
 	jsonw_uint_field(json, "in_bytes", cp->cp_bytes[CGN_DIR_IN]);
 
+	jsonw_uint_field(json, "unk_pkts_in", cp->cp_unk_pkts_in);
+
+	jsonw_bool_field(json, "snat_alg_bypass", cgn_snat_alg_bypass_gbl);
+
 	jsonw_bool_field(json, "record_dest", cp->cp_sess2_enabled);
 	jsonw_bool_field(json, "log_sess_all", cp->cp_log_sess_all);
 
-	char *lg_name = npf_addrgrp_handle2name(cp->cp_log_sess_ag);
-	if (lg_name)
-		jsonw_string_field(json, "log_sess_group", lg_name);
+	name = npf_addrgrp_handle2name(cp->cp_log_sess_ag);
+	if (name)
+		jsonw_string_field(json, "log_sess_group", name);
 
 	jsonw_bool_field(json, "log_sess_start", cp->cp_log_sess_start);
 	jsonw_bool_field(json, "log_sess_end", cp->cp_log_sess_end);
 	jsonw_uint_field(json, "log_sess_periodic", cp->cp_log_sess_periodic);
+
+	/* List of subscribers with highest 1 minute session rates */
+	jsonw_name(json, "subs_sess_rates");
+	jsonw_start_array(json);
+
+	struct cgn_policy_sess_rate *node;
+	uint i = 0;
+
+	cds_list_for_each_entry(node, &cp->cp_sess_rate_list, ps_list_node) {
+		jsonw_start_object(json);
+
+		uint32_t addr = htonl(node->ps_subs_addr);
+		inet_ntop(AF_INET, &addr, ad_str, sizeof(ad_str));
+		jsonw_string_field(json, "subscriber", ad_str);
+		jsonw_uint_field(json, "max_sess_rate", node->ps_sess_rate_max);
+		jsonw_uint_field(
+			json, "time",
+			cgn_ticks2timestamp(node->ps_sess_rate_max_time));
+
+		jsonw_end_object(json);
+		i++;
+	}
+
+	/* Fill empty slots something */
+	for (; i < CGN_POLICY_SESS_RATE_MAX; i++) {
+		jsonw_start_object(json);
+		jsonw_string_field(json, "subscriber", "None");
+		jsonw_uint_field(json, "max_sess_rate", 0);
+		jsonw_uint_field(json, "time", 0);
+		jsonw_end_object(json);
+	}
+	jsonw_end_array(json); /* subs_sess_rates array */
 
 	jsonw_end_object(json);
 }
@@ -462,15 +732,32 @@ cgn_policy_jsonw_one(json_writer_t *json, struct cgn_policy *cp)
 static void cgn_policy_jsonw_intf(struct ifnet *ifp, void *arg)
 {
 	struct cgn_policy_show_ctx *ctx = arg;
+	struct cds_list_head *policy_list;
 	struct cgn_policy *cp;
-	struct cgn_intf *ci;
 
-	ci = npf_if_get_cgn(ifp);
-	if (!ci)
+	policy_list = cgn_if_get_policy_list(ifp);
+	if (!policy_list)
 		return;
 
-	cds_list_for_each_entry(cp, &ci->ci_policy_list, cp_list_node) {
+	cds_list_for_each_entry(cp, policy_list, cp_list_node) {
 		cgn_policy_jsonw_one(ctx->json, cp);
+	}
+}
+
+/*
+ * Show policies that are not attached to an interface
+ */
+static void cgn_policy_jsonw_unattached(json_writer_t *json)
+{
+	struct cds_lfht_iter iter;
+	struct cgn_policy *cp;
+
+	if (!cgn_policy_ht)
+		return;
+
+	cds_lfht_for_each_entry(cgn_policy_ht, &iter, cp, cp_table_node) {
+		if (cp->cp_ci == NULL)
+			cgn_policy_jsonw_one(json, cp);
 	}
 }
 
@@ -496,8 +783,11 @@ cgn_policy_jsonw(FILE *f, char *name)
 		if (cp)
 			cgn_policy_jsonw_one(ctx.json, cp);
 	} else {
-		/* For each interface */
-		ifnet_walk(cgn_policy_jsonw_intf, &ctx);
+		/* Show policies attached to interfaces first */
+		dp_ifnet_walk(cgn_policy_jsonw_intf, &ctx);
+
+		/* Show unattached policies */
+		cgn_policy_jsonw_unattached(ctx.json);
 	}
 
 	jsonw_end_array(ctx.json);
@@ -521,32 +811,48 @@ void cgn_policy_show(FILE *f, int argc __unused, char **argv __unused)
 	cgn_policy_jsonw(f, name);
 }
 
-static int
-cgn_policy_cfg_parse_src(char *value, struct cgn_policy_cfg *cgn)
+/*
+ * cgn-op clear policy <name> statistics
+ */
+void cgn_policy_clear(int argc, char **argv)
 {
-	npf_netmask_t prefix_len = 0;
-	npf_addr_t src_addr;
-	sa_family_t fam;
-	bool negate;
+	struct cgn_policy *cp;
 
-	int rc = npf_parse_ip_addr(value, &fam, &src_addr,
-				   &prefix_len, &negate);
-	if (rc)
-		return -1;
+	/* Remove "cgn-op clear policy" */
+	argc -= 3;
+	argv += 3;
 
-	if (prefix_len == NPF_NO_NETMASK)
-		prefix_len = 32;
+	if (argc < 2)
+		return;
 
-	memcpy(&cgn->cp_prefix, &src_addr, 4);
-	cgn->cp_prefix_len = prefix_len;
+	cp = cgn_policy_lookup(argv[0]);
+	if (!cp)
+		return;
 
-	return 0;
+	if (!strcmp(argv[1], "statistics")) {
+		cp->cp_pkts[CGN_DIR_OUT] = 0UL;
+		cp->cp_bytes[CGN_DIR_OUT] = 0UL;
+		cp->cp_pkts[CGN_DIR_IN] = 0UL;
+		cp->cp_bytes[CGN_DIR_IN] = 0UL;
+		cp->cp_unk_pkts_in = 0UL;
+
+		cgn_policy_free_sess_rate(cp);
+	}
 }
 
 static int
 cgn_policy_cfg_parse_pool(char *value, struct cgn_policy_cfg *cgn)
 {
 	cgn->cp_pool_name = value;
+
+	return 0;
+}
+
+/* Match address-group name */
+static int
+cgn_policy_cfg_parse_match(char *value, struct cgn_policy_cfg *cgn)
+{
+	cgn->cp_match_ag_name = value;
 
 	return 0;
 }
@@ -652,7 +958,7 @@ cgn_policy_cfg_parse_priority(char *value, struct cgn_policy_cfg *cfg)
  *
  * cgn policy add POLICY1 pri=10 src-addr=100.64.0.0/12 pool=POOL1
  */
-int cgn_policy_cfg_add(FILE *f, int argc, char **argv)
+int cgn_policy_cfg_add(FILE * f __unused, int argc, char **argv)
 {
 	struct cgn_policy *cp;
 	const char *name;
@@ -672,28 +978,37 @@ int cgn_policy_cfg_add(FILE *f, int argc, char **argv)
 	struct cgn_policy_cfg cfg;
 
 	if (cp) {
-		cfg.cp_name = cp->cp_name;
+		/* Copy name string from existing policy */
+		strcpy(cfg.cp_name, cp->cp_name);
+
 		cfg.cp_priority = cp->cp_priority;
-		cfg.cp_prefix = cp->cp_prefix;
-		cfg.cp_prefix_len = cp->cp_prefix_len;
+
+		cfg.cp_match_ag_name =
+			npf_addrgrp_handle2name(cp->cp_match_ag);
+
 		cfg.cp_pool_name = nat_pool_name(cp->cp_pool);
 		cfg.cp_map_type = cp->cp_map_type;
 		cfg.cp_fltr_type = cp->cp_fltr_type;
 		cfg.cp_trans_type = cp->cp_trans_type;
 		cfg.cp_log_sess_all = cp->cp_log_sess_all;
-		cfg.cp_log_sess_name = NULL;
-		if (cp->cp_log_sess_ag)
-			cfg.cp_log_sess_name =
-				npf_addrgrp_handle2name(cp->cp_log_sess_ag);
+
+		cfg.cp_log_sess_name =
+			npf_addrgrp_handle2name(cp->cp_log_sess_ag);
+
 		cfg.cp_log_sess_start = cp->cp_log_sess_start;
 		cfg.cp_log_sess_end = cp->cp_log_sess_end;
 		cfg.cp_log_sess_periodic = cp->cp_log_sess_periodic;
 		cfg.cp_log_subs = cp->cp_log_subs;
 	} else {
-		cfg.cp_name = name;
+		/*
+		 * We are copying name string from argv, so ensure it is NULL
+		 * terminated
+		 */
+		strncpy(cfg.cp_name, name, sizeof(cfg.cp_name));
+		cfg.cp_name[NAT_POLICY_NAME_MAX - 1] = '\0';
+
 		cfg.cp_priority = 0;
-		cfg.cp_prefix = 0;
-		cfg.cp_prefix_len = 0;
+		cfg.cp_match_ag_name = NULL;
 		cfg.cp_pool_name = NULL;
 		cfg.cp_map_type = CGN_MAP_EIM;
 		cfg.cp_fltr_type = CGN_FLTR_EIF;
@@ -719,13 +1034,13 @@ int cgn_policy_cfg_add(FILE *f, int argc, char **argv)
 		value = c + 1;
 		rc = 0;
 
-		/* Source prefix */
-		if (!strcmp(item, "src-addr")) {
-			rc = cgn_policy_cfg_parse_src(value, &cfg);
-
 		/* Pool name */
-		} else if (!strcmp(item, "pool")) {
+		if (!strcmp(item, "pool")) {
 			rc = cgn_policy_cfg_parse_pool(value, &cfg);
+
+		/* Match address-group */
+		} else if (!strcmp(item, "match-ag")) {
+			rc = cgn_policy_cfg_parse_match(value, &cfg);
 
 		/* Priority */
 		} else if (!strcmp(item, "priority")) {
@@ -747,14 +1062,15 @@ int cgn_policy_cfg_add(FILE *f, int argc, char **argv)
 
 		} else if (!strcmp(item, "trans-type")) {
 			rc = cgn_policy_cfg_parse_trans(value, &cfg);
+
 		}
 
 		if (rc < 0)
-			goto usage;
+			goto err_out;
 	}
 
 	if (cfg.cp_priority < 1 || cfg.cp_priority > 9999)
-		goto usage;
+		goto err_out;
 
 	if (!cp) {
 		cp = cgn_policy_create(&cfg);
@@ -765,6 +1081,9 @@ int cgn_policy_cfg_add(FILE *f, int argc, char **argv)
 		rc = cgn_policy_insert(cp);
 		if (rc < 0)
 			goto err_out;
+
+		/* Inform source database that a new policy has been added */
+		cgn_source_policy_added(cp);
 	} else {
 		/* Update existing policy */
 
@@ -778,15 +1097,16 @@ int cgn_policy_cfg_add(FILE *f, int argc, char **argv)
 			cgn_policy_detach_pool(cp);
 			cgn_policy_attach_pool(cp, cfg.cp_pool_name);
 		}
-		uint32_t mask;
 
-		mask = (0xFFFFFFFF << (32 - cfg.cp_prefix_len)) & 0xFFFFFFFF;
-		mask = htonl(mask);
+		/*
+		 * Has the match address-group changed?
+		 */
+		name = npf_addrgrp_handle2name(cp->cp_match_ag);
+
+		npf_addrgrp_update_handle(name, cfg.cp_match_ag_name,
+					  &cp->cp_match_ag);
 
 		cp->cp_priority = cfg.cp_priority;
-		cp->cp_prefix = cfg.cp_prefix;
-		cp->cp_prefix_len = cfg.cp_prefix_len;
-		cp->cp_mask = mask;
 
 		cp->cp_map_type = cfg.cp_map_type;
 		cp->cp_fltr_type = cfg.cp_fltr_type;
@@ -797,11 +1117,13 @@ int cgn_policy_cfg_add(FILE *f, int argc, char **argv)
 		cp->cp_log_sess_periodic = cfg.cp_log_sess_periodic;
 		cp->cp_log_subs = cfg.cp_log_subs;
 
-		if (cfg.cp_log_sess_name)
-			cp->cp_log_sess_ag =
-				npf_addrgrp_lookup_name(cfg.cp_log_sess_name);
-		else
-			cp->cp_log_sess_ag = NULL;
+		/*
+		 * Has the session log address-group changed?
+		 */
+		name = npf_addrgrp_handle2name(cp->cp_log_sess_ag);
+
+		npf_addrgrp_update_handle(name, cfg.cp_log_sess_name,
+					  &cp->cp_log_sess_ag);
 
 		if (cp->cp_log_sess_all ||
 		    cp->cp_map_type == CGN_MAP_EDM ||
@@ -811,10 +1133,6 @@ int cgn_policy_cfg_add(FILE *f, int argc, char **argv)
 
 	return 0;
 
-usage:
-	if (f)
-		fprintf(f, "%s: policy add <name> pri=<pri> "
-			"src-addr=<prefix/mask> pool=<name>", __func__);
 err_out:
 	return -1;
 }
@@ -849,17 +1167,53 @@ int cgn_policy_cfg_delete(FILE *f __unused, int argc, char **argv)
 /*
  * The interface that this policy is attached to is going away.
  */
-void cgn_policy_if_index_unset(struct ifnet *ifp, struct cgn_policy *cp)
+void cgn_policy_if_disable(struct ifnet *ifp)
 {
-	/* Clear sessions related to this policy */
-	cgn_session_expire_policy(true, cp);
+	struct cds_list_head *policy_list;
+	struct cgn_policy *cp, *tmp;
 
-	/* Remove policy from cgn interface list */
-	cgn_if_del_policy(ifp, cp);
+	/* Get cgnat policy list from interface */
+	policy_list = cgn_if_get_policy_list(ifp);
+	if (!policy_list)
+		return;
 
-	/* Remove from table and release reference. */
-	cgn_policy_delete(cp);
+	cds_list_for_each_entry_safe(cp, tmp, policy_list, cp_list_node) {
+		/* Clear sessions related to this policy */
+		cgn_session_expire_policy(true, cp);
+
+		/* Remove policy from cgn interface list */
+		cgn_if_del_policy(ifp, cp);
+
+		/* Remove from hash table and release reference. */
+		cgn_policy_delete(cp);
+	}
 }
+
+/*
+ * Return the number of CGNAT policies and subscriber addresses using this NAT
+ * pool.
+ */
+static void cgn_np_client_counts(struct nat_pool *np, uint32_t *nusers,
+				 uint64_t *naddrs)
+{
+	struct cds_lfht_iter iter;
+	struct cgn_policy *cp;
+
+	if (!cgn_policy_ht)
+		return;
+
+	cds_lfht_for_each_entry(cgn_policy_ht, &iter, cp, cp_table_node) {
+		if (cp->cp_pool == np) {
+			*nusers += 1;
+			*naddrs += cgn_policy_naddrs(cp);
+		}
+	}
+}
+
+/* NAT pool client api handlers */
+static const struct np_client_ops cgn_np_client_ops = {
+	.np_client_counts = cgn_np_client_counts,
+};
 
 /*
  * One-time initialization.  Called from cgn_init.
@@ -872,6 +1226,8 @@ void cgn_policy_init(void)
 	cgn_policy_ht =	cds_lfht_new(CP_HT_INIT, CP_HT_MIN, CP_HT_MAX,
 				     CDS_LFHT_AUTO_RESIZE | CDS_LFHT_ACCOUNTING,
 				     NULL);
+
+	nat_pool_client_register(&cgn_np_client_ops);
 }
 
 /*
@@ -882,5 +1238,7 @@ void cgn_policy_uninit(void)
 	if (cgn_policy_ht) {
 		dp_ht_destroy_deferred(cgn_policy_ht);
 		cgn_policy_ht = NULL;
+
+		nat_pool_client_unregister(&cgn_np_client_ops);
 	}
 }

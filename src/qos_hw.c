@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2018-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2018-2020, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -125,19 +125,25 @@ void qos_hw_dscp_resgrp_json(struct sched_info *qinfo, uint32_t subport,
 
 	struct subport_info *sinfo = qinfo->subport + subport;
 	uint8_t profile_id = sinfo->profile_map[pipe];
-	struct profile_wred_info *p_wred_info =
-		&qinfo->wred_profiles[profile_id];
+	struct qos_pipe_params *prof =
+			&qinfo->port_params.pipe_profiles[profile_id];
 	uint8_t qindex = (tc * RTE_SCHED_QUEUES_PER_TRAFFIC_CLASS) + q;
-	struct queue_wred_info *q_wred_info = &p_wred_info->queue_wred[qindex];
+	struct qos_red_pipe_params *wred;
 
-	num_maps = q_wred_info->num_maps;
+	wred = qos_red_find_q_params(prof, qindex);
+	if (!wred)
+		return;
+
+	num_maps = wred->red_q_params.num_maps;
 	if (num_maps) {
 		char *grp_name;
 
 		jsonw_name(wr, "wred_map");
 		jsonw_start_array(wr);
-		for (i = 0; i < num_maps; i++) {
-			grp_name = q_wred_info->dscp_grp_names[i];
+		for (i = 0; i < NUM_DPS; i++) {
+			if (!(wred->red_q_params.dps_in_use & (1 << i)))
+				continue;
+			grp_name = wred->red_q_params.grp_names[i];
 			if (grp_name == NULL)
 				break;
 			jsonw_start_object(wr);
@@ -148,6 +154,354 @@ void qos_hw_dscp_resgrp_json(struct sched_info *qinfo, uint32_t subport,
 		}
 		jsonw_end_array(wr);
 	}
+}
+
+static void qos_hw_setup_maplist(struct fal_qos_map_list_t *map_list,
+				 struct ingress_designator *des, int ind,
+				 bool is_dscp)
+{
+	int i, k, l;
+	uint64_t j;
+	int max_entries = is_dscp ? FAL_QOS_MAP_DSCP_VALUES :
+		FAL_QOS_MAP_PCP_VALUES;
+
+	for (i = 0; i < NUM_DPS; i++) {
+		if (!(des->dps_in_use & (1 << i)))
+			continue;
+		for (k = 0, j = 1 ; k < max_entries ; j <<= 1, k++) {
+			if (des->mask[i] & j) {
+				l = map_list->count++;
+				if (is_dscp)
+					map_list->list[l].key.dscp = k;
+				else
+					map_list->list[l].key.dot1p = k;
+				map_list->list[l].value.des = ind;
+				switch (i) {
+				case 0:
+					map_list->list[l].value.color =
+						FAL_PACKET_COLOUR_GREEN;
+					break;
+				case 1:
+					map_list->list[l].value.color =
+						FAL_PACKET_COLOUR_YELLOW;
+					break;
+				case 2:
+					map_list->list[l].value.color =
+						FAL_PACKET_COLOUR_RED;
+					break;
+				}
+			}
+		}
+	}
+}
+
+static int qos_hw_setup_des2q(struct queue_map *qmap, uint8_t *des2q)
+{
+	int cp, des;
+
+	for (cp = 0; cp < MAX_DSCP; cp++) {
+		if (!qos_qmap_to_des(qmap->dscp2q[cp], &des2q[0], &des)) {
+			DP_DEBUG(QOS_HW, ERR, DATAPLANE,
+				 "map create, out of designators\n");
+			return -EINVAL;
+		}
+	}
+	return 0;
+}
+
+void qos_hw_show_legacy_map(struct queue_map *qmap, json_writer_t *wr)
+{
+	uint8_t cp;
+	int des;
+	uint8_t des2q[INGRESS_DESIGNATORS] = {0};
+
+	jsonw_name(wr, "legacy-map");
+	jsonw_start_object(wr);
+
+	jsonw_start_array(wr);
+
+	for (cp = 0; cp < MAX_DSCP; cp++) {
+		if (!qos_qmap_to_des(qmap->dscp2q[cp], &des2q[0], &des)) {
+			DP_DEBUG(QOS_HW, ERR, DATAPLANE,
+				 "map create, out of designators\n");
+			jsonw_end_array(wr);
+			jsonw_end_object(wr);
+			return;
+		}
+		jsonw_start_object(wr);
+		jsonw_uint_field(wr, "DSCP", cp);
+		jsonw_uint_field(wr, "Designation", des);
+		jsonw_end_object(wr);
+	}
+	jsonw_end_array(wr);
+
+	jsonw_end_object(wr);
+}
+
+static void qos_hw_ingressm_attrs(struct qos_ingress_map *map,
+				  struct fal_qos_map_list_t *map_list)
+{
+	int i;
+
+	for (i = 0; i < INGRESS_DESIGNATORS; i++) {
+		if (map->designation[i].dps_in_use)
+			qos_hw_setup_maplist(map_list,
+					     &map->designation[i],
+					     i, (map->type == INGRESS_DSCP));
+	}
+}
+
+static int qos_hw_ingressm_attach(unsigned int ifindex, unsigned int vlan,
+				  struct qos_ingress_map *map)
+{
+	if (map->map_obj == FAL_QOS_NULL_OBJECT_ID) {
+		DP_DEBUG(QOS_HW, ERR, DATAPLANE,
+			 "Invalid ingress-map attach, not created %s\n",
+			 map->name);
+
+		return -ENOENT;
+	}
+
+	if (!vlan) {
+		struct fal_attribute_t port_attr_list = {
+			.id = FAL_PORT_ATTR_QOS_INGRESS_MAP_ID,
+			.value.objid = map->map_obj
+		};
+		fal_l2_upd_port(ifindex, &port_attr_list);
+
+		DP_DEBUG(QOS_HW, DEBUG, DATAPLANE,
+			 "Created ingress feature on if %u\n", ifindex);
+
+		return 0;
+	}
+
+	struct fal_attribute_t vlan_attr[] = {
+		{ .id = FAL_VLAN_FEATURE_INTERFACE_ID,
+		  .value.u32 = ifindex },
+		{ .id = FAL_VLAN_FEATURE_VLAN_ID,
+		  .value.u16 = vlan },
+		{ .id = FAL_VLAN_FEATURE_ATTR_QOS_INGRESS_MAP_ID,
+		  .value.objid = map->map_obj }
+	};
+	int ret;
+	struct if_vlan_feat *vlan_feat;
+	struct ifnet *ifp = dp_ifnet_byifindex(ifindex);
+
+	if (!ifp) {
+		DP_DEBUG(QOS_HW, ERR, DATAPLANE,
+			 "Failed to retrieve ifp for ingress feature %u\n",
+			 ifindex);
+
+		return -ENOENT;
+	}
+
+	vlan_feat = if_vlan_feat_get(ifp, vlan);
+	if (!vlan_feat) {
+		ret = if_vlan_feat_create(ifp, vlan, FAL_NULL_OBJECT_ID);
+		if (ret) {
+			DP_DEBUG(QOS_HW, ERR, DATAPLANE,
+				 "Failed to create feature for if %s vlan %u\n",
+				ifp->if_name, vlan);
+			return ret;
+		}
+		vlan_feat = if_vlan_feat_get(ifp, vlan);
+		if (!vlan_feat)
+			return -ENOENT;
+		ret = fal_vlan_feature_create(ARRAY_SIZE(vlan_attr), vlan_attr,
+					      &vlan_feat->fal_vlan_feat);
+		if (ret && ret != -EOPNOTSUPP) {
+			DP_DEBUG(QOS_HW, ERR, DATAPLANE,
+			    "Can not create vlan_feat for vlan %u fal %d\n",
+			    vlan, ret);
+			if_vlan_feat_delete(ifp, vlan);
+			return ret;
+		}
+	} else {
+		ret = fal_vlan_feature_set_attr(vlan_feat->fal_vlan_feat,
+						&vlan_attr[2]);
+		if (ret) {
+			DP_DEBUG(QOS_HW, ERR, DATAPLANE,
+				 "Failed to add ingress map to if %s vlan %u\n",
+				 ifp->if_name, vlan);
+			return ret;
+		}
+	}
+
+	vlan_feat->refcount++;
+
+	DP_DEBUG(QOS_HW, DEBUG, DATAPLANE,
+		 "Created ingress feature on if %u vlan %u\n",
+		 ifindex, vlan);
+
+	return ret;
+}
+
+static int qos_hw_ingressm_detach(unsigned int ifindex, unsigned int vlan)
+{
+	if (!vlan) {
+		struct fal_attribute_t port_attr_list[] = {
+			{ .id = FAL_PORT_ATTR_QOS_INGRESS_MAP_ID,
+			  .value.objid = FAL_NULL_OBJECT_ID }
+		};
+
+		fal_l2_upd_port(ifindex, &port_attr_list[0]);
+		DP_DEBUG(QOS_HW, DEBUG, DATAPLANE,
+			 "Removed ingress feature on if %u\n", ifindex);
+		return 0;
+	}
+
+	int ret;
+	struct if_vlan_feat *vlan_feat = NULL;
+	struct fal_attribute_t vlan_attr[1] = {
+		{ .id = FAL_VLAN_FEATURE_ATTR_QOS_INGRESS_MAP_ID,
+		  .value.objid = FAL_NULL_OBJECT_ID }
+	};
+	struct ifnet *ifp = dp_ifnet_byifindex(ifindex);
+	if (!ifp) {
+		DP_DEBUG(QOS_HW, ERR, DATAPLANE,
+			 "Failed to retrieve ifp for ingress feat %u\n",
+			 ifindex);
+
+		return -ENOENT;
+	}
+
+	vlan_feat = if_vlan_feat_get(ifp, vlan);
+	if (!vlan_feat) {
+		DP_DEBUG(QOS_HW, ERR, DATAPLANE,
+			 "Could not find vlan feat for intf %s vlan %d\n",
+			 ifp->if_name, vlan);
+		return -ENOENT;
+	}
+
+	ret = fal_vlan_feature_set_attr(vlan_feat->fal_vlan_feat,
+					vlan_attr);
+	if (ret && ret != -EOPNOTSUPP) {
+		DP_DEBUG(QOS_HW, ERR, DATAPLANE,
+			 "Could not remove vlan_feat for vlan %d in fal (%d)\n",
+			 vlan, ret);
+		return ret;
+	}
+
+	vlan_feat->refcount--;
+
+	if (!vlan_feat->refcount) {
+		ret = fal_vlan_feature_delete(vlan_feat->fal_vlan_feat);
+		if (ret) {
+			DP_DEBUG(QOS_HW, ERR, DATAPLANE,
+				"Could not destroy fal vlan feature obj"
+				" for %s vlan %d (%d)\n",
+				ifp->if_name, vlan, ret);
+			return ret;
+		}
+
+		ret = if_vlan_feat_delete(ifp, vlan);
+		if (ret) {
+			DP_DEBUG(QOS_HW, ERR, DATAPLANE,
+				"Could not destroy vlan feature obj for "
+				"%s vlan %d (%d)\n",
+				ifp->if_name, vlan, ret);
+			return ret;
+		}
+	}
+
+	DP_DEBUG(QOS_HW, DEBUG, DATAPLANE,
+		 "Deleted vlan ingress feature obj for %s vlan %u\n",
+		 ifp->if_name, vlan);
+
+	return 0;
+}
+
+static int qos_hw_ingressm_config(struct qos_ingress_map *map,
+				  bool create)
+{
+	if (!create) {
+		/* Make sure the attach went ok */
+		if (map->map_obj != FAL_QOS_NULL_OBJECT_ID) {
+			fal_qos_del_map(map->map_obj);
+			map->map_obj = FAL_QOS_NULL_OBJECT_ID;
+		}
+		DP_DEBUG(QOS_HW, DEBUG, DATAPLANE,
+			 "Deleted fal ingress map %s\n", map->name);
+		return 0;
+	}
+
+	struct fal_qos_map_list_t map_list = {0};
+	struct fal_attribute_t attr_list[] = {
+		{ .id = FAL_QOS_MAP_ATTR_TYPE,
+		  .value.u8 = FAL_QOS_MAP_TYPE_DSCP_TO_DESIGNATOR },
+		{ .id = FAL_QOS_MAP_ATTR_MAP_TO_VALUE_LIST,
+		  .value.maplist = &map_list },
+		{ .id = FAL_QOS_MAP_ATTR_INGRESS_SYSTEM_DEFAULT,
+		  .value.booldata = map->sysdef },
+	};
+	int ret;
+
+	if (map->type == INGRESS_PCP)
+		attr_list[0].value.u8 = FAL_QOS_MAP_TYPE_DOT1P_TO_DESIGNATOR;
+
+	qos_hw_ingressm_attrs(map, &map_list);
+
+	if ((map->type == INGRESS_DSCP &&
+	     map_list.count != FAL_QOS_MAP_DSCP_VALUES) ||
+	    (map->type == INGRESS_PCP &&
+	     map_list.count != FAL_QOS_MAP_PCP_VALUES)) {
+		DP_DEBUG(QOS_HW, ERR, DATAPLANE,
+			 "Invalid map, not all values used %d\n",
+			 map_list.count);
+		return -EINVAL;
+	}
+
+	ret = fal_qos_new_map(FAL_QOS_NULL_OBJECT_ID, ARRAY_SIZE(attr_list),
+			      attr_list, &map->map_obj);
+
+	DP_DEBUG(QOS_HW, DEBUG, DATAPLANE, "Created ingress map %s\n",
+		 map->name);
+
+	return ret;
+}
+
+fal_object_t qos_hw_get_att_ingress_map(struct ifnet *ifp, unsigned int vlan)
+{
+	if (!ifp)
+		return 0;
+
+	if (!vlan) {
+		struct fal_attribute_t port_attr_list[] = {
+			{ .id = FAL_PORT_ATTR_QOS_INGRESS_MAP_ID,
+			  .value.objid = FAL_QOS_NULL_OBJECT_ID }
+		};
+		if (fal_l2_get_attrs(ifp->if_index, 1, &port_attr_list[0]) == 0)
+			return port_attr_list[0].value.objid;
+
+		return 0;
+	}
+
+	struct fal_attribute_t vlan_attr[1] = {
+		{ .id = FAL_VLAN_FEATURE_ATTR_QOS_INGRESS_MAP_ID,
+		  .value.objid = FAL_QOS_NULL_OBJECT_ID }
+	};
+
+	struct if_vlan_feat *vlan_feat = if_vlan_feat_get(ifp, vlan);
+	if (!vlan_feat) {
+		DP_DEBUG(QOS_HW, ERR, DATAPLANE,
+			 "Ingress-map failed to retrieve intf %s vlan %d\n",
+			 ifp->if_name, vlan);
+		return 0;
+	}
+	if (!fal_vlan_feature_get_attr(vlan_feat->fal_vlan_feat, 1,
+				       &vlan_attr[0]))
+		return vlan_attr[0].value.objid;
+
+	return 0;
+}
+
+int qos_hw_init(void)
+{
+	qos_ingressm.qos_ingressm_attach = qos_hw_ingressm_attach;
+	qos_ingressm.qos_ingressm_detach = qos_hw_ingressm_detach;
+	qos_ingressm.qos_ingressm_config = qos_hw_ingressm_config;
+
+	return 0;
 }
 
 /*
@@ -502,12 +856,6 @@ int qos_hw_port(struct ifnet *ifp, unsigned int subports, unsigned int pipes,
 {
 	int retval = 0;
 
-	/*
-	 * No hardware support
-	 */
-	if (!ifp->hw_forwarding)
-		return -ENODEV;
-
 	/* Drop old config if any */
 	struct sched_info *qinfo = ifp->if_qos;
 
@@ -570,6 +918,12 @@ int qos_hw_enable(struct ifnet *ifp, struct sched_info *qinfo)
 
 	DP_DEBUG(QOS_HW, DEBUG, DATAPLANE, "hardware enable, if-index: %u\n",
 		 ifp->if_index);
+
+	if (!ifp->hw_forwarding) {
+		DP_DEBUG(QOS_HW, DEBUG, DATAPLANE,
+			 "interface not hw forwarding, QoS not started\n");
+		return 0;
+	}
 
 	rte_eth_link_get_nowait(ifp->if_port, &link);
 	if (link.link_status) {
@@ -694,7 +1048,8 @@ qos_hw_create_group_and_sched(struct qos_obj_db_obj *db_obj,
 			      uint8_t level, uint16_t max_children,
 			      uint8_t sched_type, uint64_t bandwidth,
 			      uint64_t burst, int8_t overhead,
-			      fal_object_t *child_obj, uint16_t vlan)
+			      fal_object_t *child_obj, uint16_t vlan,
+			      uint8_t lp_des)
 {
 	fal_object_t sch_obj;
 	fal_object_t grp_obj = FAL_QOS_NULL_OBJECT_ID;
@@ -733,7 +1088,7 @@ qos_hw_create_group_and_sched(struct qos_obj_db_obj *db_obj,
 		return ret;
 	}
 
-	struct fal_attribute_t grp_attr_list[6] = {
+	struct fal_attribute_t grp_attr_list[7] = {
 		{ .id = FAL_QOS_SCHED_GROUP_ATTR_SG_INDEX,
 		  .value.u32 = sched_group_id },
 		{ .id = FAL_QOS_SCHED_GROUP_ATTR_LEVEL,
@@ -764,6 +1119,14 @@ qos_hw_create_group_and_sched(struct qos_obj_db_obj *db_obj,
 		attr_count++;
 	}
 
+	if ((level == FAL_QOS_SCHED_GROUP_LEVEL_PIPE) &&
+	    (lp_des != INGRESS_DESIGNATORS)) {
+		grp_attr_list[attr_count].id =
+			FAL_QOS_SCHED_GROUP_ATTR_LOCAL_PRIORITY_DESIGNATOR;
+		grp_attr_list[attr_count].value.u8 = lp_des;
+		attr_count++;
+	}
+
 	ret = fal_qos_new_sched_group(switch_id, attr_count, grp_attr_list,
 				      &grp_obj);
 
@@ -779,6 +1142,11 @@ qos_hw_create_group_and_sched(struct qos_obj_db_obj *db_obj,
 	return ret;
 }
 
+void qos_hw_del_map(fal_object_t mark_obj)
+{
+	(void)fal_qos_del_map(mark_obj);
+}
+
 static void
 qos_hw_delete_callback(struct qos_obj_db_obj *db_obj)
 {
@@ -786,7 +1154,6 @@ qos_hw_delete_callback(struct qos_obj_db_obj *db_obj)
 	fal_object_t scheduler_obj;
 	fal_object_t queue_obj;
 	fal_object_t wred_obj;
-	fal_object_t ingress_map_obj;
 	fal_object_t egress_map_obj;
 	int32_t hw_status;
 
@@ -797,9 +1164,6 @@ qos_hw_delete_callback(struct qos_obj_db_obj *db_obj)
 
 	qos_obj_db_hw_get(db_obj, QOS_OBJ_HW_TYPE_SCHEDULER, &hw_status,
 			  &scheduler_obj);
-
-	qos_obj_db_hw_get(db_obj, QOS_OBJ_HW_TYPE_INGRESS_MAP, &hw_status,
-			  &ingress_map_obj);
 
 	qos_obj_db_hw_get(db_obj, QOS_OBJ_HW_TYPE_EGRESS_MAP, &hw_status,
 			  &egress_map_obj);
@@ -813,11 +1177,6 @@ qos_hw_delete_callback(struct qos_obj_db_obj *db_obj)
 	if (sched_group_obj && scheduler_obj)
 		(void)qos_hw_update_sched_group(sched_group_obj,
 					FAL_QOS_SCHED_GROUP_ATTR_SCHEDULER_ID,
-					FAL_QOS_NULL_OBJECT_ID);
-
-	if (sched_group_obj && ingress_map_obj)
-		(void)qos_hw_update_sched_group(sched_group_obj,
-					FAL_QOS_SCHED_GROUP_ATTR_INGRESS_MAP_ID,
 					FAL_QOS_NULL_OBJECT_ID);
 
 	if (sched_group_obj && egress_map_obj)
@@ -849,12 +1208,6 @@ qos_hw_delete_callback(struct qos_obj_db_obj *db_obj)
 
 	if (scheduler_obj)
 		(void)fal_qos_del_scheduler(scheduler_obj);
-
-	if (ingress_map_obj)
-		(void)fal_qos_del_map(ingress_map_obj);
-
-	if (egress_map_obj)
-		(void)fal_qos_del_map(egress_map_obj);
 
 	if (queue_obj)
 		(void)fal_qos_del_queue(queue_obj);
@@ -895,8 +1248,9 @@ qos_hw_upd_u32_attr(struct fal_attribute_t *attr_list, uint32_t array_size,
 
 static int
 qos_hw_create_wred(struct qos_obj_db_obj *db_obj,
-		   struct rte_red_params *wred_params,
-		   struct queue_wred_info *q_wred_info, fal_object_t *wred_obj)
+		   struct qos_red_params *wred_params,
+		   struct qos_red_pipe_params *q_wred_info,
+		   fal_object_t *wred_obj)
 {
 	uint32_t switch_id = 0;
 	int ret = 0;
@@ -908,7 +1262,7 @@ qos_hw_create_wred(struct qos_obj_db_obj *db_obj,
 	 * QoS perl validation scripts should mean that we never have both.
 	 */
 	if ((wred_params->min_th != 0 && wred_params->max_th != 0) &&
-	    (q_wred_info != NULL && q_wred_info->num_maps != 0)) {
+	    (q_wred_info != NULL && q_wred_info->red_q_params.num_maps != 0)) {
 		DP_DEBUG(QOS, ERR, DATAPLANE,
 			 "Conflicting WRED configurations\n");
 		return -EINVAL;
@@ -938,7 +1292,8 @@ qos_hw_create_wred(struct qos_obj_db_obj *db_obj,
 		ret = fal_qos_new_wred(switch_id, ARRAY_SIZE(wred_attr_list),
 				       wred_attr_list, wred_obj);
 
-	} else if (q_wred_info != NULL && q_wred_info->num_maps != 0) {
+	} else if (q_wred_info != NULL &&
+		   q_wred_info->red_q_params.num_maps != 0) {
 		uint8_t colour;
 
 		/*
@@ -948,7 +1303,7 @@ qos_hw_create_wred(struct qos_obj_db_obj *db_obj,
 		 */
 		struct fal_attribute_t wred_attr_list[] = {
 			{ .id = FAL_QOS_WRED_ATTR_WEIGHT,
-			  .value.u8 = q_wred_info->filter_weight },
+			  .value.u8 = q_wred_info->red_q_params.filter_weight },
 			{ .id = FAL_QOS_WRED_ATTR_GREEN_ENABLE,
 			  .value.booldata = false },
 			{ .id = FAL_QOS_WRED_ATTR_GREEN_MIN_THRESHOLD,
@@ -976,9 +1331,15 @@ qos_hw_create_wred(struct qos_obj_db_obj *db_obj,
 		};
 
 		for (colour = FAL_PACKET_COLOUR_GREEN;
-		     colour < q_wred_info->num_maps; colour++) {
-			struct red_params *colour_params =
-				&q_wred_info->params.map_params_bytes[colour];
+		     colour < NUM_DPS; colour++) {
+			struct qos_red_params *colour_params;
+
+			if (!(q_wred_info->red_q_params.dps_in_use &
+			      (1 << colour)))
+				continue;
+
+			colour_params =
+				&q_wred_info->red_q_params.qparams[colour];
 
 			uint32_t min_th = colour_params->min_th;
 			uint32_t max_th = colour_params->max_th;
@@ -1071,12 +1432,11 @@ qos_hw_create_wred(struct qos_obj_db_obj *db_obj,
 static int
 qos_hw_create_queue_and_sched(struct qos_obj_db_obj *db_obj,
 			      fal_object_t parent_obj, uint32_t queue_limit,
-			      uint8_t wrr_weight,
-			      struct rte_red_params *wred_params,
-			      struct queue_wred_info *q_wred_info,
+			      uint8_t wrr_weight, uint8_t designator,
+			      struct qos_red_params *wred_params,
+			      struct qos_red_pipe_params *q_wred_info,
 			      uint32_t tc_id,
 			      uint32_t q_id,
-			      bool local_priority_queue,
 			      fal_object_t *child_obj)
 {
 	fal_object_t wred_obj = FAL_QOS_NULL_OBJECT_ID;
@@ -1137,8 +1497,8 @@ qos_hw_create_queue_and_sched(struct qos_obj_db_obj *db_obj,
 		  .value.u8 = FAL_QOS_QUEUE_TYPE_ALL },
 		{ .id = FAL_QOS_QUEUE_ATTR_TC,
 		  .value.u8 = tc_id },
-		{ .id = FAL_QOS_QUEUE_ATTR_LOCAL_PRIORITY,
-		  .value.booldata = local_priority_queue },
+		{ .id = FAL_QOS_QUEUE_ATTR_DESIGNATOR,
+		  .value.u8 = designator },
 	};
 
 	ret = fal_qos_new_queue(switch_id, ARRAY_SIZE(queue_attr_list),
@@ -1158,9 +1518,9 @@ qos_hw_create_queue_and_sched(struct qos_obj_db_obj *db_obj,
 
 static int
 qos_hw_new_wrr_queue(fal_object_t tc_sched_obj, uint32_t queue_limit,
-		     uint8_t local_priority_wrr, uint8_t wrr_weight,
-		     struct rte_red_params *red_params,
-		     struct queue_wred_info *q_wred_info, uint32_t *ids)
+		     uint8_t wrr_weight, uint8_t designator,
+		     struct qos_red_params *red_params,
+		     struct qos_red_pipe_params *q_wred_info, uint32_t *ids)
 {
 	char ids_str[QOS_OBJ_DB_MAX_ID_LEN + 1];
 	struct qos_obj_db_obj *db_obj;
@@ -1186,12 +1546,12 @@ qos_hw_new_wrr_queue(fal_object_t tc_sched_obj, uint32_t queue_limit,
 	qos_obj_db_sw_set(db_obj, QOS_OBJ_SW_STATE_HW_PROG_IN_PROGRESS);
 
 	ret = qos_hw_create_queue_and_sched(db_obj, tc_sched_obj,
-					    queue_limit, wrr_weight, red_params,
+					    queue_limit, wrr_weight,
+					    designator,
+					    red_params,
 					    q_wred_info,
 					    ids[QOS_OBJ_DB_LEVEL_TC],
 					    ids[QOS_OBJ_DB_LEVEL_QUEUE],
-					    (local_priority_wrr ==
-					     ids[QOS_OBJ_DB_LEVEL_QUEUE]),
 					    &queue_obj);
 	if (ret)
 		qos_obj_db_sw_set(db_obj, QOS_OBJ_SW_STATE_HW_PROG_FAILED);
@@ -1204,9 +1564,9 @@ qos_hw_new_wrr_queue(fal_object_t tc_sched_obj, uint32_t queue_limit,
 static int
 qos_hw_new_tc(uint32_t tc_id, fal_object_t pipe_sched_obj,
 	      uint32_t tc_rate, uint32_t tc_size, uint32_t queue_limit,
-	      uint8_t local_priority_wrr, uint8_t *wrr_weight,
-	      struct rte_red_params *red_params,
-	      struct queue_wred_info **q_wred_info, uint32_t *ids,
+	      uint8_t *wrr_weight, uint8_t *designators,
+	      struct qos_red_params *red_params,
+	      struct qos_red_pipe_params **q_wred_info, uint32_t *ids,
 	      int8_t overhead)
 {
 	char ids_str[QOS_OBJ_DB_MAX_ID_LEN + 1];
@@ -1247,7 +1607,8 @@ qos_hw_new_tc(uint32_t tc_id, fal_object_t pipe_sched_obj,
 					    queues_configured,
 					    FAL_QOS_SCHEDULING_TYPE_WRR,
 					    tc_rate, tc_size, overhead,
-					    &tc_sched_obj, 0);
+					    &tc_sched_obj, 0,
+					    INGRESS_DESIGNATORS);
 
 	for (q_id = 0; !ret && q_id < RTE_SCHED_QUEUES_PER_TRAFFIC_CLASS;
 	     q_id++) {
@@ -1255,8 +1616,8 @@ qos_hw_new_tc(uint32_t tc_id, fal_object_t pipe_sched_obj,
 			ids[QOS_OBJ_DB_LEVEL_QUEUE] = q_id;
 			ret = qos_hw_new_wrr_queue(tc_sched_obj,
 						   queue_limit,
-						   local_priority_wrr,
 						   wrr_weight[q_id],
+						   designators[q_id],
 						   red_params,
 						   q_wred_info[q_id],
 						   ids);
@@ -1272,25 +1633,74 @@ qos_hw_new_tc(uint32_t tc_id, fal_object_t pipe_sched_obj,
 }
 
 static int
-qos_hw_create_and_attach_map(struct qos_obj_db_obj *db_obj,
-			     fal_object_t pipe_sched_obj,
-			     enum qos_obj_hw_type hw_type,
-			     enum fal_qos_map_type_t map_type,
-			     struct fal_qos_map_list_t *map_list,
-			     bool local_priority)
+qos_hw_egress_map_attach(struct qos_obj_db_obj *db_obj,
+			 fal_object_t pipe_sched_obj,
+			 enum fal_qos_map_type_t map_type,
+			 struct fal_qos_map_list_t *map_list,
+			 fal_object_t *mark_obj)
 
 {
-	enum fal_qos_sched_group_attr_t sched_group_map_id;
 	struct fal_attribute_t attr_list[] = {
 		{ .id = FAL_QOS_MAP_ATTR_TYPE,
 		  .value.u8 = map_type },
 		{ .id = FAL_QOS_MAP_ATTR_MAP_TO_VALUE_LIST,
 		  .value.maplist = map_list },
-		{ .id = FAL_QOS_MAP_ATTR_LOCAL_PRIORITY_QUEUE,
-		  .value.booldata = local_priority },
 	};
 	fal_object_t map_obj;
 	int ret;
+
+	if (!*mark_obj) {
+		/*
+		 * Create the map object and attach it to the pipe
+		 * sched-group.
+		 */
+		ret = fal_qos_new_map(pipe_sched_obj, ARRAY_SIZE(attr_list),
+				      attr_list, &map_obj);
+		*mark_obj = map_obj;
+	} else {
+		map_obj = *mark_obj;
+		ret = 0;
+	}
+
+	qos_obj_db_hw_set(db_obj, QOS_OBJ_HW_TYPE_EGRESS_MAP, ret, map_obj);
+
+	if (ret)
+		DP_DEBUG(QOS_HW, ERR, DATAPLANE,
+			 "FAL failed to create qos-map, status: %d\n", ret);
+	else
+		ret = qos_hw_update_sched_group(pipe_sched_obj,
+					FAL_QOS_SCHED_GROUP_ATTR_EGRESS_MAP_ID,
+					map_obj);
+
+	return ret;
+}
+
+static int
+qos_hw_ingress_map_attach(fal_object_t pipe_sched_obj,
+			  enum fal_qos_map_type_t map_type,
+			  struct fal_qos_map_list_t *map_list)
+
+{
+	struct fal_attribute_t attr_list[] = {
+		{ .id = FAL_QOS_MAP_ATTR_TYPE,
+		  .value.u8 = map_type },
+		{ .id = FAL_QOS_MAP_ATTR_MAP_TO_VALUE_LIST,
+		  .value.maplist = map_list },
+		{ .id = FAL_QOS_MAP_ATTR_INGRESS_SYSTEM_DEFAULT,
+		  .value.booldata = true },
+	};
+	fal_object_t map_obj;
+	int ret;
+
+	/*
+	 * If we're using the legacy config we setup a single system-default
+	 * map and use it so only install the first map, all the others should
+	 * be the same since we only support a single ingress map.
+	 */
+	if (map_type == FAL_QOS_MAP_TYPE_DSCP_TO_DESIGNATOR) {
+		if (qos_global_map_obj != FAL_QOS_NULL_OBJECT_ID)
+			return 0;
+	}
 
 	/*
 	 * Create the map object and attach it to the pipe sched-group.
@@ -1298,20 +1708,8 @@ qos_hw_create_and_attach_map(struct qos_obj_db_obj *db_obj,
 	ret = fal_qos_new_map(pipe_sched_obj, ARRAY_SIZE(attr_list), attr_list,
 			      &map_obj);
 
-	qos_obj_db_hw_set(db_obj, hw_type, ret, map_obj);
-
-	if (hw_type == QOS_OBJ_HW_TYPE_INGRESS_MAP)
-		sched_group_map_id = FAL_QOS_SCHED_GROUP_ATTR_INGRESS_MAP_ID;
-	else
-		sched_group_map_id = FAL_QOS_SCHED_GROUP_ATTR_EGRESS_MAP_ID;
-
-	if (ret)
-		DP_DEBUG(QOS_HW, ERR, DATAPLANE,
-			 "FAL failed to create qos-map, status: %d\n", ret);
-	else
-		ret = qos_hw_update_sched_group(pipe_sched_obj,
-						sched_group_map_id,
-						map_obj);
+	if (map_type == FAL_QOS_MAP_TYPE_DSCP_TO_DESIGNATOR)
+		qos_global_map_obj = map_obj;
 
 	return ret;
 }
@@ -1344,8 +1742,8 @@ qmap_to_fal_colour(uint8_t q, enum fal_packet_colour *fal_colour)
 }
 
 static int
-qos_hw_create_ingress_map(struct qos_obj_db_obj *db_obj,
-			  fal_object_t pipe_sched_obj, struct queue_map *qmap)
+qos_hw_create_ingress_map(fal_object_t pipe_sched_obj, struct queue_map *qmap,
+			  uint8_t *des2q)
 {
 	uint8_t cp;
 	uint8_t q;
@@ -1355,38 +1753,57 @@ qos_hw_create_ingress_map(struct qos_obj_db_obj *db_obj,
 
 	DP_DEBUG(QOS_HW, DEBUG, DATAPLANE, "creating ingress qos-map\n");
 
-	if (qmap->pcp_enabled == 1) {
-		map_type = FAL_QOS_MAP_TYPE_DOT1P_TO_TC;
-		map_list.count = MAX_PCP;
-		for (cp = 0; cp < MAX_PCP; cp++) {
-			q = qmap->pcp2q[cp];
-			map_list.list[cp].key.dot1p = cp;
-			map_list.list[cp].value.tc = qmap_to_tc(q);
-			map_list.list[cp].value.wrr = qmap_to_wrr(q);
-			ret = qmap_to_fal_colour(
-				q, &map_list.list[cp].value.color);
-			if (ret < 0)
-				return ret;
-		}
-	} else {
-		map_type = FAL_QOS_MAP_TYPE_DSCP_TO_TC;
+	if (qmap->dscp_enabled == 1) {
+		map_type = FAL_QOS_MAP_TYPE_DSCP_TO_DESIGNATOR;
 		map_list.count = MAX_DSCP;
 		for (cp = 0; cp < MAX_DSCP; cp++) {
+			int i;
+			uint8_t des = 0;
+			bool found_des = false;
+
 			q = qmap->dscp2q[cp];
 			map_list.list[cp].key.dscp = cp;
-			map_list.list[cp].value.tc = qmap_to_tc(q);
-			map_list.list[cp].value.wrr = qmap_to_wrr(q);
+			for (i = 0; i < INGRESS_DESIGNATORS; i++) {
+				if (des2q[i] == (DES_IN_USE | q_from_mask(q))) {
+					found_des = true;
+					des = i;
+					break;
+				}
+			}
+			if (!found_des) {
+				DP_DEBUG(QOS_HW, ERR, DATAPLANE,
+					 "map create, no designator\n");
+				return -EINVAL;
+			}
+			map_list.list[cp].value.des = des;
 			ret = qmap_to_fal_colour(
 				q, &map_list.list[cp].value.color);
 			if (ret < 0)
 				return ret;
+
+			DP_DEBUG(QOS_HW, DEBUG, DATAPLANE,
+				 "map DSCP %d to tc/wrr %d/%d, des %d col %d\n",
+				 cp, qmap_to_tc(q), qmap_to_wrr(q), des,
+				 map_list.list[cp].value.color);
 		}
+	/*
+	 * If we're using the designation CLI the ingress-map has been
+	 * moved out of the policy and is attached to the interface or
+	 * vlan using a separate CLI which calls qos_hw_ingressm_attach()
+	 * to setup the classification designators.
+	 * The cases above use the legacy CLI where the ingress-maps are
+	 * derived from the policy, we only support a single map in this
+	 * setup.
+	 */
+	} else if (qmap->designation == 1) {
+		return 0;
+	} else {
+		DP_DEBUG(QOS_HW, ERR, DATAPLANE, "Invalid map type\n");
+		return -EINVAL;
 	}
 
-	ret = qos_hw_create_and_attach_map(db_obj, pipe_sched_obj,
-					   QOS_OBJ_HW_TYPE_INGRESS_MAP,
-					   map_type, &map_list,
-					   qmap->local_priority);
+	ret = qos_hw_ingress_map_attach(pipe_sched_obj,
+					map_type, &map_list);
 
 	return ret;
 }
@@ -1397,30 +1814,103 @@ qos_hw_create_egress_map(struct qos_obj_db_obj *db_obj,
 			 struct qos_mark_map *mark_map)
 {
 	struct fal_qos_map_list_t map_list;
-	uint32_t dscp;
+	uint32_t dscp, des;
+	enum fal_qos_map_type_t map_type;
 
-	for (dscp = 0; dscp < FAL_QOS_MAP_DSCP_VALUES; dscp++) {
-		map_list.list[dscp].key.dscp = dscp;
-		map_list.list[dscp].value.dot1p = mark_map->pcp_value[dscp];
+	if (mark_map->type == EGRESS_DSCP) {
+		for (dscp = 0; dscp < FAL_QOS_MAP_DSCP_VALUES; dscp++) {
+			map_list.list[dscp].key.dscp = dscp;
+			map_list.list[dscp].value.dot1p =
+					mark_map->pcp_value[dscp];
+		}
+		map_list.count = FAL_QOS_MAP_DSCP_VALUES;
+		map_type = FAL_QOS_MAP_TYPE_DSCP_TO_DOT1P;
+	} else {
+		map_list.des_used = mark_map->des_used;
+		map_list.count = FAL_QOS_MAP_DESIGNATION_VALUES;
+		map_type = FAL_QOS_MAP_TYPE_DESIGNATOR_TO_DOT1P;
+		for (des = 0; des < FAL_QOS_MAP_DESIGNATION_VALUES; des++) {
+			map_list.list[des].key.des = des;
+			map_list.list[des].value.dot1p =
+					mark_map->pcp_value[des];
+		}
 	}
-	map_list.count = FAL_QOS_MAP_DSCP_VALUES;
 
-	DP_DEBUG(QOS_HW, DEBUG, DATAPLANE, "creating egress qos-map\n");
-	return qos_hw_create_and_attach_map(db_obj, pipe_sched_obj,
-					    QOS_OBJ_HW_TYPE_EGRESS_MAP,
-					    FAL_QOS_MAP_TYPE_DSCP_TO_DOT1P,
-					    &map_list, false);
+	DP_DEBUG(QOS_HW, DEBUG, DATAPLANE, "creating egress qos-map type %u\n",
+		 map_type);
+	return qos_hw_egress_map_attach(db_obj, pipe_sched_obj,
+					map_type, &map_list,
+					&mark_map->mark_obj);
+}
+
+static int qos_hw_setup_queues(struct queue_map *qmap,
+			       struct qos_pipe_params *pipe_params,
+			       uint32_t tc_id,
+			       uint8_t *wrr_weight, uint8_t *designators,
+			       struct qos_red_pipe_params **q_wred_info,
+			       uint8_t *lp_wrr, uint64_t *dscp_bitmap,
+			       uint8_t *des2q, uint8_t lp_des)
+{
+	int cp;
+	uint8_t q;
+	uint8_t qindex;
+	uint8_t weight;
+	uint8_t tc;
+	uint8_t wrr;
+
+	for (cp = 0; cp < MAX_DSCP; cp++) {
+		q = qmap->dscp2q[cp];
+		qindex = q_from_mask(q);
+		weight = pipe_params->wrr_weights[qindex];
+		tc = qmap_to_tc(q);
+		wrr = qmap_to_wrr(q);
+		if (tc == tc_id) {
+			int i;
+			uint8_t des = 0;
+			bool found_des = false;
+
+			for (i = 0; i < INGRESS_DESIGNATORS; i++) {
+				if (des2q[i] == (DES_IN_USE | q_from_mask(q))) {
+					found_des = true;
+					des = i;
+					break;
+				}
+			}
+			if (!found_des) {
+				DP_DEBUG(QOS_HW, ERR, DATAPLANE,
+					 "queue create, no designator\n");
+				return -EINVAL;
+			}
+			designators[wrr] = des;
+			*dscp_bitmap |= 1ul << cp;
+			wrr_weight[wrr] = weight;
+			q_wred_info[wrr] = qos_red_find_q_params(
+						pipe_params, qindex);
+		}
+	}
+	if (qmap->local_priority) {
+		q = qmap->local_priority_queue;
+		qindex = q_from_mask(q);
+		weight = pipe_params->wrr_weights[qindex];
+		tc = qmap_to_tc(q);
+		wrr = qmap_to_wrr(q);
+		if (tc == tc_id) {
+			*lp_wrr = wrr;
+			wrr_weight[wrr] = weight;
+			designators[wrr] = lp_des;
+		}
+	}
+	return 0;
 }
 
 static int
 qos_hw_new_pipe(uint32_t pipe_id, fal_object_t subport_sched_obj,
 		uint16_t *port_qsize, struct subport_info *sinfo,
-		struct rte_sched_pipe_params *pipe_params,
-		struct queue_map *qmap, struct profile_wred_info *p_wred_info,
+		struct qos_pipe_params *pipe_params, struct queue_map *qmap,
 		uint32_t *ids, int8_t overhead)
 {
-	uint32_t tb_rate = pipe_params->tb_rate;
-	uint32_t tb_size = pipe_params->tb_size;
+	uint32_t tb_rate = pipe_params->shaper.tb_rate;
+	uint32_t tb_size = pipe_params->shaper.tb_size;
 	char ids_str[QOS_OBJ_DB_MAX_ID_LEN + 1];
 	struct qos_obj_db_obj *db_obj;
 	enum qos_obj_db_status db_ret;
@@ -1428,6 +1918,13 @@ qos_hw_new_pipe(uint32_t pipe_id, fal_object_t subport_sched_obj,
 	uint32_t tc_id;
 	char *out_str;
 	int ret;
+	uint8_t local_priority_wrr = RTE_SCHED_QUEUES_PER_TRAFFIC_CLASS;
+
+	/* Map of Designators to Queues */
+	uint8_t des2q[INGRESS_DESIGNATORS] = {0};
+
+	/* Designator for the local prio queue */
+	uint8_t lp_des = INGRESS_DESIGNATORS;
 
 	out_str = qos_obj_db_get_ids_string(QOS_OBJ_DB_LEVEL_PIPE, ids,
 					    QOS_OBJ_DB_MAX_ID_LEN, ids_str);
@@ -1445,16 +1942,40 @@ qos_hw_new_pipe(uint32_t pipe_id, fal_object_t subport_sched_obj,
 
 	qos_obj_db_sw_set(db_obj, QOS_OBJ_SW_STATE_HW_PROG_IN_PROGRESS);
 
+	if (qmap->dscp_enabled) {
+		int i, ret;
+
+		ret = qos_hw_setup_des2q(qmap, &des2q[0]);
+		if (ret)
+			return ret;
+
+		if (qmap->local_priority) {
+			for (i = 0; i < INGRESS_DESIGNATORS; i++) {
+				if (des2q[i] & DES_IN_USE)
+					continue;
+				des2q[i] = DES_IN_USE |
+					q_from_mask(qmap->local_priority_queue);
+				lp_des = i;
+				break;
+			}
+			if (i == INGRESS_DESIGNATORS) {
+				DP_DEBUG(QOS_HW, ERR, DATAPLANE,
+					 "no designator for PLQ\n");
+				return -EINVAL;
+			}
+		}
+	}
+
 	ret = qos_hw_create_group_and_sched(db_obj, pipe_id,
 					    subport_sched_obj,
 					    FAL_QOS_SCHED_GROUP_LEVEL_PIPE,
 					    RTE_SCHED_TRAFFIC_CLASSES_PER_PIPE,
 					    FAL_QOS_SCHEDULING_TYPE_STRICT,
 					    tb_rate, tb_size, overhead,
-					    &pipe_sched_obj, 0);
+					    &pipe_sched_obj, 0, lp_des);
 
 	if (!ret)
-		ret = qos_hw_create_ingress_map(db_obj, pipe_sched_obj, qmap);
+		ret = qos_hw_create_ingress_map(pipe_sched_obj, qmap, des2q);
 
 	if (!ret && sinfo->mark_map)
 		ret = qos_hw_create_egress_map(db_obj, pipe_sched_obj,
@@ -1464,45 +1985,50 @@ qos_hw_new_pipe(uint32_t pipe_id, fal_object_t subport_sched_obj,
 	     tc_id++) {
 		uint64_t dscp_bitmap = 0;
 		uint8_t pcp_bitmap = 0;
+		uint8_t des_bitmap = 0;
 		uint8_t cp;
 		uint8_t q;
 		uint8_t qindex;
 		uint8_t weight;
 		uint8_t tc;
 		uint8_t wrr;
-		uint8_t local_priority_wrr = RTE_SCHED_QUEUES_PER_TRAFFIC_CLASS;
 		uint8_t wrr_weight[RTE_SCHED_QUEUES_PER_TRAFFIC_CLASS] = { 0 };
-		struct queue_wred_info *q_wred_info
+		uint8_t designators[RTE_SCHED_QUEUES_PER_TRAFFIC_CLASS] = { 0 };
+		struct qos_red_pipe_params *q_wred_info
 			[RTE_SCHED_QUEUES_PER_TRAFFIC_CLASS] = { NULL };
 
-		if (qmap->pcp_enabled == 1) {
-			for (cp = 0; cp < MAX_PCP; cp++) {
-				q = qmap->pcp2q[cp];
-				qindex = q_from_mask(q);
-				weight = pipe_params->wrr_weights[qindex];
-				tc = qmap_to_tc(q);
-				wrr = qmap_to_wrr(q);
-				if (tc == tc_id) {
-					pcp_bitmap |= 1 << cp;
-					wrr_weight[wrr] = weight;
+		if (qmap->dscp_enabled == 1) {
+			ret = qos_hw_setup_queues(qmap, pipe_params, tc_id,
+					    &wrr_weight[0], &designators[0],
+					    &q_wred_info[0],
+					    &local_priority_wrr,
+					    &dscp_bitmap, &des2q[0], lp_des);
+			if (ret)
+				return ret;
+		} else if (qmap->designation == 1) {
+			uint8_t bit;
+			uint8_t lp_des = INGRESS_DESIGNATORS;
+
+			for (cp = 0, bit = 1; cp < INGRESS_DESIGNATORS;
+			     cp++, bit <<= 1) {
+				if (!(pipe_params->des_set & bit)) {
+					if (lp_des == INGRESS_DESIGNATORS)
+						lp_des = cp;
+					continue;
 				}
-			}
-		} else {
-			/*
-			 * If PCP mapping isn't explicitly configured, we're
-			 * using DSCP mapping.
-			 */
-			for (cp = 0; cp < MAX_DSCP; cp++) {
-				q = qmap->dscp2q[cp];
+
+				q = pipe_params->designation[cp];
 				qindex = q_from_mask(q);
 				weight = pipe_params->wrr_weights[qindex];
 				tc = qmap_to_tc(q);
 				wrr = qmap_to_wrr(q);
 				if (tc == tc_id) {
-					dscp_bitmap |= 1ul << cp;
+					des_bitmap |= 1 << cp;
 					wrr_weight[wrr] = weight;
+					designators[wrr] = cp;
 					q_wred_info[wrr] =
-					    &p_wred_info->queue_wred[qindex];
+					    qos_red_find_q_params(
+							pipe_params, qindex);
 				}
 			}
 			if (qmap->local_priority) {
@@ -1512,10 +2038,14 @@ qos_hw_new_pipe(uint32_t pipe_id, fal_object_t subport_sched_obj,
 				tc = qmap_to_tc(q);
 				wrr = qmap_to_wrr(q);
 				if (tc == tc_id) {
-					local_priority_wrr = wrr;
+					des_bitmap |= 1 << cp;
 					wrr_weight[wrr] = weight;
+					designators[wrr] = lp_des;
 				}
 			}
+		} else {
+			DP_DEBUG(QOS_HW, ERR, DATAPLANE, "No map type set\n");
+			return -EINVAL;
 		}
 
 		/*
@@ -1525,16 +2055,16 @@ qos_hw_new_pipe(uint32_t pipe_id, fal_object_t subport_sched_obj,
 		if (!ret &&
 		    ((local_priority_wrr <
 		      RTE_SCHED_QUEUES_PER_TRAFFIC_CLASS) || pcp_bitmap ||
-		     dscp_bitmap)) {
+		     dscp_bitmap || des_bitmap)) {
 			uint32_t queue_limit = sinfo->qsize[tc_id] ?
 				sinfo->qsize[tc_id] : port_qsize[tc_id];
 
 			ids[QOS_OBJ_DB_LEVEL_TC] = tc_id;
 			ret = qos_hw_new_tc(tc_id, pipe_sched_obj,
-					    pipe_params->tc_rate[tc_id],
+					    pipe_params->shaper.tc_rate[tc_id],
 					    tb_size, queue_limit,
-					    local_priority_wrr,
 					    &wrr_weight[0],
+					    &designators[0],
 					    &sinfo->red_params[tc_id]
 					    [e_RTE_METER_GREEN],
 					    &q_wred_info[0], ids, overhead);
@@ -1594,22 +2124,21 @@ qos_hw_new_subport(uint32_t subport_id, fal_object_t port_sched_obj,
 					    FAL_QOS_SCHEDULING_TYPE_WRR,
 					    tb_rate, tb_size,
 					    overhead, &subport_sched_obj,
-					    qinfo->subport[subport_id].vlan_id);
+					    qinfo->subport[subport_id].vlan_id,
+					    INGRESS_DESIGNATORS);
 
 	for (pipe_id = 0; !ret && pipe_id < MAX_PIPES; pipe_id++) {
 		if (sinfo->pipe_configured[pipe_id]) {
 			uint8_t profile_id = sinfo->profile_map[pipe_id];
-			struct rte_sched_pipe_params *pipe_params =
+			struct qos_pipe_params *pipe_params =
 				qinfo->port_params.pipe_profiles + profile_id;
 			struct queue_map *qmap = &qinfo->queue_map[profile_id];
 			uint16_t *port_qsize = &qinfo->port_params.qsize[0];
-			struct profile_wred_info *p_wred_info =
-				&qinfo->wred_profiles[profile_id];
 
 			ids[QOS_OBJ_DB_LEVEL_PIPE] = pipe_id;
 			ret = qos_hw_new_pipe(pipe_id, subport_sched_obj,
 					      port_qsize, sinfo, pipe_params,
-					      qmap, p_wred_info, ids, overhead);
+					      qmap, ids, overhead);
 		}
 	}
 
@@ -1668,7 +2197,8 @@ qos_hw_new_port(struct ifnet *ifp, struct sched_info *qinfo, uint64_t linerate)
 					    qinfo->n_subports,
 					    FAL_QOS_SCHEDULING_TYPE_WRR,
 					    linerate, 0, overhead,
-					    &port_sched_group_obj, 0);
+					    &port_sched_group_obj, 0,
+					    INGRESS_DESIGNATORS);
 	if (ret)
 		qos_obj_db_sw_set(db_obj, QOS_OBJ_SW_STATE_HW_PROG_FAILED);
 	else {
@@ -1715,25 +2245,36 @@ int qos_hw_start(struct ifnet *ifp, struct sched_info *qinfo, uint64_t bps,
 {
 	unsigned int subport;
 	int ret;
+	static uint32_t max_burst_size = 0;
+	struct fal_attribute_t max_burst_attr = {
+			FAL_SWITCH_ATTR_MAX_BURST_SIZE};
 
 	DP_DEBUG(QOS_HW, DEBUG, DATAPLANE, "hardware start, if-index: %u",
 		 ifp->if_index);
 
+	if (!max_burst_size) {
+		if (!fal_get_switch_attrs(1, &max_burst_attr))
+			max_burst_size = max_burst_attr.value.u32;
+		else
+			max_burst_size = QOS_MAX_BURST_SIZE_DEFAULT;
+	}
+
 	for (subport = 0; subport < qinfo->n_subports; subport++) {
 		struct subport_info *sinfo = &qinfo->subport[subport];
-		struct rte_sched_subport_params *params = &sinfo->params;
+		struct qos_shaper_conf *params = &sinfo->params;
 
 		/*
 		 * Establish subport rates before checking pipes so that the
 		 * pipes can be checked against their actual subport rates.
 		 */
 		qos_sched_subport_params_check(params, &sinfo->subport_rate,
-				sinfo->sp_tc_rates.tc_rate, max_pkt_len, bps);
+				sinfo->sp_tc_rates.tc_rate, max_pkt_len,
+				max_burst_size, bps);
 
 		/* Update NPF rules */
 		npf_cfg_commit_all();
 	}
-	qos_sched_pipe_check(qinfo, max_pkt_len, bps);
+	qos_sched_pipe_check(qinfo, max_pkt_len, max_burst_size, bps);
 
 	ret = qos_hw_new_port(ifp, qinfo, bps);
 	if (ret)

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2015 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -17,11 +17,11 @@
 
 #include "dp_test.h"
 #include "dp_test_str.h"
-#include "dp_test_lib.h"
-#include "dp_test_lib_intf.h"
+#include "dp_test_lib_internal.h"
+#include "dp_test_lib_intf_internal.h"
 #include "dp_test_lib_exp.h"
-#include "dp_test_pktmbuf_lib.h"
-#include "dp_test_netlink_state.h"
+#include "dp_test_pktmbuf_lib_internal.h"
+#include "dp_test_netlink_state_internal.h"
 #include "dp_test_console.h"
 #include "dp_test_json_utils.h"
 #include "dp_test_npf_lib.h"
@@ -277,6 +277,60 @@ _dp_test_npf_nat_del(const char *ifname, const char *rule, bool snat,
 			      "\nFailed to delete %s NAT rule %s\n",
 			      snat_or_dnat(snat), rule);
 	}
+}
+
+
+/*
+ * Simple SNAT rule config
+ */
+void dpt_snat_cfg(const char *intf, uint8_t ipproto,
+		  const char *from_addr, const char *trans_addr,
+		  bool add)
+{
+	struct dp_test_npf_nat_rule_t snat = {
+		.desc		= "snat rule",
+		.rule		= "10",
+		.ifname		= intf,
+		.proto		= ipproto,
+		.map		= "dynamic",
+		.from_addr	= from_addr,
+		.from_port	= NULL,
+		.to_addr	= NULL,
+		.to_port	= NULL,
+		.trans_addr	= trans_addr,
+		.trans_port	= NULL,
+	};
+
+	if (add)
+		dp_test_npf_snat_add(&snat, true);
+	else
+		dp_test_npf_snat_del(snat.ifname, snat.rule, true);
+}
+/*
+ * Simple DNAT rule config
+ */
+void dpt_dnat_cfg(const char *intf, uint8_t ipproto,
+		  const char *to_addr, const char *trans_addr,
+		  bool add)
+{
+	struct dp_test_npf_nat_rule_t dnat = {
+		.desc		= "dnat rule",
+		.rule		= "10",
+		.ifname		= intf,
+		.proto		= ipproto,
+		.map		= "dynamic",
+		.from_addr	= NULL,
+		.from_port	= NULL,
+		.to_addr	= to_addr,
+		.to_port	= NULL,
+		.trans_addr	= trans_addr,
+		.trans_port	= NULL,
+	};
+
+	if (add)
+		dp_test_npf_dnat_add(&dnat, true);
+	else
+		dp_test_npf_dnat_del(dnat.ifname, dnat.rule, true);
 }
 
 /*
@@ -784,10 +838,11 @@ dp_test_nat_validate(struct rte_mbuf *mbuf, struct ifnet *ifp,
 	 * incorrect.
 	 */
 	if (nat->verify_session) {
-		const char *trans_addr, *src_addr, *dst_addr;
-		uint16_t trans_port, src_id, dst_id;
-		int trans_type;
-		const char *intf;
+		const char *trans_addr = NULL;
+		const char *src_addr = NULL, *dst_addr = NULL;
+		uint16_t trans_port = 0, src_id = 0, dst_id = 0;
+		int trans_type = 0;
+		const char *intf = NULL;
 
 		/*
 		 * First determine what addresses and ports we expect to see
@@ -1149,14 +1204,14 @@ dp_test_npf_print_nat(const char *desc)
  * non-zero delay.
  */
 void
-_dp_test_npf_nat_pak_receive(const char *descr,
-			     struct dp_test_pkt_desc_t *pre,
-			     struct dp_test_pkt_desc_t *post,
-			     enum dp_test_nat_dir dir,
-			     enum dp_test_trans_type ttype,
-			     bool verify_sess,
-			     uint count, uint delay,
-			     const char *file, int line)
+_dpt_npf_nat_pak_receive(const char *descr,
+			 struct dp_test_pkt_desc_t *pre,
+			 struct dp_test_pkt_desc_t *post,
+			 enum dp_test_nat_dir dir,
+			 enum dp_test_trans_type ttype,
+			 bool verify_sess,
+			 uint count, uint delay,
+			 const char *file, int line)
 {
 	struct rte_mbuf *pre_pak, *post_pak;
 	struct dp_test_expected *test_exp;

@@ -1,7 +1,7 @@
 /*
  * IPv6 no address feature
  *
- * Copyright (c) 2018, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2018-2020, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -12,16 +12,17 @@
 
 #include "compiler.h"
 #include "if_var.h"
-#include "pktmbuf.h"
+#include "pktmbuf_internal.h"
 
 #include "pl_common.h"
 #include "pl_fused.h"
 #include "pl_node.h"
 #include "pl_nodes_common.h"
-#include "vrf.h"
+#include "vrf_internal.h"
 
 ALWAYS_INLINE unsigned int
-ipv6_in_no_address_process(struct pl_packet *pkt __unused)
+ipv6_in_no_address_process(struct pl_packet *pkt __unused,
+			   void *context __unused)
 {
 	/*
 	 * Special case of DHCP client, RFC2131 semantics

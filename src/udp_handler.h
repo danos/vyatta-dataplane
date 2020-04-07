@@ -1,7 +1,7 @@
 /*
  * Handlers for well known UDP ports, registered at init time.
  *
- * Copyright (c) 2017-2018, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -14,9 +14,8 @@
 #include <netinet/udp.h>
 #include <stdint.h>
 
-#include "if_var.h"
+#include "interface.h"
 
-struct ifnet;
 struct rte_mbuf;
 struct udphdr;
 

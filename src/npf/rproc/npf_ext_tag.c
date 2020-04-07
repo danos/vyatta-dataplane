@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2018-2020, AT&T Intellectual Property.  All rights reserved.
  * All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
@@ -14,7 +14,7 @@
 #include "compiler.h"
 #include "npf/npf_cache.h"
 #include "npf/rproc/npf_rproc.h"
-#include "pktmbuf.h"
+#include "pktmbuf_internal.h"
 #include "vplane_log.h"
 
 struct ifnet;

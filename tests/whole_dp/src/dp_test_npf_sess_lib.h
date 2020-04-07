@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2018, AT&T Intellectual Property. All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property. All rights reserved.
  * Copyright (c) 2015 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -17,19 +17,12 @@
 #include "dp_test_lib_pkt.h"
 #include "dp_test_npf_lib.h"
 
-#define SC_WARN_ONLY true
-#define SC_FAIL	     false
+#include "dp_test/dp_test_session_lib.h"
 
-/*
- * Verify the npf global session count
- */
-void
-_dp_test_npf_session_count_verify(uint exp_count, bool warn,
-				  const char *file, int line);
-
-#define dp_test_npf_session_count_verify(count)			 \
-	_dp_test_npf_session_count_verify(count, SC_FAIL,	 \
-					  __FILE__, __LINE__)
+#define _dp_test_npf_session_count_verify _dp_test_session_count_verify
+#define dp_test_npf_session_count_verify(count)			\
+	_dp_test_session_count_verify(count, SC_FAIL,		\
+				      __FILE__, __func__, __LINE__)
 
 /*
  * Verify the npf global TCP session count
@@ -45,12 +38,10 @@ _dp_test_npf_tcp_session_count_verify(uint exp_count, bool warn,
 /*
  * Verify the npf global UDP session count
  */
-void
-_dp_test_npf_udp_session_count_verify(uint exp_count, bool warn,
-				      const char *file, int line);
+#define _dp_test_npf_udp_session_count_verify _dp_test_session_udp_count_verify
 
 #define dp_test_npf_udp_session_count_verify(count)		     \
-	_dp_test_npf_udp_session_count_verify(count, SC_FAIL,   \
+	_dp_test_session_udp_count_verify(count, SC_FAIL,   \
 					      __FILE__, __LINE__)
 
 /*
@@ -60,13 +51,11 @@ void
 _dp_test_npf_nat_session_count_verify(uint exp_count, bool warn,
 				      const char *file, int line);
 
-#define dp_test_npf_nat_session_count_verify(count)		     \
+#define dp_test_npf_nat_session_count_verify(count)		\
 	_dp_test_npf_nat_session_count_verify(count, SC_FAIL,   \
 					      __FILE__, __LINE__)
 
-/* Clear all npf sessions.  */
-void
-dp_test_npf_clear_sessions(void);
+#define dp_test_npf_clear_sessions	dp_test_sessions_clear
 
 /* Expire active sessions */
 void
@@ -85,48 +74,20 @@ void
 dp_test_npf_extract_ids_from_pkt_desc(struct dp_test_pkt_desc_t *pkt,
 				      uint16_t *src_id, uint16_t *dst_id);
 
-/*
- * Verify the presence/absence of an npf session. Source/dest addresses, ports
- * and protocol are taken from a packet template
- */
-#define	SE_ACTIVE		0x0004
-#define	SE_PASS			0x0008
-#define	SE_EXPIRE		0x0010
-#define	SE_GC_PASS_TWO		0x0020
-#define	SE_BYPASS		0x0040
-
-#define SE_FLAGS_MASK (SE_ACTIVE | SE_PASS | SE_EXPIRE | SE_BYPASS)
-#define SE_FLAGS_AE (SE_ACTIVE | SE_EXPIRE)
-
-/**
- * Verify the presence/absence of an npf session
- *
- * @param desc       [in] Optional text to be prepended to any error message
- * @param saddr      [in] Source address string
- * @param src_id     [in] Source ID in host order (TCP port, ICMP id)
- * @param daddr      [in] Dest address string
- * @param dst_id     [in] Dest ID in host order (TCP port, ICMP id)
- * @param proto      [in] IP protocol
- * @param intf       [in] Interface string, e.g. "dp2T1"
- * @param exp_flags  [in] Expected flags, e.g. SE_ACTIVE | SE_PASS
- * @param flags_mask [in] Flags mask, e.g. SE_FLAGS_MASK
- * @param state      [in] true if we expect to find the session
- *
- * @return true if found
- **/
-bool _dp_test_npf_session_verify(char *desc,
-				 const char *saddr, uint16_t src_id,
-				 const char *daddr, uint16_t dst_id,
-				 uint8_t proto,
-				 const char *intf,
-				 uint32_t exp_flags, uint32_t flags_mask,
-				 bool exists, const char *file, int line);
-
 #define dp_test_npf_session_verify(desc, saddr, src_id, daddr, dst_id, proto, \
 				   intf, flgs, msk, exists)		\
-	_dp_test_npf_session_verify(desc, saddr, src_id, daddr, dst_id, \
-				    proto, intf, flgs, msk, exists,	\
-				    __FILE__, __LINE__)
+	_dp_test_session_verify(desc, saddr, src_id, daddr, dst_id, \
+				proto, intf, flgs, msk, exists,	\
+				__FILE__, __LINE__)
+
+#define dp_test_npf_session_verify_count(desc, saddr, src_id, daddr, dst_id, \
+					 proto, intf, flgs, msk,	\
+					 pkts_in, bytes_in, pkts_out,	\
+					 bytes_out)			\
+	_dp_test_session_verify_count(desc, saddr, src_id, daddr, dst_id, \
+				      proto, intf, flgs, msk,	\
+				      pkts_in, bytes_in, pkts_out,	\
+				      bytes_out, __FILE__, __LINE__)
 
 /**
  * Verify the presence/absence of an npf session.  The 5-tuple is derived from

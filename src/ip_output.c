@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2017-2018, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2011-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -35,7 +35,7 @@
 #include "mpls/mpls.h"
 #include "mpls/mpls_forward.h"
 #include "nh.h"
-#include "pktmbuf.h"
+#include "pktmbuf_internal.h"
 #include "route.h"
 #include "route_flags.h"
 #include "snmp_mib.h"
@@ -54,8 +54,8 @@ void ip_output(struct rte_mbuf *m, bool srced_forus)
 	eh->ether_type = htons(ETHER_TYPE_IPv4);
 
 	/* Do route lookup */
-	nxt = rt_lookup(srced_forus ? ip->saddr : ip->daddr,
-			RT_TABLE_MAIN, m);
+	nxt = dp_rt_lookup(srced_forus ? ip->saddr : ip->daddr,
+			   RT_TABLE_MAIN, m);
 	if (!nxt) {
 		/*
 		 * Since there is no output interface count against
@@ -66,7 +66,7 @@ void ip_output(struct rte_mbuf *m, bool srced_forus)
 	}
 
 	/* ifp can be changed by nxt->ifp. use protected deref. */
-	ifp = nh4_get_ifp(nxt);
+	ifp = dp_nh4_get_ifp(nxt);
 
 	/* MPLS imposition required because nh has given us a label */
 	if (nh_outlabels_present(&nxt->outlabels)) {
@@ -100,7 +100,7 @@ void ip_output(struct rte_mbuf *m, bool srced_forus)
 		return;
 	}
 
-	if (ip_l2_resolve_and_output(NULL, m, nxt, ETH_P_IP))
+	if (dp_ip_l2_nh_output(NULL, m, nxt, ETH_P_IP))
 		IPSTAT_INC_IFP(ifp, IPSTATS_MIB_OUTPKTS);
 
 	return;
@@ -225,7 +225,7 @@ void ip_fragment_mtu(struct ifnet *ifp, unsigned int mtu, struct rte_mbuf *m0,
 {
 	struct iphdr *ip = iphdr(m0);
 	struct vrf *vrf = if_vrf(ifp);
-	unsigned int hlen = pktmbuf_l3_len(m0);
+	unsigned int hlen = dp_pktmbuf_l3_len(m0);
 	uint16_t iplen = ntohs(ip->tot_len);
 	unsigned int len = (mtu - hlen) & ~7;	/* size of payload  */
 	struct rte_mbuf *m;
@@ -266,7 +266,7 @@ void ip_fragment_mtu(struct ifnet *ifp, unsigned int mtu, struct rte_mbuf *m0,
 
 		memcpy(rte_pktmbuf_mtod(m, char *),
 		       rte_pktmbuf_mtod(m0, char *),
-		       pktmbuf_l2_len(m0) + mhlen);
+		       dp_pktmbuf_l2_len(m0) + mhlen);
 
 		mhip = iphdr(m);
 		if (hlen > sizeof(struct iphdr)) {
@@ -274,8 +274,8 @@ void ip_fragment_mtu(struct ifnet *ifp, unsigned int mtu, struct rte_mbuf *m0,
 			mhip->version = IPVERSION;
 			mhip->ihl = mhlen >> 2;
 		}
-		pktmbuf_l3_len(m) = mhlen;
-		rte_pktmbuf_data_len(m) = pktmbuf_l2_len(m) + mhlen;
+		dp_pktmbuf_l3_len(m) = mhlen;
+		rte_pktmbuf_data_len(m) = dp_pktmbuf_l2_len(m) + mhlen;
 		rte_pktmbuf_pkt_len(m) = rte_pktmbuf_data_len(m);
 		mhip->frag_off = htons(((len * frag_number) >> 3) +
 				       ntohs(ip->frag_off));
@@ -286,7 +286,7 @@ void ip_fragment_mtu(struct ifnet *ifp, unsigned int mtu, struct rte_mbuf *m0,
 		mhip->check = 0;
 		mhip->check = in_cksum(mhip, mhlen);
 
-		if (ip_mbuf_copy(m, m0, off + pktmbuf_l2_len(m0), sz) < 0) {
+		if (ip_mbuf_copy(m, m0, off + dp_pktmbuf_l2_len(m0), sz) < 0) {
 			rte_pktmbuf_free(m);
 			goto drop;
 		}
@@ -300,16 +300,16 @@ void ip_fragment_mtu(struct ifnet *ifp, unsigned int mtu, struct rte_mbuf *m0,
 	 * Copy first fragment and update header.
 	 */
 	m = pktmbuf_allocseg(m0->pool, pktmbuf_get_vrf(m0),
-			     len + pktmbuf_l2_len(m0) + hlen);
+			     len + dp_pktmbuf_l2_len(m0) + hlen);
 	if (m == NULL)
 		goto drop;
 
 	pktmbuf_copy_meta(m, m0);
 
 	memcpy(rte_pktmbuf_mtod(m, char *),
-	       rte_pktmbuf_mtod(m0, char *), pktmbuf_l2_len(m0) + hlen);
-	pktmbuf_l3_len(m) = hlen;
-	rte_pktmbuf_data_len(m) = pktmbuf_l2_len(m0) + hlen;
+	       rte_pktmbuf_mtod(m0, char *), dp_pktmbuf_l2_len(m0) + hlen);
+	dp_pktmbuf_l3_len(m) = hlen;
+	rte_pktmbuf_data_len(m) = dp_pktmbuf_l2_len(m0) + hlen;
 	rte_pktmbuf_pkt_len(m) = rte_pktmbuf_data_len(m);
 
 	mhip = iphdr(m);
@@ -319,7 +319,7 @@ void ip_fragment_mtu(struct ifnet *ifp, unsigned int mtu, struct rte_mbuf *m0,
 	mhip->check = 0;
 	mhip->check = in_cksum(mhip, hlen);
 
-	int res = ip_mbuf_copy(m, m0, pktmbuf_l2_len(m0) + hlen, len);
+	int res = ip_mbuf_copy(m, m0, dp_pktmbuf_l2_len(m0) + hlen, len);
 	if (res < 0) {
 		rte_pktmbuf_free(m);
 		goto drop;

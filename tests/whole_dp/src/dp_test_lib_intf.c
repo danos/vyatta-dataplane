@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2019, AT&T Intellectual Property. All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property. All rights reserved.
  * Copyright (c) 2015-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -11,14 +11,14 @@
 #include <rte_eth_ring.h>
 #include <rte_errno.h>
 
-#include "dp_test_lib_intf.h"
+#include "dp_test_lib_intf_internal.h"
 
 #include "dp_test.h"
 #include "dp_test_console.h"
 #include "dp_test_controller.h"
 #include "dp_test_json_utils.h"
-#include "dp_test_lib.h"
-#include "dp_test_netlink_state.h"
+#include "dp_test_lib_internal.h"
+#include "dp_test_netlink_state_internal.h"
 #include "dp_test_str.h"
 
 /*
@@ -1047,7 +1047,7 @@ static void dp_test_intf_get_stats_for_if(const char *ifname,
 {
 	char real_ifname[IFNAMSIZ];
 	dp_test_intf_real(ifname, real_ifname);
-	struct ifnet *ifp = ifnet_byifname(real_ifname);
+	struct ifnet *ifp = dp_ifnet_byifname(real_ifname);
 	if_stats(ifp, stats);
 }
 

@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2017-2019, AT&T Intellectual Property. All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property. All rights reserved.
  * Copyright (c) 2011-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -30,16 +30,14 @@
 #include <linux/xfrm.h>
 #include <czmq.h>
 #include <rte_debug.h>
-#include <rte_eth_bond.h>
 #include <rte_ethdev.h>
 #include <rte_ether.h>
 #include <rte_log.h>
 #include <rte_memory.h>
 
-#include "bridge.h"
 #include "compat.h"
 #include "compiler.h"
-#include "config.h"
+#include "config_internal.h"
 #include "crypto/crypto.h"
 #include "crypto/crypto_policy.h"
 #include "crypto/crypto_sadb.h"
@@ -48,26 +46,27 @@
 #include "ether.h"
 #include "fal.h"
 #include "fal_plugin.h"
-#include "gre.h"
+#include "if/bridge/bridge.h"
+#include "if/dpdk-eth/vhost.h"
+#include "if/gre.h"
+#include "if/macvlan.h"
+#include "if/vlan/vlan_if.h"
+#include "if/vxlan.h"
 #include "if_name_types.h"
 #include "if_var.h"
 #include "ip_mcast.h"
 #include "l2_rx_fltr.h"
 #include "l2tp/l2tpeth.h"
 #include "lag.h"
-#include "macvlan.h"
 #include "main.h"
 #include "netlink.h"
 #include "pipeline/nodes/pppoe/pppoe.h"
 #include "route.h"
 #include "util.h"
-#include "vhost.h"
-#include "vlan_if.h"
 #include "vplane_debug.h"
 #include "vplane_log.h"
-#include "vrf.h"
+#include "vrf_internal.h"
 #include "vrf_if.h"
-#include "vxlan.h"
 #include "vlan_modify.h"
 
 static int linkinfo_attr(const struct nlattr *attr, void *data)
@@ -160,7 +159,7 @@ static struct ifnet *ppp_create(unsigned int ifindex, const char *ifname,
 {
 	struct ifnet *ifp;
 
-	ifp = ifnet_byifname(ifname);
+	ifp = dp_ifnet_byifname(ifname);
 	if (ifp != NULL) {
 		if_unset_ifindex(ifp);
 		if_set_ifindex(ifp, ifindex);
@@ -182,7 +181,7 @@ static struct ifnet *other_tunnel_create(unsigned int ifindex,
 {
 	struct ifnet *ifp;
 
-	ifp = ifnet_byifname(ifname);
+	ifp = dp_ifnet_byifname(ifname);
 	if (ifp != NULL) {
 		if_unset_ifindex(ifp);
 		if_set_ifindex(ifp, ifindex);
@@ -190,6 +189,29 @@ static struct ifnet *other_tunnel_create(unsigned int ifindex,
 	}
 
 	ifp = if_alloc(ifname, IFT_TUNNEL_OTHER, mtu, eth_addr,
+		       SOCKET_ID_ANY);
+	if (!ifp)
+		rte_panic("out of memory for tunnel ifnet\n");
+
+	if_set_ifindex(ifp, ifindex);
+	return ifp;
+}
+
+static struct ifnet *pimreg_tunnel_create(unsigned int ifindex,
+					 const char *ifname,
+					 unsigned int mtu,
+					 const struct ether_addr *eth_addr)
+{
+	struct ifnet *ifp;
+
+	ifp = dp_ifnet_byifname(ifname);
+	if (ifp != NULL) {
+		if_unset_ifindex(ifp);
+		if_set_ifindex(ifp, ifindex);
+		return ifp;
+	}
+
+	ifp = if_alloc(ifname, IFT_TUNNEL_PIMREG, mtu, eth_addr,
 		       SOCKET_ID_ANY);
 	if (!ifp)
 		rte_panic("out of memory for tunnel ifnet\n");
@@ -307,7 +329,7 @@ vrf_link_create(const struct ifinfomsg *ifi, const char *ifname,
 static struct ifnet *
 dataplane_tuntap_create(unsigned int if_idx, const char *ifname)
 {
-	struct ifnet *ifp = ifnet_byifname(ifname);
+	struct ifnet *ifp = dp_ifnet_byifname(ifname);
 
 	/*
 	 * Is it a local port created previously?
@@ -404,6 +426,8 @@ static struct ifnet *unspec_link_create(const struct nlmsghdr *nlh,
 		if (!strcmp(ifname, "sit0"))
 			return NULL;
 		return other_tunnel_create(if_idx, ifname, mtu, macaddr);
+	case ARPHRD_PIMREG:
+		return pimreg_tunnel_create(if_idx, ifname, mtu, macaddr);
 	case ARPHRD_NONE:
 		if (!strcmp(kind, "tun")) {
 			/* We do not want an interface for this */
@@ -496,7 +520,7 @@ static struct ifnet *unspec_link_create(const struct nlmsghdr *nlh,
 
 	/* Nested types follow */
 	if (parent_idx) {
-		parent_ifp = ifnet_byifindex(parent_idx);
+		parent_ifp = dp_ifnet_byifindex(parent_idx);
 		if (!parent_ifp) {
 			if (is_ignored_interface(parent_idx))
 				RTE_LOG(INFO, DATAPLANE,
@@ -557,7 +581,7 @@ static vrfid_t netlink_get_link_vrf(struct ifnet *ifp,
 
 		master = cont_src_ifindex(cont_src,
 					  mnl_attr_get_u32(tb[IFLA_MASTER]));
-		master_ifp = ifnet_byifindex(master);
+		master_ifp = dp_ifnet_byifindex(master);
 		if (master_ifp && master_ifp->if_type == IFT_VRFMASTER)
 			return vrfmaster_get_vrfid(master_ifp);
 	} else if (ifp->if_type == IFT_VRFMASTER) {
@@ -640,7 +664,7 @@ static void unspec_link_modify(struct ifnet *ifp,
 
 			master = cont_src_ifindex(cont_src,
 					mnl_attr_get_u32(tb[IFLA_MASTER]));
-			master_ifp = ifnet_byifindex(master);
+			master_ifp = dp_ifnet_byifindex(master);
 
 			if (master_ifp == NULL) {
 				DP_DEBUG(NETLINK_IF, ERR, DATAPLANE,
@@ -752,7 +776,7 @@ static int unspec_link_change(const struct nlmsghdr *nlh,
 	}
 
 	ifindex = cont_src_ifindex(cont_src, ifi->ifi_index);
-	ifp = ifnet_byifindex(ifindex);
+	ifp = dp_ifnet_byifindex(ifindex);
 	if (nlh->nlmsg_type == RTM_NEWLINK)
 		msg = (ifp) ? "MOD" : "NEW";
 	else if (nlh->nlmsg_type == RTM_DELLINK)
@@ -798,8 +822,6 @@ static int unspec_link_change(const struct nlmsghdr *nlh,
 				if_set_vrf(ifp, vrf_id);
 				if_set_cont_src(ifp, cont_src);
 				ifp->if_flags = ifi->ifi_flags;
-				if (ifp->if_flags & IFF_UP)
-					if_start(ifp);
 				if_set_broadcast(ifp,
 						 ifp->if_flags & IFF_BROADCAST);
 				if_finish_create(
@@ -808,6 +830,8 @@ static int unspec_link_change(const struct nlmsghdr *nlh,
 					tb[IFLA_ADDRESS] ?
 					mnl_attr_get_payload(tb[IFLA_ADDRESS])
 					: NULL);
+				if (ifp->if_flags & IFF_UP)
+					if_start(ifp);
 			} else {
 				if (is_dp_intf(ifname))
 					missed_nl_unspec_link_add(ifindex, nlh);
@@ -855,7 +879,7 @@ static int unspec_addr_change(const struct nlmsghdr *nlh,
 	struct ifnet *ifp;
 	unsigned int ifindex = cont_src_ifindex(cont_src, ifa->ifa_index);
 
-	ifp = ifnet_byifindex(cont_src_ifindex(cont_src, ifindex));
+	ifp = dp_ifnet_byifindex(cont_src_ifindex(cont_src, ifindex));
 
 	if (tb[IFA_ADDRESS])
 		addr = mnl_attr_get_payload(tb[IFA_ADDRESS]);
@@ -1271,7 +1295,7 @@ xfrm_attr_vrf(struct xfrm_selector *sel, vrfid_t *vrfid, uint32_t *ifindex)
 		 * the selector. In this case the vrf will be the vrf master
 		 * of the given ifindex if set, otherwise the DEFAULT vrf.
 		 */
-		struct ifnet *ifp = ifnet_byifindex(sel->ifindex);
+		struct ifnet *ifp = dp_ifnet_byifindex(sel->ifindex);
 
 		if (ifp) {
 			if (ifp->if_type == IFT_VRFMASTER) {
@@ -1501,7 +1525,7 @@ int rtnl_process_xfrm(const struct nlmsghdr *nlh, void *data)
 	 */
 	if (vrfid != VRF_DEFAULT_ID) {
 		if (sel->ifindex) {
-			struct ifnet *ifp = ifnet_byifindex(sel->ifindex);
+			struct ifnet *ifp = dp_ifnet_byifindex(sel->ifindex);
 			struct xfrm_selector *new_sel;
 
 			new_sel = (struct xfrm_selector *)sel;

@@ -1,0 +1,15 @@
+// Copyright (c) 2019, AT&T Intellectual Property.  All rights reserved.
+//
+// SPDX-License-Identifier: LGPL-2.1-only
+//
+// IP6Redirects protobuf definitions
+//
+
+syntax="proto2";
+
+option go_package = "github.com/danos/vyatta-dataplane/protobuf/go/IP6RedirectsConfig";
+
+message IP6RedirectsConfig {
+        //IP6Redirect Enable|Disable
+	optional bool enable_redirects = 1;
+}

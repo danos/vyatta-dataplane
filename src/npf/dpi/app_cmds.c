@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2018-2020, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -24,7 +24,7 @@
 #include "urcu.h"
 #include "util.h"
 #include "vplane_log.h"
-#include "npf/dpi/dpi.h"
+#include "npf/dpi/dpi_internal.h"
 
 static zhash_t *cmd_op_hash;
 

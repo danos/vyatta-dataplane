@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2019-2020, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -20,11 +20,15 @@
 #include "dp_event.h"
 
 #include "npf/cgnat/cgn.h"
-#include "npf/apm/apm.h"
 #include "npf/cgnat/cgn_errno.h"
+#include "npf/apm/apm.h"
+#include "npf/cgnat/cgn_cmd_cfg.h"
+#include "npf/cgnat/cgn_errno.h"
+#include "npf/cgnat/cgn_if.h"
 #include "npf/cgnat/cgn_policy.h"
 #include "npf/cgnat/cgn_session.h"
 #include "npf/cgnat/cgn_source.h"
+#include "npf/cgnat/cgn_log.h"
 #include "npf/nat/nat_pool_event.h"
 #include "npf/nat/nat_pool_public.h"
 
@@ -36,22 +40,99 @@
 /* Hairpinning config enable/disable */
 bool cgn_hairpinning_gbl = true;
 
-/* Time in millisecs since Epoch relative to soft_ticks==0 */
+/* snat-alg-bypass enable/disable */
+bool cgn_snat_alg_bypass_gbl;
+
+/*
+ * Simple global counts for the number of dest addr (sess2) hash tables
+ * created and destroyed.  These URCU hash tables are fairly resource
+ * intensive, so we want to get some idea of how often they are required.
+ */
+rte_atomic64_t cgn_sess2_ht_created;
+rte_atomic64_t cgn_sess2_ht_destroyed;
+
+/*
+ * Time in millisecs since Epoch, relative to soft_ticks==0.  This is
+ * calculated once when the dataplane starts.  Its value may then be added to
+ * soft_ticks in order to get a 'unix epoch' millisec time.
+ */
 static uint64_t cgn_epoch_ms;
 
-static void cgn_init_time(void)
+/* Return code and error counters. */
+struct cgn_rc_t *cgn_rc;
+
+uint64_t cgn_rc_read(enum cgn_dir dir, enum cgn_rc_en rc)
 {
-	struct timeval tod;
-	uint64_t ms;
+	uint64_t sum;
+	uint i;
 
-	gettimeofday(&tod, NULL);
+	if (rc >= CGN_RC_SZ || dir >= CGN_DIR_SZ || !cgn_rc)
+		return 0UL;
 
-	ms = (tod.tv_sec * 1000) + (tod.tv_usec / 1000);
-	cgn_epoch_ms = ms - soft_ticks;
+	sum = 0UL;
+	FOREACH_DP_LCORE(i)
+		sum += cgn_rc[i].dir[dir].count[rc];
+
+	return sum;
+}
+
+void cgn_rc_clear(enum cgn_dir dir, enum cgn_rc_en rc)
+{
+	uint i;
+
+	if (rc >= CGN_RC_SZ || dir >= CGN_DIR_SZ || !cgn_rc)
+		return;
+
+	FOREACH_DP_LCORE(i)
+		cgn_rc[i].dir[dir].count[rc] = 0UL;
 }
 
 /*
- * Convert soft_ticks in millisecs to Epoch timestamp in microseconds.
+ * Init cgnat global per-core return code counters
+ */
+static void cgn_rc_init(void)
+{
+	if (cgn_rc)
+		return;
+
+	cgn_rc = zmalloc_aligned((get_lcore_max() + 1) * sizeof(*cgn_rc));
+}
+
+static void cgn_rc_uninit(void)
+{
+	free(cgn_rc);
+	cgn_rc = NULL;
+}
+
+/*
+ * Dataplane uptime in seconds. Accurate to 10 millisecs.  Used to expire
+ * table entries.
+ */
+uint32_t cgn_uptime_secs(void)
+{
+	return (uint32_t)(soft_ticks / 1000);
+}
+
+/*
+ * Unix epoch time in microseconds.  Used for TCP 5-tuple sessions RTT
+ * calculations.
+ */
+uint64_t cgn_time_usecs(void)
+{
+	struct timeval tod;
+
+	gettimeofday(&tod, NULL);
+	return (tod.tv_sec * 1000000) + tod.tv_usec;
+}
+
+/* Initialize cgn_epoch_ms */
+static void cgn_init_time(void)
+{
+	cgn_epoch_ms = (cgn_time_usecs()) / 1000 - soft_ticks;
+}
+
+/*
+ * Convert soft_ticks in millisecs to Epoch timestamp in microseconds
  */
 uint64_t cgn_ticks2timestamp(uint64_t ticks)
 {
@@ -118,6 +199,7 @@ static void cgn_nat_pool_event_init(void)
  */
 static void cgn_init(void)
 {
+	cgn_rc_init();
 	cgn_nat_pool_event_init();
 	cgn_policy_init();
 	cgn_session_init();
@@ -135,6 +217,38 @@ static void cgn_uninit(void)
 	apm_uninit();
 	cgn_source_uninit();
 	cgn_policy_uninit();
+	cgn_log_disable_all_handlers();
+	cgn_rc_uninit();
+}
+
+/*
+ * Callback for dataplane DP_EVT_IF_INDEX_SET event.
+ */
+static void
+cgn_event_if_index_set(struct ifnet *ifp)
+{
+	/* Replay any stored config */
+	cgn_cfg_replay(ifp);
+}
+
+/*
+ * Callback for dataplane DP_EVT_IF_INDEX_UNSET event.
+ */
+static void
+cgn_event_if_index_unset(struct ifnet *ifp, uint32_t ifindex __unused)
+{
+	/* Discard any stored config */
+	cgn_cfg_replay_clear(ifp);
+
+	/*
+	 * For each policy on interface:
+	 *  1. Clear sessions,
+	 *  2. Remove policy from cgn_if list
+	 *  3. Remove policy from hash table
+	 *  4. Release reference on policy
+	 * Free cgn_if
+	 */
+	cgn_if_disable(ifp);
 }
 
 /*

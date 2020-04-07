@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2018, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2011-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -9,7 +9,7 @@
 #ifndef IPV4_RSMBL_H
 #define IPV4_RSMBL_H
 
-#include "vrf.h"
+#include "vrf_internal.h"
 
 struct vrf;
 

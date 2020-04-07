@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2018-2020, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -15,10 +15,10 @@
 
 #include "ip_funcs.h"
 #include "ip6_funcs.h"
-#include "pktmbuf.h"
+#include "pktmbuf_internal.h"
 #include "npf/npf_ruleset.h"
 #include "npf/rproc/npf_rproc.h"
-#include "npf/dpi/dpi.h"
+#include "npf/dpi/dpi_internal.h"
 #include "npf/dpi/dpi_private.h"
 
 #define APP_NAME_HT_SIZE	32

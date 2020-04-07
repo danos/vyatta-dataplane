@@ -113,6 +113,8 @@ struct mrtstat {
 struct mcast_vrf {
 	struct cds_lfht *mfchashtbl;
 	struct mrtstat stat;
+	struct cds_lfht *viftable;
+	struct if_set	mfc_ifset;		/* set of mulicast ifs  */
 	fal_object_t	v_fal_obj;	   /* fal object                */
 	fal_object_t	v_fal_rpf;	   /* fal rpf group object      */
 	struct fal_object_list_t *v_fal_rpf_lst;/* fal rpf members object  */
@@ -133,6 +135,7 @@ struct vif {
 	unsigned char	v_threshold;	   /* min ttl required to fwd on vif */
 	struct ifnet	*v_ifp;		   /* pointer to interface           */
 	uint32_t	v_if_index;	   /* interface device index	     */
+	unsigned char   v_vif_index;       /* per vrf vif index              */
 	uint64_t	v_pkt_in;	   /* # pkts in on interface         */
 	uint64_t	v_pkt_out;	   /* # pkts out on interface        */
 	uint64_t	v_pkt_out_punt;	   /* # pkts punted at output intf   */

@@ -26,14 +26,14 @@ pipeline {
     parameters { booleanParam(name: 'FORCE_VALGRIND', defaultValue: false, description: 'Execute Valgrind even for a PR branch') }
 
     environment {
-	OBS_TARGET_PROJECT = 'VR:Dartmouth'
+	OBS_TARGET_PROJECT = 'Vyatta:Master'
 	OBS_TARGET_REPO = 'standard'
 	OBS_TARGET_ARCH = 'x86_64'
 	// # Replace : with _ in project name, as osc-buildpkg does
 	OSC_BUILD_ROOT = "${WORKSPACE}" + '/build-root/' + "${env.OBS_TARGET_PROJECT.replace(':','_')}" + '-' + "${env.OBS_TARGET_REPO}" + '-' + "${OBS_TARGET_ARCH}"
 	DH_VERBOSE = 1
 	DH_QUIET = 0
-	DEB_BUILD_OPTIONS ='verbose'
+	DEB_BUILD_OPTIONS ='verbose all_tests'
     }
 
     options {
@@ -60,13 +60,6 @@ export JENKINS_NODE_COOKIE=\"${JENKINS_NODE_COOKIE}\"
 dpkg-buildpackage -jauto -us -uc -b
 EOF
 """
-		sh """
-cat <<EOF > osc-buildpackage_buildscript_scan_build
-export BUILD_ID=\"${BUILD_ID}\"
-export JENKINS_NODE_COOKIE=\"${JENKINS_NODE_COOKIE}\"
-scan-build --status-bugs --use-cc clang --use-c++ clang++ -o clangScanBuildReports -maxloop 64 dpkg-buildpackage -jauto -us -uc -b
-EOF
-"""
 	    }
 	}
 
@@ -85,63 +78,6 @@ OSC_BUILDPACKAGE_BUILDSCRIPT=\"${WORKSPACE}/osc-buildpackage_buildscript_default
 EOF
 """
 		    sh "osc-buildpkg -v -g -T -P ${env.OBS_TARGET_PROJECT} ${env.OBS_TARGET_REPO} -- --trust-all-projects --build-uid='caller'"
-		}
-	    }
-	}
-
-	stage('clang Static Analysis') {
-	    environment {
-		CC = 'clang'
-		CXX ='clang++'
-		DEB_BUILD_OPTIONS = 'nocheck'
-	    }
-	    steps {
-		dir('vyatta-dataplane') {
-		    sh """
-cat <<EOF > .osc-buildpackage.conf
-OSC_BUILDPACKAGE_TMP=\"${WORKSPACE}\"
-OSC_BUILDPACKAGE_BUILDSCRIPT=\"${WORKSPACE}/osc-buildpackage_buildscript_scan_build\"
-EOF
-"""
-		    sh "osc-buildpkg -v -g -T -P ${env.OBS_TARGET_PROJECT} ${env.OBS_TARGET_REPO} -- --trust-all-projects --build-uid='caller' --extra-pkgs='clang' --extra-pkgs='llvm-dev'"
-		}
-	    }
-	    post {
-		failure {
-		    echo 'clang analyzer found issues'
-		    dir('clangScanBuildReports'){
-			sh "cp ${env.OSC_BUILD_ROOT}/usr/src/packages/BUILD/clangScanBuildReports/*/* ."
-		    }
-		    publishHTML target: [
-			allowMissing: false,
-			alwaysLinkToLastBuild: false,
-			keepAll: false,
-			reportDir: 'clangScanBuildReports',
-			reportFiles: 'index.html',
-			reportTitles: 'clang scan-build Static Analysis',
-			reportName: 'clang scan-build Static Analysis Report'
-		    ]
-		}
-	    }
-	}
-
-	stage('Valgrind') {
-	    when { anyOf {
-                expression { env.CHANGE_ID == null } // If this is not a Pull Request
-                expression { return params.FORCE_VALGRIND } // Or if forced
-	    }}
-	    environment {
-		DEB_BUILD_PROFILES = 'pkg.vyatta-dataplane.valgrind'
-	    }
-	    steps {
-		dir('vyatta-dataplane') {
-		    sh """
-cat <<EOF > .osc-buildpackage.conf
-OSC_BUILDPACKAGE_TMP=\"${WORKSPACE}\"
-OSC_BUILDPACKAGE_BUILDSCRIPT=\"${WORKSPACE}/osc-buildpackage_buildscript_default\"
-EOF
-"""
-		    sh "osc-buildpkg -v -g -T -P ${env.OBS_TARGET_PROJECT} ${env.OBS_TARGET_REPO} -- --trust-all-projects --build-uid='caller' --extra-pkgs='valgrind'"
 		}
 	    }
 	}
@@ -165,8 +101,8 @@ EOF
 		success {
 		    publishHTML target: [
 			allowMissing: false,
-			alwaysLinkToLastBuild: false,
-			keepAll: false,
+			alwaysLinkToLastBuild: true,
+			keepAll: true,
 			reportDir: 'cppcheck_reports',
 			reportFiles: 'index.html',
 			reportTitles: 'cppcheck Static Analysis',
@@ -196,6 +132,27 @@ EOF
 		dir('vyatta-dataplane') {
 		//TODO: Path to checkpatch.pl should not be hardcoded!
 		    sh "PATH=~/linux-vyatta/scripts:$PATH ./scripts/checkpatch_wrapper.sh upstream/${env.CHANGE_TARGET} origin/${env.BRANCH_NAME}"
+		}
+	    }
+	}
+
+	stage('gitlint') {
+	    when {
+		allOf {
+		    // Only if this is a Pull Request
+		    expression { env.CHANGE_ID != null }
+		    expression { env.CHANGE_TARGET != null }
+		}
+	    }
+	    agent {
+		docker { image 'jorisroovers/gitlint'
+			args '--entrypoint=""'
+			reuseNode true
+		}
+	    }
+	    steps {
+		dir('vyatta-dataplane') {
+		    sh "gitlint --commits upstream/${env.CHANGE_TARGET}..origin/${env.BRANCH_NAME}"
 		}
 	    }
 	}

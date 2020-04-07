@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2018, AT&T Intellectual Property. All rights reserved.
+ * Copyright (c) 2018-2020, AT&T Intellectual Property. All rights reserved.
  * Copyright (c) 2015-2017 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -17,8 +17,8 @@
 #include <stdbool.h>
 
 
-#include "dp_test_lib.h"
-#include "dp_test_lib_intf.h"
+#include "dp_test_lib_internal.h"
+#include "dp_test_lib_intf_internal.h"
 
 #define DP_TEST_MAX_EXPECTED_PAKS 10
 #define DP_TEST_MAX_DONT_CARE 10 /* Number of dont care ranges */

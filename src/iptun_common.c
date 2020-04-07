@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2015-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -22,7 +22,7 @@
 #include "ip6_funcs.h"
 #include "ip_funcs.h"
 #include "iptun_common.h"
-#include "pktmbuf.h"
+#include "pktmbuf_internal.h"
 #include "fal_plugin.h"
 #include "fal.h"
 #include "vplane_log.h"
@@ -212,7 +212,7 @@ mbuf_get_inner_ip(struct rte_mbuf *m, const char *outer, char *inner,
 	unsigned int len;
 
 	/* Is there enough data in the first segment to find the inner hdr. */
-	len = rte_pktmbuf_data_len(m) - pktmbuf_l2_len(m);
+	len = rte_pktmbuf_data_len(m) - dp_pktmbuf_l2_len(m);
 
 	if (*next_prot == ETH_P_IP) {
 		if (len >= (inner - outer) + sizeof(struct iphdr))
@@ -238,7 +238,7 @@ iptun_eth_hdr_fixup(struct rte_mbuf *m, uint16_t next_prot,
 	 * protocol headers. Need to leave the mbuf such that if we
 	 * were to pass the packet to the kernel, the L2 header
 	 * protocol accurately reflects the next header and has a
-	 * correct dest addr set.
+	 * correct source and dest addr set.
 	 */
 	orig_eth = rte_pktmbuf_mtod(m, struct ether_hdr *);
 	new_eth = (struct ether_hdr *)rte_pktmbuf_adj(m, decap_size);
@@ -246,6 +246,7 @@ iptun_eth_hdr_fixup(struct rte_mbuf *m, uint16_t next_prot,
 		return -1;
 
 	new_eth->ether_type = htons(next_prot);
+	new_eth->s_addr = orig_eth->s_addr;
 	new_eth->d_addr = orig_eth->d_addr;
 	return 0;
 }
@@ -310,8 +311,7 @@ void iptun_create_fal_tep(struct ifnet *ifp, struct tun_info_st *tun_info,
 	}
 
 	ret = fal_create_tunnel(l3_nattrs, l3_attrs, obj);
-	if (((ret < 0) && (ret != -EOPNOTSUPP)) ||
-	    (!*obj))
+	if ((ret < 0 || !*obj) && (ret != -EOPNOTSUPP))
 		RTE_LOG(ERR, DATAPLANE,
 			"Failed to create FAL tun object for GRE tun: %s\n",
 			ifp->if_name);

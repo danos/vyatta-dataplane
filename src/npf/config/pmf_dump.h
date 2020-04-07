@@ -1,3 +1,9 @@
+/*
+ * Copyright (c) 2019-2020, AT&T Intellectual Property.  All rights reserved.
+ *
+ * SPDX-License-Identifier: LGPL-2.1-only
+ */
+
 #ifndef _PMF_DUMP_H_
 #define _PMF_DUMP_H_
 

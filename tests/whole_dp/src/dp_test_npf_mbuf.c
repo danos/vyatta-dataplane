@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2019-2020, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  *
@@ -21,11 +21,11 @@
 #include "dp_test.h"
 #include "dp_test_controller.h"
 #include "dp_test_console.h"
-#include "dp_test_netlink_state.h"
-#include "dp_test_cmd_check.h"
-#include "dp_test_lib.h"
-#include "dp_test_pktmbuf_lib.h"
-#include "dp_test_lib_intf.h"
+#include "dp_test_netlink_state_internal.h"
+#include "dp_test/dp_test_cmd_check.h"
+#include "dp_test_lib_internal.h"
+#include "dp_test_lib_intf_internal.h"
+#include "dp_test_pktmbuf_lib_internal.h"
 #include "dp_test_lib_exp.h"
 #include "dp_test_lib_pkt.h"
 #include "dp_test_npf_lib.h"
@@ -297,52 +297,6 @@ DP_START_TEST(npf_mbuf3, test)
 } DP_END_TEST;
 
 
-static void
-cgnat_policy_add(const char *policy, uint pri, const char *src,
-		  const char *pool, const char *intf,
-		  enum cgn_map_type eim, enum cgn_fltr_type eif,
-		  bool log_sess, bool check_feat)
-{
-	char real_ifname[IFNAMSIZ];
-
-	dp_test_intf_real(intf, real_ifname);
-
-	/* Add cgnat policy */
-	dp_test_npf_cmd_fmt(false,
-			    "cgn-ut policy add %s priority=%u "
-			    "src-addr=%s pool=%s log-sess-all=%s",
-			    policy, pri, src, pool,
-			    log_sess ? "yes" : "no");
-
-	dp_test_npf_cmd_fmt(false,
-			    "cgn-ut policy attach name=%s intf=%s",
-			    policy, real_ifname);
-
-	/* Check cgnat feature is enabled */
-	if (check_feat) {
-		dp_test_wait_for_pl_feat(intf, "vyatta:ipv4-cgnat-in",
-					 "ipv4-validate");
-		dp_test_wait_for_pl_feat(intf, "vyatta:ipv4-cgnat-out",
-					 "ipv4-out");
-	}
-}
-
-static void
-cgnat_policy_del(const char *policy, uint pri, const char *intf)
-{
-	char real_ifname[IFNAMSIZ];
-
-	dp_test_intf_real(intf, real_ifname);
-
-	dp_test_npf_cmd_fmt(false,
-			    "cgn-ut policy detach name=%s intf=%s",
-			    policy, real_ifname);
-
-	/* Delete cgnat policy */
-	dp_test_npf_cmd_fmt(false,
-			    "cgn-ut policy delete %s", policy);
-}
-
 /*
  * npf_mbuf4 -- CGNAT
  */
@@ -362,7 +316,8 @@ DP_START_TEST(npf_mbuf4, test)
 			    "address-range=RANGE1/1.1.1.13-1.1.1.13");
 
 	cgnat_policy_add("POLICY1", 10, "100.64.0.0/24", "POOL1",
-			 "dp2T1", CGN_MAP_EIM, CGN_FLTR_EIF, false, true);
+			 "dp2T1", CGN_MAP_EIM, CGN_FLTR_EIF,
+			 CGN_3TUPLE, true);
 
 	for (copy_bytes = 0; copy_bytes < copy_max; copy_bytes++) {
 

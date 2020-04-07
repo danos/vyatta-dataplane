@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2017-2019, AT&T Intellectual Property. All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property. All rights reserved.
  * Copyright (c) 2015-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -22,7 +22,7 @@
 #include "compiler.h"
 #include "crypto/vti.h"
 #include "dp_event.h"
-#include "gre.h"
+#include "if/gre.h"
 #include "ip_mcast.h"
 #include "lpm/lpm.h"
 #include "main.h"
@@ -35,7 +35,7 @@
 #include "util.h"
 #include "vplane_debug.h"
 #include "vplane_log.h"
-#include "vrf.h"
+#include "vrf_internal.h"
 #include "vrf_if.h"
 
 struct nlattr;
@@ -169,12 +169,10 @@ vrf_destroy(struct rcu_head *head)
 /*
  * Ref count records one count per -
  * 1. Interface bound to the VRF
- * 2. Non-empty route table - i.e. each struct lpm
- * belonging to the VRF holds a ref count so long as it has at
- * least one route.
- * 3. Explicit vrf creation cmd - each of these is interpreted
+ * 2. Explicit vrf creation cmd - each of these is interpreted
  * as denoting the existence of a 'reference' held in the
  * kernel or above until an explicit delete is received.
+ * 3. Other features referencing VRF
  */
 static inline void
 vrf_inc_ref_count(struct vrf *vrf)
@@ -396,10 +394,6 @@ static void vrfmaster_free_rcu(struct rcu_head *head)
 static void vrfmaster_delete(struct ifnet *ifp)
 {
 	struct vrf_softc *vrsc = ifp->if_softc;
-	struct vrf *vrf = vrf_get_rcu(vrfmaster_get_vrfid(ifp));
-
-	route_unlink_vrf_from_table(vrf);
-	route6_unlink_vrf_from_table(vrf);
 
 	call_rcu(&vrsc->vrfsc_rcu, vrfmaster_free_rcu);
 }
@@ -441,7 +435,7 @@ void vrf_set_external_id(struct vrf *vrf, vrfid_t xid)
 	vrf_find_saved_tablemap(vrf);
 }
 
-vrfid_t vrf_get_external_id(uint32_t internal_id)
+vrfid_t dp_vrf_get_external_id(uint32_t internal_id)
 {
 	struct vrf *vrf;
 
@@ -461,38 +455,65 @@ vrfid_t vrfmaster_get_tableid(struct ifnet *ifp)
 	return vrsc->vrfsc_tableid;
 }
 
+vrfid_t dp_vrf_get_vid(struct vrf *vrf)
+{
+	return vrf->v_id;
+}
+
 struct vrfmaster_lookup_by_tableid_ctx {
-	uint32_t tableid;
+	uint32_t kernel_tableid;
 	struct ifnet *ifp;
+	uint32_t user_tableid;
 };
 
 static void vrfmaster_lookup_by_tableid_worker(struct ifnet *ifp, void *arg)
 {
 	struct vrfmaster_lookup_by_tableid_ctx *ctx = arg;
+	struct vrf *vrf;
+	unsigned int i;
 
-	if (ifp->if_type == IFT_VRFMASTER &&
-	    vrfmaster_get_tableid(ifp) == ctx->tableid)
+	if (ctx->ifp || ifp->if_type != IFT_VRFMASTER)
+		return;
+
+	if (vrfmaster_get_tableid(ifp) == ctx->kernel_tableid) {
 		ctx->ifp = ifp;
+		ctx->user_tableid = RT_TABLE_MAIN;
+	} else {
+		vrf = vrf_get_rcu(vrfmaster_get_vrfid(ifp));
+		for (i = 0; i <= PBR_TABLEID_MAX; i++) {
+			if (vrf->v_pbrtablemap[i] == ctx->kernel_tableid) {
+				ctx->ifp = ifp;
+				ctx->user_tableid = i;
+			}
+		}
+	}
 }
 
-struct ifnet *vrfmaster_lookup_by_tableid(uint32_t tableid)
+int vrf_lookup_by_tableid(uint32_t kernel_tableid, vrfid_t *vrfid,
+			  uint32_t *user_tableid)
 {
 	struct vrfmaster_lookup_by_tableid_ctx ctx = {
-		.tableid = tableid,
+		.kernel_tableid = kernel_tableid,
 		.ifp = NULL,
 	};
-	ifnet_walk(vrfmaster_lookup_by_tableid_worker, &ctx);
-	return ctx.ifp;
+	dp_ifnet_walk(vrfmaster_lookup_by_tableid_worker, &ctx);
+	if (!ctx.ifp)
+		return -ENOENT;
+
+	*vrfid = vrfmaster_get_vrfid(ctx.ifp);
+	*user_tableid = ctx.user_tableid;
+
+	return 0;
 }
 
-struct vrf *vrf_get_rcu_from_external(vrfid_t external_id)
+struct vrf *dp_vrf_get_rcu_from_external(vrfid_t external_id)
 {
 	struct ifnet *master_ifp;
 
 	if (!is_nondefault_vrf(external_id))
 		return vrf_get_rcu(external_id);
 
-	master_ifp = ifnet_byifindex(external_id);
+	master_ifp = dp_ifnet_byifindex(external_id);
 	if (!master_ifp || master_ifp->if_type != IFT_VRFMASTER)
 		return VRF_INVALID_ID;
 
@@ -535,14 +556,22 @@ int cmd_tablemap_cfg(FILE *f, int argc, char **argv)
 	if (!tableid_in_pbr_range(pbr_tblid))
 		return 0;
 
-	vrf = vrf_get_rcu_from_external(vrf_id);
+	vrf = dp_vrf_get_rcu_from_external(vrf_id);
 	if (vrf && vrf->v_id == VRF_DEFAULT_ID)
 		return 0;
 
 	if (vrf == NULL)
 		vrf_save_tablemap_for_replay(vrf_id, pbr_tblid, kernel_tblid);
-	else
+	else {
 		vrf->v_pbrtablemap[pbr_tblid] = kernel_tblid;
+
+		/*
+		 * Routes may have been incomplete pending the
+		 * appearance of this tablemap, so try to complete
+		 * them now.
+		 */
+		incomplete_routes_make_complete();
+	}
 
 	return 0;
 }
@@ -562,9 +591,16 @@ vrfmaster_dump(struct ifnet *ifp, json_writer_t *wr,
 	return 0;
 }
 
+static enum dp_ifnet_iana_type
+vrfmaster_iana_type(struct ifnet *ifp __unused)
+{
+	return DP_IFTYPE_IANA_OTHER;
+}
+
 static const struct ift_ops vrfmaster_if_ops = {
 	.ifop_uninit = vrfmaster_delete,
 	.ifop_dump = vrfmaster_dump,
+	.ifop_iana_type = vrfmaster_iana_type,
 };
 
 void vrf_init(void)

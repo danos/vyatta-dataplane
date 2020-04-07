@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019, AT&T Intellectual Property.
+ * Copyright (c) 2019-2020, AT&T Intellectual Property.
  * All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
@@ -17,12 +17,12 @@
 
 #include "dp_test.h"
 #include "dp_test_str.h"
-#include "dp_test_lib.h"
+#include "dp_test_lib_internal.h"
 #include "dp_test_lib_exp.h"
-#include "dp_test_lib_intf.h"
+#include "dp_test_lib_intf_internal.h"
 #include "dp_test_lib_pkt.h"
-#include "dp_test_pktmbuf_lib.h"
-#include "dp_test_netlink_state.h"
+#include "dp_test_pktmbuf_lib_internal.h"
+#include "dp_test_netlink_state_internal.h"
 #include "dp_test_console.h"
 #include "dp_test_json_utils.h"
 
@@ -177,6 +177,48 @@ static const struct dp_test_command_t ptp_cmds[] = {
 		"ptp-ut peer delete clock-id=0 port-id=1 type=master",
 		"ptp: ip address required for peer",
 		false,
+		false,
+	},
+	/* test g.8275.2 profiles */
+	{
+		"ptp-ut clock create 0 "
+			"domain-number=0 "
+			"number-ports=2 "
+			"clock-identity=0:1:2:3:4:5:6:7 "
+			"priority1=128 "
+			"priority2=128 "
+			"slave-only=0 "
+			"two-step=0 "
+			"profile=g82752-profile",
+		"",
+		true,
+		false,
+	},
+	{
+		"ptp-ut clock delete 0",
+		"",
+		true,
+		false,
+	},
+	{
+		"ptp-ut clock create 0 "
+			"domain-number=0 "
+			"number-ports=2 "
+			"clock-identity=0:1:2:3:4:5:6:7 "
+			"priority1=128 "
+			"priority2=128 "
+			"slave-only=0 "
+			"two-step=0 "
+			"antenna-delay=100 "
+			"profile=g82752-apts-profile",
+		"",
+		true,
+		false,
+	},
+	{
+		"ptp-ut clock delete 0",
+		"",
+		true,
 		false,
 	},
 };

@@ -2,7 +2,7 @@
  * l2_cross_connect_cmd.c
  *
  *
- * Copyright (c) 2018, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2018-2020, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -36,13 +36,13 @@ static void conn_show_session(void *s, void *arg)
 			   session->local_if_name);
 	jsonw_string_field(wr, "peer_ifname",
 			   session->peer_if_name);
-	ifp = ifnet_byifname(session->local_if_name);
+	ifp = dp_ifnet_byifname(session->local_if_name);
 	jsonw_uint_field(wr, "local_ifindex",
 			 ifp ? ifp->if_index : 0);
 	peer_ifp = ifp ? rcu_dereference(ifp->if_xconnect) : NULL;
 	jsonw_uint_field(wr, "configured_peer_ifindex",
 			 peer_ifp ? peer_ifp->if_index : 0);
-	ifp = ifnet_byifname(session->peer_if_name);
+	ifp = dp_ifnet_byifname(session->peer_if_name);
 	jsonw_uint_field(wr, "peer_ifindex",
 			 ifp ? ifp->if_index : 0);
 
@@ -98,7 +98,7 @@ static int cmd_xconnect(struct pl_command *cmd)
 		if (cmd->argc == 1)
 			conn_session_walk(conn_show_session, wr);
 		else {
-			struct ifnet *ifp = ifnet_byifname(cmd->argv[1]);
+			struct ifnet *ifp = dp_ifnet_byifname(cmd->argv[1]);
 			if (ifp && ifp->if_softc) {
 				struct l2tp_softc *sc = ifp->if_softc;
 				conn_show_session(sc->sclp_session, wr);

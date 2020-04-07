@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2018, AT&T Intellectual Property. All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property. All rights reserved.
  * Copyright (c) 2015-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -18,11 +18,11 @@
 #include "dp_test.h"
 #include "dp_test_controller.h"
 #include "dp_test_cmd_state.h"
-#include "dp_test_netlink_state.h"
-#include "dp_test_lib.h"
+#include "dp_test_netlink_state_internal.h"
+#include "dp_test_lib_internal.h"
 #include "dp_test_lib_exp.h"
-#include "dp_test_lib_intf.h"
-#include "dp_test_pktmbuf_lib.h"
+#include "dp_test_lib_intf_internal.h"
+#include "dp_test_pktmbuf_lib_internal.h"
 #include "dp_test_npf_sess_lib.h"
 
 DP_DECL_TEST_SUITE(nat);
@@ -304,6 +304,144 @@ DP_START_TEST(snat, test_snat)
 	dp_test_netlink_del_neigh("dp1T0", "1.1.1.2", nh_mac_str_1);
 	dp_test_netlink_del_route("20.0.10.0/24 nh 2.2.2.1 int:dp2T1");
 	dp_test_netlink_del_route("10.0.100.0/24 nh 1.1.1.2 int:dp1T0");
+	dp_test_nl_del_ip_addr_and_connected("dp1T0", "1.1.1.1/24");
+	dp_test_nl_del_ip_addr_and_connected("dp2T1", "2.2.2.2/24");
+} DP_END_TEST;
+
+/*
+ * Dest Nat and Source Nat test
+ *
+ * TCP port 80 client 10.0.100.100 SNAT to web server DNAT 10.0.10.10
+ *
+ * 10.0.100.100 -> dp1T0 -> DNAT 10.0.10.10 SNAT 100.0.10.10 -> dp2T1   ->
+ *                 1.1.1.1                                     2.2.2.2
+ *               <-               <-                 <-         <- reply
+ *
+ * Client to Server initial packet (Inbound flow)
+ *     Original Client IP packet: [ 10.0.100.100 | 1.1.1.1    ]
+ *     After DNAT:                [ 10.0.100.100 | 10.0.10.10 ]
+ *     After SNAT:                [ 2.2.2.2      | 10.0.10.10 ]
+ *
+ * Server to client packet reply (Outbound flow)
+ *     Original Server IP packet  [ 10.0.10.10   | 2.2.2.2      ]
+ *     After SNAT:                [ 10.0.10.10   | 10.0.100.100 ] <- DST rewrite
+ *     After DNAT:                [ 1.1.1.1      | 10.0.100.100 ] <- SRC rewrite
+ */
+
+DP_DECL_TEST_CASE(nat, dnat_snat, NULL, NULL);
+DP_START_TEST_DONT_RUN(dnat_snat, test_dnat_snat)
+{
+	const char *client_ip, *server_ip, *local_snat_ip, *local_dnat_ip;
+	struct dp_test_expected *exp;
+	struct rte_mbuf *test_pak;
+	const char *nh_mac_str_1; /* nh on dp1T0 (towards client) */
+	const char *nh_mac_str_2; /* nh on dp2T1 (towards server) */
+	int len = 20;
+
+	client_ip = "10.0.100.100";
+	server_ip = "10.0.10.10";
+	local_dnat_ip = "1.1.1.1"; /* DNAT is applied inbound */
+	local_snat_ip = "2.2.2.2"; /* SNAT is applied outbound */
+
+	/* Set up the interface addresses */
+	dp_test_nl_add_ip_addr_and_connected("dp1T0", "1.1.1.1/24");
+	dp_test_nl_add_ip_addr_and_connected("dp2T1", "2.2.2.2/24");
+	/* Add the route / nh arp for the client to server flow */
+	dp_test_netlink_add_route("10.0.10.0/24 nh 2.2.2.1 int:dp2T1");
+	nh_mac_str_2 = "aa:bb:cc:dd:ee:a2";
+	dp_test_netlink_add_neigh("dp2T1", "2.2.2.1", nh_mac_str_2);
+
+	/* Add the route / nh arp for the server to client flow */
+	dp_test_netlink_add_route("10.0.100.0/24 nh 1.1.1.2 int:dp1T0");
+	nh_mac_str_1 = "aa:bb:cc:dd:ee:a1";
+	dp_test_netlink_add_neigh("dp1T0", "1.1.1.2", nh_mac_str_1);
+
+	/*
+	 * Test initial packet flow, outside to inside
+	 */
+	/* Create pak to match the client connection to server */
+#define SOURCE_PORT_NUMBER 49152
+	test_pak = dp_test_create_tcp_ipv4_pak(client_ip, local_dnat_ip,
+					       SOURCE_PORT_NUMBER, 80,
+					       TH_SYN, 0, 0, 5840,
+					       NULL, 1, &len);
+	(void)dp_test_pktmbuf_eth_init(test_pak,
+				       dp_test_intf_name2mac_str("dp1T0"),
+				       DP_TEST_INTF_DEF_SRC_MAC,
+				       ETHER_TYPE_IPv4);
+
+	/* Create pak we expect to receive on the tx ring */
+	exp = dp_test_exp_create(test_pak);
+	dp_test_exp_set_oif_name(exp, "dp2T1");
+	(void)dp_test_pktmbuf_eth_init(dp_test_exp_get_pak(exp),
+				       nh_mac_str_2,
+				       dp_test_intf_name2mac_str("dp2T1"),
+				       ETHER_TYPE_IPv4);
+
+	/* Expect the DNAT and DNAT to have occurred */
+	dp_test_set_iphdr(dp_test_exp_get_pak(exp), local_snat_ip, server_ip);
+	dp_test_set_tcphdr(dp_test_exp_get_pak(exp), SOURCE_PORT_NUMBER, 80);
+
+	dp_test_ipv4_decrement_ttl(dp_test_exp_get_pak(exp));
+
+	/* Add the dnat rule */
+	dp_test_cmd_replace_dnat(10, "dp1T0", client_ip, server_ip, IPPROTO_TCP,
+				 80);
+
+	/* Add the snat rule */
+	dp_test_cmd_replace_snat(20, "dp2T1", client_ip, local_snat_ip, NULL);
+
+	/* setup params for handling varying pak */
+	struct dp_test_variable_snat_params params = { .range = NULL };
+
+	params.saved_cb =
+		dp_test_exp_set_validate_cb(exp,
+					    dp_test_variable_snat_port);
+	dp_test_exp_set_validate_ctx(exp, &params, false);
+
+	/* Run the test */
+	dp_test_pak_receive(test_pak, "dp1T0", exp);
+
+	/*
+	 * Test reply packet flow, inside to outside
+	 */
+	/* Create pak to match the server reply to the client */
+	test_pak = dp_test_create_tcp_ipv4_pak(server_ip, local_snat_ip,
+					       80, params.port_used,
+					       TH_SYN | TH_ACK, 0, 1, 5840,
+					       NULL, 1, &len);
+	(void)dp_test_pktmbuf_eth_init(test_pak,
+				       dp_test_intf_name2mac_str("dp2T1"),
+				       DP_TEST_INTF_DEF_SRC_MAC,
+				       ETHER_TYPE_IPv4);
+
+	/* Create pak we expect to receive on the tx ring */
+	exp = dp_test_exp_create(test_pak);
+	dp_test_exp_set_oif_name(exp, "dp1T0");
+	(void)dp_test_pktmbuf_eth_init(dp_test_exp_get_pak(exp),
+				       nh_mac_str_1,
+				       dp_test_intf_name2mac_str("dp1T0"),
+				       ETHER_TYPE_IPv4);
+
+	/* Expect the reverse SNAT and DNAT to have occurred */
+	dp_test_set_iphdr(dp_test_exp_get_pak(exp), local_dnat_ip, client_ip);
+	dp_test_set_tcphdr(dp_test_exp_get_pak(exp), 80, SOURCE_PORT_NUMBER);
+#undef SOURCE_PORT_NUMBER
+
+	dp_test_ipv4_decrement_ttl(dp_test_exp_get_pak(exp));
+
+	/* Run the test */
+	dp_test_pak_receive(test_pak, "dp2T1", exp);
+
+	/* Cleanup */
+	dp_test_cmd_delete_dnat(10, "dp1T0", client_ip, IPPROTO_TCP);
+	dp_test_cmd_delete_snat(20, "dp2T1", client_ip);
+	dp_test_npf_cleanup();
+
+	dp_test_netlink_del_neigh("dp2T1", "2.2.2.1", nh_mac_str_2);
+	dp_test_netlink_del_neigh("dp1T0", "1.1.1.2", nh_mac_str_1);
+	dp_test_netlink_del_route("10.0.100.0/24 nh 1.1.1.2 int:dp1T0");
+	dp_test_netlink_del_route("10.0.10.0/24 nh 2.2.2.1 int:dp2T1");
 	dp_test_nl_del_ip_addr_and_connected("dp1T0", "1.1.1.1/24");
 	dp_test_nl_del_ip_addr_and_connected("dp2T1", "2.2.2.2/24");
 } DP_END_TEST;

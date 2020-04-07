@@ -1,5 +1,9 @@
 #!/usr/bin/env python
 #
+# Copyright (c) 2018,2020, AT&T Intellectual Property.  All rights reserved.
+#
+# SPDX-License-Identifier: LGPL-2.1-only
+#
 # This python script is run on a Vyatta Router with QoS configured on it.
 # The output of the script contains the current QoS CLI configuration
 # commands, and the QoS configuration commands that are sent down to the

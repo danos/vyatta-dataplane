@@ -6,7 +6,7 @@
  *
  * Copyright (c) 2014-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
- * Copyright (c) 2017, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017,2019-2020, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -25,14 +25,14 @@
 #include <rte_mbuf.h>
 #include <string.h>
 
-#include "gre.h"
+#include "if/gre.h"
 #include "if_var.h"
 #include "ip6_mroute.h"
 #include "ip_icmp.h"
 #include "ip_mcast.h"
 #include "main.h"
 #include "netinet/ip_mroute.h"
-#include "pktmbuf.h"
+#include "pktmbuf_internal.h"
 #include "snmp_mib.h"
 #include "vplane_debug.h"
 #include "vplane_log.h"
@@ -166,11 +166,12 @@ struct rte_mbuf *mcast_create_l2l3_header(struct rte_mbuf *m_header,
 	m_newheader = pktmbuf_alloc(m_header->pool,
 				    pktmbuf_get_vrf(m_header));
 	if (m_newheader) {
-		char *hdr_ptr = rte_pktmbuf_append(m_newheader,
-					   pktmbuf_l2_len(m_header) + iphdrlen);
+		char *hdr_ptr = rte_pktmbuf_append(
+			m_newheader,
+			dp_pktmbuf_l2_len(m_header) + iphdrlen);
 		memcpy(hdr_ptr, rte_pktmbuf_mtod(m_header, char *),
-		       pktmbuf_l2_len(m_header) + iphdrlen);
-		pktmbuf_l2_len(m_newheader) = pktmbuf_l2_len(m_header);
+		       dp_pktmbuf_l2_len(m_header) + iphdrlen);
+		dp_pktmbuf_l2_len(m_newheader) = dp_pktmbuf_l2_len(m_header);
 
 		/* Attach mew header mbuf to data mbuf.  Increment
 		 * ref count on data mbuf due to new attachment.
@@ -242,4 +243,47 @@ mcast_mgre_tunnel_endpoint_send(struct ifnet *out_ifp,
 
 	gre_tunnel_fragment_and_send(in_ifp, out_ifp,
 				     tun_endpoint_addr, m_header, proto);
+}
+
+/*
+ * allocate a per-vrf index for the multicast VIF. This allows us to have up
+ * to 256 multicast enabled interfaces per vrf.
+ */
+int mcast_iftable_get_free_slot(struct if_set *mfc_ifset, int ifindex,
+				unsigned char *vif_index)
+{
+	unsigned char index = (unsigned char)ifindex;
+	int i;
+
+	if (!mfc_ifset)
+		return -1;
+
+	/* if the mod 8 of the ifindex is available use it */
+	if (!IF_ISSET(index, mfc_ifset)) {
+		IF_SET(index, mfc_ifset);
+		*vif_index = index;
+		return 0;
+	}
+
+	/* iterate up to limit of the if_set to find a free slot */
+	for (i = index + 1; i < IF_SETSIZE; i++) {
+		if (!IF_ISSET(i, mfc_ifset)) {
+			IF_SET(i, mfc_ifset);
+			*vif_index = i;
+			return 0;
+		}
+	}
+
+	/* start iterating up from 0 if we have not already done so */
+	if (index) {
+		for (i = 0; i < index; i++) {
+			if (!IF_ISSET(i, mfc_ifset)) {
+				IF_SET(i, mfc_ifset);
+				*vif_index = i;
+				return 0;
+			}
+		}
+	}
+
+	return -ENOSPC;
 }

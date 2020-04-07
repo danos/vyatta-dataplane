@@ -1,0 +1,6 @@
+includedir=@includedir@
+
+Name: vyattafal-dev
+Description: Vyatta Forwarding Abstraction Layer development package
+Version: @VERSION@
+Cflags: -I${includedir}

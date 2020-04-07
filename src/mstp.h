@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018, AT&T Intellectual Property.
+ * Copyright (c) 2018-2019, AT&T Intellectual Property.
  * All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
@@ -10,8 +10,8 @@
 #ifndef MSTP_H
 #define MSTP_H
 
-#include "bridge.h"
 #include "bridge_flags.h"
+#include "if/bridge/bridge.h"
 #include "if_var.h"
 
 /*

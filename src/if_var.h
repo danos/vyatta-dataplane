@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2017-2019, AT&T Intellectual Property.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.
  * All rights reserved.
  * Copyright (c) 1982, 1986, 1989, 1993
  *	The Regents of the University of California.  All rights reserved.
@@ -42,22 +42,23 @@
 #include <sys/queue.h>		/* get TAILQ macros */
 
 #include "bitmask.h"
-#include "config.h"
+#include "config_internal.h"
 #include "main.h"
 #include "util.h"
-#include "vrf.h"
-#include "vxlan.h"
+#include "vrf_internal.h"
 #include <linux/if_ether.h>
 #include <linux/if.h>
 
 #include <rte_ethdev.h>
 #include <rte_timer.h>
 
-#include "urcu.h"
 #include "arp_cfg.h"
-#include <fal_plugin.h>
-#include "storm_ctl.h"
+#include "fal_plugin.h"
 #include "if_feat.h"
+#include "interface.h"
+#include "pl_fused_gen.h"
+#include "storm_ctl.h"
+#include "urcu.h"
 
 #define DATAPLANE_MAX_PORTS     RTE_MAX_ETHPORTS
 #define IF_PORT_ID_INVALID UCHAR_MAX
@@ -82,13 +83,12 @@ struct if_addr {
 struct bridge_softc;
 struct bridge_port;
 struct sched_info;
-struct flow_counters;
 struct portmonitor_info;
 struct npf_if;
+struct cgn_intf;
 
 /*
- * Software statistics maintained per-core,
- * therefore structure should be sizeof cache line (64 bytes)
+ * Software statistics maintained per-core.
  */
 struct if_data {
 	uint64_t ifi_ipackets;		/* packets received on interface */
@@ -109,6 +109,10 @@ struct if_data {
 	uint64_t ifi_no_vlan;		/* packets dropped no device for tag */
 	uint64_t ifi_unknown;		/* packets non-dataplane protocol */
 } __rte_cache_aligned;
+
+/* Ensure struct fits in two cache lines */
+static_assert(sizeof(struct if_data) <= 128,
+	      "struct is too large");
 
 static inline uint64_t ifi_odropped(const struct if_data *data)
 {
@@ -151,6 +155,7 @@ enum if_type {
 	IFT_TUNNEL_OTHER,
 	IFT_TUNNEL_GRE,
 	IFT_TUNNEL_VTI,
+	IFT_TUNNEL_PIMREG,
 	IFT_L2VLAN,
 	IFT_BRIDGE,
 
@@ -180,6 +185,31 @@ enum if_role {
 	IF_ROLE_MAX
 };
 
+enum if_feat_mode_flags {
+	IF_FEAT_MODE_FLAG_NONE = 0,
+	/* notify that L2 will be disabled for the interface */
+	IF_FEAT_MODE_FLAG_L2_DISABLE = (1 << 0),
+	/* request that L3 be disabled for the interface */
+	IF_FEAT_MODE_FLAG_L3_DISABLE = (1 << 1),
+	/*
+	 * request that L2 be enabled in the FAL for the interface.
+	 * Note that this will result in the interface no long being
+	 * embellished by the IF_EMB_FEAT_HW_SWITCHING_DISABLED
+	 * feature.
+	 */
+	IF_FEAT_MODE_FLAG_L2_FAL_ENABLE = (1 << 2),
+	/*
+	 * request that L2 be disabled in the FAL for the interface.
+	 * Note that this will result in the interface being
+	 * embellished by the IF_EMB_FEAT_HW_SWITCHING_DISABLED
+	 * feature, and this can be queried by features to determine
+	 * whether in this mode.
+	 */
+	IF_FEAT_MODE_FLAG_L2_FAL_DISABLE = (1 << 3),
+	/* interface-embellishing feature changed */
+	IF_FEAT_MODE_FLAG_EMB_FEAT_CHANGED = (1 << 4),
+};
+
 /*
  * TCP MSS Clamping
  */
@@ -189,21 +219,6 @@ enum tcp_mss_af {
 };
 #define TCP_MSS_AF_MAX  TCP_MSS_V6
 #define TCP_MSS_AF_SIZE (TCP_MSS_AF_MAX + 1)
-
-static const uint32_t IF_LINK_SPEED_UNKNOWN = 0;
-
-enum if_link_duplex_type {
-	IF_LINK_DUPLEX_HALF = 0,
-	IF_LINK_DUPLEX_FULL = 1,
-	IF_LINK_DUPLEX_UNKNOWN = 2,
-};
-
-struct if_link_status {
-	bool link_status;
-	enum if_link_duplex_type link_duplex;
-	/* Link speed in Mbps */
-	uint32_t link_speed;
-};
 
 struct if_vlan_feat {
 	uint16_t             vlan;
@@ -234,7 +249,7 @@ struct ifnet {
 			   vlan_modify:1,
 			   qos_software_fwd:1,
 			   tpid_offloaded:1,
-			   flow_type:3,
+			   unused:3,
 			   ip_proxy_arp:1,
 			   ip_mc_forwarding:1,
 			   ip6_mc_forwarding:1,
@@ -245,8 +260,9 @@ struct ifnet {
 			   qinq_inner:1;
 
 	vrfid_t		   if_vrfid;	/* vrf tag */
-	struct lltable	   *if_lltable;	/* IPv4 address mapping */
-	struct lltable	   *if_lltable6; /* IPv6 address mapping */
+	void               **node_instance_contexts;
+	uint16_t           l2_output_features;
+	uint16_t           padding[3];
 	struct npf_if	   *if_npf;	/* NPF specific info */
 	struct ifnet	   *if_parent;	/* real device for vlan */
 
@@ -276,19 +292,24 @@ struct ifnet {
 	/* --- cacheline 2 boundary (128 bytes) --- */
 
 	/* Feature state */
-	struct flow_counters *if_sample;
 	struct portmonitor_info *pminfo; /* portmonitor info */
 
 	struct cds_lfht	   *mpls_label_table;
 
+	struct cgn_intf    *if_cgn;     /* CGNAT */
+
 	/* Referenced on local packet to/from kernel path */
 	struct ifnet       *aggregator; /* part of team */
 	struct cds_lfht   *if_mcfltr_hash;   /* Table of filtered mcast pkts*/
+	struct lltable	   *if_lltable;	/* IPv4 address mapping */
+	struct lltable	   *if_lltable6; /* IPv6 address mapping */
+	/* --- cacheline 3 boundary (192 bytes)  --- */
 	uint8_t            if_mac_filtr_supported:1,
 			   if_mac_filtr_active:1,
 			   if_mac_filtr_reprogram:1,
-			   hw_forwarding:1; /* switch port hw fwded*/
-
+			   hw_forwarding:1, /* switch port hw fwded */
+			   if_broken_out:1, /* broken out into separate ifs */
+			   spare1:3;
 	int8_t		   if_socket;	/* NUMA node (or -1 for ANY) */
 
 	/* Administrative */
@@ -305,7 +326,9 @@ struct ifnet {
 
 	uint16_t	   mpls_labelspace;
 
+	uint8_t padding3[4];
 	struct cds_list_head if_addrhead; /* list of addresses per if */
+	/* --- cacheline 4 boundary (256 bytes) --- */
 	struct cds_list_head if_list; /* List of all interfaces */
 	struct cds_lfht_node ifname_hash; /* ifname hash table */
 	struct cds_lfht_node ifindex_hash; /* ifindex hash table */
@@ -314,7 +337,12 @@ struct ifnet {
 	bool		   if_poe : 1,        /* poe is enabled */
 			   unplugged : 1,     /* hot unplug event in progress */
 			   if_team : 1,       /* this is a bonding device */
-			   if_created : 1;   /* All i/f build actions done */
+			   if_created : 1,    /* All i/f build actions done */
+			   if_l3_enabled : 1, /* enabled for L3 use */
+			   hw_capturing : 1,  /* Hardware capture enabled */
+			   spare2: 1,
+			   spare3: 1;
+	uint8_t		   pad[7];
 	fal_object_t       fal_l3;
 
 	/* Software statistics */
@@ -323,6 +351,7 @@ struct ifnet {
 	struct if_perf	   if_rxpps;	/* packets rate */
 	struct if_perf	   if_rxbps;	/* bandwidth */
 	struct rte_timer   if_stats_timer; /* update performance */
+	uint8_t padding4[40];
 
 	struct if_data	   if_data[RTE_MAX_LCORE];
 
@@ -334,12 +363,14 @@ struct ifnet {
 
 	/* GARP processing config */
 	struct garp_cfg     ip_garp_op;
+	uint8_t padding5[7];
 
 	/* storm control config */
 	struct if_storm_ctl_info   *sc_info;
 
 	/* ref counts for pipeline features */
 	uint16_t if_feat_refcnt[IF_FEAT_COUNT];
+	uint8_t padding6[6];
 
 	/* vlan feature object table */
 	struct cds_lfht	   *vlan_feat_table;
@@ -350,6 +381,11 @@ struct ifnet {
 	/* vlan-modify default entry */
 	struct vlan_mod_tbl_entry *vlan_mod_default;
 };
+
+static_assert(offsetof(struct ifnet, if_vlantbl) == 64,
+	      "first cache line exceeded");
+static_assert(offsetof(struct ifnet, pminfo) == 128,
+	      "second cache line exceeded");
 
 static inline uint16_t if_tpid(const struct ifnet *ifp)
 {
@@ -454,20 +490,18 @@ struct ift_ops {
 	int (*ifop_init)(struct ifnet *ifp);
 
 	/*
-	 * Inform that the interface is about to uninitialised
-	 *
-	 * Called just before the interface is stopped and removed
-	 * from interface databases.
-	 */
-	void (*ifop_pre_uninit)(struct ifnet *ifp);
-
-	/*
 	 * Uninitialise the interface
 	 *
 	 * Called with the interface stopped and after it is remove
 	 * from interface databases.
 	 */
 	void (*ifop_uninit)(struct ifnet *ifp);
+
+	/*
+	 * Get the rfc2233 interface type, Assumes valid ifnet pointer
+	 * @return interface type as defined in the ianaiftype-mib
+	 */
+	enum dp_ifnet_iana_type (*ifop_iana_type)(struct ifnet *ifp);
 
 	/*
 	 * Enable/disable VLAN filtering
@@ -536,10 +570,50 @@ struct ift_ops {
 				  unsigned int *bp_ifindex);
 
 	/*
-	 * The interface create has finished in SW
+	 * Enable L3 for the interface
+
+	 * Allows the interface to perform any actions specific to the
+	 * type, such as creating a FAL router interface if required.
+	 *
+	 * This may be called during initial creation of the
+	 * interface, or at any time later in the lifetime of the
+	 * interface up until its deletion.
 	 */
-	void (*ifop_create_finished)(struct ifnet *ifp,
-				     const struct ether_addr *mac_addr);
+	int (*ifop_l3_enable)(struct ifnet *ifp);
+
+	/*
+	 * Disable L3 for the interface
+	 *
+	 * Allows the interface to perform and actions specific to the
+	 * type, such as deleting a FAL router interface if required.
+	 */
+	int (*ifop_l3_disable)(struct ifnet *ifp);
+
+	/*
+	 * Query whether hardware switching is enabled
+	 *
+	 * Query whether hardware switching has been disabled by the
+	 * system. If not specified then this defaults to true.
+	 */
+	bool (*ifop_is_hw_switching_enabled)(struct ifnet *ifp);
+
+	/*
+	 * Set the speed and duplex of an interface
+	 */
+	int (*ifop_set_speed)(struct ifnet *ifp, bool autoneg,
+			      uint32_t fixed_speed, int duplex);
+
+	/*
+	 * Get link status for the interface
+	 *
+	 * Includes up/down and optionally speed & duplex if known.
+	 *
+	 * Optional function - will fall back to IFF_RUNNING flag
+	 * determined by higher layers in the system, if not
+	 * implemented by the interface type.
+	 */
+	int (*ifop_get_link_status)(struct ifnet *ifp,
+				    struct dp_ifnet_link_status *if_link);
 };
 
 struct lltable *in_domifattach(struct ifnet *);
@@ -585,6 +659,47 @@ bool if_setup_vlan_storage(struct ifnet *ifp);
 void if_finish_create(struct ifnet *ifp, const char *ifi_type,
 		      const char *kind,
 		      const struct ether_addr *mac_addr);
+enum if_feat_mode_event;
+bool if_is_features_mode_active(struct ifnet *ifp,
+				enum if_feat_mode_event event);
+void if_change_features_mode(struct ifnet *ifp, enum if_feat_mode_flags flags);
+
+/*
+ * Interface-embellishing features
+ *
+ * embellish, verb; make beatiful, decorate
+ *
+ * An interface-embellishing feature is defined as one that changes
+ * the appearance of the interface that is significant to either the
+ * core interface infra or to another interface feature.
+ */
+enum if_embellish_feat {
+	IF_EMB_FEAT_NONE = 0,
+	IF_EMB_FEAT_BRIDGE_MEMBER = (1 << 0),
+	IF_EMB_FEAT_HW_SWITCHING_DISABLED = (1 << 1),
+	IF_EMB_FEAT_UNPLUGGED = (1 << 2),
+	IF_EMB_FEAT_BREAK_OUT = (1 << 3),
+	IF_EMB_FEAT_LAG_MEMBER = (1 << 4),
+};
+
+/*
+ * If hardware-switching is disabled then the interface is still L3
+ * enabled, but all other embellishing features result in it becoming L3
+ * disabled.
+ */
+#define IF_EMB_FEATS_ALLOW_L3 IF_EMB_FEAT_HW_SWITCHING_DISABLED
+
+/*
+ * Check for any specified interface-embellishing features being present
+ */
+bool if_check_any_emb_feat(struct ifnet *ifp, enum if_embellish_feat feat_any);
+/*
+ * Check for any interface-embellishing features being present other
+ * than thoses specified.
+ */
+bool if_check_any_except_emb_feat(struct ifnet *ifp,
+				  enum if_embellish_feat feat_except);
+void if_notify_emb_feat_change(struct ifnet *ifp);
 
 int if_blink(struct ifnet *ifp, bool on);
 bool if_stats(struct ifnet *ifp, struct if_data *stats);
@@ -592,8 +707,6 @@ void if_mpls_stats(const struct ifnet *ifp, struct if_mpls_data *stats);
 
 const char *if_flags2str(char *buf, unsigned int flags);
 
-struct ifnet *ifnet_byifindex(unsigned int ifindex);
-struct ifnet *ifnet_byifname(const char *name);
 struct ifnet *ifnet_byethname(const char *name);
 
 struct ifnet *ifnet_byifname_cont_src(enum cont_src_en cont_src,
@@ -615,14 +728,14 @@ static inline struct ifnet *ifnet_byport(portid_t port)
 
 static inline int ifnet_nametoindex(const char *ifname)
 {
-	struct ifnet *ifp = ifnet_byifname(ifname);
+	struct ifnet *ifp = dp_ifnet_byifname(ifname);
 
 	return ifp ? ifp->if_index : 0;
 }
 
 static inline const char *ifnet_indextoname(int ifindex)
 {
-	struct ifnet *ifp = ifnet_byifindex(ifindex);
+	struct ifnet *ifp = dp_ifnet_byifindex(ifindex);
 
 	return ifp ? ifp->if_name : NULL;
 }
@@ -787,6 +900,15 @@ static inline bool is_tunnel(const struct ifnet *ifp)
 	return false;
 }
 
+static inline bool is_tunnel_pimreg(const struct ifnet *ifp)
+{
+	switch (ifp->if_type) {
+	case IFT_TUNNEL_PIMREG:
+		return true;
+	}
+	return false;
+}
+
 static inline bool is_bridge(const struct ifnet *ifp)
 {
 	return ifp->if_type == IFT_BRIDGE;
@@ -810,9 +932,12 @@ static inline bool is_team(const struct ifnet *ifp)
 bool is_lo(const struct ifnet *ifp);
 bool is_s2s_feat_attach(const struct ifnet *ifp);
 int cmd_set_vfp(FILE *f, int argc, char **argv);
+int cmd_ifconfig(FILE *f, int argc, char **argv);
 
-typedef void ifnet_iter_func_t(struct ifnet *ifp, void *arg);
-void ifnet_walk(ifnet_iter_func_t func, void *arg);
+void unsup_tunnel_output(struct ifnet *ifp, struct rte_mbuf *m,
+			 struct ifnet *input_ifp, uint16_t proto);
+void vfp_output(struct ifnet *ifp, struct rte_mbuf *m,
+		struct ifnet *input_ifp, uint16_t proto);
 
 int if_vlan_proto_set(struct ifnet *ifp, uint16_t proto);
 void if_qinq_created(struct ifnet *phy_ifp);
@@ -826,7 +951,6 @@ int if_start(struct ifnet *ifp);
 int if_stop(struct ifnet *ifp);
 int if_set_vlan_filter(struct ifnet *ifp, uint16_t vlan, bool enable);
 int if_set_broadcast(struct ifnet *ifp, bool enable);
-void if_create_finished(struct ifnet *ifp, const struct ether_addr *mac_addr);
 uint64_t if_scaled(uint64_t value);
 void send_if_stats(const struct ifnet *ifp, const struct if_data *stats);
 
@@ -848,11 +972,11 @@ bool is_ignored_interface(uint32_t ifindex);
 void incomplete_if_add_ignored(uint32_t ifindex);
 void incomplete_if_del_ignored(uint32_t ifindex);
 void incomplete_routes_make_complete(void);
-void incomplete_route_add(vrfid_t vrf_id, const void *dst,
+void incomplete_route_add(const void *dst,
 			  uint8_t family, uint8_t depth, uint32_t table,
 			  uint8_t scope, uint8_t proto,
 			  const struct nlmsghdr *nlh);
-void incomplete_route_del(vrfid_t vrf_id, const void *dst,
+void incomplete_route_del(const void *dst,
 			  uint8_t family, uint8_t depth, uint32_t table,
 			  uint8_t scope, uint8_t proto);
 void missed_netlink_replay(unsigned int ifindex);
@@ -887,9 +1011,8 @@ bool if_is_control_channel(struct ifnet *ifp);
 bool if_port_is_owned_by_src(enum cont_src_en cont_src, portid_t portid);
 bool if_port_is_bkplane(portid_t portid);
 
-void if_create_l3_intf(struct ifnet *ifp,
-		       const struct ether_addr *mac_addr);
-void if_delete_l3_intf(struct ifnet *ifp);
+int if_fal_create_l3_intf(struct ifnet *ifp);
+int if_fal_delete_l3_intf(struct ifnet *ifp);
 int if_set_l3_intf_attr(struct ifnet *ifp,
 			struct fal_attribute_t *attr);
 
@@ -941,12 +1064,11 @@ int if_set_poe(struct ifnet *ifp, bool enable);
 int if_get_poe(struct ifnet *ifp, bool *admin_status, bool *oper_status);
 
 /*
- * Get link status.
- *
- * Up means signal detected and auto-negotiate successfully completed.
+ * Set the speed and duplex of an interface
  */
-void if_get_link_status(struct ifnet *ifp,
-			struct if_link_status *if_link);
+int if_set_speed(struct ifnet *ifp, bool autoneg, uint32_t fixed_speed,
+		 int duplex);
+
 /*
  * Dump state for an interface in JSON format.
  */
@@ -979,5 +1101,36 @@ if_is_hwport(struct ifnet *ifp)
 	 */
 	return ifp->if_local_port && !ifp->if_parent;
 }
+
+/*
+ * Transmit one packet
+ */
+void if_output(struct ifnet *ifp, struct rte_mbuf *m,
+	       struct ifnet *input_ifp, uint16_t proto);
+
+int if_allocate_feature_space(struct ifnet *ifp,
+			      enum pl_feature_point_id feat_point);
+int
+if_node_instance_register_storage(struct pl_node *node,
+				  struct pl_feature_registration *feat,
+				  void *context);
+int
+if_node_instance_unregister_storage(struct pl_node *node,
+				    struct pl_feature_registration *feat);
+void *
+if_node_instance_get_storage(struct pl_node *node,
+			     struct pl_feature_registration *feat);
+
+void *
+if_node_instance_get_storage_internal(struct ifnet *ifp,
+				      enum pl_feature_point_id feat_point,
+				      int feat);
+int
+if_node_instance_set_cleanup_cb(struct pl_feature_registration *feat);
+
+int if_node_instance_feat_change_all(struct pl_feature_registration *feat,
+				     enum pl_node_feat_action action,
+				     pl_node_feat_change *feat_change);
+
 
 #endif /* !IF_VAR_H */

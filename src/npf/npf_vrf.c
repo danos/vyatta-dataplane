@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2019-2020, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -11,12 +11,12 @@
 #include <urcu.h>
 
 #include "util.h"
-#include "vrf.h"
+#include "vrf_internal.h"
 #include "vplane_log.h"
 #include "dp_event.h"
 
 #include "npf/config/npf_attach_point.h"
-#include "npf/alg/npf_alg_public.h"
+#include "npf/alg/alg_npf.h"
 #include "npf/npf_timeouts.h"
 #include "npf/npf_if.h"
 #include "npf/npf_vrf.h"
@@ -24,10 +24,10 @@
 
 /*
  * Ideally we would have a per-vrf set of ruleset counters in order to handle
- * rulesets such as nat64, where firewall pipeline features are added to all
- * interface when just one interface has such a ruleset.
+ * rulesets such as nat64 and zones, where firewall pipeline features are
+ * added to all interface when just one interface has such a ruleset.
  *
- * However we use a single global set of ruleset counters for nat64
+ * However we use a single global set of ruleset counters for nat64, zones
  * etc. for two reasons:
  *
  *   1. npf does not cleanly handle vrfs being deleted (specifically, the
@@ -87,7 +87,7 @@ void npf_vrf_create(struct vrf *vrf)
 	if (vrf->v_id == VRF_INVALID_ID)
 		return;
 
-	ext_vrfid = vrf_get_external_id(vrf->v_id);
+	ext_vrfid = dp_vrf_get_external_id(vrf->v_id);
 	snprintf(vrfid_str, sizeof(vrfid_str), "%u", ext_vrfid);
 
 	int rc = npf_attpt_item_set_up(NPF_ATTACH_TYPE_VRF, vrfid_str,
@@ -124,7 +124,7 @@ void npf_vrf_delete(struct vrf *vrf)
 
 	char vrfid_str[32];
 	snprintf(vrfid_str, sizeof(vrfid_str), "%u",
-		 vrf_get_external_id(vrf->v_id));
+		 dp_vrf_get_external_id(vrf->v_id));
 	int rc = npf_attpt_item_set_down(NPF_ATTACH_TYPE_VRF, vrfid_str);
 	if (rc != 0) {
 		RTE_LOG(ERR, FIREWALL, "failed to detach per-vrf "
@@ -236,10 +236,10 @@ void npf_gbl_rs_count_decr(enum npf_ruleset_type rs_type)
  * Check if any ruleset global counts are greater than zero.  If so, enable
  * those features on the interface and return true.
  *
- * Typically this is used when rulesets such as nat64 require features to be
- * enabled for all interfaces and not just the interfaces with the nat64
- * configuration.  In these situations the npf_rs_count[] for the relevant
- * ruleset will be greater than 0.
+ * Typically this is used when rulesets such as nat64 or zones require
+ * features to be enabled for all interfaces and not just the interfaces with
+ * the nat64/zone configuration.  In these situations the npf_rs_count[] for
+ * the relevant ruleset will be greater than 0.
  *
  * Typically this function will be useful for when interfaces (such as vlan
  * interfaces) are created after bootup.

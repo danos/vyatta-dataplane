@@ -161,4 +161,6 @@ void
 npf_markpcp_json(json_writer_t *json, npf_rule_t *rl,
 		 const char *params, void *handle);
 
+void policer_show(json_writer_t *wr, void *arg);
+
 #endif /* NPF_RPROC_H */

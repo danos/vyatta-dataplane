@@ -1,7 +1,7 @@
 /*
  * l3_v4_defrag.c
  *
- * Copyright (c) 2018-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2018-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2016, 2017 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -18,7 +18,7 @@
 #include "urcu.h"
 
 ALWAYS_INLINE unsigned int
-ipv4_defrag_in_process(struct pl_packet *pkt)
+ipv4_defrag_in_process(struct pl_packet *pkt, void *context __unused)
 {
 	struct rte_mbuf *m = pkt->mbuf;
 	/* Reassemble packets if required */
@@ -67,13 +67,13 @@ ipv4_defrag_out_internal(struct pl_packet *pkt)
 }
 
 ALWAYS_INLINE unsigned int
-ipv4_defrag_out_process(struct pl_packet *pkt)
+ipv4_defrag_out_process(struct pl_packet *pkt, void *context __unused)
 {
 	return ipv4_defrag_out_internal(pkt);
 }
 
 ALWAYS_INLINE unsigned int
-ipv4_defrag_out_spath_process(struct pl_packet *pkt)
+ipv4_defrag_out_spath_process(struct pl_packet *pkt, void *context __unused)
 {
 	return ipv4_defrag_out_internal(pkt);
 }

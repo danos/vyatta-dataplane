@@ -2,7 +2,7 @@
  * l3_pbr.c
  *
  *
- * Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2016, 2017 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -24,7 +24,7 @@
 #include "npf/npf.h"
 #include "npf/npf_if.h"
 #include "npf_shim.h"
-#include "pktmbuf.h"
+#include "pktmbuf_internal.h"
 #include "pl_common.h"
 #include "pl_fused.h"
 #include "route.h"
@@ -32,7 +32,7 @@
 #include "route_v6.h"
 #include "urcu.h"
 #include "util.h"
-#include "vrf.h"
+#include "vrf_internal.h"
 
 struct rte_mbuf;
 
@@ -91,7 +91,7 @@ ip_pbr_process_common(struct pl_packet *pkt, bool v4)
 
 	if (unlikely(m != pkt->mbuf)) {
 		pkt->mbuf = m;
-		pkt->l3_hdr = pktmbuf_mtol3(m, void *);
+		pkt->l3_hdr = dp_pktmbuf_mtol3(m, void *);
 	}
 
 	if (unlikely(result.decision == NPF_DECISION_BLOCK))
@@ -99,20 +99,6 @@ ip_pbr_process_common(struct pl_packet *pkt, bool v4)
 
 	if (result.tag_set)
 		pkt->tblid = result.tag;
-
-	/*
-	 * Tableids in PBR range must be mapped to kernel table
-	 * id for non-default VRF.
-	 */
-	vrfid = pktmbuf_get_vrf(pkt->mbuf);
-	vrf = vrf_get_rcu_fast(vrfid);
-	if (vrfid != VRF_DEFAULT_ID &&
-	    tableid_in_pbr_range(pkt->tblid)) {
-		if (vrf && vrf->v_pbrtablemap[pkt->tblid])
-			pkt->tblid = vrf->v_pbrtablemap[pkt->tblid];
-		else
-			return v4 ? IPV4_PBR_DROP : IPV6_PBR_DROP;
-	}
 
 	if (unlikely(!ip_pbr_is_tblid_valid(pkt->mbuf,
 					    pkt->tblid, v4)))
@@ -123,13 +109,13 @@ ip_pbr_process_common(struct pl_packet *pkt, bool v4)
 
 
 ALWAYS_INLINE unsigned int
-ipv4_pbr_process(struct pl_packet *pkt)
+ipv4_pbr_process(struct pl_packet *pkt, void *context __unused)
 {
 	return ip_pbr_process_common(pkt, V4_PKT);
 }
 
 ALWAYS_INLINE unsigned int
-ipv6_pbr_process(struct pl_packet *pkt)
+ipv6_pbr_process(struct pl_packet *pkt, void *context __unused)
 {
 	return ip_pbr_process_common(pkt, V6_PKT);
 }

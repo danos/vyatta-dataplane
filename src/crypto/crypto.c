@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2017-2018, AT&T Intellectual Property. All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property. All rights reserved.
  * Copyright (c) 2015-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -43,15 +43,16 @@
 #include "dp_event.h"
 #include "esp.h"
 #include "ether.h"
-#include "event.h"
+#include "event_internal.h"
 #include "if_var.h"
 #include "ip6_funcs.h"
 #include "ip_funcs.h"
 #include "json_writer.h"
+#include "lcore_sched.h"
 #include "main.h"
 #include "npf/fragment/ipv6_rsmbl.h"
 #include "npf/npf_cache.h"
-#include "pktmbuf.h"
+#include "pktmbuf_internal.h"
 #include "pl_common.h"
 #include "pl_fused.h"
 #include "shadow.h"
@@ -60,7 +61,7 @@
 #include "util.h"
 #include "vplane_debug.h"
 #include "vplane_log.h"
-#include "vrf.h"
+#include "vrf_internal.h"
 #include "vti.h"
 
 struct cds_list_head;
@@ -214,7 +215,7 @@ struct crypto_vrf_ctx *crypto_vrf_find_external(vrfid_t vrfid)
 {
 	struct vrf *vrf;
 
-	vrf = vrf_get_rcu_from_external(vrfid);
+	vrf = dp_vrf_get_rcu_from_external(vrfid);
 	if (!vrf)
 		return NULL;
 	return rcu_dereference(vrf->crypto);
@@ -346,11 +347,7 @@ static struct crypto_pkt_ctx *allocate_crypto_packet_ctx(void)
 	cache = rte_mempool_default_cache(crypto_dp_sp->pool, rte_lcore_id());
 
 	if (unlikely(rte_mempool_generic_get(crypto_dp_sp->pool, (void *)&ctx,
-#ifdef HAVE_RTE_MEMPOOL_GENERIC_FLAGS
-					     1, cache, 1) != 0)) {
-#else
 					     1, cache) != 0)) {
-#endif
 		return NULL;
 	}
 	IPSEC_CNT_INC(CTX_ALLOCATED);
@@ -363,11 +360,7 @@ static void release_crypto_packet_ctx(struct crypto_pkt_ctx *ctx)
 
 	cache = rte_mempool_default_cache(crypto_dp_sp->pool, rte_lcore_id());
 	IPSEC_CNT_INC(CTX_FREED);
-#ifdef HAVE_RTE_MEMPOOL_GENERIC_FLAGS
-	rte_mempool_generic_put(crypto_dp_sp->pool, (void *)&ctx, 1, cache, 1);
-#else
 	rte_mempool_generic_put(crypto_dp_sp->pool, (void *)&ctx, 1, cache);
-#endif
 }
 
 static inline const
@@ -424,7 +417,7 @@ static struct ifnet *crypto_ctx_to_in_ifp(struct crypto_pkt_ctx *ctx,
 	struct ifnet *ifp;
 
 	if (pktmbuf_mdata_exists(m, PKT_MDATA_IFINDEX)) {
-		ifp = ifnet_byifindex(pktmbuf_mdata(m)->md_ifindex.ifindex);
+		ifp = dp_ifnet_byifindex(pktmbuf_mdata(m)->md_ifindex.ifindex);
 		pktmbuf_mdata_clear(m, PKT_MDATA_IFINDEX);
 	} else {
 		assert(ctx->in_ifp_port < DATAPLANE_MAX_PORTS);
@@ -456,7 +449,7 @@ static void crypto_process_decrypt_packet(struct crypto_pkt_ctx *cctx,
 
 	if ((mark != 0) &&
 	    (vti_handle_inbound(
-		    crypto_get_src(pktmbuf_mtol3(m, void *),
+		    crypto_get_src(dp_pktmbuf_mtol3(m, void *),
 				   cctx->family),
 		    cctx->family, mark, m, &vti_ifp) < 0)) {
 		CRYPTO_DATA_ERR("No VTI interface found\n");
@@ -534,8 +527,9 @@ static void crypto_process_decrypt_packet(struct crypto_pkt_ctx *cctx,
 				set_spath_rx_meta_data(
 					m,
 					feat_attach_ifp ? feat_attach_ifp :
-					ifnet_byifindex(vrf_get_external_id(
-							sa->overlay_vrf_id)),
+					dp_ifnet_byifindex(
+						dp_vrf_get_external_id(
+						sa->overlay_vrf_id)),
 					ntohs(ethhdr(m)->ether_type),
 					TUN_META_FLAGS_DEFAULT);
 			}
@@ -808,7 +802,7 @@ static inline bool crypto_check_hdr_single_seg(struct rte_mbuf *m,
 {
 	unsigned int len;
 
-	len = rte_pktmbuf_data_len(m) - pktmbuf_l2_len(m);
+	len = rte_pktmbuf_data_len(m) - dp_pktmbuf_l2_len(m);
 	if (len < h->iphlen + sizeof(struct ip_esp_hdr) +
 	    ((h->nxt_proto == IPPROTO_UDP) ? sizeof(struct udphdr) : 0)) {
 		CRYPTO_DATA_ERR("Bad segment length\n");
@@ -846,7 +840,7 @@ int crypto_enqueue_inbound_v4(struct rte_mbuf *m,
 
 		ip = iphdr(m);
 		spi = crypto_retrieve_spi((unsigned char *)ip +
-					  pktmbuf_l3_len(m));
+					  dp_pktmbuf_l3_len(m));
 	}
 
 	pmd_dev_id = crypto_spi_to_pmd_dev_id(spi);
@@ -891,7 +885,7 @@ int crypto_enqueue_inbound_v6(struct rte_mbuf *m,
 
 		ip6 = ip6hdr(m);
 		spi = crypto_retrieve_spi((unsigned char *)ip6 +
-					  pktmbuf_l3_len(m));
+					  dp_pktmbuf_l3_len(m));
 	}
 
 	pmd_dev_id = crypto_spi_to_pmd_dev_id(spi);
@@ -1128,13 +1122,14 @@ const char *crypto_xfrm_name(enum crypto_xfrm xfrm)
 }
 
 /*
- * dp_crypto_per_lcore_init()
+ * dp_crypto_lcore_init()
  *
  * Allocate an initialise the crypto packet buffer, which is used to
  * manage the interaction between a forwarding thread and the crypto
  * thread.
  */
-void dp_crypto_per_lcore_init(unsigned int lcore_id)
+static int dp_crypto_lcore_init(unsigned int lcore_id,
+				void *arg __unused)
 {
 	struct crypto_pkt_buffer *cpb;
 	unsigned int cpu_socket;
@@ -1158,6 +1153,7 @@ void dp_crypto_per_lcore_init(unsigned int lcore_id)
 
 		RTE_PER_LCORE(crypto_pkt_buffer) = cpb;
 	}
+	return 0;
 }
 
 static void init_context(struct rte_mempool *pool __unused,
@@ -1192,6 +1188,12 @@ static void crypto_incomplete_init(void)
 	crypto_incmpl_policy_init();
 	crypto_incmpl_sa_init();
 }
+
+static struct dp_lcore_events crypto_lcore_events = {
+	.dp_lcore_events_init_fn = dp_crypto_lcore_init,
+	.dp_lcore_events_teardown_fn = NULL,
+};
+
 
 static unsigned int crypto_ctx_pool;
 /*
@@ -1230,13 +1232,16 @@ void dp_crypto_init(void)
 
 	crypto_engine_load();
 
+	if (dp_lcore_events_register(&crypto_lcore_events, NULL))
+		rte_panic("can not initialise crypto per thread\n");
+
 	crypto_master_pull = zsock_new_pull(crypto_inproc);
 
 	if (!crypto_master_pull)
 		rte_panic("cannot bind to crypto master pull socket\n");
 
-	register_event_socket(zsock_resolve(crypto_master_pull),
-			      handle_crypto_event, crypto_master_pull);
+	dp_register_event_socket(zsock_resolve(crypto_master_pull),
+				 handle_crypto_event, crypto_master_pull);
 
 	if (crypto_sadb_init() < 0)
 		rte_panic("Failed to initialise crypto SADB\n");
@@ -1263,7 +1268,7 @@ void dp_crypto_init(void)
 void dp_crypto_shutdown(void)
 {
 	CRYPTO_INFO("crypto shutting down\n");
-	unregister_event_socket(zsock_resolve(crypto_master_pull));
+	dp_unregister_event_socket(zsock_resolve(crypto_master_pull));
 	zsock_destroy(&crypto_master_pull);
 	zsock_destroy(&rekey_listener);
 	udp_handler_unregister(AF_INET, htons(ESP_PORT));
@@ -1391,3 +1396,23 @@ unsigned long hash_xfrm_address(const xfrm_address_t *addr,
 	else
 		return (addr->a6[0] + addr->a6[1] + addr->a6[2] + addr->a6[3]);
 }
+
+/* The vrf has been deleted so flush all the crypto state in it. */
+static void crypto_vrf_flush(struct vrf *vrf)
+{
+	struct crypto_vrf_ctx *vrf_ctx;
+
+	vrf_ctx = crypto_vrf_find(vrf->v_id);
+	if (!vrf_ctx)
+		return;
+
+	crypto_policy_flush_vrf(vrf_ctx);
+	crypto_sadb_flush_vrf(vrf_ctx);
+	policy_feat_flush_vrf(vrf_ctx);
+}
+
+static const struct dp_event_ops crypto_events = {
+	.vrf_delete = crypto_vrf_flush,
+};
+
+DP_STARTUP_EVENT_REGISTER(crypto_events);

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2019, AT&T Intellectual Property. All rights reserved.
+ * Copyright (c) 2018-2020, AT&T Intellectual Property. All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  *
@@ -17,12 +17,12 @@
 
 #include "dp_test.h"
 #include "dp_test_str.h"
-#include "dp_test_lib.h"
+#include "dp_test_lib_internal.h"
 #include "dp_test_lib_exp.h"
-#include "dp_test_lib_intf.h"
+#include "dp_test_lib_intf_internal.h"
 #include "dp_test_lib_pkt.h"
-#include "dp_test_pktmbuf_lib.h"
-#include "dp_test_netlink_state.h"
+#include "dp_test_pktmbuf_lib_internal.h"
+#include "dp_test_netlink_state_internal.h"
 #include "dp_test_console.h"
 #include "dp_test_json_utils.h"
 #include "dp_test_npf_lib.h"
@@ -166,6 +166,124 @@ dpt_nat64(const char *if_name, bool add)
 		dp_test_npf_nat64_del(&rule48, true);
 
 	dp_test_npf_cmd_fmt(false, "npf-ut commit");
+}
+
+static void
+dpt_zone(bool add)
+{
+	if (add) {
+		dp_test_npf_cmd_fmt(
+			false,
+			"npf-ut zone add ZONE1");
+		dp_test_npf_cmd_fmt(
+			false,
+			"npf-ut zone intf add ZONE1 dpT10");
+		dp_test_npf_cmd_fmt(
+			false,
+			"npf-ut zone intf add ZONE1 dpT11");
+
+		dp_test_npf_cmd_fmt(
+			false,
+			"npf-ut zone add ZONE2");
+		dp_test_npf_cmd_fmt(
+			false,
+			"npf-ut zone intf add ZONE2 dpT12");
+
+		dp_test_npf_cmd_fmt(
+			false,
+			"npf-ut zone add ZONE3");
+		dp_test_npf_cmd_fmt(
+			false,
+			"npf-ut zone intf add ZONE3 dpT13");
+
+		dp_test_npf_cmd_fmt(
+			false,
+			"npf-ut zone policy add ZONE1 ZONE2");
+		dp_test_npf_cmd_fmt(
+			false,
+			"npf-ut add fw:ZFW1 1 action=accept");
+		dp_test_npf_cmd_fmt(
+			false,
+			"npf-ut attach zone:ZONE1>ZONE2 zone fw:ZFW1");
+
+		dp_test_npf_cmd_fmt(
+			false,
+			"npf-ut zone policy add ZONE1 ZONE3");
+		dp_test_npf_cmd_fmt(
+			false,
+			"npf-ut add fw:ZFW3 1 action=accept");
+		dp_test_npf_cmd_fmt(
+			false,
+			"npf-ut attach zone:ZONE1>ZONE3 zone fw:ZFW3");
+
+		dp_test_npf_cmd_fmt(
+			false,
+			"npf-ut zone policy add ZONE2 ZONE1");
+		dp_test_npf_cmd_fmt(
+			false,
+			"npf-ut add fw:ZFW2 10 action=accept");
+		dp_test_npf_cmd_fmt(
+			false,
+			"npf-ut attach zone:ZONE2>ZONE1 zone fw:ZFW2");
+
+		dp_test_npf_cmd_fmt(false, "npf-ut commit");
+	} else {
+		dp_test_npf_cmd_fmt(
+			false,
+			"npf-ut detach zone:ZONE1>ZONE2 zone fw:ZFW1");
+		dp_test_npf_cmd_fmt(
+			false,
+			"npf-ut delete fw:ZFW1");
+		dp_test_npf_cmd_fmt(
+			false,
+			"npf-ut zone policy remove ZONE1 ZONE2");
+
+		dp_test_npf_cmd_fmt(
+			false,
+			"npf-ut detach zone:ZONE1>ZONE3 zone fw:ZFW3");
+		dp_test_npf_cmd_fmt(
+			false,
+			"npf-ut delete fw:ZFW3");
+		dp_test_npf_cmd_fmt(
+			false,
+			"npf-ut zone policy remove ZONE1 ZONE3");
+
+		dp_test_npf_cmd_fmt(
+			false,
+			"npf-ut detach zone:ZONE2>ZONE1 zone fw:ZFW2");
+		dp_test_npf_cmd_fmt(
+			false,
+			"npf-ut delete fw:ZFW2");
+		dp_test_npf_cmd_fmt(
+			false,
+			"npf-ut zone policy remove ZONE2 ZONE1");
+
+		dp_test_npf_cmd_fmt(
+			false,
+			"npf-ut zone intf remove ZONE1 dpT10");
+		dp_test_npf_cmd_fmt(
+			false,
+			"npf-ut zone intf remove ZONE1 dpT11");
+		dp_test_npf_cmd_fmt(
+			false,
+			"npf-ut zone remove ZONE1");
+
+		dp_test_npf_cmd_fmt(
+			false,
+			"npf-ut zone intf remove ZONE2 dpT12");
+		dp_test_npf_cmd_fmt(
+			false,
+			"npf-ut zone remove ZONE2");
+
+		dp_test_npf_cmd_fmt(
+			false,
+			"npf-ut zone intf remove ZONE3 dpT13");
+		dp_test_npf_cmd_fmt(
+			false,
+			"npf-ut zone remove ZONE3");
+
+		dp_test_npf_cmd_fmt(false, "npf-ut commit");
+	}
 }
 
 static void
@@ -529,6 +647,112 @@ DP_START_TEST(npf_get_state3, test1)
 	dpt_get_state3_verify_pbr();
 
 	dpt_pbr("dp1T0", false);
+
+	dp_test_nl_del_ip_addr_and_connected("dp1T0", "1.1.1.1/24");
+	dp_test_nl_del_ip_addr_and_connected("dp1T1", "2.2.2.2/24");
+	dp_test_nl_del_ip_addr_and_connected("dp1T2", "3.3.3.3/24");
+
+} DP_END_TEST;
+
+/*
+ * make -j4 dataplane_test_run CK_RUN_CASE=npf_get_state4
+ */
+static void dpt_get_state4_verify_zone(void)
+{
+	json_object *jexp;
+	char cmd_str[30];
+
+	snprintf(cmd_str, sizeof(cmd_str),
+		 "npf-op state all: zone");
+
+	jexp = dp_test_json_create(
+		"{"
+		"  \"zone\":["
+		"    {"
+		"      \"input-zone-name\":\"ZONE2\","
+		"      \"to\":["
+		"        {"
+		"          \"output-zone-name\":\"ZONE1\","
+		"          \"name\":["
+		"            {"
+		"              \"group-name\":\"ZFW2\","
+		"              \"rule\":["
+		"                {"
+		"                  \"rule-number\":10,"
+		"                  \"bytes\":0,"
+		"                  \"packets\":0"
+		"                }"
+		"              ]"
+		"            }"
+		"          ]"
+		"        }"
+		"      ]"
+		"    },"
+		"    {"
+		"      \"input-zone-name\":\"ZONE1\","
+		"      \"to\":["
+		"        {"
+		"          \"output-zone-name\":\"ZONE2\","
+		"          \"name\":["
+		"            {"
+		"              \"group-name\":\"ZFW1\","
+		"              \"rule\":["
+		"                {"
+		"                  \"rule-number\":1,"
+		"                  \"bytes\":0,"
+		"                  \"packets\":0"
+		"                }"
+		"              ]"
+		"            }"
+		"          ]"
+		"        },"
+		"        {"
+		"          \"output-zone-name\":\"ZONE3\","
+		"          \"name\":["
+		"            {"
+		"              \"group-name\":\"ZFW3\","
+		"              \"rule\":["
+		"                {"
+		"                  \"rule-number\":1,"
+		"                  \"bytes\":0,"
+		"                  \"packets\":0"
+		"                }"
+		"              ]"
+		"            }"
+		"          ]"
+		"        }"
+		"      ]"
+		"    }"
+		"  ]"
+		"}"
+		);
+
+	dp_test_check_json_poll_state(cmd_str, jexp,
+				      DP_TEST_JSON_CHECK_SUBSET,
+				      false, 0);
+	json_object_put(jexp);
+}
+
+DP_DECL_TEST_CASE(npf_ruleset_state, npf_get_state4, NULL, NULL);
+DP_START_TEST(npf_get_state4, test1)
+{
+
+	/* Setup interfaces and neighbours */
+	dp_test_nl_add_ip_addr_and_connected("dp1T0", "1.1.1.1/24");
+	dp_test_nl_add_ip_addr_and_connected("dp1T1", "2.2.2.2/24");
+	dp_test_nl_add_ip_addr_and_connected("dp1T2", "3.3.3.3/24");
+
+	dpt_zone(true);
+
+	if (0)
+		dpt_show_rulesets("zone", NULL);
+
+	if (0)
+		dpt_show_ruleset_state("zone", NULL);
+
+	dpt_get_state4_verify_zone();
+
+	dpt_zone(false);
 
 	dp_test_nl_del_ip_addr_and_connected("dp1T0", "1.1.1.1/24");
 	dp_test_nl_del_ip_addr_and_connected("dp1T1", "2.2.2.2/24");

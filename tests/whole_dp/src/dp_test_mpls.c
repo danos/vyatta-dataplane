@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2015-2017 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -8,7 +8,6 @@
  * Dataplane MPLS unit tests
  */
 
-
 #include "ip_funcs.h"
 #include "ip6_funcs.h"
 #include "in_cksum.h"
@@ -16,12 +15,12 @@
 #include "ecmp.h"
 #include "commands.h"
 
-#include "dp_test_macros.h"
+#include "dp_test/dp_test_macros.h"
 #include "dp_test_console.h"
-#include "dp_test_netlink_state.h"
-#include "dp_test_lib.h"
-#include "dp_test_lib_intf.h"
-#include "dp_test_pktmbuf_lib.h"
+#include "dp_test_netlink_state_internal.h"
+#include "dp_test_lib_internal.h"
+#include "dp_test_lib_intf_internal.h"
+#include "dp_test_pktmbuf_lib_internal.h"
 #include "dp_test_lib_exp.h"
 #include "dp_test_npf_fw_lib.h"
 
@@ -1689,7 +1688,7 @@ DP_START_TEST(disp_fwd_expnull, invalid_paks)
 	ip = dp_test_get_mpls_pak_payload(test_pak);
 	ip->ihl = DP_TEST_PAK_DEFAULT_IHL - 1;
 	ip->check = 0;
-	ip->check = in_cksum_hdr(ip);
+	ip->check = dp_in_cksum_hdr(ip);
 	(void)dp_test_pktmbuf_eth_init(test_pak,
 				       dp_test_intf_name2mac_str("dp1T1"),
 				       NULL,
@@ -1725,7 +1724,7 @@ DP_START_TEST(disp_fwd_expnull, invalid_paks)
 	ip = dp_test_get_mpls_pak_payload(test_pak);
 	ip->tot_len = htons(2000);
 	ip->check = 0;
-	ip->check = in_cksum_hdr(ip);
+	ip->check = dp_in_cksum_hdr(ip);
 	(void)dp_test_pktmbuf_eth_init(test_pak,
 				       dp_test_intf_name2mac_str("dp1T1"),
 				       NULL,
@@ -1745,7 +1744,7 @@ DP_START_TEST(disp_fwd_expnull, invalid_paks)
 	ip = dp_test_get_mpls_pak_payload(test_pak);
 	ip->tot_len = htons(sizeof(struct iphdr) - 1);
 	ip->check = 0;
-	ip->check = in_cksum_hdr(ip);
+	ip->check = dp_in_cksum_hdr(ip);
 	(void)dp_test_pktmbuf_eth_init(test_pak,
 				       dp_test_intf_name2mac_str("dp1T1"),
 				       NULL,
@@ -1766,7 +1765,7 @@ DP_START_TEST(disp_fwd_expnull, invalid_paks)
 		      "Couldn't parse ip address");
 	ip->tot_len = htons(sizeof(struct iphdr) - 1);
 	ip->check = 0;
-	ip->check = in_cksum_hdr(ip);
+	ip->check = dp_in_cksum_hdr(ip);
 	(void)dp_test_pktmbuf_eth_init(test_pak,
 				       dp_test_intf_name2mac_str("dp1T1"),
 				       NULL,
@@ -3411,7 +3410,7 @@ label_imp_monitor(const struct rte_mbuf *ip_pak,
 	 * various conditions cause the ip packet to
 	 * be dropped instead.
 	 */
-	ip = pktmbuf_mtol3(ip_pak, struct iphdr *);
+	ip = dp_pktmbuf_mtol3(ip_pak, struct iphdr *);
 	if (IN_LOOPBACK(ntohl(ip->daddr)) ||
 	    IN_LOOPBACK(ntohl(ip->saddr))) {
 		struct dp_test_expected *exp;
@@ -3522,7 +3521,7 @@ dp_test_mpls_test_pkt(struct flow_fields *flow,
 	/*
 	 * also set the l4 payload
 	 */
-	udp = pktmbuf_mtol4(payload_pak, struct udphdr *);
+	udp = dp_pktmbuf_mtol4(payload_pak, struct udphdr *);
 	data = (uint32_t *)(udp + 1);
 	*data = non_flow_variation;
 
@@ -3580,7 +3579,7 @@ dp_test_mpls_test_ip_pkt(struct flow_fields *flow,
 	/*
 	 * also set the l4 payload
 	 */
-	udp = pktmbuf_mtol4(ip_pak, struct udphdr *);
+	udp = dp_pktmbuf_mtol4(ip_pak, struct udphdr *);
 	data = (uint32_t *)(udp + 1);
 	*data = non_flow_variation;
 
@@ -3590,7 +3589,7 @@ dp_test_mpls_test_ip_pkt(struct flow_fields *flow,
 
 DP_DECL_TEST_CASE(mpls, imp_fwd_ecmp, NULL, NULL);
 
-DP_START_TEST(imp_fwd_ecmp, payloadv4)
+DP_START_TEST_FULL_RUN(imp_fwd_ecmp, payloadv4)
 {
 	/*
 	 * Create an ECP label swap
@@ -3739,7 +3738,7 @@ DP_START_TEST(imp_fwd_ecmp, payloadv4)
 
 DP_DECL_TEST_CASE(mpls, disp_fwd_ecmp, NULL, NULL);
 
-DP_START_TEST(disp_fwd_ecmp, payloadv4)
+DP_START_TEST_FULL_RUN(disp_fwd_ecmp, payloadv4)
 {
 	/*
 	 * Create an ECP label swap
@@ -3875,7 +3874,7 @@ DP_START_TEST(disp_fwd_ecmp, payloadv4)
 } DP_END_TEST;
 
 DP_DECL_TEST_CASE(mpls, lswap_fwd_ecmp, NULL, NULL);
-DP_START_TEST(lswap_fwd_ecmp, payloadv4)
+DP_START_TEST_FULL_RUN(lswap_fwd_ecmp, payloadv4)
 {
 	/*
 	 * Create an ECP label swap
@@ -4187,7 +4186,7 @@ DP_START_TEST(mpls_ttl, imposition)
 		ip = dp_test_get_mpls_pak_payload(expected_pak);
 		ip->ttl = DP_TEST_PAK_DEFAULT_TTL - 1;
 		ip->check = 0;
-		ip->check = in_cksum_hdr(ip);
+		ip->check = dp_in_cksum_hdr(ip);
 
 		exp = dp_test_exp_create(expected_pak);
 		rte_pktmbuf_free(expected_pak);
@@ -4694,7 +4693,7 @@ DP_START_TEST(mpls_icmp, ttl_v4)
 					 dp_test_intf_name2mac_str("dp1T1"),
 					 NULL, ETHER_TYPE_MPLS);
 
-		copy_from = pktmbuf_mtol3(payload_pak, struct iphdr *);
+		copy_from = dp_pktmbuf_mtol3(payload_pak, struct iphdr *);
 
 		/*
 		 * Create expected icmp packet
@@ -4738,7 +4737,7 @@ DP_START_TEST(mpls_icmp, ttl_v4)
 		cp[7] = 1;		/* ieo_ctype=ICMP_EXT_MPLS_INCOMING */
 
 		/* The incoming label stack */
-		memcpy(&cp[8], pktmbuf_mtol3(test_pak, char *),
+		memcpy(&cp[8], dp_pktmbuf_mtol3(test_pak, char *),
 		       test_data[i].nlabels * 4);
 
 		/* Finally the ICMP checksum fields */
@@ -4843,10 +4842,10 @@ DP_START_TEST(mpls_icmp, invalid_paks)
 	len = 64;
 	payload_pak = dp_test_create_ipv4_pak("10.73.0.0", "10.73.2.0",
 					      1, &len);
-	ip = pktmbuf_mtol3(payload_pak, struct iphdr *);
+	ip = dp_pktmbuf_mtol3(payload_pak, struct iphdr *);
 	ip->tot_len = htons(sizeof(struct iphdr) + 1500);
 	ip->check = 0;
-	ip->check = in_cksum_hdr(ip);
+	ip->check = dp_in_cksum_hdr(ip);
 	test_pak = dp_test_create_mpls_pak(1,
 					   (label_t []){144},
 					   (uint8_t []){1},
@@ -4867,10 +4866,10 @@ DP_START_TEST(mpls_icmp, invalid_paks)
 	len = 64;
 	payload_pak = dp_test_create_ipv4_pak("10.73.0.0", "10.73.2.0",
 					      1, &len);
-	ip = pktmbuf_mtol3(payload_pak, struct iphdr *);
+	ip = dp_pktmbuf_mtol3(payload_pak, struct iphdr *);
 	ip->ihl = DP_TEST_PAK_DEFAULT_IHL - 1;
 	ip->check = 0;
-	ip->check = in_cksum_hdr(ip);
+	ip->check = dp_in_cksum_hdr(ip);
 	test_pak = dp_test_create_mpls_pak(1,
 					   (label_t []){144},
 					   (uint8_t []){1},
@@ -4891,7 +4890,7 @@ DP_START_TEST(mpls_icmp, invalid_paks)
 	len = 64;
 	payload_pak = dp_test_create_ipv4_pak("10.73.0.0", "10.73.2.0",
 					      1, &len);
-	ip = pktmbuf_mtol3(payload_pak, struct iphdr *);
+	ip = dp_pktmbuf_mtol3(payload_pak, struct iphdr *);
 	ip->check = htons(0xdead);
 	test_pak = dp_test_create_mpls_pak(1,
 					   (label_t []){144},
@@ -4984,7 +4983,7 @@ DP_START_TEST(mpls_icmpv6, ttl_v6)
 					 dp_test_intf_name2mac_str("dp1T1"),
 					 NULL, ETHER_TYPE_MPLS);
 
-		copy_from = pktmbuf_mtol3(payload_pak, struct ip6_hdr *);
+		copy_from = dp_pktmbuf_mtol3(payload_pak, struct ip6_hdr *);
 
 		/*
 		 * Create expected icmp packet
@@ -5026,7 +5025,7 @@ DP_START_TEST(mpls_icmpv6, ttl_v6)
 		cp[7] = 1;		/* ieo_ctype=ICMP_EXT_MPLS_INCOMING */
 
 		/* The incoming label stack */
-		memcpy(&cp[8], pktmbuf_mtol3(test_pak, char *),
+		memcpy(&cp[8], dp_pktmbuf_mtol3(test_pak, char *),
 		       test_data[i].nlabels * 4);
 
 		/* Checksum */
@@ -5624,7 +5623,7 @@ DP_START_TEST(mpls_icmp, frag_needed_v4_lswitch)
 	icph->un.frag.mtu = htons(1400);
 
 	/* Truncated original packet goes in next */
-	copy_from = pktmbuf_mtol3(payload_pak, struct iphdr *);
+	copy_from = dp_pktmbuf_mtol3(payload_pak, struct iphdr *);
 	memcpy(icph + 1, copy_from, icmplen - icmpextlen);
 
 	/* Now the MPLS extended header */
@@ -5638,7 +5637,7 @@ DP_START_TEST(mpls_icmp, frag_needed_v4_lswitch)
 	cp[7] = 1;		/* ieo_ctype=ICMP_EXT_MPLS_INCOMING */
 
 	/* The incoming label stack */
-	memcpy(&cp[8], pktmbuf_mtol3(test_pak, char *),
+	memcpy(&cp[8], dp_pktmbuf_mtol3(test_pak, char *),
 	       2 * 4);
 
 	/* Finally the ICMP checksum fields */
@@ -5835,7 +5834,7 @@ static void mpls_fragment_v4_invalid_paks(bool df)
 	ip = dp_test_get_mpls_pak_payload(test_pak);
 	ip->ihl = DP_TEST_PAK_DEFAULT_IHL - 1;
 	ip->check = 0;
-	ip->check = in_cksum_hdr(ip);
+	ip->check = dp_in_cksum_hdr(ip);
 	(void)dp_test_pktmbuf_eth_init(test_pak,
 				       dp_test_intf_name2mac_str("dp1T1"),
 				       NULL,
@@ -5867,7 +5866,7 @@ static void mpls_fragment_v4_invalid_paks(bool df)
 	ip = dp_test_get_mpls_pak_payload(test_pak);
 	ip->tot_len = htons(2000);
 	ip->check = 0;
-	ip->check = in_cksum_hdr(ip);
+	ip->check = dp_in_cksum_hdr(ip);
 	(void)dp_test_pktmbuf_eth_init(test_pak,
 				       dp_test_intf_name2mac_str("dp1T1"),
 				       NULL,
@@ -5885,7 +5884,7 @@ static void mpls_fragment_v4_invalid_paks(bool df)
 	ip = dp_test_get_mpls_pak_payload(test_pak);
 	ip->tot_len = htons(sizeof(struct iphdr) - 1);
 	ip->check = 0;
-	ip->check = in_cksum_hdr(ip);
+	ip->check = dp_in_cksum_hdr(ip);
 	(void)dp_test_pktmbuf_eth_init(test_pak,
 				       dp_test_intf_name2mac_str("dp1T1"),
 				       NULL,
@@ -5904,7 +5903,7 @@ static void mpls_fragment_v4_invalid_paks(bool df)
 		      "Couldn't parse ip address");
 	ip->tot_len = htons(sizeof(struct iphdr) - 1);
 	ip->check = 0;
-	ip->check = in_cksum_hdr(ip);
+	ip->check = dp_in_cksum_hdr(ip);
 	(void)dp_test_pktmbuf_eth_init(test_pak,
 				       dp_test_intf_name2mac_str("dp1T1"),
 				       NULL,
@@ -6035,7 +6034,7 @@ DP_START_TEST(mpls_oam, v4_ecmp)
 	dp_test_netlink_set_mpls_forwarding("dp1T1", false);
 } DP_END_TEST;
 
-DP_START_TEST(mpls_oam, v4_ecmp_eight_paths)
+DP_START_TEST_FULL_RUN(mpls_oam, v4_ecmp_eight_paths)
 {
 	const char *cmd_string = "mpls oam --labelspace=0 "
 				"--source_ip=1.1.1.1 --dest_ip=127.0.1.0 "
@@ -6177,7 +6176,7 @@ DP_START_TEST(mpls_oam, v4_ecmp_eight_paths)
 	dp_test_netlink_set_mpls_forwarding("dp1T1", false);
 } DP_END_TEST;
 
-DP_START_TEST(mpls_oam, v4_ecmp_lswitch)
+DP_START_TEST_FULL_RUN(mpls_oam, v4_ecmp_lswitch)
 {
 	const char *nh_mac_str1, *nh_mac_str2;
 	struct rte_mbuf *expected_pak;
@@ -6313,7 +6312,7 @@ DP_START_TEST(mpls_oam, v4_ecmp_lswitch)
 	dp_test_netlink_set_mpls_forwarding("dp1T1", false);
 } DP_END_TEST;
 
-DP_START_TEST(mpls_oam, v4_ecmp_lswitch_two_labels)
+DP_START_TEST_FULL_RUN(mpls_oam, v4_ecmp_lswitch_two_labels)
 {
 	const char *nh_mac_str1, *nh_mac_str2;
 	struct rte_mbuf *expected_pak;

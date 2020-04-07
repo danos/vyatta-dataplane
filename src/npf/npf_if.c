@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2015-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -27,9 +27,9 @@
 #include "npf/config/npf_ruleset_type.h"
 #include "npf/npf_if.h"
 #include "npf/npf_ruleset.h"
+#include "npf/zones/npf_zone_public.h"
 #include "npf/npf_session.h"
 #include "npf/npf_vrf.h"
-#include "npf/cgnat/cgn_if.h"
 #include "util.h"
 #include "vplane_log.h"
 
@@ -52,12 +52,13 @@ struct npf_if_internal {
 
 	uint32_t		niif_refcnt;
 	uint32_t		niif_flags;
-	struct cgn_intf		*niif_cgn;
+	struct npf_zone_intf	*niif_zif;
 	struct cds_list_head	niif_list;
 
 	/*
 	 * Per interface ruleset count.  Used for rulesets that attach to an
-	 * interface.  This includes:
+	 * interface, and for zone rulesets (for which interfaces are
+	 * assigned).  The former includes:
 	 *
 	 * fw-in, fw-out, dnat, snat, nat64, pbr, nptv6-in, nptv6-out
 	 * bridge, session-rproc, portmonitor-in, portmonitor-out
@@ -89,6 +90,7 @@ static rte_spinlock_t niif_lock = RTE_SPINLOCK_INITIALIZER;
 static void
 npf_if_dealloc(struct npf_if_internal *niif)
 {
+	npf_config_release(&niif->niif_if.nif_conf);
 	free(niif);	/* call_rcu not required */
 }
 
@@ -121,8 +123,9 @@ npf_if_gc(struct rte_timer *t __rte_unused, void *arg __rte_unused)
  * This is called when:
  *
  * 1. After DP_EVT_IF_INDEX_SET event if interface has interface attach points
- * 2. A session is activated on an interface
- * 3. npf config (e.g. nat64) on a different interface requires npf features
+ * 2. An interface is set into a zone
+ * 3. A session is activated on an interface
+ * 4. npf config (nat64 or zone) on a different interface requires npf features
  *    to be enabled on all other interfaces
  *
  * initial_sess_count should be set to 1 for item #3, otherwise is should be
@@ -204,11 +207,11 @@ void npf_if_reference_one(struct ifnet *ifp, void *arg __unused)
 
 /*
  * Take reference on niif for all interfaces.  Typically this happens when
- * nat64 is configured on one interface.
+ * nat64 or zones are configured on one interface.
  */
 void npf_if_reference_all(void)
 {
-	ifnet_walk(npf_if_reference_one, NULL);
+	dp_ifnet_walk(npf_if_reference_one, NULL);
 }
 
 /*
@@ -224,7 +227,7 @@ void npf_if_release_one(struct ifnet *ifp, void *arg __unused)
  */
 void npf_if_release_all(void)
 {
-	ifnet_walk(npf_if_release_one, NULL);
+	dp_ifnet_walk(npf_if_release_one, NULL);
 }
 
 /*
@@ -264,10 +267,6 @@ npf_if_sessions_handling_enable(struct ifnet *ifp, bool nif_exists)
 	if (!niif)
 		goto end;
 
-	/* Enable defrag and fw features on interface */
-	if_feat_refcnt_incr(ifp, IF_FEAT_DEFRAG);
-	if_feat_refcnt_incr(ifp, IF_FEAT_FW);
-
 end:
 	rte_spinlock_unlock(&niif_lock);
 }
@@ -296,10 +295,6 @@ npf_if_sessions_handling_disable(struct ifnet *ifp, bool lock)
 	assert(niif != NULL);
 	if (niif == NULL)
 		goto end;
-
-	/* Disable defrag and fw features on interface */
-	if_feat_refcnt_decr(ifp, IF_FEAT_DEFRAG);
-	if_feat_refcnt_decr(ifp, IF_FEAT_FW);
 
 	/* Remove reference on npf interface structure. */
 	npf_if_niif_delete(ifp);
@@ -354,7 +349,7 @@ end:
  * DP_EVT_IF_RENAME event.
  */
 void
-npf_if_enable(struct ifnet *ifp, uint32_t ifindex __unused)
+npf_if_enable(struct ifnet *ifp)
 {
 	int rc;
 
@@ -376,8 +371,8 @@ npf_if_enable(struct ifnet *ifp, uint32_t ifindex __unused)
 	 */
 	npf_vrf_if_index_set(ifp);
 
-	/* Is this interface used for cgnat? */
-	cgn_nif_index_set(ifp);
+	/* Is this interface in a zone? */
+	npf_zone_if_index_set(ifp);
 
 	rte_spinlock_unlock(&niif_lock);
 }
@@ -411,12 +406,13 @@ npf_if_disable_with_name(struct ifnet *ifp, const char *if_name)
 		npf_if_sessions_handling_disable(ifp, false);
 
 	/*
-	 * Decrement per-interface ruleset counts to zero
+	 * Decrement per-interface ruleset counts to zero except for zones,
+	 * which are handled by npf_zone_if_index_unset below.
 	 */
-	npf_if_rs_count_decr_to_zero(ifp, ~0);
+	npf_if_rs_count_decr_to_zero(ifp, (~0 & ~NPF_ZONE));
 
-	/* Is this interface used for cgnat? */
-	cgn_nif_index_unset(ifp);
+	/* Is this interface in a zone? */
+	npf_zone_if_index_unset(ifp);
 
 	/*
 	 * Are there any feature counts for the vrf this interface?
@@ -449,7 +445,7 @@ void
 npf_if_rename(struct ifnet *ifp, const char *old_ifname)
 {
 	npf_if_disable_with_name(ifp, old_ifname);
-	npf_if_enable(ifp, ifp->if_index);
+	npf_if_enable(ifp);
 }
 
 /*
@@ -569,7 +565,7 @@ npf_if_apev_if_add_rlset(enum npf_attpt_ev_type ev __unused,
 	enum npf_ruleset_type *ruleset_type = (enum npf_ruleset_type *) data;
 	const struct npf_attpt_key *apk = npf_attpt_item_key(ap);
 
-	struct ifnet *ifp = ifnet_byifname(apk->apk_point);
+	struct ifnet *ifp = dp_ifnet_byifname(apk->apk_point);
 	if (!ifp || !ifp->if_index)
 		return;
 
@@ -590,7 +586,7 @@ npf_if_apev_if_del_rlset(enum npf_attpt_ev_type ev __unused,
 	enum npf_ruleset_type *ruleset_type = (enum npf_ruleset_type *) data;
 	const struct npf_attpt_key *apk = npf_attpt_item_key(ap);
 
-	struct ifnet *ifp = ifnet_byifname(apk->apk_point);
+	struct ifnet *ifp = dp_ifnet_byifname(apk->apk_point);
 	if (!ifp || !ifp->if_index)
 		return;
 
@@ -647,82 +643,100 @@ void npf_if_addr_change(enum cont_src_en cont_src, struct ifnet *ifp,
 		return;
 
 	/* Update if we have an SNAT ruleset */
-	npf_ruleset_t *rs = nif->nif_conf.nc_rulesets[NPF_RS_SNAT];
+	const npf_ruleset_t *rs = npf_get_ruleset(&nif->nif_conf, NPF_RS_SNAT);
+
 	if (rs)
 		npf_ruleset_update_masquerade(ifp, rs);
 }
 
 /*
- * Get cgnat interface structure.
+ * Assign a zone interface to an npf interface.
  */
-struct cgn_intf *npf_if_get_cgn(struct ifnet *ifp)
+int
+npf_if_zone_assign(struct ifnet *ifp, struct npf_zone_intf *zif, bool lock)
 {
 	struct npf_if_internal *niif;
-
-	if (!ifp)
-		return NULL;
-
-	niif = (struct npf_if_internal *)ifp->if_npf;
-	if (niif)
-		return niif->niif_cgn;
-
-	return NULL;
-}
-
-int npf_if_set_cgn(struct ifnet *ifp, struct cgn_intf *cgn)
-{
-	struct npf_if_internal *niif;
+	struct npf_zone_intf *cur;
 	int rc = 0;
 
-	assert(!rte_spinlock_is_locked(&niif_lock));
-
-	rte_spinlock_lock(&niif_lock);
-
-	if (!ifp || !cgn) {
-		rc = -1;
-		goto end;
-	}
-
-	/* Take reference on niif.  Create, if necessary */
-	niif = npf_if_niif_create(ifp, 0);
-	if (!niif) {
-		rc = -1;
-		goto end;
-	}
-
-	rc = 0;
-	rcu_assign_pointer(niif->niif_cgn, cgn);
-
-end:
-	rte_spinlock_unlock(&niif_lock);
-	return rc;
-}
-
-int npf_if_clear_cgn(struct ifnet *ifp, bool lock)
-{
-	struct npf_if_internal *niif;
-	struct cgn_intf *cgn;
-	int rc = -1;
-
-	if (lock) {
-		assert(!rte_spinlock_is_locked(&niif_lock));
+	if (lock)
 		rte_spinlock_lock(&niif_lock);
-	} else {
-		assert(rte_spinlock_is_locked(&niif_lock));
-	}
 
 	niif = (struct npf_if_internal *)ifp->if_npf;
-	if (niif) {
-		rc = 0;
-		cgn = rcu_xchg_pointer(&niif->niif_cgn, NULL);
+	cur = niif ? rcu_dereference(niif->niif_zif) : NULL;
 
-		/* Release reference on niif. */
-		if (cgn)
-			npf_if_niif_delete(ifp);
+	/* Already assigned or unassigned? */
+	assert(!cur != !zif);
+	if (!cur == !zif) {
+		rc = -EINVAL;
+		goto end;
 	}
 
+	if (zif) {
+		/* Take reference on, or create, niif */
+		niif = npf_if_niif_create(ifp, 0);
+
+		assert(niif != NULL);
+		if (!niif) {
+			rc = -ENOMEM;
+			goto end;
+		}
+
+		rcu_assign_pointer(niif->niif_zif, zif);
+		npf_if_rs_count_incr(ifp, NPF_RS_ZONE);
+	} else {
+		npf_if_rs_count_decr(ifp, NPF_RS_ZONE);
+		rcu_assign_pointer(niif->niif_zif, NULL);
+
+		/* Remove reference from niif */
+		npf_if_niif_delete(ifp);
+	}
+
+end:
 	if (lock)
 		rte_spinlock_unlock(&niif_lock);
 
 	return rc;
+}
+
+/*
+ * npf_if_zone_is_enabled
+ */
+bool npf_if_zone_is_enabled(const struct npf_if *nif)
+{
+	struct npf_if_internal *niif = (struct npf_if_internal *)nif;
+
+	return niif && niif->niif_zif;
+}
+
+/* Zone intf from ifp */
+struct npf_zone_intf *npf_if_zone_intf(struct ifnet *ifp)
+{
+	struct npf_if *nif = rcu_dereference(ifp->if_npf);
+	struct npf_if_internal *niif = (struct npf_if_internal *)nif;
+
+	if (niif)
+		return rcu_dereference(niif->niif_zif);
+	return NULL;
+}
+
+/* Zone from nif */
+struct npf_zone *npf_nif_zone(const struct npf_if *nif)
+{
+	struct npf_if_internal *niif = (struct npf_if_internal *)nif;
+
+	if (niif)
+		return npf_zone_zif2zone(rcu_dereference(niif->niif_zif));
+	return NULL;
+}
+
+/* Zone from ifp */
+struct npf_zone *npf_if_zone(const struct ifnet *ifp)
+{
+	struct npf_if *nif = rcu_dereference(ifp->if_npf);
+	struct npf_if_internal *niif = (struct npf_if_internal *)nif;
+
+	if (niif)
+		return npf_zone_zif2zone(rcu_dereference(niif->niif_zif));
+	return NULL;
 }

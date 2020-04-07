@@ -49,7 +49,6 @@ PIPELINE_FILES = \
 	src/pipeline/pl_fused_gen.c \
 	src/pipeline/pl_node.c \
 	src/pipeline/pl_node_boot.c \
-	src/pipeline/pl_plugin.c \
 	$(PIPELINE_NODE_FILES)
 
 PIPELINE_NODE_FILES = \
@@ -58,10 +57,15 @@ PIPELINE_NODE_FILES = \
 	src/pipeline/nodes/cross_connect/l2_cross_connect_node.c \
 	src/pipeline/nodes/cross_connect/l2_cross_connect_cmd.c \
 	src/pipeline/nodes/cross_connect/cross_connect.c \
+	src/pipeline/nodes/ipv4_drop.c \
+	src/pipeline/nodes/ipv6_drop.c \
+	src/pipeline/nodes/l2_consume.c \
 	src/pipeline/nodes/l2_ether_in.c \
 	src/pipeline/nodes/l2_ether_forward.c \
 	src/pipeline/nodes/l2_ether_lookup.c \
 	src/pipeline/nodes/l2_hw_hdr.c \
+	src/pipeline/nodes/l2_local.c \
+	src/pipeline/nodes/l2_output.c \
 	src/pipeline/nodes/l2_portmonitor.c \
 	src/pipeline/nodes/l2_portmonitor_hw.c \
 	src/pipeline/nodes/l2_vlan_mod_ingress.c \
@@ -73,12 +77,15 @@ PIPELINE_NODE_FILES = \
 	src/pipeline/nodes/l3_arp.c \
 	src/pipeline/nodes/l3_fw_in.c \
 	src/pipeline/nodes/l3_fw_out.c \
+	src/pipeline/nodes/l3_nat64.c \
 	src/pipeline/nodes/l3_pbr.c \
 	src/pipeline/nodes/l3_tcp_mss.c \
 	src/pipeline/nodes/l3_v4_cgnat.c \
 	src/pipeline/nodes/l3_v4_defrag.c \
 	src/pipeline/nodes/l3_v4_encap.c \
+	src/pipeline/nodes/l3_v4_gre.c \
 	src/pipeline/nodes/l3_v4_ipsec.c \
+	src/pipeline/nodes/l3_v4_l2tpv3.c \
 	src/pipeline/nodes/l3_v4_l4.c \
 	src/pipeline/nodes/l3_v4_no_address.c \
 	src/pipeline/nodes/l3_v4_no_forwarding.c \
@@ -86,31 +93,33 @@ PIPELINE_NODE_FILES = \
 	src/pipeline/nodes/l3_v4_post_route_lookup.c \
 	src/pipeline/nodes/l3_v4_route_lookup.c \
 	src/pipeline/nodes/l3_v4_rpf.c \
+	src/pipeline/nodes/l3_v4_udp.c \
 	src/pipeline/nodes/l3_v4_val.c \
 	src/pipeline/nodes/l3_v6_defrag.c \
 	src/pipeline/nodes/l3_v6_encap.c \
 	src/pipeline/nodes/l3_v6_ipsec.c \
+	src/pipeline/nodes/l3_v6_l4.c \
 	src/pipeline/nodes/l3_v6_no_address.c \
 	src/pipeline/nodes/l3_v6_no_forwarding.c \
 	src/pipeline/nodes/l3_v6_out.c \
 	src/pipeline/nodes/l3_v6_post_route_lookup.c \
 	src/pipeline/nodes/l3_v6_route_lookup.c \
+	src/pipeline/nodes/l3_v6_udp.c \
 	src/pipeline/nodes/l3_v6_val.c \
 	src/pipeline/nodes/l3_v6_nptv6.c \
-	src/pipeline/nodes/term.c
+	src/pipeline/nodes/term.c \
+	src/pipeline/nodes/term_drop.c
 
 SESSION_FILES = \
 	src/session/session.c \
 	src/session/session_cmds.c \
-	src/session/session_feature.c
+	src/session/session_feature.c \
+	src/session/session_watch.c
 
 CORE_FILES = \
 	src/arp.c \
 	src/backplane.c \
 	src/bpf_filter.c \
-	src/bridge.c \
-	src/bridge_netlink.c \
-	src/bridge_port.c \
 	src/bridge_vlan_set.c \
 	src/commands.c \
 	src/protobuf.c \
@@ -119,22 +128,37 @@ CORE_FILES = \
 	src/control.c \
 	src/cpp_rate_limiter.c \
 	src/dealer.c \
+	src/debug.c \
 	src/devinfo.c \
-	src/dpdk_eth_if.c \
 	src/dp_event.c \
 	src/ecmp.c \
 	src/ether.c \
 	src/event.c \
 	src/fal.c \
-	src/gre.c \
-	src/hotplug.c \
+	src/feature_plugin.c \
+	src/if/bridge/bridge.c \
+	src/if/bridge/bridge_netlink.c \
+	src/if/bridge/bridge_port.c \
+	src/if/bridge/switch.c \
+	src/if/dpdk-eth/hotplug.c \
+	src/if/dpdk-eth/dpdk_eth_if.c \
+	src/if/dpdk-eth/dpdk_eth_linkwatch.c \
+	src/if/dpdk-eth/dpdk_lag.c \
+	src/if/dpdk-eth/fal_lag.c \
+	src/if/dpdk-eth/vhost.c \
+	src/if/gre.c \
+	src/if/ipip_tunnel.c \
+	src/if/loopback.c \
+	src/if/macvlan.c \
+	src/if/vlan/vlan_if.c \
+	src/if/vlan/vlan_if_netlink.c \
+	src/if/vxlan.c \
 	src/if.c \
 	src/if_ether.c \
         src/if_feat.c \
 	src/if_llatbl.c \
 	src/in.c \
 	src/in_cksum.c \
-	src/ipip_tunnel.c \
 	src/ip_forward.c \
 	src/ip_commands.c \
 	src/ip_icmp.c \
@@ -150,17 +174,16 @@ CORE_FILES = \
 	src/l2tp/l2tpeth_dp.c \
 	src/l2tp/l2tpeth_netlink.c \
 	src/lag.c \
-	src/linkwatch.c \
+	src/lcore_sched.c \
 	src/log.c \
-	src/loopback.c \
 	src/lpm/lpm.c \
 	src/lpm/lpm6.c \
-	src/macvlan.c \
 	src/main.c \
 	src/master.c \
 	src/mstp.c \
 	src/netinet/ip_mroute.c \
 	src/netlink.c \
+	src/nh.c \
 	src/nsh.c \
 	src/pd_show.c \
 	src/pktmbuf.c \
@@ -171,6 +194,7 @@ CORE_FILES = \
 	src/ptp.c \
 	src/qos_sched.c \
 	src/qos_dpdk.c \
+	src/qos_ext_buf_monitor.c \
 	src/qos_hw.c \
 	src/qos_hw_show.c \
 	src/qos_obj_db.c \
@@ -180,16 +204,11 @@ CORE_FILES = \
 	src/rt_tracker.c \
 	src/storm_ctl.c \
 	src/sfp.c \
-	src/switch.c \
 	src/switchport.c \
 	src/udp_handler.c \
 	src/util.c \
-	src/vhost.c \
-	src/vlan_if.c \
-	src/vlan_if_netlink.c \
 	src/vlan_modify.c \
 	src/vrf.c \
-	src/vxlan.c \
 	src/shadow.c \
 	src/zmq_dp.c
 
@@ -200,18 +219,28 @@ FILES_NOT_FOR_TEST = \
 	src/shadow_receive.c
 
 NPF_FILES = \
-        src/npf/alg/npf_alg_private.c \
-        src/npf/alg/npf_alg_public.c \
-        src/npf/alg/npf_alg_tftp.c \
-        src/npf/alg/npf_alg_sip.c \
-        src/npf/alg/npf_alg_ftp.c \
-        src/npf/alg/npf_alg_rpc.c \
+	src/npf/alg/apt/apt.c \
+	src/npf/alg/apt/apt_dport.c \
+	src/npf/alg/apt/apt_tuple.c \
+        src/npf/alg/alg_apt.c \
         src/npf/apm/apm.c \
+        src/npf/alg/alg.c \
+        src/npf/alg/alg_npf.c \
+        src/npf/alg/alg_ftp.c \
+        src/npf/alg/alg_tftp.c \
+        src/npf/alg/alg_rpc.c \
+        src/npf/alg/alg_sip.c \
+        src/npf/alg/sip/sip_request.c \
+        src/npf/alg/sip/sip_response.c \
+        src/npf/alg/sip/sip_parse.c \
+        src/npf/alg/sip/sip_translate.c \
         src/npf/cgnat/cgn.c \
         src/npf/cgnat/cgn_cmd_cfg.c \
         src/npf/cgnat/cgn_cmd_op.c \
         src/npf/cgnat/cgn_if.c \
         src/npf/cgnat/cgn_log.c \
+        src/npf/cgnat/cgn_log_rte.c \
+        src/npf/cgnat/cgn_log_protobuf_zmq.c \
         src/npf/cgnat/cgn_map.c \
         src/npf/cgnat/cgn_mbuf.c \
         src/npf/cgnat/cgn_policy.c \
@@ -259,6 +288,8 @@ NPF_FILES = \
         src/npf/npf_mbuf.c \
         src/npf/npf_nat.c \
         src/npf/npf_ncgen.c \
+        src/npf/npf_pack.c \
+        src/npf/npf_unpack.c \
         src/npf/npf_processor.c \
         src/npf/npf_ptree.c \
         src/npf/npf_rule_gen.c \
@@ -269,6 +300,8 @@ NPF_FILES = \
         src/npf/npf_tblset.c \
         src/npf/npf_timeouts.c \
         src/npf/npf_vrf.c \
+        src/npf/zones/npf_zone_private.c \
+        src/npf/zones/npf_zone_public.c \
         src/npf/rproc/npf_ext_action_group.c \
         src/npf/rproc/npf_ext_counter.c \
         src/npf/rproc/npf_ext_ctrdef.c \
@@ -313,15 +346,33 @@ PL_GEN_FUSED_OPTS = \
 	--entry vyatta:ipv6-encap \
 	--entry vyatta:ipv4-encap-only \
 	--entry vyatta:ipv6-encap-only \
+	--entry vyatta:ipv4-l4 \
+	--entry vyatta:ipv6-l4 \
+	--entry vyatta:l2-consume \
+	--entry vyatta:l2-local \
+	--entry vyatta:l2-output \
+	--entry vyatta:term-drop \
+	--entry vyatta:ipv4-drop \
+	--entry vyatta:ipv6-drop \
 	--feature-point vyatta:ether-lookup \
+	--feature-point vyatta:ipv4-drop \
+	--feature-point vyatta:ipv4-l4 \
 	--feature-point vyatta:ipv4-validate \
 	--feature-point vyatta:ipv4-route-lookup \
 	--feature-point vyatta:ipv4-out \
 	--feature-point vyatta:ipv4-encap \
+	--feature-point vyatta:ipv4-udp-in \
+	--feature-point vyatta:ipv6-drop \
+	--feature-point vyatta:ipv6-l4 \
 	--feature-point vyatta:ipv6-validate \
 	--feature-point vyatta:ipv6-route-lookup \
 	--feature-point vyatta:ipv6-out \
-	--feature-point vyatta:ipv6-encap
+	--feature-point vyatta:ipv6-encap \
+	--feature-point vyatta:ipv6-udp-in \
+	--feature-point vyatta:l2-consume \
+	--feature-point vyatta:l2-local \
+	--feature-point vyatta:l2-output \
+	--feature-point vyatta:term-drop
 
 src/pipeline/pl_fused_gen.h: $(PIPELINE_NODE_FILES) $(srcdir)/scripts/pl_gen_fused
 	$(AM_V_GEN)$(srcdir)/scripts/pl_gen_fused $(PL_GEN_FUSED_OPTS) --header-out $@ $(PIPELINE_NODE_FILES:%=$(srcdir)/%)
@@ -329,9 +380,11 @@ src/pipeline/pl_fused_gen.c: $(PIPELINE_NODE_FILES) $(srcdir)/scripts/pl_gen_fus
 	$(AM_V_GEN)$(srcdir)/scripts/pl_gen_fused $(PL_GEN_FUSED_OPTS) --impl-out $@ $(PIPELINE_NODE_FILES:%=$(srcdir)/%)
 
 BUILT_SOURCES = src/pipeline/pl_fused_gen.h $(PROTO_FILES:.proto=.pb-c.h) $(SAMPLE_PROTO_FILES:.proto=.pb-c.h)
+BUILT_SOURCES += $(PROTO_FILES:.proto=.pb.h)
 CLEANFILES = src/pipeline/pl_fused_gen.h src/pipeline/pl_fused_gen.c
 CLEANFILES += $(PROTO_FILES:.proto=.pb-c.c) $(PROTO_FILES:.proto=.pb-c.h)
 CLEANFILES += $(SAMPLE_PROTO_FILES:.proto=.pb-c.c) $(SAMPLE_PROTO_FILES:.proto=.pb-c.h)
+CLEANFILES += $(PROTO_FILES:.proto=.pb.c) $(PROTO_FILES:.proto=.pb.h)
 
 PROTO_FILES = \
 	protobuf/DataplaneEnvelope.proto \
@@ -342,12 +395,22 @@ PROTO_FILES = \
 	protobuf/CryptoPolicyConfig.proto \
 	protobuf/IPAddress.proto \
 	protobuf/VFPSetConfig.proto \
-	protobuf/cpp_rl.proto
+	protobuf/cpp_rl.proto \
+	protobuf/IP6RedirectsConfig.proto \
+	protobuf/SpeedConfig.proto \
+	protobuf/GArpConfig.proto \
+	protobuf/CgnatLogging.proto \
+	protobuf/BreakoutConfig.proto
 
-SAMPLE_PROTO_FILES = src/pipeline/nodes/sample/SampleFeatConfig.proto
+
+SAMPLE_PROTO_FILES = src/pipeline/nodes/sample/SampleFeatConfig.proto \
+	src/pipeline/nodes/sample/SampleFeatOp.proto
 
 %.pb-c.c %.pb-c.h: %.proto
 	$(AM_V_GEN)@PROTOC_C@ -I=$(dir $^) --c_out=$(dir $@) $^
+
+%.pb.cc %.pb.h: %.proto
+	$(AM_V_GEN)protoc -I=$(dir $^) --cpp_out=$(dir $@) $^
 
 %_pb2.py: %.proto
 	$(AM_V_GEN)protoc -I=$(dir $^) --python_out=$(dir $@) $^
@@ -355,13 +418,37 @@ SAMPLE_PROTO_FILES = src/pipeline/nodes/sample/SampleFeatConfig.proto
 %.pm: %.proto
 	$(AM_V_GEN)$(srcdir)/scripts/vyatta-generate-pb-perl.pl $^ $(dir $@)
 
-protopythonmodulesdir=/usr/lib/python3/dist-packages/vyatta/proto
+%.pb.go: %.proto
+	$(AM_V_GEN)protoc -I=$(dir $^) --go_out=paths=source_relative:$(dir $@) $^
+
+protopythonmodulesdir=$(prefix)/lib/python3/dist-packages/vyatta/proto
 protopythonmodules_DATA = $(PROTO_FILES:%.proto=%_pb2.py)
 
-protoperlmodulesdir=/usr/share/perl5/vyatta/proto
+protoperlmodulesdir=$(datarootdir)/perl5/vyatta/proto
 protoperlmodules_DATA = $(PROTO_FILES:%.proto=%.pm)
 
+GO_PROTO_GENERATED_FILES = $(foreach P,$(basename $(notdir $(PROTO_FILES))),protobuf/go/$P/$P.pb.go)
+
+$(GO_PROTO_GENERATED_FILES): $(PROTO_FILES:%.proto=%.pb.go)
+#	Copy the generated protobuf files into an appropriate go package
+#	structure.
+	mkdir -p $(dir $@)
+	cp protobuf/$(notdir $@) $(dir $@)
+
+protogopkgsdir=/usr/share/gocode/src/github.com/danos/vyatta-dataplane/
+nobase_protogopkgs_DATA = $(GO_PROTO_GENERATED_FILES)
+
+pkgconfig_DATA = protobuf/vyatta-dataplane-proto.pc debian/vyatta-dataplane-dev.pc debian/libvyattafal.pc
+lib_LTLIBRARIES = libvyatta-dataplane-proto.la
+libvyatta_dataplane_proto_la_SOURCES = $(PROTO_FILES:.proto=.pb.cc)
+libvyatta_dataplane_proto_la_CPPFLAGS = $(AM_CPPFLAGS) $(shell pkg-config --cflags protobuf)
+libvyatta_dataplane_proto_la_LDFLAGS = $(shell pkg-config --cflags --libs protobuf) -version-info 1:0:0 -shared
+
+includeprotodir = /usr/include/vyatta-dataplane/proto
+includeproto_HEADERS = $(PROTO_FILES:%.proto=%.pb.h) $(PROTO_FILES:%.proto=%.pb-c.h)
+
 sbin_PROGRAMS = dataplane
+bin_PROGRAMS = dataplane_test
 
 dataplane_SOURCES = $(CORE_FILES) $(FILES_NOT_FOR_TEST) $(CRYTPO_FILES) $(IPV6_FILES) $(NPF_FILES) $(MPLS_FILES) $(DPI_FILES) $(PIPELINE_FILES) $(SESSION_FILES) $(PROTO_FILES:.proto=.pb-c.c)
 
@@ -377,13 +464,12 @@ dataplane_CPPFLAGS += -I./src \
 dataplane_CFLAGS = $(EXTRA_CFLAGS) $(DPDK_CFLAGS) $(DPI_CFLAGS) $(LIBMNL_CFLAGS) $(LIBCAP_CFLAGS) $(LIBCZMQ_CFLAGS) $(LIBZMQ_CFLAGS) $(LIBURCU_QSBR_CFLAGS) $(LIBURCU_CDS_CFLAGS) $(LIBOSIP2_CFLAGS) $(LIBCRYPTO_CFLAGS) -O3 $(DATAPLANE_LTO_FLAG) -DNDEBUG -DFUSED_MODE $(PTHREAD_CFLAGS) $(SYSTEMD_CFLAGS) -ffunction-sections
 
 dataplane_LDFLAGS = $(EXTRA_LDFLAGS) $(OTHER_LINKER_FLAGS)
-dataplane_LDADD = $(DPDK_LIBS) $(DPI_LIBS) $(LIBMNL_LIBS) $(LIBCAP_LIBS) $(LIBCZMQ_LIBS) $(LIBZMQ_LIBS) $(LIBURCU_QSBR_LIBS) $(LIBURCU_CDS_LIBS) $(LIBOSIP2_LIBS) $(LIBCRYPTO_LIBS) $(PTHREAD_LIBS) $(SYSTEMD_LIBS) -ldl $(PROTOBUF_C_LIBS)
+dataplane_LDADD = $(DPDK_LIBS) $(DPI_LIBS) $(LIBMNL_LIBS) $(LIBCAP_LIBS) $(LIBCZMQ_LIBS) $(LIBZMQ_LIBS) $(LIBURCU_QSBR_LIBS) $(LIBURCU_CDS_LIBS) $(LIBOSIP2_LIBS) $(LIBCRYPTO_LIBS) $(PTHREAD_LIBS) $(SYSTEMD_LIBS) -ldl $(PROTOBUF_C_LIBS) $(SWPORT_LIBS)
 EXTRA_dataplane_DEPENDENCIES = $(srcdir)/dataplane.section-ordering
 
 
-dataplane_test_SOURCES = $(CORE_FILES) $(CRYTPO_FILES) $(IPV6_FILES) $(NPF_FILES) $(MPLS_FILES) $(DPI_FILES) $(PIPELINE_FILES) $(SESSION_FILES) $(PROTO_FILES:.proto=.pb-c.c) $(SAMPLE_PROTO_FILES:.proto=.pb-c.c)
+dataplane_test_SOURCES = $(CORE_FILES) $(CRYTPO_FILES) $(IPV6_FILES) $(NPF_FILES) $(MPLS_FILES) $(DPI_FILES) $(PIPELINE_FILES) $(SESSION_FILES) $(PROTO_FILES:.proto=.pb-c.c) $(SAMPLE_PROTO_FILES:.proto=.pb-c.c) $(CONNSYNC_FILES)
 dataplane_test_SOURCES += \
-	src/pipeline/nodes/sample/sample.c \
 	tests/common/src/dp_test_pktmbuf_lib.c \
 	tests/common/src/dp_test_crypto_lib.c \
 	tests/whole_dp/src/dp_test.c \
@@ -424,6 +510,7 @@ dataplane_test_SOURCES += \
 	tests/whole_dp/src/dp_test_lib_cmd.c \
 	tests/whole_dp/src/dp_test_lib_exp.c \
 	tests/whole_dp/src/dp_test_lib_intf.c \
+	tests/whole_dp/src/dp_test_lib_pb.c \
 	tests/whole_dp/src/dp_test_lib_pkt.c \
 	tests/whole_dp/src/dp_test_lib_portmonitor.c \
 	tests/whole_dp/src/dp_test_lib_tcp.c \
@@ -455,10 +542,18 @@ dataplane_test_SOURCES += \
 	tests/whole_dp/src/dp_test_npf_nat64.c \
 	tests/whole_dp/src/dp_test_npf_nat_lib.c \
 	tests/whole_dp/src/dp_test_npf_nptv6.c \
-	tests/whole_dp/src/dp_test_npf_alg_ftp.c \
+	tests/whole_dp/src/dp_test_npf_apt.c \
 	tests/whole_dp/src/dp_test_npf_alg_lib.c \
-	tests/whole_dp/src/dp_test_npf_alg_rpc.c \
+	tests/whole_dp/src/dp_test_npf_alg_sip_call.c \
+	tests/whole_dp/src/dp_test_npf_alg_sip_lib.c \
+	tests/whole_dp/src/dp_test_npf_alg_sip_parse.c \
+	tests/whole_dp/src/dp_test_npf_alg_ftp.c \
 	tests/whole_dp/src/dp_test_npf_alg_tftp.c \
+	tests/whole_dp/src/dp_test_npf_alg_rpc.c \
+	tests/whole_dp/src/dp_test_npf_alg_sip_1.c \
+	tests/whole_dp/src/dp_test_npf_alg_sip_2.c \
+	tests/whole_dp/src/dp_test_npf_alg_sip_3.c \
+	tests/whole_dp/src/dp_test_npf_alg_sip_4.c \
 	tests/whole_dp/src/dp_test_npf_qos.c \
 	tests/whole_dp/src/dp_test_npf_portmap_lib.c \
 	tests/whole_dp/src/dp_test_npf_prot_group.c \
@@ -467,6 +562,8 @@ dataplane_test_SOURCES += \
 	tests/whole_dp/src/dp_test_npf_session_limit.c \
 	tests/whole_dp/src/dp_test_npf_snat_overrun.c \
 	tests/whole_dp/src/dp_test_npf_tcp.c \
+	tests/whole_dp/src/dp_test_npf_vti.c \
+	tests/whole_dp/src/dp_test_npf_zone.c \
 	tests/whole_dp/src/dp_test_pbr.c \
 	tests/whole_dp/src/dp_test_pipeline.c \
 	tests/whole_dp/src/dp_test_poe_cmds.c \
@@ -475,10 +572,14 @@ dataplane_test_SOURCES += \
 	tests/whole_dp/src/dp_test_ppp.c \
 	tests/whole_dp/src/dp_test_ptp.c \
 	tests/whole_dp/src/dp_test_qos_basic.c \
+	tests/whole_dp/src/dp_test_qos_ext_buf_monitor.c \
+	tests/whole_dp/src/dp_test_qos_fal.c \
+	tests/whole_dp/src/dp_test_qos_class.c \
 	tests/whole_dp/src/dp_test_qos_lib.c \
 	tests/whole_dp/src/dp_test_route_broker.c \
 	tests/whole_dp/src/dp_test_route_tracker.c \
 	tests/whole_dp/src/dp_test_slow_path.c \
+	tests/whole_dp/src/dp_test_session_internal_lib.c \
 	tests/whole_dp/src/dp_test_session_lib.c \
 	tests/whole_dp/src/dp_test_session.c \
 	tests/whole_dp/src/dp_test_session_cmds.c \
@@ -507,20 +608,50 @@ fal_plugin_test_la_SOURCES = \
 	tests/whole_dp/src/fal_plugin_ptp.c
 
 pkginclude_HEADERS = \
-	include/json_writer.h \
-	include/pl_common.h \
-	include/pl_node.h \
-	include/compiler.h \
-	include/protobuf.h \
-	include/fal_plugin.h \
 	include/bridge_flags.h \
-	include/bridge_vlan_set.h
+	include/bridge_vlan_set.h \
+	include/compiler.h \
+	include/config.h \
+	include/debug.h \
+	include/dpi.h \
+	include/dp_session.h \
+	include/dp_test/dp_test_cmd_check.h \
+	include/dp_test/dp_test_lib.h \
+	include/dp_test/dp_test_lib_intf.h \
+	include/dp_test/dp_test_macros.h \
+	include/dp_test/dp_test_netlink_state.h \
+	include/dp_test/dp_test_pktmbuf_lib.h \
+	include/dp_test/dp_test_firewall_lib.h \
+	include/dp_test/dp_test_session_lib.h \
+	include/event.h \
+	include/fal_bfd.h \
+	include/fal_plugin.h \
+	include/feature_commands.h \
+	include/feature_plugin.h \
+	include/interface.h \
+	include/ip.h \
+	include/ip_checksum.h \
+	include/ip_forward.h \
+	include/json_writer.h \
+	include/lcore_sched.h \
+	include/pktmbuf.h \
+	include/pipeline.h \
+	include/urcu.h	\
+	include/vrf.h
 
 pkgplugindir = $(pkglibdir)/pipeline/plugins
+
 pkgplugin_LTLIBRARIES = sample_plugin.la
 sample_plugin_la_SOURCES = src/pipeline/nodes/sample/sample.c $(SAMPLE_PROTO_FILES:.proto=.pb-c.c)
 sample_plugin_la_CPPFLAGS = -I$(srcdir)/include -I$(builddir)/src/pipeline/nodes/sample $(DPDK_CFLAGS) -I$(builddir)/src/pipeline/nodes/sample
 sample_plugin_la_LDFLAGS = -avoid-version -module -shared -export-dynamic
+
+if DATAPLANE_SANITIZER
+dataplane_CFLAGS += -fsanitize=address -DSANITIZE_ADDRESS
+dataplane_LDFLAGS += -fsanitize=address
+export SANITIZER = SANITIZER
+export ASAN_OPTIONS = verify_asan_link_order=0:detect_leaks=0
+endif
 
 @CODE_COVERAGE_RULES@
 
@@ -536,7 +667,7 @@ dataplane_test_CPPFLAGS += $(sample_plugin_la_CPPFLAGS)
 dataplane_test_CFLAGS = $(dataplane_CFLAGS) -fno-lto -UNDEBUG -O0 -g $(CODE_COVERAGE_CFLAGS)
 dataplane_test_CFLAGS += -Wno-unused-parameter
 
-dataplane_test_LDADD = $(dataplane_LDADD) $(CHECK_LIBS) $(JSON_C_LIBS) $(CODE_COVERAGE_LIBS)
+dataplane_test_LDADD =  $(CHECK_LIBS) $(JSON_C_LIBS) $(CODE_COVERAGE_LIBS) $(dataplane_LDADD)
 
 dataplane_test_LDFLAGS = $(dataplane_LDFLAGS)
 dataplane_test_LDFLAGS += -Wl,-wrap,main
@@ -572,13 +703,17 @@ check_PROGRAMS = dataplane_test
 TESTS = $(dist_check_SCRIPTS)
 endif
 
+if WHOLE_DP_ALL_TESTS
+dataplane_test_CFLAGS += -DDP_TEST_FULL_RUN
+endif
+
 DATAPLANE_TEST_ARGS = $(__dataplane_test_args_@AM_V@)
 __dataplane_test_args_ = $(__dataplane_test_args_@AM_DEFAULT_V@)
 __dataplane_test_args_0 = "-d0"
 __dataplane_test_args_1 = "-d2"
 
 dataplane_test_run: dataplane_test
-	catchsegv ./dataplane_test $(DATAPLANE_TEST_ARGS)
+	catchsegv ./dataplane_test -P $(builddir)/.libs $(DATAPLANE_TEST_ARGS)
 
 .PHONY: dataplane_test_run
 

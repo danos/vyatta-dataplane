@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2013-2017 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -35,6 +35,7 @@
 #include "compiler.h"
 #include "dp_event.h"
 #include "ether.h"
+#include "fal.h"
 #include "if_var.h"
 #include "ip_funcs.h"
 #include "json_writer.h"
@@ -51,16 +52,27 @@
 #include "npf/rproc/npf_rproc.h"
 #include "npf/npf_rule_gen.h"
 #include "npf_shim.h"
-#include "pktmbuf.h"
+#include "pktmbuf_internal.h"
 #include "qos.h"
+#include "qos_ext_buf_monitor.h"
 #include "qos_obj_db.h"
+#include "qos_public.h"
 #include "urcu.h"
 #include "util.h"
 #include "vplane_debug.h"
 #include "vplane_log.h"
 
+static CDS_LIST_HEAD(qos_ingress_maps);
+
+struct qos_qinfo_list {
+	SLIST_HEAD(qinfo_head, sched_info) qinfo_head;
+};
+
+static struct qos_qinfo_list qos_qinfos;
+
 struct qos_dev qos_devices[NUM_DEVS] = {
-	{ qos_dpdk_disable,
+	{ NULL,
+	  qos_dpdk_disable,
 	  qos_dpdk_enable,
 	  qos_dpdk_start,
 	  qos_dpdk_stop,
@@ -71,7 +83,8 @@ struct qos_dev qos_devices[NUM_DEVS] = {
 	  qos_dpdk_queue_clear_stats,
 	  qos_dpdk_dscp_resgrp_json,
 	},
-	{ qos_hw_disable,
+	{ qos_hw_init,
+	  qos_hw_disable,
 	  qos_hw_enable,
 	  qos_hw_start,
 	  qos_hw_stop,
@@ -84,6 +97,206 @@ struct qos_dev qos_devices[NUM_DEVS] = {
 	}
 };
 
+struct qos_ingressm qos_ingressm = {0};
+
+struct qos_ingress_map *qos_im_sysdef;
+
+/* Used for legacy configs */
+fal_object_t qos_global_map_obj = FAL_QOS_NULL_OBJECT_ID;
+
+static const char *qos_dps[NUM_DPS] = {"green", "yellow", "red"};
+
+static inline void QOS_RM_GLOBAL_MAP(void)
+{
+	if (SLIST_EMPTY(&qos_qinfos.qinfo_head)) {
+		if (qos_global_map_obj) {
+			qos_hw_del_map(qos_global_map_obj);
+			qos_global_map_obj = FAL_QOS_NULL_OBJECT_ID;
+		}
+	}
+}
+
+static void qos_sched_npf_commit(void)
+{
+	struct sched_info *qinfo;
+	unsigned int i;
+
+	SLIST_FOREACH(qinfo, &qos_qinfos.qinfo_head, list) {
+
+		for (i = 0; i < qinfo->port_params.n_pipe_profiles; i++) {
+			struct queue_map *qmap = &qinfo->queue_map[i];
+
+			qmap->reset_mask = 0;
+		}
+
+		if (qinfo->reset_port != QOS_NPF_COMMIT)
+			continue;
+
+		struct rte_eth_link link;
+
+		QOS_STOP(qinfo)(qinfo->ifp, qinfo);
+
+		rte_eth_link_get_nowait(qinfo->ifp->if_port, &link);
+		if (link.link_status) {
+			int ret;
+
+			ret = qos_sched_start(qinfo->ifp, link.link_speed);
+			if (ret != 0)
+				qinfo->enabled = false;
+		}
+		qinfo->reset_port = QOS_NPF_READY;
+
+		DP_DEBUG(QOS, DEBUG, DATAPLANE,
+			 "Port restart via npf res grp, link state %s\n",
+			 (link.link_status) ? "up" : "down");
+	}
+}
+
+/*
+ * The mask passed in assigned dscp values to queues, the group used
+ * to setup the mask is being changed so reset the dscp values to their
+ * default queues.
+ */
+static void qos_dscp_reset_map(struct queue_map *qmap, uint64_t dscp_mask)
+{
+	unsigned int i;
+	uint64_t j;
+
+	for (i = 0, j = 1; i < MAX_DSCP; i++, j <<= 1) {
+		if (j & dscp_mask) {
+			/*
+			 * If the dscp value has already been reassigned to
+			 * another queue in a previous resource update do not
+			 * reset it to the default queue otherwise we'll be
+			 * overwriting a previous classifier.
+			 */
+			if (j & qmap->reset_mask)
+				continue;
+
+			qmap->dscp2q[i] =
+				(~i >> (DSCP_BITS - RTE_SCHED_TC_BITS))
+					   & RTE_SCHED_TC_MASK;
+		}
+	}
+}
+
+/*
+ * This will assign new dscp to queue classification entries when a
+ * resource group is changed.
+ */
+static void qos_dscp_init_map(struct queue_map *qmap, uint64_t dscp_mask,
+			      uint8_t q_class)
+{
+	uint64_t i, j;
+
+	for (i = 0, j = 1; i < MAX_DSCP; i++, j <<= 1) {
+		if (dscp_mask & j)
+			qmap->dscp2q[i] = q_class;
+	}
+
+	/* Keep track of the values we've already assigned */
+	qmap->reset_mask |= dscp_mask;
+}
+
+static int qos_sched_update_wred_prof(struct sched_info *qinfo, char *grp,
+				      struct qos_red_pipe_params *wred,
+				      uint64_t new_dscp_mask)
+{
+	int j;
+
+	for (j = 0; j < wred->red_q_params.num_maps; j++) {
+		if (!strcmp(wred->red_q_params.grp_names[j], grp)) {
+			if (wred->red_q_params.dscp_set[j] == new_dscp_mask)
+				return -1;
+			wred->red_q_params.dscp_set[j] = new_dscp_mask;
+			qinfo->reset_port = QOS_NPF_COMMIT;
+			return 0;
+		}
+	}
+	return 0;
+}
+
+static int qos_sched_update_map(struct sched_info *qinfo, char *grp,
+				struct queue_map *qmap,
+				uint64_t new_dscp_mask)
+{
+	unsigned int j;
+	struct qos_dscp_map *map;
+
+	map = qmap->dscp_maps;
+	if (!map)
+		return 0;
+
+	for (j = 0; j < map->num_maps; j++) {
+		if (!strcmp(grp, map->dscp_grp_names[j])) {
+			if (map->dscp_mask[j] == new_dscp_mask)
+				return -1;
+			qos_dscp_reset_map(qmap, map->dscp_mask[j]);
+			qos_dscp_init_map(qmap, new_dscp_mask, map->qmap[j]);
+			map->dscp_mask[j] = new_dscp_mask;
+			qinfo->reset_port = QOS_NPF_COMMIT;
+			return 0;
+		}
+	}
+	return 0;
+}
+
+/*
+ * Search the installed policies to check if any are using the resource group
+ * which has been changed and update the dscp mask.
+ */
+void
+qos_sched_res_grp_update(char *grp)
+{
+	struct sched_info *qinfo;
+	unsigned int i;
+	uint64_t new_dscp_mask;
+	int ret;
+
+	ret = npf_dscp_group_getmask(grp, &new_dscp_mask);
+	if (ret) {
+		DP_DEBUG(QOS, ERR, DATAPLANE,
+			 "Failed to retrieve resource group %s\n", grp);
+		return;
+	}
+
+	DP_DEBUG(QOS, DEBUG, DATAPLANE, "Qos resource grp %s mask %"PRIx64"\n",
+		grp, new_dscp_mask);
+
+	SLIST_FOREACH(qinfo, &qos_qinfos.qinfo_head, list) {
+		/*
+		 * We're called at policy install which we want to ignore.
+		 * Set the state to NPF_READY which means any indications
+		 * after policy install we need to check the resource groups.
+		 */
+		if (qinfo->reset_port == QOS_INSTALL) {
+			qinfo->reset_port = QOS_NPF_READY;
+			continue;
+		}
+
+		for (i = 0; i < qinfo->port_params.n_pipe_profiles; i++) {
+			struct qos_pipe_params *prof =
+					&qinfo->port_params.pipe_profiles[i];
+			struct qos_red_pipe_params *wred;
+
+			SLIST_FOREACH(wred, &prof->red_head, list) {
+				ret = qos_sched_update_wred_prof(qinfo, grp,
+								 wred,
+								 new_dscp_mask);
+				if (ret == -1)
+					return;
+			}
+
+			struct queue_map *qmap = &qinfo->queue_map[i];
+
+			ret = qos_sched_update_map(qinfo, grp, qmap,
+						   new_dscp_mask);
+			if (ret == -1)
+				return;
+		}
+	}
+}
+
 /*
  * Carry out any one-time initialisation that required when the
  * vyatta-dataplane starts up.
@@ -91,8 +304,21 @@ struct qos_dev qos_devices[NUM_DEVS] = {
 void
 qos_init(void)
 {
+	int i, ret;
+
 	if (rte_red_set_scaling(MAX_RED_QUEUE_LENGTH) != 0)
 		rte_panic("Failed to set RED scaling\n");
+
+	qos_external_buf_monitor_init();
+	SLIST_INIT(&qos_qinfos.qinfo_head);
+
+	for (i = 0; i < NUM_DEVS; i++) {
+		if (qos_devices[i].qos_init) {
+			ret = (qos_devices[i].qos_init)();
+			if (ret)
+				rte_panic("Failed to initialize dev %d\n", i);
+		}
+	}
 }
 
 /* Sets the PCP value to map to the given queue for a particular profile. */
@@ -161,6 +387,47 @@ static int qos_sched_profile_dscp_map_set(struct sched_info *qinfo,
 	return 1;
 }
 
+static int qos_sched_setup_dscp_map(struct sched_info *qinfo,
+				    unsigned int profile, uint64_t dscp_mask,
+				    char *name, uint8_t q)
+{
+	struct queue_map *qmap = &qinfo->queue_map[profile];
+	struct qos_dscp_map *map = qmap->dscp_maps;
+	int i;
+
+	if (!map) {
+		map = calloc(1, sizeof(struct qos_dscp_map));
+		if (!map) {
+			DP_DEBUG(QOS, ERR, DATAPLANE,
+				 "Queue dscp map allocation failure\n");
+			return -1;
+		}
+		qmap->dscp_maps = map;
+	} else if (map->num_maps == QOS_MAX_DSCP_MAPS) {
+		DP_DEBUG(QOS, ERR, DATAPLANE, "Too many dscp maps\n");
+		return -1;
+	}
+
+	i = strlen(name) + 1;
+	map->dscp_grp_names[map->num_maps] = calloc(1, i);
+	if (!map->dscp_grp_names[map->num_maps]) {
+		DP_DEBUG(QOS, ERR, DATAPLANE,
+			 "Failed to alloc dscp map\n");
+		if (!map->num_maps) {
+			free(qmap->dscp_maps);
+			qmap->dscp_maps = NULL;
+		}
+		return -1;
+	}
+
+	strcpy(map->dscp_grp_names[map->num_maps], name);
+	map->dscp_mask[map->num_maps] = dscp_mask;
+	map->qmap[map->num_maps] = q;
+	map->num_maps++;
+
+	return 0;
+}
+
 /*
  * Returns the rate (bytes/sec) for the given bandwidth structure. If bandwidth
  * is given as a percentage, calculates the rate from the parent. Otherwise
@@ -168,26 +435,82 @@ static int qos_sched_profile_dscp_map_set(struct sched_info *qinfo,
  */
 static uint32_t qos_rate_get(struct qos_rate_info *bw_info, uint32_t parent_bw)
 {
-	return bw_info->bw_is_percent ?
-		((uint64_t)parent_bw * bw_info->rate.bw_percent) / 100 :
-		bw_info->rate.bandwidth;
+	if (bw_info->bw_is_percent) {
+		const float precision = 0.0001;
+		float full_pct = bw_info->rate.bw_percent;
+		uint32_t whole_pct = (uint32_t)bw_info->rate.bw_percent;
+
+		if (fabs(full_pct - (float)whole_pct) < precision)
+			return ((uint64_t)parent_bw * whole_pct) / 100;
+		else
+			return (parent_bw * full_pct) / 100;
+	} else
+		return bw_info->rate.bandwidth;
 }
 
 /*
  * Sets the rate (bytes/sec) into the given bandwidth structure. Returns
- * the calculated rate of the entity (see qos_rate_get for details)
+ * the rate provided.
  */
-static uint32_t qos_rate_set(struct qos_rate_info *bw_info,
-			uint32_t bw, bool is_percent, uint32_t parent_bw)
+static uint32_t qos_abs_rate_set(struct qos_rate_info *bw_info, uint32_t abs_bw)
 {
-	bw_info->bw_is_percent = is_percent;
+	bw_info->bw_is_percent = false;
+	bw_info->rate.bandwidth = abs_bw;
+	return abs_bw;
+}
 
-	if (is_percent)
-		bw_info->rate.bw_percent = bw;
-	else
-		bw_info->rate.bandwidth = bw;
-
+/*
+ * Sets the rate percentage into the given bandwidth structure. Returns
+ * the actual rate of the entity (see qos_rate_get for details)
+ */
+static uint32_t qos_percent_rate_set(struct qos_rate_info *bw_info,
+			float percent_bw, uint32_t parent_bw)
+{
+	bw_info->bw_is_percent = true;
+	bw_info->rate.bw_percent = percent_bw;
 	return qos_rate_get(bw_info, parent_bw);
+}
+
+/*
+ * Returns the burst (bytes) for the given bandwidth structure. If burst
+ * is specified in msec, calculates the burst value based on the given
+ * rate (bytes/sec).
+ */
+static uint32_t qos_burst_get(struct qos_rate_info *bw_info, uint32_t rate)
+{
+	#define DEFAULT_BURST_MS (4)
+
+	if (bw_info->burst_is_time)
+		return (rate * bw_info->burst.time_ms) / 1000;
+
+	if (bw_info->burst.size)
+		return bw_info->burst.size;
+
+	return (rate * DEFAULT_BURST_MS) / 1000;
+}
+
+/*
+ * Sets the burst size (bytes) into the given bandwidth structure. Returns
+ * the burst size provided.
+ */
+static uint32_t qos_abs_burst_set(struct qos_rate_info *bw_info,
+				  uint32_t burst)
+{
+	bw_info->burst_is_time = false;
+	bw_info->burst.size = burst;
+	return burst;
+}
+
+/*
+ * Sets the burst time (msec) into the given bandwidth structure. Returns
+ * the calculated burst of the entity (see qos_burst_get for details)
+ */
+static uint32_t qos_time_burst_set(struct qos_rate_info *bw_info,
+				   uint32_t burst, uint32_t rate)
+{
+	bw_info->burst_is_time = true;
+	bw_info->burst.time_ms = burst;
+	return qos_burst_get(bw_info, rate);
 }
 
 /*
@@ -210,6 +533,86 @@ static uint32_t qos_period_set(struct qos_rate_info *bw_info, uint32_t period)
 	return qos_period_get(bw_info, period);
 }
 
+struct qos_red_pipe_params *
+qos_red_find_q_params(struct qos_pipe_params *pipe, unsigned int qindex)
+{
+	struct qos_red_pipe_params *wred_params = NULL;
+
+	SLIST_FOREACH(wred_params, &pipe->red_head, list) {
+		if (wred_params->qindex == qindex)
+			break;
+	}
+	return wred_params;
+}
+
+static int
+qos_red_init_q_params(struct qos_red_q_params *wred_params,
+		      unsigned int qmax, unsigned int qmin, unsigned int prob,
+		      bool wred_per_dscp, uint64_t dscp_set, char *grp_name,
+		      uint8_t dp)
+{
+	int wred_index, ret;
+
+	if (!wred_params || wred_params->num_maps > RTE_MAX_DSCP_MAPS) {
+		RTE_LOG(ERR, SCHED, "Invalid DSCP map init params\n");
+		return -1;
+	}
+
+	if (wred_per_dscp)
+		wred_index = wred_params->num_maps;
+	else
+		wred_index = dp;
+	wred_params->dps_in_use |= (1 << wred_index);
+	wred_params->qparams[wred_index].max_th = qmax;
+	wred_params->qparams[wred_index].min_th = qmin;
+	wred_params->qparams[wred_index].maxp_inv = prob;
+	wred_params->dscp_set[wred_index] = dscp_set;
+	ret = asprintf(&wred_params->grp_names[wred_index], "%s", grp_name);
+	if (ret < 0) {
+		wred_params->grp_names[wred_index] = NULL;
+		return ret;
+	}
+	wred_params->num_maps++;
+	return 0;
+}
+
+struct qos_red_pipe_params *
+qos_red_alloc_q_params(struct qos_pipe_params *pipe, unsigned int qindex)
+{
+	struct qos_red_pipe_params *wred_params;
+
+	wred_params = calloc(1, sizeof(struct qos_red_pipe_params));
+	if (!wred_params) {
+		RTE_LOG(ERR, SCHED, "qred_info calloc failed\n");
+		return NULL;
+	}
+	wred_params->qindex = qindex;
+	SLIST_INSERT_HEAD(&pipe->red_head, wred_params, list);
+	return wred_params;
+}
+
+static void qos_free_q_params(struct qos_pipe_params *pipe, int i)
+{
+	struct qos_red_pipe_params *wred_params;
+	struct qos_red_q_params *qparams;
+
+	while ((wred_params = SLIST_FIRST(&pipe->red_head)) != NULL) {
+		int j;
+
+		SLIST_REMOVE_HEAD(&pipe->red_head, list);
+		DP_DEBUG(QOS, DEBUG, DATAPLANE,
+			 "Freeing Q RED params qindex %u profile "
+			 "%u pipe %p wred_params %p\n",
+			 wred_params->qindex, i, pipe, wred_params);
+		qparams = &(wred_params->red_q_params);
+		for (j = 0; j < RTE_NUM_DSCP_MAPS; j++) {
+			if (qparams->grp_names[j])
+				free(qparams->grp_names[j]);
+		}
+		free(wred_params);
+	}
+}
+
 /*
  * NB: Releasing of NPF resources needs done outside of RCU as a)
  * the database of config is not designed for RCU and so will result
@@ -220,6 +623,9 @@ void qos_subport_npf_free(struct sched_info *qinfo)
 {
 	unsigned int i;
 	uint32_t j;
+
+	if (!qinfo->subport)
+		return;
 
 	for (i = 0, j = 0;
 	     i < qinfo->port_params.n_subports_per_port;
@@ -266,26 +672,22 @@ static void qos_subport_free(struct sched_info *qinfo)
 void qos_sched_free(struct sched_info *qinfo)
 {
 	unsigned int i;
-	struct rte_sched_pipe_params *pp;
+	struct qos_pipe_params *pp;
 
 	for (i = 0; i < qinfo->port_params.n_pipe_profiles; i++) {
-		struct profile_wred_info *profile_wred =
-			&qinfo->wred_profiles[i];
 		unsigned int j;
+		struct queue_map *qmap;
 
 		pp = &qinfo->port_params.pipe_profiles[i];
-		rte_red_free_q_params(pp, i);
-		for (j = 0; j < RTE_SCHED_QUEUES_PER_PIPE; j++) {
-			struct queue_wred_info *queue_wred =
-				&profile_wred->queue_wred[j];
-			unsigned int k;
-
-			for (k = 0; k < queue_wred->num_maps; k++)
-				free(queue_wred->dscp_grp_names[k]);
+		qos_free_q_params(pp, i);
+		qmap = &qinfo->queue_map[i];
+		if (qmap && qmap->dscp_maps) {
+			for (j = 0; j < qmap->dscp_maps->num_maps; j++)
+				free(qmap->dscp_maps->dscp_grp_names[j]);
+			free(qmap->dscp_maps);
 		}
 	}
 
-	free(qinfo->wred_profiles);
 	free(qinfo->port_params.pipe_profiles);
 	free(qinfo->profile_rates);
 	free(qinfo->profile_tc_rates);
@@ -315,15 +717,10 @@ struct sched_info *qos_sched_new(struct ifnet *ifp,
 {
 	struct sched_info *qinfo;
 	unsigned int i, j;
-	struct rte_sched_pipe_params *pipe_params;
+	struct qos_pipe_params *pipe_params;
 	struct qos_rate_info *profile_rates;
 	struct qos_tc_rate_info *profile_tc_rates;
-	int socketid = rte_eth_dev_socket_id(ifp->if_port);
-	char sched_name[32];
 	unsigned int queues;
-
-	if (socketid < 0) /* SOCKET_ID_ANY */
-		socketid = 0;
 
 	qinfo = zmalloc_aligned(sizeof(struct sched_info));
 	if (!qinfo)
@@ -342,10 +739,6 @@ struct sched_info *qos_sched_new(struct ifnet *ifp,
 	if  (!qinfo->subport)
 		goto nomem1;
 
-	qinfo->wred_profiles = calloc(profiles, sizeof(*qinfo->wred_profiles));
-	if (!qinfo->wred_profiles)
-		goto nomem1;
-
 	profile_rates = calloc(profiles, sizeof(struct qos_rate_info));
 	if (!profile_rates)
 		goto nomem1;
@@ -356,23 +749,18 @@ struct sched_info *qos_sched_new(struct ifnet *ifp,
 		goto nomem1;
 	qinfo->profile_tc_rates = profile_tc_rates;
 
-	pipe_params = calloc(profiles, sizeof(struct rte_sched_pipe_params));
+	pipe_params = calloc(profiles, sizeof(struct qos_pipe_params));
 	if (!pipe_params)
 		goto nomem1;
 	qinfo->port_params.pipe_profiles = pipe_params;
 
-
-	/* XXX this is really unused by current DPDK code. */
-	snprintf(sched_name, sizeof(sched_name),
-		 "qos_port_%u", ifp->if_port);
-	qinfo->port_params.name = sched_name;
-
 	qinfo->enabled = false;
-	qinfo->port_params.socket = socketid;
+	qinfo->ifp = ifp;
 	qinfo->port_params.frame_overhead = overhead;
 	qinfo->port_params.n_subports_per_port = subports;
 	qinfo->port_params.n_pipes_per_subport = pipes;
 	qinfo->port_params.n_pipe_profiles = profiles;
+	qinfo->reset_port = QOS_INSTALL;
 	rte_spinlock_init(&qinfo->stats_lock);
 
 	for (i = 0; i < RTE_SCHED_TRAFFIC_CLASSES_PER_PIPE; i++)
@@ -380,23 +768,24 @@ struct sched_info *qos_sched_new(struct ifnet *ifp,
 
 	/* Default parms for pipes */
 	for (i = 0; i < profiles; i++) {
-		struct rte_sched_pipe_params *pp = &pipe_params[i];
+		struct qos_pipe_params *pp = &pipe_params[i];
 		struct queue_map *qmap = &qinfo->queue_map[i];
 
-		pp->tb_rate = qos_rate_set(&profile_rates[i],
-					    UINT32_MAX, false, 0);
-		pp->tb_size = profile_rates[i].burst = DEFAULT_TBSIZE;
-		pp->tc_period = qos_period_set(&profile_rates[i], 10);
+		pp->shaper.tb_rate = qos_abs_rate_set(&profile_rates[i],
+						      UINT32_MAX);
+		pp->shaper.tb_size = qos_abs_burst_set(&profile_rates[i],
+						       DEFAULT_TBSIZE);
+		pp->shaper.tc_period = qos_period_set(&profile_rates[i], 10);
 #ifdef RTE_SCHED_SUBPORT_TC_OV
-		pp->tc_ov_weight = 0;
+		pp->shaper.tc_ov_weight = 0;
 #endif
 		for (j = 0; j < RTE_SCHED_QUEUES_PER_PIPE; j++)
 			pp->wrr_weights[j] = 1;
 
 		for (j = 0; j < RTE_SCHED_TRAFFIC_CLASSES_PER_PIPE; j++) {
-			pp->tc_rate[j] =
-				qos_rate_set(&profile_tc_rates[i].tc_rate[j],
-						UINT32_MAX, false, 0);
+			pp->shaper.tc_rate[j] =
+			    qos_abs_rate_set(&profile_tc_rates[i].tc_rate[j],
+					     UINT32_MAX);
 		}
 
 		qmap->dscp_enabled = 0;
@@ -411,6 +800,7 @@ struct sched_info *qos_sched_new(struct ifnet *ifp,
 				& RTE_SCHED_TC_MASK;
 
 		qmap->local_priority = 0;
+		qmap->designation = 0;
 
 		/*
 		 * Set up the default pipe-queue to tc-n/wrr-0 qmap information
@@ -419,7 +809,7 @@ struct sched_info *qos_sched_new(struct ifnet *ifp,
 			qmap->conf_ids[QMAP(j, 0)] = CONF_ID_Q_DEFAULT |
 				(j * RTE_SCHED_QUEUES_PER_TRAFFIC_CLASS);
 
-		SLIST_INIT(&pp->qred_head);
+		SLIST_INIT(&pp->red_head);
 	}
 
 	for (i = 0; i < subports; i++) {
@@ -441,21 +831,24 @@ struct sched_info *qos_sched_new(struct ifnet *ifp,
 		sp->profile_map = calloc(pipes, sizeof(uint8_t));
 
 		/* Default params */
-		sp->params.tb_rate = qos_rate_set(&sp->subport_rate, UINT32_MAX,
-						false, 0);
-		sp->params.tb_size = sp->subport_rate.burst = DEFAULT_TBSIZE;
+		sp->params.tb_rate = qos_abs_rate_set(&sp->subport_rate,
+						      UINT32_MAX);
+		sp->params.tb_size = qos_abs_burst_set(&sp->subport_rate,
+						       DEFAULT_TBSIZE);
 		sp->params.tc_period = qos_period_set(&sp->subport_rate, 10);
 
 		for (j = 0; j < RTE_SCHED_TRAFFIC_CLASSES_PER_PIPE; j++) {
 			sp->params.tc_rate[j] =
-				qos_rate_set(&sp->sp_tc_rates.tc_rate[j],
-						UINT32_MAX, false, 0);
+				qos_abs_rate_set(&sp->sp_tc_rates.tc_rate[j],
+						 UINT32_MAX);
 			sp->qsize[j] = 0;    // Default to inherit from port
 		}
 	}
 
 	DP_DEBUG(QOS, DEBUG, DATAPLANE,
-		 "New Qos configuration %s\n", qinfo->port_params.name);
+		 "New Qos configuration qos_port_%u\n", ifp->if_port);
+
+	SLIST_INSERT_HEAD(&qos_qinfos.qinfo_head, qinfo, list);
 
 	return qinfo;
 
@@ -469,10 +862,10 @@ struct sched_info *qos_sched_new(struct ifnet *ifp,
 
 /* Ensure the parameters are within acceptable bounds */
 void qos_sched_subport_params_check(
-		struct rte_sched_subport_params *params,
+		struct qos_shaper_conf *params,
 		struct qos_rate_info *config_rate,
 		struct qos_rate_info *config_tc_rate,
-		uint16_t max_pkt_len, uint32_t bps)
+		uint16_t max_pkt_len, uint32_t max_burst_size, uint32_t bps)
 {
 	uint32_t min_rate = (max_pkt_len * 1000) / params->tc_period;
 	uint32_t tc_period = 0, period = 0;
@@ -484,10 +877,13 @@ void qos_sched_subport_params_check(
 	if (params->tb_rate > bps)
 		params->tb_rate = bps;
 
-	params->tb_size = config_rate->burst;
+	params->tb_size = qos_burst_get(config_rate, params->tb_rate);
 
 	if (params->tb_size < max_pkt_len)
 		params->tb_size = max_pkt_len;
+
+	if (params->tb_size > max_burst_size)
+		params->tb_size = max_burst_size;
 
 	period = params->tc_period;
 	for (i = 0; i < RTE_SCHED_TRAFFIC_CLASSES_PER_PIPE; i++) {
@@ -550,6 +946,8 @@ int qos_sched_start(struct ifnet *ifp, uint64_t speed)
 			"QoS config port failed\n");
 		return -1;
 	}
+
+	qinfo->reset_port = QOS_NPF_READY;
 
 	return 0;
 }
@@ -624,7 +1022,7 @@ static void qos_show_pipe_config(json_writer_t *wr,
 				 unsigned int subport, unsigned int pipe)
 {
 	const struct subport_info *sinfo = &qinfo->subport[subport];
-	struct rte_sched_pipe_params *p =
+	struct qos_pipe_params *p =
 	    qinfo->port_params.pipe_profiles + sinfo->profile_map[pipe];
 	unsigned int i;
 
@@ -632,20 +1030,20 @@ static void qos_show_pipe_config(json_writer_t *wr,
 	jsonw_start_object(wr);
 
 	jsonw_name(wr, "tb_rate");
-	jsonw_uint(wr, p->tb_rate);
+	jsonw_uint(wr, p->shaper.tb_rate);
 
 	jsonw_name(wr, "tb_size");
-	jsonw_uint(wr, p->tb_size);
+	jsonw_uint(wr, p->shaper.tb_size);
 
 	jsonw_name(wr, "tc_rates");
 	jsonw_start_array(wr);
 	for (i = 0; i < RTE_SCHED_TRAFFIC_CLASSES_PER_PIPE; i++)
-		jsonw_uint(wr, p->tc_rate[i]);
+		jsonw_uint(wr, p->shaper.tc_rate[i]);
 
 	jsonw_end_array(wr);
 
 	jsonw_name(wr, "tc_period");
-	jsonw_uint(wr, p->tc_period);
+	jsonw_uint(wr, p->shaper.tc_period);
 
 	jsonw_name(wr, "wrr_weights");
 	jsonw_start_array(wr);
@@ -672,7 +1070,7 @@ static void qos_show_map(json_writer_t *wr, const struct sched_info *qinfo,
 	 * We only ever use the PCP map if it has been explicitly enabled.
 	 * See qos_npf_classify.
 	 */
-	if (!qmap->pcp_enabled || !optimised_json) {
+	if (qmap->dscp_enabled || !optimised_json) {
 		jsonw_name(wr, "dscp2q");
 		jsonw_start_array(wr);
 		for (i = 0; i < MAX_DSCP; i++)
@@ -685,6 +1083,16 @@ static void qos_show_map(json_writer_t *wr, const struct sched_info *qinfo,
 		jsonw_start_array(wr);
 		for (i = 0; i < MAX_PCP; i++)
 			jsonw_uint(wr, qmap->pcp2q[i]);
+		jsonw_end_array(wr);
+	}
+	if (qmap->designation || !optimised_json) {
+		struct qos_pipe_params *params =
+			&qinfo->port_params.pipe_profiles[profile];
+
+		jsonw_name(wr, "designation");
+		jsonw_start_array(wr);
+		for (i = 0; i < INGRESS_DESIGNATORS; i++)
+			jsonw_uint(wr, params->designation[i]);
 		jsonw_end_array(wr);
 	}
 }
@@ -888,18 +1296,88 @@ static void qos_show_ifp_platform(json_writer_t *wr,
 	jsonw_end_array(wr);  /* subports */
 }
 
+struct qos_sched_ing_map_info {
+	uint16_t vlan;
+	fal_object_t ingress_map;
+};
+
 static void show_ifp_qos(struct ifnet *ifp, void *arg)
 {
 	struct qos_show_context *context = arg;
 	json_writer_t *wr = context->wr;
 	struct sched_info *qinfo = ifp->if_qos;
-	unsigned int i;
+	unsigned int i, num_maps = 0;
+	struct cds_lfht_iter iter;
+	struct if_vlan_feat *vlan_feat;
+	struct fal_attribute_t ing_map_attr;
+	struct qos_sched_ing_map_info ingress_maps[VLAN_N_VID];
+	int rv;
 
-	if (qinfo == NULL)
+	if (context->is_platform) {
+		ing_map_attr.id = FAL_PORT_ATTR_QOS_INGRESS_MAP_ID;
+		rv = fal_l2_get_attrs(ifp->if_index, 1, &ing_map_attr);
+
+		if (rv != -ENOENT && ing_map_attr.value.objid) {
+			ingress_maps[0].ingress_map = ing_map_attr.value.objid;
+			ingress_maps[0].vlan = 0;
+			num_maps++;
+		}
+
+		if (ifp->vlan_feat_table) {
+			cds_lfht_for_each_entry(ifp->vlan_feat_table, &iter,
+						vlan_feat, vlan_feat_node) {
+				struct fal_attribute_t ing_map_attr;
+
+				ing_map_attr.id =
+				FAL_VLAN_FEATURE_ATTR_QOS_INGRESS_MAP_ID;
+				fal_vlan_feature_get_attr(
+						  vlan_feat->fal_vlan_feat, 1,
+						  &ing_map_attr);
+				if (ing_map_attr.value.objid) {
+					ingress_maps[num_maps].ingress_map =
+						ing_map_attr.value.objid;
+					ingress_maps[num_maps].vlan =
+						vlan_feat->vlan;
+					num_maps++;
+				}
+			}
+		}
+
+		if (!context->sent_sysdef_map) {
+			if (qos_im_sysdef) {
+				jsonw_name(wr, "sysdef-map");
+				jsonw_start_object(wr);
+				jsonw_uint_field(wr, "vlan", VLAN_N_VID);
+				fal_qos_dump_map(qos_im_sysdef->map_obj, wr);
+				jsonw_end_object(wr);
+				context->sent_sysdef_map = true;
+			}
+		}
+
+	}
+
+	if (qinfo == NULL && num_maps == 0)
 		return;
 
 	jsonw_name(wr, ifp->if_name);
 	jsonw_start_object(wr);
+
+	if (context->is_platform && num_maps) {
+		jsonw_name(wr, "ingress-maps");
+		jsonw_start_array(wr);
+		for (i = 0; i < num_maps; i++) {
+			jsonw_start_object(wr);
+			jsonw_uint_field(wr, "vlan", ingress_maps[i].vlan);
+			fal_qos_dump_map(ingress_maps[i].ingress_map, wr);
+			jsonw_end_object(wr);
+		}
+		jsonw_end_array(wr);  /* ingress maps */
+
+		if (qinfo == NULL) {
+			jsonw_end_object(wr); /* ifname */
+			return;
+		}
+	}
 
 	/* Put "shaper" tag on to allow for future alternates */
 	jsonw_name(wr, "shaper");
@@ -963,14 +1441,15 @@ static struct qos_mark_map *qos_mark_map_find(char *map_name)
 {
 	struct qos_mark_map *mark_map;
 
-	cds_list_for_each_entry(mark_map, &qos_mark_map_list_head, list) {
+	cds_list_for_each_entry_rcu(mark_map, &qos_mark_map_list_head, list) {
 		if (strcmp(mark_map->map_name, map_name) == 0)
 			return mark_map;
 	}
 	return NULL;
 }
 
-static int qos_mark_map_store(char *map_name, uint64_t dscp_set,
+static int qos_mark_map_store(char *map_name, enum egress_map_type type,
+			      uint64_t dscp_set, uint8_t designation,
 			      uint8_t pcp_value)
 {
 	struct qos_mark_map *mark_map;
@@ -988,10 +1467,21 @@ static int qos_mark_map_store(char *map_name, uint64_t dscp_set,
 		strcpy(mark_map->map_name, map_name);
 		cds_list_add_tail_rcu(&mark_map->list,
 				      &qos_mark_map_list_head);
+		mark_map->type = type;
+	} else if (mark_map->type != type) {
+		DP_DEBUG(QOS, ERR, DATAPLANE,
+			 "Invalid mark-map type, types must be the same\n");
+		return -EINVAL;
 	}
-	for (dscp = 0; dscp < MAX_DSCP; dscp++) {
-		if (dscp_set & (1ul << dscp))
-			mark_map->pcp_value[dscp] = pcp_value;
+
+	if (type == EGRESS_DSCP) {
+		for (dscp = 0; dscp < MAX_DSCP; dscp++) {
+			if (dscp_set & (1ul << dscp))
+				mark_map->pcp_value[dscp] = pcp_value;
+		}
+	} else {
+		mark_map->pcp_value[designation] = pcp_value;
+		mark_map->des_used |= (1 << designation);
 	}
 	return 0;
 }
@@ -1000,6 +1490,9 @@ static void qos_mark_map_delete_rcu(struct rcu_head *head)
 {
 	struct qos_mark_map *mark_map =
 		caa_container_of(head, struct qos_mark_map, obj_rcu);
+
+	if (mark_map->mark_obj)
+		qos_hw_del_map(mark_map->mark_obj);
 
 	free(mark_map);
 }
@@ -1024,16 +1517,23 @@ static void show_qos_mark_map(struct qos_show_context *context)
 {
 	json_writer_t *wr = context->wr;
 	struct qos_mark_map *mark_map;
-	uint32_t i;
+	uint32_t i, num;
 
 	jsonw_name(wr, "mark-maps");
 	jsonw_start_array(wr);
-	cds_list_for_each_entry(mark_map, &qos_mark_map_list_head, list) {
+	cds_list_for_each_entry_rcu(mark_map, &qos_mark_map_list_head, list) {
 		jsonw_start_object(wr);
 		jsonw_string_field(wr, "map-name", mark_map->map_name);
+		if (mark_map->type == EGRESS_DSCP) {
+			jsonw_string_field(wr, "map-type", "dscp");
+			num = MAX_DSCP;
+		} else {
+			jsonw_string_field(wr, "map-type", "designation");
+			num = INGRESS_DESIGNATORS;
+		}
 		jsonw_name(wr, "pcp-values");
 		jsonw_start_array(wr);
-		for (i = 0; i < MAX_DSCP; i++)
+		for (i = 0; i < num; i++)
 			jsonw_uint(wr, mark_map->pcp_value[i]);
 
 		jsonw_end_array(wr);
@@ -1042,7 +1542,197 @@ static void show_qos_mark_map(struct qos_show_context *context)
 	jsonw_end_array(wr);
 }
 
+static void show_qos_buf_threshold(
+	struct qos_show_context *context)
+{
+	json_writer_t *wr = context->wr;
+	char str[40];
+	uint32_t threshold = 0;
+
+	if (!qos_ext_buf_get_threshold(&threshold))
+		sprintf(str, "Not configured yet");
+	else
+		sprintf(str, "%d%%", threshold);
+
+	jsonw_name(wr, "buf-threshold");
+	jsonw_start_object(wr);
+	jsonw_string_field(wr, "threshold", str);
+	jsonw_end_object(wr);
+}
+
+static void show_qos_buf_utilization(
+	struct qos_show_context *context)
+{
+	json_writer_t *wr = context->wr;
+	struct qos_external_buffer_congest_stats buf_stats;
+	struct qos_external_buffer_sample *samples = 0;
+	enum qos_ext_buf_evt_notify_mode n_mode = 0;
+
+	if (!qos_ext_buf_get_stats(&buf_stats)) {
+		DP_DEBUG(QOS, DEBUG, DATAPLANE,
+			"failed to get buffer-utilization\n");
+		return;
+	}
+
+	samples = buf_stats.buf_samples;
+	n_mode = buf_stats.cur_state.period_data.notify_mode;
+
+	jsonw_name(wr, "ext-buf-stats");
+	jsonw_start_object(wr);
+	jsonw_uint_field(wr, "total-buf-units", buf_stats.max_buf_desc);
+	jsonw_uint_field(wr, "total-rejected-packets",
+		buf_stats.rejected_pkt_cnt);
+
+	if (n_mode == EXT_BUF_EVT_NOTIFY_MODE_MINUTE)
+		jsonw_string_field(wr, "mode", "1-minute");
+	else if (n_mode == EXT_BUF_EVT_NOTIFY_MODE_TEN_SEC)
+		jsonw_string_field(wr, "mode", "10-seconds");
+	else if (n_mode == EXT_BUF_EVT_NOTIFY_MODE_HOUR) {
+		if (buf_stats.cur_state.period_data.bad_sample_in_period)
+			jsonw_string_field(wr, "mode",
+				"1-hour (with pending SNMP notification)");
+		else
+			jsonw_string_field(wr, "mode", "1-hour");
+	}
+
+	jsonw_name(wr, "latest-samples");
+	jsonw_start_array(wr);
+	for (int i = 0; i < EXT_BUF_STATUS_STATS_CNT; i++) {
+		/* show latest sample at first */
+		int idx = (buf_stats.cur_sample_idx - i +
+			EXT_BUF_STATUS_STATS_CNT) % EXT_BUF_STATUS_STATS_CNT;
+		jsonw_start_object(wr);
+		jsonw_uint_field(wr, "free", samples[idx].ext_buf_free);
+		jsonw_uint_field(wr, "used", buf_stats.max_buf_desc -
+			samples[idx].ext_buf_free);
+		jsonw_uint_field(wr, "uti-rate",
+			samples[idx].utilization_rate);
+		jsonw_uint_field(wr, "rejected",
+			samples[idx].ext_buf_pkt_reject);
+		jsonw_end_object(wr);
+	}
+	jsonw_end_array(wr);
+
+	jsonw_end_object(wr);
+}
+
+static void show_qos_ingress_map(struct qos_show_context *context,
+				 struct qos_ingress_map *map)
+{
+	json_writer_t *wr = context->wr;
+	int i, j;
+
+	jsonw_start_object(wr);
+	jsonw_string_field(wr, "name", map->name);
+	jsonw_string_field(wr, "type",
+			(map->type == INGRESS_DSCP) ? "dscp" : "pcp");
+	jsonw_bool_field(wr, "system-default", map->sysdef);
+	jsonw_name(wr, "map");
+	jsonw_start_array(wr);
+	for (i = 0; i < INGRESS_DESIGNATORS; i++) {
+		if (!map->designation[i].dps_in_use)
+			continue;
+		jsonw_start_object(wr);
+		jsonw_uint_field(wr, "designation", i);
+		jsonw_name(wr, "DPs");
+		jsonw_start_array(wr);
+		for (j = 0; j < NUM_DPS; j++) {
+			if (!(map->designation[i].dps_in_use & (1 << j)))
+				continue;
+			jsonw_start_object(wr);
+			jsonw_uint_field(wr, "DP", j);
+			jsonw_uint_field(wr, "pcp/mask",
+					map->designation[i].mask[j]);
+			jsonw_end_object(wr);
+		}
+		jsonw_end_array(wr);
+		jsonw_end_object(wr);
+	}
+	jsonw_end_array(wr);
+	jsonw_end_object(wr);
+}
+
+static struct qos_ingress_map *qos_lookup_map_byobj(fal_object_t objid)
+{
+	struct qos_ingress_map *map;
+
+	cds_list_for_each_entry_rcu(map, &qos_ingress_maps, list)
+		if (map->map_obj == objid)
+			return map;
+
+	return NULL;
+}
+
+static void show_qos_ingress_maps(struct qos_show_context *context,
+				  struct ifnet *ifp, unsigned int vlan)
+{
+	json_writer_t *wr = context->wr;
+	fal_object_t objid;
+	struct qos_ingress_map *map;
+
+	if (ifp) {
+		objid = qos_hw_get_att_ingress_map(ifp, vlan);
+		if (!objid) {
+			DP_DEBUG(QOS, ERR, DATAPLANE,
+				"No ingress-map created\n");
+			return;
+		}
+		map = qos_lookup_map_byobj(objid);
+		if (!map) {
+			DP_DEBUG(QOS, ERR, DATAPLANE,
+				"No ingress-map matching obj %lu\n", objid);
+			return;
+		}
+		jsonw_name(wr, "ingress-maps");
+		jsonw_start_array(wr);
+
+		show_qos_ingress_map(context, map);
+
+		jsonw_end_array(wr);
+		return;
+	}
+
+	/*
+	 * Let's see what map type we have if any
+	 * The first if is the new api where we separate the classfication
+	 * into ingress maps separate from the policy.
+	 * The second is a legacy config where the classification is still
+	 * part of the policy.
+	 */
+	if (!cds_list_empty(&qos_ingress_maps)) {
+		jsonw_name(wr, "ingress-maps");
+		jsonw_start_array(wr);
+
+		cds_list_for_each_entry_rcu(map, &qos_ingress_maps, list)
+			show_qos_ingress_map(context, map);
+
+		jsonw_end_array(wr);
+	} else if (!SLIST_EMPTY(&qos_qinfos.qinfo_head)) {
+		struct sched_info *qinfo;
+		struct queue_map *qmap;
+
+		/*
+		 * We only support a single profile on this platform so
+		 * the qmap will always be index 0
+		 */
+		qinfo = SLIST_FIRST(&qos_qinfos.qinfo_head);
+		qmap = &qinfo->queue_map[0];
+		if (!qmap || !qmap->dscp_enabled) {
+			DP_DEBUG(QOS, ERR, DATAPLANE,
+				"Invalid map type configuration\n");
+			return;
+		}
+		qos_hw_show_legacy_map(qmap, wr);
+	}
+}
+
 /* Handle: "qos show [interface]"
+ *         "qos show platform"
+ *         "qos show platform buf-threshold"
+ *         "qos show platform buf-utilization"
+ *         "qos show ingress-maps"
+ *         "qos show [interface] ingress-map"
+ *         "qos show policers [interface]"
  * Output is in JSON
  */
 static int cmd_qos_show(FILE *f, int argc, char **argv)
@@ -1051,6 +1741,7 @@ static int cmd_qos_show(FILE *f, int argc, char **argv)
 
 	if (argc >= 2 && !strcmp(argv[1], "platform")) {
 		context.is_platform = true;
+		context.sent_sysdef_map = false;
 		argc--;
 		argv++;
 	} else
@@ -1064,15 +1755,66 @@ static int cmd_qos_show(FILE *f, int argc, char **argv)
 
 	context.optimised_json = false;
 	if (argc == 1)
-		ifnet_walk(show_ifp_qos, &context);
+		dp_ifnet_walk(show_ifp_qos, &context);
 	else {
 		if (!strcmp(argv[1], "action-groups")) {
-			ifnet_walk(show_ifp_qos_act_grps, &context);
+			dp_ifnet_walk(show_ifp_qos_act_grps, &context);
 		} else if (strcmp(argv[1], "mark-maps") == 0) {
 			show_qos_mark_map(&context);
+		} else if (strcmp(argv[1], "buf-threshold") == 0) {
+			show_qos_buf_threshold(&context);
+		} else if (strcmp(argv[1], "buf-utilization") == 0) {
+			show_qos_buf_utilization(&context);
+		} else if (strcmp(argv[1], "ingress-maps") == 0) {
+			struct ifnet *ifp = NULL;
+			unsigned int vlan = 0;
+
+			if (argc == 5) {
+				if (strcmp("vlan", argv[2]) ||
+				    get_unsigned(argv[3], &vlan) < 0) {
+					fprintf(f,
+					    "Invalid syntax interface\n");
+					return -1;
+				}
+				ifp = dp_ifnet_byifname(argv[4]);
+				if (!ifp) {
+					fprintf(f, "Unknown interface: %s\n",
+						*argv);
+					return -1;
+				}
+			}
+			show_qos_ingress_maps(&context, ifp, vlan);
+		} else if (argc > 2 && !strcmp(argv[1], "policers")) {
+			argv += 2;
+
+			struct ifnet *ifp = dp_ifnet_byifname(*argv);
+			if (!ifp) {
+				fprintf(f, "Unknown interface: %s\n", *argv);
+				return -1;
+			}
+			struct sched_info *qinfo = ifp->if_qos;
+			if (!qinfo) {
+				fprintf(f, "No qos on interface: %s\n", *argv);
+				return -1;
+			}
+			struct subport_info *sport;
+			unsigned int i;
+			for (i = 0; i < qinfo->port_params.n_subports_per_port;
+			     i++) {
+				struct npf_act_grp *act_grp;
+				sport = &qinfo->subport[i];
+				act_grp = sport->act_grp_list;
+				if (!act_grp)
+					continue;
+
+				npf_action_group_show_policer(act_grp,
+							      &context);
+			}
+		} else if (argc == 2 && !strcmp(argv[1], "buffer-errors")) {
+			qos_hw_dump_buf_errors(context.wr);
 		} else {
 			while (--argc > 0) {
-				struct ifnet *ifp = ifnet_byifname(*++argv);
+				struct ifnet *ifp = dp_ifnet_byifname(*++argv);
 
 				if (!ifp) {
 					fprintf(f, "Unknown interface: %s\n",
@@ -1109,9 +1851,9 @@ static int cmd_qos_optimised_show(FILE *f, int argc, char **argv)
 	context.is_platform = false;
 
 	if (argc == 1)
-		ifnet_walk(show_ifp_qos, &context);
+		dp_ifnet_walk(show_ifp_qos, &context);
 	else {
-		struct ifnet *ifp = ifnet_byifname(*++argv);
+		struct ifnet *ifp = dp_ifnet_byifname(*++argv);
 
 		if (!ifp) {
 			fprintf(f, "Unknown interface: %s\n",
@@ -1197,7 +1939,7 @@ static int cmd_qos_clear(FILE *f, int argc, char **argv)
 		/*
 		 * No interface name, clear all interfaces.
 		 */
-		ifnet_walk(clear_ifp_qos_stats, NULL);
+		dp_ifnet_walk(clear_ifp_qos_stats, NULL);
 	} else if (argc == 2) {
 		/*
 		 * Clear the selected interface.
@@ -1209,7 +1951,7 @@ static int cmd_qos_clear(FILE *f, int argc, char **argv)
 		struct ifnet *ifp;
 
 		/* Initial interface name check */
-		ifp = ifnet_byifname(*++argv);
+		ifp = dp_ifnet_byifname(*++argv);
 		if (!ifp) {
 			fprintf(f, "Unknown interface: %s\n", *argv);
 			return -1;
@@ -1233,7 +1975,7 @@ static int cmd_qos_clear(FILE *f, int argc, char **argv)
 		}
 
 		/* Get the trunk interface */
-		ifp = ifnet_byifname(if_name);
+		ifp = dp_ifnet_byifname(if_name);
 		if (!ifp) {
 			fprintf(f, "Unknown interface: %s\n", *argv);
 			return -1;
@@ -1270,12 +2012,12 @@ static int cmd_qos_hw(FILE *f, int argc, char **argv)
 	context.optimised_json = false;
 
 	if (argc == 1) {
-		ifnet_walk(show_ifp_qos_hw, &context);
+		dp_ifnet_walk(show_ifp_qos_hw, &context);
 	} else if (argc == 2) {
 		struct ifnet *ifp;
 
 		/* Initial interface name check */
-		ifp = ifnet_byifname(*++argv);
+		ifp = dp_ifnet_byifname(*++argv);
 		if (!ifp) {
 			fprintf(f, "Unknown interface: %s\n", *argv);
 			jsonw_destroy(&context.wr);
@@ -1359,22 +2101,38 @@ static int cmd_qos_port(struct ifnet *ifp, int argc, char **argv)
 {
 	unsigned int subports = 0, pipes = 0, profiles = 1;
 	int32_t overhead = RTE_SCHED_FRAME_OVERHEAD_DEFAULT;
+	bool hw_config = false;
 	int ret;
 
 	/*
 	 * Expected command format:
 	 *
-	 * "port <a> subports <b> pipes <c> profiles <d> [overhead <e>]"
+	 * "port <a> subports <b> pipes <c> profiles <d> [overhead <e>] <f>"
 	 *
 	 * <a> - port-id
 	 * <b> - number of configured subports
 	 * <c> - number of configured pipes
 	 * <d> - number of configured profiles
 	 * <e> - frame-overhead
+	 * <f> - queue limit type, "ql_packets" or "ql_bytes"
+	 *
+	 * Note that we can currently only support queue limits in
+	 * bytes in hardware and only support queue limits in packets
+	 * in software (DPDK). So use this setting to force the port to
+	 * have hardware or software qos. If the current port type is
+	 * such that the config cannot be applied, ie. byte limits on
+	 * a software port or packet limits on a hw port then the port
+	 * will not be qos enabled unless/until hardware forwarding is
+	 * enabled/disabled.
 	 */
 	--argc, ++argv;	/* skip "port" */
 	while (argc > 0) {
 		unsigned int value;
+
+		if (argc == 1 && !strncmp(argv[0], "ql_", 3)) {
+			hw_config = !strcmp(argv[0], "ql_bytes");
+			break;
+		}
 
 		if (argc < 2) {
 			DP_DEBUG(QOS, ERR, DATAPLANE,
@@ -1420,13 +2178,10 @@ static int cmd_qos_port(struct ifnet *ifp, int argc, char **argv)
 		return -EINVAL;
 	}
 
-	/*
-	 * ENODEV means there's no hardware support for this device
-	 */
-	ret = qos_hw_port(ifp, subports, pipes, profiles, overhead);
-	if (ret == -ENODEV)
-		return qos_dpdk_port(ifp, subports, pipes, profiles, overhead);
-
+	if (hw_config)
+		ret = qos_hw_port(ifp, subports, pipes, profiles, overhead);
+	else
+		ret = qos_dpdk_port(ifp, subports, pipes, profiles, overhead);
 
 	return ret;
 }
@@ -1449,47 +2204,42 @@ static int cmd_qos_subport_queue(struct subport_info *sinfo, unsigned int qid,
 	 */
 
 	/* parse qos subport S queue Q rate R */
-	bool rate_given = false;
-	bool rate_is_percent = false;
+	struct qos_shaper_conf *params = &sinfo->params;
 
 	if (argc < 4) {
 		DP_DEBUG(QOS, ERR, DATAPLANE, "queue missing tc rate\n");
 		return -EINVAL;
 	}
 
-	if (strcmp(argv[2], "rate") == 0) {
-		rate_given = true;
-	} else if (strcmp(argv[2], "percent") == 0) {
-		rate_given = true;
-		rate_is_percent = true;
+	if (qid >= RTE_SCHED_TRAFFIC_CLASSES_PER_PIPE) {
+		RTE_LOG(ERR, QOS, "traffic-class %u out of range\n", qid);
+		return -EINVAL;
 	}
 
-	if (rate_given) {
+	if (strcmp(argv[2], "percent") == 0) {
+		float rate;
+
+		if (get_float(argv[3], &rate) < 0 ||
+		    rate < 0 || rate > 100) {
+			RTE_LOG(ERR, QOS,
+				"rate percentage %s out of range\n", argv[3]);
+				return -EINVAL;
+		}
+		params->tc_rate[qid] =
+			qos_percent_rate_set(
+				&sinfo->sp_tc_rates.tc_rate[qid],
+				rate, params->tb_rate);
+	} else if (strcmp(argv[2], "rate") == 0) {
 		unsigned int rate;
-		struct rte_sched_subport_params *params = &sinfo->params;
 
 		if (get_unsigned(argv[3], &rate) < 0) {
 			RTE_LOG(ERR, QOS, "missing rate for queue\n");
 			return -EINVAL;
 		}
 
-		if (rate_is_percent && rate > 100) {
-			RTE_LOG(ERR, QOS,
-				"rate percentage %u out of range\n", rate);
-			return -EINVAL;
-		}
-
-		if (qid >= RTE_SCHED_TRAFFIC_CLASSES_PER_PIPE) {
-			RTE_LOG(ERR, QOS, "traffic-class %u out of range\n",
-				qid);
-			return -EINVAL;
-		}
-
 		params->tc_rate[qid] =
-			qos_rate_set(
-			    &sinfo->sp_tc_rates.tc_rate[qid],
-			    rate, rate_is_percent,
-			    params->tb_rate);
+			qos_abs_rate_set(
+				&sinfo->sp_tc_rates.tc_rate[qid], rate);
 	} else {
 		RTE_LOG(ERR, QOS,
 			"unknown subport queue parameter: '%s'\n", argv[2]);
@@ -1515,7 +2265,9 @@ static int cmd_qos_subport(struct ifnet *ifp, int argc, char **argv)
 	 * Expected command format:
 	 *
 	 * "subport <a> rate <b> size <c> [period <d>]"
+	 * "subport <a> rate <b> msec <k> [period <d>]"
 	 * "subport <a> percent <i> size <c> [period <d>]"
+	 * "subport <a> percent <i> msec <k> [period <d>]"
 	 * "subport <a> queue <e> rate <f> size <g>"
 	 * "subport <a> queue <e> percent <j> size <g>"
 	 * "subport <a> mark-map <h>
@@ -1530,6 +2282,7 @@ static int cmd_qos_subport(struct ifnet *ifp, int argc, char **argv)
 	 * <h> - mark-map name
 	 * <i> - subport shaper percentage bandwidth rate
 	 * <j> - traffic class shaper percentage bandwidth rate
+	 * <k> - subport shaper max-burst size in msec
 	 */
 	--argc, ++argv; /* skip "subport" */
 	if (argc < 2) {
@@ -1551,7 +2304,7 @@ static int cmd_qos_subport(struct ifnet *ifp, int argc, char **argv)
 	--argc, ++argv;
 
 	struct subport_info *sinfo = qinfo->subport + subport;
-	struct rte_sched_subport_params *params = &sinfo->params;
+	struct qos_shaper_conf *params = &sinfo->params;
 
 	while (argc > 0) {
 		unsigned int value;
@@ -1576,41 +2329,46 @@ static int cmd_qos_subport(struct ifnet *ifp, int argc, char **argv)
 			 * Save the mark-map pointer in the subport
 			 */
 			sinfo->mark_map = mark_map;
-		} else {
-			if (get_unsigned(argv[1], &value) < 0) {
-				RTE_LOG(ERR, QOS, "number expected after %s\n",
-					argv[0]);
+		} else if (strcmp(argv[0], "percent") == 0) {
+			float percent_bw;
+
+			if (get_float(argv[1], &percent_bw) < 0 ||
+			    percent_bw < 0 || percent_bw > 100) {
+				DP_DEBUG(QOS, ERR, DATAPLANE,
+				  "rate percentage %s out of range\n", argv[1]);
 				return -EINVAL;
 			}
-
-			if (strcmp(argv[0], "rate") == 0) {
-				/* bytes/sec */
-				params->tb_rate =
-				       qos_rate_set(&sinfo->subport_rate,
-						    value, false, 0);
-			} else if (strcmp(argv[0], "percent") == 0) {
-				/* bytes/sec */
-				params->tb_rate =
-				       qos_rate_set(&sinfo->subport_rate,
-						value, true,
-						ifp->if_qos->port_params.rate);
-			} else if (strcmp(argv[0], "size") == 0) {
-				/* credits (bytes) */
-				params->tb_size = sinfo->subport_rate.burst =
-					value;
-			} else if (strcmp(argv[0], "period") == 0) {
-				params->tc_period =
-				       qos_period_set(&sinfo->subport_rate,
-						      value);
-			} else if (strcmp(argv[0], "queue") == 0) {
-				/*
-				 * Parse qos subport S queue Q rate R
-				 * Nothing more to parse after queue so can
-				 * just return.
-				 */
-				return cmd_qos_subport_queue(sinfo, value,
-							     argc, argv);
-			}
+			/* bytes/sec */
+			params->tb_rate = qos_percent_rate_set(
+					    &sinfo->subport_rate, percent_bw,
+					    ifp->if_qos->port_params.rate);
+		} else if (get_unsigned(argv[1], &value) < 0) {
+			RTE_LOG(ERR, QOS, "number expected after %s\n",
+				argv[0]);
+			return -EINVAL;
+		} else if (strcmp(argv[0], "rate") == 0) {
+			/* bytes/sec */
+			params->tb_rate =
+				qos_abs_rate_set(&sinfo->subport_rate, value);
+		} else if (strcmp(argv[0], "size") == 0) {
+			/* credits (bytes) */
+			params->tb_size =
+				qos_abs_burst_set(&sinfo->subport_rate, value);
+		} else if (strcmp(argv[0], "msec") == 0) {
+			/* credits (bytes) */
+			params->tb_size =
+				qos_time_burst_set(&sinfo->subport_rate, value,
+						   params->tb_rate);
+		} else if (strcmp(argv[0], "period") == 0) {
+			params->tc_period =
+				qos_period_set(&sinfo->subport_rate, value);
+		} else if (strcmp(argv[0], "queue") == 0) {
+			/*
+			 * Parse qos subport S queue Q rate R
+			 * Nothing more to parse after queue so can
+			 * just return.
+			 */
+			return cmd_qos_subport_queue(sinfo, value, argc, argv);
 		}
 		argc -= 2, argv += 2;
 	}
@@ -1660,8 +2418,13 @@ static int cmd_qos_pipe(struct ifnet *ifp, int argc, char **argv)
 		DP_DEBUG(QOS, ERR, DATAPLANE, "profile %u out of range %u\n",
 			 profile, qinfo->port_params.n_pipe_profiles);
 	else {
+		struct queue_map *qmap = &qinfo->queue_map[profile];
+
 		qinfo->subport[subport].profile_map[pipe]  = profile;
 		qinfo->subport[subport].pipe_configured[pipe] = true;
+		/* Default map is DSCP */
+		if (!qmap->pcp_enabled && !qmap->designation)
+			qmap->dscp_enabled = 1;
 		return 0;
 	}
 	return -EINVAL;
@@ -1706,6 +2469,7 @@ static int cmd_qos_profile_queue(struct sched_info *qinfo, unsigned int profile,
 	 * "queue <a> percent <k> size <c>"
 	 * "queue <d> wrr-weight <e>"
 	 * "queue <d> dscp-group <f> <g> <h> <i>"
+	 * "queue <d> drop-prec <l> <g> <h> <i>"
 	 * "queue <d> wred-weight <j>"
 	 *
 	 * <a> - traffic-class-id (0..3)
@@ -1719,24 +2483,20 @@ static int cmd_qos_profile_queue(struct sched_info *qinfo, unsigned int profile,
 	 * <i> - wred mark probability (1..255)
 	 * <j> - wred filter weight (1..12)
 	 * <k> - traffic-class shaper percentage bandwidth rate
+	 * <l> - drop precedence; "green", "yellow" or "red"
 	 */
-	struct rte_sched_pipe_params *pipe
+	struct qos_pipe_params *pipe
 		= qinfo->port_params.pipe_profiles + profile;
 	struct qos_rate_info *pipe_tc_rates =
 			qinfo->profile_tc_rates[profile].tc_rate;
-	bool rate_given = false;
-	bool rate_is_percent = false;
 
-	if (strcmp(argv[2], "rate") == 0) {
-		rate_given = true;
-	} else if (strcmp(argv[2], "percent") == 0) {
-		rate_given = true;
-		rate_is_percent = true;
+	if (argc < 4) {
+		DP_DEBUG(QOS, ERR, DATAPLANE, "not enough arguments\n");
+		return -EINVAL;
 	}
 
-	if (rate_given) {
-		unsigned int rate;
-		bool rate_valid = false;
+	if (strcmp(argv[2], "percent") == 0) {
+		float percent_bw;
 
 		if (value >= RTE_SCHED_TRAFFIC_CLASSES_PER_PIPE) {
 			DP_DEBUG(QOS, ERR, DATAPLANE,
@@ -1744,23 +2504,33 @@ static int cmd_qos_profile_queue(struct sched_info *qinfo, unsigned int profile,
 			return -EINVAL;
 		}
 
-		if (argc >= 4) {
-			if (get_unsigned(argv[3], &rate) == 0) {
-				if (!rate_is_percent || rate <= 100)
-					rate_valid = true;
-			}
-		}
-
-		if (!rate_valid) {
-			const char *err_msg = rate_is_percent ?
-				"bad percentage rate for queue" :
-				"bad rate for queue";
-			DP_DEBUG(QOS, ERR, DATAPLANE, "%s\n", err_msg);
+		if (get_float(argv[3], &percent_bw) < 0 ||
+		    percent_bw < 0 || percent_bw > 100) {
+			DP_DEBUG(QOS, ERR, DATAPLANE,
+			    "rate percentage %s out of range\n", argv[3]);
 			return -EINVAL;
 		}
-		pipe->tc_rate[value] = qos_rate_set(&pipe_tc_rates[value],
-						rate, rate_is_percent,
-						pipe->tb_rate);
+
+		pipe->shaper.tc_rate[value] = qos_percent_rate_set(
+						&pipe_tc_rates[value],
+						percent_bw,
+						pipe->shaper.tb_rate);
+	} else if (strcmp(argv[2], "rate") == 0) {
+		unsigned int rate;
+
+		if (value >= RTE_SCHED_TRAFFIC_CLASSES_PER_PIPE) {
+			DP_DEBUG(QOS, ERR, DATAPLANE,
+				 "traffic-class %u out of range\n", value);
+			return -EINVAL;
+		}
+
+		if (get_unsigned(argv[3], &rate) < 0) {
+			DP_DEBUG(QOS, ERR, DATAPLANE,
+			    "bad rate %s for queue\n", argv[3]);
+			return -EINVAL;
+		}
+		pipe->shaper.tc_rate[value] = qos_abs_rate_set(
+						&pipe_tc_rates[value], rate);
 	} else if (strcmp(argv[2], "wrr-weight") == 0) {
 		unsigned int weight;
 		unsigned int qindex;
@@ -1773,7 +2543,7 @@ static int cmd_qos_profile_queue(struct sched_info *qinfo, unsigned int profile,
 				 "q mask 0x%x out of range\n", value);
 			return -EINVAL;
 		}
-		if (argc < 4 || get_unsigned(argv[3], &weight) < 0) {
+		if (get_unsigned(argv[3], &weight) < 0) {
 			DP_DEBUG(QOS, ERR, DATAPLANE, "bad weight for queue\n");
 			return -EINVAL;
 		}
@@ -1796,15 +2566,15 @@ static int cmd_qos_profile_queue(struct sched_info *qinfo, unsigned int profile,
 							    value, true))
 				return -EINVAL;
 		}
-	} else if (strcmp(argv[2], "dscp-group") == 0) {
+	} else if ((strcmp(argv[2], "dscp-group") == 0) ||
+		   (strcmp(argv[2], "drop-prec") == 0)) {
 		unsigned int qmax, qmin, prob;
 		unsigned int qindex;
-		uint64_t dscp_set;
+		bool wred_per_dscp;
+		uint64_t dscp_set = 0;
+		uint8_t dp = 0;
 		int err;
-		struct rte_red_pipe_params *qred_info;
-		struct profile_wred_info *profile_wred;
-		struct queue_wred_info *queue_wred;
-		uint8_t map_index;
+		struct qos_red_pipe_params *qred_info;
 
 		if (argc < 7 ||
 		    get_unsigned(argv[5], &qmax) < 0 ||
@@ -1814,116 +2584,144 @@ static int cmd_qos_profile_queue(struct sched_info *qinfo, unsigned int profile,
 				 "Invalid per queue RED input\n");
 			return -EINVAL;
 		}
-		err = npf_dscp_group_getmask(argv[3], &dscp_set);
-		if (err) {
-			DP_DEBUG(QOS, ERR, DATAPLANE,
-				 "dscp mask retrieval failed\n");
-			return -EINVAL;
+
+		wred_per_dscp = strcmp(argv[2], "dscp-group") == 0;
+
+		if (wred_per_dscp) {
+			err = npf_dscp_group_getmask(argv[3], &dscp_set);
+			if (err) {
+				DP_DEBUG(QOS, ERR, DATAPLANE,
+					 "dscp mask retrieval failed\n");
+				return -EINVAL;
+			}
+		} else {
+			/*
+			 * If we are using ingress maps, the wred parameters
+			 * are identified directly against a drop precedence
+			 * (colour) rather than a dscp-group as the same
+			 * dscp group could classify to different colours in
+			 * different ingress maps.
+			 */
+			for (dp = 0; dp < NUM_DPS; dp++) {
+				if (!strcmp(argv[3], qos_dps[dp]))
+					break;
+			}
+			if (dp == NUM_DPS) {
+				DP_DEBUG(QOS, ERR, DATAPLANE,
+					 "Invalid drop-precedence value\n");
+				return -EINVAL;
+			}
 		}
+
 		/*
 		 * Store the wred-map information for the DPDK
 		 */
 		qindex = q_from_mask(value);
-		profile_wred = &qinfo->wred_profiles[profile];
-		queue_wred = &profile_wred->queue_wred[qindex];
-		map_index = queue_wred->num_maps;
-		if (!strcmp(argv[4], "packets")) {
-			qred_info = rte_red_find_q_params(pipe, qindex);
-			if (!qred_info)
-				qred_info = rte_red_alloc_q_params(pipe,
-								   qindex);
-			if (!qred_info)
-				return -EINVAL;
+		qred_info = qos_red_find_q_params(pipe, qindex);
+		if (!qred_info)
+			qred_info = qos_red_alloc_q_params(pipe, qindex);
+		if (!qred_info)
+			return -EINVAL;
 
-			err = rte_red_init_q_params(&qred_info->red_q_params,
-					qmax, qmin, prob, dscp_set, argv[3]);
-			if (err < 0)
-				return -EINVAL;
-			queue_wred->unit = WRED_PACKETS;
-		} else if (!strcmp(argv[4], "bytes")) {
-			/*
-			 * Store the wred-map information for the FAL
-			 */
-			uint8_t name_len;
-			char *name_ptr;
-			struct red_params *red_ptr;
+		err = qos_red_init_q_params(&qred_info->red_q_params, qmax,
+					    qmin, prob, wred_per_dscp,
+					    dscp_set, argv[3], dp);
+		if (err < 0) {
+			if (qred_info->red_q_params.num_maps == 0) {
+				SLIST_REMOVE_HEAD(&pipe->red_head, list);
+				free(qred_info);
+			}
+			return -EINVAL;
+		}
 
-			if (map_index > QOS_MAX_DROP_PRECEDENCE) {
-				DP_DEBUG(QOS, ERR, DATAPLANE,
-					"profile %u queue %u has too many"
-					" wred-maps\n",
-					 profile, qindex);
-				return -EINVAL;
-			}
-			name_len = strlen(argv[3]);
-			name_ptr = malloc(name_len + 1);
-			if (name_ptr == NULL) {
-				DP_DEBUG(QOS, ERR, DATAPLANE,
-					"out of memory\n");
-				return -ENOMEM;
-			}
-			strcpy(name_ptr, argv[3]);
-			queue_wred->dscp_grp_names[map_index] = name_ptr;
-			red_ptr =
-			    &queue_wred->params.map_params_bytes[map_index];
-			red_ptr->min_th = qmin;
-			red_ptr->max_th = qmax;
-			red_ptr->maxp_inv = prob;
-			queue_wred->num_maps++;
-			queue_wred->unit = WRED_BYTES;
-		} else {
+		if (!strcmp(argv[4], "packets"))
+			qred_info->red_q_params.unit = WRED_PACKETS;
+		else if (!strcmp(argv[4], "bytes"))
+			qred_info->red_q_params.unit = WRED_BYTES;
+		else {
 			DP_DEBUG(QOS, ERR, DATAPLANE, "Invalid unit field\n");
 			return -EINVAL;
 		}
 		DP_DEBUG(QOS, DEBUG, DATAPLANE,
 			 "per Q red prof %d dscp-grp %s %u %u prob %u "
-			 "mask %"PRIx64", map %u\n", profile, argv[3], qmin,
-			 qmax, prob, dscp_set, map_index);
+			 "mask %"PRIx64"\n", profile, argv[3], qmin,
+			 qmax, prob, dscp_set);
 	} else if (strcmp(argv[2], "wred-weight") == 0) {
 		unsigned int wred_weight;
 		unsigned int qindex;
-		struct rte_red_pipe_params *qred_info;
-		struct rte_red_q_params *qred;
+		struct qos_red_pipe_params *qred_info;
+		struct qos_red_q_params *qred;
 		int i;
-		struct profile_wred_info *profile_wred;
-		struct queue_wred_info *queue_wred;
 
-		if (argc < 3 || get_unsigned(argv[3], &wred_weight) < 0) {
+		if (get_unsigned(argv[3], &wred_weight) < 0) {
 			DP_DEBUG(QOS, ERR, DATAPLANE,
 				 "Invalid per queue RED weight\n");
 			return -EINVAL;
 		}
 
 		qindex = q_from_mask(value);
-		profile_wred = &qinfo->wred_profiles[profile];
-		queue_wred = &profile_wred->queue_wred[qindex];
-
-		/*
-		 * Store the queue's filter weight for the DPDK
-		 */
-		if (queue_wred->unit == WRED_PACKETS) {
-			qred_info = rte_red_find_q_params(pipe, qindex);
-			if (!qred_info) {
-				DP_DEBUG(QOS, ERR, DATAPLANE,
-					"Invalid wred-weight command\n");
-				return -EINVAL;
-			}
-			for (i = 0, qred = &qred_info->red_q_params;
-			     i < qred->num_maps; i++) {
-				qred->qparams[i].wq_log2 = wred_weight;
-			}
-		} else {
-
-			/*
-			 * Store the queue's filter weight for the FAL
-			 */
-			queue_wred->filter_weight = wred_weight;
+		qred_info = qos_red_find_q_params(pipe, qindex);
+		if (!qred_info) {
+			DP_DEBUG(QOS, ERR, DATAPLANE,
+				"Invalid wred-weight command\n");
+			return -EINVAL;
 		}
+
+		for (i = 0, qred = &qred_info->red_q_params;
+		     i < NUM_DPS; i++) {
+			if (qred->dps_in_use & (1 << i))
+				qred->qparams[i].wq_log2 = wred_weight;
+		}
+		qred->filter_weight = wred_weight;
 	} else {
 		DP_DEBUG(QOS, ERR, DATAPLANE,
 			 "unknown profile queue parameter: '%s'\n", argv[2]);
 		return -EINVAL;
 	}
+	return 0;
+}
+
+static int cmd_qos_profile_designation(struct queue_map *qmap,
+				       struct qos_pipe_params *pipe,
+				       int argc, char **argv)
+{
+	unsigned int des;
+	unsigned int value;
+
+	/*
+	 * Expected command format:
+	 *
+	 * "qos <a> profile <b> designation <c> queue <d>"
+	 *
+	 * <a> - port id
+	 * <b> - profile id
+	 * <c> - designation, classifier to queue (0..7)
+	 * <d> - queue, tc and wrr mask
+	 */
+	if ((get_unsigned(argv[0], &des) < 0) || des > MAX_DESIGNATOR) {
+		DP_DEBUG(QOS, ERR, DATAPLANE, "Invalid designation id: %s\n",
+			 argv[0]);
+		return -EINVAL;
+	}
+	argc--; argv++;
+
+	if (strcmp(argv[0], "queue")) {
+		DP_DEBUG(QOS, ERR, DATAPLANE, "Invalid designation cmd: %s\n",
+			 argv[0]);
+		return -EINVAL;
+	}
+	argc--; argv++;
+
+	if (get_unsigned(argv[0], &value) < 0) {
+		DP_DEBUG(QOS, ERR, DATAPLANE, "Invalid queue index: %s\n",
+			 argv[0]);
+		return -EINVAL;
+	}
+
+	pipe->designation[des] = value;
+	pipe->des_set |= (1 << des);
+	qmap->designation = 1;
+
 	return 0;
 }
 
@@ -1941,14 +2739,19 @@ static int cmd_qos_profile(struct ifnet *ifp, int argc, char **argv)
 	 * Expected command formats:
 	 *
 	 * "profile <a> rate <b> size <c> [period <d>]"
+	 * "profile <a> rate <b> msec <s> [period <d>]"
 	 * "profile <a> percent <r> size <c> [period <d>]"
+	 * "profile <a> percent <r> msec <s> [period <d>]"
 	 * "profile <a> queue <e> rate <f> size <g>"
 	 * "profile <a> [queue <h> wrr-weight <i>]"
 	 * "profile <a> [queue <h> dscp-group <m> <n> <o> <p>]"
+	 * "profile <a> [queue <h> drop-prec <u> <n> <o> <p>]"
 	 * "profile <a> [queue <h> wred-weight <q>]"
 	 * "profile <a> [over-weight <j>]"
 	 * "profile <a> [pcp <k> <h>]"
 	 * "profile <a> [dscp <l> <h>]"
+	 * "profile <a> [dscp-group <m> <h>]"
+	 * "profile <a> designation <t> queue <h>
 	 *
 	 * <a> - profile-id
 	 * <b> - profile shaper bandwidth rate
@@ -1968,6 +2771,9 @@ static int cmd_qos_profile(struct ifnet *ifp, int argc, char **argv)
 	 * <p> - wred mark probability (1..255)
 	 * <q> - wred filter weight (1..12)
 	 * <r> - profile shaper percentage bandwidth rate
+	 * <s> - profile shaper max-burst size in msec
+	 * <t> - classification value used to determine queue
+	 * <u> - drop precedence; "green", "yellow" or "red"
 	 */
 	--argc, ++argv; /* skip "profile" */
 	if (argc < 2) {
@@ -1986,13 +2792,11 @@ static int cmd_qos_profile(struct ifnet *ifp, int argc, char **argv)
 	}
 	--argc, ++argv; /* skip profile id */
 
-	struct rte_sched_pipe_params *pipe
+	struct qos_pipe_params *pipe
 		= qinfo->port_params.pipe_profiles + profile;
 
 	while (argc > 0) {
 		unsigned int value;
-		bool rate_given = false;
-		bool rate_is_percent = false;
 
 		if (argc < 2) {
 			DP_DEBUG(QOS, ERR, DATAPLANE,
@@ -2000,41 +2804,87 @@ static int cmd_qos_profile(struct ifnet *ifp, int argc, char **argv)
 			return -EINVAL;
 		}
 
-		if (get_unsigned(argv[1], &value) < 0) {
-			DP_DEBUG(QOS, ERR, DATAPLANE,
-				 "number expected after %s\n", argv[0]);
-			return -EINVAL;
-		}
+		if (strcmp(argv[0], "dscp-group") == 0) {
+			unsigned int q;
+			uint64_t dscp_mask, i;
+			int err, j;
 
-		if (strcmp(argv[0], "rate") == 0) {
-			rate_given = true;
-		} else if (strcmp(argv[0], "percent") == 0) {
-			rate_given = true;
-			rate_is_percent = true;
-		}
-
-		if (rate_given) {
-			if (rate_is_percent && value > 100) {
+			err = npf_dscp_group_getmask(argv[1], &dscp_mask);
+			if (err) {
 				DP_DEBUG(QOS, ERR, DATAPLANE,
-					"bad percentage rate for queue\n");
+				    "Failed to extract dscp mask from group\n");
+				return -EINVAL;
+			}
+			if (get_unsigned(argv[2], &q) < 0) {
+				DP_DEBUG(QOS, ERR, DATAPLANE,
+					 "missing queue for dscp-group\n");
+				return -EINVAL;
+			}
+			if (!valid_qmap(q))
+				return -EINVAL;
+
+			for (i = 1, j = 0; j <= 63; i = i << 1, j++) {
+				if (dscp_mask & i) {
+					if (!qos_sched_profile_dscp_map_set
+							(qinfo, profile, j,
+							 q, false)) {
+						DP_DEBUG(QOS, ERR, DATAPLANE,
+						  "profile_dscp_set failed\n");
+						return -1;
+					}
+				}
+			}
+
+			if (qos_sched_setup_dscp_map(qinfo, profile, dscp_mask,
+						     argv[1], (uint8_t)q)) {
+				DP_DEBUG(QOS, ERR, DATAPLANE,
+					  "dscp map setup failed\n");
+				return -1;
+			}
+
+			DP_DEBUG(QOS, DEBUG, DATAPLANE,
+				 "map dscp-group %s %"PRIx64" %x\n",
+				 argv[1], dscp_mask, q);
+			break; /* don't continue parsing line */
+		}
+
+		if (strcmp(argv[0], "percent") == 0) {
+			float percent_bw;
+
+			if (get_float(argv[1], &percent_bw) < 0 ||
+			    percent_bw < 0 || percent_bw > 100) {
+				DP_DEBUG(QOS, ERR, DATAPLANE,
+				  "rate percentage %s out of range\n", argv[1]);
 				return -EINVAL;
 			}
 			/* bytes/sec */
-			pipe->tb_rate = qos_rate_set(
-					    &qinfo->profile_rates[profile],
-					    value, rate_is_percent,
-					    qinfo->port_params.rate);
+			pipe->shaper.tb_rate = qos_percent_rate_set(
+						 &qinfo->profile_rates[profile],
+						 percent_bw,
+						 qinfo->port_params.rate);
+		} else if (get_unsigned(argv[1], &value) < 0) {
+			DP_DEBUG(QOS, ERR, DATAPLANE,
+				 "number expected after %s\n", argv[0]);
+			return -EINVAL;
+		} else if (strcmp(argv[0], "rate") == 0) {
+			pipe->shaper.tb_rate = qos_abs_rate_set(
+						 &qinfo->profile_rates[profile],
+						 value);
 		} else if (strcmp(argv[0], "size") == 0) {
-			pipe->tb_size = qinfo->profile_rates[profile].burst =
-				value; /*credits*/
-
+			pipe->shaper.tb_size = qos_abs_burst_set(
+						 &qinfo->profile_rates[profile],
+						 value); /*credits*/
+		} else if (strcmp(argv[0], "msec") == 0) {
+			pipe->shaper.tb_size = qos_time_burst_set(
+						 &qinfo->profile_rates[profile],
+						 value, pipe->shaper.tb_rate);
 		} else if (strcmp(argv[0], "period") == 0) {
-			pipe->tc_period = qos_period_set(
-					    &qinfo->profile_rates[profile],
-					    value); /* ms */
+			pipe->shaper.tc_period =
+				qos_period_set(&qinfo->profile_rates[profile],
+						value); /* ms */
 #ifdef RTE_SCHED_SUBPORT_TC_OV
 		} else if (strcmp(argv[0], "over-weight") == 0) {
-			pipe->tc_ov_weight = value;
+			pipe->shaper.tc_ov_weight = value;
 #endif
 		} else if (strcmp(argv[0], "pcp") == 0) {
 			unsigned int q;
@@ -2088,6 +2938,11 @@ static int cmd_qos_profile(struct ifnet *ifp, int argc, char **argv)
 				return status;
 
 			break; /* don't continue parsing line */
+		} else if (strcmp(argv[0], "designation") == 0) {
+			argc--; argv++;
+			return cmd_qos_profile_designation(
+						&qinfo->queue_map[profile],
+						pipe, argc, argv);
 		} else {
 			DP_DEBUG(QOS, ERR, DATAPLANE,
 				 "unknown pipe parameter: %s\n", argv[0]);
@@ -2208,11 +3063,11 @@ static int cmd_qos_match(struct ifnet *ifp, int argc, char **argv)
 }
 
 /* configure RED parameters */
-static int cmd_qos_red(struct rte_red_params red_params[][e_RTE_METER_COLORS],
+static int cmd_qos_red(struct qos_red_params red_params[][e_RTE_METER_COLORS],
 		       unsigned int tc, int argc, char *argv[])
 {
 	unsigned int value, color;
-	struct rte_red_params red;
+	struct qos_red_params red;
 
 	/*
 	 * Expected command format:
@@ -2385,8 +3240,11 @@ static int cmd_qos_disable(struct ifnet *ifp,
 	 *
 	 * "disable"
 	 */
-	ifp->qos_software_fwd = 0;
 	DP_DEBUG(QOS, DEBUG, DATAPLANE,	"QoS disabled on %s\n", ifp->if_name);
+
+	SLIST_REMOVE(&qos_qinfos.qinfo_head, qinfo, sched_info, list);
+
+	QOS_RM_GLOBAL_MAP();
 
 	return QOS_DISABLE(qinfo)(ifp, qinfo);
 }
@@ -2427,16 +3285,20 @@ static int cmd_qos_mark_map(int argc, char **argv)
 	int err;
 	uint32_t pcp_value;
 	uint64_t dscp_set;
+	uint32_t designation;
+	enum egress_map_type type;
 
 	/*
 	 * Expected command format:
 	 *
 	 * "mark-map <a> dscp-group <b> pcp <c>"
+	 * "mark-map <a> designation <d> pcp <c>"
 	 * "mark-map <a> delete"
 	 *
 	 * <a> - mark-map name
 	 * <b> - dscp-group resource group name
 	 * <c> - pcp-value (0..7)
+	 * <d> - designation value (0..7)
 	 */
 
 	--argc, ++argv; /* skip "mark-map" */
@@ -2459,16 +3321,28 @@ static int cmd_qos_mark_map(int argc, char **argv)
 		return -EINVAL;
 	}
 
-	if (strcmp(argv[0], "dscp-group") != 0) {
+	if (!strcmp(argv[0], "dscp-group")) {
+		dscp_group_name = argv[1];
+		err = npf_dscp_group_getmask(dscp_group_name, &dscp_set);
+		if (err) {
+			DP_DEBUG(QOS, DEBUG, DATAPLANE,
+				 "dscp mark retrieval failed\n");
+			return -EINVAL;
+		}
+		type = EGRESS_DSCP;
+	} else if (!strcmp(argv[0], "designation")) {
+		if ((get_unsigned(argv[1], &designation) < 0) ||
+		     designation > MAX_DESIGNATOR) {
+			DP_DEBUG(QOS, DEBUG, DATAPLANE,
+				 "invalid mark-map designation value %s\n",
+				 argv[3]);
+			return -EINVAL;
+		}
+		type = EGRESS_DESIGNATION;
+	} else {
+
 		DP_DEBUG(QOS, DEBUG, DATAPLANE,
 			 "unknown mark-map keyword %s\n", argv[0]);
-		return -EINVAL;
-	}
-	dscp_group_name = argv[1];
-	err = npf_dscp_group_getmask(dscp_group_name, &dscp_set);
-	if (err) {
-		DP_DEBUG(QOS, DEBUG, DATAPLANE,
-			 "dscp mark retrieval failed\n");
 		return -EINVAL;
 	}
 
@@ -2476,7 +3350,7 @@ static int cmd_qos_mark_map(int argc, char **argv)
 		DP_DEBUG(QOS, DEBUG, DATAPLANE,
 			 "unknown mark-map keyword %s\n", argv[2]);
 			return -EINVAL;
-		}
+	}
 	if (get_unsigned(argv[3], &pcp_value) < 0) {
 		DP_DEBUG(QOS, DEBUG, DATAPLANE,
 			 "invalid mark-map pcp value %s\n", argv[3]);
@@ -2487,7 +3361,63 @@ static int cmd_qos_mark_map(int argc, char **argv)
 			 "invalid mark-map pcp value %u\n", pcp_value);
 		return -EINVAL;
 	}
-	return qos_mark_map_store(map_name, dscp_set, (uint8_t)pcp_value);
+	return qos_mark_map_store(map_name, type, dscp_set,
+				  (uint8_t)designation, (uint8_t)pcp_value);
+}
+
+static int cmd_qos_platform_buf_threshold(int argc, char **argv)
+{
+	unsigned int threshold;
+
+	/*
+	 * Expected command format:
+	 *
+	 * "buffer-threshold <a>"
+	 * "buffer-threshold <a> delete"
+	 *
+	 * <a> - threshold value in percentage
+	 */
+	--argc, ++argv; /* skip "buffer-threshold" */
+	if (argc < 1) {
+		DP_DEBUG(QOS, ERR, DATAPLANE,
+			"buffer-threshold missing threshold value\n");
+		return -EINVAL;
+	}
+
+	if (get_unsigned(argv[0], &threshold) < 0) {
+		DP_DEBUG(QOS, ERR, DATAPLANE,
+			"Buffer threshold is not a number: %s\n", argv[0]);
+		return -EINVAL;
+	}
+
+	if (argc == 1)
+		qos_external_buf_threshold_interval(threshold);
+	else if (argc == 2 && (strcmp(argv[1], "delete") == 0))
+		qos_external_buf_threshold_interval(0);
+	else {
+		char str[512] = {0};
+		for (int i = 0; i < argc; i++)
+			sprintf(str + strlen(str), "%s ", argv[i]);
+		DP_DEBUG(QOS, ERR, DATAPLANE,
+			"Buffer threshold unknown parameter: %s\n", str);
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
+static int cmd_qos_platform(int argc, char **argv)
+{
+	--argc, ++argv; /* skip "platform" */
+	if (argc < 1) {
+		DP_DEBUG(QOS, ERR, DATAPLANE, "platform parameter missing\n");
+		return -EINVAL;
+	}
+
+	if (strcmp(argv[0], "buffer-threshold") == 0)
+		return cmd_qos_platform_buf_threshold(argc, argv);
+
+	return 0;
 }
 
 /* Echo command to log */
@@ -2532,31 +3462,403 @@ int cmd_qos_op(FILE *f, int argc, char **argv)
 	return -1;
 }
 
+static struct qos_ingress_map *qos_ingress_map_find(char const *name)
+{
+	struct qos_ingress_map *map;
+
+	cds_list_for_each_entry(map, &qos_ingress_maps, list) {
+		if (!strcmp(map->name, name))
+			return map;
+	}
+	return NULL;
+}
+
+static int qos_ingressm_trgt_attach(unsigned int ifindex, unsigned int vlan,
+				    char const *name)
+{
+	struct qos_ingress_map *map;
+	int ret;
+
+	if (!qos_ingressm.qos_ingressm_attach) {
+		DP_DEBUG(QOS, ERR, DATAPLANE,
+			 "Device doesn't support ingress maps");
+		return -EOPNOTSUPP;
+	}
+
+	map = qos_ingress_map_find(name);
+	if (!map) {
+		DP_DEBUG(QOS, ERR, DATAPLANE,
+			 "Ingress target cmd failed no map %s\n", name);
+		return -EINVAL;
+	}
+
+	ret = (*qos_ingressm.qos_ingressm_attach)(ifindex, vlan, map);
+	if (ret)
+		return ret;
+
+	DP_DEBUG(QOS, DEBUG, DATAPLANE,
+		 "Attaching ingress map %s ifindex %u vlan %u\n",
+		 name, ifindex, vlan);
+	return 0;
+}
+
+static int qos_ingressm_trgt_detach(unsigned int ifindex, unsigned int vlan)
+{
+	int ret;
+
+	if (!qos_ingressm.qos_ingressm_detach) {
+		DP_DEBUG(QOS, ERR, DATAPLANE,
+			 "Device doesn't support ingress maps");
+		return -EOPNOTSUPP;
+	}
+
+	DP_DEBUG(QOS, DEBUG, DATAPLANE, "Detach ingress map target %u %u\n",
+		 ifindex, vlan);
+
+	ret = (*qos_ingressm.qos_ingressm_detach)(ifindex, vlan);
+
+	return ret;
+}
+
+static struct qos_ingress_map *qos_ingress_map_create(char const *name)
+{
+	struct qos_ingress_map *map;
+
+	DP_DEBUG(QOS, DEBUG, DATAPLANE, "Create ingress-map %s\n", name);
+	map = calloc(1, sizeof(struct qos_ingress_map) + strlen(name) + 1);
+	if (!map)
+		return NULL;
+	strcpy(map->name, name);
+	map->type = INGRESS_UNDEF;
+	cds_list_add_tail_rcu(&map->list, &qos_ingress_maps);
+	return map;
+}
+
+static void qos_ingress_map_delete_rcu(struct rcu_head *head)
+{
+	struct qos_ingress_map *map =
+		caa_container_of(head, struct qos_ingress_map, obj_rcu);
+	free(map);
+}
+
+static int qos_ingress_map_delete(char const *name)
+{
+	struct qos_ingress_map *map;
+	int ret = 0;
+
+	map = qos_ingress_map_find(name);
+	if (!map) {
+		DP_DEBUG(QOS, ERR, DATAPLANE,
+			 "Invalid ingress-map delete %s\n", name);
+		return -ENOENT;
+	}
+	DP_DEBUG(QOS, ERR, DATAPLANE, "Delete ingress-map %s\n", name);
+	cds_list_del_rcu(&map->list);
+	ret = (*qos_ingressm.qos_ingressm_config)(map, false);
+	if (qos_im_sysdef == map)
+		qos_im_sysdef = NULL;
+	call_rcu(&map->obj_rcu, qos_ingress_map_delete_rcu);
+	return ret;
+}
+
+static int
+qos_ingress_map_get(char const *name, enum ingress_map_type type,
+		    uint64_t mask, uint8_t des, uint8_t dp)
+{
+	struct qos_ingress_map *map;
+
+	map = qos_ingress_map_find(name);
+	if (!map) {
+		map = qos_ingress_map_create(name);
+		if (!map)
+			return -ENOMEM;
+		map->type = type;
+	} else if (map->type != type) {
+		DP_DEBUG(QOS, ERR, DATAPLANE,
+			 "Invalid type for ingress-map %s\n", name);
+		return -EINVAL;
+	}
+
+	map->designation[des].dps_in_use |= (1 << dp);
+	map->designation[des].mask[dp] |= mask;
+
+	DP_DEBUG(QOS, DEBUG, DATAPLANE,
+	    "Added map name %s type %d des %u dp %u mask %"PRIx64"\n",
+	     name, type, des, dp, mask);
+
+	return 0;
+}
+
+static int qos_ingress_map_sysdef(char const *name)
+{
+	struct qos_ingress_map *map;
+
+	if (!qos_ingressm.qos_ingressm_config) {
+		DP_DEBUG(QOS, ERR, DATAPLANE,
+			 "Device doesn't support ingress maps");
+		return -EOPNOTSUPP;
+	}
+
+	map = qos_ingress_map_find(name);
+	if (!map) {
+		if (qos_im_sysdef) {
+			DP_DEBUG(QOS, ERR, DATAPLANE,
+				 "Ingress map system-default already alloced");
+			return -EINVAL;
+		}
+		map = qos_ingress_map_create(name);
+		if (!map)
+			return -ENOMEM;
+	} else {
+		if (qos_im_sysdef && strcmp(qos_im_sysdef->name, map->name)) {
+			DP_DEBUG(QOS, ERR, DATAPLANE,
+				 "Ingress map system-default already alloced");
+			return -EINVAL;
+		}
+	}
+
+	map->sysdef = true;
+	qos_im_sysdef = map;
+
+	DP_DEBUG(QOS, DEBUG, DATAPLANE,
+		 "Set system default ingress-map to %s\n", name);
+
+	return 0;
+}
+
+static int qos_ingress_map_complete(char const *name)
+{
+	struct qos_ingress_map *map;
+	int ret;
+
+	map = qos_ingress_map_find(name);
+	if (!map) {
+		DP_DEBUG(QOS, ERR, DATAPLANE,
+			 "No ingress map found %s\n", name);
+		return -ENOENT;
+	}
+
+	DP_DEBUG(QOS, ERR, DATAPLANE, "Completed ingress map %s\n", name);
+
+	ret = (*qos_ingressm.qos_ingressm_config)(map, true);
+
+	return ret;
+}
+
+static int cmd_qos_ingress_map(struct ifnet *ifp, int argc, char **argv)
+{
+	const char *map_name;
+	uint64_t mask = 0;
+	enum ingress_map_type type = INGRESS_UNDEF;
+	uint8_t des, dp;
+	int ret;
+
+	/* Skip ingress-map */
+	argc--; argv++;
+
+	/*
+	 * Expected command format:
+	 *
+	 * "ingress-map <a> dscp-group <b> designator <c> drop-prec <f>"
+	 * "ingress-map <a> pcp <d> designator <c> drop-prec <f>"
+	 * "ingress-map <a> complete"
+	 * "ingress-map <a> delete"
+	 * "ingress-map <a> system-default"
+	 * "ingress-map <a> vlan <e>"
+	 * "ingress-map <a> vlan <e> delete"
+	 *
+	 * <a> - ingress-map name
+	 * <b> - dscp-group resource group name
+	 * <c> - TC queue designation (0..7)
+	 * <d> - PCP value (0..7)
+	 * <e> - vlan (0..4095)
+	 * <f> - drop precedence ("green", "yellow", "red")
+	 */
+
+	map_name = argv[0];
+	--argc, ++argv; /* skip name */
+
+	switch (argc) {
+	case 1:
+		/*
+		 * delete - We are deleting an ingress-map
+		 * system-default - We are setting a system-default
+		 * complete - The definition of an ingress-map is complete
+		 */
+		if (!strcmp(argv[0], "delete"))
+			return qos_ingress_map_delete(map_name);
+		else if (!strcmp(argv[0], "system-default"))
+			return qos_ingress_map_sysdef(map_name);
+		else if (!strcmp(argv[0], "complete"))
+			return qos_ingress_map_complete(map_name);
+		break;
+
+	case 2:
+	case 3:
+		if (strcmp(argv[0], "vlan"))
+			break;
+
+		unsigned int vlan;
+		argc--; argv++;
+		if ((get_unsigned(argv[0], &vlan) < 0) ||
+		    vlan >= VLAN_N_VID) {
+			DP_DEBUG(QOS, ERR, DATAPLANE,
+				 "Invalid vlan value\n");
+			return -EINVAL;
+		}
+
+		if (!ifp) {
+			DP_DEBUG(QOS, ERR, DATAPLANE,
+				 "Invalid ifp\n");
+			return -EINVAL;
+		}
+
+		argc--; argv++;
+		if (!argc)
+			return(qos_ingressm_trgt_attach(ifp->if_index, vlan,
+							map_name));
+		else if (!strcmp(argv[0], "delete"))
+			return(qos_ingressm_trgt_detach(ifp->if_index,
+							vlan));
+		break;
+
+	case 6:
+		if (!strcmp(argv[0], "dscp-group")) {
+			argc--; argv++;
+			ret = npf_dscp_group_getmask(argv[0], &mask);
+			if (ret) {
+				DP_DEBUG(QOS, ERR, DATAPLANE,
+					 "Failed to retrieve dscp group %s\n",
+					 argv[0]);
+				return -ENOENT;
+			}
+			argc--; argv++;
+			type = INGRESS_DSCP;
+		} else if (!strcmp(argv[0], "pcp")) {
+			unsigned int pcp;
+
+			argc--; argv++;
+			if ((get_unsigned(argv[0], &pcp) < 0) ||
+			    pcp > MAX_DESIGNATOR) {
+				DP_DEBUG(QOS, ERR, DATAPLANE,
+					 "Invalid PCP value\n");
+				return -EINVAL;
+			}
+			argc--; argv++;
+			mask = (uint64_t)(1 << pcp);
+			type = INGRESS_PCP;
+		} else {
+			DP_DEBUG(QOS, ERR, DATAPLANE,
+				 "Missing ingress map type\n");
+			return -EINVAL;
+		}
+
+
+		if (!strcmp(argv[0], "designation")) {
+			argc--; argv++;
+			if ((get_unsigned_char(argv[0], &des) < 0) ||
+			    des > MAX_DESIGNATOR) {
+				DP_DEBUG(QOS, ERR, DATAPLANE,
+					 "Invalid designation value\n");
+				return -EINVAL;
+			}
+			argc--; argv++;
+		} else {
+			DP_DEBUG(QOS, ERR, DATAPLANE,
+				 "Missing ingress map designation\n");
+			return -EINVAL;
+		}
+
+		if (!strcmp(argv[0], "drop-prec")) {
+			argc--; argv++;
+			for (dp = 0; dp < NUM_DPS; dp++) {
+				if (!strcmp(argv[0], qos_dps[dp]))
+					break;
+			}
+			if (dp == NUM_DPS) {
+				DP_DEBUG(QOS, ERR, DATAPLANE,
+					 "Invalid drop-precedence value\n");
+				return -EINVAL;
+			}
+		} else {
+			DP_DEBUG(QOS, ERR, DATAPLANE,
+				 "Missing ingress map drop-precedence\n");
+			return -EINVAL;
+		}
+
+		return(qos_ingress_map_get(map_name, type, mask, des, dp));
+	default:
+		DP_DEBUG(QOS, ERR, DATAPLANE,
+			 "Ingress map command has wrong number of args\n");
+		break;
+	}
+
+	DP_DEBUG(QOS, ERR, DATAPLANE,
+		 "Invalid ingress-map command\n");
+
+	return -EINVAL;
+}
+
+/*
+ * There is a race between NEWLINK messages from the kernel
+ * and the NEWPORT response from the controller. So we need
+ * to store interface specific commands for which there is no
+ * interface in the expectation that the ifp will exist shortly :-(
+ */
+static struct cfg_if_list *qos_cfg_list;
+
+static void
+qos_if_index_set(struct ifnet *ifp)
+{
+	int rv;
+
+	rv = cfg_if_list_replay(&qos_cfg_list, ifp->if_name, cmd_qos_cfg);
+
+	if (rv)
+		DP_DEBUG(QOS, ERR, DATAPLANE,
+			 "qos cache replay failed for %s, rv %d (%s)",
+			 ifp->if_name, rv, strerror(-rv));
+}
+
+static void
+qos_if_index_unset(struct ifnet *ifp, uint32_t ifindex __unused)
+{
+	int rv;
+
+	rv = cfg_if_list_replay(&qos_cfg_list, ifp->if_name, NULL);
+
+	if (rv)
+		DP_DEBUG(QOS, ERR, DATAPLANE,
+			 "qos cache remove failed for %s, rv %d (%s)",
+			 ifp->if_name, rv, strerror(-rv));
+}
+
 /* Process qos related config commands */
 int cmd_qos_cfg(__unused FILE * f, int argc, char **argv)
 {
-	unsigned int ifindex;
+	int rv;
 
-	--argc, ++argv;		/* skip "qos" */
-	if (argc < 1) {
+	if (argc < 2) {
 		DP_DEBUG(QOS, ERR, DATAPLANE, "usage: missing qos command\n");
 		return -EINVAL;
 	}
 
-	debug_cmd(argc, argv);
+	debug_cmd(argc-1, argv+1);
 
-	/* Config-mode commands start with ifindex */
-	if (get_unsigned(argv[0], &ifindex) < 0) {
-		DP_DEBUG(QOS, ERR, DATAPLANE, "usage: qos IFINDEX ...\n");
-		return -ENODEV;
+	if (argc == 2 && !strcmp(argv[1], "commit")) {
+		qos_sched_npf_commit();
+		return 0;
 	}
 
 	/*
-	 * QoS uses an if-index of zero to signal a global object, i.e.
-	 * one that isn't tied to one particular interface.
+	 * QoS uses a special marker to signal a global object, i.e.
+	 * one that isn't tied to one particular interface. The string
+	 * is deliberately longer than IFNAMSIZ so it can never be confused
+	 * with a real ifname.
 	 */
-	if (ifindex == 0) {
-		--argc, ++argv; /* skip IFINDEX */
+	if (!strcmp(argv[1], "global-object-cmd")) {
+		--argc, ++argv; /* skip "qos" */
+		--argc, ++argv; /* skip global marker*/
 		if (argc < 1) {
 			RTE_LOG(ERR, QOS, "missing qos subcommand\n");
 			return -EINVAL;
@@ -2564,16 +3866,38 @@ int cmd_qos_cfg(__unused FILE * f, int argc, char **argv)
 
 		if (strcmp(argv[0], "mark-map") == 0)
 			return cmd_qos_mark_map(argc, argv);
+		else if (strcmp(argv[0], "platform") == 0)
+			return cmd_qos_platform(argc, argv);
+		else if (strcmp(argv[0], "ingress-map") == 0)
+			return cmd_qos_ingress_map(NULL, argc, argv);
 
 		return -EINVAL;
 	}
 
-	struct ifnet *ifp = ifnet_byifindex(ifindex);
+	/*
+	 * All other Config-mode commands start with an interface name which
+	 * vplaned should guarantee will be present. Unfortunately due to
+	 * a race condition we currently have a cache/replay mechanism to
+	 * cope with that not being the case.
+	 */
+	struct ifnet *ifp = dp_ifnet_byifname(argv[1]);
 
 	if (!ifp) {
-		DP_DEBUG(QOS, ERR, DATAPLANE, "unknown ifindex %u\n", ifindex);
-		return -ENODEV;
+		/*
+		 * Interface not found, attempt to cache the command for replay
+		 * if it turns up later.
+		 */
+		DP_DEBUG(QOS, DEBUG, DATAPLANE,
+			 "qos interface %s not found, cache cmd\n", argv[1]);
+		rv = cfg_if_list_cache_command(&qos_cfg_list, argv[1],
+					       argc, argv);
+		if (rv)
+			DP_DEBUG(QOS, ERR, DATAPLANE,
+				 "qos cache cmd for %s failed %d(%s)\n",
+				 argv[1], rv, strerror(-rv));
+		return rv;
 	}
+
 	if (ifp->if_type != IFT_ETHER) {
 		DP_DEBUG(QOS, ERR, DATAPLANE,
 			 "Qos only possible on physical ports\n");
@@ -2583,7 +3907,8 @@ int cmd_qos_cfg(__unused FILE * f, int argc, char **argv)
 	if (ifp->if_port == IF_PORT_ID_INVALID)
 		return 0;
 
-	--argc, ++argv;		/* skip IFINDEX */
+	--argc, ++argv; /* skip "qos" */
+	--argc, ++argv;	/* skip IFNAME */
 	if (argc < 1) {
 		DP_DEBUG(QOS, ERR, DATAPLANE, "missing qos subcommand\n");
 		return -EINVAL;
@@ -2607,6 +3932,8 @@ int cmd_qos_cfg(__unused FILE * f, int argc, char **argv)
 		return cmd_qos_disable(ifp, argc, argv);
 	else if (strcmp(argv[0], "enable") == 0)
 		return cmd_qos_enable(ifp, argc, argv);
+	else if (strcmp(argv[0], "ingress-map") == 0)
+		return cmd_qos_ingress_map(ifp, argc, argv);
 	else
 		DP_DEBUG(QOS, ERR, DATAPLANE, "unknown qos command: %s\n",
 			 argv[0]);
@@ -2626,7 +3953,7 @@ qos_extract_attachpoint(char const *name, struct ifnet **ifp)
 			continue;
 
 		ifname[len] = '\0';
-		*ifp = ifnet_byifname(ifname);
+		*ifp = dp_ifnet_byifname(ifname);
 		if (!*ifp)
 			return NULL;
 		return name + len + 1;
@@ -2678,7 +4005,7 @@ struct ifnet *qos_get_vlan_ifp(const char *att_pnt, uint16_t *vlan_id)
 		return ifp;
 
 	snprintf(&vlan_ifp_name[0], IFNAMSIZ, "%s.%d", ifp->if_name, *vlan_id);
-	ifp = ifnet_byifname(vlan_ifp_name);
+	ifp = dp_ifnet_byifname(vlan_ifp_name);
 	return ifp;
 }
 
@@ -2936,13 +4263,21 @@ static void
 qos_if_link_change(struct ifnet *ifp, bool up,
 		   uint32_t speed)
 {
-	if (!ifp->if_qos)
+	if (!ifp->if_qos || speed == ETH_SPEED_NUM_NONE)
 		return;
 
-	if (up)
-		qos_sched_start(ifp, speed);
-	else
-		qos_sched_stop(ifp);
+	/*
+	 * We can only start QoS if the config (hw vs sw) matches
+	 * the current state of the port (hw vs sw).
+	 */
+	if ((ifp->if_qos->dev_id == QOS_HW_ID && ifp->hw_forwarding) ||
+	    (ifp->if_qos->dev_id == QOS_DPDK_ID && !ifp->hw_forwarding)) {
+
+		if (up)
+			qos_sched_start(ifp, speed);
+		else
+			qos_sched_stop(ifp);
+	}
 }
 
 static void
@@ -2956,12 +4291,53 @@ qos_if_delete(struct ifnet *ifp)
 	DP_DEBUG(QOS, DEBUG, DATAPLANE,
 		 "QoS disabled for interface %s delete\n", ifp->if_name);
 
+	SLIST_REMOVE(&qos_qinfos.qinfo_head, qinfo, sched_info, list);
+
+	QOS_RM_GLOBAL_MAP();
+
 	QOS_DISABLE(qinfo)(ifp, qinfo);
+}
+
+static void
+qos_if_feat_mode_change(struct ifnet *ifp, enum if_feat_mode_event event)
+{
+	struct sched_info *qinfo = ifp->if_qos;
+	bool up = false;
+
+	if (!qinfo)
+		return;
+
+	if (event == IF_FEAT_MODE_EVENT_L2_FAL_ENABLED) {
+		DP_DEBUG(QOS, DEBUG, DATAPLANE,
+			"Hw switching enabled for Interface %s\n",
+			ifp->if_name);
+		if (ifp->if_qos->dev_id == QOS_HW_ID)
+			up = true;
+	} else if (event == IF_FEAT_MODE_EVENT_L2_FAL_DISABLED) {
+		DP_DEBUG(QOS, DEBUG, DATAPLANE,
+			"Hw switching disabled for Interface %s\n",
+			ifp->if_name);
+		if (ifp->if_qos->dev_id == QOS_DPDK_ID)
+			up = true;
+	}
+
+	if (up) {
+		struct rte_eth_link link;
+
+		rte_eth_link_get_nowait(ifp->if_port, &link);
+		if (link.link_status && link.link_speed != ETH_SPEED_NUM_NONE)
+			qos_sched_start(ifp, link.link_speed);
+	} else {
+		qos_sched_stop(ifp);
+	}
 }
 
 static const struct dp_event_ops qos_events = {
 	.if_link_change = qos_if_link_change,
 	.if_delete = qos_if_delete,
+	.if_feat_mode_change = qos_if_feat_mode_change,
+	.if_index_set = qos_if_index_set,
+	.if_index_unset = qos_if_index_unset,
 };
 
 DP_STARTUP_EVENT_REGISTER(qos_events);

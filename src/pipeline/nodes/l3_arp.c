@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2018-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2018-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 1982, 1986, 1988, 1993
  *	The Regents of the University of California.  All rights reserved.
  *
@@ -49,26 +49,26 @@
 
 #include "arp.h"
 #include "compat.h"
-#include "config.h"
+#include "config_internal.h"
 #include "ether.h"
-#include "gre.h"
+#include "if/gre.h"
+#include "if/macvlan.h"
 #include "if_ether.h"
 #include "if_llatbl.h"
 #include "if_var.h"
 #include "ip_addr.h"
-#include "macvlan.h"
 #include "main.h"
 #include "nh.h"
 #include "pl_common.h"
 #include "pl_fused.h"
-#include "pktmbuf.h"
+#include "pktmbuf_internal.h"
 #include "route.h"
 #include "route_flags.h"
 #include "urcu.h"
 #include "util.h"
 #include "vplane_debug.h"
 #include "vplane_log.h"
-#include "vrf.h"
+#include "vrf_internal.h"
 
 /*
  * Since Dataplane only supports Ethernet, use a simplified form of ARP
@@ -156,13 +156,13 @@ static bool arp_proxy(struct ifnet *ifp, in_addr_t addr, struct rte_mbuf *m,
 
 	/* Is there a route to this address */
 	pktmbuf_set_vrf(m, if_vrfid(ifp));
-	struct next_hop *nxt = rt_lookup(addr, RT_TABLE_MAIN, m);
+	struct next_hop *nxt = dp_rt_lookup(addr, RT_TABLE_MAIN, m);
 	if (nxt == NULL ||
 	    (nxt->flags & (RTF_REJECT|RTF_BLACKHOLE|RTF_BROADCAST)))
 		return false;
 
 	/* Don't send proxy if on same interface */
-	if (nh4_get_ifp(nxt) == ifp)
+	if (dp_nh4_get_ifp(nxt) == ifp)
 		return false;
 
 	/* Respond with own address */
@@ -208,7 +208,7 @@ static int arp_ignore(struct ifnet *ifp, const struct ether_addr *enaddr,
 }
 
 ALWAYS_INLINE unsigned int
-arp_in_nothot_process(struct pl_packet *pkt)
+arp_in_nothot_process(struct pl_packet *pkt, void *context __unused)
 {
 	struct ifnet *ifp = pkt->in_ifp;
 	struct rte_mbuf *m = pkt->mbuf;
@@ -239,6 +239,12 @@ arp_in_nothot_process(struct pl_packet *pkt)
 	memcpy(&itaddr, ah->arp_tpa, sizeof(itaddr));
 
 	if (unlikely(is_multicast_ether_addr(&eh->d_addr))) {
+		struct sockaddr sock_storage;
+		struct sockaddr_in *ip_storage =
+			(struct sockaddr_in *) &sock_storage;
+
+		ip_storage->sin_family = AF_INET;
+		ip_storage->sin_addr.s_addr = itaddr;
 		/* Lookup based on the target IP address
 		 *
 		 * Note that this causes GARPs to only be processed in
@@ -251,7 +257,7 @@ arp_in_nothot_process(struct pl_packet *pkt)
 		 * replies, but ARP replies should never be
 		 * multicasted anyway.
 		 */
-		vrrp_ifp = macvlan_get_vrrp_ip_if(ifp, itaddr);
+		vrrp_ifp = macvlan_get_vrrp_ip_if(ifp, &sock_storage);
 		/* overriding the interface at this point does bypass
 		 * the own-MAC check in arp_input_validate, but that's
 		 * fine as we know at this point the destination
@@ -389,7 +395,7 @@ PL_REGISTER_NODE(arp_in_nothot_node) = {
 };
 
 ALWAYS_INLINE unsigned int
-arp_in_process(struct pl_packet *pkt)
+arp_in_process(struct pl_packet *pkt, void *context __unused)
 {
 	arp_input(pkt->in_ifp, pkt->mbuf);
 	return ARP_IN_FINISH;

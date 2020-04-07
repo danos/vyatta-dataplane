@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2015-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -11,6 +11,7 @@
 #include <stdint.h>
 #include <string.h>
 #include <stdlib.h>
+#include <stdarg.h>
 #include <stdbool.h>
 #include <arpa/inet.h>
 #include <linux/if_ether.h>
@@ -35,11 +36,11 @@
 #include "mpls/mpls.h"
 
 #include "dp_test.h"
-#include "dp_test_lib.h"
 #include "dp_test_lib_exp.h"
-#include "dp_test_lib_intf.h"
-#include "dp_test_pktmbuf_lib.h"
-#include "dp_test_netlink_state.h"
+#include "dp_test_lib_internal.h"
+#include "dp_test_lib_intf_internal.h"
+#include "dp_test_pktmbuf_lib_internal.h"
+#include "dp_test_netlink_state_internal.h"
 
 static struct dp_read_pkt g_read_pkt;
 
@@ -615,7 +616,7 @@ void dp_test_free_route(struct dp_test_route *route)
 uint16_t
 dp_test_calc_udptcp_chksum(struct rte_mbuf *m)
 {
-	const struct ipv4_hdr *ip = pktmbuf_mtol3(m, struct ipv4_hdr *);
+	const struct ipv4_hdr *ip = dp_pktmbuf_mtol3(m, struct ipv4_hdr *);
 	const struct tcphdr *tcp = (const struct tcphdr *)(ip + 1);
 	uint16_t cksum;
 

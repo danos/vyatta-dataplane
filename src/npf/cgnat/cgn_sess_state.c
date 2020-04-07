@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2019-2020, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -13,8 +13,8 @@
 #include <values.h>
 
 #include "util.h"
-#include "soft_ticks.h"
 
+#include "npf/cgnat/cgn.h"
 #include "npf/cgnat/cgn_limits.h"
 #include "npf/cgnat/cgn_mbuf.h"
 #include "npf/cgnat/cgn_sess2.h"
@@ -96,7 +96,7 @@ cgn_tcp_fsm[CGN_TCP_STATE_COUNT][CGN_DIR_SZ][CGN_TCP_EVENT_COUNT] = {
 			[CGN_TCP_EVENT_NONE]     = 0,
 			[CGN_TCP_EVENT_SYN]      = 0,
 			[CGN_TCP_EVENT_RST]      = 0,
-			[CGN_TCP_EVENT_ACK]      = CGN_TCP_STATE_ESTABLISHED,
+			[CGN_TCP_EVENT_ACK]      = 0,
 			[CGN_TCP_EVENT_FIN]      = 0,
 			[CGN_TCP_EVENT_TO]       = CGN_TCP_STATE_CLOSED,
 		},
@@ -202,20 +202,23 @@ cgn_sess_fsm[CGN_SESS_STATE_COUNT][CGN_DIR_SZ][CGN_SESS_EVENT_COUNT] = {
 
 
 /*
- * Other session expiry times
+ * Default non-TCP or non-UDP session expiry times
  */
 uint32_t cgn_sess_other_etime[CGN_ETIME_COUNT] = {
 	[CGN_ETIME_OPENING]	= CGN_DEF_ETIME_OTHER_OPENING,
 	[CGN_ETIME_ESTBD]	= CGN_DEF_ETIME_OTHER_ESTBD,
 };
 
+/*
+ * Default UDP session expiry times
+ */
 uint32_t cgn_sess_udp_etime[CGN_ETIME_COUNT] = {
 	[CGN_ETIME_OPENING]	= CGN_DEF_ETIME_UDP_OPENING,
 	[CGN_ETIME_ESTBD]	= CGN_DEF_ETIME_UDP_ESTBD,
 };
 
 /*
- * Non-TCP session expiry times
+ * Default TCP session expiry times
  */
 uint32_t cgn_sess_tcp_etime[CGN_ETIME_TCP_COUNT] = {
 	[CGN_ETIME_TCP_OPENING]	= CGN_DEF_ETIME_TCP_OPENING,
@@ -223,18 +226,57 @@ uint32_t cgn_sess_tcp_etime[CGN_ETIME_TCP_COUNT] = {
 	[CGN_ETIME_TCP_CLOSING]	= CGN_DEF_ETIME_TCP_CLOSING,
 };
 
+/*
+ * Port-dependent session expiry times in seconds.
+ *
+ * Per-port expiry times for TCP and UDP will override the Established state
+ * default, if specified and if the original outbound dest port is known.
+ *
+ * The dest port will always be known for 2-tuple sessions.  It should also be
+ * known for 3-tuple sessions, but will be reset to 0 if multiple flows are
+ * using that 3-tuple session.
+ */
+uint32_t cgn_port_tcp_etime[USHRT_MAX + 1];
+uint32_t cgn_port_udp_etime[USHRT_MAX + 1];
 
+void cgn_cgn_port_tcp_etime_set(uint16_t port, uint32_t timeout)
+{
+	cgn_port_tcp_etime[port] = timeout;
+}
+
+uint32_t cgn_cgn_port_tcp_etime_get(uint16_t port)
+{
+	return cgn_port_tcp_etime[port];
+}
+
+void cgn_cgn_port_udp_etime_set(uint16_t port, uint32_t timeout)
+{
+	cgn_port_udp_etime[port] = timeout;
+}
+
+uint32_t cgn_cgn_port_udp_etime_get(uint16_t port)
+{
+	return cgn_port_udp_etime[port];
+}
+
+/*
+ * port is the outbound dest port or inbound source port.  It is in host byte
+ * order.
+ */
 void
-cgn_sess_state_init(struct cgn_state *st, uint8_t proto)
+cgn_sess_state_init(struct cgn_state *st, uint8_t proto, uint16_t port)
 {
 	st->st_state = CGN_SESS_STATE_CLOSED;
 	st->st_proto = proto;
+	st->st_dst_port = port;
 	rte_atomic16_clear(&st->st_idle);
 	rte_spinlock_init(&st->st_lock);
 }
 
 /*
  * Evaluate session state
+ *
+ * start_time	Session start time, unix epoch microseconds
  */
 void
 cgn_sess_state_inspect(struct cgn_state *st, struct cgn_packet *cpk, int dir,
@@ -281,8 +323,8 @@ cgn_sess_state_inspect(struct cgn_state *st, struct cgn_packet *cpk, int dir,
 
 			/* External rtt.  Look for incoming SYN-ACK. */
 			if (!forw && (cpk->cpk_tcp_flags & TH_ACK)) {
-				rtt = soft_ticks - start_time;
-				st->st_ext_rtt = MIN(rtt, USHRT_MAX);
+				rtt = cgn_time_usecs() - start_time;
+				st->st_ext_rtt = rtt;
 			}
 
 		} else if (cpk->cpk_tcp_flags & TH_FIN) {
@@ -303,9 +345,9 @@ cgn_sess_state_inspect(struct cgn_state *st, struct cgn_packet *cpk, int dir,
 
 				/* Int rtt. Look for first forw ACK */
 				if (forw) {
-					rtt = soft_ticks - start_time -
+					rtt = cgn_time_usecs() - start_time -
 						st->st_ext_rtt;
-					st->st_int_rtt = MIN(rtt, USHRT_MAX);
+					st->st_int_rtt = rtt;
 				}
 			}
 
@@ -337,8 +379,17 @@ cgn_sess_state_inspect(struct cgn_state *st, struct cgn_packet *cpk, int dir,
 
 /*
  * Get state-dependent expiry time
+ *
+ * For 3-tuple sessions, port is the original dest port in the first outbound
+ * packet.  If the session has been used for more than one flow, then it will
+ * have been reset to 0.
+ *
+ * For 2-tuple sessions port is the outbound dest port.
+ *
+ * port is in host byte order.
  */
-uint32_t cgn_sess_state_expiry_time(uint8_t proto, uint8_t state)
+uint32_t cgn_sess_state_expiry_time(uint8_t proto, uint16_t port,
+				    uint8_t state)
 {
 	uint32_t etime;
 
@@ -346,16 +397,22 @@ uint32_t cgn_sess_state_expiry_time(uint8_t proto, uint8_t state)
 		return 0;
 
 	if (proto == NAT_PROTO_TCP) {
-		if (state == CGN_TCP_STATE_ESTABLISHED)
-			etime = cgn_sess_tcp_etime[CGN_ETIME_TCP_ESTBD];
-		else if (state == CGN_TCP_STATE_INIT)
+		if (state == CGN_TCP_STATE_ESTABLISHED) {
+			if (unlikely(cgn_port_tcp_etime[port] > 0))
+				etime = cgn_port_tcp_etime[port];
+			else
+				etime = cgn_sess_tcp_etime[CGN_ETIME_TCP_ESTBD];
+		} else if (state == CGN_TCP_STATE_INIT)
 			etime = cgn_sess_tcp_etime[CGN_ETIME_TCP_OPENING];
 		else
 			etime = cgn_sess_tcp_etime[CGN_ETIME_TCP_CLOSING];
 	} else if (proto == NAT_PROTO_UDP) {
-		if (state == CGN_SESS_STATE_ESTABLISHED)
-			etime = cgn_sess_udp_etime[CGN_ETIME_ESTBD];
-		else
+		if (state == CGN_SESS_STATE_ESTABLISHED) {
+			if (unlikely(cgn_port_udp_etime[port] > 0))
+				etime = cgn_port_udp_etime[port];
+			else
+				etime = cgn_sess_udp_etime[CGN_ETIME_ESTBD];
+		} else
 			etime = cgn_sess_udp_etime[CGN_ETIME_OPENING];
 	} else {
 		if (state == CGN_SESS_STATE_ESTABLISHED)
@@ -367,13 +424,12 @@ uint32_t cgn_sess_state_expiry_time(uint8_t proto, uint8_t state)
 }
 
 /*
- * Timeout event for 2-tuple session.  Returns timeout value for state
- * (regardless of if it changed or not).
+ * Timeout event for 2-tuple session.  Returns true if state is Closed.
  */
-uint32_t cgn_sess_state_timeout(struct cgn_state *st)
+bool cgn_sess_state_timeout(struct cgn_state *st)
 {
 	uint8_t new;
-	uint32_t etime;
+	bool closed;
 
 	rte_spinlock_lock(&st->st_lock);
 
@@ -383,18 +439,20 @@ uint32_t cgn_sess_state_timeout(struct cgn_state *st)
 
 		if (new != CGN_TCP_STATE_NONE && new != st->st_state)
 			st->st_state = new;
+
+		closed = (st->st_state == CGN_TCP_STATE_CLOSED);
 	} else {
 		new = cgn_sess_fsm[st->st_state][CGN_DIR_FORW]
 			[CGN_SESS_EVENT_TO];
 
 		if (new != CGN_SESS_STATE_NONE && new != st->st_state)
 			st->st_state = new;
+
+		closed = (st->st_state == CGN_SESS_STATE_CLOSED);
 	}
 
-	etime = cgn_sess_state_expiry_time(st->st_proto, new);
-
 	rte_spinlock_unlock(&st->st_lock);
-	return etime;
+	return closed;
 }
 
 /*
@@ -440,9 +498,8 @@ void cgn_sess_state_jsonw(json_writer_t *json, struct cgn_state *st)
 	if (st->st_proto == NAT_PROTO_TCP) {
 		uint32_t rtt_ext, rtt_int;
 
-		/* millisecs to microsecs */
-		rtt_ext = st->st_ext_rtt * 1000;
-		rtt_int = st->st_int_rtt * 1000;
+		rtt_ext = st->st_ext_rtt;
+		rtt_int = st->st_int_rtt;
 
 		jsonw_uint_field(json, "rtt_ext", rtt_ext);
 		jsonw_uint_field(json, "rtt_int", rtt_int);

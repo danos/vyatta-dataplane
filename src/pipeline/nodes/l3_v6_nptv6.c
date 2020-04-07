@@ -1,7 +1,7 @@
 /*
  * l3_v6_nptv6.c
  *
- * Copyright (c) 2018-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2018-2020, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  *
@@ -36,7 +36,7 @@
 #include "npf/npf_ruleset.h"
 #include "npf/rproc/npf_rproc.h"
 #include "npf/rproc/npf_ext_nptv6.h"
-#include "pktmbuf.h"
+#include "pktmbuf_internal.h"
 #include "pl_common.h"
 #include "pl_fused.h"
 #include "pl_node.h"
@@ -104,7 +104,7 @@ nptv6_process_common(struct pl_packet *pkt, int dir)
 
 	if (unlikely(m != pkt->mbuf)) {
 		pkt->mbuf = m;
-		pkt->l3_hdr = pktmbuf_mtol3(m, void *);
+		pkt->l3_hdr = dp_pktmbuf_mtol3(m, void *);
 	}
 
 	if (unlikely(decision == NPF_DECISION_BLOCK)) {
@@ -121,13 +121,13 @@ nptv6_process_common(struct pl_packet *pkt, int dir)
 }
 
 ALWAYS_INLINE unsigned int
-nptv6_in_process(struct pl_packet *pkt)
+nptv6_in_process(struct pl_packet *pkt, void *context __unused)
 {
 	return nptv6_process_common(pkt, PFIL_IN);
 }
 
 ALWAYS_INLINE unsigned int
-nptv6_out_process(struct pl_packet *pkt)
+nptv6_out_process(struct pl_packet *pkt, void *context __unused)
 {
 	return nptv6_process_common(pkt, PFIL_OUT);
 }

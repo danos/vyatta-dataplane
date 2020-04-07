@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2017-2018, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2015-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -15,12 +15,12 @@
 #include "ip_funcs.h"
 
 #include "dp_test.h"
-#include "dp_test_lib.h"
-#include "dp_test_macros.h"
-#include "dp_test_lib_intf.h"
-#include "dp_test_pktmbuf_lib.h"
+#include "dp_test_lib_internal.h"
+#include "dp_test_lib_intf_internal.h"
+#include "dp_test/dp_test_macros.h"
+#include "dp_test_pktmbuf_lib_internal.h"
 #include "dp_test_crypto_utils.h"
-#include "dp_test_netlink_state.h"
+#include "dp_test_netlink_state_internal.h"
 
 /*
  *                    +-----------+
@@ -165,9 +165,8 @@ DP_DECL_TEST_CASE(crypto_policy_suite, crypto_policy, NULL, NULL);
 /*
  * TESTCASE: Simple policy update
  *
- * This test exercises the scenario when a policy is
- * updated and caused a list corruption leading to an infinite loop
- * when a new entry is subsequently created for the policy.
+ * This test exercises a policy update that caused a list corruption
+ * leading to an inite loop when new is subsequently created for the policy.
  */
 DP_START_TEST(crypto_policy, simple_policy_update)
 {
@@ -205,7 +204,7 @@ DP_START_TEST(crypto_policy, simple_policy_update)
  * of block, updated to change the action to allow and then
  * back to block.
  */
-DP_START_TEST(crypto_policy, update_policy_action)
+DP_START_TEST_FULL_RUN(crypto_policy, update_policy_action)
 {
 	static struct dp_test_crypto_policy the_policy = {
 		.d_prefix = "16.1.2.0/24",
@@ -245,7 +244,7 @@ DP_START_TEST(crypto_policy, update_policy_action)
 	teardown(VRF_DEFAULT_ID);
 } DP_END_TEST;
 
-DP_START_TEST(crypto_policy, update_policy_action_vrf)
+DP_START_TEST_FULL_RUN(crypto_policy, update_policy_action_vrf)
 {
 	static struct dp_test_crypto_policy the_policy = {
 		.d_prefix = "16.1.2.0/24",

@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2017-2018, AT&T Intellectual Property. All rights reserved.
+ * Copyright (c) 2018-2020, AT&T Intellectual Property. All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -11,7 +11,7 @@
 
 #include "json_writer.h"
 #include "urcu.h"
-#include "vrf.h"
+#include "vrf_internal.h"
 
 struct ifnet;
 
@@ -26,6 +26,7 @@ struct ifnet *vrfmaster_create(const char *ifname, uint32_t if_index,
 vrfid_t vrfmaster_get_vrfid(struct ifnet *ifp);
 vrfid_t vrfmaster_get_tableid(struct ifnet *ifp);
 
-struct ifnet *vrfmaster_lookup_by_tableid(uint32_t tableid);
+int vrf_lookup_by_tableid(uint32_t kernel_tableid, vrfid_t *vrfid,
+			  uint32_t *user_tableid);
 
 #endif /* VRF_IF_H */

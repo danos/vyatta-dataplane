@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  *
@@ -7,13 +7,14 @@
  */
 #include "dp_test.h"
 #include "dp_test_str.h"
-#include "dp_test_lib.h"
+#include "dp_test_lib_internal.h"
 #include "dp_test_lib_exp.h"
+#include "dp_test_lib_pb.h"
 #include "dp_test_lib_pkt.h"
-#include "dp_test_pktmbuf_lib.h"
+#include "dp_test_pktmbuf_lib_internal.h"
 #include "dp_test_controller.h"
 #include "dp_test_json_utils.h"
-#include "dp_test_netlink_state.h"
+#include "dp_test_netlink_state_internal.h"
 #include "dp_test_console.h"
 
 
@@ -62,37 +63,24 @@ _dp_test_wait_for_xconnect(const char *src_intf, const char *dst_intf,
 				  __FILE__, __func__, __LINE__)
 
 static void
-dp_test_create_xconnect_msg(const XConnectConfig__CommandType cmd,
-			    const char *dp_ifname,
-			    const char *new_ifname,
-			    void **buf, int *len)
+dp_test_create_and_send_xconnect_msg(const XConnectConfig__CommandType cmd,
+				     const char *dp_ifname,
+				     const char *new_ifname)
 {
+	int len;
 	XConnectConfig xcon = XCONNECT_CONFIG__INIT;
 	xcon.has_cmd = true;
 	xcon.cmd = cmd;
 	xcon.dp_ifname = (char *)dp_ifname;
 	xcon.new_ifname = (char *)new_ifname;
 
-	*len = xconnect_config__get_packed_size(&xcon);
-	void *buf2 = malloc(*len);
+	len = xconnect_config__get_packed_size(&xcon);
+	void *buf2 = malloc(len);
 	dp_test_assert_internal(buf2);
 
 	xconnect_config__pack(&xcon, buf2);
 
-	DataplaneEnvelope msg = DATAPLANE_ENVELOPE__INIT;
-	msg.type = strdup("vyatta:xconnect");
-	msg.msg.data = buf2;
-	msg.msg.len = *len;
-
-	*len = dataplane_envelope__get_packed_size(&msg);
-
-	*buf = malloc(*len);
-	dp_test_assert_internal(*buf);
-
-	dataplane_envelope__pack(&msg, *buf);
-
-	free(buf2);
-	free(msg.type);
+	dp_test_lib_pb_wrap_and_send_pb("vyatta:xconnect", buf2, len);
 }
 
 static void
@@ -102,18 +90,11 @@ dp_test_execute(const XConnectConfig__CommandType cmd,
 {
 	char real_ifname_src[IFNAMSIZ];
 	char real_ifname_dst[IFNAMSIZ];
-	int len;
-	void *buf;
 
-	dp_test_create_xconnect_msg(cmd,
-				    dp_test_intf_real(intf1, real_ifname_src),
-				    dp_test_intf_real(intf2, real_ifname_dst),
-				    &buf, &len);
-
-	dp_test_send_config_src_pb(dp_test_cont_src_get(),
-				   buf, len);
-
-	free(buf);
+	dp_test_create_and_send_xconnect_msg(
+		cmd,
+		dp_test_intf_real(intf1, real_ifname_src),
+		dp_test_intf_real(intf2, real_ifname_dst));
 }
 
 DP_START_TEST(xconnect_switching, xconnect_switching1)

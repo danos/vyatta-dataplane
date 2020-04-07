@@ -1,7 +1,7 @@
 /*
  * l2_hw_hdr.c
  *
- * Copyright (c) 2018-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2018-2020, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -11,6 +11,7 @@
 #include "ether.h"
 #include "fal_plugin.h"
 
+#include "capture.h"
 #include "compiler.h"
 #include "main.h"
 #include "pl_common.h"
@@ -127,7 +128,8 @@ l2_hw_hdr_rx_process(struct pl_packet *pkt)
 
 	rc = l2_hw_hdr_rx_feat_framer(pkt->mbuf, &dpdk_port, &feat_info);
 
-	if (rc != FAL_RET_ETHER_INPUT) {
+	if ((rc != FAL_RET_ETHER_INPUT) &&
+	    (rc != FAL_RET_CAPTURE_HW_INPUT)) {
 
 		feature_info = calloc(1, sizeof(*feature_info));
 		if (!feature_info)
@@ -145,7 +147,8 @@ l2_hw_hdr_rx_process(struct pl_packet *pkt)
 		if (!ifp)
 			goto drop;
 
-		pkt->mbuf->port = dpdk_port;
+		if (!is_team(ifp))
+			pkt->mbuf->port = dpdk_port;
 
 		/*
 		 * Packet capture, monitor, and dispatch.  Due to
@@ -171,6 +174,16 @@ l2_hw_hdr_rx_process(struct pl_packet *pkt)
 		pkt->mbuf->port = dpdk_port;
 		pkt->in_ifp = ifp;
 		return HW_HDR_IN_PORTMONITOR;
+
+	case FAL_RET_CAPTURE_HW_INPUT:
+		ifp = ifnet_byport(dpdk_port);
+
+		if (!ifp)
+			goto drop;
+
+		buff->port = dpdk_port;
+		capture_hardware(ifp, buff);
+		return HW_HDR_IN_CONSUME;
 	}
 drop:
 	if_incr_dropped(pkt->in_ifp);
@@ -178,7 +191,7 @@ drop:
 }
 
 ALWAYS_INLINE unsigned int
-l2_hw_hdr_in_check_process(struct pl_packet *pkt)
+l2_hw_hdr_in_check_process(struct pl_packet *pkt, void *context __unused)
 {
 	struct rte_mbuf *m = pkt->mbuf;
 

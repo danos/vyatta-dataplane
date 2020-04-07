@@ -73,7 +73,7 @@ generate_minidebug_and_debug()
 
 for PKG in $(awk '/^Package:/ { print $2 }' < debian/control)
 do
-    for PROG in $(find debian/$PKG -path '*/usr/*' -type f -a \( -executable -o -name '*.so' \) )
+    for PROG in $(find debian/$PKG -path '*/usr/*' -type f -a \( -executable -o -name '*.so*' \) )
     do
        if [ -n "$DBGPKG" ]; then
 	   build=$(readelf -n $PROG | awk '/Build ID:/ { print $3}')

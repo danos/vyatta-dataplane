@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018, AT&T Intellectual Property. All rights reserved.
+ * Copyright (c) 2018-2020, AT&T Intellectual Property. All rights reserved.
  * Copyright (c) 2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -11,7 +11,7 @@
  */
 
 #include "dp_test.h"
-#include "dp_test_lib.h"
+#include "dp_test_lib_internal.h"
 
 #include "crypto/crypto_internal.h"
 #include "crypto/esp.h"
@@ -38,6 +38,7 @@ DP_START_TEST(sequence_number_check, sequence_number_check)
 	sa.replay_window = 0;
 	sa.replay_bitmap = 0;
 	sa.seq = 0;
+	sa.spi = 0;
 	hdr.spi = 0;
 	hdr.seq = 1;
 

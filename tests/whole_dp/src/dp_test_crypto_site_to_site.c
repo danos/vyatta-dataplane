@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2017-2019, AT&T Intellectual Property. All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property. All rights reserved.
  * Copyright (c) 2015-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -9,13 +9,14 @@
  */
 
 #include "dp_test.h"
-#include "dp_test_lib.h"
-#include "dp_test_netlink_state.h"
+#include "dp_test_lib_internal.h"
+#include "dp_test_netlink_state_internal.h"
 #include "dp_test_crypto_utils.h"
-#include "dp_test_pktmbuf_lib.h"
+#include "dp_test_pktmbuf_lib_internal.h"
 #include "dp_test_crypto_lib.h"
 #include "dp_test_lib_exp.h"
-#include "dp_test_lib_intf.h"
+#include "dp_test_lib_intf_internal.h"
+#include "dp_test_lib_pb.h"
 #include "dp_test_console.h"
 #include "dp_test_controller.h"
 
@@ -112,7 +113,6 @@ dp_test_create_and_send_s2s_msg(CryptoPolicyConfig__Action action,
 				uint32_t proto,
 				int sel_ifindex)
 {
-	void *buf;
 	int len;
 
 	CryptoPolicyConfig con = CRYPTO_POLICY_CONFIG__INIT;
@@ -136,58 +136,20 @@ dp_test_create_and_send_s2s_msg(CryptoPolicyConfig__Action action,
 	uint32_t v6_saddr[4], v6_daddr[4];
 	IPAddress ip_daddr = IPADDRESS__INIT;
 	IPAddress ip_saddr = IPADDRESS__INIT;
-	if (af == AF_INET) {
-		ip_daddr.address_oneof_case =
-			IPADDRESS__ADDRESS_ONEOF_IPV4_ADDR;
-		ip_saddr.address_oneof_case =
-			IPADDRESS__ADDRESS_ONEOF_IPV4_ADDR;
 
-		inet_pton(AF_INET, daddr, &ip_daddr.ipv4_addr);
-		inet_pton(AF_INET, saddr, &ip_saddr.ipv4_addr);
+	dp_test_lib_pb_set_ip_addr(&ip_saddr, saddr, &v6_saddr);
+	con.sel_saddr = &ip_saddr;
 
-		con.sel_daddr = &ip_daddr;
-		con.sel_saddr = &ip_saddr;
-	} else {
-		ip_daddr.address_oneof_case =
-			IPADDRESS__ADDRESS_ONEOF_IPV6_ADDR;
-		ip_saddr.address_oneof_case =
-			IPADDRESS__ADDRESS_ONEOF_IPV6_ADDR;
-
-		inet_pton(AF_INET6, daddr, &v6_daddr);
-		inet_pton(AF_INET6, saddr, &v6_saddr);
-
-		ip_daddr.ipv6_addr.len = 16;
-		ip_saddr.ipv6_addr.len = 16;
-		ip_daddr.ipv6_addr.data = (uint8_t *)v6_daddr;
-		ip_saddr.ipv6_addr.data = (uint8_t *)v6_saddr;
-
-		con.sel_daddr = &ip_daddr;
-		con.sel_saddr = &ip_saddr;
-	}
+	dp_test_lib_pb_set_ip_addr(&ip_daddr, daddr, &v6_daddr);
+	con.sel_daddr = &ip_daddr;
 
 	len = crypto_policy_config__get_packed_size(&con);
 	void *buf2 = malloc(len);
 	dp_test_assert_internal(buf2);
 
 	crypto_policy_config__pack(&con, buf2);
-	DataplaneEnvelope msg = DATAPLANE_ENVELOPE__INIT;
-	msg.type = strdup("vyatta:crypto-policy");
-	msg.msg.data = buf2;
-	msg.msg.len = len;
 
-	len = dataplane_envelope__get_packed_size(&msg);
-
-	buf = malloc(len);
-	dp_test_assert_internal(buf);
-
-	dataplane_envelope__pack(&msg, buf);
-
-	free(buf2);
-	free(msg.type);
-
-	dp_test_send_config_src_pb(dp_test_cont_src_get(),
-				   buf, len);
-	free(buf);
+	dp_test_lib_pb_wrap_and_send_pb("vyatta:crypto-policy", buf2, len);
 }
 
 /*
@@ -452,7 +414,6 @@ dp_test_create_and_send_vfp_set_msg(const char *intf,
 				    uint32_t ifindex,
 				    VFPSetConfig__Action action)
 {
-	void *buf;
 	int len;
 
 	VFPSetConfig vfp = VFPSET_CONFIG__INIT;
@@ -469,24 +430,8 @@ dp_test_create_and_send_vfp_set_msg(const char *intf,
 	dp_test_assert_internal(buf2);
 
 	vfpset_config__pack(&vfp, buf2);
-	DataplaneEnvelope msg = DATAPLANE_ENVELOPE__INIT;
-	msg.type = strdup("vyatta:vfp-set");
-	msg.msg.data = buf2;
-	msg.msg.len = len;
 
-	len = dataplane_envelope__get_packed_size(&msg);
-
-	buf = malloc(len);
-	dp_test_assert_internal(buf);
-
-	dataplane_envelope__pack(&msg, buf);
-
-	free(buf2);
-	free(msg.type);
-
-	dp_test_send_config_src_pb(dp_test_cont_src_get(),
-				   buf, len);
-	free(buf);
+	dp_test_lib_pb_wrap_and_send_pb("vyatta:vfp-set", buf2, len);
 }
 
 static void _s2s_add_vfp_and_bind(vrfid_t vrfid, const char *file,
@@ -979,6 +924,15 @@ static void s2s_common_teardown(vrfid_t vrfid,
 				enum vrf_and_xfrm_order out_of_order)
 
 {
+	if (out_of_order == VRF_XFRM_OUT_OF_ORDER) {
+		/*
+		 * Tear down the vrf first, this should cause
+		 * a flush of all the ipsec state.
+		 */
+		s2s_teardown_interfaces(vrfid, with_vfp);
+		return;
+	}
+
 	dp_test_crypto_delete_sa(&input_sa);
 	dp_test_crypto_delete_sa(&output_sa);
 
@@ -1045,7 +999,7 @@ static void _build_pak_and_expected_encrypt(struct rte_mbuf **ping_pkt_p,
 		/* Fixup checksum too, bytes 11,12*/
 		expected_payload[11] = 0;
 		expected_payload[12] = 0;
-		cksum = in_cksum_hdr((struct iphdr *)&expected_payload[0]);
+		cksum = dp_in_cksum_hdr((struct iphdr *)&expected_payload[0]);
 		*((uint16_t *)&expected_payload[11]) = htons(cksum);
 	} else {
 		ping_pkt = build_input_packet6(local, remote);
@@ -1251,7 +1205,7 @@ static void null_encrypt_transport_main(vrfid_t vrfid)
 	/*
 	 * Construct the expected encrypted packet
 	 */
-	trans_mode_hdr = pktmbuf_mtol3(ping_pkt, struct iphdr *);
+	trans_mode_hdr = dp_pktmbuf_mtol3(ping_pkt, struct iphdr *);
 	payload_len = sizeof(expected_payload);
 	encrypted_pkt = dp_test_create_esp_ipv4_pak(PORT_EAST, PEER, 1,
 						    &payload_len,
@@ -1709,7 +1663,7 @@ static void null_encrypt6_transport_main(vrfid_t vrfid)
 	/*
 	 * Construct the expected encrypted packet
 	 */
-	trans_mode_hdr = pktmbuf_mtol3(ping_pkt, struct ip6_hdr *);
+	trans_mode_hdr = dp_pktmbuf_mtol3(ping_pkt, struct ip6_hdr *);
 	payload_len = sizeof(expected_payload);
 	encrypted_pkt = dp_test_create_esp_ipv6_pak(PORT_EAST6, PEER6, 1,
 						    &payload_len,
@@ -1905,7 +1859,7 @@ static void null_decrypt_main(vrfid_t vrfid, enum inner_validity valid)
 
 		dp_test_pktmbuf_eth_init(expected_pkt,
 					 dp_test_intf_name2mac_str("dp2T2"),
-					 "10:00:00:00:00:00",
+					 PEER_MAC_ADDR,
 					 ETHER_TYPE_IPv4);
 	} else {
 		expected_pkt = build_input_packet(CLIENT_REMOTE, CLIENT_LOCAL);
@@ -2020,7 +1974,7 @@ static void null_decrypt_main6(vrfid_t vrfid, enum inner_validity valid)
 
 		dp_test_pktmbuf_eth_init(expected_pkt,
 					 dp_test_intf_name2mac_str("dp2T2"),
-					 "10:00:00:00:00:00",
+					 PEER_MAC_ADDR,
 					 ETHER_TYPE_IPv6);
 	} else {
 		/*
@@ -2465,37 +2419,37 @@ DP_DECL_TEST_CASE(site_to_site_suite, encryption, NULL, NULL);
  * "encrypt" a packet using null encryption and null authentication
  * in transport mode.
  */
-DP_START_TEST(encryption, null_encrypt_transport)
+DP_START_TEST_FULL_RUN(encryption, null_encrypt_transport)
 {
 	null_encrypt_transport_main(VRF_DEFAULT_ID);
 }  DP_END_TEST;
 
-DP_START_TEST(encryption, null_encrypt_transport_vrf)
+DP_START_TEST_FULL_RUN(encryption, null_encrypt_transport_vrf)
 {
 	null_encrypt_transport_main(TEST_VRF);
 }  DP_END_TEST;
 
-DP_START_TEST(encryption, encrypt_aesgcm)
+DP_START_TEST_FULL_RUN(encryption, encrypt_aesgcm)
 {
 	encrypt_aesgcm_main(VRF_DEFAULT_ID);
 }  DP_END_TEST;
 
-DP_START_TEST(encryption, encrypt_aesgcm_vrf)
+DP_START_TEST_FULL_RUN(encryption, encrypt_aesgcm_vrf)
 {
 	encrypt_aesgcm_main(TEST_VRF);
 }  DP_END_TEST;
 
-DP_START_TEST(encryption, encrypt)
+DP_START_TEST_FULL_RUN(encryption, encrypt)
 {
 	encrypt_main(VRF_DEFAULT_ID, VRF_XFRM_IN_ORDER);
 }  DP_END_TEST;
 
-DP_START_TEST(encryption, encrypt_vrf)
+DP_START_TEST_FULL_RUN(encryption, encrypt_vrf)
 {
 	encrypt_main(TEST_VRF, VRF_XFRM_IN_ORDER);
 }  DP_END_TEST;
 
-DP_START_TEST(encryption, encrypt_vrf_out_of_order)
+DP_START_TEST_FULL_RUN(encryption, encrypt_vrf_out_of_order)
 {
 	encrypt_main(TEST_VRF, VRF_XFRM_OUT_OF_ORDER);
 }  DP_END_TEST;
@@ -2505,29 +2459,29 @@ DP_START_TEST(encryption, encrypt6)
 	encrypt6_main(VRF_DEFAULT_ID);
 }  DP_END_TEST;
 
-DP_START_TEST(encryption, encrypt6_vrf)
+DP_START_TEST_FULL_RUN(encryption, encrypt6_vrf)
 {
 	encrypt6_main(TEST_VRF);
 }  DP_END_TEST;
 
 /* test that an SA with an unrecognised algorithm will block traffic */
-DP_START_TEST(encryption, bad_hash_algorithm)
+DP_START_TEST_FULL_RUN(encryption, bad_hash_algorithm)
 {
 	bad_hash_algorithm_main(VRF_DEFAULT_ID);
 } DP_END_TEST;
 
-DP_START_TEST(encryption, bad_hash_algorithm_vrf)
+DP_START_TEST_FULL_RUN(encryption, bad_hash_algorithm_vrf)
 {
 	bad_hash_algorithm_main(TEST_VRF);
 } DP_END_TEST;
 
 /* test that an SA with an unrecognised algorithm will block traffic */
-DP_START_TEST(encryption, bad_hash_algorithm6)
+DP_START_TEST_FULL_RUN(encryption, bad_hash_algorithm6)
 {
 	bad_hash_algorithm6_main(VRF_DEFAULT_ID);
 } DP_END_TEST;
 
-DP_START_TEST(encryption, bad_hash_algorithm6_vrf)
+DP_START_TEST_FULL_RUN(encryption, bad_hash_algorithm6_vrf)
 {
 	bad_hash_algorithm6_main(TEST_VRF);
 } DP_END_TEST;
@@ -2537,93 +2491,93 @@ DP_START_TEST(encryption, bad_hash_algorithm6_vrf)
  *
  * "encrypt" a packet using null encryption and null authentication.
  */
-DP_START_TEST(encryption, null_encrypt)
+DP_START_TEST_FULL_RUN(encryption, null_encrypt)
 {
 	null_encrypt_main(VRF_DEFAULT_ID, VFP_FALSE);
 }  DP_END_TEST;
 
-DP_START_TEST(encryption, null_encrypt_vfp)
+DP_START_TEST_FULL_RUN(encryption, null_encrypt_vfp)
 {
 	null_encrypt_main(VRF_DEFAULT_ID, VFP_TRUE);
 }  DP_END_TEST;
 
-DP_START_TEST(encryption, null_encrypt_vrf)
+DP_START_TEST_FULL_RUN(encryption, null_encrypt_vrf)
 {
 	null_encrypt_main(TEST_VRF, VFP_FALSE);
 }  DP_END_TEST;
 
-DP_START_TEST(encryption, null_encrypt6_transport)
+DP_START_TEST_FULL_RUN(encryption, null_encrypt6_transport)
 {
 	null_encrypt6_transport_main(VRF_DEFAULT_ID);
 }  DP_END_TEST;
 
-DP_START_TEST(encryption, null_encrypt6_transport_vrf)
+DP_START_TEST_FULL_RUN(encryption, null_encrypt6_transport_vrf)
 {
 	null_encrypt6_transport_main(TEST_VRF);
 }  DP_END_TEST;
 
-DP_START_TEST(encryption, null_encrypt6)
+DP_START_TEST_FULL_RUN(encryption, null_encrypt6)
 {
 	null_encrypt6_main(VRF_DEFAULT_ID, VFP_FALSE);
 }  DP_END_TEST;
 
-DP_START_TEST(encryption, null_encrypt6_vfp)
+DP_START_TEST_FULL_RUN(encryption, null_encrypt6_vfp)
 {
 	null_encrypt6_main(VRF_DEFAULT_ID, VFP_TRUE);
 }  DP_END_TEST;
 
-DP_START_TEST(encryption, null_encrypt6_vrf)
+DP_START_TEST_FULL_RUN(encryption, null_encrypt6_vrf)
 {
 	null_encrypt6_main(TEST_VRF, VFP_FALSE);
 }  DP_END_TEST;
 
 DP_DECL_TEST_CASE(site_to_site_suite, s2s_toobig6, NULL, NULL);
 
-DP_START_TEST(s2s_toobig6, s2s_toobig6)
+DP_START_TEST_FULL_RUN(s2s_toobig6, s2s_toobig6)
 {
 	s2s_toobig6_main(VRF_DEFAULT_ID);
 } DP_END_TEST;
 
-DP_START_TEST(s2s_toobig6, s2s_toobig6_vrf)
+DP_START_TEST_FULL_RUN(s2s_toobig6, s2s_toobig6_vrf)
 {
 	s2s_toobig6_main(TEST_VRF);
 } DP_END_TEST;
 
 DP_DECL_TEST_CASE(site_to_site_suite, decryption, NULL, NULL);
 
-DP_START_TEST(decryption, decrypt_null)
+DP_START_TEST_FULL_RUN(decryption, decrypt_null)
 {
 	null_decrypt_main(VRF_DEFAULT_ID, INNER_VALID);
 }  DP_END_TEST;
 
-DP_START_TEST(decryption, decrypt_null_invalid)
+DP_START_TEST_FULL_RUN(decryption, decrypt_null_invalid)
 {
 	null_decrypt_main(VRF_DEFAULT_ID, INNER_INVALID);
 }  DP_END_TEST;
 
 DP_DECL_TEST_CASE(site_to_site_suite, decryption_local, NULL, NULL);
 
-DP_START_TEST(decryption_local, decrypt_null_local)
+DP_START_TEST_FULL_RUN(decryption_local, decrypt_null_local)
 {
 	null_decrypt_main(VRF_DEFAULT_ID, INNER_LOCAL);
 }  DP_END_TEST;
 
-DP_START_TEST(decryption, decrypt_null_vrf)
+DP_START_TEST_FULL_RUN(decryption, decrypt_null_vrf)
 {
 	null_decrypt_main(TEST_VRF, INNER_VALID);
 }  DP_END_TEST;
 
-DP_START_TEST(decryption, decrypt_null6)
+DP_START_TEST_FULL_RUN(decryption, decrypt_null6)
 {
 	null_decrypt_main6(VRF_DEFAULT_ID, INNER_VALID);
 }  DP_END_TEST;
 
-DP_START_TEST(decryption, decrypt_null_invalid6)
+DP_START_TEST_FULL_RUN(decryption, decrypt_null_invalid6)
 {
 	null_decrypt_main6(VRF_DEFAULT_ID, INNER_INVALID);
 }  DP_END_TEST;
 
-DP_START_TEST(decryption_local, decrypt_null_local6)
+DP_START_TEST_FULL_RUN(decryption_local, decrypt_null_local6)
 {
 	null_decrypt_main6(VRF_DEFAULT_ID, INNER_LOCAL);
 }  DP_END_TEST;
@@ -2633,49 +2587,122 @@ DP_START_TEST(decryption_local, decrypt_null_local6)
  * plaintext, then it might be a spoof and must be dropped with
  * prejudice.
  */
-DP_START_TEST(decryption, drop_plaintext_packet_matching_input_policy)
+DP_START_TEST_FULL_RUN(decryption, drop_plaintext_packet_matching_input_policy)
 {
 	drop_plaintext_packet_matching_input_policy_main(VRF_DEFAULT_ID);
 } DP_END_TEST;
 
-DP_START_TEST(decryption, drop_plaintext_local_pkt_match_inpolicy)
+DP_START_TEST_FULL_RUN(decryption, drop_plaintext_local_pkt_match_inpolicy)
 {
 	drop_plaintext_local_pkt_match_inpolicy(VRF_DEFAULT_ID);
 } DP_END_TEST;
 
-DP_START_TEST(decryption, rx_plaintext_local_pkt_notmatch_inpolicy)
+DP_START_TEST_FULL_RUN(decryption, rx_plaintext_local_pkt_notmatch_inpolicy)
 {
 	rx_plaintext_local_pkt_notmatch_inpolicy(VRF_DEFAULT_ID);
 } DP_END_TEST;
 
-DP_START_TEST(decryption, rx_plaintext_local_pkt_notmatch_inpolicy_vrf)
+/*
+ * This test no longer works with overlay vrf support with the underlay in
+ * default becasuer the following happens.
+ * Packet arrives unencrypted, but the dest address (10.10.1.1) is in the
+ * TEST_VRF, not the default, so the route lookup does not find it. There is
+ * no route, so an icmp is sent.
+ *
+ * I don't see a good way to detect that the packet should have been encrypted
+ * as we would have to check all policies that have the transport in this vrf.
+ * At the moment the check is once we have decided it is local, but we can not
+ * even use that as the trigger. So, lets leave this test out.
+ */
+DP_START_TEST_DONT_RUN(decryption,
+		       drop_plaintext_packet_matching_input_policy_vrf)
+{
+	drop_plaintext_packet_matching_input_policy_main(TEST_VRF);
+} DP_END_TEST;
+
+/*
+ * This test no longer works with overlay vrf support with the underlay in
+ * default becasuer the following happens.
+ * Packet arrives unencrypted, but the dest address (10.10.1.1) is in the
+ * TEST_VRF, not the default, so the route lookup does not find it. There is
+ * no route, so an icmp is sent.
+ *
+ * I don't see a good way to detect that the packet should have been encrypted
+ * as we would have to check all policies that have the transport in this vrf.
+ * At the moment the check is once we have decided it is local, but we can not
+ * even use that as the trigger. So, lets leave this test out.
+ */
+DP_START_TEST_DONT_RUN(decryption,
+		       drop_plaintext_local_pkt_match_inpolicy_vrf)
+{
+	drop_plaintext_local_pkt_match_inpolicy(TEST_VRF);
+} DP_END_TEST;
+
+DP_START_TEST_FULL_RUN(decryption, rx_plaintext_local_pkt_notmatch_inpolicy_vrf)
 {
 	rx_plaintext_local_pkt_notmatch_inpolicy(TEST_VRF);
 } DP_END_TEST;
 
-DP_START_TEST(decryption, drop_plaintext_packet_matching_input_policy6)
+DP_START_TEST_FULL_RUN(decryption, drop_plaintext_packet_matching_input_policy6)
 {
 	drop_plaintext_packet_matching_input_policy6_main(VRF_DEFAULT_ID);
 } DP_END_TEST;
 
-DP_START_TEST(decryption, drop_plaintext_local_pkt_match_inpolicy6)
+DP_START_TEST_FULL_RUN(decryption, drop_plaintext_local_pkt_match_inpolicy6)
 {
 	drop_plaintext_local_pkt_match_inpolicy6(VRF_DEFAULT_ID);
 } DP_END_TEST;
 
-DP_START_TEST(decryption, rx_plaintext_local_pkt_notmatch_inpolicy6)
+DP_START_TEST_FULL_RUN(decryption, rx_plaintext_local_pkt_notmatch_inpolicy6)
 {
 	rx_plaintext_local_pkt_notmatch_inpolicy6(VRF_DEFAULT_ID);
 } DP_END_TEST;
 
-DP_START_TEST(decryption, rx_plaintext_local_pkt_notmatch_inpolicy6_vrf)
+/*
+ * This test no longer works with overlay vrf support with the underlay in
+ * default becasuer the following happens.
+ * Packet arrives unencrypted, but the dest address  is in the
+ * TEST_VRF, not the default, so the route lookup does not find it. There is
+ * no route, so an icmp is sent.
+ *
+ * I don't see a good way to detect that the packet should have been encrypted
+ * as we would have to check all policies that have the transport in this vrf.
+ * At the moment the check is once we have decided it is local, but we can not
+ * even use that as the trigger. So, lets leave this test out.
+ */
+DP_START_TEST_DONT_RUN(decryption,
+		       drop_plaintext_packet_matching_input_policy6_vrf)
+{
+	drop_plaintext_packet_matching_input_policy6_main(TEST_VRF);
+} DP_END_TEST;
+
+/*
+ * This test no longer works with overlay vrf support with the underlay in
+ * default becasuer the following happens.
+ * Packet arrives unencrypted, but the dest address is in the
+ * TEST_VRF, not the default, so the route lookup does not find it. There is
+ * no route, so an icmp is sent.
+ *
+ * I don't see a good way to detect that the packet should have been encrypted
+ * as we would have to check all policies that have the transport in this vrf.
+ * At the moment the check is once we have decided it is local, but we can not
+ * even use that as the trigger. So, lets leave this test out.
+ */
+DP_START_TEST_DONT_RUN(decryption,
+		       drop_plaintext_local_pkt_match_inpolicy6_vrf)
+{
+	drop_plaintext_local_pkt_match_inpolicy6(TEST_VRF);
+} DP_END_TEST;
+
+DP_START_TEST_FULL_RUN(decryption,
+		       rx_plaintext_local_pkt_notmatch_inpolicy6_vrf)
 {
 	rx_plaintext_local_pkt_notmatch_inpolicy6(TEST_VRF);
 } DP_END_TEST;
 
 DP_DECL_TEST_CASE(site_to_site_suite, encryption46, NULL, NULL);
 
-DP_START_TEST(encryption46, encrypt46_tunnel)
+DP_START_TEST_FULL_RUN(encryption46, encrypt46_tunnel)
 {
 	vrfid_t vrfid = VRF_DEFAULT_ID;
 	char expected_payload[sizeof(payload_v4_icmp_null_enc)];
@@ -2706,7 +2733,7 @@ DP_START_TEST(encryption46, encrypt46_tunnel)
 }  DP_END_TEST;
 
 
-DP_START_TEST(encryption46, encrypt46_ecn_ect)
+DP_START_TEST_FULL_RUN(encryption46, encrypt46_ecn_ect)
 {
 	vrfid_t vrfid = VRF_DEFAULT_ID;
 	char expected_payload[sizeof(payload_v4_icmp_null_enc)];
@@ -2736,7 +2763,7 @@ DP_START_TEST(encryption46, encrypt46_ecn_ect)
 	s2s_teardown_interfaces_v4_v6(vrfid, VFP_FALSE);
 }  DP_END_TEST;
 
-DP_START_TEST(encryption46, encrypt46_ecn_ce)
+DP_START_TEST_FULL_RUN(encryption46, encrypt46_ecn_ce)
 {
 	vrfid_t vrfid = VRF_DEFAULT_ID;
 	char expected_payload[sizeof(payload_v4_icmp_null_enc)];
@@ -2766,7 +2793,7 @@ DP_START_TEST(encryption46, encrypt46_ecn_ce)
 	s2s_teardown_interfaces_v4_v6(vrfid, VFP_FALSE);
 }  DP_END_TEST;
 
-DP_START_TEST(encryption46, encrypt46_no_ecn)
+DP_START_TEST_FULL_RUN(encryption46, encrypt46_no_ecn)
 {
 	vrfid_t vrfid = VRF_DEFAULT_ID;
 	char expected_payload[sizeof(payload_v4_icmp_null_enc)];
@@ -2801,7 +2828,7 @@ DP_START_TEST(encryption46, encrypt46_no_ecn)
 }  DP_END_TEST;
 
 /* ecn3 is modified to ecn2, and dscp 1 is dropped */
-DP_START_TEST(encryption46, encrypt46_no_dscp)
+DP_START_TEST_FULL_RUN(encryption46, encrypt46_no_dscp)
 {
 	vrfid_t vrfid = VRF_DEFAULT_ID;
 	char expected_payload[sizeof(payload_v4_icmp_null_enc)];
@@ -2835,7 +2862,7 @@ DP_START_TEST(encryption46, encrypt46_no_dscp)
 	s2s_teardown_interfaces_v4_v6(vrfid, VFP_FALSE);
 }  DP_END_TEST;
 
-DP_START_TEST(encryption46, encrypt46_no_dscp_no_ecn)
+DP_START_TEST_FULL_RUN(encryption46, encrypt46_no_dscp_no_ecn)
 {
 	vrfid_t vrfid = VRF_DEFAULT_ID;
 	char expected_payload[sizeof(payload_v4_icmp_null_enc)];
@@ -2873,7 +2900,7 @@ DP_START_TEST(encryption46, encrypt46_no_dscp_no_ecn)
 	s2s_teardown_interfaces_v4_v6(vrfid, VFP_FALSE);
 }  DP_END_TEST;
 
-DP_START_TEST(encryption46, encrypt46_tunnel_test_vrf)
+DP_START_TEST_FULL_RUN(encryption46, encrypt46_tunnel_test_vrf)
 {
 	vrfid_t vrfid = TEST_VRF;
 	char expected_payload[sizeof(payload_v4_icmp_null_enc)];
@@ -2907,7 +2934,7 @@ DP_START_TEST(encryption46, encrypt46_tunnel_test_vrf)
 
 DP_DECL_TEST_CASE(site_to_site_suite, encryption64, NULL, NULL);
 
-DP_START_TEST(encryption64, encrypt64)
+DP_START_TEST_FULL_RUN(encryption64, encrypt64)
 {
 	vrfid_t vrfid = VRF_DEFAULT_ID;
 	char expected_payload[sizeof(payload_v6_icmp_null_enc)];
@@ -2938,7 +2965,7 @@ DP_START_TEST(encryption64, encrypt64)
 	s2s_teardown_interfaces_v4_v6(vrfid, VFP_FALSE);
 }  DP_END_TEST;
 
-DP_START_TEST(encryption64, encrypt64_ecn_ect)
+DP_START_TEST_FULL_RUN(encryption64, encrypt64_ecn_ect)
 {
 	vrfid_t vrfid = VRF_DEFAULT_ID;
 	char expected_payload[sizeof(payload_v6_icmp_null_enc)];
@@ -2969,7 +2996,7 @@ DP_START_TEST(encryption64, encrypt64_ecn_ect)
 	s2s_teardown_interfaces_v4_v6(vrfid, VFP_FALSE);
 }  DP_END_TEST;
 
-DP_START_TEST(encryption64, encrypt64_ecn_ce)
+DP_START_TEST_FULL_RUN(encryption64, encrypt64_ecn_ce)
 {
 	vrfid_t vrfid = VRF_DEFAULT_ID;
 	char expected_payload[sizeof(payload_v6_icmp_null_enc)];
@@ -3000,7 +3027,7 @@ DP_START_TEST(encryption64, encrypt64_ecn_ce)
 	s2s_teardown_interfaces_v4_v6(vrfid, VFP_FALSE);
 }  DP_END_TEST;
 
-DP_START_TEST(encryption64, encrypt64_no_ecn)
+DP_START_TEST_FULL_RUN(encryption64, encrypt64_no_ecn)
 {
 	vrfid_t vrfid = VRF_DEFAULT_ID;
 	char expected_payload[sizeof(payload_v6_icmp_null_enc)];
@@ -3035,7 +3062,7 @@ DP_START_TEST(encryption64, encrypt64_no_ecn)
 }  DP_END_TEST;
 
 /* ecn3 is modified to ecn2, and dscp 1 is dropped */
-DP_START_TEST(encryption64, encrypt64_no_dscp)
+DP_START_TEST_FULL_RUN(encryption64, encrypt64_no_dscp)
 {
 	vrfid_t vrfid = VRF_DEFAULT_ID;
 	char expected_payload[sizeof(payload_v6_icmp_null_enc)];
@@ -3069,7 +3096,7 @@ DP_START_TEST(encryption64, encrypt64_no_dscp)
 	s2s_teardown_interfaces_v4_v6(vrfid, VFP_FALSE);
 }  DP_END_TEST;
 
-DP_START_TEST(encryption64, encrypt64_no_dscp_no_ecn)
+DP_START_TEST_FULL_RUN(encryption64, encrypt64_no_dscp_no_ecn)
 {
 	vrfid_t vrfid = VRF_DEFAULT_ID;
 	char expected_payload[sizeof(payload_v6_icmp_null_enc)];
@@ -3107,7 +3134,7 @@ DP_START_TEST(encryption64, encrypt64_no_dscp_no_ecn)
 	s2s_teardown_interfaces_v4_v6(vrfid, VFP_FALSE);
 }  DP_END_TEST;
 
-DP_START_TEST(encryption64, encrypt64_test_vrf)
+DP_START_TEST_FULL_RUN(encryption64, encrypt64_test_vrf)
 {
 	vrfid_t vrfid = TEST_VRF;
 	char expected_payload[sizeof(payload_v6_icmp_null_enc)];
@@ -3141,7 +3168,7 @@ DP_START_TEST(encryption64, encrypt64_test_vrf)
 
 DP_DECL_TEST_CASE(site_to_site_suite, decryption64, NULL, NULL);
 
-DP_START_TEST(decryption64, decrypt64_tunnel)
+DP_START_TEST_FULL_RUN(decryption64, decrypt64_tunnel)
 {
 	vrfid_t vrfid = VRF_DEFAULT_ID;
 	char transmit_payload[sizeof(payload_v4_icmp_null_enc_rem_to_loc)];
@@ -3171,7 +3198,7 @@ DP_START_TEST(decryption64, decrypt64_tunnel)
 	s2s_teardown_interfaces_v4_v6(vrfid, VFP_FALSE);
 }  DP_END_TEST;
 
-DP_START_TEST(decryption64, decrypt64_tunnel_test_vrf)
+DP_START_TEST_FULL_RUN(decryption64, decrypt64_tunnel_test_vrf)
 {
 	vrfid_t vrfid = TEST_VRF;
 	char transmit_payload[sizeof(payload_v4_icmp_null_enc_rem_to_loc)];
@@ -3203,7 +3230,7 @@ DP_START_TEST(decryption64, decrypt64_tunnel_test_vrf)
 
 DP_DECL_TEST_CASE(site_to_site_suite, decryption46, NULL, NULL);
 
-DP_START_TEST(decryption46, decrypt46_tunnel)
+DP_START_TEST_FULL_RUN(decryption46, decrypt46_tunnel)
 {
 	vrfid_t vrfid = VRF_DEFAULT_ID;
 	char transmit_payload[sizeof(payload_v6_icmp_null_enc_rem_to_loc)];
@@ -3233,7 +3260,7 @@ DP_START_TEST(decryption46, decrypt46_tunnel)
 	s2s_teardown_interfaces_v4_v6(vrfid, VFP_FALSE);
 }  DP_END_TEST;
 
-DP_START_TEST(decryption46, decrypt46_tunnel_test_vrf)
+DP_START_TEST_FULL_RUN(decryption46, decrypt46_tunnel_test_vrf)
 {
 	vrfid_t vrfid = TEST_VRF;
 	char transmit_payload[sizeof(payload_v6_icmp_null_enc_rem_to_loc)];

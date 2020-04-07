@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2019, AT&T Intellectual Property. All rights reserved.
+ * Copyright (c) 2019-2020, AT&T Intellectual Property. All rights reserved.
  * Copyright (c) 2019 AT&T Intellectual Property. All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
@@ -12,6 +12,7 @@
 
 #include <rte_jhash.h>
 
+#include "ip_forward.h"
 #include "lpm/lpm.h"
 #include "lpm/lpm6.h"
 #include "rt_tracker.h"
@@ -186,7 +187,7 @@ rt_tracker_match_dst(struct cds_lfht_node *node, const void *key)
 		= caa_container_of(node, const struct rt_tracker_info,
 				   rti_node);
 
-	return addr_eq(addr, &ti_info->dst_addr);
+	return dp_addr_eq(addr, &ti_info->dst_addr);
 }
 
 static struct rt_tracker_info *
@@ -242,7 +243,7 @@ rt_tracker_insert(struct cds_lfht *table, struct rt_tracker_info *ti_info)
  *     rt_tracker_info
  */
 struct rt_tracker_info *
-rt_tracker_add(struct vrf *vrf, struct ip_addr *addr, void *cb_ctx,
+dp_rt_tracker_add(struct vrf *vrf, struct ip_addr *addr, void *cb_ctx,
 	       tracker_change_notif cb)
 {
 	int ret = -1;
@@ -306,7 +307,7 @@ add_client:
 }
 
 void
-rt_tracker_delete(const struct vrf *vrf, struct ip_addr *ip, void *cb_ctx)
+dp_rt_tracker_delete(const struct vrf *vrf, struct ip_addr *ip, void *cb_ctx)
 {
 	struct rt_tracker_info *ti_info;
 
@@ -328,6 +329,34 @@ rt_tracker_delete(const struct vrf *vrf, struct ip_addr *ip, void *cb_ctx)
 		cds_lfht_del(vrf->v_rt_tracker_tbl, &ti_info->rti_node);
 		rt_tracker_destroy(ti_info);
 	}
+}
+
+/*
+ * Get tracking status from RT Tracker
+ * @param[in] rt_info  Route tracker information
+ *
+ * @return  true if being tracking, false otherwise.
+ */
+bool dp_get_rt_tracker_tracking(struct rt_tracker_info *rt_info)
+{
+	if (!rt_info)
+		return false;
+
+	return rt_info->tracking;
+}
+
+/*
+ * Get tracking status from RT Tracker
+ * @param[in] rt_info  Route tracker information
+ *
+ * @return  Index of NH.
+ */
+uint32_t dp_get_rt_tracker_nh_index(struct rt_tracker_info *rt_info)
+{
+	if (!rt_info)
+		return 0;
+
+	return rt_info->nhindex;
 }
 
 static void

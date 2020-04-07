@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017, AT&T Intellectual Property.
+ * Copyright (c) 2017,2019-2020, AT&T Intellectual Property.
  * All rights reserved.
  * Copyright (c) 2017 by Brocade Communications Systems, Inc.
  * All rights reserved.
@@ -12,7 +12,7 @@
 #include <stdlib.h>
 
 #include "compiler.h"
-#include "pktmbuf.h"
+#include "pktmbuf_internal.h"
 #include "util.h"
 
 /*

@@ -1,7 +1,7 @@
 /*
  * Handle MPLS Netlink events
  *
- * Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2015-2017 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -41,7 +41,7 @@
 #include "util.h"
 #include "vplane_debug.h"
 #include "vplane_log.h"
-#include "vrf.h"
+#include "vrf_internal.h"
 
 #ifndef MIN
 # define MIN(a, b) ((a) < (b) ? (a) : (b))
@@ -229,8 +229,7 @@ static int mpls_route_change(const struct nlmsghdr *nlh,
 	 * Delete any existing entry for this label in the incomplete cache.
 	 * If still incomplete it will get re-added with correct details
 	 */
-	incomplete_route_del(VRF_DEFAULT_ID,
-			     &in_label,
+	incomplete_route_del(&in_label,
 			     rtm->rtm_family,
 			     rtm->rtm_dst_len,
 			     rtm->rtm_table,
@@ -269,8 +268,7 @@ static int mpls_route_change(const struct nlmsghdr *nlh,
 						 &size, &nh_type,
 						 &missing_ifp);
 			if (missing_ifp) {
-				incomplete_route_add(VRF_DEFAULT_ID,
-						     &in_label,
+				incomplete_route_add(&in_label,
 						     rtm->rtm_family,
 						     rtm->rtm_dst_len,
 						     rtm->rtm_table,
@@ -307,7 +305,7 @@ static int mpls_route_change(const struct nlmsghdr *nlh,
 			if (tb[RTA_OIF]) {
 				ifindex = cont_src_ifindex(cont_src,
 						mnl_attr_get_u32(tb[RTA_OIF]));
-				oifp = ifnet_byifindex(ifindex);
+				oifp = dp_ifnet_byifindex(ifindex);
 			}
 
 			if (out_label_count > MAX_LABEL_STACK_DEPTH) {
@@ -335,8 +333,7 @@ static int mpls_route_change(const struct nlmsghdr *nlh,
 			if (!oifp) {
 				flags |= RTF_SLOWPATH;
 				if (!is_ignored_interface(ifindex)) {
-					incomplete_route_add(VRF_DEFAULT_ID,
-							     &in_label,
+					incomplete_route_add(&in_label,
 							     rtm->rtm_family,
 							     rtm->rtm_dst_len,
 							     rtm->rtm_table,
@@ -439,7 +436,7 @@ static int mpls_netconf_change(const struct nlmsghdr *nlh,
 		return MNL_CB_OK;	/* NETCONFA_IFINDEX_ALL */
 
 	unsigned int ifindex = cont_src_ifindex(cont_src, signed_ifindex);
-	ifp = ifnet_byifindex(ifindex);
+	ifp = dp_ifnet_byifindex(ifindex);
 	if (!ifp)  /* not local to DP */
 		return MNL_CB_OK;
 

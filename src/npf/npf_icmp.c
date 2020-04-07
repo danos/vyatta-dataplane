@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2018, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -22,7 +22,7 @@
 #include "npf/npf_icmp.h"
 #include "npf/npf_mbuf.h"
 #include "npf/npf_nat.h"
-#include "pktmbuf.h"
+#include "pktmbuf_internal.h"
 
 struct ifnet;
 struct npf_instance;
@@ -46,7 +46,7 @@ npf_icmp_err_session_find(int di, struct rte_mbuf *nbuf, npf_cache_t *npc,
 	else
 		return NULL;
 
-	void *n_ptr = pktmbuf_mtol3(nbuf, char *) + npf_cache_hlen(npc);
+	void *n_ptr = dp_pktmbuf_mtol3(nbuf, char *) + npf_cache_hlen(npc);
 
 	/* Find the start of the packet embedded in the ICMP error. */
 	n_ptr = nbuf_advance(&nbuf, n_ptr, ICMP_MINLEN);
@@ -99,7 +99,7 @@ npf_icmpv4_err_nat(npf_cache_t *npc,
 
 	struct rte_mbuf *m0 = *mbuf;
 	struct rte_mbuf *m = m0;
-	void *n_ptr = pktmbuf_mtol3(m, char *) + npf_cache_hlen(npc);
+	void *n_ptr = dp_pktmbuf_mtol3(m, char *) + npf_cache_hlen(npc);
 
 	/* Find the start of the packet embedded in the ICMP error. */
 	n_ptr = nbuf_advance(&m, n_ptr, ICMP_MINLEN);
@@ -189,7 +189,7 @@ npf_icmpv4_err_nat(npf_cache_t *npc,
 	npf_addr_t outer_addr;
 	memcpy(&outer_addr, dnat ? embed_src : embed_dst, sizeof(uint32_t));
 
-	n_ptr = pktmbuf_mtol3(m0, void *);
+	n_ptr = dp_pktmbuf_mtol3(m0, void *);
 	if (!npf_nat_translate_l3_at(npc, m0, n_ptr, dnat, &outer_addr))
 		return 1;
 
@@ -198,7 +198,7 @@ npf_icmpv4_err_nat(npf_cache_t *npc,
 	 * ICMP error packets, so calculate it over all the data.
 	 */
 	if (enpc.npc_info & NPC_SHORT_ICMP_ERR) {
-		char *start_icmp = pktmbuf_mtol4(m, char *);
+		char *start_icmp = dp_pktmbuf_mtol4(m, char *);
 
 		npf_ipv4_cksum(m, IPPROTO_ICMP, start_icmp);
 

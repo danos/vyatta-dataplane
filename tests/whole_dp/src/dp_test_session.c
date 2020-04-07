@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2019, AT&T Intellectual Property. All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property. All rights reserved.
  * Copyright (c) 2017 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -31,12 +31,12 @@
 
 #include "dp_test.h"
 #include "dp_test_controller.h"
-#include "dp_test_netlink_state.h"
-#include "dp_test_lib.h"
-#include "dp_test_lib_intf.h"
+#include "dp_test_netlink_state_internal.h"
+#include "dp_test_lib_internal.h"
+#include "dp_test_lib_intf_internal.h"
 #include "dp_test_lib_exp.h"
-#include "dp_test_pktmbuf_lib.h"
-#include "dp_test_session_lib.h"
+#include "dp_test_pktmbuf_lib_internal.h"
+#include "dp_test_session_internal_lib.h"
 #include "dp_test_npf_sess_lib.h"
 
 #define TEST_VRF 69
@@ -65,7 +65,7 @@ DP_START_TEST(session_udp_lookup, test1)
 
 	dp_test_nl_add_ip_addr_and_connected_vrf(IF_NAME, "1.1.1.1/24", 69);
 	dp_test_intf_real(IF_NAME, realname);
-	ifp = ifnet_byifname(realname);
+	ifp = dp_ifnet_byifname(realname);
 
 	/* Create forward and reverse packets */
 	f = dp_test_create_udp_ipv4_pak("10.73.0.0", "10.73.2.0",
@@ -125,7 +125,7 @@ DP_START_TEST(session_tcp_lookup, test2)
 
 	dp_test_nl_add_ip_addr_and_connected_vrf(IF_NAME, "1.1.1.1/24", 69);
 	dp_test_intf_real(IF_NAME, realname);
-	ifp = ifnet_byifname(realname);
+	ifp = dp_ifnet_byifname(realname);
 
 	/* Create forward and reverse packets */
 	f = dp_test_create_tcp_ipv4_pak("10.73.0.0", "10.73.2.0",
@@ -180,7 +180,7 @@ DP_START_TEST(session_icmp_lookup, test3)
 
 	dp_test_nl_add_ip_addr_and_connected_vrf(IF_NAME, "1.1.1.1/24", 69);
 	dp_test_intf_real(IF_NAME, realname);
-	ifp = ifnet_byifname(realname);
+	ifp = dp_ifnet_byifname(realname);
 
 	/* Create forward and reverse packets */
 	f  = dp_test_create_icmp_ipv4_pak("10.73.0.0", "10.73.2.0",
@@ -235,7 +235,7 @@ DP_START_TEST(session_udp6_lookup, test4)
 
 	dp_test_nl_add_ip_addr_and_connected(IF_NAME, "2001:1:1::1/64");
 	dp_test_intf_real(IF_NAME, realname);
-	ifp = ifnet_byifname(realname);
+	ifp = dp_ifnet_byifname(realname);
 
 	/* Create forward and reverse packets */
 	f = dp_test_create_udp_ipv6_pak("2010:73::", "2010:73:2::",
@@ -286,7 +286,7 @@ DP_START_TEST(session_tcp6_lookup, test5)
 
 	dp_test_nl_add_ip_addr_and_connected(IF_NAME, "2001:1:1::1/64");
 	dp_test_intf_real(IF_NAME, realname);
-	ifp = ifnet_byifname(realname);
+	ifp = dp_ifnet_byifname(realname);
 
 	/* Create forward and reverse packets */
 	f = dp_test_create_tcp_ipv6_pak("2010:73::", "2010:73:2::",
@@ -337,7 +337,7 @@ DP_START_TEST(session_icmp6_lookup, test6)
 
 	dp_test_nl_add_ip_addr_and_connected(IF_NAME, "2001:1:1::1/64");
 	dp_test_intf_real(IF_NAME, realname);
-	ifp = ifnet_byifname(realname);
+	ifp = dp_ifnet_byifname(realname);
 
 	/* Create forward and reverse packets */
 	f  = dp_test_create_icmp_ipv6_pak("2010:73::", "2010:73:2::",
@@ -394,7 +394,7 @@ DP_START_TEST(session_sentry, test7)
 
 	dp_test_nl_add_ip_addr_and_connected_vrf(IF_NAME, "1.1.1.1/24", 69);
 	dp_test_intf_real(IF_NAME, realname);
-	ifp = ifnet_byifname(realname);
+	ifp = dp_ifnet_byifname(realname);
 
 	/* Create a packet and session */
 	f = dp_test_create_udp_ipv4_pak("10.73.0.0", "10.73.2.0",
@@ -496,7 +496,7 @@ DP_START_TEST(session_feature, test8)
 
 	dp_test_nl_add_ip_addr_and_connected_vrf(IF_NAME, "1.1.1.1/24", 69);
 	dp_test_intf_real(IF_NAME, realname);
-	ifp = ifnet_byifname(realname);
+	ifp = dp_ifnet_byifname(realname);
 
 	/* Create a packet and session */
 	f = dp_test_create_udp_ipv4_pak("10.73.0.0", "10.73.2.0",
@@ -599,7 +599,7 @@ DP_START_TEST(session_expire, test9)
 
 	dp_test_nl_add_ip_addr_and_connected_vrf(IF_NAME, "1.1.1.1/24", 69);
 	dp_test_intf_real(IF_NAME, realname);
-	ifp = ifnet_byifname(realname);
+	ifp = dp_ifnet_byifname(realname);
 
 	/* Create packet */
 	f = dp_test_create_udp_ipv4_pak("10.73.0.0", "10.73.2.0",
@@ -651,7 +651,7 @@ DP_START_TEST(session_link, test10)
 
 	dp_test_nl_add_ip_addr_and_connected_vrf(IF_NAME, "1.1.1.1/24", 69);
 	dp_test_intf_real(IF_NAME, realname);
-	ifp = ifnet_byifname(realname);
+	ifp = dp_ifnet_byifname(realname);
 
 	/* Create packets */
 	pkt[0] = dp_test_create_udp_ipv4_pak("10.73.0.0", "10.73.2.0",
@@ -732,7 +732,7 @@ DP_START_TEST(session_unlink_all, test11)
 
 	dp_test_nl_add_ip_addr_and_connected_vrf(IF_NAME, "1.1.1.1/24", 69);
 	dp_test_intf_real(IF_NAME, realname);
-	ifp = ifnet_byifname(realname);
+	ifp = dp_ifnet_byifname(realname);
 
 	/* Create packets */
 	pkt[0] = dp_test_create_udp_ipv4_pak("10.73.0.0", "10.73.2.0",
@@ -801,7 +801,7 @@ DP_START_TEST(session_timeout, test12)
 
 	dp_test_nl_add_ip_addr_and_connected_vrf(IF_NAME, "1.1.1.1/24", 69);
 	dp_test_intf_real(IF_NAME, realname);
-	ifp = ifnet_byifname(realname);
+	ifp = dp_ifnet_byifname(realname);
 
 	/* Create forward and reverse packets */
 	f = dp_test_create_udp_ipv4_pak("10.73.0.0", "10.73.2.0",
@@ -892,7 +892,7 @@ DP_START_TEST(session_icmp_test, test14)
 
 	dp_test_nl_add_ip_addr_and_connected_vrf(IF_NAME, "1.1.1.1/24", 69);
 	dp_test_intf_real(IF_NAME, realname);
-	ifp = ifnet_byifname(realname);
+	ifp = dp_ifnet_byifname(realname);
 
 	/* Attempt session creation of a echo reply - must pass */
 	icmp_pak  = dp_test_create_icmp_ipv4_pak("10.73.2.0", "10.73.0.0",
@@ -947,7 +947,7 @@ DP_START_TEST(session_pptp_lookup, test15)
 
 	dp_test_nl_add_ip_addr_and_connected_vrf(IF_NAME, "1.1.1.1/24", 69);
 	dp_test_intf_real(IF_NAME, realname);
-	ifp = ifnet_byifname(realname);
+	ifp = dp_ifnet_byifname(realname);
 
 	/* Create forward and reverse packets */
 	f = dp_test_create_gre_pptp_ipv4_pak("10.73.0.0", "10.73.2.0",
@@ -1009,7 +1009,7 @@ DP_START_TEST(session_sentry_packet, test16)
 
 	dp_test_nl_add_ip_addr_and_connected_vrf(IF_NAME, "1.1.1.1/24", 69);
 	dp_test_intf_real(IF_NAME, realname);
-	ifp = ifnet_byifname(realname);
+	ifp = dp_ifnet_byifname(realname);
 
 	/* Create forward and reverse packets */
 	f = dp_test_create_udp_ipv4_pak("10.73.0.0", "10.73.2.0",
@@ -1090,7 +1090,7 @@ DP_START_TEST(session_link_walk, test18)
 
 	dp_test_nl_add_ip_addr_and_connected_vrf(IF_NAME, "1.1.1.1/24", 69);
 	dp_test_intf_real(IF_NAME, realname);
-	ifp = ifnet_byifname(realname);
+	ifp = dp_ifnet_byifname(realname);
 
 	/* Create packets */
 	pkt[0] = dp_test_create_udp_ipv4_pak("10.73.0.0", "10.73.2.0",

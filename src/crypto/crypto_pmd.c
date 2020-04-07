@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2017-2018, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2017 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -56,6 +56,7 @@ struct crypto_pmd {
 	unsigned int sa_cnt;
 	char SPARE[4];
 	struct rcu_head pmd_rcu;
+	/* --- cacheline 1 boundary (64 bytes) --- */
 	/*
 	 * The counters are forced into a new cache line to stop
 	 * dcache sharing issues as they are updated by the engine and
@@ -67,6 +68,11 @@ struct crypto_pmd {
 	unsigned int sa_cnt_per_type[MAX_CRYPTO_XFRM];
 	unsigned int pending_remove[MAX_CRYPTO_XFRM];
 };
+
+static_assert(offsetof(struct crypto_pmd, padding) == 64,
+	      "first cache line exceeded");
+static_assert(offsetof(struct crypto_pmd, cnt) == 64,
+	      "first cache line exceeded");
 
 static struct crypto_pmd *crypto_pmd_devs[MAX_CRYPTO_PMD];
 
@@ -237,12 +243,16 @@ crypto_pmd_find_or_create(enum crypto_xfrm xfrm)
 	return pmd;
 }
 
-void crypto_pmd_inc_pending_del(int pmd_dev_id, enum crypto_xfrm xfrm)
+void crypto_pmd_mod_pending_del(int pmd_dev_id, enum crypto_xfrm xfrm, bool inc)
 {
 	if (pmd_dev_id == CRYPTO_PMD_INVALID_ID)
 		return;
-	if (crypto_pmd_devs[pmd_dev_id])
-		crypto_pmd_devs[pmd_dev_id]->pending_remove[xfrm]++;
+	if (crypto_pmd_devs[pmd_dev_id]) {
+		if (inc)
+			crypto_pmd_devs[pmd_dev_id]->pending_remove[xfrm]++;
+		else
+			crypto_pmd_devs[pmd_dev_id]->pending_remove[xfrm]--;
+	}
 }
 
 void crypto_pmd_dec_pending_del(int pmd_dev_id, enum crypto_xfrm xfrm)

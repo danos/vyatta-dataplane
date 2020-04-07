@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019, AT&T Intellectual Property.
+ * Copyright (c) 2019-2020, AT&T Intellectual Property.
  * All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
@@ -7,7 +7,7 @@
 #ifndef PTP_H
 #define PTP_H
 
-#include "config.h"
+#include "config_internal.h"
 
 int ptp_init(struct pci_list *bp_list);
 int cmd_ptp_cfg(FILE *f, int argc, char **argv);

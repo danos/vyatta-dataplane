@@ -97,6 +97,7 @@ typedef struct {
  */
 #define NPF_FLAG_IN_SESSION      0x0001  /* Pkt matched a session */
 #define NPF_FLAG_CACHE_EMPTY     0x0002  /* Cache is empty */
+#define NPF_FLAG_FROM_ZONE       0x0004  /* Came from a zone iface */
 #define NPF_FLAG_FROM_US         0x0008  /* router originated packet */
 #define NPF_FLAG_FROM_LOCAL      0x0010  /* from kernel, with local addr */
 #define NPF_FLAG_FROM_IPV6       0x0020  /* Nat64, converted IPv6 pkt */

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2018-2020, AT&T Intellectual Property.  All rights reserved.
  * All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
@@ -12,11 +12,11 @@
 
 #include "dp_test.h"
 #include "dp_test_controller.h"
-#include "dp_test_netlink_state.h"
-#include "dp_test_lib.h"
-#include "dp_test_lib_intf.h"
+#include "dp_test_netlink_state_internal.h"
+#include "dp_test_lib_internal.h"
+#include "dp_test_lib_intf_internal.h"
 #include "dp_test_lib_exp.h"
-#include "dp_test_pktmbuf_lib.h"
+#include "dp_test_pktmbuf_lib_internal.h"
 
 DP_DECL_TEST_SUITE(if_cfg_suite);
 
@@ -65,7 +65,7 @@ DP_START_TEST(if_config_vtun, add_vtun)
 	idx = ifnet_nametoindex("vtun0");
 	dp_test_fail_unless(idx != 0, "Expected non-zero ifindex for vtun0");
 
-	vifp = ifnet_byifname("vtun0");
+	vifp = dp_ifnet_byifname("vtun0");
 	dp_test_fail_unless(vifp != NULL, "Expected non-NULL ifp for vtun0");
 	dp_test_fail_unless(vifp->if_name != NULL,
 			    "Expected non-NULL ifp->if_name for vtun0");

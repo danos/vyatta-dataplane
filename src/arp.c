@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 1982, 1986, 1988, 1993
  *	The Regents of the University of California.  All rights reserved.
  *
@@ -49,24 +49,22 @@
 
 #include "arp.h"
 #include "compat.h"
-#include "config.h"
+#include "config_internal.h"
 #include "ether.h"
-#include "gre.h"
 #include "if_ether.h"
 #include "if_llatbl.h"
 #include "if_var.h"
 #include "ip_addr.h"
-#include "macvlan.h"
 #include "main.h"
 #include "nh.h"
-#include "pktmbuf.h"
+#include "pktmbuf_internal.h"
 #include "route.h"
 #include "route_flags.h"
 #include "urcu.h"
 #include "util.h"
 #include "vplane_debug.h"
 #include "vplane_log.h"
-#include "vrf.h"
+#include "vrf_internal.h"
 #include "arp_cfg.h"
 
 /*
@@ -188,7 +186,7 @@ arprequest(struct ifnet *ifp, struct sockaddr *sa)
 		return NULL;
 	}
 
-	pktmbuf_l2_len(m) = ETHER_HDR_LEN;
+	dp_pktmbuf_l2_len(m) = ETHER_HDR_LEN;
 	eh = (struct ether_hdr *) rte_pktmbuf_append(m, len);
 	if (!eh) {
 		ARP_DEBUG("no space in packet for arp request\n");
@@ -233,6 +231,7 @@ int arpresolve(struct ifnet *ifp, struct rte_mbuf *m,
 {
 	struct llentry *la;
 
+lookup:
 	la = in_lltable_find(ifp, addr);
 
 	/* resolved now */
@@ -262,6 +261,15 @@ resolved:
 
 	/* Lock entry to hold off update and timer */
 	rte_spinlock_lock(&la->ll_lock);
+
+	/*
+	 * Whilst waiting for the spin lock, has the master thread
+	 * snuck in and deleted the entry?
+	 */
+	if (unlikely(la->la_flags & LLE_DELETED)) {
+		rte_spinlock_unlock(&la->ll_lock);
+		goto lookup;
+	}
 
 	/* create lost race with lladdr_update */
 	if (unlikely(la->la_flags & LLE_VALID)) {
@@ -422,4 +430,14 @@ arp_walk(const struct ifnet *ifp, ll_walkhash_f_t *f, void *arg)
 	cds_lfht_for_each_entry(llt->llt_hash, &iter, lle, ll_node) {
 		(*f)(ifp, lle, arg);
 	}
+}
+
+/* Must be called with lle->ll_lock held */
+void
+arp_entry_destroy(struct lltable *llt, struct llentry *lle)
+{
+	unsigned int pkts_dropped;
+
+	pkts_dropped = llentry_destroy(llt, lle);
+	ARPSTAT_ADD(if_vrfid(llt->llt_ifp), dropped, pkts_dropped);
 }

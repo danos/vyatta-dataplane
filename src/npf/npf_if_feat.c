@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2019-2020, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -9,9 +9,9 @@
 #include <urcu.h>
 
 #include "util.h"
-#include "vrf.h"
+#include "vrf_internal.h"
 #include "if_var.h"
-#include "dpi_public.h"
+#include "dpi.h"
 #include "pl_node.h"
 #include "pipeline/nodes/pl_nodes_common.h"
 #include "vplane_log.h"
@@ -123,6 +123,24 @@ static void npf_if_feat_enable_cgnat(struct ifnet *ifp, bool enable)
 	}
 }
 
+/*
+ * Enable or disable nat64 feature
+ */
+static void npf_if_feat_enable_nat64(struct ifnet *ifp, bool enable)
+{
+	if (enable) {
+		pl_node_add_feature_by_inst(&ipv4_nat46_in_feat, ifp);
+		pl_node_add_feature_by_inst(&ipv6_nat46_out_feat, ifp);
+		pl_node_add_feature_by_inst(&ipv6_nat64_in_feat, ifp);
+		pl_node_add_feature_by_inst(&ipv4_nat64_out_feat, ifp);
+	} else {
+		pl_node_remove_feature_by_inst(&ipv4_nat46_in_feat, ifp);
+		pl_node_remove_feature_by_inst(&ipv6_nat46_out_feat, ifp);
+		pl_node_remove_feature_by_inst(&ipv6_nat64_in_feat, ifp);
+		pl_node_remove_feature_by_inst(&ipv4_nat64_out_feat, ifp);
+	}
+}
+
 void npf_if_feat_init(void)
 {
 	if_feat_init(npf_if_feat_enable_acl_in, "acl-in", IF_FEAT_ACL_IN);
@@ -132,5 +150,6 @@ void npf_if_feat_init(void)
 	if_feat_init(npf_if_feat_enable_pbr, "pbr", IF_FEAT_PBR);
 	if_feat_init(npf_if_feat_enable_nptv6, "nptv6", IF_FEAT_NPTV6);
 	if_feat_init(npf_if_feat_enable_cgnat, "cgnat", IF_FEAT_CGNAT);
+	if_feat_init(npf_if_feat_enable_nat64, "nat64", IF_FEAT_NAT64);
 	if_feat_init(NULL, "dpi", IF_FEAT_DPI);
 }
