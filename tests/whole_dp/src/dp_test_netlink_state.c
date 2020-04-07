@@ -28,12 +28,14 @@
 #include "if/bridge/bridge.h"
 #include "if_var.h"
 #include "if/vxlan.h"
+#include "protobuf/RibUpdate.pb-c.h"
 #include "vrf_internal.h"
 
 #include "dp_test_controller.h"
 #include "dp_test/dp_test_cmd_check.h"
 #include "dp_test_lib_internal.h"
 #include "dp_test_lib_intf_internal.h"
+#include "dp_test_route_broker.h"
 #include "dp_test_str.h"
 #include "dp_test.h"
 #include "dp_test_crypto_lib.h"
@@ -1335,20 +1337,10 @@ _dp_test_netlink_set_mpls_forwarding(const char *ifname, bool enable,
 	json_object_put(expected);
 }
 
-/*
- * Add/delete a route, if verify is set then block until oper-state reflects
- * the requested state.
- *
- * incomplete implies no verify as the route will not be installed in a way
- * that lets the show command verify it. The user can do further verification
- * once it becomes complete.
- */
 static void
-dp_test_netlink_route(const char *route_string, uint16_t nl_type,
-		      bool replace, bool verify, bool incomplete,
-		      const char *file, const char *func, int line)
+dp_test_netlink_route_nl(struct dp_test_route *route, uint16_t nl_type,
+			 bool replace)
 {
-	struct dp_test_route *route = dp_test_parse_route(route_string);
 	struct rtmsg *rtm;
 	char topic[DP_TEST_TMP_BUF];
 	char buf[MNL_SOCKET_BUFFER_SIZE];
@@ -1358,20 +1350,6 @@ dp_test_netlink_route(const char *route_string, uint16_t nl_type,
 	unsigned int route_cnt;
 	unsigned int route_idx;
 	struct nlattr *pl_start;
-
-	if (verify) {
-		if (route->tableid == RT_TABLE_LOCAL)
-			_dp_test_wait_for_local_addr(
-				route_string, route->vrf_id,
-				nl_type == RTM_DELROUTE || replace,
-				file, func, line);
-		else if (nl_type == RTM_DELROUTE || replace)
-			_dp_test_wait_for_route(route_string, !replace, false,
-						file, func, line);
-		else
-			dp_test_wait_for_route_gone(route_string, false,
-						    file, func, line);
-	}
 
 	if (route->prefix.addr.family == AF_INET6)
 		route_cnt = route->nh_cnt ? route->nh_cnt : 1;
@@ -1664,8 +1642,241 @@ dp_test_netlink_route(const char *route_string, uint16_t nl_type,
 		if (nl_generate_topic(nlh, topic, sizeof(topic)) < 0)
 			dp_test_assert_internal(0);
 
-		nl_propagate_broker(topic, nlh);
+		nl_propagate_broker(topic, nlh, nlh->nlmsg_len);
 	}
+}
+
+static void
+dp_test_netlink_route_pb(struct dp_test_route *route, uint16_t nl_type)
+{
+	IPAddressOrLabel prefix = IPADDRESS_OR_LABEL__INIT;
+	RibUpdate rtupdate = RIB_UPDATE__INIT;
+	uint32_t tableid = route->tableid;
+	Route pbroute = ROUTE__INIT;
+	struct dp_test_nh *nh;
+	IPAddress *gateway;
+	Path **paths;
+	Path *path;
+	uint32_t i;
+	size_t len;
+
+	switch (nl_type) {
+	case RTM_NEWROUTE:
+		/* leave as default */
+		break;
+	case RTM_DELROUTE:
+		rtupdate.action = RIB_UPDATE__ACTION__DELETE;
+		rtupdate.has_action = true;
+		break;
+	default:
+		dp_test_assert_internal(false);
+		break;
+	}
+
+	rtupdate.route = &pbroute;
+
+	pbroute.prefix = &prefix;
+
+	switch (route->prefix.addr.family) {
+	case AF_INET:
+		prefix.address_oneof_case =
+			IPADDRESS_OR_LABEL__ADDRESS_ONEOF_IPV4_ADDR;
+		prefix.ipv4_addr = route->prefix.addr.addr.ipv4;
+		break;
+	case AF_INET6:
+		prefix.address_oneof_case =
+			IPADDRESS_OR_LABEL__ADDRESS_ONEOF_IPV6_ADDR;
+		prefix.ipv6_addr.data =
+			(uint8_t *)&route->prefix.addr.addr.ipv6;
+		prefix.ipv6_addr.len = sizeof(route->prefix.addr.addr.ipv6);
+		break;
+	case AF_MPLS:
+		prefix.address_oneof_case =
+			IPADDRESS_OR_LABEL__ADDRESS_ONEOF_MPLS_LABEL;
+		prefix.mpls_label = ntohl(route->prefix.addr.addr.mpls) >>
+			MPLS_LS_LABEL_SHIFT;
+		break;
+	default:
+		dp_test_assert_internal(false);
+		break;
+	}
+
+	pbroute.has_prefix_length = true;
+	pbroute.prefix_length = route->prefix.len;
+
+	if (route->vrf_id != VRF_DEFAULT_ID &&
+	    route->vrf_id != VRF_UPLINK_ID &&
+	    (route->tableid == RT_TABLE_MAIN ||
+	     route->tableid == RT_TABLE_LOCAL)) {
+		bool ret;
+
+		ret = dp_test_upstream_vrf_lookup_db(
+			route->vrf_id, NULL, &tableid);
+		assert(ret);
+	}
+
+	if (tableid != RT_TABLE_MAIN) {
+		pbroute.has_table_id = true;
+		pbroute.table_id = tableid;
+	}
+
+	pbroute.has_scope = true;
+	pbroute.scope = route->scope;
+
+	switch (route->mpls_payload_type) {
+	case RTMPT_IP:
+		/* default, so leave as-is */
+		break;
+	case RTMPT_IPV4:
+		pbroute.has_payload_type = true;
+		pbroute.payload_type = ROUTE__PAYLOAD_TYPE__IPV4;
+		break;
+	case RTMPT_IPV6:
+		pbroute.has_payload_type = true;
+		pbroute.payload_type = ROUTE__PAYLOAD_TYPE__IPV6;
+		break;
+	default:
+		dp_test_assert_internal(false);
+		break;
+	}
+
+	if (route->type == RTN_BLACKHOLE ||
+	    route->type == RTN_UNREACHABLE ||
+	    route->type == RTN_LOCAL) {
+		paths = calloc(1, sizeof(*paths));
+		dp_test_assert_internal(paths);
+
+		pbroute.paths = paths;
+		pbroute.n_paths = 1;
+
+		path = calloc(1, sizeof(*path));
+		paths[0] = path;
+		dp_test_assert_internal(path);
+
+		path__init(path);
+		path->has_type = true;
+		switch (route->type) {
+		case RTN_BLACKHOLE:
+			path->type = PATH__PATH_TYPE__BLACKHOLE;
+			break;
+		case RTN_UNREACHABLE:
+			path->type = PATH__PATH_TYPE__UNREACHABLE;
+			break;
+		case RTN_LOCAL:
+			path->type = PATH__PATH_TYPE__LOCAL;
+			break;
+		}
+	} else {
+		paths = calloc(route->nh_cnt, sizeof(*paths));
+		dp_test_assert_internal(paths);
+
+		pbroute.paths = paths;
+		pbroute.n_paths = route->nh_cnt;
+
+		for (i = 0; i < route->nh_cnt; i++) {
+			path = calloc(1, sizeof(*path) + sizeof(*gateway));
+			paths[i] = path;
+			gateway = (IPAddress *)(path + 1);
+			nh = &route->nh[i];
+			dp_test_assert_internal(path);
+
+			path__init(path);
+			ipaddress__init(gateway);
+
+			if (route->tableid == RT_TABLE_LOCAL) {
+				path->has_type = true;
+				path->type = PATH__PATH_TYPE__LOCAL;
+			}
+
+			path->has_ifindex = true;
+			path->ifindex = dp_test_intf_name2index(nh->nh_int);
+
+			switch (nh->nh_addr.family) {
+			case AF_INET:
+				path->nexthop = gateway;
+				gateway->address_oneof_case =
+					IPADDRESS__ADDRESS_ONEOF_IPV4_ADDR;
+				gateway->ipv4_addr = nh->nh_addr.addr.ipv4;
+				break;
+			case AF_INET6:
+				path->nexthop = gateway;
+				gateway->address_oneof_case =
+					IPADDRESS__ADDRESS_ONEOF_IPV6_ADDR;
+				gateway->ipv6_addr.data =
+					(uint8_t *)&nh->nh_addr.addr.ipv6;
+				gateway->ipv6_addr.len =
+					sizeof(nh->nh_addr.addr.ipv6);
+				break;
+			case AF_UNSPEC:
+				break;
+			}
+
+			if (nh->num_labels == 1 &&
+			    nh->labels[0] == MPLS_LABEL_IMPLNULL) {
+				/* Nothing to do */
+			} else if (nh->num_labels > 0) {
+				path->mpls_labels = nh->labels;
+				path->n_mpls_labels = nh->num_labels;
+			} else if (route->prefix.addr.family == AF_MPLS) {
+				path->has_mpls_bos_only = true;
+				path->mpls_bos_only = true;
+			}
+		}
+	}
+
+	len = rib_update__get_packed_size(&rtupdate);
+	void *buf = malloc(len);
+	dp_test_assert_internal(buf);
+
+	rib_update__pack(&rtupdate, buf);
+
+	nl_propagate_broker(NULL, buf, len);
+
+	if (route->type == RTN_BLACKHOLE ||
+	    route->type == RTN_UNREACHABLE ||
+	    route->type == RTN_LOCAL)
+		free(paths[0]);
+	else {
+		for (i = 0; i < route->nh_cnt; i++)
+			free(paths[i]);
+	}
+	free(paths);
+}
+
+/*
+ * Add/delete a route, if verify is set then block until oper-state reflects
+ * the requested state.
+ *
+ * incomplete implies no verify as the route will not be installed in a way
+ * that lets the show command verify it. The user can do further verification
+ * once it becomes complete.
+ */
+static void
+dp_test_netlink_route(const char *route_string, uint16_t nl_type,
+		      bool replace, bool verify, bool incomplete,
+		      const char *file, const char *func, int line)
+{
+	struct dp_test_route *route = dp_test_parse_route(route_string);
+
+	if (verify) {
+		if (route->tableid == RT_TABLE_LOCAL)
+			_dp_test_wait_for_local_addr(
+				route_string, route->vrf_id,
+				nl_type == RTM_DELROUTE || replace,
+				file, func, line);
+		else if (nl_type == RTM_DELROUTE || replace)
+			_dp_test_wait_for_route(route_string, !replace, false,
+						file, func, line);
+		else
+			dp_test_wait_for_route_gone(route_string, false,
+						    file, func, line);
+	}
+
+	if (dp_test_cont_src_get() == CONT_SRC_MAIN &&
+	    dp_test_route_broker_protobuf)
+		dp_test_netlink_route_pb(route, nl_type);
+	else
+		dp_test_netlink_route_nl(route, nl_type, replace);
 
 	if (verify) {
 		if (route->tableid == RT_TABLE_LOCAL)

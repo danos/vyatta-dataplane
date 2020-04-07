@@ -1222,14 +1222,28 @@ nl_propagate(const char *topic, const struct nlmsghdr *nlh)
 			 cont_info[cont_src_current].pub_sock, false);
 }
 
-void
-nl_propagate_broker(const char *topic, const struct nlmsghdr *nlh)
+static void
+data_send_free(void *data, void *hint)
 {
-	if (cont_src_current == CONT_SRC_MAIN)
-		nl_propagate_src(cont_src_current, topic, nlh,
+	free(data);
+}
+
+void
+nl_propagate_broker(const char *topic, void *data, size_t size)
+{
+	if (cont_src_current == CONT_SRC_MAIN &&
+	    dp_test_route_broker_protobuf) {
+		zmq_msg_t m;
+
+		zmq_msg_init_data(&m, data, size,
+				  data_send_free, NULL);
+
+		zmq_msg_send(&m, zsock_resolve(broker_data_sock), 0);
+	} else if (cont_src_current == CONT_SRC_MAIN)
+		nl_propagate_src(cont_src_current, topic, data,
 				 broker_data_sock, true);
 	else
-		nl_propagate_src(cont_src_current, topic, nlh,
+		nl_propagate_src(cont_src_current, topic, data,
 				 cont_info[cont_src_current].pub_sock, false);
 }
 

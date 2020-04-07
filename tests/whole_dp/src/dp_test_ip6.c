@@ -10,6 +10,7 @@
 #include "ip6_funcs.h"
 
 #include "dp_test.h"
+#include "dp_test_controller.h"
 #include "dp_test_netlink_state_internal.h"
 #include "dp_test_lib_internal.h"
 #include "dp_test_lib_exp.h"
