@@ -1157,8 +1157,7 @@ pmf_arlg_if_feat_mode_change(struct ifnet *ifp,
 {
 	struct npf_attpt_item *ap;
 
-	if (event != IF_FEAT_MODE_EVENT_L3_FAL_ENABLED &&
-	    event != IF_FEAT_MODE_EVENT_L3_ENABLED)
+	if (event != IF_FEAT_MODE_EVENT_L3_FAL_ENABLED)
 		return;
 
 	if (npf_attpt_item_find_any(NPF_ATTACH_TYPE_INTERFACE,
