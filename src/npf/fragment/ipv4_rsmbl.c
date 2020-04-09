@@ -181,6 +181,7 @@ ipv4_frag_process(struct cds_lfht *frag_tables, struct ipv4_frag_pkt *fp,
 		.mbuf = mb,
 		.l2_pkt_type = pkt_mbuf_get_l2_traffic_type(mb),
 	};
+	unsigned int i;
 
 	/* Lock the frag pkt */
 	rte_spinlock_lock(&fp->pkt_lock);
@@ -204,12 +205,14 @@ ipv4_frag_process(struct cds_lfht *frag_tables, struct ipv4_frag_pkt *fp,
 		idx = fp->last_idx;
 		/*
 		 * Check if its a duplicate intermediate fragment
-		 * by checking the offset of the previous fragment
+		 * by checking the offset of all previous fragments
 		 */
-		if (fp->frags[fp->last_idx - 1].ofs == ofs) {
-			rte_pktmbuf_free(mb);
-			mb = NULL;
-			goto done;
+		for (i = 0; i < fp->last_idx; i++) {
+			if (fp->frags[i].ofs == ofs) {
+				rte_pktmbuf_free(mb);
+				mb = NULL;
+				goto done;
+			}
 		}
 
 		if (idx < ARRAY_SIZE(fp->frags))
