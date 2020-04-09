@@ -2011,6 +2011,46 @@ int fal_plugin_ip_get_next_hop_group_attrs(fal_object_t obj,
 					   uint32_t attr_count,
 					   struct fal_attribute_t *attr_list);
 
+enum fal_next_hop_configured_role {
+	/**
+	 * @brief Next hop is primary
+	 *
+	 * The next hop is a primary next hop and by default will
+	 * contribute to forwarding.
+	 */
+	FAL_NEXT_HOP_CONFIGURED_ROLE_PRIMARY,
+
+	/**
+	 * @brief Next hop is standby
+	 *
+	 * The next hop is a standby next hop and won't contribute to
+	 * forwarding, unless the corresponding primary next hop(s)
+	 * become unusable. For PIC Edge primary/standbies the standby
+	 * next hop(s) should only be used if all primary next hops
+	 * are unusable.
+	 */
+	FAL_NEXT_HOP_CONFIGURED_ROLE_STANDBY,
+};
+
+enum fal_next_hop_usability {
+	/**
+	 * @brief Next hop is usable
+	 *
+	 * The next hop is usable and if a primary next hop can
+	 * contribute to forwarding.
+	 */
+	FAL_NEXT_HOP_USABLE,
+	/**
+	 * @brief Next hop is unusable
+	 *
+	 * The next hop is not usable and shouldn't contribute to
+	 * forwarding. If there is a backup next hop then forwarding
+	 * should cut over to that if there are no usable primary
+	 * nexthops.
+	 */
+	FAL_NEXT_HOP_UNUSABLE,
+};
+
 /*
  * IP Nexthop operations
  */
@@ -2046,6 +2086,24 @@ enum fal_next_hop_attr_t {
 	 * @flags CREATE_ONLY
 	 */
 	FAL_NEXT_HOP_ATTR_IP,			/* .ipaddr */
+	/**
+	 * @brief Configured role for this next hop
+	 *
+	 * A next-hop group must not consist of only
+	 * FAL_NEXT_HOP_CONFIGURED_ROLE_STANDBY nexthop(s).
+	 *
+	 * @type enum fal_next_hop_configured_role
+	 * @flags CREATE_ONLY
+	 * @default FAL_NEXT_HOP_CONFIGURED_ROLE_PRIMARY
+	 */
+	FAL_NEXT_HOP_ATTR_CONFIGURED_ROLE,			/* .i32 */
+	/**
+	 * @brief Next hop usability
+	 *
+	 * @type enum fal_next_hop_usability
+	 * @flags CREATE_AND_SET
+	 */
+	FAL_NEXT_HOP_ATTR_USABILITY,			/* .i32 */
 };
 
 /**
