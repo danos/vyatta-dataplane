@@ -1609,6 +1609,8 @@ void rt_print_nexthop(json_writer_t *json, uint32_t next_hop,
 			jsonw_bool_field(json, "neigh_present", true);
 		if (next->flags & RTF_NEIGH_CREATED)
 			jsonw_bool_field(json, "neigh_created", true);
+		if (next->flags & RTF_BACKUP)
+			jsonw_bool_field(json, "backup", true);
 
 		ifp = dp_nh_get_ifp(next);
 		if (ifp)

@@ -51,6 +51,11 @@ message Path {
 	// Preferred source address for originating packets destined
 	// to this path
 	optional IPAddress preferred_source = 6;
+
+	// This is a backup path. Without any other indication, this
+	// indicates a PIC edge backup path and will only be used if
+	// all the primary paths are unusable.
+	optional bool backup = 7;
 }
 
 message Route {

@@ -77,6 +77,9 @@ static bool nexthop_fill_common(struct next_hop *next, Path *path,
 		/* Output label rather than local label */
 		next->flags |= RTF_OUTLABEL;
 
+	if (path->backup)
+		next->flags |= RTF_BACKUP;
+
 	return true;
 }
 
@@ -136,6 +139,9 @@ static bool nexthop6_fill(struct next_hop *next, Path *path,
 
 	if (!nexthop_fill_common(next, path, missing_ifp))
 		return false;
+
+	if (path->backup)
+		next->flags |= RTF_BACKUP;
 
 	return true;
 }
