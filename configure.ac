@@ -186,8 +186,6 @@ rte_eth_dev_callback_register(0, 0, foo, NULL);
 ])
 CFLAGS=$CFLAGS_BACK
 
-AC_SUBST(COPYRIGHT_YEAR, [`date +%Y`])
-
 AC_ARG_WITH([systemd],
     AS_HELP_STRING([--without-systemd], [Ignore presence of systemd and disable it]))
 
