@@ -929,14 +929,15 @@ void crypto_enqueue_outbound(struct rte_mbuf *m, uint16_t orig_family,
 		return;
 	}
 
-	crypto_enqueue_internal(CRYPTO_ENCRYPT, m, orig_family, family, dst,
-				in_ifp, nxt_ifp, reqid,
-				pmd_dev_id, spi, iphdr(m));
-
-	if (family == AF_INET)
-		IPSEC_CNT_INC(ENQUEUED_OUTPUT_IPV4);
-	else
-		IPSEC_CNT_INC(ENQUEUED_OUTPUT_IPV6);
+	if (!crypto_enqueue_internal(CRYPTO_ENCRYPT, m,
+				     orig_family, family, dst,
+				     in_ifp, nxt_ifp, reqid,
+				     pmd_dev_id, spi, iphdr(m))) {
+		if (family == AF_INET)
+			IPSEC_CNT_INC(ENQUEUED_OUTPUT_IPV4);
+		else
+			IPSEC_CNT_INC(ENQUEUED_OUTPUT_IPV6);
+	}
 }
 
 static void crypto_fwd_processed_packets(struct crypto_pkt_ctx **contexts,
