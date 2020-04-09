@@ -637,6 +637,7 @@ pkginclude_HEADERS = \
 	include/lcore_sched.h \
 	include/pktmbuf.h \
 	include/pipeline.h \
+	include/protobuf_util.h \
 	include/urcu.h	\
 	include/vrf.h
 
