@@ -1625,9 +1625,10 @@ static const struct fal_attribute_t **next_hop_to_attr_list(
 		const struct next_hop *nh = &hops[i];
 		struct fal_attribute_t *nh_attr;
 		struct ifnet *ifp;
+		unsigned int nh_attr_count;
 
 		nh_attr_list[i] = nh_attr = calloc(
-			1, sizeof(*nh_attr) * 4);
+			6, sizeof(*nh_attr));
 		if (!nh_attr) {
 			while (i--)
 				free((struct fal_attribute_t *)
@@ -1643,13 +1644,27 @@ static const struct fal_attribute_t **next_hop_to_attr_list(
 		nh_attr[1].value.u32 = ifp ? ifp->if_index : 0;
 		nh_attr[2].id = FAL_NEXT_HOP_ATTR_ROUTER_INTF;
 		nh_attr[2].value.u32 = ifp ? ifp->fal_l3 : FAL_NULL_OBJECT_ID;
+		nh_attr_count = 3;
 		if (nh->flags & (RTF_GATEWAY | RTF_NEIGH_CREATED)) {
-			nh_attr[3].id = FAL_NEXT_HOP_ATTR_IP;
-			fal_attr_set_ip_addr(&nh_attr[3], &nh->gateway);
-			(*attr_count)[i] = 4;
-		} else {
-			(*attr_count)[i] = 3;
+			nh_attr[nh_attr_count].id = FAL_NEXT_HOP_ATTR_IP;
+			fal_attr_set_ip_addr(&nh_attr[nh_attr_count],
+					     &nh->gateway);
+			nh_attr_count++;
 		}
+		if (nh->flags & RTF_BACKUP) {
+			nh_attr[nh_attr_count].id =
+				FAL_NEXT_HOP_ATTR_CONFIGURED_ROLE;
+			nh_attr[nh_attr_count].value.u32 =
+				FAL_NEXT_HOP_CONFIGURED_ROLE_STANDBY;
+			nh_attr_count++;
+		}
+		if (nh->flags & RTF_UNUSABLE) {
+			nh_attr[nh_attr_count].id = FAL_NEXT_HOP_ATTR_USABILITY;
+			nh_attr[nh_attr_count].value.u32 =
+				FAL_NEXT_HOP_UNUSABLE;
+			nh_attr_count++;
+		}
+		(*attr_count)[i] = nh_attr_count;
 	}
 
 	return nh_attr_list;
