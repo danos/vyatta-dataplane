@@ -576,6 +576,7 @@ dataplane_test_SOURCES += \
 	tests/whole_dp/src/dp_test_ppp.c \
 	tests/whole_dp/src/dp_test_ptp.c \
 	tests/whole_dp/src/dp_test_qos_basic.c \
+	tests/whole_dp/src/dp_test_qos_burst.c \
 	tests/whole_dp/src/dp_test_qos_ext_buf_monitor.c \
 	tests/whole_dp/src/dp_test_qos_fal.c \
 	tests/whole_dp/src/dp_test_qos_class.c \
