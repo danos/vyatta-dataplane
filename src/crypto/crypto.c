@@ -455,7 +455,6 @@ static void crypto_process_decrypt_packet(struct crypto_pkt_ctx *cctx,
 		CRYPTO_DATA_ERR("No VTI interface found\n");
 		IPSEC_CNT_INC(NO_VTI);
 		cctx->action = CRYPTO_ACT_DROP;
-		IF_INCR_ERROR(crypto_ctx_to_in_ifp(cctx, m));
 		return;
 	}
 
@@ -465,8 +464,8 @@ static void crypto_process_decrypt_packet(struct crypto_pkt_ctx *cctx,
 		rc = esp_input6(m, sa, bytes, &cctx->family);
 
 	if (rc < 0) {
-		IF_INCR_ERROR(vti_ifp ? vti_ifp :
-			      crypto_ctx_to_in_ifp(cctx, m));
+		if (vti_ifp)
+			if_incr_error(vti_ifp);
 		CRYPTO_DATA_ERR("ESP Input failed %d\n", rc);
 		IPSEC_CNT_INC(DROPPED_ESP_INPUT_FAIL);
 		cctx->action = CRYPTO_ACT_DROP;
@@ -711,7 +710,8 @@ static int crypto_enqueue_internal(enum crypto_xfrm xfrm,
 
 	if (unlikely(pmd_dev_id == CRYPTO_PMD_INVALID_ID)) {
 		IPSEC_CNT_INC(DROPPED_INVALID_PMD_DEV_ID);
-		IF_INCR_ERROR(in_ifp);
+		if (nxt_ifp && is_vti(nxt_ifp))
+			if_incr_full_proto(nxt_ifp, 1);
 		goto free_mbuf_on_error;
 	}
 
@@ -738,15 +738,16 @@ static int crypto_enqueue_internal(enum crypto_xfrm xfrm,
 			CRYPTO_DATA_ERR("Crypto burst_ring %u full\n",
 				   (uint32_t)xfrm);
 			IPSEC_CNT_INC(BURST_RING_FULL);
-			if (in_ifp)
-				if_incr_full_txring(in_ifp, 1);
+			if (nxt_ifp && is_vti(nxt_ifp))
+				if_incr_full_txring(nxt_ifp, 1);
 			goto free_mbuf_on_error;
 		}
 
 	ctx = allocate_crypto_packet_ctx();
 	if (unlikely(!ctx)) {
 		IPSEC_CNT_INC(FAILED_TO_ALLOCATE_CTX);
-		IF_INCR_ERROR(in_ifp);
+		if (nxt_ifp && is_vti(nxt_ifp))
+			if_incr_full_proto(nxt_ifp, 1);
 		goto free_mbuf_on_error;
 	}
 
@@ -768,7 +769,6 @@ static int crypto_enqueue_internal(enum crypto_xfrm xfrm,
 		} else {
 			IPSEC_CNT_INC(NO_VTI);
 			release_crypto_packet_ctx(ctx);
-			IF_INCR_ERROR(in_ifp);
 			goto free_mbuf_on_error;
 		}
 	}
@@ -811,7 +811,8 @@ static inline bool crypto_check_hdr_single_seg(struct rte_mbuf *m,
 	if (len < h->iphlen + sizeof(struct ip_esp_hdr) +
 	    ((h->nxt_proto == IPPROTO_UDP) ? sizeof(struct udphdr) : 0)) {
 		CRYPTO_DATA_ERR("Bad segment length\n");
-		IF_INCR_ERROR(in_ifp);
+		if (in_ifp)
+			if_incr_full_proto(in_ifp, 1);
 		return false;
 	}
 	return true;

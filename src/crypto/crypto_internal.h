@@ -419,7 +419,6 @@ do {						\
 } while (0)
 
 #define IF_INCR_OERROR(_ifp)  IF_INCR_x(_ifp, _oerror)
-#define IF_INCR_ERROR(_ifp)   IF_INCR_x(_ifp, _error)
 #define IF_INCR_IN(_ifp, _m)  IF_INCR_Mx(_ifp, _m, _in)
 #define IF_INCR_OUT(_ifp, _m) IF_INCR_Mx(_ifp, _m, _out)
 
