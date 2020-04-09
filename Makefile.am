@@ -444,7 +444,7 @@ libvyatta_dataplane_proto_la_SOURCES = $(PROTO_FILES:.proto=.pb.cc)
 libvyatta_dataplane_proto_la_CPPFLAGS = $(AM_CPPFLAGS) $(shell pkg-config --cflags protobuf)
 libvyatta_dataplane_proto_la_LDFLAGS = $(shell pkg-config --cflags --libs protobuf) -version-info 1:0:0 -shared
 
-includeprotodir = /usr/include/vyatta-dataplane/proto
+includeprotodir = /usr/include/vyatta-dataplane/protobuf
 includeproto_HEADERS = $(PROTO_FILES:%.proto=%.pb.h) $(PROTO_FILES:%.proto=%.pb-c.h)
 
 sbin_PROGRAMS = dataplane
