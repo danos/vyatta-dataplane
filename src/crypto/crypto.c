@@ -711,6 +711,7 @@ static int crypto_enqueue_internal(enum crypto_xfrm xfrm,
 
 	if (unlikely(pmd_dev_id == CRYPTO_PMD_INVALID_ID)) {
 		IPSEC_CNT_INC(DROPPED_INVALID_PMD_DEV_ID);
+		IF_INCR_ERROR(in_ifp);
 		goto free_mbuf_on_error;
 	}
 
@@ -737,12 +738,15 @@ static int crypto_enqueue_internal(enum crypto_xfrm xfrm,
 			CRYPTO_DATA_ERR("Crypto burst_ring %u full\n",
 				   (uint32_t)xfrm);
 			IPSEC_CNT_INC(BURST_RING_FULL);
+			if (in_ifp)
+				if_incr_full_txring(in_ifp, 1);
 			goto free_mbuf_on_error;
 		}
 
 	ctx = allocate_crypto_packet_ctx();
 	if (unlikely(!ctx)) {
 		IPSEC_CNT_INC(FAILED_TO_ALLOCATE_CTX);
+		IF_INCR_ERROR(in_ifp);
 		goto free_mbuf_on_error;
 	}
 
@@ -764,6 +768,7 @@ static int crypto_enqueue_internal(enum crypto_xfrm xfrm,
 		} else {
 			IPSEC_CNT_INC(NO_VTI);
 			release_crypto_packet_ctx(ctx);
+			IF_INCR_ERROR(in_ifp);
 			goto free_mbuf_on_error;
 		}
 	}
@@ -848,12 +853,10 @@ int crypto_enqueue_inbound_v4(struct rte_mbuf *m,
 	if (!crypto_check_hdr_single_seg(m, &h, input_if))
 		return -1;
 
-	if (crypto_enqueue_internal(CRYPTO_DECRYPT, m, AF_INET, AF_INET,
+	if (!crypto_enqueue_internal(CRYPTO_DECRYPT, m, AF_INET, AF_INET,
 				    NULL, input_if, NULL, 0,
 				    pmd_dev_id, spi,
-				    iphdr(m))  < 0)
-		IF_INCR_ERROR(input_if);
-	else
+				    iphdr(m)))
 		IPSEC_CNT_INC(ENQUEUED_INPUT_IPV4);
 
 	return 0;
@@ -893,12 +896,10 @@ int crypto_enqueue_inbound_v6(struct rte_mbuf *m,
 	if (!crypto_check_hdr_single_seg(m, &h, input_if))
 		return -1;
 
-	if (crypto_enqueue_internal(CRYPTO_DECRYPT, m, AF_INET6, AF_INET6,
+	if (!crypto_enqueue_internal(CRYPTO_DECRYPT, m, AF_INET6, AF_INET6,
 				    NULL, input_if, NULL, 0,
 				    pmd_dev_id, spi,
-				    ip6hdr(m)) < 0)
-		IF_INCR_ERROR(input_if);
-	else
+				    ip6hdr(m)))
 		IPSEC_CNT_INC(ENQUEUED_INPUT_IPV6);
 
 	return 0;
