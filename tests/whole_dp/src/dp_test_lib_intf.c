@@ -338,10 +338,10 @@ void dp_test_intf_dpdk_init(void)
 		snprintf(tx_ring_name, sizeof(tx_ring_name),
 			 DP_TEST_TX_RING_BASE_NAME "%c%c",
 			 loc, intf->if_name[4]);
-		rx_ring = rte_ring_create(rx_ring_name, 32,
+		rx_ring = rte_ring_create(rx_ring_name, 512,
 					  SOCKET_ID_ANY,
 					  RING_F_SC_DEQ);
-		tx_ring = rte_ring_create(tx_ring_name, 32,
+		tx_ring = rte_ring_create(tx_ring_name, 512,
 					  SOCKET_ID_ANY,
 					  RING_F_SP_ENQ);
 		if (!rx_ring || !tx_ring)
