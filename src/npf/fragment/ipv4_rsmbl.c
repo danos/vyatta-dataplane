@@ -187,10 +187,13 @@ ipv4_frag_process(struct cds_lfht *frag_tables, struct ipv4_frag_pkt *fp,
 
 	if (ofs == 0) {
 		/* is this a repeat of the first fragment? */
-		if (fp->frags[FIRST_FRAG_IDX].mb == NULL)
+		if (fp->frags[FIRST_FRAG_IDX].mb == NULL) {
 			idx = FIRST_FRAG_IDX;
-		else
+		} else {
+			rte_pktmbuf_free(mb);
+			mb = NULL;
 			goto done;
+		}
 	} else if (more_frags == 0) {
 		/* this is the last fragment. */
 		fp->total_size = ofs + len;
@@ -204,6 +207,7 @@ ipv4_frag_process(struct cds_lfht *frag_tables, struct ipv4_frag_pkt *fp,
 		 * by checking the offset of the previous fragment
 		 */
 		if (fp->frags[fp->last_idx - 1].ofs == ofs) {
+			rte_pktmbuf_free(mb);
 			mb = NULL;
 			goto done;
 		}
