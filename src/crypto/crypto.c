@@ -533,7 +533,8 @@ static void crypto_process_decrypt_packet(struct crypto_pkt_ctx *cctx,
 					TUN_META_FLAGS_DEFAULT);
 			}
 		}
-		IF_INCR_IN(cctx->in_ifp, m);
+		if (cctx->in_ifp)
+			if_incr_in(cctx->in_ifp, m);
 	}
 }
 
@@ -550,7 +551,8 @@ static void crypto_process_encrypt_packet(struct crypto_pkt_ctx *cctx,
 		rc = esp_output6(m, cctx->orig_family, cctx->l3hdr, sa, bytes);
 
 	if (rc < 0) {
-		IF_INCR_OERROR(cctx->nxt_ifp);
+		if (cctx->nxt_ifp)
+			if_incr_oerror(cctx->nxt_ifp);
 		CRYPTO_DATA_ERR("ESP Output failed %d\n", rc);
 		cctx->action = CRYPTO_ACT_DROP;
 		IPSEC_CNT_INC(DROPPED_ESP_OUTPUT_FAIL);
@@ -1001,7 +1003,8 @@ sadb_lookup_sa(struct rte_mbuf *m __unused, enum crypto_xfrm xfrm,
 		IPSEC_CNT_INC(NO_OUT_SA);
 		err_ifp = ((xfrm == CRYPTO_ENCRYPT) ? ctx->nxt_ifp :
 			   crypto_ctx_to_in_ifp(ctx, ctx->mbuf));
-		IF_INCR_OERROR(err_ifp);
+		if (err_ifp)
+			if_incr_oerror(err_ifp);
 		return NULL;
 	}
 	rte_prefetch0(sa->session);
