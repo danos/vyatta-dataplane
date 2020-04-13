@@ -20,6 +20,8 @@
 
 #include "dp_test_pktmbuf_lib.h"
 
+#include "protobuf/IPAddress.pb-c.h"
+
 #define DP_TEST_MAX_NHS 32
 #define DP_TEST_MAX_LBLS 16
 #define ETHER_TYPE_MPLS 0x8847
@@ -311,5 +313,25 @@ void dp_test_unregister_event_msg(void);
  *         -ve on failure
  */
 int dp_test_add_to_cfg_file(int argc, char **argv);
+
+/* Helpers to manage interactions with protobufs */
+
+/*
+ * Given an ip address (either v4 or v6) in string format, populate
+ * the protobuf formatted addr.
+ *
+ * @param addr        [out] The protobuf address structure to be populated.
+ * @param str         [in]  The address, formatted as a string that is to be
+ *                          populated into the address.
+ * @param data        [out] A scratch buffer of at least 16 bytes that is
+ *                          used in the case when the string is a V6 address
+ *                          as the addr needs space to store the address.
+ *
+ * Populate the addr with the address in the string, using the 'data' as the
+ * storage for this in the case of an IPv6 address. This is done to avoid
+ * having this function doing a malloc for the data and the requirement to
+ * then free it.
+ */
+void dp_test_lib_pb_set_ip_addr(IPAddress *addr, const char *str, void *data);
 
 #endif /*_DP_TEST_LIB_H_ */

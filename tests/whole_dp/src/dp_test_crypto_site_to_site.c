@@ -16,7 +16,6 @@
 #include "dp_test_crypto_lib.h"
 #include "dp_test_lib_exp.h"
 #include "dp_test_lib_intf_internal.h"
-#include "dp_test_lib_pb.h"
 #include "dp_test_console.h"
 #include "dp_test_controller.h"
 #include "dp_test_npf_lib.h"
