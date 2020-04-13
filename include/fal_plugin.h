@@ -439,6 +439,37 @@ struct fal_attribute_t {
  */
 extern int fal_port_byifindex(int ifindex, uint16_t *portid);
 
+/**
+ * Allocate a block of memory that can be freed in a deferred manner
+ *
+ * The memory must be freed by fal_free_deferred().
+ *
+ * @param[in] size Size of block of memory to be allocated
+ * @return Block of memory allocated or NULL if out of memory or some
+ * other error.
+ */
+void *fal_malloc(size_t size);
+
+/**
+ * Allocate an array of memory that can be freed in a deferred manner
+ *
+ * The memory must be freed by fal_free_deferred().
+ *
+ * @param[in] nmemb Number of members of array to be allocated
+ * @param[in] size Size of array element to be allocated
+ * @return Block of zero'd memory allocated or NULL if out of memory
+ * or some other error.
+ */
+void *fal_calloc(int nmemb, size_t size);
+
+/**
+ * Free in a deferred manner some memory
+ *
+ * The memory must have been allocated by either fal_malloc() or fal_calloc().
+ *
+ * @param[in] ptr Pointer to memory to be freed in a deferred manner.
+ */
+void fal_free_deferred(void *ptr);
 
 /*
  * All of the functions for plugins are optional, if one is not

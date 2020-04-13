@@ -33,6 +33,12 @@
 
 struct ether_addr;
 
+struct fal_mem {
+	struct rcu_head rcu;
+	uint8_t data[0];
+};
+
+
 int __externally_visible
 fal_port_byifindex(int ifindex, uint16_t *portid)
 {
@@ -43,6 +49,64 @@ fal_port_byifindex(int ifindex, uint16_t *portid)
 		return -ENODEV;
 	*portid = ifp->if_port;
 	return 0;
+}
+
+void * __externally_visible
+fal_malloc(size_t size)
+{
+	struct fal_mem *fal_mem;
+
+	if (size >= SIZE_MAX - sizeof(*fal_mem))
+		return NULL;
+
+	fal_mem = malloc(sizeof(*fal_mem) + size);
+	if (!fal_mem)
+		return NULL;
+
+	memset(&fal_mem->rcu, 0, sizeof(fal_mem->rcu));
+
+	return &fal_mem->data;
+}
+
+void * __externally_visible
+fal_calloc(int nmemb, size_t size)
+{
+	struct fal_mem *fal_mem;
+	size_t total_size;
+
+	total_size = nmemb * size;
+	if (total_size < size)
+		return NULL;
+	if (total_size >= SIZE_MAX - sizeof(*fal_mem))
+		return NULL;
+
+	fal_mem = calloc(1, sizeof(*fal_mem) + total_size);
+	if (!fal_mem)
+		return NULL;
+
+	return &fal_mem->data;
+}
+
+static void
+fal_free_worker(struct rcu_head *head)
+{
+	struct fal_mem *fal_mem =
+		caa_container_of(head, struct fal_mem, rcu);
+
+	free(fal_mem);
+}
+
+void __externally_visible
+fal_free_deferred(void *ptr)
+{
+	struct fal_mem *fal_mem;
+
+	if (!ptr)
+		return;
+
+	fal_mem = caa_container_of(ptr, struct fal_mem, data);
+
+	call_rcu(&fal_mem->rcu, fal_free_worker);
 }
 
 static struct message_handler *fal_handler;
