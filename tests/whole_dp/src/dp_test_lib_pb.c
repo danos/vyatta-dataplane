@@ -3,11 +3,13 @@
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
-
-#include "dp_test_lib_pb.h"
+#include "if_var.h"
+#include "dp_test_controller.h"
+#include "dp_test_lib_internal.h"
 
 #include "protobuf.h"
 #include "protobuf_util.h"
+#include "protobuf/DataplaneEnvelope.pb-c.h"
 #include "protobuf/IPAddress.pb-c.h"
 
 void dp_test_lib_pb_set_ip_addr(IPAddress *addr, const char *str, void *data)
