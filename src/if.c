@@ -4083,9 +4083,6 @@ if_output_features(struct ifnet *input_ifp, struct ifnet *ifp,
 	if (unlikely(!pipeline_fused_l2_output(&pkt)))
 		return NULL;
 
-	if (unlikely(ifp->portmonitor))
-		portmonitor_src_vif_tx_output(ifp, m);
-
 	if (unlikely(ifp->capturing) &&
 	    capture_if_use_common_cap_points(ifp))
 		capture_burst(ifp, m, 1);

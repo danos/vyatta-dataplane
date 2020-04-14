@@ -43,6 +43,7 @@ PL_DECLARE_FEATURE(ipv6_ipsec_out_feat);
 PL_DECLARE_FEATURE(sw_vlan_in_feat);
 PL_DECLARE_FEATURE(capture_ether_in_feat);
 PL_DECLARE_FEATURE(portmonitor_in_feat);
+PL_DECLARE_FEATURE(portmonitor_out_feat);
 PL_DECLARE_FEATURE(bridge_in_feat);
 PL_DECLARE_FEATURE(cross_connect_ether_feat);
 PL_DECLARE_FEATURE(hw_hdr_in_feat);

@@ -139,6 +139,7 @@ static void set_srcif_enabled(struct ifnet *ifp,
 {
 	ifp->portmonitor = 0;
 	pl_node_remove_feature_by_inst(&portmonitor_in_feat, ifp);
+	pl_node_remove_feature_by_inst(&portmonitor_out_feat, ifp);
 	if (enabled && pmsess->session_type && pmsess->dest_ifp) {
 		if (ERSPAN_SESSION(pmsess)) {
 			if (!pmsess->erspan_id || !pmsess->erspan_hdr_type)
@@ -147,6 +148,7 @@ static void set_srcif_enabled(struct ifnet *ifp,
 
 		ifp->portmonitor = 1;
 		pl_node_add_feature_by_inst(&portmonitor_in_feat, ifp);
+		pl_node_add_feature_by_inst(&portmonitor_out_feat, ifp);
 
 		if (pmsess->session_type == PORTMONITOR_ERSPAN_SOURCE) {
 			if (pmsess->erspan_hdr_type == ERSPAN_TYPE_II)
@@ -252,6 +254,7 @@ static void portmonitor_info_delete(struct ifnet *ifp)
 {
 	ifp->portmonitor = 0;
 	pl_node_remove_feature_by_inst(&portmonitor_in_feat, ifp);
+	pl_node_remove_feature_by_inst(&portmonitor_out_feat, ifp);
 	portmonitor_info_deinit(ifp);
 }
 
@@ -270,6 +273,7 @@ void portmonitor_cleanup(struct ifnet *ifp)
 	} else {
 		ifp->portmonitor = 0;
 		pl_node_remove_feature_by_inst(&portmonitor_in_feat, ifp);
+		pl_node_remove_feature_by_inst(&portmonitor_out_feat, ifp);
 	}
 
 	rcu_assign_pointer(ifp->pminfo, NULL);
