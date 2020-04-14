@@ -301,7 +301,4 @@ vlan_modify_get_action(struct ifnet *ifp, uint16_t vlan,
 	return action;
 }
 
-struct rte_mbuf *
-vlan_modify_egress(struct ifnet *ifp, struct rte_mbuf **m);
-
 #endif /* VLAN_MODIFY_H */

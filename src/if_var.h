@@ -246,7 +246,7 @@ struct ifnet {
 	/* Network configuration bits */
 	uint16_t	   capturing:1, /* capture in progress */
 			   portmonitor:1,
-			   vlan_modify:1,
+			   padding0:1,
 			   qos_software_fwd:1,
 			   tpid_offloaded:1,
 			   unused:3,

@@ -103,7 +103,6 @@
 #include "qos.h"
 #include "urcu.h"
 #include "util.h"
-#include "vlan_modify.h"
 #include "vplane_debug.h"
 #include "vplane_log.h"
 #include "vrf_internal.h"
@@ -4083,10 +4082,6 @@ if_output_features(struct ifnet *input_ifp, struct ifnet *ifp,
 
 	if (unlikely(!pipeline_fused_l2_output(&pkt)))
 		return NULL;
-
-	if (unlikely(ifp->vlan_modify))
-		if (unlikely(!vlan_modify_egress(ifp, m)))
-			return NULL;
 
 	if (unlikely(ifp->portmonitor))
 		portmonitor_src_vif_tx_output(ifp, m);
