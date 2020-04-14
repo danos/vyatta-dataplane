@@ -4070,7 +4070,7 @@ int cmd_ifconfig(FILE *f, int argc, char **argv)
 	return 0;
 }
 
-static struct rte_mbuf *
+ALWAYS_INLINE static struct rte_mbuf *
 if_output_features(struct ifnet *input_ifp, struct ifnet *ifp,
 		   struct rte_mbuf **m)
 {
