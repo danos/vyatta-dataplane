@@ -213,6 +213,29 @@ ipv4_frag_process(struct cds_lfht *frag_tables, struct ipv4_frag_pkt *fp,
 				mb = NULL;
 				goto done;
 			}
+
+			if (fp->frags[i].ofs < ofs &&
+			    (fp->frags[i].ofs + fp->frags[i].len) > ofs) {
+				/*
+				 * We already have a fragment that includes
+				 * the start byte of this one.
+				 */
+				rte_pktmbuf_free(mb);
+				mb = NULL;
+				goto done;
+			}
+
+			if (fp->frags[i].ofs < (ofs + len) &&
+			    (fp->frags[i].ofs + fp->frags[i].len) >
+			    (ofs + len)) {
+				/*
+				 * We already have a fragment that includes
+				 * the end byte of this one.
+				 */
+				rte_pktmbuf_free(mb);
+				mb = NULL;
+				goto done;
+			}
 		}
 
 		if (idx < ARRAY_SIZE(fp->frags))
