@@ -4069,15 +4069,6 @@ int cmd_ifconfig(FILE *f, int argc, char **argv)
 	return 0;
 }
 
-ALWAYS_INLINE static struct rte_mbuf *
-if_output_features(struct pl_packet *pkt)
-{
-	if (unlikely(!pipeline_fused_l2_output(pkt)))
-		return NULL;
-
-	return pkt->mbuf;
-}
-
 /*
  * Transmit one packet
  *
@@ -4106,7 +4097,7 @@ void if_output_internal(struct pl_packet *pkt)
 	if (ifp->if_type == IFT_L2VLAN) {
 		if_add_vlan(ifp, &pkt->mbuf);
 
-		if (!if_output_features(pkt))
+		if (!pipeline_fused_l2_output(pkt))
 			goto out;
 
 		ifp = ifp->if_parent;
@@ -4114,14 +4105,14 @@ void if_output_internal(struct pl_packet *pkt)
 
 		/* for the case where original ifp was for QinQ */
 		if (ifp->if_type == IFT_L2VLAN) {
-			if (!if_output_features(pkt))
+			if (!pipeline_fused_l2_output(pkt))
 				goto out;
 			ifp = ifp->if_parent;
 			pkt->out_ifp = ifp;
 		}
 	}
 
-	if (!if_output_features(pkt))
+	if (!pipeline_fused_l2_output(pkt))
 		goto out;
 
 	if (likely(ifp->if_type == IFT_ETHER))
