@@ -269,10 +269,13 @@ ipv6_frag_process(struct cds_lfht *frag_table, struct ipv6_frag_pkt *fp,
 		/*
 		 * First fragment
 		 */
-		if (fp->frags[FIRST_FRAG_IDX].mb == NULL)
+		if (fp->frags[FIRST_FRAG_IDX].mb == NULL) {
 			idx = FIRST_FRAG_IDX;
-		else
+		} else {
+			rte_pktmbuf_free(m);
+			m = NULL;
 			goto done;
+		}
 		/*
 		 * 'fp->frag_size' is the accumulated number of bytes
 		 * that will comprise the reassembled packet.
@@ -308,6 +311,7 @@ ipv6_frag_process(struct cds_lfht *frag_table, struct ipv6_frag_pkt *fp,
 		 */
 		idx = fp->last_idx;
 		if (fp->frags[fp->last_idx - 1].ofs == npc->fh_offset) {
+			rte_pktmbuf_free(m);
 			m = NULL;
 			goto done;
 		}
