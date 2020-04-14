@@ -372,6 +372,18 @@ DP_START_TEST(defrag5, test)
 			"aa:bb:cc:dd:2:b1", 0, "dp2T1",
 			DP_TEST_FWD_FORWARDED, 1);
 
+	defrag_duplicate("dp1T0", "aa:bb:cc:dd:1:a1", 0,
+			"100.64.0.1", 49152, "1.1.1.1", 80,
+			"100.64.0.1", 49152, "1.1.1.1", 80,
+			"aa:bb:cc:dd:2:b1", 0, "dp2T1",
+			DP_TEST_FWD_FORWARDED, 2);
+
+	defrag_duplicate("dp1T0", "aa:bb:cc:dd:1:a1", 0,
+			"100.64.0.1", 49152, "1.1.1.1", 80,
+			"100.64.0.1", 49152, "1.1.1.1", 80,
+			"aa:bb:cc:dd:2:b1", 0, "dp2T1",
+			DP_TEST_FWD_FORWARDED, 3);
+
 	/* Cleanup */
 	dp_test_npf_fw_del(&fw, false);
 
@@ -730,6 +742,7 @@ _defrag_duplicate(const char *rx_intf, const char *pre_smac, int pre_vlan,
 		.rx_intf    = rx_intf,
 		.tx_intf    = tx_intf
 	};
+	enum dp_test_fwd_result_e fwd_status = DP_TEST_FWD_DROPPED;
 
 	/* Fragment UDP test pak */
 	struct rte_mbuf *frag_pkts1[4] =  { 0 };
@@ -737,37 +750,33 @@ _defrag_duplicate(const char *rx_intf, const char *pre_smac, int pre_vlan,
 
 	defrag_create_frags(&pkt_UDP, frag_pkts1, frag_sizes1, 4);
 
-	_defrag_send_frag(frag_pkts1[3], &pkt_UDP, DP_TEST_FWD_DROPPED,
-			file, func, line);
+	/* Array indices to get an in order packet are: 3,0,1,2 */
 
-	if (duplicate_index == 3) {
-		/* 1st UDP fragment */
-		_defrag_send_frag(frag_pkts1[3], &pkt_UDP, DP_TEST_FWD_DROPPED,
-				file, func, line);
-	}
+	/* Send the duplicate first */
+	_defrag_send_frag(frag_pkts1[duplicate_index],
+			  &pkt_UDP, fwd_status,
+			  file, func, line);
+
+	/* First packet - start of packet */
+	_defrag_send_frag(frag_pkts1[3], &pkt_UDP, fwd_status,
+			  file, func, line);
 
 	/* 2nd UDP fragment */
-	_defrag_send_frag(frag_pkts1[0], &pkt_UDP, DP_TEST_FWD_DROPPED,
-				file, func, line);
-
-	if (duplicate_index == 0) {
-		/* 2nd UDP fragment */
-		_defrag_send_frag(frag_pkts1[0], &pkt_UDP, DP_TEST_FWD_DROPPED,
-				file, func, line);
-	}
+	_defrag_send_frag(frag_pkts1[0], &pkt_UDP, fwd_status,
+			  file, func, line);
 
 	/* 3rd UDP fragment */
-	_defrag_send_frag(frag_pkts1[1], &pkt_UDP, DP_TEST_FWD_DROPPED,
-				file, func, line);
-
-	if (duplicate_index == 1) {
-		/* 3rd UDP fragment */
-		_defrag_send_frag(frag_pkts1[1], &pkt_UDP, DP_TEST_FWD_DROPPED,
-				file, func, line);
-	}
+	if (duplicate_index == 2)
+		fwd_status = DP_TEST_FWD_FORWARDED;
+	_defrag_send_frag(frag_pkts1[1], &pkt_UDP, fwd_status,
+			  file, func, line);
 
 	/* Last UDP fragment */
-	_defrag_send_frag(frag_pkts1[2], &pkt_UDP, DP_TEST_FWD_FORWARDED,
+	if (duplicate_index == 2)
+		fwd_status = DP_TEST_FWD_DROPPED;
+	else
+		fwd_status = DP_TEST_FWD_FORWARDED;
+	_defrag_send_frag(frag_pkts1[2], &pkt_UDP, fwd_status,
 			file, func, line);
 }
 
