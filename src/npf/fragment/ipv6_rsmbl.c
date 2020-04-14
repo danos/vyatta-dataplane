@@ -321,6 +321,32 @@ ipv6_frag_process(struct cds_lfht *frag_table, struct ipv6_frag_pkt *fp,
 				m = NULL;
 				goto done;
 			}
+
+			if (fp->frags[i].ofs < npc->fh_offset &&
+			    (fp->frags[i].ofs + fp->frags[i].len) >
+			    npc->fh_offset) {
+				/*
+				 * We already have a fragment that includes
+				 * the start byte of this one.
+				 */
+				rte_pktmbuf_free(m);
+				m = NULL;
+				goto done;
+			}
+
+			if (fp->frags[i].ofs <
+			    (npc->fh_offset + (plen - extra_hlen)) &&
+			    (fp->frags[i].ofs + fp->frags[i].len) >
+			    (npc->fh_offset + (plen - extra_hlen))) {
+				/*
+				 * We already have a fragment that includes
+				 * the end byte of this one.
+				 */
+				rte_pktmbuf_free(m);
+				m = NULL;
+				goto done;
+			}
+
 		}
 		if (idx < IPV6_MAX_FRAGS_PER_SET)
 			fp->last_idx++;
