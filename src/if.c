@@ -4087,7 +4087,7 @@ int cmd_ifconfig(FILE *f, int argc, char **argv)
  * The proto passed in is the link-layer protocol used for
  * point-to-point interfaces.
  */
-ALWAYS_INLINE static __rte_cache_aligned
+ALWAYS_INLINE __rte_cache_aligned
 void if_output_internal(struct pl_packet *pkt)
 {
 	uint16_t rx_vlan = pktmbuf_get_rxvlanid(pkt->mbuf);

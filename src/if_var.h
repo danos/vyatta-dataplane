@@ -1108,6 +1108,8 @@ if_is_hwport(struct ifnet *ifp)
 void if_output(struct ifnet *ifp, struct rte_mbuf *m,
 	       struct ifnet *input_ifp, uint16_t proto);
 
+void if_output_internal(struct pl_packet *pkt);
+
 int if_allocate_feature_space(struct ifnet *ifp,
 			      enum pl_feature_point_id feat_point);
 int
