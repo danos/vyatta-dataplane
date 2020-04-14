@@ -114,6 +114,7 @@ enum pl_l3_v6_l4_fused_feat {
 enum pl_l2_output_fused_feat {
 	PL_L2_OUTPUT_FUSED_FEAT_VLAN_MOD_EGRESS = 1,
 	PL_L2_OUTPUT_FUSED_FEAT_PORTMONITOR_OUT,
+	PL_L2_OUTPUT_FUSED_FEAT_CAPTURE_OUT,
 };
 
 #endif /* PL_FUSED_H */

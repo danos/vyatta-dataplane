@@ -712,16 +712,20 @@ static void *capture_thread(void *arg)
 	else
 		ifp->capturing = 1;
 
-	if (ifp->capturing && capture_if_use_common_cap_points(ifp))
+	if (ifp->capturing && capture_if_use_common_cap_points(ifp)) {
 		pl_node_add_feature_by_inst(&capture_ether_in_feat, ifp);
+		pl_node_add_feature_by_inst(&capture_l2_output_feat, ifp);
+	}
 
 	RTE_LOG(INFO, DATAPLANE, "%sCapture started on %s\n",
 		ifp->hw_capturing ? "Hardware " : "", ifp->if_name);
 
 	capture_loop(ifp);
 
-	if (ifp->capturing && capture_if_use_common_cap_points(ifp))
+	if (ifp->capturing && capture_if_use_common_cap_points(ifp)) {
 		pl_node_remove_feature_by_inst(&capture_ether_in_feat, ifp);
+		pl_node_remove_feature_by_inst(&capture_l2_output_feat, ifp);
+	}
 
 	capture_hw_stop(ifp, cap_info);
 	ifp->hw_capturing = 0;
