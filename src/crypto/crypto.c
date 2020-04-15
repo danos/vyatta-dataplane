@@ -484,6 +484,7 @@ static void crypto_process_decrypt_packet(struct crypto_pkt_ctx *cctx,
 			if (unlikely(vti_ifp->capturing))
 				capture_burst(vti_ifp, &m, 1);
 			cctx->action = CRYPTO_ACT_VTI_INPUT;
+			if_incr_in(vti_ifp, m);
 		} else {
 			struct ifnet *feat_attach_ifp =
 				rcu_dereference(sa->feat_attach_ifp);
@@ -532,9 +533,9 @@ static void crypto_process_decrypt_packet(struct crypto_pkt_ctx *cctx,
 					ntohs(ethhdr(m)->ether_type),
 					TUN_META_FLAGS_DEFAULT);
 			}
+			if (feat_attach_ifp)
+				if_incr_in(feat_attach_ifp, m);
 		}
-		if (cctx->in_ifp)
-			if_incr_in(cctx->in_ifp, m);
 	}
 }
 
@@ -1003,7 +1004,7 @@ sadb_lookup_sa(struct rte_mbuf *m __unused, enum crypto_xfrm xfrm,
 		IPSEC_CNT_INC(NO_OUT_SA);
 		err_ifp = ((xfrm == CRYPTO_ENCRYPT) ? ctx->nxt_ifp :
 			   crypto_ctx_to_in_ifp(ctx, ctx->mbuf));
-		if (err_ifp)
+		if (err_ifp && is_vti(err_ifp))
 			if_incr_oerror(err_ifp);
 		return NULL;
 	}
