@@ -2548,12 +2548,22 @@ void crypto_show_cache(FILE *f, const char *str)
 	jsonw_destroy(&wr);
 }
 
-static int crypto_npf_rte_acl_match(int af __rte_unused,
-				    npf_match_ctx_t *ctx __rte_unused,
-				    npf_cache_t *npc __rte_unused,
-				    struct npf_match_cb_data *data __rte_unused,
-				    npf_rule_t **rl __rte_unused)
+static int crypto_npf_rte_acl_match(int af, npf_match_ctx_t *ctx,
+				    npf_cache_t *npc,
+				    struct npf_match_cb_data *data,
+				    npf_rule_t **rl)
 {
+	int ret;
+	uint32_t rule_no;
+
+	ret = npf_rte_acl_match(af, ctx, npc, data, &rule_no);
+	if (!ret)
+		return ret;
+
+	*rl = npf_rule_group_find_rule(data->rg, rule_no);
+	if (!*rl)
+		return 0;
+
 	return 1;
 }
 
