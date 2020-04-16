@@ -1453,7 +1453,7 @@ void bridge_input(struct bridge_port *port, struct rte_mbuf *m)
 		capture_burst(brif, &m, 1);
 
 	/* bogon filter */
-	if (!is_valid_assigned_ether_addr(&eh->s_addr))
+	if (!rte_is_valid_assigned_ether_addr(&eh->s_addr))
 		goto errorpath;
 
 	/* bridge must be up */
@@ -1523,14 +1523,14 @@ void bridge_input(struct bridge_port *port, struct rte_mbuf *m)
 	bool mcast = false;
 
 	/* Check for multicast and broadcast pkts *after* firewall. */
-	if (unlikely(is_multicast_ether_addr(&eh->d_addr))) {
+	if (unlikely(rte_is_multicast_ether_addr(&eh->d_addr))) {
 		struct rte_mbuf *m_local = pktmbuf_copy(m, m->pool);
 
 		if (!m_local)
 			goto errorpath;
 		mcast = true;
 		ifstat->ifi_imulticast++;
-		if (is_broadcast_ether_addr(&eh->d_addr))
+		if (rte_is_broadcast_ether_addr(&eh->d_addr))
 			pkt_mbuf_set_l2_traffic_type(m_local,
 						     L2_PKT_BROADCAST);
 		else

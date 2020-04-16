@@ -324,7 +324,7 @@ void parse_config(void)
 			fprintf(stderr, "Dataplane IP deprecated\n");
 			exit(EXIT_FAILURE);
 		}
-		if (is_zero_ether_addr(&config.uplink_addr)) {
+		if (rte_is_zero_ether_addr(&config.uplink_addr)) {
 			fprintf(stderr, "Uplink Mac address not configured\n");
 			exit(EXIT_FAILURE);
 		}

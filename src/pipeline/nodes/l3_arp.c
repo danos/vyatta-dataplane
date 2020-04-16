@@ -240,7 +240,7 @@ arp_in_nothot_process(struct pl_packet *pkt, void *context __unused)
 	memcpy(&isaddr, ah->arp_spa, sizeof(isaddr));
 	memcpy(&itaddr, ah->arp_tpa, sizeof(itaddr));
 
-	if (unlikely(is_multicast_ether_addr(&eh->d_addr))) {
+	if (unlikely(rte_is_multicast_ether_addr(&eh->d_addr))) {
 		struct sockaddr sock_storage;
 		struct sockaddr_in *ip_storage =
 			(struct sockaddr_in *) &sock_storage;

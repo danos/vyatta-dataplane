@@ -126,13 +126,13 @@ ether_lookup_process_common(struct pl_packet *pkt, void *context __unused,
 	}
 
 	eth = ethhdr(m);
-	if (unlikely(is_multicast_ether_addr(&eth->d_addr))) {
+	if (unlikely(rte_is_multicast_ether_addr(&eth->d_addr))) {
 		ifstat = &ifp->if_data[dp_lcore_id()];
 		ifstat->ifi_imulticast++;
 
 		macvlan_flood(ifp, m);
 
-		if (is_broadcast_ether_addr(&eth->d_addr)) {
+		if (rte_is_broadcast_ether_addr(&eth->d_addr)) {
 			pkt->l2_pkt_type = L2_PKT_BROADCAST;
 			pkt_mbuf_set_l2_traffic_type(pkt->mbuf,
 						     L2_PKT_BROADCAST);

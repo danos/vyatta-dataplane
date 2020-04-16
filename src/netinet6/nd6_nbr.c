@@ -725,7 +725,7 @@ nd6_ns_input(struct ifnet *ifp, struct rte_mbuf *m, unsigned int off,
 	if (ndopts.nd_opts_src_lladdr) {
 		lladdr = (const struct rte_ether_addr *)
 			(ndopts.nd_opts_src_lladdr + 1);
-		if (!is_valid_assigned_ether_addr(lladdr)) {
+		if (!rte_is_valid_assigned_ether_addr(lladdr)) {
 			char buf[ETH_ADDR_STR_LEN];
 			ND6_DEBUG("Bad MAC %s\n",
 				  ether_ntoa_r(lladdr, buf));
@@ -882,7 +882,7 @@ nd6_na_input(struct ifnet *ifp, struct rte_mbuf *m,
 		lladdr = (const struct rte_ether_addr *)
 			(ndopts.nd_opts_tgt_lladdr + 1);
 		lladdrlen = ndopts.nd_opts_tgt_lladdr->nd_opt_len << 3;
-		if (!is_valid_assigned_ether_addr(lladdr)) {
+		if (!rte_is_valid_assigned_ether_addr(lladdr)) {
 			char buf[ETH_ADDR_STR_LEN];
 
 			ND6_DEBUG("Bad MAC %s\n",

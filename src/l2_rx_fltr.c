@@ -342,7 +342,7 @@ void l2_rx_fltr_add_addr(struct ifnet *ifp, const struct rte_ether_addr *dst)
 	if (ifp->unplugged)
 		return;
 
-	if (is_multicast_ether_addr(dst)) {
+	if (rte_is_multicast_ether_addr(dst)) {
 		l2_mcfltr_add_entry(ifp, dst);
 		/* If adding to a vlan also add to parent (real IF) */
 		if (ifp->if_parent)
@@ -383,7 +383,7 @@ void l2_rx_fltr_del_addr(struct ifnet *ifp, const struct rte_ether_addr *dst)
 	if (ifp->unplugged)
 		return;
 
-	if (is_multicast_ether_addr(dst)) {
+	if (rte_is_multicast_ether_addr(dst)) {
 		/* If deleting from a bonded IF delete from slaves (phys IF) */
 		if (ifp->if_team) {
 			int err;

@@ -353,12 +353,13 @@ bool arp_input_validate(const struct ifnet *ifp, struct rte_mbuf *m)
 		goto drop;
 	}
 
-	if (is_multicast_ether_addr((struct rte_ether_addr *) ah->arp_sha)) {
+	if (rte_is_multicast_ether_addr(
+				(struct rte_ether_addr *) ah->arp_sha)) {
 		ARP_DEBUG("source hardware addresss is multicast.\n");
 		goto drop;
 	}
 
-	if (is_zero_ether_addr((struct rte_ether_addr *) ah->arp_sha)) {
+	if (rte_is_zero_ether_addr((struct rte_ether_addr *) ah->arp_sha)) {
 		ARP_DEBUG("source hardware address is invalid.\n");
 		goto drop;
 	}
@@ -388,7 +389,7 @@ bool arp_input_validate(const struct ifnet *ifp, struct rte_mbuf *m)
 		goto drop;	/* it's from me, ignore it. */
 	}
 
-	if (is_broadcast_ether_addr((struct rte_ether_addr *)ah->arp_sha)) {
+	if (rte_is_broadcast_ether_addr((struct rte_ether_addr *)ah->arp_sha)) {
 		ARP_DEBUG("link address is broadcast for IP address %s!\n",
 			  inet_ntop(AF_INET, ah->arp_spa,
 				    addrb, sizeof(addrb)));

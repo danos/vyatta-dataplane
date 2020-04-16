@@ -1153,7 +1153,7 @@ vxlan_output(struct ifnet *ifp, struct rte_mbuf *m, uint16_t proto)
 	     eh->ether_type != htons(ETH_P_IPV6))) {
 		nxtproto = (vxl_type == VXLAN_L2) ?
 			VGPE_NXT_NONE : VGPE_NXT_ETHER;
-		is_multicast = is_multicast_ether_addr(&eh->d_addr);
+		is_multicast = rte_is_multicast_ether_addr(&eh->d_addr);
 		vxlrt = vxlan_rtnode_lookup(sc, &eh->d_addr);
 		if (vxlrt) {
 			if (vxlrt->vxlrt_flags & IFBAF_ADDR_V4) {

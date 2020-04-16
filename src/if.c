@@ -1571,7 +1571,7 @@ if_hwport_init(const char *if_name, unsigned int portid,
 	struct ifnet *ifp;
 
 	/* device driver couldn't find MAC address */
-	if (is_zero_ether_addr(eth)) {
+	if (rte_is_zero_ether_addr(eth)) {
 		RTE_LOG(NOTICE, DATAPLANE,
 			"%s port %u: address not set!\n", if_name, portid);
 		return NULL;
@@ -2649,7 +2649,7 @@ bool if_port_is_uplink(portid_t portid)
 	struct rte_ether_addr mac_addr;
 
 	rte_eth_macaddr_get(portid, &mac_addr);
-	return is_same_ether_addr(&mac_addr, &config.uplink_addr);
+	return rte_is_same_ether_addr(&mac_addr, &config.uplink_addr);
 }
 
 /* Backplane ports connect switch to CPU
@@ -3586,7 +3586,7 @@ if_fal_create_l3_intf(struct ifnet *ifp)
 		l3_attrs[l3_nattrs].value.u16 = ifp->if_mtu;
 		l3_nattrs++;
 	}
-	if (!is_zero_ether_addr(&ifp->eth_addr)) {
+	if (!rte_is_zero_ether_addr(&ifp->eth_addr)) {
 		l3_attrs[l3_nattrs].id =
 			FAL_ROUTER_INTERFACE_ATTR_SRC_MAC_ADDRESS;
 		memcpy(&l3_attrs[l3_nattrs].value.mac, &ifp->eth_addr,
@@ -4003,7 +4003,7 @@ static void ifconfig(struct ifnet *ifp, void *arg)
 	jsonw_uint_field(wr, "dp_id", 0);
 	jsonw_string_field(wr, "ether",
 			   ether_ntoa_r(&ifp->eth_addr, ebuf));
-	if (!is_zero_ether_addr(&ifp->perm_addr))
+	if (!rte_is_zero_ether_addr(&ifp->perm_addr))
 		jsonw_string_field(wr, "perm_addr",
 				   ether_ntoa_r(&ifp->perm_addr, ebuf));
 
