@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -2230,8 +2230,10 @@ npf_addrgrp_get_optimal(zlist_t *list, struct cidr_tree *cidr, int alen)
 	for (ae = zlist_first(list); ae != NULL; ae = zlist_next(list)) {
 
 		if (ae->ae_type == NPF_ADDRGRP_TYPE_PREFIX) {
+			uint8_t mask = ag_ptree_mask(ae->ae_af, ae->ap_mask[0]);
+
 			reverse_addr(a1, ap_prefix(ae), alen);
-			npf_cidr_save_prefix(cidr, a1, ae->ap_mask[0]);
+			npf_cidr_save_prefix(cidr, a1, mask);
 		} else {
 			if (zlist_size(ae->ar_list) > 0)
 				npf_addrgrp_get_optimal(ae->ar_list, cidr,
