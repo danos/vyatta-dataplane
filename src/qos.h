@@ -152,7 +152,7 @@ struct subport_info {
 	struct rte_sched_subport_stats64 clear_stats; /* Counts at last clear */
 	uint32_t qsize[RTE_SCHED_TRAFFIC_CLASSES_PER_PIPE];
 	struct qos_red_params red_params[RTE_SCHED_TRAFFIC_CLASSES_PER_PIPE]
-					[e_RTE_METER_COLORS];
+					[RTE_COLORS];
 	bool pipe_configured[MAX_PIPES];
 	struct qos_mark_map *mark_map;
 };

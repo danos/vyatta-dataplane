@@ -3063,7 +3063,7 @@ static int cmd_qos_match(struct ifnet *ifp, int argc, char **argv)
 }
 
 /* configure RED parameters */
-static int cmd_qos_red(struct qos_red_params red_params[][e_RTE_METER_COLORS],
+static int cmd_qos_red(struct qos_red_params red_params[][RTE_COLORS],
 		       unsigned int tc, int argc, char *argv[])
 {
 	unsigned int value, color;
@@ -3086,7 +3086,7 @@ static int cmd_qos_red(struct qos_red_params red_params[][e_RTE_METER_COLORS],
 	if (get_unsigned(argv[1], &color) < 0)
 		return -2;
 
-	if (color >= e_RTE_METER_COLORS)
+	if (color >= RTE_COLORS)
 		return -3;
 
 	if (get_unsigned(argv[2], &value) < 0)

@@ -2066,7 +2066,7 @@ qos_hw_new_pipe(uint32_t pipe_id, fal_object_t subport_sched_obj,
 					    &wrr_weight[0],
 					    &designators[0],
 					    &sinfo->red_params[tc_id]
-					    [e_RTE_METER_GREEN],
+					    [RTE_COLOR_GREEN],
 					    &q_wred_info[0], ids, overhead);
 		}
 	}

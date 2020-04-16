@@ -854,7 +854,7 @@ int del_mfc(vrfid_t vrf_id, struct vmfcctl *mfccp)
  */
 static bool ip_punt_rate_limit(struct mfc *rt)
 {
-	enum rte_meter_color color;
+	enum rte_color color;
 
 #ifdef PUNT_RATE_LIMIT_DEBUG
 	char oa[INET_ADDRSTRLEN];
@@ -867,7 +867,7 @@ static bool ip_punt_rate_limit(struct mfc *rt)
 						   &mfc_meter_profile,
 						   rte_rdtsc(),
 						   PUNT_1PKT);
-	if (color == e_RTE_METER_GREEN) {
+	if (color == RTE_COLOR_GREEN) {
 		rt->mfc_punted++;
 
 #ifdef PUNT_RATE_LIMIT_DEBUG
@@ -876,7 +876,7 @@ static bool ip_punt_rate_limit(struct mfc *rt)
 			(uint)rt->mfc_punts_dropped);
 #endif
 		return false;
-	} else if (color == e_RTE_METER_YELLOW) {
+	} else if (color == RTE_COLOR_YELLOW) {
 		rt->mfc_punted++;
 
 #ifdef PUNT_RATE_LIMIT_DEBUG

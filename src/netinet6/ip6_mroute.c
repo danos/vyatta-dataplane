@@ -850,13 +850,13 @@ int del_m6fc(vrfid_t vrf_id, struct vmf6cctl *mfccp)
  */
 static bool ip6_punt_rate_limit(struct mf6c *rt)
 {
-	enum rte_meter_color color;
+	enum rte_color color;
 
 	color = rte_meter_srtcm_color_blind_check(&rt->meter,
 						   &mfc_meter_profile,
 						   rte_rdtsc(),
 						   PUNT_1PKT);
-	if (color != e_RTE_METER_RED) {
+	if (color != RTE_COLOR_RED) {
 		rt->mf6c_punted++;
 		return false;
 	} else {

@@ -335,13 +335,13 @@ static uint32_t qos_sched_subport_qsize(struct qos_port_params *pp,
 }
 
 static void qos_copy_red_params(struct rte_red_params
-						dpdk[][e_RTE_METER_COLORS],
+						dpdk[][RTE_COLORS],
 				struct subport_info *sinfo)
 {
 	int i, j;
 
 	for (i = 0; i < RTE_SCHED_TRAFFIC_CLASSES_PER_PIPE; i++) {
-		for (j = 0; j < e_RTE_METER_COLORS; j++) {
+		for (j = 0; j < RTE_COLORS; j++) {
 			dpdk[i][j].min_th =
 				(uint16_t)sinfo->red_params[i][j].min_th;
 			dpdk[i][j].max_th =
@@ -507,7 +507,7 @@ int qos_dpdk_start(struct ifnet *ifp, struct sched_info *qinfo,
 		uint16_t qsize[RTE_SCHED_TRAFFIC_CLASSES_PER_PIPE];
 		struct rte_red_params
 			dpdk_red_params[RTE_SCHED_TRAFFIC_CLASSES_PER_PIPE]
-				       [e_RTE_METER_COLORS];
+				       [RTE_COLORS];
 		int i;
 
 		for (i = 0; i < RTE_SCHED_TRAFFIC_CLASSES_PER_PIPE; i++)
@@ -666,7 +666,7 @@ int qos_npf_classify(struct ifnet *ifp, const struct sched_info *qinfo,
 
 	rte_sched_port_pkt_write_v2(*m, subport, pipe,
 				 qmap_to_tc(q), qmap_to_wrr(q),
-				 e_RTE_METER_GREEN, dscp);
+				 RTE_COLOR_GREEN, dscp);
 	return result.decision;
 }
 
