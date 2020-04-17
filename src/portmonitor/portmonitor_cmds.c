@@ -72,7 +72,19 @@ portmonitor_event_if_index_set(struct ifnet *ifp)
 		"Replaying portmonitor %s for interface %s\n",
 		le->le_buf, ifp->if_name);
 
-	cmd_portmonitor(NULL, le->le_argc, le->le_argv);
+	char *outbuf = NULL;
+	size_t outsize = 0;
+	FILE *f = open_memstream(&outbuf, &outsize);
+
+	if (f == NULL)
+		RTE_LOG(ERR, DATAPLANE, "PM: open_memstream() failed\n");
+	else {
+		if (cmd_portmonitor(f, le->le_argc, le->le_argv) < 0)
+			RTE_LOG(ERR, DATAPLANE,
+				"PM: replay failed: %s\n", outbuf);
+		free(outbuf);
+	}
+
 	cfg_if_list_del(portmonitor_cfg_list, ifp->if_name);
 
 	if (!portmonitor_cfg_list->if_list_count) {
