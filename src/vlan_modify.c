@@ -134,10 +134,10 @@ vlan_mod_flt_log_action(struct vlan_mod_ft_cls_action *action)
 		vlan_mod_flt_log_act_vlan(&action->data.vlan);
 		break;
 	case VLAN_MOD_FILTER_CLS_ACTION_MIRRED:
-		RTE_LOG(NOTICE, DATAPLANE, "Act_mirred:\n");
+		RTE_LOG(DEBUG, DATAPLANE, "Act_mirred:\n");
 		break;
 	default:
-		RTE_LOG(NOTICE, DATAPLANE, "Act_unknown:\n");
+		RTE_LOG(DEBUG, DATAPLANE, "Act_unknown:\n");
 	}
 }
 
@@ -644,7 +644,6 @@ vlan_mod_flt_lookup_chain(struct vlan_mod_tc_filter_key *key,
 {
 	struct vlan_mod_chain_list_entry *entry;
 	struct vlan_mod_tc_filter_key s_key;
-	char key_string[VLAN_MOD_FLT_KEY_STR_LEN + 1];
 
 	/* The chain list is search with a less specific key
 	 * than the filter has, so copy the key, and mask out
@@ -679,9 +678,6 @@ vlan_mod_flt_lookup_chain(struct vlan_mod_tc_filter_key *key,
 	 */
 	vlan_mod_flt_head_init(&entry->filter_head);
 	entry->key = s_key;
-
-	RTE_LOG(INFO, DATAPLANE, "vlan_mod: new chain entry: %s\n",
-		vlan_mod_flt_key_str(key_string, &entry->key));
 
 	filter_chain_head->list_count++;
 
