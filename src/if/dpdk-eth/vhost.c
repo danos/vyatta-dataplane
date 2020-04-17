@@ -594,8 +594,9 @@ static int vhost_replay_init(void)
 		vhost_cfg_list = cfg_if_list_create();
 		if (!vhost_cfg_list)
 			return -ENOMEM;
+
+		dp_event_register(&vhost_event_ops);
 	}
-	dp_event_register(&vhost_event_ops);
 	return 0;
 }
 

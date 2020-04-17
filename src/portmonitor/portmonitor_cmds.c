@@ -100,8 +100,9 @@ static int portmonitor_replay_init(void)
 		portmonitor_cfg_list = cfg_if_list_create();
 		if (!portmonitor_cfg_list)
 			return -ENOMEM;
+
+		dp_event_register(&portmonitor_event_ops);
 	}
-	dp_event_register(&portmonitor_event_ops);
 	return 0;
 }
 
