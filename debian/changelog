@@ -1,3 +1,16 @@
+vyatta-dataplane (3.9.107) unstable; urgency=medium
+
+  [ Ian Wilson ]
+  * npf: Optimal address-group show output including host addresses
+
+  [ Robert Shearman ]
+  * pipeline: use correct ifp for egress vlan modify feature
+    (Fixes: VRVDR-50708)
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Fri, 17 Apr 2020 11:20:45 +0100
+
 vyatta-dataplane (3.9.106) unstable; urgency=medium
 
   [ Nicholas Brown ]
