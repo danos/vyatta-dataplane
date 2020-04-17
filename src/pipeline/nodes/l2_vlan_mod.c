@@ -102,7 +102,7 @@ vlan_modify_out_check_process(struct pl_packet *pkt, void *context __unused)
 {
 	struct rte_mbuf *ret;
 
-	ret  = vlan_modify_egress(pkt->in_ifp, pkt->mbuf);
+	ret  = vlan_modify_egress(pkt->out_ifp, pkt->mbuf);
 	if (ret) {
 		pkt->mbuf = ret;
 		return VLAN_MOD_OUT_ACCEPT;
