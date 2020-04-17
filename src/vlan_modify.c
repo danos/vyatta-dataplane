@@ -713,30 +713,12 @@ static int vlan_mod_flt_add_entry(struct vlan_mod_tc_filter_key *key,
 			return MNL_CB_ERROR;
 	}
 
-	chain_entry = vlan_mod_flt_lookup_chain(key, true, true);
-
-	if (!chain_entry)
-		return MNL_CB_ERROR;
-
-	list_head = &chain_entry->filter_head;
-
-	old = vlan_mod_flt_lookup_filter(list_head, key);
 	new = vlan_mod_flt_alloc_filter_entry(key);
 	if (!new) {
 		RTE_LOG(ERR, DATAPLANE,
 			"vlan_mod: Failed creating filter entry\n");
 		return MNL_CB_ERROR;
 	}
-
-	/*
-	 * To save looking up the chain head when dealing with an filter
-	 * entry stash it.
-	 */
-	new->parent = chain_entry;
-
-	RTE_LOG(INFO, DATAPLANE, "vlan_mod: %s chain entry: %s\n",
-		old ? "update" : "new",
-		vlan_mod_flt_key_str(key_string, &new->key));
 
 	if (vlan_mod_flt_extr_base_attr(new, tcm, tb) != MNL_CB_OK) {
 		RTE_LOG(INFO, DATAPLANE,
@@ -755,6 +737,25 @@ static int vlan_mod_flt_add_entry(struct vlan_mod_tc_filter_key *key,
 		free(new);
 		return MNL_CB_ERROR;
 	}
+
+	chain_entry = vlan_mod_flt_lookup_chain(key, true, true);
+
+	if (!chain_entry)
+		return MNL_CB_ERROR;
+
+	list_head = &chain_entry->filter_head;
+
+	/*
+	 * To save looking up the chain head when dealing with an filter
+	 * entry stash it.
+	 */
+	new->parent = chain_entry;
+
+	old = vlan_mod_flt_lookup_filter(list_head, key);
+
+	RTE_LOG(INFO, DATAPLANE, "vlan_mod: %s chain entry: %s\n",
+		old ? "update" : "new",
+		vlan_mod_flt_key_str(key_string, &new->key));
 
 	if (old) {
 		if (vlan_mod_flt_get_classify_vlan(old,
