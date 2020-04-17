@@ -263,9 +263,12 @@ static int sip_session_nat_media(npf_session_t *se, npf_cache_t *npc,
 	uint32_t alg_flags;
 	int rc;
 
+	parent = apt_tuple_get_active_session(nt);
+	if (!parent)
+		return -ENOENT;
+
 	td = apt_tuple_get_client_data(nt);
 	alg_flags = apt_tuple_get_client_flags(nt);
-	parent = apt_tuple_get_session(nt);
 
 	/*
 	 * Create the nat(s).  In SIP's case we always allocate a nat
@@ -521,12 +524,9 @@ static int sip_alg_session_init(npf_session_t *se, npf_cache_t *npc,
 	uint32_t alg_flags;
 	int rc = 0;
 
-
 	/* Transfer alg_flags from tuple to child session */
 	alg_flags = apt_tuple_get_client_flags(nt);
 	npf_alg_session_set_flag(se, alg_flags);
-
-	parent = apt_tuple_get_session(nt);
 
 	switch (alg_flags & SIP_ALG_MASK) {
 	case SIP_ALG_CNTL_FLOW:
@@ -535,6 +535,12 @@ static int sip_alg_session_init(npf_session_t *se, npf_cache_t *npc,
 		break;
 
 	case SIP_ALG_ALT_CNTL_FLOW:
+		parent = apt_tuple_get_active_session(nt);
+		if (!parent) {
+			rc = -ENOENT;
+			break;
+		}
+
 		npf_alg_session_set_inspect(se, true);
 		npf_alg_session_set_flag(se, SIP_ALG_REVERSE);
 		rc = sip_session_nat_alt_cntl(se, npc, di, nt, parent);
@@ -544,6 +550,12 @@ static int sip_alg_session_init(npf_session_t *se, npf_cache_t *npc,
 		break;
 
 	case SIP_ALG_RTP_FLOW:
+		parent = apt_tuple_get_active_session(nt);
+		if (!parent) {
+			rc = -ENOENT;
+			break;
+		}
+
 		rc = sip_session_nat_media(se, npc, di, nt);
 		if (!rc) {
 			struct sip_tuple_data *td;
@@ -556,6 +568,12 @@ static int sip_alg_session_init(npf_session_t *se, npf_cache_t *npc,
 		break;
 
 	case SIP_ALG_RTCP_FLOW:
+		parent = apt_tuple_get_active_session(nt);
+		if (!parent) {
+			rc = -ENOENT;
+			break;
+		}
+
 		rc = sip_session_nat_media(se, npc, di, nt);
 		if (!rc)
 			npf_session_link_child(parent, se);

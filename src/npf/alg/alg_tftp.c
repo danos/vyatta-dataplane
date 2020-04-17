@@ -294,7 +294,12 @@ static int tftp_alg_session_init(npf_session_t *se, npf_cache_t *npc,
 
 	case APT_MATCH_ANY_SPORT:
 		/* Child flow */
-		parent = apt_tuple_get_session(nt);
+		parent = apt_tuple_get_active_session(nt);
+		if (!parent) {
+			rc = -ENOENT;
+			break;
+		}
+
 		rc = tftp_create_nat(se, npf_alg_parent_nat(parent),
 				     npc, di, nt);
 		if (!rc)

@@ -528,7 +528,11 @@ static int rpc_alg_session_init(npf_session_t *se, npf_cache_t *npc __unused,
 
 	case APT_MATCH_ANY_SPORT:
 		/* Child flow */
-		parent = apt_tuple_get_session(nt);
+		parent = apt_tuple_get_active_session(nt);
+		if (!parent) {
+			rc = -ENOENT;
+			break;
+		}
 
 		/* Transfer alg_flags from tuple to child session */
 		alg_flags = apt_tuple_get_client_flags(nt);

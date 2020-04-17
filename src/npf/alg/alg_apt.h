@@ -101,6 +101,7 @@ void apt_tuple_set_client_data(struct apt_tuple *at, void *data);
 
 void apt_tuple_set_session(struct apt_tuple *at, void *session);
 void *apt_tuple_get_session(struct apt_tuple *at);
+void *apt_tuple_get_active_session(struct apt_tuple *at);
 void apt_tuple_set_nat(struct apt_tuple *at, void *nat);
 void *apt_tuple_get_nat(struct apt_tuple *at);
 void apt_tuple_set_timeout(struct apt_tuple *at, uint32_t timeout);
