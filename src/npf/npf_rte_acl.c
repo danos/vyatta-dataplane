@@ -540,6 +540,9 @@ int npf_rte_acl_match(int af, npf_match_ctx_t *m_ctx,
 	struct rte_mbuf *m = data->mbuf;
 	uint8_t *nlp;
 
+	if (!m_ctx->num_rules)
+		return 0;
+
 	if (af == AF_INET) {
 		nlp = (uint8_t *)iphdr(m);
 		nlp = RTE_PTR_ADD(nlp, offsetof(struct ip, ip_p));
