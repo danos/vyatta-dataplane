@@ -1697,48 +1697,35 @@ npf_ruleset_inspect(npf_cache_t *npc, struct rte_mbuf *nbuf,
 		 */
 		pd.rg = rg;
 
+		int af;
+		void *match_ctx = NULL;
+
 		if (!npc) {
 			uint16_t et = ethhdr(nbuf)->ether_type;
-			int af;
-			void *match_ctx;
 
 			if (et == htons(ETHER_TYPE_IPv4)) {
 				af = AF_INET;
 				match_ctx = rg->match_ctx_v4;
-			} else {
+			} else if (et == htons(ETHER_TYPE_IPv6)) {
 				af = AF_INET6;
 				match_ctx = rg->match_ctx_v6;
 			}
+		} else if (likely(npf_iscached(npc, NPC_GROUPER))) {
+			if (likely(npf_iscached(npc, NPC_IP4))) {
+				af = AF_INET;
+				match_ctx = rg->match_ctx_v4;
+			} else if (npf_iscached(npc, NPC_IP6)) {
+				af = AF_INET6;
+				match_ctx = rg->match_ctx_v6;
+			}
+		}
 
+		if (match_ctx) {
 			match = npf_match_classify(rs_type, af, match_ctx,
 						   npc, &pd, &rl);
 			if (match)
 				return rl;
 			continue;
-		}
-
-		if (likely(npf_iscached(npc, NPC_GROUPER))) {
-			if (likely(npf_iscached(npc, NPC_IP4))) {
-				if (rg->match_ctx_v4) {
-					match = npf_match_classify(
-						rs_type, AF_INET,
-						rg->match_ctx_v4, npc,
-						&pd, &rl);
-					if (match)
-						return rl;
-					continue;
-				}
-			} else if (npf_iscached(npc, NPC_IP6)) {
-				if (rg->match_ctx_v6) {
-					match = npf_match_classify(
-						rs_type, AF_INET6,
-						rg->match_ctx_v6, npc,
-						&pd, &rl);
-					if (match)
-						return rl;
-					continue;
-				}
-			}
 		}
 
 		/*
