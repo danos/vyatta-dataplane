@@ -19,6 +19,7 @@
 #include "ip_forward.h"
 #include "json_writer.h"
 #include "mpls/mpls.h"
+#include "nh_common.h"
 #include "pd_show.h"
 #include "pktmbuf_internal.h"
 #include "route_flags.h"
@@ -42,20 +43,6 @@ tableid_in_pbr_range(uint32_t tableid)
 {
 	return (tableid > 0 && tableid <= PBR_TABLEID_MAX);
 }
-
-/* Output information associated with a single nexthop */
-struct next_hop {
-	union {
-		struct ifnet *ifp;     /* target interface */
-		struct llentry *lle;   /* lle entry to use when sending */
-	} u;
-	uint32_t      flags;   /* routing flags */
-	union next_hop_outlabels outlabels;
-	union {
-		in_addr_t       gateway4; /* nexthop IPv4 address */
-		struct in6_addr gateway6; /* nexthop IPv6 address */
-	};
-};
 
 /*
  * Nexthop (output information) related APIs
