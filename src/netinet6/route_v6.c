@@ -92,16 +92,8 @@
 
 static struct cds_lfht *nexthop6_hash;
 
-struct nexthop6_table {
-	uint32_t    in_use;  /* # of table entries */
-	uint32_t    rover;   /* last used slot */
-	struct next_hop_u *entry[NEXTHOP6_HASH_TBL_SIZE];
-	uint32_t neigh_present;
-	uint32_t neigh_created;
-};
-
 /* Nexthop entry table, could be per-namespace */
-static struct nexthop6_table nh6_tbl;
+static struct nexthop_table nh6_tbl;
 
 /* Well-known blackhole next_hop_u for failure cases */
 static struct next_hop_u *nextu6_blackhole;
