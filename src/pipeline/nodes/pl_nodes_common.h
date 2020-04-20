@@ -42,11 +42,14 @@ PL_DECLARE_FEATURE(ipv4_ipsec_out_feat);
 PL_DECLARE_FEATURE(ipv6_ipsec_out_feat);
 PL_DECLARE_FEATURE(sw_vlan_in_feat);
 PL_DECLARE_FEATURE(capture_ether_in_feat);
+PL_DECLARE_FEATURE(capture_l2_output_feat);
 PL_DECLARE_FEATURE(portmonitor_in_feat);
+PL_DECLARE_FEATURE(portmonitor_out_feat);
 PL_DECLARE_FEATURE(bridge_in_feat);
 PL_DECLARE_FEATURE(cross_connect_ether_feat);
 PL_DECLARE_FEATURE(hw_hdr_in_feat);
 PL_DECLARE_FEATURE(vlan_mod_in_feat);
+PL_DECLARE_FEATURE(vlan_mod_out_feat);
 
 PL_DECLARE_FEATURE(ipv4_defrag_in_feat);
 PL_DECLARE_FEATURE(ipv4_defrag_out_feat);

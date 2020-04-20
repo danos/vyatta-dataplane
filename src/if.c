@@ -103,7 +103,6 @@
 #include "qos.h"
 #include "urcu.h"
 #include "util.h"
-#include "vlan_modify.h"
 #include "vplane_debug.h"
 #include "vplane_log.h"
 #include "vrf_internal.h"
@@ -4070,34 +4069,6 @@ int cmd_ifconfig(FILE *f, int argc, char **argv)
 	return 0;
 }
 
-static struct rte_mbuf *
-if_output_features(struct ifnet *input_ifp, struct ifnet *ifp,
-		   struct rte_mbuf **m)
-{
-	struct pl_packet pkt = {
-		.mbuf = *m,
-		.l2_pkt_type = pkt_mbuf_get_l2_traffic_type(*m),
-		.in_ifp = input_ifp,
-		.out_ifp = ifp,
-	};
-
-	if (unlikely(!pipeline_fused_l2_output(&pkt)))
-		return NULL;
-
-	if (unlikely(ifp->vlan_modify))
-		if (unlikely(!vlan_modify_egress(ifp, m)))
-			return NULL;
-
-	if (unlikely(ifp->portmonitor))
-		portmonitor_src_vif_tx_output(ifp, m);
-
-	if (unlikely(ifp->capturing) &&
-	    capture_if_use_common_cap_points(ifp))
-		capture_burst(ifp, m, 1);
-
-	return *m;
-}
-
 /*
  * Transmit one packet
  *
@@ -4116,51 +4087,54 @@ if_output_features(struct ifnet *input_ifp, struct ifnet *ifp,
  * The proto passed in is the link-layer protocol used for
  * point-to-point interfaces.
  */
-__hot_func __rte_cache_aligned
-void if_output(struct ifnet *ifp, struct rte_mbuf *m,
-	       struct ifnet *input_ifp, uint16_t proto)
+ALWAYS_INLINE __rte_cache_aligned
+void if_output_internal(struct pl_packet *pkt)
 {
-	uint16_t rx_vlan = pktmbuf_get_rxvlanid(m);
+	uint16_t rx_vlan = pktmbuf_get_rxvlanid(pkt->mbuf);
+	struct ifnet *ifp = pkt->out_ifp;
+	uint16_t proto = pkt->l2_proto;
 
 	if (ifp->if_type == IFT_L2VLAN) {
-		if_add_vlan(ifp, &m);
+		if_add_vlan(ifp, &pkt->mbuf);
 
-		if (!if_output_features(input_ifp, ifp, &m))
+		if (!pipeline_fused_l2_output(pkt))
 			goto out;
 
 		ifp = ifp->if_parent;
+		pkt->out_ifp = ifp;
 
 		/* for the case where original ifp was for QinQ */
 		if (ifp->if_type == IFT_L2VLAN) {
-			if (!if_output_features(input_ifp, ifp, &m))
+			if (!pipeline_fused_l2_output(pkt))
 				goto out;
 			ifp = ifp->if_parent;
+			pkt->out_ifp = ifp;
 		}
 	}
 
-	if (!if_output_features(input_ifp, ifp, &m))
+	if (!pipeline_fused_l2_output(pkt))
 		goto out;
 
 	if (likely(ifp->if_type == IFT_ETHER))
-		pkt_ring_output(ifp, m);
+		pkt_ring_output(ifp, pkt->mbuf);
 	else if (ifp->if_type == IFT_BRIDGE)
-		bridge_output(ifp, m, input_ifp);
+		bridge_output(ifp, pkt->mbuf, pkt->in_ifp);
 	else if (ifp->if_type == IFT_VXLAN)
-		vxlan_output(ifp, m, proto);
+		vxlan_output(ifp, pkt->mbuf, proto);
 	else if (ifp->if_type == IFT_L2TPETH)
-		l2tp_output(ifp, m, rx_vlan);
+		l2tp_output(ifp, pkt->mbuf, rx_vlan);
 	else if (ifp->if_type == IFT_TUNNEL_GRE)
-		gre_tunnel_send(input_ifp, ifp, m, proto);
+		gre_tunnel_send(pkt->in_ifp, ifp, pkt->mbuf, proto);
 	else if (ifp->if_type == IFT_TUNNEL_VTI)
-		vti_tunnel_out(input_ifp, ifp, m, proto);
+		vti_tunnel_out(pkt->in_ifp, ifp, pkt->mbuf, proto);
 	else if (ifp->if_type == IFT_PPP)
-		ppp_tunnel_output(ifp, m, input_ifp, proto);
+		ppp_tunnel_output(ifp, pkt->mbuf, pkt->in_ifp, proto);
 	else if (ifp->if_type == IFT_TUNNEL_OTHER)
-		unsup_tunnel_output(ifp, m, input_ifp, proto);
+		unsup_tunnel_output(ifp, pkt->mbuf, pkt->in_ifp, proto);
 	else if (ifp->if_type == IFT_LOOP)
-		vfp_output(ifp, m, input_ifp, proto);
+		vfp_output(ifp, pkt->mbuf, pkt->in_ifp, proto);
 	else if (ifp->if_type == IFT_MACVLAN)
-		macvlan_output(ifp, m, input_ifp, proto);
+		macvlan_output(ifp, pkt->mbuf, pkt->in_ifp, proto);
 	else {
 		/*
 		 * Packets for other interface types shouldn't reach
@@ -4168,9 +4142,24 @@ void if_output(struct ifnet *ifp, struct rte_mbuf *m,
 		 */
 out:
 		assert(0);
-		rte_pktmbuf_free(m);
+		rte_pktmbuf_free(pkt->mbuf);
 		if_incr_dropped(ifp);
 	}
+}
+
+__hot_func __rte_cache_aligned
+void if_output(struct ifnet *ifp, struct rte_mbuf *m,
+	       struct ifnet *input_ifp, uint16_t proto)
+{
+	struct pl_packet pkt = {
+		.mbuf = m,
+		.l2_pkt_type = pkt_mbuf_get_l2_traffic_type(m),
+		.in_ifp = input_ifp,
+		.out_ifp = ifp,
+		.l2_proto = proto,
+	};
+
+	if_output_internal(&pkt);
 }
 
 /* Return ifindex for the ifp */

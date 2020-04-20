@@ -10,6 +10,63 @@ vyatta-dataplane (3.10.1) unstable; urgency=medium
 
  -- Paul Atkins <paul.atkins@intl.att.com>  Wed, 08 Apr 2020 13:36:41 +0100
 
+vyatta-dataplane (3.9.107) unstable; urgency=medium
+
+  [ Ian Wilson ]
+  * npf: Optimal address-group show output including host addresses
+
+  [ Robert Shearman ]
+  * pipeline: use correct ifp for egress vlan modify feature
+    (Fixes: VRVDR-50708)
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Fri, 17 Apr 2020 11:20:45 +0100
+
+vyatta-dataplane (3.9.106) unstable; urgency=medium
+
+  [ Nicholas Brown ]
+  * master branch is targeting 2005 release
+  * Restore .gitlint file
+  * Identify hidden files that should not be ignored
+
+  [ Gavin Shearer ]
+  * l3acl: don't commit rules to HW on event IF_FEAT_MODE_EVENT_L3_ENABLED
+
+  [ Ian Wilson ]
+  * cgnat: Obsolete some error counts, and add echo-req count to summary
+
+  [ Nicholas Brown ]
+  * Remove copyright and license assertion output
+
+  [ Paul Atkins ]
+  * ipv4_rsmbl: If we detect duplicate fragments then clean up properly
+  * ipv4_rsmbl: check all previous frags to determine duplicates
+  * ipv4_rsmbl: drop fragment if it includes previously rx'ed bytes
+  * ut: enhance the ipv4 duplicate fragment tests
+  * ipv6_rsmbl: If we detect duplicate fragments then clean up properly
+  * ipv6_rsmbl: check all previous frags to determine duplicates
+  * ipv6_rsmbl: drop fragment if it includes previously rx'ed bytes
+  * if: make if_output_features always inline
+  * l2_vlan_mod: rename the vlan_mod pipline feature file
+  * l2_vlan_mod: add a new pipeline node for egress vlan modify
+  * portmonitor: add a new pipeline node for output portmonitor
+  * capture: add a new pipeline node for output capture
+  * if: split if_output into an internal and external version
+  * if: remove if_output_features and call the feat point directly
+  * if: make the pipeline call if_output_internal
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Thu, 16 Apr 2020 12:34:30 +0100
+
+vyatta-dataplane (3.9.105) unstable; urgency=medium
+
+  [ Mark Gillott ]
+  * pcap: run FAL updates on master thread (Fixes: VRVDR-50581)
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Wed, 08 Apr 2020 07:11:28 +0100
+
 vyatta-dataplane (3.9.104) unstable; urgency=medium
 
   * DANOS Import master

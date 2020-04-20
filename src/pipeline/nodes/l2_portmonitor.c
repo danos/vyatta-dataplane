@@ -33,6 +33,21 @@ portmonitor_in_process(struct pl_packet *pkt, void *context __unused)
 	return PORTMONITOR_IN_ACCEPT;
 }
 
+ALWAYS_INLINE unsigned int
+portmonitor_out_process(struct pl_packet *pkt, void *context __unused)
+{
+	struct rte_mbuf *m = pkt->mbuf;
+
+	portmonitor_src_vif_tx_output(pkt->out_ifp, &m);
+
+	if (unlikely(m != pkt->mbuf)) {
+		pkt->mbuf = m;
+		pkt->l3_hdr = dp_pktmbuf_mtol3(m, void *);
+	}
+
+	return PORTMONITOR_OUT_ACCEPT;
+}
+
 /* Register Node */
 PL_REGISTER_NODE(portmonitor_in_node) = {
 	.name = "vyatta:portmonitor-in",
@@ -51,4 +66,23 @@ PL_REGISTER_FEATURE(portmonitor_in_feat) = {
 	.feature_point = "ether-lookup",
 	.id = PL_ETHER_LOOKUP_FUSED_FEAT_PORTMONITOR,
 	.visit_after = "capture-ether-in",
+};
+
+/* Register Node */
+PL_REGISTER_NODE(portmonitor_out_node) = {
+	.name = "vyatta:portmonitor-out",
+	.type = PL_PROC,
+	.handler = portmonitor_out_process,
+	.num_next = PORTMONITOR_OUT_NUM,
+	.next = {
+		[PORTMONITOR_OUT_ACCEPT]  = "term-noop",
+	}
+};
+
+PL_REGISTER_FEATURE(portmonitor_out_feat) = {
+	.name = "vyatta:portmonitor-out",
+	.node_name = "portmonitor-out",
+	.feature_point = "l2-output",
+	.id = PL_L2_OUTPUT_FUSED_FEAT_PORTMONITOR_OUT,
+	.visit_after = "vlan-modify-out",
 };

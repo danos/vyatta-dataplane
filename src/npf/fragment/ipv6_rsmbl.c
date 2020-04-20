@@ -232,6 +232,7 @@ ipv6_frag_process(struct cds_lfht *frag_table, struct ipv6_frag_pkt *fp,
 		.mbuf = m,
 		.l2_pkt_type = pkt_mbuf_get_l2_traffic_type(m),
 	};
+	unsigned int i;
 
 	/*
 	 * Payload length (everything after the initial IPv6 hdr)
@@ -269,10 +270,13 @@ ipv6_frag_process(struct cds_lfht *frag_table, struct ipv6_frag_pkt *fp,
 		/*
 		 * First fragment
 		 */
-		if (fp->frags[FIRST_FRAG_IDX].mb == NULL)
+		if (fp->frags[FIRST_FRAG_IDX].mb == NULL) {
 			idx = FIRST_FRAG_IDX;
-		else
+		} else {
+			rte_pktmbuf_free(m);
+			m = NULL;
 			goto done;
+		}
 		/*
 		 * 'fp->frag_size' is the accumulated number of bytes
 		 * that will comprise the reassembled packet.
@@ -307,9 +311,42 @@ ipv6_frag_process(struct cds_lfht *frag_table, struct ipv6_frag_pkt *fp,
 		 * Intermediate fragment
 		 */
 		idx = fp->last_idx;
-		if (fp->frags[fp->last_idx - 1].ofs == npc->fh_offset) {
-			m = NULL;
-			goto done;
+		/*
+		 * Check if its a duplicate intermediate fragment
+		 * by checking the offset of all previous fragments
+		 */
+		for (i = 0; i < fp->last_idx; i++) {
+			if (fp->frags[i].ofs == npc->fh_offset) {
+				rte_pktmbuf_free(m);
+				m = NULL;
+				goto done;
+			}
+
+			if (fp->frags[i].ofs < npc->fh_offset &&
+			    (fp->frags[i].ofs + fp->frags[i].len) >
+			    npc->fh_offset) {
+				/*
+				 * We already have a fragment that includes
+				 * the start byte of this one.
+				 */
+				rte_pktmbuf_free(m);
+				m = NULL;
+				goto done;
+			}
+
+			if (fp->frags[i].ofs <
+			    (npc->fh_offset + (plen - extra_hlen)) &&
+			    (fp->frags[i].ofs + fp->frags[i].len) >
+			    (npc->fh_offset + (plen - extra_hlen))) {
+				/*
+				 * We already have a fragment that includes
+				 * the end byte of this one.
+				 */
+				rte_pktmbuf_free(m);
+				m = NULL;
+				goto done;
+			}
+
 		}
 		if (idx < IPV6_MAX_FRAGS_PER_SET)
 			fp->last_idx++;

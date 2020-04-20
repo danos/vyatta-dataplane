@@ -246,7 +246,7 @@ struct ifnet {
 	/* Network configuration bits */
 	uint16_t	   capturing:1, /* capture in progress */
 			   portmonitor:1,
-			   vlan_modify:1,
+			   padding0:1,
 			   qos_software_fwd:1,
 			   tpid_offloaded:1,
 			   unused:3,
@@ -1107,6 +1107,8 @@ if_is_hwport(struct ifnet *ifp)
  */
 void if_output(struct ifnet *ifp, struct rte_mbuf *m,
 	       struct ifnet *input_ifp, uint16_t proto);
+
+void if_output_internal(struct pl_packet *pkt);
 
 int if_allocate_feature_space(struct ifnet *ifp,
 			      enum pl_feature_point_id feat_point);

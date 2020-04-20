@@ -68,7 +68,7 @@ PIPELINE_NODE_FILES = \
 	src/pipeline/nodes/l2_output.c \
 	src/pipeline/nodes/l2_portmonitor.c \
 	src/pipeline/nodes/l2_portmonitor_hw.c \
-	src/pipeline/nodes/l2_vlan_mod_ingress.c \
+	src/pipeline/nodes/l2_vlan_mod.c \
 	src/pipeline/nodes/pppoe/l2_pppoe_node.c \
 	src/pipeline/nodes/pppoe/l2_pppoe_cmd.c \
 	src/pipeline/nodes/pppoe/pppoe.c \

@@ -1366,7 +1366,6 @@ parse_args(int argc, char **argv)
 		case 'v':
 			printf("%s version %s\n",
 			       DATAPLANE_PROGNAME, DATAPLANE_VERSION);
-			printf("%s\n", DATAPLANE_COPYRIGHT);
 			exit(0);
 
 		case 'h':
@@ -3512,8 +3511,8 @@ main(int argc, char **argv)
 	debug_init();
 
 	RTE_LOG(INFO, DATAPLANE,
-		"%s version %s - %s\n",
-		DATAPLANE_PROGNAME, DATAPLANE_VERSION, DATAPLANE_COPYRIGHT);
+		"%s version %s\n",
+		DATAPLANE_PROGNAME, DATAPLANE_VERSION);
 
 	interface_init();
 	incomplete_interface_init();
@@ -3622,6 +3621,7 @@ main(int argc, char **argv)
 
 	dp_crypto_shutdown();
 
+	capture_destroy();
 	device_server_destroy();
 	shadow_destroy();
 	console_destroy();

@@ -181,16 +181,20 @@ ipv4_frag_process(struct cds_lfht *frag_tables, struct ipv4_frag_pkt *fp,
 		.mbuf = mb,
 		.l2_pkt_type = pkt_mbuf_get_l2_traffic_type(mb),
 	};
+	unsigned int i;
 
 	/* Lock the frag pkt */
 	rte_spinlock_lock(&fp->pkt_lock);
 
 	if (ofs == 0) {
 		/* is this a repeat of the first fragment? */
-		if (fp->frags[FIRST_FRAG_IDX].mb == NULL)
+		if (fp->frags[FIRST_FRAG_IDX].mb == NULL) {
 			idx = FIRST_FRAG_IDX;
-		else
+		} else {
+			rte_pktmbuf_free(mb);
+			mb = NULL;
 			goto done;
+		}
 	} else if (more_frags == 0) {
 		/* this is the last fragment. */
 		fp->total_size = ofs + len;
@@ -201,11 +205,37 @@ ipv4_frag_process(struct cds_lfht *frag_tables, struct ipv4_frag_pkt *fp,
 		idx = fp->last_idx;
 		/*
 		 * Check if its a duplicate intermediate fragment
-		 * by checking the offset of the previous fragment
+		 * by checking the offset of all previous fragments
 		 */
-		if (fp->frags[fp->last_idx - 1].ofs == ofs) {
-			mb = NULL;
-			goto done;
+		for (i = 0; i < fp->last_idx; i++) {
+			if (fp->frags[i].ofs == ofs) {
+				rte_pktmbuf_free(mb);
+				mb = NULL;
+				goto done;
+			}
+
+			if (fp->frags[i].ofs < ofs &&
+			    (fp->frags[i].ofs + fp->frags[i].len) > ofs) {
+				/*
+				 * We already have a fragment that includes
+				 * the start byte of this one.
+				 */
+				rte_pktmbuf_free(mb);
+				mb = NULL;
+				goto done;
+			}
+
+			if (fp->frags[i].ofs < (ofs + len) &&
+			    (fp->frags[i].ofs + fp->frags[i].len) >
+			    (ofs + len)) {
+				/*
+				 * We already have a fragment that includes
+				 * the end byte of this one.
+				 */
+				rte_pktmbuf_free(mb);
+				mb = NULL;
+				goto done;
+			}
 		}
 
 		if (idx < ARRAY_SIZE(fp->frags))

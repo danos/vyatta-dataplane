@@ -134,7 +134,7 @@ PL_REGISTER_NODE(term_noop_node) = {
 ALWAYS_INLINE unsigned int
 l2_out_process(struct pl_packet *pkt, void *context __unused)
 {
-	if_output(pkt->out_ifp, pkt->mbuf, pkt->in_ifp, pkt->l2_proto);
+	if_output_internal(pkt);
 	return 0;
 }
 

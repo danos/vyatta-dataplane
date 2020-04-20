@@ -470,9 +470,9 @@ vlan_mod_enable_fwding(struct vlan_mod_chain_list_entry *entry)
 
 	rcu_assign_pointer(intf->vlan_mod_tbl, vlan_mod_tbl);
 	rcu_assign_pointer(intf->vlan_mod_default, vlan_mod_default);
-	intf->vlan_modify = true;
 
 	pl_node_add_feature_by_inst(&vlan_mod_in_feat, intf);
+	pl_node_add_feature_by_inst(&vlan_mod_out_feat, intf);
 
 	return true;
 }
@@ -915,7 +915,8 @@ vlan_mod_flt_chain_entry_delete(struct vlan_mod_chain_list_entry *chain_entry)
 			return MNL_CB_ERROR;
 		}
 		pl_node_remove_feature_by_inst(&vlan_mod_in_feat, intf);
-		intf->vlan_modify = false;
+		pl_node_remove_feature_by_inst(&vlan_mod_out_feat, intf);
+
 		rcu_assign_pointer(intf->vlan_mod_tbl, NULL);
 		rcu_assign_pointer(intf->vlan_mod_default, NULL);
 	}
@@ -1353,32 +1354,4 @@ int vlan_mod_flt_chain_delete(const struct nlmsghdr *nlh __unused)
 	vlan_mod_flt_chain_purge(&s_key);
 
 	return MNL_CB_OK;
-}
-
-struct rte_mbuf *
-vlan_modify_egress(struct ifnet *ifp, struct rte_mbuf **m)
-{
-	uint16_t vlan;
-	struct vlan_mod_ft_cls_action *action;
-	struct rte_mbuf *buf = *m;
-
-	vlan = vlan_mod_get_vlan(buf, ifp, VLAN_MOD_DIR_EGRESS);
-	if (vlan == 0)
-		return *m;
-	action = vlan_modify_get_action(ifp, vlan, VLAN_MOD_DIR_EGRESS);
-	if (!action)
-		return *m;
-
-	switch (action->data.vlan.action) {
-	case VLAN_MOD_FILTER_ACT_VLAN_POP:
-		return vlan_mod_tag_pop(ifp, m, VLAN_MOD_DIR_EGRESS);
-	case VLAN_MOD_FILTER_ACT_VLAN_PUSH:
-		return vlan_mod_tag_push(ifp, m, action, VLAN_MOD_DIR_EGRESS);
-	case VLAN_MOD_FILTER_ACT_VLAN_MOD:
-		return vlan_mod_tag_modify(ifp, m, action, VLAN_MOD_DIR_EGRESS);
-	default:
-		return NULL;
-	}
-
-	return *m;
 }
