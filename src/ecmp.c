@@ -96,10 +96,10 @@ static bool nexthop_fill(struct nlattr *ntb_gateway, struct nlattr *ntb_encap,
 	if (!dp_nh4_get_ifp(next) && !is_ignored_interface(nhp->rtnh_ifindex))
 		return true;
 	if (ntb_gateway) {
-		next->gateway = mnl_attr_get_u32(ntb_gateway);
+		next->gateway4 = mnl_attr_get_u32(ntb_gateway);
 		next->flags = RTF_GATEWAY;
 	} else {
-		next->gateway = INADDR_ANY;
+		next->gateway4 = INADDR_ANY;
 		next->flags = 0;
 	}
 
@@ -232,9 +232,9 @@ static bool nexthop_fill_mpls(struct nlattr *ntb_via, struct nlattr *ntb_newdst,
 				via->rtvia_family);
 		}
 
-		next->gateway = nh;
+		next->gateway4 = nh;
 	} else {
-		next->gateway = INADDR_ANY;
+		next->gateway4 = INADDR_ANY;
 		next->flags = 0;
 	}
 

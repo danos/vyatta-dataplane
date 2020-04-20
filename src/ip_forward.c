@@ -326,7 +326,7 @@ void ip_switch(struct rte_mbuf *m, struct ifnet *ifp,
 
 	/* Store next hop address  */
 	if (nxt->flags & RTF_GATEWAY)
-		addr = nxt->gateway;
+		addr = nxt->gateway4;
 	else
 		addr = ip->daddr;
 

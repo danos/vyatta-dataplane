@@ -781,7 +781,7 @@ mpls_oam_v4_lookup(int labelspace, uint8_t nlabels, const label_t *labels,
 		for (oi = 0; oi < max_fanout; oi++) {
 			if (!outinfo[oi].inuse) {
 				outinfo[oi].ifp = dp_nh4_get_ifp(nh.v4);
-				outinfo[oi].gateway = nh.v4->gateway;
+				outinfo[oi].gateway = nh.v4->gateway4;
 				outinfo[oi].outlabels = nh.v4->outlabels;
 				outinfo[oi].bitmask = 0;
 				outinfo[oi].inuse = true;
@@ -805,14 +805,14 @@ mpls_oam_v4_lookup(int labelspace, uint8_t nlabels, const label_t *labels,
 		for (oi = 0; oi < max_fanout; oi++) {
 			if (!outinfo[oi].inuse) {
 				outinfo[oi].ifp = dp_nh4_get_ifp(nh.v4);
-				outinfo[oi].gateway = nh.v4->gateway;
+				outinfo[oi].gateway = nh.v4->gateway4;
 				outinfo[oi].outlabels = nh.v4->outlabels;
 				outinfo[oi].bitmask = ((uint64_t)1 << i);
 				outinfo[oi].inuse = true;
 				break;
 			}
 			if ((outinfo[oi].ifp == dp_nh4_get_ifp(nh.v4)) &&
-			    (outinfo[oi].gateway == nh.v4->gateway) &&
+			    (outinfo[oi].gateway == nh.v4->gateway4) &&
 			     nh_outlabels_cmpfn(&outinfo[oi].outlabels,
 						&nh.v4->outlabels)) {
 				outinfo[oi].bitmask |=

@@ -116,7 +116,7 @@ ipv4_encap_process_internal(struct pl_packet *pkt, enum pl_mode mode)
 	in_addr_t addr;
 
 	if (nh->flags & RTF_GATEWAY) {
-		addr = nh->gateway;
+		addr = nh->gateway4;
 	} else {
 		struct iphdr *ip;
 

@@ -521,7 +521,7 @@ int vxlan_select_ipv4_src(struct vxlan_vninode *vnode, struct ip_addr *dip,
 
 	/* Store next hop address  */
 	if (nxt->flags & RTF_GATEWAY)
-		nhip->address.ip_v4.s_addr = nxt->gateway;
+		nhip->address.ip_v4.s_addr = nxt->gateway4;
 	else
 		nhip->address.ip_v4.s_addr = dip->address.ip_v4.s_addr;
 
@@ -760,7 +760,7 @@ static int vxlan_resolve_send_pak(struct rte_mbuf *m, struct ip_addr *nhip,
 {
 	if (likely(dip->type == AF_INET)) {
 		struct next_hop nh = {.flags = RTF_GATEWAY,
-				      .gateway = nhip->address.ip_v4.s_addr,
+				      .gateway4 = nhip->address.ip_v4.s_addr,
 				      .u.ifp = dif};
 
 		if (!dp_ip_l2_nh_output(ifp, m, &nh, ETH_P_IP)) {

@@ -47,7 +47,7 @@ nh6_set_ifp(struct next_hop_v6 *next_hop, struct ifnet *ifp)
 ALWAYS_INLINE const struct in_addr *
 dp_nh4_get_addr(const struct next_hop *next_hop)
 {
-	return (struct in_addr *)&next_hop->gateway;
+	return (struct in_addr *)&next_hop->gateway4;
 }
 
 ALWAYS_INLINE const struct in6_addr *

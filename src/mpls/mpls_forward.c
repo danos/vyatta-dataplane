@@ -819,7 +819,7 @@ static inline void nh_eth_output_mpls(enum nh_type nh_type,
 		if (unlikely((nh.v6->flags & RTF_MAPPED_IPV6))) {
 			struct next_hop v4nh = {
 				.flags = RTF_GATEWAY,
-				.gateway = V4MAPPED_IPV6_TO_IPV4(
+				.gateway4 = V4MAPPED_IPV6_TO_IPV4(
 					nh.v6->gateway),
 				.u.ifp = dp_nh6_get_ifp(nh.v6),
 			};
@@ -846,7 +846,7 @@ static inline void nh_eth_output_mpls(enum nh_type nh_type,
 		assert(nh_type == NH_TYPE_V4GW);
 		struct next_hop v4nh = {
 			.flags = RTF_GATEWAY,
-			.gateway = nh.v4->gateway,
+			.gateway4 = nh.v4->gateway4,
 			.u.ifp = dp_nh4_get_ifp(nh.v4),
 		};
 
@@ -1166,7 +1166,7 @@ mpls_forward_to_ipv4(struct ifnet *ifp, bool local,
 			return;
 		}
 	}
-	ip_out_features(m, ifp, ip, v4nh, v4nh->gateway, ip4_feat,
+	ip_out_features(m, ifp, ip, v4nh, v4nh->gateway4, ip4_feat,
 			NPF_FLAG_CACHE_EMPTY);
 }
 

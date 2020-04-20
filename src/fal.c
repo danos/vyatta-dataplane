@@ -1602,7 +1602,7 @@ static const struct fal_attribute_t **next_hop_to_attr_list(
 			nh_attr[3].id = FAL_NEXT_HOP_ATTR_IP;
 			addr = &nh_attr[3].value.ipaddr;
 			addr->addr_family = FAL_IP_ADDR_FAMILY_IPV4;
-			addr->addr.ip4 = nh->gateway;
+			addr->addr.ip4 = nh->gateway4;
 			(*attr_count)[i] = 4;
 		} else {
 			(*attr_count)[i] = 3;

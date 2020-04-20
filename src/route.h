@@ -51,7 +51,10 @@ struct next_hop {
 	} u;
 	uint32_t      flags;   /* routing flags */
 	union next_hop_outlabels outlabels;
-	in_addr_t     gateway; /* nexthop IP address */
+	union {
+		in_addr_t       gateway4; /* nexthop IPv4 address */
+		struct in6_addr gateway6; /* nexthop IPv6 address */
+	};
 };
 
 /*
