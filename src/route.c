@@ -16,7 +16,6 @@
 #include <rte_common.h>
 #include <rte_debug.h>
 #include <rte_ether.h>
-#include <rte_fbk_hash.h>
 #include <rte_jhash.h>
 #include <rte_log.h>
 #include <rte_malloc.h>
@@ -52,13 +51,6 @@
 
 struct rte_mbuf;
 
-/*
- * The nexthop in LPM is 22 bits but dpdk hash tables currently have a
- * limit of 2^20 entries.
- */
-#define NEXTHOP_HASH_TBL_SIZE RTE_FBK_HASH_ENTRIES_MAX
-#define NEXTHOP_HASH_TBL_MIN  (UINT8_MAX + 1)
-
 /* These are stored in a memory pool to allow for mapping
  * index/offset into pointer:
  *
@@ -78,14 +70,6 @@ struct rte_mbuf;
  *                         | count - 1 |
  *                         +-----------+
  */
-
-struct nexthop_table {
-	uint32_t in_use;  /* # of entries used */
-	uint32_t rover;   /* next free slot to look at */
-	struct next_hop_u *entry[NEXTHOP_HASH_TBL_SIZE]; /* array of entries */
-	uint32_t neigh_present;
-	uint32_t neigh_created;
-};
 
 /* Nexthop entry table, could be per-namespace */
 static struct nexthop_table nh_tbl __hot_data;
