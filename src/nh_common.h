@@ -59,6 +59,7 @@ struct nexthop_hash_key {
 };
 
 /*
+
  * The nexthop in LPM is 22 bits but dpdk hash tables currently have a
  * limit of 2^20 entries.
  */
@@ -72,5 +73,42 @@ struct nexthop_table {
 	uint32_t neigh_present;
 	uint32_t neigh_created;
 };
+
+/*
+ * Per AF hash function for a nexthop.
+ */
+typedef int (nh_common_hash_fn)(const struct nexthop_hash_key *key,
+				unsigned long seed);
+
+/*
+ * Per AF function to compare nexthops
+ */
+typedef int (nh_common_cmp_fn)(struct cds_lfht_node *node, const void *key);
+
+/*
+ * get the hash table used to track NHs and if a new can be reused.
+ */
+typedef struct cds_lfht *(nh_common_get_hash_tbl_fn)(void);
+
+/*
+ * Get the table that the NHs are stored in.
+ */
+typedef struct nexthop_table *(nh_common_get_nh_tbl_fn)(void);
+
+/*
+ * Structure to hold all the function pointers required to do the
+ * NH processing that differs between address families.
+ */
+struct nh_common {
+	nh_common_hash_fn *nh_hash;
+	nh_common_cmp_fn *nh_compare;
+	nh_common_get_hash_tbl_fn *nh_get_hash_tbl;
+	nh_common_get_nh_tbl_fn *nh_get_nh_tbl;
+};
+
+/*
+ * Register AF specific behaviour for processing NHs.
+ */
+void nh_common_register(int family, struct nh_common *nh_common);
 
 #endif /* NH_COMMON_H */

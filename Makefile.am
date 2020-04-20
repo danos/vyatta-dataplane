@@ -184,6 +184,7 @@ CORE_FILES = \
 	src/netinet/ip_mroute.c \
 	src/netlink.c \
 	src/nh.c \
+	src/nh_common.c \
 	src/nsh.c \
 	src/pd_show.c \
 	src/pktmbuf.c \
