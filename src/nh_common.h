@@ -49,4 +49,13 @@ struct next_hop_u {
 	struct rcu_head      rcu;
 } __rte_cache_aligned;
 
+/*
+ * key for hashing an array of NHs. Size is the number of NHs in the array.
+ */
+struct nexthop_hash_key {
+	const struct next_hop *nh;
+	size_t		       size;
+	uint8_t		       proto;
+};
+
 #endif /* NH_COMMON_H */

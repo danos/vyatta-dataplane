@@ -96,12 +96,6 @@ static struct cds_lfht *nexthop_hash;
 /* Well-known blackhole next_hop_u for failure cases */
 static struct next_hop_u *nextu_blackhole;
 
-struct nexthop_hash_key {
-	const struct next_hop *nh;
-	size_t		       size;
-	uint8_t		       proto;
-};
-
 static pthread_mutex_t route_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 static const struct reserved_route {
