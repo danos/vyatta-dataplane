@@ -92,11 +92,6 @@
 
 static struct cds_lfht *nexthop6_hash;
 
-struct nexthop6_hash_key {
-	const struct next_hop *nh;
-	size_t                size;
-};
-
 struct nexthop6_table {
 	uint32_t    in_use;  /* # of table entries */
 	uint32_t    rover;   /* last used slot */
@@ -1011,7 +1006,7 @@ static struct next_hop *nexthop6_create_copy(struct next_hop_u *nhu,
 
 /* Reuse existing next hop entry */
 static int
-nexthop6_hashfn(const struct nexthop6_hash_key *key,
+nexthop6_hashfn(const struct nexthop_hash_key *key,
 		unsigned long seed __rte_unused)
 {
 	size_t size = key->size;
@@ -1033,7 +1028,7 @@ nexthop6_hashfn(const struct nexthop6_hash_key *key,
 
 static int nexthop6_cmpfn(struct cds_lfht_node *node, const void *key)
 {
-	const struct nexthop6_hash_key *h_key = key;
+	const struct nexthop_hash_key *h_key = key;
 	const struct next_hop_u *nu =
 		caa_container_of(node, const struct next_hop_u, nh_node);
 	uint16_t i;
@@ -1056,7 +1051,7 @@ static int nexthop6_cmpfn(struct cds_lfht_node *node, const void *key)
 }
 
 static struct next_hop_u *
-nexthop6_lookup(const struct nexthop6_hash_key *key)
+nexthop6_lookup(const struct nexthop_hash_key *key)
 {
 	struct cds_lfht_iter iter;
 	struct cds_lfht_node *node;
@@ -1073,7 +1068,7 @@ nexthop6_lookup(const struct nexthop6_hash_key *key)
 
 static int
 nexthop6_hash_insert(struct next_hop_u *nu,
-		     const struct nexthop6_hash_key *key)
+		     const struct nexthop_hash_key *key)
 {
 	struct cds_lfht_node *ret_node;
 
@@ -1097,8 +1092,9 @@ static int
 nexthop6_hash_del_add(struct next_hop_u *old_nu,
 		      struct next_hop_u *new_nu)
 {
-	struct nexthop6_hash_key key = {.nh = new_nu->siblings,
-					.size = new_nu->nsiblings};
+	struct nexthop_hash_key key = {.nh = new_nu->siblings,
+				       .size = new_nu->nsiblings,
+				       .proto = 0};
 	int rc;
 
 	/* Remove old one */
@@ -1112,7 +1108,7 @@ nexthop6_hash_del_add(struct next_hop_u *old_nu,
 }
 
 static struct next_hop_u *
-nexthop6_reuse(const struct nexthop6_hash_key *key, uint32_t *slot)
+nexthop6_reuse(const struct nexthop_hash_key *key, uint32_t *slot)
 {
 	struct next_hop_u *nextu;
 
@@ -1188,7 +1184,7 @@ int
 nexthop6_new(struct next_hop *nh, size_t size, uint32_t *slot)
 {
 	struct next_hop_u *nextu;
-	struct nexthop6_hash_key key = {.nh = nh, .size = size };
+	struct nexthop_hash_key key = {.nh = nh, .size = size, .proto = 0 };
 	uint32_t rover = nh6_tbl.rover;
 	uint32_t nh6_iter;
 	int ret;
