@@ -87,11 +87,12 @@ struct next_hop_u {
 	struct next_hop      *siblings;	/* array of next_hop */
 	uint8_t              nsiblings;	/* # of next_hops */
 	uint8_t              proto;	/* routing protocol */
+	uint16_t             padding;
 	uint32_t             index;
-	uint32_t             refcount;	/* # of LPM's referring */
 	struct next_hop      hop0;      /* optimization for non-ECMP */
-	struct cds_lfht_node nh_node;
+	uint32_t             refcount;	/* # of LPM's referring */
 	enum pd_obj_state    pd_state;
+	struct cds_lfht_node nh_node;
 	fal_object_t         nhg_fal_obj;   /* FAL handle for next_hop_group */
 	fal_object_t         *nh_fal_obj; /* Per-nh FAL handles */
 	struct rcu_head      rcu;
