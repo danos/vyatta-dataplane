@@ -51,8 +51,8 @@ struct next_hop *
 nexthop_create(struct ifnet *ifp, in_addr_t gw, uint32_t flags,
 	       uint16_t num_labels, label_t *labels);
 void nexthop_put(uint32_t idx);
-int nexthop_new(const struct next_hop *nh, uint16_t size, uint8_t proto,
-		uint32_t *slot);
+int nexthop_new(int family, const struct next_hop *nh, uint16_t size,
+		uint8_t proto, uint32_t *slot);
 struct next_hop *nexthop_select(uint32_t nh_idx, const struct rte_mbuf *m,
 				uint16_t ether_type);
 struct next_hop *nexthop_get(uint32_t nh_idx, uint8_t *size);

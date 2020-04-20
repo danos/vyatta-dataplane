@@ -132,7 +132,7 @@ route_nexthop_new(const struct next_hop *nh, uint16_t size, uint8_t proto,
 {
 	int rc;
 
-	rc = nexthop_new(nh, size, proto, slot);
+	rc = nexthop_new(AF_INET, nh, size, proto, slot);
 	if (rc >= 0)
 		return rc;
 
@@ -852,12 +852,19 @@ static int nexthop_cmpfn(struct cds_lfht_node *node, const void *key)
 	return true;
 }
 
-static struct next_hop_u *nexthop_lookup(const struct nexthop_hash_key *key)
+static struct next_hop_u *nexthop_lookup(int family,
+					 const struct nexthop_hash_key *key)
 {
 	struct cds_lfht_iter iter;
 	struct cds_lfht_node *node;
+	struct cds_lfht *hash_tbl;
 
-	cds_lfht_lookup(nexthop_hash,
+	if (family == AF_INET)
+		hash_tbl = route_get_nh_hash_table();
+	else
+		return NULL;
+
+	cds_lfht_lookup(hash_tbl,
 			nexthop_hashfn(key, 0),
 			nexthop_cmpfn, key, &iter);
 	node = cds_lfht_iter_get_node(&iter);
@@ -953,13 +960,14 @@ nexthop_hash_del_add(struct next_hop_u *old_nu,
 }
 
 /* Reuse existing next hop entry */
-static struct next_hop_u *nexthop_reuse(const struct nexthop_hash_key *key,
+static struct next_hop_u *nexthop_reuse(int family,
+					const struct nexthop_hash_key *key,
 					uint32_t *slot)
 {
 	struct next_hop_u *nu;
 	int index;
 
-	nu = nexthop_lookup(key);
+	nu = nexthop_lookup(family, key);
 	if (!nu)
 		return NULL;
 
@@ -985,22 +993,30 @@ static void nexthop_destroy(struct rcu_head *head)
 }
 
 /* Lookup (or create) nexthop based on hop information */
-int nexthop_new(const struct next_hop *nh, uint16_t size, uint8_t proto,
-		uint32_t *slot)
+int nexthop_new(int family, const struct next_hop *nh, uint16_t size,
+		uint8_t proto, uint32_t *slot)
 {
 	struct nexthop_hash_key key = {
 				.nh = nh, .size = size, .proto = proto };
 	struct next_hop_u *nextu;
-	uint32_t rover = nh_tbl.rover;
+	uint32_t rover;
 	uint32_t nh_iter;
 	int ret;
+	struct nexthop_table *nh_table;
 
-	nextu = nexthop_reuse(&key, slot);
+	if (family == AF_INET)
+		nh_table =  route_get_nh_table();
+	else
+		return -EINVAL;
+
+	rover = nh_table->rover;
+	nextu = nexthop_reuse(family, &key, slot);
 	if (nextu)
 		return 0;
 
-	if (unlikely(nh_tbl.in_use == NEXTHOP_HASH_TBL_SIZE)) {
-		RTE_LOG(ERR, ROUTE, "next_hop_u full\n");
+	if (unlikely(nh_table->in_use == NEXTHOP_HASH_TBL_SIZE)) {
+		RTE_LOG(ERR, ROUTE, "IPv%d next hop table full\n",
+			family == AF_INET ? 4 : 6);
 		return -ENOSPC;
 	}
 
@@ -1036,14 +1052,14 @@ int nexthop_new(const struct next_hop *nh, uint16_t size, uint8_t proto,
 		nh_iter++;
 		if (nh_iter >= NEXTHOP_HASH_TBL_SIZE)
 			nh_iter = 0;
-	} while ((rcu_dereference(nh_tbl.entry[nh_iter]) != NULL) &&
+	} while ((rcu_dereference(nh_table->entry[nh_iter]) != NULL) &&
 		 likely(nh_iter != rover));
 
-	nh_tbl.rover = nh_iter;
+	nh_table->rover = nh_iter;
 	*slot = rover;
-	nh_tbl.in_use++;
+	nh_table->in_use++;
 
-	rcu_assign_pointer(nh_tbl.entry[rover], nextu);
+	rcu_assign_pointer(nh_table->entry[rover], nextu);
 
 	return 0;
 }
@@ -1932,7 +1948,7 @@ void nexthop_tbl_init(void)
 	nh_common_register(AF_INET, &nh4_common);
 
 	/* reserve a drop nexthop */
-	if (nexthop_new(&nh_drop, 1, RTPROT_UNSPEC, &idx))
+	if (nexthop_new(AF_INET, &nh_drop, 1, RTPROT_UNSPEC, &idx))
 		rte_panic("%s: can't create drop nexthop\n", __func__);
 	nextu_blackhole =
 		rcu_dereference(nh_tbl.entry[idx]);

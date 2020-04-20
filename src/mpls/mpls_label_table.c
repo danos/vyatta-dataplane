@@ -209,7 +209,8 @@ mpls_label_table_ins_lbl_internal(struct cds_lfht *label_table,
 
 	switch (nh_type) {
 	case NH_TYPE_V4GW:
-		rc = nexthop_new(hops.v4, size, RTPROT_UNSPEC, &nextu_idx);
+		rc = nexthop_new(AF_INET, hops.v4, size, RTPROT_UNSPEC,
+				 &nextu_idx);
 		if (rc < 0) {
 			RTE_LOG(ERR, MPLS,
 				"Failed to create nexthops for label table entry: %s\n",
