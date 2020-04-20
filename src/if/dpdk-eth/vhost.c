@@ -35,6 +35,8 @@
 #include "vplane_debug.h"
 #include "vplane_log.h"
 
+#define QMP_RETURN_BUFSIZE 200
+
 struct vhost_transport {
 	struct rcu_head vt_rcu;		/**< Linkage for call_rcu */
 	struct cds_list_head list;
@@ -102,6 +104,7 @@ static void vhost_qmp_command(const char *path, const char *cmd)
 	int sock;
 	struct sockaddr_un server;
 	const char *cmd_mode = "{ \"execute\": \"qmp_capabilities\" }";
+	char buf[QMP_RETURN_BUFSIZE];
 	ssize_t len;
 
 	sock = socket(AF_UNIX, SOCK_STREAM, 0);
@@ -120,15 +123,39 @@ static void vhost_qmp_command(const char *path, const char *cmd)
 			 "%s: connect(%s, ...) failed\n", __func__, path);
 		goto done;
 	}
+	/* Read the initial server message.
+	 * See https://wiki.qemu.org/Documentation/QMP for details.
+	 */
+	len = read(sock, buf, sizeof(buf));
+	if (len < 0) {
+		DP_DEBUG(VHOST, DEBUG, DATAPLANE,
+			 "%s: read(%s, ...) failed during capability negotiation.\n",
+			 __func__, path);
+		goto done;
+	}
 
+	/* Exit capability negotiation and enter command mode. */
 	len = write(sock, cmd_mode, strlen(cmd_mode));
 	if (len < 0)
 		DP_DEBUG(VHOST, INFO, DATAPLANE,
 			 "%s: write(cmd_mode) failed\n", __func__);
+	len = read(sock, buf, sizeof(buf));
+	if (len < 0) {
+		DP_DEBUG(VHOST, DEBUG, DATAPLANE,
+			 "%s: read(%s, ...) failed entering command mode.\n",
+			 __func__, path);
+		goto done;
+	}
+
 	len = write(sock, cmd, strlen(cmd));
 	if (len < 0)
 		DP_DEBUG(VHOST, INFO, DATAPLANE,
 			 "%s: write(set_link) failed\n", __func__);
+	len = read(sock, buf, sizeof(buf));
+	if (len < 0)
+		DP_DEBUG(VHOST, DEBUG, DATAPLANE,
+			 "%s: read(%s, ...) failed after sending command.\n",
+			 __func__, path);
 
 done:
 	close(sock);
