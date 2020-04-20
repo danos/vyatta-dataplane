@@ -112,6 +112,16 @@ static const struct reserved_route {
 static uint32_t route_sw_stats[PD_OBJ_STATE_LAST];
 static uint32_t route_hw_stats[PD_OBJ_STATE_LAST];
 
+static struct nexthop_table *route_get_nh_table(void)
+{
+	return &nh_tbl;
+}
+
+static struct cds_lfht *route_get_nh_hash_table(void)
+{
+	return nexthop_hash;
+}
+
 /*
  * Wrapper round the nexthop_new function. This one keeps track of the
  * failures and successes.
@@ -1897,6 +1907,13 @@ void rt_flush_all(enum cont_src_en cont_src)
 			rt_flush(vrf);
 }
 
+struct nh_common nh4_common = {
+	.nh_hash = nexthop_hashfn,
+	.nh_compare = nexthop_cmpfn,
+	.nh_get_hash_tbl = route_get_nh_hash_table,
+	.nh_get_nh_tbl = route_get_nh_table,
+};
+
 void nexthop_tbl_init(void)
 {
 	struct next_hop nh_drop = {
@@ -1911,6 +1928,8 @@ void nexthop_tbl_init(void)
 				    NULL);
 	if (!nexthop_hash)
 		rte_panic("nexthop_tbl_init: can't create nexthop hash\n");
+
+	nh_common_register(AF_INET, &nh4_common);
 
 	/* reserve a drop nexthop */
 	if (nexthop_new(&nh_drop, 1, RTPROT_UNSPEC, &idx))
