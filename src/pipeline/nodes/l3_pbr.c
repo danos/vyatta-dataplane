@@ -70,7 +70,7 @@ ip_pbr_process_common(struct pl_packet *pkt, bool v4)
 			return IPV4_PBR_ACCEPT;
 	} else {
 		struct ip6_hdr *ip6 = pkt->l3_hdr;
-		struct next_hop_v6 *nxt;
+		struct next_hop *nxt;
 
 		nxt = rt6_lookup_fast(vrf, &ip6->ip6_dst,
 				      RT_TABLE_MAIN,

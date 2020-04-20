@@ -820,7 +820,7 @@ static inline void nh_eth_output_mpls(enum nh_type nh_type,
 			struct next_hop v4nh = {
 				.flags = RTF_GATEWAY,
 				.gateway4 = V4MAPPED_IPV6_TO_IPV4(
-					nh.v6->gateway),
+					nh.v6->gateway6),
 				.u.ifp = dp_nh6_get_ifp(nh.v6),
 			};
 
@@ -830,9 +830,9 @@ static inline void nh_eth_output_mpls(enum nh_type nh_type,
 						dp_nh6_get_ifp(nh.v6),
 						len);
 		} else {
-			struct next_hop_v6 v6nh = {
+			struct next_hop v6nh = {
 				.flags = RTF_GATEWAY,
-				.gateway = nh.v6->gateway,
+				.gateway6 = nh.v6->gateway6,
 				.u.ifp = dp_nh6_get_ifp(nh.v6),
 			};
 
@@ -1172,7 +1172,7 @@ mpls_forward_to_ipv4(struct ifnet *ifp, bool local,
 
 static void mpls_forward_to_ipv6(struct ifnet *ifp, bool local,
 				 struct rte_mbuf *m,
-				 struct next_hop_v6 *v6nh,
+				 struct next_hop *v6nh,
 				 uint8_t ttl, bool pop)
 {
 	uint32_t pop_offset;

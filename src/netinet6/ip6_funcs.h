@@ -98,9 +98,9 @@ icmp6_do_exthdr(struct rte_mbuf *m, uint16_t class, uint8_t ctype, void *buf,
 		unsigned int len);
 void icmp6_prepare_send(struct rte_mbuf *m);
 
-struct next_hop_v6;
+struct next_hop;
 void icmp6_redirect(struct ifnet *ifp, struct rte_mbuf *m,
-		    const struct next_hop_v6 *nxt);
+		    const struct next_hop *nxt);
 void ip6_redirects_set(bool enable);
 bool ip6_redirects_get(void);
 typedef void (*ip6_output_fn_t)(struct ifnet *, struct rte_mbuf *, void *);
@@ -120,7 +120,7 @@ void ip6_lookup_and_forward(struct rte_mbuf *m, struct ifnet *ifp,
 			    bool hlim_decremented, uint16_t npf_flags)
 	__hot_func;
 void ip6_out_features(struct rte_mbuf *m, struct ifnet *ifp,
-		      struct ip6_hdr *ip6, struct next_hop_v6 *nxt,
+		      struct ip6_hdr *ip6, struct next_hop *nxt,
 		      enum ip6_features ip6_feat, uint16_t npf_flags);
 
 int ip6_hopopts_input(struct rte_mbuf *m, struct ifnet *iif,
@@ -139,7 +139,7 @@ ip6_local_deliver(struct ifnet *ifp, struct rte_mbuf *m)
 
 bool
 ip6_l2_resolve(struct ifnet *in_ifp, struct rte_mbuf *m,
-	       const struct next_hop_v6 *nh, uint16_t proto);
+	       const struct next_hop *nh, uint16_t proto);
 void
 ip6_refragment_packet(struct ifnet *o_ifp, struct rte_mbuf *m,
 		      void *ctx, ip6_output_fn_t output_fn);

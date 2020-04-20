@@ -40,37 +40,26 @@ struct route6_head {
 	struct lpm6 **rt6_table;
 };
 
-/* This is the nexthop information result of route lookup. */
-struct next_hop_v6 {
-	union {
-		struct ifnet   *ifp;     /* target interface */
-		struct llentry *lle;     /* lle entry to use when sending */
-	} u;
-	uint32_t        flags;   /* routing flags */
-	union next_hop_outlabels outlabels;
-	struct in6_addr gateway; /* nexthop IPv6 address */
-};
-
 void nexthop_v6_tbl_init(void);
 int route_v6_init(struct vrf *vrf);
 void route_v6_uninit(struct vrf *vrf, struct route6_head *rt6_head);
 struct rte_mbuf;
 
-struct next_hop_v6 *nexthop6_select(uint32_t nh_idx,
-				    const struct rte_mbuf *m,
-				    uint16_t ether_type);
+struct next_hop *nexthop6_select(uint32_t nh_idx,
+				 const struct rte_mbuf *m,
+				 uint16_t ether_type);
 
-struct next_hop_v6 *nexthop6_create(
-	struct ifnet *ifp, const struct in6_addr *gw, uint32_t flags,
-	uint16_t num_labels, label_t *labels);
+struct next_hop *nexthop6_create(struct ifnet *ifp,
+				 const struct in6_addr *gw, uint32_t flags,
+				 uint16_t num_labels, label_t *labels);
 void nexthop6_put(uint32_t idx);
-int nexthop6_new(struct next_hop_v6 *nh, size_t size, uint32_t *slot);
+int nexthop6_new(struct next_hop *nh, size_t size, uint32_t *slot);
 void rt6_print_nexthop(json_writer_t *json, uint32_t next_hop,
 		       enum rt_print_nexthop_verbosity v);
 
-struct next_hop_v6 *rt6_lookup_fast(struct vrf *vrf,
-				    const struct in6_addr *dst, uint32_t tbl_id,
-				    const struct rte_mbuf *m);
+struct next_hop *rt6_lookup_fast(struct vrf *vrf,
+				 const struct in6_addr *dst, uint32_t tbl_id,
+				 const struct rte_mbuf *m);
 
 void rt6_prefetch(const struct rte_mbuf *m, const struct in6_addr *dst);
 void rt6_prefetch_fast(const struct rte_mbuf *m, const struct in6_addr *dst)

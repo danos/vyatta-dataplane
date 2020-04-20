@@ -36,7 +36,8 @@ struct ecmp_hash_param {
  * Forward declaration of next_hop structure for Ipv4 and IPv6
  */
 struct next_hop;
-struct next_hop_v6;
+
+#define next_hop_v6 next_hop
 
 typedef void (*tracker_change_notif)(void *cb_ctx);
 
@@ -185,7 +186,7 @@ dp_nh4_get_addr(const struct next_hop *next_hop);
  * @return interface pointer
  */
 struct ifnet *
-dp_nh6_get_ifp(const struct next_hop_v6 *next_hop);
+dp_nh6_get_ifp(const struct next_hop *next_hop);
 
 /*
  * Get address for IPv6 next hop
@@ -194,7 +195,7 @@ dp_nh6_get_ifp(const struct next_hop_v6 *next_hop);
  * @return pointer to the ip_address
  */
 const struct in6_addr *
-dp_nh6_get_addr(const struct next_hop_v6 *next_hop);
+dp_nh6_get_addr(const struct next_hop *next_hop);
 
 /*
  * IPv6 output function to transmit packet on a given output interface.
@@ -230,7 +231,7 @@ dp_ip6_l2_intf_output(struct ifnet *in_ifp,
  *
  */
 bool dp_ip6_l2_nh_output(struct ifnet *in_ifp, struct rte_mbuf *m,
-			 struct next_hop_v6 *nh, uint16_t proto);
+			 struct next_hop *nh, uint16_t proto);
 
 /*
  * IPv4 output function to transmit packet on a given output interface.

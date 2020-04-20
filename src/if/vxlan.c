@@ -544,7 +544,7 @@ int vxlan_select_ipv6_src(struct vxlan_vninode *vnode, struct ip_addr *dip,
 			  struct ifnet **oifp, struct ip_addr *sip,
 			  struct ip_addr *nhip)
 {
-	struct next_hop_v6 *nxt6;
+	struct next_hop *nxt6;
 	const struct in6_addr *saddr_v6;
 	struct ifnet *dif;
 
@@ -562,7 +562,7 @@ int vxlan_select_ipv6_src(struct vxlan_vninode *vnode, struct ip_addr *dip,
 	*oifp = dif;
 
 	if (nxt6->flags & RTF_GATEWAY)
-		nhip->address.ip_v6 = nxt6->gateway;
+		nhip->address.ip_v6 = nxt6->gateway6;
 	else
 		nhip->address.ip_v6 = dip->address.ip_v6;
 
@@ -769,9 +769,9 @@ static int vxlan_resolve_send_pak(struct rte_mbuf *m, struct ip_addr *nhip,
 		}
 		IPSTAT_INC_IFP(dif, IPSTATS_MIB_OUTPKTS);
 	} else if (likely(dip->type == AF_INET6)) {
-		struct next_hop_v6 nh = {.flags = RTF_GATEWAY,
-					 .gateway = nhip->address.ip_v6,
-					 .u.ifp = dif};
+		struct next_hop nh = {.flags = RTF_GATEWAY,
+				      .gateway6 = nhip->address.ip_v6,
+				      .u.ifp = dif};
 
 		if (!dp_ip6_l2_nh_output(ifp, m, &nh, ETH_P_IPV6)) {
 			VXLAN_STAT_INC(VXLAN_STATS_OUTDISCARDS_ND_FAILED);

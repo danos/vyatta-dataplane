@@ -104,7 +104,7 @@ struct rte_timer;
 struct pr_feat_attach {
 	union {
 		struct next_hop nh;
-		struct next_hop_v6 nh6;
+		struct next_hop nh6;
 	} next;
 	struct rcu_head pr_feat_rcu;
 };
@@ -1946,7 +1946,7 @@ crypto_policy_handle_packet_outbound_checks(struct rte_mbuf *mbuf,
 {
 	struct vrf *vrf = vrf_get_rcu_fast(VRF_DEFAULT_ID);
 	struct next_hop *nxt = NULL;
-	struct next_hop_v6 *nxt6 = NULL;
+	struct next_hop *nxt6 = NULL;
 
 	/* Currently only support underlay in default vrf */
 	if (pr->output_peer_af == AF_INET) {

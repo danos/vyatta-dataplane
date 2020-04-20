@@ -16,7 +16,7 @@ dp_nh4_get_ifp(const struct next_hop *next_hop)
 }
 
 ALWAYS_INLINE struct ifnet *
-dp_nh6_get_ifp(const struct next_hop_v6 *next_hop)
+dp_nh6_get_ifp(const struct next_hop *next_hop)
 {
 	if (next_hop->flags & (RTF_NEIGH_CREATED | RTF_NEIGH_PRESENT))
 		return next_hop->u.lle->ifp;
@@ -35,7 +35,7 @@ nh4_set_ifp(struct next_hop *next_hop, struct ifnet *ifp)
 }
 
 ALWAYS_INLINE void
-nh6_set_ifp(struct next_hop_v6 *next_hop, struct ifnet *ifp)
+nh6_set_ifp(struct next_hop *next_hop, struct ifnet *ifp)
 {
 	if (next_hop->flags & (RTF_NEIGH_CREATED | RTF_NEIGH_PRESENT)) {
 		rte_panic("Can't set interface for NH6 with linked neigh");
@@ -51,7 +51,7 @@ dp_nh4_get_addr(const struct next_hop *next_hop)
 }
 
 ALWAYS_INLINE const struct in6_addr *
-dp_nh6_get_addr(const struct next_hop_v6 *next_hop)
+dp_nh6_get_addr(const struct next_hop *next_hop)
 {
-	return &next_hop->gateway;
+	return &next_hop->gateway6;
 }

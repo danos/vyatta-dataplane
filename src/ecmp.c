@@ -252,7 +252,7 @@ static bool nexthop6_fill_mpls(const struct nlattr *ntb_via,
 			       const struct nlattr *ntb_newdst,
 			       const struct nlattr *ntb_payload,
 			       const struct rtnexthop *nhp,
-			       struct next_hop_v6 *next)
+			       struct next_hop *next)
 {
 	const struct nlattr *pl_tb[RTMPA_NH_FLAGS+1];
 	struct in6_addr nh6 = IN6ADDR_ANY_INIT;
@@ -289,12 +289,12 @@ static bool nexthop6_fill_mpls(const struct nlattr *ntb_via,
 				via->rtvia_family);
 		}
 
-		next->gateway = nh6;
+		next->gateway6 = nh6;
 		next->flags = RTF_GATEWAY;
 		if (IN6_IS_ADDR_V4MAPPED(&nh6))
 			next->flags |= RTF_MAPPED_IPV6;
 	} else {
-		next->gateway = nh6;
+		next->gateway6 = nh6;
 		next->flags = 0;
 	}
 
@@ -417,7 +417,7 @@ static const struct in6_addr anyaddr;
 /* Fill nexthop struct */
 static bool nexthop6_fill(struct nlattr *ntb_gateway,
 			  struct nlattr *ntb_encap,
-			  struct rtnexthop *nhp, struct next_hop_v6 *next)
+			  struct rtnexthop *nhp, struct next_hop *next)
 {
 	label_t labels[NH_MAX_OUT_LABELS];
 	uint16_t num_labels = 0;
@@ -433,11 +433,11 @@ static bool nexthop6_fill(struct nlattr *ntb_gateway,
 		return true;
 
 	if (ntb_gateway) {
-		next->gateway = *(struct in6_addr *)mnl_attr_get_payload(
+		next->gateway6 = *(struct in6_addr *)mnl_attr_get_payload(
 			ntb_gateway);
 		next->flags = RTF_GATEWAY;
 	} else {
-		next->gateway = anyaddr;
+		next->gateway6 = anyaddr;
 		next->flags = 0;
 	}
 
@@ -469,11 +469,11 @@ static bool nexthop6_fill(struct nlattr *ntb_gateway,
 }
 
 /* Create nexthop struct */
-struct next_hop_v6 *ecmp6_create(struct nlattr *mpath, uint32_t *count,
-				 bool *missing_ifp)
+struct next_hop *ecmp6_create(struct nlattr *mpath, uint32_t *count,
+			      bool *missing_ifp)
 {
 	size_t size = 0, i;
-	struct next_hop_v6 *next, *n;
+	struct next_hop *next, *n;
 	void *vnhp;
 
 	/*
@@ -487,7 +487,7 @@ struct next_hop_v6 *ecmp6_create(struct nlattr *mpath, uint32_t *count,
 	if (size == 0)
 		return NULL;
 
-	n = next = calloc(sizeof(struct next_hop_v6), size);
+	n = next = calloc(sizeof(struct next_hop), size);
 	if (!next)
 		return NULL;
 

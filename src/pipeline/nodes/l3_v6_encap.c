@@ -46,7 +46,7 @@ static inline struct ifnet *ipv6_encap_node_to_ifp(struct pl_node *node)
  * L2 dest mac resolution, and set from that.
  */
 static ALWAYS_INLINE bool
-ipv6_encap_eth_from_nh6(struct rte_mbuf *mbuf, const struct next_hop_v6 *nh,
+ipv6_encap_eth_from_nh6(struct rte_mbuf *mbuf, const struct next_hop *nh,
 			struct in6_addr *addr, struct ifnet *in_ifp)
 {
 	struct ether_hdr *eth_hdr = rte_pktmbuf_mtod(mbuf, struct ether_hdr *);
@@ -108,7 +108,7 @@ ipv6_encap_process_internal(struct pl_packet *pkt, enum pl_mode mode)
 	if (!ipv6_encap_features(pkt, mode))
 		return IPV6_ENCAP_FEAT_CONSUME;
 
-	struct next_hop_v6 *nh = pkt->nxt.v6;
+	struct next_hop *nh = pkt->nxt.v6;
 	struct ifnet *in_ifp = pkt->in_ifp;
 	struct ifnet *out_ifp = pkt->out_ifp;
 	struct rte_mbuf *mbuf = pkt->mbuf;
@@ -117,7 +117,7 @@ ipv6_encap_process_internal(struct pl_packet *pkt, enum pl_mode mode)
 	struct in6_addr addr;
 
 	if (nh->flags & RTF_GATEWAY) {
-		addr = nh->gateway;
+		addr = nh->gateway6;
 	} else {
 		struct ip6_hdr *ip6;
 

@@ -610,7 +610,7 @@ int spath_reader(zloop_t *loop __rte_unused, zmq_pollitem_t *item,
 			else
 				goto drop;
 		} else if (likely((ntohs(pi.proto)) == ETHER_TYPE_IPv6)) {
-			struct next_hop_v6 nh6 = {.u.ifp = s2s_ifp};
+			struct next_hop nh6 = {.u.ifp = s2s_ifp};
 
 			if (s2s_ifp)
 				nh.v6 = &nh6;

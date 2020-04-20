@@ -80,7 +80,7 @@ enum ip6_packet_validity {
  */
 ALWAYS_INLINE bool
 dp_ip6_l2_nh_output(struct ifnet *in_ifp, struct rte_mbuf *m,
-		    struct next_hop_v6 *nh, uint16_t proto)
+		    struct next_hop *nh, uint16_t proto)
 {
 	struct pl_packet pl_pkt = {
 		.mbuf = m,
@@ -107,7 +107,7 @@ ALWAYS_INLINE bool
 dp_ip6_l2_intf_output(struct ifnet *in_ifp, struct rte_mbuf *m,
 		      struct ifnet *out_ifp, uint16_t proto)
 {
-	struct next_hop_v6 nh6;
+	struct next_hop nh6;
 
 	memset(&nh6, 0, sizeof(nh6));
 	nh6_set_ifp(&nh6, out_ifp);
@@ -404,11 +404,11 @@ ip6_refragment_packet(struct ifnet *o_ifp, struct rte_mbuf *m,
  * If NULL is returned, the packet has been consumed
  */
 static ALWAYS_INLINE
-struct next_hop_v6 *ip6_lookup(struct rte_mbuf *m, struct ifnet *ifp,
+struct next_hop *ip6_lookup(struct rte_mbuf *m, struct ifnet *ifp,
 			    struct ip6_hdr *ip6, uint32_t tbl_id,
 			    bool hlim_decremented)
 {
-	struct next_hop_v6 *nxt;
+	struct next_hop *nxt;
 
 	/* Lookup route */
 	nxt = dp_rt6_lookup(&ip6->ip6_dst, tbl_id, m);
@@ -442,7 +442,7 @@ struct next_hop_v6 *ip6_lookup(struct rte_mbuf *m, struct ifnet *ifp,
  */
 ALWAYS_INLINE
 void ip6_out_features(struct rte_mbuf *m, struct ifnet *ifp,
-		      struct ip6_hdr *ip6, struct next_hop_v6 *nxt,
+		      struct ip6_hdr *ip6, struct next_hop *nxt,
 		      enum ip6_features ip6_feat, uint16_t npf_flags)
 {
 	struct pl_packet pl_pkt = {
@@ -508,7 +508,7 @@ void ip6_out_features(struct rte_mbuf *m, struct ifnet *ifp,
 
 static ALWAYS_INLINE
 void ip6_switch(struct rte_mbuf *m, struct ifnet *ifp,
-		struct ip6_hdr *ip6, struct next_hop_v6 *nxt,
+		struct ip6_hdr *ip6, struct next_hop *nxt,
 		enum ip6_features ip6_feat, uint16_t npf_flags)
 {
 	/* Immediately drop blackholed traffic. */
@@ -698,7 +698,7 @@ ALWAYS_INLINE
 void ip6_output(struct rte_mbuf *m, bool srced_forus)
 {
 	struct ip6_hdr *ip6 = ip6hdr(m);
-	struct next_hop_v6 *nxt;
+	struct next_hop *nxt;
 	struct ifnet *ifp;
 
 	/* Lookup route */
@@ -752,8 +752,8 @@ void
 ip6_lookup_and_originate(struct rte_mbuf *m, struct ifnet *in_ifp)
 {
 	struct ip6_hdr *ip6 = ip6hdr(m);
-	struct next_hop_v6 *nxt;
-	struct next_hop_v6 ll_nh;
+	struct next_hop *nxt;
+	struct next_hop ll_nh;
 
 	/*
 	 * RFC 4291 - Do not try to transmit to unspecified or loopback
@@ -765,7 +765,7 @@ ip6_lookup_and_originate(struct rte_mbuf *m, struct ifnet *in_ifp)
 	}
 
 	if (unlikely(IN6_IS_ADDR_LINKLOCAL(&ip6->ip6_dst))) {
-		ll_nh = (struct next_hop_v6) {
+		ll_nh = (struct next_hop) {
 			.u.ifp = in_ifp,
 		};
 		nxt = &ll_nh;
@@ -791,7 +791,7 @@ ip6_lookup_and_forward(struct rte_mbuf *m, struct ifnet *in_ifp,
 		       bool hlim_decremented, uint16_t npf_flags)
 {
 	struct ip6_hdr *ip6 = ip6hdr(m);
-	struct next_hop_v6 *nxt;
+	struct next_hop *nxt;
 
 	/*
 	 * RFC 4291 - Source address of unspecified must never be forwarded.

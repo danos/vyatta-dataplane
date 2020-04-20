@@ -409,7 +409,7 @@ inline bool ip6_redirects_get(void)
  * Does not modify original packet (n)
  */
 void icmp6_redirect(struct ifnet *ifp, struct rte_mbuf *n,
-		    const struct next_hop_v6 *nxt)
+		    const struct next_hop *nxt)
 {
 	const struct ip6_hdr *sip6 = ip6hdr(n);
 	struct in6_addr saddr6 = sip6->ip6_src;
@@ -439,7 +439,7 @@ void icmp6_redirect(struct ifnet *ifp, struct rte_mbuf *n,
 	/* get ip6 linklocal address for the router. */
 	struct in6_addr taddr;
 	if (nxt->flags & RTF_GATEWAY) {
-		taddr = nxt->gateway;
+		taddr = nxt->gateway6;
 		if (!IN6_IS_ADDR_LINKLOCAL(&taddr))
 			return;
 	} else

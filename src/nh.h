@@ -33,7 +33,7 @@ enum nh_type {
 
 union next_hop_v4_or_v6_ptr {
 	struct next_hop *v4;
-	struct next_hop_v6 *v6;
+	struct next_hop *v6;
 };
 
 #define NH_STRING_MAX 100
@@ -88,22 +88,22 @@ nh4_get_lle(const struct next_hop *next_hop)
 }
 
 void
-nh6_set_ifp(struct next_hop_v6 *next_hop, struct ifnet *ifp);
+nh6_set_ifp(struct next_hop *next_hop, struct ifnet *ifp);
 
 static ALWAYS_INLINE bool
-nh6_is_neigh_created(const struct next_hop_v6 *next_hop)
+nh6_is_neigh_created(const struct next_hop *next_hop)
 {
 	return next_hop->flags & RTF_NEIGH_CREATED;
 }
 
 static ALWAYS_INLINE bool
-nh6_is_neigh_present(const struct next_hop_v6 *next_hop)
+nh6_is_neigh_present(const struct next_hop *next_hop)
 {
 	return next_hop->flags & RTF_NEIGH_PRESENT;
 }
 
 static ALWAYS_INLINE struct llentry *
-nh6_get_lle(const struct next_hop_v6 *next_hop)
+nh6_get_lle(const struct next_hop *next_hop)
 {
 	if (next_hop->flags & (RTF_NEIGH_CREATED | RTF_NEIGH_PRESENT))
 		return next_hop->u.lle;

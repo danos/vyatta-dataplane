@@ -836,7 +836,7 @@ void fal_ip6_upd_addr(unsigned int if_index,
 		      const struct if_addr *ifa);
 void fal_ip6_del_addr(unsigned int if_index,
 		      const struct if_addr *ifa);
-int fal_ip6_new_next_hops(size_t nhops, const struct next_hop_v6 hops[],
+int fal_ip6_new_next_hops(size_t nhops, const struct next_hop hops[],
 			  fal_object_t *group_obj, fal_object_t *obj);
 int fal_ip6_del_next_hops(fal_object_t group_obj, size_t nhops,
 			  const fal_object_t *obj);
@@ -850,11 +850,11 @@ int fal_ip_get_next_hop_attrs(fal_object_t nh_object,
 void fal_ip_dump_next_hop(fal_object_t nh_object, json_writer_t *wr);
 int fal_ip6_new_route(vrfid_t vrf_id, const struct in6_addr *addr,
 		      uint8_t prefixlen, uint32_t tableid,
-		      struct next_hop_v6 hops[], size_t size,
+		      struct next_hop hops[], size_t size,
 		      fal_object_t group_obj);
 int fal_ip6_upd_route(vrfid_t vrf_id, const struct in6_addr *addr,
 		      uint8_t prefixlen, uint32_t tableid,
-		      struct next_hop_v6 hops[], size_t size,
+		      struct next_hop hops[], size_t size,
 		      fal_object_t group_obj);
 int fal_ip6_del_route(vrfid_t vrf_id, const struct in6_addr *addr,
 		      uint8_t prefixlen, uint32_t tableid);

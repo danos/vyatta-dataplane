@@ -1541,7 +1541,7 @@ next_hop_to_packet_action(const struct next_hop *nh)
 }
 
 static enum fal_packet_action_t
-next_hop6_to_packet_action(const struct next_hop_v6 *nh)
+next_hop6_to_packet_action(const struct next_hop *nh)
 {
 	struct ifnet *ifp;
 
@@ -1614,7 +1614,7 @@ static const struct fal_attribute_t **next_hop_to_attr_list(
 
 static const struct fal_attribute_t **next_hop6_to_attr_list(
 	fal_object_t nhg_object, size_t nhops,
-	const struct next_hop_v6 hops[], uint32_t **attr_count)
+	const struct next_hop hops[], uint32_t **attr_count)
 {
 	const struct fal_attribute_t **nh_attr_list;
 	size_t i;
@@ -1629,7 +1629,7 @@ static const struct fal_attribute_t **next_hop6_to_attr_list(
 	}
 
 	for (i = 0; i < nhops; i++) {
-		const struct next_hop_v6 *nh = &hops[i];
+		const struct next_hop *nh = &hops[i];
 		struct fal_attribute_t *nh_attr;
 		struct ifnet *ifp;
 		struct fal_ip_address_t *addr;
@@ -1655,7 +1655,7 @@ static const struct fal_attribute_t **next_hop6_to_attr_list(
 			nh_attr[3].id = FAL_NEXT_HOP_ATTR_IP;
 			addr = &nh_attr[3].value.ipaddr;
 			addr->addr_family = FAL_IP_ADDR_FAMILY_IPV6;
-			addr->addr.addr6 = nh->gateway;
+			addr->addr.addr6 = nh->gateway6;
 			(*attr_count)[i] = 4;
 		} else {
 			(*attr_count)[i] = 3;
@@ -1725,7 +1725,7 @@ error:
 	return ret;
 }
 
-int fal_ip6_new_next_hops(size_t nhops, const struct next_hop_v6 hops[],
+int fal_ip6_new_next_hops(size_t nhops, const struct next_hop hops[],
 			  fal_object_t *nhg_object,
 			  fal_object_t *obj_list)
 {
@@ -1919,7 +1919,7 @@ next_hop_group_packet_action(uint32_t nhops, struct next_hop hops[])
 }
 
 static enum fal_packet_action_t
-next_hop6_group_packet_action(uint32_t nhops, struct next_hop_v6 hops[])
+next_hop6_group_packet_action(uint32_t nhops, struct next_hop hops[])
 {
 	enum fal_packet_action_t action;
 	uint32_t i;
@@ -1959,7 +1959,7 @@ int fal_ip4_new_route(vrfid_t vrf_id, in_addr_t addr, uint8_t prefixlen,
 
 int fal_ip6_new_route(vrfid_t vrf_id, const struct in6_addr *addr,
 		      uint8_t prefixlen, uint32_t tableid,
-		      struct next_hop_v6 hops[], size_t nhops,
+		      struct next_hop hops[], size_t nhops,
 		      fal_object_t nhg_object)
 {
 	uint32_t __vrf_id = vrf_id;
@@ -2019,7 +2019,7 @@ int fal_ip4_upd_route(vrfid_t vrf_id, in_addr_t addr, uint8_t prefixlen,
 
 int fal_ip6_upd_route(vrfid_t vrf_id, const struct in6_addr *addr,
 		      uint8_t prefixlen, uint32_t tableid,
-		      struct next_hop_v6 hops[], size_t nhops,
+		      struct next_hop hops[], size_t nhops,
 		      fal_object_t nhg_object)
 {
 	uint32_t __vrf_id = vrf_id;

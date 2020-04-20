@@ -30,12 +30,12 @@
 #include "route_v6.h"
 #include "urcu.h"
 
-static RTE_DEFINE_PER_LCORE(struct next_hop_v6, ll_nexthop);
+static RTE_DEFINE_PER_LCORE(struct next_hop, ll_nexthop);
 
 ALWAYS_INLINE unsigned int
 ipv6_post_route_lookup_process(struct pl_packet *pkt, void *context __unused)
 {
-	struct next_hop_v6 *nxt = pkt->nxt.v6;
+	struct next_hop *nxt = pkt->nxt.v6;
 	struct ifnet *ifp = pkt->in_ifp;
 	struct ip6_hdr *ip6 = pkt->l3_hdr;
 
