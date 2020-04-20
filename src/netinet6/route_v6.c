@@ -144,6 +144,17 @@ static const struct reserved_route {
 	},
 };
 
+static struct nexthop_table *route6_get_nh_table(void)
+{
+	return &nh6_tbl;
+}
+
+
+static struct cds_lfht *route6_get_nh_hash_table(void)
+{
+	return nexthop6_hash;
+}
+
 /*
  * Wrapper round the nexthop6_new function. This one keeps track of the
  * failures and successes.
@@ -1317,6 +1328,13 @@ void route_v6_uninit(struct vrf *vrf, struct route6_head *rt6_head)
 	rt6_head->rt6_table = NULL;
 }
 
+struct nh_common nh6_common = {
+	.nh_hash = nexthop6_hashfn,
+	.nh_compare = nexthop6_cmpfn,
+	.nh_get_hash_tbl = route6_get_nh_hash_table,
+	.nh_get_nh_tbl = route6_get_nh_table,
+};
+
 void nexthop_v6_tbl_init(void)
 {
 	struct next_hop nh_drop = {
@@ -1331,6 +1349,8 @@ void nexthop_v6_tbl_init(void)
 				     NULL);
 	if (nexthop6_hash == NULL)
 		rte_panic("rte_route_v6_init: can't create nexthop6 hash\n");
+
+	nh_common_register(AF_INET6, &nh6_common);
 
 	/* reserve a drop nexthop */
 	if (nexthop6_new(&nh_drop, 1, &idx))
