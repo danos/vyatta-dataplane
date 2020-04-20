@@ -1,7 +1,7 @@
 /*
  * MPLS label stack encoding/decoding
  *
- * Copyright (c) 2017-2019, AT&T Intellectual Property. All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property. All rights reserved.
  * Copyright (c) 2015 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -11,6 +11,7 @@
 #ifndef MPLS_H
 #define MPLS_H
 
+#include <stdbool.h>
 #include <rte_branch_prediction.h>
 
 #ifndef MPLS_LS_LABEL_MASK
