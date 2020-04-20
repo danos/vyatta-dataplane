@@ -646,49 +646,6 @@ static struct lpm6 *rt6_create_lpm(uint32_t id, struct vrf *vrf)
 	return lpm;
 }
 
-
-int route_v6_init(struct vrf *vrf)
-{
-	struct lpm6 *lpm;
-
-	lpm = rt6_create_lpm(RT_TABLE_MAIN, vrf);
-	if (!lpm) {
-		DP_LOG_W_VRF(ERR, ROUTE6, vrf->v_id,
-			     "rte_route_v6_init: can't create ipv6 LPM\n");
-		return -1;
-	}
-
-	return 0;
-}
-
-void route_v6_uninit(struct vrf *vrf, struct route6_head *rt6_head)
-{
-	uint32_t id;
-
-	if (rt6_head == NULL)
-		return;
-
-	for (id = 0; id < rt6_head->rt6_rtm_max; id++) {
-		struct lpm6 *lpm = rt6_head->rt6_table[id];
-
-		if (lpm) {
-			if (!lpm6_is_empty(lpm)) {
-				if (!rt6_lpm_is_empty(lpm)) {
-					RTE_LOG(ERR, ROUTE,
-						"%s:non empty lpm vrf %u table %u\n",
-						__func__, vrf->v_id, id);
-					return;
-				}
-				rt6_lpm_del_reserved_routes(lpm, vrf);
-			}
-			lpm6_free(lpm);
-		}
-	}
-	free_huge(rt6_head->rt6_table, (rt6_head->rt6_rtm_max *
-					sizeof(struct lpm6 *)));
-	rt6_head->rt6_table = NULL;
-}
-
 static struct lpm6 *rt6_get_lpm(struct route6_head *rt6_head, uint32_t id)
 {
 	if (unlikely(id >= rt6_head->rt6_rtm_max))
@@ -1316,6 +1273,48 @@ void nexthop6_put(uint32_t idx)
 		cds_lfht_del(nexthop6_hash, &nextu->nh_node);
 		call_rcu(&nextu->rcu, nexthop6_destroy);
 	}
+}
+
+int route_v6_init(struct vrf *vrf)
+{
+	struct lpm6 *lpm;
+
+	lpm = rt6_create_lpm(RT_TABLE_MAIN, vrf);
+	if (!lpm) {
+		DP_LOG_W_VRF(ERR, ROUTE6, vrf->v_id,
+			     "rte_route_v6_init: can't create ipv6 LPM\n");
+		return -1;
+	}
+
+	return 0;
+}
+
+void route_v6_uninit(struct vrf *vrf, struct route6_head *rt6_head)
+{
+	uint32_t id;
+
+	if (rt6_head == NULL)
+		return;
+
+	for (id = 0; id < rt6_head->rt6_rtm_max; id++) {
+		struct lpm6 *lpm = rt6_head->rt6_table[id];
+
+		if (lpm) {
+			if (!lpm6_is_empty(lpm)) {
+				if (!rt6_lpm_is_empty(lpm)) {
+					RTE_LOG(ERR, ROUTE,
+						"%s:non empty lpm vrf %u table %u\n",
+						__func__, vrf->v_id, id);
+					return;
+				}
+				rt6_lpm_del_reserved_routes(lpm, vrf);
+			}
+			lpm6_free(lpm);
+		}
+	}
+	free_huge(rt6_head->rt6_table, (rt6_head->rt6_rtm_max *
+					sizeof(struct lpm6 *)));
+	rt6_head->rt6_table = NULL;
 }
 
 void nexthop_v6_tbl_init(void)
