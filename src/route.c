@@ -852,28 +852,6 @@ static int nexthop_cmpfn(struct cds_lfht_node *node, const void *key)
 	return true;
 }
 
-static struct next_hop_u *nexthop_lookup(int family,
-					 const struct nexthop_hash_key *key)
-{
-	struct cds_lfht_iter iter;
-	struct cds_lfht_node *node;
-	struct cds_lfht *hash_tbl;
-
-	if (family == AF_INET)
-		hash_tbl = route_get_nh_hash_table();
-	else
-		return NULL;
-
-	cds_lfht_lookup(hash_tbl,
-			nexthop_hashfn(key, 0),
-			nexthop_cmpfn, key, &iter);
-	node = cds_lfht_iter_get_node(&iter);
-	if (node)
-		return caa_container_of(node, struct next_hop_u, nh_node);
-	else
-		return NULL;
-}
-
 static int
 nexthop_hash_insert(struct next_hop_u *nu,
 		    const struct nexthop_hash_key *key)
