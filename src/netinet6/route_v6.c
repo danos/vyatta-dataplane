@@ -1010,21 +1010,6 @@ static int nexthop6_cmpfn(struct cds_lfht_node *node, const void *key)
 	return true;
 }
 
-static struct next_hop_u *
-nexthop6_lookup(const struct nexthop_hash_key *key)
-{
-	struct cds_lfht_iter iter;
-	struct cds_lfht_node *node;
-
-	cds_lfht_lookup(nexthop6_hash,
-			nexthop6_hashfn(key, 0),
-			nexthop6_cmpfn, key, &iter);
-	node = cds_lfht_iter_get_node(&iter);
-	if (node)
-		return caa_container_of(node, struct next_hop_u, nh_node);
-	else
-		return NULL;
-}
 
 static int
 nexthop6_hash_insert(struct next_hop_u *nu,
@@ -1072,7 +1057,7 @@ nexthop6_reuse(const struct nexthop_hash_key *key, uint32_t *slot)
 {
 	struct next_hop_u *nextu;
 
-	nextu = nexthop6_lookup(key);
+	nextu = nexthop_lookup(AF_INET6, key);
 	if (!nextu)
 		return NULL;
 
