@@ -195,9 +195,11 @@ DP_DECL_TEST_CASE(crypto_perf_scale_suite, crypto_policy_scale, NULL, NULL);
  * TESTCASE: Policy scale
  *
  * This testcase tests the amount of time taken to build a set of policies
- * incrementally
+ * incrementally. It is not run as part of the build as it can fail on
+ * slow machines or machines with a heavy workload. It is however useful
+ * for comparisons between different runs on the same machine.
  */
-DP_START_TEST_FULL_RUN(crypto_policy_scale, policy_update_scale)
+DP_START_TEST_DONT_RUN(crypto_policy_scale, policy_update_scale)
 {
 #define MAX_TUNNEL_CNT 512
 	setup(VRF_DEFAULT_ID);
