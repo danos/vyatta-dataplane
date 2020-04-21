@@ -1,3 +1,13 @@
+vyatta-dataplane (3.9.110) unstable; urgency=medium
+
+  [ Mark Gillott ]
+  * Register event operations only on first use (Fixes: VRVDR-50621)
+  * Capture portmonitor replay errors (Fixes: VRVDR-50621)
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Tue, 21 Apr 2020 07:45:42 +0100
+
 vyatta-dataplane (3.9.109) unstable; urgency=medium
 
   [ Charles (Chas) Williams ]
