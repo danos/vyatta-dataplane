@@ -1,3 +1,69 @@
+vyatta-dataplane (3.10.2) unstable; urgency=medium
+
+  [ Mark Gillott ]
+  * pcap: run FAL updates on master thread (Fixes: VRVDR-50581)
+
+  [ Paul Atkins ]
+  * 3.9.105
+
+  [ Nicholas Brown ]
+  * master branch is targeting 2005 release
+  * Restore .gitlint file
+  * Identify hidden files that should not be ignored
+
+  [ Gavin Shearer ]
+  * l3acl: don't commit rules to HW on event IF_FEAT_MODE_EVENT_L3_ENABLED
+
+  [ Ian Wilson ]
+  * cgnat: Obsolete some error counts, and add echo-req count to summary
+
+  [ Nicholas Brown ]
+  * Remove copyright and license assertion output
+
+  [ Paul Atkins ]
+  * ipv4_rsmbl: If we detect duplicate fragments then clean up properly
+  * ipv4_rsmbl: check all previous frags to determine duplicates
+
+  [ Srinivas Narayan ]
+  * ipsec-ut: Update crypto UTs to support policy count verification
+  * ipsec-ut: Force NPF cleanup at the end of s2s suites
+  * ipsec-ut: Add NPF cleanup calls to multi-tunnel tests
+  * ipsec-ut: Add a test to measure time to setup/teardown 500 tunnels
+  * ipsec-ut: Increase poll interval for crypto policy display
+  * crypto: Add 'brief' option to 'ipsec spd' command
+  * crypto: Add total and live policy counts
+  * ipsec-ut: Update UT to use 'brief' cmd and live policy count
+  * UT: Add API to specify polling interval for json state
+  * ipsec-ut: Update polling interval and count based on new API
+
+  [ Paul Atkins ]
+  * ipv4_rsmbl: drop fragment if it includes previously rx'ed bytes
+  * ut: enhance the ipv4 duplicate fragment tests
+  * ipv6_rsmbl: If we detect duplicate fragments then clean up properly
+  * ipv6_rsmbl: check all previous frags to determine duplicates
+  * ipv6_rsmbl: drop fragment if it includes previously rx'ed bytes
+  * if: make if_output_features always inline
+  * l2_vlan_mod: rename the vlan_mod pipline feature file
+  * l2_vlan_mod: add a new pipeline node for egress vlan modify
+  * portmonitor: add a new pipeline node for output portmonitor
+  * capture: add a new pipeline node for output capture
+  * if: split if_output into an internal and external version
+  * if: remove if_output_features and call the feat point directly
+  * if: make the pipeline call if_output_internal
+  * 3.9.106
+
+  [ Ian Wilson ]
+  * npf: Optimal address-group show output including host addresses
+
+  [ Robert Shearman ]
+  * pipeline: use correct ifp for egress vlan modify feature
+    (Fixes: VRVDR-50708)
+
+  [ Paul Atkins ]
+  * 3.9.107
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Tue, 21 Apr 2020 09:40:00 +0100
+
 vyatta-dataplane (3.10.1) unstable; urgency=medium
 
   [ Nicholas Brown ]
