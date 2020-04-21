@@ -1,3 +1,16 @@
+vyatta-dataplane (3.9.109) unstable; urgency=medium
+
+  [ Charles (Chas) Williams ]
+  * crypto: count burst buffer full as drops (Bugfix: VRVDR-50279)
+  * crypto: count most errors as proto drops (Bugfix: VRVDR-50279)
+  * crypto: eliminate macro usage (Bugfix: VRVDR-50279)
+  * crypto: count packets against tunnel interface (Bugfix: VRVDR-50279)
+  * crypto: do not count failed packets (Bugfix: VRVDR-50279)
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Tue, 21 Apr 2020 07:43:38 +0100
+
 vyatta-dataplane (3.9.108) unstable; urgency=medium
 
   [ Gavin Shearer ]
