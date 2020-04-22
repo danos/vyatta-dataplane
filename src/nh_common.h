@@ -91,6 +91,11 @@ void nh_set_ifp(struct next_hop *next_hop, struct ifnet *ifp);
 struct next_hop_u *nexthop_lookup(int family,
 				  const struct nexthop_hash_key *key);
 
+struct next_hop_u *nexthop_reuse(int family,
+				 const struct nexthop_hash_key *key,
+				 uint32_t *slot);
+
+
 /*
  * Per AF hash function for a nexthop.
  */

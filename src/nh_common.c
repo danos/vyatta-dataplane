@@ -8,6 +8,7 @@
 
 #include "if_llatbl.h"
 #include "nh_common.h"
+#include "vplane_debug.h"
 
 /*
  * use entry 0 for AF_INET
@@ -128,4 +129,29 @@ struct next_hop_u *nexthop_lookup(int family,
 		return caa_container_of(node, struct next_hop_u, nh_node);
 	else
 		return NULL;
+}
+
+/* Reuse existing next hop entry */
+struct next_hop_u *nexthop_reuse(int family,
+				 const struct nexthop_hash_key *key,
+				 uint32_t *slot)
+{
+	struct next_hop_u *nu;
+	int index;
+
+	nu = nexthop_lookup(family, key);
+	if (!nu)
+		return NULL;
+
+	index = nu->index;
+
+	*slot = index;
+	++nu->refcount;
+
+	DP_DEBUG(ROUTE, DEBUG, ROUTE,
+		 "%s nexthop reuse: nexthop %d, refs %u\n",
+		 family == AF_INET ? "IPv4" : "IPv6",
+		 index, nu->refcount);
+
+	return nu;
 }

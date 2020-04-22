@@ -1052,25 +1052,6 @@ nexthop6_hash_del_add(struct next_hop_u *old_nu,
 	return nexthop6_hash_insert(new_nu, &key);
 }
 
-static struct next_hop_u *
-nexthop6_reuse(const struct nexthop_hash_key *key, uint32_t *slot)
-{
-	struct next_hop_u *nextu;
-
-	nextu = nexthop_lookup(AF_INET6, key);
-	if (!nextu)
-		return NULL;
-
-	*slot = nextu->index;
-	++nextu->refcount;
-
-	DP_DEBUG(ROUTE, DEBUG, ROUTE,
-		 "nexthop6 reuse: nexthop %u, refs %u\n",
-		 nextu->index, nextu->refcount);
-
-	return nextu;
-}
-
 static struct next_hop_u *nexthop6_alloc(int size)
 {
 	struct next_hop_u *nextu;
@@ -1134,7 +1115,7 @@ nexthop6_new(struct next_hop *nh, size_t size, uint32_t *slot)
 	uint32_t nh6_iter;
 	int ret;
 
-	nextu = nexthop6_reuse(&key, slot);
+	nextu = nexthop_reuse(AF_INET6, &key, slot);
 	if (nextu)
 		return 0;
 

@@ -937,31 +937,6 @@ nexthop_hash_del_add(struct next_hop_u *old_nu,
 	return nexthop_hash_insert(new_nu, &key);
 }
 
-/* Reuse existing next hop entry */
-static struct next_hop_u *nexthop_reuse(int family,
-					const struct nexthop_hash_key *key,
-					uint32_t *slot)
-{
-	struct next_hop_u *nu;
-	int index;
-
-	nu = nexthop_lookup(family, key);
-	if (!nu)
-		return NULL;
-
-	index = nu->index;
-
-	*slot = index;
-	++nu->refcount;
-
-	DP_DEBUG(ROUTE, DEBUG, ROUTE,
-		 "%s nexthop reuse: nexthop %d, refs %u\n",
-		 family ? AF_INET ? "IPv4" : "IPv6",
-		 index, nu->refcount);
-
-	return nu;
-}
-
 /* Callback from RCU after all other threads are done. */
 static void nexthop_destroy(struct rcu_head *head)
 {
