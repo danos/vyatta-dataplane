@@ -221,7 +221,7 @@ icmp_send_no_route(struct rte_mbuf *m, struct ifnet *in_ifp,
 	icmp_out_inc(pktmbuf_get_vrf(m), icp->type);
 
 	memset(&singlehop_nh, 0, sizeof(singlehop_nh));
-	nh4_set_ifp(&singlehop_nh, out_ifp);
+	nh_set_ifp(&singlehop_nh, out_ifp);
 	nh = &singlehop_nh;
 
 	if (dp_ip_l2_nh_output(in_ifp, m, nh, ETH_P_IP)) {

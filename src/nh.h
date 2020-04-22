@@ -63,9 +63,6 @@ nh_get_flags(enum nh_type nh_type, union next_hop_v4_or_v6_ptr nh)
 	return nh.v4->flags;
 }
 
-void
-nh4_set_ifp(struct next_hop *next_hop, struct ifnet *ifp);
-
 static ALWAYS_INLINE bool
 nh4_is_neigh_created(const struct next_hop *next_hop)
 {
@@ -86,9 +83,6 @@ nh4_get_lle(const struct next_hop *next_hop)
 
 	return NULL;
 }
-
-void
-nh6_set_ifp(struct next_hop *next_hop, struct ifnet *ifp);
 
 static ALWAYS_INLINE bool
 nh6_is_neigh_created(const struct next_hop *next_hop)
@@ -115,10 +109,10 @@ static ALWAYS_INLINE struct ifnet *
 nh_get_if(enum nh_type nh_type, union next_hop_v4_or_v6_ptr nh)
 {
 	if (nh_type == NH_TYPE_V6GW)
-		return dp_nh6_get_ifp(nh.v6);
+		return dp_nh_get_ifp(nh.v6);
 
 	assert(nh_type == NH_TYPE_V4GW);
-	return dp_nh4_get_ifp(nh.v4);
+	return dp_nh_get_ifp(nh.v4);
 }
 
 static inline union next_hop_v4_or_v6_ptr

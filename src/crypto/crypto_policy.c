@@ -846,7 +846,7 @@ policy_rule_set_peer_info(struct policy_rule *pr,
 	struct ifnet *ifp;
 
 	ifp = pr->feat_attach ?
-		dp_nh4_get_ifp(&pr->feat_attach->next.nh) : NULL;
+		dp_nh_get_ifp(&pr->feat_attach->next.nh) : NULL;
 	pr->reqid = tmpl->reqid;
 	pr->output_peer_af = tmpl->family;
 	memcpy(&pr->output_peer, dst, sizeof(pr->output_peer));
@@ -1526,9 +1526,9 @@ static void policy_bind_feat_attach(vrfid_t vrfid,
 	}
 
 	if (pr->sel.family == AF_INET)
-		nh4_set_ifp(&pr->feat_attach->next.nh, ifp);
+		nh_set_ifp(&pr->feat_attach->next.nh, ifp);
 	else
-		nh6_set_ifp(&pr->feat_attach->next.nh6, ifp);
+		nh_set_ifp(&pr->feat_attach->next.nh6, ifp);
 
 	/*
 	 * If there are any SAs already present for this policy, we
@@ -2006,9 +2006,9 @@ crypto_policy_handle_packet_outbound_checks(struct rte_mbuf *mbuf,
 	 * we allow the packet to be fragmented post encryption.
 	 */
 	if (pr->output_peer_af == AF_INET)
-		*nxt_ifp = dp_nh4_get_ifp(nxt);
+		*nxt_ifp = dp_nh_get_ifp(nxt);
 	else
-		*nxt_ifp = dp_nh6_get_ifp(nxt6);
+		*nxt_ifp = dp_nh_get_ifp(nxt6);
 
 	if (!*nxt_ifp)
 		return;
@@ -2362,14 +2362,14 @@ static void policy_rule_to_json(json_writer_t *wr,
 	jsonw_uint_field(wr, "index", pr->rule_index);
 
 	if (pr->sel.family == AF_INET && pr->feat_attach) {
-		ifp = dp_nh4_get_ifp(&pr->feat_attach->next.nh);
+		ifp = dp_nh_get_ifp(&pr->feat_attach->next.nh);
 		if (ifp)
 			jsonw_string_field(wr, "virtual-feature-point",
 					   ifp->if_name);
 	}
 
 	if (pr->sel.family == AF_INET6 && pr->feat_attach) {
-		ifp = dp_nh6_get_ifp(&pr->feat_attach->next.nh6);
+		ifp = dp_nh_get_ifp(&pr->feat_attach->next.nh6);
 		if (ifp)
 			jsonw_string_field(wr, "virtual-feature-point",
 					   ifp->if_name);
@@ -2815,9 +2815,9 @@ bool crypto_policy_check_outbound(struct ifnet *in_ifp, struct rte_mbuf **mbuf,
 			struct ifnet *ifp = NULL;
 
 			if (v4 && nh->v4)
-				ifp = dp_nh4_get_ifp(nh->v4);
+				ifp = dp_nh_get_ifp(nh->v4);
 			else if (nh->v6)
-				ifp = dp_nh6_get_ifp(nh->v6);
+				ifp = dp_nh_get_ifp(nh->v6);
 
 			if (!ifp || pr->sel.ifindex != (int)ifp->if_index)
 				/* We don't have a match */
@@ -2858,7 +2858,7 @@ bool crypto_policy_check_outbound(struct ifnet *in_ifp, struct rte_mbuf **mbuf,
 			if (v4) {
 				if (attach) {
 					vfp_ifp =
-					dp_nh4_get_ifp(&attach->next.nh);
+					dp_nh_get_ifp(&attach->next.nh);
 
 					if (!vfp_ifp) {
 						IPSEC_CNT_INC(DROPPED_NO_BIND);
@@ -2882,7 +2882,7 @@ bool crypto_policy_check_outbound(struct ifnet *in_ifp, struct rte_mbuf **mbuf,
 								     pr);
 			} else {
 				if (attach) {
-					vfp_ifp = dp_nh6_get_ifp(
+					vfp_ifp = dp_nh_get_ifp(
 						&attach->next.nh6);
 
 					if (!vfp_ifp) {
@@ -3099,11 +3099,11 @@ struct ifnet *crypto_policy_feat_attach_by_reqid(uint32_t reqid)
 		if (pr->reqid == reqid) {
 			if (pr->sel.family == AF_INET)
 				return pr->feat_attach ?
-				dp_nh4_get_ifp(&pr->feat_attach->next.nh) :
+				dp_nh_get_ifp(&pr->feat_attach->next.nh) :
 				NULL;
 			else
 				return pr->feat_attach ?
-				       dp_nh6_get_ifp(
+				       dp_nh_get_ifp(
 				       &pr->feat_attach->next.nh6) :
 				       NULL;
 		}

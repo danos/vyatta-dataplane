@@ -50,7 +50,7 @@ ipv6_encap_eth_from_nh6(struct rte_mbuf *mbuf, const struct next_hop *nh,
 			struct in6_addr *addr, struct ifnet *in_ifp)
 {
 	struct ether_hdr *eth_hdr = rte_pktmbuf_mtod(mbuf, struct ether_hdr *);
-	struct ifnet *out_ifp = dp_nh6_get_ifp(nh); /* Needed for VRRP */
+	struct ifnet *out_ifp = dp_nh_get_ifp(nh); /* Needed for VRRP */
 
 	ether_addr_copy(&out_ifp->eth_addr, &eth_hdr->s_addr);
 

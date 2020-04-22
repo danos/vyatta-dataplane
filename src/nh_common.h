@@ -9,8 +9,10 @@
 #include <netinet/in.h>
 #include <rte_fbk_hash.h>
 
+#include "compiler.h"
 #include "fal_plugin.h"
 #include "pd_show.h"
+#include "route_flags.h"
 #include "urcu.h"
 
 struct ifnet;
@@ -73,6 +75,8 @@ struct nexthop_table {
 	uint32_t neigh_present;
 	uint32_t neigh_created;
 };
+
+void nh_set_ifp(struct next_hop *next_hop, struct ifnet *ifp);
 
 /*
  * Per AF hash function for a nexthop.

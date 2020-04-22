@@ -162,7 +162,7 @@ static bool arp_proxy(struct ifnet *ifp, in_addr_t addr, struct rte_mbuf *m,
 		return false;
 
 	/* Don't send proxy if on same interface */
-	if (dp_nh4_get_ifp(nxt) == ifp)
+	if (dp_nh_get_ifp(nxt) == ifp)
 		return false;
 
 	/* Respond with own address */

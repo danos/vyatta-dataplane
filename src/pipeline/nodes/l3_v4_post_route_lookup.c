@@ -77,7 +77,7 @@ ipv4_post_route_lookup_process(struct pl_packet *pkt, void *context __unused)
 	}
 
 	/* nxt->ifp may be changed by netlink messages. */
-	struct ifnet *nxt_ifp = dp_nh4_get_ifp(nxt);
+	struct ifnet *nxt_ifp = dp_nh_get_ifp(nxt);
 
 	/* Destination device is not up? */
 	if (unlikely(!nxt_ifp || !(nxt_ifp->if_flags & IFF_UP))) {

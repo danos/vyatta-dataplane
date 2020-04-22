@@ -1533,7 +1533,7 @@ next_hop_to_packet_action(const struct next_hop *nh)
 	if (nh->flags & (RTF_LOCAL|RTF_BROADCAST|RTF_SLOWPATH|RTF_REJECT))
 		return FAL_PACKET_ACTION_TRAP;
 
-	ifp = dp_nh4_get_ifp(nh);
+	ifp = dp_nh_get_ifp(nh);
 	if (!ifp || ifp->fal_l3 == FAL_NULL_OBJECT_ID)
 		return FAL_PACKET_ACTION_TRAP;
 
@@ -1552,7 +1552,7 @@ next_hop6_to_packet_action(const struct next_hop *nh)
 	if (nh->flags & (RTF_LOCAL|RTF_BROADCAST|RTF_SLOWPATH|RTF_REJECT))
 		return FAL_PACKET_ACTION_TRAP;
 
-	ifp = dp_nh6_get_ifp(nh);
+	ifp = dp_nh_get_ifp(nh);
 	if (!ifp || ifp->fal_l3 == FAL_NULL_OBJECT_ID)
 		return FAL_PACKET_ACTION_TRAP;
 
@@ -1594,7 +1594,7 @@ static const struct fal_attribute_t **next_hop_to_attr_list(
 		nh_attr[0].id = FAL_NEXT_HOP_ATTR_NEXT_HOP_GROUP;
 		nh_attr[0].value.objid = nhg_object;
 		nh_attr[1].id = FAL_NEXT_HOP_ATTR_INTF;
-		ifp = dp_nh4_get_ifp(nh);
+		ifp = dp_nh_get_ifp(nh);
 		nh_attr[1].value.u32 = ifp ? ifp->if_index : 0;
 		nh_attr[2].id = FAL_NEXT_HOP_ATTR_ROUTER_INTF;
 		nh_attr[2].value.u32 = ifp ? ifp->fal_l3 : FAL_NULL_OBJECT_ID;
@@ -1647,7 +1647,7 @@ static const struct fal_attribute_t **next_hop6_to_attr_list(
 		nh_attr[0].id = FAL_NEXT_HOP_ATTR_NEXT_HOP_GROUP;
 		nh_attr[0].value.objid = nhg_object;
 		nh_attr[1].id = FAL_NEXT_HOP_ATTR_INTF;
-		ifp = dp_nh6_get_ifp(nh);
+		ifp = dp_nh_get_ifp(nh);
 		nh_attr[1].value.u32 = ifp ? ifp->if_index : 0;
 		nh_attr[2].id = FAL_NEXT_HOP_ATTR_ROUTER_INTF;
 		nh_attr[2].value.u32 = ifp ? ifp->fal_l3 : FAL_NULL_OBJECT_ID;

@@ -80,7 +80,7 @@ dp_ip_l2_nh_output(struct ifnet *in_ifp, struct rte_mbuf *m,
 		.l2_pkt_type = pkt_mbuf_get_l2_traffic_type(m),
 		.l3_hdr = iphdr(m),
 		.in_ifp = in_ifp,
-		.out_ifp = dp_nh4_get_ifp(nh),
+		.out_ifp = dp_nh_get_ifp(nh),
 		.nxt.v4 = nh,
 		.l2_proto = proto,
 	};
@@ -100,7 +100,7 @@ dp_ip_l2_intf_output(struct ifnet *in_ifp, struct rte_mbuf *m,
 	struct next_hop nh;
 
 	memset(&nh, 0, sizeof(nh));
-	nh4_set_ifp(&nh, out_ifp);
+	nh_set_ifp(&nh, out_ifp);
 
 	return dp_ip_l2_nh_output(in_ifp, m, &nh, proto);
 }
@@ -256,7 +256,7 @@ void ip_out_features(struct rte_mbuf *m, struct ifnet *ifp,
 	};
 
 	/* nxt->ifp may be changed by netlink messages. */
-	struct ifnet *nxt_ifp = dp_nh4_get_ifp(nxt);
+	struct ifnet *nxt_ifp = dp_nh_get_ifp(nxt);
 
 	/* Destination device is not up? */
 	if (!nxt_ifp || !(nxt_ifp->if_flags & IFF_UP)) {

@@ -166,6 +166,8 @@ int dp_nh6_lookup_by_index(uint32_t nhindex, uint32_t hash,
  *
  * @param[in] next_hop IPv4 next_hop pointer
  * @return interface pointer
+ *
+ * @deprecated
  */
 struct ifnet *
 dp_nh4_get_ifp(const struct next_hop *next_hop);
@@ -184,6 +186,8 @@ dp_nh4_get_addr(const struct next_hop *next_hop);
  *
  * @param[in] next_hop IPv6 nexthop pointer
  * @return interface pointer
+ *
+ * @deprecated
  */
 struct ifnet *
 dp_nh6_get_ifp(const struct next_hop *next_hop);
@@ -196,6 +200,16 @@ dp_nh6_get_ifp(const struct next_hop *next_hop);
  */
 const struct in6_addr *
 dp_nh6_get_addr(const struct next_hop *next_hop);
+
+/*
+ * Get interface pointer for the next hop. This should be used instead of the
+ * v4/v6 specific versions which are now deprecated.
+ *
+ * @param[in] next_hop nexthop pointer
+ * @return interface pointer
+ */
+struct ifnet *
+dp_nh_get_ifp(const struct next_hop *next_hop);
 
 /*
  * IPv6 output function to transmit packet on a given output interface.

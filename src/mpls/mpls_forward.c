@@ -821,25 +821,25 @@ static inline void nh_eth_output_mpls(enum nh_type nh_type,
 				.flags = RTF_GATEWAY,
 				.gateway4 = V4MAPPED_IPV6_TO_IPV4(
 					nh.v6->gateway6),
-				.u.ifp = dp_nh6_get_ifp(nh.v6),
+				.u.ifp = dp_nh_get_ifp(nh.v6),
 			};
 
 			if (dp_ip_l2_nh_output(input_ifp, m, &v4nh,
 					       ETH_P_MPLS_UC))
 				mpls_if_incr_out_ucastpkts(
-						dp_nh6_get_ifp(nh.v6),
+						dp_nh_get_ifp(nh.v6),
 						len);
 		} else {
 			struct next_hop v6nh = {
 				.flags = RTF_GATEWAY,
 				.gateway6 = nh.v6->gateway6,
-				.u.ifp = dp_nh6_get_ifp(nh.v6),
+				.u.ifp = dp_nh_get_ifp(nh.v6),
 			};
 
 			if (dp_ip6_l2_nh_output(input_ifp, m,
 						&v6nh, ETH_P_MPLS_UC))
 				mpls_if_incr_out_ucastpkts(
-						dp_nh6_get_ifp(nh.v6),
+						dp_nh_get_ifp(nh.v6),
 						len);
 		}
 	} else {
@@ -847,12 +847,12 @@ static inline void nh_eth_output_mpls(enum nh_type nh_type,
 		struct next_hop v4nh = {
 			.flags = RTF_GATEWAY,
 			.gateway4 = nh.v4->gateway4,
-			.u.ifp = dp_nh4_get_ifp(nh.v4),
+			.u.ifp = dp_nh_get_ifp(nh.v4),
 		};
 
 		if (dp_ip_l2_nh_output(input_ifp, m, &v4nh,
 				       ETH_P_MPLS_UC))
-			mpls_if_incr_out_ucastpkts(dp_nh4_get_ifp(nh.v4), len);
+			mpls_if_incr_out_ucastpkts(dp_nh_get_ifp(nh.v4), len);
 	}
 }
 
@@ -1142,7 +1142,7 @@ mpls_forward_to_ipv4(struct ifnet *ifp, bool local,
 		return;
 	}
 
-	pktmbuf_set_vrf(m, if_vrfid(dp_nh4_get_ifp(v4nh)));
+	pktmbuf_set_vrf(m, if_vrfid(dp_nh_get_ifp(v4nh)));
 
 	ip = iphdr(m);
 	if (!local && unlikely(!mpls_propagate_ttl_to_ip(ip, ttl, pop))) {
@@ -1160,7 +1160,7 @@ mpls_forward_to_ipv4(struct ifnet *ifp, bool local,
 		 * ifp must be non-NULL, but all we've got is the
 		 * output ifp so use that.
 		 */
-		ifp = dp_nh4_get_ifp(v4nh);
+		ifp = dp_nh_get_ifp(v4nh);
 		if (!ifp) {
 			rte_pktmbuf_free(m);
 			return;
@@ -1220,7 +1220,7 @@ static void mpls_forward_to_ipv6(struct ifnet *ifp, bool local,
 		return;
 	}
 
-	pktmbuf_set_vrf(m, if_vrfid(dp_nh6_get_ifp(v6nh)));
+	pktmbuf_set_vrf(m, if_vrfid(dp_nh_get_ifp(v6nh)));
 
 	ip6 = ip6hdr(m);
 	if (!local && unlikely(!mpls_propagate_ttl_to_ip6(ip6, ttl, pop))) {
@@ -1246,7 +1246,7 @@ static void mpls_forward_to_ipv6(struct ifnet *ifp, bool local,
 		 * ifp must be non-NULL, but all we've got is the
 		 * output ifp so use that.
 		 */
-		ifp = dp_nh6_get_ifp(v6nh);
+		ifp = dp_nh_get_ifp(v6nh);
 		if (!ifp) {
 			rte_pktmbuf_free(m);
 			return;
@@ -1590,15 +1590,15 @@ mpls_labeled_forward(struct ifnet *input_ifp, bool local,
 			return;
 		} else if (unlikely(ret == NH_FWD_RESWITCH_IPv4)) {
 			if (!mpls_reswitch_as_ipv4(
-				    input_ifp, m, dp_nh4_get_ifp(nh.v4) ?
-				    if_vrfid(dp_nh6_get_ifp(nh.v6)) :
+				    input_ifp, m, dp_nh_get_ifp(nh.v4) ?
+				    if_vrfid(dp_nh_get_ifp(nh.v6)) :
 				    VRF_DEFAULT_ID, ttl))
 				goto drop;
 			return;
 		} else if (unlikely(ret == NH_FWD_RESWITCH_IPv6)) {
 			if (!mpls_reswitch_as_ipv6(
-				    input_ifp, m, dp_nh6_get_ifp(nh.v6) ?
-				    if_vrfid(dp_nh6_get_ifp(nh.v6)) :
+				    input_ifp, m, dp_nh_get_ifp(nh.v6) ?
+				    if_vrfid(dp_nh_get_ifp(nh.v6)) :
 				    VRF_DEFAULT_ID, ttl))
 				goto drop;
 			return;

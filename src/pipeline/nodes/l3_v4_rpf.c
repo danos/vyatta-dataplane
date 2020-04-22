@@ -51,7 +51,7 @@ verify_path(in_addr_t src, struct ifnet *ifp, uint32_t tbl,
 	/* if ifp is in strict mode, check for that incoming
 	 * interface matches the route.
 	 */
-	if (ifp->ip_rpf_strict && dp_nh4_get_ifp(nxt) != ifp)
+	if (ifp->ip_rpf_strict && dp_nh_get_ifp(nxt) != ifp)
 		return false;
 
 	/* found valid route */

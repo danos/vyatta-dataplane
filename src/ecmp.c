@@ -92,8 +92,8 @@ static bool nexthop_fill(struct nlattr *ntb_gateway, struct nlattr *ntb_encap,
 
 	nh_outlabels_set(&next->outlabels, 0, NULL);
 
-	nh4_set_ifp(next, dp_ifnet_byifindex(nhp->rtnh_ifindex));
-	if (!dp_nh4_get_ifp(next) && !is_ignored_interface(nhp->rtnh_ifindex))
+	nh_set_ifp(next, dp_ifnet_byifindex(nhp->rtnh_ifindex));
+	if (!dp_nh_get_ifp(next) && !is_ignored_interface(nhp->rtnh_ifindex))
 		return true;
 	if (ntb_gateway) {
 		next->gateway4 = mnl_attr_get_u32(ntb_gateway);
@@ -117,7 +117,7 @@ static bool nexthop_fill(struct nlattr *ntb_gateway, struct nlattr *ntb_encap,
 		nh_outlabels_set(&next->outlabels, num_labels, labels);
 	}
 
-	ifp = dp_nh4_get_ifp(next);
+	ifp = dp_nh_get_ifp(next);
 	if ((!ifp || ifp->if_type == IFT_LOOP) &&
 	    num_labels == 0)
 		/* no dp interface or via loopback */
@@ -215,8 +215,8 @@ static bool nexthop_fill_mpls(struct nlattr *ntb_via, struct nlattr *ntb_newdst,
 	/* initialize out labels to NULL */
 	nh_outlabels_set(&next->outlabels, 0, NULL);
 
-	nh4_set_ifp(next, dp_ifnet_byifindex(nhp->rtnh_ifindex));
-	if (!dp_nh4_get_ifp(next) && !is_ignored_interface(nhp->rtnh_ifindex))
+	nh_set_ifp(next, dp_ifnet_byifindex(nhp->rtnh_ifindex));
+	if (!dp_nh_get_ifp(next) && !is_ignored_interface(nhp->rtnh_ifindex))
 		return true;
 	if (ntb_via) {
 		const struct rtvia *via;
@@ -239,7 +239,7 @@ static bool nexthop_fill_mpls(struct nlattr *ntb_via, struct nlattr *ntb_newdst,
 	}
 
 	ret = nexthop_fill_mpls_common(ntb_newdst, &next->outlabels, bos_only);
-	if (!dp_nh4_get_ifp(next))
+	if (!dp_nh_get_ifp(next))
 		next->flags |= RTF_SLOWPATH;
 
 	return ret;
@@ -270,8 +270,8 @@ static bool nexthop6_fill_mpls(const struct nlattr *ntb_via,
 	/* initialise out labels to NULL */
 	nh_outlabels_set(&next->outlabels, 0, NULL);
 
-	nh6_set_ifp(next, dp_ifnet_byifindex(nhp->rtnh_ifindex));
-	if (!dp_nh6_get_ifp(next) && !is_ignored_interface(nhp->rtnh_ifindex))
+	nh_set_ifp(next, dp_ifnet_byifindex(nhp->rtnh_ifindex));
+	if (!dp_nh_get_ifp(next) && !is_ignored_interface(nhp->rtnh_ifindex))
 		return true;
 	if (ntb_via) {
 		const struct rtvia *via;
@@ -299,7 +299,7 @@ static bool nexthop6_fill_mpls(const struct nlattr *ntb_via,
 	}
 
 	ret = nexthop_fill_mpls_common(ntb_newdst, &next->outlabels, bos_only);
-	if (!dp_nh6_get_ifp(next))
+	if (!dp_nh_get_ifp(next))
 		next->flags |= RTF_SLOWPATH;
 
 	return ret;
@@ -428,8 +428,8 @@ static bool nexthop6_fill(struct nlattr *ntb_gateway,
 
 	nh_outlabels_set(&next->outlabels, 0, NULL);
 
-	nh6_set_ifp(next, dp_ifnet_byifindex(nhp->rtnh_ifindex));
-	if (!dp_nh6_get_ifp(next) && !is_ignored_interface(nhp->rtnh_ifindex))
+	nh_set_ifp(next, dp_ifnet_byifindex(nhp->rtnh_ifindex));
+	if (!dp_nh_get_ifp(next) && !is_ignored_interface(nhp->rtnh_ifindex))
 		return true;
 
 	if (ntb_gateway) {
@@ -455,7 +455,7 @@ static bool nexthop6_fill(struct nlattr *ntb_gateway,
 		nh_outlabels_set(&next->outlabels, num_labels, labels);
 	}
 
-	ifp = dp_nh6_get_ifp(next);
+	ifp = dp_nh_get_ifp(next);
 	if ((!ifp || ifp->if_type == IFT_LOOP) &&
 	    num_labels == 0)
 		/* no dp interface or via loopback */

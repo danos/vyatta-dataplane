@@ -606,7 +606,7 @@ int spath_reader(zloop_t *loop __rte_unused, zmq_pollitem_t *item,
 							  &nh)))
 				goto rcu_offline;
 			else if (nh.v4)
-				ifp = dp_nh4_get_ifp(nh.v4);
+				ifp = dp_nh_get_ifp(nh.v4);
 			else
 				goto drop;
 		} else if (likely((ntohs(pi.proto)) == ETHER_TYPE_IPv6)) {
@@ -622,7 +622,7 @@ int spath_reader(zloop_t *loop __rte_unused, zmq_pollitem_t *item,
 							  &nh)))
 				goto rcu_offline;
 			else if (nh.v6)
-				ifp = dp_nh6_get_ifp(nh.v6);
+				ifp = dp_nh_get_ifp(nh.v6);
 			else
 				goto drop;
 		}

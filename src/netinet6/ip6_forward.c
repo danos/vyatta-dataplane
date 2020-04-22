@@ -87,7 +87,7 @@ dp_ip6_l2_nh_output(struct ifnet *in_ifp, struct rte_mbuf *m,
 		.l2_pkt_type = pkt_mbuf_get_l2_traffic_type(m),
 		.l3_hdr = ip6hdr(m),
 		.in_ifp = in_ifp,
-		.out_ifp = dp_nh6_get_ifp(nh),
+		.out_ifp = dp_nh_get_ifp(nh),
 		.nxt.v6 = nh,
 		.l2_proto = proto,
 	};
@@ -110,7 +110,7 @@ dp_ip6_l2_intf_output(struct ifnet *in_ifp, struct rte_mbuf *m,
 	struct next_hop nh6;
 
 	memset(&nh6, 0, sizeof(nh6));
-	nh6_set_ifp(&nh6, out_ifp);
+	nh_set_ifp(&nh6, out_ifp);
 	return dp_ip6_l2_nh_output(in_ifp, m, &nh6, proto);
 }
 
@@ -454,7 +454,7 @@ void ip6_out_features(struct rte_mbuf *m, struct ifnet *ifp,
 	};
 
 	/* nxt->ifp may be changed by netlink messages. */
-	struct ifnet *nxt_ifp = dp_nh6_get_ifp(nxt);
+	struct ifnet *nxt_ifp = dp_nh_get_ifp(nxt);
 
 	/* Destination device is not up? */
 	if (!nxt_ifp || !(nxt_ifp->if_flags & IFF_UP)) {
@@ -714,7 +714,7 @@ void ip6_output(struct rte_mbuf *m, bool srced_forus)
 	}
 
 	/* ifp can be changed by nxt->ifp. use protected deref. */
-	ifp = dp_nh6_get_ifp(nxt);
+	ifp = dp_nh_get_ifp(nxt);
 
 	if (unlikely(ifp == NULL)) {
 		if (net_ratelimit()) {

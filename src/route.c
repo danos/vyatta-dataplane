@@ -761,7 +761,7 @@ nexthop_create(struct ifnet *ifp, in_addr_t gw, uint32_t flags,
 	if (next) {
 		next->gateway4 = gw;
 		next->flags = flags;
-		nh4_set_ifp(next, ifp);
+		nh_set_ifp(next, ifp);
 
 		if (!nh_outlabels_set(&next->outlabels, num_labels,
 					   labels)) {
@@ -810,7 +810,7 @@ nexthop_hashfn(const struct nexthop_hash_key *key,
 
 	for (i = 0; i < size; i++, j += 3) {
 		hash_keys[j] = key->nh[i].gateway4;
-		ifp = dp_nh4_get_ifp(&key->nh[i]);
+		ifp = dp_nh_get_ifp(&key->nh[i]);
 		hash_keys[j+1] = ifp ? ifp->if_index : 0;
 		hash_keys[j+2] = key->nh[i].flags & NH_FLAGS_CMP_MASK;
 	}
@@ -830,8 +830,8 @@ static int nexthop_cmpfn(struct cds_lfht_node *node, const void *key)
 
 	for (i = 0; i < h_key->size; i++) {
 		if ((nu->proto != h_key->proto) ||
-		    (dp_nh4_get_ifp(&nu->siblings[i]) !=
-		     dp_nh4_get_ifp(&h_key->nh[i])) ||
+		    (dp_nh_get_ifp(&nu->siblings[i]) !=
+		     dp_nh_get_ifp(&h_key->nh[i])) ||
 		    ((nu->siblings[i].flags & NH_FLAGS_CMP_MASK) !=
 		     (h_key->nh[i].flags & NH_FLAGS_CMP_MASK)) ||
 		    (nu->siblings[i].gateway4 != h_key->nh[i].gateway4) ||
@@ -1127,7 +1127,7 @@ static struct next_hop *nextu_find_path_using_ifp(struct next_hop_u *nhu,
 	for (i = 0; i < nhu->nsiblings; i++) {
 		struct next_hop *next = array + i;
 
-		if (dp_nh4_get_ifp(next) == ifp) {
+		if (dp_nh_get_ifp(next) == ifp) {
 			*sibling = i;
 			return next;
 		}
@@ -1418,7 +1418,7 @@ static void route_change_process_nh(struct next_hop_u *nhu,
 	array = rcu_dereference(nhu->siblings);
 	for (i = 0; i < nhu->nsiblings; i++) {
 		const struct next_hop *next = array + i;
-		const struct ifnet *ifp = dp_nh4_get_ifp(next);
+		const struct ifnet *ifp = dp_nh_get_ifp(next);
 
 		if (!ifp)
 			/* happens for local routes */
@@ -1481,7 +1481,7 @@ static enum nh_change routing_arp_add_gw_nh_replace_cb(struct next_hop *next,
 
 	if (!nh_is_gw(next) || (next->gateway4 != ip->s_addr))
 		return NH_NO_CHANGE;
-	if (dp_nh4_get_ifp(next) != ifp)
+	if (dp_nh_get_ifp(next) != ifp)
 		return NH_NO_CHANGE;
 	if (nh_is_local(next) || nh4_is_neigh_present(next) ||
 		nh4_is_neigh_created(next))
@@ -1546,7 +1546,7 @@ route_change_link_arp(struct vrf *vrf, struct lpm *lpm,
 	array = rcu_dereference(nextu->siblings);
 	for (i = 0; i < nextu->nsiblings; i++) {
 		const struct next_hop *next = array + i;
-		const struct ifnet *ifp = dp_nh4_get_ifp(next);
+		const struct ifnet *ifp = dp_nh_get_ifp(next);
 
 		if (!ifp)
 			/* happens for local routes */
@@ -1643,7 +1643,7 @@ route_delete_relink_arp(struct lpm *lpm, uint32_t ip, uint8_t depth)
 	array = rcu_dereference(nextu->siblings);
 	for (i = 0; i < nextu->nsiblings; i++) {
 		const struct next_hop *next = array + i;
-		const struct ifnet *ifp = dp_nh4_get_ifp(next);
+		const struct ifnet *ifp = dp_nh_get_ifp(next);
 
 		if (!ifp)
 			/* happens for local routes */
@@ -2027,7 +2027,7 @@ void rt_print_nexthop(json_writer_t *json, uint32_t next_hop,
 		if (next->flags & RTF_NEIGH_CREATED)
 			jsonw_bool_field(json, "neigh_created", true);
 
-		ifp = dp_nh4_get_ifp(next);
+		ifp = dp_nh_get_ifp(next);
 		if (ifp)
 			jsonw_string_field(json, "ifname", ifp->if_name);
 
@@ -2192,7 +2192,7 @@ static void rt_if_dead(struct lpm *lpm, struct vrf *vrf,
 	for (i = 0; i < nextu->nsiblings; i++) {
 		struct next_hop *nh = nextu->siblings + i;
 
-		if (dp_nh4_get_ifp(nh) == ifp) {
+		if (dp_nh_get_ifp(nh) == ifp) {
 			/* No longer check if connected, as kernel will not
 			 * signal explicitly for flushing
 			 */
@@ -2245,7 +2245,7 @@ static void rt_if_clear_slowpath_flag(
 	for (i = 0; i < nextu->nsiblings; i++) {
 		struct next_hop *nh = nextu->siblings + i;
 
-		if (dp_nh4_get_ifp(nh) == ifp)
+		if (dp_nh_get_ifp(nh) == ifp)
 			nh->flags &= ~RTF_SLOWPATH;
 	}
 }
@@ -2267,7 +2267,7 @@ static void rt_if_set_slowpath_flag(
 	for (i = 0; i < nextu->nsiblings; i++) {
 		struct next_hop *nh = nextu->siblings + i;
 
-		if (dp_nh4_get_ifp(nh) == ifp)
+		if (dp_nh_get_ifp(nh) == ifp)
 			nh->flags |= RTF_SLOWPATH;
 	}
 }
@@ -2577,7 +2577,7 @@ struct ifnet *nhif_dst_lookup(const struct vrf *vrf,
 	if (next == NULL)
 		return NULL;
 
-	ifp = dp_nh4_get_ifp(next);
+	ifp = dp_nh_get_ifp(next);
 	if (ifp && connected)
 		*connected = nh_is_connected(next);
 
@@ -2621,7 +2621,7 @@ int dp_nh_lookup_by_index(uint32_t nhindex, uint32_t hash, in_addr_t *nh,
 	else
 		*nh = INADDR_ANY;
 
-	ifp = dp_nh4_get_ifp(next);
+	ifp = dp_nh_get_ifp(next);
 	if (!ifp)
 		return -1;
 
@@ -2698,7 +2698,7 @@ static enum nh_change routing_arp_del_gw_nh_replace_cb(struct next_hop *next,
 
 	if (!nh_is_gw(next) || (next->gateway4 != ip->s_addr))
 		return NH_NO_CHANGE;
-	if (dp_nh4_get_ifp(next) != ifp)
+	if (dp_nh_get_ifp(next) != ifp)
 		return NH_NO_CHANGE;
 	if (nh_is_local(next) || !nh4_is_neigh_present(next))
 		return NH_NO_CHANGE;
@@ -2750,7 +2750,7 @@ static enum nh_change routing_arp_add_nh_replace_cb(struct next_hop *next,
 		return NH_NO_CHANGE;
 	if (nh4_is_neigh_present(next) || nh4_is_neigh_created(next))
 		return NH_NO_CHANGE;
-	if (args->ifp != dp_nh4_get_ifp(next))
+	if (args->ifp != dp_nh_get_ifp(next))
 		return NH_NO_CHANGE;
 
 	if (args->count)
@@ -2770,7 +2770,7 @@ static enum nh_change routing_arp_del_nh_replace_cb(struct next_hop *next,
 
 	if (!nh_is_connected(next) || !nh4_is_neigh_present(next))
 		return NH_NO_CHANGE;
-	if (ifp != dp_nh4_get_ifp(next))
+	if (ifp != dp_nh_get_ifp(next))
 		return NH_NO_CHANGE;
 
 	return NH_CLEAR_NEIGH_PRESENT;

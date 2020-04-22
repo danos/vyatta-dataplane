@@ -66,7 +66,7 @@ void ip_output(struct rte_mbuf *m, bool srced_forus)
 	}
 
 	/* ifp can be changed by nxt->ifp. use protected deref. */
-	ifp = dp_nh4_get_ifp(nxt);
+	ifp = dp_nh_get_ifp(nxt);
 
 	/* MPLS imposition required because nh has given us a label */
 	if (nh_outlabels_present(&nxt->outlabels)) {

@@ -510,7 +510,7 @@ int vxlan_select_ipv4_src(struct vxlan_vninode *vnode, struct ip_addr *dip,
 	if (unlikely(nxt == NULL))
 		return -ENOENT;
 
-	dif = dp_nh4_get_ifp(nxt);
+	dif = dp_nh_get_ifp(nxt);
 	if (unlikely(dif == NULL))
 		return -ENOENT;
 
@@ -552,7 +552,7 @@ int vxlan_select_ipv6_src(struct vxlan_vninode *vnode, struct ip_addr *dip,
 	if (unlikely(nxt6 == NULL))
 		return -ENOENT;
 
-	dif = dp_nh6_get_ifp(nxt6);
+	dif = dp_nh_get_ifp(nxt6);
 	if (unlikely(dif == NULL))
 		return -ENOENT;
 
