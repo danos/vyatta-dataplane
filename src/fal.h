@@ -615,6 +615,7 @@ int str_to_fal_ip_address_t(char *str, struct fal_ip_address_t *ipaddr);
 const char *fal_ip_address_t_to_str(const struct fal_ip_address_t *ipaddr,
 				    char *dst, socklen_t size);
 bool fal_is_ipaddr_empty(const struct fal_ip_address_t *ipaddr);
+enum fal_ip_addr_family_t addr_family_to_fal_ip_addr_family(int family);
 
 void fal_register_message_handler(struct message_handler *handler);
 void fal_delete_message_handler(struct message_handler *handler);
@@ -777,8 +778,9 @@ void fal_ip4_upd_addr(unsigned int if_index,
 		      const struct if_addr *ifa);
 void fal_ip4_del_addr(unsigned int if_index,
 		      const struct if_addr *ifa);
-int fal_ip4_new_next_hops(size_t nhops, const struct next_hop hops[],
-			  fal_object_t *nhg_object, fal_object_t *obj);
+int fal_ip_new_next_hops(enum fal_ip_addr_family_t family,
+			 size_t nhops, const struct next_hop hops[],
+			 fal_object_t *nhg_object, fal_object_t *obj);
 int fal_ip4_del_next_hops(fal_object_t nhg_object, size_t nhops,
 			  const fal_object_t *obj);
 int fal_ip4_new_route(vrfid_t vrf_id, in_addr_t addr, uint8_t prefixlen,
@@ -836,8 +838,6 @@ void fal_ip6_upd_addr(unsigned int if_index,
 		      const struct if_addr *ifa);
 void fal_ip6_del_addr(unsigned int if_index,
 		      const struct if_addr *ifa);
-int fal_ip6_new_next_hops(size_t nhops, const struct next_hop hops[],
-			  fal_object_t *group_obj, fal_object_t *obj);
 int fal_ip6_del_next_hops(fal_object_t group_obj, size_t nhops,
 			  const fal_object_t *obj);
 int fal_ip_get_next_hop_group_attrs(fal_object_t nhg_object,

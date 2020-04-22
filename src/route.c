@@ -1017,7 +1017,8 @@ int nexthop_new(int family, const struct next_hop *nh, uint16_t size,
 		return -ENOMEM;
 	}
 
-	ret = fal_ip4_new_next_hops(nextu->nsiblings, nextu->siblings,
+	ret = fal_ip_new_next_hops(FAL_IP_ADDR_FAMILY_IPV4,
+				   nextu->nsiblings, nextu->siblings,
 				    &nextu->nhg_fal_obj,
 				    nextu->nh_fal_obj);
 	if (ret < 0 && ret != -EOPNOTSUPP)

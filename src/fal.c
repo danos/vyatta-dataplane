@@ -1594,9 +1594,10 @@ static const struct fal_attribute_t **next_hop_to_attr_list(
 	return nh_attr_list;
 }
 
-int fal_ip4_new_next_hops(size_t nhops, const struct next_hop hops[],
-			  fal_object_t *nhg_object,
-			  fal_object_t *obj_list)
+int fal_ip_new_next_hops(enum fal_ip_addr_family_t family,
+			 size_t nhops, const struct next_hop hops[],
+			 fal_object_t *nhg_object,
+			 fal_object_t *obj_list)
 {
 	const struct fal_attribute_t **nh_attr_list;
 	uint32_t *nh_attr_count;
@@ -1629,70 +1630,9 @@ int fal_ip4_new_next_hops(size_t nhops, const struct next_hop hops[],
 	if (ret < 0)
 		return ret;
 
-	nh_attr_list = next_hop_to_attr_list(FAL_IP_ADDR_FAMILY_IPV4,
+	nh_attr_list = next_hop_to_attr_list(family,
 					     *nhg_object, nhops, hops,
 					     &nh_attr_count);
-	if (!nh_attr_list) {
-		ret = -ENOMEM;
-		goto error;
-	}
-
-	ret = call_handler_def_ret(ip, -EOPNOTSUPP, new_next_hops,
-				   nhops, nh_attr_count, nh_attr_list,
-				   obj_list);
-
-	for (i = 0; i < nhops; i++)
-		free((struct fal_attribute_t *)nh_attr_list[i]);
-	free(nh_attr_list);
-	free(nh_attr_count);
-	if (ret < 0)
-		goto error;
-
-	return ret;
-
-error:
-	call_handler_ret(ip, del_next_hop_group, *nhg_object);
-	return ret;
-}
-
-int fal_ip6_new_next_hops(size_t nhops, const struct next_hop hops[],
-			  fal_object_t *nhg_object,
-			  fal_object_t *obj_list)
-{
-	const struct fal_attribute_t **nh_attr_list;
-	uint32_t *nh_attr_count;
-	uint32_t i;
-	int ret;
-
-	/* we must have at least one nexthop */
-	if (!nhops)
-		return -EINVAL;
-
-	if (!fal_plugins_present())
-		return -EOPNOTSUPP;
-
-	for (i = 0; i < nhops; i++) {
-		/*
-		 * Don't create next_hop_group if there is at least
-		 * one nexthop that needs to do something special, since
-		 * we can't represent this in the next_hop
-		 * attributes. This will be represented instead using
-		 * route attributes.
-		 */
-		if (next_hop_to_packet_action(&hops[i]) !=
-		    FAL_PACKET_ACTION_FORWARD)
-			return FAL_RC_NOT_REQ;
-	}
-
-	ret = call_handler_def_ret(ip, -EOPNOTSUPP,
-				   new_next_hop_group, 0, NULL,
-				   nhg_object);
-	if (ret < 0)
-		return ret;
-
-	nh_attr_list = next_hop_to_attr_list(FAL_IP_ADDR_FAMILY_IPV6,
-					     *nhg_object, nhops, hops,
-					      &nh_attr_count);
 	if (!nh_attr_list) {
 		ret = -ENOMEM;
 		goto error;
@@ -3085,6 +3025,20 @@ bool fal_is_ipaddr_empty(const struct fal_ip_address_t *ipaddr)
 	struct fal_ip_address_t empty_ipaddr = { 0 };
 
 	return memcmp(ipaddr, &empty_ipaddr, sizeof(empty_ipaddr)) == 0;
+}
+
+enum fal_ip_addr_family_t addr_family_to_fal_ip_addr_family(int family)
+{
+	switch (family) {
+	case AF_INET:
+		return FAL_IP_ADDR_FAMILY_IPV4;
+	case AF_INET6:
+		return FAL_IP_ADDR_FAMILY_IPV6;
+	default:
+		RTE_LOG(ERR, DATAPLANE, "Invalid address family %d\n",
+			family);
+		return -1;
+	}
 }
 
 /* QoS functions */

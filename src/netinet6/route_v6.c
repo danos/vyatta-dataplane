@@ -1161,9 +1161,10 @@ nexthop6_new(struct next_hop *nh, size_t size, uint32_t *slot)
 		return -ENOMEM;
 	}
 
-	ret = fal_ip6_new_next_hops(nextu->nsiblings, nextu->siblings,
-				    &nextu->nhg_fal_obj,
-				    nextu->nh_fal_obj);
+	ret = fal_ip_new_next_hops(FAL_IP_ADDR_FAMILY_IPV6,
+				   nextu->nsiblings, nextu->siblings,
+				   &nextu->nhg_fal_obj,
+				   nextu->nh_fal_obj);
 	if (ret < 0 && ret != -EOPNOTSUPP)
 		RTE_LOG(ERR, ROUTE,
 			"FAL IPv6 next-hop-group create failed: %s\n",
