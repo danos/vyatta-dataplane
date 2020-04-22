@@ -155,3 +155,23 @@ struct next_hop_u *nexthop_reuse(int family,
 
 	return nu;
 }
+
+int
+nexthop_hash_insert(int family, struct next_hop_u *nu,
+		    const struct nexthop_hash_key *key)
+{
+	struct cds_lfht_node *ret_node;
+	unsigned long hash;
+	struct cds_lfht *hash_tbl = nh_common_get_hash_table(family);
+	nh_common_hash_fn *hash_fn = nh_common_get_hash_fn(family);
+	nh_common_cmp_fn *cmp_fn = nh_common_get_hash_cmp_fn(family);
+
+	cds_lfht_node_init(&nu->nh_node);
+	hash = hash_fn(key, 0);
+
+	ret_node = cds_lfht_add_unique(hash_tbl, hash,
+				       cmp_fn, key,
+				       &nu->nh_node);
+
+	return (ret_node != &nu->nh_node) ? EEXIST : 0;
+}

@@ -1010,23 +1010,6 @@ static int nexthop6_cmpfn(struct cds_lfht_node *node, const void *key)
 	return true;
 }
 
-
-static int
-nexthop6_hash_insert(struct next_hop_u *nu,
-		     const struct nexthop_hash_key *key)
-{
-	struct cds_lfht_node *ret_node;
-
-	cds_lfht_node_init(&nu->nh_node);
-	unsigned long hash = nexthop6_hashfn(key, 0);
-
-	ret_node = cds_lfht_add_unique(nexthop6_hash, hash,
-				       nexthop6_cmpfn, key,
-				       &nu->nh_node);
-
-	return (ret_node != &nu->nh_node) ? EEXIST : 0;
-}
-
 /*
  * Remove the old NH from the hash and add the new one. Can not
  * use a call to cds_lfht_add_replace() or any of the variants
@@ -1049,7 +1032,7 @@ nexthop6_hash_del_add(struct next_hop_u *old_nu,
 		return rc;
 
 	/* add new one */
-	return nexthop6_hash_insert(new_nu, &key);
+	return nexthop_hash_insert(AF_INET6, new_nu, &key);
 }
 
 static struct next_hop_u *nexthop6_alloc(int size)
@@ -1137,7 +1120,7 @@ nexthop6_new(struct next_hop *nh, size_t size, uint32_t *slot)
 	} else {
 		memcpy(nextu->siblings, nh, size * sizeof(struct next_hop));
 	}
-	if (unlikely(nexthop6_hash_insert(nextu, &key))) {
+	if (unlikely(nexthop_hash_insert(family, nextu, &key))) {
 		__nexthop6_destroy(nextu);
 		return -ENOMEM;
 	}

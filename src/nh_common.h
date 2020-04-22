@@ -95,6 +95,9 @@ struct next_hop_u *nexthop_reuse(int family,
 				 const struct nexthop_hash_key *key,
 				 uint32_t *slot);
 
+int nexthop_hash_insert(int family,
+			struct next_hop_u *nu,
+			const struct nexthop_hash_key *key);
 
 /*
  * Per AF hash function for a nexthop.

@@ -852,22 +852,6 @@ static int nexthop_cmpfn(struct cds_lfht_node *node, const void *key)
 	return true;
 }
 
-static int
-nexthop_hash_insert(struct next_hop_u *nu,
-		    const struct nexthop_hash_key *key)
-{
-	struct cds_lfht_node *ret_node;
-
-	cds_lfht_node_init(&nu->nh_node);
-	unsigned long hash = nexthop_hashfn(key, 0);
-
-	ret_node = cds_lfht_add_unique(nexthop_hash, hash,
-				       nexthop_cmpfn, key,
-				       &nu->nh_node);
-
-	return (ret_node != &nu->nh_node) ? EEXIST : 0;
-}
-
 static struct next_hop_u *nexthop_alloc(int size)
 {
 	struct next_hop_u *nextu;
@@ -934,7 +918,7 @@ nexthop_hash_del_add(struct next_hop_u *old_nu,
 		return rc;
 
 	/* add new one */
-	return nexthop_hash_insert(new_nu, &key);
+	return nexthop_hash_insert(AF_INET, new_nu, &key);
 }
 
 /* Callback from RCU after all other threads are done. */
@@ -987,7 +971,7 @@ int nexthop_new(int family, const struct next_hop *nh, uint16_t size,
 	} else {
 		memcpy(nextu->siblings, nh, size * sizeof(struct next_hop));
 	}
-	if (unlikely(nexthop_hash_insert(nextu, &key))) {
+	if (unlikely(nexthop_hash_insert(family, nextu, &key))) {
 		__nexthop_destroy(nextu);
 		return -ENOMEM;
 	}
