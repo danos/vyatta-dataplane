@@ -54,8 +54,6 @@
 #include "vrf_internal.h"
 #include "vrf_if.h"
 
-#define NEXTHOP6_HASH_TBL_MIN  (UINT8_MAX + 1)
-#define NEXTHOP6_HASH_TBL_SIZE RTE_FBK_HASH_ENTRIES_MAX
 
 /* Use <in6_addr, if index, flags> */
 #define IPV6_NH_HASH_KEY_SIZE 6
@@ -1109,7 +1107,7 @@ nexthop6_new(int family, struct next_hop *nh, size_t size, uint32_t *slot)
 	if (nextu)
 		return 0;
 
-	if (unlikely(nh_table->in_use == NEXTHOP6_HASH_TBL_SIZE)) {
+	if (unlikely(nh_table->in_use == NEXTHOP_HASH_TBL_SIZE)) {
 		RTE_LOG(ERR, ROUTE, "V6 Next Hop tbl is full\n");
 		return -ENOSPC;
 	}
@@ -1145,7 +1143,7 @@ nexthop6_new(int family, struct next_hop *nh, size_t size, uint32_t *slot)
 	nh6_iter = rover;
 	do {
 		nh6_iter++;
-		if (nh6_iter >= NEXTHOP6_HASH_TBL_SIZE)
+		if (nh6_iter >= NEXTHOP_HASH_TBL_SIZE)
 			nh6_iter = 0;
 	} while ((rcu_dereference(nh_table->entry[nh6_iter]) != NULL) &&
 		 likely(nh6_iter != rover));
@@ -1299,9 +1297,9 @@ void nexthop_v6_tbl_init(void)
 	};
 	uint32_t idx;
 
-	nexthop6_hash = cds_lfht_new(NEXTHOP6_HASH_TBL_MIN,
-				     NEXTHOP6_HASH_TBL_MIN,
-				     NEXTHOP6_HASH_TBL_SIZE,
+	nexthop6_hash = cds_lfht_new(NEXTHOP_HASH_TBL_MIN,
+				     NEXTHOP_HASH_TBL_MIN,
+				     NEXTHOP_HASH_TBL_SIZE,
 				     CDS_LFHT_AUTO_RESIZE,
 				     NULL);
 	if (nexthop6_hash == NULL)
@@ -2541,7 +2539,7 @@ static int rt6_stats(struct route6_head *rt6_head, json_writer_t *json,
 	jsonw_name(json, "nexthop");
 	jsonw_start_object(json);
 	jsonw_uint_field(json, "used", nh6_tbl.in_use);
-	jsonw_uint_field(json, "free", NEXTHOP6_HASH_TBL_SIZE - nh6_tbl.in_use);
+	jsonw_uint_field(json, "free", NEXTHOP_HASH_TBL_SIZE - nh6_tbl.in_use);
 	jsonw_uint_field(json, "neigh_present", nh6_tbl.neigh_present);
 	jsonw_uint_field(json, "neigh_created", nh6_tbl.neigh_created);
 	jsonw_end_object(json);
