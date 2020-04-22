@@ -852,37 +852,6 @@ static int nexthop_cmpfn(struct cds_lfht_node *node, const void *key)
 	return true;
 }
 
-static struct next_hop_u *nexthop_alloc(int size)
-{
-	struct next_hop_u *nextu;
-
-	nextu = calloc(1, sizeof(*nextu));
-	if (unlikely(!nextu)) {
-		RTE_LOG(ERR, ROUTE, "can't alloc next_hop_u\n");
-		return NULL;
-	}
-
-	nextu->nh_fal_obj = calloc(size, sizeof(*nextu->nh_fal_obj));
-	if (!nextu->nh_fal_obj) {
-		free(nextu);
-		return NULL;
-	}
-
-	if (size == 1) {
-		/* Optimize for non-ECMP case by staying in cache line */
-		nextu->siblings = &nextu->hop0;
-	} else {
-		nextu->siblings = calloc(1, size * sizeof(struct next_hop));
-		if (unlikely(nextu->siblings == NULL)) {
-			free(nextu->nh_fal_obj);
-			free(nextu);
-			return NULL;
-		}
-	}
-	nextu->nsiblings = size;
-	return nextu;
-}
-
 static void __nexthop_destroy(struct next_hop_u *nextu)
 {
 	unsigned int i;

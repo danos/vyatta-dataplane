@@ -1033,36 +1033,6 @@ nexthop6_hash_del_add(struct next_hop_u *old_nu,
 	return nexthop_hash_insert(AF_INET6, new_nu, &key);
 }
 
-static struct next_hop_u *nexthop6_alloc(int size)
-{
-	struct next_hop_u *nextu;
-
-	nextu = calloc(1, sizeof(*nextu));
-	if (unlikely(!nextu)) {
-		RTE_LOG(ERR, ROUTE, "can't alloc next_hop_u\n");
-		return false;
-	}
-
-	nextu->nh_fal_obj = calloc(size, sizeof(*nextu->nh_fal_obj));
-	if (!nextu->nh_fal_obj) {
-		free(nextu);
-		return NULL;
-	}
-
-	if (size == 1) {
-		nextu->siblings = &nextu->hop0;
-	} else {
-		nextu->siblings = calloc(1, size * sizeof(struct next_hop));
-		if (unlikely(nextu->siblings == NULL)) {
-			free(nextu->nh_fal_obj);
-			free(nextu);
-			return NULL;
-		}
-	}
-	nextu->nsiblings = size;
-	return nextu;
-}
-
 static void __nexthop6_destroy(struct next_hop_u *nextu)
 {
 	unsigned int i;
@@ -1112,7 +1082,7 @@ nexthop6_new(int family, struct next_hop *nh, size_t size, uint32_t *slot)
 		return -ENOSPC;
 	}
 
-	nextu = nexthop6_alloc(size);
+	nextu = nexthop_alloc(size);
 	if (!nextu) {
 		RTE_LOG(ERR, ROUTE, "can't alloc next_hop_u\n");
 		return -ENOMEM;
@@ -1434,7 +1404,7 @@ route6_nh_replace(struct next_hop_u *nextu, uint32_t nh_idx,
 	/* walk all the NHs, copying as we go */
 	old_array = rcu_dereference(nextu->siblings);
 
-	new_nextu = nexthop6_alloc(nextu->nsiblings);
+	new_nextu = nexthop_alloc(nextu->nsiblings);
 	if (!new_nextu)
 		return 0;
 

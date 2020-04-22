@@ -99,6 +99,8 @@ int nexthop_hash_insert(int family,
 			struct next_hop_u *nu,
 			const struct nexthop_hash_key *key);
 
+struct next_hop_u *nexthop_alloc(int size);
+
 /*
  * Per AF hash function for a nexthop.
  */
