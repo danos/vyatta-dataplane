@@ -163,7 +163,7 @@ route_nexthop6_new(struct next_hop *nh, uint16_t size,
 {
 	int rc;
 
-	rc = nexthop6_new(AF_INET6, nh, size, slot);
+	rc = nexthop6_new(AF_INET6, nh, size, RTPROT_UNSPEC, slot);
 	if (rc >= 0)
 		return rc;
 
@@ -1035,7 +1035,8 @@ nexthop6_hash_del_add(struct next_hop_u *old_nu,
 
 /* Look (or create) nexthop based on gateway */
 int
-nexthop6_new(int family, struct next_hop *nh, size_t size, uint32_t *slot)
+nexthop6_new(int family, struct next_hop *nh, size_t size, int proto __unused,
+	     uint32_t *slot)
 {
 	struct next_hop_u *nextu;
 	struct nexthop_hash_key key = {.nh = nh, .size = size, .proto = 0 };
@@ -1255,7 +1256,7 @@ void nexthop_v6_tbl_init(void)
 	nh_common_register(AF_INET6, &nh6_common);
 
 	/* reserve a drop nexthop */
-	if (nexthop6_new(AF_INET6, &nh_drop, 1, &idx))
+	if (nexthop6_new(AF_INET6, &nh_drop, 1, RTPROT_UNSPEC, &idx))
 		rte_panic("%s: can't create drop nexthop\n", __func__);
 	nextu6_blackhole =
 		rcu_dereference(nh6_tbl.entry[idx]);
