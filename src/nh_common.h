@@ -101,6 +101,10 @@ int nexthop_hash_insert(int family,
 
 struct next_hop_u *nexthop_alloc(int size);
 
+void __nexthop_destroy(struct next_hop_u *nextu);
+
+void nexthop_destroy(struct rcu_head *head);
+
 /*
  * Per AF hash function for a nexthop.
  */

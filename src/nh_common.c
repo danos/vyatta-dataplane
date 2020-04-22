@@ -206,3 +206,25 @@ struct next_hop_u *nexthop_alloc(int size)
 	nextu->nsiblings = size;
 	return nextu;
 }
+
+void __nexthop_destroy(struct next_hop_u *nextu)
+{
+	unsigned int i;
+
+	for (i = 0; i < nextu->nsiblings; i++)
+		nh_outlabels_destroy(&nextu->siblings[i].outlabels);
+	if (nextu->siblings != &nextu->hop0)
+		free(nextu->siblings);
+
+	free(nextu->nh_fal_obj);
+	free(nextu);
+}
+
+/* Callback from RCU after all other threads are done. */
+void nexthop_destroy(struct rcu_head *head)
+{
+	struct next_hop_u *nextu
+		= caa_container_of(head, struct next_hop_u, rcu);
+
+	__nexthop_destroy(nextu);
+}

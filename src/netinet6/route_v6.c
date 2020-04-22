@@ -1033,29 +1033,6 @@ nexthop6_hash_del_add(struct next_hop_u *old_nu,
 	return nexthop_hash_insert(AF_INET6, new_nu, &key);
 }
 
-static void __nexthop6_destroy(struct next_hop_u *nextu)
-{
-	unsigned int i;
-
-	for (i = 0; i < nextu->nsiblings; i++)
-		nh_outlabels_destroy(&nextu->siblings[i].outlabels);
-
-	if (nextu->siblings != &nextu->hop0)
-		free(nextu->siblings);
-
-	free(nextu->nh_fal_obj);
-	free(nextu);
-}
-
-/* callback from RCU after all other threads are done. */
-static void nexthop6_destroy(struct rcu_head *head)
-{
-	struct next_hop_u *nextu =
-		caa_container_of(head, struct next_hop_u, rcu);
-
-	__nexthop6_destroy(nextu);
-}
-
 /* Look (or create) nexthop based on gateway */
 int
 nexthop6_new(int family, struct next_hop *nh, size_t size, uint32_t *slot)
@@ -1096,7 +1073,7 @@ nexthop6_new(int family, struct next_hop *nh, size_t size, uint32_t *slot)
 		memcpy(nextu->siblings, nh, size * sizeof(struct next_hop));
 	}
 	if (unlikely(nexthop_hash_insert(family, nextu, &key))) {
-		__nexthop6_destroy(nextu);
+		__nexthop_destroy(nextu);
 		return -ENOMEM;
 	}
 
@@ -1207,7 +1184,7 @@ void nexthop6_put(uint32_t idx)
 		}
 
 		cds_lfht_del(nexthop6_hash, &nextu->nh_node);
-		call_rcu(&nextu->rcu, nexthop6_destroy);
+		call_rcu(&nextu->rcu, nexthop_destroy);
 	}
 }
 
@@ -1443,7 +1420,7 @@ route6_nh_replace(struct next_hop_u *nextu, uint32_t nh_idx,
 			break;
 		case NH_DELETE:
 			if (!new_nextu_idx_for_del) {
-				__nexthop6_destroy(new_nextu);
+				__nexthop_destroy(new_nextu);
 				return -1;
 			}
 			any_change = true;
@@ -1454,7 +1431,7 @@ route6_nh_replace(struct next_hop_u *nextu, uint32_t nh_idx,
 
 	/* Did we make any changes?  If not then we can return */
 	if (!any_change) {
-		__nexthop6_destroy(new_nextu);
+		__nexthop_destroy(new_nextu);
 		return 0;
 	}
 
@@ -1467,12 +1444,12 @@ route6_nh_replace(struct next_hop_u *nextu, uint32_t nh_idx,
 		    route_nexthop6_new(nextu->siblings, nextu->nsiblings,
 				       new_nextu_idx_for_del) < 0)
 			deleted = nextu->nsiblings;
-		__nexthop6_destroy(new_nextu);
+		__nexthop_destroy(new_nextu);
 		return deleted;
 	}
 
 	if (nexthop6_hash_del_add(nextu, new_nextu)) {
-		__nexthop6_destroy(new_nextu);
+		__nexthop_destroy(new_nextu);
 		RTE_LOG(ERR, ROUTE, "nh6 replace failed\n");
 		return 0;
 	}
@@ -1490,7 +1467,7 @@ route6_nh_replace(struct next_hop_u *nextu, uint32_t nh_idx,
 	assert(nh6_tbl.entry[nh_idx] == nextu);
 	rcu_xchg_pointer(&nh6_tbl.entry[nh_idx], new_nextu);
 
-	call_rcu(&nextu->rcu, nexthop6_destroy);
+	call_rcu(&nextu->rcu, nexthop_destroy);
 	return 0;
 }
 
