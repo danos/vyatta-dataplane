@@ -165,7 +165,7 @@ route_nexthop6_new(struct next_hop *nh, uint16_t size,
 {
 	int rc;
 
-	rc = nexthop6_new(nh, size, slot);
+	rc = nexthop6_new(AF_INET6, nh, size, slot);
 	if (rc >= 0)
 		return rc;
 
@@ -1090,19 +1090,26 @@ static void nexthop6_destroy(struct rcu_head *head)
 
 /* Look (or create) nexthop based on gateway */
 int
-nexthop6_new(struct next_hop *nh, size_t size, uint32_t *slot)
+nexthop6_new(int family, struct next_hop *nh, size_t size, uint32_t *slot)
 {
 	struct next_hop_u *nextu;
 	struct nexthop_hash_key key = {.nh = nh, .size = size, .proto = 0 };
-	uint32_t rover = nh6_tbl.rover;
+	uint32_t rover;
 	uint32_t nh6_iter;
 	int ret;
+	struct nexthop_table *nh_table;
 
-	nextu = nexthop_reuse(AF_INET6, &key, slot);
+	if (family == AF_INET6)
+		nh_table =  route6_get_nh_table();
+	else
+		return -EINVAL;
+
+	rover = nh_table->rover;
+	nextu = nexthop_reuse(family, &key, slot);
 	if (nextu)
 		return 0;
 
-	if (unlikely(nh6_tbl.in_use == NEXTHOP6_HASH_TBL_SIZE)) {
+	if (unlikely(nh_table->in_use == NEXTHOP6_HASH_TBL_SIZE)) {
 		RTE_LOG(ERR, ROUTE, "V6 Next Hop tbl is full\n");
 		return -ENOSPC;
 	}
@@ -1140,12 +1147,12 @@ nexthop6_new(struct next_hop *nh, size_t size, uint32_t *slot)
 		nh6_iter++;
 		if (nh6_iter >= NEXTHOP6_HASH_TBL_SIZE)
 			nh6_iter = 0;
-	} while ((rcu_dereference(nh6_tbl.entry[nh6_iter]) != NULL) &&
+	} while ((rcu_dereference(nh_table->entry[nh6_iter]) != NULL) &&
 		 likely(nh6_iter != rover));
 
-	nh6_tbl.rover = nh6_iter;
+	nh_table->rover = nh6_iter;
 	*slot = rover;
-	nh6_tbl.in_use++;
+	nh_table->in_use++;
 
 	rcu_assign_pointer(nh6_tbl.entry[rover], nextu);
 
@@ -1303,7 +1310,7 @@ void nexthop_v6_tbl_init(void)
 	nh_common_register(AF_INET6, &nh6_common);
 
 	/* reserve a drop nexthop */
-	if (nexthop6_new(&nh_drop, 1, &idx))
+	if (nexthop6_new(AF_INET6, &nh_drop, 1, &idx))
 		rte_panic("%s: can't create drop nexthop\n", __func__);
 	nextu6_blackhole =
 		rcu_dereference(nh6_tbl.entry[idx]);
