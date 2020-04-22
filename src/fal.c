@@ -1541,6 +1541,7 @@ next_hop_to_packet_action(const struct next_hop *nh)
 }
 
 static const struct fal_attribute_t **next_hop_to_attr_list(
+	enum fal_ip_addr_family_t family,
 	fal_object_t nhg_object, size_t nhops,
 	const struct next_hop hops[], uint32_t **attr_count)
 {
@@ -1582,61 +1583,8 @@ static const struct fal_attribute_t **next_hop_to_attr_list(
 		if (nh->flags & (RTF_GATEWAY | RTF_NEIGH_CREATED)) {
 			nh_attr[3].id = FAL_NEXT_HOP_ATTR_IP;
 			addr = &nh_attr[3].value.ipaddr;
-			addr->addr_family = FAL_IP_ADDR_FAMILY_IPV4;
-			addr->addr.ip4 = nh->gateway4;
-			(*attr_count)[i] = 4;
-		} else {
-			(*attr_count)[i] = 3;
-		}
-	}
-
-	return nh_attr_list;
-}
-
-static const struct fal_attribute_t **next_hop6_to_attr_list(
-	fal_object_t nhg_object, size_t nhops,
-	const struct next_hop hops[], uint32_t **attr_count)
-{
-	const struct fal_attribute_t **nh_attr_list;
-	size_t i;
-
-	nh_attr_list = calloc(nhops, sizeof(*nh_attr_list));
-	if (!nh_attr_list)
-		return NULL;
-	*attr_count = calloc(nhops, sizeof(**attr_count));
-	if (!*attr_count) {
-		free(nh_attr_list);
-		return NULL;
-	}
-
-	for (i = 0; i < nhops; i++) {
-		const struct next_hop *nh = &hops[i];
-		struct fal_attribute_t *nh_attr;
-		struct ifnet *ifp;
-		struct fal_ip_address_t *addr;
-
-		nh_attr_list[i] = nh_attr = calloc(
-			1, sizeof(*nh_attr) * 4);
-		if (!nh_attr) {
-			while (i--)
-				free((struct fal_attribute_t *)
-				     nh_attr_list[i]);
-			free(*attr_count);
-			free(nh_attr_list);
-			return NULL;
-		}
-		nh_attr[0].id = FAL_NEXT_HOP_ATTR_NEXT_HOP_GROUP;
-		nh_attr[0].value.objid = nhg_object;
-		nh_attr[1].id = FAL_NEXT_HOP_ATTR_INTF;
-		ifp = dp_nh_get_ifp(nh);
-		nh_attr[1].value.u32 = ifp ? ifp->if_index : 0;
-		nh_attr[2].id = FAL_NEXT_HOP_ATTR_ROUTER_INTF;
-		nh_attr[2].value.u32 = ifp ? ifp->fal_l3 : FAL_NULL_OBJECT_ID;
-		if (nh->flags & (RTF_GATEWAY | RTF_NEIGH_CREATED)) {
-			nh_attr[3].id = FAL_NEXT_HOP_ATTR_IP;
-			addr = &nh_attr[3].value.ipaddr;
-			addr->addr_family = FAL_IP_ADDR_FAMILY_IPV6;
-			addr->addr.addr6 = nh->gateway6;
+			addr->addr_family = family;
+			memcpy(&addr->addr, &nh->gateway6, sizeof(addr->addr));
 			(*attr_count)[i] = 4;
 		} else {
 			(*attr_count)[i] = 3;
@@ -1681,7 +1629,8 @@ int fal_ip4_new_next_hops(size_t nhops, const struct next_hop hops[],
 	if (ret < 0)
 		return ret;
 
-	nh_attr_list = next_hop_to_attr_list(*nhg_object, nhops, hops,
+	nh_attr_list = next_hop_to_attr_list(FAL_IP_ADDR_FAMILY_IPV4,
+					     *nhg_object, nhops, hops,
 					     &nh_attr_count);
 	if (!nh_attr_list) {
 		ret = -ENOMEM;
@@ -1741,7 +1690,8 @@ int fal_ip6_new_next_hops(size_t nhops, const struct next_hop hops[],
 	if (ret < 0)
 		return ret;
 
-	nh_attr_list = next_hop6_to_attr_list(*nhg_object, nhops, hops,
+	nh_attr_list = next_hop_to_attr_list(FAL_IP_ADDR_FAMILY_IPV6,
+					     *nhg_object, nhops, hops,
 					      &nh_attr_count);
 	if (!nh_attr_list) {
 		ret = -ENOMEM;
