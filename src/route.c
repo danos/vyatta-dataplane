@@ -977,7 +977,8 @@ static struct next_hop_u *nexthop_reuse(int family,
 	++nu->refcount;
 
 	DP_DEBUG(ROUTE, DEBUG, ROUTE,
-		 "nexthop reuse: nexthop %d, refs %u\n",
+		 "%s nexthop reuse: nexthop %d, refs %u\n",
+		 family ? AF_INET ? "IPv4" : "IPv6",
 		 index, nu->refcount);
 
 	return nu;
