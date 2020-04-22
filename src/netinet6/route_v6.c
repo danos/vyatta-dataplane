@@ -154,7 +154,7 @@ static struct cds_lfht *route6_get_nh_hash_table(void)
 }
 
 /*
- * Wrapper round the nexthop6_new function. This one keeps track of the
+ * Wrapper round the nexthop_new function. This one keeps track of the
  * failures and successes.
  */
 static int
@@ -163,7 +163,7 @@ route_nexthop6_new(struct next_hop *nh, uint16_t size,
 {
 	int rc;
 
-	rc = nexthop6_new(AF_INET6, nh, size, RTPROT_UNSPEC, slot);
+	rc = nexthop_new(AF_INET6, nh, size, RTPROT_UNSPEC, slot);
 	if (rc >= 0)
 		return rc;
 
@@ -1033,78 +1033,6 @@ nexthop6_hash_del_add(struct next_hop_u *old_nu,
 	return nexthop_hash_insert(AF_INET6, new_nu, &key);
 }
 
-/* Look (or create) nexthop based on gateway */
-int
-nexthop6_new(int family, struct next_hop *nh, size_t size, int proto __unused,
-	     uint32_t *slot)
-{
-	struct next_hop_u *nextu;
-	struct nexthop_hash_key key = {.nh = nh, .size = size, .proto = 0 };
-	uint32_t rover;
-	uint32_t nh6_iter;
-	int ret;
-	struct nexthop_table *nh_table;
-
-	if (family == AF_INET6)
-		nh_table =  route6_get_nh_table();
-	else
-		return -EINVAL;
-
-	rover = nh_table->rover;
-	nextu = nexthop_reuse(family, &key, slot);
-	if (nextu)
-		return 0;
-
-	if (unlikely(nh_table->in_use == NEXTHOP_HASH_TBL_SIZE)) {
-		RTE_LOG(ERR, ROUTE, "V6 Next Hop tbl is full\n");
-		return -ENOSPC;
-	}
-
-	nextu = nexthop_alloc(size);
-	if (!nextu) {
-		RTE_LOG(ERR, ROUTE, "can't alloc next_hop_u\n");
-		return -ENOMEM;
-	}
-	nextu->nsiblings = size;
-	nextu->refcount = 1;
-	nextu->index = rover;
-	if (size == 1) {
-		nextu->hop0 = *nh;
-	} else {
-		memcpy(nextu->siblings, nh, size * sizeof(struct next_hop));
-	}
-	if (unlikely(nexthop_hash_insert(family, nextu, &key))) {
-		__nexthop_destroy(nextu);
-		return -ENOMEM;
-	}
-
-	ret = fal_ip_new_next_hops(FAL_IP_ADDR_FAMILY_IPV6,
-				   nextu->nsiblings, nextu->siblings,
-				   &nextu->nhg_fal_obj,
-				   nextu->nh_fal_obj);
-	if (ret < 0 && ret != -EOPNOTSUPP)
-		RTE_LOG(ERR, ROUTE,
-			"FAL IPv6 next-hop-group create failed: %s\n",
-			strerror(-ret));
-	nextu->pd_state = fal_state_to_pd_state(ret);
-
-	nh6_iter = rover;
-	do {
-		nh6_iter++;
-		if (nh6_iter >= NEXTHOP_HASH_TBL_SIZE)
-			nh6_iter = 0;
-	} while ((rcu_dereference(nh_table->entry[nh6_iter]) != NULL) &&
-		 likely(nh6_iter != rover));
-
-	nh_table->rover = nh6_iter;
-	*slot = rover;
-	nh_table->in_use++;
-
-	rcu_assign_pointer(nh6_tbl.entry[rover], nextu);
-
-	return 0;
-}
-
 static int nextu6_nc_count(const struct next_hop_u *nhu)
 {
 	int count = 0;
@@ -1256,7 +1184,7 @@ void nexthop_v6_tbl_init(void)
 	nh_common_register(AF_INET6, &nh6_common);
 
 	/* reserve a drop nexthop */
-	if (nexthop6_new(AF_INET6, &nh_drop, 1, RTPROT_UNSPEC, &idx))
+	if (nexthop_new(AF_INET6, &nh_drop, 1, RTPROT_UNSPEC, &idx))
 		rte_panic("%s: can't create drop nexthop\n", __func__);
 	nextu6_blackhole =
 		rcu_dereference(nh6_tbl.entry[idx]);

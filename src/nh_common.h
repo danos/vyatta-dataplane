@@ -105,6 +105,9 @@ void __nexthop_destroy(struct next_hop_u *nextu);
 
 void nexthop_destroy(struct rcu_head *head);
 
+int nexthop_new(int family, const struct next_hop *nh, uint16_t size,
+		uint8_t proto, uint32_t *slot);
+
 /*
  * Per AF hash function for a nexthop.
  */

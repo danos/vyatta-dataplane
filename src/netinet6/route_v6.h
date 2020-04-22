@@ -53,8 +53,6 @@ struct next_hop *nexthop6_create(struct ifnet *ifp,
 				 const struct in6_addr *gw, uint32_t flags,
 				 uint16_t num_labels, label_t *labels);
 void nexthop6_put(uint32_t idx);
-int nexthop6_new(int family, struct next_hop *nh, size_t size, int proto,
-		 uint32_t *slot);
 void rt6_print_nexthop(json_writer_t *json, uint32_t next_hop,
 		       enum rt_print_nexthop_verbosity v);
 

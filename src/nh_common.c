@@ -6,6 +6,7 @@
 
 #include <rte_debug.h>
 
+#include "fal.h"
 #include "if_llatbl.h"
 #include "nh_common.h"
 #include "vplane_debug.h"
@@ -73,6 +74,18 @@ static nh_common_cmp_fn *nh_common_get_hash_cmp_fn(int af_family)
 
 	if (nh_common_af[family].nh_compare)
 		return nh_common_af[family].nh_compare;
+
+	return NULL;
+}
+
+static struct nexthop_table *nh_common_get_nh_table(int af_family)
+{
+	int family = af_family_to_family(af_family);
+	if (family < 0)
+		return NULL;
+
+	if (nh_common_af[family].nh_get_nh_tbl)
+		return nh_common_af[family].nh_get_nh_tbl();
 
 	return NULL;
 }
@@ -227,4 +240,81 @@ void nexthop_destroy(struct rcu_head *head)
 		= caa_container_of(head, struct next_hop_u, rcu);
 
 	__nexthop_destroy(nextu);
+}
+
+/* Lookup (or create) nexthop based on hop information */
+int nexthop_new(int family, const struct next_hop *nh, uint16_t size,
+		uint8_t proto, uint32_t *slot)
+{
+	struct nexthop_hash_key key = {
+				.nh = nh, .size = size, .proto = proto };
+	struct next_hop_u *nextu;
+	uint32_t rover;
+	uint32_t nh_iter;
+	int ret;
+	struct nexthop_table *nh_table = nh_common_get_nh_table(family);
+
+	if (!nh_table) {
+		RTE_LOG(ERR, ROUTE, "Invalid family %d for new nexthop\n",
+			family);
+			return -EINVAL;
+	}
+
+	rover = nh_table->rover;
+	nextu = nexthop_reuse(family, &key, slot);
+	if (nextu)
+		return 0;
+
+	if (unlikely(nh_table->in_use == NEXTHOP_HASH_TBL_SIZE)) {
+		RTE_LOG(ERR, ROUTE, "IPv%d next hop table full\n",
+			family == AF_INET ? 4 : 6);
+		return -ENOSPC;
+	}
+
+	nextu = nexthop_alloc(size);
+	if (!nextu) {
+		RTE_LOG(ERR, ROUTE, "IPv%d next hop table alloc failed\n",
+			family == AF_INET ? 4 : 6);
+		return -ENOMEM;
+	}
+
+	nextu->nsiblings = size;
+	nextu->refcount = 1;
+	nextu->index = rover;
+	nextu->proto = proto;
+	if (size == 1)
+		nextu->hop0 = *nh;
+	else
+		memcpy(nextu->siblings, nh, size * sizeof(struct next_hop));
+
+	if (unlikely(nexthop_hash_insert(family, nextu, &key))) {
+		__nexthop_destroy(nextu);
+		return -ENOMEM;
+	}
+
+	ret = fal_ip_new_next_hops(addr_family_to_fal_ip_addr_family(family),
+				   nextu->nsiblings, nextu->siblings,
+				    &nextu->nhg_fal_obj,
+				    nextu->nh_fal_obj);
+	if (ret < 0 && ret != -EOPNOTSUPP)
+		RTE_LOG(ERR, ROUTE,
+			"FAL IPv4 next-hop-group create failed: %s\n",
+			strerror(-ret));
+	nextu->pd_state = fal_state_to_pd_state(ret);
+
+	nh_iter = rover;
+	do {
+		nh_iter++;
+		if (nh_iter >= NEXTHOP_HASH_TBL_SIZE)
+			nh_iter = 0;
+	} while ((rcu_dereference(nh_table->entry[nh_iter]) != NULL) &&
+		 likely(nh_iter != rover));
+
+	nh_table->rover = nh_iter;
+	*slot = rover;
+	nh_table->in_use++;
+
+	rcu_assign_pointer(nh_table->entry[rover], nextu);
+
+	return 0;
 }
