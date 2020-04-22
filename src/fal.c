@@ -1540,25 +1540,6 @@ next_hop_to_packet_action(const struct next_hop *nh)
 	return FAL_PACKET_ACTION_FORWARD;
 }
 
-static enum fal_packet_action_t
-next_hop6_to_packet_action(const struct next_hop *nh)
-{
-	struct ifnet *ifp;
-
-	if (nh->flags & RTF_BLACKHOLE ||
-	    nh_outlabels_present(&nh->outlabels))
-		return FAL_PACKET_ACTION_DROP;
-
-	if (nh->flags & (RTF_LOCAL|RTF_BROADCAST|RTF_SLOWPATH|RTF_REJECT))
-		return FAL_PACKET_ACTION_TRAP;
-
-	ifp = dp_nh_get_ifp(nh);
-	if (!ifp || ifp->fal_l3 == FAL_NULL_OBJECT_ID)
-		return FAL_PACKET_ACTION_TRAP;
-
-	return FAL_PACKET_ACTION_FORWARD;
-}
-
 static const struct fal_attribute_t **next_hop_to_attr_list(
 	fal_object_t nhg_object, size_t nhops,
 	const struct next_hop hops[], uint32_t **attr_count)
@@ -1749,7 +1730,7 @@ int fal_ip6_new_next_hops(size_t nhops, const struct next_hop hops[],
 		 * attributes. This will be represented instead using
 		 * route attributes.
 		 */
-		if (next_hop6_to_packet_action(&hops[i]) !=
+		if (next_hop_to_packet_action(&hops[i]) !=
 		    FAL_PACKET_ACTION_FORWARD)
 			return FAL_RC_NOT_REQ;
 	}
@@ -1925,7 +1906,7 @@ next_hop6_group_packet_action(uint32_t nhops, struct next_hop hops[])
 	uint32_t i;
 
 	for (i = 0; i < nhops; i++) {
-		action = next_hop6_to_packet_action(&hops[i]);
+		action = next_hop_to_packet_action(&hops[i]);
 		if (action != FAL_PACKET_ACTION_FORWARD)
 			return action;
 	}
