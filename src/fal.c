@@ -1899,21 +1899,6 @@ next_hop_group_packet_action(uint32_t nhops, struct next_hop hops[])
 	return FAL_PACKET_ACTION_FORWARD;
 }
 
-static enum fal_packet_action_t
-next_hop6_group_packet_action(uint32_t nhops, struct next_hop hops[])
-{
-	enum fal_packet_action_t action;
-	uint32_t i;
-
-	for (i = 0; i < nhops; i++) {
-		action = next_hop_to_packet_action(&hops[i]);
-		if (action != FAL_PACKET_ACTION_FORWARD)
-			return action;
-	}
-
-	return FAL_PACKET_ACTION_FORWARD;
-}
-
 int fal_ip4_new_route(vrfid_t vrf_id, in_addr_t addr, uint8_t prefixlen,
 		      uint32_t tableid, struct next_hop hops[],
 		      size_t nhops, fal_object_t nhg_object)
@@ -1949,7 +1934,7 @@ int fal_ip6_new_route(vrfid_t vrf_id, const struct in6_addr *addr,
 		.addr.addr6 = *addr
 	};
 	enum fal_packet_action_t action =
-		next_hop6_group_packet_action(nhops, hops);
+		next_hop_group_packet_action(nhops, hops);
 	struct fal_attribute_t attr_list[] = {
 		{ FAL_ROUTE_ENTRY_ATTR_NEXT_HOP_GROUP,
 		  .value.objid = nhg_object },
@@ -2010,7 +1995,7 @@ int fal_ip6_upd_route(vrfid_t vrf_id, const struct in6_addr *addr,
 	};
 	int ret = 0;
 	enum fal_packet_action_t action =
-		next_hop6_group_packet_action(nhops, hops);
+		next_hop_group_packet_action(nhops, hops);
 	struct fal_attribute_t pa_attr = {
 		FAL_ROUTE_ENTRY_ATTR_PACKET_ACTION,
 		.value.u32 = action
