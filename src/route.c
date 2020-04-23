@@ -809,16 +809,6 @@ static int nexthop_cmpfn(struct cds_lfht_node *node, const void *key)
 	return true;
 }
 
-static void nh4_set_neigh_created(int family __unused,
-				  struct next_hop *next_hop,
-				  struct llentry *lle)
-{
-	assert((next_hop->flags & RTF_NEIGH_CREATED) == 0);
-	next_hop->flags |= RTF_NEIGH_CREATED;
-	next_hop->u.lle = lle;
-	nh_tbl.neigh_created++;
-}
-
 static void nh4_clear_neigh_created(struct next_hop *next_hop)
 {
 	assert(next_hop->flags & RTF_NEIGH_CREATED);
@@ -930,7 +920,7 @@ route_nh_replace(struct next_hop_u *nextu, uint32_t nh_idx, struct llentry *lle,
 			break;
 		case NH_SET_NEIGH_CREATED:
 			any_change = true;
-			nh4_set_neigh_created(AF_INET, new_next, lle);
+			nh_set_neigh_created(AF_INET, new_next, lle);
 			break;
 		case NH_CLEAR_NEIGH_CREATED:
 			any_change = true;
@@ -2357,7 +2347,7 @@ route_create_arp(struct vrf *vrf, struct lpm *lpm,
 			 * is copied from the cover nextu, the sibling gives
 			 * the NH for the correct interface
 			 */
-			nh4_set_neigh_created(AF_INET, &nh[sibling], lle);
+			nh_set_neigh_created(AF_INET, &nh[sibling], lle);
 			/*
 			 * This is a /32 we are creating, therefore not a GW.
 			 * Set the GW (but not the flag) so that we do not

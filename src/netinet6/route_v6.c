@@ -824,16 +824,6 @@ struct next_hop *rt6_lookup_fast(struct vrf *vrf,
 	return nh;
 }
 
-static void nh6_set_neigh_created(int family __unused,
-				  struct next_hop *next_hop,
-				  struct llentry *lle)
-{
-	assert((next_hop->flags & RTF_NEIGH_CREATED) == 0);
-	next_hop->flags |= RTF_NEIGH_CREATED;
-	next_hop->u.lle = lle;
-	nh6_tbl.neigh_created++;
-}
-
 static void nh6_clear_neigh_created(struct next_hop *next_hop)
 {
 	assert(next_hop->flags & RTF_NEIGH_CREATED);
@@ -1183,7 +1173,7 @@ route6_nh_replace(struct next_hop_u *nextu, uint32_t nh_idx,
 			break;
 		case NH_SET_NEIGH_CREATED:
 			any_change = true;
-			nh6_set_neigh_created(AF_INET6, new_next, lle);
+			nh_set_neigh_created(AF_INET6, new_next, lle);
 			break;
 		case NH_CLEAR_NEIGH_CREATED:
 			any_change = true;
@@ -2689,7 +2679,7 @@ route6_create_neigh(struct vrf *vrf, struct lpm6 *lpm,
 			 * is copied from the cover nextu, the sibling gives
 			 * the NH for the correct interface
 			 */
-			nh6_set_neigh_created(AF_INET6, &nh[sibling], lle);
+			nh_set_neigh_created(AF_INET6, &nh[sibling], lle);
 			/*
 			 * This is a /128 we are creating, therefore not a GW.
 			 * Set the GW (but not the flag) so that we do not

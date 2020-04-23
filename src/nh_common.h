@@ -179,6 +179,19 @@ void nh_set_neigh_present(int family __unused,
 void nh_clear_neigh_present(int family,
 			    struct next_hop *next_hop);
 
+/*
+ * Modify a NH to mark it as neigh created. This is done in a non atomic
+ * way, so this must be atomically swapped into the forwarding state when
+ * ready.
+ *
+ * @param[in] family The family the nh is using.
+ * @param[out] nh The next_hop to modify
+ * @param[in] lle The lle entry that the next_hop needs to link to.
+ */
+void nh_set_neigh_created(int family,
+			  struct next_hop *next_hop,
+			  struct llentry *lle);
+
 bool nh_is_connected(const struct next_hop *nh);
 bool nh_is_local(const struct next_hop *nh);
 bool nh_is_gw(const struct next_hop *nh);

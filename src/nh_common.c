@@ -505,3 +505,22 @@ void nh_clear_neigh_present(int family,
 	next_hop->u.ifp = next_hop->u.lle->ifp;
 	nh_table->neigh_present--;
 }
+
+void nh_set_neigh_created(int family,
+			  struct next_hop *next_hop,
+			  struct llentry *lle)
+{
+	struct nexthop_table *nh_table = nh_common_get_nh_table(family);
+
+	if (!nh_table) {
+		RTE_LOG(ERR, ROUTE,
+			"Invalid family %d for set neigh created\n",
+			family);
+		return;
+	}
+
+	assert((next_hop->flags & RTF_NEIGH_CREATED) == 0);
+	next_hop->flags |= RTF_NEIGH_CREATED;
+	next_hop->u.lle = lle;
+	nh_table->neigh_created++;
+}
