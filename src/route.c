@@ -546,7 +546,7 @@ rt_lpm_add_reserved_routes(struct lpm *lpm, struct vrf *vrf)
 		}
 		free(nhop);
 		if (err_code != 0) {
-			nexthop_put(nh_idx);
+			nexthop_put(AF_INET, nh_idx);
 			return false;
 		}
 	}
@@ -585,7 +585,7 @@ rt_lpm_del_reserved_routes(struct lpm *lpm, struct vrf *vrf)
 				nh_idx, err_code);
 			return false;
 		}
-		nexthop_put(nh_idx);
+		nexthop_put(AF_INET, nh_idx);
 	}
 
 	return true;
@@ -973,7 +973,7 @@ static bool nextu_is_any_connected(const struct next_hop_u *nhu)
  * Drops reference to nexthop
  * and if last reference frees it for reuse.
  */
-void nexthop_put(uint32_t idx)
+void nexthop_put(int family __unused, uint32_t idx)
 {
 	struct next_hop_u *nextu = rcu_dereference(nh_tbl.entry[idx]);
 
@@ -1209,7 +1209,7 @@ static void subtree_walk_route_cleanup_cb(struct lpm *lpm,
 			ret);
 	}
 
-	nexthop_put(idx);
+	nexthop_put(AF_INET, idx);
 }
 
 static unsigned int lle_routing_insert_arp_cb(struct lltable *llt __unused,
@@ -1560,7 +1560,7 @@ int rt_insert(vrfid_t vrf_id, in_addr_t dst, uint8_t depth, uint32_t tableid,
 
 	if (err_code >= 0) {
 		if (replace)
-			nexthop_put(old_idx);
+			nexthop_put(AF_INET, old_idx);
 		route_change_link_arp(vrf, lpm, ntohl(dst), depth, idx, scope);
 	}
 
@@ -1572,7 +1572,7 @@ int rt_insert(vrfid_t vrf_id, in_addr_t dst, uint8_t depth, uint32_t tableid,
 			     replace ? "replace" : "add",
 			     inet_ntop(AF_INET, &dst, b, sizeof(b)),
 			     depth, idx, err_code);
-		nexthop_put(idx);
+		nexthop_put(AF_INET, idx);
 		goto err;
 	}
 
@@ -1619,7 +1619,7 @@ int rt_delete(vrfid_t vrf_id, in_addr_t dst, uint8_t depth,
 	err = route_lpm_delete(vrf_id, lpm, dst, depth, &idx, scope);
 	if (err >= 0) {
 		/* Drop reference count on nexthop entry. */
-		nexthop_put(idx);
+		nexthop_put(AF_INET, idx);
 		route_delete_relink_arp(lpm, ntohl(dst), depth);
 	}
 
@@ -1676,7 +1676,7 @@ static void flush_cleanup(struct lpm *lpm __rte_unused,
 	} else
 		route_hw_stats[pd_state.state]--;
 
-	nexthop_put(idx);
+	nexthop_put(AF_INET, idx);
 }
 
 void rt_flush(struct vrf *vrf)
@@ -2043,7 +2043,7 @@ static void rt_if_dead(struct lpm *lpm, struct vrf *vrf,
 		 */
 		route_lpm_delete(vrf->v_id, lpm, htonl(ip), depth, NULL,
 				 scope);
-		nexthop_put(idx);
+		nexthop_put(AF_INET, idx);
 	}
 }
 
@@ -2738,7 +2738,7 @@ routing_remove_arp_safe(struct llentry *lle)
 				route_lpm_delete(vrf->v_id,
 						     lpm, ip->s_addr, 32,
 						     &nh_idx, RT_SCOPE_LINK);
-				nexthop_put(nh_idx);
+				nexthop_put(AF_INET, nh_idx);
 			} else {
 				struct arp_remove_purge_arg args = {
 					.count = nextu_nc_count(nextu),
@@ -2757,7 +2757,7 @@ routing_remove_arp_safe(struct llentry *lle)
 							     lpm, ip->s_addr,
 							     32, &nh_idx,
 							     RT_SCOPE_LINK);
-					nexthop_put(nh_idx);
+					nexthop_put(AF_INET, nh_idx);
 				}
 			}
 		} else {

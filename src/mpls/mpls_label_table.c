@@ -146,7 +146,7 @@ static void free_label_table_node(struct label_table_node *label_table_entry)
 {
 	switch (label_table_entry->nh_type) {
 	case NH_TYPE_V4GW:
-		nexthop_put(label_table_entry->next_hop);
+		nexthop_put(AF_INET, label_table_entry->next_hop);
 		break;
 	case NH_TYPE_V6GW:
 		nexthop6_put(label_table_entry->next_hop);
