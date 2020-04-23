@@ -1656,26 +1656,8 @@ error:
 	return ret;
 }
 
-int fal_ip4_del_next_hops(fal_object_t nhg_object, size_t nhops,
-			  const fal_object_t *obj_list)
-{
-	int ret;
-
-	if (!fal_plugins_present())
-		return -EOPNOTSUPP;
-
-	ret = call_handler_def_ret(ip, -EOPNOTSUPP, del_next_hops,
-				   nhops, obj_list);
-	if (ret >= 0)
-		ret = call_handler_def_ret(ip, -EOPNOTSUPP,
-					   del_next_hop_group,
-					   nhg_object);
-
-	return ret;
-}
-
-int fal_ip6_del_next_hops(fal_object_t nhg_object, size_t nhops,
-			  const fal_object_t *obj_list)
+int fal_ip_del_next_hops(fal_object_t nhg_object, size_t nhops,
+			 const fal_object_t *obj_list)
 {
 	int ret;
 

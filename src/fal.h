@@ -781,8 +781,8 @@ void fal_ip4_del_addr(unsigned int if_index,
 int fal_ip_new_next_hops(enum fal_ip_addr_family_t family,
 			 size_t nhops, const struct next_hop hops[],
 			 fal_object_t *nhg_object, fal_object_t *obj);
-int fal_ip4_del_next_hops(fal_object_t nhg_object, size_t nhops,
-			  const fal_object_t *obj);
+int fal_ip_del_next_hops(fal_object_t nhg_object, size_t nhops,
+			 const fal_object_t *obj);
 int fal_ip4_new_route(vrfid_t vrf_id, in_addr_t addr, uint8_t prefixlen,
 		      uint32_t tableid, struct next_hop hops[],
 		      size_t size, fal_object_t nhg_object);
@@ -838,8 +838,6 @@ void fal_ip6_upd_addr(unsigned int if_index,
 		      const struct if_addr *ifa);
 void fal_ip6_del_addr(unsigned int if_index,
 		      const struct if_addr *ifa);
-int fal_ip6_del_next_hops(fal_object_t group_obj, size_t nhops,
-			  const fal_object_t *obj);
 int fal_ip_get_next_hop_group_attrs(fal_object_t nhg_object,
 				    uint32_t attr_count,
 				    struct fal_attribute_t *attr_list);

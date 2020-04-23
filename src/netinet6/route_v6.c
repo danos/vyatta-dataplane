@@ -1085,9 +1085,9 @@ void nexthop6_put(uint32_t idx)
 		}
 
 		if (fal_state_is_obj_present(nextu->pd_state)) {
-			ret = fal_ip6_del_next_hops(nextu->nhg_fal_obj,
-						    nextu->nsiblings,
-						    nextu->nh_fal_obj);
+			ret = fal_ip_del_next_hops(nextu->nhg_fal_obj,
+						   nextu->nsiblings,
+						   nextu->nh_fal_obj);
 			if (ret < 0) {
 				RTE_LOG(ERR, ROUTE,
 					"FAL IPv6 next-hop-group delete failed: %s\n",
