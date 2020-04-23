@@ -535,6 +535,10 @@ rt6_lpm_add_reserved_routes(struct lpm6 *lpm, struct vrf *vrf)
 {
 	char b[INET_ADDRSTRLEN];
 	unsigned int rt_idx;
+	struct ip_addr addr_any = {
+		.type = AF_INET6,
+		.address.ip_v6 = in6addr_any,
+	};
 
 	if (vrf->v_id == VRF_INVALID_ID)
 		return true;
@@ -545,7 +549,7 @@ rt6_lpm_add_reserved_routes(struct lpm6 *lpm, struct vrf *vrf)
 		uint32_t nh_idx;
 		int err_code;
 
-		nhop = nexthop6_create(NULL, &in6addr_any,
+		nhop = nexthop6_create(NULL, &addr_any,
 				       reserved_routes[rt_idx].flags,
 				       0, NULL);
 		if (!nhop)
@@ -917,13 +921,14 @@ inline bool is_local_ipv6(vrfid_t vrf_id, const struct in6_addr *dst)
 }
 
 struct next_hop *
-nexthop6_create(struct ifnet *ifp, const struct in6_addr *gw, uint32_t flags,
+nexthop6_create(struct ifnet *ifp, const struct ip_addr *gw, uint32_t flags,
 		uint16_t num_labels, label_t *labels)
 {
 	struct next_hop *next = malloc(sizeof(struct next_hop));
 
 	if (next) {
-		next->gateway6 = *gw;
+		memcpy(&next->gateway6, &gw->address.ip_v6,
+		       sizeof(next->gateway6));
 		next->flags = flags;
 		nh_set_ifp(next, ifp);
 		if (!nh_outlabels_set(&next->outlabels, num_labels, labels)) {
@@ -2679,7 +2684,10 @@ int handle_route6(vrfid_t vrf_id, uint16_t type, const struct rtmsg *rtm,
 	uint32_t depth = rtm->rtm_dst_len;
 	struct in6_addr dst = *(const struct in6_addr *)dest;
 	struct ifnet *ifp = dp_ifnet_byifindex(ifindex);
-	struct in6_addr gw = *(struct in6_addr *)gateway;
+	struct ip_addr ip_addr = {
+		.type = AF_INET6,
+		.address.ip_v6 = *(struct in6_addr *)gateway,
+	};
 	struct next_hop *next;
 	uint32_t size;
 	uint32_t flags = 0;
@@ -2747,7 +2755,7 @@ int handle_route6(vrfid_t vrf_id, uint16_t type, const struct rtmsg *rtm,
 			if (exp_ifp && !ifp && !is_ignored_interface(ifindex))
 				return -1;
 			size = 1;
-			next = nexthop6_create(ifp, &gw, flags, num_labels,
+			next = nexthop6_create(ifp, &ip_addr, flags, num_labels,
 					labels);
 		}
 

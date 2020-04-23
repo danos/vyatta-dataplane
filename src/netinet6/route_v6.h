@@ -50,7 +50,7 @@ struct next_hop *nexthop6_select(uint32_t nh_idx,
 				 uint16_t ether_type);
 
 struct next_hop *nexthop6_create(struct ifnet *ifp,
-				 const struct in6_addr *gw, uint32_t flags,
+				 const struct ip_addr *gw, uint32_t flags,
 				 uint16_t num_labels, label_t *labels);
 void nexthop6_put(uint32_t idx);
 void rt6_print_nexthop(json_writer_t *json, uint32_t next_hop,

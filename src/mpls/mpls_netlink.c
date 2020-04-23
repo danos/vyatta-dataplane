@@ -354,8 +354,11 @@ static int mpls_route_change(const struct nlmsghdr *nlh,
 							  hl_out_labels);
 			} else if (via->rtvia_family == AF_INET6) {
 				nh_type = NH_TYPE_V6GW;
+				ip_addr.type = AF_INET6;
+				ip_addr.address.ip_v6 = nh.v6;
+
 				nhops.v6 = nexthop6_create(oifp,
-							   &nh.v6,
+							   &ip_addr,
 							   flags,
 							   out_label_count,
 							   hl_out_labels);
