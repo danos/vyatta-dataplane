@@ -125,6 +125,12 @@ struct next_hop *
 nexthop_create(struct ifnet *ifp, struct ip_addr *gw, uint32_t flags,
 	       uint16_t num_labels, label_t *labels);
 
+static ALWAYS_INLINE bool
+nh_is_neigh_present(const struct next_hop *next_hop)
+{
+	return next_hop->flags & RTF_NEIGH_PRESENT;
+}
+
 /*
  * Per AF hash function for a nexthop.
  */

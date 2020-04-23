@@ -1078,7 +1078,7 @@ void nexthop6_put(uint32_t idx)
 		for (i = 0; i < nextu->nsiblings; i++) {
 			struct next_hop *nh = array + i;
 
-			if (nh6_is_neigh_present(nh))
+			if (nh_is_neigh_present(nh))
 				nh6_tbl.neigh_present--;
 			if (nh6_is_neigh_created(nh))
 				nh6_tbl.neigh_created--;
@@ -1463,7 +1463,7 @@ routing_neigh_add_gw_nh_replace_cb(struct next_hop *next,
 		return NH_NO_CHANGE;
 	if (dp_nh_get_ifp(next) != ifp)
 		return NH_NO_CHANGE;
-	if (nh6_is_local(next) || nh6_is_neigh_present(next))
+	if (nh6_is_local(next) || nh_is_neigh_present(next))
 		return NH_NO_CHANGE;
 
 	return NH_SET_NEIGH_PRESENT;
@@ -2858,7 +2858,7 @@ routing_neigh_del_gw_nh_replace_cb(struct next_hop *next,
 		return NH_NO_CHANGE;
 	if (dp_nh_get_ifp(next) != ifp)
 		return NH_NO_CHANGE;
-	if (nh6_is_local(next) || !nh6_is_neigh_present(next))
+	if (nh6_is_local(next) || !nh_is_neigh_present(next))
 		return NH_NO_CHANGE;
 
 	return NH_CLEAR_NEIGH_PRESENT;
@@ -2906,7 +2906,7 @@ static enum nh_change routing_neigh_add_nh_replace_cb(struct next_hop *next,
 	if (!nh6_is_connected(next))
 		return NH_NO_CHANGE;
 
-	if (nh6_is_neigh_present(next) || nh6_is_neigh_created(next))
+	if (nh_is_neigh_present(next) || nh6_is_neigh_created(next))
 		return NH_NO_CHANGE;
 	if (args->ifp != dp_nh_get_ifp(next))
 		return NH_NO_CHANGE;
@@ -2926,7 +2926,7 @@ static enum nh_change routing_neigh_del_nh_replace_cb(struct next_hop *next,
 {
 	struct ifnet *ifp = arg;
 
-	if (!nh6_is_connected(next) || !nh6_is_neigh_present(next))
+	if (!nh6_is_connected(next) || !nh_is_neigh_present(next))
 		return NH_NO_CHANGE;
 	if (ifp != dp_nh_get_ifp(next))
 		return NH_NO_CHANGE;
