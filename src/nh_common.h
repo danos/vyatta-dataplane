@@ -131,6 +131,12 @@ nh_is_neigh_present(const struct next_hop *next_hop)
 	return next_hop->flags & RTF_NEIGH_PRESENT;
 }
 
+static ALWAYS_INLINE bool
+nh_is_neigh_created(const struct next_hop *next_hop)
+{
+	return next_hop->flags & RTF_NEIGH_CREATED;
+}
+
 /*
  * Per AF hash function for a nexthop.
  */

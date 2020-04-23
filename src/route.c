@@ -931,7 +931,7 @@ static int nextu_nc_count(const struct next_hop_u *nhu)
 	for (i = 0; i < nhu->nsiblings; i++) {
 		struct next_hop *next = array + i;
 
-		if (nh4_is_neigh_created(next))
+		if (nh_is_neigh_created(next))
 			count++;
 	}
 	return count;
@@ -990,7 +990,7 @@ void nexthop_put(uint32_t idx)
 
 			if (nh_is_neigh_present(nh))
 				nh_tbl.neigh_present--;
-			if (nh4_is_neigh_created(nh))
+			if (nh_is_neigh_created(nh))
 				nh_tbl.neigh_created--;
 		}
 
@@ -1304,7 +1304,7 @@ static enum nh_change routing_arp_add_gw_nh_replace_cb(struct next_hop *next,
 	if (dp_nh_get_ifp(next) != ifp)
 		return NH_NO_CHANGE;
 	if (nh_is_local(next) || nh_is_neigh_present(next) ||
-		nh4_is_neigh_created(next))
+		nh_is_neigh_created(next))
 		return NH_NO_CHANGE;
 
 	return NH_SET_NEIGH_PRESENT;
@@ -2577,7 +2577,7 @@ static enum nh_change routing_arp_add_nh_replace_cb(struct next_hop *next,
 
 	if (!nh_is_connected(next))
 		return NH_NO_CHANGE;
-	if (nh_is_neigh_present(next) || nh4_is_neigh_created(next))
+	if (nh_is_neigh_present(next) || nh_is_neigh_created(next))
 		return NH_NO_CHANGE;
 	if (args->ifp != dp_nh_get_ifp(next))
 		return NH_NO_CHANGE;
@@ -2732,7 +2732,7 @@ routing_remove_arp_safe(struct llentry *lle)
 
 		/* Do we already have a nh for this interface? */
 		nh = nextu_find_path_using_ifp(nextu, ifp, &sibling);
-		if (nh && nh4_is_neigh_created(nh)) {
+		if (nh && nh_is_neigh_created(nh)) {
 			/* Are we removing a path or the entire NH */
 			if (nextu->nsiblings == 1) {
 				route_lpm_delete(vrf->v_id,

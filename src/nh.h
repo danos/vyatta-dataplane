@@ -63,12 +63,6 @@ nh_get_flags(enum nh_type nh_type, union next_hop_v4_or_v6_ptr nh)
 	return nh.v4->flags;
 }
 
-static ALWAYS_INLINE bool
-nh4_is_neigh_created(const struct next_hop *next_hop)
-{
-	return next_hop->flags & RTF_NEIGH_CREATED;
-}
-
 static ALWAYS_INLINE struct llentry *
 nh4_get_lle(const struct next_hop *next_hop)
 {
@@ -76,12 +70,6 @@ nh4_get_lle(const struct next_hop *next_hop)
 		return rcu_dereference(next_hop->u.lle);
 
 	return NULL;
-}
-
-static ALWAYS_INLINE bool
-nh6_is_neigh_created(const struct next_hop *next_hop)
-{
-	return next_hop->flags & RTF_NEIGH_CREATED;
 }
 
 static ALWAYS_INLINE struct llentry *
