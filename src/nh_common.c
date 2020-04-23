@@ -452,3 +452,11 @@ bool nh_is_connected(const struct next_hop *nh)
 
 	return true;
 }
+
+bool nh_is_local(const struct next_hop *nh)
+{
+	if (nh->flags & RTF_LOCAL)
+		return true;
+
+	return false;
+}

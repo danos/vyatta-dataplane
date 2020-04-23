@@ -862,14 +862,6 @@ static void nh6_clear_neigh_created(struct next_hop *next_hop)
 	nh6_tbl.neigh_created--;
 }
 
-static bool nh6_is_local(const struct next_hop *nh)
-{
-	if (nh->flags & RTF_LOCAL)
-		return true;
-
-	return false;
-}
-
 static bool nh6_is_gw(const struct next_hop *nh)
 {
 	if (nh->flags & RTF_GATEWAY)
@@ -1366,7 +1358,7 @@ routing_neigh_add_gw_nh_replace_cb(struct next_hop *next,
 		return NH_NO_CHANGE;
 	if (dp_nh_get_ifp(next) != ifp)
 		return NH_NO_CHANGE;
-	if (nh6_is_local(next) || nh_is_neigh_present(next))
+	if (nh_is_local(next) || nh_is_neigh_present(next))
 		return NH_NO_CHANGE;
 
 	return NH_SET_NEIGH_PRESENT;
@@ -2761,7 +2753,7 @@ routing_neigh_del_gw_nh_replace_cb(struct next_hop *next,
 		return NH_NO_CHANGE;
 	if (dp_nh_get_ifp(next) != ifp)
 		return NH_NO_CHANGE;
-	if (nh6_is_local(next) || !nh_is_neigh_present(next))
+	if (nh_is_local(next) || !nh_is_neigh_present(next))
 		return NH_NO_CHANGE;
 
 	return NH_CLEAR_NEIGH_PRESENT;
