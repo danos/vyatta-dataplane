@@ -809,15 +809,6 @@ static int nexthop_cmpfn(struct cds_lfht_node *node, const void *key)
 	return true;
 }
 
-static void nh4_clear_neigh_present(int family __unused,
-				    struct next_hop *next_hop)
-{
-	assert(next_hop->flags & RTF_NEIGH_PRESENT);
-	next_hop->flags &= ~RTF_NEIGH_PRESENT;
-	next_hop->u.ifp = next_hop->u.lle->ifp;
-	nh_tbl.neigh_present--;
-}
-
 static void nh4_set_neigh_created(struct next_hop *next_hop,
 				  struct llentry *lle)
 {
@@ -950,7 +941,7 @@ route_nh_replace(struct next_hop_u *nextu, uint32_t nh_idx, struct llentry *lle,
 			break;
 		case NH_CLEAR_NEIGH_PRESENT:
 			any_change = true;
-			nh4_clear_neigh_present(AF_INET, new_next);
+			nh_clear_neigh_present(AF_INET, new_next);
 			break;
 		case NH_DELETE:
 			if (!new_nextu_idx_for_del) {

@@ -824,15 +824,6 @@ struct next_hop *rt6_lookup_fast(struct vrf *vrf,
 	return nh;
 }
 
-static void nh6_clear_neigh_present(int faily __unused,
-				    struct next_hop *next_hop)
-{
-	assert(next_hop->flags & RTF_NEIGH_PRESENT);
-	next_hop->flags &= ~RTF_NEIGH_PRESENT;
-	next_hop->u.ifp = next_hop->u.lle->ifp;
-	nh6_tbl.neigh_present--;
-}
-
 static void nh6_set_neigh_created(struct next_hop *next_hop,
 				  struct llentry *lle)
 {
@@ -1203,7 +1194,7 @@ route6_nh_replace(struct next_hop_u *nextu, uint32_t nh_idx,
 			break;
 		case NH_CLEAR_NEIGH_PRESENT:
 			any_change = true;
-			nh6_clear_neigh_present(AF_INET6, new_next);
+			nh_clear_neigh_present(AF_INET6, new_next);
 			break;
 		case NH_DELETE:
 			if (!new_nextu_idx_for_del) {
