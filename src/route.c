@@ -766,31 +766,6 @@ inline bool is_local_ipv4(vrfid_t vrf_id, in_addr_t dst)
 	return false;
 }
 
-struct next_hop *
-nexthop_create(struct ifnet *ifp, struct ip_addr *gw, uint32_t flags,
-	       uint16_t num_labels, label_t *labels)
-{
-	struct next_hop *next = malloc(sizeof(struct next_hop));
-
-	if (next) {
-		/* Copying the v6 addr guarantees all bits are copied */
-		memcpy(&next->gateway6, &gw->address.ip_v6,
-		       sizeof(next->gateway6));
-		next->flags = flags;
-		nh_set_ifp(next, ifp);
-
-		if (!nh_outlabels_set(&next->outlabels, num_labels,
-					   labels)) {
-			RTE_LOG(ERR, ROUTE,
-				"Failed to set outlabels for nexthop with %u labels\n",
-				num_labels);
-			free(next);
-			return NULL;
-		}
-	}
-	return next;
-}
-
 /*
  * Create an array of next_hops based on the hops in the NHU.
  */

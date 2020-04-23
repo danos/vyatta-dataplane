@@ -109,6 +109,23 @@ int nexthop_new(int family, const struct next_hop *nh, uint16_t size,
 		uint8_t proto, uint32_t *slot);
 
 /*
+ * Create a next_hop based on the given information.  This nexthop will then
+ * be used as the argument to nexthop_new.
+ *
+ * @param[in] ifp The interface the nexthop uses.
+ * @param[in] gw  The gateway for the nexthop
+ * @param[in] flags The flags to set in the nexthop
+ * @param[in] num_labels The number of labels for the nexthop
+ * @param[in] labels An array of labels, of size 'num_labels'
+ *
+ * @return A next_hop on success
+ * @return NULL on failure.
+ */
+struct next_hop *
+nexthop_create(struct ifnet *ifp, struct ip_addr *gw, uint32_t flags,
+	       uint16_t num_labels, label_t *labels);
+
+/*
  * Per AF hash function for a nexthop.
  */
 typedef int (nh_common_hash_fn)(const struct nexthop_hash_key *key,
