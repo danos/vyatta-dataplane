@@ -644,7 +644,8 @@ int npf_alg_free_translation(npf_session_t *se, npf_addr_t *addr,
 	/* Currently, all algs use a mapped port */
 	map_flags = NPF_NAT_MAP_PORT;
 
-	return npf_nat_free_map(np, rl, map_flags, vrfid, *addr, port);
+	return npf_nat_free_map(np, rl, map_flags, npf_session_get_proto(se),
+				vrfid, *addr, port);
 }
 
 /* Reserve translations for an alg.  */
@@ -659,6 +660,7 @@ int npf_alg_reserve_translations(npf_session_t *parent, int nr_ports,
 	npf_addr_t paddr;
 	uint32_t nat_flags;
 	vrfid_t vrfid = npf_session_get_vrfid(parent);
+	uint8_t ip_prot = npf_session_get_proto(parent);
 	int i;
 	int rc;
 
@@ -673,7 +675,7 @@ int npf_alg_reserve_translations(npf_session_t *parent, int nr_ports,
 	npf_nat_get_trans(pnat, addr, &tmp);
 	paddr = *addr;
 
-	rc = npf_nat_alloc_map(np, rl, nat_flags, vrfid, addr,
+	rc = npf_nat_alloc_map(np, rl, nat_flags, ip_prot, vrfid, addr,
 			port, nr_ports);
 	if (rc)
 		return rc;
@@ -685,7 +687,7 @@ int npf_alg_reserve_translations(npf_session_t *parent, int nr_ports,
 	if (memcmp(addr, &paddr, alen)) {
 		tmp = ntohs(*port);
 		for (i = 0; i < nr_ports; i++)
-			npf_nat_free_map(np, rl, nat_flags, vrfid,
+			npf_nat_free_map(np, rl, nat_flags, ip_prot, vrfid,
 					*addr, htons(tmp + i));
 		return -ENOSPC;
 	}
@@ -1078,8 +1080,9 @@ static void npf_alg_apt_delete_evt(struct apt_tuple *at)
 		nat = npf_session_get_nat(se);
 		np = npf_nat_get_policy(nat);
 		rl = npf_nat_get_rule(nat);
-		npf_nat_free_map(np, rl, NPF_NAT_MAP_PORT, an->an_vrfid,
-				 an->an_taddr, an->an_tport);
+		npf_nat_free_map(np, rl, NPF_NAT_MAP_PORT,
+				 npf_session_get_proto(se),
+				 an->an_vrfid, an->an_taddr, an->an_tport);
 
 		free(an);
 	}

@@ -67,8 +67,8 @@ static void sip_alg_release_translation(struct sip_alg_media *m,
 {
 
 	if (m->m_np)
-		npf_nat_free_map(m->m_np, m->m_rl,
-				m->m_nat_flags, m->m_vrfid, taddr, htons(port));
+		npf_nat_free_map(m->m_np, m->m_rl, m->m_nat_flags, m->m_ip_prot,
+				 m->m_vrfid, taddr, htons(port));
 }
 
 /*

@@ -666,8 +666,9 @@ npf_nat_create(npf_rule_t *rl,
 	} else
 		nt->nt_oport = nt->nt_tport = 0;
 
-	rc = npf_nat_alloc_map(np, rl, nt->nt_map_flags, vrfid,
-			(npf_addr_t *) &nt->nt_taddr, &nt->nt_tport, nr_ports);
+	rc = npf_nat_alloc_map(np, rl, nt->nt_map_flags, npf_cache_ipproto(npc),
+			vrfid, (npf_addr_t *) &nt->nt_taddr,
+			&nt->nt_tport, nr_ports);
 	if (unlikely(rc != 0)) {
 		npf_nat_destroy(nt);
 		return NULL;
@@ -1479,7 +1480,8 @@ npf_nat_expire(npf_nat_t *nt, vrfid_t vrfid)
 	else
 		npf_nat_get_trans(nt, &t_addr, &t_port);
 
-	npf_nat_free_map(np, nt->nt_rl, nt->nt_map_flags, vrfid,
+	npf_nat_free_map(np, nt->nt_rl, nt->nt_map_flags,
+			npf_session_get_proto(nt->nt_session), vrfid,
 			t_addr, t_port);
 
 	npf_nat_destroy(nt);
@@ -1487,8 +1489,8 @@ npf_nat_expire(npf_nat_t *nt, vrfid_t vrfid)
 
 /* APM map op failure msg. */
 static void npf_nat_log_map_error(const char *which, npf_rule_t *rl,
-		struct npf_natpolicy *np, const npf_addr_t *addr,
-		in_port_t port, int nr_ports, int rc)
+		struct npf_natpolicy *np, uint8_t ip_prot,
+		const npf_addr_t *addr, in_port_t port, int nr_ports, int rc)
 {
 
 	if (net_ratelimit()) {
@@ -1499,11 +1501,11 @@ static void npf_nat_log_map_error(const char *which, npf_rule_t *rl,
 		npf_rule_get_overall_used(rl, &used, &overall);
 
 		inet_ntop(AF_INET, addr, addrstr, sizeof(addrstr));
-		RTE_LOG(ERR, FIREWALL, "%cNAT: map %s %d (%s:%d) failed: %s, "
-				"used %"PRIu64"/%"PRIu64"\n",
+		RTE_LOG(ERR, FIREWALL, "%cNAT: map %s %d (%s:%d prot %u) "
+				"`failed: %s, used %"PRIu64"/%"PRIu64"\n",
 				np->n_type == NPF_NATIN ? 'D' : 'S',
 				which,
-				nr_ports, addrstr, ntohs(port),
+				nr_ports, addrstr, ntohs(port), ip_prot,
 				strerror_r(-rc, buf, ERR_MSG_LEN),
 				used, overall);
 	}
@@ -1512,29 +1514,34 @@ static void npf_nat_log_map_error(const char *which, npf_rule_t *rl,
 
 /* Allocate one or more mappings from an APM */
 int npf_nat_alloc_map(npf_natpolicy_t *np, npf_rule_t *rl, uint32_t map_flags,
-		vrfid_t vrfid, npf_addr_t *addr, in_port_t *port, int num)
+		uint8_t ip_prot, vrfid_t vrfid, npf_addr_t *addr,
+		in_port_t *port, int num)
 {
 	int rc;
 
-	rc = npf_apm_get_map(np->n_apm, map_flags, num, vrfid, addr, port);
+	rc = npf_apm_get_map(np->n_apm, map_flags, ip_prot, num, vrfid, addr,
+			     port);
 	if (!rc)
 		npf_rule_update_map_stats(rl, num, map_flags);
 	else
-		npf_nat_log_map_error("get", rl, np, addr, *port, num, rc);
+		npf_nat_log_map_error("get", rl, np, ip_prot, addr, *port, num,
+				      rc);
 	return rc;
 }
 
 /* Return a single mapping to an APM */
 int npf_nat_free_map(npf_natpolicy_t *np, npf_rule_t *rl, uint32_t map_flags,
-		vrfid_t vrfid, const npf_addr_t addr, in_port_t port)
+		uint8_t ip_prot, vrfid_t vrfid, const npf_addr_t addr,
+		in_port_t port)
 {
 	int rc;
 
-	rc = npf_apm_put_map(np->n_apm, map_flags, vrfid, addr, port);
+	rc = npf_apm_put_map(np->n_apm, map_flags, ip_prot, vrfid, addr, port);
 	if (!rc)
 		npf_rule_update_map_stats(rl, -1, map_flags);
 	else
-		npf_nat_log_map_error("put", rl, np, &addr, port, 1, rc);
+		npf_nat_log_map_error("put", rl, np, ip_prot, &addr, port, 1,
+				      rc);
 	return rc;
 }
 
@@ -1657,7 +1664,8 @@ int npf_nat_npf_pack_restore(struct npf_session *se,
 	vrfid_t vrfid = npf_session_get_vrfid(se);
 
 	rc = npf_nat_alloc_map(nt->nt_natpolicy, rl, nt->nt_map_flags, vrfid,
-			(npf_addr_t *) &nt->nt_taddr, &nt->nt_tport, 1);
+			npf_session_get_proto(se), (npf_addr_t *) &nt->nt_taddr,
+			&nt->nt_tport, 1);
 	if (rc)
 		goto error;
 

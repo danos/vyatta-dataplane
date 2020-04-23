@@ -701,8 +701,8 @@ static int map_release_port(struct port_section *ps, uint16_t port)
 }
 
 /* Return a mapped address & port to the map */
-int npf_apm_put_map(npf_apm_t *apm, uint32_t map_flags, vrfid_t vrfid,
-		npf_addr_t ipaddr, in_port_t ipport)
+int npf_apm_put_map(npf_apm_t *apm, uint32_t map_flags, uint8_t ip_prot,
+		vrfid_t vrfid, npf_addr_t ipaddr, in_port_t ipport)
 {
 	uint32_t addr;
 	uint16_t port;
@@ -710,7 +710,7 @@ int npf_apm_put_map(npf_apm_t *apm, uint32_t map_flags, vrfid_t vrfid,
 	struct port_section *ps;
 	int n;
 	int rc;
-	enum nat_proto nprot = NAT_PROTO_FIRST;
+	enum nat_proto nprot = nat_proto_from_ipproto(ip_prot);
 
 	if (!apm || !ipport)
 		return 0;
@@ -844,13 +844,14 @@ static int map_allocate_from_table(struct npf_apm *apm, int nr_ports,
 }
 
 /* Get an address & port from the map */
-int npf_apm_get_map(npf_apm_t *apm, uint32_t map_flags, int nr_ports,
-		vrfid_t vrfid, npf_addr_t *ipaddr, in_port_t *ipport)
+int npf_apm_get_map(npf_apm_t *apm, uint32_t map_flags, uint8_t ip_prot,
+		int nr_ports, vrfid_t vrfid, npf_addr_t *ipaddr,
+		in_port_t *ipport)
 {
 	uint32_t addr = NPF_ADDR_TO_UINT32(ipaddr);
 	uint32_t *ipaddrp = (uint32_t *) ipaddr;
 	in_port_t port = ntohs(*ipport);
-	enum nat_proto nprot = NAT_PROTO_FIRST;
+	enum nat_proto nprot = nat_proto_from_ipproto(ip_prot);
 	int rc;
 
 	/*
@@ -1109,18 +1110,20 @@ void npf_apm_flush_all(void)
 /*
  * Get the allocation status for a particular address and port.
  *
+ * ip_prot	IP protocol to check the port for
  * ipaddr	translation address
  * port		port in host order
  */
 bool
-npf_apm_get_allocated(vrfid_t vrfid, npf_addr_t ipaddr, in_port_t port)
+npf_apm_get_allocated(uint8_t ip_prot, vrfid_t vrfid, npf_addr_t ipaddr,
+		in_port_t port)
 {
 	uint32_t addr;
 	unsigned long bit;
 	struct port_map *pm;
 	struct port_section *ps;
 	int n;
-	enum nat_proto nprot = NAT_PROTO_FIRST;
+	enum nat_proto nprot = nat_proto_from_ipproto(ip_prot);
 
 	addr = NPF_ADDR_TO_UINT32(&ipaddr);
 

@@ -224,15 +224,16 @@ insert_6052_addr(uint32_t *ip4addr, uint8_t *ip6addr, uint8_t mask)
  * Get an IPv4 address from nat64 rproc and IPv6 address
  *
  * se6     - nat64 IPv6 ingress session
+ * ip_prot - IP protocol
  * id      - L4 ID, e.g. TCP port
  * nm      - nat64 rproc address mapping configuration and state
  * v6_addr - IPv6 address source or dest of packet to be translated
  * v4_addr - New IPv4 address is written to this uint32_t
  */
 static int
-nat64_get_map_v4(struct npf_nat64 *nat64, npf_rule_t *rl, uint16_t *id,
-		 struct nat64_map *nm, uint32_t *v4_addr, char *v6_addr,
-		 vrfid_t vrfid)
+nat64_get_map_v4(struct npf_nat64 *nat64, npf_rule_t *rl, uint8_t ip_prot,
+		 uint16_t *id, struct nat64_map *nm, uint32_t *v4_addr,
+		 char *v6_addr, vrfid_t vrfid)
 {
 	int rc;
 
@@ -282,7 +283,7 @@ nat64_get_map_v4(struct npf_nat64 *nat64, npf_rule_t *rl, uint16_t *id,
 		 * n64_t_addr is initially 0.0.0.0
 		 */
 		rc = npf_nat_alloc_map(np, rl,
-				       nat64->n64_map_flags,
+				       nat64->n64_map_flags, ip_prot,
 				       nat64->n64_vrfid,
 				       &nat64->n64_t_addr,
 				       &nat64->n64_t_port, 1);
@@ -755,6 +756,7 @@ npf_nat64_session_destroy(struct npf_session *se)
 	if (nat64->n64_np) {
 		npf_nat_free_map(nat64->n64_np, nat64->n64_rule,
 				 nat64->n64_map_flags,
+				 npf_session_get_proto(se),
 				 nat64->n64_vrfid,
 				 nat64->n64_t_addr,
 				 nat64->n64_t_port);
@@ -961,6 +963,7 @@ npf_nat64_6to4_in(npf_action_t *action, const struct npf_config *npf_config,
 		struct nat64 *rproc;
 		struct ip6_hdr *ip6;
 		int error = 0;
+		uint8_t ip_prot;
 
 		/*
 		 * Peer egress session not found.
@@ -1030,7 +1033,8 @@ npf_nat64_6to4_in(npf_action_t *action, const struct npf_config *npf_config,
 		}
 
 		/* Get mapping for v4 src addr */
-		rc = nat64_get_map_v4(n64, rl, &sid, &rproc->n6_src,
+		ip_prot = npf_cache_ipproto(npc);
+		rc = nat64_get_map_v4(n64, rl, ip_prot, &sid, &rproc->n6_src,
 				      saddr.s6_addr32, (char *)&ip6->ip6_src,
 				      vrfid);
 		if (rc) {
@@ -1039,7 +1043,7 @@ npf_nat64_6to4_in(npf_action_t *action, const struct npf_config *npf_config,
 		}
 
 		/* Get mapping for v4 dst addr */
-		rc = nat64_get_map_v4(n64, rl, &did, &rproc->n6_dst,
+		rc = nat64_get_map_v4(n64, rl, ip_prot, &did, &rproc->n6_dst,
 				      daddr.s6_addr32, (char *)&ip6->ip6_dst,
 				      vrfid);
 		if (rc) {

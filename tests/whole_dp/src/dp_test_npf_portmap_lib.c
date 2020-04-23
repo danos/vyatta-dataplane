@@ -145,11 +145,11 @@ dp_test_npf_json_get_portmap_state(const char *addr, char **state)
  * Returns true if the portmap "used" count is retrieved ok
  */
 bool
-dp_test_npf_json_get_portmap_used(const char *addr, uint *used)
+dp_test_npf_json_get_portmap_used(const char *prot,
+				  const char *addr, uint *used)
 {
 	json_object *jmap, *jprot;
 	bool rv;
-	const char *prot = "tcp";
 	struct dp_test_json_find_key key[] = { {"protocols", NULL},
 					       {"protocol", prot } };
 
@@ -175,10 +175,10 @@ dp_test_npf_json_get_portmap_used(const char *addr, uint *used)
  * considers "ACTIVE" portmaps.
  */
 static bool
-dp_test_npf_json_get_portmap_port(const char *addr, uint16_t port)
+dp_test_npf_json_get_portmap_port(const char *prot, const char *addr,
+				  uint16_t port)
 {
 	json_object *jmap, *jarray;
-	const char *prot = "tcp";
 	struct dp_test_json_find_key key[] = { {"protocols", NULL},
 					       {"protocol", prot },
 					       {"ports", NULL } };
@@ -297,14 +297,14 @@ dp_test_npf_print_portmap(void)
  * Verify portmap state and/or used count
  */
 void
-_dp_test_npf_portmap_verify(const char *addr, const char *state, uint used,
+_dp_test_npf_portmap_verify(const char *prot, const char *addr,
+			    const char *state, uint used,
 			    const char *file, int line)
 {
 	json_object *jmap, *jprot;
 	bool rv;
 	uint ival = 0;
 	const char *sval = NULL;
-	const char *prot = "tcp";
 	struct dp_test_json_find_key key[] = { {"protocols", NULL},
 					       {"protocol", prot } };
 
@@ -355,12 +355,13 @@ _dp_test_npf_portmap_verify(const char *addr, const char *state, uint used,
  * Verify portmap port
  */
 void
-_dp_test_npf_portmap_port_verify(const char *addr, uint16_t port,
-				 bool expected, const char *file, int line)
+_dp_test_npf_portmap_port_verify(const char *prot, const char *addr,
+				 uint16_t port, bool expected,
+				 const char *file, int line)
 {
 	bool rv;
 
-	rv = dp_test_npf_json_get_portmap_port(addr, port);
+	rv = dp_test_npf_json_get_portmap_port(prot, addr, port);
 	if (expected != rv)
 		dp_test_npf_print_portmap();
 

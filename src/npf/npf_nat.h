@@ -125,9 +125,11 @@ uint8_t npf_nat_type(npf_nat_t *nt);
 void npf_nat_destroy(npf_nat_t *nt);
 void npf_nat_expire(npf_nat_t *nt, vrfid_t vrfid);
 int npf_nat_alloc_map(npf_natpolicy_t *np, npf_rule_t *rl, uint32_t map_flags,
-		vrfid_t vrfid, npf_addr_t *addr, in_port_t *port, int num);
+		uint8_t ip_prot, vrfid_t vrfid, npf_addr_t *addr,
+		in_port_t *port, int num);
 int npf_nat_free_map(npf_natpolicy_t *np, npf_rule_t *rl, uint32_t map_flags,
-		vrfid_t vrfid, const npf_addr_t addr, in_port_t port);
+		uint8_t ip_prot, vrfid_t vrfid, const npf_addr_t addr,
+		in_port_t port);
 void npf_nat_dump(const npf_nat_t *nt);
 bool npf_nat_info(npf_nat_t *nat, int *type, npf_addr_t *addr,
 		  in_port_t *port, u_int *masq);

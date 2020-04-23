@@ -78,10 +78,10 @@ npf_apm_span_section(in_port_t port, uint nr_ports)
 void npf_apm_init(void);
 void npf_apm_uninit(void);
 
-int npf_apm_get_map(npf_apm_t *apm, uint32_t map_flags, int nr_ports,
-		vrfid_t vrfid, npf_addr_t *addr, in_port_t *port);
-int npf_apm_put_map(npf_apm_t *apm, uint32_t map_flags, vrfid_t vrfid,
-		npf_addr_t addr, in_port_t port);
+int npf_apm_get_map(npf_apm_t *apm, uint32_t map_flags, uint8_t ip_prot,
+		int nr_ports, vrfid_t vrfid, npf_addr_t *addr, in_port_t *port);
+int npf_apm_put_map(npf_apm_t *apm, uint32_t map_flags, uint8_t ip_prot,
+		vrfid_t vrfid, npf_addr_t addr, in_port_t port);
 npf_apm_t *npf_apm_create(uint32_t mask, uint32_t table_id, uint8_t type,
 		npf_addr_t start_addr, npf_addr_t stop_addr,
 		in_port_t start_port, in_port_t stop_port);
@@ -96,10 +96,12 @@ void npf_apm_dump(FILE *fp);
 /*
  * Get the allocation status for a particular address and port.
  *
+ * ip_prot	IP protocol to check the port for
  * ipaddr	translation address
  * port		port in host order
  */
 bool
-npf_apm_get_allocated(vrfid_t ctfid, npf_addr_t ipaddr, in_port_t port);
+npf_apm_get_allocated(uint8_t ip_prot, vrfid_t ctfid, npf_addr_t ipaddr,
+		in_port_t port);
 
 #endif /* NPF_APM_H */

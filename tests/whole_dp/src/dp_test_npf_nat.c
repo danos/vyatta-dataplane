@@ -198,7 +198,7 @@ DP_START_TEST(npf_snat, test1)
 	/* Verify pkt count */
 	dp_test_npf_snat_verify_pkts(snat.ifname, snat.rule, 1);
 
-	dp_test_npf_portmap_port_verify("172.0.2.1", pre->l4.tcp.sport);
+	dp_test_npf_portmap_port_verify("tcp", "172.0.2.1", pre->l4.tcp.sport);
 
 
 	/*****************************************************************
@@ -459,8 +459,9 @@ DP_START_TEST(npf_snat_masquerade, test1)
 	/* Verify pkt count */
 	dp_test_npf_snat_verify_pkts(snat.ifname, snat.rule, 1);
 
-	dp_test_npf_portmap_verify("172.0.2.254", "ACTIVE", 1);
-	dp_test_npf_portmap_port_verify("172.0.2.254", pre->l4.tcp.sport);
+	dp_test_npf_portmap_verify("tcp", "172.0.2.254", "ACTIVE", 1);
+	dp_test_npf_portmap_port_verify("tcp", "172.0.2.254",
+					pre->l4.tcp.sport);
 
 
 	/*******************************************************************
@@ -647,8 +648,9 @@ DP_START_TEST(npf_snat_masquerade, test1)
 	/* Verify pkt count */
 	dp_test_npf_snat_verify_pkts(snat.ifname, snat.rule, 4);
 
-	dp_test_npf_portmap_verify("172.0.2.254", "ACTIVE", 2);
-	dp_test_npf_portmap_port_verify("172.0.2.254", post->l4.tcp.sport);
+	dp_test_npf_portmap_verify("tcp", "172.0.2.254", "ACTIVE", 2);
+	dp_test_npf_portmap_port_verify("tcp", "172.0.2.254",
+					post->l4.tcp.sport);
 
 
 	/*******************************************************************
@@ -1170,7 +1172,7 @@ DP_START_TEST_DONT_RUN(npf_bidir_nat, test1)
 	dp_test_npf_dnat_verify_pkts(dnat.ifname, dnat.rule, 1);
 	dp_test_npf_snat_verify_pkts(snat.ifname, snat.rule, 1);
 
-	dp_test_npf_portmap_port_verify("10.0.1.3", pre->l4.tcp.sport);
+	dp_test_npf_portmap_port_verify("tcp", "10.0.1.3", pre->l4.tcp.sport);
 
 
 	/*******************************************************************
@@ -1831,7 +1833,7 @@ DP_START_TEST(npf_snat, addr_ranges)
 	/* Verify pkt count */
 	dp_test_npf_snat_verify_pkts(snat.ifname, snat.rule, 1);
 
-	dp_test_npf_portmap_port_verify("172.0.2.18", pre->l4.tcp.sport);
+	dp_test_npf_portmap_port_verify("tcp", "172.0.2.18", pre->l4.tcp.sport);
 
 
 	/*****************************************************************
@@ -1910,7 +1912,7 @@ DP_START_TEST(npf_snat, addr_ranges)
 	dp_test_npf_session_count_verify(2);
 	dp_test_npf_nat_session_count_verify(2);
 
-	dp_test_npf_portmap_port_verify("172.0.2.19", pre->l4.tcp.sport);
+	dp_test_npf_portmap_port_verify("tcp", "172.0.2.19", pre->l4.tcp.sport);
 
 
 	/* Cleanup */
@@ -2090,7 +2092,8 @@ DP_START_TEST(npf_snat_exclude, test1)
 	dp_test_npf_snat_verify_pkts(snat_10.ifname, snat_10.rule, 0);
 	dp_test_npf_snat_verify_pkts(snat_20.ifname, snat_20.rule, 1);
 
-	dp_test_npf_portmap_port_verify("172.0.2.254", pre->l4.tcp.sport);
+	dp_test_npf_portmap_port_verify("tcp", "172.0.2.254",
+					pre->l4.tcp.sport);
 
 
 	/*******************************************************************
@@ -2379,7 +2382,7 @@ DP_START_TEST(npf_snat_port_range, test1)
 	 * The validation callback should have set nat_ctx->eport to the value
 	 * chosen by the NAT translation.
 	 */
-	dp_test_npf_portmap_port_verify("172.0.2.18", nat_ctx->eport);
+	dp_test_npf_portmap_port_verify("tcp", "172.0.2.18", nat_ctx->eport);
 
 	dp_test_npf_nat_session_verify(NULL,
 				       pre->l3_src, pre->l4.tcp.sport,
@@ -2569,7 +2572,7 @@ DP_START_TEST(npf_snat_port_range, test1)
 	 */
 	post->l4.tcp.sport = nat_ctx->eport;
 
-	dp_test_npf_portmap_port_verify("172.0.2.18", nat_ctx->eport);
+	dp_test_npf_portmap_port_verify("tcp", "172.0.2.18", nat_ctx->eport);
 
 	dp_test_npf_nat_session_verify(NULL,
 				       pre->l3_src, pre->l4.tcp.sport,
@@ -2756,8 +2759,9 @@ DP_START_TEST(npf_snat_groups, test1)
 	/* Verify pkt count */
 	dp_test_npf_snat_verify_pkts(snat.ifname, snat.rule, 1);
 
-	dp_test_npf_portmap_verify("172.0.2.254", "ACTIVE", 1);
-	dp_test_npf_portmap_port_verify("172.0.2.254", pre->l4.tcp.sport);
+	dp_test_npf_portmap_verify("tcp", "172.0.2.254", "ACTIVE", 1);
+	dp_test_npf_portmap_port_verify("tcp", "172.0.2.254",
+					pre->l4.tcp.sport);
 
 
 	/* Cleanup */
@@ -2774,5 +2778,88 @@ DP_START_TEST(npf_snat_groups, test1)
 
 	dp_test_nl_del_ip_addr_and_connected("dp2T1", "172.0.2.254/24");
 	dp_test_nl_del_ip_addr_and_connected("dp1T0", "10.0.1.254/24");
+
+} DP_END_TEST;
+
+
+/*
+ * Tests SNAT where same source address and source port are presented to SNAT
+ * with different protocols.
+ *
+ * The second session will have the same trans port.
+ */
+DP_DECL_TEST_CASE(npf_nat, npf_snat10, NULL, NULL);
+DP_START_TEST(npf_snat10, test1)
+{
+	/* Setup interfaces and neighbours */
+	dp_test_nl_add_ip_addr_and_connected("dp1T0", "192.0.2.1/24");
+	dp_test_nl_add_ip_addr_and_connected("dp2T1", "203.0.113.1/24");
+	dp_test_nl_add_ip_addr_and_connected("dp2T1", "203.0.114.1/24");
+
+	dp_test_netlink_add_neigh("dp1T0", "192.0.2.103",
+				  "aa:bb:cc:16:0:20");
+	dp_test_netlink_add_neigh("dp2T1", "203.0.113.203",
+				  "aa:bb:cc:18:0:1");
+	dp_test_netlink_add_neigh("dp2T1", "203.0.114.203",
+				  "aa:bb:cc:18:0:1");
+
+	struct dp_test_npf_nat_rule_t snat = {
+		.desc		= "snat rule",
+		.rule		= "10",
+		.ifname		= "dp2T1",
+		.proto		= NAT_NULL_PROTO,
+		.map		= "dynamic",
+		.from_addr	= "192.0.2.0/24",
+		.from_port	= NULL,
+		.to_addr	= NULL,
+		.to_port	= NULL,
+		.trans_addr	= "masquerade", /* 203.0.113.1 */
+		.trans_port	= NULL
+	};
+
+	dp_test_npf_snat_add(&snat, true);
+
+	/* UDP Forwards */
+	dpt_udp("dp1T0", "aa:bb:cc:16:0:20",
+		"192.0.2.103", 10000, "203.0.113.203", 60000,
+		"203.0.113.1", 10000, "203.0.113.203", 60000,
+		"aa:bb:cc:18:0:1", "dp2T1",
+		DP_TEST_FWD_FORWARDED);
+
+	/* UDP Back */
+	dpt_udp("dp2T1", "aa:bb:cc:18:0:1",
+		"203.0.113.203", 60000, "203.0.113.1", 10000,
+		"203.0.113.203", 60000, "192.0.2.103", 10000,
+		"aa:bb:cc:16:0:20", "dp1T0",
+		DP_TEST_FWD_FORWARDED);
+
+	/* TCP Forwards */
+	dpt_tcp(TH_SYN, "dp1T0", "aa:bb:cc:16:0:20",
+		"192.0.2.103", 10000, "203.0.113.203", 60001,
+		"203.0.113.1", 10000, "203.0.113.203", 60001,
+		"aa:bb:cc:18:0:1", "dp2T1",
+		DP_TEST_FWD_FORWARDED);
+
+	/* TCP Back */
+	dpt_tcp(TH_SYN | TH_ACK, "dp2T1", "aa:bb:cc:18:0:1",
+		"203.0.113.203", 60001, "203.0.113.1", 10000,
+		"203.0.113.203", 60001, "192.0.2.103", 10000,
+		"aa:bb:cc:16:0:20", "dp1T0",
+		DP_TEST_FWD_FORWARDED);
+
+	dp_test_npf_snat_del(snat.ifname, snat.rule, true);
+
+	dp_test_npf_cleanup();
+
+	dp_test_netlink_del_neigh("dp1T0", "192.0.2.103",
+				  "aa:bb:cc:16:0:20");
+	dp_test_netlink_del_neigh("dp2T1", "203.0.113.203",
+				  "aa:bb:cc:18:0:1");
+	dp_test_netlink_del_neigh("dp2T1", "203.0.114.203",
+				  "aa:bb:cc:18:0:1");
+
+	dp_test_nl_del_ip_addr_and_connected("dp1T0", "192.0.2.1/24");
+	dp_test_nl_del_ip_addr_and_connected("dp2T1", "203.0.113.1/24");
+	dp_test_nl_del_ip_addr_and_connected("dp2T1", "203.0.114.1/24");
 
 } DP_END_TEST;
