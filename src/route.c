@@ -809,20 +809,6 @@ static int nexthop_cmpfn(struct cds_lfht_node *node, const void *key)
 	return true;
 }
 
-/*
- * Modifying a NH in non atomic way, so this must be atomically swapped
- * into the forwarding state when ready
- */
-static void nh4_set_neigh_present(int family __unused,
-				  struct next_hop *next_hop,
-				  struct llentry *lle)
-{
-	assert((next_hop->flags & RTF_NEIGH_PRESENT) == 0);
-	next_hop->flags |= RTF_NEIGH_PRESENT;
-	next_hop->u.lle = lle;
-	nh_tbl.neigh_present++;
-}
-
 static void nh4_clear_neigh_present(struct next_hop *next_hop)
 {
 	assert(next_hop->flags & RTF_NEIGH_PRESENT);
@@ -959,7 +945,7 @@ route_nh_replace(struct next_hop_u *nextu, uint32_t nh_idx, struct llentry *lle,
 			break;
 		case NH_SET_NEIGH_PRESENT:
 			any_change = true;
-			nh4_set_neigh_present(AF_INET, new_next, lle);
+			nh_set_neigh_present(AF_INET, new_next, lle);
 			break;
 		case NH_CLEAR_NEIGH_PRESENT:
 			any_change = true;

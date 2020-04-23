@@ -468,3 +468,22 @@ bool nh_is_gw(const struct next_hop *nh)
 
 	return false;
 }
+
+void nh_set_neigh_present(int family,
+			  struct next_hop *next_hop,
+			  struct llentry *lle)
+{
+	struct nexthop_table *nh_table = nh_common_get_nh_table(family);
+
+	if (!nh_table) {
+		RTE_LOG(ERR, ROUTE,
+			"Invalid family %d for set neigh present\n",
+			family);
+		return;
+	}
+
+	assert((next_hop->flags & RTF_NEIGH_PRESENT) == 0);
+	next_hop->flags |= RTF_NEIGH_PRESENT;
+	next_hop->u.lle = lle;
+	nh_table->neigh_present++;
+}
