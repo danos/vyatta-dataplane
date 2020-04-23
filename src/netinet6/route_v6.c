@@ -1074,7 +1074,7 @@ enum nh_change {
  * then remove it.
  */
 static uint32_t
-route6_nh_replace(struct next_hop_u *nextu, uint32_t nh_idx,
+route6_nh_replace(int family, struct next_hop_u *nextu, uint32_t nh_idx,
 		  struct llentry *lle, uint32_t *new_nextu_idx_for_del,
 		  enum nh_change (*nh_processing_cb)(struct next_hop *next,
 						     int sibling,
@@ -1118,15 +1118,15 @@ route6_nh_replace(struct next_hop_u *nextu, uint32_t nh_idx,
 			break;
 		case NH_SET_NEIGH_CREATED:
 			any_change = true;
-			nh_set_neigh_created(AF_INET6, new_next, lle);
+			nh_set_neigh_created(family, new_next, lle);
 			break;
 		case NH_CLEAR_NEIGH_CREATED:
 			any_change = true;
-			nh_clear_neigh_created(AF_INET6, new_next);
+			nh_clear_neigh_created(family, new_next);
 			break;
 		case NH_SET_NEIGH_PRESENT:
 			any_change = true;
-			nh_set_neigh_present(AF_INET6, new_next, lle);
+			nh_set_neigh_present(family, new_next, lle);
 			break;
 		case NH_CLEAR_NEIGH_PRESENT:
 			any_change = true;
@@ -1162,7 +1162,7 @@ route6_nh_replace(struct next_hop_u *nextu, uint32_t nh_idx,
 		return deleted;
 	}
 
-	if (nexthop_hash_del_add(AF_INET6, nextu, new_nextu)) {
+	if (nexthop_hash_del_add(family, nextu, new_nextu)) {
 		__nexthop_destroy(new_nextu);
 		RTE_LOG(ERR, ROUTE, "nh6 replace failed\n");
 		return 0;
@@ -1215,7 +1215,7 @@ static void route6_change_process_nh(struct next_hop_u *nhu,
 		struct llentry *lle = in6_lltable_find((struct ifnet *)ifp,
 						       &next->gateway6);
 		if (lle) {
-			route6_nh_replace(nhu, nhu->index, lle, NULL,
+			route6_nh_replace(AF_INET6, nhu, nhu->index, lle, NULL,
 					  upd_neigh_present_cb,
 					  lle);
 			/*
@@ -2681,7 +2681,7 @@ walk_nhs_for_neigh_change(struct llentry *lle,
 
 	cds_lfht_for_each(nexthop6_hash, &iter, node) {
 		nhu = caa_container_of(node, struct next_hop_u, nh_node);
-		route6_nh_replace(nhu, nhu->index, lle, NULL,
+		route6_nh_replace(AF_INET6, nhu, nhu->index, lle, NULL,
 				  upd_neigh_present_cb, lle);
 	}
 }
@@ -2800,7 +2800,7 @@ void routing6_insert_neigh_safe(struct llentry *lle, bool neigh_change)
 				.count = nextu_nc_count(nextu),
 			};
 
-			route6_nh_replace(nextu, nh_idx, lle, NULL,
+			route6_nh_replace(AF_INET6, nextu, nh_idx, lle, NULL,
 					  routing_neigh_add_nh_replace_cb,
 					  &arg);
 		}
@@ -2860,6 +2860,7 @@ void routing6_remove_neigh_safe(struct llentry *lle)
 				uint32_t new_nh_idx;
 
 				del = route6_nh_replace(
+					AF_INET6,
 					nextu, nh_idx, lle,
 					&new_nh_idx,
 					neigh_removal_nh_purge_cb,
@@ -2873,7 +2874,7 @@ void routing6_remove_neigh_safe(struct llentry *lle)
 				}
 			}
 		} else {
-			route6_nh_replace(nextu, nh_idx, NULL, NULL,
+			route6_nh_replace(AF_INET6, nextu, nh_idx, NULL, NULL,
 					  routing_neigh_del_nh_replace_cb, ifp);
 		}
 	}
