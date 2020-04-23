@@ -824,7 +824,8 @@ struct next_hop *rt6_lookup_fast(struct vrf *vrf,
 	return nh;
 }
 
-static void nh6_clear_neigh_created(struct next_hop *next_hop)
+static void nh6_clear_neigh_created(int family __unused,
+				    struct next_hop *next_hop)
 {
 	assert(next_hop->flags & RTF_NEIGH_CREATED);
 	next_hop->flags &= ~RTF_NEIGH_CREATED;
@@ -1177,7 +1178,7 @@ route6_nh_replace(struct next_hop_u *nextu, uint32_t nh_idx,
 			break;
 		case NH_CLEAR_NEIGH_CREATED:
 			any_change = true;
-			nh6_clear_neigh_created(new_next);
+			nh6_clear_neigh_created(AF_INET6, new_next);
 			break;
 		case NH_SET_NEIGH_PRESENT:
 			any_change = true;
