@@ -809,21 +809,6 @@ static int nexthop_cmpfn(struct cds_lfht_node *node, const void *key)
 	return true;
 }
 
-static int nextu_nc_count(const struct next_hop_u *nhu)
-{
-	int count = 0;
-	int i;
-	struct next_hop *array = rcu_dereference(nhu->siblings);
-
-	for (i = 0; i < nhu->nsiblings; i++) {
-		struct next_hop *next = array + i;
-
-		if (nh_is_neigh_created(next))
-			count++;
-	}
-	return count;
-}
-
 static struct next_hop *nextu_find_path_using_ifp(struct next_hop_u *nhu,
 						  struct ifnet *ifp,
 						  int *sibling)

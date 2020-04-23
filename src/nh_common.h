@@ -201,6 +201,15 @@ void nh_set_neigh_created(int family,
 void nh_clear_neigh_created(int family,
 			    struct next_hop *next_hop);
 
+/*
+ * Get the number of neighbour created entries in the next_hop_u
+ *
+ * @param[in] nhu The next_hop_u to check
+ *
+ * @return the count of neighbour created entries in the nhu.
+ */
+int nextu_nc_count(const struct next_hop_u *nhu);
+
 bool nh_is_connected(const struct next_hop *nh);
 bool nh_is_local(const struct next_hop *nh);
 bool nh_is_gw(const struct next_hop *nh);

@@ -902,21 +902,6 @@ static int nexthop6_cmpfn(struct cds_lfht_node *node, const void *key)
 	return true;
 }
 
-static int nextu6_nc_count(const struct next_hop_u *nhu)
-{
-	int count = 0;
-	uint32_t i;
-	struct next_hop *array = rcu_dereference(nhu->siblings);
-
-	for (i = 0; i < nhu->nsiblings; i++) {
-		struct next_hop *next = array + i;
-
-		if (nh_is_neigh_created(next))
-			count++;
-	}
-	return count;
-}
-
 static struct next_hop *nextu6_find_path_using_ifp(struct next_hop_u *nhu,
 						   struct ifnet *ifp,
 						   int *sibling)
@@ -1049,7 +1034,7 @@ static void subtree_walk_route_cleanup_cb(struct lpm6 *lpm,
 	if (!nextu)
 		return;
 
-	neigh_created = nextu6_nc_count(nextu);
+	neigh_created = nextu_nc_count(nextu);
 	if (neigh_created == 0)
 		return;
 
@@ -1890,7 +1875,7 @@ static void rt6_display(const uint8_t *addr, uint32_t prefix_len, int16_t scope,
 		return;
 
 	/* Don't show if any paths are NEIGH_CREATED. */
-	if (nextu6_nc_count(nextu))
+	if (nextu_nc_count(nextu))
 		return;
 
 	if (rt6_is_reserved(addr, prefix_len, scope))
@@ -2844,7 +2829,7 @@ void routing6_insert_neigh_safe(struct llentry *lle, bool neigh_change)
 		if (nh) {
 			struct neigh_add_nh_replace_arg arg = {
 				.ifp = ifp,
-				.count = nextu6_nc_count(nextu),
+				.count = nextu_nc_count(nextu),
 			};
 
 			route6_nh_replace(nextu, nh_idx, lle, NULL,
@@ -2900,7 +2885,7 @@ void routing6_remove_neigh_safe(struct llentry *lle)
 				nexthop_put(AF_INET6, nh_idx);
 			} else {
 				struct neigh_remove_purge_arg args = {
-					.count = nextu6_nc_count(nextu),
+					.count = nextu_nc_count(nextu),
 					.sibling = sibling,
 				};
 				uint32_t del;

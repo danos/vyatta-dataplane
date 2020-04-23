@@ -541,3 +541,18 @@ void nh_clear_neigh_created(int family,
 	next_hop->u.ifp = next_hop->u.lle->ifp;
 	nh_table->neigh_created--;
 }
+
+int nextu_nc_count(const struct next_hop_u *nhu)
+{
+	int count = 0;
+	int i;
+	struct next_hop *array = rcu_dereference(nhu->siblings);
+
+	for (i = 0; i < nhu->nsiblings; i++) {
+		struct next_hop *next = array + i;
+
+		if (nh_is_neigh_created(next))
+			count++;
+	}
+	return count;
+}
