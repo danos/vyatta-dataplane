@@ -1791,6 +1791,9 @@ dp_test_netlink_route_pb(struct dp_test_route *route, uint16_t nl_type)
 			path->has_ifindex = true;
 			path->ifindex = dp_test_intf_name2index(nh->nh_int);
 
+			path->has_backup = true;
+			path->backup = nh->backup;
+
 			switch (nh->nh_addr.family) {
 			case AF_INET:
 				path->nexthop = gateway;

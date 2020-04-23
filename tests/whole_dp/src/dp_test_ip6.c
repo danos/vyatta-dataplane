@@ -1999,3 +1999,25 @@ DP_START_TEST(ip6_default_route, ip6_default_route2)
 
 } DP_END_TEST;
 
+DP_DECL_TEST_CASE(ip6_suite, ip6_pic_edge, NULL, NULL);
+DP_START_TEST(ip6_pic_edge, ip6_pic_edge)
+{
+	dp_test_nl_add_ip_addr_and_connected("dp1T1", "2001:1:1::1/64");
+	dp_test_nl_add_ip_addr_and_connected("dp2T1", "2002:2:2::2/64");
+
+	dp_test_netlink_add_route(
+		"2010:0:1::/64 nh 2001:1:1::2 int:dp1T1 nh 2002:2:2::1 int:dp2T1 backup");
+	dp_test_netlink_del_route(
+		"2010:0:1::/64 nh 2001:1:1::2 int:dp1T1 nh 2002:2:2::1 int:dp2T1 backup");
+
+	/* This is a full service dataplane - we support both orders! */
+	dp_test_netlink_add_route(
+		"2010:0:1::/64 nh 2001:1:1::2 int:dp1T1 backup nh 2002:2:2::1 int:dp2T1");
+	dp_test_netlink_del_route(
+		"2010:0:1::/64 nh 2001:1:1::2 int:dp1T1 backup nh 2002:2:2::1 int:dp2T1");
+
+	/* Clean Up */
+	dp_test_nl_del_ip_addr_and_connected("dp1T1", "2001:1:1::1/64");
+	dp_test_nl_del_ip_addr_and_connected("dp2T1", "2002:2:2::2/64");
+
+} DP_END_TEST;

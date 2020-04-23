@@ -375,6 +375,12 @@ dp_test_parse_dp_nh(const char *nh_string, struct dp_test_nh *nh)
 		}
 
 	}
+
+	if (strncmp(str, " backup", strlen(" backup")) == 0) {
+		str += strlen(" backup");
+		nh->backup = true;
+	}
+
 	/*
 	 * Remove any trailing whitespace
 	 */

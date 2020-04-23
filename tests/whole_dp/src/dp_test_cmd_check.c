@@ -1041,6 +1041,7 @@ dp_test_json_route_add_nh(json_object *route_show, int route_family,
 
 	written = 0;
 	if (nh->nh_int) {
+		const char *backup_str;
 		const char *neigh;
 
 		if (nh->neigh_created)
@@ -1050,6 +1051,11 @@ dp_test_json_route_add_nh(json_object *route_show, int route_family,
 		else
 			neigh = "";
 
+		if (nh->backup)
+			backup_str = "              \"backup\": true, ";
+		else
+			backup_str = "";
+
 		if (nh->nh_addr.family == AF_UNSPEC)
 			state_str = "directly connected";
 		else
@@ -1058,9 +1064,11 @@ dp_test_json_route_add_nh(json_object *route_show, int route_family,
 				 "          {"
 				 "              \"state\": \"%s\", "
 				 "%s"
+				 "%s"
 				 "              \"ifname\": \"%s\", ",
 				 state_str,
 				 neigh,
+				 backup_str,
 				 real_ifname);
 	} else {
 		if (route_family == AF_MPLS &&

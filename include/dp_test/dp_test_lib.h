@@ -39,6 +39,7 @@ struct dp_test_nh {
 	label_t labels[DP_TEST_MAX_LBLS];
 	bool neigh_created;
 	bool neigh_present;
+	bool backup;
 };
 
 struct dp_test_route {
