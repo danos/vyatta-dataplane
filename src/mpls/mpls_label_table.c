@@ -316,6 +316,10 @@ static bool
 mpls_label_table_add_reserved_labels(struct cds_lfht *table)
 {
 	union next_hop_v4_or_v6_ptr nhop;
+	struct ip_addr addr_any = {
+		.type = AF_INET,
+		.address.ip_v4.s_addr = INADDR_ANY,
+	};
 
 	/*
 	 * IPv4/6 Exp NULL
@@ -324,7 +328,7 @@ mpls_label_table_add_reserved_labels(struct cds_lfht *table)
 	 */
 	label_t outlabels[] = {MPLS_IMPLICITNULL};
 
-	nhop.v4 = nexthop_create(NULL, INADDR_ANY, 0, 1, outlabels);
+	nhop.v4 = nexthop_create(NULL, &addr_any, 0, 1, outlabels);
 	if (!nhop.v4)
 		goto error;
 	mpls_label_table_ins_lbl_internal(table, MPLS_IPV4EXPLICITNULL,
@@ -335,7 +339,7 @@ mpls_label_table_add_reserved_labels(struct cds_lfht *table)
 					  nhop, 1);
 	free(nhop.v4);
 
-	nhop.v4 = nexthop_create(NULL, INADDR_ANY, RTF_SLOWPATH, 1, outlabels);
+	nhop.v4 = nexthop_create(NULL, &addr_any, RTF_SLOWPATH, 1, outlabels);
 	if (!nhop.v4)
 		goto error;
 	mpls_label_table_ins_lbl_internal(table, MPLS_ROUTERALERT,

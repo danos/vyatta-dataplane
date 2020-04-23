@@ -48,7 +48,7 @@ tableid_in_pbr_range(uint32_t tableid)
  * Nexthop (output information) related APIs
  */
 struct next_hop *
-nexthop_create(struct ifnet *ifp, in_addr_t gw, uint32_t flags,
+nexthop_create(struct ifnet *ifp, struct ip_addr *gateway, uint32_t flags,
 	       uint16_t num_labels, label_t *labels);
 void nexthop_put(uint32_t idx);
 struct next_hop *nexthop_select(uint32_t nh_idx, const struct rte_mbuf *m,

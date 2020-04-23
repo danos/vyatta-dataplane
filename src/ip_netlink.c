@@ -153,6 +153,7 @@ static int handle_route(vrfid_t vrf_id, uint16_t type, const struct rtmsg *rtm,
 		struct next_hop *next;
 		uint32_t size;
 		bool exp_ifp = true;
+		struct ip_addr ip_addr;
 
 		if (rtm->rtm_type == RTN_BLACKHOLE) {
 			flags |= RTF_BLACKHOLE;
@@ -193,7 +194,9 @@ static int handle_route(vrfid_t vrf_id, uint16_t type, const struct rtmsg *rtm,
 				return -1;
 			}
 			size = 1;
-			next = nexthop_create(ifp, gw, flags,
+			ip_addr.type = AF_INET;
+			ip_addr.address.ip_v4.s_addr = gw;
+			next = nexthop_create(ifp, &ip_addr, flags,
 					      num_labels, labels);
 		}
 

@@ -202,6 +202,7 @@ static int mpls_route_change(const struct nlmsghdr *nlh,
 		in_addr_t v4;
 		struct in6_addr v6;
 	} nh = { INADDR_ANY };
+	struct ip_addr ip_addr;
 	union next_hop_v4_or_v6_ptr nhops;
 	uint32_t size = 0;
 	struct ifnet *oifp = NULL;
@@ -345,7 +346,9 @@ static int mpls_route_change(const struct nlmsghdr *nlh,
 			}
 
 			if (!via || via->rtvia_family == AF_INET) {
-				nhops.v4 = nexthop_create(oifp, nh.v4,
+				ip_addr.type = AF_INET;
+				ip_addr.address.ip_v4.s_addr = nh.v4;
+				nhops.v4 = nexthop_create(oifp, &ip_addr,
 							  flags,
 							  out_label_count,
 							  hl_out_labels);

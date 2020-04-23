@@ -496,6 +496,10 @@ rt_lpm_add_reserved_routes(struct lpm *lpm, struct vrf *vrf)
 {
 	char b[INET_ADDRSTRLEN];
 	unsigned int rt_idx;
+	struct ip_addr addr_any = {
+		.type = AF_INET,
+		.address.ip_v4.s_addr = INADDR_ANY,
+	};
 
 	if (vrf->v_id == VRF_INVALID_ID)
 		return true;
@@ -506,7 +510,7 @@ rt_lpm_add_reserved_routes(struct lpm *lpm, struct vrf *vrf)
 		uint32_t nh_idx;
 		int err_code;
 
-		nhop = nexthop_create(NULL, INADDR_ANY,
+		nhop = nexthop_create(NULL, &addr_any,
 				      reserved_routes[rt_idx].flags,
 				      0, NULL);
 		if (!nhop)
@@ -763,13 +767,15 @@ inline bool is_local_ipv4(vrfid_t vrf_id, in_addr_t dst)
 }
 
 struct next_hop *
-nexthop_create(struct ifnet *ifp, in_addr_t gw, uint32_t flags,
+nexthop_create(struct ifnet *ifp, struct ip_addr *gw, uint32_t flags,
 	       uint16_t num_labels, label_t *labels)
 {
 	struct next_hop *next = malloc(sizeof(struct next_hop));
 
 	if (next) {
-		next->gateway4 = gw;
+		/* Copying the v6 addr guarantees all bits are copied */
+		memcpy(&next->gateway6, &gw->address.ip_v6,
+		       sizeof(next->gateway6));
 		next->flags = flags;
 		nh_set_ifp(next, ifp);
 
