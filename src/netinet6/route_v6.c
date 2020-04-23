@@ -920,31 +920,6 @@ inline bool is_local_ipv6(vrfid_t vrf_id, const struct in6_addr *dst)
 	return rt6_is_nh_local(index);
 }
 
-/*
- * Create an array of next_hops based on the hops in the NHU.
- */
-static struct next_hop *nexthop6_create_copy(struct next_hop_u *nhu,
-					     int *size)
-{
-	struct next_hop *next, *n;
-	struct next_hop *array = rcu_dereference(nhu->siblings);
-	uint32_t i;
-
-	*size = nhu->nsiblings;
-	n = next = calloc(sizeof(struct next_hop), *size);
-	if (!next)
-		return NULL;
-
-	for (i = 0; i < nhu->nsiblings; i++) {
-		struct next_hop *nhu_next = array + i;
-
-		memcpy(n, nhu_next, sizeof(struct next_hop));
-		nh_outlabels_copy(&nhu_next->outlabels, &n->outlabels);
-		n++;
-	}
-	return next;
-}
-
 /* Reuse existing next hop entry */
 static int
 nexthop6_hashfn(const struct nexthop_hash_key *key,
@@ -2776,7 +2751,7 @@ route6_create_neigh(struct vrf *vrf, struct lpm6 *lpm,
 			 * this. Will only be 1 NEIGH_CREATED path, but
 			 * need to inherit other paths from the cover.
 			 */
-			nh = nexthop6_create_copy(nextu, &size);
+			nh = nexthop_create_copy(nextu, &size);
 			if (!nh)
 				return;
 

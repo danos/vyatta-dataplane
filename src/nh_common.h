@@ -127,6 +127,17 @@ nexthop_create(struct ifnet *ifp, struct ip_addr *gw, uint32_t flags,
 
 void nexthop_put(int family, uint32_t idx);
 
+/*
+ * Given an nexthop_u create a copy of the nexthops in an array
+ *
+ * @param[in] nhu The fully formed nhu
+ * @param[out] size Store the size of the created array here.
+ *
+ * @return Pointer to array of nexthops on success
+ * @return NULL on failure
+ */
+struct next_hop *nexthop_create_copy(struct next_hop_u *nhu, int *size);
+
 static ALWAYS_INLINE bool
 nh_is_neigh_present(const struct next_hop *next_hop)
 {

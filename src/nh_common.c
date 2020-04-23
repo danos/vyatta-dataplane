@@ -390,3 +390,27 @@ void nexthop_put(int family, uint32_t idx)
 		call_rcu(&nextu->rcu, nexthop_destroy);
 	}
 }
+
+/*
+ * Create an array of next_hops based on the hops in the NHU.
+ */
+struct next_hop *nexthop_create_copy(struct next_hop_u *nhu, int *size)
+{
+	struct next_hop *next, *n;
+	struct next_hop *array = rcu_dereference(nhu->siblings);
+	int i;
+
+	*size = nhu->nsiblings;
+	n = next = calloc(sizeof(struct next_hop), *size);
+	if (!next)
+		return NULL;
+
+	for (i = 0; i < nhu->nsiblings; i++) {
+		struct next_hop *nhu_next = array + i;
+
+		memcpy(n, nhu_next, sizeof(struct next_hop));
+		nh_outlabels_copy(&nhu_next->outlabels, &n->outlabels);
+		n++;
+	}
+	return next;
+}
