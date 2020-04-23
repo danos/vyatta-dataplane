@@ -125,6 +125,8 @@ struct next_hop *
 nexthop_create(struct ifnet *ifp, struct ip_addr *gw, uint32_t flags,
 	       uint16_t num_labels, label_t *labels);
 
+void nexthop_put(int family, uint32_t idx);
+
 static ALWAYS_INLINE bool
 nh_is_neigh_present(const struct next_hop *next_hop)
 {

@@ -969,47 +969,6 @@ static bool nextu_is_any_connected(const struct next_hop_u *nhu)
 	return false;
 }
 
-/*
- * Drops reference to nexthop
- * and if last reference frees it for reuse.
- */
-void nexthop_put(int family __unused, uint32_t idx)
-{
-	struct next_hop_u *nextu = rcu_dereference(nh_tbl.entry[idx]);
-
-	if (--nextu->refcount == 0) {
-		struct next_hop *array = nextu->siblings;
-		int ret;
-		int i;
-
-		nh_tbl.entry[idx] = NULL;
-		--nh_tbl.in_use;
-
-		for (i = 0; i < nextu->nsiblings; i++) {
-			struct next_hop *nh = array + i;
-
-			if (nh_is_neigh_present(nh))
-				nh_tbl.neigh_present--;
-			if (nh_is_neigh_created(nh))
-				nh_tbl.neigh_created--;
-		}
-
-		if (fal_state_is_obj_present(nextu->pd_state)) {
-			ret = fal_ip_del_next_hops(nextu->nhg_fal_obj,
-						   nextu->nsiblings,
-						   nextu->nh_fal_obj);
-			if (ret < 0) {
-				RTE_LOG(ERR, ROUTE,
-					"FAL IPv4 next-hop-group delete failed: %s\n",
-					strerror(-ret));
-			}
-		}
-
-		cds_lfht_del(nexthop_hash, &nextu->nh_node);
-		call_rcu(&nextu->rcu, nexthop_destroy);
-	}
-}
-
 enum nh_change {
 	NH_NO_CHANGE,
 	NH_SET_NEIGH_CREATED,

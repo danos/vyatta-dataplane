@@ -586,7 +586,7 @@ rt6_lpm_add_reserved_routes(struct lpm6 *lpm, struct vrf *vrf)
 		}
 		free(nhop);
 		if (err_code != 0) {
-			nexthop6_put(AF_INET6, nh_idx);
+			nexthop_put(AF_INET6, nh_idx);
 			return false;
 		}
 	}
@@ -625,7 +625,7 @@ rt6_lpm_del_reserved_routes(struct lpm6 *lpm, struct vrf *vrf)
 				nh_idx, err_code);
 			return false;
 		}
-		nexthop6_put(AF_INET6, nh_idx);
+		nexthop_put(AF_INET6, nh_idx);
 	}
 
 	return true;
@@ -1063,43 +1063,6 @@ static bool nextu6_is_any_connected(const struct next_hop_u *nhu)
 	return false;
 }
 
-void nexthop6_put(int family __unused, uint32_t idx)
-{
-	struct next_hop_u *nextu = rcu_dereference(nh6_tbl.entry[idx]);
-
-	if (--nextu->refcount == 0) {
-		struct next_hop *array = nextu->siblings;
-		uint32_t i;
-		int ret;
-
-		nh6_tbl.entry[idx] = NULL;
-		--nh6_tbl.in_use;
-
-		for (i = 0; i < nextu->nsiblings; i++) {
-			struct next_hop *nh = array + i;
-
-			if (nh_is_neigh_present(nh))
-				nh6_tbl.neigh_present--;
-			if (nh_is_neigh_created(nh))
-				nh6_tbl.neigh_created--;
-		}
-
-		if (fal_state_is_obj_present(nextu->pd_state)) {
-			ret = fal_ip_del_next_hops(nextu->nhg_fal_obj,
-						   nextu->nsiblings,
-						   nextu->nh_fal_obj);
-			if (ret < 0) {
-				RTE_LOG(ERR, ROUTE,
-					"FAL IPv6 next-hop-group delete failed: %s\n",
-					strerror(-ret));
-			}
-		}
-
-		cds_lfht_del(nexthop6_hash, &nextu->nh_node);
-		call_rcu(&nextu->rcu, nexthop_destroy);
-	}
-}
-
 int route_v6_init(struct vrf *vrf)
 {
 	struct lpm6 *lpm;
@@ -1245,7 +1208,7 @@ static void subtree_walk_route_cleanup_cb(struct lpm6 *lpm,
 	route_lpm6_delete(changing->vrf->v_id, lpm,
 			      &inaddr, 128,
 			      &cover_nh_idx, RT_SCOPE_LINK);
-	nexthop6_put(AF_INET6, idx);
+	nexthop_put(AF_INET6, idx);
 }
 
 static unsigned int lle_routing_insert_neigh_cb(struct lltable *llt __unused,
@@ -1705,7 +1668,7 @@ static int rt6_delete(vrfid_t vrf_id, const struct in6_addr *dst,
 					    &index, scope);
 		if (err >= 0) {
 			/* A delete now always gets rid of all NHs */
-			nexthop6_put(AF_INET6, index);
+			nexthop_put(AF_INET6, index);
 			route_delete_relink_neigh(lpm, (uint8_t *)dst,
 						  prefix_len);
 		}
@@ -1781,10 +1744,10 @@ static int rt6_insert(struct vrf *vrf, struct lpm6 *lpm,
 		RTE_LOG(ERR, ROUTE, "route insert %s/%u scope %u failed (%d)\n",
 			inet_ntop(AF_INET6, dst, b, sizeof(b)),
 			prefix_len, scope, err);
-		nexthop6_put(AF_INET6, *idx);
+		nexthop_put(AF_INET6, *idx);
 	} else {
 		if (replace)
-			nexthop6_put(AF_INET6, old_index);
+			nexthop_put(AF_INET6, old_index);
 		route_change_link_neigh(vrf, lpm, table_id, dst->s6_addr,
 					prefix_len, *idx, scope);
 		DP_DEBUG(ROUTE, INFO, ROUTE,
@@ -1857,7 +1820,7 @@ static void flush6_cleanup(const uint8_t *prefix __rte_unused,
 			   struct pd_obj_state_and_flags pd_state __rte_unused,
 			   void *arg __rte_unused)
 {
-	nexthop6_put(AF_INET6, next_hop);
+	nexthop_put(AF_INET6, next_hop);
 }
 
 static void rt6_flush(struct vrf *vrf)
@@ -2203,7 +2166,7 @@ static void rt6_if_dead(struct vrf *vrf, uint32_t table_id,
 	memcpy(&inaddr.s6_addr, addr, sizeof(inaddr.s6_addr));
 	route_lpm6_delete(vrf->v_id, lpm, &inaddr,
 			      prefix_len, NULL, scope);
-	nexthop6_put(AF_INET6, next_hop);
+	nexthop_put(AF_INET6, next_hop);
 }
 
 static void rt6_if_clear_slowpath_flag(
@@ -3048,7 +3011,7 @@ void routing6_remove_neigh_safe(struct llentry *lle)
 			if (nextu->nsiblings == 1) {
 				route_lpm6_delete(vrf->v_id, lpm, ip, 128,
 						      &nh_idx, RT_SCOPE_LINK);
-				nexthop6_put(AF_INET6, nh_idx);
+				nexthop_put(AF_INET6, nh_idx);
 			} else {
 				struct neigh_remove_purge_arg args = {
 					.count = nextu6_nc_count(nextu),
@@ -3067,7 +3030,7 @@ void routing6_remove_neigh_safe(struct llentry *lle)
 					route_lpm6_delete(vrf->v_id, lpm,
 							      ip, 128, &nh_idx,
 							      RT_SCOPE_LINK);
-					nexthop6_put(AF_INET6, nh_idx);
+					nexthop_put(AF_INET6, nh_idx);
 				}
 			}
 		} else {

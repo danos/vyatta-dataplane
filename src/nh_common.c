@@ -343,3 +343,50 @@ nexthop_create(struct ifnet *ifp, struct ip_addr *gw, uint32_t flags,
 	}
 	return next;
 }
+
+void nexthop_put(int family, uint32_t idx)
+{
+	struct next_hop_u *nextu;
+	struct nexthop_table *nh_table = nh_common_get_nh_table(family);
+	struct cds_lfht *hash_tbl = nh_common_get_hash_table(family);
+
+	if (!nh_table) {
+		RTE_LOG(ERR, ROUTE, "Invalid family %d for nexthop put\n",
+			family);
+		return;
+	}
+
+	nextu = rcu_dereference(nh_table->entry[idx]);
+	if (--nextu->refcount == 0) {
+		struct next_hop *array = nextu->siblings;
+		int ret;
+		int i;
+
+		nh_table->entry[idx] = NULL;
+		--nh_table->in_use;
+
+		for (i = 0; i < nextu->nsiblings; i++) {
+			struct next_hop *nh = array + i;
+
+			if (nh_is_neigh_present(nh))
+				nh_table->neigh_present--;
+			if (nh_is_neigh_created(nh))
+				nh_table->neigh_created--;
+		}
+
+		if (fal_state_is_obj_present(nextu->pd_state)) {
+			ret = fal_ip_del_next_hops(nextu->nhg_fal_obj,
+						   nextu->nsiblings,
+						   nextu->nh_fal_obj);
+			if (ret < 0) {
+				RTE_LOG(ERR, ROUTE,
+					"FAL IPv%d next-hop-group delete failed: %s\n",
+					family == AF_INET ? 4 : 6,
+					strerror(-ret));
+			}
+		}
+
+		cds_lfht_del(hash_tbl, &nextu->nh_node);
+		call_rcu(&nextu->rcu, nexthop_destroy);
+	}
+}
