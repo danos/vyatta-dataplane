@@ -902,20 +902,6 @@ static int nexthop6_cmpfn(struct cds_lfht_node *node, const void *key)
 	return true;
 }
 
-static bool nextu6_is_any_connected(const struct next_hop_u *nhu)
-{
-	uint32_t i;
-	struct next_hop *array = rcu_dereference(nhu->siblings);
-
-	for (i = 0; i < nhu->nsiblings; i++) {
-		struct next_hop *next = array + i;
-
-		if (nh_is_connected(next))
-			return true;
-	}
-	return false;
-}
-
 int route_v6_init(struct vrf *vrf)
 {
 	struct lpm6 *lpm;
@@ -1323,7 +1309,7 @@ route_change_link_neigh(struct vrf *vrf, struct lpm6 *lpm,
 	 * and removed if not.
 	 */
 	nextu = rcu_dereference(nh6_tbl.entry[next_hop]);
-	if (nextu6_is_any_connected(nextu)) {
+	if (nextu_is_any_connected(nextu)) {
 		memcpy(&subtree_arg.ip, ip,
 		       LPM6_IPV6_ADDR_SIZE);
 		lpm6_subtree_walk(
@@ -1333,7 +1319,7 @@ route_change_link_neigh(struct vrf *vrf, struct lpm6 *lpm,
 	} else if (lpm6_find_cover(lpm, ip, depth, (uint8_t *)&cover_ip,
 				   &cover_depth, &cover_idx) == 0) {
 		cover_nextu = rcu_dereference(nh6_tbl.entry[cover_idx]);
-		if (nextu6_is_any_connected(cover_nextu)) {
+		if (nextu_is_any_connected(cover_nextu)) {
 			memcpy(&subtree_arg.ip, ip,
 			       LPM6_IPV6_ADDR_SIZE);
 			lpm6_subtree_walk(
@@ -1398,7 +1384,7 @@ route_delete_unlink_neigh(struct vrf *vrf, struct lpm6 *lpm,
 		return;
 
 	nextu = rcu_dereference(nh6_tbl.entry[nh_idx]);
-	if (nextu6_is_any_connected(nextu)) {
+	if (nextu_is_any_connected(nextu)) {
 		memcpy(&subtree_arg.ip, ip, LPM6_IPV6_ADDR_SIZE);
 		subtree_walk_route_cleanup_cb(lpm, (uint8_t *)ip,
 					      depth, nh_idx,
@@ -1412,7 +1398,7 @@ route_delete_unlink_neigh(struct vrf *vrf, struct lpm6 *lpm,
 
 		cover_nextu = rcu_dereference(
 			nh6_tbl.entry[cover_idx]);
-		if (nextu6_is_any_connected(cover_nextu)) {
+		if (nextu_is_any_connected(cover_nextu)) {
 			memcpy(&subtree_arg.ip, ip,
 			       LPM6_IPV6_ADDR_SIZE);
 			subtree_walk_route_cleanup_cb(lpm, (uint8_t *)ip,

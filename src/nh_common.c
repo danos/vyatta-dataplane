@@ -574,3 +574,17 @@ struct next_hop *nextu_find_path_using_ifp(struct next_hop_u *nhu,
 	}
 	return NULL;
 }
+
+bool nextu_is_any_connected(const struct next_hop_u *nhu)
+{
+	uint32_t i;
+	struct next_hop *array = rcu_dereference(nhu->siblings);
+
+	for (i = 0; i < nhu->nsiblings; i++) {
+		struct next_hop *next = array + i;
+
+		if (nh_is_connected(next))
+			return true;
+	}
+	return false;
+}

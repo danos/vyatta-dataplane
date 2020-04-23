@@ -809,20 +809,6 @@ static int nexthop_cmpfn(struct cds_lfht_node *node, const void *key)
 	return true;
 }
 
-static bool nextu_is_any_connected(const struct next_hop_u *nhu)
-{
-	int i;
-	struct next_hop *array = rcu_dereference(nhu->siblings);
-
-	for (i = 0; i < nhu->nsiblings; i++) {
-		struct next_hop *next = array + i;
-
-		if (nh_is_connected(next))
-			return true;
-	}
-	return false;
-}
-
 enum nh_change {
 	NH_NO_CHANGE,
 	NH_SET_NEIGH_CREATED,

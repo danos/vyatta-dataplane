@@ -225,6 +225,16 @@ struct next_hop *nextu_find_path_using_ifp(struct next_hop_u *nhu,
 					   struct ifnet *ifp,
 					   int *sibling);
 
+/*
+ * Given a next_hop_u check if any of the hops are connected
+ *
+ * @param[in] nhu The next_hop_u to check
+ *
+ * @return True if there is a connected nexthop
+ * @return False if there is not a connected nexthop
+ */
+bool nextu_is_any_connected(const struct next_hop_u *nhu);
+
 bool nh_is_connected(const struct next_hop *nh);
 bool nh_is_local(const struct next_hop *nh);
 bool nh_is_gw(const struct next_hop *nh);
