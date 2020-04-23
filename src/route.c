@@ -823,7 +823,8 @@ enum nh_change {
  * then remove it.
  */
 static int
-route_nh_replace(struct next_hop_u *nextu, uint32_t nh_idx, struct llentry *lle,
+route_nh_replace(int family, struct next_hop_u *nextu,
+		 uint32_t nh_idx, struct llentry *lle,
 		 uint32_t *new_nextu_idx_for_del,
 		 enum nh_change (*nh_processing_cb)(struct next_hop *next,
 						    int sibling,
@@ -865,19 +866,19 @@ route_nh_replace(struct next_hop_u *nextu, uint32_t nh_idx, struct llentry *lle,
 			break;
 		case NH_SET_NEIGH_CREATED:
 			any_change = true;
-			nh_set_neigh_created(AF_INET, new_next, lle);
+			nh_set_neigh_created(family, new_next, lle);
 			break;
 		case NH_CLEAR_NEIGH_CREATED:
 			any_change = true;
-			nh_clear_neigh_created(AF_INET, new_next);
+			nh_clear_neigh_created(family, new_next);
 			break;
 		case NH_SET_NEIGH_PRESENT:
 			any_change = true;
-			nh_set_neigh_present(AF_INET, new_next, lle);
+			nh_set_neigh_present(family, new_next, lle);
 			break;
 		case NH_CLEAR_NEIGH_PRESENT:
 			any_change = true;
-			nh_clear_neigh_present(AF_INET, new_next);
+			nh_clear_neigh_present(family, new_next);
 			break;
 		case NH_DELETE:
 			if (!new_nextu_idx_for_del) {
@@ -909,7 +910,7 @@ route_nh_replace(struct next_hop_u *nextu, uint32_t nh_idx, struct llentry *lle,
 		return deleted;
 	}
 
-	if (nexthop_hash_del_add(AF_INET, nextu, new_nextu)) {
+	if (nexthop_hash_del_add(family, nextu, new_nextu)) {
 		__nexthop_destroy(new_nextu);
 		RTE_LOG(ERR, ROUTE, "nh replace failed\n");
 		return 0;
@@ -1053,7 +1054,7 @@ static void route_change_process_nh(struct next_hop_u *nhu,
 		struct llentry *lle = in_lltable_find((struct ifnet *)ifp,
 						      next->gateway4);
 		if (lle) {
-			route_nh_replace(nhu, nhu->index, lle, NULL,
+			route_nh_replace(AF_INET, nhu, nhu->index, lle, NULL,
 					 upd_neigh_present_cb,
 					 lle);
 			/*
@@ -2350,7 +2351,7 @@ walk_nhs_for_arp_change(struct llentry *lle,
 
 	cds_lfht_for_each(nexthop_hash, &iter, node) {
 		nhu = caa_container_of(node, struct next_hop_u, nh_node);
-		route_nh_replace(nhu, nhu->index, lle, NULL,
+		route_nh_replace(AF_INET, nhu, nhu->index, lle, NULL,
 				 upd_neigh_present_cb, lle);
 	}
 }
@@ -2484,7 +2485,7 @@ routing_insert_arp_safe(struct llentry *lle, bool arp_change)
 				.count = nextu_nc_count(nextu),
 			};
 
-			route_nh_replace(nextu, nh_idx, lle, NULL,
+			route_nh_replace(AF_INET, nextu, nh_idx, lle, NULL,
 					 routing_arp_add_nh_replace_cb, &arg);
 		}
 	} else {
@@ -2546,7 +2547,8 @@ routing_remove_arp_safe(struct llentry *lle)
 				int del;
 				uint32_t new_nh_idx;
 
-				del = route_nh_replace(nextu, nh_idx, lle,
+				del = route_nh_replace(AF_INET,
+						       nextu, nh_idx, lle,
 						       &new_nh_idx,
 						       arp_removal_nh_purge_cb,
 						       &args);
@@ -2560,7 +2562,7 @@ routing_remove_arp_safe(struct llentry *lle)
 				}
 			}
 		} else {
-			route_nh_replace(nextu, nh_idx, NULL, NULL,
+			route_nh_replace(AF_INET, nextu, nh_idx, NULL, NULL,
 					routing_arp_del_nh_replace_cb, ifp);
 		}
 	}
