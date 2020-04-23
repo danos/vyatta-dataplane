@@ -3558,6 +3558,7 @@ if_fal_create_l3_intf(struct ifnet *ifp)
 {
 	struct fal_attribute_t l3_attrs[11];
 	unsigned int l3_nattrs = 2;
+	fal_object_t fal_l3;
 	int ret = 0;
 
 	l3_attrs[0].id = FAL_ROUTER_INTERFACE_ATTR_IFINDEX;
@@ -3617,13 +3618,15 @@ if_fal_create_l3_intf(struct ifnet *ifp)
 	l3_nattrs++;
 
 	ret = fal_create_router_interface(l3_nattrs, l3_attrs,
-					  &ifp->fal_l3);
-	if ((ret == 0) && !ifp->fal_l3) {
+					  &fal_l3);
+	if ((ret == 0) && !fal_l3) {
 		RTE_LOG(ERR, DATAPLANE,
 			"Invalid L3 object ID returned for %s\n",
 			ifp->if_name);
 		return -EINVAL;
 	}
+	if (ret == 0)
+		rcu_assign_pointer(ifp->fal_l3, fal_l3);
 	if (ret == -EOPNOTSUPP)
 		ret = 0;
 	if (ret < 0)
@@ -3644,7 +3647,7 @@ if_fal_delete_l3_intf(struct ifnet *ifp)
 
 	ret = fal_delete_router_interface(ifp->fal_l3);
 	if (ret == 0)
-		ifp->fal_l3 = 0;
+		rcu_assign_pointer(ifp->fal_l3, FAL_NULL_OBJECT_ID);
 
 	if (ret == -EOPNOTSUPP)
 		ret = 0;
@@ -3949,6 +3952,7 @@ static void ifconfig(struct ifnet *ifp, void *arg)
 	struct bridge_port *brport;
 	json_writer_t *wr = ctx->wr;
 	struct ifnet *parent;
+	fal_object_t fal_l3;
 	char ebuf[32];
 
 	jsonw_start_object(wr);
@@ -4020,10 +4024,11 @@ static void ifconfig(struct ifnet *ifp, void *arg)
 	show_if_l2_filter(wr, ifp);
 	show_af_ifconfig(wr, ifp);
 
-	if (ifp->fal_l3) {
+	fal_l3 = rcu_dereference(ifp->fal_l3);
+	if (fal_l3) {
 		jsonw_name(wr, "router_intf_platform_state");
 		jsonw_start_object(wr);
-		fal_dump_router_interface(ifp->fal_l3, wr);
+		fal_dump_router_interface(fal_l3, wr);
 		jsonw_end_object(wr);
 	}
 
