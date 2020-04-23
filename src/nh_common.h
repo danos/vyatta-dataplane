@@ -192,6 +192,15 @@ void nh_set_neigh_created(int family,
 			  struct next_hop *next_hop,
 			  struct llentry *lle);
 
+/*
+ * Modify a NH to clear the fact that it was neigh created.
+ *
+ * @param[in] family The family the nh is using.
+ * @param[out] nh The next_hop to modify
+ */
+void nh_clear_neigh_created(int family,
+			    struct next_hop *next_hop);
+
 bool nh_is_connected(const struct next_hop *nh);
 bool nh_is_local(const struct next_hop *nh);
 bool nh_is_gw(const struct next_hop *nh);
