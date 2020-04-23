@@ -63,24 +63,6 @@ nh_get_flags(enum nh_type nh_type, union next_hop_v4_or_v6_ptr nh)
 	return nh.v4->flags;
 }
 
-static ALWAYS_INLINE struct llentry *
-nh4_get_lle(const struct next_hop *next_hop)
-{
-	if (next_hop->flags & (RTF_NEIGH_CREATED | RTF_NEIGH_PRESENT))
-		return rcu_dereference(next_hop->u.lle);
-
-	return NULL;
-}
-
-static ALWAYS_INLINE struct llentry *
-nh6_get_lle(const struct next_hop *next_hop)
-{
-	if (next_hop->flags & (RTF_NEIGH_CREATED | RTF_NEIGH_PRESENT))
-		return next_hop->u.lle;
-
-	return NULL;
-}
-
 static ALWAYS_INLINE struct ifnet *
 nh_get_if(enum nh_type nh_type, union next_hop_v4_or_v6_ptr nh)
 {

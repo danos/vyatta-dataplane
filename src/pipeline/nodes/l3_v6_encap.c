@@ -55,7 +55,7 @@ ipv6_encap_eth_from_nh6(struct rte_mbuf *mbuf, const struct next_hop *nh,
 	ether_addr_copy(&out_ifp->eth_addr, &eth_hdr->s_addr);
 
 	/* If already resolved, use the link level encap */
-	struct llentry *lle = nh6_get_lle(nh);
+	struct llentry *lle = nh_get_lle(nh);
 	if (likely(lle != NULL)) {
 		if (llentry_copy_mac(lle, &eth_hdr->d_addr))
 			return true;

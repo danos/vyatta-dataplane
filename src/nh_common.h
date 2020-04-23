@@ -137,6 +137,15 @@ nh_is_neigh_created(const struct next_hop *next_hop)
 	return next_hop->flags & RTF_NEIGH_CREATED;
 }
 
+static ALWAYS_INLINE struct llentry *
+nh_get_lle(const struct next_hop *next_hop)
+{
+	if (next_hop->flags & (RTF_NEIGH_CREATED | RTF_NEIGH_PRESENT))
+		return rcu_dereference(next_hop->u.lle);
+
+	return NULL;
+}
+
 /*
  * Per AF hash function for a nexthop.
  */
