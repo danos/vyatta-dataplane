@@ -210,6 +210,21 @@ void nh_clear_neigh_created(int family,
  */
 int nextu_nc_count(const struct next_hop_u *nhu);
 
+/*
+ * Given a next_hop_u and an ifp, find the next_hop within the
+ * next_hop_u that uses the given interface.
+ *
+ * @param[in] nhu The next_hop_u to check
+ * @param[in] ifp The ifp to look for
+ * @param[out] sibling Store the index of the returned nexthop
+ *
+ * @return A ptr to the next_hop if one matched
+ *         Null if no match found.
+ */
+struct next_hop *nextu_find_path_using_ifp(struct next_hop_u *nhu,
+					   struct ifnet *ifp,
+					   int *sibling);
+
 bool nh_is_connected(const struct next_hop *nh);
 bool nh_is_local(const struct next_hop *nh);
 bool nh_is_gw(const struct next_hop *nh);

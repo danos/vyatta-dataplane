@@ -902,24 +902,6 @@ static int nexthop6_cmpfn(struct cds_lfht_node *node, const void *key)
 	return true;
 }
 
-static struct next_hop *nextu6_find_path_using_ifp(struct next_hop_u *nhu,
-						   struct ifnet *ifp,
-						   int *sibling)
-{
-	uint32_t i;
-	struct next_hop *array = rcu_dereference(nhu->siblings);
-
-	for (i = 0; i < nhu->nsiblings; i++) {
-		struct next_hop *next = array + i;
-
-		if (dp_nh_get_ifp(next) == ifp) {
-			*sibling = i;
-			return next;
-		}
-	}
-	return NULL;
-}
-
 static bool nextu6_is_any_connected(const struct next_hop_u *nhu)
 {
 	uint32_t i;
@@ -2640,7 +2622,7 @@ route6_create_neigh(struct vrf *vrf, struct lpm6 *lpm,
 		 * Note that this does not support a connected with multiple
 		 * paths that use the same ifp.
 		 */
-		cover_nh = nextu6_find_path_using_ifp(nextu, ifp, &sibling);
+		cover_nh = nextu_find_path_using_ifp(nextu, ifp, &sibling);
 		if (cover_nh && nh_is_connected(cover_nh)) {
 			/*
 			 * Have a connected cover so create a new entry for
@@ -2825,7 +2807,7 @@ void routing6_insert_neigh_safe(struct llentry *lle, bool neigh_change)
 		 * modify the set of NHs, to reflect the ones the
 		 * cover has.
 		 */
-		nh = nextu6_find_path_using_ifp(nextu, ifp, &sibling);
+		nh = nextu_find_path_using_ifp(nextu, ifp, &sibling);
 		if (nh) {
 			struct neigh_add_nh_replace_arg arg = {
 				.ifp = ifp,
@@ -2876,7 +2858,7 @@ void routing6_remove_neigh_safe(struct llentry *lle)
 		nextu = rcu_dereference(nh6_tbl.entry[nh_idx]);
 
 		/* Do we already have a nh for this interface? */
-		nh = nextu6_find_path_using_ifp(nextu, ifp, &sibling);
+		nh = nextu_find_path_using_ifp(nextu, ifp, &sibling);
 		if (nh && nh_is_neigh_created(nh)) {
 			/* Are we removing a path or the entire NH */
 			if (nextu->nsiblings == 1) {

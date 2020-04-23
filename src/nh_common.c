@@ -556,3 +556,21 @@ int nextu_nc_count(const struct next_hop_u *nhu)
 	}
 	return count;
 }
+
+struct next_hop *nextu_find_path_using_ifp(struct next_hop_u *nhu,
+					   struct ifnet *ifp,
+					   int *sibling)
+{
+	uint32_t i;
+	struct next_hop *array = rcu_dereference(nhu->siblings);
+
+	for (i = 0; i < nhu->nsiblings; i++) {
+		struct next_hop *next = array + i;
+
+		if (dp_nh_get_ifp(next) == ifp) {
+			*sibling = i;
+			return next;
+		}
+	}
+	return NULL;
+}
