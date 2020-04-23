@@ -809,14 +809,6 @@ static int nexthop_cmpfn(struct cds_lfht_node *node, const void *key)
 	return true;
 }
 
-static bool nh_is_gw(const struct next_hop *nh)
-{
-	if (nh->flags & RTF_GATEWAY)
-		return true;
-
-	return false;
-}
-
 /*
  * Modifying a NH in non atomic way, so this must be atomically swapped
  * into the forwarding state when ready

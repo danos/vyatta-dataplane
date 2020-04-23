@@ -158,6 +158,7 @@ nexthop_hash_del_add(int family,
 
 bool nh_is_connected(const struct next_hop *nh);
 bool nh_is_local(const struct next_hop *nh);
+bool nh_is_gw(const struct next_hop *nh);
 
 static ALWAYS_INLINE bool
 nh_is_neigh_present(const struct next_hop *next_hop)

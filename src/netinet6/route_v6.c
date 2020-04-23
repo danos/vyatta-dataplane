@@ -862,14 +862,6 @@ static void nh6_clear_neigh_created(struct next_hop *next_hop)
 	nh6_tbl.neigh_created--;
 }
 
-static bool nh6_is_gw(const struct next_hop *nh)
-{
-	if (nh->flags & RTF_GATEWAY)
-		return true;
-
-	return false;
-}
-
 static inline bool rt6_is_nh_local(int nhindex)
 {
 	struct next_hop_u *nextu;
@@ -1298,7 +1290,7 @@ static void route6_change_process_nh(struct next_hop_u *nhu,
 			/* happens for local routes */
 			continue;
 
-		if (!nh6_is_gw(next))
+		if (!nh_is_gw(next))
 			continue;
 
 		/*
@@ -1353,8 +1345,8 @@ routing_neigh_add_gw_nh_replace_cb(struct next_hop *next,
 	struct in6_addr *ip = ll_ipv6_addr(lle);
 	struct ifnet *ifp = rcu_dereference(lle->ifp);
 
-	if (!nh6_is_gw(next) || !IN6_ARE_ADDR_EQUAL(&next->gateway6,
-						    &ip->s6_addr))
+	if (!nh_is_gw(next) || !IN6_ARE_ADDR_EQUAL(&next->gateway6,
+						   &ip->s6_addr))
 		return NH_NO_CHANGE;
 	if (dp_nh_get_ifp(next) != ifp)
 		return NH_NO_CHANGE;
@@ -2748,8 +2740,8 @@ routing_neigh_del_gw_nh_replace_cb(struct next_hop *next,
 	struct in6_addr *ip = ll_ipv6_addr(lle);
 	struct ifnet *ifp = rcu_dereference(lle->ifp);
 
-	if (!nh6_is_gw(next) || !IN6_ARE_ADDR_EQUAL(&next->gateway6,
-						    &ip->s6_addr))
+	if (!nh_is_gw(next) || !IN6_ARE_ADDR_EQUAL(&next->gateway6,
+						   &ip->s6_addr))
 		return NH_NO_CHANGE;
 	if (dp_nh_get_ifp(next) != ifp)
 		return NH_NO_CHANGE;

@@ -460,3 +460,11 @@ bool nh_is_local(const struct next_hop *nh)
 
 	return false;
 }
+
+bool nh_is_gw(const struct next_hop *nh)
+{
+	if (nh->flags & RTF_GATEWAY)
+		return true;
+
+	return false;
+}
