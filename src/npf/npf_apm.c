@@ -29,6 +29,7 @@
 #include "npf/npf_apm.h"
 #include "npf/npf_nat.h"
 #include "npf/npf_pack.h"
+#include "src/npf/nat/nat_proto.h"
 #include "npf_tblset.h"
 #include "urcu.h"
 #include "util.h"
@@ -42,8 +43,9 @@
  * within the defined range, the original is used.
  *
  * For SNAT, we consider the entire translation space (2^32 addrs * 2^16
- * ports) by using an RCU hash table for a per-addr port translation
- * bitmap. This hash table is referenced by all snat users.
+ * ports) by using an RCU hash table for a per-addr/per-protocol (tcp, udp
+ * others) port translation bitmap. This hash table is referenced by all
+ * snat users.
  *
  * The portmap is a sparse bitmap implementation - The entire range
  * of the bitmap (2^16 bits) is divided into 'sections', which are
@@ -145,10 +147,14 @@ struct port_section {
 	uint16_t	ps_used;		/* bits allocated */
 };
 
-struct port_map {
+struct port_prot {
 	struct port_section	*pm_sections[PM_SECTION_CNT];
-	rte_spinlock_t		pm_lock;	/* for sync'ing updates */
 	uint16_t		pm_used;	/* # allocated ports */
+};
+
+struct port_map {
+	rte_spinlock_t		pm_lock;	/* for sync'ing updates */
+	struct port_prot	pm_nprot[NAT_PROTO_COUNT];
 	uint8_t			pm_flags;	/* for removal */
 	uint32_t		pm_addr;	/* addr of this port map */
 	vrfid_t			pm_vrfid;
@@ -191,6 +197,7 @@ struct apm_table_params {
 	uint32_t		ap_addr;
 	uint32_t		ap_map_flags;
 	in_port_t		ap_port;
+	enum nat_proto		ap_nprot;
 };
 
 /* Set bits in a section, span words if needed */
@@ -242,15 +249,16 @@ static int test_bits(unsigned long bit, int nr_bits, unsigned long *addr)
 }
 
 static void port_stats_inc(int nr_ports, struct port_map *pm,
-				struct port_section *ps)
+		enum nat_proto nprot, struct port_section *ps)
 {
-	pm->pm_used += nr_ports;
+	pm->pm_nprot[nprot].pm_used += nr_ports;
 	ps->ps_used += nr_ports;
 }
 
-static void port_stats_dec(struct port_map *pm, struct port_section *ps)
+static void port_stats_dec(struct port_map *pm, enum nat_proto nprot,
+		struct port_section *ps)
 {
-	pm->pm_used--;
+	pm->pm_nprot[nprot].pm_used--;
 	ps->ps_used--;
 }
 
@@ -259,15 +267,21 @@ static void map_rcu_free(struct rcu_head *head)
 {
 	struct port_map *pm = caa_container_of(head, struct port_map,
 								pm_rcu_head);
-	int i;
+	int i, nprot;
 
 	/* Sanity, can only happen with a bug */
-	for (i = 0; i < PM_SECTION_CNT; i++) {
-		assert((pm->pm_sections[i] && pm->pm_sections[i]->ps_used)
-		       == 0);
-		if (pm->pm_sections[i] && pm->pm_sections[i]->ps_used)
-			rte_panic("NPF port map: section: %d used: %d\n",
-						i, pm->pm_sections[i]->ps_used);
+	for (nprot = NAT_PROTO_FIRST; nprot < NAT_PROTO_COUNT; nprot++) {
+		struct port_section **pm_sections =
+			pm->pm_nprot[nprot].pm_sections;
+		for (i = 0; i < PM_SECTION_CNT; i++) {
+			assert((pm_sections[i] && pm_sections[i]->ps_used)
+				== 0);
+			if (pm_sections[i] && pm_sections[i]->ps_used)
+				rte_panic("NPF port map: prot %s: section: "
+					  "%d used: %d\n",
+					   nat_proto_lc_str(nprot), i,
+					   pm_sections[i]->ps_used);
+		}
 	}
 	rte_free(pm);
 }
@@ -297,8 +311,19 @@ static void map_gc(struct rte_timer *timer __rte_unused, void *arg __rte_unused)
 			}
 		} else if (pm->pm_flags & PM_FLAG_REMOVABLE)
 			pm->pm_flags |= PM_FLAG_DEAD;
-		else if (!pm->pm_used)
-			pm->pm_flags = PM_FLAG_REMOVABLE;
+		else {
+			uint8_t pm_flags = PM_FLAG_REMOVABLE;
+			uint8_t nprot;
+
+			for (nprot = NAT_PROTO_FIRST; nprot < NAT_PROTO_COUNT;
+			     nprot++) {
+				if (pm->pm_nprot[nprot].pm_used) {
+					pm_flags = 0;
+					break;
+				}
+			}
+			pm->pm_flags = pm_flags;
+		}
 
 		rte_spinlock_unlock(&pm->pm_lock);
 	}
@@ -400,12 +425,14 @@ static struct port_map *map_get(uint32_t addr, vrfid_t vrfid, bool create)
 
 /* Get a portmap section, allocate if needed */
 static struct port_section *map_get_section(struct port_map *pm,
-						int n, bool create)
+		enum nat_proto nprot, int n, bool create)
 {
+	struct port_section **pm_sections = pm->pm_nprot[nprot].pm_sections;
+
 	size_t sz = sizeof(struct port_section);
 
-	if (pm->pm_sections[n] || !create)
-		return pm->pm_sections[n];
+	if (pm_sections[n] || !create)
+		return pm_sections[n];
 
 	/* memory limit.  Yes, this is racy */
 	if (rte_atomic64_add_return(&pm_mem_used, sz) > PM_MEM_LIMIT) {
@@ -413,17 +440,17 @@ static struct port_section *map_get_section(struct port_map *pm,
 		return NULL;
 	}
 
-	pm->pm_sections[n] = rte_zmalloc("apm", sz, RTE_CACHE_LINE_SIZE);
+	pm_sections[n] = rte_zmalloc("apm", sz, RTE_CACHE_LINE_SIZE);
 
-	return pm->pm_sections[n];
+	return pm_sections[n];
 }
 
 /* Put a port section, free if unused.  assumes lock held */
-static void map_put_section(struct port_map *pm,
-				struct port_section *ps, int n)
+static void map_put_section(struct port_map *pm, enum nat_proto nprot,
+		struct port_section *ps, int n)
 {
 	if (!ps->ps_used) {
-		pm->pm_sections[n] = NULL;
+		pm->pm_nprot[nprot].pm_sections[n] = NULL;
 		rte_atomic64_sub(&pm_mem_used, sizeof(struct port_section));
 		rte_free(ps);
 	}
@@ -441,8 +468,9 @@ static bool addr_in_range(const struct npf_apm_range *ar, uint32_t addr)
 	return (addr >= ar->ar_addr_start && addr <= ar->ar_addr_stop);
 }
 
-static inline int port_alloc_ports(struct port_map *pm, uint32_t map_flags,
-		int nr_bits, uint16_t *port)
+static inline int port_alloc_ports(struct port_map *pm, enum nat_proto nprot,
+				   uint32_t map_flags, int nr_bits,
+				   uint16_t *port)
 {
 	unsigned long bit = PM_SECTION_BIT(*port);
 	struct port_section *ps;
@@ -460,7 +488,7 @@ static inline int port_alloc_ports(struct port_map *pm, uint32_t map_flags,
 		return -ENOSPC;
 
 	section = PM_SECTION_OF_PORT(*port);
-	ps = map_get_section(pm, section, true);
+	ps = map_get_section(pm, nprot, section, true);
 	if (!ps)
 		return -ENOMEM;
 
@@ -471,7 +499,7 @@ static inline int port_alloc_ports(struct port_map *pm, uint32_t map_flags,
 		return -EADDRINUSE;
 
 	set_bits(bit, nr_bits, ps->ps_bm);
-	port_stats_inc(nr_bits, pm, ps);
+	port_stats_inc(nr_bits, pm, nprot, ps);
 	*port = PM_BIT_TO_PORT(bit) + (section * PM_SECTION_BITS);
 
 	return 0;
@@ -479,7 +507,8 @@ static inline int port_alloc_ports(struct port_map *pm, uint32_t map_flags,
 
 /* Get a set of ports if desired */
 static int map_allocate_ports(struct npf_apm_range *ar, uint32_t map_flags,
-		struct port_map *pm, int nr_ports, uint16_t *port)
+		struct port_map *pm, enum nat_proto nprot,
+		int nr_ports, uint16_t *port)
 {
 	int rc = 0;
 	uint16_t i;
@@ -502,7 +531,7 @@ static int map_allocate_ports(struct npf_apm_range *ar, uint32_t map_flags,
 	rte_spinlock_lock(&pm->pm_lock);
 
 	/* Room at the Inn? */
-	if ((pm->pm_used + nr_ports) > ar->ar_port_range) {
+	if ((pm->pm_nprot[nprot].pm_used + nr_ports) > ar->ar_port_range) {
 		rte_spinlock_unlock(&pm->pm_lock);
 		return -ENOSPC;
 	}
@@ -518,7 +547,7 @@ static int map_allocate_ports(struct npf_apm_range *ar, uint32_t map_flags,
 	 * request.
 	 */
 	for (i = 0; i < ar->ar_port_range; i++) {
-		rc = port_alloc_ports(pm, map_flags, nr_ports, port);
+		rc = port_alloc_ports(pm, nprot, map_flags, nr_ports, port);
 
 		switch (rc) {
 		case 0:
@@ -576,7 +605,7 @@ static uint32_t map_translate_addr(struct npf_apm_range *ar, uint32_t inaddr)
 /* Get the snat translation address/ports */
 static int map_snat(struct npf_apm_range *ar, int nr_ports,
 		vrfid_t vrfid, uint32_t *addr, in_port_t *port,
-		uint32_t map_flags)
+		enum nat_proto nprot, uint32_t map_flags)
 {
 	int rc;
 	struct port_map *pm;
@@ -603,7 +632,8 @@ static int map_snat(struct npf_apm_range *ar, int nr_ports,
 		if (!pm)
 			return -ENOMEM;
 
-		rc = map_allocate_ports(ar, map_flags, pm, nr_ports, port);
+		rc = map_allocate_ports(ar, map_flags, pm, nprot,
+					nr_ports, port);
 		if (!rc || rc == -ENOMEM)
 			break;
 
@@ -680,6 +710,7 @@ int npf_apm_put_map(npf_apm_t *apm, uint32_t map_flags, vrfid_t vrfid,
 	struct port_section *ps;
 	int n;
 	int rc;
+	enum nat_proto nprot = NAT_PROTO_FIRST;
 
 	if (!apm || !ipport)
 		return 0;
@@ -704,11 +735,11 @@ int npf_apm_put_map(npf_apm_t *apm, uint32_t map_flags, vrfid_t vrfid,
 	n = PM_SECTION_OF_PORT(port);
 	rte_spinlock_lock(&pm->pm_lock);
 
-	ps = map_get_section(pm, n, false);
+	ps = map_get_section(pm, nprot, n, false);
 	rc = map_release_port(ps, port);
 	if (!rc) {
-		port_stats_dec(pm, ps);
-		map_put_section(pm, ps, n);
+		port_stats_dec(pm, nprot, ps);
+		map_put_section(pm, nprot, ps, n);
 	}
 
 	rte_spinlock_unlock(&pm->pm_lock);
@@ -719,7 +750,8 @@ int npf_apm_put_map(npf_apm_t *apm, uint32_t map_flags, vrfid_t vrfid,
 /* Allocate a mapping given the address range */
 static int map_allocate_from_range(struct npf_apm *apm,
 		struct npf_apm_range *ar, int nr_ports, vrfid_t vrfid,
-		uint32_t *addr, in_port_t *port, uint32_t map_flags)
+		uint32_t *addr, in_port_t *port, enum nat_proto nprot,
+		uint32_t map_flags)
 {
 	int rc = -EINVAL;
 
@@ -728,7 +760,8 @@ static int map_allocate_from_range(struct npf_apm *apm,
 		rc = map_dnat(apm, ar, nr_ports, addr, port);
 		break;
 	case NPF_NATOUT:
-		rc = map_snat(ar, nr_ports, vrfid, addr, port, map_flags);
+		rc = map_snat(ar, nr_ports, vrfid, addr, port, nprot,
+			      map_flags);
 		break;
 	}
 	return rc;
@@ -761,7 +794,7 @@ static int apm_table_cb(uint32_t start, uint32_t stop, uint32_t range,
 
 	ap->ap_rc = map_allocate_from_range(ap->ap_apm, &ar,
 			ap->ap_nr_ports, ap->ap_vrfid, &ap->ap_addr,
-			&ap->ap_port, ap->ap_map_flags);
+			&ap->ap_port, ap->ap_nprot, ap->ap_map_flags);
 
 	/* Only keep going on full portmaps */
 	if (ap->ap_rc == -ENOSPC)
@@ -774,7 +807,7 @@ static int apm_table_cb(uint32_t start, uint32_t stop, uint32_t range,
 /* map_allocate_from_table - Walk a table */
 static int map_allocate_from_table(struct npf_apm *apm, int nr_ports,
 		vrfid_t vrfid, uint32_t *addr, in_port_t *port,
-		uint32_t map_flags)
+		enum nat_proto nprot, uint32_t map_flags)
 {
 	struct apm_table_params ap;
 	int rc;
@@ -784,6 +817,7 @@ static int map_allocate_from_table(struct npf_apm *apm, int nr_ports,
 	ap.ap_addr = *addr;
 	ap.ap_port = *port;
 	ap.ap_vrfid = vrfid;
+	ap.ap_nprot = nprot;
 	ap.ap_map_flags = map_flags;
 	ap.ap_rc = 0;
 
@@ -816,6 +850,7 @@ int npf_apm_get_map(npf_apm_t *apm, uint32_t map_flags, int nr_ports,
 	uint32_t addr = NPF_ADDR_TO_UINT32(ipaddr);
 	uint32_t *ipaddrp = (uint32_t *) ipaddr;
 	in_port_t port = ntohs(*ipport);
+	enum nat_proto nprot = NAT_PROTO_FIRST;
 	int rc;
 
 	/*
@@ -827,10 +862,11 @@ int npf_apm_get_map(npf_apm_t *apm, uint32_t map_flags, int nr_ports,
 	 */
 	if (APM_USES_TABLE(apm))
 		rc = map_allocate_from_table(apm, nr_ports, vrfid,
-				&addr, &port, map_flags);
+				&addr, &port, nprot, map_flags);
 	else
 		rc = map_allocate_from_range(apm, &apm->apm_ar,
-				nr_ports, vrfid, &addr, &port, map_flags);
+				nr_ports, vrfid, &addr, &port, nprot,
+				map_flags);
 	if (!rc) {
 		if (apm->apm_type == NPF_NATIN)
 			rte_atomic64_add(&apm->apm_dnat_used, nr_ports);
@@ -967,6 +1003,7 @@ static void json_pm(json_writer_t *json, struct port_map *pm)
 	struct port_section *ps;
 	uint32_t naddr;
 	char buf[INET6_ADDRSTRLEN];
+	enum nat_proto nprot;
 
 	naddr = htonl(pm->pm_addr);
 	inet_ntop(AF_INET, &naddr, buf, sizeof(buf));
@@ -981,21 +1018,31 @@ static void json_pm(json_writer_t *json, struct port_map *pm)
 	else
 		jsonw_string_field(json, "state", "ACTIVE");
 
-	jsonw_uint_field(json, "used", pm->pm_used);
-
-	if (!pm->pm_used) {
-		jsonw_end_object(json);
-		return;
-	}
-
-	jsonw_name(json, "ports");
+	jsonw_name(json, "protocols");
 	jsonw_start_array(json);
-	for (i = 0; i < PM_SECTION_CNT; i++) {
-		ps = pm->pm_sections[i];
-		if (ps)
-			json_ps(json, ps, i);
+
+	for (nprot = NAT_PROTO_FIRST; nprot < NAT_PROTO_COUNT; nprot++) {
+
+		jsonw_start_object(json);
+		jsonw_string_field(json, "protocol", nat_proto_lc_str(nprot));
+		jsonw_uint_field(json, "ports_used",
+			pm->pm_nprot[nprot].pm_used);
+
+		if (pm->pm_nprot[nprot].pm_used) {
+			jsonw_name(json, "ports");
+			jsonw_start_array(json);
+			for (i = 0; i < PM_SECTION_CNT; i++) {
+				ps = pm->pm_nprot[nprot].pm_sections[i];
+				if (ps)
+					json_ps(json, ps, i);
+			}
+			jsonw_end_array(json);
+		}
+
+		jsonw_end_object(json);
 	}
-	jsonw_end_array(json);
+
+	jsonw_end_array(json); /* protocols */
 	jsonw_end_object(json);
 }
 
@@ -1009,7 +1056,8 @@ void npf_apm_dump(FILE *fp)
 	json_writer_t *json;
 	struct cds_lfht_iter iter;
 	struct port_map *pm;
-	uint64_t count = 0;
+	uint64_t count[NAT_PROTO_COUNT] = {0};
+	enum nat_proto nprot;
 
 	json = jsonw_new(fp);
 	jsonw_name(json, "apm");
@@ -1024,12 +1072,26 @@ void npf_apm_dump(FILE *fp)
 	cds_lfht_for_each_entry(apm_ht, &iter, pm, pm_node) {
 		rte_spinlock_lock(&pm->pm_lock);
 		json_pm(json, pm);
-		count += pm->pm_used;
+		for (nprot = NAT_PROTO_FIRST; nprot < NAT_PROTO_COUNT;
+		     nprot++) {
+			count[nprot] += pm->pm_nprot[nprot].pm_used;
+		}
 		rte_spinlock_unlock(&pm->pm_lock);
 	}
 	jsonw_end_array(json);
 
-	jsonw_uint_field(json, "mapping_count", count);
+	jsonw_name(json, "protocols");
+	jsonw_start_array(json);
+
+	for (nprot = NAT_PROTO_FIRST; nprot < NAT_PROTO_COUNT; nprot++) {
+
+		jsonw_start_object(json);
+		jsonw_string_field(json, "protocol", nat_proto_lc_str(nprot));
+		jsonw_uint_field(json, "mapping_count", count[nprot]);
+		jsonw_end_object(json);
+	}
+	jsonw_end_array(json); /* protocols */
+
 	jsonw_end_object(json);
 	jsonw_destroy(&json);
 }
@@ -1058,6 +1120,7 @@ npf_apm_get_allocated(vrfid_t vrfid, npf_addr_t ipaddr, in_port_t port)
 	struct port_map *pm;
 	struct port_section *ps;
 	int n;
+	enum nat_proto nprot = NAT_PROTO_FIRST;
 
 	addr = NPF_ADDR_TO_UINT32(&ipaddr);
 
@@ -1066,7 +1129,7 @@ npf_apm_get_allocated(vrfid_t vrfid, npf_addr_t ipaddr, in_port_t port)
 		return false;
 
 	n = PM_SECTION_OF_PORT(port);
-	ps = map_get_section(pm, n, false);
+	ps = map_get_section(pm, nprot, n, false);
 
 	if (!ps)
 		return false;

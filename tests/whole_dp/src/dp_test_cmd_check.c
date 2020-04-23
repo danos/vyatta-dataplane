@@ -43,15 +43,22 @@ char expected_npf_fw_portmap_str[DP_TEST_TMP_BUF];
 "{" \
 "  \"apm\":" \
 "  { \"section_size\": 512," \
-"    \"hash_memory\": 0," \
-"    \"instances\": " \
-"    [" \
-"      { \"npf_id\": 1, " \
-"        \"portmaps\": [ ]," \
-"      }" \
-"    ]," \
-"    \"mapping_count\": 0," \
-"  }" \
+"    \"protocols\":" \
+"    [ " \
+"      { " \
+"        \"protocol\": \"tcp\", " \
+"        \"mapping_count\": 0" \
+"      }, " \
+"      { " \
+"        \"protocol\": \"udp\", " \
+"        \"mapping_count\": 0" \
+"      }, " \
+"      { " \
+"        \"protocol\": \"other\", " \
+"        \"mapping_count\": 0" \
+"      } " \
+"    ] " \
+"  } " \
 "}"
 
 char expected_vrf_str[DP_TEST_TMP_BUF];
@@ -442,8 +449,22 @@ static struct cmd_expect_json cmd_expect_clean_json[] = {
 		"{"
 		"  \"apm\":"
 		"  { \"section_size\": 512,"
-		"    \"mapping_count\": 0,"
-		"  }"
+		"    \"protocols\":"
+		"    [ "
+		"      { "
+		"        \"protocol\": \"tcp\", "
+		"        \"mapping_count\": 0"
+		"      }, "
+		"      { "
+		"        \"protocol\": \"udp\", "
+		"        \"mapping_count\": 0"
+		"      }, "
+		"      { "
+		"        \"protocol\": \"other\", "
+		"        \"mapping_count\": 0"
+		"      } "
+		"    ] "
+		"  } "
 		"}", ""
 	},
 	{
