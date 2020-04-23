@@ -862,16 +862,6 @@ static void nh6_clear_neigh_created(struct next_hop *next_hop)
 	nh6_tbl.neigh_created--;
 }
 
-static bool nh6_is_connected(const struct next_hop *nh)
-{
-	if (nh->flags & (RTF_BLACKHOLE | RTF_REJECT |
-			 RTF_SLOWPATH | RTF_GATEWAY |
-			 RTF_LOCAL | RTF_NOROUTE))
-		return false;
-
-	return true;
-}
-
 static bool nh6_is_local(const struct next_hop *nh)
 {
 	if (nh->flags & RTF_LOCAL)
@@ -1007,7 +997,7 @@ static bool nextu6_is_any_connected(const struct next_hop_u *nhu)
 	for (i = 0; i < nhu->nsiblings; i++) {
 		struct next_hop *next = array + i;
 
-		if (nh6_is_connected(next))
+		if (nh_is_connected(next))
 			return true;
 	}
 	return false;
@@ -1554,7 +1544,7 @@ route_delete_relink_neigh(struct lpm6 *lpm, uint8_t *ip, uint8_t depth)
 		if (!ifp)
 			/* happens for local routes */
 			continue;
-		if (nh6_is_connected(next))
+		if (nh_is_connected(next))
 			lltable_walk(ifp->if_lltable6,
 				     lle_routing_insert_neigh_cb, NULL);
 	}
@@ -2694,7 +2684,7 @@ struct ifnet *nhif_dst_lookup6(const struct vrf *vrf,
 
 	ifp = dp_nh_get_ifp(next);
 	if (ifp && connected)
-		*connected = nh6_is_connected(next);
+		*connected = nh_is_connected(next);
 
 	return ifp;
 }
@@ -2720,7 +2710,7 @@ route6_create_neigh(struct vrf *vrf, struct lpm6 *lpm,
 		 * paths that use the same ifp.
 		 */
 		cover_nh = nextu6_find_path_using_ifp(nextu, ifp, &sibling);
-		if (cover_nh && nh6_is_connected(cover_nh)) {
+		if (cover_nh && nh_is_connected(cover_nh)) {
 			/*
 			 * Have a connected cover so create a new entry for
 			 * this. Will only be 1 NEIGH_CREATED path, but
@@ -2816,7 +2806,7 @@ static enum nh_change routing_neigh_add_nh_replace_cb(struct next_hop *next,
 {
 	struct neigh_add_nh_replace_arg *args = arg;
 
-	if (!nh6_is_connected(next))
+	if (!nh_is_connected(next))
 		return NH_NO_CHANGE;
 
 	if (nh_is_neigh_present(next) || nh_is_neigh_created(next))
@@ -2839,7 +2829,7 @@ static enum nh_change routing_neigh_del_nh_replace_cb(struct next_hop *next,
 {
 	struct ifnet *ifp = arg;
 
-	if (!nh6_is_connected(next) || !nh_is_neigh_present(next))
+	if (!nh_is_connected(next) || !nh_is_neigh_present(next))
 		return NH_NO_CHANGE;
 	if (ifp != dp_nh_get_ifp(next))
 		return NH_NO_CHANGE;

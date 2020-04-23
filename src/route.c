@@ -809,16 +809,6 @@ static int nexthop_cmpfn(struct cds_lfht_node *node, const void *key)
 	return true;
 }
 
-static bool nh_is_connected(const struct next_hop *nh)
-{
-	if (nh->flags & (RTF_BLACKHOLE | RTF_REJECT |
-			 RTF_SLOWPATH | RTF_GATEWAY |
-			 RTF_LOCAL | RTF_NOROUTE))
-		return false;
-
-	return true;
-}
-
 static bool nh_is_local(const struct next_hop *nh)
 {
 	if (nh->flags & RTF_LOCAL)
