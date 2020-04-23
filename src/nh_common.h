@@ -138,6 +138,24 @@ void nexthop_put(int family, uint32_t idx);
  */
 struct next_hop *nexthop_create_copy(struct next_hop_u *nhu, int *size);
 
+/*
+ * Remove the old NH from the hash and add the new one. Can not
+ * use a call to cds_lfht_add_replace() or any of the variants
+ * as the key for the new NH may be very different in the case
+ * where there are a different number of paths.
+ *
+ * @param[in] family The address family for this nexthop
+ * @param[in] old_nu The old nexthop_u to remove from the hash
+ * @param[in] new_nu The new nexthop_u to add to the hash
+ *
+ * @retval 0 on success
+ *         -ve on failure
+ */
+int
+nexthop_hash_del_add(int family,
+		     struct next_hop_u *old_nu,
+		     struct next_hop_u *new_nu);
+
 static ALWAYS_INLINE bool
 nh_is_neigh_present(const struct next_hop *next_hop)
 {

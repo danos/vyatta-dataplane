@@ -966,32 +966,6 @@ static int nexthop6_cmpfn(struct cds_lfht_node *node, const void *key)
 	return true;
 }
 
-/*
- * Remove the old NH from the hash and add the new one. Can not
- * use a call to cds_lfht_add_replace() or any of the variants
- * as the key for the new NH may be very different in the case
- * where there are a different number of paths.
- */
-static int
-nexthop6_hash_del_add(int family __unused,
-		      struct next_hop_u *old_nu,
-		      struct next_hop_u *new_nu)
-{
-	struct nexthop_hash_key key = {.nh = new_nu->siblings,
-				       .size = new_nu->nsiblings,
-				       .proto = 0};
-	int rc;
-
-	/* Remove old one */
-	rc = cds_lfht_del(nexthop6_hash, &old_nu->nh_node);
-	assert(rc == 0);
-	if (rc != 0)
-		return rc;
-
-	/* add new one */
-	return nexthop_hash_insert(AF_INET6, new_nu, &key);
-}
-
 static int nextu6_nc_count(const struct next_hop_u *nhu)
 {
 	int count = 0;
@@ -1299,7 +1273,7 @@ route6_nh_replace(struct next_hop_u *nextu, uint32_t nh_idx,
 		return deleted;
 	}
 
-	if (nexthop6_hash_del_add(AF_INET6, nextu, new_nextu)) {
+	if (nexthop_hash_del_add(AF_INET6, nextu, new_nextu)) {
 		__nexthop_destroy(new_nextu);
 		RTE_LOG(ERR, ROUTE, "nh6 replace failed\n");
 		return 0;

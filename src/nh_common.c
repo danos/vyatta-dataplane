@@ -414,3 +414,31 @@ struct next_hop *nexthop_create_copy(struct next_hop_u *nhu, int *size)
 	}
 	return next;
 }
+
+int
+nexthop_hash_del_add(int family,
+		     struct next_hop_u *old_nu,
+		     struct next_hop_u *new_nu)
+{
+	struct nexthop_hash_key key = {.nh = new_nu->siblings,
+				       .size = new_nu->nsiblings,
+				       .proto = new_nu->proto };
+	struct cds_lfht *hash_tbl = nh_common_get_hash_table(family);
+
+	if (!hash_tbl) {
+		RTE_LOG(ERR, ROUTE, "Invalid family %d for nh hash del add\n",
+			family);
+		return -EINVAL;
+	}
+
+	int rc;
+
+	/* Remove old one */
+	rc = cds_lfht_del(hash_tbl, &old_nu->nh_node);
+	assert(rc == 0);
+	if (rc != 0)
+		return rc;
+
+	/* add new one */
+	return nexthop_hash_insert(family, new_nu, &key);
+}

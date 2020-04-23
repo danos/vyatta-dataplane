@@ -809,32 +809,6 @@ static int nexthop_cmpfn(struct cds_lfht_node *node, const void *key)
 	return true;
 }
 
-/*
- * Remove the old NH from the hash and add the new one. Can not
- * use a call to cds_lfht_add_replace() or any of the variants
- * as the key for the new NH may be very different in the case
- * where there are a different number of paths.
- */
-static int
-nexthop_hash_del_add(int family __unused,
-		     struct next_hop_u *old_nu,
-		     struct next_hop_u *new_nu)
-{
-	struct nexthop_hash_key key = {.nh = new_nu->siblings,
-				       .size = new_nu->nsiblings,
-				       .proto = new_nu->proto };
-	int rc;
-
-	/* Remove old one */
-	rc = cds_lfht_del(nexthop_hash, &old_nu->nh_node);
-	assert(rc == 0);
-	if (rc != 0)
-		return rc;
-
-	/* add new one */
-	return nexthop_hash_insert(AF_INET, new_nu, &key);
-}
-
 static bool nh_is_connected(const struct next_hop *nh)
 {
 	if (nh->flags & (RTF_BLACKHOLE | RTF_REJECT |
