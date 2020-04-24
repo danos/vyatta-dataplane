@@ -1503,7 +1503,7 @@ mpls_labeled_forward(struct ifnet *input_ifp, bool local,
 	uint32_t in_label;
 	enum nh_type nht;
 	uint8_t ttl;
-	union next_hop_v4_or_v6_ptr nh;
+	struct next_hop *nh;
 	bool pop;
 
 	mpls_label_cache_init(&cache);
@@ -1560,10 +1560,10 @@ mpls_labeled_forward(struct ifnet *input_ifp, bool local,
 		else
 			label_table = rcu_dereference(
 				input_ifp->mpls_label_table);
-		nh.v4 = mpls_label_table_lookup(label_table, in_label, m,
-						ETH_P_MPLS_UC, &nht,
-						&payload_type);
-		if (unlikely(!nh.v4)) {
+		nh = mpls_label_table_lookup(label_table, in_label, m,
+					     ETH_P_MPLS_UC, &nht,
+					     &payload_type);
+		if (unlikely(!nh)) {
 			if (!local && label_table) {
 				DBG_MPLS_PKTERR(input_ifp, m,
 						"label table entry not found\n");
@@ -1574,30 +1574,30 @@ mpls_labeled_forward(struct ifnet *input_ifp, bool local,
 			break;
 		}
 
-		ret = nh_fwd_mpls(nh.v4, m, true, payload_type, &cache, &pop);
+		ret = nh_fwd_mpls(nh, m, true, payload_type, &cache, &pop);
 		if (likely(ret == NH_FWD_IPv4)) {
-			mpls_forward_to_ipv4(input_ifp, local, m, nh.v4, ttl,
+			mpls_forward_to_ipv4(input_ifp, local, m, nh, ttl,
 					     pop);
 			return;
 		} else if (likely(ret == NH_FWD_SUCCESS)) {
-			nh_mpls_forward(payload_type, nht, nh.v4, true,
+			nh_mpls_forward(payload_type, nht, nh, true,
 					ttl, m, &cache, input_ifp);
 			return;
 		} else if (likely(ret == NH_FWD_IPv6)) {
-			mpls_forward_to_ipv6(input_ifp, local, m, nh.v6, ttl,
+			mpls_forward_to_ipv6(input_ifp, local, m, nh, ttl,
 					     pop);
 			return;
 		} else if (unlikely(ret == NH_FWD_RESWITCH_IPv4)) {
 			if (!mpls_reswitch_as_ipv4(
-				    input_ifp, m, dp_nh_get_ifp(nh.v4) ?
-				    if_vrfid(dp_nh_get_ifp(nh.v6)) :
+				    input_ifp, m, dp_nh_get_ifp(nh) ?
+				    if_vrfid(dp_nh_get_ifp(nh)) :
 				    VRF_DEFAULT_ID, ttl))
 				goto drop;
 			return;
 		} else if (unlikely(ret == NH_FWD_RESWITCH_IPv6)) {
 			if (!mpls_reswitch_as_ipv6(
-				    input_ifp, m, dp_nh_get_ifp(nh.v6) ?
-				    if_vrfid(dp_nh_get_ifp(nh.v6)) :
+				    input_ifp, m, dp_nh_get_ifp(nh) ?
+				    if_vrfid(dp_nh_get_ifp(nh)) :
 				    VRF_DEFAULT_ID, ttl))
 				goto drop;
 			return;
