@@ -235,6 +235,10 @@ struct next_hop *nextu_find_path_using_ifp(struct next_hop_u *nhu,
  */
 bool nextu_is_any_connected(const struct next_hop_u *nhu);
 
+struct next_hop *nexthop_mp_select(struct next_hop *next,
+				   uint32_t size,
+				   uint32_t hash);
+
 bool nh_is_connected(const struct next_hop *nh);
 bool nh_is_local(const struct next_hop *nh);
 bool nh_is_gw(const struct next_hop *nh);

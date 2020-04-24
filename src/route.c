@@ -627,29 +627,6 @@ static struct lpm *rt_get_lpm(struct route_head *rt_head, uint32_t id)
 	return rcu_dereference(rt_head->rt_table[id]);
 }
 
-static struct next_hop *nexthop_mp_select(struct next_hop *next,
-					  uint32_t size,
-					  uint32_t hash)
-{
-	uint16_t path;
-
-	if (ecmp_max_path && ecmp_max_path < size)
-		size = ecmp_max_path;
-
-	path = ecmp_lookup(size, hash);
-	if (unlikely(next[path].flags & RTF_DEAD)) {
-		/* retry to find a good path */
-		for (path = 0; path < size; path++) {
-			if (!(next[path].flags & RTF_DEAD))
-				break;
-		}
-
-		if (path == size)
-			return NULL;
-	}
-	return next + path;
-}
-
 /*
  * Obtain a nexthop from a nexthop(_u) index
  */

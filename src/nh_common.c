@@ -6,6 +6,7 @@
 
 #include <rte_debug.h>
 
+#include "ecmp.h"
 #include "fal.h"
 #include "if_llatbl.h"
 #include "nh_common.h"
@@ -587,4 +588,27 @@ bool nextu_is_any_connected(const struct next_hop_u *nhu)
 			return true;
 	}
 	return false;
+}
+
+ALWAYS_INLINE struct next_hop *nexthop_mp_select(struct next_hop *next,
+						 uint32_t size,
+						 uint32_t hash)
+{
+	uint16_t path;
+
+	if (ecmp_max_path && ecmp_max_path < size)
+		size = ecmp_max_path;
+
+	path = ecmp_lookup(size, hash);
+	if (unlikely(next[path].flags & RTF_DEAD)) {
+		/* retry to find a good path */
+		for (path = 0; path < size; path++) {
+			if (!(next[path].flags & RTF_DEAD))
+				break;
+		}
+
+		if (path == size)
+			return NULL;
+	}
+	return next + path;
 }

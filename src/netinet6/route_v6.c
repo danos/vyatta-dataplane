@@ -693,30 +693,6 @@ void rt6_prefetch(const struct rte_mbuf *m, const struct in6_addr *dst)
 }
 
 ALWAYS_INLINE
-struct next_hop *nexthop6_select_internal(struct next_hop *next,
-					  uint32_t size,
-					  uint32_t hash)
-{
-	uint32_t path;
-
-	if (ecmp_max_path && ecmp_max_path < size)
-		size = ecmp_max_path;
-
-	path = ecmp_lookup(size, hash);
-	if (unlikely(next[path].flags & RTF_DEAD)) {
-		/* retry to find a good path */
-		for (path = 0; path < size; path++) {
-			if (!(next[path].flags & RTF_DEAD))
-				break;
-		}
-
-		if (path == size)
-			return NULL;
-	}
-	return next + path;
-}
-
-ALWAYS_INLINE
 struct next_hop *nexthop6_select(uint32_t index, const struct rte_mbuf *m,
 				 uint16_t ether_type)
 {
@@ -732,8 +708,8 @@ struct next_hop *nexthop6_select(uint32_t index, const struct rte_mbuf *m,
 	if (likely(size == 1))
 		return next;
 
-	return nexthop6_select_internal(next, size,
-					ecmp_mbuf_hash(m, ether_type));
+	return nexthop_mp_select(next, size,
+				 ecmp_mbuf_hash(m, ether_type));
 }
 
 int dp_nh6_lookup_by_index(uint32_t nhindex, uint32_t hash,
@@ -754,7 +730,7 @@ int dp_nh6_lookup_by_index(uint32_t nhindex, uint32_t hash,
 
 	size = nextu->nsiblings;
 	if (size > 1)
-		next = nexthop6_select_internal(next, size, hash);
+		next = nexthop_mp_select(next, size, hash);
 
 	if (next->flags & RTF_GATEWAY)
 		*nh = next->gateway6;
