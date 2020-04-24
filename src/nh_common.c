@@ -612,3 +612,25 @@ ALWAYS_INLINE struct next_hop *nexthop_mp_select(struct next_hop *next,
 	}
 	return next + path;
 }
+
+ALWAYS_INLINE struct next_hop *nexthop_select(int family, uint32_t nh_idx,
+					      const struct rte_mbuf *m,
+					      uint16_t ether_type)
+{
+	struct next_hop_u *nextu;
+	struct next_hop *next;
+	uint32_t size;
+	struct nexthop_table *nh_table = nh_common_get_nh_table(family);
+
+	nextu = rcu_dereference(nh_table->entry[nh_idx]);
+	if (unlikely(!nextu))
+		return NULL;
+
+	size = nextu->nsiblings;
+	next = nextu->siblings;
+
+	if (likely(size == 1))
+		return next;
+
+	return nexthop_mp_select(next, size, ecmp_mbuf_hash(m, ether_type));
+}

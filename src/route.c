@@ -627,30 +627,6 @@ static struct lpm *rt_get_lpm(struct route_head *rt_head, uint32_t id)
 	return rcu_dereference(rt_head->rt_table[id]);
 }
 
-/*
- * Obtain a nexthop from a nexthop(_u) index
- */
-inline struct next_hop *nexthop_select(int family __unused, uint32_t nh_idx,
-				       const struct rte_mbuf *m,
-				       uint16_t ether_type)
-{
-	struct next_hop_u *nextu;
-	struct next_hop *next;
-	uint32_t size;
-
-	nextu = rcu_dereference(nh_tbl.entry[nh_idx]);
-	if (unlikely(!nextu))
-		return NULL;
-
-	size = nextu->nsiblings;
-	next = nextu->siblings;
-
-	if (likely(size == 1))
-		return next;
-
-	return nexthop_mp_select(next, size, ecmp_mbuf_hash(m, ether_type));
-}
-
 struct next_hop *nexthop_get(uint32_t nh_idx, uint8_t *size)
 {
 	struct next_hop_u *nextu;

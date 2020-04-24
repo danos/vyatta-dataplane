@@ -239,6 +239,10 @@ struct next_hop *nexthop_mp_select(struct next_hop *next,
 				   uint32_t size,
 				   uint32_t hash);
 
+struct next_hop *nexthop_select(int family, uint32_t nh_idx,
+				const struct rte_mbuf *m,
+				uint16_t ether_type);
+
 bool nh_is_connected(const struct next_hop *nh);
 bool nh_is_local(const struct next_hop *nh);
 bool nh_is_gw(const struct next_hop *nh);
