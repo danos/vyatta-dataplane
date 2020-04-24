@@ -1946,16 +1946,15 @@ crypto_policy_handle_packet_outbound_checks(struct rte_mbuf *mbuf,
 {
 	struct vrf *vrf = vrf_get_rcu_fast(VRF_DEFAULT_ID);
 	struct next_hop *nxt = NULL;
-	struct next_hop *nxt6 = NULL;
 
 	/* Currently only support underlay in default vrf */
 	if (pr->output_peer_af == AF_INET) {
 		nxt = rt_lookup_fast(vrf, (in_addr_t)(pr->output_peer.a4),
 				tbl_id, mbuf);
 	} else {
-		nxt6 = rt6_lookup_fast(vrf,
-				       (struct in6_addr *)(&pr->output_peer.a6),
-				       tbl_id, mbuf);
+		nxt = rt6_lookup_fast(vrf,
+				      (struct in6_addr *)(&pr->output_peer.a6),
+				      tbl_id, mbuf);
 	}
 
 	/*
@@ -1963,40 +1962,22 @@ crypto_policy_handle_packet_outbound_checks(struct rte_mbuf *mbuf,
 	 * broadcast route, the encrypted packet would be dropped in
 	 * ip_lookup_and_originate so drop it early here.
 	 */
-	if (pr->output_peer_af == AF_INET) {
-		if (!nxt) {
-			*no_next_hop = true;
-			return;
-		}
-		if (nxt->flags & (RTF_BLACKHOLE | RTF_BROADCAST)) {
-			*bh_or_bc = true;
-			return;
-		}
-	} else {
-		if (!nxt6) {
-			*no_next_hop = true;
-			return;
-		}
-		if (nxt6->flags & (RTF_BLACKHOLE | RTF_BROADCAST)) {
-			*bh_or_bc = true;
-			return;
-		}
+	if (!nxt) {
+		*no_next_hop = true;
+		return;
+	}
+	if (nxt->flags & (RTF_BLACKHOLE | RTF_BROADCAST)) {
+		*bh_or_bc = true;
+		return;
 	}
 
 	/*
 	 * Filter reject routes out now. If we hit this post encryption
 	 * we won't be able to send the ICMP error back to the source.
 	 */
-	if (pr->output_peer_af == AF_INET) {
-		if (unlikely(nxt->flags & RTF_REJECT)) {
-			*reject = true;
-			return;
-		}
-	} else {
-		if (unlikely(nxt6->flags & RTF_REJECT)) {
-			*reject = true;
-			return;
-		}
+	if (unlikely(nxt->flags & RTF_REJECT)) {
+		*reject = true;
+		return;
 	}
 
 	/*
@@ -2005,24 +1986,13 @@ crypto_policy_handle_packet_outbound_checks(struct rte_mbuf *mbuf,
 	 * packet before encryption. For other destinations
 	 * we allow the packet to be fragmented post encryption.
 	 */
-	if (pr->output_peer_af == AF_INET)
-		*nxt_ifp = dp_nh_get_ifp(nxt);
-	else
-		*nxt_ifp = dp_nh_get_ifp(nxt6);
-
+	*nxt_ifp = dp_nh_get_ifp(nxt);
 	if (!*nxt_ifp)
 		return;
 
-	if (pr->output_peer_af == AF_INET) {
-		if (!(nxt->flags & RTF_SLOWPATH)) {
-			*not_slowpath = true;
-			return;
-		}
-	} else {
-		if (!(nxt6->flags & RTF_SLOWPATH)) {
-			*not_slowpath = true;
-			return;
-		}
+	if (!(nxt->flags & RTF_SLOWPATH)) {
+		*not_slowpath = true;
+		return;
 	}
 }
 
