@@ -318,9 +318,7 @@ void ip_switch(struct rte_mbuf *m, struct ifnet *ifp,
 
 	/* MPLS imposition required because nh has given us a label */
 	if (unlikely(nh_outlabels_present(&nxt->outlabels))) {
-		union next_hop_v4_or_v6_ptr mpls_nh = { .v4 = nxt };
-
-		mpls_unlabeled_input(ifp, m, NH_TYPE_V4GW, mpls_nh, ip->ttl);
+		mpls_unlabeled_input(ifp, m, NH_TYPE_V4GW, nxt, ip->ttl);
 		return;
 	}
 

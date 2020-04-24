@@ -1656,7 +1656,7 @@ static void mpls_output(struct rte_mbuf *m)
 
 void mpls_unlabeled_input(struct ifnet *input_ifp, struct rte_mbuf *m,
 			  enum nh_type ip_nh_type,
-			  union next_hop_v4_or_v6_ptr ip_nh,
+			  struct next_hop *ip_nh,
 			  uint8_t ttl)
 {
 	const union next_hop_outlabels *labels;
@@ -1677,20 +1677,20 @@ void mpls_unlabeled_input(struct ifnet *input_ifp, struct rte_mbuf *m,
 	if (propagate_ttl != TTL_PROPAGATE_ENABLED)
 		ttl = default_ttl;
 
-	if (unlikely(nh_get_flags(ip_nh.v4) & RTF_OUTLABEL)) {
+	if (unlikely(nh_get_flags(ip_nh) & RTF_OUTLABEL)) {
 		/*
 		 * Output labels are provided
 		 * Payload type is not required for imposition but needs to be
 		 * initialized.
 		 */
 		nht = ip_nh_type;
-		nh = ip_nh;
+		nh.v4 = ip_nh;
 		payload_type = MPT_UNSPEC;
 	} else {
 		/*
 		 * Push all except the top (local) label onto the label cache
 		 */
-		labels = nh_get_labels(ip_nh.v4);
+		labels = nh_get_labels(ip_nh);
 		num_labels = nh_outlabels_get_cnt(labels);
 		assert(num_labels);
 		bos = true;
