@@ -630,7 +630,7 @@ static struct lpm *rt_get_lpm(struct route_head *rt_head, uint32_t id)
 /*
  * Obtain a nexthop from a nexthop(_u) index
  */
-inline struct next_hop *nexthop_select(uint32_t nh_idx,
+inline struct next_hop *nexthop_select(int family __unused, uint32_t nh_idx,
 				       const struct rte_mbuf *m,
 				       uint16_t ether_type)
 {
@@ -710,7 +710,7 @@ struct next_hop *rt_lookup_fast(struct vrf *vrf, in_addr_t dst,
 	if (unlikely(lpm_lookup(lpm, ntohl(dst), &idx) != 0))
 		return NULL;
 
-	nh = nexthop_select(idx, m, ETHER_TYPE_IPv4);
+	nh = nexthop_select(AF_INET, idx, m, ETHER_TYPE_IPv4);
 	if (nh && unlikely(nh->flags & RTF_NOROUTE))
 		return NULL;
 	return nh;

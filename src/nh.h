@@ -48,7 +48,7 @@ nh_select(enum nh_type nh_type, uint16_t nh_idx,
 		nh.v6 = nexthop6_select(nh_idx, m, ether_type);
 	else {
 		assert(nh_type == NH_TYPE_V4GW);
-		nh.v4 = nexthop_select(nh_idx, m, ether_type);
+		nh.v4 = nexthop_select(AF_INET, nh_idx, m, ether_type);
 	}
 	return nh;
 }

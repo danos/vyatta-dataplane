@@ -47,7 +47,8 @@ tableid_in_pbr_range(uint32_t tableid)
 /*
  * Nexthop (output information) related APIs
  */
-struct next_hop *nexthop_select(uint32_t nh_idx, const struct rte_mbuf *m,
+struct next_hop *nexthop_select(int family, uint32_t nh_idx,
+				const struct rte_mbuf *m,
 				uint16_t ether_type);
 struct next_hop *nexthop_get(uint32_t nh_idx, uint8_t *size);
 void rt_print_nexthop(json_writer_t *json, uint32_t next_hop,
