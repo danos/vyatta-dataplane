@@ -2822,57 +2822,37 @@ bool crypto_policy_check_outbound(struct ifnet *in_ifp, struct rte_mbuf **mbuf,
 			attach = rcu_dereference(pr->feat_attach);
 			struct ifnet *vfp_ifp = NULL;
 
-			if (v4) {
-				if (attach) {
-					vfp_ifp =
-					dp_nh_get_ifp(&attach->nh);
+			if (attach) {
+				vfp_ifp = dp_nh_get_ifp(&attach->nh);
 
-					if (!vfp_ifp) {
-						IPSEC_CNT_INC(DROPPED_NO_BIND);
-						goto drop;
-					}
-
-					if (nh) {
-						*nh = &attach->nh;
-						mdata = pktmbuf_mdata(*mbuf);
-						mdata->pr = pr;
-						pktmbuf_mdata_set(*mbuf,
-							  PKT_MDATA_CRYPTO_PR);
-						return false;
-					}
-					if_incr_out(vfp_ifp, *mbuf);
+				if (!vfp_ifp) {
+					IPSEC_CNT_INC(DROPPED_NO_BIND);
+					goto drop;
 				}
+
+				if (nh) {
+					*nh = &attach->nh;
+					mdata = pktmbuf_mdata(*mbuf);
+					mdata->pr = pr;
+					pktmbuf_mdata_set(*mbuf,
+							  PKT_MDATA_CRYPTO_PR);
+					return false;
+				}
+				if_incr_out(vfp_ifp, *mbuf);
+			}
+
+			if (v4)
 				crypto_policy_handle_packet_outbound(vfp_ifp,
 								     in_ifp,
 								     *mbuf,
 								     tbl_id,
 								     pr);
-			} else {
-				if (attach) {
-					vfp_ifp = dp_nh_get_ifp(
-						&attach->nh);
-
-					if (!vfp_ifp) {
-						IPSEC_CNT_INC(DROPPED_NO_BIND);
-						goto drop;
-					}
-
-					if (nh) {
-						*nh = &attach->nh;
-						mdata = pktmbuf_mdata(*mbuf);
-						mdata->pr = pr;
-						pktmbuf_mdata_set(*mbuf,
-							  PKT_MDATA_CRYPTO_PR);
-						return false;
-					}
-					if_incr_out(vfp_ifp, *mbuf);
-				}
+			else
 				crypto_policy_handle_packet6_outbound(vfp_ifp,
 								      in_ifp,
 								      *mbuf,
 								      tbl_id,
 								      pr);
-			}
 			return true;
 		}
 	} else {
