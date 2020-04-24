@@ -31,11 +31,6 @@ enum nh_type {
 	NH_TYPE_V6GW, /* struct next_hop_v6 */
 };
 
-union next_hop_v4_or_v6_ptr {
-	struct next_hop *v4;
-	struct next_hop *v6;
-};
-
 #define NH_STRING_MAX 100
 
 #endif /* NH_H */
