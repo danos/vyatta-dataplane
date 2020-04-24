@@ -3043,17 +3043,9 @@ struct ifnet *crypto_policy_feat_attach_by_reqid(uint32_t reqid)
 
 		pr = caa_container_of(node, struct policy_rule, tag_ht_node);
 
-		if (pr->reqid == reqid) {
-			if (pr->sel.family == AF_INET)
-				return pr->feat_attach ?
-				dp_nh_get_ifp(&pr->feat_attach->nh) :
-				NULL;
-			else
-				return pr->feat_attach ?
-				       dp_nh_get_ifp(
-				       &pr->feat_attach->nh) :
-				       NULL;
-		}
+		if (pr->reqid == reqid)
+			return pr->feat_attach ?
+				dp_nh_get_ifp(&pr->feat_attach->nh) : NULL;
 		cds_lfht_next(output_policy_rule_tag_ht, &iter);
 	}
 	return NULL;
