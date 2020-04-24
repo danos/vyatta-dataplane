@@ -564,12 +564,12 @@ failed:
 }
 
 /* Create nexthop struct */
-union next_hop_v4_or_v6_ptr ecmp_mpls_create(struct nlattr *mpath,
-					     uint32_t *count,
-					     enum nh_type *nh_type,
-					     bool *missing_ifp)
+struct next_hop *ecmp_mpls_create(struct nlattr *mpath,
+				  uint32_t *count,
+				  enum nh_type *nh_type,
+				  bool *missing_ifp)
 {
-	union next_hop_v4_or_v6_ptr nh = { NULL };
+	struct next_hop *nh = NULL;
 	size_t size = 0;
 	void *vnhp;
 	struct nlattr *attr;
@@ -602,10 +602,10 @@ union next_hop_v4_or_v6_ptr ecmp_mpls_create(struct nlattr *mpath,
 
 	switch (*nh_type) {
 	case NH_TYPE_V4GW:
-		nh.v4 = ecmp_create(mpath, count, missing_ifp);
+		nh = ecmp_create(mpath, count, missing_ifp);
 		break;
 	case NH_TYPE_V6GW:
-		nh.v6 = ecmp6_create(mpath, count, missing_ifp);
+		nh = ecmp6_create(mpath, count, missing_ifp);
 		break;
 	}
 	return nh;

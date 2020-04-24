@@ -42,8 +42,8 @@ struct next_hop *ecmp_create(struct nlattr *mpath, uint32_t *count,
 			     bool *missing_ifp);
 struct next_hop *ecmp6_create(struct nlattr *mpath, uint32_t *count,
 			      bool *missing_ifp);
-union next_hop_v4_or_v6_ptr ecmp_mpls_create(
-	struct nlattr *mpath, uint32_t *count, enum nh_type *nh_type,
-	bool *missing_ifp);
+struct next_hop *ecmp_mpls_create(struct nlattr *mpath, uint32_t *count,
+				  enum nh_type *nh_type,
+				  bool *missing_ifp);
 
 #endif

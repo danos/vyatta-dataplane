@@ -265,9 +265,9 @@ static int mpls_route_change(const struct nlmsghdr *nlh,
 		}
 
 		if (tb[RTA_MULTIPATH]) {
-			nhops = ecmp_mpls_create(tb[RTA_MULTIPATH],
-						 &size, &nh_type,
-						 &missing_ifp);
+			nhops.v4 = ecmp_mpls_create(tb[RTA_MULTIPATH],
+						    &size, &nh_type,
+						    &missing_ifp);
 			if (missing_ifp) {
 				incomplete_route_add(&in_label,
 						     rtm->rtm_family,
