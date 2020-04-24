@@ -203,7 +203,7 @@ static int mpls_route_change(const struct nlmsghdr *nlh,
 		struct in6_addr v6;
 	} nh = { INADDR_ANY };
 	struct ip_addr ip_addr;
-	union next_hop_v4_or_v6_ptr nhops;
+	struct next_hop *nhops;
 	uint32_t size = 0;
 	struct ifnet *oifp = NULL;
 	uint32_t flags = 0;
@@ -265,9 +265,9 @@ static int mpls_route_change(const struct nlmsghdr *nlh,
 		}
 
 		if (tb[RTA_MULTIPATH]) {
-			nhops.v4 = ecmp_mpls_create(tb[RTA_MULTIPATH],
-						    &size, &nh_type,
-						    &missing_ifp);
+			nhops = ecmp_mpls_create(tb[RTA_MULTIPATH],
+						 &size, &nh_type,
+						 &missing_ifp);
 			if (missing_ifp) {
 				incomplete_route_add(&in_label,
 						     rtm->rtm_family,
@@ -348,25 +348,25 @@ static int mpls_route_change(const struct nlmsghdr *nlh,
 			if (!via || via->rtvia_family == AF_INET) {
 				ip_addr.type = AF_INET;
 				ip_addr.address.ip_v4.s_addr = nh.v4;
-				nhops.v4 = nexthop_create(oifp, &ip_addr,
-							  flags,
-							  out_label_count,
-							  hl_out_labels);
+				nhops = nexthop_create(oifp, &ip_addr,
+						       flags,
+						       out_label_count,
+						       hl_out_labels);
 			} else if (via->rtvia_family == AF_INET6) {
 				nh_type = NH_TYPE_V6GW;
 				ip_addr.type = AF_INET6;
 				ip_addr.address.ip_v6 = nh.v6;
 
-				nhops.v6 = nexthop_create(oifp,
-							  &ip_addr,
-							  flags,
-							  out_label_count,
-							  hl_out_labels);
+				nhops = nexthop_create(oifp,
+						       &ip_addr,
+						       flags,
+						       out_label_count,
+						       hl_out_labels);
 			} else {
 				RTE_LOG(INFO, MPLS,
 					"unsupported via address in route change message: %u\n",
 					via->rtvia_family);
-				nhops.v4 = NULL;
+				nhops = NULL;
 			}
 		}
 
@@ -382,19 +382,19 @@ static int mpls_route_change(const struct nlmsghdr *nlh,
 			 via ? inet_ntop(via->rtvia_family, via->rtvia_addr,
 					 b3, sizeof(b3)) : "none");
 
-		if (nhops.v4 == NULL)
+		if (nhops == NULL)
 			RTE_LOG(ERR, MPLS,
 				"No next-hops for route change message\n");
 		else
 			mpls_label_table_insert_label(global_label_space_id,
 						      in_label, nh_type,
-						      payload_type, nhops.v4,
+						      payload_type, nhops,
 						      size);
 
 		if (nh_type == NH_TYPE_V6GW)
-			free(nhops.v6);
+			free(nhops);
 		else
-			free(nhops.v4);
+			free(nhops);
 	} else {
 		mpls_label_table_remove_label(global_label_space_id, in_label);
 	}
