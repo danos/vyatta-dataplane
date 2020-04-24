@@ -180,7 +180,7 @@ static bool
 mpls_label_table_ins_lbl_internal(struct cds_lfht *label_table,
 				  uint32_t in_label, enum nh_type nh_type,
 				  enum mpls_payload_type payload_type,
-				  union next_hop_v4_or_v6_ptr hops,
+				  struct next_hop *hops,
 				  size_t size)
 {
 	struct label_table_node *label_table_node;
@@ -209,7 +209,7 @@ mpls_label_table_ins_lbl_internal(struct cds_lfht *label_table,
 
 	switch (nh_type) {
 	case NH_TYPE_V4GW:
-		rc = nexthop_new(AF_INET, hops.v4, size, RTPROT_UNSPEC,
+		rc = nexthop_new(AF_INET, hops, size, RTPROT_UNSPEC,
 				 &nextu_idx);
 		if (rc < 0) {
 			RTE_LOG(ERR, MPLS,
@@ -220,7 +220,7 @@ mpls_label_table_ins_lbl_internal(struct cds_lfht *label_table,
 		}
 		break;
 	case NH_TYPE_V6GW: {
-		rc = nexthop_new(AF_INET6, hops.v6, size, RTPROT_UNSPEC,
+		rc = nexthop_new(AF_INET6, hops, size, RTPROT_UNSPEC,
 				 &nextu_idx);
 		if (rc < 0) {
 			RTE_LOG(ERR, MPLS,
@@ -333,17 +333,17 @@ mpls_label_table_add_reserved_labels(struct cds_lfht *table)
 		goto error;
 	mpls_label_table_ins_lbl_internal(table, MPLS_IPV4EXPLICITNULL,
 					  NH_TYPE_V4GW, MPT_IPV4,
-					  nhop, 1);
+					  nhop.v4, 1);
 	mpls_label_table_ins_lbl_internal(table, MPLS_IPV6EXPLICITNULL,
 					  NH_TYPE_V4GW, MPT_IPV6,
-					  nhop, 1);
+					  nhop.v4, 1);
 	free(nhop.v4);
 
 	nhop.v4 = nexthop_create(NULL, &addr_any, RTF_SLOWPATH, 1, outlabels);
 	if (!nhop.v4)
 		goto error;
 	mpls_label_table_ins_lbl_internal(table, MPLS_ROUTERALERT,
-					  NH_TYPE_V4GW, 0, nhop, 1);
+					  NH_TYPE_V4GW, 0, nhop.v4, 1);
 	free(nhop.v4);
 
 	return true;
@@ -530,7 +530,7 @@ void mpls_label_table_insert_label(int labelspace, uint32_t in_label,
 	 */
 	if (!mpls_label_table_ins_lbl_internal(label_table, in_label,
 					       nh_type, payload_type,
-					       hops, size))
+					       hops.v4, size))
 		mpls_label_table_unlock(labelspace);
 }
 
