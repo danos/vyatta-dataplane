@@ -15,6 +15,7 @@
 #include <linux/if_addr.h>
 #include <linux/lwtunnel.h>
 #include <linux/mroute6.h>
+#include <linux/mpls.h>
 #include <linux/mpls_iptunnel.h>
 #include <linux/neighbour.h>
 #include <linux/netconf.h>
@@ -33,8 +34,8 @@
 
 #include "address.h"
 #include "control.h"
-#include "ecmp.h"
 #include "dp_event.h"
+#include "ecmp.h"
 #include "if/gre.h"
 #include "if_ether.h"
 #include "if_var.h"
@@ -59,7 +60,14 @@
 #include "vrf_internal.h"
 #include "vrf_if.h"
 
-static const char anyaddr[16];
+#define IN6_SET_ADDR_V4MAPPED(a6, a4) {			\
+		(a6)->s6_addr32[0] = 0;			\
+		(a6)->s6_addr32[1] = 0;			\
+		(a6)->s6_addr32[2] = htonl(0xffff);	\
+		(a6)->s6_addr32[3] = (a4);		\
+	}
+
+static const struct in6_addr anyaddr;
 
 /* Callback to process neighbor messages */
 static int inet_neigh_change(const struct nlmsghdr *nlh,
@@ -70,7 +78,7 @@ static int inet_neigh_change(const struct nlmsghdr *nlh,
 	struct ifnet *ifp;
 	const void *lladdr = NULL;
 	struct rte_ether_addr ea;
-	const void *dst = anyaddr;
+	const void *dst = &anyaddr;
 	size_t llen = 0;
 
 	/* ignore neighbor updates for non DPDK interfaces */
@@ -111,6 +119,548 @@ static int inet_neigh_change(const struct nlmsghdr *nlh,
 	lladdr_nl_event(ndm->ndm_family, ifp, nlh->nlmsg_type, ndm,
 			dst, lladdr);
 	return MNL_CB_OK;
+}
+
+/* Callback to store route attributes */
+static int route_attr(const struct nlattr *attr, void *data)
+{
+	const struct nlattr **tb = data;
+	unsigned int type = mnl_attr_get_type(attr);
+
+	if (type <= RTA_MAX)
+		tb[type] = attr;
+
+	return MNL_CB_OK;
+}
+
+/* Fill nexthop struct */
+static bool nexthop_fill(struct nlattr *ntb_gateway, struct nlattr *ntb_encap,
+			 struct rtnexthop *nhp, struct next_hop *next)
+{
+	label_t labels[NH_MAX_OUT_LABELS];
+	uint16_t num_labels = 0;
+	void *labels_ptr;
+	uint32_t len;
+	int err;
+	struct ifnet *ifp;
+
+	nh_outlabels_set(&next->outlabels, 0, NULL);
+
+	nh_set_ifp(next, dp_ifnet_byifindex(nhp->rtnh_ifindex));
+	if (!dp_nh_get_ifp(next) && !is_ignored_interface(nhp->rtnh_ifindex))
+		return true;
+	if (ntb_gateway) {
+		next->gateway4 = mnl_attr_get_u32(ntb_gateway);
+		next->flags = RTF_GATEWAY;
+	} else {
+		next->gateway4 = INADDR_ANY;
+		next->flags = 0;
+	}
+
+	if (ntb_encap) {
+		len = mnl_attr_get_payload_len(ntb_encap);
+		labels_ptr = mnl_attr_get_payload(ntb_encap);
+		err = rta_encap_get_labels(labels_ptr, len,
+					   ARRAY_SIZE(labels),
+					   labels, &num_labels);
+		if (err) {
+			RTE_LOG(NOTICE, MPLS,
+				"malformed label stack in netlink message\n");
+			return false;
+		}
+		nh_outlabels_set(&next->outlabels, num_labels, labels);
+	}
+
+	ifp = dp_nh_get_ifp(next);
+	if ((!ifp || ifp->if_type == IFT_LOOP) &&
+	    num_labels == 0)
+		/* no dp interface or via loopback */
+		next->flags |= RTF_SLOWPATH;
+
+	if (num_labels > 0 && !is_lo(ifp))
+		/* Output label rather than local label */
+		next->flags |= RTF_OUTLABEL;
+
+	return false;
+}
+
+static int mpls_payload_attr(const struct nlattr *attr, void *data)
+{
+	const struct nlattr **tb = data;
+	int type = mnl_attr_get_type(attr);
+
+	if (mnl_attr_type_valid(attr, RTMPA_NH_FLAGS) < 0)
+		return MNL_CB_OK;
+
+	switch (type) {
+	case RTMPA_TYPE:
+	case RTMPA_NH_FLAGS:
+		if (mnl_attr_validate(attr, MNL_TYPE_U32) < 0) {
+			RTE_LOG(NOTICE, MPLS,
+				"invalid mpls payload attribute %d\n", type);
+			return MNL_CB_ERROR;
+		}
+		break;
+	}
+
+	tb[type] = attr;
+	return MNL_CB_OK;
+}
+
+static bool nexthop_fill_mpls_common(const struct nlattr *ntb_newdst,
+				     union next_hop_outlabels *outlabels,
+				     bool bos_only)
+{
+	label_t labels[NH_MAX_OUT_LABELS];
+	uint16_t num_labels = 0;
+	void *labels_ptr;
+	uint32_t len;
+	int ret;
+
+	if (ntb_newdst) {
+		len = mnl_attr_get_payload_len(ntb_newdst);
+		labels_ptr = mnl_attr_get_payload(ntb_newdst);
+		ret = rta_encap_get_labels(labels_ptr, len,
+					   ARRAY_SIZE(labels),
+					   labels, &num_labels);
+		if (ret) {
+			RTE_LOG(NOTICE, MPLS,
+				"malformed label stack in netlink message\n");
+			return false;
+		}
+		nh_outlabels_set(outlabels, num_labels, labels);
+	}
+
+	/*
+	 * If there are no labels and BOS_ONLY not
+	 * set, then this implies the implicit-null
+	 * label. This won't go out on the wire and is
+	 * for signaling only.
+	 */
+	if (num_labels == 0 && !bos_only) {
+		label_t lbl[1] = { MPLS_LABEL_IMPLNULL };
+
+		nh_outlabels_set(outlabels, 1, lbl);
+	}
+
+	return false;
+}
+
+/*
+ * Fill nh struct from an mpls route add netlink - which uses different
+ * attributes - via, newdest instead of gateway, encap.
+ */
+static bool nexthop_fill_mpls(struct nlattr *ntb_via, struct nlattr *ntb_newdst,
+			      struct nlattr *ntb_payload,
+			      struct rtnexthop *nhp, struct next_hop *next)
+{
+	const struct nlattr *pl_tb[RTMPA_NH_FLAGS+1];
+	bool bos_only = false;
+	int ret;
+
+	if (ntb_payload) {
+		ret = mnl_attr_parse_nested(ntb_payload, mpls_payload_attr,
+					    &pl_tb);
+		if (ret == MNL_CB_OK && pl_tb[RTMPA_NH_FLAGS])
+			bos_only = (mnl_attr_get_u32(pl_tb[RTMPA_NH_FLAGS]) &
+				    RTMPNF_BOS_ONLY) != 0;
+	}
+
+	/* initialize out labels to NULL */
+	nh_outlabels_set(&next->outlabels, 0, NULL);
+
+	nh_set_ifp(next, dp_ifnet_byifindex(nhp->rtnh_ifindex));
+	if (!dp_nh_get_ifp(next) && !is_ignored_interface(nhp->rtnh_ifindex))
+		return true;
+	if (ntb_via) {
+		const struct rtvia *via;
+		in_addr_t nh = INADDR_NONE;
+
+		via = mnl_attr_get_payload(ntb_via);
+		if (via->rtvia_family == AF_INET) {
+			memcpy(&nh, &via->rtvia_addr, sizeof(nh));
+			next->flags = RTF_GATEWAY;
+		} else {
+			RTE_LOG(NOTICE, MPLS,
+				"unsupported via AF %d in netlink message\n",
+				via->rtvia_family);
+		}
+
+		next->gateway4 = nh;
+	} else {
+		next->gateway4 = INADDR_ANY;
+		next->flags = 0;
+	}
+
+	ret = nexthop_fill_mpls_common(ntb_newdst, &next->outlabels, bos_only);
+	if (!dp_nh_get_ifp(next))
+		next->flags |= RTF_SLOWPATH;
+
+	return ret;
+}
+
+/*
+ * Fill nh6 struct from an mpls route add netlink.
+ */
+static bool nexthop6_fill_mpls(const struct nlattr *ntb_via,
+			       const struct nlattr *ntb_newdst,
+			       const struct nlattr *ntb_payload,
+			       const struct rtnexthop *nhp,
+			       struct next_hop *next)
+{
+	const struct nlattr *pl_tb[RTMPA_NH_FLAGS+1];
+	struct in6_addr nh6 = IN6ADDR_ANY_INIT;
+	bool bos_only = false;
+	int ret;
+
+	if (ntb_payload) {
+		ret = mnl_attr_parse_nested(ntb_payload, mpls_payload_attr,
+					    &pl_tb);
+		if (ret == MNL_CB_OK && pl_tb[RTMPA_NH_FLAGS])
+			bos_only = (mnl_attr_get_u32(pl_tb[RTMPA_NH_FLAGS]) &
+				    RTMPNF_BOS_ONLY) != 0;
+	}
+
+	/* initialise out labels to NULL */
+	nh_outlabels_set(&next->outlabels, 0, NULL);
+
+	nh_set_ifp(next, dp_ifnet_byifindex(nhp->rtnh_ifindex));
+	if (!dp_nh_get_ifp(next) && !is_ignored_interface(nhp->rtnh_ifindex))
+		return true;
+	if (ntb_via) {
+		const struct rtvia *via;
+		in_addr_t nh = INADDR_NONE;
+
+		via = mnl_attr_get_payload(ntb_via);
+		if (via->rtvia_family == AF_INET) {
+			memcpy(&nh, &via->rtvia_addr, sizeof(nh));
+			IN6_SET_ADDR_V4MAPPED(&nh6, nh);
+		} else if (via->rtvia_family == AF_INET6) {
+			memcpy(&nh6, &via->rtvia_addr, sizeof(nh6));
+		} else {
+			RTE_LOG(NOTICE, MPLS,
+				"unsupported via AF %d in netlink message\n",
+				via->rtvia_family);
+		}
+
+		next->gateway6 = nh6;
+		next->flags = RTF_GATEWAY;
+		if (IN6_IS_ADDR_V4MAPPED(&nh6))
+			next->flags |= RTF_MAPPED_IPV6;
+	} else {
+		next->gateway6 = nh6;
+		next->flags = 0;
+	}
+
+	ret = nexthop_fill_mpls_common(ntb_newdst, &next->outlabels, bos_only);
+	if (!dp_nh_get_ifp(next))
+		next->flags |= RTF_SLOWPATH;
+
+	return ret;
+}
+
+static int mpls_attr(const struct nlattr *attr, void *data)
+{
+	const struct nlattr **tb = data;
+	int type = mnl_attr_get_type(attr);
+
+	if (mnl_attr_type_valid(attr, MPLS_IPTUNNEL_MAX) < 0)
+		return MNL_CB_OK;
+
+	tb[type] = attr;
+	return MNL_CB_OK;
+}
+
+/* Create nexthop struct */
+static struct next_hop *
+ecmp_create(struct nlattr *mpath, uint32_t *count, bool *missing_ifp)
+{
+	size_t size = 0, i;
+	struct next_hop *next, *n;
+	void *vnhp;
+
+	/*
+	 * Need to loop over the paths to find out how many there are
+	 * as the size is not fixed because the gateway is optional.
+	 */
+	mnl_attr_for_each_nested(vnhp, mpath) {
+		size++;
+	}
+
+	if (!size)
+		return NULL;
+
+	n = next = calloc(sizeof(struct next_hop), size);
+	if (!next)
+		return NULL;
+
+	mnl_attr_for_each_nested(vnhp, mpath) {
+		struct rtnexthop *nhp = vnhp;
+
+		if (nhp->rtnh_len == sizeof(*nhp)) {
+			/* There is a NH with no extra attrs */
+			if (nexthop_fill(NULL, NULL, nhp, n))
+				goto missing;
+			n++;
+
+		} else if (nhp->rtnh_len > sizeof(*nhp)) {
+			struct nlattr *ntb[RTA_MAX+1] = { NULL };
+			struct nlattr *mpls_ntb[MPLS_IPTUNNEL_MAX+1] = { NULL };
+
+			int res = mnl_attr_parse_payload(RTNH_DATA(vnhp),
+						 nhp->rtnh_len - sizeof(*nhp),
+						 route_attr, ntb);
+
+			if (res != MNL_CB_OK)
+				goto failed;
+
+			if (ntb[RTA_ENCAP] && ntb[RTA_ENCAP_TYPE] &&
+			    (mnl_attr_get_u16(ntb[RTA_ENCAP_TYPE]) ==
+			     LWTUNNEL_ENCAP_MPLS)) {
+				res = mnl_attr_parse_nested(ntb[RTA_ENCAP],
+							    mpls_attr,
+							    mpls_ntb);
+				if (res != MNL_CB_OK) {
+					RTE_LOG(NOTICE, DATAPLANE,
+						"unparseable mpls attributes\n");
+					goto failed;
+				}
+			}
+
+			res = mnl_attr_parse_payload(
+				RTNH_DATA(vnhp), nhp->rtnh_len - sizeof(*nhp),
+				route_attr, ntb);
+
+			if (res != MNL_CB_OK)
+				goto failed;
+
+			if (ntb[RTA_VIA]) {
+				if (nexthop_fill_mpls(ntb[RTA_VIA],
+						      ntb[RTA_NEWDST],
+						      ntb[RTA_MPLS_PAYLOAD],
+						      nhp, n)) {
+					goto missing;
+				}
+			} else {
+				if (nexthop_fill(ntb[RTA_GATEWAY],
+						 mpls_ntb[MPLS_IPTUNNEL_DST],
+						 nhp, n)) {
+					goto missing;
+				}
+			}
+			n++;
+		}
+	}
+
+	*count = n - next;
+
+	return next;
+
+missing:
+	*missing_ifp = true;
+failed:
+	size = n - next;
+	for (i = 0; i < size; i++)
+		nh_outlabels_destroy(&next[i].outlabels);
+	free(next);
+	return NULL;
+}
+
+/* Fill nexthop struct */
+static bool nexthop6_fill(struct nlattr *ntb_gateway,
+			  struct nlattr *ntb_encap,
+			  struct rtnexthop *nhp, struct next_hop *next)
+{
+	label_t labels[NH_MAX_OUT_LABELS];
+	uint16_t num_labels = 0;
+	void *labels_ptr;
+	uint32_t len;
+	int err;
+	struct ifnet *ifp;
+
+	nh_outlabels_set(&next->outlabels, 0, NULL);
+
+	nh_set_ifp(next, dp_ifnet_byifindex(nhp->rtnh_ifindex));
+	if (!dp_nh_get_ifp(next) && !is_ignored_interface(nhp->rtnh_ifindex))
+		return true;
+
+	if (ntb_gateway) {
+		next->gateway6 = *(struct in6_addr *)mnl_attr_get_payload(
+			ntb_gateway);
+		next->flags = RTF_GATEWAY;
+	} else {
+		next->gateway6 = anyaddr;
+		next->flags = 0;
+	}
+
+	if (ntb_encap) {
+		len = mnl_attr_get_payload_len(ntb_encap);
+		labels_ptr = mnl_attr_get_payload(ntb_encap);
+		err = rta_encap_get_labels(labels_ptr, len,
+					   ARRAY_SIZE(labels),
+					   labels, &num_labels);
+		if (err) {
+			RTE_LOG(NOTICE, MPLS,
+				"malformed label stack in netlink message\n");
+			return false;
+		}
+		nh_outlabels_set(&next->outlabels, num_labels, labels);
+	}
+
+	ifp = dp_nh_get_ifp(next);
+	if ((!ifp || ifp->if_type == IFT_LOOP) &&
+	    num_labels == 0)
+		/* no dp interface or via loopback */
+		next->flags |= RTF_SLOWPATH;
+
+	if (num_labels > 0 && !is_lo(ifp))
+		/* Output label rather than local label */
+		next->flags |= RTF_OUTLABEL;
+
+	return false;
+}
+
+/* Create nexthop struct */
+static struct next_hop *
+ecmp6_create(struct nlattr *mpath, uint32_t *count, bool *missing_ifp)
+{
+	size_t size = 0, i;
+	struct next_hop *next, *n;
+	void *vnhp;
+
+	/*
+	 * Need to loop over the paths to find out how many there are
+	 * as the size is not fixed because the gateway is optional.
+	 */
+	mnl_attr_for_each_nested(vnhp, mpath) {
+		size++;
+	}
+
+	if (size == 0)
+		return NULL;
+
+	n = next = calloc(sizeof(struct next_hop), size);
+	if (!next)
+		return NULL;
+
+	mnl_attr_for_each_nested(vnhp, mpath) {
+		struct rtnexthop *nhp = vnhp;
+
+		if (nhp->rtnh_len == sizeof(*nhp)) {
+			/* There is a NH with no extra attrs */
+			if (nexthop6_fill(NULL, NULL, nhp, n))
+				goto missing;
+			n++;
+
+		} else if (nhp->rtnh_len > sizeof(*nhp)) {
+			struct nlattr *ntb[RTA_MAX+1] = { NULL };
+			struct nlattr *mpls_ntb[MPLS_IPTUNNEL_MAX+1] = { NULL };
+
+			int res = mnl_attr_parse_payload(RTNH_DATA(vnhp),
+						 nhp->rtnh_len - sizeof(*nhp),
+						 route_attr, ntb);
+
+			if (res != MNL_CB_OK)
+				goto failed;
+
+			if (ntb[RTA_ENCAP] && ntb[RTA_ENCAP_TYPE] &&
+			    (mnl_attr_get_u16(ntb[RTA_ENCAP_TYPE]) ==
+			     LWTUNNEL_ENCAP_MPLS)) {
+				res = mnl_attr_parse_nested(ntb[RTA_ENCAP],
+							    mpls_attr,
+							    mpls_ntb);
+				if (res != MNL_CB_OK) {
+					RTE_LOG(NOTICE, DATAPLANE,
+						"unparseable mpls attributes\n");
+					goto failed;
+				}
+			}
+
+			res = mnl_attr_parse_payload(
+				RTNH_DATA(vnhp), nhp->rtnh_len - sizeof(*nhp),
+				route_attr, ntb);
+
+			if (res != MNL_CB_OK)
+				goto failed;
+
+			if (ntb[RTA_VIA]) {
+				if (nexthop6_fill_mpls(ntb[RTA_VIA],
+						       ntb[RTA_NEWDST],
+						       ntb[RTA_MPLS_PAYLOAD],
+						       nhp, n)) {
+					goto missing;
+				}
+			} else {
+				if (nexthop6_fill(ntb[RTA_GATEWAY],
+						  mpls_ntb[MPLS_IPTUNNEL_DST],
+						  nhp, n)) {
+					goto missing;
+				}
+			}
+			n++;
+		}
+	}
+
+	*count = n - next;
+
+	return next;
+
+missing:
+	*missing_ifp = true;
+failed:
+	size = n - next;
+	for (i = 0; i < size; i++)
+		nh_outlabels_destroy(&next[i].outlabels);
+	free(next);
+	return NULL;
+}
+
+/* Create nexthop struct */
+struct next_hop *ecmp_mpls_create(struct nlattr *mpath,
+				  uint32_t *count,
+				  enum nh_type *nh_type,
+				  bool *missing_ifp)
+{
+	struct next_hop *nh = NULL;
+	size_t size = 0;
+	void *vnhp;
+	struct nlattr *attr;
+
+	/*
+	 * Need to loop over the paths to find out how many there are
+	 * and what type of nexthop we need.
+	 */
+	*nh_type = NH_TYPE_V4GW;
+	mnl_attr_for_each_nested(vnhp, mpath) {
+		struct rtnexthop *nhp = vnhp;
+
+		mnl_attr_for_each_payload((void *)RTNH_DATA(nhp),
+					  nhp->rtnh_len - sizeof(*nhp)) {
+			/*
+			 * If at least one of the vias is an IPv6
+			 * address, then all nexthops are represented
+			 * as IPv6.
+			 */
+			if (attr->nla_type == RTA_VIA) {
+				const struct rtvia *via = RTA_DATA(attr);
+
+				if (via->rtvia_family == AF_INET6)
+					*nh_type = NH_TYPE_V6GW;
+				break;
+			}
+		}
+		size++;
+	}
+
+	switch (*nh_type) {
+	case NH_TYPE_V4GW:
+		nh = ecmp_create(mpath, count, missing_ifp);
+		break;
+	case NH_TYPE_V6GW:
+		nh = ecmp6_create(mpath, count, missing_ifp);
+		break;
+	}
+	return nh;
 }
 
 static int handle_route(vrfid_t vrf_id, uint16_t type, const struct rtmsg *rtm,
@@ -176,7 +726,7 @@ static int handle_route(vrfid_t vrf_id, uint16_t type, const struct rtmsg *rtm,
 			/* Output label rather than local label */
 			flags |= RTF_OUTLABEL;
 
-		if (nexthop != anyaddr) {
+		if (nexthop != &anyaddr) {
 			flags |= RTF_GATEWAY;
 			gw = *(const uint32_t *) nexthop;
 		}
@@ -553,18 +1103,6 @@ static char *mpls_labels_to_str(label_t *labels, uint16_t num_labels,
 	return buf;
 }
 
-static int mpls_attr(const struct nlattr *attr, void *data)
-{
-	const struct nlattr **tb = data;
-	int type = mnl_attr_get_type(attr);
-
-	if (mnl_attr_type_valid(attr, MPLS_IPTUNNEL_MAX) < 0)
-		return MNL_CB_OK;
-
-	tb[type] = attr;
-	return MNL_CB_OK;
-}
-
 static int inet_route_change(const struct nlmsghdr *nlh,
 			     const struct rtmsg *rtm,
 			     struct nlattr *tb[],
@@ -615,12 +1153,12 @@ static int inet_route_change(const struct nlmsghdr *nlh,
 	if (tb[RTA_DST])
 		dest = mnl_attr_get_payload(tb[RTA_DST]);
 	else
-		dest = anyaddr;
+		dest = &anyaddr;
 
 	if (tb[RTA_GATEWAY])
 		nexthop = mnl_attr_get_payload(tb[RTA_GATEWAY]);
 	else {
-		nexthop = anyaddr;
+		nexthop = &anyaddr;
 		nl_flags |= NL_FLAG_ANY_ADDR;
 	}
 

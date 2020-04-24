@@ -38,10 +38,6 @@ uint32_t ecmp_mbuf_hash(const struct rte_mbuf *m, uint16_t ether_type);
 
 unsigned int ecmp_lookup(uint32_t size, uint32_t key);
 
-struct next_hop *ecmp_create(struct nlattr *mpath, uint32_t *count,
-			     bool *missing_ifp);
-struct next_hop *ecmp6_create(struct nlattr *mpath, uint32_t *count,
-			      bool *missing_ifp);
 struct next_hop *ecmp_mpls_create(struct nlattr *mpath, uint32_t *count,
 				  enum nh_type *nh_type,
 				  bool *missing_ifp);
