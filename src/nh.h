@@ -38,21 +38,6 @@ union next_hop_v4_or_v6_ptr {
 
 #define NH_STRING_MAX 100
 
-/*
- * funcs for manipulating abstract nh and nh set structs
- */
-
-/* accessors */
-static ALWAYS_INLINE struct ifnet *
-nh_get_if(enum nh_type nh_type, union next_hop_v4_or_v6_ptr nh)
-{
-	if (nh_type == NH_TYPE_V6GW)
-		return dp_nh_get_ifp(nh.v6);
-
-	assert(nh_type == NH_TYPE_V4GW);
-	return dp_nh_get_ifp(nh.v4);
-}
-
 static inline union next_hop_v4_or_v6_ptr
 nh_select(enum nh_type nh_type, uint16_t nh_idx,
 	  const struct rte_mbuf *m, uint16_t ether_type)
