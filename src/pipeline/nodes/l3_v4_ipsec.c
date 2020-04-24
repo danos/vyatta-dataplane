@@ -26,13 +26,13 @@ ALWAYS_INLINE unsigned int
 ipv4_ipsec_out_process(struct pl_packet *pkt, void *context __unused)
 {
 	struct ifnet *ifp = pkt->in_ifp;
-	union next_hop_v4_or_v6_ptr nh = {NULL};
+	struct next_hop *nh = NULL;
 
 	/* Returns true if packet was consumed by IPsec */
 	struct rte_mbuf *m = pkt->mbuf;
 	if (unlikely(crypto_policy_check_outbound(ifp, &m, pkt->tblid,
 						  htons(ETHER_TYPE_IPv4),
-						  &nh.v4)))
+						  &nh)))
 		return IPV4_IPSEC_OUT_CONSUME;
 
 	/*
@@ -41,8 +41,8 @@ ipv4_ipsec_out_process(struct pl_packet *pkt, void *context __unused)
 	 * the next hop is pointing at. The packet will then be put back
 	 * in the crypto path.
 	 */
-	if (unlikely(nh.v4 != NULL))
-		pkt->nxt.v4 = nh.v4;
+	if (unlikely(nh != NULL))
+		pkt->nxt.v4 = nh;
 
 	if (unlikely(m != pkt->mbuf)) {
 		pkt->mbuf = m;
