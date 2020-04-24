@@ -512,7 +512,7 @@ static void rule_clear_stats(npf_rule_t *rl)
 void rule_sum_stats(const npf_rule_t *rl,
 		    struct npf_rule_stats *rs)
 {
-	unsigned int i;
+	unsigned int i, nprot;
 
 	memset(rs, '\0', sizeof(struct npf_rule_stats));
 
@@ -522,51 +522,42 @@ void rule_sum_stats(const npf_rule_t *rl,
 	FOREACH_DP_LCORE(i) {
 		rs->bytes_ct += rl->r_stats[i].bytes_ct;
 		rs->pkts_ct += rl->r_stats[i].pkts_ct;
-		rs->map_ports += rl->r_stats[i].map_ports;
+		for (nprot = NAT_PROTO_FIRST; nprot < NAT_PROTO_COUNT;
+		     nprot++) {
+			rs->map_ports[nprot] += rl->r_stats[i].map_ports[nprot];
+		}
 	}
 }
 
 
-void npf_rule_get_overall_used(npf_rule_t *rl, uint64_t *used,
+void npf_rule_get_overall_used(npf_rule_t *rl, uint64_t used[],
 		uint64_t *overall)
 {
 	struct npf_rule_stats rs;
-	uint64_t t = 0;
-	uint64_t u = 0;
+	int nprot;
 
-	*used = 0;
-	*overall = 0;
+	*overall = npf_natpolicy_get_map_range(rl->r_natp);
 
 	rule_sum_stats(rl, &rs);
-	if (rl->r_natp) {
-		t = npf_natpolicy_get_map_range(rl->r_natp);
 
+	for (nprot = NAT_PROTO_FIRST; nprot < NAT_PROTO_COUNT; nprot++) {
 		/*
-		 * Calculate what we used maintaining the current
-		 * lie for DNAT usage.
+		 * Note for DNAT ports are not taken from a pool,
+		 * so 'used' is not limited by the total.
 		 */
-		switch (npf_natpolicy_get_type(rl->r_natp)) {
-		case NPF_NATIN:
-			u = (rs.map_ports) > t ? t : rs.map_ports;
-			break;
-		case NPF_NATOUT:
-			u = rs.map_ports;
-			break;
-		}
-
-		*overall = t;
-		*used = u;
+		used[nprot] = rs.map_ports[nprot];
 	}
-
 }
 
-void npf_rule_update_map_stats(npf_rule_t *rl, int nr_maps, uint32_t map_flags)
+void npf_rule_update_map_stats(npf_rule_t *rl, int nr_maps, uint32_t map_flags,
+			       uint8_t ip_prot)
 {
 	unsigned int id = dp_lcore_id();
 	int ports = (map_flags & NPF_NAT_MAP_PORT) ? nr_maps : 0;
+	enum nat_proto nprot = nat_proto_from_ipproto(ip_prot);
 
 	if (rl && rl->r_stats)
-		rl->r_stats[id].map_ports += ports;
+		rl->r_stats[id].map_ports[nprot] += ports;
 }
 
 static void rule_ref_stats(npf_rule_t *old, npf_rule_t *new)
@@ -1095,13 +1086,14 @@ npf_json_rule(npf_rule_t *rl, bool is_nat, json_writer_t *json)
 	}
 
 	if (rl->r_natp) {
-		uint64_t total = 0;
-		uint64_t used = 0;
+		uint64_t total;
+		uint64_t used[NAT_PROTO_COUNT];
 
-		npf_rule_get_overall_used(rl, &used, &total);
+		npf_rule_get_overall_used(rl, used, &total);
 
 		jsonw_uint_field(json, "total_ts", total);
-		jsonw_uint_field(json, "used_ts", used);
+		jsonw_uint_field(json, "used_ts", used[NAT_PROTO_TCP] +
+				 used[NAT_PROTO_UDP] + used[NAT_PROTO_OTHER]);
 
 		buf[0] = '\0';
 		used_buf_len = 0;

@@ -1496,9 +1496,10 @@ static void npf_nat_log_map_error(const char *which, npf_rule_t *rl,
 	if (net_ratelimit()) {
 		char addrstr[INET6_ADDRSTRLEN];
 		char buf[ERR_MSG_LEN];
-		uint64_t overall, used;
+		uint64_t overall, used[NAT_PROTO_COUNT];
+		enum nat_proto nprot = nat_proto_from_ipproto(ip_prot);
 
-		npf_rule_get_overall_used(rl, &used, &overall);
+		npf_rule_get_overall_used(rl, used, &overall);
 
 		inet_ntop(AF_INET, addr, addrstr, sizeof(addrstr));
 		RTE_LOG(ERR, FIREWALL, "%cNAT: map %s %d (%s:%d prot %u) "
@@ -1507,7 +1508,7 @@ static void npf_nat_log_map_error(const char *which, npf_rule_t *rl,
 				which,
 				nr_ports, addrstr, ntohs(port), ip_prot,
 				strerror_r(-rc, buf, ERR_MSG_LEN),
-				used, overall);
+				used[nprot], overall);
 	}
 }
 
@@ -1522,7 +1523,7 @@ int npf_nat_alloc_map(npf_natpolicy_t *np, npf_rule_t *rl, uint32_t map_flags,
 	rc = npf_apm_get_map(np->n_apm, map_flags, ip_prot, num, vrfid, addr,
 			     port);
 	if (!rc)
-		npf_rule_update_map_stats(rl, num, map_flags);
+		npf_rule_update_map_stats(rl, num, map_flags, ip_prot);
 	else
 		npf_nat_log_map_error("get", rl, np, ip_prot, addr, *port, num,
 				      rc);
@@ -1538,7 +1539,7 @@ int npf_nat_free_map(npf_natpolicy_t *np, npf_rule_t *rl, uint32_t map_flags,
 
 	rc = npf_apm_put_map(np->n_apm, map_flags, ip_prot, vrfid, addr, port);
 	if (!rc)
-		npf_rule_update_map_stats(rl, -1, map_flags);
+		npf_rule_update_map_stats(rl, -1, map_flags, ip_prot);
 	else
 		npf_nat_log_map_error("put", rl, np, ip_prot, &addr, port, 1,
 				      rc);
