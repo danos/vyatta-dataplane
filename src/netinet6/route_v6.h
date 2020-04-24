@@ -45,7 +45,7 @@ int route_v6_init(struct vrf *vrf);
 void route_v6_uninit(struct vrf *vrf, struct route6_head *rt6_head);
 struct rte_mbuf;
 
-struct next_hop *nexthop6_select(uint32_t nh_idx,
+struct next_hop *nexthop6_select(int family, uint32_t nh_idx,
 				 const struct rte_mbuf *m,
 				 uint16_t ether_type);
 void rt6_print_nexthop(json_writer_t *json, uint32_t next_hop,

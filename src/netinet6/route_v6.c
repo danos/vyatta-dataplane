@@ -693,7 +693,8 @@ void rt6_prefetch(const struct rte_mbuf *m, const struct in6_addr *dst)
 }
 
 ALWAYS_INLINE
-struct next_hop *nexthop6_select(uint32_t index, const struct rte_mbuf *m,
+struct next_hop *nexthop6_select(int family, uint32_t index,
+				 const struct rte_mbuf *m,
 				 uint16_t ether_type)
 {
 	struct next_hop_u *nextu;
@@ -794,7 +795,7 @@ struct next_hop *rt6_lookup_fast(struct vrf *vrf,
 	if (unlikely(lpm6_lookup(lpm, dst->s6_addr, &index) != 0))
 		return NULL;
 
-	nh = nexthop6_select(index, m, ETHER_TYPE_IPv6);
+	nh = nexthop6_select(AF_INET6, index, m, ETHER_TYPE_IPv6);
 	if (nh && unlikely(nh->flags & RTF_NOROUTE))
 		return NULL;
 	return nh;
