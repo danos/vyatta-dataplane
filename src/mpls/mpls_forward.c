@@ -786,7 +786,7 @@ mpls_ecmp_hash(const struct rte_mbuf *m)
  * remaining labels, or both.
  */
 static inline void nh_eth_output_mpls(enum nh_type nh_type,
-				      union next_hop_v4_or_v6_ptr nh,
+				      struct next_hop *nh,
 				      uint8_t ttl, struct rte_mbuf *m,
 				      struct mpls_label_cache *cache,
 				      struct ifnet *input_ifp)
@@ -798,7 +798,7 @@ static inline void nh_eth_output_mpls(enum nh_type nh_type,
 	 * Replace any popped labels with any labels in the cache
 	 */
 	if (unlikely(!mpls_label_cache_write(m, cache, ttl, ETHER_HDR_LEN))) {
-		mpls_if_incr_out_errors(dp_nh_get_ifp(nh.v4));
+		mpls_if_incr_out_errors(dp_nh_get_ifp(nh));
 		rte_pktmbuf_free(m);
 		return;
 	}
@@ -816,43 +816,43 @@ static inline void nh_eth_output_mpls(enum nh_type nh_type,
 
 	len = rte_pktmbuf_pkt_len(m);
 	if (nh_type == NH_TYPE_V6GW) {
-		if (unlikely((nh.v6->flags & RTF_MAPPED_IPV6))) {
+		if (unlikely((nh->flags & RTF_MAPPED_IPV6))) {
 			struct next_hop v4nh = {
 				.flags = RTF_GATEWAY,
 				.gateway4 = V4MAPPED_IPV6_TO_IPV4(
-					nh.v6->gateway6),
-				.u.ifp = dp_nh_get_ifp(nh.v6),
+					nh->gateway6),
+				.u.ifp = dp_nh_get_ifp(nh),
 			};
 
 			if (dp_ip_l2_nh_output(input_ifp, m, &v4nh,
 					       ETH_P_MPLS_UC))
 				mpls_if_incr_out_ucastpkts(
-						dp_nh_get_ifp(nh.v6),
+						dp_nh_get_ifp(nh),
 						len);
 		} else {
 			struct next_hop v6nh = {
 				.flags = RTF_GATEWAY,
-				.gateway6 = nh.v6->gateway6,
-				.u.ifp = dp_nh_get_ifp(nh.v6),
+				.gateway6 = nh->gateway6,
+				.u.ifp = dp_nh_get_ifp(nh),
 			};
 
 			if (dp_ip6_l2_nh_output(input_ifp, m,
 						&v6nh, ETH_P_MPLS_UC))
 				mpls_if_incr_out_ucastpkts(
-						dp_nh_get_ifp(nh.v6),
+						dp_nh_get_ifp(nh),
 						len);
 		}
 	} else {
 		assert(nh_type == NH_TYPE_V4GW);
 		struct next_hop v4nh = {
 			.flags = RTF_GATEWAY,
-			.gateway4 = nh.v4->gateway4,
-			.u.ifp = dp_nh_get_ifp(nh.v4),
+			.gateway4 = nh->gateway4,
+			.u.ifp = dp_nh_get_ifp(nh),
 		};
 
 		if (dp_ip_l2_nh_output(input_ifp, m, &v4nh,
 				       ETH_P_MPLS_UC))
-			mpls_if_incr_out_ucastpkts(dp_nh_get_ifp(nh.v4), len);
+			mpls_if_incr_out_ucastpkts(dp_nh_get_ifp(nh), len);
 	}
 }
 
@@ -896,7 +896,7 @@ nh_mpls_frag_out(struct ifnet *out_ifp, struct rte_mbuf *m, void *obj)
 	memcpy(hdr, fobj->remaining_labels, offset - fobj->pop_offset);
 
 	/* Apply cached labels and send mpls pak */
-	nh_eth_output_mpls(fobj->nht, fobj->nh, fobj->ttl, m, fobj->cache,
+	nh_eth_output_mpls(fobj->nht, fobj->nh.v4, fobj->ttl, m, fobj->cache,
 			   fobj->input_ifp);
 }
 
@@ -976,7 +976,7 @@ nh_mpls_ip_fragment(struct ifnet *out_ifp, enum mpls_payload_type payload_type,
 						    out_ifp->if_mtu);
 				if (icmp)
 					nh_eth_output_mpls(
-						nht, nh, IPDEFTTL,
+						nht, nh.v4, IPDEFTTL,
 						icmp, cache, input_ifp);
 				else
 					mpls_if_incr_out_errors(out_ifp);
@@ -1045,8 +1045,8 @@ nh_mpls_forward(enum mpls_payload_type payload_type,
 	adjust = mpls_label_cache_adjust(m, cache, ETHER_HDR_LEN);
 	if (likely(rte_pktmbuf_pkt_len(m) + adjust - ETHER_HDR_LEN <=
 		   out_ifp->if_mtu)) {
-		nh_eth_output_mpls(nht, nh, ttl, m, cache,
-					input_ifp);
+		nh_eth_output_mpls(nht, nh.v4, ttl, m, cache,
+				   input_ifp);
 	} else
 		nh_mpls_ip_fragment(out_ifp, payload_type, nht, nh,
 				    have_labels, adjust, ttl, m, cache,
