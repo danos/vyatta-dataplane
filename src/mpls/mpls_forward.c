@@ -644,7 +644,7 @@ nh_fwd_mpls(enum nh_type nht, union next_hop_v4_or_v6_ptr nh,
 	/*
 	 * Impose outlabels, if any
 	 */
-	labels = nh_get_labels(nht, nh);
+	labels = nh_get_labels(nh.v4);
 	new_label = nh_outlabels_get_value(labels, 0);
 	num_labels = nh_outlabels_get_cnt(labels);
 
@@ -1690,7 +1690,7 @@ void mpls_unlabeled_input(struct ifnet *input_ifp, struct rte_mbuf *m,
 		/*
 		 * Push all except the top (local) label onto the label cache
 		 */
-		labels = nh_get_labels(ip_nh_type, ip_nh);
+		labels = nh_get_labels(ip_nh.v4);
 		num_labels = nh_outlabels_get_cnt(labels);
 		assert(num_labels);
 		bos = true;

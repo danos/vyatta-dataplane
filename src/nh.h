@@ -43,16 +43,6 @@ union next_hop_v4_or_v6_ptr {
  */
 
 /* accessors */
-static inline const union next_hop_outlabels *
-nh_get_labels(enum nh_type nh_type, union next_hop_v4_or_v6_ptr nh)
-{
-	if (nh_type == NH_TYPE_V6GW)
-		return &nh.v6->outlabels;
-
-	assert(nh_type == NH_TYPE_V4GW);
-	return &nh.v4->outlabels;
-}
-
 static inline uint32_t
 nh_get_flags(enum nh_type nh_type, union next_hop_v4_or_v6_ptr nh)
 {

@@ -260,6 +260,12 @@ nh_get_lle(const struct next_hop *next_hop)
 	return NULL;
 }
 
+static inline const union next_hop_outlabels *
+nh_get_labels(struct next_hop *nh)
+{
+	return &nh->outlabels;
+}
+
 /*
  * Per AF hash function for a nexthop.
  */
