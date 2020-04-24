@@ -266,6 +266,12 @@ nh_get_labels(struct next_hop *nh)
 	return &nh->outlabels;
 }
 
+static inline uint32_t
+nh_get_flags(struct next_hop *nh)
+{
+	return nh->flags;
+}
+
 /*
  * Per AF hash function for a nexthop.
  */

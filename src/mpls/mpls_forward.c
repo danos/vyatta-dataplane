@@ -638,7 +638,7 @@ nh_fwd_mpls(enum nh_type nht, union next_hop_v4_or_v6_ptr nh,
 	const union next_hop_outlabels *labels;
 	unsigned int num_labels;
 
-	if (unlikely(nh_get_flags(nht, nh) & RTF_SLOWPATH))
+	if (unlikely(nh_get_flags(nh.v4) & RTF_SLOWPATH))
 		return NH_FWD_SLOWPATH;
 
 	/*
@@ -1677,7 +1677,7 @@ void mpls_unlabeled_input(struct ifnet *input_ifp, struct rte_mbuf *m,
 	if (propagate_ttl != TTL_PROPAGATE_ENABLED)
 		ttl = default_ttl;
 
-	if (unlikely(nh_get_flags(ip_nh_type, ip_nh) & RTF_OUTLABEL)) {
+	if (unlikely(nh_get_flags(ip_nh.v4) & RTF_OUTLABEL)) {
 		/*
 		 * Output labels are provided
 		 * Payload type is not required for imposition but needs to be
