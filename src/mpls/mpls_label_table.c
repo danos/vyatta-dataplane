@@ -315,7 +315,7 @@ mpls_label_table_del_reserved_labels(struct cds_lfht *table)
 static bool
 mpls_label_table_add_reserved_labels(struct cds_lfht *table)
 {
-	union next_hop_v4_or_v6_ptr nhop;
+	struct next_hop *nhop;
 	struct ip_addr addr_any = {
 		.type = AF_INET,
 		.address.ip_v4.s_addr = INADDR_ANY,
@@ -328,23 +328,23 @@ mpls_label_table_add_reserved_labels(struct cds_lfht *table)
 	 */
 	label_t outlabels[] = {MPLS_IMPLICITNULL};
 
-	nhop.v4 = nexthop_create(NULL, &addr_any, 0, 1, outlabels);
-	if (!nhop.v4)
+	nhop = nexthop_create(NULL, &addr_any, 0, 1, outlabels);
+	if (!nhop)
 		goto error;
 	mpls_label_table_ins_lbl_internal(table, MPLS_IPV4EXPLICITNULL,
 					  NH_TYPE_V4GW, MPT_IPV4,
-					  nhop.v4, 1);
+					  nhop, 1);
 	mpls_label_table_ins_lbl_internal(table, MPLS_IPV6EXPLICITNULL,
 					  NH_TYPE_V4GW, MPT_IPV6,
-					  nhop.v4, 1);
-	free(nhop.v4);
+					  nhop, 1);
+	free(nhop);
 
-	nhop.v4 = nexthop_create(NULL, &addr_any, RTF_SLOWPATH, 1, outlabels);
-	if (!nhop.v4)
+	nhop = nexthop_create(NULL, &addr_any, RTF_SLOWPATH, 1, outlabels);
+	if (!nhop)
 		goto error;
 	mpls_label_table_ins_lbl_internal(table, MPLS_ROUTERALERT,
-					  NH_TYPE_V4GW, 0, nhop.v4, 1);
-	free(nhop.v4);
+					  NH_TYPE_V4GW, 0, nhop, 1);
+	free(nhop);
 
 	return true;
 
