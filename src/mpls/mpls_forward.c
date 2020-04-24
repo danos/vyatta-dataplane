@@ -1667,7 +1667,7 @@ void mpls_unlabeled_input(struct ifnet *input_ifp, struct rte_mbuf *m,
 	enum nh_fwd_ret ret;
 	unsigned int i = 0;
 	enum nh_type nht;
-	union next_hop_v4_or_v6_ptr nh;
+	struct next_hop *nh;
 	label_t label;
 	uint8_t bos;
 
@@ -1683,7 +1683,7 @@ void mpls_unlabeled_input(struct ifnet *input_ifp, struct rte_mbuf *m,
 		 * initialized.
 		 */
 		nht = ip_nh_type;
-		nh.v4 = ip_nh;
+		nh = ip_nh;
 		payload_type = MPT_UNSPEC;
 	} else {
 		/*
@@ -1718,11 +1718,11 @@ void mpls_unlabeled_input(struct ifnet *input_ifp, struct rte_mbuf *m,
 		/*
 		 * Lookup in label table using top (local) label
 		 */
-		nh.v4 = mpls_label_table_lookup(
+		nh = mpls_label_table_lookup(
 			rcu_dereference(global_label_table), local_label,
 			m, ether_type, &nht, &payload_type);
 
-		if (unlikely(!nh.v4)) {
+		if (unlikely(!nh)) {
 			DBG_MPLS_PKTERR(input_ifp, m,
 				 "%s %s: no route for %d\n", __func__,
 				 input_ifp ? input_ifp->if_name : "(local)",
@@ -1731,18 +1731,18 @@ void mpls_unlabeled_input(struct ifnet *input_ifp, struct rte_mbuf *m,
 		}
 	}
 
-	ret = nh_fwd_mpls(nh.v4, m, false, payload_type, &cache, NULL);
+	ret = nh_fwd_mpls(nh, m, false, payload_type, &cache, NULL);
 	if (likely(ret == NH_FWD_SUCCESS)) {
-		nh_mpls_forward(payload_type, nht, nh.v4, false, ttl,
+		nh_mpls_forward(payload_type, nht, nh, false, ttl,
 				m, &cache, input_ifp);
 		return;
 	} else if (likely(ret == NH_FWD_IPv4)) {
 		mpls_forward_to_ipv4(input_ifp, input_ifp == NULL, m,
-				     nh.v4, ttl, false);
+				     nh, ttl, false);
 		return;
 	} else if (likely(ret == NH_FWD_IPv6)) {
 		mpls_forward_to_ipv6(input_ifp, input_ifp == NULL, m,
-				     nh.v6, ttl, false);
+				     nh, ttl, false);
 		return;
 	} else if (unlikely(ret == NH_FWD_SLOWPATH)) {
 		/*
