@@ -2325,14 +2325,7 @@ static void policy_rule_to_json(json_writer_t *wr,
 	jsonw_uint_field(wr, "mark_m", pr->mark.m);
 	jsonw_uint_field(wr, "index", pr->rule_index);
 
-	if (pr->sel.family == AF_INET && pr->feat_attach) {
-		ifp = dp_nh_get_ifp(&pr->feat_attach->nh);
-		if (ifp)
-			jsonw_string_field(wr, "virtual-feature-point",
-					   ifp->if_name);
-	}
-
-	if (pr->sel.family == AF_INET6 && pr->feat_attach) {
+	if (pr->feat_attach) {
 		ifp = dp_nh_get_ifp(&pr->feat_attach->nh);
 		if (ifp)
 			jsonw_string_field(wr, "virtual-feature-point",
