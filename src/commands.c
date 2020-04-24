@@ -1737,7 +1737,7 @@ static const cmd_t cmd_table[] = {
 	{ 0,	"nat-ut",	cmd_nat_ut,	"NAT UT mode" },
 	{ 2,	"nd6",		cmd_nd6,	"IPv6 Neighbour discovery" },
 	{ 0,	"netstat",	cmd_netstat,	"Network statistics" },
-	{ 0,	"npf-op",	cmd_npf_op,	"NPF (FW/NAT/PBR) OP mode" },
+	{ 1,	"npf-op",	cmd_npf_op,	"NPF (FW/NAT/PBR) OP mode" },
 	{ 1,	"npf-ut",	cmd_npf_ut,	"NPF (FW/NAT/PBR) UT mode" },
 	{ 1,	"pathmonitor",	cmd_pathmonitor, "pathmonitor command" },
 	{ 1,    "pd",           cmd_pd,         "Platform dependent data" },

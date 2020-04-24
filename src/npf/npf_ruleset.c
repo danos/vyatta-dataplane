@@ -1088,12 +1088,24 @@ npf_json_rule(npf_rule_t *rl, bool is_nat, json_writer_t *json)
 	if (rl->r_natp) {
 		uint64_t total;
 		uint64_t used[NAT_PROTO_COUNT];
+		enum nat_proto nprot;
 
 		npf_rule_get_overall_used(rl, used, &total);
 
 		jsonw_uint_field(json, "total_ts", total);
-		jsonw_uint_field(json, "used_ts", used[NAT_PROTO_TCP] +
-				 used[NAT_PROTO_UDP] + used[NAT_PROTO_OTHER]);
+
+		jsonw_name(json, "protocols");
+		jsonw_start_array(json);
+
+		for (nprot = NAT_PROTO_FIRST; nprot < NAT_PROTO_COUNT;
+		     nprot++) {
+			jsonw_start_object(json);
+			jsonw_string_field(json, "protocol",
+					   nat_proto_lc_str(nprot));
+			jsonw_uint_field(json, "used_ts", used[nprot]);
+			jsonw_end_object(json);
+		}
+		jsonw_end_array(json); /* protocols */
 
 		buf[0] = '\0';
 		used_buf_len = 0;
