@@ -38,19 +38,11 @@ union next_hop_v4_or_v6_ptr {
 
 #define NH_STRING_MAX 100
 
-static inline union next_hop_v4_or_v6_ptr
-nh_select(enum nh_type nh_type, uint16_t nh_idx,
+static inline struct next_hop *
+nh_select(int family, uint16_t nh_idx,
 	  const struct rte_mbuf *m, uint16_t ether_type)
 {
-	union next_hop_v4_or_v6_ptr nh;
-
-	if (nh_type == NH_TYPE_V6GW)
-		nh.v6 = nexthop_select(AF_INET6, nh_idx, m, ether_type);
-	else {
-		assert(nh_type == NH_TYPE_V4GW);
-		nh.v4 = nexthop_select(AF_INET, nh_idx, m, ether_type);
-	}
-	return nh;
+	return nexthop_select(family, nh_idx, m, ether_type);
 }
 
 #endif /* NH_H */
