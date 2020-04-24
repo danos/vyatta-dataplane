@@ -514,7 +514,7 @@ int spath_reader(zloop_t *loop __rte_unused, zmq_pollitem_t *item,
 	struct rte_mbuf *m = NULL;
 	enum cont_src_en cont_src = CONT_SRC_MAIN;
 	struct shadow_if_info *sii = arg;
-	union next_hop_v4_or_v6_ptr nh = {NULL};
+	struct next_hop *nh = NULL;
 
 	int ret = spath_receive(item, &pi, &meta, sii, &m);
 
@@ -597,32 +597,32 @@ int spath_reader(zloop_t *loop __rte_unused, zmq_pollitem_t *item,
 			struct next_hop nh4 = {.u.ifp = s2s_ifp};
 
 			if (s2s_ifp)
-				nh.v4 = &nh4;
+				nh = &nh4;
 
 			if (unlikely
 			    (crypto_policy_check_outbound(host_ifp, &m,
 							  RT_TABLE_MAIN,
 							  pi.proto,
-							  &nh.v4)))
+							  &nh)))
 				goto rcu_offline;
-			else if (nh.v4)
-				ifp = dp_nh_get_ifp(nh.v4);
+			else if (nh)
+				ifp = dp_nh_get_ifp(nh);
 			else
 				goto drop;
 		} else if (likely((ntohs(pi.proto)) == ETHER_TYPE_IPv6)) {
 			struct next_hop nh6 = {.u.ifp = s2s_ifp};
 
 			if (s2s_ifp)
-				nh.v6 = &nh6;
+				nh = &nh6;
 
 			if (unlikely
 			    (crypto_policy_check_outbound(host_ifp, &m,
 							  RT_TABLE_MAIN,
 							  pi.proto,
-							  &nh.v6)))
+							  &nh)))
 				goto rcu_offline;
-			else if (nh.v6)
-				ifp = dp_nh_get_ifp(nh.v6);
+			else if (nh)
+				ifp = dp_nh_get_ifp(nh);
 			else
 				goto drop;
 		}
