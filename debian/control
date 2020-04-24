@@ -92,6 +92,7 @@ Depends: check,
          libjson-c-dev,
          libvyattafal-dev,
          libvyatta-dataplane-proto-dev,
+         libprotobuf-c-dev,
          vyatta-dataplane-sample-plugin,
          ${misc:Depends},
          ${shlibs:Depends}
