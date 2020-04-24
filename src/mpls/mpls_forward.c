@@ -864,7 +864,7 @@ struct mpls_frag_obj_cb {
 	unsigned int pop_offset;
 	uint8_t ttl;
 	enum nh_type nht;
-	union next_hop_v4_or_v6_ptr nh;
+	struct next_hop *nh;
 	struct mpls_label_cache *cache;
 	struct mplshdr *remaining_labels;
 	struct ifnet *input_ifp;
@@ -896,13 +896,13 @@ nh_mpls_frag_out(struct ifnet *out_ifp, struct rte_mbuf *m, void *obj)
 	memcpy(hdr, fobj->remaining_labels, offset - fobj->pop_offset);
 
 	/* Apply cached labels and send mpls pak */
-	nh_eth_output_mpls(fobj->nht, fobj->nh.v4, fobj->ttl, m, fobj->cache,
+	nh_eth_output_mpls(fobj->nht, fobj->nh, fobj->ttl, m, fobj->cache,
 			   fobj->input_ifp);
 }
 
 static void
 nh_mpls_ip_fragment(struct ifnet *out_ifp, enum mpls_payload_type payload_type,
-		    enum nh_type nht, union next_hop_v4_or_v6_ptr nh,
+		    enum nh_type nht, struct next_hop *nh,
 		    bool have_labels, int adjust, uint8_t ttl,
 		    struct rte_mbuf *m, struct mpls_label_cache *cache,
 		    struct ifnet *input_ifp)
@@ -976,7 +976,7 @@ nh_mpls_ip_fragment(struct ifnet *out_ifp, enum mpls_payload_type payload_type,
 						    out_ifp->if_mtu);
 				if (icmp)
 					nh_eth_output_mpls(
-						nht, nh.v4, IPDEFTTL,
+						nht, nh, IPDEFTTL,
 						icmp, cache, input_ifp);
 				else
 					mpls_if_incr_out_errors(out_ifp);
@@ -1048,7 +1048,7 @@ nh_mpls_forward(enum mpls_payload_type payload_type,
 		nh_eth_output_mpls(nht, nh.v4, ttl, m, cache,
 				   input_ifp);
 	} else
-		nh_mpls_ip_fragment(out_ifp, payload_type, nht, nh,
+		nh_mpls_ip_fragment(out_ifp, payload_type, nht, nh.v4,
 				    have_labels, adjust, ttl, m, cache,
 				    input_ifp);
 }
