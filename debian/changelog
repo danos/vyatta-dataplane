@@ -1,3 +1,12 @@
+vyatta-dataplane (3.10.4) unstable; urgency=medium
+
+  * Revert "Protobuf support files need to be exported for plug-in"
+  * Revert "Move install location for protobuf generated files"
+  * Revert "Export more UT functions/headers"
+  * Revert "Update pkg-config path for dev"
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Fri, 24 Apr 2020 09:18:28 +0100
+
 vyatta-dataplane (3.10.3) unstable; urgency=medium
 
   [ Paul Atkins ]
