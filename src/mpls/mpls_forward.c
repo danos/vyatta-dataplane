@@ -629,7 +629,7 @@ mpls_oam_ip_exception(struct rte_mbuf *m)
  * the offset of the new top of stack label (if any).
  */
 static inline enum nh_fwd_ret
-nh_fwd_mpls(union next_hop_v4_or_v6_ptr nh,
+nh_fwd_mpls(struct next_hop *nh,
 	    struct rte_mbuf *m, bool have_labels,
 	    enum mpls_payload_type payload_type,
 	    struct mpls_label_cache *cache, bool *pop)
@@ -638,13 +638,13 @@ nh_fwd_mpls(union next_hop_v4_or_v6_ptr nh,
 	const union next_hop_outlabels *labels;
 	unsigned int num_labels;
 
-	if (unlikely(nh_get_flags(nh.v4) & RTF_SLOWPATH))
+	if (unlikely(nh_get_flags(nh) & RTF_SLOWPATH))
 		return NH_FWD_SLOWPATH;
 
 	/*
 	 * Impose outlabels, if any
 	 */
-	labels = nh_get_labels(nh.v4);
+	labels = nh_get_labels(nh);
 	new_label = nh_outlabels_get_value(labels, 0);
 	num_labels = nh_outlabels_get_cnt(labels);
 
@@ -652,7 +652,7 @@ nh_fwd_mpls(union next_hop_v4_or_v6_ptr nh,
 		*pop = (num_labels == 0);
 
 	if (new_label == MPLS_IMPLICITNULL || num_labels == 0) {
-		struct ifnet *ifp = dp_nh_get_ifp(nh.v4);
+		struct ifnet *ifp = dp_nh_get_ifp(nh);
 		/* imp-null should be the only outlabel */
 		assert(num_labels <= 1);
 
@@ -1574,8 +1574,7 @@ mpls_labeled_forward(struct ifnet *input_ifp, bool local,
 			break;
 		}
 
-		ret = nh_fwd_mpls(nh, m, true, payload_type, &cache, &pop);
-
+		ret = nh_fwd_mpls(nh.v4, m, true, payload_type, &cache, &pop);
 		if (likely(ret == NH_FWD_IPv4)) {
 			mpls_forward_to_ipv4(input_ifp, local, m, nh.v4, ttl,
 					     pop);
@@ -1732,8 +1731,7 @@ void mpls_unlabeled_input(struct ifnet *input_ifp, struct rte_mbuf *m,
 		}
 	}
 
-	ret = nh_fwd_mpls(nh, m, false, payload_type, &cache, NULL);
-
+	ret = nh_fwd_mpls(nh.v4, m, false, payload_type, &cache, NULL);
 	if (likely(ret == NH_FWD_SUCCESS)) {
 		nh_mpls_forward(payload_type, nht, nh, false, ttl,
 				m, &cache, input_ifp);
