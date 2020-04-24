@@ -1,3 +1,18 @@
+vyatta-dataplane (3.10.3) unstable; urgency=medium
+
+  [ Paul Atkins ]
+  * ut: mark dp_test_crypto_perf_scale tests as DONT_RUN
+
+  [ Mike Larson ]
+  * Protobuf support files need to be exported for plug-in
+  * Move install location for protobuf generated files
+  * Export more UT functions/headers
+  * Update pkg-config path for dev
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Fri, 24 Apr 2020 08:21:26 +0100
+
 vyatta-dataplane (3.10.2) unstable; urgency=medium
 
   [ Mark Gillott ]
