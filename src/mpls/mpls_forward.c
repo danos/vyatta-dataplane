@@ -1027,7 +1027,7 @@ nh_mpls_ip_fragment(struct ifnet *out_ifp, enum mpls_payload_type payload_type,
  */
 static inline void
 nh_mpls_forward(enum mpls_payload_type payload_type,
-		enum nh_type nht, union next_hop_v4_or_v6_ptr nh,
+		enum nh_type nht, struct next_hop *nh,
 		bool have_labels, uint8_t ttl,
 		struct rte_mbuf *m, struct mpls_label_cache *cache,
 		struct ifnet *input_ifp)
@@ -1041,14 +1041,14 @@ nh_mpls_forward(enum mpls_payload_type payload_type,
 	 * Check for fragmentation
 	 * adjust pkt len for difference between cached and popped labels
 	 */
-	out_ifp = dp_nh_get_ifp(nh.v4);
+	out_ifp = dp_nh_get_ifp(nh);
 	adjust = mpls_label_cache_adjust(m, cache, ETHER_HDR_LEN);
 	if (likely(rte_pktmbuf_pkt_len(m) + adjust - ETHER_HDR_LEN <=
 		   out_ifp->if_mtu)) {
-		nh_eth_output_mpls(nht, nh.v4, ttl, m, cache,
+		nh_eth_output_mpls(nht, nh, ttl, m, cache,
 				   input_ifp);
 	} else
-		nh_mpls_ip_fragment(out_ifp, payload_type, nht, nh.v4,
+		nh_mpls_ip_fragment(out_ifp, payload_type, nht, nh,
 				    have_labels, adjust, ttl, m, cache,
 				    input_ifp);
 }
@@ -1580,7 +1580,7 @@ mpls_labeled_forward(struct ifnet *input_ifp, bool local,
 					     pop);
 			return;
 		} else if (likely(ret == NH_FWD_SUCCESS)) {
-			nh_mpls_forward(payload_type, nht, nh, true,
+			nh_mpls_forward(payload_type, nht, nh.v4, true,
 					ttl, m, &cache, input_ifp);
 			return;
 		} else if (likely(ret == NH_FWD_IPv6)) {
@@ -1733,7 +1733,7 @@ void mpls_unlabeled_input(struct ifnet *input_ifp, struct rte_mbuf *m,
 
 	ret = nh_fwd_mpls(nh.v4, m, false, payload_type, &cache, NULL);
 	if (likely(ret == NH_FWD_SUCCESS)) {
-		nh_mpls_forward(payload_type, nht, nh, false, ttl,
+		nh_mpls_forward(payload_type, nht, nh.v4, false, ttl,
 				m, &cache, input_ifp);
 		return;
 	} else if (likely(ret == NH_FWD_IPv4)) {
