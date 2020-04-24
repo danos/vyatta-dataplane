@@ -8,7 +8,7 @@
 #include "protobuf_util.h"
 #include "stdio.h"
 
-int dp_protobuf_get_ipaddr(IPAddress *addr_msg, struct ip_addr *addr)
+int protobuf_get_ipaddr(IPAddress *addr_msg, struct ip_addr *addr)
 {
 	if (!addr_msg)
 		return -1;

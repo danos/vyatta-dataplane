@@ -3237,11 +3237,11 @@ static int crypto_policy_cmd_handler(struct pb_msg *msg)
 	memset(&sel, 0, sizeof(sel));
 
 	struct ip_addr daddr, saddr;
-	if (dp_protobuf_get_ipaddr(cp_msg->sel_daddr, &daddr)) {
+	if (protobuf_get_ipaddr(cp_msg->sel_daddr, &daddr)) {
 		rc = -1;
 		goto done;
 	}
-	if (dp_protobuf_get_ipaddr(cp_msg->sel_saddr, &saddr)) {
+	if (protobuf_get_ipaddr(cp_msg->sel_saddr, &saddr)) {
 		rc = -1;
 		goto done;
 	}

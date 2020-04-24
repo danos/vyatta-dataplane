@@ -91,7 +91,6 @@ Depends: check,
          libdpdk-dev (>= 18.11-0vyatta4),
          libjson-c-dev,
          libvyattafal-dev,
-         libvyatta-dataplane-proto-dev,
          vyatta-dataplane-sample-plugin,
          ${misc:Depends},
          ${shlibs:Depends}
