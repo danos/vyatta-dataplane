@@ -102,10 +102,7 @@ struct rte_timer;
  * path.
  */
 struct pr_feat_attach {
-	union {
-		struct next_hop nh;
-		struct next_hop nh6;
-	} next;
+	struct next_hop nh;
 	struct rcu_head pr_feat_rcu;
 };
 
@@ -846,7 +843,7 @@ policy_rule_set_peer_info(struct policy_rule *pr,
 	struct ifnet *ifp;
 
 	ifp = pr->feat_attach ?
-		dp_nh_get_ifp(&pr->feat_attach->next.nh) : NULL;
+		dp_nh_get_ifp(&pr->feat_attach->nh) : NULL;
 	pr->reqid = tmpl->reqid;
 	pr->output_peer_af = tmpl->family;
 	memcpy(&pr->output_peer, dst, sizeof(pr->output_peer));
@@ -1526,9 +1523,9 @@ static void policy_bind_feat_attach(vrfid_t vrfid,
 	}
 
 	if (pr->sel.family == AF_INET)
-		nh_set_ifp(&pr->feat_attach->next.nh, ifp);
+		nh_set_ifp(&pr->feat_attach->nh, ifp);
 	else
-		nh_set_ifp(&pr->feat_attach->next.nh6, ifp);
+		nh_set_ifp(&pr->feat_attach->nh, ifp);
 
 	/*
 	 * If there are any SAs already present for this policy, we
@@ -2332,14 +2329,14 @@ static void policy_rule_to_json(json_writer_t *wr,
 	jsonw_uint_field(wr, "index", pr->rule_index);
 
 	if (pr->sel.family == AF_INET && pr->feat_attach) {
-		ifp = dp_nh_get_ifp(&pr->feat_attach->next.nh);
+		ifp = dp_nh_get_ifp(&pr->feat_attach->nh);
 		if (ifp)
 			jsonw_string_field(wr, "virtual-feature-point",
 					   ifp->if_name);
 	}
 
 	if (pr->sel.family == AF_INET6 && pr->feat_attach) {
-		ifp = dp_nh_get_ifp(&pr->feat_attach->next.nh6);
+		ifp = dp_nh_get_ifp(&pr->feat_attach->nh);
 		if (ifp)
 			jsonw_string_field(wr, "virtual-feature-point",
 					   ifp->if_name);
@@ -2828,7 +2825,7 @@ bool crypto_policy_check_outbound(struct ifnet *in_ifp, struct rte_mbuf **mbuf,
 			if (v4) {
 				if (attach) {
 					vfp_ifp =
-					dp_nh_get_ifp(&attach->next.nh);
+					dp_nh_get_ifp(&attach->nh);
 
 					if (!vfp_ifp) {
 						IPSEC_CNT_INC(DROPPED_NO_BIND);
@@ -2836,7 +2833,7 @@ bool crypto_policy_check_outbound(struct ifnet *in_ifp, struct rte_mbuf **mbuf,
 					}
 
 					if (nh) {
-						nh->v4 = &attach->next.nh;
+						nh->v4 = &attach->nh;
 						mdata = pktmbuf_mdata(*mbuf);
 						mdata->pr = pr;
 						pktmbuf_mdata_set(*mbuf,
@@ -2853,7 +2850,7 @@ bool crypto_policy_check_outbound(struct ifnet *in_ifp, struct rte_mbuf **mbuf,
 			} else {
 				if (attach) {
 					vfp_ifp = dp_nh_get_ifp(
-						&attach->next.nh6);
+						&attach->nh);
 
 					if (!vfp_ifp) {
 						IPSEC_CNT_INC(DROPPED_NO_BIND);
@@ -2861,7 +2858,7 @@ bool crypto_policy_check_outbound(struct ifnet *in_ifp, struct rte_mbuf **mbuf,
 					}
 
 					if (nh) {
-						nh->v6 = &attach->next.nh6;
+						nh->v6 = &attach->nh;
 						mdata = pktmbuf_mdata(*mbuf);
 						mdata->pr = pr;
 						pktmbuf_mdata_set(*mbuf,
@@ -3069,12 +3066,12 @@ struct ifnet *crypto_policy_feat_attach_by_reqid(uint32_t reqid)
 		if (pr->reqid == reqid) {
 			if (pr->sel.family == AF_INET)
 				return pr->feat_attach ?
-				dp_nh_get_ifp(&pr->feat_attach->next.nh) :
+				dp_nh_get_ifp(&pr->feat_attach->nh) :
 				NULL;
 			else
 				return pr->feat_attach ?
 				       dp_nh_get_ifp(
-				       &pr->feat_attach->next.nh6) :
+				       &pr->feat_attach->nh) :
 				       NULL;
 		}
 		cds_lfht_next(output_policy_rule_tag_ht, &iter);
