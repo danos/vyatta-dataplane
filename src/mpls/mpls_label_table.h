@@ -51,7 +51,7 @@ void mpls_label_table_unlock(int labelspace);
 void mpls_label_table_insert_label(int labelspace, uint32_t in_label,
 				   enum nh_type nh_type,
 				   enum mpls_payload_type payload_type,
-				   union next_hop_v4_or_v6_ptr hops,
+				   struct next_hop *hops,
 				   size_t size);
 void mpls_label_table_remove_label(int labelspace, uint32_t in_label);
 

@@ -518,7 +518,7 @@ void mpls_label_table_unlock(int labelspace)
 void mpls_label_table_insert_label(int labelspace, uint32_t in_label,
 			     enum nh_type nh_type,
 			     enum mpls_payload_type payload_type,
-			     union next_hop_v4_or_v6_ptr hops,
+			     struct next_hop *hops,
 			     size_t size)
 {
 	struct cds_lfht *label_table =
@@ -530,7 +530,7 @@ void mpls_label_table_insert_label(int labelspace, uint32_t in_label,
 	 */
 	if (!mpls_label_table_ins_lbl_internal(label_table, in_label,
 					       nh_type, payload_type,
-					       hops.v4, size))
+					       hops, size))
 		mpls_label_table_unlock(labelspace);
 }
 

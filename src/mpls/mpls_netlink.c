@@ -388,7 +388,7 @@ static int mpls_route_change(const struct nlmsghdr *nlh,
 		else
 			mpls_label_table_insert_label(global_label_space_id,
 						      in_label, nh_type,
-						      payload_type, nhops,
+						      payload_type, nhops.v4,
 						      size);
 
 		if (nh_type == NH_TYPE_V6GW)
