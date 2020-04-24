@@ -1522,10 +1522,7 @@ static void policy_bind_feat_attach(vrfid_t vrfid,
 		return;
 	}
 
-	if (pr->sel.family == AF_INET)
-		nh_set_ifp(&pr->feat_attach->nh, ifp);
-	else
-		nh_set_ifp(&pr->feat_attach->nh, ifp);
+	nh_set_ifp(&pr->feat_attach->nh, ifp);
 
 	/*
 	 * If there are any SAs already present for this policy, we
