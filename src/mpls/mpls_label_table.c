@@ -575,8 +575,8 @@ mpls_label_table_lookup(struct cds_lfht *label_table, uint32_t in_label,
 	if (likely(out != NULL)) {
 		*nht = out->nh_type;
 		*payload_type = out->payload_type;
-		nh.v4 = nh_select(nh_type_to_address_family(*nht),
-				  out->next_hop, m, ether_type);
+		nh.v4 = nexthop_select(nh_type_to_address_family(*nht),
+				       out->next_hop, m, ether_type);
 		return nh;
 	}
 	return nh;
@@ -814,8 +814,8 @@ mpls_oam_v4_lookup(int labelspace, uint8_t nlabels, const label_t *labels,
 		ip->daddr = htonl(daddr + addr_index);
 		ip->check = 0;
 
-		nh.v4 = nh_select(nh_type_to_address_family(out->nh_type),
-				  out->next_hop, m, ETH_P_MPLS_UC);
+		nh.v4 = nexthop_select(nh_type_to_address_family(out->nh_type),
+				       out->next_hop, m, ETH_P_MPLS_UC);
 		if (!nh.v4)
 			continue;
 
