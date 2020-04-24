@@ -44,7 +44,7 @@ bool crypto_policy_check_outbound(struct ifnet *in_ifp,
 				  struct rte_mbuf **mbuf,
 				  uint32_t tbl_id,
 				  uint16_t eth_type,
-				  union next_hop_v4_or_v6_ptr *nh);
+				  struct next_hop **nh);
 
 /*
  * Call crypto_policy_check_inbound() for locally terminating

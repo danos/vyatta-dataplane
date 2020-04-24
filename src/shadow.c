@@ -603,7 +603,7 @@ int spath_reader(zloop_t *loop __rte_unused, zmq_pollitem_t *item,
 			    (crypto_policy_check_outbound(host_ifp, &m,
 							  RT_TABLE_MAIN,
 							  pi.proto,
-							  &nh)))
+							  &nh.v4)))
 				goto rcu_offline;
 			else if (nh.v4)
 				ifp = dp_nh_get_ifp(nh.v4);
@@ -619,7 +619,7 @@ int spath_reader(zloop_t *loop __rte_unused, zmq_pollitem_t *item,
 			    (crypto_policy_check_outbound(host_ifp, &m,
 							  RT_TABLE_MAIN,
 							  pi.proto,
-							  &nh)))
+							  &nh.v6)))
 				goto rcu_offline;
 			else if (nh.v6)
 				ifp = dp_nh_get_ifp(nh.v6);

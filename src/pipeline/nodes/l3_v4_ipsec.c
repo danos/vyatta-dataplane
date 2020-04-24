@@ -31,7 +31,8 @@ ipv4_ipsec_out_process(struct pl_packet *pkt, void *context __unused)
 	/* Returns true if packet was consumed by IPsec */
 	struct rte_mbuf *m = pkt->mbuf;
 	if (unlikely(crypto_policy_check_outbound(ifp, &m, pkt->tblid,
-						  htons(ETHER_TYPE_IPv4), &nh)))
+						  htons(ETHER_TYPE_IPv4),
+						  &nh.v4)))
 		return IPV4_IPSEC_OUT_CONSUME;
 
 	/*

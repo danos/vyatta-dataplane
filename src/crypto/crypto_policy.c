@@ -2698,7 +2698,7 @@ crypto_policy_post_features_outbound(struct ifnet *vfp_ifp,
  */
 bool crypto_policy_check_outbound(struct ifnet *in_ifp, struct rte_mbuf **mbuf,
 				  uint32_t tbl_id, uint16_t eth_type,
-				  union next_hop_v4_or_v6_ptr *nh)
+				  struct next_hop **nh)
 {
 	struct policy_rule *pr = NULL;
 	struct policy_cache_rule *pr_cache;
@@ -2781,10 +2781,10 @@ bool crypto_policy_check_outbound(struct ifnet *in_ifp, struct rte_mbuf **mbuf,
 		if (pr && pr->sel.ifindex && nh) {
 			struct ifnet *ifp = NULL;
 
-			if (v4 && nh->v4)
-				ifp = dp_nh_get_ifp(nh->v4);
-			else if (nh->v6)
-				ifp = dp_nh_get_ifp(nh->v6);
+			if (v4 && nh)
+				ifp = dp_nh_get_ifp(*nh);
+			else if (nh)
+				ifp = dp_nh_get_ifp(*nh);
 
 			if (!ifp || pr->sel.ifindex != (int)ifp->if_index)
 				/* We don't have a match */
@@ -2833,7 +2833,7 @@ bool crypto_policy_check_outbound(struct ifnet *in_ifp, struct rte_mbuf **mbuf,
 					}
 
 					if (nh) {
-						nh->v4 = &attach->nh;
+						*nh = &attach->nh;
 						mdata = pktmbuf_mdata(*mbuf);
 						mdata->pr = pr;
 						pktmbuf_mdata_set(*mbuf,
@@ -2858,7 +2858,7 @@ bool crypto_policy_check_outbound(struct ifnet *in_ifp, struct rte_mbuf **mbuf,
 					}
 
 					if (nh) {
-						nh->v6 = &attach->nh;
+						*nh = &attach->nh;
 						mdata = pktmbuf_mdata(*mbuf);
 						mdata->pr = pr;
 						pktmbuf_mdata_set(*mbuf,
