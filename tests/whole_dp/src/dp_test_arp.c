@@ -23,6 +23,7 @@
 #include "dp_test_lib_internal.h"
 #include "dp_test_lib_exp.h"
 #include "dp_test_lib_intf_internal.h"
+#include "dp_test_lib_pb.h"
 #include "dp_test_pktmbuf_lib_internal.h"
 #include "dp_test_cmd_state.h"
 
