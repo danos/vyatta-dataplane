@@ -562,21 +562,21 @@ static inline int nh_type_to_address_family(enum nh_type type)
 	return AF_INET;
 }
 
-union next_hop_v4_or_v6_ptr
+struct next_hop *
 mpls_label_table_lookup(struct cds_lfht *label_table, uint32_t in_label,
 			const struct rte_mbuf *m, uint16_t ether_type,
 			enum nh_type *nht,
 			enum mpls_payload_type *payload_type)
 {
 	struct label_table_node *out;
-	union next_hop_v4_or_v6_ptr nh = { NULL };
+	struct next_hop *nh = NULL;
 
 	out = mpls_label_table_lookup_internal(label_table, in_label);
 	if (likely(out != NULL)) {
 		*nht = out->nh_type;
 		*payload_type = out->payload_type;
-		nh.v4 = nexthop_select(nh_type_to_address_family(*nht),
-				       out->next_hop, m, ether_type);
+		nh = nexthop_select(nh_type_to_address_family(*nht),
+				    out->next_hop, m, ether_type);
 		return nh;
 	}
 	return nh;

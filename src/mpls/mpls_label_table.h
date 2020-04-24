@@ -55,7 +55,7 @@ void mpls_label_table_insert_label(int labelspace, uint32_t in_label,
 				   size_t size);
 void mpls_label_table_remove_label(int labelspace, uint32_t in_label);
 
-union next_hop_v4_or_v6_ptr
+struct next_hop *
 mpls_label_table_lookup(struct cds_lfht *label_table, uint32_t in_label,
 			const struct rte_mbuf *m, uint16_t ether_type,
 			enum nh_type *nht,

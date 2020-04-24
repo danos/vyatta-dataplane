@@ -1560,9 +1560,9 @@ mpls_labeled_forward(struct ifnet *input_ifp, bool local,
 		else
 			label_table = rcu_dereference(
 				input_ifp->mpls_label_table);
-		nh = mpls_label_table_lookup(label_table, in_label, m,
-					     ETH_P_MPLS_UC, &nht,
-					     &payload_type);
+		nh.v4 = mpls_label_table_lookup(label_table, in_label, m,
+						ETH_P_MPLS_UC, &nht,
+						&payload_type);
 		if (unlikely(!nh.v4)) {
 			if (!local && label_table) {
 				DBG_MPLS_PKTERR(input_ifp, m,
@@ -1719,7 +1719,7 @@ void mpls_unlabeled_input(struct ifnet *input_ifp, struct rte_mbuf *m,
 		/*
 		 * Lookup in label table using top (local) label
 		 */
-		nh = mpls_label_table_lookup(
+		nh.v4 = mpls_label_table_lookup(
 			rcu_dereference(global_label_table), local_label,
 			m, ether_type, &nht, &payload_type);
 
