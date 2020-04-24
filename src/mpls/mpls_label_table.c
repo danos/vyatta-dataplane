@@ -695,7 +695,7 @@ mpls_oam_v4_lookup(int labelspace, uint8_t nlabels, const label_t *labels,
 		   struct mpls_oam_outinfo outinfo[],
 		   unsigned int max_fanout)
 {
-	union next_hop_v4_or_v6_ptr nh;
+	struct next_hop *nh;
 	struct cds_lfht *label_table;
 	struct label_table_node *out;
 	struct next_hop *paths;
@@ -791,14 +791,14 @@ mpls_oam_v4_lookup(int labelspace, uint8_t nlabels, const label_t *labels,
 	npaths = 0;
 	paths = nexthop_get(out->next_hop, &npaths);
 	for (i = 0; i < npaths; i++) {
-		nh.v4 = paths + i;
-		if (nh.v4->flags & RTF_DEAD)
+		nh = paths + i;
+		if (nh->flags & RTF_DEAD)
 			continue;
 		for (oi = 0; oi < max_fanout; oi++) {
 			if (!outinfo[oi].inuse) {
-				outinfo[oi].ifp = dp_nh_get_ifp(nh.v4);
-				outinfo[oi].gateway = nh.v4->gateway4;
-				outinfo[oi].outlabels = nh.v4->outlabels;
+				outinfo[oi].ifp = dp_nh_get_ifp(nh);
+				outinfo[oi].gateway = nh->gateway4;
+				outinfo[oi].outlabels = nh->outlabels;
 				outinfo[oi].bitmask = 0;
 				outinfo[oi].inuse = true;
 				break;
@@ -814,24 +814,24 @@ mpls_oam_v4_lookup(int labelspace, uint8_t nlabels, const label_t *labels,
 		ip->daddr = htonl(daddr + addr_index);
 		ip->check = 0;
 
-		nh.v4 = nexthop_select(nh_type_to_address_family(out->nh_type),
-				       out->next_hop, m, ETH_P_MPLS_UC);
-		if (!nh.v4)
+		nh = nexthop_select(nh_type_to_address_family(out->nh_type),
+				    out->next_hop, m, ETH_P_MPLS_UC);
+		if (!nh)
 			continue;
 
 		for (oi = 0; oi < max_fanout; oi++) {
 			if (!outinfo[oi].inuse) {
-				outinfo[oi].ifp = dp_nh_get_ifp(nh.v4);
-				outinfo[oi].gateway = nh.v4->gateway4;
-				outinfo[oi].outlabels = nh.v4->outlabels;
+				outinfo[oi].ifp = dp_nh_get_ifp(nh);
+				outinfo[oi].gateway = nh->gateway4;
+				outinfo[oi].outlabels = nh->outlabels;
 				outinfo[oi].bitmask = ((uint64_t)1 << i);
 				outinfo[oi].inuse = true;
 				break;
 			}
-			if ((outinfo[oi].ifp == dp_nh_get_ifp(nh.v4)) &&
-			    (outinfo[oi].gateway == nh.v4->gateway4) &&
+			if ((outinfo[oi].ifp == dp_nh_get_ifp(nh)) &&
+			    (outinfo[oi].gateway == nh->gateway4) &&
 			     nh_outlabels_cmpfn(&outinfo[oi].outlabels,
-						&nh.v4->outlabels)) {
+						&nh->outlabels)) {
 				outinfo[oi].bitmask |=
 					((uint64_t)1 << i);
 				break;
