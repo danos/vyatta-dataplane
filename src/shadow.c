@@ -593,27 +593,12 @@ int spath_reader(zloop_t *loop __rte_unused, zmq_pollitem_t *item,
 		 * output features we need to run before encryption.
 		 */
 
-		if (likely((ntohs(pi.proto)) == ETHER_TYPE_IPv4)) {
-			struct next_hop nh4 = {.u.ifp = s2s_ifp};
+		if (likely((ntohs(pi.proto)) == ETHER_TYPE_IPv4) ||
+		    likely((ntohs(pi.proto)) == ETHER_TYPE_IPv6)) {
+			struct next_hop nh46 = {.u.ifp = s2s_ifp};
 
 			if (s2s_ifp)
-				nh = &nh4;
-
-			if (unlikely
-			    (crypto_policy_check_outbound(host_ifp, &m,
-							  RT_TABLE_MAIN,
-							  pi.proto,
-							  &nh)))
-				goto rcu_offline;
-			else if (nh)
-				ifp = dp_nh_get_ifp(nh);
-			else
-				goto drop;
-		} else if (likely((ntohs(pi.proto)) == ETHER_TYPE_IPv6)) {
-			struct next_hop nh6 = {.u.ifp = s2s_ifp};
-
-			if (s2s_ifp)
-				nh = &nh6;
+				nh = &nh46;
 
 			if (unlikely
 			    (crypto_policy_check_outbound(host_ifp, &m,
