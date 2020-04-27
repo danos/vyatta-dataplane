@@ -78,27 +78,6 @@ struct nexthop_table {
 
 void nh_set_ifp(struct next_hop *next_hop, struct ifnet *ifp);
 
-/*
- * Given a fully formed hash key check if there is a matching next_hop_u
- * for the given family.
- *
- * @param[in] key Pointer to the key to look for in the hash table
- * @param[in] family Address family of the NH to look for
- *
- * @return A pointer to the next_hop_u if found
- *         NULL if not found.
- */
-struct next_hop_u *nexthop_lookup(int family,
-				  const struct nexthop_hash_key *key);
-
-struct next_hop_u *nexthop_reuse(int family,
-				 const struct nexthop_hash_key *key,
-				 uint32_t *slot);
-
-int nexthop_hash_insert(int family,
-			struct next_hop_u *nu,
-			const struct nexthop_hash_key *key);
-
 struct next_hop_u *nexthop_alloc(int size);
 
 void __nexthop_destroy(struct next_hop_u *nextu);

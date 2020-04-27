@@ -123,8 +123,8 @@ nh_set_ifp(struct next_hop *next_hop, struct ifnet *ifp)
 	rcu_assign_pointer(next_hop->u.ifp, ifp);
 }
 
-struct next_hop_u *nexthop_lookup(int family,
-				  const struct nexthop_hash_key *key)
+static struct next_hop_u *nexthop_lookup(int family,
+					 const struct nexthop_hash_key *key)
 {
 	struct cds_lfht_iter iter;
 	struct cds_lfht_node *node;
@@ -146,9 +146,9 @@ struct next_hop_u *nexthop_lookup(int family,
 }
 
 /* Reuse existing next hop entry */
-struct next_hop_u *nexthop_reuse(int family,
-				 const struct nexthop_hash_key *key,
-				 uint32_t *slot)
+static struct next_hop_u *nexthop_reuse(int family,
+					const struct nexthop_hash_key *key,
+					uint32_t *slot)
 {
 	struct next_hop_u *nu;
 	int index;
@@ -170,9 +170,8 @@ struct next_hop_u *nexthop_reuse(int family,
 	return nu;
 }
 
-int
-nexthop_hash_insert(int family, struct next_hop_u *nu,
-		    const struct nexthop_hash_key *key)
+static int nexthop_hash_insert(int family, struct next_hop_u *nu,
+			       const struct nexthop_hash_key *key)
 {
 	struct cds_lfht_node *ret_node;
 	unsigned long hash;
