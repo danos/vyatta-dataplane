@@ -1,3 +1,26 @@
+vyatta-dataplane (3.10.5) unstable; urgency=medium
+
+  [ Srinivas Narayan ]
+  * Refactor use of grouper2 functions into separate module
+  * rte-acl: determine ruleset size at creation time
+  * rte-acl: Add packet matching abstraction
+  * rte-acl: migrate ruleset to packet match abstraction API
+  * rte-acl: Rename npf_grouper_cb_data and make it public
+  * rte-acl: Add rte-acl based implementation of packet matching callbacks
+  * rte-acl: Set up crypto callbacks for using rte-acl
+  * rte-acl: Pass rule group as part of the context to match function
+  * rte-acl: Add API to find rule in a group
+  * rte-acl: Add API to determine if ruleset uses cache
+  * rte-acl: Update crypto callback for match API
+  * rte-acl: Use NPF cache only if ruleset requires it
+  * rte-acl: skip using npf-cache if ruleset doesn't rely on it
+  * rte-acl: Only invoke classifier for non-empty rulesets
+  * rte-acl: Streamline call flow in npf_ruleset_inspect
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Mon, 27 Apr 2020 08:09:24 +0100
+
 vyatta-dataplane (3.10.4) unstable; urgency=medium
 
   * Revert "Protobuf support files need to be exported for plug-in"
