@@ -391,10 +391,7 @@ static int mpls_route_change(const struct nlmsghdr *nlh,
 						      payload_type, nhops,
 						      size);
 
-		if (nh_type == NH_TYPE_V6GW)
-			free(nhops);
-		else
-			free(nhops);
+		free(nhops);
 	} else {
 		mpls_label_table_remove_label(global_label_space_id, in_label);
 	}
