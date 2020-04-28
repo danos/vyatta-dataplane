@@ -14,6 +14,7 @@
 
 #include "compiler.h"
 #include "if_var.h"
+#include "if_llatbl.h"
 #include "ip_funcs.h"
 #include "pl_common.h"
 #include "pl_fused.h"
@@ -21,7 +22,7 @@
 #include "pl_nodes_common.h"
 #include "route.h"
 #include "route_flags.h"
-#include "nh.h"
+#include "nh_common.h"
 #include "arp.h"
 #include "snmp_mib.h"
 
