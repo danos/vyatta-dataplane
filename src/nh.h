@@ -21,6 +21,4 @@ enum nh_type {
 	NH_TYPE_V6GW, /* struct next_hop_v6 */
 };
 
-#define NH_STRING_MAX 100
-
 #endif /* NH_H */
