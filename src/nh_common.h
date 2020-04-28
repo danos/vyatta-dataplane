@@ -11,6 +11,7 @@
 
 #include "compiler.h"
 #include "fal_plugin.h"
+#include "mpls/mpls.h"
 #include "pd_show.h"
 #include "route_flags.h"
 #include "urcu.h"
