@@ -42,7 +42,7 @@
 #include "mpls/mpls.h"
 #include "mpls_forward.h"
 #include "mpls_label_table.h"
-#include "nh.h"
+#include "nh_common.h"
 #include "npf/npf.h"
 #include "npf_shim.h"
 #include "pktmbuf_internal.h"

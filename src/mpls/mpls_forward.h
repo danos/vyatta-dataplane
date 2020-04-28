@@ -17,7 +17,7 @@
 
 #include "if_var.h"
 #include "mpls.h"
-#include "nh.h"
+#include "nh_common.h"
 
 struct ifnet;
 struct rte_mbuf;

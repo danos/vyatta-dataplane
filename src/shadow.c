@@ -57,7 +57,7 @@
 #include "json_writer.h"
 #include "lag.h"
 #include "main.h"
-#include "nh.h"
+#include "nh_common.h"
 #include "pktmbuf_internal.h"
 #include "pl_common.h"
 #include "pl_fused.h"

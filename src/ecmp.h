@@ -14,7 +14,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#include "nh.h"
+#include "nh_common.h"
 
 struct nlattr;
 

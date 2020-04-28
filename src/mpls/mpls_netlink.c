@@ -33,7 +33,7 @@
 #include "mpls/mpls.h"
 #include "mpls_label_table.h"
 #include "netlink.h"
-#include "nh.h"
+#include "nh_common.h"
 #include "route.h"
 #include "route_flags.h"
 #include "route_v6.h"

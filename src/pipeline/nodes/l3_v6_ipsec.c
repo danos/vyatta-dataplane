@@ -16,7 +16,7 @@
 #include "compiler.h"
 #include "crypto/crypto_forward.h"
 #include "netinet6/ip6_funcs.h"
-#include "nh.h"
+#include "nh_common.h"
 #include "pl_common.h"
 #include "pl_fused.h"
 

@@ -47,7 +47,7 @@
 #include "mpls/mpls.h"
 #include "mpls/mpls_forward.h"
 #include "nd6_nbr.h"
-#include "nh.h"
+#include "nh_common.h"
 #include "npf/npf.h"
 #include "npf/fragment/ipv6_rsmbl.h"
 #include "npf/npf_cache.h"

@@ -51,7 +51,7 @@
 #include "ip_funcs.h"
 #include "ip_icmp.h"
 #include "json_writer.h"
-#include "nh.h"
+#include "nh_common.h"
 #include "npf/npf.h"
 #include "npf/config/npf_attach_point.h"
 #include "npf/config/npf_config.h"

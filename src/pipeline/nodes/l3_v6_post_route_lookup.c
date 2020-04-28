@@ -22,7 +22,7 @@
 #include "mpls/mpls.h"
 #include "mpls/mpls_forward.h"
 #include "netinet6/ip6_funcs.h"
-#include "nh.h"
+#include "nh_common.h"
 #include "pktmbuf_internal.h"
 #include "pl_common.h"
 #include "pl_fused.h"

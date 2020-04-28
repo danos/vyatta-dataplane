@@ -11,7 +11,7 @@
 #include <rte_ring.h>
 #include <stdbool.h>
 
-#include "nh.h"
+#include "nh_common.h"
 
 /*
  * crypto_policy_outbound_match()

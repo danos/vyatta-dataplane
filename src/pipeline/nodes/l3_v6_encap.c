@@ -16,7 +16,7 @@
 #include "if_var.h"
 #include "ip6_funcs.h"
 #include "nd6_nbr.h"
-#include "nh.h"
+#include "nh_common.h"
 #include "pktmbuf_internal.h"
 #include "pl_common.h"
 #include "pl_fused.h"

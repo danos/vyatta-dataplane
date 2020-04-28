@@ -18,7 +18,7 @@
 #include "compat.h"
 #include "compiler.h"
 #include "if_var.h"
-#include "nh.h"
+#include "nh_common.h"
 #include "pl_common.h"
 #include "pl_fused.h"
 #include "route.h"

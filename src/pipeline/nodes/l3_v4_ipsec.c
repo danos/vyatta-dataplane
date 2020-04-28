@@ -17,7 +17,7 @@
 #include "crypto/crypto.h"
 #include "crypto/crypto_forward.h"
 #include "ip_funcs.h"
-#include "nh.h"
+#include "nh_common.h"
 #include "pktmbuf_internal.h"
 #include "pl_common.h"
 #include "pl_fused.h"

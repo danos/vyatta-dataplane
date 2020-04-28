@@ -61,7 +61,7 @@
 #include "mpls/mpls.h"
 #include "netinet6/ip6_funcs.h"
 #include "netinet6/route_v6.h"
-#include "nh.h"
+#include "nh_common.h"
 #include "nsh.h"
 #include "pktmbuf_internal.h"
 #include "pl_common.h"

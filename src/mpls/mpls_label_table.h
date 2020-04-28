@@ -19,7 +19,7 @@
 #include <stdint.h>
 #include <stdio.h>
 
-#include "nh.h"
+#include "nh_common.h"
 #include "route.h"
 
 struct cds_lfht;

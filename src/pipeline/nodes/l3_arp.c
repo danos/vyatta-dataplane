@@ -58,7 +58,7 @@
 #include "if_var.h"
 #include "ip_addr.h"
 #include "main.h"
-#include "nh.h"
+#include "nh_common.h"
 #include "pl_common.h"
 #include "pl_fused.h"
 #include "pktmbuf_internal.h"

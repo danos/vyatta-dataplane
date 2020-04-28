@@ -22,7 +22,7 @@
 #include "fal_bfd.h"
 #include "if_var.h"
 #include "mpls/mpls.h"
-#include "nh.h"
+#include "nh_common.h"
 #include "route.h"
 #include "route_flags.h"
 #include "route_v6.h"

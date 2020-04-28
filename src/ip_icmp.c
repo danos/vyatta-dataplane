@@ -59,7 +59,7 @@
 #include "snmp_mib.h"
 #include "urcu.h"
 #include "util.h"
-#include "nh.h"
+#include "nh_common.h"
 #include "npf/npf_nat.h"
 #include "npf/cgnat/cgn.h"
 #include "fal.h"

@@ -56,7 +56,7 @@
 #include "if_var.h"
 #include "ip_addr.h"
 #include "main.h"
-#include "nh.h"
+#include "nh_common.h"
 #include "pktmbuf_internal.h"
 #include "route.h"
 #include "route_flags.h"

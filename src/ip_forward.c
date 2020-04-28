@@ -49,7 +49,7 @@
 #include "main.h"
 #include "mpls/mpls.h"
 #include "mpls/mpls_forward.h"
-#include "nh.h"
+#include "nh_common.h"
 #include "npf/npf.h"
 #include "npf/npf_if.h"
 #include "npf/zones/npf_zone_public.h"

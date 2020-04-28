@@ -34,7 +34,7 @@
 #include "ip_funcs.h"
 #include "mpls/mpls.h"
 #include "mpls/mpls_forward.h"
-#include "nh.h"
+#include "nh_common.h"
 #include "pktmbuf_internal.h"
 #include "route.h"
 #include "route_flags.h"
