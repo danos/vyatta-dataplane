@@ -1594,6 +1594,21 @@ static const struct fal_attribute_t **next_hop_to_attr_list(
 	return nh_attr_list;
 }
 
+static enum fal_packet_action_t
+next_hop_group_packet_action(uint32_t nhops, const struct next_hop hops[])
+{
+	enum fal_packet_action_t action;
+	uint32_t i;
+
+	for (i = 0; i < nhops; i++) {
+		action = next_hop_to_packet_action(&hops[i]);
+		if (action != FAL_PACKET_ACTION_FORWARD)
+			return action;
+	}
+
+	return FAL_PACKET_ACTION_FORWARD;
+}
+
 int fal_ip_new_next_hops(enum fal_ip_addr_family_t family,
 			 size_t nhops, const struct next_hop hops[],
 			 fal_object_t *nhg_object,
@@ -1754,21 +1769,6 @@ int fal_ip_walk_routes(fal_plugin_route_walk_fn cb,
 {
 	return call_handler_def_ret(ip, -EOPNOTSUPP, walk_routes, cb,
 				    attr_cnt, attr_list, arg);
-}
-
-static enum fal_packet_action_t
-next_hop_group_packet_action(uint32_t nhops, struct next_hop hops[])
-{
-	enum fal_packet_action_t action;
-	uint32_t i;
-
-	for (i = 0; i < nhops; i++) {
-		action = next_hop_to_packet_action(&hops[i]);
-		if (action != FAL_PACKET_ACTION_FORWARD)
-			return action;
-	}
-
-	return FAL_PACKET_ACTION_FORWARD;
 }
 
 int fal_ip4_new_route(vrfid_t vrf_id, in_addr_t addr, uint8_t prefixlen,
