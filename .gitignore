@@ -53,6 +53,8 @@ mini_debuginfo
 *.ko
 *.so
 *.so.dbg
+*.lo
+*.la
 *.mod.c
 *.i
 *.lst
