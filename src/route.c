@@ -37,6 +37,7 @@
 #include "ecmp.h"
 #include "fal.h"
 #include "ip_forward.h"
+#include "if_llatbl.h"
 #include "if_var.h"
 #include "json_writer.h"
 #include "lpm/lpm.h"	/* Use Vyatta modified version */
