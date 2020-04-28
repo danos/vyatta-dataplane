@@ -21,4 +21,21 @@
  */
 int dp_protobuf_get_ipaddr(IPAddress *addr_msg, struct ip_addr *addr);
 
+/*
+ * Supports initialization of protobuf IPAddress msg
+ * @param[in] addr_msg  ptr to IPAddress message struct
+ *
+ * @return  Error code or success
+ */
+int dp_protobuf_create_ipaddr(IPAddress **addr_msg);
+
+/*
+ * Supports setting of protobuf IPAddress msg
+ * @param[in] addr_msg  IPAddress pointer or destination
+ * @param[in] val       value to set (struct ip_addr ptr)
+ *
+ * @return  Error code or success
+ */
+int dp_protobuf_set_ipaddr(IPAddress *to, struct ip_addr *from);
+
 #endif
