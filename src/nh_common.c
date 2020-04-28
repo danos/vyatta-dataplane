@@ -633,3 +633,21 @@ ALWAYS_INLINE struct next_hop *nexthop_select(int family, uint32_t nh_idx,
 
 	return nexthop_mp_select(next, size, ecmp_mbuf_hash(m, ether_type));
 }
+
+/*
+ * This is kept for backwards compatibility.
+ */
+ALWAYS_INLINE const struct in_addr *
+dp_nh4_get_addr(const struct next_hop *next_hop)
+{
+	return (struct in_addr *)&next_hop->gateway4;
+}
+
+/*
+ * This is kept for backwards compatibility.
+ */
+ALWAYS_INLINE const struct in6_addr *
+dp_nh6_get_addr(const struct next_hop *next_hop)
+{
+	return &next_hop->gateway6;
+}
