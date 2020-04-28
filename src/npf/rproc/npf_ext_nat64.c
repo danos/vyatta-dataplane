@@ -73,6 +73,10 @@ nat64_create(struct nat64 **n6p, npf_rule_t *rl)
 			   new->n6_src.nm_stop_addr.s6_addr32[0] == 0)
 			return -EINVAL;
 
+		/* Use all ports for each address */
+		new->n6_src.nm_start_port = 1;
+		new->n6_src.nm_stop_port = 65535;
+
 		/*
 		 * Create an address-port map and set r_natp pointer in rule
 		 * to point to it
@@ -260,10 +264,6 @@ nat64_parse_params(struct nat64 *n6, char *item, char *value)
 			return -EINVAL;
 
 		n6->n6_src.nm_af = (addr_sz == 4 ? AF_INET : AF_INET6);
-
-		/* Use all ports for each address in pool */
-		n6->n6_src.nm_start_port = 1;
-		n6->n6_src.nm_stop_port = 65535;
 
 	} else if (!strcmp(item, "sgroup")) {
 		/*
