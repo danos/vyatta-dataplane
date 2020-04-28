@@ -618,6 +618,17 @@ mpls_oam_ip_exception(struct rte_mbuf *m)
 	return true;
 }
 
+enum nh_fwd_ret {
+	NH_FWD_FAILURE = -1,
+	NH_FWD_SUCCESS = 0,
+	NH_FWD_RESWITCH_IPv4 = 2,
+	NH_FWD_RESWITCH_IPv6 = 3,
+	NH_FWD_RESWITCH_MPLS = 4,
+	NH_FWD_SLOWPATH,
+	NH_FWD_IPv4,
+	NH_FWD_IPv6,
+};
+
 /*
  * Forward an mpls packet to a nexthop.  m is a buffer that is known
  * to hold an MPLS packet encapsulating a payload packet of type
