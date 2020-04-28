@@ -753,7 +753,7 @@ npf_nat64_session_destroy(struct npf_session *se)
 		peer->n64_peer = NULL;
 
 	if (nat64->n64_np) {
-		npf_nat_free_map(nat64->n64_np, NULL,
+		npf_nat_free_map(nat64->n64_np, nat64->n64_rule,
 				 nat64->n64_map_flags,
 				 nat64->n64_vrfid,
 				 nat64->n64_t_addr,
