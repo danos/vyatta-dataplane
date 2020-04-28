@@ -1264,10 +1264,11 @@ void vlan_mod_cmd(FILE *f, int argc, char **argv)
 		ifindex = entry->key.ifindex;
 	}
 
-	if (ifindex != -1)
+	if (ifindex != -1) {
 		jsonw_end_array(wr);
+		jsonw_end_object(wr);
+	}
 
-	jsonw_end_object(wr);
 	jsonw_end_array(wr);
 
 	if (!intf_mode) {
