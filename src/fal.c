@@ -1618,6 +1618,7 @@ int fal_ip_new_next_hops(enum fal_ip_addr_family_t family,
 	uint32_t *nh_attr_count;
 	uint32_t i;
 	int ret;
+	enum fal_packet_action_t action;
 
 	/* we must have at least one nexthop */
 	if (!nhops)
@@ -1626,18 +1627,16 @@ int fal_ip_new_next_hops(enum fal_ip_addr_family_t family,
 	if (!fal_plugins_present())
 		return -EOPNOTSUPP;
 
-	for (i = 0; i < nhops; i++) {
-		/*
-		 * Don't create next_hop_group if there is at least
-		 * one nexthop that needs to do something special, since
-		 * we can't represent this in the next_hop
-		 * attributes. This will be represented instead using
-		 * route attributes.
-		 */
-		if (next_hop_to_packet_action(&hops[i]) !=
-		    FAL_PACKET_ACTION_FORWARD)
-			return FAL_RC_NOT_REQ;
-	}
+	action = next_hop_group_packet_action(nhops, hops);
+	/*
+	 * Don't create next_hop_group if there is at least
+	 * one nexthop that needs to do something special, since
+	 * we can't represent this in the next_hop
+	 * attributes. This will be represented instead using
+	 * route attributes.
+	 */
+	if (action != FAL_PACKET_ACTION_FORWARD)
+		return FAL_RC_NOT_REQ;
 
 	ret = call_handler_def_ret(ip, -EOPNOTSUPP,
 				   new_next_hop_group, 0, NULL,
