@@ -38,7 +38,7 @@ struct next_hop {
  * This is the nexthop information result of route lookup - allows for
  * multiple nexthops in the case of ECMP
  */
-struct next_hop_u {
+struct next_hop_list {
 	struct next_hop      *siblings;	/* array of next_hop */
 	uint8_t              nsiblings;	/* # of next_hops */
 	uint8_t              proto;	/* routing protocol */
@@ -73,7 +73,7 @@ struct nexthop_hash_key {
 struct nexthop_table {
 	uint32_t in_use;  /* # of entries used */
 	uint32_t rover;   /* next free slot to look at */
-	struct next_hop_u *entry[NEXTHOP_HASH_TBL_SIZE]; /* array of entries */
+	struct next_hop_list *entry[NEXTHOP_HASH_TBL_SIZE]; /* entry array */
 	uint32_t neigh_present;
 	uint32_t neigh_created;
 };
@@ -85,9 +85,9 @@ enum nh_type {
 
 void nh_set_ifp(struct next_hop *next_hop, struct ifnet *ifp);
 
-struct next_hop_u *nexthop_alloc(int size);
+struct next_hop_list *nexthop_alloc(int size);
 
-void __nexthop_destroy(struct next_hop_u *nextu);
+void __nexthop_destroy(struct next_hop_list *nextl);
 
 void nexthop_destroy(struct rcu_head *head);
 
@@ -116,13 +116,13 @@ void nexthop_put(int family, uint32_t idx);
 /*
  * Given an nexthop_u create a copy of the nexthops in an array
  *
- * @param[in] nhu The fully formed nhu
+ * @param[in] nhl The fully formed nhl
  * @param[out] size Store the size of the created array here.
  *
  * @return Pointer to array of nexthops on success
  * @return NULL on failure
  */
-struct next_hop *nexthop_create_copy(struct next_hop_u *nhu, int *size);
+struct next_hop *nexthop_create_copy(struct next_hop_list *nhl, int *size);
 
 /*
  * Remove the old NH from the hash and add the new one. Can not
@@ -139,8 +139,8 @@ struct next_hop *nexthop_create_copy(struct next_hop_u *nhu, int *size);
  */
 int
 nexthop_hash_del_add(int family,
-		     struct next_hop_u *old_nu,
-		     struct next_hop_u *new_nu);
+		     struct next_hop_list *old_nhl,
+		     struct next_hop_list *new_nhl);
 
 /*
  * Modify a NH to mark it as neigh present. This is done in a non atomic
@@ -188,38 +188,38 @@ void nh_clear_neigh_created(int family,
 			    struct next_hop *next_hop);
 
 /*
- * Get the number of neighbour created entries in the next_hop_u
+ * Get the number of neighbour created entries in the next_hop_list
  *
- * @param[in] nhu The next_hop_u to check
+ * @param[in] nhl The next_hop_list to check
  *
- * @return the count of neighbour created entries in the nhu.
+ * @return the count of neighbour created entries in the nhl.
  */
-int nextu_nc_count(const struct next_hop_u *nhu);
+int next_hop_list_nc_count(const struct next_hop_list *nhl);
 
 /*
- * Given a next_hop_u and an ifp, find the next_hop within the
- * next_hop_u that uses the given interface.
+ * Given a next_hop_list and an ifp, find the next_hop within the
+ * next_hop_list that uses the given interface.
  *
- * @param[in] nhu The next_hop_u to check
+ * @param[in] nhl The next_hop_list to check
  * @param[in] ifp The ifp to look for
  * @param[out] sibling Store the index of the returned nexthop
  *
  * @return A ptr to the next_hop if one matched
  *         Null if no match found.
  */
-struct next_hop *nextu_find_path_using_ifp(struct next_hop_u *nhu,
-					   struct ifnet *ifp,
-					   int *sibling);
+struct next_hop *next_hop_list_find_path_using_ifp(struct next_hop_list *nhl,
+						   struct ifnet *ifp,
+						   int *sibling);
 
 /*
- * Given a next_hop_u check if any of the hops are connected
+ * Given a next_hop_list check if any of the hops are connected
  *
- * @param[in] nhu The next_hop_u to check
+ * @param[in] nh The next_hop_list to check
  *
  * @return True if there is a connected nexthop
  * @return False if there is not a connected nexthop
  */
-bool nextu_is_any_connected(const struct next_hop_u *nhu);
+bool next_hop_list_is_any_connected(const struct next_hop_list *nhl);
 
 struct next_hop *nexthop_mp_select(struct next_hop *next,
 				   uint32_t size,

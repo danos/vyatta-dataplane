@@ -123,8 +123,8 @@ nh_set_ifp(struct next_hop *next_hop, struct ifnet *ifp)
 	rcu_assign_pointer(next_hop->u.ifp, ifp);
 }
 
-static struct next_hop_u *nexthop_lookup(int family,
-					 const struct nexthop_hash_key *key)
+static struct next_hop_list *nexthop_lookup(int family,
+					    const struct nexthop_hash_key *key)
 {
 	struct cds_lfht_iter iter;
 	struct cds_lfht_node *node;
@@ -140,37 +140,37 @@ static struct next_hop_u *nexthop_lookup(int family,
 			cmp_fn, key, &iter);
 	node = cds_lfht_iter_get_node(&iter);
 	if (node)
-		return caa_container_of(node, struct next_hop_u, nh_node);
+		return caa_container_of(node, struct next_hop_list, nh_node);
 	else
 		return NULL;
 }
 
 /* Reuse existing next hop entry */
-static struct next_hop_u *nexthop_reuse(int family,
-					const struct nexthop_hash_key *key,
-					uint32_t *slot)
+static struct next_hop_list *nexthop_reuse(int family,
+					   const struct nexthop_hash_key *key,
+					   uint32_t *slot)
 {
-	struct next_hop_u *nu;
+	struct next_hop_list *nhl;
 	int index;
 
-	nu = nexthop_lookup(family, key);
-	if (!nu)
+	nhl = nexthop_lookup(family, key);
+	if (!nhl)
 		return NULL;
 
-	index = nu->index;
+	index = nhl->index;
 
 	*slot = index;
-	++nu->refcount;
+	++nhl->refcount;
 
 	DP_DEBUG(ROUTE, DEBUG, ROUTE,
 		 "%s nexthop reuse: nexthop %d, refs %u\n",
 		 family == AF_INET ? "IPv4" : "IPv6",
-		 index, nu->refcount);
+		 index, nhl->refcount);
 
-	return nu;
+	return nhl;
 }
 
-static int nexthop_hash_insert(int family, struct next_hop_u *nu,
+static int nexthop_hash_insert(int family, struct next_hop_list *nhl,
 			       const struct nexthop_hash_key *key)
 {
 	struct cds_lfht_node *ret_node;
@@ -179,67 +179,67 @@ static int nexthop_hash_insert(int family, struct next_hop_u *nu,
 	nh_common_hash_fn *hash_fn = nh_common_get_hash_fn(family);
 	nh_common_cmp_fn *cmp_fn = nh_common_get_hash_cmp_fn(family);
 
-	cds_lfht_node_init(&nu->nh_node);
+	cds_lfht_node_init(&nhl->nh_node);
 	hash = hash_fn(key, 0);
 
 	ret_node = cds_lfht_add_unique(hash_tbl, hash,
 				       cmp_fn, key,
-				       &nu->nh_node);
+				       &nhl->nh_node);
 
-	return (ret_node != &nu->nh_node) ? EEXIST : 0;
+	return (ret_node != &nhl->nh_node) ? EEXIST : 0;
 }
 
-struct next_hop_u *nexthop_alloc(int size)
+struct next_hop_list *nexthop_alloc(int size)
 {
-	struct next_hop_u *nextu;
+	struct next_hop_list *nextl;
 
-	nextu = calloc(1, sizeof(*nextu));
-	if (unlikely(!nextu)) {
-		RTE_LOG(ERR, ROUTE, "can't alloc next_hop_u\n");
+	nextl = calloc(1, sizeof(*nextl));
+	if (unlikely(!nextl)) {
+		RTE_LOG(ERR, ROUTE, "can't alloc next_hop_list\n");
 		return NULL;
 	}
 
-	nextu->nh_fal_obj = calloc(size, sizeof(*nextu->nh_fal_obj));
-	if (!nextu->nh_fal_obj) {
-		free(nextu);
+	nextl->nh_fal_obj = calloc(size, sizeof(*nextl->nh_fal_obj));
+	if (!nextl->nh_fal_obj) {
+		free(nextl);
 		return NULL;
 	}
 
 	if (size == 1) {
 		/* Optimize for non-ECMP case by staying in cache line */
-		nextu->siblings = &nextu->hop0;
+		nextl->siblings = &nextl->hop0;
 	} else {
-		nextu->siblings = calloc(1, size * sizeof(struct next_hop));
-		if (unlikely(nextu->siblings == NULL)) {
-			free(nextu->nh_fal_obj);
-			free(nextu);
+		nextl->siblings = calloc(1, size * sizeof(struct next_hop));
+		if (unlikely(nextl->siblings == NULL)) {
+			free(nextl->nh_fal_obj);
+			free(nextl);
 			return NULL;
 		}
 	}
-	nextu->nsiblings = size;
-	return nextu;
+	nextl->nsiblings = size;
+	return nextl;
 }
 
-void __nexthop_destroy(struct next_hop_u *nextu)
+void __nexthop_destroy(struct next_hop_list *nextl)
 {
 	unsigned int i;
 
-	for (i = 0; i < nextu->nsiblings; i++)
-		nh_outlabels_destroy(&nextu->siblings[i].outlabels);
-	if (nextu->siblings != &nextu->hop0)
-		free(nextu->siblings);
+	for (i = 0; i < nextl->nsiblings; i++)
+		nh_outlabels_destroy(&nextl->siblings[i].outlabels);
+	if (nextl->siblings != &nextl->hop0)
+		free(nextl->siblings);
 
-	free(nextu->nh_fal_obj);
-	free(nextu);
+	free(nextl->nh_fal_obj);
+	free(nextl);
 }
 
 /* Callback from RCU after all other threads are done. */
 void nexthop_destroy(struct rcu_head *head)
 {
-	struct next_hop_u *nextu
-		= caa_container_of(head, struct next_hop_u, rcu);
+	struct next_hop_list *nextl
+		= caa_container_of(head, struct next_hop_list, rcu);
 
-	__nexthop_destroy(nextu);
+	__nexthop_destroy(nextl);
 }
 
 /* Lookup (or create) nexthop based on hop information */
@@ -248,7 +248,7 @@ int nexthop_new(int family, const struct next_hop *nh, uint16_t size,
 {
 	struct nexthop_hash_key key = {
 				.nh = nh, .size = size, .proto = proto };
-	struct next_hop_u *nextu;
+	struct next_hop_list *nextl;
 	uint32_t rover;
 	uint32_t nh_iter;
 	int ret;
@@ -261,8 +261,8 @@ int nexthop_new(int family, const struct next_hop *nh, uint16_t size,
 	}
 
 	rover = nh_table->rover;
-	nextu = nexthop_reuse(family, &key, slot);
-	if (nextu)
+	nextl = nexthop_reuse(family, &key, slot);
+	if (nextl)
 		return 0;
 
 	if (unlikely(nh_table->in_use == NEXTHOP_HASH_TBL_SIZE)) {
@@ -271,36 +271,36 @@ int nexthop_new(int family, const struct next_hop *nh, uint16_t size,
 		return -ENOSPC;
 	}
 
-	nextu = nexthop_alloc(size);
-	if (!nextu) {
+	nextl = nexthop_alloc(size);
+	if (!nextl) {
 		RTE_LOG(ERR, ROUTE, "IPv%d next hop table alloc failed\n",
 			family == AF_INET ? 4 : 6);
 		return -ENOMEM;
 	}
 
-	nextu->nsiblings = size;
-	nextu->refcount = 1;
-	nextu->index = rover;
-	nextu->proto = proto;
+	nextl->nsiblings = size;
+	nextl->refcount = 1;
+	nextl->index = rover;
+	nextl->proto = proto;
 	if (size == 1)
-		nextu->hop0 = *nh;
+		nextl->hop0 = *nh;
 	else
-		memcpy(nextu->siblings, nh, size * sizeof(struct next_hop));
+		memcpy(nextl->siblings, nh, size * sizeof(struct next_hop));
 
-	if (unlikely(nexthop_hash_insert(family, nextu, &key))) {
-		__nexthop_destroy(nextu);
+	if (unlikely(nexthop_hash_insert(family, nextl, &key))) {
+		__nexthop_destroy(nextl);
 		return -ENOMEM;
 	}
 
 	ret = fal_ip_new_next_hops(addr_family_to_fal_ip_addr_family(family),
-				   nextu->nsiblings, nextu->siblings,
-				    &nextu->nhg_fal_obj,
-				    nextu->nh_fal_obj);
+				   nextl->nsiblings, nextl->siblings,
+				    &nextl->nhg_fal_obj,
+				    nextl->nh_fal_obj);
 	if (ret < 0 && ret != -EOPNOTSUPP)
 		RTE_LOG(ERR, ROUTE,
 			"FAL IPv4 next-hop-group create failed: %s\n",
 			strerror(-ret));
-	nextu->pd_state = fal_state_to_pd_state(ret);
+	nextl->pd_state = fal_state_to_pd_state(ret);
 
 	nh_iter = rover;
 	do {
@@ -314,7 +314,7 @@ int nexthop_new(int family, const struct next_hop *nh, uint16_t size,
 	*slot = rover;
 	nh_table->in_use++;
 
-	rcu_assign_pointer(nh_table->entry[rover], nextu);
+	rcu_assign_pointer(nh_table->entry[rover], nextl);
 
 	return 0;
 }
@@ -346,7 +346,7 @@ nexthop_create(struct ifnet *ifp, struct ip_addr *gw, uint32_t flags,
 
 void nexthop_put(int family, uint32_t idx)
 {
-	struct next_hop_u *nextu;
+	struct next_hop_list *nextl;
 	struct nexthop_table *nh_table = nh_common_get_nh_table(family);
 	struct cds_lfht *hash_tbl = nh_common_get_hash_table(family);
 
@@ -356,16 +356,16 @@ void nexthop_put(int family, uint32_t idx)
 		return;
 	}
 
-	nextu = rcu_dereference(nh_table->entry[idx]);
-	if (--nextu->refcount == 0) {
-		struct next_hop *array = nextu->siblings;
+	nextl = rcu_dereference(nh_table->entry[idx]);
+	if (--nextl->refcount == 0) {
+		struct next_hop *array = nextl->siblings;
 		int ret;
 		int i;
 
 		nh_table->entry[idx] = NULL;
 		--nh_table->in_use;
 
-		for (i = 0; i < nextu->nsiblings; i++) {
+		for (i = 0; i < nextl->nsiblings; i++) {
 			struct next_hop *nh = array + i;
 
 			if (nh_is_neigh_present(nh))
@@ -374,10 +374,10 @@ void nexthop_put(int family, uint32_t idx)
 				nh_table->neigh_created--;
 		}
 
-		if (fal_state_is_obj_present(nextu->pd_state)) {
-			ret = fal_ip_del_next_hops(nextu->nhg_fal_obj,
-						   nextu->nsiblings,
-						   nextu->nh_fal_obj);
+		if (fal_state_is_obj_present(nextl->pd_state)) {
+			ret = fal_ip_del_next_hops(nextl->nhg_fal_obj,
+						   nextl->nsiblings,
+						   nextl->nh_fal_obj);
 			if (ret < 0) {
 				RTE_LOG(ERR, ROUTE,
 					"FAL IPv%d next-hop-group delete failed: %s\n",
@@ -386,30 +386,30 @@ void nexthop_put(int family, uint32_t idx)
 			}
 		}
 
-		cds_lfht_del(hash_tbl, &nextu->nh_node);
-		call_rcu(&nextu->rcu, nexthop_destroy);
+		cds_lfht_del(hash_tbl, &nextl->nh_node);
+		call_rcu(&nextl->rcu, nexthop_destroy);
 	}
 }
 
 /*
- * Create an array of next_hops based on the hops in the NHU.
+ * Create an array of next_hops based on the hops in the next_hop_list.
  */
-struct next_hop *nexthop_create_copy(struct next_hop_u *nhu, int *size)
+struct next_hop *nexthop_create_copy(struct next_hop_list *nhl, int *size)
 {
 	struct next_hop *next, *n;
-	struct next_hop *array = rcu_dereference(nhu->siblings);
+	struct next_hop *array = rcu_dereference(nhl->siblings);
 	int i;
 
-	*size = nhu->nsiblings;
+	*size = nhl->nsiblings;
 	n = next = calloc(sizeof(struct next_hop), *size);
 	if (!next)
 		return NULL;
 
-	for (i = 0; i < nhu->nsiblings; i++) {
-		struct next_hop *nhu_next = array + i;
+	for (i = 0; i < nhl->nsiblings; i++) {
+		struct next_hop *nhl_next = array + i;
 
-		memcpy(n, nhu_next, sizeof(struct next_hop));
-		nh_outlabels_copy(&nhu_next->outlabels, &n->outlabels);
+		memcpy(n, nhl_next, sizeof(struct next_hop));
+		nh_outlabels_copy(&nhl_next->outlabels, &n->outlabels);
 		n++;
 	}
 	return next;
@@ -417,12 +417,12 @@ struct next_hop *nexthop_create_copy(struct next_hop_u *nhu, int *size)
 
 int
 nexthop_hash_del_add(int family,
-		     struct next_hop_u *old_nu,
-		     struct next_hop_u *new_nu)
+		     struct next_hop_list *old_nhl,
+		     struct next_hop_list *new_nhl)
 {
-	struct nexthop_hash_key key = {.nh = new_nu->siblings,
-				       .size = new_nu->nsiblings,
-				       .proto = new_nu->proto };
+	struct nexthop_hash_key key = {.nh = new_nhl->siblings,
+				       .size = new_nhl->nsiblings,
+				       .proto = new_nhl->proto };
 	struct cds_lfht *hash_tbl = nh_common_get_hash_table(family);
 
 	if (!hash_tbl) {
@@ -434,13 +434,13 @@ nexthop_hash_del_add(int family,
 	int rc;
 
 	/* Remove old one */
-	rc = cds_lfht_del(hash_tbl, &old_nu->nh_node);
+	rc = cds_lfht_del(hash_tbl, &old_nhl->nh_node);
 	assert(rc == 0);
 	if (rc != 0)
 		return rc;
 
 	/* add new one */
-	return nexthop_hash_insert(family, new_nu, &key);
+	return nexthop_hash_insert(family, new_nhl, &key);
 }
 
 bool nh_is_connected(const struct next_hop *nh)
@@ -542,13 +542,13 @@ void nh_clear_neigh_created(int family,
 	nh_table->neigh_created--;
 }
 
-int nextu_nc_count(const struct next_hop_u *nhu)
+int next_hop_list_nc_count(const struct next_hop_list *nhl)
 {
 	int count = 0;
 	int i;
-	struct next_hop *array = rcu_dereference(nhu->siblings);
+	struct next_hop *array = rcu_dereference(nhl->siblings);
 
-	for (i = 0; i < nhu->nsiblings; i++) {
+	for (i = 0; i < nhl->nsiblings; i++) {
 		struct next_hop *next = array + i;
 
 		if (nh_is_neigh_created(next))
@@ -557,14 +557,14 @@ int nextu_nc_count(const struct next_hop_u *nhu)
 	return count;
 }
 
-struct next_hop *nextu_find_path_using_ifp(struct next_hop_u *nhu,
-					   struct ifnet *ifp,
-					   int *sibling)
+struct next_hop *next_hop_list_find_path_using_ifp(struct next_hop_list *nhl,
+						   struct ifnet *ifp,
+						   int *sibling)
 {
 	uint32_t i;
-	struct next_hop *array = rcu_dereference(nhu->siblings);
+	struct next_hop *array = rcu_dereference(nhl->siblings);
 
-	for (i = 0; i < nhu->nsiblings; i++) {
+	for (i = 0; i < nhl->nsiblings; i++) {
 		struct next_hop *next = array + i;
 
 		if (dp_nh_get_ifp(next) == ifp) {
@@ -575,12 +575,12 @@ struct next_hop *nextu_find_path_using_ifp(struct next_hop_u *nhu,
 	return NULL;
 }
 
-bool nextu_is_any_connected(const struct next_hop_u *nhu)
+bool next_hop_list_is_any_connected(const struct next_hop_list *nhl)
 {
 	uint32_t i;
-	struct next_hop *array = rcu_dereference(nhu->siblings);
+	struct next_hop *array = rcu_dereference(nhl->siblings);
 
-	for (i = 0; i < nhu->nsiblings; i++) {
+	for (i = 0; i < nhl->nsiblings; i++) {
 		struct next_hop *next = array + i;
 
 		if (nh_is_connected(next))
@@ -616,17 +616,17 @@ ALWAYS_INLINE struct next_hop *nexthop_select(int family, uint32_t nh_idx,
 					      const struct rte_mbuf *m,
 					      uint16_t ether_type)
 {
-	struct next_hop_u *nextu;
+	struct next_hop_list *nextl;
 	struct next_hop *next;
 	uint32_t size;
 	struct nexthop_table *nh_table = nh_common_get_nh_table(family);
 
-	nextu = rcu_dereference(nh_table->entry[nh_idx]);
-	if (unlikely(!nextu))
+	nextl = rcu_dereference(nh_table->entry[nh_idx]);
+	if (unlikely(!nextl))
 		return NULL;
 
-	size = nextu->nsiblings;
-	next = nextu->siblings;
+	size = nextl->nsiblings;
+	next = nextl->siblings;
 
 	if (likely(size == 1))
 		return next;

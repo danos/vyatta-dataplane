@@ -57,19 +57,19 @@ struct rte_mbuf;
  *
  * addr   +----------+
  *   ---->|          |
- *        |  L P M   | idx +-----------+
- *        |          +---->| nexthop_u |
- *        |          |     +-----------+
- *        |          |     |           |
- *        +----------+     +-----------+
- *                         |  nexthop  |
- *                         |     0     |
- *                         +-----------+
- *                         |    ...    |
- *                         +-----------+
- *                         |  nexthop  |
- *                         | count - 1 |
- *                         +-----------+
+ *        |  L P M   | idx +--------------+
+ *        |          +---->| nexthop_list |
+ *        |          |     +--------------+
+ *        |          |     |              |
+ *        +----------+     +--------------+
+ *                         |  nexthop     |
+ *                         |     0        |
+ *                         +--------------+
+ *                         |    ...       |
+ *                         +--------------+
+ *                         |  nexthop     |
+ *                         | count - 1    |
+ *                         +--------------+
  */
 
 /* Nexthop entry table, could be per-namespace */
@@ -78,8 +78,8 @@ static struct nexthop_table nh_tbl __hot_data;
 /* Index for next hop table */
 static struct cds_lfht *nexthop_hash;
 
-/* Well-known blackhole next_hop_u for failure cases */
-static struct next_hop_u *nextu_blackhole;
+/* Well-known blackhole next_hop_list for failure cases */
+static struct next_hop_list *nextl_blackhole;
 
 static pthread_mutex_t route_mutex = PTHREAD_MUTEX_INITIALIZER;
 
@@ -162,7 +162,7 @@ route_lpm_add(vrfid_t vrf_id, struct lpm *lpm, uint32_t ip,
 	struct pd_obj_state_and_flags *old_pd_state;
 	uint32_t old_nh;
 	bool demoted = false;
-	struct next_hop_u *nextu =
+	struct next_hop_list *nextl =
 		rcu_dereference(nh_tbl.entry[next_hop]);
 	bool update_pd_state = true;
 
@@ -197,10 +197,10 @@ route_lpm_add(vrfid_t vrf_id, struct lpm *lpm, uint32_t ip,
 		return rc;
 	}
 
-	if (nextu->pd_state != PD_OBJ_STATE_FULL &&
-	    nextu->pd_state != PD_OBJ_STATE_NOT_NEEDED) {
-		pd_state->state = nextu->pd_state;
-		nextu = nextu_blackhole;
+	if (nextl->pd_state != PD_OBJ_STATE_FULL &&
+	    nextl->pd_state != PD_OBJ_STATE_NOT_NEEDED) {
+		pd_state->state = nextl->pd_state;
+		nextl = nextl_blackhole;
 		update_pd_state = false;
 	}
 
@@ -208,15 +208,15 @@ route_lpm_add(vrfid_t vrf_id, struct lpm *lpm, uint32_t ip,
 		if (old_pd_state->created) {
 			rc = fal_ip4_upd_route(vrf_id, ip, depth,
 					       lpm_get_id(lpm),
-					       nextu->siblings,
-					       nextu->nsiblings,
-					       nextu->nhg_fal_obj);
+					       nextl->siblings,
+					       nextl->nsiblings,
+					       nextl->nhg_fal_obj);
 		} else {
 			rc = fal_ip4_new_route(vrf_id, ip, depth,
 					       lpm_get_id(lpm),
-					       nextu->siblings,
-					       nextu->nsiblings,
-					       nextu->nhg_fal_obj);
+					       nextl->siblings,
+					       nextl->nsiblings,
+					       nextl->nhg_fal_obj);
 		}
 		if (update_pd_state)
 			pd_state->state = fal_state_to_pd_state(rc);
@@ -234,9 +234,9 @@ route_lpm_add(vrfid_t vrf_id, struct lpm *lpm, uint32_t ip,
 	 * platform, if there is one.
 	 */
 	rc = fal_ip4_new_route(vrf_id, ip, depth, lpm_get_id(lpm),
-			       nextu->siblings,
-			       nextu->nsiblings,
-			       nextu->nhg_fal_obj);
+			       nextl->siblings,
+			       nextl->nsiblings,
+			       nextl->nhg_fal_obj);
 	if (update_pd_state)
 		pd_state->state = fal_state_to_pd_state(rc);
 	if (!rc)
@@ -318,24 +318,24 @@ route_lpm_update(vrfid_t vrf_id, struct lpm *lpm,
 		route_sw_stats[PD_OBJ_STATE_ERROR]++;
 	}
 
-	struct next_hop_u *nextu =
+	struct next_hop_list *nextl =
 		rcu_dereference(nh_tbl.entry[next_hop]);
 
-	if (nextu->pd_state != PD_OBJ_STATE_FULL &&
-	    nextu->pd_state != PD_OBJ_STATE_NOT_NEEDED) {
-		new_pd_state->state = nextu->pd_state;
-		nextu = nextu_blackhole;
+	if (nextl->pd_state != PD_OBJ_STATE_FULL &&
+	    nextl->pd_state != PD_OBJ_STATE_NOT_NEEDED) {
+		new_pd_state->state = nextl->pd_state;
+		nextl = nextl_blackhole;
 		update_new_pd_state = false;
 	}
 
 	if (pd_state.created) {
 		rc = fal_ip4_upd_route(vrf_id, ip, depth, lpm_get_id(lpm),
-				       nextu->siblings, nextu->nsiblings,
-				       nextu->nhg_fal_obj);
+				       nextl->siblings, nextl->nsiblings,
+				       nextl->nhg_fal_obj);
 	} else {
 		rc = fal_ip4_new_route(vrf_id, ip, depth, lpm_get_id(lpm),
-				       nextu->siblings, nextu->nsiblings,
-				       nextu->nhg_fal_obj);
+				       nextl->siblings, nextl->nsiblings,
+				       nextl->nhg_fal_obj);
 	}
 
 	route_hw_stats[pd_state.state]--;
@@ -382,29 +382,29 @@ route_lpm_delete(vrfid_t vrf_id, struct lpm *lpm, uint32_t ip,
 	}
 
 	if (promoted) {
-		struct next_hop_u *nextu =
+		struct next_hop_list *nextl =
 			rcu_dereference(nh_tbl.entry[new_nh]);
 		bool update_new_pd_state = true;
 
-		if (nextu->pd_state != PD_OBJ_STATE_FULL &&
-		    nextu->pd_state != PD_OBJ_STATE_NOT_NEEDED) {
-			new_pd_state->state = nextu->pd_state;
-			nextu = nextu_blackhole;
+		if (nextl->pd_state != PD_OBJ_STATE_FULL &&
+		    nextl->pd_state != PD_OBJ_STATE_NOT_NEEDED) {
+			new_pd_state->state = nextl->pd_state;
+			nextl = nextl_blackhole;
 			update_new_pd_state = false;
 		}
 
 		if (pd_state.created) {
 			rc = fal_ip4_upd_route(vrf_id, ip, depth,
 					       lpm_get_id(lpm),
-					       nextu->siblings,
-					       nextu->nsiblings,
-					       nextu->nhg_fal_obj);
+					       nextl->siblings,
+					       nextl->nsiblings,
+					       nextl->nhg_fal_obj);
 		} else {
 			rc = fal_ip4_new_route(vrf_id, ip, depth,
 					       lpm_get_id(lpm),
-					       nextu->siblings,
-					       nextu->nsiblings,
-					       nextu->nhg_fal_obj);
+					       nextl->siblings,
+					       nextl->nsiblings,
+					       nextl->nhg_fal_obj);
 		}
 		if (update_new_pd_state)
 			new_pd_state->state = fal_state_to_pd_state(rc);
@@ -630,11 +630,11 @@ static struct lpm *rt_get_lpm(struct route_head *rt_head, uint32_t id)
 
 struct next_hop *nexthop_get(uint32_t nh_idx, uint8_t *size)
 {
-	struct next_hop_u *nextu;
+	struct next_hop_list *nextl;
 
-	nextu = rcu_dereference(nh_tbl.entry[nh_idx]);
-	*size = nextu->nsiblings;
-	return nextu->siblings;
+	nextl = rcu_dereference(nh_tbl.entry[nh_idx]);
+	*size = nextl->nsiblings;
+	return nextl->siblings;
 }
 
 /* Check if route table exists */
@@ -696,7 +696,7 @@ struct next_hop *rt_lookup_fast(struct vrf *vrf, in_addr_t dst,
 inline bool is_local_ipv4(vrfid_t vrf_id, in_addr_t dst)
 {
 	struct vrf *vrf = vrf_get_rcu(vrf_id);
-	struct next_hop_u *nextu;
+	struct next_hop_list *nextl;
 	struct next_hop *next;
 	struct lpm *lpm;
 	uint32_t idx;
@@ -709,11 +709,11 @@ inline bool is_local_ipv4(vrfid_t vrf_id, in_addr_t dst)
 	if (unlikely(lpm_lookup(lpm, ntohl(dst), &idx) != 0))
 		return false;
 
-	nextu = rcu_dereference(nh_tbl.entry[idx]);
-	if (unlikely(!nextu))
+	nextl = rcu_dereference(nh_tbl.entry[idx]);
+	if (unlikely(!nextl))
 		return false;
 
-	next = rcu_dereference(nextu->siblings);
+	next = rcu_dereference(nextl->siblings);
 	if (next->flags & RTF_LOCAL)
 		return true;
 
@@ -742,21 +742,21 @@ nexthop_hashfn(const struct nexthop_hash_key *key,
 static int nexthop_cmpfn(struct cds_lfht_node *node, const void *key)
 {
 	const struct nexthop_hash_key *h_key = key;
-	const struct next_hop_u *nu =
-		caa_container_of(node, const struct next_hop_u, nh_node);
+	const struct next_hop_list *nl =
+		caa_container_of(node, const struct next_hop_list, nh_node);
 	uint16_t i;
 
-	if (h_key->size != nu->nsiblings)
+	if (h_key->size != nl->nsiblings)
 		return false;
 
 	for (i = 0; i < h_key->size; i++) {
-		if ((nu->proto != h_key->proto) ||
-		    (dp_nh_get_ifp(&nu->siblings[i]) !=
+		if ((nl->proto != h_key->proto) ||
+		    (dp_nh_get_ifp(&nl->siblings[i]) !=
 		     dp_nh_get_ifp(&h_key->nh[i])) ||
-		    ((nu->siblings[i].flags & NH_FLAGS_CMP_MASK) !=
+		    ((nl->siblings[i].flags & NH_FLAGS_CMP_MASK) !=
 		     (h_key->nh[i].flags & NH_FLAGS_CMP_MASK)) ||
-		    (nu->siblings[i].gateway4 != h_key->nh[i].gateway4) ||
-		    !nh_outlabels_cmpfn(&nu->siblings[i].outlabels,
+		    (nl->siblings[i].gateway4 != h_key->nh[i].gateway4) ||
+		    !nh_outlabels_cmpfn(&nl->siblings[i].outlabels,
 					&h_key->nh[i].outlabels))
 			return false;
 	}
@@ -777,15 +777,15 @@ enum nh_change {
  * then remove it.
  */
 static int
-route_nh_replace(int family, struct next_hop_u *nextu,
+route_nh_replace(int family, struct next_hop_list *nextl,
 		 uint32_t nh_idx, struct llentry *lle,
-		 uint32_t *new_nextu_idx_for_del,
+		 uint32_t *new_nextl_idx_for_del,
 		 enum nh_change (*nh_processing_cb)(struct next_hop *next,
 						    int sibling,
 						    void *arg),
 		 void *arg)
 {
-	struct next_hop_u *new_nextu = NULL;
+	struct next_hop_list *new_nextl = NULL;
 	struct next_hop *old_array;
 	struct next_hop *new_array = NULL;
 	enum nh_change nh_change;
@@ -796,16 +796,16 @@ route_nh_replace(int family, struct next_hop_u *nextu,
 	ASSERT_MASTER();
 
 	/* walk all the NHs, copying as we go */
-	old_array = rcu_dereference(nextu->siblings);
-	new_nextu = nexthop_alloc(nextu->nsiblings);
-	if (!new_nextu)
+	old_array = rcu_dereference(nextl->siblings);
+	new_nextl = nexthop_alloc(nextl->nsiblings);
+	if (!new_nextl)
 		return 0;
-	new_nextu->proto = nextu->proto;
-	new_nextu->index = nextu->index;
-	new_nextu->refcount = nextu->refcount;
-	new_array = rcu_dereference(new_nextu->siblings);
+	new_nextl->proto = nextl->proto;
+	new_nextl->index = nextl->index;
+	new_nextl->refcount = nextl->refcount;
+	new_array = rcu_dereference(new_nextl->siblings);
 
-	for (i = 0; i < nextu->nsiblings; i++) {
+	for (i = 0; i < nextl->nsiblings; i++) {
 		struct next_hop *next = old_array + i;
 		struct next_hop *new_next = new_array + i - deleted;
 
@@ -835,8 +835,8 @@ route_nh_replace(int family, struct next_hop_u *nextu,
 			nh_clear_neigh_present(family, new_next);
 			break;
 		case NH_DELETE:
-			if (!new_nextu_idx_for_del) {
-				__nexthop_destroy(new_nextu);
+			if (!new_nextl_idx_for_del) {
+				__nexthop_destroy(new_nextl);
 				return -1;
 			}
 			any_change = true;
@@ -847,25 +847,25 @@ route_nh_replace(int family, struct next_hop_u *nextu,
 
 	/* Did we make any changes?  If not then we can return */
 	if (!any_change) {
-		__nexthop_destroy(new_nextu);
+		__nexthop_destroy(new_nextl);
 		return 0;
 	}
 
 	if (deleted) {
 		/*
 		 * We are deleting at least one nh - create a new
-		 * nextu for caller to deal with.
+		 * next_hop_list for caller to deal with.
 		 */
-		if (deleted != nextu->nsiblings &&
-		    route_nexthop_new(nextu->siblings, nextu->nsiblings,
-				      nextu->proto, new_nextu_idx_for_del) < 0)
-			deleted = nextu->nsiblings;
-		__nexthop_destroy(new_nextu);
+		if (deleted != nextl->nsiblings &&
+		    route_nexthop_new(nextl->siblings, nextl->nsiblings,
+				      nextl->proto, new_nextl_idx_for_del) < 0)
+			deleted = nextl->nsiblings;
+		__nexthop_destroy(new_nextl);
 		return deleted;
 	}
 
-	if (nexthop_hash_del_add(family, nextu, new_nextu)) {
-		__nexthop_destroy(new_nextu);
+	if (nexthop_hash_del_add(family, nextl, new_nextl)) {
+		__nexthop_destroy(new_nextl);
 		RTE_LOG(ERR, ROUTE, "nh replace failed\n");
 		return 0;
 	}
@@ -875,15 +875,15 @@ route_nh_replace(int family, struct next_hop_u *nextu,
 	 * notifications as there are no FAL-visible changes to the
 	 * object - it maintains its own linkage to the neighbour
 	 */
-	new_nextu->nhg_fal_obj = nextu->nhg_fal_obj;
-	memcpy(new_nextu->nh_fal_obj, nextu->nh_fal_obj,
-	       new_nextu->nsiblings * sizeof(*new_nextu->nh_fal_obj));
-	new_nextu->pd_state = nextu->pd_state;
+	new_nextl->nhg_fal_obj = nextl->nhg_fal_obj;
+	memcpy(new_nextl->nh_fal_obj, nextl->nh_fal_obj,
+	       new_nextl->nsiblings * sizeof(*new_nextl->nh_fal_obj));
+	new_nextl->pd_state = nextl->pd_state;
 
-	assert(nh_tbl.entry[nh_idx] == nextu);
-	rcu_xchg_pointer(&nh_tbl.entry[nh_idx], new_nextu);
+	assert(nh_tbl.entry[nh_idx] == nextl);
+	rcu_xchg_pointer(&nh_tbl.entry[nh_idx], new_nextl);
 
-	call_rcu(&nextu->rcu, nexthop_destroy);
+	call_rcu(&nextl->rcu, nexthop_destroy);
 	return 0;
 }
 
@@ -900,17 +900,17 @@ static void subtree_walk_route_cleanup_cb(struct lpm *lpm,
 					  void *arg)
 {
 	struct subtree_walk_arg *changing = arg;
-	struct next_hop_u *nextu = rcu_dereference(nh_tbl.entry[idx]);
+	struct next_hop_list *nextl = rcu_dereference(nh_tbl.entry[idx]);
 	uint32_t cover_ip;
 	uint8_t cover_depth;
 	uint32_t cover_nh_idx;
 	int neigh_created = 0;
 	int ret;
 
-	if (!nextu)
+	if (!nextl)
 		return;
 
-	neigh_created = nextu_nc_count(nextu);
+	neigh_created = next_hop_list_nc_count(nextl);
 	if (neigh_created == 0)
 		return;
 
@@ -977,7 +977,7 @@ static unsigned int lle_routing_insert_arp_cb(struct lltable *llt __unused,
 }
 
 
-static void route_change_process_nh(struct next_hop_u *nhu,
+static void route_change_process_nh(struct next_hop_list *nhl,
 				    enum nh_change (*upd_neigh_present_cb)(
 					    struct next_hop *next,
 					    int sibling,
@@ -988,9 +988,9 @@ static void route_change_process_nh(struct next_hop_u *nhu,
 	int i;
 
 
-	index = nhu->index;
-	array = rcu_dereference(nhu->siblings);
-	for (i = 0; i < nhu->nsiblings; i++) {
+	index = nhl->index;
+	array = rcu_dereference(nhl->siblings);
+	for (i = 0; i < nhl->nsiblings; i++) {
 		const struct next_hop *next = array + i;
 		const struct ifnet *ifp = dp_nh_get_ifp(next);
 
@@ -1008,7 +1008,7 @@ static void route_change_process_nh(struct next_hop_u *nhu,
 		struct llentry *lle = in_lltable_find((struct ifnet *)ifp,
 						      next->gateway4);
 		if (lle) {
-			route_nh_replace(AF_INET, nhu, nhu->index, lle, NULL,
+			route_nh_replace(AF_INET, nhl, nhl->index, lle, NULL,
 					 upd_neigh_present_cb,
 					 lle);
 			/*
@@ -1016,8 +1016,8 @@ static void route_change_process_nh(struct next_hop_u *nhu,
 			 * replaced by prev func, and will not
 			 * then be found in hash table.
 			 */
-			nhu = rcu_dereference(nh_tbl.entry[index]);
-			if (!nhu)
+			nhl = rcu_dereference(nh_tbl.entry[index]);
+			if (!nhl)
 				break;
 		}
 	}
@@ -1029,16 +1029,16 @@ walk_nhs_for_route_change(enum nh_change (*upd_neigh_present_cb)(
 				  int sibling,
 				  void *arg))
 {
-	struct next_hop_u *nhu;
+	struct next_hop_list *nhl;
 	struct cds_lfht_iter iter;
 	struct cds_lfht_node *node;
 
 	ASSERT_MASTER();
 
 	cds_lfht_for_each(nexthop_hash, &iter, node) {
-		nhu = caa_container_of(node, struct next_hop_u, nh_node);
+		nhl = caa_container_of(node, struct next_hop_list, nh_node);
 
-		route_change_process_nh(nhu, upd_neigh_present_cb);
+		route_change_process_nh(nhl, upd_neigh_present_cb);
 	}
 }
 
@@ -1076,7 +1076,7 @@ route_change_link_arp(struct vrf *vrf, struct lpm *lpm,
 		      int16_t scope __unused)
 {
 	int i;
-	const struct next_hop_u *nextu;
+	const struct next_hop_list *nextl;
 	const struct next_hop *array;
 	struct subtree_walk_arg subtree_arg = {
 		.ip = ip,
@@ -1099,17 +1099,17 @@ route_change_link_arp(struct vrf *vrf, struct lpm *lpm,
 	 * as the cover need to be checked to see if they are still accurate,
 	 * and removed if not.
 	 */
-	nextu = rcu_dereference(nh_tbl.entry[next_hop]);
-	if (nextu_is_any_connected(nextu)) {
+	nextl = rcu_dereference(nh_tbl.entry[next_hop]);
+	if (next_hop_list_is_any_connected(nextl)) {
 		lpm_subtree_walk(lpm, ip, depth,
 				 subtree_walk_route_cleanup_cb,
 				 &subtree_arg);
 	} else if (lpm_find_cover(lpm, ip, depth, &cover_ip,
 				  &cover_depth, &cover_idx) == 0) {
-		const struct next_hop_u *cover_nextu;
+		const struct next_hop_list *cover_nextl;
 
-		cover_nextu = rcu_dereference(nh_tbl.entry[cover_idx]);
-		if (nextu_is_any_connected(cover_nextu)) {
+		cover_nextl = rcu_dereference(nh_tbl.entry[cover_idx]);
+		if (next_hop_list_is_any_connected(cover_nextl)) {
 			lpm_subtree_walk(lpm, ip, depth,
 					 subtree_walk_route_cleanup_cb,
 					 &subtree_arg);
@@ -1117,8 +1117,8 @@ route_change_link_arp(struct vrf *vrf, struct lpm *lpm,
 	}
 
 	/* Walk all the interfaces arp entries to do /32 processing */
-	array = rcu_dereference(nextu->siblings);
-	for (i = 0; i < nextu->nsiblings; i++) {
+	array = rcu_dereference(nextl->siblings);
+	for (i = 0; i < nextl->nsiblings; i++) {
 		const struct next_hop *next = array + i;
 		const struct ifnet *ifp = dp_nh_get_ifp(next);
 
@@ -1142,7 +1142,7 @@ static void
 route_delete_unlink_arp(struct vrf *vrf, struct lpm *lpm, uint32_t ip,
 			uint8_t depth)
 {
-	const struct next_hop_u *nextu;
+	const struct next_hop_list *nextl;
 	uint32_t nh_idx;
 	struct subtree_walk_arg subtree_arg = {
 		.ip = ip,
@@ -1168,8 +1168,8 @@ route_delete_unlink_arp(struct vrf *vrf, struct lpm *lpm, uint32_t ip,
 	if (lpm_lookup_exact(lpm, ip, depth, &nh_idx))
 		return;
 
-	nextu = rcu_dereference(nh_tbl.entry[nh_idx]);
-	if (nextu_is_any_connected(nextu)) {
+	nextl = rcu_dereference(nh_tbl.entry[nh_idx]);
+	if (next_hop_list_is_any_connected(nextl)) {
 		subtree_walk_route_cleanup_cb(lpm, ip, depth, nh_idx,
 					      &subtree_arg);
 		lpm_subtree_walk(lpm, ip, depth,
@@ -1177,10 +1177,10 @@ route_delete_unlink_arp(struct vrf *vrf, struct lpm *lpm, uint32_t ip,
 				 &subtree_arg);
 	} else if (lpm_find_cover(lpm, ip, depth, &cover_ip,
 				  &cover_depth, &cover_idx) == 0) {
-		const struct next_hop_u *cover_nextu;
+		const struct next_hop_list *cover_nextl;
 
-		cover_nextu = rcu_dereference(nh_tbl.entry[cover_idx]);
-		if (nextu_is_any_connected(cover_nextu)) {
+		cover_nextl = rcu_dereference(nh_tbl.entry[cover_idx]);
+		if (next_hop_list_is_any_connected(cover_nextl)) {
 			lpm_subtree_walk(lpm, ip, depth,
 					 subtree_walk_route_cleanup_cb,
 					 &subtree_arg);
@@ -1196,7 +1196,7 @@ route_delete_unlink_arp(struct vrf *vrf, struct lpm *lpm, uint32_t ip,
 static void
 route_delete_relink_arp(struct lpm *lpm, uint32_t ip, uint8_t depth)
 {
-	const struct next_hop_u *nextu;
+	const struct next_hop_list *nextl;
 	uint32_t cover_ip;
 	uint8_t cover_depth;
 	uint32_t cover_nh_idx;
@@ -1213,9 +1213,9 @@ route_delete_relink_arp(struct lpm *lpm, uint32_t ip, uint8_t depth)
 	}
 
 	/* Walk all the interfaces arp entries to do /32 processing */
-	nextu = rcu_dereference(nh_tbl.entry[cover_nh_idx]);
-	array = rcu_dereference(nextu->siblings);
-	for (i = 0; i < nextu->nsiblings; i++) {
+	nextl = rcu_dereference(nh_tbl.entry[cover_nh_idx]);
+	array = rcu_dereference(nextl->siblings);
+	for (i = 0; i < nextl->nsiblings; i++) {
 		const struct next_hop *next = array + i;
 		const struct ifnet *ifp = dp_nh_get_ifp(next);
 
@@ -1498,9 +1498,9 @@ void nexthop_tbl_init(void)
 	/* reserve a drop nexthop */
 	if (nexthop_new(AF_INET, &nh_drop, 1, RTPROT_UNSPEC, &idx))
 		rte_panic("%s: can't create drop nexthop\n", __func__);
-	nextu_blackhole =
+	nextl_blackhole =
 		rcu_dereference(nh_tbl.entry[idx]);
-	if (!nextu_blackhole)
+	if (!nextl_blackhole)
 		rte_panic("%s: can't create drop nexthop\n", __func__);
 }
 
@@ -1549,23 +1549,23 @@ void route_uninit(struct vrf *vrf, struct route_head *rt_head)
 void rt_print_nexthop(json_writer_t *json, uint32_t next_hop,
 		      enum rt_print_nexthop_verbosity v)
 {
-	const struct next_hop_u *nextu =
+	const struct next_hop_list *nextl =
 		rcu_dereference(nh_tbl.entry[next_hop]);
 	const struct next_hop *array;
 	unsigned int i, j;
 
 	jsonw_uint_field(json, "nh_index", next_hop);
-	if (unlikely(!nextu))
+	if (unlikely(!nextl))
 		return;
-	array = rcu_dereference(nextu->siblings);
-	jsonw_uint_field(json, "nh_refcount", nextu->refcount);
+	array = rcu_dereference(nextl->siblings);
+	jsonw_uint_field(json, "nh_refcount", nextl->refcount);
 	/*
 	 * FAL may access hardware which may be slow or may otherwise
 	 * increase the data returned greatly, so only output this
 	 * information if requested.
 	 */
 	if (v == RT_PRINT_NH_DETAIL &&
-	    fal_state_is_obj_present(nextu->pd_state)) {
+	    fal_state_is_obj_present(nextl->pd_state)) {
 		/*
 		 * name disambuigates between next-hop-group state
 		 * and possible future route state given we don't have a
@@ -1573,12 +1573,12 @@ void rt_print_nexthop(json_writer_t *json, uint32_t next_hop,
 		 */
 		jsonw_name(json, "nhg_platform_state");
 		jsonw_start_object(json);
-		fal_ip_dump_next_hop_group(nextu->nhg_fal_obj, json);
+		fal_ip_dump_next_hop_group(nextl->nhg_fal_obj, json);
 		jsonw_end_object(json);
 	}
 	jsonw_name(json, "next_hop");
 	jsonw_start_array(json);
-	for (i = 0; i < nextu->nsiblings; i++) {
+	for (i = 0; i < nextl->nsiblings; i++) {
 		const struct next_hop *next = array + i;
 		const struct ifnet *ifp;
 
@@ -1632,10 +1632,10 @@ void rt_print_nexthop(json_writer_t *json, uint32_t next_hop,
 		 * information if requested.
 		 */
 		if (v == RT_PRINT_NH_DETAIL &&
-		    fal_state_is_obj_present(nextu->pd_state)) {
+		    fal_state_is_obj_present(nextl->pd_state)) {
 			jsonw_name(json, "platform_state");
 			jsonw_start_object(json);
-			fal_ip_dump_next_hop(nextu->nh_fal_obj[i], json);
+			fal_ip_dump_next_hop(nextl->nh_fal_obj[i], json);
 			jsonw_end_object(json);
 		}
 
@@ -1658,20 +1658,20 @@ static void rt_local_display(
 	FILE *f = arg;
 	in_addr_t dst = htonl(ip);
 	char b[INET_ADDRSTRLEN];
-	const struct next_hop_u *nextu =
+	const struct next_hop_list *nextl =
 		rcu_dereference(nh_tbl.entry[next_hop]);
 	const struct next_hop *nh;
 
-	if (unlikely(!nextu))
+	if (unlikely(!nextl))
 		return;
-	nh = rcu_dereference(nextu->siblings);
+	nh = rcu_dereference(nextl->siblings);
 
 	if (nh->flags & RTF_LOCAL && !rt_is_reserved(ip, depth, scope))
 		fprintf(f, "\t%s\n", inet_ntop(AF_INET, &dst, b, sizeof(b)));
 }
 
 static void __rt_display(json_writer_t *json, in_addr_t *dst, uint8_t depth,
-			 int16_t scope, const struct next_hop_u *nextu,
+			 int16_t scope, const struct next_hop_list *nextl,
 			 uint32_t next_hop)
 {
 	char b1[INET_ADDRSTRLEN];
@@ -1683,7 +1683,7 @@ static void __rt_display(json_writer_t *json, in_addr_t *dst, uint8_t depth,
 		inet_ntop(AF_INET, dst, b1, sizeof(b1)), depth);
 	jsonw_string_field(json, "prefix", b2);
 	jsonw_int_field(json, "scope", scope);
-	jsonw_uint_field(json, "proto", nextu->proto);
+	jsonw_uint_field(json, "proto", nextl->proto);
 	rt_print_nexthop(json, next_hop, RT_PRINT_NH_BRIEF);
 
 	jsonw_end_object(json);
@@ -1698,25 +1698,25 @@ static void rt_display(struct lpm *lpm __rte_unused,
 	json_writer_t *json = arg;
 	in_addr_t dst = htonl(ip);
 
-	const struct next_hop_u *nextu =
+	const struct next_hop_list *nextl =
 		rcu_dereference(nh_tbl.entry[next_hop]);
 	const struct next_hop *nh;
 
-	if (unlikely(!nextu))
+	if (unlikely(!nextl))
 		return;
-	nh = rcu_dereference(nextu->siblings);
+	nh = rcu_dereference(nextl->siblings);
 	/* Filter local route being displayed */
 	if (nh->flags & RTF_LOCAL)
 		return;
 
 	/* Don't show if any paths are NEIGH_CREATED. */
-	if (nextu_nc_count(nextu))
+	if (next_hop_list_nc_count(nextl))
 		return;
 
 	if (rt_is_reserved(ip, depth, scope))
 		return;
 
-	__rt_display(json, &dst, depth, scope, nextu, next_hop);
+	__rt_display(json, &dst, depth, scope, nextl, next_hop);
 }
 
 static void rt_display_all(struct lpm *lpm __rte_unused,
@@ -1727,12 +1727,12 @@ static void rt_display_all(struct lpm *lpm __rte_unused,
 {
 	json_writer_t *json = arg;
 	in_addr_t dst = htonl(ip);
-	const struct next_hop_u *nextu =
+	const struct next_hop_list *nextl =
 		rcu_dereference(nh_tbl.entry[next_hop]);
 
-	if (unlikely(!nextu))
+	if (unlikely(!nextl))
 		return;
-	__rt_display(json, &dst, depth, scope, nextu, next_hop);
+	__rt_display(json, &dst, depth, scope, nextl, next_hop);
 }
 
 /* Route rule list (RB-tree) is not RCU safe */
@@ -1768,12 +1768,12 @@ static void rt_if_dead(struct lpm *lpm, struct vrf *vrf,
 		       uint32_t ip, uint8_t depth, int16_t scope,
 		       uint32_t idx, void *arg, enum if_state_rx state_rx)
 {
-	struct next_hop_u *nextu = rcu_dereference(nh_tbl.entry[idx]);
+	struct next_hop_list *nextl = rcu_dereference(nh_tbl.entry[idx]);
 	const struct ifnet *ifp = arg;
 	unsigned int i, matches = 0;
 
-	for (i = 0; i < nextu->nsiblings; i++) {
-		struct next_hop *nh = nextu->siblings + i;
+	for (i = 0; i < nextl->nsiblings; i++) {
+		struct next_hop *nh = nextl->siblings + i;
 
 		if (dp_nh_get_ifp(nh) == ifp) {
 			/* No longer check if connected, as kernel will not
@@ -1788,7 +1788,7 @@ static void rt_if_dead(struct lpm *lpm, struct vrf *vrf,
 	if (matches == 0)
 		return;
 
-	if (matches == nextu->nsiblings || state_rx == IF_RX_LINK_DEL) {
+	if (matches == nextl->nsiblings || state_rx == IF_RX_LINK_DEL) {
 		/*
 		 * Delete entire route if;
 		 * Either all nh's for this route are dead
@@ -1821,12 +1821,12 @@ static void rt_if_clear_slowpath_flag(
 	struct pd_obj_state_and_flags pd_state __rte_unused,
 	void *arg)
 {
-	struct next_hop_u *nextu = rcu_dereference(nh_tbl.entry[idx]);
+	struct next_hop_list *nextl = rcu_dereference(nh_tbl.entry[idx]);
 	const struct ifnet *ifp = arg;
 	unsigned int i;
 
-	for (i = 0; i < nextu->nsiblings; i++) {
-		struct next_hop *nh = nextu->siblings + i;
+	for (i = 0; i < nextl->nsiblings; i++) {
+		struct next_hop *nh = nextl->siblings + i;
 
 		if (dp_nh_get_ifp(nh) == ifp)
 			nh->flags &= ~RTF_SLOWPATH;
@@ -1843,12 +1843,12 @@ static void rt_if_set_slowpath_flag(
 	struct pd_obj_state_and_flags pd_state __rte_unused,
 	void *arg)
 {
-	struct next_hop_u *nextu = rcu_dereference(nh_tbl.entry[idx]);
+	struct next_hop_list *nextl = rcu_dereference(nh_tbl.entry[idx]);
 	const struct ifnet *ifp = arg;
 	unsigned int i;
 
-	for (i = 0; i < nextu->nsiblings; i++) {
-		struct next_hop *nh = nextu->siblings + i;
+	for (i = 0; i < nextl->nsiblings; i++) {
+		struct next_hop *nh = nextl->siblings + i;
 
 		if (dp_nh_get_ifp(nh) == ifp)
 			nh->flags |= RTF_SLOWPATH;
@@ -2059,18 +2059,19 @@ static void rt_summarize(struct lpm *lpm __rte_unused,
 			 void *arg)
 {
 	uint32_t *rt_used = arg;
-	const struct next_hop_u *nextu = rcu_dereference(nh_tbl.entry[nh_idx]);
+	const struct next_hop_list *nextl =
+		rcu_dereference(nh_tbl.entry[nh_idx]);
 	const struct next_hop *nh;
 
-	if (unlikely(!nextu))
+	if (unlikely(!nextl))
 		return;
-	nh = rcu_dereference(nextu->siblings);
+	nh = rcu_dereference(nextl->siblings);
 	/* Filter local route being displayed */
 	if (nh->flags & RTF_LOCAL)
 		return;
 
 	/* Don't show if any paths are NEIGH_CREATED */
-	if (nextu_nc_count(nextu))
+	if (next_hop_list_nc_count(nextl))
 		return;
 
 	if (rt_is_reserved(ip, depth, scope))
@@ -2144,7 +2145,7 @@ struct ifnet *nhif_dst_lookup(const struct vrf *vrf,
 			      bool *connected)
 {
 	struct ifnet *ifp;
-	const struct next_hop_u *nextu;
+	const struct next_hop_list *nextl;
 	const struct next_hop *next;
 	uint32_t nhindex;
 
@@ -2152,11 +2153,11 @@ struct ifnet *nhif_dst_lookup(const struct vrf *vrf,
 			   ntohl(dst), &nhindex) != 0)
 		return NULL;
 
-	nextu = nh_tbl.entry[nhindex];
-	if (nextu == NULL)
+	nextl = nh_tbl.entry[nhindex];
+	if (nextl == NULL)
 		return NULL;
 
-	next = nextu->siblings;
+	next = nextl->siblings;
 	if (next == NULL)
 		return NULL;
 
@@ -2182,20 +2183,20 @@ struct ifnet *nhif_dst_lookup(const struct vrf *vrf,
 int dp_nh_lookup_by_index(uint32_t nhindex, uint32_t hash, in_addr_t *nh,
 		       uint32_t *ifindex)
 {
-	const struct next_hop_u *nextu;
+	const struct next_hop_list *nextl;
 	struct next_hop *next;
 	struct ifnet *ifp;
 	uint32_t size;
 
-	nextu = rcu_dereference(nh_tbl.entry[nhindex]);
-	if (nextu == NULL)
+	nextl = rcu_dereference(nh_tbl.entry[nhindex]);
+	if (nextl == NULL)
 		return -1;
 
-	next = nextu->siblings;
+	next = nextl->siblings;
 	if (!next)
 		return -1;
 
-	size = nextu->nsiblings;
+	size = nextl->nsiblings;
 	if (size > 1)
 		next = nexthop_mp_select(next, size, hash);
 
@@ -2216,7 +2217,7 @@ static void
 route_create_arp(struct vrf *vrf, struct lpm *lpm,
 		 struct in_addr *ip, struct llentry *lle)
 {
-	struct next_hop_u *nextu;
+	struct next_hop_list *nextl;
 	uint32_t nh_idx;
 	struct next_hop *nh;
 	struct next_hop *cover_nh;
@@ -2225,26 +2226,27 @@ route_create_arp(struct vrf *vrf, struct lpm *lpm,
 	int size;
 
 	if (lpm_lookup(lpm, ntohl(ip->s_addr), &nh_idx) == 0) {
-		nextu = rcu_dereference(nh_tbl.entry[nh_idx]);
+		nextl = rcu_dereference(nh_tbl.entry[nh_idx]);
 
 		/*
 		 * Note that this does not support a connected with multiple
 		 * paths that use the same ifp.
 		 */
-		cover_nh = nextu_find_path_using_ifp(nextu, ifp, &sibling);
+		cover_nh = next_hop_list_find_path_using_ifp(nextl, ifp,
+							     &sibling);
 		if (cover_nh && nh_is_connected(cover_nh)) {
 			/*
 			 * Have a connected cover so create a new entry for
 			 * this. Will only be 1 NEIGH_CREATED path, but
 			 * need to inherit other paths from the cover.
 			 */
-			nh = nexthop_create_copy(nextu, &size);
+			nh = nexthop_create_copy(nextl, &size);
 			if (!nh)
 				return;
 
 			/*
 			 * Set the correct NH to be NEIGH_CREATED. As this
-			 * is copied from the cover nextu, the sibling gives
+			 * is copied from the cover nextl, the sibling gives
 			 * the NH for the correct interface
 			 */
 			nh_set_neigh_created(AF_INET, &nh[sibling], lle);
@@ -2297,15 +2299,15 @@ walk_nhs_for_arp_change(struct llentry *lle,
 				int sibling,
 				void *arg))
 {
-	struct next_hop_u *nhu;
+	struct next_hop_list *nhl;
 	struct cds_lfht_iter iter;
 	struct cds_lfht_node *node;
 
 	ASSERT_MASTER();
 
 	cds_lfht_for_each(nexthop_hash, &iter, node) {
-		nhu = caa_container_of(node, struct next_hop_u, nh_node);
-		route_nh_replace(AF_INET, nhu, nhu->index, lle, NULL,
+		nhl = caa_container_of(node, struct next_hop_list, nh_node);
+		route_nh_replace(AF_INET, nhl, nhl->index, lle, NULL,
 				 upd_neigh_present_cb, lle);
 	}
 }
@@ -2360,7 +2362,7 @@ static enum nh_change routing_arp_del_nh_replace_cb(struct next_hop *next,
 }
 
 struct arp_remove_purge_arg {
-	int count; /* Count of number of NEIGH_CREATED in parent nextu */
+	int count; /* Count of number of NEIGH_CREATED in parent nextl */
 	int sibling; /* Sibling that had the arp entry removed */
 };
 
@@ -2413,7 +2415,7 @@ routing_insert_arp_safe(struct llentry *lle, bool arp_change)
 	struct in_addr *ip = ll_ipv4_addr(lle);
 	struct vrf *vrf = get_vrf(if_vrfid(lle->ifp));
 	struct lpm *lpm;
-	struct next_hop_u *nextu;
+	struct next_hop_list *nextl;
 	uint32_t nh_idx;
 	struct ifnet *ifp = rcu_dereference(lle->ifp);
 	struct next_hop *nh;
@@ -2423,7 +2425,7 @@ routing_insert_arp_safe(struct llentry *lle, bool arp_change)
 	pthread_mutex_lock(&route_mutex);
 	if (lpm_lookup_exact(lpm, ntohl(ip->s_addr), 32, &nh_idx) == 0) {
 		/* We already have a /32 so add the shortcut if connected */
-		nextu = rcu_dereference(nh_tbl.entry[nh_idx]);
+		nextl = rcu_dereference(nh_tbl.entry[nh_idx]);
 
 		/*
 		 * Do we already have a nh for this interface?
@@ -2432,14 +2434,14 @@ routing_insert_arp_safe(struct llentry *lle, bool arp_change)
 		 * modify the set of NHs, to reflect the ones the
 		 * cover has.
 		 */
-		nh = nextu_find_path_using_ifp(nextu, ifp, &sibling);
+		nh = next_hop_list_find_path_using_ifp(nextl, ifp, &sibling);
 		if (nh) {
 			struct arp_add_nh_replace_arg arg = {
 				.ifp = ifp,
-				.count = nextu_nc_count(nextu),
+				.count = next_hop_list_nc_count(nextl),
 			};
 
-			route_nh_replace(AF_INET, nextu, nh_idx, lle, NULL,
+			route_nh_replace(AF_INET, nextl, nh_idx, lle, NULL,
 					 routing_arp_add_nh_replace_cb, &arg);
 		}
 	} else {
@@ -2472,7 +2474,7 @@ routing_remove_arp_safe(struct llentry *lle)
 	struct in_addr *ip = ll_ipv4_addr(lle);
 	struct vrf *vrf = get_vrf(if_vrfid(lle->ifp));
 	struct lpm *lpm;
-	struct next_hop_u *nextu;
+	struct next_hop_list *nextl;
 	uint32_t nh_idx;
 	struct ifnet *ifp = rcu_dereference(lle->ifp);
 	int sibling;
@@ -2482,32 +2484,32 @@ routing_remove_arp_safe(struct llentry *lle)
 	pthread_mutex_lock(&route_mutex);
 	if (lpm_lookup_exact(lpm, ntohl(ip->s_addr), 32, &nh_idx) == 0) {
 		/* We have a /32 so unlink the arp (if there) */
-		nextu = rcu_dereference(nh_tbl.entry[nh_idx]);
+		nextl = rcu_dereference(nh_tbl.entry[nh_idx]);
 
 		/* Do we already have a nh for this interface? */
-		nh = nextu_find_path_using_ifp(nextu, ifp, &sibling);
+		nh = next_hop_list_find_path_using_ifp(nextl, ifp, &sibling);
 		if (nh && nh_is_neigh_created(nh)) {
 			/* Are we removing a path or the entire NH */
-			if (nextu->nsiblings == 1) {
+			if (nextl->nsiblings == 1) {
 				route_lpm_delete(vrf->v_id,
 						     lpm, ip->s_addr, 32,
 						     &nh_idx, RT_SCOPE_LINK);
 				nexthop_put(AF_INET, nh_idx);
 			} else {
 				struct arp_remove_purge_arg args = {
-					.count = nextu_nc_count(nextu),
+					.count = next_hop_list_nc_count(nextl),
 					.sibling = sibling,
 				};
 				int del;
 				uint32_t new_nh_idx;
 
 				del = route_nh_replace(AF_INET,
-						       nextu, nh_idx, lle,
+						       nextl, nh_idx, lle,
 						       &new_nh_idx,
 						       arp_removal_nh_purge_cb,
 						       &args);
 				/* Can not delete a subset of paths here */
-				if (del == nextu->nsiblings) {
+				if (del == nextl->nsiblings) {
 					route_lpm_delete(vrf->v_id,
 							     lpm, ip->s_addr,
 							     32, &nh_idx,
@@ -2516,7 +2518,7 @@ routing_remove_arp_safe(struct llentry *lle)
 				}
 			}
 		} else {
-			route_nh_replace(AF_INET, nextu, nh_idx, NULL, NULL,
+			route_nh_replace(AF_INET, nextl, nh_idx, NULL, NULL,
 					routing_arp_del_nh_replace_cb, ifp);
 		}
 	}
