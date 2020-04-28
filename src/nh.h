@@ -16,9 +16,4 @@
 #include "route.h"
 
 
-enum nh_type {
-	NH_TYPE_V4GW, /* struct next_hop  */
-	NH_TYPE_V6GW, /* struct next_hop_v6 */
-};
-
 #endif /* NH_H */
