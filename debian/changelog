@@ -1,3 +1,94 @@
+vyatta-dataplane (3.10.6) unstable; urgency=medium
+
+  [ Paul Atkins ]
+  * ut: change the size of the rings on the tx/rx interfaces
+  * ut: provide apis for injecting and getting tx'ed packets
+  * ut: add a new test for qos bursts
+
+  [ Robert Shearman ]
+  * vlan_modify: don't create filter chain unless there's an action we handle
+    (Fixes: VRVDR-50709)
+  * vlan_modify: remove some noisy log messages (Fixes: VRVDR-50711)
+
+  [ Mike Larson ]
+  * Protobuf support files need to be exported for plug-in
+  * Move install location for protobuf generated files
+  * Export more UT functions/headers
+  * Update pkg-config path for dev
+  * Set up dependency correctly for proto projects
+
+  [ Paul Atkins ]
+  * route: make the gateway in a next hop a union of v4/v6
+  * route: change order of fields in struct next_hop_u
+  * mpls: include stdbool.h as the header file uses bool
+  * nh_common: add a new nh_common file to contain core nh code
+  * route6: make the v6 route code use the common 'struct next_hop'
+  * nh_common: move struct next_hop_u into nh_common.h
+  * nh_common: remove struct next_hop_v6_u, use the v4/v6 version
+  * nh_common: move the struct nexthop_hash_key to nh_common header file
+  * route6: use the common nexthop_hash_key structure
+  * nh_common: move struct nexthop_table into nh_common.h
+  * route6: use the common nexthop table definition
+  * nh_common: add code to allow registration per AF
+  * nh_common: add common funcs to get/set ifp from nh
+  * route6: move route_v6_init and route_v6_uninit lower in file
+  * route: register hash functions with nh_common
+  * route6: register hash functions with nh_common
+  * route: don't use global nh_tbl var from nexthop_new
+  * route: modify the debug in nexthop_reuse to add the af
+  * nh_common: make the nexthop_lookup function common
+  * route6: use the common nexthop_lookup function
+  * fal: use a common version of next_hop_to_packet_action
+  * fal: use a common version of next_hop_group_packet_action
+  * fal: use a common version of next_hop_to_attr_list
+  * fal: use a common version of fal_ip_new_next_hops
+  * nh_common: use a common version of nexthop_reuse
+  * nh_common: use a common version of nexthop_hash_insert
+  * route6: pass an address family into nexthop6_new
+  * route6: use NEXTHOP_HASH_TBL_SIZE instead of the v6 specific version
+  * nh_common: use a common version of nexthop_alloc
+  * nh_common: use a common version of nexthop_destroy
+  * route6: change nexthop6_new to take a proto field
+  * nh_common: use a common version of nexthop_new
+  * route: modify nexthop_create to take a struct ip_addr for the gateway
+  * route6: modify nexthop6_create to take a struct ip_addr for the gateway
+  * nh_common: use a common version of nexthop_create
+  * fal: use a common version of fal_ip_del_next_hops
+  * nh_common: use a common version of nh_is_neigh_present
+  * nh_common: use a common version of nh_is_neigh_created
+  * nh_common: use a common version of nh_get_lle
+  * route: add a family parameter to nexthop_put
+  * route6: add a family parameter to nexthop6_put
+  * nh_common: use a common version of nexthop_put
+  * nh_common: use a common version of nexthop_create_copy
+  * route: add a family parameter to nexthop_hash_del_add
+  * route6: add a family parameter to nexthop6_hash_del_add
+  * nh_common: use a common version of nexthop_hash_del_add
+  * nh_common: use a common version of nh_is_connected
+  * nh_common: use a common version of nh_is_local
+  * nh_common: use a common version of nh_is_gw
+  * route: add a family parameter to nh4_set_neigh_present
+  * route6: add a family parameter to nh6_set_neigh_present
+  * nh_common: use a common version of nh_set_neigh_present
+  * route: add a family parameter to nh4_clear_neigh_present
+  * route6: add a family parameter to nh6_clear_neigh_present
+  * nh_common: use a common version of nh_clear_neigh_present
+  * route: add a family parameter to nh4_set_neigh_created
+  * route6: add a family parameter to nh6_set_neigh_created
+  * nh_common: use a common version of nh_set_neigh_created
+  * route: add a family parameter to nh4_clear_neigh_created
+  * route6: add a family parameter to nh6_clear_neigh_created
+  * nh_common: use a common version of nh_clear_neigh_created
+  * nh_common: use a common version of nextu_nc_count
+  * nh_common: use a common version of nextu_find_path_using_ifp
+  * nh_common: use a common version of nextu_is_any_connected
+  * route: add a family parameter to route_nh_replace
+  * route: add a family parameter to route6_nh_replace
+  * fal: move next_hop_group_packet_action higher in file
+  * fal: use next_hop_group_packet_action when creating new ip nhs
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Wed, 29 Apr 2020 08:42:25 +0100
+
 vyatta-dataplane (3.10.5) unstable; urgency=medium
 
   [ Srinivas Narayan ]
