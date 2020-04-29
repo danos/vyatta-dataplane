@@ -292,4 +292,54 @@ bool dp_ip_l2_nh_output(struct ifnet *in_ifp, struct rte_mbuf *m,
  */
 uint32_t dp_ecmp_hash(const struct ecmp_hash_param *hash_param);
 
+enum dp_rt_path_unusable_key_type {
+	DP_RT_PATH_UNUSABLE_KEY_INTF,
+	DP_RT_PATH_UNUSABLE_KEY_INTF_NEXTHOP,
+};
+
+struct dp_rt_path_unusable_key {
+	enum dp_rt_path_unusable_key_type type;
+	uint32_t ifindex;
+	struct ip_addr nexthop;
+};
+
+enum dp_rt_path_state {
+	DP_RT_PATH_USABLE,
+	DP_RT_PATH_UNUSABLE,
+	DP_RT_PATH_UNKNOWN,
+};
+
+/*
+ * Callback function to tell if a plugin has usability info for a path.
+ *
+ * @return DP_RT_PATH_USABLE is the plugin has state for this
+ *         path and knows it is USABLE
+ * @return DP_RT_PATH_UNUSABLE is the plugin has state for this path
+ *         and knows it is UNUSABLE
+ * @return DP_RT_PATH_UNKNOWN is the plugin has no state for this path,
+ *         or has state and doesn't yet know if it is usable.
+ */
+typedef enum dp_rt_path_state
+(dp_rt_get_path_state_fn)(const struct dp_rt_path_unusable_key *key);
+
+/*
+ * Register a callback function that can be used to query the usability
+ * state of a given path. Every plugin that signals the usability of a
+ * path should provide a callback to allow querying of the usabilty of paths.
+ *
+ * @return -EINVAL if the parameters are not valid.
+ */
+int dp_rt_register_path_state(const char *source,
+			      dp_rt_get_path_state_fn *get_state_fn);
+
+/*
+ * Mark a path as unusable. This must be called from a thread that is
+ * registered with rcu, and rcu_online.
+ *
+ * @param[in] source The caller of the API
+ * @param[in] key    The key of the paths that have become unusable.
+ */
+void dp_rt_signal_paths_unusable(const char *source,
+				 const struct dp_rt_path_unusable_key *key);
+
 #endif /* VYATTA_DATAPLANE_IP_FORWARD_H */
