@@ -12,6 +12,7 @@
 #include "compiler.h"
 #include "fal_plugin.h"
 #include "ip_addr.h"
+#include "json_writer.h"
 #include "mpls/mpls.h"
 #include "pd_show.h"
 #include "route_flags.h"
@@ -19,6 +20,13 @@
 
 struct ifnet;
 struct llentry;
+
+#define NH_MAP_MAX_ENTRIES 64
+
+struct nh_map {
+	uint8_t index[NH_MAP_MAX_ENTRIES];
+	int count;
+};
 
 /* Output information associated with a single nexthop */
 struct next_hop {
@@ -43,6 +51,7 @@ struct next_hop_list {
 	uint8_t              primaries; /* number of primary next hops */
 	uint8_t              padding;
 	uint32_t             index;
+	struct nh_map        *nh_map;
 	struct next_hop      hop0;      /* optimization for non-ECMP */
 	uint32_t             refcount;	/* # of LPM's referring */
 	enum pd_obj_state    pd_state;
@@ -286,7 +295,8 @@ struct next_hop *next_hop_list_find_path_using_ifp(struct next_hop_list *nhl,
  */
 bool next_hop_list_is_any_connected(const struct next_hop_list *nhl);
 
-struct next_hop *nexthop_mp_select(struct next_hop *next,
+struct next_hop *nexthop_mp_select(const struct next_hop_list *nextl,
+				   struct next_hop *next,
 				   uint32_t size,
 				   uint32_t hash);
 
@@ -330,6 +340,12 @@ nh_get_flags(struct next_hop *nh)
 {
 	return nh->flags;
 }
+
+/*
+ * Display the next_hop map from a next_hop list in json foramt.
+ */
+void nexthop_map_display(const struct next_hop_list *nextl,
+			 json_writer_t *json);
 
 /*
  * Per AF hash function for a nexthop.

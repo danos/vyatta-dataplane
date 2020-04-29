@@ -257,6 +257,8 @@ void __nexthop_destroy(struct next_hop_list *nextl)
 		nh_outlabels_destroy(&nextl->siblings[i].outlabels);
 	if (nextl->siblings != &nextl->hop0)
 		free(nextl->siblings);
+	if (nextl->nh_map)
+		free(nextl->nh_map);
 
 	free(nextl->nh_fal_obj);
 	free(nextl);
@@ -652,6 +654,51 @@ static void next_hop_fixup_protected_tracking(struct next_hop_list *old,
 				 &gw_entry->intf_gw_nh_list);
 	}
 }
+/*
+ * Create the nh_map for the list. Only use the map if there are backup paths.
+ * We use (#primary_paths * (#primary_paths -1)) as the initial size of the map
+ * as this gives us fairness on the first cutover of a path. This is limited
+ * to a max of 64 entries to make sure it stays in a cache line.
+ */
+static int next_hop_list_init_map(struct next_hop_list *nextl)
+{
+	int backups = next_hop_list_backup_count(nextl);
+	int primaries = nextl->nsiblings - backups;
+	int num_entries;
+	int primary_num = 0;
+	int i, j = 0;
+	struct next_hop *array;
+
+	if (!backups)
+		return 0;
+
+	nextl->nh_map = malloc_aligned(sizeof(*nextl->nh_map));
+	if (!nextl->nh_map)
+		return -ENOMEM;
+
+	if (primaries > 1)
+		num_entries = primaries * (primaries - 1);
+	else
+		num_entries = 1;
+
+	if (num_entries > NH_MAP_MAX_ENTRIES)
+		num_entries = NH_MAP_MAX_ENTRIES;
+
+	nextl->nh_map->count = num_entries;
+
+	array = nextl->siblings;
+	for (i = 0; i < nextl->nsiblings; i++) {
+		struct next_hop *next = array + i;
+
+		if (next->flags & RTF_BACKUP)
+			continue;
+
+		for (j = 0; j < primaries; j++)
+			nextl->nh_map->index[j * primaries + primary_num] = i;
+		primary_num++;
+	}
+	return 0;
+}
 
 /* Lookup (or create) nexthop based on hop information */
 int nexthop_new(int family, const struct next_hop *nh, uint16_t size,
@@ -697,6 +744,11 @@ int nexthop_new(int family, const struct next_hop *nh, uint16_t size,
 		nextl->hop0 = *nh;
 	else
 		memcpy(nextl->siblings, nh, size * sizeof(struct next_hop));
+
+	if (next_hop_list_init_map(nextl)) {
+		__nexthop_destroy(nextl);
+		return -ENOMEM;
+	}
 
 	if (unlikely(nexthop_hash_insert(family, nextl, &key))) {
 		__nexthop_destroy(nextl);
@@ -1028,11 +1080,19 @@ bool next_hop_list_is_any_connected(const struct next_hop_list *nhl)
 	return false;
 }
 
-ALWAYS_INLINE struct next_hop *nexthop_mp_select(struct next_hop *next,
-						 uint32_t size,
-						 uint32_t hash)
+ALWAYS_INLINE struct next_hop *
+nexthop_mp_select(const struct next_hop_list *nextl,
+		  struct next_hop *next,
+		  uint32_t size,
+		  uint32_t hash)
 {
 	uint16_t path;
+	int index;
+
+	if (nextl->nh_map) {
+		index = hash % nextl->nh_map->count;
+		return next + (nextl->nh_map->index[index]);
+	}
 
 	if (ecmp_max_path && ecmp_max_path < size)
 		size = ecmp_max_path;
@@ -1070,7 +1130,8 @@ ALWAYS_INLINE struct next_hop *nexthop_select(int family, uint32_t nh_idx,
 	if (likely(size == 1))
 		return next;
 
-	return nexthop_mp_select(next, size, ecmp_mbuf_hash(m, ether_type));
+	return nexthop_mp_select(nextl, next, size,
+				 ecmp_mbuf_hash(m, ether_type));
 }
 
 struct next_hop_list *
@@ -1082,6 +1143,14 @@ next_hop_list_create_copy_start(int family __unused,
 	new_nextl = nexthop_alloc(old->nsiblings);
 	if (!new_nextl)
 		return NULL;
+
+	if (old->nh_map) {
+		new_nextl->nh_map = malloc(sizeof(*new_nextl->nh_map));
+		if (!new_nextl->nh_map) {
+			__nexthop_destroy(new_nextl);
+			return NULL;
+		}
+	}
 
 	new_nextl->proto = old->proto;
 	new_nextl->primaries = old->primaries;
@@ -1105,6 +1174,9 @@ next_hop_list_create_copy_finish(int family,
 		__nexthop_destroy(new);
 		return rc;
 	}
+
+	if (old->nh_map)
+		memcpy(new->nh_map, old->nh_map, sizeof(*new->nh_map));
 
 	/*
 	 * It's safe to copy over the FAL objects without
@@ -1141,4 +1213,20 @@ ALWAYS_INLINE const struct in6_addr *
 dp_nh6_get_addr(const struct next_hop *next_hop)
 {
 	return &next_hop->gateway.address.ip_v6;
+}
+
+void nexthop_map_display(const struct next_hop_list *nextl,
+			 json_writer_t *jsonw)
+{
+	int i;
+
+	if (!nextl->nh_map)
+		return;
+
+	jsonw_uint_field(jsonw, "nh_map_count", nextl->nh_map->count);
+	jsonw_name(jsonw, "nh_map");
+	jsonw_start_array(jsonw);
+	for (i = 0; i < nextl->nh_map->count; i++)
+		jsonw_uint(jsonw, nextl->nh_map->index[i]);
+	jsonw_end_array(jsonw);
 }

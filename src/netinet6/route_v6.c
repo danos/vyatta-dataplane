@@ -710,7 +710,7 @@ int dp_nh6_lookup_by_index(uint32_t nhindex, uint32_t hash,
 
 	size = nextl->nsiblings;
 	if (size > 1)
-		next = nexthop_mp_select(next, size, hash);
+		next = nexthop_mp_select(nextl, next, size, hash);
 
 	if (next->flags & RTF_GATEWAY)
 		*nh = next->gateway.address.ip_v6;
