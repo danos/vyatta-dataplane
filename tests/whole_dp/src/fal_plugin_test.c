@@ -751,8 +751,10 @@ int fal_plugin_vlan_feature_create(uint32_t attr_count,
 	struct vlan_feat *vf;
 	uint i;
 
-	vf = calloc(1, sizeof(*vf));
+	/* explicitly test fal_malloc function */
+	vf = fal_malloc(sizeof(*vf));
 	assert(vf);
+	memset(vf, 0, sizeof(*vf));
 
 	DEBUG("%s start\n", __func__);
 	for (i = 0; i < attr_count; i++) {
@@ -796,7 +798,7 @@ int fal_plugin_vlan_feature_delete(fal_object_t obj)
 	struct vlan_feat *vf = (struct vlan_feat *)obj;
 
 	DEBUG("%s %p\n", __func__, (void *)obj);
-	free(vf);
+	fal_free_deferred(vf);
 	return 0;
 }
 

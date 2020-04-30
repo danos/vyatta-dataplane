@@ -51,7 +51,7 @@ static void free_limiter(struct cpp_limiter_obj *limiter)
 				     prot_obj, entries);
 			free(prot_obj);
 		}
-		free(limiter);
+		fal_free_deferred(limiter);
 	}
 }
 
@@ -66,7 +66,7 @@ int fal_plugin_create_cpp_limiter(uint32_t attr_count,
 
 	INFO("%s, attr-count: %u\n", __func__, attr_count);
 
-	limiter = calloc(1, sizeof(*limiter));
+	limiter = fal_calloc(1, sizeof(*limiter));
 	if (!limiter) {
 		ret = -ENOMEM;
 		goto error;

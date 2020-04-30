@@ -208,7 +208,7 @@ int fal_plugin_qos_new_map(fal_object_t switch_id,
 		uint8_t cp;
 		uint8_t i;
 
-		map = calloc(1, sizeof(*map));
+		map = fal_calloc(1, sizeof(*map));
 		if (!map)
 			return -ENOMEM;
 
@@ -245,7 +245,7 @@ int fal_plugin_qos_new_map(fal_object_t switch_id,
 			ERROR("%s: unsupported map type: %u\n",
 			      __func__, map_type);
 			ret = -EINVAL;
-			free(map);
+			fal_free_deferred(map);
 		}
 		*new_map_id = (fal_object_t)map;
 	}
@@ -268,7 +268,7 @@ int fal_plugin_qos_del_map(fal_object_t map_id)
 	if (map_id == FAL_QOS_NULL_OBJECT_ID)
 		return -EINVAL;
 
-	free(map);
+	fal_free_deferred(map);
 	return 0;
 }
 
@@ -500,7 +500,7 @@ int fal_plugin_qos_new_queue(fal_object_t switch_id, uint32_t attr_count,
 	if (!ret) {
 		struct fal_bcm_qos_sched_group *parent_group;
 
-		queue = calloc(1, sizeof(*queue));
+		queue = fal_calloc(1, sizeof(*queue));
 		if (!queue)
 			return -ENOMEM;
 
@@ -553,7 +553,7 @@ int fal_plugin_qos_del_queue(fal_object_t queue_id)
 	/*
 	 * Finally free this queue.
 	 */
-	free(queue);
+	fal_free_deferred(queue);
 	return ret;
 }
 
@@ -955,7 +955,7 @@ int fal_plugin_qos_new_scheduler(fal_object_t switch_id, uint32_t attr_count,
 	}
 
 	if (!ret) {
-		sched = calloc(1, sizeof(*sched));
+		sched = fal_calloc(1, sizeof(*sched));
 		if (!sched)
 			return -ENOMEM;
 
@@ -987,7 +987,7 @@ int fal_plugin_qos_del_scheduler(fal_object_t scheduler_id)
 	if (!sched)
 		return -EINVAL;
 
-	free(sched);
+	fal_free_deferred(sched);
 	return 0;
 }
 
@@ -1240,7 +1240,7 @@ int fal_plugin_qos_new_sched_group(fal_object_t switch_id,
 	if (!ret) {
 		struct fal_bcm_qos_sched_group *parent_group;
 
-		sched_group = calloc(1, sizeof(*sched_group));
+		sched_group = fal_calloc(1, sizeof(*sched_group));
 		if (!sched_group)
 			return -ENOMEM;
 
@@ -1315,7 +1315,7 @@ int fal_plugin_qos_del_sched_group(fal_object_t sched_group_id)
 	/*
 	 * Finally free this sched-group.
 	 */
-	free(sched_group);
+	fal_free_deferred(sched_group);
 	return ret;
 }
 
@@ -1625,7 +1625,7 @@ int fal_plugin_qos_new_wred(fal_object_t switch_id, uint32_t attr_count,
 	}
 
 	if (!ret) {
-		wred = calloc(1, sizeof(*wred));
+		wred = fal_calloc(1, sizeof(*wred));
 		if (!wred)
 			return -ENOMEM;
 
@@ -1664,7 +1664,7 @@ int fal_plugin_qos_del_wred(fal_object_t wred_id)
 	if (!wred)
 		return -EINVAL;
 
-	free(wred);
+	fal_free_deferred(wred);
 	return 0;
 }
 
