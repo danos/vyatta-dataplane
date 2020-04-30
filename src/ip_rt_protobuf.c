@@ -359,8 +359,18 @@ static int mpls_route_pb_handler(RibUpdate *rtupdate, bool *add_incomplete)
 	for (i = 0; i < route->n_paths; i++) {
 		path = route->paths[i];
 
-		if (path->nexthop && path->nexthop->address_oneof_case ==
-		    IPADDRESS__ADDRESS_ONEOF_IPV6_ADDR) {
+		/*
+		 * MPLS route uses IPv6 addresses if there is at least
+		 * one IPv6 nexthop present, or if it's a deagg for an
+		 * IPv6 payload. This is done for compatibility
+		 * reasons since the RIB previously sent down a
+		 * nexthop of IPv6 unspecified in this case, but no
+		 * longer does.
+		 */
+		if ((path->nexthop && path->nexthop->address_oneof_case ==
+		     IPADDRESS__ADDRESS_ONEOF_IPV6_ADDR) ||
+		    (payload_type == MPT_IPV6 &&
+		     is_lo(dp_ifnet_byifindex(path->ifindex)))) {
 			nh_type = NH_TYPE_V6GW;
 			break;
 		}
@@ -391,9 +401,18 @@ static int mpls_route_pb_handler(RibUpdate *rtupdate, bool *add_incomplete)
 		 * nexthop[6]_fill, since it doesn't know that it's
 		 * called from MPLS context and thus route with no
 		 * labels via loopback means de-agg.
+		 * In addition, set the gateway flag for preserving
+		 * compatibility of show output where we showed for a
+		 * deagg:
+		 *
+		 * in label: 53760, fec:ipv6
+		 * 	nexthop via ::, vrfred
+		 *
 		 */
-		if (is_lo(dp_nh_get_ifp(&next[i])))
+		if (is_lo(dp_nh_get_ifp(&next[i]))) {
 			next[i].flags &= ~RTF_SLOWPATH;
+			next[i].flags |= RTF_GATEWAY;
+		}
 	}
 
 	mpls_label_table_insert_label(global_label_space_id,
