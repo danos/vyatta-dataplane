@@ -1143,6 +1143,12 @@ static int dp_crypto_lcore_init(unsigned int lcore_id,
 	struct crypto_pkt_buffer *cpb;
 	unsigned int cpu_socket;
 	uint32_t q;
+	int err;
+
+	err = crypto_flow_cache_init_lcore(lcore_id);
+	if (err)
+		rte_panic("Failed to create crypto flow cache for cpu %d\n",
+			  lcore_id);
 
 	if (!RTE_PER_LCORE(crypto_pkt_buffer)) {
 		cpu_socket = rte_lcore_to_socket_id(lcore_id);
@@ -1157,7 +1163,6 @@ static int dp_crypto_lcore_init(unsigned int lcore_id,
 		for (q = MIN_CRYPTO_XFRM; q < MAX_CRYPTO_XFRM; q++)
 			cpb->pmd_dev_id[q] = CRYPTO_PMD_INVALID_ID;
 
-		cpb->flow_cache_tbl = flow_cache_init_lcore();
 		cpbdb[lcore_id] = cpb;
 
 		RTE_PER_LCORE(crypto_pkt_buffer) = cpb;
@@ -1240,6 +1245,9 @@ void dp_crypto_init(void)
 		rte_panic("Could not allocate crypto context pool\n");
 
 	crypto_engine_load();
+
+	if (crypto_flow_cache_init())
+		rte_panic("Could not allocate crypto flow cache");
 
 	if (dp_lcore_events_register(&crypto_lcore_events, NULL))
 		rte_panic("can not initialise crypto per thread\n");

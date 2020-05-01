@@ -48,9 +48,7 @@ enum crypto_xfrm {
 struct crypto_pkt_buffer {
 	int pmd_dev_id[MAX_CRYPTO_XFRM];
 	uint32_t local_q_count[MAX_CRYPTO_XFRM];
-	rte_atomic16_t flow_cache_count;
 	char SPARE[6];
-	struct cds_lfht *flow_cache_tbl;
 	struct crypto_pkt_ctx *local_crypto_q[MAX_CRYPTO_XFRM]
 	[MAX_CRYPTO_PKT_BURST];
 };
