@@ -1,3 +1,59 @@
+vyatta-dataplane (3.10.8) unstable; urgency=medium
+
+  [ Mike Larson ]
+  * Add helper functions for protobuf
+
+  [ Paul Atkins ]
+  * nh_common: use a common version of nh_get_lables
+  * nh_common: use a common version of nh_get_flags
+  * mpls: use dp_nh_get_ifp instead of nh_get_if
+  * nh_common: use a common version of nexthop_mp_select
+  * route: add a family parameter to nexthop_select
+  * route6: add a family parameter to nexthop6_select
+  * crypto: crypto_policy_handle_packet_outbound_checks to use common nh
+  * crypto: pr_feat_attach should use a single nh instead of a union
+  * nh_common: use a common version of nexthop_select
+  * nh: change nh_select so that it takes a family not a nh_type
+  * nh: use nexthop_select instead of nh_select
+  * mpls: make mpls_label_table_lookup return a next_hop ptr
+  * mpls: make mpls_unlabeled_input return a struct next_hop *
+  * mpls: modify mpls_oam_v4_lookup to use a next_hop instead of a union
+  * mpls: change mpls_label_table_ins_lbl_internal to take a next_hop ptr
+  * mpls: change mpls_label_table_insert_label to take a next_hop ptr
+  * mpls: change mpls_label_table_add_reserved_labels to use a next_hop ptr
+  * mpls: nh_fwd_mpls should take a struct next_hop ptr
+  * mpls: change nh_eth_output_mpls to take a struct next_hop ptr
+  * mpls: change nh_mpls_ip_fragment to take a struct next_hop ptr
+  * mpls: change nh_mpls_forward to take a struct next_hop ptr
+  * mpls: change mpls_labeled_forward to use a struct next_hop ptr
+  * mpls: change mpls_unlabeled_forward to use a struct next_hop ptr
+  * ecmp: change ecmp_mpls_create to return a struct next_hop ptr
+  * mpls: change mpls_route_change to use a struct next_hop ptr
+  * crypto: make crypto_policy_check_outbound take a struct next_hop **
+  * l3_v4_ipsec: use struct next_hop instead of the nh union
+  * l3_v6_ipsec: use struct next_hop instead of the nh union
+  * shadow: use struct next_hop instead of the nh union nin spath_reader
+  * nh: remove union next_hop_v4_or_v6_ptr as it is no longer used
+  * crypto: tidy up code in crypto_policy_check_outbound
+  * crypto: remove common code in crypto_policy_feat_attach_by_reqid
+  * crypto: remove  common code in policy_bind_feat_attach
+  * crypto: remove common code in policy_rule_to_json
+  * shadow: commonise next_hop code in spath_reader
+  * nh_common: make some of the nexthop functions static
+  * nh: move the final funcs from nh.c and delete the file
+  * mpls: move nh_fwd_ret into mpls_forward.c as that is the only user
+  * nh: remove definition of NH_STRING_MAX as it is unused
+  * mpls: remove duplicate code in mpls_route_change
+  * nh_common: move enum nh_type into nh_common.h
+  * nh_common: include mpls.h as it uses the outlabels defined there
+  * nh_common: include ip_addr.h as it uses the ip_addr defined there
+  * route: include if_llatbl.h as it use symbols defined there
+  * l3_v4_encap: include if_llatbl.h as it use symbols defined there
+  * nh: move enum nh_type to nh_common.h and remove nh.h
+  * nh_common: rename next_hop_u to next_hop_list
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Fri, 01 May 2020 10:11:41 +0100
+
 vyatta-dataplane (3.10.7) unstable; urgency=medium
 
   [ Nicholas Brown ]
