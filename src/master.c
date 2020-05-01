@@ -134,7 +134,6 @@ struct port_request {
  */
 static zlist_t *port_request_list[CONT_SRC_COUNT];
 static zlist_t *port_request_list_alt[CONT_SRC_COUNT];
-static zlist_t *resync_list[CONT_SRC_COUNT];
 static void master_cleanup(enum cont_src_en cont_src);
 
 /* Uplink: Do we have an L3 source address we can use to connect to a remote
@@ -145,6 +144,7 @@ static bool control_addr;
 enum master_state_en {
 	MASTER_IDLE,
 	MASTER_SETUP,
+	MASTER_SETUP_WAIT,
 	MASTER_RESYNC_NEEDED,
 	MASTER_CONNECT,
 	MASTER_CONNECT_WAIT,
@@ -166,6 +166,8 @@ static const char *master_state_name(enum master_state_en state)
 		return "idle";
 	case MASTER_SETUP:
 		return "setup";
+	case MASTER_SETUP_WAIT:
+		return "setup-wait";
 	case MASTER_RESYNC_NEEDED:
 		return "resync-needed";
 	case MASTER_RESYNC:
@@ -386,14 +388,6 @@ static void init_requests(enum cont_src_en cont_src)
 			  cont_src_name(cont_src));
 }
 
-static void cleanup_resync(enum cont_src_en cont_src)
-{
-	zmsg_t *msg;
-
-	while ((msg = zlist_pop(resync_list[cont_src])) != NULL)
-		zmsg_destroy(&msg);
-}
-
 static void master_cleanup(enum cont_src_en cont_src)
 {
 	if (is_local_controller())
@@ -403,7 +397,6 @@ static void master_cleanup(enum cont_src_en cont_src)
 	controller_unsubscribe(cont_src);
 	route_broker_unsubscribe(cont_src);
 	cleanup_requests(cont_src);
-	cleanup_resync(cont_src);
 }
 
 /* Call back from timer every second. */
@@ -879,9 +872,73 @@ static int process_ready(enum cont_src_en cont_src, zmsg_t *msg)
 	if (rc >= 0)
 		rc = process_ready_msg(cont_src, &dpmsg);
 
-	zmsg_destroy(&msg);
-
 	return rc;
+}
+
+static bool process_async_response(enum cont_src_en cont_src, zmsg_t *msg)
+{
+	zframe_t *frame;
+	uint64_t seqno;
+
+	if (zmsg_size(msg) < 2) {
+		char *str = zmsg_popstr(msg);
+		RTE_LOG(ERR, DATAPLANE,
+			"master(%s) short message from controller: %s\n",
+			cont_src_name(cont_src), str);
+		free(str);
+		return false;
+	}
+
+	/* peek at the sequence number */
+	zmsg_first(msg);
+	frame = zmsg_next(msg);
+
+	if (zframe_size(frame) != sizeof(uint64_t)) {
+		RTE_LOG(ERR, DATAPLANE,
+			"master(%s) expect uint64_t message got size %zd\n",
+		cont_src_name(cont_src), zframe_size(frame));
+		return false;
+	}
+
+	memcpy(&seqno, zframe_data(frame), sizeof(uint64_t));
+
+	if (process_port_response(cont_src, msg, seqno))
+		return true;
+
+	if (master_state_get(cont_src) == MASTER_RESYNC) {
+		int rc;
+		int eof = 0;
+		dpmsg_t dpmsg;
+
+		rc = dpmsg_convert_zmsg(msg, &dpmsg);
+		if (rc < 0)
+			return false;
+
+		rc = process_snapshot_one(cont_src, &dpmsg, &eof);
+		if (rc < 0)
+			return false;
+
+		if (eof) {
+			master_state_set(cont_src, MASTER_READY);
+			controller_init_event_handler(cont_src);
+			route_broker_init_event_handler(cont_src);
+		}
+
+		return true;
+	}
+
+	/*
+	 * Unsol message received in MASTER_READY
+	 */
+	if (process_ready(cont_src, msg) < 0) {
+		RTE_LOG(ERR, DATAPLANE,
+			"master(%s) unexpected message in state %s\n",
+			cont_src_name(cont_src),
+			master_state_name(master_state_get(cont_src)));
+		return false;
+	}
+
+	return true;
 }
 
 /* Asynchronous response from server.
@@ -902,82 +959,12 @@ static int async_response(void *cont_src_ptr)
 		return -1;
 	}
 
-	if (zmsg_size(msg) < 2) {
-		char *str = zmsg_popstr(msg);
-		RTE_LOG(ERR, DATAPLANE,
-			"master(%s) short message from controller: %s\n",
-			cont_src_name(cont_src), str);
-		free(str);
-		goto msgerr;
-	}
+	bool ok = process_async_response(cont_src, msg);
 
-	/* peek at the sequence number */
-	zmsg_first(msg);
-
-	zframe_t *frame = zmsg_next(msg);
-	uint64_t seqno;
-
-	if (zframe_size(frame) != sizeof(uint64_t)) {
-		RTE_LOG(ERR, DATAPLANE,
-			"master(%s) expect uint64_t message got size %zd\n",
-		cont_src_name(cont_src), zframe_size(frame));
-		goto msgerr;
-	}
-	memcpy(&seqno, zframe_data(frame), sizeof(uint64_t));
-
-	if (process_port_response(cont_src, msg, seqno))
-		zmsg_destroy(&msg);
-	else if (master_state_get(cont_src) == MASTER_RESYNC) {
-		/* stash away this message for later */
-		zlist_append(resync_list[cont_src], msg);
-	} else {
-		/*
-		 * Unsol message received in MASTER_READY
-		 */
-		if (process_ready(cont_src, msg) < 0) {
-			RTE_LOG(ERR, DATAPLANE,
-				"master(%s) unexpected message in ready\n",
-				cont_src_name(cont_src));
-			reset_dataplane(cont_src, true);
-		}
-		return 0;
-	}
-
-	/* if we have no more expected MYPORT? responses.  process whatever
-	 * snapshot messages are queued.
-	 */
-	zmsg_t *msg2;
-
-	while ((zlist_size(port_request_list[cont_src]) == 0) &&
-	       (msg2 = zlist_pop(resync_list[cont_src])) != NULL) {
-		int rc;
-		int eof = 0;
-		dpmsg_t dpmsg;
-
-		rc = dpmsg_convert_zmsg(msg2, &dpmsg);
-		if (rc < 0) {
-			zmsg_destroy(&msg2);
-			reset_dataplane(cont_src, true);
-			break;
-		}
-		rc = process_snapshot_one(cont_src, &dpmsg, &eof);
-		zmsg_destroy(&msg2);
-
-		if (rc < 0) {
-			reset_dataplane(cont_src, true);
-			break;
-		} else if (eof) {
-			master_state_set(cont_src, MASTER_READY);
-			controller_init_event_handler(cont_src);
-			route_broker_init_event_handler(cont_src);
-		}
-
-	}
-	return 0;
-
-msgerr:
 	zmsg_destroy(&msg);
-	reset_dataplane(cont_src, true);
+	if (!ok)
+		reset_dataplane(cont_src, true);
+
 	return 0;
 }
 
@@ -1003,6 +990,17 @@ static void snapshot_timeout(struct rte_timer *t __unused, void *cont_src_ptr)
 			cont_src_name(cont_src));
 		reset_dataplane(cont_src, true);
 	}
+}
+
+/*
+ * Port setup complete? That is, all the initial INIPORT messages &
+ * associated responses (ifname) have been processed. The ADDPORT
+ * messages will have been issued, but we don't need to wait for the
+ * responses before asking for the snapshot.
+ */
+static bool setup_interfaces_done(enum cont_src_en cont_src)
+{
+	return zlist_size(port_request_list[cont_src]) == 0;
 }
 
 /*
@@ -1284,18 +1282,12 @@ master_init_src(enum cont_src_en cont_src)
 	master_time[cont_src].resync_timeout =
 		RESYNC_TIMEOUT * rte_get_timer_hz();
 	init_requests(cont_src);
-	resync_list[cont_src] = zlist_new();
-	if (!resync_list[cont_src])
-		rte_panic("%s Unable to allocate resync list\n",
-			  cont_src_name(cont_src));
 }
 
 static void
 master_destroy_src(enum cont_src_en cont_src)
 {
 	destroy_requests(cont_src);
-	if (resync_list[cont_src])
-		zlist_destroy(&resync_list[cont_src]);
 	controller_unsubscribe(cont_src);
 	route_broker_unsubscribe(cont_src);
 }
@@ -1519,10 +1511,10 @@ void master_loop(void)
 				reset_dataplane(cont_src, true);
 			else
 				master_state_set(cont_src,
-						 MASTER_RESYNC_NEEDED);
+						 MASTER_SETUP_WAIT);
 			break;
 
-		case MASTER_RESYNC_NEEDED:
+		case MASTER_SETUP_WAIT:
 			dp_unregister_event_socket(
 				zsock_resolve(
 					cont_socket_get(cont_src)));
@@ -1531,6 +1523,17 @@ void master_loop(void)
 						cont_socket_get(cont_src)),
 						async_response,
 						(void *)cont_src, cont_src);
+
+			if (get_next_event(cont_src, TIMER_INTERVAL_MS,
+					   true) < 0)
+				return;
+
+			if (setup_interfaces_done(cont_src))
+				master_state_set(cont_src,
+						 MASTER_RESYNC_NEEDED);
+			break;
+
+		case MASTER_RESYNC_NEEDED:
 			/* Get netlink state from controller */
 			rc = controller_snapshot(cont_src);
 			if (rc < 0) {
