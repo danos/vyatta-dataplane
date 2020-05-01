@@ -1911,6 +1911,48 @@ void if_rename(struct ifnet *ifp, const char *ifname)
 	cross_connect_rename(ifp, ifname);
 }
 
+/*
+ * A list of partially defined hardware ports. That is, the port has
+ * been registered with the controller (the name has been returned),
+ * waiting for the associated ifindex, either via a NEWLINK or via the
+ * ADDPORT response.
+ */
+static zhash_t *if_hwport_incomplete;
+
+static void if_hwport_incomplete_cleanup(void)
+{
+	zhash_destroy(&if_hwport_incomplete);
+}
+
+static void if_hwport_incomplete_init(void)
+{
+	if_hwport_incomplete = zhash_new();
+	if (if_hwport_incomplete == NULL)
+		rte_panic(
+			"Cannot allocate zhash for incomplete HW interfaces\n"
+			);
+}
+
+int if_hwport_incomplete_add(struct ifnet *ifp, const char *ifname)
+{
+	if ((ifp == NULL) || (ifname == NULL))
+		return -EINVAL;
+
+	if (zhash_insert(if_hwport_incomplete, ifname, ifp) < 0)
+		return -ENOMEM;
+
+	return 0;
+}
+
+struct ifnet *if_hwport_incomplete_get(const char *ifname)
+{
+	struct ifnet *ifp;
+
+	ifp = zhash_lookup(if_hwport_incomplete, ifname);
+	zhash_delete(if_hwport_incomplete, ifname);
+	return ifp;
+}
+
 struct incomplete_if_stats {
 	uint64_t if_ignore_add;
 	uint64_t if_ignore_del;
@@ -1988,6 +2030,28 @@ static struct cds_lfht *missed_netlinks;
 #define INCOMPLETE_HASH_MIN 2
 #define INCOMPLETE_HASH_MAX 64
 
+static const char *missed_nl_typestr(enum missed_nl_type type)
+{
+	switch (type) {
+	case MISSED_UNSPEC_LINK:
+		return "unspec-link";
+	case MISSED_UNSPEC_ADDR:
+		return "unspec-addr";
+	case MISSED_INET_ADDR:
+		return "inet-addr";
+	case MISSED_INET6_ADDR:
+		return "inet6-addr";
+	case MISSED_INET_NETCONF:
+		return "inet-netconf";
+	case MISSED_INET6_NETCONF:
+		return "inet6-netconf";
+	case MISSED_CHILD_LINK:
+		return "child-link";
+	}
+
+	return "???";
+}
+
 void incomplete_interface_init(void)
 {
 	missed_netlinks = cds_lfht_new(INCOMPLETE_HASH_MIN,
@@ -2014,6 +2078,8 @@ void incomplete_interface_init(void)
 					  NULL);
 	if (!ignored_interfaces)
 		rte_panic("Can't allocate hash for ignored interfaces\n");
+
+	if_hwport_incomplete_init();
 }
 
 static void
@@ -2069,6 +2135,8 @@ void incomplete_interface_cleanup(void)
 		call_rcu(&missed->rcu, missed_netlink_free);
 	}
 	cds_lfht_destroy(missed_netlinks, NULL);
+
+	if_hwport_incomplete_cleanup();
 }
 
 static inline int ignored_interface_match_fn(struct cds_lfht_node *node,
@@ -2458,6 +2526,10 @@ static void missed_netlink_add(enum missed_nl_type type,
 		return;
 	}
 
+	DP_DEBUG(INIT, DEBUG, DATAPLANE,
+		 "%s() ifindex %d type %s\n", __func__,
+		 ifindex, missed_nl_typestr(type));
+
 	missed->type = type;
 	if (type == MISSED_UNSPEC_ADDR)
 		memcpy(&missed->keys.addr, addr, sizeof(struct rte_ether_addr));
@@ -2503,6 +2575,10 @@ static void missed_netlink_del(enum missed_nl_type type,
 	struct missed_netlink missed, *found;
 	struct cds_lfht_node *node;
 	struct cds_lfht_iter iter;
+
+	DP_DEBUG(INIT, DEBUG, DATAPLANE,
+		 "%s() ifindex %d type %s\n", __func__,
+		 ifindex, missed_nl_typestr(type));
 
 	memset(&missed, 0, sizeof(missed));
 	missed.type = type;

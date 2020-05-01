@@ -1099,6 +1099,15 @@ int if_get_backplane(struct ifnet *ifp, unsigned int *ifindex);
 void if_hwport_create_finish(enum cont_src_en cont_src, struct ifnet *ifp,
 			     uint32_t ifindex, const char *ifname);
 
+/*
+ * APIs used to save & retrieve partially defined hardware & hot-plug
+ * interfaces. That is, initial registration with the controller is
+ * complete (we have the name), waiting for the ifindex from the
+ * kernel.
+ */
+int if_hwport_incomplete_add(struct ifnet *ifp, const char *ifname);
+struct ifnet *if_hwport_incomplete_get(const char *ifname);
+
 static inline bool
 if_is_hwport(struct ifnet *ifp)
 {

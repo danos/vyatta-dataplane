@@ -777,6 +777,12 @@ static int unspec_link_change(const struct nlmsghdr *nlh,
 
 	ifindex = cont_src_ifindex(cont_src, ifi->ifi_index);
 	ifp = dp_ifnet_byifindex(ifindex);
+	if (ifp == NULL) {
+		ifp = if_hwport_incomplete_get(ifname);
+		if (ifp != NULL)
+			if_hwport_create_finish(cont_src, ifp, ifindex, ifname);
+	}
+
 	if (nlh->nlmsg_type == RTM_NEWLINK)
 		msg = (ifp) ? "MOD" : "NEW";
 	else if (nlh->nlmsg_type == RTM_DELLINK)
