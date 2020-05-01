@@ -98,7 +98,8 @@ static bool nexthop_fill(struct next_hop *next, Path *path, bool *missing_ifp)
 				path->nexthop->address_oneof_case);
 			return false;
 		}
-		next->gateway4 = path->nexthop->ipv4_addr;
+		next->gateway.address.ip_v4.s_addr = path->nexthop->ipv4_addr;
+		next->gateway.type = AF_INET;
 		next->flags |= RTF_GATEWAY;
 	}
 
@@ -118,12 +119,14 @@ static bool nexthop6_fill(struct next_hop *next, Path *path,
 	if (path->nexthop) {
 		if (path->nexthop->address_oneof_case ==
 		    IPADDRESS__ADDRESS_ONEOF_IPV6_ADDR &&
-		    path->nexthop->ipv6_addr.len == sizeof(next->gateway6)) {
-			memcpy(&next->gateway6, path->nexthop->ipv6_addr.data,
-			       sizeof(next->gateway6));
+		    path->nexthop->ipv6_addr.len ==
+		    sizeof(next->gateway.address)) {
+			memcpy(&next->gateway.address,
+			       path->nexthop->ipv6_addr.data,
+			       sizeof(next->gateway.address));
 		} else if (path->nexthop->address_oneof_case ==
 			   IPADDRESS__ADDRESS_ONEOF_IPV4_ADDR) {
-			IN6_SET_ADDR_V4MAPPED(&next->gateway6,
+			IN6_SET_ADDR_V4MAPPED(&next->gateway.address.ip_v6,
 					      path->nexthop->ipv4_addr);
 		} else {
 			RTE_LOG(NOTICE, DATAPLANE,
@@ -131,8 +134,9 @@ static bool nexthop6_fill(struct next_hop *next, Path *path,
 				path->nexthop->address_oneof_case);
 			return false;
 		}
+		next->gateway.type = AF_INET6;
 
-		if (IN6_IS_ADDR_V4MAPPED(&next->gateway6))
+		if (IN6_IS_ADDR_V4MAPPED(&next->gateway.address.ip_v6))
 			next->flags |= RTF_MAPPED_IPV6;
 		next->flags |= RTF_GATEWAY;
 	}

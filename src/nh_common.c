@@ -292,8 +292,7 @@ int nexthop_new(int family, const struct next_hop *nh, uint16_t size,
 		return -ENOMEM;
 	}
 
-	ret = fal_ip_new_next_hops(addr_family_to_fal_ip_addr_family(family),
-				   nextl->nsiblings, nextl->siblings,
+	ret = fal_ip_new_next_hops(nextl->nsiblings, nextl->siblings,
 				    &nextl->nhg_fal_obj,
 				    nextl->nh_fal_obj);
 	if (ret < 0 && ret != -EOPNOTSUPP)
@@ -327,8 +326,7 @@ nexthop_create(struct ifnet *ifp, struct ip_addr *gw, uint32_t flags,
 
 	if (next) {
 		/* Copying the v6 addr guarantees all bits are copied */
-		memcpy(&next->gateway6, &gw->address.ip_v6,
-		       sizeof(next->gateway6));
+		next->gateway = *gw;
 		next->flags = flags;
 		nh_set_ifp(next, ifp);
 
@@ -640,7 +638,7 @@ ALWAYS_INLINE struct next_hop *nexthop_select(int family, uint32_t nh_idx,
 ALWAYS_INLINE const struct in_addr *
 dp_nh4_get_addr(const struct next_hop *next_hop)
 {
-	return (struct in_addr *)&next_hop->gateway4;
+	return &next_hop->gateway.address.ip_v4;
 }
 
 /*
@@ -649,5 +647,5 @@ dp_nh4_get_addr(const struct next_hop *next_hop)
 ALWAYS_INLINE const struct in6_addr *
 dp_nh6_get_addr(const struct next_hop *next_hop)
 {
-	return &next_hop->gateway6;
+	return &next_hop->gateway.address.ip_v6;
 }

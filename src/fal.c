@@ -1606,7 +1606,6 @@ next_hop_to_packet_action(const struct next_hop *nh)
 }
 
 static const struct fal_attribute_t **next_hop_to_attr_list(
-	enum fal_ip_addr_family_t family,
 	fal_object_t nhg_object, size_t nhops,
 	const struct next_hop hops[], uint32_t **attr_count)
 {
@@ -1626,7 +1625,6 @@ static const struct fal_attribute_t **next_hop_to_attr_list(
 		const struct next_hop *nh = &hops[i];
 		struct fal_attribute_t *nh_attr;
 		struct ifnet *ifp;
-		struct fal_ip_address_t *addr;
 
 		nh_attr_list[i] = nh_attr = calloc(
 			1, sizeof(*nh_attr) * 4);
@@ -1647,9 +1645,7 @@ static const struct fal_attribute_t **next_hop_to_attr_list(
 		nh_attr[2].value.u32 = ifp ? ifp->fal_l3 : FAL_NULL_OBJECT_ID;
 		if (nh->flags & (RTF_GATEWAY | RTF_NEIGH_CREATED)) {
 			nh_attr[3].id = FAL_NEXT_HOP_ATTR_IP;
-			addr = &nh_attr[3].value.ipaddr;
-			addr->addr_family = family;
-			memcpy(&addr->addr, &nh->gateway6, sizeof(addr->addr));
+			fal_attr_set_ip_addr(&nh_attr[3], &nh->gateway);
 			(*attr_count)[i] = 4;
 		} else {
 			(*attr_count)[i] = 3;
@@ -1674,8 +1670,7 @@ next_hop_group_packet_action(uint32_t nhops, const struct next_hop hops[])
 	return FAL_PACKET_ACTION_FORWARD;
 }
 
-int fal_ip_new_next_hops(enum fal_ip_addr_family_t family,
-			 size_t nhops, const struct next_hop hops[],
+int fal_ip_new_next_hops(size_t nhops, const struct next_hop hops[],
 			 fal_object_t *nhg_object,
 			 fal_object_t *obj_list)
 {
@@ -1709,8 +1704,7 @@ int fal_ip_new_next_hops(enum fal_ip_addr_family_t family,
 	if (ret < 0)
 		return ret;
 
-	nh_attr_list = next_hop_to_attr_list(family,
-					     *nhg_object, nhops, hops,
+	nh_attr_list = next_hop_to_attr_list(*nhg_object, nhops, hops,
 					     &nh_attr_count);
 	if (!nh_attr_list) {
 		ret = -ENOMEM;
@@ -3368,7 +3362,8 @@ int fal_get_cpp_limiter_attribute(fal_object_t limiter_id, uint32_t attr_count,
 				attr_list);
 }
 
-void fal_attr_set_ip_addr(struct fal_attribute_t *attr, struct ip_addr *ip)
+void fal_attr_set_ip_addr(struct fal_attribute_t *attr,
+			  const struct ip_addr *ip)
 {
 	switch (ip->type) {
 	case AF_INET:

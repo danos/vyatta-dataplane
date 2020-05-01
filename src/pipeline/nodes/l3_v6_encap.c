@@ -118,7 +118,7 @@ ipv6_encap_process_internal(struct pl_packet *pkt, enum pl_mode mode)
 	struct in6_addr addr;
 
 	if (nh->flags & RTF_GATEWAY) {
-		addr = nh->gateway6;
+		addr = nh->gateway.address.ip_v6;
 	} else {
 		struct ip6_hdr *ip6;
 

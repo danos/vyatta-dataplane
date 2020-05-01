@@ -621,7 +621,8 @@ void fal_register_message_handler(struct message_handler *handler);
 void fal_delete_message_handler(struct message_handler *handler);
 
 /* Set the ip addr into the given attr */
-void fal_attr_set_ip_addr(struct fal_attribute_t *attr, struct ip_addr *ip);
+void fal_attr_set_ip_addr(struct fal_attribute_t *attr,
+			  const struct ip_addr *ip);
 
 void fal_l2_new_port(unsigned int if_index,
 		     uint32_t attr_count,
@@ -779,8 +780,7 @@ void fal_ip4_upd_addr(unsigned int if_index,
 		      const struct if_addr *ifa);
 void fal_ip4_del_addr(unsigned int if_index,
 		      const struct if_addr *ifa);
-int fal_ip_new_next_hops(enum fal_ip_addr_family_t family,
-			 size_t nhops, const struct next_hop hops[],
+int fal_ip_new_next_hops(size_t nhops, const struct next_hop hops[],
 			 fal_object_t *nhg_object, fal_object_t *obj);
 int fal_ip_del_next_hops(fal_object_t nhg_object, size_t nhops,
 			 const fal_object_t *obj);

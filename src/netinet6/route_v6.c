@@ -713,7 +713,7 @@ int dp_nh6_lookup_by_index(uint32_t nhindex, uint32_t hash,
 		next = nexthop_mp_select(next, size, hash);
 
 	if (next->flags & RTF_GATEWAY)
-		*nh = next->gateway6;
+		*nh = next->gateway.address.ip_v6;
 	else
 		*nh = in6addr_any;
 
@@ -823,8 +823,8 @@ nexthop6_hashfn(const struct nexthop_hash_key *key,
 	uint16_t i, j = 0;
 
 	for (i = 0; i < size; i++, j += IPV6_NH_HASH_KEY_SIZE) {
-		memcpy(&hash_keys[j], &key->nh[i].gateway6,
-		       sizeof(key->nh[i].gateway6));
+		memcpy(&hash_keys[j], &key->nh[i].gateway.address.ip_v6,
+		       sizeof(key->nh[i].gateway.address.ip_v6));
 		ifp = dp_nh_get_ifp(&key->nh[i]);
 		hash_keys[j+4] = ifp ? ifp->if_index : 0;
 		hash_keys[j+5] = key->nh[i].flags & NH_FLAGS_CMP_MASK;
@@ -847,8 +847,8 @@ static int nexthop6_cmpfn(struct cds_lfht_node *node, const void *key)
 	for (i = 0; i < h_key->size; i++) {
 		if ((dp_nh_get_ifp(&nl->siblings[i]) !=
 		     dp_nh_get_ifp(&h_key->nh[i])) ||
-		    (!IN6_ARE_ADDR_EQUAL(&nl->siblings[i].gateway6,
-					 &h_key->nh[i].gateway6)) ||
+		    (!IN6_ARE_ADDR_EQUAL(&nl->siblings[i].gateway.address,
+					 &h_key->nh[i].gateway.address)) ||
 		    ((nl->siblings[i].flags & NH_FLAGS_CMP_MASK) !=
 		     (h_key->nh[i].flags & NH_FLAGS_CMP_MASK)) ||
 		      !nh_outlabels_cmpfn(&nl->siblings[i].outlabels,
@@ -1168,8 +1168,9 @@ static void route6_change_process_nh(struct next_hop_list *nhl,
 		 * Is there an lle on this interface with a
 		 * matching address.
 		 */
-		struct llentry *lle = in6_lltable_find((struct ifnet *)ifp,
-						       &next->gateway6);
+		struct llentry *lle = in6_lltable_find(
+			(struct ifnet *)ifp,
+			&next->gateway.address.ip_v6);
 		if (lle) {
 			route6_nh_replace(AF_INET6, nhl, nhl->index, lle, NULL,
 					  upd_neigh_present_cb,
@@ -1216,8 +1217,8 @@ routing_neigh_add_gw_nh_replace_cb(struct next_hop *next,
 	struct in6_addr *ip = ll_ipv6_addr(lle);
 	struct ifnet *ifp = rcu_dereference(lle->ifp);
 
-	if (!nh_is_gw(next) || !IN6_ARE_ADDR_EQUAL(&next->gateway6,
-						   &ip->s6_addr))
+	if (!nh_is_gw(next) ||
+	    !IN6_ARE_ADDR_EQUAL(&next->gateway.address.ip_v6, &ip->s6_addr))
 		return NH_NO_CHANGE;
 	if (dp_nh_get_ifp(next) != ifp)
 		return NH_NO_CHANGE;
@@ -1518,7 +1519,7 @@ static int rt6_insert(struct vrf *vrf, struct lpm6 *lpm,
 			if (hops[i].flags & RTF_GATEWAY)
 				continue;
 
-			hops[i].gateway6 = *dst;
+			hops[i].gateway.address.ip_v6 = *dst;
 		}
 
 	err = route_nexthop6_new(hops, size, idx);
@@ -1706,12 +1707,15 @@ void rt6_print_nexthop(json_writer_t *json, uint32_t next_hop,
 
 			jsonw_string_field(json, "state", "gateway");
 
-			if (IN6_IS_ADDR_V4MAPPED(&next->gateway6)) {
-				v4nhop = V4MAPPED_IPV6_TO_IPV4(next->gateway6);
+			if (IN6_IS_ADDR_V4MAPPED(
+				    &next->gateway.address.ip_v6)) {
+				v4nhop = V4MAPPED_IPV6_TO_IPV4(
+					next->gateway.address.ip_v6);
 				nhop = inet_ntop(AF_INET, &v4nhop,
 						 b1, sizeof(b1));
 			} else {
-				nhop = inet_ntop(AF_INET6, &next->gateway6,
+				nhop = inet_ntop(AF_INET6,
+						 &next->gateway.address.ip_v6,
 						 b1, sizeof(b1));
 			}
 			jsonw_string_field(json, "via", nhop);
@@ -2492,7 +2496,7 @@ route6_create_neigh(struct vrf *vrf, struct lpm6 *lpm,
 			 * share with non /128 routes such as the connected
 			 * cover.
 			 */
-			nh[sibling].gateway6 = *ip;
+			nh[sibling].gateway.address.ip_v6 = *ip;
 			if (route_nexthop6_new(nh, size, &nh_idx) < 0) {
 				free(nh);
 				return;
@@ -2516,7 +2520,7 @@ routing_neigh_del_gw_nh_replace_cb(struct next_hop *next,
 	struct in6_addr *ip = ll_ipv6_addr(lle);
 	struct ifnet *ifp = rcu_dereference(lle->ifp);
 
-	if (!nh_is_gw(next) || !IN6_ARE_ADDR_EQUAL(&next->gateway6,
+	if (!nh_is_gw(next) || !IN6_ARE_ADDR_EQUAL(&next->gateway.address.ip_v6,
 						   &ip->s6_addr))
 		return NH_NO_CHANGE;
 	if (dp_nh_get_ifp(next) != ifp)

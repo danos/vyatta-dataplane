@@ -150,12 +150,14 @@ static bool nexthop_fill(struct nlattr *ntb_gateway, struct nlattr *ntb_encap,
 	if (!dp_nh_get_ifp(next) && !is_ignored_interface(nhp->rtnh_ifindex))
 		return true;
 	if (ntb_gateway) {
-		next->gateway4 = mnl_attr_get_u32(ntb_gateway);
+		next->gateway.address.ip_v4.s_addr =
+			mnl_attr_get_u32(ntb_gateway);
 		next->flags = RTF_GATEWAY;
 	} else {
-		next->gateway4 = INADDR_ANY;
+		next->gateway.address.ip_v4.s_addr = INADDR_ANY;
 		next->flags = 0;
 	}
+	next->gateway.type = AF_INET;
 
 	if (ntb_encap) {
 		len = mnl_attr_get_payload_len(ntb_encap);
@@ -286,11 +288,12 @@ static bool nexthop_fill_mpls(struct nlattr *ntb_via, struct nlattr *ntb_newdst,
 				via->rtvia_family);
 		}
 
-		next->gateway4 = nh;
+		next->gateway.address.ip_v4.s_addr = nh;
 	} else {
-		next->gateway4 = INADDR_ANY;
+		next->gateway.address.ip_v4.s_addr = INADDR_ANY;
 		next->flags = 0;
 	}
+	next->gateway.type = AF_INET;
 
 	ret = nexthop_fill_mpls_common(ntb_newdst, &next->outlabels, bos_only);
 	if (!dp_nh_get_ifp(next))
@@ -343,14 +346,15 @@ static bool nexthop6_fill_mpls(const struct nlattr *ntb_via,
 				via->rtvia_family);
 		}
 
-		next->gateway6 = nh6;
+		next->gateway.address.ip_v6 = nh6;
 		next->flags = RTF_GATEWAY;
 		if (IN6_IS_ADDR_V4MAPPED(&nh6))
 			next->flags |= RTF_MAPPED_IPV6;
 	} else {
-		next->gateway6 = nh6;
+		next->gateway.address.ip_v6 = nh6;
 		next->flags = 0;
 	}
+	next->gateway.type = AF_INET6;
 
 	ret = nexthop_fill_mpls_common(ntb_newdst, &next->outlabels, bos_only);
 	if (!dp_nh_get_ifp(next))
@@ -485,13 +489,14 @@ static bool nexthop6_fill(struct nlattr *ntb_gateway,
 		return true;
 
 	if (ntb_gateway) {
-		next->gateway6 = *(struct in6_addr *)mnl_attr_get_payload(
-			ntb_gateway);
+		next->gateway.address.ip_v6 =
+			*(struct in6_addr *)mnl_attr_get_payload(ntb_gateway);
 		next->flags = RTF_GATEWAY;
 	} else {
-		next->gateway6 = anyaddr;
+		next->gateway.address.ip_v6 = anyaddr;
 		next->flags = 0;
 	}
+	next->gateway.type = AF_INET6;
 
 	if (ntb_encap) {
 		len = mnl_attr_get_payload_len(ntb_encap);
