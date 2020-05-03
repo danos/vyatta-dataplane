@@ -13,6 +13,7 @@
 
 #include "urcu.h"
 #include "util.h"
+#include "ip.h"
 
 struct policy_rule;
 
@@ -20,9 +21,20 @@ struct policy_rule;
 
 #define FLOW_CACHE_HASH_SEED 0xDEAFCAFE
 
+/*
+ * subset of AFs supported by flow cache
+ * allows af to be used as index and enables common code
+ */
+enum FLOW_CACHE_AF {
+	FLOW_CACHE_AF_INET,
+	FLOW_CACHE_AF_INET6,
+	FLOW_CACHE_AF_MAX
+};
+
 struct flow_cache_hash_key {
-	uint32_t src;
-	uint32_t dst;
+	enum FLOW_CACHE_AF af;
+	union addr_u src;
+	union addr_u dst;
 	uint32_t proto;
 	vrfid_t vrfid;
 };

@@ -299,16 +299,46 @@ flow_cache_entry_destroy(struct flow_cache_entry *cache_entry)
 	call_rcu(&cache_entry->flow_cache_rcu, flow_cache_entry_free);
 }
 
+static inline bool
+flow_cache_match_addr_v4(const struct flow_cache_entry *cache_entry,
+			 const struct flow_cache_hash_key *flow_cache_key)
+{
+	if ((!addr_u_eq_v4(&cache_entry->key.src, &flow_cache_key->src) ||
+	     (!addr_u_eq_v4(&cache_entry->key.dst, &flow_cache_key->dst))))
+		return false;
+
+	return true;
+}
+
+static inline bool
+flow_cache_match_addr_v6(const struct flow_cache_entry *cache_entry,
+			 const struct flow_cache_hash_key *flow_cache_key)
+{
+	if ((!addr_u_eq_v6(&cache_entry->key.src, &flow_cache_key->src) ||
+	     (!addr_u_eq_v6(&cache_entry->key.dst, &flow_cache_key->dst))))
+		return false;
+
+	return true;
+}
+
+
 static inline int
 flow_cache_match(struct cds_lfht_node *node, const void *key)
 {
 	const struct flow_cache_hash_key *flow_cache_key = key;
 	const struct flow_cache_entry *cache_entry = caa_container_of(
 		node, const struct flow_cache_entry, fl_node);
+	int ret;
 
-	if ((cache_entry->key.src != flow_cache_key->src) ||
-	    (cache_entry->key.dst != flow_cache_key->dst) ||
-	    (cache_entry->key.proto != flow_cache_key->proto) ||
+	if (cache_entry->key.af == FLOW_CACHE_AF_INET)
+		ret = flow_cache_match_addr_v4(cache_entry, flow_cache_key);
+	else
+		ret = flow_cache_match_addr_v6(cache_entry, flow_cache_key);
+
+	if (!ret)
+		return 0;
+
+	if ((cache_entry->key.proto != flow_cache_key->proto) ||
 	    (cache_entry->key.vrfid != flow_cache_key->vrfid))
 		return 0;
 
@@ -361,8 +391,8 @@ flow_cache_parse_hdr4(struct rte_mbuf *m, struct flow_cache_hash_key *h)
 {
 	const struct iphdr *ip = iphdr(m);
 
-	h->dst = ip->daddr;
-	h->src = ip->saddr;
+	h->dst.ip_v4.s_addr = ip->daddr;
+	h->src.ip_v4.s_addr = ip->saddr;
 	h->proto = ip->protocol;
 	h->vrfid = pktmbuf_get_vrf(m);
 }
@@ -2475,14 +2505,18 @@ void crypto_show_cache(FILE *f, const char *str)
 		jsonw_start_array(wr);
 		cds_lfht_for_each_entry(table, &iter,
 					cache_entry, fl_node) {
+			int af;
+
+			af = cache_entry->key.af == FLOW_CACHE_AF_INET ?
+				AF_INET : AF_INET6;
 			jsonw_start_object(wr);
 			jsonw_string_field(wr, "dst",
-					   inet_ntop(AF_INET,
+					   inet_ntop(af,
 						     &cache_entry->key.dst,
 						     addrbuf,
 						     sizeof(addrbuf)));
 			jsonw_string_field(wr, "src",
-					   inet_ntop(AF_INET,
+					   inet_ntop(af,
 						     &cache_entry->key.src,
 						     addrbuf,
 						     sizeof(addrbuf)));
