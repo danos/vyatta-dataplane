@@ -387,13 +387,25 @@ flow_cache_insert(struct cds_lfht *tbl, struct flow_cache_entry *cache_entry,
 }
 
 static inline void
-flow_cache_parse_hdr4(struct rte_mbuf *m, struct flow_cache_hash_key *h)
+flow_cache_parse_hdr(struct rte_mbuf *m, bool v4,
+		     struct flow_cache_hash_key *h)
 {
-	const struct iphdr *ip = iphdr(m);
+	const struct iphdr *ip;
+	const struct ip6_hdr *ip6;
 
-	h->dst.ip_v4.s_addr = ip->daddr;
-	h->src.ip_v4.s_addr = ip->saddr;
-	h->proto = ip->protocol;
+	if (v4) {
+		h->af = AF_INET;
+		ip = iphdr(m);
+		h->dst.ip_v4.s_addr = ip->daddr;
+		h->src.ip_v4.s_addr = ip->saddr;
+		h->proto = ip->protocol;
+	} else {
+		h->af = AF_INET6;
+		ip6 = ip6hdr(m);
+		memcpy(&h->dst.ip_v6, &ip6->ip6_dst, sizeof(ip6->ip6_dst));
+		memcpy(&h->src.ip_v6, &ip6->ip6_src, sizeof(ip6->ip6_src));
+		h->proto = ip6->ip6_nxt;
+	}
 	h->vrfid = pktmbuf_get_vrf(m);
 }
 
@@ -406,14 +418,14 @@ flow_cache_lookup(struct rte_mbuf *m, bool v4)
 	struct flow_cache_hash_key h_key;
 	struct cds_lfht *table;
 
-	/* Any host generated or v6 don't make use of the PR cache table*/
-	if (flow_cache_disabled || !cpb || !v4)
+	/* Any host generated packets don't make use of the PR cache table*/
+	if (flow_cache_disabled || !cpb)
 		return NULL;
 
 	table = rcu_dereference(cpb->flow_cache_tbl);
 	if (!table)
 		return NULL;
-	flow_cache_parse_hdr4(m, &h_key);
+	flow_cache_parse_hdr(m, v4, &h_key);
 	cds_lfht_lookup(table, flow_cache_hash(&h_key),
 			flow_cache_match, &h_key,
 			&iter);
@@ -436,8 +448,7 @@ flow_cache_add(struct crypto_pkt_buffer *cpb, struct policy_rule *pr,
 	struct flow_cache_hash_key h_key;
 	struct cds_lfht *table  = rcu_dereference(cpb->flow_cache_tbl);
 
-	/* Any v6 don't make use of the PR cache table */
-	if (!v4 || !table)
+	if (!table)
 		return -1;
 
 	/*
@@ -455,7 +466,7 @@ flow_cache_add(struct crypto_pkt_buffer *cpb, struct policy_rule *pr,
 			return 0;
 		}
 	}
-	flow_cache_parse_hdr4(m, &h_key);
+	flow_cache_parse_hdr(m, v4, &h_key);
 	cache_entry = malloc_aligned(sizeof(struct flow_cache_entry));
 	if (unlikely(cache_entry == NULL))
 		return -1;
