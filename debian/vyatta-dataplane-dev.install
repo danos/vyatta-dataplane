@@ -30,9 +30,3 @@ usr/include/vyatta-dataplane/urcu.h
 usr/include/vyatta-dataplane/vrf.h
 
 /usr/lib/${DEB_HOST_MULTIARCH}/pkgconfig/vyatta-dataplane-dev.pc
-
-usr/bin/dataplane_test
-/usr/lib/${DEB_HOST_MULTIARCH}/vyatta-dataplane/fal_plugin_test.so
-tests/whole_dp/dummyfs/* usr/share/vyatta-dataplane/tests/whole_dp/dummyfs
-usr/share/vyatta/dataplane-drivers-default.conf usr/share/vyatta-dataplane/tests
-tests/whole_dp/src/platform.conf usr/share/vyatta-dataplane/tests/whole_dp/dummyfs/run/dataplane/

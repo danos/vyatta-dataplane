@@ -94,11 +94,20 @@ Depends: check,
          libvyattafal-dev,
          libvyatta-dataplane-proto-dev,
          libprotobuf-c-dev,
-         vyatta-dataplane-sample-plugin,
+         vyatta-dataplane-test,
          ${misc:Depends},
          ${shlibs:Depends}
 Description: Vyatta dataplane pipeline node build support
  Set of headers required for dataplane compilation
+
+Package: vyatta-dataplane-test
+Section: non-free/devel
+Architecture: any
+Depends: vyatta-dataplane-sample-plugin,
+         ${misc:Depends},
+         ${shlibs:Depends}
+Description: Vyatta dataplane test binary
+ A test binary used for running unit tests
 
 Package: libvyatta-dataplane-proto-support
 Section: non-free/devel
@@ -110,7 +119,7 @@ Description: Vyatta dataplane protocol buffer files and support
 Package: vyatta-dataplane-sample-plugin
 Section: non-free/net
 Architecture: any
-Depends: vyatta-dataplane | vyatta-dataplane-dev,
+Depends: vyatta-dataplane | vyatta-dataplane-test,
          ${misc:Depends},
          ${shlibs:Depends}
 Description: Vyatta dataplane sample plugin library
