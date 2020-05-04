@@ -218,6 +218,16 @@ struct flow_cache {
 
 static struct flow_cache *flow_cache;
 
+union crypto_ctx {
+	uint16_t context;
+	struct {
+		uint8_t in_rule_checked:1,
+			in_rule_drop:1,
+			PR_UNUSED:6;
+		char SPARE[7];
+	};
+};
+
 /*
  * A binding between a s2s policy and a feature attachment point.
  */
@@ -505,7 +515,7 @@ static int flow_cache_entry_set_info(struct flow_cache_entry *entry,
 
 static int
 flow_cache_add(struct flow_cache *flow_cache, struct policy_rule *pr,
-	       struct rte_mbuf *m, bool v4, bool seen_by_crypto,
+	       struct rte_mbuf *m, bool v4, uint16_t ctx,
 	       int dir)
 {
 	struct flow_cache_entry *cache_entry;
@@ -528,9 +538,7 @@ flow_cache_add(struct flow_cache *flow_cache, struct policy_rule *pr,
 	if (dir == XFRM_POLICY_IN) {
 		cache_entry = crypto_flow_cache_lookup(m, v4);
 		if (cache_entry) {
-			cache_entry->in_rule_checked = 1;
-			cache_entry->in_rule_drop =
-				(pr->action == XFRM_POLICY_BLOCK);
+			flow_cache_entry_set_info(cache_entry, pr, ctx);
 			return 0;
 		}
 	}
@@ -548,10 +556,7 @@ flow_cache_add(struct flow_cache *flow_cache, struct policy_rule *pr,
 		free(cache_entry);
 		return -1;
 	}
-	if (!seen_by_crypto) {
-		cache_entry->in_rule_checked = 1;
-		cache_entry->in_rule_drop = (pr->action == XFRM_POLICY_BLOCK);
-	}
+	flow_cache_entry_set_info(cache_entry, pr, ctx);
 	rte_atomic32_inc(&cache_af->cache_cnt);
 	return 0;
 }
@@ -561,13 +566,18 @@ static void crypto_flow_cache_add(struct flow_cache *flow_cache,
 				  bool v4, bool seen_by_crypto,
 				  int dir)
 {
+	union crypto_ctx ctx;
+
 	if (!flow_cache || flow_cache_disabled || !pr)
 		return;
 
+	if (!seen_by_crypto) {
+		ctx.in_rule_checked = 1;
+		ctx.in_rule_drop = (pr->action == XFRM_POLICY_BLOCK);
+	}
+
 	IPSEC_CNT_INC(FLOW_CACHE_MISS);
-	if (flow_cache_add(flow_cache, pr, m, v4,
-			   seen_by_crypto,
-			   dir) != 0)
+	if (flow_cache_add(flow_cache, pr, m, v4, ctx.context, dir) != 0)
 		IPSEC_CNT_INC(FLOW_CACHE_ADD_FAIL);
 	else
 		IPSEC_CNT_INC(FLOW_CACHE_ADD);
@@ -2663,6 +2673,8 @@ void crypto_show_cache(FILE *f, const char *str)
 
 		for (enum FLOW_CACHE_AF af = FLOW_CACHE_AF_INET;
 		     af < FLOW_CACHE_AF_MAX; af++) {
+			union crypto_ctx ctx;
+			struct policy_rule *pr;
 
 			jsonw_name(wr, af_names[af]);
 			jsonw_start_object(wr);
@@ -2707,14 +2719,17 @@ void crypto_show_cache(FILE *f, const char *str)
 							     addrbuf,
 							     sizeof(addrbuf)));
 				jsonw_uint_field(wr, "proto", cache_key->proto);
+
+				flow_cache_entry_get_info(cache_entry,
+							  (void **)&pr,
+							  &ctx.context);
 				jsonw_uint_field(wr, "PR_index",
-						 cache_entry->pr->rule_index);
-				jsonw_uint_field(wr, "PR_Tag",
-						 cache_entry->pr->tag);
+						 pr->rule_index);
+				jsonw_uint_field(wr, "PR_Tag", pr->tag);
 				jsonw_uint_field(wr, "IN_rule_checked",
-						 cache_entry->in_rule_checked);
+						 ctx.in_rule_checked);
 				jsonw_uint_field(wr, "IN_rule_drop",
-						 cache_entry->in_rule_drop);
+						 ctx.in_rule_drop);
 				jsonw_end_object(wr);
 			}
 			jsonw_end_array(wr);
@@ -2920,6 +2935,7 @@ bool crypto_policy_check_outbound(struct ifnet *in_ifp, struct rte_mbuf **mbuf,
 	bool freed = false;
 	struct npf_config *npf_conf = vrf_get_npf_conf_rcu(vrfid);
 	bool seen_by_crypto;
+	union crypto_ctx ctx;
 
 	if (likely(!npf_active(npf_conf, NPF_IPSEC)))
 		return false;
@@ -2930,6 +2946,9 @@ bool crypto_policy_check_outbound(struct ifnet *in_ifp, struct rte_mbuf **mbuf,
 	 * Do we have a cached lookup result for this policy?
 	 */
 	cache_entry = crypto_flow_cache_lookup(*mbuf, v4);
+	if (cache_entry)
+		flow_cache_entry_get_info(cache_entry, (void **)&pr,
+					  &ctx.context);
 
 	/*
 	 * Use the PR cache under following conditions:
@@ -2937,11 +2956,9 @@ bool crypto_policy_check_outbound(struct ifnet *in_ifp, struct rte_mbuf **mbuf,
 	 * - received an UNencrypted packet and we have cached the input
 	 *   policy check result.
 	 */
-	if (cache_entry && cache_entry->pr &&
-	    (seen_by_crypto || cache_entry->in_rule_checked)) {
+	if (cache_entry && pr && (seen_by_crypto || ctx.in_rule_checked))
 		IPSEC_CNT_INC(FLOW_CACHE_HIT);
-		pr = cache_entry->pr;
-	} else {
+	else {
 		const npf_ruleset_t *rlset =
 			npf_get_ruleset(npf_conf, NPF_RS_IPSEC);
 
@@ -3101,6 +3118,7 @@ crypto_policy_check_inbound(struct ifnet *in_ifp, struct rte_mbuf **mbuf,
 	bool freed = false;
 	vrfid_t vrfid = pktmbuf_get_vrf(*mbuf);
 	struct npf_config *npf_conf = vrf_get_npf_conf_rcu(vrfid);
+	union crypto_ctx ctx;
 
 	if (likely(!npf_active(npf_conf, NPF_IPSEC)))
 		return false;
@@ -3112,7 +3130,11 @@ crypto_policy_check_inbound(struct ifnet *in_ifp, struct rte_mbuf **mbuf,
 	 * Use the PR cache only if we have already cached the input check.
 	 */
 	cache_entry = crypto_flow_cache_lookup(*mbuf, v4);
-	if (cache_entry && cache_entry->pr && cache_entry->in_rule_checked) {
+	if (cache_entry)
+		flow_cache_entry_get_info(cache_entry, (void **)&pr,
+					  &ctx.context);
+
+	if (cache_entry && pr && ctx.in_rule_checked) {
 		IPSEC_CNT_INC(FLOW_CACHE_HIT);
 		if (cache_entry->pr->action == XFRM_POLICY_BLOCK)
 			goto drop;

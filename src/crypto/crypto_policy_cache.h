@@ -44,15 +44,7 @@ struct flow_cache_entry {
 	struct rcu_head flow_cache_rcu;
 	struct policy_rule *pr;
 	struct flow_cache_hash_key key;
-	union {
-		uint16_t context;
-		struct {
-			uint8_t in_rule_checked:1,
-				in_rule_drop:1,
-				PR_UNUSED:6;
-			char SPARE[7];
-		};
-	};
+	uint16_t context;
 	char *padding[0]  __rte_cache_aligned;
 };
 
