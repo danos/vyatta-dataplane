@@ -60,7 +60,12 @@ pl_node_remove_feature(struct pl_feature_registration *feat,
 		       const char *node_inst_name);
 
 bool
-pl_node_is_feature_enabled(struct pl_feature_registration *feat, void *node);
+pl_node_is_feature_enabled_by_inst(struct pl_feature_registration *feat,
+				   void *node);
+
+bool
+pl_node_is_feature_enabled(struct pl_feature_registration *feat,
+			   const char *node_inst_name);
 
 bool
 pl_node_invoke_feature(struct pl_node_registration *node_reg,

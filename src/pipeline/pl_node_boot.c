@@ -611,6 +611,21 @@ pl_feat_registration_find_by_name(const char *name)
 	return NULL;
 }
 
+bool dp_pipeline_is_feature_enabled_by_inst(const char *name,
+					    const char *instance)
+{
+	struct pl_feature_registration *pl_feat;
+
+	if (!name || !instance)
+		return false;
+
+	pl_feat = pl_feat_registration_find_by_name(name);
+	if (!pl_feat)
+		return false;
+
+	return pl_node_is_feature_enabled(pl_feat, instance);
+}
+
 int dp_pipeline_enable_feature_by_inst(const char *name,
 				       const char *instance)
 {

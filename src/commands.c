@@ -989,11 +989,11 @@ static void l2tp_show_session(void *s, void *arg)
 	jsonw_string_field(wr, "ifname",
 			   session->ifp ? session->ifp->if_name : "");
 	jsonw_uint_field(wr, "ip_forwarding",
-			 session->ifp ? !pl_node_is_feature_enabled(
+			 session->ifp ? !pl_node_is_feature_enabled_by_inst(
 				 &ipv4_in_no_forwarding_feat,
 				 session->ifp) : 0);
 	jsonw_uint_field(wr, "ipv6_forwarding",
-			 session->ifp ? !pl_node_is_feature_enabled(
+			 session->ifp ? !pl_node_is_feature_enabled_by_inst(
 				 &ipv6_in_no_forwarding_feat,
 				 session->ifp) : 0);
 	struct ifnet *ifp_xconnect = NULL;

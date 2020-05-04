@@ -672,7 +672,7 @@ void ip6_input_from_ipsec(struct ifnet *ifp, struct rte_mbuf *m)
 	/*
 	 * Check if forwarding is enabled
 	 */
-	if (unlikely(pl_node_is_feature_enabled(
+	if (unlikely(pl_node_is_feature_enabled_by_inst(
 			     &ipv6_in_no_forwarding_feat, ifp)))
 		goto drop;
 

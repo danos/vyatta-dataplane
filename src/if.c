@@ -3497,7 +3497,7 @@ fal_if_update_forwarding(struct ifnet *ifp, uint8_t family, bool multicast)
 		} else {
 			family_str = "IPv4";
 			state.id = FAL_ROUTER_INTERFACE_ATTR_ADMIN_V4_STATE;
-			if (pl_node_is_feature_enabled(
+			if (pl_node_is_feature_enabled_by_inst(
 				    &ipv4_in_no_forwarding_feat, ifp))
 				fwd_enable = false;
 		}
@@ -3510,7 +3510,7 @@ fal_if_update_forwarding(struct ifnet *ifp, uint8_t family, bool multicast)
 		} else {
 			family_str = "IPv6";
 			state.id = FAL_ROUTER_INTERFACE_ATTR_ADMIN_V6_STATE;
-			if (pl_node_is_feature_enabled(
+			if (pl_node_is_feature_enabled_by_inst(
 				    &ipv6_in_no_forwarding_feat, ifp))
 				fwd_enable = false;
 		}
@@ -3598,8 +3598,9 @@ if_fal_create_l3_intf(struct ifnet *ifp)
 	l3_nattrs++;
 
 	l3_attrs[l3_nattrs].id = FAL_ROUTER_INTERFACE_ATTR_ADMIN_V4_STATE;
-	l3_attrs[l3_nattrs].value.booldata = !pl_node_is_feature_enabled(
-		&ipv4_in_no_forwarding_feat, ifp);
+	l3_attrs[l3_nattrs].value.booldata =
+		!pl_node_is_feature_enabled_by_inst(
+			&ipv4_in_no_forwarding_feat, ifp);
 	l3_nattrs++;
 
 	l3_attrs[l3_nattrs].id = FAL_ROUTER_INTERFACE_ATTR_V6_MCAST_ENABLE;
@@ -3607,8 +3608,9 @@ if_fal_create_l3_intf(struct ifnet *ifp)
 	l3_nattrs++;
 
 	l3_attrs[l3_nattrs].id = FAL_ROUTER_INTERFACE_ATTR_ADMIN_V6_STATE;
-	l3_attrs[l3_nattrs].value.booldata = !pl_node_is_feature_enabled(
-		&ipv6_in_no_forwarding_feat, ifp);
+	l3_attrs[l3_nattrs].value.booldata =
+		!pl_node_is_feature_enabled_by_inst(
+			&ipv6_in_no_forwarding_feat, ifp);
 	l3_nattrs++;
 
 	l3_attrs[l3_nattrs].id = FAL_ROUTER_INTERFACE_ATTR_ADMIN_MPLS_STATE;
@@ -3889,7 +3891,7 @@ static void show_af_ifconfig(json_writer_t *wr, struct ifnet *ifp)
 
 	jsonw_start_object(wr);
 	jsonw_uint_field(wr, "forwarding",
-			 !pl_node_is_feature_enabled(
+			 !pl_node_is_feature_enabled_by_inst(
 				 &ipv4_in_no_forwarding_feat, ifp));
 	jsonw_uint_field(wr, "proxy_arp", ifp->ip_proxy_arp);
 	jsonw_string_field(wr, "garp_req_op",
@@ -3900,7 +3902,7 @@ static void show_af_ifconfig(json_writer_t *wr, struct ifnet *ifp)
 			    "Drop" : "Update");
 	jsonw_uint_field(wr, "mc_forwarding", ifp->ip_mc_forwarding);
 	jsonw_uint_field(wr, "redirects", ip_redirects_get());
-	if (pl_node_is_feature_enabled(&ipv4_rpf_feat, ifp)) {
+	if (pl_node_is_feature_enabled_by_inst(&ipv4_rpf_feat, ifp)) {
 		if (ifp->ip_rpf_strict)
 			jsonw_uint_field(wr, "rp_filter", 1);
 		else
@@ -3922,7 +3924,7 @@ static void show_af_ifconfig(json_writer_t *wr, struct ifnet *ifp)
 
 	jsonw_start_object(wr);
 	jsonw_uint_field(wr, "forwarding",
-			 !pl_node_is_feature_enabled(
+			 !pl_node_is_feature_enabled_by_inst(
 				 &ipv6_in_no_forwarding_feat, ifp));
 	jsonw_uint_field(wr, "mc_forwarding", ifp->ip6_mc_forwarding);
 	jsonw_uint_field(wr, "redirects", ip6_redirects_get());
@@ -3977,11 +3979,11 @@ static void ifconfig(struct ifnet *ifp, void *arg)
 	 * but are retained for compatibility.
 	 */
 	jsonw_uint_field(wr, "ip_forwarding",
-			 !pl_node_is_feature_enabled(
+			 !pl_node_is_feature_enabled_by_inst(
 				 &ipv4_in_no_forwarding_feat, ifp));
 	jsonw_uint_field(wr, "ip_proxy_arp", ifp->ip_proxy_arp);
 	jsonw_uint_field(wr, "ip_mc_forwarding", ifp->ip_mc_forwarding);
-	if (pl_node_is_feature_enabled(&ipv4_rpf_feat, ifp)) {
+	if (pl_node_is_feature_enabled_by_inst(&ipv4_rpf_feat, ifp)) {
 		if (ifp->ip_rpf_strict)
 			jsonw_uint_field(wr, "ip_rp_filter", 1);
 		else
@@ -3990,7 +3992,7 @@ static void ifconfig(struct ifnet *ifp, void *arg)
 		jsonw_uint_field(wr, "ip_rp_filter", 0);
 	}
 	jsonw_uint_field(wr, "ip6_forwarding",
-			 !pl_node_is_feature_enabled(
+			 !pl_node_is_feature_enabled_by_inst(
 				 &ipv6_in_no_forwarding_feat, ifp));
 	jsonw_uint_field(wr, "ip6_mc_forwarding", ifp->ip6_mc_forwarding);
 
