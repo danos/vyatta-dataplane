@@ -488,6 +488,21 @@ flow_cache_add(struct crypto_pkt_buffer *cpb, struct policy_rule *pr,
 	return 0;
 }
 
+static void crypto_flow_cache_add(struct crypto_pkt_buffer *cpb,
+				  struct policy_rule *pr, struct rte_mbuf *m,
+				  bool v4, bool seen_by_crypto,
+				  int dir)
+{
+	if (!cpb || flow_cache_disabled || !pr)
+		return;
+
+	IPSEC_CNT_INC(FLOW_CACHE_MISS);
+	if (flow_cache_add(cpb, pr, m, v4, seen_by_crypto, dir) != 0)
+		IPSEC_CNT_INC(FLOW_CACHE_ADD_FAIL);
+	else
+		IPSEC_CNT_INC(FLOW_CACHE_ADD);
+}
+
 struct cds_lfht *
 flow_cache_init_lcore(void)
 {
@@ -2826,17 +2841,7 @@ bool crypto_policy_check_outbound(struct ifnet *in_ifp, struct rte_mbuf **mbuf,
 				return false;
 		}
 
-		if (cpb && !flow_cache_disabled && pr &&
-		    (rte_atomic16_read(&cpb->flow_cache_count) <
-		     FLOW_CACHE_MAX_MARKER)) {
-			IPSEC_CNT_INC(FLOW_CACHE_MISS);
-			if (flow_cache_add(cpb, pr, *mbuf, v4,
-					 seen_by_crypto,
-					 dir) != 0)
-				IPSEC_CNT_INC(FLOW_CACHE_ADD_FAIL);
-			else
-				IPSEC_CNT_INC(FLOW_CACHE_ADD);
-		}
+		crypto_flow_cache_add(cpb, pr, *mbuf, v4, seen_by_crypto, dir);
 	}
 
 	if (pr && !pr->pending_delete) {
@@ -2997,18 +3002,9 @@ crypto_policy_check_inbound(struct ifnet *in_ifp, struct rte_mbuf **mbuf,
 				 * We found an input policy, add it to the
 				 * PR cache and drop the packet.
 				 */
-				if (cpb && !flow_cache_disabled && pr &&
-				    (rte_atomic16_read(&cpb->flow_cache_count) <
-				     FLOW_CACHE_MAX_MARKER)) {
-					IPSEC_CNT_INC(FLOW_CACHE_MISS);
-					if (flow_cache_add(cpb, pr, *mbuf, v4,
-							 false,
-							 XFRM_POLICY_IN) != 0)
-						IPSEC_CNT_INC(
-							FLOW_CACHE_ADD_FAIL);
-					else
-						IPSEC_CNT_INC(FLOW_CACHE_ADD);
-				}
+				crypto_flow_cache_add(cpb, pr, *mbuf, v4,
+						      false, XFRM_POLICY_IN);
+
 				if (pr->action == XFRM_POLICY_BLOCK)
 					goto drop;
 			}
