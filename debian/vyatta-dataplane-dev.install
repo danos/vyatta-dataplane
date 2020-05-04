@@ -4,14 +4,14 @@ usr/include/vyatta-dataplane/compiler.h
 usr/include/vyatta-dataplane/config.h
 usr/include/vyatta-dataplane/debug.h
 usr/include/vyatta-dataplane/dpi.h
-usr/include/vyatta-dataplane/dp_test_cmd_check.h usr/include/vyatta-dataplane/dp_test
-usr/include/vyatta-dataplane/dp_test_lib.h usr/include/vyatta-dataplane/dp_test
-usr/include/vyatta-dataplane/dp_test_lib_intf.h usr/include/vyatta-dataplane/dp_test
-usr/include/vyatta-dataplane/dp_test_firewall_lib.h usr/include/vyatta-dataplane/dp_test
-usr/include/vyatta-dataplane/dp_test_macros.h usr/include/vyatta-dataplane/dp_test
-usr/include/vyatta-dataplane/dp_test_netlink_state.h usr/include/vyatta-dataplane/dp_test
-usr/include/vyatta-dataplane/dp_test_pktmbuf_lib.h usr/include/vyatta-dataplane/dp_test
-usr/include/vyatta-dataplane/dp_test_session_lib.h usr/include/vyatta-dataplane/dp_test
+usr/include/vyatta-dataplane/dp_test/dp_test_cmd_check.h
+usr/include/vyatta-dataplane/dp_test/dp_test_lib.h
+usr/include/vyatta-dataplane/dp_test/dp_test_lib_intf.h
+usr/include/vyatta-dataplane/dp_test/dp_test_firewall_lib.h
+usr/include/vyatta-dataplane/dp_test/dp_test_macros.h
+usr/include/vyatta-dataplane/dp_test/dp_test_netlink_state.h
+usr/include/vyatta-dataplane/dp_test/dp_test_pktmbuf_lib.h
+usr/include/vyatta-dataplane/dp_test/dp_test_session_lib.h
 usr/include/vyatta-dataplane/event.h
 usr/include/vyatta-dataplane/fal_bfd.h
 usr/include/vyatta-dataplane/dp_session.h

@@ -620,14 +620,6 @@ pkginclude_HEADERS = \
 	include/debug.h \
 	include/dpi.h \
 	include/dp_session.h \
-	include/dp_test/dp_test_cmd_check.h \
-	include/dp_test/dp_test_lib.h \
-	include/dp_test/dp_test_lib_intf.h \
-	include/dp_test/dp_test_macros.h \
-	include/dp_test/dp_test_netlink_state.h \
-	include/dp_test/dp_test_pktmbuf_lib.h \
-	include/dp_test/dp_test_firewall_lib.h \
-	include/dp_test/dp_test_session_lib.h \
 	include/event.h \
 	include/fal_bfd.h \
 	include/fal_plugin.h \
@@ -644,6 +636,17 @@ pkginclude_HEADERS = \
 	include/protobuf_util.h \
 	include/urcu.h	\
 	include/vrf.h
+
+dp_test_includedir=$(pkgincludedir)/dp_test
+dp_test_include_HEADERS = \
+	include/dp_test/dp_test_cmd_check.h \
+	include/dp_test/dp_test_lib.h \
+	include/dp_test/dp_test_lib_intf.h \
+	include/dp_test/dp_test_macros.h \
+	include/dp_test/dp_test_netlink_state.h \
+	include/dp_test/dp_test_pktmbuf_lib.h \
+	include/dp_test/dp_test_firewall_lib.h \
+	include/dp_test/dp_test_session_lib.h
 
 pkgplugindir = $(pkglibdir)/pipeline/plugins
 
