@@ -269,13 +269,13 @@ static int mpls_route_change(const struct nlmsghdr *nlh,
 						 &size, &nh_type,
 						 &missing_ifp);
 			if (missing_ifp) {
-				incomplete_route_add(&in_label,
-						     rtm->rtm_family,
-						     rtm->rtm_dst_len,
-						     rtm->rtm_table,
-						     rtm->rtm_scope,
-						     rtm->rtm_protocol,
-						     nlh);
+				incomplete_route_add_nl(&in_label,
+							rtm->rtm_family,
+							rtm->rtm_dst_len,
+							rtm->rtm_table,
+							rtm->rtm_scope,
+							rtm->rtm_protocol,
+							nlh);
 				return MNL_CB_OK;
 			}
 		} else {
@@ -334,13 +334,14 @@ static int mpls_route_change(const struct nlmsghdr *nlh,
 			if (!oifp) {
 				flags |= RTF_SLOWPATH;
 				if (!is_ignored_interface(ifindex)) {
-					incomplete_route_add(&in_label,
-							     rtm->rtm_family,
-							     rtm->rtm_dst_len,
-							     rtm->rtm_table,
-							     rtm->rtm_scope,
-							     rtm->rtm_protocol,
-							     nlh);
+					incomplete_route_add_nl(
+						&in_label,
+						rtm->rtm_family,
+						rtm->rtm_dst_len,
+						rtm->rtm_table,
+						rtm->rtm_scope,
+						rtm->rtm_protocol,
+						nlh);
 					return MNL_CB_OK;
 				}
 			}

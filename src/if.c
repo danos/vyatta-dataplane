@@ -2204,13 +2204,13 @@ static inline int incomplete_route_match_fn(struct cds_lfht_node *node,
 }
 
 /*
- * Add an incomplete route. If we already have an entry for that key then
- * update the message to new one.
+ * Add an incomplete route in netlink format. If we already have an
+ * entry for that key then update the message to new one.
  */
-void incomplete_route_add(const void *dst,
-			  uint8_t family, uint8_t depth, uint32_t table,
-			  uint8_t scope, uint8_t proto,
-			  const struct nlmsghdr *nlh)
+void incomplete_route_add_nl(const void *dst,
+			     uint8_t family, uint8_t depth, uint32_t table,
+			     uint8_t scope, uint8_t proto,
+			     const struct nlmsghdr *nlh)
 {
 	struct incomplete_route *route;
 	struct cds_lfht_node *ret_node;

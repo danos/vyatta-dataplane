@@ -685,13 +685,13 @@ static int inet_route_change(const struct nlmsghdr *nlh,
 		 * RTM_NEWLINK - defer route installation until it
 		 * arrives.
 		 */
-		incomplete_route_add(dest,
-				     rtm->rtm_family,
-				     rtm->rtm_dst_len,
-				     kernel_table,
-				     rtm->rtm_scope,
-				     rtm->rtm_protocol,
-				     nlh);
+		incomplete_route_add_nl(dest,
+					rtm->rtm_family,
+					rtm->rtm_dst_len,
+					kernel_table,
+					rtm->rtm_scope,
+					rtm->rtm_protocol,
+					nlh);
 		return MNL_CB_OK;
 	}
 
@@ -704,13 +704,13 @@ static int inet_route_change(const struct nlmsghdr *nlh,
 				 dest, nexthop, ifindex,
 				 rtm->rtm_scope, tb[RTA_MULTIPATH],
 				 nlh->nlmsg_flags, num_labels, labels) < 0) {
-			incomplete_route_add(dest,
-					     rtm->rtm_family,
-					     rtm->rtm_dst_len,
-					     kernel_table,
-					     rtm->rtm_scope,
-					     rtm->rtm_protocol,
-					     nlh);
+			incomplete_route_add_nl(dest,
+						rtm->rtm_family,
+						rtm->rtm_dst_len,
+						kernel_table,
+						rtm->rtm_scope,
+						rtm->rtm_protocol,
+						nlh);
 		}
 		break;
 
@@ -720,13 +720,13 @@ static int inet_route_change(const struct nlmsghdr *nlh,
 				  rtm->rtm_scope, tb[RTA_MULTIPATH],
 				  nlh->nlmsg_flags | nl_flags,
 				  num_labels, labels) < 0) {
-			incomplete_route_add(dest,
-					     rtm->rtm_family,
-					     rtm->rtm_dst_len,
-					     kernel_table,
-					     rtm->rtm_scope,
-					     rtm->rtm_protocol,
-					     nlh);
+			incomplete_route_add_nl(dest,
+						rtm->rtm_family,
+						rtm->rtm_dst_len,
+						kernel_table,
+						rtm->rtm_scope,
+						rtm->rtm_protocol,
+						nlh);
 		}
 		break;
 

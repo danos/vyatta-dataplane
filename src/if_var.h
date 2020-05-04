@@ -972,10 +972,10 @@ bool is_ignored_interface(uint32_t ifindex);
 void incomplete_if_add_ignored(uint32_t ifindex);
 void incomplete_if_del_ignored(uint32_t ifindex);
 void incomplete_routes_make_complete(void);
-void incomplete_route_add(const void *dst,
-			  uint8_t family, uint8_t depth, uint32_t table,
-			  uint8_t scope, uint8_t proto,
-			  const struct nlmsghdr *nlh);
+void incomplete_route_add_nl(const void *dst,
+			     uint8_t family, uint8_t depth, uint32_t table,
+			     uint8_t scope, uint8_t proto,
+			     const struct nlmsghdr *nlh);
 void incomplete_route_del(const void *dst,
 			  uint8_t family, uint8_t depth, uint32_t table,
 			  uint8_t scope, uint8_t proto);
