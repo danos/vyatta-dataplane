@@ -167,7 +167,7 @@ void flow_cache_invalidate(struct flow_cache *cache, bool disable,
 
 
 typedef void (*flow_cache_dump_cb)(struct flow_cache_entry *entry,
-				   json_writer_t *wr);
+				   bool detail, json_writer_t *wr);
 /**
  *
  * Dump entries in the flow cache

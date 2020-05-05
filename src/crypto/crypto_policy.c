@@ -2677,23 +2677,49 @@ void crypto_policy_show_summary(FILE *f, vrfid_t vrfid, bool brief)
 	jsonw_destroy(&wr);
 }
 
+static void
+crypto_flow_cache_dump_entry(struct flow_cache_entry *entry,
+			     bool detail, json_writer_t *wr)
+{
+	struct policy_rule *pr = NULL;
+	union crypto_ctx ctx;
+
+	if (!detail)
+		return;
+
+	flow_cache_entry_get_info(entry,
+				  (void **)&pr,
+				  &ctx.context);
+	if (pr) {
+		jsonw_uint_field(wr, "PR_index",
+				 pr->rule_index);
+		jsonw_uint_field(wr, "PR_Tag", pr->tag);
+	}
+	jsonw_uint_field(wr, "IN_rule_checked",
+			 ctx.in_rule_checked);
+	jsonw_uint_field(wr, "IN_rule_drop",
+			 ctx.in_rule_drop);
+	jsonw_uint_field(wr, "NO_rule_fwd",
+			 ctx.no_rule_fwd);
+}
+
+typedef void (*flow_cache_dump_cb)(struct flow_cache_entry *entry,
+				   bool detail, json_writer_t *wr);
+
 static const char *af_names[FLOW_CACHE_AF_MAX] = {
 	[FLOW_CACHE_AF_INET] = "ipv4",
 	[FLOW_CACHE_AF_INET6] = "ipv6"
 };
 
-void crypto_show_cache(FILE *f, const char *str)
+static void flow_cache_dump(struct flow_cache *flow_cache, json_writer_t *wr,
+			    bool detail, flow_cache_dump_cb dump_helper)
 {
 	unsigned int i;
-	json_writer_t *wr = jsonw_new(f);
 	char addrbuf[INET6_ADDRSTRLEN];
-	bool detail = (str ? strcmp(str, "detail") == 0 : 0);
 
 	if (!wr)
 		return;
 
-	jsonw_pretty(wr, true);
-	jsonw_name(wr, "IPsec-Cache");
 	jsonw_start_object(wr);
 	jsonw_start_array(wr);
 
@@ -2713,9 +2739,6 @@ void crypto_show_cache(FILE *f, const char *str)
 
 		for (enum FLOW_CACHE_AF af = FLOW_CACHE_AF_INET;
 		     af < FLOW_CACHE_AF_MAX; af++) {
-			union crypto_ctx ctx;
-			struct policy_rule *pr;
-
 			jsonw_name(wr, af_names[af]);
 			jsonw_start_object(wr);
 
@@ -2759,21 +2782,7 @@ void crypto_show_cache(FILE *f, const char *str)
 							     addrbuf,
 							     sizeof(addrbuf)));
 				jsonw_uint_field(wr, "proto", cache_key->proto);
-
-				flow_cache_entry_get_info(cache_entry,
-							  (void **)&pr,
-							  &ctx.context);
-				if (pr) {
-					jsonw_uint_field(wr, "PR_index",
-							 pr->rule_index);
-					jsonw_uint_field(wr, "PR_Tag", pr->tag);
-				}
-				jsonw_uint_field(wr, "IN_rule_checked",
-						 ctx.in_rule_checked);
-				jsonw_uint_field(wr, "IN_rule_drop",
-						 ctx.in_rule_drop);
-				jsonw_uint_field(wr, "NO_rule_fwd",
-						 ctx.no_rule_fwd);
+				dump_helper(cache_entry, detail, wr);
 				jsonw_end_object(wr);
 			}
 			jsonw_end_array(wr);
@@ -2784,6 +2793,19 @@ void crypto_show_cache(FILE *f, const char *str)
 
 	jsonw_end_array(wr);
 	jsonw_end_object(wr);
+}
+
+void crypto_show_cache(FILE *f, const char *str)
+{
+	json_writer_t *wr = jsonw_new(f);
+	bool detail = (str ? strcmp(str, "detail") == 0 : 0);
+
+	if (!wr)
+		return;
+
+	jsonw_pretty(wr, true);
+	jsonw_name(wr, "IPsec-Cache");
+	flow_cache_dump(flow_cache, wr, detail, crypto_flow_cache_dump_entry);
 	jsonw_destroy(&wr);
 }
 
