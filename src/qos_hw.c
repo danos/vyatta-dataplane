@@ -214,28 +214,53 @@ void qos_hw_show_legacy_map(struct queue_map *qmap, json_writer_t *wr)
 	uint8_t cp;
 	int des;
 	uint8_t des2q[INGRESS_DESIGNATORS] = {0};
-
-	jsonw_name(wr, "legacy-map");
-	jsonw_start_object(wr);
-
-	jsonw_start_array(wr);
+	struct ingress_designator designation[INGRESS_DESIGNATORS] = {0};
+	uint8_t dp;
 
 	for (cp = 0; cp < MAX_DSCP; cp++) {
+		dp = qmap_to_dp(qmap->dscp2q[cp]);
+
 		if (!qos_qmap_to_des(qmap->dscp2q[cp], &des2q[0], &des)) {
 			DP_DEBUG(QOS_HW, ERR, DATAPLANE,
-				 "map create, out of designators\n");
-			jsonw_end_array(wr);
-			jsonw_end_object(wr);
+				 "show legacy map, out of designators\n");
 			return;
 		}
+		designation[des].dps_in_use |= (1 << dp);
+		designation[des].mask[dp] |= (1ULL << cp);
+	}
+
+	jsonw_name(wr, "ingress-maps");
+	jsonw_start_array(wr);
+
+	jsonw_start_object(wr);
+	jsonw_string_field(wr, "name", "legacy-map");
+	jsonw_string_field(wr, "type", "dscp");
+	jsonw_bool_field(wr, "system-default", true);
+	jsonw_name(wr, "map");
+	jsonw_start_array(wr);
+
+	for (des = 0; des < INGRESS_DESIGNATORS; des++) {
+		if (!designation[des].dps_in_use)
+			continue;
 		jsonw_start_object(wr);
-		jsonw_uint_field(wr, "DSCP", cp);
-		jsonw_uint_field(wr, "Designation", des);
+		jsonw_uint_field(wr, "designation", des);
+		jsonw_name(wr, "DPs");
+		jsonw_start_array(wr);
+		for (dp = 0; dp < NUM_DPS; dp++) {
+			if (!(designation[des].dps_in_use & (1 << dp)))
+				continue;
+			jsonw_start_object(wr);
+			jsonw_uint_field(wr, "DP", dp);
+			jsonw_uint_field(wr, "pcp/mask",
+					 designation[des].mask[dp]);
+			jsonw_end_object(wr);
+		}
+		jsonw_end_array(wr); /* DPs */
 		jsonw_end_object(wr);
 	}
-	jsonw_end_array(wr);
-
+	jsonw_end_array(wr); /* map */
 	jsonw_end_object(wr);
+	jsonw_end_array(wr); /* ingress-maps */
 }
 
 static void qos_hw_ingressm_attrs(struct qos_ingress_map *map,
