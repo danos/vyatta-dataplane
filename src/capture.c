@@ -64,6 +64,7 @@ static uint64_t capture_hz;
 
 static zsock_t *capture_sock_master;
 static zsock_t *capture_sock_console;
+static pthread_mutex_t capture_sock_lock = PTHREAD_MUTEX_INITIALIZER;
 
 typedef int (*fal_func_t)(void *arg);
 
@@ -1101,7 +1102,7 @@ static int capture_master_receive(void *arg)
 	return 0;
 }
 
-static int capture_master_send(fal_func_t func, void *arg)
+static int capture_master_send_locked(fal_func_t func, void *arg)
 {
 	int func_rc;
 
@@ -1120,6 +1121,16 @@ static int capture_master_send(fal_func_t func, void *arg)
 	}
 
 	return func_rc;
+}
+
+static int capture_master_send(fal_func_t func, void *arg)
+{
+	int rc;
+
+	pthread_mutex_lock(&capture_sock_lock);
+	rc = capture_master_send_locked(func, arg);
+	pthread_mutex_unlock(&capture_sock_lock);
+	return rc;
 }
 
 void capture_destroy(void)
