@@ -6,7 +6,7 @@
  * Whole dataplane test firewall library
  */
 #ifndef __DP_TEST_FIREWALL_LIB_H__
-#define __DP_TEST_FIREALL_LIB_H__
+#define __DP_TEST_FIREWALL_LIB_H__
 
 /*
  * A firewall comprises a single firewall group structure and one or
