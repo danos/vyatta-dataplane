@@ -479,6 +479,7 @@ static int flow_cache_lookup(struct flow_cache *cache, struct rte_mbuf *m,
 	*entry =  caa_container_of(node, struct flow_cache_entry,
 				   fl_node);
 
+	(*entry)->hit_count++;
 	return 0;
 }
 
@@ -559,6 +560,7 @@ flow_cache_add(struct flow_cache *flow_cache, struct policy_rule *pr,
 
 	cache_entry->key = h_key;
 	cache_entry->pr = pr;
+	cache_entry->hit_count = cache_entry->last_hit_count = 0;
 
 	error = flow_cache_insert(table, cache_entry, m->hash.rss, &h_key);
 
@@ -680,6 +682,45 @@ int crypto_flow_cache_init(void)
 	return 0;
 }
 
+static void
+flow_cache_age(struct flow_cache *flow_cache)
+{
+	unsigned int lcore_id, max_lcores = rte_lcore_count();
+	struct flow_cache_entry *cache_entry;
+	struct flow_cache_lcore *cache_lcore;
+	struct flow_cache_af *cache_af;
+	enum FLOW_CACHE_AF af;
+	struct cds_lfht_iter iter;
+	struct cds_lfht *table;
+
+	for (lcore_id = 0; lcore_id < max_lcores; lcore_id++) {
+		cache_lcore = &flow_cache->cache_lcore[lcore_id];
+		for (af = FLOW_CACHE_AF_INET; af < FLOW_CACHE_AF_MAX; af++) {
+			cache_af = &cache_lcore->cache_af[af];
+			table = rcu_dereference(cache_af->cache_tbl);
+			if (!table)
+				continue;
+
+			cds_lfht_for_each_entry(table, &iter, cache_entry,
+						fl_node) {
+				/*
+				 * if hit count wasn't cached, cache it and
+				 * wait for the next iteration. If not, remove
+				 * the entry if there have been no more hits
+				 */
+				if (!cache_entry->last_hit_count &&
+				    cache_entry->hit_count)
+					cache_entry->last_hit_count =
+						cache_entry->hit_count;
+				else if (cache_entry->last_hit_count ==
+					 cache_entry->hit_count)
+					flow_cache_entry_remove(cache_lcore,
+								cache_entry);
+			}
+		}
+	}
+}
+
 static inline void
 flow_cache_empty_table(struct flow_cache *flow_cache, unsigned int lcore,
 		       enum FLOW_CACHE_AF af)
@@ -742,26 +783,7 @@ void
 flow_cache_timer_handler(struct rte_timer *timer __rte_unused,
 		       void *arg __rte_unused)
 {
-	unsigned int lcore_id, max_lcores = rte_lcore_count();
-	struct flow_cache_lcore *cache_lcore;
-	struct flow_cache_af *cache_af;
-	enum FLOW_CACHE_AF af;
-
-	for (lcore_id = 0; lcore_id < max_lcores; lcore_id++) {
-		cache_lcore = &flow_cache->cache_lcore[lcore_id];
-		for (af = FLOW_CACHE_AF_INET; af < FLOW_CACHE_AF_MAX; af++) {
-			cache_af = &cache_lcore->cache_af[af];
-			if (!cache_af->cache_tbl ||
-			    (rte_atomic32_read(&cache_af->cache_cnt) <
-			     FLOW_CACHE_MAX_COUNT))
-				continue;
-
-			POLICY_INFO("Clearing the cache on core %d: Aged out\n",
-				    lcore_id);
-			flow_cache_empty_table(flow_cache, lcore_id,
-					       af);
-		}
-	}
+	flow_cache_age(flow_cache);
 }
 
 static unsigned int allocate_tag(struct tagmap *tm)

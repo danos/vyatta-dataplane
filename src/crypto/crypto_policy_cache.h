@@ -45,6 +45,8 @@ struct flow_cache_entry {
 	struct policy_rule *pr;
 	struct flow_cache_hash_key key;
 	uint16_t context;
+	uint32_t hit_count;
+	uint32_t last_hit_count;
 	char *padding[0]  __rte_cache_aligned;
 };
 
