@@ -509,6 +509,7 @@ dataplane_test_SOURCES += \
 	tests/whole_dp/src/dp_test_ip.c \
 	tests/whole_dp/src/dp_test_ip_arp.c \
 	tests/whole_dp/src/dp_test_ip_n.c \
+	tests/whole_dp/src/dp_test_ip_pic_edge.c \
 	tests/whole_dp/src/dp_test_ip6.c \
 	tests/whole_dp/src/dp_test_ip6_icmp.c \
 	tests/whole_dp/src/dp_test_ip6_neigh.c \

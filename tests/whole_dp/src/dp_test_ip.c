@@ -2545,26 +2545,3 @@ DP_START_TEST(ip_default_route, ip_default_route2)
 	dp_test_intf_vif_del("dp1T1.103", 103);
 
 } DP_END_TEST;
-
-DP_DECL_TEST_CASE(ip_suite, ip_pic_edge, NULL, NULL);
-DP_START_TEST(ip_pic_edge, ip_pic_edge)
-{
-	dp_test_nl_add_ip_addr_and_connected("dp1T1", "1.1.1.1/24");
-	dp_test_nl_add_ip_addr_and_connected("dp2T1", "2.2.2.2/24");
-
-	dp_test_netlink_add_route(
-		"10.0.1.0/24 nh 1.1.1.2 int:dp1T1 nh 2.2.2.1 int:dp2T1 backup");
-	dp_test_netlink_del_route(
-		"10.0.1.0/24 nh 1.1.1.2 int:dp1T1 nh 2.2.2.1 int:dp2T1 backup");
-
-	/* This is a full service dataplane - we support both orders! */
-	dp_test_netlink_add_route(
-		"10.0.1.0/24 nh 1.1.1.2 int:dp1T1 backup nh 2.2.2.1 int:dp2T1");
-	dp_test_netlink_del_route(
-		"10.0.1.0/24 nh 1.1.1.2 int:dp1T1 backup nh 2.2.2.1 int:dp2T1");
-
-	/* Clean Up */
-	dp_test_nl_del_ip_addr_and_connected("dp1T1", "1.1.1.1/24");
-	dp_test_nl_del_ip_addr_and_connected("dp2T1", "2.2.2.2/24");
-
-} DP_END_TEST;
