@@ -404,12 +404,17 @@ flow_cache_entry_remove(struct flow_cache_lcore *cache_lcore,
 
 static int
 flow_cache_insert(struct cds_lfht *tbl, struct flow_cache_entry *cache_entry,
-		  const struct flow_cache_hash_key *h_key)
+		  uint32_t rss_hash, const struct flow_cache_hash_key *h_key)
 {
 	struct cds_lfht_node *ret_node;
+	uint32_t hash;
 
 	cds_lfht_node_init(&cache_entry->fl_node);
-	uint32_t hash = flow_cache_hash(h_key);
+
+	if (rss_hash)
+		hash = rss_hash;
+	else
+		hash = flow_cache_hash(h_key);
 
 	ret_node = cds_lfht_add_unique(tbl, hash, flow_cache_match, h_key,
 				       &cache_entry->fl_node);
@@ -449,6 +454,7 @@ static int flow_cache_lookup(struct flow_cache *cache, struct rte_mbuf *m,
 	struct cds_lfht *table;
 	struct flow_cache_af *cache_af;
 	unsigned int lcore = dp_lcore_id();
+	uint32_t hash;
 
 	if (unlikely(!cache || !m || !entry))
 		return -EINVAL;
@@ -459,8 +465,11 @@ static int flow_cache_lookup(struct flow_cache *cache, struct rte_mbuf *m,
 		return -ENOENT;
 
 	flow_cache_parse_hdr(m, af, &h_key);
-	cds_lfht_lookup(table, flow_cache_hash(&h_key),
-			flow_cache_match, &h_key,
+
+	hash = m->hash.rss;
+	if (!hash)
+		hash = flow_cache_hash(&h_key);
+	cds_lfht_lookup(table, hash, flow_cache_match, &h_key,
 			&iter);
 
 	node = cds_lfht_iter_get_node(&iter);
@@ -551,7 +560,7 @@ flow_cache_add(struct flow_cache *flow_cache, struct policy_rule *pr,
 	cache_entry->key = h_key;
 	cache_entry->pr = pr;
 
-	error = flow_cache_insert(table, cache_entry, &h_key);
+	error = flow_cache_insert(table, cache_entry, m->hash.rss, &h_key);
 
 	if (unlikely(error != 0)) {
 		free(cache_entry);
