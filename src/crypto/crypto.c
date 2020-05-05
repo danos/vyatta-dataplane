@@ -35,7 +35,6 @@
 #include "capture.h"
 #include "compiler.h"
 #include "crypto.h"
-#include "crypto/crypto_policy_cache.h"
 #include "crypto_internal.h"
 #include "crypto_main.h"
 #include "crypto_policy.h"

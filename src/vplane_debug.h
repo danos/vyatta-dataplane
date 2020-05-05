@@ -57,6 +57,7 @@
 #define DP_DBG_CPP_RL		(1ull << 34)
 #define DP_DBG_PTP		(1ull << 35)
 #define DP_DBG_CGNAT		(1ull << 36)
+#define DP_DBG_FLOW_CACHE	(1ull << 37)
 
 /* Default to only debugging startup and link events.
  * Skip ARP and route since they can flood log.

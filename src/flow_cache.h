@@ -165,6 +165,16 @@ int flow_cache_entry_set_info(struct flow_cache_entry *entry, void *rule,
 void flow_cache_invalidate(struct flow_cache *cache, bool disable,
 			   bool clear_only);
 
+/**
+ * Walk the entire flow cache and age out entries for which
+ * hit count has not changed. The aging interval and timer
+ * are the responsibility of the calling application.
+ *
+ * @param cache
+ *   Address of the flow cache
+ */
+void flow_cache_age(struct flow_cache *cache);
+
 
 typedef void (*flow_cache_dump_cb)(struct flow_cache_entry *entry,
 				   bool detail, json_writer_t *wr);
@@ -180,11 +190,10 @@ typedef void (*flow_cache_dump_cb)(struct flow_cache_entry *entry,
  *
  * @param detail
  *   controls level of detail in output. if true, dump addresses
- *   and other information in each entry.
+ *   If true, detailed information about flows is dumped.
  *
  * @param helper
- *   application callback to be invoked for each entry in order
- *   to dump application-specific information
+ *   Callback invoked for each entry to emit application-specific info
  */
 void flow_cache_dump(struct flow_cache *cache, json_writer_t *wr,
 		     bool detail, flow_cache_dump_cb helper);

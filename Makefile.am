@@ -136,6 +136,7 @@ CORE_FILES = \
 	src/event.c \
 	src/fal.c \
 	src/feature_plugin.c \
+	src/flow_cache.c \
 	src/if/bridge/bridge.c \
 	src/if/bridge/bridge_netlink.c \
 	src/if/bridge/bridge_port.c \
