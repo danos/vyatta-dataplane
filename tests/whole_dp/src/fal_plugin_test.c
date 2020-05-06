@@ -232,6 +232,10 @@ static const char *fal_port_attr_t_to_str(enum fal_port_attr_t val)
 		return "capture-bind";
 	case FAL_PORT_ATTR_HW_CAPTURE:
 		return "hw-capture";
+	case FAL_PORT_ATTR_GLOBAL_FLOW_CONTROL_MODE:
+		return "pause";
+	case FAL_PORT_ATTR_REMOTE_ADVERTISED_FLOW_CONTROL_MODE:
+		return "pause-advertised";
 	}
 	assert(0);
 	return "ERROR";

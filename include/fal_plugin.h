@@ -537,6 +537,25 @@ typedef enum _fal_port_poe_class_t {
 
 } fal_port_poe_class_t;
 
+
+/**
+ * @brief Attribute data for #FAL_PORT_ATTR_GLOBAL_FLOW_CONTROL_MODE
+ */
+enum _fal_port_flow_control_mode_t {
+	/** Disable flow control for both tx and rx */
+	FAL_PORT_FLOW_CONTROL_MODE_DISABLE,
+
+	/** Enable flow control for rx only */
+	FAL_PORT_FLOW_CONTROL_MODE_RX_ONLY,
+
+	/** Enable flow control for tx only */
+	FAL_PORT_FLOW_CONTROL_MODE_TX_ONLY,
+
+	/** Enable flow control for both tx and rx */
+	FAL_PORT_FLOW_CONTROL_MODE_BOTH_ENABLE,
+
+} fal_port_flow_control_mode_t;
+
 /* Layer 2 operations */
 
 enum fal_port_attr_t {
@@ -702,6 +721,21 @@ enum fal_port_attr_t {
 	 * @flags READ_ONLY
 	 */
 	FAL_PORT_ATTR_HW_CAPTURE,
+
+	/**
+	 * @brief Global pause-frame flow control on Interface.
+	 * @type fal_port_flow_control_mode_t
+	 * @flags CREATE_AND_SET
+	 * @default FAL_PORT_FLOW_CONTROL_MODE_DISABLE
+	 **/
+	FAL_PORT_ATTR_GLOBAL_FLOW_CONTROL_MODE,
+
+	/**
+	 * @brief Query Remote port Advertised flow control mode
+	 * @type fal_port_flow_control_mode_t
+	 * @flags READ_ONLY
+	 **/
+	FAL_PORT_ATTR_REMOTE_ADVERTISED_FLOW_CONTROL_MODE,
 };
 
 enum fal_port_hw_switching_t {
