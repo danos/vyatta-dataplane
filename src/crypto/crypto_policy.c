@@ -300,7 +300,7 @@ crypto_flow_cache_lookup(struct rte_mbuf *m, bool v4)
 	struct flow_cache_entry *entry;
 	int err;
 
-	/* Any host generated or v6 don't make use of the PR cache table*/
+	/* Any host generated packet don't make use of the flow cache table*/
 	if (flow_cache_disabled)
 		return NULL;
 
@@ -2526,7 +2526,7 @@ bool crypto_policy_check_outbound(struct ifnet *in_ifp, struct rte_mbuf **mbuf,
 					  &ctx.context);
 
 	/*
-	 * Use the PR cache under following conditions:
+	 * Use the flow cache under following conditions:
 	 * - received an encrypted packet
 	 * - received an UNencrypted packet and we have cached the input
 	 *   policy check result.
@@ -2712,7 +2712,7 @@ crypto_policy_check_inbound(struct ifnet *in_ifp, struct rte_mbuf **mbuf,
 		return false;
 
 	/*
-	 * Use the PR cache only if we have already cached the input check.
+	 * Use the flow cache only if we have already cached the input check.
 	 */
 	cache_entry = crypto_flow_cache_lookup(*mbuf, v4);
 	if (cache_entry)
@@ -2768,7 +2768,7 @@ crypto_policy_check_inbound(struct ifnet *in_ifp, struct rte_mbuf **mbuf,
 
 				/*
 				 * We found an input policy, add it to the
-				 * PR cache and drop the packet.
+				 * flow cache and drop the packet.
 				 */
 				crypto_flow_cache_add(flow_cache, pr, *mbuf, v4,
 						      false, XFRM_POLICY_IN);
