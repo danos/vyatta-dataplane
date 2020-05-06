@@ -1,3 +1,12 @@
+vyatta-dataplane (3.9.112) unstable; urgency=medium
+
+  [ Nicholas Brown ]
+  * Add new public API dp_pipeline_is_feature_enabled_by_inst()
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Wed, 06 May 2020 09:18:57 +0100
+
 vyatta-dataplane (3.9.111) unstable; urgency=medium
 
   [ Charles (Chas) Williams ]
