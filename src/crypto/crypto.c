@@ -455,7 +455,6 @@ static void crypto_process_decrypt_packet(struct crypto_pkt_ctx *cctx,
 		CRYPTO_DATA_ERR("No VTI interface found\n");
 		IPSEC_CNT_INC(NO_VTI);
 		cctx->action = CRYPTO_ACT_DROP;
-		IF_INCR_ERROR(crypto_ctx_to_in_ifp(cctx, m));
 		return;
 	}
 
@@ -465,8 +464,8 @@ static void crypto_process_decrypt_packet(struct crypto_pkt_ctx *cctx,
 		rc = esp_input6(m, sa, bytes, &cctx->family);
 
 	if (rc < 0) {
-		IF_INCR_ERROR(vti_ifp ? vti_ifp :
-			      crypto_ctx_to_in_ifp(cctx, m));
+		if (vti_ifp)
+			if_incr_error(vti_ifp);
 		CRYPTO_DATA_ERR("ESP Input failed %d\n", rc);
 		IPSEC_CNT_INC(DROPPED_ESP_INPUT_FAIL);
 		cctx->action = CRYPTO_ACT_DROP;
@@ -485,6 +484,7 @@ static void crypto_process_decrypt_packet(struct crypto_pkt_ctx *cctx,
 			if (unlikely(vti_ifp->capturing))
 				capture_burst(vti_ifp, &m, 1);
 			cctx->action = CRYPTO_ACT_VTI_INPUT;
+			if_incr_in(vti_ifp, m);
 		} else {
 			struct ifnet *feat_attach_ifp =
 				rcu_dereference(sa->feat_attach_ifp);
@@ -533,8 +533,9 @@ static void crypto_process_decrypt_packet(struct crypto_pkt_ctx *cctx,
 					ntohs(ethhdr(m)->ether_type),
 					TUN_META_FLAGS_DEFAULT);
 			}
+			if (feat_attach_ifp)
+				if_incr_in(feat_attach_ifp, m);
 		}
-		IF_INCR_IN(cctx->in_ifp, m);
 	}
 }
 
@@ -551,7 +552,8 @@ static void crypto_process_encrypt_packet(struct crypto_pkt_ctx *cctx,
 		rc = esp_output6(m, cctx->orig_family, cctx->l3hdr, sa, bytes);
 
 	if (rc < 0) {
-		IF_INCR_OERROR(cctx->nxt_ifp);
+		if (cctx->nxt_ifp)
+			if_incr_oerror(cctx->nxt_ifp);
 		CRYPTO_DATA_ERR("ESP Output failed %d\n", rc);
 		cctx->action = CRYPTO_ACT_DROP;
 		IPSEC_CNT_INC(DROPPED_ESP_OUTPUT_FAIL);
@@ -711,6 +713,8 @@ static int crypto_enqueue_internal(enum crypto_xfrm xfrm,
 
 	if (unlikely(pmd_dev_id == CRYPTO_PMD_INVALID_ID)) {
 		IPSEC_CNT_INC(DROPPED_INVALID_PMD_DEV_ID);
+		if (nxt_ifp && is_vti(nxt_ifp))
+			if_incr_full_proto(nxt_ifp, 1);
 		goto free_mbuf_on_error;
 	}
 
@@ -737,12 +741,16 @@ static int crypto_enqueue_internal(enum crypto_xfrm xfrm,
 			CRYPTO_DATA_ERR("Crypto burst_ring %u full\n",
 				   (uint32_t)xfrm);
 			IPSEC_CNT_INC(BURST_RING_FULL);
+			if (nxt_ifp && is_vti(nxt_ifp))
+				if_incr_full_txring(nxt_ifp, 1);
 			goto free_mbuf_on_error;
 		}
 
 	ctx = allocate_crypto_packet_ctx();
 	if (unlikely(!ctx)) {
 		IPSEC_CNT_INC(FAILED_TO_ALLOCATE_CTX);
+		if (nxt_ifp && is_vti(nxt_ifp))
+			if_incr_full_proto(nxt_ifp, 1);
 		goto free_mbuf_on_error;
 	}
 
@@ -806,7 +814,8 @@ static inline bool crypto_check_hdr_single_seg(struct rte_mbuf *m,
 	if (len < h->iphlen + sizeof(struct ip_esp_hdr) +
 	    ((h->nxt_proto == IPPROTO_UDP) ? sizeof(struct udphdr) : 0)) {
 		CRYPTO_DATA_ERR("Bad segment length\n");
-		IF_INCR_ERROR(in_ifp);
+		if (in_ifp)
+			if_incr_full_proto(in_ifp, 1);
 		return false;
 	}
 	return true;
@@ -848,12 +857,10 @@ int crypto_enqueue_inbound_v4(struct rte_mbuf *m,
 	if (!crypto_check_hdr_single_seg(m, &h, input_if))
 		return -1;
 
-	if (crypto_enqueue_internal(CRYPTO_DECRYPT, m, AF_INET, AF_INET,
+	if (!crypto_enqueue_internal(CRYPTO_DECRYPT, m, AF_INET, AF_INET,
 				    NULL, input_if, NULL, 0,
 				    pmd_dev_id, spi,
-				    iphdr(m))  < 0)
-		IF_INCR_ERROR(input_if);
-	else
+				    iphdr(m)))
 		IPSEC_CNT_INC(ENQUEUED_INPUT_IPV4);
 
 	return 0;
@@ -893,12 +900,10 @@ int crypto_enqueue_inbound_v6(struct rte_mbuf *m,
 	if (!crypto_check_hdr_single_seg(m, &h, input_if))
 		return -1;
 
-	if (crypto_enqueue_internal(CRYPTO_DECRYPT, m, AF_INET6, AF_INET6,
+	if (!crypto_enqueue_internal(CRYPTO_DECRYPT, m, AF_INET6, AF_INET6,
 				    NULL, input_if, NULL, 0,
 				    pmd_dev_id, spi,
-				    ip6hdr(m)) < 0)
-		IF_INCR_ERROR(input_if);
-	else
+				    ip6hdr(m)))
 		IPSEC_CNT_INC(ENQUEUED_INPUT_IPV6);
 
 	return 0;
@@ -924,14 +929,15 @@ void crypto_enqueue_outbound(struct rte_mbuf *m, uint16_t orig_family,
 		return;
 	}
 
-	crypto_enqueue_internal(CRYPTO_ENCRYPT, m, orig_family, family, dst,
-				in_ifp, nxt_ifp, reqid,
-				pmd_dev_id, spi, iphdr(m));
-
-	if (family == AF_INET)
-		IPSEC_CNT_INC(ENQUEUED_OUTPUT_IPV4);
-	else
-		IPSEC_CNT_INC(ENQUEUED_OUTPUT_IPV6);
+	if (!crypto_enqueue_internal(CRYPTO_ENCRYPT, m,
+				     orig_family, family, dst,
+				     in_ifp, nxt_ifp, reqid,
+				     pmd_dev_id, spi, iphdr(m))) {
+		if (family == AF_INET)
+			IPSEC_CNT_INC(ENQUEUED_OUTPUT_IPV4);
+		else
+			IPSEC_CNT_INC(ENQUEUED_OUTPUT_IPV6);
+	}
 }
 
 static void crypto_fwd_processed_packets(struct crypto_pkt_ctx **contexts,
@@ -999,7 +1005,8 @@ sadb_lookup_sa(struct rte_mbuf *m __unused, enum crypto_xfrm xfrm,
 		IPSEC_CNT_INC(NO_OUT_SA);
 		err_ifp = ((xfrm == CRYPTO_ENCRYPT) ? ctx->nxt_ifp :
 			   crypto_ctx_to_in_ifp(ctx, ctx->mbuf));
-		IF_INCR_OERROR(err_ifp);
+		if (err_ifp && is_vti(err_ifp))
+			if_incr_oerror(err_ifp);
 		return NULL;
 	}
 	rte_prefetch0(sa->session);

@@ -406,23 +406,6 @@ void cipher_teardown_ctx(struct sadb_sa *sa);
 
 void crypto_engine_summary(json_writer_t *wr, const struct sadb_sa *sa);
 
-#define IF_INCR_Mx(_ifp, _m, _x)		\
-do {						\
-	if (_ifp)				\
-		if_incr ## _x(_ifp, _m);	\
-} while (0)
-
-#define IF_INCR_x(_ifp, _x)			\
-do {						\
-	if (_ifp)				\
-		if_incr ## _x(_ifp);		\
-} while (0)
-
-#define IF_INCR_OERROR(_ifp)  IF_INCR_x(_ifp, _oerror)
-#define IF_INCR_ERROR(_ifp)   IF_INCR_x(_ifp, _error)
-#define IF_INCR_IN(_ifp, _m)  IF_INCR_Mx(_ifp, _m, _in)
-#define IF_INCR_OUT(_ifp, _m) IF_INCR_Mx(_ifp, _m, _out)
-
 extern uint32_t crypto_rekey_requests;
 
 /*

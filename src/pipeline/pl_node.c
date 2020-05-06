@@ -164,7 +164,8 @@ pl_node_remove_feature(struct pl_feature_registration *feat,
 }
 
 bool
-pl_node_is_feature_enabled(struct pl_feature_registration *feat, void *node)
+pl_node_is_feature_enabled_by_inst(struct pl_feature_registration *feat,
+				   void *node)
 {
 	pl_node_feat_iterate *iter_fn;
 	unsigned int feature_id;
@@ -183,6 +184,21 @@ pl_node_is_feature_enabled(struct pl_feature_registration *feat, void *node)
 			return true;
 
 	return false;
+}
+
+bool
+pl_node_is_feature_enabled(struct pl_feature_registration *feat,
+			   const char *node_inst_name)
+{
+	struct pl_node *node;
+
+	if (!feat->feature_point_node->lookup_by_name)
+		return false;
+	node = feat->feature_point_node->lookup_by_name(node_inst_name);
+	if (!node)
+		return false;
+
+	return pl_node_is_feature_enabled_by_inst(feat, node);
 }
 
 ALWAYS_INLINE bool

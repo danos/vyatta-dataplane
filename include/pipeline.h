@@ -486,6 +486,20 @@ int dp_pipeline_enable_feature_by_inst(const char *name,
 int dp_pipeline_disable_feature_by_inst(const char *name,
 					const char *instance);
 
+/**
+ * @brief Determine if the given feature is enabled on the named instance.
+ *
+ * @param[in] name The name of the feature to check. This is comprised of
+ *            a domain and a name, separated by a colon. For example
+ *            'my_domain:feat1'
+ * @param[in] instance The instance to check for the feature on, for example
+ *            'dp0s0p1'
+ * @return true The feature is enabled on the instance
+ * @return false The feature is disabled on the instance
+ */
+bool dp_pipeline_is_feature_enabled_by_inst(const char *name,
+					    const char *instance);
+
 /*
  * Enable the given feature globally.
  *

@@ -834,6 +834,17 @@ void *apt_tuple_get_session(struct apt_tuple *at)
 	return at->at_session;
 }
 
+/* Get session handle only if active */
+void *apt_tuple_get_active_session(struct apt_tuple *at)
+{
+	void *se = apt_tuple_get_session(at);
+
+	if (!se)
+		return NULL;
+
+	return npf_session_is_active(se) ? se : NULL;
+}
+
 /* Set NAT handle */
 void apt_tuple_set_nat(struct apt_tuple *at, void *nat)
 {
