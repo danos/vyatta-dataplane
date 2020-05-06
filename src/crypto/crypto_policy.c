@@ -194,7 +194,7 @@ struct tagmap {
 
 static struct tagmap policy_tagmap;
 
-#define FLOW_CACHE_MAX_COUNT  8192
+#define CRYPTO_FLOW_CACHE_MAX_COUNT  8192
 
 static struct flow_cache *flow_cache;
 
@@ -370,7 +370,7 @@ int crypto_flow_cache_init_lcore(unsigned int lcore_id)
 
 int crypto_flow_cache_init(void)
 {
-	flow_cache = flow_cache_init(FLOW_CACHE_MAX_COUNT);
+	flow_cache = flow_cache_init(CRYPTO_FLOW_CACHE_MAX_COUNT);
 	if (!flow_cache)
 		return -ENOMEM;
 
@@ -378,8 +378,8 @@ int crypto_flow_cache_init(void)
 }
 
 void
-flow_cache_timer_handler(struct rte_timer *timer __rte_unused,
-		       void *arg __rte_unused)
+crypto_flow_cache_timer_handler(struct rte_timer *timer __rte_unused,
+				void *arg __rte_unused)
 {
 	flow_cache_age(flow_cache);
 }

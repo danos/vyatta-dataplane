@@ -1276,7 +1276,8 @@ void dp_crypto_init(void)
 	crypto_engine_init();
 	rte_timer_init(&flow_cache_timer);
 	rte_timer_reset(&flow_cache_timer, rte_get_timer_hz(), PERIODICAL,
-			rte_get_master_lcore(), flow_cache_timer_handler, NULL);
+			rte_get_master_lcore(), crypto_flow_cache_timer_handler,
+			NULL);
 
 	CRYPTO_INFO("Crypto initialised\n");
 }
