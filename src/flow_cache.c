@@ -458,88 +458,110 @@ static const char *af_names[FLOW_CACHE_MAX] = {
 	[FLOW_CACHE_IPV6] = "ipv6"
 };
 
+static void
+flow_cache_dump_table(struct cds_lfht *table,
+		      json_writer_t *wr, bool detail,
+		      flow_cache_dump_cb dump_helper)
+{
+	struct flow_cache_entry *cache_entry;
+	struct cds_lfht_iter iter;
+	char addrbuf[INET6_ADDRSTRLEN];
+
+	jsonw_start_array(wr);
+	cds_lfht_for_each_entry(table, &iter,
+				cache_entry, fl_node) {
+		int af;
+		struct flow_cache_hash_key *cache_key;
+
+		cache_key = &cache_entry->key;
+		af = cache_key->af == FLOW_CACHE_IPV4 ?
+			AF_INET : AF_INET6;
+		jsonw_start_object(wr);
+		jsonw_string_field(wr, "dst",
+				   inet_ntop(af,
+					     &cache_key->dst,
+					     addrbuf,
+					     sizeof(addrbuf)));
+		jsonw_string_field(wr, "src",
+				   inet_ntop(af,
+					     &cache_key->src,
+					     addrbuf,
+					     sizeof(addrbuf)));
+		jsonw_uint_field(wr, "proto", cache_key->proto);
+		jsonw_uint_field(wr, "hit_count",
+				 cache_entry->hit_count);
+		jsonw_uint_field(wr, "last_hit_count",
+				 cache_entry->last_hit_count);
+		dump_helper(cache_entry, detail, wr);
+		jsonw_end_object(wr);
+	}
+	jsonw_end_array(wr);
+}
+
+static void
+flow_cache_dump_lcore(struct flow_cache_lcore *cache_lcore,
+		      json_writer_t *wr, bool detail,
+		      flow_cache_dump_cb dump_helper)
+{
+	struct flow_cache_af *cache_af;
+	struct cds_lfht *table;
+	bool disabled = false;
+
+	jsonw_start_object(wr);
+	jsonw_start_array(wr);
+	for (enum flow_cache_ftype af = FLOW_CACHE_IPV4;
+	     af < FLOW_CACHE_MAX; af++) {
+		jsonw_name(wr, af_names[af]);
+		jsonw_start_object(wr);
+
+		cache_af = &cache_lcore->cache_af[af];
+		table = rcu_dereference(cache_af->cache_tbl);
+		if (!table)
+			disabled = true;
+
+		if (disabled) {
+			jsonw_string_field(wr, "flow_cache",
+					   "disabled");
+			goto end_af_obj;
+		}
+		jsonw_string_field(wr, "flow_cache", "enabled");
+		jsonw_start_object(wr);
+		jsonw_uint_field(wr, "cache_cnt",
+				 rte_atomic32_read(
+					 &cache_af->cache_cnt));
+		jsonw_end_object(wr);
+		if (!detail)
+			goto end_af_obj;
+
+		flow_cache_dump_table(table, wr, detail, dump_helper);
+
+end_af_obj:
+		jsonw_end_object(wr);
+	}
+	jsonw_end_array(wr);
+	jsonw_end_object(wr);
+}
+
 void flow_cache_dump(struct flow_cache *flow_cache, json_writer_t *wr,
 		     bool detail, flow_cache_dump_cb dump_helper)
 {
 	unsigned int i;
-	char addrbuf[INET6_ADDRSTRLEN];
 
 	if (!wr)
 		return;
 
 	jsonw_start_object(wr);
+	jsonw_name(wr, "cores");
 	jsonw_start_array(wr);
 
 	for (i = 0; i < rte_lcore_count(); i++) {
 		struct flow_cache_lcore *cache_lcore;
-		struct flow_cache_af *cache_af;
-		struct flow_cache_entry *cache_entry;
-		struct cds_lfht_iter iter;
-		struct cds_lfht *table;
-		bool disabled = false;
 
 		jsonw_uint_field(wr, "core_id", i);
 
 		cache_lcore = &flow_cache->cache_lcore[i];
 
-		jsonw_start_array(wr);
-
-		for (enum flow_cache_ftype af = FLOW_CACHE_IPV4;
-		     af < FLOW_CACHE_MAX; af++) {
-			jsonw_name(wr, af_names[af]);
-			jsonw_start_object(wr);
-
-			cache_af = &cache_lcore->cache_af[af];
-			table = rcu_dereference(cache_af->cache_tbl);
-			if (!table)
-				disabled = true;
-
-			if (disabled) {
-				jsonw_string_field(wr, "flow_cache",
-						   "disabled");
-				continue;
-			}
-			jsonw_string_field(wr, "flow_cache", "enabled");
-			jsonw_start_object(wr);
-			jsonw_uint_field(wr, "cache_cnt",
-					 rte_atomic32_read(
-						 &cache_af->cache_cnt));
-			jsonw_end_object(wr);
-			if (!detail)
-				continue;
-
-			jsonw_start_array(wr);
-			cds_lfht_for_each_entry(table, &iter,
-						cache_entry, fl_node) {
-				int af;
-				struct flow_cache_hash_key *cache_key;
-
-				cache_key = &cache_entry->key;
-				af = cache_key->af == FLOW_CACHE_IPV4 ?
-					AF_INET : AF_INET6;
-				jsonw_start_object(wr);
-				jsonw_string_field(wr, "dst",
-						   inet_ntop(af,
-							     &cache_key->dst,
-							     addrbuf,
-							     sizeof(addrbuf)));
-				jsonw_string_field(wr, "src",
-						   inet_ntop(af,
-							     &cache_key->src,
-							     addrbuf,
-							     sizeof(addrbuf)));
-				jsonw_uint_field(wr, "proto", cache_key->proto);
-				jsonw_uint_field(wr, "hit_count",
-						 cache_entry->hit_count);
-				jsonw_uint_field(wr, "last_hit_count",
-						 cache_entry->last_hit_count);
-				dump_helper(cache_entry, detail, wr);
-				jsonw_end_object(wr);
-			}
-			jsonw_end_array(wr);
-			jsonw_end_object(wr);
-		}
-		jsonw_end_array(wr);
+		flow_cache_dump_lcore(cache_lcore, wr, detail, dump_helper);
 	}
 
 	jsonw_end_array(wr);
