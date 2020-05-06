@@ -173,6 +173,7 @@ my @pci_devices = (
     { vendor => 0x8086, device => 0x158a },
     { vendor => 0x8086, device => 0x158b },
     { vendor => 0x8086, device => 0x374c },
+    { vendor => 0x8086, device => 0x37ce },
     { vendor => 0x8086, device => 0x37d0 },
     { vendor => 0x8086, device => 0x37d1 },
     { vendor => 0x8086, device => 0x37d2 },
