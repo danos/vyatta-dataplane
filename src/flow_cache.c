@@ -529,6 +529,10 @@ void flow_cache_dump(struct flow_cache *flow_cache, json_writer_t *wr,
 							     addrbuf,
 							     sizeof(addrbuf)));
 				jsonw_uint_field(wr, "proto", cache_key->proto);
+				jsonw_uint_field(wr, "hit_count",
+						 cache_entry->hit_count);
+				jsonw_uint_field(wr, "last_hit_count",
+						 cache_entry->last_hit_count);
 				dump_helper(cache_entry, detail, wr);
 				jsonw_end_object(wr);
 			}
