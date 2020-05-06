@@ -1,3 +1,58 @@
+vyatta-dataplane (3.10.9) unstable; urgency=medium
+
+  [ Gavin Shearer ]
+  * alg: ensure parent session active before linking child
+
+  [ Paul Atkins ]
+  * 3.9.108
+
+  [ Charles (Chas) Williams ]
+  * crypto: count burst buffer full as drops (Bugfix: VRVDR-50279)
+  * crypto: count most errors as proto drops (Bugfix: VRVDR-50279)
+  * crypto: eliminate macro usage (Bugfix: VRVDR-50279)
+  * crypto: count packets against tunnel interface (Bugfix: VRVDR-50279)
+  * crypto: do not count failed packets (Bugfix: VRVDR-50279)
+
+  [ Paul Atkins ]
+  * 3.9.109
+
+  [ Mark Gillott ]
+  * Register event operations only on first use (Fixes: VRVDR-50621)
+  * Capture portmonitor replay errors (Fixes: VRVDR-50621)
+
+  [ Paul Atkins ]
+  * 3.9.110
+
+  [ Charles (Chas) Williams ]
+  * vhost: fix QMP communication (Bugfix: VRVDR-50745)
+
+  [ Paul Atkins ]
+  * 3.9.111
+
+  [ Nicholas Brown ]
+  * Add new public API dp_pipeline_is_feature_enabled_by_inst()
+
+  [ Paul Atkins ]
+  * 3.9.112
+
+  [ Mark Gillott ]
+  * pipeline: add initialiser to declaration of storage_ctx
+
+  [ Nicholas Brown ]
+  * Install test headers into the correct path from Makefile
+  * dataplane_test in it's own package
+
+  [ Gavin Shearer ]
+  * nat64: make per-rule 'used' count be decremented
+  * nat64: set full range for overload start/stop ports
+
+  [ Mark Gillott ]
+  * pcap: serialise access to capture console socket (Fixes: VRVDR-50937)
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Wed, 06 May 2020 14:13:12 +0100
+
 vyatta-dataplane (3.10.8) unstable; urgency=medium
 
   [ Mike Larson ]
