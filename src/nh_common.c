@@ -389,6 +389,21 @@ void nexthop_put(int family, uint32_t idx)
 	}
 }
 
+int next_hop_copy(struct next_hop *old, struct next_hop *new)
+{
+	bool success;
+
+	new->u = old->u;
+	new->flags = old->flags;
+	new->gateway = old->gateway;
+	success = nh_outlabels_copy(&old->outlabels, &new->outlabels);
+
+	if (success)
+		return 0;
+
+	return -ENOMEM;
+}
+
 /*
  * Create an array of next_hops based on the hops in the next_hop_list.
  */
@@ -407,11 +422,19 @@ next_hop_list_copy_next_hops(struct next_hop_list *nhl, int *size)
 	for (i = 0; i < nhl->nsiblings; i++) {
 		struct next_hop *nhl_next = array + i;
 
-		memcpy(n, nhl_next, sizeof(struct next_hop));
-		nh_outlabels_copy(&nhl_next->outlabels, &n->outlabels);
+		if (next_hop_copy(nhl_next, n) < 0)
+			goto fail;
 		n++;
 	}
 	return next;
+
+fail:
+	/* Copy of a nh failed so cleanup */
+	n = next;
+	for (i = 0; i < nhl->nsiblings; i++)
+		nh_outlabels_destroy(&n->outlabels);
+	free(next);
+	return NULL;
 }
 
 int

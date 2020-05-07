@@ -111,6 +111,18 @@ nexthop_create(struct ifnet *ifp, struct ip_addr *gw, uint32_t flags,
 void nexthop_put(int family, uint32_t idx);
 
 /*
+ * Copy the contents of the old next hop into the new next hop. It does
+ * not copy things like list ptrs and hash entries.
+ *
+ * @param[in] old The nexthop to copy.
+ * @param[out] new The nexthop to copy into.
+ *
+ * @return 0 on success
+ *         -ve on error
+ */
+int next_hop_copy(struct next_hop *old, struct next_hop *new);
+
+/*
  * Given an nexthop_u create a copy of the nexthops in an array
  *
  * @param[in] nhl The fully formed nhl

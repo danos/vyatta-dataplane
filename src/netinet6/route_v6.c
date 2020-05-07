@@ -1066,8 +1066,10 @@ route6_nh_replace(int family, struct next_hop_list *nextl, uint32_t nh_idx,
 		nh_change = nh_processing_cb(next, i, arg);
 
 		/* Copy across old NH */
-		memcpy(new_next, next, sizeof(struct next_hop));
-		nh_outlabels_copy(&next->outlabels, &new_next->outlabels);
+		if (next_hop_copy(next, new_next) < 0) {
+			__nexthop_destroy(new_nextl);
+			return 0;
+		}
 
 		switch (nh_change) {
 		case NH_NO_CHANGE:
