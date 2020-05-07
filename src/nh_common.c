@@ -123,6 +123,31 @@ nh_set_ifp(struct next_hop *next_hop, struct ifnet *ifp)
 	rcu_assign_pointer(next_hop->u.ifp, ifp);
 }
 
+static int next_hop_list_backup_count(const struct next_hop_list *nhl)
+{
+	int count = 0;
+	int i;
+	struct next_hop *array = rcu_dereference(nhl->siblings);
+
+	for (i = 0; i < nhl->nsiblings; i++) {
+		struct next_hop *next = array + i;
+
+		if (next->flags & RTF_BACKUP)
+			count++;
+	}
+	return count;
+}
+
+static int next_hop_list_primary_count(const struct next_hop_list *nhl)
+{
+	int backups = next_hop_list_backup_count(nhl);
+
+	if (backups)
+		return nhl->nsiblings - backups;
+
+	return 0;
+}
+
 static struct next_hop_list *nexthop_lookup(int family,
 					    const struct nexthop_hash_key *key)
 {
@@ -292,9 +317,11 @@ int nexthop_new(int family, const struct next_hop *nh, uint16_t size,
 		return -ENOMEM;
 	}
 
+	nextl->primaries = next_hop_list_primary_count(nextl);
+
 	ret = fal_ip_new_next_hops(nextl->nsiblings, nextl->siblings,
-				    &nextl->nhg_fal_obj,
-				    nextl->nh_fal_obj);
+				   &nextl->nhg_fal_obj,
+				   nextl->nh_fal_obj);
 	if (ret < 0 && ret != -EOPNOTSUPP)
 		RTE_LOG(ERR, ROUTE,
 			"FAL IPv4 next-hop-group create failed: %s\n",
@@ -667,6 +694,7 @@ next_hop_list_create_copy_start(int family __unused,
 		return NULL;
 
 	new_nextl->proto = old->proto;
+	new_nextl->primaries = old->primaries;
 	new_nextl->index = old->index;
 	new_nextl->refcount = old->refcount;
 

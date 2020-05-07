@@ -39,7 +39,8 @@ struct next_hop_list {
 	struct next_hop      *siblings;	/* array of next_hop */
 	uint8_t              nsiblings;	/* # of next_hops */
 	uint8_t              proto;	/* routing protocol */
-	uint16_t             padding;
+	uint8_t              primaries; /* number of primary next hops */
+	uint8_t              padding;
 	uint32_t             index;
 	struct next_hop      hop0;      /* optimization for non-ECMP */
 	uint32_t             refcount;	/* # of LPM's referring */
