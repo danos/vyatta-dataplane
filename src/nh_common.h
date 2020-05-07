@@ -29,6 +29,7 @@ struct next_hop {
 	uint32_t      flags;   /* routing flags */
 	union next_hop_outlabels outlabels;
 	struct ip_addr gateway;
+	struct cds_list_head if_gw_list_entry;
 };
 
 /*

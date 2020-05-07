@@ -4,13 +4,17 @@
  * SPDX-License-Identifier: LGPL-2.1-only
  */
 
+#include <urcu/list.h>
 #include <rte_debug.h>
 
 #include "ecmp.h"
 #include "fal.h"
 #include "if_llatbl.h"
 #include "nh_common.h"
+#include "urcu.h"
 #include "vplane_debug.h"
+
+static struct cds_lfht *next_hop_intf_hash;
 
 /*
  * use entry 0 for AF_INET
@@ -267,6 +271,388 @@ void nexthop_destroy(struct rcu_head *head)
 	__nexthop_destroy(nextl);
 }
 
+/*
+ * Structure to store in the top level interface hash. Part of the 2 level
+ * hash to allow lookups of all the NHs using an interface/gateway pair.
+ */
+struct next_hop_intf_entry {
+	uint32_t ifindex;
+	struct cds_lfht_node intf_hash_tbl_node;
+	struct cds_lfht *gw_hash_tbl;
+	struct rcu_head rcu;
+};
+
+static void next_hop_intf_entry_free(struct rcu_head *head)
+{
+	struct next_hop_intf_entry *if_entry
+		= caa_container_of(head, struct next_hop_intf_entry, rcu);
+
+	free(if_entry);
+}
+
+static int next_hop_intf_hash_cmp_fn(struct cds_lfht_node *node,
+				     const void *key)
+{
+	struct next_hop_intf_entry *entry;
+	uint32_t *ifindex =  (uint32_t *)key;
+
+	entry = caa_container_of(node, struct next_hop_intf_entry,
+				 intf_hash_tbl_node);
+
+	if (entry->ifindex == *ifindex)
+		return 1;
+
+	return 0;
+}
+
+/*
+ * Return the hash table that hold next_hops for the given interface.
+ */
+static struct next_hop_intf_entry *
+next_hop_intf_hash_lookup(const struct ifnet *ifp)
+{
+	struct cds_lfht_iter iter;
+	struct cds_lfht_node *node;
+
+	if (!next_hop_intf_hash)
+		return NULL;
+
+	cds_lfht_lookup(next_hop_intf_hash, ifp->if_index,
+			next_hop_intf_hash_cmp_fn, &ifp->if_index, &iter);
+
+	node = cds_lfht_iter_get_node(&iter);
+	if (node)
+		return caa_container_of(node, struct next_hop_intf_entry,
+					intf_hash_tbl_node);
+	else
+		return NULL;
+}
+
+
+#define NH_INTF_HASH_TBL_MIN_SIZE 8
+#define NH_INTF_HASH_TBL_MAX_SIZE 1024
+
+static int next_hop_intf_hash_init(void)
+{
+	if (next_hop_intf_hash)
+		return 0;
+
+	next_hop_intf_hash = cds_lfht_new(NH_INTF_HASH_TBL_MIN_SIZE,
+					  NH_INTF_HASH_TBL_MIN_SIZE,
+					  NH_INTF_HASH_TBL_MAX_SIZE,
+					  CDS_LFHT_AUTO_RESIZE,
+					  NULL);
+	if (!next_hop_intf_hash)
+		return -ENOMEM;
+	return 0;
+}
+
+static struct next_hop_intf_entry *
+next_hop_intf_hash_add(const struct next_hop *next)
+{
+	struct next_hop_intf_entry *entry;
+	struct ifnet *ifp = dp_nh_get_ifp(next);
+	struct cds_lfht_node *ret_node;
+	unsigned long hash;
+
+	if (next_hop_intf_hash_init())
+		return NULL;
+
+	entry = malloc(sizeof(*entry));
+	if (!entry)
+		return NULL;
+
+	entry->ifindex = ifp->if_index;
+	entry->gw_hash_tbl = cds_lfht_new(NH_INTF_HASH_TBL_MIN_SIZE,
+					  NH_INTF_HASH_TBL_MIN_SIZE,
+					  NH_INTF_HASH_TBL_MAX_SIZE,
+					  CDS_LFHT_AUTO_RESIZE,
+					  NULL);
+	if (!entry->gw_hash_tbl) {
+		free(entry);
+		return NULL;
+	}
+
+	cds_lfht_node_init(&entry->intf_hash_tbl_node);
+	hash = ifp->if_index;
+
+	ret_node = cds_lfht_add_unique(next_hop_intf_hash, hash,
+				       next_hop_intf_hash_cmp_fn,
+				       &entry->ifindex,
+				       &entry->intf_hash_tbl_node);
+
+	if (ret_node != &entry->intf_hash_tbl_node) {
+		/* This entry exists - this should not happen */
+		cds_lfht_destroy(entry->gw_hash_tbl, NULL);
+		free(entry);
+		return caa_container_of(ret_node,
+					struct next_hop_intf_entry,
+					intf_hash_tbl_node);
+	}
+
+	return entry;
+}
+
+/*
+ * Structure to store in the 2nd level hash. Part of the 2 level
+ * hash to allow lookups of all the NHs using an interface/gateway pair.
+ */
+struct next_hop_gw_entry {
+	struct ip_addr addr;
+	struct cds_lfht_node gw_hash_tbl_node;
+	struct cds_list_head intf_gw_nh_list;
+	struct rcu_head rcu;
+};
+
+static unsigned long next_hop_gw_hash_fn(const struct ip_addr *key)
+{
+	int words = 1; /* for key->type */
+
+	if (key->type == AF_INET)
+		words += sizeof(struct in_addr) / 4;
+	else if (key->type == AF_INET6)
+		words += sizeof(struct in6_addr) / 4;
+	return rte_jhash_32b((uint32_t *)key, words, 0);
+}
+
+static int next_hop_gw_hash_cmp_fn(struct cds_lfht_node *node,
+				   const void *key)
+{
+	struct next_hop_gw_entry *gw_entry;
+	const struct ip_addr *addr = key;
+
+	gw_entry = caa_container_of(node, struct next_hop_gw_entry,
+				    gw_hash_tbl_node);
+
+	if (dp_addr_eq(addr, &gw_entry->addr))
+		return 1;
+
+	return 0;
+}
+
+static struct next_hop_gw_entry *
+next_hop_gw_hash_lookup(struct cds_lfht *gw_hash_tbl,
+			const struct ip_addr *gw)
+{
+	struct cds_lfht_iter iter;
+	struct cds_lfht_node *node;
+
+	cds_lfht_lookup(gw_hash_tbl,
+			next_hop_gw_hash_fn(gw),
+			next_hop_gw_hash_cmp_fn, gw, &iter);
+
+	node = cds_lfht_iter_get_node(&iter);
+	if (node)
+		return caa_container_of(node, struct next_hop_gw_entry,
+					gw_hash_tbl_node);
+	else
+		return NULL;
+}
+
+static struct next_hop_gw_entry *
+next_hop_gw_hash_add(struct cds_lfht *gw_hash_tbl,
+		     const struct ip_addr *gw)
+{
+	struct cds_lfht_node *ret_node;
+	struct next_hop_gw_entry *gw_entry;
+
+	gw_entry = malloc(sizeof(*gw_entry));
+	if (!gw_entry)
+		return NULL;
+
+	gw_entry->addr = *gw;
+	CDS_INIT_LIST_HEAD(&gw_entry->intf_gw_nh_list);
+
+	ret_node = cds_lfht_add_unique(gw_hash_tbl,
+				       next_hop_gw_hash_fn(&gw_entry->addr),
+				       next_hop_gw_hash_cmp_fn, &gw_entry->addr,
+				       &gw_entry->gw_hash_tbl_node);
+
+	if (ret_node != &gw_entry->gw_hash_tbl_node) {
+		/* This entry exists - this should not happen */
+		free(gw_entry);
+		return caa_container_of(ret_node,
+					struct next_hop_gw_entry,
+					gw_hash_tbl_node);
+	}
+
+	return gw_entry;
+}
+
+static int next_hop_track_protected_nh(struct next_hop *next)
+{
+	struct next_hop_intf_entry *if_entry;
+	struct next_hop_gw_entry *gw_entry;
+	struct ifnet *ifp = dp_nh_get_ifp(next);
+
+	if (next->flags & RTF_BACKUP)
+		return 0;
+
+	if_entry = next_hop_intf_hash_lookup(ifp);
+	if (!if_entry) {
+		if_entry = next_hop_intf_hash_add(next);
+		if (!if_entry) {
+			RTE_LOG(ERR, ROUTE,
+				"Failed to add protected NH to intf hash %d\n",
+				ifp->if_index);
+			return -1;
+		}
+	}
+
+	gw_entry = next_hop_gw_hash_lookup(if_entry->gw_hash_tbl,
+					   &next->gateway);
+	if (!gw_entry) {
+		gw_entry = next_hop_gw_hash_add(if_entry->gw_hash_tbl,
+						&next->gateway);
+		if (!gw_entry) {
+			RTE_LOG(ERR, ROUTE,
+				"Failed to add protected NH to gw hash %d\n",
+				ifp->if_index);
+			return -1;
+		}
+	}
+
+	cds_list_add_rcu(&next->if_gw_list_entry, &gw_entry->intf_gw_nh_list);
+
+	return 0;
+}
+
+static void next_hop_gw_entry_free(struct rcu_head *head)
+{
+	struct next_hop_gw_entry *gw_entry
+		= caa_container_of(head, struct next_hop_gw_entry, rcu);
+
+	free(gw_entry);
+}
+
+static int next_hop_untrack_protected_nh(struct next_hop *next)
+{
+	struct next_hop_intf_entry *if_entry;
+	struct next_hop_gw_entry *gw_entry;
+	struct ifnet *ifp = dp_nh_get_ifp(next);
+	struct cds_lfht_iter iter;
+	struct cds_lfht_node *node;
+
+	if (next->flags & RTF_BACKUP)
+		return 0;
+
+	if_entry = next_hop_intf_hash_lookup(ifp);
+	if (!if_entry)
+		return 0;
+
+	gw_entry = next_hop_gw_hash_lookup(if_entry->gw_hash_tbl,
+					   &next->gateway);
+	if (!gw_entry)
+		return 0;
+
+	cds_list_del_rcu(&next->if_gw_list_entry);
+
+	/* Delete the list if it is empty - no more with matching addr. */
+	if (cds_list_empty(&gw_entry->intf_gw_nh_list)) {
+		cds_lfht_del(if_entry->gw_hash_tbl,
+			     &gw_entry->gw_hash_tbl_node);
+		call_rcu(&gw_entry->rcu, next_hop_gw_entry_free);
+
+	}
+
+	/* Delete the 2nd level hash table if empty - no more on interface */
+	cds_lfht_first(if_entry->gw_hash_tbl, &iter);
+	node = cds_lfht_iter_get_node(&iter);
+	if (!node) {
+		cds_lfht_destroy(if_entry->gw_hash_tbl, NULL);
+		cds_lfht_del(next_hop_intf_hash,
+			     &if_entry->intf_hash_tbl_node);
+		call_rcu(&if_entry->rcu, next_hop_intf_entry_free);
+	}
+
+	/* Delete the 1st level hash table if empty - no more protected nhs. */
+	cds_lfht_first(next_hop_intf_hash, &iter);
+	node = cds_lfht_iter_get_node(&iter);
+	if (!node) {
+		cds_lfht_destroy(next_hop_intf_hash, NULL);
+		next_hop_intf_hash = NULL;
+	}
+
+	return 0;
+}
+
+static void next_hop_list_track_protected_nh(struct next_hop_list *nextl)
+{
+	int i;
+	struct next_hop *array;
+
+	if (nextl->primaries) {
+
+		array = nextl->siblings;
+		for (i = 0; i < nextl->nsiblings; i++) {
+			struct next_hop *next = array + i;
+
+			(void)next_hop_track_protected_nh(next);
+		}
+	}
+}
+
+static void next_hop_list_untrack_protected_nh(struct next_hop_list *nextl)
+{
+	int i;
+	struct next_hop *array;
+
+	if (nextl->primaries) {
+
+		array = nextl->siblings;
+		for (i = 0; i < nextl->nsiblings; i++) {
+			struct next_hop *next = array + i;
+
+			(void)next_hop_untrack_protected_nh(next);
+		}
+	}
+}
+
+/*
+ * When building a new next_hop_list to swap into the forwarding state
+ * we need to make sure that the lists at the end of the 2 stage hash
+ * contain the new entry not the old one.
+ */
+static void next_hop_fixup_protected_tracking(struct next_hop_list *old,
+					      struct next_hop_list *new)
+{
+	struct next_hop *old_array;
+	struct next_hop *new_array;
+	struct ifnet *ifp;
+	struct next_hop_intf_entry *intf_entry;
+	struct next_hop_gw_entry *gw_entry;
+	int i;
+
+	ASSERT_MASTER();
+
+	if (!new->primaries)
+		return;
+
+	old_array = old->siblings;
+	new_array = new->siblings;
+	for (i = 0; i < new->nsiblings; i++) {
+		struct next_hop *next_old = old_array + i;
+		struct next_hop *next_new = new_array + i;
+
+		ifp = dp_nh_get_ifp(next_old);
+		intf_entry = next_hop_intf_hash_lookup(ifp);
+		if (!intf_entry)
+			return;
+
+		gw_entry = next_hop_gw_hash_lookup(intf_entry->gw_hash_tbl,
+						   &next_old->gateway);
+		if (!gw_entry)
+			return;
+		/*
+		 * Take the old entry out of the list, then add the new
+		 * one.
+		 */
+		cds_list_del_rcu(&next_old->if_gw_list_entry);
+		cds_list_add_rcu(&next_new->if_gw_list_entry,
+				 &gw_entry->intf_gw_nh_list);
+	}
+}
+
 /* Lookup (or create) nexthop based on hop information */
 int nexthop_new(int family, const struct next_hop *nh, uint16_t size,
 		uint8_t proto, uint32_t *slot)
@@ -327,6 +713,8 @@ int nexthop_new(int family, const struct next_hop *nh, uint16_t size,
 			"FAL IPv4 next-hop-group create failed: %s\n",
 			strerror(-ret));
 	nextl->pd_state = fal_state_to_pd_state(ret);
+
+	next_hop_list_track_protected_nh(nextl);
 
 	nh_iter = rover;
 	do {
@@ -410,6 +798,8 @@ void nexthop_put(int family, uint32_t idx)
 					strerror(-ret));
 			}
 		}
+
+		next_hop_list_untrack_protected_nh(nextl);
 
 		cds_lfht_del(hash_tbl, &nextl->nh_node);
 		call_rcu(&nextl->rcu, nexthop_destroy);
@@ -729,6 +1119,7 @@ next_hop_list_create_copy_finish(int family,
 	assert(nh_table->entry[old_idx] == old);
 	rcu_xchg_pointer(&nh_table->entry[old_idx], new);
 
+	next_hop_fixup_protected_tracking(old, new);
 	call_rcu(&old->rcu, nexthop_destroy);
 
 	return 0;
