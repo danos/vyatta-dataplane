@@ -28,6 +28,7 @@
 #include "main.h"
 #include "master.h"
 #include "if_var.h"
+#include "ip_forward.h"
 #include "ip_funcs.h"
 #include "in_cksum.h"
 #include "vplane_debug.h"
@@ -1777,4 +1778,31 @@ void dp_test_enable_soft_tick_override(void)
 void dp_test_disable_soft_tick_override(void)
 {
 	disable_soft_clock_override();
+}
+
+void dp_test_make_nh_unusable(const char *interface,
+			      const char *nexthop)
+{
+	struct dp_test_addr addr;
+	struct dp_rt_path_unusable_key key;
+
+	/* nexthop is allowed to be null */
+	if (nexthop) {
+		if (!dp_test_addr_str_to_addr(nexthop, &addr))
+			dp_test_assert_internal(false);
+
+		dp_test_assert_internal(addr.family == AF_INET ||
+					addr.family == AF_INET6);
+
+		key.type = DP_RT_PATH_UNUSABLE_KEY_INTF_NEXTHOP;
+		key.nexthop.type = addr.family;
+		memcpy(&key.nexthop.address, &addr.addr,
+		       sizeof(key.nexthop.address));
+	} else {
+		key.type = DP_RT_PATH_UNUSABLE_KEY_INTF;
+	}
+
+	key.ifindex = dp_test_intf_name2index(interface);
+
+	dp_rt_signal_paths_unusable("tests", &key);
 }

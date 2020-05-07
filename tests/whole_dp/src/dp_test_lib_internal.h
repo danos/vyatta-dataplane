@@ -123,4 +123,7 @@ bool dp_test_read_pkt_available(void);
 void dp_test_enable_soft_tick_override(void);
 void dp_test_disable_soft_tick_override(void);
 
+void dp_test_make_nh_unusable(const char *interface,
+			      const char *nexthop);
+
 #endif /*_DP_TEST_LIB_H_ */
