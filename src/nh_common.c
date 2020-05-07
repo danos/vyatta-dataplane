@@ -392,7 +392,8 @@ void nexthop_put(int family, uint32_t idx)
 /*
  * Create an array of next_hops based on the hops in the next_hop_list.
  */
-struct next_hop *nexthop_create_copy(struct next_hop_list *nhl, int *size)
+struct next_hop *
+next_hop_list_copy_next_hops(struct next_hop_list *nhl, int *size)
 {
 	struct next_hop *next, *n;
 	struct next_hop *array = rcu_dereference(nhl->siblings);

@@ -119,7 +119,8 @@ void nexthop_put(int family, uint32_t idx);
  * @return Pointer to array of nexthops on success
  * @return NULL on failure
  */
-struct next_hop *nexthop_create_copy(struct next_hop_list *nhl, int *size);
+struct next_hop *
+next_hop_list_copy_next_hops(struct next_hop_list *nhl, int *size);
 
 /*
  * Remove the old NH from the hash and add the new one. Can not

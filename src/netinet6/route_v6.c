@@ -2480,7 +2480,7 @@ route6_create_neigh(struct vrf *vrf, struct lpm6 *lpm,
 			 * this. Will only be 1 NEIGH_CREATED path, but
 			 * need to inherit other paths from the cover.
 			 */
-			nh = nexthop_create_copy(nextl, &size);
+			nh = next_hop_list_copy_next_hops(nextl, &size);
 			if (!nh)
 				return;
 
