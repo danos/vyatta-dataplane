@@ -103,7 +103,11 @@ nh_outlabels_copy(union next_hop_outlabels *old, union next_hop_outlabels *copy)
 			return false;
 		memcpy(labels, old->lbl_blk.labels, sizeof(label_t) * count);
 		copy->lbl_blk.labels = labels;
+		copy->lbl_blk.lb_count = old->lbl_blk.lb_count;
+	} else {
+		memcpy(copy, old, sizeof(*copy));
 	}
+
 	return true;
 }
 
