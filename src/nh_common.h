@@ -12,6 +12,7 @@
 #include "compiler.h"
 #include "fal_plugin.h"
 #include "ip_addr.h"
+#include "ip_forward.h"
 #include "json_writer.h"
 #include "mpls/mpls.h"
 #include "pd_show.h"
@@ -347,6 +348,11 @@ nh_get_flags(struct next_hop *nh)
  */
 void nexthop_map_display(const struct next_hop_list *nextl,
 			 json_writer_t *json);
+
+/*
+ * mark all next_hops indicated by the key as unusable.
+ */
+void next_hop_mark_path_unusable(const struct dp_rt_path_unusable_key *key);
 
 /*
  * Per AF hash function for a nexthop.

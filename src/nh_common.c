@@ -10,6 +10,7 @@
 #include "ecmp.h"
 #include "fal.h"
 #include "if_llatbl.h"
+#include "ip_route.h"
 #include "nh_common.h"
 #include "urcu.h"
 #include "vplane_debug.h"
@@ -150,6 +151,104 @@ static int next_hop_list_primary_count(const struct next_hop_list *nhl)
 		return nhl->nsiblings - backups;
 
 	return 0;
+}
+
+static int next_hop_list_num_primaries_usable(struct next_hop_list *nextl)
+{
+	struct next_hop *array;
+	int i, count = 0;
+	bool backup = false;
+
+	array = nextl->siblings;
+	for (i = 0; i < nextl->nsiblings; i++) {
+		struct next_hop *next = array + i;
+
+		if (next->flags & RTF_BACKUP) {
+			backup = true;
+			continue;
+		}
+		if (next->flags & RTF_UNUSABLE)
+			continue;
+		count++;
+	}
+
+	if (backup)
+		return count;
+
+	/* No backups, therefore no primaries */
+	return 0;
+}
+
+static void next_hop_map_use_backups(struct next_hop_list *nextl)
+{
+	int i, j;
+	int backups = nextl->nsiblings - nextl->primaries;
+	int slots[backups];
+	struct next_hop *array;
+
+	/* find the slots that we need to loop over */
+	j = 0;
+	array = nextl->siblings;
+	for (i = 0; i < nextl->nsiblings; i++) {
+		struct next_hop *next = array + i;
+
+		if (next->flags & RTF_BACKUP) {
+			slots[j] = i;
+			j++;
+		}
+	}
+
+	j = 0;
+	for (i = 0; i < nextl->nh_map->count; i++) {
+		CMM_STORE_SHARED(nextl->nh_map->index[i], slots[j]);
+		j++;
+		if (j >= backups)
+			j = 0;
+	}
+}
+
+/*
+ * Called to update a map when a path has become unusable.
+ */
+static void next_hop_list_update_map(struct next_hop_list *nextl, int index)
+{
+	struct next_hop *array;
+	int i, j = 0;
+	int new_index = 0;
+	int usable = next_hop_list_num_primaries_usable(nextl);
+
+	if (usable == 0) {
+		next_hop_map_use_backups(nextl);
+		return;
+	}
+
+	/*
+	 * Update with the smaller set of primaries that are usable
+	 * The one at index is now unusable
+	 */
+	assert(nextl->siblings[index].flags & RTF_UNUSABLE);
+	array = nextl->siblings;
+	for (i = 0; i < nextl->nh_map->count; i++) {
+		if (nextl->nh_map->index[i] == index) {
+			/* Was using the now unusable path */
+
+			for (j = 0; j < nextl->nsiblings; j++) {
+				if (array[new_index].flags & (RTF_BACKUP |
+							      RTF_UNUSABLE)) {
+					new_index++;
+					if (new_index >= nextl->nsiblings)
+						new_index = 0;
+					continue;
+				}
+				CMM_STORE_SHARED(nextl->nh_map->index[i],
+						 new_index);
+				new_index++;
+				if (new_index >= nextl->nsiblings)
+					new_index = 0;
+				break;
+			}
+		}
+	}
 }
 
 static struct next_hop_list *nexthop_lookup(int family,
@@ -481,6 +580,101 @@ next_hop_gw_hash_add(struct cds_lfht *gw_hash_tbl,
 	return gw_entry;
 }
 
+typedef void (next_hop_usability_change_cb)(struct next_hop *next);
+
+static void next_hop_usability_check_update_cb(struct next_hop *next)
+{
+	struct next_hop_list *nextl = next->nhl;
+
+	next_hop_list_update_map(nextl, next - nextl->siblings);
+}
+
+static void
+next_hop_intf_gw_list_mark_path_unusable(struct cds_list_head *list_head)
+{
+	struct cds_list_head *list_entry, *next;
+	struct next_hop *nh;
+
+	cds_list_for_each_safe(list_entry, next, list_head) {
+		nh = cds_list_entry(list_entry, struct next_hop,
+				    if_gw_list_entry);
+		CMM_STORE_SHARED(nh->flags, nh->flags | RTF_UNUSABLE);
+		next_hop_usability_check_update_cb(nh);
+	}
+}
+
+void next_hop_mark_path_unusable(const struct dp_rt_path_unusable_key *key)
+{
+	struct ifnet *ifp = dp_ifnet_byifindex(key->ifindex);
+	struct next_hop_intf_entry *intf_entry;
+	struct next_hop_gw_entry *gw_entry;
+	struct cds_lfht_iter iter;
+
+	intf_entry = next_hop_intf_hash_lookup(ifp);
+	if (!intf_entry)
+		return;
+
+	if (key->type == DP_RT_PATH_UNUSABLE_KEY_INTF) {
+		cds_lfht_for_each_entry(intf_entry->gw_hash_tbl,
+					&iter, gw_entry, gw_hash_tbl_node) {
+			/* All NHs using this interface are unusable */
+			next_hop_intf_gw_list_mark_path_unusable(
+				&gw_entry->intf_gw_nh_list);
+		}
+	} else if (key->type == DP_RT_PATH_UNUSABLE_KEY_INTF_NEXTHOP) {
+		gw_entry = next_hop_gw_hash_lookup(intf_entry->gw_hash_tbl,
+						   &key->nexthop);
+		if (!gw_entry)
+			return;
+		next_hop_intf_gw_list_mark_path_unusable(
+			&gw_entry->intf_gw_nh_list);
+	}
+}
+
+static void
+next_hop_list_check_usability(struct next_hop_list *nextl,
+			      next_hop_usability_change_cb change_cb)
+{
+	int backups = next_hop_list_backup_count(nextl);
+	int primaries = nextl->nsiblings - backups;
+	struct next_hop *array;
+	enum dp_rt_path_state state;
+	struct dp_rt_path_unusable_key key;
+	int i;
+	struct ifnet *ifp;
+
+	if (!backups) {
+		nextl->primaries = 0;
+		return;
+	}
+
+	nextl->primaries = primaries;
+
+	array = nextl->siblings;
+	for (i = 0; i < nextl->nsiblings; i++) {
+		struct next_hop *next = array + i;
+
+		ifp = dp_nh_get_ifp(next);
+		key.ifindex = ifp->if_index;
+		if (nh_is_gw(next)) {
+			key.type = DP_RT_PATH_UNUSABLE_KEY_INTF_NEXTHOP;
+			key.nexthop = next->gateway;
+		} else {
+			key.type = DP_RT_PATH_UNUSABLE_KEY_INTF;
+		}
+
+		state = dp_rt_signal_check_paths_state(&key);
+
+		if (state == DP_RT_PATH_UNUSABLE) {
+			if (!(next->flags & RTF_UNUSABLE)) {
+				next->flags |= RTF_UNUSABLE;
+				if (change_cb)
+					change_cb(next);
+			}
+		}
+	}
+}
+
 static int next_hop_track_protected_nh(struct next_hop *next)
 {
 	struct next_hop_intf_entry *if_entry;
@@ -592,6 +786,14 @@ static void next_hop_list_track_protected_nh(struct next_hop_list *nextl)
 			(void)next_hop_track_protected_nh(next);
 		}
 	}
+
+	/*
+	 * Now we need to recheck the usability to catch the case where
+	 * the next_hop became unusable after installed in the fal but
+	 * before it was installed in the hash table
+	 */
+	next_hop_list_check_usability(nextl,
+				      next_hop_usability_check_update_cb);
 }
 
 static void next_hop_list_untrack_protected_nh(struct next_hop_list *nextl)
@@ -662,20 +864,30 @@ static void next_hop_fixup_protected_tracking(struct next_hop_list *old,
  */
 static int next_hop_list_init_map(struct next_hop_list *nextl)
 {
-	int backups = next_hop_list_backup_count(nextl);
-	int primaries = nextl->nsiblings - backups;
 	int num_entries;
 	int primary_num = 0;
 	int i, j = 0;
 	struct next_hop *array;
+	int primaries;
 
-	if (!backups)
+	/*
+	 * Check usability of NHs before we build the map as we do not
+	 * want unusable ones in there.
+	 */
+	next_hop_list_check_usability(nextl, NULL);
+
+	if (nextl->primaries == 0)
 		return 0;
 
 	nextl->nh_map = malloc_aligned(sizeof(*nextl->nh_map));
 	if (!nextl->nh_map)
 		return -ENOMEM;
 
+	/*
+	 * Use the amount of usable primaries to work out the size so
+	 * we still get fairness after another one goes down.
+	 */
+	primaries = next_hop_list_num_primaries_usable(nextl);
 	if (primaries > 1)
 		num_entries = primaries * (primaries - 1);
 	else
@@ -684,7 +896,17 @@ static int next_hop_list_init_map(struct next_hop_list *nextl)
 	if (num_entries > NH_MAP_MAX_ENTRIES)
 		num_entries = NH_MAP_MAX_ENTRIES;
 
-	nextl->nh_map->count = num_entries;
+	if (primaries) {
+		nextl->nh_map->count = num_entries;
+	} else {
+		/*
+		 * Set the count here as the func to use backup can be called
+		 * due to a cutover and it will not change the count.
+		 */
+		nextl->nh_map->count = nextl->nsiblings - nextl->primaries;
+		next_hop_map_use_backups(nextl);
+		return 0;
+	}
 
 	array = nextl->siblings;
 	for (i = 0; i < nextl->nsiblings; i++) {
@@ -1208,6 +1430,14 @@ next_hop_list_create_copy_finish(int family,
 	rcu_xchg_pointer(&nh_table->entry[old_idx], new);
 
 	next_hop_fixup_protected_tracking(old, new);
+	/*
+	 * Now we need to recheck the usability to catch the case where
+	 * a next_hop became unusable and was some way through processing
+	 * an update to the old map as we were updating it here.
+	 */
+	next_hop_list_check_usability(new,
+				      next_hop_usability_check_update_cb);
+
 	call_rcu(&old->rcu, nexthop_destroy);
 
 	return 0;

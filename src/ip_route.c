@@ -7,9 +7,11 @@
 #include <urcu/list.h>
 #include <rte_debug.h>
 
+#include "if_var.h"
 #include "ip_forward.h"
 #include "ip_route.h"
 #include "urcu.h"
+#include "vplane_debug.h"
 
 static struct cds_list_head rt_signal_unusable_list_head =
 	CDS_LIST_HEAD_INIT(rt_signal_unusable_list_head);
@@ -69,4 +71,21 @@ dp_rt_signal_check_paths_state(const struct dp_rt_path_unusable_key *key)
 void dp_rt_signal_paths_unusable(const char *source,
 				 const struct dp_rt_path_unusable_key *key)
 {
+	char buf[INET6_ADDRSTRLEN];
+
+	if (key->type == DP_RT_PATH_UNUSABLE_KEY_INTF)
+		DP_DEBUG(ROUTE, DEBUG, ROUTE,
+			 "paths using if %s marked unusable by %s\n",
+			 ifnet_indextoname(key->ifindex),
+			 source);
+	else
+		DP_DEBUG(ROUTE, DEBUG, ROUTE,
+			 "paths using if %s, gw %s  marked unusable by %s\n",
+			 ifnet_indextoname(key->ifindex),
+			 inet_ntop(key->nexthop.type,
+				   &key->nexthop.address,
+				   buf, sizeof(buf)),
+				   source);
+
+	next_hop_mark_path_unusable(key);
 }

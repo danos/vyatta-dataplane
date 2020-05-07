@@ -56,6 +56,7 @@
 #define	RTF_NOROUTE	0x400	/* trigger no-route behaviour */
 /* backup path only to be used once primary path(s) are unusable */
 #define	RTF_BACKUP	0x800
+#define	RTF_UNUSABLE	0x1000  /* A primary path with a backup is unusable */
 
 #define RTF_NEIGH_CREATED  0x10000 /* Nexthop was created to store neigh info */
 #define RTF_NEIGH_PRESENT  0x20000 /* Nexthop contains neigh info */
