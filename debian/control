@@ -163,13 +163,6 @@ Provides: fal-dev-acl,
 Description: Forwarding Abstraction Library plugin development files
  An API for dataplane FAL plugins
 
-Package: vyatta-dataplane-dbg
-Section: non-free/debug
-Architecture: any
-Depends: vyatta-dataplane (= ${binary:Version}), ${misc:Depends}
-Description: Vyatta dataplane debug symbols
- Debug symbols for dataplane
-
 Package: vyatta-dataplane-protocols-versions
 Architecture: all
 Depends: ${misc:Depends}

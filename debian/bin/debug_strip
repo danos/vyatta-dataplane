@@ -9,11 +9,11 @@
 
 if [[ $# -lt 1 ]]
 then
-    echo "Usage: $0 [--dbg-package=package]"
+    echo "Usage: $0 [--dbg-package=package] [--auto-dbgsym]"
     exit 1
 fi
 
-LONGOPTS="-l dbg-package: -l help -l verbose"
+LONGOPTS="-l dbg-package: -l help -l verbose -l auto-dbgsym"
 SHORTOPTS="vh"
 ARGS=$(getopt  "$LONGOPTS" -- "$SHORTOPTS" "$@")
 if [ $? -ne 0 ]
@@ -30,6 +30,7 @@ while [ $# -gt 0 ]; do
 	--help|-h)	shift; echo -e "$0 [options]\n"; exit 0;;
 	--verbose|-v)	shift; VERBOSE=1;;
 	--dbg-package)	shift; DBGPKG="$1"; shift;;
+	--auto-dbgsym)	shift; AUTODBGSYM=1;;
 	*)		break;;
     esac
 done
@@ -68,6 +69,8 @@ generate_minidebug_and_debug()
     # Attach the mini debuginfo
     xz mini_debuginfo
     objcopy --add-section .gnu_debugdata=mini_debuginfo.xz ${binary}
+
+    rm mini_debuginfo.xz
 }
 
 write_buildid_file()
@@ -87,17 +90,31 @@ do
     buildids=""
     for PROG in $(find debian/$PKG -path '*/usr/*' -type f -a \( -executable -o -name '*.so*' \) )
     do
-       if [ -n "$DBGPKG" ]; then
+       if [ -n "$DBGPKG" -o -n "$AUTODBGSYM" ]; then
 	   build=$(readelf -n $PROG | awk '/Build ID:/ { print $3}')
 	   [ -n "$VERBOSE" ] && echo "build-id $PROG $build"
 	   dir=${build:0:2}
-	   debug_dir=debian/$DBGPKG/usr/lib/debug/.build-id/$dir
-	   debug_path=$debug_dir/${build:2}.debug
+	   if [ -n "$AUTODBGSYM" ]; then
+	       # Location that dh_gencontrol expects to find files in
+	       # so it can generate debug packages automatically
+	       debugtmp="debian/.debhelper/$PKG/dbgsym-root"
 
-	   install -d $debug_dir
+	       # Make sure changelog, copyright etc are picked up from
+	       # the main package
+	       dbgsym_docdir="$debugtmp/usr/share/doc";
+	       doc_symlink="$dbgsym_docdir/$PKG-dbgsym";
+	       mkdir -p "$dbgsym_docdir"
+	       ln -s "$PKG" "$doc_symlink"
+	   else
+	       debugtmp="debian/$DBGPKG"
+	   fi
+	   debug_dir="$debugtmp/usr/lib/debug/.build-id/$dir"
+	   debug_path="$debug_dir/${build:2}.debug"
+
+	   install -d "$debug_dir"
 	   generate_minidebug_and_debug "$PROG" "$debug_path"
-	   chmod 644 $debug_path
-	   objcopy --add-gnu-debuglink $debug_path $PROG
+	   chmod 644 "$debug_path"
+	   objcopy --add-gnu-debuglink "$debug_path" "$PROG"
 	   buildids="$buildids $build"
        else
 	   generate_minidebug_and_debug "$PROG" "$PROG.debug"

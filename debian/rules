@@ -75,7 +75,7 @@ else
 endif
 
 override_dh_strip:
-	debian/bin/debug_strip --dbg-package=vyatta-dataplane-dbg
+	debian/bin/debug_strip --auto-dbgsym
 
 override_dh_installchangelogs:
 
