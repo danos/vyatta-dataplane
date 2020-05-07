@@ -798,12 +798,10 @@ route_nh_replace(int family, struct next_hop_list *nextl,
 
 	/* walk all the NHs, copying as we go */
 	old_array = rcu_dereference(nextl->siblings);
-	new_nextl = nexthop_alloc(nextl->nsiblings);
+	new_nextl = next_hop_list_create_copy_start(AF_INET, nextl);
 	if (!new_nextl)
 		return 0;
-	new_nextl->proto = nextl->proto;
-	new_nextl->index = nextl->index;
-	new_nextl->refcount = nextl->refcount;
+
 	new_array = rcu_dereference(new_nextl->siblings);
 
 	for (i = 0; i < nextl->nsiblings; i++) {
@@ -867,26 +865,10 @@ route_nh_replace(int family, struct next_hop_list *nextl,
 		return deleted;
 	}
 
-	if (nexthop_hash_del_add(family, nextl, new_nextl)) {
-		__nexthop_destroy(new_nextl);
+	if (next_hop_list_create_copy_finish(AF_INET, nextl, new_nextl,
+					     nh_idx) < 0)
 		RTE_LOG(ERR, ROUTE, "nh replace failed\n");
-		return 0;
-	}
 
-	/*
-	 * It's safe to copy over the FAL objects without
-	 * notifications as there are no FAL-visible changes to the
-	 * object - it maintains its own linkage to the neighbour
-	 */
-	new_nextl->nhg_fal_obj = nextl->nhg_fal_obj;
-	memcpy(new_nextl->nh_fal_obj, nextl->nh_fal_obj,
-	       new_nextl->nsiblings * sizeof(*new_nextl->nh_fal_obj));
-	new_nextl->pd_state = nextl->pd_state;
-
-	assert(nh_tbl.entry[nh_idx] == nextl);
-	rcu_xchg_pointer(&nh_tbl.entry[nh_idx], new_nextl);
-
-	call_rcu(&nextl->rcu, nexthop_destroy);
 	return 0;
 }
 

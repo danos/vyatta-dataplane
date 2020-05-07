@@ -656,6 +656,56 @@ ALWAYS_INLINE struct next_hop *nexthop_select(int family, uint32_t nh_idx,
 	return nexthop_mp_select(next, size, ecmp_mbuf_hash(m, ether_type));
 }
 
+struct next_hop_list *
+next_hop_list_create_copy_start(int family __unused,
+				struct next_hop_list *old)
+{
+	struct next_hop_list *new_nextl;
+
+	new_nextl = nexthop_alloc(old->nsiblings);
+	if (!new_nextl)
+		return NULL;
+
+	new_nextl->proto = old->proto;
+	new_nextl->index = old->index;
+	new_nextl->refcount = old->refcount;
+
+	return new_nextl;
+}
+
+int
+next_hop_list_create_copy_finish(int family,
+				 struct next_hop_list *old,
+				 struct next_hop_list *new,
+				 uint32_t old_idx)
+{
+	int rc;
+	struct nexthop_table *nh_table = nh_common_get_nh_table(family);
+
+	rc = nexthop_hash_del_add(family, old, new);
+	if (rc < 0) {
+		__nexthop_destroy(new);
+		return rc;
+	}
+
+	/*
+	 * It's safe to copy over the FAL objects without
+	 * notifications as there are no FAL-visible changes to the
+	 * object - it maintains its own linkage to the neighbour
+	 */
+	new->nhg_fal_obj = old->nhg_fal_obj;
+	memcpy(new->nh_fal_obj, old->nh_fal_obj,
+	       new->nsiblings * sizeof(*new->nh_fal_obj));
+	new->pd_state = old->pd_state;
+
+	assert(nh_table->entry[old_idx] == old);
+	rcu_xchg_pointer(&nh_table->entry[old_idx], new);
+
+	call_rcu(&old->rcu, nexthop_destroy);
+
+	return 0;
+}
+
 /*
  * This is kept for backwards compatibility.
  */

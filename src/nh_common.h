@@ -135,6 +135,59 @@ struct next_hop *
 next_hop_list_copy_next_hops(struct next_hop_list *nhl, int *size);
 
 /*
+ * Given a next_hop_list that is in the nh table, start the process of doing
+ * a modify so that we can replace the existing next_hop_list with the new one.
+ *
+ * This function is used when a next_hop_list that is being used in the
+ * forwarding path needs to be modified in a non rcu friendly way.
+ * All memory for the new next_hop_list is allocated by this function.
+ *
+ * @param[in] family The address family the nexthop is using
+ * @param[in] old The nexthop that is currently being used
+ *
+ * @return a pointer to a partially constructed next_hop_list that is copied
+ *         from 'old'
+ *
+ * This function allocates the memory for the next_hops, but does not
+ * populate them. That is left to the caller who should make changes to
+ * the contents of the NHs as required, and should finish the switch by calling
+ * next_hop_list_create_copy_finish.
+ */
+struct next_hop_list *
+next_hop_list_create_copy_start(int family,
+				struct next_hop_list *old);
+
+/*
+ * After having called next_hop_list_create_copy_start, the user will have
+ * an old and a new next_hop_list. This function is called to finish the
+ * switch over to using the new version.
+ *
+ * The number of next_hops in old and new must be the same. This function
+ * is used only when modifying the contents of a next_hop - for example
+ * when one of them has been modified due to becoming 'neigh_present'
+ *
+ * It will modify hashtable entries, internal pointers, nh_maps and copy
+ * over fal objects as required.
+ *
+ * @param[in] family The address family the nexthop is using
+ * @param[in] old The nexthop that is currently being used. Once the
+ *            switchover is complete this will be freed as any references
+ *            will be to the new one.
+ * @param[in] new The new nexthop that is currently being created. It
+ *            will be inserted into the forwarding path and used for
+ *            forwarding.
+ * @param[in] old_idx The index in the nh table that old is at.
+ *
+ * @return 0 on success
+ *         -ve on failure
+ */
+int
+next_hop_list_create_copy_finish(int family,
+				 struct next_hop_list *old,
+				 struct next_hop_list *new,
+				 uint32_t old_idx);
+
+/*
  * Remove the old NH from the hash and add the new one. Can not
  * use a call to cds_lfht_add_replace() or any of the variants
  * as the key for the new NH may be very different in the case
