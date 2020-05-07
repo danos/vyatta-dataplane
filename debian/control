@@ -94,7 +94,6 @@ Depends: check,
          libvyattafal-dev,
          libvyatta-dataplane-proto-dev,
          libprotobuf-c-dev,
-         vyatta-dataplane-test,
          ${misc:Depends},
          ${shlibs:Depends}
 Description: Vyatta dataplane pipeline node build support
