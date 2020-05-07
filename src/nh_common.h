@@ -38,6 +38,7 @@ struct next_hop {
 	union next_hop_outlabels outlabels;
 	struct ip_addr gateway;
 	struct cds_list_head if_gw_list_entry;
+	struct next_hop_list *nhl; /* ptr back to the next hop list */
 };
 
 /*

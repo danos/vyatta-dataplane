@@ -700,6 +700,19 @@ static int next_hop_list_init_map(struct next_hop_list *nextl)
 	return 0;
 }
 
+static void next_hop_list_setup_back_ptrs(struct next_hop_list *nextl)
+{
+	int i;
+	struct next_hop *array;
+
+	array = nextl->siblings;
+	for (i = 0; i < nextl->nsiblings; i++) {
+		struct next_hop *next = array + i;
+
+		next->nhl = nextl;
+	}
+}
+
 /* Lookup (or create) nexthop based on hop information */
 int nexthop_new(int family, const struct next_hop *nh, uint16_t size,
 		uint8_t proto, uint32_t *slot)
@@ -744,6 +757,7 @@ int nexthop_new(int family, const struct next_hop *nh, uint16_t size,
 		nextl->hop0 = *nh;
 	else
 		memcpy(nextl->siblings, nh, size * sizeof(struct next_hop));
+	next_hop_list_setup_back_ptrs(nextl);
 
 	if (next_hop_list_init_map(nextl)) {
 		__nexthop_destroy(nextl);
@@ -1177,6 +1191,8 @@ next_hop_list_create_copy_finish(int family,
 
 	if (old->nh_map)
 		memcpy(new->nh_map, old->nh_map, sizeof(*new->nh_map));
+
+	next_hop_list_setup_back_ptrs(new);
 
 	/*
 	 * It's safe to copy over the FAL objects without
