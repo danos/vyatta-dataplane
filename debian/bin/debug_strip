@@ -70,9 +70,21 @@ generate_minidebug_and_debug()
     objcopy --add-section .gnu_debugdata=mini_debuginfo.xz ${binary}
 }
 
+write_buildid_file()
+{
+    local package=$1
+    local buildids=$2
+    # See dh_gencontrol
+    local dir=debian/.debhelper/$package
+
+    mkdir -p "$dir"
+    echo "$buildids" | tr ' ' '\n' | sort | tr '\n' ' ' > "$dir/dbgsym-build-ids"
+}
+
 
 for PKG in $(awk '/^Package:/ { print $2 }' < debian/control)
 do
+    buildids=""
     for PROG in $(find debian/$PKG -path '*/usr/*' -type f -a \( -executable -o -name '*.so*' \) )
     do
        if [ -n "$DBGPKG" ]; then
@@ -86,8 +98,12 @@ do
 	   generate_minidebug_and_debug "$PROG" "$debug_path"
 	   chmod 644 $debug_path
 	   objcopy --add-gnu-debuglink $debug_path $PROG
+	   buildids="$buildids $build"
        else
 	   generate_minidebug_and_debug "$PROG" "$PROG.debug"
        fi
     done
+    if [ -n "$buildids" ]; then
+        write_buildid_file "$PKG" "$buildids"
+    fi
 done
