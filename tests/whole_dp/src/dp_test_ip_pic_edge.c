@@ -353,3 +353,134 @@ DP_START_TEST(ip_pic_edge6, ip_pic_edge6)
 	dp_test_nl_del_ip_addr_and_connected("dp3T1", "3.3.3.3/24");
 
 } DP_END_TEST;
+
+/*
+ * Check that the maps are updated correctly and that traffic flows
+ * change correctly.
+ */
+DP_DECL_TEST_CASE(ip_pic_edge_suite, ip_pic_edge7, NULL, NULL);
+DP_START_TEST(ip_pic_edge7, ip_pic_edge7)
+{
+	struct dp_test_expected *exp;
+	struct rte_mbuf *test_pak;
+	const char *nh_mac_str1, *nh_mac_str2, *nh_mac_str3;
+	int len = 22;
+	int map_list1[] = { 0, 1, };
+	int map_list2[] = { 1, 1, };
+	int map_list3[] = { 2, 2, };
+
+	dp_test_nl_add_ip_addr_and_connected("dp1T1", "1.1.1.1/24");
+	dp_test_nl_add_ip_addr_and_connected("dp2T1", "2.2.2.2/24");
+	dp_test_nl_add_ip_addr_and_connected("dp3T1", "3.3.3.3/24");
+	dp_test_nl_add_ip_addr_and_connected("dp4T1", "4.4.4.4/24");
+
+	dp_test_netlink_add_route(
+		"10.0.1.0/24 "
+		"nh 1.1.1.2 int:dp1T1 "
+		"nh 2.2.2.1 int:dp2T1 "
+		"nh 3.3.3.1 int:dp3T1 backup");
+
+	dp_test_verify_nh_map_count("10.0.1.2", 2, map_list1);
+
+	nh_mac_str1 = "aa:bb:cc:dd:ee:ff";
+	dp_test_netlink_add_neigh("dp1T1", "1.1.1.2", nh_mac_str1);
+
+	dp_test_verify_nh_map_count("10.0.1.2", 2, map_list1);
+
+	nh_mac_str2 = "11:22:33:44:55:66";
+	dp_test_netlink_add_neigh("dp2T1", "2.2.2.1", nh_mac_str2);
+
+	nh_mac_str3 = "22:33:44:55:66:77";
+	dp_test_netlink_add_neigh("dp3T1", "3.3.3.1", nh_mac_str3);
+
+	dp_test_verify_nh_map_count("10.0.1.2", 2, map_list1);
+
+	/*
+	 * Create pak to match the route added above, with ports
+	 * carefully chosen to take path through first path.
+	 */
+	test_pak = dp_test_create_udp_ipv4_pak("4.4.4.5", "10.0.1.2",
+					       1001, 1003, 1, &len);
+	(void)dp_test_pktmbuf_eth_init(test_pak,
+				       dp_test_intf_name2mac_str("dp4T1"),
+				       DP_TEST_INTF_DEF_SRC_MAC,
+				       RTE_ETHER_TYPE_IPV4);
+
+	exp = dp_test_exp_create(test_pak);
+	dp_test_exp_set_oif_name(exp, "dp1T1");
+
+	(void)dp_test_pktmbuf_eth_init(dp_test_exp_get_pak(exp),
+				       nh_mac_str1,
+				       dp_test_intf_name2mac_str("dp1T1"),
+				       RTE_ETHER_TYPE_IPV4);
+
+	dp_test_ipv4_decrement_ttl(dp_test_exp_get_pak(exp));
+	dp_test_pak_receive(test_pak, "dp4T1", exp);
+
+	/*
+	 * Now bring down that path, and resend the packet - it should
+	 * now use the remaining primary path
+	 */
+	dp_test_make_nh_unusable("dp1T1", NULL);
+	dp_test_verify_nh_map_count("10.0.1.4 ", 2, map_list2);
+
+	test_pak = dp_test_create_udp_ipv4_pak("4.4.4.5", "10.0.1.2",
+					       1001, 1003, 1, &len);
+	(void)dp_test_pktmbuf_eth_init(test_pak,
+				       dp_test_intf_name2mac_str("dp4T1"),
+				       DP_TEST_INTF_DEF_SRC_MAC,
+				       RTE_ETHER_TYPE_IPV4);
+
+	exp = dp_test_exp_create(test_pak);
+	dp_test_exp_set_oif_name(exp, "dp2T1");
+
+	(void)dp_test_pktmbuf_eth_init(dp_test_exp_get_pak(exp),
+				       nh_mac_str2,
+				       dp_test_intf_name2mac_str("dp2T1"),
+				       RTE_ETHER_TYPE_IPV4);
+
+	dp_test_ipv4_decrement_ttl(dp_test_exp_get_pak(exp));
+	dp_test_pak_receive(test_pak, "dp4T1", exp);
+
+	/*
+	 * Now bring down last primary, and resend the packet - it should
+	 * now use the backup path
+	 */
+	dp_test_make_nh_unusable("dp2T1", NULL);
+	dp_test_verify_nh_map_count("10.0.1.4 ", 2, map_list3);
+
+	test_pak = dp_test_create_udp_ipv4_pak("4.4.4.5", "10.0.1.2",
+					       1001, 1003, 1, &len);
+	(void)dp_test_pktmbuf_eth_init(test_pak,
+				       dp_test_intf_name2mac_str("dp4T1"),
+				       DP_TEST_INTF_DEF_SRC_MAC,
+				       RTE_ETHER_TYPE_IPV4);
+
+	exp = dp_test_exp_create(test_pak);
+	dp_test_exp_set_oif_name(exp, "dp3T1");
+
+	(void)dp_test_pktmbuf_eth_init(dp_test_exp_get_pak(exp),
+				       nh_mac_str3,
+				       dp_test_intf_name2mac_str("dp3T1"),
+				       RTE_ETHER_TYPE_IPV4);
+
+	dp_test_ipv4_decrement_ttl(dp_test_exp_get_pak(exp));
+	dp_test_pak_receive(test_pak, "dp4T1", exp);
+
+	/* Clean Up */
+	dp_test_netlink_del_route(
+		"10.0.1.0/24 "
+		"nh 1.1.1.2 int:dp1T1 "
+		"nh 2.2.2.1 int:dp2T1 "
+		"nh 3.3.3.1 int:dp3T1 backup");
+
+	dp_test_netlink_del_neigh("dp1T1", "1.1.1.2", nh_mac_str1);
+	dp_test_netlink_del_neigh("dp2T1", "2.2.2.1", nh_mac_str2);
+	dp_test_netlink_del_neigh("dp3T1", "3.3.3.1", nh_mac_str3);
+
+	dp_test_nl_del_ip_addr_and_connected("dp1T1", "1.1.1.1/24");
+	dp_test_nl_del_ip_addr_and_connected("dp2T1", "2.2.2.2/24");
+	dp_test_nl_del_ip_addr_and_connected("dp3T1", "3.3.3.3/24");
+	dp_test_nl_del_ip_addr_and_connected("dp4T1", "4.4.4.4/24");
+
+} DP_END_TEST;
