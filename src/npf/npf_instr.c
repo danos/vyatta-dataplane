@@ -266,17 +266,15 @@ npf_match_icmp4(const npf_cache_t *npc, uint32_t tc)
 		return -1;
 
 	/* Match code/type, if required. */
-	if ((1u << 31) & tc) {
-		const uint8_t type = (tc >> 8) & 0xff;
-		if (type != ic->icmp_type) {
+	if (tc & NC_ICMP_HAS_TYPE) {
+		const uint8_t type = NC_ICMP_GET_TYPE_FROM_OP(tc);
+		if (type != ic->icmp_type)
 			return -1;
-		}
 	}
-	if ((1u << 30) & tc) {
-		const uint8_t code = tc & 0xff;
-		if (code != ic->icmp_code) {
+	if (tc & NC_ICMP_HAS_CODE) {
+		const uint8_t code = NC_ICMP_GET_CODE_FROM_OP(tc);
+		if (code != ic->icmp_code)
 			return -1;
-		}
 	}
 	return 0;
 }
@@ -306,17 +304,15 @@ npf_match_icmp6(const npf_cache_t *npc, uint32_t tc)
 		return -1;
 
 	/* Match code/type, if required. */
-	if ((1u << 31) & tc) {
-		const uint8_t type = (tc >> 8) & 0xff;
-		if (type != ic6->icmp6_type) {
+	if (tc & NC_ICMP_HAS_TYPE) {
+		const uint8_t type = NC_ICMP_GET_TYPE_FROM_OP(tc);
+		if (type != ic6->icmp6_type)
 			return -1;
-		}
 	}
-	if ((1u << 30) & tc) {
-		const uint8_t code = tc & 0xff;
-		if (code != ic6->icmp6_code) {
+	if (tc & NC_ICMP_HAS_CODE) {
+		const uint8_t code = NC_ICMP_GET_CODE_FROM_OP(tc);
+		if (code != ic6->icmp6_code)
 			return -1;
-		}
 	}
 	return 0;
 }
