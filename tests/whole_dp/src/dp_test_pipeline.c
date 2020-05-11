@@ -236,3 +236,14 @@ DP_START_TEST(dyn_feat, dyn_feat_ipv4)
 	dp_test_nl_del_ip_addr_and_connected("dp2T1", "2.2.2.2/24");
 
 } DP_END_TEST;
+
+static const char *plugin_name = "dp_test_pipeline";
+
+int dp_ut_plugin_init(const char **name)
+{
+	int rv = 0;
+
+	*name = plugin_name;
+
+	return rv;
+}

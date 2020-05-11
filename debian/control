@@ -107,8 +107,7 @@ Description: Vyatta dataplane pipeline node build support
 Package: vyatta-dataplane-test
 Section: non-free/devel
 Architecture: any
-Depends: vyatta-dataplane-sample-plugin,
-         ${misc:Depends},
+Depends: ${misc:Depends},
          ${shlibs:Depends}
 Description: Vyatta dataplane test binary
  A test binary used for running unit tests

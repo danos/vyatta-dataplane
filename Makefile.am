@@ -387,11 +387,10 @@ src/pipeline/pl_fused_gen.h: $(PIPELINE_NODE_FILES) $(srcdir)/scripts/pl_gen_fus
 src/pipeline/pl_fused_gen.c: $(PIPELINE_NODE_FILES) $(srcdir)/scripts/pl_gen_fused src/pipeline/pl_fused_gen.h
 	$(AM_V_GEN)$(srcdir)/scripts/pl_gen_fused $(PL_GEN_FUSED_OPTS) --impl-out $@ $(PIPELINE_NODE_FILES:%=$(srcdir)/%)
 
-BUILT_SOURCES = src/pipeline/pl_fused_gen.h $(PROTO_FILES:.proto=.pb-c.h) $(SAMPLE_PROTO_FILES:.proto=.pb-c.h)
+BUILT_SOURCES = src/pipeline/pl_fused_gen.h $(PROTO_FILES:.proto=.pb-c.h)
 BUILT_SOURCES += $(PROTO_FILES:.proto=.pb.h)
 CLEANFILES = src/pipeline/pl_fused_gen.h src/pipeline/pl_fused_gen.c
 CLEANFILES += $(PROTO_FILES:.proto=.pb-c.c) $(PROTO_FILES:.proto=.pb-c.h)
-CLEANFILES += $(SAMPLE_PROTO_FILES:.proto=.pb-c.c) $(SAMPLE_PROTO_FILES:.proto=.pb-c.h)
 CLEANFILES += $(PROTO_FILES:.proto=.pb.c) $(PROTO_FILES:.proto=.pb.h)
 
 PROTO_FILES = \
@@ -413,10 +412,6 @@ PROTO_FILES = \
 	protobuf/Route.proto \
 	protobuf/RibUpdate.proto \
 	protobuf/MacLimitConfig.proto
-
-
-SAMPLE_PROTO_FILES = src/pipeline/nodes/sample/SampleFeatConfig.proto \
-	src/pipeline/nodes/sample/SampleFeatOp.proto
 
 %.pb-c.c %.pb-c.h: %.proto
 	$(AM_V_GEN)@PROTOC_C@ -I=$(dir $^) --c_out=$(dir $@) $^
@@ -485,7 +480,7 @@ dataplane_LDADD = $(DPDK_LIBS) $(DPI_LIBS) $(LIBMNL_LIBS) $(LIBCAP_LIBS) $(LIBCZ
 EXTRA_dataplane_DEPENDENCIES = $(srcdir)/dataplane.section-ordering libvyatta-jsonw.la
 
 
-dataplane_test_SOURCES = $(CORE_FILES) $(CRYTPO_FILES) $(IPV6_FILES) $(NPF_FILES) $(MPLS_FILES) $(DPI_FILES) $(PIPELINE_FILES) $(SESSION_FILES) $(PROTO_FILES:.proto=.pb-c.c) $(SAMPLE_PROTO_FILES:.proto=.pb-c.c) $(CONNSYNC_FILES)
+dataplane_test_SOURCES = $(CORE_FILES) $(CRYTPO_FILES) $(IPV6_FILES) $(NPF_FILES) $(MPLS_FILES) $(DPI_FILES) $(PIPELINE_FILES) $(SESSION_FILES) $(PROTO_FILES:.proto=.pb-c.c) $(CONNSYNC_FILES)
 dataplane_test_SOURCES += \
 	tests/common/src/dp_test_pktmbuf_lib.c \
 	tests/common/src/dp_test_crypto_lib.c \
@@ -585,7 +580,6 @@ dataplane_test_SOURCES += \
 	tests/whole_dp/src/dp_test_npf_vti.c \
 	tests/whole_dp/src/dp_test_npf_zone.c \
 	tests/whole_dp/src/dp_test_pbr.c \
-	tests/whole_dp/src/dp_test_pipeline.c \
 	tests/whole_dp/src/dp_test_poe_cmds.c \
 	tests/whole_dp/src/dp_test_portmonitor_commands.c \
 	tests/whole_dp/src/dp_test_portmonitor.c \
@@ -664,12 +658,31 @@ dp_test_include_HEADERS = \
 	include/dp_test/dp_test_firewall_lib.h \
 	include/dp_test/dp_test_session_lib.h
 
+##### Sample Plugin
+
 pkgplugindir = $(pkglibdir)/pipeline/plugins
+
+BUILT_SOURCES += $(SAMPLE_PROTO_FILES:.proto=.pb-c.h)
+CLEANFILES += $(SAMPLE_PROTO_FILES:.proto=.pb-c.c) $(SAMPLE_PROTO_FILES:.proto=.pb-c.h)
+
+SAMPLE_PROTO_FILES = src/pipeline/nodes/sample/SampleFeatConfig.proto \
+	src/pipeline/nodes/sample/SampleFeatOp.proto
 
 pkgplugin_LTLIBRARIES = sample_plugin.la
 sample_plugin_la_SOURCES = src/pipeline/nodes/sample/sample.c $(SAMPLE_PROTO_FILES:.proto=.pb-c.c)
-sample_plugin_la_CPPFLAGS = -I$(srcdir)/include -I$(builddir)/src/pipeline/nodes/sample $(DPDK_CFLAGS) -I$(builddir)/src/pipeline/nodes/sample
+sample_plugin_la_CPPFLAGS = -I$(srcdir)/include -I$(builddir)/src/pipeline/nodes/sample
+sample_plugin_la_CFLAGS = $(EXTRA_CFLAGS)
+sample_plugin_la_LIBADD =
 sample_plugin_la_LDFLAGS = -avoid-version -module -shared -export-dynamic
+
+lib_LTLIBRARIES += sample_test.la
+sample_test_la_SOURCES = tests/whole_dp/src/dp_test_pipeline.c $(SAMPLE_PROTO_FILES:.proto=.pb-c.c)
+sample_test_la_CPPFLAGS = -I$(srcdir)/include -I$(srcdir)/include/dp_test -I$(builddir)/src/pipeline/nodes/sample
+sample_test_la_CFLAGS = $(EXTRA_CFLAGS) $(DPDK_CFLAGS)
+sample_test_la_LIBADD = $(DPDK_LIBS)
+sample_test_la_LDFLAGS = -avoid-version -module -shared -export-dynamic
+
+##### END Sample Plugin
 
 if DATAPLANE_SANITIZER
 dataplane_CFLAGS += -fsanitize=address -DSANITIZE_ADDRESS
@@ -687,7 +700,6 @@ EXTRA_DIST = $(VALGRIND_SUPPRESSIONS_FILES)
 
 dataplane_test_CPPFLAGS = $(dataplane_CPPFLAGS) $(JSON_C_CFLAGS)
 dataplane_test_CPPFLAGS += -I$(srcdir)/include/dp_test -I$(srcdir)/tests/whole_dp/src -I$(srcdir)/tests/common/inc
-dataplane_test_CPPFLAGS += $(sample_plugin_la_CPPFLAGS)
 
 dataplane_test_CFLAGS = $(dataplane_CFLAGS) -fno-lto -UNDEBUG -O0 -g $(CODE_COVERAGE_CFLAGS)
 dataplane_test_CFLAGS += -Wno-unused-parameter
@@ -737,7 +749,7 @@ __dataplane_test_args_ = $(__dataplane_test_args_@AM_DEFAULT_V@)
 __dataplane_test_args_0 = "-d0"
 __dataplane_test_args_1 = "-d2"
 
-dataplane_test_run: dataplane_test
+dataplane_test_run: dataplane_test sample_test.la sample_plugin.la
 	catchsegv ./dataplane_test -P $(builddir)/.libs $(DATAPLANE_TEST_ARGS)
 
 .PHONY: dataplane_test_run
