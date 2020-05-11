@@ -660,6 +660,11 @@ void
 npf_ref_stats(npf_ruleset_t *old, npf_ruleset_t *new)
 {
 	npf_rule_group_t *rg_old, *rg_new;
+	uint32_t rs_type_flags;
+
+	rs_type_flags = npf_get_ruleset_type_flags(old->rs_type);
+	if (rs_type_flags & NPF_RS_FLAG_NO_STATS)
+		return;
 
 	cds_list_for_each_entry(rg_new, &new->rs_groups, rg_entry) {
 		rg_old = npf_find_rule_group(&old->rs_groups, rg_new);
@@ -675,6 +680,12 @@ npf_clear_stats(const npf_ruleset_t *ruleset, enum npf_rule_class group_class,
 {
 	npf_rule_group_t *rg;
 	npf_rule_t *rl;
+
+	uint32_t rs_type_flags;
+
+	rs_type_flags = npf_get_ruleset_type_flags(ruleset->rs_type);
+	if (rs_type_flags & NPF_RS_FLAG_NO_STATS)
+		return;
 
 	cds_list_for_each_entry(rg, &ruleset->rs_groups, rg_entry) {
 		if (group_class == NPF_RULE_CLASS_COUNT ||
