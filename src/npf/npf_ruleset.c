@@ -214,7 +214,7 @@ static struct npf_rule_stats *npf_rule_stats_alloc(void)
 }
 
 /* Allocate a rule and its subsystems */
-static npf_rule_t *npf_alloc_rule(void)
+static npf_rule_t *npf_alloc_rule(uint32_t ruleset_type_flags)
 {
 	npf_rule_t *rl;
 
@@ -226,9 +226,11 @@ static npf_rule_t *npf_alloc_rule(void)
 
 	rte_atomic32_set(&rl->r_refcnt, 1);
 
-	rl->r_stats = npf_rule_stats_alloc();
-	if (!rl->r_stats)
-		goto bad_stats;
+	if (!(ruleset_type_flags & NPF_RS_FLAG_NO_STATS)) {
+		rl->r_stats = npf_rule_stats_alloc();
+		if (!rl->r_stats)
+			goto bad_stats;
+	}
 
 	rl->r_state = zmalloc_aligned(sizeof(struct npf_rule_state));
 	if (!rl->r_state)
@@ -244,7 +246,8 @@ static npf_rule_t *npf_alloc_rule(void)
 bad_rproc:
 	free(rl->r_state);
 bad_state:
-	npf_rule_stats_put(rl->r_stats);
+	if (rl->r_stats)
+		npf_rule_stats_put(rl->r_stats);
 bad_stats:
 	free(rl);
 	return NULL;
@@ -1442,12 +1445,13 @@ npf_process_rule_config(npf_rule_t *rl)
 }
 
 int
-npf_make_rule(npf_rule_group_t *rg, uint32_t rule_no, const char *rule_line)
+npf_make_rule(npf_rule_group_t *rg, uint32_t rule_no, const char *rule_line,
+	      uint32_t ruleset_type_flags)
 {
 	npf_rule_t *rl;
 	int ret;
 
-	rl = npf_alloc_rule();
+	rl = npf_alloc_rule(ruleset_type_flags);
 	if (!rl) {
 		RTE_LOG(ERR, FIREWALL, "Error: rule allocation failed\n");
 		return -ENOMEM;

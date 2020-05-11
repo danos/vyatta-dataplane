@@ -148,7 +148,7 @@ npf_rule_group_t *npf_rule_group_create(npf_ruleset_t *ruleset,
 					enum npf_rule_class group_class,
 					const char *group, uint8_t dir);
 int npf_make_rule(npf_rule_group_t *rg, uint32_t rule_no,
-		  const char *rule_line);
+		  const char *rule_line, uint32_t ruleset_type_flags);
 void *npf_rule_rproc_handle_for_logger(npf_rule_t *rl);
 bool npf_rule_has_rproc_actions(npf_rule_t *rl);
 bool npf_rule_has_rproc_logger(npf_rule_t *rl);
