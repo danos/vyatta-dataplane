@@ -136,7 +136,7 @@ void nexthop_put(int family, uint32_t idx);
 int next_hop_copy(struct next_hop *old, struct next_hop *new);
 
 /*
- * Given an nexthop_u create a copy of the nexthops in an array
+ * Given an next_hop_list create a copy of the nexthops in an array
  *
  * @param[in] nhl The fully formed nhl
  * @param[out] size Store the size of the created array here.
@@ -207,8 +207,8 @@ next_hop_list_create_copy_finish(int family,
  * where there are a different number of paths.
  *
  * @param[in] family The address family for this nexthop
- * @param[in] old_nu The old nexthop_u to remove from the hash
- * @param[in] new_nu The new nexthop_u to add to the hash
+ * @param[in] old_nu The old next_hop_list to remove from the hash
+ * @param[in] new_nu The new next_hop_list to add to the hash
  *
  * @retval 0 on success
  *         -ve on failure
