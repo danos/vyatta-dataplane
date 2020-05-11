@@ -142,7 +142,7 @@ static char mac_str[N_MAC_STR][MAC_STR_MAX];
 static int cur_mac_str;
 
 char *
-dp_test_mac2str(struct ether_addr *mac)
+dp_test_mac2str(struct rte_ether_addr *mac)
 {
 	char *str = mac_str[cur_mac_str];
 
@@ -166,7 +166,7 @@ dp_test_mac2str(struct ether_addr *mac)
 char *
 dp_test_canonicalise_macstr(const char *macstr, char *canon)
 {
-	struct ether_addr mac;
+	struct rte_ether_addr mac;
 
 	if (!ether_aton_r(macstr, &mac))
 		return NULL;

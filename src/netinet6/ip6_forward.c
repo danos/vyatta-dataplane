@@ -47,7 +47,7 @@
 #include "mpls/mpls.h"
 #include "mpls/mpls_forward.h"
 #include "nd6_nbr.h"
-#include "nh.h"
+#include "nh_common.h"
 #include "npf/npf.h"
 #include "npf/fragment/ipv6_rsmbl.h"
 #include "npf/npf_cache.h"
@@ -80,14 +80,14 @@ enum ip6_packet_validity {
  */
 ALWAYS_INLINE bool
 dp_ip6_l2_nh_output(struct ifnet *in_ifp, struct rte_mbuf *m,
-		    struct next_hop_v6 *nh, uint16_t proto)
+		    struct next_hop *nh, uint16_t proto)
 {
 	struct pl_packet pl_pkt = {
 		.mbuf = m,
 		.l2_pkt_type = pkt_mbuf_get_l2_traffic_type(m),
 		.l3_hdr = ip6hdr(m),
 		.in_ifp = in_ifp,
-		.out_ifp = dp_nh6_get_ifp(nh),
+		.out_ifp = dp_nh_get_ifp(nh),
 		.nxt.v6 = nh,
 		.l2_proto = proto,
 	};
@@ -107,10 +107,10 @@ ALWAYS_INLINE bool
 dp_ip6_l2_intf_output(struct ifnet *in_ifp, struct rte_mbuf *m,
 		      struct ifnet *out_ifp, uint16_t proto)
 {
-	struct next_hop_v6 nh6;
+	struct next_hop nh6;
 
 	memset(&nh6, 0, sizeof(nh6));
-	nh6_set_ifp(&nh6, out_ifp);
+	nh_set_ifp(&nh6, out_ifp);
 	return dp_ip6_l2_nh_output(in_ifp, m, &nh6, proto);
 }
 
@@ -170,7 +170,7 @@ ip6_local_deliver(struct ifnet *ifp, struct rte_mbuf *m)
 	 *
 	 * Run the local firewall,  and discard if so instructed.
 	 */
-	if (npf_local_fw(ifp, &m, htons(ETHER_TYPE_IPv6)))
+	if (npf_local_fw(ifp, &m, htons(RTE_ETHER_TYPE_IPV6)))
 		goto discard;
 
 	IP6STAT_INC_IFP(ifp, IPSTATS_MIB_INDELIVERS);
@@ -201,7 +201,7 @@ int ip6_fragment_mtu(struct ifnet *ifp, unsigned int mtu_size,
 {
 	struct rte_mbuf *m_table[IPV6_MAX_FRAGS];
 	struct ip6_hdr *in_ip6, *frag_ip6;
-	struct ether_hdr *eth_hdr;
+	struct rte_ether_hdr *eth_hdr;
 	struct ip6_frag *ip6f;
 	struct rte_mbuf *m_frag;
 	uint32_t fh_id = random();
@@ -269,10 +269,10 @@ int ip6_fragment_mtu(struct ifnet *ifp, unsigned int mtu_size,
 		/*
 		 * Fixup fragment L2 header
 		 */
-		rte_pktmbuf_prepend(m_frag, sizeof(struct ether_hdr));
-		eth_hdr = rte_pktmbuf_mtod(m_frag, struct ether_hdr *);
-		eth_hdr->ether_type = htons(ETHER_TYPE_IPv6);
-		m_frag->l2_len = sizeof(struct ether_hdr);
+		rte_pktmbuf_prepend(m_frag, sizeof(struct rte_ether_hdr));
+		eth_hdr = rte_pktmbuf_mtod(m_frag, struct rte_ether_hdr *);
+		eth_hdr->ether_type = htons(RTE_ETHER_TYPE_IPV6);
+		m_frag->l2_len = sizeof(struct rte_ether_hdr);
 
 		m_table[nfrags++] = m_frag;
 	}
@@ -308,7 +308,7 @@ ip6_refragment_packet(struct ifnet *o_ifp, struct rte_mbuf *m,
 		      void *ctx, ip6_output_fn_t output_fn)
 {
 	struct rte_mbuf *m_table[IPV6_MAX_FRAGS_PER_SET];
-	struct ether_hdr *eth_hdr, eth_copy;
+	struct rte_ether_hdr *eth_hdr, eth_copy;
 	uint16_t l2_len;
 	int32_t nfrags;
 	uint32_t fh_id;
@@ -328,10 +328,10 @@ ip6_refragment_packet(struct ifnet *o_ifp, struct rte_mbuf *m,
 	 * addresses, but we don't know that just yet so just copy the
 	 * complete header.
 	 */
-	eth_hdr = rte_pktmbuf_mtod(m, struct ether_hdr *);
+	eth_hdr = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
 
-	ether_addr_copy(&eth_hdr->d_addr, &eth_copy.d_addr);
-	ether_addr_copy(&eth_hdr->s_addr, &eth_copy.s_addr);
+	rte_ether_addr_copy(&eth_hdr->d_addr, &eth_copy.d_addr);
+	rte_ether_addr_copy(&eth_hdr->s_addr, &eth_copy.s_addr);
 	eth_copy.ether_type = eth_hdr->ether_type;
 
 	/*
@@ -378,20 +378,20 @@ ip6_refragment_packet(struct ifnet *o_ifp, struct rte_mbuf *m,
 			 */
 			fh = (struct ip6_frag *)
 				(rte_pktmbuf_mtod(m, char *) +
-				 sizeof(struct ipv6_hdr));
+				 sizeof(struct rte_ipv6_hdr));
 			fh->ip6f_ident = htonl(fh_id);
 
 			/* Prepend space for l2 hdr */
-			rte_pktmbuf_prepend(m, sizeof(struct ether_hdr));
-			m->l2_len = sizeof(struct ether_hdr);
+			rte_pktmbuf_prepend(m, sizeof(struct rte_ether_hdr));
+			m->l2_len = sizeof(struct rte_ether_hdr);
 
 			/*
 			 * Write the ethernet header
 			 */
-			eth_hdr = rte_pktmbuf_mtod(m, struct ether_hdr *);
+			eth_hdr = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
 
-			ether_addr_copy(&eth_copy.d_addr, &eth_hdr->d_addr);
-			ether_addr_copy(&eth_copy.s_addr, &eth_hdr->s_addr);
+			rte_ether_addr_copy(&eth_copy.d_addr, &eth_hdr->d_addr);
+			rte_ether_addr_copy(&eth_copy.s_addr, &eth_hdr->s_addr);
 			eth_hdr->ether_type = eth_copy.ether_type;
 
 			(*output_fn)(o_ifp, m, ctx);
@@ -404,11 +404,11 @@ ip6_refragment_packet(struct ifnet *o_ifp, struct rte_mbuf *m,
  * If NULL is returned, the packet has been consumed
  */
 static ALWAYS_INLINE
-struct next_hop_v6 *ip6_lookup(struct rte_mbuf *m, struct ifnet *ifp,
+struct next_hop *ip6_lookup(struct rte_mbuf *m, struct ifnet *ifp,
 			    struct ip6_hdr *ip6, uint32_t tbl_id,
 			    bool hlim_decremented)
 {
-	struct next_hop_v6 *nxt;
+	struct next_hop *nxt;
 
 	/* Lookup route */
 	nxt = dp_rt6_lookup(&ip6->ip6_dst, tbl_id, m);
@@ -442,7 +442,7 @@ struct next_hop_v6 *ip6_lookup(struct rte_mbuf *m, struct ifnet *ifp,
  */
 ALWAYS_INLINE
 void ip6_out_features(struct rte_mbuf *m, struct ifnet *ifp,
-		      struct ip6_hdr *ip6, struct next_hop_v6 *nxt,
+		      struct ip6_hdr *ip6, struct next_hop *nxt,
 		      enum ip6_features ip6_feat, uint16_t npf_flags)
 {
 	struct pl_packet pl_pkt = {
@@ -454,7 +454,7 @@ void ip6_out_features(struct rte_mbuf *m, struct ifnet *ifp,
 	};
 
 	/* nxt->ifp may be changed by netlink messages. */
-	struct ifnet *nxt_ifp = dp_nh6_get_ifp(nxt);
+	struct ifnet *nxt_ifp = dp_nh_get_ifp(nxt);
 
 	/* Destination device is not up? */
 	if (!nxt_ifp || !(nxt_ifp->if_flags & IFF_UP)) {
@@ -508,7 +508,7 @@ void ip6_out_features(struct rte_mbuf *m, struct ifnet *ifp,
 
 static ALWAYS_INLINE
 void ip6_switch(struct rte_mbuf *m, struct ifnet *ifp,
-		struct ip6_hdr *ip6, struct next_hop_v6 *nxt,
+		struct ip6_hdr *ip6, struct next_hop *nxt,
 		enum ip6_features ip6_feat, uint16_t npf_flags)
 {
 	/* Immediately drop blackholed traffic. */
@@ -525,9 +525,7 @@ void ip6_switch(struct rte_mbuf *m, struct ifnet *ifp,
 
 	/* MPLS imposition required because nh has given us a label */
 	if (unlikely(nh_outlabels_present(&nxt->outlabels))) {
-		union next_hop_v4_or_v6_ptr mpls_nh = { .v6 = nxt };
-
-		mpls_unlabeled_input(ifp, m, NH_TYPE_V6GW, mpls_nh,
+		mpls_unlabeled_input(ifp, m, NH_TYPE_V6GW, nxt,
 				     ip6->ip6_hops);
 		return;
 	}
@@ -678,7 +676,7 @@ void ip6_input_from_ipsec(struct ifnet *ifp, struct rte_mbuf *m)
 
 	/* Give IPsec a chance to consume it */
 	if (unlikely(crypto_policy_check_outbound(ifp, &m, RT_TABLE_MAIN,
-						  htons(ETHER_TYPE_IPv6),
+						  htons(RTE_ETHER_TYPE_IPV6),
 						  NULL)))
 		return;
 
@@ -698,7 +696,7 @@ ALWAYS_INLINE
 void ip6_output(struct rte_mbuf *m, bool srced_forus)
 {
 	struct ip6_hdr *ip6 = ip6hdr(m);
-	struct next_hop_v6 *nxt;
+	struct next_hop *nxt;
 	struct ifnet *ifp;
 
 	/* Lookup route */
@@ -714,7 +712,7 @@ void ip6_output(struct rte_mbuf *m, bool srced_forus)
 	}
 
 	/* ifp can be changed by nxt->ifp. use protected deref. */
-	ifp = dp_nh6_get_ifp(nxt);
+	ifp = dp_nh_get_ifp(nxt);
 
 	if (unlikely(ifp == NULL)) {
 		if (net_ratelimit()) {
@@ -752,8 +750,8 @@ void
 ip6_lookup_and_originate(struct rte_mbuf *m, struct ifnet *in_ifp)
 {
 	struct ip6_hdr *ip6 = ip6hdr(m);
-	struct next_hop_v6 *nxt;
-	struct next_hop_v6 ll_nh;
+	struct next_hop *nxt;
+	struct next_hop ll_nh;
 
 	/*
 	 * RFC 4291 - Do not try to transmit to unspecified or loopback
@@ -765,7 +763,7 @@ ip6_lookup_and_originate(struct rte_mbuf *m, struct ifnet *in_ifp)
 	}
 
 	if (unlikely(IN6_IS_ADDR_LINKLOCAL(&ip6->ip6_dst))) {
-		ll_nh = (struct next_hop_v6) {
+		ll_nh = (struct next_hop) {
 			.u.ifp = in_ifp,
 		};
 		nxt = &ll_nh;
@@ -791,7 +789,7 @@ ip6_lookup_and_forward(struct rte_mbuf *m, struct ifnet *in_ifp,
 		       bool hlim_decremented, uint16_t npf_flags)
 {
 	struct ip6_hdr *ip6 = ip6hdr(m);
-	struct next_hop_v6 *nxt;
+	struct next_hop *nxt;
 
 	/*
 	 * RFC 4291 - Source address of unspecified must never be forwarded.

@@ -21,7 +21,7 @@
 
 /* A PPPoE Packet, including Ethernet headers */
 struct pppoe_packet {
-	struct ether_hdr eth_hdr;   /* Ethernet header */
+	struct rte_ether_hdr eth_hdr;   /* Ethernet header */
 	uint8_t vertype; /* PPPoE Version and Type (must both be 1) */
 	uint8_t code;	/* PPPoE code */
 	uint16_t session;	/* PPPoE session */
@@ -39,8 +39,8 @@ struct pppoe_tag {
 
 struct pppoe_connection {
 	struct rcu_head scpppoe_rcu;
-	struct ether_addr my_eth; /* My MAC address */
-	struct ether_addr peer_eth; /* Peer's MAC address */
+	struct rte_ether_addr my_eth; /* My MAC address */
+	struct rte_ether_addr peer_eth; /* Peer's MAC address */
 	uint16_t session;		/* Session ID */
 	char *service_name;		/* Desired service name, if any */
 	char *ac_name;		/* Desired AC name, if any */

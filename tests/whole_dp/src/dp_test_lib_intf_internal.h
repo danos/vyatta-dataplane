@@ -68,7 +68,7 @@ uint16_t dp_test_intf2default_dpid(const char *if_name);
 enum dp_test_intf_loc_e dp_test_intf_loc(const char *if_name);
 unsigned int dp_test_cont_src_ifindex(unsigned int ifindex);
 uint8_t dp_test_intf_name2port(const char *if_name);
-struct ether_addr *dp_test_intf_name2mac(const char *if_name);
+struct rte_ether_addr *dp_test_intf_name2mac(const char *if_name);
 
 #define DP_TEST_INTF_STATE_BRIDGE 0x01
 #define DP_TEST_INTF_STATE_PBR    0x02
@@ -80,7 +80,7 @@ void _dp_test_intf_name2vrfid(const char *if_name, uint32_t *vrf_id,
 #define dp_test_intf_name2vrfid(if_name, vrf_id) \
 	_dp_test_intf_name2vrfid(if_name, vrf_id, \
 				 __FILE__, __func__, __LINE__)
-struct ether_addr *dp_test_intf_port2mac(portid_t port_id);
+struct rte_ether_addr *dp_test_intf_port2mac(portid_t port_id);
 void dp_test_intf_port2name(portid_t port_id, char *if_name);
 int dp_test_intf_port2index(portid_t port_id);
 void dp_test_intf_add_addr(const char *if_name, struct dp_test_addr *addr);
@@ -284,5 +284,14 @@ dp_test_upstream_vrf_lookup_db(uint32_t vrf_id, char *vrf_name,
 			       uint32_t *tableid);
 bool
 dp_test_upstream_vrf_add_db(uint32_t vrf_id, char *vrf_name, uint32_t *tableid);
+
+void dp_test_pak_add_to_ring(const char *iif_name,
+			     struct rte_mbuf **paks_to_send,
+			     uint32_t num_paks,
+			     bool wait_until_processed);
+
+int dp_test_pak_get_from_ring(const char *if_name,
+			      struct rte_mbuf **bufs,
+			      int count);
 
 #endif /* _DP_TEST_LIB_INTF_INTERNAL_H_ */

@@ -80,24 +80,25 @@ static inline bool l2tp_seq_after(uint32_t ns, uint32_t olds)
  */
 static void l2tp_decap(struct rte_mbuf *m, uint32_t offset)
 {
-	struct ether_hdr *eth = NULL;
+	struct rte_ether_hdr *eth = NULL;
 
 	rte_pktmbuf_adj(m, offset);
 
-	eth = rte_pktmbuf_mtod(m, struct ether_hdr *);
-	if (eth->ether_type != htons(ETHER_TYPE_VLAN)) {
+	eth = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
+	if (eth->ether_type != htons(RTE_ETHER_TYPE_VLAN)) {
 		m->ol_flags &= ~PKT_RX_VLAN;
 		return;
 	}
 
 	/* Adjust vlan information */
-	struct vlan_hdr *vh = (struct vlan_hdr *) (eth + 1);
+	struct rte_vlan_hdr *vh = (struct rte_vlan_hdr *) (eth + 1);
 
 	m->vlan_tci = ntohs(vh->vlan_tci);
 	m->ol_flags |= PKT_RX_VLAN;
 
-	memmove((char *)eth + sizeof(struct vlan_hdr), eth, 2 * ETHER_ADDR_LEN);
-	rte_pktmbuf_adj(m, sizeof(struct vlan_hdr));
+	memmove((char *)eth + sizeof(struct rte_vlan_hdr),
+		eth, 2 * RTE_ETHER_ADDR_LEN);
+	rte_pktmbuf_adj(m, sizeof(struct rte_vlan_hdr));
 }
 
 
@@ -166,7 +167,7 @@ static int l2tp_recv_encap(struct rte_mbuf *m,
 	if_incr_in(ifp, m);
 	pktmbuf_prepare_decap_reswitch(m);
 
-	if (rte_pktmbuf_data_len(m) < sizeof(struct ether_hdr)) {
+	if (rte_pktmbuf_data_len(m) < sizeof(struct rte_ether_hdr)) {
 		if_incr_error(ifp);
 		rte_pktmbuf_free(m);
 		return 0;
@@ -381,12 +382,13 @@ int l2tp_undo_decap(const struct ifnet *ifp, struct rte_mbuf *m)
 		return -1;
 
 	uint16_t len = rte_pktmbuf_pkt_len(m) + session->hdr_len;
-	if (rte_pktmbuf_prepend(m, session->hdr_len + ETHER_HDR_LEN) == NULL)
+	if (rte_pktmbuf_prepend(m, session->hdr_len +
+				   RTE_ETHER_HDR_LEN) == NULL)
 		return -1;
 
 	/* fix outer IP length to account for possible trimming */
-	struct ether_hdr *eth = ethhdr(m);
-	if (eth->ether_type == htons(ETHER_TYPE_IPv4)) {
+	struct rte_ether_hdr *eth = ethhdr(m);
+	if (eth->ether_type == htons(RTE_ETHER_TYPE_IPV4)) {
 		struct iphdr *ip = (struct iphdr *)(eth + 1);
 		uint16_t ip_len = htons(len);
 
@@ -405,7 +407,7 @@ int l2tp_undo_decap(const struct ifnet *ifp, struct rte_mbuf *m)
 				udp->check = 0;
 			}
 		}
-	} else if (eth->ether_type == htons(ETHER_TYPE_IPv6)) {
+	} else if (eth->ether_type == htons(RTE_ETHER_TYPE_IPV6)) {
 		struct ip6_hdr *ip6 = (struct ip6_hdr *)(eth + 1);
 		uint16_t plen = htons(len - sizeof(*ip6));
 
@@ -481,7 +483,7 @@ int l2tp_undo_decap_br(const struct ifnet *brif, struct rte_mbuf *m)
 		if (ifp->if_parent && l2tp_undo_vlan_decap(m, ifp->if_parent) < 0)
 			return -1;
 
-		if (!rte_pktmbuf_prepend(m, s->hdr_len + ETHER_HDR_LEN))
+		if (!rte_pktmbuf_prepend(m, s->hdr_len + RTE_ETHER_HDR_LEN))
 			return -1;
 
 		return 0;

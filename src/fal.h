@@ -26,7 +26,7 @@
 #include "util.h"
 #include "vrf_internal.h"
 
-struct ether_addr;
+struct rte_ether_addr;
 struct fal_attribute_t;
 struct fal_ip_address_t;
 struct if_addr;
@@ -183,21 +183,21 @@ struct fal_bridge_ops {
 			 unsigned int child_ifindex);
 	void (*new_neigh)(unsigned int child_ifindex,
 			  uint16_t vlanid,
-			  const struct ether_addr *dst,
+			  const struct rte_ether_addr *dst,
 			  uint32_t attr_count,
 			  const struct fal_attribute_t *attr_list);
 	void (*upd_neigh)(unsigned int child_ifindex,
 			  uint16_t vlanid,
-			  const struct ether_addr *dst,
+			  const struct rte_ether_addr *dst,
 			  struct fal_attribute_t *attr);
 	void (*del_neigh)(unsigned int child_ifindex,
 			  uint16_t vlanid,
-			  const struct ether_addr *dst);
+			  const struct rte_ether_addr *dst);
 	void (*flush_neigh)(unsigned int bridge_ifindex,
 			    uint32_t attr_count,
 			    const struct fal_attribute_t *attr_list);
 	int (*walk_neigh)(unsigned int bridge_ifindex, uint16_t vlanid,
-			  const struct ether_addr *dst,
+			  const struct rte_ether_addr *dst,
 			  unsigned int child_ifindex,
 			  fal_br_walk_neigh_fn cb, void *arg);
 };
@@ -615,6 +615,7 @@ int str_to_fal_ip_address_t(char *str, struct fal_ip_address_t *ipaddr);
 const char *fal_ip_address_t_to_str(const struct fal_ip_address_t *ipaddr,
 				    char *dst, socklen_t size);
 bool fal_is_ipaddr_empty(const struct fal_ip_address_t *ipaddr);
+enum fal_ip_addr_family_t addr_family_to_fal_ip_addr_family(int family);
 
 void fal_register_message_handler(struct message_handler *handler);
 void fal_delete_message_handler(struct message_handler *handler);
@@ -632,14 +633,14 @@ int fal_l2_upd_port(unsigned int if_index,
 		    struct fal_attribute_t *attr);
 void fal_l2_del_port(unsigned int if_index);
 void fal_l2_new_addr(unsigned int if_index,
-		     const struct ether_addr *addr,
+		     const struct rte_ether_addr *addr,
 		     uint32_t attr_count,
 		     const struct fal_attribute_t *attr_list);
 void fal_l2_upd_addr(unsigned int if_index,
-		     const struct ether_addr *addr,
+		     const struct rte_ether_addr *addr,
 		     struct fal_attribute_t *attr);
 void fal_l2_del_addr(unsigned int if_index,
-		     const struct ether_addr *addr);
+		     const struct rte_ether_addr *addr);
 
 /* Router Interface related APIs */
 int fal_create_router_interface(uint32_t attr_count,
@@ -697,25 +698,26 @@ void fal_br_del_port(unsigned int bridge_ifindex,
 		     unsigned int child_ifindex);
 void fal_br_new_neigh(unsigned int child_ifindex,
 		      uint16_t vlanid,
-		      const struct ether_addr *dst,
+		      const struct rte_ether_addr *dst,
 		      uint32_t attr_count,
 		      const struct fal_attribute_t *attr_list);
 void fal_br_upd_neigh(unsigned int child_ifindex,
 		      uint16_t vlanid,
-		      const struct ether_addr *dst,
+		      const struct rte_ether_addr *dst,
 		      struct fal_attribute_t *attr);
 void fal_br_del_neigh(unsigned int child_ifindex,
 		      uint16_t vlanid,
-		      const struct ether_addr *dst);
+		      const struct rte_ether_addr *dst);
 void fal_br_flush_neigh(unsigned int bridge_ifindex,
 			uint32_t attr_count,
 			const struct fal_attribute_t *attr);
 void fal_fdb_flush_mac(unsigned int bridge_ifindex, unsigned int child_ifindex,
-		       const struct ether_addr *mac);
+		       const struct rte_ether_addr *mac);
 void fal_fdb_flush(unsigned int bridge_ifindex, unsigned int child_ifindex,
 		   uint16_t vlanid, bool only_dynamic);
 int fal_br_walk_neigh(unsigned int bridge_ifindex, uint16_t vlanid,
-		      const struct ether_addr *dst, unsigned int child_ifindex,
+		      const struct rte_ether_addr *dst,
+		      unsigned int child_ifindex,
 		      fal_br_walk_neigh_fn cb, void *arg);
 
 int fal_vlan_get_stats(uint16_t vlan, uint32_t num_cntrs,
@@ -777,10 +779,11 @@ void fal_ip4_upd_addr(unsigned int if_index,
 		      const struct if_addr *ifa);
 void fal_ip4_del_addr(unsigned int if_index,
 		      const struct if_addr *ifa);
-int fal_ip4_new_next_hops(size_t nhops, const struct next_hop hops[],
-			  fal_object_t *nhg_object, fal_object_t *obj);
-int fal_ip4_del_next_hops(fal_object_t nhg_object, size_t nhops,
-			  const fal_object_t *obj);
+int fal_ip_new_next_hops(enum fal_ip_addr_family_t family,
+			 size_t nhops, const struct next_hop hops[],
+			 fal_object_t *nhg_object, fal_object_t *obj);
+int fal_ip_del_next_hops(fal_object_t nhg_object, size_t nhops,
+			 const fal_object_t *obj);
 int fal_ip4_new_route(vrfid_t vrf_id, in_addr_t addr, uint8_t prefixlen,
 		      uint32_t tableid, struct next_hop hops[],
 		      size_t size, fal_object_t nhg_object);
@@ -836,10 +839,6 @@ void fal_ip6_upd_addr(unsigned int if_index,
 		      const struct if_addr *ifa);
 void fal_ip6_del_addr(unsigned int if_index,
 		      const struct if_addr *ifa);
-int fal_ip6_new_next_hops(size_t nhops, const struct next_hop_v6 hops[],
-			  fal_object_t *group_obj, fal_object_t *obj);
-int fal_ip6_del_next_hops(fal_object_t group_obj, size_t nhops,
-			  const fal_object_t *obj);
 int fal_ip_get_next_hop_group_attrs(fal_object_t nhg_object,
 				    uint32_t attr_count,
 				    struct fal_attribute_t *attr_list);
@@ -850,11 +849,11 @@ int fal_ip_get_next_hop_attrs(fal_object_t nh_object,
 void fal_ip_dump_next_hop(fal_object_t nh_object, json_writer_t *wr);
 int fal_ip6_new_route(vrfid_t vrf_id, const struct in6_addr *addr,
 		      uint8_t prefixlen, uint32_t tableid,
-		      struct next_hop_v6 hops[], size_t size,
+		      struct next_hop hops[], size_t size,
 		      fal_object_t group_obj);
 int fal_ip6_upd_route(vrfid_t vrf_id, const struct in6_addr *addr,
 		      uint8_t prefixlen, uint32_t tableid,
-		      struct next_hop_v6 hops[], size_t size,
+		      struct next_hop hops[], size_t size,
 		      fal_object_t group_obj);
 int fal_ip6_del_route(vrfid_t vrf_id, const struct in6_addr *addr,
 		      uint8_t prefixlen, uint32_t tableid);

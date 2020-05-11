@@ -19,7 +19,7 @@
 #include <stdint.h>
 #include <stdio.h>
 
-#include "nh.h"
+#include "nh_common.h"
 #include "route.h"
 
 struct cds_lfht;
@@ -51,11 +51,11 @@ void mpls_label_table_unlock(int labelspace);
 void mpls_label_table_insert_label(int labelspace, uint32_t in_label,
 				   enum nh_type nh_type,
 				   enum mpls_payload_type payload_type,
-				   union next_hop_v4_or_v6_ptr hops,
+				   struct next_hop *hops,
 				   size_t size);
 void mpls_label_table_remove_label(int labelspace, uint32_t in_label);
 
-union next_hop_v4_or_v6_ptr
+struct next_hop *
 mpls_label_table_lookup(struct cds_lfht *label_table, uint32_t in_label,
 			const struct rte_mbuf *m, uint16_t ether_type,
 			enum nh_type *nht,

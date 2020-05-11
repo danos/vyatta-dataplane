@@ -33,7 +33,7 @@
 #include "mpls/mpls.h"
 #include "mpls_label_table.h"
 #include "netlink.h"
-#include "nh.h"
+#include "nh_common.h"
 #include "route.h"
 #include "route_flags.h"
 #include "route_v6.h"
@@ -202,7 +202,8 @@ static int mpls_route_change(const struct nlmsghdr *nlh,
 		in_addr_t v4;
 		struct in6_addr v6;
 	} nh = { INADDR_ANY };
-	union next_hop_v4_or_v6_ptr nhops;
+	struct ip_addr ip_addr;
+	struct next_hop *nhops;
 	uint32_t size = 0;
 	struct ifnet *oifp = NULL;
 	uint32_t flags = 0;
@@ -268,13 +269,13 @@ static int mpls_route_change(const struct nlmsghdr *nlh,
 						 &size, &nh_type,
 						 &missing_ifp);
 			if (missing_ifp) {
-				incomplete_route_add(&in_label,
-						     rtm->rtm_family,
-						     rtm->rtm_dst_len,
-						     rtm->rtm_table,
-						     rtm->rtm_scope,
-						     rtm->rtm_protocol,
-						     nlh);
+				incomplete_route_add_nl(&in_label,
+							rtm->rtm_family,
+							rtm->rtm_dst_len,
+							rtm->rtm_table,
+							rtm->rtm_scope,
+							rtm->rtm_protocol,
+							nlh);
 				return MNL_CB_OK;
 			}
 		} else {
@@ -333,34 +334,40 @@ static int mpls_route_change(const struct nlmsghdr *nlh,
 			if (!oifp) {
 				flags |= RTF_SLOWPATH;
 				if (!is_ignored_interface(ifindex)) {
-					incomplete_route_add(&in_label,
-							     rtm->rtm_family,
-							     rtm->rtm_dst_len,
-							     rtm->rtm_table,
-							     rtm->rtm_scope,
-							     rtm->rtm_protocol,
-							     nlh);
+					incomplete_route_add_nl(
+						&in_label,
+						rtm->rtm_family,
+						rtm->rtm_dst_len,
+						rtm->rtm_table,
+						rtm->rtm_scope,
+						rtm->rtm_protocol,
+						nlh);
 					return MNL_CB_OK;
 				}
 			}
 
 			if (!via || via->rtvia_family == AF_INET) {
-				nhops.v4 = nexthop_create(oifp, nh.v4,
-							  flags,
-							  out_label_count,
-							  hl_out_labels);
+				ip_addr.type = AF_INET;
+				ip_addr.address.ip_v4.s_addr = nh.v4;
+				nhops = nexthop_create(oifp, &ip_addr,
+						       flags,
+						       out_label_count,
+						       hl_out_labels);
 			} else if (via->rtvia_family == AF_INET6) {
 				nh_type = NH_TYPE_V6GW;
-				nhops.v6 = nexthop6_create(oifp,
-							   &nh.v6,
-							   flags,
-							   out_label_count,
-							   hl_out_labels);
+				ip_addr.type = AF_INET6;
+				ip_addr.address.ip_v6 = nh.v6;
+
+				nhops = nexthop_create(oifp,
+						       &ip_addr,
+						       flags,
+						       out_label_count,
+						       hl_out_labels);
 			} else {
 				RTE_LOG(INFO, MPLS,
 					"unsupported via address in route change message: %u\n",
 					via->rtvia_family);
-				nhops.v4 = NULL;
+				nhops = NULL;
 			}
 		}
 
@@ -376,7 +383,7 @@ static int mpls_route_change(const struct nlmsghdr *nlh,
 			 via ? inet_ntop(via->rtvia_family, via->rtvia_addr,
 					 b3, sizeof(b3)) : "none");
 
-		if (nhops.v4 == NULL)
+		if (nhops == NULL)
 			RTE_LOG(ERR, MPLS,
 				"No next-hops for route change message\n");
 		else
@@ -385,10 +392,7 @@ static int mpls_route_change(const struct nlmsghdr *nlh,
 						      payload_type, nhops,
 						      size);
 
-		if (nh_type == NH_TYPE_V6GW)
-			free(nhops.v6);
-		else
-			free(nhops.v4);
+		free(nhops);
 	} else {
 		mpls_label_table_remove_label(global_label_space_id, in_label);
 	}

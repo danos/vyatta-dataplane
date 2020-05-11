@@ -16,7 +16,7 @@ Build-Depends: autoconf-archive (>= 20150925),
                libbsd-dev,
                libcap-dev,
                libczmq-dev,
-               libdpdk-dev (>= 18.11-0vyatta4),
+               libdpdk-dev (>= 19.11-0vyatta1),
                libgoogle-protocolbuffers-perl,
                libinih-dev,
                libjson-c-dev,
@@ -79,7 +79,8 @@ Provides: fal-acl,
           fal-router-interface,
           fal-tun,
           fal-tun-dscp,
-          fal-vlan-feat-create
+          fal-vlan-feat-create,
+          fal-deferred-free,
 Description: Vyatta optimized dataplane
  Vyatta dataplane is the set of tools to provide performance optimized routing
  and forwarding. It supports IPv4, IPv6, firewalling, bridging and more.
@@ -88,14 +89,24 @@ Package: vyatta-dataplane-dev
 Section: non-free/devel
 Architecture: any
 Depends: check,
-         libdpdk-dev (>= 18.11-0vyatta4),
+         libdpdk-dev (>= 19.11-0vyatta1),
          libjson-c-dev,
          libvyattafal-dev,
-         vyatta-dataplane-sample-plugin,
+         libvyatta-dataplane-proto-dev,
+         libprotobuf-c-dev,
          ${misc:Depends},
          ${shlibs:Depends}
 Description: Vyatta dataplane pipeline node build support
  Set of headers required for dataplane compilation
+
+Package: vyatta-dataplane-test
+Section: non-free/devel
+Architecture: any
+Depends: vyatta-dataplane-sample-plugin,
+         ${misc:Depends},
+         ${shlibs:Depends}
+Description: Vyatta dataplane test binary
+ A test binary used for running unit tests
 
 Package: libvyatta-dataplane-proto-support
 Section: non-free/devel
@@ -107,7 +118,7 @@ Description: Vyatta dataplane protocol buffer files and support
 Package: vyatta-dataplane-sample-plugin
 Section: non-free/net
 Architecture: any
-Depends: vyatta-dataplane | vyatta-dataplane-dev,
+Depends: vyatta-dataplane | vyatta-dataplane-test,
          ${misc:Depends},
          ${shlibs:Depends}
 Description: Vyatta dataplane sample plugin library
@@ -117,7 +128,7 @@ Description: Vyatta dataplane sample plugin library
 Package: libvyattafal-dev
 Section: non-free/libdevel
 Architecture: any
-Depends: libdpdk-dev, ${misc:Depends}
+Depends: libdpdk-dev (>= 19.11-0vyatta1), ${misc:Depends}
 Provides: fal-dev-acl,
           fal-dev-backplane,
           fal-dev-bfd-hw,
@@ -143,7 +154,9 @@ Provides: fal-dev-acl,
           fal-dev-tun,
           fal-dev-tun-dscp,
           fal-dev-vlan-feat-create,
-          fal-dev-vlan-rx-stats-range
+          fal-dev-vlan-rx-stats-range,
+          fal-dev-l3-nh-usability,
+          fal-dev-deferred-free,
 Description: Forwarding Abstraction Library plugin development files
  An API for dataplane FAL plugins
 

@@ -56,7 +56,7 @@ DP_START_TEST(ip_icmp, df)
 
 	(void)dp_test_pktmbuf_eth_init(test_pak,
 				       dp_test_intf_name2mac_str("dp3T3"),
-				       neigh3_mac_str, ETHER_TYPE_IPv4);
+				       neigh3_mac_str, RTE_ETHER_TYPE_IPV4);
 
 	/*
 	 * Expected packet
@@ -73,7 +73,7 @@ DP_START_TEST(ip_icmp, df)
 	(void)dp_test_pktmbuf_eth_init(icmp_pak,
 				       neigh3_mac_str,
 				       dp_test_intf_name2mac_str("dp3T3"),
-				       ETHER_TYPE_IPv4);
+				       RTE_ETHER_TYPE_IPV4);
 
 	dp_test_set_pak_ip_field(ip, DP_TEST_SET_TOS,
 				 IPTOS_PREC_INTERNETCONTROL);
@@ -146,7 +146,7 @@ DP_START_TEST(ip_icmp, df2)
 
 	(void)dp_test_pktmbuf_eth_init(test_pak,
 				       dp_test_intf_name2mac_str("dp2T2"),
-				       neigh2_mac_str, ETHER_TYPE_IPv4);
+				       neigh2_mac_str, RTE_ETHER_TYPE_IPV4);
 
 	/*
 	 * Expected packet
@@ -163,7 +163,7 @@ DP_START_TEST(ip_icmp, df2)
 	(void)dp_test_pktmbuf_eth_init(icmp_pak,
 				       neigh2_mac_str,
 				       dp_test_intf_name2mac_str("dp2T2"),
-				       ETHER_TYPE_IPv4);
+				       RTE_ETHER_TYPE_IPV4);
 
 	dp_test_set_pak_ip_field(ip, DP_TEST_SET_TOS,
 				 IPTOS_PREC_INTERNETCONTROL);
@@ -244,7 +244,7 @@ DP_START_TEST(ip_icmp, df3)
 
 	(void)dp_test_pktmbuf_eth_init(test_pak,
 				       macvlan_mac,
-				       neigh1_mac_str, ETHER_TYPE_IPv4);
+				       neigh1_mac_str, RTE_ETHER_TYPE_IPV4);
 
 	/*
 	 * Expected packet
@@ -261,7 +261,7 @@ DP_START_TEST(ip_icmp, df3)
 	(void)dp_test_pktmbuf_eth_init(icmp_pak,
 				       neigh1_mac_str,
 				       macvlan_mac,
-				       ETHER_TYPE_IPv4);
+				       RTE_ETHER_TYPE_IPV4);
 
 	dp_test_set_pak_ip_field(ip, DP_TEST_SET_TOS,
 				 IPTOS_PREC_INTERNETCONTROL);
@@ -332,7 +332,7 @@ DP_START_TEST(ip_icmp, ttl)
 
 	(void)dp_test_pktmbuf_eth_init(test_pak,
 				       dp_test_intf_name2mac_str("dp1T1"),
-				       NULL, ETHER_TYPE_IPv4);
+				       NULL, RTE_ETHER_TYPE_IPV4);
 
 	/*
 	 * Expected packet
@@ -348,7 +348,7 @@ DP_START_TEST(ip_icmp, ttl)
 	(void)dp_test_pktmbuf_eth_init(icmp_pak,
 				       nh_mac_str,
 				       dp_test_intf_name2mac_str("dp1T1"),
-				       ETHER_TYPE_IPv4);
+				       RTE_ETHER_TYPE_IPV4);
 	dp_test_set_pak_ip_field(ip, DP_TEST_SET_TOS,
 				 IPTOS_PREC_INTERNETCONTROL);
 
@@ -377,7 +377,7 @@ DP_START_TEST(ip_icmp, ttl)
 
 	(void)dp_test_pktmbuf_eth_init(test_pak,
 				       dp_test_intf_name2mac_str("dp1T1"),
-				       NULL, ETHER_TYPE_IPv4);
+				       NULL, RTE_ETHER_TYPE_IPV4);
 
 	exp = dp_test_exp_create(test_pak);
 	dp_test_exp_set_fwd_status(exp, DP_TEST_FWD_LOCAL);
@@ -419,7 +419,7 @@ DP_START_TEST(ip_icmp, noroute)
 
 	(void)dp_test_pktmbuf_eth_init(test_pak,
 				       dp_test_intf_name2mac_str("dp1T1"),
-				       NULL, ETHER_TYPE_IPv4);
+				       NULL, RTE_ETHER_TYPE_IPV4);
 
 	/*
 	 * Expected packet
@@ -435,7 +435,7 @@ DP_START_TEST(ip_icmp, noroute)
 	(void)dp_test_pktmbuf_eth_init(icmp_pak,
 				       nh_mac_str,
 				       dp_test_intf_name2mac_str("dp1T1"),
-				       ETHER_TYPE_IPv4);
+				       RTE_ETHER_TYPE_IPV4);
 	dp_test_set_pak_ip_field(ip, DP_TEST_SET_TOS,
 				 IPTOS_PREC_INTERNETCONTROL);
 
@@ -490,7 +490,7 @@ DP_START_TEST(ip_icmp, redirect)
 
 	(void)dp_test_pktmbuf_eth_init(test_pak,
 				       dp_test_intf_name2mac_str("dp1T1"),
-				       NULL, ETHER_TYPE_IPv4);
+				       NULL, RTE_ETHER_TYPE_IPV4);
 
 	dp_test_addr_str_to_addr("1.1.1.3", &gw);
 	payload = dp_test_cp_pak(test_pak);
@@ -498,7 +498,7 @@ DP_START_TEST(ip_icmp, redirect)
 	(void)dp_test_pktmbuf_eth_init(payload,
 				       nh_mac_str3,
 				       dp_test_intf_name2mac_str("dp1T1"),
-				       ETHER_TYPE_IPv4);
+				       RTE_ETHER_TYPE_IPV4);
 
 	/*
 	 * Expected packet
@@ -514,7 +514,7 @@ DP_START_TEST(ip_icmp, redirect)
 	(void)dp_test_pktmbuf_eth_init(icmp_pak,
 				       nh_mac_str2,
 				       dp_test_intf_name2mac_str("dp1T1"),
-				       ETHER_TYPE_IPv4);
+				       RTE_ETHER_TYPE_IPV4);
 	dp_test_set_pak_ip_field(ip, DP_TEST_SET_TOS,
 				 IPTOS_PREC_INTERNETCONTROL);
 
@@ -586,7 +586,7 @@ DP_START_TEST(ip_icmp, noredirect)
 
 	(void)dp_test_pktmbuf_eth_init(test_pak,
 				       dp_test_intf_name2mac_str("dp1T1"),
-				       NULL, ETHER_TYPE_IPv4);
+				       NULL, RTE_ETHER_TYPE_IPV4);
 
 	/*
 	 * Expected packet
@@ -598,7 +598,7 @@ DP_START_TEST(ip_icmp, noredirect)
 	(void)dp_test_pktmbuf_eth_init(dp_test_exp_get_pak(exp),
 				       nh_mac_str3,
 				       dp_test_intf_name2mac_str("dp1T1"),
-				       ETHER_TYPE_IPv4);
+				       RTE_ETHER_TYPE_IPV4);
 
 	dp_test_pak_receive(test_pak, "dp1T1", exp);
 
@@ -643,7 +643,7 @@ DP_START_TEST(ip_icmp, rfc_redirect)
 
 	(void)dp_test_pktmbuf_eth_init(test_pak,
 				       dp_test_intf_name2mac_str("dp1T1"),
-				       NULL, ETHER_TYPE_IPv4);
+				       NULL, RTE_ETHER_TYPE_IPV4);
 
 	/*
 	 * Expected packet
@@ -655,7 +655,7 @@ DP_START_TEST(ip_icmp, rfc_redirect)
 	(void)dp_test_pktmbuf_eth_init(dp_test_exp_get_pak(exp),
 				       nh_mac_str3,
 				       dp_test_intf_name2mac_str("dp1T1"),
-				       ETHER_TYPE_IPv4);
+				       RTE_ETHER_TYPE_IPV4);
 
 	dp_test_pak_receive(test_pak, "dp1T1", exp);
 

@@ -10,7 +10,6 @@
 #include "dp_test_str.h"
 #include "dp_test_lib_internal.h"
 #include "dp_test_lib_exp.h"
-#include "dp_test_lib_pb.h"
 #include "dp_test_lib_pkt.h"
 #include "dp_test_pktmbuf_lib_internal.h"
 #include "dp_test_controller.h"
@@ -263,7 +262,7 @@ DP_START_TEST(ppp_traffic, ppp_traffic_1)
 	(void)dp_test_pktmbuf_eth_init(test_pak,
 				       dp_test_intf_name2mac_str("dp1T0"),
 				       DP_TEST_INTF_DEF_SRC_MAC,
-				       ETHER_TYPE_IPv4);
+				       RTE_ETHER_TYPE_IPV4);
 
 	/* Create pak we expect to receive on the tx ring */
 	exp = dp_test_exp_create(test_pak);
@@ -316,7 +315,7 @@ DP_START_TEST(ppp_traffic, ppp_traffic_2)
 	(void)dp_test_pktmbuf_eth_init(test_pak,
 				       dp_test_intf_name2mac_str("dp1T0"),
 				       DP_TEST_INTF_DEF_SRC_MAC,
-				       ETHER_TYPE_IPv4);
+				       RTE_ETHER_TYPE_IPV4);
 
 	/* Create pak we expect to receive on the tx ring */
 	exp = dp_test_exp_create(test_pak);
@@ -338,7 +337,7 @@ DP_START_TEST(ppp_traffic, ppp_traffic_2)
 	(void)dp_test_pktmbuf_eth_init(test_pak,
 				       dp_test_intf_name2mac_str("dp1T0"),
 				       DP_TEST_INTF_DEF_SRC_MAC,
-				       ETHER_TYPE_IPv4);
+				       RTE_ETHER_TYPE_IPV4);
 
 	/* Delete the underlying interface */
 	dp_test_nl_del_ip_addr_and_connected("dp2T1.100", "3.3.3.3/24");
@@ -368,7 +367,7 @@ DP_START_TEST(ppp_traffic, ppp_traffic_2)
 	(void)dp_test_pktmbuf_eth_init(test_pak,
 				       dp_test_intf_name2mac_str("dp1T0"),
 				       DP_TEST_INTF_DEF_SRC_MAC,
-				       ETHER_TYPE_IPv4);
+				       RTE_ETHER_TYPE_IPV4);
 
 	/* Create pak we expect to receive on the tx ring */
 	exp = dp_test_exp_create(test_pak);
@@ -418,7 +417,7 @@ DP_START_TEST(ppp_traffic, ppp_traffic_3)
 	(void)dp_test_pktmbuf_eth_init(test_pak,
 				       dp_test_intf_name2mac_str("dp1T0"),
 				       DP_TEST_INTF_DEF_SRC_MAC,
-				       ETHER_TYPE_IPv4);
+				       RTE_ETHER_TYPE_IPV4);
 
 	/* Create pak we expect to receive on the tx ring */
 	exp = dp_test_exp_create(test_pak);
@@ -442,7 +441,7 @@ DP_START_TEST(ppp_traffic, ppp_traffic_3)
 	(void)dp_test_pktmbuf_eth_init(test_pak,
 				       dp_test_intf_name2mac_str("dp1T0"),
 				       DP_TEST_INTF_DEF_SRC_MAC,
-				       ETHER_TYPE_IPv4);
+				       RTE_ETHER_TYPE_IPV4);
 
 	/* Create pak we expect to receive on the tx ring */
 	exp = dp_test_exp_create(test_pak);
@@ -503,7 +502,7 @@ DP_START_TEST(ppp_traffic, ppp_traffic_4)
 	(void)dp_test_pktmbuf_eth_init(test_pak,
 				       dp_test_intf_name2mac_str("dp1T0"),
 				       DP_TEST_INTF_DEF_SRC_MAC,
-				       ETHER_TYPE_IPv4);
+				       RTE_ETHER_TYPE_IPV4);
 
 	/* Create pak we expect to receive on the tx ring */
 	exp = dp_test_exp_create(test_pak);

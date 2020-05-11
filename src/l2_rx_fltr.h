@@ -25,7 +25,7 @@ struct l2_mcfltr_node {
 	struct rcu_head       l2mf_rcu;	  /* for deletion via rcu */
 	struct cds_lfht_node  l2mf_node;  /* hash table node  */
 	struct ifnet	      *l2mf_if;	  /* associated if */
-	struct ether_addr     l2mf_addr;  /* multicast mac address */
+	struct rte_ether_addr     l2mf_addr;  /* multicast mac address */
 	int16_t               l2mf_ref;   /* ref count (overloaded 24 bits) */
 };
 
@@ -33,7 +33,7 @@ struct l2_mcfltr_node {
 #define	L2_MCFLTRHASH_BITS	13
 
 static inline unsigned long
-l2_mcfltr_node_hash(const struct ether_addr *key)
+l2_mcfltr_node_hash(const struct rte_ether_addr *key)
 {
 	return eth_addr_hash(key, L2_MCFLTRHASH_BITS);
 }
@@ -46,7 +46,7 @@ l2_mcfltr_node_match(struct cds_lfht_node *node, const void *key)
 		= caa_container_of(node, const struct l2_mcfltr_node,
 				   l2mf_node);
 
-	return ether_addr_equal(&bmf->l2mf_addr, key);
+	return rte_ether_addr_equal(&bmf->l2mf_addr, key);
 }
 
 /*
@@ -55,7 +55,8 @@ l2_mcfltr_node_match(struct cds_lfht_node *node, const void *key)
  *	Look up a mcast filter node for the specified destination.
  */
 static inline struct l2_mcfltr_node *
-l2_mcfltr_node_lookup(const struct ifnet *ifp, const struct ether_addr *addr)
+l2_mcfltr_node_lookup(const struct ifnet *ifp,
+		      const struct rte_ether_addr *addr)
 {
 	struct cds_lfht_iter iter;
 
@@ -76,9 +77,9 @@ int l2_rx_fltr_init(struct ifnet *ifp);
 void l2_rx_fltr_cleanup(struct ifnet *ifp);
 void l2_rx_fltr_delete_rcu(struct ifnet *ifp);
 
-void l2_rx_fltr_add_addr(struct ifnet *ifp, const struct ether_addr *dst);
+void l2_rx_fltr_add_addr(struct ifnet *ifp, const struct rte_ether_addr *dst);
 
-void l2_rx_fltr_del_addr(struct ifnet *ifp, const struct ether_addr *dst);
+void l2_rx_fltr_del_addr(struct ifnet *ifp, const struct rte_ether_addr *dst);
 
 void l2_rx_fltr_state_change(struct ifnet *ifp);
 

@@ -202,7 +202,7 @@ struct pl_packet {
 	 */
 	union {
 		struct next_hop *v4;
-		struct next_hop_v6 *v6;
+		struct next_hop *v6;
 	} nxt;
 	/*
 	 * Pointer to the input interface for this packet

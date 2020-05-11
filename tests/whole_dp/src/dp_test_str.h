@@ -51,7 +51,7 @@ dp_test_ipstr_to_range(const char *ipstr, char *range, uint rlen);
  * Round-robins 4 fixed arrays.
  */
 char *
-dp_test_mac2str(struct ether_addr *mac);
+dp_test_mac2str(struct rte_ether_addr *mac);
 
 /*
  * Take a MAC address string with leading zeros or no leading zeros, and lower

@@ -162,7 +162,7 @@ struct dp_test_intf {
 	int ifindex;            /* Interface index allocated by 'kernel' */
 	uint8_t state;          /* Track interface programmed state */
 	char if_name[IFNAMSIZ];
-	struct ether_addr mac;  /* Interface mac address */
+	struct rte_ether_addr mac;  /* Interface mac address */
 	in_addr_t ip4[DP_TEST_INTF_ADDR_MAX];
 	struct in6_addr ip6[DP_TEST_INTF_ADDR_MAX];
 	uint8_t active;    /* are there switch_port interface active */
@@ -338,10 +338,10 @@ void dp_test_intf_dpdk_init(void)
 		snprintf(tx_ring_name, sizeof(tx_ring_name),
 			 DP_TEST_TX_RING_BASE_NAME "%c%c",
 			 loc, intf->if_name[4]);
-		rx_ring = rte_ring_create(rx_ring_name, 32,
+		rx_ring = rte_ring_create(rx_ring_name, 512,
 					  SOCKET_ID_ANY,
 					  RING_F_SC_DEQ);
-		tx_ring = rte_ring_create(tx_ring_name, 32,
+		tx_ring = rte_ring_create(tx_ring_name, 512,
 					  SOCKET_ID_ANY,
 					  RING_F_SP_ENQ);
 		if (!rx_ring || !tx_ring)
@@ -504,7 +504,7 @@ void dp_test_intf_init(void)
 int
 dp_test_intf_virt_add(const char *if_name)
 {
-	struct ether_addr mac = {
+	struct rte_ether_addr mac = {
 		.addr_bytes = { 0x00, 0x00, 0xa5, 0x00, 0x00, 0x00 }
 	};
 	char real_if_name[IFNAMSIZ];
@@ -637,7 +637,7 @@ dp_test_intf_name2index(const char *if_name)
 	return intf->ifindex;
 }
 
-struct ether_addr *
+struct rte_ether_addr *
 dp_test_intf_name2mac(const char *if_name)
 {
 	struct dp_test_intf *intf;
@@ -732,7 +732,7 @@ dp_test_intf_port2index(portid_t port_id)
  *
  * Convert port_id to interface mac.
  */
-struct ether_addr *
+struct rte_ether_addr *
 dp_test_intf_port2mac(portid_t port_id)
 {
 	struct dp_test_intf *intf;

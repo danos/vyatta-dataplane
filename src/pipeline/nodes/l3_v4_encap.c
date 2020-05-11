@@ -14,6 +14,7 @@
 
 #include "compiler.h"
 #include "if_var.h"
+#include "if_llatbl.h"
 #include "ip_funcs.h"
 #include "pl_common.h"
 #include "pl_fused.h"
@@ -21,7 +22,7 @@
 #include "pl_nodes_common.h"
 #include "route.h"
 #include "route_flags.h"
-#include "nh.h"
+#include "nh_common.h"
 #include "arp.h"
 #include "snmp_mib.h"
 
@@ -48,13 +49,14 @@ static ALWAYS_INLINE bool
 ipv4_encap_eth_from_nh4(struct rte_mbuf *mbuf, const struct next_hop *nh,
 			in_addr_t addr)
 {
-	struct ether_hdr *eth_hdr = rte_pktmbuf_mtod(mbuf, struct ether_hdr *);
-	struct ifnet *out_ifp = dp_nh4_get_ifp(nh); /* Needed for VRRP */
+	struct rte_ether_hdr *eth_hdr =
+				rte_pktmbuf_mtod(mbuf, struct rte_ether_hdr *);
+	struct ifnet *out_ifp = dp_nh_get_ifp(nh); /* Needed for VRRP */
 
-	ether_addr_copy(&out_ifp->eth_addr, &eth_hdr->s_addr);
+	rte_ether_addr_copy(&out_ifp->eth_addr, &eth_hdr->s_addr);
 
 	/* If already resolved, use the link level encap */
-	struct llentry *lle = nh4_get_lle(nh);
+	struct llentry *lle = nh_get_lle(nh);
 	if (likely(lle != NULL)) {
 		if (llentry_copy_mac(lle, &eth_hdr->d_addr))
 			return true;
@@ -116,7 +118,7 @@ ipv4_encap_process_internal(struct pl_packet *pkt, enum pl_mode mode)
 	in_addr_t addr;
 
 	if (nh->flags & RTF_GATEWAY) {
-		addr = nh->gateway;
+		addr = nh->gateway4;
 	} else {
 		struct iphdr *ip;
 

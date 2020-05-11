@@ -67,12 +67,14 @@
 int
 npf_match_mac(const struct rte_mbuf *nbuf, uint32_t opts, const char *filt)
 {
-	const struct ether_hdr *eh = rte_pktmbuf_mtod(nbuf, struct ether_hdr *);
-	const struct ether_addr *addr;
+	const struct rte_ether_hdr *eh =
+				rte_pktmbuf_mtod(nbuf, struct rte_ether_hdr *);
+	const struct rte_ether_addr *addr;
 
 	addr = (opts & NC_MATCH_SRC) ? &eh->s_addr : &eh->d_addr;
 
-	return ether_addr_equal(addr, (struct ether_addr *)filt) ? 0 : -1;
+	return rte_ether_addr_equal(addr,
+				    (struct rte_ether_addr *)filt) ? 0 : -1;
 }
 
 /*
@@ -362,7 +364,7 @@ npf_match_dscp(const npf_cache_t *npc, const uint64_t set)
 int
 npf_match_etype(const struct rte_mbuf *nbuf, uint32_t etype)
 {
-	uint16_t ether_type = ethtype(nbuf, ETHER_TYPE_VLAN);
+	uint16_t ether_type = ethtype(nbuf, RTE_ETHER_TYPE_VLAN);
 
 	if (ether_type != etype)
 		return -1;

@@ -438,7 +438,7 @@ _dpt_udp(const char *rx_intf, const char *pre_smac,
 	struct dp_test_pkt_desc_t pre_pkt_UDP = {
 		.text       = "IPv4 UDP",
 		.len        = len,
-		.ether_type = ETHER_TYPE_IPv4,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
 		.l3_src     = pre_saddr,
 		.l2_src     = pre_smac,
 		.l3_dst     = pre_daddr,
@@ -461,7 +461,7 @@ _dpt_udp(const char *rx_intf, const char *pre_smac,
 	struct dp_test_pkt_desc_t post_pkt_UDP = {
 		.text       = "IPv4 UDP",
 		.len        = len,
-		.ether_type = ETHER_TYPE_IPv4,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
 		.l3_src     = use_pre ? pre_saddr : post_saddr,
 		.l2_src     = pre_smac,
 		.l3_dst     = use_pre ? pre_daddr : post_daddr,
@@ -497,7 +497,7 @@ _dpt_udp(const char *rx_intf, const char *pre_smac,
 
 		dp_test_pktmbuf_eth_init(exp_pak, post_dmac,
 					 dp_test_intf_name2mac_str(tx_intf),
-					 ETHER_TYPE_IPv4);
+					 RTE_ETHER_TYPE_IPV4);
 		dp_test_ipv4_decrement_ttl(exp_pak);
 
 	} else if (!rx_intf && tx_intf) {
@@ -506,18 +506,18 @@ _dpt_udp(const char *rx_intf, const char *pre_smac,
 
 		dp_test_pktmbuf_eth_init(test_pak, post_dmac,
 					 dp_test_intf_name2mac_str(tx_intf),
-					 ETHER_TYPE_IPv4);
+					 RTE_ETHER_TYPE_IPV4);
 
 		dp_test_pktmbuf_eth_init(exp_pak, post_dmac,
 					 dp_test_intf_name2mac_str(tx_intf),
-					 ETHER_TYPE_IPv4);
+					 RTE_ETHER_TYPE_IPV4);
 
 	} else if (rx_intf && !tx_intf) {
 		/* intf -> local */
 		dp_test_pktmbuf_eth_init(exp_pak,
 					 dp_test_intf_name2mac_str(rx_intf),
 					 pre_smac,
-					 ETHER_TYPE_IPv4);
+					 RTE_ETHER_TYPE_IPV4);
 
 		if (status == DP_TEST_FWD_FORWARDED)
 			status = DP_TEST_FWD_LOCAL;
@@ -534,7 +534,7 @@ _dpt_udp(const char *rx_intf, const char *pre_smac,
 			dp_test_exp_get_pak(test_exp),
 			post_dmac,
 			dp_test_intf_name2mac_str(tx_intf),
-			ETHER_TYPE_IPv4);
+			RTE_ETHER_TYPE_IPV4);
 	}
 
 	dp_test_exp_set_fwd_status(test_exp, status);
@@ -570,7 +570,7 @@ _dpt_tcp(uint8_t flags, const char *rx_intf, const char *pre_smac,
 	struct dp_test_pkt_desc_t pre_pkt_TCP = {
 		.text       = "IPv4 TCP",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv4,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
 		.l3_src     = pre_saddr,
 		.l2_src     = pre_smac,
 		.l3_dst     = pre_daddr,
@@ -595,7 +595,7 @@ _dpt_tcp(uint8_t flags, const char *rx_intf, const char *pre_smac,
 	struct dp_test_pkt_desc_t post_pkt_TCP = {
 		.text       = "IPv4 TCP",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv4,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
 		.l3_src     = post_saddr,
 		.l2_src     = "aa:bb:cc:dd:2:b1",
 		.l3_dst     = post_daddr,
@@ -633,7 +633,7 @@ _dpt_tcp(uint8_t flags, const char *rx_intf, const char *pre_smac,
 			dp_test_exp_get_pak(test_exp),
 			post_dmac,
 			dp_test_intf_name2mac_str(tx_intf),
-			ETHER_TYPE_IPv4);
+			RTE_ETHER_TYPE_IPV4);
 	}
 
 	dp_test_exp_set_fwd_status(test_exp, status);
@@ -664,7 +664,7 @@ _dpt_icmp(uint8_t icmp_type,
 	struct dp_test_pkt_desc_t pre_pkt_ICMP = {
 		.text       = "IPv4 ICMP",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv4,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
 		.l3_src     = pre_saddr,
 		.l2_src     = pre_smac,
 		.l3_dst     = pre_daddr,
@@ -688,7 +688,7 @@ _dpt_icmp(uint8_t icmp_type,
 	struct dp_test_pkt_desc_t post_pkt_ICMP = {
 		.text       = "Packet A, IPv4 ICMP",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv4,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
 		.l3_src     = post_saddr,
 		.l2_src     = "aa:bb:cc:dd:2:b1",
 		.l3_dst     = post_daddr,
@@ -725,7 +725,7 @@ _dpt_icmp(uint8_t icmp_type,
 			dp_test_exp_get_pak(test_exp),
 			post_dmac,
 			dp_test_intf_name2mac_str(tx_intf),
-			ETHER_TYPE_IPv4);
+			RTE_ETHER_TYPE_IPV4);
 	}
 
 	dp_test_exp_set_fwd_status(test_exp, DP_TEST_FWD_FORWARDED);

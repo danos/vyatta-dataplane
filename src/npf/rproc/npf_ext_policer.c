@@ -171,15 +171,15 @@ npf_policer_create(npf_rule_t *rl, const char *params, void **handle)
 		po->tc = tc;
 		tcs_per_sec = ONE_SECOND / tc;
 		po->rate = rate / tcs_per_sec;
-		if (po->rate < ETHER_MAX_VLAN_FRAME_LEN) {
-			tcs_per_sec = rate / ETHER_MAX_VLAN_FRAME_LEN;
+		if (po->rate < RTE_ETHER_MAX_VLAN_FRAME_LEN) {
+			tcs_per_sec = rate / RTE_ETHER_MAX_VLAN_FRAME_LEN;
 			if (!tcs_per_sec) {
 				tcs_per_sec = 1;
 				po->tc = ONE_SECOND;
 			} else
 				po->tc = ONE_SECOND / tcs_per_sec;
 
-			po->rate = ETHER_MAX_VLAN_FRAME_LEN;
+			po->rate = RTE_ETHER_MAX_VLAN_FRAME_LEN;
 		}
 
 		po->burst = burst;

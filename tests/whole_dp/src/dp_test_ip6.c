@@ -10,6 +10,7 @@
 #include "ip6_funcs.h"
 
 #include "dp_test.h"
+#include "dp_test_controller.h"
 #include "dp_test_netlink_state_internal.h"
 #include "dp_test_lib_internal.h"
 #include "dp_test_lib_exp.h"
@@ -158,7 +159,7 @@ DP_START_TEST(ip6_rx, lo_intf)
 		(void)dp_test_pktmbuf_eth_init(
 			test_pak, dp_test_intf_name2mac_str("dp1T0"),
 			DP_TEST_INTF_DEF_SRC_MAC,
-			ETHER_TYPE_IPv6);
+			RTE_ETHER_TYPE_IPV6);
 
 		exp = dp_test_exp_create(test_pak);
 		dp_test_exp_set_fwd_status(exp, DP_TEST_FWD_LOCAL);
@@ -175,7 +176,7 @@ DP_START_TEST(ip6_rx, lo_intf)
 			(void)dp_test_pktmbuf_eth_init(
 				test_pak, dp_test_intf_name2mac_str("dp1T0"),
 				DP_TEST_INTF_DEF_SRC_MAC,
-				ETHER_TYPE_IPv6);
+				RTE_ETHER_TYPE_IPV6);
 
 			exp = dp_test_exp_create(test_pak);
 			dp_test_exp_set_fwd_status(exp, DP_TEST_FWD_LOCAL);
@@ -210,7 +211,7 @@ DP_START_TEST(ip6_rx, this_ifs_addr)
 	/* Ingress dp1T0 */
 	(void)dp_test_pktmbuf_eth_init(test_pak,
 				       dp_test_intf_name2mac_str("dp1T0"),
-				       NULL, ETHER_TYPE_IPv6);
+				       NULL, RTE_ETHER_TYPE_IPV6);
 
 	/* Create pak we expect to see in local_packet */
 	exp = dp_test_exp_create(test_pak);
@@ -248,7 +249,7 @@ DP_START_TEST(ip6_rx, fwd_ping6_nondp_intf)
 	(void)dp_test_pktmbuf_eth_init(test_pak,
 				       dp_test_intf_name2mac_str("dp1T0"),
 				       DP_TEST_INTF_DEF_SRC_MAC,
-				       ETHER_TYPE_IPv6);
+				       RTE_ETHER_TYPE_IPV6);
 
 	/* Create pak we expect to see in local_packet */
 	exp = dp_test_exp_create(test_pak);
@@ -287,7 +288,7 @@ DP_START_TEST(ip6_rx, invalid_paks)
 	(void)dp_test_pktmbuf_eth_init(good_pak,
 				       dp_test_intf_name2mac_str("dp1T1"),
 				       DP_TEST_INTF_DEF_SRC_MAC,
-				       ETHER_TYPE_IPv6);
+				       RTE_ETHER_TYPE_IPV6);
 
 	/*
 	 * Test 1 - check that the payload packet without errors is
@@ -301,7 +302,7 @@ DP_START_TEST(ip6_rx, invalid_paks)
 	(void)dp_test_pktmbuf_eth_init(dp_test_exp_get_pak(exp),
 				       nh_mac_str,
 				       dp_test_intf_name2mac_str("dp2T2"),
-				       ETHER_TYPE_IPv6);
+				       RTE_ETHER_TYPE_IPV6);
 	dp_test_ipv6_decrement_ttl(dp_test_exp_get_pak(exp));
 
 	dp_test_exp_set_oif_name(exp, "dp2T2");
@@ -447,7 +448,7 @@ DP_START_TEST(ip6_fwd, basic)
 	test_pak = dp_test_create_ipv6_pak("2010:73::", "2010:73:2::",
 					   1, &len);
 	dp_test_pktmbuf_eth_init(test_pak, dp_test_intf_name2mac_str("dp1T0"),
-				 NULL, ETHER_TYPE_IPv6);
+				 NULL, RTE_ETHER_TYPE_IPV6);
 
 	/* Create pak we expect to receive on the tx ring */
 	exp = dp_test_exp_create(test_pak);
@@ -456,7 +457,7 @@ DP_START_TEST(ip6_fwd, basic)
 	(void)dp_test_pktmbuf_eth_init(dp_test_exp_get_pak(exp),
 				       nh_mac_str,
 				       dp_test_intf_name2mac_str("dp2T1"),
-				       ETHER_TYPE_IPv6);
+				       RTE_ETHER_TYPE_IPV6);
 
 	dp_test_ipv6_decrement_ttl(dp_test_exp_get_pak(exp));
 
@@ -503,7 +504,7 @@ DP_START_TEST(ip6_fwd, bad_hbh)
 	test_pak = dp_test_create_ipv6_pak("2010:73::", "2010:73:2::",
 					   1, &len);
 	dp_test_pktmbuf_eth_init(test_pak, dp_test_intf_name2mac_str("dp1T0"),
-				 NULL, ETHER_TYPE_IPv6);
+				 NULL, RTE_ETHER_TYPE_IPV6);
 	ip6 = ip6hdr(test_pak);
 	hbh = (struct ip6_hbh *)(ip6 + 1);
 	hbh->ip6h_nxt = ip6->ip6_nxt;
@@ -521,7 +522,7 @@ DP_START_TEST(ip6_fwd, bad_hbh)
 	test_pak = dp_test_create_ipv6_pak("2010:73::", "2010:73:2::",
 					   1, &len);
 	dp_test_pktmbuf_eth_init(test_pak, dp_test_intf_name2mac_str("dp1T0"),
-				 NULL, ETHER_TYPE_IPv6);
+				 NULL, RTE_ETHER_TYPE_IPV6);
 	ip6 = ip6hdr(test_pak);
 	hbh = (struct ip6_hbh *)(ip6 + 1);
 	hbh->ip6h_nxt = ip6->ip6_nxt;
@@ -545,7 +546,7 @@ DP_START_TEST(ip6_fwd, bad_hbh)
 	test_pak = dp_test_create_ipv6_pak("2010:73::", "2010:73:2::",
 					   1, &len);
 	dp_test_pktmbuf_eth_init(test_pak, dp_test_intf_name2mac_str("dp1T0"),
-				 NULL, ETHER_TYPE_IPv6);
+				 NULL, RTE_ETHER_TYPE_IPV6);
 	ip6 = ip6hdr(test_pak);
 	hbh = (struct ip6_hbh *)(ip6 + 1);
 	hbh->ip6h_nxt = ip6->ip6_nxt;
@@ -567,7 +568,7 @@ DP_START_TEST(ip6_fwd, bad_hbh)
 	test_pak = dp_test_create_ipv6_pak("2010:73::", "2010:73:2::",
 					   1, &len);
 	dp_test_pktmbuf_eth_init(test_pak, dp_test_intf_name2mac_str("dp1T0"),
-				 NULL, ETHER_TYPE_IPv6);
+				 NULL, RTE_ETHER_TYPE_IPV6);
 	ip6 = ip6hdr(test_pak);
 	hbh = (struct ip6_hbh *)(ip6 + 1);
 	hbh->ip6h_nxt = ip6->ip6_nxt;
@@ -591,7 +592,7 @@ DP_START_TEST(ip6_fwd, bad_hbh)
 	test_pak = dp_test_create_ipv6_pak("2010:73::", "2010:73:2::",
 					   1, &len);
 	dp_test_pktmbuf_eth_init(test_pak, dp_test_intf_name2mac_str("dp1T0"),
-				 NULL, ETHER_TYPE_IPv6);
+				 NULL, RTE_ETHER_TYPE_IPV6);
 	ip6 = ip6hdr(test_pak);
 	hbh = (struct ip6_hbh *)(ip6 + 1);
 	hbh->ip6h_nxt = ip6->ip6_nxt;
@@ -613,7 +614,7 @@ DP_START_TEST(ip6_fwd, bad_hbh)
 	test_pak = dp_test_create_ipv6_pak("2010:73::", "2010:73:2::",
 					   1, &len);
 	dp_test_pktmbuf_eth_init(test_pak, dp_test_intf_name2mac_str("dp1T0"),
-				 NULL, ETHER_TYPE_IPv6);
+				 NULL, RTE_ETHER_TYPE_IPV6);
 	ip6 = ip6hdr(test_pak);
 	hbh = (struct ip6_hbh *)(ip6 + 1);
 	hbh->ip6h_nxt = ip6->ip6_nxt;
@@ -636,7 +637,7 @@ DP_START_TEST(ip6_fwd, bad_hbh)
 					   "fe80::5054:ff:fe79:3f5",
 					   1, &len);
 	dp_test_pktmbuf_eth_init(test_pak, dp_test_intf_name2mac_str("dp1T0"),
-				 nh_mac_str2, ETHER_TYPE_IPv6);
+				 nh_mac_str2, RTE_ETHER_TYPE_IPV6);
 	ip6 = ip6hdr(test_pak);
 	hbh = (struct ip6_hbh *)(ip6 + 1);
 	hbh->ip6h_nxt = ip6->ip6_nxt;
@@ -658,7 +659,7 @@ DP_START_TEST(ip6_fwd, bad_hbh)
 	(void)dp_test_pktmbuf_eth_init(icmp_pak,
 				       nh_mac_str2,
 				       dp_test_intf_name2mac_str("dp1T0"),
-				       ETHER_TYPE_IPv6);
+				       RTE_ETHER_TYPE_IPV6);
 
 	exp = dp_test_exp_create(icmp_pak);
 	rte_pktmbuf_free(icmp_pak);
@@ -676,7 +677,7 @@ DP_START_TEST(ip6_fwd, bad_hbh)
 					   "ff02::1",
 					   1, &len);
 	dp_test_pktmbuf_eth_init(test_pak, dp_test_intf_name2mac_str("dp1T0"),
-				 nh_mac_str2, ETHER_TYPE_IPv6);
+				 nh_mac_str2, RTE_ETHER_TYPE_IPV6);
 	ip6 = ip6hdr(test_pak);
 	hbh = (struct ip6_hbh *)(ip6 + 1);
 	hbh->ip6h_nxt = ip6->ip6_nxt;
@@ -698,7 +699,7 @@ DP_START_TEST(ip6_fwd, bad_hbh)
 	(void)dp_test_pktmbuf_eth_init(icmp_pak,
 				       nh_mac_str2,
 				       dp_test_intf_name2mac_str("dp1T0"),
-				       ETHER_TYPE_IPv6);
+				       RTE_ETHER_TYPE_IPV6);
 
 	exp = dp_test_exp_create(icmp_pak);
 	rte_pktmbuf_free(icmp_pak);
@@ -742,7 +743,7 @@ DP_START_TEST(ip6_fwd, router_alert)
 	test_pak = dp_test_create_ipv6_pak("2010:73::", "2010:73:2::",
 					   1, &len);
 	dp_test_pktmbuf_eth_init(test_pak, dp_test_intf_name2mac_str("dp1T0"),
-				 NULL, ETHER_TYPE_IPv6);
+				 NULL, RTE_ETHER_TYPE_IPV6);
 	ip6 = ip6hdr(test_pak);
 	hbh = (struct ip6_hbh *)(ip6 + 1);
 	hbh->ip6h_nxt = ip6->ip6_nxt;
@@ -772,7 +773,7 @@ DP_START_TEST(ip6_fwd, router_alert)
 	test_pak = dp_test_create_ipv6_pak("2010:73::", "2010:73:2::",
 					   1, &len);
 	dp_test_pktmbuf_eth_init(test_pak, dp_test_intf_name2mac_str("dp1T0"),
-				 NULL, ETHER_TYPE_IPv6);
+				 NULL, RTE_ETHER_TYPE_IPV6);
 	ip6 = ip6hdr(test_pak);
 	ip6->ip6_nxt = IPPROTO_HOPOPTS;
 	hbh = (struct ip6_hbh *)(ip6 + 1);
@@ -832,14 +833,14 @@ DP_START_TEST(ip6_fwd, multi_scope)
 	test_pak = dp_test_create_ipv6_pak("2001:1:1::2", "2002:2:2::1", 1,
 					   &len);
 	dp_test_pktmbuf_eth_init(test_pak, dp_test_intf_name2mac_str("dp1T0"),
-				 DP_TEST_INTF_DEF_SRC_MAC, ETHER_TYPE_IPv6);
+				 DP_TEST_INTF_DEF_SRC_MAC, RTE_ETHER_TYPE_IPV6);
 
 	exp = dp_test_exp_create(test_pak);
 	dp_test_exp_set_oif_name(exp, "dp2T1");
 	(void)dp_test_pktmbuf_eth_init(dp_test_exp_get_pak(exp),
 				       nh_mac_str1,
 				       dp_test_intf_name2mac_str("dp2T1"),
-				       ETHER_TYPE_IPv6);
+				       RTE_ETHER_TYPE_IPV6);
 	dp_test_ipv6_decrement_ttl(dp_test_exp_get_pak(exp));
 	dp_test_pak_receive(test_pak, "dp1T0", exp);
 
@@ -854,14 +855,14 @@ DP_START_TEST(ip6_fwd, multi_scope)
 	test_pak = dp_test_create_ipv6_pak("2001:1:1::2", "2002:2:2::1", 1,
 					   &len);
 	dp_test_pktmbuf_eth_init(test_pak, dp_test_intf_name2mac_str("dp1T0"),
-				 DP_TEST_INTF_DEF_SRC_MAC, ETHER_TYPE_IPv6);
+				 DP_TEST_INTF_DEF_SRC_MAC, RTE_ETHER_TYPE_IPV6);
 
 	exp = dp_test_exp_create(test_pak);
 	dp_test_exp_set_oif_name(exp, "dp2T1");
 	(void)dp_test_pktmbuf_eth_init(dp_test_exp_get_pak(exp),
 				       nh_mac_str1,
 				       dp_test_intf_name2mac_str("dp2T1"),
-				       ETHER_TYPE_IPv6);
+				       RTE_ETHER_TYPE_IPV6);
 	dp_test_ipv6_decrement_ttl(dp_test_exp_get_pak(exp));
 	dp_test_pak_receive(test_pak, "dp1T0", exp);
 
@@ -875,14 +876,14 @@ DP_START_TEST(ip6_fwd, multi_scope)
 	test_pak = dp_test_create_ipv6_pak("2001:1:1::2", "2002:2:2::1", 1,
 					   &len);
 	dp_test_pktmbuf_eth_init(test_pak, dp_test_intf_name2mac_str("dp1T0"),
-				 DP_TEST_INTF_DEF_SRC_MAC, ETHER_TYPE_IPv6);
+				 DP_TEST_INTF_DEF_SRC_MAC, RTE_ETHER_TYPE_IPV6);
 
 	exp = dp_test_exp_create(test_pak);
 	dp_test_exp_set_oif_name(exp, "dp3T1");
 	(void)dp_test_pktmbuf_eth_init(dp_test_exp_get_pak(exp),
 				       nh_mac_str2,
 				       dp_test_intf_name2mac_str("dp3T1"),
-				       ETHER_TYPE_IPv6);
+				       RTE_ETHER_TYPE_IPV6);
 	dp_test_ipv6_decrement_ttl(dp_test_exp_get_pak(exp));
 	dp_test_pak_receive(test_pak, "dp1T0", exp);
 
@@ -928,7 +929,7 @@ DP_START_TEST(ecmp6, ecmp)
 	(void)dp_test_pktmbuf_eth_init(test_pak,
 				       dp_test_intf_name2mac_str("dp1T1"),
 				       DP_TEST_INTF_DEF_SRC_MAC,
-				       ETHER_TYPE_IPv6);
+				       RTE_ETHER_TYPE_IPV6);
 
 	/* Create pak we expect to receive on the tx ring */
 	exp = dp_test_exp_create(test_pak);
@@ -937,7 +938,7 @@ DP_START_TEST(ecmp6, ecmp)
 	(void)dp_test_pktmbuf_eth_init(dp_test_exp_get_pak(exp),
 				       nh_mac_str2,
 				       dp_test_intf_name2mac_str("dp4T3"),
-				       ETHER_TYPE_IPv6);
+				       RTE_ETHER_TYPE_IPV6);
 
 	dp_test_ipv6_decrement_ttl(dp_test_exp_get_pak(exp));
 
@@ -951,7 +952,7 @@ DP_START_TEST(ecmp6, ecmp)
 					       1111, 1005, 1, &len);
 	(void)dp_test_pktmbuf_eth_init(test_pak,
 				       dp_test_intf_name2mac_str("dp1T1"),
-				       NULL, ETHER_TYPE_IPv6);
+				       NULL, RTE_ETHER_TYPE_IPV6);
 
 	/* Create pak we expect to receive on the tx ring */
 	exp = dp_test_exp_create(test_pak);
@@ -960,7 +961,7 @@ DP_START_TEST(ecmp6, ecmp)
 	(void)dp_test_pktmbuf_eth_init(dp_test_exp_get_pak(exp),
 				       nh_mac_str1,
 				       dp_test_intf_name2mac_str("dp3T2"),
-				       ETHER_TYPE_IPv6);
+				       RTE_ETHER_TYPE_IPV6);
 
 	dp_test_ipv6_decrement_ttl(dp_test_exp_get_pak(exp));
 
@@ -1059,14 +1060,14 @@ DP_START_TEST(ecmp6, bad_l4)
 	(void)dp_test_pktmbuf_eth_init(test_pak,
 				       dp_test_intf_name2mac_str("dp1T1"),
 				       DP_TEST_INTF_DEF_SRC_MAC,
-				       ETHER_TYPE_IPv6);
+				       RTE_ETHER_TYPE_IPV6);
 
 	exp = dp_test_exp_create(test_pak);
 	dp_test_exp_set_oif_name(exp, "dp4T3");
 	dp_test_pktmbuf_eth_init(dp_test_exp_get_pak(exp),
 				 nh_mac_str2,
 				 dp_test_intf_name2mac_str("dp4T3"),
-				 ETHER_TYPE_IPv6);
+				 RTE_ETHER_TYPE_IPV6);
 	dp_test_ipv6_decrement_ttl(dp_test_exp_get_pak(exp));
 
 	dp_test_pak_receive(test_pak, "dp1T1", exp);
@@ -1080,14 +1081,14 @@ DP_START_TEST(ecmp6, bad_l4)
 	(void)dp_test_pktmbuf_eth_init(test_pak,
 				       dp_test_intf_name2mac_str("dp1T1"),
 				       DP_TEST_INTF_DEF_SRC_MAC,
-				       ETHER_TYPE_IPv6);
+				       RTE_ETHER_TYPE_IPV6);
 
 	exp = dp_test_exp_create(test_pak);
 	dp_test_exp_set_oif_name(exp, "dp4T3");
 	dp_test_pktmbuf_eth_init(dp_test_exp_get_pak(exp),
 				 nh_mac_str2,
 				 dp_test_intf_name2mac_str("dp4T3"),
-				 ETHER_TYPE_IPv6);
+				 RTE_ETHER_TYPE_IPV6);
 	dp_test_ipv6_decrement_ttl(dp_test_exp_get_pak(exp));
 
 	dp_test_pak_receive(test_pak, "dp1T1", exp);
@@ -1101,14 +1102,14 @@ DP_START_TEST(ecmp6, bad_l4)
 	(void)dp_test_pktmbuf_eth_init(test_pak,
 				       dp_test_intf_name2mac_str("dp1T1"),
 				       DP_TEST_INTF_DEF_SRC_MAC,
-				       ETHER_TYPE_IPv6);
+				       RTE_ETHER_TYPE_IPV6);
 
 	exp = dp_test_exp_create(test_pak);
 	dp_test_exp_set_oif_name(exp, "dp4T3");
 	dp_test_pktmbuf_eth_init(dp_test_exp_get_pak(exp),
 				 nh_mac_str2,
 				 dp_test_intf_name2mac_str("dp4T3"),
-				 ETHER_TYPE_IPv6);
+				 RTE_ETHER_TYPE_IPV6);
 	dp_test_ipv6_decrement_ttl(dp_test_exp_get_pak(exp));
 
 	dp_test_pak_receive(test_pak, "dp1T1", exp);
@@ -1122,14 +1123,14 @@ DP_START_TEST(ecmp6, bad_l4)
 	(void)dp_test_pktmbuf_eth_init(test_pak,
 				       dp_test_intf_name2mac_str("dp1T1"),
 				       DP_TEST_INTF_DEF_SRC_MAC,
-				       ETHER_TYPE_IPv6);
+				       RTE_ETHER_TYPE_IPV6);
 
 	exp = dp_test_exp_create(test_pak);
 	dp_test_exp_set_oif_name(exp, "dp4T3");
 	dp_test_pktmbuf_eth_init(dp_test_exp_get_pak(exp),
 				 nh_mac_str2,
 				 dp_test_intf_name2mac_str("dp4T3"),
-				 ETHER_TYPE_IPv6);
+				 RTE_ETHER_TYPE_IPV6);
 	dp_test_ipv6_decrement_ttl(dp_test_exp_get_pak(exp));
 
 	dp_test_pak_receive(test_pak, "dp1T1", exp);
@@ -1163,7 +1164,7 @@ DP_START_TEST(ip6_primary, ip6_primary)
 	/* Ingress dp1T0 */
 	(void)dp_test_pktmbuf_eth_init(test_pak,
 				       dp_test_intf_name2mac_str("dp1T0"),
-				       NULL, ETHER_TYPE_IPv6);
+				       NULL, RTE_ETHER_TYPE_IPV6);
 
 	/* Create pak we expect to see in local_packet */
 	exp = dp_test_exp_create(test_pak);
@@ -1195,7 +1196,7 @@ DP_START_TEST(ip6_secondary, ip6_secondary)
 	/* Ingress dp1T0 */
 	(void)dp_test_pktmbuf_eth_init(test_pak,
 				       dp_test_intf_name2mac_str("dp1T0"),
-				       NULL, ETHER_TYPE_IPv6);
+				       NULL, RTE_ETHER_TYPE_IPV6);
 
 	/* Create pak we expect to see in local_packet */
 	exp = dp_test_exp_create(test_pak);
@@ -1231,7 +1232,7 @@ DP_START_TEST(ip6_tertiary, ip6_tertiary)
 	/* Ingress dp1T0 */
 	(void)dp_test_pktmbuf_eth_init(test_pak,
 				       dp_test_intf_name2mac_str("dp1T0"),
-				       NULL, ETHER_TYPE_IPv6);
+				       NULL, RTE_ETHER_TYPE_IPV6);
 
 	/* Create pak we expect to see in local_packet */
 	exp = dp_test_exp_create(test_pak);
@@ -1248,7 +1249,7 @@ DP_START_TEST(ip6_tertiary, ip6_tertiary)
 					   1, &len);
 	(void)dp_test_pktmbuf_eth_init(test_pak,
 				       dp_test_intf_name2mac_str("dp1T0"),
-				       NULL, ETHER_TYPE_IPv6);
+				       NULL, RTE_ETHER_TYPE_IPV6);
 	exp = dp_test_exp_create(test_pak);
 	dp_test_exp_set_fwd_status(exp, DP_TEST_FWD_DROPPED);
 
@@ -1358,7 +1359,7 @@ struct nh_info {
 	test_pak = dp_test_create_ipv6_pak(src_addr, dest_addr,                \
 					1, &len);                              \
 	dp_test_pktmbuf_eth_init(test_pak, dp_test_intf_name2mac_str("dp1T0"), \
-				 SRC_MAC_STR, ETHER_TYPE_IPv6);                \
+				 SRC_MAC_STR, RTE_ETHER_TYPE_IPV6);            \
 	/* Create pak we expect to receive on the tx ring */                   \
 	exp = dp_test_exp_create(test_pak);				       \
 	if (nh.drop) {                                                         \
@@ -1370,7 +1371,7 @@ struct nh_info {
 		(void)dp_test_pktmbuf_eth_init(dp_test_exp_get_pak(exp),       \
 					nh.nh_mac_str,			       \
 					dp_test_intf_name2mac_str(nh.nh_int),  \
-					ETHER_TYPE_IPv6);		       \
+					RTE_ETHER_TYPE_IPV6);		       \
 		dp_test_ipv6_decrement_ttl(dp_test_exp_get_pak(exp));	       \
 	}                                                                      \
 	dp_test_pak_receive(test_pak, "dp1T0", exp);                           \
@@ -1737,7 +1738,7 @@ DP_START_TEST_DONT_RUN(ip6_fwd, ll_dst)
 					   "fe80::5054:ff:fe79:3f5",
 					   1, &len);
 	dp_test_pktmbuf_eth_init(test_pak, dp_test_intf_name2mac_str("dp1T0"),
-				 NULL, ETHER_TYPE_IPv6);
+				 NULL, RTE_ETHER_TYPE_IPV6);
 
 	exp = dp_test_exp_create(test_pak);
 	dp_test_exp_set_fwd_status(exp, DP_TEST_FWD_LOCAL);
@@ -1752,7 +1753,7 @@ DP_START_TEST_DONT_RUN(ip6_fwd, ll_dst)
 					   "fe80::5054:ff:fe79:3f5",
 					   1, &len);
 	dp_test_pktmbuf_eth_init(test_pak, dp_test_intf_name2mac_str("dp1T0"),
-				 NULL, ETHER_TYPE_IPv6);
+				 NULL, RTE_ETHER_TYPE_IPV6);
 
 	exp = dp_test_exp_create(test_pak);
 	/* the kernel will deal with verifying the scope */
@@ -1769,7 +1770,7 @@ DP_START_TEST_DONT_RUN(ip6_fwd, ll_dst)
 					   "fe80::7054:ff:fe79:3f5",
 					   1, &len);
 	dp_test_pktmbuf_eth_init(test_pak, dp_test_intf_name2mac_str("dp1T0"),
-				 NULL, ETHER_TYPE_IPv6);
+				 NULL, RTE_ETHER_TYPE_IPV6);
 
 	exp = dp_test_exp_create_m(test_pak, 2);
 	dp_test_exp_set_oif_name(exp, "dp1T0");
@@ -1787,7 +1788,7 @@ DP_START_TEST_DONT_RUN(ip6_fwd, ll_dst)
 	dp_test_pktmbuf_eth_init(icmp_pak,
 				 nh_mac_str1,
 				 dp_test_intf_name2mac_str("dp1T0"),
-				 ETHER_TYPE_IPv6);
+				 RTE_ETHER_TYPE_IPV6);
 	nd_rd = (struct nd_redirect *)icmp6;
 	nd_rd->nd_rd_type = ND_REDIRECT;
 	nd_rd->nd_rd_code = 0;
@@ -1811,7 +1812,7 @@ DP_START_TEST_DONT_RUN(ip6_fwd, ll_dst)
 
 	dp_test_exp_set_pak_m(exp, 0, icmp_pak);
 
-	optlen = (sizeof(struct nd_opt_hdr) + ETHER_ADDR_LEN + 7) & ~7;
+	optlen = (sizeof(struct nd_opt_hdr) + RTE_ETHER_ADDR_LEN + 7) & ~7;
 	icmplen = sizeof(struct nd_neighbor_solicit) -
 		sizeof(struct icmp6_hdr) + optlen;
 	icmp_pak = dp_test_create_icmp_ipv6_pak("fe80::5054:ff:fe79:3f5",
@@ -1825,7 +1826,7 @@ DP_START_TEST_DONT_RUN(ip6_fwd, ll_dst)
 	dp_test_pktmbuf_eth_init(icmp_pak,
 				 "33:33:ff:79:03:f5",
 				 dp_test_intf_name2mac_str("dp1T0"),
-				 ETHER_TYPE_IPv6);
+				 RTE_ETHER_TYPE_IPV6);
 
 	ip6->ip6_hlim = 255;
 
@@ -1836,8 +1837,9 @@ DP_START_TEST_DONT_RUN(ip6_fwd, ll_dst)
 	memset((void *)nd_opt, 0, optlen);
 	nd_opt->nd_opt_type = ND_OPT_SOURCE_LINKADDR;
 	nd_opt->nd_opt_len = optlen >> 3;
-	ether_addr_copy(&rte_pktmbuf_mtod(test_pak, struct ether_hdr *)->d_addr,
-			(struct ether_addr *)(nd_opt + 1));
+	rte_ether_addr_copy(&rte_pktmbuf_mtod(test_pak,
+					      struct rte_ether_hdr *)->d_addr,
+			(struct rte_ether_addr *)(nd_opt + 1));
 
 	icmp6->icmp6_cksum = 0;
 	icmp6->icmp6_cksum =
@@ -1997,3 +1999,25 @@ DP_START_TEST(ip6_default_route, ip6_default_route2)
 
 } DP_END_TEST;
 
+DP_DECL_TEST_CASE(ip6_suite, ip6_pic_edge, NULL, NULL);
+DP_START_TEST(ip6_pic_edge, ip6_pic_edge)
+{
+	dp_test_nl_add_ip_addr_and_connected("dp1T1", "2001:1:1::1/64");
+	dp_test_nl_add_ip_addr_and_connected("dp2T1", "2002:2:2::2/64");
+
+	dp_test_netlink_add_route(
+		"2010:0:1::/64 nh 2001:1:1::2 int:dp1T1 nh 2002:2:2::1 int:dp2T1 backup");
+	dp_test_netlink_del_route(
+		"2010:0:1::/64 nh 2001:1:1::2 int:dp1T1 nh 2002:2:2::1 int:dp2T1 backup");
+
+	/* This is a full service dataplane - we support both orders! */
+	dp_test_netlink_add_route(
+		"2010:0:1::/64 nh 2001:1:1::2 int:dp1T1 backup nh 2002:2:2::1 int:dp2T1");
+	dp_test_netlink_del_route(
+		"2010:0:1::/64 nh 2001:1:1::2 int:dp1T1 backup nh 2002:2:2::1 int:dp2T1");
+
+	/* Clean Up */
+	dp_test_nl_del_ip_addr_and_connected("dp1T1", "2001:1:1::1/64");
+	dp_test_nl_del_ip_addr_and_connected("dp2T1", "2002:2:2::2/64");
+
+} DP_END_TEST;

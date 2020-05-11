@@ -69,7 +69,7 @@ mcast_mgre_tunnel_endpoint_send(struct ifnet *out_ifp,
 
 typedef union {
 	uint64_t as_int;
-	struct ether_addr as_addr;
+	struct rte_ether_addr as_addr;
 } mcast_dst_eth_addr_t;
 
 /*

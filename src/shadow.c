@@ -57,7 +57,7 @@
 #include "json_writer.h"
 #include "lag.h"
 #include "main.h"
-#include "nh.h"
+#include "nh_common.h"
 #include "pktmbuf_internal.h"
 #include "pl_common.h"
 #include "pl_fused.h"
@@ -115,8 +115,8 @@ local_shadow_if(struct rte_mbuf *m, struct ifnet *inp_ifp)
 	if (pktmbuf_mdata_invar_exists(m, PKT_MDATA_INVAR_SPATH)) {
 		struct pktmbuf_mdata *mdata = pktmbuf_mdata(m);
 
-		if (mdata->md_spath.pi.proto != htons(ETHER_TYPE_TEB) &&
-		    unlikely(!rte_pktmbuf_adj(m, sizeof(struct ether_hdr))))
+		if (mdata->md_spath.pi.proto != htons(RTE_ETHER_TYPE_TEB) &&
+		    unlikely(!rte_pktmbuf_adj(m, sizeof(struct rte_ether_hdr))))
 			return NULL;
 
 		portid = DATAPLANE_SPATH_PORT;
@@ -133,7 +133,7 @@ local_shadow_if(struct rte_mbuf *m, struct ifnet *inp_ifp)
 		 */
 		set_spath_rx_meta_data(m, inp_ifp, ntohs(ethhdr(m)->ether_type),
 				       TUN_META_FLAGS_DEFAULT);
-		if (!rte_pktmbuf_adj(m, sizeof(struct ether_hdr)))
+		if (!rte_pktmbuf_adj(m, sizeof(struct rte_ether_hdr)))
 			return NULL;
 
 		portid = DATAPLANE_SPATH_PORT;
@@ -394,13 +394,13 @@ void shadow_init_spath_ring(int tun_fd)
 
 static uint8_t
 shadow_feature_if_output(struct ifnet *ifp, struct rte_mbuf *m,
-			 struct ether_hdr *hdr)
+			 struct rte_ether_hdr *hdr)
 {
-	if (hdr->ether_type == htons(ETHER_TYPE_IPv4)) {
+	if (hdr->ether_type == htons(RTE_ETHER_TYPE_IPV4)) {
 		if (ip_spath_output(ifp, m) < 0)
 			/* pak freed, but not yet counted */
 			return 1;
-	} else if (hdr->ether_type == htons(ETHER_TYPE_IPv6)) {
+	} else if (hdr->ether_type == htons(RTE_ETHER_TYPE_IPV6)) {
 		if (ip6_spath_output(ifp, m) < 0)
 			/* pak freed, but not yet counted */
 			return 1;
@@ -413,17 +413,17 @@ shadow_feature_if_output(struct ifnet *ifp, struct rte_mbuf *m,
 static int shadow_output(struct shadow_if_info *sii, struct rte_mbuf *m,
 			 struct ifnet *ifp)
 {
-	struct ether_hdr *hdr = ethhdr(m);
+	struct rte_ether_hdr *hdr = ethhdr(m);
 	struct ifnet *master;
 
 	if (!(ifp->if_flags & IFF_UP))
 		return -1;
 
-	dp_pktmbuf_l2_len(m) = ETHER_HDR_LEN;
+	dp_pktmbuf_l2_len(m) = RTE_ETHER_HDR_LEN;
 
 	master = rcu_dereference(ifp->aggregator);
 
-	if (unlikely(hdr->ether_type == htons(ETHER_TYPE_SLOW))) {
+	if (unlikely(hdr->ether_type == htons(RTE_ETHER_TYPE_SLOW))) {
 		if (master) {
 			int ret = lag_etype_slow_tx(master, ifp, m);
 
@@ -449,7 +449,8 @@ static int shadow_output(struct shadow_if_info *sii, struct rte_mbuf *m,
 
 			if (vifp->qinq_outer) {
 				struct ifnet *cvlan;
-				uint16_t vid = vid_decap(m, ETHER_TYPE_VLAN);
+				uint16_t vid = vid_decap(m,
+							 RTE_ETHER_TYPE_VLAN);
 
 				cvlan = if_vlan_lookup(vifp,
 						       vid & VLAN_VID_MASK);
@@ -509,12 +510,12 @@ int spath_reader(zloop_t *loop __rte_unused, zmq_pollitem_t *item,
 {
 	struct tun_pi pi;
 	struct tun_meta meta;
-	struct ether_hdr *ether;
+	struct rte_ether_hdr *ether;
 	struct ifnet *ifp = NULL, *host_ifp, *s2s_ifp = NULL;
 	struct rte_mbuf *m = NULL;
 	enum cont_src_en cont_src = CONT_SRC_MAIN;
 	struct shadow_if_info *sii = arg;
-	union next_hop_v4_or_v6_ptr nh = {NULL};
+	struct next_hop *nh = NULL;
 
 	int ret = spath_receive(item, &pi, &meta, sii, &m);
 
@@ -545,10 +546,11 @@ int spath_reader(zloop_t *loop __rte_unused, zmq_pollitem_t *item,
 	 */
 	if (!ifp || (!(is_gre(ifp) && gre_encap_l2_frame(ntohs(pi.proto))) &&
 		     !(is_bridge(ifp) || is_l2vlan(ifp)))) {
-		if (rte_pktmbuf_prepend(m, sizeof(struct ether_hdr)) == NULL)
+		if (rte_pktmbuf_prepend(m,
+					sizeof(struct rte_ether_hdr)) == NULL)
 			goto drop;
-		dp_pktmbuf_l2_len(m) = ETHER_HDR_LEN;
-		ether = rte_pktmbuf_mtod(m, struct ether_hdr *);
+		dp_pktmbuf_l2_len(m) = RTE_ETHER_HDR_LEN;
+		ether = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
 		ether->ether_type = pi.proto;
 
 		/*
@@ -559,7 +561,7 @@ int spath_reader(zloop_t *loop __rte_unused, zmq_pollitem_t *item,
 		 */
 		set_spath_rx_meta_data(m, NULL, ntohs(pi.proto),
 				       TUN_META_FLAGS_NONE);
-		if (likely(pi.proto == ETHER_TYPE_IPv4))
+		if (likely(pi.proto == RTE_ETHER_TYPE_IPV4))
 			dp_pktmbuf_l3_len(m) = iphdr(m)->ihl << 2;
 	}
 
@@ -593,11 +595,12 @@ int spath_reader(zloop_t *loop __rte_unused, zmq_pollitem_t *item,
 		 * output features we need to run before encryption.
 		 */
 
-		if (likely((ntohs(pi.proto)) == ETHER_TYPE_IPv4)) {
-			struct next_hop nh4 = {.u.ifp = s2s_ifp};
+		if (likely((ntohs(pi.proto)) == RTE_ETHER_TYPE_IPV4) ||
+		    likely((ntohs(pi.proto)) == RTE_ETHER_TYPE_IPV6)) {
+			struct next_hop nh46 = {.u.ifp = s2s_ifp};
 
 			if (s2s_ifp)
-				nh.v4 = &nh4;
+				nh = &nh46;
 
 			if (unlikely
 			    (crypto_policy_check_outbound(host_ifp, &m,
@@ -605,24 +608,8 @@ int spath_reader(zloop_t *loop __rte_unused, zmq_pollitem_t *item,
 							  pi.proto,
 							  &nh)))
 				goto rcu_offline;
-			else if (nh.v4)
-				ifp = dp_nh4_get_ifp(nh.v4);
-			else
-				goto drop;
-		} else if (likely((ntohs(pi.proto)) == ETHER_TYPE_IPv6)) {
-			struct next_hop_v6 nh6 = {.u.ifp = s2s_ifp};
-
-			if (s2s_ifp)
-				nh.v6 = &nh6;
-
-			if (unlikely
-			    (crypto_policy_check_outbound(host_ifp, &m,
-							  RT_TABLE_MAIN,
-							  pi.proto,
-							  &nh)))
-				goto rcu_offline;
-			else if (nh.v6)
-				ifp = dp_nh6_get_ifp(nh.v6);
+			else if (nh)
+				ifp = dp_nh_get_ifp(nh);
 			else
 				goto drop;
 		}
@@ -636,8 +623,8 @@ int spath_reader(zloop_t *loop __rte_unused, zmq_pollitem_t *item,
 					 is_l2vlan(ifp) ||
 					 is_s2s_feat_attach(ifp))) {
 		if (is_bridge(ifp) || is_l2vlan(ifp)) {
-			ether = rte_pktmbuf_mtod(m, struct ether_hdr *);
-			dp_pktmbuf_l2_len(m) = ETHER_HDR_LEN;
+			ether = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
+			dp_pktmbuf_l2_len(m) = RTE_ETHER_HDR_LEN;
 			shadow_feature_if_output(ifp, m, ether);
 		} else if (is_gre(ifp)) {
 			const in_addr_t *dst;
@@ -648,16 +635,16 @@ int spath_reader(zloop_t *loop __rte_unused, zmq_pollitem_t *item,
 				dst = mgre_nbma_to_tun_addr(ifp, &meta.mark);
 
 			bool consumed = false;
-			if (likely(pi.proto == htons(ETHER_TYPE_IPv4)))
+			if (likely(pi.proto == htons(RTE_ETHER_TYPE_IPV4)))
 				consumed = ip_spath_filter(ifp, &m);
-			else if (likely(pi.proto == htons(ETHER_TYPE_IPv6)))
+			else if (likely(pi.proto == htons(RTE_ETHER_TYPE_IPV6)))
 				consumed = ip6_spath_filter(ifp, &m);
 			if (!consumed)
 				gre_tunnel_fragment_and_send(
 					host_ifp, ifp, dst, m,
 					ntohs(pi.proto));
 		} else if (is_vti(ifp) || is_s2s_feat_attach(ifp)) {
-			ether = rte_pktmbuf_mtod(m, struct ether_hdr *);
+			ether = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
 			struct iphdr *ip = iphdr(m);
 			bool consumed = false;
 			if (likely(ip->version == 4))
@@ -669,14 +656,15 @@ int spath_reader(zloop_t *loop __rte_unused, zmq_pollitem_t *item,
 					  ntohs(ether->ether_type));
 			}
 		} else {
-			if (likely(pi.proto == htons(ETHER_TYPE_IPv4))) {
+			if (likely(pi.proto == htons(RTE_ETHER_TYPE_IPV4))) {
 				struct pl_packet pl_pkt = {
 					.mbuf = m,
 					.l2_pkt_type = L2_PKT_UNICAST,
 					.in_ifp = ifp,
 				};
 				pipeline_fused_ipv4_validate(&pl_pkt);
-			} else if (likely(pi.proto == htons(ETHER_TYPE_IPv6))) {
+			} else if (likely(pi.proto ==
+						htons(RTE_ETHER_TYPE_IPV6))) {
 				struct pl_packet pl_pkt = {
 					.mbuf = m,
 					.in_ifp = ifp,
@@ -718,7 +706,7 @@ static void del_handler_tap_fd(zloop_t *loop, struct shadow_if_info *sii)
 
 static int
 shadow_send_event(enum shadow_ev type, portid_t port,
-		  const char *ifname, const struct ether_addr *eth)
+		  const char *ifname, const struct rte_ether_addr *eth)
 {
 	zsock_t *sock = zsock_new_req(shadow_inproc);
 	int rv;
@@ -754,7 +742,7 @@ shadow_port_needed(portid_t port)
 
 /* Initialize a shadow interface. */
 int shadow_init_port(portid_t port, const char *ifname,
-		     const struct ether_addr *eth)
+		     const struct rte_ether_addr *eth)
 {
 	if (!shadow_port_needed(port))
 		return 0;
@@ -895,7 +883,7 @@ static void shadow_cleanup(void *arg)
 static int shadow_handle_event(zloop_t *loop, zsock_t *sock,
 			       void *arg __rte_unused)
 {
-	const struct ether_addr *addr;
+	const struct rte_ether_addr *addr;
 	const char *ifname;
 	portid_t port;
 	uint8_t type;

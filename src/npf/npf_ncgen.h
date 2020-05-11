@@ -46,7 +46,7 @@
 #include "npf/npf.h"
 #include "util.h"
 
-struct ether_addr;
+struct rte_ether_addr;
 
 /*
  * N-code generation interface.
@@ -65,7 +65,7 @@ void npf_gennc_v6cidr(nc_ctx_t *ctx, int opts, const npf_addr_t *netaddr,
 		      const npf_netmask_t mask);
 void npf_gennc_v4cidr(nc_ctx_t *ctx, int opts, const npf_addr_t *netaddr,
 		      const npf_netmask_t mask);
-void npf_gennc_mac_addr(nc_ctx_t *ctx, int opts, struct ether_addr *addr);
+void npf_gennc_mac_addr(nc_ctx_t *ctx, int opts, struct rte_ether_addr *addr);
 void npf_gennc_addrfamily(nc_ctx_t *ctx, int family);
 void npf_gennc_ip_frag(nc_ctx_t *ctx);
 void npf_gennc_ports(nc_ctx_t *ctx, int opts, in_port_t from, in_port_t to);

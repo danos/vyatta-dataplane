@@ -98,7 +98,7 @@ ipv4_l4_pre_process(struct pl_packet *pkt, struct ifnet *ifp)
 	struct rte_mbuf *m = pkt->mbuf;
 
 	if (crypto_policy_check_inbound_terminating(ifp, &m,
-						    htons(ETHER_TYPE_IPv4)))
+						    htons(RTE_ETHER_TYPE_IPV4)))
 		return 0;
 
 	return true;

@@ -167,6 +167,7 @@ CORE_FILES = \
 	src/ip_netlink.c \
 	src/ip_options.c \
 	src/ip_output.c \
+	src/ip_rt_protobuf.c \
 	src/iptun_common.c \
 	src/json_writer.c \
 	src/l2_rx_fltr.c \
@@ -183,7 +184,7 @@ CORE_FILES = \
 	src/mstp.c \
 	src/netinet/ip_mroute.c \
 	src/netlink.c \
-	src/nh.c \
+	src/nh_common.c \
 	src/nsh.c \
 	src/pd_show.c \
 	src/pktmbuf.c \
@@ -281,10 +282,12 @@ NPF_FILES = \
         src/npf/npf_dataplane_session.c \
         src/npf/npf_disassemble.c \
         src/npf/npf_event.c \
+        src/npf/npf_grouper.c \
         src/npf/npf_icmp.c \
         src/npf/npf_if.c \
         src/npf/npf_if_feat.c \
         src/npf/npf_instr.c \
+        src/npf/npf_match.c \
         src/npf/npf_mbuf.c \
         src/npf/npf_nat.c \
         src/npf/npf_ncgen.c \
@@ -292,6 +295,7 @@ NPF_FILES = \
         src/npf/npf_unpack.c \
         src/npf/npf_processor.c \
         src/npf/npf_ptree.c \
+        src/npf/npf_rte_acl.c \
         src/npf/npf_rule_gen.c \
         src/npf/npf_ruleset.c \
         src/npf/npf_session.c \
@@ -400,7 +404,10 @@ PROTO_FILES = \
 	protobuf/SpeedConfig.proto \
 	protobuf/GArpConfig.proto \
 	protobuf/CgnatLogging.proto \
-	protobuf/BreakoutConfig.proto
+	protobuf/BreakoutConfig.proto \
+	protobuf/IPAddressOrLabel.proto \
+	protobuf/Route.proto \
+	protobuf/RibUpdate.proto
 
 
 SAMPLE_PROTO_FILES = src/pipeline/nodes/sample/SampleFeatConfig.proto \
@@ -444,7 +451,7 @@ libvyatta_dataplane_proto_la_SOURCES = $(PROTO_FILES:.proto=.pb.cc)
 libvyatta_dataplane_proto_la_CPPFLAGS = $(AM_CPPFLAGS) $(shell pkg-config --cflags protobuf)
 libvyatta_dataplane_proto_la_LDFLAGS = $(shell pkg-config --cflags --libs protobuf) -version-info 1:0:0 -shared
 
-includeprotodir = /usr/include/vyatta-dataplane/proto
+includeprotodir = /usr/include/vyatta-dataplane/protobuf
 includeproto_HEADERS = $(PROTO_FILES:%.proto=%.pb.h) $(PROTO_FILES:%.proto=%.pb-c.h)
 
 sbin_PROGRAMS = dataplane
@@ -487,6 +494,7 @@ dataplane_test_SOURCES += \
 	tests/whole_dp/src/dp_test_cross_connect.c \
 	tests/whole_dp/src/dp_test_crypto_block_policy.c \
 	tests/whole_dp/src/dp_test_crypto_multi_tunnel.c \
+	tests/whole_dp/src/dp_test_crypto_perf_scale.c \
 	tests/whole_dp/src/dp_test_crypto_policy.c \
 	tests/whole_dp/src/dp_test_crypto_site_to_site.c \
 	tests/whole_dp/src/dp_test_crypto_site_to_site_passthru.c \
@@ -572,6 +580,7 @@ dataplane_test_SOURCES += \
 	tests/whole_dp/src/dp_test_ppp.c \
 	tests/whole_dp/src/dp_test_ptp.c \
 	tests/whole_dp/src/dp_test_qos_basic.c \
+	tests/whole_dp/src/dp_test_qos_burst.c \
 	tests/whole_dp/src/dp_test_qos_ext_buf_monitor.c \
 	tests/whole_dp/src/dp_test_qos_fal.c \
 	tests/whole_dp/src/dp_test_qos_class.c \
@@ -615,14 +624,6 @@ pkginclude_HEADERS = \
 	include/debug.h \
 	include/dpi.h \
 	include/dp_session.h \
-	include/dp_test/dp_test_cmd_check.h \
-	include/dp_test/dp_test_lib.h \
-	include/dp_test/dp_test_lib_intf.h \
-	include/dp_test/dp_test_macros.h \
-	include/dp_test/dp_test_netlink_state.h \
-	include/dp_test/dp_test_pktmbuf_lib.h \
-	include/dp_test/dp_test_firewall_lib.h \
-	include/dp_test/dp_test_session_lib.h \
 	include/event.h \
 	include/fal_bfd.h \
 	include/fal_plugin.h \
@@ -636,8 +637,20 @@ pkginclude_HEADERS = \
 	include/lcore_sched.h \
 	include/pktmbuf.h \
 	include/pipeline.h \
+	include/protobuf_util.h \
 	include/urcu.h	\
 	include/vrf.h
+
+dp_test_includedir=$(pkgincludedir)/dp_test
+dp_test_include_HEADERS = \
+	include/dp_test/dp_test_cmd_check.h \
+	include/dp_test/dp_test_lib.h \
+	include/dp_test/dp_test_lib_intf.h \
+	include/dp_test/dp_test_macros.h \
+	include/dp_test/dp_test_netlink_state.h \
+	include/dp_test/dp_test_pktmbuf_lib.h \
+	include/dp_test/dp_test_firewall_lib.h \
+	include/dp_test/dp_test_session_lib.h
 
 pkgplugindir = $(pkglibdir)/pipeline/plugins
 

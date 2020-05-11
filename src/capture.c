@@ -64,6 +64,7 @@ static uint64_t capture_hz;
 
 static zsock_t *capture_sock_master;
 static zsock_t *capture_sock_console;
+static pthread_mutex_t capture_sock_lock = PTHREAD_MUTEX_INITIALIZER;
 
 typedef int (*fal_func_t)(void *arg);
 
@@ -457,10 +458,10 @@ static int capture_write(struct rte_mbuf *m, struct ifnet *ifp)
 
 	/* ... then PCAP header */
 	if (m->ol_flags & (PKT_TX_VLAN_PKT|PKT_RX_VLAN)) {
-		pcap.caplen += sizeof(struct vlan_hdr);
+		pcap.caplen += sizeof(struct rte_vlan_hdr);
 		if (pcap.caplen > cap_info->snaplen)
 			pcap.caplen = cap_info->snaplen;
-		pcap.len += sizeof(struct vlan_hdr);
+		pcap.len += sizeof(struct rte_vlan_hdr);
 	}
 
 	zmsg_addmem(msg, &pcap, sizeof(pcap));
@@ -471,14 +472,14 @@ static int capture_write(struct rte_mbuf *m, struct ifnet *ifp)
 	 * in a temporary buffer.
 	 */
 	if (m->ol_flags & (PKT_TX_VLAN_PKT|PKT_RX_VLAN)) {
-		const struct ether_hdr *eh
-			= rte_pktmbuf_mtod(m, struct ether_hdr *);
+		const struct rte_ether_hdr *eh
+			= rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
 		struct {
-			struct ether_hdr eh;
-			struct vlan_hdr  vh;
+			struct rte_ether_hdr eh;
+			struct rte_vlan_hdr  vh;
 		} vhdr;
 
-		memcpy(&vhdr.eh, eh, 2 * ETHER_ADDR_LEN);
+		memcpy(&vhdr.eh, eh, 2 * RTE_ETHER_ADDR_LEN);
 		vhdr.eh.ether_type = htons(if_tpid(ifp));
 		vhdr.vh.vlan_tci = htons(m->vlan_tci);
 		vhdr.vh.eth_proto = eh->ether_type;
@@ -489,9 +490,11 @@ static int capture_write(struct rte_mbuf *m, struct ifnet *ifp)
 
 		/* hide original ethernet header */
 		space = addmsg_if_space(msg,
-					rte_pktmbuf_mtod(m, char *) + ETHER_HDR_LEN,
-					(unsigned int)rte_pktmbuf_data_len(m) - ETHER_HDR_LEN,
-					space);
+				rte_pktmbuf_mtod(m, char *) +
+							RTE_ETHER_HDR_LEN,
+				(unsigned int)rte_pktmbuf_data_len(m) -
+							RTE_ETHER_HDR_LEN,
+				space);
 		if (!space)
 			goto msg_send;
 
@@ -1101,7 +1104,7 @@ static int capture_master_receive(void *arg)
 	return 0;
 }
 
-static int capture_master_send(fal_func_t func, void *arg)
+static int capture_master_send_locked(fal_func_t func, void *arg)
 {
 	int func_rc;
 
@@ -1120,6 +1123,16 @@ static int capture_master_send(fal_func_t func, void *arg)
 	}
 
 	return func_rc;
+}
+
+static int capture_master_send(fal_func_t func, void *arg)
+{
+	int rc;
+
+	pthread_mutex_lock(&capture_sock_lock);
+	rc = capture_master_send_locked(func, arg);
+	pthread_mutex_unlock(&capture_sock_lock);
+	return rc;
 }
 
 void capture_destroy(void)

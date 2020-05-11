@@ -30,7 +30,7 @@
 #include "urcu.h"
 #include "util.h"
 
-struct ether_addr;
+struct rte_ether_addr;
 struct ifnet;
 struct ndmsg;
 struct rte_mbuf;
@@ -107,7 +107,7 @@ void gre_table_uninit(struct vrf *vrf);
 
 /* GRE Tunnel Intf Functions */
 struct ifnet *gre_tunnel_create(int ifindex, const char *ifname,
-				const struct ether_addr *eth_addr,
+				const struct rte_ether_addr *eth_addr,
 				const unsigned int mtu, struct nlattr *data);
 void gre_tunnel_modify(struct ifnet *ifp, struct nlattr *data);
 

@@ -62,7 +62,7 @@ struct config_param {
 						    disconnect */
 	char *certificate;	 /* Our 0MQ authentication certificate */
 	char *remote_cert;	 /* Remote controller 0MQ certificate */
-	struct ether_addr uplink_addr; /* uplink intf perm mac addr */
+	struct rte_ether_addr uplink_addr; /* uplink intf perm mac addr */
 	struct ip_addr rib_ip;   /* rib ctrl ip */
 	char *rib_ctrl_url;	 /* rib control url */
 };

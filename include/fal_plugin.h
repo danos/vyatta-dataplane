@@ -419,7 +419,7 @@ union fal_attribute_value_t {
 	uint64_t u64;
 	fal_object_t objid;
 	const void *ptr;
-	struct ether_addr mac;
+	struct rte_ether_addr mac;
 	struct fal_ip_address_t ipaddr;
 	struct fal_object_list_t *objlist;
 	struct fal_qos_map_list_t *maplist;
@@ -439,6 +439,37 @@ struct fal_attribute_t {
  */
 extern int fal_port_byifindex(int ifindex, uint16_t *portid);
 
+/**
+ * Allocate a block of memory that can be freed in a deferred manner
+ *
+ * The memory must be freed by fal_free_deferred().
+ *
+ * @param[in] size Size of block of memory to be allocated
+ * @return Block of memory allocated or NULL if out of memory or some
+ * other error.
+ */
+void *fal_malloc(size_t size);
+
+/**
+ * Allocate an array of memory that can be freed in a deferred manner
+ *
+ * The memory must be freed by fal_free_deferred().
+ *
+ * @param[in] nmemb Number of members of array to be allocated
+ * @param[in] size Size of array element to be allocated
+ * @return Block of zero'd memory allocated or NULL if out of memory
+ * or some other error.
+ */
+void *fal_calloc(int nmemb, size_t size);
+
+/**
+ * Free in a deferred manner some memory
+ *
+ * The memory must have been allocated by either fal_malloc() or fal_calloc().
+ *
+ * @param[in] ptr Pointer to memory to be freed in a deferred manner.
+ */
+void fal_free_deferred(void *ptr);
 
 /*
  * All of the functions for plugins are optional, if one is not
@@ -714,7 +745,7 @@ void fal_plugin_l2_del_port(unsigned int if_index);
  * Add the address to the interface if_index
  */
 void fal_plugin_l2_new_addr(unsigned int if_index,
-			    const struct ether_addr *addr,
+			    const struct rte_ether_addr *addr,
 			    uint32_t attr_count,
 			    const struct fal_attribute_t *attr_list);
 
@@ -722,14 +753,14 @@ void fal_plugin_l2_new_addr(unsigned int if_index,
  * Update the addr on the interface if_index
  */
 void fal_plugin_l2_upd_addr(unsigned int if_index,
-			    const struct ether_addr *addr,
+			    const struct rte_ether_addr *addr,
 			    struct fal_attribute_t *attr);
 
 /*
  * Delete the address on the interface if_index
  */
 void fal_plugin_l2_del_addr(unsigned int if_index,
-			    const struct ether_addr *addr);
+			    const struct rte_ether_addr *addr);
 
 /* Router interface operations */
 
@@ -1393,7 +1424,7 @@ enum fal_br_neigh_entry_attr_t {
  */
 void fal_plugin_br_new_neigh(unsigned int child_ifindex,
 			     uint16_t vlanid,
-			     const struct ether_addr *dst,
+			     const struct rte_ether_addr *dst,
 			     uint32_t attr_count,
 			     const struct fal_attribute_t *attr_list);
 
@@ -1403,7 +1434,7 @@ void fal_plugin_br_new_neigh(unsigned int child_ifindex,
  */
 void fal_plugin_br_upd_neigh(unsigned int child_ifindex,
 			     uint16_t vlanid,
-			     const struct ether_addr *dst,
+			     const struct rte_ether_addr *dst,
 			     struct fal_attribute_t *attr);
 
 /*
@@ -1411,7 +1442,7 @@ void fal_plugin_br_upd_neigh(unsigned int child_ifindex,
  */
 void fal_plugin_br_del_neigh(unsigned int child_ifindex,
 			     uint16_t vlanid,
-			     const struct ether_addr *dst);
+			     const struct rte_ether_addr *dst);
 
 /**
  * @brief Iterator function for walk of bridge neighbours
@@ -1426,7 +1457,7 @@ void fal_plugin_br_del_neigh(unsigned int child_ifindex,
  * @return 0 on success. Negative errno on failure, terminating walk
  */
 typedef int (*fal_br_walk_neigh_fn)(uint16_t vlanid,
-				    const struct ether_addr *dst,
+				    const struct rte_ether_addr *dst,
 				    unsigned int child_ifindex,
 				    uint32_t attr_count,
 				    const struct fal_attribute_t *attr_list,
@@ -1446,7 +1477,7 @@ typedef int (*fal_br_walk_neigh_fn)(uint16_t vlanid,
  */
 int fal_plugin_br_walk_neigh(unsigned int bridge_ifindex,
 			     uint16_t vlanid,
-			     const struct ether_addr *dst,
+			     const struct rte_ether_addr *dst,
 			     unsigned int child_ifindex,
 			     fal_br_walk_neigh_fn cb,
 			     void *arg);
@@ -2011,6 +2042,46 @@ int fal_plugin_ip_get_next_hop_group_attrs(fal_object_t obj,
 					   uint32_t attr_count,
 					   struct fal_attribute_t *attr_list);
 
+enum fal_next_hop_configured_role {
+	/**
+	 * @brief Next hop is primary
+	 *
+	 * The next hop is a primary next hop and by default will
+	 * contribute to forwarding.
+	 */
+	FAL_NEXT_HOP_CONFIGURED_ROLE_PRIMARY,
+
+	/**
+	 * @brief Next hop is standby
+	 *
+	 * The next hop is a standby next hop and won't contribute to
+	 * forwarding, unless the corresponding primary next hop(s)
+	 * become unusable. For PIC Edge primary/standbies the standby
+	 * next hop(s) should only be used if all primary next hops
+	 * are unusable.
+	 */
+	FAL_NEXT_HOP_CONFIGURED_ROLE_STANDBY,
+};
+
+enum fal_next_hop_usability {
+	/**
+	 * @brief Next hop is usable
+	 *
+	 * The next hop is usable and if a primary next hop can
+	 * contribute to forwarding.
+	 */
+	FAL_NEXT_HOP_USABLE,
+	/**
+	 * @brief Next hop is unusable
+	 *
+	 * The next hop is not usable and shouldn't contribute to
+	 * forwarding. If there is a backup next hop then forwarding
+	 * should cut over to that if there are no usable primary
+	 * nexthops.
+	 */
+	FAL_NEXT_HOP_UNUSABLE,
+};
+
 /*
  * IP Nexthop operations
  */
@@ -2046,6 +2117,24 @@ enum fal_next_hop_attr_t {
 	 * @flags CREATE_ONLY
 	 */
 	FAL_NEXT_HOP_ATTR_IP,			/* .ipaddr */
+	/**
+	 * @brief Configured role for this next hop
+	 *
+	 * A next-hop group must not consist of only
+	 * FAL_NEXT_HOP_CONFIGURED_ROLE_STANDBY nexthop(s).
+	 *
+	 * @type enum fal_next_hop_configured_role
+	 * @flags CREATE_ONLY
+	 * @default FAL_NEXT_HOP_CONFIGURED_ROLE_PRIMARY
+	 */
+	FAL_NEXT_HOP_ATTR_CONFIGURED_ROLE,			/* .i32 */
+	/**
+	 * @brief Next hop usability
+	 *
+	 * @type enum fal_next_hop_usability
+	 * @flags CREATE_AND_SET
+	 */
+	FAL_NEXT_HOP_ATTR_USABILITY,			/* .i32 */
 };
 
 /**

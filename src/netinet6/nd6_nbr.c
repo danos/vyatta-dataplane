@@ -115,7 +115,7 @@ static const char *const nd6_dbgstate[] = {
 static const struct in6_addr in6addr_allnodes =
 	IN6ADDR_LINKLOCAL_ALLNODES_INIT;
 
-static const char in6ether_allnodes[ETHER_ADDR_LEN] = {
+static const char in6ether_allnodes[RTE_ETHER_ADDR_LEN] = {
 	0x33, 0x33, 0x00, 0x00, 0x00, 0x01};
 
 static struct nd6_nbr_cfg nd6_cfg = {
@@ -129,7 +129,8 @@ static struct nd6_nbr_cfg nd6_cfg = {
 	.nd6_maxhold		= ND6_MAXHOLD,
 };
 
-static void nd6_log_conflict(struct ifnet *ifp, const struct ether_addr *lladdr,
+static void nd6_log_conflict(struct ifnet *ifp,
+			     const struct rte_ether_addr *lladdr,
 			     struct in6_addr *saddr)
 {
 	char b1[ETH_ADDR_STR_LEN];
@@ -341,7 +342,7 @@ nd6_change_state(struct ifnet *ifp, struct llentry *lle, uint8_t state,
 /* should be called with la->ll_lock held */
 static inline void
 nd6_update_lla(struct ifnet *ifp, struct llentry *la,
-	       const struct ether_addr *enaddr)
+	       const struct rte_ether_addr *enaddr)
 {
 	char buf[ETH_ADDR_STR_LEN];
 
@@ -366,7 +367,7 @@ nd6_update_lla(struct ifnet *ifp, struct llentry *la,
  */
 static inline void
 nd6_entry_amend(struct ifnet *ifp, struct llentry *la, uint8_t state,
-		const struct ether_addr *enaddr, uint16_t secs, u_int flags)
+		const struct rte_ether_addr *enaddr, uint16_t secs, u_int flags)
 {
 	struct lltable *llt = ifp->if_lltable6;
 
@@ -384,7 +385,7 @@ nd6_entry_amend(struct ifnet *ifp, struct llentry *la, uint8_t state,
 		/*
 		 * Valid entry, update MAC.
 		 */
-		if (!ether_addr_equal(enaddr, &la->ll_addr))
+		if (!rte_ether_addr_equal(enaddr, &la->ll_addr))
 			nd6_update_lla(ifp, la, enaddr);
 
 		la->la_flags |= flags;
@@ -414,16 +415,16 @@ nd6_entry_amend(struct ifnet *ifp, struct llentry *la, uint8_t state,
 
 			for (i = 0; i < la->la_numheld; ++i) {
 				struct rte_mbuf *m = la->la_held[i];
-				struct ether_hdr *eh;
+				struct rte_ether_hdr *eh;
 
 				if (!m)
 					break;
 
 				eh = rte_pktmbuf_mtod(m,
-						      struct ether_hdr *);
+						      struct rte_ether_hdr *);
 
 				la->la_held[i] = NULL;
-				ether_addr_copy(enaddr, &eh->d_addr);
+				rte_ether_addr_copy(enaddr, &eh->d_addr);
 				if_output(ifp, m, NULL, ntohs(eh->ether_type));
 			}
 			la->la_numheld = 0;
@@ -481,7 +482,7 @@ lla_match6(struct cds_lfht_node *node, const void *key)
  */
 static struct llentry *
 nd6_create_valid(struct ifnet *ifp, const struct in6_addr *addr,
-		 uint8_t state, const struct ether_addr *enaddr,
+		 uint8_t state, const struct rte_ether_addr *enaddr,
 		 uint16_t secs, u_int flags)
 {
 	struct lltable *llt = ifp->if_lltable6;
@@ -573,13 +574,13 @@ nd6_create_valid(struct ifnet *ifp, const struct in6_addr *addr,
  * Send an NA packet
  */
 static void
-nd6_na_output(struct ifnet *ifp, const struct ether_addr *lladdr,
+nd6_na_output(struct ifnet *ifp, const struct rte_ether_addr *lladdr,
 	      const struct in6_addr *daddr6,
 	      const struct in6_addr *taddr6, uint32_t flags,
 	      int tlladdr)
 {
 	struct rte_mbuf *m;
-	struct ether_hdr *eh;
+	struct rte_ether_hdr *eh;
 	struct ip6_hdr *ip6;
 	struct nd_neighbor_advert *nd_na;
 	const struct in6_addr *src;
@@ -596,19 +597,20 @@ nd6_na_output(struct ifnet *ifp, const struct ether_addr *lladdr,
 		return;
 	}
 
-	dp_pktmbuf_l2_len(m) = ETHER_HDR_LEN;
+	dp_pktmbuf_l2_len(m) = RTE_ETHER_HDR_LEN;
 	paylen = sizeof(*nd_na);
 	if (tlladdr) {
-		optlen = (sizeof(struct nd_opt_hdr) + ETHER_ADDR_LEN + 7) & ~7;
+		optlen = (sizeof(struct nd_opt_hdr) +
+			  RTE_ETHER_ADDR_LEN + 7) & ~7;
 		paylen += optlen;
 	}
 	pktlen = sizeof(*eh) + sizeof(*ip6) + paylen;
 
-	eh = (struct ether_hdr *)rte_pktmbuf_append(m, pktlen);
-	ether_addr_copy(&ifp->eth_addr, &eh->s_addr);
+	eh = (struct rte_ether_hdr *)rte_pktmbuf_append(m, pktlen);
+	rte_ether_addr_copy(&ifp->eth_addr, &eh->s_addr);
 	if (lladdr)
-		ether_addr_copy(lladdr, &eh->d_addr);
-	eh->ether_type = htons(ETHER_TYPE_IPv6);
+		rte_ether_addr_copy(lladdr, &eh->d_addr);
+	eh->ether_type = htons(RTE_ETHER_TYPE_IPV6);
 
 	ip6 = (struct ip6_hdr *)(eh + 1);
 	ip6->ip6_flow = htonl(IPTOS_PREC_INTERNETCONTROL << 20);
@@ -644,7 +646,8 @@ nd6_na_output(struct ifnet *ifp, const struct ether_addr *lladdr,
 		memset((void *)nd_opt, 0, optlen);
 		nd_opt->nd_opt_type = ND_OPT_TARGET_LINKADDR;
 		nd_opt->nd_opt_len = optlen >> 3;
-		memcpy((void *)(nd_opt + 1), &ifp->eth_addr, ETHER_ADDR_LEN);
+		memcpy((void *)(nd_opt + 1),
+		       &ifp->eth_addr, RTE_ETHER_ADDR_LEN);
 	} else {
 		flags &= ~ND_NA_FLAG_OVERRIDE;
 	}
@@ -678,7 +681,7 @@ nd6_ns_input(struct ifnet *ifp, struct rte_mbuf *m, unsigned int off,
 	struct in6_addr daddr6 = ip6->ip6_dst;
 	struct in6_addr taddr6;
 	const struct in6_addr *dest;
-	const struct ether_addr *lladdr = NULL;
+	const struct rte_ether_addr *lladdr = NULL;
 	union nd_opts ndopts;
 	char buf0[INET6_ADDRSTRLEN], buf1[INET6_ADDRSTRLEN],
 		buf2[INET6_ADDRSTRLEN];
@@ -722,9 +725,9 @@ nd6_ns_input(struct ifnet *ifp, struct rte_mbuf *m, unsigned int off,
 		goto bad;
 
 	if (ndopts.nd_opts_src_lladdr) {
-		lladdr = (const struct ether_addr *)
+		lladdr = (const struct rte_ether_addr *)
 			(ndopts.nd_opts_src_lladdr + 1);
-		if (!is_valid_assigned_ether_addr(lladdr)) {
+		if (!rte_is_valid_assigned_ether_addr(lladdr)) {
 			char buf[ETH_ADDR_STR_LEN];
 			ND6_DEBUG("Bad MAC %s\n",
 				  ether_ntoa_r(lladdr, buf));
@@ -774,7 +777,7 @@ nd6_ns_input(struct ifnet *ifp, struct rte_mbuf *m, unsigned int off,
 			if (nd6_sync)
 				punt = true;
 		} else {
-			if (!ether_addr_equal(lladdr, &la->ll_addr)) {
+			if (!rte_ether_addr_equal(lladdr, &la->ll_addr)) {
 				nd6_entry_amend(ifp, la, ND6_LLINFO_STALE,
 						lladdr,
 						nd6_cfg.nd6_scavenge_time,
@@ -796,7 +799,7 @@ nd6_ns_input(struct ifnet *ifp, struct rte_mbuf *m, unsigned int off,
 	 */
 	if (IN6_IS_ADDR_UNSPECIFIED(&saddr6)) {
 		dest = &in6addr_allnodes;
-		lladdr = (const struct ether_addr *)in6ether_allnodes;
+		lladdr = (const struct rte_ether_addr *)in6ether_allnodes;
 		flags &= ~ND_NA_FLAG_SOLICITED;
 	} else {
 		dest = &saddr6;
@@ -834,11 +837,11 @@ nd6_na_input(struct ifnet *ifp, struct rte_mbuf *m,
 	int is_solicited;
 	int is_override;
 	int is_mcast;
-	const struct ether_addr *lladdr = NULL;
+	const struct rte_ether_addr *lladdr = NULL;
 	int lladdrlen = 0;
 	struct if_addr *ifa;
 	union nd_opts ndopts;
-	int mac_addrlen = sizeof(struct ether_addr);
+	int mac_addrlen = sizeof(struct rte_ether_addr);
 	char buf0[INET6_ADDRSTRLEN], buf1[INET6_ADDRSTRLEN],
 		buf2[INET6_ADDRSTRLEN];
 	bool punt = false;
@@ -878,10 +881,10 @@ nd6_na_input(struct ifnet *ifp, struct rte_mbuf *m,
 	}
 
 	if (ndopts.nd_opts_tgt_lladdr) {
-		lladdr = (const struct ether_addr *)
+		lladdr = (const struct rte_ether_addr *)
 			(ndopts.nd_opts_tgt_lladdr + 1);
 		lladdrlen = ndopts.nd_opts_tgt_lladdr->nd_opt_len << 3;
-		if (!is_valid_assigned_ether_addr(lladdr)) {
+		if (!rte_is_valid_assigned_ether_addr(lladdr)) {
 			char buf[ETH_ADDR_STR_LEN];
 
 			ND6_DEBUG("Bad MAC %s\n",
@@ -895,7 +898,7 @@ nd6_na_input(struct ifnet *ifp, struct rte_mbuf *m,
 	 */
 	ifa = in6ifa_ifpwithaddr(ifp, &taddr6);
 	if (ifa) {
-		nd6_log_conflict(ifp, (const struct ether_addr *)lladdr,
+		nd6_log_conflict(ifp, (const struct rte_ether_addr *)lladdr,
 				 &taddr6);
 		goto freeit;
 	}
@@ -967,7 +970,7 @@ nd6_na_input(struct ifnet *ifp, struct rte_mbuf *m,
 		(la->la_flags & LLE_CTRL);
 
 	llchange = (lladdr &&
-		    !ether_addr_equal(lladdr, &la->ll_addr));
+		    !rte_ether_addr_equal(lladdr, &la->ll_addr));
 
 	if (!is_override && llchange) {
 		if (la->la_state == ND6_LLINFO_REACHABLE)
@@ -1012,10 +1015,10 @@ bad:
 static struct rte_mbuf *
 nd6_ns_build(struct ifnet *ifp, const struct in6_addr *res_src,
 	     const struct in6_addr *taddr6,
-	     const struct ether_addr *dst_mac)
+	     const struct rte_ether_addr *dst_mac)
 {
 	struct rte_mbuf *m;
-	struct ether_hdr *eh;
+	struct rte_ether_hdr *eh;
 	struct ip6_hdr *ip6;
 	struct nd_neighbor_solicit *nd_ns;
 	const struct in6_addr *src;
@@ -1033,14 +1036,14 @@ nd6_ns_build(struct ifnet *ifp, const struct in6_addr *res_src,
 		return NULL;
 	}
 
-	dp_pktmbuf_l2_len(m) = ETHER_HDR_LEN;
-	optlen = (sizeof(struct nd_opt_hdr) + ETHER_ADDR_LEN + 7) & ~7;
+	dp_pktmbuf_l2_len(m) = RTE_ETHER_HDR_LEN;
+	optlen = (sizeof(struct nd_opt_hdr) + RTE_ETHER_ADDR_LEN + 7) & ~7;
 	paylen = sizeof(*nd_ns) + optlen;
 	pktlen = sizeof(*eh) + sizeof(*ip6) + paylen;
 
-	eh = (struct ether_hdr *)rte_pktmbuf_append(m, pktlen);
-	ether_addr_copy(&ifp->eth_addr, &eh->s_addr);
-	eh->ether_type = htons(ETHER_TYPE_IPv6);
+	eh = (struct rte_ether_hdr *)rte_pktmbuf_append(m, pktlen);
+	rte_ether_addr_copy(&ifp->eth_addr, &eh->s_addr);
+	eh->ether_type = htons(RTE_ETHER_TYPE_IPV6);
 
 	ip6 = (struct ip6_hdr *)(eh + 1);
 	ip6->ip6_flow = htonl(IPTOS_PREC_INTERNETCONTROL << 20);
@@ -1056,7 +1059,7 @@ nd6_ns_build(struct ifnet *ifp, const struct in6_addr *res_src,
 	 */
 	if (dst_mac) {
 		ip6->ip6_dst = *taddr6;
-		ether_addr_copy(dst_mac, &eh->d_addr);
+		rte_ether_addr_copy(dst_mac, &eh->d_addr);
 	} else {
 		ip6->ip6_dst.s6_addr16[0] = IPV6_ADDR_INT16_MLL;
 		ip6->ip6_dst.s6_addr16[1] = 0;
@@ -1091,7 +1094,7 @@ nd6_ns_build(struct ifnet *ifp, const struct in6_addr *res_src,
 	memset((void *)nd_opt, 0, optlen);
 	nd_opt->nd_opt_type = ND_OPT_SOURCE_LINKADDR;
 	nd_opt->nd_opt_len = optlen >> 3;
-	ether_addr_copy(&ifp->eth_addr, (void *)(nd_opt + 1));
+	rte_ether_addr_copy(&ifp->eth_addr, (void *)(nd_opt + 1));
 
 	nd_ns->nd_ns_cksum = 0;
 	nd_ns->nd_ns_cksum =
@@ -1106,7 +1109,7 @@ nd6_ns_build(struct ifnet *ifp, const struct in6_addr *res_src,
 static void nd6_ns_output(struct ifnet *ifp,
 			  const struct in6_addr *res_src,
 			  const struct in6_addr *taddr6,
-			  const struct ether_addr *dst_mac)
+			  const struct rte_ether_addr *dst_mac)
 {
 	struct rte_mbuf *m;
 
@@ -1121,7 +1124,7 @@ static void nd6_ns_output(struct ifnet *ifp,
  */
 int nd6_resolve(struct ifnet *in_ifp, struct ifnet *ifp,
 		struct rte_mbuf *m, const struct in6_addr *addr,
-		struct ether_addr *desten)
+		struct rte_ether_addr *desten)
 {
 	struct lltable *llt = ifp->if_lltable6;
 	struct llentry *la;
@@ -1133,7 +1136,7 @@ lookup:
 	if (likely(la && (la->la_flags & LLE_VALID))) {
 resolved:
 		rte_atomic16_clear(&la->ll_idle);
-		ether_addr_copy(&la->ll_addr, desten);
+		rte_ether_addr_copy(&la->ll_addr, desten);
 		return 0;
 	}
 
@@ -1493,7 +1496,7 @@ in6_lltable_lookup(struct ifnet *ifp, u_int flags,
  */
 int
 nd6_lladdr_add(struct ifnet *ifp, struct in6_addr *addr,
-	       const struct ether_addr *mac, uint16_t state,
+	       const struct rte_ether_addr *mac, uint16_t state,
 	       uint8_t ntf_flags)
 {
 	struct llentry *lle;

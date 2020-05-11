@@ -66,6 +66,6 @@ struct ifnet *lo_or_dummy_create(enum cont_src_en cont_src,
 				 unsigned int flags,
 				 const char *ifname,
 				 unsigned int mtu,
-				 const struct ether_addr *eth_addr);
+				 const struct rte_ether_addr *eth_addr);
 
 #endif /* NETLINK_H */

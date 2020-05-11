@@ -184,12 +184,12 @@ static int portmonitor_encap_erspan_hdr(struct ifnet *ifp,
 			pktmbuf_clear_tx_vlan(m);
 		}
 		frame_size = rte_pktmbuf_pkt_len(m);
-		if (frame_size < ETHER_MIN_LEN) {
+		if (frame_size < RTE_ETHER_MIN_LEN) {
 			v3_hdr->cos_bso_t_id =
 				htons((pktmbuf_get_vlan_pcp(m) << 13) |
 				      (ERSPAN_ORIG_FRAME_SHORT << 11) |
 				      pmsess->erspan_id);
-		} else if (frame_size > ETHER_MAX_LEN) {
+		} else if (frame_size > RTE_ETHER_MAX_LEN) {
 			v3_hdr->cos_bso_t_id =
 				htons((pktmbuf_get_vlan_pcp(m) << 13) |
 				      (ERSPAN_ORIG_FRAME_OVERSIZED << 11) |
@@ -234,7 +234,7 @@ static void portmonitor_source_output(struct ifnet *ifp,
 	if (!dest_ifp)
 		return;
 
-	dp_pktmbuf_l2_len(*m) = ETHER_HDR_LEN;
+	dp_pktmbuf_l2_len(*m) = RTE_ETHER_HDR_LEN;
 
 	struct npf_if *nif = rcu_dereference(ifp->if_npf);
 	if (direction == PORTMONITOR_DIRECTION_RX) {
@@ -250,7 +250,8 @@ static void portmonitor_source_output(struct ifnet *ifp,
 		struct npf_config *npf_config = npf_if_conf(nif);
 		result = npf_hook_notrack(
 				npf_get_ruleset(npf_config, ruleset_type),
-				m, ifp, filter_dir, 0, htons(ETHER_TYPE_IPv4));
+				m, ifp, filter_dir, 0,
+				htons(RTE_ETHER_TYPE_IPV4));
 		if (result.decision != NPF_DECISION_PASS)
 			return;
 	}
@@ -261,7 +262,7 @@ static void portmonitor_source_output(struct ifnet *ifp,
 
 	if (((*m)->ol_flags & PKT_RX_VLAN) && ifp->qinq_inner) {
 		if (unlikely(vid_encap(ifp->if_vlan, &mirror_pkt,
-				ETHER_TYPE_VLAN) == NULL)) {
+				RTE_ETHER_TYPE_VLAN) == NULL)) {
 			rte_pktmbuf_free(mirror_pkt);
 			return;
 		}

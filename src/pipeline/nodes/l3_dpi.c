@@ -45,7 +45,7 @@ ip_dpi_process_common(struct pl_packet *pkt, bool v4, int dir)
 
 	/* Ensure we have a cached packet */
 	uint16_t const ethertype =
-		v4 ? htons(ETHER_TYPE_IPv4) : htons(ETHER_TYPE_IPv6);
+		v4 ? htons(RTE_ETHER_TYPE_IPV4) : htons(RTE_ETHER_TYPE_IPV6);
 	/*
 	 * Avoid passing &pkt->npf_flags into npf_get_cache as doing
 	 * so prevents an optimisation in fused mode whereby the

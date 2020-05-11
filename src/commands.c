@@ -519,6 +519,8 @@ static int cmd_ipsec(FILE *f, int argc, char **argv)
 
 	unsigned int run_cmds = 0;
 	vrfid_t vrfid = VRF_DEFAULT_ID;
+	bool brief = false;
+	int brief_arg = 0;
 
 	if (argc < 2 || strcmp(argv[1], "sad") == 0) {
 		run_cmds |= CMD_IPSEC_SA;
@@ -531,6 +533,13 @@ static int cmd_ipsec(FILE *f, int argc, char **argv)
 		vrfid = cmd_ipsec_getvrf(f, argc, argv);
 		if (vrfid < VRF_DEFAULT_ID)
 			return -1;
+
+		if (argc == 3)
+			brief_arg = 2;
+		else if (argc == 5)
+			brief_arg = 4;
+		if (strcmp(argv[brief_arg], "brief") == 0)
+			brief = true;
 	}
 	if (argc < 2 || strcmp(argv[1], "bind") == 0) {
 		run_cmds |= CMD_IPSEC_BIND;
@@ -555,7 +564,7 @@ static int cmd_ipsec(FILE *f, int argc, char **argv)
 	if (argc > 2 && strcmp(argv[1], "engine") == 0)
 		run_cmds = CMD_IPSEC_ENGINE;
 
-	if (argc > 4 ||
+	if (argc > 5 ||
 	    (argc > 2 &&
 	     run_cmds & ~(CMD_IPSEC_CACHE | CMD_IPSEC_LISTENER |
 			  CMD_IPSEC_ENGINE | CMD_IPSEC_SA | CMD_IPSEC_POLICY |
@@ -568,7 +577,7 @@ static int cmd_ipsec(FILE *f, int argc, char **argv)
 	if (run_cmds & CMD_IPSEC_SA)
 		crypto_sadb_show_summary(f, vrfid);
 	if (run_cmds & CMD_IPSEC_POLICY)
-		crypto_policy_show_summary(f, vrfid);
+		crypto_policy_show_summary(f, vrfid, brief);
 	if (run_cmds & CMD_IPSEC_BIND)
 		crypto_policy_bind_show_summary(f, vrfid);
 	if (run_cmds & CMD_IPSEC_COUNTERS)

@@ -58,7 +58,7 @@
 #include "if_var.h"
 #include "ip_addr.h"
 #include "main.h"
-#include "nh.h"
+#include "nh_common.h"
 #include "pl_common.h"
 #include "pl_fused.h"
 #include "pktmbuf_internal.h"
@@ -84,9 +84,9 @@
  */
 struct	ether_arp {
 	struct	arphdr ea_hdr;		/* fixed-size header */
-	u_int8_t arp_sha[ETHER_ADDR_LEN];/* sender hardware address */
+	u_int8_t arp_sha[RTE_ETHER_ADDR_LEN];/* sender hardware address */
 	u_int8_t arp_spa[4];		/* sender protocol address */
-	u_int8_t arp_tha[ETHER_ADDR_LEN];/* target hardware address */
+	u_int8_t arp_tha[RTE_ETHER_ADDR_LEN];/* target hardware address */
 	u_int8_t arp_tpa[4];		/* target protocol address */
 };
 #define	arp_hrd	ea_hdr.ar_hrd
@@ -101,34 +101,35 @@ struct	ether_arp {
 
 /* Turn a request into a reply and send it */
 static int arp_reply(struct ifnet *ifp, struct rte_mbuf *m,
-		     const struct ether_addr *ea, in_addr_t taddr)
+		     const struct rte_ether_addr *ea, in_addr_t taddr)
 {
-	struct ether_hdr *eh = rte_pktmbuf_mtod(m, struct ether_hdr *);
+	struct rte_ether_hdr *eh = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
 	struct ether_arp *ah = (struct ether_arp *) (eh + 1);
 	in_addr_t dst_ip;
 
 	ah->arp_op = htons(ARPOP_REPLY);
 
-	memcpy(ah->arp_tha, ah->arp_sha, ETHER_ADDR_LEN);
-	memcpy(ah->arp_sha, ea, ETHER_ADDR_LEN);
+	memcpy(ah->arp_tha, ah->arp_sha, RTE_ETHER_ADDR_LEN);
+	memcpy(ah->arp_sha, ea, RTE_ETHER_ADDR_LEN);
 
 	memcpy(ah->arp_tpa, ah->arp_spa, sizeof(struct in_addr));
 	memcpy(ah->arp_spa, &taddr, sizeof(struct in_addr));
 
-	memcpy(&eh->d_addr, ah->arp_tha, ETHER_ADDR_LEN);
-	memcpy(&eh->s_addr, ah->arp_sha, ETHER_ADDR_LEN);
+	memcpy(&eh->d_addr, ah->arp_tha, RTE_ETHER_ADDR_LEN);
+	memcpy(&eh->s_addr, ah->arp_sha, RTE_ETHER_ADDR_LEN);
 
 	char b1[INET_ADDRSTRLEN], b2[ETH_ADDR_STR_LEN];
 	ARP_DEBUG("send reply for %s (%s) on %s\n",
 		  inet_ntop(AF_INET, &taddr, b1, sizeof(b1)),
-		  ether_ntoa_r((const struct ether_addr *)(ah->arp_sha), b2),
+		  ether_ntoa_r((const struct rte_ether_addr *)(ah->arp_sha),
+			       b2),
 		  ifp->if_name);
 
 	ARPSTAT_INC(if_vrfid(ifp), txreplies);
 
 	if (is_gre(ifp) && !(ifp->if_flags & IFF_NOARP)) {
 		memcpy(&dst_ip, ah->arp_tpa, sizeof(ah->arp_tpa));
-		if (!gre_tunnel_encap(ifp, ifp, &dst_ip, m, ETHER_TYPE_ARP))
+		if (!gre_tunnel_encap(ifp, ifp, &dst_ip, m, RTE_ETHER_TYPE_ARP))
 			return ARP_IN_NOTHOT_FINISH;
 	}
 	return ARP_IN_NOTHOT_L2_OUT;
@@ -162,7 +163,7 @@ static bool arp_proxy(struct ifnet *ifp, in_addr_t addr, struct rte_mbuf *m,
 		return false;
 
 	/* Don't send proxy if on same interface */
-	if (dp_nh4_get_ifp(nxt) == ifp)
+	if (dp_nh_get_ifp(nxt) == ifp)
 		return false;
 
 	/* Respond with own address */
@@ -174,7 +175,7 @@ static bool arp_proxy(struct ifnet *ifp, in_addr_t addr, struct rte_mbuf *m,
  * only if the target IP address is configured on the incoming interface.
  * (Equivalent to arp_ignore=1 in Linux)
  */
-static int arp_ignore(struct ifnet *ifp, const struct ether_addr *enaddr,
+static int arp_ignore(struct ifnet *ifp, const struct rte_ether_addr *enaddr,
 		      in_addr_t src, in_addr_t target)
 {
 	struct if_addr *ifa;
@@ -212,7 +213,7 @@ arp_in_nothot_process(struct pl_packet *pkt, void *context __unused)
 {
 	struct ifnet *ifp = pkt->in_ifp;
 	struct rte_mbuf *m = pkt->mbuf;
-	struct ether_hdr *eh;
+	struct rte_ether_hdr *eh;
 	struct ether_arp *ah;
 	struct llentry *la;
 	in_addr_t itaddr, isaddr;
@@ -223,8 +224,9 @@ arp_in_nothot_process(struct pl_packet *pkt, void *context __unused)
 	struct ifnet *vrrp_ifp;
 	int resp;
 
-	eh = rte_pktmbuf_mtod(m, struct ether_hdr *);
-	vrrp_ifp = macvlan_get_vrrp_if(ifp, (struct ether_addr *)&eh->d_addr);
+	eh = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
+	vrrp_ifp = macvlan_get_vrrp_if(ifp,
+				       (struct rte_ether_addr *)&eh->d_addr);
 	if (vrrp_ifp)
 		pkt->in_ifp = ifp = vrrp_ifp;
 
@@ -238,7 +240,7 @@ arp_in_nothot_process(struct pl_packet *pkt, void *context __unused)
 	memcpy(&isaddr, ah->arp_spa, sizeof(isaddr));
 	memcpy(&itaddr, ah->arp_tpa, sizeof(itaddr));
 
-	if (unlikely(is_multicast_ether_addr(&eh->d_addr))) {
+	if (unlikely(rte_is_multicast_ether_addr(&eh->d_addr))) {
 		struct sockaddr sock_storage;
 		struct sockaddr_in *ip_storage =
 			(struct sockaddr_in *) &sock_storage;
@@ -271,7 +273,7 @@ arp_in_nothot_process(struct pl_packet *pkt, void *context __unused)
 	if (op == ARPOP_REPLY)
 		ARPSTAT_INC(if_vrfid(ifp), rxreplies);
 
-	rc = arp_ignore(ifp, (struct ether_addr *) ah->arp_sha,
+	rc = arp_ignore(ifp, (struct rte_ether_addr *) ah->arp_sha,
 			isaddr, itaddr);
 	if (rc != 0) {
 		if (rc == -ENOENT && op == ARPOP_REQUEST &&
@@ -282,7 +284,7 @@ arp_in_nothot_process(struct pl_packet *pkt, void *context __unused)
 				  ifp->if_name);
 			ARPSTAT_INC(if_vrfid(ifp), proxy);
 			pkt->in_ifp = NULL;
-			pkt->l2_proto = ETHER_TYPE_ARP;
+			pkt->l2_proto = RTE_ETHER_TYPE_ARP;
 			pkt->out_ifp = ifp;
 			return resp;
 		}
@@ -330,7 +332,7 @@ arp_in_nothot_process(struct pl_packet *pkt, void *context __unused)
 	la = in_lltable_lookup(ifp, garp ? 0 : LLE_CREATE, isaddr);
 	if (la) {
 		lladdr_update(ifp, la,
-			      (struct ether_addr *) ah->arp_sha, 0);
+			      (struct rte_ether_addr *) ah->arp_sha, 0);
 
 		/* Allow packet to bleed back to keep local tables in sync. */
 		if ((op == ARPOP_REPLY) || garp) {
@@ -357,7 +359,7 @@ reply:
 	 * Shortcut.. the receiving interface is the target.
 	 */
 	pkt->in_ifp = NULL;
-	pkt->l2_proto = ETHER_TYPE_ARP;
+	pkt->l2_proto = RTE_ETHER_TYPE_ARP;
 	pkt->out_ifp = ifp;
 	return arp_reply(ifp, m, &ifp->eth_addr, itaddr);
 }

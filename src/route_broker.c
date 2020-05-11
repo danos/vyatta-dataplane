@@ -17,12 +17,18 @@
 #include "config_internal.h"
 #include "control.h"
 #include "event_internal.h"
+#include "ip_rt_protobuf.h"
 #include "master.h"
 #include "netlink.h"
 #include "route_broker.h"
 #include "vplane_debug.h"
 #include "vplane_log.h"
 #include "zmq_dp.h"
+
+/* netlink format */
+#define ROUTE_BROKER_FORMAT_NL 0x0
+/* protobuf format */
+#define ROUTE_BROKER_FORMAT_PB 0x1
 
 #define BROKER_KEEPALIVE_TIMER_SEC 10
 static struct rte_timer broker_keepalive_timer[CONT_SRC_COUNT];
@@ -55,7 +61,7 @@ error:
 	return -1;
 }
 
-static int route_recv(void *arg)
+static int route_netlink_recv(void *arg)
 {
 	zmq_msg_t route_msg;
 	zsock_t *sock = arg;
@@ -81,12 +87,37 @@ static int route_recv(void *arg)
 	return 0;
 }
 
+static int route_pb_recv(void *arg)
+{
+	zmq_msg_t route_msg;
+	zsock_t *sock = arg;
+
+	errno = 0;
+	int rc = dp_rt_msg_recv(sock, &route_msg);
+	if (rc != 0) {
+		if (errno == 0)
+			return 0;
+		return -1;
+	}
+
+	rc = ip_route_pb_handler(zmq_msg_data(&route_msg),
+				 zmq_msg_size(&route_msg),
+				 CONT_SRC_MAIN);
+	if (rc)
+		DP_DEBUG(ROUTE, NOTICE, DATAPLANE,
+			 "route message not handled\n");
+
+	zmq_msg_close(&route_msg);
+
+	return 0;
+}
+
 /*
  * Open a pull socket using the given url and register the event handler.
  */
 static int
 open_route_broker_data_sock(enum cont_src_en cont_src,
-			    const char *data_url)
+			    const char *data_url, bool protobuf_fmt)
 {
 	zsock_t *data_sock;
 
@@ -99,8 +130,10 @@ open_route_broker_data_sock(enum cont_src_en cont_src,
 
 	cont_src_set_broker_data(cont_src, data_sock);
 
-	dp_register_event_socket(zsock_resolve(data_sock), route_recv,
-				 data_sock);
+	dp_register_event_socket(
+		zsock_resolve(data_sock),
+		protobuf_fmt ? route_pb_recv : route_netlink_recv,
+		data_sock);
 	return 0;
 }
 
@@ -231,6 +264,7 @@ static int broker_ctrl_recv(void *src)
 {
 	enum cont_src_en cont_src = (enum cont_src_en)src;
 	zsock_t *zsocket = cont_src_get_broker_ctrl(cont_src);
+	uint32_t data_format = ROUTE_BROKER_FORMAT_NL;
 	char *uuid = NULL;
 	char *data_url = NULL;
 	char *str = NULL;
@@ -273,8 +307,10 @@ static int broker_ctrl_recv(void *src)
 		rc = -1;
 		goto out;
 	}
+	zmsg_popu32(msg, &data_format);
 
-	open_route_broker_data_sock(cont_src, data_url);
+	open_route_broker_data_sock(cont_src, data_url,
+				    data_format == ROUTE_BROKER_FORMAT_PB);
 	start_route_broker_keepalives(cont_src);
 out:
 	free(str);

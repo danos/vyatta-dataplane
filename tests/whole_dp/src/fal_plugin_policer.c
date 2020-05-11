@@ -114,7 +114,7 @@ int fal_plugin_policer_create(uint32_t attr_count,
 	uint i;
 	struct fal_policer *policer;
 
-	policer = calloc(1, sizeof(*policer));
+	policer = fal_calloc(1, sizeof(*policer));
 	assert(policer);
 	DEBUG("%s start\n", __func__);
 	for (i = 0; i < attr_count; i++) {
@@ -189,7 +189,7 @@ int fal_plugin_policer_delete(fal_object_t obj)
 	}
 
 	DEBUG("%s %p\n", __func__, (void *)obj);
-	free(policer);
+	fal_free_deferred(policer);
 	return 0;
 }
 

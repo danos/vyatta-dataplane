@@ -16,7 +16,7 @@
 #include "if_var.h"
 #include "ip6_funcs.h"
 #include "nd6_nbr.h"
-#include "nh.h"
+#include "nh_common.h"
 #include "pktmbuf_internal.h"
 #include "pl_common.h"
 #include "pl_fused.h"
@@ -46,16 +46,17 @@ static inline struct ifnet *ipv6_encap_node_to_ifp(struct pl_node *node)
  * L2 dest mac resolution, and set from that.
  */
 static ALWAYS_INLINE bool
-ipv6_encap_eth_from_nh6(struct rte_mbuf *mbuf, const struct next_hop_v6 *nh,
+ipv6_encap_eth_from_nh6(struct rte_mbuf *mbuf, const struct next_hop *nh,
 			struct in6_addr *addr, struct ifnet *in_ifp)
 {
-	struct ether_hdr *eth_hdr = rte_pktmbuf_mtod(mbuf, struct ether_hdr *);
-	struct ifnet *out_ifp = dp_nh6_get_ifp(nh); /* Needed for VRRP */
+	struct rte_ether_hdr *eth_hdr =
+				rte_pktmbuf_mtod(mbuf, struct rte_ether_hdr *);
+	struct ifnet *out_ifp = dp_nh_get_ifp(nh); /* Needed for VRRP */
 
-	ether_addr_copy(&out_ifp->eth_addr, &eth_hdr->s_addr);
+	rte_ether_addr_copy(&out_ifp->eth_addr, &eth_hdr->s_addr);
 
 	/* If already resolved, use the link level encap */
-	struct llentry *lle = nh6_get_lle(nh);
+	struct llentry *lle = nh_get_lle(nh);
 	if (likely(lle != NULL)) {
 		if (llentry_copy_mac(lle, &eth_hdr->d_addr))
 			return true;
@@ -108,7 +109,7 @@ ipv6_encap_process_internal(struct pl_packet *pkt, enum pl_mode mode)
 	if (!ipv6_encap_features(pkt, mode))
 		return IPV6_ENCAP_FEAT_CONSUME;
 
-	struct next_hop_v6 *nh = pkt->nxt.v6;
+	struct next_hop *nh = pkt->nxt.v6;
 	struct ifnet *in_ifp = pkt->in_ifp;
 	struct ifnet *out_ifp = pkt->out_ifp;
 	struct rte_mbuf *mbuf = pkt->mbuf;
@@ -117,7 +118,7 @@ ipv6_encap_process_internal(struct pl_packet *pkt, enum pl_mode mode)
 	struct in6_addr addr;
 
 	if (nh->flags & RTF_GATEWAY) {
-		addr = nh->gateway;
+		addr = nh->gateway6;
 	} else {
 		struct ip6_hdr *ip6;
 

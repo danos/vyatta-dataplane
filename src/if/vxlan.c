@@ -61,7 +61,7 @@
 #include "mpls/mpls.h"
 #include "netinet6/ip6_funcs.h"
 #include "netinet6/route_v6.h"
-#include "nh.h"
+#include "nh_common.h"
 #include "nsh.h"
 #include "pktmbuf_internal.h"
 #include "pl_common.h"
@@ -153,10 +153,10 @@ static struct vxlan_vnitbl *vxlans;
 static void vxlan_timer(struct rte_timer *, void *);
 static void vxlan_rtupdate(struct ifnet *ifp,
 			  struct ip_addr *addr,
-			  const struct ether_addr *dst);
+			  const struct rte_ether_addr *dst);
 static struct vxlan_rtnode *
 vxlan_rtnode_lookup(struct vxlan_softc *sc,
-		    const struct ether_addr *addr);
+		    const struct rte_ether_addr *addr);
 
 /*
  * VNI Table functions
@@ -319,8 +319,8 @@ uint16_t vxlan_get_src_port(struct vxlan_vninode *vnode, uint8_t *entropy,
 static ALWAYS_INLINE
 int vxlan_ipv4_set_encap(struct vxlan_vninode *vnode, struct rte_mbuf *m,
 			 uint8_t tos, struct ip_addr *sip,
-			 struct ip_addr *dip, struct udp_hdr **udp,
-			 struct vxlan_hdr **vxhdr)
+			 struct ip_addr *dip, struct rte_udp_hdr **udp,
+			 struct rte_vxlan_hdr **vxhdr)
 {
 	uint16_t orig_pkt_data_len = rte_pktmbuf_pkt_len(m);
 	struct iphdr *iph;
@@ -333,10 +333,10 @@ int vxlan_ipv4_set_encap(struct vxlan_vninode *vnode, struct rte_mbuf *m,
 		return -ENOMEM;
 
 	/* Update L2 length in packet as vxlan_ipv4_encap includes ether_hdr */
-	dp_pktmbuf_l2_len(m) = ETHER_HDR_LEN;
+	dp_pktmbuf_l2_len(m) = RTE_ETHER_HDR_LEN;
 
 	/* ethernet header */
-	vhdr->ether_header.ether_type = htons(ETHER_TYPE_IPv4);
+	vhdr->ether_header.ether_type = htons(RTE_ETHER_TYPE_IPV4);
 
 	/* IPv4 header construction */
 	iph = &vhdr->ip_header;
@@ -356,8 +356,8 @@ int vxlan_ipv4_set_encap(struct vxlan_vninode *vnode, struct rte_mbuf *m,
 	iph->frag_off = htons(IP_DF);
 	iph->protocol = IPPROTO_UDP;
 	iph->tot_len = htons(sizeof(vhdr->ip_header) +
-			     sizeof(struct udp_hdr) +
-			     sizeof(struct vxlan_hdr) +
+			     sizeof(struct rte_udp_hdr) +
+			     sizeof(struct rte_vxlan_hdr) +
 			     orig_pkt_data_len);
 	iph->saddr = sip->address.ip_v4.s_addr;
 	iph->daddr = dip->address.ip_v4.s_addr;
@@ -371,8 +371,8 @@ int vxlan_ipv4_set_encap(struct vxlan_vninode *vnode, struct rte_mbuf *m,
 static ALWAYS_INLINE
 int vxlan_ipv6_set_encap(struct vxlan_vninode *vnode, struct rte_mbuf *m,
 			 uint8_t tc, struct ip_addr *sip,
-			 struct ip_addr *dip, struct udp_hdr **udp,
-			 struct vxlan_hdr **vxhdr)
+			 struct ip_addr *dip, struct rte_udp_hdr **udp,
+			 struct rte_vxlan_hdr **vxhdr)
 {
 	uint16_t orig_pkt_data_len = rte_pktmbuf_pkt_len(m);
 	struct ip6_hdr *ip6h;
@@ -386,10 +386,10 @@ int vxlan_ipv6_set_encap(struct vxlan_vninode *vnode, struct rte_mbuf *m,
 		return -ENOMEM;
 
 	/* Update L2 length in packet as vxlan_ipv6_encap includes ether_hdr */
-	dp_pktmbuf_l2_len(m) = ETHER_HDR_LEN;
+	dp_pktmbuf_l2_len(m) = RTE_ETHER_HDR_LEN;
 
 	/* ethernet header */
-	vhdr->ether_header.ether_type = htons(ETHER_TYPE_IPv6);
+	vhdr->ether_header.ether_type = htons(RTE_ETHER_TYPE_IPV6);
 
 	/* IPv6 header construction */
 	ip6h = &vhdr->ip6_header;
@@ -402,8 +402,8 @@ int vxlan_ipv6_set_encap(struct vxlan_vninode *vnode, struct rte_mbuf *m,
 	ip6h->ip6_hlim = IPV6_DEFAULT_HOPLIMIT;
 	ip6h->ip6_src = sip->address.ip_v6;
 	ip6h->ip6_dst = dip->address.ip_v6;
-	ip6h->ip6_plen = htons(sizeof(struct udp_hdr) +
-			       sizeof(struct vxlan_hdr) +
+	ip6h->ip6_plen = htons(sizeof(struct rte_udp_hdr) +
+			       sizeof(struct rte_vxlan_hdr) +
 			       orig_pkt_data_len);
 	*udp = &vhdr->udp_header;
 	*vxhdr = &vhdr->vxlan_header;
@@ -414,14 +414,14 @@ static ALWAYS_INLINE
 void vxlan_udp_encap(struct vxlan_vninode *vnode, uint16_t orig_len,
 		     struct rte_mbuf *m, uint8_t *entropy,
 		     uint32_t entropy_len,
-		     struct udp_hdr *udp, enum vxlan_type vxl_type)
+		     struct rte_udp_hdr *udp, enum vxlan_type vxl_type)
 {
 	uint16_t pkt_len;
 
 	/* UDP header */
 	pkt_len = (uint16_t)
-		(sizeof(struct udp_hdr) +
-		 sizeof(struct vxlan_hdr) +
+		(sizeof(struct rte_udp_hdr) +
+		 sizeof(struct rte_vxlan_hdr) +
 		 orig_len);
 
 	/* TBD: With GPE, source port calculation needs to change for other
@@ -439,7 +439,7 @@ void vxlan_udp_encap(struct vxlan_vninode *vnode, uint16_t orig_len,
 
 static ALWAYS_INLINE
 int vxlan_vhdr_encap(struct vxlan_vninode *vnode,
-		     struct vxlan_hdr *vhdr,
+		     struct rte_vxlan_hdr *vhdr,
 		     enum vxlan_type vxl_type,
 		     enum vgpe_nxt_proto nxt_proto,
 		     bool oam)
@@ -475,8 +475,8 @@ int vxlan_encap(struct vxlan_vninode *vnode, struct ip_addr *sip,
 {
 	int err = 0;
 	uint16_t orig_pkt_data_len = rte_pktmbuf_pkt_len(m);
-	struct udp_hdr *udp;
-	struct vxlan_hdr *vxh;
+	struct rte_udp_hdr *udp;
+	struct rte_vxlan_hdr *vxh;
 
 	if (dip->type == AF_INET)
 		err = vxlan_ipv4_set_encap(vnode, m, tos_tc, sip, dip, &udp,
@@ -510,7 +510,7 @@ int vxlan_select_ipv4_src(struct vxlan_vninode *vnode, struct ip_addr *dip,
 	if (unlikely(nxt == NULL))
 		return -ENOENT;
 
-	dif = dp_nh4_get_ifp(nxt);
+	dif = dp_nh_get_ifp(nxt);
 	if (unlikely(dif == NULL))
 		return -ENOENT;
 
@@ -521,7 +521,7 @@ int vxlan_select_ipv4_src(struct vxlan_vninode *vnode, struct ip_addr *dip,
 
 	/* Store next hop address  */
 	if (nxt->flags & RTF_GATEWAY)
-		nhip->address.ip_v4.s_addr = nxt->gateway;
+		nhip->address.ip_v4.s_addr = nxt->gateway4;
 	else
 		nhip->address.ip_v4.s_addr = dip->address.ip_v4.s_addr;
 
@@ -544,7 +544,7 @@ int vxlan_select_ipv6_src(struct vxlan_vninode *vnode, struct ip_addr *dip,
 			  struct ifnet **oifp, struct ip_addr *sip,
 			  struct ip_addr *nhip)
 {
-	struct next_hop_v6 *nxt6;
+	struct next_hop *nxt6;
 	const struct in6_addr *saddr_v6;
 	struct ifnet *dif;
 
@@ -552,7 +552,7 @@ int vxlan_select_ipv6_src(struct vxlan_vninode *vnode, struct ip_addr *dip,
 	if (unlikely(nxt6 == NULL))
 		return -ENOENT;
 
-	dif = dp_nh6_get_ifp(nxt6);
+	dif = dp_nh_get_ifp(nxt6);
 	if (unlikely(dif == NULL))
 		return -ENOENT;
 
@@ -562,7 +562,7 @@ int vxlan_select_ipv6_src(struct vxlan_vninode *vnode, struct ip_addr *dip,
 	*oifp = dif;
 
 	if (nxt6->flags & RTF_GATEWAY)
-		nhip->address.ip_v6 = nxt6->gateway;
+		nhip->address.ip_v6 = nxt6->gateway6;
 	else
 		nhip->address.ip_v6 = dip->address.ip_v6;
 
@@ -653,22 +653,22 @@ void vxlan_query_payload_ip4(struct iphdr *iph, uint8_t *tos,
 }
 
 static ALWAYS_INLINE
-void vxlan_query_payload_eth(struct ether_hdr *eh, uint8_t *tos_tc,
+void vxlan_query_payload_eth(struct rte_ether_hdr *eh, uint8_t *tos_tc,
 			     uint8_t **entropy, uint32_t *entropy_len)
 {
 	struct ip6_hdr *ip6h;
 	struct iphdr *iph;
 
-	if (eh->ether_type == htons(ETHER_TYPE_IPv4)) {
+	if (eh->ether_type == htons(RTE_ETHER_TYPE_IPV4)) {
 		iph = (struct iphdr *)((uintptr_t)eh + sizeof(*eh));
 		vxlan_query_payload_ip4(iph, tos_tc, NULL, NULL);
-	} else if (eh->ether_type == htons(ETHER_TYPE_IPv6)) {
+	} else if (eh->ether_type == htons(RTE_ETHER_TYPE_IPV6)) {
 		ip6h = (struct ip6_hdr *)((uintptr_t)eh + sizeof(*eh));
 		vxlan_query_payload_ip6(ip6h, tos_tc, NULL, NULL);
 	}
 
 	*entropy = (uint8_t *)eh;
-	*entropy_len = ETHER_ADDR_LEN * 2;
+	*entropy_len = RTE_ETHER_ADDR_LEN * 2;
 }
 
 /*
@@ -760,7 +760,7 @@ static int vxlan_resolve_send_pak(struct rte_mbuf *m, struct ip_addr *nhip,
 {
 	if (likely(dip->type == AF_INET)) {
 		struct next_hop nh = {.flags = RTF_GATEWAY,
-				      .gateway = nhip->address.ip_v4.s_addr,
+				      .gateway4 = nhip->address.ip_v4.s_addr,
 				      .u.ifp = dif};
 
 		if (!dp_ip_l2_nh_output(ifp, m, &nh, ETH_P_IP)) {
@@ -769,9 +769,9 @@ static int vxlan_resolve_send_pak(struct rte_mbuf *m, struct ip_addr *nhip,
 		}
 		IPSTAT_INC_IFP(dif, IPSTATS_MIB_OUTPKTS);
 	} else if (likely(dip->type == AF_INET6)) {
-		struct next_hop_v6 nh = {.flags = RTF_GATEWAY,
-					 .gateway = nhip->address.ip_v6,
-					 .u.ifp = dif};
+		struct next_hop nh = {.flags = RTF_GATEWAY,
+				      .gateway6 = nhip->address.ip_v6,
+				      .u.ifp = dif};
 
 		if (!dp_ip6_l2_nh_output(ifp, m, &nh, ETH_P_IPV6)) {
 			VXLAN_STAT_INC(VXLAN_STATS_OUTDISCARDS_ND_FAILED);
@@ -896,17 +896,17 @@ void vxlan_send_encapped(struct rte_mbuf *m, struct ifnet *ifp, uint8_t af)
 static void
 vxlan_snoop(enum vgpe_nxt_proto nxtproto, struct ifnet *ifp,
 	    struct rte_mbuf *m __unused,
-	    uint16_t ether_type, void *l3hdr, struct vxlan_hdr *vxlan)
+	    uint16_t ether_type, void *l3hdr, struct rte_vxlan_hdr *vxlan)
 {
 	void *vxlan_end = vxlan + 1;
 	struct ip_addr ipaddr;
 
-	if (ether_type == htons(ETHER_TYPE_IPv4)) {
+	if (ether_type == htons(RTE_ETHER_TYPE_IPV4)) {
 		const struct iphdr *oip = l3hdr;
 
 		ipaddr.type = AF_INET;
 		ipaddr.address.ip_v4.s_addr = oip->saddr;
-	} else if (ether_type == htons(ETHER_TYPE_IPv6)) {
+	} else if (ether_type == htons(RTE_ETHER_TYPE_IPV6)) {
 		const struct ip6_hdr *oip6 = l3hdr;
 
 		ipaddr.type = AF_INET6;
@@ -915,7 +915,7 @@ vxlan_snoop(enum vgpe_nxt_proto nxtproto, struct ifnet *ifp,
 		return;
 
 	/* where is the inner ether header? */
-	struct ether_hdr *eh;
+	struct rte_ether_hdr *eh;
 
 	if (nxtproto == VGPE_NXT_NONE || nxtproto == VGPE_NXT_ETHER)
 		/* trivial for vxlan, or vxlan-gpe followed by ether */
@@ -936,13 +936,13 @@ vxlan_snoop(enum vgpe_nxt_proto nxtproto, struct ifnet *ifp,
 	/* Don't learn my own address,
 	 *  other side might be setup the same way
 	 */
-	if (unlikely(ether_addr_equal(&eh->s_addr, &ifp->eth_addr)))
+	if (unlikely(rte_ether_addr_equal(&eh->s_addr, &ifp->eth_addr)))
 		return;
 
 	struct bridge_port *brport = rcu_dereference(ifp->if_brport);
 
 	if (unlikely(brport &&
-		     ether_addr_equal(
+		     rte_ether_addr_equal(
 			     &eh->s_addr,
 			     &bridge_port_get_bridge(brport)->eth_addr)))
 		return;
@@ -959,17 +959,17 @@ vxlan_recv_encap(struct rte_mbuf *m, uint16_t ether_type,
 	uint32_t vni;
 	int cntr = VXLAN_STATS_INPKTS;
 	unsigned int udp_encap_len;
-	struct vxlan_hdr *vxhdr;
+	struct rte_vxlan_hdr *vxhdr;
 	uint32_t vx_flags;
 	uint16_t hdr_len;
 
 	udp_encap_len = (char *)(udp + 1) - rte_pktmbuf_mtod(m, char *);
-	hdr_len = udp_encap_len + sizeof(struct vxlan_hdr);
+	hdr_len = udp_encap_len + sizeof(struct rte_vxlan_hdr);
 	if (rte_pktmbuf_data_len(m) < hdr_len) {
 		cntr = VXLAN_STATS_INDISCARDS_BADHEADER;
 		goto drop;
 	}
-	vxhdr = (struct vxlan_hdr *)(udp + 1);
+	vxhdr = (struct rte_vxlan_hdr *)(udp + 1);
 
 	vni = ntohl(vxhdr->vx_vni);
 	if (vni & 0xff) {
@@ -1024,12 +1024,12 @@ vxlan_recv_encap(struct rte_mbuf *m, uint16_t ether_type,
 
 	switch (vxl_type) {
 	case VXLAN_L2:
-		if (rte_pktmbuf_data_len(m) < sizeof(struct ether_hdr)) {
+		if (rte_pktmbuf_data_len(m) < sizeof(struct rte_ether_hdr)) {
 			cntr = VXLAN_STATS_INDISCARDS_SHORTPAYLOAD;
 			goto drop;
 		}
 
-		set_spath_rx_meta_data(m, ifp, ETHER_TYPE_TEB,
+		set_spath_rx_meta_data(m, ifp, RTE_ETHER_TYPE_TEB,
 				       TUN_META_FLAGS_DEFAULT);
 		ether_input(ifp, m);
 		return;
@@ -1037,18 +1037,18 @@ vxlan_recv_encap(struct rte_mbuf *m, uint16_t ether_type,
 		switch (nxtproto) {
 		case VGPE_NXT_ETHER:
 			if (rte_pktmbuf_data_len(m) <
-			    sizeof(struct ether_hdr)) {
+			    sizeof(struct rte_ether_hdr)) {
 				cntr = VXLAN_STATS_INDISCARDS_SHORTPAYLOAD;
 				goto drop;
 			}
 
-			set_spath_rx_meta_data(m, ifp, ETHER_TYPE_TEB,
+			set_spath_rx_meta_data(m, ifp, RTE_ETHER_TYPE_TEB,
 					       TUN_META_FLAGS_DEFAULT);
 			ether_input(ifp, m);
 			return;
 		case VGPE_NXT_IPV4:
 			/* The vxlan payload had no L2 header, add one now. */
-			if (ethhdr_prepend(m, ETHER_TYPE_IPv4) == NULL) {
+			if (ethhdr_prepend(m, RTE_ETHER_TYPE_IPV4) == NULL) {
 				cntr = VXLAN_STATS_INDISCARDS_PKT_HEADROOM;
 				goto drop;
 			}
@@ -1058,14 +1058,14 @@ vxlan_recv_encap(struct rte_mbuf *m, uint16_t ether_type,
 				.l2_pkt_type = L2_PKT_UNICAST,
 				.in_ifp = ifp,
 			};
-			set_spath_rx_meta_data(m, ifp, ETHER_TYPE_IPv4,
+			set_spath_rx_meta_data(m, ifp, RTE_ETHER_TYPE_IPV4,
 					       TUN_META_FLAGS_DEFAULT);
 			if (unlikely(ifp->capturing))
 				capture_burst(ifp, &m, 1);
 			pipeline_fused_ipv4_validate(&pl_pkt);
 			return;
 		case VGPE_NXT_IPV6: {
-			if (ethhdr_prepend(m, ETHER_TYPE_IPv6) == NULL) {
+			if (ethhdr_prepend(m, RTE_ETHER_TYPE_IPV6) == NULL) {
 				cntr = VXLAN_STATS_INDISCARDS_PKT_HEADROOM;
 				goto drop;
 			}
@@ -1074,7 +1074,7 @@ vxlan_recv_encap(struct rte_mbuf *m, uint16_t ether_type,
 				.mbuf = m,
 				.in_ifp = ifp,
 			};
-			set_spath_rx_meta_data(m, ifp, ETHER_TYPE_IPv6,
+			set_spath_rx_meta_data(m, ifp, RTE_ETHER_TYPE_IPV6,
 					       TUN_META_FLAGS_DEFAULT);
 			if (unlikely(ifp->capturing))
 				capture_burst(ifp, &m, 1);
@@ -1108,7 +1108,7 @@ static int vxlan_recv_encap_ipv4(struct rte_mbuf *m,
 		return 0;
 	}
 
-	vxlan_recv_encap(m, htons(ETHER_TYPE_IPv4), ip, udp);
+	vxlan_recv_encap(m, htons(RTE_ETHER_TYPE_IPV4), ip, udp);
 	return 0;
 }
 
@@ -1119,7 +1119,7 @@ static int vxlan_recv_encap_ipv6(struct rte_mbuf *m,
 {
 	struct ip6_hdr *ip6 = l3hdr;
 
-	vxlan_recv_encap(m, htons(ETHER_TYPE_IPv6), ip6, udp);
+	vxlan_recv_encap(m, htons(RTE_ETHER_TYPE_IPV6), ip6, udp);
 	return 0;
 }
 
@@ -1127,7 +1127,7 @@ static int vxlan_recv_encap_ipv6(struct rte_mbuf *m,
 void
 vxlan_output(struct ifnet *ifp, struct rte_mbuf *m, uint16_t proto)
 {
-	const struct ether_hdr *eh;
+	const struct rte_ether_hdr *eh;
 	struct vxlan_softc *sc = ifp->if_softc;
 	struct vxlan_rtnode *vxlrt = NULL;
 	struct ip_addr dip;
@@ -1153,7 +1153,7 @@ vxlan_output(struct ifnet *ifp, struct rte_mbuf *m, uint16_t proto)
 	     eh->ether_type != htons(ETH_P_IPV6))) {
 		nxtproto = (vxl_type == VXLAN_L2) ?
 			VGPE_NXT_NONE : VGPE_NXT_ETHER;
-		is_multicast = is_multicast_ether_addr(&eh->d_addr);
+		is_multicast = rte_is_multicast_ether_addr(&eh->d_addr);
 		vxlrt = vxlan_rtnode_lookup(sc, &eh->d_addr);
 		if (vxlrt) {
 			if (vxlrt->vxlrt_flags & IFBAF_ADDR_V4) {
@@ -1201,7 +1201,7 @@ drop:
  */
 /* Given key (ether address) generate a hash */
 static inline unsigned long
-vxlan_rtnode_hash(const struct ether_addr *key)
+vxlan_rtnode_hash(const struct rte_ether_addr *key)
 {
 	return eth_addr_hash(key, VXLAN_RTHASH_BITS);
 }
@@ -1213,13 +1213,13 @@ static int vxlan_rtnode_match(struct cds_lfht_node *node,
 	const struct vxlan_rtnode *vxlrt
 		= caa_container_of(node, const struct vxlan_rtnode, vxlrt_node);
 
-	return ether_addr_equal(&vxlrt->vxlrt_addr, key);
+	return rte_ether_addr_equal(&vxlrt->vxlrt_addr, key);
 }
 
 /* Look up a vxlan route node for the specified destination. */
 static struct vxlan_rtnode *
 vxlan_rtnode_lookup(struct vxlan_softc *sc,
-		    const struct ether_addr *addr)
+		    const struct rte_ether_addr *addr)
 {
 	struct cds_lfht_iter iter;
 
@@ -1255,7 +1255,7 @@ vxlan_rtnode_insert(struct vxlan_softc *sc, struct vxlan_rtnode *vxlrt)
 static void
 vxlan_rtupdate(struct ifnet *ifp,
 	       struct ip_addr *addr,
-	       const struct ether_addr *dst)
+	       const struct rte_ether_addr *dst)
 {
 	struct vxlan_softc *sc = ifp->if_softc;
 	struct vxlan_rtnode *vxlrt;
@@ -1627,7 +1627,7 @@ setup_vxlan(struct ifnet *ifp, uint flags,
 /* Create vxlan in response to netlink */
 struct ifnet *
 vxlan_create(const struct ifinfomsg *ifi, const char *ifname,
-	     const struct ether_addr *addr,
+	     const struct rte_ether_addr *addr,
 	     struct nlattr *tb[], struct nlattr *data,
 	     enum cont_src_en cont_src, const struct nlmsghdr *nlh)
 {
@@ -1753,7 +1753,7 @@ static uint8_t ndmstate_to_flags(uint16_t state)
 
 static void vxlan_newneigh(int ifindex,
 			   struct in_addr *addr,
-			   const struct ether_addr *dst,
+			   const struct rte_ether_addr *dst,
 			   uint16_t state)
 {
 	struct ifnet *ifp;
@@ -1793,7 +1793,7 @@ static void vxlan_newneigh(int ifindex,
 	}
 }
 
-static void vxlan_delneigh(int ifindex, const struct ether_addr *dst)
+static void vxlan_delneigh(int ifindex, const struct rte_ether_addr *dst)
 {
 	struct ifnet *ifp;
 	struct vxlan_softc *sc;
@@ -1822,7 +1822,7 @@ int vxlan_neigh_change(const struct nlmsghdr *nlh,
 		       const struct ndmsg *ndm,
 		       struct nlattr *tb[])
 {
-	const struct ether_addr *lladdr;
+	const struct rte_ether_addr *lladdr;
 	struct in_addr ipaddr;
 	in_addr_t *ip;
 
@@ -2112,7 +2112,7 @@ static void vxlan_clear_all_macs(void)
 }
 
 
-static int vxlan_clear_one_mac(struct ifnet *ifp, struct ether_addr *mac)
+static int vxlan_clear_one_mac(struct ifnet *ifp, struct rte_ether_addr *mac)
 {
 	struct vxlan_rtnode *vxlrt;
 	struct vxlan_softc *sc = ifp->if_softc;
@@ -2129,7 +2129,7 @@ static int vxlan_clear_one_mac(struct ifnet *ifp, struct ether_addr *mac)
 static void vxlan_clear_macs(FILE *f, int argc, char *argv[])
 {
 	struct ifnet *ifp;
-	struct ether_addr mac;
+	struct rte_ether_addr mac;
 
 	if (argc == 1) {
 		vxlan_clear_all_macs();

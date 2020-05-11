@@ -98,7 +98,7 @@ static const char *lladdr_ntop(struct llentry *la)
  * There is no atomic 6 byte copy, but 64 bit operations are atomic
  * on 64 bit CPU's.
  */
-void ll_addr_set(struct llentry *lle, const struct ether_addr *eth)
+void ll_addr_set(struct llentry *lle, const struct rte_ether_addr *eth)
 {
 	union llentry_addr tmp;
 
@@ -110,10 +110,10 @@ void ll_addr_set(struct llentry *lle, const struct ether_addr *eth)
 
 /* Update existing link-layer addr table entry. */
 void lladdr_update(struct ifnet *ifp, struct llentry *la,
-		   const struct ether_addr *enaddr, uint16_t flags)
+		   const struct rte_ether_addr *enaddr, uint16_t flags)
 {
 	struct rte_mbuf *la_held[ARP_MAXHOLD];
-	struct ether_addr old_enaddr;
+	struct rte_ether_addr old_enaddr;
 	char b1[20], b2[20];
 	int la_numheld = 0;
 	bool was_valid;
@@ -141,7 +141,7 @@ void lladdr_update(struct ifnet *ifp, struct llentry *la,
 	}
 
 	old_enaddr = la->ll_addr;
-	if (!was_valid || !ether_addr_equal(enaddr, &la->ll_addr)) {
+	if (!was_valid || !rte_ether_addr_equal(enaddr, &la->ll_addr)) {
 		ll_addr_set(la, enaddr);
 		/*
 		 * Ensure the write to the address is seen by readers
@@ -192,12 +192,12 @@ void lladdr_update(struct ifnet *ifp, struct llentry *la,
 		/* now valid: release any pending packets */
 		for (int i = 0; i < la_numheld; i++) {
 			struct rte_mbuf *m = la_held[i];
-			struct ether_hdr *eh;
+			struct rte_ether_hdr *eh;
 
 			/* fill in destination in held packet and send it */
-			eh = rte_pktmbuf_mtod(m, struct ether_hdr *);
+			eh = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
 
-			ether_addr_copy(enaddr, &eh->d_addr);
+			rte_ether_addr_copy(enaddr, &eh->d_addr);
 			/*
 			 * Note: even though this may be a forwarded
 			 * packet, NULL is passed in for the input
@@ -221,7 +221,7 @@ void lladdr_update(struct ifnet *ifp, struct llentry *la,
 
 static int
 lladdr_add(struct ifnet *ifp, struct sockaddr *sock,
-	   const struct ether_addr *mac,
+	   const struct rte_ether_addr *mac,
 	   uint16_t state, uint8_t ntf_flags)
 {
 	struct llentry *lle;
@@ -295,7 +295,7 @@ lladdr_delete(struct ifnet *ifp, struct sockaddr *addr)
  */
 void lladdr_nl_event(int family, struct ifnet *ifp, uint16_t type,
 		     const struct ndmsg *ndm,
-		     const void *dst, const struct ether_addr *lladdr)
+		     const void *dst, const struct rte_ether_addr *lladdr)
 {
 	struct sockaddr_storage saddr;
 

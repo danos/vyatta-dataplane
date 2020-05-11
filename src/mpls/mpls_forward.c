@@ -42,7 +42,7 @@
 #include "mpls/mpls.h"
 #include "mpls_forward.h"
 #include "mpls_label_table.h"
-#include "nh.h"
+#include "nh_common.h"
 #include "npf/npf.h"
 #include "npf_shim.h"
 #include "pktmbuf_internal.h"
@@ -94,7 +94,7 @@ struct mplshdr {
  * send. The input labels remain in the packet for as long as possible in case
  * they are needed for ICMP generation or if the packet needs to be punted.
  * Popped labels are handled by increasing the L2 len. The original packet
- * is recovered by restoring the L2 len to ETHER_HDR_LEN.
+ * is recovered by restoring the L2 len to RTE_ETHER_HDR_LEN.
  *
  * Pkt:  Ethernet hdr | Popped lbls (0..Np) | Remaining lbls (0..Nb) | IP hdr
  *       <--------- l2 len ---------------->
@@ -402,8 +402,8 @@ mpls_error(struct ifnet *ifp, struct rte_mbuf *m,
 	/*
 	 * Note offset of popped labels and restore original packet
 	 */
-	pop_offset = dp_pktmbuf_l2_len(m) - ETHER_HDR_LEN;
-	dp_pktmbuf_l2_len(m) = ETHER_HDR_LEN;
+	pop_offset = dp_pktmbuf_l2_len(m) - RTE_ETHER_HDR_LEN;
+	dp_pktmbuf_l2_len(m) = RTE_ETHER_HDR_LEN;
 
 	len = rte_pktmbuf_data_len(m) - dp_pktmbuf_l2_len(m);
 
@@ -612,11 +612,22 @@ mpls_oam_ip_exception(struct rte_mbuf *m)
 	 * punt to OAM daemon (if listening) or else drop the packet rather
 	 * than forward it.
 	 */
-	dp_pktmbuf_l2_len(m) = ETHER_HDR_LEN;
+	dp_pktmbuf_l2_len(m) = RTE_ETHER_HDR_LEN;
 	hdr = mplshdr(m);
 	mpls_ls_set_ttl(&hdr->ls, 1);
 	return true;
 }
+
+enum nh_fwd_ret {
+	NH_FWD_FAILURE = -1,
+	NH_FWD_SUCCESS = 0,
+	NH_FWD_RESWITCH_IPv4 = 2,
+	NH_FWD_RESWITCH_IPv6 = 3,
+	NH_FWD_RESWITCH_MPLS = 4,
+	NH_FWD_SLOWPATH,
+	NH_FWD_IPv4,
+	NH_FWD_IPv6,
+};
 
 /*
  * Forward an mpls packet to a nexthop.  m is a buffer that is known
@@ -629,7 +640,7 @@ mpls_oam_ip_exception(struct rte_mbuf *m)
  * the offset of the new top of stack label (if any).
  */
 static inline enum nh_fwd_ret
-nh_fwd_mpls(enum nh_type nht, union next_hop_v4_or_v6_ptr nh,
+nh_fwd_mpls(struct next_hop *nh,
 	    struct rte_mbuf *m, bool have_labels,
 	    enum mpls_payload_type payload_type,
 	    struct mpls_label_cache *cache, bool *pop)
@@ -638,13 +649,13 @@ nh_fwd_mpls(enum nh_type nht, union next_hop_v4_or_v6_ptr nh,
 	const union next_hop_outlabels *labels;
 	unsigned int num_labels;
 
-	if (unlikely(nh_get_flags(nht, nh) & RTF_SLOWPATH))
+	if (unlikely(nh_get_flags(nh) & RTF_SLOWPATH))
 		return NH_FWD_SLOWPATH;
 
 	/*
 	 * Impose outlabels, if any
 	 */
-	labels = nh_get_labels(nht, nh);
+	labels = nh_get_labels(nh);
 	new_label = nh_outlabels_get_value(labels, 0);
 	num_labels = nh_outlabels_get_cnt(labels);
 
@@ -652,7 +663,7 @@ nh_fwd_mpls(enum nh_type nht, union next_hop_v4_or_v6_ptr nh,
 		*pop = (num_labels == 0);
 
 	if (new_label == MPLS_IMPLICITNULL || num_labels == 0) {
-		struct ifnet *ifp = nh_get_if(nht, nh);
+		struct ifnet *ifp = dp_nh_get_ifp(nh);
 		/* imp-null should be the only outlabel */
 		assert(num_labels <= 1);
 
@@ -786,19 +797,20 @@ mpls_ecmp_hash(const struct rte_mbuf *m)
  * remaining labels, or both.
  */
 static inline void nh_eth_output_mpls(enum nh_type nh_type,
-				      union next_hop_v4_or_v6_ptr nh,
+				      struct next_hop *nh,
 				      uint8_t ttl, struct rte_mbuf *m,
 				      struct mpls_label_cache *cache,
 				      struct ifnet *input_ifp)
 {
-	struct ether_hdr *hdr;
+	struct rte_ether_hdr *hdr;
 	unsigned int len;
 
 	/*
 	 * Replace any popped labels with any labels in the cache
 	 */
-	if (unlikely(!mpls_label_cache_write(m, cache, ttl, ETHER_HDR_LEN))) {
-		mpls_if_incr_out_errors(nh_get_if(nh_type, nh));
+	if (unlikely(!mpls_label_cache_write(m,
+					     cache, ttl, RTE_ETHER_HDR_LEN))) {
+		mpls_if_incr_out_errors(dp_nh_get_ifp(nh));
 		rte_pktmbuf_free(m);
 		return;
 	}
@@ -806,7 +818,7 @@ static inline void nh_eth_output_mpls(enum nh_type nh_type,
 	/*
 	 * Start of buffer should be one eth hdr before the current label.
 	 */
-	assert(dp_pktmbuf_l2_len(m) == ETHER_HDR_LEN);
+	assert(dp_pktmbuf_l2_len(m) == RTE_ETHER_HDR_LEN);
 	/*
 	 * Set the ethertype (the src and dest mac addrs will be in
 	 * the output function.
@@ -816,43 +828,43 @@ static inline void nh_eth_output_mpls(enum nh_type nh_type,
 
 	len = rte_pktmbuf_pkt_len(m);
 	if (nh_type == NH_TYPE_V6GW) {
-		if (unlikely((nh.v6->flags & RTF_MAPPED_IPV6))) {
+		if (unlikely((nh->flags & RTF_MAPPED_IPV6))) {
 			struct next_hop v4nh = {
 				.flags = RTF_GATEWAY,
-				.gateway = V4MAPPED_IPV6_TO_IPV4(
-					nh.v6->gateway),
-				.u.ifp = dp_nh6_get_ifp(nh.v6),
+				.gateway4 = V4MAPPED_IPV6_TO_IPV4(
+					nh->gateway6),
+				.u.ifp = dp_nh_get_ifp(nh),
 			};
 
 			if (dp_ip_l2_nh_output(input_ifp, m, &v4nh,
 					       ETH_P_MPLS_UC))
 				mpls_if_incr_out_ucastpkts(
-						dp_nh6_get_ifp(nh.v6),
+						dp_nh_get_ifp(nh),
 						len);
 		} else {
-			struct next_hop_v6 v6nh = {
+			struct next_hop v6nh = {
 				.flags = RTF_GATEWAY,
-				.gateway = nh.v6->gateway,
-				.u.ifp = dp_nh6_get_ifp(nh.v6),
+				.gateway6 = nh->gateway6,
+				.u.ifp = dp_nh_get_ifp(nh),
 			};
 
 			if (dp_ip6_l2_nh_output(input_ifp, m,
 						&v6nh, ETH_P_MPLS_UC))
 				mpls_if_incr_out_ucastpkts(
-						dp_nh6_get_ifp(nh.v6),
+						dp_nh_get_ifp(nh),
 						len);
 		}
 	} else {
 		assert(nh_type == NH_TYPE_V4GW);
 		struct next_hop v4nh = {
 			.flags = RTF_GATEWAY,
-			.gateway = nh.v4->gateway,
-			.u.ifp = dp_nh4_get_ifp(nh.v4),
+			.gateway4 = nh->gateway4,
+			.u.ifp = dp_nh_get_ifp(nh),
 		};
 
 		if (dp_ip_l2_nh_output(input_ifp, m, &v4nh,
 				       ETH_P_MPLS_UC))
-			mpls_if_incr_out_ucastpkts(dp_nh4_get_ifp(nh.v4), len);
+			mpls_if_incr_out_ucastpkts(dp_nh_get_ifp(nh), len);
 	}
 }
 
@@ -864,7 +876,7 @@ struct mpls_frag_obj_cb {
 	unsigned int pop_offset;
 	uint8_t ttl;
 	enum nh_type nht;
-	union next_hop_v4_or_v6_ptr nh;
+	struct next_hop *nh;
 	struct mpls_label_cache *cache;
 	struct mplshdr *remaining_labels;
 	struct ifnet *input_ifp;
@@ -891,7 +903,7 @@ nh_mpls_frag_out(struct ifnet *out_ifp, struct rte_mbuf *m, void *obj)
 	}
 
 	/* Copy any remaining labels into the fragment */
-	dp_pktmbuf_l2_len(m) = ETHER_HDR_LEN + fobj->pop_offset;
+	dp_pktmbuf_l2_len(m) = RTE_ETHER_HDR_LEN + fobj->pop_offset;
 	hdr = mplshdr(m);
 	memcpy(hdr, fobj->remaining_labels, offset - fobj->pop_offset);
 
@@ -902,7 +914,7 @@ nh_mpls_frag_out(struct ifnet *out_ifp, struct rte_mbuf *m, void *obj)
 
 static void
 nh_mpls_ip_fragment(struct ifnet *out_ifp, enum mpls_payload_type payload_type,
-		    enum nh_type nht, union next_hop_v4_or_v6_ptr nh,
+		    enum nh_type nht, struct next_hop *nh,
 		    bool have_labels, int adjust, uint8_t ttl,
 		    struct rte_mbuf *m, struct mpls_label_cache *cache,
 		    struct ifnet *input_ifp)
@@ -919,8 +931,8 @@ nh_mpls_ip_fragment(struct ifnet *out_ifp, enum mpls_payload_type payload_type,
 	 * Note offset of popped labels and reset pkt back to original state
 	 */
 	fobj.remaining_labels = mplshdr(m);
-	fobj.pop_offset = dp_pktmbuf_l2_len(m) - ETHER_HDR_LEN;
-	dp_pktmbuf_l2_len(m) = ETHER_HDR_LEN;
+	fobj.pop_offset = dp_pktmbuf_l2_len(m) - RTE_ETHER_HDR_LEN;
+	dp_pktmbuf_l2_len(m) = RTE_ETHER_HDR_LEN;
 
 	if (have_labels) {
 		len = rte_pktmbuf_data_len(m) - dp_pktmbuf_l2_len(m);
@@ -998,7 +1010,7 @@ nh_mpls_ip_fragment(struct ifnet *out_ifp, enum mpls_payload_type payload_type,
 			rte_pktmbuf_free(m);
 			return;
 		}
-		dp_pktmbuf_l2_len(m) = ETHER_HDR_LEN;
+		dp_pktmbuf_l2_len(m) = RTE_ETHER_HDR_LEN;
 		dp_pktmbuf_l3_len(m) = ip->ihl << 2;
 
 		mpls_if_incr_out_fragment_pkts(out_ifp);
@@ -1027,7 +1039,7 @@ nh_mpls_ip_fragment(struct ifnet *out_ifp, enum mpls_payload_type payload_type,
  */
 static inline void
 nh_mpls_forward(enum mpls_payload_type payload_type,
-		enum nh_type nht, union next_hop_v4_or_v6_ptr nh,
+		enum nh_type nht, struct next_hop *nh,
 		bool have_labels, uint8_t ttl,
 		struct rte_mbuf *m, struct mpls_label_cache *cache,
 		struct ifnet *input_ifp)
@@ -1035,18 +1047,18 @@ nh_mpls_forward(enum mpls_payload_type payload_type,
 	struct ifnet *out_ifp;
 	int adjust;
 
-	assert(dp_pktmbuf_l2_len(m) >= ETHER_HDR_LEN);
+	assert(dp_pktmbuf_l2_len(m) >= RTE_ETHER_HDR_LEN);
 
 	/*
 	 * Check for fragmentation
 	 * adjust pkt len for difference between cached and popped labels
 	 */
-	out_ifp = nh_get_if(nht, nh);
-	adjust = mpls_label_cache_adjust(m, cache, ETHER_HDR_LEN);
-	if (likely(rte_pktmbuf_pkt_len(m) + adjust - ETHER_HDR_LEN <=
+	out_ifp = dp_nh_get_ifp(nh);
+	adjust = mpls_label_cache_adjust(m, cache, RTE_ETHER_HDR_LEN);
+	if (likely(rte_pktmbuf_pkt_len(m) + adjust - RTE_ETHER_HDR_LEN <=
 		   out_ifp->if_mtu)) {
 		nh_eth_output_mpls(nht, nh, ttl, m, cache,
-					input_ifp);
+				   input_ifp);
 	} else
 		nh_mpls_ip_fragment(out_ifp, payload_type, nht, nh,
 				    have_labels, adjust, ttl, m, cache,
@@ -1105,15 +1117,15 @@ mpls_forward_to_ipv4(struct ifnet *ifp, bool local,
 	/*
 	 * Disposition to ipv4.
 	 */
-	assert(dp_pktmbuf_l2_len(m) >= ETHER_HDR_LEN);
+	assert(dp_pktmbuf_l2_len(m) >= RTE_ETHER_HDR_LEN);
 	/*
 	 * Fixup mbuf before we give it back to ip.
 	 * Adjust the pkt start to be one eth hdr in
 	 * front of current l2 offset - to componsate
 	 * for any pops.
 	 */
-	pop_offset = dp_pktmbuf_l2_len(m) - ETHER_HDR_LEN;
-	dp_pktmbuf_l2_len(m) = ETHER_HDR_LEN;
+	pop_offset = dp_pktmbuf_l2_len(m) - RTE_ETHER_HDR_LEN;
+	dp_pktmbuf_l2_len(m) = RTE_ETHER_HDR_LEN;
 
 	if (!rte_pktmbuf_adj(m, pop_offset)) {
 		DBG_MPLS_PKTERR(ifp, m,
@@ -1125,7 +1137,7 @@ mpls_forward_to_ipv4(struct ifnet *ifp, bool local,
 		return;
 	}
 
-	ethhdr(m)->ether_type = htons(ETHER_TYPE_IPv4);
+	ethhdr(m)->ether_type = htons(RTE_ETHER_TYPE_IPV4);
 
 	/*
 	 * Is packet big enough.
@@ -1142,7 +1154,7 @@ mpls_forward_to_ipv4(struct ifnet *ifp, bool local,
 		return;
 	}
 
-	pktmbuf_set_vrf(m, if_vrfid(dp_nh4_get_ifp(v4nh)));
+	pktmbuf_set_vrf(m, if_vrfid(dp_nh_get_ifp(v4nh)));
 
 	ip = iphdr(m);
 	if (!local && unlikely(!mpls_propagate_ttl_to_ip(ip, ttl, pop))) {
@@ -1160,19 +1172,19 @@ mpls_forward_to_ipv4(struct ifnet *ifp, bool local,
 		 * ifp must be non-NULL, but all we've got is the
 		 * output ifp so use that.
 		 */
-		ifp = dp_nh4_get_ifp(v4nh);
+		ifp = dp_nh_get_ifp(v4nh);
 		if (!ifp) {
 			rte_pktmbuf_free(m);
 			return;
 		}
 	}
-	ip_out_features(m, ifp, ip, v4nh, v4nh->gateway, ip4_feat,
+	ip_out_features(m, ifp, ip, v4nh, v4nh->gateway4, ip4_feat,
 			NPF_FLAG_CACHE_EMPTY);
 }
 
 static void mpls_forward_to_ipv6(struct ifnet *ifp, bool local,
 				 struct rte_mbuf *m,
-				 struct next_hop_v6 *v6nh,
+				 struct next_hop *v6nh,
 				 uint8_t ttl, bool pop)
 {
 	uint32_t pop_offset;
@@ -1182,7 +1194,7 @@ static void mpls_forward_to_ipv6(struct ifnet *ifp, bool local,
 	/*
 	 * Disposition to ipv6.
 	 */
-	assert(dp_pktmbuf_l2_len(m) >= ETHER_HDR_LEN);
+	assert(dp_pktmbuf_l2_len(m) >= RTE_ETHER_HDR_LEN);
 
 	/*
 	 * Fixup mbuf before we give it back to ip.
@@ -1190,8 +1202,8 @@ static void mpls_forward_to_ipv6(struct ifnet *ifp, bool local,
 	 * front of current l2 offset - to componsate
 	 * for any pops.
 	 */
-	pop_offset = dp_pktmbuf_l2_len(m) - ETHER_HDR_LEN;
-	dp_pktmbuf_l2_len(m) = ETHER_HDR_LEN;
+	pop_offset = dp_pktmbuf_l2_len(m) - RTE_ETHER_HDR_LEN;
+	dp_pktmbuf_l2_len(m) = RTE_ETHER_HDR_LEN;
 
 	if (!rte_pktmbuf_adj(m, pop_offset)) {
 		DBG_MPLS_PKTERR(ifp, m,
@@ -1203,7 +1215,7 @@ static void mpls_forward_to_ipv6(struct ifnet *ifp, bool local,
 		return;
 	}
 
-	ethhdr(m)->ether_type = htons(ETHER_TYPE_IPv6);
+	ethhdr(m)->ether_type = htons(RTE_ETHER_TYPE_IPV6);
 
 	/*
 	 * Is packet big enough.
@@ -1220,7 +1232,7 @@ static void mpls_forward_to_ipv6(struct ifnet *ifp, bool local,
 		return;
 	}
 
-	pktmbuf_set_vrf(m, if_vrfid(dp_nh6_get_ifp(v6nh)));
+	pktmbuf_set_vrf(m, if_vrfid(dp_nh_get_ifp(v6nh)));
 
 	ip6 = ip6hdr(m);
 	if (!local && unlikely(!mpls_propagate_ttl_to_ip6(ip6, ttl, pop))) {
@@ -1246,7 +1258,7 @@ static void mpls_forward_to_ipv6(struct ifnet *ifp, bool local,
 		 * ifp must be non-NULL, but all we've got is the
 		 * output ifp so use that.
 		 */
-		ifp = dp_nh6_get_ifp(v6nh);
+		ifp = dp_nh_get_ifp(v6nh);
 		if (!ifp) {
 			rte_pktmbuf_free(m);
 			return;
@@ -1286,7 +1298,7 @@ static void mpls_vpnv4_local_deliver(struct ifnet *ifp, struct rte_mbuf *m)
 	 *
 	 * Run the local firewall,  and discard if so instructed.
 	 */
-	if (npf_local_fw(ifp, &m, htons(ETHER_TYPE_IPv4)))
+	if (npf_local_fw(ifp, &m, htons(RTE_ETHER_TYPE_IPV4)))
 		goto discard;
 
 	IPSTAT_INC_VRF(vrf, IPSTATS_MIB_INDELIVERS);
@@ -1335,8 +1347,8 @@ static bool mpls_reswitch_as_ipv4(struct ifnet *input_ifp,
 	 * means setting the ether header to be in front of our
 	 * current label and setting the ethertype to be ip.
 	 */
-	assert(dp_pktmbuf_l2_len(m) >= ETHER_HDR_LEN);
-	pop_offset = dp_pktmbuf_l2_len(m) - ETHER_HDR_LEN;
+	assert(dp_pktmbuf_l2_len(m) >= RTE_ETHER_HDR_LEN);
+	pop_offset = dp_pktmbuf_l2_len(m) - RTE_ETHER_HDR_LEN;
 
 	memmove((uint8_t *)ethhdr(m) + pop_offset, ethhdr(m), ETH_HLEN);
 	if (!rte_pktmbuf_adj(m, pop_offset)) {
@@ -1345,8 +1357,8 @@ static bool mpls_reswitch_as_ipv4(struct ifnet *input_ifp,
 			__func__);
 		return false;
 	}
-	ethhdr(m)->ether_type = htons(ETHER_TYPE_IPv4);
-	dp_pktmbuf_l2_len(m) = ETHER_HDR_LEN;
+	ethhdr(m)->ether_type = htons(RTE_ETHER_TYPE_IPV4);
+	dp_pktmbuf_l2_len(m) = RTE_ETHER_HDR_LEN;
 
 	if (likely(input_ifp != NULL)) {
 		/* Propagate or decrement (if not local) the ttl */
@@ -1397,7 +1409,7 @@ static void mpls_vpnv6_local_deliver(struct ifnet *ifp, struct rte_mbuf *m)
 	 *
 	 * Run the local firewall,  and discard if so instructed.
 	 */
-	if (npf_local_fw(ifp, &m, htons(ETHER_TYPE_IPv6)))
+	if (npf_local_fw(ifp, &m, htons(RTE_ETHER_TYPE_IPV6)))
 		goto discard;
 
 	IP6STAT_INC_IFP(ifp, IPSTATS_MIB_INDELIVERS);
@@ -1446,8 +1458,8 @@ static bool mpls_reswitch_as_ipv6(struct ifnet *input_ifp,
 	 * means setting the ether header to be in front of our
 	 * current label and setting the ethertype to be ipv6.
 	 */
-	assert(dp_pktmbuf_l2_len(m) >= ETHER_HDR_LEN);
-	pop_offset = dp_pktmbuf_l2_len(m) - ETHER_HDR_LEN;
+	assert(dp_pktmbuf_l2_len(m) >= RTE_ETHER_HDR_LEN);
+	pop_offset = dp_pktmbuf_l2_len(m) - RTE_ETHER_HDR_LEN;
 
 	memmove((uint8_t *)ethhdr(m) + pop_offset, ethhdr(m), ETH_HLEN);
 	if (!rte_pktmbuf_adj(m, pop_offset)) {
@@ -1456,8 +1468,8 @@ static bool mpls_reswitch_as_ipv6(struct ifnet *input_ifp,
 			__func__);
 		return false;
 	}
-	ethhdr(m)->ether_type = htons(ETHER_TYPE_IPv6);
-	dp_pktmbuf_l2_len(m) = ETHER_HDR_LEN;
+	ethhdr(m)->ether_type = htons(RTE_ETHER_TYPE_IPV6);
+	dp_pktmbuf_l2_len(m) = RTE_ETHER_HDR_LEN;
 
 	if (likely(input_ifp != NULL)) {
 		/* Propagate or decrement (if not local) the ttl */
@@ -1503,7 +1515,7 @@ mpls_labeled_forward(struct ifnet *input_ifp, bool local,
 	uint32_t in_label;
 	enum nh_type nht;
 	uint8_t ttl;
-	union next_hop_v4_or_v6_ptr nh;
+	struct next_hop *nh;
 	bool pop;
 
 	mpls_label_cache_init(&cache);
@@ -1563,7 +1575,7 @@ mpls_labeled_forward(struct ifnet *input_ifp, bool local,
 		nh = mpls_label_table_lookup(label_table, in_label, m,
 					     ETH_P_MPLS_UC, &nht,
 					     &payload_type);
-		if (unlikely(!nh.v4)) {
+		if (unlikely(!nh)) {
 			if (!local && label_table) {
 				DBG_MPLS_PKTERR(input_ifp, m,
 						"label table entry not found\n");
@@ -1574,10 +1586,9 @@ mpls_labeled_forward(struct ifnet *input_ifp, bool local,
 			break;
 		}
 
-		ret = nh_fwd_mpls(nht, nh, m, true, payload_type, &cache, &pop);
-
+		ret = nh_fwd_mpls(nh, m, true, payload_type, &cache, &pop);
 		if (likely(ret == NH_FWD_IPv4)) {
-			mpls_forward_to_ipv4(input_ifp, local, m, nh.v4, ttl,
+			mpls_forward_to_ipv4(input_ifp, local, m, nh, ttl,
 					     pop);
 			return;
 		} else if (likely(ret == NH_FWD_SUCCESS)) {
@@ -1585,20 +1596,20 @@ mpls_labeled_forward(struct ifnet *input_ifp, bool local,
 					ttl, m, &cache, input_ifp);
 			return;
 		} else if (likely(ret == NH_FWD_IPv6)) {
-			mpls_forward_to_ipv6(input_ifp, local, m, nh.v6, ttl,
+			mpls_forward_to_ipv6(input_ifp, local, m, nh, ttl,
 					     pop);
 			return;
 		} else if (unlikely(ret == NH_FWD_RESWITCH_IPv4)) {
 			if (!mpls_reswitch_as_ipv4(
-				    input_ifp, m, dp_nh4_get_ifp(nh.v4) ?
-				    if_vrfid(dp_nh6_get_ifp(nh.v6)) :
+				    input_ifp, m, dp_nh_get_ifp(nh) ?
+				    if_vrfid(dp_nh_get_ifp(nh)) :
 				    VRF_DEFAULT_ID, ttl))
 				goto drop;
 			return;
 		} else if (unlikely(ret == NH_FWD_RESWITCH_IPv6)) {
 			if (!mpls_reswitch_as_ipv6(
-				    input_ifp, m, dp_nh6_get_ifp(nh.v6) ?
-				    if_vrfid(dp_nh6_get_ifp(nh.v6)) :
+				    input_ifp, m, dp_nh_get_ifp(nh) ?
+				    if_vrfid(dp_nh_get_ifp(nh)) :
 				    VRF_DEFAULT_ID, ttl))
 				goto drop;
 			return;
@@ -1610,7 +1621,7 @@ mpls_labeled_forward(struct ifnet *input_ifp, bool local,
 			 * labels here so that we can simply reset
 			 * the L2 len to ethernet.
 			 */
-			dp_pktmbuf_l2_len(m) = ETHER_HDR_LEN;
+			dp_pktmbuf_l2_len(m) = RTE_ETHER_HDR_LEN;
 			if (unlikely(local))
 				break;
 			/*
@@ -1656,7 +1667,7 @@ static void mpls_output(struct rte_mbuf *m)
 
 void mpls_unlabeled_input(struct ifnet *input_ifp, struct rte_mbuf *m,
 			  enum nh_type ip_nh_type,
-			  union next_hop_v4_or_v6_ptr ip_nh,
+			  struct next_hop *ip_nh,
 			  uint8_t ttl)
 {
 	const union next_hop_outlabels *labels;
@@ -1668,7 +1679,7 @@ void mpls_unlabeled_input(struct ifnet *input_ifp, struct rte_mbuf *m,
 	enum nh_fwd_ret ret;
 	unsigned int i = 0;
 	enum nh_type nht;
-	union next_hop_v4_or_v6_ptr nh;
+	struct next_hop *nh;
 	label_t label;
 	uint8_t bos;
 
@@ -1677,7 +1688,7 @@ void mpls_unlabeled_input(struct ifnet *input_ifp, struct rte_mbuf *m,
 	if (propagate_ttl != TTL_PROPAGATE_ENABLED)
 		ttl = default_ttl;
 
-	if (unlikely(nh_get_flags(ip_nh_type, ip_nh) & RTF_OUTLABEL)) {
+	if (unlikely(nh_get_flags(ip_nh) & RTF_OUTLABEL)) {
 		/*
 		 * Output labels are provided
 		 * Payload type is not required for imposition but needs to be
@@ -1690,7 +1701,7 @@ void mpls_unlabeled_input(struct ifnet *input_ifp, struct rte_mbuf *m,
 		/*
 		 * Push all except the top (local) label onto the label cache
 		 */
-		labels = nh_get_labels(ip_nh_type, ip_nh);
+		labels = nh_get_labels(ip_nh);
 		num_labels = nh_outlabels_get_cnt(labels);
 		assert(num_labels);
 		bos = true;
@@ -1710,10 +1721,10 @@ void mpls_unlabeled_input(struct ifnet *input_ifp, struct rte_mbuf *m,
 
 		/* Assumes nexthop address family == link address family */
 		if (ip_nh_type == NH_TYPE_V6GW)
-			ether_type = ETHER_TYPE_IPv6;
+			ether_type = RTE_ETHER_TYPE_IPV6;
 		else {
 			assert(ip_nh_type == NH_TYPE_V4GW);
-			ether_type = ETHER_TYPE_IPv4;
+			ether_type = RTE_ETHER_TYPE_IPV4;
 		}
 
 		/*
@@ -1723,7 +1734,7 @@ void mpls_unlabeled_input(struct ifnet *input_ifp, struct rte_mbuf *m,
 			rcu_dereference(global_label_table), local_label,
 			m, ether_type, &nht, &payload_type);
 
-		if (unlikely(!nh.v4)) {
+		if (unlikely(!nh)) {
 			DBG_MPLS_PKTERR(input_ifp, m,
 				 "%s %s: no route for %d\n", __func__,
 				 input_ifp ? input_ifp->if_name : "(local)",
@@ -1732,19 +1743,18 @@ void mpls_unlabeled_input(struct ifnet *input_ifp, struct rte_mbuf *m,
 		}
 	}
 
-	ret = nh_fwd_mpls(nht, nh, m, false, payload_type, &cache, NULL);
-
+	ret = nh_fwd_mpls(nh, m, false, payload_type, &cache, NULL);
 	if (likely(ret == NH_FWD_SUCCESS)) {
 		nh_mpls_forward(payload_type, nht, nh, false, ttl,
 				m, &cache, input_ifp);
 		return;
 	} else if (likely(ret == NH_FWD_IPv4)) {
 		mpls_forward_to_ipv4(input_ifp, input_ifp == NULL, m,
-				     nh.v4, ttl, false);
+				     nh, ttl, false);
 		return;
 	} else if (likely(ret == NH_FWD_IPv6)) {
 		mpls_forward_to_ipv6(input_ifp, input_ifp == NULL, m,
-				     nh.v6, ttl, false);
+				     nh, ttl, false);
 		return;
 	} else if (unlikely(ret == NH_FWD_SLOWPATH)) {
 		/*
@@ -1754,7 +1764,7 @@ void mpls_unlabeled_input(struct ifnet *input_ifp, struct rte_mbuf *m,
 		 * labels here so that we can simply reset
 		 * the L2 len to ethernet.
 		 */
-		dp_pktmbuf_l2_len(m) = ETHER_HDR_LEN;
+		dp_pktmbuf_l2_len(m) = RTE_ETHER_HDR_LEN;
 		if (nht == NH_TYPE_V4GW) {
 			struct iphdr *ip = iphdr(m);
 

@@ -61,7 +61,7 @@ fal_lag_create(const struct ifinfomsg *ifi, struct nlattr *tb[])
 {
 	struct swport_dev_info swport_dev_info;
 	struct rte_eth_dev_info dev_info;
-	struct ether_addr *macaddr = NULL;
+	struct rte_ether_addr *macaddr = NULL;
 	struct dpdk_eth_if_softc *sc;
 	fal_object_t fal_lag_obj;
 	portid_t dpdk_port;
@@ -81,7 +81,7 @@ fal_lag_create(const struct ifinfomsg *ifi, struct nlattr *tb[])
 	if (tb[IFLA_ADDRESS]) {
 		size_t addrlen = mnl_attr_get_payload_len(tb[IFLA_ADDRESS]);
 
-		if (addrlen == ETHER_ADDR_LEN)
+		if (addrlen == RTE_ETHER_ADDR_LEN)
 			macaddr = mnl_attr_get_payload(tb[IFLA_ADDRESS]);
 	}
 	if (!macaddr) {
@@ -496,7 +496,7 @@ fal_lag_can_startstop_member(struct ifnet *ifp __unused)
 }
 
 static int
-fal_lag_set_l2_address(struct ifnet *ifp, struct ether_addr *macaddr)
+fal_lag_set_l2_address(struct ifnet *ifp, struct rte_ether_addr *macaddr)
 {
 	return rte_eth_dev_default_mac_addr_set(
 		ifp->if_port, macaddr);

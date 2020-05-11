@@ -48,22 +48,22 @@ pppoe_in_process(struct pl_packet *pkt, void *context __unused)
 		pkt->in_ifp = ppp;
 
 		/* Trim ONLY PPP overhead, keep length for ether_hdr */
-		struct ether_hdr *eh =
-			(struct ether_hdr *)rte_pktmbuf_adj(
+		struct rte_ether_hdr *eh =
+			(struct rte_ether_hdr *)rte_pktmbuf_adj(
 			m, (sizeof(struct pppoe_packet) -
-				sizeof(struct ether_hdr)));
-		m->l2_len = sizeof(struct ether_hdr);
+				sizeof(struct rte_ether_hdr)));
+		m->l2_len = sizeof(struct rte_ether_hdr);
 		memcpy(&eh->d_addr, &pppoe_hdr->eth_hdr.d_addr,
-				sizeof(struct ether_addr));
+				sizeof(struct rte_ether_addr));
 		memcpy(&eh->s_addr, &pppoe_hdr->eth_hdr.s_addr,
-				sizeof(struct ether_addr));
+				sizeof(struct rte_ether_addr));
 
 		switch (inner_proto) {
 		case PPP_IP:
-			eh->ether_type = htons(ETHER_TYPE_IPv4);
+			eh->ether_type = htons(RTE_ETHER_TYPE_IPV4);
 			return PPP_FORWARD_V4_ACCEPT;
 		case PPP_IPV6:
-			eh->ether_type = htons(ETHER_TYPE_IPv6);
+			eh->ether_type = htons(RTE_ETHER_TYPE_IPV6);
 			return PPP_FORWARD_V6_ACCEPT;
 		default:
 			/* Unsupported inner protocol */

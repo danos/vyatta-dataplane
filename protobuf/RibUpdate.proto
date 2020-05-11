@@ -1,0 +1,28 @@
+// Copyright (c) 2020, AT&T Intellectual Property.  All rights reserved.
+//
+// SPDX-License-Identifier: LGPL-2.1-only
+//
+// Route update definitions
+//
+// Note: defaults are optimised for scale (BGP) convergence case
+//
+
+syntax="proto2";
+
+option go_package = "github.com/danos/vyatta-dataplane/protobuf/go/RibUpdate";
+
+import "Route.proto";
+
+message RibUpdate {
+	enum Action {
+		// Create or update
+		UPDATE	= 0;
+		DELETE	= 1;
+	}
+
+	optional Action	action = 1 [default = UPDATE];
+
+	// The route to create/update or delete.
+	// Paths on the route are optional for a delete.
+	optional Route route = 2;
+}

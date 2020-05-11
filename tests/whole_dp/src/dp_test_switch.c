@@ -50,7 +50,7 @@ dp_test_edsa_tag_insert(struct rte_mbuf *pak, const char *port_name, bool tx)
 	if (tx)
 		return;
 
-	struct ether_hdr *eh = ethhdr(pak);
+	struct rte_ether_hdr *eh = ethhdr(pak);
 	struct  edsa_hdr *edsa = (struct edsa_hdr *)&eh->ether_type;
 
 	DSA_SET_TAG_TYPE(edsa, DSA_TAG_TYPE_FORWARD);

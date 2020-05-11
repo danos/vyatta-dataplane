@@ -1232,9 +1232,9 @@ static struct session *se_create(struct sentry_packet *sp, uint32_t timeout,
 
 	/* set custom etime */
 	if (sp->sp_sentry_flags & SENTRY_IPv4)
-		eth_type = htons(ETHER_TYPE_IPv4);
+		eth_type = htons(RTE_ETHER_TYPE_IPV4);
 	else
-		eth_type = htons(ETHER_TYPE_IPv6);
+		eth_type = htons(RTE_ETHER_TYPE_IPV6);
 	s->se_custom_timeout = npf_custom_session_timeout(sp->sp_vrfid,
 			eth_type, m);
 

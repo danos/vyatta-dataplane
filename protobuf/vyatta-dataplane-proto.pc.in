@@ -6,6 +6,5 @@ includedir=@includedir@
 Name: libvyatta-dataplane-proto
 Description: C++ bindings for the vyatta-dataplane control API.
 Version: @VERSION@
-Requires: protobuf
 Libs: -L${libdir} -lvyatta-dataplane-proto
-Cflags: -I${includedir} -I/usr/include/vyatta-dataplane/proto
+Cflags: -I${includedir} -I${includedir}/vyatta-dataplane/protobuf

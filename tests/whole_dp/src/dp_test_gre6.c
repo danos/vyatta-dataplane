@@ -95,7 +95,7 @@ gre_test_build_expected_pak(struct dp_test_expected **expected,
 	dp_test_pktmbuf_eth_init(m,
 				 "aa:bb:cc:dd:ee:ff",
 				 dp_test_intf_name2mac_str("dp2T2"),
-				 ETHER_TYPE_IPv6);
+				 RTE_ETHER_TYPE_IPV6);
 	/* currently doing hlim propagation */
 	outer->ip6_hlim = inner->ip6_hlim;
 
@@ -184,7 +184,7 @@ DP_START_TEST(gre6_encap, simple_encap_6O6)
 				    1, &len);
 	(void)dp_test_pktmbuf_eth_init(m, dp_test_intf_name2mac_str("dp1T1"),
 				       DP_TEST_INTF_DEF_SRC_MAC,
-				       ETHER_TYPE_IPv6);
+				       RTE_ETHER_TYPE_IPV6);
 	inner_ip = ip6hdr(m);
 	gre_test_build_expected_pak(&exp, inner_ip,
 				    exp_ip_outer);
@@ -207,14 +207,14 @@ static struct dp_test_expected *gre6_test_build_expected_decapped_pak(
 	(void)dp_test_pktmbuf_eth_init(exp_mbuf,
 				       dp_test_intf_name2mac_str("dp1T1"),
 				       DP_TEST_INTF_DEF_SRC_MAC,
-				       ETHER_TYPE_IPv6);
+				       RTE_ETHER_TYPE_IPV6);
 	ip6 = ip6hdr(exp_mbuf);
 	ip6->ip6_hlim -= 2;
 
 	exp = dp_test_exp_create_m(NULL, 1);
 	exp->exp_pak[0] = exp_mbuf;
 	dp_test_exp_set_oif_name(exp, "dp1T1");
-	exp->check_start[0] = sizeof(struct ether_hdr);
+	exp->check_start[0] = sizeof(struct rte_ether_hdr);
 	exp->check_len[0] =
 		rte_pktmbuf_data_len(exp_mbuf) - exp->check_start[0];
 	*exp_mbuf_p = exp_mbuf;
@@ -234,7 +234,7 @@ dp_test_gre6_build_encapped_pak(const struct ip6_hdr *payload_ip,
 	(void)dp_test_pktmbuf_eth_init(m,
 				       dp_test_intf_name2mac_str("dp2T2"),
 				       DP_TEST_INTF_DEF_SRC_MAC,
-				       ETHER_TYPE_IPv6);
+				       RTE_ETHER_TYPE_IPV6);
 	return m;
 }
 

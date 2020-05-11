@@ -64,8 +64,8 @@ vlan_mod_pcp_arbitrate(struct vlan_mod_ft_cls_action *action, uint8_t pcp)
 
 static inline uint16_t vlan_mod_alt_proto(uint16_t proto)
 {
-	return (proto == ETHER_TYPE_VLAN) ?
-		ETHER_TYPE_QINQ : ETHER_TYPE_VLAN;
+	return (proto == RTE_ETHER_TYPE_VLAN) ?
+		RTE_ETHER_TYPE_QINQ : RTE_ETHER_TYPE_VLAN;
 }
 
 static inline void

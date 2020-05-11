@@ -200,7 +200,7 @@ dp_test_create_esp_ipv4_pak(const char *saddr, const char *daddr,
 	if (!pak)
 		return NULL;
 
-	if (!dp_test_pktmbuf_eth_init(pak, NULL, NULL, ETHER_TYPE_IPv4)) {
+	if (!dp_test_pktmbuf_eth_init(pak, NULL, NULL, RTE_ETHER_TYPE_IPV4)) {
 		rte_pktmbuf_free(pak);
 		return NULL;
 	}
@@ -223,7 +223,7 @@ dp_test_create_esp_ipv4_pak(const char *saddr, const char *daddr,
 
 	/* recalculation checksum */
 	ip->check = 0;
-	ip->check = rte_ipv4_cksum((const struct ipv4_hdr *)ip);
+	ip->check = rte_ipv4_cksum((const struct rte_ipv4_hdr *)ip);
 
 	/* Payload offset and length */
 	uint32_t poff = pak->l2_len + pak->l3_len + udphdrlen + sizeof(*esp);
@@ -298,7 +298,7 @@ dp_test_create_esp_ipv6_pak(const char *saddr, const char *daddr,
 	if (!pak)
 		return NULL;
 
-	if (!dp_test_pktmbuf_eth_init(pak, NULL, NULL, ETHER_TYPE_IPv6)) {
+	if (!dp_test_pktmbuf_eth_init(pak, NULL, NULL, RTE_ETHER_TYPE_IPV6)) {
 		rte_pktmbuf_free(pak);
 		return NULL;
 	}
@@ -568,7 +568,8 @@ void _dp_test_crypto_update_policy(const char *file, int line,
  * Delete an IPsec policy from the dataplane
  */
 void _dp_test_crypto_delete_policy(const char *file, int line,
-				   const struct dp_test_crypto_policy *policy)
+				   const struct dp_test_crypto_policy *policy,
+				   bool verify)
 {
 	struct xfrm_selector sel;
 	xfrm_address_t dst;
@@ -592,8 +593,40 @@ void _dp_test_crypto_delete_policy(const char *file, int line,
 					 policy->passthrough,
 				     file, line);
 
-	_wait_for_policy(policy, false, file, line);
+	if (verify)
+		_wait_for_policy(policy, false, file, line);
 }
+
+void _dp_test_crypto_check_policy_count(vrfid_t vrfid,
+					unsigned int num_policies, int af,
+					const char *file, int line)
+{
+#define POLL_CNT 1000
+#define POLL_INTERVAL 50
+	char cmd_str[100];
+	char exp_str[100];
+	static const char template[] = "{"
+					   "\"ipsec_policies\": {"
+					       "\"vrf\": %d,"
+					       "\"live_policy_count\": {"
+						   "\"%s\": %d,"
+					       " }"
+				       "}}";
+	json_object *jexp;
+
+	vrfid = dp_test_translate_vrf_id(vrfid);
+
+	snprintf(cmd_str, sizeof(cmd_str), "ipsec spd vrf_id %d brief", vrfid);
+	snprintf(exp_str, sizeof(exp_str), template, vrfid,
+		 af == AF_INET ? "ipv4" : "ipv6", num_policies);
+
+	jexp = dp_test_json_create("%s", exp_str);
+	dp_test_check_json_poll_state_interval(cmd_str, jexp,
+					       DP_TEST_JSON_CHECK_SUBSET,
+					       false, POLL_CNT, POLL_INTERVAL);
+	json_object_put(jexp);
+}
+
 
 /*
  * wait_for_sa()
@@ -819,7 +852,7 @@ generate_exp_unreachable(struct rte_mbuf *input_pkt, int payload_len,
 	(void)dp_test_pktmbuf_eth_init(icmp_pak,
 				       dmac,
 				       dp_test_intf_name2mac_str(oif),
-				       ETHER_TYPE_IPv4);
+				       RTE_ETHER_TYPE_IPV4);
 
 	dp_test_set_pak_ip_field(ip, DP_TEST_SET_TOS,
 				 IPTOS_PREC_INTERNETCONTROL);
@@ -853,7 +886,7 @@ generate_exp_unreachable6(struct rte_mbuf *input_pkt, int payload_len,
 	(void)dp_test_pktmbuf_eth_init(icmp_pak,
 				       dmac,
 				       dp_test_intf_name2mac_str(oif),
-				       ETHER_TYPE_IPv6);
+				       RTE_ETHER_TYPE_IPV6);
 
 	exp = dp_test_exp_create(icmp_pak);
 

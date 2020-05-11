@@ -146,10 +146,10 @@ static void free_label_table_node(struct label_table_node *label_table_entry)
 {
 	switch (label_table_entry->nh_type) {
 	case NH_TYPE_V4GW:
-		nexthop_put(label_table_entry->next_hop);
+		nexthop_put(AF_INET, label_table_entry->next_hop);
 		break;
 	case NH_TYPE_V6GW:
-		nexthop6_put(label_table_entry->next_hop);
+		nexthop_put(AF_INET6, label_table_entry->next_hop);
 		break;
 	}
 
@@ -180,7 +180,7 @@ static bool
 mpls_label_table_ins_lbl_internal(struct cds_lfht *label_table,
 				  uint32_t in_label, enum nh_type nh_type,
 				  enum mpls_payload_type payload_type,
-				  union next_hop_v4_or_v6_ptr hops,
+				  struct next_hop *hops,
 				  size_t size)
 {
 	struct label_table_node *label_table_node;
@@ -209,7 +209,8 @@ mpls_label_table_ins_lbl_internal(struct cds_lfht *label_table,
 
 	switch (nh_type) {
 	case NH_TYPE_V4GW:
-		rc = nexthop_new(hops.v4, size, RTPROT_UNSPEC, &nextu_idx);
+		rc = nexthop_new(AF_INET, hops, size, RTPROT_UNSPEC,
+				 &nextu_idx);
 		if (rc < 0) {
 			RTE_LOG(ERR, MPLS,
 				"Failed to create nexthops for label table entry: %s\n",
@@ -219,7 +220,8 @@ mpls_label_table_ins_lbl_internal(struct cds_lfht *label_table,
 		}
 		break;
 	case NH_TYPE_V6GW: {
-		rc = nexthop6_new(hops.v6, size, &nextu_idx);
+		rc = nexthop_new(AF_INET6, hops, size, RTPROT_UNSPEC,
+				 &nextu_idx);
 		if (rc < 0) {
 			RTE_LOG(ERR, MPLS,
 				"Failed to create nexthops for label table entry: %s\n",
@@ -313,7 +315,11 @@ mpls_label_table_del_reserved_labels(struct cds_lfht *table)
 static bool
 mpls_label_table_add_reserved_labels(struct cds_lfht *table)
 {
-	union next_hop_v4_or_v6_ptr nhop;
+	struct next_hop *nhop;
+	struct ip_addr addr_any = {
+		.type = AF_INET,
+		.address.ip_v4.s_addr = INADDR_ANY,
+	};
 
 	/*
 	 * IPv4/6 Exp NULL
@@ -322,8 +328,8 @@ mpls_label_table_add_reserved_labels(struct cds_lfht *table)
 	 */
 	label_t outlabels[] = {MPLS_IMPLICITNULL};
 
-	nhop.v4 = nexthop_create(NULL, INADDR_ANY, 0, 1, outlabels);
-	if (!nhop.v4)
+	nhop = nexthop_create(NULL, &addr_any, 0, 1, outlabels);
+	if (!nhop)
 		goto error;
 	mpls_label_table_ins_lbl_internal(table, MPLS_IPV4EXPLICITNULL,
 					  NH_TYPE_V4GW, MPT_IPV4,
@@ -331,14 +337,14 @@ mpls_label_table_add_reserved_labels(struct cds_lfht *table)
 	mpls_label_table_ins_lbl_internal(table, MPLS_IPV6EXPLICITNULL,
 					  NH_TYPE_V4GW, MPT_IPV6,
 					  nhop, 1);
-	free(nhop.v4);
+	free(nhop);
 
-	nhop.v4 = nexthop_create(NULL, INADDR_ANY, RTF_SLOWPATH, 1, outlabels);
-	if (!nhop.v4)
+	nhop = nexthop_create(NULL, &addr_any, RTF_SLOWPATH, 1, outlabels);
+	if (!nhop)
 		goto error;
 	mpls_label_table_ins_lbl_internal(table, MPLS_ROUTERALERT,
 					  NH_TYPE_V4GW, 0, nhop, 1);
-	free(nhop.v4);
+	free(nhop);
 
 	return true;
 
@@ -512,7 +518,7 @@ void mpls_label_table_unlock(int labelspace)
 void mpls_label_table_insert_label(int labelspace, uint32_t in_label,
 			     enum nh_type nh_type,
 			     enum mpls_payload_type payload_type,
-			     union next_hop_v4_or_v6_ptr hops,
+			     struct next_hop *hops,
 			     size_t size)
 {
 	struct cds_lfht *label_table =
@@ -548,20 +554,30 @@ mpls_label_table_lookup_internal(struct cds_lfht *label_table,
 	return NULL;
 }
 
-union next_hop_v4_or_v6_ptr
+static inline int nh_type_to_address_family(enum nh_type type)
+{
+	if (type == NH_TYPE_V6GW)
+		return AF_INET6;
+
+	return AF_INET;
+}
+
+struct next_hop *
 mpls_label_table_lookup(struct cds_lfht *label_table, uint32_t in_label,
 			const struct rte_mbuf *m, uint16_t ether_type,
 			enum nh_type *nht,
 			enum mpls_payload_type *payload_type)
 {
 	struct label_table_node *out;
-	union next_hop_v4_or_v6_ptr nh = { NULL };
+	struct next_hop *nh = NULL;
 
 	out = mpls_label_table_lookup_internal(label_table, in_label);
 	if (likely(out != NULL)) {
 		*nht = out->nh_type;
 		*payload_type = out->payload_type;
-		return nh_select(*nht, out->next_hop, m, ether_type);
+		nh = nexthop_select(nh_type_to_address_family(*nht),
+				    out->next_hop, m, ether_type);
+		return nh;
 	}
 	return nh;
 }
@@ -679,12 +695,12 @@ mpls_oam_v4_lookup(int labelspace, uint8_t nlabels, const label_t *labels,
 		   struct mpls_oam_outinfo outinfo[],
 		   unsigned int max_fanout)
 {
-	union next_hop_v4_or_v6_ptr nh;
+	struct next_hop *nh;
 	struct cds_lfht *label_table;
 	struct label_table_node *out;
 	struct next_hop *paths;
 	struct rte_mbuf *m;
-	struct ether_hdr *eth;
+	struct rte_ether_hdr *eth;
 	label_t *lbl_stack;
 	struct iphdr *ip;
 	struct udphdr *udp;
@@ -720,17 +736,17 @@ mpls_oam_v4_lookup(int labelspace, uint8_t nlabels, const label_t *labels,
 
 	hlen = nlabels * sizeof(label_t);
 	payload = sizeof(struct udphdr) + sizeof(struct iphdr);
-	if (!rte_pktmbuf_append(m, sizeof(struct ether_hdr) + hlen +
+	if (!rte_pktmbuf_append(m, sizeof(struct rte_ether_hdr) + hlen +
 				payload)) {
 		rte_pktmbuf_free(m);
 		rcu_read_unlock();
 		return;
 	}
 
-	eth = rte_pktmbuf_mtod(m, struct ether_hdr *);
+	eth = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
 	memset(eth, 0, sizeof(*eth));
 	eth->ether_type = htons(ETH_P_MPLS_UC);
-	m->l2_len = sizeof(struct ether_hdr);
+	m->l2_len = sizeof(struct rte_ether_hdr);
 
 	/*
 	 * MPLS Incoming Label Stack
@@ -770,19 +786,19 @@ mpls_oam_v4_lookup(int labelspace, uint8_t nlabels, const label_t *labels,
 	/*
 	 * Reset L2 header to the end of the ethernet header
 	 */
-	m->l2_len = ETHER_HDR_LEN;
+	m->l2_len = RTE_ETHER_HDR_LEN;
 
 	npaths = 0;
 	paths = nexthop_get(out->next_hop, &npaths);
 	for (i = 0; i < npaths; i++) {
-		nh.v4 = paths + i;
-		if (nh.v4->flags & RTF_DEAD)
+		nh = paths + i;
+		if (nh->flags & RTF_DEAD)
 			continue;
 		for (oi = 0; oi < max_fanout; oi++) {
 			if (!outinfo[oi].inuse) {
-				outinfo[oi].ifp = dp_nh4_get_ifp(nh.v4);
-				outinfo[oi].gateway = nh.v4->gateway;
-				outinfo[oi].outlabels = nh.v4->outlabels;
+				outinfo[oi].ifp = dp_nh_get_ifp(nh);
+				outinfo[oi].gateway = nh->gateway4;
+				outinfo[oi].outlabels = nh->outlabels;
 				outinfo[oi].bitmask = 0;
 				outinfo[oi].inuse = true;
 				break;
@@ -798,23 +814,24 @@ mpls_oam_v4_lookup(int labelspace, uint8_t nlabels, const label_t *labels,
 		ip->daddr = htonl(daddr + addr_index);
 		ip->check = 0;
 
-		nh = nh_select(out->nh_type, out->next_hop, m, ETH_P_MPLS_UC);
-		if (!nh.v4)
+		nh = nexthop_select(nh_type_to_address_family(out->nh_type),
+				    out->next_hop, m, ETH_P_MPLS_UC);
+		if (!nh)
 			continue;
 
 		for (oi = 0; oi < max_fanout; oi++) {
 			if (!outinfo[oi].inuse) {
-				outinfo[oi].ifp = dp_nh4_get_ifp(nh.v4);
-				outinfo[oi].gateway = nh.v4->gateway;
-				outinfo[oi].outlabels = nh.v4->outlabels;
+				outinfo[oi].ifp = dp_nh_get_ifp(nh);
+				outinfo[oi].gateway = nh->gateway4;
+				outinfo[oi].outlabels = nh->outlabels;
 				outinfo[oi].bitmask = ((uint64_t)1 << i);
 				outinfo[oi].inuse = true;
 				break;
 			}
-			if ((outinfo[oi].ifp == dp_nh4_get_ifp(nh.v4)) &&
-			    (outinfo[oi].gateway == nh.v4->gateway) &&
+			if ((outinfo[oi].ifp == dp_nh_get_ifp(nh)) &&
+			    (outinfo[oi].gateway == nh->gateway4) &&
 			     nh_outlabels_cmpfn(&outinfo[oi].outlabels,
-						&nh.v4->outlabels)) {
+						&nh->outlabels)) {
 				outinfo[oi].bitmask |=
 					((uint64_t)1 << i);
 				break;

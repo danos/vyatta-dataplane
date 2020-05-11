@@ -63,8 +63,8 @@ _pppoe_cmd_handler(PPPOEConfig *pppoe_msg, struct pb_msg *msg)
 	char *under_name;
 	struct ifnet *underlying;
 	struct pppoe_connection *conn;
-	struct ether_addr my_eth;
-	struct ether_addr peer_eth;
+	struct rte_ether_addr my_eth;
+	struct rte_ether_addr peer_eth;
 
 	pppname = pppoe_msg->pppname;
 	ppp_inter = dp_ifnet_byifname(pppname);

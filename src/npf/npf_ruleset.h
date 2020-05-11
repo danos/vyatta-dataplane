@@ -157,8 +157,8 @@ bool npf_rproc_action(npf_cache_t *npc, struct rte_mbuf **nbuf,
 		      npf_session_t *se, npf_rproc_result_t *result);
 bool npf_rproc_match(npf_cache_t *npc, struct rte_mbuf *m, const npf_rule_t *rl,
 		     const struct ifnet *ifp, int dir, npf_session_t *se);
-void npf_grouper_init(npf_rule_group_t *rg);
-void npf_grouper_optimize(npf_rule_group_t *rg);
+int npf_match_setup(npf_rule_group_t *rg, uint32_t max_rules);
+void npf_match_optimize(npf_rule_group_t *rg);
 bool npf_rule_proc(const void *d, const void *r);
 npf_rule_t *npf_ruleset_inspect(npf_cache_t *npc, struct rte_mbuf *nbuf,
 				const npf_ruleset_t *ruleset,
@@ -172,6 +172,7 @@ bool npf_rule_stateful(const npf_rule_t *rl);
 enum npf_ruleset_type npf_type_of_ruleset(const npf_ruleset_t *ruleset);
 
 const char *npf_ruleset_get_name(npf_rule_group_t *rg);
+bool npf_ruleset_uses_cache(const npf_ruleset_t *ruleset);
 
 /*
  * Walk all ruleset groups in a ruleset config
@@ -198,5 +199,15 @@ void npf_rules_walk(npf_rule_group_t *rg, struct ruleset_select *sel,
 void npf_rulenc_dump(const npf_rule_t *rl);
 #endif
 int npf_flush_rulesets(void);
+
+/*
+ * Find a rule matching the rule number.
+ *
+ * Used by clients of rte-acl since there is no
+ * facility to store and directly return the pointer
+ * to the rule (as is done with grouper)
+ */
+npf_rule_t *npf_rule_group_find_rule(npf_rule_group_t *rg,
+				     uint32_t rule_no);
 
 #endif /* NPF_RULESET_H */

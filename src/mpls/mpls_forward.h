@@ -17,7 +17,7 @@
 
 #include "if_var.h"
 #include "mpls.h"
-#include "nh.h"
+#include "nh_common.h"
 
 struct ifnet;
 struct rte_mbuf;
@@ -36,7 +36,7 @@ void mpls_labeled_input(struct ifnet *ifp, struct rte_mbuf *m)
 	__attribute__((hot));
 void mpls_unlabeled_input(struct ifnet *ifp, struct rte_mbuf *m,
 			  enum nh_type nh_type,
-			  union next_hop_v4_or_v6_ptr ip_nh, uint8_t ttl)
+			  struct next_hop *ip_nh, uint8_t ttl)
 	__attribute__((hot));
 
 #endif

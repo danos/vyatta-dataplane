@@ -144,7 +144,7 @@ int lag_can_startstop_member(struct ifnet *ifp)
 	return current_lag_ops->lagop_can_startstop_member(ifp);
 }
 
-int lag_set_l2_address(struct ifnet *ifp, struct ether_addr *macaddr)
+int lag_set_l2_address(struct ifnet *ifp, struct rte_ether_addr *macaddr)
 {
 	return current_lag_ops->lagop_set_l2_address(ifp, macaddr);
 }

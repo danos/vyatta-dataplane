@@ -83,7 +83,7 @@ DP_START_TEST(icmp_ipv4, test1)
 	struct dp_test_pkt_desc_t v4_pkt = {
 		.text       = "ICMP IPv4",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv4,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
 		.l3_src     = "1.1.1.11",
 		.l2_src     = "aa:bb:cc:dd:1:a1",
 		.l3_dst     = "2.2.2.11",
@@ -291,7 +291,7 @@ DP_START_TEST(icmp_ipv4, test2)
 	struct dp_test_pkt_desc_t v4_pkt = {
 		.text       = "ICMP IPv4",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv4,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
 		.l3_src     = "1.1.1.11",
 		.l2_src     = "aa:bb:cc:dd:1:a1",
 		.l3_dst     = "2.2.2.11",
@@ -418,7 +418,7 @@ DP_START_TEST(icmp_ipv4, test3)
 	struct dp_test_pkt_desc_t v4_pkt = {
 		.text       = "ICMP IPv4",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv4,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
 		.l3_src     = "1.1.1.11",
 		.l2_src     = "aa:bb:cc:dd:1:a1",
 		.l3_dst     = "2.2.2.11",
@@ -527,7 +527,7 @@ DP_START_TEST(icmp_ipv6, test1)
 	struct dp_test_pkt_desc_t v6_pkt = {
 		.text       = "ICMP IPv6",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv6,
+		.ether_type = RTE_ETHER_TYPE_IPV6,
 		.l3_src     = "2001:1:1::2",
 		.l2_src     = "aa:bb:cc:dd:1:a1",
 		.l3_dst     = "2002:2:2::1",
@@ -718,7 +718,7 @@ DP_START_TEST(icmp_ipv6, test2)
 	struct dp_test_pkt_desc_t v6_pkt = {
 		.text       = "ICMP IPv6",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv6,
+		.ether_type = RTE_ETHER_TYPE_IPV6,
 		.l3_src     = "2001:1:1::2",
 		.l2_src     = "aa:bb:cc:dd:1:a1",
 		.l3_dst     = "2002:2:2::1",
@@ -844,7 +844,7 @@ DP_START_TEST(icmp_ipv6, test3)
 	struct dp_test_pkt_desc_t v6_pkt = {
 		.text       = "ICMP IPv6",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv6,
+		.ether_type = RTE_ETHER_TYPE_IPV6,
 		.l3_src     = "2001:1:1::2",
 		.l2_src     = "aa:bb:cc:dd:1:a1",
 		.l3_dst     = "2002:2:2::1",
@@ -945,7 +945,7 @@ DP_START_TEST(icmp_ipv4, test4)
 	struct dp_test_pkt_desc_t ins_pre = {
 		.text       = "Inside pre",
 		.len	= 20,
-		.ether_type = ETHER_TYPE_IPv4,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
 		.l3_src     = "100.101.102.103",
 		.l2_src     = "aa:bb:cc:16:0:20",
 		.l3_dst     = "200.201.202.203",
@@ -968,7 +968,7 @@ DP_START_TEST(icmp_ipv4, test4)
 	struct dp_test_pkt_desc_t ins_post = {
 		.text       = "Inside post",
 		.len	= 20,
-		.ether_type = ETHER_TYPE_IPv4,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
 		.l3_src     = "100.101.102.103",
 		.l2_src     = dp2T1_mac,
 		.l3_dst     = "200.201.202.203",
@@ -991,7 +991,7 @@ DP_START_TEST(icmp_ipv4, test4)
 	struct dp_test_pkt_desc_t outs_pre = {
 		.text       = "Outside pre",
 		.len	= 20,
-		.ether_type = ETHER_TYPE_IPv4,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
 		.l3_src     = "200.201.202.203",
 		.l2_src     = "aa:bb:cc:18:0:1",
 		.l3_dst     = "100.101.102.103",
@@ -1014,7 +1014,7 @@ DP_START_TEST(icmp_ipv4, test4)
 	struct dp_test_pkt_desc_t outs_post = {
 		.text       = "Outside post",
 		.len	= 20,
-		.ether_type = ETHER_TYPE_IPv4,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
 		.l3_src     = "200.201.202.203",
 		.l2_src     = dp1T0_mac,
 		.l3_dst     = "100.101.102.103",
@@ -1136,7 +1136,7 @@ DP_START_TEST(icmp_ipv6, test4)
 	struct dp_test_pkt_desc_t ins = {
 		.text       = "ICMP IPv6",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv6,
+		.ether_type = RTE_ETHER_TYPE_IPV6,
 		.l3_src     = "2001:1:1::2",
 		.l2_src     = "aa:bb:cc:dd:1:a1",
 		.l3_dst     = "2002:2:2::1",
@@ -1156,7 +1156,7 @@ DP_START_TEST(icmp_ipv6, test4)
 	struct dp_test_pkt_desc_t outs = {
 		.text       = "ICMP IPv6",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv6,
+		.ether_type = RTE_ETHER_TYPE_IPV6,
 		.l3_src     = "2002:2:2::1",
 		.l2_src     = "aa:bb:cc:dd:2:b1",
 		.l3_dst     = "2001:1:1::2",
@@ -1275,7 +1275,7 @@ DP_START_TEST(icmp_ipv4, test5)
 	struct dp_test_pkt_desc_t ins = {
 		.text       = "Inside",
 		.len	= 20,
-		.ether_type = ETHER_TYPE_IPv4,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
 		.l3_src     = "100.101.102.103",
 		.l2_src     = "aa:bb:cc:16:0:20",
 		.l3_dst     = "200.201.202.203",
@@ -1298,7 +1298,7 @@ DP_START_TEST(icmp_ipv4, test5)
 	struct dp_test_pkt_desc_t outs = {
 		.text       = "Outside",
 		.len	= 20,
-		.ether_type = ETHER_TYPE_IPv4,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
 		.l3_src     = "200.201.202.203",
 		.l2_src     = "aa:bb:cc:18:0:1",
 		.l3_dst     = "100.101.102.103",
@@ -1479,7 +1479,7 @@ DP_START_TEST(icmp_ipv6, test5)
 	struct dp_test_pkt_desc_t ins = {
 		.text       = "ICMP IPv6",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv6,
+		.ether_type = RTE_ETHER_TYPE_IPV6,
 		.l3_src     = "2001:1:1::2",
 		.l2_src     = "aa:bb:cc:dd:1:a1",
 		.l3_dst     = "2002:2:2::1",
@@ -1499,7 +1499,7 @@ DP_START_TEST(icmp_ipv6, test5)
 	struct dp_test_pkt_desc_t outs = {
 		.text       = "ICMP IPv6",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv6,
+		.ether_type = RTE_ETHER_TYPE_IPV6,
 		.l3_src     = "2002:2:2::1",
 		.l2_src     = "aa:bb:cc:dd:2:b1",
 		.l3_dst     = "2001:1:1::2",
@@ -1672,7 +1672,7 @@ DP_START_TEST(icmp_ipv4, test6)
 	struct dp_test_pkt_desc_t ins_pre = {
 		.text       = "Inside pre",
 		.len	= 20,
-		.ether_type = ETHER_TYPE_IPv4,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
 		.l3_src     = "100.101.102.103",
 		.l2_src     = "aa:bb:cc:16:0:20",
 		.l3_dst     = "200.201.202.203",
@@ -1695,7 +1695,7 @@ DP_START_TEST(icmp_ipv4, test6)
 	struct dp_test_pkt_desc_t ins_post = {
 		.text       = "Inside post",
 		.len	= 20,
-		.ether_type = ETHER_TYPE_IPv4,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
 		.l3_src     = "200.201.202.2",
 		.l2_src     = dp2T1_mac,
 		.l3_dst     = "200.201.202.203",
@@ -1718,7 +1718,7 @@ DP_START_TEST(icmp_ipv4, test6)
 	struct dp_test_pkt_desc_t outs_pre = {
 		.text       = "Outside pre",
 		.len	= 20,
-		.ether_type = ETHER_TYPE_IPv4,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
 		.l3_src     = "200.201.202.203",
 		.l2_src     = "aa:bb:cc:18:0:1",
 		.l3_dst     = "200.201.202.2",
@@ -1741,7 +1741,7 @@ DP_START_TEST(icmp_ipv4, test6)
 	struct dp_test_pkt_desc_t outs_post = {
 		.text       = "Outside post",
 		.len	= 20,
-		.ether_type = ETHER_TYPE_IPv4,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
 		.l3_src     = "200.201.202.203",
 		.l2_src     = dp1T0_mac,
 		.l3_dst     = "100.101.102.103",

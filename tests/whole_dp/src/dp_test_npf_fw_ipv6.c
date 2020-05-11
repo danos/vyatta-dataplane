@@ -99,7 +99,7 @@ DP_START_TEST(npf_ipv6, ipv6_routing_hdr)
 
 	rp = dp_test_pktmbuf_eth_init(pak,
 				      dp_test_intf_name2mac_str("dp1T0"),
-				      "aa:bb:cc:dd:1:a1", ETHER_TYPE_IPv6);
+				      "aa:bb:cc:dd:1:a1", RTE_ETHER_TYPE_IPV6);
 	dp_test_assert_internal(rp != NULL);
 
 	ip6 = dp_test_pktmbuf_ip6_init(pak, "2001:1:1::2",
@@ -146,7 +146,7 @@ DP_START_TEST(npf_ipv6, ipv6_routing_hdr)
 	(void)dp_test_pktmbuf_eth_init(dp_test_exp_get_pak(exp),
 				       "aa:bb:cc:dd:2:b1",
 				       dp_test_intf_name2mac_str("dp2T1"),
-				       ETHER_TYPE_IPv6);
+				       RTE_ETHER_TYPE_IPV6);
 
 	dp_test_ipv6_decrement_ttl(dp_test_exp_get_pak(exp));
 

@@ -85,6 +85,7 @@
 #include "if_var.h"
 #include "ip_addr.h"
 #include "ip_icmp.h"
+#include "ip_rt_protobuf.h"
 #include "json_writer.h"
 #include "l2_rx_fltr.h"
 #include "l2tp/l2tpeth.h"
@@ -1123,7 +1124,7 @@ static void if_unset_netconf(struct ifnet *ifp)
  * Note: it is floating (not in any table)
  */
 struct ifnet *if_alloc(const char *ifname, enum if_type type,
-		       unsigned int mtu, const struct ether_addr *eth_addr,
+		       unsigned int mtu, const struct rte_ether_addr *eth_addr,
 		       int socket)
 {
 	const struct ift_ops *ops;
@@ -1144,7 +1145,7 @@ struct ifnet *if_alloc(const char *ifname, enum if_type type,
 		return NULL;
 
 	if (eth_addr)
-		ether_addr_copy(eth_addr, &ifp->eth_addr);
+		rte_ether_addr_copy(eth_addr, &ifp->eth_addr);
 
 	if (strlen(ifname) >= IFNAMSIZ)
 		RTE_LOG(NOTICE, DATAPLANE,
@@ -1199,7 +1200,7 @@ void if_add_vlan(struct ifnet *ifp, struct rte_mbuf **m)
 
 	if (ifp->qinq_inner) {
 		if_incr_out(ifp, *m);
-		vid_encap(ifp->if_vlan, m, ETHER_TYPE_VLAN);
+		vid_encap(ifp->if_vlan, m, RTE_ETHER_TYPE_VLAN);
 		ifp = ifp->if_parent;
 	}
 
@@ -1213,7 +1214,7 @@ void if_add_vlan(struct ifnet *ifp, struct rte_mbuf **m)
 	if_incr_out(ifp, *m);
 }
 
-int if_add_l2_addr(struct ifnet *ifp, struct ether_addr *addr)
+int if_add_l2_addr(struct ifnet *ifp, struct rte_ether_addr *addr)
 {
 	const struct ift_ops *ops;
 	int ret;
@@ -1249,7 +1250,7 @@ int if_add_l2_addr(struct ifnet *ifp, struct ether_addr *addr)
 	return ret;
 }
 
-int if_del_l2_addr(struct ifnet *ifp, struct ether_addr *addr)
+int if_del_l2_addr(struct ifnet *ifp, struct rte_ether_addr *addr)
 {
 	const struct ift_ops *ops;
 	int ret;
@@ -1330,7 +1331,7 @@ int if_vlan_proto_set(struct ifnet *ifp, uint16_t proto)
 	 * and physical VLAN interfaces.
 	 */
 	if (ifp->qinq_inner) {
-		if (proto != ETHER_TYPE_VLAN)
+		if (proto != RTE_ETHER_TYPE_VLAN)
 			RTE_LOG(ERR, DATAPLANE,
 				"%s: can't change QinQ inner tpid - 0x%x\n",
 				ifp->if_name, proto);
@@ -1566,18 +1567,18 @@ static void if_team_init(struct ifnet *ifp)
 
 static struct ifnet *
 if_hwport_init(const char *if_name, unsigned int portid,
-	       const struct ether_addr *eth, int socketid)
+	       const struct rte_ether_addr *eth, int socketid)
 {
 	struct ifnet *ifp;
 
 	/* device driver couldn't find MAC address */
-	if (is_zero_ether_addr(eth)) {
+	if (rte_is_zero_ether_addr(eth)) {
 		RTE_LOG(NOTICE, DATAPLANE,
 			"%s port %u: address not set!\n", if_name, portid);
 		return NULL;
 	}
 
-	ifp = if_alloc(if_name, IFT_ETHER, ETHER_MTU, eth, socketid);
+	ifp = if_alloc(if_name, IFT_ETHER, RTE_ETHER_MTU, eth, socketid);
 	if (!ifp)
 		return NULL;
 
@@ -1605,7 +1606,7 @@ if_hwport_init(const char *if_name, unsigned int portid,
  * Initialize a hardwired port.
  */
 struct ifnet *if_hwport_alloc(unsigned int portid,
-			      const struct ether_addr *eth, int socketid)
+			      const struct rte_ether_addr *eth, int socketid)
 {
 	struct ifnet *ifp;
 	char if_name[IFNAMSIZ];
@@ -1944,8 +1945,10 @@ struct incomplete_route {
 	uint8_t scope;
 	uint8_t proto;
 
-	/* netlink message */
-	struct nlmsghdr *nlh;
+	/* route update message */
+	void *data;
+	size_t size;
+	bool protobuf;
 };
 
 enum missed_nl_type {
@@ -1966,7 +1969,7 @@ struct missed_netlink {
 	enum missed_nl_type type;
 	uint32_t ifindex;
 	union {
-		struct ether_addr addr;
+		struct rte_ether_addr addr;
 		struct ip_addr ip;
 		unsigned int ifindex;
 	} keys;
@@ -2024,7 +2027,7 @@ incomplete_route_free(struct rcu_head *head)
 	struct incomplete_route *route;
 
 	route = caa_container_of(head, struct incomplete_route, rcu);
-	free(route->nlh);
+	free(route->data);
 	free(route);
 }
 
@@ -2166,7 +2169,11 @@ void incomplete_routes_make_complete(void)
 	cds_lfht_for_each_entry(incomplete_routes, &iter,
 				route, hash_node) {
 		/* CONT_SRC_UPLINK does not use the rib broker */
-		notify_route(route->nlh, CONT_SRC_MAIN);
+		if (route->protobuf)
+			ip_route_pb_handler(route->data, route->size,
+					    CONT_SRC_MAIN);
+		else
+			notify_route(route->data, CONT_SRC_MAIN);
 	}
 }
 
@@ -2174,7 +2181,7 @@ static uint32_t incomplete_route_hash(struct incomplete_route *route)
 {
 	int num_words;
 
-	num_words = (offsetof(struct incomplete_route, nlh) -
+	num_words = (offsetof(struct incomplete_route, data) -
 		     offsetof(struct incomplete_route, dest) + 3) / 4;
 	return rte_jhash_32b((uint32_t *)&route->dest, num_words, 0);
 }
@@ -2204,13 +2211,14 @@ static inline int incomplete_route_match_fn(struct cds_lfht_node *node,
 }
 
 /*
- * Add an incomplete route. If we already have an entry for that key then
- * update the message to new one.
+ * Add an incomplete route. If we already have an entry for that key
+ * then update the message to new one.
  */
-void incomplete_route_add(const void *dst,
-			  uint8_t family, uint8_t depth, uint32_t table,
-			  uint8_t scope, uint8_t proto,
-			  const struct nlmsghdr *nlh)
+static bool
+incomplete_route_add(const void *dst,
+		      uint8_t family, uint8_t depth, uint32_t table,
+		      uint8_t scope, uint8_t proto, void *data, size_t size,
+		      bool protobuf)
 {
 	struct incomplete_route *route;
 	struct cds_lfht_node *ret_node;
@@ -2218,7 +2226,7 @@ void incomplete_route_add(const void *dst,
 	route = calloc(1, sizeof(*route));
 	if (!route) {
 		incomplete_stats.mem_fails++;
-		return;
+		return false;
 	}
 
 	switch (family) {
@@ -2237,13 +2245,9 @@ void incomplete_route_add(const void *dst,
 	route->table = table;
 	route->scope = scope;
 	route->proto = proto;
-	route->nlh = malloc(nlh->nlmsg_len);
-	if (!route->nlh) {
-		free(route);
-		incomplete_stats.mem_fails++;
-		return;
-	}
-	memcpy(route->nlh, nlh, nlh->nlmsg_len);
+	route->data = data;
+	route->size = size;
+	route->protobuf = protobuf;
 
 	ret_node = cds_lfht_add_replace(incomplete_routes,
 					incomplete_route_hash(route),
@@ -2260,6 +2264,51 @@ void incomplete_route_add(const void *dst,
 					 hash_node);
 		call_rcu(&route->rcu, incomplete_route_free);
 	}
+
+	return true;
+}
+
+/*
+ * Add an incomplete route in netlink format. If we already have an
+ * entry for that key then update the message to new one.
+ */
+void incomplete_route_add_nl(const void *dst,
+			     uint8_t family, uint8_t depth, uint32_t table,
+			     uint8_t scope, uint8_t proto,
+			     const struct nlmsghdr *nlh)
+{
+	void *data = malloc(nlh->nlmsg_len);
+	bool protobuf = false;
+
+	if (!data) {
+		incomplete_stats.mem_fails++;
+		return;
+	}
+	memcpy(data, nlh, nlh->nlmsg_len);
+
+	if (!incomplete_route_add(dst, family, depth, table, scope, proto,
+				  data, nlh->nlmsg_len, protobuf))
+		free(data);
+}
+
+/* Add incomplete protobuf route */
+void incomplete_route_add_pb(const void *dst,
+			     uint8_t family, uint8_t depth, uint32_t table,
+			     uint8_t scope, uint8_t proto,
+			     void *data, size_t size)
+{
+	void *data_cpy = malloc(size);
+	bool protobuf = true;
+
+	if (!data_cpy) {
+		incomplete_stats.mem_fails++;
+		return;
+	}
+	memcpy(data_cpy, data, size);
+
+	if (!incomplete_route_add(dst, family, depth, table, scope, proto,
+				  data_cpy, size, protobuf))
+		free(data_cpy);
 }
 
 void incomplete_route_del(const void *dst,
@@ -2365,7 +2414,7 @@ static inline int missed_netlink_match_fn(struct cds_lfht_node *node,
 	if (missed->type == MISSED_UNSPEC_ADDR) {
 		if (memcmp(&missed->keys.addr,
 			   &missed_key->keys.addr,
-			   sizeof(struct ether_addr)) != 0)
+			   sizeof(struct rte_ether_addr)) != 0)
 			return 0;
 	}
 	if (missed->type == MISSED_INET_ADDR) {
@@ -2410,7 +2459,7 @@ static void missed_netlink_add(enum missed_nl_type type,
 
 	missed->type = type;
 	if (type == MISSED_UNSPEC_ADDR)
-		memcpy(&missed->keys.addr, addr, sizeof(struct ether_addr));
+		memcpy(&missed->keys.addr, addr, sizeof(struct rte_ether_addr));
 	if (type == MISSED_INET_ADDR)
 		memcpy(&missed->keys.ip.address.ip_v4,
 						addr, sizeof(struct in_addr));
@@ -2457,7 +2506,7 @@ static void missed_netlink_del(enum missed_nl_type type,
 	memset(&missed, 0, sizeof(missed));
 	missed.type = type;
 	if (type == MISSED_UNSPEC_ADDR)
-		memcpy(&missed.keys.addr, addr, sizeof(struct ether_addr));
+		memcpy(&missed.keys.addr, addr, sizeof(struct rte_ether_addr));
 	if (type == MISSED_INET_ADDR)
 		memcpy(&missed.keys.ip.address.ip_v4,
 						addr, sizeof(struct in_addr));
@@ -2512,14 +2561,14 @@ void missed_nl_child_link_del(unsigned int ifindex,
 }
 
 void missed_nl_unspec_addr_add(unsigned int ifindex,
-			       const struct ether_addr *addr,
+			       const struct rte_ether_addr *addr,
 			       const struct nlmsghdr *nlh)
 {
 	missed_netlink_add(MISSED_UNSPEC_ADDR, ifindex, addr, nlh);
 }
 
 void missed_nl_unspec_addr_del(unsigned int ifindex,
-			       const struct ether_addr *addr)
+			       const struct rte_ether_addr *addr)
 {
 	missed_netlink_del(MISSED_UNSPEC_ADDR, ifindex, addr);
 }
@@ -2646,10 +2695,10 @@ bool if_port_is_uplink(portid_t portid)
 	if (is_local_controller() || (portid == IF_PORT_ID_INVALID))
 		return false;
 
-	struct ether_addr mac_addr;
+	struct rte_ether_addr mac_addr;
 
 	rte_eth_macaddr_get(portid, &mac_addr);
-	return is_same_ether_addr(&mac_addr, &config.uplink_addr);
+	return rte_is_same_ether_addr(&mac_addr, &config.uplink_addr);
 }
 
 /* Backplane ports connect switch to CPU
@@ -3072,7 +3121,7 @@ int if_set_l2_address(struct ifnet *ifp, uint32_t l2_addr_len, void *l2_addr)
 	 * Note: this assumes the L2 address is an Ethernet MAC. This
 	 * will have to be changed if this assumption ever changes.
 	 */
-	struct ether_addr old_mac_addr = ifp->eth_addr;
+	struct rte_ether_addr old_mac_addr = ifp->eth_addr;
 
 	if (ops->ifop_set_l2_address)
 		ret = ops->ifop_set_l2_address(ifp, l2_addr_len, l2_addr);
@@ -3158,7 +3207,7 @@ int if_get_poe(struct ifnet *ifp, bool *admin_status, bool *oper_status)
 
 void if_finish_create(struct ifnet *ifp, const char *ifi_type,
 		      const char *kind,
-		      const struct ether_addr *mac_addr)
+		      const struct rte_ether_addr *mac_addr)
 {
 	struct fal_attribute_t attrs[10];
 	unsigned int nattrs = 5;
@@ -3558,6 +3607,7 @@ if_fal_create_l3_intf(struct ifnet *ifp)
 {
 	struct fal_attribute_t l3_attrs[11];
 	unsigned int l3_nattrs = 2;
+	fal_object_t fal_l3;
 	int ret = 0;
 
 	l3_attrs[0].id = FAL_ROUTER_INTERFACE_ATTR_IFINDEX;
@@ -3585,7 +3635,7 @@ if_fal_create_l3_intf(struct ifnet *ifp)
 		l3_attrs[l3_nattrs].value.u16 = ifp->if_mtu;
 		l3_nattrs++;
 	}
-	if (!is_zero_ether_addr(&ifp->eth_addr)) {
+	if (!rte_is_zero_ether_addr(&ifp->eth_addr)) {
 		l3_attrs[l3_nattrs].id =
 			FAL_ROUTER_INTERFACE_ATTR_SRC_MAC_ADDRESS;
 		memcpy(&l3_attrs[l3_nattrs].value.mac, &ifp->eth_addr,
@@ -3619,13 +3669,15 @@ if_fal_create_l3_intf(struct ifnet *ifp)
 	l3_nattrs++;
 
 	ret = fal_create_router_interface(l3_nattrs, l3_attrs,
-					  &ifp->fal_l3);
-	if ((ret == 0) && !ifp->fal_l3) {
+					  &fal_l3);
+	if ((ret == 0) && !fal_l3) {
 		RTE_LOG(ERR, DATAPLANE,
 			"Invalid L3 object ID returned for %s\n",
 			ifp->if_name);
 		return -EINVAL;
 	}
+	if (ret == 0)
+		rcu_assign_pointer(ifp->fal_l3, fal_l3);
 	if (ret == -EOPNOTSUPP)
 		ret = 0;
 	if (ret < 0)
@@ -3646,7 +3698,7 @@ if_fal_delete_l3_intf(struct ifnet *ifp)
 
 	ret = fal_delete_router_interface(ifp->fal_l3);
 	if (ret == 0)
-		ifp->fal_l3 = 0;
+		rcu_assign_pointer(ifp->fal_l3, FAL_NULL_OBJECT_ID);
 
 	if (ret == -EOPNOTSUPP)
 		ret = 0;
@@ -3951,6 +4003,7 @@ static void ifconfig(struct ifnet *ifp, void *arg)
 	struct bridge_port *brport;
 	json_writer_t *wr = ctx->wr;
 	struct ifnet *parent;
+	fal_object_t fal_l3;
 	char ebuf[32];
 
 	jsonw_start_object(wr);
@@ -3999,7 +4052,7 @@ static void ifconfig(struct ifnet *ifp, void *arg)
 	jsonw_uint_field(wr, "dp_id", 0);
 	jsonw_string_field(wr, "ether",
 			   ether_ntoa_r(&ifp->eth_addr, ebuf));
-	if (!is_zero_ether_addr(&ifp->perm_addr))
+	if (!rte_is_zero_ether_addr(&ifp->perm_addr))
 		jsonw_string_field(wr, "perm_addr",
 				   ether_ntoa_r(&ifp->perm_addr, ebuf));
 
@@ -4022,10 +4075,11 @@ static void ifconfig(struct ifnet *ifp, void *arg)
 	show_if_l2_filter(wr, ifp);
 	show_af_ifconfig(wr, ifp);
 
-	if (ifp->fal_l3) {
+	fal_l3 = rcu_dereference(ifp->fal_l3);
+	if (fal_l3) {
 		jsonw_name(wr, "router_intf_platform_state");
 		jsonw_start_object(wr);
-		fal_dump_router_interface(ifp->fal_l3, wr);
+		fal_dump_router_interface(fal_l3, wr);
 		jsonw_end_object(wr);
 	}
 

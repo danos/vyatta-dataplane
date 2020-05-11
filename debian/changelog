@@ -1,3 +1,395 @@
+vyatta-dataplane (3.10.11) unstable; urgency=medium
+
+  [ Brian Russell ]
+  * qos: fix legacy map show
+
+  [ Nicholas Brown ]
+  * git ignore more debian package install directories
+  * dataplane-dev does not have a dependency on the test binary
+
+  [ Robert Shearman ]
+  * route_v6: move handle_route6 function to ip_netlink.c
+  * if: rename incomplete_route_add function
+  * protobuf: add definition for route updates from the RIB
+  * ip_rt_protobuf: add support for decoding protobuf route updates
+  * tests: add support for protobuf route messages
+  * ip_rt_protobuf: add support for installing backup paths
+  * tests: add test for routes with backup paths
+  * ecmp: move netlink handling to ip_netlink.c
+  * ip_rt_protobuf: preserve display behaviour for MPLS deagg routes
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Mon, 11 May 2020 11:49:36 +0100
+
+vyatta-dataplane (3.10.10) unstable; urgency=medium
+
+  [ Mike Larson ]
+  * Typo in include guard
+
+  [ Shweta Choudaha ]
+  * Add support for I40E X722 device
+
+  [ Charles (Chas) Williams ]
+  * dpdk: 19.11: struct ether_addr to struct rte_ether_addr
+    (Bugfix: VRVDR-45636)
+  * dpdk: 19.11; is_*_ether_addr to rte_is_*_ether_addr (Bugfix: VRVDR-45636)
+  * dpdk: 19.11: e_RTE_METER_COLORS to RTE_COLORS (Bugfix: VRVDR-45636)
+  * dpdk: 19.11: rename struct *_hdr to struct rte_*_hdr (Bugfix: VRVDR-45636)
+  * dpdk: 19.11: ETHER_* to RTE_ETHER_* (Bugfix: VRVDR-45636)
+  * dpdk: 19.11: add alignment to packed structs (Bugfix: VRVDR-45636)
+  * dpdk: 19.11: fix swport unit tests (Bugfix: VRVDR-45636)
+  * dpdk: 19.11: update build depdendencies (Bugfix: VRVDR-45636)
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Mon, 11 May 2020 09:13:58 +0100
+
+vyatta-dataplane (3.10.9) unstable; urgency=medium
+
+  [ Gavin Shearer ]
+  * alg: ensure parent session active before linking child
+
+  [ Paul Atkins ]
+  * 3.9.108
+
+  [ Charles (Chas) Williams ]
+  * crypto: count burst buffer full as drops (Bugfix: VRVDR-50279)
+  * crypto: count most errors as proto drops (Bugfix: VRVDR-50279)
+  * crypto: eliminate macro usage (Bugfix: VRVDR-50279)
+  * crypto: count packets against tunnel interface (Bugfix: VRVDR-50279)
+  * crypto: do not count failed packets (Bugfix: VRVDR-50279)
+
+  [ Paul Atkins ]
+  * 3.9.109
+
+  [ Mark Gillott ]
+  * Register event operations only on first use (Fixes: VRVDR-50621)
+  * Capture portmonitor replay errors (Fixes: VRVDR-50621)
+
+  [ Paul Atkins ]
+  * 3.9.110
+
+  [ Charles (Chas) Williams ]
+  * vhost: fix QMP communication (Bugfix: VRVDR-50745)
+
+  [ Paul Atkins ]
+  * 3.9.111
+
+  [ Nicholas Brown ]
+  * Add new public API dp_pipeline_is_feature_enabled_by_inst()
+
+  [ Paul Atkins ]
+  * 3.9.112
+
+  [ Mark Gillott ]
+  * pipeline: add initialiser to declaration of storage_ctx
+
+  [ Nicholas Brown ]
+  * Install test headers into the correct path from Makefile
+  * dataplane_test in it's own package
+
+  [ Gavin Shearer ]
+  * nat64: make per-rule 'used' count be decremented
+  * nat64: set full range for overload start/stop ports
+
+  [ Mark Gillott ]
+  * pcap: serialise access to capture console socket (Fixes: VRVDR-50937)
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Wed, 06 May 2020 14:13:12 +0100
+
+vyatta-dataplane (3.10.8) unstable; urgency=medium
+
+  [ Mike Larson ]
+  * Add helper functions for protobuf
+
+  [ Paul Atkins ]
+  * nh_common: use a common version of nh_get_lables
+  * nh_common: use a common version of nh_get_flags
+  * mpls: use dp_nh_get_ifp instead of nh_get_if
+  * nh_common: use a common version of nexthop_mp_select
+  * route: add a family parameter to nexthop_select
+  * route6: add a family parameter to nexthop6_select
+  * crypto: crypto_policy_handle_packet_outbound_checks to use common nh
+  * crypto: pr_feat_attach should use a single nh instead of a union
+  * nh_common: use a common version of nexthop_select
+  * nh: change nh_select so that it takes a family not a nh_type
+  * nh: use nexthop_select instead of nh_select
+  * mpls: make mpls_label_table_lookup return a next_hop ptr
+  * mpls: make mpls_unlabeled_input return a struct next_hop *
+  * mpls: modify mpls_oam_v4_lookup to use a next_hop instead of a union
+  * mpls: change mpls_label_table_ins_lbl_internal to take a next_hop ptr
+  * mpls: change mpls_label_table_insert_label to take a next_hop ptr
+  * mpls: change mpls_label_table_add_reserved_labels to use a next_hop ptr
+  * mpls: nh_fwd_mpls should take a struct next_hop ptr
+  * mpls: change nh_eth_output_mpls to take a struct next_hop ptr
+  * mpls: change nh_mpls_ip_fragment to take a struct next_hop ptr
+  * mpls: change nh_mpls_forward to take a struct next_hop ptr
+  * mpls: change mpls_labeled_forward to use a struct next_hop ptr
+  * mpls: change mpls_unlabeled_forward to use a struct next_hop ptr
+  * ecmp: change ecmp_mpls_create to return a struct next_hop ptr
+  * mpls: change mpls_route_change to use a struct next_hop ptr
+  * crypto: make crypto_policy_check_outbound take a struct next_hop **
+  * l3_v4_ipsec: use struct next_hop instead of the nh union
+  * l3_v6_ipsec: use struct next_hop instead of the nh union
+  * shadow: use struct next_hop instead of the nh union nin spath_reader
+  * nh: remove union next_hop_v4_or_v6_ptr as it is no longer used
+  * crypto: tidy up code in crypto_policy_check_outbound
+  * crypto: remove common code in crypto_policy_feat_attach_by_reqid
+  * crypto: remove  common code in policy_bind_feat_attach
+  * crypto: remove common code in policy_rule_to_json
+  * shadow: commonise next_hop code in spath_reader
+  * nh_common: make some of the nexthop functions static
+  * nh: move the final funcs from nh.c and delete the file
+  * mpls: move nh_fwd_ret into mpls_forward.c as that is the only user
+  * nh: remove definition of NH_STRING_MAX as it is unused
+  * mpls: remove duplicate code in mpls_route_change
+  * nh_common: move enum nh_type into nh_common.h
+  * nh_common: include mpls.h as it uses the outlabels defined there
+  * nh_common: include ip_addr.h as it uses the ip_addr defined there
+  * route: include if_llatbl.h as it use symbols defined there
+  * l3_v4_encap: include if_llatbl.h as it use symbols defined there
+  * nh: move enum nh_type to nh_common.h and remove nh.h
+  * nh_common: rename next_hop_u to next_hop_list
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Fri, 01 May 2020 10:11:41 +0100
+
+vyatta-dataplane (3.10.7) unstable; urgency=medium
+
+  [ Nicholas Brown ]
+  * Git Ignore generated library files
+
+  [ Robert Shearman ]
+  * vlan_modify: fix json writing unwinding for no interfaces
+    (Fixes: VRVDR-50839)
+  * fal: add FAL next-hop attributes for PIC Edge (Closes: VRVDR-50739)
+  * fal: add memory management functions
+  * if: use RCU for interface fal_l3 field
+  * storm_control: use RCU for instance sci_fal_obj array
+  * tests: use FAL memory helpers in test plugin
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Fri, 01 May 2020 08:19:56 +0100
+
+vyatta-dataplane (3.10.6) unstable; urgency=medium
+
+  [ Paul Atkins ]
+  * ut: change the size of the rings on the tx/rx interfaces
+  * ut: provide apis for injecting and getting tx'ed packets
+  * ut: add a new test for qos bursts
+
+  [ Robert Shearman ]
+  * vlan_modify: don't create filter chain unless there's an action we handle
+    (Fixes: VRVDR-50709)
+  * vlan_modify: remove some noisy log messages (Fixes: VRVDR-50711)
+
+  [ Mike Larson ]
+  * Protobuf support files need to be exported for plug-in
+  * Move install location for protobuf generated files
+  * Export more UT functions/headers
+  * Update pkg-config path for dev
+  * Set up dependency correctly for proto projects
+
+  [ Paul Atkins ]
+  * route: make the gateway in a next hop a union of v4/v6
+  * route: change order of fields in struct next_hop_u
+  * mpls: include stdbool.h as the header file uses bool
+  * nh_common: add a new nh_common file to contain core nh code
+  * route6: make the v6 route code use the common 'struct next_hop'
+  * nh_common: move struct next_hop_u into nh_common.h
+  * nh_common: remove struct next_hop_v6_u, use the v4/v6 version
+  * nh_common: move the struct nexthop_hash_key to nh_common header file
+  * route6: use the common nexthop_hash_key structure
+  * nh_common: move struct nexthop_table into nh_common.h
+  * route6: use the common nexthop table definition
+  * nh_common: add code to allow registration per AF
+  * nh_common: add common funcs to get/set ifp from nh
+  * route6: move route_v6_init and route_v6_uninit lower in file
+  * route: register hash functions with nh_common
+  * route6: register hash functions with nh_common
+  * route: don't use global nh_tbl var from nexthop_new
+  * route: modify the debug in nexthop_reuse to add the af
+  * nh_common: make the nexthop_lookup function common
+  * route6: use the common nexthop_lookup function
+  * fal: use a common version of next_hop_to_packet_action
+  * fal: use a common version of next_hop_group_packet_action
+  * fal: use a common version of next_hop_to_attr_list
+  * fal: use a common version of fal_ip_new_next_hops
+  * nh_common: use a common version of nexthop_reuse
+  * nh_common: use a common version of nexthop_hash_insert
+  * route6: pass an address family into nexthop6_new
+  * route6: use NEXTHOP_HASH_TBL_SIZE instead of the v6 specific version
+  * nh_common: use a common version of nexthop_alloc
+  * nh_common: use a common version of nexthop_destroy
+  * route6: change nexthop6_new to take a proto field
+  * nh_common: use a common version of nexthop_new
+  * route: modify nexthop_create to take a struct ip_addr for the gateway
+  * route6: modify nexthop6_create to take a struct ip_addr for the gateway
+  * nh_common: use a common version of nexthop_create
+  * fal: use a common version of fal_ip_del_next_hops
+  * nh_common: use a common version of nh_is_neigh_present
+  * nh_common: use a common version of nh_is_neigh_created
+  * nh_common: use a common version of nh_get_lle
+  * route: add a family parameter to nexthop_put
+  * route6: add a family parameter to nexthop6_put
+  * nh_common: use a common version of nexthop_put
+  * nh_common: use a common version of nexthop_create_copy
+  * route: add a family parameter to nexthop_hash_del_add
+  * route6: add a family parameter to nexthop6_hash_del_add
+  * nh_common: use a common version of nexthop_hash_del_add
+  * nh_common: use a common version of nh_is_connected
+  * nh_common: use a common version of nh_is_local
+  * nh_common: use a common version of nh_is_gw
+  * route: add a family parameter to nh4_set_neigh_present
+  * route6: add a family parameter to nh6_set_neigh_present
+  * nh_common: use a common version of nh_set_neigh_present
+  * route: add a family parameter to nh4_clear_neigh_present
+  * route6: add a family parameter to nh6_clear_neigh_present
+  * nh_common: use a common version of nh_clear_neigh_present
+  * route: add a family parameter to nh4_set_neigh_created
+  * route6: add a family parameter to nh6_set_neigh_created
+  * nh_common: use a common version of nh_set_neigh_created
+  * route: add a family parameter to nh4_clear_neigh_created
+  * route6: add a family parameter to nh6_clear_neigh_created
+  * nh_common: use a common version of nh_clear_neigh_created
+  * nh_common: use a common version of nextu_nc_count
+  * nh_common: use a common version of nextu_find_path_using_ifp
+  * nh_common: use a common version of nextu_is_any_connected
+  * route: add a family parameter to route_nh_replace
+  * route: add a family parameter to route6_nh_replace
+  * fal: move next_hop_group_packet_action higher in file
+  * fal: use next_hop_group_packet_action when creating new ip nhs
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Wed, 29 Apr 2020 08:42:25 +0100
+
+vyatta-dataplane (3.10.5) unstable; urgency=medium
+
+  [ Srinivas Narayan ]
+  * Refactor use of grouper2 functions into separate module
+  * rte-acl: determine ruleset size at creation time
+  * rte-acl: Add packet matching abstraction
+  * rte-acl: migrate ruleset to packet match abstraction API
+  * rte-acl: Rename npf_grouper_cb_data and make it public
+  * rte-acl: Add rte-acl based implementation of packet matching callbacks
+  * rte-acl: Set up crypto callbacks for using rte-acl
+  * rte-acl: Pass rule group as part of the context to match function
+  * rte-acl: Add API to find rule in a group
+  * rte-acl: Add API to determine if ruleset uses cache
+  * rte-acl: Update crypto callback for match API
+  * rte-acl: Use NPF cache only if ruleset requires it
+  * rte-acl: skip using npf-cache if ruleset doesn't rely on it
+  * rte-acl: Only invoke classifier for non-empty rulesets
+  * rte-acl: Streamline call flow in npf_ruleset_inspect
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Mon, 27 Apr 2020 08:09:24 +0100
+
+vyatta-dataplane (3.10.4) unstable; urgency=medium
+
+  * Revert "Protobuf support files need to be exported for plug-in"
+  * Revert "Move install location for protobuf generated files"
+  * Revert "Export more UT functions/headers"
+  * Revert "Update pkg-config path for dev"
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Fri, 24 Apr 2020 09:18:28 +0100
+
+vyatta-dataplane (3.10.3) unstable; urgency=medium
+
+  [ Paul Atkins ]
+  * ut: mark dp_test_crypto_perf_scale tests as DONT_RUN
+
+  [ Mike Larson ]
+  * Protobuf support files need to be exported for plug-in
+  * Move install location for protobuf generated files
+  * Export more UT functions/headers
+  * Update pkg-config path for dev
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Fri, 24 Apr 2020 08:21:26 +0100
+
+vyatta-dataplane (3.10.2) unstable; urgency=medium
+
+  [ Mark Gillott ]
+  * pcap: run FAL updates on master thread (Fixes: VRVDR-50581)
+
+  [ Paul Atkins ]
+  * 3.9.105
+
+  [ Nicholas Brown ]
+  * master branch is targeting 2005 release
+  * Restore .gitlint file
+  * Identify hidden files that should not be ignored
+
+  [ Gavin Shearer ]
+  * l3acl: don't commit rules to HW on event IF_FEAT_MODE_EVENT_L3_ENABLED
+
+  [ Ian Wilson ]
+  * cgnat: Obsolete some error counts, and add echo-req count to summary
+
+  [ Nicholas Brown ]
+  * Remove copyright and license assertion output
+
+  [ Paul Atkins ]
+  * ipv4_rsmbl: If we detect duplicate fragments then clean up properly
+  * ipv4_rsmbl: check all previous frags to determine duplicates
+
+  [ Srinivas Narayan ]
+  * ipsec-ut: Update crypto UTs to support policy count verification
+  * ipsec-ut: Force NPF cleanup at the end of s2s suites
+  * ipsec-ut: Add NPF cleanup calls to multi-tunnel tests
+  * ipsec-ut: Add a test to measure time to setup/teardown 500 tunnels
+  * ipsec-ut: Increase poll interval for crypto policy display
+  * crypto: Add 'brief' option to 'ipsec spd' command
+  * crypto: Add total and live policy counts
+  * ipsec-ut: Update UT to use 'brief' cmd and live policy count
+  * UT: Add API to specify polling interval for json state
+  * ipsec-ut: Update polling interval and count based on new API
+
+  [ Paul Atkins ]
+  * ipv4_rsmbl: drop fragment if it includes previously rx'ed bytes
+  * ut: enhance the ipv4 duplicate fragment tests
+  * ipv6_rsmbl: If we detect duplicate fragments then clean up properly
+  * ipv6_rsmbl: check all previous frags to determine duplicates
+  * ipv6_rsmbl: drop fragment if it includes previously rx'ed bytes
+  * if: make if_output_features always inline
+  * l2_vlan_mod: rename the vlan_mod pipline feature file
+  * l2_vlan_mod: add a new pipeline node for egress vlan modify
+  * portmonitor: add a new pipeline node for output portmonitor
+  * capture: add a new pipeline node for output capture
+  * if: split if_output into an internal and external version
+  * if: remove if_output_features and call the feat point directly
+  * if: make the pipeline call if_output_internal
+  * 3.9.106
+
+  [ Ian Wilson ]
+  * npf: Optimal address-group show output including host addresses
+
+  [ Robert Shearman ]
+  * pipeline: use correct ifp for egress vlan modify feature
+    (Fixes: VRVDR-50708)
+
+  [ Paul Atkins ]
+  * 3.9.107
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Tue, 21 Apr 2020 09:40:00 +0100
+
+vyatta-dataplane (3.10.1) unstable; urgency=medium
+
+  [ Nicholas Brown ]
+  * master-next branch is targeting danos project
+
+  [ Srinivas Narayan ]
+  * crypto: Increase force commit count to 2000
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Wed, 08 Apr 2020 13:36:41 +0100
+
 vyatta-dataplane (3.9.112) unstable; urgency=medium
 
   [ Nicholas Brown ]

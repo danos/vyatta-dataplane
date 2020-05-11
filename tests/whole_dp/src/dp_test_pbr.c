@@ -268,7 +268,7 @@ pbr_create_pak(const char *src, const char *dst, const char *oif,
 	struct dp_test_expected *exp;
 	int len = 22;
 
-	if (type == ETHER_TYPE_IPv4)
+	if (type == RTE_ETHER_TYPE_IPV4)
 		pak = dp_test_create_ipv4_pak(src, dst, 1, &len);
 	else
 		pak = dp_test_create_ipv6_pak(src, dst, 1, &len);
@@ -285,7 +285,7 @@ pbr_create_pak(const char *src, const char *dst, const char *oif,
 			     "failed to create exp");
 	dp_test_pktmbuf_eth_init(dp_test_exp_get_pak(exp), nh_mac,
 				 dp_test_intf_name2mac_str(oif), type);
-	if (type == ETHER_TYPE_IPv4)
+	if (type == RTE_ETHER_TYPE_IPV4)
 		dp_test_ipv4_decrement_ttl(dp_test_exp_get_pak(exp));
 	else
 		dp_test_ipv6_decrement_ttl(dp_test_exp_get_pak(exp));
@@ -365,9 +365,9 @@ pbr_setup(void)
 }
 
 #define PBR_V4PAK(s, d, oif, nh, pp) \
-	pbr_create_pak(s, d, oif, ETHER_TYPE_IPv4, nh, pp, __LINE__)
+	pbr_create_pak(s, d, oif, RTE_ETHER_TYPE_IPV4, nh, pp, __LINE__)
 #define PBR_V6PAK(s, d, oif, nh, pp) \
-	pbr_create_pak(s, d, oif, ETHER_TYPE_IPv6, nh, pp, __LINE__)
+	pbr_create_pak(s, d, oif, RTE_ETHER_TYPE_IPV6, nh, pp, __LINE__)
 
 DP_DECL_TEST_CASE(pbr_suite, pbr, pbr_setup, pbr_teardown);
 

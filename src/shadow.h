@@ -20,7 +20,7 @@
 #include "urcu.h"
 #include "util.h"
 
-struct ether_addr;
+struct rte_ether_addr;
 struct ifnet;
 struct rte_mbuf;
 struct tun_meta;
@@ -55,7 +55,7 @@ void shadow_stop_port(portid_t portid);
 
 /* Initialize a shadow interface port. */
 int shadow_init_port(portid_t portid, const char *ifname,
-		     const struct ether_addr *eth_addr);
+		     const struct rte_ether_addr *eth_addr);
 void shadow_uninit_port(portid_t port);
 
 /* Initialize state for shadow tunnel commnication */

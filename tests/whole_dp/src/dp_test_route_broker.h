@@ -13,4 +13,6 @@
 #include <zmq.h>
 
 extern zsock_t *broker_data_sock;
+extern bool dp_test_route_broker_protobuf;
+
 void dp_test_broker_thread_run(zsock_t *pipe, void *args);

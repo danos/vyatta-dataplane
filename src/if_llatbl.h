@@ -71,7 +71,7 @@ struct llentry {
 	union llentry_addr {
 		uint64_t	lu_addr_flags;
 		struct {
-			struct ether_addr lu_addr;
+			struct rte_ether_addr lu_addr;
 			uint16_t	lu_flags;
 		};
 	} ll_u;
@@ -204,12 +204,13 @@ struct in_addr *ll_ipv4_addr(struct llentry *lle);
 struct in6_addr *ll_ipv6_addr(struct llentry *lle);
 
 static ALWAYS_INLINE bool
-llentry_copy_mac(struct llentry *la,  struct ether_addr *desten)
+llentry_copy_mac(struct llentry *la,  struct rte_ether_addr *desten)
 {
 	if (likely(la && (la->la_flags & LLE_VALID))) {
 		if (rte_atomic16_read(&la->ll_idle))
 			rte_atomic16_clear(&la->ll_idle);
-		ether_addr_copy((struct ether_addr *)&la->ll_addr, desten);
+		rte_ether_addr_copy((struct rte_ether_addr *)&la->ll_addr,
+				    desten);
 		return true;
 	}
 	return false;

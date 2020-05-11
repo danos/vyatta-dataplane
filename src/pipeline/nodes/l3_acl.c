@@ -76,7 +76,7 @@ ip_acl_process_common(struct pl_packet *pkt, bool v4, int dir)
 	struct rte_mbuf *m = pkt->mbuf;
 
 	uint16_t const ethertype =
-		v4 ? htons(ETHER_TYPE_IPv4) : htons(ETHER_TYPE_IPv6);
+		v4 ? htons(RTE_ETHER_TYPE_IPV4) : htons(RTE_ETHER_TYPE_IPV6);
 
 	npf_cache_init(&npc);
 	if (unlikely(!npf_cache_all(&npc, m, ethertype)))

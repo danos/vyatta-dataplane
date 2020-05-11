@@ -146,15 +146,15 @@ struct l2tpv3_ip_encap {
 } __attribute__((packed));
 
 struct l2tpv3_encap {
-	struct ether_hdr ether_header;
+	struct rte_ether_hdr ether_header;
 	char iphdr[0];
-} __attribute__((packed));
+} __attribute__((packed)) __attribute__((aligned(2)));
 
 
 typedef void l2tp_iter_func_t(void *, void *arg);
 struct ifnet *l2tpeth_create(int ifindex, const char *ifname,
 				   unsigned int mtu,
-			     const struct ether_addr *addr);
+			     const struct rte_ether_addr *addr);
 struct l2tp_session *l2tp_session_byid(uint32_t session_id);
 void l2tp_init_stats(struct l2tp_session *sess);
 void l2tp_session_walk(l2tp_iter_func_t func, void *arg);

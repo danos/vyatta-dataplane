@@ -51,12 +51,14 @@
 #include "ip_funcs.h"
 #include "ip_icmp.h"
 #include "json_writer.h"
-#include "nh.h"
+#include "nh_common.h"
 #include "npf/npf.h"
 #include "npf/config/npf_attach_point.h"
 #include "npf/config/npf_config.h"
 #include "npf/config/npf_rule_group.h"
 #include "npf/config/npf_ruleset_type.h"
+#include "npf/npf_match.h"
+#include "npf/npf_rte_acl.h"
 #include "npf_shim.h"
 #include "pipeline/nodes/pl_nodes_common.h"
 #include "pktmbuf_internal.h"
@@ -100,10 +102,7 @@ struct rte_timer;
  * path.
  */
 struct pr_feat_attach {
-	union {
-		struct next_hop nh;
-		struct next_hop_v6 nh6;
-	} next;
+	struct next_hop nh;
 	struct rcu_head pr_feat_rcu;
 };
 
@@ -844,7 +843,7 @@ policy_rule_set_peer_info(struct policy_rule *pr,
 	struct ifnet *ifp;
 
 	ifp = pr->feat_attach ?
-		dp_nh4_get_ifp(&pr->feat_attach->next.nh) : NULL;
+		dp_nh_get_ifp(&pr->feat_attach->nh) : NULL;
 	pr->reqid = tmpl->reqid;
 	pr->output_peer_af = tmpl->family;
 	memcpy(&pr->output_peer, dst, sizeof(pr->output_peer));
@@ -1202,8 +1201,8 @@ static bool policy_rule_add_to_npf(struct policy_rule *pr)
 		 dp_vrf_get_external_id(pr->vrfid));
 
 	bool attach_group =
-		(vrf_ctx->crypto_live_ipv4_policies +
-		 vrf_ctx->crypto_live_ipv6_policies == 0);
+		(vrf_ctx->crypto_total_ipv4_policies +
+		 vrf_ctx->crypto_total_ipv6_policies == 0);
 
 	if (attach_group) {
 		group_name_by_vrf(attach_buf, sizeof(attach_buf),
@@ -1264,17 +1263,17 @@ static bool policy_rule_add_to_npf(struct policy_rule *pr)
 		     pr->rule_index, buffer);
 
 	if (pr->sel.family == AF_INET) {
-		if (++vrf_ctx->crypto_live_ipv4_policies == 1)
+		if (++vrf_ctx->crypto_total_ipv4_policies == 1)
 			pl_node_add_feature_by_inst(&ipv4_ipsec_out_feat,
 						    get_vrf(pr->vrfid));
 		POLICY_DEBUG("Active IPv4 policies: %d\n",
-			     vrf_ctx->crypto_live_ipv4_policies);
+			     vrf_ctx->crypto_total_ipv4_policies);
 	} else {
-		if (++vrf_ctx->crypto_live_ipv6_policies == 1)
+		if (++vrf_ctx->crypto_total_ipv6_policies == 1)
 			pl_node_add_feature_by_inst(&ipv6_ipsec_out_feat,
 						    get_vrf(pr->vrfid));
 		POLICY_DEBUG("Active IPv6 policies: %d\n",
-			     vrf_ctx->crypto_live_ipv6_policies);
+			     vrf_ctx->crypto_total_ipv6_policies);
 	}
 
 	return true;
@@ -1335,8 +1334,8 @@ static void policy_rule_remove_from_npf(struct policy_rule *pr,
 			  dp_vrf_get_external_id(pr->vrfid));
 
 	bool detach_group =
-		(vrf_ctx->crypto_live_ipv4_policies +
-		 vrf_ctx->crypto_live_ipv6_policies == 1);
+		(vrf_ctx->crypto_total_ipv4_policies +
+		 vrf_ctx->crypto_total_ipv6_policies == 1);
 
 	int rule_ret = npf_cfg_rule_delete(NPF_RULE_CLASS_IPSEC, group_name,
 					   rule_index, NULL);
@@ -1368,17 +1367,17 @@ static void policy_rule_remove_from_npf(struct policy_rule *pr,
 	}
 
 	if (pr->sel.family == AF_INET) {
-		if (!--vrf_ctx->crypto_live_ipv4_policies)
+		if (!--vrf_ctx->crypto_total_ipv4_policies)
 			pl_node_remove_feature_by_inst(&ipv4_ipsec_out_feat,
 					       get_vrf(pr->vrfid));
 		POLICY_DEBUG("Remaining IPv4 policies: %d\n",
-			     vrf_ctx->crypto_live_ipv4_policies);
+			     vrf_ctx->crypto_total_ipv4_policies);
 	} else {
-		if (!--vrf_ctx->crypto_live_ipv6_policies)
+		if (!--vrf_ctx->crypto_total_ipv6_policies)
 			pl_node_remove_feature_by_inst(&ipv6_ipsec_out_feat,
 						       get_vrf(pr->vrfid));
 		POLICY_DEBUG("Remaining IPv6 policies: %d\n",
-			     vrf_ctx->crypto_live_ipv6_policies);
+			     vrf_ctx->crypto_total_ipv6_policies);
 	}
 }
 
@@ -1523,10 +1522,7 @@ static void policy_bind_feat_attach(vrfid_t vrfid,
 		return;
 	}
 
-	if (pr->sel.family == AF_INET)
-		nh4_set_ifp(&pr->feat_attach->next.nh, ifp);
-	else
-		nh6_set_ifp(&pr->feat_attach->next.nh6, ifp);
+	nh_set_ifp(&pr->feat_attach->nh, ifp);
 
 	/*
 	 * If there are any SAs already present for this policy, we
@@ -1555,18 +1551,36 @@ static void policy_update_pending_vfp_bind(vrfid_t vrfid,
 static uint32_t crypto_npf_cfg_commit_count;
 static struct rte_timer crypto_npf_cfg_commit_all_timer;
 
+static void crypto_npf_cfg_commit_flush(void)
+{
+	vrfid_t vrf_id;
+	struct vrf *vrf;
+	struct crypto_vrf_ctx *vrf_ctx;
+
+	npf_cfg_commit_all();
+	VRF_FOREACH(vrf, vrf_id) {
+		vrf_ctx = crypto_vrf_find(vrf_id);
+		if (!vrf_ctx)
+			continue;
+
+		vrf_ctx->crypto_live_ipv4_policies =
+			vrf_ctx->crypto_total_ipv4_policies;
+		vrf_ctx->crypto_live_ipv6_policies =
+			vrf_ctx->crypto_total_ipv6_policies;
+	}
+	crypto_npf_cfg_commit_count = 0;
+}
+
 static void crypto_npf_cfg_commit_all_timer_handler(
 	struct rte_timer *timer __rte_unused,
 	void *arg __rte_unused)
 {
 	ASSERT_MASTER();
 	if (crypto_npf_cfg_commit_count)
-		npf_cfg_commit_all();
-
-	crypto_npf_cfg_commit_count = 0;
+		crypto_npf_cfg_commit_flush();
 }
 
-#define CRYPTO_NPF_CFG_COMMIT_FORCE_COUNT 100
+#define CRYPTO_NPF_CFG_COMMIT_FORCE_COUNT 2000
 /*
  * As the npf commit is slow and does a rebuild of the entire state
  * batch up the calls to it. This can possibly delay the application of
@@ -1585,10 +1599,8 @@ static void crypto_npf_cfg_commit_all(struct policy_rule *pr __unused)
 	crypto_npf_cfg_commit_count++;
 
 	/* Force the commit if we have batched up too many */
-	if (crypto_npf_cfg_commit_count == CRYPTO_NPF_CFG_COMMIT_FORCE_COUNT) {
-		npf_cfg_commit_all();
-		crypto_npf_cfg_commit_count = 0;
-	}
+	if (crypto_npf_cfg_commit_count == CRYPTO_NPF_CFG_COMMIT_FORCE_COUNT)
+		crypto_npf_cfg_commit_flush();
 }
 
 static bool
@@ -1928,16 +1940,15 @@ crypto_policy_handle_packet_outbound_checks(struct rte_mbuf *mbuf,
 {
 	struct vrf *vrf = vrf_get_rcu_fast(VRF_DEFAULT_ID);
 	struct next_hop *nxt = NULL;
-	struct next_hop_v6 *nxt6 = NULL;
 
 	/* Currently only support underlay in default vrf */
 	if (pr->output_peer_af == AF_INET) {
 		nxt = rt_lookup_fast(vrf, (in_addr_t)(pr->output_peer.a4),
 				tbl_id, mbuf);
 	} else {
-		nxt6 = rt6_lookup_fast(vrf,
-				       (struct in6_addr *)(&pr->output_peer.a6),
-				       tbl_id, mbuf);
+		nxt = rt6_lookup_fast(vrf,
+				      (struct in6_addr *)(&pr->output_peer.a6),
+				      tbl_id, mbuf);
 	}
 
 	/*
@@ -1945,40 +1956,22 @@ crypto_policy_handle_packet_outbound_checks(struct rte_mbuf *mbuf,
 	 * broadcast route, the encrypted packet would be dropped in
 	 * ip_lookup_and_originate so drop it early here.
 	 */
-	if (pr->output_peer_af == AF_INET) {
-		if (!nxt) {
-			*no_next_hop = true;
-			return;
-		}
-		if (nxt->flags & (RTF_BLACKHOLE | RTF_BROADCAST)) {
-			*bh_or_bc = true;
-			return;
-		}
-	} else {
-		if (!nxt6) {
-			*no_next_hop = true;
-			return;
-		}
-		if (nxt6->flags & (RTF_BLACKHOLE | RTF_BROADCAST)) {
-			*bh_or_bc = true;
-			return;
-		}
+	if (!nxt) {
+		*no_next_hop = true;
+		return;
+	}
+	if (nxt->flags & (RTF_BLACKHOLE | RTF_BROADCAST)) {
+		*bh_or_bc = true;
+		return;
 	}
 
 	/*
 	 * Filter reject routes out now. If we hit this post encryption
 	 * we won't be able to send the ICMP error back to the source.
 	 */
-	if (pr->output_peer_af == AF_INET) {
-		if (unlikely(nxt->flags & RTF_REJECT)) {
-			*reject = true;
-			return;
-		}
-	} else {
-		if (unlikely(nxt6->flags & RTF_REJECT)) {
-			*reject = true;
-			return;
-		}
+	if (unlikely(nxt->flags & RTF_REJECT)) {
+		*reject = true;
+		return;
 	}
 
 	/*
@@ -1987,24 +1980,13 @@ crypto_policy_handle_packet_outbound_checks(struct rte_mbuf *mbuf,
 	 * packet before encryption. For other destinations
 	 * we allow the packet to be fragmented post encryption.
 	 */
-	if (pr->output_peer_af == AF_INET)
-		*nxt_ifp = dp_nh4_get_ifp(nxt);
-	else
-		*nxt_ifp = dp_nh6_get_ifp(nxt6);
-
+	*nxt_ifp = dp_nh_get_ifp(nxt);
 	if (!*nxt_ifp)
 		return;
 
-	if (pr->output_peer_af == AF_INET) {
-		if (!(nxt->flags & RTF_SLOWPATH)) {
-			*not_slowpath = true;
-			return;
-		}
-	} else {
-		if (!(nxt6->flags & RTF_SLOWPATH)) {
-			*not_slowpath = true;
-			return;
-		}
+	if (!(nxt->flags & RTF_SLOWPATH)) {
+		*not_slowpath = true;
+		return;
 	}
 }
 
@@ -2343,15 +2325,8 @@ static void policy_rule_to_json(json_writer_t *wr,
 	jsonw_uint_field(wr, "mark_m", pr->mark.m);
 	jsonw_uint_field(wr, "index", pr->rule_index);
 
-	if (pr->sel.family == AF_INET && pr->feat_attach) {
-		ifp = dp_nh4_get_ifp(&pr->feat_attach->next.nh);
-		if (ifp)
-			jsonw_string_field(wr, "virtual-feature-point",
-					   ifp->if_name);
-	}
-
-	if (pr->sel.family == AF_INET6 && pr->feat_attach) {
-		ifp = dp_nh6_get_ifp(&pr->feat_attach->next.nh6);
+	if (pr->feat_attach) {
+		ifp = dp_nh_get_ifp(&pr->feat_attach->nh);
 		if (ifp)
 			jsonw_string_field(wr, "virtual-feature-point",
 					   ifp->if_name);
@@ -2396,7 +2371,7 @@ void crypto_policy_bind_show_summary(FILE *f, vrfid_t vrfid)
 	jsonw_destroy(&wr);
 }
 
-void crypto_policy_show_summary(FILE *f, vrfid_t vrfid)
+void crypto_policy_show_summary(FILE *f, vrfid_t vrfid, bool brief)
 {
 	json_writer_t *wr;
 	const struct policy_rule *pr;
@@ -2418,29 +2393,38 @@ void crypto_policy_show_summary(FILE *f, vrfid_t vrfid)
 	jsonw_start_object(wr);
 	jsonw_uint_field(wr, "rekey_requests", crypto_rekey_requests);
 	jsonw_end_object(wr);
-	jsonw_name(wr, "policy_count");
+	jsonw_name(wr, "total_policy_count");
+	jsonw_start_object(wr);
+	jsonw_uint_field(wr, "ipv4", vrf_ctx ?
+			 vrf_ctx->crypto_total_ipv4_policies : 0);
+	jsonw_uint_field(wr, "ipv6", vrf_ctx ?
+			 vrf_ctx->crypto_total_ipv6_policies : 0);
+	jsonw_end_object(wr);
+	jsonw_name(wr, "live_policy_count");
 	jsonw_start_object(wr);
 	jsonw_uint_field(wr, "ipv4", vrf_ctx ?
 			 vrf_ctx->crypto_live_ipv4_policies : 0);
 	jsonw_uint_field(wr, "ipv6", vrf_ctx ?
 			 vrf_ctx->crypto_live_ipv6_policies : 0);
 	jsonw_end_object(wr);
-	jsonw_name(wr, "policies");
-	jsonw_start_array(wr);
 
-	cds_lfht_for_each_entry(output_policy_rule_tag_ht, &iter, pr,
-				tag_ht_node) {
-		if (dp_vrf_get_external_id(pr->vrfid) == vrfid)
-			policy_rule_to_json(wr, pr);
+	if (!brief) {
+		jsonw_name(wr, "policies");
+		jsonw_start_array(wr);
+
+		cds_lfht_for_each_entry(output_policy_rule_tag_ht, &iter, pr,
+					tag_ht_node) {
+			if (dp_vrf_get_external_id(pr->vrfid) == vrfid)
+				policy_rule_to_json(wr, pr);
+		}
+
+		cds_lfht_for_each_entry(input_policy_rule_tag_ht, &iter, pr,
+					tag_ht_node) {
+			if (dp_vrf_get_external_id(pr->vrfid) == vrfid)
+				policy_rule_to_json(wr, pr);
+		}
+		jsonw_end_array(wr);
 	}
-
-	cds_lfht_for_each_entry(input_policy_rule_tag_ht, &iter, pr,
-				tag_ht_node) {
-		if (dp_vrf_get_external_id(pr->vrfid) == vrfid)
-			policy_rule_to_json(wr, pr);
-	}
-
-	jsonw_end_array(wr);
 	jsonw_end_object(wr);
 	jsonw_destroy(&wr);
 }
@@ -2521,6 +2505,33 @@ void crypto_show_cache(FILE *f, const char *str)
 	jsonw_destroy(&wr);
 }
 
+static int crypto_npf_rte_acl_match(int af, npf_match_ctx_t *ctx,
+				    npf_cache_t *npc,
+				    struct npf_match_cb_data *data,
+				    npf_rule_t **rl)
+{
+	int ret;
+	uint32_t rule_no;
+
+	ret = npf_rte_acl_match(af, ctx, npc, data, &rule_no);
+	if (!ret)
+		return ret;
+
+	*rl = npf_rule_group_find_rule(data->rg, rule_no);
+	if (!*rl)
+		return 0;
+
+	return 1;
+}
+
+static npf_match_cb_tbl crypto_npf_match_cb_tbl = {
+	.npf_match_init_cb     = npf_rte_acl_init,
+	.npf_match_add_rule_cb = npf_rte_acl_add_rule,
+	.npf_match_build_cb    = npf_rte_acl_build,
+	.npf_match_classify_cb = crypto_npf_rte_acl_match,
+	.npf_match_destroy_cb  = npf_rte_acl_destroy
+};
+
 /*
  * crypto_policy_init()
  *
@@ -2560,6 +2571,15 @@ int crypto_policy_init(void)
 	}
 
 	rte_timer_init(&crypto_npf_cfg_commit_all_timer);
+
+	/*
+	 * register packet match callbacks for crypto rulesets
+	 */
+	if (npf_match_register_cb_tbl(NPF_RS_IPSEC,
+				      &crypto_npf_match_cb_tbl)) {
+		POLICY_ERR("Failed to register npf callback table\n");
+		return -1;
+	}
 
 	return 0;
 }
@@ -2668,12 +2688,12 @@ crypto_policy_post_features_outbound(struct ifnet *vfp_ifp,
  */
 bool crypto_policy_check_outbound(struct ifnet *in_ifp, struct rte_mbuf **mbuf,
 				  uint32_t tbl_id, uint16_t eth_type,
-				  union next_hop_v4_or_v6_ptr *nh)
+				  struct next_hop **nh)
 {
 	struct policy_rule *pr = NULL;
 	struct policy_cache_rule *pr_cache;
 	vrfid_t vrfid = pktmbuf_get_vrf(*mbuf);
-	bool v4 = (eth_type == htons(ETHER_TYPE_IPv4));
+	bool v4 = (eth_type == htons(RTE_ETHER_TYPE_IPV4));
 	bool freed = false;
 	struct npf_config *npf_conf = vrf_get_npf_conf_rcu(vrfid);
 	bool seen_by_crypto;
@@ -2751,10 +2771,10 @@ bool crypto_policy_check_outbound(struct ifnet *in_ifp, struct rte_mbuf **mbuf,
 		if (pr && pr->sel.ifindex && nh) {
 			struct ifnet *ifp = NULL;
 
-			if (v4 && nh->v4)
-				ifp = dp_nh4_get_ifp(nh->v4);
-			else if (nh->v6)
-				ifp = dp_nh6_get_ifp(nh->v6);
+			if (v4 && nh)
+				ifp = dp_nh_get_ifp(*nh);
+			else if (nh)
+				ifp = dp_nh_get_ifp(*nh);
 
 			if (!ifp || pr->sel.ifindex != (int)ifp->if_index)
 				/* We don't have a match */
@@ -2792,57 +2812,37 @@ bool crypto_policy_check_outbound(struct ifnet *in_ifp, struct rte_mbuf **mbuf,
 			attach = rcu_dereference(pr->feat_attach);
 			struct ifnet *vfp_ifp = NULL;
 
-			if (v4) {
-				if (attach) {
-					vfp_ifp =
-					dp_nh4_get_ifp(&attach->next.nh);
+			if (attach) {
+				vfp_ifp = dp_nh_get_ifp(&attach->nh);
 
-					if (!vfp_ifp) {
-						IPSEC_CNT_INC(DROPPED_NO_BIND);
-						goto drop;
-					}
-
-					if (nh) {
-						nh->v4 = &attach->next.nh;
-						mdata = pktmbuf_mdata(*mbuf);
-						mdata->pr = pr;
-						pktmbuf_mdata_set(*mbuf,
-							  PKT_MDATA_CRYPTO_PR);
-						return false;
-					}
-					if_incr_out(vfp_ifp, *mbuf);
+				if (!vfp_ifp) {
+					IPSEC_CNT_INC(DROPPED_NO_BIND);
+					goto drop;
 				}
+
+				if (nh) {
+					*nh = &attach->nh;
+					mdata = pktmbuf_mdata(*mbuf);
+					mdata->pr = pr;
+					pktmbuf_mdata_set(*mbuf,
+							  PKT_MDATA_CRYPTO_PR);
+					return false;
+				}
+				if_incr_out(vfp_ifp, *mbuf);
+			}
+
+			if (v4)
 				crypto_policy_handle_packet_outbound(vfp_ifp,
 								     in_ifp,
 								     *mbuf,
 								     tbl_id,
 								     pr);
-			} else {
-				if (attach) {
-					vfp_ifp = dp_nh6_get_ifp(
-						&attach->next.nh6);
-
-					if (!vfp_ifp) {
-						IPSEC_CNT_INC(DROPPED_NO_BIND);
-						goto drop;
-					}
-
-					if (nh) {
-						nh->v6 = &attach->next.nh6;
-						mdata = pktmbuf_mdata(*mbuf);
-						mdata->pr = pr;
-						pktmbuf_mdata_set(*mbuf,
-							  PKT_MDATA_CRYPTO_PR);
-						return false;
-					}
-					if_incr_out(vfp_ifp, *mbuf);
-				}
+			else
 				crypto_policy_handle_packet6_outbound(vfp_ifp,
 								      in_ifp,
 								      *mbuf,
 								      tbl_id,
 								      pr);
-			}
 			return true;
 		}
 	} else {
@@ -2884,7 +2884,7 @@ crypto_policy_check_inbound(struct ifnet *in_ifp, struct rte_mbuf **mbuf,
 {
 	struct policy_rule *pr = NULL;
 	struct policy_cache_rule *pr_cache;
-	bool v4 = (eth_type == htons(ETHER_TYPE_IPv4));
+	bool v4 = (eth_type == htons(RTE_ETHER_TYPE_IPV4));
 	bool freed = false;
 	vrfid_t vrfid = pktmbuf_get_vrf(*mbuf);
 	struct npf_config *npf_conf = vrf_get_npf_conf_rcu(vrfid);
@@ -2998,7 +2998,7 @@ bool crypto_policy_check_inbound_terminating(struct ifnet *in_ifp,
 {
 	uint8_t proto;
 
-	if (eth_type == htons(ETHER_TYPE_IPv4)) {
+	if (eth_type == htons(RTE_ETHER_TYPE_IPV4)) {
 		struct iphdr *ip = iphdr(*mbuf);
 
 		proto = ip->protocol;
@@ -3033,17 +3033,9 @@ struct ifnet *crypto_policy_feat_attach_by_reqid(uint32_t reqid)
 
 		pr = caa_container_of(node, struct policy_rule, tag_ht_node);
 
-		if (pr->reqid == reqid) {
-			if (pr->sel.family == AF_INET)
-				return pr->feat_attach ?
-				dp_nh4_get_ifp(&pr->feat_attach->next.nh) :
-				NULL;
-			else
-				return pr->feat_attach ?
-				       dp_nh6_get_ifp(
-				       &pr->feat_attach->next.nh6) :
-				       NULL;
-		}
+		if (pr->reqid == reqid)
+			return pr->feat_attach ?
+				dp_nh_get_ifp(&pr->feat_attach->nh) : NULL;
 		cds_lfht_next(output_policy_rule_tag_ht, &iter);
 	}
 	return NULL;
@@ -3212,11 +3204,11 @@ static int crypto_policy_cmd_handler(struct pb_msg *msg)
 	memset(&sel, 0, sizeof(sel));
 
 	struct ip_addr daddr, saddr;
-	if (protobuf_get_ipaddr(cp_msg->sel_daddr, &daddr)) {
+	if (dp_protobuf_get_ipaddr(cp_msg->sel_daddr, &daddr)) {
 		rc = -1;
 		goto done;
 	}
-	if (protobuf_get_ipaddr(cp_msg->sel_saddr, &saddr)) {
+	if (dp_protobuf_get_ipaddr(cp_msg->sel_saddr, &saddr)) {
 		rc = -1;
 		goto done;
 	}

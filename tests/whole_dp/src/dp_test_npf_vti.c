@@ -406,7 +406,7 @@ DP_START_TEST(npf_vti_encrypt1, test)
 	input_packet = build_input_icmp_packet();
 	(void)dp_test_pktmbuf_eth_init(input_packet,
 				       dp_test_intf_name2mac_str("dp1T1"),
-				       NULL, ETHER_TYPE_IPv4);
+				       NULL, RTE_ETHER_TYPE_IPV4);
 
 	output_packet = build_expected_esp_packet(&encrypted_payload_len);
 
@@ -415,7 +415,7 @@ DP_START_TEST(npf_vti_encrypt1, test)
 	(void)dp_test_pktmbuf_eth_init(output_packet,
 				       PEER_MAC_ADDR,
 				       dp_test_intf_name2mac_str("dp2T2"),
-				       ETHER_TYPE_IPv4);
+				       RTE_ETHER_TYPE_IPV4);
 
 	exp = dp_test_exp_create(output_packet);
 	rte_pktmbuf_free(output_packet);
@@ -470,7 +470,7 @@ DP_START_TEST(npf_vti_decrypt1, test)
 	input_packet = build_encrypted_input_packet();
 	(void)dp_test_pktmbuf_eth_init(input_packet,
 				       dp_test_intf_name2mac_str("dp2T2"),
-				       NULL, ETHER_TYPE_IPv4);
+				       NULL, RTE_ETHER_TYPE_IPV4);
 
 	/*
 	 * Ceate the expected decrypted ping packet
@@ -479,7 +479,7 @@ DP_START_TEST(npf_vti_decrypt1, test)
 	(void)dp_test_pktmbuf_eth_init(output_packet,
 				       CLIENT_LOCAL_MAC_ADDR,
 				       dp_test_intf_name2mac_str("dp1T1"),
-				       ETHER_TYPE_IPv4);
+				       RTE_ETHER_TYPE_IPV4);
 
 	/*
 	 * Create an expectation for the decypted ICMP ping packet on dp1T1.
@@ -572,7 +572,7 @@ DP_START_TEST(npf_vti_encrypt2, test)
 	input_packet = build_input_icmp_packet();
 	(void)dp_test_pktmbuf_eth_init(input_packet,
 				       dp_test_intf_name2mac_str("dp1T1"),
-				       NULL, ETHER_TYPE_IPv4);
+				       NULL, RTE_ETHER_TYPE_IPV4);
 
 	output_packet = build_expected_esp_packet(&encrypted_payload_len);
 
@@ -581,7 +581,7 @@ DP_START_TEST(npf_vti_encrypt2, test)
 	(void)dp_test_pktmbuf_eth_init(output_packet,
 				       PEER_MAC_ADDR,
 				       dp_test_intf_name2mac_str("dp2T2"),
-				       ETHER_TYPE_IPv4);
+				       RTE_ETHER_TYPE_IPV4);
 
 	exp = dp_test_exp_create(output_packet);
 	rte_pktmbuf_free(output_packet);
@@ -679,7 +679,7 @@ DP_START_TEST(npf_vti_decrypt2, test)
 	input_packet = build_encrypted_input_packet();
 	(void)dp_test_pktmbuf_eth_init(input_packet,
 				       dp_test_intf_name2mac_str("dp2T2"),
-				       NULL, ETHER_TYPE_IPv4);
+				       NULL, RTE_ETHER_TYPE_IPV4);
 
 	/*
 	 * Ceate the expected decrypted ping packet
@@ -688,7 +688,7 @@ DP_START_TEST(npf_vti_decrypt2, test)
 	(void)dp_test_pktmbuf_eth_init(output_packet,
 				       CLIENT_LOCAL_MAC_ADDR,
 				       dp_test_intf_name2mac_str("dp1T1"),
-				       ETHER_TYPE_IPv4);
+				       RTE_ETHER_TYPE_IPV4);
 
 	/*
 	 * Create an expectation for the decypted ICMP ping packet on dp1T1.
@@ -773,7 +773,7 @@ DP_START_TEST(npf_vti_encrypt3, test)
 	input_packet = build_input_icmp_packet();
 	(void)dp_test_pktmbuf_eth_init(input_packet,
 				       dp_test_intf_name2mac_str("dp1T1"),
-				       NULL, ETHER_TYPE_IPv4);
+				       NULL, RTE_ETHER_TYPE_IPV4);
 
 	output_packet = build_expected_esp_packet(&encrypted_payload_len);
 
@@ -782,7 +782,7 @@ DP_START_TEST(npf_vti_encrypt3, test)
 	(void)dp_test_pktmbuf_eth_init(output_packet,
 				       PEER_MAC_ADDR,
 				       dp_test_intf_name2mac_str("dp2T2"),
-				       ETHER_TYPE_IPv4);
+				       RTE_ETHER_TYPE_IPV4);
 
 	exp = dp_test_exp_create(output_packet);
 	rte_pktmbuf_free(output_packet);
@@ -863,7 +863,7 @@ DP_START_TEST(npf_vti_decrypt3, test)
 	input_packet = build_encrypted_input_packet();
 	(void)dp_test_pktmbuf_eth_init(input_packet,
 				       dp_test_intf_name2mac_str("dp2T2"),
-				       NULL, ETHER_TYPE_IPv4);
+				       NULL, RTE_ETHER_TYPE_IPV4);
 
 	/*
 	 * Ceate the expected decrypted ping packet
@@ -872,7 +872,7 @@ DP_START_TEST(npf_vti_decrypt3, test)
 	(void)dp_test_pktmbuf_eth_init(output_packet,
 				       CLIENT_LOCAL_MAC_ADDR,
 				       dp_test_intf_name2mac_str("dp1T1"),
-				       ETHER_TYPE_IPv4);
+				       RTE_ETHER_TYPE_IPV4);
 
 	/*
 	 * Create an expectation for the decypted ICMP ping packet on dp1T1.

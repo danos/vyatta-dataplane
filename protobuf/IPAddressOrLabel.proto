@@ -1,0 +1,19 @@
+// Copyright (c) 2020, AT&T Intellectual Property.  All rights reserved.
+//
+// SPDX-License-Identifier: LGPL-2.1-only
+//
+
+syntax="proto2";
+
+option go_package = "github.com/danos/vyatta-dataplane/protobuf/go/IPAddressOrLabel";
+
+message IPAddressOrLabel {
+	oneof address_oneof {
+		// IPv4 address in network byte order
+		fixed32 ipv4_addr = 1;
+		// IPv6 address - must by exactly 16 bytes in length
+		bytes ipv6_addr = 2;
+		// MPLS label value in host byte order
+		uint32 mpls_label = 3;
+	}
+}

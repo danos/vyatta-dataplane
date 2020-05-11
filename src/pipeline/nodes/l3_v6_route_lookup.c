@@ -57,7 +57,7 @@ _ipv6_route_lookup_process_common(struct pl_packet *pkt, void *context __unused,
 {
 	struct ip6_hdr *ip6 = pkt->l3_hdr;
 	struct ifnet *ifp = pkt->in_ifp;
-	struct next_hop_v6 *nxt;
+	struct next_hop *nxt;
 	struct vrf *vrf;
 
 	if (unlikely(ip6->ip6_nxt == IPPROTO_HOPOPTS)) {

@@ -43,36 +43,36 @@ l2tp_undo_encap(struct ifnet *ifp, struct rte_mbuf *m,
 		struct l2tp_session *session, uint16_t rx_vlan,
 		bool tx_vlan)
 {
-	struct ether_hdr *eh;
+	struct rte_ether_hdr *eh;
 	uint16_t vlan = 0;
 
 	if (tx_vlan) {
 		struct ether_vlan_hdr *vhdr = (struct ether_vlan_hdr *)
 			(rte_pktmbuf_mtod(m, char *) +
-			 session->hdr_len + ETHER_HDR_LEN);
-		eh = (struct ether_hdr *)
-			((char *)vhdr +  sizeof(struct vlan_hdr));
+			 session->hdr_len + RTE_ETHER_HDR_LEN);
+		eh = (struct rte_ether_hdr *)
+			((char *)vhdr +  sizeof(struct rte_vlan_hdr));
 
-		memmove(&vhdr->eh, eh, 2 * ETHER_ADDR_LEN);
-		vlan = sizeof(struct vlan_hdr);
+		memmove(&vhdr->eh, eh, 2 * RTE_ETHER_ADDR_LEN);
+		vlan = sizeof(struct rte_vlan_hdr);
 	} else
-		eh = (struct ether_hdr *)
+		eh = (struct rte_ether_hdr *)
 			(rte_pktmbuf_mtod(m, char *) +
-			 session->hdr_len + ETHER_HDR_LEN);
+			 session->hdr_len + RTE_ETHER_HDR_LEN);
 
 	/* Replace the dest addr to be the shadow if's if we have
 	   replaced the original ether-hdr in routed case.
 	*/
-	if (ether_addr_equal(&eh->s_addr, &ifp->eth_addr)) {
+	if (rte_ether_addr_equal(&eh->s_addr, &ifp->eth_addr)) {
 		const struct ifnet *dp_ifp = ifnet_byport(m->port);
 
 		if (dp_ifp)
-			ether_addr_copy(&dp_ifp->eth_addr, &eh->d_addr);
+			rte_ether_addr_copy(&dp_ifp->eth_addr, &eh->d_addr);
 		else
 			return -1;
 	}
 
-	if (rte_pktmbuf_adj(m, session->hdr_len + ETHER_HDR_LEN + vlan)
+	if (rte_pktmbuf_adj(m, session->hdr_len + RTE_ETHER_HDR_LEN + vlan)
 		== NULL)
 		return -1;
 
@@ -91,11 +91,11 @@ static int l2tp_add_vlan(struct rte_mbuf *m, uint8_t offset)
 	struct ether_vlan_hdr *vhdr = (struct ether_vlan_hdr *)
 		(rte_pktmbuf_mtod(m, char *) + offset);
 
-	struct ether_hdr *eh = (struct ether_hdr *)
-		((char *)vhdr +  sizeof(struct vlan_hdr));
+	struct rte_ether_hdr *eh = (struct rte_ether_hdr *)
+		((char *)vhdr +  sizeof(struct rte_vlan_hdr));
 
-	memmove(&vhdr->eh, eh, 2 * ETHER_ADDR_LEN);
-	vhdr->eh.ether_type = htons(ETHER_TYPE_VLAN);
+	memmove(&vhdr->eh, eh, 2 * RTE_ETHER_ADDR_LEN);
+	vhdr->eh.ether_type = htons(RTE_ETHER_TYPE_VLAN);
 	vhdr->vh.vlan_tci = htons(m->vlan_tci);
 	vhdr->vh.eth_proto = eh->ether_type;
 	m->ol_flags &= ~PKT_TX_VLAN_PKT;
@@ -109,7 +109,7 @@ l2tp_output(struct ifnet *ifp, struct rte_mbuf *m, uint16_t rx_vlan)
 {
 	uint8_t ip_hdr_len = sizeof(struct iphdr);
 	uint8_t flags = 0;
-	struct ether_hdr *orig_ethhdr = ethhdr(m);
+	struct rte_ether_hdr *orig_ethhdr = ethhdr(m);
 	uint16_t etype = ntohs(orig_ethhdr->ether_type);
 	struct iphdr *orig_ip = iphdr(m);
 	struct l2tp_session *session;
@@ -130,16 +130,16 @@ l2tp_output(struct ifnet *ifp, struct rte_mbuf *m, uint16_t rx_vlan)
 		goto drop;
 	}
 
-	uint8_t encap_len = session->hdr_len + ETHER_HDR_LEN;
+	uint8_t encap_len = session->hdr_len + RTE_ETHER_HDR_LEN;
 	struct l2tpv3_encap *encap = (struct l2tpv3_encap *)
 		rte_pktmbuf_prepend(m, encap_len +
-				    (tx_vlan ? sizeof(struct vlan_hdr) : 0));
+			    (tx_vlan ? sizeof(struct rte_vlan_hdr) : 0));
 	if (unlikely(encap == NULL)) {
 		DP_DEBUG(L2TP, ERR, L2TP,
 			"Not enough space in mbuf to allocate l2tp hdr\n");
 		goto drop;
 	}
-	dp_pktmbuf_l2_len(m) = ETHER_HDR_LEN;
+	dp_pktmbuf_l2_len(m) = RTE_ETHER_HDR_LEN;
 
 	/*
 	 * L2tp interface supports only default VRF as of yet
@@ -160,12 +160,12 @@ l2tp_output(struct ifnet *ifp, struct rte_mbuf *m, uint16_t rx_vlan)
 	uint8_t proto = 0;
 	uint8_t offset = 0;
 
-	if (etype == ETHER_TYPE_IPv4) {
+	if (etype == RTE_ETHER_TYPE_IPV4) {
 		tos = orig_ip->tos;
 		ttl = orig_ip->ttl;
 		proto = orig_ip->protocol;
 		offset = sizeof(struct iphdr);
-	} else if (etype == ETHER_TYPE_IPv6) {
+	} else if (etype == RTE_ETHER_TYPE_IPV6) {
 		tos = ip6_tclass(*(uint32_t *)orig_ip);
 		ttl = ((struct ip6_hdr *)orig_ip)->ip6_hlim;
 		proto = ((struct ip6_hdr *)orig_ip)->ip6_nxt;
@@ -178,7 +178,7 @@ l2tp_output(struct ifnet *ifp, struct rte_mbuf *m, uint16_t rx_vlan)
 	if (flags & L2TP_ENCAP_IPV4) {
 		struct iphdr *ip_header = (struct iphdr *)encap->iphdr;
 
-		encap->ether_header.ether_type = htons(ETHER_TYPE_IPv4);
+		encap->ether_header.ether_type = htons(RTE_ETHER_TYPE_IPV4);
 
 		ip_header->ihl = sizeof(struct iphdr) >> 2;
 		ip_header->version = IPVERSION;
@@ -197,7 +197,7 @@ l2tp_output(struct ifnet *ifp, struct rte_mbuf *m, uint16_t rx_vlan)
 	} else {
 		struct ip6_hdr *ip_header = (struct ip6_hdr *)encap->iphdr;
 
-		encap->ether_header.ether_type = htons(ETHER_TYPE_IPv6);
+		encap->ether_header.ether_type = htons(RTE_ETHER_TYPE_IPV6);
 		ip_hdr_len = sizeof(struct ip6_hdr);
 
 		ip6_ver_tc_flow_hdr(ip_header, tos, 0);
@@ -216,7 +216,7 @@ l2tp_output(struct ifnet *ifp, struct rte_mbuf *m, uint16_t rx_vlan)
 	uint16_t *udp_cksum = NULL;
 	uint16_t orig_cksum = 0;
 	struct ip6_hdr *ip6hdr = NULL;
-	struct udp_hdr *udp_header = (struct udp_hdr *)
+	struct rte_udp_hdr *udp_header = (struct rte_udp_hdr *)
 		((char *)encap->iphdr + ip_hdr_len);
 	if (unlikely(flags & L2TP_ENCAP_UDP)) {
 		uint16_t pkt_len = session->hdr_len - ip_hdr_len + orig_pkt_len;
@@ -228,10 +228,10 @@ l2tp_output(struct ifnet *ifp, struct rte_mbuf *m, uint16_t rx_vlan)
 			udp_header->dgram_cksum = 0;
 		else {
 			if (proto == IPPROTO_TCP)
-				orig_cksum = ((struct tcp_hdr *)
+				orig_cksum = ((struct rte_tcp_hdr *)
 					   ((char *)orig_ip + offset))->cksum;
 			else if (proto == IPPROTO_UDP)
-				orig_cksum = ((struct udp_hdr *)
+				orig_cksum = ((struct rte_udp_hdr *)
 				    ((char *)orig_ip + offset))->dgram_cksum;
 
 			ip6hdr = (struct ip6_hdr *)encap->iphdr;
@@ -243,7 +243,8 @@ l2tp_output(struct ifnet *ifp, struct rte_mbuf *m, uint16_t rx_vlan)
 	/* l2tp header */
 	if (flags & L2TP_ENCAP_UDP) {
 		struct l2tpv3_udp_hdr *v3udp_hdr = (struct l2tpv3_udp_hdr *)
-		  ((char *)encap->iphdr + ip_hdr_len + sizeof(struct udp_hdr));
+				  ((char *)encap->iphdr +
+				   ip_hdr_len + sizeof(struct rte_udp_hdr));
 		v3udp_hdr->ver = htons(L2TP_HDR_VER_3);
 		v3udp_hdr->zero = 0;
 		l2tp_hdr = (char *)&v3udp_hdr->session_id;
@@ -284,8 +285,8 @@ l2tp_output(struct ifnet *ifp, struct rte_mbuf *m, uint16_t rx_vlan)
 
 	bool is_ipv4 = flags & L2TP_ENCAP_IPV4;
 
-	uint16_t eth_type
-		= is_ipv4 ? htons(ETHER_TYPE_IPv4) : htons(ETHER_TYPE_IPv6);
+	uint16_t eth_type = is_ipv4 ? htons(RTE_ETHER_TYPE_IPV4) :
+				      htons(RTE_ETHER_TYPE_IPV6);
 	struct ifnet *dp_ifp = NULL;
 
 	if (crypto_policy_outbound_match(ifp, &m, eth_type)) {

@@ -23,6 +23,7 @@
 #include "npf/npf_ruleset.h"
 #include "urcu.h"
 #include "vplane_log.h"
+#include "npf_grouper.h"
 
 struct npf_attpt_group;
 struct npf_attpt_rlset;
@@ -98,7 +99,11 @@ npf_cfg_create_ruleset_group_cb(const struct npf_attpt_group *rsg, void *ctx)
 		return false;
 	}
 
-	npf_grouper_init(rg);
+	uint32_t count = npf_cfg_rule_count(rgk->rgk_class, rgk->rgk_name);
+
+	info->error = npf_match_setup(rg, count);
+	if (info->error)
+		return false;
 
 	info->dp_rule_group = rg;
 	info->rgk = rgk;
@@ -112,7 +117,7 @@ npf_cfg_create_ruleset_group_cb(const struct npf_attpt_group *rsg, void *ctx)
 		/* no rules in the group or does no exist, so discard it */
 		npf_free_group(rg);
 	else
-		npf_grouper_optimize(rg);
+		npf_match_optimize(rg);
 
 	info->num_rules_in_group = 0;
 	info->dp_rule_group = NULL;

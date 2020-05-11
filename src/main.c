@@ -347,7 +347,7 @@ static pthread_t master_pthread;
 static const struct rte_eth_conf eth_base_conf = {
 	.rxmode = {
 		.mq_mode	= ETH_MQ_RX_RSS,
-		.max_rx_pkt_len = ETHER_MAX_LEN,
+		.max_rx_pkt_len = RTE_ETHER_MAX_LEN,
 		.split_hdr_size = 0,
 	},
 	.txmode = {
@@ -2798,7 +2798,7 @@ static int eth_port_init(portid_t portid)
 		goto fail;
 	}
 
-	struct ether_addr mac_addr;
+	struct rte_ether_addr mac_addr;
 	rte_eth_macaddr_get(portid, &mac_addr);
 
 	int socketid = port_config[portid].socketid;

@@ -80,6 +80,8 @@
 #include "util.h"
 #include "vplane_debug.h"
 #include "vplane_log.h"
+#include "npf_match.h"
+#include "../ether.h"
 
 struct npf_attpt_item;
 
@@ -119,8 +121,8 @@ struct npf_rule_group {
 
 	uint8_t rg_dir;			/* direction - IN, OUT, or both */
 
-	g2_config_t *rg_grouper;
-	g2_config_t *rg_grouper6;
+	npf_match_ctx_t *match_ctx_v4;
+	npf_match_ctx_t *match_ctx_v6;
 
 	struct cds_list_head rg_rules;	/* rules in this group */
 
@@ -162,15 +164,6 @@ struct npf_rule {
 	uint8_t				r_rproc_logger:1;
 	uint8_t				r_rproc_match:1;
 	uint8_t				r_rproc_handle:1;
-};
-
-/* Only used for grouper to callback into the processor */
-struct npf_grouper_cb_data {
-	npf_cache_t *npc;
-	struct rte_mbuf *mbuf;
-	const struct ifnet *ifp;
-	int dir;
-	npf_session_t *se;
 };
 
 npf_ruleset_t *
@@ -316,8 +309,8 @@ npf_free_group(npf_rule_group_t *rg)
 	cds_list_del_rcu(&rg->rg_entry);
 
 	/* Release groupers */
-	g2_destroy(&rg->rg_grouper);
-	g2_destroy(&rg->rg_grouper6);
+	npf_match_destroy(rg->rg_ruleset->rs_type, AF_INET, &rg->match_ctx_v4);
+	npf_match_destroy(rg->rg_ruleset->rs_type, AF_INET6, &rg->match_ctx_v6);
 
 	free(rg->rg_name);
 	free(rg);
@@ -1298,30 +1291,35 @@ static int
 npf_add_rule_to_grouper(npf_rule_t *rl)
 {
 	struct npf_rule_grouper_info *info = &rl->r_state->rs_grouper_info;
+	enum npf_ruleset_type rs_type =
+		rl->r_state->rs_rule_group->rg_ruleset->rs_type;
+	int err;
 
 	/*
 	 * Insert the grouper entries for this rule into the grouper
 	 * associated with this group of rules.
 	 */
 	if (info->g_family != AF_INET6) {
-		if (!g2_create_rule(rl->r_state->rs_rule_group->rg_grouper,
-				    rl->r_state->rs_rule_no, rl))
-			return -ENOMEM;
-		if (!g2_add(rl->r_state->rs_rule_group->rg_grouper, 0,
-			NPC_GPR_SIZE_v4, info->g_v4_match, info->g_v4_mask))
-			return -EINVAL;
+		err = npf_match_add_rule(
+			rs_type, AF_INET,
+			rl->r_state->rs_rule_group->match_ctx_v4,
+			rl->r_state->rs_rule_no, info->g_v4_match,
+			info->g_v4_mask, rl);
+		if (err)
+			return err;
 	}
 
 	/*
 	 * NAT64 might have a natpolicy, so always add IPv6 rule
 	 */
 	if (info->g_family != AF_INET) {
-		if (!g2_create_rule(rl->r_state->rs_rule_group->rg_grouper6,
-				    rl->r_state->rs_rule_no, rl))
-			return -ENOMEM;
-		if (!g2_add(rl->r_state->rs_rule_group->rg_grouper6, 0,
-			NPC_GPR_SIZE_v6, info->g_v6_match, info->g_v6_mask))
-			return -EINVAL;
+		err = npf_match_add_rule(
+			rs_type, AF_INET6,
+			rl->r_state->rs_rule_group->match_ctx_v6,
+			rl->r_state->rs_rule_no, info->g_v6_match,
+			info->g_v6_mask, rl);
+		if (err)
+			return err;
 	}
 
 	return 0;
@@ -1598,18 +1596,43 @@ npf_rproc_match(npf_cache_t *npc, struct rte_mbuf *m, const npf_rule_t *rl,
 	return true;
 }
 
-void
-npf_grouper_init(npf_rule_group_t *rg)
+int
+npf_match_setup(npf_rule_group_t *rg, uint32_t max_rules)
 {
-	rg->rg_grouper = g2_init(NPC_GPR_SIZE_v4);
-	rg->rg_grouper6 = g2_init(NPC_GPR_SIZE_v6);
+	int err;
+	enum npf_ruleset_type rs_type = rg->rg_ruleset->rs_type;
+
+	DP_DEBUG(NPF, DEBUG, DATAPLANE, "Creating ruleset of size %d\n",
+		 max_rules);
+
+	err = npf_match_init(rs_type, AF_INET, rg->rg_name,
+			     max_rules, &rg->match_ctx_v4);
+	if (err)
+		return err;
+
+	err = npf_match_init(rs_type, AF_INET6, rg->rg_name,
+			     max_rules, &rg->match_ctx_v6);
+	if (err) {
+		npf_match_destroy(rs_type, AF_INET, &rg->match_ctx_v4);
+		return err;
+	}
+
+	return 0;
 }
 
 void
-npf_grouper_optimize(npf_rule_group_t *rg)
+npf_match_optimize(npf_rule_group_t *rg)
 {
-	g2_optimize(&rg->rg_grouper);
-	g2_optimize(&rg->rg_grouper6);
+	int err;
+	enum npf_ruleset_type rs_type = rg->rg_ruleset->rs_type;
+
+	err = npf_match_build(rs_type, AF_INET, &rg->match_ctx_v4);
+	if (err)
+		RTE_LOG(ERR, DATAPLANE, "Could not rebuild IPv4 grouper\n");
+
+	err = npf_match_build(rs_type, AF_INET6, &rg->match_ctx_v6);
+	if (err)
+		RTE_LOG(ERR, DATAPLANE, "Could not rebuild IPv6 grouper\n");
 }
 
 static ALWAYS_INLINE
@@ -1630,7 +1653,7 @@ bool npf_rule_match(npf_cache_t *npc, struct rte_mbuf *nbuf,
 bool
 npf_rule_proc(const void *d, const void *r)
 {
-	const struct npf_grouper_cb_data *pd = d;
+	const struct npf_match_cb_data *pd = d;
 	const npf_rule_t *rl = r;
 
 	return npf_rule_match(pd->npc, pd->mbuf, pd->ifp, pd->dir, pd->se, rl);
@@ -1647,11 +1670,12 @@ npf_ruleset_inspect(npf_cache_t *npc, struct rte_mbuf *nbuf,
 {
 	npf_rule_group_t *rg = NULL;
 	npf_rule_t *rl;
+	int match;
 
 	if (unlikely(ruleset == NULL))
 		return NULL;
 
-	struct npf_grouper_cb_data pd = {
+	struct npf_match_cb_data pd = {
 		.npc = npc,
 		.mbuf = nbuf,
 		.ifp = ifp,
@@ -1660,29 +1684,48 @@ npf_ruleset_inspect(npf_cache_t *npc, struct rte_mbuf *nbuf,
 	};
 
 	cds_list_for_each_entry_rcu(rg, &ruleset->rs_groups, rg_entry) {
+		enum npf_ruleset_type rs_type = rg->rg_ruleset->rs_type;
+
 		/* Match the direction. */
 		if ((rg->rg_dir & dir) == 0)
 			continue;
 
-		if (likely(npf_iscached(npc, NPC_GROUPER))) {
-			uint8_t *pkt = (uint8_t *)npc->npc_grouper;
+		/*
+		 * update rule group in context. The current rule group
+		 * being used is passed in the match context to enable
+		 * easy search for the rule when a match is found
+		 */
+		pd.rg = rg;
 
-			if (likely(npf_iscached(npc, NPC_IP4))) {
-				if (rg->rg_grouper) {
-					rl = g2_eval4(rg->rg_grouper, pkt, &pd);
-					if (rl)
-						return rl;
-					continue;
-				}
-			} else if (npf_iscached(npc, NPC_IP6)) {
-				if (rg->rg_grouper6) {
-					rl = g2_eval6(rg->rg_grouper6, pkt,
-						      &pd);
-					if (rl)
-						return rl;
-					continue;
-				}
+		int af;
+		void *match_ctx = NULL;
+
+		if (!npc) {
+			uint16_t et = ethhdr(nbuf)->ether_type;
+
+			if (et == htons(RTE_ETHER_TYPE_IPV4)) {
+				af = AF_INET;
+				match_ctx = rg->match_ctx_v4;
+			} else if (et == htons(RTE_ETHER_TYPE_IPV6)) {
+				af = AF_INET6;
+				match_ctx = rg->match_ctx_v6;
 			}
+		} else if (likely(npf_iscached(npc, NPC_GROUPER))) {
+			if (likely(npf_iscached(npc, NPC_IP4))) {
+				af = AF_INET;
+				match_ctx = rg->match_ctx_v4;
+			} else if (npf_iscached(npc, NPC_IP6)) {
+				af = AF_INET6;
+				match_ctx = rg->match_ctx_v6;
+			}
+		}
+
+		if (match_ctx) {
+			match = npf_match_classify(rs_type, af, match_ctx,
+						   npc, &pd, &rl);
+			if (match)
+				return rl;
+			continue;
 		}
 
 		/*
@@ -1743,6 +1786,18 @@ enum npf_ruleset_type
 npf_type_of_ruleset(const npf_ruleset_t *ruleset)
 {
 	return ruleset ? ruleset->rs_type : NPF_RS_TYPE_COUNT;
+}
+
+/*
+ * returns true if the ruleset depends on the NPF cache
+ * having been populated. Currently the only exception to this is
+ * IPSec. The implementation should eventually move to a flag
+ * that expresses the dependency on the cache as opposed to
+ * specific ruleset types
+ */
+bool npf_ruleset_uses_cache(const npf_ruleset_t *ruleset)
+{
+	return (ruleset->rs_type != NPF_RS_IPSEC);
 }
 
 /* Update (as needed) all rules for a masquerade addr change */
@@ -1868,3 +1923,16 @@ npf_rulenc_dump(const npf_rule_t *rl)
 	printf("-> %s\n", rl->r_pass ? "pass" : "block");
 }
 #endif
+
+npf_rule_t *npf_rule_group_find_rule(npf_rule_group_t *rg,
+				     uint32_t rule_no)
+{
+	npf_rule_t *rl;
+
+	cds_list_for_each_entry(rl, &rg->rg_rules, r_entry) {
+		if (rule_no == rl->r_state->rs_rule_no)
+			return rl;
+	}
+
+	return NULL;
+}

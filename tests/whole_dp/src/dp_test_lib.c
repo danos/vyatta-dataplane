@@ -375,6 +375,12 @@ dp_test_parse_dp_nh(const char *nh_string, struct dp_test_nh *nh)
 		}
 
 	}
+
+	if (strncmp(str, " backup", strlen(" backup")) == 0) {
+		str += strlen(" backup");
+		nh->backup = true;
+	}
+
 	/*
 	 * Remove any trailing whitespace
 	 */
@@ -616,7 +622,8 @@ void dp_test_free_route(struct dp_test_route *route)
 uint16_t
 dp_test_calc_udptcp_chksum(struct rte_mbuf *m)
 {
-	const struct ipv4_hdr *ip = dp_pktmbuf_mtol3(m, struct ipv4_hdr *);
+	const struct rte_ipv4_hdr *ip =
+			dp_pktmbuf_mtol3(m, struct rte_ipv4_hdr *);
 	const struct tcphdr *tcp = (const struct tcphdr *)(ip + 1);
 	uint16_t cksum;
 
@@ -628,7 +635,7 @@ dp_test_calc_udptcp_chksum(struct rte_mbuf *m)
 void
 dp_test_set_tcphdr(struct rte_mbuf *m, uint16_t src_port, uint16_t dst_port)
 {
-	struct ether_hdr *eth = rte_pktmbuf_mtod(m, struct ether_hdr *);
+	struct rte_ether_hdr *eth = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
 	struct iphdr *ip = (struct iphdr *)(eth + 1);
 	struct tcphdr *tcp = (struct tcphdr *)(ip + 1);
 
@@ -647,11 +654,11 @@ dp_test_set_tcphdr(struct rte_mbuf *m, uint16_t src_port, uint16_t dst_port)
 void
 dp_test_set_iphdr(struct rte_mbuf *m, const char *src, const char *dst)
 {
-	struct ether_hdr *eth = rte_pktmbuf_mtod(m, struct ether_hdr *);
+	struct rte_ether_hdr *eth = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
 	struct iphdr *ip = (struct iphdr *)(eth + 1);
 	uint32_t addr;
 
-	eth->ether_type = htons(ETHER_TYPE_IPv4);
+	eth->ether_type = htons(RTE_ETHER_TYPE_IPV4);
 	ip->ihl = DP_TEST_PAK_DEFAULT_IHL;
 	ip->version = 4;
 	ip->tos = 0;
@@ -1031,7 +1038,7 @@ dp_test_pak_verify(struct rte_mbuf *m, struct ifnet *ifp,
 
 	/* Verify that the mbuf L2 length is valid for Ethernet frames */
 	_dp_test_fail_unless(
-		m->l2_len >= ETHER_HDR_LEN, file, line,
+		m->l2_len >= RTE_ETHER_HDR_LEN, file, line,
 		"(%d) Invalid mbuf L2 length for Ethernet pkt: %d",
 		check, m->l2_len);
 
@@ -1179,6 +1186,20 @@ dp_test_intf_name2tx_ring(const char *if_name)
 	return dp_test_intf_name2ring(if_name, DP_TEST_TX_RING_BASE_NAME);
 }
 
+int dp_test_pak_get_from_ring(const char *if_name,
+			      struct rte_mbuf **bufs,
+			      int count)
+{
+	struct rte_ring *ring;
+
+	ring = dp_test_intf_name2tx_ring(if_name);
+	count = rte_ring_mc_dequeue_burst(ring,
+					  (void **)bufs,
+					  count,
+					  NULL);
+	return count;
+}
+
 /*
  * Loop over all the tx rings checking for packets. For any that are
  * received, run the verify cb and then free the mbuf.
@@ -1189,18 +1210,16 @@ static void dp_test_verify_tx(bool wait_for_first)
 {
 	int i, j, count;
 	struct ifnet *ifp;
-	struct rte_ring *ring;
 	struct rte_mbuf *bufs[64];
 	int timeout = USEC_PER_SEC;
 
 	while (1) {
 		for (i = 0; i < dp_test_intf_count_local(); i++) {
 			ifp = ifnet_byport(i);
-			ring = dp_test_intf_name2tx_ring(ifp->if_name);
-			count = rte_ring_mc_dequeue_burst(ring,
-							  (void **)bufs,
-							  64,
-							  NULL);
+			count = dp_test_pak_get_from_ring(
+				ifp->if_name,
+				(struct rte_mbuf **)&bufs,
+				64);
 			if (count) {
 				for (j = 0; j < count; j++) {
 					(*dp_test_exp_get_validate_cb(
@@ -1297,6 +1316,25 @@ dp_test_wait_until_local_processed(struct dp_test_expected *expected,
 	}
 }
 
+void dp_test_pak_add_to_ring(const char *iif_name,
+			     struct rte_mbuf **paks_to_send,
+			     uint32_t num_paks,
+			     bool wait_until_processed)
+{
+	struct rte_ring *ring;
+
+	ring = dp_test_intf_name2rx_ring(iif_name);
+	dp_test_assert_internal(ring);
+	/*
+	 * Enqueue onto the ring, which will then be picked up
+	 * by the driver at the next poll.
+	 */
+	rte_ring_mp_enqueue_burst(ring, (void **)paks_to_send, num_paks, NULL);
+
+	if (wait_until_processed)
+		dp_test_intf_wait_until_processed(ring);
+}
+
 /*
  * Global expected pak that the wrapped end of the processing path can access
  * so that it can verify the contents.
@@ -1331,16 +1369,7 @@ dp_test_pak_inject(struct rte_mbuf **paks_to_send, uint32_t num_paks,
 	/*
 	 * Copy the mbufs into the ring for the interface.
 	 */
-	struct rte_ring *ring;
-
-	ring = dp_test_intf_name2rx_ring(iif_name);
-	dp_test_assert_internal(ring);
-	/*
-	 * Enqueue onto the ring, which will then be picked up
-	 * by the driver at the next poll.
-	 */
-	rte_ring_mp_enqueue_burst(ring, (void **)paks_to_send, num_paks, NULL);
-	dp_test_intf_wait_until_processed(ring);
+	dp_test_pak_add_to_ring(iif_name, paks_to_send, num_paks, true);
 	if (local_paks)
 		dp_test_wait_until_local_processed(expected, num_paks,
 				local_paks);

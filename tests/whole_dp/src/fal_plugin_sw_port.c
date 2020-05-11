@@ -101,10 +101,11 @@ eth_tx_queue_setup(struct rte_eth_dev *dev __rte_unused,
 	return 0;
 }
 
-static void
+static int
 eth_dev_info(struct rte_eth_dev *dev __rte_unused,
 	struct rte_eth_dev_info *dev_info __rte_unused)
 {
+	return 0;
 }
 
 static int
@@ -114,9 +115,10 @@ eth_stats_get(struct rte_eth_dev *dev __rte_unused,
 	return 0;
 }
 
-static void
+static int
 eth_stats_reset(struct rte_eth_dev *dev __rte_unused)
 {
+	return 0;
 }
 
 static void
@@ -127,7 +129,7 @@ eth_mac_addr_remove(struct rte_eth_dev *dev __rte_unused,
 
 static int
 eth_mac_addr_add(struct rte_eth_dev *dev __rte_unused,
-	struct ether_addr *mac_addr __rte_unused,
+	struct rte_ether_addr *mac_addr __rte_unused,
 	uint32_t index __rte_unused,
 	uint32_t vmdq __rte_unused)
 {

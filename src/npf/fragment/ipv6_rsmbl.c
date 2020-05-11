@@ -509,7 +509,7 @@ struct rte_mbuf *
 ipv6_handle_fragment(struct rte_mbuf *m, uint16_t *npf_flag)
 {
 	npf_cache_t *npc;
-	uint16_t gleaned_mtu = ETHER_MTU;
+	uint16_t gleaned_mtu = RTE_ETHER_MTU;
 
 	if (!m || (*npf_flag & NPF_FLAG_CACHE_EMPTY) != 0)
 		return m;

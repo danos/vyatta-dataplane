@@ -56,7 +56,7 @@
 #include "if_var.h"
 #include "ip_addr.h"
 #include "main.h"
-#include "nh.h"
+#include "nh_common.h"
 #include "pktmbuf_internal.h"
 #include "route.h"
 #include "route_flags.h"
@@ -81,9 +81,9 @@
  */
 struct	ether_arp {
 	struct	arphdr ea_hdr;		/* fixed-size header */
-	u_int8_t arp_sha[ETHER_ADDR_LEN];/* sender hardware address */
+	u_int8_t arp_sha[RTE_ETHER_ADDR_LEN];/* sender hardware address */
 	u_int8_t arp_spa[4];		/* sender protocol address */
-	u_int8_t arp_tha[ETHER_ADDR_LEN];/* target hardware address */
+	u_int8_t arp_tha[RTE_ETHER_ADDR_LEN];/* target hardware address */
 	u_int8_t arp_tpa[4];		/* target protocol address */
 };
 #define	arp_hrd	ea_hdr.ar_hrd
@@ -153,11 +153,11 @@ struct rte_mbuf *
 arprequest(struct ifnet *ifp, struct sockaddr *sa)
 {
 	struct rte_mbuf *m;
-	struct ether_hdr *eh;
+	struct rte_ether_hdr *eh;
 	struct ether_arp *ah;
 	in_addr_t sip;
 	const unsigned len
-		= sizeof(struct ether_hdr) + sizeof(struct ether_arp);
+		= sizeof(struct rte_ether_hdr) + sizeof(struct ether_arp);
 	char b1[INET_ADDRSTRLEN];
 	char b2[INET_ADDRSTRLEN];
 
@@ -186,27 +186,28 @@ arprequest(struct ifnet *ifp, struct sockaddr *sa)
 		return NULL;
 	}
 
-	dp_pktmbuf_l2_len(m) = ETHER_HDR_LEN;
-	eh = (struct ether_hdr *) rte_pktmbuf_append(m, len);
+	dp_pktmbuf_l2_len(m) = RTE_ETHER_HDR_LEN;
+	eh = (struct rte_ether_hdr *) rte_pktmbuf_append(m, len);
 	if (!eh) {
 		ARP_DEBUG("no space in packet for arp request\n");
 		rte_pktmbuf_free(m);
 		return NULL;
 	}
-	memset(&eh->d_addr, 0xff, ETHER_ADDR_LEN);
-	ether_addr_copy(&ifp->eth_addr, &eh->s_addr);
-	eh->ether_type = htons(ETHER_TYPE_ARP);
+	memset(&eh->d_addr, 0xff, RTE_ETHER_ADDR_LEN);
+	rte_ether_addr_copy(&ifp->eth_addr, &eh->s_addr);
+	eh->ether_type = htons(RTE_ETHER_TYPE_ARP);
 
 	ah = (struct ether_arp *) (eh+1);
 	ah->arp_hrd = htons(ARPHRD_ETHER);
-	ah->arp_pro = htons(ETHER_TYPE_IPv4);
-	ah->arp_hln = ETHER_ADDR_LEN;		/* hardware address length */
+	ah->arp_pro = htons(RTE_ETHER_TYPE_IPV4);
+	ah->arp_hln = RTE_ETHER_ADDR_LEN;	/* hardware address length */
 	ah->arp_pln = sizeof(in_addr_t);	/* protocol address length */
 	ah->arp_op = htons(ARPOP_REQUEST);
 
-	ether_addr_copy(&ifp->eth_addr, (struct ether_addr *) ah->arp_sha);
+	rte_ether_addr_copy(&ifp->eth_addr,
+			    (struct rte_ether_addr *) ah->arp_sha);
 	memcpy(ah->arp_spa, &sip, sizeof(sip));
-	memset(ah->arp_tha, 0, ETHER_ADDR_LEN);
+	memset(ah->arp_tha, 0, RTE_ETHER_ADDR_LEN);
 	memcpy(ah->arp_tpa, &tip, sizeof(tip));
 
 	ARPSTAT_INC(if_vrfid(ifp), txrequests);
@@ -227,7 +228,7 @@ arprequest(struct ifnet *ifp, struct sockaddr *sa)
  * this request so error code doesn't really matter.
  */
 int arpresolve(struct ifnet *ifp, struct rte_mbuf *m,
-	       in_addr_t addr, struct ether_addr *desten)
+	       in_addr_t addr, struct rte_ether_addr *desten)
 {
 	struct llentry *la;
 
@@ -238,7 +239,7 @@ lookup:
 	if (likely(la && (la->la_flags & LLE_VALID))) {
 resolved:
 		rte_atomic16_clear(&la->ll_idle);
-		ether_addr_copy(&la->ll_addr, desten);
+		rte_ether_addr_copy(&la->ll_addr, desten);
 		return 0;
 	}
 
@@ -305,7 +306,7 @@ resolved:
 
 		m = arprequest(ifp, (struct sockaddr *) &taddr);
 		if (m)
-			if_output(ifp, m, NULL, ETHER_TYPE_ARP);
+			if_output(ifp, m, NULL, RTE_ETHER_TYPE_ARP);
 	}
 
 	return -EWOULDBLOCK;
@@ -314,7 +315,7 @@ resolved:
 /* Optimized inline version of arpresolve. */
 ALWAYS_INLINE int
 arpresolve_fast(struct ifnet *ifp, struct rte_mbuf *m,
-		in_addr_t addr, struct ether_addr *desten)
+		in_addr_t addr, struct rte_ether_addr *desten)
 {
 	struct llentry *la = in_lltable_find(ifp, addr);
 
@@ -326,13 +327,13 @@ arpresolve_fast(struct ifnet *ifp, struct rte_mbuf *m,
 
 bool arp_input_validate(const struct ifnet *ifp, struct rte_mbuf *m)
 {
-	struct ether_hdr *eh;
+	struct rte_ether_hdr *eh;
 	struct ether_arp *ah;
 	in_addr_t itaddr, isaddr;
 	uint16_t op;
 	char addrb[INET_ADDRSTRLEN];
 
-	eh = rte_pktmbuf_mtod(m, struct ether_hdr *);
+	eh = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
 	if (rte_pktmbuf_data_len(m) < sizeof(*eh) + sizeof(*ah)) {
 		ARP_DEBUG("runt packet len %u\n", rte_pktmbuf_data_len(m));
 		goto drop;
@@ -340,7 +341,7 @@ bool arp_input_validate(const struct ifnet *ifp, struct rte_mbuf *m)
 
 	ah = (struct ether_arp *) (eh + 1);
 	if (ah->arp_hrd != htons(ARPHRD_ETHER) ||
-	    ah->arp_pro != htons(ETHER_TYPE_IPv4)) {
+	    ah->arp_pro != htons(RTE_ETHER_TYPE_IPV4)) {
 		ARP_DEBUG("ignore arp for hrd %#x protocol %#x\n",
 			ntohs(ah->arp_hrd), ntohs(ah->arp_pro));
 		goto drop;
@@ -352,12 +353,13 @@ bool arp_input_validate(const struct ifnet *ifp, struct rte_mbuf *m)
 		goto drop;
 	}
 
-	if (is_multicast_ether_addr((struct ether_addr *) ah->arp_sha)) {
+	if (rte_is_multicast_ether_addr(
+				(struct rte_ether_addr *) ah->arp_sha)) {
 		ARP_DEBUG("source hardware addresss is multicast.\n");
 		goto drop;
 	}
 
-	if (is_zero_ether_addr((struct ether_addr *) ah->arp_sha)) {
+	if (rte_is_zero_ether_addr((struct rte_ether_addr *) ah->arp_sha)) {
 		ARP_DEBUG("source hardware address is invalid.\n");
 		goto drop;
 	}
@@ -381,12 +383,13 @@ bool arp_input_validate(const struct ifnet *ifp, struct rte_mbuf *m)
 		goto drop;
 	}
 
-	if (ether_addr_equal((struct ether_addr *) ah->arp_sha, &ifp->eth_addr)) {
+	if (rte_ether_addr_equal((struct rte_ether_addr *) ah->arp_sha,
+				 &ifp->eth_addr)) {
 		ARP_DEBUG("saw own arp?");
 		goto drop;	/* it's from me, ignore it. */
 	}
 
-	if (is_broadcast_ether_addr((struct ether_addr *)ah->arp_sha)) {
+	if (rte_is_broadcast_ether_addr((struct rte_ether_addr *)ah->arp_sha)) {
 		ARP_DEBUG("link address is broadcast for IP address %s!\n",
 			  inet_ntop(AF_INET, ah->arp_spa,
 				    addrb, sizeof(addrb)));
@@ -401,14 +404,14 @@ drop:
 
 bool arp_is_arp_reply(struct ifnet *ifp, struct rte_mbuf *m)
 {
-	struct ether_hdr *eh;
+	struct rte_ether_hdr *eh;
 	struct ether_arp *ah;
 	uint16_t op;
 
 	if (!arp_input_validate(ifp, m))
 		return false;
 
-	eh = rte_pktmbuf_mtod(m, struct ether_hdr *);
+	eh = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
 	ah = (struct ether_arp *) (eh + 1);
 	op = ntohs(ah->arp_op);
 	if (op == ARPOP_REPLY)

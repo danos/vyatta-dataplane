@@ -68,7 +68,7 @@ static struct ifnet *vlan_lookup(struct ifnet *ifp,
 		ifstat = &ifp->if_data[lcore_id];
 		++ifstat->ifi_ivlan;
 
-		vid = vid_from_pkt(m, ETHER_TYPE_VLAN);
+		vid = vid_from_pkt(m, RTE_ETHER_TYPE_VLAN);
 
 		ifp = if_vlan_lookup(ifp, vid);
 		if (!ifp)
@@ -78,7 +78,7 @@ static struct ifnet *vlan_lookup(struct ifnet *ifp,
 			goto drop;
 
 		if_incr_in(ifp, m);
-		vid_decap(m, ETHER_TYPE_VLAN);
+		vid_decap(m, RTE_ETHER_TYPE_VLAN);
 	}
 
 	return ifp;
@@ -102,7 +102,7 @@ ether_lookup_process_common(struct pl_packet *pkt, void *context __unused,
 {
 	struct rte_mbuf *m = pkt->mbuf;
 	struct ifnet *ifp = pkt->in_ifp;
-	const struct ether_hdr *eth;
+	const struct rte_ether_hdr *eth;
 	struct if_data *ifstat;
 
 	switch (mode) {
@@ -126,13 +126,13 @@ ether_lookup_process_common(struct pl_packet *pkt, void *context __unused,
 	}
 
 	eth = ethhdr(m);
-	if (unlikely(is_multicast_ether_addr(&eth->d_addr))) {
+	if (unlikely(rte_is_multicast_ether_addr(&eth->d_addr))) {
 		ifstat = &ifp->if_data[dp_lcore_id()];
 		ifstat->ifi_imulticast++;
 
 		macvlan_flood(ifp, m);
 
-		if (is_broadcast_ether_addr(&eth->d_addr)) {
+		if (rte_is_broadcast_ether_addr(&eth->d_addr)) {
 			pkt->l2_pkt_type = L2_PKT_BROADCAST;
 			pkt_mbuf_set_l2_traffic_type(pkt->mbuf,
 						     L2_PKT_BROADCAST);
@@ -144,7 +144,8 @@ ether_lookup_process_common(struct pl_packet *pkt, void *context __unused,
 	} else {
 		pkt->l2_pkt_type = L2_PKT_UNICAST;
 
-		if (unlikely(!ether_addr_equal(&ifp->eth_addr, &eth->d_addr)) &&
+		if (unlikely(!rte_ether_addr_equal(&ifp->eth_addr,
+						   &eth->d_addr)) &&
 		    (!(m->ol_flags & PKT_RX_VLAN) ||
 		     !ifp->if_vlantbl)) {
 			struct ifnet *macvlan_ifp;

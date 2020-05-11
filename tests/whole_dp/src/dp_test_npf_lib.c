@@ -1450,10 +1450,10 @@ _dp_test_npf_raw(int index, struct rte_mbuf *pkt,
 	 */
 	if (exp_npc & NPC_IP6) {
 		exp_alen = 16;
-		exp_etype = ETHER_TYPE_IPv6;
+		exp_etype = RTE_ETHER_TYPE_IPV6;
 	} else {
 		exp_alen = 4;
-		exp_etype = ETHER_TYPE_IPv4;
+		exp_etype = RTE_ETHER_TYPE_IPV4;
 	}
 
 	/*

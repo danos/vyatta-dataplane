@@ -321,8 +321,8 @@ crypto_vrf_check_remove(struct crypto_vrf_ctx *vrf_ctx)
 	 * deleted all SAs and SPs in the VRF
 	 */
 	if (vrf_ctx &&
-	    !vrf_ctx->crypto_live_ipv4_policies &&
-	    !vrf_ctx->crypto_live_ipv6_policies &&
+	    !vrf_ctx->crypto_total_ipv4_policies &&
+	    !vrf_ctx->crypto_total_ipv6_policies &&
 	    !vrf_ctx->count_of_sas &&
 	    !vrf_ctx->count_of_peers &&
 	    !vrf_ctx->s2s_bindings) {

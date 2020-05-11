@@ -22,7 +22,7 @@
 #include "mpls/mpls.h"
 #include "mpls/mpls_forward.h"
 #include "netinet6/ip6_funcs.h"
-#include "nh.h"
+#include "nh_common.h"
 #include "pktmbuf_internal.h"
 #include "pl_common.h"
 #include "pl_fused.h"
@@ -30,12 +30,12 @@
 #include "route_v6.h"
 #include "urcu.h"
 
-static RTE_DEFINE_PER_LCORE(struct next_hop_v6, ll_nexthop);
+static RTE_DEFINE_PER_LCORE(struct next_hop, ll_nexthop);
 
 ALWAYS_INLINE unsigned int
 ipv6_post_route_lookup_process(struct pl_packet *pkt, void *context __unused)
 {
-	struct next_hop_v6 *nxt = pkt->nxt.v6;
+	struct next_hop *nxt = pkt->nxt.v6;
 	struct ifnet *ifp = pkt->in_ifp;
 	struct ip6_hdr *ip6 = pkt->l3_hdr;
 
@@ -43,7 +43,7 @@ ipv6_post_route_lookup_process(struct pl_packet *pkt, void *context __unused)
 		/* Can only forward LL out arrival interface */
 		RTE_PER_LCORE(ll_nexthop.flags) = 0;
 		nxt = &RTE_PER_LCORE(ll_nexthop);
-		nh6_set_ifp(nxt, ifp);
+		nh_set_ifp(nxt, ifp);
 		pkt->nxt.v6 = nxt;
 	}
 
@@ -83,15 +83,13 @@ ipv6_post_route_lookup_process(struct pl_packet *pkt, void *context __unused)
 
 	/* MPLS imposition required because nh has given us a label */
 	if (unlikely(nh_outlabels_present(&nxt->outlabels))) {
-		union next_hop_v4_or_v6_ptr mpls_nh = { .v6 = nxt };
-
 		mpls_unlabeled_input(ifp, pkt->mbuf,
-				     NH_TYPE_V6GW, mpls_nh, ip6->ip6_hops);
+				     NH_TYPE_V6GW, nxt, ip6->ip6_hops);
 		return IPV6_POST_ROUTE_LOOKUP_FINISH;
 	}
 
 	/* nxt->ifp may be changed by netlink messages. */
-	struct ifnet *nxt_ifp = dp_nh6_get_ifp(nxt);
+	struct ifnet *nxt_ifp = dp_nh_get_ifp(nxt);
 
 	/* Destination device is not up? */
 	if (unlikely(!nxt_ifp || !(nxt_ifp->if_flags & IFF_UP))) {

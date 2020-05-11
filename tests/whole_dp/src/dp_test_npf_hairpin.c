@@ -177,7 +177,7 @@ DP_START_TEST(npf_hairpin_udp1, test)
 	struct dp_test_pkt_desc_t forw_in = {
 		.text       = "UDP Forwards In",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv4,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
 		.l3_src     = "4.4.4.4",
 		.l2_src     = "aa:bb:cc:dd:1:11",
 		.l3_dst     = "3.3.3.3",
@@ -199,7 +199,7 @@ DP_START_TEST(npf_hairpin_udp1, test)
 	struct dp_test_pkt_desc_t rev_in = {
 		.text       = "UDP Forwards In",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv4,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
 		.l3_src     = "3.3.3.3",
 		.l2_src     = "aa:bb:cc:dd:1:12",
 		.l3_dst     = "4.4.4.4",
@@ -342,7 +342,7 @@ DP_START_TEST(npf_hairpin_udp2, test)
 	struct dp_test_pkt_desc_t forw_in = {
 		.text       = "UDP Forwards In",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv4,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
 		.l3_src     = "4.4.4.4",
 		.l2_src     = "aa:bb:cc:dd:1:11",
 		.l3_dst     = "3.3.3.3",
@@ -364,7 +364,7 @@ DP_START_TEST(npf_hairpin_udp2, test)
 	struct dp_test_pkt_desc_t rev_in = {
 		.text       = "UDP Forwards In",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv4,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
 		.l3_src     = "3.3.3.3",
 		.l2_src     = "aa:bb:cc:dd:1:12",
 		.l3_dst     = "4.4.4.4",
@@ -1133,7 +1133,7 @@ DP_START_TEST(npf_hairpin_icmp1, test)
 	struct dp_test_pkt_desc_t forw_in = {
 		.text       = "ICMP Forwards In",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv4,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
 		.l3_src     = "4.4.4.4",
 		.l2_src     = "aa:bb:cc:dd:1:11",
 		.l3_dst     = "3.3.3.3",
@@ -1156,7 +1156,7 @@ DP_START_TEST(npf_hairpin_icmp1, test)
 	struct dp_test_pkt_desc_t rev_in = {
 		.text       = "ICMP Forwards In",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv4,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
 		.l3_src     = "3.3.3.3",
 		.l2_src     = "aa:bb:cc:dd:1:12",
 		.l3_dst     = "4.4.4.4",
@@ -1300,7 +1300,7 @@ DP_START_TEST(npf_hairpin_icmp2, test)
 	struct dp_test_pkt_desc_t forw_in = {
 		.text       = "ICMP Forwards In",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv4,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
 		.l3_src     = "4.4.4.4",
 		.l2_src     = "aa:bb:cc:dd:1:11",
 		.l3_dst     = "3.3.3.3",
@@ -1323,7 +1323,7 @@ DP_START_TEST(npf_hairpin_icmp2, test)
 	struct dp_test_pkt_desc_t rev_in = {
 		.text       = "ICMP Forwards In",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv4,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
 		.l3_src     = "3.3.3.3",
 		.l2_src     = "aa:bb:cc:dd:1:12",
 		.l3_dst     = "4.4.4.4",

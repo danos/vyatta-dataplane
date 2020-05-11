@@ -39,7 +39,7 @@
 
 #include "fal_plugin_test.h"
 
-struct ether_addr;
+struct rte_ether_addr;
 
 static fal_object_t fal_test_plugin_next_obj = 1;
 
@@ -234,7 +234,7 @@ void fal_plugin_l2_del_port(unsigned int if_index)
 }
 
 void fal_plugin_l2_new_addr(unsigned int if_index,
-			    const struct ether_addr *addr,
+			    const struct rte_ether_addr *addr,
 			    uint32_t attr_count,
 			    const struct fal_attribute_t *attr_list)
 {
@@ -245,7 +245,7 @@ void fal_plugin_l2_new_addr(unsigned int if_index,
 }
 
 void fal_plugin_l2_upd_addr(unsigned int if_index,
-			    const struct ether_addr *addr,
+			    const struct rte_ether_addr *addr,
 			    struct fal_attribute_t *attr)
 {
 	char __addr[19];
@@ -255,7 +255,7 @@ void fal_plugin_l2_upd_addr(unsigned int if_index,
 }
 
 void fal_plugin_l2_del_addr(unsigned int if_index,
-			    const struct ether_addr *addr)
+			    const struct rte_ether_addr *addr)
 {
 	char __addr[19];
 
@@ -288,7 +288,7 @@ void fal_plugin_br_del_port(unsigned int bridge_ifindex,
 
 void fal_plugin_br_new_neigh(unsigned int if_index,
 			     uint16_t vlanid,
-			     const struct ether_addr *addr,
+			     const struct rte_ether_addr *addr,
 			     uint32_t attr_count,
 			     const struct fal_attribute_t *attr_list)
 {
@@ -306,7 +306,7 @@ void fal_plugin_br_new_neigh(unsigned int if_index,
 
 void fal_plugin_br_upd_neigh(unsigned int if_index,
 			     uint16_t vlanid,
-			     const struct ether_addr *addr,
+			     const struct rte_ether_addr *addr,
 			     struct fal_attribute_t *attr)
 {
 	char __addr[19];
@@ -318,7 +318,7 @@ void fal_plugin_br_upd_neigh(unsigned int if_index,
 
 void fal_plugin_br_del_neigh(unsigned int if_index,
 			     uint16_t vlanid,
-			     const struct ether_addr *addr)
+			     const struct rte_ether_addr *addr)
 {
 	char __addr[19];
 
@@ -751,8 +751,10 @@ int fal_plugin_vlan_feature_create(uint32_t attr_count,
 	struct vlan_feat *vf;
 	uint i;
 
-	vf = calloc(1, sizeof(*vf));
+	/* explicitly test fal_malloc function */
+	vf = fal_malloc(sizeof(*vf));
 	assert(vf);
+	memset(vf, 0, sizeof(*vf));
 
 	DEBUG("%s start\n", __func__);
 	for (i = 0; i < attr_count; i++) {
@@ -796,7 +798,7 @@ int fal_plugin_vlan_feature_delete(fal_object_t obj)
 	struct vlan_feat *vf = (struct vlan_feat *)obj;
 
 	DEBUG("%s %p\n", __func__, (void *)obj);
-	free(vf);
+	fal_free_deferred(vf);
 	return 0;
 }
 

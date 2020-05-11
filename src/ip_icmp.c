@@ -59,7 +59,7 @@
 #include "snmp_mib.h"
 #include "urcu.h"
 #include "util.h"
-#include "nh.h"
+#include "nh_common.h"
 #include "npf/npf_nat.h"
 #include "npf/cgnat/cgn.h"
 #include "fal.h"
@@ -221,7 +221,7 @@ icmp_send_no_route(struct rte_mbuf *m, struct ifnet *in_ifp,
 	icmp_out_inc(pktmbuf_get_vrf(m), icp->type);
 
 	memset(&singlehop_nh, 0, sizeof(singlehop_nh));
-	nh4_set_ifp(&singlehop_nh, out_ifp);
+	nh_set_ifp(&singlehop_nh, out_ifp);
 	nh = &singlehop_nh;
 
 	if (dp_ip_l2_nh_output(in_ifp, m, nh, ETH_P_IP)) {
@@ -535,14 +535,15 @@ icmp_do_error(struct rte_mbuf *n, int type, int code, uint32_t info,
 static void icmp_do_reflect(const struct ifnet *rcvif, struct rte_mbuf *m_in,
 			    struct rte_mbuf *m_out)
 {
-	struct ether_hdr *eh;
+	struct rte_ether_hdr *eh;
 	struct ifnet *vrrp_ifp;
 
 	if (!m_out)
 		return;
 
-	eh = rte_pktmbuf_mtod(m_in, struct ether_hdr *);
-	vrrp_ifp = macvlan_get_vrrp_if(rcvif, (struct ether_addr *)&eh->d_addr);
+	eh = rte_pktmbuf_mtod(m_in, struct rte_ether_hdr *);
+	vrrp_ifp = macvlan_get_vrrp_if(rcvif,
+				       (struct rte_ether_addr *)&eh->d_addr);
 	if (vrrp_ifp)
 		icmp_reflect(vrrp_ifp, m_out);
 	else
@@ -611,15 +612,16 @@ icmp_do_echo_reply(struct ifnet *ifp, struct rte_mbuf *n, bool reflect)
 	/* preserve the input port number for use by shadow interface */
 	m->port = n->port;
 
-	struct ether_hdr *neh = rte_pktmbuf_mtod(m, struct ether_hdr *);
+	struct rte_ether_hdr *neh = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
 
 	/* Ethernet source addr is interface address */
-	ether_addr_copy(&ifp->eth_addr, &neh->s_addr);
+	rte_ether_addr_copy(&ifp->eth_addr, &neh->s_addr);
 
 	if (reflect) {
 		/* Echo req source ether is echo reply dest ether */
-		struct ether_hdr *oeh = rte_pktmbuf_mtod(n, struct ether_hdr *);
-		ether_addr_copy(&oeh->s_addr, &neh->d_addr);
+		struct rte_ether_hdr *oeh =
+				rte_pktmbuf_mtod(n, struct rte_ether_hdr *);
+		rte_ether_addr_copy(&oeh->s_addr, &neh->d_addr);
 	}
 
 	nip = iphdr(m);

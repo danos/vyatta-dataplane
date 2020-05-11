@@ -60,7 +60,7 @@ DP_START_TEST(slow_dp_pkt, test_shadow_ipv4)
 					   1, &len);
 		dp_test_pktmbuf_eth_init(test_pak, dst_mac_str,
 					 dp_test_intf_name2mac_str("dp1T0"),
-					 ETHER_TYPE_IPv4);
+					 RTE_ETHER_TYPE_IPV4);
 
 		/* Create pak we expect to receive on the tx ring */
 		exp = dp_test_exp_create(test_pak);
@@ -68,7 +68,7 @@ DP_START_TEST(slow_dp_pkt, test_shadow_ipv4)
 		dp_test_pktmbuf_eth_init(dp_test_exp_get_pak(exp),
 					 exp_mac_str,
 					 dp_test_intf_name2mac_str("dp1T0"),
-					 ETHER_TYPE_IPv4);
+					 RTE_ETHER_TYPE_IPV4);
 
 		dp_test_send_slowpath_pkt(test_pak, exp);
 	}
@@ -100,7 +100,7 @@ DP_START_TEST(slow_dp_pkt, test_shadow_ipv6)
 						   1, &len);
 		dp_test_pktmbuf_eth_init(test_pak, dst_mac_str,
 					 dp_test_intf_name2mac_str("dp1T0"),
-					 ETHER_TYPE_IPv6);
+					 RTE_ETHER_TYPE_IPV6);
 
 		/* Create pak we expect to receive on the tx ring */
 		exp = dp_test_exp_create(test_pak);
@@ -108,7 +108,7 @@ DP_START_TEST(slow_dp_pkt, test_shadow_ipv6)
 		dp_test_pktmbuf_eth_init(dp_test_exp_get_pak(exp),
 					 exp_mac_str,
 					 dp_test_intf_name2mac_str("dp1T0"),
-					 ETHER_TYPE_IPv6);
+					 RTE_ETHER_TYPE_IPV6);
 
 		dp_test_send_slowpath_pkt(test_pak, exp);
 	}
@@ -142,12 +142,12 @@ DP_START_TEST(slow_dp_pkt, test_spath_gre)
 		"1.1.2.1", "1.1.2.2", 1, &gre_pl_len, ETH_P_TEB, 0, 0,
 		&gre_payload);
 	memcpy(gre_payload, rte_pktmbuf_mtod(payload_pak,
-				const struct ether_hdr *), gre_pl_len);
+				const struct rte_ether_hdr *), gre_pl_len);
 	dp_test_set_pak_ip_field(iphdr(test_pak), DP_TEST_SET_DF, 1);
 	dp_test_pktmbuf_eth_init(test_pak,
 				 nh_mac_str,
 				 dp_test_intf_name2mac_str("dp1T1"),
-				 ETHER_TYPE_IPv4);
+				 RTE_ETHER_TYPE_IPV4);
 
 	exp = dp_test_exp_create(test_pak);
 	rte_pktmbuf_free(test_pak);
@@ -161,7 +161,7 @@ DP_START_TEST(slow_dp_pkt, test_spath_gre)
 					   1, &len);
 	dp_test_pktmbuf_eth_init(payload_pak, nh_mac_str,
 				 dp_test_intf_name2mac_str("dp1T1"),
-				 ETHER_TYPE_IPv4);
+				 RTE_ETHER_TYPE_IPV4);
 
 	gre_pl_len = rte_pktmbuf_data_len(payload_pak);
 
@@ -169,12 +169,12 @@ DP_START_TEST(slow_dp_pkt, test_spath_gre)
 		"1.1.2.1", "1.1.2.2", 1, &gre_pl_len, ETH_P_TEB, 0, 0,
 		&gre_payload);
 	memcpy(gre_payload, rte_pktmbuf_mtod(payload_pak,
-				const struct ether_hdr *), gre_pl_len);
+				const struct rte_ether_hdr *), gre_pl_len);
 	dp_test_set_pak_ip_field(iphdr(test_pak), DP_TEST_SET_DF, 1);
 	dp_test_pktmbuf_eth_init(test_pak,
 				 nh_mac_str,
 				 dp_test_intf_name2mac_str("dp1T1"),
-				 ETHER_TYPE_IPv4);
+				 RTE_ETHER_TYPE_IPV4);
 
 	exp = dp_test_exp_create(test_pak);
 	rte_pktmbuf_free(test_pak);

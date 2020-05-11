@@ -49,7 +49,7 @@
 #include "main.h"
 #include "mpls/mpls.h"
 #include "mpls/mpls_forward.h"
-#include "nh.h"
+#include "nh_common.h"
 #include "npf/npf.h"
 #include "npf/npf_if.h"
 #include "npf/zones/npf_zone_public.h"
@@ -80,7 +80,7 @@ dp_ip_l2_nh_output(struct ifnet *in_ifp, struct rte_mbuf *m,
 		.l2_pkt_type = pkt_mbuf_get_l2_traffic_type(m),
 		.l3_hdr = iphdr(m),
 		.in_ifp = in_ifp,
-		.out_ifp = dp_nh4_get_ifp(nh),
+		.out_ifp = dp_nh_get_ifp(nh),
 		.nxt.v4 = nh,
 		.l2_proto = proto,
 	};
@@ -100,7 +100,7 @@ dp_ip_l2_intf_output(struct ifnet *in_ifp, struct rte_mbuf *m,
 	struct next_hop nh;
 
 	memset(&nh, 0, sizeof(nh));
-	nh4_set_ifp(&nh, out_ifp);
+	nh_set_ifp(&nh, out_ifp);
 
 	return dp_ip_l2_nh_output(in_ifp, m, &nh, proto);
 }
@@ -171,7 +171,7 @@ ip_local_deliver(struct ifnet *ifp, struct rte_mbuf *m)
 	 *
 	 * Run the local firewall,  and discard if so instructed.
 	 */
-	if (npf_local_fw(ifp, &m, htons(ETHER_TYPE_IPv4)))
+	if (npf_local_fw(ifp, &m, htons(RTE_ETHER_TYPE_IPV4)))
 		goto discard;
 
 	IPSTAT_INC_VRF(vrf, IPSTATS_MIB_INDELIVERS);
@@ -256,7 +256,7 @@ void ip_out_features(struct rte_mbuf *m, struct ifnet *ifp,
 	};
 
 	/* nxt->ifp may be changed by netlink messages. */
-	struct ifnet *nxt_ifp = dp_nh4_get_ifp(nxt);
+	struct ifnet *nxt_ifp = dp_nh_get_ifp(nxt);
 
 	/* Destination device is not up? */
 	if (!nxt_ifp || !(nxt_ifp->if_flags & IFF_UP)) {
@@ -318,15 +318,13 @@ void ip_switch(struct rte_mbuf *m, struct ifnet *ifp,
 
 	/* MPLS imposition required because nh has given us a label */
 	if (unlikely(nh_outlabels_present(&nxt->outlabels))) {
-		union next_hop_v4_or_v6_ptr mpls_nh = { .v4 = nxt };
-
-		mpls_unlabeled_input(ifp, m, NH_TYPE_V4GW, mpls_nh, ip->ttl);
+		mpls_unlabeled_input(ifp, m, NH_TYPE_V4GW, nxt, ip->ttl);
 		return;
 	}
 
 	/* Store next hop address  */
 	if (nxt->flags & RTF_GATEWAY)
-		addr = nxt->gateway;
+		addr = nxt->gateway4;
 	else
 		addr = ip->daddr;
 

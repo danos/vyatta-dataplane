@@ -25,7 +25,7 @@ void dp_test_controller_debug_set(int debug_val);
 
 int nl_generate_topic(const struct nlmsghdr *nlh, char *buf, size_t buflen);
 void nl_propagate(const char *topic, const struct nlmsghdr *nlh);
-void nl_propagate_broker(const char *topic, const struct nlmsghdr *nlh);
+void nl_propagate_broker(const char *topic, void *data, size_t size);
 
 void dp_test_controller_init(enum cont_src_en cont_src, char **req_ipc);
 void dp_test_controller_close(enum cont_src_en cont_src);

@@ -32,11 +32,11 @@ ether_forward_process(struct pl_packet *pkt, void *context __unused)
 {
 	uint16_t et = ethhdr(pkt->mbuf)->ether_type;
 
-	if (likely(et == htons(ETHER_TYPE_IPv4)))
+	if (likely(et == htons(RTE_ETHER_TYPE_IPV4)))
 		return ETHER_FORWARD_V4_ACCEPT;
-	if (likely(et == htons(ETHER_TYPE_IPv6)))
+	if (likely(et == htons(RTE_ETHER_TYPE_IPV6)))
 		return ETHER_FORWARD_V6_ACCEPT;
-	if (et == htons(ETHER_TYPE_ARP))
+	if (et == htons(RTE_ETHER_TYPE_ARP))
 		return ETHER_FORWARD_ARP_ACCEPT;
 	else if (et == htons(ETH_P_MPLS_UC))
 		mpls_labeled_input(pkt->in_ifp, pkt->mbuf);

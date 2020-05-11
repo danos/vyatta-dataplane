@@ -11,7 +11,6 @@
 #include "dp_test_str.h"
 #include "dp_test_lib_internal.h"
 #include "dp_test_lib_exp.h"
-#include "dp_test_lib_pb.h"
 #include "dp_test_lib_pkt.h"
 #include "dp_test_pktmbuf_lib_internal.h"
 #include "dp_test_controller.h"
@@ -216,7 +215,7 @@ DP_START_TEST(dyn_feat, dyn_feat_ipv4)
 	dp_test_pktmbuf_eth_init(test_pak,
 				 dp_test_intf_name2mac_str("dp1T0"),
 				 DP_TEST_INTF_DEF_SRC_MAC,
-				 ETHER_TYPE_IPv4);
+				 RTE_ETHER_TYPE_IPV4);
 
 	/* Create pak we expect to receive on the tx ring */
 	exp = dp_test_exp_create(test_pak);
@@ -224,7 +223,7 @@ DP_START_TEST(dyn_feat, dyn_feat_ipv4)
 	dp_test_pktmbuf_eth_init(dp_test_exp_get_pak(exp),
 				 nh_mac_str,
 				 dp_test_intf_name2mac_str("dp2T1"),
-				 ETHER_TYPE_IPv4);
+				 RTE_ETHER_TYPE_IPV4);
 	dp_test_ipv4_decrement_ttl(dp_test_exp_get_pak(exp));
 	dp_test_pak_receive(test_pak, "dp1T0", exp);
 

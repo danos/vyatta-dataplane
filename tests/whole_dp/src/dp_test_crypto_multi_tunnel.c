@@ -22,7 +22,7 @@
 #include "dp_test_crypto_utils.h"
 #include "dp_test_netlink_state_internal.h"
 #include "dp_test_lib_exp.h"
-
+#include "dp_test_npf_lib.h"
 /*
  *                    +-----------+  dp2T2
  *                    |           |
@@ -156,7 +156,7 @@ static struct dp_test_expected *create_expected_packet(const char *src,
 					  NULL /* transport_hdr*/);
 	(void)dp_test_pktmbuf_eth_init(pak, dst_mac,
 				       dp_test_intf_name2mac_str(ifname),
-				       ETHER_TYPE_IPv4);
+				       RTE_ETHER_TYPE_IPV4);
 	exp = dp_test_exp_create(pak);
 	dp_test_exp_set_oif_name(exp, ifname);
 
@@ -341,6 +341,7 @@ static void teardown_two_tunnels_two_peers(void)
 	dp_test_crypto_delete_sa(&tun_2_out_sa);
 
 	dp_test_crypto_check_sa_count(VRF_DEFAULT_ID, 0);
+	dp_test_npf_cleanup();
 }
 
 /*
@@ -379,7 +380,7 @@ DP_START_TEST_FULL_RUN(multi_s2s_tunnel, two_tunnels_two_peers)
 	(void)dp_test_pktmbuf_eth_init(pkt_tun1,
 				       dp_test_intf_name2mac_str("dp1T1"),
 				       SOURCE_MAC_ADDR,
-				       ETHER_TYPE_IPv4);
+				       RTE_ETHER_TYPE_IPV4);
 
 	/* Expect an ESP packet to TUN_1_REMOTE_IP_ADDR on dp2T2 */
 	exp1 = create_expected_packet(TUN_1_LOCAL_IP_ADDR,
@@ -406,7 +407,7 @@ DP_START_TEST_FULL_RUN(multi_s2s_tunnel, two_tunnels_two_peers)
 	(void)dp_test_pktmbuf_eth_init(pkt_tun2,
 				       dp_test_intf_name2mac_str("dp1T1"),
 				       SOURCE_MAC_ADDR,
-				       ETHER_TYPE_IPv4);
+				       RTE_ETHER_TYPE_IPV4);
 
 	/* Expect an ESP packet to TUN_2_REMOTE_IP_ADDR on dp3T3 */
 	exp2 = create_expected_packet(TUN_2_LOCAL_IP_ADDR,
@@ -533,6 +534,7 @@ static void teardown_two_tunnels_one_peer(void)
 	dp_test_crypto_delete_sa(&tun_3_out_sa);
 
 	dp_test_crypto_check_sa_count(VRF_DEFAULT_ID, 0);
+	dp_test_npf_cleanup();
 }
 
 /*
@@ -570,7 +572,7 @@ DP_START_TEST_FULL_RUN(multi_s2s_tunnel, two_tunnels_one_peer)
 						&ip, &icmp);
 	(void)dp_test_pktmbuf_eth_init(pkt_tun1,
 				       dp_test_intf_name2mac_str("dp1T1"),
-				       NULL, ETHER_TYPE_IPv4);
+				       NULL, RTE_ETHER_TYPE_IPV4);
 
 	/* Expect an ESP packet to TUN_1_REMOTE_IP_ADD on dp2T2 */
 	exp1 = create_expected_packet(TUN_1_LOCAL_IP_ADDR,
@@ -596,7 +598,7 @@ DP_START_TEST_FULL_RUN(multi_s2s_tunnel, two_tunnels_one_peer)
 						&ip, &icmp);
 	(void)dp_test_pktmbuf_eth_init(pkt_tun3,
 				       dp_test_intf_name2mac_str("dp1T1"),
-				       NULL, ETHER_TYPE_IPv4);
+				       NULL, RTE_ETHER_TYPE_IPV4);
 
 	exp3 = create_expected_packet(TUN_3_LOCAL_IP_ADDR,
 				      TUN_3_REMOTE_IP_ADDR,
@@ -703,7 +705,7 @@ DP_START_TEST_FULL_RUN(multi_s2s_tunnel, more_than_one_sa_for_tunnel)
 						&ip, &icmp);
 	(void)dp_test_pktmbuf_eth_init(pkt_tun3,
 				       dp_test_intf_name2mac_str("dp1T1"),
-				       NULL, ETHER_TYPE_IPv4);
+				       NULL, RTE_ETHER_TYPE_IPV4);
 
 	/*
 	 * Expect an ESP packet to TUN_3_REMOTE_IP_ADD on dp2T2.

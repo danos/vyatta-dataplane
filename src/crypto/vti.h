@@ -10,7 +10,7 @@
 
 #include "netlink.h"
 
-struct ether_addr;
+struct rte_ether_addr;
 struct ifnet;
 struct nlattr;
 struct rte_mbuf;
@@ -22,7 +22,7 @@ struct vti_ctxt_table;
 
 struct ifnet *
 vti_tunnel_create(int ifindex, const char *ifname,
-		   const struct ether_addr *addr, const unsigned int mtu,
+		   const struct rte_ether_addr *addr, const unsigned int mtu,
 		   struct nlattr *data);
 void vti_tunnel_modify(struct ifnet *ifp, struct nlattr *data);
 void vti_tunnel_out(struct ifnet *input_ifp, struct ifnet *nxt_ifp,

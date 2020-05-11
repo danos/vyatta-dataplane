@@ -156,7 +156,7 @@ DP_START_TEST(proto_grp_ipv4, group_proto_grp)
 	struct dp_test_pkt_desc_t v4_icmp_pkt = {
 		.text       = "Prot-group IPv4 ICMP",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv4,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
 		.l3_src     = "1.1.1.11",
 		.l2_src     = "aa:bb:cc:dd:1:a1",
 		.l3_dst     = "2.2.2.11",
@@ -179,7 +179,7 @@ DP_START_TEST(proto_grp_ipv4, group_proto_grp)
 	struct dp_test_pkt_desc_t v4_tcp_pkt = {
 		.text       = "Prot-group IPv4 TCP",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv4,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
 		.l3_src     = "1.1.1.11",
 		.l2_src     = "aa:bb:cc:dd:1:a1",
 		.l3_dst     = "2.2.2.11",
@@ -199,7 +199,7 @@ DP_START_TEST(proto_grp_ipv4, group_proto_grp)
 	struct dp_test_pkt_desc_t v4_udp_pkt = {
 		.text       = "Prot-group IPv4 UDP",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv4,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
 		.l3_src     = "1.1.1.11",
 		.l2_src     = "aa:bb:cc:dd:1:a1",
 		.l3_dst     = "2.2.2.11",
@@ -218,7 +218,7 @@ DP_START_TEST(proto_grp_ipv4, group_proto_grp)
 	struct dp_test_pkt_desc_t v4_raw_pkt = {
 		.text       = "Prot-group IPv4 raw",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv4,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
 		.l3_src     = "1.1.1.11",
 		.l2_src     = "aa:bb:cc:dd:1:a1",
 		.l3_dst     = "2.2.2.11",
@@ -337,7 +337,7 @@ DP_START_TEST(proto_grp_ipv6, group_proto_grp)
 	struct dp_test_pkt_desc_t v6_icmp_pkt = {
 		.text       = "Prot-group IPv6 ICMP",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv6,
+		.ether_type = RTE_ETHER_TYPE_IPV6,
 		.l3_src     = "2001:1:1::2",
 		.l2_src     = "aa:bb:cc:dd:1:a1",
 		.l3_dst     = "2002:2:2::1",
@@ -360,7 +360,7 @@ DP_START_TEST(proto_grp_ipv6, group_proto_grp)
 	struct dp_test_pkt_desc_t v6_tcp_pkt = {
 		.text       = "Prot-group IPv6 TCP",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv6,
+		.ether_type = RTE_ETHER_TYPE_IPV6,
 		.l3_src     = "2001:1:1::2",
 		.l2_src     = "aa:bb:cc:dd:1:a1",
 		.l3_dst     = "2002:2:2::1",
@@ -380,7 +380,7 @@ DP_START_TEST(proto_grp_ipv6, group_proto_grp)
 	struct dp_test_pkt_desc_t v6_udp_pkt = {
 		.text       = "Prot-group IPv6 UDP",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv6,
+		.ether_type = RTE_ETHER_TYPE_IPV6,
 		.l3_src     = "2001:1:1::2",
 		.l2_src     = "aa:bb:cc:dd:1:a1",
 		.l3_dst     = "2002:2:2::1",
@@ -399,7 +399,7 @@ DP_START_TEST(proto_grp_ipv6, group_proto_grp)
 	struct dp_test_pkt_desc_t v6_raw_pkt = {
 		.text       = "Prot-group IPv6 raw",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv6,
+		.ether_type = RTE_ETHER_TYPE_IPV6,
 		.l3_src     = "2001:1:1::2",
 		.l2_src     = "aa:bb:cc:dd:1:a1",
 		.l3_dst     = "2002:2:2::1",

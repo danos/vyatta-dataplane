@@ -1025,7 +1025,7 @@ gre_tunnel_add_tep(struct ifnet *ifp, struct gre_info_st *tep)
 /* Create GRE tunnel in response to netlink */
 struct ifnet *
 gre_tunnel_create(int ifindex, const char *ifname,
-		  const struct ether_addr *addr, const unsigned int mtu,
+		  const struct rte_ether_addr *addr, const unsigned int mtu,
 		  struct nlattr *data)
 {
 	struct ifnet *ifp;
@@ -1643,7 +1643,7 @@ int ip_gre_tunnel_in(struct rte_mbuf **m0, struct iphdr *ip)
 	set_spath_rx_meta_data(m, tun_ifp, next_prot, TUN_META_FLAGS_DEFAULT);
 
 	if (unlikely(gre_encap_l2_frame(next_prot)))
-		rte_pktmbuf_adj(m, decap_size + ETHER_HDR_LEN);
+		rte_pktmbuf_adj(m, decap_size + RTE_ETHER_HDR_LEN);
 	else
 		if (iptun_eth_hdr_fixup(m, next_prot, decap_size) != 0)
 			return 1;
@@ -1673,7 +1673,7 @@ int ip_gre_tunnel_in(struct rte_mbuf **m0, struct iphdr *ip)
 			return 1;
 		break;
 	case ETH_P_TEB:
-		if (rte_pktmbuf_data_len(m) < sizeof(struct ether_hdr)) {
+		if (rte_pktmbuf_data_len(m) < sizeof(struct rte_ether_hdr)) {
 			if_incr_error(tun_ifp);
 			rte_pktmbuf_free(m);
 			return 0;
@@ -1708,7 +1708,7 @@ gre_tunnel_do_send(struct ifnet *tunnel_ifp, struct rte_mbuf *m)
 
 	/* Give IPsec first crack.  Returns true if packet was consumed */
 	if (crypto_policy_check_outbound(tunnel_ifp, &m, RT_TABLE_MAIN,
-					 htons(ETHER_TYPE_IPv4), NULL))
+					 htons(RTE_ETHER_TYPE_IPV4), NULL))
 		return;
 
 	outer_ip = iphdr(m);
@@ -1762,10 +1762,12 @@ gre_tunnel_add_encap(struct ifnet *tunnel_ifp, struct rte_mbuf *m,
 {
 	struct gre_hdr *gre;
 	struct iphdr *ip = NULL;
-	struct ether_hdr *eth_hdr;
+	struct rte_ether_hdr *eth_hdr;
 
 	/* Copy GRE header into mbuf then set the pak specific fields */
-	gre = (struct gre_hdr *)(hdr + ETHER_HDR_LEN + sizeof(struct iphdr));
+	gre = (struct gre_hdr *)(hdr +
+				 RTE_ETHER_HDR_LEN +
+				 sizeof(struct iphdr));
 
 	if (!gre_tunnel_add_gre_encap(greinfo, gre, proto)) {
 		if_incr_oerror(tunnel_ifp);
@@ -1778,7 +1780,7 @@ gre_tunnel_add_encap(struct ifnet *tunnel_ifp, struct rte_mbuf *m,
 	 *
 	 * FRAGMENT:
 	 */
-	ip = (struct iphdr *) (hdr + ETHER_HDR_LEN);
+	ip = (struct iphdr *) (hdr + RTE_ETHER_HDR_LEN);
 	memcpy(ip, outer_ip, sizeof(struct iphdr));
 
 	if (ip->ttl == 0)
@@ -1811,11 +1813,11 @@ gre_tunnel_add_encap(struct ifnet *tunnel_ifp, struct rte_mbuf *m,
 	ip->check = 0;
 	ip->check = dp_in_cksum_hdr(ip);
 
-	eth_hdr = (struct ether_hdr *)hdr;
+	eth_hdr = (struct rte_ether_hdr *)hdr;
 	eth_hdr->ether_type = htons(ETH_P_IP);
 
 	pktmbuf_prepare_encap_out(m);
-	dp_pktmbuf_l2_len(m) = ETHER_HDR_LEN;
+	dp_pktmbuf_l2_len(m) = RTE_ETHER_HDR_LEN;
 	dp_pktmbuf_l3_len(m) = sizeof(struct iphdr);
 
 	return true;
@@ -1883,8 +1885,8 @@ gre_tunnel_fragment_and_send(struct ifnet *input_ifp, struct ifnet *tunnel_ifp,
 	}
 	case ETH_P_TEB:
 	{
-		const struct ether_hdr *eh
-			= rte_pktmbuf_mtod(m, struct ether_hdr *);
+		const struct rte_ether_hdr *eh
+			= rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
 
 		inner_len = rte_pktmbuf_pkt_len(m);
 		dont_frag = true;
@@ -1896,7 +1898,7 @@ gre_tunnel_fragment_and_send(struct ifnet *input_ifp, struct ifnet *tunnel_ifp,
 		 * fragmented
 		 */
 		switch (ntohs(eh->ether_type)) {
-		case ETHER_TYPE_IPv4:
+		case RTE_ETHER_TYPE_IPV4:
 		{
 			struct iphdr *ip = iphdr(m);
 
@@ -1911,14 +1913,14 @@ gre_tunnel_fragment_and_send(struct ifnet *input_ifp, struct ifnet *tunnel_ifp,
 		default:
 			break;
 		}
-		mtu_offset = ETHER_HDR_LEN;
+		mtu_offset = RTE_ETHER_HDR_LEN;
 		break;
 	}
 	default:
 		if (gre_encap_l2_frame(proto))
 			inner_len = rte_pktmbuf_pkt_len(m);
 		else
-			inner_len = rte_pktmbuf_pkt_len(m) - ETHER_HDR_LEN;
+			inner_len = rte_pktmbuf_pkt_len(m) - RTE_ETHER_HDR_LEN;
 		dont_frag = true;
 		break;
 	}
@@ -2039,7 +2041,7 @@ gre_tunnel_encap(struct ifnet *input_ifp, struct ifnet *tunnel_ifp,
 	vrfid_t t_vrfid;
 	unsigned int eh_offset;
 	unsigned int ip_offset;
-	const struct ether_hdr *eh;
+	const struct rte_ether_hdr *eh;
 	uint16_t ether_type;
 
 	sc = rcu_dereference(tunnel_ifp->if_softc);
@@ -2075,11 +2077,11 @@ gre_tunnel_encap(struct ifnet *input_ifp, struct ifnet *tunnel_ifp,
 	 */
 	if (gre_encap_l2_frame(proto)) {
 		new_hdr_len = (greinfo->gre_size + sizeof(struct iphdr) +
-			       ETHER_HDR_LEN);
+			       RTE_ETHER_HDR_LEN);
 		len_adjust = 0;
 	} else {
 		new_hdr_len = (greinfo->gre_size + sizeof(struct iphdr));
-		len_adjust = ETHER_HDR_LEN;
+		len_adjust = RTE_ETHER_HDR_LEN;
 	}
 
 	switch (proto) {
@@ -2112,17 +2114,17 @@ gre_tunnel_encap(struct ifnet *input_ifp, struct ifnet *tunnel_ifp,
 		eh_offset = (proto == ETH_P_ERSPAN_TYPEII ?
 					sizeof(struct erspan_v2_hdr) :
 					sizeof(struct erspan_v3_hdr));
-		eh = rte_pktmbuf_mtod_offset(m, const struct ether_hdr *,
+		eh = rte_pktmbuf_mtod_offset(m, const struct rte_ether_hdr *,
 						eh_offset);
 		ether_type = eh->ether_type;
-		ip_offset = eh_offset + ETHER_HDR_LEN;
-		if (ether_type == htons(ETHER_TYPE_IPv4)) {
+		ip_offset = eh_offset + RTE_ETHER_HDR_LEN;
+		if (ether_type == htons(RTE_ETHER_TYPE_IPV4)) {
 			const struct iphdr *ip = rte_pktmbuf_mtod_offset(m,
 							const struct iphdr *,
 							ip_offset);
 			inner_ttl = ip->ttl;
 			inner_tos = ip->tos;
-		} else if (ether_type == htons(ETHER_TYPE_IPv6)) {
+		} else if (ether_type == htons(RTE_ETHER_TYPE_IPV6)) {
 			const struct ip6_hdr *ip6 = rte_pktmbuf_mtod_offset(m,
 							const struct ip6_hdr *,
 							ip_offset);
@@ -2133,8 +2135,8 @@ gre_tunnel_encap(struct ifnet *input_ifp, struct ifnet *tunnel_ifp,
 		break;
 	case ETH_P_TEB:
 	{
-		const struct ether_hdr *eh
-			= rte_pktmbuf_mtod(m, struct ether_hdr *);
+		const struct rte_ether_hdr *eh
+			= rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
 
 		inner_len = rte_pktmbuf_pkt_len(m) - len_adjust;
 		inner_ttl = 0;
@@ -2142,7 +2144,7 @@ gre_tunnel_encap(struct ifnet *input_ifp, struct ifnet *tunnel_ifp,
 		inner_df = false;
 
 		switch (ntohs(eh->ether_type)) {
-		case ETHER_TYPE_IPv4:
+		case RTE_ETHER_TYPE_IPV4:
 		{
 			struct iphdr *ip = iphdr(m);
 
@@ -2202,17 +2204,19 @@ gre6_tunnel_add_encap(struct ifnet *tunnel_ifp, struct rte_mbuf *m,
 {
 	struct gre_hdr *gre;
 	struct ip6_hdr *ip6 = NULL;
-	struct ether_hdr *eth_hdr;
+	struct rte_ether_hdr *eth_hdr;
 
 	/* Copy GRE header into mbuf then set the pak specific fields */
-	gre = (struct gre_hdr *)(hdr + ETHER_HDR_LEN + sizeof(struct ip6_hdr));
+	gre = (struct gre_hdr *)(hdr +
+				 RTE_ETHER_HDR_LEN +
+				 sizeof(struct ip6_hdr));
 
 	if (!gre_tunnel_add_gre_encap(greinfo, gre, proto)) {
 		if_incr_oerror(tunnel_ifp);
 		goto drop;
 	}
 
-	ip6 = (struct ip6_hdr *) (hdr + ETHER_HDR_LEN);
+	ip6 = (struct ip6_hdr *) (hdr + RTE_ETHER_HDR_LEN);
 	memcpy(ip6, outer_ip, sizeof(struct ip6_hdr));
 
 	if (ip6->ip6_hlim == 0)
@@ -2234,11 +2238,11 @@ gre6_tunnel_add_encap(struct ifnet *tunnel_ifp, struct rte_mbuf *m,
 	ip6->ip6_plen = htons(inner_len + greinfo->gre_size);
 	ip6_ip_ecn_encap(&ip6->ip6_flow, inner_tos);
 
-	eth_hdr = (struct ether_hdr *)hdr;
+	eth_hdr = (struct rte_ether_hdr *)hdr;
 	eth_hdr->ether_type = htons(ETH_P_IPV6);
 
 	pktmbuf_prepare_encap_out(m);
-	dp_pktmbuf_l2_len(m) = ETHER_HDR_LEN;
+	dp_pktmbuf_l2_len(m) = RTE_ETHER_HDR_LEN;
 	dp_pktmbuf_l3_len(m) = sizeof(struct ip6_hdr);
 
 	return true;
@@ -2303,7 +2307,7 @@ gre6_tunnel_encap(struct ifnet *tunnel_ifp,
 	t_vrfid = greinfo->t_vrfid;
 
 	new_hdr_len = (greinfo->gre_size + sizeof(struct ip6_hdr));
-	len_adjust = ETHER_HDR_LEN;
+	len_adjust = RTE_ETHER_HDR_LEN;
 
 	switch (proto) {
 	case ETH_P_IP:
@@ -2359,7 +2363,7 @@ gre6_tunnel_do_send(struct ifnet *tunnel_ifp, struct rte_mbuf *m)
 
 	/* Give IPsec first crack.  Returns true if packet was consumed */
 	if (crypto_policy_check_outbound(tunnel_ifp, &m, RT_TABLE_MAIN,
-					 htons(ETHER_TYPE_IPv6), NULL))
+					 htons(RTE_ETHER_TYPE_IPV6), NULL))
 		return;
 
 	outer_ip = ip6hdr(m);

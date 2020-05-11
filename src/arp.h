@@ -14,16 +14,16 @@
 
 struct ifnet;
 struct rte_mbuf;
-struct ether_addr;
+struct rte_ether_addr;
 struct sockaddr;
 struct lltable;
 struct llentry;
 
 bool arp_input_validate(const struct ifnet *ifp, struct rte_mbuf *m);
 int arpresolve(struct ifnet *ifp, struct rte_mbuf *m,
-		      in_addr_t addr, struct ether_addr *desten);
+		      in_addr_t addr, struct rte_ether_addr *desten);
 int arpresolve_fast(struct ifnet *ifp, struct rte_mbuf *m,
-		in_addr_t addr, struct ether_addr *desten);
+		in_addr_t addr, struct rte_ether_addr *desten);
 
 struct arp_stats {
 	uint64_t txrequests;	/* # of ARP requests sent by this host. */

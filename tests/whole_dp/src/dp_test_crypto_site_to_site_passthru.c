@@ -599,7 +599,7 @@ static void encrypt_main(vrfid_t vrfid)
 	ping_pkt = build_input_packet(CLIENT_LOCAL, CLIENT_REMOTE);
 	(void)dp_test_pktmbuf_eth_init(ping_pkt,
 				       dp_test_intf_name2mac_str("dp1T1"),
-				       NULL, ETHER_TYPE_IPv4);
+				       NULL, RTE_ETHER_TYPE_IPV4);
 
 	/*
 	 * Construct the expected encrypted packet
@@ -619,7 +619,7 @@ static void encrypt_main(vrfid_t vrfid)
 	(void)dp_test_pktmbuf_eth_init(encrypted_pkt,
 				       PEER_MAC_ADDR,
 				       dp_test_intf_name2mac_str("dp2T2"),
-				       ETHER_TYPE_IPv4);
+				       RTE_ETHER_TYPE_IPV4);
 
 	exp = dp_test_exp_create(encrypted_pkt);
 	rte_pktmbuf_free(encrypted_pkt);
@@ -698,7 +698,7 @@ static void encrypt6_main(vrfid_t vrfid)
 
 	(void)dp_test_pktmbuf_eth_init(ping_pkt,
 				       dp_test_intf_name2mac_str("dp1T1"),
-				       NULL, ETHER_TYPE_IPv6);
+				       NULL, RTE_ETHER_TYPE_IPV6);
 
 	/*
 	 * Construct the expected encrypted packet
@@ -717,7 +717,7 @@ static void encrypt6_main(vrfid_t vrfid)
 	(void)dp_test_pktmbuf_eth_init(encrypted_pkt,
 				       PEER_MAC_ADDR,
 				       dp_test_intf_name2mac_str("dp2T2"),
-				       ETHER_TYPE_IPv6);
+				       RTE_ETHER_TYPE_IPV6);
 
 	exp = dp_test_exp_create(encrypted_pkt);
 	rte_pktmbuf_free(encrypted_pkt);
@@ -785,7 +785,7 @@ receive_packet(vrfid_t vrfid,
 					  1, &len);
 	(void)dp_test_pktmbuf_eth_init(pkt,
 				       dp_test_intf_name2mac_str(ifin),
-				       NULL, ETHER_TYPE_IPv4);
+				       NULL, RTE_ETHER_TYPE_IPV4);
 
 	/*
 	 * The packet may need to be dropped because it is received
@@ -859,7 +859,7 @@ receive_packet6(vrfid_t vrfid,
 	dp_test_assert_internal(pkt != NULL);
 	(void)dp_test_pktmbuf_eth_init(pkt,
 				       dp_test_intf_name2mac_str(ifin),
-				       NULL, ETHER_TYPE_IPv6);
+				       NULL, RTE_ETHER_TYPE_IPV6);
 
 	/*
 	 * The packet should be dropped because it is received in

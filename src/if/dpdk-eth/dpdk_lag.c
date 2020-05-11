@@ -94,11 +94,11 @@ dpdk_lag_etype_slow_tx(struct ifnet *master, struct ifnet *ifp,
 static void
 dpdk_lag_slave_sync_mac_address(struct ifnet *ifp)
 {
-	struct ether_addr hwaddr;
+	struct rte_ether_addr hwaddr;
 	char buf1[32], buf2[32];
 
 	rte_eth_macaddr_get(ifp->if_port, &hwaddr);
-	if (ether_addr_equal(&ifp->eth_addr, &hwaddr))
+	if (rte_ether_addr_equal(&ifp->eth_addr, &hwaddr))
 		return;
 
 	DP_DEBUG(LAG, DEBUG, DATAPLANE, "%s updating MAC from %s to %s\n",
@@ -123,7 +123,7 @@ dpdk_lag_create(const struct ifinfomsg *ifi, struct nlattr *tb[])
 {
 	int port_id;
 	const char *ifname;
-	struct ether_addr *macaddr = NULL;
+	struct rte_ether_addr *macaddr = NULL;
 	struct ifnet *ifp;
 	char bond_name[RTE_ETH_NAME_MAX_LEN];
 	int len;
@@ -131,7 +131,7 @@ dpdk_lag_create(const struct ifinfomsg *ifi, struct nlattr *tb[])
 	if (tb[IFLA_ADDRESS]) {
 		size_t addrlen = mnl_attr_get_payload_len(tb[IFLA_ADDRESS]);
 
-		if (addrlen != ETHER_ADDR_LEN)
+		if (addrlen != RTE_ETHER_ADDR_LEN)
 			return NULL;
 		macaddr = mnl_attr_get_payload(tb[IFLA_ADDRESS]);
 	}
@@ -692,7 +692,7 @@ dpdk_lag_can_startstop_member(struct ifnet *ifp)
 }
 
 static int
-dpdk_lag_set_l2_address(struct ifnet *ifp, struct ether_addr *macaddr)
+dpdk_lag_set_l2_address(struct ifnet *ifp, struct rte_ether_addr *macaddr)
 {
 	return rte_eth_bond_mac_address_set(
 		ifp->if_port, macaddr);

@@ -398,7 +398,7 @@ static int reconfigure_pkt_len(struct ifnet *ifp, uint32_t mtu)
 
 	memcpy(&dev_conf, &eth_dev->data->dev_conf, sizeof(dev_conf));
 
-	if (mtu > ETHER_MTU) {
+	if (mtu > RTE_ETHER_MTU) {
 		struct rte_eth_dev_info dev_info;
 		rte_eth_dev_info_get(ifp->if_port, &dev_info);
 		if (dev_info.rx_offload_capa & DEV_RX_OFFLOAD_JUMBO_FRAME)
@@ -409,7 +409,9 @@ static int reconfigure_pkt_len(struct ifnet *ifp, uint32_t mtu)
 		dev_conf.rxmode.offloads &= ~(DEV_RX_OFFLOAD_JUMBO_FRAME |
 			DEV_RX_OFFLOAD_SCATTER);
 	}
-	dev_conf.rxmode.max_rx_pkt_len = mtu + ETHER_HDR_LEN + ETHER_CRC_LEN;
+	dev_conf.rxmode.max_rx_pkt_len = mtu +
+					 RTE_ETHER_HDR_LEN +
+					 RTE_ETHER_CRC_LEN;
 
 	return reconfigure_port(ifp, &dev_conf, reconfigure_pkt_len_cb);
 }
@@ -417,7 +419,7 @@ static int reconfigure_pkt_len(struct ifnet *ifp, uint32_t mtu)
 static inline bool
 is_jumbo_size(uint32_t size)
 {
-	return size > ETHER_MTU;
+	return size > RTE_ETHER_MTU;
 }
 
 static int dpdk_eth_if_set_mtu(struct ifnet *ifp, uint32_t mtu)
@@ -495,17 +497,17 @@ out:
 static int dpdk_eth_if_set_l2_address(struct ifnet *ifp, uint32_t l2_addr_len,
 				      void *l2_addr)
 {
-	struct ether_addr *macaddr = l2_addr;
+	struct rte_ether_addr *macaddr = l2_addr;
 	char b1[32], b2[32];
 
-	if (l2_addr_len != ETHER_ADDR_LEN) {
+	if (l2_addr_len != RTE_ETHER_ADDR_LEN) {
 		RTE_LOG(NOTICE, DATAPLANE,
 			"link address is not ethernet (len=%u)!\n",
 			l2_addr_len);
 		return -EINVAL;
 	}
 
-	if (ether_addr_equal(&ifp->eth_addr, macaddr))
+	if (rte_ether_addr_equal(&ifp->eth_addr, macaddr))
 		return 1;
 
 	RTE_LOG(INFO, DATAPLANE, "%s change MAC from %s to %s\n",
@@ -581,7 +583,7 @@ static int dpdk_eth_if_init(struct ifnet *ifp)
 	sc->scd_ifp = ifp;
 	ifp->if_softc = sc;
 
-	ether_addr_copy(&ifp->eth_addr, &ifp->perm_addr);
+	rte_ether_addr_copy(&ifp->eth_addr, &ifp->perm_addr);
 
 	return 0;
 }

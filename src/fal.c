@@ -22,7 +22,7 @@
 #include "fal_bfd.h"
 #include "if_var.h"
 #include "mpls/mpls.h"
-#include "nh.h"
+#include "nh_common.h"
 #include "route.h"
 #include "route_flags.h"
 #include "route_v6.h"
@@ -31,7 +31,13 @@
 #include "bridge_vlan_set.h"
 #include "if/dpdk-eth/hotplug.h"
 
-struct ether_addr;
+struct rte_ether_addr;
+
+struct fal_mem {
+	struct rcu_head rcu;
+	uint8_t data[0];
+};
+
 
 int __externally_visible
 fal_port_byifindex(int ifindex, uint16_t *portid)
@@ -43,6 +49,64 @@ fal_port_byifindex(int ifindex, uint16_t *portid)
 		return -ENODEV;
 	*portid = ifp->if_port;
 	return 0;
+}
+
+void * __externally_visible
+fal_malloc(size_t size)
+{
+	struct fal_mem *fal_mem;
+
+	if (size >= SIZE_MAX - sizeof(*fal_mem))
+		return NULL;
+
+	fal_mem = malloc(sizeof(*fal_mem) + size);
+	if (!fal_mem)
+		return NULL;
+
+	memset(&fal_mem->rcu, 0, sizeof(fal_mem->rcu));
+
+	return &fal_mem->data;
+}
+
+void * __externally_visible
+fal_calloc(int nmemb, size_t size)
+{
+	struct fal_mem *fal_mem;
+	size_t total_size;
+
+	total_size = nmemb * size;
+	if (total_size < size)
+		return NULL;
+	if (total_size >= SIZE_MAX - sizeof(*fal_mem))
+		return NULL;
+
+	fal_mem = calloc(1, sizeof(*fal_mem) + total_size);
+	if (!fal_mem)
+		return NULL;
+
+	return &fal_mem->data;
+}
+
+static void
+fal_free_worker(struct rcu_head *head)
+{
+	struct fal_mem *fal_mem =
+		caa_container_of(head, struct fal_mem, rcu);
+
+	free(fal_mem);
+}
+
+void __externally_visible
+fal_free_deferred(void *ptr)
+{
+	struct fal_mem *fal_mem;
+
+	if (!ptr)
+		return;
+
+	fal_mem = caa_container_of(ptr, struct fal_mem, data);
+
+	call_rcu(&fal_mem->rcu, fal_free_worker);
 }
 
 static struct message_handler *fal_handler;
@@ -760,7 +824,7 @@ void fal_l2_del_port(unsigned int if_index)
 }
 
 void fal_l2_new_addr(unsigned int if_index,
-		     const struct ether_addr *addr,
+		     const struct rte_ether_addr *addr,
 		     uint32_t attr_count,
 		     const struct fal_attribute_t *attr_list)
 {
@@ -768,13 +832,13 @@ void fal_l2_new_addr(unsigned int if_index,
 }
 
 void fal_l2_upd_addr(unsigned int if_index,
-		     const struct ether_addr *addr,
+		     const struct rte_ether_addr *addr,
 		     struct fal_attribute_t *attr)
 {
 	call_handler(l2, upd_addr, if_index, addr, attr);
 }
 
-void fal_l2_del_addr(unsigned int if_index, const struct ether_addr *addr)
+void fal_l2_del_addr(unsigned int if_index, const struct rte_ether_addr *addr)
 {
 	call_handler(l2, del_addr, if_index, addr);
 }
@@ -941,7 +1005,7 @@ void fal_br_del_port(unsigned int bridge_ifindex, unsigned int child_ifindex)
 
 void fal_br_new_neigh(unsigned int child_ifindex,
 		      uint16_t vlanid,
-		      const struct ether_addr *dst,
+		      const struct rte_ether_addr *dst,
 		      uint32_t attr_count,
 		      const struct fal_attribute_t *attr_list)
 {
@@ -951,14 +1015,14 @@ void fal_br_new_neigh(unsigned int child_ifindex,
 
 void fal_br_upd_neigh(unsigned int child_ifindex,
 		      uint16_t vlanid,
-		      const struct ether_addr *dst,
+		      const struct rte_ether_addr *dst,
 		      struct fal_attribute_t *attr)
 {
 	call_handler(bridge, upd_neigh, child_ifindex, vlanid, dst, attr);
 }
 
 void fal_br_del_neigh(unsigned int child_ifindex, uint16_t vlanid,
-		      const struct ether_addr *dst)
+		      const struct rte_ether_addr *dst)
 {
 	call_handler(bridge, del_neigh, child_ifindex, vlanid, dst);
 }
@@ -972,7 +1036,8 @@ void fal_br_flush_neigh(unsigned int bridge_ifindex,
 }
 
 int fal_br_walk_neigh(unsigned int bridge_ifindex, uint16_t vlanid,
-		      const struct ether_addr *dst, unsigned int child_ifindex,
+		      const struct rte_ether_addr *dst,
+		      unsigned int child_ifindex,
 		      fal_br_walk_neigh_fn cb, void *arg)
 {
 	return call_handler_ret(bridge, walk_neigh, bridge_ifindex, vlanid, dst,
@@ -981,7 +1046,7 @@ int fal_br_walk_neigh(unsigned int bridge_ifindex, uint16_t vlanid,
 
 void fal_fdb_flush_mac(unsigned int bridge_ifindex,
 		       unsigned int child_ifindex,
-		       const struct ether_addr *mac)
+		       const struct rte_ether_addr *mac)
 {
 	struct fal_attribute_t attrs[2];
 	uint32_t acount = 0;
@@ -1533,26 +1598,7 @@ next_hop_to_packet_action(const struct next_hop *nh)
 	if (nh->flags & (RTF_LOCAL|RTF_BROADCAST|RTF_SLOWPATH|RTF_REJECT))
 		return FAL_PACKET_ACTION_TRAP;
 
-	ifp = dp_nh4_get_ifp(nh);
-	if (!ifp || ifp->fal_l3 == FAL_NULL_OBJECT_ID)
-		return FAL_PACKET_ACTION_TRAP;
-
-	return FAL_PACKET_ACTION_FORWARD;
-}
-
-static enum fal_packet_action_t
-next_hop6_to_packet_action(const struct next_hop_v6 *nh)
-{
-	struct ifnet *ifp;
-
-	if (nh->flags & RTF_BLACKHOLE ||
-	    nh_outlabels_present(&nh->outlabels))
-		return FAL_PACKET_ACTION_DROP;
-
-	if (nh->flags & (RTF_LOCAL|RTF_BROADCAST|RTF_SLOWPATH|RTF_REJECT))
-		return FAL_PACKET_ACTION_TRAP;
-
-	ifp = dp_nh6_get_ifp(nh);
+	ifp = dp_nh_get_ifp(nh);
 	if (!ifp || ifp->fal_l3 == FAL_NULL_OBJECT_ID)
 		return FAL_PACKET_ACTION_TRAP;
 
@@ -1560,6 +1606,7 @@ next_hop6_to_packet_action(const struct next_hop_v6 *nh)
 }
 
 static const struct fal_attribute_t **next_hop_to_attr_list(
+	enum fal_ip_addr_family_t family,
 	fal_object_t nhg_object, size_t nhops,
 	const struct next_hop hops[], uint32_t **attr_count)
 {
@@ -1594,15 +1641,15 @@ static const struct fal_attribute_t **next_hop_to_attr_list(
 		nh_attr[0].id = FAL_NEXT_HOP_ATTR_NEXT_HOP_GROUP;
 		nh_attr[0].value.objid = nhg_object;
 		nh_attr[1].id = FAL_NEXT_HOP_ATTR_INTF;
-		ifp = dp_nh4_get_ifp(nh);
+		ifp = dp_nh_get_ifp(nh);
 		nh_attr[1].value.u32 = ifp ? ifp->if_index : 0;
 		nh_attr[2].id = FAL_NEXT_HOP_ATTR_ROUTER_INTF;
 		nh_attr[2].value.u32 = ifp ? ifp->fal_l3 : FAL_NULL_OBJECT_ID;
 		if (nh->flags & (RTF_GATEWAY | RTF_NEIGH_CREATED)) {
 			nh_attr[3].id = FAL_NEXT_HOP_ATTR_IP;
 			addr = &nh_attr[3].value.ipaddr;
-			addr->addr_family = FAL_IP_ADDR_FAMILY_IPV4;
-			addr->addr.ip4 = nh->gateway;
+			addr->addr_family = family;
+			memcpy(&addr->addr, &nh->gateway6, sizeof(addr->addr));
 			(*attr_count)[i] = 4;
 		} else {
 			(*attr_count)[i] = 3;
@@ -1612,67 +1659,31 @@ static const struct fal_attribute_t **next_hop_to_attr_list(
 	return nh_attr_list;
 }
 
-static const struct fal_attribute_t **next_hop6_to_attr_list(
-	fal_object_t nhg_object, size_t nhops,
-	const struct next_hop_v6 hops[], uint32_t **attr_count)
+static enum fal_packet_action_t
+next_hop_group_packet_action(uint32_t nhops, const struct next_hop hops[])
 {
-	const struct fal_attribute_t **nh_attr_list;
-	size_t i;
-
-	nh_attr_list = calloc(nhops, sizeof(*nh_attr_list));
-	if (!nh_attr_list)
-		return NULL;
-	*attr_count = calloc(nhops, sizeof(**attr_count));
-	if (!*attr_count) {
-		free(nh_attr_list);
-		return NULL;
-	}
+	enum fal_packet_action_t action;
+	uint32_t i;
 
 	for (i = 0; i < nhops; i++) {
-		const struct next_hop_v6 *nh = &hops[i];
-		struct fal_attribute_t *nh_attr;
-		struct ifnet *ifp;
-		struct fal_ip_address_t *addr;
-
-		nh_attr_list[i] = nh_attr = calloc(
-			1, sizeof(*nh_attr) * 4);
-		if (!nh_attr) {
-			while (i--)
-				free((struct fal_attribute_t *)
-				     nh_attr_list[i]);
-			free(*attr_count);
-			free(nh_attr_list);
-			return NULL;
-		}
-		nh_attr[0].id = FAL_NEXT_HOP_ATTR_NEXT_HOP_GROUP;
-		nh_attr[0].value.objid = nhg_object;
-		nh_attr[1].id = FAL_NEXT_HOP_ATTR_INTF;
-		ifp = dp_nh6_get_ifp(nh);
-		nh_attr[1].value.u32 = ifp ? ifp->if_index : 0;
-		nh_attr[2].id = FAL_NEXT_HOP_ATTR_ROUTER_INTF;
-		nh_attr[2].value.u32 = ifp ? ifp->fal_l3 : FAL_NULL_OBJECT_ID;
-		if (nh->flags & (RTF_GATEWAY | RTF_NEIGH_CREATED)) {
-			nh_attr[3].id = FAL_NEXT_HOP_ATTR_IP;
-			addr = &nh_attr[3].value.ipaddr;
-			addr->addr_family = FAL_IP_ADDR_FAMILY_IPV6;
-			addr->addr.addr6 = nh->gateway;
-			(*attr_count)[i] = 4;
-		} else {
-			(*attr_count)[i] = 3;
-		}
+		action = next_hop_to_packet_action(&hops[i]);
+		if (action != FAL_PACKET_ACTION_FORWARD)
+			return action;
 	}
 
-	return nh_attr_list;
+	return FAL_PACKET_ACTION_FORWARD;
 }
 
-int fal_ip4_new_next_hops(size_t nhops, const struct next_hop hops[],
-			  fal_object_t *nhg_object,
-			  fal_object_t *obj_list)
+int fal_ip_new_next_hops(enum fal_ip_addr_family_t family,
+			 size_t nhops, const struct next_hop hops[],
+			 fal_object_t *nhg_object,
+			 fal_object_t *obj_list)
 {
 	const struct fal_attribute_t **nh_attr_list;
 	uint32_t *nh_attr_count;
 	uint32_t i;
 	int ret;
+	enum fal_packet_action_t action;
 
 	/* we must have at least one nexthop */
 	if (!nhops)
@@ -1681,18 +1692,16 @@ int fal_ip4_new_next_hops(size_t nhops, const struct next_hop hops[],
 	if (!fal_plugins_present())
 		return -EOPNOTSUPP;
 
-	for (i = 0; i < nhops; i++) {
-		/*
-		 * Don't create next_hop_group if there is at least
-		 * one nexthop that needs to do something special, since
-		 * we can't represent this in the next_hop
-		 * attributes. This will be represented instead using
-		 * route attributes.
-		 */
-		if (next_hop_to_packet_action(&hops[i]) !=
-		    FAL_PACKET_ACTION_FORWARD)
-			return FAL_RC_NOT_REQ;
-	}
+	action = next_hop_group_packet_action(nhops, hops);
+	/*
+	 * Don't create next_hop_group if there is at least
+	 * one nexthop that needs to do something special, since
+	 * we can't represent this in the next_hop
+	 * attributes. This will be represented instead using
+	 * route attributes.
+	 */
+	if (action != FAL_PACKET_ACTION_FORWARD)
+		return FAL_RC_NOT_REQ;
 
 	ret = call_handler_def_ret(ip, -EOPNOTSUPP,
 				   new_next_hop_group, 0, NULL,
@@ -1700,7 +1709,8 @@ int fal_ip4_new_next_hops(size_t nhops, const struct next_hop hops[],
 	if (ret < 0)
 		return ret;
 
-	nh_attr_list = next_hop_to_attr_list(*nhg_object, nhops, hops,
+	nh_attr_list = next_hop_to_attr_list(family,
+					     *nhg_object, nhops, hops,
 					     &nh_attr_count);
 	if (!nh_attr_list) {
 		ret = -ENOMEM;
@@ -1725,86 +1735,8 @@ error:
 	return ret;
 }
 
-int fal_ip6_new_next_hops(size_t nhops, const struct next_hop_v6 hops[],
-			  fal_object_t *nhg_object,
-			  fal_object_t *obj_list)
-{
-	const struct fal_attribute_t **nh_attr_list;
-	uint32_t *nh_attr_count;
-	uint32_t i;
-	int ret;
-
-	/* we must have at least one nexthop */
-	if (!nhops)
-		return -EINVAL;
-
-	if (!fal_plugins_present())
-		return -EOPNOTSUPP;
-
-	for (i = 0; i < nhops; i++) {
-		/*
-		 * Don't create next_hop_group if there is at least
-		 * one nexthop that needs to do something special, since
-		 * we can't represent this in the next_hop
-		 * attributes. This will be represented instead using
-		 * route attributes.
-		 */
-		if (next_hop6_to_packet_action(&hops[i]) !=
-		    FAL_PACKET_ACTION_FORWARD)
-			return FAL_RC_NOT_REQ;
-	}
-
-	ret = call_handler_def_ret(ip, -EOPNOTSUPP,
-				   new_next_hop_group, 0, NULL,
-				   nhg_object);
-	if (ret < 0)
-		return ret;
-
-	nh_attr_list = next_hop6_to_attr_list(*nhg_object, nhops, hops,
-					      &nh_attr_count);
-	if (!nh_attr_list) {
-		ret = -ENOMEM;
-		goto error;
-	}
-
-	ret = call_handler_def_ret(ip, -EOPNOTSUPP, new_next_hops,
-				   nhops, nh_attr_count, nh_attr_list,
-				   obj_list);
-
-	for (i = 0; i < nhops; i++)
-		free((struct fal_attribute_t *)nh_attr_list[i]);
-	free(nh_attr_list);
-	free(nh_attr_count);
-	if (ret < 0)
-		goto error;
-
-	return ret;
-
-error:
-	call_handler_ret(ip, del_next_hop_group, *nhg_object);
-	return ret;
-}
-
-int fal_ip4_del_next_hops(fal_object_t nhg_object, size_t nhops,
-			  const fal_object_t *obj_list)
-{
-	int ret;
-
-	if (!fal_plugins_present())
-		return -EOPNOTSUPP;
-
-	ret = call_handler_def_ret(ip, -EOPNOTSUPP, del_next_hops,
-				   nhops, obj_list);
-	if (ret >= 0)
-		ret = call_handler_def_ret(ip, -EOPNOTSUPP,
-					   del_next_hop_group,
-					   nhg_object);
-
-	return ret;
-}
-
-int fal_ip6_del_next_hops(fal_object_t nhg_object, size_t nhops,
-			  const fal_object_t *obj_list)
+int fal_ip_del_next_hops(fal_object_t nhg_object, size_t nhops,
+			 const fal_object_t *obj_list)
 {
 	int ret;
 
@@ -1903,36 +1835,6 @@ int fal_ip_walk_routes(fal_plugin_route_walk_fn cb,
 				    attr_cnt, attr_list, arg);
 }
 
-static enum fal_packet_action_t
-next_hop_group_packet_action(uint32_t nhops, struct next_hop hops[])
-{
-	enum fal_packet_action_t action;
-	uint32_t i;
-
-	for (i = 0; i < nhops; i++) {
-		action = next_hop_to_packet_action(&hops[i]);
-		if (action != FAL_PACKET_ACTION_FORWARD)
-			return action;
-	}
-
-	return FAL_PACKET_ACTION_FORWARD;
-}
-
-static enum fal_packet_action_t
-next_hop6_group_packet_action(uint32_t nhops, struct next_hop_v6 hops[])
-{
-	enum fal_packet_action_t action;
-	uint32_t i;
-
-	for (i = 0; i < nhops; i++) {
-		action = next_hop6_to_packet_action(&hops[i]);
-		if (action != FAL_PACKET_ACTION_FORWARD)
-			return action;
-	}
-
-	return FAL_PACKET_ACTION_FORWARD;
-}
-
 int fal_ip4_new_route(vrfid_t vrf_id, in_addr_t addr, uint8_t prefixlen,
 		      uint32_t tableid, struct next_hop hops[],
 		      size_t nhops, fal_object_t nhg_object)
@@ -1959,7 +1861,7 @@ int fal_ip4_new_route(vrfid_t vrf_id, in_addr_t addr, uint8_t prefixlen,
 
 int fal_ip6_new_route(vrfid_t vrf_id, const struct in6_addr *addr,
 		      uint8_t prefixlen, uint32_t tableid,
-		      struct next_hop_v6 hops[], size_t nhops,
+		      struct next_hop hops[], size_t nhops,
 		      fal_object_t nhg_object)
 {
 	uint32_t __vrf_id = vrf_id;
@@ -1968,7 +1870,7 @@ int fal_ip6_new_route(vrfid_t vrf_id, const struct in6_addr *addr,
 		.addr.addr6 = *addr
 	};
 	enum fal_packet_action_t action =
-		next_hop6_group_packet_action(nhops, hops);
+		next_hop_group_packet_action(nhops, hops);
 	struct fal_attribute_t attr_list[] = {
 		{ FAL_ROUTE_ENTRY_ATTR_NEXT_HOP_GROUP,
 		  .value.objid = nhg_object },
@@ -2019,7 +1921,7 @@ int fal_ip4_upd_route(vrfid_t vrf_id, in_addr_t addr, uint8_t prefixlen,
 
 int fal_ip6_upd_route(vrfid_t vrf_id, const struct in6_addr *addr,
 		      uint8_t prefixlen, uint32_t tableid,
-		      struct next_hop_v6 hops[], size_t nhops,
+		      struct next_hop hops[], size_t nhops,
 		      fal_object_t nhg_object)
 {
 	uint32_t __vrf_id = vrf_id;
@@ -2029,7 +1931,7 @@ int fal_ip6_upd_route(vrfid_t vrf_id, const struct in6_addr *addr,
 	};
 	int ret = 0;
 	enum fal_packet_action_t action =
-		next_hop6_group_packet_action(nhops, hops);
+		next_hop_group_packet_action(nhops, hops);
 	struct fal_attribute_t pa_attr = {
 		FAL_ROUTE_ENTRY_ATTR_PACKET_ACTION,
 		.value.u32 = action
@@ -3169,6 +3071,20 @@ bool fal_is_ipaddr_empty(const struct fal_ip_address_t *ipaddr)
 	struct fal_ip_address_t empty_ipaddr = { 0 };
 
 	return memcmp(ipaddr, &empty_ipaddr, sizeof(empty_ipaddr)) == 0;
+}
+
+enum fal_ip_addr_family_t addr_family_to_fal_ip_addr_family(int family)
+{
+	switch (family) {
+	case AF_INET:
+		return FAL_IP_ADDR_FAMILY_IPV4;
+	case AF_INET6:
+		return FAL_IP_ADDR_FAMILY_IPV6;
+	default:
+		RTE_LOG(ERR, DATAPLANE, "Invalid address family %d\n",
+			family);
+		return -1;
+	}
 }
 
 /* QoS functions */

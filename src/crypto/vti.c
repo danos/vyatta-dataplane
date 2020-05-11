@@ -53,7 +53,7 @@
 #include "vrf_internal.h"
 #include "vti.h"
 
-struct ether_addr;
+struct rte_ether_addr;
 struct nlattr;
 
 #define VTI_DEBUG(args...)			\
@@ -270,7 +270,7 @@ static int vti_tunnel_key_from_nlattr(struct vti_tunnel_key *cfg,
 
 struct ifnet *
 vti_tunnel_create(int ifindex, const char *ifname,
-		  const struct ether_addr *addr, const unsigned int mtu,
+		  const struct rte_ether_addr *addr, const unsigned int mtu,
 		  struct nlattr *data)
 {
 	struct ifnet *ifp;

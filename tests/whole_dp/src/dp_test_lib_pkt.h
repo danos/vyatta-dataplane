@@ -18,7 +18,7 @@
  * struct dp_test_pkt_desc_t v4_pkt_desc = {
  *         .text       = "TCP IPv4",
  *         .len        = 20,
- *         .ether_type = ETHER_TYPE_IPv4,
+ *         .ether_type = RTE_ETHER_TYPE_IPV4,
  *         .l3_src     = "1.1.1.11",
  *         .l2_src     = "aa:bb:cc:dd:1:a1",
  *         .l3_dst     = "2.2.2.11",
@@ -60,7 +60,7 @@ struct dp_test_pkt_desc_t {
 	const char                  *text;
 	/** Payload length */
 	int                          len;
-	/** Ethernet type. ETHER_TYPE_IPv4 or ETHER_TYPE_IPv6 */
+	/** Ethernet type. RTE_ETHER_TYPE_IPV4 or RTE_ETHER_TYPE_IPV6 */
 	uint16_t                     ether_type;
 	/** IPv4 or IPv6 source address */
 	const char                  *l3_src;

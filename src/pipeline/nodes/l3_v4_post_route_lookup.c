@@ -24,7 +24,7 @@
 #include "ip_ttl.h"
 #include "mpls/mpls.h"
 #include "mpls/mpls_forward.h"
-#include "nh.h"
+#include "nh_common.h"
 #include "pktmbuf_internal.h"
 #include "pl_common.h"
 #include "pl_fused.h"
@@ -69,15 +69,13 @@ ipv4_post_route_lookup_process(struct pl_packet *pkt, void *context __unused)
 
 	/* MPLS imposition required because nh has given us a label */
 	if (unlikely(nh_outlabels_present(&nxt->outlabels))) {
-		union next_hop_v4_or_v6_ptr mpls_nh = { .v4 = nxt };
-
 		mpls_unlabeled_input(ifp, pkt->mbuf,
-				     NH_TYPE_V4GW, mpls_nh, ip->ttl);
+				     NH_TYPE_V4GW, nxt, ip->ttl);
 		return IPV4_POST_ROUTE_LOOKUP_CONSUME;
 	}
 
 	/* nxt->ifp may be changed by netlink messages. */
-	struct ifnet *nxt_ifp = dp_nh4_get_ifp(nxt);
+	struct ifnet *nxt_ifp = dp_nh_get_ifp(nxt);
 
 	/* Destination device is not up? */
 	if (unlikely(!nxt_ifp || !(nxt_ifp->if_flags & IFF_UP))) {
@@ -99,7 +97,7 @@ ipv4_post_route_lookup_process(struct pl_packet *pkt, void *context __unused)
 		in_addr_t addr;
 		/* Store next hop address  */
 		if (nxt->flags & RTF_GATEWAY)
-			addr = nxt->gateway;
+			addr = nxt->gateway4;
 		else
 			addr = ip->daddr;
 		if (ip_same_network(ifp, addr, ip->saddr) &&

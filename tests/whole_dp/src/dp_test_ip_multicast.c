@@ -33,7 +33,7 @@ DP_START_TEST(ip_mfwd_1, local)
 	test_pak = dp_test_create_ipv4_pak("10.73.1.1", multi_dest,
 					   1, &len);
 	dp_test_pktmbuf_eth_init(test_pak, dp_test_intf_name2mac_str("dp1T0"),
-				 DP_TEST_INTF_DEF_SRC_MAC, ETHER_TYPE_IPv4);
+				 DP_TEST_INTF_DEF_SRC_MAC, RTE_ETHER_TYPE_IPV4);
 
 	/* Create pak we expect to receive on the tx ring */
 	exp = dp_test_exp_create(test_pak);
@@ -62,7 +62,7 @@ DP_START_TEST(ip_mfwd_2, non_local)
 	test_pak = dp_test_create_ipv4_pak("10.73.1.1", multi_dest,
 					   1, &len);
 	dp_test_pktmbuf_eth_init(test_pak, dp_test_intf_name2mac_str("dp1T0"),
-				 DP_TEST_INTF_DEF_SRC_MAC, ETHER_TYPE_IPv4);
+				 DP_TEST_INTF_DEF_SRC_MAC, RTE_ETHER_TYPE_IPV4);
 
 	/* Create pak we expect to receive on the tx ring */
 	exp = dp_test_exp_create(test_pak);
@@ -94,7 +94,7 @@ DP_START_TEST(ip_mfwd_3, limited_broadcast)
 	test_pak = dp_test_create_ipv4_pak("10.73.1.1", multi_dest,
 					   1, &len);
 	dp_test_pktmbuf_eth_init(test_pak, dp_test_intf_name2mac_str("dp1T0"),
-				 DP_TEST_INTF_DEF_SRC_MAC, ETHER_TYPE_IPv4);
+				 DP_TEST_INTF_DEF_SRC_MAC, RTE_ETHER_TYPE_IPV4);
 
 	/* Create pak we expect to receive on the tx ring */
 	exp = dp_test_exp_create(test_pak);

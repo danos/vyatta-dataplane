@@ -54,6 +54,8 @@
 #define	RTF_MULTICAST	0x100	/* route represents a mcast address */
 #define	RTF_OUTLABEL	0x200	/* output label rather than local label */
 #define	RTF_NOROUTE	0x400	/* trigger no-route behaviour */
+/* backup path only to be used once primary path(s) are unusable */
+#define	RTF_BACKUP	0x800
 
 #define RTF_NEIGH_CREATED  0x10000 /* Nexthop was created to store neigh info */
 #define RTF_NEIGH_PRESENT  0x20000 /* Nexthop contains neigh info */

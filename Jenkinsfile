@@ -26,7 +26,7 @@ pipeline {
     parameters { booleanParam(name: 'FORCE_VALGRIND', defaultValue: false, description: 'Execute Valgrind even for a PR branch') }
 
     environment {
-	OBS_TARGET_PROJECT = 'DANOS:Shipping:2005'
+	OBS_TARGET_PROJECT = 'DANOS:Master'
 	OBS_TARGET_REPO = 'standard'
 	OBS_TARGET_ARCH = 'x86_64'
 	// # Replace : with _ in project name, as osc-buildpkg does

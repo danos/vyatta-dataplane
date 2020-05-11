@@ -333,7 +333,7 @@ npf_gennc_v4cidr(nc_ctx_t *ctx, int opts, const npf_addr_t *netaddr,
  * npf_gennc_mac_addr: match mac address
  */
 void
-npf_gennc_mac_addr(nc_ctx_t *ctx, int opts, struct ether_addr *addr)
+npf_gennc_mac_addr(nc_ctx_t *ctx, int opts, struct rte_ether_addr *addr)
 {
 	uint32_t *nc = npf_ncgen_getptr(ctx, 6 /* words */);
 
@@ -344,7 +344,7 @@ npf_gennc_mac_addr(nc_ctx_t *ctx, int opts, struct ether_addr *addr)
 	 * last (unused) bytes are zero.
 	 */
 	nc[1] = 0;
-	memcpy(nc, addr, ETHER_ADDR_LEN);
+	memcpy(nc, addr, RTE_ETHER_ADDR_LEN);
 	nc += 2;
 
 	npf_ncgen_addjmp(ctx, &nc);

@@ -85,7 +85,7 @@ enum npf_active_bits {
 					NPF_FW_OUT | NPF_ZONE,
 };
 
-#define NAT64_OR_NAT46(_eth_type) ((_eth_type == htons(ETHER_TYPE_IPv4)) ? \
+#define NAT64_OR_NAT46(_eth_type) ((_eth_type == htons(RTE_ETHER_TYPE_IPV4)) ? \
 				   NPF_NAT46 : NPF_NAT64)
 
 /**

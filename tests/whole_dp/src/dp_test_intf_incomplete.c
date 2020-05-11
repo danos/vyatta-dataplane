@@ -57,14 +57,14 @@ static void _build_and_send_pak(const char *src_addr, const char *dest_addr,
 		dp_test_pktmbuf_eth_init(test_pak,
 					 dp_test_intf_name2mac_str("dp1T0"),
 					 DP_TEST_INTF_DEF_SRC_MAC,
-					 ETHER_TYPE_IPv4);
+					 RTE_ETHER_TYPE_IPV4);
 	} else {
 		test_pak = dp_test_create_ipv6_pak(src_addr, dest_addr,
 						   1, &len);
 		dp_test_pktmbuf_eth_init(test_pak,
 					 dp_test_intf_name2mac_str("dp1T0"),
 					 DP_TEST_INTF_DEF_SRC_MAC,
-					 ETHER_TYPE_IPv6);
+					 RTE_ETHER_TYPE_IPV6);
 	}
 
 	/* Create pak we expect to receive on the tx ring */
@@ -82,14 +82,14 @@ static void _build_and_send_pak(const char *src_addr, const char *dest_addr,
 			(void)dp_test_pktmbuf_eth_init(dp_test_exp_get_pak(exp),
 						       nh.nh_mac_str,
 						       src_mac,
-						       ETHER_TYPE_IPv4);
+						       RTE_ETHER_TYPE_IPV4);
 
 			dp_test_ipv4_decrement_ttl(dp_test_exp_get_pak(exp));
 		} else {
 			(void)dp_test_pktmbuf_eth_init(dp_test_exp_get_pak(exp),
 						       nh.nh_mac_str,
 						       src_mac,
-						       ETHER_TYPE_IPv6);
+						       RTE_ETHER_TYPE_IPV6);
 
 			dp_test_ipv6_decrement_ttl(dp_test_exp_get_pak(exp));
 		}

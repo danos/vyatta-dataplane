@@ -569,7 +569,7 @@ def gen_fused_features_invoke(f, feat_point, dyn_feats):
     write_indent(f, 0, '{')
     write_indent(f, 1, 'unsigned int feature = ~0u;')
     write_indent(f, 1, 'void *context;')
-    write_indent(f, 1, 'void *storage_ctx;')
+    write_indent(f, 1, 'void *storage_ctx = NULL;')
     write_indent(f, 1, 'bool more;')
     resp_written = False
     head_features = dict(features)

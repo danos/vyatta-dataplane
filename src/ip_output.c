@@ -34,7 +34,7 @@
 #include "ip_funcs.h"
 #include "mpls/mpls.h"
 #include "mpls/mpls_forward.h"
-#include "nh.h"
+#include "nh_common.h"
 #include "pktmbuf_internal.h"
 #include "route.h"
 #include "route_flags.h"
@@ -47,11 +47,11 @@
 void ip_output(struct rte_mbuf *m, bool srced_forus)
 {
 	struct next_hop *nxt;
-	struct ether_hdr *eh = ethhdr(m);
+	struct rte_ether_hdr *eh = ethhdr(m);
 	struct iphdr *ip = iphdr(m);
 	struct ifnet *ifp;
 
-	eh->ether_type = htons(ETHER_TYPE_IPv4);
+	eh->ether_type = htons(RTE_ETHER_TYPE_IPV4);
 
 	/* Do route lookup */
 	nxt = dp_rt_lookup(srced_forus ? ip->saddr : ip->daddr,
@@ -66,13 +66,11 @@ void ip_output(struct rte_mbuf *m, bool srced_forus)
 	}
 
 	/* ifp can be changed by nxt->ifp. use protected deref. */
-	ifp = dp_nh4_get_ifp(nxt);
+	ifp = dp_nh_get_ifp(nxt);
 
 	/* MPLS imposition required because nh has given us a label */
 	if (nh_outlabels_present(&nxt->outlabels)) {
-		union next_hop_v4_or_v6_ptr mpls_nh = { .v4 = nxt };
-
-		mpls_unlabeled_input(ifp, m, NH_TYPE_V4GW, mpls_nh, ip->ttl);
+		mpls_unlabeled_input(ifp, m, NH_TYPE_V4GW, nxt, ip->ttl);
 		return;
 	}
 
@@ -90,7 +88,7 @@ void ip_output(struct rte_mbuf *m, bool srced_forus)
 		goto drop;
 
 	if (srced_forus) {
-		ether_addr_copy(&ifp->eth_addr, &eh->d_addr);
+		rte_ether_addr_copy(&ifp->eth_addr, &eh->d_addr);
 		/*
 		 * We want the kernel to believe this came from the interface
 		 * that we failed the mtu check on.
@@ -258,7 +256,7 @@ void ip_fragment_mtu(struct ifnet *ifp, unsigned int mtu, struct rte_mbuf *m0,
 		}
 
 		m = pktmbuf_allocseg(m0->pool, pktmbuf_get_vrf(m0),
-				     sz + ETHER_HDR_LEN + hlen);
+				     sz + RTE_ETHER_HDR_LEN + hlen);
 		if (m == NULL)
 			goto drop;
 

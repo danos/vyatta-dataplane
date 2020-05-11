@@ -27,6 +27,7 @@
 #include <rte_ether.h>
 #include <rte_timer.h>
 #include <rte_udp.h>
+#include <rte_vxlan.h>
 
 #include "control.h"
 #include "ip_addr.h"
@@ -80,7 +81,7 @@ struct vxlan_rtnode {
 	rte_atomic32_t		vxlrt_unused;	/* 0 = used */
 	uint8_t			vxlrt_flags;	/* address flags */
 	uint16_t		vxlrt_expire;
-	struct ether_addr	vxlrt_addr;
+	struct rte_ether_addr	vxlrt_addr;
 	struct rcu_head		vxlrt_rcu;	/* for deletion via rcu */
 	uint32_t                vni;            /* destination vni */
 };
@@ -113,18 +114,18 @@ struct vxlan_vnitbl {
 };
 
 struct vxlan_ipv4_encap {
-	struct ether_hdr	ether_header;
+	struct rte_ether_hdr	ether_header;
 	struct iphdr		ip_header __attribute__ ((__packed__));
-	struct udp_hdr		udp_header;
-	struct vxlan_hdr	vxlan_header;
-} __attribute__ ((__packed__));
+	struct rte_udp_hdr		udp_header;
+	struct rte_vxlan_hdr	vxlan_header;
+} __attribute__ ((__packed__)) __attribute__((aligned(2)));
 
 struct vxlan_ipv6_encap {
-	struct ether_hdr	ether_header;
+	struct rte_ether_hdr	ether_header;
 	struct ip6_hdr		ip6_header __attribute__ ((__packed__));
-	struct udp_hdr		udp_header;
-	struct vxlan_hdr	vxlan_header;
-} __attribute__ ((__packed__));
+	struct rte_udp_hdr		udp_header;
+	struct rte_vxlan_hdr	vxlan_header;
+} __attribute__ ((__packed__)) __attribute__((aligned(2)));
 
 #define VXLAN_OVERHEAD (sizeof(struct vxlan_ipv6_encap))
 #define VXLAN_MTU (1500 - VXLAN_OVERHEAD)
@@ -132,7 +133,7 @@ struct vxlan_ipv6_encap {
 /* VXLAN Functions */
 void vxlan_output(struct ifnet *ifp, struct rte_mbuf *m, uint16_t proto);
 struct ifnet *vxlan_create(const struct ifinfomsg *ifi, const char *ifname,
-			   const struct ether_addr *eth_addr,
+			   const struct rte_ether_addr *eth_addr,
 			   struct nlattr *tb[], struct nlattr *data,
 			   enum cont_src_en cont_src,
 			   const struct nlmsghdr *nlh);

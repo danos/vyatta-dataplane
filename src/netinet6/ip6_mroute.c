@@ -850,13 +850,13 @@ int del_m6fc(vrfid_t vrf_id, struct vmf6cctl *mfccp)
  */
 static bool ip6_punt_rate_limit(struct mf6c *rt)
 {
-	enum rte_meter_color color;
+	enum rte_color color;
 
 	color = rte_meter_srtcm_color_blind_check(&rt->meter,
 						   &mfc_meter_profile,
 						   rte_rdtsc(),
 						   PUNT_1PKT);
-	if (color != e_RTE_METER_RED) {
+	if (color != RTE_COLOR_RED) {
 		rt->mf6c_punted++;
 		return false;
 	} else {
@@ -998,7 +998,7 @@ static int mcast6_ethernet_send(struct mif6 *mifp, struct rte_mbuf *m,
 {
 	struct ifnet *ifp = mifp->m6_ifp;
 	struct ip6_hdr *ip6 = ip6hdr(m);
-	struct ether_hdr *eth_hdr;
+	struct rte_ether_hdr *eth_hdr;
 	mcast_dst_eth_addr_t eth_daddr;
 
 	if (unlikely(rte_pktmbuf_pkt_len(m) > ifp->if_mtu))
@@ -1011,10 +1011,10 @@ static int mcast6_ethernet_send(struct mif6 *mifp, struct rte_mbuf *m,
 	 */
 	ip6->ip6_hlim--;
 
-	eth_hdr = rte_pktmbuf_mtod(m, struct ether_hdr *);
+	eth_hdr = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
 	eth_daddr = mcast6_dst_eth_addr(&ip6->ip6_dst);
-	ether_addr_copy(&eth_daddr.as_addr, &eth_hdr->d_addr);
-	ether_addr_copy(&ifp->eth_addr, &eth_hdr->s_addr);
+	rte_ether_addr_copy(&eth_daddr.as_addr, &eth_hdr->d_addr);
+	rte_ether_addr_copy(&ifp->eth_addr, &eth_hdr->s_addr);
 
 	if_output(ifp, m, in_ifp, ETH_P_IPV6);
 	return 0;

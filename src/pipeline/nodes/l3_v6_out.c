@@ -47,7 +47,7 @@ static inline struct ifnet *ipv6_out_node_to_ifp(struct pl_node *node)
 }
 
 struct ipv6_out_frag_ctx {
-	struct next_hop_v6 *nh;
+	struct next_hop *nh;
 	struct ifnet *in_ifp;
 	enum l2_packet_type l2_pkt_type;
 };
@@ -105,7 +105,7 @@ ipv6_out_process_common(struct pl_packet *pkt, void *context __unused,
 	if (!ipv6_out_features(pkt, mode))
 		return IPV6_OUT_FINISH;
 
-	struct next_hop_v6 *nxt = pkt->nxt.v6;
+	struct next_hop *nxt = pkt->nxt.v6;
 	struct ifnet *in_ifp = pkt->in_ifp;
 	struct ifnet *out_ifp = pkt->out_ifp;
 	struct ip6_hdr *ip6 = pkt->l3_hdr;

@@ -261,7 +261,7 @@ l2tp_session_set_info(struct l2tp_session *session, uint32_t session_id,
 		hdr_len += 4;
 		session->flags &= ~L2TP_ENCAP_UDP;
 	} else {
-		hdr_len += 8 + sizeof(struct udp_hdr);
+		hdr_len += 8 + sizeof(struct rte_udp_hdr);
 		session->flags |= L2TP_ENCAP_UDP;
 	}
 	session->flags |= L2TP_LNS_MODE;
@@ -581,7 +581,7 @@ rtnl_process_l2tp_session(const struct nlmsghdr *nlh)
 	 */
 
 	uint16_t mtu = tb[L2TP_ATTR_MTU] ?
-		       mnl_attr_get_u16(tb[L2TP_ATTR_MTU]) : ETHER_MTU;
+		       mnl_attr_get_u16(tb[L2TP_ATTR_MTU]) : RTE_ETHER_MTU;
 
 	switch (genlhdr->cmd) {
 	case L2TP_CMD_SESSION_GET:
@@ -632,7 +632,7 @@ rtnl_process_l2tp(const struct nlmsghdr *nlh,
 
 static struct ifnet *
 l2tpeth_create_internal(const char *ifname, unsigned int mtu,
-			const struct ether_addr *addr)
+			const struct rte_ether_addr *addr)
 {
 	struct ifnet *ifp;
 
@@ -671,7 +671,7 @@ l2tpeth_attach_session(const char *ifname, struct l2tp_session *session,
 }
 
 static struct ifnet *
-l2tpeth_reuse(struct ifnet *ifp, const struct ether_addr *addr)
+l2tpeth_reuse(struct ifnet *ifp, const struct rte_ether_addr *addr)
 {
 	if (ifp->if_type != IFT_L2TPETH) {
 		RTE_LOG(ERR, L2TP, "mismatch type for %s\n", ifp->if_name);
@@ -682,14 +682,14 @@ l2tpeth_reuse(struct ifnet *ifp, const struct ether_addr *addr)
 
 	if_unset_ifindex(ifp); /* if_set_ifindex does this. */
 
-	ether_addr_copy(addr, &ifp->eth_addr);
+	rte_ether_addr_copy(addr, &ifp->eth_addr);
 
 	return ifp;
 }
 
 struct ifnet *
 l2tpeth_create(int ifindex, const char *ifname, unsigned int mtu,
-	       const struct ether_addr *addr)
+	       const struct rte_ether_addr *addr)
 {
 	struct ifnet *ifp;
 

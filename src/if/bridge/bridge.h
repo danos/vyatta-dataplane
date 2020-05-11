@@ -66,7 +66,7 @@ struct bridge_vlan_stat_block {
  * Bridge keys consist of an ethernet address and the VLAN
  */
 struct bridge_key {
-	struct ether_addr addr;
+	struct rte_ether_addr addr;
 	uint16_t          vlan;
 };
 
@@ -139,7 +139,8 @@ const char *bridge_get_ifstate_string(uint8_t brstate);
 void bridge_input(struct bridge_port *port, struct rte_mbuf *m);
 
 int
-bridge_newneigh_tunnel(struct bridge_port *brport, const struct ether_addr *dst,
+bridge_newneigh_tunnel(struct bridge_port *brport,
+		       const struct rte_ether_addr *dst,
 		       in_addr_t dst_ip, uint16_t vlan);
 
 void bridge_output(struct ifnet *ifp, struct rte_mbuf *m, struct ifnet *in_ifp);
@@ -148,13 +149,13 @@ fal_object_t bridge_fal_stp_object(const struct ifnet *ifp);
 
 struct ifnet *bridge_create(int ifindex, const char *ifname,
 			    unsigned int mtu,
-			    const struct ether_addr *eth_addr);
+			    const struct rte_ether_addr *eth_addr);
 void bridge_update(const char *ifname,
 		   struct nl_bridge_info *br_info);
 void bridge_nl_modify(struct ifnet *ifp, struct nlattr *kdata);
 struct ifnet *bridge_nl_create(int ifindex, const char *ifname,
 			       unsigned int mtu,
-			       const struct ether_addr *eth_addr,
+			       const struct rte_ether_addr *eth_addr,
 			       struct nlattr *kdata);
 
 void bridge_fdb_dynamic_flush_vlan(struct ifnet *bridge, struct ifnet *port,

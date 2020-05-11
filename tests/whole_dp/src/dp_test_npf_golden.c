@@ -1024,7 +1024,7 @@ static void _dp_test_npf_golden_1(struct dp_test_golden_ctx *ctx,
 	struct dp_test_pkt_desc_t pre_pkt = {
 		.text       = "Pre",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv4,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
 		.l3_src     = "1.1.1.11",
 		.l2_src     = "aa:bb:cc:dd:1:11",
 		.l3_dst     = "2.2.2.11",
@@ -1693,7 +1693,7 @@ static void _dp_test_npf_golden_2(struct dp_test_golden_ctx *ctx,
 	struct dp_test_pkt_desc_t pre_pkt = {
 		.text       = "Pre",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv6,
+		.ether_type = RTE_ETHER_TYPE_IPV6,
 		.l3_src     = "2001:101:1::101:10b",
 		.l2_src     = "aa:bb:cc:dd:1:11",
 		.l3_dst     = "2001:101:2::202:20b",
@@ -1734,7 +1734,7 @@ repeat:
 	post_desc = &post_pkt;
 
 	if ((ctx->flags & DPT_IN_NAT64) != 0) {
-		post_desc->ether_type = ETHER_TYPE_IPv4;
+		post_desc->ether_type = RTE_ETHER_TYPE_IPV4;
 
 		if ((ctx->flags & DPT_OUT_SNAT) != 0)
 			post_desc->l3_src     = "1.1.1.13";
@@ -2235,7 +2235,7 @@ static void _dp_test_npf_golden_3(struct dp_test_golden_ctx *ctx,
 	struct dp_test_pkt_desc_t pre_pkt = {
 		.text       = "Pre",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv4,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
 		.l3_src     = "2.2.2.2",
 		.l2_src     = "0:0:a4:0:0:65",
 		.l3_dst     = "2.2.2.11",
@@ -2897,7 +2897,7 @@ static void _dp_test_npf_golden_4(struct dp_test_golden_ctx *ctx,
 	struct dp_test_pkt_desc_t pre_pkt = {
 		.text       = "Pre",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv4,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
 		.l3_src     = "1.1.1.11",
 		.l2_src     = "aa:bb:cc:dd:1:11",
 		.l3_dst     = "1.1.1.1",
@@ -3003,7 +3003,7 @@ repeat:
 	struct dp_test_pkt_desc_t pre_pkt2 = {
 		.text       = "Pre",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv4,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
 		.l3_src     = "1.1.1.1",
 		.l2_src     = "0:0:a4:0:0:65",
 		.l3_dst     = "1.1.1.11",
@@ -3352,7 +3352,7 @@ static void _dp_test_npf_golden_5(struct dp_test_golden_ctx *ctx,
 	struct dp_test_pkt_desc_t pre_pkt = {
 		.text       = "Pre",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv6,
+		.ether_type = RTE_ETHER_TYPE_IPV6,
 		.l3_src     = "2001:101:2::202:202",
 		.l2_src     = "0:0:a4:0:0:65",
 		.l3_dst     = "2001:101:2::202:20b",
@@ -3831,7 +3831,7 @@ static void _dp_test_npf_golden_6(struct dp_test_golden_ctx *ctx,
 	struct dp_test_pkt_desc_t pre_pkt = {
 		.text       = "Pre",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv6,
+		.ether_type = RTE_ETHER_TYPE_IPV6,
 		.l3_src     = "2001:101:2::202:20b",
 		.l2_src     = "aa:bb:cc:dd:2:11",
 		.l3_dst     = "2001:101:2::202:202",
@@ -3921,7 +3921,7 @@ repeat:
 	struct dp_test_pkt_desc_t pre_pkt2 = {
 		.text       = "Pre",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv6,
+		.ether_type = RTE_ETHER_TYPE_IPV6,
 		.l3_src     = "2001:101:2::202:202",
 		.l2_src     = "0:0:a4:0:0:65",
 		.l3_dst     = "2001:101:2::202:20b",
@@ -4067,7 +4067,7 @@ static void _dp_test_npf_golden_7(struct dp_test_golden_ctx *ctx,
 	struct dp_test_pkt_desc_t pre_pkt = {
 		.text       = "Pre",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv4,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
 		.l3_src     = "1.1.1.11",
 		.l2_src     = "aa:bb:cc:dd:1:11",
 		.l3_dst     = "2.2.2.11",
@@ -4308,7 +4308,7 @@ static void _dp_test_npf_golden_8(struct dp_test_golden_ctx *ctx,
 	struct dp_test_pkt_desc_t pre_pkt = {
 		.text       = "Pre",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv6,
+		.ether_type = RTE_ETHER_TYPE_IPV6,
 		.l3_src     = "2001:101:1::101:10b",
 		.l2_src     = "aa:bb:cc:dd:1:11",
 		.l3_dst     = "2001:101:2::202:20b",
@@ -4565,7 +4565,7 @@ DP_START_TEST(npf_golden9, test)
 	struct dp_test_pkt_desc_t pre_pkt = {
 		.text       = "Pre",
 		.len        = 20,
-		.ether_type = ETHER_TYPE_IPv4,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
 		.l3_src     = "2.2.2.2",
 		.l2_src     = "0:0:a4:0:0:65",
 		.l3_dst     = "2.2.2.11",

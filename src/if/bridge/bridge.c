@@ -101,7 +101,7 @@ static const char *bridge_ifstate_names[STP_IFSTATE_SIZE] = {
 /*
  * Cisco-specific PVST (per-vlan BPDU) multicast address
  */
-static const struct ether_addr pvst_mcast_address = {
+static const struct rte_ether_addr pvst_mcast_address = {
 	.addr_bytes = {0x01, 0x00, 0x0c, 0xcc, 0xcc, 0xcd},
 };
 
@@ -119,7 +119,7 @@ static bool bridge_pvst_flood_local;
 #define	IFBAF_LOCAL	0x04	/* address of local interface */
 #define	IFBAF_ALL       IFBAF_TYPEMASK
 
-static void bridge_newneigh(int ifindex, const struct ether_addr *dst,
+static void bridge_newneigh(int ifindex, const struct rte_ether_addr *dst,
 			    uint16_t state, uint16_t vlan);
 static void bridge_timer(struct rte_timer *, void *);
 
@@ -133,7 +133,7 @@ static bool bridge_intf_is_virt(struct ifnet *ifp)
 static bool bridge_pkt_exceeds_mtu(struct rte_mbuf *m,
 					  struct ifnet *out_ifp)
 {
-	if (rte_pktmbuf_pkt_len(m) - ETHER_HDR_LEN > out_ifp->if_mtu) {
+	if (rte_pktmbuf_pkt_len(m) - RTE_ETHER_HDR_LEN > out_ifp->if_mtu) {
 		/*
 		 * Transparent bridge shouldn't be doing any form of pkt
 		 * manipulation, fragmentation or otherwise, but because the
@@ -380,7 +380,8 @@ bridge_mac_is_local(const struct bridge_rtnode *brt)
 static inline int bridge_key_equal(const struct bridge_key *k1,
 	const struct bridge_key *k2)
 {
-	return ether_addr_equal(&k1->addr, &k2->addr) && k1->vlan == k2->vlan;
+	return rte_ether_addr_equal(&k1->addr, &k2->addr) &&
+		k1->vlan == k2->vlan;
 }
 
 static inline unsigned long bridge_key_hash(const struct bridge_key *key)
@@ -405,7 +406,7 @@ static int bridge_rtnode_match(struct cds_lfht_node *node, const void *key)
  */
 static struct bridge_rtnode *
 bridge_rtnode_lookup(struct bridge_softc *sc,
-	const struct ether_addr *addr, uint16_t vid)
+	const struct rte_ether_addr *addr, uint16_t vid)
 {
 	struct cds_lfht_iter iter;
 	struct cds_lfht_node *node;
@@ -454,7 +455,7 @@ bridge_rtnode_insert(struct bridge_softc *sc, struct bridge_rtnode *brt)
  */
 static void
 bridge_rtupdate(struct ifnet *ifp,
-	const struct ether_addr *dst,
+	const struct rte_ether_addr *dst,
 	uint16_t vlan)
 {
 	struct bridge_softc *sc =
@@ -545,7 +546,8 @@ bridge_rtable_init(struct bridge_softc *sc)
 }
 
 int
-bridge_newneigh_tunnel(struct bridge_port *brport, const struct ether_addr *dst,
+bridge_newneigh_tunnel(struct bridge_port *brport,
+		       const struct rte_ether_addr *dst,
 		       in_addr_t dst_ip, uint16_t vlan)
 {
 	struct ifnet *ifp = bridge_port_get_interface(brport);
@@ -617,7 +619,7 @@ static void bridge_upd_hw_forwarding(const struct ifnet *ifp)
 /* Create bridge in response to netlink */
 struct ifnet *bridge_create(int ifindex, const char *ifname,
 			    unsigned int mtu,
-			    const struct ether_addr *addr)
+			    const struct rte_ether_addr *addr)
 {
 	struct ifnet *ifp;
 	struct bridge_softc *sc;
@@ -805,7 +807,7 @@ bridge_can_create_in_fal(struct ifnet *ifp)
 /* Add port in response to netlink */
 static void bridge_newport(int ifindex, const char *name,
 			   int ifmaster, uint8_t state,
-			   struct ether_addr *lladdr)
+			   struct rte_ether_addr *lladdr)
 {
 	struct ifnet *ifm, *ifp;
 	struct fal_attribute_t attr_list[1] = {
@@ -1085,7 +1087,8 @@ static int
 bridge_forward(struct bridge_softc *sc, struct ifnet *ifp,
 	       struct rte_mbuf *m, struct ifnet *brif)
 {
-	const struct ether_hdr *eh = rte_pktmbuf_mtod(m, struct ether_hdr *);
+	const struct rte_ether_hdr *eh =
+				rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
 	struct bridge_rtnode *brt;
 	struct ifnet *dif;
 	struct bridge_port *port = NULL;
@@ -1279,7 +1282,8 @@ static void bridge_flood(struct bridge_softc *sc, struct ifnet *in_ifp,
 void bridge_output(struct ifnet *ifp, struct rte_mbuf *m,
 		   struct ifnet *in_ifp)
 {
-	const struct ether_hdr *eh = rte_pktmbuf_mtod(m, struct ether_hdr *);
+	const struct rte_ether_hdr *eh =
+				rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
 	struct bridge_rtnode *brt;
 	struct ifnet *dif;
 	struct bridge_port *port = NULL;
@@ -1289,17 +1293,17 @@ void bridge_output(struct ifnet *ifp, struct rte_mbuf *m,
 	const struct npf_config *npf_config = npf_if_conf(nif);
 
 	if (npf_active(npf_config, NPF_BRIDGE) &&
-	    eh->ether_type != htons(ETHER_TYPE_ARP)) {
+	    eh->ether_type != htons(RTE_ETHER_TYPE_ARP)) {
 		npf_result_t result;
 
 		result = npf_hook_notrack(npf_get_ruleset(npf_config,
 					  NPF_RS_BRIDGE), &m, ifp, PFIL_IN, 0,
-					  ethtype(m, ETHER_TYPE_VLAN));
+					  ethtype(m, RTE_ETHER_TYPE_VLAN));
 		if (result.decision != NPF_DECISION_PASS)
 			goto drop;
 
 		/* Set eh again in case buffer in m changed. */
-		eh = rte_pktmbuf_mtod(m, struct ether_hdr *);
+		eh = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
 	}
 
 	brt = bridge_rtnode_lookup(sc, &eh->d_addr, vlan);
@@ -1325,7 +1329,7 @@ void bridge_output(struct ifnet *ifp, struct rte_mbuf *m,
 	 * This can happen when bridging between interfaces with different
 	 * mtu's.
 	 */
-	if (rte_pktmbuf_pkt_len(m) - ETHER_HDR_LEN > dif->if_mtu)
+	if (rte_pktmbuf_pkt_len(m) - RTE_ETHER_HDR_LEN > dif->if_mtu)
 		goto drop;	/* XXX add stat for this */
 
 	/* Count L3 forwarded and local packets as outbound on bridge */
@@ -1394,7 +1398,7 @@ bridge_input_local(struct rte_mbuf *m, struct ifnet *input_if,
 	/*
 	 * Have we exposed an inner vlan.
 	 */
-	if (ethhdr(m)->ether_type == htons(ETHER_TYPE_VLAN)) {
+	if (ethhdr(m)->ether_type == htons(RTE_ETHER_TYPE_VLAN)) {
 		struct pktmbuf_mdata *mdata;
 
 		mdata = pktmbuf_mdata(m);
@@ -1403,7 +1407,7 @@ bridge_input_local(struct rte_mbuf *m, struct ifnet *input_if,
 		   * data
 		   */
 		m->ol_flags |= PKT_RX_VLAN;
-		m->vlan_tci = vid_decap(m, ETHER_TYPE_VLAN);
+		m->vlan_tci = vid_decap(m, RTE_ETHER_TYPE_VLAN);
 		bridge_input_local(m, input_if, base_bridge);
 		return;
 	}
@@ -1426,7 +1430,8 @@ void bridge_input(struct bridge_port *port, struct rte_mbuf *m)
 	struct ifnet *ifp = bridge_port_get_interface(port);
 	struct ifnet *brif = bridge_port_get_bridge(ifp->if_brport);
 	struct bridge_softc *sc = brif->if_softc;
-	const struct ether_hdr *eh = rte_pktmbuf_mtod(m, struct ether_hdr *);
+	const struct rte_ether_hdr *eh =
+				rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
 	struct if_data *ifstat = &ifp->if_data[dp_lcore_id()];
 	struct pktmbuf_mdata *mdata;
 
@@ -1451,7 +1456,7 @@ void bridge_input(struct bridge_port *port, struct rte_mbuf *m)
 		capture_burst(brif, &m, 1);
 
 	/* bogon filter */
-	if (!is_valid_assigned_ether_addr(&eh->s_addr))
+	if (!rte_is_valid_assigned_ether_addr(&eh->s_addr))
 		goto errorpath;
 
 	/* bridge must be up */
@@ -1473,7 +1478,7 @@ void bridge_input(struct bridge_port *port, struct rte_mbuf *m)
 	 * on whether or not the Cisco multicast address has been
 	 * registered.
 	 */
-	bool is_pvst = ether_addr_equal(&eh->d_addr, &pvst_mcast_address);
+	bool is_pvst = rte_ether_addr_equal(&eh->d_addr, &pvst_mcast_address);
 
 	if (is_link_local_ether_addr(&eh->d_addr) ||
 	    (is_pvst &&
@@ -1500,19 +1505,19 @@ void bridge_input(struct bridge_port *port, struct rte_mbuf *m)
 	const struct npf_config *npf_config = npf_if_conf(nif);
 
 	if (npf_active(npf_config, NPF_BRIDGE) &&
-			       eh->ether_type != htons(ETHER_TYPE_ARP)) {
+			       eh->ether_type != htons(RTE_ETHER_TYPE_ARP)) {
 		npf_result_t result;
 
 		result = npf_hook_notrack(npf_get_ruleset(npf_config,
 					  NPF_RS_BRIDGE), &m, brif, PFIL_IN, 0,
-					  ethtype(m, ETHER_TYPE_VLAN));
+					  ethtype(m, RTE_ETHER_TYPE_VLAN));
 		if (result.decision != NPF_DECISION_PASS)
 			goto ignore;
 
 		/* Set eh again in case buffer in m changed. */
-		eh = rte_pktmbuf_mtod(m, struct ether_hdr *);
+		eh = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
 	}
-	if (unlikely(ether_addr_equal(&eh->d_addr, &brif->eth_addr))) {
+	if (unlikely(rte_ether_addr_equal(&eh->d_addr, &brif->eth_addr))) {
 		/* "to us" unicast pkts should always be consumed */
 		bridge_input_local(m, brif, brif);
 		return;
@@ -1521,14 +1526,14 @@ void bridge_input(struct bridge_port *port, struct rte_mbuf *m)
 	bool mcast = false;
 
 	/* Check for multicast and broadcast pkts *after* firewall. */
-	if (unlikely(is_multicast_ether_addr(&eh->d_addr))) {
+	if (unlikely(rte_is_multicast_ether_addr(&eh->d_addr))) {
 		struct rte_mbuf *m_local = pktmbuf_copy(m, m->pool);
 
 		if (!m_local)
 			goto errorpath;
 		mcast = true;
 		ifstat->ifi_imulticast++;
-		if (is_broadcast_ether_addr(&eh->d_addr))
+		if (rte_is_broadcast_ether_addr(&eh->d_addr))
 			pkt_mbuf_set_l2_traffic_type(m_local,
 						     L2_PKT_BROADCAST);
 		else
@@ -1626,7 +1631,7 @@ static int notify_newport(int ifindex, const char *ifname,
 	int master;
 	uint8_t state;
 	struct nlattr *pinfo[IFLA_BRPORT_MAX+1] = { NULL };
-	struct ether_addr *lladdr = NULL;
+	struct rte_ether_addr *lladdr = NULL;
 
 	if (!tb[IFLA_MASTER]) {
 		DP_DEBUG(BRIDGE, ERR, BRIDGE,
@@ -1646,7 +1651,7 @@ static int notify_newport(int ifindex, const char *ifname,
 	master = mnl_attr_get_u32(tb[IFLA_MASTER]);
 
 	if (tb[IFLA_ADDRESS] && (mnl_attr_get_payload_len(tb[IFLA_ADDRESS]) ==
-				 ETHER_ADDR_LEN))
+				 RTE_ETHER_ADDR_LEN))
 		lladdr = mnl_attr_get_payload(tb[IFLA_ADDRESS]);
 
 	if (pinfo[IFLA_BRPORT_STATE]) {
@@ -1696,7 +1701,7 @@ static uint8_t ndmstate_to_flags(uint16_t state)
 		return IFBAF_DYNAMIC;
 }
 
-static void bridge_newneigh(int ifindex, const struct ether_addr *dst,
+static void bridge_newneigh(int ifindex, const struct rte_ether_addr *dst,
 	uint16_t state, uint16_t vlan)
 {
 	struct ifnet *ifp, *ifm;
@@ -1756,7 +1761,7 @@ static void bridge_newneigh(int ifindex, const struct ether_addr *dst,
 }
 
 static void bridge_delneigh(int ifindex,
-	const struct ether_addr *dst, uint16_t vid)
+	const struct rte_ether_addr *dst, uint16_t vid)
 {
 	struct ifnet *ifp, *ifm;
 	struct bridge_softc *sc;
@@ -1797,7 +1802,7 @@ static int bridge_neigh_change(const struct nlmsghdr *nlh,
 			       struct nlattr *tb[],
 			       enum cont_src_en cont_src)
 {
-	const struct ether_addr *lladdr;
+	const struct rte_ether_addr *lladdr;
 	int skip = MNL_CB_OK;
 	struct ifnet *ifp;
 	uint16_t vid;
@@ -2227,13 +2232,14 @@ bridge_cmd_get_port(FILE *f, struct ifnet *bridge, const char *port_name)
 	return port;
 }
 
-static struct ether_addr *
-bridge_cmd_get_mac(const char *mac_string, struct ether_addr *eap)
+static struct rte_ether_addr *
+bridge_cmd_get_mac(const char *mac_string, struct rte_ether_addr *eap)
 {
 	return ether_aton_r(mac_string, eap);
 }
 
-static int bridge_macs_show_entry(uint16_t vlanid, const struct ether_addr *dst,
+static int bridge_macs_show_entry(uint16_t vlanid,
+				  const struct rte_ether_addr *dst,
 				  unsigned int child_ifindex,
 				  uint32_t attr_count,
 				  const struct fal_attribute_t *attr_list,
@@ -2312,7 +2318,7 @@ bridge_macs_jsonw_one(json_writer_t *wr, const struct bridge_rtnode *brt)
 
 static void
 bridge_macs_jsonw_all(json_writer_t *wr, struct bridge_softc *sc,
-		      struct ifnet *port, struct ether_addr *macp,
+		      struct ifnet *port, struct rte_ether_addr *macp,
 		      uint16_t vlan)
 {
 	struct cds_lfht_iter iter;
@@ -2326,7 +2332,7 @@ bridge_macs_jsonw_all(json_writer_t *wr, struct bridge_softc *sc,
 
 		if ((!port || port == brt->brt_difp) &&
 		    (!vlan || vlan == brt->brt_key.vlan) &&
-		    (!macp || ether_addr_equal(macp, &brt->brt_key.addr)))
+		    (!macp || rte_ether_addr_equal(macp, &brt->brt_key.addr)))
 			bridge_macs_jsonw_one(wr, brt);
 
 		cds_lfht_next(sc->scbr_rthash, &iter);
@@ -2342,7 +2348,7 @@ bridge_macs_show(FILE *f, int argc, char **argv, struct ifnet *bridge)
 {
 	struct bridge_softc *sc = bridge->if_softc;
 	struct ifnet *port = NULL;
-	struct ether_addr mac, *macp = NULL;
+	struct rte_ether_addr mac, *macp = NULL;
 	fal_br_walk_neigh_fn cb;
 	uint16_t vlanid = 0;
 	bool hw = false;
@@ -2436,7 +2442,7 @@ bridge_macs_clear(FILE *f, int argc, char **argv, struct ifnet *bridge)
 {
 	struct bridge_softc *sc = bridge->if_softc;
 	struct ifnet *port = NULL;
-	struct ether_addr mac, *macp = NULL;
+	struct rte_ether_addr mac, *macp = NULL;
 
 	if (argc < 1) {
 		fprintf(f, "%s: missing argument: %d", __func__, argc);

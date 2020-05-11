@@ -18,6 +18,7 @@
 #include "zmq_dp.h"
 
 zsock_t *broker_data_sock;
+bool dp_test_route_broker_protobuf = true;
 
 static int process_actor_message(zsock_t *sock)
 {
@@ -100,6 +101,9 @@ static void process_ctrl_message(zsock_t *sock)
 
 	rc = zmsg_addstr(msg, url);
 	free(url);
+	assert(rc >= 0);
+
+	rc = zmsg_addu32(msg, dp_test_route_broker_protobuf ? 0x1 : 0x0);
 	assert(rc >= 0);
 
 	rc = zmsg_prepend(msg, &envelope);
