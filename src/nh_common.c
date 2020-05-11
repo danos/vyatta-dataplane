@@ -585,7 +585,22 @@ typedef void (next_hop_usability_change_cb)(struct next_hop *next);
 static void next_hop_usability_check_update_cb(struct next_hop *next)
 {
 	struct next_hop_list *nextl = next->nhl;
+	int rc;
 
+	rc = fal_ip_upd_next_hop_unusable(nextl->nh_fal_obj,
+					  next - nextl->siblings);
+	if (rc < 0 && (rc != -EOPNOTSUPP)) {
+		struct ifnet *ifp = dp_nh_get_ifp(next);
+		char b[INET6_ADDRSTRLEN];
+
+		RTE_LOG(ERR, ROUTE,
+			"FAL Unable to mark next hop unusable %s %s (%s)\n",
+			ifp ? ifp->if_name : "no interface",
+			inet_ntop(next->gateway.type,
+				  &next->gateway.address,
+				  b, sizeof(b)),
+			strerror(-rc));
+	}
 	next_hop_list_update_map(nextl, next - nextl->siblings);
 }
 
