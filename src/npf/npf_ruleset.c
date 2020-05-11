@@ -271,7 +271,8 @@ static void rule_free(npf_rule_t *rl)
 	free(rl->r_state->rs_config_line);
 	free(rl->r_state->rs_rproc);
 	free(rl->r_state);
-	npf_rule_stats_put(rl->r_stats);
+	if (rl->r_stats)
+		npf_rule_stats_put(rl->r_stats);
 	free(rl->r_ncode);
 	free(rl);
 }
@@ -481,6 +482,9 @@ static void rule_clear_stats(npf_rule_t *rl)
 {
 	unsigned int i;
 
+	if (!rl->r_stats)
+		return;
+
 	FOREACH_DP_LCORE(i) {
 		rl->r_stats[i].pkts_ct = 0;
 		rl->r_stats[i].bytes_ct = 0;
@@ -495,6 +499,9 @@ void rule_sum_stats(const npf_rule_t *rl,
 	unsigned int i;
 
 	memset(rs, '\0', sizeof(struct npf_rule_stats));
+
+	if (!rl->r_stats)
+		return;
 
 	FOREACH_DP_LCORE(i) {
 		rs->bytes_ct += rl->r_stats[i].bytes_ct;
@@ -542,7 +549,7 @@ void npf_rule_update_map_stats(npf_rule_t *rl, int nr_maps, uint32_t map_flags)
 	unsigned int id = dp_lcore_id();
 	int ports = (map_flags & NPF_NAT_MAP_PORT) ? nr_maps : 0;
 
-	if (rl)
+	if (rl && rl->r_stats)
 		rl->r_stats[id].map_ports += ports;
 }
 
@@ -553,8 +560,11 @@ static void rule_ref_stats(npf_rule_t *old, npf_rule_t *new)
 	 * rule, and instead reference the statistics associated with the
 	 * old rule.
 	 */
-	npf_rule_stats_put(new->r_stats);
-	new->r_stats = npf_rule_stats_get(old->r_stats);
+	if (new->r_stats)
+		npf_rule_stats_put(new->r_stats);
+
+	if (old->r_stats)
+		new->r_stats = npf_rule_stats_get(old->r_stats);
 }
 
 /*
@@ -683,7 +693,7 @@ npf_clear_stats(const npf_ruleset_t *ruleset, enum npf_rule_class group_class,
 void
 npf_add_pkt(npf_rule_t *rl, uint64_t bytes)
 {
-	if (rl == NULL)
+	if (rl == NULL || rl->r_stats == NULL)
 		return;
 
 	unsigned int core = dp_lcore_id();
