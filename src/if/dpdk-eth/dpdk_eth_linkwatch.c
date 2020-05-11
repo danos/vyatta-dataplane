@@ -37,6 +37,7 @@
 #include "dp_event.h"
 #include "event_internal.h"
 #include "if_var.h"
+#include "ip_forward.h"
 #include "l2_rx_fltr.h"
 #include "lag.h"
 #include "main.h"
@@ -195,11 +196,53 @@ static int link_state_event(void *arg)
 	return 0;
 }
 
+static const char *linkscan_source = "linkscan";
+
+static void linkwatch_down_mark_unusable(portid_t port_id)
+{
+	struct dp_rt_path_unusable_key key;
+	struct ifnet *ifp;
+
+	dp_rcu_register_thread();
+
+	ifp = ifnet_byport(port_id);
+	key.ifindex = ifp->if_index;
+	key.type = DP_RT_PATH_UNUSABLE_KEY_INTF;
+	dp_rt_signal_paths_unusable(linkscan_source, &key);
+
+	rcu_thread_offline();
+}
+
+static enum dp_rt_path_state
+linkwatch_check_path_state(const struct dp_rt_path_unusable_key *key)
+{
+	struct rte_eth_link link;
+	struct ifnet *ifp;
+
+	if (key->type == DP_RT_PATH_UNUSABLE_KEY_INTF) {
+		ifp = dp_ifnet_byifindex(key->ifindex);
+		if (!ifp)
+			return DP_RT_PATH_UNKNOWN;
+
+		if (rte_eth_link_get_nowait(ifp->if_port, &link) < 0)
+			return DP_RT_PATH_UNKNOWN;
+
+		if (link.link_status == ETH_LINK_DOWN)
+			return DP_RT_PATH_UNUSABLE;
+		else
+			return DP_RT_PATH_USABLE;
+	}
+
+	return DP_RT_PATH_UNKNOWN;
+}
+
+
 /* Open eventfd handle used to notify master thread
  * by callbacks called in interrupt thread.
  */
 void link_state_init(void)
 {
+	int rv;
 	int fd = eventfd(0, EFD_NONBLOCK);
 	if (fd < 0)
 		rte_panic("%s: eventfd failed: %s\n",
@@ -207,6 +250,11 @@ void link_state_init(void)
 
 	lsc_arg = (void *) (unsigned long) fd;
 	register_event_fd(fd, link_state_event, lsc_arg);
+
+	rv = dp_rt_register_path_state(linkscan_source,
+				       linkwatch_check_path_state);
+	if (rv)
+		rte_panic("Could not register route state with linkwatch\n");
 }
 
 /* Port event occurred.
@@ -221,19 +269,23 @@ eth_port_event(portid_t port_id, enum rte_eth_event_type type, void *arg,
 	unsigned long link_fd = (unsigned long) arg;
 	static const uint64_t incr = 1;
 	bool wakeup = false;
+	int rv;
 
 	/* Notify master thread, and debounce */
 	if (type == RTE_ETH_EVENT_INTR_LSC) {
+		struct rte_eth_link link;
+
+		rv = rte_eth_link_get_nowait(port_id, &link);
+		if (rv == 0 && link.link_status == ETH_LINK_DOWN)
+			linkwatch_down_mark_unusable(port_id);
+
 		/*
 		 * If the port uses the queue state events, and it is down
 		 * then we have to clear the enabled queues otherwise we
 		 * can get into an inconsistent state.
 		 */
 		if (get_port_uses_queue_state(port_id)) {
-			struct rte_eth_link link;
-
-			rte_eth_link_get_nowait(port_id, &link);
-			if (link.link_status == ETH_LINK_DOWN)
+			if (rv == 0 && link.link_status == ETH_LINK_DOWN)
 				reset_port_enabled_queue_state(port_id);
 		}
 		if (bitmask_isset(&lsc_irq_mask, port_id)) {
