@@ -1,3 +1,26 @@
+vyatta-dataplane (3.10.10) unstable; urgency=medium
+
+  [ Mike Larson ]
+  * Typo in include guard
+
+  [ Shweta Choudaha ]
+  * Add support for I40E X722 device
+
+  [ Charles (Chas) Williams ]
+  * dpdk: 19.11: struct ether_addr to struct rte_ether_addr
+    (Bugfix: VRVDR-45636)
+  * dpdk: 19.11; is_*_ether_addr to rte_is_*_ether_addr (Bugfix: VRVDR-45636)
+  * dpdk: 19.11: e_RTE_METER_COLORS to RTE_COLORS (Bugfix: VRVDR-45636)
+  * dpdk: 19.11: rename struct *_hdr to struct rte_*_hdr (Bugfix: VRVDR-45636)
+  * dpdk: 19.11: ETHER_* to RTE_ETHER_* (Bugfix: VRVDR-45636)
+  * dpdk: 19.11: add alignment to packed structs (Bugfix: VRVDR-45636)
+  * dpdk: 19.11: fix swport unit tests (Bugfix: VRVDR-45636)
+  * dpdk: 19.11: update build depdendencies (Bugfix: VRVDR-45636)
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Mon, 11 May 2020 09:13:58 +0100
+
 vyatta-dataplane (3.10.9) unstable; urgency=medium
 
   [ Gavin Shearer ]
