@@ -37,7 +37,7 @@ static uint32_t sample_pkt_count;
 static uint32_t sample_ctx = 0x12345678;
 static uint32_t sample_cleanup_cb_count;
 
-static void sample_cleanup_cb(const char *instance,
+static void sample_cleanup_cb(const char *instance __attribute__((unused)),
 			      void *context)
 {
 	sample_cleanup_cb_count++;

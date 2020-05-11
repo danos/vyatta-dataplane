@@ -7,19 +7,17 @@
  *
  * Whole dataplane test pipeline tests
  */
-#include "dp_test.h"
-#include "dp_test_str.h"
-#include "dp_test_lib_internal.h"
-#include "dp_test_lib_exp.h"
-#include "dp_test_lib_pkt.h"
-#include "dp_test_pktmbuf_lib_internal.h"
-#include "dp_test_controller.h"
-#include "dp_test_json_utils.h"
-#include "dp_test_netlink_state_internal.h"
-#include "dp_test_console.h"
 
-#include "src/pipeline/nodes/sample/SampleFeatConfig.pb-c.h"
-#include "src/pipeline/nodes/sample/SampleFeatOp.pb-c.h"
+#include "dp_test_lib.h"
+#include "dp_test_lib_intf.h"
+#include "dp_test_macros.h"
+#include "dp_test_pktmbuf_lib.h"
+#include "dp_test_netlink_state.h"
+
+#include <linux/if.h>
+
+#include "SampleFeatConfig.pb-c.h"
+#include "SampleFeatOp.pb-c.h"
 #include "protobuf/DataplaneEnvelope.pb-c.h"
 
 DP_DECL_TEST_SUITE(pipeline);
@@ -40,7 +38,7 @@ dp_test_create_and_send_sample_feat_msg(bool enable,
 	samplefeat.if_name = (char *)ifname;
 	len = sample_feat_config__get_packed_size(&samplefeat);
 	void *buf2 = malloc(len);
-	dp_test_assert_internal(buf2);
+	assert(buf2);
 
 	sample_feat_config__pack(&samplefeat, buf2);
 
@@ -83,7 +81,7 @@ static void dp_test_pl_build_and_check_start_count(int init_pkt_cnt)
 
 	int len = sample_feat_op_req__get_packed_size(&sampleop);
 	void *buf2 = malloc(len);
-	dp_test_assert_internal(buf2);
+	assert(buf2);
 
 	sample_feat_op_req__pack(&sampleop, buf2);
 
@@ -95,11 +93,11 @@ static void dp_test_pl_build_and_check_start_count(int init_pkt_cnt)
 	len = dataplane_envelope__get_packed_size(&msg);
 
 	unsigned char *buf = malloc(len);
-	dp_test_assert_internal(buf);
+	assert(buf);
 
 	dataplane_envelope__pack(&msg, buf);
 
-	int val = init_pkt_cnt + 1;
+	uint32_t val = init_pkt_cnt + 1;
 	void *arg = &val;
 
 	dp_test_check_pb_state((char *)buf, len,
@@ -108,6 +106,35 @@ static void dp_test_pl_build_and_check_start_count(int init_pkt_cnt)
 	free(buf2);
 	free(msg.type);
 	free(buf);
+}
+
+static bool get_start_count_callback(void *data, int len, void *arg)
+{
+	DataplaneEnvelope *dmsg_resp =
+		dataplane_envelope__unpack(NULL, len, (unsigned char *)data);
+	if (!dmsg_resp) {
+		printf("Failed to read dataplane protobuf message\n");
+		return false;
+	}
+
+	/* now decap pb */
+	SampleFeatOpResp *smsg_resp =
+		sample_feat_op_resp__unpack(NULL,
+				       dmsg_resp->msg.len,
+				       dmsg_resp->msg.data);
+	if (!smsg_resp) {
+		printf("unable to read protobuf message: %p, %d\n", data, len);
+		dataplane_envelope__free_unpacked(dmsg_resp, NULL);
+		return false;
+	}
+	uint32_t received_val = smsg_resp->count;
+
+	*(uint32_t *)arg = received_val;
+
+	sample_feat_op_resp__free_unpacked(smsg_resp, NULL);
+	dataplane_envelope__free_unpacked(dmsg_resp, NULL);
+
+	return true;
 }
 
 static void dp_test_pl_get_start_count(int *ipv4_val_cnt)
@@ -120,7 +147,7 @@ static void dp_test_pl_get_start_count(int *ipv4_val_cnt)
 
 	len = sample_feat_op_req__get_packed_size(&sampleop);
 	void *buf2 = malloc(len);
-	dp_test_assert_internal(buf2);
+	assert(buf2);
 
 	sample_feat_op_req__pack(&sampleop, buf2);
 
@@ -132,50 +159,14 @@ static void dp_test_pl_get_start_count(int *ipv4_val_cnt)
 	len = dataplane_envelope__get_packed_size(&msg);
 
 	buf = malloc(len);
-	dp_test_assert_internal(buf);
+	assert(buf);
 
 	dataplane_envelope__pack(&msg, buf);
 
-	char *resp;
-	int resp_len;
-	zmsg_t *resp_msg;
-	dp_test_console_request_pb(buf, len, &resp_msg, false);
-	if (resp_msg && zmsg_size(resp_msg) > 0) {
-		zframe_t *frame = zmsg_first(resp_msg);
-		resp = (char *)zframe_data(frame);
-		resp_len = zframe_size(frame);
-	} else
-		goto cleanup1;
+	dp_test_check_pb_state((char *)buf, len,
+			       get_start_count_callback,
+			       ipv4_val_cnt);
 
-	/* extract ipv4-validate-packet-count here and validate */
-	DataplaneEnvelope *dmsg_resp =
-		dataplane_envelope__unpack(NULL, resp_len,
-					   (unsigned char *)resp);
-	if (!dmsg_resp) {
-		printf("Failed to read dataplane protobuf message\n");
-		goto cleanup1;
-	}
-
-	/* now extract sample */
-	SampleFeatOpResp *smsg_resp =
-		sample_feat_op_resp__unpack(NULL,
-				       dmsg_resp->msg.len,
-				       dmsg_resp->msg.data);
-	if (!smsg_resp) {
-		printf("Failed to read sample protobuf message\n");
-		goto cleanup2;
-	}
-
-	if (!smsg_resp->has_count)
-		printf("sample count value NOT set\n");
-	else
-		*ipv4_val_cnt =  smsg_resp->count;
-
-	sample_feat_op_resp__free_unpacked(smsg_resp, NULL);
- cleanup2:
-	dataplane_envelope__free_unpacked(dmsg_resp, NULL);
- cleanup1:
-	zmsg_destroy(&resp_msg);
 	free(buf2);
 	free(msg.type);
 	free(buf);
@@ -189,7 +180,7 @@ DP_START_TEST(dyn_feat, dyn_feat_ipv4)
 	struct dp_test_expected *exp;
 	char real_ifname[IFNAMSIZ];
 	struct rte_mbuf *test_pak;
-	int init_pkt_cnt;
+	int init_pkt_cnt = 0;
 	int len = 22;
 
 	/* Setup interfaces and neighbours */

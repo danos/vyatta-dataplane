@@ -686,7 +686,7 @@ VALGRIND_SUPPRESSIONS_FILES = $(srcdir)/tests/whole_dp/valgrind_suppressions
 EXTRA_DIST = $(VALGRIND_SUPPRESSIONS_FILES)
 
 dataplane_test_CPPFLAGS = $(dataplane_CPPFLAGS) $(JSON_C_CFLAGS)
-dataplane_test_CPPFLAGS += -I$(srcdir)/tests/whole_dp/src -I$(srcdir)/tests/common/inc
+dataplane_test_CPPFLAGS += -I$(srcdir)/include/dp_test -I$(srcdir)/tests/whole_dp/src -I$(srcdir)/tests/common/inc
 dataplane_test_CPPFLAGS += $(sample_plugin_la_CPPFLAGS)
 
 dataplane_test_CFLAGS = $(dataplane_CFLAGS) -fno-lto -UNDEBUG -O0 -g $(CODE_COVERAGE_CFLAGS)
