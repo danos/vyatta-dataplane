@@ -45,12 +45,11 @@ struct flow_cache_hash_key {
 struct flow_cache_entry {
 	struct cds_lfht_node fl_node;
 	struct flow_cache_hash_key key;
+	uint32_t hit_count;
 	void     *rule;
 	uint16_t context;
-	uint32_t hit_count;
 	uint32_t last_hit_count;
 	struct rcu_head  flow_cache_rcu;
-	char *padding[0] __rte_cache_aligned;
 };
 
 #define FLOW_CACHE_HASH_MIN  8
