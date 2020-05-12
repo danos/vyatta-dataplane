@@ -697,3 +697,176 @@ DP_START_TEST(ipv4_icmp_transit, drop)
 
 	dp_test_netlink_set_interface_mtu("dp1T1", 1500);
 } DP_END_TEST;
+
+DP_DECL_TEST_CASE(npf_orig, ipv6_icmp_transit, NULL, NULL);
+/*
+ * Test creates ipv6 icmp packet with DF bit set and route it
+ * to dataplane interface that has mtu less than the packet size.
+ * Router creates and sends ipv6 icmp packet to big message back.
+ * Originate firewall is configured in the output interface to verify
+ * dscp mark function and action drop.
+ *
+ *           2001:1:1::1/64 +-----+ 2002:2:2::2/64
+ *                          |     |
+ * host 2001:1:1::2 --------| uut |---------------host 2002:2:2::1
+ *                    dp1T0 |     | dp2T1 (mtu 1400)
+ *                    intf1 +-----+ intf2
+ *                    Route:
+ * *
+ *
+ *        --> Forwards
+ *      Source 2001:1:1::2 Destination 2002:2:2::1 (length 1572, DSCP 0)
+ *
+ *        <-- Back ICMP
+ *      Source 2002:2:2::1 Destination 2001:1:1::2 (DSCP AF12)
+ */
+static void npf_orig_ipv6_icmp_transit_setup(
+		struct dp_test_expected **exp,
+		struct rte_mbuf **test_pak)
+{
+	struct rte_mbuf *icmp_pak;
+	const char *neigh1_mac_str = "aa:bb:cc:dd:ee:10";
+	const char *neigh2_mac_str = "bb:aa:cc:ee:dd:21";
+	int len = 1572;
+	int icmplen;
+	struct ip6_hdr *ip6, *in6_inner;
+	struct icmp6_hdr *icmp6;
+
+	/* Set up the interface addresses */
+	dp_test_nl_add_ip_addr_and_connected("dp1T0", "2001:1:1::1/64");
+	dp_test_nl_add_ip_addr_and_connected("dp2T1", "2002:2:2::2/64");
+
+	/* Add the route / nh neighbour we want the packet to follow */
+	dp_test_netlink_add_neigh("dp2T1", "2002:2:2::1", neigh2_mac_str);
+
+	/* And the neighbour for the return icmp packet */
+	dp_test_netlink_add_neigh("dp1T0", "2001:1:1::2", neigh1_mac_str);
+	/* Create pak to match the route added above */
+	*test_pak = dp_test_create_ipv6_pak("2001:1:1::2", "2002:2:2::1",
+					   1, &len);
+	dp_test_pktmbuf_eth_init(*test_pak,
+			dp_test_intf_name2mac_str("dp1T0"),
+			neigh1_mac_str, RTE_ETHER_TYPE_IPV6);
+
+	/*
+	 * Expected packet
+	 */
+	icmplen = 1280 - sizeof(struct ip6_hdr) - sizeof(struct icmp6_hdr);
+	icmp_pak = dp_test_create_icmp_ipv6_pak("2001:1:1::1", "2001:1:1::2",
+						ICMP6_PACKET_TOO_BIG,
+						0, /* code */
+						1500 /* mtu */,
+						1, &icmplen,
+						ip6hdr(*test_pak),
+						&ip6, &icmp6);
+	(void)dp_test_pktmbuf_eth_init(icmp_pak,
+				       neigh1_mac_str,
+				       dp_test_intf_name2mac_str("dp1T0"),
+				       RTE_ETHER_TYPE_IPV6);
+
+	/* Forwarding code will have already decremented hop limit */
+	in6_inner = (struct ip6_hdr *)(icmp6 + 1);
+	in6_inner->ip6_hlim--;
+	dp_test_set_pak_ip6_field(ip6, DP_TEST_SET_TOS, IPTOS_DSCP_AF12);
+
+	icmp6->icmp6_cksum = 0;
+	icmp6->icmp6_cksum = dp_test_ipv6_icmp_cksum(icmp_pak, ip6, icmp6);
+
+	*exp = dp_test_exp_create(icmp_pak);
+	rte_pktmbuf_free(icmp_pak);
+}
+
+DP_START_TEST(ipv6_icmp_transit, packet_to_big_dscp_remark)
+{
+	struct dp_test_expected *exp = NULL;
+	struct rte_mbuf *test_pak = NULL;
+
+	npf_orig_ipv6_icmp_transit_setup(&exp, &test_pak);
+
+	struct dp_test_npf_rule_t rules[] = {
+		{
+			.rule     = "1",
+			.pass     = PASS,
+			.stateful = STATELESS,
+			.npf      = "proto-final=58 rproc=markdscp(12)"},
+		RULE_DEF_BLOCK,
+		NULL_RULE };
+
+	struct dp_test_npf_ruleset_t fw = {
+		.rstype = "originate",
+		.name   = "FW_ICMPv6_ORIG",
+		.enable = 1,
+		.attach_point   = "dp1T0",
+		.fwd    = FWD,
+		.dir    = "out",
+		.rules  = rules
+	};
+	dp_test_npf_fw_add(&fw, false);
+
+	/* Set test expectations */
+	dp_test_exp_set_oif_name(exp, "dp1T0");
+
+	/* Run test */
+	dp_test_pak_receive(test_pak, "dp1T0", exp);
+
+	/* After test validations */
+	dp_test_npf_verify_rule_pkt_count(NULL, &fw, fw.rules[0].rule, 1);
+
+	/* Clean Up */
+	dp_test_npf_fw_del(&fw, false);
+
+	dp_test_netlink_del_neigh("dp2T1", "2002:2:2::1", "bb:aa:cc:ee:dd:21");
+	dp_test_netlink_del_neigh("dp1T0", "2001:1:1::2", "aa:bb:cc:dd:ee:10");
+
+	dp_test_nl_del_ip_addr_and_connected("dp1T0", "2001:1:1::1/64");
+	dp_test_nl_del_ip_addr_and_connected("dp2T1", "2002:2:2::2/64");
+
+} DP_END_TEST;
+
+DP_START_TEST(ipv6_icmp_transit, drop)
+{
+	struct dp_test_expected *exp = NULL;
+	struct rte_mbuf *test_pak = NULL;
+
+	npf_orig_ipv6_icmp_transit_setup(&exp, &test_pak);
+
+	struct dp_test_npf_rule_t rules[] = {
+		{
+			.rule     = "1",
+			.pass     = BLOCK,
+			.stateful = STATELESS,
+			.npf      = "proto-final=58 rproc=markdscp(12)"},
+		RULE_DEF_PASS,
+		NULL_RULE };
+
+	struct dp_test_npf_ruleset_t fw = {
+		.rstype = "originate",
+		.name   = "FW_ICMPv6_ORIG",
+		.enable = 1,
+		.attach_point   = "dp1T0",
+		.fwd    = FWD,
+		.dir    = "out",
+		.rules  = rules
+	};
+	dp_test_npf_fw_add(&fw, false);
+
+	/* Set test expectations */
+	dp_test_exp_set_oif_name(exp, "dp1T0");
+	dp_test_exp_set_fwd_status(exp, DP_TEST_FWD_DROPPED);
+
+	/* Run test */
+	dp_test_pak_receive(test_pak, "dp1T0", exp);
+
+	/* After test validations */
+	dp_test_npf_verify_rule_pkt_count(NULL, &fw, fw.rules[0].rule, 1);
+
+	/* Clean Up */
+	dp_test_npf_fw_del(&fw, false);
+
+	dp_test_netlink_del_neigh("dp2T1", "2002:2:2::1", "bb:aa:cc:ee:dd:21");
+	dp_test_netlink_del_neigh("dp1T0", "2001:1:1::2", "aa:bb:cc:dd:ee:10");
+
+	dp_test_nl_del_ip_addr_and_connected("dp1T0", "2001:1:1::1/64");
+	dp_test_nl_del_ip_addr_and_connected("dp2T1", "2002:2:2::2/64");
+
+} DP_END_TEST;
