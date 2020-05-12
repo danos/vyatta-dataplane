@@ -1139,3 +1139,174 @@ DP_START_TEST(ipv6_nd_na, drop)
 	dp_test_nl_del_ip_addr_and_connected("dp1T0", "2001:1:1::1/64");
 	dp_test_netlink_del_ip_address("dp1T0", router_ll_ip_subnet);
 } DP_END_TEST;
+
+DP_DECL_TEST_CASE(npf_orig, ipv6_nd_ns, NULL, NULL);
+/*
+ * Test generates ipv6 TCP message and sends to Router
+ * to be forwarded to another host. Router creates and sends
+ * ipv6 ND replay with ND Solicitation to resolve destination ip that
+ * is not in neighbour cash.
+ * Originate firewall is configured in the output interface to verify
+ * dscp mark function and action drop.
+ *
+ *                                         fe80::5054:ff:fe79:3f5/64
+ *                   2001:1:1::1/64 +-----+2002:1:1::1/64
+ *                                  |     |
+ * host 2001:1:1::2  ---------------| uut |------------- 2002:1:1::2/64 host
+ *                            dp1T0 |     | dp2T2
+ *                            intf1 +-----+ intf2
+ *
+ *                --> Forwards TCP
+ *              Source 2001:1:1::2 Destination 2002:1:1::2
+ *
+ *                 --> NS
+ *              Source fe80::5054:ff:fe79:3f5 Destination ff02::1:ff00:02
+ */
+static void ipv6_nd_ns_packet_ns_dscp_remark_setup(
+		struct dp_test_expected **exp,
+		struct rte_mbuf **test_pak)
+{
+	struct rte_mbuf *exp_ns_pak;
+	const char *neigh1_mac_str = "aa:bb:cc:dd:ee:10";
+	const char *router_ll_ip = "fe80::5054:ff:fe79:3f5";
+
+	/* Set up the interface addresses */
+	dp_test_netlink_add_ip_address("dp2T2", "fe80::5054:ff:fe79:3f5/64");
+	dp_test_nl_add_ip_addr_and_connected("dp1T0", "2001:1:1::1/64");
+	dp_test_nl_add_ip_addr_and_connected("dp2T2", "2002:1:1::1/64");
+
+	/*
+	 * Simulate pkt from kernel to be tx on intf1
+	 */
+	struct dp_test_pkt_desc_t v4_pktA = {
+		.text       = "Packet A, Local -> Neighbour 1",
+		.len        = 20,
+		.ether_type = RTE_ETHER_TYPE_IPV6,
+		.l3_src     = "2001:1:1::2",
+		.l2_src     = neigh1_mac_str,
+		.l3_dst     = "2002:1:1::2",
+		.l2_dst     = "aa:bb:cc:dd:1:a1",
+		.proto      = IPPROTO_TCP,
+		.l4         = {
+			.tcp = {
+				.sport = 41000,
+				.dport = 1000,
+				.flags = 0
+			}
+		},
+		.rx_intf    = "dp1T0",
+		.tx_intf    = "dp2T2"
+	};
+
+	/*
+	 * Test packet
+	 */
+	*test_pak = dp_test_v6_pkt_from_desc(&v4_pktA);
+
+	/*
+	 * Expected packet
+	 */
+	exp_ns_pak = dp_test_create_ns_pak(router_ll_ip, "ff02::1:ff00:02",
+			IPTOS_DSCP_AF12, dp_test_intf_name2mac_str("dp2T2"),
+			"33:33:ff:00:00:02", "2002:1:1::2");
+
+	*exp = dp_test_exp_create(exp_ns_pak);
+	rte_pktmbuf_free(exp_ns_pak);
+}
+
+static void ipv6_nd_ns_packet_ns_dscp_remark_cleanup(void)
+{
+	/* After sending NS we have added neighbour in state INCOMPLETE
+	 * so we need to clean it
+	 */
+	dp_test_npf_cmd("nd6 flush to 2002:1:1::2", false);
+
+	dp_test_nl_del_ip_addr_and_connected("dp1T0", "2001:1:1::1/64");
+	dp_test_nl_del_ip_addr_and_connected("dp2T2", "2002:1:1::1/64");
+	dp_test_netlink_del_ip_address("dp2T2", "fe80::5054:ff:fe79:3f5/64");
+}
+
+DP_START_TEST(ipv6_nd_ns, packet_ns_dscp_remark)
+{
+	struct dp_test_expected *exp;
+	struct rte_mbuf *test_pak;
+
+	ipv6_nd_ns_packet_ns_dscp_remark_setup(&exp, &test_pak);
+
+	struct dp_test_npf_rule_t rules[] = {
+		{
+			.rule     = "1",
+			.pass     = PASS,
+			.stateful = STATELESS,
+			.npf      = "proto-final=58 rproc=markdscp(12)"},
+		RULE_DEF_BLOCK,
+		NULL_RULE };
+
+	struct dp_test_npf_ruleset_t fw = {
+		.rstype = "originate",
+		.name   = "FW_ICMPv6_ORIG",
+		.enable = 1,
+		.attach_point   = "dp2T2",
+		.fwd    = FWD,
+		.dir    = "out",
+		.rules  = rules
+	};
+	dp_test_npf_fw_add(&fw, false);
+
+	/* Set test expectations */
+	dp_test_exp_set_oif_name(exp, "dp2T2");
+
+	/* Run test */
+	dp_test_pak_receive(test_pak, "dp1T0", exp);
+
+	/* After test validations */
+	dp_test_npf_verify_rule_pkt_count(NULL, &fw, fw.rules[0].rule, 1);
+
+	/* Clean Up */
+	dp_test_npf_fw_del(&fw, false);
+
+	ipv6_nd_ns_packet_ns_dscp_remark_cleanup();
+} DP_END_TEST;
+
+DP_START_TEST(ipv6_nd_ns, drop)
+{
+	struct dp_test_expected *exp;
+	struct rte_mbuf *test_pak;
+
+	ipv6_nd_ns_packet_ns_dscp_remark_setup(&exp, &test_pak);
+
+	struct dp_test_npf_rule_t rules[] = {
+		{
+			.rule     = "1",
+			.pass     = BLOCK,
+			.stateful = STATELESS,
+			.npf      = "proto-final=58 rproc=markdscp(12)"},
+		RULE_DEF_PASS,
+		NULL_RULE };
+
+	struct dp_test_npf_ruleset_t fw = {
+		.rstype = "originate",
+		.name   = "FW_ICMPv6_ORIG",
+		.enable = 1,
+		.attach_point   = "dp2T2",
+		.fwd    = FWD,
+		.dir    = "out",
+		.rules  = rules
+	};
+	dp_test_npf_fw_add(&fw, false);
+
+	/* Set test expectations */
+	dp_test_exp_set_oif_name(exp, "dp2T2");
+	dp_test_exp_set_fwd_status(exp, DP_TEST_FWD_DROPPED);
+
+	/* Run test */
+	dp_test_pak_receive(test_pak, "dp1T0", exp);
+
+	/* After test validations */
+	dp_test_npf_verify_rule_pkt_count(NULL, &fw, fw.rules[0].rule, 1);
+
+	/* Clean Up */
+	dp_test_npf_fw_del(&fw, false);
+
+	ipv6_nd_ns_packet_ns_dscp_remark_cleanup();
+} DP_END_TEST;
