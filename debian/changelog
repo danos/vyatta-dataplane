@@ -1,3 +1,44 @@
+vyatta-dataplane (3.10.13) unstable; urgency=medium
+
+  [ Nicholas Brown ]
+  * update autconf dpdk check to check for 19.11
+
+  [ Robert Shearman ]
+  * protobuf: fix typo in description of mpls_labels field
+
+  [ Srinivas Narayan ]
+  * flow-cache: Add API prototypes for flow-cache
+  * flow-cache: Move crypto pkt buffer definition
+  * flow-cache: Rename pr_cache* to flow_cache*
+  * flow-cache: Rename variable used for flow_cache_entry
+  * flow-cache: Move address union definition to make it re-usable
+  * flow-cache: Migrate addresses to common definition
+  * flow-cache: Enable support for IPv6
+  * flow-cache: refactor common code invoking flow_cache_add
+  * flow-cache: Decouple flow cache from crypto per-core block
+  * flow-cache: use accessors for rule and context
+  * flow-cache: add a bit to identify packets not matching any rule
+  * flow-cache: Add support for caching negative matches
+  * flow-cache: Create cache entries for cleartext packets
+  * flow-cache: Skip further processing on cache match for cleartext packet
+  * flow-cache: Avoid de-referencing policy rule unless present
+  * flow-cache: Use rss hash if present in buffer
+  * flow-cache: Add support for aging
+  * flow-cache: refactor code to dump cache
+  * flow-cache: Move flow-cache infra to separate module
+  * flow-cache: Emit hit counts
+  * flow-cache: split flow cache dump into smaller functions
+  * flow-cache: Update comments to use 'flow cache'
+  * flow-cache: rename crypto specific function & macro
+  * flow-cache: Reorder fields to remove holes in structure
+
+  [ Shweta Choudaha ]
+  * backplane: use device max_mtu for backplane intf
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Tue, 12 May 2020 12:13:28 +0100
+
 vyatta-dataplane (3.10.12) unstable; urgency=medium
 
   * debian: update dependency on vyatta-dpdk-swport
