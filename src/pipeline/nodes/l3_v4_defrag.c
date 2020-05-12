@@ -109,7 +109,7 @@ PL_REGISTER_NODE(ipv4_defrag_out_spath_node) = {
 	.handler = ipv4_defrag_out_spath_process,
 	.num_next = IPV4_DEFRAG_OUT_SPATH_NUM,
 	.next = {
-		[IPV4_DEFRAG_OUT_SPATH_ACCEPT] = "ipv4-fw-out",
+		[IPV4_DEFRAG_OUT_SPATH_ACCEPT] = "ipv4-fw-orig",
 		[IPV4_DEFRAG_OUT_SPATH_FINISH] = "term-finish"
 	}
 };

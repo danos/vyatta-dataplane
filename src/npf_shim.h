@@ -45,6 +45,8 @@ void npf_vrf_destroy(struct vrf *vrf);
 struct npf_config *vrf_get_npf_conf_rcu(vrfid_t vrf_id);
 
 bool npf_local_fw(struct ifnet *ifp, struct rte_mbuf **m, uint16_t ether_type);
+bool npf_originate_fw(struct ifnet *ifp, uint16_t npf_flags,
+		struct rte_mbuf **m, uint16_t ether_type);
 void npf_reset_config(enum cont_src_en cont_src);
 void npf_print_state_stats(json_writer_t *json);
 int npf_json_nat_session(json_writer_t *json, void *data);

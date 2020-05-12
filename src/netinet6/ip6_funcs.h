@@ -133,6 +133,10 @@ ip6_select_source(struct ifnet *ifp, const struct in6_addr *addr);
 
 void ip6_unreach(struct ifnet *ifp, struct rte_mbuf *m);
 
+int ipv6_originate_filter(struct ifnet *ifp, struct rte_mbuf *m);
+int ipv6_originate_filter_flags(struct ifnet *ifp, struct rte_mbuf *m,
+		uint16_t npf_flags);
+
 void
 ip6_local_deliver(struct ifnet *ifp, struct rte_mbuf *m)
 	__cold_func;

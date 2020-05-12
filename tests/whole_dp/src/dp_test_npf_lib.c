@@ -410,6 +410,7 @@ dp_test_npf_ruleset_attach_type(const char *rstype)
 	case NPF_RS_DNAT:
 	case NPF_RS_SNAT:
 	case NPF_RS_LOCAL:
+	case NPF_RS_ORIGINATE:
 	case NPF_RS_SESSION_RPROC:
 	case NPF_RS_BRIDGE:
 	case NPF_RS_PBR:
@@ -463,6 +464,7 @@ dp_test_npf_ruleset_attach_point(struct dp_test_npf_ruleset_t *rset)
 	case NPF_RS_DNAT:
 	case NPF_RS_SNAT:
 	case NPF_RS_LOCAL:
+	case NPF_RS_ORIGINATE:
 	case NPF_RS_SESSION_RPROC:
 	case NPF_RS_BRIDGE:
 	case NPF_RS_PBR:
@@ -834,6 +836,7 @@ _dp_test_npf_json_get_rs(const char *rstype, const char *attach_point,
 	case NPF_RS_DNAT:
 	case NPF_RS_SNAT:
 	case NPF_RS_LOCAL:
+	case NPF_RS_ORIGINATE:
 	case NPF_RS_SESSION_RPROC:
 	case NPF_RS_BRIDGE:
 	case NPF_RS_PBR:

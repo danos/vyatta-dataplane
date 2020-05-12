@@ -95,6 +95,10 @@ int ip_spath_output(struct ifnet *, struct rte_mbuf *);
 int ip6_spath_filter(struct ifnet *, struct rte_mbuf **);
 int ip6_spath_output(struct ifnet *, struct rte_mbuf *);
 
+int ipv4_originate_filter(struct ifnet *ifp, struct rte_mbuf *m);
+int ipv4_originate_filter_flags(struct ifnet *out_ifp, struct rte_mbuf *m,
+		uint16_t npf_flags);
+
 void ip_local_deliver(struct ifnet *ifp, struct rte_mbuf *m)
 	__cold_func;
 

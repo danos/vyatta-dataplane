@@ -615,6 +615,43 @@ global_fw:
 	return false;
 }
 
+bool npf_originate_fw(struct ifnet *ifp, uint16_t npf_flags,
+		struct rte_mbuf **m, uint16_t ether_type)
+{
+	struct npf_if *nif = rcu_dereference(ifp->if_npf);
+	const struct npf_config *npf_config = npf_if_conf(nif);
+
+	/*
+	 * Local zone firewall will be done in fw_out processing
+	 */
+
+	if (npf_active(npf_config, NPF_ORIGINATE)) {
+		npf_result_t result;
+
+		result = npf_hook_notrack(npf_get_ruleset(npf_config,
+				NPF_RS_ORIGINATE), m, ifp, PFIL_OUT, npf_flags,
+				ether_type);
+
+		if (result.decision == NPF_DECISION_BLOCK)
+			return true;	/* discard */
+		else if (result.decision == NPF_DECISION_PASS)
+			return false;	/* retain */
+	}
+
+	/* No match, so try the global firewall rules. */
+	if (npf_active(npf_global_config, NPF_ORIGINATE)) {
+		npf_result_t result;
+
+		result = npf_hook_notrack(npf_get_ruleset(npf_global_config,
+				NPF_RS_ORIGINATE), m, ifp, PFIL_OUT, npf_flags,
+				ether_type);
+
+		if (result.decision == NPF_DECISION_BLOCK)
+			return true;	/* discard */
+	}
+	return false;
+}
+
 /*
  * Clear all sessions and reset the npf configuration back to what it
  * would be without any configuration.
