@@ -1310,3 +1310,217 @@ DP_START_TEST(ipv6_nd_ns, drop)
 
 	ipv6_nd_ns_packet_ns_dscp_remark_cleanup();
 } DP_END_TEST;
+
+DP_DECL_TEST_CASE(npf_local, cgnat_icmpv4, NULL, NULL);
+/*
+ * Test sends ipv4 icmp echo request message to router sgnat public pool.
+ * Router sgnat generates and sends ipv4 icmp echo reply.
+ * Originate firewall is configured in the output interface to verify
+ * dscp mark function and action drop.
+ *
+ *
+ *    Private                                       Public
+ *                       1.1.1.254/24
+ *                +-----+
+ *                |     |--------------- 1.1.1.1/24
+ *                | dut |
+ *                |     | pool 1.1.1.11/32
+ *                |     |
+ *                +-----+ dp2T1
+ *
+ *                    <--- ICMP Echo Req Source 1.1.1.1 Destination 1.1.1.11
+ *                    ---> ICMP Echo Reply Source 1.1.1.11 Destination 1.1.1.1
+ */
+static void cgnat_icmpv4_setup(struct dp_test_expected **test_exp,
+		struct rte_mbuf **test_pak)
+{
+	struct rte_mbuf *exp_pak = NULL;
+	struct iphdr *ip = NULL;
+
+	dp_test_nl_add_ip_addr_and_connected("dp2T1", "1.1.1.254/24");
+	dp_test_netlink_add_neigh("dp2T1", "1.1.1.1", "aa:bb:cc:dd:2:b1");
+
+	/* Pre IPv4 ICMP packet */
+	struct dp_test_pkt_desc_t test_pak_ICMP = {
+		.text       = "IPv4 ICMP req",
+		.len        = 20,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
+		.l3_src     = "1.1.1.1",
+		.l2_src     = "aa:bb:cc:dd:2:b1",
+		.l3_dst     = "1.1.1.11",
+		.l2_dst     = dp_test_intf_name2mac_str("dp2T1"),
+		.proto      = IPPROTO_ICMP,
+		.l4         = {
+			.icmp = {
+				.type = ICMP_ECHO,
+				.code = 0,
+				{
+					.dpt_icmp_id = 1024,
+					.dpt_icmp_seq = 0,
+				},
+			}
+		},
+		.rx_intf    = "dp2T1",
+		.tx_intf    = "dp2T1"
+	};
+
+	/* Post IPv4 ICMP packet */
+	struct dp_test_pkt_desc_t exp_pkt_ICMP = {
+		.text       = "IPv4 ICMP echo reply from NAT",
+		.len        = 20,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
+		.l3_src     = "1.1.1.11",
+		.l2_src     = dp_test_intf_name2mac_str("dp2T1"),
+		.l3_dst     = "1.1.1.1",
+		.l2_dst     = "aa:bb:cc:dd:2:b1",
+		.proto      = IPPROTO_ICMP,
+		.l4         = {
+			.icmp = {
+				.type = ICMP_ECHOREPLY,
+				.code = 0,
+				{
+					.dpt_icmp_id = 1024,
+					.dpt_icmp_seq = 0,
+				},
+			}
+		},
+		.rx_intf    = "dp2T1",
+		.tx_intf    = "dp2T1"
+	};
+
+	*test_pak = dp_test_v4_pkt_from_desc(&test_pak_ICMP);
+	exp_pak = dp_test_v4_pkt_from_desc(&exp_pkt_ICMP);
+	ip = iphdr(exp_pak);
+	dp_test_set_pak_ip_field(ip, DP_TEST_SET_TOS, IPTOS_DSCP_AF12);
+	dp_test_pktmbuf_eth_init(exp_pak, exp_pkt_ICMP.l2_dst,
+			exp_pkt_ICMP.l2_src, exp_pkt_ICMP.ether_type);
+
+	*test_exp = dp_test_exp_create(exp_pak);
+	rte_pktmbuf_free(exp_pak);
+}
+
+static void cgnat_icmpv4_teardown(void)
+{
+	/* Check cgnat feature is disabled */
+	dp_test_wait_for_pl_feat_gone("dp2T1", "vyatta:ipv4-cgnat-in",
+				      "ipv4-validate");
+	dp_test_wait_for_pl_feat_gone("dp2T1", "vyatta:ipv4-cgnat-out",
+				      "ipv4-out");
+
+	/* Cleanup */
+	dp_test_netlink_del_neigh("dp2T1", "1.1.1.1", "aa:bb:cc:dd:2:b1");
+	dp_test_nl_del_ip_addr_and_connected("dp2T1", "1.1.1.254/24");
+	dp_test_npf_cleanup();
+}
+
+#define cgnat_policy_add(_a, _b, _c, _d, _e, _f, _g, _h, _i)		\
+	_cgnat_policy_add(_a, _b, _c, _d, _e, _f, _g, _h, _i, true,	\
+			  __FILE__, __func__, __LINE__)
+
+DP_START_TEST(cgnat_icmpv4, packet_dscp_remark)
+{
+	struct dp_test_expected *test_exp = NULL;
+	struct rte_mbuf *test_pak = NULL;
+
+	cgnat_icmpv4_setup(&test_exp, &test_pak);
+
+	dp_test_npf_cmd("nat-ut pool add POOL1 "
+			"type=cgnat "
+			"prefix=RANGE2/1.1.1.11/32", false);
+
+	cgnat_policy_add("POLICY1", 10, "100.64.0.0/12", "POOL1", "dp2T1",
+			 CGN_MAP_EIM, CGN_FLTR_EIF, CGN_3TUPLE, true);
+
+	struct dp_test_npf_rule_t rules[] = {
+		{
+			.rule     = "1",
+			.pass     = PASS,
+			.stateful = STATELESS,
+			.npf      = "proto-final=1 rproc=markdscp(12)"},
+		RULE_DEF_BLOCK,
+		NULL_RULE };
+
+	struct dp_test_npf_ruleset_t fw = {
+		.rstype = "originate",
+		.name   = "FW_ICMPv4_ORIG",
+		.enable = 1,
+		.attach_point   = "dp2T1",
+		.fwd    = FWD,
+		.dir    = "out",
+		.rules  = rules
+	};
+	dp_test_npf_fw_add(&fw, false);
+
+	/* Set test expectations */
+
+	dp_test_exp_set_oif_name(test_exp, "dp2T1");
+	dp_test_exp_set_fwd_status(test_exp, DP_TEST_FWD_FORWARDED);
+
+	/* Run test */
+	dp_test_pak_receive(test_pak, "dp2T1", test_exp);
+
+	/* After test validations */
+	dp_test_npf_verify_rule_pkt_count(NULL, &fw, fw.rules[0].rule, 1);
+
+	/* Clean Up */
+	dp_test_npf_fw_del(&fw, false);
+
+	cgnat_policy_del("POLICY1", 10, "dp2T1");
+	dp_test_npf_cmd_fmt(false, "nat-ut pool delete POOL1");
+
+	cgnat_icmpv4_teardown();
+} DP_END_TEST;
+
+DP_START_TEST(cgnat_icmpv4, drop)
+{
+	struct dp_test_expected *test_exp = NULL;
+	struct rte_mbuf *test_pak = NULL;
+
+	cgnat_icmpv4_setup(&test_exp, &test_pak);
+
+	dp_test_npf_cmd("nat-ut pool add POOL1 "
+			"type=cgnat "
+			"prefix=RANGE2/1.1.1.11/32", false);
+
+	cgnat_policy_add("POLICY1", 10, "100.64.0.0/12", "POOL1", "dp2T1",
+			 CGN_MAP_EIM, CGN_FLTR_EIF, CGN_3TUPLE, true);
+
+	struct dp_test_npf_rule_t rules[] = {
+		{
+			.rule     = "1",
+			.pass     = BLOCK,
+			.stateful = STATELESS,
+			.npf      = "proto-final=1 rproc=markdscp(12)"},
+		RULE_DEF_BLOCK,
+		NULL_RULE };
+
+	struct dp_test_npf_ruleset_t fw = {
+		.rstype = "originate",
+		.name   = "FW_ICMPv4_ORIG",
+		.enable = 1,
+		.attach_point   = "dp2T1",
+		.fwd    = FWD,
+		.dir    = "out",
+		.rules  = rules
+	};
+	dp_test_npf_fw_add(&fw, false);
+
+	/* Set test expectations */
+
+	dp_test_exp_set_oif_name(test_exp, "dp2T1");
+	dp_test_exp_set_fwd_status(test_exp, DP_TEST_FWD_DROPPED);
+
+	/* Run test */
+	dp_test_pak_receive(test_pak, "dp2T1", test_exp);
+
+	/* After test validations */
+	dp_test_npf_verify_rule_pkt_count(NULL, &fw, fw.rules[0].rule, 1);
+
+	/* Clean Up */
+	dp_test_npf_fw_del(&fw, false);
+
+	cgnat_policy_del("POLICY1", 10, "dp2T1");
+	dp_test_npf_cmd_fmt(false, "nat-ut pool delete POOL1");
+
+	cgnat_icmpv4_teardown();
+} DP_END_TEST;
