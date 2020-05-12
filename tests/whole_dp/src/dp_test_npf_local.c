@@ -870,3 +870,272 @@ DP_START_TEST(ipv6_icmp_transit, drop)
 	dp_test_nl_del_ip_addr_and_connected("dp2T1", "2002:2:2::2/64");
 
 } DP_END_TEST;
+
+
+DP_DECL_TEST_CASE(npf_orig, ipv6_nd_na, NULL, NULL);
+/*
+ * Test generates ND Solicitation message and sends to Router.
+ * Router replay with ND Advertisement.
+ * Originate firewall is configured in the output interface to verify
+ * dscp mark function and action drop.
+ *
+ *        fe80::5054:ff:fe79:3f5/64
+ *                   2001:1:1::1/64 +-----+
+ *                                  |     |
+ * host fe80::409f:1ff:fee8:101 ----| uut |
+ *                            dp1T0 |     |
+ *                            intf1 +-----+
+ *
+ * --> Forwards NS
+ * Source 2001:1:1::2 Destination ff02::1:ff00:2
+ *
+ * <-- Back NA
+ * Source fe80::5054:ff:fe79:3f5 Destination fe80::409f:1ff:fee8:101
+ */
+static struct rte_mbuf *dp_test_create_na_pak(const char *saddr,
+		const char *daddr, uint16_t tos, const char *smac,
+		const char *dmac, const char *target)
+{
+	struct rte_mbuf *na_pak = NULL;
+	struct nd_neighbor_advert *nd_na = NULL;
+	struct ip6_hdr *ip6 = NULL;
+	struct nd_opt_hdr *nd_opt = NULL;
+	struct icmp6_hdr *icmp6 = NULL;
+	struct in6_addr addr6;
+
+	int optlen = (sizeof(struct nd_opt_hdr)
+			+ RTE_ETHER_ADDR_LEN + 7) & ~7;
+	int icmplen = sizeof(struct nd_neighbor_solicit) -
+		sizeof(struct icmp6_hdr) + optlen;
+	na_pak = dp_test_create_icmp_ipv6_pak(saddr,
+						daddr,
+						ND_NEIGHBOR_ADVERT,
+						0, /* code */
+						0,
+						1, &icmplen,
+						NULL,
+						&ip6, &icmp6);
+
+	ip6->ip6_hlim = 255;
+	dp_test_set_pak_ip6_field(ip6, DP_TEST_SET_TOS, tos);
+
+	nd_na = (struct nd_neighbor_advert *)icmp6;
+
+	if (inet_pton(AF_INET6, target, &addr6) != 1)
+		dp_test_fail("Couldn't create ipv6 address");
+
+	memcpy(nd_na->nd_na_target.s6_addr, addr6.s6_addr, 16);
+	nd_na->nd_na_flags_reserved = ND_NA_FLAG_ROUTER
+			| ND_NA_FLAG_SOLICITED | ND_NA_FLAG_OVERRIDE;
+
+	nd_opt = (struct nd_opt_hdr *)(nd_na + 1);
+	memset((void *)nd_opt, 0, optlen);
+	nd_opt->nd_opt_type = ND_OPT_TARGET_LINKADDR;
+	nd_opt->nd_opt_len = optlen >> 3;
+
+	dp_test_pktmbuf_eth_init(na_pak, dmac, smac, RTE_ETHER_TYPE_IPV6);
+
+	rte_ether_addr_copy(&rte_pktmbuf_mtod(na_pak,
+			struct rte_ether_hdr *)->s_addr,
+			(struct rte_ether_addr *)(nd_opt + 1));
+
+	icmp6->icmp6_cksum = 0;
+	icmp6->icmp6_cksum = dp_test_ipv6_icmp_cksum(na_pak,
+			ip6hdr(na_pak), icmp6);
+
+	return na_pak;
+}
+
+static struct rte_mbuf *dp_test_create_ns_pak(const char *saddr,
+		const char *daddr, uint16_t tos, const char *smac,
+		const char *dmac, const char *target)
+{
+	struct rte_mbuf *ns_pak = NULL;
+	struct nd_neighbor_solicit *nd_ns = NULL;
+	struct ip6_hdr *ip6 = NULL;
+	struct nd_opt_hdr *nd_opt = NULL;
+	struct icmp6_hdr *icmp6 = NULL;
+	struct in6_addr addr6;
+
+	int optlen = (sizeof(struct nd_opt_hdr) + RTE_ETHER_ADDR_LEN + 7) & ~7;
+	int icmplen = sizeof(struct nd_neighbor_solicit) -
+		sizeof(struct icmp6_hdr) + optlen;
+	ns_pak = dp_test_create_icmp_ipv6_pak(saddr,
+						daddr,
+						ND_NEIGHBOR_SOLICIT,
+						0, /* code */
+						0,
+						1, &icmplen,
+						NULL,
+						&ip6, &icmp6);
+
+	ip6->ip6_hlim = 255;
+	dp_test_set_pak_ip6_field(ip6, DP_TEST_SET_TOS, tos);
+
+	nd_ns = (struct nd_neighbor_solicit *)icmp6;
+
+	if (inet_pton(AF_INET6, target, &addr6) != 1)
+		dp_test_fail("Couldn't create ipv6 address");
+
+	memcpy(nd_ns->nd_ns_target.s6_addr, addr6.s6_addr, 16);
+
+	nd_opt = (struct nd_opt_hdr *)(nd_ns + 1);
+	memset((void *)nd_opt, 0, optlen);
+	nd_opt->nd_opt_type = ND_OPT_SOURCE_LINKADDR;
+	nd_opt->nd_opt_len = optlen >> 3;
+
+	dp_test_pktmbuf_eth_init(ns_pak, dmac, smac, RTE_ETHER_TYPE_IPV6);
+
+	rte_ether_addr_copy(&rte_pktmbuf_mtod(ns_pak,
+			struct rte_ether_hdr *)->s_addr,
+			(struct rte_ether_addr *)(nd_opt + 1));
+
+	icmp6->icmp6_cksum = 0;
+	icmp6->icmp6_cksum =
+		dp_test_ipv6_icmp_cksum(ns_pak, ip6hdr(ns_pak), icmp6);
+
+	return ns_pak;
+}
+
+DP_START_TEST(ipv6_nd_na, packet_na_dscp_remark)
+{
+	struct dp_test_expected *exp;
+	struct rte_mbuf *ns_pak;
+	struct rte_mbuf *exp_na_pak;
+	const char *neigh1_mac_str = "aa:bb:cc:dd:ee:10";
+	const char *host_ll_ip = "fe80::409f:1ff:fee8:101";
+	const char *router_ll_ip =        "fe80::5054:ff:fe79:3f5";
+	const char *router_ll_ip_subnet = "fe80::5054:ff:fe79:3f5/64";
+
+	/* Set up the interface addresses */
+	dp_test_netlink_add_ip_address("dp1T0", router_ll_ip_subnet);
+	dp_test_nl_add_ip_addr_and_connected("dp1T0", "2001:1:1::1/64");
+
+	/* And the neighbour for the return icmp packet */
+	dp_test_netlink_add_neigh("dp1T0", host_ll_ip, neigh1_mac_str);
+
+	struct dp_test_npf_rule_t rules[] = {
+		{
+			.rule     = "1",
+			.pass     = PASS,
+			.stateful = STATELESS,
+			.npf      = "proto-final=58 rproc=markdscp(12)"},
+		RULE_DEF_BLOCK,
+		NULL_RULE };
+
+	struct dp_test_npf_ruleset_t fw = {
+		.rstype = "originate",
+		.name   = "FW_ICMPv6_ORIG",
+		.enable = 1,
+		.attach_point   = "dp1T0",
+		.fwd    = FWD,
+		.dir    = "out",
+		.rules  = rules
+	};
+	dp_test_npf_fw_add(&fw, false);
+
+	/*
+	 * Test packet
+	 */
+	ns_pak = dp_test_create_ns_pak(host_ll_ip, "ff02::1:ff00:2",
+		IPTOS_CLASS_CS5, neigh1_mac_str, "33:33:ff:00:00:02",
+		"2001:1:1::1");
+
+	/*
+	 * Expected packet
+	 */
+	exp_na_pak = dp_test_create_na_pak(router_ll_ip, host_ll_ip,
+			IPTOS_DSCP_AF12, dp_test_intf_name2mac_str("dp1T0"),
+			neigh1_mac_str, "2001:1:1::1");
+
+	exp = dp_test_exp_create(exp_na_pak);
+	rte_pktmbuf_free(exp_na_pak);
+
+	/* Set test expectations */
+	dp_test_exp_set_oif_name(exp, "dp1T0");
+
+	/* Run test */
+	dp_test_pak_receive(ns_pak, "dp1T0", exp);
+
+	/* After test validations */
+	dp_test_npf_verify_rule_pkt_count(NULL, &fw, fw.rules[0].rule, 1);
+
+	/* Clean Up */
+	dp_test_npf_fw_del(&fw, false);
+
+	dp_test_netlink_del_neigh("dp1T0", host_ll_ip, neigh1_mac_str);
+	dp_test_nl_del_ip_addr_and_connected("dp1T0", "2001:1:1::1/64");
+	dp_test_netlink_del_ip_address("dp1T0", router_ll_ip_subnet);
+} DP_END_TEST;
+
+DP_START_TEST(ipv6_nd_na, drop)
+{
+	struct dp_test_expected *exp;
+	struct rte_mbuf *ns_pak;
+	struct rte_mbuf *exp_na_pak;
+	const char *neigh1_mac_str = "aa:bb:cc:dd:ee:10";
+	const char *host_ll_ip = "fe80::409f:1ff:fee8:101";
+	const char *router_ll_ip =        "fe80::5054:ff:fe79:3f5";
+	const char *router_ll_ip_subnet = "fe80::5054:ff:fe79:3f5/64";
+
+	/* Set up the interface addresses */
+	dp_test_netlink_add_ip_address("dp1T0", router_ll_ip_subnet);
+	dp_test_nl_add_ip_addr_and_connected("dp1T0", "2001:1:1::1/64");
+
+	/* And the neighbour for the return icmp packet */
+	dp_test_netlink_add_neigh("dp1T0", host_ll_ip, neigh1_mac_str);
+
+	struct dp_test_npf_rule_t rules[] = {
+		{
+			.rule     = "1",
+			.pass     = BLOCK,
+			.stateful = STATELESS,
+			.npf      = "proto-final=58 rproc=markdscp(12)"},
+		RULE_DEF_PASS,
+		NULL_RULE };
+
+	struct dp_test_npf_ruleset_t fw = {
+		.rstype = "originate",
+		.name   = "FW_ICMPv6_ORIG",
+		.enable = 1,
+		.attach_point   = "dp1T0",
+		.fwd    = FWD,
+		.dir    = "out",
+		.rules  = rules
+	};
+	dp_test_npf_fw_add(&fw, false);
+
+	/*
+	 * Test packet
+	 */
+	ns_pak = dp_test_create_ns_pak(host_ll_ip, "ff02::1:ff00:2",
+		IPTOS_CLASS_CS5, neigh1_mac_str, "33:33:ff:00:00:02",
+		"2001:1:1::1");
+
+	/*
+	 * Expected packet
+	 */
+	exp_na_pak = dp_test_create_na_pak(router_ll_ip, host_ll_ip,
+			IPTOS_DSCP_AF12, dp_test_intf_name2mac_str("dp1T0"),
+			neigh1_mac_str, "2001:1:1::1");
+
+	exp = dp_test_exp_create(exp_na_pak);
+	rte_pktmbuf_free(exp_na_pak);
+
+	/* Set test expectations */
+	dp_test_exp_set_oif_name(exp, "dp1T0");
+	dp_test_exp_set_fwd_status(exp, DP_TEST_FWD_DROPPED);
+
+	/* Run test */
+	dp_test_pak_receive(ns_pak, "dp1T0", exp);
+
+	/* After test validations */
+	dp_test_npf_verify_rule_pkt_count(NULL, &fw, fw.rules[0].rule, 1);
+
+	/* Clean Up */
+	dp_test_npf_fw_del(&fw, false);
+
+	dp_test_netlink_del_neigh("dp1T0", host_ll_ip, neigh1_mac_str);
+	dp_test_nl_del_ip_addr_and_connected("dp1T0", "2001:1:1::1/64");
+	dp_test_netlink_del_ip_address("dp1T0", router_ll_ip_subnet);
+} DP_END_TEST;
