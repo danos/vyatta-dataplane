@@ -655,6 +655,8 @@ next_hop_list_check_usability(struct next_hop_list *nextl,
 		struct next_hop *next = array + i;
 
 		ifp = dp_nh_get_ifp(next);
+		if (!ifp)
+			continue;
 		key.ifindex = ifp->if_index;
 		if (nh_is_gw(next)) {
 			key.type = DP_RT_PATH_UNUSABLE_KEY_INTF_NEXTHOP;
@@ -681,7 +683,7 @@ static int next_hop_track_protected_nh(struct next_hop *next)
 	struct next_hop_gw_entry *gw_entry;
 	struct ifnet *ifp = dp_nh_get_ifp(next);
 
-	if (next->flags & RTF_BACKUP)
+	if (!ifp || next->flags & RTF_BACKUP)
 		return 0;
 
 	if_entry = next_hop_intf_hash_lookup(ifp);
@@ -729,7 +731,7 @@ static int next_hop_untrack_protected_nh(struct next_hop *next)
 	struct cds_lfht_iter iter;
 	struct cds_lfht_node *node;
 
-	if (next->flags & RTF_BACKUP)
+	if (!ifp || next->flags & RTF_BACKUP)
 		return 0;
 
 	if_entry = next_hop_intf_hash_lookup(ifp);
@@ -839,6 +841,9 @@ static void next_hop_fixup_protected_tracking(struct next_hop_list *old,
 		struct next_hop *next_new = new_array + i;
 
 		ifp = dp_nh_get_ifp(next_old);
+		if (!ifp)
+			continue;
+
 		intf_entry = next_hop_intf_hash_lookup(ifp);
 		if (!intf_entry)
 			return;
