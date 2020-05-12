@@ -3372,6 +3372,14 @@ void dp_ifnet_link_status(struct ifnet *ifp,
 	}
 }
 
+bool dp_ifnet_admin_status(struct ifnet *ifp)
+{
+	if (ifp->if_flags & IFF_UP)
+		return true;
+
+	return false;
+}
+
 int if_dump_state(struct ifnet *ifp, json_writer_t *wr,
 		  enum if_dump_state_type type)
 {
