@@ -492,7 +492,7 @@ struct ift_ops {
 	/*
 	 * Uninitialise the interface
 	 *
-	 * Called with the interface stopped and after it is remove
+	 * Called with the interface stopped and after it is removed
 	 * from interface databases.
 	 */
 	void (*ifop_uninit)(struct ifnet *ifp);
