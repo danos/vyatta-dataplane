@@ -42,7 +42,6 @@ struct capture_info {
 	int cap_pub_port;
 	zsock_t *cap_pcapin;
 	int cap_pcapin_port;
-	int offload_mask;
 	uint8_t capture_mask; /* bitmask of current captures */
 	struct capture_filter_list filters;
 	struct timespec last_beat;

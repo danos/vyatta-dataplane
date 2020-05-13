@@ -727,6 +727,10 @@ dpdk_eth_if_set_broadcast(struct ifnet *ifp, bool enable)
 static int
 dpdk_eth_if_set_promisc(struct ifnet *ifp, bool enable)
 {
+	struct rte_eth_dev_info dev_info;
+	uint32_t offload_mask;
+	int ret = 0;
+
 	/*
 	 * This interface is under the control of bonding PMD
 	 * so don't make any changes to it.
@@ -739,7 +743,19 @@ dpdk_eth_if_set_promisc(struct ifnet *ifp, bool enable)
 	else
 		rte_eth_promiscuous_disable(ifp->if_port);
 
-	return 0;
+	rte_eth_dev_info_get(ifp->if_port, &dev_info);
+	if (dev_info.rx_offload_capa & DEV_RX_OFFLOAD_VLAN_FILTER) {
+		offload_mask =
+			rte_eth_dev_get_vlan_offload(ifp->if_port);
+		if (enable)
+			offload_mask &= ~ETH_VLAN_FILTER_OFFLOAD;
+		else
+			offload_mask |= ETH_VLAN_FILTER_OFFLOAD;
+		ret = rte_eth_dev_set_vlan_offload(ifp->if_port,
+						   offload_mask);
+	}
+
+	return ret;
 }
 
 static void
