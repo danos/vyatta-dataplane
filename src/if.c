@@ -1495,6 +1495,8 @@ if_setup_vlan_storage(struct ifnet *ifp)
  * of onswitch. The calls are reference counted so that only the first
  * "on" request actually has an effect, as does the final "off" request.
  * Results are undefined if the "off" and "on" requests are not matched.
+ *
+ * This function defines promiscuity to include both MAC and VLAN.
  */
 void ifpromisc(struct ifnet *ifp, int onswitch)
 {

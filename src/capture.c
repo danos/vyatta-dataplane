@@ -17,7 +17,6 @@
 #include <rte_config.h>
 #include <rte_cycles.h>
 #include <rte_debug.h>
-#include <rte_ethdev.h>
 #include <rte_ether.h>
 #include <rte_lcore.h>
 #include <rte_log.h>
@@ -600,9 +599,6 @@ static void capture_cleanup(void *arg)
 	if (ifp->if_type == IFT_ETHER) {
 		if (cap_info->is_promisc)
 			ifpromisc(ifp, 0);
-		if (cap_info->offload_mask >= 0)
-			rte_eth_dev_set_vlan_offload(ifp->if_port,
-						     cap_info->offload_mask);
 	}
 
 	RTE_LOG(INFO, DATAPLANE, "Capture stopped on %s\n",
@@ -698,15 +694,6 @@ static void *capture_thread(void *arg)
 	pthread_cleanup_push(capture_cleanup, arg);
 
 	if (ifp->if_type == IFT_ETHER) {
-		int offload_mask;
-		/* Turn off vlan filtering */
-		offload_mask =
-			rte_eth_dev_get_vlan_offload(ifp->if_port);
-		if (offload_mask > 0)
-			rte_eth_dev_set_vlan_offload(ifp->if_port,
-						     offload_mask &
-						     ~ETH_VLAN_FILTER_OFFLOAD);
-		cap_info->offload_mask = offload_mask;
 		if (cap_info->is_promisc)
 			ifpromisc(ifp, 1);
 	}

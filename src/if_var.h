@@ -532,8 +532,9 @@ struct ift_ops {
 	/*
 	 * Enable/disable promiscuous mode
 	 *
-	 * Enable/disable reception of all unicast packets vs. only
-	 * for-us unicast packets.
+	 * Enable/disable reception of all unicast and multicast
+	 * packets on all VLANs vs. only for-us unicast packets or
+	 * registered MAC addresses on selected VLANs.
 	 */
 	int (*ifop_set_promisc)(struct ifnet *ifp, bool enable);
 
