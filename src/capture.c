@@ -596,10 +596,8 @@ static void capture_cleanup(void *arg)
 		rte_free(cap_filter);
 	}
 
-	if (ifp->if_type == IFT_ETHER) {
-		if (cap_info->is_promisc)
-			ifpromisc(ifp, 0);
-	}
+	if (cap_info->is_promisc)
+		ifpromisc(ifp, 0);
 
 	RTE_LOG(INFO, DATAPLANE, "Capture stopped on %s\n",
 		ifp->if_name);
@@ -693,10 +691,8 @@ static void *capture_thread(void *arg)
 
 	pthread_cleanup_push(capture_cleanup, arg);
 
-	if (ifp->if_type == IFT_ETHER) {
-		if (cap_info->is_promisc)
-			ifpromisc(ifp, 1);
-	}
+	if (cap_info->is_promisc)
+		ifpromisc(ifp, 1);
 
 	if (cap_info->falobj != 0)
 		ifp->hw_capturing = 1;
