@@ -1,3 +1,35 @@
+vyatta-dataplane (3.10.14) unstable; urgency=medium
+
+  [ Srinivas Narayan ]
+  * npf: Add flags to skip stats maintenance
+  * npf: Skip stats allocation if NO_STATS flag is set
+  * npf: Add NULL checks for rule stats where necessary
+  * npf: Skip stats allocation for IPsec rulesets
+  * npf: Use NO_STATS flag to optimize high level ops
+
+  [ Simon Barber ]
+  * Set the l3 length of Site-2-Site Packets for TX on spath
+
+  [ Paul Atkins ]
+  * ut: move the pic edge tests into dp_test_ip_pic_edge.c
+  * nh_common: change the nexthop to have a struct_ip addr
+  * nh_common: rename nexthop_create_copy
+  * mpls: make nh_outlabels_copy copy all labels
+  * nh_common: add a function to copy a next_hop and use instead of memcpy
+  * nh_common: provide apis to help do a modify of an active next_hop_list
+  * nh_common: store the number of primary paths in the next_hop_list
+  * nh_common: store the protected next_hops in a 2 level hash
+  * nh_common: use a nh_map when a next_hop_list has backup paths
+  * route: Add an api to allow plugins to provide path state
+  * nh_common: add a ptr back from the NH to the NH list
+  * nh_common: update sw forwarding state when a NH becomes unusable
+  * ut: ip pic edge tests
+  * ut: ip pic edge tests with traffic
+  * nh_common: fix typos in comments
+  * nh_common: when tracking nexthops with backups, skip those with no ifp
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Wed, 13 May 2020 08:43:08 +0100
+
 vyatta-dataplane (3.10.13) unstable; urgency=medium
 
   [ Nicholas Brown ]
