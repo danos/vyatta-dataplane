@@ -94,7 +94,7 @@ static const struct npf_ruleset_features {
 		.name = "ipsec",
 		.flags = NPF_RS_FLAG_DIR_OUT | NPF_RS_FLAG_DIR_IN
 			| NPF_RS_FLAG_NOTRACK | NPF_RS_FLAG_NOTABLES
-			| NPF_RS_FLAG_NO_STATS,
+			| NPF_RS_FLAG_NO_STATS | NPF_RS_FLAG_HASH_TBL,
 		.feat_flags = 0,
 		.log_level = RTE_LOGTYPE_DATAPLANE,
 		.log_name = "IPsec",
