@@ -23,4 +23,14 @@
 #include <urcu-call-rcu.h>
 #include <urcu/rculfhash.h>
 #include <urcu/rculist.h>
+
+/*
+ * Register a thread for rcu. This is used when it is not known if a thread
+ * is already rcu registered. If the thread is already registered then this
+ * call will make the thread rcu_online.  If it is not registered then it
+ * will register it, and part of registration is to make the thread
+ * rcu_online.
+ */
+void dp_rcu_register_thread(void);
+
 #endif /* VYATTA_DATAPLANE_URCU_H */

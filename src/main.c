@@ -4139,3 +4139,15 @@ int dp_unallocate_lcore_from_feature(unsigned int lcore)
 	}
 	return 0;
 }
+
+void dp_rcu_register_thread(void)
+{
+	static __thread bool rcu_registered;
+
+	if (!rcu_registered) {
+		rcu_register_thread();
+		rcu_registered = true;
+	} else {
+		rcu_thread_online();
+	}
+}
