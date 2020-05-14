@@ -939,7 +939,7 @@ static int next_hop_list_init_map(struct next_hop_list *nextl)
 	for (i = 0; i < nextl->nsiblings; i++) {
 		struct next_hop *next = array + i;
 
-		if (next->flags & RTF_BACKUP)
+		if (next->flags & (RTF_BACKUP | RTF_UNUSABLE))
 			continue;
 
 		for (j = 0; j < primaries; j++)
