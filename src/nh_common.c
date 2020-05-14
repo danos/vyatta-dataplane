@@ -613,6 +613,10 @@ next_hop_intf_gw_list_mark_path_unusable(struct cds_list_head *list_head)
 	cds_list_for_each_safe(list_entry, next, list_head) {
 		nh = cds_list_entry(list_entry, struct next_hop,
 				    if_gw_list_entry);
+
+		if (CMM_ACCESS_ONCE(nh->flags) & RTF_UNUSABLE)
+			continue;
+
 		CMM_STORE_SHARED(nh->flags, nh->flags | RTF_UNUSABLE);
 		next_hop_usability_check_update_cb(nh);
 	}
