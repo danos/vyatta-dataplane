@@ -38,7 +38,8 @@ typedef enum dp_test_check_str_type_ {
 
 struct dp_test_cmd_check {
 	const char *cmd;
-	const char *expected;
+	int exp_count;
+	const char **expected;
 	char *actual;
 	bool exp_err;
 	bool negate_match;
@@ -70,6 +71,15 @@ _dp_test_check_state_show(const char *file, int line, const char *cmd,
 #define dp_test_check_state_show(cmd, expected, print) \
 	_dp_test_check_state_show(__FILE__, __LINE__, cmd, expected, \
 				  print, DP_TEST_CHECK_STR_SUBSET)
+
+void
+_dp_test_check_state_show_one_of(const char *file, int line, const char *cmd,
+				 int exp_count, const char **expected,
+				 bool print, dp_test_check_str_type type);
+#define dp_test_check_state_show_one_of(cmd, exp_count, expected, print) \
+	_dp_test_check_state_show_one_of(__FILE__, __LINE__, cmd,	\
+					 exp_count, expected,		\
+					 print, DP_TEST_CHECK_STR_SUBSET)
 
 void
 _dp_test_check_state_gone_show(const char *file, int line, const char *cmd,
