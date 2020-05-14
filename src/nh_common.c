@@ -207,34 +207,23 @@ static void next_hop_map_use_backups(struct next_hop_list *nextl)
 	}
 }
 
-/*
- * Called to update a map when a path has become unusable.
- */
-static void next_hop_list_update_map(struct next_hop_list *nextl, int index)
+static void
+next_hop_list_update_map_contents(struct next_hop_list *nextl,
+				  uint64_t usable_nhs)
 {
-	struct next_hop *array;
-	int i, j = 0;
+	int i, j;
 	int new_index = 0;
-	int usable = next_hop_list_num_primaries_usable(nextl);
 
-	if (usable == 0) {
-		next_hop_map_use_backups(nextl);
-		return;
-	}
-
-	/*
-	 * Update with the smaller set of primaries that are usable
-	 * The one at index is now unusable
-	 */
-	assert(nextl->siblings[index].flags & RTF_UNUSABLE);
-	array = nextl->siblings;
 	for (i = 0; i < nextl->nh_map->count; i++) {
-		if (nextl->nh_map->index[i] == index) {
+		if (!((1 << nextl->nh_map->index[i]) & usable_nhs)) {
 			/* Was using the now unusable path */
-
 			for (j = 0; j < nextl->nsiblings; j++) {
-				if (array[new_index].flags & (RTF_BACKUP |
-							      RTF_UNUSABLE)) {
+				/*
+				 * loop through the usable paths to
+				 * get the next one to use.
+				 */
+				if (!(usable_nhs & (1 << new_index))) {
+					/* not usable */
 					new_index++;
 					if (new_index >= nextl->nsiblings)
 						new_index = 0;
@@ -249,6 +238,52 @@ static void next_hop_list_update_map(struct next_hop_list *nextl, int index)
 			}
 		}
 	}
+}
+
+/*
+ * Called to update a map when a path has become unusable.
+ */
+static void next_hop_list_update_map(struct next_hop_list *nextl, int index)
+{
+	int usable = next_hop_list_num_primaries_usable(nextl);
+	uint64_t usable_nhs;
+	uint64_t orig_nhs;
+
+	/*
+	 * Update the map based on the given index being unusable. Walk
+	 * across all entries, and if the map contains the index then
+	 * replace it with the next value.  The next value is based on a
+	 * round robin over the remaining usable primary paths.
+	 *
+	 * As there may be multiple threads updating this map at the same
+	 * time we need to make sure that we end up in the correct final
+	 * state. For example, if we started with: 0,1,2,3,0,1,2,3,0,1,2,3
+	 * and then are removing 0 and 1 at the same times (from different
+	 * threads) then we need to be sure that at the end of the pass
+	 * removing index 0 that we haven't put references to index1 in
+	 * that were not caught by the other thread as it was slightly
+	 * ahead.
+	 *
+	 * To do this we maintains an atomic bitmask of the usable paths,
+	 * and verify at the end of the loop that only the index we are
+	 * processing has been unset.  If another index has become unusable
+	 * then we need to go round the loop again, but this time removing
+	 * references to the complete set of unusable paths, and choosing
+	 * the new value from the remaining usable paths.
+	 */
+	do {
+		usable_nhs = rte_atomic64_read(&nextl->usable_prim_nh_bitmask);
+		orig_nhs = usable_nhs;
+		usable_nhs &= ~(1 << index);
+
+		if (usable == 0)
+			next_hop_map_use_backups(nextl);
+		else
+			next_hop_list_update_map_contents(nextl, usable_nhs);
+	} while (!rte_atomic64_cmpset((volatile uint64_t *)
+				      &nextl->usable_prim_nh_bitmask,
+				      orig_nhs,
+				      usable_nhs));
 }
 
 static struct next_hop_list *nexthop_lookup(int family,
@@ -896,6 +931,7 @@ static int next_hop_list_init_map(struct next_hop_list *nextl)
 	int i, j = 0;
 	struct next_hop *array;
 	int primaries;
+	uint64_t usable = 0;
 
 	/*
 	 * Check usability of NHs before we build the map as we do not
@@ -909,6 +945,8 @@ static int next_hop_list_init_map(struct next_hop_list *nextl)
 	nextl->nh_map = malloc_aligned(sizeof(*nextl->nh_map));
 	if (!nextl->nh_map)
 		return -ENOMEM;
+
+	rte_atomic64_set(&nextl->usable_prim_nh_bitmask, 0);
 
 	/*
 	 * Use the amount of usable primaries to work out the size so
@@ -945,7 +983,10 @@ static int next_hop_list_init_map(struct next_hop_list *nextl)
 		for (j = 0; j < primaries; j++)
 			nextl->nh_map->index[j * primaries + primary_num] = i;
 		primary_num++;
+		usable |= (1 << i);
 	}
+	rte_atomic64_set(&nextl->usable_prim_nh_bitmask, usable);
+
 	return 0;
 }
 
@@ -1431,6 +1472,9 @@ next_hop_list_create_copy_finish(int family,
 {
 	int rc;
 	struct nexthop_table *nh_table = nh_common_get_nh_table(family);
+	int i;
+	struct next_hop *array;
+	uint64_t usable = 0;
 
 	rc = nexthop_hash_del_add(family, old, new);
 	if (rc < 0) {
@@ -1440,6 +1484,19 @@ next_hop_list_create_copy_finish(int family,
 
 	if (old->nh_map)
 		memcpy(new->nh_map, old->nh_map, sizeof(*new->nh_map));
+	/*
+	 * Set the usable nh bitmask. Scan the copies of the NHs
+	 * in case there was a change to the original
+	 */
+	array = new->siblings;
+	for (i = 0; i < new->nsiblings; i++) {
+		struct next_hop *next = array + i;
+
+		if (next->flags & (RTF_BACKUP | RTF_UNUSABLE))
+			continue;
+		usable |= (1 << i);
+	}
+	rte_atomic64_set(&new->usable_prim_nh_bitmask, usable);
 
 	next_hop_list_setup_back_ptrs(new);
 

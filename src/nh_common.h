@@ -61,6 +61,7 @@ struct next_hop_list {
 	fal_object_t         nhg_fal_obj;   /* FAL handle for next_hop_group */
 	fal_object_t         *nh_fal_obj; /* Per-nh FAL handles */
 	struct rcu_head      rcu;
+	rte_atomic64_t       usable_prim_nh_bitmask;
 } __rte_cache_aligned;
 
 /*
