@@ -352,7 +352,8 @@ void nexthop_map_display(const struct next_hop_list *nextl,
 /*
  * mark all next_hops indicated by the key as unusable.
  */
-void next_hop_mark_path_unusable(const struct dp_rt_path_unusable_key *key);
+void next_hop_mark_path_state(enum dp_rt_path_state state,
+			      const struct dp_rt_path_unusable_key *key);
 
 /*
  * Per AF hash function for a nexthop.

@@ -1804,5 +1804,5 @@ void dp_test_make_nh_unusable(const char *interface,
 
 	key.ifindex = dp_test_intf_name2index(interface);
 
-	dp_rt_signal_paths_unusable("tests", &key);
+	dp_rt_signal_path_state("tests", DP_RT_PATH_UNUSABLE, &key);
 }

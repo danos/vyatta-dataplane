@@ -198,7 +198,8 @@ static int link_state_event(void *arg)
 
 static const char *linkscan_source = "linkscan";
 
-static void linkwatch_down_mark_unusable(portid_t port_id)
+static void linkwatch_change_mark_state(portid_t port_id,
+					enum dp_rt_path_state state)
 {
 	struct dp_rt_path_unusable_key key;
 	struct ifnet *ifp;
@@ -208,7 +209,7 @@ static void linkwatch_down_mark_unusable(portid_t port_id)
 	ifp = ifnet_byport(port_id);
 	key.ifindex = ifp->if_index;
 	key.type = DP_RT_PATH_UNUSABLE_KEY_INTF;
-	dp_rt_signal_paths_unusable(linkscan_source, &key);
+	dp_rt_signal_path_state(linkscan_source, state, &key);
 
 	rcu_thread_offline();
 }
@@ -276,9 +277,14 @@ eth_port_event(portid_t port_id, enum rte_eth_event_type type, void *arg,
 		struct rte_eth_link link;
 
 		rv = rte_eth_link_get_nowait(port_id, &link);
-		if (rv == 0 && link.link_status == ETH_LINK_DOWN)
-			linkwatch_down_mark_unusable(port_id);
-
+		if (rv == 0) {
+			if (link.link_status == ETH_LINK_DOWN)
+				linkwatch_change_mark_state(
+					port_id, DP_RT_PATH_UNUSABLE);
+			else
+				linkwatch_change_mark_state(port_id,
+							    DP_RT_PATH_USABLE);
+		}
 		/*
 		 * If the port uses the queue state events, and it is down
 		 * then we have to clear the enabled queues otherwise we

@@ -337,9 +337,11 @@ int dp_rt_register_path_state(const char *source,
  * registered with rcu, and rcu_online.
  *
  * @param[in] source The caller of the API
+ * @param[in] state  The state of the path. Should be either USABLE or UNUSABLE.
  * @param[in] key    The key of the paths that have become unusable.
  */
-void dp_rt_signal_paths_unusable(const char *source,
-				 const struct dp_rt_path_unusable_key *key);
+void dp_rt_signal_path_state(const char *source,
+			     enum dp_rt_path_state state,
+			     const struct dp_rt_path_unusable_key *key);
 
 #endif /* VYATTA_DATAPLANE_IP_FORWARD_H */

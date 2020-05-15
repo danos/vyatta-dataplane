@@ -68,24 +68,40 @@ dp_rt_signal_check_paths_state(const struct dp_rt_path_unusable_key *key)
 	return DP_RT_PATH_UNKNOWN;
 }
 
-void dp_rt_signal_paths_unusable(const char *source,
-				 const struct dp_rt_path_unusable_key *key)
+static const char *dp_rt_path_state_to_str(enum dp_rt_path_state state)
+{
+	switch (state) {
+	case DP_RT_PATH_USABLE:
+		return "usable";
+	case DP_RT_PATH_UNUSABLE:
+		return "unusable";
+	default:
+		return "unknown";
+	}
+};
+
+
+void dp_rt_signal_path_state(const char *source,
+			     enum dp_rt_path_state state,
+			     const struct dp_rt_path_unusable_key *key)
 {
 	char buf[INET6_ADDRSTRLEN];
 
 	if (key->type == DP_RT_PATH_UNUSABLE_KEY_INTF)
 		DP_DEBUG(ROUTE, DEBUG, ROUTE,
-			 "paths using if %s marked unusable by %s\n",
+			 "paths using if %s marked %s by %s\n",
 			 ifnet_indextoname(key->ifindex),
+			 dp_rt_path_state_to_str(state),
 			 source);
 	else
 		DP_DEBUG(ROUTE, DEBUG, ROUTE,
-			 "paths using if %s, gw %s  marked unusable by %s\n",
+			 "paths using if %s, gw %s marked %s by %s\n",
 			 ifnet_indextoname(key->ifindex),
 			 inet_ntop(key->nexthop.type,
 				   &key->nexthop.address,
 				   buf, sizeof(buf)),
-				   source);
+			 dp_rt_path_state_to_str(state),
+			 source);
 
-	next_hop_mark_path_unusable(key);
+	next_hop_mark_path_state(state, key);
 }

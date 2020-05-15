@@ -618,13 +618,16 @@ next_hop_intf_gw_list_mark_path_unusable(struct cds_list_head *list_head)
 	}
 }
 
-void next_hop_mark_path_unusable(const struct dp_rt_path_unusable_key *key)
+void next_hop_mark_path_state(enum dp_rt_path_state state,
+			      const struct dp_rt_path_unusable_key *key)
 {
 	struct ifnet *ifp = dp_ifnet_byifindex(key->ifindex);
 	struct next_hop_intf_entry *intf_entry;
 	struct next_hop_gw_entry *gw_entry;
 	struct cds_lfht_iter iter;
 
+	if (state != DP_RT_PATH_UNUSABLE)
+		return;
 	intf_entry = next_hop_intf_hash_lookup(ifp);
 	if (!intf_entry)
 		return;
