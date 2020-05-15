@@ -5367,6 +5367,21 @@ struct fal_bfd_session_state_notification_t {
 
 	/** BFD remote PDU flag bits */
 	union fal_bfd_pdu_flags_t remote_pdu_flags;
+
+	/** BFD remote discriminator */
+	uint32_t remote_session_id;
+
+	/** BFD rx interval received from remote peer */
+	uint32_t remote_rx_required;
+
+	/** BFD negotiated Tx interval max(local Tx, remote Rx) */
+	uint32_t tx_negotiated;
+
+	/** BFD negotiated Rx interval max(local Rx, remote Tx) */
+	uint32_t rx_negotiated;
+
+	/** BFD remote detect multiplier */
+	uint32_t remote_detect_mult;
 };
 
 /**
@@ -5528,12 +5543,28 @@ enum fal_bfd_session_attr_t {
 	FAL_BFD_SESSION_ATTR_MIN_TX,
 
 	/**
+	 * @brief Negotiated Transmit interval in microseconds
+	 *
+	 * @type u32
+	 * @flags MANDATORY_ON_CREATE | CREATE_AND_SET
+	 */
+	FAL_BFD_SESSION_ATTR_NEGOTIATED_TX,
+
+	/**
 	 * @brief Minimum Receive interval in microseconds
 	 *
 	 * @type u32
 	 * @flags MANDATORY_ON_CREATE | CREATE_AND_SET
 	 */
 	FAL_BFD_SESSION_ATTR_MIN_RX,
+
+	/**
+	 * @brief Negotiated Receive interval in microseconds
+	 *
+	 * @type u32
+	 * @flags MANDATORY_ON_CREATE | CREATE_AND_SET
+	 */
+	FAL_BFD_SESSION_ATTR_NEGOTIATED_RX,
 
 	/**
 	 * @brief Detection time Multiplier of local endpoint
@@ -5568,7 +5599,7 @@ enum fal_bfd_session_attr_t {
 	FAL_BFD_SESSION_ATTR_REMOTE_DETECT_MULT,
 
 	/**
-	 * @brief BFD session detectation time in microseconds
+	 * @brief BFD session detection time in microseconds
 	 *
 	 * @type u32
 	 * @flags CREATE_AND_SET
@@ -5633,6 +5664,22 @@ enum fal_bfd_session_attr_t {
 	 * @flags MANDATORY_ON_CREATE | CREATE_AND_SET
 	 */
 	FAL_BFD_SESSION_ATTR_PKT_DESIGNATOR,
+
+	/**
+	 * @brief BFD packet local flags
+	 *
+	 * @type u32
+	 * @flags MANDATORY_ON_CREATE | CREATE_AND_SET
+	 */
+	FAL_BFD_SESSION_ATTR_POLL_BIT,
+
+	/**
+	 * @brief BFD packet local flags
+	 *
+	 * @type u32
+	 * @flags MANDATORY_ON_CREATE | CREATE_AND_SET
+	 */
+	FAL_BFD_SESSION_ATTR_FINAL_BIT,
 
 	/**
 	 * @brief End of attributes
