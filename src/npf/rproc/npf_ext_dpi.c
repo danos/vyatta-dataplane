@@ -27,8 +27,9 @@ struct rte_mbuf;
 
 /* DPI information to be saved for later. */
 struct dpi_info {
-	uint32_t app_name;
-	uint64_t app_type_bitfield;
+	uint32_t app_id;
+	uint32_t app_type;
+	uint8_t engine_id;
 };
 
 /* Save DPI information from the rule for later matching. */
@@ -42,50 +43,55 @@ dpi_ctor(npf_rule_t *rl __unused, const char *params, void **handle)
 	 * Here we convert the strings to IDs and save them for later matching.
 	 */
 
-	/* Ensure the engine is enabled */
-	if (!dpi_init())
-		return -ENOMEM;
-
 	/*
 	 * The name and type are comma-separated,
 	 * so we find the comma at position X,
 	 * overwrite it with a '\0'
 	 * and get the type string at X+1.
 	 */
-	char *args = strdup(params);
-	if (!args)
+	char *param_str = strdup(params);
+	if (!param_str)
 		return -ENOMEM;
 
-	char *c = strchr(args, ',');
-	if (c == NULL) {
-		free(args);
+	char *name = strchr(param_str, ',');
+	if (!name)
+		return -ENOMEM;
+	*name = '\0';
+	name++;
+
+	char *type = strchr(name, ',');
+	if (!type) {
+		free(param_str);
 		return -EINVAL;
 	}
-	*c = '\0';
+	*type = '\0';
+	type++;
 
 	/* Memory to store the DPI info. */
 	struct dpi_info *dpi_info =
 		zmalloc_aligned(sizeof(struct dpi_info));
 
 	if (!dpi_info) {
-		free(args);
+		free(param_str);
 		return -ENOMEM;
 	}
 
-	/*
-	 * If the name-to-id lookups fail, we store ID zero
-	 * which dpi_match characterises as "not applicable".
-	 *
-	 * Discard the engine bits from the app name
-	 * so we match the app nomatter which engine.
-	 */
-	dpi_info->app_name = dpi_app_name_to_id(args) & DPI_APP_MASK;
-	uint32_t app_type = dpi_app_type_name_to_id(c+1);
-	dpi_info->app_type_bitfield =
-		app_type ? (1L << (app_type - 1)) : 0;
+	uint8_t engine_id = dpi_engine_name_to_id(param_str);
+
+	/* Ensure the engine is enabled */
+	if (!dpi_init(engine_id)) {
+		free(param_str);
+		return -ENOMEM;
+	}
+
+	dpi_info->engine_id = engine_id;
+	dpi_info->app_id = dpi_app_name_to_id(engine_id, name) & DPI_APP_MASK;
+	dpi_info->app_type = dpi_app_type_name_to_id(engine_id, type);
 
 	*handle = dpi_info;
-	free(args);
+	free(param_str);
+
+	dpi_refcount_inc(engine_id);
 
 	return 0;
 }
@@ -94,6 +100,15 @@ dpi_ctor(npf_rule_t *rl __unused, const char *params, void **handle)
 static void
 dpi_dtor(void *handle)
 {
+	if (!handle)
+		return;
+
+	struct dpi_info *dpi_info = handle;
+	uint8_t engine_id = dpi_info->engine_id;
+
+	if (dpi_refcount_dec(engine_id) == 0)
+		dpi_terminate(engine_id);
+
 	free(handle);
 }
 
@@ -126,6 +141,16 @@ static bool
 dpi_match(npf_cache_t *npc, struct rte_mbuf *mbuf, const struct ifnet *ifp,
 	  int dir, npf_session_t *se, void *arg)
 {
+	/* Get the DPI info that we stashed away when the rule was created. */
+	struct dpi_info *dpi_info = arg;
+
+	/*
+	 * The rule says to match DPI info, but the details are not available.
+	 * "This should never happen", but drop the traffic if it does.
+	 */
+	if (!dpi_info)
+		goto drop;
+
 	/* We only have sessions for IP packets */
 	if (!npf_iscached(npc, NPC_IP46))
 		return false;
@@ -150,7 +175,9 @@ dpi_match(npf_cache_t *npc, struct rte_mbuf *mbuf, const struct ifnet *ifp,
 	/* Find or attach the DPI flow info. Do first packet inspection */
 	struct dpi_flow *dpi_flow = npf_session_get_dpi(se);
 	if (!dpi_flow) {
-		int error = dpi_session_first_packet(se, npc, mbuf, dir);
+		uint8_t engines[] = {IANA_USER, IANA_NDPI};
+		int error = dpi_session_first_packet(se, npc, mbuf,
+				dir, 2, engines);
 		if (error)
 			goto drop;
 		dpi_flow = npf_session_get_dpi(se);
@@ -163,29 +190,20 @@ dpi_match(npf_cache_t *npc, struct rte_mbuf *mbuf, const struct ifnet *ifp,
 		goto drop;
 
 	/* Extract the previously cached result */
-	const uint32_t app_name = dpi_flow_get_app_name(dpi_flow);
-	uint64_t app_type_bitfield = dpi_flow_get_app_type(dpi_flow);
-
-	/* Get the DPI info that we stashed away when the rule was created. */
-	struct dpi_info *dpi_info = arg;
-
-	/*
-	 * The rule says to match DPI info, but the details are not available.
-	 * "This should never happen", but drop the traffic if it does.
-	 */
-	if (!dpi_info)
-		goto drop;
+	const uint32_t app_id = dpi_flow_get_app_id(dpi_info->engine_id,
+						    dpi_flow);
+	uint32_t app_type = dpi_flow_get_app_type(dpi_info->engine_id,
+						  dpi_flow);
 
 	/*
-	 * App name only applies if set;
-	 *   explicitly checked.
-	 *
-	 * App type only applies if set;
-	 *   checked by & op since X && (X & Y) == X & Y.
+	 * App ID only applies if set.
 	 */
-	return (dpi_info->app_name &&
-			(dpi_info->app_name == (app_name & DPI_APP_MASK))) ||
-	       (dpi_info->app_type_bitfield & app_type_bitfield);
+	bool r = (dpi_info->app_id &&
+			(dpi_info->app_id == (app_id & DPI_APP_MASK))) ||
+		 (dpi_info->app_type &&
+			(dpi_info->app_type == app_type));
+
+	return r;
 
 drop:
 	/*
