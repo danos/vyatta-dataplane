@@ -52,7 +52,8 @@ static void dpi_if_feature_disable(struct ifnet *ifp)
 int
 dp_dpi_enable(struct ifnet *ifp)
 {
-	if (!dpi_init())
+	/* Ensure all DPI engines are enabled */
+	if (!dpi_init(IANA_RESERVED))
 		return -ENOMEM;
 
 	if (!ifp)
@@ -103,5 +104,6 @@ dp_dpi_get_app_id(struct rte_mbuf *mbuf)
 	if (dpi_flow_get_error(dpi_flow))
 		return DPI_APP_ERROR;
 
-	return dpi_flow_get_app_name(dpi_flow);
+	/* Temporary solution until netflow can provide engine IDs */
+	return dpi_flow_get_app_id(dpi_global_engine(), dpi_flow);
 }
