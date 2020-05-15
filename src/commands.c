@@ -2182,7 +2182,7 @@ console_handler(zsock_t *pipe, void *arg __rte_unused)
 	zsock_signal(pipe, 0);
 	zstr_send(pipe, NULL);
 
-	rcu_register_thread();
+	dp_rcu_register_thread();
 	rcu_thread_offline();
 	while (!zsys_interrupted) {
 		if (zloop_start(loop) != 0)

@@ -1021,7 +1021,7 @@ forwarding_loop(unsigned int lcore_id)
 	/* Each thread containing read-side critical sections must be registered
 	 * with rcu_register_thread() before calling rcu_read_lock().
 	 */
-	rcu_register_thread();
+	dp_rcu_register_thread();
 	do {
 		rcu_read_lock();
 
@@ -2430,7 +2430,7 @@ static void *master_worker_thread_fn(void *args)
 	};
 	int ev_count = ARRAY_SIZE(event_poll);
 
-	rcu_register_thread();
+	dp_rcu_register_thread();
 	rcu_thread_offline();
 	while (!zsys_interrupted) {
 		if (zmq_poll(event_poll, ev_count, -1) < 0) {
@@ -3599,7 +3599,7 @@ main(int argc, char **argv)
 	console_setup();
 	device_server_init();
 
-	rcu_register_thread();
+	dp_rcu_register_thread();
 	if (rcu_defer_register_thread())
 		rte_panic("rcu defer register thread failed\n");
 

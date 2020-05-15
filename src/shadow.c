@@ -975,7 +975,7 @@ static void *shadow_handler(void *args)
 			 shadow_if[DATAPLANE_SPATH_PORT]) < 0)
 		rte_panic("spath poller setup failed\n");
 
-	rcu_register_thread();
+	dp_rcu_register_thread();
 	rcu_thread_offline();
 
 	while (!zsys_interrupted) {

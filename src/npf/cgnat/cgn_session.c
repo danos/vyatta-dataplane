@@ -2929,7 +2929,7 @@ int cgn_helper_thread_func(unsigned int core_num, void *arg __unused)
 
 	CMM_STORE_SHARED(cgn_helper_thread_enabled, 1);
 
-	rcu_register_thread();
+	dp_rcu_register_thread();
 	rcu_thread_offline();
 
 	while (CMM_LOAD_SHARED(running) &&
