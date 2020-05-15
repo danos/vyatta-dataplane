@@ -134,14 +134,15 @@ if test -z "$PROTOC_C"; then
    AC_MSG_ERROR([Could not find protoc-c])
 fi
 
-AC_ARG_WITH([dpi], AS_HELP_STRING([--without-dpi], [Build without qosmos-dpi library (default: test)]))
+AC_ARG_WITH([dpi], AS_HELP_STRING([--without-dpi], [Build without ndpi library (default: test)]))
 
 AS_IF([test "x$with_dpi" != "xno"], [
-	PKG_CHECK_MODULES(DPI, [libqosmos-dpi >= 5.1.0] , [HAVE_DPI=1] , [HAVE_DPI=0]
-		AC_MSG_WARN([DPI engine not found]))
+	PKG_CHECK_MODULES(DPI, [libndpi >= 2.6.0] , [HAVE_NDPI=1] , [HAVE_NDPI=0]
+		AC_MSG_WARN([nDPI engine not found]))
 ])
 
-AM_CONDITIONAL([USE_DPI], [test "$HAVE_DPI" = 1])
+AM_CONDITIONAL([USE_NDPI], [test "$HAVE_NDPI" = 1])
+AM_COND_IF([USE_NDPI], [AC_DEFINE([USE_NDPI], [], [Use nDPI library])], [])
 
 # Always use the Gold linker so we can specify text section locations with/without LTO
 AX_CHECK_LINK_FLAG([-fuse-ld=gold], [LDFLAGS+=" -fuse-ld=gold"],
