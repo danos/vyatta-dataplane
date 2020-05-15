@@ -324,15 +324,17 @@ NPF_FILES = \
         src/npf/rproc/npf_rproc.c \
         src/npf_shim.c
 
-if USE_DPI
 DPI_FILES = src/npf/dpi/dpi.c src/npf/rproc/npf_ext_dpi.c \
 	    src/npf/dpi/dpi_public.c src/npf/rproc/npf_ext_appfw.c \
 	    src/npf/dpi/app_cmds.c \
-	    src/npf/rproc/npf_ext_app.c
-PIPELINE_NODE_FILES += src/pipeline/nodes/l3_dpi.c
-else
-DPI_FILES = src/npf/dpi/dpi_stubs.c
+	    src/npf/rproc/npf_ext_app.c \
+	    src/npf/dpi/npf_appdb.c \
+	    src/npf/dpi/npf_typedb.c \
+	    src/npf/dpi/dpi_user.c
+if USE_NDPI
+DPI_FILES += src/npf/dpi/ndpi.c
 endif
+PIPELINE_NODE_FILES += src/pipeline/nodes/l3_dpi.c
 
 PL_GEN_FUSED_OPTS = \
 	--include pl_fused_gen.h \
