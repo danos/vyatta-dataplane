@@ -691,7 +691,7 @@ DP_START_TEST(ip_pic_edge9, ip_pic_edge9)
 DP_DECL_TEST_CASE(ip_pic_edge_suite, ip_pic_edge10, NULL, NULL);
 DP_START_TEST(ip_pic_edge10, ip_pic_edge10)
 {
-	int map_list1[] = { 1 };
+	int map_list1[] = { 1, 1 };
 
 	dp_test_nl_add_ip_addr_and_connected("dp1T1", "1.1.1.1/24");
 	dp_test_nl_add_ip_addr_and_connected("dp2T1", "2.2.2.2/24");
@@ -706,7 +706,7 @@ DP_START_TEST(ip_pic_edge10, ip_pic_edge10)
 		"nh 2.2.2.1 int:dp2T1 "
 		"nh 3.3.3.1 int:dp3T1 backup");
 
-	dp_test_verify_nh_map_count("10.0.1.0", 1, map_list1);
+	dp_test_verify_nh_map_count("10.0.1.0", 2, map_list1);
 
 	dp_test_netlink_del_route(
 		"10.0.1.0/24 "

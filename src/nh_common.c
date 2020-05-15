@@ -941,11 +941,12 @@ static int next_hop_list_init_map(struct next_hop_list *nextl)
 	int i, j = 0;
 	struct next_hop *array;
 	int primaries;
+	int usable_prim = 0;
 	uint64_t usable = 0;
 
 	/*
 	 * Check usability of NHs before we build the map as we do not
-	 * want unusable ones in there.
+	 * want unusable ones in there showing as usable.
 	 */
 	next_hop_list_check_usability(nextl, NULL);
 
@@ -962,7 +963,8 @@ static int next_hop_list_init_map(struct next_hop_list *nextl)
 	 * Use the amount of usable primaries to work out the size so
 	 * we still get fairness after another one goes down.
 	 */
-	primaries = next_hop_list_num_primaries_usable(nextl);
+	usable_prim = next_hop_list_num_primaries_usable(nextl);
+	primaries = nextl->primaries;
 	if (primaries > 1)
 		num_entries = primaries * (primaries - 1);
 	else
@@ -971,14 +973,12 @@ static int next_hop_list_init_map(struct next_hop_list *nextl)
 	if (num_entries > NH_MAP_MAX_ENTRIES)
 		num_entries = NH_MAP_MAX_ENTRIES;
 
-	if (primaries) {
-		nextl->nh_map->count = num_entries;
-	} else {
-		/*
-		 * Set the count here as the func to use backup can be called
-		 * due to a cutover and it will not change the count.
-		 */
-		nextl->nh_map->count = nextl->nsiblings - nextl->primaries;
+	if (num_entries < (nextl->nsiblings - nextl->primaries))
+		/* Make sure we have enough entries for primary and backup */
+		num_entries = (nextl->nsiblings - nextl->primaries);
+
+	nextl->nh_map->count = num_entries;
+	if (usable_prim == 0) {
 		next_hop_map_use_backups(nextl);
 		return 0;
 	}
@@ -991,7 +991,7 @@ static int next_hop_list_init_map(struct next_hop_list *nextl)
 			continue;
 
 		for (j = 0; j < primaries; j++)
-			nextl->nh_map->index[j * primaries + primary_num] = i;
+			nextl->nh_map->index[j * usable_prim + primary_num] = i;
 		primary_num++;
 		usable |= (1ull << i);
 	}
