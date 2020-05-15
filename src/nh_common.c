@@ -207,6 +207,17 @@ static void next_hop_map_use_backups(struct next_hop_list *nextl)
 	}
 }
 
+static int next_hop_bitmap_get_usable_count(uint64_t bitmap)
+{
+	int i, usable_num = 0;
+
+	for (i = 0; i < 64; i++)
+		if ((1ull << i) & bitmap)
+			usable_num++;
+
+	return usable_num;
+}
+
 static void
 next_hop_list_update_map_contents(struct next_hop_list *nextl,
 				  uint64_t usable_nhs)
@@ -245,7 +256,6 @@ next_hop_list_update_map_contents(struct next_hop_list *nextl,
  */
 static void next_hop_list_update_map(struct next_hop_list *nextl, int index)
 {
-	int usable = next_hop_list_num_primaries_usable(nextl);
 	uint64_t usable_nhs;
 	uint64_t orig_nhs;
 
@@ -276,7 +286,7 @@ static void next_hop_list_update_map(struct next_hop_list *nextl, int index)
 		orig_nhs = usable_nhs;
 		usable_nhs &= ~(1ull << index);
 
-		if (usable == 0)
+		if (next_hop_bitmap_get_usable_count(usable_nhs) == 0)
 			next_hop_map_use_backups(nextl);
 		else
 			next_hop_list_update_map_contents(nextl, usable_nhs);
