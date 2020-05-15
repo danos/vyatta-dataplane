@@ -148,8 +148,8 @@ struct port_section {
 };
 
 struct port_prot {
-	struct port_section	*pm_sections[PM_SECTION_CNT];
-	uint16_t		pm_used;	/* # allocated ports */
+	struct port_section	*pp_sections[PM_SECTION_CNT];
+	uint16_t		pp_used;	/* # allocated ports */
 };
 
 struct port_map {
@@ -251,14 +251,14 @@ static int test_bits(unsigned long bit, int nr_bits, unsigned long *addr)
 static void port_stats_inc(int nr_ports, struct port_map *pm,
 		enum nat_proto nprot, struct port_section *ps)
 {
-	pm->pm_nprot[nprot].pm_used += nr_ports;
+	pm->pm_nprot[nprot].pp_used += nr_ports;
 	ps->ps_used += nr_ports;
 }
 
 static void port_stats_dec(struct port_map *pm, enum nat_proto nprot,
 		struct port_section *ps)
 {
-	pm->pm_nprot[nprot].pm_used--;
+	pm->pm_nprot[nprot].pp_used--;
 	ps->ps_used--;
 }
 
@@ -271,16 +271,16 @@ static void map_rcu_free(struct rcu_head *head)
 
 	/* Sanity, can only happen with a bug */
 	for (nprot = NAT_PROTO_FIRST; nprot < NAT_PROTO_COUNT; nprot++) {
-		struct port_section **pm_sections =
-			pm->pm_nprot[nprot].pm_sections;
+		struct port_section **pp_sections =
+			pm->pm_nprot[nprot].pp_sections;
 		for (i = 0; i < PM_SECTION_CNT; i++) {
-			assert((pm_sections[i] && pm_sections[i]->ps_used)
+			assert((pp_sections[i] && pp_sections[i]->ps_used)
 				== 0);
-			if (pm_sections[i] && pm_sections[i]->ps_used)
+			if (pp_sections[i] && pp_sections[i]->ps_used)
 				rte_panic("NPF port map: prot %s: section: "
 					  "%d used: %d\n",
 					   nat_proto_lc_str(nprot), i,
-					   pm_sections[i]->ps_used);
+					   pp_sections[i]->ps_used);
 		}
 	}
 	rte_free(pm);
@@ -317,7 +317,7 @@ static void map_gc(struct rte_timer *timer __rte_unused, void *arg __rte_unused)
 
 			for (nprot = NAT_PROTO_FIRST; nprot < NAT_PROTO_COUNT;
 			     nprot++) {
-				if (pm->pm_nprot[nprot].pm_used) {
+				if (pm->pm_nprot[nprot].pp_used) {
 					pm_flags = 0;
 					break;
 				}
@@ -427,12 +427,12 @@ static struct port_map *map_get(uint32_t addr, vrfid_t vrfid, bool create)
 static struct port_section *map_get_section(struct port_map *pm,
 		enum nat_proto nprot, int n, bool create)
 {
-	struct port_section **pm_sections = pm->pm_nprot[nprot].pm_sections;
+	struct port_section **pp_sections = pm->pm_nprot[nprot].pp_sections;
 
 	size_t sz = sizeof(struct port_section);
 
-	if (pm_sections[n] || !create)
-		return pm_sections[n];
+	if (pp_sections[n] || !create)
+		return pp_sections[n];
 
 	/* memory limit.  Yes, this is racy */
 	if (rte_atomic64_add_return(&pm_mem_used, sz) > PM_MEM_LIMIT) {
@@ -440,9 +440,9 @@ static struct port_section *map_get_section(struct port_map *pm,
 		return NULL;
 	}
 
-	pm_sections[n] = rte_zmalloc("apm", sz, RTE_CACHE_LINE_SIZE);
+	pp_sections[n] = rte_zmalloc("apm", sz, RTE_CACHE_LINE_SIZE);
 
-	return pm_sections[n];
+	return pp_sections[n];
 }
 
 /* Put a port section, free if unused.  assumes lock held */
@@ -450,7 +450,7 @@ static void map_put_section(struct port_map *pm, enum nat_proto nprot,
 		struct port_section *ps, int n)
 {
 	if (!ps->ps_used) {
-		pm->pm_nprot[nprot].pm_sections[n] = NULL;
+		pm->pm_nprot[nprot].pp_sections[n] = NULL;
 		rte_atomic64_sub(&pm_mem_used, sizeof(struct port_section));
 		rte_free(ps);
 	}
@@ -531,7 +531,7 @@ static int map_allocate_ports(struct npf_apm_range *ar, uint32_t map_flags,
 	rte_spinlock_lock(&pm->pm_lock);
 
 	/* Room at the Inn? */
-	if ((pm->pm_nprot[nprot].pm_used + nr_ports) > ar->ar_port_range) {
+	if ((pm->pm_nprot[nprot].pp_used + nr_ports) > ar->ar_port_range) {
 		rte_spinlock_unlock(&pm->pm_lock);
 		return -ENOSPC;
 	}
@@ -1026,13 +1026,13 @@ static void json_pm(json_writer_t *json, struct port_map *pm)
 		jsonw_start_object(json);
 		jsonw_string_field(json, "protocol", nat_proto_lc_str(nprot));
 		jsonw_uint_field(json, "ports_used",
-			pm->pm_nprot[nprot].pm_used);
+			pm->pm_nprot[nprot].pp_used);
 
-		if (pm->pm_nprot[nprot].pm_used) {
+		if (pm->pm_nprot[nprot].pp_used) {
 			jsonw_name(json, "ports");
 			jsonw_start_array(json);
 			for (i = 0; i < PM_SECTION_CNT; i++) {
-				ps = pm->pm_nprot[nprot].pm_sections[i];
+				ps = pm->pm_nprot[nprot].pp_sections[i];
 				if (ps)
 					json_ps(json, ps, i);
 			}
@@ -1074,7 +1074,7 @@ void npf_apm_dump(FILE *fp)
 		json_pm(json, pm);
 		for (nprot = NAT_PROTO_FIRST; nprot < NAT_PROTO_COUNT;
 		     nprot++) {
-			count[nprot] += pm->pm_nprot[nprot].pm_used;
+			count[nprot] += pm->pm_nprot[nprot].pp_used;
 		}
 		rte_spinlock_unlock(&pm->pm_lock);
 	}
