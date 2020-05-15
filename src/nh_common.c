@@ -215,14 +215,14 @@ next_hop_list_update_map_contents(struct next_hop_list *nextl,
 	int new_index = 0;
 
 	for (i = 0; i < nextl->nh_map->count; i++) {
-		if (!((1 << nextl->nh_map->index[i]) & usable_nhs)) {
+		if (!((1ull << nextl->nh_map->index[i]) & usable_nhs)) {
 			/* Was using the now unusable path */
 			for (j = 0; j < nextl->nsiblings; j++) {
 				/*
 				 * loop through the usable paths to
 				 * get the next one to use.
 				 */
-				if (!(usable_nhs & (1 << new_index))) {
+				if (!(usable_nhs & (1ull << new_index))) {
 					/* not usable */
 					new_index++;
 					if (new_index >= nextl->nsiblings)
@@ -274,7 +274,7 @@ static void next_hop_list_update_map(struct next_hop_list *nextl, int index)
 	do {
 		usable_nhs = rte_atomic64_read(&nextl->usable_prim_nh_bitmask);
 		orig_nhs = usable_nhs;
-		usable_nhs &= ~(1 << index);
+		usable_nhs &= ~(1ull << index);
 
 		if (usable == 0)
 			next_hop_map_use_backups(nextl);
@@ -983,7 +983,7 @@ static int next_hop_list_init_map(struct next_hop_list *nextl)
 		for (j = 0; j < primaries; j++)
 			nextl->nh_map->index[j * primaries + primary_num] = i;
 		primary_num++;
-		usable |= (1 << i);
+		usable |= (1ull << i);
 	}
 	rte_atomic64_set(&nextl->usable_prim_nh_bitmask, usable);
 
@@ -1494,7 +1494,7 @@ next_hop_list_create_copy_finish(int family,
 
 		if (next->flags & (RTF_BACKUP | RTF_UNUSABLE))
 			continue;
-		usable |= (1 << i);
+		usable |= (1ull << i);
 	}
 	rte_atomic64_set(&new->usable_prim_nh_bitmask, usable);
 
