@@ -1,3 +1,24 @@
+vyatta-dataplane (3.10.17) unstable; urgency=medium
+
+  [ Paul Atkins ]
+  * nh_common: check if a nh is unusable before marking as unusable
+  * nh_common: don't put an unusable nh into the map at init time
+  * nh_common: add a bitmask to track usable next_hops
+  * ut: allow for checking for one of many expected strings
+  * ut: further tests for pic edge
+
+  [ Gavin Shearer ]
+  * nat: add support in apm for multiple port maps based on protocol
+  * nat: rename fields in port_prot structure
+  * nat: add passing in IP proto to apm port request fns
+  * nat: update per-rule nat statistics to be per-protocol
+  * nat: pass back in JSON the per-protocol rule used counts
+  * nat: add warning if changing port pool for separate ICMP pool
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Fri, 15 May 2020 13:40:54 +0100
+
 vyatta-dataplane (3.10.16) unstable; urgency=medium
 
   [ Robert Shearman ]
