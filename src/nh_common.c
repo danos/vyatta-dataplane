@@ -735,8 +735,9 @@ next_hop_list_check_usability(struct next_hop_list *nextl,
 		state = dp_rt_signal_check_paths_state(&key);
 
 		if (state == DP_RT_PATH_UNUSABLE) {
-			if (!(next->flags & RTF_UNUSABLE)) {
-				next->flags |= RTF_UNUSABLE;
+			if (!(CMM_ACCESS_ONCE(next->flags) & RTF_UNUSABLE)) {
+				CMM_STORE_SHARED(next->flags,
+						 next->flags | RTF_UNUSABLE);
 				if (change_cb)
 					change_cb(next);
 			}
