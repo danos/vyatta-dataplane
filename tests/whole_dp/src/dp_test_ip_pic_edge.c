@@ -139,6 +139,7 @@ DP_DECL_TEST_CASE(ip_pic_edge_suite, ip_pic_edge2, NULL, NULL);
 DP_START_TEST(ip_pic_edge2, ip_pic_edge2)
 {
 	int map_list1[] = { 0, 1, 2, 0, 1, 2 };
+	int map_list1a[] = { 1, 0, 1, 0, 2, 2 };
 	int map_list2[] = { 0, 0, 2, 0, 2, 2 };
 	int map_list3[] = { 2, 2, 2, 2, 2, 2 };
 	int map_list4[] = { 3, 3, 3, 3, 3, 3 };
@@ -169,6 +170,17 @@ DP_START_TEST(ip_pic_edge2, ip_pic_edge2)
 	dp_test_make_nh_unusable("dp2T1", NULL);
 	dp_test_verify_nh_map_count("10.0.1.4 ", 6, map_list2);
 
+	/*
+	 * Make the nh usable again - does not change to the previous
+	 * state - but goes to a new fair state.
+	 */
+	dp_test_make_nh_usable("dp2T1", NULL);
+	dp_test_verify_nh_map_count("10.0.1.4 ", 6, map_list1a);
+
+	/* Making it unusable should force a map rebuild */
+	dp_test_make_nh_unusable("dp2T1", NULL);
+	dp_test_verify_nh_map_count("10.0.1.4 ", 6, map_list2);
+
 	/* Making it unusable should force a map rebuild */
 	dp_test_make_nh_unusable("dp1T1", "1.1.1.2");
 	dp_test_verify_nh_map_count("10.0.1.4 ", 6, map_list3);
@@ -176,6 +188,10 @@ DP_START_TEST(ip_pic_edge2, ip_pic_edge2)
 	/* Making it unusable should force a map rebuild  */
 	dp_test_make_nh_unusable("dp3T1", "3.3.3.1");
 	dp_test_verify_nh_map_count("10.0.1.4 ", 6, map_list4);
+
+	/* Making it usable should force a map rebuild */
+	dp_test_make_nh_usable("dp3T1", "3.3.3.1");
+	dp_test_verify_nh_map_count("10.0.1.4 ", 6, map_list3);
 
 	dp_test_netlink_del_route(
 		"10.0.1.0/24 "
@@ -537,49 +553,56 @@ DP_DECL_TEST_CASE(ip_pic_edge_suite, ip_pic_edge8, NULL, NULL);
 DP_START_TEST(ip_pic_edge8, ip_pic_edge8)
 {
 	pthread_t nh_unusable_thread1;
+	pthread_t nh_usable_thread1;
 	int map_list1[] = { 0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3 };
 	/* map_list2a is when 0 and 1 have been removed. */
 	int map_list2a[] = { 2, 3, 2, 3, 2, 2, 2, 3, 3, 3, 2, 3 };
 	/* map_list2b is when 1 and 0 have been removed. */
 	int map_list2b[] = { 2, 3, 2, 3, 2, 2, 2, 3, 3, 3, 2, 3 };
-
-	/*
-	 * Or varied versions where 1 side has done a full pass
-	 * and then then there is some 'cleanup'. Here 0 did a
-	 * full pass first.
-	 */
-	/*
-	 * 0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3   (remove 0 - thr0)
-	 *                                      (start removing 1 - thr1)
-	 * 1, 1, 2, 3, 2, 1, 2, 3, 3, 1, 2, 3   (after thr0 finished)
-	 *
-	 * 0, 2, 2, 3, 2, 3, 2, 3, 3, 0, 2, 3   (after thr1 finished)
-	 *
-	 * 2, 2, 2, 3, 2, 3, 2, 3, 3, 3, 2, 3   (2nd pass thr 1)
-	 *
-	 * 2, 2, 2, 3, 2, 3, 2, 3, 3, 3, 2, 3
-	 */
-	int map_list2c[] = { 2, 2, 2, 3, 2, 3, 2, 3, 3, 3, 2, 3 };
-
-	/*
-	 * 0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3   (remove 1 - thr0)
-	 *                                      (start removing 0 - thr1)
-	 * 0, 0, 2, 3, 0, 2, 2, 3, 0, 3, 2, 3   (after thr0 finished)
-	 *
-	 * 1, 2, 2, 3, 3, 2, 2, 3, 1, 3, 2, 3   (after thr1 finished)
-	 *
-	 * 2, 2, 2, 3, 3, 2, 2, 3, 3, 3, 2, 3   (2nd pass thr 1)
-	 */
-	int map_list2d[] = { 2, 2, 2, 3, 3, 2, 2, 3, 3, 3, 2, 3 };
+	int map_list2c[] = { 2, 3, 2, 3, 2, 3, 2, 3, 2, 3, 2, 3 };
 
 	int *map_list2[] = {
 		map_list2a,
 		map_list2b,
 		map_list2c,
-		map_list2d,
 	};
 
-	int map_list3[] = { 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3 };
+	/*
+	 * For map list 3, we have one of the 3 starting points from
+	 * list 2.  Each of them have 6 of 2 and 6 of 3.
+	 *
+	 * We are adding 0, 1 back, so there are 7 possibilities.
+	 * For each of the 3 in list 2, we can do, 0 first, 1 first,
+	 * or we can get a clash to give us the 7th possibility.
+	 */
+
+	/* based on list entry 2a, making 0 usable, then making 1 usable */
+	int map_list3a[] = { 1, 0, 0, 0, 1, 2, 2, 1, 3, 3, 2, 3 };
+	/* based on list entry 2a, making 1 usable, then making 0 usable */
+	int map_list3b[] = { 0, 1, 1, 1, 0, 2, 2, 0, 3, 3, 2, 3 };
+	/* based on list entry 2b, making 0 usable, then making 1 usable */
+	int map_list3c[] = { 1, 0, 0, 0, 1, 2, 2, 1, 3, 3, 2, 3 };
+	/* based on list entry 2b, making 1 usable, then making 0 usable */
+	int map_list3d[] = { 0, 1, 1, 1, 0, 2, 2, 0, 3, 3, 2, 3 };
+	/* based on list entry 2c, making 0 usable, then making 1 usable */
+	int map_list3e[] = { 1, 0, 0, 0, 1, 1, 2, 3, 2, 3, 2, 3 };
+	/* based on list entry 2c, making 1 usable, then making 0 usable */
+	int map_list3f[] = { 0, 1, 1, 1, 0, 0, 2, 3, 2, 3, 2, 3 };
+	/* A collision so refill from start */
+	int map_list3g[] = { 0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3 };
+
+	int *map_list3[] = {
+		map_list3a,
+		map_list3b,
+		map_list3c,
+		map_list3d,
+		map_list3e,
+		map_list3f,
+		map_list3g,
+	};
+
+	int map_list4[] = { 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3 };
+	int map_list5[] = { 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4 };
 
 	dp_test_nl_add_ip_addr_and_connected("dp1T1", "1.1.1.1/24");
 	dp_test_nl_add_ip_addr_and_connected("dp2T1", "2.2.2.2/24");
@@ -597,17 +620,30 @@ DP_START_TEST(ip_pic_edge8, ip_pic_edge8)
 
 	dp_test_verify_nh_map_count("10.0.1.4 ", 12, map_list1);
 
-	/* Make a intf/nh we are not using unusable - no map change */
 	dp_test_make_nh_unusable_other_thread(&nh_unusable_thread1,
 					      "dp2T1", "2.2.2.1");
 	dp_test_make_nh_unusable("dp1T1", "1.1.1.2");
 	pthread_join(nh_unusable_thread1, NULL);
 	dp_test_verify_nh_map_count_one_of("10.0.1.4 ", 12,
-					   2, map_list2);
+					   3, map_list2);
 
-	/* Making it unusable should force a map rebuild to backup */
+	/*
+	 * Back to all being used - one via a 2nd thread.
+	 */
+	dp_test_make_nh_usable_other_thread(&nh_usable_thread1,
+					    "dp2T1", "2.2.2.1");
+	dp_test_make_nh_usable("dp1T1", "1.1.1.2");
+	pthread_join(nh_usable_thread1, NULL);
+	dp_test_verify_nh_map_count_one_of("10.0.1.4 ", 12,
+					   7, map_list3);
+
+	/* Finally make everything unusable again */
+	dp_test_make_nh_unusable("dp1T1", "1.1.1.2");
+	dp_test_make_nh_unusable("dp2T1", "2.2.2.1");
 	dp_test_make_nh_unusable("dp3T1", "3.3.3.1");
-	dp_test_verify_nh_map_count("10.0.1.4 ", 12, map_list3);
+	dp_test_verify_nh_map_count("10.0.1.4 ", 12, map_list4);
+	dp_test_make_nh_unusable("dp4T1", "4.4.4.1");
+	dp_test_verify_nh_map_count("10.0.1.4 ", 12, map_list5);
 
 	dp_test_netlink_del_route(
 		"10.0.1.0/24 "
@@ -635,6 +671,27 @@ DP_START_TEST(ip_pic_edge9, ip_pic_edge9)
 	int map_list1[] = { 0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3 };
 	int map_list2[] = { 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2 };
 	int map_list3[] = { 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4 };
+	int map_list4[] = { 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0 };
+
+	/* Starting point of 4, enabling path 2 */
+	int map_list5a[] = { 2, 2, 1, 1, 1, 1, 2, 2, 0, 0, 0, 0 };
+	/* Starting point of 5a, disabling path 1 */
+	int map_list5b[] = { 2, 2, 0, 2, 0, 2, 2, 2, 0, 0, 0, 0 };
+
+	/* Starting point of 4, disabling path 1 */
+	int map_list5c[] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+	/* Starting point of 4, enabling path 2 */
+	int map_list5d[] = { 2, 2, 2, 2, 2, 2, 0, 0, 0, 0, 0, 0 };
+	/* Initial init to paths 0 and 2 */
+	int map_list5e[] = { 0, 2, 0, 2, 0, 2, 0, 2, 0, 2, 0, 2 };
+
+	int *map_list5[] = {
+		map_list5a,
+		map_list5b,
+		map_list5c,
+		map_list5d,
+		map_list5e,
+	};
 
 	dp_test_nl_add_ip_addr_and_connected("dp1T1", "1.1.1.1/24");
 	dp_test_nl_add_ip_addr_and_connected("dp2T1", "2.2.2.2/24");
@@ -665,6 +722,19 @@ DP_START_TEST(ip_pic_edge9, ip_pic_edge9)
 	/* Making it unusable should force a map rebuild to backup */
 	dp_test_make_nh_unusable("dp3T1", "3.3.3.1");
 	dp_test_verify_nh_map_count("10.0.1.4 ", 12, map_list3);
+
+	/* Make paths 0 and 1 usable again */
+	dp_test_make_nh_usable("dp1T1", "1.1.1.2");
+	dp_test_make_nh_usable("dp2T1", "2.2.2.1");
+	dp_test_verify_nh_map_count("10.0.1.4 ", 12, map_list4);
+
+	/* Now add path 2 while removing path 1 */
+	dp_test_make_nh_unusable_other_thread(&nh_unusable_thread1,
+					      "dp2T1", "2.2.2.1");
+	dp_test_make_nh_usable("dp3T1", "3.3.3.1");
+	pthread_join(nh_unusable_thread1, NULL);
+	dp_test_verify_nh_map_count_one_of("10.0.1.4", 12,
+					   5, map_list5);
 
 	dp_test_netlink_del_route(
 		"10.0.1.0/24 "

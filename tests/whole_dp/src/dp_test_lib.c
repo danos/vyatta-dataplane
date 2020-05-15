@@ -1819,12 +1819,19 @@ void dp_test_clear_path_unusable(void)
 	dp_test_current_unusable = 0;
 }
 
-void dp_test_make_nh_unusable(const char *interface,
-			      const char *nexthop)
+static void dp_test_set_nh_state(const char *interface,
+				 const char *nexthop,
+				 bool usable)
 {
 	static int registered_usable_cb;
 	struct dp_test_addr addr;
 	struct dp_rt_path_unusable_key key;
+	enum dp_rt_path_state state;
+
+	if (usable)
+		state = DP_RT_PATH_USABLE;
+	else
+		state = DP_RT_PATH_UNUSABLE;
 
 	if (!registered_usable_cb) {
 		dp_rt_register_path_state("test_infra",
@@ -1856,25 +1863,55 @@ void dp_test_make_nh_unusable(const char *interface,
 	dp_test_unusable[dp_test_current_unusable] = key;
 	dp_test_current_unusable++;
 
-	dp_rt_signal_path_state("tests", DP_RT_PATH_UNUSABLE, &key);
+	dp_rt_signal_path_state("tests", state, &key);
+}
+
+void dp_test_make_nh_unusable(const char *interface,
+			      const char *nexthop)
+{
+	dp_test_set_nh_state(interface, nexthop, false);
+}
+
+void dp_test_make_nh_usable(const char *interface,
+			    const char *nexthop)
+{
+	dp_test_set_nh_state(interface, nexthop, true);
+}
+
+
+static void nh_set_state(struct dp_rt_path_unusable_key *key,
+			 enum dp_rt_path_state state)
+{
+	rcu_register_thread();
+	rcu_thread_online();
+
+	dp_rt_signal_path_state("tests", state, key);
+
+	rcu_thread_offline();
+	rcu_unregister_thread();
 }
 
 static void *nh_unusable(void *arg)
 {
 	struct dp_rt_path_unusable_key *key = arg;
 
-	rcu_register_thread();
-	rcu_thread_online();
-	dp_rt_signal_path_state("tests", DP_RT_PATH_UNUSABLE, key);
-
-	rcu_thread_offline();
-	rcu_unregister_thread();
+	nh_set_state(key, DP_RT_PATH_UNUSABLE);
+	free(key);
 	return 0;
 }
 
-void dp_test_make_nh_unusable_other_thread(pthread_t *nh_unusable_thread,
-					   const char *interface,
-					   const char *nexthop)
+static void *nh_usable(void *arg)
+{
+	struct dp_rt_path_unusable_key *key = arg;
+
+	nh_set_state(key, DP_RT_PATH_USABLE);
+	free(key);
+	return 0;
+}
+
+static struct dp_rt_path_unusable_key *
+dp_test_nh_state_make_key(const char *interface,
+			  const char *nexthop)
 {
 	struct dp_rt_path_unusable_key *key;
 	struct dp_test_addr addr;
@@ -1900,10 +1937,36 @@ void dp_test_make_nh_unusable_other_thread(pthread_t *nh_unusable_thread,
 
 	key->ifindex = dp_test_intf_name2index(interface);
 
+	return key;
+
+}
+
+void dp_test_make_nh_unusable_other_thread(pthread_t *nh_unusable_thread,
+					   const char *interface,
+					   const char *nexthop)
+{
+	struct dp_rt_path_unusable_key *key;
+
+	key = dp_test_nh_state_make_key(interface, nexthop);
 	/*
 	 * Spin up a thread to make the nh unusable
 	 */
 	if (pthread_create(nh_unusable_thread, NULL, nh_unusable, key) < 0)
+		dp_test_assert_internal(
+			"could not create nh_unusable pthread\n");
+}
+
+void dp_test_make_nh_usable_other_thread(pthread_t *nh_unusable_thread,
+					 const char *interface,
+					 const char *nexthop)
+{
+	struct dp_rt_path_unusable_key *key;
+
+	key = dp_test_nh_state_make_key(interface, nexthop);
+	/*
+	 * Spin up a thread to make the nh unusable
+	 */
+	if (pthread_create(nh_unusable_thread, NULL, nh_usable, key) < 0)
 		dp_test_assert_internal(
 			"could not create nh_unusable pthread\n");
 }

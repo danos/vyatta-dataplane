@@ -126,10 +126,17 @@ void dp_test_disable_soft_tick_override(void);
 void dp_test_make_nh_unusable(const char *interface,
 			      const char *nexthop);
 
+void dp_test_make_nh_usable(const char *interface,
+			    const char *nexthop);
+
 void dp_test_clear_path_unusable(void);
 
 void dp_test_make_nh_unusable_other_thread(pthread_t *nh_unusable_thread,
 					   const char *interface,
 					   const char *nexthop);
+
+void dp_test_make_nh_usable_other_thread(pthread_t *nh_unusable_thread,
+					 const char *interface,
+					 const char *nexthop);
 
 #endif /*_DP_TEST_LIB_H_ */
