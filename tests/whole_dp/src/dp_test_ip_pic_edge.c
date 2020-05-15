@@ -82,7 +82,7 @@ static void _dp_test_verify_nh_map_count_one_of(const char *addr,
 		assert(expected[i]);
 
 		dp_test_map_count_build_expected(expected[i],
-						 sizeof(expected[i]),
+						 DP_TEST_TMP_BUF,
 						 addr, count, lists[i]);
 	}
 
