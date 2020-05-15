@@ -229,6 +229,10 @@ insert_6052_addr(uint32_t *ip4addr, uint8_t *ip6addr, uint8_t mask)
  * nm      - nat64 rproc address mapping configuration and state
  * v6_addr - IPv6 address source or dest of packet to be translated
  * v4_addr - New IPv4 address is written to this uint32_t
+ *
+ * Note that if ICMP is given a unique pool to allocate ID's from,
+ * then the NAT64 code needs checked to ensure that the it works as expected,
+ * as NAT64 maps between ICMPv4 (protocol 1) and ICMPv6 (protocol 58).
  */
 static int
 nat64_get_map_v4(struct npf_nat64 *nat64, npf_rule_t *rl, uint8_t ip_prot,
