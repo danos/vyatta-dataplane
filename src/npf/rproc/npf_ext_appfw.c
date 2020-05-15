@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
+ *
  * Copyright (c) 2017 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -25,9 +26,9 @@
 #include "npf/rproc/npf_rproc.h"
 #include "npf/npf_cache.h"
 #include "npf/npf_session.h"
+#include "npf/dpi/dpi_internal.h"
 #include "util.h"
 
-struct dpi_flow;
 struct ifnet;
 struct rte_mbuf;
 
@@ -39,9 +40,10 @@ struct appfw_rule {
 	struct cds_list_head	ar_list;
 	const char		*ar_group;	/* Name of this group */
 	uint16_t		ar_rule_num;	/* Rule number */
-	uint32_t		ar_protocol;	/* Qosmos integer ids */
-	uint32_t		ar_name;
-	uint64_t		ar_type;
+	uint32_t		ar_protocol;	/* Protocol ID */
+	uint32_t		ar_id;		/* Application ID */
+	uint32_t		ar_type;	/* Application type */
+	uint8_t			ar_engine;	/* Engine ID */
 	npf_decision_t		ar_decision;	/* accept/drop */
 };
 
@@ -62,6 +64,7 @@ static void appfw_free_handle(struct appfw_handle *ah)
 		cds_list_del(&ar->ar_list);
 		free(ar);
 	}
+
 	free(ah);
 }
 
@@ -91,14 +94,21 @@ static int appfw_parse_rule_elements(struct appfw_handle *ah,
 		*p = '\0';
 		v = ++p;
 
-		/* Convert to Qosmos integers */
+		/* Convert engine, protocol, name and type to integers.
+		 * Engine is assumed to have already be initialised before
+		 * the protocol, type and name branches.
+		 */
 		if (!strcmp(k, "protocol"))
-			ar->ar_protocol = dpi_app_name_to_id(v) & DPI_APP_MASK;
+			ar->ar_protocol = dpi_app_name_to_id(ar->ar_engine, v)
+				& DPI_APP_MASK;
 		else if (!strcmp(k, "type")) {
-			uint32_t tmp = dpi_app_type_name_to_id(v);
-			ar->ar_type = tmp ? (1L << (tmp - 1)) : 0;
+			ar->ar_type = dpi_app_type_name_to_id(ar->ar_engine,
+					v);
 		} else if (!strcmp(k, "name"))
-			ar->ar_name = dpi_app_name_to_id(v) & DPI_APP_MASK;
+			ar->ar_id = dpi_app_name_to_id(ar->ar_engine, v)
+				& DPI_APP_MASK;
+		else if (!strcmp(k, "engine"))
+			ar->ar_engine = dpi_engine_name_to_id(v);
 		else if (!strcmp(k, "action")) {
 			if (!strcmp(v, "drop"))
 				ar->ar_decision = NPF_DECISION_BLOCK;
@@ -117,7 +127,6 @@ static int appfw_parse_rule_elements(struct appfw_handle *ah,
 
 /*
  * Parse an app-fw rule into its DPI components.
- * Note we translate the fields into their Qosmos integer
  * equivalents.
  */
 static bool appfw_rule_parse(void *data, struct npf_cfg_rule_walk_state *state)
@@ -129,9 +138,10 @@ static bool appfw_rule_parse(void *data, struct npf_cfg_rule_walk_state *state)
 	if (!ar)
 		goto fail;
 
-	ar->ar_name = DPI_APP_NA;
+	ar->ar_id = DPI_APP_NA;
 	ar->ar_protocol = DPI_APP_NA;
 	ar->ar_type = 0;
+	ar->ar_engine = IANA_RESERVED;
 	ar->ar_rule_num = state->index;
 	ar->ar_group = state->group;
 	ar->ar_decision = NPF_DECISION_UNKNOWN;
@@ -139,6 +149,14 @@ static bool appfw_rule_parse(void *data, struct npf_cfg_rule_walk_state *state)
 	ah->ah_parse_rc = appfw_parse_rule_elements(ah, ar, state->rule);
 	if (ah->ah_parse_rc)
 		goto fail;
+
+	/* Add engine to handle */
+	if (ar->ar_engine != IANA_RESERVED) {
+		if (!dpi_init(ar->ar_engine)) {
+			ah->ah_parse_rc = -ENOMEM;
+			goto fail;
+		}
+	}
 
 	cds_list_add_tail(&ar->ar_list, &ah->ah_rules);
 	return true;
@@ -148,36 +166,41 @@ fail:
 }
 
 static bool appfw_match_rule(struct appfw_rule *ar, uint32_t proto,
-		uint32_t name, uint64_t app_bits)
+		uint32_t name, uint32_t app_bits)
 {
 	/*
-	 * Discard the engine bits from the app name and proto
-	 * so we match nomatter which engine.
+	 * Discard the engine bits from the app name and proto.
 	 */
 	name &= DPI_APP_MASK;
 	proto &= DPI_APP_MASK;
 
 	/* Match most-specific to least-specific */
-	if (ar->ar_protocol != DPI_APP_NA && ar->ar_name != DPI_APP_NA) {
-		if ((proto == ar->ar_protocol) && (name == ar->ar_name))
+	if (ar->ar_protocol != DPI_APP_NA && ar->ar_id != DPI_APP_NA) {
+		if ((proto == ar->ar_protocol) && (name == ar->ar_id))
 			return true;
 	}
-	if ((ar->ar_name != DPI_APP_NA) && (name == ar->ar_name))
+	if ((ar->ar_id != DPI_APP_NA) && (name == ar->ar_id))
 		return true;
 	if ((ar->ar_protocol != DPI_APP_NA) && (proto == ar->ar_protocol))
 		return true;
-	if (ar->ar_type & app_bits)
+	if ((ar->ar_type != DPI_APP_NA) && (app_bits == ar->ar_type))
 		return true;
+
 	return false;
 }
 
+/* Return the sum of the forward and backward packet counts
+ * for the given dpi_flow.
+ */
 static uint32_t appfw_pkt_count(struct dpi_flow *df)
 {
 	uint32_t cnt;
-	const struct dpi_flow_stats *ds = dpi_flow_get_stats(df, true);
+	struct dpi_engine_flow *def = (struct dpi_engine_flow *)df;
 
+	const struct dpi_flow_stats *ds = dpi_flow_get_stats(def, true);
 	cnt = ds->pkts;
-	ds = dpi_flow_get_stats(df, false);
+
+	ds = dpi_flow_get_stats(def, false);
 	cnt += ds->pkts;
 
 	return cnt;
@@ -187,11 +210,10 @@ static npf_decision_t appfw_decision(struct appfw_handle *ah,
 		struct dpi_flow *dpi_flow)
 {
 	struct appfw_rule *ar;
-	uint32_t proto = dpi_flow_get_app_proto(dpi_flow);
-
-	/* These are terminal values that will not change */
-	if (proto == DPI_APP_NA || proto == DPI_APP_ERROR)
-		return ah->ah_no_match_action;
+	uint32_t app_id;
+	uint32_t proto;
+	uint32_t app_bits;
+	uint8_t engine_id;
 
 	/*
 	 * If offloaded, or hit pkt limit, then run the app-fw
@@ -200,11 +222,30 @@ static npf_decision_t appfw_decision(struct appfw_handle *ah,
 	uint32_t pkt_count = appfw_pkt_count(dpi_flow);
 
 	if (dpi_flow_get_offloaded(dpi_flow) || (pkt_count >= APPFW_MAX_PKTS)) {
-		uint32_t name = dpi_flow_get_app_name(dpi_flow);
-		uint64_t app_bits = dpi_flow_get_app_type(dpi_flow);
-
 		cds_list_for_each_entry(ar, &ah->ah_rules, ar_list) {
-			if (appfw_match_rule(ar, proto, name, app_bits))
+			/* Get the result of only the engine used in the
+			 * current rule.
+			 */
+			engine_id = ar->ar_engine;
+
+			/* Ignore rules with invalid engines, should only
+			 * ever be rule 10000.
+			 */
+			if (engine_id == IANA_RESERVED)
+				continue;
+
+			app_id = dpi_flow_get_app_id(engine_id, dpi_flow);
+			proto = dpi_flow_get_app_proto(engine_id, dpi_flow);
+			app_bits = dpi_flow_get_app_type(engine_id, dpi_flow);
+
+			/* Skip terminal values as they will never match. */
+			if (app_id == DPI_APP_NA ||
+			    app_id == DPI_APP_ERROR ||
+			    proto == DPI_APP_NA ||
+			    proto == DPI_APP_ERROR)
+				continue;
+
+			if (appfw_match_rule(ar, proto, app_id, app_bits))
 				return ar->ar_decision;
 		}
 		return ah->ah_no_match_action;
@@ -222,9 +263,6 @@ appfw_ctor(npf_rule_t *rl, const char *params, void **handle)
 	char *tmp;
 	char *token;
 	int rc;
-
-	if (!dpi_init())
-		return -ENOMEM;
 
 	/* create the handle for this rproc instance */
 	ah = zmalloc_aligned(sizeof(struct appfw_handle));
@@ -247,6 +285,7 @@ appfw_ctor(npf_rule_t *rl, const char *params, void **handle)
 	 * Only if set to 'accept' does this come down.
 	 */
 	ah->ah_no_match_action = NPF_DECISION_BLOCK;
+	dpi_init(IANA_RESERVED);
 
 	while ((token = strtok_r(str, ",", &tmp)) != NULL) {
 		npf_cfg_rule_group_walk(NPF_RULE_CLASS_APP_FW, token, ah,
@@ -258,6 +297,10 @@ appfw_ctor(npf_rule_t *rl, const char *params, void **handle)
 		str = NULL;
 	}
 	ah->ah_initial_dir = npf_rule_get_dir(rl);
+
+	/* Ensure that the DPI engine outputs are enabled. */
+	dpi_refcount_inc(IANA_USER);
+	dpi_refcount_inc(IANA_NDPI);
 
 	*handle = ah;
 	return 0;
@@ -271,6 +314,10 @@ fail:
 static void
 appfw_dtor(void *handle)
 {
+	/* Disable the DPI engine outputs. */
+	dpi_refcount_dec(IANA_USER);
+	dpi_refcount_dec(IANA_NDPI);
+
 	appfw_free_handle(handle);
 }
 
@@ -283,6 +330,7 @@ appfw_action(npf_cache_t *npc, struct rte_mbuf **nbuf, void *arg,
 	npf_decision_t dec;
 	struct dpi_flow *dpi_flow;
 	int rc;
+
 
 	/* Honor blocks (NAT, ALG, etc) */
 	if (result->decision == NPF_DECISION_BLOCK)
@@ -320,9 +368,10 @@ appfw_action(npf_cache_t *npc, struct rte_mbuf **nbuf, void *arg,
 	 */
 	dpi_flow = npf_session_get_dpi(se);
 	if (!dpi_flow) {
+		uint8_t engines[] = {IANA_USER, IANA_NDPI};
 		rc = dpi_session_first_packet(se, npc, *nbuf,
-					      ah->ah_initial_dir);
-		if (rc)
+				ah->ah_initial_dir, 2, engines);
+		if (rc != 0)
 			goto drop;
 		dpi_flow = npf_session_get_dpi(se);
 		if (!dpi_flow)
