@@ -1666,6 +1666,7 @@ void rt6_print_nexthop(json_writer_t *json, uint32_t next_hop,
 		fal_ip_dump_next_hop_group(nextl->nhg_fal_obj, json);
 		jsonw_end_object(json);
 	}
+	nexthop_map_display(nextl, json);
 	jsonw_name(json, "next_hop");
 	jsonw_start_array(json);
 	for (i = 0; i < nextl->nsiblings; i++) {
