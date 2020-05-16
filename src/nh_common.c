@@ -218,12 +218,59 @@ static int next_hop_bitmap_get_usable_count(uint64_t bitmap)
 	return usable_num;
 }
 
+static int next_hop_bitmap_find_next(uint64_t bitmap, int start)
+{
+	int i;
+
+	for (i = start; i < 64; i++)
+		if ((1ull << i) & bitmap)
+			return i;
+
+	return -1;
+}
+
+static void next_hop_map_reinit(struct next_hop_list *nextl,
+				uint64_t usable_nhs)
+{
+	int next_to_write;
+	int i;
+
+	next_to_write = next_hop_bitmap_find_next(usable_nhs, 0);
+	for (i = 0; i < nextl->nh_map->count; i++) {
+
+		CMM_STORE_SHARED(nextl->nh_map->index[i],
+				 next_to_write);
+
+		next_to_write = next_hop_bitmap_find_next(usable_nhs,
+							  ++next_to_write);
+		if (next_to_write < 0)
+			next_to_write = next_hop_bitmap_find_next(usable_nhs,
+								  0);
+	}
+}
+
 static void
-next_hop_list_update_map_contents(struct next_hop_list *nextl,
-				  uint64_t usable_nhs)
+next_hop_list_update_map_unusable(struct next_hop_list *nextl,
+				  uint64_t usable_nhs,
+				  int loops)
 {
 	int i, j;
 	int new_index = 0;
+
+	/*
+	 * Update the map based on the given index being unusable. Walk
+	 * across all entries, and if the map contains the index then
+	 * replace it with the next value.  The next value is based on a
+	 * round robin over the remaining usable primary paths.
+	 *
+	 * If loops is non 0 then we are coming round again, which
+	 * means we lost  race with another thread, so refill it as
+	 * if it was the initial init
+	 */
+	if (loops) {
+		next_hop_map_reinit(nextl, usable_nhs);
+		return;
+	}
 
 	for (i = 0; i < nextl->nh_map->count; i++) {
 		if (!((1ull << nextl->nh_map->index[i]) & usable_nhs)) {
@@ -258,38 +305,32 @@ static void next_hop_list_update_map(struct next_hop_list *nextl, int index)
 {
 	uint64_t usable_nhs;
 	uint64_t orig_nhs;
+	int loops = 0;
 
 	/*
-	 * Update the map based on the given index being unusable. Walk
-	 * across all entries, and if the map contains the index then
-	 * replace it with the next value.  The next value is based on a
-	 * round robin over the remaining usable primary paths.
-	 *
-	 * As there may be multiple threads updating this map at the same
-	 * time we need to make sure that we end up in the correct final
-	 * state. For example, if we started with: 0,1,2,3,0,1,2,3,0,1,2,3
-	 * and then are removing 0 and 1 at the same times (from different
-	 * threads) then we need to be sure that at the end of the pass
-	 * removing index 0 that we haven't put references to index1 in
-	 * that were not caught by the other thread as it was slightly
-	 * ahead.
-	 *
-	 * To do this we maintains an atomic bitmask of the usable paths,
-	 * and verify at the end of the loop that only the index we are
-	 * processing has been unset.  If another index has become unusable
-	 * then we need to go round the loop again, but this time removing
-	 * references to the complete set of unusable paths, and choosing
-	 * the new value from the remaining usable paths.
+	 * To update (add or remove) we maintain an atomic bitmask of the
+	 * usable paths, and verify at the end of the changes that we were
+	 * the only writer. If another index has changed then we need to go
+	 * round the loop again as we lost the race to another thread.
+	 * Second and later times round it will refill it as if it was the
+	 * initial init. This is because it is in an unknown state due to
+	 * possible collisions the first time round which can lead to
+	 * unfairness in the allocation if we continue to update based on
+	 * the current state.
 	 */
 	do {
 		usable_nhs = rte_atomic64_read(&nextl->usable_prim_nh_bitmask);
 		orig_nhs = usable_nhs;
+
 		usable_nhs &= ~(1ull << index);
 
 		if (next_hop_bitmap_get_usable_count(usable_nhs) == 0)
 			next_hop_map_use_backups(nextl);
 		else
-			next_hop_list_update_map_contents(nextl, usable_nhs);
+			next_hop_list_update_map_unusable(nextl,
+							  usable_nhs,
+							  loops);
+		loops++;
 	} while (!rte_atomic64_cmpset((volatile uint64_t *)
 				      &nextl->usable_prim_nh_bitmask,
 				      orig_nhs,
