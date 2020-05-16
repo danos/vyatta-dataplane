@@ -115,14 +115,14 @@ DP_START_TEST(ip_pic_edge1, ip_pic_edge1)
 
 	dp_test_netlink_add_route(
 		"10.0.1.0/24 nh 1.1.1.2 int:dp1T1 nh 2.2.2.1 int:dp2T1 backup");
-	dp_test_verify_nh_map_count("10.0.1.0 ", 1, map_list1);
+	dp_test_verify_nh_map_count("10.0.1.0", 1, map_list1);
 	dp_test_netlink_del_route(
 		"10.0.1.0/24 nh 1.1.1.2 int:dp1T1 nh 2.2.2.1 int:dp2T1 backup");
 
 	/* This is a full service dataplane - we support both orders! */
 	dp_test_netlink_add_route(
 		"10.0.1.0/24 nh 1.1.1.2 int:dp1T1 backup nh 2.2.2.1 int:dp2T1");
-	dp_test_verify_nh_map_count("10.0.1.0 ", 1, map_list2);
+	dp_test_verify_nh_map_count("10.0.1.0", 1, map_list2);
 	dp_test_netlink_del_route(
 		"10.0.1.0/24 nh 1.1.1.2 int:dp1T1 backup nh 2.2.2.1 int:dp2T1");
 
@@ -156,42 +156,42 @@ DP_START_TEST(ip_pic_edge2, ip_pic_edge2)
 		"nh 3.3.3.1 int:dp3T1 "
 		"nh 4.4.4.1 int:dp4T1 backup");
 
-	dp_test_verify_nh_map_count("10.0.1.4 ", 6, map_list1);
+	dp_test_verify_nh_map_count("10.0.1.4", 6, map_list1);
 
 	/* Make a intf/nh we are not using unusable - no map change */
 	dp_test_make_nh_unusable("dp2T1", "2.2.2.3");
-	dp_test_verify_nh_map_count("10.0.1.4 ", 6, map_list1);
+	dp_test_verify_nh_map_count("10.0.1.4", 6, map_list1);
 
 	/* Make a intf we are not using unusable - no map change */
 	dp_test_make_nh_unusable("dp2T2", NULL);
-	dp_test_verify_nh_map_count("10.0.1.4 ", 6, map_list1);
+	dp_test_verify_nh_map_count("10.0.1.4", 6, map_list1);
 
 	/* Making it unusable should force a map rebuild */
 	dp_test_make_nh_unusable("dp2T1", NULL);
-	dp_test_verify_nh_map_count("10.0.1.4 ", 6, map_list2);
+	dp_test_verify_nh_map_count("10.0.1.4", 6, map_list2);
 
 	/*
 	 * Make the nh usable again - does not change to the previous
 	 * state - but goes to a new fair state.
 	 */
 	dp_test_make_nh_usable("dp2T1", NULL);
-	dp_test_verify_nh_map_count("10.0.1.4 ", 6, map_list1a);
+	dp_test_verify_nh_map_count("10.0.1.4", 6, map_list1a);
 
 	/* Making it unusable should force a map rebuild */
 	dp_test_make_nh_unusable("dp2T1", NULL);
-	dp_test_verify_nh_map_count("10.0.1.4 ", 6, map_list2);
+	dp_test_verify_nh_map_count("10.0.1.4", 6, map_list2);
 
 	/* Making it unusable should force a map rebuild */
 	dp_test_make_nh_unusable("dp1T1", "1.1.1.2");
-	dp_test_verify_nh_map_count("10.0.1.4 ", 6, map_list3);
+	dp_test_verify_nh_map_count("10.0.1.4", 6, map_list3);
 
 	/* Making it unusable should force a map rebuild  */
 	dp_test_make_nh_unusable("dp3T1", "3.3.3.1");
-	dp_test_verify_nh_map_count("10.0.1.4 ", 6, map_list4);
+	dp_test_verify_nh_map_count("10.0.1.4", 6, map_list4);
 
 	/* Making it usable should force a map rebuild */
 	dp_test_make_nh_usable("dp3T1", "3.3.3.1");
-	dp_test_verify_nh_map_count("10.0.1.4 ", 6, map_list3);
+	dp_test_verify_nh_map_count("10.0.1.4", 6, map_list3);
 
 	dp_test_netlink_del_route(
 		"10.0.1.0/24 "
@@ -234,19 +234,19 @@ DP_START_TEST(ip_pic_edge3, ip_pic_edge3)
 		"nh 4.4.4.1 int:dp4T1 backup "
 		"nh 5.5.5.1 int:dp4T2 backup");
 
-	dp_test_verify_nh_map_count("10.0.1.4 ", 6, map_list1);
+	dp_test_verify_nh_map_count("10.0.1.4", 6, map_list1);
 
 	/* Making it unusable should force a map rebuild */
 	dp_test_make_nh_unusable("dp2T1", "2.2.2.1");
-	dp_test_verify_nh_map_count("10.0.1.4 ", 6, map_list2);
+	dp_test_verify_nh_map_count("10.0.1.4", 6, map_list2);
 
 	/* Making it unusable should force a map rebuild */
 	dp_test_make_nh_unusable("dp1T1", "1.1.1.2");
-	dp_test_verify_nh_map_count("10.0.1.4 ", 6, map_list3);
+	dp_test_verify_nh_map_count("10.0.1.4", 6, map_list3);
 
 	/* Making it unusable should force a map rebuild  */
 	dp_test_make_nh_unusable("dp3T1", "3.3.3.1");
-	dp_test_verify_nh_map_count("10.0.1.4 ", 6, map_list4);
+	dp_test_verify_nh_map_count("10.0.1.4", 6, map_list4);
 
 	dp_test_netlink_del_route(
 		"10.0.1.0/24 "
@@ -295,8 +295,8 @@ DP_START_TEST(ip_pic_edge4, ip_pic_edge4)
 
 	/* Making it unusable should force a map rebuild of all users */
 	dp_test_make_nh_unusable("dp1T1", "1.1.1.2");
-	dp_test_verify_nh_map_count("10.0.1.4 ", 1, map_list2);
-	dp_test_verify_nh_map_count("10.0.2.4 ", 1, map_list2);
+	dp_test_verify_nh_map_count("10.0.1.4", 1, map_list2);
+	dp_test_verify_nh_map_count("10.0.2.4", 1, map_list2);
 
 	dp_test_netlink_del_route(
 		"10.0.1.0/24 "
@@ -345,9 +345,9 @@ DP_START_TEST(ip_pic_edge5, ip_pic_edge5)
 
 	/* Making it unusable should force a map rebuild */
 	dp_test_make_nh_unusable("dp1T1", "1.1.1.2");
-	dp_test_verify_nh_map_count("10.0.1.4 ", 1, map_list2);
+	dp_test_verify_nh_map_count("10.0.1.4", 1, map_list2);
 	/* The 10.0.2.4 route used a different nh so is not modified */
-	dp_test_verify_nh_map_count("10.0.2.4 ", 1, map_list1);
+	dp_test_verify_nh_map_count("10.0.2.4", 1, map_list1);
 
 	dp_test_netlink_del_route(
 		"10.0.1.0/24 "
@@ -396,8 +396,8 @@ DP_START_TEST(ip_pic_edge6, ip_pic_edge6)
 
 	/* Making it unusable should force a map rebuild */
 	dp_test_make_nh_unusable("dp1T1", NULL);
-	dp_test_verify_nh_map_count("10.0.1.4 ", 1, map_list2);
-	dp_test_verify_nh_map_count("10.0.2.4 ", 1, map_list2);
+	dp_test_verify_nh_map_count("10.0.1.4", 1, map_list2);
+	dp_test_verify_nh_map_count("10.0.2.4", 1, map_list2);
 
 	dp_test_netlink_del_route(
 		"10.0.1.0/24 "
@@ -485,7 +485,7 @@ DP_START_TEST(ip_pic_edge7, ip_pic_edge7)
 	 * now use the remaining primary path
 	 */
 	dp_test_make_nh_unusable("dp1T1", NULL);
-	dp_test_verify_nh_map_count("10.0.1.4 ", 2, map_list2);
+	dp_test_verify_nh_map_count("10.0.1.4", 2, map_list2);
 
 	test_pak = dp_test_create_udp_ipv4_pak("4.4.4.5", "10.0.1.2",
 					       1001, 1003, 1, &len);
@@ -510,7 +510,7 @@ DP_START_TEST(ip_pic_edge7, ip_pic_edge7)
 	 * now use the backup path
 	 */
 	dp_test_make_nh_unusable("dp2T1", NULL);
-	dp_test_verify_nh_map_count("10.0.1.4 ", 2, map_list3);
+	dp_test_verify_nh_map_count("10.0.1.4", 2, map_list3);
 
 	test_pak = dp_test_create_udp_ipv4_pak("4.4.4.5", "10.0.1.2",
 					       1001, 1003, 1, &len);
@@ -618,13 +618,13 @@ DP_START_TEST(ip_pic_edge8, ip_pic_edge8)
 		"nh 4.4.4.1 int:dp4T1 "
 		"nh 5.5.5.1 int:dp4T2 backup");
 
-	dp_test_verify_nh_map_count("10.0.1.4 ", 12, map_list1);
+	dp_test_verify_nh_map_count("10.0.1.4", 12, map_list1);
 
 	dp_test_make_nh_unusable_other_thread(&nh_unusable_thread1,
 					      "dp2T1", "2.2.2.1");
 	dp_test_make_nh_unusable("dp1T1", "1.1.1.2");
 	pthread_join(nh_unusable_thread1, NULL);
-	dp_test_verify_nh_map_count_one_of("10.0.1.4 ", 12,
+	dp_test_verify_nh_map_count_one_of("10.0.1.4", 12,
 					   3, map_list2);
 
 	/*
@@ -634,16 +634,16 @@ DP_START_TEST(ip_pic_edge8, ip_pic_edge8)
 					    "dp2T1", "2.2.2.1");
 	dp_test_make_nh_usable("dp1T1", "1.1.1.2");
 	pthread_join(nh_usable_thread1, NULL);
-	dp_test_verify_nh_map_count_one_of("10.0.1.4 ", 12,
+	dp_test_verify_nh_map_count_one_of("10.0.1.4", 12,
 					   7, map_list3);
 
 	/* Finally make everything unusable again */
 	dp_test_make_nh_unusable("dp1T1", "1.1.1.2");
 	dp_test_make_nh_unusable("dp2T1", "2.2.2.1");
 	dp_test_make_nh_unusable("dp3T1", "3.3.3.1");
-	dp_test_verify_nh_map_count("10.0.1.4 ", 12, map_list4);
+	dp_test_verify_nh_map_count("10.0.1.4", 12, map_list4);
 	dp_test_make_nh_unusable("dp4T1", "4.4.4.1");
-	dp_test_verify_nh_map_count("10.0.1.4 ", 12, map_list5);
+	dp_test_verify_nh_map_count("10.0.1.4", 12, map_list5);
 
 	dp_test_netlink_del_route(
 		"10.0.1.0/24 "
@@ -707,7 +707,7 @@ DP_START_TEST(ip_pic_edge9, ip_pic_edge9)
 		"nh 4.4.4.1 int:dp4T1 "
 		"nh 5.5.5.1 int:dp4T2 backup");
 
-	dp_test_verify_nh_map_count("10.0.1.4 ", 12, map_list1);
+	dp_test_verify_nh_map_count("10.0.1.4", 12, map_list1);
 
 	/* Make a intf/nh we are not using unusable - no map change */
 	dp_test_make_nh_unusable_other_thread(&nh_unusable_thread1,
@@ -717,16 +717,16 @@ DP_START_TEST(ip_pic_edge9, ip_pic_edge9)
 	dp_test_make_nh_unusable("dp1T1", "1.1.1.2");
 	pthread_join(nh_unusable_thread1, NULL);
 	pthread_join(nh_unusable_thread2, NULL);
-	dp_test_verify_nh_map_count("10.0.1.4 ", 12, map_list2);
+	dp_test_verify_nh_map_count("10.0.1.4", 12, map_list2);
 
 	/* Making it unusable should force a map rebuild to backup */
 	dp_test_make_nh_unusable("dp3T1", "3.3.3.1");
-	dp_test_verify_nh_map_count("10.0.1.4 ", 12, map_list3);
+	dp_test_verify_nh_map_count("10.0.1.4", 12, map_list3);
 
 	/* Make paths 0 and 1 usable again */
 	dp_test_make_nh_usable("dp1T1", "1.1.1.2");
 	dp_test_make_nh_usable("dp2T1", "2.2.2.1");
-	dp_test_verify_nh_map_count("10.0.1.4 ", 12, map_list4);
+	dp_test_verify_nh_map_count("10.0.1.4", 12, map_list4);
 
 	/* Now add path 2 while removing path 1 */
 	dp_test_make_nh_unusable_other_thread(&nh_unusable_thread1,
