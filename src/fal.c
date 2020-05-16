@@ -1765,14 +1765,17 @@ int fal_ip_del_next_hops(fal_object_t nhg_object, size_t nhops,
 /*
  * The nexthop at 'index' has changed so inform the platforms.
  */
-int fal_ip_upd_next_hop_unusable(const fal_object_t *obj_list,
-				 int index)
+int fal_ip_upd_next_hop_state(const fal_object_t *obj_list,
+			      int index, bool usable)
 {
 	const fal_object_t *nh_obj = &obj_list[index];
 	struct fal_attribute_t nh_attr;
 
 	nh_attr.id = FAL_NEXT_HOP_ATTR_USABILITY;
-	nh_attr.value.u32 = FAL_NEXT_HOP_UNUSABLE;
+	if (usable)
+		nh_attr.value.u32 = FAL_NEXT_HOP_USABLE;
+	else
+		nh_attr.value.u32 = FAL_NEXT_HOP_UNUSABLE;
 
 	return call_handler_def_ret(ip, -EOPNOTSUPP, upd_next_hop,
 				    *nh_obj, &nh_attr);

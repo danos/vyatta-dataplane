@@ -103,5 +103,7 @@ void dp_rt_signal_path_state(const char *source,
 			 dp_rt_path_state_to_str(state),
 			 source);
 
-	next_hop_mark_path_state(state, key);
+	if (state == DP_RT_PATH_USABLE ||
+	    state == DP_RT_PATH_UNUSABLE)
+		next_hop_mark_path_state(state, key);
 }

@@ -250,6 +250,96 @@ static void next_hop_map_reinit(struct next_hop_list *nextl,
 }
 
 static void
+next_hop_list_update_map_usable(struct next_hop_list *nextl,
+				uint64_t usable_nhs,
+				uint64_t orig_nhs,
+				int loops)
+{
+	int i;
+	int entries_per_path;
+	uint64_t added_nhs = usable_nhs ^ orig_nhs;
+	int idx_to_swap;
+	int next_to_write;
+	int added = 0;
+	int usable_num;
+	int loop_count = 0;
+
+	/*
+	 * If a path has become usable then we need to put some entries
+	 * in the map for it. Work out how many entries need to be added
+	 * and then walk through the existing entries. Change the entry to
+	 * the new usable based on round robin over the existing usable paths
+	 * so that we maintain fairness as much as possible.
+	 *
+	 * For example, if the list was: 2, 2, 3, 3, 2, 3 and we were
+	 * enabling 1 this would become: 1, 2, 1, 3, 2, 3, i.e
+	 * we should have 2 entries added, so swap out the first 2, and
+	 * the first 3.
+	 *
+	 * If loops is non 0 then we are coming round again, which
+	 * means we lost  race with another thread, so refill it as
+	 * if it was the initial init
+	 */
+	if (loops) {
+		next_hop_map_reinit(nextl, usable_nhs);
+		return;
+	}
+
+	usable_num = next_hop_bitmap_get_usable_count(usable_nhs);
+	entries_per_path = nextl->nh_map->count / usable_num;
+	next_to_write = next_hop_bitmap_find_next(added_nhs, 0);
+
+	idx_to_swap = next_hop_bitmap_find_next(orig_nhs, 0);
+
+	do {
+		for (i = 0; i < nextl->nh_map->count; i++) {
+			if (idx_to_swap >= 0 &&
+			    !(CMM_ACCESS_ONCE(nextl->nh_map->index[i]) ==
+			      idx_to_swap))
+				continue;
+
+			CMM_STORE_SHARED(nextl->nh_map->index[i],
+					 next_to_write);
+
+			next_to_write = next_hop_bitmap_find_next(
+				added_nhs, ++next_to_write);
+			if (next_to_write < 0)
+				next_to_write = next_hop_bitmap_find_next(
+					added_nhs, 0);
+			added++;
+
+			if (orig_nhs) {
+				/* were not previously using backup paths */
+				idx_to_swap = next_hop_bitmap_find_next(
+					orig_nhs, ++idx_to_swap);
+				if (idx_to_swap < 0)
+					idx_to_swap = next_hop_bitmap_find_next(
+						orig_nhs, 0);
+			}
+			if (added == entries_per_path)
+				return;
+		}
+
+		/*
+		 * There is a case where the initial loop will not add
+		 * all the entries due to the way the entries in the
+		 * map are laid out. In this case redo the loop until
+		 * we have done them all.  An example of this is when
+		 * the distribution is:
+		 * 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0.
+		 * However make sure we don't go round too many times
+		 * as another thread could overwrite the entries we
+		 * are looking for meaning we will never find them.
+		 * In this case it will be fixed up by the thread that
+		 * goes round the outer loop again.
+		 */
+		loop_count++;
+		if (loop_count > added)
+			return;
+	} while (added < entries_per_path);
+}
+
+static void
 next_hop_list_update_map_unusable(struct next_hop_list *nextl,
 				  uint64_t usable_nhs,
 				  int loops)
@@ -301,7 +391,8 @@ next_hop_list_update_map_unusable(struct next_hop_list *nextl,
 /*
  * Called to update a map when a path has become unusable.
  */
-static void next_hop_list_update_map(struct next_hop_list *nextl, int index)
+static void next_hop_list_update_map(struct next_hop_list *nextl, int index,
+				     bool usable)
 {
 	uint64_t usable_nhs;
 	uint64_t orig_nhs;
@@ -322,14 +413,23 @@ static void next_hop_list_update_map(struct next_hop_list *nextl, int index)
 		usable_nhs = rte_atomic64_read(&nextl->usable_prim_nh_bitmask);
 		orig_nhs = usable_nhs;
 
-		usable_nhs &= ~(1ull << index);
+		if (usable)
+			usable_nhs |= (1ull << index);
+		else
+			usable_nhs &= ~(1ull << index);
 
 		if (next_hop_bitmap_get_usable_count(usable_nhs) == 0)
 			next_hop_map_use_backups(nextl);
 		else
-			next_hop_list_update_map_unusable(nextl,
-							  usable_nhs,
-							  loops);
+			if (usable)
+				next_hop_list_update_map_usable(nextl,
+								usable_nhs,
+								orig_nhs,
+								loops);
+			else
+				next_hop_list_update_map_unusable(nextl,
+								  usable_nhs,
+								  loops);
 		loops++;
 	} while (!rte_atomic64_cmpset((volatile uint64_t *)
 				      &nextl->usable_prim_nh_bitmask,
@@ -666,15 +766,20 @@ next_hop_gw_hash_add(struct cds_lfht *gw_hash_tbl,
 	return gw_entry;
 }
 
-typedef void (next_hop_usability_change_cb)(struct next_hop *next);
+typedef void (next_hop_usability_change_cb)(struct next_hop *next,
+					    enum dp_rt_path_state state);
 
-static void next_hop_usability_check_update_cb(struct next_hop *next)
+static void next_hop_usability_check_update_cb(struct next_hop *next,
+					       enum dp_rt_path_state state)
 {
 	struct next_hop_list *nextl = next->nhl;
 	int rc;
+	bool usable;
 
-	rc = fal_ip_upd_next_hop_unusable(nextl->nh_fal_obj,
-					  next - nextl->siblings);
+	usable = state == DP_RT_PATH_USABLE;
+	rc = fal_ip_upd_next_hop_state(nextl->nh_fal_obj,
+				       next - nextl->siblings,
+				       usable);
 	if (rc < 0 && (rc != -EOPNOTSUPP)) {
 		struct ifnet *ifp = dp_nh_get_ifp(next);
 		char b[INET6_ADDRSTRLEN];
@@ -687,11 +792,12 @@ static void next_hop_usability_check_update_cb(struct next_hop *next)
 				  b, sizeof(b)),
 			strerror(-rc));
 	}
-	next_hop_list_update_map(nextl, next - nextl->siblings);
+	next_hop_list_update_map(nextl, next - nextl->siblings, usable);
 }
 
 static void
-next_hop_intf_gw_list_mark_path_unusable(struct cds_list_head *list_head)
+next_hop_intf_gw_list_mark_path_state(struct cds_list_head *list_head,
+				      enum dp_rt_path_state state)
 {
 	struct cds_list_head *list_entry, *next;
 	struct next_hop *nh;
@@ -700,11 +806,20 @@ next_hop_intf_gw_list_mark_path_unusable(struct cds_list_head *list_head)
 		nh = cds_list_entry(list_entry, struct next_hop,
 				    if_gw_list_entry);
 
-		if (CMM_ACCESS_ONCE(nh->flags) & RTF_UNUSABLE)
-			continue;
 
-		CMM_STORE_SHARED(nh->flags, nh->flags | RTF_UNUSABLE);
-		next_hop_usability_check_update_cb(nh);
+		if (state == DP_RT_PATH_USABLE) {
+			if (!(CMM_ACCESS_ONCE(nh->flags) & RTF_UNUSABLE))
+				/* Ignore if no change to state */
+				continue;
+			CMM_STORE_SHARED(nh->flags, nh->flags & ~RTF_UNUSABLE);
+		} else {
+			if ((CMM_ACCESS_ONCE(nh->flags) & RTF_UNUSABLE))
+				/* Ignore if no change to state */
+				continue;
+			CMM_STORE_SHARED(nh->flags, nh->flags | RTF_UNUSABLE);
+		}
+
+		next_hop_usability_check_update_cb(nh, state);
 	}
 }
 
@@ -716,8 +831,6 @@ void next_hop_mark_path_state(enum dp_rt_path_state state,
 	struct next_hop_gw_entry *gw_entry;
 	struct cds_lfht_iter iter;
 
-	if (state != DP_RT_PATH_UNUSABLE)
-		return;
 	intf_entry = next_hop_intf_hash_lookup(ifp);
 	if (!intf_entry)
 		return;
@@ -726,16 +839,18 @@ void next_hop_mark_path_state(enum dp_rt_path_state state,
 		cds_lfht_for_each_entry(intf_entry->gw_hash_tbl,
 					&iter, gw_entry, gw_hash_tbl_node) {
 			/* All NHs using this interface are unusable */
-			next_hop_intf_gw_list_mark_path_unusable(
-				&gw_entry->intf_gw_nh_list);
+			next_hop_intf_gw_list_mark_path_state(
+				&gw_entry->intf_gw_nh_list,
+				state);
 		}
 	} else if (key->type == DP_RT_PATH_UNUSABLE_KEY_INTF_NEXTHOP) {
 		gw_entry = next_hop_gw_hash_lookup(intf_entry->gw_hash_tbl,
 						   &key->nexthop);
 		if (!gw_entry)
 			return;
-		next_hop_intf_gw_list_mark_path_unusable(
-			&gw_entry->intf_gw_nh_list);
+		next_hop_intf_gw_list_mark_path_state(
+			&gw_entry->intf_gw_nh_list,
+			state);
 	}
 }
 
@@ -780,7 +895,14 @@ next_hop_list_check_usability(struct next_hop_list *nextl,
 				CMM_STORE_SHARED(next->flags,
 						 next->flags | RTF_UNUSABLE);
 				if (change_cb)
-					change_cb(next);
+					change_cb(next, state);
+			}
+		} else if (state == DP_RT_PATH_USABLE) {
+			if ((CMM_ACCESS_ONCE(next->flags) & RTF_UNUSABLE)) {
+				CMM_STORE_SHARED(next->flags,
+						 next->flags & ~RTF_UNUSABLE);
+				if (change_cb)
+					change_cb(next, state);
 			}
 		}
 	}
