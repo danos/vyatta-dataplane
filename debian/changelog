@@ -1,3 +1,21 @@
+vyatta-dataplane (3.10.21) unstable; urgency=medium
+
+  [ Paul Atkins ]
+  * nd6_nbr: when storing the v6 addr use sockaddr_storage not sockaddr
+
+  [ Gavin Shearer ]
+  * nat64: check rule group name of rule is set before accessing it
+
+  [ Paul Atkins ]
+  * main: make sure that we don't register rcu thread twice
+
+  [ Charles (Chas) Williams ]
+  * dpdk: get dev_info before closing (Bugfix: VRVDR-51041)
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Mon, 18 May 2020 19:29:08 +0100
+
 vyatta-dataplane (3.10.20) unstable; urgency=medium
 
   [ Paul Aitken ]
