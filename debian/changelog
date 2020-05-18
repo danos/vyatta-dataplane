@@ -1,3 +1,9 @@
+vyatta-dataplane (3.9.112.2) unstable; urgency=medium
+
+  * nd6_nbr: when storing the v6 addr use sockaddr_storage not sockaddr
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Mon, 18 May 2020 19:30:05 +0100
+
 vyatta-dataplane (3.9.112.1) unstable; urgency=medium
 
   * UNRELEASED
