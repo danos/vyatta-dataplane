@@ -304,7 +304,7 @@ flow_cache_init_lcore(struct flow_cache *flow_cache, unsigned int lcore)
 	struct flow_cache_lcore *cache_lcore;
 
 	if (!flow_cache || !flow_cache->cache_lcore ||
-	    (lcore >= rte_lcore_count()))
+	    (lcore > get_lcore_max()))
 		return -EINVAL;
 
 	cache_lcore = &flow_cache->cache_lcore[lcore];
@@ -335,6 +335,7 @@ err:
 struct flow_cache *flow_cache_init(uint32_t max_size)
 {
 	struct flow_cache *cache;
+	unsigned int max_lcores = get_lcore_max() + 1;
 
 	cache = malloc(sizeof(*cache));
 	if (!cache) {
@@ -344,7 +345,7 @@ struct flow_cache *flow_cache_init(uint32_t max_size)
 
 	cache->max_lcore_entries = max_size;
 	cache->cache_lcore = calloc(1, (sizeof(struct flow_cache_lcore) *
-					rte_lcore_count()));
+					max_lcores));
 	if (!cache->cache_lcore) {
 		RTE_LOG(ERR, DATAPLANE,
 			"Could not allocate per-core flow cache table\n");
@@ -357,7 +358,7 @@ struct flow_cache *flow_cache_init(uint32_t max_size)
 
 void flow_cache_age(struct flow_cache *flow_cache)
 {
-	unsigned int lcore_id, max_lcores = rte_lcore_count();
+	unsigned int lcore_id, max_lcores = get_lcore_max() + 1;
 	struct flow_cache_entry *cache_entry;
 	struct flow_cache_lcore *cache_lcore;
 	struct flow_cache_af *cache_af;
@@ -436,7 +437,7 @@ void
 flow_cache_invalidate(struct flow_cache *flow_cache, bool disable,
 		      bool clear_only)
 {
-	unsigned int lcore_id, max_lcores = rte_lcore_count();
+	unsigned int lcore_id, max_lcores = get_lcore_max() + 1;
 	enum flow_cache_ftype af;
 
 	for (lcore_id = 0; lcore_id < max_lcores; lcore_id++) {
@@ -545,6 +546,7 @@ void flow_cache_dump(struct flow_cache *flow_cache, json_writer_t *wr,
 		     bool detail, flow_cache_dump_cb dump_helper)
 {
 	unsigned int i;
+	unsigned int max_lcores = get_lcore_max() + 1;
 
 	if (!wr)
 		return;
@@ -553,7 +555,7 @@ void flow_cache_dump(struct flow_cache *flow_cache, json_writer_t *wr,
 	jsonw_name(wr, "cores");
 	jsonw_start_array(wr);
 
-	for (i = 0; i < rte_lcore_count(); i++) {
+	for (i = 0; i < max_lcores; i++) {
 		struct flow_cache_lcore *cache_lcore;
 
 		jsonw_uint_field(wr, "core_id", i);
