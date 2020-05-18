@@ -1,3 +1,31 @@
+vyatta-dataplane (3.10.19) unstable; urgency=medium
+
+  [ ak487r ]
+  * npf: add originating firewall
+  * tests: add ipv4 tcp slowpath tests for originating firewall
+  * tests: add ipv6 tcp slowpath tests for originating firewall
+  * tests: add ipv4 icmp packet to big tests for originating firewall
+  * tests: add ipv6 icmp packet to big tests for originating firewall
+  * tests: add ipv6 ND Advertisement tests for originating firewall
+  * tests: add ipv6 ND Solicitation tests for originating firewall
+  * tests: add ipv4 echo reply by cgnat for originating firewall
+
+  [ Paul Atkins ]
+  * ut: fix issue with buffer size when comparing one-of
+  * nh_common: change 1 to 1ull when using it to shift 64 bit numbers
+  * nh_common: when updating map get the count from the bitmap
+  * nh_common: on nh_map init leave space for unusable primaries
+  * nh_common: use CMM macros when reading/modifying the usability flag
+  * nh_common: reinit nh map contents if collisions when marking unusable
+  * nh_common: let paths be marked usable and unusable
+  * ut: tests for pic edge where a path is made usable
+  * route6: display the next hop map for v6 routes
+  * ut: remove extra whitespace in pic edge tests
+  * ut: add an ipv6 pic edge test
+  * route: register path_state functions with event infra for cleanup
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Mon, 18 May 2020 13:56:55 +0100
+
 vyatta-dataplane (3.10.18) unstable; urgency=medium
 
   [ Sanjay Iyer ]
