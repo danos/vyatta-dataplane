@@ -879,8 +879,10 @@ npf_nat64_session_json(json_writer_t *json, npf_session_t *se)
 	jsonw_bool_field(json, "in", npf_session_forward_dir(se, PFIL_IN));
 
 	if (n64->n64_rule) {
+		const char *gr_name = npf_rule_get_name(n64->n64_rule);
+
 		jsonw_string_field(json, "ruleset",
-				   npf_rule_get_name(n64->n64_rule));
+				   gr_name ? gr_name : "<UNKNOWN>");
 		jsonw_uint_field(json, "rule",
 				 npf_rule_get_num(n64->n64_rule));
 	}
