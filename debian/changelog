@@ -1,3 +1,28 @@
+vyatta-dataplane (3.10.20) unstable; urgency=medium
+
+  [ Paul Aitken ]
+  * DPI: new APIs to support application name database
+  * DPI: new APIs to support application type database
+  * DPI: new APIs for user-defined applications
+  * DPI: new APIs to allow packet processing by nDPI
+  * DPI: change --without-dpi to build without nDPI
+  * DPI: add new files to makefile
+  * DPI: remove redundant files
+  * DPI: don't need to include DPI
+  * DPI: remove Qosmos from dpi_internal.h, add new APIs
+  * DPI: update app_cmds.c includes
+  * DPI: dpi_public.c to call the engine-based APIs
+  * DPI: update DPI rprocs to engine-based APIs
+  * DPI: remove app database from npf_ext_app.c
+  * DPI: update app FW DPI rprocs to use engine-based APIs
+  * DPI: update L3 DPI pipeline to use engine-based APIs
+  * DPI: add new engine-based APIs to dpi.c
+  * DPI: add libndpi-dev build dependency
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Mon, 18 May 2020 15:32:27 +0100
+
 vyatta-dataplane (3.10.19) unstable; urgency=medium
 
   [ ak487r ]
