@@ -692,7 +692,7 @@ nd6_ns_input(struct ifnet *ifp, struct rte_mbuf *m, unsigned int off,
 	int rc;
 	bool punt = false;
 	struct ifnet *vrrp_ifp;
-	struct sockaddr sock_storage;
+	struct sockaddr_storage sock_storage;
 	struct sockaddr_in6 *ip_storage =
 		(struct sockaddr_in6 *) &sock_storage;
 
@@ -749,7 +749,8 @@ nd6_ns_input(struct ifnet *ifp, struct rte_mbuf *m, unsigned int off,
 	rc = nd6_forus(ifp, &saddr6, &taddr6);
 	ip_storage->sin6_family = AF_INET6;
 	ip_storage->sin6_addr = taddr6;
-	vrrp_ifp = macvlan_get_vrrp_ip_if(ifp, &sock_storage);
+	vrrp_ifp = macvlan_get_vrrp_ip_if(ifp,
+					  (struct sockaddr *)&sock_storage);
 	if (unlikely(rc != 0 && vrrp_ifp == NULL)) {
 		if (rc == -EADDRINUSE) {
 			nd6_log_conflict(ifp, lladdr, &saddr6);
