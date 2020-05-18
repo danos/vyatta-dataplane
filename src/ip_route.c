@@ -7,6 +7,7 @@
 #include <urcu/list.h>
 #include <rte_debug.h>
 
+#include "dp_event.h"
 #include "if_var.h"
 #include "ip_forward.h"
 #include "ip_route.h"
@@ -22,6 +23,25 @@ struct rt_signal_unusable_client {
 	struct cds_list_head list_entry;
 };
 
+static void dp_rt_path_state_uninit(void)
+{
+	struct cds_list_head *this_entry, *next;
+	struct rt_signal_unusable_client *client;
+
+	cds_list_for_each_safe(this_entry, next,
+			       &rt_signal_unusable_list_head) {
+		client = cds_list_entry(this_entry,
+					struct rt_signal_unusable_client,
+					list_entry);
+		free((char *)client->source);
+		free(client);
+	}
+}
+
+struct dp_event_ops rt_signal_dp_event_ops = {
+	.uninit = dp_rt_path_state_uninit,
+};
+
 /*
  * Provide a function that can be used to query the path state.
  */
@@ -29,6 +49,7 @@ int dp_rt_register_path_state(const char *source,
 			      dp_rt_get_path_state_fn *get_state_fn)
 {
 	struct rt_signal_unusable_client *client;
+	static int initialised;
 
 	cds_list_for_each_entry_rcu(client, &rt_signal_unusable_list_head,
 				    list_entry) {
@@ -48,6 +69,10 @@ int dp_rt_register_path_state(const char *source,
 	}
 	cds_list_add_rcu(&client->list_entry, &rt_signal_unusable_list_head);
 
+	if (!initialised) {
+		initialised = true;
+		dp_event_register(&rt_signal_dp_event_ops);
+	}
 	return 0;
 }
 
