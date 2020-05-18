@@ -432,8 +432,8 @@ static void dpdk_lag_delete(struct ifnet *master_ifp)
 	remove_port(port_id);
 	if_free(master_ifp);
 
-	rte_eth_dev_close(port_id);
 	rte_eth_dev_info_get(port_id, &dev_info);
+	rte_eth_dev_close(port_id);
 	if (rte_dev_remove(dev_info.device) != 0)
 		RTE_LOG(ERR, DATAPLANE,
 			"dpdk_lag_delete(%u): remove failed\n", port_id);

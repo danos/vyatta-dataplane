@@ -105,6 +105,8 @@ int detach_device(const char *name)
 	capture_cancel(ifp);
 	remove_port(port_id);
 
+	rte_eth_dev_info_get(port_id, &dev_info);
+
 	if (sigsetjmp(hotplug_jmpbuf, 1)) {
 		RTE_LOG(DEBUG, DATAPLANE,
 			"%s: rte_eth_dev_close() failed!\n", __func__);
@@ -115,7 +117,6 @@ int detach_device(const char *name)
 		RTE_LOG(DEBUG, DATAPLANE,
 			"rte_eth_dev_detach() failed!\n");
 	else {
-		rte_eth_dev_info_get(port_id, &dev_info);
 		if (rte_dev_remove(dev_info.device) != 0) {
 			RTE_LOG(ERR, DATAPLANE,
 				"detach-device(%u): detach failed\n", port_id);
