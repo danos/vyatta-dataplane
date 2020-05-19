@@ -267,6 +267,14 @@ npf_match_icmp4(const npf_cache_t *npc, uint32_t tc)
 	if (unlikely(npf_cache_ipproto(npc) != IPPROTO_ICMP))
 		return -1;
 
+	/* Match type class, if required. */
+	if (tc & NC_ICMP_HAS_CLASS) {
+		const bool error = NC_ICMP_GET_TYPE_FROM_OP(tc);
+		if (npf_iscached(npc, NPC_ICMP_ERR) != error)
+			return -1;
+		return 0;
+	}
+
 	/* Match code/type, if required. */
 	if (tc & NC_ICMP_HAS_TYPE) {
 		const uint8_t type = NC_ICMP_GET_TYPE_FROM_OP(tc);
@@ -304,6 +312,14 @@ npf_match_icmp6(const npf_cache_t *npc, uint32_t tc)
 	/* We'll only cache ICMPv6 within an IPv6 packet */
 	if (unlikely(npf_cache_ipproto(npc) != IPPROTO_ICMPV6))
 		return -1;
+
+	/* Match type class, if required. */
+	if (tc & NC_ICMP_HAS_CLASS) {
+		const bool error = NC_ICMP_GET_TYPE_FROM_OP(tc);
+		if (npf_iscached(npc, NPC_ICMP_ERR) != error)
+			return -1;
+		return 0;
+	}
 
 	/* Match code/type, if required. */
 	if (tc & NC_ICMP_HAS_TYPE) {
