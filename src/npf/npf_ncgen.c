@@ -436,13 +436,15 @@ void
 npf_gennc_icmp(nc_ctx_t *ctx, int type, int code, bool ipv4)
 {
 	uint32_t *nc = npf_ncgen_getptr(ctx, 4 /* words */);
+	uint32_t tc = 0;
 
 	/* OP, code, type (2 words) */
 	*nc++ = ipv4 ? NPF_OPCODE_ICMP4 : NPF_OPCODE_ICMP6;
-	*nc++ = (type == -1 ? 0 : NC_ICMP_HAS_TYPE |
-				  NC_ICMP_SET_TYPE_IN_OP(type)) |
-		(code == -1 ? 0 : NC_ICMP_HAS_CODE |
-				  NC_ICMP_SET_CODE_IN_OP(code));
+	if (type != -1)
+		tc |= NC_ICMP_HAS_TYPE | NC_ICMP_SET_TYPE_IN_OP(type);
+	if (code != -1)
+		tc |= NC_ICMP_HAS_CODE | NC_ICMP_SET_CODE_IN_OP(code);
+	*nc++ = tc;
 
 	/* Comparison block (2 words). */
 	npf_ncgen_addjmp(ctx, &nc);
