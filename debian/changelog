@@ -1,3 +1,16 @@
+vyatta-dataplane (3.10.22) unstable; urgency=medium
+
+  [ Robert Shearman ]
+  * debug_strip: add build-ids to package metadata
+  * Generate -dbgsym packages per binary package (Fixes: VRVDR-50948)
+
+  [ Shweta Choudaha ]
+  * flow_cache: Use get_lcore_max to get max lcoreid
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Tue, 19 May 2020 10:59:05 +0100
+
 vyatta-dataplane (3.10.21) unstable; urgency=medium
 
   [ Paul Atkins ]
