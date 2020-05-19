@@ -355,9 +355,10 @@ npf_grouper_add_port(struct npf_rule_ctx *ctx, int options, uint16_t match,
 }
 
 static void
-npf_grouper_add_icmpv4_type_code(struct npf_rule_ctx *ctx, int type, int code)
+npf_grouper_add_icmpv4_type_code(struct npf_rule_ctx *ctx, bool class,
+				 int type, int code)
 {
-	if (ctx->grouper_flags & GPR_SET_ICMPV4_TYPE_CODE) {
+	if (class || (ctx->grouper_flags & GPR_SET_ICMPV4_TYPE_CODE)) {
 		type = -1;
 		code = -1;
 	}
@@ -374,9 +375,10 @@ npf_grouper_add_icmpv4_type_code(struct npf_rule_ctx *ctx, int type, int code)
 }
 
 static void
-npf_grouper_add_icmpv6_type_code(struct npf_rule_ctx *ctx, int type, int code)
+npf_grouper_add_icmpv6_type_code(struct npf_rule_ctx *ctx, bool class,
+				 int type, int code)
 {
-	if (ctx->grouper_flags & GPR_SET_ICMPV6_TYPE_CODE) {
+	if (class || (ctx->grouper_flags & GPR_SET_ICMPV6_TYPE_CODE)) {
 		type = -1;
 		code = -1;
 	}
@@ -394,12 +396,12 @@ npf_grouper_add_icmpv6_type_code(struct npf_rule_ctx *ctx, int type, int code)
 
 static void
 npf_grouper_add_icmp_type_code(struct npf_rule_ctx *ctx, int options,
-			       int type, int code)
+			       bool class, int type, int code)
 {
 	if (options & NC_MATCH_ICMP)
-		npf_grouper_add_icmpv4_type_code(ctx, type, code);
+		npf_grouper_add_icmpv4_type_code(ctx, class, type, code);
 	else
-		npf_grouper_add_icmpv6_type_code(ctx, type, code);
+		npf_grouper_add_icmpv6_type_code(ctx, class, type, code);
 }
 
 static int
@@ -855,8 +857,8 @@ npf_gen_ncode_icmp_name(struct npf_rule_ctx *ctx, char *value,
 	for (entry = table; entry->name; entry++) {
 		if (strcmp(value, entry->name) == 0) {
 			npf_gennc_icmp(ctx->nc_ctx, entry->type, entry->code,
-					  (options & NC_MATCH_ICMP) != 0);
-			npf_grouper_add_icmp_type_code(ctx, options,
+				       (options & NC_MATCH_ICMP) != 0, false);
+			npf_grouper_add_icmp_type_code(ctx, options, false,
 						       entry->type,
 						       entry->code);
 			return 0;
@@ -899,8 +901,35 @@ npf_gen_ncode_icmp(struct npf_rule_ctx *ctx, char *value,
 		code = -1;
 
 	npf_gennc_icmp(ctx->nc_ctx, type, code,
-			  (options & NC_MATCH_ICMP) != 0);
-	npf_grouper_add_icmp_type_code(ctx, options, type, code);
+		       (options & NC_MATCH_ICMP) != 0, false);
+	npf_grouper_add_icmp_type_code(ctx, options, false, type, code);
+
+	return 0;
+}
+
+static int
+npf_gen_ncode_icmp_class(struct npf_rule_ctx *ctx, char *value, int options)
+{
+	bool error = false;
+
+	if (strcmp(value, "error") == 0) {
+		error = true;
+	} else if (strcmp(value, "info") != 0) {
+		RTE_LOG(ERR, FIREWALL, "NPF: unexpected value in rule: "
+			"icmpv%s-class=%s\n",
+			(options & NC_MATCH_ICMP) ? "4" : "6", value);
+		return -EINVAL;
+	}
+
+	npf_gennc_icmp(ctx->nc_ctx, error, 0,
+		       (options & NC_MATCH_ICMP) != 0, true);
+
+	/*
+	 * For IPv4, grouper can not help.
+	 * For IPv6, grouper eventually will help.
+	 */
+	npf_grouper_add_icmp_type_code(ctx, options, true,
+				       error ? 0 : ICMP6_INFOMSG_MASK, 0);
 
 	return 0;
 }
@@ -1404,6 +1433,12 @@ npf_gen_ncode(zhashx_t *config_ht, void **ncode, uint32_t *size,
 	if (value) {
 		err = npf_gen_ncode_icmp_list(&ctx, value,
 							  NC_MATCH_ICMP6, true);
+		if (err)
+			goto error;
+	}
+	value = zhashx_lookup(config_ht, "icmpv6-class");
+	if (value) {
+		err = npf_gen_ncode_icmp_class(&ctx, value, NC_MATCH_ICMP6);
 		if (err)
 			goto error;
 	}

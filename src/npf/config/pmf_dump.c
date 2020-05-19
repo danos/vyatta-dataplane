@@ -361,6 +361,7 @@ pmf_dump_icmp_attr_json(json_writer_t *json, struct pmf_attr_l4icmp_vals *icmp)
 	jsonw_uint_field(json, "code", icmp->pm_code);
 
 	jsonw_bool_field(json, "any_code", icmp->pm_any_code);
+	jsonw_bool_field(json, "class", icmp->pm_class);
 	jsonw_bool_field(json, "named", icmp->pm_named);
 
 	jsonw_end_object(json);

@@ -202,6 +202,7 @@ struct pmf_attr_l4icmp_vals {
 	uint8_t		pm_type;
 	uint8_t		pm_code;
 	bool		pm_any_code : 1;	/* if true, ignore code */
+	bool		pm_class : 1;		/* if true, mask type */
 	bool		pm_named : 1;		/* came from a string name */
 };
 

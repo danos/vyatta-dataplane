@@ -114,6 +114,7 @@ enum npf_opcode_type_enum {
 
 #define NC_ICMP_HAS_TYPE	(1<<31)
 #define NC_ICMP_HAS_CODE	(1<<30)
+#define NC_ICMP_HAS_CLASS	(1<<29)
 
 #define NC_ICMP_GET_TYPE_FROM_OP(x)	((x >> 8) & 0xFF)
 #define NC_ICMP_SET_TYPE_IN_OP(x)	((x & 0xFF) << 8)

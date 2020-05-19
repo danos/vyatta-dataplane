@@ -70,7 +70,7 @@ void npf_gennc_addrfamily(nc_ctx_t *ctx, int family);
 void npf_gennc_ip_frag(nc_ctx_t *ctx);
 void npf_gennc_ports(nc_ctx_t *ctx, int opts, in_port_t from, in_port_t to);
 void npf_gennc_ttl(nc_ctx_t *ctx, uint8_t ttl);
-void npf_gennc_icmp(nc_ctx_t *ctx, int type, int code, bool ipv4);
+void npf_gennc_icmp(nc_ctx_t *ctx, int type, int code, bool ipv4, bool class);
 void npf_gennc_ip6_rt(nc_ctx_t *ctx, uint8_t type);
 void npf_gennc_tbl(nc_ctx_t *ctx, int opts, u_int tableid);
 void npf_gennc_tcpfl(nc_ctx_t *ctx, uint8_t tf, uint8_t tf_mask);
