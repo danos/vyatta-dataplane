@@ -2188,7 +2188,7 @@ console_handler(zsock_t *pipe, void *arg __rte_unused)
 		if (zloop_start(loop) != 0)
 			break;	/* error detected */
 	}
-	rcu_unregister_thread();
+	dp_rcu_unregister_thread();
 	zloop_destroy(&loop);
 	zsock_destroy(&console_sock);
 	zsock_destroy(&console_cmd_client);

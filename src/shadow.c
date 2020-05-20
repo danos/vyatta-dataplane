@@ -883,7 +883,7 @@ static void shadow_cleanup(void *arg)
 	zloop_t **loop = arg;
 
 	zloop_destroy(loop);
-	rcu_unregister_thread();
+	dp_rcu_unregister_thread();
 }
 
 static int shadow_handle_event(zloop_t *loop, zsock_t *sock,

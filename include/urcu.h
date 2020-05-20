@@ -33,4 +33,11 @@
  */
 void dp_rcu_register_thread(void);
 
+/*
+ * Unregister a thread from rcu and track that it is no longer registered
+ * so that further calls to dp_rcu_register_thread() will then re-register
+ * it.
+ */
+void dp_rcu_unregister_thread(void);
+
 #endif /* VYATTA_DATAPLANE_URCU_H */

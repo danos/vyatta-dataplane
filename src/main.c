@@ -1061,7 +1061,7 @@ forwarding_loop(unsigned int lcore_id)
 			break;
 		}
 	} while (likely(state != LCORE_STATE_EXIT));
-	rcu_unregister_thread();
+	dp_rcu_unregister_thread();
 
 	dp_lcore_events_teardown(lcore_id);
 	dp_pkt_burst_free();
@@ -2405,7 +2405,7 @@ static struct master_worker_thread_info {
 /* Handle thread cancellation */
 static void master_worker_cleanup(void *arg __unused)
 {
-	rcu_unregister_thread();
+	dp_rcu_unregister_thread();
 }
 
 static void *master_worker_thread_fn(void *args)
@@ -3646,7 +3646,7 @@ main(int argc, char **argv)
 	/* wait for all RCU handlers */
 	rcu_barrier();
 	rcu_defer_unregister_thread();
-	rcu_unregister_thread();
+	dp_rcu_unregister_thread();
 
 	lcore_cleanup();
 
@@ -4140,14 +4140,16 @@ int dp_unallocate_lcore_from_feature(unsigned int lcore)
 	return 0;
 }
 
+static __thread int rcu_registered;
+
 void dp_rcu_register_thread(void)
 {
-	static __thread bool rcu_registered;
-
-	if (!rcu_registered) {
+	if (rcu_registered++ == 0)
 		rcu_register_thread();
-		rcu_registered = true;
-	} else {
-		rcu_thread_online();
-	}
+}
+
+void dp_rcu_unregister_thread(void)
+{
+	if (--rcu_registered == 0)
+		rcu_unregister_thread();
 }

@@ -1882,13 +1882,13 @@ void dp_test_make_nh_usable(const char *interface,
 static void nh_set_state(struct dp_rt_path_unusable_key *key,
 			 enum dp_rt_path_state state)
 {
-	rcu_register_thread();
+	dp_rcu_register_thread();
 	rcu_thread_online();
 
 	dp_rt_signal_path_state("tests", state, key);
 
 	rcu_thread_offline();
-	rcu_unregister_thread();
+	dp_rcu_unregister_thread();
 }
 
 static void *nh_unusable(void *arg)

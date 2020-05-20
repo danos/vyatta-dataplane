@@ -2949,7 +2949,7 @@ int cgn_helper_thread_func(unsigned int core_num, void *arg __unused)
 			usleep(cgn_sleep_interval);
 	}
 
-	rcu_unregister_thread();
+	dp_rcu_unregister_thread();
 	cgn_helper_core_num = CGN_HELPER_INVALID_CORE_NUM;
 	cgn_helper_pthread = 0;
 	CMM_STORE_SHARED(cgn_helper_thread_enabled, 0);
