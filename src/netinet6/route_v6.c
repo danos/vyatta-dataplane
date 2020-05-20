@@ -42,6 +42,7 @@
 #include "in6_var.h"
 #include "ip6_funcs.h"
 #include "json_writer.h"
+#include "lcore_sched.h"
 #include "lpm/lpm6.h"
 #include "netinet6/route_v6.h"
 #include "netinet6/nd6_nbr.h"

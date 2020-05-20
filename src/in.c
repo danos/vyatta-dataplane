@@ -55,6 +55,7 @@
 #include "if_llatbl.h"
 #include "if_var.h"
 #include "in6_var.h"
+#include "lcore_sched.h"
 #include "pipeline/nodes/pl_nodes_common.h"
 #include "pl_node.h"
 #include "urcu.h"

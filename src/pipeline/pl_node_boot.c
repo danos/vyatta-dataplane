@@ -18,6 +18,7 @@
 #include <sys/queue.h>
 
 #include "json_writer.h"
+#include "lcore_sched.h"
 #include "main.h"
 #include "pipeline.h"
 #include "pl_commands.h"

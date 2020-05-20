@@ -49,6 +49,7 @@
 #include "if_ether.h"
 #include "if_llatbl.h"
 #include "if_var.h"
+#include "lcore_sched.h"
 #include "main.h"
 #include "nd6_nbr.h"
 #include "pktmbuf_internal.h"

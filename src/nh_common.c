@@ -11,6 +11,7 @@
 #include "fal.h"
 #include "if_llatbl.h"
 #include "ip_route.h"
+#include "lcore_sched.h"
 #include "nh_common.h"
 #include "urcu.h"
 #include "vplane_debug.h"

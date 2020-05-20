@@ -50,6 +50,7 @@
 #include "ip_funcs.h"
 #include "ip_icmp.h"
 #include "json_writer.h"
+#include "lcore_sched.h"
 #include "nh_common.h"
 #include "npf/npf.h"
 #include "npf/config/npf_attach_point.h"

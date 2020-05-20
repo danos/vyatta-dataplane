@@ -28,6 +28,7 @@
 #include "esp.h"
 #include "if_var.h"
 #include "json_writer.h"
+#include "lcore_sched.h"
 #include "route.h"
 #include "route_v6.h"
 #include "urcu.h"

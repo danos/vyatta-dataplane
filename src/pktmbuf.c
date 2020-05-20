@@ -18,6 +18,7 @@
 #include "debug.h"
 #include "if_var.h"
 #include "ip_funcs.h"
+#include "lcore_sched.h"
 #include "netinet6/ip6_funcs.h"
 #include "pktmbuf_internal.h"
 

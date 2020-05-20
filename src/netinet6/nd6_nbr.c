@@ -77,6 +77,7 @@
 #include "in6_var.h"
 #include "in_cksum.h"
 #include "ip6_funcs.h"
+#include "lcore_sched.h"
 #include "main.h"
 #include "nd6.h"
 #include "nd6_nbr.h"

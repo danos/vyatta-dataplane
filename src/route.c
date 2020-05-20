@@ -40,6 +40,7 @@
 #include "if_llatbl.h"
 #include "if_var.h"
 #include "json_writer.h"
+#include "lcore_sched.h"
 #include "lpm/lpm.h"	/* Use Vyatta modified version */
 #include "mpls/mpls.h"
 #include "pktmbuf_internal.h"

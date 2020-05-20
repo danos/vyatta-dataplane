@@ -39,6 +39,7 @@
 #include "fal.h"
 #include "if_var.h"
 #include "ip_addr.h"
+#include "lcore_sched.h"
 #include "main.h"
 #include "pipeline/nodes/pl_nodes_common.h"
 #include "pktmbuf_internal.h"

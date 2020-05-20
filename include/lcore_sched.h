@@ -306,4 +306,19 @@ void dp_pkt_burst_free(void);
  */
 void dp_pkt_burst_flush(void);
 
+/**
+ * Is this the master thread.
+ *
+ * @return true if master thread.
+ *         false it not the master thread.
+ */
+bool is_master_thread(void);
+
+/*
+ * Assert that this is the master thread. Kill the process if not
+ */
+#define ASSERT_MASTER() \
+{        if (!is_master_thread()) rte_panic("not on master thread\n");	\
+}
+
 #endif /* VYATTA_DATAPLANE_LCORE_SCHED_H */

@@ -159,12 +159,6 @@ struct rxtx_param {
 
 #define MBUF_CACHE_SIZE_DEFAULT 32 /* per-core buffer cache size */
 
-bool is_master_thread(void);
-
-#define ASSERT_MASTER() \
-{        if (!is_master_thread()) rte_panic("not on master thread\n");	\
-}
-
 void set_port_uses_queue_state(uint16_t portid, bool val);
 bool get_port_uses_queue_state(uint16_t portid);
 void reset_port_enabled_queue_state(uint16_t portid);
