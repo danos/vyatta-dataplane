@@ -834,6 +834,7 @@ static inline void nh_eth_output_mpls(enum nh_type nh_type,
 				.gateway.address.ip_v4.s_addr =
 					V4MAPPED_IPV6_TO_IPV4(
 						nh->gateway.address.ip_v6),
+				.gateway.type = AF_INET,
 				.u.ifp = dp_nh_get_ifp(nh),
 			};
 
@@ -847,6 +848,7 @@ static inline void nh_eth_output_mpls(enum nh_type nh_type,
 				.flags = RTF_GATEWAY,
 				.gateway.address.ip_v6 =
 					nh->gateway.address.ip_v6,
+				.gateway.type = AF_INET6,
 				.u.ifp = dp_nh_get_ifp(nh),
 			};
 
@@ -862,6 +864,7 @@ static inline void nh_eth_output_mpls(enum nh_type nh_type,
 			.flags = RTF_GATEWAY,
 			.gateway.address.ip_v4.s_addr =
 				nh->gateway.address.ip_v4.s_addr,
+			.gateway.type = AF_INET,
 			.u.ifp = dp_nh_get_ifp(nh),
 		};
 
