@@ -1,3 +1,21 @@
+vyatta-dataplane (3.10.23) unstable; urgency=medium
+
+  [ Paul Atkins ]
+  * debian: define prefix in the libyattafal .pc file
+
+  [ Paul Carson ]
+  * Forward PPP CHAP traffic to PPP (Fixes: VRVDR-49231)
+
+  [ Derek Fawcus ]
+  * NPF: Use ICMP opcode defines, not magic values
+  * NPF: Adjust ICMP opcode generation
+  * NPF: Enable matching of ICMP classes in ncode
+  * Update checkpath warnings in use
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Thu, 21 May 2020 10:40:12 +0100
+
 vyatta-dataplane (3.10.22) unstable; urgency=medium
 
   [ Robert Shearman ]
