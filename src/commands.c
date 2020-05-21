@@ -96,6 +96,7 @@
 #include "backplane.h"
 #include "vlan_modify.h"
 #include "ptp.h"
+#include "protobuf/PauseConfig.pb-c.h"
 
 #define MAX_CMDLINE 512
 #define MAX_ARGS    128
@@ -1505,6 +1506,88 @@ static int cmd_ring(FILE *f, int argc, char **argv)
 	return 0;
 }
 
+static int
+cmd_pause_handler(struct pb_msg *msg)
+{
+	struct fal_attribute_t attr;
+	void *payload = msg->msg;
+	int len = msg->msg_len;
+	struct ifnet *ifp;
+	int rv = 0;
+	enum _fal_port_flow_control_mode_t pause_mode;
+
+	PauseConfig *bmsg = pause_config__unpack(NULL, len, payload);
+
+	if (!bmsg) {
+		RTE_LOG(ERR, DATAPLANE,
+			"failed to read PauseConfig protobuf command\n");
+		return -1;
+	}
+
+	switch (bmsg->mtype_case) {
+	case PAUSE_CONFIG__MTYPE_PAUSEIF:
+		if (!bmsg->pauseif->ifname)
+			goto free_msg;
+
+		ifp = dp_ifnet_byifname(bmsg->pauseif->ifname);
+		if (!ifp) {
+			RTE_LOG(ERR, DATAPLANE,
+			"Invalid interface in PauseConfig protobuf command\n");
+			rv = -1;
+			goto free_msg;
+		}
+
+		RTE_LOG(DEBUG, DATAPLANE,
+			"Rcvd Pause Mode: %d of interface %s\n",
+				bmsg->pauseif->value, ifp->if_name);
+
+		switch (bmsg->pauseif->value) {
+		case PAUSE_CONFIG__PAUSE_VALUE__NONE:
+			pause_mode = FAL_PORT_FLOW_CONTROL_MODE_DISABLE;
+			break;
+		case PAUSE_CONFIG__PAUSE_VALUE__RX:
+			pause_mode = FAL_PORT_FLOW_CONTROL_MODE_RX_ONLY;
+			break;
+		case PAUSE_CONFIG__PAUSE_VALUE__TX:
+			pause_mode = FAL_PORT_FLOW_CONTROL_MODE_TX_ONLY;
+			break;
+		case PAUSE_CONFIG__PAUSE_VALUE__BOTH:
+			pause_mode = FAL_PORT_FLOW_CONTROL_MODE_BOTH_ENABLE;
+			break;
+		default:
+			RTE_LOG(ERR, DATAPLANE,
+					"Unknown PAUSE_CONFIG__PAUSE_VALUE\n");
+			rv = -1;
+			goto free_msg;
+		}
+		break;
+	default:
+		RTE_LOG(ERR, DATAPLANE,
+				"Unknown mtype pauseif message :");
+		rv = -1;
+		goto free_msg;
+	}
+
+	attr.value.u8 = pause_mode;
+	ifp->if_pause = pause_mode;
+	attr.id = FAL_PORT_ATTR_GLOBAL_FLOW_CONTROL_MODE;
+
+	rv = fal_l2_upd_port(ifp->if_index, &attr);
+	if (rv < 0) {
+		RTE_LOG(ERR, DATAPLANE,
+			"Fal l2 update for port: %d Failed\n", ifp->if_index);
+	}
+
+free_msg:
+	pause_config__free_unpacked(bmsg, NULL);
+	return rv;
+}
+
+PB_REGISTER_CMD(pause_cmd) = {
+	.cmd = "vyatta:pause",
+	.handler = cmd_pause_handler,
+};
+
 static struct cfg_if_list *breakout_cfg_list;
 
 static void
@@ -1720,6 +1803,7 @@ static const cmd_t cmd_table[] = {
 	{ 0,	"ifconfig",	cmd_ifconfig,	"Show interface settings" },
 	{ 1,	"ifconfig",	cmd_ifconfig,	"Show interface settings" },
 	{ 2,	"ifconfig",	cmd_ifconfig,	"Show interface settings" },
+	{ 3,	"ifconfig",	cmd_ifconfig,	"Show interface settings" },
 	{ 0,	"incomplete",	cmd_incomplete,	"Show incomplete stats" },
 	{ 0,	"ipsec",	cmd_ipsec,	"Show IPsec information" },
 	{ 0,	"l2tpeth",	cmd_l2tp,	"Show l2tp sessions" },

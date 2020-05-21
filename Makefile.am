@@ -411,7 +411,8 @@ PROTO_FILES = \
 	protobuf/IPAddressOrLabel.proto \
 	protobuf/Route.proto \
 	protobuf/RibUpdate.proto \
-	protobuf/MacLimitConfig.proto
+	protobuf/MacLimitConfig.proto \
+	protobuf/PauseConfig.proto
 
 %.pb-c.c %.pb-c.h: %.proto
 	$(AM_V_GEN)@PROTOC_C@ -I=$(dir $^) --c_out=$(dir $@) $^

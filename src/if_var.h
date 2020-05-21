@@ -311,7 +311,9 @@ struct ifnet {
 			   if_mac_filtr_reprogram:1,
 			   hw_forwarding:1, /* switch port hw fwded */
 			   if_broken_out:1, /* broken out into separate ifs */
-			   spare1:3;
+			   if_pause:2, /* pause_frame mode */
+			   spare1:1;
+
 	int8_t		   if_socket;	/* NUMA node (or -1 for ANY) */
 
 	/* Administrative */

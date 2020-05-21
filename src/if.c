@@ -3698,6 +3698,54 @@ struct ifconfig_ctx {
 	json_writer_t *wr;
 };
 
+static const char *pause_enum_to_string(int pause_mode)
+{
+	const char *p_mode = NULL;
+
+	switch (pause_mode) {
+	case FAL_PORT_FLOW_CONTROL_MODE_BOTH_ENABLE:
+		p_mode = "both";
+		break;
+	case FAL_PORT_FLOW_CONTROL_MODE_RX_ONLY:
+		p_mode = "rx";
+		break;
+	case FAL_PORT_FLOW_CONTROL_MODE_TX_ONLY:
+		p_mode = "tx";
+		break;
+	case FAL_PORT_FLOW_CONTROL_MODE_DISABLE:
+		p_mode = "none";
+		break;
+	default:
+		p_mode = "unknown";
+		break;
+	}
+	return p_mode;
+}
+
+static int cmd_pause_show(json_writer_t *wr, struct ifnet *ifp)
+{
+	struct fal_attribute_t pause_attr;
+	int rv;
+
+	jsonw_name(wr, "eth-info");
+	jsonw_start_object(wr);
+
+	pause_attr.id = FAL_PORT_ATTR_REMOTE_ADVERTISED_FLOW_CONTROL_MODE;
+	rv = fal_l2_get_attrs(ifp->if_index, 1, &pause_attr);
+
+	if (rv != 0) {
+		RTE_LOG(DEBUG, DATAPLANE,
+			"Fal get info failed\n");
+		jsonw_string_field(wr, "pause-mode", "none");
+	} else {
+		jsonw_string_field(wr, "pause-mode",
+		pause_enum_to_string(pause_attr.value.u8));
+	}
+
+	jsonw_end_object(wr);
+	return rv;
+}
+
 /* Show information generic interface in JSON */
 static void ifconfig(struct ifnet *ifp, void *arg)
 {
@@ -3770,6 +3818,7 @@ static void ifconfig(struct ifnet *ifp, void *arg)
 		if_dump_state(ifp, wr, IF_DS_STATE_VERBOSE);
 	if_dump_state(ifp, wr, IF_DS_DEV_INFO);
 
+	cmd_pause_show(wr, ifp);
 	show_link_state(wr, ifp);
 	show_address(wr, ifp);
 	show_stats(wr, ifp);
