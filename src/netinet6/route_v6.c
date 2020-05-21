@@ -1503,6 +1503,7 @@ static int rt6_insert(struct vrf *vrf, struct lpm6 *lpm,
 				continue;
 
 			hops[i].gateway.address.ip_v6 = *dst;
+			hops[i].gateway.type = AF_INET6;
 		}
 
 	err = route_nexthop6_new(hops, size, idx);
@@ -2481,6 +2482,7 @@ route6_create_neigh(struct vrf *vrf, struct lpm6 *lpm,
 			 * cover.
 			 */
 			nh[sibling].gateway.address.ip_v6 = *ip;
+			nh[sibling].gateway.type = AF_INET6;
 			if (route_nexthop6_new(nh, size, &nh_idx) < 0) {
 				free(nh);
 				return;
