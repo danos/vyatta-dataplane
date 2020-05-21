@@ -785,6 +785,11 @@ int fal_plugin_vlan_feature_create(uint32_t attr_count,
 			DEBUG("%s attr: MCAST: %p\n", __func__,
 			      vf->policer[FAL_TRAFFIC_MCAST]);
 			break;
+		case FAL_VLAN_FEATURE_ATTR_MAC_LIMIT:
+			vf->mac_limit = attr_list[i].value.u32;
+			DEBUG("%s attr: MAC_LIMIT: %d\n", __func__,
+				  vf->mac_limit);
+			break;
 		}
 	}
 
@@ -829,6 +834,10 @@ int fal_plugin_vlan_feature_set_attr(fal_object_t obj,
 			(struct fal_policer *)attr->value.objid;
 		DEBUG("%s attr: MCAST: %p\n", __func__,
 		      vf->policer[FAL_TRAFFIC_MCAST]);
+		break;
+	case FAL_VLAN_FEATURE_ATTR_MAC_LIMIT:
+		vf->mac_limit = attr->value.u32;
+		DEBUG("%s attr: MAC_LIMIT: %d\n", __func__, vf->mac_limit);
 		break;
 	}
 	return 0;

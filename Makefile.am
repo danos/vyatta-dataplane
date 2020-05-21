@@ -529,6 +529,7 @@ dataplane_test_SOURCES += \
 	tests/whole_dp/src/dp_test_lib_pkt.c \
 	tests/whole_dp/src/dp_test_lib_portmonitor.c \
 	tests/whole_dp/src/dp_test_lib_tcp.c \
+	tests/whole_dp/src/dp_test_mac_limit.c \
 	tests/whole_dp/src/dp_test_missed_netlink.c \
 	tests/whole_dp/src/dp_test_mpls.c \
 	tests/whole_dp/src/dp_test_mstp_cmds.c \
