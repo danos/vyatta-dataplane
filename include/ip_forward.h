@@ -37,8 +37,6 @@ struct ecmp_hash_param {
  */
 struct next_hop;
 
-#define next_hop_v6 next_hop
-
 typedef void (*tracker_change_notif)(void *cb_ctx);
 
 /*
@@ -140,11 +138,11 @@ int dp_nh_lookup_by_index(uint32_t nhindex, uint32_t hash, in_addr_t *nh,
  * @param[in] tbl_id Table id for route lookup
  * @param[in] m pointer to mbuf
  *
- * @return nexthop v6 pointer
+ * @return nexthop pointer
  */
-struct next_hop_v6 *dp_rt6_lookup(const struct in6_addr *dst,
-				  uint32_t tbl_id,
-				  const struct rte_mbuf *m);
+struct next_hop *dp_rt6_lookup(const struct in6_addr *dst,
+			       uint32_t tbl_id,
+			       const struct rte_mbuf *m);
 
 /*
  * Lookup IPv6 NH information based on NH index, and use the hash in case

@@ -31,7 +31,6 @@ struct fal_attribute_t;
 struct fal_ip_address_t;
 struct if_addr;
 struct next_hop;
-struct next_hop_v6;
 struct fal_ipmc_entry_t;
 
 /*

@@ -91,7 +91,7 @@ struct nexthop_table {
 
 enum nh_type {
 	NH_TYPE_V4GW, /* struct next_hop  */
-	NH_TYPE_V6GW, /* struct next_hop_v6 */
+	NH_TYPE_V6GW, /* struct next_hop */
 };
 
 void nh_set_ifp(struct next_hop *next_hop, struct ifnet *ifp);
