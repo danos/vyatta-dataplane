@@ -1271,6 +1271,7 @@ int rt_insert(vrfid_t vrf_id, in_addr_t dst, uint8_t depth, uint32_t tableid,
 
 			assert(hops[i].gateway.address.ip_v4.s_addr == 0);
 			hops[i].gateway.address.ip_v4.s_addr = dst;
+			hops[i].gateway.type = AF_INET;
 		}
 	}
 
@@ -2250,6 +2251,7 @@ route_create_arp(struct vrf *vrf, struct lpm *lpm,
 			 */
 			assert(nh[sibling].gateway.address.ip_v4.s_addr == 0);
 			nh[sibling].gateway.address.ip_v4.s_addr = ip->s_addr;
+			nh[sibling].gateway.type = AF_INET;
 			if (route_nexthop_new(nh, size, RTPROT_UNSPEC,
 					      &nh_idx) < 0) {
 				free(nh);
