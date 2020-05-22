@@ -54,8 +54,10 @@ dpi_ctor(npf_rule_t *rl __unused, const char *params, void **handle)
 		return -ENOMEM;
 
 	char *name = strchr(param_str, ',');
-	if (!name)
+	if (!name) {
+		free(param_str);
 		return -ENOMEM;
+	}
 	*name = '\0';
 	name++;
 
@@ -67,19 +69,19 @@ dpi_ctor(npf_rule_t *rl __unused, const char *params, void **handle)
 	*type = '\0';
 	type++;
 
+	uint8_t engine_id = dpi_engine_name_to_id(param_str);
+
+	/* Ensure the engine is enabled */
+	if (!dpi_init(engine_id)) {
+		free(param_str);
+		return -ENOMEM;
+	}
+
 	/* Memory to store the DPI info. */
 	struct dpi_info *dpi_info =
 		zmalloc_aligned(sizeof(struct dpi_info));
 
 	if (!dpi_info) {
-		free(param_str);
-		return -ENOMEM;
-	}
-
-	uint8_t engine_id = dpi_engine_name_to_id(param_str);
-
-	/* Ensure the engine is enabled */
-	if (!dpi_init(engine_id)) {
 		free(param_str);
 		return -ENOMEM;
 	}
