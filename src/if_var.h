@@ -1096,6 +1096,9 @@ int if_vlan_feat_delete(struct ifnet *ifp, uint16_t vlan);
 int if_set_backplane(struct ifnet *ifp, unsigned int ifindex);
 int if_get_backplane(struct ifnet *ifp, unsigned int *ifindex);
 
+void if_hwport_create_finish(enum cont_src_en cont_src, struct ifnet *ifp,
+			     uint32_t ifindex, const char *ifname);
+
 static inline bool
 if_is_hwport(struct ifnet *ifp)
 {

@@ -457,39 +457,9 @@ static void handle_port_response(enum cont_src_en cont_src,
 	if (ifindex) {
 		struct ifnet *ifp = ifport_table[rsp->portid];
 
-		if (ifp) {
-			/* Set the if dp id to the local vplane id */
-			if_set_cont_src(ifp, cont_src);
-			if_rename(ifp, ifname);
-			if_set_ifindex(ifp, ifindex);
-			if_finish_create(ifp,
-					 is_team(ifp) ? "team" : "ether",
-					 NULL, &ifp->eth_addr);
-
-			DP_DEBUG(INIT, DEBUG, DATAPLANE,
-				 "master(%s) port %u ifindex %u ifname %s\n",
-				 cont_src_name(cont_src), ifp->if_port,
-				 ifindex, ifname);
-
-			int rc = shadow_init_port(ifp->if_port, ifname,
-						  &ifp->eth_addr);
-
-			if (rc < 0) {
-				char port_name[RTE_ETH_NAME_MAX_LEN];
-				RTE_LOG(ERR, DATAPLANE,
-					"master(%s) cannot init shadow for port %u\n",
-					cont_src_name(cont_src), ifp->if_port);
-				if (rte_eth_dev_get_name_by_port(ifp->if_port,
-								 port_name) < 0)
-					RTE_LOG(ERR, DATAPLANE,
-						"port(%u) to name  failed\n",
-						ifp->if_port);
-				else if (detach_device(port_name))
-					RTE_LOG(ERR, DATAPLANE,
-						"detach device %s failed\n",
-						port_name);
-			}
-		}
+		if (ifp)
+			if_hwport_create_finish(cont_src, ifp, ifindex,
+						ifname);
 	}
 }
 
