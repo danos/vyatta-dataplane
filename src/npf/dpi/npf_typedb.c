@@ -115,12 +115,12 @@ typedb_find_id(uint32_t type_id)
 		return NULL;
 }
 
-bool
+int
 typedb_init(void)
 {
 	if (type_name_ht && type_id_ht)
 		/* Already init'd. */
-		return true;
+		return 0;
 
 	type_name_ht = cds_lfht_new(TYPE_NAME_HT_SIZE,
 				   TYPE_NAME_HT_MIN,
@@ -129,7 +129,7 @@ typedb_init(void)
 				   NULL);
 
 	if (!type_name_ht)
-		return false;
+		return -ENOMEM;
 
 	type_id_ht = cds_lfht_new(TYPE_ID_HT_SIZE,
 				 TYPE_ID_HT_MIN,
@@ -140,11 +140,11 @@ typedb_init(void)
 	if (!type_id_ht) {
 		cds_lfht_destroy(type_name_ht, NULL);
 		type_name_ht = NULL;
-		return false;
+		return -ENOMEM;
 	}
 
 	name_hash_seed = random();
-	return true;
+	return 0;
 }
 
 void

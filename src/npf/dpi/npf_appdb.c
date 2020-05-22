@@ -117,12 +117,12 @@ appdb_find_id(uint32_t app_id)
 		return NULL;
 }
 
-bool
+int
 appdb_init(void)
 {
 	if (app_name_ht && app_id_ht)
 		/* Already init'd. */
-		return true;
+		return 0;
 
 	app_name_ht = cds_lfht_new(APP_NAME_HT_SIZE,
 				   APP_NAME_HT_MIN,
@@ -131,7 +131,7 @@ appdb_init(void)
 				   NULL);
 
 	if (!app_name_ht)
-		return false;
+		return -ENOMEM;
 
 	app_id_ht = cds_lfht_new(APP_ID_HT_SIZE,
 				 APP_ID_HT_MIN,
@@ -142,7 +142,7 @@ appdb_init(void)
 	if (!app_id_ht) {
 		cds_lfht_destroy(app_name_ht, NULL);
 		app_name_ht = NULL;
-		return false;
+		return -ENOMEM;
 	}
 
 	/* Add default entries. */
@@ -151,7 +151,7 @@ appdb_init(void)
 	appdb_add("Unknown", DPI_APP_USER_UNDETERMINED);
 
 	name_hash_seed = random();
-	return true;
+	return 0;
 }
 
 void

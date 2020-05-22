@@ -56,7 +56,7 @@ dpi_ctor(npf_rule_t *rl __unused, const char *params, void **handle)
 	char *name = strchr(param_str, ',');
 	if (!name) {
 		free(param_str);
-		return -ENOMEM;
+		return -EINVAL;
 	}
 	*name = '\0';
 	name++;
@@ -72,9 +72,10 @@ dpi_ctor(npf_rule_t *rl __unused, const char *params, void **handle)
 	uint8_t engine_id = dpi_engine_name_to_id(param_str);
 
 	/* Ensure the engine is enabled */
-	if (!dpi_init(engine_id)) {
+	int ret = dpi_init(engine_id);
+	if (ret != 0) {
 		free(param_str);
-		return -ENOMEM;
+		return ret;
 	}
 
 	/* Memory to store the DPI info. */

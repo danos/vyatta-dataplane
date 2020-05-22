@@ -134,13 +134,17 @@ const char *dpi_engine_id_to_name(uint8_t id);
  * given ID is IANA_RESERVED.
  *
  * Returns:
- *   - if ID is IANA_RESERVED, false if any engine's initialisation function
- *     returns false
- *   - if ID is not IANA_RESERVED, false if there is no engine with the given
- *     ID, or the engine's initialisation function returns false
- *   - otherwise returns true
+ *
+ *   - if ID is IANA_RESERVED:
+ *       errno if any engine's initialisation function fails
+ *
+ *   - if ID is not IANA_RESERVED:
+ *       errno if there is no engine with the given ID,
+ *       or the engine's initialisation function fails
+ *
+ *   - otherwise returns zero indicating success.
  */
-bool dpi_init(uint8_t engine_id);
+int dpi_init(uint8_t engine_id);
 
 /**
  * Terminate the engine with the given ID, or all installed engines if the
@@ -290,10 +294,10 @@ struct dpi_engine_procs {
 
 	/**
 	 * Engine initialisation function
-	 * Returns true if the engine successfully initialised
-	 * or has already been initialised, false otherwise.
+	 * Returns zero if the engine successfully initialised
+	 * or has already been initialised; errno otherwise.
 	 */
-	bool (*init)(void);
+	int (*init)(void);
 
 	/**
 	 * Engine termination function

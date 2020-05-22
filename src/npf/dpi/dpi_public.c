@@ -52,12 +52,13 @@ static void dpi_if_feature_disable(struct ifnet *ifp)
 int
 dp_dpi_enable(struct ifnet *ifp)
 {
-	/* Ensure all DPI engines are enabled */
-	if (!dpi_init(IANA_RESERVED))
-		return -ENOMEM;
-
 	if (!ifp)
 		return -EINVAL;
+
+	/* Ensure all DPI engines are enabled */
+	int ret = dpi_init(IANA_RESERVED);
+	if (ret != 0)
+		return ret;
 
 	dpi_if_feature_enable(ifp);
 	dpi_enabled_count++;

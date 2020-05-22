@@ -254,19 +254,19 @@ dpi_engine_id_to_name(uint8_t id)
 	return NULL;
 }
 
-bool
+int
 dpi_init(uint8_t engine_id)
 {
 	if (engine_id == IANA_RESERVED) {
 		/* Start all engines. */
 		ENGINE_PROC_EXEC_ALL(init);
-		return true;
+		return 0; /* success */
 	}
 
 	/* Try to start only the specified engine. */
 	struct dpi_engine_procs *engine = NULL_ENGINE;
 	ENGINE_PROC_FIND(engine, engine_id, init);
-	return engine ? engine->init() : false;
+	return engine ? engine->init() : -ENOENT;
 }
 
 bool

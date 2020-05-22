@@ -33,25 +33,28 @@ static bool init;
 
 /**
  * Initialise hash tables.
- * Returns false if either failed to create name or ID hash tables, true
- * otherwise.
+ * Returns zero on success; errno if failed to create name or ID hash tables.
  */
-static bool
+static int
 dpi_user_init(void)
 {
+	int ret;
+
 	if (init)
-		return true;
+		return 0;
 
-	if (!appdb_init())
-		return false;
+	ret = appdb_init();
+	if (ret != 0)
+		return ret;
 
-	if (!typedb_init()) {
+	ret = typedb_init();
+	if (ret != 0) {
 		appdb_destroy();
-		return false;
+		return ret;
 	}
 
 	init = true;
-	return true;
+	return 0;
 }
 
 /**

@@ -152,8 +152,9 @@ static bool appfw_rule_parse(void *data, struct npf_cfg_rule_walk_state *state)
 
 	/* Add engine to handle */
 	if (ar->ar_engine != IANA_RESERVED) {
-		if (!dpi_init(ar->ar_engine)) {
-			ah->ah_parse_rc = -ENOMEM;
+		int ret = dpi_init(ar->ar_engine);
+		if (ret != 0) {
+			ah->ah_parse_rc = ret;
 			goto fail;
 		}
 	}
@@ -285,7 +286,10 @@ appfw_ctor(npf_rule_t *rl, const char *params, void **handle)
 	 * Only if set to 'accept' does this come down.
 	 */
 	ah->ah_no_match_action = NPF_DECISION_BLOCK;
-	dpi_init(IANA_RESERVED);
+	rc = dpi_init(IANA_RESERVED);
+	if (rc != 0) {
+		goto fail;
+	}
 
 	while ((token = strtok_r(str, ",", &tmp)) != NULL) {
 		npf_cfg_rule_group_walk(NPF_RULE_CLASS_APP_FW, token, ah,

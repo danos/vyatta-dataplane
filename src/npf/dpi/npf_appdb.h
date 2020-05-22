@@ -19,9 +19,9 @@ typedef int (app_walker_t)(json_writer_t *json, struct adb_entry *entry);
 
 /**
  * Initialise the application database.
- * Returns true on success.
+ * Returns 0 on success; errno on failure.
  */
-bool appdb_init(void);
+int appdb_init(void);
 
 /**
  * Destroy the application database.

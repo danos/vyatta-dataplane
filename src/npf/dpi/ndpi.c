@@ -140,16 +140,16 @@ static bool dpi_ndpi_terminate(void);
 /**
  * Initialise nDPI's detection modules.
  *
- * @return true on success, false if couldn't initialise detection module.
+ * @return zero on success; errno if couldn't initialise detection module.
  */
-static bool
+static int
 dpi_ndpi_init(void)
 {
 	unsigned int lcore;
 	NDPI_PROTOCOL_BITMASK all;
 
 	if (initialised)
-		return initialised;
+		return 0;
 
 	set_ndpi_malloc(zmalloc_aligned);
 	NDPI_BITMASK_SET_ALL(all);
@@ -161,18 +161,15 @@ dpi_ndpi_init(void)
 			RTE_LOG(ERR, DATAPLANE,
 				"Failed to initialise detection module: %d\n",
 				lcore);
-			goto error;
+			dpi_ndpi_terminate();
+			return -ENOMEM;
 		}
 		ndpi_set_protocol_detection_bitmask2(detect, &all);
 		detection_modules[lcore] = detect;
 	}
 
 	initialised = true;
-	return initialised;
-
-error:
-	dpi_ndpi_terminate();
-	return false;
+	return 0;
 }
 
 /**

@@ -38,8 +38,9 @@ static int
 app_ctor(npf_rule_t *rl __unused, const char *params, void **handle)
 {
 	/* Ensure the user DPI engine is enabled */
-	if (!dpi_init(IANA_USER))
-		return -ENOMEM;
+	int ret = dpi_init(IANA_USER);
+	if (ret != 0)
+		return ret;
 
 	/*
 	 * Application name, type, and proto are received from the config layer

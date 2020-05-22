@@ -19,9 +19,9 @@ typedef int (type_walker_t)(json_writer_t *json, struct tdb_entry *entry);
 
 /**
  * Initialise the type database.
- * Returns true on success.
+ * Returns zero on success; errno on failure.
  */
-bool typedb_init(void);
+int typedb_init(void);
 
 /**
  * Destroy the type database.
