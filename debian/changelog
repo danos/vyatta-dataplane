@@ -1,3 +1,19 @@
+vyatta-dataplane (3.10.24) unstable; urgency=medium
+
+  [ Paul Atkins ]
+  * main: add a wrapper to unregister a thread with rcu
+  * ip_forward: remove references to next_hop_v6
+
+  [ Robert Shearman ]
+  * route: set some missing address family types
+  * route_v6: set some missing address family types
+  * mpls: set some missing address family types
+
+  [ Paul Atkins ]
+  * main: make ASSERT_MASTER public
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Fri, 22 May 2020 11:01:09 +0100
+
 vyatta-dataplane (3.10.23) unstable; urgency=medium
 
   [ Paul Atkins ]
