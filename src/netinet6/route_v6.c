@@ -2912,6 +2912,10 @@ int handle_route6(vrfid_t vrf_id, uint16_t type, const struct rtmsg *rtm,
 		if (!(nl_flags & NL_FLAG_ANY_ADDR))
 			flags |= RTF_GATEWAY;
 
+    if (IN6_IS_ADDR_V4MAPPED(&gw)) {
+      flags |= RTF_MAPPED_IPV6;
+    }
+
 		if (mpath) {
 			next = ecmp6_create(mpath, &size, &missing_ifp);
 			if (missing_ifp)
