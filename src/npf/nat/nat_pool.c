@@ -999,8 +999,11 @@ nat_pool_jsonw_one(json_writer_t *json, struct nat_pool *np)
 	if (name)
 		jsonw_string_field(json, "blacklist", name);
 
-	jsonw_bool_field(json, "log_pba", np->np_log_pba);
-	jsonw_bool_field(json, "log_all", np->np_full);
+	jsonw_bool_field(json, "log_pba", np->np_log_pba); /* deprecated */
+	jsonw_bool_field(json, "log_all", false);	/* deprecated */
+
+	/* Are all nat pool addrs in-use? */
+	jsonw_bool_field(json, "full", np->np_full);
 
 	jsonw_name(json, "current");
 	jsonw_start_object(json);
