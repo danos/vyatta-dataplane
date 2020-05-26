@@ -4093,6 +4093,21 @@ enum fal_vlan_feature_attr_t {
 	 *
 	 */
 	FAL_VLAN_FEATURE_ATTR_QOS_INGRESS_MAP_ID,
+
+	/**
+	 * @brief Upper limit of number of MACs permitted
+	 * in the MAC table for a given vlan on the port.
+	 * @type uint32_t
+	 * @flags CREATE_AND_SET
+	 */
+	FAL_VLAN_FEATURE_ATTR_MAC_LIMIT,
+
+	/**
+	 * @brief Get the current MAC count for a given vlan on the port.
+	 * @type uint32_t
+	 * @flags READ_ONLY
+	 */
+	FAL_VLAN_FEATURE_ATTR_MAC_COUNT,
 };
 
 /**
