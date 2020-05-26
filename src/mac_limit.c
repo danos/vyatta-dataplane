@@ -11,10 +11,12 @@
 #include <rte_jhash.h>
 #include <dp_event.h>
 #include <vplane_log.h>
+#include <fal.h>
 #include <if_var.h>
 #include <urcu/list.h>
 #include "feature_commands.h"
 #include "mac_limit.h"
+#include "if/bridge/bridge.h"
 #include "protobuf.h"
 #include "protobuf/MacLimitConfig.pb-c.h"
 
@@ -40,6 +42,155 @@ struct mac_limit_entry {
 	struct mac_limit_profile *mle_profile;
 	struct rcu_head          mle_rcu;
 };
+
+static bool mac_limit_check_vlan(struct ifnet *ifp, uint16_t vlan)
+{
+	return ifp->if_brport &&
+		bridge_port_is_vlan_member(ifp->if_brport, vlan);
+}
+
+static int mac_limit_fal_apply(struct mac_limit_entry *entry,
+			       bool update)
+{
+	int rv = 0;
+	uint32_t limit;
+	struct if_vlan_feat *vlan_feat;
+	uint16_t vlan = entry->mle_vlan;
+	struct ifnet *ifp = entry->mle_ifp;
+	struct mac_limit_profile *profile = entry->mle_profile;
+
+	/*
+	 * If vlan does not yet exist, we'll handle it when created.
+	 */
+	if (!mac_limit_check_vlan(ifp, vlan))
+		return 0;
+
+	RTE_LOG(DEBUG, MAC_LIMIT,
+		"%s update %d int %s profile %s limit %d\n",
+		__func__, update, ifp->if_name, profile->mlp_name,
+		profile->mlp_limit);
+
+	limit = profile->mlp_limit;
+
+	struct fal_attribute_t vlan_attr[3] = {
+		{ .id = FAL_VLAN_FEATURE_INTERFACE_ID,
+		  .value.u32 = entry->mle_ifp->if_index },
+		{ .id = FAL_VLAN_FEATURE_VLAN_ID,
+		  .value.u16 = vlan },
+		{ .id = FAL_VLAN_FEATURE_ATTR_MAC_LIMIT,
+		  .value.u32 = limit }
+	};
+
+	vlan_feat = if_vlan_feat_get(ifp, vlan);
+	if (!vlan_feat) {
+		RTE_LOG(DEBUG, MAC_LIMIT,
+			"Create vlan feature for Intf: %s, vlan: %d\n",
+			ifp->if_name, vlan);
+		rv = if_vlan_feat_create(ifp, vlan, FAL_NULL_OBJECT_ID);
+		if (rv) {
+			RTE_LOG(ERR, MAC_LIMIT,
+				"Could not create VLAN feature block for intf %s, vlan %d\n",
+				ifp->if_name, vlan);
+			return rv;
+		}
+		vlan_feat = if_vlan_feat_get(ifp, vlan);
+		if (!vlan_feat)
+			return -ENOENT;
+
+		rv = fal_vlan_feature_create(ARRAY_SIZE(vlan_attr),
+					     vlan_attr,
+					     &vlan_feat->fal_vlan_feat);
+		if (rv) {
+			if (rv != -EOPNOTSUPP) {
+				RTE_LOG(ERR, MAC_LIMIT,
+					"Could not create vlan_feat for vlan %d in fal (%d)\n",
+					vlan, rv);
+				if_vlan_feat_delete(ifp, vlan);
+				return rv;
+			}
+		}
+	} else {
+		RTE_LOG(DEBUG, MAC_LIMIT, "Found vlan feature\n");
+		rv = fal_vlan_feature_set_attr(vlan_feat->fal_vlan_feat,
+					       &vlan_attr[2]);
+		if (rv) {
+			RTE_LOG(ERR, MAC_LIMIT,
+				"Could not associate mac limit for intf %s vlan %d\n",
+				ifp->if_name, vlan);
+			return rv;
+		}
+	}
+	if (!update)
+		vlan_feat->refcount++;
+
+	return rv;
+}
+
+static int mac_limit_fal_unapply(struct mac_limit_entry *entry)
+{
+	int rv = 0;
+	struct if_vlan_feat *vlan_feat;
+	uint16_t vlan = entry->mle_vlan;
+	struct ifnet *ifp = entry->mle_ifp;
+
+	/*
+	 * vlan may never have existed and so limit was never applied.
+	 */
+	if (!mac_limit_check_vlan(entry->mle_ifp, vlan))
+		return 0;
+
+	struct fal_attribute_t vlan_attr[1] = {
+		{ .id = FAL_VLAN_FEATURE_ATTR_MAC_LIMIT,
+		  .value.u32 = 0 }
+	};
+
+	/*
+	 * Remove the vlan feature.
+	 */
+	vlan_feat = if_vlan_feat_get(ifp, vlan);
+	if (!vlan_feat) {
+		RTE_LOG(ERR, MAC_LIMIT,
+				"Could not find vlan feat for intf %s vlan %d\n",
+				ifp->if_name, vlan);
+		return -ENOENT;
+	}
+
+	RTE_LOG(DEBUG, MAC_LIMIT, "Remove vlan feature\n");
+
+	rv = fal_vlan_feature_set_attr(vlan_feat->fal_vlan_feat,
+				       &vlan_attr[0]);
+	if (rv) {
+		RTE_LOG(ERR, MAC_LIMIT,
+				"Could not disassociate mac limit for intf %s vlan %d\n",
+				ifp->if_name, vlan);
+		return rv;
+	}
+
+	vlan_feat->refcount--;
+
+	if (vlan_feat && !vlan_feat->refcount) {
+		rv = fal_vlan_feature_delete(vlan_feat->fal_vlan_feat);
+		if (rv) {
+			RTE_LOG(ERR, MAC_LIMIT,
+				"Could not destroy fal vlan feature obj for %s vlan %d (%d)\n",
+				ifp->if_name, vlan, rv);
+			return rv;
+		}
+
+		rv = if_vlan_feat_delete(ifp, vlan);
+		if (rv) {
+			RTE_LOG(ERR, MAC_LIMIT,
+				"Could not destroy vlan feature obj for %s vlan %d (%d)\n",
+				ifp->if_name, vlan, rv);
+			return rv;
+		}
+		RTE_LOG(INFO, MAC_LIMIT,
+			"Destroyed vlan feature obj for %s vlan %d\n",
+			ifp->if_name, vlan);
+	}
+
+	return rv;
+}
 
 /* MAC limit profile functions*/
 static int mac_limit_setup_profile_table(void)
@@ -183,9 +334,22 @@ mac_limit_find_profile(const char *name)
 static void
 mac_limit_profile_set_limit(struct mac_limit_profile *profile, uint32_t limit)
 {
+	struct mac_limit_entry *entry;
+
 	profile->mlp_limit = limit;
 
-	/* TODO - update the list of attachment points */
+	RTE_LOG(DEBUG, MAC_LIMIT, "mac limit profile %s %s limit %d\n",
+		profile->mlp_name, limit ? "set" : "delete",
+		profile->mlp_limit);
+
+	/* For all the places where the profile is bound */
+	cds_list_for_each_entry_rcu(entry, &profile->mlp_list,
+				    mle_profile_list) {
+		if (limit == 0)
+			mac_limit_fal_unapply(entry);
+		else
+			mac_limit_fal_apply(entry, true);
+	}
 }
 
 static int mac_limit_set_profile(MacLimitConfig__MacLimitProfileConfig *cfg)
@@ -314,6 +478,7 @@ static int mac_limit_set_intf_cfg(MacLimitConfig__MacLimitIfVLANConfig *cfg)
 	struct mac_limit_entry *entry = NULL;
 	struct mac_limit_profile *profile = NULL;
 	uint16_t vlan;
+	bool update = false;
 
 	ifname = cfg->ifname;
 	vlan = cfg->vlan;
@@ -338,6 +503,7 @@ static int mac_limit_set_intf_cfg(MacLimitConfig__MacLimitIfVLANConfig *cfg)
 			return -1;
 		}
 		if (entry) {
+			update = true;
 			/*
 			 * Existing entry. If the profile name differs from the
 			 * one we are adding, need to undo the existing one
@@ -355,13 +521,13 @@ static int mac_limit_set_intf_cfg(MacLimitConfig__MacLimitIfVLANConfig *cfg)
 		entry->mle_profile = profile;
 		cds_list_add_rcu(&entry->mle_profile_list,
 				 &profile->mlp_list);
-		/* TODO - apply update to FAL */
+		mac_limit_fal_apply(entry, update);
 	} else {
 		/* Nothing to delete */
 		if (!entry)
 			return 0;
 
-		/* TODO - unapply fal update */
+		mac_limit_fal_unapply(entry);
 		mle_delete_entry(entry);
 	}
 
