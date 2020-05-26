@@ -579,6 +579,166 @@ PB_REGISTER_CMD(maclimit_cmd) = {
 	.handler = cmd_mac_limit_cfg,
 };
 
+static int mac_limit_entry_get_count(struct mac_limit_entry *entry)
+{
+	uint16_t vlan;
+	struct ifnet *ifp;
+	struct if_vlan_feat *vlan_feat;
+	struct fal_attribute_t vlan_attr;
+
+	vlan = entry->mle_vlan;
+	ifp =  entry->mle_ifp;
+	vlan_attr.id = FAL_VLAN_FEATURE_ATTR_MAC_COUNT;
+
+	vlan_feat = if_vlan_feat_get(ifp, vlan);
+	if (!vlan_feat) {
+		RTE_LOG(ERR, MAC_LIMIT,
+				"Failed to retrieve mac count for intf %s vlan %d\n",
+				ifp->if_name, vlan);
+		return 0;
+	}
+	if (!fal_vlan_feature_get_attr(vlan_feat->fal_vlan_feat, 1,
+								   &vlan_attr))
+		return vlan_attr.value.u32;
+
+	return 0;
+}
+
+/*
+ * Dump all structures or specific info.
+ */
+static void mac_limit_dump(FILE *f, const char *intf,
+			   uint16_t vlan, const char *profile)
+{
+	struct mac_limit_entry *entry;
+	struct mac_limit_entry *next;
+	struct mac_limit_profile *instance;
+	struct cds_lfht_iter iter;
+	json_writer_t *wr;
+
+	if (!intf || !profile)
+		return;
+
+	if (!mac_limit_profile_tbl)
+		return;
+
+	if (f == NULL)
+		f = stderr;
+
+	wr = jsonw_new(f);
+	jsonw_name(wr, "mac-limit");
+	jsonw_start_object(wr);
+	if (strcmp(intf, "none")) {
+		jsonw_name(wr, "instance");
+		if (mac_limit_list) {
+			jsonw_start_array(wr);
+			cds_list_for_each_entry_safe(entry, next,
+						     mac_limit_list, mle_list) {
+				if (!strcmp(intf, "all") ||
+					(!strcmp(intf,
+						 entry->mle_ifp->if_name) &&
+					 entry->mle_vlan == vlan)) {
+					jsonw_start_object(wr);
+					jsonw_string_field(
+						wr, "interface",
+						entry->mle_ifp->if_name);
+					jsonw_uint_field(wr, "vlan",
+							 entry->mle_vlan);
+					jsonw_string_field(
+						wr, "profile",
+						entry->mle_profile->mlp_name);
+					jsonw_end_object(wr);
+				}
+			}
+			jsonw_end_array(wr);
+		}
+	}
+
+	if (strcmp(profile, "none")) {
+		jsonw_name(wr, "profile");
+		jsonw_start_array(wr);
+		cds_lfht_for_each_entry(mac_limit_profile_tbl, &iter,
+					instance, mlp_node) {
+			if (!strcmp(profile, "all")
+				|| !strcmp(instance->mlp_name, profile)) {
+				jsonw_start_object(wr);
+				jsonw_string_field(wr, "name",
+						   instance->mlp_name);
+				jsonw_uint_field(wr, "limit",
+						 instance->mlp_limit);
+				jsonw_end_object(wr);
+			}
+		}
+		jsonw_end_array(wr);
+	}
+	jsonw_end_object(wr);
+	jsonw_destroy(&wr);
+}
+
+/*
+ * mac-limit show mac-count <intf> <vlan>
+ * mac-limit dump (internal use)
+ */
+int cmd_mac_limit_op(FILE *f, int argc, char **argv)
+{
+	int count;
+	char *ifname;
+	uint16_t vlan;
+	struct ifnet *ifp;
+	json_writer_t *wr;
+	struct mac_limit_profile *mlp;
+	struct mac_limit_entry *mac_limit;
+
+	if (argc < 5)
+		goto error;
+
+	if (!strcmp(argv[1], "dump")) {
+		mac_limit_dump(f, argv[2], atoi(argv[3]),  argv[4]);
+		return 0;
+	}
+
+	if (strcmp(argv[1], "show") || strcmp(argv[2], "mac-count"))
+		goto error;
+
+	ifname = argv[3];
+	vlan = atoi(argv[4]);
+
+	ifp = dp_ifnet_byifname(ifname);
+	if (!ifp) {
+		fprintf(f, "No interface %s\n", ifname);
+		return -1;
+	}
+
+	mac_limit = mle_find_entry(ifp, vlan);
+	if (!mac_limit) {
+		fprintf(f, "No configuration found for %s %d\n",
+			ifname, vlan);
+		return -1;
+	}
+
+	mlp = mac_limit->mle_profile;
+	if (mlp == NULL) {
+		fprintf(f, "Failed to find profile intf:%s, vlan %d\n",
+				ifname, vlan);
+		return -1;
+	}
+
+	count = mac_limit_entry_get_count(mac_limit);
+	wr = jsonw_new(f);
+	jsonw_name(wr, "statistics");
+	jsonw_start_object(wr);
+	jsonw_uint_field(wr, "limit", mlp->mlp_limit);
+	jsonw_uint_field(wr, "count", count);
+	jsonw_end_object(wr);
+	jsonw_destroy(&wr);
+
+	return 0;
+
+error:
+	fprintf(f, "Usage: mac-limit show <port> <vlan>");
+	return -1;
+}
+
 static void
 mac_limit_if_vlan_add(struct ifnet *ifp, uint16_t vlan)
 {

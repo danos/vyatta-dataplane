@@ -91,6 +91,7 @@
 #include "fal.h"
 #include "npf/dpi/app_cmds.h"
 #include "storm_ctl.h"
+#include "mac_limit.h"
 #include "ip_icmp.h"
 #include "backplane.h"
 #include "vlan_modify.h"
@@ -1774,6 +1775,7 @@ static const cmd_t cmd_table[] = {
 	{ 0,	"vlan_mod",	cmd_vlan_mod,	"show vlan_mod info" },
 	{ 0,	"vrf",		cmd_vrf,	"Show VRF information" },
 	{ 0,	"vxlan",	cmd_vxlan,      "VXLAN commands" },
+	{ 0,	"mac-limit",    cmd_mac_limit_op, "MAC limiting commands" },
 	{ 0,	NULL,		NULL,		NULL }
 };
 
