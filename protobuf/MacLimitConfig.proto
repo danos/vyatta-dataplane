@@ -1,0 +1,50 @@
+// Copyright (c) 2020, AT&T Intellectual Property.  All rights reserved.
+//
+// SPDX-License-Identifier: LGPL-2.1-only
+//
+// MAC limit config definitions
+//
+
+syntax="proto2";
+
+option go_package = "github.com/danos/vyatta-dataplane/protobuf/go/MacLimitConfig";
+
+message MacLimitConfig {
+	enum Action {
+		SET	= 0;
+		DELETE	= 1;
+	}
+
+	message MacLimitProfileConfig {
+		optional Action	action = 1;
+
+		// Profile name
+		// Required for both SET and DELETE
+		optional string profile = 2;
+
+		// Limit of MAC addresses to learn
+		// Required for SET
+		optional uint32 limit = 3;
+	}
+
+	message MacLimitIfVLANConfig {
+		optional Action	action = 1;
+
+		// Interface that MAC limit applies to
+		// Required for both SET and DELETE
+		optional string ifname = 2;
+
+		// VLAN that MAC limit applies to
+		// Required for both SET and DELETE
+		optional uint32 vlan = 3;
+
+		// MAC limit profile to apply to interface & VLAN
+		// Required for SET
+		optional string profile = 4;
+	}
+
+	oneof mtype {
+		MacLimitProfileConfig profile = 1;
+		MacLimitIfVLANConfig ifvlan = 2;
+	}
+}

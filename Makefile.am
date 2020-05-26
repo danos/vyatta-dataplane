@@ -181,6 +181,7 @@ CORE_FILES = \
 	src/log.c \
 	src/lpm/lpm.c \
 	src/lpm/lpm6.c \
+	src/mac_limit.c \
 	src/main.c \
 	src/master.c \
 	src/mstp.c \
@@ -411,7 +412,8 @@ PROTO_FILES = \
 	protobuf/BreakoutConfig.proto \
 	protobuf/IPAddressOrLabel.proto \
 	protobuf/Route.proto \
-	protobuf/RibUpdate.proto
+	protobuf/RibUpdate.proto \
+	protobuf/MacLimitConfig.proto
 
 
 SAMPLE_PROTO_FILES = src/pipeline/nodes/sample/SampleFeatConfig.proto \
