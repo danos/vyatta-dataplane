@@ -154,6 +154,7 @@ static rte_atomic32_t cgn_id_resource;
 /* max sessions, and sessions used */
 int32_t cgn_sessions_max = CGN_SESSIONS_MAX;
 int16_t cgn_dest_sessions_max = CGN_DEST_SESSIONS_MAX;
+int16_t cgn_dest_ht_max = CGN_DEST_SESSIONS_MAX;
 
 /* Global count of all 3-tuple sessions */
 rte_atomic32_t cgn_sessions_used;

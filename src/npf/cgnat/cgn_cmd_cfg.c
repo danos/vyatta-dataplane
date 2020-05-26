@@ -786,20 +786,37 @@ usage:
  */
 static int cgn_max_dest_sessions_cfg(FILE *f, int argc, char **argv)
 {
-	int tmp;
+	uint16_t tmp;
 
 	if (argc < 3)
 		goto usage;
 
 	assert(CGN_DEST_SESSIONS_MAX < USHRT_MAX);
 
-	tmp = cgn_arg_to_int(argv[2]);
-	if (tmp < 0 || tmp > CGN_DEST_SESSIONS_MAX || tmp > (USHRT_MAX - 1))
+	tmp = (uint16_t)cgn_arg_to_int(argv[2]);
+	if (tmp > CGN_DEST_SESSIONS_MAX)
 		return -1;
 
 	if (tmp == 0)
 		tmp = CGN_DEST_SESSIONS_MAX;
-	cgn_dest_sessions_max = (int16_t)tmp;
+
+	/*
+	 * cgn_dest_sessions_max is used to limit the number of entries to the
+	 * dest session hash table.
+	 */
+	cgn_dest_sessions_max = tmp;
+
+	/*
+	 * cgn_dest_ht_max is used to initialise the dest session hash table.
+	 * This must be a power of two, so we round up tmp accordingly.
+	 */
+	for (uint16_t po2 = CGN_DEST_SESSIONS_MAX >> 1; po2 > 0; po2 >>= 1) {
+		if (tmp > po2) {
+			tmp = po2 << 1;
+			break;
+		}
+	}
+	cgn_dest_ht_max = tmp;
 
 	return 0;
 usage:

@@ -107,15 +107,9 @@ int cgn_sess_s2_enable(struct cgn_sess_s2 *cs2)
 {
 	/*
 	 * The max value cannot change after the HT is created, so set it here
-	 * from the user-configurable global.  Ensure it is a power of two.
+	 * from the user-configurable global.
 	 */
-	int16_t max = cgn_dest_sessions_max;
-
-	if ((max <= 0) || ((max & (max - 1)) != 0))
-		/* cgn_dest_sessions_max is either 0 or not power or two */
-		max = CGN_DEST_SESSIONS_MAX;
-
-	cs2->cs2_max = max;
+	cs2->cs2_max = cgn_dest_sessions_max;
 
 	cs2->cs2_enbld = true;
 	return 0;
@@ -421,7 +415,15 @@ static int cgn_sess2_activate(struct cgn_sess_s2 *cs2, struct cgn_sess2 *s2)
 	if (!rcu_dereference(cs2->cs2_ht)) {
 		struct cds_lfht *old, *new;
 
-		new = cgn_sess2_ht_create(cs2->cs2_max);
+		/*
+		 * cgn_dest_sessions_max and cgn_dest_ht_max may have changed
+		 * since the 3-tuple session was created, so reset cs2_max at
+		 * the same time the hash table is created since we must
+		 * ensure cs2->cs2_max <= cgn_dest_ht_max at this point.
+		 */
+		cs2->cs2_max = cgn_dest_sessions_max;
+
+		new = cgn_sess2_ht_create(cgn_dest_ht_max);
 		if (!new)
 			return -CGN_S2_ENOMEM;
 

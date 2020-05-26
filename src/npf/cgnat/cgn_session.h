@@ -22,6 +22,7 @@ struct ifnet;
 
 extern int32_t cgn_sessions_max;
 extern int16_t cgn_dest_sessions_max;
+extern int16_t cgn_dest_ht_max;
 
 /* Global count of all 3-tuple sessions */
 extern rte_atomic32_t cgn_sessions_used;
