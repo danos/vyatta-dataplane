@@ -249,7 +249,7 @@ static int ipv4_route_pb_handler(RibUpdate *rtupdate,
 	}
 
 	next = nexthop_list_create(route, NH_TYPE_V4GW, add_incomplete);
-	if (*add_incomplete)
+	if (!next && *add_incomplete)
 		return 0;
 	if (!next)
 		return -1;
@@ -270,7 +270,6 @@ static int ipv6_route_pb_handler(RibUpdate *rtupdate,
 	Route *route = rtupdate->route;
 	uint32_t table = route->table_id;
 	char b1[INET6_ADDRSTRLEN];
-	bool missing_ifp = false;
 	struct next_hop *next;
 	struct in6_addr dst;
 	vrfid_t vrf_id;
@@ -307,11 +306,9 @@ static int ipv6_route_pb_handler(RibUpdate *rtupdate,
 		return 0;
 	}
 
-	next = nexthop_list_create(route, NH_TYPE_V6GW, &missing_ifp);
-	if (missing_ifp) {
-		*add_incomplete = true;
+	next = nexthop_list_create(route, NH_TYPE_V6GW, add_incomplete);
+	if (!next && *add_incomplete)
 		return 0;
-	}
 	if (!next)
 		return -1;
 
@@ -381,7 +378,7 @@ static int mpls_route_pb_handler(RibUpdate *rtupdate, bool *add_incomplete)
 	}
 
 	next = nexthop_list_create(route, nh_type, add_incomplete);
-	if (*add_incomplete)
+	if (!next && *add_incomplete)
 		return 0;
 	if (!next)
 		return -1;
