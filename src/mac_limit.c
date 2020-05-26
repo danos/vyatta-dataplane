@@ -415,7 +415,7 @@ static struct mac_limit_entry *mle_find_entry(struct ifnet *ifp,
 
 	cds_list_for_each_entry_safe(entry, next, mac_limit_list, mle_list) {
 		if ((entry->mle_ifp == ifp) && (entry->mle_vlan == vlan))
-			return (entry);
+			return entry;
 	}
 	return NULL;
 }
@@ -578,3 +578,42 @@ PB_REGISTER_CMD(maclimit_cmd) = {
 	.cmd = "vyatta:maclimit",
 	.handler = cmd_mac_limit_cfg,
 };
+
+static void
+mac_limit_if_vlan_add(struct ifnet *ifp, uint16_t vlan)
+{
+	struct mac_limit_entry *entry;
+
+	entry = mle_find_entry(ifp, vlan);
+	if (!entry)
+		return;
+
+	RTE_LOG(DEBUG, MAC_LIMIT,
+		"%s: Found entry for intf %s, vlan %d\n",
+		__func__, ifp->if_name, vlan);
+
+	mac_limit_fal_apply(entry, false);
+}
+
+static void
+mac_limit_if_vlan_del(struct ifnet *ifp, uint16_t vlan)
+{
+	struct mac_limit_entry *entry;
+
+	entry = mle_find_entry(ifp, vlan);
+	if (!entry)
+		return;
+
+	RTE_LOG(DEBUG, MAC_LIMIT,
+		"%s: Found entry for intf %s vlan %d\n",
+			__func__, ifp->if_name, vlan);
+
+	mac_limit_fal_unapply(entry);
+}
+
+static const struct dp_event_ops mac_limit_events = {
+	.if_vlan_add = mac_limit_if_vlan_add,
+	.if_vlan_del = mac_limit_if_vlan_del,
+};
+
+DP_STARTUP_EVENT_REGISTER(mac_limit_events);
