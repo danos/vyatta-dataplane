@@ -19,6 +19,7 @@
 #include "protobuf/MacLimitConfig.pb-c.h"
 
 static struct cds_lfht *mac_limit_profile_tbl;
+static struct cds_list_head *mac_limit_list;
 
 #define MAC_LIMIT_PROFILE_TABLE_MIN 8
 #define MAC_LIMIT_PROFILE_TABLE_MAX 1024
@@ -29,6 +30,15 @@ struct mac_limit_profile {
 	struct rcu_head      mlp_rcu;
 	char                 *mlp_name;
 	uint32_t             mlp_limit;
+};
+
+struct mac_limit_entry {
+	struct cds_list_head     mle_list;
+	struct cds_list_head     mle_profile_list;
+	struct ifnet             *mle_ifp;
+	uint16_t                 mle_vlan;
+	struct mac_limit_profile *mle_profile;
+	struct rcu_head          mle_rcu;
 };
 
 /* MAC limit profile functions*/
@@ -228,8 +238,142 @@ static int mac_limit_set_profile(MacLimitConfig__MacLimitProfileConfig *cfg)
 }
 
 /*
+ * MAC limit Entry functions
+ */
+static struct mac_limit_entry *mle_find_entry(struct ifnet *ifp,
+					      uint16_t vlan)
+{
+	struct mac_limit_entry *entry;
+	struct mac_limit_entry *next;
+
+	if (!mac_limit_list)
+		return NULL;
+
+	cds_list_for_each_entry_safe(entry, next, mac_limit_list, mle_list) {
+		if ((entry->mle_ifp == ifp) && (entry->mle_vlan == vlan))
+			return (entry);
+	}
+	return NULL;
+}
+
+static struct mac_limit_entry *mle_add_entry(struct ifnet *ifp,
+					     uint16_t vlan)
+{
+	struct mac_limit_entry *entry;
+
+	if (!mac_limit_list) {
+		mac_limit_list = calloc(1, sizeof(*mac_limit_list));
+		if (!mac_limit_list)
+			return NULL;
+
+		CDS_INIT_LIST_HEAD(mac_limit_list);
+	}
+	entry = calloc(1, sizeof(*entry));
+	if (!entry) {
+		RTE_LOG(ERR, MAC_LIMIT,
+			"Failed to alloc mac limit_list entry");
+		return NULL;
+	}
+	entry->mle_vlan = vlan;
+	entry->mle_ifp = ifp;
+	cds_list_add_tail(&entry->mle_list, mac_limit_list);
+	RTE_LOG(DEBUG, MAC_LIMIT,
+		"Allocated entry %lx for Intf: %s, vlan: %d\n",
+		(unsigned long)entry, ifp->if_name, vlan);
+	return entry;
+}
+
+static void mle_entry_free(struct rcu_head *head)
+{
+	struct mac_limit_entry *entry;
+
+	entry = caa_container_of(head, struct mac_limit_entry, mle_rcu);
+	free(entry);
+}
+
+static void mle_delete_entry(struct mac_limit_entry *entry)
+{
+	if (!entry)
+		return;
+
+	cds_list_del(&entry->mle_list);
+	cds_list_del(&entry->mle_profile_list);
+	RTE_LOG(DEBUG, MAC_LIMIT, "Freeing entry %lx\n",
+		(unsigned long)entry);
+	call_rcu(&entry->mle_rcu, mle_entry_free);
+}
+
+/*
+ * mac-limit <SET|DELETE> <ifname> <vlan> <profile>
+ */
+static int mac_limit_set_intf_cfg(MacLimitConfig__MacLimitIfVLANConfig *cfg)
+{
+	bool set = cfg->action == MAC_LIMIT_CONFIG__ACTION__SET;
+	char *ifname, *pname;
+	struct ifnet *ifp = NULL;
+	struct mac_limit_entry *entry = NULL;
+	struct mac_limit_profile *profile = NULL;
+	uint16_t vlan;
+
+	ifname = cfg->ifname;
+	vlan = cfg->vlan;
+	pname = cfg->profile;
+
+	RTE_LOG(DEBUG, MAC_LIMIT,
+		"set_intf_cfg: intf %s vlan %u profile %s\n",
+		ifname, vlan, pname);
+
+	ifp = dp_ifnet_byifname(ifname);
+	if (!ifp) {
+		RTE_LOG(ERR, MAC_LIMIT, "No interface %s\n", ifname);
+		return -1;
+	}
+
+	entry = mle_find_entry(ifp, vlan);
+
+	if (set) {
+		profile = mac_limit_find_profile(pname);
+		if (!profile) {
+			RTE_LOG(ERR, MAC_LIMIT, "Invalid profile %s\n", pname);
+			return -1;
+		}
+		if (entry) {
+			/*
+			 * Existing entry. If the profile name differs from the
+			 * one we are adding, need to undo the existing one
+			 * first.
+			 */
+			if (entry->mle_profile != profile) {
+				cds_list_del(&entry->mle_profile_list);
+				entry->mle_profile = NULL;
+			}
+		} else {
+			entry = mle_add_entry(ifp, vlan);
+			if (!entry)
+				return -1;
+		}
+		entry->mle_profile = profile;
+		cds_list_add_rcu(&entry->mle_profile_list,
+				 &profile->mlp_list);
+		/* TODO - apply update to FAL */
+	} else {
+		/* Nothing to delete */
+		if (!entry)
+			return 0;
+
+		/* TODO - unapply fal update */
+		mle_delete_entry(entry);
+	}
+
+	return 0;
+}
+
+/*
  * mac-limit SET profile <profile> <limit>
  * mac-limit DELETE profile <profile> <limit>
+ *
+ * mac-limit SET <interface> <vlan> <name>
+ * mac-limit DELETE <interface> <vlan> <name>
  *
  */
 static int
@@ -237,7 +381,7 @@ cmd_mac_limit_cfg(struct pb_msg *msg)
 {
 	MacLimitConfig *mlmsg = mac_limit_config__unpack(NULL, msg->msg_len,
 							 msg->msg);
-	int ret = 0;
+	int ret;
 
 	if (!mlmsg) {
 		RTE_LOG(ERR, DATAPLANE,
@@ -250,7 +394,7 @@ cmd_mac_limit_cfg(struct pb_msg *msg)
 		ret = mac_limit_set_profile(mlmsg->profile);
 		break;
 	case MAC_LIMIT_CONFIG__MTYPE_IFVLAN:
-//		ret = mac_limit_set_intf_cfg(mlmsg->ifvlan);
+		ret = mac_limit_set_intf_cfg(mlmsg->ifvlan);
 		break;
 	default:
 		RTE_LOG(INFO, MAC_LIMIT,
