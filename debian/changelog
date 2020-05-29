@@ -1,3 +1,15 @@
+vyatta-dataplane (3.10.26) unstable; urgency=medium
+
+  [ Mark Gillott ]
+  * if: migrate hardware port completion to separate function
+  * if: replace NEWPORT with INIPORT & ADDPORT (Fixes: VRVDR-46511)
+  * if: postpone snapshot request until port initialisation complete
+    (Fixes: VRVDR-46511)
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Fri, 29 May 2020 14:15:43 +0100
+
 vyatta-dataplane (3.10.25) unstable; urgency=medium
 
   [ Paul Aitken ]
