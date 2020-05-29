@@ -10,6 +10,7 @@
 #include <errno.h>
 #include <netinet/in.h>
 #include <linux/if.h>
+#include <poll.h>
 #include <rte_ethdev.h>
 #include <rte_log.h>
 #include <stdbool.h>
@@ -96,6 +97,26 @@ static struct vhost_info *get_vhost_info(const struct ifnet *ifp)
 	return rcu_dereference(sc->scd_vhost_info);
 }
 
+static ssize_t read_timeout(int fd, void *buf, size_t count)
+{
+	struct pollfd poll_fds[1];
+	/* Responses are typically << 100ms, use 500ms to be safe */
+	int timeout = 500;
+	int rc;
+
+	poll_fds[0].fd = fd;
+	poll_fds[0].events = POLLIN;
+
+	rc = poll(poll_fds, 1, timeout);
+	if (rc < 1) {
+		if (!rc)
+			RTE_LOG(ERR, DATAPLANE, "timeout talking to QMP\n");
+		return -1;
+	}
+
+	return read(fd, buf, count);
+}
+
 /**
  * Send cmd via QEMU Machine Protocol (QMP).
  */
@@ -123,10 +144,11 @@ static void vhost_qmp_command(const char *path, const char *cmd)
 			 "%s: connect(%s, ...) failed\n", __func__, path);
 		goto done;
 	}
+
 	/* Read the initial server message.
 	 * See https://wiki.qemu.org/Documentation/QMP for details.
 	 */
-	len = read(sock, buf, sizeof(buf));
+	len = read_timeout(sock, buf, sizeof(buf));
 	if (len < 0) {
 		DP_DEBUG(VHOST, DEBUG, DATAPLANE,
 			 "%s: read(%s, ...) failed during capability negotiation.\n",
@@ -139,7 +161,7 @@ static void vhost_qmp_command(const char *path, const char *cmd)
 	if (len < 0)
 		DP_DEBUG(VHOST, INFO, DATAPLANE,
 			 "%s: write(cmd_mode) failed\n", __func__);
-	len = read(sock, buf, sizeof(buf));
+	len = read_timeout(sock, buf, sizeof(buf));
 	if (len < 0) {
 		DP_DEBUG(VHOST, DEBUG, DATAPLANE,
 			 "%s: read(%s, ...) failed entering command mode.\n",
@@ -151,7 +173,7 @@ static void vhost_qmp_command(const char *path, const char *cmd)
 	if (len < 0)
 		DP_DEBUG(VHOST, INFO, DATAPLANE,
 			 "%s: write(set_link) failed\n", __func__);
-	len = read(sock, buf, sizeof(buf));
+	len = read_timeout(sock, buf, sizeof(buf));
 	if (len < 0)
 		DP_DEBUG(VHOST, DEBUG, DATAPLANE,
 			 "%s: read(%s, ...) failed after sending command.\n",
