@@ -30,3 +30,4 @@ usr/include/vyatta-dataplane/urcu.h
 usr/include/vyatta-dataplane/vrf.h
 
 /usr/lib/${DEB_HOST_MULTIARCH}/pkgconfig/vyatta-dataplane-dev.pc
+usr/lib/${DEB_HOST_MULTIARCH}/libvyatta-jsonw.so

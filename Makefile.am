@@ -171,7 +171,6 @@ CORE_FILES = \
 	src/ip_route.c \
 	src/ip_rt_protobuf.c \
 	src/iptun_common.c \
-	src/json_writer.c \
 	src/l2_rx_fltr.c \
 	src/l2tp/l2tpeth_decap.c \
 	src/l2tp/l2tpeth_dp.c \
@@ -452,10 +451,15 @@ protogopkgsdir=/usr/share/gocode/src/github.com/danos/vyatta-dataplane/
 nobase_protogopkgs_DATA = $(GO_PROTO_GENERATED_FILES)
 
 pkgconfig_DATA = protobuf/vyatta-dataplane-proto.pc debian/vyatta-dataplane-dev.pc debian/libvyattafal.pc
-lib_LTLIBRARIES = libvyatta-dataplane-proto.la
+lib_LTLIBRARIES = libvyatta-dataplane-proto.la libvyatta-jsonw.la
 libvyatta_dataplane_proto_la_SOURCES = $(PROTO_FILES:.proto=.pb.cc)
 libvyatta_dataplane_proto_la_CPPFLAGS = $(AM_CPPFLAGS) $(shell pkg-config --cflags protobuf)
 libvyatta_dataplane_proto_la_LDFLAGS = $(shell pkg-config --cflags --libs protobuf) -version-info 1:0:0 -shared
+
+libvyatta_jsonw_la_SOURCES = src/json_writer.c
+libvyatta_jsonw_la_CPPFLAGS = $(dataplane_CPPFLAGS)
+libvyatta_jsonw_la_CFLAGS = $(EXTRA_CFLAGS)
+libvyatta_jsonw_la_LDFLAGS = -version-info 1:0:0 -shared
 
 includeprotodir = /usr/include/vyatta-dataplane/protobuf
 includeproto_HEADERS = $(PROTO_FILES:%.proto=%.pb.h) $(PROTO_FILES:%.proto=%.pb-c.h)
@@ -477,8 +481,8 @@ dataplane_CPPFLAGS += -I./src \
 dataplane_CFLAGS = $(EXTRA_CFLAGS) $(DPDK_CFLAGS) $(DPI_CFLAGS) $(LIBMNL_CFLAGS) $(LIBCAP_CFLAGS) $(LIBCZMQ_CFLAGS) $(LIBZMQ_CFLAGS) $(LIBURCU_QSBR_CFLAGS) $(LIBURCU_CDS_CFLAGS) $(LIBOSIP2_CFLAGS) $(LIBCRYPTO_CFLAGS) -O3 $(DATAPLANE_LTO_FLAG) -DNDEBUG -DFUSED_MODE $(PTHREAD_CFLAGS) $(SYSTEMD_CFLAGS) -ffunction-sections
 
 dataplane_LDFLAGS = $(EXTRA_LDFLAGS) $(OTHER_LINKER_FLAGS)
-dataplane_LDADD = $(DPDK_LIBS) $(DPI_LIBS) $(LIBMNL_LIBS) $(LIBCAP_LIBS) $(LIBCZMQ_LIBS) $(LIBZMQ_LIBS) $(LIBURCU_QSBR_LIBS) $(LIBURCU_CDS_LIBS) $(LIBOSIP2_LIBS) $(LIBCRYPTO_LIBS) $(PTHREAD_LIBS) $(SYSTEMD_LIBS) -ldl $(PROTOBUF_C_LIBS) $(SWPORT_LIBS)
-EXTRA_dataplane_DEPENDENCIES = $(srcdir)/dataplane.section-ordering
+dataplane_LDADD = $(DPDK_LIBS) $(DPI_LIBS) $(LIBMNL_LIBS) $(LIBCAP_LIBS) $(LIBCZMQ_LIBS) $(LIBZMQ_LIBS) $(LIBURCU_QSBR_LIBS) $(LIBURCU_CDS_LIBS) $(LIBOSIP2_LIBS) $(LIBCRYPTO_LIBS) $(PTHREAD_LIBS) $(SYSTEMD_LIBS) -ldl $(PROTOBUF_C_LIBS) $(SWPORT_LIBS) -lvyatta-jsonw
+EXTRA_dataplane_DEPENDENCIES = $(srcdir)/dataplane.section-ordering libvyatta-jsonw.la
 
 
 dataplane_test_SOURCES = $(CORE_FILES) $(CRYTPO_FILES) $(IPV6_FILES) $(NPF_FILES) $(MPLS_FILES) $(DPI_FILES) $(PIPELINE_FILES) $(SESSION_FILES) $(PROTO_FILES:.proto=.pb-c.c) $(SAMPLE_PROTO_FILES:.proto=.pb-c.c) $(CONNSYNC_FILES)

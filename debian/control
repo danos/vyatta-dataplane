@@ -97,6 +97,7 @@ Depends: check,
          libvyattafal-dev,
          libvyatta-dataplane-proto-dev,
          libprotobuf-c-dev,
+         libvyatta-jsonw1 (= ${binary:Version}),
          ${misc:Depends},
          ${shlibs:Depends}
 Description: Vyatta dataplane pipeline node build support
@@ -193,3 +194,9 @@ Architecture: any
 Depends: libvyatta-dataplane-proto1 (= ${binary:Version}), ${misc:Depends}
 Description: Provides C++ headers for the dataplane API.
  C++ headers for the dataplane API.
+
+Package: libvyatta-jsonw1
+Architecture: any
+Depends: ${misc:Depends}, ${shlibs:Depends}
+Description: Lightweight JSON writer library.
+ Lighweight, simple JSON writer library.
