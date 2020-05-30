@@ -77,8 +77,6 @@ endif
 override_dh_strip:
 	debian/bin/debug_strip --auto-dbgsym
 
-override_dh_installchangelogs:
-
 # _ are replaced with - as the former are not allowed in package names.
 # The generated virtual packages have format:
 # vyatta-dataplane-<cfg|op>-<PROTO>-<VERSION>
