@@ -1695,6 +1695,22 @@ enum fal_switch_attr_t {
 	 * @flags READ_ONLY
 	 */
 	FAL_SWITCH_ATTR_MAX_BFD_IPV6_UDP_SRC_PORT_CNT,
+
+	/**
+	 * @brief BFD IPv4 hw session running mode
+	 *
+	 * @type enum fal_bfd_hw_mode
+	 * @flags READ_ONLY
+	 */
+	FAL_SWITCH_ATTR_BFD_IPV4_HW_MODE,
+
+	/**
+	 * @brief BFD IPv6 hw session running mode
+	 *
+	 * @type enum fal_bfd_hw_mode
+	 * @flags READ_ONLY
+	 */
+	FAL_SWITCH_ATTR_BFD_IPV6_HW_MODE,
 };
 
 /*
@@ -5612,6 +5628,28 @@ enum fal_bfd_session_stat_t {
 	/** Packet Drop stat count */
 	FAL_BFD_SESSION_STAT_DROP_PACKETS
 
+};
+
+/**
+ * @brief HW mode of supporting BFD
+ */
+enum fal_bfd_hw_mode {
+	/** Unknown running mode */
+	FAL_BFD_HW_MODE_UNKNOWN,
+
+	/*
+	 * HW BFD does not maintain state machine in hardware resource.
+	 * Session state transition, flags and parameter negotiation
+	 * depend on ControlPlane
+	 */
+	FAL_BFD_HW_MODE_CP_DEPENDENT,
+
+	/*
+	 * HW BFD is ControlPlane Independent. Full BFD state machine
+	 * is maintained in hardware layer. HW session initial state
+	 * cannot be set flexibly, but fixed to be DOWN
+	 */
+	FAL_BFD_HW_MODE_CP_INDEPENDENT
 };
 
 /**
