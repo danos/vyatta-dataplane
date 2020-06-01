@@ -700,6 +700,11 @@ static int fal_policer_modify_profile(struct storm_ctl_profile *profile,
 	if (!instance->sci_fal_obj[traf])
 		return fal_policer_apply_profile(profile, vlan,
 						 instance, traf);
+	else if (instance->sci_fal_obj[traf] &&
+		 profile->scp_policies[traf].threshold_type ==
+		 DP_STORM_CTL_THRESHOLD_NONE)
+		return fal_policer_unapply_profile(instance->sci_ifp, vlan,
+						   instance, traf);
 
 	policer_bind_attr.id = FAL_POLICER_ATTR_CIR;
 	policer_bind_attr.value.u64 = storm_ctl_policy_get_fal_rate(
