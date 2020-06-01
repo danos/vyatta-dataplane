@@ -286,6 +286,7 @@ static struct port_conf {
 	bitmask_t	rx_enabled_queues;
 	bool            uses_queue_state;
 
+	uint64_t dev_flags;
 	struct rte_mempool *rx_pool;	/* Receive buffer pool */
 	struct rte_eth_txconf tx_conf;
 	struct rte_eth_rxconf rx_conf;
@@ -2523,7 +2524,6 @@ int set_master_worker_vhost_event_fd(void)
 
 static int port_conf_final(portid_t portid, struct rte_eth_conf *dev_conf)
 {
-	struct rte_eth_dev *dev = &rte_eth_devices[portid];
 	struct rte_eth_dev_info dev_info;
 	struct port_conf *port_conf = &port_config[portid];
 
@@ -2534,7 +2534,7 @@ static int port_conf_final(portid_t portid, struct rte_eth_conf *dev_conf)
 
 	rte_eth_dev_info_get(portid, &dev_info);
 
-	dev_conf->intr_conf.lsc = (dev->data->dev_flags &
+	dev_conf->intr_conf.lsc = (port_conf->dev_flags &
 				   RTE_ETH_DEV_INTR_LSC) ? 1 : 0;
 
 	dev_conf->rxmode.offloads = port_conf->rx_conf.offloads;
@@ -2572,6 +2572,7 @@ static int port_conf_final(portid_t portid, struct rte_eth_conf *dev_conf)
 
 static int port_conf_init(portid_t portid)
 {
+	struct rte_eth_dev *dev = &rte_eth_devices[portid];
 	struct port_conf *port_conf = &port_config[portid];
 	int socketid = rte_eth_dev_socket_id(portid);
 	struct rte_eth_dev_info dev_info;
@@ -2770,6 +2771,11 @@ static int port_conf_init(portid_t portid)
 	port_conf->tx_conf.offloads &= ~parm->neg_tx_offloads;
 	if (parm->rx_mq_mode_set)
 		port_conf->rx_mq_mode = parm->rx_mq_mode;
+
+	/* Potentially restrict device capabilities */
+	port_conf->dev_flags = dev->data->dev_flags;
+	port_conf->dev_flags |= parm->dev_flags;
+	port_conf->dev_flags &= ~parm->neg_dev_flags;
 
 	DP_DEBUG(INIT, INFO, DATAPLANE,
 		 "Port %u %s on socket %d (mbufs %u) (rx %u) (tx %u)\n",

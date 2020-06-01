@@ -385,6 +385,13 @@ struct str_val tx_offload_strs[] = {
 #define MAX_TX_OFFLOAD_STRS (sizeof(tx_offload_strs) / \
 						sizeof(tx_offload_strs[0]))
 
+struct str_val dev_flags_strs[] = {
+	{ "rte_eth_dev_intr_lsc", RTE_ETH_DEV_INTR_LSC },
+};
+
+#define MAX_DEV_FLAGS_STRS (sizeof(dev_flags_strs) / \
+						sizeof(dev_flags_strs[0]))
+
 static void parse_option_strs(char *value,
 			      struct str_val *option_strs,
 			      uint8_t max_option_strs,
@@ -622,6 +629,15 @@ static int parse_driver_entry(void *user, const char *section,
 			param->tx_desc_vm_multiplier = val;
                 }
         }
+	if (strcmp(name, "dev_flags") == 0) {
+		parse_option_strs(strdupa(value), dev_flags_strs,
+				  MAX_DEV_FLAGS_STRS,
+				  &param->dev_flags,
+				  &param->neg_dev_flags);
+		DP_DEBUG(INIT, INFO, DATAPLANE,
+			 "Set dev flags for %s, 0x%lx, !0x%lx\n",
+			 section, param->dev_flags, param->neg_dev_flags);
+	}
 
 	return 1; /* good */
 }
