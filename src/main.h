@@ -142,6 +142,8 @@ struct rxtx_param {
 	uint8_t	 tx_desc_vm_multiplier;
 	uint64_t tx_offloads;
 	uint64_t neg_tx_offloads;
+	uint64_t dev_flags;
+	uint64_t neg_dev_flags;
 	uint64_t rx_mq_mode;
 	bool rx_mq_mode_set;
 };
