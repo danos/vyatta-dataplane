@@ -607,41 +607,6 @@ static int fal_policer_apply_profile(struct storm_ctl_profile *profile,
 	return rv;
 }
 
-/*
- * The rate has changed, update fal
- */
-static int fal_policer_modify_profile(struct storm_ctl_profile *profile,
-				      uint16_t vlan,
-				      struct storm_ctl_instance *instance,
-				      enum fal_traffic_type traf)
-{
-
-	struct fal_attribute_t policer_bind_attr = {};
-	int rv;
-
-	if (!storm_control_can_create_in_fal(instance->sci_ifp, vlan))
-		return 0;
-
-	if (!instance->sci_fal_obj[traf])
-		return fal_policer_apply_profile(profile, vlan,
-						 instance, traf);
-
-	policer_bind_attr.id = FAL_POLICER_ATTR_CIR;
-	policer_bind_attr.value.u64 = storm_ctl_policy_get_fal_rate(
-		&profile->scp_policies[traf], instance->sci_ifp)
-		* (1024 / 8);	/* convert from kilobits into bytes */
-
-	rv = fal_policer_set_attr(instance->sci_fal_obj[traf],
-				  &policer_bind_attr);
-	if (rv && rv != -EOPNOTSUPP) {
-		RTE_LOG(ERR, STORM_CTL,
-			"Could not update policer for %s %d in fal (%d)\n",
-			instance->sci_ifp->if_name, vlan, rv);
-		return rv;
-	}
-	return rv;
-}
-
 static int fal_policer_unapply_profile(struct ifnet *ifp,
 				       uint16_t vlan,
 				       struct storm_ctl_instance *instance,
@@ -714,6 +679,41 @@ static int fal_policer_unapply_profile(struct ifnet *ifp,
 			ifp->if_name, vlan);
 	}
 
+	return rv;
+}
+
+/*
+ * The rate has changed, update fal
+ */
+static int fal_policer_modify_profile(struct storm_ctl_profile *profile,
+				      uint16_t vlan,
+				      struct storm_ctl_instance *instance,
+				      enum fal_traffic_type traf)
+{
+
+	struct fal_attribute_t policer_bind_attr = {};
+	int rv;
+
+	if (!storm_control_can_create_in_fal(instance->sci_ifp, vlan))
+		return 0;
+
+	if (!instance->sci_fal_obj[traf])
+		return fal_policer_apply_profile(profile, vlan,
+						 instance, traf);
+
+	policer_bind_attr.id = FAL_POLICER_ATTR_CIR;
+	policer_bind_attr.value.u64 = storm_ctl_policy_get_fal_rate(
+		&profile->scp_policies[traf], instance->sci_ifp)
+		* (1024 / 8);	/* convert from kilobits into bytes */
+
+	rv = fal_policer_set_attr(instance->sci_fal_obj[traf],
+				  &policer_bind_attr);
+	if (rv && rv != -EOPNOTSUPP) {
+		RTE_LOG(ERR, STORM_CTL,
+			"Could not update policer for %s %d in fal (%d)\n",
+			instance->sci_ifp->if_name, vlan, rv);
+		return rv;
+	}
 	return rv;
 }
 
