@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -608,6 +608,9 @@ npf_tbl_walk(struct npf_tbl *nt, npf_tbl_walk_cb *cb, void *ctx)
 	struct npf_tbl_entry *te;
 	uint i;
 	int rc = 0;
+
+	if (!nt)
+		return -1;
 
 	for (i = 0; i < nt->nt_sz; i++) {
 		te = nt->nt_table[i];

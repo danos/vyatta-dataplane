@@ -862,14 +862,22 @@ nat_pool_jsonw_ranges(json_writer_t *json, struct nat_pool *np)
 	}
 	jsonw_end_array(json);
 
-	/* Add json for hidden NAT pool address-group */
+	/*
+	 * Add json for hidden NAT pool address-group.
+	 *
+	 * We use the generic address group code to format the json for this
+	 * hidden group. The per address-group json is normally an object
+	 * within an array.  We dont have the array here, so need to name the
+	 * json object.
+	 */
 	struct npf_addrgrp *ag = rcu_dereference(nr->nr_ag);
 	if (ag) {
 		struct npf_show_ag_ctl ctl = { 0 };
 		ctl.af[AG_IPv4] = true;
-		ctl.list = true;
+		ctl.detail = true;
 
-		npf_addrgrp_jsonw(json, ag, &ctl);
+		jsonw_name(json, "address-group");
+		npf_addrgrp_jsonw_one(json, ag, &ctl);
 	}
 }
 

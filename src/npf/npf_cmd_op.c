@@ -323,32 +323,26 @@ cmd_flush_rulesets(FILE *f, int argc __unused, char **argv __unused)
 }
 
 /*
- * npf fw show address-group
- *     af={all|ipv4|ipv6}
- *     list={all|none|list-only}
- *     tree={all|none}
- *     id=<id> or name=<name>
- *
- * Default is:
- *     npf fw show address-group af=all list=all tree=none id=0
- *
- * If an address-group name is specified then just that address-group is
- * returned.
- *
- * If the user want to fetch *all* groups, then multiple commands are
- * required. Table ID should initially set to 0, and then set it to the last
- * fetched ID plus 1 for subsequent calls.  So for example, the initial call
- * with id 0 might return 2 so the next call should use id 3.
+ * Show address groups
  */
-
-/* Parse address-group args */
 static int
 cmd_npf_show_addrgrp_args(int argc, char **argv, struct npf_show_ag_ctl *ctl)
 {
-	char *endp, *p, *a;
+	/* Set defaults */
+	ctl->af[AG_IPv4] = true;
+	ctl->af[AG_IPv6] = true;
+	ctl->detail = false;
+	ctl->brief = false;
+	ctl->tree = false;
+	ctl->optimal = false;
+	ctl->name = NULL;
 
 	while (argc > 0) {
-		/* <param>=<arg> */
+		char *a, *p;
+
+		/*
+		 * Separate parameter and argument
+		 */
 		p = strdupa(argv[0]);
 		if (!p)
 			break;
@@ -360,40 +354,24 @@ cmd_npf_show_addrgrp_args(int argc, char **argv, struct npf_show_ag_ctl *ctl)
 		a += 1;
 
 		if (!strcmp(p, "af")) {
-			if (!strcmp(a, "ipv4")) {
-				ctl->af[AG_IPv4] = true;
+			if (!strcmp(a, "ipv4"))
 				ctl->af[AG_IPv6] = false;
-			} else if (!strcmp(a, "ipv6")) {
+			else if (!strcmp(a, "ipv6"))
 				ctl->af[AG_IPv4] = false;
-				ctl->af[AG_IPv6] = true;
-			} else if (!strcmp(a, "all")) {
-				ctl->af[AG_IPv6] = true;
-				ctl->af[AG_IPv4] = true;
-			}
-		} else if (!strcmp(p, "list")) {
-			if (!strcmp(a, "none"))
-				ctl->list = false;
-			else if (!strcmp(a, "list-only")) {
-				ctl->list = true;
-				ctl->range_pfxs = false;
-			} else if (!strcmp(a, "all")) {
-				ctl->list = true;
-				ctl->range_pfxs = true;
-			}
-		} else if (!strcmp(p, "tree")) {
-			if (!strcmp(a, "all"))
-				ctl->tree = true;
-			else if (!strcmp(a, "none"))
-				ctl->tree = false;
-		} else if (!strcmp(p, "id")) {
-			ctl->tid = strtoul(a, &endp, 10);
-			if (*endp)
-				/* Invalid number. */
-				return -1;
+
 		} else if (!strcmp(p, "name")) {
 			ctl->name = strdup(a);
-		} else
-			break;
+
+		} else if (!strcmp(p, "option")) {
+			if (!strcmp(a, "detail"))
+				ctl->detail = true;
+			else if (!strcmp(a, "brief"))
+				ctl->brief = true;
+			else if (!strcmp(a, "tree"))
+				ctl->tree = true;
+			else if (!strcmp(a, "optimal"))
+				ctl->optimal = true;
+		}
 
 		argc--;
 		argv++;
@@ -407,53 +385,15 @@ cmd_npf_show_addrgrp(FILE *f, int argc, char **argv)
 {
 	struct npf_show_ag_ctl ctl = {0};
 
-	/* Default to show everything */
-	ctl.af[AG_IPv4] = true;
-	ctl.af[AG_IPv6] = true;
-	ctl.list = true;
-	ctl.range_pfxs = false;
-	ctl.tree = false;
-	ctl.tid = 0;
-
+	/* Parse args */
 	cmd_npf_show_addrgrp_args(argc, argv, &ctl);
-	npf_addrgrp_show_json(f, &ctl);
+
+	npf_addrgrp_show(f, &ctl);
 
 	if (ctl.name)
 		free(ctl.name);
 
 	return 0;
-}
-
-/*
- * npf fw show address-group optimal af={ipv4|ipv6} {<grp-name>}
- *
- * Only handles one address family and address-group per call.
- */
-static int
-cmd_npf_show_addrgrp_opt(FILE *f, int argc, char **argv)
-{
-	struct npf_show_ag_ctl ctl = {0};
-	int rc = 0;
-
-	cmd_npf_show_addrgrp_args(argc, argv, &ctl);
-
-	if (ctl.name == NULL) {
-		npf_cmd_err(f, "No name specified");
-		return -1;
-	}
-	if (ctl.af[AG_IPv4] == ctl.af[AG_IPv6]) {
-		npf_cmd_err(f, "IPv4 or IPv6 should be specified");
-		rc = -1;
-		goto cleanup;
-	}
-
-	npf_addrgrp_show_json_opt(f, &ctl);
-
-cleanup:
-	if (ctl.name)
-		free(ctl.name);
-
-	return rc;
 }
 
 /*
@@ -526,7 +466,6 @@ enum {
 	FW_SHOW_SESSION_LIMIT,
 	FW_CLEAR_SESSION_LIMIT,
 	FW_SHOW_ADDRGRP,
-	FW_SHOW_ADDRGRP_OPT,
 	PORTMAP_CLEAR,
 	PORTMAP_DUMP,
 	DUMPALG,
@@ -574,10 +513,6 @@ static const struct npf_command npf_cmd_op[] = {
 	[FW_SHOW_ADDRGRP] = {
 		.tokens = "fw show address-group",
 		.handler = cmd_npf_show_addrgrp,
-	},
-	[FW_SHOW_ADDRGRP_OPT] = {
-		.tokens = "fw show address-group optimal",
-		.handler = cmd_npf_show_addrgrp_opt,
 	},
 	[PORTMAP_CLEAR] = {
 		.tokens = "fw portmap clear",

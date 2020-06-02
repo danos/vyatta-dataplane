@@ -1988,7 +1988,6 @@ npf_addrgrp_naddrs(enum npf_addrgrp_af af, int tid, bool count_all)
  *******************************************************************/
 
 static void npf_addrgrp_jsonw_list(json_writer_t *json, zlist_t *list,
-				   const char *name,
 				   struct npf_show_ag_ctl *ctl);
 
 /*
@@ -2047,9 +2046,9 @@ npf_addrgrp_jsonw_list_entry(json_writer_t *json, struct npf_addrgrp_entry *ae,
 		jsonw_string_field(json, "start", str1);
 		jsonw_string_field(json, "end", str2);
 
-		if (ctl->range_pfxs)
-			npf_addrgrp_jsonw_list(json, ae->ar_list,
-					       "range-prefixes", ctl);
+		/* Show the prefixes derived from the address range */
+		if (ctl->detail)
+			npf_addrgrp_jsonw_list(json, ae->ar_list, ctl);
 
 		jsonw_end_object(json);
 	}
@@ -2059,12 +2058,12 @@ npf_addrgrp_jsonw_list_entry(json_writer_t *json, struct npf_addrgrp_entry *ae,
  * Write json array for an address-group list.
  */
 static void
-npf_addrgrp_jsonw_list(json_writer_t *json, zlist_t *list, const char *name,
+npf_addrgrp_jsonw_list(json_writer_t *json, zlist_t *list,
 		       struct npf_show_ag_ctl *ctl)
 {
 	struct npf_addrgrp_entry *ae;
 
-	jsonw_name(json, name);
+	jsonw_name(json, "entries");
 	jsonw_start_array(json);
 
 	for (ae = zlist_first(list); ae != NULL;
@@ -2096,7 +2095,7 @@ static void
 npf_addrgrp_jsonw_tree(json_writer_t *json, struct npf_addrgrp *ag,
 		       enum npf_addrgrp_af af)
 {
-	jsonw_name(json, "tree");
+	jsonw_name(json, "entries");
 	jsonw_start_array(json);
 
 	/*
@@ -2114,23 +2113,46 @@ npf_addrgrp_jsonw_tree(json_writer_t *json, struct npf_addrgrp *ag,
 	jsonw_end_array(json);
 }
 
+static void
+npf_addrgrp_jsonw_optimal(json_writer_t *json, struct npf_addrgrp *ag,
+			  int af);
+
 /*
  * Write json for an address-group
  */
 void
-npf_addrgrp_jsonw(json_writer_t *json, struct npf_addrgrp *ag,
-		  struct npf_show_ag_ctl *ctl)
+npf_addrgrp_jsonw_one(json_writer_t *json, struct npf_addrgrp *ag,
+		      struct npf_show_ag_ctl *ctl)
 {
-	assert(AG_IPv6 > AG_IPv4);
-
 	int af;
+	int nentries = 0;
 
-	jsonw_name(json, "address-group");
+	rte_rwlock_read_lock(&ag->ag_lock);
+
+	/*
+	 * Only add an address-group to the json if it contains entries for
+	 * the address-family asked for.
+	 */
+	for (af = AG_IPv4; af <= AG_IPv6; af++)
+		if (ctl->af[af])
+			nentries += zlist_size(ag->ag_list[af]);
+
+	if (!nentries) {
+		rte_rwlock_read_unlock(&ag->ag_lock);
+		return;
+	}
+
 	jsonw_start_object(json);
 
 	jsonw_string_field(json, "name", ag->ag_name);
 	jsonw_uint_field(json, "id", ag->ag_tid);
 
+	if (ctl->brief)
+		goto end;
+
+	/*
+	 * An address-group may contain IPv4 and IPv6 entries
+	 */
 	for (af = AG_IPv4; af <= AG_IPv6; af++) {
 		if (!ctl->af[af])
 			continue;
@@ -2138,44 +2160,35 @@ npf_addrgrp_jsonw(json_writer_t *json, struct npf_addrgrp *ag,
 		jsonw_name(json, af == AG_IPv4 ? "ipv4" : "ipv6");
 		jsonw_start_object(json);
 
-		if (ctl->list)
-			npf_addrgrp_jsonw_list(json, ag->ag_list[af],
-					       "list-entries", ctl);
-
-		if (ctl->tree)
+		if (ctl->optimal)
+			npf_addrgrp_jsonw_optimal(json, ag, af);
+		else if (ctl->tree)
 			npf_addrgrp_jsonw_tree(json, ag, af);
+		else
+			npf_addrgrp_jsonw_list(json, ag->ag_list[af], ctl);
 
 		jsonw_end_object(json);
 	}
+end:
 	jsonw_end_object(json);
+
+	rte_rwlock_read_unlock(&ag->ag_lock);
 }
 
 /*
  * Callback for each address-group in the global table.
  */
-static int
-npf_addrgrp_show_json_cb(const char *name __unused, uint id __unused,
-				void *data, void *ctx)
+static int npf_addrgrp_show_cb(const char *name __unused, uint id __unused,
+			       void *data, void *ctx)
 {
 	struct npf_addrgrp *ag = data;
 	struct npf_show_ag_ctl *ctl = ctx;
 
-	/*
-	 * Table walk is either looking for the first address-group
-	 * (ctl->tid == 0), or the next address-group equal to or greater
-	 * than ctl->tid.
-	 */
-	if (ctl->tid > 0 && ag->ag_tid < ctl->tid)
-		return 0;
+	assert(ag);
+	assert(ctl);
 
-	rte_rwlock_read_lock(&ag->ag_lock);
-
-	npf_addrgrp_jsonw(ctl->json, ag, ctl);
-
-	rte_rwlock_read_unlock(&ag->ag_lock);
-
-	/* stop the walk when we find a suitable address-group */
-	return 1;
+	npf_addrgrp_jsonw_one(ctl->json, ag, ctl);
+	return 0;
 }
 
 /*
@@ -2183,37 +2196,38 @@ npf_addrgrp_show_json_cb(const char *name __unused, uint id __unused,
  *
  * Return an empty address-group object if address-group is not found
  */
-void
-npf_addrgrp_show_json(FILE *fp, struct npf_show_ag_ctl *ctl)
+void npf_addrgrp_show(FILE *fp, struct npf_show_ag_ctl *ctl)
 {
-	struct npf_addrgrp *ag = NULL;
 	json_writer_t *json;
 
-	if (!g_addrgrp_table || npf_tbl_size(g_addrgrp_table) == 0)
-		return;
-
-	ctl->json = json = jsonw_new(fp);
+	json = jsonw_new(fp);
 	if (!json)
 		return;
 
+	jsonw_pretty(json, true);
+	jsonw_name(json, "address-groups");
+	jsonw_start_array(json);
+
+	if (!g_addrgrp_table)
+		goto end;
+
 	if (ctl->name) {
+		struct npf_addrgrp *ag;
+
 		ag = npf_addrgrp_lookup_name(ctl->name);
 		if (!ag)
-			goto end_ag;
-	}
-
-	if (ag) {
-		rte_rwlock_read_lock(&ag->ag_lock);
+			goto end;
 
 		/* Show one address-group */
-		npf_addrgrp_jsonw(json, ag, ctl);
+		npf_addrgrp_jsonw_one(json, ag, ctl);
 
-		rte_rwlock_read_unlock(&ag->ag_lock);
-	} else
-		/* Show address-group with ID equal or greater than ctl->tid */
-		npf_tbl_walk(g_addrgrp_table, npf_addrgrp_show_json_cb, ctl);
+	} else {
+		ctl->json = json;
+		npf_tbl_walk(g_addrgrp_table, npf_addrgrp_show_cb, ctl);
+	}
 
-end_ag:
+end:
+	jsonw_end_array(json);
 	jsonw_destroy(&json);
 }
 
@@ -2259,29 +2273,19 @@ npf_addrgrp_show_json_opt_cb(uint8_t *pfx, int alen, int mask, void *ctx)
 	return 0;
 }
 
-static int
-_npf_addrgrp_show_json_opt(int id, void *data, void *ctx)
+static void
+npf_addrgrp_jsonw_optimal(json_writer_t *json, struct npf_addrgrp *ag,
+			  int af)
 {
-	struct npf_addrgrp *ag = data;
-	struct npf_show_ag_ctl *ctl = ctx;
-	json_writer_t *json = ctl->json;
-
-	jsonw_name(json, "address-group");
-	jsonw_start_object(json);
-
-	jsonw_string_field(json, "name", ag->ag_name);
-	jsonw_uint_field(json, "id", id);
-
-	/* Can only be IPv4 *or* IPv6 */
-	jsonw_name(json, ctl->af[AG_IPv4] ? "ipv4" : "ipv6");
-	jsonw_start_object(json);
-
-	jsonw_name(json, "tree");
-	jsonw_start_array(json);
-
 	struct cidr_tree cidr;
-	int alen = ctl->af[AG_IPv4] ? 4 : 16;
-	zlist_t *list = ag->ag_list[ctl->af[AG_IPv4] ? AG_IPv4 : AG_IPv6];
+	int alen = AG_AF2ALEN(af);
+	zlist_t *list;
+
+	assert(af == AG_IPv4 || af == AG_IPv6);
+	list = ag->ag_list[af];
+
+	jsonw_name(json, "entries");
+	jsonw_start_array(json);
 
 	npf_cidr_tree_init(&cidr, alen);
 
@@ -2293,41 +2297,4 @@ _npf_addrgrp_show_json_opt(int id, void *data, void *ctx)
 	npf_cidr_tree_free(&cidr);
 
 	jsonw_end_array(json);
-	jsonw_end_object(json);
-	jsonw_end_object(json);
-
-	return 0;
-}
-
-/*
- * Show list of optimal address-group tree entries, i.e. the minimal set of
- * prefixes and masks to provide same coverage as the user has configured.
- */
-void
-npf_addrgrp_show_json_opt(FILE *fp, struct npf_show_ag_ctl *ctl)
-{
-	struct npf_addrgrp *ag = NULL;
-	json_writer_t *json;
-
-	if (!g_addrgrp_table || npf_tbl_size(g_addrgrp_table) == 0)
-		return;
-
-	ctl->json = json = jsonw_new(fp);
-	if (!json)
-		return;
-
-	if (ctl->name)
-		ag = npf_addrgrp_lookup_name(ctl->name);
-	if (!ag)
-		goto end_ag;
-
-	rte_rwlock_read_lock(&ag->ag_lock);
-
-	/* Show one address-group */
-	_npf_addrgrp_show_json_opt(ag->ag_tid, ag, ctl);
-
-	rte_rwlock_read_unlock(&ag->ag_lock);
-
-end_ag:
-	jsonw_destroy(&json);
 }
