@@ -1203,7 +1203,7 @@ delete_rule(struct lpm6 *lpm, const uint8_t *ip, uint8_t depth,
 		 *      be everything that is valid but with a depth > the
 		 *      depth being removed.
 		 */
-		if (depth < 24) {
+		if (depth <= 24) {
 			tbl24_range = depth_to_range(depth);
 
 			/*

@@ -578,6 +578,64 @@ DP_START_TEST(vrf_ip_fwd, vrf_basic_ipv6)
 	dp_test_netlink_del_vrf(TEST_VRF2, 0);
 } DP_END_TEST;
 
+DP_DECL_TEST_CASE(vrf_suite, vrf_ip_fwd2, NULL, NULL);
+
+/*
+ * Add a v6 connected and address, and the v6 multicast route. Then add a
+ * neighbour.
+ *
+ * Delete the interface route, and verify that it can all be tidied. The
+ * multicast route is modified as part of the tidy. This maps to a set of
+ * updates that were seen to cause an issue in the live system.
+ */
+DP_START_TEST(vrf_ip_fwd2, vrf_basic_ipv6)
+{
+	const char *nh_mac_str;
+
+	dp_test_netlink_add_vrf(TEST_VRF2, 1);
+
+
+	dp_test_netlink_set_interface_vrf("dp2T1", TEST_VRF2);
+	dp_test_netlink_set_interface_vrf("dp1T1", TEST_VRF2);
+
+	/* Link local (ours) */
+	dp_test_netlink_add_ip_address_vrf("dp1T1",
+					   "fe80::4056:1ff:fee8:101/128",
+					   TEST_VRF2);
+
+	dp_test_nl_add_ip_addr_and_connected_vrf("dp1T1", "2012::1/24",
+						 TEST_VRF2);
+
+	/* mcast via dp1T1 and dp2T1 */
+	dp_test_netlink_replace_route_nv(
+		"vrf:55 ff00::/8 nh int:dp1T1 nh int:dp2T1");
+
+	nh_mac_str = "aa:bb:cc:dd:ee:ff";
+	dp_test_netlink_add_neigh("dp1T1", "2012::2", nh_mac_str);
+
+	/*
+	 * Now start deleting.
+	 */
+	dp_test_netlink_del_route("vrf:55 2012::/24 scope:253 nh int:dp1T1");
+
+	dp_test_netlink_replace_route_nv("vrf:55 ff00::/8 nh int:dp1T1");
+
+	dp_test_netlink_del_ip_address_vrf("dp1T1", "2012::1/24",
+					   TEST_VRF2);
+	dp_test_netlink_del_neigh("dp1T1", "2012::2", nh_mac_str);
+
+	dp_test_netlink_set_interface_vrf("dp1T1", VRF_DEFAULT_ID);
+	dp_test_netlink_del_ip_address_vrf("dp1T1",
+					   "fe80::4056:1ff:fee8:101/128",
+					   TEST_VRF2);
+
+	dp_test_netlink_set_interface_vrf("dp2T1", VRF_DEFAULT_ID);
+	dp_test_netlink_set_interface_vrf("dp1T1", VRF_DEFAULT_ID);
+	dp_test_netlink_del_vrf(TEST_VRF2, 0);
+
+} DP_END_TEST;
+
+
 DP_DECL_TEST_CASE(vrf_suite, vrf_vif_ipv4, NULL, NULL)
 DP_START_TEST(vrf_vif_ipv4, vrf_vif_ipv4)
 {
