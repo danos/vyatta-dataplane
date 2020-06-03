@@ -204,6 +204,9 @@ void _dp_test_netlink_replace_route(const char *route_string, bool verify,
 #define dp_test_netlink_replace_route(route_string)		  \
 	_dp_test_netlink_replace_route(route_string, true, false, \
 				   __FILE__, __func__, __LINE__)
+#define dp_test_netlink_replace_route_nv(route_string)		  \
+	_dp_test_netlink_replace_route(route_string, false, false, \
+				   __FILE__, __func__, __LINE__)
 
 void
 _dp_test_netlink_replace_route_fmt(bool verify, bool incomplete,
