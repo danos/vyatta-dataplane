@@ -1,3 +1,9 @@
+vyatta-dataplane (3.9.112.8) unstable; urgency=medium
+
+  * lpm6: fix check for depth when removing /24
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Fri, 05 Jun 2020 10:11:07 +0100
+
 vyatta-dataplane (3.9.112.7) unstable; urgency=medium
 
   [ Robert Shearman ]
