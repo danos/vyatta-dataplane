@@ -1,3 +1,14 @@
+vyatta-dataplane (3.9.112.7) unstable; urgency=medium
+
+  [ Robert Shearman ]
+  * storm_ctl: avoid redundant FAL update when adding threshold for new type
+  * storm_ctl: move fal_policer_modify_profile function down
+  * storm_ctl: make threshold removal FAL state symmetric (Fixes: VRVDR-51406)
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Fri, 05 Jun 2020 10:10:14 +0100
+
 vyatta-dataplane (3.9.112.6) unstable; urgency=medium
 
   [ Sanjay Iyer ]
