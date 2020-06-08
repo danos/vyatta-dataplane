@@ -873,7 +873,7 @@ _dp_test_check_json_poll_state_interval(const char *cmd_str,
 }
 
 void
-_dp_test_check_pb_poll_state(char *buf, int len,
+_dp_test_check_pb_poll_state(void *buf, int len,
 			     dp_test_state_pb_cb cb,
 			     void *arg,
 			     int poll_cnt,
@@ -918,7 +918,7 @@ _dp_test_check_json_state(const char *cmd_str, json_object *expected_json,
 }
 
 void
-_dp_test_check_pb_state(char *buf, int len,
+_dp_test_check_pb_state(void *buf, int len,
 			dp_test_state_pb_cb cb,
 			void *arg,
 			const char *file, const char *func __unused,

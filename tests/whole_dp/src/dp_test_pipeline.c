@@ -100,7 +100,7 @@ static void dp_test_pl_build_and_check_start_count(int init_pkt_cnt)
 	uint32_t val = init_pkt_cnt + 1;
 	void *arg = &val;
 
-	dp_test_check_pb_state((char *)buf, len,
+	dp_test_check_pb_state(buf, len,
 			       validate_resp_callback,
 			       arg);
 	free(buf2);

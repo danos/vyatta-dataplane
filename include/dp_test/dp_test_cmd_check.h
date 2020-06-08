@@ -134,7 +134,7 @@ _dp_test_check_json_poll_state_interval(const char *cmd_str,
 typedef bool (*dp_test_state_pb_cb)(void *data, int len, void *arg);
 
 void
-_dp_test_check_pb_poll_state(char *cmd, int len,
+_dp_test_check_pb_poll_state(void *cmd, int len,
 			     dp_test_state_pb_cb cb,
 			     void *arg,
 			     int poll_cnt,
@@ -156,11 +156,11 @@ _dp_test_check_json_state(const char *cmd_str, json_object *expected_json,
 				  gone, __FILE__, __func__, __LINE__)
 
 void
-_dp_test_check_pb_state(char *buf, int len,
-			     dp_test_state_pb_cb cb,
-			     void *arg,
-			     const char *file, const char *func,
-			     int line);
+_dp_test_check_pb_state(void *buf, int len,
+			dp_test_state_pb_cb cb,
+			void *arg,
+			const char *file, const char *func,
+			int line);
 #define dp_test_check_pb_state(buf, len, cb, arg) \
 	_dp_test_check_pb_state(buf, len, cb, arg, \
 				  __FILE__, __func__, __LINE__)
