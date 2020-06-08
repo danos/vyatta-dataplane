@@ -422,6 +422,25 @@ is_jumbo_size(uint32_t size)
 	return size > RTE_ETHER_MTU;
 }
 
+static bool is_device_swport(portid_t portid)
+{
+	struct rte_eth_dev_info dev_info;
+
+	if (!rte_eth_dev_is_valid_port(portid))
+		return false;
+
+	rte_eth_dev_info_get(portid, &dev_info);
+	if (strstr(dev_info.driver_name, "net_sw_port") == dev_info.driver_name)
+		return true;
+
+	return false;
+}
+
+static inline bool is_reconfigure_port_required(struct ifnet *ifp)
+{
+	return !is_device_swport(ifp->if_port);
+}
+
 static int dpdk_eth_if_set_mtu(struct ifnet *ifp, uint32_t mtu)
 {
 	int err = 0;
@@ -443,12 +462,14 @@ static int dpdk_eth_if_set_mtu(struct ifnet *ifp, uint32_t mtu)
 		adjusted_mtu = adjusted_mtu + 4;
 
 	/*
-	 * If the interface has qos on it then we need to stop it
-	 * and restart it to get QoS to recalculate its token bucket
-	 * size based upon the new MTU.
+	 * MTU changes can affect the burst size used for QoS shaper.
+	 * Thefeore, QoS needs to be notified of the MTU changes so it can
+	 * make the necessary dynamic changes where possible or alternatively
+	 * stop and then restart QoS to allow it to re-calculate any resultant
+	 * changes in the bucket/burst sizes where dynamic changes aren't
+	 * possible.  This is done using dp_event_notify
 	 *
-	 * If it does not have QoS on it then we may have to stop it
-	 * anyway as some drivers always need the port to be stopped (i40)
+	 * Some drivers always need the port to be stopped (i40)
 	 * for the mtu to be changed. Some drivers need the port to be
 	 * stopped to transition into/outof jumbo range (ixgbe).
 	 * Unfortunately we can't tell this ahead of time, so try to
@@ -458,15 +479,23 @@ static int dpdk_eth_if_set_mtu(struct ifnet *ifp, uint32_t mtu)
 	 * If we are transitioning into/outof jumbo range then we have to
 	 * reconfigure the port to get the correct jumbo settings.
 	 */
+	bool changed = false;
 	bool mtu_jumbo_change =
 		(is_jumbo_size(ifp->if_mtu_adjusted) &&
 			!is_jumbo_size(mtu)) ||
 		(is_jumbo_size(mtu) &&
 			!is_jumbo_size(ifp->if_mtu_adjusted));
 
-	/* Try and set it. If we get an error try again with port stopped */
-	if (!mtu_jumbo_change && !ifp->if_qos)
+	/*
+	 * Certain drivers require the port to be reconfigured when changing
+	 * the MTU to/from jumbo size.  Check if this is the case, if not then
+	 * there is no reason to bounce the port.  Also if we get an error
+	 * try again with port stopped.
+	 */
+	if (!mtu_jumbo_change || !is_reconfigure_port_required(ifp)) {
 		err = rte_eth_dev_set_mtu(ifp->if_port, adjusted_mtu);
+		changed = true;
+	}
 
 	/*
 	 * We must update the interface's adjusted MTU before
@@ -478,7 +507,7 @@ static int dpdk_eth_if_set_mtu(struct ifnet *ifp, uint32_t mtu)
 	ifp->if_mtu_adjusted = adjusted_mtu;
 
 	/* Try again, but this time after changing the port config */
-	if (mtu_jumbo_change || err || ifp->if_qos) {
+	if (!changed || err ) {
 		RTE_LOG(INFO, DATAPLANE,
 			"reconfiguring %s due to %s\n",
 			ifp->if_name,
