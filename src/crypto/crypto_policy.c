@@ -2596,9 +2596,9 @@ bool crypto_policy_check_outbound(struct ifnet *in_ifp, struct rte_mbuf **mbuf,
 		if (pr && pr->sel.ifindex && nh) {
 			struct ifnet *ifp = NULL;
 
-			if (v4 && nh)
+			if (v4 && *nh)
 				ifp = dp_nh_get_ifp(*nh);
-			else if (nh)
+			else if (*nh)
 				ifp = dp_nh_get_ifp(*nh);
 
 			if (!ifp || pr->sel.ifindex != (int)ifp->if_index)
