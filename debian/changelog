@@ -1,3 +1,14 @@
+vyatta-dataplane (3.9.112.9) unstable; urgency=medium
+
+  [ Charles (Chas) Williams ]
+  * conf: allow dev_flags to be filtered (Bugfix: VRVDR-48438)
+  * ixgbe: do not use the LSC interrupt (Bugfix: VRVDR-48438)
+  * ifconfig: allow inspection of the lsc status
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Tue, 09 Jun 2020 08:53:19 +0100
+
 vyatta-dataplane (3.9.112.8) unstable; urgency=medium
 
   * lpm6: fix check for depth when removing /24
