@@ -256,8 +256,7 @@ static void cgn_if_list_remove(struct cgn_policy *cp, struct cgn_intf *ci)
 }
 
 /*
- * Called via config.  May be called via command replay if interface was not
- * available at config time.
+ * Called via config.
  */
 int cgn_if_add_policy(struct ifnet *ifp, struct cgn_policy *cp)
 {
