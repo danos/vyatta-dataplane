@@ -151,13 +151,17 @@ struct rte_timer cgn_gc_timer;
 /* cs_id resource */
 static rte_atomic32_t cgn_id_resource;
 
-/* max sessions, and sessions used */
+/* max 3-tuple sessions, and sessions used */
 int32_t cgn_sessions_max = CGN_SESSIONS_MAX;
-int16_t cgn_dest_sessions_max = CGN_DEST_SESSIONS_MAX;
-int16_t cgn_dest_ht_max = CGN_DEST_SESSIONS_MAX;
 
 /* Global count of all 3-tuple sessions */
 rte_atomic32_t cgn_sessions_used;
+
+/* max 2-tuple sessions per 3-tuple session*/
+int16_t cgn_dest_sessions_max = CGN_DEST_SESSIONS_INIT;
+
+/* Size of 2-tuple hash table that may be added per 3-tuple session */
+int16_t cgn_dest_ht_max = CGN_DEST_SESSIONS_INIT;
 
 /* Global count of all 5-tuple sessions */
 rte_atomic32_t cgn_sess2_used;
