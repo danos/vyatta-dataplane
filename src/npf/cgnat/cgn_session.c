@@ -1185,6 +1185,7 @@ cgn_session_inspect_s2(struct cgn_session *cse, struct cgn_sentry *ce,
 		       struct cgn_packet *cpk, int dir)
 {
 	struct cgn_sess2 *s2;
+	int error = 0;
 
 	/*
 	 * ICMP only has one ID field.  We store the 'dest' ID in the
@@ -1216,7 +1217,6 @@ cgn_session_inspect_s2(struct cgn_session *cse, struct cgn_sentry *ce,
 		 * Echo Requests.
 		 */
 		if (cpk->cpk_keepalive) {
-			int error = 0;
 
 			/* Create an s2 session */
 			s2 = cgn_sess_s2_establish(&cse->cs_s2, cpk,
@@ -1224,11 +1224,23 @@ cgn_session_inspect_s2(struct cgn_session *cse, struct cgn_sentry *ce,
 			if (s2)
 				error = cgn_sess_s2_activate(&cse->cs_s2, s2);
 
-			/* Count the error, then ignore it */
-			if (error < 0)
-				cgn_rc_inc(dir, error);
-			else
+			if (error == 0)
 				cgn_source_stats_sess2_created(cse->cs_src);
+			else if (error == -CGN_S2_EEXIST) {
+				/*
+				 * Lost race to add 2-tuple session.  Count
+				 * the error, then ignore it.
+				 */
+				cgn_rc_inc(dir, error);
+				error = 0;
+			}
+
+			/*
+			 * If error is still < 0 here then that is returned,
+			 * and the flow will be blocked.  If we cannot log a
+			 * 2-tuple session then we do not want to allow the
+			 * flow.
+			 */
 		} else {
 			/* Inbound pkt from unknown src addr or port. */
 			rte_atomic64_inc(&cse->cs_unk_pkts);
@@ -1237,7 +1249,7 @@ cgn_session_inspect_s2(struct cgn_session *cse, struct cgn_sentry *ce,
 		}
 	}
 
-	return 0;
+	return error;
 }
 
 /*
@@ -1245,7 +1257,7 @@ cgn_session_inspect_s2(struct cgn_session *cse, struct cgn_sentry *ce,
  * path.
  */
 struct cgn_session *
-cgn_session_inspect(struct cgn_packet *cpk, int dir)
+cgn_session_inspect(struct cgn_packet *cpk, int dir, int *error)
 {
 	struct cgn_sentry *ce;
 
@@ -1271,7 +1283,7 @@ cgn_session_inspect(struct cgn_packet *cpk, int dir)
 	 * idle monitoring and stats.
 	 */
 	if (unlikely(cgn_sess_s2_is_enabled(cse)))
-		cgn_session_inspect_s2(cse, ce, cpk, dir);
+		*error = cgn_session_inspect_s2(cse, ce, cpk, dir);
 	else {
 		if (likely(cpk->cpk_keepalive)) {
 			/*

@@ -80,7 +80,8 @@ void cgn_session_destroy(struct cgn_session *cse, bool rcu_free);
 
 struct cgn_session *cgn_session_lookup(const struct cgn_3tuple_key *key,
 				       int dir);
-struct cgn_session *cgn_session_inspect(struct cgn_packet *sp, int dir);
+struct cgn_session *cgn_session_inspect(struct cgn_packet *sp, int dir,
+					int *error);
 struct cgn_session *cgn_session_lookup_icmp_err(struct cgn_packet *sp, int dir);
 
 struct cgn_session *cgn_session_find_cached(struct rte_mbuf *mbuf);
