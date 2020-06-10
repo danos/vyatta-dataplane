@@ -1242,10 +1242,20 @@ cgn_session_inspect_s2(struct cgn_session *cse, struct cgn_sentry *ce,
 			 * flow.
 			 */
 		} else {
-			/* Inbound pkt from unknown src addr or port. */
-			rte_atomic64_inc(&cse->cs_unk_pkts);
-			rte_atomic64_inc(&ce->ce_pkts);
-			rte_atomic64_add(&ce->ce_bytes, cpk->cpk_len);
+			/*
+			 * Inbound pkt from unknown src addr or port.  If dest
+			 * session table is full then drop inbound pkts from
+			 * an unknown source even of we know the dest addr and
+			 * port.
+			 */
+			if (cse->cs_s2.cs2_full)
+				/* Block inbound pkt */
+				error = -CGN_S2_ENOSPC;
+			else {
+				rte_atomic64_inc(&cse->cs_unk_pkts);
+				rte_atomic64_inc(&ce->ce_pkts);
+				rte_atomic64_add(&ce->ce_bytes, cpk->cpk_len);
+			}
 		}
 	}
 
