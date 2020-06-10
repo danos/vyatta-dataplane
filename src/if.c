@@ -3038,6 +3038,7 @@ int if_set_mtu(struct ifnet *ifp, uint32_t mtu, bool force_update)
 		fal_l2_upd_port(ifp->if_index, &mtu_attr);
 
 		update_tunnel_mtu(ifp);
+		dp_event(DP_EVT_IF_MTU_CHANGE, 0, ifp, mtu, 0, NULL);
 	} else {
 		RTE_LOG(ERR, DATAPLANE,
 			"%s changing MTU failed: %d (%s)\n",
