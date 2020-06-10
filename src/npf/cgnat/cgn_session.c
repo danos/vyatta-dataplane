@@ -1180,6 +1180,66 @@ struct cgn_session *cgn_session_find_cached(struct rte_mbuf *mbuf)
 	return cse;
 }
 
+static int
+cgn_session_inspect_s2(struct cgn_session *cse, struct cgn_sentry *ce,
+		       struct cgn_packet *cpk, int dir)
+{
+	struct cgn_sess2 *s2;
+
+	/*
+	 * ICMP only has one ID field.  We store the 'dest' ID in the
+	 * 2-tuple session for inside-to-outside packets.  This is the
+	 * pre-translation (inside) ID.  For outside-to-inside, we
+	 * lookup the 'source' ID, which will be the outside ID, and
+	 * hence we will not find the 2-tuple session.
+	 *
+	 * A workaround for this is to copy the 3-tuple session
+	 * forward entry ID to the packet decomposition source ID
+	 * field such that the 2-tuple lookup will now find the
+	 * session.
+	 */
+	if (dir == CGN_DIR_IN && cpk->cpk_ipproto == IPPROTO_ICMP)
+		cpk->cpk_sid = cse->cs_forw_entry.ce_port;
+
+	/*
+	 * If we fail to find an s2 session here, then that means this
+	 * packet is being sent to a different dest addr and/or port.
+	 */
+	s2 = cgn_sess_s2_inspect(&cse->cs_s2, cpk, dir);
+
+	/* Add a nested 2-tuple session? */
+	if (unlikely(!s2)) {
+		/*
+		 * cpk_keepalive is only set true for certain pkts in
+		 * the outbound direction.  Pkts for which it is *not*
+		 * set include: TCP RST and all ICMP pkts except
+		 * Echo Requests.
+		 */
+		if (cpk->cpk_keepalive) {
+			int error = 0;
+
+			/* Create an s2 session */
+			s2 = cgn_sess_s2_establish(&cse->cs_s2, cpk,
+						   dir, &error);
+			if (s2)
+				error = cgn_sess_s2_activate(&cse->cs_s2, s2);
+
+			/* Count the error, then ignore it */
+			if (error < 0)
+				cgn_rc_inc(dir, error);
+			else
+				cgn_source_stats_sess2_created(cse->cs_src);
+		} else {
+			/* Inbound pkt from unknown src addr or port. */
+			rte_atomic64_inc(&cse->cs_unk_pkts);
+			rte_atomic64_inc(&ce->ce_pkts);
+			rte_atomic64_add(&ce->ce_bytes, cpk->cpk_len);
+		}
+	}
+
+	return 0;
+}
+
 /*
  * Inspect an already activated 3-tuple session.  *Only* called by the packet
  * path.
@@ -1210,62 +1270,9 @@ cgn_session_inspect(struct cgn_packet *cpk, int dir)
 	 * If we have nested 2-tuple sessions then they take care of sessions
 	 * idle monitoring and stats.
 	 */
-	if (unlikely(cgn_sess_s2_is_enabled(cse))) {
-		struct cgn_sess2 *s2;
-
-		/*
-		 * ICMP only has one ID field.  We store the 'dest' ID in the
-		 * 2-tuple session for inside-to-outside packets.  This is the
-		 * pre-translation (inside) ID.  For outside-to-inside, we
-		 * lookup the 'source' ID, which will be the outside ID, and
-		 * hence we will not find the 2-tuple session.
-		 *
-		 * A workaround for this is to copy the 3-tuple session
-		 * forward entry ID to the packet decomposition source ID
-		 * field such that the 2-tuple lookup will now find the
-		 * session.
-		 */
-		if (dir == CGN_DIR_IN && cpk->cpk_ipproto == IPPROTO_ICMP)
-			cpk->cpk_sid = cse->cs_forw_entry.ce_port;
-
-		/*
-		 * If we fail to find an s2 session here, then that means this
-		 * packet is being sent to a different dest addr and/or port.
-		 */
-		s2 = cgn_sess_s2_inspect(&cse->cs_s2, cpk, dir);
-
-		/* Add a nested 2-tuple session? */
-		if (unlikely(!s2)) {
-			/*
-			 * cpk_keepalive is only set true for certain pkts in
-			 * the outbound direction.  Pkts for which it is *not*
-			 * set include: TCP RST and all ICMP pkts except
-			 * Echo Requests.
-			 */
-			if (cpk->cpk_keepalive) {
-				int error = 0;
-
-				/* Create an s2 session */
-				s2 = cgn_sess_s2_establish(&cse->cs_s2, cpk,
-							   dir, &error);
-				if (s2)
-					error = cgn_sess_s2_activate(
-						&cse->cs_s2, s2);
-
-				/* Count the error, then ignore it */
-				if (error < 0)
-					cgn_rc_inc(dir, error);
-				else
-					cgn_source_stats_sess2_created(
-						cse->cs_src);
-			} else {
-				/* Inbound pkt from unknown src addr or port. */
-				rte_atomic64_inc(&cse->cs_unk_pkts);
-				rte_atomic64_inc(&ce->ce_pkts);
-				rte_atomic64_add(&ce->ce_bytes, cpk->cpk_len);
-			}
-		}
-	} else {
+	if (unlikely(cgn_sess_s2_is_enabled(cse)))
+		cgn_session_inspect_s2(cse, ce, cpk, dir);
+	else {
 		if (likely(cpk->cpk_keepalive)) {
 			/*
 			 * Clear idle flag, if packet is eligible.
