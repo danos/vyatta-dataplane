@@ -32,6 +32,7 @@ enum dp_evt {
 	DP_EVT_IF_VLAN_ADD,
 	DP_EVT_IF_VLAN_DEL,
 	DP_EVT_IF_FEAT_MODE_CHANGE,
+	DP_EVT_IF_MTU_CHANGE,
 	DP_EVT_RESET_CONFIG,
 	DP_EVT_VRF_CREATE,
 	DP_EVT_VRF_DELETE,
@@ -70,6 +71,7 @@ struct dp_event_ops {
 	void (*if_link_change)(struct ifnet *ifp, bool up, uint32_t speed);
 	void (*if_vlan_add)(struct ifnet *ifp, uint16_t vlan);
 	void (*if_vlan_del)(struct ifnet *ifp, uint16_t vlan);
+	void (*if_mtu_change)(struct ifnet *ifp, uint32_t mtu);
 	void (*reset_config)(enum cont_src_en cont_src);
 	void (*vrf_create)(struct vrf *vrf);
 	void (*vrf_delete)(struct vrf *vrf);
