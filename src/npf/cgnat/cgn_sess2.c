@@ -400,12 +400,15 @@ static int cgn_sess2_activate(struct cgn_sess_s2 *cs2, struct cgn_sess2 *s2)
 
 		old = rcu_cmpxchg_pointer(&cs2->cs2_s2, NULL, s2);
 
-		if (old != NULL)
-			/* Lost race to add s2 as the embedded session */
-			return -CGN_S2_ENOSPC;
+		if (old == NULL)
+			/* Success! */
+			return 0;
 
-		/* Success! */
-		return 0;
+		/* Lost race to add s2 as the embedded session */
+		if (!memcmp(&s2->s2_key, &old->s2_key, sizeof(s2->s2_key)))
+			return -CGN_S2_EEXIST;
+
+		/* Fall thru to add s2 to hash table */
 	}
 
 	/*
