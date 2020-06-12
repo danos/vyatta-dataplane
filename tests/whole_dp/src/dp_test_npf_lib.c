@@ -15,6 +15,7 @@
 #include "if_var.h"
 #include "main.h"
 
+#include "npf/npf_rc.h"
 #include "npf/npf_state.h"
 #include "npf/npf_timeouts.h"
 #include "npf/alg/alg_npf.h"
@@ -27,6 +28,7 @@
 #include "dp_test_netlink_state_internal.h"
 #include "dp_test_console.h"
 #include "dp_test_json_utils.h"
+#include "dp_test_npf_lib.h"
 #include "dp_test_npf_fw_lib.h"
 #include "dp_test_npf_sess_lib.h"
 #include "dp_test_npf_lib.h"
@@ -1491,4 +1493,332 @@ _dp_test_npf_raw(int index, struct rte_mbuf *pkt,
 	}
 
 	return decision;
+}
+
+static void dpt_npf_show_jobj_pretty(json_object *jobj)
+{
+	const char *const_str = NULL;
+
+	if (jobj)
+		const_str = json_object_to_json_string_ext(
+			jobj, JSON_C_TO_STRING_PRETTY);
+
+	if (const_str)
+		printf("%s\n", const_str);
+	else
+		printf("(failed)\n");
+}
+
+/* npf return code top level categories */
+static const char *rc_cat[] = {"pass", "unmatched", "block", "drop"};
+
+/*
+ * Given an 'in' or 'out' jobj, extract a specific count or the total of all
+ * counts
+ *
+ * {
+ *   "pass":{
+ *     "count":1
+ *   },
+ *   "unmatched":{
+ *     "count":0
+ *   },
+ *   "block":{
+ *     "count":0
+ *   },
+ *   "drop":{
+ *     "count":0
+ *   }
+ * }
+ */
+static uint64_t dpt_npf_rc_tot_dir(json_object *jobj_dir, const char *str)
+{
+	uint64_t total = 0ul;
+	uint i;
+
+	for (i = 0; i < ARRAY_SIZE(rc_cat); i++) {
+		int count = 0;
+		json_object *jobj;
+		const char *tmp;
+		bool rv;
+
+		tmp = rc_cat[i];
+		if (str && strcmp(str, tmp) != 0)
+			continue;
+
+		if (!json_object_object_get_ex(jobj_dir, tmp, &jobj))
+			return 0ul;
+
+		rv = dp_test_json_int_field_from_obj(jobj, "count", &count);
+		dp_test_fail_unless(rv, "count");
+		total += count;
+	}
+	return total;
+}
+
+
+/*
+ * Given an interface object, get the total count for one rc-type and one
+ * direction
+ */
+static uint64_t
+dpt_npf_rc_total(json_object *jobj_intf, const char *rct, const char *dir)
+{
+	json_object *jobj_rct;
+	json_object *jobj_dir;
+	uint64_t total = 0ul;
+
+	if (!json_object_object_get_ex(jobj_intf, rct, &jobj_rct))
+		return 0ul;
+
+	if (!json_object_object_get_ex(jobj_rct, dir, &jobj_dir))
+		return 0ul;
+
+	total = dpt_npf_rc_tot_dir(jobj_dir, NULL);
+
+	return total;
+}
+
+struct dpt_npf_show_rc_ctx {
+	uint	rct_bm;
+	bool	nonzero_only;
+	bool	detail;
+	int	indent;
+};
+
+#define RC_INDENT 2
+
+static bool
+dpt_npf_show_rc_counts_dir_detail(json_object *jobj_cat,
+				  struct dpt_npf_show_rc_ctx *ctx)
+{
+	json_object *jobj_det;
+	enum npf_rc_en rc;
+
+	if (!json_object_object_get_ex(jobj_cat, "detail", &jobj_det))
+		return false;
+
+	ctx->indent += RC_INDENT;
+
+	/*
+	 * We don't know which counts are in the given detail object, so
+	 * iterate over all of them.
+	 */
+	for (rc = 0; rc < NPF_RC_SZ; rc++) {
+		const char *rc_str;
+		int count = 0;
+		bool rv;
+
+		rc_str = npf_rc_str(rc);
+
+		rv = dp_test_json_int_field_from_obj(jobj_det, rc_str, &count);
+		if (!rv)
+			continue;
+
+		printf("%*c%-28s %10d\n", ctx->indent, ' ', rc_str, count);
+	}
+	ctx->indent -= RC_INDENT;
+
+	return true;
+}
+
+/*
+ * Show npf return code counters for one direction
+ */
+static bool
+dpt_npf_show_rc_counts_dir(json_object *jobj_rct, const char *dir,
+			   struct dpt_npf_show_rc_ctx *ctx)
+{
+	json_object *jobj_dir, *jobj_cat;
+	uint i;
+
+	if (!json_object_object_get_ex(jobj_rct, dir, &jobj_dir))
+		return false;
+
+	ctx->indent += RC_INDENT;
+
+	for (i = 0; i < ARRAY_SIZE(rc_cat); i++) {
+		const char *cat = rc_cat[i];
+		int count = 0;
+		bool rv;
+
+		if (!json_object_object_get_ex(jobj_dir, cat, &jobj_cat))
+			return false;
+
+		rv = dp_test_json_int_field_from_obj(jobj_cat, "count",
+						     &count);
+		dp_test_fail_unless(rv, "count");
+
+		printf("%*c%-30s %10d\n", ctx->indent, ' ', cat, count);
+
+		if (ctx->detail)
+			dpt_npf_show_rc_counts_dir_detail(jobj_cat, ctx);
+	}
+	ctx->indent -= RC_INDENT;
+
+	return true;
+}
+
+/*
+ * Show npf return code counters for one return code type
+ */
+static bool
+dpt_npf_show_rc_counts_rct(json_object *jobj_intf, const char *rct,
+			   struct dpt_npf_show_rc_ctx *ctx)
+{
+	json_object *jobj_rct;
+
+	if (!json_object_object_get_ex(jobj_intf, rct, &jobj_rct))
+		return false;
+
+	ctx->indent += RC_INDENT;
+
+	printf("%*cIn:\n", ctx->indent, ' ');
+	dpt_npf_show_rc_counts_dir(jobj_rct, "in", ctx);
+
+	printf("%*cOut:\n", ctx->indent, ' ');
+	dpt_npf_show_rc_counts_dir(jobj_rct, "out", ctx);
+
+	ctx->indent -= RC_INDENT;
+	return true;
+}
+
+static const char *npf_rct_desc(enum npf_rc_type rct)
+{
+	switch (rct) {
+	case NPF_RCT_FW4:
+		return "IPv4 firewall and NAT";
+	case NPF_RCT_FW6:
+		return "IPv6 firewall";
+	case NPF_RCT_L2:
+		return "Layer 2 firewall";
+	case NPF_RCT_NAT64:
+		return "NAT64";
+	}
+	return "NPF";
+}
+
+/*
+ * Callback function for dp_test_json_array_iterate
+ *
+ * Show rc counts for one interface
+ */
+static bool dpt_npf_show_rc_counts_intf(json_object *jobj, void *arg)
+{
+	if (!arg)
+		return true;
+
+	struct dpt_npf_show_rc_ctx *ctx = arg;
+	uint64_t total[NPF_RCT_SZ][NPF_DIR_SZ] = { 0ul };
+	enum npf_rc_type rct;
+	enum npf_rc_dir dir;
+	uint64_t tot = 0ul;
+	const char *ifname = NULL;
+	bool rv;
+
+	/* For each rc type (ip, ip6, l2 etc) */
+	for (rct = 0; rct < NPF_RCT_SZ; rct++)
+		for (dir = 0; dir < NPF_DIR_SZ; dir++) {
+			uint64_t tmp;
+
+			/* For each dir (in, out) */
+			tmp = dpt_npf_rc_total(jobj, npf_rct_str(rct),
+					       npf_rc_dir_str(dir));
+			total[rct][dir] = tmp;
+			tot += tmp;
+		}
+
+
+	if (ctx->nonzero_only && (tot == 0ul))
+		return true;
+
+	rv = dp_test_json_string_field_from_obj(jobj, "name", &ifname);
+	dp_test_fail_unless(rv, "intf name");
+
+	printf("%s (total %"PRIu64")\n", ifname, tot);
+	ctx->indent += RC_INDENT;
+
+	for (rct = 0; rct < NPF_RCT_SZ; rct++) {
+		if ((ctx->rct_bm & RCT2BIT(rct)) && (!ctx->nonzero_only ||
+						     total[rct][NPF_RC_IN] ||
+						     total[rct][NPF_RC_OUT])) {
+
+			printf("%*c%s\n", ctx->indent, ' ', npf_rct_desc(rct));
+			dpt_npf_show_rc_counts_rct(jobj, npf_rct_str(rct), ctx);
+		}
+	}
+	ctx->indent -= RC_INDENT;
+
+	return false;
+}
+
+/*
+ * Show npf return code counters
+ */
+void dpt_npf_show_rc_counts(bool nonzero_only, uint rct_bm)
+{
+	json_object *jresp, *jouter, *jarray;
+	char *str;
+	bool err, debug = false;
+	char cmd[200];
+	int l;
+
+	struct dpt_npf_show_rc_ctx ctx = {
+		.rct_bm = rct_bm,
+		.nonzero_only = nonzero_only,
+		.detail = true,
+		.indent = 0,
+	};
+
+	l = snprintf(cmd, sizeof(cmd), "npf-op rc show counters");
+
+	if (ctx.nonzero_only)
+		snprintf(cmd + l, sizeof(cmd) - l, " nonzero true");
+
+	if (ctx.detail)
+		snprintf(cmd + l, sizeof(cmd) - l, " detail true");
+
+	str = dp_test_console_request_w_err(cmd, &err, false);
+
+	if (!str || err)
+		goto error;
+
+	jresp = parse_json(str, parse_err_str, sizeof(parse_err_str));
+	if (!jresp)
+		goto error;
+
+	if (debug)
+		dpt_npf_show_jobj_pretty(jresp);
+
+	if (!json_object_object_get_ex(jresp, "npf-rc-counts", &jouter)) {
+		json_object_put(jresp);
+		goto error;
+	}
+
+	if (!json_object_object_get_ex(jouter, "interfaces", &jarray)) {
+		json_object_put(jresp);
+		goto error;
+	}
+
+	printf("\n==================================================\n");
+	printf("NPF Return Code Counts\n");
+	printf("==================================================\n");
+
+	dp_test_json_array_iterate(jarray, dpt_npf_show_rc_counts_intf, &ctx);
+
+	json_object_put(jresp);
+	free(str);
+	return;
+
+error:
+	free(str);
+	dp_test_fail("Failed to get rc counts");
+}
+
+/*
+ * Clear npf return code counters
+ */
+void dpt_npf_clear_rc_counts(void)
+{
+	dp_test_npf_cmd_fmt(false, "npf-op rc clear counters");
 }

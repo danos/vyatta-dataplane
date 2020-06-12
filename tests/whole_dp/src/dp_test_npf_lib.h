@@ -14,6 +14,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include "npf/npf.h"
+#include "npf/npf_rc.h"
 #include "npf/npf_ruleset.h"
 #include "npf/config/npf_ruleset_type.h"
 
@@ -447,5 +448,11 @@ npf_decision_t _dp_test_npf_raw(int index, struct rte_mbuf *pkt,
 			 __FILE__, __LINE__)
 
 const char *npf_decision_str(npf_decision_t decision);
+
+/* Show npf return code counters */
+void dpt_npf_show_rc_counts(bool only_non_zero, uint rct_bm);
+
+/* Clear npf rc counters */
+void dpt_npf_clear_rc_counts(void);
 
 #endif
