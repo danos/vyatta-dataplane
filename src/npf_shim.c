@@ -27,6 +27,7 @@
 #include "npf/npf_apm.h"
 #include "npf/npf_addrgrp.h"
 #include "npf/npf_cache.h"
+#include "npf/npf_rc.h"
 #include "npf/npf_event.h"
 #include "npf/npf_if.h"
 #include "npf/npf_if_feat.h"
@@ -34,6 +35,7 @@
 #include "npf/npf_ruleset.h"
 #include "npf/npf_session.h"
 #include "npf/npf_state.h"
+#include "npf/npf_vrf.h"
 #include "npf/npf_timeouts.h"
 #include "npf/zones/npf_zone_public.h"
 #include "npf/rproc/npf_rproc.h"
@@ -233,7 +235,7 @@ npf_hook_track(struct ifnet *in_ifp, struct rte_mbuf **m,
 	npf_session_t *se = NULL;
 	npf_rule_t *rl = NULL;
 	int error = 0;
-	npf_decision_t decision;
+	npf_decision_t decision = NPF_DECISION_UNMATCHED;
 	npf_action_t action = NPF_ACTION_NORMAL;
 	enum npf_ruleset_type rlset_type = NPF_RS_TYPE_COUNT;
 	const npf_ruleset_t *rlset;
@@ -241,6 +243,7 @@ npf_hook_track(struct ifnet *in_ifp, struct rte_mbuf **m,
 	bool too_big = false;
 	struct npf_config *nif_config = npf_if_conf(nif);
 	struct ifnet *ifp = nif->nif_ifp;
+	int rc = NPF_RC_UNMATCHED;
 
 	/*
 	 * Parse the packet, note this also clears any cached tag.
@@ -461,6 +464,8 @@ result:
 			       htons(ifp->if_mtu), ifp);
 	}
 
+	/* Increment return code counter */
+	npf_rc_inc(ifp, ETH2RCT(eth_type), PFIL2RC(dir), rc, decision);
 
 	return (npf_result_t) {
 		.decision = decision,
