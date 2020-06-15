@@ -2887,7 +2887,7 @@ DP_START_TEST_FULL_RUN(cgnat25, test)
 {
 	uint block_size = 4096;
 	uint mbpu = 16;
-	uint i, count = 1000;
+	uint i, count = 65;
 
 	dpt_cgn_cmd_fmt(false, true,
 			"nat-ut pool add POOL1 "
@@ -2912,6 +2912,16 @@ DP_START_TEST_FULL_RUN(cgnat25, test)
 
 	for (i = 0; i < count; i++) {
 
+		int status = DP_TEST_FWD_FORWARDED;
+
+		/*
+		 * 64 dests are allowed per 3-tuple session.  Once that is
+		 * reached, further flows will be dropped, and an ICMP error
+		 * returned to the sender.
+		 */
+		if (i == count - 1)
+			status = DP_TEST_FWD_DROPPED;
+
 		/* Alternate dest addr */
 		if ((i & 1) == 0) {
 			daddr = "1.1.1.1";
@@ -2920,11 +2930,15 @@ DP_START_TEST_FULL_RUN(cgnat25, test)
 			daddr = "1.1.1.2";
 			dmac = "aa:bb:cc:dd:2:b2";
 		}
-		cgnat_udp("dp1T0", "aa:bb:cc:dd:1:a1", 0,
+
+		bool icmp_err = (status == DP_TEST_FWD_DROPPED);
+
+		_cgnat_udp("dp1T0", "aa:bb:cc:dd:1:a1", 0,
 			  "100.64.0.1", 1000, daddr, dport,
 			  "1.1.1.11",   4096, daddr, dport,
 			  dmac, 0, "dp2T1",
-			  DP_TEST_FWD_FORWARDED);
+			  status, icmp_err,
+			   __FILE__, __func__, __LINE__);
 
 		dport++;
 	}
