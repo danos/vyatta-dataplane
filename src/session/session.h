@@ -529,6 +529,17 @@ void session_set_protocol_state_timeout(struct session *s, uint8_t state,
 		uint32_t timeout);
 
 /**
+ * Set custom timeout
+ *
+ * @param s
+ * The session.
+ *
+ * @param timeout
+ * The custom timeout.
+ */
+void session_set_custom_timeout(struct session *s, uint32_t timeout);
+
+/**
  * Init
  *
  * Initialize the session subsystem

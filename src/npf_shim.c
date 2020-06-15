@@ -688,19 +688,6 @@ int npf_json_nat_session(json_writer_t *json, void *data)
 	return npf_session_json_nat(json, se);
 }
 
-/* Get a custome session timeout if configured */
-uint32_t npf_custom_session_timeout(vrfid_t vrfid, uint16_t eth_type,
-		struct rte_mbuf *m)
-{
-	npf_cache_t npc;
-
-	npf_cache_init(&npc);
-	if (unlikely(!npf_cache_all(&npc, m, eth_type)))
-		return 0;
-
-	return npf_state_get_custom_timeout(vrfid, &npc, m);
-}
-
 /* Shim routine for determining whether this NPF session is natted */
 bool npf_feature_is_nat(void *data)
 {

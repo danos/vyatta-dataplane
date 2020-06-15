@@ -51,8 +51,5 @@ void npf_reset_config(enum cont_src_en cont_src);
 void npf_print_state_stats(json_writer_t *json);
 int npf_json_nat_session(json_writer_t *json, void *data);
 
-uint32_t npf_custom_session_timeout(vrfid_t vrfid, uint16_t eth_type,
-		struct rte_mbuf *m);
-
 bool npf_feature_is_nat(void *data);
 #endif /* NPF_SHIM */

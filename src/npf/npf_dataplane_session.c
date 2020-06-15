@@ -18,6 +18,7 @@
 #include "npf/npf_session.h"
 #include "npf/npf_nat.h"
 #include "npf/npf_nat64.h"
+#include "npf/npf_state.h"
 #include "npf/npf_dataplane_session.h"
 
 /* Initial session creation timeout - can be virtually anything */
@@ -137,6 +138,11 @@ int npf_dataplane_session_establish(npf_session_t *se, npf_cache_t *npc,
 		npf_session_destroy(se);
 		return rc;
 	}
+
+	/* Get a custom session timeout, if configured */
+	timeout = npf_state_get_custom_timeout(ifp->if_vrfid, npc, nbuf);
+	if (timeout)
+		session_set_custom_timeout(s, timeout);
 
 	/* Cache dataplane session on npf session */
 	npf_session_set_dp_session(se, s);

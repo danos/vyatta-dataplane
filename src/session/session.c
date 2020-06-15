@@ -1217,11 +1217,9 @@ static void se_init_logging(struct session *s)
 }
 
 /* Allocate and init a session */
-static struct session *se_create(struct sentry_packet *sp, uint32_t timeout,
-		struct rte_mbuf *m)
+static struct session *se_create(struct sentry_packet *sp, uint32_t timeout)
 {
 	struct session *s;
-	uint16_t eth_type;
 
 	s = se_alloc();
 	if (!s)
@@ -1229,14 +1227,6 @@ static struct session *se_create(struct sentry_packet *sp, uint32_t timeout,
 
 	s->se_protocol = sp->sp_protocol;
 	s->se_timeout = timeout;
-
-	/* set custom etime */
-	if (sp->sp_sentry_flags & SENTRY_IPv4)
-		eth_type = htons(RTE_ETHER_TYPE_IPV4);
-	else
-		eth_type = htons(RTE_ETHER_TYPE_IPV6);
-	s->se_custom_timeout = npf_custom_session_timeout(sp->sp_vrfid,
-			eth_type, m);
 
 	s->se_vrfid = sp->sp_vrfid;
 	s->se_create_time = rte_get_timer_cycles();
@@ -1276,6 +1266,12 @@ void session_set_protocol_state_timeout(struct session *s, uint8_t state,
 {
 	s->se_timeout = timeout;
 	s->se_protocol_state = state;
+}
+
+/* Set the custom timeout */
+void session_set_custom_timeout(struct session *s, uint32_t timeout)
+{
+	s->se_custom_timeout = timeout;
 }
 
 /* Insert forw/back sentries based on packet. */
@@ -1614,7 +1610,7 @@ int session_create_from_sentry_packets(struct rte_mbuf *m,
 	if (rc)
 		return rc;
 
-	s = se_create(sp_forw, timeout, m);
+	s = se_create(sp_forw, timeout);
 	if (!s) {
 		slot_put();
 		return -ENOMEM;
