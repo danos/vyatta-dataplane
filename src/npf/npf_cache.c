@@ -768,38 +768,6 @@ static inline bool npf_fetch_icmp(npf_cache_t *npc, struct rte_mbuf *nbuf,
 	return true;
 }
 
-/* Forward reference */
-static bool _npf_cache_all_at(npf_cache_t *npc, struct rte_mbuf *nbuf,
-			      void *n_ptr, uint16_t eth_proto, bool icmp_err,
-			      bool update_grouper);
-
-/*
- * npf_cache_all: general routine to cache all relevant IP (v4 or v6)
- * and TCP, UDP or ICMP headers. Only called once at top level
- * of NPF processing.
- *
- * returns true if packet is OK.
- */
-bool npf_cache_all(npf_cache_t *npc, struct rte_mbuf *nbuf, uint16_t eth_proto)
-{
-	return _npf_cache_all_at(npc, nbuf, npf_iphdr(nbuf), eth_proto,
-				 false, true);
-}
-
-bool npf_cache_all_at(npf_cache_t *npc, struct rte_mbuf *nbuf, void *n_ptr,
-		      uint16_t eth_proto)
-{
-	return _npf_cache_all_at(npc, nbuf, n_ptr, eth_proto, true, true);
-}
-
-/* Cache packet without updating the cache grouper */
-bool npf_cache_all_nogpr(npf_cache_t *npc, struct rte_mbuf *nbuf,
-			 uint16_t eth_proto)
-{
-	return _npf_cache_all_at(npc, nbuf, npf_iphdr(nbuf), eth_proto,
-				 false, false);
-}
-
 static bool _npf_cache_all_at(npf_cache_t *npc, struct rte_mbuf *nbuf,
 			      void *n_ptr, uint16_t eth_proto, bool icmp_err,
 			      bool update_grouper)
@@ -936,6 +904,33 @@ static bool _npf_cache_all_at(npf_cache_t *npc, struct rte_mbuf *nbuf,
 	npc->npc_info |= NPC_GROUPER;
 
 	return true;
+}
+
+/*
+ * npf_cache_all: general routine to cache all relevant IP (v4 or v6)
+ * and TCP, UDP or ICMP headers. Only called once at top level
+ * of NPF processing.
+ *
+ * returns true if packet is OK.
+ */
+bool npf_cache_all(npf_cache_t *npc, struct rte_mbuf *nbuf, uint16_t eth_proto)
+{
+	return _npf_cache_all_at(npc, nbuf, npf_iphdr(nbuf), eth_proto,
+				 false, true);
+}
+
+bool npf_cache_all_at(npf_cache_t *npc, struct rte_mbuf *nbuf, void *n_ptr,
+		      uint16_t eth_proto)
+{
+	return _npf_cache_all_at(npc, nbuf, n_ptr, eth_proto, true, true);
+}
+
+/* Cache packet without updating the cache grouper */
+bool npf_cache_all_nogpr(npf_cache_t *npc, struct rte_mbuf *nbuf,
+			 uint16_t eth_proto)
+{
+	return _npf_cache_all_at(npc, nbuf, npf_iphdr(nbuf), eth_proto,
+				 false, false);
 }
 
 /*
