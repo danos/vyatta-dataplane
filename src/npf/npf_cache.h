@@ -288,9 +288,60 @@ void npf_store_tcp_options(npf_cache_t *npc, struct rte_mbuf *nbuf, void *buf);
 bool npf_store_tcp_mss(const npf_cache_t *npc, struct rte_mbuf *nbuf,
 		       uint16_t *mss);
 void npf_recache_ip_ttl(npf_cache_t *npc, struct rte_mbuf *nbuf);
+
+
+/**
+ * General routine to cache all relevant IP (v4 or v6) and TCP, UDP or ICMP
+ * headers. Only called once at top level of NPF processing.
+ *
+ * @param npc
+ * The npf packet cache.
+ *
+ * @param nbuf
+ * The packet.
+ *
+ * @param eth_proto
+ * The ethernet header type field in network byte order.
+ */
 bool npf_cache_all(npf_cache_t *npc, struct rte_mbuf *nbuf, uint16_t eth_proto);
+
+/**
+ * Cache all relevant IP (v4 or v6) and TCP, UDP or ICMP headers from a given
+ * point in a packet.  Used to cache packets embedded within ICMP error
+ * messages, in which case the l4 header may be truncated.
+ *
+ * @param npc
+ * The npf packet cache.
+ *
+ * @param n_ptr
+ * Pointer to the l3 header in the packet.
+ *
+ * @param nbuf
+ * The packet.
+ *
+ * @param eth_proto
+ * The ethernet header type field in network byte order.
+ */
 bool npf_cache_all_at(npf_cache_t *npc, struct rte_mbuf *nbuf, void *n_ptr,
-		      uint16_t eth_proto, bool icmp_err);
+		      uint16_t eth_proto);
+
+/**
+ * Cache all relevant IP (v4 or v6) and TCP, UDP or ICMP headers in a packet
+ * without updating the cashe grouper data.  Not to be used for packets
+ * embedded within ICMP error messages.
+ *
+ * @param npc
+ * The npf packet cache.
+ *
+ * @param nbuf
+ * The packet.
+ *
+ * @param eth_proto
+ * The ethernet header type field in network byte order.
+ */
+bool npf_cache_all_nogpr(npf_cache_t *npc, struct rte_mbuf *nbuf,
+			   uint16_t eth_proto);
+
 uint16_t npf_hdrlen(npf_cache_t *npc);
 uint16_t npf_payload_len(npf_cache_t *npc);
 uint16_t npf_payload_fetch(npf_cache_t *npc, struct rte_mbuf *nbuf,

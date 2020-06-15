@@ -534,11 +534,10 @@ bool npf_local_fw(struct ifnet *ifp, struct rte_mbuf **m, uint16_t ether_type)
 	const struct npf_config *npf_config = npf_if_conf(nif);
 
 	npf_cache_t npc;
-	void *n_ptr = dp_pktmbuf_mtol3(*m, void *);
 
 	npf_cache_init(&npc);
 
-	if (!npf_cache_all_at(&npc, *m, n_ptr, ether_type, false))
+	if (!npf_cache_all(&npc, *m, ether_type))
 		return true;	/* discard */
 
 	/* Find the session */

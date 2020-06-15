@@ -573,7 +573,7 @@ simple_ip:
 	npf_cache_init(&enpc);
 
 	/* Inspect the embedded packet. */
-	if (!npf_cache_all_at(&enpc, mbuf, n_ptr, ether_proto, true))
+	if (!npf_cache_all_at(&enpc, mbuf, n_ptr, ether_proto))
 		goto simple_ip;
 
 	npf_log_ip_pkt(&enpc, err_buf, sizeof(err_buf), "",
