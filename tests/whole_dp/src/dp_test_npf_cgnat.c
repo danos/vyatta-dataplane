@@ -67,7 +67,6 @@ DP_DECL_TEST_SUITE(npf_cgnat);
  * cgnat11  - UDP, TCP, and ICMP  1 fwd pkt, 1 back pkt
  * cgnat12  - Hairpinning.
  * cgnat13  - CGNAT over VRF interface.
- * cgnat14  - VRF interface created after CGNAT config.
  * cgnat15  - VRF interface deleted while CGNAT policy and sessions present
  * cgnat16  - Tests random port allocation within port block.
  * cgnat17  - Exercises op-mode show commands
@@ -1152,100 +1151,6 @@ DP_START_TEST_FULL_RUN(cgnat13, test)
 		  DP_TEST_FWD_FORWARDED);
 
 	cgnat_policy_del("POLICY1", 10, "dp2T1.100");
-	dp_test_npf_cmd_fmt(false, "nat-ut pool delete POOL1");
-
-	/* Cleanup */
-	dp_test_netlink_del_neigh("dp1T0", "100.64.0.1", "aa:bb:cc:dd:1:a1");
-	dp_test_netlink_del_neigh("dp1T0", "100.64.0.2", "aa:bb:cc:dd:1:a2");
-
-	dp_test_netlink_del_neigh("dp2T1.100", "1.1.1.1", "aa:bb:cc:dd:2:b1");
-	dp_test_netlink_del_neigh("dp2T1.100", "1.1.1.2", "aa:bb:cc:dd:2:b2");
-
-	dp_test_nl_del_ip_addr_and_connected("dp1T0", "100.64.0.254/24");
-	dp_test_nl_del_ip_addr_and_connected("dp2T1.100", "1.1.1.254/24");
-
-	dp_test_intf_vif_del("dp2T1.100", 100);
-
-	dp_test_npf_cleanup();
-
-} DP_END_TEST;
-
-
-/*
- * npf_cgnat_14 - CGNAT over a deferred VRF interface.
- *
- * Tests deferred interface command and command replay.
- *
- *    Private                                       Public
- *                       dp1T0 +---+ dp2T1
- *    100.64.0.0/24  ----------|   |--------------- 1.1.1.0/24
- *                             +---+
- */
-DP_DECL_TEST_CASE(npf_cgnat, cgnat14, NULL, NULL);
-DP_START_TEST_FULL_RUN(cgnat14, test)
-{
-	dpt_cgn_cmd_fmt(false, true,
-			"nat-ut pool add POOL1 "
-			"type=cgnat "
-			"address-range=RANGE1/1.1.1.11-1.1.1.20 "
-			"");
-
-	cgnat_policy_add("POLICY1", 10, "100.64.0.0/24", "POOL1",
-			 "dp2T1.100", CGN_MAP_EIM, CGN_FLTR_EIF,
-			 CGN_3TUPLE, false);
-
-	cgnat_policy_add("POLICY2", 10, "100.64.1.0/24", "POOL1",
-			 "dp2T1.100", CGN_MAP_EIM, CGN_FLTR_EIF,
-			 CGN_3TUPLE, false);
-
-	dp_test_intf_vif_create("dp2T1.100", "dp2T1", 100);
-
-	/* Check that CGNAT is enabled on VIF interface */
-	dp_test_wait_for_pl_feat("dp2T1.100", "vyatta:ipv4-cgnat-in",
-				 "ipv4-validate");
-	dp_test_wait_for_pl_feat("dp2T1.100", "vyatta:ipv4-cgnat-out",
-				 "ipv4-out");
-
-	dp_test_nl_add_ip_addr_and_connected("dp1T0", "100.64.0.254/24");
-	dp_test_nl_add_ip_addr_and_connected("dp2T1.100", "1.1.1.254/24");
-
-	/*
-	 * Inside
-	 */
-	dp_test_netlink_add_neigh("dp1T0", "100.64.0.1",
-				  "aa:bb:cc:dd:1:a1");
-	dp_test_netlink_add_neigh("dp1T0", "100.64.0.2",
-				  "aa:bb:cc:dd:1:a2");
-
-	/*
-	 * Outside
-	 */
-	dp_test_netlink_add_neigh("dp2T1.100", "1.1.1.1",
-				  "aa:bb:cc:dd:2:b1");
-	dp_test_netlink_add_neigh("dp2T1.100", "1.1.1.2",
-				  "aa:bb:cc:dd:2:b2");
-
-	/*
-	 * 100.64.0.1:49152 / 1.1.1.11:1024 --> dst 1.1.1.1:80
-	 */
-	cgnat_udp("dp1T0", "aa:bb:cc:dd:1:a1", 0,
-		  "100.64.0.1", 49152, "1.1.1.1", 80,
-		  "1.1.1.11", 1024, "1.1.1.1", 80,
-		  "aa:bb:cc:dd:2:b1", 100, "dp2T1",
-		  DP_TEST_FWD_FORWARDED);
-
-	/*
-	 * 1.1.1.1:80  -->  1.1.1.11:1024 / 100.64.0.1:49152
-	 */
-	cgnat_udp("dp2T1", "aa:bb:cc:dd:2:b1", 100,
-		  "1.1.1.1", 80, "1.1.1.11", 1024,
-		  "1.1.1.1", 80, "100.64.0.1", 49152,
-		  "aa:bb:cc:dd:1:a1", 0, "dp1T0",
-		  DP_TEST_FWD_FORWARDED);
-
-	cgnat_policy_del("POLICY1", 10, "dp2T1.100");
-	cgnat_policy_del("POLICY2", 10, "dp2T1.100");
-
 	dp_test_npf_cmd_fmt(false, "nat-ut pool delete POOL1");
 
 	/* Cleanup */
