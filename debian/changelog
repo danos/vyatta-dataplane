@@ -1,3 +1,14 @@
+vyatta-dataplane (3.9.112.11) unstable; urgency=medium
+
+  [ Mandeep Rohilla ]
+  * DP_EVENT: Add new event for MTU change notifications
+  * MTU: Register QoS's intereset in MTU change
+  * MTU: Don't bounce the port when changing the MTU
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Mon, 15 Jun 2020 08:46:46 +0100
+
 vyatta-dataplane (3.9.112.10) unstable; urgency=medium
 
   [ Charles (Chas) Williams ]
