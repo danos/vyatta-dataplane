@@ -1,3 +1,20 @@
+vyatta-dataplane (3.10.33) unstable; urgency=medium
+
+  [ Ian Wilson ]
+  * cgnat: Several small cosmetic changes to cgnat
+  * cgnat: Add 2-tuple sessn to hash table if it fails to be added directly
+  * cgnat: Move 2-tuple session inspection code into separate function
+  * cgnat: Block outbound flow if max-dest-per-session reached
+  * cgnat: Block inbound packets if max-dest-per-session reached
+  * cgnat: Increase maximum configurable max-dest-per-session to 128
+  * ut: Fixup cgnat25 to expect an ICMP error
+  * cgnat: Remove interface config store and replay mechanism
+  * ut: Remove cgnat14 test for interface store and replay mechanism
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Tue, 16 Jun 2020 10:32:46 +0100
+
 vyatta-dataplane (3.10.32) unstable; urgency=medium
 
   [ Mandeep Rohilla ]
