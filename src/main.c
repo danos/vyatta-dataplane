@@ -1238,13 +1238,26 @@ out:
 	return link_modes;
 }
 
-/* Shutdown DPDK on port. */
-static void close_all_ports(void)
+/* Shutdown all regular (not including backplane) DPDK ports */
+static void close_all_regular_ports(void)
 {
 	unsigned int portid;
 
 	for (portid = 0; portid < DATAPLANE_MAX_PORTS; ++portid) {
-		if (rte_eth_dev_is_valid_port(portid))
+		if (!if_port_is_bkplane(portid) &&
+		    rte_eth_dev_is_valid_port(portid))
+			rte_eth_dev_close(portid);
+	}
+}
+
+/* Shutdown all DPDK backplane ports */
+static void close_all_backplane_ports(void)
+{
+	unsigned int portid;
+
+	for (portid = 0; portid < DATAPLANE_MAX_PORTS; ++portid) {
+		if (rte_eth_dev_is_valid_port(portid) &&
+		    if_port_is_bkplane(portid))
 			rte_eth_dev_close(portid);
 	}
 }
@@ -3623,7 +3636,7 @@ main(int argc, char **argv)
 
 	crypto_pmd_remove_all();
 	stop_all_ports();
-	close_all_ports();
+	close_all_regular_ports();
 
 	dp_crypto_shutdown();
 
@@ -3647,6 +3660,7 @@ main(int argc, char **argv)
 	udp_handler_destroy();
 	platform_config_cleanup();
 	fal_cleanup();
+	close_all_backplane_ports();
 	master_worker_thread_cleanup();
 
 	/* wait for all RCU handlers */
