@@ -54,6 +54,11 @@ bool bridge_vlan_set_is_member(struct bridge_vlan_set *set, uint16_t vlan);
 void bridge_vlan_set_clear(struct bridge_vlan_set *set);
 
 /*
+ * Checks if the VLAN set is empty.
+ */
+bool bridge_vlan_set_is_empty(struct bridge_vlan_set *set);
+
+/*
  * Callback for synchronization algorithm, takes a vlan id and the cb_data
  * that is passed to the synchronize function.
  */

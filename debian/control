@@ -85,6 +85,7 @@ Provides: fal-acl,
           fal-vlan-feat-create,
           fal-deferred-free,
           fal-mac-limit,
+          fal-br-vlan-set-empty,
 Description: Vyatta optimized dataplane
  Vyatta dataplane is the set of tools to provide performance optimized routing
  and forwarding. It supports IPv4, IPv6, firewalling, bridging and more.
@@ -164,6 +165,7 @@ Provides: fal-dev-acl,
           fal-dev-l3-nh-usability,
           fal-dev-deferred-free,
           fal-dev-mac-limit,
+          fal-dev-br-vlan-set-empty,
 Description: Forwarding Abstraction Library plugin development files
  An API for dataplane FAL plugins
 

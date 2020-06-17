@@ -74,6 +74,18 @@ bridge_vlan_set_clear(struct bridge_vlan_set *set)
 	rte_bitmap_reset(set->map);
 }
 
+bool __externally_visible
+bridge_vlan_set_is_empty(struct bridge_vlan_set *set)
+{
+	uint32_t pos = 0;
+	uint64_t slab = 0;
+
+	if (rte_bitmap_scan(set->map, &pos, &slab))
+		return false;
+
+	return true;
+}
+
 void __externally_visible
 bridge_vlan_set_synchronize(struct bridge_vlan_set *old,
 			    struct bridge_vlan_set *new,
