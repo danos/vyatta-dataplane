@@ -59,6 +59,7 @@ void fal_plugin_setup_interfaces(void)
 {
 	uint16_t portid;
 	int ret;
+	uint16_t test_vlan = 16;
 	struct bridge_vlan_set *set;
 
 	DEBUG("%s()\n", __func__);
@@ -72,6 +73,17 @@ void fal_plugin_setup_interfaces(void)
 	set = bridge_vlan_set_create();
 	dp_test_fail_unless((set != NULL),
 		"Expected bridge_vlan_set_create() to not return NULL");
+
+	bridge_vlan_set_add(set, test_vlan);
+
+	dp_test_fail_unless((bridge_vlan_set_is_empty(set) == false),
+			    "Expected non-EMPTY bridge vlan set");
+
+	bridge_vlan_set_clear(set);
+
+	dp_test_fail_unless((bridge_vlan_set_is_empty(set) != false),
+			    "Expected EMPTY bridge vlan set");
+
 	bridge_vlan_set_free(set);
 
 	fal_plugin_sw_ports_create();
