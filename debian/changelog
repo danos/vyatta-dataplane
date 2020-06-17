@@ -1,3 +1,12 @@
+vyatta-dataplane (3.9.112.12) unstable; urgency=medium
+
+  [ Ethan Li ]
+  * bfd-hw: add FAL attribute for BFD hw running mode
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Wed, 17 Jun 2020 07:46:17 +0100
+
 vyatta-dataplane (3.9.112.11) unstable; urgency=medium
 
   [ Mandeep Rohilla ]
