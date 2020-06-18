@@ -155,8 +155,6 @@ static int mac_limit_fal_unapply(struct mac_limit_entry *entry)
 		return -ENOENT;
 	}
 
-	RTE_LOG(DEBUG, MAC_LIMIT, "Remove vlan feature\n");
-
 	rv = fal_vlan_feature_set_attr(vlan_feat->fal_vlan_feat,
 				       &vlan_attr[0]);
 	if (rv) {
@@ -169,6 +167,7 @@ static int mac_limit_fal_unapply(struct mac_limit_entry *entry)
 	vlan_feat->refcount--;
 
 	if (vlan_feat && !vlan_feat->refcount) {
+		RTE_LOG(DEBUG, MAC_LIMIT, "Remove vlan feature\n");
 		rv = fal_vlan_feature_delete(vlan_feat->fal_vlan_feat);
 		if (rv) {
 			RTE_LOG(ERR, MAC_LIMIT,
@@ -485,7 +484,8 @@ static int mac_limit_set_intf_cfg(MacLimitConfig__MacLimitIfVLANConfig *cfg)
 	pname = cfg->profile;
 
 	RTE_LOG(DEBUG, MAC_LIMIT,
-		"set_intf_cfg: intf %s vlan %u profile %s\n",
+		"set_intf_cfg: %s intf %s vlan %u profile %s\n",
+		set ? "Set" : "Delete",
 		ifname, vlan, pname);
 
 	ifp = dp_ifnet_byifname(ifname);
@@ -527,7 +527,9 @@ static int mac_limit_set_intf_cfg(MacLimitConfig__MacLimitIfVLANConfig *cfg)
 		if (!entry)
 			return 0;
 
-		mac_limit_fal_unapply(entry);
+		if (entry->mle_profile->mlp_limit)
+			mac_limit_fal_unapply(entry);
+
 		mle_delete_entry(entry);
 	}
 
