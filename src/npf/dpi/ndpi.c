@@ -32,6 +32,7 @@
 #include "ndpi_main.h"
 #include "vplane_log.h"
 #include "util.h"
+#include "vplane_debug.h"
 
 #define DPI_INTERNAL_UNKNOWN (DPI_ENGINE_NDPI | NDPI_PROTOCOL_UNKNOWN)
 
@@ -101,6 +102,16 @@ dpi_ndpi_process(struct ndpi_detection_module_struct *detect,
 	flow->type = ndpi_get_proto_category(detect, proto);
 	flow->offloaded = flow->protocol != DPI_INTERNAL_UNKNOWN
 		|| flow->application != DPI_INTERNAL_UNKNOWN;
+
+	if (unlikely(dp_debug & DP_DBG_DPI)) {
+		RTE_LOG(DEBUG, DATAPLANE, "ndpi: P='%s' A='%s' C='%s'\n",
+			ndpi_get_proto_name(detection_modules[dp_lcore_id()],
+					    proto.master_protocol),
+			ndpi_get_proto_name(detection_modules[dp_lcore_id()],
+					    proto.app_protocol),
+			ndpi_category_get_name(detection_modules[dp_lcore_id()],
+					       proto.category));
+	}
 
 	return true;
 }
