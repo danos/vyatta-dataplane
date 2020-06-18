@@ -75,6 +75,14 @@ static void npf_rc_ctrl_init(void)
 			case NPF_RC_INTL:
 				npf_rc_ctrl[dir][rc].bm = RCT_BIT_ALL;
 				break;
+
+			/* the following may occur from  npf cache */
+			case NPF_RC_L3_PROTO:
+			case NPF_RC_L4_SHORT:
+				npf_rc_ctrl[dir][rc].bm =
+					(RCT_BIT_FW4 | RCT_BIT_FW6 |
+					 RCT_BIT_NAT64 | RCT_BIT_L2);
+				break;
 			}
 
 			/* Init category */
@@ -88,6 +96,8 @@ static void npf_rc_ctrl_init(void)
 			case NPF_RC_BLOCK:
 				npf_rc_ctrl[dir][rc].cat = RC_CAT_BLOCK;
 				break;
+			case NPF_RC_L3_PROTO:
+			case NPF_RC_L4_SHORT:
 			case NPF_RC_INTL:
 				npf_rc_ctrl[dir][rc].cat = RC_CAT_DROP;
 				break;
@@ -148,6 +158,10 @@ const char *npf_rc_str(int rc)
 		return "RC_PASS";
 	case NPF_RC_BLOCK:
 		return "RC_BLOCK";
+	case NPF_RC_L3_PROTO:
+		return "RC_L3_PROTO";
+	case NPF_RC_L4_SHORT:
+		return "RC_L4_SHORT";
 	case NPF_RC_INTL:
 		break;
 	};
@@ -171,6 +185,10 @@ const char *npf_rc_detail_str(int rc)
 		return "pass";
 	case NPF_RC_BLOCK:
 		return "block";
+	case NPF_RC_L3_PROTO:
+		return "protocol mismatch";
+	case NPF_RC_L4_SHORT:
+		return "invalid layer 4 header";
 	case NPF_RC_INTL:
 		break;
 	};

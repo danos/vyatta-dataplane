@@ -121,6 +121,12 @@ enum npf_rc_en {
 	NPF_RC_UNMATCHED = 0,
 	NPF_RC_PASS,	/* Matched session or pass rule, or no ruleset */
 	NPF_RC_BLOCK,	/* Explicit or implicit block */
+
+	/* L3 protocol value does not match pkt addr family */
+	NPF_RC_L3_PROTO,
+
+	/* Not enough L4 hdr present in pkt or icmp err embd pkt */
+	NPF_RC_L4_SHORT,
 	NPF_RC_INTL,	/* Internal error */
 };
 #define NPF_RC_LAST	NPF_RC_INTL

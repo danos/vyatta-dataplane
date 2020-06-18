@@ -63,6 +63,7 @@
 #include "npf/npf_cache.h"
 #include "npf/npf_mbuf.h"
 #include "npf/npf_nat.h"
+#include "npf/npf_rc.h"
 
 #define ICMP_ERROR_MIN_L4_SIZE	8
 
@@ -600,10 +601,10 @@ static inline int npf_fetch_tcp(npf_cache_t *npc, struct rte_mbuf *nbuf,
 		if (icmp_err) {
 			if (__nbuf_advfetch(&nbuf, &n_ptr, hlen,
 					    ICMP_ERROR_MIN_L4_SIZE, th))
-				return -EINVAL;
+				return -NPF_RC_L4_SHORT;
 			npc->npc_info |= NPC_SHORT_ICMP_ERR;
 		} else
-			return -EINVAL;
+			return -NPF_RC_L4_SHORT;
 	}
 
 	npc->npc_info |= NPC_L4PORTS;
@@ -621,7 +622,7 @@ static inline int npf_fetch_udp(npf_cache_t *npc, struct rte_mbuf *nbuf,
 
 	/* Fetch UDP/UDP-Lite header. */
 	if (__nbuf_advfetch(&nbuf, &n_ptr, hlen, sizeof(struct udphdr), uh))
-		return -EINVAL;
+		return -NPF_RC_L4_SHORT;
 
 	npc->npc_info |= NPC_L4PORTS;
 
@@ -644,7 +645,7 @@ static inline int npf_fetch_sctp(npf_cache_t *npc, struct rte_mbuf *nbuf,
 
 	/* Fetch SCTP common header. */
 	if (__nbuf_advfetch(&nbuf, &n_ptr, hlen, sizeof(*sh), sh))
-		return -EINVAL;
+		return -NPF_RC_L4_SHORT;
 
 	npc->npc_info |= NPC_L4PORTS;
 
@@ -672,10 +673,10 @@ static inline int npf_fetch_dccp(npf_cache_t *npc, struct rte_mbuf *nbuf,
 		if (icmp_err) {
 			if (__nbuf_advfetch(&nbuf, &n_ptr, hlen,
 					    ICMP_ERROR_MIN_L4_SIZE, dh))
-				return -EINVAL;
+				return -NPF_RC_L4_SHORT;
 			npc->npc_info |= NPC_SHORT_ICMP_ERR;
 		} else
-			return -EINVAL;
+			return -NPF_RC_L4_SHORT;
 	}
 
 	npc->npc_info |= NPC_L4PORTS;
@@ -752,11 +753,11 @@ static inline int npf_fetch_icmp(npf_cache_t *npc, struct rte_mbuf *nbuf,
 	/* Ensure the ICMP protocol and IP protocol are compatible */
 	if (npf_iscached(npc, NPC_IP4) ^
 			 (npf_cache_ipproto(npc) == IPPROTO_ICMP))
-		return -EINVAL;
+		return -NPF_RC_L3_PROTO;
 
 	/* Fetch basic ICMP header and possibly id/seq */
 	if (__nbuf_advfetch(&nbuf, &n_ptr, hlen, ICMP_MINLEN, &npc->npc_l4))
-		return -EINVAL;
+		return -NPF_RC_L4_SHORT;
 
 	if (npf_cache_ipproto(npc) == IPPROTO_ICMP)
 		npf_decode_icmp4(npc);
