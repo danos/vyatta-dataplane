@@ -269,8 +269,8 @@ npf_hook_track(struct ifnet *in_ifp, struct rte_mbuf **m,
 	 * try to create a 'parent' tuple based session.
 	 */
 	se = npf_session_inspect_or_create(npc, *m, ifp, dir, &npf_flags,
-					   &error, &internal_hairpin);
-	if (unlikely(error)) {
+					   &rc, &internal_hairpin);
+	if (unlikely(rc < 0)) {
 		decision = NPF_DECISION_BLOCK;
 		goto result;
 	}
@@ -367,9 +367,8 @@ npf_hook_track(struct ifnet *in_ifp, struct rte_mbuf **m,
 	 */
 	if (rl && npf_rule_stateful(rl)) {
 		if (!se) {
-			se = npf_session_establish(npc, *m, ifp, dir,
-						   &error);
-			if (unlikely(error)) {
+			se = npf_session_establish(npc, *m, ifp, dir, &rc);
+			if (unlikely(rc < 0)) {
 				decision = NPF_DECISION_BLOCK;
 				goto stats;
 			}
@@ -429,8 +428,8 @@ done:
 	if (se) {
 		if (decision != NPF_DECISION_BLOCK) {
 			/* N.B. se may be consumed */
-			error = npf_session_activate(se, ifp, npc, *m);
-			if (error == 0) {
+			rc = npf_session_activate(se, ifp, npc, *m);
+			if (rc == 0) {
 				/* Attach the session to the packet */
 				struct pktmbuf_mdata *mdata = pktmbuf_mdata(*m);
 				mdata->md_session = se;
@@ -441,12 +440,12 @@ done:
 					npf_save_stats(se, dir,
 						       rte_pktmbuf_pkt_len(*m));
 			} else {
-				if (error != -ENOSTR)
+				if (rc != -NPF_RC_ENOSTR)
 					decision = NPF_DECISION_BLOCK;
 			}
 		} else if (!npf_session_is_active(se)) {
 			npf_session_destroy(se);
-		} else if (error) {
+		} else if (error || rc < 0) {
 			pktmbuf_mdata_clear(*m, PKT_MDATA_SESSION);
 			npf_session_expire(se);
 		}

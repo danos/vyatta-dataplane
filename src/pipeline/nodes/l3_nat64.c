@@ -21,6 +21,7 @@
 #include "npf/npf.h"
 #include "npf/npf_cmd.h"
 #include "npf/npf_if.h"
+#include "npf/npf_rc.h"
 #include "npf_shim.h"
 #include "npf/npf_nat64.h"
 
@@ -142,7 +143,7 @@ nat64_in_process_common(struct pl_packet *pkt, struct npf_if *nif, bool v4,
 					npf_save_stats(se, PFIL_IN,
 						       rte_pktmbuf_pkt_len(m));
 			} else {
-				if (error != -ENOSTR)
+				if (error != -NPF_RC_ENOSTR)
 					decision = NAT64_DECISION_DROP;
 			}
 		} else if (!npf_session_is_active(se)) {
@@ -219,7 +220,7 @@ nat64_out_process_common(struct pl_packet *pkt, bool v4, uint16_t eth_type)
 					npf_save_stats(se, PFIL_OUT,
 						       rte_pktmbuf_pkt_len(m));
 			} else {
-				if (error != -ENOSTR)
+				if (error != -NPF_RC_ENOSTR)
 					decision = NAT64_DECISION_DROP;
 			}
 		} else if (!npf_session_is_active(se)) {

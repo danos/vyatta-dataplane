@@ -15,6 +15,7 @@
 
 #include "npf/npf_if.h"
 #include "npf/npf_cache.h"
+#include "npf/npf_rc.h"
 #include "npf/npf_session.h"
 #include "npf/npf_nat.h"
 #include "npf/npf_nat64.h"
@@ -109,8 +110,8 @@ static const struct session_feature_ops ops = {
 };
 
 /*
- * Create a dataplane session and add the
- * npf session as a feature.
+ * Create a dataplane session and add the npf session as a feature.  Returns 0
+ * for success or -NPF_RC_DP_SESS_ESTB for failure.
  */
 int npf_dataplane_session_establish(npf_session_t *se, npf_cache_t *npc,
 		struct rte_mbuf *nbuf, const struct ifnet *ifp)
@@ -136,7 +137,7 @@ int npf_dataplane_session_establish(npf_session_t *se, npf_cache_t *npc,
 
 	if (rc) {
 		npf_session_destroy(se);
-		return rc;
+		return -NPF_RC_DP_SESS_ESTB;
 	}
 
 	/* Get a custom session timeout, if configured */
@@ -192,11 +193,12 @@ int npf_dataplane_session_establish(npf_session_t *se, npf_cache_t *npc,
 		else
 			session_set_nat46(s);
 	}
-	return rc;
+	assert(rc == 0);
+	return 0;
 bad:
 	if (created)
 		session_expire(s, nbuf);
-	return rc;
+	return -NPF_RC_DP_SESS_ESTB;
 }
 
 static void __attribute__((constructor)) npf_dataplane_session_init(void)

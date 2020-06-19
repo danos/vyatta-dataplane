@@ -93,11 +93,29 @@ static void npf_rc_ctrl_init(void)
 					(RCT_BIT_FW4 | RCT_BIT_FW6 |
 					 RCT_BIT_NAT64);
 				break;
+
+			/* the following may occur when creating a session */
+			case NPF_RC_ENOSTR:
+			case NPF_RC_SESS_ENOMEM:
+			case NPF_RC_SESS_LIMIT:
+			case NPF_RC_SESS_HOOK:
+			case NPF_RC_DP_SESS_ESTB:
+				npf_rc_ctrl[dir][rc].bm =
+					(RCT_BIT_FW4 | RCT_BIT_FW6 |
+					 RCT_BIT_NAT64);
+				break;
+
+			case NPF_RC_ALG_EEXIST:
+			case NPF_RC_ALG_ERR:
+				npf_rc_ctrl[dir][rc].bm |=
+					(RCT2BIT(NPF_RCT_FW4));
+				break;
 			}
 
 			/* Init category */
 			switch (rc) {
 			case NPF_RC_PASS:
+			case NPF_RC_ENOSTR:
 				npf_rc_ctrl[dir][rc].cat = RC_CAT_PASS;
 				break;
 			case NPF_RC_UNMATCHED:
@@ -112,6 +130,12 @@ static void npf_rc_ctrl_init(void)
 			case NPF_RC_TCP_SYN:
 			case NPF_RC_TCP_STATE:
 			case NPF_RC_TCP_WIN:
+			case NPF_RC_SESS_ENOMEM:
+			case NPF_RC_SESS_LIMIT:
+			case NPF_RC_SESS_HOOK:
+			case NPF_RC_DP_SESS_ESTB:
+			case NPF_RC_ALG_EEXIST:
+			case NPF_RC_ALG_ERR:
 			case NPF_RC_INTL:
 				npf_rc_ctrl[dir][rc].cat = RC_CAT_DROP;
 				break;
@@ -178,12 +202,26 @@ const char *npf_rc_str(int rc)
 		return "RC_L3_PROTO";
 	case NPF_RC_ICMP_ECHO:
 		return "RC_ICMP_ECHO";
+	case NPF_RC_ENOSTR:
+		return "RC_ENOSTR";
 	case NPF_RC_TCP_SYN:
 		return "RC_TCP_SYN";
 	case NPF_RC_TCP_STATE:
 		return "RC_TCP_STATE";
 	case NPF_RC_TCP_WIN:
 		return "RC_TCP_WIN";
+	case NPF_RC_SESS_ENOMEM:
+		return "RC_SESS_ENOMEM";
+	case NPF_RC_SESS_LIMIT:
+		return "RC_SESS_LIMIT";
+	case NPF_RC_SESS_HOOK:
+		return "RC_SESS_HOOK";
+	case NPF_RC_DP_SESS_ESTB:
+		return "RC_DP_SESS_ESTB";
+	case NPF_RC_ALG_EEXIST:
+		return "RC_ALG_EEXIST";
+	case NPF_RC_ALG_ERR:
+		return "RC_ALG_ERR";
 	case NPF_RC_INTL:
 		break;
 	};
@@ -213,12 +251,26 @@ const char *npf_rc_detail_str(int rc)
 		return "invalid layer 4 header";
 	case NPF_RC_ICMP_ECHO:
 		return "unsolicited ICMP echo reply";
+	case NPF_RC_ENOSTR:
+		return "unknown TCP reset";
 	case NPF_RC_TCP_SYN:
 		return "missing TCP SYN";
 	case NPF_RC_TCP_STATE:
 		return "invalid TCP flags";
 	case NPF_RC_TCP_WIN:
 		return "TCP window error";
+	case NPF_RC_SESS_ENOMEM:
+		return "no memory to create session";
+	case NPF_RC_SESS_LIMIT:
+		return "session limiter";
+	case NPF_RC_SESS_HOOK:
+		return "session hook";
+	case NPF_RC_DP_SESS_ESTB:
+		return "failed to create dataplane session";
+	case NPF_RC_ALG_EEXIST:
+		return "ALG race condition";
+	case NPF_RC_ALG_ERR:
+		return "ALG error";
 	case NPF_RC_INTL:
 		break;
 	};

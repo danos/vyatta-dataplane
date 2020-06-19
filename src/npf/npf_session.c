@@ -76,6 +76,7 @@
 #include "npf/npf_nat.h"
 #include "npf/npf_nat64.h"
 #include "npf/npf_pack.h"
+#include "npf/npf_rc.h"
 #include "npf/npf_ruleset.h"
 #include "npf/npf_session.h"
 #include "npf/npf_state.h"
@@ -700,6 +701,7 @@ npf_session_inspect(npf_cache_t *npc, struct rte_mbuf *nbuf,
 		return NULL;
 
 	bool sforw = false;
+	int rc;
 
 	/* Try to find an existing session */
 	se = npf_session_find(nbuf, di, ifp, &sforw, internal_hairpin);
@@ -712,16 +714,17 @@ npf_session_inspect(npf_cache_t *npc, struct rte_mbuf *nbuf,
 		return se;
 
 	/* Update the state of a session based on the supplied packet */
-	if (unlikely(npf_state_inspect(npc, nbuf, &se->s_state, sforw) < 0)) {
+	rc = npf_state_inspect(npc, nbuf, &se->s_state, sforw);
+	if (unlikely(rc < 0)) {
 		/* Silently block invalid packets. */
-		*error = -ENETUNREACH;
+		*error = rc;
 		return NULL;
 	}
 
 	/* Give the session packet hook a chance to see and drop it */
 	if (se->s_hook) {
 		if (!se->s_hook(se, npc, nbuf, di)) {
-			*error = -ENETUNREACH;
+			*error = -NPF_RC_SESS_HOOK;
 			return NULL;
 		}
 	}
@@ -735,6 +738,8 @@ npf_session_inspect(npf_cache_t *npc, struct rte_mbuf *nbuf,
  * If this is not an ICMP error packet, and we fail to find one,
  * then we look to see if we should create a 'parent' tuple based
  * session, returning that if we do.
+ *
+ * Note that if '*error' is set < 0 then the packet is dropped.
  */
 npf_session_t *
 npf_session_inspect_or_create(npf_cache_t *npc, struct rte_mbuf *nbuf,
@@ -766,6 +771,7 @@ npf_session_inspect_or_create(npf_cache_t *npc, struct rte_mbuf *nbuf,
 	/* this will potentially create a tuple based session */
 	if (!*error) {
 		se = npf_alg_session(npc, nbuf, ifp, di, error);
+
 		if (se) {
 			npc->npc_proto_idx = se->s_proto_idx;
 			*npf_flag |= NPF_FLAG_IN_SESSION;
@@ -850,8 +856,7 @@ npf_session_find_or_create(npf_cache_t *npc, struct rte_mbuf *mbuf,
 			return NULL;
 		/* Create a session for this packet */
 		if (!se)
-			se = npf_session_establish(npc, mbuf, ifp, dir,
-					error);
+			se = npf_session_establish(npc, mbuf, ifp, dir, error);
 		if (!se || *error)
 			return NULL;
 	}
@@ -948,14 +953,14 @@ npf_session_create(npf_cache_t *npc, struct rte_mbuf *nbuf,
 
 	/* session rproc */
 	if (!npf_rproc_session_create(npc, nbuf, ifp, di, &rproc_rl)) {
-		*error = -ECONNREFUSED;
+		*error = -NPF_RC_SESS_LIMIT;
 		return NULL;
 	}
 
 	/* Allocate and initialize new state. */
 	se = zmalloc_aligned(sizeof(npf_session_t));
 	if (unlikely(se == NULL)) {
-		*error = -ENOMEM;
+		*error = -NPF_RC_SESS_ENOMEM;
 		return NULL;
 	}
 
@@ -979,7 +984,7 @@ npf_session_establish(npf_cache_t *npc, struct rte_mbuf *nbuf,
 	npf_session_t *se = NULL;
 	uint8_t proto;
 
-	*error = 0;
+	assert(*error == 0);
 
 	/* Can the packet create session tracking state */
 	if (!npf_session_trackable_p(npc))
@@ -998,7 +1003,7 @@ npf_session_establish(npf_cache_t *npc, struct rte_mbuf *nbuf,
 
 	/* Initialize protocol state. */
 	if (!npf_state_init(se->s_vrfid, npc->npc_proto_idx, &se->s_state)) {
-		*error = -ENOENT;
+		*error = -NPF_RC_INTL;
 		goto fail;
 	}
 
@@ -1012,8 +1017,10 @@ npf_session_establish(npf_cache_t *npc, struct rte_mbuf *nbuf,
 	 * session handle.
 	 */
 	*error = npf_alg_session_init(se, npc, di);
-	if (*error)
+	if (*error) {
+		*error = -NPF_RC_ALG_ERR;
 		goto fail;
+	}
 
 	return se;
 
@@ -1033,11 +1040,11 @@ int npf_session_activate(npf_session_t *se, const struct ifnet *ifp,
 	int rc;
 
 	if ((se->s_flags & SE_ACTIVE) == 0) {
-		if (unlikely(npf_state_inspect(npc, nbuf,
-					       &se->s_state, true) < 0)) {
+		rc = npf_state_inspect(npc, nbuf, &se->s_state, true);
+		if (unlikely(rc < 0)) {
 			/* Silently block invalid packets. */
 			npf_session_destroy(se);
-			return -ENETUNREACH;
+			return rc;
 		}
 
 		/*
@@ -1047,7 +1054,7 @@ int npf_session_activate(npf_session_t *se, const struct ifnet *ifp,
 		 */
 		if (npf_tcp_state_is_closed(&se->s_state, se->s_proto_idx)) {
 			npf_session_destroy(se);
-			return -ENOSTR;
+			return -NPF_RC_ENOSTR;
 		}
 
 		/*

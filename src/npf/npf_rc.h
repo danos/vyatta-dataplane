@@ -138,6 +138,13 @@ enum npf_rc_en {
 	 */
 	NPF_RC_ICMP_ECHO,
 
+	/*
+	 * TCP RST pkt not permitted to create a session. This is handled
+	 * differently from other 'error' return codes.  A session is not
+	 * created, but the packet is allowed to pass.
+	 */
+	NPF_RC_ENOSTR,
+
 	/* Only a TCP SYN may create a session (strict) */
 	NPF_RC_TCP_SYN,
 
@@ -146,6 +153,24 @@ enum npf_rc_en {
 
 	/* TCP window error */
 	NPF_RC_TCP_WIN,
+
+	/* Failed to allocate session */
+	NPF_RC_SESS_ENOMEM,
+
+	/* Session limiter */
+	NPF_RC_SESS_LIMIT,
+
+	/* Unspecified session hook dropped pkt */
+	NPF_RC_SESS_HOOK,
+
+	/* Dataplane session create failed */
+	NPF_RC_DP_SESS_ESTB,
+
+	/* ALG tuple match race lost */
+	NPF_RC_ALG_EEXIST,
+
+	/* Unspecified ALG error */
+	NPF_RC_ALG_ERR,
 
 	NPF_RC_INTL,	/* Internal error */
 };

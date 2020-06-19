@@ -555,7 +555,7 @@ npf_nat64_session_establish(npf_session_t **sep, npf_cache_t *npc,
 	struct npf_nat64 *nat64;
 	npf_session_t *se = *sep;
 	bool new = false;
-	int error, rc = 0;
+	int error = 0, rc = 0;
 
 	if (!se) {
 		se = npf_session_establish(npc, m, ifp, dir, &error);

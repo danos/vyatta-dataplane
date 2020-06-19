@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2018-2020, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -15,6 +15,7 @@
 #include "npf/npf_nat.h"
 #include "npf/npf_cache.h"
 #include "npf/npf_if.h"
+#include "npf/npf_rc.h"
 #include "npf/npf_ruleset.h"
 #include "npf/npf_session.h"
 #include "npf/rproc/npf_ext_log.h"
@@ -185,7 +186,7 @@ stats:
 				mdata->md_session = se;
 				pktmbuf_mdata_set(*m, PKT_MDATA_SESSION);
 			} else {
-				if (error != -ENOSTR)
+				if (error != -NPF_RC_ENOSTR)
 					decision = NPF_DECISION_BLOCK;
 			}
 		} else if (!npf_session_is_active(se)) {
