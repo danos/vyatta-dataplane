@@ -1,3 +1,29 @@
+vyatta-dataplane (3.10.34) unstable; urgency=medium
+
+  [ Ethan Li ]
+  * bfd-hw: add FAL attribute for BFD hw running mode
+
+  [ Nicholas Brown ]
+  * sample plugin and test code only using public API
+  * The test code for the sample plugin should also a plugin
+
+  [ Ian Wilson ]
+  * npf: Set custom timeout in dataplane session after session is created
+  * npf: Add option to cache pkt without updating the cache grouper data
+  * npf: Move _npf_cache_all_at in order to avoid forward reference
+
+  [ Thomas Kiely ]
+  * Avoid unnecessary unapply of mac limit feature
+
+  [ Mandeep Rohilla ]
+  * BR_VLAN_SET: Api to determine if vlan set is empty
+  * BR_VLAN_SET UT: unit tests for the vlan set empty api
+
+  [ Paul Atkins ]
+  * ut: func to verify state based on pb show should use void *
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Fri, 19 Jun 2020 09:02:21 +0100
+
 vyatta-dataplane (3.10.33) unstable; urgency=medium
 
   [ Ian Wilson ]
