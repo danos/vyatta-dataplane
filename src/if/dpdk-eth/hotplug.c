@@ -90,6 +90,12 @@ int detach_device(const char *name)
 	}
 
 	CMM_STORE_SHARED(hotplug_inprogress, true);
+	/*
+	 * The following calls (unassign_queues and dpdk_eth_if_stop) both
+	 * call synchronize_rcu(), and setting unplugged needs to be before
+	 * that call.
+	 */
+	ifp->unplugged = 1;
 	if (sigsetjmp(hotplug_jmpbuf, 1)) {
 		RTE_LOG(DEBUG, DATAPLANE,
 			"%s: stop_port() failed!\n", __func__);
@@ -99,7 +105,6 @@ int detach_device(const char *name)
 	} else
 		dpdk_eth_if_stop_port(ifp);
 
-	ifp->unplugged = 1;
 	if_notify_emb_feat_change(ifp);
 
 	capture_cancel(ifp);
