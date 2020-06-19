@@ -356,16 +356,16 @@ void npf_ipv4_cksum(struct rte_mbuf *nbuf, int proto, char *l4hdr);
 void npf_ipv6_cksum(struct rte_mbuf *nbuf, int proto, char *l4hdr);
 int npf_update_tcp_cksum(npf_cache_t *npc, struct rte_mbuf *nbuf,
 			 uint32_t old_val, uint32_t new_val);
-bool npf_rwrip(npf_cache_t *npc, struct rte_mbuf *nbuf, void *n_ptr,
-	       const int di, const npf_addr_t *addr);
+int npf_rwrip(npf_cache_t *npc, struct rte_mbuf *nbuf, void *n_ptr,
+	      const int di, const npf_addr_t *addr);
 bool npf_rwrip6(npf_cache_t *npc, struct rte_mbuf *nbuf, void *n_ptr,
 		const int di, const npf_addr_t *addr);
-bool npf_rwrport(npf_cache_t *npc, struct rte_mbuf *nbuf, void *n_ptr,
-		 const int di, in_port_t port);
-bool npf_rwricmpid(npf_cache_t *npc, struct rte_mbuf *nbuf, void *n_ptr,
-		   uint16_t new_id);
-bool npf_v4_rwrcksums(npf_cache_t *npc, struct rte_mbuf *nbuf, void *n_ptr,
-		      uint16_t l3_chk_delta, uint16_t l4_chk_delta);
+int npf_rwrport(npf_cache_t *npc, struct rte_mbuf *nbuf, void *n_ptr,
+		const int di, in_port_t port);
+int npf_rwricmpid(npf_cache_t *npc, struct rte_mbuf *nbuf, void *n_ptr,
+		  uint16_t new_id);
+int npf_v4_rwrcksums(npf_cache_t *npc, struct rte_mbuf *nbuf, void *n_ptr,
+		     uint16_t l3_chk_delta, uint16_t l4_chk_delta);
 in_port_t npf_port_from_str(const char *p);
 npf_cache_t *npf_cache(void);
 uint16_t npf_cache_mtu(void);

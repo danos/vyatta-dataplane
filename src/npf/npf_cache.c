@@ -1331,8 +1331,8 @@ int npf_update_tcp_cksum(npf_cache_t *npc, struct rte_mbuf *nbuf,
 /*
  * npf_rwrip: rewrite required IP address, update the cache.
  */
-bool npf_rwrip(npf_cache_t *npc, struct rte_mbuf *nbuf, void *n_ptr,
-		const int di, const npf_addr_t *addr)
+int npf_rwrip(npf_cache_t *npc, struct rte_mbuf *nbuf, void *n_ptr,
+	      const int di, const npf_addr_t *addr)
 {
 	npf_addr_t *oaddr;
 	u_int offby;
@@ -1349,7 +1349,7 @@ bool npf_rwrip(npf_cache_t *npc, struct rte_mbuf *nbuf, void *n_ptr,
 
 	/* Advance to the address and rewrite it. */
 	if (nbuf_advstore(&nbuf, &n_ptr, offby, npc->npc_alen, addr))
-		return false;
+		return -NPF_RC_L3_SHORT;
 
 	/* Cache: IP address. */
 	memcpy(oaddr, addr, npc->npc_alen);
@@ -1362,7 +1362,7 @@ bool npf_rwrip(npf_cache_t *npc, struct rte_mbuf *nbuf, void *n_ptr,
 		npf_update_grouper(npc, npf_cache_v4dst(npc),
 				   NPC_GPR_DADDR_OFF_v4, NPC_GPR_DADDR_LEN_v4);
 
-	return true;
+	return 0;
 }
 
 /*
@@ -1405,7 +1405,7 @@ bool npf_rwrip6(npf_cache_t *npc, struct rte_mbuf *nbuf, void *n_ptr,
 /*
  * npf_rwrport: rewrite required TCP/UDP port, update the cache.
  */
-bool npf_rwrport(npf_cache_t *npc, struct rte_mbuf *nbuf, void *n_ptr,
+int npf_rwrport(npf_cache_t *npc, struct rte_mbuf *nbuf, void *n_ptr,
 		const int di, in_port_t port)
 {
 	u_int offby = npf_cache_hlen(npc);
@@ -1425,7 +1425,7 @@ bool npf_rwrport(npf_cache_t *npc, struct rte_mbuf *nbuf, void *n_ptr,
 
 	/* Advance and rewrite the port. */
 	if (nbuf_advstore(&nbuf, &n_ptr, offby, sizeof(in_port_t), &port))
-		return false;
+		return -NPF_RC_L4_SHORT;
 
 	/* Cache: TCP/UDP port. */
 	if (oport)
@@ -1439,14 +1439,14 @@ bool npf_rwrport(npf_cache_t *npc, struct rte_mbuf *nbuf, void *n_ptr,
 		npf_update_grouper(npc, &port,
 				   NPC_GPR_DPORT_OFF_v4, NPC_GPR_DPORT_LEN_v4);
 
-	return true;
+	return 0;
 }
 
 /*
  * Rewrite required ICMP query ID, update the cache.
  */
-bool npf_rwricmpid(npf_cache_t *npc, struct rte_mbuf *nbuf, void *n_ptr,
-		   uint16_t new_id)
+int npf_rwricmpid(npf_cache_t *npc, struct rte_mbuf *nbuf, void *n_ptr,
+		  uint16_t new_id)
 {
 	struct icmp *ic = &npc->npc_l4.icmp;
 	uint16_t *old_id = &ic->icmp_id;
@@ -1456,19 +1456,19 @@ bool npf_rwricmpid(npf_cache_t *npc, struct rte_mbuf *nbuf, void *n_ptr,
 
 	/* Advance and rewrite the ICMP id. */
 	if (nbuf_advstore(&nbuf, &n_ptr, offby, sizeof(new_id), &new_id))
-		return false;
+		return -NPF_RC_L4_SHORT;
 
 	/* Cache: ICMP id */
 	*old_id = new_id;
 
-	return true;
+	return 0;
 }
 
 /*
  * Rewrite IPv4 and/or transports checksums based upon provided checksum deltas,
  * also update the fields in the packet cache.
  */
-bool
+int
 npf_v4_rwrcksums(npf_cache_t *npc, struct rte_mbuf *nbuf, void *n_ptr,
 		 uint16_t l3_chk_delta, uint16_t l4_chk_delta)
 {
@@ -1486,7 +1486,7 @@ npf_v4_rwrcksums(npf_cache_t *npc, struct rte_mbuf *nbuf, void *n_ptr,
 	/* Advance to the IPv4 checksum and rewrite it. */
 	offby = offsetof(struct ip, ip_sum);
 	if (nbuf_advstore(&nbuf, &n_ptr, offby, sizeof(ipsum), &ipsum))
-		return false;
+		return -NPF_RC_L3_SHORT;
 
 	ip->ip_sum = ipsum;
 	offby = npf_cache_hlen(npc) - offby;
@@ -1507,7 +1507,7 @@ npf_v4_rwrcksums(npf_cache_t *npc, struct rte_mbuf *nbuf, void *n_ptr,
 		cksum = &uh->check;
 		if (*cksum == 0) {
 			/* No need to update. */
-			return true;
+			return 0;
 		}
 		offby += offsetof(struct udphdr, check);
 		break;
@@ -1520,12 +1520,12 @@ npf_v4_rwrcksums(npf_cache_t *npc, struct rte_mbuf *nbuf, void *n_ptr,
 		break;
 	}
 	case IPPROTO_SCTP: {
-		return true;
+		return 0;
 	}
 	case IPPROTO_ICMP: {
 		/* This should never occur (due to having no session) */
 		if (unlikely(!npf_iscached(npc, NPC_ICMP_ECHO)))
-			return true;
+			return 0;
 		struct icmp *ic = &npc->npc_l4.icmp;
 		cksum = &ic->icmp_cksum;
 		offby += offsetof(struct icmp, icmp_cksum);
@@ -1536,8 +1536,8 @@ npf_v4_rwrcksums(npf_cache_t *npc, struct rte_mbuf *nbuf, void *n_ptr,
 	default:
 		/* In case we ever add another L4 port based protocol */
 		if (npf_iscached(npc, NPC_L4PORTS))
-			return false;
-		return true;
+			return -NPF_RC_INTL;
+		return 0;
 	}
 
 	/* Update the checksum in the cache */
@@ -1545,8 +1545,8 @@ npf_v4_rwrcksums(npf_cache_t *npc, struct rte_mbuf *nbuf, void *n_ptr,
 
 	/* Update the checksum in the mbuf */
 	if (nbuf_advstore(&nbuf, &n_ptr, offby, sizeof(uint16_t), cksum))
-		return false;
-	return true;
+		return -NPF_RC_L4_SHORT;
+	return 0;
 }
 
 /* Convert a string port to a port */

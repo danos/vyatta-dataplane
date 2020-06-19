@@ -859,6 +859,7 @@ npf_nat_translate_at(npf_cache_t *npc, struct rte_mbuf *nbuf,
 	uint16_t l3_chk_delta = nt->nt_l3_chk;
 	uint16_t l4_chk_delta = nt->nt_l4_chk;
 	bool l4_changed = l4_chk_delta;
+	int rc;
 
 	/*
 	 * This expression is not ambiguous
@@ -877,7 +878,8 @@ npf_nat_translate_at(npf_cache_t *npc, struct rte_mbuf *nbuf,
 	}
 
 	/* Rewrite IP and possibly the transport checksums */
-	if (!npf_v4_rwrcksums(npc, nbuf, n_ptr, l3_chk_delta, l4_chk_delta)) {
+	rc = npf_v4_rwrcksums(npc, nbuf, n_ptr, l3_chk_delta, l4_chk_delta);
+	if (rc < 0) {
 		/*
 		 * It is okay to fail for packets embedded in short ICMP
 		 * error messages, as it just has a partial L4 header.
@@ -887,18 +889,18 @@ npf_nat_translate_at(npf_cache_t *npc, struct rte_mbuf *nbuf,
 	}
 
 	/* Rewrite source or destination address */
-	if (!npf_rwrip(npc, nbuf, n_ptr, di, addr))
+	if (npf_rwrip(npc, nbuf, n_ptr, di, addr) < 0)
 		return -EINVAL;
 
 	/* Maybe rewrite some L4 information */
 	if (l4_changed) {
 		if (likely(npf_iscached(npc, NPC_L4PORTS))) {
 			/* Rewrite source or destination port  */
-			if (!npf_rwrport(npc, nbuf, n_ptr, di, port))
+			if (npf_rwrport(npc, nbuf, n_ptr, di, port) < 0)
 				return -EINVAL;
 		} else if (npf_iscached(npc, NPC_ICMP_ECHO)) {
 			/* Rewrite ICMP query/response ID */
-			if (!npf_rwricmpid(npc, nbuf, n_ptr, port))
+			if (npf_rwricmpid(npc, nbuf, n_ptr, port) < 0)
 				return -EINVAL;
 		}
 	}
@@ -974,9 +976,9 @@ npf_nat_translate_l3_at(npf_cache_t *npc, struct rte_mbuf *mbuf,
 
 	uint16_t l3_delta =
 		ip_fixup32_cksum(0, *old_addr, *new_addr);
-	if (!npf_v4_rwrcksums(npc, mbuf, n_ptr, ~l3_delta, 0))
+	if (npf_v4_rwrcksums(npc, mbuf, n_ptr, ~l3_delta, 0) < 0)
 		return false;
-	if (!npf_rwrip(npc, mbuf, n_ptr, dnat ? PFIL_IN : PFIL_OUT, addr))
+	if (npf_rwrip(npc, mbuf, n_ptr, dnat ? PFIL_IN : PFIL_OUT, addr) < 0)
 		return false;
 
 	/* Set the natted flag */

@@ -122,6 +122,9 @@ enum npf_rc_en {
 	NPF_RC_PASS,	/* Matched session or pass rule, or no ruleset */
 	NPF_RC_BLOCK,	/* Explicit or implicit block */
 
+	/* Not enough L3 hdr present in pkt */
+	NPF_RC_L3_SHORT,
+
 	/* Not enough L4 hdr present in pkt or icmp err embd pkt */
 	NPF_RC_L4_SHORT,
 

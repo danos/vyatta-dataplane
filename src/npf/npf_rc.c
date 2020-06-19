@@ -105,6 +105,8 @@ static void npf_rc_ctrl_init(void)
 					 RCT_BIT_NAT64);
 				break;
 
+			/* NAT related return codes */
+			case NPF_RC_L3_SHORT:
 			case NPF_RC_ALG_EEXIST:
 			case NPF_RC_ALG_ERR:
 				npf_rc_ctrl[dir][rc].bm |=
@@ -134,6 +136,7 @@ static void npf_rc_ctrl_init(void)
 			case NPF_RC_SESS_LIMIT:
 			case NPF_RC_SESS_HOOK:
 			case NPF_RC_DP_SESS_ESTB:
+			case NPF_RC_L3_SHORT:
 			case NPF_RC_ALG_EEXIST:
 			case NPF_RC_ALG_ERR:
 			case NPF_RC_INTL:
@@ -196,6 +199,8 @@ const char *npf_rc_str(int rc)
 		return "RC_PASS";
 	case NPF_RC_BLOCK:
 		return "RC_BLOCK";
+	case NPF_RC_L3_SHORT:
+		return "RC_L3_SHORT";
 	case NPF_RC_L4_SHORT:
 		return "RC_L4_SHORT";
 	case NPF_RC_L3_PROTO:
@@ -247,6 +252,8 @@ const char *npf_rc_detail_str(int rc)
 		return "block";
 	case NPF_RC_L3_PROTO:
 		return "protocol mismatch";
+	case NPF_RC_L3_SHORT:
+		return "invalid layer 3 header";
 	case NPF_RC_L4_SHORT:
 		return "invalid layer 4 header";
 	case NPF_RC_ICMP_ECHO:
