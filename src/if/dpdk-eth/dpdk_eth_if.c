@@ -831,7 +831,8 @@ dpdk_eth_if_show_dev_info(struct ifnet *ifp, json_writer_t *wr)
 		 * workaround to determine switch id until we have
 		 * a mechanism for retrieving opaque data
 		 */
-		if (get_switch_dev_info(info.driver_name, dev->data->name,
+		if (info.driver_name &&
+		    get_switch_dev_info(info.driver_name, dev->data->name,
 					&hw_switch, NULL))
 			jsonw_uint_field(wr, "hw_switch_id", hw_switch);
 	}
