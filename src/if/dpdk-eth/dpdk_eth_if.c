@@ -990,7 +990,7 @@ static int
 dpdk_eth_if_dump(struct ifnet *ifp, json_writer_t *wr,
 		 enum if_dump_state_type type)
 {
-	if (!ifp->if_local_port)
+	if (!ifp->if_local_port || ifp->unplugged)
 		return 0;
 
 	switch (type) {
