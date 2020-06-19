@@ -590,8 +590,8 @@ void npf_recache_ip_ttl(npf_cache_t *npc, struct rte_mbuf *nbuf)
  * "icmp_err" indicates that the cache is being populated from an IP
  * packet within an ICMP error packet, and so may be truncated.
  */
-static inline bool npf_fetch_tcp(npf_cache_t *npc, struct rte_mbuf *nbuf,
-				 void *n_ptr, u_int hlen, bool icmp_err)
+static inline int npf_fetch_tcp(npf_cache_t *npc, struct rte_mbuf *nbuf,
+				void *n_ptr, u_int hlen, bool icmp_err)
 {
 	struct tcphdr *th = &npc->npc_l4.tcp;
 
@@ -600,32 +600,32 @@ static inline bool npf_fetch_tcp(npf_cache_t *npc, struct rte_mbuf *nbuf,
 		if (icmp_err) {
 			if (__nbuf_advfetch(&nbuf, &n_ptr, hlen,
 					    ICMP_ERROR_MIN_L4_SIZE, th))
-				return false;
+				return -EINVAL;
 			npc->npc_info |= NPC_SHORT_ICMP_ERR;
 		} else
-			return false;
+			return -EINVAL;
 	}
 
 	npc->npc_info |= NPC_L4PORTS;
 
-	return true;
+	return 0;
 }
 
 /*
  * npf_fetch_udp: fetch, check and cache UDP/UDP-Lite header.
  */
-static inline bool npf_fetch_udp(npf_cache_t *npc, struct rte_mbuf *nbuf,
-				 void *n_ptr, u_int hlen)
+static inline int npf_fetch_udp(npf_cache_t *npc, struct rte_mbuf *nbuf,
+				void *n_ptr, u_int hlen)
 {
 	struct udphdr *uh = &npc->npc_l4.udp;
 
 	/* Fetch UDP/UDP-Lite header. */
 	if (__nbuf_advfetch(&nbuf, &n_ptr, hlen, sizeof(struct udphdr), uh))
-		return false;
+		return -EINVAL;
 
 	npc->npc_info |= NPC_L4PORTS;
 
-	return true;
+	return 0;
 }
 
 /*
@@ -634,8 +634,8 @@ static inline bool npf_fetch_udp(npf_cache_t *npc, struct rte_mbuf *nbuf,
  * This only fetches the basic 'common header',  it does not fetch any
  * of the various chunks.
  */
-static inline bool npf_fetch_sctp(npf_cache_t *npc, struct rte_mbuf *nbuf,
-				  void *n_ptr, u_int hlen)
+static inline int npf_fetch_sctp(npf_cache_t *npc, struct rte_mbuf *nbuf,
+				 void *n_ptr, u_int hlen)
 {
 	struct npf_sctp *sh = &npc->npc_l4.sctp;
 
@@ -644,11 +644,11 @@ static inline bool npf_fetch_sctp(npf_cache_t *npc, struct rte_mbuf *nbuf,
 
 	/* Fetch SCTP common header. */
 	if (__nbuf_advfetch(&nbuf, &n_ptr, hlen, sizeof(*sh), sh))
-		return false;
+		return -EINVAL;
 
 	npc->npc_info |= NPC_L4PORTS;
 
-	return true;
+	return 0;
 }
 
 /*
@@ -662,8 +662,8 @@ static inline bool npf_fetch_sctp(npf_cache_t *npc, struct rte_mbuf *nbuf,
  * "icmp_err" indicates that the cache is being populated from an IP
  * packet within an ICMP error packet, and so may be truncated.
  */
-static inline bool npf_fetch_dccp(npf_cache_t *npc, struct rte_mbuf *nbuf,
-				  void *n_ptr, u_int hlen, bool icmp_err)
+static inline int npf_fetch_dccp(npf_cache_t *npc, struct rte_mbuf *nbuf,
+				 void *n_ptr, u_int hlen, bool icmp_err)
 {
 	struct npf_dccp *dh = &npc->npc_l4.dccp;
 
@@ -672,15 +672,15 @@ static inline bool npf_fetch_dccp(npf_cache_t *npc, struct rte_mbuf *nbuf,
 		if (icmp_err) {
 			if (__nbuf_advfetch(&nbuf, &n_ptr, hlen,
 					    ICMP_ERROR_MIN_L4_SIZE, dh))
-				return false;
+				return -EINVAL;
 			npc->npc_info |= NPC_SHORT_ICMP_ERR;
 		} else
-			return false;
+			return -EINVAL;
 	}
 
 	npc->npc_info |= NPC_L4PORTS;
 
-	return true;
+	return 0;
 }
 
 /*
@@ -746,17 +746,17 @@ static void npf_decode_icmp6(npf_cache_t *npc)
 /*
  * npf_fetch_icmp: fetch ICMP code, type and possible query ID.
  */
-static inline bool npf_fetch_icmp(npf_cache_t *npc, struct rte_mbuf *nbuf,
-				  void *n_ptr, u_int hlen)
+static inline int npf_fetch_icmp(npf_cache_t *npc, struct rte_mbuf *nbuf,
+				 void *n_ptr, u_int hlen)
 {
 	/* Ensure the ICMP protocol and IP protocol are compatible */
 	if (npf_iscached(npc, NPC_IP4) ^
 			 (npf_cache_ipproto(npc) == IPPROTO_ICMP))
-		return false;
+		return -EINVAL;
 
 	/* Fetch basic ICMP header and possibly id/seq */
 	if (__nbuf_advfetch(&nbuf, &n_ptr, hlen, ICMP_MINLEN, &npc->npc_l4))
-		return false;
+		return -EINVAL;
 
 	if (npf_cache_ipproto(npc) == IPPROTO_ICMP)
 		npf_decode_icmp4(npc);
@@ -765,57 +765,57 @@ static inline bool npf_fetch_icmp(npf_cache_t *npc, struct rte_mbuf *nbuf,
 
 	/* Cache: layer 4 - ICMP. */
 	npc->npc_info |= NPC_ICMP;
-	return true;
+	return 0;
 }
 
-static bool _npf_cache_all_at(npf_cache_t *npc, struct rte_mbuf *nbuf,
-			      void *n_ptr, uint16_t eth_proto, bool icmp_err,
-			      bool update_grouper)
+static int _npf_cache_all_at(npf_cache_t *npc, struct rte_mbuf *nbuf,
+			     void *n_ptr, uint16_t eth_proto, bool icmp_err,
+			     bool update_grouper)
 {
 	if (!npf_fetch_ip(npc, nbuf, n_ptr, eth_proto))
-		return true; /* true as this might be a non-ip packet */
+		return 0; /* true as this might be a non-ip packet */
 
 	u_int hlen = npf_cache_hlen(npc);
 
 	if (unlikely(npf_iscached(npc, NPC_IPFRAG)))
-		return true;
+		return 0;
 
-	bool ok = true;
+	int rc = 0;
 
 	switch (npf_cache_ipproto(npc)) {
 	case IPPROTO_TCP:
-		ok = npf_fetch_tcp(npc, nbuf, n_ptr, hlen, icmp_err);
+		rc = npf_fetch_tcp(npc, nbuf, n_ptr, hlen, icmp_err);
 		break;
 	case IPPROTO_UDP:
 	case IPPROTO_UDPLITE:
-		ok = npf_fetch_udp(npc, nbuf, n_ptr, hlen);
+		rc = npf_fetch_udp(npc, nbuf, n_ptr, hlen);
 		break;
 	case IPPROTO_SCTP:
-		ok = npf_fetch_sctp(npc, nbuf, n_ptr, hlen);
+		rc = npf_fetch_sctp(npc, nbuf, n_ptr, hlen);
 		break;
 	case IPPROTO_DCCP:
-		ok = npf_fetch_dccp(npc, nbuf, n_ptr, hlen, icmp_err);
+		rc = npf_fetch_dccp(npc, nbuf, n_ptr, hlen, icmp_err);
 		break;
 	case IPPROTO_ICMP:
 	case IPPROTO_ICMPV6:
-		ok = npf_fetch_icmp(npc, nbuf, n_ptr, hlen);
+		rc = npf_fetch_icmp(npc, nbuf, n_ptr, hlen);
 		break;
 	default:
 		break;
 	}
-	if (unlikely(!ok))
-		return false;
+	if (unlikely(rc < 0))
+		return rc;
 
 	/*
 	 * If we have an IPv6 routing header then we only want to match in the
 	 * bytecode since we may need to match on route type.
 	 */
 	if (unlikely(npf_iscached(npc, NPC_IPV6_ROUTING)))
-		return true;
+		return 0;
 
 	if (unlikely(!update_grouper)) {
 		npc->npc_info &= ~NPC_GROUPER;
-		return true;
+		return 0;
 	}
 
 	/*
@@ -903,7 +903,7 @@ static bool _npf_cache_all_at(npf_cache_t *npc, struct rte_mbuf *nbuf,
 	/* Mark the cache grouper as populated */
 	npc->npc_info |= NPC_GROUPER;
 
-	return true;
+	return 0;
 }
 
 /*
@@ -916,13 +916,13 @@ static bool _npf_cache_all_at(npf_cache_t *npc, struct rte_mbuf *nbuf,
 int npf_cache_all(npf_cache_t *npc, struct rte_mbuf *nbuf, uint16_t eth_proto)
 {
 	return _npf_cache_all_at(npc, nbuf, npf_iphdr(nbuf), eth_proto,
-				 false, true) ? 0 : -EINVAL;
+				 false, true);
 }
 
 bool npf_cache_all_at(npf_cache_t *npc, struct rte_mbuf *nbuf, void *n_ptr,
 		      uint16_t eth_proto)
 {
-	return _npf_cache_all_at(npc, nbuf, n_ptr, eth_proto, true, true);
+	return _npf_cache_all_at(npc, nbuf, n_ptr, eth_proto, true, true) == 0;
 }
 
 /* Cache packet without updating the cache grouper */
@@ -930,7 +930,7 @@ bool npf_cache_all_nogpr(npf_cache_t *npc, struct rte_mbuf *nbuf,
 			 uint16_t eth_proto)
 {
 	return _npf_cache_all_at(npc, nbuf, npf_iphdr(nbuf), eth_proto,
-				 false, false);
+				 false, false) == 0;
 }
 
 /*
