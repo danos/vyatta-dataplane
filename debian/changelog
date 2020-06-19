@@ -1,3 +1,12 @@
+vyatta-dataplane (3.10.35) unstable; urgency=medium
+
+  [ Shweta Choudaha ]
+  * Backplane:Shut DPDK bkplane ports post fal cleanup
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Fri, 19 Jun 2020 16:18:37 +0100
+
 vyatta-dataplane (3.10.34) unstable; urgency=medium
 
   [ Ethan Li ]
