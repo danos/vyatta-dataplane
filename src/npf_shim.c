@@ -87,7 +87,7 @@ npf_hook_notrack(const npf_ruleset_t *rlset, struct rte_mbuf **m,
 			npf_cache_init(n);
 
 			/* Cache everything. drop if junk. */
-			if (unlikely(!npf_cache_all(n, *m, eth_type)))
+			if (unlikely(npf_cache_all(n, *m, eth_type) < 0))
 				goto result;
 		}
 	}
@@ -542,7 +542,7 @@ bool npf_local_fw(struct ifnet *ifp, struct rte_mbuf **m, uint16_t ether_type)
 
 	npf_cache_init(&npc);
 
-	if (!npf_cache_all(&npc, *m, ether_type))
+	if (npf_cache_all(&npc, *m, ether_type) < 0)
 		return true;	/* discard */
 
 	/* Find the session */

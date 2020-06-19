@@ -1037,7 +1037,7 @@ npf_nat_clone_and_undo(struct rte_mbuf *mbuf, const struct ifnet *in_ifp,
 
 	void *n_ptr = npf_iphdr(unnat);
 
-	if (!npf_cache_all(&npc, unnat, htons(RTE_ETHER_TYPE_IPV4)) ||
+	if (npf_cache_all(&npc, unnat, htons(RTE_ETHER_TYPE_IPV4)) < 0 ||
 	    !npf_iscached(&npc, NPC_IP4) ||
 	    (npc.npc_info & NPC_ICMP_ERR)) {
 		rte_pktmbuf_free(unnat);
@@ -1109,7 +1109,7 @@ npf_nat_copy_and_undo(struct rte_mbuf *mbuf, const struct ifnet *in_ifp,
 
 	void *n_ptr = npf_iphdr(unnat);
 
-	if (!npf_cache_all(&npc, unnat, htons(RTE_ETHER_TYPE_IPV4)) ||
+	if (npf_cache_all(&npc, unnat, htons(RTE_ETHER_TYPE_IPV4)) < 0 ||
 	    !npf_iscached(&npc, NPC_IP4) ||
 	    (npc.npc_info & NPC_ICMP_ERR)) {
 		rte_pktmbuf_free(unnat);

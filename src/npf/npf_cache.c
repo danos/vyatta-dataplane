@@ -911,12 +911,12 @@ static bool _npf_cache_all_at(npf_cache_t *npc, struct rte_mbuf *nbuf,
  * and TCP, UDP or ICMP headers. Only called once at top level
  * of NPF processing.
  *
- * returns true if packet is OK.
+ * returns 0 if packet is OK.
  */
-bool npf_cache_all(npf_cache_t *npc, struct rte_mbuf *nbuf, uint16_t eth_proto)
+int npf_cache_all(npf_cache_t *npc, struct rte_mbuf *nbuf, uint16_t eth_proto)
 {
 	return _npf_cache_all_at(npc, nbuf, npf_iphdr(nbuf), eth_proto,
-				 false, true);
+				 false, true) ? 0 : -EINVAL;
 }
 
 bool npf_cache_all_at(npf_cache_t *npc, struct rte_mbuf *nbuf, void *n_ptr,

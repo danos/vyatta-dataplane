@@ -135,8 +135,8 @@ nat64_nat64_hook_v6_in(const char *ifname, struct dp_test_pkt_desc_t *pdesc,
 	npf_session_t *se6;
 	struct npf_if *nif;
 	struct ifnet *ifp;
-	bool rv, intl_hpin = false;
-	int error = 0;
+	bool intl_hpin = false;
+	int rc, error = 0;
 
 	/* Get interface pointers */
 	dp_test_intf_real(ifname, real_ifname);
@@ -154,8 +154,8 @@ nat64_nat64_hook_v6_in(const char *ifname, struct dp_test_pkt_desc_t *pdesc,
 
 	/* Cache IPv6 packet */
 	npf_cache_init(npc);
-	rv = npf_cache_all(npc, mbuf, htons(RTE_ETHER_TYPE_IPV6));
-	dp_test_fail_unless(rv, "packet cache");
+	rc = npf_cache_all(npc, mbuf, htons(RTE_ETHER_TYPE_IPV6));
+	dp_test_fail_unless(rc == 0, "packet cache");
 	dp_test_fail_unless((npc->npc_info & NPC_IP6) != 0,
 			    "packet cache info %x",
 			    npc->npc_info);
@@ -247,8 +247,8 @@ nat64_nat64_hook_v4_out(const char *ifname, struct rte_mbuf *mbuf,
 	npf_session_t *se4;
 	struct npf_if *nif;
 	struct ifnet *ifp;
-	bool rv, intl_hpin = false;
-	int error = 0;
+	bool intl_hpin = false;
+	int rc, error = 0;
 
 	/* Get interface pointers */
 	dp_test_intf_real(ifname, real_ifname);
@@ -262,8 +262,8 @@ nat64_nat64_hook_v4_out(const char *ifname, struct rte_mbuf *mbuf,
 
 	/* Cache IPv4 packet */
 	npf_cache_init(npc);
-	rv = npf_cache_all(npc, mbuf, htons(RTE_ETHER_TYPE_IPV4));
-	dp_test_fail_unless(rv, "packet cache");
+	rc = npf_cache_all(npc, mbuf, htons(RTE_ETHER_TYPE_IPV4));
+	dp_test_fail_unless(rc == 0, "packet cache");
 	dp_test_fail_unless((npc->npc_info & NPC_IP4) != 0,
 			    "packet cache info %x",
 			    npc->npc_info);
@@ -317,8 +317,8 @@ nat64_nat64_hook_v4_in(const char *ifname, struct dp_test_pkt_desc_t *pdesc,
 	npf_session_t *se4;
 	struct npf_if *nif;
 	struct ifnet *ifp;
-	bool rv, intl_hpin = false;
-	int error = 0;
+	bool intl_hpin = false;
+	int rc, error = 0;
 
 	/* Get interface pointers */
 	dp_test_intf_real(ifname, real_ifname);
@@ -336,8 +336,8 @@ nat64_nat64_hook_v4_in(const char *ifname, struct dp_test_pkt_desc_t *pdesc,
 
 	/* Cache IPv4 packet */
 	npf_cache_init(npc);
-	rv = npf_cache_all(npc, mbuf, htons(RTE_ETHER_TYPE_IPV4));
-	dp_test_fail_unless(rv, "packet cache");
+	rc = npf_cache_all(npc, mbuf, htons(RTE_ETHER_TYPE_IPV4));
+	dp_test_fail_unless(rc == 0, "packet cache");
 	dp_test_fail_unless((npc->npc_info & NPC_IP4) != 0,
 			    "packet cache info %x",
 			    npc->npc_info);
@@ -422,8 +422,8 @@ nat64_nat64_hook_v6_out(const char *ifname, struct rte_mbuf *mbuf,
 	npf_session_t *se6;
 	struct npf_if *nif;
 	struct ifnet *ifp;
-	bool rv, intl_hpin = false;
-	int error = 0;
+	bool intl_hpin = false;
+	int rc, error = 0;
 
 	/* Get interface pointers */
 	dp_test_intf_real(ifname, real_ifname);
@@ -437,8 +437,8 @@ nat64_nat64_hook_v6_out(const char *ifname, struct rte_mbuf *mbuf,
 
 	/* Cache IPv6 packet */
 	npf_cache_init(npc);
-	rv = npf_cache_all(npc, mbuf, htons(RTE_ETHER_TYPE_IPV6));
-	dp_test_fail_unless(rv, "packet cache");
+	rc = npf_cache_all(npc, mbuf, htons(RTE_ETHER_TYPE_IPV6));
+	dp_test_fail_unless(rc == 0, "packet cache");
 	dp_test_fail_unless((npc->npc_info & NPC_IP6) != 0,
 			    "packet cache info %x",
 			    npc->npc_info);

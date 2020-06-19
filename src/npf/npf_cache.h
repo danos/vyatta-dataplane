@@ -303,7 +303,7 @@ void npf_recache_ip_ttl(npf_cache_t *npc, struct rte_mbuf *nbuf);
  * @param eth_proto
  * The ethernet header type field in network byte order.
  */
-bool npf_cache_all(npf_cache_t *npc, struct rte_mbuf *nbuf, uint16_t eth_proto);
+int npf_cache_all(npf_cache_t *npc, struct rte_mbuf *nbuf, uint16_t eth_proto);
 
 /**
  * Cache all relevant IP (v4 or v6) and TCP, UDP or ICMP headers from a given
@@ -404,7 +404,8 @@ npf_get_cache(uint16_t *npf_flag, struct rte_mbuf *m, uint16_t eth_type)
 		npf_cache_init(n);
 
 		/* Cache everything. Drop if junk. */
-		if (unlikely(!npf_cache_all(n, m, eth_type)))
+		int rc = npf_cache_all(n, m, eth_type);
+		if (unlikely(rc < 0))
 			return NULL;
 
 		*npf_flag ^= NPF_FLAG_CACHE_EMPTY;

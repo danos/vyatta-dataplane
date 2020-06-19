@@ -79,7 +79,7 @@ ip_acl_process_common(struct pl_packet *pkt, bool v4, int dir)
 		v4 ? htons(RTE_ETHER_TYPE_IPV4) : htons(RTE_ETHER_TYPE_IPV6);
 
 	npf_cache_init(&npc);
-	if (unlikely(!npf_cache_all(&npc, m, ethertype)))
+	if (unlikely(npf_cache_all(&npc, m, ethertype) < 0))
 		goto drop;
 
 	/* Run the ruleset, get the decision */

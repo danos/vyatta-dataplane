@@ -1448,7 +1448,7 @@ _dp_test_npf_raw(int index, struct rte_mbuf *pkt,
 	uint16_t exp_etype;
 	npf_rule_t *rule;
 	int exp_alen;
-	bool rv;
+	int rc;
 
 	/*
 	 * Use the expected cache info to determine IPv4 or IPv6
@@ -1465,9 +1465,9 @@ _dp_test_npf_raw(int index, struct rte_mbuf *pkt,
 	 * Cache packet and verify cache
 	 */
 	npf_cache_init(npc);
-	rv = npf_cache_all(npc, pkt, htons(exp_etype));
+	rc = npf_cache_all(npc, pkt, htons(exp_etype));
 
-	_dp_test_fail_unless(rv, file, line,
+	_dp_test_fail_unless(rc == 0, file, line,
 			    "packet cache [%d]\n", index);
 
 	_dp_test_fail_unless(npc->npc_alen, file, line,

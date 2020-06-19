@@ -80,8 +80,8 @@ nptv6_process_common(struct pl_packet *pkt, int dir)
 		npf_cache_init(npc);
 
 		/* Cache everything. drop if junk. */
-		if (unlikely(!npf_cache_all(npc,
-					    m, htons(RTE_ETHER_TYPE_IPV6))))
+		if (unlikely(npf_cache_all(npc,
+					   m, htons(RTE_ETHER_TYPE_IPV6)) < 0))
 			return in ? NPTV6_IN_DROP : NPTV6_OUT_DROP;
 	}
 
