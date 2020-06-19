@@ -107,6 +107,13 @@ static void npf_rc_ctrl_init(void)
 
 			/* NAT related return codes */
 			case NPF_RC_L3_SHORT:
+			case NPF_RC_MBUF_ENOMEM:
+			case NPF_RC_NAT_ENOSPC:
+			case NPF_RC_NAT_ENOMEM:
+			case NPF_RC_NAT_EADDRINUSE:
+			case NPF_RC_NAT_ERANGE:
+			case NPF_RC_NAT_E2BIG:
+			case NPF_RC_ICMP_ERR_NAT:
 			case NPF_RC_ALG_EEXIST:
 			case NPF_RC_ALG_ERR:
 				npf_rc_ctrl[dir][rc].bm |=
@@ -137,6 +144,13 @@ static void npf_rc_ctrl_init(void)
 			case NPF_RC_SESS_HOOK:
 			case NPF_RC_DP_SESS_ESTB:
 			case NPF_RC_L3_SHORT:
+			case NPF_RC_MBUF_ENOMEM:
+			case NPF_RC_NAT_ENOSPC:
+			case NPF_RC_NAT_ENOMEM:
+			case NPF_RC_NAT_EADDRINUSE:
+			case NPF_RC_NAT_ERANGE:
+			case NPF_RC_NAT_E2BIG:
+			case NPF_RC_ICMP_ERR_NAT:
 			case NPF_RC_ALG_EEXIST:
 			case NPF_RC_ALG_ERR:
 			case NPF_RC_INTL:
@@ -223,6 +237,20 @@ const char *npf_rc_str(int rc)
 		return "RC_SESS_HOOK";
 	case NPF_RC_DP_SESS_ESTB:
 		return "RC_DP_SESS_ESTB";
+	case NPF_RC_MBUF_ENOMEM:
+		return "RC_MBUF_ENOMEM";
+	case NPF_RC_NAT_ENOSPC:
+		return "RC_NAT_ENOSPC";
+	case NPF_RC_NAT_ENOMEM:
+		return "RC_NAT_ENOMEM";
+	case NPF_RC_NAT_EADDRINUSE:
+		return "RC_NAT_EADDRINUSE";
+	case NPF_RC_NAT_ERANGE:
+		return "RC_NAT_ERANGE";
+	case NPF_RC_NAT_E2BIG:
+		return "RC_NAT_E2BIG";
+	case NPF_RC_ICMP_ERR_NAT:
+		return "RC_ICMP_ERR_NAT";
 	case NPF_RC_ALG_EEXIST:
 		return "RC_ALG_EEXIST";
 	case NPF_RC_ALG_ERR:
@@ -274,6 +302,20 @@ const char *npf_rc_detail_str(int rc)
 		return "session hook";
 	case NPF_RC_DP_SESS_ESTB:
 		return "failed to create dataplane session";
+	case NPF_RC_MBUF_ENOMEM:
+		return "failed to allocate packet memory";
+	case NPF_RC_NAT_ENOSPC:
+		return "failed to get NAT port mapping";
+	case NPF_RC_NAT_ENOMEM:
+		return "no memory to create NAT";
+	case NPF_RC_NAT_EADDRINUSE:
+		return "fragmented NAT port map";
+	case NPF_RC_NAT_ERANGE:
+		return "NAT port range too small";
+	case NPF_RC_NAT_E2BIG:
+		return "unable to fragment packet";
+	case NPF_RC_ICMP_ERR_NAT:
+		return "failed to translate ICMP error embedded pkt";
 	case NPF_RC_ALG_EEXIST:
 		return "ALG race condition";
 	case NPF_RC_ALG_ERR:

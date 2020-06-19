@@ -235,7 +235,6 @@ npf_hook_track(struct ifnet *in_ifp, struct rte_mbuf **m,
 	struct npf_config *fw_config = NULL;
 	npf_session_t *se = NULL;
 	npf_rule_t *rl = NULL;
-	int error = 0;
 	npf_decision_t decision = NPF_DECISION_UNMATCHED;
 	npf_action_t action = NPF_ACTION_NORMAL;
 	enum npf_ruleset_type rlset_type = NPF_RS_TYPE_COUNT;
@@ -279,22 +278,21 @@ npf_hook_track(struct ifnet *in_ifp, struct rte_mbuf **m,
 	if (dir == PFIL_OUT) {
 		npf_nat_t *nt = npf_session_get_nat(se);
 		if (nt) {
-			error = nat_do_subsequent(npc, m, se, nt, dir);
+			rc = nat_do_subsequent(npc, m, se, nt, dir);
 		    snat_result:
-			if (unlikely(error)) {
-				if (error == -E2BIG) {
+			if (unlikely(rc < 0)) {
+				if (rc == -NPF_RC_NAT_E2BIG) {
 					too_big = true;
-					error = 0; /* TCP sends probes */
+					rc = 0; /* TCP sends probes */
 				}
 				decision = NPF_DECISION_BLOCK;
 				goto stats;
 			}
 		} else if (unlikely(npf_iscached(npc, NPC_ICMP_ERR))) {
-			error = nat_do_icmp_err(npc, m, ifp, dir);
+			rc = nat_do_icmp_err(npc, m, ifp, dir);
 			goto snat_result;
 		} else if (unlikely(npf_active(nif_config, NPF_SNAT))) {
-			error = nat_try_initial(nif_config, npc, &se, m, ifp,
-						dir);
+			rc = nat_try_initial(nif_config, npc, &se, m, ifp, dir);
 			goto snat_result;
 		}
 	}
@@ -395,18 +393,17 @@ pass:
 				goto stats;
 			}
 
-			error = nat_do_subsequent(npc, m, se, nt, dir);
+			rc = nat_do_subsequent(npc, m, se, nt, dir);
 		    dnat_result:
-			if (unlikely(error)) {
+			if (unlikely(rc < 0)) {
 				decision = NPF_DECISION_BLOCK;
 				goto stats;
 			}
 		} else if (unlikely(npf_iscached(npc, NPC_ICMP_ERR))) {
-			error = nat_do_icmp_err(npc, m, ifp, dir);
+			rc = nat_do_icmp_err(npc, m, ifp, dir);
 			goto dnat_result;
 		} else if (unlikely(npf_active(nif_config, NPF_DNAT))) {
-			error = nat_try_initial(nif_config, npc, &se, m, ifp,
-						dir);
+			rc = nat_try_initial(nif_config, npc, &se, m, ifp, dir);
 			goto dnat_result;
 		}
 	}
@@ -445,7 +442,7 @@ done:
 			}
 		} else if (!npf_session_is_active(se)) {
 			npf_session_destroy(se);
-		} else if (error || rc < 0) {
+		} else if (rc < 0) {
 			pktmbuf_mdata_clear(*m, PKT_MDATA_SESSION);
 			npf_session_expire(se);
 		}

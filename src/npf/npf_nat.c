@@ -114,6 +114,7 @@
 #include "npf/npf_icmp.h"
 #include "npf/npf_mbuf.h"
 #include "npf/npf_nat.h"
+#include "npf/npf_rc.h"
 #include "npf/npf_ruleset.h"
 #include "npf/rproc/npf_ext_log.h"
 #include "npf/npf_pack.h"
@@ -609,17 +610,18 @@ void npf_nat_get_original_tuple(npf_nat_t *nt, npf_cache_t *npc,
  * npf_nat_create: create a new NAT translation entry.
  */
 static npf_nat_t *
-npf_nat_create(npf_rule_t *rl,
-		npf_cache_t *npc, npf_natpolicy_t *np, vrfid_t vrfid)
+npf_nat_create(npf_rule_t *rl, npf_cache_t *npc, npf_natpolicy_t *np,
+	       vrfid_t vrfid, int *rc)
 {
 	npf_nat_t *nt;
 	int nr_ports = 0;
-	int rc;
 
 	/* Create a nat struct */
 	nt = malloc_aligned(sizeof(npf_nat_t));
-	if (nt == NULL)
+	if (nt == NULL) {
+		*rc = -NPF_RC_NAT_ENOMEM;
 		return NULL;
+	}
 
 	nt->nt_natpolicy = npf_nat_policy_get(np);
 	nt->nt_alg = NULL;
@@ -666,10 +668,13 @@ npf_nat_create(npf_rule_t *rl,
 	} else
 		nt->nt_oport = nt->nt_tport = 0;
 
-	rc = npf_nat_alloc_map(np, rl, nt->nt_map_flags, npf_cache_ipproto(npc),
-			vrfid, (npf_addr_t *) &nt->nt_taddr,
-			&nt->nt_tport, nr_ports);
-	if (unlikely(rc != 0)) {
+	int error;
+	error = npf_nat_alloc_map(np, rl, nt->nt_map_flags,
+				  npf_cache_ipproto(npc),
+				  vrfid, (npf_addr_t *) &nt->nt_taddr,
+				  &nt->nt_tport, nr_ports);
+	if (unlikely(error < 0)) {
+		*rc = error;
 		npf_nat_destroy(nt);
 		return NULL;
 	}
@@ -859,7 +864,7 @@ npf_nat_translate_at(npf_cache_t *npc, struct rte_mbuf *nbuf,
 	uint16_t l3_chk_delta = nt->nt_l3_chk;
 	uint16_t l4_chk_delta = nt->nt_l4_chk;
 	bool l4_changed = l4_chk_delta;
-	int rc;
+	int rc = 0;
 
 	/*
 	 * This expression is not ambiguous
@@ -885,23 +890,26 @@ npf_nat_translate_at(npf_cache_t *npc, struct rte_mbuf *nbuf,
 		 * error messages, as it just has a partial L4 header.
 		 */
 		if (!(npc->npc_info & NPC_SHORT_ICMP_ERR))
-			return -EINVAL;
+			return rc;
 	}
 
 	/* Rewrite source or destination address */
-	if (npf_rwrip(npc, nbuf, n_ptr, di, addr) < 0)
-		return -EINVAL;
+	rc = npf_rwrip(npc, nbuf, n_ptr, di, addr);
+	if (rc < 0)
+		return rc;
 
 	/* Maybe rewrite some L4 information */
 	if (l4_changed) {
 		if (likely(npf_iscached(npc, NPC_L4PORTS))) {
 			/* Rewrite source or destination port  */
-			if (npf_rwrport(npc, nbuf, n_ptr, di, port) < 0)
-				return -EINVAL;
+			rc = npf_rwrport(npc, nbuf, n_ptr, di, port);
+			if (rc < 0)
+				return rc;
 		} else if (npf_iscached(npc, NPC_ICMP_ECHO)) {
 			/* Rewrite ICMP query/response ID */
-			if (npf_rwricmpid(npc, nbuf, n_ptr, port) < 0)
-				return -EINVAL;
+			rc = npf_rwricmpid(npc, nbuf, n_ptr, port);
+			if (rc < 0)
+				return rc;
 		}
 	}
 
@@ -919,7 +927,7 @@ npf_nat_translate(npf_cache_t *npc, struct rte_mbuf *nbuf,
 
 	int rc = npf_nat_translate_at(npc, nbuf, nt, forw, di,
 				      n_ptr, false);
-	if (rc)
+	if (rc < 0)
 		return rc;
 
 	/* Mark as SNAT / DNAT for the rest of the packet path */
@@ -1164,7 +1172,7 @@ nat_do_subsequent(npf_cache_t *npc, struct rte_mbuf **nbuf,
 		unsigned int ip_len = ntohs(ip->tot_len);
 		if (unlikely(ip_len > if_mtu)) {
 			if (obey_df && (ip->frag_off & htons(IP_DF)))
-				return -E2BIG;
+				return -NPF_RC_NAT_E2BIG;
 		}
 
 		/* Log any matched (or session matched) packet immediately */
@@ -1176,7 +1184,7 @@ nat_do_subsequent(npf_cache_t *npc, struct rte_mbuf **nbuf,
 	if (unlikely(!!nt->nt_alg)) {
 		error = pktmbuf_prepare_for_header_change(nbuf, 0);
 		if (error)
-			return error;
+			return -NPF_RC_MBUF_ENOMEM;
 
 		/* Adjust the TCP seq/ack if required */
 		struct npf_seq_ack *asa = nt->nt_sa;
@@ -1185,12 +1193,12 @@ nat_do_subsequent(npf_cache_t *npc, struct rte_mbuf **nbuf,
 
 		/* Perform the per ALG tasks */
 		if (npf_alg_nat(se, npc, *nbuf, nt, di))
-			return -EINVAL;
+			return -NPF_RC_ALG_ERR;
 	}
 
 	error = npf_prepare_for_l4_header_change(nbuf, npc);
 	if (error)
-		return error;
+		return -NPF_RC_MBUF_ENOMEM;
 
 	/* Perform the translation. */
 	int rc = npf_nat_translate(npc, *nbuf, nt, forw, di);
@@ -1302,18 +1310,16 @@ no_nat_work:
 		unsigned int ip_len = ntohs(ip->tot_len);
 		if (unlikely(ip_len > if_mtu)) {
 			if (obey_df && (ip->frag_off & htons(IP_DF))) {
-				error = -E2BIG;
+				error = -NPF_RC_NAT_E2BIG;
 				goto no_nat_work;
 			}
 		}
 	}
 
 	/* Create the nat struct */
-	nt = npf_nat_create(rl, npc, np, pktmbuf_get_vrf(*nbuf));
-	if (!nt) {
-		error = -ENOMEM;
+	nt = npf_nat_create(rl, npc, np, pktmbuf_get_vrf(*nbuf), &error);
+	if (!nt)
 		goto no_nat_work;
-	}
 
 	nt->nt_mtu = if_mtu;
 	nt->nt_map_flags |= (obey_df) ? NPF_NAT_OBEY_DF : 0;
@@ -1323,7 +1329,7 @@ no_nat_work:
 		nse = npf_session_establish(npc, *nbuf, ifp, di, &error);
 		if (nse == NULL || error) {
 			npf_nat_expire(nt, pktmbuf_get_vrf(*nbuf));
-			error = (error) ? error : -ENOMEM;
+			error = (error) ? error : -NPF_RC_INTL;
 			goto no_nat_work;
 		}
 		*se_ptr = se = nse;

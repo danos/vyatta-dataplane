@@ -169,6 +169,27 @@ enum npf_rc_en {
 	/* Dataplane session create failed */
 	NPF_RC_DP_SESS_ESTB,
 
+	/* New mbuf failed to be allocated */
+	NPF_RC_MBUF_ENOMEM,
+
+	/* No translation ports available */
+	NPF_RC_NAT_ENOSPC,
+
+	/* Failed to allocate a nat struct or port map */
+	NPF_RC_NAT_ENOMEM,
+
+	/* Fragmented NAT port mappings */
+	NPF_RC_NAT_EADDRINUSE,
+
+	/* NAT port range too small */
+	NPF_RC_NAT_ERANGE,
+
+	/* Pkt exceeds intf MTU and is marked DF */
+	NPF_RC_NAT_E2BIG,
+
+	/* Failed to translate pkt embedded in ICMP error */
+	NPF_RC_ICMP_ERR_NAT,
+
 	/* ALG tuple match race lost */
 	NPF_RC_ALG_EEXIST,
 

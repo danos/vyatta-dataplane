@@ -22,6 +22,7 @@
 #include "npf/npf_icmp.h"
 #include "npf/npf_mbuf.h"
 #include "npf/npf_nat.h"
+#include "npf/npf_rc.h"
 #include "pktmbuf_internal.h"
 
 struct ifnet;
@@ -92,10 +93,10 @@ npf_icmpv4_err_nat(npf_cache_t *npc,
 		   const int di)
 {
 	if (!npc || !di || !ifp || !(*mbuf))
-		return 1;
+		goto error;
 
 	if (pktmbuf_prepare_for_header_change(mbuf, 0) != 0)
-		return 1;
+		goto error;
 
 	struct rte_mbuf *m0 = *mbuf;
 	struct rte_mbuf *m = m0;
@@ -104,7 +105,7 @@ npf_icmpv4_err_nat(npf_cache_t *npc,
 	/* Find the start of the packet embedded in the ICMP error. */
 	n_ptr = nbuf_advance(&m, n_ptr, ICMP_MINLEN);
 	if (!n_ptr)
-		return 1;
+		goto error;
 
 	/* Init the embedded npc. */
 	npf_cache_t enpc;
@@ -113,18 +114,18 @@ npf_icmpv4_err_nat(npf_cache_t *npc,
 	/* Inspect the embedded packet. */
 	if (!npf_cache_all_at(&enpc, m, n_ptr,
 			      htons(RTE_ETHER_TYPE_IPV4)))
-		return 1;
+		goto error;
 
 	/* Sanity checks - these should never occur */
 	if (!npf_iscached(&enpc, NPC_IP4))
-		return 1;
+		goto error;
 	if (enpc.npc_info & NPC_ICMP_ERR)
-		return 1;
+		goto error;
 
 	/* Find the session for the embedded packet */
 	npf_session_t *se = npf_session_find_by_npc(&enpc, di, ifp, true);
 	if (!se)
-		return 1;
+		goto error;
 
 	/*
 	 * For payloads which use a pseudo header,  the final ICMP header
@@ -178,7 +179,7 @@ npf_icmpv4_err_nat(npf_cache_t *npc,
 	int error = npf_nat_untranslate_at(&enpc, m, nt, !forw, di ^ PFIL_ALL,
 					   n_ptr);
 	if (error)
-		return 1;
+		goto error;
 
 	/*
 	 * With the embedded packet having now been translated,  we adjust the
@@ -192,7 +193,7 @@ npf_icmpv4_err_nat(npf_cache_t *npc,
 
 	n_ptr = dp_pktmbuf_mtol3(m0, void *);
 	if (!npf_nat_translate_l3_at(npc, m0, n_ptr, dnat, &outer_addr))
-		return 1;
+		goto error;
 
 	/*
 	 * Cannot use deltas for the ICMP checksum for truncated
@@ -231,7 +232,7 @@ npf_icmpv4_err_nat(npf_cache_t *npc,
 		unsigned int offby = npf_cache_hlen(npc);
 		offby += offsetof(struct icmp, icmp_cksum);
 		if (nbuf_advstore(&m0, &n_ptr, offby, sizeof(*cksum), cksum))
-			return 1;
+			goto error;
 	}
 
 	/*
@@ -241,6 +242,8 @@ npf_icmpv4_err_nat(npf_cache_t *npc,
 	npc->npc_info &= ~NPC_ICMP_ERR_NAT;
 
 	return 0;
+error:
+	return -NPF_RC_ICMP_ERR_NAT;
 }
 
 int __noinline
