@@ -159,8 +159,8 @@ packet_input_t packet_input_func __hot_data = ether_input_no_dyn_feats;
  *  2. Rx_desc must be power of 2
  */
 
-/* For bond interface, maximum number of slave interfaces */
-#define DATAPLANE_SLAVE_MULTIPLIER	2
+/* For bond interface, maximum number of member interfaces */
+#define DATAPLANE_MEMBER_MULTIPLIER	2
 
 static struct rxtx_param *driver_param;
 
@@ -1121,7 +1121,7 @@ int reconfigure_queues(portid_t portid,
 
 	/* The device may have changed its configuration since
 	 * we last configured. This is typical for bonding which
-	 * must use a subset of the capabilities of the slaves.
+	 * must use a subset of the capabilities of the members.
 	 */
 	memcpy(&dev_conf, &eth_dev->data->dev_conf, sizeof(dev_conf));
 
@@ -2663,7 +2663,7 @@ static int port_conf_init(portid_t portid)
 		(parm->rx_desc + parm->extra);
 
 	if (parm->match && strstr(parm->match, "bond"))
-		port_conf->buffers *= DATAPLANE_SLAVE_MULTIPLIER;
+		port_conf->buffers *= DATAPLANE_MEMBER_MULTIPLIER;
 
 	/* If device does not have enough TX queues for each lcore
 	 * then disable percoreq mode.

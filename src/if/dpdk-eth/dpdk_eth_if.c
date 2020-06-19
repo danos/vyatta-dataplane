@@ -158,20 +158,20 @@ void dpdk_eth_if_start_port(struct ifnet *ifp)
 	int ret;
 
 	if (!lag_can_start(ifp)) {
-		/* A bonding interface might not have any slaves yet. Don't
+		/* A bonding interface might not have any members yet. Don't
 		 * try to start it since this will result in an error from
-		 * rte_eth_dev_start().  Instead, lag_slave_add() will start
-		 * the interface (if necessary) when the first slave is added.
+		 * rte_eth_dev_start().  Instead, lag_member_add() will start
+		 * the interface (if necessary) when the first member is added.
 		 */
 		RTE_LOG(DEBUG, DATAPLANE,
-			"no slaves on bonding device %s\n", ifp->if_name);
+			"no members on bonding device %s\n", ifp->if_name);
 		return;
 	}
 
 	if (bitmask_isset(&started_port_mask, port))
 		return;	 /* already active */
 
-	/* bonding driver will start slave device when ready */
+	/* bonding driver will start member device when ready */
 	if (lag_can_startstop_member(ifp)) {
 		if (assign_queues(port))
 			return; /* failure */
@@ -357,33 +357,33 @@ void dpdk_eth_if_update_port_queue_state(struct ifnet *ifp)
 		assign_queues(ifp->if_port);
 }
 
-static void reconfigure_slave(struct ifnet *ifp, void *arg)
+static void reconfigure_member(struct ifnet *ifp, void *arg)
 {
 	struct rte_eth_conf *conf = arg;
-	struct rte_eth_conf *slave_conf;
-	struct rte_eth_dev *slave_dev;
+	struct rte_eth_conf *member_conf;
+	struct rte_eth_dev *member_dev;
 
-	/* Ensure slave is stopped as stopping master does not do this */
+	/* Ensure member is stopped as stopping the bond port doesn't do this */
 	rte_eth_dev_stop(ifp->if_port);
 
 	/*
-	 * Update slave config to match the master jumbo config
+	 * Update member config to match the aggregate jumbo config
 	 * so that it will accept a jumbo mtu change.
 	 * Leave everything else alone.
-	 * When the master is restarted, it will configure the slave,
+	 * When the bond is restarted, it will configure the member,
 	 * set up its queues, and start it, so don't call
 	 * rte_eth_dev_configure() directly here.
 	 */
-	slave_dev = &rte_eth_devices[ifp->if_port];
-	slave_conf = &slave_dev->data->dev_conf;
+	member_dev = &rte_eth_devices[ifp->if_port];
+	member_conf = &member_dev->data->dev_conf;
 	if (conf->rxmode.offloads & DEV_RX_OFFLOAD_SCATTER)
-		slave_conf->rxmode.offloads |= DEV_RX_OFFLOAD_SCATTER;
+		member_conf->rxmode.offloads |= DEV_RX_OFFLOAD_SCATTER;
 	else
-		slave_conf->rxmode.offloads &= ~(DEV_RX_OFFLOAD_SCATTER);
+		member_conf->rxmode.offloads &= ~(DEV_RX_OFFLOAD_SCATTER);
 	if (conf->rxmode.offloads & DEV_RX_OFFLOAD_JUMBO_FRAME)
-		slave_conf->rxmode.offloads |= DEV_RX_OFFLOAD_JUMBO_FRAME;
+		member_conf->rxmode.offloads |= DEV_RX_OFFLOAD_JUMBO_FRAME;
 	else
-		slave_conf->rxmode.offloads &= ~(DEV_RX_OFFLOAD_JUMBO_FRAME);
+		member_conf->rxmode.offloads &= ~(DEV_RX_OFFLOAD_JUMBO_FRAME);
 }
 
 /*
@@ -439,9 +439,9 @@ static int reconfigure_pkt_len_cb(struct ifnet *ifp,
 {
 	int err;
 
-	/* Reconfigure slaves to match master jumbo config */
+	/* Reconfigure members to match aggregate jumbo config */
 	if (is_team(ifp))
-		lag_walk_bond_slaves(ifp, reconfigure_slave, dev_conf);
+		lag_walk_team_members(ifp, reconfigure_member, dev_conf);
 
 	err = rte_eth_dev_set_mtu(ifp->if_port, ifp->if_mtu_adjusted);
 	if (err == -ENOTSUP)
@@ -511,7 +511,7 @@ static int dpdk_eth_if_set_mtu(struct ifnet *ifp, uint32_t mtu)
 		 * This interface is already under control of the
 		 * bonding interface. dev_start() in the bonding
 		 * driver does a rte_eth_dev_configure() for
-		 * each of the slaves and will update the slave
+		 * each of the members and will update the member
 		 * adapters at that point. But we need to keep
 		 * ifp->if_mtu up to date.
 		 */

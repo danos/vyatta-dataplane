@@ -32,9 +32,9 @@ struct dpdk_eth_if_softc {
 	bool                 scd_fal_lag_member_created;
 	unsigned int         bp_ifindex;     /* backplane interface */
 	struct ifnet        *scd_ifp; /* back pointer to the ifp */
-	/* Keep track of LAG slaves*/
-	struct cds_list_head scd_fal_lag_slaves_head;
-	struct cds_list_head scd_fal_lag_slave_link;
+	/* Keep track of LAG members */
+	struct cds_list_head scd_fal_lag_members_head;
+	struct cds_list_head scd_fal_lag_member_link;
 	fal_object_t         scd_fal_port_lag_obj; /* Port or LAG FAL object */
 	fal_object_t         scd_fal_lag_member_obj; /* LAG member FAL object */
 };

@@ -26,15 +26,15 @@ struct ifnet *ifnet_byteam(int ifindex)
 	return NULL;
 }
 
-int lag_etype_slow_tx(struct ifnet *master, struct ifnet *ifp,
+int lag_etype_slow_tx(struct ifnet *team, struct ifnet *ifp,
 		      struct rte_mbuf *lacp_pkt)
 {
-	return current_lag_ops->lagop_etype_slow_tx(master, ifp, lacp_pkt);
+	return current_lag_ops->lagop_etype_slow_tx(team, ifp, lacp_pkt);
 }
 
-void lag_slave_sync_mac_address(struct ifnet *ifp)
+void lag_member_sync_mac_address(struct ifnet *ifp)
 {
-	current_lag_ops->lagop_slave_sync_mac_address(ifp);
+	current_lag_ops->lagop_member_sync_mac_address(ifp);
 }
 
 struct ifnet *lag_create(const struct ifinfomsg *ifi, struct nlattr *tb[])
@@ -57,15 +57,15 @@ int lag_select(struct ifnet *ifp, bool enable)
 	return current_lag_ops->lagop_select(ifp, enable);
 }
 
-int lag_set_activeport(struct ifnet *ifp, struct ifnet *ifp_slave)
+int lag_set_activeport(struct ifnet *ifp, struct ifnet *ifp_member)
 {
-	return current_lag_ops->lagop_set_activeport(ifp, ifp_slave);
+	return current_lag_ops->lagop_set_activeport(ifp, ifp_member);
 }
 
-void lag_nl_master_delete(const struct ifinfomsg *ifi __unused,
-			  struct ifnet *master_ifp)
+void lag_nl_team_delete(const struct ifinfomsg *ifi __unused,
+			  struct ifnet *team_ifp)
 {
-	return current_lag_ops->lagop_delete(master_ifp);
+	return current_lag_ops->lagop_delete(team_ifp);
 }
 
 bool lag_can_start(const struct ifnet *ifp)
@@ -76,26 +76,26 @@ bool lag_can_start(const struct ifnet *ifp)
 	return current_lag_ops->lagop_can_start(ifp);
 }
 
-int lag_slave_add(struct ifnet *master, struct ifnet *ifp)
+int lag_member_add(struct ifnet *team, struct ifnet *ifp)
 {
-	return current_lag_ops->lagop_slave_add(master, ifp);
+	return current_lag_ops->lagop_member_add(team, ifp);
 }
 
-int lag_slave_delete(struct ifnet *master, struct ifnet *ifp)
+int lag_member_delete(struct ifnet *team, struct ifnet *ifp)
 {
-	return current_lag_ops->lagop_slave_delete(master, ifp);
+	return current_lag_ops->lagop_member_delete(team, ifp);
 }
 
-/* Add interface to an aggregation or update an already enslaved interface */
-int lag_nl_slave_update(const struct ifinfomsg *ifi,
-			struct ifnet *ifp, struct ifnet *master)
+/* Add interface to an aggregation or update an existing member interface */
+int lag_nl_member_update(const struct ifinfomsg *ifi,
+			struct ifnet *ifp, struct ifnet *team)
 {
-	return current_lag_ops->lagop_nl_slave_update(ifi, ifp, master);
+	return current_lag_ops->lagop_nl_member_update(ifi, ifp, team);
 }
 
-void lag_refresh_actor_state(struct ifnet *master)
+void lag_refresh_actor_state(struct ifnet *team)
 {
-	return current_lag_ops->lagop_refresh_actor_state(master);
+	return current_lag_ops->lagop_refresh_actor_state(team);
 }
 
 static void show_lag(struct ifnet *ifp, void *arg)
@@ -124,10 +124,10 @@ int lag_summary(FILE *fp)
 }
 
 int
-lag_walk_bond_slaves(struct ifnet *ifp, dp_ifnet_iter_func_t iter_func,
+lag_walk_team_members(struct ifnet *ifp, dp_ifnet_iter_func_t iter_func,
 		     void *arg)
 {
-	return current_lag_ops->lagop_walk_bond_slaves(ifp, iter_func, arg);
+	return current_lag_ops->lagop_walk_team_members(ifp, iter_func, arg);
 }
 
 bool

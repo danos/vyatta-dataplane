@@ -15,30 +15,31 @@
 
 struct rte_mbuf;
 
-#define LAG_MAX_SLAVES RTE_MAX_ETHPORTS
+#define LAG_MAX_MEMBERS RTE_MAX_ETHPORTS
 
 struct lag_ops {
-	int (*lagop_etype_slow_tx)(struct ifnet *master, struct ifnet *ifp,
+	int (*lagop_etype_slow_tx)(struct ifnet *team, struct ifnet *ifp,
 				   struct rte_mbuf *lacp_pkt);
 	struct ifnet *(*lagop_create)(const struct ifinfomsg *ifi,
 				      struct nlattr *tb[]);
-	int (*lagop_slave_add)(struct ifnet *master, struct ifnet *ifp);
-	int (*lagop_slave_delete)(struct ifnet *master, struct ifnet *ifp);
+	int (*lagop_member_add)(struct ifnet *team, struct ifnet *ifp);
+	int (*lagop_member_delete)(struct ifnet *team, struct ifnet *ifp);
 	void (*lagop_delete)(struct ifnet *ifp);
-	int (*lagop_nl_slave_update)(const struct ifinfomsg *ifi,
+	int (*lagop_nl_member_update)(const struct ifinfomsg *ifi,
 				     struct ifnet *ifp,
-				     struct ifnet *master);
+				     struct ifnet *team);
 	int (*lagop_mode_set_balance)(struct ifnet *ifp);
 	int (*lagop_mode_set_activebackup)(struct ifnet *ifp);
 	int (*lagop_select)(struct ifnet *ifp, bool sel);
-	int (*lagop_set_activeport)(struct ifnet *ifp, struct ifnet *ifp_slave);
-	void (*lagop_refresh_actor_state)(struct ifnet *master);
+	int (*lagop_set_activeport)(struct ifnet *ifp,
+				    struct ifnet *ifp_member);
+	void (*lagop_refresh_actor_state)(struct ifnet *team);
 	void (*lagop_show_detail)(struct ifnet *ifp, json_writer_t *wr);
-	void (*lagop_slave_sync_mac_address)(struct ifnet *ifp);
-	int (*lagop_walk_bond_slaves)(struct ifnet *ifp,
+	void (*lagop_member_sync_mac_address)(struct ifnet *ifp);
+	int (*lagop_walk_team_members)(struct ifnet *ifp,
 				      dp_ifnet_iter_func_t func, void *arg);
 	bool (*lagop_can_start)(const struct ifnet *ifp);
-	bool (*lagop_port_is_slave)(struct ifnet *master, struct ifnet *ifp);
+	bool (*lagop_port_is_member)(struct ifnet *team, struct ifnet *ifp);
 	bool (*lagop_is_team)(struct ifnet *ifp);
 	bool (*lagop_can_startstop_member)(struct ifnet *ifp);
 	int (*lagop_set_l2_address)(struct ifnet *ifp,
@@ -49,22 +50,22 @@ extern const struct lag_ops dpdk_lag_ops;
 extern const struct lag_ops fal_lag_ops;
 
 struct ifnet *ifnet_byteam(int ifindex);
-int lag_etype_slow_tx(struct ifnet *master, struct ifnet *ifp,
+int lag_etype_slow_tx(struct ifnet *team, struct ifnet *ifp,
 		struct rte_mbuf *lacp_pkt);
 struct ifnet *lag_create(const struct ifinfomsg *ifi, struct nlattr *tb[]);
-int lag_slave_add(struct ifnet *master, struct ifnet *ifp);
-int lag_slave_delete(struct ifnet *master, struct ifnet *ifp);
-void lag_nl_master_delete(const struct ifinfomsg *ifi, struct ifnet *ifp);
-int lag_nl_slave_update(const struct ifinfomsg *ifi, struct ifnet *ifp,
-			struct ifnet *master);
+int lag_member_add(struct ifnet *team, struct ifnet *ifp);
+int lag_member_delete(struct ifnet *team, struct ifnet *ifp);
+void lag_nl_team_delete(const struct ifinfomsg *ifi, struct ifnet *ifp);
+int lag_nl_member_update(const struct ifinfomsg *ifi, struct ifnet *ifp,
+			struct ifnet *team);
 int lag_mode_set_balance(struct ifnet *ifp);
 int lag_mode_set_activebackup(struct ifnet *ifp);
 int lag_select(struct ifnet *ifp, bool sel);
-int lag_set_activeport(struct ifnet *ifp, struct ifnet *ifp_slave);
-void lag_refresh_actor_state(struct ifnet *master);
+int lag_set_activeport(struct ifnet *ifp, struct ifnet *ifp_member);
+void lag_refresh_actor_state(struct ifnet *team);
 int lag_summary(FILE *fp);
-void lag_slave_sync_mac_address(struct ifnet *ifp);
-int lag_walk_bond_slaves(struct ifnet *ifp, dp_ifnet_iter_func_t func,
+void lag_member_sync_mac_address(struct ifnet *ifp);
+int lag_walk_team_members(struct ifnet *ifp, dp_ifnet_iter_func_t func,
 			 void *arg);
 bool lag_can_start(const struct ifnet *ifp);
 bool lag_is_team(struct ifnet *ifp);

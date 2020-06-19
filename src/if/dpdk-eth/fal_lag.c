@@ -24,9 +24,9 @@
 #include "vplane_debug.h"
 #include "vplane_log.h"
 
-static bool fal_lag_member_enabled[LAG_MAX_SLAVES];
+static bool fal_lag_member_enabled[LAG_MAX_MEMBERS];
 
-static int fal_lag_slave_delete(struct ifnet *master_ifp, struct ifnet *ifp);
+static int fal_lag_member_delete(struct ifnet *team_ifp, struct ifnet *ifp);
 
 static bool
 fal_lag_can_create_in_fal(struct ifnet *ifp)
@@ -42,7 +42,7 @@ fal_lag_can_create_in_fal(struct ifnet *ifp)
 }
 
 static int
-fal_lag_etype_slow_tx(struct ifnet *master __unused, struct ifnet *ifp,
+fal_lag_etype_slow_tx(struct ifnet *bond __unused, struct ifnet *ifp,
 		      struct rte_mbuf *lacp_pkt)
 {
 	if_output(ifp, lacp_pkt, NULL, ntohs(ethhdr(lacp_pkt)->ether_type));
@@ -51,7 +51,7 @@ fal_lag_etype_slow_tx(struct ifnet *master __unused, struct ifnet *ifp,
 }
 
 static void
-fal_lag_slave_sync_mac_address(struct ifnet *ifp __unused)
+fal_lag_member_sync_mac_address(struct ifnet *ifp __unused)
 {
 	/* not required */
 }
@@ -144,7 +144,7 @@ fal_lag_create(const struct ifinfomsg *ifi, struct nlattr *tb[])
 		goto del_rem_port;
 	sc = ifp->if_softc;
 	sc->scd_fal_port_lag_obj = fal_lag_obj;
-	CDS_INIT_LIST_HEAD(&sc->scd_fal_lag_slaves_head);
+	CDS_INIT_LIST_HEAD(&sc->scd_fal_lag_members_head);
 
 	ifp->hw_forwarding = true;
 
@@ -228,7 +228,7 @@ fal_lag_select(struct ifnet *ifp, bool enable)
 
 static int
 fal_lag_set_activeport(struct ifnet *ifp __unused,
-		       struct ifnet *ifp_slave __unused)
+		       struct ifnet *ifp_member __unused)
 {
 	/*
 	 * ignored - we use the selected indication instead for all of
@@ -238,7 +238,7 @@ fal_lag_set_activeport(struct ifnet *ifp __unused,
 }
 
 static void
-fal_lag_delete(struct ifnet *master_ifp)
+fal_lag_delete(struct ifnet *team_ifp)
 {
 	struct dpdk_eth_if_softc *member_sc, *tmp;
 	struct dpdk_eth_if_softc *sc;
@@ -247,17 +247,17 @@ fal_lag_delete(struct ifnet *master_ifp)
 	portid_t dpdk_port;
 	int ret;
 
-	dpdk_port = master_ifp->if_port;
-	sc = master_ifp->if_softc;
+	dpdk_port = team_ifp->if_port;
+	sc = team_ifp->if_softc;
 
 	/* Delete all the members first */
 	cds_list_for_each_entry_safe(member_sc, tmp,
-				     &sc->scd_fal_lag_slaves_head,
-				     scd_fal_lag_slave_link) {
+				     &sc->scd_fal_lag_members_head,
+				     scd_fal_lag_member_link) {
 		RTE_LOG(INFO, DATAPLANE,
-			"Removing slave %s from LAG %s as part of LAG delete\n",
-			member_sc->scd_ifp->if_name, master_ifp->if_name);
-		ret = fal_lag_slave_delete(master_ifp,
+			"Removing member %s from LAG %s as part of LAG delete\n",
+			member_sc->scd_ifp->if_name, team_ifp->if_name);
+		ret = fal_lag_member_delete(team_ifp,
 					   member_sc->scd_ifp);
 		if (ret < 0)
 			return;
@@ -265,10 +265,10 @@ fal_lag_delete(struct ifnet *master_ifp)
 
 	/* cache fields before delete */
 	fal_lag_obj = sc->scd_fal_port_lag_obj;
-	snprintf(ifname, sizeof(ifname), "%s", master_ifp->if_name);
+	snprintf(ifname, sizeof(ifname), "%s", team_ifp->if_name);
 
 	remove_port(dpdk_port);
-	if_free(master_ifp);
+	if_free(team_ifp);
 
 	ret = fal_delete_lag(fal_lag_obj);
 	if (ret < 0)
@@ -326,14 +326,14 @@ fal_lag_member_apply(struct ifnet *ifp)
 		return ret;
 	}
 	member_sc->scd_fal_lag_member_created = true;
-	cds_list_add_tail_rcu(&member_sc->scd_fal_lag_slave_link,
-			      &sc->scd_fal_lag_slaves_head);
+	cds_list_add_tail_rcu(&member_sc->scd_fal_lag_member_link,
+			      &sc->scd_fal_lag_members_head);
 
 	return 0;
 }
 
 static int
-fal_lag_slave_add(struct ifnet *master_ifp, struct ifnet *ifp)
+fal_lag_member_add(struct ifnet *team_ifp, struct ifnet *ifp)
 {
 	int ret;
 
@@ -348,7 +348,7 @@ fal_lag_slave_add(struct ifnet *master_ifp, struct ifnet *ifp)
 		return -EEXIST;
 	}
 
-	rcu_assign_pointer(ifp->aggregator, master_ifp);
+	rcu_assign_pointer(ifp->aggregator, team_ifp);
 	if_notify_emb_feat_change(ifp);
 
 	if (fal_lag_can_create_in_fal(ifp)) {
@@ -385,13 +385,13 @@ fal_lag_member_unapply(struct ifnet *ifp)
 	}
 
 	member_sc->scd_fal_lag_member_created = false;
-	cds_list_del_rcu(&member_sc->scd_fal_lag_slave_link);
+	cds_list_del_rcu(&member_sc->scd_fal_lag_member_link);
 
 	return 0;
 }
 
 static int
-fal_lag_slave_delete(struct ifnet *master_ifp __unused, struct ifnet *ifp)
+fal_lag_member_delete(struct ifnet *team_ifp __unused, struct ifnet *ifp)
 {
 	int ret;
 
@@ -411,11 +411,11 @@ fal_lag_slave_delete(struct ifnet *master_ifp __unused, struct ifnet *ifp)
 	return ret;
 }
 
-/* Add interface to an aggregation or update an already enslaved interface */
+/* Add interface to an aggregation or update an existing member interface */
 static int
-fal_lag_nl_slave_update(const struct ifinfomsg *ifi __unused,
+fal_lag_nl_member_update(const struct ifinfomsg *ifi __unused,
 			struct ifnet *ifp __unused,
-			struct ifnet *master __unused)
+			struct ifnet *bond __unused)
 {
 	/*
 	 * Not required, since MAC address syncing from bonding
@@ -426,7 +426,7 @@ fal_lag_nl_slave_update(const struct ifinfomsg *ifi __unused,
 }
 
 static void
-fal_lag_refresh_actor_state(struct ifnet *master __unused)
+fal_lag_refresh_actor_state(struct ifnet *bond __unused)
 {
 	/*
 	 * Not required, since starting/stopping member doesn't impact
@@ -456,7 +456,7 @@ static void fal_lag_show_detail(struct ifnet *node, json_writer_t *wr)
 }
 
 static int
-fal_lag_walk_bond_slaves(struct ifnet *ifp __unused,
+fal_lag_walk_team_members(struct ifnet *ifp __unused,
 			 dp_ifnet_iter_func_t iter_func __unused,
 			 void *arg __unused)
 {
@@ -500,7 +500,7 @@ fal_lag_set_l2_address(struct ifnet *ifp, struct rte_ether_addr *macaddr)
 
 const struct lag_ops fal_lag_ops = {
 	.lagop_etype_slow_tx = fal_lag_etype_slow_tx,
-	.lagop_slave_sync_mac_address = fal_lag_slave_sync_mac_address,
+	.lagop_member_sync_mac_address = fal_lag_member_sync_mac_address,
 	.lagop_create = fal_lag_create,
 	.lagop_mode_set_balance = fal_lag_mode_set_balance,
 	.lagop_mode_set_activebackup = fal_lag_mode_set_activebackup,
@@ -508,12 +508,12 @@ const struct lag_ops fal_lag_ops = {
 	.lagop_set_activeport = fal_lag_set_activeport,
 	.lagop_delete = fal_lag_delete,
 	.lagop_can_start = fal_lag_can_start,
-	.lagop_slave_add = fal_lag_slave_add,
-	.lagop_slave_delete = fal_lag_slave_delete,
-	.lagop_nl_slave_update = fal_lag_nl_slave_update,
+	.lagop_member_add = fal_lag_member_add,
+	.lagop_member_delete = fal_lag_member_delete,
+	.lagop_nl_member_update = fal_lag_nl_member_update,
 	.lagop_refresh_actor_state = fal_lag_refresh_actor_state,
 	.lagop_show_detail = fal_lag_show_detail,
-	.lagop_walk_bond_slaves = fal_lag_walk_bond_slaves,
+	.lagop_walk_team_members = fal_lag_walk_team_members,
 	.lagop_is_team = fal_lag_is_team,
 	.lagop_can_startstop_member = fal_lag_can_startstop_member,
 	.lagop_set_l2_address = fal_lag_set_l2_address,

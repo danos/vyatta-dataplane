@@ -305,7 +305,7 @@ void l2_rx_fltr_state_change(struct ifnet *ifp)
 }
 
 /*
- * Add/update an mcast filter table entry to a bonded slave physical interface
+ * Add/update an mcast filter table entry to a bonded member physical interface
  */
 static void
 l2_mcfltr_add_bonded_entry(struct ifnet *ifp, void *grp)
@@ -316,7 +316,7 @@ l2_mcfltr_add_bonded_entry(struct ifnet *ifp, void *grp)
 }
 
 /*
- * Delete a mcast filter table entry from a bonded slave physical interface
+ * Delete a mcast filter table entry from a bonded member physical interface
  */
 static void
 l2_mcfltr_del_bonded_entry(struct ifnet *ifp, void *grp)
@@ -348,16 +348,16 @@ void l2_rx_fltr_add_addr(struct ifnet *ifp, const struct rte_ether_addr *dst)
 		if (ifp->if_parent)
 			l2_mcfltr_add_entry(ifp->if_parent, dst);
 
-		/* If adding to a bonded IF add to slaves (physical IF) */
+		/* If adding to a bonded IF add to members (physical IF) */
 		if (ifp->if_team) {
 			int err;
 			struct rte_ether_addr *grp =
 					(struct rte_ether_addr *) dst;
-			err = lag_walk_bond_slaves
+			err = lag_walk_team_members
 				(ifp, l2_mcfltr_add_bonded_entry, grp);
 			if (err < 0)
 				DP_DEBUG(MULTICAST, INFO, MCAST,
-					 "Failure to insert %s into slave "
+					 "Failure to insert %s into member "
 					 "filter tables for %s.\n",
 					 ether_ntoa(dst), ifp->if_name);
 		}
@@ -384,16 +384,16 @@ void l2_rx_fltr_del_addr(struct ifnet *ifp, const struct rte_ether_addr *dst)
 		return;
 
 	if (rte_is_multicast_ether_addr(dst)) {
-		/* If deleting from a bonded IF delete from slaves (phys IF) */
+		/* If deleting from a bonded IF delete from members (phys IF) */
 		if (ifp->if_team) {
 			int err;
 			struct rte_ether_addr *grp =
 					(struct rte_ether_addr *) dst;
-			err = lag_walk_bond_slaves
+			err = lag_walk_team_members
 				(ifp, l2_mcfltr_del_bonded_entry, grp);
 			if (err < 0)
 				DP_DEBUG(MULTICAST, INFO, MCAST,
-					 "Failure to remove %s from slave "
+					 "Failure to remove %s from member "
 					 "filter tables for %s.\n",
 					 ether_ntoa(dst), ifp->if_name);
 		}

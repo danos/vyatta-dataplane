@@ -401,28 +401,28 @@ static int shadow_output(struct shadow_if_info *sii, struct rte_mbuf *m,
 			 struct ifnet *ifp)
 {
 	struct rte_ether_hdr *hdr = ethhdr(m);
-	struct ifnet *master;
+	struct ifnet *team;
 
 	if (!(ifp->if_flags & IFF_UP))
 		return -1;
 
 	dp_pktmbuf_l2_len(m) = RTE_ETHER_HDR_LEN;
 
-	master = rcu_dereference(ifp->aggregator);
+	team = rcu_dereference(ifp->aggregator);
 
 	if (unlikely(hdr->ether_type == htons(RTE_ETHER_TYPE_SLOW))) {
-		if (master) {
-			int ret = lag_etype_slow_tx(master, ifp, m);
+		if (team) {
+			int ret = lag_etype_slow_tx(team, ifp, m);
 
 			return ret;
 		}
 		return -1;
 	}
 
-	if (master) {
-		if (!(master->if_flags & IFF_UP))
+	if (team) {
+		if (!(team->if_flags & IFF_UP))
 			return -1;
-		ifp = master;
+		ifp = team;
 	}
 
 	uint16_t vif = vid_from_pkt(m, if_tpid(ifp));

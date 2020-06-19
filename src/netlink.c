@@ -557,16 +557,16 @@ static vrfid_t netlink_get_link_vrf(struct ifnet *ifp,
 				    enum cont_src_en cont_src,
 				    struct nlattr *tb[])
 {
-	struct ifnet *master_ifp;
+	struct ifnet *team_ifp;
 
 	if (tb[IFLA_MASTER]) {
-		uint32_t master;
+		uint32_t team;
 
-		master = cont_src_ifindex(cont_src,
-					  mnl_attr_get_u32(tb[IFLA_MASTER]));
-		master_ifp = dp_ifnet_byifindex(master);
-		if (master_ifp && master_ifp->if_type == IFT_VRFMASTER)
-			return vrfmaster_get_vrfid(master_ifp);
+		team = cont_src_ifindex(cont_src,
+					mnl_attr_get_u32(tb[IFLA_MASTER]));
+		team_ifp = dp_ifnet_byifindex(team);
+		if (team_ifp && team_ifp->if_type == IFT_VRFMASTER)
+			return vrfmaster_get_vrfid(team_ifp);
 	} else if (ifp->if_type == IFT_VRFMASTER) {
 		/*
 		 * VRF master devices should also be considered to be
@@ -587,7 +587,7 @@ static void unspec_link_modify(struct ifnet *ifp,
 			       struct nlattr *kdata,
 			       enum cont_src_en cont_src)
 {
-	struct ifnet *master_ifp = NULL;
+	struct ifnet *team_ifp = NULL;
 	unsigned int flags = ifi->ifi_flags;
 	vrfid_t vrf_id, old_vrfid = ifp->if_vrfid;
 
@@ -643,22 +643,22 @@ static void unspec_link_modify(struct ifnet *ifp,
 
 	case IFT_ETHER:
 		if (tb[IFLA_MASTER]) {
-			uint32_t master;
+			uint32_t if_index;
 
-			master = cont_src_ifindex(cont_src,
+			if_index = cont_src_ifindex(cont_src,
 					mnl_attr_get_u32(tb[IFLA_MASTER]));
-			master_ifp = dp_ifnet_byifindex(master);
+			team_ifp = dp_ifnet_byifindex(if_index);
 
-			if (master_ifp == NULL) {
+			if (team_ifp == NULL) {
 				DP_DEBUG(NETLINK_IF, ERR, DATAPLANE,
-					"%s couldn't find master ifindex %d\n",
-					ifp->if_name, master);
+					"%s couldn't find bridge or team if_index %d\n",
+					ifp->if_name, if_index);
 				return;
 			}
 		}
 
-		if (is_team(master_ifp) || ifp->aggregator)
-			lag_nl_slave_update(ifi, ifp, master_ifp);
+		if (is_team(team_ifp) || ifp->aggregator)
+			lag_nl_member_update(ifi, ifp, team_ifp);
 		break;
 
 	case IFT_TUNNEL_GRE:
@@ -839,7 +839,7 @@ static int unspec_link_change(const struct nlmsghdr *nlh,
 
 	case RTM_DELLINK:
 		if (is_team(ifp))
-			lag_nl_master_delete(ifi, ifp);
+			lag_nl_team_delete(ifi, ifp);
 		else {
 			mc_del_if(ifindex);
 			if (ifp)
