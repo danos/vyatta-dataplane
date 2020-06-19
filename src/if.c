@@ -373,7 +373,7 @@ struct ifnet *ifnet_byethname(const char *ethname)
 	struct cds_lfht_iter iter;
 
 	cds_lfht_for_each_entry(ifname_hash, &iter, ifp, ifname_hash) {
-		if (ifp->if_local_port) {
+		if (ifp->if_local_port && !ifp->unplugged) {
 			struct rte_eth_dev *eth_dev =
 				&rte_eth_devices[ifp->if_port];
 
