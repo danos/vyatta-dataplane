@@ -205,8 +205,8 @@ void npf_state_stats_create(void);
 void npf_state_stats_destroy(void);
 bool npf_state_init(vrfid_t vrfid, uint8_t proto_idx, npf_state_t *nst);
 void npf_state_destroy(npf_state_t *nst, uint8_t proto_idx);
-bool npf_state_inspect(const npf_cache_t *npc, struct rte_mbuf *nbuf,
-		       npf_state_t *nst, bool forw);
+int npf_state_inspect(const npf_cache_t *npc, struct rte_mbuf *nbuf,
+		      npf_state_t *nst, bool forw);
 void npf_state_update_session_state(struct session *s, uint8_t proto_idx,
 		const npf_state_t *nst);
 void npf_state_set_closed_state(npf_state_t *nst, bool lock, uint8_t proto_idx);
@@ -235,10 +235,10 @@ void npf_state_tcp_init(void);
  * npf_state_tcp returns either:
  *  1. the new TCP state,
  *  2. NPF_TCPS_OK, if no state change is required, or
- *  3. NPF_TCPS_ERR if the packet should be discarded
+ *  3. '*error' < 0 if the packet should be discarded
  */
 uint8_t npf_state_tcp(const npf_cache_t *npc, struct rte_mbuf *nbuf,
-		      npf_state_t *nst, int di);
+		      npf_state_t *nst, int di, int *error);
 uint32_t npf_state_get_tcp_seq(int di, npf_state_t *nst);
 
 void npf_state_set_tcp_strict(bool value);

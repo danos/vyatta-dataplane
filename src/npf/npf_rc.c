@@ -83,6 +83,16 @@ static void npf_rc_ctrl_init(void)
 					(RCT_BIT_FW4 | RCT_BIT_FW6 |
 					 RCT_BIT_NAT64 | RCT_BIT_L2);
 				break;
+
+			/* the following may occur via npf_state_inspect */
+			case NPF_RC_ICMP_ECHO:
+			case NPF_RC_TCP_SYN:
+			case NPF_RC_TCP_STATE:
+			case NPF_RC_TCP_WIN:
+				npf_rc_ctrl[dir][rc].bm =
+					(RCT_BIT_FW4 | RCT_BIT_FW6 |
+					 RCT_BIT_NAT64);
+				break;
 			}
 
 			/* Init category */
@@ -98,6 +108,10 @@ static void npf_rc_ctrl_init(void)
 				break;
 			case NPF_RC_L3_PROTO:
 			case NPF_RC_L4_SHORT:
+			case NPF_RC_ICMP_ECHO:
+			case NPF_RC_TCP_SYN:
+			case NPF_RC_TCP_STATE:
+			case NPF_RC_TCP_WIN:
 			case NPF_RC_INTL:
 				npf_rc_ctrl[dir][rc].cat = RC_CAT_DROP;
 				break;
@@ -158,10 +172,18 @@ const char *npf_rc_str(int rc)
 		return "RC_PASS";
 	case NPF_RC_BLOCK:
 		return "RC_BLOCK";
-	case NPF_RC_L3_PROTO:
-		return "RC_L3_PROTO";
 	case NPF_RC_L4_SHORT:
 		return "RC_L4_SHORT";
+	case NPF_RC_L3_PROTO:
+		return "RC_L3_PROTO";
+	case NPF_RC_ICMP_ECHO:
+		return "RC_ICMP_ECHO";
+	case NPF_RC_TCP_SYN:
+		return "RC_TCP_SYN";
+	case NPF_RC_TCP_STATE:
+		return "RC_TCP_STATE";
+	case NPF_RC_TCP_WIN:
+		return "RC_TCP_WIN";
 	case NPF_RC_INTL:
 		break;
 	};
@@ -189,6 +211,14 @@ const char *npf_rc_detail_str(int rc)
 		return "protocol mismatch";
 	case NPF_RC_L4_SHORT:
 		return "invalid layer 4 header";
+	case NPF_RC_ICMP_ECHO:
+		return "unsolicited ICMP echo reply";
+	case NPF_RC_TCP_SYN:
+		return "missing TCP SYN";
+	case NPF_RC_TCP_STATE:
+		return "invalid TCP flags";
+	case NPF_RC_TCP_WIN:
+		return "TCP window error";
 	case NPF_RC_INTL:
 		break;
 	};

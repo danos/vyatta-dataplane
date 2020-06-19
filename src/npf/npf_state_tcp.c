@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  */
@@ -50,6 +50,7 @@
 #include <sys/types.h>
 
 #include "npf/npf_cache.h"
+#include "npf/npf_rc.h"
 #include "npf/npf_state.h"
 
 struct rte_mbuf;
@@ -602,11 +603,11 @@ npf_state_get_tcp_seq(int di, npf_state_t *nst)
  * the connection and track its state.  Returns either:
  *  1. the new TCP state,
  *  2. NPF_TCPS_OK, if no state change is required, or
- *  3. NPF_TCPS_ERR if the packet should be discarded
+ *  3. A negative return code if the packet should be discarded
  */
 uint8_t
 npf_state_tcp(const npf_cache_t *npc, struct rte_mbuf *nbuf, npf_state_t *nst,
-	      int di)
+	      int di, int *error)
 {
 	const struct tcphdr * const th = &npc->npc_l4.tcp;
 	const uint8_t tcpfl = th->th_flags;
@@ -623,16 +624,22 @@ npf_state_tcp(const npf_cache_t *npc, struct rte_mbuf *nbuf, npf_state_t *nst,
 		/* Only a SYN or RST can create a session. */
 		if (state == NPF_TCPS_NONE &&
 		    (tcpfl & CORE_TCP_FLAGS) != TH_SYN &&
-		    (tcpfl & TH_RST) == 0)
+		    (tcpfl & TH_RST) == 0) {
+			*error = -NPF_RC_TCP_SYN;
 			return NPF_TCPS_ERR;
+		}
 
-		if (npf_tcp_strict_fsm[di][flagcase][state] == sIV)
+		if (npf_tcp_strict_fsm[di][flagcase][state] == sIV) {
+			*error = -NPF_RC_TCP_STATE;
 			return NPF_TCPS_ERR;
+		}
 	}
 
 	/* Determine whether TCP packet really belongs to this connection. */
-	if (!npf_tcp_inwindow(npc, nbuf, nst, di))
+	if (!npf_tcp_inwindow(npc, nbuf, nst, di)) {
+		*error = -NPF_RC_TCP_WIN;
 		return NPF_TCPS_ERR;
+	}
 
 	return nstate;
 }

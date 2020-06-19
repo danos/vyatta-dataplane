@@ -122,11 +122,31 @@ enum npf_rc_en {
 	NPF_RC_PASS,	/* Matched session or pass rule, or no ruleset */
 	NPF_RC_BLOCK,	/* Explicit or implicit block */
 
+	/* Not enough L4 hdr present in pkt or icmp err embd pkt */
+	NPF_RC_L4_SHORT,
+
 	/* L3 protocol value does not match pkt addr family */
 	NPF_RC_L3_PROTO,
 
-	/* Not enough L4 hdr present in pkt or icmp err embd pkt */
-	NPF_RC_L4_SHORT,
+	/*
+	 * If a ping session does not exist, it can only be created by an ICMP
+	 * echo request. If it exists, the fwd direction will conditionally
+	 * ('strict' enabled) only pass requests and the backward only
+	 * replies.  Note, the 'strict' bit needs to be disabled because of MS
+	 * Windows clients.  NPF_RC_ICMP_ECHO rc occurs when an ICMP echo
+	 * fails to meet these conditions, and is dropped.
+	 */
+	NPF_RC_ICMP_ECHO,
+
+	/* Only a TCP SYN may create a session (strict) */
+	NPF_RC_TCP_SYN,
+
+	/* Invalid state transition (strict) */
+	NPF_RC_TCP_STATE,
+
+	/* TCP window error */
+	NPF_RC_TCP_WIN,
+
 	NPF_RC_INTL,	/* Internal error */
 };
 #define NPF_RC_LAST	NPF_RC_INTL
