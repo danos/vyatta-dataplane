@@ -103,7 +103,7 @@ nat64_in_process_common(struct pl_packet *pkt, struct npf_if *nif, bool v4,
 	m = pkt->mbuf;
 	nif_config = npf_if_conf(nif);
 
-	npc = npf_get_cache(&npf_flags, m, eth_type);
+	npc = npf_get_cache(&npf_flags, m, eth_type, &error);
 	if (unlikely(!npc))
 		goto end;
 
@@ -190,7 +190,7 @@ nat64_out_process_common(struct pl_packet *pkt, bool v4, uint16_t eth_type)
 	npf_flags = pkt->npf_flags;
 	m = pkt->mbuf;
 
-	npc = npf_get_cache(&npf_flags, m, eth_type);
+	npc = npf_get_cache(&npf_flags, m, eth_type, &error);
 	if (unlikely(!npc))
 		goto end;
 

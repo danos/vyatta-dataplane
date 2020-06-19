@@ -1602,7 +1602,9 @@ npf_ipv6_is_fragment(struct rte_mbuf *m, uint16_t *npf_flag)
 	 * packet will be fully cached, and the packet will not be
 	 * cached again.
 	 */
-	npf_cache_t *n = npf_get_cache(npf_flag, m, htons(RTE_ETHER_TYPE_IPV6));
+	int rc;
+	npf_cache_t *n = npf_get_cache(npf_flag, m,
+				       htons(RTE_ETHER_TYPE_IPV6), &rc);
 
 	if (n && npf_iscached(n, NPC_IPFRAG) &&
 	    !npf_ip6_has_non_frag_ext_hdrs(n))

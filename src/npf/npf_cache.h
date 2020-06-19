@@ -394,7 +394,8 @@ static inline void npf_cache_reset(npf_cache_t *npc)
 RTE_DECLARE_PER_LCORE(npf_cache_t, npf_cache);
 
 static inline npf_cache_t *
-npf_get_cache(uint16_t *npf_flag, struct rte_mbuf *m, uint16_t eth_type)
+npf_get_cache(uint16_t *npf_flag, struct rte_mbuf *m, uint16_t eth_type,
+	      int *error)
 {
 	npf_cache_t *n = &RTE_PER_LCORE(npf_cache);
 
@@ -405,8 +406,10 @@ npf_get_cache(uint16_t *npf_flag, struct rte_mbuf *m, uint16_t eth_type)
 
 		/* Cache everything. Drop if junk. */
 		int rc = npf_cache_all(n, m, eth_type);
-		if (unlikely(rc < 0))
+		if (unlikely(rc < 0)) {
+			*error = rc;
 			return NULL;
+		}
 
 		*npf_flag ^= NPF_FLAG_CACHE_EMPTY;
 	} else {

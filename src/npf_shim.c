@@ -69,6 +69,7 @@ npf_hook_notrack(const npf_ruleset_t *rlset, struct rte_mbuf **m,
 	uint32_t tag_val = 0;
 	bool tag_set = false;
 	npf_rule_t *rl;
+	int rc = 0;
 
 	if (npf_ruleset_uses_cache(rlset)) {
 		/*
@@ -78,7 +79,7 @@ npf_hook_notrack(const npf_ruleset_t *rlset, struct rte_mbuf **m,
 		 * Note that both branches will clear any cached tag
 		 */
 		if (pktmbuf_mdata_exists(*m, PKT_MDATA_DEFRAG)) {
-			n = npf_get_cache(&npf_flags, *m, eth_type);
+			n = npf_get_cache(&npf_flags, *m, eth_type, &rc);
 			if (!n)
 				goto result;
 		} else {
@@ -252,7 +253,7 @@ npf_hook_track(struct ifnet *in_ifp, struct rte_mbuf **m,
 	 * however if we get here due to DPI, we may.  That is fine as
 	 * the subsequent logic should simply pass those fragments.
 	 */
-	npf_cache_t *npc = npf_get_cache(&npf_flags, *m, eth_type);
+	npf_cache_t *npc = npf_get_cache(&npf_flags, *m, eth_type, &rc);
 
 	if (unlikely(!npc)) {
 		decision = NPF_DECISION_BLOCK;
