@@ -633,18 +633,18 @@ dp_test_json_match(json_object *obj1, json_object *obj2,
 }
 
 void
-dp_test_json_filter(json_object *master, json_object *filter)
+dp_test_json_filter(json_object *haystack, json_object *filter)
 {
-	json_object *master_value;
+	json_object *haystack_value;
 	enum json_type type_filter;
 
 	json_object_object_foreach(filter, key, filter_value) {
-		if (!json_object_object_get_ex(master, key,
-					       &master_value))
+		if (!json_object_object_get_ex(haystack, key,
+					       &haystack_value))
 			continue;
 		type_filter = json_object_get_type(filter_value);
 
-		if (type_filter != json_object_get_type(master_value))
+		if (type_filter != json_object_get_type(haystack_value))
 			continue;
 
 		switch (type_filter) {
@@ -652,27 +652,28 @@ dp_test_json_filter(json_object *master, json_object *filter)
 		case json_type_double:
 		case json_type_int:
 		case json_type_string:
-			json_object_object_del(master, key);
+			json_object_object_del(haystack, key);
 			break;
 		case json_type_object:
 			if (json_object_object_length(filter_value) == 0)
-				json_object_object_del(master, key);
+				json_object_object_del(haystack, key);
 			else
-				dp_test_json_filter(master_value, filter_value);
+				dp_test_json_filter(haystack_value,
+						    filter_value);
 			break;
 		case json_type_array: {
 			int subset_list_len = json_object_array_length(
-				master_value);
-			json_object *master_list_elem;
+				haystack_value);
+			json_object *haystack_list_elem;
 			json_object *filter_list_elem;
 			int i;
 
 			filter_list_elem = json_object_array_get_idx(
 				filter_value, 0);
 			for (i = 0; i < subset_list_len; i++) {
-				master_list_elem = json_object_array_get_idx(
-					master_value, i);
-				dp_test_json_filter(master_list_elem,
+				haystack_list_elem = json_object_array_get_idx(
+					haystack_value, i);
+				dp_test_json_filter(haystack_list_elem,
 						    filter_list_elem);
 			}
 			break;
