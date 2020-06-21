@@ -780,7 +780,7 @@ bridge_can_create_in_fal(struct ifnet *ifp)
 
 /* Add port in response to netlink */
 static void bridge_newport(int ifindex, const char *name,
-			   int ifmaster, uint8_t state,
+			   int ifbridge, uint8_t state,
 			   struct rte_ether_addr *lladdr)
 {
 	struct ifnet *ifm, *ifp;
@@ -788,16 +788,16 @@ static void bridge_newport(int ifindex, const char *name,
 		{ FAL_BRIDGE_PORT_ATTR_STATE, .value.u8 = state },
 	};
 
-	ifm = dp_ifnet_byifindex(ifmaster);
+	ifm = dp_ifnet_byifindex(ifbridge);
 	if (!ifm) {
 		DP_DEBUG(BRIDGE, ERR, BRIDGE,
-			"bridge_newport: can't find master for ifindex %d\n",
-			ifmaster);
+			"%s: can't find bridge for ifindex %d\n",
+			__func__, ifbridge);
 		return;
 	}
 	if  (ifm->if_type != IFT_BRIDGE)
-		rte_panic("bridge_newport: ifmaster %d is type %#x\n",
-				  ifmaster, ifm->if_type);
+		rte_panic("%s: ifbridge %d is type %#x\n",
+			  __func__, ifbridge, ifm->if_type);
 
 	ifp = dp_ifnet_byifindex(ifindex);
 	if (!ifp) {
@@ -1606,14 +1606,14 @@ static int bridge_port_attr(const struct nlattr *attr, void *data)
 static int notify_newport(int ifindex, const char *ifname,
 			  struct nlattr *tb[])
 {
-	int master;
+	int bridge;
 	uint8_t state;
 	struct nlattr *pinfo[IFLA_BRPORT_MAX+1] = { NULL };
 	struct rte_ether_addr *lladdr = NULL;
 
 	if (!tb[IFLA_MASTER]) {
 		DP_DEBUG(BRIDGE, ERR, BRIDGE,
-			"missing master in newlink msg\n");
+			"missing bridge in newlink msg\n");
 		return MNL_CB_ERROR;
 	}
 
@@ -1626,7 +1626,7 @@ static int notify_newport(int ifindex, const char *ifname,
 		}
 	}
 
-	master = mnl_attr_get_u32(tb[IFLA_MASTER]);
+	bridge = mnl_attr_get_u32(tb[IFLA_MASTER]);
 
 	if (tb[IFLA_ADDRESS] && (mnl_attr_get_payload_len(tb[IFLA_ADDRESS]) ==
 				 RTE_ETHER_ADDR_LEN))
@@ -1642,7 +1642,7 @@ static int notify_newport(int ifindex, const char *ifname,
 		}
 
 
-		bridge_newport(ifindex, ifname, master, state, lladdr);
+		bridge_newport(ifindex, ifname, bridge, state, lladdr);
 	} else {
 		if (lladdr)
 			bridge_newneigh(ifindex, lladdr, NUD_PERMANENT, 0);
@@ -1656,32 +1656,32 @@ static int notify_delport(int ifindex, struct nlattr *tb[])
 {
 	struct bridge_port *brport;
 	struct ifnet *ifp, *ifm;
-	int master;
+	int bridge;
 
 	if (tb[IFLA_MASTER])
-		master = mnl_attr_get_u32(tb[IFLA_MASTER]);
+		bridge = mnl_attr_get_u32(tb[IFLA_MASTER]);
 	else {
 		DP_DEBUG(BRIDGE, ERR, BRIDGE,
-			"missing master in newlink msg\n");
+			"missing bridge in newlink msg\n");
 		return MNL_CB_ERROR;
 	}
 
-	ifm = dp_ifnet_byifindex(master);
+	ifm = dp_ifnet_byifindex(bridge);
 	if (!ifm) {
 		DP_DEBUG(BRIDGE, ERR, BRIDGE,
-			 "notify_delport: can't find master for ifindex %d\n",
-			 master);
+			 "%s: can't find bridge for ifindex %d\n",
+			 __func__, bridge);
 		return MNL_CB_OK;
 	}
 	if (ifm->if_type != IFT_BRIDGE)
-		rte_panic("notify_delport: ifmaster %d is type %#x\n",
-			  master, ifm->if_type);
+		rte_panic("%s: ifbridge %d is type %#x\n",
+			  __func__, bridge, ifm->if_type);
 
 	ifp = dp_ifnet_byifindex(ifindex);
 	if (!ifp) {
 		DP_DEBUG(BRIDGE, ERR, BRIDGE,
-			 "notify_delport: can't find bridge port for ifindex %d\n",
-			 ifindex);
+			 "%s: can't find bridge port for ifindex %d\n",
+			 __func__, ifindex);
 		return MNL_CB_OK;
 	}
 
@@ -2616,7 +2616,7 @@ static void show_bridge(json_writer_t *wr, const struct ifnet *ifp)
 	}
 	jsonw_end_array(wr);
 
-	jsonw_name(wr, "bridge_master");
+	jsonw_name(wr, "bridge_interface");
 	jsonw_start_object(wr);
 	jsonw_uint_field(wr, "default_pvid", sc->scbr_vlan_default_pvid);
 	jsonw_bool_field(wr, "vlan_filtering", sc->scbr_vlan_filter);

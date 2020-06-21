@@ -2459,7 +2459,7 @@ void _dp_test_netlink_set_bridge_vlan_filter(const char *br_name, bool verify,
 			"    {"
 			"       \"name\": \"%s\","
 			"       \"type\": \"%s\","
-			"       \"bridge_master\": {"
+			"       \"bridge_interface\": {"
 			"           \"vlan_filtering\": true"
 			"      }"
 			"    }"

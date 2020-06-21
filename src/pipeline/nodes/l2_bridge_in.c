@@ -21,9 +21,9 @@
 #include "urcu.h"
 
 static inline bool
-bridge_has_vlan_filter(struct ifnet *master)
+bridge_has_vlan_filter(struct ifnet *bridge)
 {
-	struct bridge_softc *sc = master->if_softc;
+	struct bridge_softc *sc = bridge->if_softc;
 
 	return sc->scbr_vlan_filter;
 }
