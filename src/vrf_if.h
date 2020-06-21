@@ -20,11 +20,11 @@ struct vrf_softc {
 	struct rcu_head	vrfsc_rcu;
 };
 
-struct ifnet *vrfmaster_create(const char *ifname, uint32_t if_index,
+struct ifnet *vrf_if_create(const char *ifname, uint32_t if_index,
 			       uint32_t vrf_tableid);
 
-vrfid_t vrfmaster_get_vrfid(struct ifnet *ifp);
-vrfid_t vrfmaster_get_tableid(struct ifnet *ifp);
+vrfid_t vrf_if_get_vrfid(struct ifnet *ifp);
+vrfid_t vrf_if_get_tableid(struct ifnet *ifp);
 
 int vrf_lookup_by_tableid(uint32_t kernel_tableid, vrfid_t *vrfid,
 			  uint32_t *user_tableid);

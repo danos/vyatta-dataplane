@@ -161,7 +161,7 @@ enum if_type {
 
 	IFT_VXLAN,
 	IFT_MACVLAN,
-	IFT_VRFMASTER,
+	IFT_VRF,
 };
 
 /*

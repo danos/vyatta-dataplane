@@ -556,14 +556,14 @@ int spath_reader(zloop_t *loop __rte_unused, zmq_pollitem_t *item,
 		/*
 		 * This is the s2s case. If there is a mark then it
 		 * represents the ifindex that is part of the selector,
-		 * or if no ifindex in the selector then the vrf master.
+		 * or if no ifindex in the selector then the vrf.
 		 */
 		if (meta.flags & TUN_META_FLAG_MARK) {
 			struct ifnet *temp_ifp = dp_ifnet_byifindex(meta.mark);
 
 			if (temp_ifp) {
 				pktmbuf_set_vrf(m, if_vrfid(temp_ifp));
-				if (temp_ifp->if_type != IFT_VRFMASTER) {
+				if (temp_ifp->if_type != IFT_VRF) {
 					/* set s2s_ifp for later */
 					s2s_ifp = temp_ifp;
 				}

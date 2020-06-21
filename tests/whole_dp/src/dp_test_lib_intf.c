@@ -1503,20 +1503,20 @@ void _dp_test_intf_vfp_delete(const char *name, vrfid_t vrf_id,
 	dp_test_intf_virt_del(name);
 }
 
-void _dp_test_intf_vrf_master_create(const char *name, vrfid_t vrf_id,
+void _dp_test_intf_vrf_if_create(const char *name, vrfid_t vrf_id,
 				     uint32_t tableid, const char *file,
 				     int line)
 {
 	dp_test_intf_virt_add(name);
-	_dp_test_netlink_create_vrf_master(name, vrf_id, tableid, true,
+	_dp_test_netlink_create_vrf_if(name, vrf_id, tableid, true,
 					   file, NULL, line);
 }
 
-void _dp_test_intf_vrf_master_delete(const char *name, vrfid_t vrf_id,
+void _dp_test_intf_vrf_if_delete(const char *name, vrfid_t vrf_id,
 				     uint32_t tableid, const char *file,
 				     int line)
 {
-	_dp_test_netlink_del_vrf_master(name, vrf_id, tableid, true,
+	_dp_test_netlink_del_vrf_if(name, vrf_id, tableid, true,
 					file, NULL, line);
 	dp_test_intf_virt_del(name);
 }

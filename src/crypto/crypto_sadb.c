@@ -1440,7 +1440,7 @@ static unsigned long crypto_sa_hash(const struct crypto_sa_key *key)
 }
 
 /*
- * Add an incomplete sa (waiting on the vrf master). If we already have
+ * Add an incomplete sa (waiting on the vrf). If we already have
  * an entry for the key (spi + addr) then update the message.
  *
  * The values come from different places depending on the msg type.

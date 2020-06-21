@@ -422,12 +422,12 @@ void _dp_test_netlink_del_vfp(const char *name, vrfid_t vrf_id, bool verify,
 				 __FILE__, __func__, __LINE__)
 
 void
-_dp_test_netlink_create_vrf_master(const char *name, vrfid_t vrf_id,
+_dp_test_netlink_create_vrf_if(const char *name, vrfid_t vrf_id,
 				   uint32_t tableid, bool verify,
 				   const char *file, const char *func,
 				   int line);
 void
-_dp_test_netlink_del_vrf_master(const char *name, vrfid_t vrf_id,
+_dp_test_netlink_del_vrf_if(const char *name, vrfid_t vrf_id,
 				uint32_t tableid, bool verify,
 				const char *file, const char *func,
 				int line);

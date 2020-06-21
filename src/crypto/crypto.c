@@ -1185,7 +1185,7 @@ static void init_context(struct rte_mempool *pool __unused,
 /* Callback from event manager when ifp set into vrf */
 static void crypto_if_vrf_set(struct ifnet *ifp)
 {
-	if (ifp->if_type == IFT_VRFMASTER) {
+	if (ifp->if_type == IFT_VRF) {
 		crypto_incmpl_policy_make_complete();
 		crypto_incmpl_sa_make_complete();
 	}

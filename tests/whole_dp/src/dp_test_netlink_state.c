@@ -146,7 +146,7 @@ vrfid_t _dp_test_translate_vrf_id(vrfid_t vrf_id, const char *file,
 		ret = dp_test_upstream_vrf_lookup_db(
 			vrf_id, vrf_name, NULL);
 		_dp_test_fail_unless(ret, file, line,
-				     "unable to find vrf master for vrf %u\n",
+				     "unable to find vrf interface for vrf %u\n",
 				     vrf_id);
 		return dp_test_intf_name2index(vrf_name);
 	}
@@ -3238,7 +3238,7 @@ _dp_test_netlink_del_vfp(const char *name, vrfid_t vrf_id, bool verify,
 }
 
 static void
-dp_test_netlink_vrf_master(const char *name, bool verify, uint16_t nl_type,
+dp_test_netlink_vrf_if(const char *name, bool verify, uint16_t nl_type,
 			   vrfid_t vrf_id, uint32_t tableid, const char *file,
 			   const char *func, int line)
 {
@@ -3315,22 +3315,22 @@ dp_test_netlink_vrf_master(const char *name, bool verify, uint16_t nl_type,
 }
 
 void
-_dp_test_netlink_create_vrf_master(const char *name, vrfid_t vrf_id,
+_dp_test_netlink_create_vrf_if(const char *name, vrfid_t vrf_id,
 				   uint32_t tableid, bool verify,
 				   const char *file, const char *func,
 				   int line)
 {
-	dp_test_netlink_vrf_master(name, verify, RTM_NEWLINK, vrf_id, tableid,
+	dp_test_netlink_vrf_if(name, verify, RTM_NEWLINK, vrf_id, tableid,
 				   file, func, line);
 }
 
 void
-_dp_test_netlink_del_vrf_master(const char *name, vrfid_t vrf_id,
+_dp_test_netlink_del_vrf_if(const char *name, vrfid_t vrf_id,
 				uint32_t tableid, bool verify,
 				const char *file, const char *func,
 				int line)
 {
-	dp_test_netlink_vrf_master(name, verify, RTM_DELLINK, vrf_id, tableid,
+	dp_test_netlink_vrf_if(name, verify, RTM_DELLINK, vrf_id, tableid,
 				  file, func, line);
 }
 
@@ -3808,7 +3808,7 @@ _dp_test_netlink_add_vrf(uint32_t vrf_id, uint32_t expected_ref_cnt,
 
 	ret = dp_test_upstream_vrf_add_db(vrf_id, vrf_name, &tableid);
 	_dp_test_fail_unless(ret, file, line, "maximum vrf limit reached\n");
-	_dp_test_intf_vrf_master_create(vrf_name, vrf_id, tableid, file, line);
+	_dp_test_intf_vrf_if_create(vrf_name, vrf_id, tableid, file, line);
 }
 
 void
@@ -3821,9 +3821,9 @@ _dp_test_netlink_del_vrf(uint32_t vrf_id, uint32_t expected_ref_cnt,
 
 	ret = dp_test_upstream_vrf_del_db(vrf_id, vrf_name, &tableid);
 	_dp_test_fail_unless(ret, file, line,
-			     "unable to find vrf master device for %u\n",
+			     "unable to find vrf interface for %u\n",
 			     vrf_id);
-	_dp_test_intf_vrf_master_delete(vrf_name, vrf_id, tableid, file, line);
+	_dp_test_intf_vrf_if_delete(vrf_name, vrf_id, tableid, file, line);
 }
 
 /*

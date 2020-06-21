@@ -321,7 +321,7 @@ vrf_link_create(const struct ifinfomsg *ifi, const char *ifname,
 		return false;
 	}
 
-	return vrfmaster_create(ifname, ifi->ifi_index,
+	return vrf_if_create(ifname, ifi->ifi_index,
 				mnl_attr_get_u32(vrfinfo[IFLA_VRF_TABLE]));
 }
 
@@ -565,14 +565,14 @@ static vrfid_t netlink_get_link_vrf(struct ifnet *ifp,
 		team = cont_src_ifindex(cont_src,
 					mnl_attr_get_u32(tb[IFLA_MASTER]));
 		team_ifp = dp_ifnet_byifindex(team);
-		if (team_ifp && team_ifp->if_type == IFT_VRFMASTER)
-			return vrfmaster_get_vrfid(team_ifp);
-	} else if (ifp->if_type == IFT_VRFMASTER) {
+		if (team_ifp && team_ifp->if_type == IFT_VRF)
+			return vrf_if_get_vrfid(team_ifp);
+	} else if (ifp->if_type == IFT_VRF) {
 		/*
-		 * VRF master devices should also be considered to be
+		 * VRF devices should also be considered to be
 		 * inside a VRF
 		 */
-		return vrfmaster_get_vrfid(ifp);
+		return vrf_if_get_vrfid(ifp);
 	}
 
 	return VRF_DEFAULT_ID;
@@ -1282,16 +1282,16 @@ xfrm_attr_vrf(struct xfrm_selector *sel, vrfid_t *vrfid, uint32_t *ifindex)
 {
 	if (sel && sel->ifindex) {
 		/*
-		 * If the ifindex is a vrf master then it represents the vrf.
-		 * If it is not a vrf master, then it means that it is part of
-		 * the selector. In this case the vrf will be the vrf master
+		 * If the ifindex is a vrf then it represents the vrf.
+		 * If it is not a vrf, then it means that it is part of
+		 * the selector. In this case the vrf will be the vrf
 		 * of the given ifindex if set, otherwise the DEFAULT vrf.
 		 */
 		struct ifnet *ifp = dp_ifnet_byifindex(sel->ifindex);
 
 		if (ifp) {
-			if (ifp->if_type == IFT_VRFMASTER) {
-				*vrfid = vrfmaster_get_vrfid(ifp);
+			if (ifp->if_type == IFT_VRF) {
+				*vrfid = vrf_if_get_vrfid(ifp);
 				RTE_LOG(INFO, DATAPLANE, "XFRM using VRF %u\n",
 					*vrfid);
 			} else {
@@ -1509,7 +1509,7 @@ int rtnl_process_xfrm(const struct nlmsghdr *nlh, void *data)
 
 	/*
 	 * If we are in a non default vrf, and the selector ifindex is a
-	 * VRF master, then set it to 0, as we do not want to compare in the
+	 * VRF, then set it to 0, as we do not want to compare in the
 	 * fastpath for this case. We do this here, instead of when parsing
 	 * the attributes, as changing the values before the incomplete
 	 * processing can lead to stuff not being removed from the incomplete
@@ -1521,7 +1521,7 @@ int rtnl_process_xfrm(const struct nlmsghdr *nlh, void *data)
 			struct xfrm_selector *new_sel;
 
 			new_sel = (struct xfrm_selector *)sel;
-			if (ifp && ifp->if_type == IFT_VRFMASTER)
+			if (ifp && ifp->if_type == IFT_VRF)
 				new_sel->ifindex = 0;
 		}
 	}

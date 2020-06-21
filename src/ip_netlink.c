@@ -1228,7 +1228,7 @@ static int inet_route_change(const struct nlmsghdr *nlh,
 	if (vrf_is_vrf_table_id(kernel_table) &&
 	    vrf_lookup_by_tableid(kernel_table, &vrf_id, &table) < 0) {
 		/*
-		 * Route came down before the vrfmaster device
+		 * Route came down before the vrf device
 		 * RTM_NEWLINK - defer route installation until it
 		 * arrives.
 		 */

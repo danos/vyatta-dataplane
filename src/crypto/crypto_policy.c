@@ -2981,7 +2981,7 @@ static int policy_feat_attach(vrfid_t vrfid, const struct xfrm_selector *sel,
  *    <ifindex> <vrf> <dst> <dlen> <src> <slen> <dport> <sport> <prot> [sel if]
  *
  * The [sel if] is the ifindex in the selector, if set.  If not set then this
- * value will be 0. If it is the ifindex of a vrfmaster, then we will use 0
+ * value will be 0. If it is the ifindex of a vrf, then we will use 0
  * instead (like we do when creating policies). If this arg does not exist then
  * we will assume it is 0.
  */
@@ -3076,7 +3076,7 @@ static int crypto_policy_cmd_handler(struct pb_msg *msg)
 	if (cp_msg->has_sel_ifindex) {
 		sel.ifindex = cp_msg->sel_ifindex;
 		ifp = dp_ifnet_byifindex(sel.ifindex);
-		if (ifp && ifp->if_type == IFT_VRFMASTER)
+		if (ifp && ifp->if_type == IFT_VRF)
 			sel.ifindex = 0;
 	} else
 		sel.ifindex = 0;
@@ -3160,7 +3160,7 @@ crypto_incmpl_xfrm_pol_free(struct rcu_head *head)
 }
 
 /*
- * Add an incomplete policy (waiting on the vrf master). If we already have
+ * Add an incomplete policy (waiting on the vrf). If we already have
  * an entry for the key (selector + mark) then update the message.
  */
 void crypto_incmpl_xfrm_policy_add(uint32_t ifindex __unused,

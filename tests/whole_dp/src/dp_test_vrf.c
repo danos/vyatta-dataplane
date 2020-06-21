@@ -295,18 +295,18 @@ DP_DECL_TEST_CASE(vrf_suite, vrf_cfg, NULL, NULL);
 
 /*
  * Test the scenario whereby routes for a VRF arrive before the VRF
- * master link creation
+ * link creation
  *
  * Due to the presence of the broker, there is a chance that route
  * updates for a table that is the main table for a VRF could arrive
- * before the link message advising the dataplane of the VRF master
- * interface and its association with the table.
+ * before the link message advising the dataplane of the VRF device
+ * and its association with the table.
  *
- * Verify that in this sequence of events when the VRF master device
+ * Verify that in this sequence of events when the VRF device
  * is signalled that the routes make it into the VRF. Just for good
  * measure, check that a delete and recreate works too.
  */
-DP_START_TEST(vrf_cfg, out_of_seq_vrfmaster_v4)
+DP_START_TEST(vrf_cfg, out_of_seq_vrf_v4)
 {
 	char vrf_name[IFNAMSIZ + 1];
 	uint32_t tableid;
@@ -331,9 +331,9 @@ DP_START_TEST(vrf_cfg, out_of_seq_vrfmaster_v4)
 	dp_test_wait_for_route("vrf:50 2.2.2.0/24 nh int:dp1T1", true);
 
 	/* Delete and recreate the VRF */
-	_dp_test_intf_vrf_master_delete(vrf_name, TEST_VRF,
+	_dp_test_intf_vrf_if_delete(vrf_name, TEST_VRF,
 					tableid, __FILE__, __LINE__);
-	_dp_test_intf_vrf_master_create(vrf_name, TEST_VRF,
+	_dp_test_intf_vrf_if_create(vrf_name, TEST_VRF,
 					tableid, __FILE__, __LINE__);
 
 	/* Check the route has been deleted */
@@ -343,7 +343,7 @@ DP_START_TEST(vrf_cfg, out_of_seq_vrfmaster_v4)
 	dp_test_netlink_del_vrf(TEST_VRF, 1);
 } DP_END_TEST;
 
-DP_START_TEST(vrf_cfg, out_of_seq_vrfmaster_v6)
+DP_START_TEST(vrf_cfg, out_of_seq_vrf_v6)
 {
 	char vrf_name[IFNAMSIZ + 1];
 	uint32_t tableid;
@@ -368,9 +368,9 @@ DP_START_TEST(vrf_cfg, out_of_seq_vrfmaster_v6)
 	dp_test_wait_for_route("vrf:50 2:2:2::/64 nh int:dp1T1", true);
 
 	/* Delete and recreate the VRF */
-	_dp_test_intf_vrf_master_delete(vrf_name, TEST_VRF,
+	_dp_test_intf_vrf_if_delete(vrf_name, TEST_VRF,
 					tableid, __FILE__, __LINE__);
-	_dp_test_intf_vrf_master_create(vrf_name, TEST_VRF,
+	_dp_test_intf_vrf_if_create(vrf_name, TEST_VRF,
 					tableid, __FILE__, __LINE__);
 
 	/* Check the route has been deleted */

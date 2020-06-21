@@ -747,10 +747,10 @@ if_set_vrf(struct ifnet *ifp, vrfid_t vrf_id)
 	vrf = vrf_find_or_create(vrf_id);
 	if (vrf) {
 		/*
-		 * Ignore initial setting of VRF master interface into
+		 * Ignore initial setting of VRF interface into
 		 * default VRF.
 		 */
-		if (ifp->if_type == IFT_VRFMASTER &&
+		if (ifp->if_type == IFT_VRF &&
 		    vrf_id != VRF_DEFAULT_ID) {
 			vrf_set_external_id(vrf, ifp->if_index);
 
@@ -2462,7 +2462,7 @@ const char *iftype_name(uint8_t type)
 	case IFT_VXLAN:	 return "vxlan";
 	case IFT_L2TPETH: return "l2tpeth";
 	case IFT_MACVLAN: return "macvlan";
-	case IFT_VRFMASTER: return "vrf";
+	case IFT_VRF: return "vrf";
 	default:	 return "UNKNOWN";
 	}
 }
@@ -2493,10 +2493,10 @@ is_lo(const struct ifnet *ifp)
 		return false;
 
 	/*
-	 * VRF master devices have the semantics of loopbacks in a
+	 * VRF devices have the semantics of loopbacks in a
 	 * particular VRF.
 	 */
-	if (ifp->if_type == IFT_VRFMASTER)
+	if (ifp->if_type == IFT_VRF)
 		return true;
 
 	if (ifp->if_type != IFT_LOOP)

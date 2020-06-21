@@ -194,7 +194,7 @@ static bool ip_rt_pb_table_to_vrf(
 	if (vrf_is_vrf_table_id(*table) &&
 	    vrf_lookup_by_tableid(*table, vrf_id, table) < 0) {
 		/*
-		 * Route came down before the vrfmaster device
+		 * Route came down before the vrf device
 		 * RTM_NEWLINK - defer route installation until it
 		 * arrives.
 		 */

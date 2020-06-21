@@ -273,10 +273,10 @@ bool dp_test_intf_switch_port_over_bkp(const char *real_if_name);
 void dp_test_intf_switch_port_activate(const char *real_if_name);
 void dp_test_intf_switch_port_deactivate(const char *real_if_name);
 
-void _dp_test_intf_vrf_master_create(const char *name, vrfid_t vrf_id,
+void _dp_test_intf_vrf_if_create(const char *name, vrfid_t vrf_id,
 				     uint32_t tableid, const char *file,
 				     int line);
-void _dp_test_intf_vrf_master_delete(const char *name, vrfid_t vrf_id,
+void _dp_test_intf_vrf_if_delete(const char *name, vrfid_t vrf_id,
 				     uint32_t tableid, const char *file,
 				     int line);
 
