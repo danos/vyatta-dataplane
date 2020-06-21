@@ -101,8 +101,8 @@ in_lltable_lookup(struct ifnet *ifp, u_int flags, in_addr_t addr)
 			llentry_free(lle);
 			lle = caa_container_of(node, struct llentry, ll_node);
 		} else {
-			/* if on master thread */
-			if (is_master_thread() && if_is_features_mode_active(
+			/* if on main thread */
+			if (is_main_thread() && if_is_features_mode_active(
 				    ifp, IF_FEAT_MODE_EVENT_L3_FAL_ENABLED)) {
 				ret = fal_ip4_new_neigh(lle->ifp->if_index,
 							&sin, 0, NULL);
@@ -122,7 +122,7 @@ in_lltable_lookup(struct ifnet *ifp, u_int flags, in_addr_t addr)
 			}
 			/*
 			 * Fire the timer so it can be sourced in the
-			 * hardware on the master thread and/or
+			 * hardware on the main thread and/or
 			 * neighbour-sourced routes installed.
 			 */
 			rte_timer_reset(&llt->lle_timer, 0,

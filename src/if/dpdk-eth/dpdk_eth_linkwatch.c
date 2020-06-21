@@ -145,7 +145,7 @@ void linkwatch_update_port_status(portid_t port, bool link_down)
 }
 
 /* Callback from being woken up on link_fd.
- * Runs on master thread (via get_next_event)
+ * Runs on main thread (via get_next_event)
  *
  * irq_mask is used to debounce events so that only one link
  * state change between timer interval is possible
@@ -238,7 +238,7 @@ linkwatch_check_path_state(const struct dp_rt_path_unusable_key *key)
 }
 
 
-/* Open eventfd handle used to notify master thread
+/* Open eventfd handle used to notify main thread
  * by callbacks called in interrupt thread.
  */
 void link_state_init(void)
@@ -261,7 +261,7 @@ void link_state_init(void)
 /* Port event occurred.
  *
  *  Called from another Posix thread therefore can't safely update
- *  port state directly, need to wakeup master thread
+ *  port state directly, need to wakeup main thread
  */
 static int
 eth_port_event(portid_t port_id, enum rte_eth_event_type type, void *arg,
@@ -272,7 +272,7 @@ eth_port_event(portid_t port_id, enum rte_eth_event_type type, void *arg,
 	bool wakeup = false;
 	int rv;
 
-	/* Notify master thread, and debounce */
+	/* Notify main thread, and debounce */
 	if (type == RTE_ETH_EVENT_INTR_LSC) {
 		struct rte_eth_link link;
 
@@ -310,7 +310,7 @@ eth_port_event(portid_t port_id, enum rte_eth_event_type type, void *arg,
 	if (type == RTE_ETH_EVENT_QUEUE_STATE) {
 		/*
 		 * Pull all the events off the queue, and set the
-		 * enabled queus correctly. The master thread will then
+		 * enabled queues correctly. The main thread will then
 		 * do the work to actually enable them.
 		 */
 		struct rte_eth_vhost_queue_event event;

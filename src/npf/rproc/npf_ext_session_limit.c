@@ -1156,7 +1156,7 @@ npf_sess_limit_update_rates(struct npf_sess_limit_param_t *lp)
 
 /*
  * Called when the session belonging to a limit-enabled rproc rule changes
- * state.  May be called from both master and forwarding threads.
+ * state.  May be called from both main and forwarding threads.
  */
 void npf_sess_limit_state_change(void *handle, uint8_t proto_idx,
 				 uint8_t prev_state, uint8_t state)

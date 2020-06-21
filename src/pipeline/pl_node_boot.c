@@ -750,7 +750,7 @@ int dp_pipeline_register_inst_storage(const char *name,
 {
 	struct pl_feature_registration *pl_feat;
 
-	ASSERT_MASTER();
+	ASSERT_MAIN();
 
 	/* Not providing a callback cleanup is allowed */
 	if (!name || !node_inst_name || !context)
@@ -768,7 +768,7 @@ int dp_pipeline_unregister_inst_storage(const char *name,
 {
 	struct pl_feature_registration *pl_feat;
 
-	ASSERT_MASTER();
+	ASSERT_MAIN();
 
 	if (!name || !node_inst_name)
 		return -EINVAL;

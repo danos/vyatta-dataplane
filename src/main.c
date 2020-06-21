@@ -115,7 +115,7 @@
 #include "l2tp/l2tpeth.h"
 #include "lag.h"
 #include "main.h"
-#include "master.h"
+#include "controller.h"
 #include "mpls/mpls_label_table.h"
 #include "netinet6/ip6_funcs.h"
 #include "npf/fragment/ipv4_rsmbl.h"
@@ -321,17 +321,15 @@ uint16_t nb_ports;
 static bool daemon_mode;		/* become daemon */
 static unsigned int avail_cores;		/* number of forwarding cores */
 bool single_cpu;			/* is dataplane running on uP */
-static const char *pid_file;		/* record pid of master thread */
+static const char *pid_file;		/* record pid of main thread */
 static const char *drv_cfg_file =
 	VYATTA_DATA_DIR"/dataplane-drivers-default.conf";
 static const char *drv_override_cfg_file =
 	VYATTA_SYSCONF_DIR"/dataplane-drivers.conf";
 
-static pthread_t master_pthread;
+static pthread_t main_pthread;
 
-/* Modified version of RTE_FOREACH_SLAVE which
- * which accounts for case of uP
- */
+/* Modified version of DPDK routine which accounts for case of uP. */
 #define FOREACH_FORWARD_LCORE(i) \
 	for ((i) = rte_get_next_lcore(-1, !single_cpu, 0);	\
 	     (i) < RTE_MAX_LCORE;				\
@@ -420,19 +418,19 @@ eth_tx_burst(struct ifnet *ifp, uint16_t queue_id,
 }
 
 /* Used to send burst of packets when only one queue available.
- * Since multiple pthreads run on master core, need a mutex.
+ * Since multiple pthreads run on main core, need a mutex.
  */
 static int
-master_eth_tx(struct ifnet *ifp, struct rte_mbuf **tx_pkts, uint16_t nb_pkts)
+main_eth_tx(struct ifnet *ifp, struct rte_mbuf **tx_pkts, uint16_t nb_pkts)
 {
 	int ret;
-	static pthread_mutex_t master_tx_lock = PTHREAD_MUTEX_INITIALIZER;
+	static pthread_mutex_t main_tx_lock = PTHREAD_MUTEX_INITIALIZER;
 
 	eth_tx_run_post_qos_features(ifp, tx_pkts, nb_pkts);
 
-	pthread_mutex_lock(&master_tx_lock);
+	pthread_mutex_lock(&main_tx_lock);
 	ret = rte_eth_tx_burst(ifp->if_port, 0, tx_pkts, nb_pkts);
-	pthread_mutex_unlock(&master_tx_lock);
+	pthread_mutex_unlock(&main_tx_lock);
 
 	return ret;
 }
@@ -659,7 +657,7 @@ void pkt_ring_output(struct ifnet *ifp, struct rte_mbuf *m)
 			if (unlikely(ifp->portmonitor))
 				portmonitor_src_phy_tx_output(ifp, &m, 1);
 
-			if (!master_eth_tx(ifp, &m, 1))
+			if (!main_eth_tx(ifp, &m, 1))
 				goto full_hwq;
 		} else {
 			/* must be lcore 0 */
@@ -1466,7 +1464,7 @@ static void stop_one_cpu(unsigned int lcore)
 
 		if (!single_cpu) {
 			RTE_LOG(ERR, DATAPLANE,
-				"attempt to stop forwarding thread for master core in non-single-cpu case\n");
+				"attempt to stop forwarding thread for main core in non-single-cpu case\n");
 			return;
 		}
 
@@ -1635,7 +1633,7 @@ static int next_available_lcore(int socket_id,
 	return best;
 }
 
-static bitmask_t online_slave_mask(void)
+static bitmask_t online_lcores_mask(void)
 {
 	unsigned int lcore;
 	bitmask_t online;
@@ -1659,12 +1657,12 @@ static bitmask_t online_slave_mask(void)
  */
 static bitmask_t cpu_affinity_online(const bitmask_t *cpu_affinity_mask)
 {
-	bitmask_t mask = online_slave_mask();
+	bitmask_t mask = online_lcores_mask();
 
 	bitmask_and(&mask, cpu_affinity_mask, &mask);
 
 	if (bitmask_isempty(&mask))
-		mask = online_slave_mask();
+		mask = online_lcores_mask();
 
 	return mask;
 }
@@ -1832,7 +1830,7 @@ static bool start_one_cpu(unsigned int lcore)
 	if (lcore == rte_get_master_lcore()) {
 		if (!single_cpu) {
 			RTE_LOG(ERR, DATAPLANE,
-				"attempt to create forwarding thread for master core in non-single-cpu case\n");
+				"attempt to create forwarding thread for main core in non-single-cpu case\n");
 			return false;
 		}
 
@@ -2319,7 +2317,7 @@ get_driver_param(const char *driver_name, uint32_t speed_capa)
 	return param;
 }
 
-static bitmask_t all_slave_mask(void)
+static bitmask_t all_lcores_mask(void)
 {
 	unsigned int lcore;
 	bitmask_t all;
@@ -2372,9 +2370,9 @@ static void cpuset_update(void)
 	}
 }
 
-static int master_worker_event_handler(zloop_t *loop  __unused,
-				       zmq_pollitem_t *item,
-				       void *arg __unused)
+static int main_worker_event_handler(zloop_t *loop  __unused,
+				     zmq_pollitem_t *item,
+				     void *arg __unused)
 {
 	uint64_t seqno;
 
@@ -2410,28 +2408,28 @@ static int master_worker_event_handler(zloop_t *loop  __unused,
 	}
 	return 0;
 }
-static pthread_t master_worker_thread;
-static struct master_worker_thread_info {
+static pthread_t main_worker_thread;
+static struct main_worker_thread_info {
 	int cpushield_fd;
 	int vhost_fd;
-} master_worker_info;
+} main_worker_info;
 
 /* Handle thread cancellation */
-static void master_worker_cleanup(void *arg __unused)
+static void main_worker_cleanup(void *arg __unused)
 {
 	dp_rcu_unregister_thread();
 }
 
-static void *master_worker_thread_fn(void *args)
+static void *main_worker_thread_fn(void *args)
 {
-	struct master_worker_thread_info *info =
-				(struct master_worker_thread_info *)args;
+	struct main_worker_thread_info *info =
+				(struct main_worker_thread_info *)args;
 
-	pthread_setname_np(pthread_self(), "dataplane/master_worker");
-	pthread_cleanup_push(master_worker_cleanup, NULL);
+	pthread_setname_np(pthread_self(), "dataplane/main_worker");
+	pthread_cleanup_push(main_worker_cleanup, NULL);
 
 
-	/* poll event fd to wakeup master_worker thread*/
+	/* poll event fd to wakeup main_worker thread*/
 	zmq_pollitem_t event_poll[] = {
 		{.fd = info->cpushield_fd,
 		 .events = ZMQ_POLLIN,
@@ -2452,11 +2450,11 @@ static void *master_worker_thread_fn(void *args)
 				continue;
 
 			RTE_LOG(ERR, DATAPLANE,
-				"master_worker poll failed: %s\n",
+				"main_worker poll failed: %s\n",
 				strerror(errno));
 			break;		/* error detected */
 		}
-		(void)master_worker_event_handler(NULL, event_poll, NULL);
+		(void)main_worker_event_handler(NULL, event_poll, NULL);
 	}
 	pthread_cleanup_pop(1);
 	return NULL;
@@ -2464,36 +2462,36 @@ static void *master_worker_thread_fn(void *args)
 
 /*
  * Create a new thread to handle CPU shield changes. We do this as we call out
- * to an external script, and we do not want that to block the master thread.
+ * to an external script, and we do not want that to block the main thread.
  */
-static void master_worker_thread_init(void)
+static void main_worker_thread_init(void)
 {
-	master_worker_info.cpushield_fd = eventfd(0, EFD_NONBLOCK);
-	if (master_worker_info.cpushield_fd < 0)
-		rte_panic("Cannot open cpu_shield fd for master_worker\n");
+	main_worker_info.cpushield_fd = eventfd(0, EFD_NONBLOCK);
+	if (main_worker_info.cpushield_fd < 0)
+		rte_panic("Cannot open cpu_shield fd for main_worker\n");
 
-	master_worker_info.vhost_fd = eventfd(0, EFD_NONBLOCK);
-	if (master_worker_info.vhost_fd < 0)
-		rte_panic("Cannot open vhost fd for master_worker\n");
+	main_worker_info.vhost_fd = eventfd(0, EFD_NONBLOCK);
+	if (main_worker_info.vhost_fd < 0)
+		rte_panic("Cannot open vhost fd for main_worker\n");
 
 	vhost_event_init();
 
-	if (pthread_create(&master_worker_thread, NULL,
-			   master_worker_thread_fn, &master_worker_info) < 0)
+	if (pthread_create(&main_worker_thread, NULL,
+			   main_worker_thread_fn, &main_worker_info) < 0)
 		rte_panic("cpu_shield thread creation failed\n");
 }
 
-static void master_worker_thread_cleanup(void)
+static void main_worker_thread_cleanup(void)
 {
 	int join_rc;
 
-	pthread_cancel(master_worker_thread);
-	join_rc = pthread_join(master_worker_thread, NULL);
+	pthread_cancel(main_worker_thread);
+	join_rc = pthread_join(main_worker_thread, NULL);
 	if (join_rc != 0)
 		RTE_LOG(ERR, DATAPLANE,
-			"master_worker thread join failed, rc %i\n", join_rc);
-	close(master_worker_info.cpushield_fd);
-	close(master_worker_info.vhost_fd);
+			"main_worker thread join failed, rc %i\n", join_rc);
+	close(main_worker_info.cpushield_fd);
+	close(main_worker_info.vhost_fd);
 }
 
 /*
@@ -2512,23 +2510,23 @@ static void cpuset_init(void)
 
 void register_forwarding_cores(void)
 {
-	/* wake up master_worker thread for cpu_shield fd */
+	/* wake up main_worker thread for cpu_shield fd */
 	static const uint64_t incr = 1;
 
-	if (write(master_worker_info.cpushield_fd, &incr, sizeof(incr)) < 0)
+	if (write(main_worker_info.cpushield_fd, &incr, sizeof(incr)) < 0)
 		RTE_LOG(NOTICE, DATAPLANE,
-			"master_worker cpu shield  event write failed: %s\n",
+			"main_worker cpu shield  event write failed: %s\n",
 			strerror(errno));
 }
 
-int set_master_worker_vhost_event_fd(void)
+int set_main_worker_vhost_event_fd(void)
 {
-	/* wake up master_worker thread for vhost fd */
+	/* wake up main_worker thread for vhost fd */
 	static const uint64_t incr = 1;
 
-	if (write(master_worker_info.vhost_fd, &incr, sizeof(incr)) < 0) {
+	if (write(main_worker_info.vhost_fd, &incr, sizeof(incr)) < 0) {
 		RTE_LOG(NOTICE, DATAPLANE,
-			"master_worker vhost event fd write failed: %s\n",
+			"main_worker vhost event fd write failed: %s\n",
 			strerror(errno));
 		return -1;
 	}
@@ -2631,8 +2629,8 @@ static int port_conf_init(portid_t portid)
 	port_conf->tx_queues = rte_lcore_count();
 
 	port_conf->buf_size = dev_info.min_rx_bufsize + MBUF_OVERHEAD;
-	port_conf->rx_cpu_affinity = all_slave_mask();
-	port_conf->tx_cpu_affinity = all_slave_mask();
+	port_conf->rx_cpu_affinity = all_lcores_mask();
+	port_conf->tx_cpu_affinity = all_lcores_mask();
 	bitmask_zero(&port_conf->tx_enabled_queues);
 	bitmask_zero(&port_conf->rx_enabled_queues);
 
@@ -2901,7 +2899,7 @@ static bitmask_t generate_crypto_engine_set(void)
 
 	memset(&crypto_cores, 0, sizeof(crypto_cores));
 
-	cores = online_slave_mask();
+	cores = online_lcores_mask();
 	fwding_cores = fwding_core_mask();
 
 	RTE_LCORE_FOREACH(i) {
@@ -2929,7 +2927,7 @@ unsigned int probe_crypto_engines(bool *sticky)
 	}
 	crypto_cpus = generate_crypto_engine_set();
 	if (bitmask_isempty(&crypto_cpus))
-		crypto_cpus = online_slave_mask();
+		crypto_cpus = online_lcores_mask();
 
 	bitmask_sprint(&crypto_cpus, tmp, sizeof(tmp));
 	DP_DEBUG(INIT, INFO, DATAPLANE,
@@ -3333,12 +3331,12 @@ static void pkt_ring_destroy(void)
 	}
 }
 
-bool is_master_thread(void)
+bool is_main_thread(void)
 {
 	pthread_t self;
 
 	self = pthread_self();
-	return pthread_equal(self, master_pthread);
+	return pthread_equal(self, main_pthread);
 }
 
 uint16_t  __externally_visible
@@ -3368,9 +3366,9 @@ fal_tx_pkt_burst(uint16_t tx_port, struct rte_mbuf **bufs, uint16_t nb_bufs)
 	} else {
 		/*
 		 * If we have reached here then we must have come
-		 * though master_eth_tx, and a mutex taken, and so if
+		 * though main_eth_tx, and a mutex taken, and so if
 		 * directpath is subsequently taken  there  will be no
-		 * contention for queue 0 with other master core pthreads
+		 * contention for queue 0 with other main core pthreads
 		 */
 		queue = 0;
 	}
@@ -3461,8 +3459,8 @@ main(int argc, char **argv)
 	/* Setup signal handlers */
 	set_signal_handlers();
 
-	/* keep track of master thread for consistency checking */
-	master_pthread = pthread_self();
+	/* keep track of main thread for consistency checking */
+	main_pthread = pthread_self();
 
 	ret = backplane_init(&platform_cfg.bp_list);
 	if (ret < 0)
@@ -3580,7 +3578,7 @@ main(int argc, char **argv)
 	dp_crypto_init();
 	vrf_init();
 	qos_init();
-	master_worker_thread_init();
+	main_worker_thread_init();
 	/* needs to be after features have had a chance to register */
 	dp_lcore_events_init(rte_lcore_id());
 
@@ -3601,7 +3599,7 @@ main(int argc, char **argv)
 		DP_DEBUG(INIT, INFO, DATAPLANE,
 			"naming of rcu thread failed\n");
 
-	master_loop();
+	main_loop();
 
 	crypto_pmd_remove_all();
 	stop_all_ports();
@@ -3630,7 +3628,7 @@ main(int argc, char **argv)
 	platform_config_cleanup();
 	fal_cleanup();
 	close_all_backplane_ports();
-	master_worker_thread_cleanup();
+	main_worker_thread_cleanup();
 
 	/* wait for all RCU handlers */
 	rcu_barrier();
@@ -3922,12 +3920,12 @@ void set_port_affinity(portid_t portid, const bitmask_t *rx_mask,
 	if (rx_mask)
 		port_conf->rx_cpu_affinity = *rx_mask;
 	else
-		port_conf->rx_cpu_affinity = all_slave_mask();
+		port_conf->rx_cpu_affinity = all_lcores_mask();
 
 	if (tx_mask)
 		port_conf->tx_cpu_affinity = *tx_mask;
 	else
-		port_conf->tx_cpu_affinity = all_slave_mask();
+		port_conf->tx_cpu_affinity = all_lcores_mask();
 
 	/* reassign queues to make the affinity take effect */
 	if (dpdk_eth_if_port_started(portid)) {
@@ -3973,7 +3971,7 @@ enum dp_lcore_use dp_lcore_get_current_use(unsigned int lcore)
 		return DP_LCORE_INVALID;
 
 	if (lcore == rte_get_master_lcore())
-		return DP_LCORE_MASTER;
+		return DP_LCORE_MAIN;
 
 	conf = lcore_conf[lcore];
 	/*
@@ -3995,7 +3993,7 @@ dp_allocate_lcore_to_feature(unsigned int lcore,
 	unsigned int id;
 	enum dp_lcore_use core_use;
 	int core_count;
-	const bitmask_t all_slaves = all_slave_mask();
+	const bitmask_t all_lcores = all_lcores_mask();
 
 	if (!feat->dp_lcore_feat_fn)
 		return -EINVAL;
@@ -4008,9 +4006,9 @@ dp_allocate_lcore_to_feature(unsigned int lcore,
 	}
 
 	conf = lcore_conf[lcore];
-	if (dp_lcore_get_current_use(lcore) == DP_LCORE_MASTER) {
+	if (dp_lcore_get_current_use(lcore) == DP_LCORE_MAIN) {
 		RTE_LOG(ERR, DATAPLANE,
-			"Request to allocate master core %d to feature\n",
+			"Request to allocate main core %d to feature\n",
 			lcore);
 		return -EINVAL;
 	}
@@ -4039,11 +4037,11 @@ dp_allocate_lcore_to_feature(unsigned int lcore,
 		struct port_conf *port_conf = &port_config[portid];
 
 		/*
-		 * If the affinity is the same as the all_slave_mask
+		 * If the affinity is the same as the all_lcores_mask
 		 * then not configured.
 		 */
-		if (bitmask_equal(&all_slaves, &port_conf->rx_cpu_affinity) &&
-		    bitmask_equal(&all_slaves, &port_conf->tx_cpu_affinity))
+		if (bitmask_equal(&all_lcores, &port_conf->rx_cpu_affinity) &&
+		    bitmask_equal(&all_lcores, &port_conf->tx_cpu_affinity))
 			continue;
 
 		if (bitmask_isset(&port_conf->rx_cpu_affinity, lcore) ||

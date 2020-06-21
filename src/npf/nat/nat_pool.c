@@ -40,7 +40,7 @@
  * nat_pool.c handles:
  *
  *   1. nat pool configuration
- *   2. nat pool table management (name based lookup; master thread only)
+ *   2. nat pool table management (name based lookup; main thread only)
  *
  * nat pool entries are stored in a hash table for lookup during
  * config.
@@ -621,7 +621,7 @@ static int nat_pool_insert(struct nat_pool *np)
 				   &np->np_node);
 
 	/*
-	 * This should never happen as entries are only added by master thread
+	 * This should never happen as entries are only added by main thread
 	 */
 	if (node != &np->np_node)
 		return -EEXIST;

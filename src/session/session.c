@@ -1449,7 +1449,7 @@ int session_link(struct session *parent, struct session *child)
 	/*
 	 * Check for expired sessions now, after the lock.
 	 *
-	 * This prevents a race where master could be expiring sessions
+	 * This prevents a race where main could be expiring sessions
 	 * while a link is about to occur.
 	 */
 	if ((parent->se_flags | child->se_flags) & SESSION_EXPIRED) {

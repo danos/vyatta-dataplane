@@ -144,7 +144,7 @@ local_shadow_if(struct rte_mbuf *m, struct ifnet *inp_ifp)
 
 /*
  * Pass received packets  into the Linux TCP/IP stack.
- * Use ring to pass packets to master thread.
+ * Use ring to pass packets to main thread.
  *
  * Always consumes (free) mbuf
  */
@@ -189,7 +189,7 @@ void local_packet_internal(struct ifnet *ifp, struct rte_mbuf *m)
 		sii->congested = false;
 
 	if (CMM_LOAD_SHARED(sii->wake_me)) {
-		/* wake up slowpath thread on the master. */
+		/* wake up slowpath thread on the main. */
 		static const uint64_t incr = 1;
 
 		if (unlikely(write(event_fd, &incr, sizeof(incr)) < 0))
@@ -216,7 +216,7 @@ drop:	__cold_label;
 
 /*
  * Pass received packets  into the Linux TCP/IP stack.
- * Use ring to pass packets to master thread.
+ * Use ring to pass packets to main thread.
  *
  * Always consumes (free) mbuf
  */

@@ -209,7 +209,7 @@ npf_natpolicy_t *npf_nat_policy_get(npf_natpolicy_t *np)
 /*
  * Free the nat policy.
  * Called from both a call_rcu thread context as well
- * as from the master thread.
+ * as from the main thread.
  */
 static void npf_nat_policy_free(struct rcu_head *head)
 {

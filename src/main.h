@@ -168,7 +168,7 @@ void track_port_queue_state(uint16_t portid, uint16_t queue_id, bool rx,
 			    bool enable);
 void switch_port_process_burst(portid_t portid, struct rte_mbuf *pkts[],
 			       uint16_t nb);
-int set_master_worker_vhost_event_fd(void);
+int set_main_worker_vhost_event_fd(void);
 
 extern bool single_cpu;
 

@@ -1061,7 +1061,7 @@ static void next_hop_fixup_protected_tracking(struct next_hop_list *old,
 	struct next_hop_gw_entry *gw_entry;
 	int i;
 
-	ASSERT_MASTER();
+	ASSERT_MAIN();
 
 	if (!new->primaries)
 		return;

@@ -140,7 +140,7 @@ static int cgn_policy_insert(struct cgn_policy *cp)
 				   &cp->cp_table_node);
 
 	/*
-	 * This should never happen as entries are only added by master thread
+	 * This should never happen as entries are only added by main thread
 	 */
 	if (node != &cp->cp_table_node)
 		return -EEXIST;

@@ -503,7 +503,7 @@ int dp_pktmbuf_mdata_invar_feature_register(const char *name)
 {
 	int i;
 
-	ASSERT_MASTER();
+	ASSERT_MAIN();
 
 	if (!name)
 		return -EINVAL;
@@ -530,7 +530,7 @@ int dp_pktmbuf_mdata_invar_feature_register(const char *name)
 
 int dp_pktmbuf_mdata_invar_feature_unregister(const char *name, int slot)
 {
-	ASSERT_MASTER();
+	ASSERT_MAIN();
 
 	if (!name)
 		return -EINVAL;

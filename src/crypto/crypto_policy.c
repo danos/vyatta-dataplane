@@ -1422,7 +1422,7 @@ static void crypto_npf_cfg_commit_all_timer_handler(
 	struct rte_timer *timer __rte_unused,
 	void *arg __rte_unused)
 {
-	ASSERT_MASTER();
+	ASSERT_MAIN();
 	if (crypto_npf_cfg_commit_count)
 		crypto_npf_cfg_commit_flush();
 }
@@ -1435,7 +1435,7 @@ static void crypto_npf_cfg_commit_all_timer_handler(
  */
 static void crypto_npf_cfg_commit_all(struct policy_rule *pr __unused)
 {
-	ASSERT_MASTER();
+	ASSERT_MAIN();
 
 	if (crypto_npf_cfg_commit_count == 0) {
 		rte_timer_reset(&crypto_npf_cfg_commit_all_timer,

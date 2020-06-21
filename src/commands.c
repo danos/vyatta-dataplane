@@ -63,7 +63,7 @@
 #include "l2tp/l2tpeth.h"
 #include "lag.h"
 #include "main.h"
-#include "master.h"
+#include "controller.h"
 #include "mstp.h"
 #include "netinet6/nd6_nbr.h"
 #include "netinet6/route_v6.h"
@@ -100,7 +100,7 @@
 #define MAX_CMDLINE 512
 #define MAX_ARGS    128
 
-enum console_cmd_master_flags {
+enum console_cmd_main_flags {
 	CONSOLE_CMD_ASYNC = 1<<0,
 };
 
@@ -120,15 +120,15 @@ const char *console_endpoint = "ipc:///var/run/vplane.socket";
 
 /*
  * Socket pair to send commands from the console thread to the
- * master thread for execution and get response back. Note that
+ * main thread for execution and get response back. Note that
  * only a pass/fail response is returned. If command output is
  * required then the command must run only on the console thread.
  *
  * The only current user of this is the "reset" command.
  */
-const char *cmd_server_endpoint = "@inproc://master_cmd_event";
-const char *cmd_client_endpoint = ">inproc://master_cmd_event";
-static zsock_t *master_cmd_server; /* only to be used on master thread */
+const char *cmd_server_endpoint = "@inproc://main_cmd_event";
+const char *cmd_client_endpoint = ">inproc://main_cmd_event";
+static zsock_t *main_cmd_server; /* only to be used on main thread */
 static zsock_t *console_cmd_client; /* only to be used on console thread */
 
 static const char *rtscope(uint32_t scope)
@@ -1727,7 +1727,7 @@ static const cmd_t cmd_table[] = {
 	{ 0,	"led",		cmd_led,	"Toggle interface LED" },
 	{ 0,	"local",	cmd_local,	"Show local IP addresses" },
 	{ 0,	"log",		cmd_log,	"Show log messages" },
-	{ 0,	"master",	cmd_master,	"state machine information" },
+	{ 0,	"main",		cmd_main,	"state machine information" },
 	{ 0,	"memory",	cmd_memory,	"Memory pool statistics" },
 	{ 0,	"mode",		cmd_power_show,	"Power management mode" },
 	{ 0,	"mpls",		cmd_mpls,	"Show mpls information" },
@@ -1912,14 +1912,14 @@ static void out_free(void *data, void *hint __unused)
 	free(data);
 }
 
-/* Send console command to be handled on the master thread.
+/* Send console command to be handled on the main thread.
  * async == true: don't wait for a response.
  */
 static int send_console_cmd(cmd_func_t fn, int argc, char **argv, bool async)
 {
 	int rv = -1;
 	int cmd_response;
-	enum console_cmd_master_flags flags = 0;
+	enum console_cmd_main_flags flags = 0;
 	char line[MAX_CMDLINE];
 
 	if (async)
@@ -1937,7 +1937,7 @@ static int send_console_cmd(cmd_func_t fn, int argc, char **argv, bool async)
 	rv = zsock_send(console_cmd_client, "psi", fn, line, flags);
 	if (rv < 0) {
 		RTE_LOG(ERR, DATAPLANE,
-			"failed to send console cmd to master\n");
+			"failed to send console cmd to main\n");
 		goto out;
 	}
 
@@ -1948,7 +1948,7 @@ static int send_console_cmd(cmd_func_t fn, int argc, char **argv, bool async)
 
 	if (rv < 0)
 		RTE_LOG(ERR, DATAPLANE,
-			"failed to get console cmd response from master\n");
+			"failed to get console cmd response from main\n");
 	else
 		rv = cmd_response;
 out:
@@ -1959,7 +1959,7 @@ out:
 }
 
 int console_cmd(char *line, char **outbuf, size_t *outsize, cmd_func_t fn,
-		bool on_master)
+		bool on_main)
 {
 	char *argv[MAX_ARGS] = { NULL };
 	int argc = split(line, argv, MAX_ARGS);
@@ -1982,11 +1982,11 @@ int console_cmd(char *line, char **outbuf, size_t *outsize, cmd_func_t fn,
 
 		if (fn) {
 			/*
-			 * The reset command can only run on the master thread.
-			 * If this is reset and we are not on the master
+			 * The reset command can only run on the main thread.
+			 * If this is reset and we are not on the main
 			 * thread, send it there.
 			 */
-			if (!on_master && (fn == cmd_reset))
+			if (!on_main && (fn == cmd_reset))
 				rc = send_console_cmd(fn, argc, argv, true);
 			else
 				/* Stash output from command in buffer. */
@@ -2160,7 +2160,7 @@ console_handler(zsock_t *pipe, void *arg __rte_unused)
 		rte_panic("can't bind console endpoint: %s : %s\n",
 			  console_endpoint, strerror(errno));
 
-	/* Socket to send commands to the master thread */
+	/* Socket to send commands to the main thread */
 	console_cmd_client = zsock_new_pair(cmd_client_endpoint);
 	if (!console_cmd_client)
 		rte_panic("failed to create cmd socket: %s\n", strerror(errno));
@@ -2198,15 +2198,15 @@ console_handler(zsock_t *pipe, void *arg __rte_unused)
 
 /*
  * Receive commands from the console thread that require execution
- * on the master thread and optionally send a response back.
+ * on the main thread and optionally send a response back.
  */
-static int console_cmd_master_handler(void *arg)
+static int console_cmd_main_handler(void *arg)
 {
 	zsock_t *sock = (zsock_t *)arg;
 	int rv, cmd_response;
 	cmd_func_t fn;
 	char *line;
-	enum console_cmd_master_flags flags;
+	enum console_cmd_main_flags flags;
 	char *outbuf = NULL;
 	size_t outsize = 0;
 
@@ -2229,7 +2229,7 @@ static zactor_t *console_actor;
 
 /*
  * Setup the console thread and communication between it
- * and the master thread
+ * and the main thread
  */
 void console_setup(void)
 {
@@ -2238,12 +2238,12 @@ void console_setup(void)
 		rte_panic("zactor_new failed for console handler\n");
 	free(zstr_recv(console_actor));
 
-	master_cmd_server = zsock_new_pair(cmd_server_endpoint);
-	if (!master_cmd_server)
-		rte_panic("master cmd server socket failed");
+	main_cmd_server = zsock_new_pair(cmd_server_endpoint);
+	if (!main_cmd_server)
+		rte_panic("main cmd server socket failed");
 
-	dp_register_event_socket(zsock_resolve(master_cmd_server),
-				 console_cmd_master_handler, master_cmd_server);
+	dp_register_event_socket(zsock_resolve(main_cmd_server),
+				 console_cmd_main_handler, main_cmd_server);
 }
 
 void
@@ -2252,7 +2252,7 @@ console_destroy(void)
 	free(config.console_url_bound);
 	free(config.console_url_bound_uplink);
 	zactor_destroy(&console_actor);
-	zsock_destroy(&master_cmd_server);
+	zsock_destroy(&main_cmd_server);
 }
 
 int

@@ -182,7 +182,7 @@ CORE_FILES = \
 	src/lpm/lpm6.c \
 	src/mac_limit.c \
 	src/main.c \
-	src/master.c \
+	src/controller.c \
 	src/mstp.c \
 	src/netinet/ip_mroute.c \
 	src/netlink.c \

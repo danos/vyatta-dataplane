@@ -233,7 +233,7 @@ static int apt_dport_match(struct cds_lfht_node *node, const void *k)
 }
 
 /*
- * Add a dest port table entry.  This is done from the master thread via
+ * Add a dest port table entry.  This is done from the main thread via
  * configuration.
  */
 int apt_dport_add(struct apt_instance *ai, enum alg_feat feat, void *ctx,

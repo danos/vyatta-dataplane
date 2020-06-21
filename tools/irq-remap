@@ -91,9 +91,9 @@ sub dataplane_cpus {
         $isolated = $online;
     }
 
-    my $master = first_set_bit($isolated);
-    vec( $isolated, $master, 1 ) = 0
-      if ( $master >= 0 );
+    my $main = first_set_bit($isolated);
+    vec( $isolated, $main, 1 ) = 0
+      if ( $main >= 0 );
 
     # never ban CPU 0
     vec( $isolated, 0, 1 ) = 0;

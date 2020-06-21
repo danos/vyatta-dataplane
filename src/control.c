@@ -36,7 +36,7 @@
 #include "if/dpdk-eth/vhost.h"
 #include "if_var.h"
 #include "ip_addr.h"
-#include "master.h"
+#include "controller.h"
 #include "mstp.h"
 #include "netinet6/nd6_nbr.h"
 #include "netlink.h"
@@ -707,7 +707,7 @@ static void process_snapshot_end(void)
 int controller_snapshot(enum cont_src_en cont_src)
 {
 	DP_DEBUG(RESYNC, INFO, DATAPLANE,
-		 "master(%s) controller resync started\n",
+		 "main(%s) controller resync started\n",
 		 cont_src_name(cont_src));
 
 	return zstr_send(cont_socket_get(cont_src), "WHATSUP?");
@@ -726,14 +726,14 @@ int process_snapshot_one(enum cont_src_en cont_src, dpmsg_t *dpmsg, int *eof)
 	if (!memcmp(zmq_msg_data(&dpmsg->topic_msg), done,
 			MIN(strlen(done), zmq_msg_size(&dpmsg->topic_msg)))) {
 		DP_DEBUG(RESYNC, INFO, DATAPLANE,
-			 "master(%s) resync [%"PRIu64"] completed\n",
+			 "main(%s) resync [%"PRIu64"] completed\n",
 			 cont_src_name(cont_src),
 			 cont_src_info[cont_src].sub_last_seqno);
 		process_snapshot_end();
 		*eof = 1;
 	} else {
 		DP_DEBUG(RESYNC, INFO, DATAPLANE,
-			 "master(%s) resync [%"PRIu64"] %.*s\n",
+			 "main(%s) resync [%"PRIu64"] %.*s\n",
 			 cont_src_name(cont_src),
 			 get_seqno(dpmsg),
 			 (int)zmq_msg_size(&dpmsg->topic_msg),
@@ -742,7 +742,7 @@ int process_snapshot_one(enum cont_src_en cont_src, dpmsg_t *dpmsg, int *eof)
 		rc = process_dpmsg(cont_src, dpmsg);
 		if (rc)
 			DP_DEBUG(RESYNC, NOTICE, DATAPLANE,
-				 "master(%s) %.*s: failed\n",
+				 "main(%s) %.*s: failed\n",
 				 cont_src_name(cont_src),
 				 (int)zmq_msg_size(&dpmsg->topic_msg),
 				 (char *)zmq_msg_data(&dpmsg->topic_msg));
@@ -772,7 +772,7 @@ static int subscriber_recv(void *cont_src_info_arg)
 		cont_src_info->sub_last_seqno = get_seqno(&dpmsg);
 
 		DP_DEBUG(SUBSCRIBER, DEBUG, DATAPLANE,
-			 "master(%s) sub [%"PRIu64"] %.*s\n",
+			 "main(%s) sub [%"PRIu64"] %.*s\n",
 			 cont_src_name(cont_src_info->cont_src),
 			 get_seqno(&dpmsg),
 			 (int)zmq_msg_size(&dpmsg.topic_msg),
@@ -785,7 +785,7 @@ static int subscriber_recv(void *cont_src_info_arg)
 				 (char *)zmq_msg_data(&dpmsg.topic_msg));
 	} else {
 		DP_DEBUG(SUBSCRIBER, DEBUG, DATAPLANE,
-			 "master(%s) sub ignore [%"PRIu64" < %"PRIu64"] %.*s\n",
+			 "main(%s) sub ignore [%"PRIu64" < %"PRIu64"] %.*s\n",
 			 cont_src_name(cont_src_info->cont_src),
 			 get_seqno(&dpmsg),
 			 cont_src_info->sub_last_seqno,

@@ -250,7 +250,7 @@ void vhost_devinfo(json_writer_t *wr, const struct ifnet *ifp)
 	}
 }
 
-static int cmd_vhost_disable(char *ifname, bool on_master)
+static int cmd_vhost_disable(char *ifname, bool on_main)
 {
 	int rc;
 	char *devargs_p;
@@ -264,7 +264,7 @@ static int cmd_vhost_disable(char *ifname, bool on_master)
 	if (size == -1)
 		return -1;
 
-	if (on_master) {
+	if (on_main) {
 		rc = detach_device(devargs_p);
 	} else {
 		rcu_thread_offline();
@@ -345,7 +345,7 @@ static int cmd_vhost_set_qemu_ifname(char *name, char *qemu_ifname)
 }
 
 static int cmd_vhost_enable(char *ifname, char *queues, char *path, char *alias,
-			    bool on_master, bool is_client)
+			    bool on_main, bool is_client)
 {
 	int rc;
 	char *devargs_p;
@@ -372,7 +372,7 @@ static int cmd_vhost_enable(char *ifname, char *queues, char *path, char *alias,
 	DP_DEBUG(VHOST, DEBUG, DATAPLANE,
 		"vhost: sending event ADD, %s\n",
 		ifname);
-	if (on_master) {
+	if (on_main) {
 		rc = attach_device(devargs_p);
 	} else {
 		rcu_thread_offline();
@@ -463,7 +463,7 @@ static int vhost_set_update_event(struct ifnet *ifp)
 	rte_spinlock_unlock(&vhost_ev_list_lock);
 
 	/* Set the event */
-	return set_master_worker_vhost_event_fd();
+	return set_main_worker_vhost_event_fd();
 }
 
 /**

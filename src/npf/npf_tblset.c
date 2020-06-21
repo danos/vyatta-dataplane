@@ -21,7 +21,7 @@
  * Managed table service.
  *
  * Tables entries are created and deleted (using a name) from config on the
- * master thread, and may be looked-up from the dataplane forwarding threads
+ * main thread, and may be looked-up from the dataplane forwarding threads
  * using a tableset handle and a table ID.
  *
  * Table entries are created via a named reference in config (e.g. firewall
@@ -40,7 +40,7 @@
  *
  * The user is responsible for rcu-assigning their "struct npf_tbl" pointer.
  *
- * Changes to the hash table should only take place from the master thread.
+ * Changes to the hash table should only take place from the main thread.
  *
  * A table may be re-sized if it reaches its maximum size and the
  * TS_TBL_RESIZE flag is set.

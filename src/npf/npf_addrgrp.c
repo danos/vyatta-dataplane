@@ -71,7 +71,7 @@ struct ptree_table;
  * entries or with prefixes.
  *
  * Changes to an address-groups ptree are protected by a read-write lock.
- * There is one 'writer' (master thread) and multiple 'readers' (forwarding
+ * There is one 'writer' (main thread) and multiple 'readers' (forwarding
  * threads).  The readers are only blocked when the writer holds the lock.
  *
  *

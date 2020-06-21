@@ -276,7 +276,7 @@ void stop_all_ports(void)
  * Note: rcu_read_lock not held here!
  * This can be run both via directly in response to a link reset interrupt
  * (tim will be NULL) or from an rte_timer callback (tim will be the actual
- * timer). In both cases it will be ran from the master thread.
+ * timer). In both cases it will be ran from the main thread.
  */
 void dpdk_eth_if_reset_port(struct rte_timer *tim, void *arg)
 {
@@ -1163,7 +1163,7 @@ dpdk_eth_if_get_stats(struct ifnet *ifp, struct if_data *stats)
 	return 0;
 }
 
-/* Timer called (from master) to toggle state of LED. */
+/* Timer called (from main) to toggle state of LED. */
 static void dpdk_eth_if_blink_timer(struct rte_timer *tim, void *arg)
 {
 	struct ifnet *ifp = arg;

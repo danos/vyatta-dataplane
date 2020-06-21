@@ -35,7 +35,7 @@
 #include "json_writer.h"
 #include "lag.h"
 #include "main.h"
-#include "master.h"
+#include "controller.h"
 #include "netlink.h"
 #include "pktmbuf_internal.h"
 #include "urcu.h"

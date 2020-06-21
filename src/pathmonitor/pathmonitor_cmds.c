@@ -24,7 +24,7 @@
  * Deletion of an entry mirrors the creation logic: RPROC destructor
  * call(s) and the receipt of a "delete" command from monitord.
  *
- * All 4 operations take place in the context of the control (master)
+ * All 4 operations take place in the context of the control (main)
  * thread, i.e. these commands are serialized.
  *
  * The "init" command is used to establish the (user configured) initial
@@ -298,7 +298,7 @@ done:
  *
  * Take care if any new commands are introduced; the "init" and "delete"
  * commands (as well as the RPROC functions) are serialized through the
- * master thread. The other commands ("show" & "update") operate on the
+ * main thread. The other commands ("show" & "update") operate on the
  * console thread.
  */
 int

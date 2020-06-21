@@ -27,7 +27,7 @@
 #include "hotplug.h"
 #include "if_var.h"
 #include "main.h"
-#include "master.h"
+#include "controller.h"
 #include "urcu.h"
 #include "util.h"
 #include "vplane_log.h"
@@ -226,7 +226,7 @@ out:
 	return zsock_signal(sock, 0);
 }
 
-/* Send device add/remove to the master thread. */
+/* Send device add/remove to the main thread. */
 int
 send_device_event(const char *name, bool is_add)
 {

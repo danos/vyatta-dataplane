@@ -119,7 +119,7 @@ npf_if_gc(struct rte_timer *t __rte_unused, void *arg __rte_unused)
 
 /*
  * Take a reference on an NPF interface structure.  If it does not exist, then
- * create it.  May be called from either forwarding thread or master loop.
+ * create it.  May be called from either forwarding thread or main loop.
  * This is called when:
  *
  * 1. After DP_EVT_IF_INDEX_SET event if interface has interface attach points
@@ -166,7 +166,7 @@ npf_if_niif_create(struct ifnet *ifp, uint32_t initial_sess_count)
 /*
  * Remove reference from NPF interface structure.  If it is the last
  * reference, then NULL ifp->if_npf pointer and place niif onto the garbage
- * collection list.  May be called from either forwarding thread or master
+ * collection list.  May be called from either forwarding thread or main
  * loop.
  */
 static void

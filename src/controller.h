@@ -5,10 +5,10 @@
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  *
- * master loop api
+ * main loop api
  */
-#ifndef MASTER_H
-#define MASTER_H
+#ifndef CONTROLLER_H
+#define CONTROLLER_H
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -17,17 +17,17 @@
 #include "control.h"
 #include "compat.h"
 
-void master_loop(void);
+void main_loop(void);
 void reset_dataplane(enum cont_src_en cont_src, bool delay);
 int setup_interface_portid(portid_t portid);
 int teardown_interface_portid(portid_t portid);
 
-int cmd_master(FILE *f, int argc, char **argv);
+int cmd_main(FILE *f, int argc, char **argv);
 
-bool dp_test_master_ready(enum cont_src_en cont_src);
+bool dp_test_main_ready(enum cont_src_en cont_src);
 
 /* For whole dp tests */
 void enable_soft_clock_override(void);
 void disable_soft_clock_override(void);
 
-#endif /* MASTER_H */
+#endif /* CONTROLLER_H */

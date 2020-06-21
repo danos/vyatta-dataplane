@@ -164,7 +164,7 @@ __llentry_destroy(struct lltable *llt, struct llentry *lle)
 	call_rcu(&lle->ll_rcu, llentry_free_rcu);
 }
 
-/* Marks entry as DELETED, so that the master thread can then pick it
+/* Marks entry as DELETED, so that the main thread can then pick it
  * up from the timer and complete the deletion.
  * Must be protected by spinlock.
  */
@@ -178,10 +178,10 @@ llentry_destroy(struct lltable *llt, struct llentry *lle)
 	pktmbuf_free_bulk(lle->la_held, dropped);
 	lle->la_numheld = 0;
 
-	if (is_master_thread())
+	if (is_main_thread())
 		__llentry_destroy(llt, lle);
 	else
-		/* Fire the timer for this table immediately on master */
+		/* Fire the timer for this table immediately on main */
 		rte_timer_reset(&llt->lle_timer, 0,
 				SINGLE, rte_get_master_lcore(),
 				lladdr_timer, llt);
@@ -287,7 +287,7 @@ lltable_fal_l3_disable_cb(struct lltable *llt, struct llentry *lle,
 	lle->la_flags &= ~LLE_HW_UPD_PENDING;
 	/*
 	 * Do it straight away rather than deferring to timer callback
-	 * because we are on the master thread and the FAL router
+	 * because we are on the main thread and the FAL router
 	 * interface object that these entries depend on is about to
 	 * be deleted.
 	 */

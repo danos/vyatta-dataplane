@@ -430,7 +430,7 @@ flow_cache_destroy_table(struct flow_cache *flow_cache, unsigned int lcore,
 }
 
 /*
- * This may be called in an rcu_callback or in the master thread. In the
+ * This may be called in an rcu_callback or in the main thread. In the
  * rcu_callback it must be in clear_only mode.
  */
 void

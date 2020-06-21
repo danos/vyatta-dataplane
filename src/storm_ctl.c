@@ -18,7 +18,7 @@
 #include "fal.h"
 #include "if/bridge/bridge_port.h"
 #include "if_var.h"
-#include "master.h"
+#include "controller.h"
 #include "vplane_debug.h"
 #include "vplane_log.h"
 #include "zmq_dp.h"

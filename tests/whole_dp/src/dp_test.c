@@ -21,7 +21,7 @@
 #include <libmnl/libmnl.h>
 #include <czmq.h>
 #include "vplane_debug.h"
-#include "master.h"
+#include "controller.h"
 #include "if_llatbl.h"
 
 #include "dp_test_controller.h"
@@ -49,23 +49,23 @@ char rte_log_level[2];
  *  - setup controller:
  *     - create ZMQ subscriber (controller is publisher)
  *     - register handlers for incoming pub messages
- *  - prepare master thread (master_loop)
+ *  - prepare main thread (main_loop)
  *    - create ZMQ dealer (connected to controller ROUTER)
  *
- *    - MASTER_SETUP:
+ *    - MAIN_SETUP:
  *        setup interfaces (build shadow state, tuntaps ...)
  *        send data to controller:
  *          "MYPORT" + 6 part with data in.
  *        wait for response:
  *          "OK" + seq + ifindex assigned for this port.
  *
- *    - MASTER_RESYNC:
+ *    - MAIN_RESYNC:
  *        send "WHATSUP" on DEALER/ROUTER socket
  *        do loop polling for messages:
  *           process netlink/cmd messages
  *        until msg is THATSALLFOLKS
  *
- *    - MASTER_READY:
+ *    - MAIN_READY:
  *        do while not shutdown:
  *           - process incoming events.
  *
@@ -372,7 +372,7 @@ dp_test_thread_run(zsock_t *pipe, void *args)
 	 * Wait for the vplaned-local ready state to be reached.
 	 * For VR this is a no-op
 	 */
-	while (!dp_test_master_ready(CONT_SRC_UPLINK))
+	while (!dp_test_main_ready(CONT_SRC_UPLINK))
 		sleep(1);
 
 	json_object *intf_set;
@@ -383,7 +383,7 @@ dp_test_thread_run(zsock_t *pipe, void *args)
 	 * Wait for the VR vplaned / vplaned-remote via uplink ready
 	 * state to be reached
 	 */
-	while (!dp_test_master_ready(CONT_SRC_MAIN))
+	while (!dp_test_main_ready(CONT_SRC_MAIN))
 		sleep(1);
 	dp_test_intf_create_default_set(intf_set);
 

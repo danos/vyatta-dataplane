@@ -19,7 +19,7 @@
 #include "fal.h"
 #include "if_var.h"
 #include "lag.h"
-#include "master.h"
+#include "controller.h"
 #include "util.h"
 #include "vplane_debug.h"
 #include "vplane_log.h"

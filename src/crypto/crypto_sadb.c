@@ -874,7 +874,7 @@ static void crypto_sadb_del_sa_internal(const xfrm_address_t *dst,
 {
 	static struct sadb_sa *sa;
 
-	ASSERT_MASTER();
+	ASSERT_MAIN();
 
 	SADB_DEBUG("DELSA SPI = %x VRF %d\n", ntohl(spi), vrf_ctx->vrfid);
 

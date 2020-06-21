@@ -42,7 +42,7 @@
 #include "ip_addr.h"
 #include "ip_funcs.h"
 #include "ip_mcast.h"
-#include "master.h"
+#include "controller.h"
 #include "mpls/mpls.h"
 #include "netinet/ip_mroute.h"
 #include "netinet6/ip6_funcs.h"

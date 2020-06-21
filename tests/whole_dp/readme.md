@@ -162,13 +162,13 @@ the interfaces we use is using the rte_eth_null driver, which is a standard PMD.
 
 Once it has gone through the dpdk init, it proceeds through the rest of the init
 as normal, and then the forwarding thread drops into the forwarding_loop, and the
-master thread is in the master_loop.
+main thread is in the main_loop.
 
 To allow the dataplane to get through the init handshake the test thread has to provide
 the controller/console ends of the zmq connections. It does this by spawning a further
 thread to provide the controller request thread side.   This thread  will listen to the
 MYPORT messages, and reply as required to allow init to proceed.  Meanwhile the test
-thread (which is the zmq publisher) waits until the master_state is ready (i.e the
+thread (which is the zmq publisher) waits until the main loop is ready (i.e the
 dataplane is ready).  It then creates the test interfaces (sends the default netlink
 state) for each of them, and then is ready to start the tests.
 
@@ -215,7 +215,7 @@ behaviour.  Most tests want to do some variation of:
   * clean
 
 The state is injected to the dataplane via the zmq pub/sub socket, so we don't want to
-send the packets until that state has been fully applied in the dataplane by the master
+send the packets until that state has been fully applied in the dataplane by the main
 thread (in the standard way).  The forwarding thread (we pretend we are on a 2 core
 system) is polling the interfaces rx queues to see if there are packets to forward.  They
 are forwarded as soon as they are found, so we need to make sure we don't insert the

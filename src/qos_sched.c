@@ -920,7 +920,7 @@ void qos_sched_subport_params_check(
 }
 
 /* Allocate and initialize a handle to QoS scheduler.
- * Only called by master thread.
+ * Only called by main thread.
  */
 int qos_sched_start(struct ifnet *ifp, uint64_t speed)
 {
@@ -966,7 +966,7 @@ int qos_sched_start(struct ifnet *ifp, uint64_t speed)
 }
 
 /* Cleanup scheduler when link goes down
- * Use RCU to set the pointer because destroyed by master thread
+ * Use RCU to set the pointer because destroyed by main thread
  * but referenced by Tx thread
  */
 void qos_sched_stop(struct ifnet *ifp)

@@ -5,7 +5,7 @@
  */
 
 #include <zmq_dp.h>
-#include <master.h>
+#include <controller.h>
 #include <time.h>
 #include <pthread.h>
 

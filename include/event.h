@@ -25,10 +25,10 @@ typedef int (*ev_callback_t)(void *arg);
  * socket. Messages received on the socket will be retrieved and passes
  * to the handler for processing.
  *
- * The processing is always done on the master thread. The main use of
- * this function is to allow events to be sent to the master thread where
+ * The processing is always done on the main thread. The main use of
+ * this function is to allow events to be sent to the main thread where
  * they will then be processed in turn. No guarantees are given about
- * how quickly these events are processed. Typically the master thread
+ * how quickly these events are processed. Typically the main thread
  * will pull all messages out of a socket before moving on to the next one
  * and so there may be significant delay during busy periods.
  *

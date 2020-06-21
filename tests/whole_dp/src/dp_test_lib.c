@@ -26,7 +26,7 @@
 #include <rte_ethdev.h>
 
 #include "main.h"
-#include "master.h"
+#include "controller.h"
 #include "if_var.h"
 #include "ip_forward.h"
 #include "ip_funcs.h"

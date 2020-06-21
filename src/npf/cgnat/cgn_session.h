@@ -44,7 +44,7 @@ struct cgn_source *cgn_src_from_cs2(struct cgn_sess_s2 *cs2);
 
 /*
  * Update 3-tuple session stats from a just-expired 2-tuple session.  This is
- * called via the master thread, so 2-tuple stats total will appear there.
+ * called via the main thread, so 2-tuple stats total will appear there.
  */
 void cgn_session_update_stats(struct cgn_session *cse,
 			      uint32_t pkts_out, uint32_t bytes_out,

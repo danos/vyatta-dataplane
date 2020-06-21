@@ -92,7 +92,7 @@
 #include "l2tp/l2tpeth.h"
 #include "lag.h"
 #include "main.h"
-#include "master.h"
+#include "controller.h"
 #include "netinet6/in6.h"
 #include "netinet6/ip6_funcs.h"
 #include "netlink.h"
@@ -315,7 +315,7 @@ static inline int interface_ifname_match_fn(struct cds_lfht_node *node,
 
 /*
  * Lookup ifnet information by the kernel ifindex.
- * Only called from master thread (no locking)
+ * Only called from main thread (no locking)
  */
 struct ifnet *dp_ifnet_byifindex(unsigned int ifindex)
 {

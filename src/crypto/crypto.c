@@ -79,12 +79,12 @@ static struct crypto_dp g_crypto_dp;
 struct crypto_dp *crypto_dp_sp = &g_crypto_dp;
 static struct rte_timer flow_cache_timer;
 
-/* between crypto and master thread */
-static zsock_t *crypto_master_pull;
-static const char crypto_inproc[] = "inproc://crypto_to_master";
+/* between crypto and main thread */
+static zsock_t *crypto_main_pull;
+static const char crypto_inproc[] = "inproc://crypto_to_main";
 static int handle_crypto_event(void *);
 
-/* from the master thread to the rekey listener */
+/* from the main thread to the rekey listener */
 static zsock_t *rekey_listener;
 
 enum crypto_action {
@@ -1251,13 +1251,13 @@ void dp_crypto_init(void)
 	if (dp_lcore_events_register(&crypto_lcore_events, NULL))
 		rte_panic("can not initialise crypto per thread\n");
 
-	crypto_master_pull = zsock_new_pull(crypto_inproc);
+	crypto_main_pull = zsock_new_pull(crypto_inproc);
 
-	if (!crypto_master_pull)
-		rte_panic("cannot bind to crypto master pull socket\n");
+	if (!crypto_main_pull)
+		rte_panic("cannot bind to crypto main pull socket\n");
 
-	dp_register_event_socket(zsock_resolve(crypto_master_pull),
-				 handle_crypto_event, crypto_master_pull);
+	dp_register_event_socket(zsock_resolve(crypto_main_pull),
+				 handle_crypto_event, crypto_main_pull);
 
 	if (crypto_sadb_init() < 0)
 		rte_panic("Failed to initialise crypto SADB\n");
@@ -1285,8 +1285,8 @@ void dp_crypto_init(void)
 void dp_crypto_shutdown(void)
 {
 	CRYPTO_INFO("crypto shutting down\n");
-	dp_unregister_event_socket(zsock_resolve(crypto_master_pull));
-	zsock_destroy(&crypto_master_pull);
+	dp_unregister_event_socket(zsock_resolve(crypto_main_pull));
+	zsock_destroy(&crypto_main_pull);
 	zsock_destroy(&rekey_listener);
 	udp_handler_unregister(AF_INET, htons(ESP_PORT));
 	udp_handler_unregister(AF_INET6, htons(ESP_PORT));
@@ -1338,12 +1338,12 @@ void crypto_expire_request(uint32_t spi, uint32_t reqid,
 
 	rv = zsock_bsend(sock, "4411", spi, reqid, proto, hard);
 	if (rv < 0)
-		CRYPTO_ERR("Failed to send expire event to master (%d)\n", rv);
+		CRYPTO_ERR("Failed to send expire event to main (%d)\n", rv);
 
 	zsock_destroy(&sock);
 }
 
-/* running in the master thread, handle crypto events */
+/* running in the main thread, handle crypto events */
 static int handle_crypto_event(void *arg)
 {
 	zsock_t *sock = (zsock_t *)arg;
@@ -1353,7 +1353,7 @@ static int handle_crypto_event(void *arg)
 
 	rc = zsock_brecv(sock, "4411", &spi, &reqid, &proto, &hard);
 	if (rc < 0) {
-		CRYPTO_ERR("Failed to receive event for master\n");
+		CRYPTO_ERR("Failed to receive event for main\n");
 		return 0;
 	}
 

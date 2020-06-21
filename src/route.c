@@ -795,7 +795,7 @@ route_nh_replace(int family, struct next_hop_list *nextl,
 	int i;
 	int deleted = 0;
 
-	ASSERT_MASTER();
+	ASSERT_MAIN();
 
 	/* walk all the NHs, copying as we go */
 	old_array = rcu_dereference(nextl->siblings);
@@ -1020,7 +1020,7 @@ walk_nhs_for_route_change(enum nh_change (*upd_neigh_present_cb)(
 	struct cds_lfht_iter iter;
 	struct cds_lfht_node *node;
 
-	ASSERT_MASTER();
+	ASSERT_MAIN();
 
 	cds_lfht_for_each(nexthop_hash, &iter, node) {
 		nhl = caa_container_of(node, struct next_hop_list, nh_node);
@@ -2131,7 +2131,7 @@ int rt_stats(struct route_head *rt_head, json_writer_t *json, uint32_t id)
 /*
  * Get egress interface for destination address.
  *
- * Must only be used on master thread.
+ * Must only be used on main thread.
  * Note for multipath routes, the first interface is always returned.
  */
 struct ifnet *nhif_dst_lookup(const struct vrf *vrf,
@@ -2299,7 +2299,7 @@ walk_nhs_for_arp_change(struct llentry *lle,
 	struct cds_lfht_iter iter;
 	struct cds_lfht_node *node;
 
-	ASSERT_MASTER();
+	ASSERT_MAIN();
 
 	cds_lfht_for_each(nexthop_hash, &iter, node) {
 		nhl = caa_container_of(node, struct next_hop_list, nh_node);

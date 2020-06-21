@@ -2727,7 +2727,7 @@ enum fal_feat_framer_ret_value {
 /*
  * Queue mbufs from the fal plugin directly to a tx port, typically
  * used to queue mbufs to a backplane port.
- * NOT safe to call from any threads on the master core.
+ * NOT safe to call from any threads on the main core.
  *
  * Returns: Number of mbufs queued, Unqueued mbufs are returned to the
  * caller.

@@ -97,7 +97,7 @@ void dp_pktmbuf_mark_locally_generated(struct rte_mbuf *m);
 
 /*
  * Register for a feature pointer in the packet meta data.
- * This must be called on the master thread
+ * This must be called on the main thread
  *
  * @param[in] name The name of the feature registering. Used for debug and for
  *            unregistering.
@@ -108,7 +108,7 @@ int dp_pktmbuf_mdata_invar_feature_register(const char *name);
 
 /*
  * unregister a previously resisted feature pointer in the meta data.
- * This must be called on the master thread
+ * This must be called on the main thread
  *
  * @param[in] name The name that was used when registering.
  * @param[in] slot The array slot that was given upon registration.
