@@ -162,8 +162,8 @@ static const struct eth_dev_ops eth_ops = {
 	.get_module_eeprom = dp_test_get_module_eeprom,
 };
 
-#define SW_PORT_0_0 "sw_port_0_0"
-#define SW_PORT_0_7 "sw_port_0_7"
+#define SW_PORT_0_0 "dp1sw_port_0_0"
+#define SW_PORT_0_7 "dp1sw_port_0_7"
 
 static uint16_t
 fal_plugin_tx_backplane_cb(void *fal_info, uint16_t backplane, uint16_t port,

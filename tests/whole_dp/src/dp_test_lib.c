@@ -1513,7 +1513,7 @@ _dp_test_pak_receive_n(struct rte_mbuf **paks, uint32_t num_paks,
 	if ((dp_test_intf_type(if_name) ==
 	     DP_TEST_INTF_TYPE_SWITCH_PORT) &&
 	    !dp_test_intf_switch_port_over_bkp(if_name)) {
-		uint32_t device, port;
+		uint32_t device, port, dpid;
 		struct rte_ring *ring;
 		char ring_name[32];
 
@@ -1522,7 +1522,8 @@ _dp_test_pak_receive_n(struct rte_mbuf **paks, uint32_t num_paks,
 		 * transferred from the RX queue to local Tx burst queue
 		 * and to the actual output queue.
 		 */
-		if (sscanf(if_name, "sw_port_%u_%u", &device, &port) != 2)
+		if (sscanf(if_name, "dp%usw_port_%u_%u", &dpid, &device,
+			   &port) != 3)
 			dp_test_assert_internal(false);
 		snprintf(ring_name, 32, "net_sw_portsw%uport%u-rx-0",
 			 device, port);

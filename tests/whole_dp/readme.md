@@ -435,8 +435,8 @@ transformed to be on the same vplane.
 
 ####### Switch Ports
 
-Two switch ports have been added to the system, "sw_port_0_0" and
-"sw_port_0_7".  These interfaces are in addition to all the local
+Two switch ports have been added to the system, "dp1sw_port_0_0" and
+"dp1sw_port_0_7".  These interfaces are in addition to all the local
 interfaces. Specific switch port tests have been added. The
 switch ports are created with dp1T0 as their hardware switch backplane
 interconnect. Specific tests use this interconnet to queue and receive

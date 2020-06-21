@@ -39,14 +39,13 @@ dp_test_intf_type(const char *if_name)
 	if (strncmp(if_name, "dp", 2) == 0) {
 		if (strlen(if_name) > 4 && !strncmp(if_name + 3, "vrrp", 4))
 			return DP_TEST_INTF_TYPE_MACVLAN;
+		if (strlen(if_name) > 4 && !strncmp(if_name + 3, "sw_port", 7))
+			return DP_TEST_INTF_TYPE_SWITCH_PORT;
 		return DP_TEST_INTF_TYPE_DP;
 	}
 
 	if (strncmp(if_name, "vtun", 4) == 0)
 		return DP_TEST_INTF_TYPE_NON_DP;
-
-	if (strncmp(if_name, "sw_port", 7) == 0)
-		return DP_TEST_INTF_TYPE_SWITCH_PORT;
 
 	if (strncmp(if_name, "br", 2) == 0)
 		return DP_TEST_INTF_TYPE_BRIDGE;
@@ -298,13 +297,13 @@ static struct dp_test_intf dp_test_intf_default[] = {
 };
 
 static struct dp_test_intf dp_test_intf_switch_port[] = {
-	{ 20, 1, 120, 0, "sw_port_0_0", /* switch port interface */
+	{ 20, 1, 120, 0, "dp1sw_port_0_0", /* switch port interface */
 		{ .addr_bytes = { 0x00, 0x00, 0xa4, 0xbe, 0xef, 0x88 } },
 		{ 0, 0, 0, 0 },
 		{ IN6ADDR_ANY_INIT, IN6ADDR_ANY_INIT, IN6ADDR_ANY_INIT,
 		  IN6ADDR_ANY_INIT}, false, true,
 	},
-	{ 21, 1, 121, 0, "sw_port_0_7", /* switch port interface */
+	{ 21, 1, 121, 0, "dp1sw_port_0_7", /* switch port interface */
 		{ .addr_bytes = { 0x00, 0x00, 0xa4, 0xbe, 0xef, 0x01 } },
 		{ 0, 0, 0, 0 },
 		{ IN6ADDR_ANY_INIT, IN6ADDR_ANY_INIT, IN6ADDR_ANY_INIT,
