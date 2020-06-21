@@ -134,6 +134,8 @@ DP_START_TEST(switch_unicast, switch_unicast_tx)
 	dp_test_intf_switch_remove_port("switch0", "dp1sw_port_0_0");
 	dp_test_intf_switch_remove_port("switch0", "dp2T1");
 	dp_test_intf_switch_del("switch0");
+
+	dp_test_netlink_del_interface_l2("dp1sw_port_0_0");
 } DP_END_TEST;
 
 DP_START_TEST(switch_unicast, switch_unicast_rx_port_0)
@@ -180,6 +182,8 @@ DP_START_TEST(switch_unicast, switch_unicast_rx_port_0)
 	dp_test_intf_switch_remove_port("switch0", "dp1sw_port_0_0");
 	dp_test_intf_switch_remove_port("switch0", "dp2T1");
 	dp_test_intf_switch_del("switch0");
+
+	dp_test_netlink_del_interface_l2("dp1sw_port_0_0");
 
 	fal_plugin_enable_rx_framer(false);
 } DP_END_TEST;
@@ -236,6 +240,7 @@ DP_START_TEST(switch_unicast, switch_unicast_tx_tagged)
 	dp_test_intf_switch_remove_port("switch0", "dp1sw_port_0_0");
 	dp_test_intf_switch_remove_port("switch0", "dp2T1");
 	dp_test_intf_switch_del("switch0");
+	dp_test_netlink_del_interface_l2("dp1sw_port_0_0");
 	bridge_vlan_set_free(allowed_vlans);
 } DP_END_TEST;
 
@@ -300,6 +305,7 @@ DP_START_TEST(switch_unicast, switch_unicast_rx_tagged)
 	dp_test_intf_switch_remove_port("switch0", "dp1sw_port_0_0");
 	dp_test_intf_switch_remove_port("switch0", "dp2T1");
 	dp_test_intf_switch_del("switch0");
+	dp_test_netlink_del_interface_l2("dp1sw_port_0_0");
 	bridge_vlan_set_free(allowed_vlans);
 
 	fal_plugin_enable_rx_framer(false);
@@ -344,4 +350,5 @@ DP_START_TEST(switch_unicast, switch_unicast_rx_port_7)
 	dp_test_intf_switch_remove_port("switch0", "dp1sw_port_0_7");
 	dp_test_intf_switch_remove_port("switch0", "dp2T1");
 	dp_test_intf_switch_del("switch0");
+	dp_test_netlink_del_interface_l2("dp1sw_port_0_7");
 } DP_END_TEST;

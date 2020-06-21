@@ -649,9 +649,9 @@ struct ifnet *if_alloc(const char *name, enum if_type type,
 		       int socketid);
 void if_set_ifindex(struct ifnet *ifp, unsigned int ifindex);
 void if_unset_ifindex(struct ifnet *ifp);
-struct ifnet *if_hwport_alloc(unsigned int port,
-			      const struct rte_ether_addr *eth_addr,
-			      int socketid);
+struct ifnet *if_hwport_alloc(const char *if_name, unsigned int ifindex);
+struct ifnet *if_hwport_alloc_w_port(const char *if_name, unsigned int ifindex,
+				     portid_t portid);
 void if_free(struct ifnet *ifp);
 void netlink_if_free(struct ifnet *ifp);
 void if_cleanup(enum cont_src_en cont_src);
@@ -1093,9 +1093,6 @@ int if_vlan_feat_delete(struct ifnet *ifp, uint16_t vlan);
  */
 int if_set_backplane(struct ifnet *ifp, unsigned int ifindex);
 int if_get_backplane(struct ifnet *ifp, unsigned int *ifindex);
-
-void if_hwport_create_finish(enum cont_src_en cont_src, struct ifnet *ifp,
-			     uint32_t ifindex, const char *ifname);
 
 /*
  * APIs used to save & retrieve partially defined hardware & hot-plug

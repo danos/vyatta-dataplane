@@ -139,23 +139,19 @@ fal_lag_create(const struct ifinfomsg *ifi, struct nlattr *tb[])
 		goto del_fal_lag;
 	}
 
-	ifp = ifport_table[dpdk_port];
+	ifp = if_hwport_alloc_w_port(ifname, ifi->ifi_index, dpdk_port);
 	if (!ifp)
 		goto del_rem_port;
 	sc = ifp->if_softc;
 	sc->scd_fal_port_lag_obj = fal_lag_obj;
 	CDS_INIT_LIST_HEAD(&sc->scd_fal_lag_slaves_head);
 
-	if_rename(ifp, ifname);
-	ifp->if_flags = ifi->ifi_flags;
-	if_set_ifindex(ifp, ifi->ifi_index);
 	ifp->hw_forwarding = true;
 
 	return ifp;
 
 del_rem_port:
 	remove_port(dpdk_port);
-	if_free(ifp);
 
 del_fal_lag:
 	ret = fal_delete_lag(fal_lag_obj);

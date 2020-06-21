@@ -131,112 +131,70 @@ static void dp_test_get_missed_nl_counts(unsigned int *replayed,
 	json_object_put(jresp);
 }
 
-static void dp_test_hide_interface(const char *ifname,
-				   struct ifnet **ifp,
-				   char *saved_ifname,
-				   unsigned int *saved_ifindex)
-{
-	portid_t portid;
-
-	dp_test_intf_real(ifname, saved_ifname);
-	*ifp = dp_ifnet_byifname(saved_ifname);
-	dp_test_assert_internal(*ifp != NULL);
-	*saved_ifindex = (*ifp)->if_index;
-
-	/* hide the interface from netlink */
-	if_unset_ifindex(*ifp);
-	portid = dp_test_intf_name2port(saved_ifname);
-	snprintf((*ifp)->if_name, IFNAMSIZ, "port%d", portid);
-}
-
-static void dp_test_restore_interface(struct ifnet *ifp,
-				      const char *ifname,
-				      unsigned int ifindex)
-{
-	dp_test_assert_internal(ifp != NULL);
-	snprintf(ifp->if_name, IFNAMSIZ, "%s", ifname);
-	if_set_ifindex(ifp, ifindex);
-}
-
 DP_DECL_TEST_CASE(missed_netlink, basic_operation, NULL, NULL);
 DP_START_TEST(basic_operation, basic_operation)
 {
-	struct ifnet *ifp = NULL;
 	unsigned int added = 0, updated = 0, deleted = 0, replayed = 0;
-	char saved_ifname[IFNAMSIZ];
-	unsigned int saved_ifindex;
+	unsigned int saved_ifindex = dp_test_intf_name2index("dpT11");
 
 	dp_test_get_missed_nl_counts(&replayed, &added, &updated, &deleted);
 	dp_test_verify_missed_nl_counts(replayed, added, updated, deleted);
 
 	/* simple adds and replay */
-	dp_test_hide_interface("dp1T1", &ifp, saved_ifname, &saved_ifindex);
-	dp_test_netlink_set_interface_l2_noverify("dp1T1");
+	dp_test_netlink_del_interface_l2("dp1T1");
 	dp_test_netlink_add_ip_address_noverify("dp1T1", "1.1.1.1/24");
-	added += 3;
-	replayed += 3;
+	added += 2;
+	replayed += 2;
 	dp_test_wait_for_missed_count(added, updated, deleted);
-	dp_test_restore_interface(ifp, saved_ifname, saved_ifindex);
-	missed_netlink_replay(saved_ifindex);
+	dp_test_netlink_set_interface_l2("dp1T1");
 	dp_test_verify_missed_nl_counts(replayed, added, updated, deleted);
 	/* second replay shouldn't change counters */
 	missed_netlink_replay(saved_ifindex);
 	dp_test_verify_missed_nl_counts(replayed, added, updated, deleted);
 
 	/* adds, updates and deletes -- no replays */
-	dp_test_hide_interface("dp1T1", &ifp, saved_ifname, &saved_ifindex);
-	dp_test_netlink_set_interface_l2_noverify("dp1T1");
+	dp_test_netlink_del_interface_l2("dp1T1");
 	dp_test_netlink_add_ip_address_noverify("dp1T1", "1.1.1.1/24");
 	dp_test_netlink_del_ip_address_noverify("dp1T1", "1.1.1.1/24");
-	dp_test_netlink_del_interface_l2_noverify("dp1T1");
-	added += 3;
+	added += 2;
 	updated += 1;
-	deleted += 3;
+	deleted += 1;
+	replayed += 1;
 	dp_test_wait_for_missed_count(added, updated, deleted);
-	dp_test_restore_interface(ifp, saved_ifname, saved_ifindex);
-	missed_netlink_replay(saved_ifindex);
+	dp_test_netlink_set_interface_l2("dp1T1");
 	dp_test_verify_missed_nl_counts(replayed, added, updated, deleted);
 	/* second replay shouldn't change counters */
 	missed_netlink_replay(saved_ifindex);
 	dp_test_verify_missed_nl_counts(replayed, added, updated, deleted);
 
 	/* add and update -- one replay each */
-	dp_test_hide_interface("dp1T1", &ifp, saved_ifname, &saved_ifindex);
-	dp_test_netlink_set_interface_l2_noverify("dp1T1");
-	dp_test_netlink_set_interface_l2_noverify("dp1T1");
+	dp_test_netlink_del_interface_l2("dp1T1");
 	dp_test_netlink_add_ip_address_noverify("dp1T1", "1.1.1.1/24");
 	dp_test_netlink_add_ip_address_noverify("dp1T1", "1.1.1.1/24");
-	added += 3;
-	updated += 3;
-	replayed += 3;
+	added += 2;
+	updated += 2;
+	replayed += 2;
 	dp_test_wait_for_missed_count(added, updated, deleted);
-	dp_test_restore_interface(ifp, saved_ifname, saved_ifindex);
-	missed_netlink_replay(saved_ifindex);
+	dp_test_netlink_set_interface_l2("dp1T1");
 	dp_test_verify_missed_nl_counts(replayed, added, updated, deleted);
 	/* second replay shouldn't change counters */
 	missed_netlink_replay(saved_ifindex);
 	dp_test_verify_missed_nl_counts(replayed, added, updated, deleted);
 
 	/* multiple adds, updates, deletes -- no replays */
-	dp_test_hide_interface("dp1T1", &ifp, saved_ifname, &saved_ifindex);
-	dp_test_netlink_set_interface_l2_noverify("dp1T1");
+	dp_test_netlink_del_interface_l2("dp1T1");
 	dp_test_netlink_add_ip_address_noverify("dp1T1", "1.1.1.1/24");
 	dp_test_netlink_del_ip_address_noverify("dp1T1", "1.1.1.1/24");
-	dp_test_netlink_del_interface_l2_noverify("dp1T1");
-	dp_test_netlink_set_interface_l2_noverify("dp1T1");
 	dp_test_netlink_add_ip_address_noverify("dp1T1", "1.1.1.1/24");
 	dp_test_netlink_del_ip_address_noverify("dp1T1", "1.1.1.1/24");
-	dp_test_netlink_del_interface_l2_noverify("dp1T1");
-	dp_test_netlink_set_interface_l2_noverify("dp1T1");
 	dp_test_netlink_add_ip_address_noverify("dp1T1", "1.1.1.1/24");
 	dp_test_netlink_del_ip_address_noverify("dp1T1", "1.1.1.1/24");
-	dp_test_netlink_del_interface_l2_noverify("dp1T1");
-	added += 9;
-	updated += 3;
-	deleted += 9;
+	added += 4;
+	updated += 5;
+	deleted += 3;
+	replayed += 1;
 	dp_test_wait_for_missed_count(added, updated, deleted);
-	dp_test_restore_interface(ifp, saved_ifname, saved_ifindex);
-	missed_netlink_replay(saved_ifindex);
+	dp_test_netlink_set_interface_l2("dp1T1");
 	dp_test_verify_missed_nl_counts(replayed, added, updated, deleted);
 	/* second replay shouldn't change counters */
 	missed_netlink_replay(saved_ifindex);

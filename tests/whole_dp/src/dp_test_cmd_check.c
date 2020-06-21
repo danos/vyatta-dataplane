@@ -64,8 +64,8 @@ char expected_npf_fw_portmap_str[DP_TEST_TMP_BUF];
 char expected_vrf_str[DP_TEST_TMP_BUF];
 
 /* VR vrf clean refcounts vrf 0 (invalid) = 1 for invalid vrf table
- * vrf 1 (default) = 20 dpdk ports +1 loopback +2 switch ports +1 for
- * default vrf table = 24
+ * vrf 1 (default) = 20 dpdk ports +1 loopback +1 for
+ * default vrf table = 22
  */
 #define DP_TEST_EXP_VRF_VR_STR \
 "{ \"vrf_table\":" \
@@ -77,7 +77,7 @@ char expected_vrf_str[DP_TEST_TMP_BUF];
 "    },{" \
 "      \"vrf_id\": 1," \
 "      \"internal_vrf_id\": 1," \
-"      \"ref_count\": 24" \
+"      \"ref_count\": 22" \
 "    } " \
 "  ] " \
 "}"

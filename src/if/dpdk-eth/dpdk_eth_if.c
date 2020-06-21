@@ -37,6 +37,66 @@ static int reconfigure_port(struct ifnet *ifp,
 
 static bitmask_t started_port_mask;	/* port has been started */
 
+static zhash_t *dpdk_name_to_eth_port_map;
+
+static void dpdk_name_to_eth_port_map_cleanup(void)
+{
+	zhash_destroy(&dpdk_name_to_eth_port_map);
+}
+
+static void dpdk_name_to_eth_port_map_init(void)
+{
+	dpdk_name_to_eth_port_map = zhash_new();
+	if (!dpdk_name_to_eth_port_map)
+		rte_panic(
+			"Cannot allocate zhash for name to port map for eth interfaces\n"
+			);
+}
+
+int dpdk_name_to_eth_port_map_add(const char *ifname, portid_t port)
+{
+	uint16_t *portid_obj = malloc(sizeof(*portid_obj));
+
+	if (!portid_obj)
+		return -ENOMEM;
+	*portid_obj = port;
+	if (zhash_insert(dpdk_name_to_eth_port_map, ifname,
+			 portid_obj) < 0) {
+		free(portid_obj);
+		return -ENOMEM;
+	}
+	zhash_freefn(dpdk_name_to_eth_port_map, ifname, free);
+
+	return 0;
+}
+
+void dpdk_eth_port_map_del_port(portid_t port)
+{
+	uint16_t *portid_obj;
+	const char *ifname;
+
+	for (portid_obj = zhash_first(dpdk_name_to_eth_port_map);
+	     portid_obj;
+	     portid_obj = zhash_next(dpdk_name_to_eth_port_map)) {
+		if (*portid_obj == port) {
+			ifname = zhash_cursor(dpdk_name_to_eth_port_map);
+
+			zhash_delete(dpdk_name_to_eth_port_map, ifname);
+			return;
+		}
+	}
+}
+
+portid_t dpdk_name_to_eth_port_map_get(const char *ifname)
+{
+	uint16_t *portid_obj = zhash_lookup(dpdk_name_to_eth_port_map, ifname);
+
+	if (!portid_obj)
+		return IF_PORT_ID_INVALID;
+
+	return *portid_obj;
+}
+
 bool dpdk_eth_if_port_started(portid_t port)
 {
 	return bitmask_isset(&started_port_mask, port);
@@ -641,6 +701,8 @@ static void dpdk_eth_if_uninit(struct ifnet *ifp)
 	rte_timer_stop(&sc->scd_reset_timer);
 
 	rcu_assign_pointer(ifp->if_softc, NULL);
+
+	ifport_table[ifp->if_port] = NULL;
 
 	call_rcu(&sc->scd_rcu, dpdk_eth_if_softc_free_rcu);
 }
@@ -1284,10 +1346,18 @@ static void dpdk_eth_init(void)
 	if (ret < 0)
 		rte_panic("Failed to register DPDK ethernet interface type: %s",
 			  strerror(-ret));
+
+	dpdk_name_to_eth_port_map_init();
+}
+
+static void dpdk_eth_uninit(void)
+{
+	dpdk_name_to_eth_port_map_cleanup();
 }
 
 static const struct dp_event_ops dpdk_eth_if_events = {
 	.init = dpdk_eth_init,
+	.uninit = dpdk_eth_uninit,
 };
 
 DP_STARTUP_EVENT_REGISTER(dpdk_eth_if_events);

@@ -642,16 +642,14 @@ static int ini_port_process_response(enum cont_src_en cont_src,
 	}
 
 	/*
-	 * Add the port to the incomplete list. Once the controller
-	 * has fully registered the interface, either the associated
-	 * NEWLINK from the kernel or the ADDPORT response is used to
-	 * update (complete) the interface. All depends on which
-	 * arrives first.
+	 * Add the port to the name to port map. Once the controller
+	 * has fully registered the interface, the associated NEWLINK
+	 * from the kernel creates the interface.
 	 */
-	rc = if_hwport_incomplete_add(ifport_table[req->portid], ifname);
+	rc = dpdk_name_to_eth_port_map_add(ifname, req->portid);
 	if (rc < 0) {
 		RTE_LOG(ERR, DATAPLANE,
-			"master(%s) incomplete add %s failed:: %s\n",
+			"master(%s) name map add %s failed: %s\n",
 			cont_src_name(cont_src), ifname, strerror(-rc));
 		return rc;
 	}
@@ -845,13 +843,6 @@ static bool process_port_response(enum cont_src_en cont_src,
 		 */
 		rc = add_port_parse_response(cont_src, msg, req->portid,
 					     &ifindex, &ifname);
-		if (rc == 0) {
-			struct ifnet *ifp = if_hwport_incomplete_get(ifname);
-
-			if (ifp != NULL)
-				if_hwport_create_finish(cont_src, ifp,
-							ifindex, ifname);
-		}
 		break;
 	default:
 		RTE_LOG(ERR, DATAPLANE,
@@ -1023,11 +1014,6 @@ static int setup_interfaces(uint8_t startid, uint8_t num_ports,
 	}
 
 	for (portid = startid; portid < startid + num_ports; portid++) {
-		struct ifnet *ifp = ifport_table[portid];
-
-		if (!ifp)
-			continue;
-
 		if (!is_local_controller()) {
 			if (if_port_is_uplink(portid)) {
 				if (cont_src != CONT_SRC_UPLINK)
@@ -1037,15 +1023,6 @@ static int setup_interfaces(uint8_t startid, uint8_t num_ports,
 				/* vplaned registers all but the uplink */
 				continue;
 		}
-
-		/*
-		 * Bonding interfaces are represented by kernel
-		 * interfaces created by the control plane, and not
-		 * interfaces created by the dataplane so we don't
-		 * need to issue a newport request to the controller.
-		 */
-		if (is_team(ifp))
-			continue;
 
 		struct port_request *request = malloc(sizeof(*request));
 
@@ -1061,6 +1038,8 @@ static int setup_interfaces(uint8_t startid, uint8_t num_ports,
 
 		++seqno;
 		if (is_teardown) {
+			dpdk_eth_port_map_del_port(portid);
+
 			del_port_request(cont_src, ctrl_socket, seqno, portid);
 			expect_state = REQUEST_STATE_SENT_DEL;
 			/*

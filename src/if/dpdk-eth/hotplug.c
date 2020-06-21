@@ -82,32 +82,29 @@ int detach_device(const char *name)
 	}
 
 	ifp = ifport_table[port_id];
-	if (!ifp) {
-		RTE_LOG(ERR, DATAPLANE,
-			"detach-device(%s): no ifp for port id %d\n",
-			name, port_id);
-		return -1;
+	CMM_STORE_SHARED(hotplug_inprogress, true);
+	if (ifp) {
+		/*
+		 * The following calls (unassign_queues and
+		 * dpdk_eth_if_stop) both call synchronize_rcu(), and
+		 * setting unplugged needs to be before that call.
+		 */
+		ifp->unplugged = 1;
+		if (sigsetjmp(hotplug_jmpbuf, 1)) {
+			RTE_LOG(DEBUG, DATAPLANE,
+				"%s: stop_port() failed!\n", __func__);
+
+			/* if all else fails at least unassign queues */
+			unassign_queues(ifp->if_port);
+		} else
+			dpdk_eth_if_stop_port(ifp);
+
+		if_notify_emb_feat_change(ifp);
+
+		capture_cancel(ifp);
 	}
 
-	CMM_STORE_SHARED(hotplug_inprogress, true);
-	/*
-	 * The following calls (unassign_queues and dpdk_eth_if_stop) both
-	 * call synchronize_rcu(), and setting unplugged needs to be before
-	 * that call.
-	 */
-	ifp->unplugged = 1;
-	if (sigsetjmp(hotplug_jmpbuf, 1)) {
-		RTE_LOG(DEBUG, DATAPLANE,
-			"%s: stop_port() failed!\n", __func__);
-
-		/* if all else fails at least unassign queues */
-		unassign_queues(ifp->if_port);
-	} else
-		dpdk_eth_if_stop_port(ifp);
-
-	if_notify_emb_feat_change(ifp);
-
-	capture_cancel(ifp);
+	teardown_interface_portid(port_id);
 	remove_port(port_id);
 
 	rte_eth_dev_info_get(port_id, &dev_info);
@@ -158,13 +155,24 @@ int attach_device(const char *name)
 	}
 
 	struct rte_dev_iterator iterator;
-	RTE_ETH_FOREACH_MATCHING_DEV(port_id, name, &iterator)
-	rv |= insert_port(port_id);
+	RTE_ETH_FOREACH_MATCHING_DEV(port_id, name, &iterator) {
+		rv = insert_port(port_id);
+		if (rv) {
+			RTE_LOG(ERR, DATAPLANE,
+				"attach-device(%s): failed to insert port %u\n",
+				name, port_id);
+			break;
+		}
+		rv = setup_interface_portid(port_id);
+		if (rv != 0) {
+			RTE_LOG(ERR, DATAPLANE,
+				"attach-device(%s): cannot setup interface (port %u)\n",
+				name, port_id);
+			remove_port(port_id);
+			break;
+		}
+	}
 
-	if (rv != 0)
-		RTE_LOG(ERR, DATAPLANE,
-			"attach-device(%s): failed to insert port\n",
-			name);
 	return rv;
 }
 

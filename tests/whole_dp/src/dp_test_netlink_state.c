@@ -177,7 +177,10 @@ dp_test_netlink_interface_l2_all(const char *ifname, int mtu,
 	char real_ifname[IFNAMSIZ];
 
 	dp_test_intf_real(ifname, real_ifname);
-	dp_test_intf_switch_port_activate(real_ifname);
+	if (nlmsg_type == RTM_NEWLINK)
+		dp_test_intf_switch_port_activate(real_ifname);
+	else
+		dp_test_intf_switch_port_deactivate(real_ifname);
 
 	memset(buf, 0, sizeof(buf));
 	nlh = mnl_nlmsg_put_header(buf);

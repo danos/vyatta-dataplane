@@ -2817,27 +2817,6 @@ static int eth_port_init(portid_t portid)
 		goto fail;
 	}
 
-	struct rte_ether_addr mac_addr;
-	rte_eth_macaddr_get(portid, &mac_addr);
-
-	int socketid = port_config[portid].socketid;
-	struct ifnet *ifp
-		= if_hwport_alloc(portid, &mac_addr, socketid);
-
-	if (!ifp) {
-		/* only happens if name lookup is confused. */
-		RTE_LOG(ERR, DATAPLANE,
-			"Failed to create ifp for port %u\n", portid);
-		rc = -EINVAL;
-		goto fail;
-	}
-
-	const struct rte_eth_dev *dev = &rte_eth_devices[portid];
-	DP_DEBUG(INIT, DEBUG, DATAPLANE,
-		 "%u: %s address %s\n", portid,
-		 dev->data->name, ether_ntoa(&mac_addr));
-
-	rcu_assign_pointer(ifport_table[portid], ifp);
 	return 0;
 
 fail:
@@ -2902,14 +2881,6 @@ int insert_port(portid_t port_id)
 		goto failed;
 	}
 
-	if (setup_interface_portid(port_id) != 0) {
-		RTE_LOG(ERR, DATAPLANE,
-			"insert_port(%u): cannot setup interface\n",
-			port_id);
-		eth_port_uninit(port_id);
-		goto failed;
-	}
-
 	return 0;
 
 failed:
@@ -2921,8 +2892,6 @@ failed:
 void remove_port(portid_t port_id)
 {
 	eth_port_uninit(port_id);
-	teardown_interface_portid(port_id);
-	ifport_table[port_id] = NULL;
 }
 
 static bitmask_t generate_crypto_engine_set(void)

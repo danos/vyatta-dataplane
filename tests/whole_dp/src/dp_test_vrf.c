@@ -89,26 +89,20 @@ DP_START_TEST(vrf_if_cfg, default_stays)
 
 	/*
 	 * Verify default vrf table still exists as well as new vrf.
-	 * dp_test_default_vrf_clean_count() return includes the switch port
-	 * count and so that needs to be deducted from expected results.
 	 */
 	dp_test_wait_for_vrf(TEST_VRF,
-			     dp_test_default_vrf_clean_count() - 1 -
-			     dp_test_intf_switch_port_count());
-	dp_test_wait_for_vrf(VRF_DEFAULT_ID,
-			     dp_test_intf_switch_port_count() + 2);
+			     dp_test_default_vrf_clean_count() - 1);
+	dp_test_wait_for_vrf(VRF_DEFAULT_ID, 2);
 
 	/* put an interface back into the default VRF */
 	for (i = 0; i < dp_test_intf_count(); i++) {
 		dp_test_wait_for_vrf(
 			TEST_VRF,
-			dp_test_default_vrf_clean_count() - i - 1 -
-			dp_test_intf_switch_port_count());
+			dp_test_default_vrf_clean_count() - i - 1);
 
 		dp_test_intf_port2name(i, if_name);
 		dp_test_netlink_set_interface_vrf(if_name, VRF_DEFAULT_ID);
-		dp_test_wait_for_vrf(VRF_DEFAULT_ID,
-				     dp_test_intf_switch_port_count() + i + 3);
+		dp_test_wait_for_vrf(VRF_DEFAULT_ID, i + 3);
 	}
 
 	dp_test_netlink_del_vrf(TEST_VRF, 0);

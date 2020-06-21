@@ -329,20 +329,7 @@ vrf_link_create(const struct ifinfomsg *ifi, const char *ifname,
 static struct ifnet *
 dataplane_tuntap_create(unsigned int if_idx, const char *ifname)
 {
-	struct ifnet *ifp = dp_ifnet_byifname(ifname);
-
-	/*
-	 * Is it a local port created previously?
-	 */
-	if (ifp && ifp->if_local_port) {
-		/* newly learned if_index? */
-		if (!ifp->if_index) {
-			if_set_ifindex(ifp, if_idx);
-			return ifp;
-		} else
-			return NULL;
-	}
-	return NULL;
+	return if_hwport_alloc(ifname, if_idx);
 }
 
 /*
@@ -777,11 +764,6 @@ static int unspec_link_change(const struct nlmsghdr *nlh,
 
 	ifindex = cont_src_ifindex(cont_src, ifi->ifi_index);
 	ifp = dp_ifnet_byifindex(ifindex);
-	if (ifp == NULL) {
-		ifp = if_hwport_incomplete_get(ifname);
-		if (ifp != NULL)
-			if_hwport_create_finish(cont_src, ifp, ifindex, ifname);
-	}
 
 	if (nlh->nlmsg_type == RTM_NEWLINK)
 		msg = (ifp) ? "MOD" : "NEW";

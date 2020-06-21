@@ -430,6 +430,25 @@ dp_test_intf_switch_port_activate(const char *real_if_name)
 
 }
 
+void
+dp_test_intf_switch_port_deactivate(const char *real_if_name)
+{
+	struct dp_test_intf *intf;
+
+	intf = dp_test_intf_find_switch_port(real_if_name);
+
+	if (!intf || !intf->active)
+		return;
+
+	intf->active = false;
+
+	json_object *intf_set;
+
+	intf_set = dp_test_json_intf_set_create();
+	dp_test_intf_create_default_set(intf_set);
+
+}
+
 bool dp_test_intf_switch_port_over_bkp(const char *real_if_name)
 {
 	struct dp_test_intf *intf;
@@ -470,15 +489,14 @@ dp_test_intf_count_local(void)
 }
 
 /*
- * Return count of all virtual, non-virtual and switch port interfaces
- * expected in the test clean state.
+ * Return count of all virtual and non-virtual interfaces expected in
+ * the test clean state.
  */
 uint8_t
 dp_test_intf_clean_count(void)
 {
 	/* add one for loopback interface */
-	return dp_test_intf_count() +
-		dp_test_intf_switch_port_count() + 1;
+	return dp_test_intf_count() + 1;
 }
 
 /* Generate real interfaces.

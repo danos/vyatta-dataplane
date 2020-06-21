@@ -120,6 +120,8 @@ DP_START_TEST(qos_class_basic, class_basic)
 	dp_test_intf_switch_remove_port("switch0", "dp1sw_port_0_0");
 	dp_test_intf_switch_del("switch0");
 
+	dp_test_netlink_del_interface_l2("dp1sw_port_0_0");
+
 	dp_test_qos_debug(false);
 
 	qos_lib_test_teardown();
@@ -249,6 +251,8 @@ DP_START_TEST(qos_class_basic, class_multimaps)
 	dp_test_intf_switch_remove_port("switch0", "dp1sw_port_0_0");
 	dp_test_intf_switch_del("switch0");
 
+	dp_test_netlink_del_interface_l2("dp1sw_port_0_0");
+
 	dp_test_qos_debug(false);
 
 	qos_lib_test_teardown();
@@ -318,6 +322,8 @@ DP_START_TEST(qos_class_basic, class_map_multi_dps)
 	dp_test_intf_switch_remove_port("switch0", "dp2T1");
 	dp_test_intf_switch_remove_port("switch0", "dp1sw_port_0_0");
 	dp_test_intf_switch_del("switch0");
+
+	dp_test_netlink_del_interface_l2("dp1sw_port_0_0");
 
 	dp_test_qos_debug(false);
 
@@ -555,6 +561,8 @@ DP_START_TEST(qos_class_basic, class_map_to_policy)
 	dp_test_intf_switch_remove_port("switch0", "dp1sw_port_0_0");
 	dp_test_intf_switch_del("switch0");
 
+	dp_test_netlink_del_interface_l2("dp1sw_port_0_0");
+
 	dp_test_qos_debug(false);
 
 	qos_lib_test_teardown();
@@ -662,6 +670,8 @@ DP_START_TEST(qos_class_basic, class_policy_skip_des)
 	dp_test_intf_switch_remove_port("switch0", "dp1sw_port_0_0");
 	dp_test_intf_switch_del("switch0");
 
+	dp_test_netlink_del_interface_l2("dp1sw_port_0_0");
+
 	dp_test_qos_debug(false);
 
 	qos_lib_test_teardown();
@@ -753,6 +763,8 @@ DP_START_TEST(qos_class_basic, class_policy_vci)
 	dp_test_intf_switch_remove_port("switch0", "dp2T1");
 	dp_test_intf_switch_remove_port("switch0", "dp1sw_port_0_0");
 	dp_test_intf_switch_del("switch0");
+
+	dp_test_netlink_del_interface_l2("dp1sw_port_0_0");
 
 	dp_test_qos_debug(false);
 

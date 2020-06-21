@@ -271,6 +271,7 @@ void dp_test_intf_ppp_delete(const char *intf_name, uint32_t vrf_id);
 uint8_t dp_test_intf_switch_port_count(void);
 bool dp_test_intf_switch_port_over_bkp(const char *real_if_name);
 void dp_test_intf_switch_port_activate(const char *real_if_name);
+void dp_test_intf_switch_port_deactivate(const char *real_if_name);
 
 void _dp_test_intf_vrf_master_create(const char *name, vrfid_t vrf_id,
 				     uint32_t tableid, const char *file,

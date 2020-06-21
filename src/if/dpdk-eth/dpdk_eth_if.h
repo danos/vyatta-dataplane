@@ -56,4 +56,8 @@ void dpdk_eth_if_reset_port(struct rte_timer *tim, void *arg);
 
 char *dpdk_eth_vplaned_devinfo(portid_t port_id);
 
+int dpdk_name_to_eth_port_map_add(const char *ifname, portid_t port);
+void dpdk_eth_port_map_del_port(portid_t port);
+portid_t dpdk_name_to_eth_port_map_get(const char *ifname);
+
 #endif /* DPDK_ETH_IF_H */
