@@ -34,6 +34,9 @@
 #include "util.h"
 #include "vplane_debug.h"
 
+#define NDPI_PROTOCOLS_PATH	"/opt/vyatta/etc/dpi/protocols.cfg"
+#define NDPI_CATEGORIES_PATH	"/opt/vyatta/etc/dpi/categories.cfg"
+
 #define DPI_INTERNAL_UNKNOWN (DPI_ENGINE_NDPI | NDPI_PROTOCOL_UNKNOWN)
 
 /* Count of all nDPI uses. */
@@ -158,6 +161,7 @@ dpi_ndpi_init(void)
 {
 	unsigned int lcore;
 	NDPI_PROTOCOL_BITMASK all;
+	FILE *file;
 
 	if (initialised)
 		return 0;
@@ -176,6 +180,17 @@ dpi_ndpi_init(void)
 			return -ENOMEM;
 		}
 		ndpi_set_protocol_detection_bitmask2(detect, &all);
+
+		if ((file = fopen(NDPI_PROTOCOLS_PATH, "r")) != NULL) {
+			ndpi_load_protocols_file(detect, NDPI_PROTOCOLS_PATH);
+			fclose(file);
+		}
+
+		if ((file = fopen(NDPI_CATEGORIES_PATH, "r")) != NULL) {
+			ndpi_load_categories_file(detect, NDPI_CATEGORIES_PATH);
+			fclose(file);
+		}
+
 		detection_modules[lcore] = detect;
 	}
 
