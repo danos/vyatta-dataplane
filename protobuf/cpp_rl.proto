@@ -1,4 +1,4 @@
-// Copyright (c) 2019, AT&T Intellectual Property.  All rights reserved.
+// Copyright (c) 2019-2020, AT&T Intellectual Property.  All rights reserved.
 //
 // SPDX-License-Identifier: LGPL-2.1-only
 //
@@ -52,6 +52,8 @@ message CPP_limiter {
 			CPP_ATTR_UDP = 11;
 			CPP_ATTR_TCP = 12;
 			CPP_ATTR_DEFAULT = 13;
+			CPP_ATTR_PIM = 14;
+			CPP_ATTR_IP_MULTICAST = 15;
 		}
 
 		// The CPP rate limiter attribute parameter message.

@@ -4402,6 +4402,22 @@ enum fal_cpp_limiter_attr_t {
 	 * @flags MANDATORY_ON_CREATE | CREATE_ONLY
 	 */
 	FAL_CPP_LIMITER_ATTR_DEFAULT = 13,
+
+	/**
+	 * @brief Rate limiter for PIM packets
+	 *
+	 * @type fal_object_t
+	 * @flags CREATE_ONLY
+	 */
+	FAL_CPP_LIMITER_ATTR_PIM = 14,
+
+	/**
+	 * @brief Rate limiter for IP multicast packets
+	 *
+	 * @type fal_object_t
+	 * @flags CREATE_ONLY
+	 */
+	FAL_CPP_LIMITER_ATTR_IP_MC = 15,
 };
 
 /*

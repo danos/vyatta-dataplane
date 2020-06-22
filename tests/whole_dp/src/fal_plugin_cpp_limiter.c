@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019, AT&T Intellectual Property. All rights reserved.
+ * Copyright (c) 2019-2020, AT&T Intellectual Property. All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -90,6 +90,8 @@ int fal_plugin_create_cpp_limiter(uint32_t attr_count,
 		case FAL_CPP_LIMITER_ATTR_RSVP:
 		case FAL_CPP_LIMITER_ATTR_UDP:
 		case FAL_CPP_LIMITER_ATTR_TCP:
+		case FAL_CPP_LIMITER_ATTR_PIM:
+		case FAL_CPP_LIMITER_ATTR_IP_MC:
 		{
 			fal_object_t policer_obj = attr_list[i].value.objid;
 			struct cpp_limiter_protocol_obj *protocol_obj;
@@ -197,6 +199,8 @@ int fal_plugin_get_cpp_limiter_attribute(fal_object_t limiter_id,
 		case FAL_CPP_LIMITER_ATTR_RSVP:
 		case FAL_CPP_LIMITER_ATTR_UDP:
 		case FAL_CPP_LIMITER_ATTR_TCP:
+		case FAL_CPP_LIMITER_ATTR_PIM:
+		case FAL_CPP_LIMITER_ATTR_IP_MC:
 		{
 			fal_object_t policer_obj;
 			ret = get_policer_obj(limiter, attr_list[i].id,
