@@ -81,7 +81,7 @@ struct session_feature;
  *
  * The 'pack' and 'unpack' ops require some detail. These routines are
  * called (if defined) during session syncing (aka: Connsync) on the
- * master node (pack) and peer node (unpack).
+ * active node (pack) and backup node (unpack).
  *
  * The pack routine must write whatever data, in whatever format is desired.
  * It should only write data that is required to restore (unpack) the
