@@ -982,14 +982,6 @@ void incomplete_route_del(const void *dst,
 			  uint8_t family, uint8_t depth, uint32_t table,
 			  uint8_t scope, uint8_t proto);
 void missed_netlink_replay(unsigned int ifindex);
-void missed_nl_unspec_link_add(unsigned int ifindex,
-			       const struct nlmsghdr *nlh);
-void missed_nl_unspec_link_del(unsigned int ifindex);
-void missed_nl_unspec_addr_add(unsigned int ifindex,
-			       const struct rte_ether_addr *addr,
-			       const struct nlmsghdr *nlh);
-void missed_nl_unspec_addr_del(unsigned int ifindex,
-			       const struct rte_ether_addr *addr);
 void missed_nl_inet_addr_add(unsigned int ifindex,
 			     unsigned char family,
 			     const void *addr,

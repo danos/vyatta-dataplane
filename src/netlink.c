@@ -821,16 +821,22 @@ static int unspec_link_change(const struct nlmsghdr *nlh,
 				if (ifp->if_flags & IFF_UP)
 					if_start(ifp);
 			} else {
-				if (is_dp_intf(ifname))
-					missed_nl_unspec_link_add(ifindex, nlh);
-				else
+				if (is_dp_intf(ifname)) {
+					RTE_LOG(WARNING, DATAPLANE,
+						 "%u:%s link (%s/%s/%c) Not created\n",
+						 ifindex, ifname,
+						 ifitype_name(ifi->ifi_type),
+						 kind ? kind : "-",
+						 kdata ? 'y' : 'n');
+				} else {
 					incomplete_if_add_ignored(ifindex);
-				DP_DEBUG(NETLINK_IF, DEBUG, DATAPLANE,
-					 "%u:%s NUL link (%s/%s/%c) Not created\n",
-					 ifindex, ifname,
-					 ifitype_name(ifi->ifi_type),
-					 (kind) ? kind : "-",
-					 (kdata) ? 'y' : 'n');
+					DP_DEBUG(NETLINK_IF, DEBUG, DATAPLANE,
+						 "%u:%s NUL link (%s/%s/%c) Not created\n",
+						 ifindex, ifname,
+						 ifitype_name(ifi->ifi_type),
+						 (kind) ? kind : "-",
+						 (kdata) ? 'y' : 'n');
+				}
 			}
 		}
 		break;
@@ -843,7 +849,6 @@ static int unspec_link_change(const struct nlmsghdr *nlh,
 			if (ifp)
 				netlink_if_free(ifp);
 			else {
-				missed_nl_unspec_link_del(ifindex);
 				incomplete_if_del_ignored(ifindex);
 				if (tb[IFLA_LINK])
 					missed_nl_child_link_del(
@@ -894,7 +899,11 @@ static int unspec_addr_change(const struct nlmsghdr *nlh,
 			l2_rx_fltr_add_addr(ifp, addr);
 		} else {
 			if (!is_ignored_interface(ifindex))
-				missed_nl_unspec_addr_add(ifindex, addr, nlh);
+				RTE_LOG(ERR, DATAPLANE,
+					"(%s) unspec addr %s missing interface with index %u\n",
+					cont_src_name(cont_src),
+					nlmsg_type(nlh->nlmsg_type),
+					ifindex);
 		}
 		break;
 	case RTM_DELADDR:
@@ -902,7 +911,11 @@ static int unspec_addr_change(const struct nlmsghdr *nlh,
 			l2_rx_fltr_del_addr(ifp, addr);
 		} else {
 			if (!is_ignored_interface(ifindex))
-				missed_nl_unspec_addr_del(ifindex, addr);
+				RTE_LOG(ERR, DATAPLANE,
+					"(%s) unspec addr %s missing interface with index %u\n",
+					cont_src_name(cont_src),
+					nlmsg_type(nlh->nlmsg_type),
+					ifindex);
 		}
 		break;
 	default:

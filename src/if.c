@@ -2039,8 +2039,6 @@ struct incomplete_route {
 };
 
 enum missed_nl_type {
-	MISSED_UNSPEC_LINK,
-	MISSED_UNSPEC_ADDR,
 	MISSED_INET_ADDR,
 	MISSED_INET6_ADDR,
 	MISSED_INET_NETCONF,
@@ -2077,10 +2075,6 @@ static struct cds_lfht *missed_netlinks;
 static const char *missed_nl_typestr(enum missed_nl_type type)
 {
 	switch (type) {
-	case MISSED_UNSPEC_LINK:
-		return "unspec-link";
-	case MISSED_UNSPEC_ADDR:
-		return "unspec-addr";
 	case MISSED_INET_ADDR:
 		return "inet-addr";
 	case MISSED_INET6_ADDR:
@@ -2494,8 +2488,6 @@ static void missed_netlink_replay_type(unsigned int ifindex,
  */
 void missed_netlink_replay(unsigned int ifindex)
 {
-	missed_netlink_replay_type(ifindex, MISSED_UNSPEC_LINK);
-	missed_netlink_replay_type(ifindex, MISSED_UNSPEC_ADDR);
 	missed_netlink_replay_type(ifindex, MISSED_INET_ADDR);
 	missed_netlink_replay_type(ifindex, MISSED_INET6_ADDR);
 	missed_netlink_replay_type(ifindex, MISSED_INET_NETCONF);
@@ -2524,12 +2516,6 @@ static inline int missed_netlink_match_fn(struct cds_lfht_node *node,
 		return 0;
 	if (missed->ifindex != missed_key->ifindex)
 		return 0;
-	if (missed->type == MISSED_UNSPEC_ADDR) {
-		if (memcmp(&missed->keys.addr,
-			   &missed_key->keys.addr,
-			   sizeof(struct rte_ether_addr)) != 0)
-			return 0;
-	}
 	if (missed->type == MISSED_INET_ADDR) {
 		if (memcmp(&missed->keys.ip.address.ip_v4,
 			   &missed_key->keys.ip.address.ip_v4,
@@ -2575,8 +2561,6 @@ static void missed_netlink_add(enum missed_nl_type type,
 		 ifindex, missed_nl_typestr(type));
 
 	missed->type = type;
-	if (type == MISSED_UNSPEC_ADDR)
-		memcpy(&missed->keys.addr, addr, sizeof(struct rte_ether_addr));
 	if (type == MISSED_INET_ADDR)
 		memcpy(&missed->keys.ip.address.ip_v4,
 						addr, sizeof(struct in_addr));
@@ -2626,8 +2610,6 @@ static void missed_netlink_del(enum missed_nl_type type,
 
 	memset(&missed, 0, sizeof(missed));
 	missed.type = type;
-	if (type == MISSED_UNSPEC_ADDR)
-		memcpy(&missed.keys.addr, addr, sizeof(struct rte_ether_addr));
 	if (type == MISSED_INET_ADDR)
 		memcpy(&missed.keys.ip.address.ip_v4,
 						addr, sizeof(struct in_addr));
@@ -2657,17 +2639,6 @@ static void missed_netlink_del(enum missed_nl_type type,
 	incomplete_stats.missed_del++;
 }
 
-void missed_nl_unspec_link_add(unsigned int ifindex,
-				const struct nlmsghdr *nlh)
-{
-	missed_netlink_add(MISSED_UNSPEC_LINK, ifindex, NULL, nlh);
-}
-
-void missed_nl_unspec_link_del(unsigned int ifindex)
-{
-	missed_netlink_del(MISSED_UNSPEC_LINK, ifindex, NULL);
-}
-
 void missed_nl_child_link_add(unsigned int ifindex,
 			      unsigned int child_ifindex,
 			      const struct nlmsghdr *nlh)
@@ -2679,19 +2650,6 @@ void missed_nl_child_link_del(unsigned int ifindex,
 			      unsigned int child_ifindex)
 {
 	missed_netlink_del(MISSED_CHILD_LINK, ifindex, &child_ifindex);
-}
-
-void missed_nl_unspec_addr_add(unsigned int ifindex,
-			       const struct rte_ether_addr *addr,
-			       const struct nlmsghdr *nlh)
-{
-	missed_netlink_add(MISSED_UNSPEC_ADDR, ifindex, addr, nlh);
-}
-
-void missed_nl_unspec_addr_del(unsigned int ifindex,
-			       const struct rte_ether_addr *addr)
-{
-	missed_netlink_del(MISSED_UNSPEC_ADDR, ifindex, addr);
 }
 
 void missed_nl_inet_addr_add(unsigned int ifindex,
