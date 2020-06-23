@@ -492,6 +492,8 @@ static bool nexthop6_fill(struct nlattr *ntb_gateway,
 		next->gateway.address.ip_v6 =
 			*(struct in6_addr *)mnl_attr_get_payload(ntb_gateway);
 		next->flags = RTF_GATEWAY;
+		if (IN6_IS_ADDR_V4MAPPED(&next->gateway.address.ip_v6))
+			next->flags |= RTF_MAPPED_IPV6;
 	} else {
 		next->gateway.address.ip_v6 = anyaddr;
 		next->flags = 0;
@@ -852,6 +854,8 @@ static int handle_route6(vrfid_t vrf_id, uint16_t type,
 			if (exp_ifp && !ifp && !is_ignored_interface(ifindex))
 				return -1;
 			size = 1;
+			if (IN6_IS_ADDR_V4MAPPED(&ip_addr.address.ip_v6))
+				flags |= RTF_MAPPED_IPV6;
 			next = nexthop_create(ifp, &ip_addr, flags, num_labels,
 					      labels);
 		}
