@@ -119,12 +119,21 @@ static void npf_rc_ctrl_init(void)
 				npf_rc_ctrl[dir][rc].bm |=
 					(RCT2BIT(NPF_RCT_FW4));
 				break;
+
+			/* NAT64 only */
+			case NPF_RC_NAT64_4T6:
+			case NPF_RC_NAT64_6T4:
+				npf_rc_ctrl[dir][rc].bm |=
+					RCT2BIT(NPF_RCT_NAT64);
+				break;
 			}
 
 			/* Init category */
 			switch (rc) {
 			case NPF_RC_PASS:
 			case NPF_RC_ENOSTR:
+			case NPF_RC_NAT64_4T6:
+			case NPF_RC_NAT64_6T4:
 				npf_rc_ctrl[dir][rc].cat = RC_CAT_PASS;
 				break;
 			case NPF_RC_UNMATCHED:
@@ -255,6 +264,10 @@ const char *npf_rc_str(int rc)
 		return "RC_ALG_EEXIST";
 	case NPF_RC_ALG_ERR:
 		return "RC_ALG_ERR";
+	case NPF_RC_NAT64_4T6:
+		return "RC_NAT64_4T6";
+	case NPF_RC_NAT64_6T4:
+		return "RC_NAT64_6T4";
 	case NPF_RC_INTL:
 		break;
 	};
@@ -320,6 +333,10 @@ const char *npf_rc_detail_str(int rc)
 		return "ALG race condition";
 	case NPF_RC_ALG_ERR:
 		return "ALG error";
+	case NPF_RC_NAT64_4T6:
+		return "NAT64 IPv4 to IPv6 Ok";
+	case NPF_RC_NAT64_6T4:
+		return "NAT64 IPv6 to IPv4 Ok";
 	case NPF_RC_INTL:
 		break;
 	};

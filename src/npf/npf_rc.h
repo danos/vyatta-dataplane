@@ -116,10 +116,15 @@ static inline const char *npf_rc_dir_str(enum npf_rc_dir dir)
  * So for example, a function might set "rc = -NPF_RC_INTL" if an internal
  * error is detected.  NPF_RC_PASS and NPF_RC_BLOCK are not errors or drops,
  * so they would not be negated (we differentiate 'blocks' from 'drops').
+ *
+ * The order they are listed here is the order that they are displayed it,
+ * subject to the rc type filters.
  */
 enum npf_rc_en {
 	NPF_RC_UNMATCHED = 0,
 	NPF_RC_PASS,	/* Matched session or pass rule, or no ruleset */
+	NPF_RC_NAT64_6T4,  /* IPv6 to IPv4  */
+	NPF_RC_NAT64_4T6,  /* IPv4 to IPv6  */
 	NPF_RC_BLOCK,	/* Explicit or implicit block */
 
 	/* Not enough L3 hdr present in pkt */
@@ -201,9 +206,15 @@ enum npf_rc_en {
 #define NPF_RC_LAST	NPF_RC_INTL
 #define NPF_RC_SZ	(NPF_RC_LAST + 1)
 
+/* The value 0 means two things depending where its used */
+#define NPF_RC_OK NPF_RC_UNMATCHED
+
+
 static inline enum npf_rc_en
 npf_decision2rc(npf_decision_t decision)
 {
+	assert(NPF_RC_OK == 0);
+
 	switch (decision) {
 	case NPF_DECISION_UNMATCHED:
 		return NPF_RC_UNMATCHED;
