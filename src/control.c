@@ -464,6 +464,9 @@ static int process_netlink_data(enum cont_src_en cont_src,
  * Topic must not be a substring of another topic, as a match
  * of a topic msg to a topic does not need to be on a word boundary for
  * performance reasons.
+ *
+ * Please do not add any further entries to this table. All new commands
+ * should be in protobuf format.
  */
 static const struct msg_handler message_handlers_main[] = {
 	{ 0,	"address",	process_netlink_data,	 NULL },
