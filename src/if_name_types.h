@@ -20,11 +20,11 @@
 #include <ctype.h>
 
 /*
- * Is the interface a dataplane port
+ * Is the interface a dataplane/backplane port
  */
 static inline bool is_dp_intf(const char *ifname)
 {
-	return ifname[0] == 'd' && ifname[1] == 'p';
+	return (ifname[0] == 'd' || ifname[0] == 'b') && ifname[1] == 'p';
 }
 
 static inline bool is_l2tpeth(const char *ifname)
