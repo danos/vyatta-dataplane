@@ -1307,11 +1307,6 @@ static int inet_addr_change(const struct nlmsghdr *nlh,
 		if (ifp) {
 			ifa_add(ifindex, ifa->ifa_family, ifa->ifa_scope,
 				addr, ifa->ifa_prefixlen, broadcast);
-		} else {
-			if (!is_ignored_interface(ifindex))
-				missed_nl_inet_addr_add(ifindex,
-							ifa->ifa_family,
-							addr, nlh);
 		}
 
 		dp_event(DP_EVT_IF_ADDR_ADD, cont_src, ifp, ifindex,
@@ -1332,11 +1327,6 @@ static int inet_addr_change(const struct nlmsghdr *nlh,
 		if (ifp) {
 			ifa_remove(ifindex,
 				   ifa->ifa_family, addr, ifa->ifa_prefixlen);
-		} else {
-			if (!is_ignored_interface(ifindex))
-				missed_nl_inet_addr_del(ifindex,
-							ifa->ifa_family,
-							addr);
 		}
 
 		dp_event(DP_EVT_IF_ADDR_DEL, cont_src, ifp, ifindex,
@@ -1439,15 +1429,6 @@ static int inet_netconf_change(const struct nlmsghdr *nlh,
 
 	unsigned int ifindex = cont_src_ifindex(cont_src, signed_ifindex);
 	ifp = dp_ifnet_byifindex(ifindex);
-	if (!ifp && !is_ignored_interface(ifindex)) {
-		if (nlh->nlmsg_type == RTM_NEWNETCONF)
-			missed_nl_inet_netconf_add(ifindex,
-						   ncm->ncm_family,
-						   nlh);
-		else
-			missed_nl_inet_netconf_del(ifindex,
-						   ncm->ncm_family);
-	}
 
 	/*
 	 * Only given just before a delete, so we'll just let the

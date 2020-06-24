@@ -2006,11 +2006,6 @@ struct incomplete_if_stats {
 	uint64_t route_del;
 	uint64_t route_del_missing;
 	uint64_t route_update;
-	uint64_t missed_replayed;
-	uint64_t missed_add;
-	uint64_t missed_del;
-	uint64_t missed_del_missing;
-	uint64_t missed_update;
 	uint64_t mem_fails;
 };
 
@@ -2038,68 +2033,16 @@ struct incomplete_route {
 	bool protobuf;
 };
 
-enum missed_nl_type {
-	MISSED_INET_ADDR,
-	MISSED_INET6_ADDR,
-	MISSED_INET_NETCONF,
-	MISSED_INET6_NETCONF,
-	MISSED_CHILD_LINK,
-};
-
-struct missed_netlink {
-	struct cds_lfht_node hash_node;
-	struct rcu_head rcu;
-
-	/* keys -- be sure to zero unused keys! */
-	enum missed_nl_type type;
-	uint32_t ifindex;
-	union {
-		struct rte_ether_addr addr;
-		struct ip_addr ip;
-		unsigned int ifindex;
-	} keys;
-
-	/* netlink message */
-	struct nlmsghdr *nlh;
-};
-
 static struct incomplete_if_stats incomplete_stats;
 
 static struct cds_lfht *incomplete_routes;
 static struct cds_lfht *ignored_interfaces;
-static struct cds_lfht *missed_netlinks;
 
 #define INCOMPLETE_HASH_MIN 2
 #define INCOMPLETE_HASH_MAX 64
 
-static const char *missed_nl_typestr(enum missed_nl_type type)
-{
-	switch (type) {
-	case MISSED_INET_ADDR:
-		return "inet-addr";
-	case MISSED_INET6_ADDR:
-		return "inet6-addr";
-	case MISSED_INET_NETCONF:
-		return "inet-netconf";
-	case MISSED_INET6_NETCONF:
-		return "inet6-netconf";
-	case MISSED_CHILD_LINK:
-		return "child-link";
-	}
-
-	return "???";
-}
-
 void incomplete_interface_init(void)
 {
-	missed_netlinks = cds_lfht_new(INCOMPLETE_HASH_MIN,
-					INCOMPLETE_HASH_MAX,
-					INCOMPLETE_HASH_MAX,
-					CDS_LFHT_AUTO_RESIZE |
-					CDS_LFHT_ACCOUNTING,
-					NULL);
-	if (!missed_netlinks)
-		rte_panic("Can't allocate hash for incomplete links\n");
 	incomplete_routes = cds_lfht_new(INCOMPLETE_HASH_MIN,
 					 INCOMPLETE_HASH_MAX,
 					 INCOMPLETE_HASH_MAX,
@@ -2136,22 +2079,11 @@ incomplete_route_free(struct rcu_head *head)
 	free(route);
 }
 
-static void
-missed_netlink_free(struct rcu_head *head)
-{
-	struct missed_netlink *missed;
-
-	missed = caa_container_of(head, struct missed_netlink, rcu);
-	free(missed->nlh);
-	free(missed);
-}
-
 void incomplete_interface_cleanup(void)
 {
 	struct cds_lfht_iter iter;
 	struct incomplete_route *route;
 	struct ignored_interface *ignored;
-	struct missed_netlink *missed;
 
 	cds_lfht_for_each_entry(incomplete_routes, &iter,
 				route, hash_node) {
@@ -2166,13 +2098,6 @@ void incomplete_interface_cleanup(void)
 		call_rcu(&ignored->if_rcu, ignored_if_free);
 	}
 	cds_lfht_destroy(ignored_interfaces, NULL);
-
-	cds_lfht_for_each_entry(missed_netlinks, &iter,
-				missed, hash_node) {
-		cds_lfht_del(missed_netlinks, &missed->hash_node);
-		call_rcu(&missed->rcu, missed_netlink_free);
-	}
-	cds_lfht_destroy(missed_netlinks, NULL);
 
 	if_hwport_incomplete_cleanup();
 }
@@ -2465,241 +2390,6 @@ void incomplete_route_del(const void *dst,
 	incomplete_stats.route_del++;
 }
 
-static void missed_netlink_replay_type(unsigned int ifindex,
-				       enum missed_nl_type type)
-{
-	struct cds_lfht_iter iter;
-	struct missed_netlink *missed;
-
-	cds_lfht_for_each_entry(missed_netlinks, &iter, missed, hash_node) {
-		if (missed->ifindex == ifindex &&
-		    missed->type == type) {
-			incomplete_stats.missed_replayed++;
-			rtnl_process(missed->nlh, (void *)CONT_SRC_MAIN);
-			cds_lfht_del(missed_netlinks, &missed->hash_node);
-			call_rcu(&missed->rcu, missed_netlink_free);
-		}
-	}
-}
-
-/*
- * Call this each time a new ifindex arrives to see if there are any
- * netlink messages that need to be replayed.
- */
-void missed_netlink_replay(unsigned int ifindex)
-{
-	missed_netlink_replay_type(ifindex, MISSED_INET_ADDR);
-	missed_netlink_replay_type(ifindex, MISSED_INET6_ADDR);
-	missed_netlink_replay_type(ifindex, MISSED_INET_NETCONF);
-	missed_netlink_replay_type(ifindex, MISSED_INET6_NETCONF);
-	missed_netlink_replay_type(ifindex, MISSED_CHILD_LINK);
-}
-
-static uint32_t missed_netlink_hash(struct missed_netlink *missed)
-{
-	int num_words;
-
-	num_words = (offsetof(struct missed_netlink, nlh) -
-		     offsetof(struct missed_netlink, ifindex) + 3) / 4;
-	return rte_jhash_32b((uint32_t *)&missed->ifindex, num_words, 0);
-}
-
-static inline int missed_netlink_match_fn(struct cds_lfht_node *node,
-					  const void *key)
-{
-	const struct missed_netlink *missed;
-	const struct missed_netlink *missed_key = key;
-
-	missed = caa_container_of(node, struct missed_netlink, hash_node);
-
-	if (missed->type != missed_key->type)
-		return 0;
-	if (missed->ifindex != missed_key->ifindex)
-		return 0;
-	if (missed->type == MISSED_INET_ADDR) {
-		if (memcmp(&missed->keys.ip.address.ip_v4,
-			   &missed_key->keys.ip.address.ip_v4,
-			   4) != 0)
-			return 0;
-	}
-	if (missed->type == MISSED_INET6_ADDR) {
-		if (memcmp(&missed->keys.ip.address.ip_v6,
-			   &missed_key->keys.ip.address.ip_v6,
-			   16) != 0)
-			return 0;
-	}
-	if (missed->type == MISSED_CHILD_LINK) {
-		if (memcmp(&missed->keys.ifindex,
-			   &missed_key->keys.ifindex,
-			   sizeof(unsigned int)) != 0)
-			return 0;
-	}
-
-	return 1;
-}
-
-/*
- * Add a missed netlink message.
- * If we already have an entry for that key then update the message to new one.
- */
-static void missed_netlink_add(enum missed_nl_type type,
-			       unsigned int ifindex,
-			       const void *addr,
-			       const struct nlmsghdr *nlh)
-{
-	struct missed_netlink *missed;
-	struct cds_lfht_node *ret_node;
-
-	missed = calloc(1, sizeof(*missed));
-	if (!missed) {
-		incomplete_stats.mem_fails++;
-		return;
-	}
-
-	DP_DEBUG(INIT, DEBUG, DATAPLANE,
-		 "%s() ifindex %d type %s\n", __func__,
-		 ifindex, missed_nl_typestr(type));
-
-	missed->type = type;
-	if (type == MISSED_INET_ADDR)
-		memcpy(&missed->keys.ip.address.ip_v4,
-						addr, sizeof(struct in_addr));
-	if (type == MISSED_INET6_ADDR)
-		memcpy(&missed->keys.ip.address.ip_v6,
-						addr, sizeof(struct in6_addr));
-	if (type == MISSED_CHILD_LINK)
-		memcpy(&missed->keys.ifindex,
-		       addr, sizeof(unsigned int));
-	missed->ifindex = ifindex;
-	missed->nlh = malloc(nlh->nlmsg_len);
-	if (!missed->nlh) {
-		free(missed);
-		incomplete_stats.mem_fails++;
-		return;
-	}
-	memcpy(missed->nlh, nlh, nlh->nlmsg_len);
-
-	ret_node = cds_lfht_add_replace(missed_netlinks,
-					missed_netlink_hash(missed),
-					missed_netlink_match_fn,
-					missed,
-					&missed->hash_node);
-	if (ret_node == NULL) {
-		/* added, but was no old entry */
-		incomplete_stats.missed_add++;
-	} else if (ret_node != &missed->hash_node) {
-		/* replaced, so free old one */
-		incomplete_stats.missed_update++;
-		missed = caa_container_of(ret_node, struct missed_netlink,
-					hash_node);
-		call_rcu(&missed->rcu, missed_netlink_free);
-	}
-}
-
-static void missed_netlink_del(enum missed_nl_type type,
-			       unsigned int ifindex,
-			       const void *addr)
-{
-	struct missed_netlink missed, *found;
-	struct cds_lfht_node *node;
-	struct cds_lfht_iter iter;
-
-	DP_DEBUG(INIT, DEBUG, DATAPLANE,
-		 "%s() ifindex %d type %s\n", __func__,
-		 ifindex, missed_nl_typestr(type));
-
-	memset(&missed, 0, sizeof(missed));
-	missed.type = type;
-	if (type == MISSED_INET_ADDR)
-		memcpy(&missed.keys.ip.address.ip_v4,
-						addr, sizeof(struct in_addr));
-	if (type == MISSED_INET6_ADDR)
-		memcpy(&missed.keys.ip.address.ip_v6,
-						addr, sizeof(struct in6_addr));
-	if (type == MISSED_CHILD_LINK)
-		memcpy(&missed.keys.ifindex,
-		       addr, sizeof(unsigned int));
-	missed.ifindex = ifindex;
-
-	cds_lfht_lookup(missed_netlinks,
-			missed_netlink_hash(&missed),
-			missed_netlink_match_fn,
-			&missed,
-			&iter);
-
-	node = cds_lfht_iter_get_node(&iter);
-	if (!node) {
-		incomplete_stats.missed_del_missing++;
-		return;
-	}
-
-	cds_lfht_del(missed_netlinks, node);
-	found = caa_container_of(node, struct missed_netlink, hash_node);
-	call_rcu(&found->rcu, missed_netlink_free);
-	incomplete_stats.missed_del++;
-}
-
-void missed_nl_child_link_add(unsigned int ifindex,
-			      unsigned int child_ifindex,
-			      const struct nlmsghdr *nlh)
-{
-	missed_netlink_add(MISSED_CHILD_LINK, ifindex, &child_ifindex, nlh);
-}
-
-void missed_nl_child_link_del(unsigned int ifindex,
-			      unsigned int child_ifindex)
-{
-	missed_netlink_del(MISSED_CHILD_LINK, ifindex, &child_ifindex);
-}
-
-void missed_nl_inet_addr_add(unsigned int ifindex,
-			     unsigned char family,
-			     const void *addr,
-			     const struct nlmsghdr *nlh)
-{
-	if (family == AF_INET)
-		missed_netlink_add(MISSED_INET_ADDR, ifindex, addr, nlh);
-	else if (family == AF_INET6)
-		missed_netlink_add(MISSED_INET6_ADDR, ifindex, addr, nlh);
-	else
-		RTE_LOG(ERR, DATAPLANE, "%s: unsupported family\n", __func__);
-}
-
-void missed_nl_inet_addr_del(unsigned int ifindex,
-			     unsigned char family,
-			     const void *addr)
-{
-	if (family == AF_INET)
-		missed_netlink_del(MISSED_INET_ADDR, ifindex, addr);
-	else if (family == AF_INET6)
-		missed_netlink_del(MISSED_INET6_ADDR, ifindex, addr);
-	else
-		RTE_LOG(ERR, DATAPLANE, "%s: unsupported family\n", __func__);
-}
-
-void missed_nl_inet_netconf_add(unsigned int ifindex,
-				unsigned char family,
-				const struct nlmsghdr *nlh)
-{
-	if (family == AF_INET)
-		missed_netlink_add(MISSED_INET_NETCONF, ifindex, NULL, nlh);
-	else if (family == AF_INET6)
-		missed_netlink_add(MISSED_INET6_NETCONF, ifindex, NULL, nlh);
-	else
-		RTE_LOG(ERR, DATAPLANE, "%s: unsupported family\n", __func__);
-}
-
-void missed_nl_inet_netconf_del(unsigned int ifindex,
-				unsigned char family)
-{
-	if (family == AF_INET)
-		missed_netlink_del(MISSED_INET_NETCONF, ifindex, NULL);
-	else if (family == AF_INET6)
-		missed_netlink_del(MISSED_INET6_NETCONF, ifindex, NULL);
-	else
-		RTE_LOG(ERR, DATAPLANE, "%s: unsupported family\n", __func__);
-}
-
 int cmd_incomplete(FILE *f, int argc __unused, char **argv __unused)
 {
 	json_writer_t *wr = jsonw_new(f);
@@ -2727,31 +2417,7 @@ int cmd_incomplete(FILE *f, int argc __unused, char **argv __unused)
 	jsonw_uint_field(wr, "route_del_miss",
 			 incomplete_stats.route_del_missing);
 	jsonw_uint_field(wr, "route_update", incomplete_stats.route_update);
-	jsonw_uint_field(wr, "missed_replayed",
-			 incomplete_stats.missed_replayed);
-	jsonw_uint_field(wr, "missed_add", incomplete_stats.missed_add);
-	jsonw_uint_field(wr, "missed_update", incomplete_stats.missed_update);
-	jsonw_uint_field(wr, "missed_del", incomplete_stats.missed_del);
-	jsonw_uint_field(wr, "missed_del_miss",
-			 incomplete_stats.missed_del_missing);
 	jsonw_uint_field(wr, "mem_fail", incomplete_stats.mem_fails);
-
-	jsonw_name(wr, "outstanding_missed");
-	jsonw_start_array(wr);
-
-	struct cds_lfht_iter iter;
-	struct missed_netlink *missed;
-
-	cds_lfht_for_each_entry(missed_netlinks, &iter, missed, hash_node) {
-		jsonw_start_object(wr);
-
-		jsonw_uint_field(wr, "ifindex", missed->ifindex);
-		jsonw_uint_field(wr, "type", missed->type);
-
-		jsonw_end_object(wr);
-	}
-
-	jsonw_end_array(wr);
 
 	jsonw_end_object(wr);
 	jsonw_destroy(&wr);
@@ -3336,7 +3002,6 @@ void if_finish_create(struct ifnet *ifp, const char *ifi_type,
 	if_change_features_mode(ifp, IF_FEAT_MODE_FLAG_NONE);
 
 	incomplete_routes_make_complete();
-	missed_netlink_replay(ifp->if_index);
 }
 
 int if_start(struct ifnet *ifp)

@@ -981,24 +981,6 @@ void incomplete_route_add_pb(const void *dst,
 void incomplete_route_del(const void *dst,
 			  uint8_t family, uint8_t depth, uint32_t table,
 			  uint8_t scope, uint8_t proto);
-void missed_netlink_replay(unsigned int ifindex);
-void missed_nl_inet_addr_add(unsigned int ifindex,
-			     unsigned char family,
-			     const void *addr,
-			     const struct nlmsghdr *nlh);
-void missed_nl_inet_addr_del(unsigned int ifindex,
-			     unsigned char family,
-			     const void *addr);
-void missed_nl_inet_netconf_add(unsigned int ifindex,
-				unsigned char family,
-				const struct nlmsghdr *nlh);
-void missed_nl_inet_netconf_del(unsigned int ifindex,
-				unsigned char family);
-void missed_nl_child_link_add(unsigned int ifindex,
-			      unsigned int child_ifindex,
-			      const struct nlmsghdr *nlh);
-void missed_nl_child_link_del(unsigned int ifindex,
-			      unsigned int child_ifindex);
 void if_set_cont_src(struct ifnet *ifp, enum cont_src_en cont_src);
 bool if_port_is_uplink(portid_t portid);
 bool if_is_control_channel(struct ifnet *ifp);

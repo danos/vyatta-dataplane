@@ -336,8 +336,7 @@ dataplane_tuntap_create(unsigned int if_idx, const char *ifname)
  * Handle creation of software interfaces (tunnels, etc)
  * in response to netlink create message.
  */
-static struct ifnet *unspec_link_create(const struct nlmsghdr *nlh,
-					const struct ifinfomsg *ifi,
+static struct ifnet *unspec_link_create(const struct ifinfomsg *ifi,
 					const char *ifname, struct nlattr *tb[],
 					const char *kind, struct nlattr *kdata,
 					enum cont_src_en cont_src)
@@ -427,7 +426,7 @@ static struct ifnet *unspec_link_create(const struct nlmsghdr *nlh,
 
 		if (!strcmp(kind, "vxlan"))
 			return vxlan_create(ifi, ifname, macaddr, tb, kdata,
-					    cont_src, nlh);
+					    cont_src);
 
 		return NULL;
 	default:
@@ -456,8 +455,8 @@ static struct ifnet *unspec_link_create(const struct nlmsghdr *nlh,
 
 	/* Lower for virtual bridge (e.g. vxl-vbr4) */
 	if (!strcmp(kind, "vxlan"))
-		return vxlan_create(ifi, ifname, macaddr, tb, kdata, cont_src,
-				    nlh);
+		return vxlan_create(ifi, ifname, macaddr, tb, kdata,
+				    cont_src);
 
 	/*
 	 * Used by a local tunnel for a GRE bridge.
@@ -514,9 +513,6 @@ static struct ifnet *unspec_link_create(const struct nlmsghdr *nlh,
 					"ignoring link %u not on top of"
 					" dataplane interface\n",
 					parent_idx);
-			else
-				missed_nl_child_link_add(parent_idx, if_idx,
-							 nlh);
 			return NULL;
 		}
 
@@ -798,7 +794,7 @@ static int unspec_link_change(const struct nlmsghdr *nlh,
 			unspec_link_modify(ifp, ifi, ifname, tb, kind, kdata,
 					   cont_src);
 		} else {
-			ifp = unspec_link_create(nlh, ifi, ifname, tb, kind,
+			ifp = unspec_link_create(ifi, ifname, tb, kind,
 						 kdata, cont_src);
 			if (ifp) {
 				vrfid_t vrf_id;
@@ -848,13 +844,8 @@ static int unspec_link_change(const struct nlmsghdr *nlh,
 			mc_del_if(ifindex);
 			if (ifp)
 				netlink_if_free(ifp);
-			else {
+			else
 				incomplete_if_del_ignored(ifindex);
-				if (tb[IFLA_LINK])
-					missed_nl_child_link_del(
-						mnl_attr_get_u32(tb[IFLA_LINK]),
-						ifindex);
-			}
 		}
 		break;
 	}

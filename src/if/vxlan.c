@@ -1629,7 +1629,7 @@ struct ifnet *
 vxlan_create(const struct ifinfomsg *ifi, const char *ifname,
 	     const struct rte_ether_addr *addr,
 	     struct nlattr *tb[], struct nlattr *data,
-	     enum cont_src_en cont_src, const struct nlmsghdr *nlh)
+	     enum cont_src_en cont_src)
 {
 	struct nlattr *vxlaninfo[IFLA_VXLAN_MAX+1] = { NULL };
 	struct ifnet *ifp;
@@ -1651,22 +1651,16 @@ vxlan_create(const struct ifinfomsg *ifi, const char *ifname,
 
 	if_link = vxlaninfo[IFLA_VXLAN_LINK];
 	if (if_link) {
-		unsigned int link_idx, if_idx;
+		unsigned int link_idx;
 
 		link_idx =
 			cont_src_ifindex(cont_src,
 					 mnl_attr_get_u32(if_link));
-		if_idx = cont_src_ifindex(cont_src,
-					  ifi->ifi_index);
 		if (link_idx != 0) {
 			struct ifnet *pifp = dp_ifnet_byifindex(link_idx);
 
-			if (!pifp) {
-				missed_nl_child_link_add(link_idx,
-							 if_idx,
-							 nlh);
+			if (!pifp)
 				return NULL;
-			}
 		}
 	}
 
