@@ -476,6 +476,7 @@ enum {
 	SHOW_ZONES,
 	SHOW_STATE,
 	RC_SHOW_COUNTERS,
+	RC_CLEAR_COUNTERS,
 	SHOW,
 	CLEAR,
 	FLUSH,
@@ -547,6 +548,10 @@ static const struct npf_command npf_cmd_op[] = {
 	[RC_SHOW_COUNTERS] = {
 		.tokens = "rc show counters",
 		.handler = npf_show_rc_counts,
+	},
+	[RC_CLEAR_COUNTERS] = {
+		.tokens = "rc clear counters",
+		.handler = npf_clear_rc_counts,
 	},
 	[SHOW_STATE] = {
 		.tokens = "state",

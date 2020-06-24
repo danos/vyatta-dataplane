@@ -196,5 +196,6 @@ const char *npf_rc_detail_str(int rc);
  * Show/clear return code counters
  */
 int npf_show_rc_counts(FILE *f, int argc, char **argv);
+int npf_clear_rc_counts(FILE *f, int argc, char **argv);
 
 #endif	/* _NPF_RC_H_ */

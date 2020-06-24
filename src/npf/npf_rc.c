@@ -523,3 +523,70 @@ int npf_show_rc_counts(FILE *f, int argc, char **argv)
 	jsonw_destroy(&json);
 	return 0;
 }
+
+static void npf_clear_rc_counts_intf(struct ifnet *ifp, void *arg)
+{
+	struct rcc_ctx *ctx = arg;
+	struct npf_rc_counts *rcc;
+	enum npf_rc_type rct;
+	enum npf_rc_dir dir;
+	enum npf_rc_en rc;
+	uint i;
+
+	rcc = npf_if_get_rcc(ifp);
+	if (!rcc || !ctx)
+		return;
+
+	/* For each core .. */
+	FOREACH_DP_LCORE(i)
+		/* For each rc type .. */
+		for (rct = 0; rct < NPF_RCT_SZ; rct++) {
+			if (ctx->ctx_rct != NPF_RCT_ALL && ctx->ctx_rct != rct)
+				continue;
+
+			/* For 'inbound' and 'outbound' .. */
+			for (dir = 0; dir < NPF_DIR_SZ; dir++) {
+				if (ctx->ctx_dir != NPF_DIR_ALL &&
+				    ctx->ctx_dir != dir)
+					continue;
+
+				/* For each return code count .. */
+				for (rc = 0; rc < NPF_RC_SZ; rc++) {
+					enum rc_ctrl_cat cat;
+
+					cat = npf_rc_ctrl[dir][rc].cat;
+					if (ctx->ctx_cat != RC_CAT_ALL &&
+					    ctx->ctx_cat != cat)
+						continue;
+
+					rcc[i].type[rct].dir[dir].count[rc] =
+						0UL;
+				}
+			}
+		}
+
+}
+
+/*
+ * Clear return code counters
+ *
+ * [npf-op rc clear counters] vrf <id> type <type>
+ */
+int npf_clear_rc_counts(FILE *f, int argc, char **argv)
+{
+	struct rcc_ctx ctx = { 0 };
+	int rc;
+
+	/* Parse the arguments */
+	rc = npf_rc_counts_parse(f, argc, argv, &ctx);
+	if (rc < 0)
+		return rc;
+
+	if (ctx.ctx_ifp)
+		npf_clear_rc_counts_intf(ctx.ctx_ifp, &ctx);
+	else
+		dp_ifnet_walk(npf_clear_rc_counts_intf, &ctx);
+
+	return 0;
+}
+
