@@ -105,7 +105,7 @@ static void npf_rc_ctrl_init(void)
 					 RCT_BIT_NAT64);
 				break;
 
-			/* NAT related return codes */
+			/* NAT and NAT64 */
 			case NPF_RC_L3_SHORT:
 			case NPF_RC_MBUF_ENOMEM:
 			case NPF_RC_NAT_ENOSPC:
@@ -114,6 +114,11 @@ static void npf_rc_ctrl_init(void)
 			case NPF_RC_NAT_ERANGE:
 			case NPF_RC_NAT_E2BIG:
 			case NPF_RC_ICMP_ERR_NAT:
+				npf_rc_ctrl[dir][rc].bm |=
+					(RCT2BIT(NPF_RCT_FW4 | NPF_RCT_NAT64));
+				break;
+
+			/* NAT only */
 			case NPF_RC_ALG_EEXIST:
 			case NPF_RC_ALG_ERR:
 				npf_rc_ctrl[dir][rc].bm |=
@@ -123,6 +128,8 @@ static void npf_rc_ctrl_init(void)
 			/* NAT64 only */
 			case NPF_RC_NAT64_4T6:
 			case NPF_RC_NAT64_6T4:
+			case NPF_RC_NAT64_6052:
+			case NPF_RC_MBUF_ERR:
 				npf_rc_ctrl[dir][rc].bm |=
 					RCT2BIT(NPF_RCT_NAT64);
 				break;
@@ -154,6 +161,7 @@ static void npf_rc_ctrl_init(void)
 			case NPF_RC_DP_SESS_ESTB:
 			case NPF_RC_L3_SHORT:
 			case NPF_RC_MBUF_ENOMEM:
+			case NPF_RC_MBUF_ERR:
 			case NPF_RC_NAT_ENOSPC:
 			case NPF_RC_NAT_ENOMEM:
 			case NPF_RC_NAT_EADDRINUSE:
@@ -162,6 +170,7 @@ static void npf_rc_ctrl_init(void)
 			case NPF_RC_ICMP_ERR_NAT:
 			case NPF_RC_ALG_EEXIST:
 			case NPF_RC_ALG_ERR:
+			case NPF_RC_NAT64_6052:
 			case NPF_RC_INTL:
 				npf_rc_ctrl[dir][rc].cat = RC_CAT_DROP;
 				break;
@@ -240,6 +249,8 @@ const char *npf_rc_str(int rc)
 		return "RC_TCP_WIN";
 	case NPF_RC_SESS_ENOMEM:
 		return "RC_SESS_ENOMEM";
+	case NPF_RC_MBUF_ERR:
+		return "RC_MBUF_ERR";
 	case NPF_RC_SESS_LIMIT:
 		return "RC_SESS_LIMIT";
 	case NPF_RC_SESS_HOOK:
@@ -268,6 +279,8 @@ const char *npf_rc_str(int rc)
 		return "RC_NAT64_4T6";
 	case NPF_RC_NAT64_6T4:
 		return "RC_NAT64_6T4";
+	case NPF_RC_NAT64_6052:
+		return "RC_NAT64_6052";
 	case NPF_RC_INTL:
 		break;
 	};
@@ -317,6 +330,8 @@ const char *npf_rc_detail_str(int rc)
 		return "failed to create dataplane session";
 	case NPF_RC_MBUF_ENOMEM:
 		return "failed to allocate packet memory";
+	case NPF_RC_MBUF_ERR:
+		return "failed to prepend or adjust packet buffer";
 	case NPF_RC_NAT_ENOSPC:
 		return "failed to get NAT port mapping";
 	case NPF_RC_NAT_ENOMEM:
@@ -337,6 +352,8 @@ const char *npf_rc_detail_str(int rc)
 		return "NAT64 IPv4 to IPv6 Ok";
 	case NPF_RC_NAT64_6T4:
 		return "NAT64 IPv6 to IPv4 Ok";
+	case NPF_RC_NAT64_6052:
+		return "failed to extract or encode rfc6052 NAT64 addr";
 	case NPF_RC_INTL:
 		break;
 	};

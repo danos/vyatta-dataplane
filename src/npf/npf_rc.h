@@ -201,6 +201,12 @@ enum npf_rc_en {
 	/* Unspecified ALG error */
 	NPF_RC_ALG_ERR,
 
+	/* Error extracting/inserting v4 addrs from/into v6 addrs */
+	NPF_RC_NAT64_6052,
+
+	/* Failed to prepend or adj pktmbuf */
+	NPF_RC_MBUF_ERR,
+
 	NPF_RC_INTL,	/* Internal error */
 };
 #define NPF_RC_LAST	NPF_RC_INTL
