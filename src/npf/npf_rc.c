@@ -128,7 +128,10 @@ static void npf_rc_ctrl_init(void)
 			/* NAT64 only */
 			case NPF_RC_NAT64_4T6:
 			case NPF_RC_NAT64_6T4:
+			case NPF_RC_NAT64_ENOSPC:
+			case NPF_RC_NAT64_ENOMEM:
 			case NPF_RC_NAT64_6052:
+			case NPF_RC_L4_PROTO:
 			case NPF_RC_MBUF_ERR:
 				npf_rc_ctrl[dir][rc].bm |=
 					RCT2BIT(NPF_RCT_NAT64);
@@ -150,6 +153,7 @@ static void npf_rc_ctrl_init(void)
 				npf_rc_ctrl[dir][rc].cat = RC_CAT_BLOCK;
 				break;
 			case NPF_RC_L3_PROTO:
+			case NPF_RC_L4_PROTO:
 			case NPF_RC_L4_SHORT:
 			case NPF_RC_ICMP_ECHO:
 			case NPF_RC_TCP_SYN:
@@ -170,6 +174,8 @@ static void npf_rc_ctrl_init(void)
 			case NPF_RC_ICMP_ERR_NAT:
 			case NPF_RC_ALG_EEXIST:
 			case NPF_RC_ALG_ERR:
+			case NPF_RC_NAT64_ENOSPC:
+			case NPF_RC_NAT64_ENOMEM:
 			case NPF_RC_NAT64_6052:
 			case NPF_RC_INTL:
 				npf_rc_ctrl[dir][rc].cat = RC_CAT_DROP;
@@ -237,6 +243,8 @@ const char *npf_rc_str(int rc)
 		return "RC_L4_SHORT";
 	case NPF_RC_L3_PROTO:
 		return "RC_L3_PROTO";
+	case NPF_RC_L4_PROTO:
+		return "RC_L4_PROTO";
 	case NPF_RC_ICMP_ECHO:
 		return "RC_ICMP_ECHO";
 	case NPF_RC_ENOSTR:
@@ -249,8 +257,6 @@ const char *npf_rc_str(int rc)
 		return "RC_TCP_WIN";
 	case NPF_RC_SESS_ENOMEM:
 		return "RC_SESS_ENOMEM";
-	case NPF_RC_MBUF_ERR:
-		return "RC_MBUF_ERR";
 	case NPF_RC_SESS_LIMIT:
 		return "RC_SESS_LIMIT";
 	case NPF_RC_SESS_HOOK:
@@ -259,6 +265,8 @@ const char *npf_rc_str(int rc)
 		return "RC_DP_SESS_ESTB";
 	case NPF_RC_MBUF_ENOMEM:
 		return "RC_MBUF_ENOMEM";
+	case NPF_RC_MBUF_ERR:
+		return "RC_MBUF_ERR";
 	case NPF_RC_NAT_ENOSPC:
 		return "RC_NAT_ENOSPC";
 	case NPF_RC_NAT_ENOMEM:
@@ -279,6 +287,10 @@ const char *npf_rc_str(int rc)
 		return "RC_NAT64_4T6";
 	case NPF_RC_NAT64_6T4:
 		return "RC_NAT64_6T4";
+	case NPF_RC_NAT64_ENOSPC:
+		return "RC_NAT64_ENOSPC";
+	case NPF_RC_NAT64_ENOMEM:
+		return "RC_NAT64_ENOMEM";
 	case NPF_RC_NAT64_6052:
 		return "RC_NAT64_6052";
 	case NPF_RC_INTL:
@@ -310,6 +322,8 @@ const char *npf_rc_detail_str(int rc)
 		return "invalid layer 3 header";
 	case NPF_RC_L4_SHORT:
 		return "invalid layer 4 header";
+	case NPF_RC_L4_PROTO:
+		return "invalid layer 4 protocol";
 	case NPF_RC_ICMP_ECHO:
 		return "unsolicited ICMP echo reply";
 	case NPF_RC_ENOSTR:
@@ -349,9 +363,13 @@ const char *npf_rc_detail_str(int rc)
 	case NPF_RC_ALG_ERR:
 		return "ALG error";
 	case NPF_RC_NAT64_4T6:
-		return "NAT64 IPv4 to IPv6 Ok";
+		return "IPv4 to IPv6";
 	case NPF_RC_NAT64_6T4:
-		return "NAT64 IPv6 to IPv4 Ok";
+		return "IPv6 to IPv4";
+	case NPF_RC_NAT64_ENOSPC:
+		return "Failed to get NAT64 port mapping";
+	case NPF_RC_NAT64_ENOMEM:
+		return "Failed to allocate NAT64 memory";
 	case NPF_RC_NAT64_6052:
 		return "failed to extract or encode rfc6052 NAT64 addr";
 	case NPF_RC_INTL:
@@ -434,8 +452,16 @@ npf_show_rc_dir_detail(json_writer_t *json, struct npf_rc_counts *rcc,
 {
 	enum npf_rc_en rc;
 	uint64_t count;
+	bool exception = false;
 
-	if (!ctx->ctx_detail)
+	/*
+	 * We make an exception for nat64, and always return the ipv4-to-ipv6
+	 * and ipv6-to-ipv4 counts
+	 */
+	if (rct == NPF_RCT_NAT64 && cat == RC_CAT_PASS)
+		exception = true;
+
+	if (!ctx->ctx_detail && !exception)
 		return;
 
 	jsonw_name(json, "detail");

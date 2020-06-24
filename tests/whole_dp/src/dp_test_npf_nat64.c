@@ -174,8 +174,8 @@ nat64_nat64_hook_v6_in(const char *ifname, struct dp_test_pkt_desc_t *pdesc,
 		dp_test_fail_unless(se6,
 				    "An IPv6 session should already exist");
 	}
-	decision = npf_nat64_6to4_in(npf_config, &se6,
-				     ifp, npc, &mbuf, npf_flags);
+	decision = npf_nat64_6to4_in(npf_config, &se6, ifp, npc, &mbuf,
+				     npf_flags, &error);
 
 	/*
 	 * Verify outcome of nat64_hook
@@ -280,7 +280,7 @@ nat64_nat64_hook_v4_out(const char *ifname, struct rte_mbuf *mbuf,
 		dp_test_fail_unless(se4,
 				    "An IPv4 session should already exist");
 
-	decision = npf_nat64_6to4_out(&se4, ifp, npc, &mbuf, npf_flags);
+	decision = npf_nat64_6to4_out(&se4, ifp, npc, &mbuf, npf_flags, &error);
 
 	dp_test_fail_unless(decision == NAT64_DECISION_PASS,
 			    "Expected PASS, got %s",
@@ -356,8 +356,8 @@ nat64_nat64_hook_v4_in(const char *ifname, struct dp_test_pkt_desc_t *pdesc,
 		dp_test_fail_unless(se4,
 				    "An IPv4 session should already exist");
 	}
-	decision = npf_nat64_4to6_in(npf_config, &se4,
-				     ifp, npc, &mbuf, npf_flags);
+	decision = npf_nat64_4to6_in(npf_config, &se4, ifp, npc, &mbuf,
+				     npf_flags, &error);
 
 	/*
 	 * Verify outcome of nat64_hook
@@ -455,7 +455,7 @@ nat64_nat64_hook_v6_out(const char *ifname, struct rte_mbuf *mbuf,
 		dp_test_fail_unless(se6,
 				    "An IPv6 session should already exist");
 
-	decision = npf_nat64_4to6_out(&se6, ifp, npc, &mbuf, npf_flags);
+	decision = npf_nat64_4to6_out(&se6, ifp, npc, &mbuf, npf_flags, &error);
 
 	dp_test_fail_unless(decision == NAT64_DECISION_PASS,
 			    "Expected PASS, got %s",

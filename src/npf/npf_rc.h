@@ -136,6 +136,9 @@ enum npf_rc_en {
 	/* L3 protocol value does not match pkt addr family */
 	NPF_RC_L3_PROTO,
 
+	/* No L4 ports or not ICMP echo */
+	NPF_RC_L4_PROTO,
+
 	/*
 	 * If a ping session does not exist, it can only be created by an ICMP
 	 * echo request. If it exists, the fwd direction will conditionally
@@ -200,6 +203,12 @@ enum npf_rc_en {
 
 	/* Unspecified ALG error */
 	NPF_RC_ALG_ERR,
+
+	/* No translation ports available */
+	NPF_RC_NAT64_ENOSPC,
+
+	/* nat64 malloc failure */
+	NPF_RC_NAT64_ENOMEM,
 
 	/* Error extracting/inserting v4 addrs from/into v6 addrs */
 	NPF_RC_NAT64_6052,
@@ -269,6 +278,26 @@ npf_rc_inc(struct ifnet *ifp, enum npf_rc_type rct, enum npf_rc_dir dir, int rc,
 		return;
 
 	rcc[dp_lcore_id()].type[rct].dir[dir].count[rc]++;
+}
+
+/*
+ * NAT64 uses a different decision type
+ */
+static ALWAYS_INLINE void
+npf_rc_inc_nat64(struct ifnet *ifp, enum npf_rc_dir dir, int rc)
+{
+	assert(dir == NPF_RC_IN || dir == NPF_RC_OUT);
+
+	if (likely(rc < 0))
+		rc = -rc;
+	if (unlikely(rc > NPF_RC_LAST))
+		rc = NPF_RC_INTL;
+
+	struct npf_rc_counts *rcc = npf_if_get_rcc(ifp);
+	if (unlikely(!rcc))
+		return;
+
+	rcc[dp_lcore_id()].type[NPF_RCT_NAT64].dir[dir].count[rc]++;
 }
 
 /*

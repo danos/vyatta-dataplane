@@ -99,7 +99,7 @@ nat64_in_process_common(struct pl_packet *pkt, struct npf_if *nif, bool v4,
 	npf_session_t *se;
 	npf_cache_t *npc;
 	int rc = NPF_RC_UNMATCHED;
-	int rv;
+	int rv = v4 ? IPV4_NAT46_IN_ACCEPT : IPV6_NAT64_IN_ACCEPT;
 
 	npf_flags = pkt->npf_flags;
 	m = pkt->mbuf;
@@ -116,7 +116,11 @@ nat64_in_process_common(struct pl_packet *pkt, struct npf_if *nif, bool v4,
 
 	if (!npf_active(nif_config, v4 ? NPF_NAT46 : NPF_NAT64) &&
 	    !npf_session_is_nat64(se))
-		goto end;
+		/*
+		 * We don't want to increment the rc counter when there is no
+		 * nat64 config or session on an interface.
+		 */
+		return rv;
 
 	/*
 	 * Either we found a nat64 session, or there is nat64 config on the
@@ -124,11 +128,11 @@ nat64_in_process_common(struct pl_packet *pkt, struct npf_if *nif, bool v4,
 	 */
 	/* Hook */
 	if (v4)
-		decision = npf_nat64_4to6_in(nif_config, &se,
-					     ifp, npc, &m, &npf_flags);
+		decision = npf_nat64_4to6_in(nif_config, &se, ifp, npc,
+					     &m, &npf_flags, &rc);
 	else
-		decision = npf_nat64_6to4_in(nif_config, &se,
-					     ifp, npc, &m, &npf_flags);
+		decision = npf_nat64_6to4_in(nif_config, &se, ifp, npc,
+					     &m, &npf_flags, &rc);
 
 	if (se) {
 		if (decision != NAT64_DECISION_DROP) {
@@ -187,7 +191,7 @@ end:
 	};
 
 	/* Increment return code counter */
-	npf_rc_inc(ifp, NPF_RCT_NAT64, NPF_RC_IN, rc, decision);
+	npf_rc_inc_nat64(ifp, NPF_RC_IN, rc);
 
 	return rv;
 }
@@ -195,6 +199,8 @@ end:
 
 /*
  * NAT64 Common Output Process
+ *
+ * This function will *only* be called for packets that have switched paths.
  */
 static ALWAYS_INLINE unsigned int
 nat64_out_process_common(struct pl_packet *pkt, bool v4, uint16_t eth_type)
@@ -206,7 +212,7 @@ nat64_out_process_common(struct pl_packet *pkt, bool v4, uint16_t eth_type)
 	npf_session_t *se;
 	npf_cache_t *npc;
 	int rc = NPF_RC_UNMATCHED;
-	int rv;
+	int rv = v4 ? IPV4_NAT64_OUT_ACCEPT : IPV6_NAT46_OUT_ACCEPT;
 
 	npf_flags = pkt->npf_flags;
 	m = pkt->mbuf;
@@ -222,9 +228,11 @@ nat64_out_process_common(struct pl_packet *pkt, bool v4, uint16_t eth_type)
 
 	/* Hook */
 	if (v4)
-		decision = npf_nat64_6to4_out(&se, ifp, npc, &m, &npf_flags);
+		decision = npf_nat64_6to4_out(&se, ifp, npc, &m, &npf_flags,
+					      &rc);
 	else
-		decision = npf_nat64_4to6_out(&se, ifp, npc, &m, &npf_flags);
+		decision = npf_nat64_4to6_out(&se, ifp, npc, &m, &npf_flags,
+					      &rc);
 
 	if (se) {
 		if (decision != NAT64_DECISION_DROP) {
@@ -274,7 +282,7 @@ end:
 	};
 
 	/* Increment return code counter */
-	npf_rc_inc(ifp, NPF_RCT_NAT64, NPF_RC_OUT, rc, decision);
+	npf_rc_inc_nat64(ifp, NPF_RC_OUT, rc);
 
 	return rv;
 }
