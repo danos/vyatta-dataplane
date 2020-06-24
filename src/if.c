@@ -1955,48 +1955,6 @@ void if_rename(struct ifnet *ifp, const char *ifname)
 	cross_connect_rename(ifp, ifname);
 }
 
-/*
- * A list of partially defined hardware ports. That is, the port has
- * been registered with the controller (the name has been returned),
- * waiting for the associated ifindex, either via a NEWLINK or via the
- * ADDPORT response.
- */
-static zhash_t *if_hwport_incomplete;
-
-static void if_hwport_incomplete_cleanup(void)
-{
-	zhash_destroy(&if_hwport_incomplete);
-}
-
-static void if_hwport_incomplete_init(void)
-{
-	if_hwport_incomplete = zhash_new();
-	if (if_hwport_incomplete == NULL)
-		rte_panic(
-			"Cannot allocate zhash for incomplete HW interfaces\n"
-			);
-}
-
-int if_hwport_incomplete_add(struct ifnet *ifp, const char *ifname)
-{
-	if ((ifp == NULL) || (ifname == NULL))
-		return -EINVAL;
-
-	if (zhash_insert(if_hwport_incomplete, ifname, ifp) < 0)
-		return -ENOMEM;
-
-	return 0;
-}
-
-struct ifnet *if_hwport_incomplete_get(const char *ifname)
-{
-	struct ifnet *ifp;
-
-	ifp = zhash_lookup(if_hwport_incomplete, ifname);
-	zhash_delete(if_hwport_incomplete, ifname);
-	return ifp;
-}
-
 struct incomplete_if_stats {
 	uint64_t if_ignore_add;
 	uint64_t if_ignore_del;
@@ -2059,8 +2017,6 @@ void incomplete_interface_init(void)
 					  NULL);
 	if (!ignored_interfaces)
 		rte_panic("Can't allocate hash for ignored interfaces\n");
-
-	if_hwport_incomplete_init();
 }
 
 static void
@@ -2098,8 +2054,6 @@ void incomplete_interface_cleanup(void)
 		call_rcu(&ignored->if_rcu, ignored_if_free);
 	}
 	cds_lfht_destroy(ignored_interfaces, NULL);
-
-	if_hwport_incomplete_cleanup();
 }
 
 static inline int ignored_interface_match_fn(struct cds_lfht_node *node,
