@@ -1,3 +1,13 @@
+vyatta-dataplane (3.10.36) unstable; urgency=medium
+
+  * control: add a comment to request new commands in protobuf format
+  * dpdk_eth_if: don't dump ports that have been unplugged
+  * if: in ifnet_byethname skip over unplugged interfaces
+  * hotplug: mark the interface as unplugged at the start of processing
+  * dpdk_eth_if: don't assume that info.driver_name is valid
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Wed, 24 Jun 2020 09:07:45 +0100
+
 vyatta-dataplane (3.10.35) unstable; urgency=medium
 
   [ Shweta Choudaha ]
