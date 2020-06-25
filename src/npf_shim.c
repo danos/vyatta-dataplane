@@ -534,6 +534,7 @@ npf_local_dnat(struct rte_mbuf **m, npf_cache_t *npc, npf_session_t *se)
 bool npf_local_fw(struct ifnet *ifp, struct rte_mbuf **m, uint16_t ether_type)
 {
 	struct npf_if *nif = rcu_dereference(ifp->if_npf);
+	bool rv = false;
 
 	/*
 	 * If there is no npf config on the input interface then jump straight
@@ -548,8 +549,10 @@ bool npf_local_fw(struct ifnet *ifp, struct rte_mbuf **m, uint16_t ether_type)
 
 	npf_cache_init(&npc);
 
-	if (npf_cache_all(&npc, *m, ether_type) < 0)
-		return true;	/* discard */
+	if (npf_cache_all(&npc, *m, ether_type) < 0) {
+		rv = true;	/* discard */
+		goto end;
+	}
 
 	/* Find the session */
 	npf_session_t *se = npf_session_find_cached(*m);
@@ -572,8 +575,10 @@ bool npf_local_fw(struct ifnet *ifp, struct rte_mbuf **m, uint16_t ether_type)
 	 */
 	if (unlikely(npf_zone_local_is_set() &&
 		     !npf_iscached(&npc, NPC_IPFRAG))) {
-		if (npf_local_zone_hook(ifp, m, &npc, se, nif))
-			return true;	/* discard */
+		if (npf_local_zone_hook(ifp, m, &npc, se, nif)) {
+			rv = true;	/* discard */
+			goto end;
+		}
 	}
 
 skip_local_zone:
@@ -590,8 +595,10 @@ skip_local_zone:
 		   npf_active(npf_config, NPF_DNAT)) &&
 	    !pktmbuf_mdata_exists(*m, PKT_MDATA_DNAT)) {
 
-		if (npf_local_dnat(m, &npc, se))
-			return true;
+		if (npf_local_dnat(m, &npc, se)) {
+			rv = true;
+			goto end;
+		}
 	}
 
 	/*
@@ -603,10 +610,13 @@ skip_local_zone:
 		result = npf_hook_notrack(npf_get_ruleset(npf_config,
 					  NPF_RS_LOCAL), m, ifp, PFIL_IN, 0,
 					  ether_type, NULL);
-		if (result.decision == NPF_DECISION_BLOCK)
-			return true;	/* discard */
-		else if (result.decision == NPF_DECISION_PASS)
-			return false;	/* retain */
+		if (result.decision == NPF_DECISION_BLOCK) {
+			rv = true;	/* discard */
+			goto end;
+		} else if (result.decision == NPF_DECISION_PASS) {
+			rv = false;	/* retain */
+			goto end;
+		}
 
 		/* No match, so try the global firewall rules. */
 	}
@@ -619,10 +629,11 @@ global_fw:
 					  NPF_RS_LOCAL), m, ifp, PFIL_IN, 0,
 					  ether_type, NULL);
 		if (result.decision == NPF_DECISION_BLOCK)
-			return true;	/* discard */
+			rv = true;	/* discard */
 	}
 
-	return false;
+end:
+	return rv;
 }
 
 bool npf_originate_fw(struct ifnet *ifp, uint16_t npf_flags,
@@ -630,6 +641,7 @@ bool npf_originate_fw(struct ifnet *ifp, uint16_t npf_flags,
 {
 	struct npf_if *nif = rcu_dereference(ifp->if_npf);
 	const struct npf_config *npf_config = npf_if_conf(nif);
+	bool rv = false;
 
 	/*
 	 * Local zone firewall will be done in fw_out processing
@@ -642,10 +654,13 @@ bool npf_originate_fw(struct ifnet *ifp, uint16_t npf_flags,
 				NPF_RS_ORIGINATE), m, ifp, PFIL_OUT, npf_flags,
 					  ether_type, NULL);
 
-		if (result.decision == NPF_DECISION_BLOCK)
-			return true;	/* discard */
-		else if (result.decision == NPF_DECISION_PASS)
-			return false;	/* retain */
+		if (result.decision == NPF_DECISION_BLOCK) {
+			rv = true;	/* discard */
+			goto end;
+		} else if (result.decision == NPF_DECISION_PASS) {
+			rv = false;	/* retain */
+			goto end;
+		}
 	}
 
 	/* No match, so try the global firewall rules. */
@@ -657,9 +672,10 @@ bool npf_originate_fw(struct ifnet *ifp, uint16_t npf_flags,
 					  ether_type, NULL);
 
 		if (result.decision == NPF_DECISION_BLOCK)
-			return true;	/* discard */
+			rv = true;	/* discard */
 	}
-	return false;
+end:
+	return rv;
 }
 
 /*
