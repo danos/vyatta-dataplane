@@ -129,7 +129,6 @@ CORE_FILES = \
 	src/cpp_rate_limiter.c \
 	src/dealer.c \
 	src/debug.c \
-	src/devinfo.c \
 	src/dp_event.c \
 	src/ecmp.c \
 	src/ether.c \
@@ -142,6 +141,7 @@ CORE_FILES = \
 	src/if/bridge/bridge_port.c \
 	src/if/bridge/switch.c \
 	src/if/dpdk-eth/hotplug.c \
+	src/if/dpdk-eth/devinfo.c \
 	src/if/dpdk-eth/dpdk_eth_if.c \
 	src/if/dpdk-eth/dpdk_eth_linkwatch.c \
 	src/if/dpdk-eth/dpdk_lag.c \

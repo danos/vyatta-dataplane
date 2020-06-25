@@ -46,6 +46,7 @@
 #include "dp_event.h"
 #include "dpmsg.h"
 #include "event_internal.h"
+#include "if/dpdk-eth/dpdk_eth_if.h"
 #include "if/dpdk-eth/hotplug.h"
 #include "if_ether.h"
 #include "if_var.h"
@@ -588,7 +589,7 @@ static int ini_port_request(enum cont_src_en cont_src, zsock_t *zsock,
 	if (!msg)
 		return -ENOMEM;
 
-	char *devinfo = if_port_info(ifp);
+	char *devinfo = dpdk_eth_vplaned_devinfo(ifp->if_port);
 	if (!devinfo) {
 		zmsg_destroy(&msg);
 		return -ENOMEM;

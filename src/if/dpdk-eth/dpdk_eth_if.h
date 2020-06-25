@@ -54,4 +54,6 @@ void dpdk_eth_if_update_port_queue_state(struct ifnet *ifp);
 bool dpdk_eth_if_port_started(portid_t port);
 void dpdk_eth_if_reset_port(struct rte_timer *tim, void *arg);
 
+char *dpdk_eth_vplaned_devinfo(portid_t port_id);
+
 #endif /* DPDK_ETH_IF_H */

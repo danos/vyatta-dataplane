@@ -716,8 +716,6 @@ void fal_if_update_forwarding_all(struct ifnet *ifp);
 void fal_if_update_forwarding(struct ifnet *ifp, uint8_t family,
 			      bool multicast);
 
-char *if_port_info(const struct ifnet *ifp);
-
 static inline struct ifnet *ifnet_byport(portid_t port)
 {
 	if (likely(port < DATAPLANE_MAX_PORTS))
