@@ -37,6 +37,7 @@
 #include "vplane_log.h"
 
 static const char *config_file = VYATTA_SYSCONF_DIR"/dataplane.conf";
+const char *platform_file = PLATFORM_FILE;
 
 #define DEFAULT_CONTROLLER_REQ_PORT	4415
 #define DEFAULT_CONTROLLER_REQ_IPC	"ipc:///var/run/vyatta/vplaned.req"
@@ -265,6 +266,16 @@ static char *default_endpoint_dataplane_uplink(void)
 void set_config_file(const char *filename)
 {
 	config_file = filename;
+}
+
+void set_platform_cfg_file(const char *filename)
+{
+	platform_file = filename;
+}
+
+const char *get_platform_cfg_file(void)
+{
+	return platform_file;
 }
 
 /* Load config file and do sanity checks */
@@ -828,7 +839,7 @@ int dp_parse_config_files(dp_parse_config_fn *parser_fn,
 		return rc;
 
 	/* The platform config file may exist */
-	f  = fopen(PLATFORM_FILE, "r");
+	f  = fopen(platform_file, "r");
 	if (!f)
 		return 0;
 
