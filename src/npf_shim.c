@@ -69,6 +69,9 @@ npf_hook_notrack(const npf_ruleset_t *rlset, struct rte_mbuf **m,
 	uint32_t tag_val = 0;
 	bool tag_set = false;
 	npf_rule_t *rl;
+	npf_rproc_result_t rproc_result = {
+		.decision = NPF_DECISION_UNMATCHED,
+	};
 
 	if (npf_ruleset_uses_cache(rlset)) {
 		int rc = 0;
@@ -103,9 +106,7 @@ npf_hook_notrack(const npf_ruleset_t *rlset, struct rte_mbuf **m,
 
 	rl = npf_ruleset_inspect(n, *m, rlset, NULL, ifp, dir);
 
-	npf_rproc_result_t rproc_result = {
-		.decision = npf_rule_decision(rl),
-	};
+	rproc_result.decision = npf_rule_decision(rl);
 
 	if (rproc_result.decision != NPF_DECISION_UNMATCHED) {
 		/* Log any matched rule immediately */

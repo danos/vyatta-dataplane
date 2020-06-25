@@ -61,6 +61,7 @@
 #include "npf/config/npf_config.h"
 #include "npf/config/npf_ruleset_type.h"
 #include "npf/npf_if.h"
+#include "npf/npf_rc.h"
 #include "npf_shim.h"
 #include "pipeline/nodes/pl_nodes_common.h"
 #include "pl_common.h"
@@ -1273,11 +1274,15 @@ void bridge_output(struct ifnet *ifp, struct rte_mbuf *m,
 	if (npf_active(npf_config, NPF_BRIDGE) &&
 	    eh->ether_type != htons(RTE_ETHER_TYPE_ARP)) {
 		npf_result_t result;
+		int rc = NPF_RC_UNMATCHED;
 
 		result = npf_hook_notrack(npf_get_ruleset(npf_config,
 					  NPF_RS_BRIDGE), &m, ifp, PFIL_IN, 0,
 					  ethtype(m, RTE_ETHER_TYPE_VLAN),
-					  NULL);
+					  &rc);
+
+		/* Increment return code counter */
+		npf_rc_inc(ifp, NPF_RCT_L2, NPF_RC_OUT, rc, result.decision);
 
 		if (result.decision != NPF_DECISION_PASS)
 			goto drop;
@@ -1487,11 +1492,15 @@ void bridge_input(struct bridge_port *port, struct rte_mbuf *m)
 	if (npf_active(npf_config, NPF_BRIDGE) &&
 			       eh->ether_type != htons(RTE_ETHER_TYPE_ARP)) {
 		npf_result_t result;
+		int rc = NPF_RC_UNMATCHED;
 
 		result = npf_hook_notrack(npf_get_ruleset(npf_config,
 					  NPF_RS_BRIDGE), &m, brif, PFIL_IN, 0,
 					  ethtype(m, RTE_ETHER_TYPE_VLAN),
-					  NULL);
+					  &rc);
+
+		/* Increment return code counter */
+		npf_rc_inc(ifp, NPF_RCT_L2, NPF_RC_IN, rc, result.decision);
 
 		if (result.decision != NPF_DECISION_PASS)
 			goto ignore;
