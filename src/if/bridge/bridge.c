@@ -1276,7 +1276,9 @@ void bridge_output(struct ifnet *ifp, struct rte_mbuf *m,
 
 		result = npf_hook_notrack(npf_get_ruleset(npf_config,
 					  NPF_RS_BRIDGE), &m, ifp, PFIL_IN, 0,
-					  ethtype(m, RTE_ETHER_TYPE_VLAN));
+					  ethtype(m, RTE_ETHER_TYPE_VLAN),
+					  NULL);
+
 		if (result.decision != NPF_DECISION_PASS)
 			goto drop;
 
@@ -1488,7 +1490,9 @@ void bridge_input(struct bridge_port *port, struct rte_mbuf *m)
 
 		result = npf_hook_notrack(npf_get_ruleset(npf_config,
 					  NPF_RS_BRIDGE), &m, brif, PFIL_IN, 0,
-					  ethtype(m, RTE_ETHER_TYPE_VLAN));
+					  ethtype(m, RTE_ETHER_TYPE_VLAN),
+					  NULL);
+
 		if (result.decision != NPF_DECISION_PASS)
 			goto ignore;
 

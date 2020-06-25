@@ -63,15 +63,16 @@ struct npf_config *npf_global_config __hot_data;
 npf_result_t
 npf_hook_notrack(const npf_ruleset_t *rlset, struct rte_mbuf **m,
 		 struct ifnet *ifp, int dir, uint16_t npf_flags,
-		 uint16_t eth_type)
+		 uint16_t eth_type, int *rcp)
 {
 	npf_cache_t npc, *n = NULL;
 	uint32_t tag_val = 0;
 	bool tag_set = false;
 	npf_rule_t *rl;
-	int rc = 0;
 
 	if (npf_ruleset_uses_cache(rlset)) {
+		int rc = 0;
+
 		/*
 		 * Use the global per-core cache if the packet has been
 		 * reassembled, else use a local cache
@@ -80,16 +81,23 @@ npf_hook_notrack(const npf_ruleset_t *rlset, struct rte_mbuf **m,
 		 */
 		if (pktmbuf_mdata_exists(*m, PKT_MDATA_DEFRAG)) {
 			n = npf_get_cache(&npf_flags, *m, eth_type, &rc);
-			if (!n)
+			if (!n) {
+				if (rcp)
+					*rcp = rc;
 				goto result;
+			}
 		} else {
 			n = &npc;
 			/* Initialize packet information cache.	 */
 			npf_cache_init(n);
 
 			/* Cache everything. drop if junk. */
-			if (unlikely(npf_cache_all(n, *m, eth_type) < 0))
+			rc = npf_cache_all(n, *m, eth_type);
+			if (unlikely(rc < 0)) {
+				if (rcp)
+					*rcp = rc;
 				goto result;
+			}
 		}
 	}
 
@@ -593,7 +601,7 @@ skip_local_zone:
 
 		result = npf_hook_notrack(npf_get_ruleset(npf_config,
 					  NPF_RS_LOCAL), m, ifp, PFIL_IN, 0,
-					  ether_type);
+					  ether_type, NULL);
 		if (result.decision == NPF_DECISION_BLOCK)
 			return true;	/* discard */
 		else if (result.decision == NPF_DECISION_PASS)
@@ -608,7 +616,7 @@ global_fw:
 
 		result = npf_hook_notrack(npf_get_ruleset(npf_global_config,
 					  NPF_RS_LOCAL), m, ifp, PFIL_IN, 0,
-					  ether_type);
+					  ether_type, NULL);
 		if (result.decision == NPF_DECISION_BLOCK)
 			return true;	/* discard */
 	}
@@ -631,7 +639,7 @@ bool npf_originate_fw(struct ifnet *ifp, uint16_t npf_flags,
 
 		result = npf_hook_notrack(npf_get_ruleset(npf_config,
 				NPF_RS_ORIGINATE), m, ifp, PFIL_OUT, npf_flags,
-				ether_type);
+					  ether_type, NULL);
 
 		if (result.decision == NPF_DECISION_BLOCK)
 			return true;	/* discard */
@@ -645,7 +653,7 @@ bool npf_originate_fw(struct ifnet *ifp, uint16_t npf_flags,
 
 		result = npf_hook_notrack(npf_get_ruleset(npf_global_config,
 				NPF_RS_ORIGINATE), m, ifp, PFIL_OUT, npf_flags,
-				ether_type);
+					  ether_type, NULL);
 
 		if (result.decision == NPF_DECISION_BLOCK)
 			return true;	/* discard */

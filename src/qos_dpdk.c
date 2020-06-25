@@ -617,7 +617,7 @@ int qos_npf_classify(struct ifnet *ifp, const struct sched_info *qinfo,
 	if (npf_active(npf_config, NPF_QOS)) {
 		result = npf_hook_notrack(npf_get_ruleset(npf_config,
 					  NPF_RS_QOS), m, ifp, PFIL_OUT, 0,
-					  ether_type);
+					  ether_type, NULL);
 		if (result.tag_set)
 			pipe = result.tag;
 	}

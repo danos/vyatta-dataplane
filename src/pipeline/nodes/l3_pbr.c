@@ -87,7 +87,7 @@ ip_pbr_process_common(struct pl_packet *pkt, bool v4)
 		npf_hook_notrack(npf_get_ruleset(npf_config, NPF_RS_PBR),
 				 &m, ifp, PFIL_IN, 0,
 				 v4 ? htons(RTE_ETHER_TYPE_IPV4)
-				    : htons(RTE_ETHER_TYPE_IPV6));
+				 : htons(RTE_ETHER_TYPE_IPV6), NULL);
 
 	if (unlikely(m != pkt->mbuf)) {
 		pkt->mbuf = m;
