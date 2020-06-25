@@ -1317,12 +1317,13 @@ parse_args(int argc, char **argv)
 		{ "debug",    required_argument, NULL, 'D' },
 		{ "console",  required_argument, NULL, 'C' },
 		{ "config",   required_argument, NULL, 'c' },
+		{ "platform_file ", required_argument, NULL, 'P' },
 		{ "list_cmd_versions", no_argument, NULL, ARGS_LIST_CMDS },
 		{ "list_msg_versions", no_argument, NULL, ARGS_LIST_MSGS },
 		{ NULL, 0, NULL, 0}
 	};
 
-	while ((opt = getopt_long(argc, argv, "hvdi:p:u:g:o:f:c:N:D:C:sF:",
+	while ((opt = getopt_long(argc, argv, "hvdi:p:u:g:o:f:c:N:D:C:sF:P:",
 				  lgopts, &option_index)) != EOF) {
 
 		switch (opt) {
@@ -1338,6 +1339,10 @@ parse_args(int argc, char **argv)
 				usage(1);
 			}
 			enabled_port_mask = pm;
+			break;
+
+		case 'P':
+			set_platform_cfg_file(optarg);
 			break;
 
 		case 'f':
@@ -3441,7 +3446,7 @@ main(int argc, char **argv)
 
 	parse_config();
 
-	parse_platform_config(PLATFORM_FILE);
+	parse_platform_config(get_platform_cfg_file());
 
 	/* Must be before any threads are created, and before eal_init */
 	cpuset_init();
