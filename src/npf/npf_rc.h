@@ -44,6 +44,8 @@ enum npf_rc_type {
 	NPF_RCT_FW6,
 	NPF_RCT_LOC,
 	NPF_RCT_L2,
+	NPF_RCT_ACL4,
+	NPF_RCT_ACL6,
 	NPF_RCT_NAT64,
 };
 #define NPF_RCT_LAST	NPF_RCT_NAT64
@@ -56,9 +58,12 @@ enum npf_rc_type {
 #define	RCT_BIT_FW6	RCT2BIT(NPF_RCT_FW6)
 #define	RCT_BIT_LOC	RCT2BIT(NPF_RCT_LOC)
 #define	RCT_BIT_L2	RCT2BIT(NPF_RCT_L2)
+#define	RCT_BIT_ACL4	RCT2BIT(NPF_RCT_ACL4)
+#define	RCT_BIT_ACL6	RCT2BIT(NPF_RCT_ACL6)
 #define	RCT_BIT_NAT64	RCT2BIT(NPF_RCT_NAT64)
 #define	RCT_BIT_ALL	(RCT_BIT_FW4 | RCT_BIT_FW6 | RCT_BIT_LOC | \
-			 RCT_BIT_L2 | RCT_BIT_NAT64)
+			 RCT_BIT_L2 | RCT_BIT_ACL4 | RCT_BIT_ACL6 | \
+			 RCT_BIT_NAT64)
 
 /* Eth type to rc type.  For npf_hook_Track only */
 #define ETH2RCT(_et) (((_et) == htons(RTE_ETHER_TYPE_IPV4)) ? \
@@ -76,6 +81,10 @@ static inline const char *npf_rct_str(enum npf_rc_type rct)
 		return "local";
 	case NPF_RCT_L2:
 		return "l2";
+	case NPF_RCT_ACL4:
+		return "ip-packet-filter";
+	case NPF_RCT_ACL6:
+		return "ip6-packet-filter";
 	case NPF_RCT_NAT64:
 		return "nat64";
 	}

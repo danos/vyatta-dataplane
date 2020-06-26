@@ -84,7 +84,8 @@ static void npf_rc_ctrl_init(void)
 				npf_rc_ctrl[dir][rc].bm =
 					(RCT_BIT_FW4 | RCT_BIT_FW6 |
 					 RCT_BIT_NAT64 | RCT_BIT_L2 |
-					 RCT_BIT_LOC);
+					 RCT_BIT_LOC | RCT_BIT_ACL4 |
+					 RCT_BIT_ACL6);
 				break;
 
 			/* the following may occur via npf_state_inspect */
@@ -553,6 +554,12 @@ npf_rct_is_feature_enabled(enum npf_rc_type rct, struct ifnet *ifp)
 			return true;
 		return false;
 
+	case NPF_RCT_ACL4:
+		return pl_node_is_feature_enabled_by_inst(&ipv4_acl_in_feat,
+							  ifp);
+	case NPF_RCT_ACL6:
+		return pl_node_is_feature_enabled_by_inst(&ipv6_acl_in_feat,
+							  ifp);
 	case NPF_RCT_NAT64:
 		return pl_node_is_feature_enabled_by_inst(&ipv6_nat64_in_feat,
 							  ifp);
