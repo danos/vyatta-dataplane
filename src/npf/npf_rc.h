@@ -42,6 +42,7 @@
 enum npf_rc_type {
 	NPF_RCT_FW4 = 0,
 	NPF_RCT_FW6,
+	NPF_RCT_LOC,
 	NPF_RCT_L2,
 	NPF_RCT_NAT64,
 };
@@ -53,9 +54,11 @@ enum npf_rc_type {
 
 #define	RCT_BIT_FW4	RCT2BIT(NPF_RCT_FW4)
 #define	RCT_BIT_FW6	RCT2BIT(NPF_RCT_FW6)
+#define	RCT_BIT_LOC	RCT2BIT(NPF_RCT_LOC)
 #define	RCT_BIT_L2	RCT2BIT(NPF_RCT_L2)
 #define	RCT_BIT_NAT64	RCT2BIT(NPF_RCT_NAT64)
-#define	RCT_BIT_ALL	(RCT_BIT_FW4 | RCT_BIT_FW6 | RCT_BIT_L2 | RCT_BIT_NAT64)
+#define	RCT_BIT_ALL	(RCT_BIT_FW4 | RCT_BIT_FW6 | RCT_BIT_LOC | \
+			 RCT_BIT_L2 | RCT_BIT_NAT64)
 
 /* Eth type to rc type.  For npf_hook_Track only */
 #define ETH2RCT(_et) (((_et) == htons(RTE_ETHER_TYPE_IPV4)) ? \
@@ -69,6 +72,8 @@ static inline const char *npf_rct_str(enum npf_rc_type rct)
 		return "ip";
 	case NPF_RCT_FW6:
 		return "ip6";
+	case NPF_RCT_LOC:
+		return "local";
 	case NPF_RCT_L2:
 		return "l2";
 	case NPF_RCT_NAT64:

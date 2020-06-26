@@ -13,6 +13,8 @@
 #include "util.h"
 #include "pl_node.h"
 #include "pipeline/nodes/pl_nodes_common.h"
+#include "npf_shim.h"
+#include "npf/zones/npf_zone_public.h"
 #include "npf/npf_cmd.h"
 #include "npf/npf_rc.h"
 
@@ -81,7 +83,8 @@ static void npf_rc_ctrl_init(void)
 			case NPF_RC_L4_SHORT:
 				npf_rc_ctrl[dir][rc].bm =
 					(RCT_BIT_FW4 | RCT_BIT_FW6 |
-					 RCT_BIT_NAT64 | RCT_BIT_L2);
+					 RCT_BIT_NAT64 | RCT_BIT_L2 |
+					 RCT_BIT_LOC);
 				break;
 
 			/* the following may occur via npf_state_inspect */
@@ -91,7 +94,7 @@ static void npf_rc_ctrl_init(void)
 			case NPF_RC_TCP_WIN:
 				npf_rc_ctrl[dir][rc].bm =
 					(RCT_BIT_FW4 | RCT_BIT_FW6 |
-					 RCT_BIT_NAT64);
+					 RCT_BIT_NAT64 | RCT_BIT_LOC);
 				break;
 
 			/* the following may occur when creating a session */
@@ -102,7 +105,7 @@ static void npf_rc_ctrl_init(void)
 			case NPF_RC_DP_SESS_ESTB:
 				npf_rc_ctrl[dir][rc].bm =
 					(RCT_BIT_FW4 | RCT_BIT_FW6 |
-					 RCT_BIT_NAT64);
+					 RCT_BIT_NAT64 | RCT_BIT_LOC);
 				break;
 
 			/* NAT and NAT64 */
@@ -535,6 +538,16 @@ npf_rct_is_feature_enabled(enum npf_rc_type rct, struct ifnet *ifp)
 	case NPF_RCT_FW6:
 		return pl_node_is_feature_enabled_by_inst(&ipv6_fw_in_feat,
 							  ifp);
+
+	case NPF_RCT_LOC:
+		if (npf_active(npf_config, NPF_LOCAL) ||
+		    npf_active(npf_global_config, NPF_LOCAL) ||
+		    npf_zone_local_is_set() ||
+		    npf_active(npf_config, NPF_ORIGINATE) ||
+		    npf_active(npf_global_config, NPF_ORIGINATE))
+			return true;
+		return false;
+
 	case NPF_RCT_L2:
 		if (npf_active(npf_config, NPF_BRIDGE))
 			return true;

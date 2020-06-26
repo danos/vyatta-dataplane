@@ -1690,6 +1690,8 @@ static const char *npf_rct_desc(enum npf_rc_type rct)
 		return "IPv4 firewall and NAT";
 	case NPF_RCT_FW6:
 		return "IPv6 firewall";
+	case NPF_RCT_LOC:
+		return "Local and originate firewall";
 	case NPF_RCT_L2:
 		return "Layer 2 firewall";
 	case NPF_RCT_NAT64:
