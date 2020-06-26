@@ -92,13 +92,12 @@ nat64_in_process_common(struct pl_packet *pkt, struct npf_if *nif, bool v4,
 {
 	struct ifnet *ifp = pkt->in_ifp;
 	struct npf_config *nif_config;
-	npf_decision_t decision;
+	nat64_decision_t decision = NAT64_DECISION_UNMATCHED;
 	struct rte_mbuf *m;
 	uint16_t npf_flags;
 	npf_session_t *se;
 	npf_cache_t *npc;
 	int error = 0;
-	npf_action_t action = NPF_ACTION_NORMAL;
 
 	npf_flags = pkt->npf_flags;
 	m = pkt->mbuf;
@@ -123,14 +122,14 @@ nat64_in_process_common(struct pl_packet *pkt, struct npf_if *nif, bool v4,
 	 */
 	/* Hook */
 	if (v4)
-		decision = npf_nat64_4to6_in(&action, nif_config, &se,
+		decision = npf_nat64_4to6_in(nif_config, &se,
 					     ifp, npc, &m, &npf_flags);
 	else
-		decision = npf_nat64_6to4_in(&action, nif_config, &se,
+		decision = npf_nat64_6to4_in(nif_config, &se,
 					     ifp, npc, &m, &npf_flags);
 
 	if (se) {
-		if (decision != NPF_DECISION_BLOCK) {
+		if (decision != NAT64_DECISION_DROP) {
 			error = npf_session_activate(se, ifp, npc, m);
 			if (error == 0) {
 				/* Attach the session to the packet */
@@ -139,12 +138,12 @@ nat64_in_process_common(struct pl_packet *pkt, struct npf_if *nif, bool v4,
 				pktmbuf_mdata_set(m, PKT_MDATA_SESSION);
 
 				/* Save session stats. */
-				if (decision == NPF_DECISION_PASS)
+				if (decision == NAT64_DECISION_PASS)
 					npf_save_stats(se, PFIL_IN,
 						       rte_pktmbuf_pkt_len(m));
 			} else {
 				if (error != -ENOSTR)
-					decision = NPF_DECISION_BLOCK;
+					decision = NAT64_DECISION_DROP;
 			}
 		} else if (!npf_session_is_active(se)) {
 			npf_session_destroy(se);
@@ -159,14 +158,14 @@ nat64_in_process_common(struct pl_packet *pkt, struct npf_if *nif, bool v4,
 		pkt->l3_hdr = dp_pktmbuf_mtol3(m, void *);
 	}
 
-	if (decision != NPF_DECISION_PASS)
+	if (decision == NAT64_DECISION_DROP)
 		return v4 ? IPV4_NAT46_IN_DROP : IPV6_NAT64_IN_DROP;
 
 	pkt->npf_flags = npf_flags;
 
-	if (action == NPF_ACTION_TO_V4)
+	if (decision == NAT64_DECISION_TO_V4)
 		return IPV6_NAT64_IN_TO_V4;
-	else if (action == NPF_ACTION_TO_V6)
+	else if (decision == NAT64_DECISION_TO_V6)
 		return IPV4_NAT46_IN_TO_V6;
 
 end:
@@ -181,7 +180,7 @@ static ALWAYS_INLINE unsigned int
 nat64_out_process_common(struct pl_packet *pkt, bool v4, uint16_t eth_type)
 {
 	struct ifnet *ifp = pkt->out_ifp;
-	npf_decision_t decision;
+	nat64_decision_t decision = NAT64_DECISION_UNMATCHED;
 	struct rte_mbuf *m;
 	uint16_t npf_flags;
 	npf_session_t *se;
@@ -207,7 +206,7 @@ nat64_out_process_common(struct pl_packet *pkt, bool v4, uint16_t eth_type)
 		decision = npf_nat64_4to6_out(&se, ifp, npc, &m, &npf_flags);
 
 	if (se) {
-		if (decision != NPF_DECISION_BLOCK) {
+		if (decision != NAT64_DECISION_DROP) {
 			error = npf_session_activate(se, ifp, npc, m);
 			if (error == 0) {
 				/* Attach the session to the packet */
@@ -216,12 +215,12 @@ nat64_out_process_common(struct pl_packet *pkt, bool v4, uint16_t eth_type)
 				pktmbuf_mdata_set(m, PKT_MDATA_SESSION);
 
 				/* Save session stats. */
-				if (decision == NPF_DECISION_PASS)
+				if (decision == NAT64_DECISION_PASS)
 					npf_save_stats(se, PFIL_OUT,
 						       rte_pktmbuf_pkt_len(m));
 			} else {
 				if (error != -ENOSTR)
-					decision = NPF_DECISION_BLOCK;
+					decision = NAT64_DECISION_DROP;
 			}
 		} else if (!npf_session_is_active(se)) {
 			npf_session_destroy(se);
@@ -236,7 +235,7 @@ nat64_out_process_common(struct pl_packet *pkt, bool v4, uint16_t eth_type)
 		pkt->l3_hdr = dp_pktmbuf_mtol3(m, void *);
 	}
 
-	if (decision != NPF_DECISION_PASS)
+	if (decision == NAT64_DECISION_DROP)
 		return v4 ? IPV4_NAT64_OUT_DROP : IPV6_NAT46_OUT_DROP;
 
 end:

@@ -27,21 +27,61 @@ typedef struct npf_rule npf_rule_t;
 typedef struct npf_cache npf_cache_t;
 typedef struct npf_session npf_session_t;
 
-npf_decision_t
-npf_nat64_6to4_in(npf_action_t *action, const struct npf_config *npf_config,
+/*
+ * Input
+ *	UNMATCHED  Did not match nat64 rule
+ *	TO_V4      Switch from V6 to V4
+ *	TO_V6      Switch from V4 to V6
+ *	PASS       n/a
+ *	DROP       Pkt ineligible, or error occurred
+ *
+ * Output
+ *	UNMATCHED  Not switched from other addr family
+ *	TO_V4      n/a
+ *	TO_V6      n/a
+ *	PASS       Switched from other af and both sessions exist
+ *	DROP       Error occurred
+ */
+typedef enum {
+	NAT64_DECISION_UNMATCHED,
+	NAT64_DECISION_TO_V4,
+	NAT64_DECISION_TO_V6,
+	NAT64_DECISION_PASS,
+	NAT64_DECISION_DROP,
+} nat64_decision_t;
+
+static inline const char *nat64_decision_str(nat64_decision_t decision)
+{
+	switch (decision) {
+	case NAT64_DECISION_UNMATCHED:
+		return "UNMATCHED";
+	case NAT64_DECISION_TO_V4:
+		return "TO_V4";
+	case NAT64_DECISION_TO_V6:
+		return "TO_V6";
+	case NAT64_DECISION_PASS:
+		return "PASS";
+	case NAT64_DECISION_DROP:
+		return "DROP";
+	};
+	return "Unkn";
+}
+
+nat64_decision_t
+npf_nat64_6to4_in(const struct npf_config *npf_config,
 		  npf_session_t **sep, struct ifnet *ifp, npf_cache_t *npc,
 		  struct rte_mbuf **m, uint16_t *npf_flag);
 
-npf_decision_t
-npf_nat64_4to6_in(npf_action_t *action, const struct npf_config *npf_config,
+nat64_decision_t
+npf_nat64_4to6_in(const struct npf_config *npf_config,
 		  npf_session_t **sep, struct ifnet *ifp, npf_cache_t *npc,
 		  struct rte_mbuf **m, uint16_t *npf_flag);
 
-npf_decision_t
+nat64_decision_t
 npf_nat64_6to4_out(npf_session_t **sep, struct ifnet *ifp, npf_cache_t *npc,
 		   struct rte_mbuf **m, uint16_t *npf_flag);
 
-npf_decision_t
+nat64_decision_t
 npf_nat64_4to6_out(npf_session_t **sep, struct ifnet *ifp, npf_cache_t *npc,
 		   struct rte_mbuf **m, uint16_t *npf_flag);
 

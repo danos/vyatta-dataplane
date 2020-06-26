@@ -938,12 +938,12 @@ npf_nat64_session_json(json_writer_t *json, npf_session_t *se)
  * so that nat64 has another opportunity to create an egress session and link
  * it to the ingress session.
  */
-npf_decision_t
-npf_nat64_6to4_in(npf_action_t *action, const struct npf_config *npf_config,
+nat64_decision_t
+npf_nat64_6to4_in(const struct npf_config *npf_config,
 		  npf_session_t **sep, struct ifnet *ifp, npf_cache_t *npc,
 		  struct rte_mbuf **m, uint16_t *npf_flag)
 {
-	npf_decision_t decision = NPF_DECISION_PASS;
+	nat64_decision_t decision = NAT64_DECISION_UNMATCHED;
 	npf_addr_t saddr = NPF_ADDR_ZERO, daddr = NPF_ADDR_ZERO;
 	npf_addr_t *src = &saddr, *dst = &daddr;
 	npf_session_t *se6 = *sep;
@@ -986,7 +986,7 @@ npf_nat64_6to4_in(npf_action_t *action, const struct npf_config *npf_config,
 						 PFIL_IN);
 
 			if (!rl)
-				return NPF_DECISION_PASS;
+				return NAT64_DECISION_UNMATCHED;
 		}
 
 		/*
@@ -999,7 +999,8 @@ npf_nat64_6to4_in(npf_action_t *action, const struct npf_config *npf_config,
 		 */
 		rproc = npf_rule_rproc_handle_from_id(rl, NPF_RPROC_ID_NAT64);
 		if (!rproc)
-			return NPF_DECISION_PASS;
+			/* This should never happen */
+			return NAT64_DECISION_DROP;
 
 		/*
 		 * Check packet is eligible for v6-to-v4 translation *before*
@@ -1010,7 +1011,7 @@ npf_nat64_6to4_in(npf_action_t *action, const struct npf_config *npf_config,
 		if (!npf_iscached(npc, NPC_IP6) ||
 		    (!npf_iscached(npc, NPC_L4PORTS) &&
 		     !npf_iscached(npc, NPC_ICMP_ECHO)))
-			return NPF_DECISION_BLOCK;
+			return NAT64_DECISION_DROP;
 
 		/*
 		 * Create or update v6 ingress session.  Add s_nat64 to
@@ -1023,7 +1024,7 @@ npf_nat64_6to4_in(npf_action_t *action, const struct npf_config *npf_config,
 			&se6, npc, *m, ifp, rl,	PFIL_IN, NPF_RPROC_ID_NAT64,
 			(rproc->n6_log & N64_LOG_SESSIONS) != 0);
 		if (rc < 0)
-			return NPF_DECISION_BLOCK;
+			return NAT64_DECISION_DROP;
 
 		vrfid_t vrfid = npf_session_get_vrfid(se6);
 
@@ -1034,7 +1035,7 @@ npf_nat64_6to4_in(npf_action_t *action, const struct npf_config *npf_config,
 		n64 = npf_session_get_nat64(se6);
 		if (unlikely(!n64)) {
 			/* Should never happen */
-			decision = NPF_DECISION_UNMATCHED;
+			decision = NAT64_DECISION_DROP;
 			goto error;
 		}
 
@@ -1044,7 +1045,7 @@ npf_nat64_6to4_in(npf_action_t *action, const struct npf_config *npf_config,
 				      saddr.s6_addr32, (char *)&ip6->ip6_src,
 				      vrfid);
 		if (rc) {
-			decision = NPF_DECISION_UNMATCHED;
+			decision = NAT64_DECISION_DROP;
 			goto error;
 		}
 
@@ -1053,7 +1054,7 @@ npf_nat64_6to4_in(npf_action_t *action, const struct npf_config *npf_config,
 				      daddr.s6_addr32, (char *)&ip6->ip6_dst,
 				      vrfid);
 		if (rc) {
-			decision = NPF_DECISION_UNMATCHED;
+			decision = NAT64_DECISION_DROP;
 			goto error;
 		}
 
@@ -1062,7 +1063,7 @@ npf_nat64_6to4_in(npf_action_t *action, const struct npf_config *npf_config,
 		 */
 		error = npf_session_activate(se6, ifp, npc, *m);
 		if (unlikely(error)) {
-			decision = NPF_DECISION_BLOCK;
+			decision = NAT64_DECISION_DROP;
 			goto error;
 		}
 
@@ -1089,7 +1090,7 @@ npf_nat64_6to4_in(npf_action_t *action, const struct npf_config *npf_config,
 							&dst, &did, &src, &sid);
 
 		if (unlikely(rc || af != AF_INET))
-			return NPF_DECISION_BLOCK;
+			return NAT64_DECISION_DROP;
 	}
 
 	/*
@@ -1106,8 +1107,7 @@ npf_nat64_6to4_in(npf_action_t *action, const struct npf_config *npf_config,
 		 */
 		npf_nat64_add_pkt_in(n64, bytes);
 
-		/* Flag to IPv4 input */
-		*action = NPF_ACTION_TO_V4;
+		decision = NAT64_DECISION_TO_V4;
 
 		/* Flag to output pipeline */
 		*npf_flag |= NPF_FLAG_FROM_IPV6;
@@ -1121,7 +1121,7 @@ npf_nat64_6to4_in(npf_action_t *action, const struct npf_config *npf_config,
 			pktmbuf_mdata_invar_set(*m, PKT_MDATA_INVAR_NAT64);
 		}
 	} else {
-		decision = NPF_DECISION_BLOCK;
+		decision = NAT64_DECISION_DROP;
 		goto error;
 	}
 
@@ -1160,7 +1160,7 @@ error:
  * #3 is the unlikely scenario. It may occur if orthogonal nat64 and nat46
  * rules create ingress sessions simultaneously.
  */
-npf_decision_t
+nat64_decision_t
 npf_nat64_6to4_out(npf_session_t **sep, struct ifnet *ifp, npf_cache_t *npc,
 		   struct rte_mbuf **m, uint16_t *npf_flag)
 {
@@ -1169,7 +1169,7 @@ npf_nat64_6to4_out(npf_session_t **sep, struct ifnet *ifp, npf_cache_t *npc,
 	int rc;
 
 	if ((*npf_flag & NPF_FLAG_FROM_IPV6) == 0)
-		return NPF_DECISION_PASS;
+		return NAT64_DECISION_UNMATCHED;
 
 	/*
 	 * 6-to-4 packets will contain nat64 metadata as long as ingress and
@@ -1187,7 +1187,7 @@ npf_nat64_6to4_out(npf_session_t **sep, struct ifnet *ifp, npf_cache_t *npc,
 	n64 = npf_session_get_nat64(se6);
 	if (unlikely(!se6 || !n64))
 		/* This should never happen */
-		return NPF_DECISION_PASS;
+		return NAT64_DECISION_DROP;
 
 	/*
 	 * Create an IPv4 session if one does not already exist (#1).  Add a
@@ -1199,7 +1199,7 @@ npf_nat64_6to4_out(npf_session_t **sep, struct ifnet *ifp, npf_cache_t *npc,
 					 PFIL_OUT, NPF_RPROC_ID_NAT64,
 					 n64->n64_log_sessions);
 	if (rc < 0 || se4 == NULL)
-		return NPF_DECISION_BLOCK;
+		return NAT64_DECISION_DROP;
 
 	/*
 	 * Link v4 and v6 sessions.  This handles scenario #3, where we have a
@@ -1208,7 +1208,7 @@ npf_nat64_6to4_out(npf_session_t **sep, struct ifnet *ifp, npf_cache_t *npc,
 	rc = npf_nat64_session_link(se6, se4);
 
 	if (rc < 0)
-		return NPF_DECISION_PASS;
+		return NAT64_DECISION_DROP;
 
 	if (!*sep)
 		*sep = se4;
@@ -1218,7 +1218,7 @@ stats:
 	npf_nat64_add_pkt_out(npf_session_get_nat64(se4),
 			      rte_pktmbuf_pkt_len(*m));
 
-	return NPF_DECISION_PASS;
+	return NAT64_DECISION_PASS;
 }
 
 /*
@@ -1247,12 +1247,12 @@ stats:
  * so that nat64 has another opportunity to create an egress session and link
  * it to the ingress session.
  */
-npf_decision_t
-npf_nat64_4to6_in(npf_action_t *action, const struct npf_config *npf_config,
+nat64_decision_t
+npf_nat64_4to6_in(const struct npf_config *npf_config,
 		  npf_session_t **sep, struct ifnet *ifp, npf_cache_t *npc,
 		  struct rte_mbuf **m, uint16_t *npf_flag)
 {
-	npf_decision_t decision = NPF_DECISION_PASS;
+	nat64_decision_t decision = NAT64_DECISION_UNMATCHED;
 	npf_addr_t saddr = NPF_ADDR_ZERO, daddr = NPF_ADDR_ZERO;
 	npf_addr_t *src = &saddr, *dst = &daddr;
 	npf_session_t *se4 = *sep;
@@ -1294,7 +1294,7 @@ npf_nat64_4to6_in(npf_action_t *action, const struct npf_config *npf_config,
 						 PFIL_IN);
 
 			if (!rl)
-				return NPF_DECISION_PASS;
+				return NAT64_DECISION_UNMATCHED;
 		}
 
 		/*
@@ -1307,7 +1307,8 @@ npf_nat64_4to6_in(npf_action_t *action, const struct npf_config *npf_config,
 		 */
 		rproc = npf_rule_rproc_handle_from_id(rl, NPF_RPROC_ID_NAT46);
 		if (!rproc)
-			return NPF_DECISION_PASS;
+			/* This should never happen */
+			return NAT64_DECISION_DROP;
 
 		/*
 		 * Check packet is eligible for v4-to-v6 translation *before*
@@ -1318,7 +1319,7 @@ npf_nat64_4to6_in(npf_action_t *action, const struct npf_config *npf_config,
 		if (!npf_iscached(npc, NPC_IP4) ||
 		    (!npf_iscached(npc, NPC_L4PORTS) &&
 		     !npf_iscached(npc, NPC_ICMP_ECHO)))
-			return NPF_DECISION_BLOCK;
+			return NAT64_DECISION_DROP;
 
 		/*
 		 * Create or update v4 ingress session.
@@ -1331,7 +1332,7 @@ npf_nat64_4to6_in(npf_action_t *action, const struct npf_config *npf_config,
 			PFIL_IN, NPF_RPROC_ID_NAT46,
 			(rproc->n6_log & N64_LOG_SESSIONS) != 0);
 		if (rc < 0)
-			return NPF_DECISION_BLOCK;
+			return NAT64_DECISION_DROP;
 
 		/* Get src and dst ports from cache */
 		npf_cache_extract_ids(npc, &sid, &did);
@@ -1340,14 +1341,14 @@ npf_nat64_4to6_in(npf_action_t *action, const struct npf_config *npf_config,
 		n64 = npf_session_get_nat64(se4);
 		if (unlikely(!n64)) {
 			/* Should never happen */
-			decision = NPF_DECISION_UNMATCHED;
+			decision = NAT64_DECISION_DROP;
 			goto error;
 		}
 
 		/* Get mapping for v4 src addr */
 		rc = nat64_get_map_v6(NULL, &rproc->n6_src, src, ip->saddr);
 		if (rc) {
-			decision = NPF_DECISION_UNMATCHED;
+			decision = NAT64_DECISION_DROP;
 			goto error;
 		}
 
@@ -1356,7 +1357,7 @@ npf_nat64_4to6_in(npf_action_t *action, const struct npf_config *npf_config,
 		 */
 		rc = nat64_get_map_v6(&did, &rproc->n6_dst, dst, ip->daddr);
 		if (rc) {
-			decision = NPF_DECISION_UNMATCHED;
+			decision = NAT64_DECISION_DROP;
 			goto error;
 		}
 
@@ -1365,7 +1366,7 @@ npf_nat64_4to6_in(npf_action_t *action, const struct npf_config *npf_config,
 		 */
 		error = npf_session_activate(se4, ifp, npc, *m);
 		if (unlikely(error)) {
-			decision = NPF_DECISION_BLOCK;
+			decision = NAT64_DECISION_DROP;
 			goto error;
 		}
 
@@ -1392,7 +1393,7 @@ npf_nat64_4to6_in(npf_action_t *action, const struct npf_config *npf_config,
 							&dst, &did, &src, &sid);
 
 		if (unlikely(rc || af != AF_INET6))
-			return NPF_DECISION_BLOCK;
+			return NAT64_DECISION_DROP;
 	}
 
 	/*
@@ -1408,8 +1409,7 @@ npf_nat64_4to6_in(npf_action_t *action, const struct npf_config *npf_config,
 		 */
 		npf_nat64_add_pkt_in(n64, bytes);
 
-		/* Flag to IPv4 input */
-		*action = NPF_ACTION_TO_V6;
+		decision = NAT64_DECISION_TO_V6;
 
 		/* Flag to output pipeline */
 		*npf_flag |= NPF_FLAG_FROM_IPV4;
@@ -1423,7 +1423,7 @@ npf_nat64_4to6_in(npf_action_t *action, const struct npf_config *npf_config,
 			pktmbuf_mdata_invar_set(*m, PKT_MDATA_INVAR_NAT64);
 		}
 	} else {
-		decision = NPF_DECISION_BLOCK;
+		decision = NAT64_DECISION_DROP;
 		goto error;
 	}
 
@@ -1462,7 +1462,7 @@ error:
  * #3 is the unlikely scenario. It may occur if orthogonal nat64 and nat46
  * rules create ingress sessions simultaneously.
  */
-npf_decision_t
+nat64_decision_t
 npf_nat64_4to6_out(npf_session_t **sep, struct ifnet *ifp, npf_cache_t *npc,
 		   struct rte_mbuf **m, uint16_t *npf_flag)
 {
@@ -1471,7 +1471,7 @@ npf_nat64_4to6_out(npf_session_t **sep, struct ifnet *ifp, npf_cache_t *npc,
 	int rc;
 
 	if ((*npf_flag & NPF_FLAG_FROM_IPV4) == 0)
-		return NPF_DECISION_PASS;
+		return NAT64_DECISION_UNMATCHED;
 
 	/*
 	 * 4-to-6 packets will contain nat64 metadata as long as ingress and
@@ -1489,7 +1489,7 @@ npf_nat64_4to6_out(npf_session_t **sep, struct ifnet *ifp, npf_cache_t *npc,
 	n64 = npf_session_get_nat64(se4);
 	if (!se4 || !n64)
 		/* This should never happen */
-		return NPF_DECISION_PASS;
+		return NAT64_DECISION_DROP;
 
 	/*
 	 * Create an IPv6 session if one does not already exist (#1).  Add a
@@ -1501,7 +1501,7 @@ npf_nat64_4to6_out(npf_session_t **sep, struct ifnet *ifp, npf_cache_t *npc,
 					 PFIL_OUT, NPF_RPROC_ID_NAT46,
 					 n64->n64_log_sessions);
 	if (rc < 0 || se6 == NULL)
-		return NPF_DECISION_BLOCK;
+		return NAT64_DECISION_DROP;
 
 	/*
 	 * Link v6 and v4 sessions.  This handles scenario #3, where we have a
@@ -1510,7 +1510,7 @@ npf_nat64_4to6_out(npf_session_t **sep, struct ifnet *ifp, npf_cache_t *npc,
 	rc = npf_nat64_session_link(se4, se6);
 
 	if (rc < 0)
-		return NPF_DECISION_PASS;
+		return NAT64_DECISION_DROP;
 
 	if (!*sep)
 		*sep = se6;
@@ -1520,7 +1520,7 @@ stats:
 	npf_nat64_add_pkt_out(npf_session_get_nat64(se6),
 			      rte_pktmbuf_pkt_len(*m));
 
-	return NPF_DECISION_PASS;
+	return NAT64_DECISION_PASS;
 }
 
 int npf_nat64_npf_pack_pack(struct npf_nat64 *n64,
