@@ -427,6 +427,7 @@ DP_START_TEST(ip_rx, invalid_paks)
 	const char *nh_mac_str;
 	struct iphdr *ip;
 	int len = 22;
+	int newlen;
 
 	dp_test_nl_add_ip_addr_and_connected("dp1T1", "1.1.1.1/24");
 
@@ -469,8 +470,8 @@ DP_START_TEST(ip_rx, invalid_paks)
 	 */
 	test_pak = dp_test_cp_pak(good_pak);
 	ip = iphdr(test_pak);
-	rte_pktmbuf_data_len(test_pak) = (char *)ip -
-		rte_pktmbuf_mtod(test_pak, char *) + 1;
+	newlen = (char *)ip - rte_pktmbuf_mtod(test_pak, char *) + 1;
+	rte_pktmbuf_trim(test_pak, test_pak->pkt_len - newlen);
 
 	exp = dp_test_exp_create(test_pak);
 	dp_test_exp_set_fwd_status(exp, DP_TEST_FWD_DROPPED);
