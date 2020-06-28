@@ -297,6 +297,7 @@ NPF_FILES = \
         src/npf/npf_unpack.c \
         src/npf/npf_processor.c \
         src/npf/npf_ptree.c \
+        src/npf/npf_rc.c \
         src/npf/npf_rte_acl.c \
         src/npf/npf_rule_gen.c \
         src/npf/npf_ruleset.c \
