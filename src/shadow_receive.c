@@ -10,7 +10,6 @@
 #include <czmq.h>
 #include <errno.h>
 #include <fcntl.h>
-#include <libmnl/libmnl.h>
 #include <linux/if_ether.h>
 #include <linux/if_link.h>
 #include <linux/if_tun.h>
@@ -53,7 +52,6 @@
 #include "vplane_log.h"
 #include "vrf_internal.h"
 
-struct mnl_socket;
 struct rte_mempool;
 
 #define GRE_OVERHEAD_IPV4 32  /* IP + GRE + VLAN */
@@ -275,40 +273,9 @@ int slowpath_init(void)
 	return fd;
 }
 
-/* Send request and parse response */
-static int mnl_talk(struct mnl_socket *nl, struct nlmsghdr *nlh)
-{
-	unsigned int portid = mnl_socket_get_portid(nl);
-	uint32_t seq = time(NULL);
-
-	nlh->nlmsg_flags |= NLM_F_ACK;
-	nlh->nlmsg_seq = seq;
-
-	if (mnl_socket_sendto(nl, nlh, nlh->nlmsg_len) < 0) {
-		RTE_LOG(ERR, DATAPLANE,
-			"mnl_socket_sendto failed: %s\n", strerror(errno));
-		return MNL_CB_ERROR;
-	}
-
-	char buf[MNL_SOCKET_BUFFER_SIZE];
-	ssize_t count = mnl_socket_recvfrom(nl, buf, sizeof(buf));
-
-	if (count < 0) {
-		RTE_LOG(ERR, DATAPLANE,
-			"mnl_socket_recvfrom failed: %s\n", strerror(errno));
-		return MNL_CB_ERROR;
-	}
-
-	return mnl_cb_run(buf, count, seq, portid, NULL, NULL);
-}
-
 /* Setup TUN/TAP device */
 int tap_attach(const char *ifname)
 {
-	char buf[MNL_SOCKET_BUFFER_SIZE];
-	struct mnl_socket *nl;
-	struct nlmsghdr *nlh;
-	struct ifinfomsg *ifi;
 	struct ifreq ifr;
 	int fd;
 
@@ -337,80 +304,11 @@ int tap_attach(const char *ifname)
 		goto fail;
 	}
 
-	/* Default to no carrier, link up happens later */
-	nl = mnl_socket_open(NETLINK_ROUTE);
-	if (!nl) {
-		RTE_LOG(ERR, DATAPLANE,
-			"%s(): mnl_socket_open failed\n", __func__);
-		goto fail;
-	}
-
-	if (mnl_socket_bind(nl, 0, MNL_SOCKET_AUTOPID) < 0) {
-		RTE_LOG(ERR, DATAPLANE,
-			"%s(): mnl_socket_bind failed\n", __func__);
-		goto fail;
-	}
-
-	nlh = mnl_nlmsg_put_header(buf);
-	nlh->nlmsg_type = RTM_NEWLINK;
-	nlh->nlmsg_flags = NLM_F_REQUEST;
-
-	ifi = mnl_nlmsg_put_extra_header(nlh, sizeof(struct ifinfomsg));
-	ifi->ifi_family = AF_UNSPEC;
-	ifi->ifi_flags = 0;
-	mnl_attr_put_strz(nlh, IFLA_IFNAME, ifname);
-
-	/* Setup modes of TAP device to allow controlling
-	 * link state from daemon.
-	 */
-	mnl_attr_put_u8(nlh, IFLA_LINKMODE, IF_LINK_MODE_DORMANT);
-	/* Default to no carrier, link up happens later */
-	mnl_attr_put_u8(nlh, IFLA_OPERSTATE, IF_OPER_DORMANT);
-
-	if (mnl_talk(nl, nlh) < 0) {
-		RTE_LOG(ERR, DATAPLANE, "%s(): can not setup %s: %s\n",
-			__func__, ifname, strerror(errno));
-		goto fail;
-	}
-
-	mnl_socket_close(nl);
 	return fd;
 
 fail:
 	close(fd);
 	return -1;
-}
-
-/* Teardown TUN/TAP device */
-void tap_teardown(const char *ifname)
-{
-	char buf[MNL_SOCKET_BUFFER_SIZE];
-	struct mnl_socket *nl = mnl_socket_open(NETLINK_ROUTE);
-
-	if (!nl)
-		RTE_LOG(ERR, DATAPLANE,
-			"%s(): mnl_socket_open failed\n", __func__);
-
-	if (mnl_socket_bind(nl, 0, MNL_SOCKET_AUTOPID) < 0)
-		RTE_LOG(ERR, DATAPLANE,
-			"%s(): mnl_socket_bind failed\n", __func__);
-
-	struct nlmsghdr *nlh = mnl_nlmsg_put_header(buf);
-
-	nlh->nlmsg_type = RTM_DELLINK;
-	nlh->nlmsg_flags = NLM_F_REQUEST;
-
-	struct ifinfomsg *ifi
-		= mnl_nlmsg_put_extra_header(nlh, sizeof(struct ifinfomsg));
-	ifi->ifi_family = AF_UNSPEC;
-
-	mnl_attr_put_strz(nlh, IFLA_IFNAME, ifname);
-
-	if (mnl_talk(nl, nlh) < 0)
-		RTE_LOG(ERR, DATAPLANE, "%s(): can not teardown %s: %s\n",
-			__func__, ifname, strerror(errno));
-
-	mnl_socket_close(nl);
 }
 
 /* Collect fragmented mbuf and send to TAP device

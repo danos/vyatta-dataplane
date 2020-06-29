@@ -351,19 +351,6 @@ static int shadow_writer(zloop_t *loop __rte_unused,
 	return 0;
 }
 
-/* Destroy obsolete TUN/TAP device
- * This is used when dataplane and controller are on the same machine.
- */
-static int tap_destroy(portid_t port)
-{
-	const struct ifnet *ifp = ifport_table[port];
-
-	if (ifp)
-		tap_teardown(ifp->if_name);
-
-	return 0;
-}
-
 /*
  * Create ring for packets from dataplane to kernel via spathintf
  */
@@ -866,7 +853,6 @@ static void shadow_remove_event(zloop_t *loop, portid_t port)
 	rcu_assign_pointer(shadow_if[port], NULL);
 
 	del_handler_tap_fd(loop, sii);
-	tap_destroy(port);
 
 	/*
 	 * Drain ring

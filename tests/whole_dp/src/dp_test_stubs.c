@@ -172,10 +172,6 @@ int tap_attach(const char *ifname)
 	return pipefd[0];
 }
 
-void tap_teardown(const char *ifname)
-{
-}
-
 /* There is no syslog running in the whole_dp UT environment */
 void syslog(int priority, const char *format, ...)
 {

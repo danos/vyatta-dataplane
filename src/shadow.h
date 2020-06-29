@@ -68,7 +68,6 @@ void shadow_show_summary(FILE *f, const char *name);
 struct ifnet *get_lo_ifp(enum cont_src_en cont_src);
 int shadow_add_event(zloop_t *loop, portid_t port, const char *ifname);
 int tap_attach(const char *ifname);
-void tap_teardown(const char *ifname);
 
 void shadow_init_spath_ring(int tun_fd);
 int slowpath_init(void);
