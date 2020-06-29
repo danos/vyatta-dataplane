@@ -828,6 +828,14 @@ static inline void nh_eth_output_mpls(enum nh_type nh_type,
 
 	len = rte_pktmbuf_pkt_len(m);
 	if (nh_type == NH_TYPE_V6GW) {
+
+		/* must at least have an IPv6 header */
+		if (len < sizeof(struct ip6_hdr)) {
+			mpls_if_incr_out_errors(dp_nh_get_ifp(nh));
+			rte_pktmbuf_free(m);
+			return;
+		}
+
 		if (unlikely((nh->flags & RTF_MAPPED_IPV6))) {
 			struct next_hop v4nh = {
 				.flags = RTF_GATEWAY,
@@ -867,6 +875,13 @@ static inline void nh_eth_output_mpls(enum nh_type nh_type,
 			.gateway.type = AF_INET,
 			.u.ifp = dp_nh_get_ifp(nh),
 		};
+
+		/* must at least have an IPv4 header */
+		if (len < sizeof(struct iphdr)) {
+			mpls_if_incr_out_errors(dp_nh_get_ifp(nh));
+			rte_pktmbuf_free(m);
+			return;
+		}
 
 		if (dp_ip_l2_nh_output(input_ifp, m, &v4nh,
 				       ETH_P_MPLS_UC))
