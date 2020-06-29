@@ -136,6 +136,19 @@ static void qos_sched_npf_commit(void)
 
 		QOS_STOP(qinfo)(qinfo->ifp, qinfo);
 
+		/*
+		 * If it exists, the global map obj must apply to all
+		 * policy instances and all policy instances must have
+		 * been affected by the resource group change we are
+		 * responding to. So it is safe to delete it now
+		 * and it will be reinstalled when the first policy is
+		 * reinstalled.
+		 */
+		if (qos_global_map_obj) {
+			qos_hw_del_map(qos_global_map_obj);
+			qos_global_map_obj = FAL_QOS_NULL_OBJECT_ID;
+		}
+
 		rte_eth_link_get_nowait(qinfo->ifp->if_port, &link);
 		if (link.link_status) {
 			int ret;
