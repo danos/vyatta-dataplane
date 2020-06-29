@@ -17,7 +17,98 @@
 #include "npf/npf_rc.h"
 
 /*
- * Create npf counters.  A set of counters is created per npf interface.
+ * The return codes are categorised into 4 main types
+ */
+enum rc_ctrl_cat {
+	RC_CAT_PASS,
+	RC_CAT_NOMATCH,
+	RC_CAT_BLOCK,
+	RC_CAT_DROP,
+};
+#define RC_CAT_LAST RC_CAT_DROP
+#define RC_CAT_SZ (RC_CAT_LAST+1)
+#define RC_CAT_ALL (RC_CAT_LAST+2)
+
+static inline const char *rc_ctrl_cat2str(enum rc_ctrl_cat cat)
+{
+	switch (cat) {
+	case RC_CAT_PASS:
+		return "pass";
+	case RC_CAT_NOMATCH:
+		return "unmatched";
+	case RC_CAT_BLOCK:
+		return "block";
+	case RC_CAT_DROP:
+		return "drop";
+	};
+	return "unkn";
+}
+
+struct rc_ctrl {
+	uint bm;	/* Bitmap of return-code types */
+	uint cat;	/* Category - pass, block or drop */
+};
+static struct rc_ctrl npf_rc_ctrl[NPF_DIR_SZ][NPF_RC_SZ];
+
+static void npf_rc_ctrl_init(void)
+{
+	static bool initd;
+	enum npf_rc_dir dir;
+	enum npf_rc_en rc;
+
+	/* Only do once */
+	if (initd)
+		return;
+
+	/*
+	 * We use a bitmap to determine which return-codes are used by which
+	 * return code types.  For example, fw6 does not use only of the NAT
+	 * return codes.
+	 */
+	for (dir = 0; dir < NPF_DIR_SZ; dir++)
+		for (rc = 0; rc < NPF_RC_SZ; rc++) {
+			/* Init bitmap of rc types */
+			switch (rc) {
+			case NPF_RC_UNMATCHED:
+			case NPF_RC_PASS:
+			case NPF_RC_BLOCK:
+			case NPF_RC_INTL:
+				npf_rc_ctrl[dir][rc].bm = RCT_BIT_ALL;
+				break;
+			}
+
+			/* Init category */
+			switch (rc) {
+			case NPF_RC_PASS:
+				npf_rc_ctrl[dir][rc].cat = RC_CAT_PASS;
+				break;
+			case NPF_RC_UNMATCHED:
+				npf_rc_ctrl[dir][rc].cat = RC_CAT_NOMATCH;
+				break;
+			case NPF_RC_BLOCK:
+				npf_rc_ctrl[dir][rc].cat = RC_CAT_BLOCK;
+				break;
+			case NPF_RC_INTL:
+				npf_rc_ctrl[dir][rc].cat = RC_CAT_DROP;
+				break;
+			}
+		}
+
+
+	initd = true;
+}
+
+static bool
+npf_rc_enabled(enum npf_rc_type rct, enum npf_rc_dir dir, enum npf_rc_en rc)
+{
+	if (rct >= NPF_RCT_SZ || dir >= NPF_DIR_SZ || rc >= NPF_RC_SZ)
+		return false;
+
+	return ((npf_rc_ctrl[dir][rc].bm & RCT2BIT(rct)) != 0);
+}
+
+/*
+ * Create npf counters.  A set of counters is created per-interface.
  */
 struct npf_rc_counts *npf_rc_counts_create(void)
 {
@@ -108,7 +199,7 @@ npf_rc_read(struct npf_rc_counts *rcc, enum npf_rc_type rct,
 
 static uint64_t
 npf_rc_total(struct npf_rc_counts *rcc, enum npf_rc_type opt_rct,
-	     enum npf_rc_dir opt_dir)
+	     enum npf_rc_dir opt_dir, enum rc_ctrl_cat opt_cat)
 {
 	enum npf_rc_type rct;
 	enum npf_rc_dir dir;
@@ -126,8 +217,12 @@ npf_rc_total(struct npf_rc_counts *rcc, enum npf_rc_type opt_rct,
 				continue;
 
 			/* For each count */
-			for (rc = 0; rc <= NPF_RC_LAST; rc++)
+			for (rc = 0; rc <= NPF_RC_LAST; rc++) {
+				if (opt_cat != RC_CAT_ALL &&
+				    opt_cat != npf_rc_ctrl[dir][rc].cat)
+					continue;
 				total += npf_rc_read(rcc, rct, dir, rc);
+			}
 		}
 	}
 
@@ -139,6 +234,7 @@ struct rcc_ctx {
 	json_writer_t		*ctx_json;
 	enum npf_rc_type	ctx_rct;
 	enum npf_rc_dir		ctx_dir;
+	enum rc_ctrl_cat	ctx_cat;
 	struct ifnet		*ctx_ifp;
 	bool			ctx_nonzero_only;
 	bool			ctx_detail;
@@ -146,22 +242,69 @@ struct rcc_ctx {
 };
 
 /*
+ * Write detailed json for npf return code counters in one direction
+ */
+static void
+npf_show_rc_dir_detail(json_writer_t *json, struct npf_rc_counts *rcc,
+		       enum npf_rc_type rct, enum npf_rc_dir dir,
+		       enum rc_ctrl_cat cat, struct rcc_ctx *ctx)
+{
+	enum npf_rc_en rc;
+	uint64_t count;
+
+	if (!ctx->ctx_detail)
+		return;
+
+	jsonw_name(json, "detail");
+	jsonw_start_object(json);
+
+	for (rc = 0; rc <= NPF_RC_LAST; rc++) {
+		if (cat != npf_rc_ctrl[dir][rc].cat)
+			continue;
+
+		/* In this count enabled for this rc-type? */
+		if (!npf_rc_enabled(rct, dir, rc))
+			continue;
+
+		count = npf_rc_read(rcc, rct, dir, rc);
+		jsonw_uint_field(json, npf_rc_str(rc), count);
+	}
+	jsonw_end_object(json); /* detail */
+}
+
+/*
  * Write json for npf return code counters in one direction
  */
 static void
 npf_show_rc_counts_dir(json_writer_t *json, struct npf_rc_counts *rcc,
 		       enum npf_rc_type rct, enum npf_rc_dir dir,
-		       const char *name, struct rcc_ctx *ctx __unused)
+		       const char *name, struct rcc_ctx *ctx)
 {
+	enum rc_ctrl_cat cat;
 	uint64_t count;
-	enum npf_rc_en rc;
 
 	jsonw_name(json, name);
 	jsonw_start_object(json);
 
-	for (rc = 0; rc <= NPF_RC_LAST; rc++) {
-		count = npf_rc_read(rcc, rct, dir, rc);
-		jsonw_uint_field(json, npf_rc_str(rc), count);
+	/* For each off pass, unmatched, block and drop */
+	for (cat = 0; cat < RC_CAT_SZ; cat++) {
+		if (ctx->ctx_cat != RC_CAT_ALL && ctx->ctx_cat != cat)
+			continue;
+
+		const char *cat_name = rc_ctrl_cat2str(cat);
+
+		/* Total for this category */
+		count = npf_rc_total(rcc, rct, dir, cat);
+
+		jsonw_name(json, cat_name);
+		jsonw_start_object(json);
+
+		jsonw_uint_field(json, "count", count);
+
+		/* Conditionally show individual counts */
+		npf_show_rc_dir_detail(json, rcc, rct, dir, cat, ctx);
+
+		jsonw_end_object(json); /* cat_name */
 	}
 
 	jsonw_end_object(json);
@@ -216,7 +359,7 @@ static void npf_show_rc_counts_intf(struct ifnet *ifp, void *arg)
 
 	uint64_t total;
 
-	total = npf_rc_total(rcc, ctx->ctx_rct, ctx->ctx_dir);
+	total = npf_rc_total(rcc, ctx->ctx_rct, ctx->ctx_dir, ctx->ctx_cat);
 	if (!total && ctx->ctx_nonzero_only)
 		return;
 
@@ -230,7 +373,7 @@ static void npf_show_rc_counts_intf(struct ifnet *ifp, void *arg)
 			continue;
 
 		/* Check totals for this rc-type */
-		total = npf_rc_total(rcc, rct, ctx->ctx_dir);
+		total = npf_rc_total(rcc, rct, ctx->ctx_dir, ctx->ctx_cat);
 		if (!total && ctx->ctx_nonzero_only)
 			continue;
 
@@ -270,6 +413,7 @@ npf_rc_counts_parse(FILE *f, int argc, char **argv, struct rcc_ctx *ctx)
 	ctx->ctx_json = NULL;
 	ctx->ctx_rct = NPF_RCT_ALL;
 	ctx->ctx_dir = NPF_DIR_ALL;
+	ctx->ctx_cat = RC_CAT_ALL;
 	ctx->ctx_ifp = NULL;
 	ctx->ctx_nonzero_only = false;
 	ctx->ctx_detail = false;
@@ -295,6 +439,17 @@ npf_rc_counts_parse(FILE *f, int argc, char **argv, struct rcc_ctx *ctx)
 				ctx->ctx_dir = NPF_RC_IN;
 			else if (!strcasecmp(argv[1], "out"))
 				ctx->ctx_dir = NPF_RC_OUT;
+
+		} else if (!strcmp(argv[0], "cat")) {
+			enum rc_ctrl_cat cat;
+
+			for (cat = 0; cat < RC_CAT_SZ; cat++) {
+				if (!strcasecmp(argv[1],
+						rc_ctrl_cat2str(cat))) {
+					ctx->ctx_cat = cat;
+					break;
+				}
+			}
 
 		} else if (!strcmp(argv[0], "nonzero")) {
 			if (!strcasecmp(argv[1], "true") ||
@@ -331,6 +486,9 @@ int npf_show_rc_counts(FILE *f, int argc, char **argv)
 	struct rcc_ctx ctx = { 0 };
 	json_writer_t *json;
 	int rc;
+
+	/* ctrl is only used for show output, so init onetime here */
+	npf_rc_ctrl_init();
 
 	/* Parse the arguments */
 	rc = npf_rc_counts_parse(f, argc, argv, &ctx);
