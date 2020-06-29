@@ -77,6 +77,17 @@ static inline const char *npf_rct_str(enum npf_rc_type rct)
 	return "Unkn";
 }
 
+static inline enum npf_rc_type npf_rct_str2enum(const char *rct_str)
+{
+	enum npf_rc_type rct;
+
+	for (rct = 0; rct < NPF_RCT_SZ; rct++)
+		if (!strcmp(rct_str, npf_rct_str(rct)))
+			return rct;
+
+	return NPF_RCT_ALL;
+}
+
 /*
  * We keep inbound and outbound rc counts
  */
@@ -85,6 +96,7 @@ enum npf_rc_dir {
 	NPF_RC_OUT = 1
 };
 #define NPF_DIR_SZ 2
+#define NPF_DIR_ALL NPF_DIR_SZ
 
 /* Converts PFIL_IN or PFIL_OUT to 'enum npf_rc_dir' */
 #define PFIL2RC(_dir) ((_dir) >> 1)
@@ -142,7 +154,6 @@ struct npf_rc_counts {
 	} type[NPF_RCT_SZ];
 };
 
-
 /*
  * Increment a return code counter
  */
@@ -174,5 +185,16 @@ npf_rc_inc(struct ifnet *ifp, enum npf_rc_type rct, enum npf_rc_dir dir, int rc,
 struct npf_rc_counts *npf_rc_counts_create(void);
 
 void npf_rc_counts_destroy(struct npf_rc_counts **rcc);
+
+/*
+ * Return code short string and description
+ */
+const char *npf_rc_str(int rc);
+const char *npf_rc_detail_str(int rc);
+
+/*
+ * Show/clear return code counters
+ */
+int npf_show_rc_counts(FILE *f, int argc, char **argv);
 
 #endif	/* _NPF_RC_H_ */

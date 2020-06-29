@@ -35,6 +35,7 @@
 #include "npf/npf_session.h"
 #include "npf/npf_state.h"
 #include "npf/npf_timeouts.h"
+#include "npf/npf_rc.h"
 #include "npf/zones/npf_zone_public.h"
 #include "npf/rproc/npf_ext_session_limit.h"
 #include "npf/rproc/npf_ext_nptv6.h"
@@ -474,6 +475,7 @@ enum {
 	DUMP_ATTACH_POINTS,
 	SHOW_ZONES,
 	SHOW_STATE,
+	RC_SHOW_COUNTERS,
 	SHOW,
 	CLEAR,
 	FLUSH,
@@ -541,6 +543,10 @@ static const struct npf_command npf_cmd_op[] = {
 	[SHOW_ZONES] = {
 		.tokens = "show zones",
 		.handler = cmd_show_zones,
+	},
+	[RC_SHOW_COUNTERS] = {
+		.tokens = "rc show counters",
+		.handler = npf_show_rc_counts,
 	},
 	[SHOW_STATE] = {
 		.tokens = "state",
