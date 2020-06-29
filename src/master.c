@@ -513,12 +513,13 @@ void reset_dataplane(enum cont_src_en cont_src, bool delay)
  *   [0] DELPORT
  *   [1] <seqno>  64bit
  *   [2] <port> 32bit
- *   [3] <ifindex>  32bit
+ *   [3] <ifindex>  32bit (ignored)
  *   [4] <myip> ipv4/ipv6 address
  */
 static void del_port_request(enum cont_src_en cont_src, zsock_t *zsock,
-			     uint64_t seqno, const struct ifnet *ifp)
+			     uint64_t seqno, portid_t portid)
 {
+	uint32_t ignored = 0;
 	uint32_t port;
 	zmsg_t *msg = zmsg_new();
 	if (!msg)
@@ -527,14 +528,14 @@ static void del_port_request(enum cont_src_en cont_src, zsock_t *zsock,
 	zmsg_addstr(msg, "DELPORT");
 	zmsg_addmem(msg, &seqno, sizeof(seqno));
 	/* controller expects 32 bit value for port */
-	port = ifp->if_port;
+	port = portid;
 	zmsg_addmem(msg, &port, sizeof(port));
-	zmsg_addmem(msg, &ifp->if_index, sizeof(ifp->if_index));
+	zmsg_addmem(msg, &ignored, sizeof(ignored));
 	zmsg_addmem(msg, &config.local_ip, sizeof(struct ip_addr));
 
 	RTE_LOG(DEBUG, DATAPLANE,
-		"master(%s) DELPORT request port %u if_index %u\n",
-		cont_src_name(cont_src), port, ifp->if_index);
+		"master(%s) DELPORT request port %u\n",
+		cont_src_name(cont_src), port);
 
 	zmsg_send_and_destroy(&msg, zsock);
 }
@@ -583,13 +584,13 @@ static int add_port_request(enum cont_src_en cont_src, zsock_t *zsock,
  *   [3] <ifname> string - generated interface name
  */
 static int ini_port_request(enum cont_src_en cont_src, zsock_t *zsock,
-			    uint64_t seqno, const struct ifnet *ifp)
+			    uint64_t seqno, portid_t portid)
 {
 	zmsg_t *msg = zmsg_new();
 	if (!msg)
 		return -ENOMEM;
 
-	char *devinfo = dpdk_eth_vplaned_devinfo(ifp->if_port);
+	char *devinfo = dpdk_eth_vplaned_devinfo(portid);
 	if (!devinfo) {
 		zmsg_destroy(&msg);
 		return -ENOMEM;
@@ -1060,7 +1061,7 @@ static int setup_interfaces(uint8_t startid, uint8_t num_ports,
 
 		++seqno;
 		if (is_teardown) {
-			del_port_request(cont_src, ctrl_socket, seqno, ifp);
+			del_port_request(cont_src, ctrl_socket, seqno, portid);
 			expect_state = REQUEST_STATE_SENT_DEL;
 			/*
 			 * Don't need to wait for the reply from the
@@ -1072,7 +1073,7 @@ static int setup_interfaces(uint8_t startid, uint8_t num_ports,
 			int rc;
 
 			rc = ini_port_request(cont_src, ctrl_socket, seqno,
-					      ifp);
+					      portid);
 			if (rc != 0) {
 				RTE_LOG(ERR, DATAPLANE,
 					"master(%s) INIPORT request: %s\n",
