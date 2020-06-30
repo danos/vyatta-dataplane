@@ -3430,9 +3430,12 @@ if_set_l3_intf_attr(struct ifnet *ifp, struct fal_attribute_t *attr)
 		break;
 	}
 
-	if (!ifp->fal_l3)
+	if (!ifp->fal_l3) {
+		RTE_LOG(ERR, DATAPLANE,
+			"Failed to set L3 FAL object for %s, %d\n",
+			ifp->if_name, ifp->if_index);
 		return -EOPNOTSUPP;
-
+	}
 	return fal_set_router_interface_attr(ifp->fal_l3, attr);
 }
 

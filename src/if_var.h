@@ -384,6 +384,9 @@ struct ifnet {
 
 	/* vlan-modify default entry */
 	struct vlan_mod_tbl_entry *vlan_mod_default;
+
+	/* Egress map object */
+	fal_object_t      egr_map_obj;
 };
 
 static_assert(offsetof(struct ifnet, if_vlantbl) == 64,
@@ -1028,6 +1031,11 @@ int if_register_type(enum if_type type, const struct ift_ops *fns);
  * Set the MTU of an interface
  */
 int if_set_mtu(struct ifnet *ifp, uint32_t mtu, bool force_update);
+
+/*
+ * Set the egress map on an interface
+ */
+int if_set_egress_map(struct ifnet *ifp, void *qos_mark_map);
 
 /*
  * Set the Layer2 address of an interface

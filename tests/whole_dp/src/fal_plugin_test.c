@@ -236,6 +236,8 @@ static const char *fal_port_attr_t_to_str(enum fal_port_attr_t val)
 		return "pause";
 	case FAL_PORT_ATTR_REMOTE_ADVERTISED_FLOW_CONTROL_MODE:
 		return "pause-advertised";
+	case FAL_PORT_ATTR_QOS_EGRESS_MAP_ID:
+		return "egress-map-id";
 	}
 	assert(0);
 	return "ERROR";

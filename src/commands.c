@@ -1839,6 +1839,7 @@ static const cmd_t cmd_table[] = {
 	{ 4,	"qos",		cmd_qos_op,	"Show Qos information" },
 	{ 5,	"qos",		cmd_qos_op,	"Show Qos information" },
 	{ 6,	"qos",		cmd_qos_op,	"Show Qos information" },
+	{ 7,	"qos",		cmd_qos_op,	"Show Qos information" },
 	{ 0,	"reset",	cmd_reset,	"Reset dataplane" },
 	{ 0,	"ring",		cmd_ring,	"Display ring information" },
 	{ 0,	"route",	cmd_route,	"Display routing information" },

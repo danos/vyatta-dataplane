@@ -736,6 +736,18 @@ enum fal_port_attr_t {
 	 * @flags READ_ONLY
 	 **/
 	FAL_PORT_ATTR_REMOTE_ADVERTISED_FLOW_CONTROL_MODE,
+
+	/**
+	 * @brief Enable egress QoS marking on port
+	 *
+	 * Set map id = FAL_NULL_OBJECT_ID to remove map
+	 * @type fal_object_t
+	 * @flags CREATE_AND_SET
+	 * @default FAL_NULL_OBJECT_ID
+	 *
+	 */
+	FAL_PORT_ATTR_QOS_EGRESS_MAP_ID,
+
 };
 
 enum fal_port_hw_switching_t {
@@ -966,6 +978,19 @@ enum fal_router_interface_attr_t {
 	 */
 	FAL_ROUTER_INTERFACE_ATTR_V6_MCAST_ENABLE,
 
+	/**
+	 * @brief Egress QOS Marking map
+	 *
+	 * If an egress map is applied on a L3 interface then the
+	 * traffic sent out of the interface is subjected to egress
+	 * marking and will be sent out with the remarked values
+	 * corresponding to the egress map.
+	 *
+	 * @type fal_object_t
+	 * @flags CREATE_AND_SET
+	 * @default FAL_NULL_OBJECT_ID
+	 */
+	FAL_ROUTER_INTERFACE_ATTR_EGRESS_QOS_MAP,
 	FAL_ROUTER_INTERFACE_ATTR_MAX
 };
 
@@ -3322,8 +3347,11 @@ enum fal_qos_map_type_t {
 	/** QOS Map to set designator to DOT1P */
 	FAL_QOS_MAP_TYPE_DESIGNATOR_TO_DOT1P = 0x0000000b,
 
+	/** QOS Map to set designator to DSCP */
+	FAL_QOS_MAP_TYPE_DESIGNATOR_TO_DSCP = 0x0000000c,
+
 	/** Max value */
-	FAL_QOS_MAP_TYPE_MAX = FAL_QOS_MAP_TYPE_DESIGNATOR_TO_DOT1P,
+	FAL_QOS_MAP_TYPE_MAX = FAL_QOS_MAP_TYPE_DESIGNATOR_TO_DSCP,
 };
 
 /**
@@ -4167,6 +4195,17 @@ enum fal_vlan_feature_attr_t {
 	 * @flags READ_ONLY
 	 */
 	FAL_VLAN_FEATURE_ATTR_MAC_COUNT,
+
+	/**
+	 * @brief Enable egress QoS marking on vlan on port
+	 *
+	 * Set map id = FAL_NULL_OBJECT_ID to remove map
+	 * @type fal_object_t
+	 * @flags CREATE_AND_SET
+	 * @default FAL_NULL_OBJECT_ID
+	 *
+	 */
+	FAL_VLAN_FEATURE_ATTR_QOS_EGRESS_MAP_ID,
 };
 
 /**

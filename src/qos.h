@@ -91,7 +91,9 @@ struct qos_dscp_map {
 enum egress_map_type {
 	EGRESS_UNDEF = 0,
 	EGRESS_DSCP = 1,
-	EGRESS_DESIGNATION = 2
+	EGRESS_DESIGNATION = 2,
+	EGRESS_DESIGNATION_DSCP = 3,
+	EGRESS_DESIGNATION_PCP = 4
 };
 
 struct qos_mark_map {
@@ -503,6 +505,19 @@ struct qos_ingressm {
 
 extern struct qos_ingressm qos_ingressm;
 
+/*
+ * The egress map plugin structure.
+ */
+struct qos_egressm {
+	int (*qos_egressm_attach)(unsigned int ifindex, unsigned int vlan,
+				   struct qos_mark_map *map);
+	int (*qos_egressm_detach)(unsigned int ifindex, unsigned int vlan,
+				   struct qos_mark_map *map);
+	int (*qos_egressm_config)(struct qos_mark_map *map, bool create);
+};
+
+extern struct qos_egressm qos_egressm;
+
 void qos_init(void);
 int qos_sched_start(struct ifnet *ifp, uint64_t link_speed);
 void qos_sched_stop(struct ifnet *ifp);
@@ -608,5 +623,7 @@ int qos_hw_init(void);
 void qos_hw_del_map(fal_object_t mark_obj);
 void qos_hw_show_legacy_map(struct queue_map *qmap, json_writer_t *wr);
 fal_object_t qos_hw_get_att_ingress_map(struct ifnet *ifp, unsigned int vlan);
+fal_object_t qos_hw_get_att_egress_map(struct ifnet *ifp, unsigned int vlan);
+struct qos_mark_map *qos_egress_map_find(char const *name);
 
 #endif /* QOS_H */
