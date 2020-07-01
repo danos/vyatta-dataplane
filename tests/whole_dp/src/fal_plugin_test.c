@@ -43,9 +43,16 @@ struct rte_ether_addr;
 
 static fal_object_t fal_test_plugin_next_obj = 1;
 
+static zhash_t *fal_test_brports;
+
 int fal_plugin_init(void)
 {
 	INFO("Initializing test fal plugin\n");
+
+	fal_test_brports = zhash_new();
+	if (!fal_test_brports)
+		return -ENOMEM;
+
 	return 0;
 }
 
@@ -280,22 +287,48 @@ void fal_plugin_br_new_port(unsigned int bridge_ifindex,
 			    uint32_t attr_count,
 			    const struct fal_attribute_t *attr_list)
 {
+	char ifi_str[16];
+
 	DEBUG("%s(bridge_ifindex %d, child_ifindex %d, attr_count %d...)\n",
 	      __func__, bridge_ifindex, child_ifindex, attr_count);
+
+	snprintf(ifi_str, sizeof(ifi_str), "%u", child_ifindex);
+
+	dp_test_fail_unless(!zhash_lookup(fal_test_brports, ifi_str),
+			    "duplicate %s for %u\n",
+			    __func__, child_ifindex);
+
+	zhash_insert(fal_test_brports, ifi_str,
+		     (void *)(uintptr_t)bridge_ifindex);
 }
 
 void fal_plugin_br_upd_port(unsigned int if_index,
 			    struct fal_attribute_t *attr)
 {
+	char ifi_str[16];
+
 	DEBUG("%s(if_index %d, attr { id %d, ... })\n",
 				__func__, if_index, attr->id);
+
+	snprintf(ifi_str, sizeof(ifi_str), "%u", if_index);
+	dp_test_fail_unless(zhash_lookup(fal_test_brports, ifi_str),
+			    "missing fal_plugin_br_new_port for %u\n",
+			    if_index);
 }
 
 void fal_plugin_br_del_port(unsigned int bridge_ifindex,
 			    unsigned int child_ifindex)
 {
+	char ifi_str[16];
+
 	DEBUG("%s(bridge_ifindex %d, child_ifindex %d)\n",
 	      __func__, bridge_ifindex, child_ifindex);
+
+	snprintf(ifi_str, sizeof(ifi_str), "%u", child_ifindex);
+	dp_test_fail_unless(zhash_lookup(fal_test_brports, ifi_str),
+			    "missing fal_plugin_br_new_port for %u\n",
+			    child_ifindex);
+	zhash_delete(fal_test_brports, ifi_str);
 }
 
 void fal_plugin_br_new_neigh(unsigned int if_index,
@@ -749,6 +782,8 @@ int fal_plugin_stp_get_port_attribute(unsigned int child_ifindex,
 void fal_plugin_cleanup(void)
 {
 	DEBUG("%s\n", __func__);
+
+	zhash_destroy(&fal_test_brports);
 }
 
 void fal_plugin_command(FILE *f, int argc, char **argv)
