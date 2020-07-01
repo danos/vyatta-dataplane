@@ -1,3 +1,18 @@
+vyatta-dataplane (3.10.37) unstable; urgency=medium
+
+  [ Paul Aitken ]
+  * DPI: add nDPI debugging
+  * DPI: load optional nDPI protocols and categories
+
+  [ Charles (Chas) Williams ]
+  * unit tests: fix mbuf debuggging (Bugfix: VRVDR-51987)
+  * crypto: fix mbuf debugging (Bugfix: VRVDR-51987)
+  * mpls: reject short packets (Bugfix: VRVDR-51987)
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Wed, 01 Jul 2020 09:22:12 +0100
+
 vyatta-dataplane (3.10.36) unstable; urgency=medium
 
   * control: add a comment to request new commands in protobuf format
