@@ -622,7 +622,6 @@ struct ifnet *bridge_create(int ifindex, const char *ifname,
 			    const struct rte_ether_addr *addr)
 {
 	struct ifnet *ifp;
-	struct bridge_softc *sc;
 
 	ifp = dp_ifnet_byifname(ifname);
 	/* existing interface, reuse it */
@@ -646,24 +645,11 @@ struct ifnet *bridge_create(int ifindex, const char *ifname,
 		return NULL;
 	}
 
-	sc = ifp->if_softc;
-
 	if_set_ifindex(ifp, ifindex);
 	if (!if_setup_vlan_storage(ifp)) {
 		if_free(ifp);
 		return NULL;
 	}
-
-	const struct fal_attribute_t attr_list[2] = {
-		{FAL_STP_ATTR_INSTANCE, .value.u8 = STP_INST_IST},
-		{FAL_STP_ATTR_MSTI, .value.u16 = MSTP_MSTI_IST}
-	};
-
-	int rc = fal_stp_create(ifindex, 2, &attr_list[0], &sc->stp);
-	if (rc < 0)
-		DP_DEBUG(BRIDGE, ERR, BRIDGE,
-			 "FAL(%u): failed to create STP: '%s'\n",
-			 ifindex, strerror(-rc));
 
 	return ifp;
 }
@@ -762,8 +748,6 @@ static void bridge_if_uninit(struct ifnet *ifp)
 
 	if (!sc)
 		return;
-
-	fal_stp_delete(bridge_fal_stp_object(ifp));
 
 	rte_timer_stop(&sc->scbr_timer);
 	cds_lfht_destroy(sc->scbr_rthash, NULL);
