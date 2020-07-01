@@ -650,6 +650,10 @@ void if_change_features_mode(struct ifnet *ifp, enum if_feat_mode_flags flags)
 	l3_hw_enabled = _if_is_features_mode_active(
 		ifp, IF_FEAT_MODE_EVENT_L3_FAL_ENABLED, flags);
 
+	if (l2_enabled && flags & IF_FEAT_MODE_FLAG_L2_ENABLED)
+		dp_event(DP_EVT_IF_FEAT_MODE_CHANGE, 0, ifp,
+			 IF_FEAT_MODE_EVENT_L2_CREATED, 0, NULL);
+
 	if (flags & IF_FEAT_MODE_FLAG_L2_FAL_ENABLE) {
 		struct fal_attribute_t attr = {
 			.id = FAL_PORT_ATTR_HW_SWITCH_MODE,
@@ -2955,7 +2959,7 @@ void if_finish_create(struct ifnet *ifp, const char *ifi_type,
 	fal_l2_new_port(ifp->if_index, nattrs, attrs);
 
 	ifp->if_created = true;
-	if_change_features_mode(ifp, IF_FEAT_MODE_FLAG_NONE);
+	if_change_features_mode(ifp, IF_FEAT_MODE_FLAG_L2_ENABLED);
 
 	incomplete_routes_make_complete();
 }

@@ -208,6 +208,8 @@ enum if_feat_mode_flags {
 	IF_FEAT_MODE_FLAG_L2_FAL_DISABLE = (1 << 3),
 	/* interface-embellishing feature changed */
 	IF_FEAT_MODE_FLAG_EMB_FEAT_CHANGED = (1 << 4),
+	/* notify that L2 has be enabled for the interface */
+	IF_FEAT_MODE_FLAG_L2_ENABLED = (1 << 5),
 };
 
 /*
