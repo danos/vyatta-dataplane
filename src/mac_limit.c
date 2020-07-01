@@ -678,7 +678,7 @@ static void mac_limit_dump(FILE *f, const char *intf,
 }
 
 /*
- * mac-limit show mac-count <intf> <vlan>
+ * mac-limit show status <intf> <vlan>
  * mac-limit dump (internal use)
  */
 int cmd_mac_limit_op(FILE *f, int argc, char **argv)
@@ -699,7 +699,12 @@ int cmd_mac_limit_op(FILE *f, int argc, char **argv)
 		return 0;
 	}
 
-	if (strcmp(argv[1], "show") || strcmp(argv[2], "mac-count"))
+	/*
+	 * "status" replaces "mac-count" which is retained only on a temporary
+	 * basis.
+	 */
+	if ((strcmp(argv[1], "show") ||
+	     (strcmp(argv[2], "mac-count") && strcmp(argv[2], "status"))))
 		goto error;
 
 	ifname = argv[3];
@@ -713,7 +718,7 @@ int cmd_mac_limit_op(FILE *f, int argc, char **argv)
 
 	mac_limit = mle_find_entry(ifp, vlan);
 	if (!mac_limit) {
-		fprintf(f, "No configuration found for %s %d\n",
+		fprintf(f, "No mac-limit configuration found for %s %d\n",
 			ifname, vlan);
 		return -1;
 	}

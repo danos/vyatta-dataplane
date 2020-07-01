@@ -102,7 +102,7 @@ static void _verify_plugin_limit(const char *intf, uint16_t vlan,
 	json_object *jexp;
 	char cmd_str[50];
 
-	sprintf(cmd_str, "mac-limit show mac-count %s %d",
+	sprintf(cmd_str, "mac-limit show status %s %d",
 		intf, vlan);
 	jexp = dp_test_json_create(
 		"{ "
