@@ -31,7 +31,7 @@ pipeline {
 	OSC_BUILD_ROOT = "${WORKSPACE}" + '/build-root/' + "${env.OBS_TARGET_PROJECT.replace(':','_')}" + '-' + "${env.OBS_TARGET_REPO}" + '-' + "${OBS_TARGET_ARCH}"
 	DH_VERBOSE = 1
 	DH_QUIET = 0
-	DEB_BUILD_OPTIONS ='verbose all_tests'
+	DEB_BUILD_OPTIONS ='verbose all_tests sanitizer'
     }
 
     options {
