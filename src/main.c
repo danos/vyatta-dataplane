@@ -1244,8 +1244,8 @@ static void close_all_regular_ports(void)
 	unsigned int portid;
 
 	for (portid = 0; portid < DATAPLANE_MAX_PORTS; ++portid) {
-		if (!if_port_is_bkplane(portid) &&
-		    rte_eth_dev_is_valid_port(portid))
+		if (rte_eth_dev_is_valid_port(portid) &&
+		    !if_port_is_bkplane(portid))
 			rte_eth_dev_close(portid);
 	}
 }
