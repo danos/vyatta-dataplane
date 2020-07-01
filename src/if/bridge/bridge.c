@@ -844,17 +844,18 @@ static void bridge_newport(int ifindex, const char *name,
 		rcu_assign_pointer(ifp->if_brport, port);
 		bridge_port_add_to_list(port, &sc->scbr_porthead);
 
+		if (!bridge_can_create_in_fal(ifp))
+			DP_DEBUG(BRIDGE, DEBUG, BRIDGE,
+				"%s deferring signalling of newport in FAL\n",
+				ifp->if_name);
+
+		/*
+		 * This will also create the FAL bridge-port object,
+		 * if possible.
+		 */
 		if_notify_emb_feat_change(ifp);
 
 		ifpromisc(ifp, 1);
-
-		if (bridge_can_create_in_fal(ifp)) {
-			fal_br_new_port(ifmaster, ifindex, 1, attr_list);
-			bridge_port_set_fal_created(ifp->if_brport, true);
-		} else
-			DP_DEBUG(BRIDGE, ERR, BRIDGE,
-				"%s deferring signalling of newport in FAL\n",
-				ifp->if_name);
 
 		bridge_port_set_state(ifp->if_brport, state);
 	}
