@@ -1,3 +1,20 @@
+vyatta-dataplane (3.10.39) unstable; urgency=medium
+
+  [ Robert Shearman ]
+  * ut: add dp1 prefix to switchports
+  * devinfo: change if_port_info to not require an ifp
+  * master: avoid needing ifp present when adding/deleting ports
+  * if: classify backplane ports as dataplane interfaces
+  * if: clean up life-cycle of DPDK ethernet interface objects
+    (Closes: VRVDR-51844)
+  * if: remove missed link & unspec address handling
+  * if: remove missed IP address & netconf handling (Closes: VRVDR-51845)
+  * if: remove unused hwport incomplete infra
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Thu, 02 Jul 2020 08:52:24 +0100
+
 vyatta-dataplane (3.10.38) unstable; urgency=medium
 
   [ Robert Shearman ]
