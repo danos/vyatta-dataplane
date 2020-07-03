@@ -207,9 +207,11 @@ static void linkwatch_change_mark_state(portid_t port_id,
 	dp_rcu_register_thread();
 
 	ifp = ifnet_byport(port_id);
-	key.ifindex = ifp->if_index;
-	key.type = DP_RT_PATH_UNUSABLE_KEY_INTF;
-	dp_rt_signal_path_state(linkscan_source, state, &key);
+	if (ifp) {
+		key.ifindex = ifp->if_index;
+		key.type = DP_RT_PATH_UNUSABLE_KEY_INTF;
+		dp_rt_signal_path_state(linkscan_source, state, &key);
+	}
 
 	rcu_thread_offline();
 }
