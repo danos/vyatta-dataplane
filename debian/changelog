@@ -1,3 +1,22 @@
+vyatta-dataplane (3.10.41) unstable; urgency=medium
+
+  [ Robert Shearman ]
+  * if: issue feature event for interface being created
+  * mstp: defer creation of STP object until after bridge created in FAL
+    (Fixes: VRVDR-52083)
+  * bridge: fix duplicate FAL br_new_port notification (Fixes: VRVDR-52084)
+  * ut: validate FAL contract for bridge-port objects
+
+  [ Thomas Kiely ]
+  * mac_limit: Rename "mac-count" command to "limit status"
+
+  [ Brian Russell ]
+  * qos: update fal global map when resource group changes
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Fri, 03 Jul 2020 14:22:05 +0100
+
 vyatta-dataplane (3.10.40) unstable; urgency=medium
 
   [ harios ]
