@@ -1,3 +1,17 @@
+vyatta-dataplane (3.10.42) unstable; urgency=medium
+
+  [ Charles (Chas) Williams ]
+  * lag: remove potentially offensive language (Bugfix: VRVDR-51820)
+  * main: remove potentially offensive language (Bugfix: VRVDR-51820)
+  * vrf: remove potentially offensive language (Bugfix: VRVDR-51820)
+  * bridge: remove potentially offensive language (Bugfix: VRVDR-51820)
+  * tests: remove potentially offensive language (Bugfix: VRVDR-51820)
+  * session: remove potentially offensive language (Bugfix: VRVDR-51820)
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Fri, 03 Jul 2020 15:49:00 +0100
+
 vyatta-dataplane (3.10.41) unstable; urgency=medium
 
   [ Robert Shearman ]
