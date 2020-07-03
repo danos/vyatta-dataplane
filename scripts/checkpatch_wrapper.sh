@@ -11,9 +11,6 @@ usage () {
 TARGET="$1" # most likely "origin/master"
 SOURCE="$2" # most likely "bugfix/foo" or "feature/bar"
 
-IGNORE_TYPES="FILE_PATH_CHANGES,LINE_SPACING,GIT_COMMIT_ID,SPLIT_STRING,\
-PREFER_PRINTF,SPDX_LICENSE_TAG,BOOL_BITFIELD"
-
 MAX_CHANGED_LINES_ALLOWED=400
 
 GIT_SOURCE_HASH=$(git rev-list -n1 "$SOURCE")
@@ -47,10 +44,7 @@ do
     fi
 done
 
-checkpatch.pl \
-    --no-tree --no-signoff --show-types --emacs \
-    --ignore "$IGNORE_TYPES" \
-    --git  "$GIT_MERGE_BASE..$GIT_SOURCE_HASH"
+checkpatch.pl --git  "$GIT_MERGE_BASE..$GIT_SOURCE_HASH"
 CHECKPATCH_EXIT_STATUS=$?
 
 if [ "$COMMIT_TOO_LARGE" = "true" ] || [ $CHECKPATCH_EXIT_STATUS -ne 0 ]; then

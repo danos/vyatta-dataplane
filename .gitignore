@@ -97,6 +97,9 @@ cscope.po.out
 !.gitignore
 !.gitlint
 
+# don't ignore tool config files
+!.checkpatch.conf
+
 *.orig
 *.rej
 *~
