@@ -1,3 +1,18 @@
+vyatta-dataplane (3.10.40) unstable; urgency=medium
+
+  [ harios ]
+  * Fix done for nexthop as IPv4 mapped IPv6 address
+
+  [ Robert Shearman ]
+  * main: swap order of checks on closing ports (Fixes: VRVDR-52095)
+  * if: make promiscuity apply to VLANs as well as MAC addresses
+    (Fixes: VRVDR-52049)
+  * capture: remove interface-type check for setting promiscuity
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Fri, 03 Jul 2020 09:06:51 +0100
+
 vyatta-dataplane (3.10.39) unstable; urgency=medium
 
   [ Robert Shearman ]
