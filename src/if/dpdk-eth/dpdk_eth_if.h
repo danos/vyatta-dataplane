@@ -50,7 +50,7 @@ void dpdk_eth_if_start_port(struct ifnet *ifp);
 void dpdk_eth_if_stop_port(struct ifnet *ifp);
 void dpdk_eth_if_force_stop_port(struct ifnet *ifp);
 void stop_all_ports(void);
-void dpdk_eth_if_update_port_queue_state(struct ifnet *ifp);
+void dpdk_eth_if_update_port_queue_state(portid_t port);
 bool dpdk_eth_if_port_started(portid_t port);
 void dpdk_eth_if_reset_port(struct rte_timer *tim, void *arg);
 

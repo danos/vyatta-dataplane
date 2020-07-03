@@ -347,14 +347,14 @@ void dpdk_eth_if_reset_port(struct rte_timer *tim, void *arg)
 	reconfigure_port(ifp, &dev_conf, NULL);
 }
 
-void dpdk_eth_if_update_port_queue_state(struct ifnet *ifp)
+void dpdk_eth_if_update_port_queue_state(portid_t port)
 {
-	unassign_queues(ifp->if_port);
+	unassign_queues(port);
 
-	set_port_queue_state(ifp->if_port);
+	set_port_queue_state(port);
 
-	if (bitmask_isset(&started_port_mask, ifp->if_port))
-		assign_queues(ifp->if_port);
+	if (bitmask_isset(&started_port_mask, port))
+		assign_queues(port);
 }
 
 static void reconfigure_member(struct ifnet *ifp, void *arg)

@@ -188,8 +188,7 @@ static int link_state_event(void *arg)
 
 		if (bitmask_isset(&queue_state_pending, port)) {
 			bitmask_clear(&queue_state_pending, port);
-			dpdk_eth_if_update_port_queue_state(
-				ifport_table[port]);
+			dpdk_eth_if_update_port_queue_state(port);
 		}
 	}
 
