@@ -1,3 +1,18 @@
+vyatta-dataplane (3.10.43) unstable; urgency=medium
+
+  [ Nicholas Brown ]
+  * Remove last mentions of valgrind build
+  * Enable the address sanitizer as part of the jenkins build
+  * use .checkpatch.conf
+
+  [ Robert Shearman ]
+  * dpdk-eth: check that ifp exists in linkwatch_change_mark_state
+  * dpdk-eth: don't require ifp for updating queue state (Fixes: VRVDR-52109)
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Mon, 06 Jul 2020 13:29:50 +0100
+
 vyatta-dataplane (3.10.42) unstable; urgency=medium
 
   [ Charles (Chas) Williams ]
