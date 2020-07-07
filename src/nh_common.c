@@ -1735,3 +1735,102 @@ void nexthop_map_display(const struct next_hop_list *nextl,
 		jsonw_uint(jsonw, nextl->nh_map->index[i]);
 	jsonw_end_array(jsonw);
 }
+
+bool
+next_hop_list_fal_l3_enable_changed(int family,
+				    struct next_hop_list *nextl,
+				    struct ifnet *ifp,
+				    fal_object_t *old_nhg_obj,
+				    fal_object_t **old_nh_objs)
+{
+	enum fal_packet_action_t action;
+	bool contains_ifp = false;
+	unsigned int i;
+	int ret;
+
+	for (i = 0; i < nextl->nsiblings; i++) {
+		struct next_hop *nh = nextl->siblings + i;
+
+		if (dp_nh_get_ifp(nh) == ifp) {
+			contains_ifp = true;
+			break;
+		}
+	}
+
+	if (!contains_ifp)
+		return false;
+
+	action = fal_next_hop_group_packet_action(nextl->nsiblings,
+						  nextl->siblings);
+	/*
+	 * Check if there is a change in whether the nhg FAL object is
+	 * needed - if the packet action is something other than
+	 * FORWARD then the nhg FAL object isn't needed.
+	 */
+	if ((action == FAL_PACKET_ACTION_FORWARD) ==
+	    (nextl->pd_state != PD_OBJ_STATE_NOT_NEEDED))
+		return false;
+
+	*old_nh_objs = calloc(nextl->nsiblings, sizeof(**old_nh_objs));
+	if (!*old_nh_objs) {
+		RTE_LOG(ERR, ROUTE,
+			"Out of memory during FAL intf L3 state change\n");
+		return false;
+	}
+
+	/* save old objects for later freeing */
+	*old_nhg_obj = nextl->nhg_fal_obj;
+	memcpy(*old_nh_objs, nextl->nh_fal_obj,
+	       sizeof(**old_nh_objs) * nextl->nsiblings);
+
+	ret = fal_ip_new_next_hops(nextl->nsiblings, nextl->siblings,
+				   &nextl->nhg_fal_obj,
+				   nextl->nh_fal_obj);
+	if (ret < 0 && ret != -EOPNOTSUPP) {
+		RTE_LOG(ERR, ROUTE,
+			"FAL IPv%d next-hop-group create for FAL intf L3 state change failed: %s\n",
+			family == AF_INET ? 4 : 6,
+			strerror(-ret));
+		/*
+		 * clear out stale object handles, although with
+		 * pd_state set accordingly these shouldn't be used
+		 * anyway.
+		 */
+		nextl->nhg_fal_obj = FAL_NULL_OBJECT_ID;
+		memset(nextl->nh_fal_obj, 0,
+		       sizeof(*nextl->nh_fal_obj) * nextl->nsiblings);
+	}
+
+	nextl->pd_state = fal_state_to_pd_state(ret);
+
+	return true;
+}
+
+void
+next_hop_list_fal_l3_enable_changed_finish(int family,
+					   struct next_hop_list *nextl,
+					   fal_object_t old_nhg_obj,
+					   fal_object_t *old_nh_objs)
+{
+	int ret;
+
+	/*
+	 * Next hop group object may not have been created previously,
+	 * which is expected if an interface was previously not FAL L3
+	 * enabled.
+	 */
+	if (old_nhg_obj == FAL_NULL_OBJECT_ID)
+		return;
+
+	ret = fal_ip_del_next_hops(old_nhg_obj,
+				   nextl->nsiblings,
+				   old_nh_objs);
+	if (ret < 0) {
+		RTE_LOG(ERR, ROUTE,
+			"FAL IPv%d next-hop-group delete for FAL intf L3 state change failed: %s\n",
+			family == AF_INET ? 4 : 6,
+			strerror(-ret));
+	}
+
+	free(old_nh_objs);
+}
