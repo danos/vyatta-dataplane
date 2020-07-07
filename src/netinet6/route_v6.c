@@ -1598,7 +1598,7 @@ static void flush6_cleanup(const uint8_t *prefix __rte_unused,
 			   uint32_t pr_len __rte_unused,
 			   int16_t scope __rte_unused,
 			   uint32_t next_hop,
-			   struct pd_obj_state_and_flags pd_state __rte_unused,
+			   struct pd_obj_state_and_flags *pd_state __rte_unused,
 			   void *arg __rte_unused)
 {
 	nexthop_put(AF_INET6, next_hop);
@@ -1774,7 +1774,7 @@ static void __rt6_display(json_writer_t *json, const uint8_t *addr,
  */
 static void rt6_display(const uint8_t *addr, uint32_t prefix_len, int16_t scope,
 			uint32_t next_hop,
-			struct pd_obj_state_and_flags pd_state __rte_unused,
+			struct pd_obj_state_and_flags *pd_state __rte_unused,
 			void *arg)
 {
 	json_writer_t *json = arg;
@@ -1802,7 +1802,7 @@ static void rt6_display(const uint8_t *addr, uint32_t prefix_len, int16_t scope,
 
 static void rt6_display_all(const uint8_t *addr, uint32_t prefix_len,
 			    int16_t scope, uint32_t next_hop,
-			    struct pd_obj_state_and_flags pd_state __rte_unused,
+			    struct pd_obj_state_and_flags *pd_state __rte_unused,
 			    void *arg)
 {
 	json_writer_t *json = arg;
@@ -1818,7 +1818,7 @@ static void rt6_local_display(
 	const uint8_t *addr,
 	uint32_t prefix_len,
 	int16_t scope, uint32_t next_hop,
-	struct pd_obj_state_and_flags pd_state __rte_unused,
+	struct pd_obj_state_and_flags *pd_state __rte_unused,
 	void *arg)
 {
 	FILE *f = arg;
@@ -1869,13 +1869,13 @@ struct rt6_vrf_lpm_walk_ctx {
 	void (*func)(struct vrf *vrf, uint32_t table_id,
 		     const uint8_t *addr, uint32_t prefix_len,
 		     int16_t scope, uint32_t next_hop,
-		     struct pd_obj_state_and_flags pd_state, void *arg);
+		     struct pd_obj_state_and_flags *pd_state, void *arg);
 	void *arg;
 };
 
 static void rt6_vrf_lpm_walk_cb(const uint8_t *addr, uint32_t prefix_len,
 				int16_t scope, uint32_t next_hop,
-				struct pd_obj_state_and_flags pd_state,
+				struct pd_obj_state_and_flags *pd_state,
 				void *arg)
 {
 	const struct rt6_vrf_lpm_walk_ctx *ctx = arg;
@@ -1888,7 +1888,7 @@ static void rt6_lpm_walk_util(
 	void (*func)(struct vrf *vrf, uint32_t table_id,
 		     const uint8_t *addr, uint32_t prefix_len,
 		     int16_t scope, uint32_t next_hop,
-		     struct pd_obj_state_and_flags pd_state,
+		     struct pd_obj_state_and_flags *pd_state,
 		     void *arg),
 	void *arg)
 {
@@ -1916,7 +1916,7 @@ static void rt6_lpm_walk_util(
 static void rt6_if_dead(struct vrf *vrf, uint32_t table_id,
 			const uint8_t *addr, uint32_t prefix_len,
 			int16_t scope, uint32_t next_hop,
-			struct pd_obj_state_and_flags pd_state __rte_unused,
+			struct pd_obj_state_and_flags *pd_state __rte_unused,
 			void *arg)
 {
 	struct next_hop_list *nextl =
@@ -1963,7 +1963,7 @@ static void rt6_if_clear_slowpath_flag(
 	uint32_t prefix_len __unused,
 	int16_t scope __unused,
 	uint32_t next_hop,
-	struct pd_obj_state_and_flags pd_state __rte_unused,
+	struct pd_obj_state_and_flags *pd_state __rte_unused,
 	void *arg)
 {
 	const struct next_hop_list *nextl =
@@ -1985,7 +1985,7 @@ static void rt6_if_set_slowpath_flag(
 	const uint8_t *addr __unused,
 	uint32_t prefix_len __unused,
 	int16_t scope __unused, uint32_t next_hop,
-	struct pd_obj_state_and_flags pd_state __rte_unused,
+	struct pd_obj_state_and_flags *pd_state __rte_unused,
 	void *arg)
 {
 	const struct next_hop_list *nextl =
@@ -2092,7 +2092,7 @@ void rt6_local_show(struct route6_head *rt6_head, FILE *f)
 static void rt6_summarize(const uint8_t *addr,
 			  uint32_t prefix_len, int16_t scope,
 			  uint32_t next_hop,
-			  struct pd_obj_state_and_flags pd_state __rte_unused,
+			  struct pd_obj_state_and_flags *pd_state __rte_unused,
 			  void *arg __rte_unused)
 {
 	const struct next_hop_list *nextl;
@@ -2759,7 +2759,7 @@ struct rt6_show_subset {
 static void rt6_show_subset(struct vrf *vrf, uint32_t tableid,
 			    const uint8_t *ip, uint32_t depth, int16_t scope,
 			    uint32_t idx,
-			    struct pd_obj_state_and_flags pd_state,
+			    struct pd_obj_state_and_flags *pd_state,
 			    void *arg)
 {
 	struct rt6_show_subset *subset = arg;
@@ -2774,7 +2774,7 @@ static void rt6_show_subset(struct vrf *vrf, uint32_t tableid,
 		jsonw_end_object(subset->json);
 	}
 
-	if (subset->subset == pd_state.state)
+	if (subset->subset == pd_state->state)
 		rt6_display_all(ip, depth, scope, idx, pd_state,
 				subset->json);
 }

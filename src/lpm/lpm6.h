@@ -188,7 +188,7 @@ lpm6_delete(struct lpm6 *lpm, const uint8_t *ip, uint8_t depth,
 /** iterator function for LPM rule */
 typedef void (*lpm6_walk_func_t)(const uint8_t *prefix, uint32_t pr_len,
 				 int16_t scope, uint32_t next_hop,
-				 struct pd_obj_state_and_flags pd_state,
+				 struct pd_obj_state_and_flags *pd_state,
 				 void *arg);
 
 /**

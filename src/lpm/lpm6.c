@@ -1469,7 +1469,7 @@ lpm6_delete_all(struct lpm6 *lpm, lpm6_walk_func_t func, void *arg)
 		RB_FOREACH_SAFE(r, lpm6_rules_tree, head, n) {
 			if (func)
 				func(r->ip, depth, r->scope, r->next_hop,
-				     r->pd_state, arg);
+				     &r->pd_state, arg);
 			rule_delete(lpm, r, depth);
 		}
 	}
@@ -1506,7 +1506,7 @@ lpm6_walk(struct lpm6 *lpm, lpm6_walk_func_t func,
 			memcpy(tmp_ip, r->ip, sizeof(tmp_ip));
 
 			func(tmp_ip, depth, r->scope, r->next_hop,
-			     r->pd_state, r_arg->walk_arg);
+			     &r->pd_state, r_arg->walk_arg);
 			if (r_arg->is_segment && (++rule_cnt == r_arg->cnt))
 				return rule_cnt;
 		}
