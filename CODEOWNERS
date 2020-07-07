@@ -1,0 +1,13 @@
+# This is a comment.
+# Each line is a file pattern followed by one or more owners.
+
+# Ordering is important! The last matching file pattern has the highest precedence.
+
+# Do not use @user, @@group or @org/team syntax as these are either Github or Bitbucket specific
+# Use only emails addresses
+
+src/*qos* brussell@vyatta.att-mail.com aroberts@vyatta.att-mail.com adewar@vyatta.att-mail.com
+
+/Makefile.am  nick.brown@att.com
+/configure.ac  nick.brown@att.com
+/Jenkinsfile  nick.brown@att.com
