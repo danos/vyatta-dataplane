@@ -1,3 +1,10 @@
+vyatta-dataplane (3.10.44) unstable; urgency=medium
+
+  * main: allow the user to specify the platform_file location
+  * ut: allow user to specify platform conf file
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Tue, 07 Jul 2020 13:02:45 +0100
+
 vyatta-dataplane (3.10.43) unstable; urgency=medium
 
   [ Nicholas Brown ]
