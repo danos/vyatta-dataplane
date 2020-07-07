@@ -2793,8 +2793,92 @@ int route6_get_pd_subset_data(json_writer_t *json,
 	return 0;
 }
 
+static void route6_fal_upd_for_changed_nhl(
+	struct vrf *vrf, uint32_t table_id,
+	const uint8_t *addr, uint32_t prefix_len,
+	int16_t scope __unused, uint32_t next_hop,
+	struct pd_obj_state_and_flags *pd_state,
+	void *arg)
+{
+	const uint32_t *filter_nhl_index = arg;
+	struct in6_addr ip;
+	int rc;
+
+	if (next_hop != *filter_nhl_index)
+		return;
+
+	if (pd_state->state != PD_OBJ_STATE_FULL)
+		return;
+
+	struct next_hop_list *nextl = rcu_dereference(nh6_tbl.entry[next_hop]);
+
+	memcpy(&ip.s6_addr, addr, sizeof(ip.s6_addr));
+
+	rc = fal_ip6_upd_route(vrf->v_id, &ip, prefix_len,
+			       table_id, nextl->siblings,
+			       nextl->nsiblings, nextl->nhg_fal_obj);
+
+	pd_state->state = fal_state_to_pd_state(rc);
+}
+
+static void
+route6_handle_fal_l3_enable_change(struct ifnet *ifp)
+{
+	struct cds_lfht_node *node;
+	fal_object_t *old_nh_objs;
+	struct next_hop_list *nhl;
+	uint32_t nhls_updated = 0;
+	struct cds_lfht_iter iter;
+	fal_object_t old_nhg_obj;
+
+	cds_lfht_for_each(nexthop6_hash, &iter, node) {
+		nhl = caa_container_of(node, struct next_hop_list, nh_node);
+
+		if (!next_hop_list_fal_l3_enable_changed(AF_INET6,
+							 nhl, ifp,
+							 &old_nhg_obj,
+							 &old_nh_objs))
+			continue;
+
+		/*
+		 * This is going to be very expensive if there are a
+		 * lot of routes present in the system. The only
+		 * consolation is that this is only anticipated to be
+		 * done on major changes such as interface creation
+		 * and removal.
+		 */
+		rt6_lpm_walk_util(route6_fal_upd_for_changed_nhl,
+				  &nhl->index);
+
+		next_hop_list_fal_l3_enable_changed_finish(
+			AF_INET6, nhl, old_nhg_obj, old_nh_objs);
+
+		nhls_updated++;
+	}
+
+	if (nhls_updated)
+		RTE_LOG(DEBUG, ROUTE,
+			"Updated %u IPv6 next hop lists due to FAL L3 state change of interface %s\n",
+			nhls_updated, ifp->if_name);
+}
+
+static void
+rt6_if_feat_mode_change(struct ifnet *ifp,
+			enum if_feat_mode_event event)
+{
+	switch (event) {
+	case IF_FEAT_MODE_EVENT_L3_FAL_ENABLED:
+	case IF_FEAT_MODE_EVENT_L3_FAL_DISABLED:
+		route6_handle_fal_l3_enable_change(ifp);
+		break;
+	default:
+		break;
+	}
+}
+
 static const struct dp_event_ops route6_events = {
 	.if_index_unset = rt6_if_delete,
+	.if_feat_mode_change = rt6_if_feat_mode_change,
 	.vrf_delete = rt6_flush,
 };
 
