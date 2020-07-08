@@ -1,3 +1,15 @@
+vyatta-dataplane (3.10.45) unstable; urgency=medium
+
+  [ Nicholas Brown ]
+  * Add a CODEOWNERS file
+
+  [ Charles (Chas) Williams ]
+  * vhost: fix netlink races with hotplug (Bugfix: VRVDR-50960)
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Wed, 08 Jul 2020 15:21:32 +0100
+
 vyatta-dataplane (3.10.44) unstable; urgency=medium
 
   * main: allow the user to specify the platform_file location
