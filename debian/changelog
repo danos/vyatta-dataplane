@@ -1,3 +1,9 @@
+vyatta-dataplane (3.9.112.16) unstable; urgency=medium
+
+  * ut: set the expected vrf refcout based on the number of ports created
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Wed, 08 Jul 2020 18:05:29 +0100
+
 vyatta-dataplane (3.9.112.15) unstable; urgency=medium
 
   * main: allow the user to specify the platform_file location
