@@ -1700,19 +1700,8 @@ void if_cleanup(enum cont_src_en cont_src)
 	 * are deleted before parents, as parents are created first.
 	 */
 	cds_list_for_each_entry_safe(ifp, tmp, &ifnet_list, if_list) {
-		if (ifp->if_cont_src == cont_src) {
-			fal_l2_del_port(ifp->if_index);
-
-			/* eth ports are only registered on boot, remove
-			 * signaled state, but dont free ifnet.
-			 */
-			if (ifp->if_type == IFT_ETHER && ifp->if_local_port) {
-				if_unset_ifindex(ifp);
-				if_clean(ifp);
-				if_set_vrf(ifp, VRF_DEFAULT_ID);
-			} else
-				if_free(ifp);
-		}
+		if (ifp->if_cont_src == cont_src)
+			if_free(ifp);
 	}
 }
 
