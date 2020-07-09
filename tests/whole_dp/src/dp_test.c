@@ -649,6 +649,8 @@ static void unit_test_load_plugins(const char *directory)
 
 
 bool dp_test_fal_plugin_called;
+uint32_t dp_test_fal_plugin_state;
+void *dp_test_fal_plugin_ptr;
 
 bool dp_test_abort_on_fail = true;
 
