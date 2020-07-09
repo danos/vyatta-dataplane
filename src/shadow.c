@@ -152,6 +152,9 @@ void local_packet_internal(struct ifnet *ifp, struct rte_mbuf *m)
 {
 	unsigned int free_space;
 
+	if (!local_packet_filter(ifp, m))
+		goto drop;
+
 	struct shadow_if_info *sii = local_shadow_if(m, ifp);
 	if (unlikely(!sii)) {
 		RTE_LOG(ERR, DATAPLANE,
@@ -228,15 +231,8 @@ void local_packet(struct ifnet *ifp, struct rte_mbuf *m)
 		.in_ifp = ifp
 	};
 
-	if (!local_packet_filter(ifp, m))
-		goto drop;
-
 	pipeline_fused_l2_local(&pkt);
 	return;
-
-drop:	__cold_label;
-	if_incr_dropped(ifp);
-	pipeline_fused_term_drop(&pkt);
 }
 
 /*
