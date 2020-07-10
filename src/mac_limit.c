@@ -699,12 +699,7 @@ int cmd_mac_limit_op(FILE *f, int argc, char **argv)
 		return 0;
 	}
 
-	/*
-	 * "status" replaces "mac-count" which is retained only on a temporary
-	 * basis.
-	 */
-	if ((strcmp(argv[1], "show") ||
-	     (strcmp(argv[2], "mac-count") && strcmp(argv[2], "status"))))
+	if ((strcmp(argv[1], "show") || strcmp(argv[2], "status")))
 		goto error;
 
 	ifname = argv[3];
