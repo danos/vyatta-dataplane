@@ -1,3 +1,9 @@
+vyatta-dataplane (3.9.112.19) unstable; urgency=medium
+
+  * ut: add vars that tests can use to pass state to the fal
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Fri, 10 Jul 2020 14:26:35 +0100
+
 vyatta-dataplane (3.9.112.18) unstable; urgency=medium
 
   [ Mike Manning ]
