@@ -692,6 +692,10 @@ static void dpdk_eth_if_uninit(struct ifnet *ifp)
 {
 	struct dpdk_eth_if_softc *sc = ifp->if_softc;
 
+	/* if unplugged, then this has already been done */
+	if (!ifp->unplugged)
+		shadow_uninit_port(ifp->if_port);
+
 	/* to cope with freeing after errors during initialisation of ifp */
 	if (!sc)
 		return;

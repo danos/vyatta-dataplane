@@ -2834,7 +2834,6 @@ static void eth_port_uninit(portid_t portid)
 	struct port_conf *port_conf = &port_config[portid];
 	int rc;
 
-	shadow_uninit_port(portid);
 	linkwatch_port_unconfig(portid);
 	bitmask_clear(&enabled_port_mask, portid);
 

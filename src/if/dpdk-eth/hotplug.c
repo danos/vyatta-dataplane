@@ -105,6 +105,7 @@ int detach_device(const char *name)
 	}
 
 	teardown_interface_portid(port_id);
+	shadow_uninit_port(port_id);
 	remove_port(port_id);
 
 	rte_eth_dev_info_get(port_id, &dev_info);

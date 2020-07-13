@@ -745,6 +745,13 @@ void shadow_uninit_port(portid_t port)
 	if (!shadow_port_needed(port))
 		return;
 
+	/*
+	 * if called during shutdown then ignore - the thread has
+	 * already or is about to terminate
+	 */
+	if (zsys_interrupted)
+		return;
+
 	shadow_send_event(SHADOW_REMOVE, port, NULL, NULL);
 }
 
