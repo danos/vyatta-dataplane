@@ -58,10 +58,6 @@ int shadow_init_port(portid_t portid, const char *ifname,
 		     const struct rte_ether_addr *eth_addr);
 void shadow_uninit_port(portid_t port);
 
-/* Initialize state for shadow tunnel commnication */
-void shadow_init(void);
-void shadow_destroy(void);
-
 /* Display shadow interface statistics */
 void shadow_show_summary(FILE *f, const char *name);
 

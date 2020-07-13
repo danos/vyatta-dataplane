@@ -127,7 +127,6 @@
 #include "qos.h"
 #include "route.h"
 #include "session/session.h"
-#include "shadow.h"
 #include "lcore_sched.h"
 #include "lcore_sched_internal.h"
 #include "udp_handler.h"
@@ -3560,7 +3559,6 @@ main(int argc, char **argv)
 
 	dp_event(DP_EVT_INIT, 0, NULL, 0, 0, NULL);
 
-	shadow_init();
 	npf_init();
 	session_init();
 	nexthop_tbl_init();
@@ -3612,7 +3610,6 @@ main(int argc, char **argv)
 
 	capture_destroy();
 	device_server_destroy();
-	shadow_destroy();
 	console_destroy();
 	zactor_destroy(&vplane_auth);
 	interface_cleanup();

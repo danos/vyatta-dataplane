@@ -50,6 +50,7 @@
 #include "config_internal.h"
 #include "crypto/crypto_forward.h"
 #include "crypto/vti.h"
+#include "dp_event.h"
 #include "ether.h"
 #include "if/gre.h"
 #include "if_var.h"
@@ -978,7 +979,8 @@ static void *shadow_handler(void *args)
 }
 
 /* Setup global data for shadow */
-void shadow_init(void)
+static void
+shadow_init(void)
 {
 	event_fd = eventfd(0, EFD_NONBLOCK);
 	if (event_fd < 0)
@@ -999,7 +1001,8 @@ void shadow_init(void)
 		rte_panic("shadow thread creation failed\n");
 }
 
-void shadow_destroy(void)
+static void
+shadow_destroy(void)
 {
 	int join_rc;
 	struct shadow_if_info *sii;
@@ -1122,3 +1125,10 @@ struct shadow_if_info *get_fd2shadowif(int fd)
 
 	return NULL;
 }
+
+static const struct dp_event_ops shadow_events = {
+	.init = shadow_init,
+	.uninit = shadow_destroy,
+};
+
+DP_STARTUP_EVENT_REGISTER(shadow_events);
