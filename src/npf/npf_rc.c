@@ -444,6 +444,7 @@ struct rcc_ctx {
 	bool			ctx_nonzero_only;
 	bool			ctx_detail;
 	bool			ctx_brief;
+	bool			ctx_rpc;
 };
 
 /*
@@ -485,6 +486,29 @@ npf_show_rc_dir_detail(json_writer_t *json, struct npf_rc_counts *rcc,
 	jsonw_end_object(json); /* detail */
 }
 
+static void
+npf_show_rc_dir_detail_rpc(json_writer_t *json, struct npf_rc_counts *rcc,
+			   enum npf_rc_type rct, enum npf_rc_dir dir,
+			   enum rc_ctrl_cat cat)
+{
+	uint64_t count;
+
+	/* We initially only return two NAT64 'in' 'pass' detailed counts */
+	if (rct == NPF_RCT_NAT64 && cat == RC_CAT_PASS && dir == NPF_RC_IN) {
+
+		jsonw_name(json, "detail");
+		jsonw_start_object(json);
+
+		count = npf_rc_read(rcc, rct, dir, NPF_RC_NAT64_4T6);
+		jsonw_uint_field(json, "ipv4-to-ipv6", count);
+
+		count = npf_rc_read(rcc, rct, dir, NPF_RC_NAT64_6T4);
+		jsonw_uint_field(json, "ipv6-to-ipv4", count);
+
+		jsonw_end_object(json);
+	}
+}
+
 /*
  * Write json for npf return code counters in one direction
  */
@@ -515,7 +539,10 @@ npf_show_rc_counts_dir(json_writer_t *json, struct npf_rc_counts *rcc,
 		jsonw_uint_field(json, "count", count);
 
 		/* Conditionally show individual counts */
-		npf_show_rc_dir_detail(json, rcc, rct, dir, cat, ctx);
+		if (ctx->ctx_rpc)
+			npf_show_rc_dir_detail_rpc(json, rcc, rct, dir, cat);
+		else
+			npf_show_rc_dir_detail(json, rcc, rct, dir, cat, ctx);
 
 		jsonw_end_object(json); /* cat_name */
 	}
@@ -647,6 +674,7 @@ npf_rc_counts_parse(FILE *f, int argc, char **argv, struct rcc_ctx *ctx)
 	ctx->ctx_nonzero_only = false;
 	ctx->ctx_detail = false;
 	ctx->ctx_brief = false;
+	ctx->ctx_rpc = false;
 
 	/* All command options are in pairs */
 	while (argc > 1) {
@@ -694,6 +722,11 @@ npf_rc_counts_parse(FILE *f, int argc, char **argv, struct rcc_ctx *ctx)
 			if (!strcasecmp(argv[1], "true") ||
 			    !strcmp(argv[1], "1"))
 				ctx->ctx_brief = true;
+
+		} else if (!strcmp(argv[0], "rpc")) {
+			if (!strcasecmp(argv[1], "true") ||
+			    !strcmp(argv[1], "1"))
+				ctx->ctx_rpc = true;
 		}
 		/* Silently ignore unknown options */
 
@@ -730,11 +763,6 @@ int npf_show_rc_counts(FILE *f, int argc, char **argv)
 
 	ctx.ctx_json = json;
 	jsonw_pretty(json, true);
-
-	/*
-	 * If an interface is *not* specified then only return interfaces that
-	 * have a non-zero count
-	 */
 
 	jsonw_name(json, "npf-rc-counts");
 	jsonw_start_object(json);
