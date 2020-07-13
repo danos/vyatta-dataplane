@@ -3385,7 +3385,7 @@ if_fal_create_l3_intf(struct ifnet *ifp)
 	if (ret < 0)
 		RTE_LOG(ERR, DATAPLANE,
 			"Failed to create L3 FAL object for %s, %d (%s)\n",
-			ifp->if_name, ret, strerror(ret));
+			ifp->if_name, ret, strerror(-ret));
 
 	return ret;
 }
@@ -3407,7 +3407,7 @@ if_fal_delete_l3_intf(struct ifnet *ifp)
 	if (ret < 0)
 		RTE_LOG(ERR, DATAPLANE,
 			"Failed to delete L3 FAL object for %s, %d (%s)\n",
-			ifp->if_name, ret, strerror(ret));
+			ifp->if_name, ret, strerror(-ret));
 	return ret;
 }
 

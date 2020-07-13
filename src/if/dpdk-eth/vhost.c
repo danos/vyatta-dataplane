@@ -747,7 +747,7 @@ static int cmd_vhost_transport_update(int argc, char **argv, bool add)
 	rc = vhost_info_alloc(ifp);
 	if (rc < 0) {
 		RTE_LOG(ERR, DATAPLANE, "vhost_info_alloc: %s\n",
-			strerror(rc));
+			strerror(-rc));
 		return rc;
 	}
 
