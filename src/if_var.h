@@ -657,9 +657,6 @@ struct ifnet *if_alloc(const char *name, enum if_type type,
 		       int socketid);
 void if_set_ifindex(struct ifnet *ifp, unsigned int ifindex);
 void if_unset_ifindex(struct ifnet *ifp);
-struct ifnet *if_hwport_alloc(const char *if_name, unsigned int ifindex);
-struct ifnet *if_hwport_alloc_w_port(const char *if_name, unsigned int ifindex,
-				     portid_t portid);
 void if_free(struct ifnet *ifp);
 void netlink_if_free(struct ifnet *ifp);
 void if_cleanup(enum cont_src_en cont_src);

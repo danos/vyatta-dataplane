@@ -39,13 +39,6 @@ struct dpdk_eth_if_softc {
 	fal_object_t         scd_fal_lag_member_obj; /* LAG member FAL object */
 };
 
-/*
- * determine if device is Mellanox ConnectX-5
- * This will be used for some short-term customization of dataplane
- * behaviour until we are able to up-rev DPDK to 1908
- */
-bool is_device_mlx5(portid_t portid);
-
 void dpdk_eth_if_start_port(struct ifnet *ifp);
 void dpdk_eth_if_stop_port(struct ifnet *ifp);
 void dpdk_eth_if_force_stop_port(struct ifnet *ifp);
@@ -58,6 +51,9 @@ char *dpdk_eth_vplaned_devinfo(portid_t port_id);
 
 int dpdk_name_to_eth_port_map_add(const char *ifname, portid_t port);
 void dpdk_eth_port_map_del_port(portid_t port);
-portid_t dpdk_name_to_eth_port_map_get(const char *ifname);
+
+struct ifnet *dpdk_eth_if_alloc(const char *if_name, unsigned int ifindex);
+struct ifnet *dpdk_eth_if_alloc_w_port(const char *if_name,
+				       unsigned int ifindex, portid_t portid);
 
 #endif /* DPDK_ETH_IF_H */

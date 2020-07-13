@@ -139,7 +139,7 @@ fal_lag_create(const struct ifinfomsg *ifi, struct nlattr *tb[])
 		goto del_fal_lag;
 	}
 
-	ifp = if_hwport_alloc_w_port(ifname, ifi->ifi_index, dpdk_port);
+	ifp = dpdk_eth_if_alloc_w_port(ifname, ifi->ifi_index, dpdk_port);
 	if (!ifp)
 		goto del_rem_port;
 	sc = ifp->if_softc;

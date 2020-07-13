@@ -160,7 +160,7 @@ dpdk_lag_create(const struct ifinfomsg *ifi, struct nlattr *tb[])
 	if (insert_port(port_id) != 0)
 		return NULL;
 
-	ifp = if_hwport_alloc_w_port(ifname, ifi->ifi_index, port_id);
+	ifp = dpdk_eth_if_alloc_w_port(ifname, ifi->ifi_index, port_id);
 	if (!ifp) {
 		remove_port(port_id);
 		return NULL;

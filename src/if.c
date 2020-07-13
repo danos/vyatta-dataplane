@@ -78,7 +78,6 @@
 #include "fal.h"
 #include "if/bridge/bridge.h"
 #include "if/dpdk-eth/dpdk_eth_if.h"
-#include "if/dpdk-eth/hotplug.h"
 #include "if/gre.h"
 #include "if/macvlan.h"
 #include "if/vxlan.h"
@@ -90,7 +89,6 @@
 #include "json_writer.h"
 #include "l2_rx_fltr.h"
 #include "l2tp/l2tpeth.h"
-#include "lag.h"
 #include "main.h"
 #include "controller.h"
 #include "netinet6/in6.h"
@@ -1549,122 +1547,6 @@ void if_allmulti(struct ifnet *ifp, int onoff)
 	}
 
 	l2_rx_fltr_state_change(ifp);
-}
-
-static void if_team_init(struct ifnet *ifp)
-{
-	ifp->if_team = lag_is_team(ifp);
-}
-
-static struct ifnet *
-if_hwport_init(const char *if_name, unsigned int portid,
-	       const struct rte_ether_addr *eth, int socketid)
-{
-	struct ifnet *ifp;
-
-	/* device driver couldn't find MAC address */
-	if (rte_is_zero_ether_addr(eth)) {
-		RTE_LOG(NOTICE, DATAPLANE,
-			"%s port %u: address not set!\n", if_name, portid);
-		return NULL;
-	}
-
-	ifp = if_alloc(if_name, IFT_ETHER, RTE_ETHER_MTU, eth, socketid);
-	if (!ifp)
-		return NULL;
-
-	ifp->if_port = portid;
-
-	/*
-	 * Temporarily turn off VLAN insertion offload for Mellanox
-	 * ConnectX5 devices. This should be removed when DPDK is
-	 * up-reved to 1908
-	 */
-	if (is_device_mlx5(portid))
-		ifp->tpid_offloaded = 0;
-
-	if (!if_setup_vlan_storage(ifp)) {
-		if_free(ifp);
-		return NULL;
-	}
-
-	return ifp;
-}
-
-/*
- * Initialize a hardwired port.
- */
-struct ifnet *if_hwport_alloc_w_port(const char *if_name, unsigned int ifindex,
-				     portid_t portid)
-{
-	struct rte_ether_addr mac_addr;
-	struct ifnet *ifp;
-	int socketid;
-
-	socketid = rte_eth_dev_socket_id(portid);
-	rte_eth_macaddr_get(portid, &mac_addr);
-
-	ifp = if_hwport_init(if_name, portid, &mac_addr, socketid);
-	if (!ifp)
-		return NULL;
-
-	/* Can't set ifp->if_dp_id, we have not been told our dp_id yet */
-
-	/* port is on this dataplane, so if_port is valid */
-	ifp->if_local_port = 1;
-
-	/*
-	 * Set mac-address driver filtering as initially
-	 * supported. This will be reset later if any subsequent
-	 * attempt to program filtering in the driver should fail.
-	 */
-	ifp->if_mac_filtr_supported = 1;
-	ifp->if_mac_filtr_reprogram = 0;
-
-	if_team_init(ifp);
-
-	rcu_assign_pointer(ifport_table[portid], ifp);
-
-	if_set_ifindex(ifp, ifindex);
-
-	/* No shadow interfaces for LAG interfaces */
-	if (!is_team(ifp)) {
-		int rc = shadow_init_port(ifp->if_port, ifp->if_name,
-					  &ifp->eth_addr);
-
-		if (rc < 0) {
-			char port_name[RTE_ETH_NAME_MAX_LEN];
-			RTE_LOG(ERR, DATAPLANE,
-				"cannot init shadow interface for %s, port %u\n",
-				ifp->if_name, ifp->if_port);
-			if (rte_eth_dev_get_name_by_port(ifp->if_port,
-							 port_name) < 0)
-				RTE_LOG(ERR, DATAPLANE,
-					"port(%u) to name  failed\n",
-					ifp->if_port);
-			else if (detach_device(port_name))
-				RTE_LOG(ERR, DATAPLANE,
-					"detach device %s failed\n",
-					port_name);
-		}
-	}
-
-	return ifp;
-}
-
-struct ifnet *if_hwport_alloc(const char *if_name, unsigned int ifindex)
-{
-	portid_t portid;
-
-	portid = dpdk_name_to_eth_port_map_get(if_name);
-	if (portid >= DATAPLANE_MAX_PORTS) {
-		RTE_LOG(WARNING, DATAPLANE,
-			"DPDK port not known for interface %s, not creating\n",
-			if_name);
-		return NULL;
-	}
-
-	return if_hwport_alloc_w_port(if_name, ifindex, portid);
 }
 
 /* Cleanup all pseudo-interfaces. */
