@@ -411,6 +411,11 @@ struct fal_qos_map_list_t {
 struct fal_acl_field_data_t;
 struct fal_acl_action_data_t;
 
+struct fal_ptp_port_path_t {
+	uint16_t vlan_id;	/** VLAN ID */
+	uint32_t ifindex;	/** Underlying interface */
+};
+
 /* An attribute */
 
 union fal_attribute_value_t {
@@ -431,6 +436,7 @@ union fal_attribute_value_t {
 	struct fal_acl_action_data_t *aclaction;
 	char if_name[IFNAMSIZ];
 	uint8_t eui64[8];
+	struct fal_ptp_port_path_t ptp_port_path;
 };
 
 struct fal_attribute_t {
@@ -4541,6 +4547,14 @@ enum fal_ptp_port_attr_t {
 	 * @flags CREATE_ONLY
 	 */
 	FAL_PTP_PORT_DSCP,
+
+	/**
+	 * @brief Additional incoming path for PTP packets that
+	 *        are destined for the clock port.
+	 * @type fal_ptp_port_port_path_t
+	 * @flags CREATE_ONLY
+	 */
+	FAL_PTP_PORT_ADDITIONAL_PATH,
 
 	FAL_PTP_PORT_MAX
 };

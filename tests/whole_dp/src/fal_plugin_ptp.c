@@ -164,6 +164,7 @@ int fal_plugin_create_ptp_port(uint32_t attr_count,
 {
 	const struct fal_attribute_t *attr;
 	uint16_t vlan_id = 1;
+	int ifindex;
 
 	attr = get_attribute(FAL_PTP_PORT_PORT_NUMBER,
 			     attr_count,
@@ -193,6 +194,19 @@ int fal_plugin_create_ptp_port(uint32_t attr_count,
 
 	if (num_ptp_ports == MAX_PTP_PORTS)
 		return -ENOMEM;
+
+	attr = get_attribute(FAL_PTP_PORT_ADDITIONAL_PATH,
+			     attr_count,
+			     attr_list);
+	if (attr) {
+		ifindex = attr->value.ptp_port_path.ifindex;
+		dp_test_fail_unless(ifindex == 101,
+				    "Expected ifindex 101 for additional path");
+
+		vlan_id = attr->value.ptp_port_path.vlan_id;
+		dp_test_fail_unless(vlan_id == 100,
+				    "Expected vlan 100 for additional path");
+	}
 
 	*port_obj = fal_test_plugin_ptp_next_obj++;
 	ptp_ports[num_ptp_ports].obj_id = *port_obj;
