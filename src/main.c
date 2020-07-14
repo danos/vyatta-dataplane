@@ -3608,7 +3608,6 @@ main(int argc, char **argv)
 
 	crypto_pmd_remove_all();
 	stop_all_ports();
-	close_all_regular_ports();
 
 	dp_crypto_shutdown();
 
@@ -3627,6 +3626,7 @@ main(int argc, char **argv)
 
 	dp_event(DP_EVT_UNINIT, 0, NULL, 0, 0, NULL);
 
+	close_all_regular_ports();
 	dp_lcore_events_teardown(rte_lcore_id());
 	feature_unload_plugins();
 	udp_handler_destroy();
