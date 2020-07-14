@@ -430,8 +430,8 @@ static void dpdk_lag_delete(struct ifnet *team_ifp)
 			}
 		}
 	}
-	remove_port(port_id);
 	if_free(team_ifp);
+	remove_port(port_id);
 
 	rte_eth_dev_info_get(port_id, &dev_info);
 	rte_eth_dev_close(port_id);

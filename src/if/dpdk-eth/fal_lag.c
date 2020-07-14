@@ -267,8 +267,8 @@ fal_lag_delete(struct ifnet *team_ifp)
 	fal_lag_obj = sc->scd_fal_port_lag_obj;
 	snprintf(ifname, sizeof(ifname), "%s", team_ifp->if_name);
 
-	remove_port(dpdk_port);
 	if_free(team_ifp);
+	remove_port(dpdk_port);
 
 	ret = fal_delete_lag(fal_lag_obj);
 	if (ret < 0)
