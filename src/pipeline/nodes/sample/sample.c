@@ -139,7 +139,7 @@ struct dp_pipeline_feat_registration sample_feat = {
 	.node_name = "sample:sample",
 	.feature_point = "vyatta:ipv4-validate",
 	.visit_before = NULL,
-	.visit_after = "ipv4-pbr",
+	.visit_after = "vyatta:ipv4-pbr",
 	.cleanup_cb = sample_cleanup_cb,
 };
 
