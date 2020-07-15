@@ -687,6 +687,28 @@ static void backplane_list_destroy(void)
 	}
 }
 
+static bool parse_pci_addr(const char *value, struct rte_pci_addr *pci_addr)
+{
+	int rc;
+
+	/* Check long PCI format */
+	rc = sscanf(value, "%x:%hhx:%hhx.%hhu", &pci_addr->domain,
+		    &pci_addr->bus, &pci_addr->devid,
+		    &pci_addr->function);
+	if (rc == 4)
+		return true;
+
+	pci_addr->domain = 0;
+
+	/* Check short PCI format */
+	rc = sscanf(value, "%hhx:%hhx.%hhu", &pci_addr->bus,
+		    &pci_addr->devid, &pci_addr->function);
+	if (rc == 3)
+		return true;
+
+	return false;
+}
+
 /*
  * Callback from inih library for each name value
  * return 0 = error, 1 = ok
@@ -699,10 +721,9 @@ static int parse_platform_entry(void *user, const char *section,
 	if (strcasecmp(section, "dataplane") == 0) {
 		if (strncmp(name, "backplane_port",
 			     strlen("backplane_port")) == 0) {
-			int rc;
 			struct bkplane_pci *bp;
-			bool name = false;
-			char bp_name[IFNAMSIZ];
+			char *pci_addr_str;
+			char *bp_name;
 
 			bp = calloc(1, sizeof(*bp));
 			if (!bp) {
@@ -710,63 +731,44 @@ static int parse_platform_entry(void *user, const char *section,
 				 "Malloc failed for platform bkplane config\n");
 				return 0;
 			}
-			/* First check long PCI format with name */
-			rc = sscanf(value, "%x:%hhx:%hhx.%hhu,%2s",
-				    &bp->pci_addr.domain,
-				    &bp->pci_addr.bus,
-				    &bp->pci_addr.devid,
-				    &bp->pci_addr.function,
-				    bp_name);
-			if (rc == 5) {
-				name = true;
-				goto backplane_port_parsed;
-			}
-
-			/* check long PCI format without name */
-			rc = sscanf(value, "%x:%hhx:%hhx.%hhu",
-				    &bp->pci_addr.domain,
-				    &bp->pci_addr.bus,
-				    &bp->pci_addr.devid,
-				    &bp->pci_addr.function);
-			if (rc == 4)
-				goto backplane_port_parsed;
-
-			/* Check short PCI format with name*/
-			rc = sscanf(value, "%hhx:%hhx.%hhu,%2s",
-				    &bp->pci_addr.bus,
-				    &bp->pci_addr.devid,
-				    &bp->pci_addr.function,
-				    bp_name);
-			if (rc == 4) {
-				name = true;
-				bp->pci_addr.domain = 0;
-				goto backplane_port_parsed;
-			}
-
-			/* Check short PCI format without name*/
-			rc = sscanf(value, "%hhx:%hhx.%hhu",
-				    &bp->pci_addr.bus,
-				    &bp->pci_addr.devid,
-				    &bp->pci_addr.function);
-			if (rc != 3) {
-				DP_DEBUG(INIT, ERR, DATAPLANE,
-					 "backplane port format error\n");
+			pci_addr_str = strdup(value);
+			if (!pci_addr_str) {
+				fprintf(stderr,
+					"Malloc failed for platform bkplane config\n");
 				free(bp);
 				return 0;
 			}
-			bp->pci_addr.domain = 0;
-backplane_port_parsed:
+
+			bp_name = strchr(pci_addr_str, ',');
+			if (bp_name) {
+				/*
+				 * nul-terminate PCI address and skip
+				 * over comma separator
+				 */
+				*bp_name = '\0';
+				bp_name++;
+			}
+
+			if (!parse_pci_addr(pci_addr_str, &bp->pci_addr)) {
+				DP_DEBUG(INIT, ERR, DATAPLANE,
+					 "backplane port format error\n");
+				free(pci_addr_str);
+				free(bp);
+				return 0;
+			}
+
 			/* Add to backplane port list */
 			fprintf(stderr,
 				"Backplane %s pci(%x:%hhx:%hhx.%hhu) added\n",
-				name ? bp_name : "()",
+				bp_name ? bp_name : "()",
 				bp->pci_addr.domain,
 				bp->pci_addr.bus,
 				bp->pci_addr.devid,
 				bp->pci_addr.function);
-			if (name)
+			if (bp_name)
 				bp->name = strdup(bp_name);
 			LIST_INSERT_HEAD(&cfg->bp_list, bp, link);
+			free(pci_addr_str);
 		} else if (strcmp(name, "fal_plugin") == 0) {
 			if (value)
 				cfg->fal_plugin = strdup(value);
