@@ -876,6 +876,18 @@ dpdk_eth_if_show_dev_capabilities(json_writer_t *wr,
 	jsonw_end_object(wr);
 }
 
+static bool
+dpdk_eth_is_mgmt_port(const struct rte_pci_addr *pci_addr)
+{
+	struct config_pci_entry *pci_entry;
+
+	LIST_FOREACH(pci_entry, &platform_cfg.mgmt_list, link)
+		if (!rte_pci_addr_cmp(&pci_entry->pci_addr, pci_addr))
+			return true;
+
+	return false;
+}
+
 static void
 dpdk_eth_if_show_dev_info(struct ifnet *ifp, json_writer_t *wr)
 {
@@ -956,6 +968,9 @@ dpdk_eth_if_show_dev_info(struct ifnet *ifp, json_writer_t *wr)
 
 	if (info.driver_name && strcasestr(info.driver_name, "net_vhost"))
 		vhost_devinfo(wr, ifp);
+
+	if (pci && dpdk_eth_is_mgmt_port(&pci->addr))
+		jsonw_bool_field(wr, "management", true);
 
 	jsonw_end_object(wr);
 }
