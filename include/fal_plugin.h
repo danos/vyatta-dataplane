@@ -1711,6 +1711,15 @@ enum fal_switch_attr_t {
 	 * @flags READ_ONLY
 	 */
 	FAL_SWITCH_ATTR_BFD_IPV6_HW_MODE,
+
+	/**
+	 * @brief Max number of unique interval values supported in the HW
+	 * for BFD sessions
+	 *
+	 * @type  .u32
+	 * @flags READ_ONLY
+	 */
+	FAL_SWITCH_ATTR_MAX_BFD_INTERVAL_CNT,
 };
 
 /*
