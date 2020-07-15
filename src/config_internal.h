@@ -73,12 +73,19 @@ struct bkplane_pci {
 	char *name;
 };
 
+struct config_pci_entry {
+	LIST_ENTRY(config_pci_entry) link;
+	struct rte_pci_addr pci_addr;
+};
+
 /* Platform parameter structure */
 struct platform_param {
 	LIST_HEAD(pci_list, bkplane_pci) bp_list; /* backplane pci list */
 	char *fal_plugin;		  /* fal_plugin to load (if any) */
 	/* whether to use hardware LAG, or otherwise DPDK LAG */
 	bool hardware_lag;
+	/* management port pci list */
+	LIST_HEAD(config_mgmt_pci_list, config_pci_entry) mgmt_list;
 };
 
 extern struct config_param config;

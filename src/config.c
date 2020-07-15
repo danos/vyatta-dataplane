@@ -726,17 +726,12 @@ static int parse_platform_entry(void *user, const char *section,
 			char *bp_name;
 
 			bp = calloc(1, sizeof(*bp));
-			if (!bp) {
-				fprintf(stderr,
-				 "Malloc failed for platform bkplane config\n");
-				return 0;
-			}
+			if (!bp)
+				goto malloc_failed;
 			pci_addr_str = strdup(value);
 			if (!pci_addr_str) {
-				fprintf(stderr,
-					"Malloc failed for platform bkplane config\n");
 				free(bp);
-				return 0;
+				goto malloc_failed;
 			}
 
 			bp_name = strchr(pci_addr_str, ',');
@@ -772,6 +767,22 @@ static int parse_platform_entry(void *user, const char *section,
 		} else if (strcmp(name, "fal_plugin") == 0) {
 			if (value)
 				cfg->fal_plugin = strdup(value);
+		} else if (strncmp(name, "mgmt_port",
+				   strlen("mgmt_port")) == 0) {
+			struct config_pci_entry *pci_entry;
+
+			pci_entry = calloc(1, sizeof(*pci_entry));
+			if (!pci_entry)
+				goto malloc_failed;
+
+			if (!parse_pci_addr(value, &pci_entry->pci_addr)) {
+				DP_DEBUG(INIT, ERR, DATAPLANE,
+					 "management port format error: %s\n",
+					 value);
+				free(pci_entry);
+				return 0;
+			}
+			LIST_INSERT_HEAD(&cfg->mgmt_list, pci_entry, link);
 		}
 	} else if (strcasecmp(section, "hardware-features") == 0) {
 		if (strcmp(name, "bonding.hardware-members-only") == 0) {
@@ -780,6 +791,13 @@ static int parse_platform_entry(void *user, const char *section,
 		}
 	}
 	return 1;
+
+malloc_failed:
+	fprintf(stderr,
+		"Out of memory during processing of %s:%s config\n",
+		section, name);
+	return 0;
+
 }
 
 /*
@@ -805,6 +823,7 @@ void parse_platform_config(const char *cfgfile)
 	fprintf(stderr, "Parsing platform config file %s\n",
 		cfgfile);
 	LIST_INIT(&platform_cfg.bp_list);
+	LIST_INIT(&platform_cfg.mgmt_list);
 
 	rc = ini_parse_file(f, parse_platform_entry, &platform_cfg);
 	if (rc) {
