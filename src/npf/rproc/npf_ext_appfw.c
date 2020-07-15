@@ -27,6 +27,8 @@
 #include "npf/npf_cache.h"
 #include "npf/npf_session.h"
 #include "npf/dpi/dpi_internal.h"
+#include "npf/app_group/app_group_db.h"
+#include "npf/app_group/app_group.h"
 #include "util.h"
 
 struct ifnet;
@@ -39,6 +41,7 @@ struct rte_mbuf;
 struct appfw_rule {
 	struct cds_list_head	ar_list;
 	const char		*ar_group;	/* Name of this group */
+	struct agdb_entry	*ar_app_grp;	/* Application resource group */
 	uint16_t		ar_rule_num;	/* Rule number */
 	uint32_t		ar_protocol;	/* Protocol ID */
 	uint32_t		ar_id;		/* Application ID */
@@ -54,6 +57,29 @@ struct appfw_handle {
 	npf_decision_t		ah_no_match_action; /* no-match-action */
 	int			ah_initial_dir;
 };
+
+struct appfw_cb_data {
+	struct app_group *group;
+	bool result;
+};
+
+static int
+appfw_group_callback(uint8_t engine, uint32_t app, uint32_t proto,
+		     uint32_t type, void *data)
+{
+	struct appfw_cb_data *handle = data;
+
+	handle->result = app_group_find_app(handle->group, app)
+		      || app_group_find_proto(handle->group, proto)
+		      || app_group_find_type(handle->group, type, engine);
+
+	if (handle->result)
+		/* Stop further callbacks */
+		return 1;
+
+	/* Continue search */
+	return 0;
+}
 
 static void appfw_free_handle(struct appfw_handle *ah)
 {
@@ -109,6 +135,8 @@ static int appfw_parse_rule_elements(struct appfw_handle *ah,
 				& DPI_APP_MASK;
 		else if (!strcmp(k, "engine"))
 			ar->ar_engine = dpi_engine_name_to_id(v);
+		else if (!strcmp(k, "group"))
+			ar->ar_app_grp = app_group_db_find_name(v);
 		else if (!strcmp(k, "action")) {
 			if (!strcmp(v, "drop"))
 				ar->ar_decision = NPF_DECISION_BLOCK;
@@ -145,6 +173,7 @@ static bool appfw_rule_parse(void *data, struct npf_cfg_rule_walk_state *state)
 	ar->ar_rule_num = state->index;
 	ar->ar_group = state->group;
 	ar->ar_decision = NPF_DECISION_UNKNOWN;
+	ar->ar_app_grp = NULL;
 
 	ah->ah_parse_rc = appfw_parse_rule_elements(ah, ar, state->rule);
 	if (ah->ah_parse_rc)
@@ -167,7 +196,7 @@ fail:
 }
 
 static bool appfw_match_rule(struct appfw_rule *ar, uint32_t proto,
-		uint32_t name, uint32_t app_bits)
+		uint32_t name, uint32_t type)
 {
 	/*
 	 * Discard the engine bits from the app name and proto.
@@ -184,7 +213,7 @@ static bool appfw_match_rule(struct appfw_rule *ar, uint32_t proto,
 		return true;
 	if ((ar->ar_protocol != DPI_APP_NA) && (proto == ar->ar_protocol))
 		return true;
-	if ((ar->ar_type != DPI_APP_NA) && (app_bits == ar->ar_type))
+	if ((ar->ar_type != DPI_APP_NA) && (type == ar->ar_type))
 		return true;
 
 	return false;
@@ -211,9 +240,10 @@ static npf_decision_t appfw_decision(struct appfw_handle *ah,
 		struct dpi_flow *dpi_flow)
 {
 	struct appfw_rule *ar;
-	uint32_t app_id;
+	struct appfw_cb_data data;
+	uint32_t name;
 	uint32_t proto;
-	uint32_t app_bits;
+	uint32_t type;
 	uint8_t engine_id;
 
 	/*
@@ -224,30 +254,36 @@ static npf_decision_t appfw_decision(struct appfw_handle *ah,
 
 	if (dpi_flow_get_offloaded(dpi_flow) || (pkt_count >= APPFW_MAX_PKTS)) {
 		cds_list_for_each_entry(ar, &ah->ah_rules, ar_list) {
-			/* Get the result of only the engine used in the
-			 * current rule.
-			 */
 			engine_id = ar->ar_engine;
 
-			/* Ignore rules with invalid engines, should only
-			 * ever be rule 10000.
-			 */
-			if (engine_id == IANA_RESERVED)
-				continue;
+			/* Rule either has a valid engine or group */
 
-			app_id = dpi_flow_get_app_id(engine_id, dpi_flow);
-			proto = dpi_flow_get_app_proto(engine_id, dpi_flow);
-			app_bits = dpi_flow_get_app_type(engine_id, dpi_flow);
+			if (engine_id != IANA_RESERVED) {
+				name = dpi_flow_get_app_id(engine_id,
+						dpi_flow);
+				proto = dpi_flow_get_app_proto(engine_id,
+						dpi_flow);
+				type = dpi_flow_get_app_type(engine_id,
+						dpi_flow);
 
-			/* Skip terminal values as they will never match. */
-			if (app_id == DPI_APP_NA ||
-			    app_id == DPI_APP_ERROR ||
-			    proto == DPI_APP_NA ||
-			    proto == DPI_APP_ERROR)
-				continue;
+				/* Skip terminal values, they never match */
+				if (name == DPI_APP_NA || name == DPI_APP_ERROR
+					|| proto == DPI_APP_NA
+					|| proto == DPI_APP_ERROR)
+					continue;
 
-			if (appfw_match_rule(ar, proto, app_id, app_bits))
-				return ar->ar_decision;
+				if (appfw_match_rule(ar, proto, name, type))
+					return ar->ar_decision;
+			} else if (ar->ar_app_grp) {
+				data.result = false;
+				data.group = ar->ar_app_grp->group;
+
+				dpi_flow_for_each_engine(dpi_flow,
+						appfw_group_callback,
+						&data);
+				if (data.result)
+					return ar->ar_decision;
+			}
 		}
 		return ah->ah_no_match_action;
 	}
@@ -335,7 +371,6 @@ appfw_action(npf_cache_t *npc, struct rte_mbuf **nbuf, void *arg,
 	struct dpi_flow *dpi_flow;
 	int rc;
 
-
 	/* Honor blocks (NAT, ALG, etc) */
 	if (result->decision == NPF_DECISION_BLOCK)
 		return true;
@@ -372,7 +407,8 @@ appfw_action(npf_cache_t *npc, struct rte_mbuf **nbuf, void *arg,
 	 */
 	dpi_flow = npf_session_get_dpi(se);
 	if (!dpi_flow) {
-		uint8_t engines[] = {IANA_USER, IANA_NDPI};
+		uint8_t engines[] = { IANA_USER, IANA_NDPI };
+
 		rc = dpi_session_first_packet(se, npc, *nbuf,
 				ah->ah_initial_dir, 2, engines);
 		if (rc != 0)
