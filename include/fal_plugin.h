@@ -5744,16 +5744,19 @@ enum fal_bfd_hw_mode {
 	/*
 	 * HW BFD does not maintain state machine in hardware resource.
 	 * Session state transition, flags and parameter negotiation
-	 * depend on ControlPlane
+	 * depend on Dataplane software.
 	 */
 	FAL_BFD_HW_MODE_CP_DEPENDENT,
+	FAL_BFD_HW_MODE_DP_SW_DEPENDENT = FAL_BFD_HW_MODE_CP_DEPENDENT,
 
 	/*
-	 * HW BFD is ControlPlane Independent. Full BFD state machine
-	 * is maintained in hardware layer. HW session initial state
-	 * cannot be set flexibly, but fixed to be DOWN
+	 * HW BFD is Independent of the Dataplane software state.
+	 * Full BFD state machine is maintained in hardware layer.
+	 * HW session initial state cannot be set flexibly, but fixed
+	 * to be DOWN
 	 */
-	FAL_BFD_HW_MODE_CP_INDEPENDENT
+	FAL_BFD_HW_MODE_CP_INDEPENDENT,
+	FAL_BFD_HW_MODE_DP_SW_INDEPENDENT = FAL_BFD_HW_MODE_CP_INDEPENDENT,
 };
 
 /**
