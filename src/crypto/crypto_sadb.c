@@ -743,6 +743,7 @@ void crypto_sadb_new_sa(const struct xfrm_usersa_info *sa_info,
 	struct sadb_sa *sa, *retiring_sa;
 	struct crypto_vrf_ctx *vrf_ctx;
 	struct ifnet *ifp;
+	int pmd_dev_id;
 
 	if (!sa_info || !crypto_algo) {
 		SADB_ERR("Bad parameters on attempt to add SA\n");
@@ -806,8 +807,20 @@ void crypto_sadb_new_sa(const struct xfrm_usersa_info *sa_info,
 					   true);
 	}
 
-	sa->del_pmd_dev_id = sa->pmd_dev_id =
-		crypto_allocate_pmd(crypto_sa_to_xfrm(sa));
+	if (sa->session) {
+		pmd_dev_id = crypto_allocate_pmd(crypto_sa_to_xfrm(sa),
+						 sa->session->cipher_algo,
+						 sa->session->aead_algo);
+		if (pmd_dev_id == CRYPTO_PMD_INVALID_ID) {
+			SADB_ERR("Failed to allocate PMD for SA\n");
+			sadb_sa_destroy(sa);
+			return;
+		}
+	} else
+		pmd_dev_id = CRYPTO_PMD_INVALID_ID;
+
+	sa->del_pmd_dev_id = sa->pmd_dev_id = pmd_dev_id;
+
 	if (sadb_insert_sa(sa, vrf_ctx) < 0) {
 		/*
 		 * Even though the SA insert failed, we know

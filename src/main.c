@@ -2993,17 +2993,8 @@ int next_available_crypto_lcore(void)
 /*
  * Assign one forwarding thread to have crypto processing role
  */
-int crypto_assign_engine(int crypto_dev_id)
+int crypto_assign_engine(int crypto_dev_id, int lcore)
 {
-	int lcore;
-
-	lcore = next_available_lcore(SOCKET_ID_ANY, &crypto_cpus, true);
-
-	if (lcore < 0) {
-		RTE_LOG(ERR, DATAPLANE, "no crypto thread found\n");
-		return -1;
-	}
-
 	/* we have a winner! */
 	struct lcore_conf *conf = lcore_conf[lcore];
 	if (crypto_attach_pmd(&conf->crypt.pmd_list, crypto_dev_id, lcore) < 0)

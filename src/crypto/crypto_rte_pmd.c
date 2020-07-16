@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: LGPL-2.1-only
  */
 
+#include <rte_bus_vdev.h>
 #include <rte_cryptodev.h>
 #include <rte_lcore.h>
 #include <rte_mempool.h>
@@ -104,6 +105,13 @@ static const struct md_algo_table md_algorithms[] = {
 	{ "hmac(md5)",		RTE_CRYPTO_AUTH_MD5          },
 	{ "rfc4106(gcm(aes))",  RTE_CRYPTO_AUTH_NULL         },
 	{ "aNULL",		RTE_CRYPTO_AUTH_NULL         }
+};
+
+static const char *cryptodev_names[CRYPTODEV_MAX] = {
+	[CRYPTODEV_AESNI_MB]   = "crypto_aesni_mb",
+	[CRYPTODEV_AESNI_GCM]  = "crypto_aesni_gcm",
+	[CRYPTODEV_NULL]       = "crypto_null",
+	[CRYPTODEV_OPENSSL]    = "crypto_openssl",
 };
 
 static int crypto_rte_setup_aes_gcm_cipher(struct crypto_session *ctx,
@@ -259,6 +267,11 @@ crypto_rte_select_pmd_type(enum rte_crypto_cipher_algorithm cipher_algo,
 		*setup_openssl = true;
 		break;
 
+	case RTE_CRYPTO_CIPHER_NULL:
+		*dev_type = CRYPTODEV_NULL;
+		*setup_openssl = true;
+		break;
+
 	default:
 		return -EINVAL;
 	}
@@ -266,3 +279,94 @@ crypto_rte_select_pmd_type(enum rte_crypto_cipher_algorithm cipher_algo,
 	return 0;
 }
 
+/*
+ * array of dev ids per device type
+ * Used as the suffix in the device name
+ */
+static int8_t pmd_inst_ids[CRYPTODEV_MAX][MAX_CRYPTO_PMD];
+
+static int crypto_rte_find_inst_id(enum cryptodev_type dev_type,
+				   int *inst_id)
+{
+	static int first_time = 1;
+	int i;
+
+	if (first_time) {
+		memset(pmd_inst_ids, -1, sizeof(pmd_inst_ids));
+		first_time = 0;
+	}
+
+	for (i = 0; i < MAX_CRYPTO_PMD; i++) {
+		if (pmd_inst_ids[dev_type][i] == -1)
+			break;
+	}
+
+	if (i == MAX_CRYPTO_PMD)
+		return -ENOSPC;
+
+	*inst_id = i;
+	return 0;
+}
+
+int crypto_rte_create_pmd(int cpu_socket, uint8_t dev_id,
+			  enum cryptodev_type dev_type, char dev_name[],
+			  uint8_t max_name_len, int *rte_dev_id)
+{
+#define ARGS_LEN     128
+	int err;
+	char args[ARGS_LEN];
+	int inst_id = 0;
+
+	/* look for next available id for this pmd type */
+	err = crypto_rte_find_inst_id(dev_type, &inst_id);
+	if (err) {
+		RTE_LOG(ERR, DATAPLANE,
+			"Could not find instance id for dev type %d\n",
+			dev_type);
+		return err;
+	}
+
+	/* create new device */
+	snprintf(dev_name, max_name_len, "%s%d", cryptodev_names[dev_type],
+		 inst_id);
+	snprintf(args, ARGS_LEN, "socket_id=%d", cpu_socket);
+
+	err = rte_vdev_init(dev_name, args);
+	if (err != 0) {
+		RTE_LOG(ERR, DATAPLANE, "Could not create PMD %s\n",
+			dev_name);
+		return err;
+	}
+
+	*rte_dev_id = rte_cryptodev_get_dev_id(dev_name);
+	pmd_inst_ids[dev_type][inst_id] = dev_id;
+
+	return err;
+}
+
+/*
+ * destroy specified PMD
+ */
+int crypto_rte_destroy_pmd(enum cryptodev_type dev_type, char dev_name[],
+			   int dev_id)
+{
+	int err, i;
+
+	for (i = 0; i < MAX_CRYPTO_PMD; i++) {
+		if (pmd_inst_ids[dev_type][i] == dev_id) {
+			pmd_inst_ids[dev_type][i] = -1;
+			break;
+		}
+	}
+
+	if (i == MAX_CRYPTO_PMD) {
+		RTE_LOG(ERR, DATAPLANE,
+			"Could not find instance id for pmd %s, dev_id %d\n",
+			dev_name, dev_id);
+		return -EINVAL;
+	}
+
+	err = rte_vdev_uninit(dev_name);
+
+	return err;
+}

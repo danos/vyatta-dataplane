@@ -567,7 +567,9 @@ void crypto_delete_queue(struct rte_ring *pmd_queue);
  */
 void crypto_remove_sa_from_pmd(int crypto_dev_id, enum crypto_xfrm xfrm,
 			       bool pending);
-int crypto_allocate_pmd(enum crypto_xfrm xfrm);
+int crypto_allocate_pmd(enum crypto_xfrm xfrm,
+			enum rte_crypto_cipher_algorithm cipher_algo,
+			enum rte_crypto_aead_algorithm aead_algo);
 struct rte_ring *crypto_pmd_get_q(int dev_id, enum crypto_xfrm xfrm);
 typedef bool (*crypto_pmd_walker_cb)(int pmd_dev_id, enum crypto_xfrm,
 				     struct rte_ring *,

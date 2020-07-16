@@ -107,7 +107,7 @@ int eth_port_config(portid_t portid);
 int eth_port_configure(portid_t portid, struct rte_eth_conf *dev_conf);
 unsigned int probe_crypto_engines(bool *sticky);
 int set_crypto_engines(const char *str, bool *sticky);
-int crypto_assign_engine(int crypto_dev_id);
+int crypto_assign_engine(int crypto_dev_id, int lcore);
 void crypto_unassign_from_engine(int lcore);
 void register_forwarding_cores(void);
 int reconfigure_queues(portid_t portid, uint16_t nb_rx_qs, uint16_t nb_tx_qs);
