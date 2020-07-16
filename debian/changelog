@@ -1,3 +1,20 @@
+vyatta-dataplane (3.10.47) unstable; urgency=medium
+
+  [ Thomas Kiely ]
+  * mac_limit: Remove temporary show keyword
+
+  [ Charles (Chas) Williams ]
+  * coverity: fix handling when an error is returned (Bugfix: VRVDR-52191)
+
+  [ Robert Shearman ]
+  * dpdk-eth: only remove a LAG port after the ifp using it has been freed
+  * main: only close the ports after cleaning up interfaces (Fixes: VRVDR-52220)
+
+  [ Paul Atkins ]
+  * fal: provide alternate name for FAL_BFD_HW_MODE_CP_INDEPENDENT
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Thu, 16 Jul 2020 12:02:27 +0100
+
 vyatta-dataplane (3.10.46) unstable; urgency=medium
 
   [ Mike Manning ]
