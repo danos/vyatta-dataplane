@@ -365,6 +365,7 @@ enum fal_packet_colour {
 	FAL_PACKET_COLOUR_GREEN,
 	FAL_PACKET_COLOUR_YELLOW,
 	FAL_PACKET_COLOUR_RED,
+	FAL_NUM_PACKET_COLOURS
 };
 
 /*
@@ -397,6 +398,9 @@ struct fal_qos_map_t {
 #define FAL_QOS_MAP_DSCP_VALUES 64
 #define FAL_QOS_MAP_PCP_VALUES 8
 #define	FAL_QOS_MAP_DESIGNATION_VALUES 8
+
+#define FAL_QOS_MAP_DES_DP_VALUES \
+	(FAL_QOS_MAP_DESIGNATION_VALUES * FAL_NUM_PACKET_COLOURS)
 
 struct fal_qos_map_list_t {
 	uint8_t des_used;

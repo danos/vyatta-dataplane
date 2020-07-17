@@ -1463,7 +1463,7 @@ static struct qos_mark_map *qos_mark_map_find(char *map_name)
 
 static int qos_mark_map_store(char *map_name, enum egress_map_type type,
 			      uint64_t dscp_set, uint8_t designation,
-			      uint8_t pcp_value)
+			      enum fal_packet_colour color, uint8_t pcp_value)
 {
 	struct qos_mark_map *mark_map;
 	uint8_t dscp;
@@ -1493,8 +1493,13 @@ static int qos_mark_map_store(char *map_name, enum egress_map_type type,
 				mark_map->pcp_value[dscp] = pcp_value;
 		}
 	} else {
-		mark_map->pcp_value[designation] = pcp_value;
-		mark_map->des_used |= (1 << designation);
+		int index = designation * FAL_NUM_PACKET_COLOURS + color;
+		struct qos_mark_map_entry *entry =
+			&mark_map->entries[index];
+
+		entry->des = designation;
+		entry->color = color;
+		entry->pcp_value = pcp_value;
 	}
 	return 0;
 }
@@ -1542,12 +1547,15 @@ static void show_qos_mark_map(struct qos_show_context *context)
 			num = MAX_DSCP;
 		} else {
 			jsonw_string_field(wr, "map-type", "designation");
-			num = INGRESS_DESIGNATORS;
+			num = FAL_QOS_MAP_DES_DP_VALUES;
 		}
 		jsonw_name(wr, "pcp-values");
 		jsonw_start_array(wr);
 		for (i = 0; i < num; i++)
-			jsonw_uint(wr, mark_map->pcp_value[i]);
+			if (mark_map->type == EGRESS_DSCP)
+				jsonw_uint(wr, mark_map->pcp_value[i]);
+			else
+				jsonw_uint(wr, mark_map->entries[i].pcp_value);
 
 		jsonw_end_array(wr);
 		jsonw_end_object(wr);
@@ -3300,18 +3308,20 @@ static int cmd_qos_mark_map(int argc, char **argv)
 	uint64_t dscp_set;
 	uint32_t designation;
 	enum egress_map_type type;
+	enum fal_packet_colour color;
 
 	/*
 	 * Expected command format:
 	 *
 	 * "mark-map <a> dscp-group <b> pcp <c>"
-	 * "mark-map <a> designation <d> pcp <c>"
+	 * "mark-map <a> designation <d> drop-prec <e> pcp <c>"
 	 * "mark-map <a> delete"
 	 *
 	 * <a> - mark-map name
 	 * <b> - dscp-group resource group name
 	 * <c> - pcp-value (0..7)
 	 * <d> - designation value (0..7)
+	 * <e> - drop precedence ("green", "yellow", "red")
 	 */
 
 	--argc, ++argv; /* skip "mark-map" */
@@ -3328,13 +3338,14 @@ static int cmd_qos_mark_map(int argc, char **argv)
 		 * We are deleting a mark-map
 		 */
 		return qos_mark_map_delete(map_name);
-	} else if (argc != 4) {
-		DP_DEBUG(QOS, DEBUG, DATAPLANE,
-			 "wrong number of mark-map arguments\n");
-		return -EINVAL;
 	}
 
 	if (!strcmp(argv[0], "dscp-group")) {
+		if (argc != 4) {
+			DP_DEBUG(QOS, DEBUG, DATAPLANE,
+				 "wrong number of dscp mark-map arguments\n");
+			return -EINVAL;
+		}
 		dscp_group_name = argv[1];
 		err = npf_dscp_group_getmask(dscp_group_name, &dscp_set);
 		if (err) {
@@ -3344,6 +3355,11 @@ static int cmd_qos_mark_map(int argc, char **argv)
 		}
 		type = EGRESS_DSCP;
 	} else if (!strcmp(argv[0], "designation")) {
+		if (argc != 6) {
+			DP_DEBUG(QOS, DEBUG, DATAPLANE,
+				 "wrong number of des mark-map arguments\n");
+			return -EINVAL;
+		}
 		if ((get_unsigned(argv[1], &designation) < 0) ||
 		     designation > MAX_DESIGNATOR) {
 			DP_DEBUG(QOS, DEBUG, DATAPLANE,
@@ -3351,7 +3367,26 @@ static int cmd_qos_mark_map(int argc, char **argv)
 				 argv[3]);
 			return -EINVAL;
 		}
+		if (!strcmp(argv[2], "drop-prec")) {
+			for (color = 0; color < NUM_DPS; color++) {
+				if (!strcmp(argv[3], qos_dps[color]))
+					break;
+			}
+			if (color == NUM_DPS) {
+				DP_DEBUG(QOS, ERR, DATAPLANE,
+					 "Invalid drop-precedence value\n");
+				return -EINVAL;
+			}
+		} else {
+			DP_DEBUG(QOS, ERR, DATAPLANE,
+				 "Missing ingress map drop-precedence\n");
+			return -EINVAL;
+		}
 		type = EGRESS_DESIGNATION;
+
+		/* account for extra drop-prec <value> args */
+		argc -= 2;
+		argv += 2;
 	} else {
 
 		DP_DEBUG(QOS, DEBUG, DATAPLANE,
@@ -3375,7 +3410,8 @@ static int cmd_qos_mark_map(int argc, char **argv)
 		return -EINVAL;
 	}
 	return qos_mark_map_store(map_name, type, dscp_set,
-				  (uint8_t)designation, (uint8_t)pcp_value);
+				  (uint8_t)designation, color,
+				  (uint8_t)pcp_value);
 }
 
 static int cmd_qos_platform_buf_threshold(int argc, char **argv)
