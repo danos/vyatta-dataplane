@@ -1073,7 +1073,7 @@ static void next_hop_fixup_protected_tracking(struct next_hop_list *old,
 		struct next_hop *next_new = new_array + i;
 
 		ifp = dp_nh_get_ifp(next_old);
-		if (!ifp)
+		if (!ifp || next_old->flags & RTF_BACKUP)
 			continue;
 
 		intf_entry = next_hop_intf_hash_lookup(ifp);
