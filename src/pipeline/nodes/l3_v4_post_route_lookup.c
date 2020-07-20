@@ -97,7 +97,7 @@ ipv4_post_route_lookup_process(struct pl_packet *pkt, void *context __unused)
 		in_addr_t addr;
 		/* Store next hop address  */
 		if (nxt->flags & RTF_GATEWAY)
-			addr = nxt->gateway4;
+			addr = nxt->gateway.address.ip_v4.s_addr;
 		else
 			addr = ip->daddr;
 		if (ip_same_network(ifp, addr, ip->saddr) &&

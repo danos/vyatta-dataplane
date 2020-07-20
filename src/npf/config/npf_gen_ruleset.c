@@ -64,7 +64,8 @@ npf_cfg_create_ruleset_group_rule_cb(void *param,
 	    info->rgk->rgk_class == NPF_RULE_CLASS_ACL)
 		return true;
 
-	ret = npf_make_rule(info->dp_rule_group, state->index, state->rule);
+	ret = npf_make_rule(info->dp_rule_group, state->index, state->rule,
+			    info->ruleset_type_flags);
 	if (ret) {
 		info->error = ret;
 		return false;

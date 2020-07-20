@@ -1606,7 +1606,6 @@ next_hop_to_packet_action(const struct next_hop *nh)
 }
 
 static const struct fal_attribute_t **next_hop_to_attr_list(
-	enum fal_ip_addr_family_t family,
 	fal_object_t nhg_object, size_t nhops,
 	const struct next_hop hops[], uint32_t **attr_count)
 {
@@ -1626,10 +1625,10 @@ static const struct fal_attribute_t **next_hop_to_attr_list(
 		const struct next_hop *nh = &hops[i];
 		struct fal_attribute_t *nh_attr;
 		struct ifnet *ifp;
-		struct fal_ip_address_t *addr;
+		unsigned int nh_attr_count;
 
 		nh_attr_list[i] = nh_attr = calloc(
-			1, sizeof(*nh_attr) * 4);
+			6, sizeof(*nh_attr));
 		if (!nh_attr) {
 			while (i--)
 				free((struct fal_attribute_t *)
@@ -1645,15 +1644,27 @@ static const struct fal_attribute_t **next_hop_to_attr_list(
 		nh_attr[1].value.u32 = ifp ? ifp->if_index : 0;
 		nh_attr[2].id = FAL_NEXT_HOP_ATTR_ROUTER_INTF;
 		nh_attr[2].value.u32 = ifp ? ifp->fal_l3 : FAL_NULL_OBJECT_ID;
+		nh_attr_count = 3;
 		if (nh->flags & (RTF_GATEWAY | RTF_NEIGH_CREATED)) {
-			nh_attr[3].id = FAL_NEXT_HOP_ATTR_IP;
-			addr = &nh_attr[3].value.ipaddr;
-			addr->addr_family = family;
-			memcpy(&addr->addr, &nh->gateway6, sizeof(addr->addr));
-			(*attr_count)[i] = 4;
-		} else {
-			(*attr_count)[i] = 3;
+			nh_attr[nh_attr_count].id = FAL_NEXT_HOP_ATTR_IP;
+			fal_attr_set_ip_addr(&nh_attr[nh_attr_count],
+					     &nh->gateway);
+			nh_attr_count++;
 		}
+		if (nh->flags & RTF_BACKUP) {
+			nh_attr[nh_attr_count].id =
+				FAL_NEXT_HOP_ATTR_CONFIGURED_ROLE;
+			nh_attr[nh_attr_count].value.u32 =
+				FAL_NEXT_HOP_CONFIGURED_ROLE_STANDBY;
+			nh_attr_count++;
+		}
+		if (nh->flags & RTF_UNUSABLE) {
+			nh_attr[nh_attr_count].id = FAL_NEXT_HOP_ATTR_USABILITY;
+			nh_attr[nh_attr_count].value.u32 =
+				FAL_NEXT_HOP_UNUSABLE;
+			nh_attr_count++;
+		}
+		(*attr_count)[i] = nh_attr_count;
 	}
 
 	return nh_attr_list;
@@ -1674,8 +1685,7 @@ next_hop_group_packet_action(uint32_t nhops, const struct next_hop hops[])
 	return FAL_PACKET_ACTION_FORWARD;
 }
 
-int fal_ip_new_next_hops(enum fal_ip_addr_family_t family,
-			 size_t nhops, const struct next_hop hops[],
+int fal_ip_new_next_hops(size_t nhops, const struct next_hop hops[],
 			 fal_object_t *nhg_object,
 			 fal_object_t *obj_list)
 {
@@ -1709,8 +1719,7 @@ int fal_ip_new_next_hops(enum fal_ip_addr_family_t family,
 	if (ret < 0)
 		return ret;
 
-	nh_attr_list = next_hop_to_attr_list(family,
-					     *nhg_object, nhops, hops,
+	nh_attr_list = next_hop_to_attr_list(*nhg_object, nhops, hops,
 					     &nh_attr_count);
 	if (!nh_attr_list) {
 		ret = -ENOMEM;
@@ -1751,6 +1760,25 @@ int fal_ip_del_next_hops(fal_object_t nhg_object, size_t nhops,
 					   nhg_object);
 
 	return ret;
+}
+
+/*
+ * The nexthop at 'index' has changed so inform the platforms.
+ */
+int fal_ip_upd_next_hop_state(const fal_object_t *obj_list,
+			      int index, bool usable)
+{
+	const fal_object_t *nh_obj = &obj_list[index];
+	struct fal_attribute_t nh_attr;
+
+	nh_attr.id = FAL_NEXT_HOP_ATTR_USABILITY;
+	if (usable)
+		nh_attr.value.u32 = FAL_NEXT_HOP_USABLE;
+	else
+		nh_attr.value.u32 = FAL_NEXT_HOP_UNUSABLE;
+
+	return call_handler_def_ret(ip, -EOPNOTSUPP, upd_next_hop,
+				    *nh_obj, &nh_attr);
 }
 
 int fal_ip_get_next_hop_group_attrs(fal_object_t nhg_object,
@@ -3368,7 +3396,8 @@ int fal_get_cpp_limiter_attribute(fal_object_t limiter_id, uint32_t attr_count,
 				attr_list);
 }
 
-void fal_attr_set_ip_addr(struct fal_attribute_t *attr, struct ip_addr *ip)
+void fal_attr_set_ip_addr(struct fal_attribute_t *attr,
+			  const struct ip_addr *ip)
 {
 	switch (ip->type) {
 	case AF_INET:

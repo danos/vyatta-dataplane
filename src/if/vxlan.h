@@ -135,8 +135,7 @@ void vxlan_output(struct ifnet *ifp, struct rte_mbuf *m, uint16_t proto);
 struct ifnet *vxlan_create(const struct ifinfomsg *ifi, const char *ifname,
 			   const struct rte_ether_addr *eth_addr,
 			   struct nlattr *tb[], struct nlattr *data,
-			   enum cont_src_en cont_src,
-			   const struct nlmsghdr *nlh);
+			   enum cont_src_en cont_src);
 void vxlan_modify(struct ifnet *ifp, uint flags, struct nlattr *tb[],
 		  struct nlattr *data);
 struct ifnet *vxlan_find_if(uint32_t vni);

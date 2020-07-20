@@ -89,26 +89,20 @@ DP_START_TEST(vrf_if_cfg, default_stays)
 
 	/*
 	 * Verify default vrf table still exists as well as new vrf.
-	 * dp_test_default_vrf_clean_count() return includes the switch port
-	 * count and so that needs to be deducted from expected results.
 	 */
 	dp_test_wait_for_vrf(TEST_VRF,
-			     dp_test_default_vrf_clean_count() - 1 -
-			     dp_test_intf_switch_port_count());
-	dp_test_wait_for_vrf(VRF_DEFAULT_ID,
-			     dp_test_intf_switch_port_count() + 2);
+			     dp_test_default_vrf_clean_count() - 1);
+	dp_test_wait_for_vrf(VRF_DEFAULT_ID, 2);
 
 	/* put an interface back into the default VRF */
 	for (i = 0; i < dp_test_intf_count(); i++) {
 		dp_test_wait_for_vrf(
 			TEST_VRF,
-			dp_test_default_vrf_clean_count() - i - 1 -
-			dp_test_intf_switch_port_count());
+			dp_test_default_vrf_clean_count() - i - 1);
 
 		dp_test_intf_port2name(i, if_name);
 		dp_test_netlink_set_interface_vrf(if_name, VRF_DEFAULT_ID);
-		dp_test_wait_for_vrf(VRF_DEFAULT_ID,
-				     dp_test_intf_switch_port_count() + i + 3);
+		dp_test_wait_for_vrf(VRF_DEFAULT_ID, i + 3);
 	}
 
 	dp_test_netlink_del_vrf(TEST_VRF, 0);
@@ -301,18 +295,18 @@ DP_DECL_TEST_CASE(vrf_suite, vrf_cfg, NULL, NULL);
 
 /*
  * Test the scenario whereby routes for a VRF arrive before the VRF
- * master link creation
+ * link creation
  *
  * Due to the presence of the broker, there is a chance that route
  * updates for a table that is the main table for a VRF could arrive
- * before the link message advising the dataplane of the VRF master
- * interface and its association with the table.
+ * before the link message advising the dataplane of the VRF device
+ * and its association with the table.
  *
- * Verify that in this sequence of events when the VRF master device
+ * Verify that in this sequence of events when the VRF device
  * is signalled that the routes make it into the VRF. Just for good
  * measure, check that a delete and recreate works too.
  */
-DP_START_TEST(vrf_cfg, out_of_seq_vrfmaster_v4)
+DP_START_TEST(vrf_cfg, out_of_seq_vrf_v4)
 {
 	char vrf_name[IFNAMSIZ + 1];
 	uint32_t tableid;
@@ -337,9 +331,9 @@ DP_START_TEST(vrf_cfg, out_of_seq_vrfmaster_v4)
 	dp_test_wait_for_route("vrf:50 2.2.2.0/24 nh int:dp1T1", true);
 
 	/* Delete and recreate the VRF */
-	_dp_test_intf_vrf_master_delete(vrf_name, TEST_VRF,
+	_dp_test_intf_vrf_if_delete(vrf_name, TEST_VRF,
 					tableid, __FILE__, __LINE__);
-	_dp_test_intf_vrf_master_create(vrf_name, TEST_VRF,
+	_dp_test_intf_vrf_if_create(vrf_name, TEST_VRF,
 					tableid, __FILE__, __LINE__);
 
 	/* Check the route has been deleted */
@@ -349,7 +343,7 @@ DP_START_TEST(vrf_cfg, out_of_seq_vrfmaster_v4)
 	dp_test_netlink_del_vrf(TEST_VRF, 1);
 } DP_END_TEST;
 
-DP_START_TEST(vrf_cfg, out_of_seq_vrfmaster_v6)
+DP_START_TEST(vrf_cfg, out_of_seq_vrf_v6)
 {
 	char vrf_name[IFNAMSIZ + 1];
 	uint32_t tableid;
@@ -374,9 +368,9 @@ DP_START_TEST(vrf_cfg, out_of_seq_vrfmaster_v6)
 	dp_test_wait_for_route("vrf:50 2:2:2::/64 nh int:dp1T1", true);
 
 	/* Delete and recreate the VRF */
-	_dp_test_intf_vrf_master_delete(vrf_name, TEST_VRF,
+	_dp_test_intf_vrf_if_delete(vrf_name, TEST_VRF,
 					tableid, __FILE__, __LINE__);
-	_dp_test_intf_vrf_master_create(vrf_name, TEST_VRF,
+	_dp_test_intf_vrf_if_create(vrf_name, TEST_VRF,
 					tableid, __FILE__, __LINE__);
 
 	/* Check the route has been deleted */
@@ -577,6 +571,64 @@ DP_START_TEST(vrf_ip_fwd, vrf_basic_ipv6)
 
 	dp_test_netlink_del_vrf(TEST_VRF2, 0);
 } DP_END_TEST;
+
+DP_DECL_TEST_CASE(vrf_suite, vrf_ip_fwd2, NULL, NULL);
+
+/*
+ * Add a v6 connected and address, and the v6 multicast route. Then add a
+ * neighbour.
+ *
+ * Delete the interface route, and verify that it can all be tidied. The
+ * multicast route is modified as part of the tidy. This maps to a set of
+ * updates that were seen to cause an issue in the live system.
+ */
+DP_START_TEST(vrf_ip_fwd2, vrf_basic_ipv6)
+{
+	const char *nh_mac_str;
+
+	dp_test_netlink_add_vrf(TEST_VRF2, 1);
+
+
+	dp_test_netlink_set_interface_vrf("dp2T1", TEST_VRF2);
+	dp_test_netlink_set_interface_vrf("dp1T1", TEST_VRF2);
+
+	/* Link local (ours) */
+	dp_test_netlink_add_ip_address_vrf("dp1T1",
+					   "fe80::4056:1ff:fee8:101/128",
+					   TEST_VRF2);
+
+	dp_test_nl_add_ip_addr_and_connected_vrf("dp1T1", "2012::1/24",
+						 TEST_VRF2);
+
+	/* mcast via dp1T1 and dp2T1 */
+	dp_test_netlink_replace_route_nv(
+		"vrf:55 ff00::/8 nh int:dp1T1 nh int:dp2T1");
+
+	nh_mac_str = "aa:bb:cc:dd:ee:ff";
+	dp_test_netlink_add_neigh("dp1T1", "2012::2", nh_mac_str);
+
+	/*
+	 * Now start deleting.
+	 */
+	dp_test_netlink_del_route("vrf:55 2012::/24 scope:253 nh int:dp1T1");
+
+	dp_test_netlink_replace_route_nv("vrf:55 ff00::/8 nh int:dp1T1");
+
+	dp_test_netlink_del_ip_address_vrf("dp1T1", "2012::1/24",
+					   TEST_VRF2);
+	dp_test_netlink_del_neigh("dp1T1", "2012::2", nh_mac_str);
+
+	dp_test_netlink_set_interface_vrf("dp1T1", VRF_DEFAULT_ID);
+	dp_test_netlink_del_ip_address_vrf("dp1T1",
+					   "fe80::4056:1ff:fee8:101/128",
+					   TEST_VRF2);
+
+	dp_test_netlink_set_interface_vrf("dp2T1", VRF_DEFAULT_ID);
+	dp_test_netlink_set_interface_vrf("dp1T1", VRF_DEFAULT_ID);
+	dp_test_netlink_del_vrf(TEST_VRF2, 0);
+
+} DP_END_TEST;
+
 
 DP_DECL_TEST_CASE(vrf_suite, vrf_vif_ipv4, NULL, NULL)
 DP_START_TEST(vrf_vif_ipv4, vrf_vif_ipv4)

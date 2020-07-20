@@ -274,6 +274,7 @@ DP_START_TEST(ip6_rx, invalid_paks)
 	const char *nh_mac_str;
 	struct ip6_hdr *ip6;
 	int len = 22;
+	int newlen;
 
 	dp_test_nl_add_ip_addr_and_connected("dp1T1", "2001:1:1::1/64");
 	dp_test_nl_add_ip_addr_and_connected("dp2T2", "2002:2:2::2/64");
@@ -314,9 +315,8 @@ DP_START_TEST(ip6_rx, invalid_paks)
 	 */
 	test_pak = dp_test_cp_pak(good_pak);
 	ip6 = ip6hdr(test_pak);
-	rte_pktmbuf_data_len(test_pak) = (char *)ip6 -
-		rte_pktmbuf_mtod(test_pak, char *) + 1;
-
+	newlen = (char *)ip6 - rte_pktmbuf_mtod(test_pak, char *) + 1;
+	rte_pktmbuf_trim(test_pak, test_pak->pkt_len - newlen);
 	exp = dp_test_exp_create(test_pak);
 	dp_test_exp_set_fwd_status(exp, DP_TEST_FWD_DROPPED);
 	dp_test_pak_receive(test_pak, "dp1T1", exp);

@@ -83,6 +83,13 @@ static const struct npf_ruleset_features {
 		.log_level = RTE_LOGTYPE_FIREWALL,
 		.log_name = "local",
 	},
+	[NPF_RS_ORIGINATE] = {
+		.name = "originate",
+		.flags = NPF_RS_FLAG_NOTRACK | NPF_RS_FLAG_DIR_OUT,
+		.feat_flags = 0,
+		.log_level = RTE_LOGTYPE_FIREWALL,
+		.log_name = "originate",
+	},
 	[NPF_RS_BRIDGE] = {
 		.name = "bridge",
 		.flags = NPF_RS_FLAG_NOTRACK | NPF_RS_FLAG_DIR_IN,
@@ -93,7 +100,8 @@ static const struct npf_ruleset_features {
 	[NPF_RS_IPSEC] = {
 		.name = "ipsec",
 		.flags = NPF_RS_FLAG_DIR_OUT | NPF_RS_FLAG_DIR_IN
-			| NPF_RS_FLAG_NOTRACK | NPF_RS_FLAG_NOTABLES,
+			| NPF_RS_FLAG_NOTRACK | NPF_RS_FLAG_NOTABLES
+			| NPF_RS_FLAG_NO_STATS | NPF_RS_FLAG_HASH_TBL,
 		.feat_flags = 0,
 		.log_level = RTE_LOGTYPE_DATAPLANE,
 		.log_name = "IPsec",

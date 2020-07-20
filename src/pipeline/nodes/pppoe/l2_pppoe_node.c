@@ -35,7 +35,8 @@ pppoe_in_process(struct pl_packet *pkt, void *context __unused)
 		if (inner_proto == PPP_LCP ||
 			inner_proto == PPP_IPCP ||
 			 inner_proto == PPP_IPV6CP ||
-			  inner_proto == PPP_PAP)
+			  inner_proto == PPP_PAP ||
+			  inner_proto == PPP_CHAP)
 			return PPP_FORWARD_LOCAL;
 
 		/* Set input interface to corresponding PPP device */

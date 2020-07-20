@@ -35,7 +35,7 @@
 #include "json_writer.h"
 #include "lag.h"
 #include "main.h"
-#include "master.h"
+#include "controller.h"
 #include "netlink.h"
 #include "pktmbuf_internal.h"
 #include "urcu.h"
@@ -47,14 +47,14 @@
 
 struct nlattr;
 
-/* remember which slaves are collecting/distributing */
-static uint8_t enabled[LAG_MAX_SLAVES];
+/* remember which members are collecting/distributing */
+static uint8_t enabled[LAG_MAX_MEMBERS];
 
-static int dpdk_lag_slave_delete(struct ifnet *master, struct ifnet *ifp);
+static int dpdk_lag_member_delete(struct ifnet *team, struct ifnet *ifp);
 
-static void lacp_recv_cb(portid_t slave_id, struct rte_mbuf *lacp_pkt)
+static void lacp_recv_cb(portid_t member_id, struct rte_mbuf *lacp_pkt)
 {
-	struct ifnet *ifp = ifnet_byport(slave_id);
+	struct ifnet *ifp = ifnet_byport(member_id);
 
 	if (unlikely(ifp == NULL)) {
 		rte_pktmbuf_free(lacp_pkt);
@@ -72,27 +72,27 @@ static void lacp_recv_cb(portid_t slave_id, struct rte_mbuf *lacp_pkt)
 
 /*
  * outgoing ether type slow traffic has special handling:
- * - capture via dataplane slave
- * - send via rte_pmd_bond master
+ * - capture via dataplane member
+ * - send via rte_pmd_bond team interface
  */
 static int
-dpdk_lag_etype_slow_tx(struct ifnet *master, struct ifnet *ifp,
+dpdk_lag_etype_slow_tx(struct ifnet *team, struct ifnet *ifp,
 		       struct rte_mbuf *lacp_pkt)
 {
 	if (ifp->capturing)
 		capture_burst(ifp, &lacp_pkt, 1);
 
-	return rte_eth_bond_8023ad_ext_slowtx(master->if_port, ifp->if_port,
+	return rte_eth_bond_8023ad_ext_slowtx(team->if_port, ifp->if_port,
 					lacp_pkt);
 }
 
 /*
- * The rte_pmd_bond might change MAC address of a slave port on certain events.
+ * The rte_pmd_bond might change MAC address of a member port on certain events.
  * This helper tries to update the MAC address of the DPDK device from the
  * dataplane ifnet structure.
  */
 static void
-dpdk_lag_slave_sync_mac_address(struct ifnet *ifp)
+dpdk_lag_member_sync_mac_address(struct ifnet *ifp)
 {
 	struct rte_ether_addr hwaddr;
 	char buf1[32], buf2[32];
@@ -108,7 +108,7 @@ dpdk_lag_slave_sync_mac_address(struct ifnet *ifp)
 	int rc = rte_eth_dev_default_mac_addr_set(ifp->if_port, &ifp->eth_addr);
 	if (rc) {
 		/*
-		 * If updating the slave's address fails lets update the
+		 * If updating the member's address fails lets update the
 		 * dataplane's address to be in sync!
 		 */
 		DP_DEBUG(LAG, ERR, DATAPLANE, "%s can't set address %s: %s\n",
@@ -160,68 +160,67 @@ dpdk_lag_create(const struct ifinfomsg *ifi, struct nlattr *tb[])
 	if (insert_port(port_id) != 0)
 		return NULL;
 
-	ifp = ifport_table[port_id];
-	if (!ifp)
+	ifp = if_hwport_alloc_w_port(ifname, ifi->ifi_index, port_id);
+	if (!ifp) {
+		remove_port(port_id);
 		return NULL;
+	}
 
-	if_rename(ifp, ifname);
-	ifp->if_flags = ifi->ifi_flags;
 	ifp->eth_addr = *macaddr;
 
-	if_set_ifindex(ifp, ifi->ifi_index);
 	return ifp;
 }
 
-static int slave_add(struct ifnet *master, struct ifnet *ifp)
+static int member_add(struct ifnet *team, struct ifnet *ifp)
 {
 	int rv;
-	struct rte_eth_dev_info slave_info, master_info;
+	struct rte_eth_dev_info member_info, team_info;
 
 	if (ifp->aggregator) {
 		/* teamd can give us redundant updates, so this is expected */
 		DP_DEBUG(LAG, DEBUG, DATAPLANE,
-			"%s already slave of %s\n", ifp->if_name,
+			"%s already member of %s\n", ifp->if_name,
 			ifp->aggregator->if_name);
 		return -EEXIST;
 	}
 
-	rte_eth_dev_info_get(master->if_port, &master_info);
-	rte_eth_dev_info_get(ifp->if_port, &slave_info);
+	rte_eth_dev_info_get(team->if_port, &team_info);
+	rte_eth_dev_info_get(ifp->if_port, &member_info);
 
 	/* Ignore VMDQ information since we know that the BOND pmd
 	 * will never have support for VMDQ and thus provides a
 	 * reasonable upper bound.
 	 */
 
-	if (slave_info.max_rx_queues < master_info.nb_rx_queues ||
-	    slave_info.max_tx_queues < master_info.nb_tx_queues) {
-		struct rte_eth_dev *master_dev =
-					&rte_eth_devices[master->if_port];
-		int master_dev_started = master_dev->data->dev_started;
+	if (member_info.max_rx_queues < team_info.nb_rx_queues ||
+	    member_info.max_tx_queues < team_info.nb_tx_queues) {
+		struct rte_eth_dev *bond_dev =
+					&rte_eth_devices[team->if_port];
+		int bond_dev_started = bond_dev->data->dev_started;
 		int nb_rx_queues =
-			MIN(slave_info.max_rx_queues, master_info.nb_rx_queues);
+			MIN(member_info.max_rx_queues, team_info.nb_rx_queues);
 		int nb_tx_queues =
-			MIN(slave_info.max_tx_queues, master_info.nb_tx_queues);
+			MIN(member_info.max_tx_queues, team_info.nb_tx_queues);
 
-		if (master_dev_started)
-			dpdk_eth_if_stop_port(master);
-		rv = reconfigure_queues(master->if_port,
+		if (bond_dev_started)
+			dpdk_eth_if_stop_port(team);
+		rv = reconfigure_queues(team->if_port,
 					nb_rx_queues, nb_tx_queues);
 		if (rv)
 			return rv;
-		if (master_dev_started)
-			dpdk_eth_if_start_port(master);
+		if (bond_dev_started)
+			dpdk_eth_if_start_port(team);
 	}
 
 	/*
 	 * Queues are assigned again by start_port() call in
-	 * slave_remove()
+	 * member_remove()
 	 */
 	if_disable_poll_rcu(ifp->if_port);
 	if (ifp->if_flags & IFF_UP)
 		unassign_queues(ifp->if_port);
 
-	rv = rte_eth_bond_slave_add(master->if_port, ifp->if_port);
+	rv = rte_eth_bond_slave_add(team->if_port, ifp->if_port);
 	if (rv < 0) {
 		if (ifp->if_flags & IFF_UP)
 			assign_queues(ifp->if_port);
@@ -236,23 +235,23 @@ static int slave_add(struct ifnet *master, struct ifnet *ifp)
 	 */
 	rte_smp_mb();
 
-	rcu_assign_pointer(ifp->aggregator, master);
+	rcu_assign_pointer(ifp->aggregator, team);
 
 	return 0;
 }
 
 /*
- * Assumes that polling is turned off on master interface, so that
+ * Assumes that polling is turned off on the team interface, so that
  * there's no race with an in-progress rx.
  */
-static int slave_remove(struct ifnet *master, struct ifnet *ifp)
+static int member_remove(struct ifnet *team, struct ifnet *ifp)
 {
 	int rv;
 
 	if (!ifp->aggregator)
 		return -ENOENT;
 
-	rv = rte_eth_bond_slave_remove(master->if_port, ifp->if_port);
+	rv = rte_eth_bond_slave_remove(team->if_port, ifp->if_port);
 	if (rv < 0)
 		return rv;
 	/*
@@ -381,168 +380,170 @@ static int dpdk_lag_select(struct ifnet *ifp, bool sel)
 }
 
 static int
-dpdk_lag_set_activeport(struct ifnet *ifp, struct ifnet *ifp_slave)
+dpdk_lag_set_activeport(struct ifnet *ifp, struct ifnet *ifp_member)
 {
 	DP_DEBUG(LAG, DEBUG, DATAPLANE,
 		 "teamd runner %s activeport ifindex %d:%s (port %u)\n",
-		 ifp->if_name, ifp_slave->if_index, ifp_slave->if_name,
-		 ifp_slave->if_port);
+		 ifp->if_name, ifp_member->if_index, ifp_member->if_name,
+		 ifp_member->if_port);
 
 	int mode = rte_eth_bond_mode_get(ifp->if_port);
 
 	if (mode == BONDING_MODE_ACTIVE_BACKUP)
-		rte_eth_bond_primary_set(ifp->if_port, ifp_slave->if_port);
+		rte_eth_bond_primary_set(ifp->if_port, ifp_member->if_port);
 
 	return 0;
 }
 
 /* Remove an aggregation.  team%d interface went away. */
-static void dpdk_lag_delete(struct ifnet *master_ifp)
+static void dpdk_lag_delete(struct ifnet *team_ifp)
 {
-	portid_t port_id = master_ifp->if_port;
+	portid_t port_id = team_ifp->if_port;
 	struct rte_eth_dev_info dev_info;
-	portid_t slaves[LAG_MAX_SLAVES];
-	int num_slaves;
+	portid_t members[LAG_MAX_MEMBERS];
+	int num_members;
 	int i;
 
-	num_slaves = rte_eth_bond_slaves_get(port_id, slaves, LAG_MAX_SLAVES);
-	if (num_slaves < 0)
+	num_members = rte_eth_bond_slaves_get(port_id,
+					      members,
+					      LAG_MAX_MEMBERS);
+	if (num_members < 0)
 		RTE_LOG(ERR, DATAPLANE,
-			"Unable to get slave count for %s\n",
-			master_ifp->if_name);
+			"Unable to get member count for %s\n",
+			team_ifp->if_name);
 
-	if (num_slaves > 0) {
-		for (i = 0; i < num_slaves; i++) {
+	if (num_members > 0) {
+		for (i = 0; i < num_members; i++) {
 			int ret;
-			struct ifnet *sl = ifnet_byport(slaves[i]);
+			struct ifnet *sl = ifnet_byport(members[i]);
 
 			RTE_LOG(INFO, DATAPLANE,
-				"LAG %s still has %d slaves, removing them\n",
-				master_ifp->if_name, num_slaves);
+				"LAG %s still has %d members, removing them\n",
+				team_ifp->if_name, num_members);
 
-			ret = dpdk_lag_slave_delete(master_ifp, sl);
+			ret = dpdk_lag_member_delete(team_ifp, sl);
 			if (ret < 0) {
 				RTE_LOG(ERR, DATAPLANE,
 					"Failed to remove %s from LAG %s\n",
-					sl->if_name, master_ifp->if_name);
+					sl->if_name, team_ifp->if_name);
 				return;
 			}
 		}
 	}
+	if_free(team_ifp);
 	remove_port(port_id);
-	if_free(master_ifp);
 
-	rte_eth_dev_close(port_id);
 	rte_eth_dev_info_get(port_id, &dev_info);
+	rte_eth_dev_close(port_id);
 	if (rte_dev_remove(dev_info.device) != 0)
 		RTE_LOG(ERR, DATAPLANE,
 			"dpdk_lag_delete(%u): remove failed\n", port_id);
 }
 
 /*
- * Returns the number of slaves associated with this bonding interface.
+ * Returns the number of members associated with this bonding interface.
  *
  * If not a bonding interface, return -1.
  */
-static int slave_count(const struct ifnet *ifp)
+static int member_count(const struct ifnet *ifp)
 {
-	portid_t slaves[LAG_MAX_SLAVES];
+	portid_t members[LAG_MAX_MEMBERS];
 
-	return rte_eth_bond_slaves_get(ifp->if_port, slaves,
-				       LAG_MAX_SLAVES);
+	return rte_eth_bond_slaves_get(ifp->if_port, members,
+				       LAG_MAX_MEMBERS);
 }
 
 static bool dpdk_lag_can_start(const struct ifnet *ifp)
 {
-	return slave_count(ifp) != 0;
+	return member_count(ifp) != 0;
 }
 
-static int dpdk_lag_slave_add(struct ifnet *master, struct ifnet *ifp)
+static int dpdk_lag_member_add(struct ifnet *team, struct ifnet *ifp)
 {
 	int count, rv;
 
-	count = slave_count(master);
+	count = member_count(team);
 	if (count < 0)
 		return -EINVAL;
 
 	/* access to bonding "internals" structure is not thread-safe */
-	if_disable_poll_rcu(master->if_port);
+	if_disable_poll_rcu(team->if_port);
 
-	rv = slave_add(master, ifp);
+	rv = member_add(team, ifp);
 	if (rv < 0)
 		goto out;
 
 	/* We just added the first port, so we might need to finally
 	 * start_port() if this interface is currently IFF_UP.
 	 */
-	if (count == 0 && master->if_flags & IFF_UP)
-		dpdk_eth_if_start_port(master);
+	if (count == 0 && team->if_flags & IFF_UP)
+		dpdk_eth_if_start_port(team);
 
 out:
-	if_enable_poll(master->if_port);
+	if_enable_poll(team->if_port);
 	return rv;
 }
 
-static int dpdk_lag_slave_delete(struct ifnet *master, struct ifnet *ifp)
+static int dpdk_lag_member_delete(struct ifnet *team, struct ifnet *ifp)
 {
-	portid_t slaves[LAG_MAX_SLAVES];
+	portid_t members[LAG_MAX_MEMBERS];
 	int count, rv;
 
-	count = rte_eth_bond_slaves_get(master->if_port, slaves,
-					LAG_MAX_SLAVES);
+	count = rte_eth_bond_slaves_get(team->if_port, members,
+					LAG_MAX_MEMBERS);
 	if (count < 0)
 		return -EINVAL;
 
 	/* access to bonding "internals" structure is not thread-safe */
-	if_disable_poll_rcu(master->if_port);
+	if_disable_poll_rcu(team->if_port);
 
-	rv = slave_remove(master, ifp);
+	rv = member_remove(team, ifp);
 	if (rv < 0)
 		goto out;
 
 	/* we just remove the last port, so lets stop polling */
 	if (count == 1) {
-		dpdk_eth_if_stop_port(master);
+		dpdk_eth_if_stop_port(team);
 		return rv;
 	}
 
 out:
-	if_enable_poll(master->if_port);
+	if_enable_poll(team->if_port);
 	return rv;
 }
 
-/* Add interface to an aggregation or update an already enslaved interface */
+/* Add interface to an aggregation or update an existing member interface */
 static int
-dpdk_lag_nl_slave_update(const struct ifinfomsg *ifi, struct ifnet *ifp,
-			 struct ifnet *master)
+dpdk_lag_nl_member_update(const struct ifinfomsg *ifi, struct ifnet *ifp,
+			 struct ifnet *team)
 {
 	if (ifp == NULL)
 		return -1;
 
-	if ((!ifp->aggregator && master) || (ifp->aggregator && !master)) {
-		/* master was either set or cleared */
-		dpdk_lag_slave_sync_mac_address(ifp);
+	if ((!ifp->aggregator && team) || (ifp->aggregator && !team)) {
+		/* team was either set or cleared */
+		dpdk_lag_member_sync_mac_address(ifp);
 	} else {
 		/* if link up, restore collect/dist flags */
 		if (ifi->ifi_flags & IFF_RUNNING) {
 			dpdk_lag_select(ifp, enabled[ifp->if_port]);
-			dpdk_lag_slave_sync_mac_address(ifp);
+			dpdk_lag_member_sync_mac_address(ifp);
 		}
 	}
 
 	return 0;
 }
 
-static void dpdk_lag_refresh_actor_state(struct ifnet *master)
+static void dpdk_lag_refresh_actor_state(struct ifnet *team)
 {
-	portid_t slaves[LAG_MAX_SLAVES];
+	portid_t members[LAG_MAX_MEMBERS];
 	int count, i;
 
-	count = rte_eth_bond_slaves_get(master->if_port, slaves,
-					LAG_MAX_SLAVES);
+	count = rte_eth_bond_slaves_get(team->if_port, members,
+					LAG_MAX_MEMBERS);
 
 	for (i = 0; i < count; i++)
-		dpdk_lag_select(ifport_table[slaves[i]], enabled[slaves[i]]);
+		dpdk_lag_select(ifport_table[members[i]], enabled[members[i]]);
 }
 
 static const char * const bonding_modes[] = {
@@ -562,7 +563,7 @@ static const char * const policy_names[] = {
 };
 
 
-static bool lag_slave_is_active(portid_t active[], int len, uint16_t portid)
+static bool lag_member_is_active(portid_t active[], int len, uint16_t portid)
 {
 	int i;
 
@@ -574,15 +575,15 @@ static bool lag_slave_is_active(portid_t active[], int len, uint16_t portid)
 
 static void dpdk_lag_show_detail(struct ifnet *node, json_writer_t *wr)
 {
-	int num_slaves;
+	int num_members;
 	int num_active;
 	int i;
 	int primary = rte_eth_bond_primary_get(node->if_port);
 	int mode = rte_eth_bond_mode_get(node->if_port);
 	int policy = rte_eth_bond_xmit_policy_get(node->if_port);
 	const char *policy_str = "n/a";
-	portid_t slaves[LAG_MAX_SLAVES];
-	portid_t active[LAG_MAX_SLAVES];
+	portid_t members[LAG_MAX_MEMBERS];
+	portid_t active[LAG_MAX_MEMBERS];
 
 	jsonw_start_object(wr);
 	jsonw_string_field(wr, "ifname", node->if_name);
@@ -599,13 +600,13 @@ static void dpdk_lag_show_detail(struct ifnet *node, json_writer_t *wr)
 
 	num_active = rte_eth_bond_active_slaves_get(node->if_port,
 						active,
-						LAG_MAX_SLAVES);
-	num_slaves = rte_eth_bond_slaves_get(node->if_port, slaves,
-					LAG_MAX_SLAVES);
-	jsonw_name(wr, "slaves");
+						LAG_MAX_MEMBERS);
+	num_members = rte_eth_bond_slaves_get(node->if_port, members,
+					LAG_MAX_MEMBERS);
+	jsonw_name(wr, "members");
 	jsonw_start_array(wr);
-	for (i = 0; i < num_slaves; i++) {
-		struct ifnet *sl = ifnet_byport(slaves[i]);
+	for (i = 0; i < num_members; i++) {
+		struct ifnet *sl = ifnet_byport(members[i]);
 		struct rte_eth_bond_8023ad_slave_info info;
 		int rc;
 
@@ -613,7 +614,7 @@ static void dpdk_lag_show_detail(struct ifnet *node, json_writer_t *wr)
 			continue;
 
 		bool is_primary = primary == sl->if_port;
-		bool is_active = lag_slave_is_active(active, num_active,
+		bool is_active = lag_member_is_active(active, num_active,
 						sl->if_port);
 		jsonw_start_object(wr);
 		jsonw_string_field(wr, "ifname", sl->if_name);
@@ -646,23 +647,23 @@ static void dpdk_lag_show_detail(struct ifnet *node, json_writer_t *wr)
 }
 
 static int
-dpdk_lag_walk_bond_slaves(struct ifnet *ifp, dp_ifnet_iter_func_t iter_func,
+dpdk_lag_walk_team_members(struct ifnet *ifp, dp_ifnet_iter_func_t iter_func,
 			  void *arg)
 {
-	int num_slaves;
-	portid_t slaves[LAG_MAX_SLAVES];
+	int num_members;
+	portid_t members[LAG_MAX_MEMBERS];
 	int i;
 
 	if (!ifp->if_team || !iter_func)
 		return -EINVAL;
 
-	num_slaves = rte_eth_bond_slaves_get(ifp->if_port, slaves,
-					     LAG_MAX_SLAVES);
-	if (num_slaves < 0)
+	num_members = rte_eth_bond_slaves_get(ifp->if_port, members,
+					     LAG_MAX_MEMBERS);
+	if (num_members < 0)
 		return -EINVAL;
 
-	for (i = 0; i < num_slaves; i++) {
-		struct ifnet *sl = ifnet_byport(slaves[i]);
+	for (i = 0; i < num_members; i++) {
+		struct ifnet *sl = ifnet_byport(members[i]);
 
 		if (sl)
 			(iter_func)(sl, arg);
@@ -700,7 +701,7 @@ dpdk_lag_set_l2_address(struct ifnet *ifp, struct rte_ether_addr *macaddr)
 
 const struct lag_ops dpdk_lag_ops = {
 	.lagop_etype_slow_tx = dpdk_lag_etype_slow_tx,
-	.lagop_slave_sync_mac_address = dpdk_lag_slave_sync_mac_address,
+	.lagop_member_sync_mac_address = dpdk_lag_member_sync_mac_address,
 	.lagop_create = dpdk_lag_create,
 	.lagop_mode_set_balance = dpdk_lag_mode_set_balance,
 	.lagop_mode_set_activebackup = dpdk_lag_mode_set_activebackup,
@@ -708,12 +709,12 @@ const struct lag_ops dpdk_lag_ops = {
 	.lagop_set_activeport = dpdk_lag_set_activeport,
 	.lagop_delete = dpdk_lag_delete,
 	.lagop_can_start = dpdk_lag_can_start,
-	.lagop_slave_add = dpdk_lag_slave_add,
-	.lagop_slave_delete = dpdk_lag_slave_delete,
-	.lagop_nl_slave_update = dpdk_lag_nl_slave_update,
+	.lagop_member_add = dpdk_lag_member_add,
+	.lagop_member_delete = dpdk_lag_member_delete,
+	.lagop_nl_member_update = dpdk_lag_nl_member_update,
 	.lagop_refresh_actor_state = dpdk_lag_refresh_actor_state,
 	.lagop_show_detail = dpdk_lag_show_detail,
-	.lagop_walk_bond_slaves = dpdk_lag_walk_bond_slaves,
+	.lagop_walk_team_members = dpdk_lag_walk_team_members,
 	.lagop_is_team = dpdk_lag_is_team,
 	.lagop_can_startstop_member = dpdk_lag_can_startstop_member,
 	.lagop_set_l2_address = dpdk_lag_set_l2_address,

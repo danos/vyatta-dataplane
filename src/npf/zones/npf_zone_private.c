@@ -110,8 +110,8 @@ struct npf_zone_policy {
 /*
  * zone
  *
- * Interface and policy lists are only ever updated from the master thread.
- * The policy hash table is updated by the master thread, but looked-up by the
+ * Interface and policy lists are only ever updated from the main thread.
+ * The policy hash table is updated by the main thread, but looked-up by the
  * forwarding threads.
  */
 struct npf_zone {

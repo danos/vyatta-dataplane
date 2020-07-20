@@ -17,7 +17,6 @@
 #include <rte_config.h>
 #include <rte_cycles.h>
 #include <rte_debug.h>
-#include <rte_ethdev.h>
 #include <rte_ether.h>
 #include <rte_lcore.h>
 #include <rte_log.h>
@@ -39,6 +38,7 @@
 #include "fal.h"
 #include "if_var.h"
 #include "ip_addr.h"
+#include "lcore_sched.h"
 #include "main.h"
 #include "pipeline/nodes/pl_nodes_common.h"
 #include "pktmbuf_internal.h"
@@ -62,13 +62,13 @@ static struct timeval capture_tod;
 static uint64_t capture_base;
 static uint64_t capture_hz;
 
-static zsock_t *capture_sock_master;
+static zsock_t *capture_sock_main;
 static zsock_t *capture_sock_console;
 static pthread_mutex_t capture_sock_lock = PTHREAD_MUTEX_INITIALIZER;
 
 typedef int (*fal_func_t)(void *arg);
 
-static int capture_master_send(fal_func_t func, void *arg);
+static int capture_main_send(fal_func_t func, void *arg);
 
 static void capture_time_resync(struct timeval *tod, uint64_t *base,
 				uint64_t *hz)
@@ -525,7 +525,7 @@ static void capture_flush(const struct capture_info *cap_info)
 
 /*
  * Bind or unbind the FAL capture object to/from the interface. This
- * action function runs in the context of the master thread.
+ * action function runs in the context of the main thread.
  */
 
 struct capture_hw_bind_args {
@@ -558,18 +558,18 @@ static void capture_hw_stop(const struct ifnet *ifp,
 	 * Termination is triggered from normal capture cancellation
 	 * and deletion of the interface (capture_cancel()). The
 	 * former is in the context of the capture thread (loop
-	 * termination), the latter is in the context of the master
+	 * termination), the latter is in the context of the main
 	 * thread.
 	 *
 	 * In the interface deletion case, trying to schedule the
-	 * unbind action on the master thread is never going to work
-	 * (deadlock as we're already running on the master
+	 * unbind action on the main thread is never going to work
+	 * (deadlock as we're already running on the main
 	 * thread). Update the FAL directly.
 	 */
-	if (is_master_thread())
+	if (is_main_thread())
 		capture_hw_bind(&args);
 	else
-		capture_master_send(capture_hw_bind, &args);
+		capture_main_send(capture_hw_bind, &args);
 
 	fal_capture_delete(cap_info->falobj);
 	cap_info->falobj = 0;
@@ -596,13 +596,8 @@ static void capture_cleanup(void *arg)
 		rte_free(cap_filter);
 	}
 
-	if (ifp->if_type == IFT_ETHER) {
-		if (cap_info->is_promisc)
-			ifpromisc(ifp, 0);
-		if (cap_info->offload_mask >= 0)
-			rte_eth_dev_set_vlan_offload(ifp->if_port,
-						     cap_info->offload_mask);
-	}
+	if (cap_info->is_promisc)
+		ifpromisc(ifp, 0);
 
 	RTE_LOG(INFO, DATAPLANE, "Capture stopped on %s\n",
 		ifp->if_name);
@@ -696,19 +691,8 @@ static void *capture_thread(void *arg)
 
 	pthread_cleanup_push(capture_cleanup, arg);
 
-	if (ifp->if_type == IFT_ETHER) {
-		int offload_mask;
-		/* Turn off vlan filtering */
-		offload_mask =
-			rte_eth_dev_get_vlan_offload(ifp->if_port);
-		if (offload_mask > 0)
-			rte_eth_dev_set_vlan_offload(ifp->if_port,
-						     offload_mask &
-						     ~ETH_VLAN_FILTER_OFFLOAD);
-		cap_info->offload_mask = offload_mask;
-		if (cap_info->is_promisc)
-			ifpromisc(ifp, 1);
-	}
+	if (cap_info->is_promisc)
+		ifpromisc(ifp, 1);
 
 	if (cap_info->falobj != 0)
 		ifp->hw_capturing = 1;
@@ -801,7 +785,7 @@ static bool capture_hw_start(FILE *f, const struct ifnet *ifp,
 	 */
 	args.ifindex = ifp->if_index;
 	args.obj = obj;
-	rc = capture_master_send(capture_hw_bind, &args);
+	rc = capture_main_send(capture_hw_bind, &args);
 	if (rc < 0) {
 		fal_capture_delete(obj);
 
@@ -1075,12 +1059,12 @@ int cmd_capture(FILE *f, int argc, char **argv)
 /*
  * In order to maintain serialisation with other FAL updates, the FAL
  * updates to packet capture must be run within the context of the
- * master thread (as opposed to the console or capture threads).
+ * main thread (as opposed to the console or capture threads).
  *
  * Use a simple synchronous RPC-like mechanism to schedule FAL action
- * routines on the master thread.
+ * routines on the main thread.
  */
-static int capture_master_receive(void *arg)
+static int capture_main_receive(void *arg)
 {
 	zsock_t *sock = (zsock_t *)arg;
 	fal_func_t func;
@@ -1104,20 +1088,20 @@ static int capture_master_receive(void *arg)
 	return 0;
 }
 
-static int capture_master_send_locked(fal_func_t func, void *arg)
+static int capture_main_send_locked(fal_func_t func, void *arg)
 {
 	int func_rc;
 
 	if (zsock_send(capture_sock_console, "pp", func, arg) < 0) {
 		RTE_LOG(ERR, DATAPLANE,
-			"%s() failed to send action to master\n",
+			"%s() failed to send action to main\n",
 			__func__);
 		return -EIO;
 	}
 
 	if (zsock_recv(capture_sock_console, "i", &func_rc) < 0) {
 		RTE_LOG(ERR, DATAPLANE,
-			"%s() failed to get response from master\n",
+			"%s() failed to get response from main\n",
 			__func__);
 		return -EIO;
 	}
@@ -1125,20 +1109,20 @@ static int capture_master_send_locked(fal_func_t func, void *arg)
 	return func_rc;
 }
 
-static int capture_master_send(fal_func_t func, void *arg)
+static int capture_main_send(fal_func_t func, void *arg)
 {
 	int rc;
 
 	pthread_mutex_lock(&capture_sock_lock);
-	rc = capture_master_send_locked(func, arg);
+	rc = capture_main_send_locked(func, arg);
 	pthread_mutex_unlock(&capture_sock_lock);
 	return rc;
 }
 
 void capture_destroy(void)
 {
-	dp_unregister_event_socket(zsock_resolve(capture_sock_master));
-	zsock_destroy(&capture_sock_master);
+	dp_unregister_event_socket(zsock_resolve(capture_sock_main));
+	zsock_destroy(&capture_sock_main);
 	zsock_destroy(&capture_sock_console);
 }
 
@@ -1161,15 +1145,15 @@ void capture_init(uint16_t mbuf_sz)
 	rte_spinlock_init(&capture_time_lock);
 	capture_time_resync(NULL, NULL, NULL);
 
-	capture_sock_master = zsock_new_pair("@inproc://capture_master_event");
-	if (capture_sock_master == NULL)
-		rte_panic("capture master socket failed");
+	capture_sock_main = zsock_new_pair("@inproc://capture_main_event");
+	if (capture_sock_main == NULL)
+		rte_panic("capture main socket failed");
 
-	capture_sock_console = zsock_new_pair(">inproc://capture_master_event");
-	if (capture_sock_master == NULL)
+	capture_sock_console = zsock_new_pair(">inproc://capture_main_event");
+	if (capture_sock_main == NULL)
 		rte_panic("capture console socket failed");
 
-	dp_register_event_socket(zsock_resolve(capture_sock_master),
-				 capture_master_receive,
-				 capture_sock_master);
+	dp_register_event_socket(zsock_resolve(capture_sock_main),
+				 capture_main_receive,
+				 capture_sock_main);
 }

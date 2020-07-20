@@ -222,24 +222,11 @@ static void cgn_uninit(void)
 }
 
 /*
- * Callback for dataplane DP_EVT_IF_INDEX_SET event.
- */
-static void
-cgn_event_if_index_set(struct ifnet *ifp)
-{
-	/* Replay any stored config */
-	cgn_cfg_replay(ifp);
-}
-
-/*
  * Callback for dataplane DP_EVT_IF_INDEX_UNSET event.
  */
 static void
 cgn_event_if_index_unset(struct ifnet *ifp, uint32_t ifindex __unused)
 {
-	/* Discard any stored config */
-	cgn_cfg_replay_clear(ifp);
-
 	/*
 	 * For each policy on interface:
 	 *  1. Clear sessions,
@@ -257,7 +244,6 @@ cgn_event_if_index_unset(struct ifnet *ifp, uint32_t ifindex __unused)
 static const struct dp_event_ops cgn_event_ops = {
 	.init = cgn_init,
 	.uninit = cgn_uninit,
-	.if_index_set = cgn_event_if_index_set,
 	.if_index_unset = cgn_event_if_index_unset,
 };
 

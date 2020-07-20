@@ -64,6 +64,10 @@ static const struct npf_rs_state_subtree {
 		.subtree = {"firewall", "state", "local"},
 		.subtree_count = 3,
 	},
+	[NPF_RS_ORIGINATE] = {
+		.subtree = {"firewall", "state", "originate"},
+		.subtree_count = 3,
+	},
 	[NPF_RS_BRIDGE] = {
 		.subtree = {"firewall", "state", "l2"},
 		.subtree_count = 3,
@@ -376,7 +380,7 @@ npf_show_state_intf(json_writer_t *json,
 	enum npf_ruleset_type rs_type;
 	ulong rulesets = info->sel->rulesets;
 
-	/* fw-in, fw-out, local, bridge and/or pbr */
+	/* fw-in, fw-out, local, bridge, originate and/or pbr */
 	for (rs_type = 0; rs_type < NPF_RS_TYPE_COUNT; rs_type++)
 		if ((rulesets & BIT(rs_type)) != 0)
 			npf_show_state_intf_rs(json, npf_conf, rs_type,
@@ -802,7 +806,8 @@ npf_show_ruleset_state_zone(json_writer_t *json, struct ruleset_select *sel)
  * Returned state is dependent on ruleset type, which reflects where the
  * corresponding config exists in the tree.
  */
-#define RULESET_INTF (NPF_FW_IN | NPF_FW_OUT | NPF_BRIDGE | NPF_LOCAL | NPF_PBR)
+#define RULESET_INTF (NPF_FW_IN | NPF_FW_OUT | NPF_BRIDGE | NPF_LOCAL \
+		| NPF_PBR | NPF_ORIGINATE)
 #define RULESET_NAT  (NPF_SNAT | NPF_DNAT | NPF_NAT64 | NPF_NAT46)
 #define RULESET_ZONE (NPF_ZONE)
 

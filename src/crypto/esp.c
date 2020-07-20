@@ -148,9 +148,8 @@ static int buf_tail_trim(struct rte_mbuf *m, uint16_t len, int err)
 	if (err)
 		return err;
 
-	m->pkt_len  -= len;
-
 	m_last = rte_pktmbuf_lastseg(m);
+	m->pkt_len  -= len;
 	while (len != 0) {
 		if (m_last->data_len <= len) {
 			len -= m_last->data_len;

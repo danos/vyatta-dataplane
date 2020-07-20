@@ -19,6 +19,8 @@
 #include "pl_common.h"
 #include "pl_fused.h"
 #include "urcu.h"
+#include "ip_funcs.h"
+#include "ip6_funcs.h"
 
 enum {
 	V4_PKT = true,
@@ -77,6 +79,30 @@ ipv6_fw_out_process(struct pl_packet *pkt, void *context __unused)
 	return ip_fw_out_process_common(pkt, V6_PKT);
 }
 
+ALWAYS_INLINE unsigned int
+ipv4_fw_orig_process(struct pl_packet *pkt, void *context __unused)
+{
+	if (pkt->npf_flags & NPF_FLAG_FROM_US) {
+		if (ipv4_originate_filter_flags(pkt->out_ifp, pkt->mbuf,
+				pkt->npf_flags))
+			return IPV4_FW_ORIG_DROP;
+	}
+
+	return IPV4_FW_ORIG_ACCEPT;
+}
+
+ALWAYS_INLINE unsigned int
+ipv6_fw_orig_process(struct pl_packet *pkt, void *context __unused)
+{
+	if (pkt->npf_flags & NPF_FLAG_FROM_US) {
+		if (ipv6_originate_filter_flags(pkt->out_ifp, pkt->mbuf,
+				pkt->npf_flags))
+			return IPV6_FW_ORIG_DROP;
+	}
+
+	return IPV6_FW_ORIG_ACCEPT;
+}
+
 /* Register Node */
 PL_REGISTER_NODE(ipv4_fw_out_node) = {
 	.name = "vyatta:ipv4-fw-out",
@@ -97,6 +123,28 @@ PL_REGISTER_NODE(ipv6_fw_out_node) = {
 	.next = {
 		[IPV6_FW_OUT_ACCEPT]       = "term-noop",
 		[IPV6_FW_OUT_DROP]         = "ipv6-drop",
+	}
+};
+
+PL_REGISTER_NODE(ipv4_fw_orig_node) = {
+	.name = "vyatta:ipv4-fw-orig",
+	.type = PL_PROC,
+	.handler = ipv4_fw_orig_process,
+	.num_next = IPV4_FW_ORIG_NUM,
+	.next = {
+		[IPV4_FW_ORIG_ACCEPT]       = "ipv4-fw-out",
+		[IPV4_FW_ORIG_DROP]         = "term-drop",
+	}
+};
+
+PL_REGISTER_NODE(ipv6_fw_orig_node) = {
+	.name = "vyatta:ipv6-fw-orig",
+	.type = PL_PROC,
+	.handler = ipv6_fw_orig_process,
+	.num_next = IPV6_FW_ORIG_NUM,
+	.next = {
+		[IPV6_FW_ORIG_ACCEPT]       = "ipv6-fw-out",
+		[IPV6_FW_ORIG_DROP]         = "ipv6-drop",
 	}
 };
 

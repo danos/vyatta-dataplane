@@ -167,10 +167,10 @@ DP_START_TEST(qos_fal_basic, fal_basic)
 
 	dp_test_qos_debug(debug);
 
-	dp_test_netlink_set_interface_l2("sw_port_0_0");
+	dp_test_netlink_set_interface_l2("dp1sw_port_0_0");
 
 	dp_test_intf_switch_create("switch0");
-	dp_test_intf_switch_add_port("switch0", "sw_port_0_0");
+	dp_test_intf_switch_add_port("switch0", "dp1sw_port_0_0");
 	dp_test_intf_switch_add_port("switch0", "dp2T1");
 
 	ret = dp_test_qos_fal_hw_switch_if("dp2T1", true);
@@ -267,8 +267,10 @@ DP_START_TEST(qos_fal_basic, fal_basic)
 			    "failed to clear hw-switching on dp2T1\n");
 
 	dp_test_intf_switch_remove_port("switch0", "dp2T1");
-	dp_test_intf_switch_remove_port("switch0", "sw_port_0_0");
+	dp_test_intf_switch_remove_port("switch0", "dp1sw_port_0_0");
 	dp_test_intf_switch_del("switch0");
+
+	dp_test_netlink_del_interface_l2("dp1sw_port_0_0");
 
 	dp_test_qos_debug(false);
 
@@ -329,10 +331,10 @@ DP_START_TEST(qos_fal_basic, fal_wred)
 
 	dp_test_qos_debug(debug);
 
-	dp_test_netlink_set_interface_l2("sw_port_0_0");
+	dp_test_netlink_set_interface_l2("dp1sw_port_0_0");
 
 	dp_test_intf_switch_create("switch0");
-	dp_test_intf_switch_add_port("switch0", "sw_port_0_0");
+	dp_test_intf_switch_add_port("switch0", "dp1sw_port_0_0");
 	dp_test_intf_switch_add_port("switch0", "dp2T1");
 
 	ret = dp_test_qos_fal_hw_switch_if("dp2T1", true);
@@ -382,9 +384,11 @@ DP_START_TEST(qos_fal_basic, fal_wred)
 	dp_test_fail_unless((ret == 0),
 			    "failed to clear hw-switching on dp2T1\n");
 
-	dp_test_intf_switch_remove_port("switch0", "sw_port_0_0");
+	dp_test_intf_switch_remove_port("switch0", "dp1sw_port_0_0");
 	dp_test_intf_switch_remove_port("switch0", "dp2T1");
 	dp_test_intf_switch_del("switch0");
+
+	dp_test_netlink_del_interface_l2("dp1sw_port_0_0");
 
 	dp_test_qos_debug(false);
 
@@ -911,10 +915,10 @@ DP_START_TEST(qos_fal_basic, fal_said_poc)
 
 	dp_test_qos_debug(debug);
 
-	dp_test_netlink_set_interface_l2("sw_port_0_0");
+	dp_test_netlink_set_interface_l2("dp1sw_port_0_0");
 
 	dp_test_intf_switch_create("switch0");
-	dp_test_intf_switch_add_port("switch0", "sw_port_0_0");
+	dp_test_intf_switch_add_port("switch0", "dp1sw_port_0_0");
 	dp_test_intf_switch_add_port("switch0", "dp2T1");
 
 	ret = dp_test_qos_fal_hw_switch_if("dp2T1", true);
@@ -1060,9 +1064,11 @@ DP_START_TEST(qos_fal_basic, fal_said_poc)
 			    "failed to clear hw-switching on dp2T1\n");
 
 	/* Cleanup the ports */
-	dp_test_intf_switch_remove_port("switch0", "sw_port_0_0");
+	dp_test_intf_switch_remove_port("switch0", "dp1sw_port_0_0");
 	dp_test_intf_switch_remove_port("switch0", "dp2T1");
 	dp_test_intf_switch_del("switch0");
+
+	dp_test_netlink_del_interface_l2("dp1sw_port_0_0");
 
 	dp_test_qos_debug(false);
 
@@ -1110,10 +1116,10 @@ DP_START_TEST(qos_fal_basic, fal_local_priority_queue)
 
 	dp_test_qos_debug(debug);
 
-	dp_test_netlink_set_interface_l2("sw_port_0_0");
+	dp_test_netlink_set_interface_l2("dp1sw_port_0_0");
 
 	dp_test_intf_switch_create("switch0");
-	dp_test_intf_switch_add_port("switch0", "sw_port_0_0");
+	dp_test_intf_switch_add_port("switch0", "dp1sw_port_0_0");
 	dp_test_intf_switch_add_port("switch0", "dp2T1");
 
 	ret = dp_test_qos_fal_hw_switch_if("dp2T1", true);
@@ -1162,9 +1168,11 @@ DP_START_TEST(qos_fal_basic, fal_local_priority_queue)
 			    "failed to clear hw-switching on dp2T1\n");
 
 	/* Cleanup the ports */
-	dp_test_intf_switch_remove_port("switch0", "sw_port_0_0");
+	dp_test_intf_switch_remove_port("switch0", "dp1sw_port_0_0");
 	dp_test_intf_switch_remove_port("switch0", "dp2T1");
 	dp_test_intf_switch_del("switch0");
+
+	dp_test_netlink_del_interface_l2("dp1sw_port_0_0");
 
 	dp_test_qos_debug(false);
 
@@ -1348,10 +1356,10 @@ DP_START_TEST(qos_fal_basic, fal_egress_map)
 
 	dp_test_qos_debug(debug);
 
-	dp_test_netlink_set_interface_l2("sw_port_0_0");
+	dp_test_netlink_set_interface_l2("dp1sw_port_0_0");
 
 	dp_test_intf_switch_create("switch0");
-	dp_test_intf_switch_add_port("switch0", "sw_port_0_0");
+	dp_test_intf_switch_add_port("switch0", "dp1sw_port_0_0");
 	dp_test_intf_switch_add_port("switch0", "dp2T1");
 
 	ret = dp_test_qos_fal_hw_switch_if("dp2T1", true);
@@ -1395,9 +1403,11 @@ DP_START_TEST(qos_fal_basic, fal_egress_map)
 			    "failed to clear hw-switching on dp2T1\n");
 
 	/* Cleanup the ports */
-	dp_test_intf_switch_remove_port("switch0", "sw_port_0_0");
+	dp_test_intf_switch_remove_port("switch0", "dp1sw_port_0_0");
 	dp_test_intf_switch_remove_port("switch0", "dp2T1");
 	dp_test_intf_switch_del("switch0");
+
+	dp_test_netlink_del_interface_l2("dp1sw_port_0_0");
 
 	dp_test_qos_debug(false);
 
@@ -1485,10 +1495,10 @@ DP_START_TEST(qos_fal_basic, fal_egress_map2)
 
 	dp_test_qos_debug(debug);
 
-	dp_test_netlink_set_interface_l2("sw_port_0_0");
+	dp_test_netlink_set_interface_l2("dp1sw_port_0_0");
 
 	dp_test_intf_switch_create("switch0");
-	dp_test_intf_switch_add_port("switch0", "sw_port_0_0");
+	dp_test_intf_switch_add_port("switch0", "dp1sw_port_0_0");
 	dp_test_intf_switch_add_port("switch0", "dp2T1");
 
 	ret = dp_test_qos_fal_hw_switch_if("dp2T1", true);
@@ -1522,9 +1532,11 @@ DP_START_TEST(qos_fal_basic, fal_egress_map2)
 			    "failed to clear hw-switching on dp2T1\n");
 
 	/* Cleanup the ports */
-	dp_test_intf_switch_remove_port("switch0", "sw_port_0_0");
+	dp_test_intf_switch_remove_port("switch0", "dp1sw_port_0_0");
 	dp_test_intf_switch_remove_port("switch0", "dp2T1");
 	dp_test_intf_switch_del("switch0");
+
+	dp_test_netlink_del_interface_l2("dp1sw_port_0_0");
 
 	dp_test_qos_debug(false);
 
@@ -1573,10 +1585,10 @@ DP_START_TEST(qos_fal_basic, fal_egress_map3)
 
 	dp_test_qos_debug(debug);
 
-	dp_test_netlink_set_interface_l2("sw_port_0_0");
+	dp_test_netlink_set_interface_l2("dp1sw_port_0_0");
 
 	dp_test_intf_switch_create("switch0");
-	dp_test_intf_switch_add_port("switch0", "sw_port_0_0");
+	dp_test_intf_switch_add_port("switch0", "dp1sw_port_0_0");
 	dp_test_intf_switch_add_port("switch0", "dp2T1");
 
 	ret = dp_test_qos_fal_hw_switch_if("dp2T1", true);
@@ -1610,9 +1622,11 @@ DP_START_TEST(qos_fal_basic, fal_egress_map3)
 			    "failed to clear hw-switching on dp2T1\n");
 
 	/* Cleanup the ports */
-	dp_test_intf_switch_remove_port("switch0", "sw_port_0_0");
+	dp_test_intf_switch_remove_port("switch0", "dp1sw_port_0_0");
 	dp_test_intf_switch_remove_port("switch0", "dp2T1");
 	dp_test_intf_switch_del("switch0");
+
+	dp_test_netlink_del_interface_l2("dp1sw_port_0_0");
 
 	dp_test_qos_debug(false);
 
@@ -1843,10 +1857,10 @@ DP_START_TEST(qos_fal_basic, fal_wred_map)
 
 	dp_test_qos_debug(debug);
 
-	dp_test_netlink_set_interface_l2("sw_port_0_0");
+	dp_test_netlink_set_interface_l2("dp1sw_port_0_0");
 
 	dp_test_intf_switch_create("switch0");
-	dp_test_intf_switch_add_port("switch0", "sw_port_0_0");
+	dp_test_intf_switch_add_port("switch0", "dp1sw_port_0_0");
 	dp_test_intf_switch_add_port("switch0", "dp2T1");
 
 	ret = dp_test_qos_fal_hw_switch_if("dp2T1", true);
@@ -1912,9 +1926,11 @@ DP_START_TEST(qos_fal_basic, fal_wred_map)
 			    "failed to clear hw-switching on dp2T1\n");
 
 	/* Cleanup the ports */
-	dp_test_intf_switch_remove_port("switch0", "sw_port_0_0");
+	dp_test_intf_switch_remove_port("switch0", "dp1sw_port_0_0");
 	dp_test_intf_switch_remove_port("switch0", "dp2T1");
 	dp_test_intf_switch_del("switch0");
+
+	dp_test_netlink_del_interface_l2("dp1sw_port_0_0");
 
 	dp_test_qos_debug(false);
 
@@ -2263,10 +2279,10 @@ DP_START_TEST(qos_fal_basic, fal_hw_wred_map)
 
 	dp_test_qos_debug(debug);
 
-	dp_test_netlink_set_interface_l2("sw_port_0_0");
+	dp_test_netlink_set_interface_l2("dp1sw_port_0_0");
 
 	dp_test_intf_switch_create("switch0");
-	dp_test_intf_switch_add_port("switch0", "sw_port_0_0");
+	dp_test_intf_switch_add_port("switch0", "dp1sw_port_0_0");
 	dp_test_intf_switch_add_port("switch0", "dp2T1");
 
 	ret = dp_test_qos_fal_hw_switch_if("dp2T1", true);
@@ -2340,9 +2356,11 @@ DP_START_TEST(qos_fal_basic, fal_hw_wred_map)
 			    "failed to clear hw-switching on dp2T1\n");
 
 	/* Cleanup the ports */
-	dp_test_intf_switch_remove_port("switch0", "sw_port_0_0");
+	dp_test_intf_switch_remove_port("switch0", "dp1sw_port_0_0");
 	dp_test_intf_switch_remove_port("switch0", "dp2T1");
 	dp_test_intf_switch_del("switch0");
+
+	dp_test_netlink_del_interface_l2("dp1sw_port_0_0");
 
 	dp_test_qos_debug(false);
 

@@ -61,7 +61,7 @@
  *
  * Other threads
  * =============
- * By default the other threads in the dataplane all run on the 'master' lcore
+ * By default the other threads in the dataplane all run on the 'main' lcore
  * which is lcore 0 by default. This means that they are many threads all
  * sharing the same logical core, and probably sharing it with many other
  * processes too. If there are features that have work to do in a non
@@ -83,7 +83,7 @@ typedef int (dp_per_lcore_fn)(unsigned int lcore, void *arg);
 /*
  * Iterator functions to run a callback for each of the lcores.
  * Depending on the iterator it runs for either all lcores or just the
- * forwarding lcores. (Forwarding lcores are all apart from the master lcore)
+ * forwarding lcores. (Forwarding lcores are all apart from the main lcore)
  * Note that it will run for all the lcores even those that are not currently
  * active.
  *
@@ -98,7 +98,7 @@ int dp_foreach_forwarding_lcore(dp_per_lcore_fn *fn, void *arg);
 
 
 /*
- * Is the given lcore active. The master lcore is always active. A forwarding
+ * Is the given lcore active. The main lcore is always active. A forwarding
  * lcore may be active or inactive.
  *
  * @return True if the lcore is active
@@ -134,7 +134,7 @@ struct dp_lcore_events {
  * needs to be done before the forwarding lcores are made active if that is
  * required.
  *
- * This function must be called on the master thread.
+ * This function must be called on the main thread.
  *
  * @param[in] events Structure containing the per event callbacks.
  * @param[in, out] arg Argument structure passed through to the callbacks.
@@ -149,7 +149,7 @@ int dp_lcore_events_register(const struct dp_lcore_events *events,
 /*
  * Unregister a previously registered set of callbacks.
  *
- * This function must be called on the master thread.
+ * This function must be called on the main thread.
  *
  * @param[in] events The set of pointers that were previously registered.
  *
@@ -161,17 +161,17 @@ int dp_lcore_events_unregister(const struct dp_lcore_events *events);
 
 
 /*
- * The possible uses of lcores in the dataplane. There is one master thread
- * that always runs on the master lcore. All threads that this creates also
- * run on the master lcore.  All the other lcores can be used as forwarders
+ * The possible uses of lcores in the dataplane. There is one main thread
+ * that always runs on the main lcore. All threads that this creates also
+ * run on the main lcore.  All the other lcores can be used as forwarders
  * or for features.
  */
 enum dp_lcore_use {
 	/*
-	 * The Master thread. This will run on the lowest number lcore,
+	 * The main thread. This will run on the lowest number lcore,
 	 * typically 0, but this can be changed by config.
 	 */
-	DP_LCORE_MASTER,
+	DP_LCORE_MAIN,
 	/*
 	 * A packet forwarder. This thread should be processing packets
 	 * as fast as possible, with low latency. Should avoid syscalls
@@ -305,5 +305,20 @@ void dp_pkt_burst_free(void);
  * is made on.
  */
 void dp_pkt_burst_flush(void);
+
+/**
+ * Is this the main thread.
+ *
+ * @return true if main thread.
+ *         false it not the main thread.
+ */
+bool is_main_thread(void);
+
+/*
+ * Assert that this is the main thread. Kill the process if not
+ */
+#define ASSERT_MAIN() \
+{        if (!is_main_thread()) rte_panic("not on main thread\n");	\
+}
 
 #endif /* VYATTA_DATAPLANE_LCORE_SCHED_H */

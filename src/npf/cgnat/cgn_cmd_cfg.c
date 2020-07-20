@@ -69,186 +69,6 @@
 
 
 /*
- * Interface list to handle interface config replay.  Entries are identified
- * by name
- */
-struct cgn_cfg_if_list {
-	struct cds_list_head  if_list;
-	int                   if_list_count;
-};
-
-struct cgn_cfg_if_list_entry {
-	struct cds_list_head  le_node;
-	char                  le_ifname[IFNAMSIZ];
-	char                  *le_buf;
-	char                  **le_argv;
-	int                   le_argc;
-};
-
-static struct cgn_cfg_if_list *cgn_cfg_list;
-
-/* Create list */
-static struct cgn_cfg_if_list *cgn_cfg_if_list_create(void)
-{
-	struct cgn_cfg_if_list *if_list;
-
-	if_list = zmalloc_aligned(sizeof(*if_list));
-	if (!if_list)
-		return NULL;
-
-	CDS_INIT_LIST_HEAD(&if_list->if_list);
-	if_list->if_list_count = 0;
-
-	return if_list;
-}
-
-/* Add a command to the list */
-static int
-cgn_cfg_if_list_add(struct cgn_cfg_if_list *if_list, const char *ifname,
-		    int argc, char *argv[])
-{
-	struct cgn_cfg_if_list_entry *le;
-	int i, size;
-
-	if (strlen(ifname) + 1 > IFNAMSIZ)
-		return -EINVAL;
-
-	le = zmalloc_aligned(sizeof(*le));
-	if (!le)
-		return -ENOMEM;
-
-	memcpy(le->le_ifname, ifname, strlen(ifname) + 1);
-
-	/* Determine space required for arg strings */
-	for (size = 0, i = 0; i < argc; i++)
-		size += (strlen(argv[i]) + 1);
-
-	if (!size) {
-		free(le);
-		return -EINVAL;
-	}
-
-	le->le_buf = malloc(size);
-	le->le_argv = malloc(argc * sizeof(void *));
-	le->le_argc = argc;
-
-	if (!le->le_buf || !le->le_argv) {
-		free(le->le_buf);
-		free(le->le_argv);
-		free(le);
-		return -ENOMEM;
-	}
-
-	char *ptr = le->le_buf;
-
-	for (i = 0; i < argc; i++) {
-		size = strlen(argv[i]) + 1;
-		memcpy(ptr, argv[i], size);
-		le->le_argv[i] = ptr;
-		ptr += size;
-	}
-
-	cds_list_add_tail(&le->le_node, &if_list->if_list);
-	if_list->if_list_count++;
-
-	return 0;
-}
-
-/* Remove entry from list, and free it */
-static int
-cgn_cfg_if_list_del(struct cgn_cfg_if_list *if_list,
-		    struct cgn_cfg_if_list_entry *le)
-{
-	if (!if_list || if_list->if_list_count == 0)
-		return -ENOENT;
-
-	cds_list_del(&le->le_node);
-	if_list->if_list_count--;
-
-	if (le->le_buf)
-		free(le->le_buf);
-	if (le->le_argv)
-		free(le->le_argv);
-	free(le);
-
-	return 0;
-}
-
-/* Destroy list */
-static int cgn_cfg_if_list_destroy(struct cgn_cfg_if_list **if_list)
-{
-	if (!*if_list || (*if_list)->if_list_count)
-		return -EINVAL;
-
-	free(*if_list);
-	*if_list = NULL;
-	return 0;
-}
-
-/*
- * Interface has been created.  Replay any relevant commands on the interface
- * list.
- */
-void cgn_cfg_replay(struct ifnet *ifp)
-{
-	struct cgn_cfg_if_list_entry *le, *tmp;
-
-	if (!cgn_cfg_list)
-		return;
-
-	cds_list_for_each_entry_safe(le, tmp, &cgn_cfg_list->if_list,
-				     le_node) {
-
-		if (strcmp(ifp->if_name, le->le_ifname) != 0)
-			continue;
-
-		/* Replay command */
-		cmd_cgn(NULL, le->le_argc, le->le_argv);
-
-		/* Remove from list and free */
-		cgn_cfg_if_list_del(cgn_cfg_list, le);
-	}
-
-	if (!cgn_cfg_list->if_list_count)
-		cgn_cfg_if_list_destroy(&cgn_cfg_list);
-}
-
-/*
- * Interface has been deleted.  Discard any saved commands.
- */
-void cgn_cfg_replay_clear(struct ifnet *ifp)
-{
-	struct cgn_cfg_if_list_entry *le, *tmp;
-
-	if (!cgn_cfg_list)
-		return;
-
-	cds_list_for_each_entry_safe(le, tmp, &cgn_cfg_list->if_list,
-				     le_node) {
-
-		if (strcmp(ifp->if_name, le->le_ifname) != 0)
-			continue;
-
-		cgn_cfg_if_list_del(cgn_cfg_list, le);
-	}
-
-	if (!cgn_cfg_list->if_list_count)
-		cgn_cfg_if_list_destroy(&cgn_cfg_list);
-}
-
-/* Initialize command replay list */
-static int cgn_cfg_replay_init(void)
-{
-	if (!cgn_cfg_list) {
-		cgn_cfg_list = cgn_cfg_if_list_create();
-		if (!cgn_cfg_list)
-			return -ENOMEM;
-
-	}
-	return 0;
-}
-
-/*
  * Iterate through argv/argc looking for "intf=dp0p1", extract the interface
  * name, and lookup the ifp pointer.  Does not change argv.
  */
@@ -317,18 +137,8 @@ static int cgn_policy_cfg_attach(FILE *f, int argc, char **argv)
 	ifp = dp_ifnet_byifname(ifname);
 
 	if (!ifp) {
-		/* No.  Store command for later replay */
-		if (cgn_cfg_replay_init() != 0) {
-			RTE_LOG(ERR, CGNAT,
-				"Could not set up cgn replay cache\n");
-			goto err_out;
-		}
-
-		cgn_cfg_if_list_add(cgn_cfg_list, ifname, argc, argv);
-
-		RTE_LOG(ERR, CGNAT,
-			"Caching cgn command for interface %s\n", ifname);
-		return 0;
+		RTE_LOG(ERR, CGNAT, "Interfaace %s not found\n", ifname);
+		goto err_out;
 	}
 
 	/*
@@ -786,20 +596,38 @@ usage:
  */
 static int cgn_max_dest_sessions_cfg(FILE *f, int argc, char **argv)
 {
-	int tmp;
+	uint16_t tmp;
 
 	if (argc < 3)
 		goto usage;
 
+	assert(CGN_DEST_SESSIONS_INIT <= CGN_DEST_SESSIONS_MAX);
 	assert(CGN_DEST_SESSIONS_MAX < USHRT_MAX);
 
-	tmp = cgn_arg_to_int(argv[2]);
-	if (tmp < 0 || tmp > CGN_DEST_SESSIONS_MAX || tmp > (USHRT_MAX - 1))
+	tmp = (uint16_t)cgn_arg_to_int(argv[2]);
+	if (tmp > CGN_DEST_SESSIONS_MAX)
 		return -1;
 
 	if (tmp == 0)
-		tmp = CGN_DEST_SESSIONS_MAX;
-	cgn_dest_sessions_max = (int16_t)tmp;
+		tmp = CGN_DEST_SESSIONS_INIT;
+
+	/*
+	 * cgn_dest_sessions_max is used to limit the number of entries to the
+	 * dest session hash table.
+	 */
+	cgn_dest_sessions_max = tmp;
+
+	/*
+	 * cgn_dest_ht_max is used to initialise the dest session hash table.
+	 * This must be a power of two, so we round up tmp accordingly.
+	 */
+	for (uint16_t po2 = CGN_DEST_SESSIONS_MAX >> 1; po2 > 0; po2 >>= 1) {
+		if (tmp > po2) {
+			tmp = po2 << 1;
+			break;
+		}
+	}
+	cgn_dest_ht_max = tmp;
 
 	return 0;
 usage:

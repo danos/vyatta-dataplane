@@ -392,6 +392,7 @@ static int sip_alg_reserve_ports(npf_session_t *se,
 	if (rc)
 		return rc;
 	m->m_trtp_port = ntohs(port);
+	m->m_ip_prot = npf_session_get_proto(se);
 	m->m_rtp_reserved = true;
 
 	/* If the proto is not rtp, we are done. */
@@ -425,7 +426,7 @@ static int sip_alg_reserve_ports(npf_session_t *se,
 		if (!memcmp(&m->m_rtcp_addr, &m->m_rtp_addr, m->m_rtp_alen)) {
 			m->m_trtcp_addr = m->m_trtp_addr;
 			port = htons(m->m_rtcp_port);
-			rc = npf_nat_alloc_map(np, rl, nat_flags,
+			rc = npf_nat_alloc_map(np, rl, nat_flags, m->m_ip_prot,
 					vrfid, &m->m_trtcp_addr, &port, 1);
 			if (rc)
 				return rc;

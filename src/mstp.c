@@ -12,6 +12,7 @@
 #include "assert.h"
 #include "if/bridge/bridge.h"
 #include "bridge_flags.h"
+#include "dp_event.h"
 #include "if_var.h"
 #include "mstp.h"
 #include "vplane_debug.h"
@@ -1094,3 +1095,46 @@ cmd_mstp_ut(FILE *f, int argc, char **argv)
 {
 	return cmd_mstp(f, argc, argv);
 }
+
+static void
+mstp_if_feat_mode_change(struct ifnet *ifp,
+			 enum if_feat_mode_event event)
+{
+	struct bridge_softc *sc;
+
+	if (!is_bridge(ifp))
+		/* nothing to do */
+		return;
+
+	sc = ifp->if_softc;
+
+	switch (event) {
+	case IF_FEAT_MODE_EVENT_L2_CREATED: {
+		const struct fal_attribute_t attr_list[] = {
+			{FAL_STP_ATTR_INSTANCE, .value.u8 = STP_INST_IST},
+			{FAL_STP_ATTR_MSTI, .value.u16 = MSTP_MSTI_IST}
+		};
+
+		int rc = fal_stp_create(ifp->if_index, ARRAY_SIZE(attr_list),
+					&attr_list[0], &sc->stp);
+		if (rc < 0)
+			RTE_LOG(ERR, BRIDGE,
+				"FAL(%u): failed to create STP: '%s'\n",
+				ifp->if_index, strerror(-rc));
+
+		break;
+	}
+	case IF_FEAT_MODE_EVENT_L2_DELETED:
+		if (sc->stp)
+			fal_stp_delete(sc->stp);
+		break;
+	default:
+		break;
+	}
+}
+
+static const struct dp_event_ops mstp_events = {
+	.if_feat_mode_change = mstp_if_feat_mode_change,
+};
+
+DP_STARTUP_EVENT_REGISTER(mstp_events);

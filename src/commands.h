@@ -50,7 +50,7 @@ int cmd_cpp_rl_op(FILE *f, int argc, char **argv);
 void list_all_cmd_versions(FILE *f);
 
 int console_cmd(char *line, char **outbuf, size_t *outsize, cmd_func_t fn,
-		bool on_master);
+		bool on_main);
 int console_bind(enum cont_src_en cont_src);
 void console_unbind(enum cont_src_en cont_src);
 const char *console_endpoint_get(void);

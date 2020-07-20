@@ -161,7 +161,7 @@ enum if_type {
 
 	IFT_VXLAN,
 	IFT_MACVLAN,
-	IFT_VRFMASTER,
+	IFT_VRF,
 };
 
 /*
@@ -208,6 +208,8 @@ enum if_feat_mode_flags {
 	IF_FEAT_MODE_FLAG_L2_FAL_DISABLE = (1 << 3),
 	/* interface-embellishing feature changed */
 	IF_FEAT_MODE_FLAG_EMB_FEAT_CHANGED = (1 << 4),
+	/* notify that L2 has be enabled for the interface */
+	IF_FEAT_MODE_FLAG_L2_ENABLED = (1 << 5),
 };
 
 /*
@@ -492,7 +494,7 @@ struct ift_ops {
 	/*
 	 * Uninitialise the interface
 	 *
-	 * Called with the interface stopped and after it is remove
+	 * Called with the interface stopped and after it is removed
 	 * from interface databases.
 	 */
 	void (*ifop_uninit)(struct ifnet *ifp);
@@ -532,8 +534,9 @@ struct ift_ops {
 	/*
 	 * Enable/disable promiscuous mode
 	 *
-	 * Enable/disable reception of all unicast packets vs. only
-	 * for-us unicast packets.
+	 * Enable/disable reception of all unicast and multicast
+	 * packets on all VLANs vs. only for-us unicast packets or
+	 * registered MAC addresses on selected VLANs.
 	 */
 	int (*ifop_set_promisc)(struct ifnet *ifp, bool enable);
 
@@ -649,9 +652,9 @@ struct ifnet *if_alloc(const char *name, enum if_type type,
 		       int socketid);
 void if_set_ifindex(struct ifnet *ifp, unsigned int ifindex);
 void if_unset_ifindex(struct ifnet *ifp);
-struct ifnet *if_hwport_alloc(unsigned int port,
-			      const struct rte_ether_addr *eth_addr,
-			      int socketid);
+struct ifnet *if_hwport_alloc(const char *if_name, unsigned int ifindex);
+struct ifnet *if_hwport_alloc_w_port(const char *if_name, unsigned int ifindex,
+				     portid_t portid);
 void if_free(struct ifnet *ifp);
 void netlink_if_free(struct ifnet *ifp);
 void if_cleanup(enum cont_src_en cont_src);
@@ -715,8 +718,6 @@ void if_set_vrf(struct ifnet *ifp, vrfid_t vrf_id);
 void fal_if_update_forwarding_all(struct ifnet *ifp);
 void fal_if_update_forwarding(struct ifnet *ifp, uint8_t family,
 			      bool multicast);
-
-char *if_port_info(const struct ifnet *ifp);
 
 static inline struct ifnet *ifnet_byport(portid_t port)
 {
@@ -983,32 +984,6 @@ void incomplete_route_add_pb(const void *dst,
 void incomplete_route_del(const void *dst,
 			  uint8_t family, uint8_t depth, uint32_t table,
 			  uint8_t scope, uint8_t proto);
-void missed_netlink_replay(unsigned int ifindex);
-void missed_nl_unspec_link_add(unsigned int ifindex,
-			       const struct nlmsghdr *nlh);
-void missed_nl_unspec_link_del(unsigned int ifindex);
-void missed_nl_unspec_addr_add(unsigned int ifindex,
-			       const struct rte_ether_addr *addr,
-			       const struct nlmsghdr *nlh);
-void missed_nl_unspec_addr_del(unsigned int ifindex,
-			       const struct rte_ether_addr *addr);
-void missed_nl_inet_addr_add(unsigned int ifindex,
-			     unsigned char family,
-			     const void *addr,
-			     const struct nlmsghdr *nlh);
-void missed_nl_inet_addr_del(unsigned int ifindex,
-			     unsigned char family,
-			     const void *addr);
-void missed_nl_inet_netconf_add(unsigned int ifindex,
-				unsigned char family,
-				const struct nlmsghdr *nlh);
-void missed_nl_inet_netconf_del(unsigned int ifindex,
-				unsigned char family);
-void missed_nl_child_link_add(unsigned int ifindex,
-			      unsigned int child_ifindex,
-			      const struct nlmsghdr *nlh);
-void missed_nl_child_link_del(unsigned int ifindex,
-			      unsigned int child_ifindex);
 void if_set_cont_src(struct ifnet *ifp, enum cont_src_en cont_src);
 bool if_port_is_uplink(portid_t portid);
 bool if_is_control_channel(struct ifnet *ifp);

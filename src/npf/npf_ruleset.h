@@ -52,6 +52,7 @@ typedef uint16_t                rule_no_t;
 #include "npf/config/npf_rule_group.h"
 #include "npf/config/npf_ruleset_type.h"
 #include "npf/npf.h"
+#include "src/npf/nat/nat_proto.h"
 #include "pktmbuf_internal.h"
 
 /* Forward Declarations */
@@ -79,10 +80,12 @@ typedef struct {
 struct npf_rule_stats {
 	uint64_t	pkts_ct;
 	uint64_t	bytes_ct;
-	uint64_t	map_ports; /* NAT mapped ports stats */
+	uint64_t	map_ports[NAT_PROTO_COUNT]; /* NAT mapped ports stats */
 	rte_atomic64_t  refcnt;    /* only refcnt of index 0 is used */
-	uint64_t	pad[4];
+	uint64_t	pad[2];
 };
+
+static_assert(sizeof(struct npf_rule_stats) == 64, "not size of cache line");
 
 /**
  * Used to select rulesets on attachment points to perform actions on,
@@ -129,7 +132,8 @@ npf_rule_t *npf_rule_get(npf_rule_t *rl);
 void npf_rule_put(npf_rule_t *rl);
 void npf_add_pkt(npf_rule_t *rl, uint64_t bytes);
 const void *npf_get_ncode(const npf_rule_t *rl);
-void npf_rule_update_map_stats(npf_rule_t *rl, int n, uint32_t flags);
+void npf_rule_update_map_stats(npf_rule_t *rl, int n, uint32_t flags,
+			       uint8_t ip_prot);
 void npf_rule_get_overall_used(npf_rule_t *rl, uint64_t *used,
 		uint64_t *overall);
 rule_no_t npf_rule_get_num(npf_rule_t *rl);
@@ -148,7 +152,7 @@ npf_rule_group_t *npf_rule_group_create(npf_ruleset_t *ruleset,
 					enum npf_rule_class group_class,
 					const char *group, uint8_t dir);
 int npf_make_rule(npf_rule_group_t *rg, uint32_t rule_no,
-		  const char *rule_line);
+		  const char *rule_line, uint32_t ruleset_type_flags);
 void *npf_rule_rproc_handle_for_logger(npf_rule_t *rl);
 bool npf_rule_has_rproc_actions(npf_rule_t *rl);
 bool npf_rule_has_rproc_logger(npf_rule_t *rl);

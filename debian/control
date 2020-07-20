@@ -21,6 +21,7 @@ Build-Depends: autoconf-archive (>= 20150925),
                libinih-dev,
                libjson-c-dev,
                libmnl-dev,
+               libndpi-dev (>= 3.0),
                libnuma-dev,
                libosip2-dev,
                libpcap-dev (>= 1.7.0),
@@ -29,7 +30,7 @@ Build-Depends: autoconf-archive (>= 20150925),
                libssl-dev,
                libsystemd-dev,
                liburcu-dev (>= 0.8.0),
-               libvyatta-dpdk-swport-dev (>= 0.1.21),
+               libvyatta-dpdk-swport-dev (>= 0.1.23),
                libxen-dev,
                libzmq3-dev (>= 4.0.4),
                perl (>= 5.8.8),
@@ -55,10 +56,13 @@ Depends: adduser,
          ${misc:Depends},
          ${perl:Depends},
          ${shlibs:Depends}
+Breaks: vplane-controller (<< 3.6.8)
 Provides: fal-acl,
           fal-acl-commit,
           fal-backplane,
           fal-bfd-hw,
+          fal-bfd-hw-nego,
+          fal-bfd-hw-mode,
           fal-br-walk-neigh,
           fal-buffer-errors,
           fal-cmd-ret,
@@ -81,6 +85,9 @@ Provides: fal-acl,
           fal-tun-dscp,
           fal-vlan-feat-create,
           fal-deferred-free,
+          fal-mac-limit,
+          fal-br-vlan-set-empty,
+          fal-bfd-max-interval-cnt,
 Description: Vyatta optimized dataplane
  Vyatta dataplane is the set of tools to provide performance optimized routing
  and forwarding. It supports IPv4, IPv6, firewalling, bridging and more.
@@ -94,6 +101,7 @@ Depends: check,
          libvyattafal-dev,
          libvyatta-dataplane-proto-dev,
          libprotobuf-c-dev,
+         libvyatta-jsonw1 (= ${binary:Version}),
          ${misc:Depends},
          ${shlibs:Depends}
 Description: Vyatta dataplane pipeline node build support
@@ -102,8 +110,7 @@ Description: Vyatta dataplane pipeline node build support
 Package: vyatta-dataplane-test
 Section: non-free/devel
 Architecture: any
-Depends: vyatta-dataplane-sample-plugin,
-         ${misc:Depends},
+Depends: ${misc:Depends},
          ${shlibs:Depends}
 Description: Vyatta dataplane test binary
  A test binary used for running unit tests
@@ -132,6 +139,8 @@ Depends: libdpdk-dev (>= 19.11-0vyatta1), ${misc:Depends}
 Provides: fal-dev-acl,
           fal-dev-backplane,
           fal-dev-bfd-hw,
+          fal-dev-bfd-hw-nego,
+          fal-dev-bfd-hw-mode,
           fal-dev-br-walk-neigh,
           fal-dev-cmd-ret,
           fal-dev-cpp-rl,
@@ -157,15 +166,11 @@ Provides: fal-dev-acl,
           fal-dev-vlan-rx-stats-range,
           fal-dev-l3-nh-usability,
           fal-dev-deferred-free,
+          fal-dev-mac-limit,
+          fal-dev-br-vlan-set-empty,
+          fal-dev-bfd-max-interval-cnt,
 Description: Forwarding Abstraction Library plugin development files
  An API for dataplane FAL plugins
-
-Package: vyatta-dataplane-dbg
-Section: non-free/debug
-Architecture: any
-Depends: vyatta-dataplane (= ${binary:Version}), ${misc:Depends}
-Description: Vyatta dataplane debug symbols
- Debug symbols for dataplane
 
 Package: vyatta-dataplane-protocols-versions
 Architecture: all
@@ -195,3 +200,9 @@ Architecture: any
 Depends: libvyatta-dataplane-proto1 (= ${binary:Version}), ${misc:Depends}
 Description: Provides C++ headers for the dataplane API.
  C++ headers for the dataplane API.
+
+Package: libvyatta-jsonw1
+Architecture: any
+Depends: ${misc:Depends}, ${shlibs:Depends}
+Description: Lightweight JSON writer library.
+ Lighweight, simple JSON writer library.

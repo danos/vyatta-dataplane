@@ -21,7 +21,7 @@
 #include <libmnl/libmnl.h>
 #include <czmq.h>
 #include "vplane_debug.h"
-#include "master.h"
+#include "controller.h"
 #include "if_llatbl.h"
 
 #include "dp_test_controller.h"
@@ -49,23 +49,23 @@ char rte_log_level[2];
  *  - setup controller:
  *     - create ZMQ subscriber (controller is publisher)
  *     - register handlers for incoming pub messages
- *  - prepare master thread (master_loop)
+ *  - prepare main thread (main_loop)
  *    - create ZMQ dealer (connected to controller ROUTER)
  *
- *    - MASTER_SETUP:
+ *    - MAIN_SETUP:
  *        setup interfaces (build shadow state, tuntaps ...)
  *        send data to controller:
  *          "MYPORT" + 6 part with data in.
  *        wait for response:
  *          "OK" + seq + ifindex assigned for this port.
  *
- *    - MASTER_RESYNC:
+ *    - MAIN_RESYNC:
  *        send "WHATSUP" on DEALER/ROUTER socket
  *        do loop polling for messages:
  *           process netlink/cmd messages
  *        until msg is THATSALLFOLKS
  *
- *    - MASTER_READY:
+ *    - MAIN_READY:
  *        do while not shutdown:
  *           - process incoming events.
  *
@@ -149,6 +149,7 @@ dp_test_usage(int status)
 	       " -P  --plugin-directory Unit-Test plugin directory\n"
 	       " -r, --routing-domain Use routing-domain VRF model\n"
 	       " -E, --external       When being run from plugin code\n"
+	       " -H, --platform       Specify the platform_conf file to use\n"
 	       " -C, --cfg            Extra config that a caller wants to pass\n"
 	       "                      into the tests. It represents a line in\n"
 	       "                      the 'dataplane' section of the config\n"
@@ -177,6 +178,7 @@ static char dp_ut_plugin_dir[MAX_UT_PLUGIN_DIR_LEN] = ".";
 char dp_ut_dummyfs_dir[PATH_MAX] = "tests/whole_dp/dummyfs/";
 static char drv_cfgfile[PATH_MAX] = "dataplane-drivers-default.conf";
 static const char *dp_feat_plugin_dir = ".";
+static const char *dp_test_platform_file = PLATFORM_FILE;
 
 /*
  * Is the test being run from an external code tree, in which case a different
@@ -254,12 +256,13 @@ dp_test_parse_args(int argc, char **argv)
 		{ "routing-domain", no_argument, NULL, 'r' },
 		{ "feat_plugin_dir", required_argument, NULL, 'F'},
 		{ "plugin-directory", required_argument, NULL, 'P' },
+		{ "platform", required_argument, NULL, 'H' },
 		{ "external", no_argument, NULL, 'E' },
 		{ "cfg", required_argument, NULL, 'C' },
 		{ NULL, 0, NULL, 0}
 	};
 
-	while ((opt = getopt_long(argc, argv, "c:d:P:F:uhprEC:",
+	while ((opt = getopt_long(argc, argv, "c:d:P:F:uhprEC:H:",
 				  lgopts, &option_index)) != EOF) {
 
 		switch (opt) {
@@ -280,6 +283,9 @@ dp_test_parse_args(int argc, char **argv)
 			break;
 		case 'F':
 			dp_feat_plugin_dir = optarg;
+			break;
+		case 'H':
+			dp_test_platform_file = optarg;
 			break;
 		case 'P':
 			memcpy(dp_ut_plugin_dir, optarg,
@@ -372,7 +378,7 @@ dp_test_thread_run(zsock_t *pipe, void *args)
 	 * Wait for the vplaned-local ready state to be reached.
 	 * For VR this is a no-op
 	 */
-	while (!dp_test_master_ready(CONT_SRC_UPLINK))
+	while (!dp_test_main_ready(CONT_SRC_UPLINK))
 		sleep(1);
 
 	json_object *intf_set;
@@ -383,7 +389,7 @@ dp_test_thread_run(zsock_t *pipe, void *args)
 	 * Wait for the VR vplaned / vplaned-remote via uplink ready
 	 * state to be reached
 	 */
-	while (!dp_test_master_ready(CONT_SRC_MAIN))
+	while (!dp_test_main_ready(CONT_SRC_MAIN))
 		sleep(1);
 	dp_test_intf_create_default_set(intf_set);
 
@@ -643,6 +649,8 @@ static void unit_test_load_plugins(const char *directory)
 
 
 bool dp_test_fal_plugin_called;
+uint32_t dp_test_fal_plugin_state;
+void *dp_test_fal_plugin_ptr;
 
 bool dp_test_abort_on_fail = true;
 
@@ -653,22 +661,6 @@ int __wrap_main(int argc, char **argv)
 	char *broker_ctrl_ep;
 	char *req_ipc, *req_ipc_uplink = NULL;
 	const char *rte_file_prefix = get_rte_file_prefix();
-	const char *dp_args[] = {
-		"/usr/sbin/dataplane_test",
-		"-f", cfgfile,
-		"-c", drv_cfgfile,
-		"-F", dp_feat_plugin_dir,
-		"-C", console_ep,
-		"-g", "root",
-		"--",
-		"-n", "1",
-		"-c", "0x1",
-		"--syslog", "local6",
-		"--no-huge",
-		"-m", "1024",
-		"--file-prefix", rte_file_prefix,
-		"--log-level",	rte_log_level,
-	};
 	int ret;
 	int dp_test_real_main_retval;
 	int dp_test_thread_internal_retval;
@@ -732,6 +724,24 @@ int __wrap_main(int argc, char **argv)
 	 */
 	lltable_probe_timer_set_enabled(false);
 	dp_test_intf_init();
+
+	const char *dp_args[] = {
+		"/usr/sbin/dataplane_test",
+		"-f", cfgfile,
+		"-c", drv_cfgfile,
+		"-F", dp_feat_plugin_dir,
+		"-C", console_ep,
+		"-g", "root",
+		"-P", dp_test_platform_file,
+		"--",
+		"-n", "1",
+		"-c", "0x1",
+		"--syslog", "local6",
+		"--no-huge",
+		"-m", "1024",
+		"--file-prefix", rte_file_prefix,
+		"--log-level",	rte_log_level,
+	};
 
 	dp_test_real_main_retval = __real_main(ARRAY_SIZE(dp_args),
 					       (char **)dp_args);

@@ -58,6 +58,15 @@ struct dp_ifnet_link_status {
 void dp_ifnet_link_status(struct ifnet *ifp,
 			  struct dp_ifnet_link_status *if_link);
 
+/**
+ * @brief Get interface admin status
+ *
+ * @param ifp interface to get admin status of
+ * @return True if the interface is admin up
+ * @return False if the interface is admin down
+ */
+bool dp_ifnet_admin_status(struct ifnet *ifp);
+
 /*
  * Iterator function for walk of interfaces
  *

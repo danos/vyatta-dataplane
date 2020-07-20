@@ -534,11 +534,10 @@ bool npf_local_fw(struct ifnet *ifp, struct rte_mbuf **m, uint16_t ether_type)
 	const struct npf_config *npf_config = npf_if_conf(nif);
 
 	npf_cache_t npc;
-	void *n_ptr = dp_pktmbuf_mtol3(*m, void *);
 
 	npf_cache_init(&npc);
 
-	if (!npf_cache_all_at(&npc, *m, n_ptr, ether_type, false))
+	if (!npf_cache_all(&npc, *m, ether_type))
 		return true;	/* discard */
 
 	/* Find the session */
@@ -615,6 +614,43 @@ global_fw:
 	return false;
 }
 
+bool npf_originate_fw(struct ifnet *ifp, uint16_t npf_flags,
+		struct rte_mbuf **m, uint16_t ether_type)
+{
+	struct npf_if *nif = rcu_dereference(ifp->if_npf);
+	const struct npf_config *npf_config = npf_if_conf(nif);
+
+	/*
+	 * Local zone firewall will be done in fw_out processing
+	 */
+
+	if (npf_active(npf_config, NPF_ORIGINATE)) {
+		npf_result_t result;
+
+		result = npf_hook_notrack(npf_get_ruleset(npf_config,
+				NPF_RS_ORIGINATE), m, ifp, PFIL_OUT, npf_flags,
+				ether_type);
+
+		if (result.decision == NPF_DECISION_BLOCK)
+			return true;	/* discard */
+		else if (result.decision == NPF_DECISION_PASS)
+			return false;	/* retain */
+	}
+
+	/* No match, so try the global firewall rules. */
+	if (npf_active(npf_global_config, NPF_ORIGINATE)) {
+		npf_result_t result;
+
+		result = npf_hook_notrack(npf_get_ruleset(npf_global_config,
+				NPF_RS_ORIGINATE), m, ifp, PFIL_OUT, npf_flags,
+				ether_type);
+
+		if (result.decision == NPF_DECISION_BLOCK)
+			return true;	/* discard */
+	}
+	return false;
+}
+
 /*
  * Clear all sessions and reset the npf configuration back to what it
  * would be without any configuration.
@@ -649,19 +685,6 @@ int npf_json_nat_session(json_writer_t *json, void *data)
 	npf_session_t *se = data;
 
 	return npf_session_json_nat(json, se);
-}
-
-/* Get a custome session timeout if configured */
-uint32_t npf_custom_session_timeout(vrfid_t vrfid, uint16_t eth_type,
-		struct rte_mbuf *m)
-{
-	npf_cache_t npc;
-
-	npf_cache_init(&npc);
-	if (unlikely(!npf_cache_all(&npc, m, eth_type)))
-		return 0;
-
-	return npf_state_get_custom_timeout(vrfid, &npc, m);
 }
 
 /* Shim routine for determining whether this NPF session is natted */

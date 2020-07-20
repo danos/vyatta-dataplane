@@ -1,6 +1,4 @@
 /*
- * l3_dpi.c
- *
  * Copyright (c) 2018-2020, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
@@ -76,7 +74,8 @@ ip_dpi_process_common(struct pl_packet *pkt, bool v4, int dir)
 	}
 
 	/* Attach the DPI flow info, do first packet inspection */
-	(void)dpi_session_first_packet(se, npc, m, dir);
+	uint8_t engines[] = {dpi_global_engine()};
+	(void)dpi_session_first_packet(se, npc, m, dir, 1, engines);
 
 done:
 	if (dir == PFIL_IN)
@@ -87,25 +86,25 @@ done:
 
 
 ALWAYS_INLINE unsigned int
-ipv4_dpi_process_in(struct pl_packet *pkt)
+ipv4_dpi_process_in(struct pl_packet *pkt, void *context __unused)
 {
 	return ip_dpi_process_common(pkt, V4_PKT, PFIL_IN);
 }
 
 ALWAYS_INLINE unsigned int
-ipv6_dpi_process_in(struct pl_packet *pkt)
+ipv6_dpi_process_in(struct pl_packet *pkt, void *context __unused)
 {
 	return ip_dpi_process_common(pkt, V6_PKT, PFIL_IN);
 }
 
 ALWAYS_INLINE unsigned int
-ipv4_dpi_process_out(struct pl_packet *pkt)
+ipv4_dpi_process_out(struct pl_packet *pkt, void *context __unused)
 {
 	return ip_dpi_process_common(pkt, V4_PKT, PFIL_OUT);
 }
 
 ALWAYS_INLINE unsigned int
-ipv6_dpi_process_out(struct pl_packet *pkt)
+ipv6_dpi_process_out(struct pl_packet *pkt, void *context __unused)
 {
 	return ip_dpi_process_common(pkt, V6_PKT, PFIL_OUT);
 }

@@ -39,7 +39,7 @@ process_dealer_reject(zmsg_t *reject, enum cont_src_en cont_src)
 	 */
 	if (zmsg_size(reject) != (NUM_FRAMES_REJECT_MSG - 1)) {
 		RTE_LOG(ERR, DATAPLANE,
-			"master(%s) Rx'd REJECT message with wrong number of frames\n",
+			"main(%s) Rx'd REJECT message with wrong number of frames\n",
 			cont_src_name(cont_src));
 		rc = -1;
 		goto err;
@@ -48,7 +48,7 @@ process_dealer_reject(zmsg_t *reject, enum cont_src_en cont_src)
 	uuid = zmsg_popstr(reject);
 	if (strcmp(uuid, config.uuid)) {
 		RTE_LOG(ERR, DATAPLANE,
-			"master(%s) REJECT message mis-match on UUID\n",
+			"main(%s) REJECT message mis-match on UUID\n",
 			cont_src_name(cont_src));
 		rc = -2;
 		goto err;
@@ -71,7 +71,7 @@ process_dealer_accept(zmsg_t *accept, enum cont_src_en cont_src)
 	 */
 	if (zmsg_size(accept) != (NUM_FRAMES_ACCEPT_MSG - 1)) {
 		RTE_LOG(ERR, DATAPLANE,
-			"master (%s) Rx'd ACCEPT msg with wrong number of frames\n",
+			"main(%s) Rx'd ACCEPT msg with wrong number of frames\n",
 			cont_src_name(cont_src));
 		rc = -2;
 		goto err;
@@ -84,7 +84,7 @@ process_dealer_accept(zmsg_t *accept, enum cont_src_en cont_src)
 	if (cont_src == CONT_SRC_MAIN) {
 		if (strcmp(uuid, config.uuid)) {
 			RTE_LOG(ERR, DATAPLANE,
-				"master(%s) ACCEPT message mis-match on UUID\n",
+				"main(%s) ACCEPT message mis-match on UUID\n",
 				cont_src_name(cont_src));
 			rc = -3;
 			goto err;
@@ -96,7 +96,7 @@ process_dealer_accept(zmsg_t *accept, enum cont_src_en cont_src)
 
 	if (zmsg_popu16(accept, &dp_idx) < 0) {
 		RTE_LOG(ERR, DATAPLANE,
-			"master(%s) ACCEPT message fail on vPlane index\n",
+			"main(%s) ACCEPT message fail on vPlane index\n",
 			cont_src_name(cont_src));
 		rc = -4;
 		goto err;
@@ -104,7 +104,7 @@ process_dealer_accept(zmsg_t *accept, enum cont_src_en cont_src)
 
 	if (config.dp_index != dp_idx)
 		RTE_LOG(ERR, DATAPLANE,
-			"master(%s) ACCEPT message dp id mismatch, local %u != rx %u\n",
+			"main(%s) ACCEPT message dp id mismatch, local %u != rx %u\n",
 			cont_src_name(cont_src), config.dp_index, dp_idx);
 
 	return 0;
@@ -151,7 +151,7 @@ static int process_dealer_msg(zmsg_t *rep, enum cont_src_en cont_src)
 	}
 
 	RTE_LOG(NOTICE, DATAPLANE,
-		"master(%s) Couldn't process message with type '%s'\n",
+		"main(%s) Couldn't process message with type '%s'\n",
 		cont_src_name(cont_src), type);
 
 	free(type);
@@ -186,7 +186,7 @@ static int dealer_recv(zsock_t *socket, enum cont_src_en cont_src)
 
 	if (!dealer_msg) {
 		RTE_LOG(ERR, DATAPLANE,
-			"master(%s) Missing ZMQ message from DEALER socket\n",
+			"main(%s) Missing ZMQ message from DEALER socket\n",
 			cont_src_name(cont_src));
 		return -1;
 	}
@@ -194,7 +194,7 @@ static int dealer_recv(zsock_t *socket, enum cont_src_en cont_src)
 	rc = process_dealer_msg(dealer_msg, cont_src);
 	if (rc < 0)
 		RTE_LOG(ERR, DATAPLANE,
-			"master(%s) Error processing ZMQ message from DEALER socket\n",
+			"main(%s) Error processing ZMQ message from DEALER socket\n",
 			cont_src_name(cont_src));
 
 	zmsg_destroy(&dealer_msg);
@@ -209,7 +209,7 @@ int init_controller_connection(zsock_t *socket, enum cont_src_en cont_src)
 	rc = send_controller_connect(socket, cont_src);
 	if (rc < 0)
 		RTE_LOG(ERR, DATAPLANE,
-			"master(%s) ZMQ failed to connect to controller\n",
+			"main(%s) ZMQ failed to connect to controller\n",
 			cont_src_name(cont_src));
 	return rc;
 }

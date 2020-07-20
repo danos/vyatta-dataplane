@@ -22,6 +22,7 @@
 #include <string.h>
 
 #include "backplane.h"
+#include "dpdk_eth_if.h"
 #include "if_var.h"
 #include "json_writer.h"
 #include "lag.h"
@@ -415,11 +416,10 @@ out:
 }
 
 /* Provide JSON string describing all info about a DPDK port. */
-char *if_port_info(const struct ifnet *ifp)
+char *dpdk_eth_vplaned_devinfo(portid_t port_id)
 {
 	struct rte_eth_dev_info dev_info;
 	char name[IFNAMSIZ];
-	portid_t port_id = ifp->if_port;
 	char *outbuf = NULL;
 	size_t outsize = 0;
 	struct rte_eth_dev *eth_dev;
@@ -447,8 +447,11 @@ char *if_port_info(const struct ifnet *ifp)
 
 	jsonw_uint_field(wr, "port", port_id);
 
+	struct rte_ether_addr mac_addr;
+	rte_eth_macaddr_get(port_id, &mac_addr);
+
 	char ebuf[32];
-	jsonw_string_field(wr, "mac", ether_ntoa_r(&ifp->perm_addr, ebuf));
+	jsonw_string_field(wr, "mac", ether_ntoa_r(&mac_addr, ebuf));
 
 	/* Shouldn't be looking inside DPDK but there is no documented
 	 * way to get DPDK name which is used by bond driver.
@@ -498,10 +501,8 @@ char *if_port_info(const struct ifnet *ifp)
 	 */
 	if (if_port_is_bkplane(port_id)) {
 		if_flags |= IFF_UP;
-		/* max_rx_pktlen is the frame size */
-		mtu = dev_info.max_rx_pktlen -
-		      RTE_ETHER_HDR_LEN -
-		      RTE_ETHER_CRC_LEN;
+		/* Use max mtu */
+		mtu = dev_info.max_mtu;
 	}
 
 	json_bus_info(wr, port_id, backplane_name);

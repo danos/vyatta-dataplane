@@ -264,7 +264,7 @@ resolved:
 	rte_spinlock_lock(&la->ll_lock);
 
 	/*
-	 * Whilst waiting for the spin lock, has the master thread
+	 * Whilst waiting for the spin lock, has the main thread
 	 * snuck in and deleted the entry?
 	 */
 	if (unlikely(la->la_flags & LLE_DELETED)) {
@@ -420,7 +420,7 @@ bool arp_is_arp_reply(struct ifnet *ifp, struct rte_mbuf *m)
 }
 
 /* Walk the ARP table.
- * Only called by console (master thread);
+ * Only called by console (main thread);
  * Can not be called safely from forwarding loop.
  */
 void

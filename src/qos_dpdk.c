@@ -440,7 +440,7 @@ static void qos_dpdk_free_params(struct rte_sched_port_params *dpdk_port_params)
 }
 
 /* Allocate and initialize a handle to QoS scheduler.
- * Only called by master thread.
+ * Only called by main thread.
  */
 int qos_dpdk_start(struct ifnet *ifp, struct sched_info *qinfo,
 		   uint64_t bps, uint16_t max_pkt_len)
@@ -545,7 +545,7 @@ int qos_dpdk_start(struct ifnet *ifp, struct sched_info *qinfo,
 		npf_cfg_commit_all();
 	}
 
-	/* Use RCU to set the pointer because changed by master thread
+	/* Use RCU to set the pointer because changed by main thread
 	 * but referenced by Tx thread
 	 */
 	DP_DEBUG(QOS_DP, DEBUG, DATAPLANE,  "QoS on port %s enabled\n",

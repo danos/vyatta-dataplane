@@ -151,12 +151,17 @@ struct rte_timer cgn_gc_timer;
 /* cs_id resource */
 static rte_atomic32_t cgn_id_resource;
 
-/* max sessions, and sessions used */
+/* max 3-tuple sessions, and sessions used */
 int32_t cgn_sessions_max = CGN_SESSIONS_MAX;
-int16_t cgn_dest_sessions_max = CGN_DEST_SESSIONS_MAX;
 
 /* Global count of all 3-tuple sessions */
 rte_atomic32_t cgn_sessions_used;
+
+/* max 2-tuple sessions per 3-tuple session*/
+int16_t cgn_dest_sessions_max = CGN_DEST_SESSIONS_INIT;
+
+/* Size of 2-tuple hash table that may be added per 3-tuple session */
+int16_t cgn_dest_ht_max = CGN_DEST_SESSIONS_INIT;
 
 /* Global count of all 5-tuple sessions */
 rte_atomic32_t cgn_sess2_used;
@@ -1179,12 +1184,94 @@ struct cgn_session *cgn_session_find_cached(struct rte_mbuf *mbuf)
 	return cse;
 }
 
+static int
+cgn_session_inspect_s2(struct cgn_session *cse, struct cgn_sentry *ce,
+		       struct cgn_packet *cpk, int dir)
+{
+	struct cgn_sess2 *s2;
+	int error = 0;
+
+	/*
+	 * ICMP only has one ID field.  We store the 'dest' ID in the
+	 * 2-tuple session for inside-to-outside packets.  This is the
+	 * pre-translation (inside) ID.  For outside-to-inside, we
+	 * lookup the 'source' ID, which will be the outside ID, and
+	 * hence we will not find the 2-tuple session.
+	 *
+	 * A workaround for this is to copy the 3-tuple session
+	 * forward entry ID to the packet decomposition source ID
+	 * field such that the 2-tuple lookup will now find the
+	 * session.
+	 */
+	if (dir == CGN_DIR_IN && cpk->cpk_ipproto == IPPROTO_ICMP)
+		cpk->cpk_sid = cse->cs_forw_entry.ce_port;
+
+	/*
+	 * If we fail to find an s2 session here, then that means this
+	 * packet is being sent to a different dest addr and/or port.
+	 */
+	s2 = cgn_sess_s2_inspect(&cse->cs_s2, cpk, dir);
+
+	/* Add a nested 2-tuple session? */
+	if (unlikely(!s2)) {
+		/*
+		 * cpk_keepalive is only set true for certain pkts in
+		 * the outbound direction.  Pkts for which it is *not*
+		 * set include: TCP RST and all ICMP pkts except
+		 * Echo Requests.
+		 */
+		if (cpk->cpk_keepalive) {
+
+			/* Create an s2 session */
+			s2 = cgn_sess_s2_establish(&cse->cs_s2, cpk,
+						   dir, &error);
+			if (s2)
+				error = cgn_sess_s2_activate(&cse->cs_s2, s2);
+
+			if (error == 0)
+				cgn_source_stats_sess2_created(cse->cs_src);
+			else if (error == -CGN_S2_EEXIST) {
+				/*
+				 * Lost race to add 2-tuple session.  Count
+				 * the error, then ignore it.
+				 */
+				cgn_rc_inc(dir, error);
+				error = 0;
+			}
+
+			/*
+			 * If error is still < 0 here then that is returned,
+			 * and the flow will be blocked.  If we cannot log a
+			 * 2-tuple session then we do not want to allow the
+			 * flow.
+			 */
+		} else {
+			/*
+			 * Inbound pkt from unknown src addr or port.  If dest
+			 * session table is full then drop inbound pkts from
+			 * an unknown source even of we know the dest addr and
+			 * port.
+			 */
+			if (cse->cs_s2.cs2_full)
+				/* Block inbound pkt */
+				error = -CGN_S2_ENOSPC;
+			else {
+				rte_atomic64_inc(&cse->cs_unk_pkts);
+				rte_atomic64_inc(&ce->ce_pkts);
+				rte_atomic64_add(&ce->ce_bytes, cpk->cpk_len);
+			}
+		}
+	}
+
+	return error;
+}
+
 /*
  * Inspect an already activated 3-tuple session.  *Only* called by the packet
  * path.
  */
 struct cgn_session *
-cgn_session_inspect(struct cgn_packet *cpk, int dir)
+cgn_session_inspect(struct cgn_packet *cpk, int dir, int *error)
 {
 	struct cgn_sentry *ce;
 
@@ -1209,62 +1296,9 @@ cgn_session_inspect(struct cgn_packet *cpk, int dir)
 	 * If we have nested 2-tuple sessions then they take care of sessions
 	 * idle monitoring and stats.
 	 */
-	if (unlikely(cgn_sess_s2_is_enabled(cse))) {
-		struct cgn_sess2 *s2;
-
-		/*
-		 * ICMP only has one ID field.  We store the 'dest' ID in the
-		 * 2-tuple session for inside-to-outside packets.  This is the
-		 * pre-translation (inside) ID.  For outside-to-inside, we
-		 * lookup the 'source' ID, which will be the outside ID, and
-		 * hence we will not find the 2-tuple session.
-		 *
-		 * A workaround for this is to copy the 3-tuple session
-		 * forward entry ID to the packet decomposition source ID
-		 * field such that the 2-tuple lookup will now find the
-		 * session.
-		 */
-		if (dir == CGN_DIR_IN && cpk->cpk_ipproto == IPPROTO_ICMP)
-			cpk->cpk_sid = cse->cs_forw_entry.ce_port;
-
-		/*
-		 * If we fail to find an s2 session here, then that means this
-		 * packet is being sent to a different dest addr and/or port.
-		 */
-		s2 = cgn_sess_s2_inspect(&cse->cs_s2, cpk, dir);
-
-		/* Add a nested 2-tuple session? */
-		if (unlikely(!s2)) {
-			/*
-			 * cpk_keepalive is only set true for certain pkts in
-			 * the outbound direction.  Pkts for which it is *not*
-			 * set include: TCP RST and all ICMP pkts except
-			 * Echo Requests.
-			 */
-			if (cpk->cpk_keepalive) {
-				int error = 0;
-
-				/* Create an s2 session */
-				s2 = cgn_sess_s2_establish(&cse->cs_s2, cpk,
-							   dir, &error);
-				if (s2)
-					error = cgn_sess_s2_activate(
-						&cse->cs_s2, s2);
-
-				/* Count the error, then ignore it */
-				if (error < 0)
-					cgn_rc_inc(dir, error);
-				else
-					cgn_source_stats_sess2_created(
-						cse->cs_src);
-			} else {
-				/* Inbound pkt from unknown src addr or port. */
-				rte_atomic64_inc(&cse->cs_unk_pkts);
-				rte_atomic64_inc(&ce->ce_pkts);
-				rte_atomic64_add(&ce->ce_bytes, cpk->cpk_len);
-			}
-		}
-	} else {
+	if (unlikely(cgn_sess_s2_is_enabled(cse)))
+		*error = cgn_session_inspect_s2(cse, ce, cpk, dir);
+	else {
 		if (likely(cpk->cpk_keepalive)) {
 			/*
 			 * Clear idle flag, if packet is eligible.
@@ -2929,7 +2963,7 @@ int cgn_helper_thread_func(unsigned int core_num, void *arg __unused)
 
 	CMM_STORE_SHARED(cgn_helper_thread_enabled, 1);
 
-	rcu_register_thread();
+	dp_rcu_register_thread();
 	rcu_thread_offline();
 
 	while (CMM_LOAD_SHARED(running) &&
@@ -2949,7 +2983,7 @@ int cgn_helper_thread_func(unsigned int core_num, void *arg __unused)
 			usleep(cgn_sleep_interval);
 	}
 
-	rcu_unregister_thread();
+	dp_rcu_unregister_thread();
 	cgn_helper_core_num = CGN_HELPER_INVALID_CORE_NUM;
 	cgn_helper_pthread = 0;
 	CMM_STORE_SHARED(cgn_helper_thread_enabled, 0);

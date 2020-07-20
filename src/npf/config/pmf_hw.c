@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <arpa/inet.h> /* htons */
+#include <netinet/icmp6.h>
 
 #include "compiler.h"
 #include "util.h"
@@ -336,7 +337,7 @@ pmf_hw_rule_add(struct pmf_attrl *earl, struct pmf_rule *rule)
 		struct pmf_attr_l4icmp_vals *icmp =
 			rule->pp_match.l4[PMF_L4F_ICMP_VALS].pm_l4icmp_vals;
 		curfld->enable = true;
-		curfld->mask.u8 = 0xff;
+		curfld->mask.u8 = icmp->pm_class ? ICMP6_INFOMSG_MASK : 0xff;
 		curfld->data.u8 = icmp->pm_type;
 
 		++nattr;

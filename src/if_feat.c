@@ -17,7 +17,6 @@
 #include "util.h"
 #include "vrf_internal.h"
 #include "if_var.h"
-#include "dpi.h"
 #include "pl_node.h"
 #include "pipeline/nodes/pl_nodes_common.h"
 #include "vplane_log.h"

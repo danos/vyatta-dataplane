@@ -91,6 +91,10 @@ static void dp_evt_notify(enum dp_evt evt, uint32_t cont_src,
 		if (ops->if_vlan_del)
 			ops->if_vlan_del(obj, val);
 		break;
+	case DP_EVT_IF_MTU_CHANGE:
+		if (ops->if_mtu_change)
+			ops->if_mtu_change(obj, val);
+		break;
 
 	case DP_EVT_INIT:
 		if (ops->init)

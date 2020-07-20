@@ -34,7 +34,7 @@ int dp_foreach_forwarding_lcore(int (*dp_per_lcore_fn)(unsigned int lcore,
 
 	/*
 	 * Loop over all forwarding lcores. In the single cpu case return
-	 * the master as that will also be doing forwarding.
+	 * the main as that will also be doing forwarding.
 	 */
 	for (i = rte_get_next_lcore(-1, !single_cpu, 0);
 	     i < RTE_MAX_LCORE;
@@ -66,7 +66,7 @@ int dp_lcore_events_register(const struct dp_lcore_events *events,
 {
 	struct dp_lcore_events_internal *entry;
 
-	ASSERT_MASTER();
+	ASSERT_MAIN();
 
 	if (!events)
 		return -EINVAL;
@@ -89,7 +89,7 @@ int dp_lcore_events_unregister(const struct dp_lcore_events *events)
 {
 	struct dp_lcore_events_internal *entry;
 
-	ASSERT_MASTER();
+	ASSERT_MAIN();
 
 	if (!events)
 		return -EINVAL;

@@ -644,6 +644,7 @@ cgn_map_get2(struct cgn_policy *cp, vrfid_t vrfid, uint8_t proto,
 		nat_pool_incr_map_fails(np);
 		return error;
 	}
+
 	/* Return the subscriber structure pointer to the caller */
 	*srcp = src;
 

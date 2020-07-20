@@ -145,6 +145,7 @@ struct sip_alg_media {
 
 	enum sdp_proto		m_proto;
 	enum sip_nat_type	m_type;
+	uint8_t			m_ip_prot;
 
 	/* Original */
 	in_port_t		m_rtp_port;

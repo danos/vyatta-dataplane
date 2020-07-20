@@ -1726,6 +1726,31 @@ enum fal_switch_attr_t {
 	 * @flags READ_ONLY
 	 */
 	FAL_SWITCH_ATTR_MAX_BFD_IPV6_UDP_SRC_PORT_CNT,
+
+	/**
+	 * @brief BFD IPv4 hw session running mode
+	 *
+	 * @type enum fal_bfd_hw_mode
+	 * @flags READ_ONLY
+	 */
+	FAL_SWITCH_ATTR_BFD_IPV4_HW_MODE,
+
+	/**
+	 * @brief BFD IPv6 hw session running mode
+	 *
+	 * @type enum fal_bfd_hw_mode
+	 * @flags READ_ONLY
+	 */
+	FAL_SWITCH_ATTR_BFD_IPV6_HW_MODE,
+
+	/**
+	 * @brief Max number of unique interval values supported in the HW
+	 * for BFD sessions
+	 *
+	 * @type  .u32
+	 * @flags READ_ONLY
+	 */
+	FAL_SWITCH_ATTR_MAX_BFD_INTERVAL_CNT,
 };
 
 /*
@@ -2711,7 +2736,7 @@ enum fal_feat_framer_ret_value {
 /*
  * Queue mbufs from the fal plugin directly to a tx port, typically
  * used to queue mbufs to a backplane port.
- * NOT safe to call from any threads on the master core.
+ * NOT safe to call from any threads on the main core.
  *
  * Returns: Number of mbufs queued, Unqueued mbufs are returned to the
  * caller.
@@ -4093,6 +4118,21 @@ enum fal_vlan_feature_attr_t {
 	 *
 	 */
 	FAL_VLAN_FEATURE_ATTR_QOS_INGRESS_MAP_ID,
+
+	/**
+	 * @brief Upper limit of number of MACs permitted
+	 * in the MAC table for a given vlan on the port.
+	 * @type uint32_t
+	 * @flags CREATE_AND_SET
+	 */
+	FAL_VLAN_FEATURE_ATTR_MAC_LIMIT,
+
+	/**
+	 * @brief Get the current MAC count for a given vlan on the port.
+	 * @type uint32_t
+	 * @flags READ_ONLY
+	 */
+	FAL_VLAN_FEATURE_ATTR_MAC_COUNT,
 };
 
 /**
@@ -5367,6 +5407,21 @@ struct fal_bfd_session_state_notification_t {
 
 	/** BFD remote PDU flag bits */
 	union fal_bfd_pdu_flags_t remote_pdu_flags;
+
+	/** BFD remote discriminator */
+	uint32_t remote_session_id;
+
+	/** BFD rx interval received from remote peer */
+	uint32_t remote_rx_required;
+
+	/** BFD negotiated Tx interval max(local Tx, remote Rx) */
+	uint32_t tx_negotiated;
+
+	/** BFD negotiated Rx interval max(local Rx, remote Tx) */
+	uint32_t rx_negotiated;
+
+	/** BFD remote detect multiplier */
+	uint32_t remote_detect_mult;
 };
 
 /**
@@ -5528,12 +5583,28 @@ enum fal_bfd_session_attr_t {
 	FAL_BFD_SESSION_ATTR_MIN_TX,
 
 	/**
+	 * @brief Negotiated Transmit interval in microseconds
+	 *
+	 * @type u32
+	 * @flags MANDATORY_ON_CREATE | CREATE_AND_SET
+	 */
+	FAL_BFD_SESSION_ATTR_NEGOTIATED_TX,
+
+	/**
 	 * @brief Minimum Receive interval in microseconds
 	 *
 	 * @type u32
 	 * @flags MANDATORY_ON_CREATE | CREATE_AND_SET
 	 */
 	FAL_BFD_SESSION_ATTR_MIN_RX,
+
+	/**
+	 * @brief Negotiated Receive interval in microseconds
+	 *
+	 * @type u32
+	 * @flags MANDATORY_ON_CREATE | CREATE_AND_SET
+	 */
+	FAL_BFD_SESSION_ATTR_NEGOTIATED_RX,
 
 	/**
 	 * @brief Detection time Multiplier of local endpoint
@@ -5568,7 +5639,7 @@ enum fal_bfd_session_attr_t {
 	FAL_BFD_SESSION_ATTR_REMOTE_DETECT_MULT,
 
 	/**
-	 * @brief BFD session detectation time in microseconds
+	 * @brief BFD session detection time in microseconds
 	 *
 	 * @type u32
 	 * @flags CREATE_AND_SET
@@ -5635,6 +5706,22 @@ enum fal_bfd_session_attr_t {
 	FAL_BFD_SESSION_ATTR_PKT_DESIGNATOR,
 
 	/**
+	 * @brief BFD packet local flags
+	 *
+	 * @type u32
+	 * @flags MANDATORY_ON_CREATE | CREATE_AND_SET
+	 */
+	FAL_BFD_SESSION_ATTR_POLL_BIT,
+
+	/**
+	 * @brief BFD packet local flags
+	 *
+	 * @type u32
+	 * @flags MANDATORY_ON_CREATE | CREATE_AND_SET
+	 */
+	FAL_BFD_SESSION_ATTR_FINAL_BIT,
+
+	/**
 	 * @brief End of attributes
 	 */
 	FAL_BFD_SESSION_ATTR_END,
@@ -5654,6 +5741,31 @@ enum fal_bfd_session_stat_t {
 	/** Packet Drop stat count */
 	FAL_BFD_SESSION_STAT_DROP_PACKETS
 
+};
+
+/**
+ * @brief HW mode of supporting BFD
+ */
+enum fal_bfd_hw_mode {
+	/** Unknown running mode */
+	FAL_BFD_HW_MODE_UNKNOWN,
+
+	/*
+	 * HW BFD does not maintain state machine in hardware resource.
+	 * Session state transition, flags and parameter negotiation
+	 * depend on Dataplane software.
+	 */
+	FAL_BFD_HW_MODE_CP_DEPENDENT,
+	FAL_BFD_HW_MODE_DP_SW_DEPENDENT = FAL_BFD_HW_MODE_CP_DEPENDENT,
+
+	/*
+	 * HW BFD is Independent of the Dataplane software state.
+	 * Full BFD state machine is maintained in hardware layer.
+	 * HW session initial state cannot be set flexibly, but fixed
+	 * to be DOWN
+	 */
+	FAL_BFD_HW_MODE_CP_INDEPENDENT,
+	FAL_BFD_HW_MODE_DP_SW_INDEPENDENT = FAL_BFD_HW_MODE_CP_INDEPENDENT,
 };
 
 /**

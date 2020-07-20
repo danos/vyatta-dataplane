@@ -58,17 +58,12 @@ int shadow_init_port(portid_t portid, const char *ifname,
 		     const struct rte_ether_addr *eth_addr);
 void shadow_uninit_port(portid_t port);
 
-/* Initialize state for shadow tunnel commnication */
-void shadow_init(void);
-void shadow_destroy(void);
-
 /* Display shadow interface statistics */
 void shadow_show_summary(FILE *f, const char *name);
 
 struct ifnet *get_lo_ifp(enum cont_src_en cont_src);
 int shadow_add_event(zloop_t *loop, portid_t port, const char *ifname);
 int tap_attach(const char *ifname);
-void tap_teardown(const char *ifname);
 
 void shadow_init_spath_ring(int tun_fd);
 int slowpath_init(void);

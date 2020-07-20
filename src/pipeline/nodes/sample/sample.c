@@ -37,7 +37,7 @@ static uint32_t sample_pkt_count;
 static uint32_t sample_ctx = 0x12345678;
 static uint32_t sample_cleanup_cb_count;
 
-static void sample_cleanup_cb(const char *instance,
+static void sample_cleanup_cb(const char *instance __attribute__((unused)),
 			      void *context)
 {
 	sample_cleanup_cb_count++;
@@ -139,7 +139,7 @@ struct dp_pipeline_feat_registration sample_feat = {
 	.node_name = "sample:sample",
 	.feature_point = "vyatta:ipv4-validate",
 	.visit_before = NULL,
-	.visit_after = "ipv4-pbr",
+	.visit_after = "vyatta:ipv4-pbr",
 	.cleanup_cb = sample_cleanup_cb,
 };
 

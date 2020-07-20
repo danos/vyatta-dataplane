@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2019-2020, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -53,7 +53,8 @@
  **************************************************************************/
 
 /* MUST be less than USHRT_MAX */
-#define CGN_DEST_SESSIONS_MAX	64
+#define CGN_DEST_SESSIONS_INIT	64
+#define CGN_DEST_SESSIONS_MAX	128
 
 /**************************************************************************
  * CGNAT Source (private address, vrfid) Table

@@ -141,6 +141,35 @@ int l4_input(struct rte_mbuf **m, struct ifnet *ifp)
 }
 
 /*
+ * IPv4 originate slow path filter.
+ *
+ * Run the originating firewall, and drop the packet if required.
+ *
+ * Return an indication of if the packet was consumed.
+ *    0 => Not filtered
+ *    1 => Filtered
+ */
+int ipv4_originate_filter_flags(struct ifnet *out_ifp, struct rte_mbuf *m,
+		uint16_t npf_flags)
+{
+	if (out_ifp == NULL)
+		return 0;
+
+	if (npf_originate_fw(out_ifp, npf_flags,
+			&m, htons(RTE_ETHER_TYPE_IPV4))) {
+		IPSTAT_INC_VRF(if_vrf(out_ifp), IPSTATS_MIB_OUTDISCARDS);
+		rte_pktmbuf_free(m);
+		return 1;
+	}
+	return 0;
+}
+
+int ipv4_originate_filter(struct ifnet *out_ifp, struct rte_mbuf *m)
+{
+	return ipv4_originate_filter_flags(out_ifp, m, NPF_FLAG_FROM_US);
+}
+
+/*
  * Deliver local destined packet to slow path
  */
 void __cold_func
@@ -324,7 +353,7 @@ void ip_switch(struct rte_mbuf *m, struct ifnet *ifp,
 
 	/* Store next hop address  */
 	if (nxt->flags & RTF_GATEWAY)
-		addr = nxt->gateway4;
+		addr = nxt->gateway.address.ip_v4.s_addr;
 	else
 		addr = ip->daddr;
 
@@ -505,6 +534,9 @@ ip_lookup_and_originate(struct rte_mbuf *m, struct ifnet *in_ifp)
 
 	nxt = ip_lookup(m, in_ifp, ip, RT_TABLE_MAIN, false);
 	if (!nxt)
+		return;
+
+	if (ipv4_originate_filter(dp_nh4_get_ifp(nxt), m))
 		return;
 
 	enum ip4_features ip4_feat = IP4_FEA_ORIGINATE;

@@ -291,7 +291,6 @@ static inline const char *cgn_rc_detail_str(int error)
 		return "Packets hairpinned";
 	case CGN_ICMP_ECHOREQ:
 		return "ICMP Echo Request for CGNAT public address";
-
 	case CGN_PCP_OK:
 		return "Successful PCP requests";
 	case CGN_PCP_ERR:
@@ -300,7 +299,6 @@ static inline const char *cgn_rc_detail_str(int error)
 		return "PCP invalid or missing argument";
 	case CGN_PCP_ENOSPC:
 		return "PCP public address and port not available";
-
 	case CGN_RC_UNKWN:
 		break;
 	}

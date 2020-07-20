@@ -70,8 +70,10 @@ nat64_create(struct nat64 **n6p, npf_rule_t *rl)
 			table_id = new->n6_src.nm_addr_table_id;
 			flags |= NPF_NAT_TABLE;
 		} else if (new->n6_src.nm_start_addr.s6_addr32[0] == 0 ||
-			   new->n6_src.nm_stop_addr.s6_addr32[0] == 0)
-			return -EINVAL;
+			   new->n6_src.nm_stop_addr.s6_addr32[0] == 0) {
+			rc = -EINVAL;
+			goto error;
+		}
 
 		/* Use all ports for each address */
 		new->n6_src.nm_start_port = 1;

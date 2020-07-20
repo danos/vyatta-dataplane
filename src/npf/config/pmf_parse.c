@@ -128,6 +128,7 @@ static pkp_key_parser pkp_l4port;
 static pkp_key_parser pkp_port_grp;
 static pkp_key_parser pkp_tcpflgs;
 static pkp_key_parser pkp_icmp;
+static pkp_key_parser pkp_icmp_class;
 static pkp_key_parser pkp_icmp_grp;
 
 /* The action parsers */
@@ -207,6 +208,7 @@ static const struct pkp_key match_keys[] = {
 	{"icmpv4",		PMF_L4F_ICMP_VALS,	ML4, pkp_icmp},
 	{"icmpv4-group",	PMF_L4F_ICMP_VALS,	ML4, pkp_icmp_grp},
 	{"icmpv6",		PMF_L4F_ICMP_VALS,	ML4, pkp_icmp},
+	{"icmpv6-class",	PMF_L4F_ICMP_VALS,	ML4, pkp_icmp_class},
 	{"icmpv6-group",	PMF_L4F_ICMP_VALS,	ML4, pkp_icmp_grp},
 };
 static struct pkp_key action_keys[] = {
@@ -1028,6 +1030,42 @@ pkp_icmp(struct pmf_rule *rule, struct pkp_key const *key, char *value)
 
 	if (!vp->pm_any_code)
 		rule->pp_summary |= PMF_RMS_L4_ICMP_CODE;
+	rule->pp_match.l4[PMF_L4F_ICMP_VALS].pm_l4icmp_vals = vp;
+
+	return true;
+}
+
+static bool
+pkp_icmp_class(struct pmf_rule *rule, struct pkp_key const *key, char *value)
+{
+	struct pmf_attr_l4icmp_vals l4icmp = { 0 };
+
+	bool is_v6 = (strcmp(key->pt_name, "icmpv6-class") == 0);
+	l4icmp.pm_tag = (is_v6) ? PMAT_L4_ICMP_V6_VALS : PMAT_L4_ICMP_V4_VALS;
+	l4icmp.pm_named = false;
+	l4icmp.pm_any_code = true;
+	l4icmp.pm_class = true;
+
+	/*
+	 * Only IPv6 supported for the moment, and 'info' class has a match
+	 * and mask of 0x80 due to the way the ICMPv6 messages are designed.
+	 */
+	if (strcmp(value, "info") == 0)
+		l4icmp.pm_type = ICMP6_INFOMSG_MASK;
+	else if (strcmp(value, "error") != 0) {
+		RTE_LOG(ERR, FIREWALL,
+			"NPF: bad value in rule: %s=%s\n", key->pt_name, value);
+		return false;
+	}
+
+	struct pmf_attr_l4icmp_vals *vp = pmf_leaf_attr_copy(&l4icmp);
+	if (!vp) {
+		RTE_LOG(ERR, FIREWALL,
+			"Error: No memory for parsed icmp%s values\n",
+			(is_v6) ? "v6" : "v4");
+		return false;
+	}
+
 	rule->pp_match.l4[PMF_L4F_ICMP_VALS].pm_l4icmp_vals = vp;
 
 	return true;

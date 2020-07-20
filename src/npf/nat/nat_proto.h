@@ -10,6 +10,11 @@
 
 /*
  * Protocol classification
+ *
+ * Note that if ICMP is given a unique pool to allocate ID's from,
+ * then the NAT64 code needs checked to ensure that the it works as
+ * expected, as NAT64 maps between ICMPv4 (protocol 1) and ICMPv6
+ * (protocol 58).
  */
 enum nat_proto {
 	NAT_PROTO_TCP,

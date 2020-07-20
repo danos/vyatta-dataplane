@@ -40,7 +40,7 @@
  * nat_pool.c handles:
  *
  *   1. nat pool configuration
- *   2. nat pool table management (name based lookup; master thread only)
+ *   2. nat pool table management (name based lookup; main thread only)
  *
  * nat pool entries are stored in a hash table for lookup during
  * config.
@@ -621,7 +621,7 @@ static int nat_pool_insert(struct nat_pool *np)
 				   &np->np_node);
 
 	/*
-	 * This should never happen as entries are only added by master thread
+	 * This should never happen as entries are only added by main thread
 	 */
 	if (node != &np->np_node)
 		return -EEXIST;
@@ -862,14 +862,22 @@ nat_pool_jsonw_ranges(json_writer_t *json, struct nat_pool *np)
 	}
 	jsonw_end_array(json);
 
-	/* Add json for hidden NAT pool address-group */
+	/*
+	 * Add json for hidden NAT pool address-group.
+	 *
+	 * We use the generic address group code to format the json for this
+	 * hidden group. The per address-group json is normally an object
+	 * within an array.  We dont have the array here, so need to name the
+	 * json object.
+	 */
 	struct npf_addrgrp *ag = rcu_dereference(nr->nr_ag);
 	if (ag) {
 		struct npf_show_ag_ctl ctl = { 0 };
 		ctl.af[AG_IPv4] = true;
-		ctl.list = true;
+		ctl.detail = true;
 
-		npf_addrgrp_jsonw(json, ag, &ctl);
+		jsonw_name(json, "address-group");
+		npf_addrgrp_jsonw_one(json, ag, &ctl);
 	}
 }
 
@@ -999,8 +1007,11 @@ nat_pool_jsonw_one(json_writer_t *json, struct nat_pool *np)
 	if (name)
 		jsonw_string_field(json, "blacklist", name);
 
-	jsonw_bool_field(json, "log_pba", np->np_log_pba);
-	jsonw_bool_field(json, "log_all", np->np_full);
+	jsonw_bool_field(json, "log_pba", np->np_log_pba); /* deprecated */
+	jsonw_bool_field(json, "log_all", false);	/* deprecated */
+
+	/* Are all nat pool addrs in-use? */
+	jsonw_bool_field(json, "full", np->np_full);
 
 	jsonw_name(json, "current");
 	jsonw_start_object(json);

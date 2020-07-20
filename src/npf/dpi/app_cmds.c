@@ -20,11 +20,11 @@
 #include "compiler.h"
 #include "json_writer.h"
 #include "npf_shim.h"
-#include "app_cmds.h"
 #include "urcu.h"
 #include "util.h"
 #include "vplane_log.h"
-#include "npf/dpi/dpi_internal.h"
+#include "npf/dpi/app_cmds.h"
+#include "npf/dpi/npf_appdb.h"
 
 static zhash_t *cmd_op_hash;
 

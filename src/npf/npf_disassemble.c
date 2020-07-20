@@ -408,6 +408,12 @@ npf_ncode_operand(uint8_t operand, const uint32_t *nc_base,
 	case NPF_OPERAND_ICMP_TYPE_CODE: {
 		const uint32_t op = *nc_pc;
 
+		if (op & NC_ICMP_HAS_CLASS)
+			buf_app_printf(buf, used_buf_len, total_buf_len,
+				       "class=%s",
+				       NC_ICMP_GET_TYPE_FROM_OP(op) ?
+				       "error" : "info");
+
 		if (op & NC_ICMP_HAS_TYPE)
 			buf_app_printf(buf, used_buf_len, total_buf_len,
 				       "%u", NC_ICMP_GET_TYPE_FROM_OP(op));

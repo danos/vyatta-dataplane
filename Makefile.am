@@ -129,18 +129,19 @@ CORE_FILES = \
 	src/cpp_rate_limiter.c \
 	src/dealer.c \
 	src/debug.c \
-	src/devinfo.c \
 	src/dp_event.c \
 	src/ecmp.c \
 	src/ether.c \
 	src/event.c \
 	src/fal.c \
 	src/feature_plugin.c \
+	src/flow_cache.c \
 	src/if/bridge/bridge.c \
 	src/if/bridge/bridge_netlink.c \
 	src/if/bridge/bridge_port.c \
 	src/if/bridge/switch.c \
 	src/if/dpdk-eth/hotplug.c \
+	src/if/dpdk-eth/devinfo.c \
 	src/if/dpdk-eth/dpdk_eth_if.c \
 	src/if/dpdk-eth/dpdk_eth_linkwatch.c \
 	src/if/dpdk-eth/dpdk_lag.c \
@@ -167,9 +168,9 @@ CORE_FILES = \
 	src/ip_netlink.c \
 	src/ip_options.c \
 	src/ip_output.c \
+	src/ip_route.c \
 	src/ip_rt_protobuf.c \
 	src/iptun_common.c \
-	src/json_writer.c \
 	src/l2_rx_fltr.c \
 	src/l2tp/l2tpeth_decap.c \
 	src/l2tp/l2tpeth_dp.c \
@@ -179,8 +180,9 @@ CORE_FILES = \
 	src/log.c \
 	src/lpm/lpm.c \
 	src/lpm/lpm6.c \
+	src/mac_limit.c \
 	src/main.c \
-	src/master.c \
+	src/controller.c \
 	src/mstp.c \
 	src/netinet/ip_mroute.c \
 	src/netlink.c \
@@ -322,15 +324,17 @@ NPF_FILES = \
         src/npf/rproc/npf_rproc.c \
         src/npf_shim.c
 
-if USE_DPI
 DPI_FILES = src/npf/dpi/dpi.c src/npf/rproc/npf_ext_dpi.c \
 	    src/npf/dpi/dpi_public.c src/npf/rproc/npf_ext_appfw.c \
 	    src/npf/dpi/app_cmds.c \
-	    src/npf/rproc/npf_ext_app.c
-PIPELINE_NODE_FILES += src/pipeline/nodes/l3_dpi.c
-else
-DPI_FILES = src/npf/dpi/dpi_stubs.c
+	    src/npf/rproc/npf_ext_app.c \
+	    src/npf/dpi/npf_appdb.c \
+	    src/npf/dpi/npf_typedb.c \
+	    src/npf/dpi/dpi_user.c
+if USE_NDPI
+DPI_FILES += src/npf/dpi/ndpi.c
 endif
+PIPELINE_NODE_FILES += src/pipeline/nodes/l3_dpi.c
 
 PL_GEN_FUSED_OPTS = \
 	--include pl_fused_gen.h \
@@ -383,11 +387,10 @@ src/pipeline/pl_fused_gen.h: $(PIPELINE_NODE_FILES) $(srcdir)/scripts/pl_gen_fus
 src/pipeline/pl_fused_gen.c: $(PIPELINE_NODE_FILES) $(srcdir)/scripts/pl_gen_fused src/pipeline/pl_fused_gen.h
 	$(AM_V_GEN)$(srcdir)/scripts/pl_gen_fused $(PL_GEN_FUSED_OPTS) --impl-out $@ $(PIPELINE_NODE_FILES:%=$(srcdir)/%)
 
-BUILT_SOURCES = src/pipeline/pl_fused_gen.h $(PROTO_FILES:.proto=.pb-c.h) $(SAMPLE_PROTO_FILES:.proto=.pb-c.h)
+BUILT_SOURCES = src/pipeline/pl_fused_gen.h $(PROTO_FILES:.proto=.pb-c.h)
 BUILT_SOURCES += $(PROTO_FILES:.proto=.pb.h)
 CLEANFILES = src/pipeline/pl_fused_gen.h src/pipeline/pl_fused_gen.c
 CLEANFILES += $(PROTO_FILES:.proto=.pb-c.c) $(PROTO_FILES:.proto=.pb-c.h)
-CLEANFILES += $(SAMPLE_PROTO_FILES:.proto=.pb-c.c) $(SAMPLE_PROTO_FILES:.proto=.pb-c.h)
 CLEANFILES += $(PROTO_FILES:.proto=.pb.c) $(PROTO_FILES:.proto=.pb.h)
 
 PROTO_FILES = \
@@ -407,11 +410,8 @@ PROTO_FILES = \
 	protobuf/BreakoutConfig.proto \
 	protobuf/IPAddressOrLabel.proto \
 	protobuf/Route.proto \
-	protobuf/RibUpdate.proto
-
-
-SAMPLE_PROTO_FILES = src/pipeline/nodes/sample/SampleFeatConfig.proto \
-	src/pipeline/nodes/sample/SampleFeatOp.proto
+	protobuf/RibUpdate.proto \
+	protobuf/MacLimitConfig.proto
 
 %.pb-c.c %.pb-c.h: %.proto
 	$(AM_V_GEN)@PROTOC_C@ -I=$(dir $^) --c_out=$(dir $@) $^
@@ -446,10 +446,15 @@ protogopkgsdir=/usr/share/gocode/src/github.com/danos/vyatta-dataplane/
 nobase_protogopkgs_DATA = $(GO_PROTO_GENERATED_FILES)
 
 pkgconfig_DATA = protobuf/vyatta-dataplane-proto.pc debian/vyatta-dataplane-dev.pc debian/libvyattafal.pc
-lib_LTLIBRARIES = libvyatta-dataplane-proto.la
+lib_LTLIBRARIES = libvyatta-dataplane-proto.la libvyatta-jsonw.la
 libvyatta_dataplane_proto_la_SOURCES = $(PROTO_FILES:.proto=.pb.cc)
 libvyatta_dataplane_proto_la_CPPFLAGS = $(AM_CPPFLAGS) $(shell pkg-config --cflags protobuf)
 libvyatta_dataplane_proto_la_LDFLAGS = $(shell pkg-config --cflags --libs protobuf) -version-info 1:0:0 -shared
+
+libvyatta_jsonw_la_SOURCES = src/json_writer.c
+libvyatta_jsonw_la_CPPFLAGS = $(dataplane_CPPFLAGS)
+libvyatta_jsonw_la_CFLAGS = $(EXTRA_CFLAGS)
+libvyatta_jsonw_la_LDFLAGS = -version-info 1:0:0 -shared
 
 includeprotodir = /usr/include/vyatta-dataplane/protobuf
 includeproto_HEADERS = $(PROTO_FILES:%.proto=%.pb.h) $(PROTO_FILES:%.proto=%.pb-c.h)
@@ -471,11 +476,11 @@ dataplane_CPPFLAGS += -I./src \
 dataplane_CFLAGS = $(EXTRA_CFLAGS) $(DPDK_CFLAGS) $(DPI_CFLAGS) $(LIBMNL_CFLAGS) $(LIBCAP_CFLAGS) $(LIBCZMQ_CFLAGS) $(LIBZMQ_CFLAGS) $(LIBURCU_QSBR_CFLAGS) $(LIBURCU_CDS_CFLAGS) $(LIBOSIP2_CFLAGS) $(LIBCRYPTO_CFLAGS) -O3 $(DATAPLANE_LTO_FLAG) -DNDEBUG -DFUSED_MODE $(PTHREAD_CFLAGS) $(SYSTEMD_CFLAGS) -ffunction-sections
 
 dataplane_LDFLAGS = $(EXTRA_LDFLAGS) $(OTHER_LINKER_FLAGS)
-dataplane_LDADD = $(DPDK_LIBS) $(DPI_LIBS) $(LIBMNL_LIBS) $(LIBCAP_LIBS) $(LIBCZMQ_LIBS) $(LIBZMQ_LIBS) $(LIBURCU_QSBR_LIBS) $(LIBURCU_CDS_LIBS) $(LIBOSIP2_LIBS) $(LIBCRYPTO_LIBS) $(PTHREAD_LIBS) $(SYSTEMD_LIBS) -ldl $(PROTOBUF_C_LIBS) $(SWPORT_LIBS)
-EXTRA_dataplane_DEPENDENCIES = $(srcdir)/dataplane.section-ordering
+dataplane_LDADD = $(DPDK_LIBS) $(DPI_LIBS) $(LIBMNL_LIBS) $(LIBCAP_LIBS) $(LIBCZMQ_LIBS) $(LIBZMQ_LIBS) $(LIBURCU_QSBR_LIBS) $(LIBURCU_CDS_LIBS) $(LIBOSIP2_LIBS) $(LIBCRYPTO_LIBS) $(PTHREAD_LIBS) $(SYSTEMD_LIBS) -ldl $(PROTOBUF_C_LIBS) $(SWPORT_LIBS) -lvyatta-jsonw
+EXTRA_dataplane_DEPENDENCIES = $(srcdir)/dataplane.section-ordering libvyatta-jsonw.la
 
 
-dataplane_test_SOURCES = $(CORE_FILES) $(CRYTPO_FILES) $(IPV6_FILES) $(NPF_FILES) $(MPLS_FILES) $(DPI_FILES) $(PIPELINE_FILES) $(SESSION_FILES) $(PROTO_FILES:.proto=.pb-c.c) $(SAMPLE_PROTO_FILES:.proto=.pb-c.c) $(CONNSYNC_FILES)
+dataplane_test_SOURCES = $(CORE_FILES) $(CRYTPO_FILES) $(IPV6_FILES) $(NPF_FILES) $(MPLS_FILES) $(DPI_FILES) $(PIPELINE_FILES) $(SESSION_FILES) $(PROTO_FILES:.proto=.pb-c.c) $(CONNSYNC_FILES)
 dataplane_test_SOURCES += \
 	tests/common/src/dp_test_pktmbuf_lib.c \
 	tests/common/src/dp_test_crypto_lib.c \
@@ -508,6 +513,7 @@ dataplane_test_SOURCES += \
 	tests/whole_dp/src/dp_test_ip.c \
 	tests/whole_dp/src/dp_test_ip_arp.c \
 	tests/whole_dp/src/dp_test_ip_n.c \
+	tests/whole_dp/src/dp_test_ip_pic_edge.c \
 	tests/whole_dp/src/dp_test_ip6.c \
 	tests/whole_dp/src/dp_test_ip6_icmp.c \
 	tests/whole_dp/src/dp_test_ip6_neigh.c \
@@ -522,7 +528,7 @@ dataplane_test_SOURCES += \
 	tests/whole_dp/src/dp_test_lib_pkt.c \
 	tests/whole_dp/src/dp_test_lib_portmonitor.c \
 	tests/whole_dp/src/dp_test_lib_tcp.c \
-	tests/whole_dp/src/dp_test_missed_netlink.c \
+	tests/whole_dp/src/dp_test_mac_limit.c \
 	tests/whole_dp/src/dp_test_mpls.c \
 	tests/whole_dp/src/dp_test_mstp_cmds.c \
 	tests/whole_dp/src/dp_test_mstp_fwd.c \
@@ -573,7 +579,6 @@ dataplane_test_SOURCES += \
 	tests/whole_dp/src/dp_test_npf_vti.c \
 	tests/whole_dp/src/dp_test_npf_zone.c \
 	tests/whole_dp/src/dp_test_pbr.c \
-	tests/whole_dp/src/dp_test_pipeline.c \
 	tests/whole_dp/src/dp_test_poe_cmds.c \
 	tests/whole_dp/src/dp_test_portmonitor_commands.c \
 	tests/whole_dp/src/dp_test_portmonitor.c \
@@ -652,12 +657,31 @@ dp_test_include_HEADERS = \
 	include/dp_test/dp_test_firewall_lib.h \
 	include/dp_test/dp_test_session_lib.h
 
+##### Sample Plugin
+
 pkgplugindir = $(pkglibdir)/pipeline/plugins
+
+BUILT_SOURCES += $(SAMPLE_PROTO_FILES:.proto=.pb-c.h)
+CLEANFILES += $(SAMPLE_PROTO_FILES:.proto=.pb-c.c) $(SAMPLE_PROTO_FILES:.proto=.pb-c.h)
+
+SAMPLE_PROTO_FILES = src/pipeline/nodes/sample/SampleFeatConfig.proto \
+	src/pipeline/nodes/sample/SampleFeatOp.proto
 
 pkgplugin_LTLIBRARIES = sample_plugin.la
 sample_plugin_la_SOURCES = src/pipeline/nodes/sample/sample.c $(SAMPLE_PROTO_FILES:.proto=.pb-c.c)
-sample_plugin_la_CPPFLAGS = -I$(srcdir)/include -I$(builddir)/src/pipeline/nodes/sample $(DPDK_CFLAGS) -I$(builddir)/src/pipeline/nodes/sample
+sample_plugin_la_CPPFLAGS = -I$(srcdir)/include -I$(builddir)/src/pipeline/nodes/sample
+sample_plugin_la_CFLAGS = $(EXTRA_CFLAGS)
+sample_plugin_la_LIBADD =
 sample_plugin_la_LDFLAGS = -avoid-version -module -shared -export-dynamic
+
+lib_LTLIBRARIES += sample_test.la
+sample_test_la_SOURCES = tests/whole_dp/src/dp_test_pipeline.c $(SAMPLE_PROTO_FILES:.proto=.pb-c.c)
+sample_test_la_CPPFLAGS = -I$(srcdir)/include -I$(srcdir)/include/dp_test -I$(builddir)/src/pipeline/nodes/sample
+sample_test_la_CFLAGS = $(EXTRA_CFLAGS) $(DPDK_CFLAGS)
+sample_test_la_LIBADD = $(DPDK_LIBS)
+sample_test_la_LDFLAGS = -avoid-version -module -shared -export-dynamic
+
+##### END Sample Plugin
 
 if DATAPLANE_SANITIZER
 dataplane_CFLAGS += -fsanitize=address -DSANITIZE_ADDRESS
@@ -674,8 +698,7 @@ VALGRIND_SUPPRESSIONS_FILES = $(srcdir)/tests/whole_dp/valgrind_suppressions
 EXTRA_DIST = $(VALGRIND_SUPPRESSIONS_FILES)
 
 dataplane_test_CPPFLAGS = $(dataplane_CPPFLAGS) $(JSON_C_CFLAGS)
-dataplane_test_CPPFLAGS += -I$(srcdir)/tests/whole_dp/src -I$(srcdir)/tests/common/inc
-dataplane_test_CPPFLAGS += $(sample_plugin_la_CPPFLAGS)
+dataplane_test_CPPFLAGS += -I$(srcdir)/include/dp_test -I$(srcdir)/tests/whole_dp/src -I$(srcdir)/tests/common/inc
 
 dataplane_test_CFLAGS = $(dataplane_CFLAGS) -fno-lto -UNDEBUG -O0 -g $(CODE_COVERAGE_CFLAGS)
 dataplane_test_CFLAGS += -Wno-unused-parameter
@@ -725,7 +748,7 @@ __dataplane_test_args_ = $(__dataplane_test_args_@AM_DEFAULT_V@)
 __dataplane_test_args_0 = "-d0"
 __dataplane_test_args_1 = "-d2"
 
-dataplane_test_run: dataplane_test
+dataplane_test_run: dataplane_test sample_test.la sample_plugin.la
 	catchsegv ./dataplane_test -P $(builddir)/.libs $(DATAPLANE_TEST_ARGS)
 
 .PHONY: dataplane_test_run

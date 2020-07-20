@@ -17,11 +17,11 @@
 void
 _dp_test_cmd_reset(const char *file, const char *func, int line)
 {
-	const char *cmd = "reset", *check_cmd = "master state";
+	const char *cmd = "reset", *check_cmd = "main state";
 	json_object *expected;
 	static uint32_t ready_count = 1; /* No. times in ready state */
 
-	expected = dp_test_json_create("{ \"master_state\":"
+	expected = dp_test_json_create("{ \"main_state\":"
 				       "  {"
 				       "    \"vplaned\":"
 				       "      { \"ready\": %u },"
@@ -47,7 +47,7 @@ _dp_test_cmd_reset(const char *file, const char *func, int line)
 	 * slow / busy hosts and set to 5.
 	 */
 	dp_test_wait_set(5);
-	expected = dp_test_json_create("{ \"master_state\":"
+	expected = dp_test_json_create("{ \"main_state\":"
 				       "  {"
 				       "    \"vplaned\":"
 				       "      { \"ready\": %u },"

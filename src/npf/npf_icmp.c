@@ -58,7 +58,7 @@ npf_icmp_err_session_find(int di, struct rte_mbuf *nbuf, npf_cache_t *npc,
 	npf_cache_init(&enpc);
 
 	/* Inspect the embedded packet. */
-	if (!npf_cache_all_at(&enpc, nbuf, n_ptr, ether_proto, true))
+	if (!npf_cache_all_at(&enpc, nbuf, n_ptr, ether_proto))
 		return NULL;
 
 	/*
@@ -112,7 +112,7 @@ npf_icmpv4_err_nat(npf_cache_t *npc,
 
 	/* Inspect the embedded packet. */
 	if (!npf_cache_all_at(&enpc, m, n_ptr,
-			      htons(RTE_ETHER_TYPE_IPV4), true))
+			      htons(RTE_ETHER_TYPE_IPV4)))
 		return 1;
 
 	/* Sanity checks - these should never occur */

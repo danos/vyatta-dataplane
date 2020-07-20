@@ -1216,7 +1216,7 @@ void cgn_source_list(FILE *f, int argc, char **argv)
 }
 
 /*
- * Called from master thread in garbage collection interval, and from
+ * Called from main thread in garbage collection interval, and from
  * cgn_source_destroy.
  */
 static void

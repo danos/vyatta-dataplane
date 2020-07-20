@@ -1456,7 +1456,7 @@ DP_START_TEST(bridge_gre, vlan)
 
 /*
  * Check that the flush code can delete entries safely at the same time as
- * they are removed from the master thread.
+ * they are removed from the main thread.
  */
 DP_DECL_TEST_CASE(bridge_suite, bridge_flush, NULL, NULL);
 DP_START_TEST(bridge_flush, bridge_flush)

@@ -13,7 +13,6 @@
 #include <rte_timer.h>
 #include <stdint.h>
 
-#include "crypto_policy_cache.h"
 #include "urcu.h"
 
 /*
@@ -48,14 +47,18 @@ enum crypto_xfrm {
 struct crypto_pkt_buffer {
 	int pmd_dev_id[MAX_CRYPTO_XFRM];
 	uint32_t local_q_count[MAX_CRYPTO_XFRM];
-	rte_atomic16_t pr_cache_count;
 	char SPARE[6];
-	struct cds_lfht *pr_cache_tbl;
 	struct crypto_pkt_ctx *local_crypto_q[MAX_CRYPTO_XFRM]
 	[MAX_CRYPTO_PKT_BURST];
 };
 
 RTE_DECLARE_PER_LCORE(struct crypto_pkt_buffer *, crypto_pkt_buffer);
+
+/*
+ * Crypto Pkt Buffer (CPB) DB, containing pointers to all the
+ * per CORE CPB.
+ */
+extern struct crypto_pkt_buffer *cpbdb[RTE_MAX_LCORE];
 
 int crypto_send_burst(struct crypto_pkt_buffer *cpb,
 		      enum crypto_xfrm xfrm, bool drop);
@@ -77,5 +80,6 @@ int crypto_attach_pmd(struct cds_list_head *pmd_list,
 		      int crypto_dev_id, int lcore);
 void dp_crypto_periodic(struct cds_list_head *pmd_list);
 void crypto_pmd_remove_all(void);
+void crypto_flow_cache_timer_handler(struct rte_timer *tmr, void *arg);
 
 #endif /* _CRYPTO_MAIN_H_ */

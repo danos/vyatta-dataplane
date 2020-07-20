@@ -211,7 +211,7 @@ DP_START_TEST(npf_snat_overrun_1, test1)
 		dp_test_pak_receive(pre_pak, pre->rx_intf, test_exp);
 
 		if (i < 100)
-			dp_test_npf_portmap_port_verify("172.0.2.1",
+			dp_test_npf_portmap_port_verify("tcp", "172.0.2.1",
 							pre->l4.tcp.sport);
 	}
 

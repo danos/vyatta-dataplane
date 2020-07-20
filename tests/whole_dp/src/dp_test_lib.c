@@ -26,8 +26,9 @@
 #include <rte_ethdev.h>
 
 #include "main.h"
-#include "master.h"
+#include "controller.h"
 #include "if_var.h"
+#include "ip_forward.h"
 #include "ip_funcs.h"
 #include "in_cksum.h"
 #include "vplane_debug.h"
@@ -1512,7 +1513,7 @@ _dp_test_pak_receive_n(struct rte_mbuf **paks, uint32_t num_paks,
 	if ((dp_test_intf_type(if_name) ==
 	     DP_TEST_INTF_TYPE_SWITCH_PORT) &&
 	    !dp_test_intf_switch_port_over_bkp(if_name)) {
-		uint32_t device, port;
+		uint32_t device, port, dpid;
 		struct rte_ring *ring;
 		char ring_name[32];
 
@@ -1521,7 +1522,8 @@ _dp_test_pak_receive_n(struct rte_mbuf **paks, uint32_t num_paks,
 		 * transferred from the RX queue to local Tx burst queue
 		 * and to the actual output queue.
 		 */
-		if (sscanf(if_name, "sw_port_%u_%u", &device, &port) != 2)
+		if (sscanf(if_name, "dp%usw_port_%u_%u", &dpid, &device,
+			   &port) != 3)
 			dp_test_assert_internal(false);
 		snprintf(ring_name, 32, "net_sw_portsw%uport%u-rx-0",
 			 device, port);
@@ -1777,4 +1779,195 @@ void dp_test_enable_soft_tick_override(void)
 void dp_test_disable_soft_tick_override(void)
 {
 	disable_soft_clock_override();
+}
+
+#define DP_TEST_MAX_UNUSABLE 100
+static struct dp_rt_path_unusable_key dp_test_unusable[DP_TEST_MAX_UNUSABLE];
+static int dp_test_current_unusable;
+
+static bool dp_test_paths_equal(const struct dp_rt_path_unusable_key *key1,
+				const struct dp_rt_path_unusable_key *key2)
+{
+	if (key1->type == key2->type &&
+	    key1->ifindex == key2->ifindex) {
+
+		if (key1->type == DP_RT_PATH_UNUSABLE_KEY_INTF_NEXTHOP) {
+			if (dp_addr_eq(&key1->nexthop,
+				       &key2->nexthop))
+				return true;
+		} else {
+			return true;
+		}
+	}
+	return false;
+}
+
+static enum dp_rt_path_state
+dp_test_get_path_usable(const struct dp_rt_path_unusable_key *key)
+{
+	int i;
+
+	for (i = 0; i < dp_test_current_unusable; i++) {
+		if (dp_test_paths_equal(key, &dp_test_unusable[i]))
+			return DP_RT_PATH_UNUSABLE;
+	}
+
+	return DP_RT_PATH_UNKNOWN;
+}
+
+void dp_test_clear_path_unusable(void)
+{
+	dp_test_current_unusable = 0;
+}
+
+static void dp_test_set_nh_state(const char *interface,
+				 const char *nexthop,
+				 bool usable)
+{
+	static int registered_usable_cb;
+	struct dp_test_addr addr;
+	struct dp_rt_path_unusable_key key;
+	enum dp_rt_path_state state;
+
+	if (usable)
+		state = DP_RT_PATH_USABLE;
+	else
+		state = DP_RT_PATH_UNUSABLE;
+
+	if (!registered_usable_cb) {
+		dp_rt_register_path_state("test_infra",
+					  dp_test_get_path_usable);
+		registered_usable_cb = true;
+	}
+	dp_test_assert_internal(dp_test_current_unusable <
+				DP_TEST_MAX_UNUSABLE);
+
+	/* nexthop is allowed to be null */
+	if (nexthop) {
+		if (!dp_test_addr_str_to_addr(nexthop, &addr))
+			dp_test_assert_internal(false);
+
+		dp_test_assert_internal(addr.family == AF_INET ||
+					addr.family == AF_INET6);
+
+		key.type = DP_RT_PATH_UNUSABLE_KEY_INTF_NEXTHOP;
+		key.nexthop.type = addr.family;
+		memcpy(&key.nexthop.address, &addr.addr,
+		       sizeof(key.nexthop.address));
+	} else {
+		key.type = DP_RT_PATH_UNUSABLE_KEY_INTF;
+	}
+
+	key.ifindex = dp_test_intf_name2index(interface);
+
+	/* Store for later use */
+	dp_test_unusable[dp_test_current_unusable] = key;
+	dp_test_current_unusable++;
+
+	dp_rt_signal_path_state("tests", state, &key);
+}
+
+void dp_test_make_nh_unusable(const char *interface,
+			      const char *nexthop)
+{
+	dp_test_set_nh_state(interface, nexthop, false);
+}
+
+void dp_test_make_nh_usable(const char *interface,
+			    const char *nexthop)
+{
+	dp_test_set_nh_state(interface, nexthop, true);
+}
+
+
+static void nh_set_state(struct dp_rt_path_unusable_key *key,
+			 enum dp_rt_path_state state)
+{
+	dp_rcu_register_thread();
+	rcu_thread_online();
+
+	dp_rt_signal_path_state("tests", state, key);
+
+	rcu_thread_offline();
+	dp_rcu_unregister_thread();
+}
+
+static void *nh_unusable(void *arg)
+{
+	struct dp_rt_path_unusable_key *key = arg;
+
+	nh_set_state(key, DP_RT_PATH_UNUSABLE);
+	free(key);
+	return 0;
+}
+
+static void *nh_usable(void *arg)
+{
+	struct dp_rt_path_unusable_key *key = arg;
+
+	nh_set_state(key, DP_RT_PATH_USABLE);
+	free(key);
+	return 0;
+}
+
+static struct dp_rt_path_unusable_key *
+dp_test_nh_state_make_key(const char *interface,
+			  const char *nexthop)
+{
+	struct dp_rt_path_unusable_key *key;
+	struct dp_test_addr addr;
+
+	key = calloc(1, sizeof(*key));
+	if (!key)
+		dp_test_assert_internal("out of memory\n");
+	/* nexthop is allowed to be null */
+	if (nexthop) {
+		if (!dp_test_addr_str_to_addr(nexthop, &addr))
+			dp_test_assert_internal(false);
+
+		dp_test_assert_internal(addr.family == AF_INET ||
+					addr.family == AF_INET6);
+
+		key->type = DP_RT_PATH_UNUSABLE_KEY_INTF_NEXTHOP;
+		key->nexthop.type = addr.family;
+		memcpy(&key->nexthop.address, &addr.addr,
+		       sizeof(key->nexthop.address));
+	} else {
+		key->type = DP_RT_PATH_UNUSABLE_KEY_INTF;
+	}
+
+	key->ifindex = dp_test_intf_name2index(interface);
+
+	return key;
+
+}
+
+void dp_test_make_nh_unusable_other_thread(pthread_t *nh_unusable_thread,
+					   const char *interface,
+					   const char *nexthop)
+{
+	struct dp_rt_path_unusable_key *key;
+
+	key = dp_test_nh_state_make_key(interface, nexthop);
+	/*
+	 * Spin up a thread to make the nh unusable
+	 */
+	if (pthread_create(nh_unusable_thread, NULL, nh_unusable, key) < 0)
+		dp_test_assert_internal(
+			"could not create nh_unusable pthread\n");
+}
+
+void dp_test_make_nh_usable_other_thread(pthread_t *nh_unusable_thread,
+					 const char *interface,
+					 const char *nexthop)
+{
+	struct dp_rt_path_unusable_key *key;
+
+	key = dp_test_nh_state_make_key(interface, nexthop);
+	/*
+	 * Spin up a thread to make the nh unusable
+	 */
+	if (pthread_create(nh_unusable_thread, NULL, nh_usable, key) < 0)
+		dp_test_assert_internal(
+			"could not create nh_unusable pthread\n");
 }

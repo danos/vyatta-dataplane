@@ -35,7 +35,6 @@
 #include "capture.h"
 #include "compiler.h"
 #include "crypto.h"
-#include "crypto/crypto_policy_cache.h"
 #include "crypto_internal.h"
 #include "crypto_main.h"
 #include "crypto_policy.h"
@@ -66,6 +65,8 @@
 
 struct cds_list_head;
 
+struct crypto_pkt_buffer *cpbdb[RTE_MAX_LCORE];
+
 /*
  * The return ring size needs to be a multiple of the the PMD ring, as
  * an RX thread could have many packets queued to many PMD rings.
@@ -76,14 +77,14 @@ struct cds_list_head;
 
 static struct crypto_dp g_crypto_dp;
 struct crypto_dp *crypto_dp_sp = &g_crypto_dp;
-static struct rte_timer pr_cache_timer;
+static struct rte_timer flow_cache_timer;
 
-/* between crypto and master thread */
-static zsock_t *crypto_master_pull;
-static const char crypto_inproc[] = "inproc://crypto_to_master";
+/* between crypto and main thread */
+static zsock_t *crypto_main_pull;
+static const char crypto_inproc[] = "inproc://crypto_to_main";
 static int handle_crypto_event(void *);
 
-/* from the master thread to the rekey listener */
+/* from the main thread to the rekey listener */
 static zsock_t *rekey_listener;
 
 enum crypto_action {
@@ -134,10 +135,10 @@ static const char * const ipsec_counter_names[] = {
 	[DROPPED_NO_IFP] = "dropped no ifp",
 	[DROPPED_INVALID_PMD_DEV_ID] = "dropped invalid pmd dev id",
 	[DROPPED_NO_SPI_TO_SA] = "dropped no SA from SPI",
-	[PR_CACHE_ADD] = "Entry added to PR cache",
-	[PR_CACHE_ADD_FAIL] = "Failed to add entry to PR cache",
-	[PR_CACHE_HIT] = "hit PR cache",
-	[PR_CACHE_MISS] = "missed PR cache",
+	[FLOW_CACHE_ADD] = "Entry added to flow cache",
+	[FLOW_CACHE_ADD_FAIL] = "Failed to add entry to flow cache",
+	[FLOW_CACHE_HIT] = "hit flow cache",
+	[FLOW_CACHE_MISS] = "missed flow cache",
 	[DROPPED_NO_BIND] = "dropped feature attachment point missing",
 	[DROPPED_ON_FP_NO_PR] = "dropped on fp but no policy"
 };
@@ -1141,6 +1142,12 @@ static int dp_crypto_lcore_init(unsigned int lcore_id,
 	struct crypto_pkt_buffer *cpb;
 	unsigned int cpu_socket;
 	uint32_t q;
+	int err;
+
+	err = crypto_flow_cache_init_lcore(lcore_id);
+	if (err)
+		rte_panic("Failed to create crypto flow cache for cpu %d\n",
+			  lcore_id);
 
 	if (!RTE_PER_LCORE(crypto_pkt_buffer)) {
 		cpu_socket = rte_lcore_to_socket_id(lcore_id);
@@ -1155,7 +1162,6 @@ static int dp_crypto_lcore_init(unsigned int lcore_id,
 		for (q = MIN_CRYPTO_XFRM; q < MAX_CRYPTO_XFRM; q++)
 			cpb->pmd_dev_id[q] = CRYPTO_PMD_INVALID_ID;
 
-		cpb->pr_cache_tbl = pr_cache_init();
 		cpbdb[lcore_id] = cpb;
 
 		RTE_PER_LCORE(crypto_pkt_buffer) = cpb;
@@ -1179,7 +1185,7 @@ static void init_context(struct rte_mempool *pool __unused,
 /* Callback from event manager when ifp set into vrf */
 static void crypto_if_vrf_set(struct ifnet *ifp)
 {
-	if (ifp->if_type == IFT_VRFMASTER) {
+	if (ifp->if_type == IFT_VRF) {
 		crypto_incmpl_policy_make_complete();
 		crypto_incmpl_sa_make_complete();
 	}
@@ -1239,16 +1245,19 @@ void dp_crypto_init(void)
 
 	crypto_engine_load();
 
+	if (crypto_flow_cache_init())
+		rte_panic("Could not allocate crypto flow cache");
+
 	if (dp_lcore_events_register(&crypto_lcore_events, NULL))
 		rte_panic("can not initialise crypto per thread\n");
 
-	crypto_master_pull = zsock_new_pull(crypto_inproc);
+	crypto_main_pull = zsock_new_pull(crypto_inproc);
 
-	if (!crypto_master_pull)
-		rte_panic("cannot bind to crypto master pull socket\n");
+	if (!crypto_main_pull)
+		rte_panic("cannot bind to crypto main pull socket\n");
 
-	dp_register_event_socket(zsock_resolve(crypto_master_pull),
-				 handle_crypto_event, crypto_master_pull);
+	dp_register_event_socket(zsock_resolve(crypto_main_pull),
+				 handle_crypto_event, crypto_main_pull);
 
 	if (crypto_sadb_init() < 0)
 		rte_panic("Failed to initialise crypto SADB\n");
@@ -1265,9 +1274,10 @@ void dp_crypto_init(void)
 	crypto_incomplete_init();
 
 	crypto_engine_init();
-	rte_timer_init(&pr_cache_timer);
-	rte_timer_reset(&pr_cache_timer, rte_get_timer_hz(), PERIODICAL,
-			rte_get_master_lcore(), pr_cache_timer_handler, NULL);
+	rte_timer_init(&flow_cache_timer);
+	rte_timer_reset(&flow_cache_timer, rte_get_timer_hz(), PERIODICAL,
+			rte_get_master_lcore(), crypto_flow_cache_timer_handler,
+			NULL);
 
 	CRYPTO_INFO("Crypto initialised\n");
 }
@@ -1275,8 +1285,8 @@ void dp_crypto_init(void)
 void dp_crypto_shutdown(void)
 {
 	CRYPTO_INFO("crypto shutting down\n");
-	dp_unregister_event_socket(zsock_resolve(crypto_master_pull));
-	zsock_destroy(&crypto_master_pull);
+	dp_unregister_event_socket(zsock_resolve(crypto_main_pull));
+	zsock_destroy(&crypto_main_pull);
 	zsock_destroy(&rekey_listener);
 	udp_handler_unregister(AF_INET, htons(ESP_PORT));
 	udp_handler_unregister(AF_INET6, htons(ESP_PORT));
@@ -1328,12 +1338,12 @@ void crypto_expire_request(uint32_t spi, uint32_t reqid,
 
 	rv = zsock_bsend(sock, "4411", spi, reqid, proto, hard);
 	if (rv < 0)
-		CRYPTO_ERR("Failed to send expire event to master (%d)\n", rv);
+		CRYPTO_ERR("Failed to send expire event to main (%d)\n", rv);
 
 	zsock_destroy(&sock);
 }
 
-/* running in the master thread, handle crypto events */
+/* running in the main thread, handle crypto events */
 static int handle_crypto_event(void *arg)
 {
 	zsock_t *sock = (zsock_t *)arg;
@@ -1343,7 +1353,7 @@ static int handle_crypto_event(void *arg)
 
 	rc = zsock_brecv(sock, "4411", &spi, &reqid, &proto, &hard);
 	if (rc < 0) {
-		CRYPTO_ERR("Failed to receive event for master\n");
+		CRYPTO_ERR("Failed to receive event for main\n");
 		return 0;
 	}
 

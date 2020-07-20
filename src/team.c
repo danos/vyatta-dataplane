@@ -26,8 +26,8 @@ struct nlmsghdr;
 #include <linux/if_team.h>
 
 struct team_port_info {
-	struct ifnet *ifp_master;
-	struct ifnet *ifp_slave;
+	struct ifnet *ifp_bond;
+	struct ifnet *ifp_member;
 	uint32_t ifindex;
 	uint32_t port_ifindex;
 	int changed;
@@ -38,8 +38,8 @@ struct team_port_info {
 };
 
 struct team_option_info {
-	struct ifnet *ifp_master;
-	struct ifnet *ifp_slave;
+	struct ifnet *ifp_bond;
+	struct ifnet *ifp_member;
 	uint32_t ifindex;
 	uint32_t changed;
 	union {
@@ -111,9 +111,9 @@ static int process_team_ports(const struct team_port_info *info)
 		return MNL_CB_OK;
 
 	if (info->removed)
-		rv = lag_slave_delete(info->ifp_master, info->ifp_slave);
+		rv = lag_member_delete(info->ifp_bond, info->ifp_member);
 	else
-		rv = lag_slave_add(info->ifp_master, info->ifp_slave);
+		rv = lag_member_add(info->ifp_bond, info->ifp_member);
 
 	DP_DEBUG(LAG, INFO, DATAPLANE, "team %s %u %u %s%s\n",
 		 info->removed ? "remove" : "add",
@@ -146,28 +146,28 @@ static int process_team_portlist(const struct nlmsghdr *nlh)
 	if (ret != MNL_CB_OK)
 		return ret;
 
-	info.ifp_master = ifnet_byteam(info.ifindex);
-	if (info.ifp_master == NULL) {
+	info.ifp_bond = ifnet_byteam(info.ifindex);
+	if (info.ifp_bond == NULL) {
 		DP_DEBUG(LAG, ERR, DATAPLANE,
-			 "team unable to find master for slave ifindex %d\n",
+			 "team unable to find team for member ifindex %d\n",
 			 info.port_ifindex);
 		return MNL_CB_OK;
 	}
 
 	if (info.port_ifindex) {
-		info.ifp_slave = dp_ifnet_byifindex(info.port_ifindex);
+		info.ifp_member = dp_ifnet_byifindex(info.port_ifindex);
 
-		if (info.ifp_slave == NULL) {
+		if (info.ifp_member == NULL) {
 			DP_DEBUG(LAG, ERR, DATAPLANE,
-				 "team unable to find slave ifindex %d\n",
+				 "team unable to find member ifindex %d\n",
 				 info.port_ifindex);
 			return MNL_CB_OK;
 		}
 
-		if (info.ifp_slave->aggregator != NULL &&
-		    info.ifp_slave->aggregator != info.ifp_master) {
+		if (info.ifp_member->aggregator != NULL &&
+		    info.ifp_member->aggregator != info.ifp_bond) {
 			DP_DEBUG(LAG, ERR, DATAPLANE,
-				 "team slave ifindex %d unexpected master\n",
+				 "team member ifindex %d unexpected team\n",
 				 info.port_ifindex);
 			return MNL_CB_OK;
 		}
@@ -274,13 +274,13 @@ static int team_option_list(const struct nlattr *attr, void *data)
 static int process_team_options(const struct team_option_info *info)
 {
 	if (!strcmp(info->name, "enabled")) {
-		lag_select(info->ifp_slave, info->data.u32);
-		lag_slave_sync_mac_address(info->ifp_slave);
+		lag_select(info->ifp_member, info->data.u32);
+		lag_member_sync_mac_address(info->ifp_member);
 	} else if (!strcmp(info->name, "mode")) {
 		if (!strcmp(info->data.str, "activebackup"))
-			lag_mode_set_activebackup(info->ifp_master);
+			lag_mode_set_activebackup(info->ifp_bond);
 		else if (!strcmp(info->data.str, "loadbalance"))
-			lag_mode_set_balance(info->ifp_master);
+			lag_mode_set_balance(info->ifp_bond);
 		else {
 			DP_DEBUG(LAG, ERR, DATAPLANE,
 				 "team unknown mode \"%s\"\n", info->data.str);
@@ -294,10 +294,10 @@ static int process_team_options(const struct team_option_info *info)
 		/* future work */
 		return MNL_CB_OK;
 	else if (!strcmp(info->name, "activeport")) {
-		struct ifnet *ifp_slave = dp_ifnet_byifindex(info->data.u32);
+		struct ifnet *ifp_member = dp_ifnet_byifindex(info->data.u32);
 
-		if (ifp_slave)
-			lag_set_activeport(info->ifp_master, ifp_slave);
+		if (ifp_member)
+			lag_set_activeport(info->ifp_bond, ifp_member);
 		else
 			DP_DEBUG(LAG, ERR, DATAPLANE,
 				 "team cannot find activeport ifindex %u\n",
@@ -332,19 +332,19 @@ static int process_team_optionlist(const struct nlmsghdr *nlh)
 	if (ret != MNL_CB_OK)
 		return ret;
 
-	info.ifp_master = ifnet_byteam(info.ifindex);
-	if (info.ifp_master == NULL) {
+	info.ifp_bond = ifnet_byteam(info.ifindex);
+	if (info.ifp_bond == NULL) {
 		DP_DEBUG(LAG, ERR, DATAPLANE,
-			 "team cannot find master ifindex %d\n", info.ifindex);
+			 "team cannot find team ifindex %d\n", info.ifindex);
 		return MNL_CB_OK;
 	}
 
 	if (info.port_ifindex) {
-		info.ifp_slave = dp_ifnet_byifindex(info.port_ifindex);
-		if (!info.ifp_slave ||
-				info.ifp_slave->aggregator != info.ifp_master) {
+		info.ifp_member = dp_ifnet_byifindex(info.port_ifindex);
+		if (!info.ifp_member ||
+				info.ifp_member->aggregator != info.ifp_bond) {
 			DP_DEBUG(LAG, ERR, DATAPLANE,
-				 "team master changed for slave ifindex %d\n",
+				 "team team changed for member ifindex %d\n",
 				 info.port_ifindex);
 			return MNL_CB_OK;
 		}

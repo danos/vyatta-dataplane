@@ -77,6 +77,7 @@
 #include "in6_var.h"
 #include "in_cksum.h"
 #include "ip6_funcs.h"
+#include "lcore_sched.h"
 #include "main.h"
 #include "nd6.h"
 #include "nd6_nbr.h"
@@ -353,7 +354,7 @@ nd6_update_lla(struct ifnet *ifp, struct llentry *la,
 	la->la_flags |= LLE_HW_UPD_PENDING;
 
 	/*
-	 * Fire the timer for this table immediately on the master
+	 * Fire the timer for this table immediately on the main
 	 * thread so that FAL updates can be issued.
 	 */
 	rte_timer_reset(&ifp->if_lltable6->lle_timer, 0,
@@ -535,7 +536,7 @@ nd6_create_valid(struct ifnet *ifp, const struct in6_addr *addr,
 				(LLE_VALID | flags));
 	} else {
 		rte_atomic32_inc(&llt->lle_size);
-		if (is_master_thread() && if_is_features_mode_active(
+		if (is_main_thread() && if_is_features_mode_active(
 			    lle->ifp, IF_FEAT_MODE_EVENT_L3_FAL_ENABLED)) {
 			ret = fal_ip6_new_neigh(ifp->if_index, &sin6,
 						RTE_DIM(attr_list), attr_list);
@@ -559,7 +560,7 @@ nd6_create_valid(struct ifnet *ifp, const struct in6_addr *addr,
 	}
 
 	/*
-	 * Fire the timer for this table immediately on master. It
+	 * Fire the timer for this table immediately on main. It
 	 * doesn't matter if it fails as it will get picked up on
 	 * the next firing in that case.
 	 */
@@ -660,6 +661,9 @@ nd6_na_output(struct ifnet *ifp, const struct rte_ether_addr *lladdr,
 		  lladdr ? 1 : 0);
 	ND6NBR_INC(natx);
 
+	if (ipv6_originate_filter(ifp, m))
+		return;
+
 	/*
 	 * Send NA. If we don't have dest MAC then resolve it
 	 */
@@ -689,7 +693,7 @@ nd6_ns_input(struct ifnet *ifp, struct rte_mbuf *m, unsigned int off,
 	int rc;
 	bool punt = false;
 	struct ifnet *vrrp_ifp;
-	struct sockaddr sock_storage;
+	struct sockaddr_storage sock_storage;
 	struct sockaddr_in6 *ip_storage =
 		(struct sockaddr_in6 *) &sock_storage;
 
@@ -746,7 +750,8 @@ nd6_ns_input(struct ifnet *ifp, struct rte_mbuf *m, unsigned int off,
 	rc = nd6_forus(ifp, &saddr6, &taddr6);
 	ip_storage->sin6_family = AF_INET6;
 	ip_storage->sin6_addr = taddr6;
-	vrrp_ifp = macvlan_get_vrrp_ip_if(ifp, &sock_storage);
+	vrrp_ifp = macvlan_get_vrrp_ip_if(ifp,
+					  (struct sockaddr *)&sock_storage);
 	if (unlikely(rc != 0 && vrrp_ifp == NULL)) {
 		if (rc == -EADDRINUSE) {
 			nd6_log_conflict(ifp, lladdr, &saddr6);
@@ -1114,8 +1119,11 @@ static void nd6_ns_output(struct ifnet *ifp,
 	struct rte_mbuf *m;
 
 	m = nd6_ns_build(ifp, res_src, taddr6, dst_mac);
-	if (m)
-		if_output(ifp, m, NULL, ETH_P_IPV6);
+
+	if (m) {
+		if (!ipv6_originate_filter(ifp, m))
+			if_output(ifp, m, NULL, ETH_P_IPV6);
+	}
 }
 
 /*
@@ -1320,7 +1328,7 @@ bool nd6_is_sol_na(struct rte_mbuf *m)
 
 /*
  * Walk the ND6 table.
- * Only called by console (master thread);
+ * Only called by console (main thread);
  * Can not be called safely from forwarding loop.
  */
 void
@@ -1427,7 +1435,7 @@ in6_lltable_lookup(struct ifnet *ifp, u_int flags,
 			lle = caa_container_of(node, struct llentry, ll_node);
 		} else {
 			rte_atomic32_inc(&llt->lle_size);
-			if (is_master_thread() && if_is_features_mode_active(
+			if (is_main_thread() && if_is_features_mode_active(
 				    lle->ifp,
 				    IF_FEAT_MODE_EVENT_L3_FAL_ENABLED)) {
 				ret = fal_ip6_new_neigh(ifp->if_index, &sin6,
@@ -1454,7 +1462,7 @@ in6_lltable_lookup(struct ifnet *ifp, u_int flags,
 
 			/*
 			 * Fire the timer for this table immediately
-			 * on master. It doesn't matter if it fails as
+			 * on main. It doesn't matter if it fails as
 			 * it will get picked up on the next firing in
 			 * that case.
 			 */
@@ -1491,7 +1499,7 @@ in6_lltable_lookup(struct ifnet *ifp, u_int flags,
 }
 
 /*
- * Called from master thread
+ * Called from main thread
  * Handle ND cache change notification from control plane
  */
 int
@@ -1747,8 +1755,10 @@ in6_ll_age(struct lltable *llt, struct llentry *lle, uint64_t cur_time)
 		}
 		rte_spinlock_unlock(&lle->ll_lock);
 
-		if (m)
-			if_output(ifp, m, NULL, ETH_P_IPV6);
+		if (m) {
+			if (!ipv6_originate_filter(ifp, m))
+				if_output(ifp, m, NULL, ETH_P_IPV6);
+		}
 
 		if (m_for_icmp_unreach)
 			icmp6_error(ifp_for_icmp_unreach,

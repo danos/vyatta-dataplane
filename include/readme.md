@@ -34,7 +34,7 @@ be done on the correct thread.
 
 The dataplane uses the dpdk lcore infra. For each logical core in the system
 a thread is created and that thread runs only on that core. The lowest core
-number is used for control plane processing and is called the master thread.
+number is used for control plane processing and is called the main thread.
 All the other lcores are used for packet processing by default.
 
 See lcore_sched.h for more details about the [lcores](lcore_sched.h)
@@ -43,16 +43,16 @@ To allow for efficient updates of control plane state without having to lock
 the forwarding threads the dataplane uses RCU. This allows updates from a
 single thread along with multiple concurrent readers.
 
-### master thread
+### main thread
 All of the control plane state processing (routes, interface state, etc) is
-done in the master thread (master lcore, typically lcore 0). The master thread
+done in the main thread (main lcore, typically lcore 0). The main thread
 receives events from multiple sources and processes them in an RCU safe way.
 
-A feature plugin init function is always called on the master thread. For
+A feature plugin init function is always called on the main thread. For
 features that register a command handler this handler will always be called
-on the master thread.
+on the main thread.
 
-If a feature then has a need to process further updates on the master thread
+If a feature then has a need to process further updates on the main thread
 as they arrive from a socket it can use the [event api](events.h)
 
 ### console thread
@@ -63,7 +63,7 @@ be called on the console thread.
 ### forwarding threads
 
 For features that are involved in forwarding of packets the forwarding may
-happen on multiple different forwarding lcores, or sometimes on the master
+happen on multiple different forwarding lcores, or sometimes on the main
 core. As there may be multiple cores there can be processing of multiple
 packets at the same time. Multiple threads can read read the RCU controlled
 state with no performance penalty. However writing in parallel can cause
@@ -75,8 +75,8 @@ location at a time.
 ### Other threads
 
 Feature can create other threads as required, but this should  be done
-from the master thread.  These threads will then inherit the cpu affinity
-from the master thread and so will run on the master lcore only.
+from the main thread.  These threads will then inherit the cpu affinity
+from the main thread and so will run on the main lcore only.
 New threads that access memory used by other threads should be registered
 with [rcu](urcu.h)
 

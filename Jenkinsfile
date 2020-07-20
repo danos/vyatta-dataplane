@@ -23,8 +23,6 @@ def cancelPreviousBuilds() {
 pipeline {
     agent any
 
-    parameters { booleanParam(name: 'FORCE_VALGRIND', defaultValue: false, description: 'Execute Valgrind even for a PR branch') }
-
     environment {
 	OBS_TARGET_PROJECT = 'DANOS:Master'
 	OBS_TARGET_REPO = 'standard'
@@ -33,11 +31,11 @@ pipeline {
 	OSC_BUILD_ROOT = "${WORKSPACE}" + '/build-root/' + "${env.OBS_TARGET_PROJECT.replace(':','_')}" + '-' + "${env.OBS_TARGET_REPO}" + '-' + "${OBS_TARGET_ARCH}"
 	DH_VERBOSE = 1
 	DH_QUIET = 0
-	DEB_BUILD_OPTIONS ='verbose all_tests'
+	DEB_BUILD_OPTIONS ='verbose all_tests sanitizer'
     }
 
     options {
-	timeout(time: 180, unit: 'MINUTES') // Hopefully maximum even when Valgrind is included!
+	timeout(time: 60, unit: 'MINUTES')
 	checkoutToSubdirectory("vyatta-dataplane")
 	quietPeriod(90) // Wait 90 seconds in case there are more SCM pushes/PR merges coming
     }

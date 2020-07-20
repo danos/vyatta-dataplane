@@ -39,14 +39,13 @@ dp_test_intf_type(const char *if_name)
 	if (strncmp(if_name, "dp", 2) == 0) {
 		if (strlen(if_name) > 4 && !strncmp(if_name + 3, "vrrp", 4))
 			return DP_TEST_INTF_TYPE_MACVLAN;
+		if (strlen(if_name) > 4 && !strncmp(if_name + 3, "sw_port", 7))
+			return DP_TEST_INTF_TYPE_SWITCH_PORT;
 		return DP_TEST_INTF_TYPE_DP;
 	}
 
 	if (strncmp(if_name, "vtun", 4) == 0)
 		return DP_TEST_INTF_TYPE_NON_DP;
-
-	if (strncmp(if_name, "sw_port", 7) == 0)
-		return DP_TEST_INTF_TYPE_SWITCH_PORT;
 
 	if (strncmp(if_name, "br", 2) == 0)
 		return DP_TEST_INTF_TYPE_BRIDGE;
@@ -298,13 +297,13 @@ static struct dp_test_intf dp_test_intf_default[] = {
 };
 
 static struct dp_test_intf dp_test_intf_switch_port[] = {
-	{ 20, 1, 120, 0, "sw_port_0_0", /* switch port interface */
+	{ 20, 1, 120, 0, "dp1sw_port_0_0", /* switch port interface */
 		{ .addr_bytes = { 0x00, 0x00, 0xa4, 0xbe, 0xef, 0x88 } },
 		{ 0, 0, 0, 0 },
 		{ IN6ADDR_ANY_INIT, IN6ADDR_ANY_INIT, IN6ADDR_ANY_INIT,
 		  IN6ADDR_ANY_INIT}, false, true,
 	},
-	{ 21, 1, 121, 0, "sw_port_0_7", /* switch port interface */
+	{ 21, 1, 121, 0, "dp1sw_port_0_7", /* switch port interface */
 		{ .addr_bytes = { 0x00, 0x00, 0xa4, 0xbe, 0xef, 0x01 } },
 		{ 0, 0, 0, 0 },
 		{ IN6ADDR_ANY_INIT, IN6ADDR_ANY_INIT, IN6ADDR_ANY_INIT,
@@ -431,6 +430,25 @@ dp_test_intf_switch_port_activate(const char *real_if_name)
 
 }
 
+void
+dp_test_intf_switch_port_deactivate(const char *real_if_name)
+{
+	struct dp_test_intf *intf;
+
+	intf = dp_test_intf_find_switch_port(real_if_name);
+
+	if (!intf || !intf->active)
+		return;
+
+	intf->active = false;
+
+	json_object *intf_set;
+
+	intf_set = dp_test_json_intf_set_create();
+	dp_test_intf_create_default_set(intf_set);
+
+}
+
 bool dp_test_intf_switch_port_over_bkp(const char *real_if_name)
 {
 	struct dp_test_intf *intf;
@@ -471,15 +489,14 @@ dp_test_intf_count_local(void)
 }
 
 /*
- * Return count of all virtual, non-virtual and switch port interfaces
- * expected in the test clean state.
+ * Return count of all virtual and non-virtual interfaces expected in
+ * the test clean state.
  */
 uint8_t
 dp_test_intf_clean_count(void)
 {
 	/* add one for loopback interface */
-	return dp_test_intf_count() +
-		dp_test_intf_switch_port_count() + 1;
+	return dp_test_intf_count() + 1;
 }
 
 /* Generate real interfaces.
@@ -1486,20 +1503,20 @@ void _dp_test_intf_vfp_delete(const char *name, vrfid_t vrf_id,
 	dp_test_intf_virt_del(name);
 }
 
-void _dp_test_intf_vrf_master_create(const char *name, vrfid_t vrf_id,
+void _dp_test_intf_vrf_if_create(const char *name, vrfid_t vrf_id,
 				     uint32_t tableid, const char *file,
 				     int line)
 {
 	dp_test_intf_virt_add(name);
-	_dp_test_netlink_create_vrf_master(name, vrf_id, tableid, true,
+	_dp_test_netlink_create_vrf_if(name, vrf_id, tableid, true,
 					   file, NULL, line);
 }
 
-void _dp_test_intf_vrf_master_delete(const char *name, vrfid_t vrf_id,
+void _dp_test_intf_vrf_if_delete(const char *name, vrfid_t vrf_id,
 				     uint32_t tableid, const char *file,
 				     int line)
 {
-	_dp_test_netlink_del_vrf_master(name, vrf_id, tableid, true,
+	_dp_test_netlink_del_vrf_if(name, vrf_id, tableid, true,
 					file, NULL, line);
 	dp_test_intf_virt_del(name);
 }

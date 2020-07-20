@@ -28,6 +28,7 @@
 #include "esp.h"
 #include "if_var.h"
 #include "json_writer.h"
+#include "lcore_sched.h"
 #include "route.h"
 #include "route_v6.h"
 #include "urcu.h"
@@ -873,7 +874,7 @@ static void crypto_sadb_del_sa_internal(const xfrm_address_t *dst,
 {
 	static struct sadb_sa *sa;
 
-	ASSERT_MASTER();
+	ASSERT_MAIN();
 
 	SADB_DEBUG("DELSA SPI = %x VRF %d\n", ntohl(spi), vrf_ctx->vrfid);
 
@@ -1439,7 +1440,7 @@ static unsigned long crypto_sa_hash(const struct crypto_sa_key *key)
 }
 
 /*
- * Add an incomplete sa (waiting on the vrf master). If we already have
+ * Add an incomplete sa (waiting on the vrf). If we already have
  * an entry for the key (spi + addr) then update the message.
  *
  * The values come from different places depending on the msg type.

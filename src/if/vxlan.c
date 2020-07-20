@@ -521,7 +521,7 @@ int vxlan_select_ipv4_src(struct vxlan_vninode *vnode, struct ip_addr *dip,
 
 	/* Store next hop address  */
 	if (nxt->flags & RTF_GATEWAY)
-		nhip->address.ip_v4.s_addr = nxt->gateway4;
+		nhip->address.ip_v4.s_addr = nxt->gateway.address.ip_v4.s_addr;
 	else
 		nhip->address.ip_v4.s_addr = dip->address.ip_v4.s_addr;
 
@@ -562,7 +562,7 @@ int vxlan_select_ipv6_src(struct vxlan_vninode *vnode, struct ip_addr *dip,
 	*oifp = dif;
 
 	if (nxt6->flags & RTF_GATEWAY)
-		nhip->address.ip_v6 = nxt6->gateway6;
+		nhip->address.ip_v6 = nxt6->gateway.address.ip_v6;
 	else
 		nhip->address.ip_v6 = dip->address.ip_v6;
 
@@ -760,7 +760,7 @@ static int vxlan_resolve_send_pak(struct rte_mbuf *m, struct ip_addr *nhip,
 {
 	if (likely(dip->type == AF_INET)) {
 		struct next_hop nh = {.flags = RTF_GATEWAY,
-				      .gateway4 = nhip->address.ip_v4.s_addr,
+				      .gateway = *nhip,
 				      .u.ifp = dif};
 
 		if (!dp_ip_l2_nh_output(ifp, m, &nh, ETH_P_IP)) {
@@ -770,7 +770,7 @@ static int vxlan_resolve_send_pak(struct rte_mbuf *m, struct ip_addr *nhip,
 		IPSTAT_INC_IFP(dif, IPSTATS_MIB_OUTPKTS);
 	} else if (likely(dip->type == AF_INET6)) {
 		struct next_hop nh = {.flags = RTF_GATEWAY,
-				      .gateway6 = nhip->address.ip_v6,
+				      .gateway = *nhip,
 				      .u.ifp = dif};
 
 		if (!dp_ip6_l2_nh_output(ifp, m, &nh, ETH_P_IPV6)) {
@@ -1629,7 +1629,7 @@ struct ifnet *
 vxlan_create(const struct ifinfomsg *ifi, const char *ifname,
 	     const struct rte_ether_addr *addr,
 	     struct nlattr *tb[], struct nlattr *data,
-	     enum cont_src_en cont_src, const struct nlmsghdr *nlh)
+	     enum cont_src_en cont_src)
 {
 	struct nlattr *vxlaninfo[IFLA_VXLAN_MAX+1] = { NULL };
 	struct ifnet *ifp;
@@ -1651,22 +1651,16 @@ vxlan_create(const struct ifinfomsg *ifi, const char *ifname,
 
 	if_link = vxlaninfo[IFLA_VXLAN_LINK];
 	if (if_link) {
-		unsigned int link_idx, if_idx;
+		unsigned int link_idx;
 
 		link_idx =
 			cont_src_ifindex(cont_src,
 					 mnl_attr_get_u32(if_link));
-		if_idx = cont_src_ifindex(cont_src,
-					  ifi->ifi_index);
 		if (link_idx != 0) {
 			struct ifnet *pifp = dp_ifnet_byifindex(link_idx);
 
-			if (!pifp) {
-				missed_nl_child_link_add(link_idx,
-							 if_idx,
-							 nlh);
+			if (!pifp)
 				return NULL;
-			}
 		}
 	}
 

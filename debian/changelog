@@ -1,3 +1,627 @@
+vyatta-dataplane (3.10.51) unstable; urgency=medium
+
+  [ Mandeep Rohilla ]
+  * BFD: Add support for querying max interval values supported
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Mon, 20 Jul 2020 21:23:09 +0100
+
+vyatta-dataplane (3.10.50) unstable; urgency=medium
+
+  * sanitizer: set ASAN_OPTIONS when sanitizer is used
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Mon, 20 Jul 2020 13:36:11 +0100
+
+vyatta-dataplane (3.10.49) unstable; urgency=medium
+
+  [ Robert Shearman ]
+  * shadow: remove the shadow port handler when an interface is freed
+    (Fixes: VRVDR-52193)
+  * shadow: use events for init/destroy
+  * sample: fix the visit_after node declaration
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Mon, 20 Jul 2020 13:18:35 +0100
+
+vyatta-dataplane (3.10.48) unstable; urgency=medium
+
+  [ Robert Shearman ]
+  * config: factor out and simplify PCI address parsing for backplane ports
+  * config: parse management_port platform.conf attribute
+  * dpdk-eth: add management port attribute to interface information
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Mon, 20 Jul 2020 08:46:22 +0100
+
+vyatta-dataplane (3.10.47) unstable; urgency=medium
+
+  [ Thomas Kiely ]
+  * mac_limit: Remove temporary show keyword
+
+  [ Charles (Chas) Williams ]
+  * coverity: fix handling when an error is returned (Bugfix: VRVDR-52191)
+
+  [ Robert Shearman ]
+  * dpdk-eth: only remove a LAG port after the ifp using it has been freed
+  * main: only close the ports after cleaning up interfaces (Fixes: VRVDR-52220)
+
+  [ Paul Atkins ]
+  * fal: provide alternate name for FAL_BFD_HW_MODE_CP_INDEPENDENT
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Thu, 16 Jul 2020 12:02:27 +0100
+
+vyatta-dataplane (3.10.46) unstable; urgency=medium
+
+  [ Mike Manning ]
+  * L2TPv3: Fails to be ping across tunnel using L2TPv3
+
+  [ Robert Shearman ]
+  * if: fix cleanup of DPDK ethernet interfaces (Fixes: VRVDR-52145)
+
+  [ Paul Atkins ]
+  * ut: add vars that tests can use to pass state to the fal
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Fri, 10 Jul 2020 13:59:35 +0100
+
+vyatta-dataplane (3.10.45) unstable; urgency=medium
+
+  [ Nicholas Brown ]
+  * Add a CODEOWNERS file
+
+  [ Charles (Chas) Williams ]
+  * vhost: fix netlink races with hotplug (Bugfix: VRVDR-50960)
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Wed, 08 Jul 2020 15:21:32 +0100
+
+vyatta-dataplane (3.10.44) unstable; urgency=medium
+
+  * main: allow the user to specify the platform_file location
+  * ut: allow user to specify platform conf file
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Tue, 07 Jul 2020 13:02:45 +0100
+
+vyatta-dataplane (3.10.43) unstable; urgency=medium
+
+  [ Nicholas Brown ]
+  * Remove last mentions of valgrind build
+  * Enable the address sanitizer as part of the jenkins build
+  * use .checkpatch.conf
+
+  [ Robert Shearman ]
+  * dpdk-eth: check that ifp exists in linkwatch_change_mark_state
+  * dpdk-eth: don't require ifp for updating queue state (Fixes: VRVDR-52109)
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Mon, 06 Jul 2020 13:29:50 +0100
+
+vyatta-dataplane (3.10.42) unstable; urgency=medium
+
+  [ Charles (Chas) Williams ]
+  * lag: remove potentially offensive language (Bugfix: VRVDR-51820)
+  * main: remove potentially offensive language (Bugfix: VRVDR-51820)
+  * vrf: remove potentially offensive language (Bugfix: VRVDR-51820)
+  * bridge: remove potentially offensive language (Bugfix: VRVDR-51820)
+  * tests: remove potentially offensive language (Bugfix: VRVDR-51820)
+  * session: remove potentially offensive language (Bugfix: VRVDR-51820)
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Fri, 03 Jul 2020 15:49:00 +0100
+
+vyatta-dataplane (3.10.41) unstable; urgency=medium
+
+  [ Robert Shearman ]
+  * if: issue feature event for interface being created
+  * mstp: defer creation of STP object until after bridge created in FAL
+    (Fixes: VRVDR-52083)
+  * bridge: fix duplicate FAL br_new_port notification (Fixes: VRVDR-52084)
+  * ut: validate FAL contract for bridge-port objects
+
+  [ Thomas Kiely ]
+  * mac_limit: Rename "mac-count" command to "limit status"
+
+  [ Brian Russell ]
+  * qos: update fal global map when resource group changes
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Fri, 03 Jul 2020 14:22:05 +0100
+
+vyatta-dataplane (3.10.40) unstable; urgency=medium
+
+  [ harios ]
+  * Fix done for nexthop as IPv4 mapped IPv6 address
+
+  [ Robert Shearman ]
+  * main: swap order of checks on closing ports (Fixes: VRVDR-52095)
+  * if: make promiscuity apply to VLANs as well as MAC addresses
+    (Fixes: VRVDR-52049)
+  * capture: remove interface-type check for setting promiscuity
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Fri, 03 Jul 2020 09:06:51 +0100
+
+vyatta-dataplane (3.10.39) unstable; urgency=medium
+
+  [ Robert Shearman ]
+  * ut: add dp1 prefix to switchports
+  * devinfo: change if_port_info to not require an ifp
+  * master: avoid needing ifp present when adding/deleting ports
+  * if: classify backplane ports as dataplane interfaces
+  * if: clean up life-cycle of DPDK ethernet interface objects
+    (Closes: VRVDR-51844)
+  * if: remove missed link & unspec address handling
+  * if: remove missed IP address & netconf handling (Closes: VRVDR-51845)
+  * if: remove unused hwport incomplete infra
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Thu, 02 Jul 2020 08:52:24 +0100
+
+vyatta-dataplane (3.10.38) unstable; urgency=medium
+
+  [ Robert Shearman ]
+  * shadow: remove superfluous interface netlink state management
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Wed, 01 Jul 2020 13:24:13 +0100
+
+vyatta-dataplane (3.10.37) unstable; urgency=medium
+
+  [ Paul Aitken ]
+  * DPI: add nDPI debugging
+  * DPI: load optional nDPI protocols and categories
+
+  [ Charles (Chas) Williams ]
+  * unit tests: fix mbuf debuggging (Bugfix: VRVDR-51987)
+  * crypto: fix mbuf debugging (Bugfix: VRVDR-51987)
+  * mpls: reject short packets (Bugfix: VRVDR-51987)
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Wed, 01 Jul 2020 09:22:12 +0100
+
+vyatta-dataplane (3.10.36) unstable; urgency=medium
+
+  * control: add a comment to request new commands in protobuf format
+  * dpdk_eth_if: don't dump ports that have been unplugged
+  * if: in ifnet_byethname skip over unplugged interfaces
+  * hotplug: mark the interface as unplugged at the start of processing
+  * dpdk_eth_if: don't assume that info.driver_name is valid
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Wed, 24 Jun 2020 09:07:45 +0100
+
+vyatta-dataplane (3.10.35) unstable; urgency=medium
+
+  [ Shweta Choudaha ]
+  * Backplane:Shut DPDK bkplane ports post fal cleanup
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Fri, 19 Jun 2020 16:18:37 +0100
+
+vyatta-dataplane (3.10.34) unstable; urgency=medium
+
+  [ Ethan Li ]
+  * bfd-hw: add FAL attribute for BFD hw running mode
+
+  [ Nicholas Brown ]
+  * sample plugin and test code only using public API
+  * The test code for the sample plugin should also a plugin
+
+  [ Ian Wilson ]
+  * npf: Set custom timeout in dataplane session after session is created
+  * npf: Add option to cache pkt without updating the cache grouper data
+  * npf: Move _npf_cache_all_at in order to avoid forward reference
+
+  [ Thomas Kiely ]
+  * Avoid unnecessary unapply of mac limit feature
+
+  [ Mandeep Rohilla ]
+  * BR_VLAN_SET: Api to determine if vlan set is empty
+  * BR_VLAN_SET UT: unit tests for the vlan set empty api
+
+  [ Paul Atkins ]
+  * ut: func to verify state based on pb show should use void *
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Fri, 19 Jun 2020 09:02:21 +0100
+
+vyatta-dataplane (3.10.33) unstable; urgency=medium
+
+  [ Ian Wilson ]
+  * cgnat: Several small cosmetic changes to cgnat
+  * cgnat: Add 2-tuple sessn to hash table if it fails to be added directly
+  * cgnat: Move 2-tuple session inspection code into separate function
+  * cgnat: Block outbound flow if max-dest-per-session reached
+  * cgnat: Block inbound packets if max-dest-per-session reached
+  * cgnat: Increase maximum configurable max-dest-per-session to 128
+  * ut: Fixup cgnat25 to expect an ICMP error
+  * cgnat: Remove interface config store and replay mechanism
+  * ut: Remove cgnat14 test for interface store and replay mechanism
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Tue, 16 Jun 2020 10:32:46 +0100
+
+vyatta-dataplane (3.10.32) unstable; urgency=medium
+
+  [ Mandeep Rohilla ]
+  * DP_EVENT: Add new event for MTU change notifications
+  * MTU: Register QoS's intereset in MTU change
+  * MTU: Don't bounce the port when changing the MTU
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Fri, 12 Jun 2020 11:54:49 +0100
+
+vyatta-dataplane (3.10.31) unstable; urgency=medium
+
+  [ Ian Wilson ]
+  * npf: Simplify and enhance the api for fetching address group json
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Fri, 12 Jun 2020 11:14:46 +0100
+
+vyatta-dataplane (3.10.30) unstable; urgency=medium
+
+  [ Robert Shearman ]
+  * debian: don't suppress changelog generation
+  * Pull JSON writer code out into a shared library (Fixes: VRVDR-51389)
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Tue, 09 Jun 2020 09:24:36 +0100
+
+vyatta-dataplane (3.10.29) unstable; urgency=medium
+
+  [ Srinivas Narayan ]
+  * Check if next hop is non-NULL before de-referencing it
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Tue, 09 Jun 2020 08:40:38 +0100
+
+vyatta-dataplane (3.10.28) unstable; urgency=medium
+
+  [ Charles (Chas) Williams ]
+  * conf: allow dev_flags to be filtered (Bugfix: VRVDR-48438)
+  * ixgbe: do not use the LSC interrupt (Bugfix: VRVDR-48438)
+  * ifconfig: allow inspection of the lsc status
+  * vhost: do not wait forever for QMP (Bugfix: VRVDR-51099)
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Fri, 05 Jun 2020 10:16:49 +0100
+
+vyatta-dataplane (3.10.27) unstable; urgency=medium
+
+  [ Ian Wilson ]
+  * nat64: Only dereference the session sentry once
+  * nat64: Free memory before returning in nat64_create error case
+
+  [ Robert Shearman ]
+  * storm_ctl: avoid redundant FAL update when adding threshold for new type
+  * storm_ctl: move fal_policer_modify_profile function down
+  * storm_ctl: make threshold removal FAL state symmetric (Fixes: VRVDR-51406)
+
+  [ Paul Atkins ]
+  * lpm6: fix check for depth when removing /24
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Thu, 04 Jun 2020 12:28:06 +0100
+
+vyatta-dataplane (3.10.26) unstable; urgency=medium
+
+  [ Mark Gillott ]
+  * if: migrate hardware port completion to separate function
+  * if: replace NEWPORT with INIPORT & ADDPORT (Fixes: VRVDR-46511)
+  * if: postpone snapshot request until port initialisation complete
+    (Fixes: VRVDR-46511)
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Fri, 29 May 2020 14:15:43 +0100
+
+vyatta-dataplane (3.10.25) unstable; urgency=medium
+
+  [ Paul Aitken ]
+  * DPI: fix memleaks in dpi_ctor
+  * DPI: make initialisation return errno
+
+  [ Robert Shearman ]
+  * ip_rt_protobuf: fix coverity resource leak reports (Fixes: VRVDR-51284)
+
+  [ Ian Wilson ]
+  * cgnat: Return NAT pool "full" (np_full) json to control plane
+
+  [ ak487r ]
+  * tests: remove ipv6 ND Solicitation tests for originating firewall
+
+  [ Ian Wilson ]
+  * cgnat: Max dest per session only allows powers of two
+
+  [ Tom Kiely ]
+  * MAC Limit: Add a new attr for mac limit on port/vlan
+  * MAC Limit: Add a new log type flag for mac limiting feat
+  * MAC Limit: Add support for creating MAC limiting profiles
+  * MAC Limit: Add support mac limit entry based on port/vlan
+  * MAC Limit: Apply mac limiting in the FAL
+  * MAC Limit: Add hooks for applying mac limiting based on dp events
+  * MAC Limit: Add support for show command
+  * Add Unit Tests for MAC limiting feature.
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Fri, 29 May 2020 12:13:11 +0100
+
+vyatta-dataplane (3.10.24) unstable; urgency=medium
+
+  [ Paul Atkins ]
+  * main: add a wrapper to unregister a thread with rcu
+  * ip_forward: remove references to next_hop_v6
+
+  [ Robert Shearman ]
+  * route: set some missing address family types
+  * route_v6: set some missing address family types
+  * mpls: set some missing address family types
+
+  [ Paul Atkins ]
+  * main: make ASSERT_MASTER public
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Fri, 22 May 2020 11:01:09 +0100
+
+vyatta-dataplane (3.10.23) unstable; urgency=medium
+
+  [ Paul Atkins ]
+  * debian: define prefix in the libyattafal .pc file
+
+  [ Paul Carson ]
+  * Forward PPP CHAP traffic to PPP (Fixes: VRVDR-49231)
+
+  [ Derek Fawcus ]
+  * NPF: Use ICMP opcode defines, not magic values
+  * NPF: Adjust ICMP opcode generation
+  * NPF: Enable matching of ICMP classes in ncode
+  * Update checkpath warnings in use
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Thu, 21 May 2020 10:40:12 +0100
+
+vyatta-dataplane (3.10.22) unstable; urgency=medium
+
+  [ Robert Shearman ]
+  * debug_strip: add build-ids to package metadata
+  * Generate -dbgsym packages per binary package (Fixes: VRVDR-50948)
+
+  [ Shweta Choudaha ]
+  * flow_cache: Use get_lcore_max to get max lcoreid
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Tue, 19 May 2020 10:59:05 +0100
+
+vyatta-dataplane (3.10.21) unstable; urgency=medium
+
+  [ Paul Atkins ]
+  * nd6_nbr: when storing the v6 addr use sockaddr_storage not sockaddr
+
+  [ Gavin Shearer ]
+  * nat64: check rule group name of rule is set before accessing it
+
+  [ Paul Atkins ]
+  * main: make sure that we don't register rcu thread twice
+
+  [ Charles (Chas) Williams ]
+  * dpdk: get dev_info before closing (Bugfix: VRVDR-51041)
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Mon, 18 May 2020 19:29:08 +0100
+
+vyatta-dataplane (3.10.20) unstable; urgency=medium
+
+  [ Paul Aitken ]
+  * DPI: new APIs to support application name database
+  * DPI: new APIs to support application type database
+  * DPI: new APIs for user-defined applications
+  * DPI: new APIs to allow packet processing by nDPI
+  * DPI: change --without-dpi to build without nDPI
+  * DPI: add new files to makefile
+  * DPI: remove redundant files
+  * DPI: don't need to include DPI
+  * DPI: remove Qosmos from dpi_internal.h, add new APIs
+  * DPI: update app_cmds.c includes
+  * DPI: dpi_public.c to call the engine-based APIs
+  * DPI: update DPI rprocs to engine-based APIs
+  * DPI: remove app database from npf_ext_app.c
+  * DPI: update app FW DPI rprocs to use engine-based APIs
+  * DPI: update L3 DPI pipeline to use engine-based APIs
+  * DPI: add new engine-based APIs to dpi.c
+  * DPI: add libndpi-dev build dependency
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Mon, 18 May 2020 15:32:27 +0100
+
+vyatta-dataplane (3.10.19) unstable; urgency=medium
+
+  [ ak487r ]
+  * npf: add originating firewall
+  * tests: add ipv4 tcp slowpath tests for originating firewall
+  * tests: add ipv6 tcp slowpath tests for originating firewall
+  * tests: add ipv4 icmp packet to big tests for originating firewall
+  * tests: add ipv6 icmp packet to big tests for originating firewall
+  * tests: add ipv6 ND Advertisement tests for originating firewall
+  * tests: add ipv6 ND Solicitation tests for originating firewall
+  * tests: add ipv4 echo reply by cgnat for originating firewall
+
+  [ Paul Atkins ]
+  * ut: fix issue with buffer size when comparing one-of
+  * nh_common: change 1 to 1ull when using it to shift 64 bit numbers
+  * nh_common: when updating map get the count from the bitmap
+  * nh_common: on nh_map init leave space for unusable primaries
+  * nh_common: use CMM macros when reading/modifying the usability flag
+  * nh_common: reinit nh map contents if collisions when marking unusable
+  * nh_common: let paths be marked usable and unusable
+  * ut: tests for pic edge where a path is made usable
+  * route6: display the next hop map for v6 routes
+  * ut: remove extra whitespace in pic edge tests
+  * ut: add an ipv6 pic edge test
+  * route: register path_state functions with event infra for cleanup
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Mon, 18 May 2020 13:56:55 +0100
+
+vyatta-dataplane (3.10.18) unstable; urgency=medium
+
+  [ Sanjay Iyer ]
+  * hw-bfd: Add additional FAL attributes (Fixes: VRVDR-50399)
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Fri, 15 May 2020 17:24:01 +0100
+
+vyatta-dataplane (3.10.17) unstable; urgency=medium
+
+  [ Paul Atkins ]
+  * nh_common: check if a nh is unusable before marking as unusable
+  * nh_common: don't put an unusable nh into the map at init time
+  * nh_common: add a bitmask to track usable next_hops
+  * ut: allow for checking for one of many expected strings
+  * ut: further tests for pic edge
+
+  [ Gavin Shearer ]
+  * nat: add support in apm for multiple port maps based on protocol
+  * nat: rename fields in port_prot structure
+  * nat: add passing in IP proto to apm port request fns
+  * nat: update per-rule nat statistics to be per-protocol
+  * nat: pass back in JSON the per-protocol rule used counts
+  * nat: add warning if changing port pool for separate ICMP pool
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Fri, 15 May 2020 13:40:54 +0100
+
+vyatta-dataplane (3.10.16) unstable; urgency=medium
+
+  [ Robert Shearman ]
+  * if: fix typo in ifop_uninit comment
+  * bridge: issuing FAL delport notifications for members on bridge delete
+    (Fixes: VRVDR-51123)
+
+  [ Srinivas Narayan ]
+  * npf: Add a flag to enable hash table linkage for rules
+  * npf: add hash table linkage for rules
+
+  [ Paul Atkins ]
+  * nh_common: change api to mark path unusable to also allow usable
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Fri, 15 May 2020 11:53:04 +0100
+
+vyatta-dataplane (3.10.15) unstable; urgency=medium
+
+  [ Dewi Morgan ]
+  * dataplane: add dp_ifnet_admin_status api
+
+  [ Paul Atkins ]
+  * nh_common: when a next_hop is marked unusable update the fal
+  * urcu: add an API to allow a thread to register with urcu
+  * dpdk_linkwatch: on link down mark paths unusable
+
+  [ Robert Shearman ]
+  * fal: signal backup paths
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Wed, 13 May 2020 16:27:47 +0100
+
+vyatta-dataplane (3.10.14) unstable; urgency=medium
+
+  [ Srinivas Narayan ]
+  * npf: Add flags to skip stats maintenance
+  * npf: Skip stats allocation if NO_STATS flag is set
+  * npf: Add NULL checks for rule stats where necessary
+  * npf: Skip stats allocation for IPsec rulesets
+  * npf: Use NO_STATS flag to optimize high level ops
+
+  [ Simon Barber ]
+  * Set the l3 length of Site-2-Site Packets for TX on spath
+
+  [ Paul Atkins ]
+  * ut: move the pic edge tests into dp_test_ip_pic_edge.c
+  * nh_common: change the nexthop to have a struct_ip addr
+  * nh_common: rename nexthop_create_copy
+  * mpls: make nh_outlabels_copy copy all labels
+  * nh_common: add a function to copy a next_hop and use instead of memcpy
+  * nh_common: provide apis to help do a modify of an active next_hop_list
+  * nh_common: store the number of primary paths in the next_hop_list
+  * nh_common: store the protected next_hops in a 2 level hash
+  * nh_common: use a nh_map when a next_hop_list has backup paths
+  * route: Add an api to allow plugins to provide path state
+  * nh_common: add a ptr back from the NH to the NH list
+  * nh_common: update sw forwarding state when a NH becomes unusable
+  * ut: ip pic edge tests
+  * ut: ip pic edge tests with traffic
+  * nh_common: fix typos in comments
+  * nh_common: when tracking nexthops with backups, skip those with no ifp
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Wed, 13 May 2020 08:43:08 +0100
+
+vyatta-dataplane (3.10.13) unstable; urgency=medium
+
+  [ Nicholas Brown ]
+  * update autconf dpdk check to check for 19.11
+
+  [ Robert Shearman ]
+  * protobuf: fix typo in description of mpls_labels field
+
+  [ Srinivas Narayan ]
+  * flow-cache: Add API prototypes for flow-cache
+  * flow-cache: Move crypto pkt buffer definition
+  * flow-cache: Rename pr_cache* to flow_cache*
+  * flow-cache: Rename variable used for flow_cache_entry
+  * flow-cache: Move address union definition to make it re-usable
+  * flow-cache: Migrate addresses to common definition
+  * flow-cache: Enable support for IPv6
+  * flow-cache: refactor common code invoking flow_cache_add
+  * flow-cache: Decouple flow cache from crypto per-core block
+  * flow-cache: use accessors for rule and context
+  * flow-cache: add a bit to identify packets not matching any rule
+  * flow-cache: Add support for caching negative matches
+  * flow-cache: Create cache entries for cleartext packets
+  * flow-cache: Skip further processing on cache match for cleartext packet
+  * flow-cache: Avoid de-referencing policy rule unless present
+  * flow-cache: Use rss hash if present in buffer
+  * flow-cache: Add support for aging
+  * flow-cache: refactor code to dump cache
+  * flow-cache: Move flow-cache infra to separate module
+  * flow-cache: Emit hit counts
+  * flow-cache: split flow cache dump into smaller functions
+  * flow-cache: Update comments to use 'flow cache'
+  * flow-cache: rename crypto specific function & macro
+  * flow-cache: Reorder fields to remove holes in structure
+
+  [ Shweta Choudaha ]
+  * backplane: use device max_mtu for backplane intf
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Tue, 12 May 2020 12:13:28 +0100
+
+vyatta-dataplane (3.10.12) unstable; urgency=medium
+
+  * debian: update dependency on vyatta-dpdk-swport
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Mon, 11 May 2020 14:31:12 +0100
+
 vyatta-dataplane (3.10.11) unstable; urgency=medium
 
   [ Brian Russell ]

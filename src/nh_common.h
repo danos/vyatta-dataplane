@@ -12,6 +12,8 @@
 #include "compiler.h"
 #include "fal_plugin.h"
 #include "ip_addr.h"
+#include "ip_forward.h"
+#include "json_writer.h"
 #include "mpls/mpls.h"
 #include "pd_show.h"
 #include "route_flags.h"
@@ -19,6 +21,13 @@
 
 struct ifnet;
 struct llentry;
+
+#define NH_MAP_MAX_ENTRIES 64
+
+struct nh_map {
+	uint8_t index[NH_MAP_MAX_ENTRIES];
+	int count;
+};
 
 /* Output information associated with a single nexthop */
 struct next_hop {
@@ -28,10 +37,9 @@ struct next_hop {
 	} u;
 	uint32_t      flags;   /* routing flags */
 	union next_hop_outlabels outlabels;
-	union {
-		in_addr_t       gateway4; /* nexthop IPv4 address */
-		struct in6_addr gateway6; /* nexthop IPv6 address */
-	};
+	struct ip_addr gateway;
+	struct cds_list_head if_gw_list_entry;
+	struct next_hop_list *nhl; /* ptr back to the next hop list */
 };
 
 /*
@@ -42,8 +50,10 @@ struct next_hop_list {
 	struct next_hop      *siblings;	/* array of next_hop */
 	uint8_t              nsiblings;	/* # of next_hops */
 	uint8_t              proto;	/* routing protocol */
-	uint16_t             padding;
+	uint8_t              primaries; /* number of primary next hops */
+	uint8_t              padding;
 	uint32_t             index;
+	struct nh_map        *nh_map;
 	struct next_hop      hop0;      /* optimization for non-ECMP */
 	uint32_t             refcount;	/* # of LPM's referring */
 	enum pd_obj_state    pd_state;
@@ -51,6 +61,7 @@ struct next_hop_list {
 	fal_object_t         nhg_fal_obj;   /* FAL handle for next_hop_group */
 	fal_object_t         *nh_fal_obj; /* Per-nh FAL handles */
 	struct rcu_head      rcu;
+	rte_atomic64_t       usable_prim_nh_bitmask;
 } __rte_cache_aligned;
 
 /*
@@ -80,7 +91,7 @@ struct nexthop_table {
 
 enum nh_type {
 	NH_TYPE_V4GW, /* struct next_hop  */
-	NH_TYPE_V6GW, /* struct next_hop_v6 */
+	NH_TYPE_V6GW, /* struct next_hop */
 };
 
 void nh_set_ifp(struct next_hop *next_hop, struct ifnet *ifp);
@@ -114,7 +125,19 @@ nexthop_create(struct ifnet *ifp, struct ip_addr *gw, uint32_t flags,
 void nexthop_put(int family, uint32_t idx);
 
 /*
- * Given an nexthop_u create a copy of the nexthops in an array
+ * Copy the contents of the old next hop into the new next hop. It does
+ * not copy things like list ptrs and hash entries.
+ *
+ * @param[in] old The nexthop to copy.
+ * @param[out] new The nexthop to copy into.
+ *
+ * @return 0 on success
+ *         -ve on error
+ */
+int next_hop_copy(struct next_hop *old, struct next_hop *new);
+
+/*
+ * Given an next_hop_list create a copy of the nexthops in an array
  *
  * @param[in] nhl The fully formed nhl
  * @param[out] size Store the size of the created array here.
@@ -122,7 +145,61 @@ void nexthop_put(int family, uint32_t idx);
  * @return Pointer to array of nexthops on success
  * @return NULL on failure
  */
-struct next_hop *nexthop_create_copy(struct next_hop_list *nhl, int *size);
+struct next_hop *
+next_hop_list_copy_next_hops(struct next_hop_list *nhl, int *size);
+
+/*
+ * Given a next_hop_list that is in the nh table, start the process of doing
+ * a modify so that we can replace the existing next_hop_list with the new one.
+ *
+ * This function is used when a next_hop_list that is being used in the
+ * forwarding path needs to be modified in a non rcu friendly way.
+ * All memory for the new next_hop_list is allocated by this function.
+ *
+ * @param[in] family The address family the nexthop is using
+ * @param[in] old The nexthop that is currently being used
+ *
+ * @return a pointer to a partially constructed next_hop_list that is copied
+ *         from 'old'
+ *
+ * This function allocates the memory for the next_hops, but does not
+ * populate them. That is left to the caller who should make changes to
+ * the contents of the NHs as required, and should finish the switch by calling
+ * next_hop_list_create_copy_finish.
+ */
+struct next_hop_list *
+next_hop_list_create_copy_start(int family,
+				struct next_hop_list *old);
+
+/*
+ * After having called next_hop_list_create_copy_start, the user will have
+ * an old and a new next_hop_list. This function is called to finish the
+ * switch over to using the new version.
+ *
+ * The number of next_hops in old and new must be the same. This function
+ * is used only when modifying the contents of a next_hop - for example
+ * when one of them has been modified due to becoming 'neigh_present'
+ *
+ * It will modify hashtable entries, internal pointers, nh_maps and copy
+ * over fal objects as required.
+ *
+ * @param[in] family The address family the nexthop is using
+ * @param[in] old The nexthop that is currently being used. Once the
+ *            switchover is complete this will be freed as any references
+ *            will be to the new one.
+ * @param[in] new The new nexthop that is currently being created. It
+ *            will be inserted into the forwarding path and used for
+ *            forwarding.
+ * @param[in] old_idx The index in the nh table that old is at.
+ *
+ * @return 0 on success
+ *         -ve on failure
+ */
+int
+next_hop_list_create_copy_finish(int family,
+				 struct next_hop_list *old,
+				 struct next_hop_list *new,
+				 uint32_t old_idx);
 
 /*
  * Remove the old NH from the hash and add the new one. Can not
@@ -131,8 +208,8 @@ struct next_hop *nexthop_create_copy(struct next_hop_list *nhl, int *size);
  * where there are a different number of paths.
  *
  * @param[in] family The address family for this nexthop
- * @param[in] old_nu The old nexthop_u to remove from the hash
- * @param[in] new_nu The new nexthop_u to add to the hash
+ * @param[in] old_nu The old next_hop_list to remove from the hash
+ * @param[in] new_nu The new next_hop_list to add to the hash
  *
  * @retval 0 on success
  *         -ve on failure
@@ -221,7 +298,8 @@ struct next_hop *next_hop_list_find_path_using_ifp(struct next_hop_list *nhl,
  */
 bool next_hop_list_is_any_connected(const struct next_hop_list *nhl);
 
-struct next_hop *nexthop_mp_select(struct next_hop *next,
+struct next_hop *nexthop_mp_select(const struct next_hop_list *nextl,
+				   struct next_hop *next,
 				   uint32_t size,
 				   uint32_t hash);
 
@@ -265,6 +343,18 @@ nh_get_flags(struct next_hop *nh)
 {
 	return nh->flags;
 }
+
+/*
+ * Display the next_hop map from a next_hop list in json foramt.
+ */
+void nexthop_map_display(const struct next_hop_list *nextl,
+			 json_writer_t *json);
+
+/*
+ * mark all next_hops indicated by the key as unusable.
+ */
+void next_hop_mark_path_state(enum dp_rt_path_state state,
+			      const struct dp_rt_path_unusable_key *key);
 
 /*
  * Per AF hash function for a nexthop.

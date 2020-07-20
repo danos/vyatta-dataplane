@@ -439,7 +439,7 @@ void icmp6_redirect(struct ifnet *ifp, struct rte_mbuf *n,
 	/* get ip6 linklocal address for the router. */
 	struct in6_addr taddr;
 	if (nxt->flags & RTF_GATEWAY) {
-		taddr = nxt->gateway6;
+		taddr = nxt->gateway.address.ip_v6;
 		if (!IN6_IS_ADDR_LINKLOCAL(&taddr))
 			return;
 	} else

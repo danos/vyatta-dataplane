@@ -85,6 +85,12 @@
 
 struct npf_attpt_item;
 
+#define NPF_RULE_HASH_MIN       1024      /* smallest hash table size */
+#define NPF_RULE_HASH_MAX       32768     /* largest hash table size
+					   * Pick a suitably large value to
+					   * allow for large IPsec rulesets
+					   */
+
 #define SHOW_BUF_LEN		8192
 
 /* For GC of rulesets */
@@ -125,6 +131,7 @@ struct npf_rule_group {
 	npf_match_ctx_t *match_ctx_v6;
 
 	struct cds_list_head rg_rules;	/* rules in this group */
+	struct cds_lfht *rg_rules_ht;	/* hash tbl for rules in this group */
 
 
 	/*
@@ -152,6 +159,7 @@ struct npf_rule_state {
 /* npf_rule definition - read-only data.  */
 struct npf_rule {
 	struct cds_list_head		r_entry;
+	struct cds_lfht_node		r_entry_ht;
 	void				*r_ncode;	/* pointer to ncode */
 	npf_natpolicy_t			*r_natp;	/* nat policy */
 	struct npf_rule_stats		*r_stats;	/* rule stats */
@@ -214,7 +222,7 @@ static struct npf_rule_stats *npf_rule_stats_alloc(void)
 }
 
 /* Allocate a rule and its subsystems */
-static npf_rule_t *npf_alloc_rule(void)
+static npf_rule_t *npf_alloc_rule(uint32_t ruleset_type_flags)
 {
 	npf_rule_t *rl;
 
@@ -223,12 +231,15 @@ static npf_rule_t *npf_alloc_rule(void)
 		return NULL;
 
 	CDS_INIT_LIST_HEAD(&rl->r_entry);
+	cds_lfht_node_init(&rl->r_entry_ht);
 
 	rte_atomic32_set(&rl->r_refcnt, 1);
 
-	rl->r_stats = npf_rule_stats_alloc();
-	if (!rl->r_stats)
-		goto bad_stats;
+	if (!(ruleset_type_flags & NPF_RS_FLAG_NO_STATS)) {
+		rl->r_stats = npf_rule_stats_alloc();
+		if (!rl->r_stats)
+			goto bad_stats;
+	}
 
 	rl->r_state = zmalloc_aligned(sizeof(struct npf_rule_state));
 	if (!rl->r_state)
@@ -244,7 +255,8 @@ static npf_rule_t *npf_alloc_rule(void)
 bad_rproc:
 	free(rl->r_state);
 bad_state:
-	npf_rule_stats_put(rl->r_stats);
+	if (rl->r_stats)
+		npf_rule_stats_put(rl->r_stats);
 bad_stats:
 	free(rl);
 	return NULL;
@@ -268,7 +280,8 @@ static void rule_free(npf_rule_t *rl)
 	free(rl->r_state->rs_config_line);
 	free(rl->r_state->rs_rproc);
 	free(rl->r_state);
-	npf_rule_stats_put(rl->r_stats);
+	if (rl->r_stats)
+		npf_rule_stats_put(rl->r_stats);
 	free(rl->r_ncode);
 	free(rl);
 }
@@ -287,11 +300,18 @@ void npf_rule_put(npf_rule_t *rl)
 }
 
 static void
-npf_free_rules(struct cds_list_head *rules)
+npf_free_rules(npf_rule_group_t *rg)
 {
 	npf_rule_t *rl, *tmp_rl;
+	struct cds_lfht_iter iter;
 
-	cds_list_for_each_entry_safe(rl, tmp_rl, rules, r_entry) {
+	if (rg->rg_rules_ht) {
+		cds_lfht_for_each_entry(rg->rg_rules_ht, &iter, rl, r_entry_ht)
+			cds_lfht_del(rg->rg_rules_ht, &rl->r_entry_ht);
+		cds_lfht_destroy(rg->rg_rules_ht, NULL);
+	}
+
+	cds_list_for_each_entry_safe(rl, tmp_rl, &rg->rg_rules, r_entry) {
 		/* Completely dissociate rule */
 		rl->r_state->rs_rule_group = NULL;
 		cds_list_del(&rl->r_entry);
@@ -303,7 +323,7 @@ void
 npf_free_group(npf_rule_group_t *rg)
 {
 	/* Free the rules in this group */
-	npf_free_rules(&rg->rg_rules);
+	npf_free_rules(rg);
 
 	/* Remove from the list of groups */
 	cds_list_del_rcu(&rg->rg_entry);
@@ -478,6 +498,9 @@ static void rule_clear_stats(npf_rule_t *rl)
 {
 	unsigned int i;
 
+	if (!rl->r_stats)
+		return;
+
 	FOREACH_DP_LCORE(i) {
 		rl->r_stats[i].pkts_ct = 0;
 		rl->r_stats[i].bytes_ct = 0;
@@ -489,58 +512,52 @@ static void rule_clear_stats(npf_rule_t *rl)
 void rule_sum_stats(const npf_rule_t *rl,
 		    struct npf_rule_stats *rs)
 {
-	unsigned int i;
+	unsigned int i, nprot;
 
 	memset(rs, '\0', sizeof(struct npf_rule_stats));
+
+	if (!rl->r_stats)
+		return;
 
 	FOREACH_DP_LCORE(i) {
 		rs->bytes_ct += rl->r_stats[i].bytes_ct;
 		rs->pkts_ct += rl->r_stats[i].pkts_ct;
-		rs->map_ports += rl->r_stats[i].map_ports;
+		for (nprot = NAT_PROTO_FIRST; nprot < NAT_PROTO_COUNT;
+		     nprot++) {
+			rs->map_ports[nprot] += rl->r_stats[i].map_ports[nprot];
+		}
 	}
 }
 
 
-void npf_rule_get_overall_used(npf_rule_t *rl, uint64_t *used,
+void npf_rule_get_overall_used(npf_rule_t *rl, uint64_t used[],
 		uint64_t *overall)
 {
 	struct npf_rule_stats rs;
-	uint64_t t = 0;
-	uint64_t u = 0;
+	int nprot;
 
-	*used = 0;
-	*overall = 0;
+	*overall = npf_natpolicy_get_map_range(rl->r_natp);
 
 	rule_sum_stats(rl, &rs);
-	if (rl->r_natp) {
-		t = npf_natpolicy_get_map_range(rl->r_natp);
 
+	for (nprot = NAT_PROTO_FIRST; nprot < NAT_PROTO_COUNT; nprot++) {
 		/*
-		 * Calculate what we used maintaining the current
-		 * lie for DNAT usage.
+		 * Note for DNAT ports are not taken from a pool,
+		 * so 'used' is not limited by the total.
 		 */
-		switch (npf_natpolicy_get_type(rl->r_natp)) {
-		case NPF_NATIN:
-			u = (rs.map_ports) > t ? t : rs.map_ports;
-			break;
-		case NPF_NATOUT:
-			u = rs.map_ports;
-			break;
-		}
-
-		*overall = t;
-		*used = u;
+		used[nprot] = rs.map_ports[nprot];
 	}
-
 }
 
-void npf_rule_update_map_stats(npf_rule_t *rl, int nr_maps, uint32_t map_flags)
+void npf_rule_update_map_stats(npf_rule_t *rl, int nr_maps, uint32_t map_flags,
+			       uint8_t ip_prot)
 {
 	unsigned int id = dp_lcore_id();
 	int ports = (map_flags & NPF_NAT_MAP_PORT) ? nr_maps : 0;
+	enum nat_proto nprot = nat_proto_from_ipproto(ip_prot);
 
-	if (rl)
-		rl->r_stats[id].map_ports += ports;
+	if (rl && rl->r_stats)
+		rl->r_stats[id].map_ports[nprot] += ports;
 }
 
 static void rule_ref_stats(npf_rule_t *old, npf_rule_t *new)
@@ -550,8 +567,11 @@ static void rule_ref_stats(npf_rule_t *old, npf_rule_t *new)
 	 * rule, and instead reference the statistics associated with the
 	 * old rule.
 	 */
-	npf_rule_stats_put(new->r_stats);
-	new->r_stats = npf_rule_stats_get(old->r_stats);
+	if (new->r_stats)
+		npf_rule_stats_put(new->r_stats);
+
+	if (old->r_stats)
+		new->r_stats = npf_rule_stats_get(old->r_stats);
 }
 
 /*
@@ -587,12 +607,34 @@ npf_ref_stats_if_rule_unchanged(npf_rule_t *rl_old, npf_rule_t *rl_new)
 	rule_ref_stats(rl_old, rl_new);
 }
 
+static int npf_rg_rule_match(struct cds_lfht_node *node, const void *key)
+{
+	const uint32_t *rule_no = key;
+	npf_rule_t *rl = caa_container_of(node, npf_rule_t, r_entry_ht);
+
+	if (rl->r_state->rs_rule_no == *rule_no)
+		return 1;
+
+	return 0;
+}
+
 static npf_rule_t *
-npf_find_rule(struct cds_list_head *from_rules, npf_rule_t *match)
+npf_find_rule(npf_rule_group_t *rg, npf_rule_t *match)
 {
 	npf_rule_t *rl;
+	struct cds_lfht_iter iter;
+	struct cds_lfht_node *node;
 
-	cds_list_for_each_entry(rl, from_rules, r_entry) {
+	if (rg->rg_rules_ht) {
+		cds_lfht_lookup(rg->rg_rules_ht, match->r_state->rs_rule_no,
+				npf_rg_rule_match, &match->r_state->rs_rule_no,
+				&iter);
+		node = cds_lfht_iter_get_node(&iter);
+		return node ? caa_container_of(node, npf_rule_t, r_entry_ht) :
+			NULL;
+	}
+
+	cds_list_for_each_entry(rl, &rg->rg_rules, r_entry) {
 		if (match->r_state->rs_rule_no == rl->r_state->rs_rule_no)
 			return rl;
 		else if (match->r_state->rs_rule_no < rl->r_state->rs_rule_no)
@@ -607,7 +649,7 @@ npf_ref_stats_group(npf_rule_group_t *rg_old, npf_rule_group_t *rg_new)
 	npf_rule_t *rl_old, *rl_new;
 
 	cds_list_for_each_entry(rl_new, &rg_new->rg_rules, r_entry) {
-		rl_old = npf_find_rule(&rg_old->rg_rules, rl_new);
+		rl_old = npf_find_rule(rg_old, rl_new);
 
 		if (rl_old)
 			npf_ref_stats_if_rule_unchanged(rl_old, rl_new);
@@ -647,6 +689,11 @@ void
 npf_ref_stats(npf_ruleset_t *old, npf_ruleset_t *new)
 {
 	npf_rule_group_t *rg_old, *rg_new;
+	uint32_t rs_type_flags;
+
+	rs_type_flags = npf_get_ruleset_type_flags(old->rs_type);
+	if (rs_type_flags & NPF_RS_FLAG_NO_STATS)
+		return;
 
 	cds_list_for_each_entry(rg_new, &new->rs_groups, rg_entry) {
 		rg_old = npf_find_rule_group(&old->rs_groups, rg_new);
@@ -662,6 +709,12 @@ npf_clear_stats(const npf_ruleset_t *ruleset, enum npf_rule_class group_class,
 {
 	npf_rule_group_t *rg;
 	npf_rule_t *rl;
+
+	uint32_t rs_type_flags;
+
+	rs_type_flags = npf_get_ruleset_type_flags(ruleset->rs_type);
+	if (rs_type_flags & NPF_RS_FLAG_NO_STATS)
+		return;
 
 	cds_list_for_each_entry(rg, &ruleset->rs_groups, rg_entry) {
 		if (group_class == NPF_RULE_CLASS_COUNT ||
@@ -680,7 +733,7 @@ npf_clear_stats(const npf_ruleset_t *ruleset, enum npf_rule_class group_class,
 void
 npf_add_pkt(npf_rule_t *rl, uint64_t bytes)
 {
-	if (rl == NULL)
+	if (rl == NULL || rl->r_stats == NULL)
 		return;
 
 	unsigned int core = dp_lcore_id();
@@ -1033,13 +1086,26 @@ npf_json_rule(npf_rule_t *rl, bool is_nat, json_writer_t *json)
 	}
 
 	if (rl->r_natp) {
-		uint64_t total = 0;
-		uint64_t used = 0;
+		uint64_t total;
+		uint64_t used[NAT_PROTO_COUNT];
+		enum nat_proto nprot;
 
-		npf_rule_get_overall_used(rl, &used, &total);
+		npf_rule_get_overall_used(rl, used, &total);
 
 		jsonw_uint_field(json, "total_ts", total);
-		jsonw_uint_field(json, "used_ts", used);
+
+		jsonw_name(json, "protocols");
+		jsonw_start_array(json);
+
+		for (nprot = NAT_PROTO_FIRST; nprot < NAT_PROTO_COUNT;
+		     nprot++) {
+			jsonw_start_object(json);
+			jsonw_string_field(json, "protocol",
+					   nat_proto_lc_str(nprot));
+			jsonw_uint_field(json, "used_ts", used[nprot]);
+			jsonw_end_object(json);
+		}
+		jsonw_end_array(json); /* protocols */
 
 		buf[0] = '\0';
 		used_buf_len = 0;
@@ -1127,6 +1193,7 @@ npf_rule_group_t *
 npf_rule_group_create(npf_ruleset_t *ruleset, enum npf_rule_class group_class,
 		      const char *group, uint8_t dir)
 {
+	uint32_t rs_type_flags;
 	npf_rule_group_t *rg = calloc(1, sizeof(npf_rule_group_t));
 
 	if (!rg)
@@ -1134,21 +1201,40 @@ npf_rule_group_create(npf_ruleset_t *ruleset, enum npf_rule_class group_class,
 
 	CDS_INIT_LIST_HEAD(&rg->rg_entry);
 	CDS_INIT_LIST_HEAD(&rg->rg_rules);
+
+	rs_type_flags = npf_get_ruleset_type_flags(ruleset->rs_type);
+	if (rs_type_flags & NPF_RS_FLAG_HASH_TBL) {
+		rg->rg_rules_ht = cds_lfht_new(NPF_RULE_HASH_MIN,
+					       NPF_RULE_HASH_MIN,
+					       NPF_RULE_HASH_MAX,
+					       CDS_LFHT_AUTO_RESIZE,
+					       NULL);
+		if (!rg->rg_rules_ht) {
+			RTE_LOG(ERR, FIREWALL,
+				"Error: Could not allocate hash table for rules\n");
+			goto err;
+		}
+	}
 	rg->rg_ruleset = ruleset;
 	rg->rg_dir = dir;
 
 	rg->rg_class = group_class;
-	if (group)
+	if (group) {
 		rg->rg_name = strdup(group);
-	if (!rg->rg_name) {
-		free(rg);
-		return NULL;
+		if (!rg->rg_name)
+			goto err;
 	}
 
 	/* Add group to ruleset, after the groups that are there. */
 	cds_list_add_tail_rcu(&rg->rg_entry, &ruleset->rs_groups);
 
 	return rg;
+
+err:
+	if (rg->rg_rules_ht)
+		cds_lfht_destroy(rg->rg_rules_ht, NULL);
+	free(rg);
+	return NULL;
 }
 
 static uint32_t
@@ -1442,12 +1528,14 @@ npf_process_rule_config(npf_rule_t *rl)
 }
 
 int
-npf_make_rule(npf_rule_group_t *rg, uint32_t rule_no, const char *rule_line)
+npf_make_rule(npf_rule_group_t *rg, uint32_t rule_no, const char *rule_line,
+	      uint32_t ruleset_type_flags)
 {
+	struct cds_lfht_node *ret_node = NULL;
 	npf_rule_t *rl;
 	int ret;
 
-	rl = npf_alloc_rule();
+	rl = npf_alloc_rule(ruleset_type_flags);
 	if (!rl) {
 		RTE_LOG(ERR, FIREWALL, "Error: rule allocation failed\n");
 		return -ENOMEM;
@@ -1487,6 +1575,22 @@ npf_make_rule(npf_rule_group_t *rg, uint32_t rule_no, const char *rule_line)
 	 */
 	rl->r_state->rs_rule_no = rule_no;
 
+	/*
+	 * Add rule to hash table (if present) to enable faster lookups
+	 */
+	if (rg->rg_rules_ht) {
+		ret_node = cds_lfht_add_unique(rg->rg_rules_ht,
+					       rl->r_state->rs_rule_no,
+					       npf_rg_rule_match,
+					       &rl->r_state->rs_rule_no,
+					       &rl->r_entry_ht);
+
+		if (ret_node != &rl->r_entry_ht) {
+			ret = -EEXIST;
+			goto error;
+		}
+	}
+
 	ret = npf_parse_rule_line(rl->r_state->rs_config_ht, rule_line);
 	if (ret) {
 		RTE_LOG(ERR, FIREWALL, "Error: parsing rule line: %s - %s\n",
@@ -1506,6 +1610,8 @@ npf_make_rule(npf_rule_group_t *rg, uint32_t rule_no, const char *rule_line)
 	return 0;
 error:
 	cds_list_del(&rl->r_entry);
+	if (rg->rg_rules_ht && ret_node == &rl->r_entry_ht)
+		cds_lfht_del(rg->rg_rules_ht, &rl->r_entry_ht);
 	npf_rule_put(rl);
 	return ret;
 
@@ -1928,6 +2034,17 @@ npf_rule_t *npf_rule_group_find_rule(npf_rule_group_t *rg,
 				     uint32_t rule_no)
 {
 	npf_rule_t *rl;
+	struct cds_lfht_node *node;
+	struct cds_lfht_iter iter;
+
+	if (rg->rg_rules_ht) {
+		cds_lfht_lookup(rg->rg_rules_ht, rule_no, npf_rg_rule_match,
+				&rule_no, &iter);
+		node = cds_lfht_iter_get_node(&iter);
+		rl = node ? caa_container_of(node, npf_rule_t, r_entry_ht) :
+			NULL;
+		return rl;
+	}
 
 	cds_list_for_each_entry(rl, &rg->rg_rules, r_entry) {
 		if (rule_no == rl->r_state->rs_rule_no)

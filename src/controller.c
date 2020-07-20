@@ -7,7 +7,7 @@
  */
 
 /*
- * Master thread.
+ * Main thread.
  */
 
 #include <arpa/inet.h>
@@ -46,13 +46,14 @@
 #include "dp_event.h"
 #include "dpmsg.h"
 #include "event_internal.h"
+#include "if/dpdk-eth/dpdk_eth_if.h"
 #include "if/dpdk-eth/hotplug.h"
 #include "if_ether.h"
 #include "if_var.h"
 #include "ip_addr.h"
 #include "json_writer.h"
 #include "main.h"
-#include "master.h"
+#include "controller.h"
 #include "npf/npf_event.h"
 #include "route.h"
 #include "route_broker.h"
@@ -72,7 +73,7 @@
 volatile uint64_t soft_ticks;
 static uint64_t soft_clock_override;
 
-/* How long to wait in master loop (poll).
+/* How long to wait in main loop (poll).
    Determines the minimum resolution of timers used ARP, Heartbeat, etc */
 #define TIMER_INTERVAL_MS    (1000/SOFT_CLOCK_HZ)
 
@@ -91,7 +92,7 @@ static uint64_t soft_clock_override;
 static struct rte_timer load_average_timer;
 static struct rte_timer soft_clock_timer;
 
-struct master_time_s {
+struct main_time_s {
 	struct rte_timer reset_timer;
 	struct rte_timer connect_timer;
 	struct rte_timer snapshot_timer;
@@ -99,74 +100,98 @@ struct master_time_s {
 	uint64_t connect_timeout; /* in rte ticks */
 	uint64_t resync_timeout; /* in rte ticks */
 };
-static struct master_time_s master_time[CONT_SRC_COUNT];
+static struct main_time_s main_time[CONT_SRC_COUNT];
 
-/* expected asynchronous responses from controller */
-struct response {
+enum request_state {
+	REQUEST_STATE_UNKNOWN = 0,
+	REQUEST_STATE_SENT_DEL,
+	REQUEST_STATE_SENT_INI,
+	REQUEST_STATE_SENT_ADD
+};
+
+static uint64_t port_request_last_seqno;
+
+/*
+ * State describing the request message (INIPORT, ADDPORT & DELPORT)
+ * sent to the controller
+ */
+struct port_request {
+	enum request_state state;
 	unsigned int portid;
 	uint64_t seqno;
-	bool is_teardown;
 	struct rte_timer timer;
-	enum cont_src_en rsp_cont_src;
+	enum cont_src_en cont_src;
 };
-static int new_port_response(enum cont_src_en cont_src, portid_t port,
-			     zmsg_t *msg, uint32_t *ifindex, char **ifname);
-static zlist_t *response_list[CONT_SRC_COUNT];
-static zlist_t *resync_list[CONT_SRC_COUNT];
-static void master_cleanup(enum cont_src_en cont_src);
+
+/*
+ * During DPDK port initialisation port_request_list tracks INIPORT
+ * messages sent to the controller; port_request_list_alt tracks
+ * ADDPORT and DELPORT messages sent to the controller.
+ *
+ * Only when port_request_list is empty (all INIPORT responses
+ * received) can the main thread kick off the snapshot request (no
+ * need to wait for the ADDPORTs to complete before processing netlink
+ * messages).
+ */
+static zlist_t *port_request_list[CONT_SRC_COUNT];
+static zlist_t *port_request_list_alt[CONT_SRC_COUNT];
+static void main_cleanup(enum cont_src_en cont_src);
 
 /* Uplink: Do we have an L3 source address we can use to connect to a remote
  * controller ?
  */
 static bool control_addr;
 
-enum master_state_en {
-	MASTER_IDLE,
-	MASTER_SETUP,
-	MASTER_RESYNC_NEEDED,
-	MASTER_CONNECT,
-	MASTER_CONNECT_WAIT,
-	MASTER_SOCKET_CREATE,
+enum main_state_en {
+	MAIN_IDLE,
+	MAIN_SETUP,
+	MAIN_SETUP_WAIT,
+	MAIN_RESYNC_NEEDED,
+	MAIN_CONNECT,
+	MAIN_CONNECT_WAIT,
+	MAIN_SOCKET_CREATE,
 	/* The following states can handle event callbacks. They must be the
-	 * highest values, and MASTER_RESYNC must be first
-	 * see master_state_is_event_ready
+	 * highest values, and MAIN_RESYNC must be first
+	 * see main_state_is_event_ready
 	 */
-	MASTER_RESYNC,
-	MASTER_READY,
-	MASTER_RESET,
+	MAIN_RESYNC,
+	MAIN_READY,
+	MAIN_RESET,
 };
-#define MASTER_COUNT (MASTER_RESET + 1)
+#define MAIN_COUNT (MAIN_RESET + 1)
 
-static const char *master_state_name(enum master_state_en state)
+static const char *main_state_name(enum main_state_en state)
 {
 	switch (state) {
-	case MASTER_IDLE:
+	case MAIN_IDLE:
 		return "idle";
-	case MASTER_SETUP:
+	case MAIN_SETUP:
 		return "setup";
-	case MASTER_RESYNC_NEEDED:
+	case MAIN_SETUP_WAIT:
+		return "setup-wait";
+	case MAIN_RESYNC_NEEDED:
 		return "resync-needed";
-	case MASTER_RESYNC:
+	case MAIN_RESYNC:
 		return "resync";
-	case MASTER_READY:
+	case MAIN_READY:
 		return "ready";
-	case MASTER_RESET:
+	case MAIN_RESET:
 		return "reset";
-	case MASTER_CONNECT:
+	case MAIN_CONNECT:
 		return "connect";
-	case MASTER_CONNECT_WAIT:
+	case MAIN_CONNECT_WAIT:
 		return "connect-wait";
-	case MASTER_SOCKET_CREATE:
+	case MAIN_SOCKET_CREATE:
 		return "socket-create";
 	default:
 		return "unknown";
 	}
 }
 
-struct master_state_stats_s {
-	uint32_t state_in[MASTER_COUNT]; /* Times we have entered this state */
+struct main_state_stats_s {
+	uint32_t state_in[MAIN_COUNT]; /* Times we have entered this state */
 };
-static struct master_state_stats_s master_state_stats[CONT_SRC_COUNT];
+static struct main_state_stats_s main_state_stats[CONT_SRC_COUNT];
 
 /*
  * Perform a dummy route lookup to the controller address to make
@@ -221,60 +246,60 @@ int dp_send_event_to_vplaned(zmsg_t *msg)
 	return result;
 }
 
-static enum master_state_en
-master_state_info(enum cont_src_en cont_src,
-		  enum master_state_en new_state, bool set)
+static enum main_state_en
+main_state_info(enum cont_src_en cont_src,
+		  enum main_state_en new_state, bool set)
 {
-	static enum master_state_en master_state[CONT_SRC_COUNT]
-		= { MASTER_IDLE, MASTER_IDLE };
+	static enum main_state_en main_state[CONT_SRC_COUNT]
+		= { MAIN_IDLE, MAIN_IDLE };
 
 	if (set) {
 		DP_DEBUG(INIT, INFO, DATAPLANE,
-			"master(%s) state change %s -> %s\n",
+			"main(%s) state change %s -> %s\n",
 			cont_src_name(cont_src),
-			master_state_name(master_state[cont_src]),
-			master_state_name(new_state));
-		master_state[cont_src] = new_state;
+			main_state_name(main_state[cont_src]),
+			main_state_name(new_state));
+		main_state[cont_src] = new_state;
 	}
 
-	if ((master_state[cont_src] < MASTER_IDLE) ||
-	    (master_state[cont_src] >= MASTER_COUNT))
-		rte_panic("Invalid master(%s) state %i\n",
-			  cont_src_name(cont_src), master_state[cont_src]);
+	if ((main_state[cont_src] < MAIN_IDLE) ||
+	    (main_state[cont_src] >= MAIN_COUNT))
+		rte_panic("Invalid main(%s) state %i\n",
+			  cont_src_name(cont_src), main_state[cont_src]);
 
-	return master_state[cont_src];
+	return main_state[cont_src];
 }
 
-static enum master_state_en
-master_state_get(enum cont_src_en cont_src)
+static enum main_state_en
+main_state_get(enum cont_src_en cont_src)
 {
-	return master_state_info(cont_src, 0, false);
+	return main_state_info(cont_src, 0, false);
 }
 
 static void
-master_state_set(enum cont_src_en cont_src, enum master_state_en new_state)
+main_state_set(enum cont_src_en cont_src, enum main_state_en new_state)
 {
-	if (master_state_get(cont_src) == new_state)
+	if (main_state_get(cont_src) == new_state)
 		return;
 
 	if ((cont_src == CONT_SRC_UPLINK) &&
-	    (master_state_get(cont_src) == MASTER_READY))
+	    (main_state_get(cont_src) == MAIN_READY))
 		/* local vplaned leaving ready state, idle main */
-		master_state_set(CONT_SRC_MAIN, MASTER_IDLE);
+		main_state_set(CONT_SRC_MAIN, MAIN_IDLE);
 
-	master_state_info(cont_src, new_state, true);
+	main_state_info(cont_src, new_state, true);
 
-	master_state_stats[cont_src].state_in[new_state]++;
+	main_state_stats[cont_src].state_in[new_state]++;
 
 	if (!is_local_controller() && (cont_src == CONT_SRC_MAIN)) {
-		switch (master_state_get(cont_src)) {
-		case MASTER_IDLE:
+		switch (main_state_get(cont_src)) {
+		case MAIN_IDLE:
 			/* remote vplaned going idle, clean up */
-			master_cleanup(cont_src);
+			main_cleanup(cont_src);
 			break;
-		case MASTER_READY:
+		case MAIN_READY:
 			/* Reached ready state, reset the retry_delay */
-			master_time[cont_src].retry_delay = RETRY_MIN_TICKS;
+			main_time[cont_src].retry_delay = RETRY_MIN_TICKS;
 			break;
 		default:
 			break;
@@ -286,51 +311,85 @@ master_state_set(enum cont_src_en cont_src, enum master_state_en new_state)
  * fd / sockets
  */
 static bool
-master_state_is_event_ready(enum cont_src_en cont_src)
+main_state_is_event_ready(enum cont_src_en cont_src)
 {
-	return master_state_get(cont_src) >= MASTER_RESYNC;
+	return main_state_get(cont_src) >= MAIN_RESYNC;
 }
 
 static bool
-master_state_all_event_ready(void)
+main_state_all_event_ready(void)
 {
-	return master_state_is_event_ready(CONT_SRC_MAIN) &&
-		master_state_is_event_ready(CONT_SRC_UPLINK);
+	return main_state_is_event_ready(CONT_SRC_MAIN) &&
+		main_state_is_event_ready(CONT_SRC_UPLINK);
 }
 
-static struct response *find_response(enum cont_src_en cont_src, uint64_t seqno)
+static struct port_request *__get_request(zlist_t *list[],
+					  enum cont_src_en cont_src,
+					  uint64_t seqno)
 {
-	struct response *rsp;
+	struct port_request *req;
 
-	for (rsp = zlist_first(response_list[cont_src]);
-	     rsp;
-	     rsp = zlist_next(response_list[cont_src]))
-		if (rsp->seqno == seqno)
+	for (req = zlist_first(list[cont_src]);
+	     req;
+	     req = zlist_next(list[cont_src]))
+		if (req->seqno == seqno) {
+			zlist_remove(list[cont_src], req);
 			break;
+		}
 
-	return rsp;
+	return req;
 }
 
-static void cleanup_responses(enum cont_src_en cont_src)
+static void __cleanup_requests(zlist_t *list[], enum cont_src_en cont_src)
 {
-	struct response *rsp;
+	struct port_request *req;
 
-	while ((rsp = zlist_pop(response_list[cont_src])) != NULL) {
-		if (rte_timer_pending(&rsp->timer))
-			rte_timer_stop_sync(&rsp->timer);
-		free(rsp);
+	while ((req = zlist_pop(list[cont_src])) != NULL) {
+		if (rte_timer_pending(&req->timer))
+			rte_timer_stop_sync(&req->timer);
+		free(req);
 	}
 }
 
-static void cleanup_resync(enum cont_src_en cont_src)
+static struct port_request *get_request(enum cont_src_en cont_src,
+					uint64_t seqno)
 {
-	zmsg_t *msg;
-
-	while ((msg = zlist_pop(resync_list[cont_src])) != NULL)
-		zmsg_destroy(&msg);
+	return __get_request(port_request_list, cont_src, seqno);
 }
 
-static void master_cleanup(enum cont_src_en cont_src)
+static struct port_request *get_request_alt(enum cont_src_en cont_src,
+					    uint64_t seqno)
+{
+	return __get_request(port_request_list_alt, cont_src, seqno);
+}
+
+static void cleanup_requests(enum cont_src_en cont_src)
+{
+	__cleanup_requests(port_request_list, cont_src);
+	__cleanup_requests(port_request_list_alt, cont_src);
+}
+
+static void destroy_requests(enum cont_src_en cont_src)
+{
+	if (port_request_list[cont_src])
+		zlist_destroy(&port_request_list[cont_src]);
+	if (port_request_list_alt[cont_src])
+		zlist_destroy(&port_request_list_alt[cont_src]);
+}
+
+static void init_requests(enum cont_src_en cont_src)
+{
+	port_request_list[cont_src] = zlist_new();
+	if (!port_request_list[cont_src])
+		rte_panic("%s Unable to allocate request list\n",
+			  cont_src_name(cont_src));
+	port_request_list_alt[cont_src] = zlist_new();
+	if (!port_request_list_alt[cont_src])
+		rte_panic("%s Unable to allocate alternate request list\n",
+			  cont_src_name(cont_src));
+}
+
+static void main_cleanup(enum cont_src_en cont_src)
 {
 	if (is_local_controller())
 		return;
@@ -338,8 +397,7 @@ static void master_cleanup(enum cont_src_en cont_src)
 	console_unbind(cont_src);
 	controller_unsubscribe(cont_src);
 	route_broker_unsubscribe(cont_src);
-	cleanup_responses(cont_src);
-	cleanup_resync(cont_src);
+	cleanup_requests(cont_src);
 }
 
 /* Call back from timer every second. */
@@ -393,11 +451,11 @@ static void reset_timer_event(struct rte_timer *tim __rte_unused,
 	/* Only the remote vplaned connection is being reset. */
 
 	/* If the restart delay has got too long, restart process */
-	if (master_time[cont_src].retry_delay > RETRY_MAX_DELAY_TICKS) {
+	if (main_time[cont_src].retry_delay > RETRY_MAX_DELAY_TICKS) {
 		RTE_LOG(NOTICE, DATAPLANE,
-			"master(%s) Shutting down, retry %lus > retry max %ds\n",
+			"main(%s) Shutting down, retry %lus > retry max %ds\n",
 			cont_src_name(cont_src),
-			master_time[cont_src].retry_delay / rte_get_timer_hz(),
+			main_time[cont_src].retry_delay / rte_get_timer_hz(),
 			RETRY_MAX_DELAY_SEC);
 		running = false;
 		return;
@@ -406,15 +464,15 @@ static void reset_timer_event(struct rte_timer *tim __rte_unused,
 	/* Only increase retry_delay after timer expires, we may have multiple
 	 * reset signals whilst timer is running.
 	 */
-	master_time[cont_src].retry_delay += RETRY_MIN_TICKS;
+	main_time[cont_src].retry_delay += RETRY_MIN_TICKS;
 
 	/* Until we hear otherwise we still have an uplink with the
 	 * local-vplane provided ip address.  Go back to idle state, to
 	 * attempt to reconnect.
 	 */
-	RTE_LOG(NOTICE, DATAPLANE, "master(%s) Starting resynch\n",
+	RTE_LOG(NOTICE, DATAPLANE, "main(%s) Starting resynch\n",
 		cont_src_name(cont_src));
-	master_state_set(cont_src, MASTER_IDLE);
+	main_state_set(cont_src, MAIN_IDLE);
 }
 
 /* Force stop of all traffic.
@@ -422,13 +480,13 @@ static void reset_timer_event(struct rte_timer *tim __rte_unused,
 void reset_dataplane(enum cont_src_en cont_src, bool delay)
 {
 	RTE_LOG(NOTICE, DATAPLANE,
-		"master(%s) RESET, reconnecting in %lus (max %ds)\n",
+		"main(%s) RESET, reconnecting in %lus (max %ds)\n",
 		cont_src_name(cont_src),
-		delay ? master_time[cont_src].retry_delay / rte_get_timer_hz()
+		delay ? main_time[cont_src].retry_delay / rte_get_timer_hz()
 		: 0,
 		RETRY_MAX_DELAY_SEC);
 
-	master_state_set(cont_src, MASTER_RESET);
+	main_state_set(cont_src, MAIN_RESET);
 
 	/* Flush old state */
 	dp_event(DP_EVT_RESET_CONFIG, cont_src, NULL, 0, 0, NULL);
@@ -439,58 +497,363 @@ void reset_dataplane(enum cont_src_en cont_src, bool delay)
 
 	if (delay) {
 		/* Lastly set timer to delay reconnection attempt */
-		rte_timer_reset(&master_time[cont_src].reset_timer,
-				master_time[cont_src].retry_delay,
+		rte_timer_reset(&main_time[cont_src].reset_timer,
+				main_time[cont_src].retry_delay,
 				SINGLE, rte_get_master_lcore(),
 				reset_timer_event, (void *)cont_src);
 	} else {
 		/* Operator reset, return to the min retry delay. */
-		master_time[cont_src].retry_delay = RETRY_MIN_TICKS;
+		main_time[cont_src].retry_delay = RETRY_MIN_TICKS;
 		reset_timer_event(NULL, (void *)cont_src);
 	}
 }
 
-static void handle_port_response(enum cont_src_en cont_src,
-				 struct response *rsp, uint32_t ifindex,
-				 char *ifname)
+/*
+ * Build and send multi-part message:
+ *   [0] DELPORT
+ *   [1] <seqno>  64bit
+ *   [2] <port> 32bit
+ *   [3] <ifindex>  32bit (ignored)
+ *   [4] <myip> ipv4/ipv6 address
+ */
+static void del_port_request(enum cont_src_en cont_src, zsock_t *zsock,
+			     uint64_t seqno, portid_t portid)
 {
-	if (ifindex) {
-		struct ifnet *ifp = ifport_table[rsp->portid];
+	uint32_t ignored = 0;
+	uint32_t port;
+	zmsg_t *msg = zmsg_new();
+	if (!msg)
+		return;
 
-		if (ifp) {
-			/* Set the if dp id to the local vplane id */
-			if_set_cont_src(ifp, cont_src);
-			if_rename(ifp, ifname);
-			if_set_ifindex(ifp, ifindex);
-			if_finish_create(ifp,
-					 is_team(ifp) ? "team" : "ether",
-					 NULL, &ifp->eth_addr);
+	zmsg_addstr(msg, "DELPORT");
+	zmsg_addmem(msg, &seqno, sizeof(seqno));
+	/* controller expects 32 bit value for port */
+	port = portid;
+	zmsg_addmem(msg, &port, sizeof(port));
+	zmsg_addmem(msg, &ignored, sizeof(ignored));
+	zmsg_addmem(msg, &config.local_ip, sizeof(struct ip_addr));
 
-			DP_DEBUG(INIT, DEBUG, DATAPLANE,
-				 "master(%s) port %u ifindex %u ifname %s\n",
-				 cont_src_name(cont_src), ifp->if_port,
-				 ifindex, ifname);
+	RTE_LOG(DEBUG, DATAPLANE,
+		"main(%s) DELPORT request port %u\n",
+		cont_src_name(cont_src), port);
 
-			int rc = shadow_init_port(ifp->if_port, ifname,
-						  &ifp->eth_addr);
+	zmsg_send_and_destroy(&msg, zsock);
+}
 
-			if (rc < 0) {
-				char port_name[RTE_ETH_NAME_MAX_LEN];
-				RTE_LOG(ERR, DATAPLANE,
-					"master(%s) cannot init shadow for port %u\n",
-					cont_src_name(cont_src), ifp->if_port);
-				if (rte_eth_dev_get_name_by_port(ifp->if_port,
-								 port_name) < 0)
-					RTE_LOG(ERR, DATAPLANE,
-						"port(%u) to name  failed\n",
-						ifp->if_port);
-				else if (detach_device(port_name))
-					RTE_LOG(ERR, DATAPLANE,
-						"detach device %s failed\n",
-						port_name);
-			}
-		}
+/*
+ * Build and send multi-part message:
+ *   [0] ADDPORT
+ *   [1] <seqno>  64bit
+ *   [2] <cookie> 32bit  - As returned by INI response
+ *   [3] <ifname> string - Interface name as returned by INI response
+ *
+ * Response
+ *   [1] <seqno>  64bit
+ *   [2] <ifindex> 32bit - Interface ifindex
+ *   [3] <ifname> string - Interface name
+ */
+static int add_port_request(enum cont_src_en cont_src, zsock_t *zsock,
+			    uint64_t seqno, uint32_t cookie,
+			    const char *ifname)
+{
+	zmsg_t *msg = zmsg_new();
+	if (!msg)
+		return -ENOMEM;
+
+	RTE_LOG(DEBUG, DATAPLANE,
+		"main(%s) ADDPORT request '%u %s'\n", cont_src_name(cont_src),
+		cookie, ifname);
+
+	zmsg_addstr(msg, "ADDPORT");
+	zmsg_addmem(msg, &seqno, sizeof(seqno));
+	zmsg_addmem(msg, &cookie, sizeof(cookie));
+	zmsg_addstr(msg, ifname);
+	zmsg_send_and_destroy(&msg, zsock);
+	return 0;
+}
+
+/*
+ * Build and send multi-part message:
+ *   [0] INIPORT
+ *   [1] <seqno> 64bit
+ *   [2] <info> string - JSON encoded slot related info
+ *
+ * Response
+ *   [1] <seqno>  64bit
+ *   [2] <cookie> 32bit  - context to be included in ADDPORT
+ *   [3] <ifname> string - generated interface name
+ */
+static int ini_port_request(enum cont_src_en cont_src, zsock_t *zsock,
+			    uint64_t seqno, portid_t portid)
+{
+	zmsg_t *msg = zmsg_new();
+	if (!msg)
+		return -ENOMEM;
+
+	char *devinfo = dpdk_eth_vplaned_devinfo(portid);
+	if (!devinfo) {
+		zmsg_destroy(&msg);
+		return -ENOMEM;
 	}
+
+	RTE_LOG(DEBUG, DATAPLANE,
+		"main(%s) INIPORT request '%s'\n", cont_src_name(cont_src),
+		devinfo);
+
+	zmsg_addstr(msg, "INIPORT");
+	zmsg_addmem(msg, &seqno, sizeof(seqno));
+	zmsg_addstr(msg, devinfo);
+	free(devinfo);
+	zmsg_send_and_destroy(&msg, zsock);
+	return 0;
+}
+
+/*
+ * The controller took to long to answer.  Clean up and reset
+ */
+static void expire_request(struct rte_timer *t __unused, void *arg)
+{
+	struct port_request *req = arg;
+
+	RTE_LOG(ERR, DATAPLANE,
+		"main(%s) controller request for port %u timeout [seqno %"PRIu64"]\n",
+		cont_src_name(req->cont_src), req->portid, req->seqno);
+	reset_dataplane(req->cont_src, true);
+}
+
+static int ini_port_process_response(enum cont_src_en cont_src,
+				     struct port_request *req, uint32_t cookie,
+				     char *ifname)
+{
+	int rc;
+
+	/*
+	 * Kick off part 2 of the port initialisation sequence - the
+	 * ADDPORT.
+	 */
+	port_request_last_seqno++;
+	rc = add_port_request(cont_src, cont_socket_get(cont_src),
+			      port_request_last_seqno, cookie, ifname);
+	if (rc < 0) {
+		RTE_LOG(ERR, DATAPLANE,
+			"main(%s) ADDPORT request: %s\n",
+			cont_src_name(cont_src), strerror(-rc));
+		return rc;
+	}
+
+	/*
+	 * Add the port to the name to port map. Once the controller
+	 * has fully registered the interface, the associated NEWLINK
+	 * from the kernel creates the interface.
+	 */
+	rc = dpdk_name_to_eth_port_map_add(ifname, req->portid);
+	if (rc < 0) {
+		RTE_LOG(ERR, DATAPLANE,
+			"main(%s) name map add %s failed: %s\n",
+			cont_src_name(cont_src), ifname, strerror(-rc));
+		return rc;
+	}
+
+	req->seqno = port_request_last_seqno;
+	req->state = REQUEST_STATE_SENT_ADD;
+	rte_timer_reset(&req->timer, main_time[cont_src].retry_delay,
+			SINGLE, rte_get_master_lcore(),	expire_request,
+			req);
+	/*
+	 * Add the response to the alternate list rather than the main
+	 * list. This allows any received netlink messages to be
+	 * processed immediately rather than being stored for
+	 * processing after the ADDPORT response is received (see
+	 * async_response()).
+	 */
+	zlist_append(port_request_list_alt[cont_src], req);
+	return 0;
+}
+
+/*
+ * Parse ADDPORT response from controller:
+ * Expect:
+ *  [0] OK
+ *  [1] seqno
+ *  [2] ifindex - ifindex
+ *  [3] ifname  - interface name
+ *
+ * Returns:
+ *   0  - not found or protocol error
+ *   <0 - error
+ */
+static int add_port_parse_response(enum cont_src_en cont_src, zmsg_t *msg,
+				   uint32_t portno, uint32_t *ifindex,
+				   char **ifname)
+{
+	char *answer;
+	uint64_t seqno;
+	int retval = -EINVAL;
+
+	answer = zmsg_popstr(msg);
+	if (!answer) {
+		RTE_LOG(ERR, DATAPLANE,
+			"main(%s) ADDPORT missing status\n",
+			cont_src_name(cont_src));
+		goto fail;
+	}
+	if (!streq(answer, "OK")) {
+		RTE_LOG(ERR, DATAPLANE,
+			"main(%s) ADDPORT got '%s' from controller\n",
+			cont_src_name(cont_src), answer);
+		goto fail;
+	}
+	if (zmsg_popu64(msg, &seqno) < 0) {
+		RTE_LOG(ERR, DATAPLANE,
+			"main(%s) ADDPORT missing seqno\n",
+			cont_src_name(cont_src));
+		goto fail;
+	}
+	if (zmsg_popu32(msg, ifindex) < 0) {
+		RTE_LOG(ERR, DATAPLANE,
+			"main(%s) ADDPORT missing ifindex\n",
+			cont_src_name(cont_src));
+		goto fail;
+	}
+	*ifname = zmsg_popstr(msg);
+	if (!*ifname) {
+		RTE_LOG(ERR, DATAPLANE,
+			"main(%s) ADDPORT missing ifname\n",
+			cont_src_name(cont_src));
+		goto fail;
+	}
+
+	RTE_LOG(DEBUG, DATAPLANE,
+		"main(%s) ADDPORT %u response %s(%u->%u)\n",
+		cont_src_name(cont_src), portno, *ifname, *ifindex,
+		cont_src_ifindex(cont_src, *ifindex));
+	*ifindex = cont_src_ifindex(cont_src, *ifindex);
+	retval = 0;
+
+fail:
+	if (retval < 0) {
+		*ifname = NULL;
+		*ifindex = 0;
+	}
+	free(answer);
+	return retval;
+}
+
+/*
+ * Parse INIPORT response from controller:
+ * Expect:
+ *  [0] OK
+ *  [1] seqno
+ *  [2] cookie - 32bit host byte order
+ *  [3] ifname - interface name
+ *
+ * Returns:
+ *   0  - not found or protocol error
+ *   <0 - error
+ */
+static int ini_port_parse_response(enum cont_src_en cont_src, zmsg_t *msg,
+				   uint32_t *cookie, char **ifname)
+{
+	char *answer;
+	uint64_t seqno;
+	int retval = -EINVAL;
+
+	answer = zmsg_popstr(msg);
+	if (!answer) {
+		RTE_LOG(ERR, DATAPLANE,
+			"main(%s) INIPORT missing status\n",
+			cont_src_name(cont_src));
+		goto fail;
+	}
+	if (!streq(answer, "OK")) {
+		RTE_LOG(ERR, DATAPLANE,
+			"main(%s) INIPORT got '%s' from controller\n",
+			cont_src_name(cont_src), answer);
+		goto fail;
+	}
+	if (zmsg_popu64(msg, &seqno) < 0) {
+		RTE_LOG(ERR, DATAPLANE,
+			"main(%s) INIPORT missing seqno\n",
+			cont_src_name(cont_src));
+		goto fail;
+	}
+	if (zmsg_popu32(msg, cookie) < 0) {
+		RTE_LOG(ERR, DATAPLANE,
+			"main(%s) INIPORT missing cookie\n",
+			cont_src_name(cont_src));
+		goto fail;
+	}
+	*ifname = zmsg_popstr(msg);
+	if (!*ifname) {
+		RTE_LOG(ERR, DATAPLANE,
+			"main(%s) INIPORT missing ifname\n",
+			cont_src_name(cont_src));
+		goto fail;
+	}
+
+	RTE_LOG(DEBUG, DATAPLANE,
+		"main(%s) INIPORT response '%u %s'\n",
+		cont_src_name(cont_src), *cookie, *ifname);
+	retval = 0;
+fail:
+	if (retval < 0) {
+		*ifname = NULL;
+		*cookie = 0;
+	}
+	free(answer);
+	return retval;
+}
+
+static bool process_port_response(enum cont_src_en cont_src,
+				  zmsg_t *msg, uint64_t seqno)
+{
+	struct port_request *req;
+	uint32_t ifindex = 0;
+	uint32_t cookie = 0;
+	char *ifname = NULL;
+	int rc;
+
+	req = get_request(cont_src, seqno);
+	if (req == NULL)
+		req = get_request_alt(cont_src, seqno);
+
+	if (req == NULL)
+		return false;
+
+	rte_timer_stop(&req->timer);
+	switch (req->state) {
+	case REQUEST_STATE_SENT_DEL:
+		break;
+	case REQUEST_STATE_SENT_INI:
+		rc = ini_port_parse_response(cont_src, msg, &cookie, &ifname);
+		if (rc == 0)
+			rc = ini_port_process_response(cont_src, req,
+						       cookie, ifname);
+		if (rc == 0)
+			req = NULL;
+
+		break;
+	case REQUEST_STATE_SENT_ADD:
+		/*
+		 * Having established the ifindex the port can be
+		 * inserted into the main IFP database. Note that
+		 * depending on ordering, the IFP may have already
+		 * been updated when the associated NEWLINK message
+		 * arrived.
+		 */
+		rc = add_port_parse_response(cont_src, msg, req->portid,
+					     &ifindex, &ifname);
+		break;
+	default:
+		RTE_LOG(ERR, DATAPLANE,
+			"main(%s) unexpected port response state: %d\n",
+			cont_src_name(cont_src), req->state);
+		break;
+	}
+
+	free(ifname);
+	free(req);
+	return true;
 }
 
 static int process_ready(enum cont_src_en cont_src, zmsg_t *msg)
@@ -502,9 +865,73 @@ static int process_ready(enum cont_src_en cont_src, zmsg_t *msg)
 	if (rc >= 0)
 		rc = process_ready_msg(cont_src, &dpmsg);
 
-	zmsg_destroy(&msg);
-
 	return rc;
+}
+
+static bool process_async_response(enum cont_src_en cont_src, zmsg_t *msg)
+{
+	zframe_t *frame;
+	uint64_t seqno;
+
+	if (zmsg_size(msg) < 2) {
+		char *str = zmsg_popstr(msg);
+		RTE_LOG(ERR, DATAPLANE,
+			"main(%s) short message from controller: %s\n",
+			cont_src_name(cont_src), str);
+		free(str);
+		return false;
+	}
+
+	/* peek at the sequence number */
+	zmsg_first(msg);
+	frame = zmsg_next(msg);
+
+	if (zframe_size(frame) != sizeof(uint64_t)) {
+		RTE_LOG(ERR, DATAPLANE,
+			"main(%s) expect uint64_t message got size %zd\n",
+		cont_src_name(cont_src), zframe_size(frame));
+		return false;
+	}
+
+	memcpy(&seqno, zframe_data(frame), sizeof(uint64_t));
+
+	if (process_port_response(cont_src, msg, seqno))
+		return true;
+
+	if (main_state_get(cont_src) == MAIN_RESYNC) {
+		int rc;
+		int eof = 0;
+		dpmsg_t dpmsg;
+
+		rc = dpmsg_convert_zmsg(msg, &dpmsg);
+		if (rc < 0)
+			return false;
+
+		rc = process_snapshot_one(cont_src, &dpmsg, &eof);
+		if (rc < 0)
+			return false;
+
+		if (eof) {
+			main_state_set(cont_src, MAIN_READY);
+			controller_init_event_handler(cont_src);
+			route_broker_init_event_handler(cont_src);
+		}
+
+		return true;
+	}
+
+	/*
+	 * Unsol message received in MAIN_READY
+	 */
+	if (process_ready(cont_src, msg) < 0) {
+		RTE_LOG(ERR, DATAPLANE,
+			"main(%s) unexpected message in state %s\n",
+			cont_src_name(cont_src),
+			main_state_name(main_state_get(cont_src)));
+		return false;
+	}
+
+	return true;
 }
 
 /* Asynchronous response from server.
@@ -520,248 +947,27 @@ static int async_response(void *cont_src_ptr)
 
 	if (!msg) {
 		RTE_LOG(ERR, DATAPLANE,
-		       "master(%s) no message in response from controller\n",
+		       "main(%s) no message in response from controller\n",
 		       cont_src_name(cont_src));
 		return -1;
 	}
 
-	if (zmsg_size(msg) < 2) {
-		char *str = zmsg_popstr(msg);
-		RTE_LOG(ERR, DATAPLANE,
-			"master(%s) short message from controller: %s\n",
-			cont_src_name(cont_src), str);
-		free(str);
-		goto msgerr;
-	}
+	bool ok = process_async_response(cont_src, msg);
 
-	/* peek at the sequence number */
-	zmsg_first(msg);
-
-	zframe_t *frame = zmsg_next(msg);
-	uint64_t seqno;
-
-	if (zframe_size(frame) != sizeof(uint64_t)) {
-		RTE_LOG(ERR, DATAPLANE,
-			"master(%s) expect uint64_t message got size %zd\n",
-		cont_src_name(cont_src), zframe_size(frame));
-		goto msgerr;
-	}
-	memcpy(&seqno, zframe_data(frame), sizeof(uint64_t));
-
-	struct response *rsp = find_response(cont_src, seqno);
-
-	if (rsp) {
-		uint32_t ifindex = 0;
-		char *ifname = NULL;
-		if (!rsp->is_teardown) {
-			int rc = new_port_response(cont_src, rsp->portid, msg,
-						   &ifindex, &ifname);
-
-			if (rc == 0)
-				handle_port_response(cont_src, rsp, ifindex,
-						     ifname);
-			rte_timer_stop(&rsp->timer);
-		}
-		zlist_remove(response_list[cont_src], rsp);
-		free(rsp);
-		zmsg_destroy(&msg);
-		free(ifname);
-	} else if (master_state_get(cont_src) == MASTER_RESYNC) {
-		/* stash away this message for later */
-		zlist_append(resync_list[cont_src], msg);
-	} else {
-		/*
-		 * Unsol message received in MASTER_READY
-		 */
-		if (process_ready(cont_src, msg) < 0) {
-			RTE_LOG(ERR, DATAPLANE,
-				"master(%s) unexpected message in ready\n",
-				cont_src_name(cont_src));
-			reset_dataplane(cont_src, true);
-		}
-		return 0;
-	}
-
-	/* if we have no more expected MYPORT? responses.  process whatever
-	 * snapshot messages are queued.
-	 */
-	zmsg_t *msg2;
-
-	while ((zlist_size(response_list[cont_src]) == 0) &&
-	       (msg2 = zlist_pop(resync_list[cont_src])) != NULL) {
-		int rc;
-		int eof = 0;
-		dpmsg_t dpmsg;
-
-		rc = dpmsg_convert_zmsg(msg2, &dpmsg);
-		if (rc < 0) {
-			zmsg_destroy(&msg2);
-			reset_dataplane(cont_src, true);
-			break;
-		}
-		rc = process_snapshot_one(cont_src, &dpmsg, &eof);
-		zmsg_destroy(&msg2);
-
-		if (rc < 0) {
-			reset_dataplane(cont_src, true);
-			break;
-		} else if (eof) {
-			master_state_set(cont_src, MASTER_READY);
-			controller_init_event_handler(cont_src);
-			route_broker_init_event_handler(cont_src);
-		}
-
-	}
-	return 0;
-
-msgerr:
 	zmsg_destroy(&msg);
-	reset_dataplane(cont_src, true);
+	if (!ok)
+		reset_dataplane(cont_src, true);
+
 	return 0;
-}
-
-/*
- * Build and send multi-part message:
- *   [0] NEWPORT
- *   [1] <seqno> 64bit
- *   [2] <myip> ipv4/ipv6 address
- *   [3] <info> string - JSON encoded slot related info
- */
-static int new_port_request(enum cont_src_en cont_src, zsock_t *zsock,
-			    uint64_t seqno, const struct ifnet *ifp)
-{
-
-	zmsg_t *msg = zmsg_new();
-	if (!msg)
-		return -ENOMEM;
-
-	char *devinfo = if_port_info(ifp);
-	if (!devinfo) {
-		zmsg_destroy(&msg);
-		return -ENOMEM;
-	}
-
-	RTE_LOG(DEBUG, DATAPLANE,
-		"master(%s) new port request '%s'\n", cont_src_name(cont_src),
-		devinfo);
-
-	zmsg_addstr(msg, "NEWPORT");
-	zmsg_addmem(msg, &seqno, sizeof(seqno));
-	zmsg_addmem(msg, &config.local_ip, sizeof(struct ip_addr));
-	zmsg_addstr(msg, devinfo);
-	free(devinfo);
-
-	zmsg_send_and_destroy(&msg, zsock);
-	return 0;
-}
-
-/*
- * Build and send multi-part message:
- *   [0] DELPORT
- *   [1] <seqno>  64bit
- *   [2] <port> 32bit
- *   [3] <ifindex>  32bit
- *   [4] <myip> ipv4/ipv6 address
- */
-static void del_port_request(enum cont_src_en cont_src, zsock_t *zsock,
-			     uint64_t seqno, const struct ifnet *ifp)
-{
-	uint32_t port;
-	zmsg_t *msg = zmsg_new();
-	if (!msg)
-		return;
-
-	zmsg_addstr(msg, "DELPORT");
-	zmsg_addmem(msg, &seqno, sizeof(seqno));
-	/* controller expects 32 bit value for port */
-	port = ifp->if_port;
-	zmsg_addmem(msg, &port, sizeof(port));
-	zmsg_addmem(msg, &ifp->if_index, sizeof(ifp->if_index));
-	zmsg_addmem(msg, &config.local_ip, sizeof(struct ip_addr));
-
-	RTE_LOG(DEBUG, DATAPLANE,
-		"master(%s) del port request port %u if_index %u\n",
-		cont_src_name(cont_src), port, ifp->if_index);
-
-	zmsg_send_and_destroy(&msg, zsock);
-}
-
-/*
- * Parse response from controller:
- * Expect:
- *  [0] OK
- *  [1] seqno
- *  [2] ifindex - 32bit host byte order
- *  [3] ifname - interface name
- *
- * Returns:
- *   0  - not found or protocol error
- *   <0 - error
- */
-static int new_port_response(enum cont_src_en cont_src, portid_t port,
-			     zmsg_t *msg, uint32_t *ifindex, char **ifname)
-{
-	char *answer;
-	uint64_t seqno;
-	int retval = -EINVAL;
-
-	answer = zmsg_popstr(msg);
-	if (!answer) {
-		RTE_LOG(ERR, DATAPLANE,
-			"master(%s) missing status in initial response\n",
-			cont_src_name(cont_src));
-		goto fail;
-	}
-	if (!streq(answer, "OK")) {
-		RTE_LOG(ERR, DATAPLANE,
-			"master(%s) got '%s' from controller\n", answer,
-			cont_src_name(cont_src));
-		goto fail;
-	}
-	if (zmsg_popu64(msg, &seqno) < 0) {
-		RTE_LOG(ERR, DATAPLANE,
-			"master(%s) missing seqno in response\n",
-			cont_src_name(cont_src));
-		goto fail;
-	}
-	if (zmsg_popu32(msg, ifindex) < 0) {
-		RTE_LOG(ERR, DATAPLANE,
-			"master(%s) missing ifindex in response\n",
-			cont_src_name(cont_src));
-		goto fail;
-	}
-	*ifname = zmsg_popstr(msg);
-	if (!*ifname) {
-		RTE_LOG(ERR, DATAPLANE,
-			"master(%s) missing ifname in response\n",
-			cont_src_name(cont_src));
-		goto fail;
-	}
-
-	RTE_LOG(DEBUG, DATAPLANE,
-		"master(%s) new port %u response %s(%u->%u)\n",
-		cont_src_name(cont_src), port, *ifname, *ifindex,
-		cont_src_ifindex(cont_src, *ifindex));
-	*ifindex = cont_src_ifindex(cont_src, *ifindex);
-
-	retval = 0;
-
-fail:
-	if (retval < 0) {
-		*ifname = NULL;
-		*ifindex = 0;
-	}
-	free(answer);
-	return retval;
 }
 
 static void connect_timeout(struct rte_timer *t __unused, void *cont_src_ptr)
 {
 	enum cont_src_en cont_src = (uintptr_t)cont_src_ptr;
 
-	if (master_state_get(cont_src) == MASTER_CONNECT_WAIT) {
+	if (main_state_get(cont_src) == MAIN_CONNECT_WAIT) {
 		RTE_LOG(ERR, DATAPLANE,
-			"master(%s) controller connect timeout\n",
+			"main(%s) controller connect timeout\n",
 			cont_src_name(cont_src));
 		reset_dataplane(cont_src, true);
 	}
@@ -771,27 +977,23 @@ static void snapshot_timeout(struct rte_timer *t __unused, void *cont_src_ptr)
 {
 	enum cont_src_en cont_src = (uintptr_t)cont_src_ptr;
 
-	if (master_state_get(cont_src) == MASTER_RESYNC) {
+	if (main_state_get(cont_src) == MAIN_RESYNC) {
 		RTE_LOG(ERR, DATAPLANE,
-			"master(%s) controller snapshot timeout\n",
+			"main(%s) controller snapshot timeout\n",
 			cont_src_name(cont_src));
 		reset_dataplane(cont_src, true);
 	}
 }
 
 /*
- * The controller took to long to answer.  Clean up and reset
+ * Port setup complete? That is, all the initial INIPORT messages &
+ * associated responses (ifname) have been processed. The ADDPORT
+ * messages will have been issued, but we don't need to wait for the
+ * responses before asking for the snapshot.
  */
-static void expire_response(struct rte_timer *t __unused, void *arg)
+static bool setup_interfaces_done(enum cont_src_en cont_src)
 {
-	struct response *rsp = arg;
-
-	RTE_LOG(ERR, DATAPLANE,
-		"master(%s) controller response for port %u timeout [seqno %"PRIu64"]\n",
-		cont_src_name(rsp->rsp_cont_src), rsp->portid, rsp->seqno);
-	reset_dataplane(rsp->rsp_cont_src, true);
-
-
+	return zlist_size(port_request_list[cont_src]) == 0;
 }
 
 /*
@@ -812,11 +1014,6 @@ static int setup_interfaces(uint8_t startid, uint8_t num_ports,
 	}
 
 	for (portid = startid; portid < startid + num_ports; portid++) {
-		struct ifnet *ifp = ifport_table[portid];
-
-		if (!ifp)
-			continue;
-
 		if (!is_local_controller()) {
 			if (if_port_is_uplink(portid)) {
 				if (cont_src != CONT_SRC_UPLINK)
@@ -827,52 +1024,59 @@ static int setup_interfaces(uint8_t startid, uint8_t num_ports,
 				continue;
 		}
 
-		/*
-		 * Bonding interfaces are represented by kernel
-		 * interfaces created by the control plane, and not
-		 * interfaces created by the dataplane so we don't
-		 * need to issue a newport request to the controller.
-		 */
-		if (is_team(ifp))
-			continue;
+		struct port_request *request = malloc(sizeof(*request));
 
-		struct response *expected = malloc(sizeof(*expected));
-
-		if (!expected) {
+		if (!request) {
 			RTE_LOG(NOTICE, DATAPLANE,
-				"master(%s) unable to allocate response entry\n",
+				"main(%s) unable to allocate request entry\n",
 				cont_src_name(cont_src));
 			continue;
 		}
 
-		if (is_teardown) {
-			del_port_request(cont_src, ctrl_socket, ++seqno, ifp);
-		} else {
-			int rc = new_port_request(cont_src, ctrl_socket,
-						  ++seqno, ifp);
+		enum request_state expect_state;
+		zlist_t *list = port_request_list[cont_src];
 
+		++seqno;
+		if (is_teardown) {
+			dpdk_eth_port_map_del_port(portid);
+
+			del_port_request(cont_src, ctrl_socket, seqno, portid);
+			expect_state = REQUEST_STATE_SENT_DEL;
+			/*
+			 * Don't need to wait for the reply from the
+			 * controller before processing any netlink
+			 * messages (see async_response()).
+			 */
+			list = port_request_list_alt[cont_src];
+		} else {
+			int rc;
+
+			rc = ini_port_request(cont_src, ctrl_socket, seqno,
+					      portid);
 			if (rc != 0) {
 				RTE_LOG(ERR, DATAPLANE,
-					"master(%s) new_port request: %s\n",
+					"main(%s) INIPORT request: %s\n",
 					cont_src_name(cont_src), strerror(-rc));
-				free(expected);
+				free(request);
 				return -1;
 			}
+			expect_state = REQUEST_STATE_SENT_INI;
 		}
 
-		expected->portid = portid;
-		expected->seqno = seqno;
-		expected->is_teardown = is_teardown;
-		expected->rsp_cont_src = cont_src;
-		rte_timer_init(&expected->timer);
+		request->state = expect_state;
+		request->portid = portid;
+		request->seqno = seqno;
+		request->cont_src = cont_src;
+		rte_timer_init(&request->timer);
 		if (!is_teardown)
-			rte_timer_reset(&expected->timer,
-					master_time[cont_src].retry_delay,
+			rte_timer_reset(&request->timer,
+					main_time[cont_src].retry_delay,
 					SINGLE, rte_get_master_lcore(),
-					expire_response, expected);
-		zlist_append(response_list[cont_src], expected);
+					expire_request, request);
+		zlist_append(list, request);
 	}
 
+	port_request_last_seqno = seqno;
 	return 0;
 }
 
@@ -1048,40 +1252,29 @@ void send_sg6_cnt(struct sioc_sg_req6 *sr, vrfid_t vrf_id, uint32_t flags)
 }
 
 static void
-master_init_src(enum cont_src_en cont_src)
+main_init_src(enum cont_src_en cont_src)
 {
-	rte_timer_init(&master_time[cont_src].reset_timer);
-	rte_timer_init(&master_time[cont_src].connect_timer);
-	rte_timer_init(&master_time[cont_src].snapshot_timer);
-	master_time[cont_src].retry_delay = RETRY_MIN_TICKS;
-	master_time[cont_src].connect_timeout =
+	rte_timer_init(&main_time[cont_src].reset_timer);
+	rte_timer_init(&main_time[cont_src].connect_timer);
+	rte_timer_init(&main_time[cont_src].snapshot_timer);
+	main_time[cont_src].retry_delay = RETRY_MIN_TICKS;
+	main_time[cont_src].connect_timeout =
 		CONNECT_TIMEOUT * rte_get_timer_hz();
-	master_time[cont_src].resync_timeout =
+	main_time[cont_src].resync_timeout =
 		RESYNC_TIMEOUT * rte_get_timer_hz();
-
-	response_list[cont_src] = zlist_new();
-	if (!response_list[cont_src])
-		rte_panic("%s Unable to allocate response list\n",
-			  cont_src_name(cont_src));
-	resync_list[cont_src] = zlist_new();
-	if (!resync_list[cont_src])
-		rte_panic("%s Unable to allocate resync list\n",
-			  cont_src_name(cont_src));
+	init_requests(cont_src);
 }
 
 static void
-master_destroy_src(enum cont_src_en cont_src)
+main_destroy_src(enum cont_src_en cont_src)
 {
-	if (response_list[cont_src])
-		zlist_destroy(&response_list[cont_src]);
-	if (resync_list[cont_src])
-		zlist_destroy(&resync_list[cont_src]);
+	destroy_requests(cont_src);
 	controller_unsubscribe(cont_src);
 	route_broker_unsubscribe(cont_src);
 }
 
-static void master_control_intf(struct ifnet *ifp, uint8_t family,
-				const void *addr, bool add)
+static void main_control_intf(struct ifnet *ifp, uint8_t family,
+			      const void *addr, bool add)
 {
 	char addr_str[INET6_ADDRSTRLEN];
 	struct ip_addr ctrladdr = {
@@ -1142,57 +1335,57 @@ static void master_control_intf(struct ifnet *ifp, uint8_t family,
 
 		control_addr = false;
 		/* We have no control address, idle main state machine */
-		master_state_set(CONT_SRC_MAIN, MASTER_IDLE);
+		main_state_set(CONT_SRC_MAIN, MAIN_IDLE);
 	}
 }
 
 /* Handle a change of interface address */
-static void master_addr_sig(struct ifnet *ifp, uint32_t ifindex, uint8_t family,
-			    const void *addr, bool add)
+static void main_addr_sig(struct ifnet *ifp, uint32_t ifindex, uint8_t family,
+			  const void *addr, bool add)
 {
 	if (!ifp) {
 		RTE_LOG(DEBUG, DATAPLANE,
-			"master addr %s on unknown intf index %u\n",
+			"main addr %s on unknown intf index %u\n",
 			add ? "add" : "del", ifindex);
 		return;
 	}
-	master_control_intf(ifp, family, addr, add);
+	main_control_intf(ifp, family, addr, add);
 }
 
-static void master_addr_sig_add(enum cont_src_en cont_src, struct ifnet *ifp,
+static void main_addr_sig_add(enum cont_src_en cont_src, struct ifnet *ifp,
 		uint32_t ifindex, int family, const void *addr)
 {
 	if (cont_src != CONT_SRC_UPLINK)
 		return;
 
-	master_addr_sig(ifp, ifindex, family, addr, true);
+	main_addr_sig(ifp, ifindex, family, addr, true);
 }
 
-static void master_addr_sig_del(enum cont_src_en cont_src, struct ifnet *ifp,
+static void main_addr_sig_del(enum cont_src_en cont_src, struct ifnet *ifp,
 		uint32_t ifindex, int family, const void *addr)
 {
 	if (cont_src != CONT_SRC_UPLINK)
 		return;
 
-	master_addr_sig(ifp, ifindex, family, addr, false);
+	main_addr_sig(ifp, ifindex, family, addr, false);
 }
 
-static const struct dp_event_ops master_event_ops = {
-	.if_addr_add = master_addr_sig_add,
-	.if_addr_delete = master_addr_sig_del,
+static const struct dp_event_ops main_event_ops = {
+	.if_addr_add = main_addr_sig_add,
+	.if_addr_delete = main_addr_sig_del,
 };
 
-static void __attribute__ ((constructor)) master_event_init(void)
+static void __attribute__ ((constructor)) main_event_init(void)
 {
-	dp_event_register(&master_event_ops);
+	dp_event_register(&main_event_ops);
 }
 
 
 /*
- * Master lcore used for console, bridge ageing timer
+ * Main lcore used for console, bridge ageing timer
  * and checking link status
  */
-void master_loop(void)
+void main_loop(void)
 {
 	enum cont_src_en cont_src = CONT_SRC_MAIN;
 
@@ -1208,9 +1401,9 @@ void master_loop(void)
 			rte_get_timer_hz() / SOFT_CLOCK_HZ, PERIODICAL,
 			rte_get_master_lcore(), soft_clock_event, NULL);
 
-	master_init_src(CONT_SRC_MAIN);
+	main_init_src(CONT_SRC_MAIN);
 	if (!is_local_controller())
-		master_init_src(CONT_SRC_UPLINK);
+		main_init_src(CONT_SRC_UPLINK);
 
 	while (running) {
 		int rc;
@@ -1225,27 +1418,27 @@ void master_loop(void)
 		rte_timer_manage();
 
 		rcu_quiescent_state();
-		switch (master_state_get(cont_src)) {
-		case MASTER_IDLE:
+		switch (main_state_get(cont_src)) {
+		case MAIN_IDLE:
 			if (is_local_controller() ||
 				(cont_src == CONT_SRC_UPLINK))
-				master_state_set(cont_src,
-						 MASTER_SOCKET_CREATE);
+				main_state_set(cont_src,
+						 MAIN_SOCKET_CREATE);
 			/* Can we start main state machine ? */
 			if ((cont_src == CONT_SRC_MAIN)
-				&& (master_state_get(CONT_SRC_UPLINK)
-					== MASTER_READY)
+				&& (main_state_get(CONT_SRC_UPLINK)
+					== MAIN_READY)
 				&& control_addr)
-				master_state_set(CONT_SRC_MAIN,
-						 MASTER_SOCKET_CREATE);
+				main_state_set(CONT_SRC_MAIN,
+						 MAIN_SOCKET_CREATE);
 			break;
 
-		case MASTER_SOCKET_CREATE:
+		case MAIN_SOCKET_CREATE:
 			if (console_bind(cont_src) == 0)
-				master_state_set(cont_src, MASTER_CONNECT);
+				main_state_set(cont_src, MAIN_CONNECT);
 			break;
 
-		case MASTER_CONNECT:
+		case MAIN_CONNECT:
 			if (!check_uplink_route(cont_src))
 				break;
 
@@ -1257,10 +1450,10 @@ void master_loop(void)
 				struct rte_timer *timer;
 				uint64_t timeout;
 
-				timer = &master_time[cont_src].connect_timer;
-				timeout = master_time[cont_src].connect_timeout;
+				timer = &main_time[cont_src].connect_timer;
+				timeout = main_time[cont_src].connect_timeout;
 
-				master_state_set(cont_src, MASTER_CONNECT_WAIT);
+				main_state_set(cont_src, MAIN_CONNECT_WAIT);
 				rte_timer_reset(timer, timeout,
 						SINGLE, rte_get_master_lcore(),
 						connect_timeout,
@@ -1274,17 +1467,17 @@ void master_loop(void)
 				reset_dataplane(cont_src, true);
 			break;
 
-		case MASTER_CONNECT_WAIT:
+		case MAIN_CONNECT_WAIT:
 			rc = try_controller_response(cont_socket_get(cont_src),
 						     cont_src);
 			if (rc < 0) {
 				if (rc != -EAGAIN)
 					reset_dataplane(cont_src, true);
 			} else
-				master_state_set(cont_src, MASTER_SETUP);
+				main_state_set(cont_src, MAIN_SETUP);
 			break;
 
-		case MASTER_SETUP:
+		case MAIN_SETUP:
 			/* Get conf parameters */
 			conf_query(cont_src);
 
@@ -1298,11 +1491,11 @@ void master_loop(void)
 			if (rc < 0)
 				reset_dataplane(cont_src, true);
 			else
-				master_state_set(cont_src,
-						 MASTER_RESYNC_NEEDED);
+				main_state_set(cont_src,
+						 MAIN_SETUP_WAIT);
 			break;
 
-		case MASTER_RESYNC_NEEDED:
+		case MAIN_SETUP_WAIT:
 			dp_unregister_event_socket(
 				zsock_resolve(
 					cont_socket_get(cont_src)));
@@ -1311,25 +1504,36 @@ void master_loop(void)
 						cont_socket_get(cont_src)),
 						async_response,
 						(void *)cont_src, cont_src);
+
+			if (get_next_event(cont_src, TIMER_INTERVAL_MS,
+					   true) < 0)
+				return;
+
+			if (setup_interfaces_done(cont_src))
+				main_state_set(cont_src,
+						 MAIN_RESYNC_NEEDED);
+			break;
+
+		case MAIN_RESYNC_NEEDED:
 			/* Get netlink state from controller */
 			rc = controller_snapshot(cont_src);
 			if (rc < 0) {
 				reset_dataplane(cont_src, true);
 				break;
 			}
-			master_state_set(cont_src, MASTER_RESYNC);
-			rte_timer_reset(&master_time[cont_src].snapshot_timer,
-					master_time[cont_src].resync_timeout,
+			main_state_set(cont_src, MAIN_RESYNC);
+			rte_timer_reset(&main_time[cont_src].snapshot_timer,
+					main_time[cont_src].resync_timeout,
 					SINGLE, rte_get_master_lcore(),
 					snapshot_timeout, (void *)cont_src);
 
 			break;
 
-		case MASTER_RESYNC:
-		case MASTER_RESET:
-		case MASTER_READY:
+		case MAIN_RESYNC:
+		case MAIN_RESET:
+		case MAIN_READY:
 			if (get_next_event(cont_src, TIMER_INTERVAL_MS,
-					   master_state_all_event_ready()) < 0)
+					   main_state_all_event_ready()) < 0)
 				return;
 			break;
 		}
@@ -1338,9 +1542,9 @@ void master_loop(void)
 			running = false;
 	}
 
-	master_destroy_src(CONT_SRC_MAIN);
+	main_destroy_src(CONT_SRC_MAIN);
 	if (!is_local_controller())
-		master_destroy_src(CONT_SRC_UPLINK);
+		main_destroy_src(CONT_SRC_UPLINK);
 
 	RTE_LOG(NOTICE, DATAPLANE, "Shutdown started\n");
 
@@ -1350,7 +1554,7 @@ void master_loop(void)
 }
 
 static int
-master_state_show(FILE *f)
+main_state_show(FILE *f)
 {
 	enum cont_src_en cont_src;
 	json_writer_t *wr = jsonw_new(f);
@@ -1358,15 +1562,15 @@ master_state_show(FILE *f)
 	if (wr == NULL)
 		return -1;
 
-	jsonw_name(wr, "master_state");
+	jsonw_name(wr, "main_state");
 	jsonw_start_object(wr);
 	for (cont_src = 0; cont_src < CONT_SRC_COUNT; cont_src++) {
-		enum master_state_en state = master_state_get(cont_src);
+		enum main_state_en state = main_state_get(cont_src);
 
 		jsonw_name(wr, cont_src_name(cont_src));
 		jsonw_start_object(wr);
-		jsonw_int_field(wr, master_state_name(state),
-				master_state_stats[cont_src].state_in[state]);
+		jsonw_int_field(wr, main_state_name(state),
+				main_state_stats[cont_src].state_in[state]);
 		jsonw_end_object(wr);
 	}
 	jsonw_end_object(wr);
@@ -1375,27 +1579,27 @@ master_state_show(FILE *f)
 	return 0;
 }
 
-/* cmd "master state" */
+/* cmd "main state" */
 int
-cmd_master(FILE *f, int argc, char **argv)
+cmd_main(FILE *f, int argc, char **argv)
 {
 	if (argc != 2) {
 		fprintf(f, "Wrong number of state command arguments\n");
 		return -1;
 	}
 	if (strcmp(argv[1], "state") == 0)
-		return master_state_show(f);
+		return main_state_show(f);
 
-	fprintf(f, "Unknown master command\n");
+	fprintf(f, "Unknown main command\n");
 	return -1;
 }
 
 /* Just for whole_dp UT */
 bool
-dp_test_master_ready(enum cont_src_en cont_src)
+dp_test_main_ready(enum cont_src_en cont_src)
 {
 	if (is_local_controller())
-		return master_state_get(CONT_SRC_MAIN) == MASTER_READY;
+		return main_state_get(CONT_SRC_MAIN) == MAIN_READY;
 
-	return master_state_get(cont_src) == MASTER_READY;
+	return main_state_get(cont_src) == MAIN_READY;
 }

@@ -321,7 +321,7 @@ vrf_link_create(const struct ifinfomsg *ifi, const char *ifname,
 		return false;
 	}
 
-	return vrfmaster_create(ifname, ifi->ifi_index,
+	return vrf_if_create(ifname, ifi->ifi_index,
 				mnl_attr_get_u32(vrfinfo[IFLA_VRF_TABLE]));
 }
 
@@ -329,28 +329,14 @@ vrf_link_create(const struct ifinfomsg *ifi, const char *ifname,
 static struct ifnet *
 dataplane_tuntap_create(unsigned int if_idx, const char *ifname)
 {
-	struct ifnet *ifp = dp_ifnet_byifname(ifname);
-
-	/*
-	 * Is it a local port created previously?
-	 */
-	if (ifp && ifp->if_local_port) {
-		/* newly learned if_index? */
-		if (!ifp->if_index) {
-			if_set_ifindex(ifp, if_idx);
-			return ifp;
-		} else
-			return NULL;
-	}
-	return NULL;
+	return if_hwport_alloc(ifname, if_idx);
 }
 
 /*
  * Handle creation of software interfaces (tunnels, etc)
  * in response to netlink create message.
  */
-static struct ifnet *unspec_link_create(const struct nlmsghdr *nlh,
-					const struct ifinfomsg *ifi,
+static struct ifnet *unspec_link_create(const struct ifinfomsg *ifi,
 					const char *ifname, struct nlattr *tb[],
 					const char *kind, struct nlattr *kdata,
 					enum cont_src_en cont_src)
@@ -440,7 +426,7 @@ static struct ifnet *unspec_link_create(const struct nlmsghdr *nlh,
 
 		if (!strcmp(kind, "vxlan"))
 			return vxlan_create(ifi, ifname, macaddr, tb, kdata,
-					    cont_src, nlh);
+					    cont_src);
 
 		return NULL;
 	default:
@@ -469,8 +455,8 @@ static struct ifnet *unspec_link_create(const struct nlmsghdr *nlh,
 
 	/* Lower for virtual bridge (e.g. vxl-vbr4) */
 	if (!strcmp(kind, "vxlan"))
-		return vxlan_create(ifi, ifname, macaddr, tb, kdata, cont_src,
-				    nlh);
+		return vxlan_create(ifi, ifname, macaddr, tb, kdata,
+				    cont_src);
 
 	/*
 	 * Used by a local tunnel for a GRE bridge.
@@ -527,9 +513,6 @@ static struct ifnet *unspec_link_create(const struct nlmsghdr *nlh,
 					"ignoring link %u not on top of"
 					" dataplane interface\n",
 					parent_idx);
-			else
-				missed_nl_child_link_add(parent_idx, if_idx,
-							 nlh);
 			return NULL;
 		}
 
@@ -574,22 +557,22 @@ static vrfid_t netlink_get_link_vrf(struct ifnet *ifp,
 				    enum cont_src_en cont_src,
 				    struct nlattr *tb[])
 {
-	struct ifnet *master_ifp;
+	struct ifnet *team_ifp;
 
 	if (tb[IFLA_MASTER]) {
-		uint32_t master;
+		uint32_t team;
 
-		master = cont_src_ifindex(cont_src,
-					  mnl_attr_get_u32(tb[IFLA_MASTER]));
-		master_ifp = dp_ifnet_byifindex(master);
-		if (master_ifp && master_ifp->if_type == IFT_VRFMASTER)
-			return vrfmaster_get_vrfid(master_ifp);
-	} else if (ifp->if_type == IFT_VRFMASTER) {
+		team = cont_src_ifindex(cont_src,
+					mnl_attr_get_u32(tb[IFLA_MASTER]));
+		team_ifp = dp_ifnet_byifindex(team);
+		if (team_ifp && team_ifp->if_type == IFT_VRF)
+			return vrf_if_get_vrfid(team_ifp);
+	} else if (ifp->if_type == IFT_VRF) {
 		/*
-		 * VRF master devices should also be considered to be
+		 * VRF devices should also be considered to be
 		 * inside a VRF
 		 */
-		return vrfmaster_get_vrfid(ifp);
+		return vrf_if_get_vrfid(ifp);
 	}
 
 	return VRF_DEFAULT_ID;
@@ -604,7 +587,7 @@ static void unspec_link_modify(struct ifnet *ifp,
 			       struct nlattr *kdata,
 			       enum cont_src_en cont_src)
 {
-	struct ifnet *master_ifp = NULL;
+	struct ifnet *team_ifp = NULL;
 	unsigned int flags = ifi->ifi_flags;
 	vrfid_t vrf_id, old_vrfid = ifp->if_vrfid;
 
@@ -660,22 +643,22 @@ static void unspec_link_modify(struct ifnet *ifp,
 
 	case IFT_ETHER:
 		if (tb[IFLA_MASTER]) {
-			uint32_t master;
+			uint32_t if_index;
 
-			master = cont_src_ifindex(cont_src,
+			if_index = cont_src_ifindex(cont_src,
 					mnl_attr_get_u32(tb[IFLA_MASTER]));
-			master_ifp = dp_ifnet_byifindex(master);
+			team_ifp = dp_ifnet_byifindex(if_index);
 
-			if (master_ifp == NULL) {
+			if (team_ifp == NULL) {
 				DP_DEBUG(NETLINK_IF, ERR, DATAPLANE,
-					"%s couldn't find master ifindex %d\n",
-					ifp->if_name, master);
+					"%s couldn't find bridge or team if_index %d\n",
+					ifp->if_name, if_index);
 				return;
 			}
 		}
 
-		if (is_team(master_ifp) || ifp->aggregator)
-			lag_nl_slave_update(ifi, ifp, master_ifp);
+		if (is_team(team_ifp) || ifp->aggregator)
+			lag_nl_member_update(ifi, ifp, team_ifp);
 		break;
 
 	case IFT_TUNNEL_GRE:
@@ -777,6 +760,7 @@ static int unspec_link_change(const struct nlmsghdr *nlh,
 
 	ifindex = cont_src_ifindex(cont_src, ifi->ifi_index);
 	ifp = dp_ifnet_byifindex(ifindex);
+
 	if (nlh->nlmsg_type == RTM_NEWLINK)
 		msg = (ifp) ? "MOD" : "NEW";
 	else if (nlh->nlmsg_type == RTM_DELLINK)
@@ -810,7 +794,7 @@ static int unspec_link_change(const struct nlmsghdr *nlh,
 			unspec_link_modify(ifp, ifi, ifname, tb, kind, kdata,
 					   cont_src);
 		} else {
-			ifp = unspec_link_create(nlh, ifi, ifname, tb, kind,
+			ifp = unspec_link_create(ifi, ifname, tb, kind,
 						 kdata, cont_src);
 			if (ifp) {
 				vrfid_t vrf_id;
@@ -833,35 +817,35 @@ static int unspec_link_change(const struct nlmsghdr *nlh,
 				if (ifp->if_flags & IFF_UP)
 					if_start(ifp);
 			} else {
-				if (is_dp_intf(ifname))
-					missed_nl_unspec_link_add(ifindex, nlh);
-				else
+				if (is_dp_intf(ifname)) {
+					RTE_LOG(WARNING, DATAPLANE,
+						 "%u:%s link (%s/%s/%c) Not created\n",
+						 ifindex, ifname,
+						 ifitype_name(ifi->ifi_type),
+						 kind ? kind : "-",
+						 kdata ? 'y' : 'n');
+				} else {
 					incomplete_if_add_ignored(ifindex);
-				DP_DEBUG(NETLINK_IF, DEBUG, DATAPLANE,
-					 "%u:%s NUL link (%s/%s/%c) Not created\n",
-					 ifindex, ifname,
-					 ifitype_name(ifi->ifi_type),
-					 (kind) ? kind : "-",
-					 (kdata) ? 'y' : 'n');
+					DP_DEBUG(NETLINK_IF, DEBUG, DATAPLANE,
+						 "%u:%s NUL link (%s/%s/%c) Not created\n",
+						 ifindex, ifname,
+						 ifitype_name(ifi->ifi_type),
+						 (kind) ? kind : "-",
+						 (kdata) ? 'y' : 'n');
+				}
 			}
 		}
 		break;
 
 	case RTM_DELLINK:
 		if (is_team(ifp))
-			lag_nl_master_delete(ifi, ifp);
+			lag_nl_team_delete(ifi, ifp);
 		else {
 			mc_del_if(ifindex);
 			if (ifp)
 				netlink_if_free(ifp);
-			else {
-				missed_nl_unspec_link_del(ifindex);
+			else
 				incomplete_if_del_ignored(ifindex);
-				if (tb[IFLA_LINK])
-					missed_nl_child_link_del(
-						mnl_attr_get_u32(tb[IFLA_LINK]),
-						ifindex);
-			}
 		}
 		break;
 	}
@@ -906,7 +890,11 @@ static int unspec_addr_change(const struct nlmsghdr *nlh,
 			l2_rx_fltr_add_addr(ifp, addr);
 		} else {
 			if (!is_ignored_interface(ifindex))
-				missed_nl_unspec_addr_add(ifindex, addr, nlh);
+				RTE_LOG(ERR, DATAPLANE,
+					"(%s) unspec addr %s missing interface with index %u\n",
+					cont_src_name(cont_src),
+					nlmsg_type(nlh->nlmsg_type),
+					ifindex);
 		}
 		break;
 	case RTM_DELADDR:
@@ -914,7 +902,11 @@ static int unspec_addr_change(const struct nlmsghdr *nlh,
 			l2_rx_fltr_del_addr(ifp, addr);
 		} else {
 			if (!is_ignored_interface(ifindex))
-				missed_nl_unspec_addr_del(ifindex, addr);
+				RTE_LOG(ERR, DATAPLANE,
+					"(%s) unspec addr %s missing interface with index %u\n",
+					cont_src_name(cont_src),
+					nlmsg_type(nlh->nlmsg_type),
+					ifindex);
 		}
 		break;
 	default:
@@ -1290,16 +1282,16 @@ xfrm_attr_vrf(struct xfrm_selector *sel, vrfid_t *vrfid, uint32_t *ifindex)
 {
 	if (sel && sel->ifindex) {
 		/*
-		 * If the ifindex is a vrf master then it represents the vrf.
-		 * If it is not a vrf master, then it means that it is part of
-		 * the selector. In this case the vrf will be the vrf master
+		 * If the ifindex is a vrf then it represents the vrf.
+		 * If it is not a vrf, then it means that it is part of
+		 * the selector. In this case the vrf will be the vrf
 		 * of the given ifindex if set, otherwise the DEFAULT vrf.
 		 */
 		struct ifnet *ifp = dp_ifnet_byifindex(sel->ifindex);
 
 		if (ifp) {
-			if (ifp->if_type == IFT_VRFMASTER) {
-				*vrfid = vrfmaster_get_vrfid(ifp);
+			if (ifp->if_type == IFT_VRF) {
+				*vrfid = vrf_if_get_vrfid(ifp);
 				RTE_LOG(INFO, DATAPLANE, "XFRM using VRF %u\n",
 					*vrfid);
 			} else {
@@ -1517,7 +1509,7 @@ int rtnl_process_xfrm(const struct nlmsghdr *nlh, void *data)
 
 	/*
 	 * If we are in a non default vrf, and the selector ifindex is a
-	 * VRF master, then set it to 0, as we do not want to compare in the
+	 * VRF, then set it to 0, as we do not want to compare in the
 	 * fastpath for this case. We do this here, instead of when parsing
 	 * the attributes, as changing the values before the incomplete
 	 * processing can lead to stuff not being removed from the incomplete
@@ -1529,7 +1521,7 @@ int rtnl_process_xfrm(const struct nlmsghdr *nlh, void *data)
 			struct xfrm_selector *new_sel;
 
 			new_sel = (struct xfrm_selector *)sel;
-			if (ifp && ifp->if_type == IFT_VRFMASTER)
+			if (ifp && ifp->if_type == IFT_VRF)
 				new_sel->ifindex = 0;
 		}
 	}

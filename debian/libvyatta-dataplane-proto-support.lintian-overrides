@@ -1,2 +1,1 @@
-libvyatta-dataplane-proto-support: changelog-file-missing-in-native-package
 libvyatta-dataplane-proto-support: python-package-missing-depends-on-python

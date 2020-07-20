@@ -47,14 +47,14 @@ int udp_handler_lookup(short af, uint32_t dest_port, udp_port_handler *handler)
 				    (void **)handler);
 }
 
-/* Not thread safe, must be called on master thread */
+/* Not thread safe, must be called on main thread */
 int udp_handler_register(short af, uint32_t dest_port, udp_port_handler handler)
 {
 	return rte_hash_add_key_data(af == AF_INET ? ipv4_udp_table :
 				     ipv6_udp_table, &dest_port, handler);
 }
 
-/* Not thread safe, must be called on master thread */
+/* Not thread safe, must be called on main thread */
 void udp_handler_unregister(short af, uint32_t dest_port)
 {
 	rte_hash_del_key(af == AF_INET ? ipv4_udp_table : ipv6_udp_table,

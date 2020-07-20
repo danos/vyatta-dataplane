@@ -430,19 +430,29 @@ npf_gennc_ttl(nc_ctx_t *ctx, uint8_t ttl)
 }
 
 /*
- * npf_gennc_icmp: fragment to match (IPv4/IPv6) ICMP type and code.
+ * Fragment to match (IPv4/IPv6) ICMP type and code.
+ *
+ * This can also match on 'class' of ICMP - 'info' or 'error'.
+ * This by having class=true, and treating 'type' as a boolean
+ * flag with true meaning 'error'.
  */
 void
-npf_gennc_icmp(nc_ctx_t *ctx, int type, int code, bool ipv4)
+npf_gennc_icmp(nc_ctx_t *ctx, int type, int code, bool ipv4, bool class)
 {
 	uint32_t *nc = npf_ncgen_getptr(ctx, 4 /* words */);
+	uint32_t tc = 0;
 
 	/* OP, code, type (2 words) */
 	*nc++ = ipv4 ? NPF_OPCODE_ICMP4 : NPF_OPCODE_ICMP6;
-	*nc++ = (type == -1 ? 0 : NC_ICMP_HAS_TYPE |
-				  NC_ICMP_SET_TYPE_IN_OP(type)) |
-		(code == -1 ? 0 : NC_ICMP_HAS_CODE |
-				  NC_ICMP_SET_CODE_IN_OP(code));
+	if (class) {
+		tc |= NC_ICMP_HAS_CLASS | NC_ICMP_SET_TYPE_IN_OP(type);
+	} else {
+		if (type != -1)
+			tc |= NC_ICMP_HAS_TYPE | NC_ICMP_SET_TYPE_IN_OP(type);
+		if (code != -1)
+			tc |= NC_ICMP_HAS_CODE | NC_ICMP_SET_CODE_IN_OP(code);
+	}
+	*nc++ = tc;
 
 	/* Comparison block (2 words). */
 	npf_ncgen_addjmp(ctx, &nc);

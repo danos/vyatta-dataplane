@@ -154,7 +154,7 @@ unsigned int lltable_walk(struct lltable *llt, lltable_iter_func_t func,
 void lltable_flush(struct lltable *);
 bool lltable_fal_l3_change(struct lltable *llt, bool enable);
 
-/* Final destroy on master thread */
+/* Final destroy on main thread */
 void __llentry_destroy(struct lltable *llt, struct llentry *lle);
 /* Destroy on any thread */
 unsigned int llentry_destroy(struct lltable *, struct llentry *);
@@ -225,7 +225,7 @@ bool
 llentry_has_been_used(struct llentry *lle);
 
 /*
- * Issue updates that have been deferred from a non-master thread.
+ * Issue updates that have been deferred from a non-main thread.
  *
  * Should be called without lle spinlock held.
  */

@@ -136,6 +136,19 @@ static void qos_sched_npf_commit(void)
 
 		QOS_STOP(qinfo)(qinfo->ifp, qinfo);
 
+		/*
+		 * If it exists, the global map obj must apply to all
+		 * policy instances and all policy instances must have
+		 * been affected by the resource group change we are
+		 * responding to. So it is safe to delete it now
+		 * and it will be reinstalled when the first policy is
+		 * reinstalled.
+		 */
+		if (qos_global_map_obj) {
+			qos_hw_del_map(qos_global_map_obj);
+			qos_global_map_obj = FAL_QOS_NULL_OBJECT_ID;
+		}
+
 		rte_eth_link_get_nowait(qinfo->ifp->if_port, &link);
 		if (link.link_status) {
 			int ret;
@@ -907,7 +920,7 @@ void qos_sched_subport_params_check(
 }
 
 /* Allocate and initialize a handle to QoS scheduler.
- * Only called by master thread.
+ * Only called by main thread.
  */
 int qos_sched_start(struct ifnet *ifp, uint64_t speed)
 {
@@ -953,7 +966,7 @@ int qos_sched_start(struct ifnet *ifp, uint64_t speed)
 }
 
 /* Cleanup scheduler when link goes down
- * Use RCU to set the pointer because destroyed by master thread
+ * Use RCU to set the pointer because destroyed by main thread
  * but referenced by Tx thread
  */
 void qos_sched_stop(struct ifnet *ifp)
@@ -4281,6 +4294,30 @@ qos_if_link_change(struct ifnet *ifp, bool up,
 }
 
 static void
+qos_if_mtu_change(struct ifnet *ifp, uint32_t mtu __unused)
+{
+	struct rte_eth_link link;
+
+	if (!ifp->if_qos)
+		return;
+
+	rte_eth_link_get_nowait(ifp->if_port, &link);
+	if (link.link_status) {
+		/*
+		 * Since changing the MTU can influence the burst size and as
+		 * result affect the shaper functionality,  ensure that for
+		 * software based QoS support the scheduler is stopped and
+		 * started.  HW Qos support is able to cope with this and
+		 * as a result doesn't need changing.
+		 */
+		if (ifp->if_qos->dev_id == QOS_DPDK_ID && !ifp->hw_forwarding) {
+			qos_sched_stop(ifp);
+			qos_sched_start(ifp, link.link_speed);
+		}
+	}
+}
+
+static void
 qos_if_delete(struct ifnet *ifp)
 {
 	struct sched_info *qinfo = ifp->if_qos;
@@ -4338,6 +4375,7 @@ static const struct dp_event_ops qos_events = {
 	.if_feat_mode_change = qos_if_feat_mode_change,
 	.if_index_set = qos_if_index_set,
 	.if_index_unset = qos_if_index_unset,
+	.if_mtu_change = qos_if_mtu_change,
 };
 
 DP_STARTUP_EVENT_REGISTER(qos_events);

@@ -19,6 +19,7 @@ enum npf_ruleset_type {
 	NPF_RS_DNAT,
 	NPF_RS_SNAT,
 	NPF_RS_ZONE,
+	NPF_RS_ORIGINATE,
 	NPF_RS_LOCAL,
 	NPF_RS_BRIDGE,
 	NPF_RS_IPSEC,
@@ -49,6 +50,11 @@ enum npf_rs_flag {
 	NPF_RS_FLAG_APP_FW =         1 << 4, /* rules may use app firewall */
 	NPF_RS_FLAG_FEAT_INTF =      1 << 5, /* feats enabled per intf */
 	NPF_RS_FLAG_FEAT_GBL =       1 << 6, /* feats enabled on all intfs */
+	NPF_RS_FLAG_NO_STATS =       1 << 7, /* no stats allocated per rule */
+	NPF_RS_FLAG_HASH_TBL =       1 << 8, /* hash table linkage for rules in
+					      * addition to list to enable
+					      * faster lookup
+					      */
 };
 
 /**

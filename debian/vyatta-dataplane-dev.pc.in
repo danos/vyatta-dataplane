@@ -7,4 +7,4 @@ Name: vyatta-dataplane-dev
 Description: Vyatta dataplane development package
 Version: @VERSION@
 Cflags: -I${includedir}  -I${includedir}/vyatta-dataplane
-Libs: -L${libdir}
+Libs: -L${libdir} -lvyatta-jsonw

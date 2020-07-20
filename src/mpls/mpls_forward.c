@@ -828,11 +828,21 @@ static inline void nh_eth_output_mpls(enum nh_type nh_type,
 
 	len = rte_pktmbuf_pkt_len(m);
 	if (nh_type == NH_TYPE_V6GW) {
+
+		/* must at least have an IPv6 header */
+		if (len < sizeof(struct ip6_hdr)) {
+			mpls_if_incr_out_errors(dp_nh_get_ifp(nh));
+			rte_pktmbuf_free(m);
+			return;
+		}
+
 		if (unlikely((nh->flags & RTF_MAPPED_IPV6))) {
 			struct next_hop v4nh = {
 				.flags = RTF_GATEWAY,
-				.gateway4 = V4MAPPED_IPV6_TO_IPV4(
-					nh->gateway6),
+				.gateway.address.ip_v4.s_addr =
+					V4MAPPED_IPV6_TO_IPV4(
+						nh->gateway.address.ip_v6),
+				.gateway.type = AF_INET,
 				.u.ifp = dp_nh_get_ifp(nh),
 			};
 
@@ -844,7 +854,9 @@ static inline void nh_eth_output_mpls(enum nh_type nh_type,
 		} else {
 			struct next_hop v6nh = {
 				.flags = RTF_GATEWAY,
-				.gateway6 = nh->gateway6,
+				.gateway.address.ip_v6 =
+					nh->gateway.address.ip_v6,
+				.gateway.type = AF_INET6,
 				.u.ifp = dp_nh_get_ifp(nh),
 			};
 
@@ -858,9 +870,18 @@ static inline void nh_eth_output_mpls(enum nh_type nh_type,
 		assert(nh_type == NH_TYPE_V4GW);
 		struct next_hop v4nh = {
 			.flags = RTF_GATEWAY,
-			.gateway4 = nh->gateway4,
+			.gateway.address.ip_v4.s_addr =
+				nh->gateway.address.ip_v4.s_addr,
+			.gateway.type = AF_INET,
 			.u.ifp = dp_nh_get_ifp(nh),
 		};
+
+		/* must at least have an IPv4 header */
+		if (len < sizeof(struct iphdr)) {
+			mpls_if_incr_out_errors(dp_nh_get_ifp(nh));
+			rte_pktmbuf_free(m);
+			return;
+		}
 
 		if (dp_ip_l2_nh_output(input_ifp, m, &v4nh,
 				       ETH_P_MPLS_UC))
@@ -1178,8 +1199,8 @@ mpls_forward_to_ipv4(struct ifnet *ifp, bool local,
 			return;
 		}
 	}
-	ip_out_features(m, ifp, ip, v4nh, v4nh->gateway4, ip4_feat,
-			NPF_FLAG_CACHE_EMPTY);
+	ip_out_features(m, ifp, ip, v4nh, v4nh->gateway.address.ip_v4.s_addr,
+			ip4_feat, NPF_FLAG_CACHE_EMPTY);
 }
 
 static void mpls_forward_to_ipv6(struct ifnet *ifp, bool local,

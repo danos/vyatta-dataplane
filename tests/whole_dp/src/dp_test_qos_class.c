@@ -94,10 +94,10 @@ DP_START_TEST(qos_class_basic, class_basic)
 
 	dp_test_qos_debug(debug);
 
-	dp_test_netlink_set_interface_l2("sw_port_0_0");
+	dp_test_netlink_set_interface_l2("dp1sw_port_0_0");
 
 	dp_test_intf_switch_create("switch0");
-	dp_test_intf_switch_add_port("switch0", "sw_port_0_0");
+	dp_test_intf_switch_add_port("switch0", "dp1sw_port_0_0");
 	dp_test_intf_switch_add_port("switch0", "dp2T1");
 
 	ret = dp_test_qos_class_hw_switch_if("dp2T1", true);
@@ -117,8 +117,10 @@ DP_START_TEST(qos_class_basic, class_basic)
 			    "failed to clear hw-switching on dp2T1\n");
 
 	dp_test_intf_switch_remove_port("switch0", "dp2T1");
-	dp_test_intf_switch_remove_port("switch0", "sw_port_0_0");
+	dp_test_intf_switch_remove_port("switch0", "dp1sw_port_0_0");
 	dp_test_intf_switch_del("switch0");
+
+	dp_test_netlink_del_interface_l2("dp1sw_port_0_0");
 
 	dp_test_qos_debug(false);
 
@@ -205,10 +207,10 @@ DP_START_TEST(qos_class_basic, class_multimaps)
 
 	dp_test_qos_debug(debug);
 
-	dp_test_netlink_set_interface_l2("sw_port_0_0");
+	dp_test_netlink_set_interface_l2("dp1sw_port_0_0");
 
 	dp_test_intf_switch_create("switch0");
-	dp_test_intf_switch_add_port("switch0", "sw_port_0_0");
+	dp_test_intf_switch_add_port("switch0", "dp1sw_port_0_0");
 	dp_test_intf_switch_add_port("switch0", "dp2T1");
 
 	ret = dp_test_qos_class_hw_switch_if("dp2T1", true);
@@ -246,8 +248,10 @@ DP_START_TEST(qos_class_basic, class_multimaps)
 			    "failed to clear hw-switching on dp2T1\n");
 
 	dp_test_intf_switch_remove_port("switch0", "dp2T1");
-	dp_test_intf_switch_remove_port("switch0", "sw_port_0_0");
+	dp_test_intf_switch_remove_port("switch0", "dp1sw_port_0_0");
 	dp_test_intf_switch_del("switch0");
+
+	dp_test_netlink_del_interface_l2("dp1sw_port_0_0");
 
 	dp_test_qos_debug(false);
 
@@ -293,10 +297,10 @@ DP_START_TEST(qos_class_basic, class_map_multi_dps)
 
 	dp_test_qos_debug(debug);
 
-	dp_test_netlink_set_interface_l2("sw_port_0_0");
+	dp_test_netlink_set_interface_l2("dp1sw_port_0_0");
 
 	dp_test_intf_switch_create("switch0");
-	dp_test_intf_switch_add_port("switch0", "sw_port_0_0");
+	dp_test_intf_switch_add_port("switch0", "dp1sw_port_0_0");
 	dp_test_intf_switch_add_port("switch0", "dp2T1");
 
 	ret = dp_test_qos_class_hw_switch_if("dp2T1", true);
@@ -316,8 +320,10 @@ DP_START_TEST(qos_class_basic, class_map_multi_dps)
 			    "failed to clear hw-switching on dp2T1\n");
 
 	dp_test_intf_switch_remove_port("switch0", "dp2T1");
-	dp_test_intf_switch_remove_port("switch0", "sw_port_0_0");
+	dp_test_intf_switch_remove_port("switch0", "dp1sw_port_0_0");
 	dp_test_intf_switch_del("switch0");
+
+	dp_test_netlink_del_interface_l2("dp1sw_port_0_0");
 
 	dp_test_qos_debug(false);
 
@@ -477,10 +483,10 @@ DP_START_TEST(qos_class_basic, class_map_to_policy)
 
 	dp_test_qos_debug(debug);
 
-	dp_test_netlink_set_interface_l2("sw_port_0_0");
+	dp_test_netlink_set_interface_l2("dp1sw_port_0_0");
 
 	dp_test_intf_switch_create("switch0");
-	dp_test_intf_switch_add_port("switch0", "sw_port_0_0");
+	dp_test_intf_switch_add_port("switch0", "dp1sw_port_0_0");
 	dp_test_intf_switch_add_port("switch0", "dp2T1");
 	dp_test_intf_switch_add_port("switch0", "dp2T2");
 
@@ -552,8 +558,10 @@ DP_START_TEST(qos_class_basic, class_map_to_policy)
 
 	dp_test_intf_switch_remove_port("switch0", "dp2T1");
 	dp_test_intf_switch_remove_port("switch0", "dp2T2");
-	dp_test_intf_switch_remove_port("switch0", "sw_port_0_0");
+	dp_test_intf_switch_remove_port("switch0", "dp1sw_port_0_0");
 	dp_test_intf_switch_del("switch0");
+
+	dp_test_netlink_del_interface_l2("dp1sw_port_0_0");
 
 	dp_test_qos_debug(false);
 
@@ -618,10 +626,10 @@ DP_START_TEST(qos_class_basic, class_policy_skip_des)
 
 	dp_test_qos_debug(debug);
 
-	dp_test_netlink_set_interface_l2("sw_port_0_0");
+	dp_test_netlink_set_interface_l2("dp1sw_port_0_0");
 
 	dp_test_intf_switch_create("switch0");
-	dp_test_intf_switch_add_port("switch0", "sw_port_0_0");
+	dp_test_intf_switch_add_port("switch0", "dp1sw_port_0_0");
 	dp_test_intf_switch_add_port("switch0", "dp2T1");
 
 	ret = dp_test_qos_class_hw_switch_if("dp2T1", true);
@@ -659,8 +667,10 @@ DP_START_TEST(qos_class_basic, class_policy_skip_des)
 			    "failed to clear hw-switching on dp2T1\n");
 
 	dp_test_intf_switch_remove_port("switch0", "dp2T1");
-	dp_test_intf_switch_remove_port("switch0", "sw_port_0_0");
+	dp_test_intf_switch_remove_port("switch0", "dp1sw_port_0_0");
 	dp_test_intf_switch_del("switch0");
+
+	dp_test_netlink_del_interface_l2("dp1sw_port_0_0");
 
 	dp_test_qos_debug(false);
 
@@ -710,10 +720,10 @@ DP_START_TEST(qos_class_basic, class_policy_vci)
 
 	dp_test_qos_debug(debug);
 
-	dp_test_netlink_set_interface_l2("sw_port_0_0");
+	dp_test_netlink_set_interface_l2("dp1sw_port_0_0");
 
 	dp_test_intf_switch_create("switch0");
-	dp_test_intf_switch_add_port("switch0", "sw_port_0_0");
+	dp_test_intf_switch_add_port("switch0", "dp1sw_port_0_0");
 	dp_test_intf_switch_add_port("switch0", "dp2T1");
 
 	ret = dp_test_qos_class_hw_switch_if("dp2T1", true);
@@ -751,8 +761,10 @@ DP_START_TEST(qos_class_basic, class_policy_vci)
 			    "failed to clear hw-switching on dp2T1\n");
 
 	dp_test_intf_switch_remove_port("switch0", "dp2T1");
-	dp_test_intf_switch_remove_port("switch0", "sw_port_0_0");
+	dp_test_intf_switch_remove_port("switch0", "dp1sw_port_0_0");
 	dp_test_intf_switch_del("switch0");
+
+	dp_test_netlink_del_interface_l2("dp1sw_port_0_0");
 
 	dp_test_qos_debug(false);
 

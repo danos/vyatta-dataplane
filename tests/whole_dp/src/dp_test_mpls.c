@@ -1604,6 +1604,7 @@ DP_START_TEST(disp_fwd_expnull, invalid_paks)
 	const char *nh_mac_str;
 	struct iphdr *ip;
 	int len = 22;
+	int newlen;
 
 	/*
 	 * Set up the input interface address - currently
@@ -1668,8 +1669,8 @@ DP_START_TEST(disp_fwd_expnull, invalid_paks)
 	 * set the packet length so that it only includes 1 byte of
 	 * payload IP packet
 	 */
-	rte_pktmbuf_data_len(test_pak) = (char *)ip -
-		rte_pktmbuf_mtod(test_pak, char *) + 1;
+	newlen = (char *)ip - rte_pktmbuf_mtod(test_pak, char *) + 1;
+	rte_pktmbuf_trim(test_pak, test_pak->pkt_len - newlen);
 	(void)dp_test_pktmbuf_eth_init(test_pak,
 				       dp_test_intf_name2mac_str("dp1T1"),
 				       NULL,
@@ -1920,6 +1921,7 @@ DP_START_TEST(disp_fwd_ipv4, invalid_pak)
 	const char *nh_mac_str;
 	struct iphdr *ip;
 	int len = 22;
+	int newlen;
 
 	/* Set up the interface addresses */
 	dp_test_nl_add_ip_addr_and_connected("dp1T1", "1.1.1.1/24");
@@ -1960,8 +1962,8 @@ DP_START_TEST(disp_fwd_ipv4, invalid_pak)
 	 * set the packet length so that it only includes 1 byte of
 	 * payload IP packet
 	 */
-	rte_pktmbuf_data_len(test_pak) = (char *)ip -
-		rte_pktmbuf_mtod(test_pak, char *) + 1;
+	newlen = (char *)ip - rte_pktmbuf_mtod(test_pak, char *) + 1;
+	rte_pktmbuf_trim(test_pak, test_pak->pkt_len - newlen);
 
 	exp = dp_test_exp_create(payload_pak);
 	rte_pktmbuf_free(payload_pak);
@@ -2485,6 +2487,7 @@ DP_START_TEST(disp_fwd_ipv6, invalid_pak)
 	const char *nh_mac_str;
 	struct ip6_hdr *ip6;
 	int len = 22;
+	int newlen;
 
 	/* Set up the interface addresses */
 	dp_test_nl_add_ip_addr_and_connected("dp1T1", "2001:1:1::1/64");
@@ -2524,8 +2527,8 @@ DP_START_TEST(disp_fwd_ipv6, invalid_pak)
 	 * set the packet length so that it only includes 1 byte of
 	 * payload IPv6 packet
 	 */
-	rte_pktmbuf_data_len(test_pak) = (char *)ip6 -
-		rte_pktmbuf_mtod(test_pak, char *) + 1;
+	newlen = (char *)ip6 - rte_pktmbuf_mtod(test_pak, char *) + 1;
+	rte_pktmbuf_trim(test_pak, test_pak->pkt_len - newlen);
 
 	exp = dp_test_exp_create(payload_pak);
 	rte_pktmbuf_free(payload_pak);
@@ -5782,6 +5785,7 @@ static void mpls_fragment_v4_invalid_paks(bool df)
 	struct iphdr *ip;
 	const char *nh_mac_str;
 	int len = 1472;
+	int newlen;
 	label_t labels[2];
 	uint8_t ttls[2];
 
@@ -5818,8 +5822,8 @@ static void mpls_fragment_v4_invalid_paks(bool df)
 	 * set the packet length so that it only includes 1 byte of
 	 * payload IP packet
 	 */
-	rte_pktmbuf_data_len(test_pak) = (char *)ip -
-		rte_pktmbuf_mtod(test_pak, char *) + 1;
+	newlen = (char *)ip - rte_pktmbuf_mtod(test_pak, char *) + 1;
+	rte_pktmbuf_trim(test_pak, test_pak->pkt_len - newlen);
 
 	(void)dp_test_pktmbuf_eth_init(test_pak,
 				       dp_test_intf_name2mac_str("dp1T1"),

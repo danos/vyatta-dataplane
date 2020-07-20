@@ -255,7 +255,7 @@ err:
 	return NULL;
 }
 
-static struct vrf*
+static struct vrf *
 vrf_create(vrfid_t vrf_id)
 {
 	struct vrf *vrf_var;
@@ -357,13 +357,13 @@ void vrf_delete(vrfid_t vrf_id)
 	vrf_delete_by_ptr(vrf_var);
 }
 
-struct ifnet *vrfmaster_create(const char *ifname, uint32_t if_index,
+struct ifnet *vrf_if_create(const char *ifname, uint32_t if_index,
 			       uint32_t vrf_tableid)
 {
 	struct vrf_softc *vrsc;
 	struct ifnet *ifp;
 
-	ifp = if_alloc(ifname, IFT_VRFMASTER, 65535, NULL, SOCKET_ID_ANY);
+	ifp = if_alloc(ifname, IFT_VRF, 65535, NULL, SOCKET_ID_ANY);
 	if (!ifp) {
 		RTE_LOG(ERR, DATAPLANE,
 			"out of memory for vrf_ifnet\n");
@@ -383,7 +383,7 @@ struct ifnet *vrfmaster_create(const char *ifname, uint32_t if_index,
 	return ifp;
 }
 
-static void vrfmaster_free_rcu(struct rcu_head *head)
+static void vrf_if_free_rcu(struct rcu_head *head)
 {
 	struct vrf_softc *vrsc =
 		caa_container_of(head, struct vrf_softc, vrfsc_rcu);
@@ -391,29 +391,29 @@ static void vrfmaster_free_rcu(struct rcu_head *head)
 	free(vrsc);
 }
 
-static void vrfmaster_delete(struct ifnet *ifp)
+static void vrf_if_delete(struct ifnet *ifp)
 {
 	struct vrf_softc *vrsc = ifp->if_softc;
 
-	call_rcu(&vrsc->vrfsc_rcu, vrfmaster_free_rcu);
+	call_rcu(&vrsc->vrfsc_rcu, vrf_if_free_rcu);
 }
 
-static void vrfmaster_show_info(json_writer_t *wr, struct ifnet *ifp)
+static void vrf_if_show_info(json_writer_t *wr, struct ifnet *ifp)
 {
 	struct vrf_softc *vrsc = ifp->if_softc;
 
-	jsonw_name(wr, "vrfmaster");
+	jsonw_name(wr, "vrf");
 	jsonw_start_object(wr);
 	jsonw_uint_field(wr, "tableid", vrsc->vrfsc_tableid);
 	jsonw_end_object(wr);
 }
 
-vrfid_t vrfmaster_get_vrfid(struct ifnet *ifp)
+vrfid_t vrf_if_get_vrfid(struct ifnet *ifp)
 {
 	struct vrf *vrf;
 	vrfid_t i;
 
-	assert(ifp->if_type == IFT_VRFMASTER);
+	assert(ifp->if_type == IFT_VRF);
 
 	if (ifp->if_vrfid != VRF_DEFAULT_ID)
 		return ifp->if_vrfid;
@@ -446,11 +446,11 @@ vrfid_t dp_vrf_get_external_id(uint32_t internal_id)
 	return vrf ? vrf->v_external_id : VRF_INVALID_ID;
 }
 
-vrfid_t vrfmaster_get_tableid(struct ifnet *ifp)
+vrfid_t vrf_if_get_tableid(struct ifnet *ifp)
 {
 	struct vrf_softc *vrsc = ifp->if_softc;
 
-	assert(ifp->if_type == IFT_VRFMASTER);
+	assert(ifp->if_type == IFT_VRF);
 
 	return vrsc->vrfsc_tableid;
 }
@@ -460,26 +460,26 @@ vrfid_t dp_vrf_get_vid(struct vrf *vrf)
 	return vrf->v_id;
 }
 
-struct vrfmaster_lookup_by_tableid_ctx {
+struct vrf_lookup_by_tableid_ctx {
 	uint32_t kernel_tableid;
 	struct ifnet *ifp;
 	uint32_t user_tableid;
 };
 
-static void vrfmaster_lookup_by_tableid_worker(struct ifnet *ifp, void *arg)
+static void vrf_lookup_by_tableid_worker(struct ifnet *ifp, void *arg)
 {
-	struct vrfmaster_lookup_by_tableid_ctx *ctx = arg;
+	struct vrf_lookup_by_tableid_ctx *ctx = arg;
 	struct vrf *vrf;
 	unsigned int i;
 
-	if (ctx->ifp || ifp->if_type != IFT_VRFMASTER)
+	if (ctx->ifp || ifp->if_type != IFT_VRF)
 		return;
 
-	if (vrfmaster_get_tableid(ifp) == ctx->kernel_tableid) {
+	if (vrf_if_get_tableid(ifp) == ctx->kernel_tableid) {
 		ctx->ifp = ifp;
 		ctx->user_tableid = RT_TABLE_MAIN;
 	} else {
-		vrf = vrf_get_rcu(vrfmaster_get_vrfid(ifp));
+		vrf = vrf_get_rcu(vrf_if_get_vrfid(ifp));
 		for (i = 0; i <= PBR_TABLEID_MAX; i++) {
 			if (vrf->v_pbrtablemap[i] == ctx->kernel_tableid) {
 				ctx->ifp = ifp;
@@ -492,15 +492,15 @@ static void vrfmaster_lookup_by_tableid_worker(struct ifnet *ifp, void *arg)
 int vrf_lookup_by_tableid(uint32_t kernel_tableid, vrfid_t *vrfid,
 			  uint32_t *user_tableid)
 {
-	struct vrfmaster_lookup_by_tableid_ctx ctx = {
+	struct vrf_lookup_by_tableid_ctx ctx = {
 		.kernel_tableid = kernel_tableid,
 		.ifp = NULL,
 	};
-	dp_ifnet_walk(vrfmaster_lookup_by_tableid_worker, &ctx);
+	dp_ifnet_walk(vrf_lookup_by_tableid_worker, &ctx);
 	if (!ctx.ifp)
 		return -ENOENT;
 
-	*vrfid = vrfmaster_get_vrfid(ctx.ifp);
+	*vrfid = vrf_if_get_vrfid(ctx.ifp);
 	*user_tableid = ctx.user_tableid;
 
 	return 0;
@@ -508,16 +508,16 @@ int vrf_lookup_by_tableid(uint32_t kernel_tableid, vrfid_t *vrfid,
 
 struct vrf *dp_vrf_get_rcu_from_external(vrfid_t external_id)
 {
-	struct ifnet *master_ifp;
+	struct ifnet *vrf_ifp;
 
 	if (!is_nondefault_vrf(external_id))
 		return vrf_get_rcu(external_id);
 
-	master_ifp = dp_ifnet_byifindex(external_id);
-	if (!master_ifp || master_ifp->if_type != IFT_VRFMASTER)
+	vrf_ifp = dp_ifnet_byifindex(external_id);
+	if (!vrf_ifp || vrf_ifp->if_type != IFT_VRF)
 		return VRF_INVALID_ID;
 
-	return vrf_get_rcu(vrfmaster_get_vrfid(master_ifp));
+	return vrf_get_rcu(vrf_if_get_vrfid(vrf_ifp));
 }
 
 static void vrf_save_tablemap_for_replay(vrfid_t vrf_id, uint8_t pbr_tblid,
@@ -577,12 +577,12 @@ int cmd_tablemap_cfg(FILE *f, int argc, char **argv)
 }
 
 static int
-vrfmaster_dump(struct ifnet *ifp, json_writer_t *wr,
+vrf_if_dump(struct ifnet *ifp, json_writer_t *wr,
 	       enum if_dump_state_type type)
 {
 	switch (type) {
 	case IF_DS_STATE:
-		vrfmaster_show_info(wr, ifp);
+		vrf_if_show_info(wr, ifp);
 		break;
 	default:
 		break;
@@ -592,23 +592,23 @@ vrfmaster_dump(struct ifnet *ifp, json_writer_t *wr,
 }
 
 static enum dp_ifnet_iana_type
-vrfmaster_iana_type(struct ifnet *ifp __unused)
+vrf_if_iana_type(struct ifnet *ifp __unused)
 {
 	return DP_IFTYPE_IANA_OTHER;
 }
 
-static const struct ift_ops vrfmaster_if_ops = {
-	.ifop_uninit = vrfmaster_delete,
-	.ifop_dump = vrfmaster_dump,
-	.ifop_iana_type = vrfmaster_iana_type,
+static const struct ift_ops vrf_if_ops = {
+	.ifop_uninit = vrf_if_delete,
+	.ifop_dump = vrf_if_dump,
+	.ifop_iana_type = vrf_if_iana_type,
 };
 
 void vrf_init(void)
 {
-	int ret = if_register_type(IFT_VRFMASTER, &vrfmaster_if_ops);
+	int ret = if_register_type(IFT_VRF, &vrf_if_ops);
 
 	if (ret < 0)
-		rte_panic("Failed to register VRF Master type: %s",
+		rte_panic("Failed to register VRF type: %s",
 			  strerror(-ret));
 
 	/*
@@ -619,7 +619,7 @@ void vrf_init(void)
 	 * drop all received traffic.
 	 *
 	 * We also ensure we send a create notification event for
-	 * these two vrs which are not associated with a vrfmaster
+	 * these two vrs which are not associated with a vrf
 	 * interface.
 	 */
 	struct vrf *vrf;

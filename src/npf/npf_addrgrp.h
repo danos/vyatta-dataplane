@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -328,11 +328,11 @@ uint64_t npf_addrgrp_naddrs(enum npf_addrgrp_af af, int tid, bool count_all);
 struct npf_show_ag_ctl {
 	json_writer_t *json;
 	char *name;      /* show this named address-group or .. */
-	uint32_t tid;    /* .. show address-group with this ID */
-	bool list;       /* show list entries */
-	bool range_pfxs; /* show list entry range prefixes */
+	bool detail;     /* also show prefixes of ranges */
+	bool brief;      /* return a list of address groups  */
 	bool tree;       /* show tree entries */
 	bool af[AG_MAX]; /* show IPv4 and/or IPv6 entries */
+	bool optimal;    /* convert tree to optimal list of prefixes */
 };
 
 /**
@@ -421,40 +421,12 @@ struct npf_show_ag_ctl {
  * }
  *
  */
-void npf_addrgrp_show_json(FILE *fp, struct npf_show_ag_ctl *ctl);
-
-/**
- * @brief Return json for optimal set of address subblocks
- *
- * Determine the optimal set of CIDR address subblocks that may be used to
- * represent the current prefix and range entries for an address-group,
- * and returns the result to the user.
- *
- * Returns json in the following format:
- *
- * {
- *   "address-group": {
- *     {
- *       "name":"ADDR_GRP1",
- *       "id":1,
- *       "ipv4":{
- *       "tree":[
- *          {
- *             "type":0,
- *             "prefix":"4.0.0.0",
- *             "mask":20
- *           },
- *       ]
- *     }
- *   }
- * }
- */
-void npf_addrgrp_show_json_opt(FILE *fp, struct npf_show_ag_ctl *ctl);
+void npf_addrgrp_show(FILE *fp, struct npf_show_ag_ctl *ctl);
 
 /**
  * @brief Return json for an address-group by handle
  */
-void npf_addrgrp_jsonw(json_writer_t *json, struct npf_addrgrp *ag,
-		       struct npf_show_ag_ctl *ctl);
+void npf_addrgrp_jsonw_one(json_writer_t *json, struct npf_addrgrp *ag,
+			   struct npf_show_ag_ctl *ctl);
 
 #endif

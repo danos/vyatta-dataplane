@@ -404,7 +404,7 @@ dp_pipeline_register_case_feature(struct dp_pipeline_feat_registration *feat);
  * A cleanup_callback can be registered as part of the feature registration
  * as the cleanup is per feature, not per feature per instance.
  *
- * Note that this must be called on the master thread.
+ * Note that this must be called on the main thread.
  *
  * @param[in] name The name of the feature to allocate context for.
  *            This is comprised of a domain and a name, separated by
@@ -427,7 +427,7 @@ int dp_pipeline_register_inst_storage(const char *name,
 /*
  * Unregister per node instance storage.
  *
- * Note that this must be called on the master thread.
+ * Note that this must be called on the main thread.
  *
  * @param[in] name The name of the feature to deallocate storage for.
  *            This is comprised of a domain and a name, separated by

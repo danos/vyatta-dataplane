@@ -40,6 +40,7 @@
 #include "if_llatbl.h"
 #include "if_var.h"
 #include "json_writer.h"
+#include "lcore_sched.h"
 #include "lpm/lpm.h"	/* Use Vyatta modified version */
 #include "mpls/mpls.h"
 #include "pktmbuf_internal.h"
@@ -730,7 +731,7 @@ nexthop_hashfn(const struct nexthop_hash_key *key,
 	uint16_t i, j = 0;
 
 	for (i = 0; i < size; i++, j += 3) {
-		hash_keys[j] = key->nh[i].gateway4;
+		hash_keys[j] = key->nh[i].gateway.address.ip_v4.s_addr;
 		ifp = dp_nh_get_ifp(&key->nh[i]);
 		hash_keys[j+1] = ifp ? ifp->if_index : 0;
 		hash_keys[j+2] = key->nh[i].flags & NH_FLAGS_CMP_MASK;
@@ -755,7 +756,8 @@ static int nexthop_cmpfn(struct cds_lfht_node *node, const void *key)
 		     dp_nh_get_ifp(&h_key->nh[i])) ||
 		    ((nl->siblings[i].flags & NH_FLAGS_CMP_MASK) !=
 		     (h_key->nh[i].flags & NH_FLAGS_CMP_MASK)) ||
-		    (nl->siblings[i].gateway4 != h_key->nh[i].gateway4) ||
+		    (nl->siblings[i].gateway.address.ip_v4.s_addr !=
+		     h_key->nh[i].gateway.address.ip_v4.s_addr) ||
 		    !nh_outlabels_cmpfn(&nl->siblings[i].outlabels,
 					&h_key->nh[i].outlabels))
 			return false;
@@ -793,16 +795,14 @@ route_nh_replace(int family, struct next_hop_list *nextl,
 	int i;
 	int deleted = 0;
 
-	ASSERT_MASTER();
+	ASSERT_MAIN();
 
 	/* walk all the NHs, copying as we go */
 	old_array = rcu_dereference(nextl->siblings);
-	new_nextl = nexthop_alloc(nextl->nsiblings);
+	new_nextl = next_hop_list_create_copy_start(AF_INET, nextl);
 	if (!new_nextl)
 		return 0;
-	new_nextl->proto = nextl->proto;
-	new_nextl->index = nextl->index;
-	new_nextl->refcount = nextl->refcount;
+
 	new_array = rcu_dereference(new_nextl->siblings);
 
 	for (i = 0; i < nextl->nsiblings; i++) {
@@ -812,8 +812,10 @@ route_nh_replace(int family, struct next_hop_list *nextl,
 		nh_change = nh_processing_cb(next, i, arg);
 
 		/* Copy across old NH */
-		memcpy(new_next, next, sizeof(struct next_hop));
-		nh_outlabels_copy(&next->outlabels, &new_next->outlabels);
+		if (next_hop_copy(next, new_next) < 0) {
+			__nexthop_destroy(new_nextl);
+			return 0;
+		}
 
 		switch (nh_change) {
 		case NH_NO_CHANGE:
@@ -864,26 +866,10 @@ route_nh_replace(int family, struct next_hop_list *nextl,
 		return deleted;
 	}
 
-	if (nexthop_hash_del_add(family, nextl, new_nextl)) {
-		__nexthop_destroy(new_nextl);
+	if (next_hop_list_create_copy_finish(AF_INET, nextl, new_nextl,
+					     nh_idx) < 0)
 		RTE_LOG(ERR, ROUTE, "nh replace failed\n");
-		return 0;
-	}
 
-	/*
-	 * It's safe to copy over the FAL objects without
-	 * notifications as there are no FAL-visible changes to the
-	 * object - it maintains its own linkage to the neighbour
-	 */
-	new_nextl->nhg_fal_obj = nextl->nhg_fal_obj;
-	memcpy(new_nextl->nh_fal_obj, nextl->nh_fal_obj,
-	       new_nextl->nsiblings * sizeof(*new_nextl->nh_fal_obj));
-	new_nextl->pd_state = nextl->pd_state;
-
-	assert(nh_tbl.entry[nh_idx] == nextl);
-	rcu_xchg_pointer(&nh_tbl.entry[nh_idx], new_nextl);
-
-	call_rcu(&nextl->rcu, nexthop_destroy);
 	return 0;
 }
 
@@ -1005,8 +991,9 @@ static void route_change_process_nh(struct next_hop_list *nhl,
 		 * Is there an lle on this interface with a
 		 * matching address.
 		 */
-		struct llentry *lle = in_lltable_find((struct ifnet *)ifp,
-						      next->gateway4);
+		struct llentry *lle = in_lltable_find(
+			(struct ifnet *)ifp,
+			next->gateway.address.ip_v4.s_addr);
 		if (lle) {
 			route_nh_replace(AF_INET, nhl, nhl->index, lle, NULL,
 					 upd_neigh_present_cb,
@@ -1033,7 +1020,7 @@ walk_nhs_for_route_change(enum nh_change (*upd_neigh_present_cb)(
 	struct cds_lfht_iter iter;
 	struct cds_lfht_node *node;
 
-	ASSERT_MASTER();
+	ASSERT_MAIN();
 
 	cds_lfht_for_each(nexthop_hash, &iter, node) {
 		nhl = caa_container_of(node, struct next_hop_list, nh_node);
@@ -1053,7 +1040,8 @@ static enum nh_change routing_arp_add_gw_nh_replace_cb(struct next_hop *next,
 	struct in_addr *ip = ll_ipv4_addr(lle);
 	struct ifnet *ifp = rcu_dereference(lle->ifp);
 
-	if (!nh_is_gw(next) || (next->gateway4 != ip->s_addr))
+	if (!nh_is_gw(next) ||
+	    (next->gateway.address.ip_v4.s_addr != ip->s_addr))
 		return NH_NO_CHANGE;
 	if (dp_nh_get_ifp(next) != ifp)
 		return NH_NO_CHANGE;
@@ -1282,8 +1270,9 @@ int rt_insert(vrfid_t vrf_id, in_addr_t dst, uint8_t depth, uint32_t tableid,
 			if (hops[i].flags & RTF_GATEWAY)
 				continue;
 
-			assert(hops[i].gateway4 == 0);
-			hops[i].gateway4 = dst;
+			assert(hops[i].gateway.address.ip_v4.s_addr == 0);
+			hops[i].gateway.address.ip_v4.s_addr = dst;
+			hops[i].gateway.type = AF_INET;
 		}
 	}
 
@@ -1576,6 +1565,7 @@ void rt_print_nexthop(json_writer_t *json, uint32_t next_hop,
 		fal_ip_dump_next_hop_group(nextl->nhg_fal_obj, json);
 		jsonw_end_object(json);
 	}
+	nexthop_map_display(nextl, json);
 	jsonw_name(json, "next_hop");
 	jsonw_start_array(json);
 	for (i = 0; i < nextl->nsiblings; i++) {
@@ -1598,8 +1588,10 @@ void rt_print_nexthop(json_writer_t *json, uint32_t next_hop,
 
 			jsonw_string_field(json, "state", "gateway");
 			jsonw_string_field(json, "via",
-					   inet_ntop(AF_INET, &next->gateway4,
-						     b1, sizeof(b1)));
+					   inet_ntop(
+						   AF_INET,
+						   &next->gateway.address.ip_v4,
+						   b1, sizeof(b1)));
 		} else
 			jsonw_string_field(json, "state", "directly connected");
 
@@ -2139,7 +2131,7 @@ int rt_stats(struct route_head *rt_head, json_writer_t *json, uint32_t id)
 /*
  * Get egress interface for destination address.
  *
- * Must only be used on master thread.
+ * Must only be used on main thread.
  * Note for multipath routes, the first interface is always returned.
  */
 struct ifnet *nhif_dst_lookup(const struct vrf *vrf,
@@ -2200,10 +2192,10 @@ int dp_nh_lookup_by_index(uint32_t nhindex, uint32_t hash, in_addr_t *nh,
 
 	size = nextl->nsiblings;
 	if (size > 1)
-		next = nexthop_mp_select(next, size, hash);
+		next = nexthop_mp_select(nextl, next, size, hash);
 
 	if (next->flags & RTF_GATEWAY)
-		*nh = next->gateway4;
+		*nh = next->gateway.address.ip_v4.s_addr;
 	else
 		*nh = INADDR_ANY;
 
@@ -2242,7 +2234,7 @@ route_create_arp(struct vrf *vrf, struct lpm *lpm,
 			 * this. Will only be 1 NEIGH_CREATED path, but
 			 * need to inherit other paths from the cover.
 			 */
-			nh = nexthop_create_copy(nextl, &size);
+			nh = next_hop_list_copy_next_hops(nextl, &size);
 			if (!nh)
 				return;
 
@@ -2258,8 +2250,9 @@ route_create_arp(struct vrf *vrf, struct lpm *lpm,
 			 * share with non /32 routes such as the connected
 			 * cover.
 			 */
-			assert(nh[sibling].gateway4 == 0);
-			nh[sibling].gateway4 = ip->s_addr;
+			assert(nh[sibling].gateway.address.ip_v4.s_addr == 0);
+			nh[sibling].gateway.address.ip_v4.s_addr = ip->s_addr;
+			nh[sibling].gateway.type = AF_INET;
 			if (route_nexthop_new(nh, size, RTPROT_UNSPEC,
 					      &nh_idx) < 0) {
 				free(nh);
@@ -2283,7 +2276,8 @@ static enum nh_change routing_arp_del_gw_nh_replace_cb(struct next_hop *next,
 	struct in_addr *ip = ll_ipv4_addr(lle);
 	struct ifnet *ifp = rcu_dereference(lle->ifp);
 
-	if (!nh_is_gw(next) || (next->gateway4 != ip->s_addr))
+	if (!nh_is_gw(next) ||
+	    (next->gateway.address.ip_v4.s_addr != ip->s_addr))
 		return NH_NO_CHANGE;
 	if (dp_nh_get_ifp(next) != ifp)
 		return NH_NO_CHANGE;
@@ -2305,7 +2299,7 @@ walk_nhs_for_arp_change(struct llentry *lle,
 	struct cds_lfht_iter iter;
 	struct cds_lfht_node *node;
 
-	ASSERT_MASTER();
+	ASSERT_MAIN();
 
 	cds_lfht_for_each(nexthop_hash, &iter, node) {
 		nhl = caa_container_of(node, struct next_hop_list, nh_node);

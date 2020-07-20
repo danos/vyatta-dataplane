@@ -298,7 +298,7 @@ apm_block_alloc_specific_port(struct apm_port_block *pb, uint8_t proto,
 		pb->pb_ports_used[proto]++;
 
 		/* Set bit */
-		pb->pb_map[proto][bm] |= (UINT64_C(1) << bit);
+		pb->pb_map[proto][bm] |= mask;
 		return port;
 	}
 

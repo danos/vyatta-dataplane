@@ -50,6 +50,7 @@
 #include "config_internal.h"
 #include "crypto/crypto_forward.h"
 #include "crypto/vti.h"
+#include "dp_event.h"
 #include "ether.h"
 #include "if/gre.h"
 #include "if_var.h"
@@ -144,13 +145,16 @@ local_shadow_if(struct rte_mbuf *m, struct ifnet *inp_ifp)
 
 /*
  * Pass received packets  into the Linux TCP/IP stack.
- * Use ring to pass packets to master thread.
+ * Use ring to pass packets to main thread.
  *
  * Always consumes (free) mbuf
  */
 void local_packet_internal(struct ifnet *ifp, struct rte_mbuf *m)
 {
 	unsigned int free_space;
+
+	if (!local_packet_filter(ifp, m))
+		goto drop;
 
 	struct shadow_if_info *sii = local_shadow_if(m, ifp);
 	if (unlikely(!sii)) {
@@ -189,7 +193,7 @@ void local_packet_internal(struct ifnet *ifp, struct rte_mbuf *m)
 		sii->congested = false;
 
 	if (CMM_LOAD_SHARED(sii->wake_me)) {
-		/* wake up slowpath thread on the master. */
+		/* wake up slowpath thread on the main. */
 		static const uint64_t incr = 1;
 
 		if (unlikely(write(event_fd, &incr, sizeof(incr)) < 0))
@@ -216,7 +220,7 @@ drop:	__cold_label;
 
 /*
  * Pass received packets  into the Linux TCP/IP stack.
- * Use ring to pass packets to master thread.
+ * Use ring to pass packets to main thread.
  *
  * Always consumes (free) mbuf
  */
@@ -228,15 +232,8 @@ void local_packet(struct ifnet *ifp, struct rte_mbuf *m)
 		.in_ifp = ifp
 	};
 
-	if (!local_packet_filter(ifp, m))
-		goto drop;
-
 	pipeline_fused_l2_local(&pkt);
 	return;
-
-drop:	__cold_label;
-	if_incr_dropped(ifp);
-	pipeline_fused_term_drop(&pkt);
 }
 
 /*
@@ -351,19 +348,6 @@ static int shadow_writer(zloop_t *loop __rte_unused,
 	return 0;
 }
 
-/* Destroy obsolete TUN/TAP device
- * This is used when dataplane and controller are on the same machine.
- */
-static int tap_destroy(portid_t port)
-{
-	const struct ifnet *ifp = ifport_table[port];
-
-	if (ifp)
-		tap_teardown(ifp->if_name);
-
-	return 0;
-}
-
 /*
  * Create ring for packets from dataplane to kernel via spathintf
  */
@@ -414,28 +398,28 @@ static int shadow_output(struct shadow_if_info *sii, struct rte_mbuf *m,
 			 struct ifnet *ifp)
 {
 	struct rte_ether_hdr *hdr = ethhdr(m);
-	struct ifnet *master;
+	struct ifnet *team;
 
 	if (!(ifp->if_flags & IFF_UP))
 		return -1;
 
 	dp_pktmbuf_l2_len(m) = RTE_ETHER_HDR_LEN;
 
-	master = rcu_dereference(ifp->aggregator);
+	team = rcu_dereference(ifp->aggregator);
 
 	if (unlikely(hdr->ether_type == htons(RTE_ETHER_TYPE_SLOW))) {
-		if (master) {
-			int ret = lag_etype_slow_tx(master, ifp, m);
+		if (team) {
+			int ret = lag_etype_slow_tx(team, ifp, m);
 
 			return ret;
 		}
 		return -1;
 	}
 
-	if (master) {
-		if (!(master->if_flags & IFF_UP))
+	if (team) {
+		if (!(team->if_flags & IFF_UP))
 			return -1;
-		ifp = master;
+		ifp = team;
 	}
 
 	uint16_t vif = vid_from_pkt(m, if_tpid(ifp));
@@ -561,8 +545,6 @@ int spath_reader(zloop_t *loop __rte_unused, zmq_pollitem_t *item,
 		 */
 		set_spath_rx_meta_data(m, NULL, ntohs(pi.proto),
 				       TUN_META_FLAGS_NONE);
-		if (likely(pi.proto == RTE_ETHER_TYPE_IPV4))
-			dp_pktmbuf_l3_len(m) = iphdr(m)->ihl << 2;
 	}
 
 	pktmbuf_mdata_set(m, PKT_MDATA_FROM_US);
@@ -571,19 +553,27 @@ int spath_reader(zloop_t *loop __rte_unused, zmq_pollitem_t *item,
 		/*
 		 * This is the s2s case. If there is a mark then it
 		 * represents the ifindex that is part of the selector,
-		 * or if no ifindex in the selector then the vrf master.
+		 * or if no ifindex in the selector then the vrf.
 		 */
 		if (meta.flags & TUN_META_FLAG_MARK) {
 			struct ifnet *temp_ifp = dp_ifnet_byifindex(meta.mark);
 
 			if (temp_ifp) {
 				pktmbuf_set_vrf(m, if_vrfid(temp_ifp));
-				if (temp_ifp->if_type != IFT_VRFMASTER) {
+				if (temp_ifp->if_type != IFT_VRF) {
 					/* set s2s_ifp for later */
 					s2s_ifp = temp_ifp;
 				}
 			}
 		}
+		/*
+		 * Need to setup the L3 len in the mbuf if this is an
+		 * IPv4 packet.  Site to site packets , are
+		 * arriving with their proto in the reverse byte
+		 * order.
+		 */
+		if (ntohs(pi.proto) == RTE_ETHER_TYPE_IPV4)
+			dp_pktmbuf_l3_len(m) = iphdr(m)->ihl << 2;
 	}
 
 	if (!ifp) {
@@ -756,6 +746,13 @@ void shadow_uninit_port(portid_t port)
 	if (!shadow_port_needed(port))
 		return;
 
+	/*
+	 * if called during shutdown then ignore - the thread has
+	 * already or is about to terminate
+	 */
+	if (zsys_interrupted)
+		return;
+
 	shadow_send_event(SHADOW_REMOVE, port, NULL, NULL);
 }
 
@@ -860,7 +857,6 @@ static void shadow_remove_event(zloop_t *loop, portid_t port)
 	rcu_assign_pointer(shadow_if[port], NULL);
 
 	del_handler_tap_fd(loop, sii);
-	tap_destroy(port);
 
 	/*
 	 * Drain ring
@@ -877,7 +873,7 @@ static void shadow_cleanup(void *arg)
 	zloop_t **loop = arg;
 
 	zloop_destroy(loop);
-	rcu_unregister_thread();
+	dp_rcu_unregister_thread();
 }
 
 static int shadow_handle_event(zloop_t *loop, zsock_t *sock,
@@ -969,7 +965,7 @@ static void *shadow_handler(void *args)
 			 shadow_if[DATAPLANE_SPATH_PORT]) < 0)
 		rte_panic("spath poller setup failed\n");
 
-	rcu_register_thread();
+	dp_rcu_register_thread();
 	rcu_thread_offline();
 
 	while (!zsys_interrupted) {
@@ -983,7 +979,8 @@ static void *shadow_handler(void *args)
 }
 
 /* Setup global data for shadow */
-void shadow_init(void)
+static void
+shadow_init(void)
 {
 	event_fd = eventfd(0, EFD_NONBLOCK);
 	if (event_fd < 0)
@@ -1004,7 +1001,8 @@ void shadow_init(void)
 		rte_panic("shadow thread creation failed\n");
 }
 
-void shadow_destroy(void)
+static void
+shadow_destroy(void)
 {
 	int join_rc;
 	struct shadow_if_info *sii;
@@ -1127,3 +1125,10 @@ struct shadow_if_info *get_fd2shadowif(int fd)
 
 	return NULL;
 }
+
+static const struct dp_event_ops shadow_events = {
+	.init = shadow_init,
+	.uninit = shadow_destroy,
+};
+
+DP_STARTUP_EVENT_REGISTER(shadow_events);

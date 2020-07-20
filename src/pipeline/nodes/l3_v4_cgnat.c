@@ -502,7 +502,14 @@ ipv4_cgnat_common(struct cgn_packet *cpk, struct ifnet *ifp,
 	}
 
 	/* Look for existing session */
-	cse = cgn_session_inspect(cpk, dir);
+	cse = cgn_session_inspect(cpk, dir, &error);
+
+	/*
+	 * One reason the inspect might fail is if max-dest-per-session is
+	 * reached.
+	 */
+	if (unlikely(error < 0))
+		goto error;
 
 	if (unlikely(!cse)) {
 		/* Only create sessions for outbound flows */

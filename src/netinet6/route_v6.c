@@ -42,6 +42,7 @@
 #include "in6_var.h"
 #include "ip6_funcs.h"
 #include "json_writer.h"
+#include "lcore_sched.h"
 #include "lpm/lpm6.h"
 #include "netinet6/route_v6.h"
 #include "netinet6/nd6_nbr.h"
@@ -710,10 +711,10 @@ int dp_nh6_lookup_by_index(uint32_t nhindex, uint32_t hash,
 
 	size = nextl->nsiblings;
 	if (size > 1)
-		next = nexthop_mp_select(next, size, hash);
+		next = nexthop_mp_select(nextl, next, size, hash);
 
 	if (next->flags & RTF_GATEWAY)
-		*nh = next->gateway6;
+		*nh = next->gateway.address.ip_v6;
 	else
 		*nh = in6addr_any;
 
@@ -823,8 +824,8 @@ nexthop6_hashfn(const struct nexthop_hash_key *key,
 	uint16_t i, j = 0;
 
 	for (i = 0; i < size; i++, j += IPV6_NH_HASH_KEY_SIZE) {
-		memcpy(&hash_keys[j], &key->nh[i].gateway6,
-		       sizeof(key->nh[i].gateway6));
+		memcpy(&hash_keys[j], &key->nh[i].gateway.address.ip_v6,
+		       sizeof(key->nh[i].gateway.address.ip_v6));
 		ifp = dp_nh_get_ifp(&key->nh[i]);
 		hash_keys[j+4] = ifp ? ifp->if_index : 0;
 		hash_keys[j+5] = key->nh[i].flags & NH_FLAGS_CMP_MASK;
@@ -847,8 +848,8 @@ static int nexthop6_cmpfn(struct cds_lfht_node *node, const void *key)
 	for (i = 0; i < h_key->size; i++) {
 		if ((dp_nh_get_ifp(&nl->siblings[i]) !=
 		     dp_nh_get_ifp(&h_key->nh[i])) ||
-		    (!IN6_ARE_ADDR_EQUAL(&nl->siblings[i].gateway6,
-					 &h_key->nh[i].gateway6)) ||
+		    (!IN6_ARE_ADDR_EQUAL(&nl->siblings[i].gateway.address,
+					 &h_key->nh[i].gateway.address)) ||
 		    ((nl->siblings[i].flags & NH_FLAGS_CMP_MASK) !=
 		     (h_key->nh[i].flags & NH_FLAGS_CMP_MASK)) ||
 		      !nh_outlabels_cmpfn(&nl->siblings[i].outlabels,
@@ -1046,17 +1047,14 @@ route6_nh_replace(int family, struct next_hop_list *nextl, uint32_t nh_idx,
 	uint32_t i;
 	uint32_t deleted = 0;
 
-	ASSERT_MASTER();
+	ASSERT_MAIN();
 
 	/* walk all the NHs, copying as we go */
 	old_array = rcu_dereference(nextl->siblings);
-
-	new_nextl = nexthop_alloc(nextl->nsiblings);
+	new_nextl = next_hop_list_create_copy_start(AF_INET6, nextl);
 	if (!new_nextl)
 		return 0;
 
-	new_nextl->index = nextl->index;
-	new_nextl->refcount = nextl->refcount;
 	new_array = rcu_dereference(new_nextl->siblings);
 
 	for (i = 0; i < nextl->nsiblings; i++) {
@@ -1066,8 +1064,10 @@ route6_nh_replace(int family, struct next_hop_list *nextl, uint32_t nh_idx,
 		nh_change = nh_processing_cb(next, i, arg);
 
 		/* Copy across old NH */
-		memcpy(new_next, next, sizeof(struct next_hop));
-		nh_outlabels_copy(&next->outlabels, &new_next->outlabels);
+		if (next_hop_copy(next, new_next) < 0) {
+			__nexthop_destroy(new_nextl);
+			return 0;
+		}
 
 		switch (nh_change) {
 		case NH_NO_CHANGE:
@@ -1118,26 +1118,10 @@ route6_nh_replace(int family, struct next_hop_list *nextl, uint32_t nh_idx,
 		return deleted;
 	}
 
-	if (nexthop_hash_del_add(family, nextl, new_nextl)) {
-		__nexthop_destroy(new_nextl);
+	if (next_hop_list_create_copy_finish(AF_INET6, nextl, new_nextl,
+					     nh_idx) < 0)
 		RTE_LOG(ERR, ROUTE, "nh6 replace failed\n");
-		return 0;
-	}
 
-	/*
-	 * It's safe to copy over the FAL objects without
-	 * notifications as there are no FAL-visible changes to the
-	 * object - it maintains its own linkage to the neighbour
-	 */
-	new_nextl->nhg_fal_obj = nextl->nhg_fal_obj;
-	memcpy(new_nextl->nh_fal_obj, nextl->nh_fal_obj,
-	       new_nextl->nsiblings * sizeof(*new_nextl->nh_fal_obj));
-	new_nextl->pd_state = nextl->pd_state;
-
-	assert(nh6_tbl.entry[nh_idx] == nextl);
-	rcu_xchg_pointer(&nh6_tbl.entry[nh_idx], new_nextl);
-
-	call_rcu(&nextl->rcu, nexthop_destroy);
 	return 0;
 }
 
@@ -1168,8 +1152,9 @@ static void route6_change_process_nh(struct next_hop_list *nhl,
 		 * Is there an lle on this interface with a
 		 * matching address.
 		 */
-		struct llentry *lle = in6_lltable_find((struct ifnet *)ifp,
-						       &next->gateway6);
+		struct llentry *lle = in6_lltable_find(
+			(struct ifnet *)ifp,
+			&next->gateway.address.ip_v6);
 		if (lle) {
 			route6_nh_replace(AF_INET6, nhl, nhl->index, lle, NULL,
 					  upd_neigh_present_cb,
@@ -1196,7 +1181,7 @@ walk_nh6s_for_route6_change(enum nh_change (*upd_neigh_present_cb)(
 	struct cds_lfht_iter iter;
 	struct cds_lfht_node *node;
 
-	ASSERT_MASTER();
+	ASSERT_MAIN();
 
 	cds_lfht_for_each(nexthop6_hash, &iter, node) {
 		nhl = caa_container_of(node, struct next_hop_list, nh_node);
@@ -1216,8 +1201,8 @@ routing_neigh_add_gw_nh_replace_cb(struct next_hop *next,
 	struct in6_addr *ip = ll_ipv6_addr(lle);
 	struct ifnet *ifp = rcu_dereference(lle->ifp);
 
-	if (!nh_is_gw(next) || !IN6_ARE_ADDR_EQUAL(&next->gateway6,
-						   &ip->s6_addr))
+	if (!nh_is_gw(next) ||
+	    !IN6_ARE_ADDR_EQUAL(&next->gateway.address.ip_v6, &ip->s6_addr))
 		return NH_NO_CHANGE;
 	if (dp_nh_get_ifp(next) != ifp)
 		return NH_NO_CHANGE;
@@ -1518,7 +1503,8 @@ static int rt6_insert(struct vrf *vrf, struct lpm6 *lpm,
 			if (hops[i].flags & RTF_GATEWAY)
 				continue;
 
-			hops[i].gateway6 = *dst;
+			hops[i].gateway.address.ip_v6 = *dst;
+			hops[i].gateway.type = AF_INET6;
 		}
 
 	err = route_nexthop6_new(hops, size, idx);
@@ -1682,6 +1668,7 @@ void rt6_print_nexthop(json_writer_t *json, uint32_t next_hop,
 		fal_ip_dump_next_hop_group(nextl->nhg_fal_obj, json);
 		jsonw_end_object(json);
 	}
+	nexthop_map_display(nextl, json);
 	jsonw_name(json, "next_hop");
 	jsonw_start_array(json);
 	for (i = 0; i < nextl->nsiblings; i++) {
@@ -1706,12 +1693,15 @@ void rt6_print_nexthop(json_writer_t *json, uint32_t next_hop,
 
 			jsonw_string_field(json, "state", "gateway");
 
-			if (IN6_IS_ADDR_V4MAPPED(&next->gateway6)) {
-				v4nhop = V4MAPPED_IPV6_TO_IPV4(next->gateway6);
+			if (IN6_IS_ADDR_V4MAPPED(
+				    &next->gateway.address.ip_v6)) {
+				v4nhop = V4MAPPED_IPV6_TO_IPV4(
+					next->gateway.address.ip_v6);
 				nhop = inet_ntop(AF_INET, &v4nhop,
 						 b1, sizeof(b1));
 			} else {
-				nhop = inet_ntop(AF_INET6, &next->gateway6,
+				nhop = inet_ntop(AF_INET6,
+						 &next->gateway.address.ip_v6,
 						 b1, sizeof(b1));
 			}
 			jsonw_string_field(json, "via", nhop);
@@ -2417,7 +2407,7 @@ error:
 /*
  * Get egress interface for destination address.
  *
- * Must only be used on master thread.
+ * Must only be used on main thread.
  * Note for multipath routes, the first interface is always returned.
  */
 struct ifnet *nhif_dst_lookup6(const struct vrf *vrf,
@@ -2476,7 +2466,7 @@ route6_create_neigh(struct vrf *vrf, struct lpm6 *lpm,
 			 * this. Will only be 1 NEIGH_CREATED path, but
 			 * need to inherit other paths from the cover.
 			 */
-			nh = nexthop_create_copy(nextl, &size);
+			nh = next_hop_list_copy_next_hops(nextl, &size);
 			if (!nh)
 				return;
 
@@ -2492,7 +2482,8 @@ route6_create_neigh(struct vrf *vrf, struct lpm6 *lpm,
 			 * share with non /128 routes such as the connected
 			 * cover.
 			 */
-			nh[sibling].gateway6 = *ip;
+			nh[sibling].gateway.address.ip_v6 = *ip;
+			nh[sibling].gateway.type = AF_INET6;
 			if (route_nexthop6_new(nh, size, &nh_idx) < 0) {
 				free(nh);
 				return;
@@ -2516,7 +2507,7 @@ routing_neigh_del_gw_nh_replace_cb(struct next_hop *next,
 	struct in6_addr *ip = ll_ipv6_addr(lle);
 	struct ifnet *ifp = rcu_dereference(lle->ifp);
 
-	if (!nh_is_gw(next) || !IN6_ARE_ADDR_EQUAL(&next->gateway6,
+	if (!nh_is_gw(next) || !IN6_ARE_ADDR_EQUAL(&next->gateway.address.ip_v6,
 						   &ip->s6_addr))
 		return NH_NO_CHANGE;
 	if (dp_nh_get_ifp(next) != ifp)
@@ -2538,7 +2529,7 @@ walk_nhs_for_neigh_change(struct llentry *lle,
 	struct cds_lfht_iter iter;
 	struct cds_lfht_node *node;
 
-	ASSERT_MASTER();
+	ASSERT_MAIN();
 
 	cds_lfht_for_each(nexthop6_hash, &iter, node) {
 		nhl = caa_container_of(node, struct next_hop_list, nh_node);

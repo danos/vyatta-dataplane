@@ -147,7 +147,7 @@ PL_REGISTER_NODE(ipv6_defrag_out_spath_node) = {
 	.handler = ipv6_defrag_out_spath_process,
 	.num_next = IPV6_DEFRAG_OUT_SPATH_NUM,
 	.next = {
-		[IPV6_DEFRAG_OUT_SPATH_ACCEPT] = "ipv6-fw-out",
+		[IPV6_DEFRAG_OUT_SPATH_ACCEPT] = "ipv6-fw-orig",
 		[IPV6_DEFRAG_OUT_SPATH_FINISH] = "term-finish"
 	}
 };

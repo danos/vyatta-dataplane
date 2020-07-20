@@ -43,22 +43,29 @@ char expected_npf_fw_portmap_str[DP_TEST_TMP_BUF];
 "{" \
 "  \"apm\":" \
 "  { \"section_size\": 512," \
-"    \"hash_memory\": 0," \
-"    \"instances\": " \
-"    [" \
-"      { \"npf_id\": 1, " \
-"        \"portmaps\": [ ]," \
-"      }" \
-"    ]," \
-"    \"mapping_count\": 0," \
-"  }" \
+"    \"protocols\":" \
+"    [ " \
+"      { " \
+"        \"protocol\": \"tcp\", " \
+"        \"mapping_count\": 0" \
+"      }, " \
+"      { " \
+"        \"protocol\": \"udp\", " \
+"        \"mapping_count\": 0" \
+"      }, " \
+"      { " \
+"        \"protocol\": \"other\", " \
+"        \"mapping_count\": 0" \
+"      } " \
+"    ] " \
+"  } " \
 "}"
 
 char expected_vrf_str[DP_TEST_TMP_BUF];
 
 /* VR vrf clean refcounts vrf 0 (invalid) = 1 for invalid vrf table
- * vrf 1 (default) = 20 dpdk ports +1 loopback +2 switch ports +1 for
- * default vrf table = 24
+ * vrf 1 (default) = 20 dpdk ports +1 loopback +1 for
+ * default vrf table = 22
  */
 #define DP_TEST_EXP_VRF_VR_STR \
 "{ \"vrf_table\":" \
@@ -70,7 +77,7 @@ char expected_vrf_str[DP_TEST_TMP_BUF];
 "    },{" \
 "      \"vrf_id\": 1," \
 "      \"internal_vrf_id\": 1," \
-"      \"ref_count\": 24" \
+"      \"ref_count\": 22" \
 "    } " \
 "  ] " \
 "}"
@@ -117,13 +124,17 @@ dp_test_check_state(zloop_t *loop, int poller, void *arg)
 	char *reply;
 	bool match;
 	bool err;
+	int i;
 
 	state->poll_cnt--;
 	snprintf(buf, DP_TEST_TMP_BUF, "%s", state->cmd);
-	if (state->print)
-		printf("console req: looking for %s'%s'\n",
-		       state->negate_match ? "absence of " : "",
-		       state->expected);
+	if (state->print) {
+		for (i = 0; i < state->exp_count; i++) {
+			printf("console req: looking for %s'%s'\n",
+			       state->negate_match ? "absence of " : "",
+			       state->expected[i]);
+		}
+	}
 	reply = dp_test_console_request_w_err(buf, &err, state->print);
 	if  (state->print)
 		printf("console rep content: '%s'", reply ? reply : "<NULL>");
@@ -132,13 +143,19 @@ dp_test_check_state(zloop_t *loop, int poller, void *arg)
 		match = false;
 	else {
 		match = false;
-		switch (state->type) {
-		case DP_TEST_CHECK_STR_SUBSET:
-			match = strstr(reply, state->expected) != NULL;
-			break;
-		case DP_TEST_CHECK_STR_EXACT:
-			match = !strcmp(reply, state->expected);
-			break;
+		for (i = 0; i < state->exp_count; i++) {
+			switch (state->type) {
+			case DP_TEST_CHECK_STR_SUBSET:
+				match = strstr(reply,
+					       state->expected[i]) != NULL;
+				break;
+			case DP_TEST_CHECK_STR_EXACT:
+				match = !strcmp(reply, state->expected[i]);
+				break;
+			}
+			if (match)
+				/* Can't negate if multiple matches */
+				break;
 		}
 	}
 	free(state->actual);
@@ -155,7 +172,8 @@ dp_test_check_state(zloop_t *loop, int poller, void *arg)
 
 static void
 dp_test_check_state_with_show(const char *file, int line, const char *cmd,
-			      const char *expected, bool exp_err,
+			      int expected_count,
+			      const char **expected, bool exp_err,
 			      bool negate_match, bool print,
 			      dp_test_check_str_type type, int poll_cnt)
 {
@@ -163,6 +181,7 @@ dp_test_check_state_with_show(const char *file, int line, const char *cmd,
 		poll_cnt = DP_TEST_POLL_COUNT;
 	struct dp_test_cmd_check state = {
 		.cmd = cmd,
+		.exp_count = expected_count,
 		.expected = expected,
 		.actual = NULL,
 		.print = print,
@@ -174,6 +193,7 @@ dp_test_check_state_with_show(const char *file, int line, const char *cmd,
 	};
 	int timer;
 	zloop_t *loop = zloop_new();
+	int i;
 
 	dp_test_assert_internal(loop);
 
@@ -195,11 +215,22 @@ dp_test_check_state_with_show(const char *file, int line, const char *cmd,
 		       (poll_cnt - state.poll_cnt) * DP_TEST_POLL_INTERVAL,
 		       poll_cnt - state.poll_cnt, poll_cnt);
 
-	_dp_test_fail_unless(state.result,
-			     file, line,
-			     "\nUnexpected show state: '%s' %spresent in show %s:\n%s",
-			     state.expected, state.negate_match ? "" : "not ",
-			     state.cmd, state.actual);
+	if (!state.result && expected_count > 1) {
+		/* We have failed */
+		printf("Expected one of %d:\n", expected_count);
+		for (i = 0; i < expected_count; i++)
+			printf("%s\n", expected[i]);
+
+		_dp_test_fail_unless(state.result,
+				     file, line,
+				     "\nstate not present in show %s:\n%s",
+				     state.cmd, state.actual);
+	}
+	_dp_test_fail_unless(
+		state.result, file, line,
+		"\nUnexpected show state: '%s' %spresent in show %s:\n%s",
+		state.expected[0], state.negate_match ? "" : "not ",
+		state.cmd, state.actual);
 	free(state.actual);
 	/* TODO: Remove me when ck_assert_msg is reliable. */
 	dp_test_assert_internal(state.result);
@@ -207,11 +238,13 @@ dp_test_check_state_with_show(const char *file, int line, const char *cmd,
 
 void
 _dp_test_check_state_poll_show(const char *file, int line,
-				    const char *cmd, const char *expected,
-				    bool exp_ok, bool print, int poll_cnt,
-				    dp_test_check_str_type type)
+			       const char *cmd,
+			       const char *expected,
+			       bool exp_ok, bool print, int poll_cnt,
+			       dp_test_check_str_type type)
 {
-	dp_test_check_state_with_show(file, line, cmd, expected, !exp_ok,
+	dp_test_check_state_with_show(file, line, cmd, 1,
+				      &expected, !exp_ok,
 				      false, print, type, poll_cnt);
 }
 
@@ -220,7 +253,18 @@ _dp_test_check_state_show(const char *file, int line, const char *cmd,
 			  const char *expected, bool print,
 			  dp_test_check_str_type type)
 {
-	dp_test_check_state_with_show(file, line, cmd, expected, false, false,
+	dp_test_check_state_with_show(file, line, cmd, 1,
+				      &expected, false, false,
+				      print, type, 0);
+}
+
+void
+_dp_test_check_state_show_one_of(const char *file, int line, const char *cmd,
+				 int exp_count, const char **expected,
+				 bool print, dp_test_check_str_type type)
+{
+	dp_test_check_state_with_show(file, line, cmd, exp_count,
+				      expected, false, false,
 				      print, type, 0);
 }
 
@@ -229,7 +273,8 @@ _dp_test_check_state_gone_show(const char *file, int line, const char *cmd,
 			       const char *expected, bool print,
 			       dp_test_check_str_type type)
 {
-	dp_test_check_state_with_show(file, line, cmd, expected, false, true,
+	dp_test_check_state_with_show(file, line, cmd, 1,
+				      &expected, false, true,
 				      print, type, 0);
 }
 
@@ -404,8 +449,22 @@ static struct cmd_expect_json cmd_expect_clean_json[] = {
 		"{"
 		"  \"apm\":"
 		"  { \"section_size\": 512,"
-		"    \"mapping_count\": 0,"
-		"  }"
+		"    \"protocols\":"
+		"    [ "
+		"      { "
+		"        \"protocol\": \"tcp\", "
+		"        \"mapping_count\": 0"
+		"      }, "
+		"      { "
+		"        \"protocol\": \"udp\", "
+		"        \"mapping_count\": 0"
+		"      }, "
+		"      { "
+		"        \"protocol\": \"other\", "
+		"        \"mapping_count\": 0"
+		"      } "
+		"    ] "
+		"  } "
 		"}", ""
 	},
 	{
@@ -814,7 +873,7 @@ _dp_test_check_json_poll_state_interval(const char *cmd_str,
 }
 
 void
-_dp_test_check_pb_poll_state(char *buf, int len,
+_dp_test_check_pb_poll_state(void *buf, int len,
 			     dp_test_state_pb_cb cb,
 			     void *arg,
 			     int poll_cnt,
@@ -859,7 +918,7 @@ _dp_test_check_json_state(const char *cmd_str, json_object *expected_json,
 }
 
 void
-_dp_test_check_pb_state(char *buf, int len,
+_dp_test_check_pb_state(void *buf, int len,
 			dp_test_state_pb_cb cb,
 			void *arg,
 			const char *file, const char *func __unused,

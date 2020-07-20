@@ -287,6 +287,7 @@ npf_session_nat64_log(npf_session_t *se, bool created)
 	int l = 0, sz = sizeof(msg);
 	char srcip_str[INET6_ADDRSTRLEN];
 	char dstip_str[INET6_ADDRSTRLEN];
+	struct sentry *peer_sen;
 	const void *saddr;
 	const void *daddr;
 	uint32_t if_index;
@@ -298,9 +299,9 @@ npf_session_nat64_log(npf_session_t *se, bool created)
 		      created ? "created":"closed");
 
 	/* Ingress session */
-	sen = peer ? rcu_dereference(peer->s_session->se_sen) : NULL;
-	if (created && sen) {
-		session_sentry_extract(sen, &if_index, &af, &saddr, &sid,
+	peer_sen = peer ? rcu_dereference(peer->s_session->se_sen) : NULL;
+	if (created && peer_sen) {
+		session_sentry_extract(peer_sen, &if_index, &af, &saddr, &sid,
 				       &daddr, &did);
 		inet_ntop(af, saddr, srcip_str, sizeof(srcip_str));
 		inet_ntop(af, daddr, dstip_str, sizeof(dstip_str));
@@ -312,40 +313,37 @@ npf_session_nat64_log(npf_session_t *se, bool created)
 	}
 
 	/* Only (or Egress) session */
-	sen = se ? rcu_dereference(se->s_session->se_sen) : NULL;
-	if (sen) {
-		session_sentry_extract(sen, &if_index, &af, &saddr, &sid,
-				       &daddr, &did);
-		inet_ntop(af, saddr, srcip_str, sizeof(srcip_str));
-		inet_ntop(af, daddr, dstip_str, sizeof(dstip_str));
+	session_sentry_extract(sen, &if_index, &af, &saddr, &sid,
+			       &daddr, &did);
+	inet_ntop(af, saddr, srcip_str, sizeof(srcip_str));
+	inet_ntop(af, daddr, dstip_str, sizeof(dstip_str));
 
-		l += snprintf(msg+l, sz-l, "%s[%lu] %s/%u->%s/%u %s",
-			      (peer && created) ? ", ":" ",
-			      se->s_session->se_id,
-			      srcip_str, ntohs(sid), dstip_str, ntohs(did),
-			      ifnet_indextoname_safe(if_index));
+	l += snprintf(msg+l, sz-l, "%s[%lu] %s/%u->%s/%u %s",
+		      (peer && created) ? ", ":" ",
+		      se->s_session->se_id,
+		      srcip_str, ntohs(sid), dstip_str, ntohs(did),
+		      ifnet_indextoname_safe(if_index));
 
-		const char *proto_name;
-		const char *ruleset_name;
-		rule_no_t rule_number = 0;
-		npf_rule_t *rl;
+	const char *proto_name;
+	const char *ruleset_name;
+	rule_no_t rule_number = 0;
+	npf_rule_t *rl;
 
-		proto_name = npf_get_protocol_name_from_idx(se->s_proto_idx);
-		rl = npf_nat64_get_rule(se->s_nat64);
-		ruleset_name = npf_rule_get_name(rl);
-		if (rl)
-			rule_number = npf_rule_get_num(rl);
+	proto_name = npf_get_protocol_name_from_idx(se->s_proto_idx);
+	rl = npf_nat64_get_rule(se->s_nat64);
+	ruleset_name = npf_rule_get_name(rl);
+	if (rl)
+		rule_number = npf_rule_get_num(rl);
 
-		l += snprintf(msg+l, sz-l, ", %s", proto_name);
+	l += snprintf(msg+l, sz-l, ", %s", proto_name);
 
-		if (ruleset_name)
-			l += snprintf(msg+l, sz-l, " %s/%u",
-				      ruleset_name, rule_number);
+	if (ruleset_name)
+		l += snprintf(msg+l, sz-l, " %s/%u",
+			      ruleset_name, rule_number);
 
-		if (!created)
-			snprintf(msg+l, sz-l, " [%lu]",
-				 peer ? peer->s_session->se_id : 0);
-	}
+	if (!created)
+		snprintf(msg+l, sz-l, " [%lu]",
+			 peer ? peer->s_session->se_id : 0);
 
 	if (npf_nat64_session_is_nat64(se))
 		RTE_LOG(NOTICE, NAT64, "%s\n", msg);

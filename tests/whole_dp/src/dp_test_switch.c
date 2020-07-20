@@ -105,10 +105,10 @@ DP_START_TEST(switch_unicast, switch_unicast_tx)
 	mac_a = "00:00:a4:00:33:aa";
 	mac_b = "00:00:a4:00:44:bb";
 
-	dp_test_netlink_set_interface_l2("sw_port_0_0");
+	dp_test_netlink_set_interface_l2("dp1sw_port_0_0");
 
 	dp_test_intf_switch_create("switch0");
-	dp_test_intf_switch_add_port("switch0", "sw_port_0_0");
+	dp_test_intf_switch_add_port("switch0", "dp1sw_port_0_0");
 	dp_test_intf_switch_add_port("switch0", "dp2T1");
 
 	/*
@@ -124,16 +124,18 @@ DP_START_TEST(switch_unicast, switch_unicast_tx)
 	 * Transparent bridging so we expect pak to be identical.
 	 */
 	exp = dp_test_exp_create(test_pak);
-	dp_test_edsa_tag_insert(dp_test_exp_get_pak(exp), "sw_port_0_0", 1);
+	dp_test_edsa_tag_insert(dp_test_exp_get_pak(exp), "dp1sw_port_0_0", 1);
 	dp_test_exp_set_oif_name(exp,
 				 dp_test_bp_intf_from_switch_port(
-					 "sw_port_0_0"));
+					 "dp1sw_port_0_0"));
 
 	dp_test_pak_receive(test_pak, "dp2T1", exp);
 
-	dp_test_intf_switch_remove_port("switch0", "sw_port_0_0");
+	dp_test_intf_switch_remove_port("switch0", "dp1sw_port_0_0");
 	dp_test_intf_switch_remove_port("switch0", "dp2T1");
 	dp_test_intf_switch_del("switch0");
+
+	dp_test_netlink_del_interface_l2("dp1sw_port_0_0");
 } DP_END_TEST;
 
 DP_START_TEST(switch_unicast, switch_unicast_rx_port_0)
@@ -147,8 +149,10 @@ DP_START_TEST(switch_unicast, switch_unicast_rx_port_0)
 	mac_b = "00:00:a4:00:44:cc";
 	fal_plugin_enable_rx_framer(true);
 
+	dp_test_netlink_set_interface_l2("dp1sw_port_0_0");
+
 	dp_test_intf_switch_create("switch0");
-	dp_test_intf_switch_add_port("switch0", "sw_port_0_0");
+	dp_test_intf_switch_add_port("switch0", "dp1sw_port_0_0");
 	dp_test_intf_switch_add_port("switch0", "dp2T1");
 
 	/*
@@ -164,7 +168,7 @@ DP_START_TEST(switch_unicast, switch_unicast_rx_port_0)
 	 * Transparent bridging so we expect pak to be identical.
 	 */
 	exp = dp_test_exp_create(test_pak);
-	dp_test_edsa_tag_insert(test_pak, "sw_port_0_0", 0);
+	dp_test_edsa_tag_insert(test_pak, "dp1sw_port_0_0", 0);
 
 	dp_test_exp_set_oif_name(exp, "dp2T1");
 
@@ -173,11 +177,13 @@ DP_START_TEST(switch_unicast, switch_unicast_rx_port_0)
 	 */
 	dp_test_pak_receive(test_pak,
 			    dp_test_bp_intf_from_switch_port(
-				    "sw_port_0_0"), exp);
+				    "dp1sw_port_0_0"), exp);
 
-	dp_test_intf_switch_remove_port("switch0", "sw_port_0_0");
+	dp_test_intf_switch_remove_port("switch0", "dp1sw_port_0_0");
 	dp_test_intf_switch_remove_port("switch0", "dp2T1");
 	dp_test_intf_switch_del("switch0");
+
+	dp_test_netlink_del_interface_l2("dp1sw_port_0_0");
 
 	fal_plugin_enable_rx_framer(false);
 } DP_END_TEST;
@@ -193,11 +199,13 @@ DP_START_TEST(switch_unicast, switch_unicast_tx_tagged)
 
 	bridge_vlan_set_add(allowed_vlans, 10);
 
+	dp_test_netlink_set_interface_l2("dp1sw_port_0_0");
+
 	dp_test_intf_switch_create("switch0");
 	dp_test_intf_bridge_enable_vlan_filter("switch0");
 
-	dp_test_intf_switch_add_port("switch0", "sw_port_0_0");
-	dp_test_intf_bridge_port_set_vlans("switch0", "sw_port_0_0",
+	dp_test_intf_switch_add_port("switch0", "dp1sw_port_0_0");
+	dp_test_intf_bridge_port_set_vlans("switch0", "dp1sw_port_0_0",
 		0, allowed_vlans, NULL);
 	dp_test_intf_switch_add_port("switch0", "dp2T1");
 	dp_test_intf_bridge_port_set_vlans("switch0", "dp2T1",
@@ -220,18 +228,19 @@ DP_START_TEST(switch_unicast, switch_unicast_tx_tagged)
 	exp = dp_test_exp_create(test_pak);
 
 	dp_test_switch_insert_vlan_hdr(dp_test_exp_get_pak(exp));
-	dp_test_edsa_tag_insert(dp_test_exp_get_pak(exp), "sw_port_0_0", 1);
+	dp_test_edsa_tag_insert(dp_test_exp_get_pak(exp), "dp1sw_port_0_0", 1);
 
 	dp_test_exp_set_oif_name(exp,
 				 dp_test_bp_intf_from_switch_port(
-					 "sw_port_0_0"));
+					 "dp1sw_port_0_0"));
 
 	exp->exp_pak[0]->vlan_tci = 0;
 	dp_test_pak_receive(test_pak, "dp2T1", exp);
 
-	dp_test_intf_switch_remove_port("switch0", "sw_port_0_0");
+	dp_test_intf_switch_remove_port("switch0", "dp1sw_port_0_0");
 	dp_test_intf_switch_remove_port("switch0", "dp2T1");
 	dp_test_intf_switch_del("switch0");
+	dp_test_netlink_del_interface_l2("dp1sw_port_0_0");
 	bridge_vlan_set_free(allowed_vlans);
 } DP_END_TEST;
 
@@ -251,11 +260,13 @@ DP_START_TEST(switch_unicast, switch_unicast_rx_tagged)
 	mac_a = "00:00:a4:00:33:dd";
 	mac_b = "00:00:a4:00:44:cc";
 
+	dp_test_netlink_set_interface_l2("dp1sw_port_0_0");
+
 	dp_test_intf_switch_create("switch0");
 	dp_test_intf_bridge_enable_vlan_filter("switch0");
 
-	dp_test_intf_switch_add_port("switch0", "sw_port_0_0");
-	dp_test_intf_bridge_port_set_vlans("switch0", "sw_port_0_0",
+	dp_test_intf_switch_add_port("switch0", "dp1sw_port_0_0");
+	dp_test_intf_bridge_port_set_vlans("switch0", "dp1sw_port_0_0",
 					   0, allowed_vlans, NULL);
 	dp_test_intf_switch_add_port("switch0", "dp2T1");
 	dp_test_intf_bridge_port_set_vlans("switch0", "dp2T1",
@@ -280,7 +291,7 @@ DP_START_TEST(switch_unicast, switch_unicast_rx_tagged)
 	 * the switch.
 	 */
 	dp_test_switch_insert_vlan_hdr(test_pak);
-	dp_test_edsa_tag_insert(test_pak, "sw_port_0_0", 0);
+	dp_test_edsa_tag_insert(test_pak, "dp1sw_port_0_0", 0);
 
 	dp_test_exp_set_oif_name(exp, "dp2T1");
 
@@ -289,11 +300,12 @@ DP_START_TEST(switch_unicast, switch_unicast_rx_tagged)
 	 */
 	dp_test_pak_receive(test_pak,
 			    dp_test_bp_intf_from_switch_port(
-				    "sw_port_0_0"), exp);
+				    "dp1sw_port_0_0"), exp);
 
-	dp_test_intf_switch_remove_port("switch0", "sw_port_0_0");
+	dp_test_intf_switch_remove_port("switch0", "dp1sw_port_0_0");
 	dp_test_intf_switch_remove_port("switch0", "dp2T1");
 	dp_test_intf_switch_del("switch0");
+	dp_test_netlink_del_interface_l2("dp1sw_port_0_0");
 	bridge_vlan_set_free(allowed_vlans);
 
 	fal_plugin_enable_rx_framer(false);
@@ -309,10 +321,10 @@ DP_START_TEST(switch_unicast, switch_unicast_rx_port_7)
 	mac_a = "00:00:a4:00:33:dd";
 	mac_b = "00:00:a4:00:44:cc";
 
-	dp_test_netlink_set_interface_l2("sw_port_0_7");
+	dp_test_netlink_set_interface_l2("dp1sw_port_0_7");
 
 	dp_test_intf_switch_create("switch0");
-	dp_test_intf_switch_add_port("switch0", "sw_port_0_7");
+	dp_test_intf_switch_add_port("switch0", "dp1sw_port_0_7");
 	dp_test_intf_switch_add_port("switch0", "dp2T1");
 
 	/*
@@ -329,13 +341,14 @@ DP_START_TEST(switch_unicast, switch_unicast_rx_port_7)
 	 */
 	exp = dp_test_exp_create(test_pak);
 
-	fal_plugin_rx_qdirect("sw_port_0_7", test_pak);
+	fal_plugin_rx_qdirect("dp1sw_port_0_7", test_pak);
 
 	dp_test_exp_set_oif_name(exp, "dp2T1");
 
-	dp_test_pak_receive(test_pak, "sw_port_0_7", exp);
+	dp_test_pak_receive(test_pak, "dp1sw_port_0_7", exp);
 
-	dp_test_intf_switch_remove_port("switch0", "sw_port_0_7");
+	dp_test_intf_switch_remove_port("switch0", "dp1sw_port_0_7");
 	dp_test_intf_switch_remove_port("switch0", "dp2T1");
 	dp_test_intf_switch_del("switch0");
+	dp_test_netlink_del_interface_l2("dp1sw_port_0_7");
 } DP_END_TEST;

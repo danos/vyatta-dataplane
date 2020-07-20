@@ -39,7 +39,7 @@ message Path {
 	// route resolution isn't performed in the dataplane.
 	optional uint32 ifindex = 3;
 
-	// MPLS label stack in host network order, with labels listed
+	// MPLS label stack in host byte order, with labels listed
 	// from top-most (closest to L2 header) to bottom-most
 	// (closest to payload). Labels should not include
 	// implicit-null.

@@ -400,7 +400,7 @@ zactor_terminated(zloop_t *loop __rte_unused, zsock_t *sock,
  * -1 if failed
  */
 static int
-port_create(zmsg_t *msg, uint64_t *seqno)
+port_create(zmsg_t *msg, uint64_t *seqno, bool ippresent)
 {
 	struct ip_addr myip;
 	char err_str[BUFSIZ];
@@ -413,10 +413,11 @@ port_create(zmsg_t *msg, uint64_t *seqno)
 		return -1;
 	}
 
-	if (zmsg_popip(msg, &myip) < 0) {
-		err("missing local ip");
-		return -1;
-	}
+	if (ippresent)
+		if (zmsg_popip(msg, &myip) < 0) {
+			err("missing local ip");
+			return -1;
+		}
 
 	json_str = zmsg_popstr(msg);
 	if (!json_str) {
@@ -498,7 +499,7 @@ connect_request(zsock_t *sock, zmsg_t *msg, zframe_t **envelope)
 }
 
 static void
-addport_request(zsock_t *sock, zmsg_t *msg, zframe_t **envelope)
+newport_request(zsock_t *sock, zmsg_t *msg, zframe_t **envelope)
 {
 	uint64_t seqno;
 	int port, ifindex;
@@ -506,7 +507,7 @@ addport_request(zsock_t *sock, zmsg_t *msg, zframe_t **envelope)
 
 	dp_test_assert_internal(msg);
 
-	port = port_create(msg, &seqno);
+	port = port_create(msg, &seqno, true);
 	if (port < 0)
 		return;
 
@@ -524,6 +525,78 @@ addport_request(zsock_t *sock, zmsg_t *msg, zframe_t **envelope)
 	seqno_sendm(sock, seqno);
 	ifindex_sendm(sock, (uint32_t) ifindex);
 	zstr_send(sock, ifname);
+}
+
+static void
+iniport_request(zsock_t *sock, zmsg_t *msg, zframe_t **envelope)
+{
+	uint64_t seqno;
+	int port;
+	uint32_t cookie;
+	char ifname[IFNAMSIZ];
+
+	dp_test_assert_internal(msg);
+
+	port = port_create(msg, &seqno, false);
+	if (port < 0)
+		return;
+
+	if (port >= dp_test_intf_count_local() +
+	    dp_test_intf_switch_port_count()) {
+		err("port %u out of range", port);
+		return;
+	}
+
+	dp_test_intf_port2name(port, ifname);
+	cookie = port;
+	zframe_send(envelope, sock, ZFRAME_MORE);
+	zstr_sendm(sock, "OK");
+	seqno_sendm(sock, seqno);
+	ifindex_sendm(sock, cookie);
+	zstr_send(sock, ifname);
+}
+
+static void
+addport_request(zsock_t *sock, zmsg_t *msg, zframe_t **envelope)
+{
+	uint64_t seqno;
+	int port, ifindex;
+	char *ifname1;
+	uint32_t cookie;
+	char ifname2[IFNAMSIZ];
+
+	dp_test_assert_internal(msg);
+
+	if (zmsg_popu64(msg, &seqno) < 0) {
+		err("missing sequence no");
+		return;
+	}
+	if (dp_test_zmsg_popu32(msg, &cookie) < 0) {
+		err("missing cookie");
+		return;
+	}
+	ifname1 = zmsg_popstr(msg);
+	port = cookie;
+	if ((port < 0) || (port >= dp_test_intf_count_local() +
+			   dp_test_intf_switch_port_count())) {
+		err("port %u out of range", port);
+		return;
+	}
+
+	ifindex = dp_test_intf_port2index(port);
+	dp_test_intf_port2name(port, ifname2);
+
+	if (!streq(ifname1, ifname2)) {
+		err("port %u name mismatch %s %s", port,
+		    ifname1, ifname2);
+		return;
+	}
+
+	zframe_send(envelope, sock, ZFRAME_MORE);
+	zstr_sendm(sock, "OK");
+	seqno_sendm(sock, seqno);
+	ifindex_sendm(sock, (uint32_t) ifindex);
+	zstr_send(sock, ifname1);
 }
 
 static void
@@ -685,9 +758,13 @@ process_msg(enum cont_src_en cont_src, snapshot_t *snap, zsock_t *sock,
 	if (streq(action, "CONNECT"))
 		connect_request(sock, msg, &envelope);
 	else if (streq(action, "NEWPORT"))
-		addport_request(sock, msg, &envelope);
+		newport_request(sock, msg, &envelope);
 	else if (streq(action, "DELPORT"))
 		delport_request(sock, msg, &envelope);
+	else if (streq(action, "INIPORT"))
+		iniport_request(sock, msg, &envelope);
+	else if (streq(action, "ADDPORT"))
+		addport_request(sock, msg, &envelope);
 	else if (streq(action, "WHATSUP?")) {
 		snapshot_send(snap, sock, envelope);
 		config_send(sock, envelope);

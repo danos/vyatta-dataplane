@@ -34,17 +34,31 @@
  */
 uint16_t dp_ip_randomid(uint16_t salt);
 
+union addr_u {
+	struct in_addr ip_v4;
+	struct in6_addr ip_v6;
+};
+
 /* structure to be used by functions that can take either IPv4 or IPv6 addr */
 struct ip_addr {
 	/*
 	 * AF_INET or AF_INET6
 	 */
 	uint32_t type;
-	union {
-		struct in_addr ip_v4;
-		struct in6_addr ip_v6;
-	} address;
+	union addr_u address;
 };
+
+static inline bool addr_u_eq_v4(const union addr_u *addr1,
+				const union addr_u *addr2)
+{
+	return addr1->ip_v4.s_addr == addr2->ip_v4.s_addr;
+}
+
+static inline bool addr_u_eq_v6(const union addr_u *addr1,
+				 const union addr_u *addr2)
+{
+	return IN6_ARE_ADDR_EQUAL(&addr1->ip_v6, &addr2->ip_v6);
+}
 
 /*
  * Check if 2 addresses are equal.
@@ -59,12 +73,15 @@ struct ip_addr {
 static inline bool dp_addr_eq(const struct ip_addr *addr1,
 			      const struct ip_addr *addr2)
 {
-	if (addr1->type == AF_INET && addr2->type == AF_INET)
-		return addr1->address.ip_v4.s_addr ==
-			addr2->address.ip_v4.s_addr;
-	else if (addr1->type == AF_INET6 && addr2->type == AF_INET6)
-		return IN6_ARE_ADDR_EQUAL(&addr1->address.ip_v6,
-					  &addr2->address.ip_v6);
+	if (addr1->type != addr2->type)
+		return false;
+
+	if (addr1->type == AF_INET)
+		return addr_u_eq_v4(&addr1->address, &addr2->address);
+
+	if (addr1->type == AF_INET6)
+		return addr_u_eq_v6(&addr1->address, &addr2->address);
+
 	return false;
 }
 

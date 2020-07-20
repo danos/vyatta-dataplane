@@ -37,6 +37,7 @@
 #include "vplane_log.h"
 
 static const char *config_file = VYATTA_SYSCONF_DIR"/dataplane.conf";
+const char *platform_file = PLATFORM_FILE;
 
 #define DEFAULT_CONTROLLER_REQ_PORT	4415
 #define DEFAULT_CONTROLLER_REQ_IPC	"ipc:///var/run/vyatta/vplaned.req"
@@ -267,6 +268,16 @@ void set_config_file(const char *filename)
 	config_file = filename;
 }
 
+void set_platform_cfg_file(const char *filename)
+{
+	platform_file = filename;
+}
+
+const char *get_platform_cfg_file(void)
+{
+	return platform_file;
+}
+
 /* Load config file and do sanity checks */
 void parse_config(void)
 {
@@ -384,6 +395,13 @@ struct str_val tx_offload_strs[] = {
 
 #define MAX_TX_OFFLOAD_STRS (sizeof(tx_offload_strs) / \
 						sizeof(tx_offload_strs[0]))
+
+struct str_val dev_flags_strs[] = {
+	{ "rte_eth_dev_intr_lsc", RTE_ETH_DEV_INTR_LSC },
+};
+
+#define MAX_DEV_FLAGS_STRS (sizeof(dev_flags_strs) / \
+						sizeof(dev_flags_strs[0]))
 
 static void parse_option_strs(char *value,
 			      struct str_val *option_strs,
@@ -622,6 +640,15 @@ static int parse_driver_entry(void *user, const char *section,
 			param->tx_desc_vm_multiplier = val;
                 }
         }
+	if (strcmp(name, "dev_flags") == 0) {
+		parse_option_strs(strdupa(value), dev_flags_strs,
+				  MAX_DEV_FLAGS_STRS,
+				  &param->dev_flags,
+				  &param->neg_dev_flags);
+		DP_DEBUG(INIT, INFO, DATAPLANE,
+			 "Set dev flags for %s, 0x%lx, !0x%lx\n",
+			 section, param->dev_flags, param->neg_dev_flags);
+	}
 
 	return 1; /* good */
 }
@@ -660,6 +687,28 @@ static void backplane_list_destroy(void)
 	}
 }
 
+static bool parse_pci_addr(const char *value, struct rte_pci_addr *pci_addr)
+{
+	int rc;
+
+	/* Check long PCI format */
+	rc = sscanf(value, "%x:%hhx:%hhx.%hhu", &pci_addr->domain,
+		    &pci_addr->bus, &pci_addr->devid,
+		    &pci_addr->function);
+	if (rc == 4)
+		return true;
+
+	pci_addr->domain = 0;
+
+	/* Check short PCI format */
+	rc = sscanf(value, "%hhx:%hhx.%hhu", &pci_addr->bus,
+		    &pci_addr->devid, &pci_addr->function);
+	if (rc == 3)
+		return true;
+
+	return false;
+}
+
 /*
  * Callback from inih library for each name value
  * return 0 = error, 1 = ok
@@ -672,77 +721,68 @@ static int parse_platform_entry(void *user, const char *section,
 	if (strcasecmp(section, "dataplane") == 0) {
 		if (strncmp(name, "backplane_port",
 			     strlen("backplane_port")) == 0) {
-			int rc;
 			struct bkplane_pci *bp;
-			bool name = false;
-			char bp_name[IFNAMSIZ];
+			char *pci_addr_str;
+			char *bp_name;
 
 			bp = calloc(1, sizeof(*bp));
-			if (!bp) {
-				fprintf(stderr,
-				 "Malloc failed for platform bkplane config\n");
-				return 0;
-			}
-			/* First check long PCI format with name */
-			rc = sscanf(value, "%x:%hhx:%hhx.%hhu,%2s",
-				    &bp->pci_addr.domain,
-				    &bp->pci_addr.bus,
-				    &bp->pci_addr.devid,
-				    &bp->pci_addr.function,
-				    bp_name);
-			if (rc == 5) {
-				name = true;
-				goto backplane_port_parsed;
+			if (!bp)
+				goto malloc_failed;
+			pci_addr_str = strdup(value);
+			if (!pci_addr_str) {
+				free(bp);
+				goto malloc_failed;
 			}
 
-			/* check long PCI format without name */
-			rc = sscanf(value, "%x:%hhx:%hhx.%hhu",
-				    &bp->pci_addr.domain,
-				    &bp->pci_addr.bus,
-				    &bp->pci_addr.devid,
-				    &bp->pci_addr.function);
-			if (rc == 4)
-				goto backplane_port_parsed;
-
-			/* Check short PCI format with name*/
-			rc = sscanf(value, "%hhx:%hhx.%hhu,%2s",
-				    &bp->pci_addr.bus,
-				    &bp->pci_addr.devid,
-				    &bp->pci_addr.function,
-				    bp_name);
-			if (rc == 4) {
-				name = true;
-				bp->pci_addr.domain = 0;
-				goto backplane_port_parsed;
+			bp_name = strchr(pci_addr_str, ',');
+			if (bp_name) {
+				/*
+				 * nul-terminate PCI address and skip
+				 * over comma separator
+				 */
+				*bp_name = '\0';
+				bp_name++;
 			}
 
-			/* Check short PCI format without name*/
-			rc = sscanf(value, "%hhx:%hhx.%hhu",
-				    &bp->pci_addr.bus,
-				    &bp->pci_addr.devid,
-				    &bp->pci_addr.function);
-			if (rc != 3) {
+			if (!parse_pci_addr(pci_addr_str, &bp->pci_addr)) {
 				DP_DEBUG(INIT, ERR, DATAPLANE,
 					 "backplane port format error\n");
+				free(pci_addr_str);
 				free(bp);
 				return 0;
 			}
-			bp->pci_addr.domain = 0;
-backplane_port_parsed:
+
 			/* Add to backplane port list */
 			fprintf(stderr,
 				"Backplane %s pci(%x:%hhx:%hhx.%hhu) added\n",
-				name ? bp_name : "()",
+				bp_name ? bp_name : "()",
 				bp->pci_addr.domain,
 				bp->pci_addr.bus,
 				bp->pci_addr.devid,
 				bp->pci_addr.function);
-			if (name)
+			if (bp_name)
 				bp->name = strdup(bp_name);
 			LIST_INSERT_HEAD(&cfg->bp_list, bp, link);
+			free(pci_addr_str);
 		} else if (strcmp(name, "fal_plugin") == 0) {
 			if (value)
 				cfg->fal_plugin = strdup(value);
+		} else if (strncmp(name, "mgmt_port",
+				   strlen("mgmt_port")) == 0) {
+			struct config_pci_entry *pci_entry;
+
+			pci_entry = calloc(1, sizeof(*pci_entry));
+			if (!pci_entry)
+				goto malloc_failed;
+
+			if (!parse_pci_addr(value, &pci_entry->pci_addr)) {
+				DP_DEBUG(INIT, ERR, DATAPLANE,
+					 "management port format error: %s\n",
+					 value);
+				free(pci_entry);
+				return 0;
+			}
+			LIST_INSERT_HEAD(&cfg->mgmt_list, pci_entry, link);
 		}
 	} else if (strcasecmp(section, "hardware-features") == 0) {
 		if (strcmp(name, "bonding.hardware-members-only") == 0) {
@@ -751,6 +791,13 @@ backplane_port_parsed:
 		}
 	}
 	return 1;
+
+malloc_failed:
+	fprintf(stderr,
+		"Out of memory during processing of %s:%s config\n",
+		section, name);
+	return 0;
+
 }
 
 /*
@@ -776,6 +823,7 @@ void parse_platform_config(const char *cfgfile)
 	fprintf(stderr, "Parsing platform config file %s\n",
 		cfgfile);
 	LIST_INIT(&platform_cfg.bp_list);
+	LIST_INIT(&platform_cfg.mgmt_list);
 
 	rc = ini_parse_file(f, parse_platform_entry, &platform_cfg);
 	if (rc) {
@@ -812,7 +860,7 @@ int dp_parse_config_files(dp_parse_config_fn *parser_fn,
 		return rc;
 
 	/* The platform config file may exist */
-	f  = fopen(PLATFORM_FILE, "r");
+	f  = fopen(platform_file, "r");
 	if (!f)
 		return 0;
 

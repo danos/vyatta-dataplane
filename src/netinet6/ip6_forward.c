@@ -145,6 +145,34 @@ int ip6_l4_input(struct rte_mbuf *m, struct ifnet *ifp)
 }
 
 /*
+ * IPv6 originate slow path filter.
+ *
+ * Run the originating firewall, and drop the packet if required.
+ *
+ * Return an indication of if the packet was consumed.
+ *    0 => Not filtered
+ *    1 => Filtered
+ */
+int ipv6_originate_filter_flags(struct ifnet *out_ifp, struct rte_mbuf *m,
+		uint16_t npf_flags)
+{
+	if (out_ifp == NULL)
+		return 0;
+
+	if (npf_originate_fw(out_ifp, npf_flags, &m,
+			htons(RTE_ETHER_TYPE_IPV6))) {
+		IPSTAT_INC_VRF(if_vrf(out_ifp), IPSTATS_MIB_OUTDISCARDS);
+		rte_pktmbuf_free(m);
+		return 1;
+	}
+	return 0;
+}
+
+int ipv6_originate_filter(struct ifnet *ifp, struct rte_mbuf *m)
+{
+	return ipv6_originate_filter_flags(ifp, m, NPF_FLAG_FROM_US);
+}
+/*
  * Deliver local destined packet to slow path
  */
 void __cold_func
@@ -773,6 +801,13 @@ ip6_lookup_and_originate(struct rte_mbuf *m, struct ifnet *in_ifp)
 			return;
 		}
 	}
+
+	/*
+	 * This hook shall cover: ESPv6, GREv6, LTP2v6 outer header remark
+	 * ICMPv6 error, redirect
+	 */
+	if (ipv6_originate_filter(dp_nh6_get_ifp(nxt), m))
+		return;
 
 	enum ip6_features ip6_feat = IP6_FEA_ORIGINATE;
 	ip6_switch(m, in_ifp, ip6, nxt, ip6_feat, NPF_FLAG_CACHE_EMPTY);

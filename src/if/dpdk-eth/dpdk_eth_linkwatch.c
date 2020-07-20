@@ -37,6 +37,7 @@
 #include "dp_event.h"
 #include "event_internal.h"
 #include "if_var.h"
+#include "ip_forward.h"
 #include "l2_rx_fltr.h"
 #include "lag.h"
 #include "main.h"
@@ -144,7 +145,7 @@ void linkwatch_update_port_status(portid_t port, bool link_down)
 }
 
 /* Callback from being woken up on link_fd.
- * Runs on master thread (via get_next_event)
+ * Runs on main thread (via get_next_event)
  *
  * irq_mask is used to debounce events so that only one link
  * state change between timer interval is possible
@@ -187,19 +188,63 @@ static int link_state_event(void *arg)
 
 		if (bitmask_isset(&queue_state_pending, port)) {
 			bitmask_clear(&queue_state_pending, port);
-			dpdk_eth_if_update_port_queue_state(
-				ifport_table[port]);
+			dpdk_eth_if_update_port_queue_state(port);
 		}
 	}
 
 	return 0;
 }
 
-/* Open eventfd handle used to notify master thread
+static const char *linkscan_source = "linkscan";
+
+static void linkwatch_change_mark_state(portid_t port_id,
+					enum dp_rt_path_state state)
+{
+	struct dp_rt_path_unusable_key key;
+	struct ifnet *ifp;
+
+	dp_rcu_register_thread();
+
+	ifp = ifnet_byport(port_id);
+	if (ifp) {
+		key.ifindex = ifp->if_index;
+		key.type = DP_RT_PATH_UNUSABLE_KEY_INTF;
+		dp_rt_signal_path_state(linkscan_source, state, &key);
+	}
+
+	rcu_thread_offline();
+}
+
+static enum dp_rt_path_state
+linkwatch_check_path_state(const struct dp_rt_path_unusable_key *key)
+{
+	struct rte_eth_link link;
+	struct ifnet *ifp;
+
+	if (key->type == DP_RT_PATH_UNUSABLE_KEY_INTF) {
+		ifp = dp_ifnet_byifindex(key->ifindex);
+		if (!ifp)
+			return DP_RT_PATH_UNKNOWN;
+
+		if (rte_eth_link_get_nowait(ifp->if_port, &link) < 0)
+			return DP_RT_PATH_UNKNOWN;
+
+		if (link.link_status == ETH_LINK_DOWN)
+			return DP_RT_PATH_UNUSABLE;
+		else
+			return DP_RT_PATH_USABLE;
+	}
+
+	return DP_RT_PATH_UNKNOWN;
+}
+
+
+/* Open eventfd handle used to notify main thread
  * by callbacks called in interrupt thread.
  */
 void link_state_init(void)
 {
+	int rv;
 	int fd = eventfd(0, EFD_NONBLOCK);
 	if (fd < 0)
 		rte_panic("%s: eventfd failed: %s\n",
@@ -207,12 +252,17 @@ void link_state_init(void)
 
 	lsc_arg = (void *) (unsigned long) fd;
 	register_event_fd(fd, link_state_event, lsc_arg);
+
+	rv = dp_rt_register_path_state(linkscan_source,
+				       linkwatch_check_path_state);
+	if (rv)
+		rte_panic("Could not register route state with linkwatch\n");
 }
 
 /* Port event occurred.
  *
  *  Called from another Posix thread therefore can't safely update
- *  port state directly, need to wakeup master thread
+ *  port state directly, need to wakeup main thread
  */
 static int
 eth_port_event(portid_t port_id, enum rte_eth_event_type type, void *arg,
@@ -221,19 +271,28 @@ eth_port_event(portid_t port_id, enum rte_eth_event_type type, void *arg,
 	unsigned long link_fd = (unsigned long) arg;
 	static const uint64_t incr = 1;
 	bool wakeup = false;
+	int rv;
 
-	/* Notify master thread, and debounce */
+	/* Notify main thread, and debounce */
 	if (type == RTE_ETH_EVENT_INTR_LSC) {
+		struct rte_eth_link link;
+
+		rv = rte_eth_link_get_nowait(port_id, &link);
+		if (rv == 0) {
+			if (link.link_status == ETH_LINK_DOWN)
+				linkwatch_change_mark_state(
+					port_id, DP_RT_PATH_UNUSABLE);
+			else
+				linkwatch_change_mark_state(port_id,
+							    DP_RT_PATH_USABLE);
+		}
 		/*
 		 * If the port uses the queue state events, and it is down
 		 * then we have to clear the enabled queues otherwise we
 		 * can get into an inconsistent state.
 		 */
 		if (get_port_uses_queue_state(port_id)) {
-			struct rte_eth_link link;
-
-			rte_eth_link_get_nowait(port_id, &link);
-			if (link.link_status == ETH_LINK_DOWN)
+			if (rv == 0 && link.link_status == ETH_LINK_DOWN)
 				reset_port_enabled_queue_state(port_id);
 		}
 		if (bitmask_isset(&lsc_irq_mask, port_id)) {
@@ -252,7 +311,7 @@ eth_port_event(portid_t port_id, enum rte_eth_event_type type, void *arg,
 	if (type == RTE_ETH_EVENT_QUEUE_STATE) {
 		/*
 		 * Pull all the events off the queue, and set the
-		 * enabled queus correctly. The master thread will then
+		 * enabled queues correctly. The main thread will then
 		 * do the work to actually enable them.
 		 */
 		struct rte_eth_vhost_queue_event event;

@@ -145,16 +145,26 @@ dp_test_npf_json_get_portmap_state(const char *addr, char **state)
  * Returns true if the portmap "used" count is retrieved ok
  */
 bool
-dp_test_npf_json_get_portmap_used(const char *addr, uint *used)
+dp_test_npf_json_get_portmap_used(const char *prot,
+				  const char *addr, uint *used)
 {
-	json_object *jmap;
+	json_object *jmap, *jprot;
 	bool rv;
+	struct dp_test_json_find_key key[] = { {"protocols", NULL},
+					       {"protocol", prot } };
 
 	jmap = dp_test_npf_json_get_portmap(addr, NULL);
 	if (!jmap)
 		return false;
 
-	rv = dp_test_json_int_field_from_obj(jmap, "used", (int *)used);
+	jprot = dp_test_json_find(jmap, key, ARRAY_SIZE(key));
+
+	if (!jprot) {
+		json_object_put(jmap);
+		return false;
+	}
+
+	rv = dp_test_json_int_field_from_obj(jprot, "ports_used", (int *)used);
 
 	json_object_put(jmap);
 	return rv;
@@ -165,20 +175,30 @@ dp_test_npf_json_get_portmap_used(const char *addr, uint *used)
  * considers "ACTIVE" portmaps.
  */
 static bool
-dp_test_npf_json_get_portmap_port(const char *addr, uint16_t port)
+dp_test_npf_json_get_portmap_port(const char *prot, const char *addr,
+				  uint16_t port)
 {
 	json_object *jmap, *jarray;
+	struct dp_test_json_find_key key[] = { {"protocols", NULL},
+					       {"protocol", prot },
+					       {"ports", NULL } };
 
 	jmap = dp_test_npf_json_get_portmap(addr, "ACTIVE");
 	if (!jmap)
 		return false;
 
-	/* Get ports array */
-	if (!json_object_object_get_ex(jmap, "ports", &jarray))
-		return false;
+	jarray = dp_test_json_find(jmap, key, ARRAY_SIZE(key));
 
-	if (json_object_get_type(jarray) != json_type_array)
+	if (!jarray) {
+		json_object_put(jmap);
 		return false;
+	}
+
+	if (json_object_get_type(jarray) != json_type_array) {
+		json_object_put(jarray);
+		json_object_put(jmap);
+		return false;
+	}
 
 	uint arraylen, i;
 	json_object *jvalue;
@@ -205,28 +225,50 @@ dp_test_npf_json_get_portmap_port(const char *addr, uint16_t port)
  * Port-map is of the form:
  *
  * {
- *  "apm":{
- *    "section_size":512,
- *    "hash_memory":696,
- *    "instances":[
- *      {
- *        "npf_id":1,
- *        "portmaps":[
- *          {
- *            "address":"172.0.2.1",
- *            "state":"ACTIVE",
- *            "used":1,
- *            "ports":[
- *              80
- *            ]
- *          }
- *        ]
- *      }
- *    ]
- *  }
+ *   "apm": {
+ *     "section_size": 512,
+ *     "hash_memory": 3304,
+ *     "portmaps": [
+ *       {
+ *         "address": "172.0.2.1",
+ *         "state": "ACTIVE",
+ *         "protocols": [
+ *           {
+ *             "protocol": "tcp",
+ *             "ports_used": 1,
+ *             "ports": [
+ *               80
+ *             ]
+ *           },
+ *           {
+ *             "protocol": "udp",
+ *             "ports_used": 0
+ *           },
+ *           {
+ *             "protocol": "other",
+ *             "ports_used": 0
+ *           }
+ *         ]
+ *       }
+ *     ],
+ *     "protocols": [
+ *       {
+ *         "protocol": "tcp",
+ *         "mapping_count": 1
+ *       },
+ *       {
+ *         "protocol": "udp",
+ *         "mapping_count": 0
+ *       },
+ *       {
+ *         "protocol": "other",
+ *         "mapping_count": 0
+ *       }
+ *     ]
+ *   }
  * }
- *
  */
+
 void
 dp_test_npf_print_portmap(void)
 {
@@ -255,23 +297,36 @@ dp_test_npf_print_portmap(void)
  * Verify portmap state and/or used count
  */
 void
-_dp_test_npf_portmap_verify(const char *addr, const char *state, uint used,
+_dp_test_npf_portmap_verify(const char *prot, const char *addr,
+			    const char *state, uint used,
 			    const char *file, int line)
 {
-	json_object *jmap;
+	json_object *jmap, *jprot;
 	bool rv;
 	uint ival = 0;
 	const char *sval = NULL;
+	struct dp_test_json_find_key key[] = { {"protocols", NULL},
+					       {"protocol", prot } };
 
 	jmap = dp_test_npf_json_get_portmap(addr, NULL);
 	if (!jmap)
 		_dp_test_fail(file, line,
 			      "\nFailed to get portmap for %s\n", addr);
 
-	rv = dp_test_json_int_field_from_obj(jmap, "used", (int *)&ival);
+	jprot = dp_test_json_find(jmap, key, ARRAY_SIZE(key));
+
+	if (!jprot) {
+		_dp_test_fail(file, line,
+			      "\nFailed to get protocol info"
+			      " for %s\n", addr);
+		json_object_put(jmap);
+		return;
+	}
+
+	rv = dp_test_json_int_field_from_obj(jprot, "ports_used", (int *)&ival);
 	if (!rv)
 		_dp_test_fail(file, line,
-			      "\nFailed to get portmap \"used\""
+			      "\nFailed to get portmap \"ports_used\""
 			      " field for %s\n", addr);
 
 	rv = dp_test_json_string_field_from_obj(jmap, "state", &sval);
@@ -292,6 +347,7 @@ _dp_test_npf_portmap_verify(const char *addr, const char *state, uint used,
 				     " actual count %d\n",
 				     addr, used, ival);
 
+	json_object_put(jprot);
 	json_object_put(jmap);
 }
 
@@ -299,12 +355,13 @@ _dp_test_npf_portmap_verify(const char *addr, const char *state, uint used,
  * Verify portmap port
  */
 void
-_dp_test_npf_portmap_port_verify(const char *addr, uint16_t port,
-				 bool expected, const char *file, int line)
+_dp_test_npf_portmap_port_verify(const char *prot, const char *addr,
+				 uint16_t port, bool expected,
+				 const char *file, int line)
 {
 	bool rv;
 
-	rv = dp_test_npf_json_get_portmap_port(addr, port);
+	rv = dp_test_npf_json_get_portmap_port(prot, addr, port);
 	if (expected != rv)
 		dp_test_npf_print_portmap();
 

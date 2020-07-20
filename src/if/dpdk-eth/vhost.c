@@ -10,6 +10,7 @@
 #include <errno.h>
 #include <netinet/in.h>
 #include <linux/if.h>
+#include <poll.h>
 #include <rte_ethdev.h>
 #include <rte_log.h>
 #include <stdbool.h>
@@ -37,6 +38,14 @@
 
 #define QMP_RETURN_BUFSIZE 200
 
+struct vhost_info_private {
+	struct rcu_head sc_rcu;	   /**< Linkage for call_rcu */
+	struct cds_list_head list; /**< Linkage for vhost_info_private_list */
+	char name[IFNAMSIZ];	   /**< DPDK instance name */
+	char *qmp_path;		   /**< Path to QMP connection */
+	char *qemu_ifname;	   /**< QEMU name for guest interface */
+};
+
 struct vhost_transport {
 	struct rcu_head vt_rcu;		/**< Linkage for call_rcu */
 	struct cds_list_head list;
@@ -44,12 +53,12 @@ struct vhost_transport {
 };
 
 struct vhost_info {
-	struct rcu_head sc_rcu;		/**< Linkage for call_rcu */
-	char *qmp_path;			/**< Path to QMP connection */
-	char *qemu_ifname;		/**< QEMU name for guest interface */
 	struct cds_list_head transport_links;
 					/**< Monitored interfaces -- if any */
 };
+
+static struct cds_list_head vhost_info_private_list =
+				CDS_LIST_HEAD_INIT(vhost_info_private_list);
 
 /*
  * Vhost event queue
@@ -97,6 +106,47 @@ static struct vhost_info *get_vhost_info(const struct ifnet *ifp)
 }
 
 /**
+ * Get struct vhost_info_private from a vhost ifp. Note that we
+ * might need to strip the dataplane prefix.
+ */
+static struct vhost_info_private *vhost_info_by_name(const char *if_name)
+{
+	struct vhost_info_private *vip;
+	const char *name;
+
+	name = strstr(if_name, "vhost");
+	if (!name)
+		return NULL;
+
+	cds_list_for_each_entry(vip, &vhost_info_private_list, list) {
+		if (!strcmp(name, vip->name))
+			return vip;
+	}
+
+	return NULL;
+}
+
+static ssize_t read_timeout(int fd, void *buf, size_t count)
+{
+	struct pollfd poll_fds[1];
+	/* Responses are typically << 100ms, use 500ms to be safe */
+	int timeout = 500;
+	int rc;
+
+	poll_fds[0].fd = fd;
+	poll_fds[0].events = POLLIN;
+
+	rc = poll(poll_fds, 1, timeout);
+	if (rc < 1) {
+		if (!rc)
+			RTE_LOG(ERR, DATAPLANE, "timeout talking to QMP\n");
+		return -1;
+	}
+
+	return read(fd, buf, count);
+}
+
+/**
  * Send cmd via QEMU Machine Protocol (QMP).
  */
 static void vhost_qmp_command(const char *path, const char *cmd)
@@ -123,10 +173,11 @@ static void vhost_qmp_command(const char *path, const char *cmd)
 			 "%s: connect(%s, ...) failed\n", __func__, path);
 		goto done;
 	}
+
 	/* Read the initial server message.
 	 * See https://wiki.qemu.org/Documentation/QMP for details.
 	 */
-	len = read(sock, buf, sizeof(buf));
+	len = read_timeout(sock, buf, sizeof(buf));
 	if (len < 0) {
 		DP_DEBUG(VHOST, DEBUG, DATAPLANE,
 			 "%s: read(%s, ...) failed during capability negotiation.\n",
@@ -139,7 +190,7 @@ static void vhost_qmp_command(const char *path, const char *cmd)
 	if (len < 0)
 		DP_DEBUG(VHOST, INFO, DATAPLANE,
 			 "%s: write(cmd_mode) failed\n", __func__);
-	len = read(sock, buf, sizeof(buf));
+	len = read_timeout(sock, buf, sizeof(buf));
 	if (len < 0) {
 		DP_DEBUG(VHOST, DEBUG, DATAPLANE,
 			 "%s: read(%s, ...) failed entering command mode.\n",
@@ -151,7 +202,7 @@ static void vhost_qmp_command(const char *path, const char *cmd)
 	if (len < 0)
 		DP_DEBUG(VHOST, INFO, DATAPLANE,
 			 "%s: write(set_link) failed\n", __func__);
-	len = read(sock, buf, sizeof(buf));
+	len = read_timeout(sock, buf, sizeof(buf));
 	if (len < 0)
 		DP_DEBUG(VHOST, DEBUG, DATAPLANE,
 			 "%s: read(%s, ...) failed after sending command.\n",
@@ -168,43 +219,98 @@ static int vhost_set_link_state(struct ifnet *ifp, bool up)
 {
 #define SET_LINK_CMD_STR "{ \"execute\": \"set_link\", " \
 			 "\"arguments\": { \"name\": \"%s\", \"up\" : %s } }"
-	struct vhost_info *vi;
+	struct vhost_info_private *vip;
 	char set_link[sizeof(SET_LINK_CMD_STR) + 32 + sizeof("false") + 1];
 
-	vi = get_vhost_info(ifp);
-	if (!vi || !vi->qmp_path || !vi->qemu_ifname)
+	vip = vhost_info_by_name(ifp->if_name);
+	if (!vip || !vip->qmp_path || !vip->qemu_ifname)
 		return -EINVAL;
 
 	snprintf(set_link, sizeof(set_link), SET_LINK_CMD_STR,
-		 vi->qemu_ifname, up ? "true" : "false");
+		 vip->qemu_ifname, up ? "true" : "false");
 
-	vhost_qmp_command(vi->qmp_path, set_link);
+	vhost_qmp_command(vip->qmp_path, set_link);
 	return 0;
 }
 
-static int vhost_info_alloc(struct ifnet *ifp)
+/**
+ * Create private data for each vhost interface to hold the
+ * QEMU information.
+ */
+static struct vhost_info_private *vhost_info_private_create(char *name)
+{
+	struct vhost_info_private *vip;
+
+	vip = calloc(1, sizeof(*vip));
+	if (!vip)
+		return NULL;
+
+	CDS_INIT_LIST_HEAD(&vip->list);
+	snprintf(vip->name, IFNAMSIZ, "%s", name);
+	cds_list_add_tail_rcu(&vip->list, &vhost_info_private_list);
+
+	return vip;
+}
+
+/**
+ * RCU callback that finally frees the vhost private info.
+ */
+static void vhost_info_private_free(struct rcu_head *head)
+{
+	struct vhost_info_private *vip =
+		caa_container_of(head, struct vhost_info_private, sc_rcu);
+
+	free(vip->qmp_path);
+	free(vip->qemu_ifname);
+	free(vip);
+}
+
+/**
+ * Delete the vhost private information from global list.
+ * and schedule final free after next RCU.
+ */
+static void vhost_info_private_delete(char *name)
+{
+	struct vhost_info_private *vi, *next;
+
+	cds_list_for_each_entry_safe(vi, next, &vhost_info_private_list, list) {
+		if (!strcmp(name, vi->name)) {
+			cds_list_del_rcu(&vi->list);
+			call_rcu(&vi->sc_rcu, vhost_info_private_free);
+		}
+	}
+}
+
+/**
+ * Allocate the vhost_info used by transport-link logic.
+ */
+static int vhost_info_alloc(const struct ifnet *ifp)
 {
 	struct dpdk_eth_if_softc *sc = ifp->if_softc;
 	struct vhost_info *vi;
 
+	if (sc->scd_vhost_info)
+		return 0;
+
 	vi = zmalloc_aligned(sizeof(*vi));
 	if (!vi)
-		return -1;
+		return -ENOMEM;
 	CDS_INIT_LIST_HEAD(&vi->transport_links);
 	rcu_assign_pointer(sc->scd_vhost_info, vi);
 
 	return 0;
 }
 
+/**
+ * Free the vhost_info associated with the softc. Called when netlink
+ * indicates an interface is going away.
+ */
 void vhost_info_free(struct vhost_info *vi)
 {
 	struct vhost_transport *entry, *next;
 
-	free(vi->qmp_path);
-	free(vi->qemu_ifname);
 	cds_list_for_each_entry_safe(entry, next, &vi->transport_links, list)
 		free(entry);
-
 	free(vi);
 }
 
@@ -212,23 +318,27 @@ void vhost_devinfo(json_writer_t *wr, const struct ifnet *ifp)
 {
 	struct vhost_info *vi;
 	struct vhost_transport *entry;
+	struct vhost_info_private *vip;
 
-	vi = get_vhost_info(ifp);
-	if (vi) {
-		if (vi->qmp_path)
-			jsonw_string_field(wr, "qmp_path", vi->qmp_path);
-		if (vi->qemu_ifname)
+	vip = vhost_info_by_name(ifp->if_name);
+	if (vip) {
+		if (vip->qmp_path)
+			jsonw_string_field(wr, "qmp_path", vip->qmp_path);
+		if (vip->qemu_ifname)
 			jsonw_string_field(wr, "qemu_ifname",
-					       vi->qemu_ifname);
-		jsonw_name(wr, "transport_links");
-		jsonw_start_array(wr);
+					       vip->qemu_ifname);
+	}
+
+	jsonw_name(wr, "transport_links");
+	jsonw_start_array(wr);
+	vi = get_vhost_info(ifp);
+	if (vi)
 		cds_list_for_each_entry(entry, &vi->transport_links, list)
 			jsonw_string(wr, entry->ifname);
-		jsonw_end_array(wr);
-	}
+	jsonw_end_array(wr);
 }
 
-static int cmd_vhost_disable(char *ifname, bool on_master)
+static int cmd_vhost_disable(char *ifname, bool on_main)
 {
 	int rc;
 	char *devargs_p;
@@ -242,7 +352,9 @@ static int cmd_vhost_disable(char *ifname, bool on_master)
 	if (size == -1)
 		return -1;
 
-	if (on_master) {
+	vhost_info_private_delete(ifname);
+
+	if (on_main) {
 		rc = detach_device(devargs_p);
 	} else {
 		rcu_thread_offline();
@@ -258,44 +370,18 @@ static int cmd_vhost_disable(char *ifname, bool on_master)
 static const char dev_basename[] = "/run/dataplane/eth_";
 
 /**
- * Find a vhost interface.  If a dp- prefix is given, search
- * by name.  Otherwise, search by the eth_dev unique name.
- */
-static struct ifnet *vhost_byname(char *name)
-{
-	struct ifnet *ifp;
-
-	if (strncmp(name, "dp", 2) == 0)
-		ifp = dp_ifnet_byifname(name);
-	else {
-		char eth_dev_name[RTE_ETH_NAME_MAX_LEN];
-						/* dataplane local name */
-
-		snprintf(eth_dev_name, sizeof(eth_dev_name), "eth_%s", name);
-		ifp = ifnet_byethname(eth_dev_name);
-	}
-
-	return ifp;
-}
-
-/**
  * Set path as the QMP (QEMU Machine Protocol) connection for the vhost ifname.
  */
 static int cmd_vhost_set_qmp_path(char *name, char *path)
 {
-	struct ifnet *ifp;
-	struct vhost_info *vi;
+	struct vhost_info_private *vip;
 
-	ifp = vhost_byname(name);
-	if (!ifp)
+	vip = vhost_info_by_name(name);
+	if (!vip)
 		return -ENODEV;
 
-	vi = get_vhost_info(ifp);
-	if (!vi)
-		return -ENOMEM;
-
-	free(vi->qmp_path);
-	vi->qmp_path = strdup(path);
+	free(vip->qmp_path);
+	vip->qmp_path = strdup(path);
 
 	return 0;
 }
@@ -305,32 +391,26 @@ static int cmd_vhost_set_qmp_path(char *name, char *path)
  */
 static int cmd_vhost_set_qemu_ifname(char *name, char *qemu_ifname)
 {
-	struct ifnet *ifp;
-	struct vhost_info *vi;
+	struct vhost_info_private *vip;
 
-	ifp = vhost_byname(name);
-	if (!ifp)
+	vip = vhost_info_by_name(name);
+	if (!vip)
 		return -ENODEV;
 
-	vi = get_vhost_info(ifp);
-	if (!vi)
-		return -ENOMEM;
-
-	free(vi->qemu_ifname);
-	vi->qemu_ifname = strdup(qemu_ifname);
+	free(vip->qemu_ifname);
+	vip->qemu_ifname = strdup(qemu_ifname);
 
 	return 0;
 }
 
 static int cmd_vhost_enable(char *ifname, char *queues, char *path, char *alias,
-			    bool on_master, bool is_client)
+			    bool on_main, bool is_client)
 {
 	int rc;
 	char *devargs_p;
 	char *pathname;
 	char *p;
 	int size;
-	struct ifnet *ifp;
 
 	p = strrchr(ifname, 'v');
 	if (!p) {
@@ -350,7 +430,7 @@ static int cmd_vhost_enable(char *ifname, char *queues, char *path, char *alias,
 	DP_DEBUG(VHOST, DEBUG, DATAPLANE,
 		"vhost: sending event ADD, %s\n",
 		ifname);
-	if (on_master) {
+	if (on_main) {
 		rc = attach_device(devargs_p);
 	} else {
 		rcu_thread_offline();
@@ -372,13 +452,18 @@ static int cmd_vhost_enable(char *ifname, char *queues, char *path, char *alias,
 	}
 
 	if (!rc) {
-		ifp = vhost_byname(ifname);
-		if (ifp) {
-			rc = vhost_info_alloc(ifp);
-			if (!rc && path)
+		struct vhost_info_private *vip;
+
+		vip = vhost_info_private_create(ifname);
+		if (vip) {
+			if (path)
 				cmd_vhost_set_qmp_path(ifname, path);
-			if (!rc && alias)
+			if (alias)
 				cmd_vhost_set_qemu_ifname(ifname, alias);
+		} else {
+			RTE_LOG(ERR, DATAPLANE,
+				"vhost_info_private_create failed for %s, transport-link tracking won't work!\n",
+				ifname);
 		}
 	}
 
@@ -441,7 +526,7 @@ static int vhost_set_update_event(struct ifnet *ifp)
 	rte_spinlock_unlock(&vhost_ev_list_lock);
 
 	/* Set the event */
-	return set_master_worker_vhost_event_fd();
+	return set_main_worker_vhost_event_fd();
 }
 
 /**
@@ -468,11 +553,9 @@ static void vhost_link_update_core(struct ifnet *ifp, void *arg, bool process)
 	}
 
 	vi = get_vhost_info(ifp);
-	if (!vi)
-		return;
 
 	/* No transport links -- The guest's carrier status should be up. */
-	if (cds_list_empty(&vi->transport_links)) {
+	if (!vi || cds_list_empty(&vi->transport_links)) {
 		up = true;
 		update_guest = true;
 		goto out;
@@ -512,7 +595,7 @@ static void vhost_link_update_process(char *vhost_name)
 	struct ifnet *ifp;
 
 	rcu_read_lock();
-	ifp = vhost_byname(vhost_name);
+	ifp = dp_ifnet_byifname(vhost_name);
 	if (!ifp) {
 		rcu_read_unlock();
 		return;
@@ -637,10 +720,11 @@ static int vhost_replay_init(void)
 static int cmd_vhost_transport_update(int argc, char **argv, bool add)
 {
 	struct ifnet *ifp;
-	struct vhost_info *vi;
 	struct vhost_transport *entry, *next;
+	struct vhost_info *vi;
+	int rc;
 
-	ifp = vhost_byname(argv[2]);
+	ifp = dp_ifnet_byifname(argv[2]);
 	if (!ifp) {
 		if (vhost_replay_init() < 0) {
 			RTE_LOG(ERR, DATAPLANE,
@@ -656,12 +740,21 @@ static int cmd_vhost_transport_update(int argc, char **argv, bool add)
 		return 0;
 	}
 
-	vi = get_vhost_info(ifp);
-	if (!vi)
-		return -ENOMEM;
 	DP_DEBUG(VHOST, DEBUG, DATAPLANE,
 		 "vhost %s, transport %s action %s\n",
 		 argv[2], argv[3], add ? "ADD" : "DEL");
+
+	rc = vhost_info_alloc(ifp);
+	if (rc < 0) {
+		RTE_LOG(ERR, DATAPLANE, "vhost_info_alloc: %s\n",
+			strerror(-rc));
+		return rc;
+	}
+
+	vi = get_vhost_info(ifp);
+	if (!vi)
+		return -ENOENT;
+
 	if (add) {
 		struct ifnet *transport_ifp;
 

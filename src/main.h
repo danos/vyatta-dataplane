@@ -142,6 +142,8 @@ struct rxtx_param {
 	uint8_t	 tx_desc_vm_multiplier;
 	uint64_t tx_offloads;
 	uint64_t neg_tx_offloads;
+	uint64_t dev_flags;
+	uint64_t neg_dev_flags;
 	uint64_t rx_mq_mode;
 	bool rx_mq_mode_set;
 };
@@ -159,12 +161,6 @@ struct rxtx_param {
 
 #define MBUF_CACHE_SIZE_DEFAULT 32 /* per-core buffer cache size */
 
-bool is_master_thread(void);
-
-#define ASSERT_MASTER() \
-{        if (!is_master_thread()) rte_panic("not on master thread\n");	\
-}
-
 void set_port_uses_queue_state(uint16_t portid, bool val);
 bool get_port_uses_queue_state(uint16_t portid);
 void reset_port_enabled_queue_state(uint16_t portid);
@@ -172,7 +168,7 @@ void track_port_queue_state(uint16_t portid, uint16_t queue_id, bool rx,
 			    bool enable);
 void switch_port_process_burst(portid_t portid, struct rte_mbuf *pkts[],
 			       uint16_t nb);
-int set_master_worker_vhost_event_fd(void);
+int set_main_worker_vhost_event_fd(void);
 
 extern bool single_cpu;
 

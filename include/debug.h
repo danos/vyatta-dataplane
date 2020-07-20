@@ -71,7 +71,7 @@
  * In the case when the debug is not enabled the only cost will be the check
  * to see if that debug type is enabled.
  *
- * This must be called on the master thread.
+ * This must be called on the main thread.
  *
  * @param[in] event_type A string representing a debug event type.
  * @return A value that has a single bit set. This can then be used as the

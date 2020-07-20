@@ -39,7 +39,7 @@ unsigned int dp_test_json_mismatch_print(struct dp_test_json_mismatches *m,
 json_object *dp_test_json_val_in_array(json_object *array,
 				       json_object *elem_subset);
 
-void dp_test_json_filter(json_object *master, json_object *filter);
+void dp_test_json_filter(json_object *haystack, json_object *filter);
 
 void
 dp_test_json_mismatch_record(struct dp_test_json_mismatches **m_ptr,

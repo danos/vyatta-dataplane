@@ -32,9 +32,9 @@ struct dpdk_eth_if_softc {
 	bool                 scd_fal_lag_member_created;
 	unsigned int         bp_ifindex;     /* backplane interface */
 	struct ifnet        *scd_ifp; /* back pointer to the ifp */
-	/* Keep track of LAG slaves*/
-	struct cds_list_head scd_fal_lag_slaves_head;
-	struct cds_list_head scd_fal_lag_slave_link;
+	/* Keep track of LAG members */
+	struct cds_list_head scd_fal_lag_members_head;
+	struct cds_list_head scd_fal_lag_member_link;
 	fal_object_t         scd_fal_port_lag_obj; /* Port or LAG FAL object */
 	fal_object_t         scd_fal_lag_member_obj; /* LAG member FAL object */
 };
@@ -50,8 +50,14 @@ void dpdk_eth_if_start_port(struct ifnet *ifp);
 void dpdk_eth_if_stop_port(struct ifnet *ifp);
 void dpdk_eth_if_force_stop_port(struct ifnet *ifp);
 void stop_all_ports(void);
-void dpdk_eth_if_update_port_queue_state(struct ifnet *ifp);
+void dpdk_eth_if_update_port_queue_state(portid_t port);
 bool dpdk_eth_if_port_started(portid_t port);
 void dpdk_eth_if_reset_port(struct rte_timer *tim, void *arg);
+
+char *dpdk_eth_vplaned_devinfo(portid_t port_id);
+
+int dpdk_name_to_eth_port_map_add(const char *ifname, portid_t port);
+void dpdk_eth_port_map_del_port(portid_t port);
+portid_t dpdk_name_to_eth_port_map_get(const char *ifname);
 
 #endif /* DPDK_ETH_IF_H */

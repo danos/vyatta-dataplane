@@ -42,7 +42,7 @@
 #include "ip_addr.h"
 #include "ip_funcs.h"
 #include "ip_mcast.h"
-#include "master.h"
+#include "controller.h"
 #include "mpls/mpls.h"
 #include "netinet/ip_mroute.h"
 #include "netinet6/ip6_funcs.h"
@@ -150,12 +150,14 @@ static bool nexthop_fill(struct nlattr *ntb_gateway, struct nlattr *ntb_encap,
 	if (!dp_nh_get_ifp(next) && !is_ignored_interface(nhp->rtnh_ifindex))
 		return true;
 	if (ntb_gateway) {
-		next->gateway4 = mnl_attr_get_u32(ntb_gateway);
+		next->gateway.address.ip_v4.s_addr =
+			mnl_attr_get_u32(ntb_gateway);
 		next->flags = RTF_GATEWAY;
 	} else {
-		next->gateway4 = INADDR_ANY;
+		next->gateway.address.ip_v4.s_addr = INADDR_ANY;
 		next->flags = 0;
 	}
+	next->gateway.type = AF_INET;
 
 	if (ntb_encap) {
 		len = mnl_attr_get_payload_len(ntb_encap);
@@ -286,11 +288,12 @@ static bool nexthop_fill_mpls(struct nlattr *ntb_via, struct nlattr *ntb_newdst,
 				via->rtvia_family);
 		}
 
-		next->gateway4 = nh;
+		next->gateway.address.ip_v4.s_addr = nh;
 	} else {
-		next->gateway4 = INADDR_ANY;
+		next->gateway.address.ip_v4.s_addr = INADDR_ANY;
 		next->flags = 0;
 	}
+	next->gateway.type = AF_INET;
 
 	ret = nexthop_fill_mpls_common(ntb_newdst, &next->outlabels, bos_only);
 	if (!dp_nh_get_ifp(next))
@@ -343,14 +346,15 @@ static bool nexthop6_fill_mpls(const struct nlattr *ntb_via,
 				via->rtvia_family);
 		}
 
-		next->gateway6 = nh6;
+		next->gateway.address.ip_v6 = nh6;
 		next->flags = RTF_GATEWAY;
 		if (IN6_IS_ADDR_V4MAPPED(&nh6))
 			next->flags |= RTF_MAPPED_IPV6;
 	} else {
-		next->gateway6 = nh6;
+		next->gateway.address.ip_v6 = nh6;
 		next->flags = 0;
 	}
+	next->gateway.type = AF_INET6;
 
 	ret = nexthop_fill_mpls_common(ntb_newdst, &next->outlabels, bos_only);
 	if (!dp_nh_get_ifp(next))
@@ -485,13 +489,16 @@ static bool nexthop6_fill(struct nlattr *ntb_gateway,
 		return true;
 
 	if (ntb_gateway) {
-		next->gateway6 = *(struct in6_addr *)mnl_attr_get_payload(
-			ntb_gateway);
+		next->gateway.address.ip_v6 =
+			*(struct in6_addr *)mnl_attr_get_payload(ntb_gateway);
 		next->flags = RTF_GATEWAY;
+		if (IN6_IS_ADDR_V4MAPPED(&next->gateway.address.ip_v6))
+			next->flags |= RTF_MAPPED_IPV6;
 	} else {
-		next->gateway6 = anyaddr;
+		next->gateway.address.ip_v6 = anyaddr;
 		next->flags = 0;
 	}
+	next->gateway.type = AF_INET6;
 
 	if (ntb_encap) {
 		len = mnl_attr_get_payload_len(ntb_encap);
@@ -847,6 +854,8 @@ static int handle_route6(vrfid_t vrf_id, uint16_t type,
 			if (exp_ifp && !ifp && !is_ignored_interface(ifindex))
 				return -1;
 			size = 1;
+			if (IN6_IS_ADDR_V4MAPPED(&ip_addr.address.ip_v6))
+				flags |= RTF_MAPPED_IPV6;
 			next = nexthop_create(ifp, &ip_addr, flags, num_labels,
 					      labels);
 		}
@@ -1219,7 +1228,7 @@ static int inet_route_change(const struct nlmsghdr *nlh,
 	if (vrf_is_vrf_table_id(kernel_table) &&
 	    vrf_lookup_by_tableid(kernel_table, &vrf_id, &table) < 0) {
 		/*
-		 * Route came down before the vrfmaster device
+		 * Route came down before the vrf device
 		 * RTM_NEWLINK - defer route installation until it
 		 * arrives.
 		 */
@@ -1302,11 +1311,6 @@ static int inet_addr_change(const struct nlmsghdr *nlh,
 		if (ifp) {
 			ifa_add(ifindex, ifa->ifa_family, ifa->ifa_scope,
 				addr, ifa->ifa_prefixlen, broadcast);
-		} else {
-			if (!is_ignored_interface(ifindex))
-				missed_nl_inet_addr_add(ifindex,
-							ifa->ifa_family,
-							addr, nlh);
 		}
 
 		dp_event(DP_EVT_IF_ADDR_ADD, cont_src, ifp, ifindex,
@@ -1327,11 +1331,6 @@ static int inet_addr_change(const struct nlmsghdr *nlh,
 		if (ifp) {
 			ifa_remove(ifindex,
 				   ifa->ifa_family, addr, ifa->ifa_prefixlen);
-		} else {
-			if (!is_ignored_interface(ifindex))
-				missed_nl_inet_addr_del(ifindex,
-							ifa->ifa_family,
-							addr);
 		}
 
 		dp_event(DP_EVT_IF_ADDR_DEL, cont_src, ifp, ifindex,
@@ -1434,15 +1433,6 @@ static int inet_netconf_change(const struct nlmsghdr *nlh,
 
 	unsigned int ifindex = cont_src_ifindex(cont_src, signed_ifindex);
 	ifp = dp_ifnet_byifindex(ifindex);
-	if (!ifp && !is_ignored_interface(ifindex)) {
-		if (nlh->nlmsg_type == RTM_NEWNETCONF)
-			missed_nl_inet_netconf_add(ifindex,
-						   ncm->ncm_family,
-						   nlh);
-		else
-			missed_nl_inet_netconf_del(ifindex,
-						   ncm->ncm_family);
-	}
 
 	/*
 	 * Only given just before a delete, so we'll just let the

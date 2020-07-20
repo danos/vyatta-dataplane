@@ -18,7 +18,7 @@
 #include "control.h"
 #include "event_internal.h"
 #include "ip_rt_protobuf.h"
-#include "master.h"
+#include "controller.h"
 #include "netlink.h"
 #include "route_broker.h"
 #include "vplane_debug.h"
@@ -343,7 +343,7 @@ int init_route_broker_ctrl_connection(zsock_t *socket,
 	rc = send_route_broker_ctrl_connect(socket, cont_src);
 	if (rc < 0)
 		RTE_LOG(ERR, DATAPLANE,
-			"master(%s) ZMQ failed to connect to route broker\n",
+			"main(%s) ZMQ failed to connect to route broker\n",
 			cont_src_name(cont_src));
 	return rc;
 }

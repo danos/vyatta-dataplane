@@ -152,7 +152,7 @@ void lladdr_update(struct ifnet *ifp, struct llentry *la,
 		 * We have had an address change so it needs
 		 * to be signalled to the hardware, mark it as
 		 * incomplete in the hardware so that the
-		 * master thread can pick this up and send an
+		 * main thread can pick this up and send an
 		 * update
 		 */
 		if (if_is_features_mode_active(
@@ -356,7 +356,7 @@ void lladdr_nl_event(int family, struct ifnet *ifp, uint16_t type,
 }
 
 /* Send a new ll request probe for entry that has not responded.
- * Since this runs in master lcore, and that can't send directly,
+ * Since this runs in main lcore, and that can't send directly,
  * it intrudes into shadow output ring to send the packet.
  */
 static void ll_probe(struct lltable *llt, struct llentry *la)
@@ -453,7 +453,7 @@ void lladdr_timer(struct rte_timer *tim __rte_unused, void *arg)
 	cds_lfht_for_each_entry(llt->llt_hash, &iter, lle, ll_node) {
 		/*
 		 * If the delete flag is set (which can be done on any
-		 * core) do the actual delete here on master
+		 * core) do the actual delete here on main
 		 */
 		if (lle->la_flags & LLE_DELETED) {
 			rte_spinlock_lock(&lle->ll_lock);
