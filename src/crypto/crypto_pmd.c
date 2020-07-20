@@ -30,6 +30,8 @@
 #include "vplane_log.h"
 #include "crypto_rte_pmd.h"
 
+#define MAX_CRYPTO_PMD 128
+
 /*
  * Dynamic number of pmds supported. Based upon the number of crypto
  * engines available which is reported from either a probe or a set.

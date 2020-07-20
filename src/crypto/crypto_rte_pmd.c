@@ -28,6 +28,11 @@
 /* per session (SA) data structure used to set up operations with PMDs */
 static struct rte_mempool *crypto_session_pool;
 
+/* per session data structure for private driver data */
+static struct rte_mempool *crypto_priv_sess_pools[CRYPTODEV_MAX];
+
+static uint8_t dev_cnts[CRYPTODEV_MAX];
+
 /* per packet crypto op pool. This may eventually subsume crypto_pkt_ctx */
 static struct rte_mempool *crypto_op_pool;
 
@@ -308,6 +313,37 @@ static int crypto_rte_find_inst_id(enum cryptodev_type dev_type,
 	return 0;
 }
 
+static int crypto_rte_setup_priv_pool(enum cryptodev_type dev_type,
+				      unsigned int session_size)
+{
+#define POOL_NAME_LEN 50
+	char pool_name[POOL_NAME_LEN];
+	unsigned int socket = rte_lcore_to_socket_id(rte_get_master_lcore());
+
+	snprintf(pool_name, POOL_NAME_LEN, "crypto_sess_priv_pool_%d",
+		 dev_type);
+	crypto_priv_sess_pools[dev_type] =
+		rte_mempool_create(pool_name, CRYPTO_MAX_SESSIONS, session_size,
+				   CRYPTO_SESSION_POOL_CACHE_SIZE, 0,
+				   NULL, NULL, NULL, NULL,
+				   socket, 0);
+	if (!crypto_priv_sess_pools[dev_type]) {
+		RTE_LOG(ERR, DATAPLANE,
+			"Could not allocate crypto session private pool for socket %d, dev %s\n",
+			socket, cryptodev_names[dev_type]);
+		return -ENOMEM;
+	}
+	return 0;
+}
+
+static void crypto_rte_destroy_priv_pool(enum cryptodev_type dev_type)
+{
+	if (crypto_priv_sess_pools[dev_type]) {
+		rte_mempool_free(crypto_priv_sess_pools[dev_type]);
+		crypto_priv_sess_pools[dev_type] = NULL;
+	}
+}
+
 int crypto_rte_create_pmd(int cpu_socket, uint8_t dev_id,
 			  enum cryptodev_type dev_type, char dev_name[],
 			  uint8_t max_name_len, int *rte_dev_id)
@@ -316,6 +352,11 @@ int crypto_rte_create_pmd(int cpu_socket, uint8_t dev_id,
 	int err;
 	char args[ARGS_LEN];
 	int inst_id = 0;
+	unsigned int session_size;
+	struct rte_cryptodev_config conf = {
+		.nb_queue_pairs = MAX_CRYPTO_XFRM,
+		.socket_id = cpu_socket
+	};
 
 	/* look for next available id for this pmd type */
 	err = crypto_rte_find_inst_id(dev_type, &inst_id);
@@ -339,8 +380,58 @@ int crypto_rte_create_pmd(int cpu_socket, uint8_t dev_id,
 	}
 
 	*rte_dev_id = rte_cryptodev_get_dev_id(dev_name);
-	pmd_inst_ids[dev_type][inst_id] = dev_id;
 
+	session_size =
+		rte_cryptodev_sym_get_private_session_size(*rte_dev_id);
+
+	if (!crypto_priv_sess_pools[dev_type]) {
+		err = crypto_rte_setup_priv_pool(dev_type, session_size);
+		if (err)
+			goto fail;
+	}
+
+	err = rte_cryptodev_configure(*rte_dev_id, &conf);
+	if (err != 0) {
+		RTE_LOG(ERR, DATAPLANE,
+			"Failed to configure crypto device %s : %s\n",
+			dev_name, strerror(-err));
+		goto fail;
+	}
+
+	struct rte_cryptodev_qp_conf qp_conf = {
+		.nb_descriptors = 2048,
+		.mp_session = crypto_session_pool,
+		.mp_session_private = crypto_priv_sess_pools[dev_type]
+	};
+
+	for (int i = MIN_CRYPTO_XFRM; i < MAX_CRYPTO_XFRM; i++) {
+		err = rte_cryptodev_queue_pair_setup(*rte_dev_id, i,
+						     &qp_conf,
+						     cpu_socket);
+		if (err != 0) {
+			RTE_LOG(ERR, DATAPLANE,
+				"Failed to set up queue pair %d for crypto device %s : %s\n",
+				i, dev_name, strerror(err));
+			goto fail;
+		}
+	}
+
+	err = rte_cryptodev_start(*rte_dev_id);
+	if (err != 0) {
+		RTE_LOG(ERR, DATAPLANE,
+			"Failed to start crypto device %s\n", dev_name);
+		goto fail;
+	}
+
+	pmd_inst_ids[dev_type][inst_id] = dev_id;
+	dev_cnts[dev_type]++;
+
+	return err;
+
+fail:
+	if (!dev_cnts[dev_type])
+		crypto_rte_destroy_priv_pool(dev_type);
+	rte_vdev_uninit(dev_name);
 	return err;
 }
 
@@ -350,7 +441,7 @@ int crypto_rte_create_pmd(int cpu_socket, uint8_t dev_id,
 int crypto_rte_destroy_pmd(enum cryptodev_type dev_type, char dev_name[],
 			   int dev_id)
 {
-	int err, i;
+	int err = 0, i, rte_dev_id;
 
 	for (i = 0; i < MAX_CRYPTO_PMD; i++) {
 		if (pmd_inst_ids[dev_type][i] == dev_id) {
@@ -366,7 +457,25 @@ int crypto_rte_destroy_pmd(enum cryptodev_type dev_type, char dev_name[],
 		return -EINVAL;
 	}
 
+	rte_dev_id = rte_cryptodev_get_dev_id(dev_name);
+	if (rte_dev_id < 0) {
+		RTE_LOG(ERR, DATAPLANE, "Could not find id for device %s\n",
+			dev_name);
+		return -ENOENT;
+	}
+
+	rte_cryptodev_stop(rte_dev_id);
+
 	err = rte_vdev_uninit(dev_name);
+	if (err) {
+		RTE_LOG(ERR, DATAPLANE, "Could not uninit device %s\n",
+			dev_name);
+		return err;
+	}
+
+	dev_cnts[dev_type]--;
+	if (!dev_cnts[dev_type])
+		crypto_rte_destroy_priv_pool(dev_type);
 
 	return err;
 }
