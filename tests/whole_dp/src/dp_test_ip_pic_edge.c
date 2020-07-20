@@ -854,3 +854,57 @@ DP_START_TEST(ip_pic_edge11, ip_pic_edge11)
 
 } DP_END_TEST;
 
+/*
+ * Check that the next-hops are updated correctly when neighbour
+ * arrives with backup gateway being a primary gateway for another.
+ */
+DP_DECL_TEST_CASE(ip_pic_edge_suite, ip_pic_edge12, NULL, NULL);
+DP_START_TEST(ip_pic_edge12, ip_pic_edge12)
+{
+	const char *nh_mac_str1, *nh_mac_str2;
+	int map_list1[] = { 0, };
+
+	dp_test_nl_add_ip_addr_and_connected("dp1T1", "1.1.1.1/24");
+	dp_test_nl_add_ip_addr_and_connected("dp2T1", "2.2.2.2/24");
+
+	dp_test_netlink_add_route(
+		"10.0.1.0/24 "
+		"nh 1.1.1.2 int:dp1T1 "
+		"nh 2.2.2.1 int:dp2T1 backup");
+
+	dp_test_netlink_add_route(
+		"10.0.2.0/24 "
+		"nh 2.2.2.1 int:dp2T1 "
+		"nh 1.1.1.2 int:dp1T1 backup");
+
+	dp_test_verify_nh_map_count("10.0.1.2", 1, map_list1);
+
+	nh_mac_str1 = "aa:bb:cc:dd:ee:ff";
+	dp_test_netlink_add_neigh("dp1T1", "1.1.1.2", nh_mac_str1);
+
+	dp_test_verify_nh_map_count("10.0.1.2", 1, map_list1);
+
+	nh_mac_str2 = "11:22:33:44:55:66";
+	dp_test_netlink_add_neigh("dp2T1", "2.2.2.1", nh_mac_str2);
+
+	dp_test_verify_nh_map_count("10.0.1.2", 1, map_list1);
+
+	/* Clean Up */
+	dp_test_netlink_del_route(
+		"10.0.1.0/24 "
+		"nh 1.1.1.2 int:dp1T1 "
+		"nh 2.2.2.1 int:dp2T1 backup");
+
+	dp_test_netlink_del_route(
+		"10.0.2.0/24 "
+		"nh 2.2.2.1 int:dp2T1 "
+		"nh 1.1.1.2 int:dp1T1 backup");
+
+	dp_test_netlink_del_neigh("dp1T1", "1.1.1.2", nh_mac_str1);
+	dp_test_netlink_del_neigh("dp2T1", "2.2.2.1", nh_mac_str2);
+
+	dp_test_nl_del_ip_addr_and_connected("dp1T1", "1.1.1.1/24");
+	dp_test_nl_del_ip_addr_and_connected("dp2T1", "2.2.2.2/24");
+	dp_test_clear_path_unusable();
+
+} DP_END_TEST;
