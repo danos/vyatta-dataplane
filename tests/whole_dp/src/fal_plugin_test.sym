@@ -92,3 +92,6 @@ fal_plugin_create_ptp_port
 fal_plugin_delete_ptp_port
 fal_plugin_create_ptp_peer
 fal_plugin_delete_ptp_peer
+fal_plugin_create_router_interface
+fal_plugin_delete_router_interface
+fal_plugin_set_router_interface_attr
