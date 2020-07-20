@@ -80,13 +80,13 @@ override_dh_strip:
 # _ are replaced with - as the former are not allowed in package names.
 # The generated virtual packages have format:
 # vyatta-dataplane-<cfg|op>-<PROTO>-<VERSION>
-override_dh_gencontrol: OP_VERSIONS = $(shell build/dataplane --list_cmd_versions \
+override_dh_gencontrol: OP_VERSIONS = $(shell ASAN_OPTIONS=verify_asan_link_order=0:detect_leaks=0 build/dataplane --list_cmd_versions \
 					| sed "s/_/-/g ; \
 					       s/ /-/ ; \
 					       s/$$/,/ ; \
 					       s/^/vyatta-dataplane-op-/" \
 					| tr '\n' ' ')
-override_dh_gencontrol: CFG_VERSIONS = $(shell build/dataplane --list_msg_versions \
+override_dh_gencontrol: CFG_VERSIONS = $(shell ASAN_OPTIONS=verify_asan_link_order=0:detect_leaks=0 build/dataplane --list_msg_versions \
 					 | sed "s/_/-/g ; \
 						s/ /-/ ; \
 						s/$$/,/ ; \
