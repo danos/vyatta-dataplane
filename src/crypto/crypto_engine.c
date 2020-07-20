@@ -37,6 +37,7 @@
 #include "util.h"
 #include "vplane_debug.h"
 #include "vplane_log.h"
+#include "crypto_rte_pmd.h"
 
 #define ENGINE_DEBUG(args...)				\
 	DP_DEBUG(CRYPTO, DEBUG, ENGINE, args)
@@ -782,14 +783,6 @@ static int openssl_session_set_enc_key(struct crypto_session *ctx,
 				       unsigned int length,
 				       const char key[])
 {
-	if (length > ARRAY_SIZE(ctx->key)) {
-		ENGINE_ERR("Unexpect encyption key len: %d\n", length);
-		return -1;
-	}
-
-	ctx->key_len = length;
-	memcpy(ctx->key, key, length);
-
 	if ((ctx->direction != -1) &&
 	    openssl_session_cipher_init(ctx))
 		return -1;
@@ -811,8 +804,6 @@ static int openssl_session_set_auth_key(struct crypto_session *ctx,
 		ENGINE_ERR_print_errors();
 		return -1;
 	}
-	ctx->auth_alg_key_len = length;
-	memcpy(ctx->auth_alg_key, key, length);
 
 	if (!HMAC_Init_ex(ctx->hmac_ctx,
 			  ctx->auth_alg_key,
@@ -869,22 +860,6 @@ static int rfc4106_session_set_enc_key(struct crypto_session *ctx,
 				       unsigned int length,
 				       const char key[])
 {
-	/* setup AES-GCM according to RFC4106 */
-	if (length < 4) {
-		ENGINE_ERR("key_len too small: %d\n", length);
-		return -1;
-	}
-
-	ctx->key_len = length - 4;
-
-	if (ctx->key_len > ARRAY_SIZE(ctx->key)) {
-		ENGINE_ERR("Unexpect encyption key len: %d\n", length);
-		return -1;
-	}
-	memcpy(ctx->key, key, ctx->key_len);
-	ctx->nonce_len = 4;
-	memcpy(ctx->nonce, key + ctx->key_len, ctx->nonce_len);
-
 	ctx->iv_len = 8;
 
 	if ((ctx->direction != -1) &&
@@ -921,6 +896,15 @@ crypto_session_create(const struct xfrm_algo *algo_crypt,
 	if (!ctx)
 		return NULL;
 
+	/* set up DPDK versions of data structures */
+	if (crypto_rte_set_session_parameters(ctx, algo_crypt, algo_auth)) {
+		RTE_LOG(ERR, DATAPLANE,
+			"Failed to set session parameters for %s %s\n",
+			algo_crypt->alg_name,
+			algo_auth ? algo_auth->alg_name : "");
+		goto err;
+	}
+
 	if (algo_auth)
 		ctx->s_ops = &default_openssl_sops;
 	else
@@ -935,7 +919,6 @@ crypto_session_create(const struct xfrm_algo *algo_crypt,
 				      algo_crypt->alg_key_len) != 0)
 			goto err;
 		ctx->block_size = EVP_CIPHER_block_size(ctx->cipher);
-		ctx->iv_len = EVP_CIPHER_iv_length(ctx->cipher);
 		RAND_bytes((unsigned char *)ctx->iv, ctx->iv_len);
 
 		if (strcmp("rfc4106(gcm(aes))", algo_crypt->alg_name) == 0)
@@ -948,7 +931,6 @@ crypto_session_create(const struct xfrm_algo *algo_crypt,
 				  algo_auth->alg_trunc_len) != 0)
 			goto err;
 		memcpy(ctx->auth_alg_name, algo_auth->alg_name, 64);
-		ctx->digest_len = algo_auth->alg_trunc_len >> 3;
 	}
 
 	return ctx;

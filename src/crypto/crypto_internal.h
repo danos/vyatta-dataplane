@@ -17,6 +17,7 @@
 #include <openssl/err.h>
 #include <openssl/evp.h>
 #include <openssl/hmac.h>
+#include <rte_cryptodev.h>
 #include <rte_log.h>
 #include <rte_memcpy.h>
 #include <rte_mbuf.h>
@@ -128,19 +129,30 @@ struct crypto_session {
 
 	/* --- cacheline 1 boundary (64 bytes) was 16 bytes ago --- */
 
+	/*
+	 * For AES-128-GCM, all the data required should be within the
+	 * first cacheline. For all other ciphers, it will take 2 cachelines
+	 * to load all the required data
+	 */
 	char auth_alg_key[CRYPTO_MAX_KEY_LENGTH];
+
 	EVP_CIPHER_CTX *ctx;
 	HMAC_CTX *hmac_ctx;
 
 	/* --- cacheline 2 boundary (128 bytes)  --- */
 
-	char auth_alg_name[64];
-	/* --- cacheline 3 boundary (192 bytes)  --- */
+	enum rte_crypto_cipher_algorithm cipher_algo;
+	enum rte_crypto_auth_algorithm   auth_algo;
+	enum rte_crypto_aead_algorithm   aead_algo;
+
+	uint32_t SPARE;
 
 	const EVP_CIPHER *cipher;
 	const EVP_MD *md;
 	const char *md_name;
 	const char *cipher_name;
+
+	char auth_alg_name[64];
 };
 
 /*
