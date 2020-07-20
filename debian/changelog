@@ -1,3 +1,9 @@
+vyatta-dataplane (3.9.112.20) unstable; urgency=medium
+
+  * fal: provide alternate name for FAL_BFD_HW_MODE_CP_INDEPENDENT
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Mon, 20 Jul 2020 08:30:33 +0100
+
 vyatta-dataplane (3.9.112.19) unstable; urgency=medium
 
   * ut: add vars that tests can use to pass state to the fal
