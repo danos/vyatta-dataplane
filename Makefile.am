@@ -413,7 +413,8 @@ PROTO_FILES = \
 	protobuf/Route.proto \
 	protobuf/RibUpdate.proto \
 	protobuf/MacLimitConfig.proto \
-	protobuf/PauseConfig.proto
+	protobuf/PauseConfig.proto  \
+	protobuf/SynceConfig.proto
 
 %.pb-c.c %.pb-c.h: %.proto
 	$(AM_V_GEN)@PROTOC_C@ -I=$(dir $^) --c_out=$(dir $@) $^

@@ -748,11 +748,23 @@ enum fal_port_attr_t {
 	 */
 	FAL_PORT_ATTR_QOS_EGRESS_MAP_ID,
 
+	/** @brief Enable/Disable SyncE on interface
+	 *
+	 * @type u8 - disable/enable
+	 * @default - FAL_PORT_SYNCE_DISABLE
+	 */
+	FAL_PORT_ATTR_SYNCE_ADMIN_STATUS,
+
 };
 
 enum fal_port_hw_switching_t {
 	FAL_PORT_HW_SWITCHING_DISABLE,
 	FAL_PORT_HW_SWITCHING_ENABLE
+};
+
+enum fal_port_synce_admin_status_t {
+	FAL_PORT_SYNCE_DISABLE,
+	FAL_PORT_SYNCE_ENABLE
 };
 
 void fal_plugin_l2_new_port(unsigned int if_index,
@@ -1810,6 +1822,15 @@ enum fal_switch_attr_t {
 	 * @flags READ_ONLY
 	 */
 	FAL_SWITCH_ATTR_MAX_BFD_INTERVAL_CNT,
+
+	/**
+	 * @brief SyncE Lock clock to interface
+	 *
+	 * @type u32 - ifindex for interface for clk lock
+	 * @default 0
+	 */
+	FAL_SWITCH_ATTR_SYNCE_CLOCK_SOURCE_PORT,
+
 };
 
 /*

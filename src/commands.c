@@ -77,6 +77,7 @@
 #include "power.h"
 #include "protobuf.h"
 #include "protobuf/SpeedConfig.pb-c.h"
+#include "protobuf/SynceConfig.pb-c.h"
 #include "protobuf/BreakoutConfig.pb-c.h"
 #include "rt_tracker.h"
 #include "session/session_cmds.h"
@@ -1268,6 +1269,76 @@ cmd_speed_handler(struct pb_msg *msg)
 PB_REGISTER_CMD(speed_cmd) = {
 	.cmd = "vyatta:speed",
 	.handler = cmd_speed_handler,
+};
+
+static int cmd_synce_handler(struct pb_msg *msg)
+{
+	void *payload = (void *)((char *)msg->msg);
+	struct fal_attribute_t synce_attr;
+	int len = msg->msg_len;
+	int ret = -1;
+	int action = -1;
+	int ifindex = -1;
+
+	SynceConfig *smsg = synce_config__unpack(NULL, len, payload);
+
+	if (!smsg) {
+		RTE_LOG(ERR, DATAPLANE,
+			"Failed to read SynceConfig protobuf command\n");
+		return ret;
+	}
+
+	action = smsg->action;
+	ifindex = smsg->ifindex;
+
+	switch (action) {
+	case SYNCE_CONFIG__ACTION__SYNCE_ENABLE_INTF:
+		synce_attr.id = FAL_PORT_ATTR_SYNCE_ADMIN_STATUS;
+		synce_attr.value.u8 = FAL_PORT_SYNCE_ENABLE;
+		ret = fal_l2_upd_port(ifindex, &synce_attr);
+		if (ret < 0) {
+			RTE_LOG(ERR, DATAPLANE, "ENABLE_INTF failed for "
+					"ifindex:%d, %d (%s)\n", ifindex, ret,
+					strerror(ret));
+		}
+		break;
+	case SYNCE_CONFIG__ACTION__SYNCE_DISABLE_INTF:
+		synce_attr.id = FAL_PORT_ATTR_SYNCE_ADMIN_STATUS;
+		synce_attr.value.u8 = FAL_PORT_SYNCE_DISABLE;
+		ret = fal_l2_upd_port(ifindex, &synce_attr);
+		if (ret < 0) {
+			RTE_LOG(ERR, DATAPLANE, "DISABLE_INTF failed for "
+					"ifindex:%d, %d (%s)\n", ifindex, ret,
+					strerror(ret));
+		}
+
+		break;
+	case SYNCE_CONFIG__ACTION__SYNCE_SET_CLK_SRC:
+		synce_attr.id = FAL_SWITCH_ATTR_SYNCE_CLOCK_SOURCE_PORT;
+		synce_attr.value.u32 = ifindex;
+
+		ret = fal_set_switch_attr(&synce_attr);
+
+		if (ret < 0) {
+			RTE_LOG(ERR, DATAPLANE, "CMD_SET_CLK_SRC failed for "
+					"ifindex:%d, %d (%s)\n", ifindex, ret,
+					strerror(ret));
+		}
+		break;
+	default:
+		RTE_LOG(ERR, DATAPLANE, "%s %d", __func__, __LINE__);
+		break;
+	}
+
+	synce_config__free_unpacked(smsg, NULL);
+	smsg = NULL;
+
+	return ret;
+}
+
+PB_REGISTER_CMD(synce_cmd) = {
+	.cmd = "vyatta:synce",
+	.handler = cmd_synce_handler,
 };
 
 static const char *poe_class_to_string(fal_port_poe_class_t class)
