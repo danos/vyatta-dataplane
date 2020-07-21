@@ -351,12 +351,51 @@ static void storm_ctl_free_instance(struct rcu_head *head)
 	free(instance);
 }
 
+/* Returns true if should be kept around, or false otherwise */
+static bool storm_ctl_cfg_check_profile(struct storm_ctl_profile *profile)
+{
+	enum fal_traffic_type traf;
+
+	if (profile->scp_recovery_interval ||
+	    profile->scp_actions)
+		return true;
+
+	for (traf = FAL_TRAFFIC_UCAST; traf < FAL_TRAFFIC_MAX; traf++) {
+		if (profile->scp_policies[traf].threshold_val)
+			return true;
+	}
+
+	if (!cds_list_empty(&profile->scp_instance_list))
+		return true;
+
+	return false;
+}
+
+static void storm_ctl_free_profile(struct rcu_head *head)
+{
+	struct storm_ctl_profile *profile;
+
+	profile = caa_container_of(head, struct storm_ctl_profile, scp_rcu);
+	free(profile->scp_name);
+	free(profile);
+}
+
+static void
+storm_ctl_delete_profile(struct storm_ctl_profile *profile)
+{
+	cds_lfht_del(storm_ctl_profile_tbl, &profile->scp_node);
+	call_rcu(&profile->scp_rcu, storm_ctl_free_profile);
+}
+
 static void
 storm_ctl_del_instance_internal(struct cds_lfht *sc_instance_tbl,
 				struct storm_ctl_instance *instance)
 {
-	cds_list_del(&instance->sci_profile_list);
 	cds_lfht_del(sc_instance_tbl, &instance->sci_node);
+	cds_list_del(&instance->sci_profile_list);
+	if (!storm_ctl_cfg_check_profile(instance->sci_profile))
+		storm_ctl_delete_profile(instance->sci_profile);
+
 	if (storm_ctl_policy_cnt == 1)
 		storm_ctl_monitor_stop();
 	storm_ctl_policy_cnt--;
@@ -959,38 +998,6 @@ static inline int storm_ctl_profile_name_match_fn(struct cds_lfht_node *node,
 		return 1;
 
 	return 0;
-}
-
-static bool storm_ctl_cfg_check_profile(struct storm_ctl_profile *profile)
-{
-	enum fal_traffic_type traf;
-
-	if (profile->scp_recovery_interval ||
-	    profile->scp_actions)
-		return true;
-
-	for (traf = FAL_TRAFFIC_UCAST; traf < FAL_TRAFFIC_MAX; traf++) {
-		if (profile->scp_policies[traf].threshold_val)
-			return true;
-	}
-
-	return false;
-}
-
-static void storm_ctl_free_profile(struct rcu_head *head)
-{
-	struct storm_ctl_profile *profile;
-
-	profile = caa_container_of(head, struct storm_ctl_profile, scp_rcu);
-	free(profile->scp_name);
-	free(profile);
-}
-
-static void
-storm_ctl_delete_profile(struct storm_ctl_profile *profile)
-{
-	cds_lfht_del(storm_ctl_profile_tbl, &profile->scp_node);
-	call_rcu(&profile->scp_rcu, storm_ctl_free_profile);
 }
 
 static struct storm_ctl_profile *
