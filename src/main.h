@@ -37,6 +37,7 @@ extern volatile bool running;
 extern bitmask_t linkup_port_mask;	/*  has carrier */
 extern bitmask_t active_port_mask;
 extern bitmask_t poll_port_mask;
+extern bitmask_t enabled_port_mask;
 extern unsigned int slowpath_mtu;
 
 struct rte_mempool *mbuf_pool(unsigned int portid);
@@ -178,6 +179,6 @@ extern bool single_cpu;
 #define IGNORE_SANITIZER
 #endif
 
-extern uint16_t nb_ports;
+extern uint16_t nb_ports_total;
 
 #endif /* MAIN_H */

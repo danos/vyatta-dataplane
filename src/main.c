@@ -310,12 +310,12 @@ volatile bool running = true;
 uid_t dataplane_uid;
 gid_t dataplane_gid;
 
-static bitmask_t enabled_port_mask;	/* port is admin UP */
+bitmask_t enabled_port_mask;		/* port is valid */
 bitmask_t poll_port_mask;		/* should be polled */
 /* port should be polled and is link up */
 bitmask_t active_port_mask __hot_data;
 
-uint16_t nb_ports;
+uint16_t nb_ports_total;		/* highest DPDK portid + 1 */
 
 static bool daemon_mode;		/* become daemon */
 static unsigned int avail_cores;		/* number of forwarding cores */
@@ -1241,7 +1241,8 @@ static void close_all_regular_ports(void)
 	unsigned int portid;
 
 	for (portid = 0; portid < DATAPLANE_MAX_PORTS; ++portid) {
-		if (rte_eth_dev_is_valid_port(portid) &&
+		if (bitmask_isset(&enabled_port_mask, portid) &&
+		    rte_eth_dev_is_valid_port(portid) &&
 		    !if_port_is_bkplane(portid))
 			rte_eth_dev_close(portid);
 	}
@@ -1253,7 +1254,8 @@ static void close_all_backplane_ports(void)
 	unsigned int portid;
 
 	for (portid = 0; portid < DATAPLANE_MAX_PORTS; ++portid) {
-		if (rte_eth_dev_is_valid_port(portid) &&
+		if (bitmask_isset(&enabled_port_mask, portid) &&
+		    rte_eth_dev_is_valid_port(portid) &&
 		    if_port_is_bkplane(portid))
 			rte_eth_dev_close(portid);
 	}
@@ -2131,10 +2133,11 @@ static uint16_t mbuf_pool_init(void)
 	}
 
 	/* How many mbufs are needed for each device? */
-	for (portid = 0; portid < DATAPLANE_MAX_PORTS; ++portid) {
+	for (portid = 0; portid < nb_ports_total; ++portid) {
 		const struct port_conf *port_conf = &port_config[portid];
 
-		if (!rte_eth_dev_is_valid_port(portid))
+		if (!bitmask_isset(&enabled_port_mask, portid) ||
+		    !rte_eth_dev_is_valid_port(portid))
 			continue;
 
 		socketid = port_conf->socketid;
@@ -2196,9 +2199,11 @@ retry:
 	}
 
 	/* Assign mbuf pool for each device */
-	for (portid = 0; portid < rte_eth_dev_count_avail(); ++portid) {
+	for (portid = 0; portid < nb_ports_total; ++portid) {
 		struct port_conf *port_conf = &port_config[portid];
 
+		if (!bitmask_isset(&enabled_port_mask, portid))
+			continue;
 		port_conf->rx_pool = numa_pool[port_conf->socketid];
 	}
 
@@ -3035,6 +3040,8 @@ reassign_queues_for_all_ports(void)
 	for (portid = 0; portid < DATAPLANE_MAX_PORTS; ++portid) {
 		struct port_conf *port_conf = &port_config[portid];
 
+		if (!bitmask_isset(&enabled_port_mask, portid))
+			continue;
 		set_port_affinity(portid, &port_conf->rx_cpu_affinity,
 				  &port_conf->tx_cpu_affinity);
 	}
@@ -3420,6 +3427,8 @@ main(int argc, char **argv)
 	pthread_t rcu_thread;
 	unsigned int i;
 	char tmp[BITMASK_STRSZ];
+	bitmask_t default_enabled_port_mask;
+	uint16_t nb_ports = 0;
 
 	/*
 	 * Ensure this is not fully buffered,  such that do not get lines
@@ -3523,32 +3532,38 @@ main(int argc, char **argv)
 
 	parse_driver_config(&driver_param, drv_cfg_file);
 	parse_driver_config(&driver_param, drv_override_cfg_file);
-	nb_ports = rte_eth_dev_count_avail();
-	if (nb_ports > DATAPLANE_MAX_PORTS) {
-		DP_DEBUG(INIT, NOTICE, DATAPLANE,
-			 "Too many Ethernet ports %u, downgrade to %u\n",
-			 nb_ports, DATAPLANE_MAX_PORTS);
-		nb_ports = DATAPLANE_MAX_PORTS;
+
+	bitmask_zero(&default_enabled_port_mask);
+	RTE_ETH_FOREACH_DEV(i) {
+		nb_ports_total = MAX(nb_ports_total, i + 1);
+		if (nb_ports_total > DATAPLANE_MAX_PORTS) {
+			DP_DEBUG(INIT, NOTICE, DATAPLANE,
+				 "Too many Ethernet ports %u, downgrade to %u\n",
+				 nb_ports, DATAPLANE_MAX_PORTS);
+			nb_ports_total = DATAPLANE_MAX_PORTS;
+			break;
+		}
+		nb_ports++;
+		bitmask_set(&default_enabled_port_mask, i);
 	}
 
 	/* default to enabling all ports */
 	if (bitmask_numset(&enabled_port_mask) == 0 && nb_ports != 0)
-		for (i = 0; i < nb_ports; i++)
-			bitmask_set(&enabled_port_mask, i);
+		bitmask_copy(&enabled_port_mask, &default_enabled_port_mask);
 
 	for (i = 0; i < RTE_MAX_ETHPORTS; i++)
 		bitmask_set(&poll_port_mask, i);
 
 	bitmask_sprint(&enabled_port_mask, tmp, sizeof(tmp));
 	DP_DEBUG(INIT, INFO, DATAPLANE,
-		 "%u ports available (enabled mask %s)\n",
-		 nb_ports, tmp);
+		 "%u ports (%u total) available (enabled mask %s)\n",
+		 nb_ports, nb_ports_total, tmp);
 
 	random_init();
 	lcore_init();
 	link_state_init();
 
-	init_port_configurations(0, nb_ports);
+	init_port_configurations(0, nb_ports_total);
 	if (nb_ports)
 		max_mbuf_sz = mbuf_pool_init();
 
@@ -3563,7 +3578,7 @@ main(int argc, char **argv)
 	session_init();
 	nexthop_tbl_init();
 	ip6_init();
-	init_eth_ports(0, nb_ports);
+	init_eth_ports(0, nb_ports_total);
 	fragment_tables_timer_init();
 	mcast_init_ipv4();
 	mcast_init_ipv6();
