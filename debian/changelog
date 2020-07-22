@@ -1,3 +1,9 @@
+vyatta-dataplane (3.9.112.22) unstable; urgency=medium
+
+  * debian: fix missing commas in Provides list
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Wed, 22 Jul 2020 21:24:37 +0100
+
 vyatta-dataplane (3.9.112.21) unstable; urgency=medium
 
   [ Mandeep Rohilla ]
