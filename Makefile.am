@@ -723,7 +723,7 @@ fal_plugin_test_la_CPPFLAGS += -I$(srcdir)/tests/whole_dp/src -I$(srcdir)/tests/
 fal_plugin_test_la_CFLAGS = $(dataplane_CFLAGS) -fPIC -UNDEBUG -O0 -g $(CODE_COVERAGE_CFLAGS)
 fal_plugin_test_la_CFLAGS += -Wno-unused-parameter
 
-fal_plugin_test_la_LIBADD = $(dataplane_LDADD) $(CHECK_LIBS) $(JSON_C_LIBS) $(CODE_COVERAGE_LIBS)
+fal_plugin_test_la_LIBADD = $(CHECK_LIBS) $(JSON_C_LIBS) $(CODE_COVERAGE_LIBS)
 
 fal_plugin_test_la_LDFLAGS = $(EXTRA_LDFLAGS) $(SWPORT_LIBS)
 fal_plugin_test_la_LDFLAGS += -avoid-version -module -shared -export-dynamic
