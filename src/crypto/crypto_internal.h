@@ -28,6 +28,7 @@
 #include "json_writer.h"
 #include "vplane_log.h"
 #include "vrf_internal.h"
+#include "crypto_rte_pmd.h"
 
 #define CRYPTO_DATA_ERR(args...)			\
 	DP_DEBUG(CRYPTO_DATA, ERR, CRYPTO, args)
@@ -114,7 +115,8 @@ enum crypto_dir {
 
 struct crypto_session {
 	/* All perpacket in first cacheline */
-	const struct crypto_session_operations *s_ops;
+
+	struct rte_cryptodev_sym_session *rte_session;
 	int8_t direction;	/* -1 | XFRM_POLICY_IN | _OUT*/
 	uint8_t cipher_init;
 	uint8_t digest_len;           /* in bytes */
@@ -128,6 +130,8 @@ struct crypto_session {
 	uint8_t key[CRYPTO_MAX_KEY_LENGTH];
 
 	/* --- cacheline 1 boundary (64 bytes) was 16 bytes ago --- */
+
+	const struct crypto_session_operations *s_ops;
 
 	/*
 	 * For AES-128-GCM, all the data required should be within the
@@ -309,10 +313,17 @@ void crypto_session_destroy(struct crypto_session *ctx);
  * resolved on crypto_session creation.
  */
 static inline void
-crypto_session_set_direction(struct crypto_session *ctx, int direction)
+crypto_session_set_direction(struct sadb_sa *sa, int direction)
 {
-	if (unlikely(ctx->direction == -1))
+	struct crypto_session *ctx = sa->session;
+	enum cryptodev_type dev_type = CRYPTODEV_MIN;
+	uint8_t rte_dev_id = 0;
+
+	if (unlikely(ctx->direction == -1)) {
 		ctx->direction = direction;
+		crypto_pmd_get_info(sa->pmd_dev_id, &rte_dev_id, &dev_type);
+		crypto_rte_setup_session(ctx, dev_type, rte_dev_id);
+	}
 }
 
 /*
@@ -566,6 +577,7 @@ void crypto_delete_queue(struct rte_ring *pmd_queue);
  * Prototypes for crypto_pmd.c
  */
 void crypto_remove_sa_from_pmd(int crypto_dev_id, enum crypto_xfrm xfrm,
+			       struct crypto_session *ctx,
 			       bool pending);
 int crypto_allocate_pmd(enum crypto_xfrm xfrm,
 			enum rte_crypto_cipher_algorithm cipher_algo,

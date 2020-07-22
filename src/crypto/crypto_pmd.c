@@ -464,6 +464,7 @@ void crypto_pmd_remove_all(void)
 }
 
 void crypto_remove_sa_from_pmd(int dev_id, enum crypto_xfrm xfrm,
+			       struct crypto_session *ctx,
 			       bool pending)
 {
 	bool err;
@@ -475,6 +476,8 @@ void crypto_remove_sa_from_pmd(int dev_id, enum crypto_xfrm xfrm,
 		pmd_not_found++;
 		return;
 	}
+
+	crypto_rte_destroy_session(ctx, pmd->rte_cdev_id);
 
 	pmd->sa_cnt_per_type[xfrm]--;
 	pmd->sa_cnt--;

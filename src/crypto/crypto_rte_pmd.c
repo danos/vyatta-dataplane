@@ -25,6 +25,9 @@
 #define MAX_CRYPTO_OPS 8192
 #define CRYPTO_OP_POOL_CACHE_SIZE 256
 
+#define CRYPTO_OP_IV_OFFSET (sizeof(struct rte_crypto_op) + \
+			     sizeof(struct rte_crypto_sym_op))
+
 /* per session (SA) data structure used to set up operations with PMDs */
 static struct rte_mempool *crypto_session_pool;
 
@@ -53,11 +56,14 @@ int crypto_rte_setup(void)
 		return -ENOMEM;
 	}
 
+	uint16_t crypto_op_data_size =
+		sizeof(struct rte_crypto_sym_op) + CRYPTO_MAX_IV_LENGTH;
+
 	crypto_op_pool = rte_crypto_op_pool_create("crypto_op_pool",
 						   RTE_CRYPTO_OP_TYPE_SYMMETRIC,
 						   MAX_CRYPTO_OPS,
 						   CRYPTO_OP_POOL_CACHE_SIZE,
-						   CRYPTO_MAX_IV_LENGTH,
+						   crypto_op_data_size,
 						   socket);
 	if (!crypto_op_pool) {
 		RTE_LOG(ERR, DATAPLANE, "Could not set up crypto op pool\n");
@@ -477,5 +483,121 @@ int crypto_rte_destroy_pmd(enum cryptodev_type dev_type, char dev_name[],
 	if (!dev_cnts[dev_type])
 		crypto_rte_destroy_priv_pool(dev_type);
 
+	return err;
+}
+
+static void
+crypto_rte_setup_xform_chain(struct crypto_session *session,
+			     struct rte_crypto_sym_xform *cipher_xform,
+			     struct rte_crypto_sym_xform *auth_xform,
+			     struct rte_crypto_sym_xform **xform_chain)
+{
+	int direction = session->direction;
+	static enum rte_crypto_cipher_operation cipher_ops[2] = {
+		[XFRM_POLICY_OUT] = RTE_CRYPTO_CIPHER_OP_ENCRYPT,
+		[XFRM_POLICY_IN] = RTE_CRYPTO_CIPHER_OP_DECRYPT
+	};
+	static enum rte_crypto_auth_operation auth_ops[2] = {
+		[XFRM_POLICY_OUT] = RTE_CRYPTO_AUTH_OP_GENERATE,
+		[XFRM_POLICY_IN] = RTE_CRYPTO_AUTH_OP_VERIFY
+	};
+	static enum rte_crypto_aead_operation aead_ops[2] = {
+		[XFRM_POLICY_OUT] = RTE_CRYPTO_AEAD_OP_ENCRYPT,
+		[XFRM_POLICY_IN] = RTE_CRYPTO_AEAD_OP_DECRYPT
+	};
+
+	if (session->aead_algo == RTE_CRYPTO_AEAD_AES_GCM) {
+		cipher_xform->type = RTE_CRYPTO_SYM_XFORM_AEAD;
+		cipher_xform->aead.op = aead_ops[direction];
+		cipher_xform->aead.algo = session->aead_algo;
+		cipher_xform->aead.aad_length = 8; /* no ESN support yet */
+		cipher_xform->aead.iv.offset = CRYPTO_OP_IV_OFFSET;
+		cipher_xform->aead.iv.length =
+			session->iv_len + session->nonce_len;
+		cipher_xform->aead.key.data = session->key;
+		cipher_xform->aead.key.length = session->key_len;
+		cipher_xform->aead.digest_length = session->digest_len;
+		cipher_xform->next = NULL;
+		*xform_chain = cipher_xform;
+	} else {
+		/* set up data for cipher */
+		cipher_xform->type = RTE_CRYPTO_SYM_XFORM_CIPHER;
+		cipher_xform->cipher.op = cipher_ops[direction];
+		cipher_xform->cipher.algo = session->cipher_algo;
+		cipher_xform->cipher.key.data = session->key;
+		cipher_xform->cipher.key.length = session->key_len;
+		cipher_xform->cipher.iv.length =
+			session->iv_len + session->nonce_len;
+		cipher_xform->cipher.iv.offset = CRYPTO_OP_IV_OFFSET;
+
+		/* set up data for authentication */
+		auth_xform->type = RTE_CRYPTO_SYM_XFORM_AUTH;
+		auth_xform->auth.op = auth_ops[direction];
+		auth_xform->auth.algo = session->auth_algo;
+		auth_xform->auth.key.data =
+			(const uint8_t *)session->auth_alg_key;
+		auth_xform->auth.key.length = session->auth_alg_key_len;
+		auth_xform->auth.digest_length = session->digest_len;
+
+		/* set up transform chain */
+		if (direction == XFRM_POLICY_IN) {
+			auth_xform->next = cipher_xform;
+			cipher_xform->next = NULL;
+			*xform_chain = auth_xform;
+		} else {
+			cipher_xform->next = auth_xform;
+			auth_xform->next = NULL;
+			*xform_chain = cipher_xform;
+		}
+	}
+}
+
+int crypto_rte_setup_session(struct crypto_session *session,
+			     enum cryptodev_type dev_type, uint8_t rte_cdev_id)
+{
+	struct rte_crypto_sym_xform cipher_xform, auth_xform, *xform_chain;
+	int err = 0;
+
+	crypto_rte_setup_xform_chain(session, &cipher_xform, &auth_xform,
+				     &xform_chain);
+
+	session->rte_session =
+		rte_cryptodev_sym_session_create(crypto_session_pool);
+	if (!session->rte_session) {
+		RTE_LOG(ERR, DATAPLANE, "Could not create cryptodev session\n");
+		return -ENOMEM;
+	}
+
+	err = rte_cryptodev_sym_session_init(
+		rte_cdev_id, session->rte_session, xform_chain,
+		crypto_priv_sess_pools[dev_type]);
+	if (err) {
+		RTE_LOG(ERR, DATAPLANE,
+			"Could not initialize cryptodev session\n");
+		rte_cryptodev_sym_session_free(session->rte_session);
+		session->rte_session = NULL;
+	}
+
+	return err;
+}
+
+int crypto_rte_destroy_session(struct crypto_session *session,
+			       uint8_t rte_cdev_id)
+{
+	int err;
+
+	if (!session->rte_session)
+		return 0;
+
+	rte_cryptodev_sym_session_clear(rte_cdev_id, session->rte_session);
+	err = rte_cryptodev_sym_session_free(session->rte_session);
+	if (err) {
+		RTE_LOG(ERR, DATAPLANE,
+			"Failed to free cryptodev session : %s\n",
+			strerror(-err));
+		return err;
+	}
+
+	session->rte_session = NULL;
 	return err;
 }

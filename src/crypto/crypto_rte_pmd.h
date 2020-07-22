@@ -50,4 +50,11 @@ int crypto_rte_create_pmd(int cpu_socket, uint8_t pmd_dev_id,
 int crypto_rte_destroy_pmd(enum cryptodev_type dev_type, char dev_name[],
 			   int pmd_dev_id);
 
+int crypto_rte_setup_session(struct crypto_session *session,
+			     enum cryptodev_type dev_type,
+			     uint8_t rte_cdev_id);
+
+int crypto_rte_destroy_session(struct crypto_session *session,
+			       uint8_t rte_cdev_id);
+
 #endif

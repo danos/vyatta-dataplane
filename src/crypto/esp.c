@@ -564,7 +564,7 @@ static int esp_generate_chain(struct sadb_sa *sa,
 		.session = sa->session,
 	};
 
-	crypto_session_set_direction(sa->session, encrypt);
+	crypto_session_set_direction(sa, encrypt);
 
 	if (crypto_chain_init(&chain, sa->session))
 		return -1;
