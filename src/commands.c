@@ -195,28 +195,38 @@ void show_address(json_writer_t *wr, const struct ifnet *ifp)
 
 static int cmd_led(FILE *f, int argc, char **argv)
 {
+
+	json_writer_t *wr = jsonw_new(f);
+	jsonw_name(wr, "response");
+	jsonw_start_object(wr);
 	if (argc < 3) {
-		fprintf(f, "usage: led ifname on|off\n");
-		return -1;
+		jsonw_string_field(wr, "msg", "Error");
+		goto out;
 	}
 
 	struct ifnet *ifp = dp_ifnet_byifname(argv[1]);
 	if (!ifp) {
-		fprintf(f, "unknown interface %s\n", argv[1]);
-		return -1;
+		jsonw_string_field(wr, "msg", "Error");
+		goto out;
 	}
 
 	if (strcmp(argv[2], "on") == 0) {
 		if (if_blink(ifp, true) < 0) {
-			fprintf(f, "device does not have led support\n");
-			return -1;
+			jsonw_string_field(wr, "msg",
+				   "Error");
+			goto out;
 		}
-	} else if (strcmp(argv[2], "off") == 0)
+	} else if (strcmp(argv[2], "off") == 0) {
 		if_blink(ifp, false);
-	else {
-		fprintf(f, "expected on or off\n");
-		return -1;
+	} else {
+		jsonw_string_field(wr, "msg", "Error");
+		goto out;
 	}
+
+	jsonw_string_field(wr, "msg", "Ok");
+out:
+	jsonw_end_object(wr);
+	jsonw_destroy(&wr);
 	return 0;
 }
 
