@@ -89,6 +89,9 @@ static uint64_t soft_clock_override;
 /* Limit for response for next part of snapshot. */
 #define RESYNC_TIMEOUT 300 /* seconds */
 
+/* Time to wait for response to adding a port */
+#define ADDPORT_TIMEOUT 60 /* seconds */
+
 static struct rte_timer load_average_timer;
 static struct rte_timer soft_clock_timer;
 
@@ -656,7 +659,7 @@ static int ini_port_process_response(enum cont_src_en cont_src,
 
 	req->seqno = port_request_last_seqno;
 	req->state = REQUEST_STATE_SENT_ADD;
-	rte_timer_reset(&req->timer, main_time[cont_src].retry_delay,
+	rte_timer_reset(&req->timer, ADDPORT_TIMEOUT * rte_get_timer_hz(),
 			SINGLE, rte_get_master_lcore(),	expire_request,
 			req);
 	/*
@@ -1069,10 +1072,11 @@ static int setup_interfaces(uint8_t startid, uint8_t num_ports,
 		request->cont_src = cont_src;
 		rte_timer_init(&request->timer);
 		if (!is_teardown)
-			rte_timer_reset(&request->timer,
-					main_time[cont_src].retry_delay,
-					SINGLE, rte_get_master_lcore(),
-					expire_request, request);
+			rte_timer_reset(
+				&request->timer,
+				ADDPORT_TIMEOUT * rte_get_timer_hz(),
+				SINGLE, rte_get_master_lcore(),
+				expire_request, request);
 		zlist_append(list, request);
 	}
 
