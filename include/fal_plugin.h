@@ -541,7 +541,7 @@ typedef enum _fal_port_poe_class_t {
 /**
  * @brief Attribute data for #FAL_PORT_ATTR_GLOBAL_FLOW_CONTROL_MODE
  */
-enum _fal_port_flow_control_mode_t {
+enum fal_port_flow_control_mode_t {
 	/** Disable flow control for both tx and rx */
 	FAL_PORT_FLOW_CONTROL_MODE_DISABLE,
 
@@ -554,7 +554,7 @@ enum _fal_port_flow_control_mode_t {
 	/** Enable flow control for both tx and rx */
 	FAL_PORT_FLOW_CONTROL_MODE_BOTH_ENABLE,
 
-} fal_port_flow_control_mode_t;
+};
 
 /* Layer 2 operations */
 

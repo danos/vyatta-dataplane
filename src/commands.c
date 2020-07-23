@@ -1514,7 +1514,7 @@ cmd_pause_handler(struct pb_msg *msg)
 	int len = msg->msg_len;
 	struct ifnet *ifp;
 	int rv = 0;
-	enum _fal_port_flow_control_mode_t pause_mode;
+	enum fal_port_flow_control_mode_t pause_mode;
 
 	PauseConfig *bmsg = pause_config__unpack(NULL, len, payload);
 
