@@ -37,6 +37,9 @@
 #include <rte_log.h>
 #include <rte_mbuf.h>
 
+#include <rte_eth_bond.h>
+#include <rte_eth_bond_8023ad.h>
+
 #include "compat.h"
 #include "config_internal.h"
 #include "ether.h"
@@ -57,6 +60,8 @@ struct rte_mempool;
 #define GRE_OVERHEAD_IPV4 32  /* IP + GRE + VLAN */
 #define GRE_OVERHEAD_IPV6 52  /* IPv6 + GRE + VLAN */
 #define MIN_GRE_PKT  42  /* IP + GRE + Ether */
+
+#define ESMC_ETH_SUBTYPE   0x0A
 
 static struct rte_mbuf *pkt_to_mbuf(struct rte_mempool *mp, vrfid_t vrf_id,
 				    const uint8_t *pkt, int len)
@@ -431,6 +436,7 @@ int tuntap_write(int fd, struct rte_mbuf *m, struct ifnet *ifp)
 bool local_packet_filter(const struct ifnet *ifp, struct rte_mbuf *m)
 {
 	const struct rte_ether_hdr *eh = ethhdr(m);
+	struct slow_protocol_frame *slow_hdr;
 
 	/* Filter out unwanted multicasts */
 	if (rte_is_multicast_ether_addr(&eh->d_addr) &&
@@ -486,8 +492,14 @@ bool local_packet_filter(const struct ifnet *ifp, struct rte_mbuf *m)
 		set_spath_rx_meta_data(m, ifp, ntohs(eh->ether_type),
 				       TUN_META_FLAGS_DEFAULT);
 	} else if (!ifp->aggregator) {
-		if (eh->ether_type == htons(RTE_ETHER_TYPE_SLOW))
-			return false;
+		if (eh->ether_type == htons(RTE_ETHER_TYPE_SLOW)) {
+			slow_hdr = rte_pktmbuf_mtod(m,
+					struct slow_protocol_frame *);
+			/* Allow ESMC frames on the interface */
+			if (slow_hdr && (slow_hdr->slow_protocol.subtype !=
+						ESMC_ETH_SUBTYPE))
+				return false;
+		}
 	}
 
 	return true;
