@@ -1,3 +1,14 @@
+vyatta-dataplane (3.9.112.23) unstable; urgency=medium
+
+  [ Robert Shearman ]
+  * storm_ctl: fix write to heap after free when deleting an instance
+    (Fixes: VRVDR-52115)
+  * tests: add test for storm-control out of order profile delete
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Fri, 24 Jul 2020 11:18:16 +0100
+
 vyatta-dataplane (3.9.112.22) unstable; urgency=medium
 
   * debian: fix missing commas in Provides list
