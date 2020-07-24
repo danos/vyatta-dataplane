@@ -357,6 +357,32 @@ void next_hop_mark_path_state(enum dp_rt_path_state state,
 			      const struct dp_rt_path_unusable_key *key);
 
 /*
+ * Update a next hop list if required following a change in the FAL L3
+ * enable state for an interface.
+ *
+ * Returns true if the FAL NHG object is update and false otherwise.
+ */
+bool
+next_hop_list_fal_l3_enable_changed(int family,
+				    struct next_hop_list *nextl,
+				    struct ifnet *ifp,
+				    fal_object_t *old_nhg_obj,
+				    fal_object_t **old_nh_objs);
+/*
+ * Finish the update following a change in the FAL L3
+ * enable state for an interface.
+ *
+ * This should only be done after next_hop_list_fal_l3_enable_changed
+ * has returned true, and after all routes referring to the old NHG
+ * object have been updated to use the new NHG object.
+ */
+void
+next_hop_list_fal_l3_enable_changed_finish(int family,
+					   struct next_hop_list *nextl,
+					   fal_object_t old_nhg_obj,
+					   fal_object_t *old_nh_objs);
+
+/*
  * Per AF hash function for a nexthop.
  */
 typedef int (nh_common_hash_fn)(const struct nexthop_hash_key *key,

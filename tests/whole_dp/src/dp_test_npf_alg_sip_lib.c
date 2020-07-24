@@ -641,7 +641,7 @@ dp_test_sip_alg_parse(struct rte_mbuf *nbuf, bool verify_sip,
 		spush(err, len, "Failed to find ether type");
 		return NULL;
 	}
-	if (npf_cache_all(npc, nbuf, ether_type) == false) {
+	if (npf_cache_all(npc, nbuf, ether_type) < 0) {
 		spush(err, len, "Failed to cache packet");
 		return NULL;
 	}

@@ -59,6 +59,7 @@ nptv6_process_common(struct pl_packet *pkt, int dir)
 	uint16_t npf_flags = 0;
 	npf_rule_t *rl;
 	void *handle;
+	int rc;
 
 	if (!nif)
 		return in ? NPTV6_IN_ACCEPT : NPTV6_OUT_ACCEPT;
@@ -71,7 +72,8 @@ nptv6_process_common(struct pl_packet *pkt, int dir)
 		return in ? NPTV6_IN_ACCEPT : NPTV6_OUT_ACCEPT;
 
 	if (pktmbuf_mdata_exists(m, PKT_MDATA_DEFRAG)) {
-		npc = npf_get_cache(&npf_flags, m, htons(RTE_ETHER_TYPE_IPV6));
+		npc = npf_get_cache(&npf_flags, m,
+				    htons(RTE_ETHER_TYPE_IPV6), &rc);
 		if (!npc)
 			return in ? NPTV6_IN_DROP : NPTV6_OUT_DROP;
 	} else {
@@ -80,8 +82,8 @@ nptv6_process_common(struct pl_packet *pkt, int dir)
 		npf_cache_init(npc);
 
 		/* Cache everything. drop if junk. */
-		if (unlikely(!npf_cache_all(npc,
-					    m, htons(RTE_ETHER_TYPE_IPV6))))
+		rc = npf_cache_all(npc, m, htons(RTE_ETHER_TYPE_IPV6));
+		if (unlikely(rc < 0))
 			return in ? NPTV6_IN_DROP : NPTV6_OUT_DROP;
 	}
 

@@ -62,6 +62,7 @@
 #include "npf/rproc/npf_rproc.h"
 #include "npf_shim.h"
 #include "npf/npf_pack.h"
+#include "npf/npf_rc.h"
 
 struct rte_mbuf;
 
@@ -227,15 +228,15 @@ npf_state_tcp_state_set(npf_state_t *nst, uint8_t state, bool *state_changed)
 /*
  * npf_state_inspect: inspect the packet according to the protocol state.
  *
- * Return true if packet is considered to match the state (e.g. for TCP,
- * the packet belongs to the tracked connection) and false otherwise.
+ * Return 0 if packet is considered to match the state (e.g. for TCP, the
+ * packet belongs to the tracked connection) and return code (< 0) otherwise.
  */
-bool npf_state_inspect(const npf_cache_t *npc, struct rte_mbuf *nbuf,
-		       npf_state_t *nst, bool forw)
+int npf_state_inspect(const npf_cache_t *npc, struct rte_mbuf *nbuf,
+		      npf_state_t *nst, bool forw)
 {
 	const uint8_t proto_idx = npf_cache_proto_idx(npc);
 	const int di = forw ? NPF_FLOW_FORW : NPF_FLOW_BACK;
-	bool ret = true;
+	int ret = 0;
 	bool state_changed = false;
 	uint8_t state;
 	uint8_t old_state;
@@ -246,18 +247,23 @@ bool npf_state_inspect(const npf_cache_t *npc, struct rte_mbuf *nbuf,
 
 	switch (proto_idx) {
 	case NPF_PROTO_IDX_TCP:
-		state = npf_state_tcp(npc, nbuf, nst, di);
-		if (unlikely(state == NPF_TCPS_ERR)) {
-			ret = false;
+		state = npf_state_tcp(npc, nbuf, nst, di, &ret);
+		if (unlikely(ret != 0))
 			break;
-		}
 		npf_state_tcp_state_set(nst, state, &state_changed);
 		break;
 	case NPF_PROTO_IDX_ICMP:
 		state = nst->nst_state;
+		/*
+		 * If a ping session does not exist, it can only be created by
+		 * an ICMP echo request. If it exists, the fwd direction will
+		 * conditionally ('strict' enabled) only pass requests and the
+		 * backward only replies.  Note, the 'strict' bit needs to be
+		 * disabled because of MS Windows clients.
+		 */
 		if ((npf_state_icmp_strict || state == NPF_ANY_SESSION_NONE) &&
 		    unlikely(forw ^ npf_iscached(npc, NPC_ICMP_ECHO_REQ))) {
-			ret = false;
+			ret = -NPF_RC_ICMP_ECHO;
 			break;
 		}
 		/* fall through */

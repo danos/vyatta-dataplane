@@ -251,7 +251,7 @@ static void portmonitor_source_output(struct ifnet *ifp,
 		result = npf_hook_notrack(
 				npf_get_ruleset(npf_config, ruleset_type),
 				m, ifp, filter_dir, 0,
-				htons(RTE_ETHER_TYPE_IPV4));
+				htons(RTE_ETHER_TYPE_IPV4), NULL);
 		if (result.decision != NPF_DECISION_PASS)
 			return;
 	}

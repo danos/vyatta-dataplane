@@ -36,7 +36,7 @@ npf_result_t npf_hook_track(struct ifnet *in_ifp, struct rte_mbuf **m,
 			    uint16_t eth_type);
 npf_result_t npf_hook_notrack(const npf_ruleset_t *rlset, struct rte_mbuf **m,
 			      struct ifnet *ifp, int dir, uint16_t npf_flags,
-			      uint16_t eth_type);
+			      uint16_t eth_type, int *rcp);
 
 
 void npf_vrf_create(struct vrf *vrf);

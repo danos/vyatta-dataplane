@@ -53,7 +53,6 @@
 /*
  * Return values from npf_hook_track and npf_hook_notrack.
  *
- * NPF_ACTION_TO_V4 and NPF_ACTION_TO_V6 are never returned by npf_hook_notrack.
  * A tag is never returned by npf_hook_track.
  *
  * The flags returned are from the same set as those passed in.
@@ -68,8 +67,6 @@ typedef enum {
 
 typedef enum {
 	NPF_ACTION_NORMAL,
-	NPF_ACTION_TO_V4,
-	NPF_ACTION_TO_V6,
 	NPF_ACTION_TO_LOCAL
 } npf_action_t;
 

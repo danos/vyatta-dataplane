@@ -27,6 +27,7 @@
 #include "npf/npf_apm.h"
 #include "npf/npf_addrgrp.h"
 #include "npf/npf_cache.h"
+#include "npf/npf_rc.h"
 #include "npf/npf_event.h"
 #include "npf/npf_if.h"
 #include "npf/npf_if_feat.h"
@@ -34,6 +35,7 @@
 #include "npf/npf_ruleset.h"
 #include "npf/npf_session.h"
 #include "npf/npf_state.h"
+#include "npf/npf_vrf.h"
 #include "npf/npf_timeouts.h"
 #include "npf/zones/npf_zone_public.h"
 #include "npf/rproc/npf_rproc.h"
@@ -61,14 +63,19 @@ struct npf_config *npf_global_config __hot_data;
 npf_result_t
 npf_hook_notrack(const npf_ruleset_t *rlset, struct rte_mbuf **m,
 		 struct ifnet *ifp, int dir, uint16_t npf_flags,
-		 uint16_t eth_type)
+		 uint16_t eth_type, int *rcp)
 {
 	npf_cache_t npc, *n = NULL;
 	uint32_t tag_val = 0;
 	bool tag_set = false;
 	npf_rule_t *rl;
+	npf_rproc_result_t rproc_result = {
+		.decision = NPF_DECISION_UNMATCHED,
+	};
 
 	if (npf_ruleset_uses_cache(rlset)) {
+		int rc = 0;
+
 		/*
 		 * Use the global per-core cache if the packet has been
 		 * reassembled, else use a local cache
@@ -76,25 +83,30 @@ npf_hook_notrack(const npf_ruleset_t *rlset, struct rte_mbuf **m,
 		 * Note that both branches will clear any cached tag
 		 */
 		if (pktmbuf_mdata_exists(*m, PKT_MDATA_DEFRAG)) {
-			n = npf_get_cache(&npf_flags, *m, eth_type);
-			if (!n)
+			n = npf_get_cache(&npf_flags, *m, eth_type, &rc);
+			if (!n) {
+				if (rcp)
+					*rcp = rc;
 				goto result;
+			}
 		} else {
 			n = &npc;
 			/* Initialize packet information cache.	 */
 			npf_cache_init(n);
 
 			/* Cache everything. drop if junk. */
-			if (unlikely(!npf_cache_all(n, *m, eth_type)))
+			rc = npf_cache_all(n, *m, eth_type);
+			if (unlikely(rc < 0)) {
+				if (rcp)
+					*rcp = rc;
 				goto result;
+			}
 		}
 	}
 
 	rl = npf_ruleset_inspect(n, *m, rlset, NULL, ifp, dir);
 
-	npf_rproc_result_t rproc_result = {
-		.decision = npf_rule_decision(rl),
-	};
+	rproc_result.decision = npf_rule_decision(rl);
 
 	if (rproc_result.decision != NPF_DECISION_UNMATCHED) {
 		/* Log any matched rule immediately */
@@ -232,8 +244,7 @@ npf_hook_track(struct ifnet *in_ifp, struct rte_mbuf **m,
 	struct npf_config *fw_config = NULL;
 	npf_session_t *se = NULL;
 	npf_rule_t *rl = NULL;
-	int error = 0;
-	npf_decision_t decision;
+	npf_decision_t decision = NPF_DECISION_UNMATCHED;
 	npf_action_t action = NPF_ACTION_NORMAL;
 	enum npf_ruleset_type rlset_type = NPF_RS_TYPE_COUNT;
 	const npf_ruleset_t *rlset;
@@ -241,6 +252,7 @@ npf_hook_track(struct ifnet *in_ifp, struct rte_mbuf **m,
 	bool too_big = false;
 	struct npf_config *nif_config = npf_if_conf(nif);
 	struct ifnet *ifp = nif->nif_ifp;
+	int rc = NPF_RC_UNMATCHED;
 
 	/*
 	 * Parse the packet, note this also clears any cached tag.
@@ -249,7 +261,7 @@ npf_hook_track(struct ifnet *in_ifp, struct rte_mbuf **m,
 	 * however if we get here due to DPI, we may.  That is fine as
 	 * the subsequent logic should simply pass those fragments.
 	 */
-	npf_cache_t *npc = npf_get_cache(&npf_flags, *m, eth_type);
+	npf_cache_t *npc = npf_get_cache(&npf_flags, *m, eth_type, &rc);
 
 	if (unlikely(!npc)) {
 		decision = NPF_DECISION_BLOCK;
@@ -265,8 +277,8 @@ npf_hook_track(struct ifnet *in_ifp, struct rte_mbuf **m,
 	 * try to create a 'parent' tuple based session.
 	 */
 	se = npf_session_inspect_or_create(npc, *m, ifp, dir, &npf_flags,
-					   &error, &internal_hairpin);
-	if (unlikely(error)) {
+					   &rc, &internal_hairpin);
+	if (unlikely(rc < 0)) {
 		decision = NPF_DECISION_BLOCK;
 		goto result;
 	}
@@ -275,22 +287,21 @@ npf_hook_track(struct ifnet *in_ifp, struct rte_mbuf **m,
 	if (dir == PFIL_OUT) {
 		npf_nat_t *nt = npf_session_get_nat(se);
 		if (nt) {
-			error = nat_do_subsequent(npc, m, se, nt, dir);
+			rc = nat_do_subsequent(npc, m, se, nt, dir);
 		    snat_result:
-			if (unlikely(error)) {
-				if (error == -E2BIG) {
+			if (unlikely(rc < 0)) {
+				if (rc == -NPF_RC_NAT_E2BIG) {
 					too_big = true;
-					error = 0; /* TCP sends probes */
+					rc = 0; /* TCP sends probes */
 				}
 				decision = NPF_DECISION_BLOCK;
 				goto stats;
 			}
 		} else if (unlikely(npf_iscached(npc, NPC_ICMP_ERR))) {
-			error = nat_do_icmp_err(npc, m, ifp, dir);
+			rc = nat_do_icmp_err(npc, m, ifp, dir);
 			goto snat_result;
 		} else if (unlikely(npf_active(nif_config, NPF_SNAT))) {
-			error = nat_try_initial(nif_config, npc, &se, m, ifp,
-						dir);
+			rc = nat_try_initial(nif_config, npc, &se, m, ifp, dir);
 			goto snat_result;
 		}
 	}
@@ -363,9 +374,8 @@ npf_hook_track(struct ifnet *in_ifp, struct rte_mbuf **m,
 	 */
 	if (rl && npf_rule_stateful(rl)) {
 		if (!se) {
-			se = npf_session_establish(npc, *m, ifp, dir,
-						   &error);
-			if (unlikely(error)) {
+			se = npf_session_establish(npc, *m, ifp, dir, &rc);
+			if (unlikely(rc < 0)) {
 				decision = NPF_DECISION_BLOCK;
 				goto stats;
 			}
@@ -392,18 +402,17 @@ pass:
 				goto stats;
 			}
 
-			error = nat_do_subsequent(npc, m, se, nt, dir);
+			rc = nat_do_subsequent(npc, m, se, nt, dir);
 		    dnat_result:
-			if (unlikely(error)) {
+			if (unlikely(rc < 0)) {
 				decision = NPF_DECISION_BLOCK;
 				goto stats;
 			}
 		} else if (unlikely(npf_iscached(npc, NPC_ICMP_ERR))) {
-			error = nat_do_icmp_err(npc, m, ifp, dir);
+			rc = nat_do_icmp_err(npc, m, ifp, dir);
 			goto dnat_result;
 		} else if (unlikely(npf_active(nif_config, NPF_DNAT))) {
-			error = nat_try_initial(nif_config, npc, &se, m, ifp,
-						dir);
+			rc = nat_try_initial(nif_config, npc, &se, m, ifp, dir);
 			goto dnat_result;
 		}
 	}
@@ -425,8 +434,8 @@ done:
 	if (se) {
 		if (decision != NPF_DECISION_BLOCK) {
 			/* N.B. se may be consumed */
-			error = npf_session_activate(se, ifp, npc, *m);
-			if (error == 0) {
+			rc = npf_session_activate(se, ifp, npc, *m);
+			if (rc == 0) {
 				/* Attach the session to the packet */
 				struct pktmbuf_mdata *mdata = pktmbuf_mdata(*m);
 				mdata->md_session = se;
@@ -437,12 +446,12 @@ done:
 					npf_save_stats(se, dir,
 						       rte_pktmbuf_pkt_len(*m));
 			} else {
-				if (error != -ENOSTR)
+				if (rc != -NPF_RC_ENOSTR)
 					decision = NPF_DECISION_BLOCK;
 			}
 		} else if (!npf_session_is_active(se)) {
 			npf_session_destroy(se);
-		} else if (error) {
+		} else if (rc < 0) {
 			pktmbuf_mdata_clear(*m, PKT_MDATA_SESSION);
 			npf_session_expire(se);
 		}
@@ -461,6 +470,8 @@ result:
 			       htons(ifp->if_mtu), ifp);
 	}
 
+	/* Increment return code counter */
+	npf_rc_inc(ifp, ETH2RCT(eth_type), PFIL2RC(dir), rc, decision);
 
 	return (npf_result_t) {
 		.decision = decision,
@@ -523,6 +534,10 @@ npf_local_dnat(struct rte_mbuf **m, npf_cache_t *npc, npf_session_t *se)
 bool npf_local_fw(struct ifnet *ifp, struct rte_mbuf **m, uint16_t ether_type)
 {
 	struct npf_if *nif = rcu_dereference(ifp->if_npf);
+	bool rv = false;
+	npf_result_t result = { .decision = NPF_DECISION_UNMATCHED };
+	int rc = NPF_RC_UNMATCHED;
+	bool rc_inc = false;	/* set true to increment rc counts */
 
 	/*
 	 * If there is no npf config on the input interface then jump straight
@@ -537,8 +552,12 @@ bool npf_local_fw(struct ifnet *ifp, struct rte_mbuf **m, uint16_t ether_type)
 
 	npf_cache_init(&npc);
 
-	if (!npf_cache_all(&npc, *m, ether_type))
-		return true;	/* discard */
+	rc = npf_cache_all(&npc, *m, ether_type);
+	if (rc < 0) {
+		rc_inc = true;
+		rv = true;	/* discard */
+		goto end;
+	}
 
 	/* Find the session */
 	npf_session_t *se = npf_session_find_cached(*m);
@@ -550,10 +569,14 @@ bool npf_local_fw(struct ifnet *ifp, struct rte_mbuf **m, uint16_t ether_type)
 	/* If "passing" session found - skip the zones ruleset inspection */
 	npf_rule_t *rl = NULL;
 	if (se) {
+		rc_inc = true;
+
 		if ((npf_session_is_pass(se, &rl) ||
 		     npf_session_is_nat_pinhole(se, PFIL_IN) ||
-		     npf_session_is_child(se)))
+		     npf_session_is_child(se))) {
+			rc = NPF_RC_PASS;
 			goto skip_local_zone;
+		}
 	}
 
 	/*
@@ -561,8 +584,13 @@ bool npf_local_fw(struct ifnet *ifp, struct rte_mbuf **m, uint16_t ether_type)
 	 */
 	if (unlikely(npf_zone_local_is_set() &&
 		     !npf_iscached(&npc, NPC_IPFRAG))) {
-		if (npf_local_zone_hook(ifp, m, &npc, se, nif))
-			return true;	/* discard */
+
+		rc_inc = true;
+		if (npf_local_zone_hook(ifp, m, &npc, se, nif)) {
+			rc = NPF_RC_BLOCK;
+			rv = true;	/* discard */
+			goto end;
+		}
 	}
 
 skip_local_zone:
@@ -579,39 +607,58 @@ skip_local_zone:
 		   npf_active(npf_config, NPF_DNAT)) &&
 	    !pktmbuf_mdata_exists(*m, PKT_MDATA_DNAT)) {
 
-		if (npf_local_dnat(m, &npc, se))
-			return true;
+		rc_inc = true;
+		if (npf_local_dnat(m, &npc, se)) {
+			rc = NPF_RC_BLOCK;
+			rv = true;
+			goto end;
+		}
 	}
 
 	/*
 	 * Local firewall is done post-DNAT
 	 */
 	if (npf_active(npf_config, NPF_LOCAL)) {
-		npf_result_t result;
 
+		rc_inc = true;
 		result = npf_hook_notrack(npf_get_ruleset(npf_config,
 					  NPF_RS_LOCAL), m, ifp, PFIL_IN, 0,
-					  ether_type);
-		if (result.decision == NPF_DECISION_BLOCK)
-			return true;	/* discard */
-		else if (result.decision == NPF_DECISION_PASS)
-			return false;	/* retain */
+					  ether_type, &rc);
+
+		if (result.decision == NPF_DECISION_BLOCK) {
+			rv = true;	/* discard */
+			goto end;
+		} else if (result.decision == NPF_DECISION_PASS) {
+			rc = NPF_RC_PASS;
+			rv = false;	/* retain */
+			goto end;
+		}
 
 		/* No match, so try the global firewall rules. */
 	}
 
 global_fw:
 	if (npf_active(npf_global_config, NPF_LOCAL)) {
-		npf_result_t result;
 
+		rc_inc = true;
 		result = npf_hook_notrack(npf_get_ruleset(npf_global_config,
 					  NPF_RS_LOCAL), m, ifp, PFIL_IN, 0,
-					  ether_type);
-		if (result.decision == NPF_DECISION_BLOCK)
-			return true;	/* discard */
+					  ether_type, &rc);
+
+		if (result.decision == NPF_DECISION_BLOCK) {
+			rv = true;	/* discard */
+		} else if (result.decision == NPF_DECISION_PASS) {
+			rc = NPF_RC_PASS;
+			rv = false;	/* retain */
+		}
 	}
 
-	return false;
+end:
+	/* Increment return code counter? */
+	if (rc_inc)
+		npf_rc_inc(ifp, NPF_RCT_LOC, NPF_RC_IN, rc, result.decision);
+
+	return rv;
 }
 
 bool npf_originate_fw(struct ifnet *ifp, uint16_t npf_flags,
@@ -619,36 +666,54 @@ bool npf_originate_fw(struct ifnet *ifp, uint16_t npf_flags,
 {
 	struct npf_if *nif = rcu_dereference(ifp->if_npf);
 	const struct npf_config *npf_config = npf_if_conf(nif);
+	bool rv = false;
+	npf_result_t result = { .decision = NPF_DECISION_UNMATCHED };
+	int rc = NPF_RC_UNMATCHED;
+	bool rc_inc = false;
 
 	/*
 	 * Local zone firewall will be done in fw_out processing
 	 */
 
 	if (npf_active(npf_config, NPF_ORIGINATE)) {
-		npf_result_t result;
 
+		rc_inc = true;
 		result = npf_hook_notrack(npf_get_ruleset(npf_config,
 				NPF_RS_ORIGINATE), m, ifp, PFIL_OUT, npf_flags,
-				ether_type);
+					  ether_type, &rc);
 
-		if (result.decision == NPF_DECISION_BLOCK)
-			return true;	/* discard */
-		else if (result.decision == NPF_DECISION_PASS)
-			return false;	/* retain */
+		if (result.decision == NPF_DECISION_BLOCK) {
+			rv = true;	/* discard */
+			goto end;
+		} else if (result.decision == NPF_DECISION_PASS) {
+			rc = NPF_RC_PASS;
+			rv = false;	/* retain */
+			goto end;
+		}
 	}
 
 	/* No match, so try the global firewall rules. */
 	if (npf_active(npf_global_config, NPF_ORIGINATE)) {
-		npf_result_t result;
 
+		rc_inc = true;
 		result = npf_hook_notrack(npf_get_ruleset(npf_global_config,
 				NPF_RS_ORIGINATE), m, ifp, PFIL_OUT, npf_flags,
-				ether_type);
+					  ether_type, &rc);
 
-		if (result.decision == NPF_DECISION_BLOCK)
-			return true;	/* discard */
+		if (result.decision == NPF_DECISION_BLOCK) {
+			rv = true;	/* discard */
+		} else if (result.decision == NPF_DECISION_PASS) {
+			rc = NPF_RC_PASS;
+			rv = false;	/* retain */
+		}
 	}
-	return false;
+
+end:
+	/* Increment return code counter? */
+	if (rc_inc)
+		npf_rc_inc(ifp, NPF_RCT_LOC, NPF_RC_OUT, rc, result.decision);
+
+	return rv;
 }
 
 /*

@@ -130,14 +130,13 @@ nat64_nat64_hook_v6_in(const char *ifname, struct dp_test_pkt_desc_t *pdesc,
 	struct npf_config *npf_config;
 	struct pktmbuf_mdata *mdata;
 	char real_ifname[IFNAMSIZ];
-	npf_decision_t decision;
+	nat64_decision_t decision;
 	struct rte_mbuf  *mbuf;
-	npf_action_t action;
 	npf_session_t *se6;
 	struct npf_if *nif;
 	struct ifnet *ifp;
-	bool rv, intl_hpin = false;
-	int error = 0;
+	bool intl_hpin = false;
+	int rc, error = 0;
 
 	/* Get interface pointers */
 	dp_test_intf_real(ifname, real_ifname);
@@ -155,8 +154,8 @@ nat64_nat64_hook_v6_in(const char *ifname, struct dp_test_pkt_desc_t *pdesc,
 
 	/* Cache IPv6 packet */
 	npf_cache_init(npc);
-	rv = npf_cache_all(npc, mbuf, htons(RTE_ETHER_TYPE_IPV6));
-	dp_test_fail_unless(rv, "packet cache");
+	rc = npf_cache_all(npc, mbuf, htons(RTE_ETHER_TYPE_IPV6));
+	dp_test_fail_unless(rc == 0, "packet cache");
 	dp_test_fail_unless((npc->npc_info & NPC_IP6) != 0,
 			    "packet cache info %x",
 			    npc->npc_info);
@@ -175,17 +174,21 @@ nat64_nat64_hook_v6_in(const char *ifname, struct dp_test_pkt_desc_t *pdesc,
 		dp_test_fail_unless(se6,
 				    "An IPv6 session should already exist");
 	}
-	decision = npf_nat64_6to4_in(&action, npf_config, &se6,
-				     ifp, npc, &mbuf, npf_flags);
+	decision = npf_nat64_6to4_in(npf_config, &se6, ifp, npc, &mbuf,
+				     npf_flags, &error);
 
 	/*
 	 * Verify outcome of nat64_hook
 	 */
 
-	/* expect a pass */
-	dp_test_fail_unless(decision == NPF_DECISION_PASS,
-			    "Expected PASS, got %s",
-			    npf_decision_str(decision));
+	/* From IPv6 ... */
+	dp_test_fail_unless((*npf_flags & NPF_FLAG_FROM_IPV6) != 0,
+			    "npf_flags 0x%x", *npf_flags);
+
+	/* ... going to IPv4 */
+	dp_test_fail_unless(decision == NAT64_DECISION_TO_V4,
+			    "Expected TO_V4, got %s",
+			    nat64_decision_str(decision));
 
 	/*
 	 * If nat64 creates a session, check it is not passed back to
@@ -195,11 +198,6 @@ nat64_nat64_hook_v6_in(const char *ifname, struct dp_test_pkt_desc_t *pdesc,
 		dp_test_fail_unless(
 			!se6, "nat64_hook should not pass session back"
 			" to hook_track");
-
-	dp_test_fail_unless((*npf_flags & NPF_FLAG_FROM_IPV6) != 0,
-			    "npf_flags 0x%x", *npf_flags);
-
-	dp_test_fail_unless(action == NPF_ACTION_TO_V4, "action %u", action);
 
 	/*
 	 * Do we expect pkt metadata?
@@ -245,12 +243,12 @@ nat64_nat64_hook_v4_out(const char *ifname, struct rte_mbuf *mbuf,
 	npf_cache_t npc_cache, *npc = &npc_cache;
 	struct npf_config *npf_config;
 	char real_ifname[IFNAMSIZ];
-	npf_decision_t decision;
+	nat64_decision_t decision;
 	npf_session_t *se4;
 	struct npf_if *nif;
 	struct ifnet *ifp;
-	bool rv, intl_hpin = false;
-	int error = 0;
+	bool intl_hpin = false;
+	int rc, error = 0;
 
 	/* Get interface pointers */
 	dp_test_intf_real(ifname, real_ifname);
@@ -264,8 +262,8 @@ nat64_nat64_hook_v4_out(const char *ifname, struct rte_mbuf *mbuf,
 
 	/* Cache IPv4 packet */
 	npf_cache_init(npc);
-	rv = npf_cache_all(npc, mbuf, htons(RTE_ETHER_TYPE_IPV4));
-	dp_test_fail_unless(rv, "packet cache");
+	rc = npf_cache_all(npc, mbuf, htons(RTE_ETHER_TYPE_IPV4));
+	dp_test_fail_unless(rc == 0, "packet cache");
 	dp_test_fail_unless((npc->npc_info & NPC_IP4) != 0,
 			    "packet cache info %x",
 			    npc->npc_info);
@@ -282,17 +280,17 @@ nat64_nat64_hook_v4_out(const char *ifname, struct rte_mbuf *mbuf,
 		dp_test_fail_unless(se4,
 				    "An IPv4 session should already exist");
 
-	decision = npf_nat64_6to4_out(&se4, ifp, npc, &mbuf, npf_flags);
+	decision = npf_nat64_6to4_out(&se4, ifp, npc, &mbuf, npf_flags, &error);
 
-	dp_test_fail_unless(decision == NPF_DECISION_PASS,
+	dp_test_fail_unless(decision == NAT64_DECISION_PASS,
 			    "Expected PASS, got %s",
-			    npf_decision_str(decision));
+			    nat64_decision_str(decision));
 
 	/* IPv4 session should be created by nat64_hook if necessary */
 	dp_test_fail_unless(se4, "session is NULL");
 
 	/* simulate end of npf_hook_track */
-	if (decision != NPF_DECISION_BLOCK && se4) {
+	if (decision != NAT64_DECISION_DROP && se4) {
 		/* This is a noop if already active */
 		error = npf_session_activate(se4, ifp, npc, mbuf);
 		dp_test_fail_unless(error == 0,
@@ -314,14 +312,13 @@ nat64_nat64_hook_v4_in(const char *ifname, struct dp_test_pkt_desc_t *pdesc,
 	struct npf_config *npf_config;
 	struct pktmbuf_mdata *mdata;
 	char real_ifname[IFNAMSIZ];
-	npf_decision_t decision;
+	nat64_decision_t decision;
 	struct rte_mbuf  *mbuf;
-	npf_action_t action;
 	npf_session_t *se4;
 	struct npf_if *nif;
 	struct ifnet *ifp;
-	bool rv, intl_hpin = false;
-	int error = 0;
+	bool intl_hpin = false;
+	int rc, error = 0;
 
 	/* Get interface pointers */
 	dp_test_intf_real(ifname, real_ifname);
@@ -339,8 +336,8 @@ nat64_nat64_hook_v4_in(const char *ifname, struct dp_test_pkt_desc_t *pdesc,
 
 	/* Cache IPv4 packet */
 	npf_cache_init(npc);
-	rv = npf_cache_all(npc, mbuf, htons(RTE_ETHER_TYPE_IPV4));
-	dp_test_fail_unless(rv, "packet cache");
+	rc = npf_cache_all(npc, mbuf, htons(RTE_ETHER_TYPE_IPV4));
+	dp_test_fail_unless(rc == 0, "packet cache");
 	dp_test_fail_unless((npc->npc_info & NPC_IP4) != 0,
 			    "packet cache info %x",
 			    npc->npc_info);
@@ -359,17 +356,21 @@ nat64_nat64_hook_v4_in(const char *ifname, struct dp_test_pkt_desc_t *pdesc,
 		dp_test_fail_unless(se4,
 				    "An IPv4 session should already exist");
 	}
-	decision = npf_nat64_4to6_in(&action, npf_config, &se4,
-				     ifp, npc, &mbuf, npf_flags);
+	decision = npf_nat64_4to6_in(npf_config, &se4, ifp, npc, &mbuf,
+				     npf_flags, &error);
 
 	/*
 	 * Verify outcome of nat64_hook
 	 */
 
-	/* expect a pass */
-	dp_test_fail_unless(decision == NPF_DECISION_PASS,
-			    "Expected PASS, got %s",
-			    npf_decision_str(decision));
+	/* From IPv4 ... */
+	dp_test_fail_unless((*npf_flags & NPF_FLAG_FROM_IPV4) != 0,
+			    "npf_flags 0x%x", *npf_flags);
+
+	/* ... going to IPv6 */
+	dp_test_fail_unless(decision == NAT64_DECISION_TO_V6,
+			    "Expected TO_V6, got %s",
+			    nat64_decision_str(decision));
 
 	/*
 	 * If nat64 creates a session, check it is not passed back to
@@ -379,11 +380,6 @@ nat64_nat64_hook_v4_in(const char *ifname, struct dp_test_pkt_desc_t *pdesc,
 		dp_test_fail_unless(
 			!se4, "nat64_hook should not pass session back"
 			" to hook_track");
-
-	dp_test_fail_unless((*npf_flags & NPF_FLAG_FROM_IPV4) != 0,
-			    "npf_flags 0x%x", *npf_flags);
-
-	dp_test_fail_unless(action == NPF_ACTION_TO_V6, "action %u", action);
 
 	/*
 	 * Do we expect pkt metadata?
@@ -422,12 +418,12 @@ nat64_nat64_hook_v6_out(const char *ifname, struct rte_mbuf *mbuf,
 	npf_cache_t npc_cache, *npc = &npc_cache;
 	struct npf_config *npf_config;
 	char real_ifname[IFNAMSIZ];
-	npf_decision_t decision;
+	nat64_decision_t decision;
 	npf_session_t *se6;
 	struct npf_if *nif;
 	struct ifnet *ifp;
-	bool rv, intl_hpin = false;
-	int error = 0;
+	bool intl_hpin = false;
+	int rc, error = 0;
 
 	/* Get interface pointers */
 	dp_test_intf_real(ifname, real_ifname);
@@ -441,8 +437,8 @@ nat64_nat64_hook_v6_out(const char *ifname, struct rte_mbuf *mbuf,
 
 	/* Cache IPv6 packet */
 	npf_cache_init(npc);
-	rv = npf_cache_all(npc, mbuf, htons(RTE_ETHER_TYPE_IPV6));
-	dp_test_fail_unless(rv, "packet cache");
+	rc = npf_cache_all(npc, mbuf, htons(RTE_ETHER_TYPE_IPV6));
+	dp_test_fail_unless(rc == 0, "packet cache");
 	dp_test_fail_unless((npc->npc_info & NPC_IP6) != 0,
 			    "packet cache info %x",
 			    npc->npc_info);
@@ -459,17 +455,17 @@ nat64_nat64_hook_v6_out(const char *ifname, struct rte_mbuf *mbuf,
 		dp_test_fail_unless(se6,
 				    "An IPv6 session should already exist");
 
-	decision = npf_nat64_4to6_out(&se6, ifp, npc, &mbuf, npf_flags);
+	decision = npf_nat64_4to6_out(&se6, ifp, npc, &mbuf, npf_flags, &error);
 
-	dp_test_fail_unless(decision == NPF_DECISION_PASS,
+	dp_test_fail_unless(decision == NAT64_DECISION_PASS,
 			    "Expected PASS, got %s",
-			    npf_decision_str(decision));
+			    nat64_decision_str(decision));
 
 	/* IPv6 session should be created by nat64_hook */
 	dp_test_fail_unless(se6, "session is NULL");
 
 	/* simulate end of npf_hook_track */
-	if (decision != NPF_DECISION_BLOCK && se6) {
+	if (decision != NAT64_DECISION_DROP && se6) {
 		error = npf_session_activate(se6, ifp, npc, mbuf);
 		dp_test_fail_unless(error == 0,
 				    "error activating output session");

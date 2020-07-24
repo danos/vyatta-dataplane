@@ -785,6 +785,8 @@ int fal_ip_del_next_hops(fal_object_t nhg_object, size_t nhops,
 			 const fal_object_t *obj);
 int fal_ip_upd_next_hop_state(const fal_object_t *nh_list, int index,
 			      bool usable);
+enum fal_packet_action_t
+fal_next_hop_group_packet_action(uint32_t nhops, const struct next_hop hops[]);
 
 int fal_ip4_new_route(vrfid_t vrf_id, in_addr_t addr, uint8_t prefixlen,
 		      uint32_t tableid, struct next_hop hops[],

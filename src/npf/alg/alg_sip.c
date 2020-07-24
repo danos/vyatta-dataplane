@@ -448,11 +448,11 @@ static void sip_translate_reply_path(npf_session_t *se, int di __unused,
 	/*
 	 * re-write IP and UDP cksums first.
 	 */
-	if (!npf_v4_rwrcksums(npc, nbuf, n_ptr, l3_delta, l4_delta))
+	if (npf_v4_rwrcksums(npc, nbuf, n_ptr, l3_delta, l4_delta) < 0)
 		return;
 
 	/* Now translate */
-	if (!npf_rwrip(npc, nbuf, n_ptr, PFIL_IN, &ss->ss_via_addr))
+	if (npf_rwrip(npc, nbuf, n_ptr, PFIL_IN, &ss->ss_via_addr) < 0)
 		return;
 
 	/* Now the port */

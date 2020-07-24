@@ -2409,7 +2409,8 @@ bool crypto_policy_outbound_match(struct ifnet *in_ifp, struct rte_mbuf **mbuf,
 	const npf_ruleset_t *ruleset
 		= npf_get_ruleset(npf_conf, NPF_RS_IPSEC);
 	npf_result_t result
-		= npf_hook_notrack(ruleset, mbuf, in_ifp, PFIL_OUT, 0, ether);
+		= npf_hook_notrack(ruleset, mbuf, in_ifp, PFIL_OUT, 0, ether,
+				   NULL);
 
 	return (result.decision != NPF_DECISION_UNMATCHED);
 }
@@ -2424,7 +2425,7 @@ bool crypto_policy_outbound_active(struct ifnet *in_ifp, struct rte_mbuf **mbuf,
 	if (npf_active(npf_conf, NPF_IPSEC)) {
 		result = npf_hook_notrack(npf_get_ruleset(npf_conf,
 					  NPF_RS_IPSEC), mbuf, in_ifp,
-					  PFIL_OUT, 0, eth_type);
+					  PFIL_OUT, 0, eth_type, NULL);
 		if (likely(result.decision == NPF_DECISION_UNMATCHED))
 			return false;
 
@@ -2566,7 +2567,8 @@ bool crypto_policy_check_outbound(struct ifnet *in_ifp, struct rte_mbuf **mbuf,
 		 * Only block rules are currently used in the input policy.
 		 */
 		npf_result_t result =
-			npf_hook_notrack(rlset, mbuf, in_ifp, dir, 0, eth_type);
+			npf_hook_notrack(rlset, mbuf, in_ifp, dir, 0, eth_type,
+					 NULL);
 
 		/*
 		 * No input and no output policy matched,  allow normal
@@ -2744,7 +2746,8 @@ crypto_policy_check_inbound(struct ifnet *in_ifp, struct rte_mbuf **mbuf,
 		 * Only block rules are currently used in the input policy.
 		 */
 		npf_result_t result =
-			npf_hook_notrack(rlset, mbuf, in_ifp, dir, 0, eth_type);
+			npf_hook_notrack(rlset, mbuf, in_ifp, dir, 0, eth_type,
+					 NULL);
 
 		/* No input policy matched */
 		if (likely(result.decision == NPF_DECISION_UNMATCHED))

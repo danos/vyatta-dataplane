@@ -930,3 +930,31 @@ int fal_plugin_vlan_clear_stats(uint16_t vlan, uint32_t num_cntrs,
 	vlan_stats_cleared = true;
 	return 0;
 }
+
+int fal_plugin_create_router_interface(uint32_t attr_count,
+				       struct fal_attribute_t *attr_list,
+				       fal_object_t *obj)
+{
+	DEBUG("%s(attr_count %d, ...)\n",
+	      __func__, attr_count);
+
+	*obj = fal_test_plugin_next_obj++;
+
+	return 0;
+}
+
+int fal_plugin_delete_router_interface(fal_object_t obj)
+{
+	DEBUG("%s(0x%lx)\n", __func__, obj);
+
+	return 0;
+}
+
+int
+fal_plugin_set_router_interface_attr(fal_object_t obj,
+				     const struct fal_attribute_t *attr_list)
+{
+	DEBUG("%s(0x%lx, ...)\n", __func__, obj);
+
+	return 0;
+}

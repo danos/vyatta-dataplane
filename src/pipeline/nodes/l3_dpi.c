@@ -36,6 +36,7 @@ ip_dpi_process_common(struct pl_packet *pkt, bool v4, int dir)
 	struct rte_mbuf *m = pkt->mbuf;
 
 	npf_session_t *se = npf_session_find_cached(m);
+	int error = 0;
 
 	/* If already present, we have nothing to do; e.g. f/w did it */
 	if (se && npf_session_get_dpi(se))
@@ -51,7 +52,7 @@ ip_dpi_process_common(struct pl_packet *pkt, bool v4, int dir)
 	 * instead using registers.
 	 */
 	uint16_t npf_flags = pkt->npf_flags;
-	npf_cache_t *npc = npf_get_cache(&npf_flags, m, ethertype);
+	npf_cache_t *npc = npf_get_cache(&npf_flags, m, ethertype, &error);
 	if (!npc)
 		goto done;
 	pkt->npf_flags = npf_flags;
@@ -67,7 +68,7 @@ ip_dpi_process_common(struct pl_packet *pkt, bool v4, int dir)
 			goto done;
 
 		struct ifnet *ifp = pkt->in_ifp;
-		int error = 0;
+
 		se = npf_session_find_or_create(npc, m, ifp, dir, &error);
 		if (!se || error)
 			goto done;

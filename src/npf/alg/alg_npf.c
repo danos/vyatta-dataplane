@@ -11,6 +11,7 @@
 
 #include "npf/npf_cmd.h"
 #include "npf/npf_nat.h"
+#include "npf/npf_rc.h"
 #include "npf/npf_session.h"
 #include "npf/npf_vrf.h"
 
@@ -214,7 +215,7 @@ npf_alg_session(struct npf_cache *npc, struct rte_mbuf *nbuf,
 
 	/* Decide whether we need to drop the racing packet(s).  */
 	if (do_drop) {
-		*error = -EEXIST;
+		*error = -NPF_RC_ALG_EEXIST;
 		return NULL;
 	}
 

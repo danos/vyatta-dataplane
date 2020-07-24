@@ -29,6 +29,7 @@
 #include "npf/npf_apm.h"
 #include "npf/npf_nat.h"
 #include "npf/npf_pack.h"
+#include "npf/npf_rc.h"
 #include "src/npf/nat/nat_proto.h"
 #include "npf_tblset.h"
 #include "urcu.h"
@@ -481,22 +482,22 @@ static inline int port_alloc_ports(struct port_map *pm, enum nat_proto nprot,
 	 * We will loop for the next port.
 	 */
 	if ((map_flags & NPF_NAT_MAP_EVEN_PORT) && !(bit & 1))
-		return -EADDRINUSE;
+		return -NPF_RC_NAT_EADDRINUSE;
 
 	/* cannot span a section */
 	if (unlikely(npf_apm_span_section(*port, nr_bits)))
-		return -ENOSPC;
+		return -NPF_RC_NAT_ENOSPC;
 
 	section = PM_SECTION_OF_PORT(*port);
 	ps = map_get_section(pm, nprot, section, true);
 	if (!ps)
-		return -ENOMEM;
+		return -NPF_RC_NAT_ENOMEM;
 
 	if (ps->ps_used >= PM_SECTION_BITS)
-		return -ENOSPC;
+		return -NPF_RC_NAT_ENOSPC;
 
 	if (test_bits(bit, nr_bits, ps->ps_bm))
-		return -EADDRINUSE;
+		return -NPF_RC_NAT_EADDRINUSE;
 
 	set_bits(bit, nr_bits, ps->ps_bm);
 	port_stats_inc(nr_bits, pm, nprot, ps);
@@ -514,10 +515,13 @@ static int map_allocate_ports(struct npf_apm_range *ar, uint32_t map_flags,
 	uint16_t i;
 
 	/*
-	 * Do we want more ports than the configured range?
+	 * Do we want more ports than the configured range?  This is very
+	 * unlikely to happen.  Its only possible if a single port is
+	 * configured in the translation config, and the SIP ALG subsequently
+	 * requests two ports.
 	 */
-	if (nr_ports > ar->ar_port_range)
-		return -ERANGE;
+	if (unlikely(nr_ports > ar->ar_port_range))
+		return -NPF_RC_NAT_ERANGE;
 
 	/*
 	 * If the port(s) are in the range, use it, otherwise
@@ -533,15 +537,19 @@ static int map_allocate_ports(struct npf_apm_range *ar, uint32_t map_flags,
 	/* Room at the Inn? */
 	if ((pm->pm_nprot[nprot].pp_used + nr_ports) > ar->ar_port_range) {
 		rte_spinlock_unlock(&pm->pm_lock);
-		return -ENOSPC;
+		/*
+		 * Note that this is the failure path most likely taken when
+		 * we run out of SNAT mappings.
+		 */
+		return -NPF_RC_NAT_ENOSPC;
 	}
 
 	/*
 	 * Loop through the range.
 	 *
-	 * The pathological case is consecutive ports in a highly
-	 * fragmented map. Otherwise we converge fairly quickly for
-	 * single port allocations.
+	 * The pathological case is consecutive ports in a highly fragmented
+	 * map. Otherwise we converge fairly quickly for single port
+	 * allocations.
 	 *
 	 * Note that we do not span sections for a consecutive port
 	 * request.
@@ -551,12 +559,17 @@ static int map_allocate_ports(struct npf_apm_range *ar, uint32_t map_flags,
 
 		switch (rc) {
 		case 0:
-		case -ENOMEM:
+			/* Success! */
 			goto done;
-		case -ENOSPC: /* Section is full, skip to next one */
+		case -NPF_RC_NAT_ENOMEM:
+			/* Failed to create new map section */
+			goto done;
+		case -NPF_RC_NAT_ENOSPC:
+			/* Map section is full, skip to next one */
 			*port = PM_SECTION_SPAN_NEXT(*port);
 			break;
-		case -EADDRINUSE: /* Try next port */
+		case -NPF_RC_NAT_EADDRINUSE:
+			/* Port is unavailable, try next one */
 			(*port)++;
 			break;
 		}
@@ -567,14 +580,15 @@ static int map_allocate_ports(struct npf_apm_range *ar, uint32_t map_flags,
 	}
 
 	/*
-	 * Handle special case.  If the port map is highly fragmented,
-	 * its possible for a multi-port request to fail with a -EADDRINUSE
-	 * IOW, the bits are available, but they are not sequential
+	 * Handle special case.  If the port map is highly fragmented, its
+	 * possible for a multi-port request to fail with a
+	 * -NPF_RC_NAT_EADDRINUSE return code. In other words, the bits are
+	 * available, but they are not sequential
 	 *
 	 * So return the correct error, we are out of space.
 	 */
-	if ((rc == -EADDRINUSE) && (nr_ports > 1))
-		rc = -ENOSPC;
+	if ((rc == -NPF_RC_NAT_EADDRINUSE) && (nr_ports > 1))
+		rc = -NPF_RC_NAT_ENOSPC;
 
 done:
 	/* Reset the flags, if we allocated */
@@ -619,22 +633,29 @@ static int map_snat(struct npf_apm_range *ar, int nr_ports,
 	if (!*port || !nr_ports)
 		return 0;
 
+	/*
+	 * This should never happen.  The most number of ports ever requested
+	 * at a time is 2 for the SIP ALG.  This implies something has gone
+	 * badly wrong somewhere.  Possibly memory corruption?
+	 */
 	if (nr_ports > (int) LONGBITS)
-		return -EINVAL;
-
-	/* Bad configuration? */
-	if (nr_ports > ar->ar_port_range)
-		return -ERANGE;
+		return -NPF_RC_INTL;
 
 	rc = 0; /* Hush up gcc, range is always at least 1 */
 	for (i = 0; i < ar->ar_addr_range; i++) {
+		/*
+		 * Get the apm entry for this address.  This can fail in two
+		 * ways if a new entry is required - first, malloc fails, and
+		 * second we reach the configured memory limit for all apm
+		 * entries.
+		 */
 		pm = map_get(*addr, vrfid, true);
 		if (!pm)
-			return -ENOMEM;
+			return -NPF_RC_NAT_ENOMEM;
 
 		rc = map_allocate_ports(ar, map_flags, pm, nprot,
 					nr_ports, port);
-		if (!rc || rc == -ENOMEM)
+		if (!rc || rc == -NPF_RC_NAT_ENOMEM)
 			break;
 
 		/* try a new addr, wrap */
@@ -650,25 +671,21 @@ static int map_snat(struct npf_apm_range *ar, int nr_ports,
 static int map_dnat(npf_apm_t *apm, struct npf_apm_range *ar,
 		int nr_ports, uint32_t *addr, in_port_t *port)
 {
-	int rc = -ERANGE;
+	int rc = 0;
 
 	rte_spinlock_lock(&apm->apm_dnat_lock);
 
 	*addr = map_translate_addr(ar, *addr);
 
-	if (!nr_ports) {
-		rc = 0;
+	if (!nr_ports)
 		goto done;
-	}
 
 	/* Are requested port(s) in range? */
-	if (ports_in_range(ar, nr_ports, *port)) {
-		rc = 0;
+	if (ports_in_range(ar, nr_ports, *port))
 		goto done;
-	}
 
 	if (nr_ports > ar->ar_port_range) {
-		rc = -ERANGE;
+		rc = -NPF_RC_NAT_ERANGE;
 		goto done;
 	}
 
@@ -678,8 +695,6 @@ static int map_dnat(npf_apm_t *apm, struct npf_apm_range *ar,
 	*port = ar->ar_port_next;
 
 	ar->ar_port_next += nr_ports;
-
-	rc = 0;
 
 done:
 	rte_spinlock_unlock(&apm->apm_dnat_lock);
@@ -753,7 +768,7 @@ static int map_allocate_from_range(struct npf_apm *apm,
 		uint32_t *addr, in_port_t *port, enum nat_proto nprot,
 		uint32_t map_flags)
 {
-	int rc = -EINVAL;
+	int rc = -NPF_RC_INTL;
 
 	switch (apm->apm_type) {
 	case NPF_NATIN:
@@ -797,7 +812,7 @@ static int apm_table_cb(uint32_t start, uint32_t stop, uint32_t range,
 			&ap->ap_port, ap->ap_nprot, ap->ap_map_flags);
 
 	/* Only keep going on full portmaps */
-	if (ap->ap_rc == -ENOSPC)
+	if (ap->ap_rc == -NPF_RC_NAT_ENOSPC)
 		return 0;
 
 	/* stop address-group walk */
@@ -830,7 +845,7 @@ static int map_allocate_from_table(struct npf_apm *apm, int nr_ports,
 		RTE_LOG(ERR, FIREWALL,
 				"NPF APM: Bad table walk. Table: %u rc: %d\n",
 				apm->apm_table_id, rc);
-		return rc;
+		return -NPF_RC_INTL;
 	}
 
 	/* Only update if successful */

@@ -19,6 +19,7 @@
 #include "npf/npf.h"
 #include "npf/npf_if.h"
 #include "npf/npf_cache.h"
+#include "npf/npf_rc.h"
 #include "npf/rproc/npf_ext_log.h"
 #include "npf/config/npf_config.h"
 #include "npf/config/npf_ruleset_type.h"
@@ -40,6 +41,8 @@ ip_acl_process_common(struct pl_packet *pkt, bool v4, int dir)
 	struct ifnet *ifp;
 	unsigned long bitmask;
 	enum npf_ruleset_type rs_type;
+	npf_decision_t decision = NPF_DECISION_UNMATCHED;
+	int rc = NPF_RC_UNMATCHED;
 
 	if (dir == PFIL_IN) {
 		bitmask = NPF_ACL_IN;
@@ -79,17 +82,22 @@ ip_acl_process_common(struct pl_packet *pkt, bool v4, int dir)
 		v4 ? htons(RTE_ETHER_TYPE_IPV4) : htons(RTE_ETHER_TYPE_IPV6);
 
 	npf_cache_init(&npc);
-	if (unlikely(!npf_cache_all(&npc, m, ethertype)))
+	rc = npf_cache_all(&npc, m, ethertype);
+	if (unlikely(rc < 0))
 		goto drop;
 
 	/* Run the ruleset, get the decision */
 	npf_rule_t *rl =
 		npf_ruleset_inspect(&npc, m, npf_ruleset, NULL, ifp, dir);
-	npf_decision_t decision = npf_rule_decision(rl);
+	decision = npf_rule_decision(rl);
 
 	/* Optimise for specific drops, and implicit accept */
 	if (likely(decision == NPF_DECISION_UNMATCHED)) {
 accept:
+		/* Increment return code counter */
+		npf_rc_inc(ifp, v4 ? NPF_RCT_ACL4 : NPF_RCT_ACL6,
+			   PFIL2RC(dir), rc, decision);
+
 		if (dir == PFIL_IN)
 			return v4 ? IPV4_ACL_IN_ACCEPT : IPV6_ACL_IN_ACCEPT;
 
@@ -115,7 +123,13 @@ accept:
 	if (decision == NPF_DECISION_PASS)
 		goto accept;
 
+	rc = NPF_RC_BLOCK;
+
 drop:
+	/* Increment return code counter */
+	npf_rc_inc(ifp, v4 ? NPF_RCT_ACL4 : NPF_RCT_ACL6,
+		   PFIL2RC(dir), rc, NPF_DECISION_BLOCK);
+
 	if (dir == PFIL_IN)
 		return v4 ? IPV4_ACL_IN_DROP : IPV6_ACL_IN_DROP;
 

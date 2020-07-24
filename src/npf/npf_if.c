@@ -28,6 +28,7 @@
 #include "npf/npf_if.h"
 #include "npf/npf_ruleset.h"
 #include "npf/zones/npf_zone_public.h"
+#include "npf/npf_rc.h"
 #include "npf/npf_session.h"
 #include "npf/npf_vrf.h"
 #include "util.h"
@@ -71,6 +72,9 @@ struct npf_if_internal {
 	 * so that rulesets can use the variable that way if they so choose.
 	 */
 	uint16_t		niif_rs_count[NPF_RS_TYPE_COUNT];
+
+	/* Per-core return code counters */
+	struct npf_rc_counts	*niif_rcc;
 };
 
 /* Forward reference */
@@ -90,6 +94,8 @@ static rte_spinlock_t niif_lock = RTE_SPINLOCK_INITIALIZER;
 static void
 npf_if_dealloc(struct npf_if_internal *niif)
 {
+	npf_rc_counts_destroy(&niif->niif_rcc);
+
 	npf_config_release(&niif->niif_if.nif_conf);
 	free(niif);	/* call_rcu not required */
 }
@@ -152,6 +158,12 @@ npf_if_niif_create(struct ifnet *ifp, uint32_t initial_sess_count)
 
 		CDS_INIT_LIST_HEAD(&niif->niif_list);
 		rcu_assign_pointer(ifp->if_npf, &niif->niif_if);
+
+		/* Return code counters */
+		struct npf_rc_counts *rcc;
+
+		rcc = npf_rc_counts_create();
+		rcu_assign_pointer(niif->niif_rcc, rcc);
 	}
 
 	niif->niif_refcnt++;
@@ -195,6 +207,23 @@ npf_if_niif_delete(struct ifnet *ifp)
 	if (Refcnts_Debug)
 		RTE_LOG(ERR, DATAPLANE, "%s: %s: refcnt now %u\n", __func__,
 			ifp->if_name, niif->niif_refcnt);
+}
+
+/*
+ * Get return code counter pointer
+ */
+struct npf_rc_counts *npf_if_get_rcc(struct ifnet *ifp)
+{
+	struct npf_if_internal *niif;
+
+	if (unlikely(!ifp))
+		return NULL;
+
+	niif = (struct npf_if_internal *)ifp->if_npf;
+	if (!niif)
+		return NULL;
+
+	return rcu_dereference(niif->niif_rcc);
 }
 
 /*

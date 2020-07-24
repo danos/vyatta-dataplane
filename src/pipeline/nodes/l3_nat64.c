@@ -21,6 +21,7 @@
 #include "npf/npf.h"
 #include "npf/npf_cmd.h"
 #include "npf/npf_if.h"
+#include "npf/npf_rc.h"
 #include "npf_shim.h"
 #include "npf/npf_nat64.h"
 
@@ -92,30 +93,34 @@ nat64_in_process_common(struct pl_packet *pkt, struct npf_if *nif, bool v4,
 {
 	struct ifnet *ifp = pkt->in_ifp;
 	struct npf_config *nif_config;
-	npf_decision_t decision;
+	nat64_decision_t decision = NAT64_DECISION_UNMATCHED;
 	struct rte_mbuf *m;
 	uint16_t npf_flags;
 	npf_session_t *se;
 	npf_cache_t *npc;
-	int error = 0;
-	npf_action_t action = NPF_ACTION_NORMAL;
+	int rc = NPF_RC_UNMATCHED;
+	int rv = v4 ? IPV4_NAT46_IN_ACCEPT : IPV6_NAT64_IN_ACCEPT;
 
 	npf_flags = pkt->npf_flags;
 	m = pkt->mbuf;
 	nif_config = npf_if_conf(nif);
 
-	npc = npf_get_cache(&npf_flags, m, eth_type);
+	npc = npf_get_cache(&npf_flags, m, eth_type, &rc);
 	if (unlikely(!npc))
 		goto end;
 
-	se = nat64_session_find(npc, m, ifp, PFIL_IN, &error);
+	se = nat64_session_find(npc, m, ifp, PFIL_IN, &rc);
 
-	if (unlikely(error))
+	if (unlikely(rc < 0))
 		goto end;
 
 	if (!npf_active(nif_config, v4 ? NPF_NAT46 : NPF_NAT64) &&
 	    !npf_session_is_nat64(se))
-		goto end;
+		/*
+		 * We don't want to increment the rc counter when there is no
+		 * nat64 config or session on an interface.
+		 */
+		return rv;
 
 	/*
 	 * Either we found a nat64 session, or there is nat64 config on the
@@ -123,32 +128,32 @@ nat64_in_process_common(struct pl_packet *pkt, struct npf_if *nif, bool v4,
 	 */
 	/* Hook */
 	if (v4)
-		decision = npf_nat64_4to6_in(&action, nif_config, &se,
-					     ifp, npc, &m, &npf_flags);
+		decision = npf_nat64_4to6_in(nif_config, &se, ifp, npc,
+					     &m, &npf_flags, &rc);
 	else
-		decision = npf_nat64_6to4_in(&action, nif_config, &se,
-					     ifp, npc, &m, &npf_flags);
+		decision = npf_nat64_6to4_in(nif_config, &se, ifp, npc,
+					     &m, &npf_flags, &rc);
 
 	if (se) {
-		if (decision != NPF_DECISION_BLOCK) {
-			error = npf_session_activate(se, ifp, npc, m);
-			if (error == 0) {
+		if (decision != NAT64_DECISION_DROP) {
+			rc = npf_session_activate(se, ifp, npc, m);
+			if (rc == NPF_RC_OK) {
 				/* Attach the session to the packet */
 				struct pktmbuf_mdata *mdata = pktmbuf_mdata(m);
 				mdata->md_session = se;
 				pktmbuf_mdata_set(m, PKT_MDATA_SESSION);
 
 				/* Save session stats. */
-				if (decision == NPF_DECISION_PASS)
+				if (decision == NAT64_DECISION_PASS)
 					npf_save_stats(se, PFIL_IN,
 						       rte_pktmbuf_pkt_len(m));
 			} else {
-				if (error != -ENOSTR)
-					decision = NPF_DECISION_BLOCK;
+				if (rc != -NPF_RC_ENOSTR)
+					decision = NAT64_DECISION_DROP;
 			}
 		} else if (!npf_session_is_active(se)) {
 			npf_session_destroy(se);
-		} else if (error) {
+		} else if (rc < 0) {
 			pktmbuf_mdata_clear(m, PKT_MDATA_SESSION);
 			npf_session_expire(se);
 		}
@@ -159,73 +164,96 @@ nat64_in_process_common(struct pl_packet *pkt, struct npf_if *nif, bool v4,
 		pkt->l3_hdr = dp_pktmbuf_mtol3(m, void *);
 	}
 
-	if (decision != NPF_DECISION_PASS)
-		return v4 ? IPV4_NAT46_IN_DROP : IPV6_NAT64_IN_DROP;
-
-	pkt->npf_flags = npf_flags;
-
-	if (action == NPF_ACTION_TO_V4)
-		return IPV6_NAT64_IN_TO_V4;
-	else if (action == NPF_ACTION_TO_V6)
-		return IPV4_NAT46_IN_TO_V6;
-
 end:
-	return v4 ? IPV4_NAT46_IN_ACCEPT : IPV6_NAT64_IN_ACCEPT;
+	switch (decision) {
+	case NAT64_DECISION_UNMATCHED:
+		rv = v4 ? IPV4_NAT46_IN_ACCEPT : IPV6_NAT64_IN_ACCEPT;
+		rc = NPF_RC_UNMATCHED;
+		break;
+	case NAT64_DECISION_TO_V4:
+		pkt->npf_flags = npf_flags;
+		rv = IPV6_NAT64_IN_TO_V4;
+		rc = NPF_RC_NAT64_6T4;
+		break;
+	case NAT64_DECISION_TO_V6:
+		pkt->npf_flags = npf_flags;
+		rv = IPV4_NAT46_IN_TO_V6;
+		rc = NPF_RC_NAT64_4T6;
+		break;
+	case NAT64_DECISION_PASS:
+		pkt->npf_flags = npf_flags;
+		rv = v4 ? IPV4_NAT46_IN_ACCEPT : IPV6_NAT64_IN_ACCEPT;
+		rc = NPF_RC_PASS;
+		break;
+	case NAT64_DECISION_DROP:
+		rv = v4 ? IPV4_NAT46_IN_DROP : IPV6_NAT64_IN_DROP;
+		break;
+	};
+
+	/* Increment return code counter */
+	npf_rc_inc_nat64(ifp, NPF_RC_IN, rc);
+
+	return rv;
 }
 
 
 /*
  * NAT64 Common Output Process
+ *
+ * This function will *only* be called for packets that have switched paths.
  */
 static ALWAYS_INLINE unsigned int
 nat64_out_process_common(struct pl_packet *pkt, bool v4, uint16_t eth_type)
 {
 	struct ifnet *ifp = pkt->out_ifp;
-	npf_decision_t decision;
+	nat64_decision_t decision = NAT64_DECISION_UNMATCHED;
 	struct rte_mbuf *m;
 	uint16_t npf_flags;
 	npf_session_t *se;
 	npf_cache_t *npc;
-	int error = 0;
+	int rc = NPF_RC_UNMATCHED;
+	int rv = v4 ? IPV4_NAT64_OUT_ACCEPT : IPV6_NAT46_OUT_ACCEPT;
 
 	npf_flags = pkt->npf_flags;
 	m = pkt->mbuf;
 
-	npc = npf_get_cache(&npf_flags, m, eth_type);
+	npc = npf_get_cache(&npf_flags, m, eth_type, &rc);
 	if (unlikely(!npc))
 		goto end;
 
-	se = nat64_session_find(npc, m, ifp, PFIL_OUT, &error);
+	se = nat64_session_find(npc, m, ifp, PFIL_OUT, &rc);
 
-	if (unlikely(error))
+	if (unlikely(rc < 0))
 		goto end;
 
 	/* Hook */
 	if (v4)
-		decision = npf_nat64_6to4_out(&se, ifp, npc, &m, &npf_flags);
+		decision = npf_nat64_6to4_out(&se, ifp, npc, &m, &npf_flags,
+					      &rc);
 	else
-		decision = npf_nat64_4to6_out(&se, ifp, npc, &m, &npf_flags);
+		decision = npf_nat64_4to6_out(&se, ifp, npc, &m, &npf_flags,
+					      &rc);
 
 	if (se) {
-		if (decision != NPF_DECISION_BLOCK) {
-			error = npf_session_activate(se, ifp, npc, m);
-			if (error == 0) {
+		if (decision != NAT64_DECISION_DROP) {
+			rc = npf_session_activate(se, ifp, npc, m);
+			if (rc == NPF_RC_OK) {
 				/* Attach the session to the packet */
 				struct pktmbuf_mdata *mdata = pktmbuf_mdata(m);
 				mdata->md_session = se;
 				pktmbuf_mdata_set(m, PKT_MDATA_SESSION);
 
 				/* Save session stats. */
-				if (decision == NPF_DECISION_PASS)
+				if (decision == NAT64_DECISION_PASS)
 					npf_save_stats(se, PFIL_OUT,
 						       rte_pktmbuf_pkt_len(m));
 			} else {
-				if (error != -ENOSTR)
-					decision = NPF_DECISION_BLOCK;
+				if (rc != -NPF_RC_ENOSTR)
+					decision = NAT64_DECISION_DROP;
 			}
 		} else if (!npf_session_is_active(se)) {
 			npf_session_destroy(se);
-		} else if (error) {
+		} else if (rc < 0) {
 			pktmbuf_mdata_clear(m, PKT_MDATA_SESSION);
 			npf_session_expire(se);
 		}
@@ -236,11 +264,27 @@ nat64_out_process_common(struct pl_packet *pkt, bool v4, uint16_t eth_type)
 		pkt->l3_hdr = dp_pktmbuf_mtol3(m, void *);
 	}
 
-	if (decision != NPF_DECISION_PASS)
-		return v4 ? IPV4_NAT64_OUT_DROP : IPV6_NAT46_OUT_DROP;
-
 end:
-	return v4 ? IPV4_NAT64_OUT_ACCEPT : IPV6_NAT46_OUT_ACCEPT;
+	switch (decision) {
+	case NAT64_DECISION_UNMATCHED:
+		rv = v4 ? IPV4_NAT64_OUT_ACCEPT : IPV6_NAT46_OUT_ACCEPT;
+		rc = NPF_RC_UNMATCHED;
+		break;
+	case NAT64_DECISION_TO_V4: /* Will not occur in output. For compiler */
+	case NAT64_DECISION_TO_V6: /* Will not occur in output. For compiler */
+	case NAT64_DECISION_PASS:
+		rv = v4 ? IPV4_NAT64_OUT_ACCEPT : IPV6_NAT46_OUT_ACCEPT;
+		rc = NPF_RC_PASS;
+		break;
+	case NAT64_DECISION_DROP:
+		rv = v4 ? IPV4_NAT64_OUT_DROP : IPV6_NAT46_OUT_DROP;
+		break;
+	};
+
+	/* Increment return code counter */
+	npf_rc_inc_nat64(ifp, NPF_RC_OUT, rc);
+
+	return rv;
 }
 
 /*

@@ -1380,7 +1380,7 @@ lpm_delete_all(struct lpm *lpm, lpm_walk_func_t func, void *arg)
 		RB_FOREACH_SAFE(r, lpm_rules_tree, head, n) {
 			if (func)
 				func(lpm, r->ip, depth, r->scope,
-				     r->next_hop, r->pd_state, arg);
+				     r->next_hop, &r->pd_state, arg);
 			rule_delete(lpm, r, depth);
 		}
 	}
@@ -1418,7 +1418,7 @@ lpm_walk(struct lpm *lpm, lpm_walk_func_t func,
 
 		RB_FOREACH_FROM(r, lpm_rules_tree, n) {
 			func(lpm, r->ip, depth, r->scope, r->next_hop,
-			     r->pd_state, r_arg->walk_arg);
+			     &r->pd_state, r_arg->walk_arg);
 			if (r_arg->is_segment && (++rule_cnt == r_arg->cnt))
 				return rule_cnt;
 		}
