@@ -1,3 +1,64 @@
+vyatta-dataplane (3.11.3) unstable; urgency=medium
+
+  [ Robert Shearman ]
+  * fal: check for conditions that violate FAL route API contract
+  * lpm: pass pd_state by reference in walk callback
+  * route: update dependent routes when interface FAL L3 state changes
+  * route6: update dependent routes when interface FAL L3 state changes
+    (Fixes: VRVDR-50303)
+
+  [ Paul Atkins ]
+  * 3.10.52
+
+  [ Robert Shearman ]
+  * nh_common: skip over backup next-hops when fixing up protected tracking
+    (Fixes: VRVDR-52257)
+  * ut: add symbols for router-interface FAL object in test FAL
+  * ut: test PIC edge with a gateway being used by both primary & backup
+
+  [ Ian Wilson ]
+  * npf: Add npf return code counters
+  * npf: Add commands to show return code counters
+  * npf: Add mechanism to filter return code show output dependent on type
+  * npf: Add commands to clear return code counters
+  * ut: Add function to fetch and print npf return code counts
+  * npf: Change nat64 to use nat64_decision_t instead of npf_decision_t
+  * npf: Increment return code counters in npf_hook_track
+  * npf: Change npf_cache_all to return either a 0 or a negative return code
+  * npf: Change the function used by npf_cache_all to return a return code
+  * npf: Add return codes to npf_cache_all
+  * npf: Add param to npf_get_cache to allow return code to be returned
+  * npf: Add return codes to npf state functions
+  * npf: Add return codes to npf_hook_track calls to session functions
+  * npf: Add return codes to the function to rewrite l3 and l4 fields
+  * npf: Add return code to npf_icmpv4_err_nat
+  * npf: Change nat64 common functions to have a single return point
+  * npf: Add return codes to the nat64 map and convert functions
+  * npf: Add return codes to nat64
+  * npf: Add optional pointer, rcp, to npf_hook_notrack parameters
+  * npf: Increment l2 return code counters in bridging
+  * npf: Add single return point in local firewall functions
+  * npf: Increment return code counts for local firewall
+  * npf: Increment return code counts for ACL firewall
+  * npf: Return select detailed return code stats for nat64
+
+  [ Paul Atkins ]
+  * 3.10.53
+
+  [ Robert Shearman ]
+  * storm_ctl: fix write to heap after free when deleting an instance
+    (Fixes: VRVDR-52115)
+  * tests: add test for storm-control out of order profile delete
+  * Makefile.am: reduce dependencies of fal_plugin_test_la
+
+  [ Charles (Chas) Williams ]
+  * main: handle sparse port configurations (Bugfix: VRVDR-49805)
+  * netvsc: set more reasonable queue lengths (Bugfix: VRVDR-49805)
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Fri, 24 Jul 2020 16:13:59 +0100
+
 vyatta-dataplane (3.11.2) unstable; urgency=medium
 
   [ bs775m ]
