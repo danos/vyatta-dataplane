@@ -1,3 +1,16 @@
+vyatta-dataplane (3.11.2) unstable; urgency=medium
+
+  [ bs775m ]
+  * fal_plugin :add attributes for enb/dis pause frame
+  * vyatta-datapath:add support for enb/dis pauseframe
+
+  [ Charles (Chas) Williams ]
+  * Correct enumeration declaration
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Fri, 24 Jul 2020 09:12:29 +0100
+
 vyatta-dataplane (3.11.1) unstable; urgency=medium
 
   [ Mandeep Rohilla ]
