@@ -155,15 +155,18 @@ _dp_test_verify_storm_ctl_state(bool monitoring, int count,
 		snprintf(interface_tbl_str, 1000,
 			 "     \"intfs\": [{"
 			 "        \"ifname\": \"%s\", "
-			 "            \"vlan_table\": [{ "
+			 "            %s {"
 			 "                \"vlan\": %d, "
 			 "                \"profile\": \"%s\","
 			 "%s"
 			 "                }"
-			 "              ]"
+			 "              %s"
 			 "          }"
 			 "       ]",
-			 interface, vlan, profile_name, rate_str);
+			 interface,
+			 vlan ? "\"vlan_table\": [" : "\"whole_interface\" :",
+			 vlan, profile_name, rate_str,
+			 vlan ? "]" : "");
 	} else {
 		snprintf(cmd_str, 100, "storm-ctl show");
 		interface_tbl_str[0] = '\0';
@@ -579,6 +582,52 @@ DP_START_TEST(add_profile, profile_update_hw_switch)
 	dp_test_intf_switch_remove_port("switch0", "dpT10");
 	dp_test_intf_switch_del("switch0");
 	bridge_vlan_set_free(allowed_vlans);
+
+	dp_test_send_config_src(dp_test_cont_src_get(),
+				"switchport dpT10 hw-switching disable");
+} DP_END_TEST;
+
+/*
+ * Test out of order delete of a profile
+ *
+ * Configuration of interface vs. profile is async, so we can't rely
+ * on the profile being deleted after interface config.
+ */
+DP_START_TEST(add_profile, out_order_delete)
+{
+	uint32_t cfg_rate1[3] = { 0 };
+	uint64_t stats[3] = { 10, 10, 10 };  /* Always have 10 pkts accepted */
+	int bandwidth[3][2] = { {0, 0},
+				{0, 0},
+				{0, 0}, };
+
+	dp_test_send_config_src(dp_test_cont_src_get(),
+				"switchport dpT10 hw-switching enable");
+
+	/* Set unicast bandwidth level */
+	dp_test_send_config_src(dp_test_cont_src_get(),
+				"storm-ctl SET profile PR1 unicast bandwidth-level 100");
+	bandwidth[0][0] = 100;
+	dp_test_verify_storm_ctl_profile_state("PR1", 0, SC_ACTION_NO_SHUT,
+					       bandwidth);
+
+	dp_test_verify_storm_ctl_state(SC_MON_OFF, 0);
+	dp_test_send_config_src(dp_test_cont_src_get(),
+				"storm-ctl SET dpT10 profile PR1");
+	dp_test_verify_storm_ctl_intf_state(SC_MON_ON, 1, "dpT10", 0, "PR1",
+					    cfg_rate1, stats);
+
+	/* Clear unicast bandwidth level whilst profile still bound to dpT10 */
+	dp_test_send_config_src(dp_test_cont_src_get(),
+				"storm-ctl DELETE profile PR1 unicast bandwidth-level");
+	bandwidth[0][0] = 0;
+	dp_test_verify_storm_ctl_profile_state("PR1", 0, SC_ACTION_NO_SHUT,
+					       bandwidth);
+
+	/* Now unbind from dpT10 and the profile should now be removed */
+	dp_test_send_config_src(dp_test_cont_src_get(),
+				"storm-ctl DELETE dpT10 profile PR1");
+	dp_test_verify_storm_ctl_profile("PR1", false);
 
 	dp_test_send_config_src(dp_test_cont_src_get(),
 				"switchport dpT10 hw-switching disable");
