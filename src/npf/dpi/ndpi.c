@@ -100,8 +100,21 @@ dpi_ndpi_process(struct ndpi_detection_module_struct *detect,
 			data, data_len, (uint64_t) get_time_uptime(),
 			flow->src_id, flow->dest_id);
 
-	flow->protocol = dpi_from_ndpi_proto(proto.master_protocol);
-	flow->application = dpi_from_ndpi_proto(proto.app_protocol);
+	/* Sometimes nDPI sets "app_protocol" without setting "master_protocol",
+	 * so we see app 'TLS' over protocol 'Unknown' which doesn't make sense.
+	 * In this case we swap the app and protocol to get 'Unknown over TLS'.
+	 */
+	if ((proto.master_protocol == NDPI_PROTOCOL_UNKNOWN) &&
+	    (proto.app_protocol != NDPI_PROTOCOL_UNKNOWN)) {
+		/* Swap */
+		flow->protocol = dpi_from_ndpi_proto(proto.app_protocol);
+		flow->application = dpi_from_ndpi_proto(NDPI_PROTOCOL_UNKNOWN);
+	} else {
+		/* Regular */
+		flow->protocol = dpi_from_ndpi_proto(proto.master_protocol);
+		flow->application = dpi_from_ndpi_proto(proto.app_protocol);
+	}
+
 	flow->type = ndpi_get_proto_category(detect, proto);
 	flow->offloaded = flow->protocol != DPI_INTERNAL_UNKNOWN
 		|| flow->application != DPI_INTERNAL_UNKNOWN;
