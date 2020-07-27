@@ -298,7 +298,13 @@ typedb_add(const char *name, uint32_t id)
 
 	/* Add to type name hash table. */
 	cds_lfht_node_init(&entry->te_name_ht_node);
-	unsigned long name_hash = rte_jhash(name, strlen(name),
+
+	/* Make an aligned copy of 'name' that we can hash on. */
+	char __name[RTE_ALIGN(strlen(name), 4)]
+		__rte_aligned(sizeof(uint32_t));
+
+	memcpy(__name, name, strlen(name));
+	unsigned long name_hash = rte_jhash(__name, strlen(name),
 					    name_hash_seed);
 	cds_lfht_add(type_name_ht, name_hash, &entry->te_name_ht_node);
 
