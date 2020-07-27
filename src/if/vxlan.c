@@ -1854,6 +1854,13 @@ int vxlan_neigh_change(const struct nlmsghdr *nlh,
 
 		struct ifnet *ifp = dp_ifnet_byifindex(ndm->ndm_ifindex);
 
+		if (ifp == NULL) {
+			RTE_LOG(NOTICE, VXLAN,
+				"No interface for %d\n",
+				ndm->ndm_ifindex);
+			return MNL_CB_ERROR;
+		}
+
 		if (is_local_ipv4(if_vrfid(ifp), ipaddr.s_addr)) {
 			RTE_LOG(NOTICE, VXLAN,
 					"local DST(%s) in NEIGH msg; skipping\n",
