@@ -514,7 +514,7 @@ static unsigned long sip_alg_hash(struct sip_request_match *sm)
 		char __tmp[RTE_ALIGN(strlen(tmp), 4)]
 			__rte_aligned(sizeof(uint32_t));
 
-		memcpy(__tmp, tmp, strlen(tmp) + 1);
+		memcpy(__tmp, tmp, strlen(tmp));
 		hash = rte_jhash(__tmp, strlen(tmp), hash);
 	}
 
@@ -523,7 +523,7 @@ static unsigned long sip_alg_hash(struct sip_request_match *sm)
 		char __tmp[RTE_ALIGN(strlen(tmp), 4)]
 			__rte_aligned(sizeof(uint32_t));
 
-		memcpy(__tmp, tmp, strlen(tmp) + 1);
+		memcpy(__tmp, tmp, strlen(tmp));
 		hash = rte_jhash(__tmp, strlen(tmp), hash);
 	}
 
