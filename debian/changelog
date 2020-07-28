@@ -1,3 +1,27 @@
+vyatta-dataplane (3.11.4) unstable; urgency=medium
+
+  [ Paul Atkins ]
+  * 3.10.54
+  * Jenkins: change master branch target to be DANOS:Glasgow
+
+  [ Simon Barber ]
+  * Convert return string of vplsh led blink cmd to json
+
+  [ Paul Aitken ]
+  * dataplane abort due to short string in rte_jhash
+
+  [ Ramkumar Ganapathysubramanian ]
+  * Adding support for DSCP or PCP value in QoS egress-map
+
+  [ Paul Aitken ]
+  * DPI: Inconsistent use of protocol in DPI output
+  * Avoid buffer overrun in sip_alg_hash
+
+  [ Robert Shearman ]
+  * 3.10.55
+
+ -- Robert Shearman <robert.shearman@att.com>  Tue, 28 Jul 2020 09:43:59 +0100
+
 vyatta-dataplane (3.11.3) unstable; urgency=medium
 
   [ Robert Shearman ]
