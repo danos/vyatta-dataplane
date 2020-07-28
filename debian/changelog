@@ -81,6 +81,33 @@ vyatta-dataplane (3.11.1) unstable; urgency=medium
 
  -- Paul Atkins <paul.atkins@intl.att.com>  Mon, 20 Jul 2020 21:45:59 +0100
 
+vyatta-dataplane (3.10.55) unstable; urgency=medium
+
+  [ Paul Atkins ]
+  * Jenkins: change master branch target to be DANOS:Glasgow
+
+  [ Simon Barber ]
+  * Convert return string of vplsh led blink cmd to json
+
+  [ Paul Aitken ]
+  * dataplane abort due to short string in rte_jhash
+  * DPI: Inconsistent use of protocol in DPI output
+  * Avoid buffer overrun in sip_alg_hash
+
+ -- Robert Shearman <robert.shearman@att.com>  Tue, 28 Jul 2020 09:31:32 +0100
+
+vyatta-dataplane (3.10.54) unstable; urgency=medium
+
+  [ Robert Shearman ]
+  * storm_ctl: fix write to heap after free when deleting an instance
+    (Fixes: VRVDR-52115)
+  * tests: add test for storm-control out of order profile delete
+  * Makefile.am: reduce dependencies of fal_plugin_test_la
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Fri, 24 Jul 2020 09:51:57 +0100
+
 vyatta-dataplane (3.10.53) unstable; urgency=medium
 
   [ Robert Shearman ]
@@ -131,6 +158,15 @@ vyatta-dataplane (3.10.52) unstable; urgency=medium
   [ Paul Atkins ]
 
  -- Paul Atkins <paul.atkins@intl.att.com>  Tue, 21 Jul 2020 07:47:56 +0100
+
+vyatta-dataplane (3.10.51) unstable; urgency=medium
+
+  [ Mandeep Rohilla ]
+  * BFD: Add support for querying max interval values supported
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Mon, 20 Jul 2020 21:23:09 +0100
 
 vyatta-dataplane (3.10.50) unstable; urgency=medium
 
