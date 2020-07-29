@@ -1331,9 +1331,8 @@ static void esp_output_post_encrypt(struct sadb_sa *sa, char *tail,
 	*bytes = plaintext_size_orig - counter_modify;
 }
 
-static int esp_output_inner(int new_family, struct sadb_sa *sa,
-			    struct rte_mbuf *m, uint8_t orig_family,
-			    void *l3hdr, uint32_t *bytes)
+int esp_output(int new_family, struct rte_mbuf *m, uint8_t orig_family,
+	       void *l3hdr, struct sadb_sa *sa, uint32_t *bytes)
 {
 	struct esp_hdr_ctx h;
 	struct crypto_pkt_ctx pkt_info;
@@ -1355,18 +1354,6 @@ static int esp_output_inner(int new_family, struct sadb_sa *sa,
 				pkt_info.counter_modify, bytes);
 
 	return 0;
-}
-
-int esp_output(struct rte_mbuf *m, uint8_t orig_family, void *ip,
-	       struct sadb_sa *sa, uint32_t *bytes)
-{
-	return esp_output_inner(AF_INET, sa, m, orig_family, ip, bytes);
-}
-
-int esp_output6(struct rte_mbuf *m, uint8_t orig_family, void *ip6,
-		struct sadb_sa *sa, uint32_t *bytes)
-{
-	return esp_output_inner(AF_INET6, sa, m, orig_family, ip6, bytes);
 }
 
 bool udp_esp_dp_interesting(const struct udphdr *udp,

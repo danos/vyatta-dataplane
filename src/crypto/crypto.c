@@ -521,12 +521,8 @@ static void crypto_process_encrypt_packet(struct crypto_pkt_ctx *cctx)
 	sa = cctx->sa;
 	m = cctx->mbuf;
 
-	if (cctx->family == AF_INET)
-		rc = esp_output(m, cctx->orig_family, cctx->l3hdr, sa,
-				&cctx->bytes);
-	else
-		rc = esp_output6(m, cctx->orig_family, cctx->l3hdr, sa,
-				 &cctx->bytes);
+	rc = esp_output(cctx->family, m, cctx->orig_family, cctx->l3hdr,
+			sa, &cctx->bytes);
 
 	if (rc < 0) {
 		if (cctx->nxt_ifp)

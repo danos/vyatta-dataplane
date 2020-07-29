@@ -25,10 +25,8 @@ struct udphdr;
 int esp_input(int family, struct rte_mbuf *m, struct sadb_sa *sa,
 	      uint32_t *bytes, uint8_t *new_family);
 
-int esp_output(struct rte_mbuf *m,  uint8_t family, void *l3hdr,
-	       struct sadb_sa *sa, uint32_t *bytes);
-int esp_output6(struct rte_mbuf *m, uint8_t family, void *l3hdr,
-		struct sadb_sa *sa, uint32_t *bytes);
+int esp_output(int family, struct rte_mbuf *m,  uint8_t orig_family,
+	       void *l3hdr, struct sadb_sa *sa, uint32_t *bytes);
 
 /*
  * RFC 4303 requires the pad length and next header fields to be right aligned
