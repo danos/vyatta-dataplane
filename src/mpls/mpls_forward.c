@@ -30,6 +30,7 @@
 #include "compat.h"
 #include "ecmp.h"
 #include "ether.h"
+#include "fal.h"
 #include "if_var.h"
 #include "in6.h"
 #include "in_cksum.h"
@@ -128,7 +129,20 @@ bool mpls_global_get_ipttlpropagate(void)
 
 void mpls_global_set_ipttlpropagate(bool enable)
 {
+	struct fal_attribute_t sw_attr = {
+		.id = FAL_SWITCH_ATTR_MPLS_IP_TTL_MODE,
+		.value.i32 = enable ? FAL_MPLS_TTL_MODE_UNIFORM :
+			FAL_MPLS_TTL_MODE_PIPE,
+	};
+	int ret;
+
 	propagate_ttl = enable ? TTL_PROPAGATE_ENABLED : TTL_PROPAGATE_DISABLED;
+
+	ret = fal_set_switch_attr(&sw_attr);
+	if (ret < 0 && ret != -EOPNOTSUPP)
+		RTE_LOG(ERR, MPLS,
+			"FAL error setting TTL propagation to %s: %s\n",
+			enable ? "enabled" : "disabled", strerror(-ret));
 }
 
 int mpls_global_get_defaultttl(void)
@@ -138,11 +152,25 @@ int mpls_global_get_defaultttl(void)
 
 void mpls_global_set_defaultttl(int ttl)
 {
+	struct fal_attribute_t sw_attr;
+	int ret;
+
 	cfg_default_ttl = ttl;
 	if (cfg_default_ttl != -1)
 		default_ttl = ttl;
 	else
 		default_ttl = MAX_TTL;
+
+	sw_attr = (struct fal_attribute_t) {
+		.id = FAL_SWITCH_ATTR_MPLS_PIPE_TTL,
+		.value.u8 = default_ttl,
+	};
+
+	ret = fal_set_switch_attr(&sw_attr);
+	if (ret < 0 && ret != -EOPNOTSUPP)
+		RTE_LOG(ERR, MPLS,
+			"FAL error setting pipe TTL to %u: %s\n",
+			default_ttl, strerror(-ret));
 }
 
 static inline struct mplshdr *
