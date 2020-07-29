@@ -1169,9 +1169,16 @@ static void esp_out_hdr_parse4(void *l3hdr, struct esp_hdr_ctx *h,
 	h->tot_len = ntohs(ip->tot_len);
 }
 
-static int esp_output_inner(int new_family, struct sadb_sa *sa,
-			    struct rte_mbuf *m, uint8_t orig_family,
-			    void *l3hdr, uint32_t *bytes)
+struct esp_encrypt_pkt_info {
+	char *hdr, *tail;
+	uint16_t plaintext_size, plaintext_size_orig;
+	unsigned int counter_modify;
+};
+
+static int esp_output_pre_encrypt(int new_family, struct sadb_sa *sa,
+				  struct rte_mbuf *m, uint8_t orig_family,
+				  void *l3hdr, struct esp_hdr_ctx *h,
+				  struct crypto_pkt_ctx *pkt_info)
 {
 	int block_size;
 	unsigned int icv_size, tail_len, padding, enc_inc, udp_size = 0;
@@ -1182,9 +1189,7 @@ static int esp_output_inner(int new_family, struct sadb_sa *sa,
 	unsigned char *udp_base;
 	char *hdr,  *tail = NULL;
 	struct udphdr *udp = NULL;
-	struct rte_ether_hdr *eth_hdr;
 	unsigned char *new_l3hdr;
-	struct esp_hdr_ctx h;
 
 	if (!sa) {
 		ESP_ERR("No SA for the outbound pkt\n");
@@ -1194,9 +1199,9 @@ static int esp_output_inner(int new_family, struct sadb_sa *sa,
 	transport = (sa->mode == XFRM_MODE_TRANSPORT) ? 1 : 0;
 
 	if (orig_family == AF_INET) {
-		esp_out_hdr_parse4(l3hdr, &h, new_family);
+		esp_out_hdr_parse4(l3hdr, h, new_family);
 	} else {
-		if (esp_out_hdr_parse6(m, l3hdr, &h, new_family, transport) < 0)
+		if (esp_out_hdr_parse6(m, l3hdr, h, new_family, transport) < 0)
 			return -1;
 		if (!transport)
 			m->l3_len = sizeof(struct ip6_hdr);
@@ -1206,21 +1211,21 @@ static int esp_output_inner(int new_family, struct sadb_sa *sa,
 	esp_size = esp_hdr_len(sa);
 
 	plaintext = l3hdr;
-	plaintext_size_orig = plaintext_size = h.tot_len;
+	plaintext_size_orig = plaintext_size = h->tot_len;
 
 	if (transport) {
 		/*
 		 * ESP follows header options
 		 */
-		plaintext += h.pre_len;
-		plaintext_size -= h.pre_len;
+		plaintext += h->pre_len;
+		plaintext_size -= h->pre_len;
 		enc_inc = 0;
 	} else {
 		/*
 		 * Taking whole packet from start of l3 and encrypting.
 		 */
-		h.pre_len = h.out_hdr_len;
-		enc_inc = h.out_hdr_len;
+		h->pre_len = h->out_hdr_len;
+		enc_inc = h->out_hdr_len;
 	}
 
 	udp_base = esp_base = esp_ptr = plaintext - esp_size;
@@ -1241,7 +1246,7 @@ static int esp_output_inner(int new_family, struct sadb_sa *sa,
 
 	/* The ESP payload block needs to be aligned dependent on AF */
 	block_size = RTE_ALIGN(crypto_session_block_size(sa->session),
-			       h.out_align_val);
+			       h->out_align_val);
 	/*
 	 * Workout the padding and tail bytes required, based upon the
 	 * plain text and the minimum two tail bytes, padding len and next_hdr
@@ -1261,14 +1266,14 @@ static int esp_output_inner(int new_family, struct sadb_sa *sa,
 	for (i = 1; i <= padding; i++)
 		*tail++ = i;
 	*tail++ = padding;
-	*tail++ = transport ? h.out_proto_nxt : h.proto_ip;
+	*tail++ = transport ? h->out_proto_nxt : h->proto_ip;
 	plaintext_size += padding + 2;
 
-	new_l3hdr = udp_base - h.out_hdr_len;
+	new_l3hdr = udp_base - h->out_hdr_len;
 	udp_size += esp_size + plaintext_size + icv_size;
 
-	counter_modify = (*h.out_new_hdr)(transport, orig_family, l3hdr,
-					  new_l3hdr, h.pre_len, udp_size, sa);
+	counter_modify = (*h->out_new_hdr)(transport, orig_family, l3hdr,
+					   new_l3hdr, h->pre_len, udp_size, sa);
 
 	if (udp) {
 		udp->dest = sa->udp_dport;
@@ -1293,20 +1298,62 @@ static int esp_output_inner(int new_family, struct sadb_sa *sa,
 	if (unlikely(sa->seq > (ESP_SEQ_SA_BLOCK_LIMIT - 1)))
 		crypto_sadb_mark_as_blocked(sa);
 
-	if (crypto_rte_xform_packet(sa, m, h.out_hdr_len, esp_base,
-				    esp_ptr, plaintext_size, esp_size, 1))
-		return -1;
+	/* set up output parameters */
+	pkt_info->esp = esp_base;
+	pkt_info->iv = esp_ptr;
+	pkt_info->plaintext_size = plaintext_size;
+	pkt_info->plaintext_size_orig = plaintext_size_orig;
+	pkt_info->esp_len = esp_size;
+	pkt_info->counter_modify = counter_modify;
+	pkt_info->hdr = hdr;
+	pkt_info->tail = tail;
+
+	return 0;
+}
+
+static void esp_output_post_encrypt(struct sadb_sa *sa, char *tail,
+				    char *hdr, struct esp_hdr_ctx *h,
+				    unsigned int plaintext_size_orig,
+				    unsigned int counter_modify,
+				    uint32_t *bytes)
+{
+	struct rte_ether_hdr *eth_hdr;
 
 	crypto_session_set_iv(sa->session,
 			      crypto_session_iv_len(sa->session),
 			      tail - crypto_session_iv_len(sa->session));
 
 	eth_hdr = (struct rte_ether_hdr *)hdr;
-	eth_hdr->ether_type = htons(h.out_ethertype);
+	eth_hdr->ether_type = htons(h->out_ethertype);
 
 	crypto_sadb_increment_counters(sa, plaintext_size_orig -
 				       counter_modify, 1);
 	*bytes = plaintext_size_orig - counter_modify;
+}
+
+static int esp_output_inner(int new_family, struct sadb_sa *sa,
+			    struct rte_mbuf *m, uint8_t orig_family,
+			    void *l3hdr, uint32_t *bytes)
+{
+	struct esp_hdr_ctx h;
+	struct crypto_pkt_ctx pkt_info;
+
+	memset(&pkt_info, 0, sizeof(pkt_info));
+
+	if (esp_output_pre_encrypt(new_family, sa, m, orig_family, l3hdr, &h,
+				   &pkt_info) != 0)
+		return -1;
+
+	if (unlikely(crypto_rte_xform_packet(sa, m, h.out_hdr_len,
+					     pkt_info.esp, pkt_info.iv,
+					     pkt_info.plaintext_size,
+					     pkt_info.esp_len, 1) != 0))
+		return -1;
+
+	esp_output_post_encrypt(sa, pkt_info.tail, pkt_info.hdr, &h,
+				pkt_info.plaintext_size_orig,
+				pkt_info.counter_modify, bytes);
+
 	return 0;
 }
 

@@ -626,12 +626,17 @@ struct crypto_pkt_ctx {
 	uint16_t base_len;
 	uint16_t esp_len;
 	uint16_t ciphertext_len;
+	uint16_t plaintext_size;
+	uint16_t plaintext_size_orig;
 	uint16_t icv_len;
 	uint16_t prev_off;
 	uint16_t head_trim;
 	unsigned char *esp;
 	unsigned char *iv;
 	unsigned char *icv;
+	char *hdr;
+	char *tail;
+	unsigned int counter_modify;
 	/* bytes encrypted/decrypted */
 	uint32_t bytes;
 
