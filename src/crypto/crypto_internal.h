@@ -616,6 +616,22 @@ struct crypto_pkt_ctx {
 	struct ifnet *in_ifp;
 	struct ifnet *nxt_ifp;
 	struct rte_crypto_op *cop;
+
+	/*
+	 * These fields are set and used in the crypto thread
+	 */
+	uint16_t iphlen;
+	uint16_t udp_len;
+	uint16_t base_len;
+	uint16_t esp_len;
+	uint16_t ciphertext_len;
+	uint16_t icv_len;
+	uint16_t prev_off;
+	uint16_t head_trim;
+	unsigned char *esp;
+	unsigned char *iv;
+	unsigned char *icv;
+
 	/*
 	 * These fields are are bi-directional. They may be
 	 * set by the forwarding thread and modified by the
