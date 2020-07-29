@@ -432,11 +432,7 @@ crypto_process_decrypt_packet(struct crypto_pkt_ctx *cctx)
 		return;
 	}
 
-	if (cctx->family == AF_INET)
-		rc = esp_input(m, sa, &cctx->bytes, &cctx->family);
-	else
-		rc = esp_input6(m, sa, &cctx->bytes, &cctx->family);
-
+	rc = esp_input(cctx->family, m, sa, &cctx->bytes, &cctx->family);
 	if (rc < 0) {
 		if (vti_ifp)
 			if_incr_error(vti_ifp);

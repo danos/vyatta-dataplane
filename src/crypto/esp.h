@@ -22,11 +22,8 @@ struct rte_mbuf;
 struct sadb_sa;
 struct udphdr;
 
-int esp_input(struct rte_mbuf *m, struct sadb_sa *sa, uint32_t *bytes,
-	      uint8_t *new_family);
-int esp_input6(struct rte_mbuf *m, struct sadb_sa *sa, uint32_t *bytes,
-	       uint8_t *new_family);
-
+int esp_input(int family, struct rte_mbuf *m, struct sadb_sa *sa,
+	      uint32_t *bytes, uint8_t *new_family);
 
 int esp_output(struct rte_mbuf *m,  uint8_t family, void *l3hdr,
 	       struct sadb_sa *sa, uint32_t *bytes);

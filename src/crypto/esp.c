@@ -733,18 +733,20 @@ static int esp_input_pre_decrypt(int family, struct rte_mbuf *m,
 	}
 
 	if (family == AF_INET) {
-		struct iphdr *ip = pkt_info->l3hdr;
+		struct iphdr *ip = iphdr(m);
 
 		if (ip_is_fragment(ip)) {
 			ESP_ERR("IP Frag\n");
 			return -1;
 		}
 
+		pkt_info->l3hdr = ip;
 		base_len = ntohs(ip->tot_len);
 		iphlen = ip->ihl << 2;
 	} else {
-		struct ip6_hdr *ip6 = pkt_info->l3hdr;
+		struct ip6_hdr *ip6 = ip6hdr(m);
 
+		pkt_info->l3hdr = ip6;
 		base_len = ntohs(ip6->ip6_plen) + sizeof(struct ip6_hdr);
 		iphlen = dp_pktmbuf_l3_len(m);
 		if (sa->mode == XFRM_MODE_TRANSPORT)
@@ -906,15 +908,13 @@ static int esp_input_post_decrypt(int family, struct rte_mbuf *m,
 	return 0;
 }
 
-static int esp_input_inner(int family, struct rte_mbuf *m, void *l3_hdr,
-			   struct sadb_sa *sa, uint32_t *bytes,
-			   uint8_t *new_family)
+int esp_input(int af, struct rte_mbuf *m, struct sadb_sa *sa,
+	      uint32_t *bytes, uint8_t *new_family)
 {
 	struct crypto_pkt_ctx pkt_info;
 
 	memset(&pkt_info, 0, sizeof(pkt_info));
-	pkt_info.l3hdr = l3_hdr;
-	if (esp_input_pre_decrypt(family, m, sa, &pkt_info) != 0)
+	if (esp_input_pre_decrypt(af, m, sa, &pkt_info) != 0)
 		return -1;
 
 	if (unlikely(crypto_rte_xform_packet(sa, m, pkt_info.iphlen,
@@ -925,7 +925,7 @@ static int esp_input_inner(int family, struct rte_mbuf *m, void *l3_hdr,
 					     0) != 0))
 		return -1;
 
-	if (esp_input_post_decrypt(family, m, sa, &pkt_info, bytes,
+	if (esp_input_post_decrypt(af, m, sa, &pkt_info, bytes,
 				   new_family) != 0)
 		return -1;
 
@@ -1367,24 +1367,6 @@ int esp_output6(struct rte_mbuf *m, uint8_t orig_family, void *ip6,
 		struct sadb_sa *sa, uint32_t *bytes)
 {
 	return esp_output_inner(AF_INET6, sa, m, orig_family, ip6, bytes);
-}
-
-int esp_input(struct rte_mbuf *m, struct sadb_sa *sa,
-	      uint32_t *bytes, uint8_t *new_family)
-{
-	struct iphdr *ip = iphdr(m);
-
-	return esp_input_inner(AF_INET, m, ip, sa,
-			       bytes, new_family);
-}
-
-int esp_input6(struct rte_mbuf *m, struct sadb_sa *sa,
-	       uint32_t *bytes, uint8_t *new_family)
-{
-	struct ip6_hdr *ip6 = ip6hdr(m);
-
-	return esp_input_inner(AF_INET6, m, ip6, sa,
-			       bytes, new_family);
 }
 
 bool udp_esp_dp_interesting(const struct udphdr *udp,
