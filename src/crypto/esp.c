@@ -715,23 +715,17 @@ static void esp_input_nat_l4cksum_fixup(int family, struct rte_mbuf *m)
 	}
 }
 
-static int esp_input_inner(int family, struct rte_mbuf *m, void *l3_hdr,
-			   struct sadb_sa *sa, uint32_t *bytes,
-			   uint8_t *new_family)
+static int esp_input_pre_decrypt(int family, struct rte_mbuf *m,
+				 struct sadb_sa *sa,
+				 struct crypto_pkt_ctx *pkt_info)
 {
-	int rc = 0, head_trim  = 0, tail_trim = 0;
+	int head_trim  = 0;
 	unsigned int esp_len, ciphertext_len, udp_len = 0;
-	unsigned int iphlen, icv_len, counter_modify = 0;
+	unsigned int iphlen, icv_len;
 	unsigned int base_len;
-	char next_hdr = 0, padding_size = 0;
 	unsigned char *iv = NULL, *esp = NULL;
 	unsigned int seg_data_remaining;
-	unsigned int new_total;
-	uint16_t ethertype, prev_off = 0;
-	char *new_l3_hdr;
-	uint8_t post_decrypt_family;
-	void (*tran_fixup)(void *, unsigned int, char, unsigned int);
-	unsigned int (*tunl_fixup)(struct sadb_sa *, void *, void *);
+	uint16_t prev_off = 0;
 
 	if (!sa) {
 		ESP_ERR("No SA for the inbound packet\n");
@@ -739,7 +733,7 @@ static int esp_input_inner(int family, struct rte_mbuf *m, void *l3_hdr,
 	}
 
 	if (family == AF_INET) {
-		struct iphdr *ip = l3_hdr;
+		struct iphdr *ip = pkt_info->l3hdr;
 
 		if (ip_is_fragment(ip)) {
 			ESP_ERR("IP Frag\n");
@@ -749,7 +743,7 @@ static int esp_input_inner(int family, struct rte_mbuf *m, void *l3_hdr,
 		base_len = ntohs(ip->tot_len);
 		iphlen = ip->ihl << 2;
 	} else {
-		struct ip6_hdr *ip6 = l3_hdr;
+		struct ip6_hdr *ip6 = pkt_info->l3hdr;
 
 		base_len = ntohs(ip6->ip6_plen) + sizeof(struct ip6_hdr);
 		iphlen = dp_pktmbuf_l3_len(m);
@@ -799,13 +793,40 @@ static int esp_input_inner(int family, struct rte_mbuf *m, void *l3_hdr,
 		return -1;
 	}
 
-	if (crypto_rte_xform_packet(sa, m, iphlen, esp, iv,
-				    ciphertext_len, esp_len, 0))
-		return -1;
+	pkt_info->iphlen = iphlen;
+	pkt_info->udp_len = udp_len;
+	pkt_info->base_len = base_len;
+	pkt_info->esp_len = esp_len;
+	pkt_info->ciphertext_len = ciphertext_len;
+	pkt_info->icv_len = icv_len;
+	pkt_info->prev_off = prev_off;
+	pkt_info->head_trim = head_trim;
+	pkt_info->esp = esp;
+	pkt_info->iv = iv;
 
-	esp_replay_advance(esp, sa);
+	return 0;
+}
 
-	rc = buf_tail_trim(m, icv_len, rc);
+static int esp_input_post_decrypt(int family, struct rte_mbuf *m,
+				  struct sadb_sa *sa,
+				  struct crypto_pkt_ctx *pkt_info,
+				  uint32_t *bytes, uint8_t *new_family)
+{
+	unsigned int counter_modify = 0;
+	int rc = 0, tail_trim = 0;
+	char next_hdr = 0, padding_size = 0;
+	void (*tran_fixup)(void *new_l3_hdr, unsigned int new_total,
+			   char next_hdr, unsigned int);
+	unsigned int (*tunl_fixup)(struct sadb_sa *sa, void *l3hdr,
+				   void *new_l3_hdr);
+	uint16_t ethertype;
+	unsigned int new_total;
+	char *new_l3_hdr;
+	uint8_t post_decrypt_family;
+
+	esp_replay_advance(pkt_info->esp, sa);
+
+	rc = buf_tail_trim(m, pkt_info->icv_len, rc);
 	rc = buf_tail_read_char(m, &next_hdr, rc);
 	rc = buf_tail_read_char(m, &padding_size, rc);
 	if (rc != 0) {
@@ -818,7 +839,7 @@ static int esp_input_inner(int family, struct rte_mbuf *m, void *l3_hdr,
 	/* Trim the tail of  next_hdr(1), padding_size(1),
 	 * icv and padding
 	 */
-	tail_trim = 2 + padding_size + icv_len;
+	tail_trim = 2 + padding_size + pkt_info->icv_len;
 
 	/*
 	 * We know what the next hdr type is now, so set up based on that.
@@ -839,12 +860,16 @@ static int esp_input_inner(int family, struct rte_mbuf *m, void *l3_hdr,
 	}
 
 	if (sa->mode == XFRM_MODE_TRANSPORT) {
-		new_l3_hdr = (char *)((char *)l3_hdr + esp_len + udp_len);
-		memmove(new_l3_hdr, l3_hdr, iphlen);
-		new_total = base_len - esp_len - udp_len - tail_trim;
-		(*tran_fixup)(new_l3_hdr, new_total, next_hdr, prev_off);
+		new_l3_hdr = (char *)((char *)pkt_info->l3hdr +
+				      pkt_info->esp_len +
+				      pkt_info->udp_len);
+		memmove(new_l3_hdr, pkt_info->l3hdr, pkt_info->iphlen);
+		new_total = pkt_info->base_len - pkt_info->esp_len -
+			pkt_info->udp_len - tail_trim;
+		(*tran_fixup)(new_l3_hdr, new_total, next_hdr,
+			      pkt_info->prev_off);
 
-		counter_modify = iphlen;
+		counter_modify = pkt_info->iphlen;
 	} else if (sa->mode == XFRM_MODE_TUNNEL) {
 		if (next_hdr != IPPROTO_IPV6 &&
 		    next_hdr != IPPROTO_IPIP) {
@@ -853,15 +878,15 @@ static int esp_input_inner(int family, struct rte_mbuf *m, void *l3_hdr,
 			return -1;
 		}
 
-		head_trim += iphlen;
-		new_l3_hdr = (char *)(esp + esp_len);
-		new_total = (*tunl_fixup)(sa, l3_hdr, new_l3_hdr);
+		pkt_info->head_trim += pkt_info->iphlen;
+		new_l3_hdr = (char *)(pkt_info->esp + pkt_info->esp_len);
+		new_total = (*tunl_fixup)(sa, pkt_info->l3hdr, new_l3_hdr);
 	} else {
 		ESP_ERR("IPSEC: Unsupported mode");
 		return -1;
 	}
 
-	rc = iptun_eth_hdr_fixup(m, ethertype, head_trim);
+	rc = iptun_eth_hdr_fixup(m, ethertype, pkt_info->head_trim);
 	if (rc < 0) {
 		ESP_ERR("Ethernet header fixup failed\n");
 		return -1;
@@ -878,6 +903,32 @@ static int esp_input_inner(int family, struct rte_mbuf *m, void *l3_hdr,
 	*bytes = new_total - counter_modify;
 
 	*new_family = post_decrypt_family;
+	return 0;
+}
+
+static int esp_input_inner(int family, struct rte_mbuf *m, void *l3_hdr,
+			   struct sadb_sa *sa, uint32_t *bytes,
+			   uint8_t *new_family)
+{
+	struct crypto_pkt_ctx pkt_info;
+
+	memset(&pkt_info, 0, sizeof(pkt_info));
+	pkt_info.l3hdr = l3_hdr;
+	if (esp_input_pre_decrypt(family, m, sa, &pkt_info) != 0)
+		return -1;
+
+	if (unlikely(crypto_rte_xform_packet(sa, m, pkt_info.iphlen,
+					     pkt_info.esp,
+					     pkt_info.iv,
+					     pkt_info.ciphertext_len,
+					     pkt_info.esp_len,
+					     0) != 0))
+		return -1;
+
+	if (esp_input_post_decrypt(family, m, sa, &pkt_info, bytes,
+				   new_family) != 0)
+		return -1;
+
 	return 0;
 }
 
