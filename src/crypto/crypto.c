@@ -457,44 +457,12 @@ crypto_post_decrypt_set_overlay_vrf(struct sadb_sa *sa, struct rte_mbuf *m,
 			       TUN_META_FLAGS_DEFAULT);
 }
 
-/*
- * crypto_process_decrypt_packet()
- *
- * Decrypt the packet described by the supplied context.
- */
 static inline void
-crypto_process_decrypt_packet(struct crypto_pkt_ctx *cctx)
+crypto_post_decrypt_handle_packet(struct crypto_pkt_ctx *cctx,
+				  struct sadb_sa *sa,
+				  struct rte_mbuf *m,
+				  int rc, struct ifnet *vti_ifp)
 {
-	int rc;
-	struct ifnet *vti_ifp = NULL;
-	struct sadb_sa *sa;
-	struct rte_mbuf *m;
-
-	if (unlikely(cctx->action == CRYPTO_ACT_DROP))
-		return;
-
-	sa = cctx->sa;
-	m = cctx->mbuf;
-
-	/*
-	 * If this packet has come from a VTI, replace the
-	 * physical input interface with the VTI.  Doing so
-	 * enables both accounting and input features.
-	 */
-	unsigned int mark = crypto_sadb_get_mark_val(sa);
-
-	if ((mark != 0) &&
-	    (vti_handle_inbound(
-		    crypto_get_src(dp_pktmbuf_mtol3(m, void *),
-				   cctx->family),
-		    cctx->family, mark, m, &vti_ifp) < 0)) {
-		CRYPTO_DATA_ERR("No VTI interface found\n");
-		IPSEC_CNT_INC(NO_VTI);
-		cctx->action = CRYPTO_ACT_DROP;
-		return;
-	}
-
-	rc = esp_input(cctx->family, m, sa, &cctx->bytes, &cctx->family);
 	if (rc < 0) {
 		if (vti_ifp)
 			if_incr_error(vti_ifp);
@@ -531,6 +499,44 @@ crypto_process_decrypt_packet(struct crypto_pkt_ctx *cctx)
 		crypto_post_decrypt_set_overlay_vrf(sa, m, feat_attach_ifp);
 	}
 }
+
+static inline void
+crypto_process_decrypt_packet(struct crypto_pkt_ctx *cctx)
+{
+	int rc;
+	struct ifnet *vti_ifp = NULL;
+	struct sadb_sa *sa;
+	struct rte_mbuf *m;
+
+	if (unlikely(cctx->action == CRYPTO_ACT_DROP))
+		return;
+
+	sa = cctx->sa;
+	m = cctx->mbuf;
+
+	/*
+	 * If this packet has come from a VTI, replace the
+	 * physical input interface with the VTI.  Doing so
+	 * enables both accounting and input features.
+	 */
+	unsigned int mark = crypto_sadb_get_mark_val(sa);
+
+	if ((mark != 0) &&
+	    (vti_handle_inbound(
+		    crypto_get_src(dp_pktmbuf_mtol3(m, void *),
+				   cctx->family),
+		    cctx->family, mark, m, &vti_ifp) < 0)) {
+		CRYPTO_DATA_ERR("No VTI interface found\n");
+		IPSEC_CNT_INC(NO_VTI);
+		cctx->action = CRYPTO_ACT_DROP;
+		return;
+	}
+
+	rc = esp_input(cctx->family, m, sa, &cctx->bytes, &cctx->family);
+
+	crypto_post_decrypt_handle_packet(cctx, sa, m, rc, vti_ifp);
+}
+
 
 static void crypto_process_encrypt_packet(struct crypto_pkt_ctx *cctx)
 {
