@@ -439,73 +439,73 @@ crypto_process_decrypt_packet(struct crypto_pkt_ctx *cctx)
 		CRYPTO_DATA_ERR("ESP Input failed %d\n", rc);
 		IPSEC_CNT_INC(DROPPED_ESP_INPUT_FAIL);
 		cctx->action = CRYPTO_ACT_DROP;
+		return;
+	}
+
+	if (vti_ifp) {
+		if (!(vti_ifp->if_flags & IFF_UP)) {
+			cctx->action = CRYPTO_ACT_DROP;
+			return;
+		}
+		cctx->in_ifp = vti_ifp;
+		pktmbuf_clear_rx_vlan(m);
+		pktmbuf_set_vrf(m, vti_ifp->if_vrfid);
+		set_spath_rx_meta_data(m, vti_ifp,
+				       ntohs(ethhdr(m)->ether_type),
+				       TUN_META_FLAGS_DEFAULT);
+		if (unlikely(vti_ifp->capturing))
+			capture_burst(vti_ifp, &m, 1);
+		cctx->action = CRYPTO_ACT_VTI_INPUT;
+		if_incr_in(vti_ifp, m);
 	} else {
-		if (vti_ifp) {
-			if (!(vti_ifp->if_flags & IFF_UP)) {
+		struct ifnet *feat_attach_ifp =
+			rcu_dereference(sa->feat_attach_ifp);
+
+		/*
+		 * If the SA has a virtual feature point bound to
+		 * it, then switch the input interface to the feature
+		 * point so that input features can be run.
+		 */
+		if (feat_attach_ifp) {
+			if (!(feat_attach_ifp->if_flags & IFF_UP)) {
 				cctx->action = CRYPTO_ACT_DROP;
 				return;
 			}
-			cctx->in_ifp = vti_ifp;
-			pktmbuf_clear_rx_vlan(m);
-			pktmbuf_set_vrf(m, vti_ifp->if_vrfid);
-			set_spath_rx_meta_data(m, vti_ifp,
-					       ntohs(ethhdr(m)->ether_type),
-					       TUN_META_FLAGS_DEFAULT);
-			if (unlikely(vti_ifp->capturing))
-				capture_burst(vti_ifp, &m, 1);
-			cctx->action = CRYPTO_ACT_VTI_INPUT;
-			if_incr_in(vti_ifp, m);
+			cctx->in_ifp = feat_attach_ifp;
+
+			if (unlikely(feat_attach_ifp->capturing))
+				capture_burst(feat_attach_ifp, &m, 1);
+
+			cctx->action = CRYPTO_ACT_INPUT_WITH_FEATURES;
 		} else {
-			struct ifnet *feat_attach_ifp =
-				rcu_dereference(sa->feat_attach_ifp);
-
-			/*
-			 * If the SA has a virtual feature point bound to
-			 * it, then switch the input interface to the feature
-			 * point so that input features can be run.
-			 */
-			if (feat_attach_ifp) {
-				if (!(feat_attach_ifp->if_flags & IFF_UP)) {
-					cctx->action = CRYPTO_ACT_DROP;
-					return;
-				}
-				cctx->in_ifp = feat_attach_ifp;
-
-				if (unlikely(feat_attach_ifp->capturing))
-					capture_burst(feat_attach_ifp, &m, 1);
-
-				cctx->action = CRYPTO_ACT_INPUT_WITH_FEATURES;
-			} else {
-				cctx->in_ifp = crypto_ctx_to_in_ifp(cctx, m);
-				if (unlikely(!cctx->in_ifp)) {
-					CRYPTO_DATA_ERR("No_ifp\n");
-					IPSEC_CNT_INC(DROPPED_NO_IFP);
-					cctx->action = CRYPTO_ACT_DROP;
-					return;
-				}
-
-				cctx->action = CRYPTO_ACT_INPUT;
+			cctx->in_ifp = crypto_ctx_to_in_ifp(cctx, m);
+			if (unlikely(!cctx->in_ifp)) {
+				CRYPTO_DATA_ERR("No_ifp\n");
+				IPSEC_CNT_INC(DROPPED_NO_IFP);
+				cctx->action = CRYPTO_ACT_DROP;
+				return;
 			}
-			/*
-			 * Set the overlay vrf if different from input
-			 * VRF. If this goes to the kernel then it
-			 * will need the correct vrf set, so set it in
-			 * meta too just in case.
-			 */
-			if (pktmbuf_get_vrf(m) != sa->overlay_vrf_id) {
-				pktmbuf_set_vrf(m, sa->overlay_vrf_id);
-				set_spath_rx_meta_data(
-					m,
-					feat_attach_ifp ? feat_attach_ifp :
-					dp_ifnet_byifindex(
-						dp_vrf_get_external_id(
-						sa->overlay_vrf_id)),
-					ntohs(ethhdr(m)->ether_type),
-					TUN_META_FLAGS_DEFAULT);
-			}
-			if (feat_attach_ifp)
-				if_incr_in(feat_attach_ifp, m);
+			cctx->action = CRYPTO_ACT_INPUT;
 		}
+		/*
+		 * Set the overlay vrf if different from input
+		 * VRF. If this goes to the kernel then it
+		 * will need the correct vrf set, so set it in
+		 * meta too just in case.
+		 */
+		if (pktmbuf_get_vrf(m) != sa->overlay_vrf_id) {
+			pktmbuf_set_vrf(m, sa->overlay_vrf_id);
+			set_spath_rx_meta_data(
+				m,
+				feat_attach_ifp ? feat_attach_ifp :
+				dp_ifnet_byifindex(
+					dp_vrf_get_external_id(
+						sa->overlay_vrf_id)),
+				ntohs(ethhdr(m)->ether_type),
+				TUN_META_FLAGS_DEFAULT);
+		}
+		if (feat_attach_ifp)
+			if_incr_in(feat_attach_ifp, m);
 	}
 }
 
