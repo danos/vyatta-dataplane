@@ -984,7 +984,8 @@ sadb_lookup_sa(struct rte_mbuf *m __unused, enum crypto_xfrm xfrm,
 		struct ifnet *err_ifp;
 
 		ctx->action = CRYPTO_ACT_DROP;
-		IPSEC_CNT_INC(NO_OUT_SA);
+		if (xfrm == CRYPTO_ENCRYPT)
+			IPSEC_CNT_INC(NO_OUT_SA);
 		err_ifp = ((xfrm == CRYPTO_ENCRYPT) ? ctx->nxt_ifp :
 			   crypto_ctx_to_in_ifp(ctx, ctx->mbuf));
 		if (err_ifp && is_vti(err_ifp))
