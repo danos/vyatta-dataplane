@@ -503,7 +503,6 @@ crypto_post_decrypt_handle_packet(struct crypto_pkt_ctx *cctx,
 static inline void
 crypto_process_decrypt_packet(struct crypto_pkt_ctx *cctx)
 {
-	int rc;
 	struct ifnet *vti_ifp = NULL;
 	struct sadb_sa *sa;
 	struct rte_mbuf *m;
@@ -532,9 +531,9 @@ crypto_process_decrypt_packet(struct crypto_pkt_ctx *cctx)
 		return;
 	}
 
-	rc = esp_input(cctx->family, m, sa, &cctx->bytes, &cctx->family);
+	esp_input(&cctx, 1);
 
-	crypto_post_decrypt_handle_packet(cctx, sa, m, rc, vti_ifp);
+	crypto_post_decrypt_handle_packet(cctx, sa, m, cctx->status, vti_ifp);
 }
 
 

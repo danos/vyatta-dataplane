@@ -639,6 +639,7 @@ struct crypto_pkt_ctx {
 	unsigned int counter_modify;
 	/* bytes encrypted/decrypted */
 	uint32_t bytes;
+	int status;
 
 	/*
 	 * These fields are are bi-directional. They may be

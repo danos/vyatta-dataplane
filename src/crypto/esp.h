@@ -22,8 +22,7 @@ struct rte_mbuf;
 struct sadb_sa;
 struct udphdr;
 
-int esp_input(int family, struct rte_mbuf *m, struct sadb_sa *sa,
-	      uint32_t *bytes, uint8_t *new_family);
+void esp_input(struct crypto_pkt_ctx *ctx_arr[], uint16_t count);
 
 int esp_output(int family, struct rte_mbuf *m,  uint8_t orig_family,
 	       void *l3hdr, struct sadb_sa *sa, uint32_t *bytes);

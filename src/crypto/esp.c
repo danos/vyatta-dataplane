@@ -715,9 +715,7 @@ static void esp_input_nat_l4cksum_fixup(int family, struct rte_mbuf *m)
 	}
 }
 
-static int esp_input_pre_decrypt(int family, struct rte_mbuf *m,
-				 struct sadb_sa *sa,
-				 struct crypto_pkt_ctx *pkt_info)
+static int esp_input_pre_decrypt(struct crypto_pkt_ctx *pkt_info)
 {
 	int head_trim  = 0;
 	unsigned int esp_len, ciphertext_len, udp_len = 0;
@@ -726,6 +724,9 @@ static int esp_input_pre_decrypt(int family, struct rte_mbuf *m,
 	unsigned char *iv = NULL, *esp = NULL;
 	unsigned int seg_data_remaining;
 	uint16_t prev_off = 0;
+	int family = pkt_info->family;
+	struct rte_mbuf *m = pkt_info->mbuf;
+	struct sadb_sa *sa = pkt_info->sa;
 
 	if (!sa) {
 		ESP_ERR("No SA for the inbound packet\n");
@@ -908,28 +909,42 @@ static int esp_input_post_decrypt(int family, struct rte_mbuf *m,
 	return 0;
 }
 
-int esp_input(int af, struct rte_mbuf *m, struct sadb_sa *sa,
-	      uint32_t *bytes, uint8_t *new_family)
+void esp_input(struct crypto_pkt_ctx *ctx_arr[], uint16_t count)
 {
-	struct crypto_pkt_ctx pkt_info;
+	uint16_t i;
+	struct crypto_pkt_ctx *ctx;
 
-	memset(&pkt_info, 0, sizeof(pkt_info));
-	if (esp_input_pre_decrypt(af, m, sa, &pkt_info) != 0)
-		return -1;
+	for (i = 0; i < count; i++) {
+		if (esp_input_pre_decrypt(ctx_arr[i]) != 0)
+			ctx_arr[i]->status = -1;
+	}
 
-	if (unlikely(crypto_rte_xform_packet(sa, m, pkt_info.iphlen,
-					     pkt_info.esp,
-					     pkt_info.iv,
-					     pkt_info.ciphertext_len,
-					     pkt_info.esp_len,
-					     0) != 0))
-		return -1;
+	for (i = 0; i < count; i++) {
+		if (unlikely(ctx_arr[i]->status == -1))
+			continue;
 
-	if (esp_input_post_decrypt(af, m, sa, &pkt_info, bytes,
-				   new_family) != 0)
-		return -1;
+		ctx = ctx_arr[i];
+		if (unlikely(crypto_rte_xform_packet(ctx->sa,
+						     ctx->mbuf,
+						     ctx->iphlen,
+						     ctx->esp,
+						     ctx->iv,
+						     ctx->ciphertext_len,
+						     ctx->esp_len,
+						     0) != 0))
+			ctx_arr[i]->status = -1;
+	}
 
-	return 0;
+	for (i = 0; i < count; i++) {
+		if (unlikely(ctx_arr[i]->status == -1))
+			continue;
+
+		ctx = ctx_arr[i];
+		if (esp_input_post_decrypt(ctx->family, ctx->mbuf,
+					   ctx->sa, ctx, &ctx->bytes,
+					   &ctx->family) != 0)
+			ctx_arr[i]->status = -1;
+	}
 }
 
 static unsigned int esp_out_new_hdr6(bool transport, uint8_t orig_family,
