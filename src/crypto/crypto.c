@@ -416,6 +416,24 @@ crypto_post_decrypt_handle_vti(struct crypto_pkt_ctx *cctx,
 	if_incr_in(vti_ifp, m);
 }
 
+static inline void
+crypto_post_decrypt_handle_vfp(struct crypto_pkt_ctx *cctx,
+			       struct rte_mbuf *m,
+			       struct ifnet *vfp_ifp)
+{
+	if (!(vfp_ifp->if_flags & IFF_UP)) {
+		cctx->action = CRYPTO_ACT_DROP;
+		return;
+	}
+	cctx->in_ifp = vfp_ifp;
+
+	if (unlikely(vfp_ifp->capturing))
+		capture_burst(vfp_ifp, &m, 1);
+
+	cctx->action = CRYPTO_ACT_INPUT_WITH_FEATURES;
+	if_incr_in(vfp_ifp, m);
+}
+
 /*
  * crypto_process_decrypt_packet()
  *
@@ -475,16 +493,8 @@ crypto_process_decrypt_packet(struct crypto_pkt_ctx *cctx)
 		 * point so that input features can be run.
 		 */
 		if (feat_attach_ifp) {
-			if (!(feat_attach_ifp->if_flags & IFF_UP)) {
-				cctx->action = CRYPTO_ACT_DROP;
-				return;
-			}
-			cctx->in_ifp = feat_attach_ifp;
-
-			if (unlikely(feat_attach_ifp->capturing))
-				capture_burst(feat_attach_ifp, &m, 1);
-
-			cctx->action = CRYPTO_ACT_INPUT_WITH_FEATURES;
+			crypto_post_decrypt_handle_vfp(cctx, m,
+						       feat_attach_ifp);
 		} else {
 			cctx->in_ifp = crypto_ctx_to_in_ifp(cctx, m);
 			if (unlikely(!cctx->in_ifp)) {
@@ -512,8 +522,6 @@ crypto_process_decrypt_packet(struct crypto_pkt_ctx *cctx)
 				ntohs(ethhdr(m)->ether_type),
 				TUN_META_FLAGS_DEFAULT);
 		}
-		if (feat_attach_ifp)
-			if_incr_in(feat_attach_ifp, m);
 	}
 }
 
