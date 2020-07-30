@@ -562,6 +562,7 @@ struct crypto_pkt_ctx {
 	uint8_t  orig_family;
 	uint8_t  family;
 	struct sadb_sa *sa;
+	struct ifnet *vti_ifp;
 	uint16_t iphlen;
 	uint16_t base_len;
 	uint16_t ciphertext_len;

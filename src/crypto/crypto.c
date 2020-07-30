@@ -501,74 +501,90 @@ crypto_post_decrypt_handle_packet(struct crypto_pkt_ctx *cctx,
 }
 
 static inline void
-crypto_process_decrypt_packet(struct crypto_pkt_ctx *cctx)
+crypto_process_decrypt_packets(uint16_t count,
+			       struct crypto_pkt_ctx *cctx[],
+			       uint32_t *bytes)
 {
-	struct ifnet *vti_ifp = NULL;
-	struct sadb_sa *sa;
 	struct rte_mbuf *m;
+	uint16_t i;
 
-	if (unlikely(cctx->action == CRYPTO_ACT_DROP))
-		return;
+	for (i = 0; i < count; i++) {
+		if (unlikely(cctx[i]->action == CRYPTO_ACT_DROP))
+			continue;
 
-	sa = cctx->sa;
-	m = cctx->mbuf;
+		/*
+		 * If this packet has come from a VTI, replace the
+		 * physical input interface with the VTI.  Doing so
+		 * enables both accounting and input features.
+		 */
+		unsigned int mark = crypto_sadb_get_mark_val(cctx[i]->sa);
 
-	/*
-	 * If this packet has come from a VTI, replace the
-	 * physical input interface with the VTI.  Doing so
-	 * enables both accounting and input features.
-	 */
-	unsigned int mark = crypto_sadb_get_mark_val(sa);
-
-	if ((mark != 0) &&
-	    (vti_handle_inbound(
-		    crypto_get_src(dp_pktmbuf_mtol3(m, void *),
-				   cctx->family),
-		    cctx->family, mark, m, &vti_ifp) < 0)) {
-		CRYPTO_DATA_ERR("No VTI interface found\n");
-		IPSEC_CNT_INC(NO_VTI);
-		cctx->action = CRYPTO_ACT_DROP;
-		return;
+		m = cctx[i]->mbuf;
+		if ((mark != 0) &&
+		    (vti_handle_inbound(
+			    crypto_get_src(dp_pktmbuf_mtol3(m, void *),
+					   cctx[i]->family),
+			    cctx[i]->family, mark, m,
+			    &cctx[i]->vti_ifp) < 0)) {
+			CRYPTO_DATA_ERR("No VTI interface found\n");
+			IPSEC_CNT_INC(NO_VTI);
+			cctx[i]->action = CRYPTO_ACT_DROP;
+			continue;
+		}
 	}
 
-	esp_input(&cctx, 1);
+	esp_input(cctx, count);
 
-	crypto_post_decrypt_handle_packet(cctx, sa, m, cctx->status, vti_ifp);
+	for (i = 0; i < count; i++) {
+		if (unlikely(cctx[i]->action == CRYPTO_ACT_DROP))
+			continue;
+
+		crypto_post_decrypt_handle_packet(cctx[i],
+						  cctx[i]->sa,
+						  cctx[i]->mbuf,
+						  cctx[i]->status,
+						  cctx[i]->vti_ifp);
+		*bytes += cctx[i]->bytes;
+	}
 }
 
-
-static void crypto_process_encrypt_packet(struct crypto_pkt_ctx *cctx)
+static void crypto_process_encrypt_packets(uint16_t count,
+					   struct crypto_pkt_ctx *cctx[],
+					   uint32_t *bytes)
 {
-	struct rte_mbuf *m;
+	uint16_t i;
+	struct crypto_pkt_ctx *tmp_cctx;
 
-	if (unlikely(cctx->action == CRYPTO_ACT_DROP))
-		return;
+	esp_output(cctx, count);
 
-	m = cctx->mbuf;
+	for (i = 0; i < count; i++) {
+		tmp_cctx = cctx[i];
+		if (tmp_cctx->status < 0) {
+			if (tmp_cctx->nxt_ifp)
+				if_incr_oerror(tmp_cctx->nxt_ifp);
+			CRYPTO_DATA_ERR("ESP Output failed %d\n",
+					tmp_cctx->status);
+			tmp_cctx->action = CRYPTO_ACT_DROP;
+			IPSEC_CNT_INC(DROPPED_ESP_OUTPUT_FAIL);
+		} else {
+			tmp_cctx->in_ifp = crypto_ctx_to_in_ifp(tmp_cctx,
+								tmp_cctx->mbuf);
+			if (unlikely(!tmp_cctx->in_ifp)) {
+				CRYPTO_DATA_ERR("No_ifp\n");
+				IPSEC_CNT_INC(DROPPED_NO_IFP);
+				tmp_cctx->action = CRYPTO_ACT_DROP;
+				continue;
+			}
+			tmp_cctx->action = CRYPTO_ACT_OUTPUT;
+			/*
+			 * And put it into the correct vrf now that we
+			 * have added new headers. At the moment we only
+			 * support default for the transport/underlay.
+			 */
+			pktmbuf_set_vrf(tmp_cctx->mbuf, VRF_DEFAULT_ID);
 
-	esp_output(&cctx, 1);
-
-	if (cctx->status < 0) {
-		if (cctx->nxt_ifp)
-			if_incr_oerror(cctx->nxt_ifp);
-		CRYPTO_DATA_ERR("ESP Output failed %d\n", cctx->status);
-		cctx->action = CRYPTO_ACT_DROP;
-		IPSEC_CNT_INC(DROPPED_ESP_OUTPUT_FAIL);
-	} else {
-		cctx->in_ifp = crypto_ctx_to_in_ifp(cctx, m);
-		if (unlikely(!cctx->in_ifp)) {
-			CRYPTO_DATA_ERR("No_ifp\n");
-			IPSEC_CNT_INC(DROPPED_NO_IFP);
-			cctx->action = CRYPTO_ACT_DROP;
-			return;
+			*bytes += tmp_cctx->bytes;
 		}
-		cctx->action = CRYPTO_ACT_OUTPUT;
-		/*
-		 * And put it into the correct vrf now that we
-		 * have added new headers. At the moment we only
-		 * support default for the transport/underlay.
-		 */
-		pktmbuf_set_vrf(m, VRF_DEFAULT_ID);
 	}
 }
 
@@ -779,6 +795,7 @@ static int crypto_enqueue_internal(enum crypto_xfrm xfrm,
 			ctx->out_ethertype = ETH_P_IPV6;
 	}
 	ctx->in_ifp = NULL;
+	ctx->vti_ifp = NULL;
 
 	if (crypto_rte_op_alloc(m)) {
 		IPSEC_CNT_INC(DROPPED_COP_ALLOC_FAILED);
@@ -960,14 +977,15 @@ static void crypto_fwd_processed_packets(struct crypto_pkt_ctx **contexts,
 }
 
 struct crypto_processing_cb {
-	void (*process)(struct crypto_pkt_ctx *);
+	void (*process)(uint16_t count, struct crypto_pkt_ctx *ctx_arr[],
+			uint32_t *bytes);
 	void (*post_process)(struct crypto_pkt_ctx **,  uint32_t);
 };
 
 static const struct crypto_processing_cb crypto_cb[MAX_CRYPTO_XFRM] = {
-	{crypto_process_encrypt_packet,
+	{crypto_process_encrypt_packets,
 	 crypto_fwd_processed_packets},
-	{crypto_process_decrypt_packet,
+	{crypto_process_decrypt_packets,
 	 crypto_fwd_processed_packets} };
 
 void crypto_purge_queue(struct rte_ring *pmd_queue)
@@ -1025,30 +1043,34 @@ sadb_lookup_sa(struct rte_mbuf *m __unused, enum crypto_xfrm xfrm,
 }
 
 static inline unsigned int
-crypto_pmd_process_packet(struct crypto_pkt_ctx *contexts,
-			  enum crypto_xfrm xfrm)
+crypto_pmd_process_packets(struct crypto_pkt_ctx *contexts[],
+			   uint16_t count, enum crypto_xfrm xfrm)
 {
 	struct rte_mbuf *m;
-	struct sadb_sa *sa;
+	unsigned int total_bytes = 0;
+	uint16_t i;
 
-	m = contexts->mbuf;
-	if (unlikely(!m)) {
-		CRYPTO_DATA_ERR("Null mbuf\n");
-		contexts->action = CRYPTO_ACT_DROP;
-		IPSEC_CNT_INC(DROPPED_NO_MBUF);
-		return 0;
+	for (i = 0; i < count; i++) {
+		m = contexts[i]->mbuf;
+		if (unlikely(!m)) {
+			CRYPTO_DATA_ERR("Null mbuf\n");
+			contexts[i]->action = CRYPTO_ACT_DROP;
+			IPSEC_CNT_INC(DROPPED_NO_MBUF);
+			continue;
+		}
+		assert(contexts[i]->direction == xfrm);
+
+		contexts[i]->bytes = 0;
+		contexts[i]->sa = sadb_lookup_sa(m, xfrm, contexts[i]);
+		if (unlikely(!contexts[i]->sa))
+			contexts[i]->status = -1;
+		else
+			contexts[i]->status = 0;
 	}
-	assert(contexts->direction == xfrm);
 
-	sa = sadb_lookup_sa(m, xfrm, contexts);
-	if (unlikely(!sa))
-		return 0;
+	crypto_cb[xfrm].process(count, contexts, &total_bytes);
 
-	contexts->status = 0;
-	contexts->sa = sa;
-	contexts->bytes = 0;
-	crypto_cb[xfrm].process(contexts);
-	return contexts->bytes;
+	return total_bytes;
 }
 
 /*
@@ -1063,7 +1085,7 @@ static bool crypto_pmd_walk_cb(int pmd_dev_id __unused, enum crypto_xfrm xfrm,
 			       uint32_t *packets)
 {
 	struct crypto_pkt_ctx *contexts[MAX_CRYPTO_PKT_BURST];
-	unsigned int i, count, total_bytes = 0;
+	unsigned int count, total_bytes = 0;
 
 	if (!rte_ring_empty(pmd_queue)) {
 		count = rte_ring_sc_dequeue_burst(pmd_queue,
@@ -1071,25 +1093,7 @@ static bool crypto_pmd_walk_cb(int pmd_dev_id __unused, enum crypto_xfrm xfrm,
 						  MAX_CRYPTO_PKT_BURST,
 						  NULL);
 
-		for (i = 0; i < CRYPTO_PREFETCH_OFFSET && i < count; i++)
-			rte_prefetch0(contexts[i]);
-
-		/* Process the packets in the burst. */
-		for (i = 0; i + CRYPTO_PREFETCH_OFFSET < count; i++) {
-			rte_prefetch0(contexts[i + CRYPTO_PREFETCH_OFFSET]);
-			rte_prefetch0(
-				contexts[i + CRYPTO_PREFETCH_OFFSET - 1]->mbuf);
-			rte_prefetch0(
-			       contexts[i + CRYPTO_PREFETCH_OFFSET - 1]->l3hdr);
-			total_bytes += crypto_pmd_process_packet(contexts[i],
-								 xfrm);
-		}
-
-		/* Process the remaining contexts */
-		for (; i < count; i++) {
-			total_bytes += crypto_pmd_process_packet(contexts[i],
-								 xfrm);
-		}
+		total_bytes = crypto_pmd_process_packets(contexts, count, xfrm);
 
 		crypto_cb[xfrm].post_process(contexts, count);
 		*packets = count;
