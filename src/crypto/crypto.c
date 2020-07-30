@@ -395,6 +395,27 @@ static struct ifnet *crypto_ctx_to_in_ifp(struct crypto_pkt_ctx *ctx,
 	return ifp;
 }
 
+static inline void
+crypto_post_decrypt_handle_vti(struct crypto_pkt_ctx *cctx,
+			       struct rte_mbuf *m,
+			       struct ifnet *vti_ifp)
+{
+	if (!(vti_ifp->if_flags & IFF_UP)) {
+		cctx->action = CRYPTO_ACT_DROP;
+		return;
+	}
+	cctx->in_ifp = vti_ifp;
+	pktmbuf_clear_rx_vlan(m);
+	pktmbuf_set_vrf(m, vti_ifp->if_vrfid);
+	set_spath_rx_meta_data(m, vti_ifp,
+			       ntohs(ethhdr(m)->ether_type),
+			       TUN_META_FLAGS_DEFAULT);
+	if (unlikely(vti_ifp->capturing))
+		capture_burst(vti_ifp, &m, 1);
+	cctx->action = CRYPTO_ACT_VTI_INPUT;
+	if_incr_in(vti_ifp, m);
+}
+
 /*
  * crypto_process_decrypt_packet()
  *
@@ -442,22 +463,9 @@ crypto_process_decrypt_packet(struct crypto_pkt_ctx *cctx)
 		return;
 	}
 
-	if (vti_ifp) {
-		if (!(vti_ifp->if_flags & IFF_UP)) {
-			cctx->action = CRYPTO_ACT_DROP;
-			return;
-		}
-		cctx->in_ifp = vti_ifp;
-		pktmbuf_clear_rx_vlan(m);
-		pktmbuf_set_vrf(m, vti_ifp->if_vrfid);
-		set_spath_rx_meta_data(m, vti_ifp,
-				       ntohs(ethhdr(m)->ether_type),
-				       TUN_META_FLAGS_DEFAULT);
-		if (unlikely(vti_ifp->capturing))
-			capture_burst(vti_ifp, &m, 1);
-		cctx->action = CRYPTO_ACT_VTI_INPUT;
-		if_incr_in(vti_ifp, m);
-	} else {
+	if (vti_ifp)
+		crypto_post_decrypt_handle_vti(cctx, m, vti_ifp);
+	else {
 		struct ifnet *feat_attach_ifp =
 			rcu_dereference(sa->feat_attach_ifp);
 
