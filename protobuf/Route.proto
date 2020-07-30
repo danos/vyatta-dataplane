@@ -56,6 +56,16 @@ message Path {
 	// indicates a PIC edge backup path and will only be used if
 	// all the primary paths are unusable.
 	optional bool backup = 7;
+
+	// Recursive via MPLS label. This indicates that the path can
+	// instead be resolved recursively via an MPLS label, instead
+	// of directly by nexthop, interface with a label stack.
+	optional uint32 via_mpls_label = 8;
+
+	// The number of non-recursive labels, i.e. which can be
+	// replaced by via_mpls_label. Must be <= number of
+	// mpls_labels.
+	optional uint32 n_non_recursive_labels = 9;
 }
 
 message Route {
