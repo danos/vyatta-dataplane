@@ -492,6 +492,7 @@ static const struct msg_handler message_handlers_main[] = {
 	{ 0,	"pathmonitor",	process_config_cmd,	 NULL },
 	{ 0,	"poe",		process_config_cmd,	 cmd_poe },
 	{ 0,	"portmonitor",	process_config_cmd,	 NULL },
+	{ 1,	"portmonitor",	process_config_cmd,	 NULL },
 	{ 0,	"protobuf",	process_pb_cmd,          NULL },
 	{ 0,	"ptp",		process_config_cmd,      cmd_ptp_cfg },
 	{ 10,	"qos",		process_config_cmd,	 cmd_qos_cfg },

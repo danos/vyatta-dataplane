@@ -216,6 +216,10 @@ static const char *fal_port_attr_t_to_str(enum fal_port_attr_t val)
 		return "ingress_mirror_session";
 	case FAL_PORT_ATTR_EGRESS_MIRROR_SESSION:
 		return "egress_mirror_session";
+	case FAL_PORT_ATTR_INGRESS_MIRROR_VLAN:
+		return "ingress_mirror_vlans";
+	case FAL_PORT_ATTR_EGRESS_MIRROR_VLAN:
+		return "egress_mirror_vlans";
 	case FAL_PORT_ATTR_HW_MIRRORING:
 		return "hw_mirroring";
 	case FAL_PORT_ATTR_UNICAST_STORM_CONTROL_POLICER_ID:

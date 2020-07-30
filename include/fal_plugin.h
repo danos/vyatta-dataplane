@@ -358,6 +358,14 @@ struct fal_object_list_t {
 };
 
 /*
+ * Structure for a list of uint32_t objects
+ */
+struct fal_u32_list_t {
+	uint32_t count;
+	uint32_t list[0];
+};
+
+/*
  * modeled after sai_packet_color_t
  * used to set actions based on packet colour
  */
@@ -427,6 +435,7 @@ union fal_attribute_value_t {
 	struct fal_acl_action_data_t *aclaction;
 	char if_name[IFNAMSIZ];
 	uint8_t eui64[8];
+	struct fal_u32_list_t *u32list;
 };
 
 struct fal_attribute_t {
@@ -636,7 +645,24 @@ enum fal_port_attr_t {
 	 * @default empty
 	 */
 	FAL_PORT_ATTR_EGRESS_MIRROR_SESSION,
-
+	/**
+	 * @brief Ingress Mirror vlan list
+	 * Ingress mirroring vlan list
+	 * Delete all vlans for Ingress if count 0 in objlist.
+	 * @type fal_object_list_t
+	 * @flags CREATE_AND_SET
+	 * @default empty
+	 */
+	FAL_PORT_ATTR_INGRESS_MIRROR_VLAN,
+	/**
+	 * @brief Egress Mirror vlan list
+	 * Egress(Tx) mirroring vlan list
+	 * Delete all vlans for Egress if count 0 in objlist.
+	 * @type fal_object_list_t
+	 * @flags CREATE_AND_SET
+	 * @default empty
+	 */
+	FAL_PORT_ATTR_EGRESS_MIRROR_VLAN,
 	/**
 	 * @brief Is mirroring in hardware enabled
 	 * True means mirroring will be done in hardware, false

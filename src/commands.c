@@ -1912,6 +1912,7 @@ static const cmd_t cmd_table[] = {
 	{ 0,	"poe",		cmd_poe_op,	"poe commands" },
 	{ 0,	"poe-ut",	cmd_poe_ut,	"poe commands" },
 	{ 0,	"portmonitor",	cmd_portmonitor, "portmonitor command" },
+	{ 1,	"portmonitor",	cmd_portmonitor, "portmonitor command" },
 	{ 0,	"ptp",		cmd_ptp_op,	"PTP commands" },
 	{ 0,	"ptp-ut",	cmd_ptp_ut,	"PTP (unit tests)" },
 	{ 1,	"qos",		cmd_qos_op,	"Show Qos information" },
