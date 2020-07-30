@@ -24,8 +24,7 @@ struct udphdr;
 
 void esp_input(struct crypto_pkt_ctx *ctx_arr[], uint16_t count);
 
-int esp_output(int family, struct rte_mbuf *m,  uint8_t orig_family,
-	       void *l3hdr, struct sadb_sa *sa, uint32_t *bytes);
+void esp_output(struct crypto_pkt_ctx *ctx_arr[], uint16_t count);
 
 /*
  * RFC 4303 requires the pad length and next header fields to be right aligned

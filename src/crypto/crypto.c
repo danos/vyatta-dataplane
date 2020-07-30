@@ -539,23 +539,19 @@ crypto_process_decrypt_packet(struct crypto_pkt_ctx *cctx)
 
 static void crypto_process_encrypt_packet(struct crypto_pkt_ctx *cctx)
 {
-	int rc;
-	struct sadb_sa *sa;
 	struct rte_mbuf *m;
 
 	if (unlikely(cctx->action == CRYPTO_ACT_DROP))
 		return;
 
-	sa = cctx->sa;
 	m = cctx->mbuf;
 
-	rc = esp_output(cctx->family, m, cctx->orig_family, cctx->l3hdr,
-			sa, &cctx->bytes);
+	esp_output(&cctx, 1);
 
-	if (rc < 0) {
+	if (cctx->status < 0) {
 		if (cctx->nxt_ifp)
 			if_incr_oerror(cctx->nxt_ifp);
-		CRYPTO_DATA_ERR("ESP Output failed %d\n", rc);
+		CRYPTO_DATA_ERR("ESP Output failed %d\n", cctx->status);
 		cctx->action = CRYPTO_ACT_DROP;
 		IPSEC_CNT_INC(DROPPED_ESP_OUTPUT_FAIL);
 	} else {

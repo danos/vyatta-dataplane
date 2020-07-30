@@ -1184,12 +1184,6 @@ static void esp_out_hdr_parse4(void *l3hdr, struct esp_hdr_ctx *h,
 	h->tot_len = ntohs(ip->tot_len);
 }
 
-struct esp_encrypt_pkt_info {
-	char *hdr, *tail;
-	uint16_t plaintext_size, plaintext_size_orig;
-	unsigned int counter_modify;
-};
-
 static int esp_output_pre_encrypt(int new_family, struct sadb_sa *sa,
 				  struct rte_mbuf *m, uint8_t orig_family,
 				  void *l3hdr, struct esp_hdr_ctx *h,
@@ -1346,29 +1340,47 @@ static void esp_output_post_encrypt(struct sadb_sa *sa, char *tail,
 	*bytes = plaintext_size_orig - counter_modify;
 }
 
-int esp_output(int new_family, struct rte_mbuf *m, uint8_t orig_family,
-	       void *l3hdr, struct sadb_sa *sa, uint32_t *bytes)
+void esp_output(struct crypto_pkt_ctx *ctx_arr[], uint16_t count)
 {
-	struct esp_hdr_ctx h;
-	struct crypto_pkt_ctx pkt_info;
+	struct esp_hdr_ctx h[count];
+	struct crypto_pkt_ctx *ctx;
+	uint16_t i;
 
-	memset(&pkt_info, 0, sizeof(pkt_info));
+	for (i = 0; i < count; i++) {
+		ctx = ctx_arr[i];
+		if (esp_output_pre_encrypt(ctx->family, ctx->sa,
+					   ctx->mbuf,
+					   ctx->orig_family,
+					   ctx->l3hdr, &h[i],
+					   ctx) != 0)
+			ctx_arr[i]->status = -1;
+	}
 
-	if (esp_output_pre_encrypt(new_family, sa, m, orig_family, l3hdr, &h,
-				   &pkt_info) != 0)
-		return -1;
+	for (i = 0; i < count; i++) {
+		ctx = ctx_arr[i];
+		if (ctx->status == -1)
+			continue;
 
-	if (unlikely(crypto_rte_xform_packet(sa, m, h.out_hdr_len,
-					     pkt_info.esp, pkt_info.iv,
-					     pkt_info.plaintext_size,
-					     pkt_info.esp_len, 1) != 0))
-		return -1;
+		if (unlikely(crypto_rte_xform_packet(ctx->sa, ctx->mbuf,
+						     h[i].out_hdr_len,
+						     ctx->esp,
+						     ctx->iv,
+						     ctx->plaintext_size,
+						     ctx->esp_len, 1) != 0))
+			ctx->status = -1;
+	}
 
-	esp_output_post_encrypt(sa, pkt_info.tail, pkt_info.hdr, &h,
-				pkt_info.plaintext_size_orig,
-				pkt_info.counter_modify, bytes);
+	for (i = 0; i < count; i++) {
+		ctx = ctx_arr[i];
+		if (ctx->status == -1)
+			continue;
 
-	return 0;
+		esp_output_post_encrypt(ctx->sa,
+					ctx->tail,
+					ctx->hdr, &h[i],
+					ctx->plaintext_size_orig,
+					ctx->counter_modify, &ctx->bytes);
+	}
 }
 
 bool udp_esp_dp_interesting(const struct udphdr *udp,
