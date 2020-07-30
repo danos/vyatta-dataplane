@@ -434,6 +434,29 @@ crypto_post_decrypt_handle_vfp(struct crypto_pkt_ctx *cctx,
 	if_incr_in(vfp_ifp, m);
 }
 
+static inline void
+crypto_post_decrypt_set_overlay_vrf(struct sadb_sa *sa, struct rte_mbuf *m,
+				    struct ifnet *vfp_ifp)
+{
+	/*
+	 * Set the overlay vrf if different from input
+	 * VRF. If this goes to the kernel then it
+	 * will need the correct vrf set, so set it in
+	 * meta too just in case.
+	 */
+	if (pktmbuf_get_vrf(m) == sa->overlay_vrf_id)
+		return;
+
+	pktmbuf_set_vrf(m, sa->overlay_vrf_id);
+	set_spath_rx_meta_data(m,
+			       vfp_ifp ? vfp_ifp :
+			       dp_ifnet_byifindex(
+				       dp_vrf_get_external_id(
+					       sa->overlay_vrf_id)),
+			       ntohs(ethhdr(m)->ether_type),
+			       TUN_META_FLAGS_DEFAULT);
+}
+
 /*
  * crypto_process_decrypt_packet()
  *
@@ -505,23 +528,7 @@ crypto_process_decrypt_packet(struct crypto_pkt_ctx *cctx)
 			}
 			cctx->action = CRYPTO_ACT_INPUT;
 		}
-		/*
-		 * Set the overlay vrf if different from input
-		 * VRF. If this goes to the kernel then it
-		 * will need the correct vrf set, so set it in
-		 * meta too just in case.
-		 */
-		if (pktmbuf_get_vrf(m) != sa->overlay_vrf_id) {
-			pktmbuf_set_vrf(m, sa->overlay_vrf_id);
-			set_spath_rx_meta_data(
-				m,
-				feat_attach_ifp ? feat_attach_ifp :
-				dp_ifnet_byifindex(
-					dp_vrf_get_external_id(
-						sa->overlay_vrf_id)),
-				ntohs(ethhdr(m)->ether_type),
-				TUN_META_FLAGS_DEFAULT);
-		}
+		crypto_post_decrypt_set_overlay_vrf(sa, m, feat_attach_ifp);
 	}
 }
 
