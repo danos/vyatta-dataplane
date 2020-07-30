@@ -956,6 +956,23 @@ static void show_one_session(struct portmonitor_session *s, json_writer_t *wr)
 				jsonw_string_field(wr, "direction", "rx");
 			else if (pminfo->direction & PORTMONITOR_DIRECTION_TX)
 				jsonw_string_field(wr, "direction", "tx");
+			int i;
+			struct vlan_info *rxvi, *txvi;
+
+			rxvi = rcu_dereference(pmsrcif->rx_vinfo);
+			txvi = rcu_dereference(pmsrcif->tx_vinfo);
+			jsonw_name(wr, "rx_vlan");
+			jsonw_start_array(wr);
+			if (rxvi)
+				for (i = 0; i < rxvi->num_vlans; i++)
+					jsonw_uint(wr, rxvi->vlanids[i]);
+			jsonw_end_array(wr);
+			jsonw_name(wr, "tx_vlan");
+			jsonw_start_array(wr);
+			if (txvi)
+				for (i = 0; i < txvi->num_vlans; i++)
+					jsonw_uint(wr, txvi->vlanids[i]);
+			jsonw_end_array(wr);
 		}
 		jsonw_end_object(wr);
 	}
