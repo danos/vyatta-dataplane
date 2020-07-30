@@ -400,13 +400,20 @@ static struct ifnet *crypto_ctx_to_in_ifp(struct crypto_pkt_ctx *ctx,
  *
  * Decrypt the packet described by the supplied context.
  */
-static void crypto_process_decrypt_packet(struct crypto_pkt_ctx *cctx,
-					  struct rte_mbuf *m,
-					  struct sadb_sa *sa,
-					  uint32_t *bytes)
+static inline void
+crypto_process_decrypt_packet(struct crypto_pkt_ctx *cctx,
+			      uint32_t *bytes)
 {
 	int rc;
 	struct ifnet *vti_ifp = NULL;
+	struct sadb_sa *sa;
+	struct rte_mbuf *m;
+
+	if (unlikely(cctx->action == CRYPTO_ACT_DROP))
+		return;
+
+	sa = cctx->sa;
+	m = cctx->mbuf;
 
 	/*
 	 * If this packet has come from a VTI, replace the
@@ -508,11 +515,17 @@ static void crypto_process_decrypt_packet(struct crypto_pkt_ctx *cctx,
 }
 
 static void crypto_process_encrypt_packet(struct crypto_pkt_ctx *cctx,
-					  struct rte_mbuf *m,
-					  struct sadb_sa *sa,
 					  uint32_t *bytes)
 {
 	int rc;
+	struct sadb_sa *sa;
+	struct rte_mbuf *m;
+
+	if (unlikely(cctx->action == CRYPTO_ACT_DROP))
+		return;
+
+	sa = cctx->sa;
+	m = cctx->mbuf;
 
 	if (cctx->family == AF_INET)
 		rc = esp_output(m, cctx->orig_family, cctx->l3hdr, sa, bytes);
@@ -927,8 +940,7 @@ static void crypto_fwd_processed_packets(struct crypto_pkt_ctx **contexts,
 }
 
 struct crypto_processing_cb {
-	void (*process)(struct crypto_pkt_ctx *, struct rte_mbuf *,
-			struct sadb_sa *, uint32_t *bytes);
+	void (*process)(struct crypto_pkt_ctx *, uint32_t *bytes);
 	void (*post_process)(struct crypto_pkt_ctx **,  uint32_t);
 };
 
@@ -1012,7 +1024,8 @@ crypto_pmd_process_packet(struct crypto_pkt_ctx *contexts,
 	if (unlikely(!sa))
 		return 0;
 
-	crypto_cb[xfrm].process(contexts, m, sa, &packet_size);
+	contexts->sa = sa;
+	crypto_cb[xfrm].process(contexts, &packet_size);
 	return packet_size;
 }
 

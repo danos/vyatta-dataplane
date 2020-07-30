@@ -620,6 +620,7 @@ struct crypto_pkt_ctx {
 	/*
 	 * These fields are set and used in the crypto thread
 	 */
+	struct sadb_sa *sa;
 	uint16_t iphlen;
 	uint16_t udp_len;
 	uint16_t base_len;
