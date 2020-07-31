@@ -22,6 +22,7 @@
 #include "compiler.h"
 #include "crypto/vti.h"
 #include "dp_event.h"
+#include "fal.h"
 #include "if/gre.h"
 #include "ip_mcast.h"
 #include "lpm/lpm.h"
@@ -258,7 +259,14 @@ err:
 static struct vrf *
 vrf_create(vrfid_t vrf_id)
 {
+	struct fal_attribute_t attr_list[] = {
+		{
+			.id = FAL_VRF_ATTR_ID,
+			.value.u32 = vrf_id,
+		},
+	};
 	struct vrf *vrf_var;
+	int ret;
 
 	if (vrf_id >= VRF_ID_MAX) {
 		DP_LOG_W_VRF(ERR, DATAPLANE, vrf_id, "ID > %d\n",
@@ -282,6 +290,13 @@ vrf_create(vrfid_t vrf_id)
 
 	vrf_inc_ref_count(vrf_var);
 	rcu_assign_pointer(vrf_table[vrf_id], vrf_var);
+
+	ret = fal_vrf_create(ARRAY_SIZE(attr_list), attr_list,
+			     &vrf_var->v_fal_obj);
+	if (ret < 0 && ret != -EOPNOTSUPP)
+		DP_LOG_W_VRF(ERR, DATAPLANE, vrf_id,
+			     "FAL create failed: %s\n", strerror(-ret));
+
 	return vrf_var;
 }
 
@@ -312,6 +327,7 @@ vrf_find_or_create(vrfid_t vrf_id)
 void vrf_delete_by_ptr(struct vrf *vrf)
 {
 	vrfid_t vrf_id;
+	int ret;
 
 	if (unlikely(vrf == NULL)) {
 		DP_LOG_W_VRF(ERR, DATAPLANE, VRF_INVALID_ID,
@@ -342,6 +358,14 @@ void vrf_delete_by_ptr(struct vrf *vrf)
 	 * pointer are done, safe to remove.
 	 */
 	vrf_table[vrf_id] = NULL;
+
+	if (vrf->v_fal_obj) {
+		ret = fal_vrf_delete(vrf->v_fal_obj);
+		if (ret < 0 && ret != -EOPNOTSUPP)
+			DP_LOG_W_VRF(ERR, DATAPLANE, vrf_id,
+				     "FAL delete failed: %s\n",
+				     strerror(-ret));
+	}
 
 	call_rcu(&vrf->rcu, vrf_destroy);
 }

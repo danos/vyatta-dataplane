@@ -3307,8 +3307,8 @@ fal_if_update_forwarding_all(struct ifnet *ifp)
 int
 if_fal_create_l3_intf(struct ifnet *ifp)
 {
-	struct fal_attribute_t l3_attrs[11];
-	unsigned int l3_nattrs = 2;
+	struct fal_attribute_t l3_attrs[12];
+	unsigned int l3_nattrs = 3;
 	fal_object_t fal_l3;
 	int ret = 0;
 
@@ -3316,6 +3316,8 @@ if_fal_create_l3_intf(struct ifnet *ifp)
 	l3_attrs[0].value.u32 = ifp->if_index;
 	l3_attrs[1].id = FAL_ROUTER_INTERFACE_ATTR_VRF_ID;
 	l3_attrs[1].value.u32 = ifp->if_vrfid;
+	l3_attrs[2].id = FAL_ROUTER_INTERFACE_ATTR_VRF_OBJ;
+	l3_attrs[2].value.objid = get_vrf(ifp->if_vrfid)->v_fal_obj;
 
 	if (ifp->if_vlan) {
 		if (ifp->if_vlan) {
@@ -3414,7 +3416,9 @@ if_fal_delete_l3_intf(struct ifnet *ifp)
 int
 if_set_l3_intf_attr(struct ifnet *ifp, struct fal_attribute_t *attr)
 {
+	struct fal_attribute_t l3_attr;
 	struct fal_attribute_t l2_attr;
+	int ret;
 
 	/* for backwards compatibility */
 	switch (attr->id) {
@@ -3423,10 +3427,20 @@ if_set_l3_intf_attr(struct ifnet *ifp, struct fal_attribute_t *attr)
 		l2_attr.value.u16 = attr->value.u16;
 		fal_l2_upd_port(ifp->if_index, &l2_attr);
 		break;
-	case FAL_ROUTER_INTERFACE_ATTR_VRF_ID:
+	case FAL_ROUTER_INTERFACE_ATTR_VRF_OBJ:
 		l2_attr.id = FAL_PORT_ATTR_VRF_ID;
-		l2_attr.value.u32 = attr->value.u32;
+		l3_attr.value.u32 = ifp->if_vrfid;
 		fal_l2_upd_port(ifp->if_index, &l2_attr);
+
+		if (!ifp->fal_l3)
+			return -EOPNOTSUPP;
+
+		l3_attr.id = FAL_ROUTER_INTERFACE_ATTR_VRF_ID;
+		l3_attr.value.u32 = ifp->if_vrfid;
+		ret = fal_set_router_interface_attr(ifp->fal_l3, &l3_attr);
+		if (ret < 0 && ret != -EOPNOTSUPP)
+			return ret;
+
 		break;
 	}
 

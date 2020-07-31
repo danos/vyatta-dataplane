@@ -611,6 +611,23 @@ static struct fal_mpls_ops *new_dyn_mpls_ops(void *lib)
 	return mpls_ops;
 }
 
+static struct fal_vrf_ops *new_dyn_vrf_ops(void *lib)
+{
+	struct fal_vrf_ops *vrf_ops = calloc(1, sizeof(*vrf_ops));
+
+	if (!vrf_ops) {
+		RTE_LOG(ERR, DATAPLANE, "Could not allocate vrf ops\n");
+		return NULL;
+	}
+
+	vrf_ops->create = dlsym(lib, "fal_plugin_create_vrf");
+	vrf_ops->delete = dlsym(lib, "fal_plugin_delete_vrf");
+	vrf_ops->set_attr = dlsym(lib, "fal_plugin_set_vrf_attr");
+	vrf_ops->get_attr = dlsym(lib, "fal_plugin_get_vrf_attr");
+
+	return vrf_ops;
+}
+
 static void register_dyn_msg_handlers(void *lib)
 {
 	struct message_handler *handler =
@@ -643,6 +660,7 @@ static void register_dyn_msg_handlers(void *lib)
 	handler->capture = new_dyn_capture_ops(lib);
 	handler->bfd = new_dyn_bfd_ops(lib);
 	handler->mpls = new_dyn_mpls_ops(lib);
+	handler->vrf = new_dyn_vrf_ops(lib);
 
 	fal_register_message_handler(handler);
 }
@@ -3752,4 +3770,32 @@ int fal_get_mpls_route_attr(const struct fal_mpls_route_t *mpls_route,
 	return call_handler_def_ret(
 		mpls, -EOPNOTSUPP, get_route_attr, mpls_route,
 		attr_count, attr_list);
+}
+
+int fal_vrf_create(uint32_t attr_count,
+		   const struct fal_attribute_t *attr_list,
+		   fal_object_t *obj)
+{
+	return call_handler_def_ret(vrf, -EOPNOTSUPP, create,
+				    attr_count, attr_list, obj);
+}
+
+int fal_vrf_delete(fal_object_t obj)
+{
+	return call_handler_def_ret(vrf, -EOPNOTSUPP, delete, obj);
+}
+
+int fal_set_vrf_attr(fal_object_t obj,
+		     const struct fal_attribute_t *attr)
+{
+	return call_handler_def_ret(vrf, -EOPNOTSUPP, set_attr, obj,
+				    attr);
+}
+
+int fal_get_vrf_attr(fal_object_t obj,
+		     uint32_t attr_count,
+		     struct fal_attribute_t *attr_list)
+{
+	return call_handler_def_ret(vrf, -EOPNOTSUPP, get_attr, obj,
+				    attr_count, attr_list);
 }

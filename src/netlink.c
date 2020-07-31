@@ -621,8 +621,8 @@ static void unspec_link_modify(struct ifnet *ifp,
 
 	if (old_vrfid != ifp->if_vrfid) {
 		struct fal_attribute_t l3_vrf_attr = {
-			.id = FAL_ROUTER_INTERFACE_ATTR_VRF_ID,
-			.value.u32 = vrf_id,
+			.id = FAL_ROUTER_INTERFACE_ATTR_VRF_OBJ,
+			.value.objid = get_vrf(ifp->if_vrfid)->v_fal_obj,
 		};
 
 		if_set_l3_intf_attr(ifp, &l3_vrf_attr);

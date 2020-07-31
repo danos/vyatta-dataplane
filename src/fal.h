@@ -67,6 +67,7 @@ struct message_handler {
 	struct fal_capture_ops *capture;
 	struct fal_bfd_ops *bfd;
 	struct fal_mpls_ops *mpls;
+	struct fal_vrf_ops *vrf;
 
 	LIST_ENTRY(message_handler) link;
 };
@@ -594,6 +595,18 @@ struct fal_mpls_ops {
 			      struct fal_attribute_t *attr_list);
 };
 
+struct fal_vrf_ops {
+	int (*create)(uint32_t attr_count,
+		      const struct fal_attribute_t *attr_list,
+		      fal_object_t *obj);
+	int (*delete)(fal_object_t obj);
+	int (*set_attr)(fal_object_t obj,
+			const struct fal_attribute_t *attr);
+	int (*get_attr)(fal_object_t obj,
+			uint32_t attr_count,
+			struct fal_attribute_t *attr_list);
+};
+
 enum fal_rc {
 	/* All good */
 	FAL_RC_SUCCESS = 0,
@@ -1094,5 +1107,15 @@ int fal_set_mpls_route_attr(const struct fal_mpls_route_t *mpls_route,
 int fal_get_mpls_route_attr(const struct fal_mpls_route_t *mpls_route,
 			    uint32_t attr_count,
 			    struct fal_attribute_t *attr_list);
+
+int fal_vrf_create(uint32_t attr_count,
+		   const struct fal_attribute_t *attr_list,
+		   fal_object_t *obj);
+int fal_vrf_delete(fal_object_t obj);
+int fal_set_vrf_attr(fal_object_t obj,
+		     const struct fal_attribute_t *attr);
+int fal_get_vrf_attr(fal_object_t obj,
+		     uint32_t attr_count,
+		     struct fal_attribute_t *attr_list);
 
 #endif /* FAL_H */
