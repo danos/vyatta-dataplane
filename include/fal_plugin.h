@@ -1734,6 +1734,40 @@ int fal_plugin_stp_get_port_attribute(unsigned int child_ifindex,
 
 /* Global switch operations */
 
+/**
+ * MPLS TTL modes
+ *
+ * See RFC 3443 for further details.
+ */
+enum fal_mpls_ttl_mode {
+	/**
+	 * Uniform mode
+	 *
+	 * On pushing a label, inherit MPLS TTL from MPLS, IPv4 or
+	 * IPv6 packet, decrementing it by 1.
+	 *
+	 * On popping a label, copy MPLS outermost TTL into next
+	 * outermost MPLS TTL, if available, or into the IPv4 or IPv6
+	 * packet TTL.
+	 */
+	FAL_MPLS_TTL_MODE_UNIFORM,
+	/**
+	 * Pipe mode
+	 *
+	 * On pushing a label, set TTL to configured value,
+	 * decrementing payload TTL by 1.
+	 *
+	 * On popping a label, preserve the outermost MPLS TTL, if
+	 * available, or the IPv4 or IPv6 packet TTL, but decrement by
+	 * 1.
+	 *
+	 * On swapping for an implicit-null, preserve the outermost
+	 * MPLS TTL, if available, or the IPv4 or IPv6 packet TTL, but
+	 * don't decrement.
+	 */
+	FAL_MPLS_TTL_MODE_PIPE,
+};
+
 enum fal_switch_attr_t {
 	/**
 	 * @brief Action for Packets that result in ICMP Redirect
@@ -1867,6 +1901,25 @@ enum fal_switch_attr_t {
 	 */
 	FAL_SWITCH_ATTR_SYNCE_CLOCK_SOURCE_PORT,
 
+	/**
+	 * @brief How to treat TTL for MPLS encap and decap of IPv4
+	 * and IPv6 packets
+	 *
+	 * @type enum fal_mpls_ttl_mode
+	 * @flags CREATE_AND_SET
+	 * @default FAL_MPLS_TTL_MODE_UNIFORM
+	 */
+	FAL_SWITCH_ATTR_MPLS_IP_TTL_MODE,
+
+	/**
+	 * @brief TTL for MPLS encap of IPv4 and IPv6 packets when in
+	 * pipe TTL mode
+	 *
+	 * @type .u8
+	 * @flags CREATE_AND_SET
+	 * @default 255
+	 */
+	FAL_SWITCH_ATTR_MPLS_PIPE_TTL,
 };
 
 /*
