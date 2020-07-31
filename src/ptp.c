@@ -769,6 +769,10 @@ void ptp_peer_update(struct ptp_peer_t *peer)
 		goto out;
 	}
 
+	DP_DEBUG(PTP, INFO, DATAPLANE, "%s: checking peer %s on %s (vlan %d)...\n",
+				       __func__, peerip,
+				       ifp->if_name, port->vlan_id);
+
 	if (peer->ipaddr.addr_family == FAL_IP_ADDR_FAMILY_IPV4) {
 		nh_ifp = nhif_dst_lookup(vrf,
 					 peer->ipaddr.addr.ip4,
@@ -837,14 +841,21 @@ void ptp_peer_update(struct ptp_peer_t *peer)
 		}
 	} else if (nh_ifp) {
 		/* Send packets to switch interface for routing. */
-		DP_DEBUG(PTP, ERR, DATAPLANE,
-			 "%s: peer %s routed via switch interface.\n",
-			 __func__, peerip);
+		if (!(ifp->if_flags & IFF_UP)) {
+			DP_DEBUG(PTP, ERR, DATAPLANE,
+				 "%s: switch nexthop interface %s is down!\n",
+				 __func__, ifp->if_name);
+			goto out;
+		}
+
+		DP_DEBUG(PTP, INFO, DATAPLANE,
+			 "%s: peer %s routed via switch interface %s.\n",
+			 __func__, peerip, nh_ifp->if_name);
 		ether_addr_copy(&ifp->eth_addr, &newmac);
 	} else {
 		DP_DEBUG(PTP, ERR, DATAPLANE,
-			 "%s: peer %s is unreachable from clock port.\n",
-			 __func__, peerip);
+			 "%s: peer %s is unreachable from clock port %s.\n",
+			 __func__, peerip, ifp->if_name);
 	}
 
 out:
