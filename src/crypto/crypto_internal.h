@@ -22,6 +22,7 @@
 #include <rte_mbuf.h>
 #include <sys/queue.h>
 
+#include "crypto_defs.h"
 #include "crypto_main.h"
 #include "json_writer.h"
 #include "vplane_log.h"
@@ -104,12 +105,6 @@ OPENSSL_init_crypto(uint32_t opts __attribute__ ((__unused__)),
 
 struct crypto_session_operations;
 struct crypto_visitor_operations;
-
-/* maximum length (in bytes) of initialization vector in any algorithm */
-#define CRYPTO_MAX_IV_LENGTH 16
-
-/* maximum length (in bytes) of key in any algorithm */
-#define CRYPTO_MAX_KEY_LENGTH 32
 
 enum crypto_dir {
 	CRYPTO_DIR_IN = 0,

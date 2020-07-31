@@ -38,6 +38,7 @@
 #include "crypto_internal.h"
 #include "crypto_main.h"
 #include "crypto_policy.h"
+#include "crypto_rte_pmd.h"
 #include "crypto_sadb.h"
 #include "dp_event.h"
 #include "esp.h"
@@ -1243,6 +1244,9 @@ void dp_crypto_init(void)
 	if (!crypto_dp_sp->pool)
 		rte_panic("Could not allocate crypto context pool\n");
 
+	if (crypto_rte_setup())
+		rte_panic("Could not set up crypto infrastructure pools\n");
+
 	crypto_engine_load();
 
 	if (crypto_flow_cache_init())
@@ -1291,6 +1295,7 @@ void dp_crypto_shutdown(void)
 	udp_handler_unregister(AF_INET, htons(ESP_PORT));
 	udp_handler_unregister(AF_INET6, htons(ESP_PORT));
 	crypto_engine_shutdown();
+	crypto_rte_shutdown();
 }
 
 void crypto_show_summary(FILE *f)

@@ -21,6 +21,7 @@ CRYTPO_FILES = \
 	src/crypto/crypto.c \
 	src/crypto/crypto_engine.c \
 	src/crypto/crypto_policy.c \
+	src/crypto/crypto_rte_pmd.c \
 	src/crypto/crypto_sadb.c \
 	src/crypto/esp.c \
 	src/crypto/vti.c \
