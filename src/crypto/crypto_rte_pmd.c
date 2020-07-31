@@ -110,11 +110,11 @@ struct md_algo_table {
 };
 
 static const struct md_algo_table md_algorithms[] = {
-	{ "hmac(sha1)",		RTE_CRYPTO_AUTH_SHA1         },
+	{ "hmac(sha1)",		RTE_CRYPTO_AUTH_SHA1_HMAC    },
 	{ "hmac(sha256)",	RTE_CRYPTO_AUTH_SHA256_HMAC  },
 	{ "hmac(sha384)",	RTE_CRYPTO_AUTH_SHA384_HMAC  },
 	{ "hmac(sha512)",	RTE_CRYPTO_AUTH_SHA512_HMAC  },
-	{ "hmac(md5)",		RTE_CRYPTO_AUTH_MD5          },
+	{ "hmac(md5)",		RTE_CRYPTO_AUTH_MD5_HMAC     },
 	{ "rfc4106(gcm(aes))",  RTE_CRYPTO_AUTH_NULL         },
 	{ "aNULL",		RTE_CRYPTO_AUTH_NULL         }
 };
@@ -636,7 +636,6 @@ void crypto_rte_op_free(struct rte_mbuf *m)
 	rte_crypto_op_free(cop);
 }
 
-
 static int crypto_rte_op_assoc_session(struct rte_crypto_op *cop,
 				       struct crypto_session *session)
 {
@@ -669,10 +668,29 @@ static int crypto_rte_process_op(uint8_t dev_id, enum crypto_xfrm qid,
 }
 
 static inline void
-aead_gcm_iv_fill(uint8_t *gcm, struct crypto_session *s)
+crypto_rte_iv_fill(uint8_t *iv, struct crypto_session *s)
 {
-	memcpy(gcm, s->nonce, s->nonce_len);
-	memcpy(gcm + s->nonce_len, s->iv, s->iv_len);
+	memcpy(iv, s->nonce, s->nonce_len);
+	memcpy(iv + s->nonce_len, s->iv, s->iv_len);
+}
+
+static inline void
+crypto_rte_sop_ciph_auth_prepare(struct rte_crypto_sym_op *sop,
+				 uint32_t l3_hdr_len, uint8_t udp_len,
+				 uint32_t esp_len, uint32_t payload_len,
+				 uint16_t icv_ofs)
+{
+	struct rte_mbuf *m = sop->m_src;
+	uint16_t esp_start = dp_pktmbuf_l2_len(m) + l3_hdr_len + udp_len;
+
+	sop->cipher.data.offset = esp_start + esp_len;
+	sop->cipher.data.length = payload_len;
+
+	sop->auth.data.offset = esp_start;
+	sop->auth.data.length = esp_len + payload_len;
+
+	sop->auth.digest.data = rte_pktmbuf_mtod_offset(m, void*, icv_ofs);
+	sop->auth.digest.phys_addr = rte_pktmbuf_iova_offset(m, icv_ofs);
 }
 
 /*
@@ -709,11 +727,10 @@ crypto_rte_inbound_cop_prepare(struct rte_crypto_op *cop,
 {
 	int err = 0;
 	struct rte_crypto_sym_op *sop;
-	uint8_t *gcm;
+	uint8_t *ivc;
 	uint16_t icv_ofs;
 
 	memcpy(session->iv, iv, session->iv_len);
-
 	icv_ofs = rte_pktmbuf_pkt_len(m) - crypto_session_digest_len(session);
 
 	/* fill sym op fields */
@@ -725,14 +742,24 @@ crypto_rte_inbound_cop_prepare(struct rte_crypto_op *cop,
 					    payload_len, icv_ofs);
 
 		/* fill AAD IV (located inside crypto op) */
-		gcm = rte_crypto_op_ctod_offset(cop, uint8_t *,
-						CRYPTO_OP_IV_OFFSET);
-		aead_gcm_iv_fill(gcm, session);
+		ivc = rte_crypto_op_ctod_offset(cop, uint8_t *,
+					       CRYPTO_OP_IV_OFFSET);
+		crypto_rte_iv_fill(ivc, session);
 		return err;
 	}
 
-	/* fill sym op fields */
 	switch (session->cipher_algo) {
+	case RTE_CRYPTO_CIPHER_AES_CBC:
+	case RTE_CRYPTO_CIPHER_3DES_CBC:
+		crypto_rte_sop_ciph_auth_prepare(sop, l3_hdr_len,
+						 udp_len, esp_len,
+						 payload_len, icv_ofs);
+
+		/* copy iv from the input packet to the cop */
+		ivc = rte_crypto_op_ctod_offset(
+			cop, uint8_t *, CRYPTO_OP_IV_OFFSET);
+		crypto_rte_iv_fill(ivc, session);
+		break;
 	case RTE_CRYPTO_CIPHER_NULL:
 		break;
 
@@ -755,7 +782,7 @@ crypto_rte_outbound_cop_prepare(struct rte_crypto_op *cop,
 {
 	int err = 0;
 	struct rte_crypto_sym_op *sop;
-	uint8_t *gcm;
+	uint8_t *ivc;
 	uint16_t icv_ofs;
 
 	icv_ofs = dp_pktmbuf_l2_len(m) + l3_hdr_len + udp_len + esp_len +
@@ -770,13 +797,26 @@ crypto_rte_outbound_cop_prepare(struct rte_crypto_op *cop,
 					    icv_ofs);
 
 		/* fill AAD IV (located inside crypto op) */
-		gcm = rte_crypto_op_ctod_offset(cop, uint8_t *,
+		ivc = rte_crypto_op_ctod_offset(cop, uint8_t *,
 						CRYPTO_OP_IV_OFFSET);
-		aead_gcm_iv_fill(gcm, session);
+		crypto_rte_iv_fill(ivc, session);
 		return err;
 	}
 
 	switch (session->cipher_algo) {
+	case RTE_CRYPTO_CIPHER_AES_CBC:
+	case RTE_CRYPTO_CIPHER_3DES_CBC:
+		crypto_rte_sop_ciph_auth_prepare(sop, l3_hdr_len,
+						 udp_len, esp_len,
+						 payload_len,
+						 icv_ofs);
+
+		/* copy iv from the input packet to the cop */
+		ivc = rte_crypto_op_ctod_offset(
+			cop, uint8_t *, CRYPTO_OP_IV_OFFSET);
+		crypto_rte_iv_fill(ivc, session);
+		break;
+
 	case RTE_CRYPTO_CIPHER_NULL:
 		break;
 
@@ -799,10 +839,12 @@ int crypto_rte_xform_packet(struct sadb_sa *sa, struct rte_mbuf *mbuf,
 	struct crypto_session *session = sa->session;
 	enum crypto_xfrm qid;
 
-	if (unlikely(session->aead_algo != RTE_CRYPTO_AEAD_AES_GCM)) {
-		err = esp_generate_chain(sa, mbuf, l3_hdr_len, esp, iv,
-					 text_len + esp_len, encrypt);
-		return err;
+	if (unlikely(mbuf->next)) {
+		if (sa->session->cipher_init) {
+			err = esp_generate_chain(sa, mbuf, l3_hdr_len, esp, iv,
+						text_len + esp_len, encrypt);
+			return err;
+		}
 	}
 
 	mdata = pktmbuf_mdata(mbuf);
