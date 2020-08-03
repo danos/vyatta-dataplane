@@ -14,6 +14,9 @@
 #include "dp_event.h"
 #include "if_var.h"
 #include "lag.h"
+#include "protobuf.h"
+#include "protobuf/LAGConfig.pb-c.h"
+#include "vplane_debug.h"
 
 static const struct lag_ops *current_lag_ops;
 
@@ -149,6 +152,22 @@ int lag_set_l2_address(struct ifnet *ifp, struct rte_ether_addr *macaddr)
 	return current_lag_ops->lagop_set_l2_address(ifp, macaddr);
 }
 
+int lag_min_links(struct ifnet *ifp, uint16_t *min_links)
+{
+	if (current_lag_ops->lagop_min_links)
+		return current_lag_ops->lagop_min_links(ifp, min_links);
+	else
+		return -ENOTSUP;
+}
+
+int lag_set_min_links(struct ifnet *ifp, uint16_t min_links)
+{
+	if (current_lag_ops->lagop_set_min_links)
+		return current_lag_ops->lagop_set_min_links(ifp, min_links);
+	else
+		return -ENOTSUP;
+}
+
 static void lag_init(void)
 {
 	if (platform_cfg.hardware_lag)
@@ -162,3 +181,67 @@ static const struct dp_event_ops lag_events = {
 };
 
 DP_STARTUP_EVENT_REGISTER(lag_events);
+
+static int
+lag_pb_create_handler(LAGConfig__LagCreate *lag_create)
+{
+	struct ifnet *ifp;
+
+	if (!lag_create->ifname)
+		return -EINVAL;
+
+	ifp = dp_ifnet_byifname(lag_create->ifname);
+	if (!ifp) {
+		/* We will get another update when
+		 * the interface eventually appears.
+		 */
+		return 0;
+	}
+
+	if (lag_create->has_minimum_links) {
+		if (lag_create->minimum_links > UINT16_MAX)
+			return -EINVAL;
+
+		lag_set_min_links(ifp, lag_create->minimum_links);
+	}
+
+	return 0;
+}
+
+static int
+lag_pb_delete_handler(LAGConfig__LagDelete *lag_delete)
+{
+	if (!lag_delete->ifname)
+		return -EINVAL;
+
+	return 0;
+}
+
+static int
+lag_pb_handler(struct pb_msg *msg)
+{
+	LAGConfig *lag = lagconfig__unpack(NULL, msg->msg_len, msg->msg);
+	int ret;
+
+	switch (lag->mtype_case) {
+	case LAGCONFIG__MTYPE_LAG_CREATE:
+		ret = lag_pb_create_handler(lag->lag_create);
+		break;
+	case LAGCONFIG__MTYPE_LAG_DELETE:
+		ret = lag_pb_delete_handler(lag->lag_delete);
+		break;
+	default:
+		RTE_LOG(ERR, DATAPLANE, "unhandled LAG message type %d\n",
+			lag->mtype_case);
+		ret = 0;
+	}
+
+	lagconfig__free_unpacked(lag, NULL);
+	return ret;
+}
+
+PB_REGISTER_CMD(lag_create_cmd) = {
+	.cmd = "vyatta:lag",
+	.handler = lag_pb_handler,
+};
+

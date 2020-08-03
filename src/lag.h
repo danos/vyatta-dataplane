@@ -44,6 +44,8 @@ struct lag_ops {
 	bool (*lagop_can_startstop_member)(struct ifnet *ifp);
 	int (*lagop_set_l2_address)(struct ifnet *ifp,
 				    struct rte_ether_addr *macaddr);
+	int (*lagop_min_links)(struct ifnet *ifp, uint16_t *min_links);
+	int (*lagop_set_min_links)(struct ifnet *ifp, uint16_t min_links);
 };
 
 extern const struct lag_ops dpdk_lag_ops;
@@ -71,5 +73,7 @@ bool lag_can_start(const struct ifnet *ifp);
 bool lag_is_team(struct ifnet *ifp);
 int lag_can_startstop_member(struct ifnet *ifp);
 int lag_set_l2_address(struct ifnet *ifp, struct rte_ether_addr *macaddr);
+int lag_min_links(struct ifnet *ifp, uint16_t *min_links);
+int lag_set_min_links(struct ifnet *ifp, uint16_t min_links);
 
 #endif

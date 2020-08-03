@@ -446,6 +446,8 @@ static void fal_lag_show_detail(struct ifnet *node, json_writer_t *wr)
 	jsonw_start_object(wr);
 	jsonw_string_field(wr, "ifname", node->if_name);
 	jsonw_uint_field(wr, "teamdev", node->if_index);
+	if (sc->has_min_links)
+		jsonw_uint_field(wr, "min-links", sc->min_links);
 
 	jsonw_name(wr, "platform_state");
 	jsonw_start_object(wr);
@@ -498,6 +500,32 @@ fal_lag_set_l2_address(struct ifnet *ifp, struct rte_ether_addr *macaddr)
 		ifp->if_port, macaddr);
 }
 
+static int
+fal_lag_min_links(struct ifnet *ifp, uint16_t *min_links)
+{
+	struct dpdk_eth_if_softc *sc;
+
+	if (ifp->if_type != IFT_ETHER)
+		return -ENOTSUP;
+
+	sc = rcu_dereference(ifp->if_softc);
+	if (!sc || !sc->has_min_links)
+		return -EINVAL;
+	*min_links = sc->min_links;
+	return 0;
+}
+
+static int
+fal_lag_set_min_links(struct ifnet *ifp, uint16_t min_links)
+{
+	struct dpdk_eth_if_softc *sc = ifp->if_softc;
+
+	sc->min_links = min_links;
+	sc->has_min_links = true;
+	return 0;
+}
+
+
 const struct lag_ops fal_lag_ops = {
 	.lagop_etype_slow_tx = fal_lag_etype_slow_tx,
 	.lagop_member_sync_mac_address = fal_lag_member_sync_mac_address,
@@ -517,6 +545,8 @@ const struct lag_ops fal_lag_ops = {
 	.lagop_is_team = fal_lag_is_team,
 	.lagop_can_startstop_member = fal_lag_can_startstop_member,
 	.lagop_set_l2_address = fal_lag_set_l2_address,
+	.lagop_min_links = fal_lag_min_links,
+	.lagop_set_min_links = fal_lag_set_min_links,
 };
 
 static void
