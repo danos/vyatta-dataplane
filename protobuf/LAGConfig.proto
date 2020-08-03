@@ -1,0 +1,49 @@
+// Copyright (c) 2020, AT&T Intellectual Property.  All rights reserved.
+//
+// SPDX-License-Identifier: LGPL-2.1-only
+//
+// LAG protobuf definitions.
+
+syntax="proto2";
+
+option go_package = "github.com/danos/vyatta-dataplane/protobuf/go/LAG";
+
+message LAGConfig {
+	enum LagMode {
+		LAG_MODE_LACP = 0;
+		LAG_MODE_ACTIVE_BACKUP = 1;
+		LAG_MODE_BALANCED = 2;
+	}
+
+	enum LacpActivity {
+		LACP_ACTIVITY_ACTIVE = 0;
+		LACP_ACTIVITY_PASSIVE = 1;
+	}
+
+	enum LacpPeriodicRate {
+		LACP_PERIODIC_RATE_FAST = 0;
+		LACP_PERIODIC_RATE_SLOW = 1;
+	}
+
+	message LagCreate {
+		optional string ifname = 1;
+		optional uint32 minimum_links = 2;
+		optional LagMode mode = 3;
+
+		message LacpOptions {
+			optional uint32 key = 1;
+			optional LacpActivity lacp_activity = 2;
+			optional LacpPeriodicRate periodic_rate = 3;
+		}
+		optional LacpOptions lacp_options = 5;
+	}
+
+	message LagDelete {
+		optional string ifname = 1;
+	}
+
+	oneof mtype {
+		LagCreate lag_create = 1;
+		LagDelete lag_delete = 2;
+	}
+}

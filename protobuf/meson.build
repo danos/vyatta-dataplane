@@ -21,7 +21,8 @@ protobuf_sources= [
         'RibUpdate.proto',
         'MacLimitConfig.proto',
         'PauseConfig.proto',
-        'SynceConfig.proto'
+        'SynceConfig.proto',
+        'LAGConfig.proto',
 ]
 
 install_data(protobuf_sources,
