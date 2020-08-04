@@ -148,3 +148,59 @@ void dp_event_unregister(const struct dp_event_ops *op)
 			return;
 	}
 }
+
+/*
+ * Public version of the API.
+ */
+int dp_events_register(const struct dp_events_ops *ops)
+{
+	struct dp_event_ops *internal_ops;
+
+	if (!ops)
+		return -EINVAL;
+
+	internal_ops = calloc(1, sizeof(*internal_ops));
+	if (!internal_ops)
+		return -ENOMEM;
+
+	internal_ops->vrf_create = ops->vrf_create;
+	internal_ops->vrf_delete = ops->vrf_delete;
+
+	internal_ops->public_ops = ops;
+
+	dp_event_register(internal_ops);
+	return 0;
+}
+
+static void dp_event_unregister_free(struct rcu_head *head)
+{
+	struct dp_event_ops *ops = caa_container_of(head, struct dp_event_ops,
+						    rcu);
+	free(ops);
+}
+
+/*
+ * Public version of the API.
+ */
+int dp_events_unregister(const struct dp_events_ops *ops)
+{
+	struct dp_event_ops *internal_ops;
+	uint32_t i;
+
+	if (!ops)
+		return -EINVAL;
+
+	for (i = 0; i < ARRAY_SIZE(dp_ops); i++) {
+		internal_ops = rcu_dereference(dp_ops[i]);
+		if (!internal_ops->public_ops)
+			continue;
+
+		if (rcu_cmpxchg_pointer(&internal_ops->public_ops,
+					ops, NULL) == ops) {
+			call_rcu(&internal_ops->rcu, dp_event_unregister_free);
+			return 0;
+		}
+	}
+
+	return -ENOENT;
+}

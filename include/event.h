@@ -8,6 +8,7 @@
 #define VYATTA_DATAPLANE_EVENT_H
 
 #include <czmq.h>
+#include "vrf.h"
 
 /*
  * Callback function to process events received on sockets.
@@ -65,5 +66,48 @@ int dp_unregister_event_socket(void *socket);
  * @return -ve for a failure
  */
 int dp_send_event_to_vplaned(zmsg_t *msg);
+
+/*
+ * The set of events that used can register for notification of.
+ */
+enum dp_event {
+	DP_EVENT_VRF_CREATE = 1,
+	DP_EVENT_VRF_DELETE,
+};
+
+/*
+ * Structure that users can use to register callbacks for certain types of
+ * events.
+ */
+struct dp_events_ops {
+	/* DP_EVENT_VRF_CREATE */
+	void (*vrf_create)(struct vrf *vrf);
+	/* DP_EVENT_VRF_DELETE */
+	void (*vrf_delete)(struct vrf *vrf);
+};
+
+/*
+ * Register an event ops structure with callbacks that will be called for
+ * each of the given event types.
+ *
+ * @param [in] ops The set of callbacks. If a callback is provided then it
+ *                 will be called for each event of that type.  Entries
+ *                 can be set to NULL if the caller is not interested in
+ *                 some of the events.
+ *
+ * @return 0 if successful
+ * @return -ve for a failure
+ */
+int dp_events_register(const struct dp_events_ops *ops);
+
+/*
+ * Unregister a previously registered set of callbacks.
+ *
+ * @param [in] ops The set of callbacks to unregister
+ *
+ * @return 0 if successful
+ * @return -ve for a failure
+ */
+int dp_events_unregister(const struct dp_events_ops *ops);
 
 #endif /* VYATTA_DATAPLANE_EVENT_H */
