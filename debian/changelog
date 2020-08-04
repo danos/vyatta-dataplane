@@ -1,3 +1,10 @@
+vyatta-dataplane (3.9.112.25) unstable; urgency=medium
+
+  * dp_event: reorder some of the dp_events in the enum
+  * event: add a public event notifier for vrf create/delete events
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Tue, 04 Aug 2020 16:06:06 +0100
+
 vyatta-dataplane (3.9.112.24) unstable; urgency=medium
 
   [ Simon Barber ]
