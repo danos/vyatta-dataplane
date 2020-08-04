@@ -97,6 +97,18 @@ static struct nexthop_table *nh_common_get_nh_table(int af_family)
 	return NULL;
 }
 
+static struct next_hop_list *nh_common_get_blackhole(int af_family)
+{
+	int family = af_family_to_family(af_family);
+	if (family < 0)
+		return NULL;
+
+	if (nh_common_af[family].nh_get_blackhole)
+		return nh_common_af[family].nh_get_blackhole();
+
+	return NULL;
+}
+
 ALWAYS_INLINE struct ifnet *
 dp_nh_get_ifp(const struct next_hop *next_hop)
 {
@@ -1833,4 +1845,37 @@ next_hop_list_fal_l3_enable_changed_finish(int family,
 	}
 
 	free(old_nh_objs);
+}
+
+fal_object_t next_hop_list_get_fal_obj(int family, uint32_t nhl_idx,
+				       enum pd_obj_state *pd_state)
+{
+	struct nexthop_table *nh_table = nh_common_get_nh_table(family);
+	struct next_hop_list *nextl;
+
+	nextl = rcu_dereference(nh_table->entry[nhl_idx]);
+	*pd_state = nextl->pd_state;
+
+	if (nextl->pd_state != PD_OBJ_STATE_FULL &&
+	    nextl->pd_state != PD_OBJ_STATE_NOT_NEEDED)
+		nextl = nh_common_get_blackhole(family);
+
+	return nextl->nhg_fal_obj;
+}
+
+size_t
+next_hop_list_get_fal_nhs(int family, uint32_t nhl_idx,
+			  struct next_hop **hops)
+{
+	struct nexthop_table *nh_table = nh_common_get_nh_table(family);
+	struct next_hop_list *nextl;
+
+	nextl = rcu_dereference(nh_table->entry[nhl_idx]);
+
+	if (nextl->pd_state != PD_OBJ_STATE_FULL &&
+	    nextl->pd_state != PD_OBJ_STATE_NOT_NEEDED)
+		nextl = nh_common_get_blackhole(family);
+
+	*hops = nextl->siblings;
+	return nextl->nsiblings;
 }

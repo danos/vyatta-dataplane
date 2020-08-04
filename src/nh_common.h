@@ -383,6 +383,16 @@ next_hop_list_fal_l3_enable_changed_finish(int family,
 					   fal_object_t *old_nh_objs);
 
 /*
+ * Get the FAL next-hop-group object for the given next-hop-list index
+ */
+fal_object_t next_hop_list_get_fal_obj(int family, uint32_t nhl_idx,
+				       enum pd_obj_state *pd_state);
+
+size_t
+next_hop_list_get_fal_nhs(int family, uint32_t nhl_idx,
+			  struct next_hop **hops);
+
+/*
  * Per AF hash function for a nexthop.
  */
 typedef int (nh_common_hash_fn)(const struct nexthop_hash_key *key,
@@ -412,6 +422,7 @@ struct nh_common {
 	nh_common_cmp_fn *nh_compare;
 	nh_common_get_hash_tbl_fn *nh_get_hash_tbl;
 	nh_common_get_nh_tbl_fn *nh_get_nh_tbl;
+	struct next_hop_list *(*nh_get_blackhole)(void);
 };
 
 /*

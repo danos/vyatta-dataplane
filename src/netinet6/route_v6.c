@@ -901,11 +901,18 @@ void route_v6_uninit(struct vrf *vrf, struct route6_head *rt6_head)
 	rt6_head->rt6_table = NULL;
 }
 
+static struct next_hop_list *
+route6_get_nh_blackhole(void)
+{
+	return nextl6_blackhole;
+}
+
 struct nh_common nh6_common = {
 	.nh_hash = nexthop6_hashfn,
 	.nh_compare = nexthop6_cmpfn,
 	.nh_get_hash_tbl = route6_get_nh_hash_table,
 	.nh_get_nh_tbl = route6_get_nh_table,
+	.nh_get_blackhole = route6_get_nh_blackhole,
 };
 
 void nexthop_v6_tbl_init(void)

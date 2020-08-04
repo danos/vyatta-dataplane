@@ -1460,11 +1460,18 @@ void rt_flush_all(enum cont_src_en cont_src)
 			rt_flush(vrf);
 }
 
+static struct next_hop_list *
+route_get_nh_blackhole(void)
+{
+	return nextl_blackhole;
+}
+
 struct nh_common nh4_common = {
 	.nh_hash = nexthop_hashfn,
 	.nh_compare = nexthop_cmpfn,
 	.nh_get_hash_tbl = route_get_nh_hash_table,
 	.nh_get_nh_tbl = route_get_nh_table,
+	.nh_get_blackhole = route_get_nh_blackhole,
 };
 
 void nexthop_tbl_init(void)
