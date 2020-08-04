@@ -11,6 +11,8 @@
 
 #include "if_var.h"
 #include "control.h"
+#include "control.h"
+#include "event.h"
 
 /*
  * Maximum size of the event operations structs array.
@@ -19,7 +21,9 @@
 
 /* Specific dataplane events */
 enum dp_evt {
-	DP_EVT_IF_CREATE = 1,
+	DP_EVT_VRF_CREATE = 1,
+	DP_EVT_VRF_DELETE,
+	DP_EVT_IF_CREATE,
 	DP_EVT_IF_DELETE,
 	DP_EVT_IF_INDEX_SET,
 	DP_EVT_IF_INDEX_UNSET,
@@ -34,11 +38,14 @@ enum dp_evt {
 	DP_EVT_IF_FEAT_MODE_CHANGE,
 	DP_EVT_IF_MTU_CHANGE,
 	DP_EVT_RESET_CONFIG,
-	DP_EVT_VRF_CREATE,
-	DP_EVT_VRF_DELETE,
 	DP_EVT_INIT,
 	DP_EVT_UNINIT,
 };
+
+_Static_assert((int)DP_EVT_VRF_CREATE == (int)DP_EVENT_VRF_CREATE,
+	       "public and internal vrf event create events differ");
+_Static_assert((int)DP_EVT_VRF_DELETE == (int)DP_EVENT_VRF_DELETE,
+	       "public and internal vrf event delete events differ");
 
 enum if_feat_mode_event {
 	IF_FEAT_MODE_EVENT_L3_FAL_ENABLED,
@@ -77,6 +84,9 @@ struct dp_event_ops {
 	void (*vrf_delete)(struct vrf *vrf);
 	void (*init)(void);
 	void (*uninit)(void);
+
+	const struct dp_events_ops *public_ops;
+	struct rcu_head rcu;
 };
 
 #define DP_STARTUP_EVENT_REGISTER(x)			  \
