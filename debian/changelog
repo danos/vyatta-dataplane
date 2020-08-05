@@ -1,3 +1,29 @@
+vyatta-dataplane (3.11.5) unstable; urgency=medium
+
+  [ Brian Russell ]
+  * qos: restore protocol version 10
+
+  [ Rishi Narain ]
+  * SyncE: Allowing ESMC frame flow from vyatta-dataplane
+  * SyncE: New feature support
+
+  [ Ramkumar Ganapathysubramanian ]
+  * Removed unnecessary error logs in L3 Interface attribute set
+
+  [ Paul Atkins ]
+  * dp_event: reorder some of the dp_events in the enum
+  * event: add a public event notifier for vrf create/delete events
+  * 3.10.56
+
+  [ Charles (Chas) Williams ]
+  * netvsc: increase driver limits (Bugfix: VRVDR-52360)
+  * ptp: check switch nexthop interface is reachable (Bugfix: VRVDR-52447)
+
+  [ Paul Atkins ]
+  * 3.10.57
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Wed, 05 Aug 2020 10:01:32 +0100
+
 vyatta-dataplane (3.11.4) unstable; urgency=medium
 
   [ Paul Atkins ]
