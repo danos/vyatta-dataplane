@@ -1,3 +1,12 @@
+vyatta-dataplane (3.11.6) unstable; urgency=medium
+
+  [ Gavin Shearer ]
+  * cpp: add support for PIM and IP multicast
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Wed, 05 Aug 2020 16:23:14 +0100
+
 vyatta-dataplane (3.11.5) unstable; urgency=medium
 
   [ Brian Russell ]
