@@ -1,3 +1,12 @@
+vyatta-dataplane (3.10.57) unstable; urgency=medium
+
+  [ Charles (Chas) Williams ]
+  * ptp: check switch nexthop interface is reachable (Bugfix: VRVDR-52447)
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Wed, 05 Aug 2020 09:26:54 +0100
+
 vyatta-dataplane (3.10.56) unstable; urgency=medium
 
   * dp_event: reorder some of the dp_events in the enum
