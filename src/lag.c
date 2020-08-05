@@ -81,11 +81,18 @@ bool lag_can_start(const struct ifnet *ifp)
 
 int lag_member_add(struct ifnet *team, struct ifnet *ifp)
 {
-	return current_lag_ops->lagop_member_add(team, ifp);
+	int rc;
+
+	rc = current_lag_ops->lagop_member_add(team, ifp);
+	if (!rc)
+		dp_event(DP_EVT_IF_LAG_ADD_MEMBER, 0, team, 0, 0, ifp);
+
+	return rc;
 }
 
 int lag_member_delete(struct ifnet *team, struct ifnet *ifp)
 {
+	dp_event(DP_EVT_IF_LAG_DELETE_MEMBER, 0, team, 0, 0, ifp);
 	return current_lag_ops->lagop_member_delete(team, ifp);
 }
 
@@ -199,10 +206,23 @@ lag_pb_create_handler(LAGConfig__LagCreate *lag_create)
 	}
 
 	if (lag_create->has_minimum_links) {
+		uint16_t minimum_links;
+		int ret;
+
 		if (lag_create->minimum_links > UINT16_MAX)
 			return -EINVAL;
 
-		lag_set_min_links(ifp, lag_create->minimum_links);
+		ret = lag_min_links(ifp, &minimum_links);
+		if (ret < 0) {
+			RTE_LOG(ERR, DATAPLANE, "%s: lag_min_links failed: %d\n",
+				__func__, ret);
+			return ret;
+		}
+		if (lag_create->minimum_links != minimum_links) {
+			lag_set_min_links(ifp, lag_create->minimum_links);
+			dp_event(DP_EVT_IF_LAG_CHANGE, 0, ifp,
+				 DP_IF_LAG_EVENT_MIN_LINKS_CHANGE, 0, NULL);
+		}
 	}
 
 	return 0;

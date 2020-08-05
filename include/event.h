@@ -81,6 +81,10 @@ enum dp_event {
 	DP_EVENT_IF_ADDR_DEL,
 };
 
+enum dp_if_lag_event {
+	DP_IF_LAG_EVENT_MIN_LINKS_CHANGE,
+};
+
 /*
  * Structure that users can use to register callbacks for certain types of
  * events.
@@ -100,6 +104,14 @@ struct dp_events_ops {
 	/* DP_EVENT_IF_ADDR_DEL */
 	void (*if_addr_delete)(struct ifnet *ifp,
 			uint32_t ifindex, int af, const void *addr);
+	/* DP_EVT_IF_LAG_CHANGE */
+	void (*if_lag_change)(struct ifnet *ifp, enum dp_if_lag_event event);
+	/* DP_EVT_IF_LAG_ADD_MEMBER */
+	void (*if_lag_add_member)(struct ifnet *team,
+				  struct ifnet *ifp);
+	/* DP_EVT_IF_LAG_DELETE_MEMBER */
+	void (*if_lag_delete_member)(struct ifnet *team,
+				     struct ifnet *ifp);
 };
 
 /*

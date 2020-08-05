@@ -107,6 +107,19 @@ static void dp_evt_notify(enum dp_evt evt, uint32_t cont_src,
 			ops->if_mtu_change(obj, val);
 		break;
 
+	case DP_EVT_IF_LAG_ADD_MEMBER:
+		if (ops->if_lag_add_member)
+			ops->if_lag_add_member(obj, (void *) data);
+		break;
+	case DP_EVT_IF_LAG_DELETE_MEMBER:
+		if (ops->if_lag_delete_member)
+			ops->if_lag_delete_member(obj, (void *) data);
+		break;
+	case DP_EVT_IF_LAG_CHANGE:
+		if (ops->if_lag_change)
+			ops->if_lag_change(obj, val);
+		break;
+
 	case DP_EVT_INIT:
 		if (ops->init)
 			ops->init();
@@ -178,6 +191,9 @@ int dp_events_register(const struct dp_events_ops *ops)
 	internal_ops->vrf_delete = ops->vrf_delete;
 	internal_ops->if_rename = ops->if_rename;
 	internal_ops->if_vrf_set = ops->if_vrf_set;
+	internal_ops->if_lag_change = ops->if_lag_change;
+	internal_ops->if_lag_add_member = ops->if_lag_add_member;
+	internal_ops->if_lag_delete_member = ops->if_lag_delete_member;
 
 	/* if addr_add and delete have different signature
 	 * and used directly from the public_ops.
