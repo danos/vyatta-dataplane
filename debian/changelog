@@ -1,3 +1,12 @@
+vyatta-dataplane (3.10.58) unstable; urgency=medium
+
+  [ Robert Shearman ]
+  * controller: extend timeout for adding a port (Fixes: VRVDR-52458)
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Wed, 05 Aug 2020 16:25:22 +0100
+
 vyatta-dataplane (3.10.57) unstable; urgency=medium
 
   [ Charles (Chas) Williams ]
