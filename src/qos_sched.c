@@ -391,7 +391,7 @@ static int qos_sched_profile_dscp_map_set(struct sched_info *qinfo,
 	} else
 		qmap->dscp2q[dscp] = q;
 
-	if (qmap->dscp_enabled == 0) {
+	if (qmap->designation == 0 && qmap->dscp_enabled == 0) {
 		DP_DEBUG(QOS, INFO, DATAPLANE,
 			 "DSCP map not enabled, enabling\n");
 		qmap->dscp_enabled = 1;
