@@ -3596,6 +3596,50 @@ static int cmd_qos_platform(int argc, char **argv)
 	return 0;
 }
 
+static uint8_t priority_local_designator = INGRESS_DESIGNATORS;
+
+uint8_t qos_get_prio_lp_des(void)
+{
+	return priority_local_designator;
+}
+
+static int cmd_qos_local_prio_des(int argc, char **argv)
+{
+	uint8_t des;
+
+	/*
+	 * Expected command format:
+	 *
+	 * "lp-des <a>"
+	 * "lp-des delete"
+	 *
+	 * <a> - designator value, 0-7
+	 */
+	--argc, ++argv; /* skip "lp-des" */
+	if (argc != 1) {
+		DP_DEBUG(QOS, ERR, DATAPLANE, "lp-des wrong number of args\n");
+		return -EINVAL;
+	}
+
+	if (!strcmp(argv[0], "delete")) {
+		priority_local_designator = INGRESS_DESIGNATORS;
+		return 0;
+	}
+
+	if (!get_unsigned_char(argv[0], &des)) {
+		if (des >= INGRESS_DESIGNATORS) {
+			DP_DEBUG(QOS, ERR, DATAPLANE,
+				 "lp-des value %d out of range (0-7)\n", des);
+			return -EINVAL;
+		}
+		priority_local_designator = des;
+		return 0;
+	}
+
+	DP_DEBUG(QOS, ERR, DATAPLANE, "Invalid designation value\n");
+	return -EINVAL;
+}
+
 /* Echo command to log */
 static void debug_cmd(int argc, char **argv)
 {
@@ -4339,6 +4383,8 @@ int cmd_qos_cfg(__unused FILE * f, int argc, char **argv)
 			return cmd_qos_ingress_map(NULL, argc, argv);
 		else if (strcmp(argv[0], "egress-map") == 0)
 			return cmd_qos_egress_map(NULL, argc, argv);
+		else if (strcmp(argv[0], "lp-des") == 0)
+			return cmd_qos_local_prio_des(argc, argv);
 
 		return -EINVAL;
 	}

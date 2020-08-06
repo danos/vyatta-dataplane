@@ -561,6 +561,7 @@ struct sched_info *qos_sched_new(struct ifnet *ifp, unsigned int subports,
 				 int32_t overhead);
 void qos_sched_free(struct sched_info *qinfo);
 void qos_sched_free_rcu(struct rcu_head *head);
+uint8_t qos_get_prio_lp_des(void);
 
 int qos_hw_show_port(struct ifnet *ifp, void *arg);
 void qos_hw_dump_map(json_writer_t *wr, const struct sched_info *qinfo,

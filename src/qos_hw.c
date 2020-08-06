@@ -2322,14 +2322,20 @@ qos_hw_new_pipe(uint32_t pipe_id, fal_object_t subport_sched_obj,
 		}
 	} else if (qmap->designation && qmap->local_priority) {
 		/*
-		 * Look for a designation not currently in use.
+		 * If a designator for the PLQ was supplied by
+		 * config then use it. Otherwise, look for a
+		 * designation not currently in use.
 		 */
-		for (cp = 0, bit = 1; cp < INGRESS_DESIGNATORS;
-		     cp++, bit <<= 1) {
-			if (!(pipe_params->des_set & bit)) {
-				if (lp_des == INGRESS_DESIGNATORS)
-					lp_des = cp;
-				break;
+		lp_des = qos_get_prio_lp_des();
+
+		if (lp_des == INGRESS_DESIGNATORS) {
+			for (cp = 0, bit = 1; cp < INGRESS_DESIGNATORS;
+			     cp++, bit <<= 1) {
+				if (!(pipe_params->des_set & bit)) {
+					if (lp_des == INGRESS_DESIGNATORS)
+						lp_des = cp;
+					break;
+				}
 			}
 		}
 	}
