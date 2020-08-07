@@ -284,7 +284,7 @@ static inline void session_set_nat46(struct session *s)
  *
  * @param s  The session
  */
-static inline bool session_is_alg(struct session *s)
+static inline bool session_is_alg(const struct session *s)
 {
 	return s->se_alg == 1;
 }
@@ -297,7 +297,7 @@ static inline bool session_is_alg(struct session *s)
  * @param s
  * The session
  */
-static inline bool session_is_nat(struct session *s)
+static inline bool session_is_nat(const struct session *s)
 {
 	return s->se_nat == 1;
 }
@@ -308,7 +308,7 @@ static inline bool session_is_nat(struct session *s)
  * @param s
  * The session
  */
-static inline bool session_is_nat64(struct session *s)
+static inline bool session_is_nat64(const struct session *s)
 {
 	return s->se_nat64 == 1;
 }
@@ -319,7 +319,7 @@ static inline bool session_is_nat64(struct session *s)
  * @param s
  * The session
  */
-static inline bool session_is_nat46(struct session *s)
+static inline bool session_is_nat46(const struct session *s)
 {
 	return s->se_nat46 == 1;
 }

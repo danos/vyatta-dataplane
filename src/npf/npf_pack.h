@@ -52,11 +52,11 @@ struct npf_pack_dp_session {
 	uint64_t	se_etime;
 	uint8_t		se_protocol_state;
 	uint8_t		se_gen_state;
-	uint8_t		se_nat;
-	uint8_t		se_nat64;
-	uint8_t		se_nat46;
-	uint8_t		se_parent;
-	uint8_t		se_alg;
+	uint8_t		se_nat:1;
+	uint8_t		se_nat64:1;
+	uint8_t		se_nat46:1;
+	uint8_t		se_parent:1;
+	uint8_t		se_alg:1;
 } __attribute__ ((__packed__));
 
 struct npf_pack_sentry {
