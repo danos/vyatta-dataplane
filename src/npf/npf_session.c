@@ -1229,6 +1229,10 @@ bool npf_session_set_dpi(npf_session_t *se, void *data)
 	uint64_t * const ptr = (uint64_t *)&se->s_dpi;
 	uint64_t const new = (uintptr_t)data;
 	uint64_t const expected = 0;
+
+	/* Mark this session as containing DPI */
+	session_set_app(npf_session_get_dp_session(se));
+
 	if (rte_atomic64_cmpset(ptr, expected, new))
 		return true;
 

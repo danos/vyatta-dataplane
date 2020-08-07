@@ -60,6 +60,7 @@ struct npf_pack_dp_session {
 	uint8_t		se_alg:1;
 	uint8_t		se_in:1;
 	uint8_t		se_out:1;
+	uint8_t		se_app:1;
 } __attribute__ ((__packed__));
 
 struct npf_pack_sentry {

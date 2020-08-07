@@ -192,6 +192,7 @@ struct session {
 	uint8_t			se_alg:1;	/* alg? */
 	uint8_t			se_in:1;	/* inbound? */
 	uint8_t			se_out:1;	/* outbound? */
+	uint8_t			se_app:1;	/* application (dpi)? */
 	uint8_t			se_log_creation:1;
 	uint8_t			se_log_deletion:1;
 	uint8_t			se_log_periodic:1;
@@ -305,6 +306,16 @@ static inline void session_set_out(struct session *s)
 }
 
 /**
+ * Mark session as a dpi session
+ *
+ * @param s  The session
+ */
+static inline void session_set_app(struct session *s)
+{
+	s->se_app = 1;
+}
+
+/**
  * Test an ALG session.
  *
  * Test if this is an alg session
@@ -374,6 +385,17 @@ static inline bool session_is_in(const struct session *s)
 static inline bool session_is_out(const struct session *s)
 {
 	return s->se_out == 1;
+}
+
+/**
+ * Test if this is a dpi session
+ *
+ * @param s
+ * The session
+ */
+static inline bool session_is_app(const struct session *s)
+{
+	return s->se_app == 1;
 }
 
 /**
