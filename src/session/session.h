@@ -909,6 +909,7 @@ int session_npf_pack_stats_pack(struct session *s,
 				struct npf_pack_session_stats *stats);
 int session_npf_pack_stats_restore(struct session *s,
 				   struct npf_pack_session_stats *stats);
+int sess_time_to_expire(const struct session *s);
 
 static inline uint64_t session_get_id(struct session *s)
 {

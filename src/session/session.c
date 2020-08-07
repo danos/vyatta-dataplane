@@ -416,6 +416,25 @@ void sentry_delete(struct sentry *sen)
 	}
 }
 
+/*
+ * Determine a sessions time-to-expire.  Note that this can go negative due
+ * the periodic nature of the garbage collection.  Used by show command.
+ */
+int sess_time_to_expire(const struct session *s)
+{
+	int tmp;
+
+	if (s->se_flags & SESSION_EXPIRED)
+		tmp = 0;
+	else if (!s->se_etime)
+		tmp = s->se_custom_timeout ?
+			s->se_custom_timeout : s->se_timeout;
+	else
+		tmp = (int) (s->se_etime - get_dp_uptime());
+
+	return tmp;
+}
+
 /* Get etime based on config */
 static inline uint32_t se_timeout(struct session *s)
 {

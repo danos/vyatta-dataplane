@@ -215,15 +215,7 @@ static int cmd_session_json(struct session *s, void *data)
 	jsonw_uint_field(json, "proto", s->se_protocol);
 	jsonw_string_field(json, "interface", ifnet_indextoname_safe(if_index));
 
-	if (s->se_flags & SESSION_EXPIRED)
-		tmp = 0;
-	else if (!s->se_etime)
-		tmp = s->se_custom_timeout ?
-			s->se_custom_timeout : s->se_timeout;
-	else
-		tmp = (int) (s->se_etime - get_dp_uptime());
-
-	jsonw_int_field(json, "time_to_expire", tmp);
+	jsonw_int_field(json, "time_to_expire", sess_time_to_expire(s));
 	jsonw_int_field(json, "state_expire_window", s->se_timeout);
 	jsonw_int_field(json, "state", s->se_protocol_state);
 	jsonw_int_field(json, "gen_state", s->se_gen_state);
