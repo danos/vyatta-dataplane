@@ -169,6 +169,8 @@ int npf_dataplane_session_establish(npf_session_t *se, npf_cache_t *npc,
 		if (rc)
 			goto bad;
 
+		/* Mark both the parent and child as alg sessions */
+		session_set_alg(npf_session_get_dp_session(parent));
 		session_set_alg(s);
 	}
 
