@@ -651,7 +651,7 @@ npf_session_state_change(npf_state_t *nst, uint8_t old_state,
 		npf_sess_limit_state_change(handle, proto_idx,
 					    old_state, state);
 	if (npf_state_get_generic_state(proto_idx, state) ==
-	    NPF_ANY_SESSION_CLOSED)
+	    SESSION_STATE_CLOSED)
 		sess_set_expired(se);
 	npf_session_do_watch(se, SESSION_STATE_CHANGE);
 }
@@ -1374,7 +1374,7 @@ npf_enable_session_log(const char *proto, const char *state)
 			return -1;
 	} else {
 		state_index = npf_map_str_to_generic_state(state);
-		if (!npf_state_generic_state_is_valid(state_index))
+		if (state_index == SESSION_STATE_NONE)
 			return -1;
 	}
 	NPF_SET_SESSION_LOG_FLAG(proto_idx, state_index);
@@ -1404,7 +1404,7 @@ npf_disable_session_log(const char *proto, const char *state)
 			return -1;
 	} else {
 		state_index = npf_map_str_to_generic_state(state);
-		if (!npf_state_generic_state_is_valid(state_index))
+		if (state_index == SESSION_STATE_NONE)
 			return -1;
 	}
 	NPF_CLR_SESSION_LOG_FLAG(proto_idx, state_index);

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -18,6 +18,8 @@
 
 static void timeout_init(struct npf_timeout *to)
 {
+	enum npf_proto_idx proto;
+
 	to->to_set_count                  = 0;
 	to->to_tcp[NPF_TCPS_NONE]         = 0;
 		/* Unsynchronised states. */
@@ -39,20 +41,15 @@ static void timeout_init(struct npf_timeout *to)
 	to->to_tcp[NPF_TCPS_RST_RECEIVED] = 10;
 	to->to_tcp[NPF_TCPS_CLOSED]       = 0;
 
-	to->to[NPF_PROTO_IDX_UDP][NPF_ANY_SESSION_NONE]		= 0;
-	to->to[NPF_PROTO_IDX_UDP][NPF_ANY_SESSION_NEW]		= 30;
-	to->to[NPF_PROTO_IDX_UDP][NPF_ANY_SESSION_ESTABLISHED]	= 60;
-	to->to[NPF_PROTO_IDX_UDP][NPF_ANY_SESSION_CLOSED]	= 0;
-
-	to->to[NPF_PROTO_IDX_ICMP][NPF_ANY_SESSION_NONE]	= 0;
-	to->to[NPF_PROTO_IDX_ICMP][NPF_ANY_SESSION_NEW]		= 30;
-	to->to[NPF_PROTO_IDX_ICMP][NPF_ANY_SESSION_ESTABLISHED]	= 60;
-	to->to[NPF_PROTO_IDX_ICMP][NPF_ANY_SESSION_CLOSED]	= 0;
-
-	to->to[NPF_PROTO_IDX_OTHER][NPF_ANY_SESSION_NONE]		= 0;
-	to->to[NPF_PROTO_IDX_OTHER][NPF_ANY_SESSION_NEW]		= 30;
-	to->to[NPF_PROTO_IDX_OTHER][NPF_ANY_SESSION_ESTABLISHED]	= 60;
-	to->to[NPF_PROTO_IDX_OTHER][NPF_ANY_SESSION_CLOSED]		= 0;
+	for (proto = NPF_PROTO_IDX_FIRST; proto <= NPF_PROTO_IDX_LAST;
+	     proto++) {
+		if (proto == NPF_PROTO_IDX_TCP)
+			continue;
+		to->to[proto][SESSION_STATE_NONE]		= 0;
+		to->to[proto][SESSION_STATE_NEW]		= 30;
+		to->to[proto][SESSION_STATE_ESTABLISHED]	= 60;
+		to->to[proto][SESSION_STATE_CLOSED]		= 0;
+	}
 }
 
 /* Take reference on timeout structure */

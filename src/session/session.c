@@ -1952,21 +1952,10 @@ bool dp_session_is_expired(const struct session *session)
 enum dp_session_state dp_session_get_state(const struct session *session)
 {
 	uint8_t proto_idx = npf_proto_idx_from_proto(session->se_protocol);
-	uint8_t state =
-	    npf_state_get_generic_state(session->se_protocol, proto_idx);
+	enum dp_session_state state;
 
-	switch (state) {
-	case NPF_ANY_SESSION_NEW:
-		return SESSION_STATE_NEW;
-	case NPF_ANY_SESSION_ESTABLISHED:
-		return SESSION_STATE_ESTABLISHED;
-	case NPF_ANY_SESSION_TERMINATING:
-		return SESSION_STATE_TERMINATING;
-	case NPF_ANY_SESSION_CLOSED:
-		return SESSION_STATE_CLOSED;
-	default:
-		return SESSION_STATE_NONE;
-	};
+	state = npf_state_get_generic_state(session->se_protocol, proto_idx);
+	return state;
 }
 
 uint64_t dp_session_unique_id(const struct session *session)

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2017 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -1176,34 +1176,34 @@ void npf_sess_limit_state_change(void *handle, uint8_t proto_idx,
 	rte_spinlock_lock(&lp->lp_lock);
 
 	switch (prev_state) {
-	case NPF_ANY_SESSION_NONE:
+	case SESSION_STATE_NONE:
 		/* do nothing */
 		break;
 
-	case NPF_ANY_SESSION_NEW:
+	case SESSION_STATE_NEW:
 		lp->lp_new_ct--;
 		break;
 
-	case NPF_ANY_SESSION_ESTABLISHED:
+	case SESSION_STATE_ESTABLISHED:
 		lp->lp_estab_ct--;
 		break;
 
-	case NPF_ANY_SESSION_TERMINATING:
+	case SESSION_STATE_TERMINATING:
 		/* Only occurs for TCP sessions */
 		lp->lp_term_ct--;
 		break;
 
-	case NPF_ANY_SESSION_CLOSED:
+	case SESSION_STATE_CLOSED:
 		/* Will not happen */
 		break;
 	};
 
 	switch (state) {
-	case NPF_ANY_SESSION_NONE:
+	case SESSION_STATE_NONE:
 		/* do nothing */
 		break;
 
-	case NPF_ANY_SESSION_NEW:
+	case SESSION_STATE_NEW:
 		lp->lp_new_ct++;
 
 		if (lp->lp_new_ct >= lp->lp_max_new_ct)
@@ -1212,14 +1212,14 @@ void npf_sess_limit_state_change(void *handle, uint8_t proto_idx,
 		npf_sess_limit_update_rates(lp);
 		break;
 
-	case NPF_ANY_SESSION_ESTABLISHED:
+	case SESSION_STATE_ESTABLISHED:
 		lp->lp_estab_ct++;
 
 		if (lp->lp_estab_ct >= lp->lp_max_estab_ct)
 			lp->lp_max_estab_ct = lp->lp_estab_ct;
 		break;
 
-	case NPF_ANY_SESSION_TERMINATING:
+	case SESSION_STATE_TERMINATING:
 		/* Only occurs for TCP sessions */
 		lp->lp_term_ct++;
 
@@ -1227,7 +1227,7 @@ void npf_sess_limit_state_change(void *handle, uint8_t proto_idx,
 			lp->lp_max_term_ct = lp->lp_term_ct;
 		break;
 
-	case NPF_ANY_SESSION_CLOSED:
+	case SESSION_STATE_CLOSED:
 		break;
 	};
 
