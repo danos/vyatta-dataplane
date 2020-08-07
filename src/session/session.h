@@ -185,14 +185,14 @@ struct session {
 	uint64_t		se_etime;	/* Expiration timeout */
 	uint8_t			se_protocol_state; /* For display */
 	uint8_t			se_idle:1;
-	uint8_t			se_nat:1;	/* nat? */
+	uint8_t			se_snat:1;	/* snat? */
+	uint8_t			se_dnat:1;	/* dnat? */
 	uint8_t			se_nat64:1;	/* nat64? */
 	uint8_t			se_nat46:1;	/* nat46? */
 	uint8_t			se_alg:1;	/* alg? */
 	uint8_t			se_log_creation:1;
 	uint8_t			se_log_deletion:1;
 	uint8_t			se_log_periodic:1;
-	uint8_t			pad2;
 	uint8_t			se_gen_state;	/* Generic state for display */
 	uint32_t		se_log_interval;
 	uint64_t		se_ltime;	/* time of next periodic log */
@@ -246,9 +246,14 @@ static inline void session_set_alg(struct session *s)
  * @param s
  * The session
  */
-static inline void session_set_nat(struct session *s)
+static inline void session_set_snat(struct session *s)
 {
-	s->se_nat = 1;
+	s->se_snat = 1;
+}
+
+static inline void session_set_dnat(struct session *s)
+{
+	s->se_dnat = 1;
 }
 
 /**
@@ -297,9 +302,19 @@ static inline bool session_is_alg(const struct session *s)
  * @param s
  * The session
  */
+static inline bool session_is_snat(const struct session *s)
+{
+	return s->se_snat == 1;
+}
+
+static inline bool session_is_dnat(const struct session *s)
+{
+	return s->se_dnat == 1;
+}
+
 static inline bool session_is_nat(const struct session *s)
 {
-	return s->se_nat == 1;
+	return s->se_snat == 1 || s->se_dnat == 1;
 }
 
 /**

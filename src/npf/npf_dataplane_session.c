@@ -63,7 +63,10 @@ static int nat_session_establish(npf_cache_t *npc, struct rte_mbuf *nbuf,
 		return rc;
 
 	/* Mark this session as containing NAT */
-	session_set_nat(*ss);
+	if (npf_nat_type(nt) == NPF_NATOUT)
+		session_set_snat(*ss);
+	else
+		session_set_dnat(*ss);
 
 	return 0;
 }
