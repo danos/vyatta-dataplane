@@ -56,6 +56,7 @@ struct npf_pack_dp_session {
 	uint8_t		se_nat64;
 	uint8_t		se_nat46;
 	uint8_t		se_parent;
+	uint8_t		se_alg;
 } __attribute__ ((__packed__));
 
 struct npf_pack_sentry {
