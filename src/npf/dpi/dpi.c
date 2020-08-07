@@ -55,7 +55,7 @@ static struct dpi_engine_procs *engine_procs[] = {
 #endif /* USE_NDPI */
 };
 
-static struct id_entry engine_name_id_map[] = {
+struct id_entry engine_name_id_map[] = {
 #ifdef USE_NDPI
 	{ "ndpi", IANA_NDPI },
 #endif /* USE_NDPI */
@@ -221,12 +221,6 @@ dpi_global_engine(void)
 	return global_engine;
 }
 
-unsigned int
-dpi_engine_count(void)
-{
-	return engine_procs_len;
-}
-
 uint8_t
 dpi_engine_name_to_id(const char *name)
 {
@@ -242,16 +236,16 @@ dpi_engine_name_to_id(const char *name)
 	return IANA_RESERVED;
 }
 
-const char *
-dpi_engine_id_to_name(uint8_t id)
+int32_t
+dpi_engine_id_to_idx(uint8_t id)
 {
 	for (unsigned int i = 0; i < engine_names_len; i++) {
 		struct id_entry *entry = &engine_name_id_map[i];
 		if (entry->id == id)
-			return entry->name;
+			return i;
 	}
 
-	return NULL;
+	return -1;
 }
 
 int
@@ -399,6 +393,41 @@ free_flows:
 	return ret;
 }
 
+void
+dpi_flow_for_each_engine(struct dpi_flow *flow,
+		int (*call)(uint8_t engine, uint32_t app, uint32_t proto,
+			uint32_t type, void *data),
+		void *data)
+{
+	if (!flow)
+		return;
+
+	for (unsigned int i = 0; i < flow->flows_len; i++) {
+		struct flow_procs_tup *tup = &flow->flows[i];
+		if (tup && tup->procs->flow_get_id
+			&& tup->procs->flow_get_proto
+			&& tup->procs->flow_get_type) {
+			uint32_t app;
+			uint32_t proto;
+			uint32_t type;
+			app = tup->procs->flow_get_id(tup->flow);
+			proto = tup->procs->flow_get_proto(tup->flow);
+			type = tup->procs->flow_get_type(tup->flow);
+
+			if (call(tup->flow->engine_id,
+				 app, proto, type, data) != 0)
+				break;
+		}
+	}
+}
+
+/**
+ * Get the protocol ID the given flow is detected to be according to the given
+ * flow's engine.
+ * Returns DPI_APP_ERROR if there is no engine with the given ID, or the flow
+ * is in an error state, otherwise returns the protocol ID, which can be
+ * undetermined.
+ */
 uint32_t
 dpi_flow_get_app_proto(uint8_t engine_id, struct dpi_flow *flow)
 {

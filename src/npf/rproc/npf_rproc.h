@@ -83,6 +83,7 @@ enum npf_rproc_id {
 	NPF_RPROC_ID_CTR_DEF,
 	NPF_RPROC_ID_CTR_REF,
 	NPF_RPROC_ID_COUNTER,
+	NPF_RPROC_ID_APP_GRP,
 	/* Insert new ID above this comment */
 	NPF_RPROC_ID_LAST,
 };

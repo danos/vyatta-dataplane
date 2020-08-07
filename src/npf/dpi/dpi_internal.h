@@ -111,11 +111,6 @@ struct dpi_engine_flow {
 uint8_t dpi_global_engine(void);
 
 /**
- * Return the number of installed DPI engines.
- */
-unsigned int dpi_engine_count(void);
-
-/**
  * Attempt to find the ID of the engine with the given name.
  * Returns IANA_RESERVED if name is NULL or no engine is found, otherwise
  * returns the ID of the engine.
@@ -123,11 +118,11 @@ unsigned int dpi_engine_count(void);
 uint8_t dpi_engine_name_to_id(const char *name);
 
 /**
- * Attempt to find the name of the engine with the given ID.
- * Returns NULL if no engine has the given ID, otherwise returns the name of
- * the engine.
+ * Attempt to find the index of the engine with the given ID.
+ * Returns -1 if no engine has the given ID,
+ * otherwise returns the index of the engine.
  */
-const char *dpi_engine_id_to_name(uint8_t id);
+int32_t dpi_engine_id_to_idx(uint8_t id);
 
 /**
  * Initialise the engine with the given ID, or all installed engines if the
@@ -174,6 +169,17 @@ void dpi_session_flow_destroy(struct dpi_flow *flow);
 int dpi_session_first_packet(struct npf_session *se, struct npf_cache *npc,
 			     struct rte_mbuf *mbuf, int dir,
 			     size_t engines_len, uint8_t *engines);
+
+/**
+ * Invoke the given callback for each DPI engine
+ * associated with the given flow.
+ *
+ * The callback receives the engine, app, proto, type, and data.
+ */
+void dpi_flow_for_each_engine(struct dpi_flow *flow,
+		int (*call)(uint8_t engine, uint32_t app, uint32_t proto,
+			uint32_t type, void *data),
+		void *data);
 
 /**
  * Get the protocol ID the given flow is detected to be according to the given

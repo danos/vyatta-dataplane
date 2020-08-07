@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
+ *
  * Copyright (c) 2011-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -42,6 +43,7 @@
 #include "npf/npf_timeouts.h"
 #include "npf/rproc/npf_ext_session_limit.h"
 #include "npf/zones/npf_zone_public.h"
+#include "npf/app_group/app_group_cmd.h"
 #include "util.h"
 #include "vplane_log.h"
 #include "qos_public.h"
@@ -699,6 +701,28 @@ cmd_npf_zone_intf_remove(FILE *f, int argc, char **argv)
 	return npf_zone_cfg_intf_remove(f, argc, argv);
 }
 
+static int
+cmd_app_group_add(FILE *f, int argc, char **argv)
+{
+	if (argc != 2) {
+		npf_cmd_err(f, "%s", "invalid argument count: should be 2");
+		return -1;
+	}
+
+	return app_group_add(argv[0], argv[1]);
+}
+
+static int
+cmd_app_group_del(FILE *f, int argc, char **argv)
+{
+	if (argc != 1) {
+		npf_cmd_err(f, "%s", "invalid argument count: should be 1");
+		return -1;
+	}
+
+	return app_group_del(argv[0]);
+}
+
 enum {
 	FW_ALG,
 	FW_TABLE_CREATE,
@@ -721,6 +745,8 @@ enum {
 	FW_ZONE_INTF_REMOVE,
 	FW_ZONE_POLICY_ADD,
 	FW_ZONE_POLICY_REMOVE,
+	FW_APP_GROUP_ADD,
+	FW_APP_GROUP_DEL,
 	ADD_RULE,
 	DELETE_RULE,
 	ATTACH_GROUP,
@@ -825,6 +851,14 @@ static const struct npf_command npf_cmd_cfg[] = {
 	[FW_ZONE_INTF_REMOVE] = {
 		.tokens = "zone intf remove",
 		.handler = cmd_npf_zone_intf_remove,
+	},
+	[FW_APP_GROUP_ADD] = {
+		.tokens = "app-grp add",
+		.handler = cmd_app_group_add,
+	},
+	[FW_APP_GROUP_DEL] = {
+		.tokens = "app-grp del",
+		.handler = cmd_app_group_del,
 	},
 	[ADD_RULE] = {
 		.tokens = "add",

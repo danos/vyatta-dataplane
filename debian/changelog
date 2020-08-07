@@ -140,6 +140,38 @@ vyatta-dataplane (3.11.1) unstable; urgency=medium
 
  -- Paul Atkins <paul.atkins@intl.att.com>  Mon, 20 Jul 2020 21:45:59 +0100
 
+vyatta-dataplane (3.10.60) unstable; urgency=medium
+
+  [ Paul Aitken ]
+  * DPI: add application group database
+  * DPI: application resource groups
+  * DPI: application resource group parsing
+  * DPI: new APIs for application resource groups
+  * DPI: add application resource groups to app firewall
+  * DPI: add application resource groups to Makefile
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Thu, 06 Aug 2020 13:15:51 +0100
+
+vyatta-dataplane (3.10.59) unstable; urgency=medium
+
+  [ Karthik Murugesan ]
+  * vxlan: Added null check to avoid null-pointer dereference
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Thu, 06 Aug 2020 08:46:48 +0100
+
+vyatta-dataplane (3.10.58) unstable; urgency=medium
+
+  [ Robert Shearman ]
+  * controller: extend timeout for adding a port (Fixes: VRVDR-52458)
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Wed, 05 Aug 2020 16:25:22 +0100
+
 vyatta-dataplane (3.10.57) unstable; urgency=medium
 
   [ Charles (Chas) Williams ]
