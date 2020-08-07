@@ -190,6 +190,8 @@ struct session {
 	uint8_t			se_nat64:1;	/* nat64? */
 	uint8_t			se_nat46:1;	/* nat46? */
 	uint8_t			se_alg:1;	/* alg? */
+	uint8_t			se_in:1;	/* inbound? */
+	uint8_t			se_out:1;	/* outbound? */
 	uint8_t			se_log_creation:1;
 	uint8_t			se_log_deletion:1;
 	uint8_t			se_log_periodic:1;
@@ -283,6 +285,26 @@ static inline void session_set_nat46(struct session *s)
 }
 
 /**
+ * Mark session created by inbound flow.
+ *
+ * @param s  The session
+ */
+static inline void session_set_in(struct session *s)
+{
+	s->se_in = 1;
+}
+
+/**
+ * Mark session created by outbound flow.
+ *
+ * @param s  The session
+ */
+static inline void session_set_out(struct session *s)
+{
+	s->se_out = 1;
+}
+
+/**
  * Test an ALG session.
  *
  * Test if this is an alg session
@@ -337,6 +359,21 @@ static inline bool session_is_nat64(const struct session *s)
 static inline bool session_is_nat46(const struct session *s)
 {
 	return s->se_nat46 == 1;
+}
+
+/**
+ * Test session in/out.
+ *
+ * @param s  The session
+ */
+static inline bool session_is_in(const struct session *s)
+{
+	return s->se_in == 1;
+}
+
+static inline bool session_is_out(const struct session *s)
+{
+	return s->se_out == 1;
 }
 
 /**

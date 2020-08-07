@@ -1813,6 +1813,8 @@ int session_npf_pack_pack(struct session *s, struct npf_pack_dp_session *dps,
 	dps->se_nat64 = session_is_nat64(s);
 	dps->se_nat46 = session_is_nat46(s);
 	dps->se_alg = session_is_alg(s);
+	dps->se_in = session_is_in(s);
+	dps->se_out = session_is_out(s);
 
 	if (session_npf_pack_stats_pack(s, stats))
 		return -EINVAL;
@@ -1864,6 +1866,8 @@ struct session *session_npf_pack_restore(struct npf_pack_dp_session *dps,
 	s->se_nat64 = dps->se_nat64;
 	s->se_nat46 = dps->se_nat46;
 	s->se_alg = dps->se_alg;
+	s->se_in = dps->se_in;
+	s->se_out = dps->se_out;
 
 	s->se_create_time = rte_get_timer_cycles();
 	rte_atomic64_init(&s->se_pkts_in);

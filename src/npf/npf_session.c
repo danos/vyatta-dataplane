@@ -1061,7 +1061,8 @@ int npf_session_activate(npf_session_t *se, const struct ifnet *ifp,
 		 * Create a dataplane session with the npf session as
 		 * a feature.
 		 */
-		rc = npf_dataplane_session_establish(se, npc, nbuf, ifp);
+		bool out = (se->s_flags & PFIL_OUT) != 0;
+		rc = npf_dataplane_session_establish(se, npc, nbuf, ifp, out);
 		if (rc)
 			return rc;
 
