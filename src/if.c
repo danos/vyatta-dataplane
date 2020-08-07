@@ -3733,14 +3733,11 @@ static int cmd_pause_show(json_writer_t *wr, struct ifnet *ifp)
 	pause_attr.id = FAL_PORT_ATTR_REMOTE_ADVERTISED_FLOW_CONTROL_MODE;
 	rv = fal_l2_get_attrs(ifp->if_index, 1, &pause_attr);
 
-	if (rv != 0) {
-		RTE_LOG(DEBUG, DATAPLANE,
-			"Fal get info failed\n");
+	if (rv != 0)
 		jsonw_string_field(wr, "pause-mode", "none");
-	} else {
+	else
 		jsonw_string_field(wr, "pause-mode",
 		pause_enum_to_string(pause_attr.value.u8));
-	}
 
 	jsonw_end_object(wr);
 	return rv;
