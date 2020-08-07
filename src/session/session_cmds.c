@@ -226,6 +226,7 @@ static int cmd_session_json(struct session *s, void *data)
 	jsonw_int_field(json, "time_to_expire", tmp);
 	jsonw_int_field(json, "state_expire_window", s->se_timeout);
 	jsonw_int_field(json, "state", s->se_protocol_state);
+	jsonw_int_field(json, "gen_state", s->se_gen_state);
 
 	if (s->se_link && s->se_link->sl_parent)
 		jsonw_uint_field(json, "parent", s->se_link->sl_parent->se_id);

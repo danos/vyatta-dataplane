@@ -33,7 +33,7 @@
 #define NPF_PACK_MESSAGE_MAX_SIZE     NPF_PACK_NEW_SESSION_MAX_SIZE
 #define NPF_PACK_MESSAGE_MIN_SIZE     (sizeof(struct npf_pack_message_hdr))
 
-#define SESSION_PACK_VERSION	      (0x0100)
+#define SESSION_PACK_VERSION	      (0x0101)
 
 enum {
 	NPF_PACK_SESSION_NEW_FW = 1,
@@ -51,6 +51,7 @@ struct npf_pack_dp_session {
 	uint32_t	se_timeout;
 	uint64_t	se_etime;
 	uint8_t		se_protocol_state;
+	uint8_t		se_gen_state;
 	uint8_t		se_nat;
 	uint8_t		se_nat64;
 	uint8_t		se_nat46;

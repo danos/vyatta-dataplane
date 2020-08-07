@@ -308,10 +308,14 @@ void npf_state_update_session_state(struct session *s, uint8_t proto_idx,
 		const npf_state_t *nst)
 {
 	uint32_t to;
+	enum dp_session_state gen_state;
 
 	if (s) {
 		to = npf_timeout_get(nst, proto_idx, s->se_custom_timeout);
-		session_set_protocol_state_timeout(s, nst->nst_state, to);
+		gen_state = npf_state_get_generic_state(proto_idx,
+							nst->nst_state);
+		session_set_protocol_state_timeout(s, nst->nst_state,
+						   gen_state, to);
 	}
 }
 

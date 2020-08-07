@@ -1262,10 +1262,12 @@ int session_establish(struct rte_mbuf *m, const struct ifnet *ifp,
 
 /* Set the protocol timeout, and current protocol state */
 void session_set_protocol_state_timeout(struct session *s, uint8_t state,
-		uint32_t timeout)
+					enum dp_session_state gen_state,
+					uint32_t timeout)
 {
 	s->se_timeout = timeout;
 	s->se_protocol_state = state;
+	s->se_gen_state = gen_state;
 }
 
 /* Set the custom timeout */
@@ -1805,6 +1807,7 @@ int session_npf_pack_pack(struct session *s, struct npf_pack_dp_session *dps,
 	dps->se_timeout = s->se_timeout;
 	dps->se_etime = s->se_etime;
 	dps->se_protocol_state = s->se_protocol_state;
+	dps->se_gen_state = s->se_gen_state;
 	dps->se_nat = session_is_nat(s);
 	dps->se_nat64 = session_is_nat64(s);
 	dps->se_nat46 = session_is_nat46(s);
@@ -1853,6 +1856,7 @@ struct session *session_npf_pack_restore(struct npf_pack_dp_session *dps,
 	s->se_timeout = dps->se_timeout;
 	s->se_etime = dps->se_etime;
 	s->se_protocol_state = dps->se_protocol_state;
+	s->se_gen_state = dps->se_gen_state;
 	s->se_nat = dps->se_nat;
 	s->se_nat64 = dps->se_nat64;
 	s->se_nat46 = dps->se_nat46;
@@ -1940,8 +1944,7 @@ bool dp_session_is_established(const struct session *session)
 {
 	if (!session)
 		return false;
-	return npf_state_is_established(session->se_protocol,
-					session->se_protocol_state);
+	return session->se_gen_state == SESSION_STATE_ESTABLISHED;
 }
 
 bool dp_session_is_expired(const struct session *session)
@@ -1951,11 +1954,12 @@ bool dp_session_is_expired(const struct session *session)
 
 enum dp_session_state dp_session_get_state(const struct session *session)
 {
-	uint8_t proto_idx = npf_proto_idx_from_proto(session->se_protocol);
-	enum dp_session_state state;
+	return session->se_gen_state;
+}
 
-	state = npf_state_get_generic_state(session->se_protocol, proto_idx);
-	return state;
+const char *dp_session_get_state_name(const struct session *session, bool upper)
+{
+	return dp_session_state_name(session->se_gen_state, upper);
 }
 
 uint64_t dp_session_unique_id(const struct session *session)

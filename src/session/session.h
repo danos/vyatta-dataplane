@@ -19,6 +19,7 @@
 #include "if_var.h"
 #include "urcu.h"
 #include "util.h"
+#include "dp_session.h"
 
 struct ifnet;
 struct rte_mbuf;
@@ -191,7 +192,8 @@ struct session {
 	uint8_t			se_log_creation:1;
 	uint8_t			se_log_deletion:1;
 	uint8_t			se_log_periodic:1;
-	rte_atomic16_t		pad2;
+	uint8_t			pad2;
+	uint8_t			se_gen_state;	/* Generic state for display */
 	uint32_t		se_log_interval;
 	uint64_t		se_ltime;	/* time of next periodic log */
 	uint64_t		se_create_time;	/* time session was created */
@@ -522,11 +524,15 @@ struct session *session_base_parent(struct session *s);
  * @param state
  * The current protocol state.
  *
+ * @param gen_state
+ * The generic or common protocol state.  Derived from 'state'.
+ *
  * @param timeout
  * The protocol state timeout.
  */
 void session_set_protocol_state_timeout(struct session *s, uint8_t state,
-		uint32_t timeout);
+					enum dp_session_state gen_state,
+					uint32_t timeout);
 
 /**
  * Set custom timeout
