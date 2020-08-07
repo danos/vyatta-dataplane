@@ -4525,6 +4525,8 @@ enum fal_ptp_clock_profile_t {
 	FAL_PTP_CLOCK_G82752_PROFILE = 2, /** G.8275.2 Telecom profile */
 	FAL_PTP_CLOCK_G82752_APTS_PROFILE = 3,
 					/** G.8275.2 w/ APTS Telecom profile */
+	FAL_PTP_CLOCK_G82751_FWD_PROFILE = 4,
+	FAL_PTP_CLOCK_G82751_NON_FWD_PROFILE = 5,
 };
 
 /**

@@ -221,6 +221,48 @@ static const struct dp_test_command_t ptp_cmds[] = {
 		true,
 		false,
 	},
+	/* test g.8275.1 profiles */
+	{
+		"ptp-ut clock create 0 "
+			"domain-number=24 "
+			"number-ports=2 "
+			"clock-identity=0:1:2:3:4:5:6:7 "
+			"priority1=128 "
+			"priority2=128 "
+			"slave-only=0 "
+			"two-step=0 "
+			"profile=g82751-forwardable-profile",
+		"",
+		true,
+		false,
+	},
+	{
+		"ptp-ut clock delete 0",
+		"",
+		true,
+		false,
+	},
+	{
+		"ptp-ut clock create 0 "
+			"domain-number=24 "
+			"number-ports=2 "
+			"clock-identity=0:1:2:3:4:5:6:7 "
+			"priority1=128 "
+			"priority2=128 "
+			"slave-only=0 "
+			"two-step=0 "
+			"antenna-delay=100 "
+			"profile=g82751-non-forwardable-profile",
+		"",
+		true,
+		false,
+	},
+	{
+		"ptp-ut clock delete 0",
+		"",
+		true,
+		false,
+	},
 };
 
 

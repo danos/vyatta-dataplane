@@ -285,6 +285,12 @@ static int ptp_clock_create(FILE *f, uint32_t clock_id, int argc, char **argv)
 			else if (strcmp(profile_string,
 					"g82752-apts-profile") == 0)
 				profile = FAL_PTP_CLOCK_G82752_APTS_PROFILE;
+			else if (strcmp(profile_string,
+					"g82751-forwardable-profile") == 0)
+				profile = FAL_PTP_CLOCK_G82751_FWD_PROFILE;
+			else if (strcmp(profile_string,
+					"g82751-non-forwardable-profile") == 0)
+				profile = FAL_PTP_CLOCK_G82751_NON_FWD_PROFILE;
 			else {
 				fprintf(f, "ptp: bad profile: %s\n",
 					profile_string);
