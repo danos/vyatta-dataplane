@@ -1,3 +1,13 @@
+vyatta-dataplane (3.10.61) unstable; urgency=medium
+
+  [ Brian Russell ]
+  * qos: don't enable dscp mapping if designation in use
+  * qos: allocate a priority local designation
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Mon, 10 Aug 2020 14:46:43 +0100
+
 vyatta-dataplane (3.10.60) unstable; urgency=medium
 
   [ Paul Aitken ]
