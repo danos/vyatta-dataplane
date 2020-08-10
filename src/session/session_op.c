@@ -40,12 +40,22 @@ enum sd_orderby {
 	SD_ORDERBY_TO,
 };
 
+enum sf_dir {
+	SF_DIR_NONE,
+	SF_DIR_IN,
+	SF_DIR_OUT,
+};
+
 /*
  * Session filter for list, show and clear commands
  */
 struct session_filter {
 	bool		sf_ip;
 	bool		sf_ip6;
+	enum sf_dir	sf_dir;
+	uint16_t	sf_proto;
+	uint32_t	sf_ifindex;
+	uint64_t	sf_id;
 };
 
 /*
@@ -81,6 +91,44 @@ static void __attribute__((format(printf, 2, 3))) cmd_err(FILE *f,
 	}
 }
 
+/* Extract an uint from a string */
+static uint arg_to_uint(const char *arg, int *error)
+{
+	char *p;
+	unsigned long val;
+
+	if (!arg) {
+		*error = -EINVAL;
+		return 0;
+	}
+
+	val = strtoul(arg, &p, 10);
+	if (p == arg || val > UINT_MAX) {
+		*error = -EINVAL;
+		return 0;
+	}
+	return (uint32_t) val;
+}
+
+/* Extract an ulong from a string */
+static ulong arg_to_ulong(const char *arg, int *error)
+{
+	char *p;
+	unsigned long val;
+
+	if (!arg) {
+		*error = -EINVAL;
+		return 0;
+	}
+
+	val = strtoul(arg, &p, 10);
+	if (p == arg) {
+		*error = -EINVAL;
+		return 0ul;
+	}
+	return val;
+}
+
 /* Pop next argument from list */
 static char *next_arg(int *argcp, char ***argvp)
 {
@@ -101,8 +149,10 @@ static int cmd_op_parse_orderby(FILE *f, int *argcp, char ***argvp,
 	char *val;
 
 	val = next_arg(argcp, argvp);
-	if (!val)
+	if (!val) {
+		cmd_err(f, "Missing parameter to orderby command\n");
 		return -EINVAL;
+	}
 
 	if (!sd)
 		return 0;
@@ -116,7 +166,7 @@ static int cmd_op_parse_orderby(FILE *f, int *argcp, char ***argvp,
 	else if (!strcmp(val, "time_to_expire"))
 		sd->sd_orderby = SD_ORDERBY_TO;
 	else {
-		cmd_err(f, "Invalid option to orderby \"%s\"\n", val);
+		cmd_err(f, "Invalid option \"%s\" to orderby command\n", val);
 		return -EINVAL;
 	}
 
@@ -130,7 +180,7 @@ static int
 cmd_op_parse(FILE *f, int argc, char **argv, struct session_filter *sf,
 	     struct session_dump *sd)
 {
-	char *cmd;
+	char *cmd, *val;
 	int error = 0;
 
 	while (argc > 0) {
@@ -144,7 +194,62 @@ cmd_op_parse(FILE *f, int argc, char **argv, struct session_filter *sf,
 			/* IPv6 sessions */
 			sf->sf_ip6 = true;
 
-		else if (!strcmp(cmd, "orderby")) {
+		else if (!strcmp(cmd, "id")) {
+			/*
+			 * Session ID filter
+			 */
+			ulong tmp;
+			val = next_arg(&argc, &argv);
+			if (!val)
+				goto error_missing_param;
+
+			tmp = arg_to_ulong(val, &error);
+			if (error < 0)
+				goto error_param_value;
+
+			sf->sf_id = tmp;
+
+		} else if (!strcmp(cmd, "dir")) {
+			val = next_arg(&argc, &argv);
+			if (!val)
+				goto error_missing_param;
+
+			if (!strcmp(val, "in"))
+				sf->sf_dir = SF_DIR_IN;
+			else if (!strcmp(val, "out"))
+				sf->sf_dir = SF_DIR_OUT;
+
+		} else if (!strcmp(cmd, "intf")) {
+			/*
+			 * Interface filter
+			 */
+			struct ifnet *ifp;
+			val = next_arg(&argc, &argv);
+			if (!val)
+				goto error_missing_param;
+
+			ifp = dp_ifnet_byifname(val);
+			if (!ifp)
+				goto error_param_value;
+
+			sf->sf_ifindex = ifp->if_index;
+
+		} else if (!strcmp(cmd, "proto")) {
+			/*
+			 * Protocol filter
+			 */
+			uint tmp;
+			val = next_arg(&argc, &argv);
+			if (!val)
+				goto error_missing_param;
+
+			tmp = arg_to_uint(val, &error);
+			if (error < 0 || tmp > UCHAR_MAX)
+				goto error_param_value;
+
+			sf->sf_proto = tmp;
+
+		} else if (!strcmp(cmd, "orderby")) {
 
 			error = cmd_op_parse_orderby(f, &argc, &argv, sd);
 			if (error < 0)
@@ -159,6 +264,14 @@ cmd_op_parse(FILE *f, int argc, char **argv, struct session_filter *sf,
 	}
 
 	return 0;
+
+error_missing_param:
+	cmd_err(f, "Missing parameter to \"%s\" command\n", cmd);
+	return -EINVAL;
+
+error_param_value:
+	cmd_err(f, "Error with parameter to \"%s\" command\n", cmd);
+	return -EINVAL;
 }
 
 /*
@@ -169,6 +282,10 @@ cmd_session_filter(const struct session *s, const struct session_filter *sf)
 {
 	const struct sentry *sen = rcu_dereference(s->se_sen);
 
+	/* Session ID */
+	if (sf->sf_id && sf->sf_id != s->se_id)
+		return false;
+
 	/* Address family */
 	if ((sen->sen_flags & SENTRY_IPv4) != 0) {
 		if (!sf->sf_ip)
@@ -177,6 +294,23 @@ cmd_session_filter(const struct session *s, const struct session_filter *sf)
 		if (!sf->sf_ip6)
 			return false;
 	}
+
+	/* Direction */
+	if (sf->sf_dir) {
+		if (sf->sf_dir == SF_DIR_IN && !session_is_in(s))
+			return false;
+
+		if (sf->sf_dir == SF_DIR_OUT && !session_is_out(s))
+			return false;
+	}
+
+	/* Interface */
+	if (sf->sf_ifindex && sf->sf_ifindex != sen->sen_ifindex)
+		return false;
+
+	/* Protocol */
+	if (sf->sf_proto && sf->sf_proto != sen->sen_protocol)
+		return false;
 
 	return true;
 }
