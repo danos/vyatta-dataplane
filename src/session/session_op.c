@@ -1238,3 +1238,34 @@ int cmd_op_list(FILE *f, int argc, char **argv)
 
 	return 0;
 }
+
+/*
+ * Callback for session table walk by 'clear' command
+ */
+static int cmd_session_clear_cb(struct session *s, void *data)
+{
+	struct session_filter *sf = data;
+
+	if (!cmd_session_filter(s, sf))
+		return 0;
+
+	session_expire(s, NULL);
+	return 0;
+}
+
+/*
+ * cmd_op_clear_dp_sessions
+ */
+int cmd_op_clear_dp_sessions(FILE *f, int argc, char **argv)
+{
+	struct session_filter sf = {0};
+	int rc;
+
+	rc = cmd_op_parse(f, argc, argv, &sf, NULL);
+	if (rc < 0)
+		return rc;
+
+	session_table_walk(cmd_session_clear_cb, &sf);
+
+	return 0;
+}

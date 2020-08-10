@@ -1076,6 +1076,7 @@ enum cmd_op {
 	OP_DELETE,
 	OP_LIST,
 	OP_SHOW_DP_SESSIONS,
+	OP_CLEAR_DP_SESSIONS,
 };
 
 enum cmd_cfg {
@@ -1119,6 +1120,10 @@ static const struct session_command session_cmd_op[] = {
 	[OP_SHOW_DP_SESSIONS] = {
 		.tokens = "show dataplane sessions",
 		.handler = cmd_op_show_dp_sessions,
+	},
+	[OP_CLEAR_DP_SESSIONS] = {
+		.tokens = "clear dataplane sessions",
+		.handler = cmd_op_clear_dp_sessions,
 	},
 };
 

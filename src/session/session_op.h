@@ -16,5 +16,6 @@
 
 int cmd_op_list(FILE *f, int argc, char **argv);
 int cmd_op_show_dp_sessions(FILE *f, int argc, char **argv);
+int cmd_op_clear_dp_sessions(FILE *f, int argc, char **argv);
 
 #endif /* SESSION_OP_H */
