@@ -45,11 +45,11 @@ enum {
 
 struct npf_pack_dp_session {
 	uint64_t	se_id;	/* for logging */
-	uint16_t	se_flags;
-	uint8_t		se_protocol;
+	uint64_t	se_etime;
 	uint32_t	se_custom_timeout;
 	uint32_t	se_timeout;
-	uint64_t	se_etime;
+	uint16_t	se_flags;
+	uint8_t		se_protocol;
 	uint8_t		se_protocol_state;
 	uint8_t		se_gen_state;
 	uint8_t		se_snat:1;
@@ -61,6 +61,7 @@ struct npf_pack_dp_session {
 	uint8_t		se_in:1;
 	uint8_t		se_out:1;
 	uint8_t		se_app:1;
+	uint8_t		pad[1];
 } __attribute__ ((__packed__));
 
 struct npf_pack_sentry {
