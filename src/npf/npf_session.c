@@ -1462,6 +1462,10 @@ void npf_session_feature_json(json_writer_t *json, npf_session_t *se)
 	/* DPI json */
 	if (se->s_dpi)
 		dpi_info_json(se->s_dpi, json);
+
+	/* ALG json */
+	if (se->s_alg)
+		npf_alg_session_json(json, se, se->s_alg);
 }
 
 static inline const char *npf_session_log_event(
