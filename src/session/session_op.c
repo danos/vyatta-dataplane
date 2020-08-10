@@ -41,11 +41,20 @@ enum sd_orderby {
 };
 
 /*
+ * Session filter for list, show and clear commands
+ */
+struct session_filter {
+	bool		sf_ip;
+	bool		sf_ip6;
+};
+
+/*
  * Session dump for show command
  */
 struct session_dump {
 	FILE			*sd_fp;
 	json_writer_t		*sd_json;
+	struct session_filter	*sd_sf;		/* Session filter */
 
 	/* For ordered retrieval */
 	enum sd_orderby	sd_orderby;
@@ -118,7 +127,8 @@ static int cmd_op_parse_orderby(FILE *f, int *argcp, char ***argvp,
  * Parse arguments.
  */
 static int
-cmd_op_parse(FILE *f, int argc, char **argv, struct session_dump *sd)
+cmd_op_parse(FILE *f, int argc, char **argv, struct session_filter *sf,
+	     struct session_dump *sd)
 {
 	char *cmd;
 	int error = 0;
@@ -126,14 +136,49 @@ cmd_op_parse(FILE *f, int argc, char **argv, struct session_dump *sd)
 	while (argc > 0) {
 		cmd = next_arg(&argc, &argv);
 
-		if (!strcmp(cmd, "orderby")) {
+		if (!strcmp(cmd, "ip"))
+			/* IP sessions */
+			sf->sf_ip = true;
+
+		else if (!strcmp(cmd, "ip6"))
+			/* IPv6 sessions */
+			sf->sf_ip6 = true;
+
+		else if (!strcmp(cmd, "orderby")) {
 
 			error = cmd_op_parse_orderby(f, &argc, &argv, sd);
 			if (error < 0)
 				return error;
 		}
 	}
+
+	/* Default to both IP and IPv6 if neither is specified */
+	if (!sf->sf_ip && !sf->sf_ip6) {
+		sf->sf_ip = true;
+		sf->sf_ip6 = true;
+	}
+
 	return 0;
+}
+
+/*
+ * Filter.  Returns false if pkt is to be blocked by the filter.
+ */
+static bool
+cmd_session_filter(const struct session *s, const struct session_filter *sf)
+{
+	const struct sentry *sen = rcu_dereference(s->se_sen);
+
+	/* Address family */
+	if ((sen->sen_flags & SENTRY_IPv4) != 0) {
+		if (!sf->sf_ip)
+			return false;
+	} else if ((sen->sen_flags & SENTRY_IPv6) != 0) {
+		if (!sf->sf_ip6)
+			return false;
+	}
+
+	return true;
 }
 
 /*
@@ -144,6 +189,10 @@ static int cmd_session_json_list(struct session *s, void *data)
 {
 	struct sentry *sen = rcu_dereference(s->se_sen);
 	struct session_dump *sd = data;
+	struct session_filter *sf = sd->sd_sf;
+
+	if (!cmd_session_filter(s, sf))
+		return 0;
 
 	switch (sd->sd_orderby) {
 	case SD_ORDERBY_SADDR:
@@ -191,15 +240,17 @@ static int cmd_session_json_list(struct session *s, void *data)
  */
 int cmd_op_list(FILE *f, int argc, char **argv)
 {
+	struct session_filter sf = {0};
 	struct session_dump sd = {0};
 	int rc;
 
 	sd.sd_fp = f;
+	sd.sd_sf = &sf;
 
 	/* Default to return list of source addresses */
 	sd.sd_orderby = SD_ORDERBY_SADDR;
 
-	rc = cmd_op_parse(f, argc, argv, &sd);
+	rc = cmd_op_parse(f, argc, argv, &sf, &sd);
 	if (rc < 0)
 		return rc;
 
