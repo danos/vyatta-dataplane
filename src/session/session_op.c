@@ -48,6 +48,20 @@ enum sf_dir {
 };
 
 /*
+ * 'other' is any session for which the feature is none or unknown, i.e. *not*
+ * nat, nat64, alg, or dpi.
+ */
+#define SF_FEATURE_ANY		0x00
+#define SF_FEATURE_OTHER	0x01
+#define SF_FEATURE_SNAT		0x02
+#define SF_FEATURE_DNAT		0x04
+#define SF_FEATURE_NAT64	0x08
+#define SF_FEATURE_NAT46	0x10
+#define SF_FEATURE_ALG		0x20
+#define SF_FEATURE_APP		0x40
+#define SF_FEATURE_CONN_ID	0x80
+
+/*
  * Session filter for list, show and clear commands
  */
 struct session_filter {
@@ -60,6 +74,7 @@ struct session_filter {
 	enum sf_dir	sf_dir;
 	uint8_t		sf_s_af;
 	uint8_t		sf_d_af;
+	uint8_t		sf_features;	/* Session feature fltr */
 	uint16_t	sf_proto;
 	uint32_t	sf_ifindex;
 	uint64_t	sf_id;
@@ -326,6 +341,39 @@ error:
 	return -EINVAL;
 }
 
+static int cmd_op_parse_feat(FILE *f, int *argcp, char ***argvp,
+			     struct session_filter *sf)
+{
+	char *val;
+
+	val = next_arg(argcp, argvp);
+	if (!val) {
+		cmd_err(f, "Missing parameter to feat command\n");
+		return -EINVAL;
+	}
+
+	if (!strcmp(val, "other"))
+		sf->sf_features |= SF_FEATURE_OTHER;
+	else if (!strcmp(val, "snat"))
+		sf->sf_features |= SF_FEATURE_SNAT;
+	else if (!strcmp(val, "dnat"))
+		sf->sf_features |= SF_FEATURE_DNAT;
+	else if (!strcmp(val, "nat64"))
+		sf->sf_features |= SF_FEATURE_NAT64;
+	else if (!strcmp(val, "nat46"))
+		sf->sf_features |= SF_FEATURE_NAT46;
+	else if (!strcmp(val, "alg"))
+		sf->sf_features |= SF_FEATURE_ALG;
+	else if (!strcmp(val, "application"))
+		sf->sf_features |= SF_FEATURE_APP;
+	else {
+		cmd_err(f, "Invalid parameter \"%s\" to feat command\n", val);
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
 static int cmd_op_parse_orderby(FILE *f, int *argcp, char ***argvp,
 				struct session_dump *sd)
 {
@@ -479,6 +527,14 @@ cmd_op_parse(FILE *f, int argc, char **argv, struct session_filter *sf,
 
 			sf->sf_proto = tmp;
 
+		} else if (!strcmp(cmd, "feat")) {
+			/*
+			 * Session feature filter
+			 */
+			error = cmd_op_parse_feat(f, &argc, &argv, sf);
+			if (error < 0)
+				return error;
+
 		} else if (!strcmp(cmd, "orderby")) {
 
 			error = cmd_op_parse_orderby(f, &argc, &argv, sd);
@@ -553,6 +609,35 @@ cmd_session_filter(const struct session *s, const struct session_filter *sf)
 		uint32_t mask = sf->sf_mask[i];
 
 		if ((sf->sf_addrids[i] & mask) != (sen->sen_addrids[i] & mask))
+			return false;
+	}
+
+	/* Session features */
+	if (sf->sf_features) {
+		uint8_t sess_feat = 0;
+
+		if (session_is_snat(s))
+			sess_feat |= SF_FEATURE_SNAT;
+
+		if (session_is_dnat(s))
+			sess_feat |= SF_FEATURE_DNAT;
+
+		if (session_is_nat64(s))
+			sess_feat |= SF_FEATURE_NAT64;
+
+		if (session_is_nat46(s))
+			sess_feat |= SF_FEATURE_NAT46;
+
+		if (session_is_alg(s))
+			sess_feat |= SF_FEATURE_ALG;
+
+		if (session_is_app(s))
+			sess_feat |= SF_FEATURE_APP;
+
+		if (sess_feat == 0)
+			sess_feat |= SF_FEATURE_OTHER;
+
+		if ((sf->sf_features & sess_feat) == 0)
 			return false;
 	}
 
