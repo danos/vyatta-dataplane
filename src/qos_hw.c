@@ -2266,6 +2266,8 @@ qos_hw_new_pipe(uint32_t pipe_id, fal_object_t subport_sched_obj,
 	char *out_str;
 	int ret;
 	uint8_t local_priority_wrr = RTE_SCHED_QUEUES_PER_TRAFFIC_CLASS;
+	uint8_t bit;
+	uint8_t cp;
 
 	/* Map of Designators to Queues */
 	uint8_t des2q[INGRESS_DESIGNATORS] = {0};
@@ -2311,6 +2313,18 @@ qos_hw_new_pipe(uint32_t pipe_id, fal_object_t subport_sched_obj,
 				return -EINVAL;
 			}
 		}
+	} else if (qmap->designation && qmap->local_priority) {
+		/*
+		 * Look for a designation not currently in use.
+		 */
+		for (cp = 0, bit = 1; cp < INGRESS_DESIGNATORS;
+		     cp++, bit <<= 1) {
+			if (!(pipe_params->des_set & bit)) {
+				if (lp_des == INGRESS_DESIGNATORS)
+					lp_des = cp;
+				break;
+			}
+		}
 	}
 
 	ret = qos_hw_create_group_and_sched(db_obj, pipe_id,
@@ -2333,7 +2347,6 @@ qos_hw_new_pipe(uint32_t pipe_id, fal_object_t subport_sched_obj,
 		uint64_t dscp_bitmap = 0;
 		uint8_t pcp_bitmap = 0;
 		uint8_t des_bitmap = 0;
-		uint8_t cp;
 		uint8_t q;
 		uint8_t qindex;
 		uint8_t weight;
@@ -2353,16 +2366,10 @@ qos_hw_new_pipe(uint32_t pipe_id, fal_object_t subport_sched_obj,
 			if (ret)
 				return ret;
 		} else if (qmap->designation == 1) {
-			uint8_t bit;
-			uint8_t lp_des = INGRESS_DESIGNATORS;
-
 			for (cp = 0, bit = 1; cp < INGRESS_DESIGNATORS;
 			     cp++, bit <<= 1) {
-				if (!(pipe_params->des_set & bit)) {
-					if (lp_des == INGRESS_DESIGNATORS)
-						lp_des = cp;
+				if (!(pipe_params->des_set & bit))
 					continue;
-				}
 
 				q = pipe_params->designation[cp];
 				qindex = q_from_mask(q);
@@ -2385,7 +2392,7 @@ qos_hw_new_pipe(uint32_t pipe_id, fal_object_t subport_sched_obj,
 				tc = qmap_to_tc(q);
 				wrr = qmap_to_wrr(q);
 				if (tc == tc_id) {
-					des_bitmap |= 1 << cp;
+					des_bitmap |= 1 << lp_des;
 					wrr_weight[wrr] = weight;
 					designators[wrr] = lp_des;
 				}
