@@ -154,8 +154,9 @@ static int cmd_feature_json(struct session *s __unused,
 	return 0;
 }
 
-static void
-cmd_session_json(struct session *s, json_writer_t *json, bool add_feat)
+void
+cmd_session_json(struct session *s, json_writer_t *json, bool add_feat,
+		 bool is_json_array)
 {
 	char buf[INET6_ADDRSTRLEN];
 	uint32_t if_index;
@@ -170,9 +171,16 @@ cmd_session_json(struct session *s, json_writer_t *json, bool add_feat)
 	if (!init_sen)
 		return;
 
-	sprintf(buf, "%lu", s->se_id);
-	jsonw_name(json, buf);
-	jsonw_start_object(json);
+	if (is_json_array) {
+		/* New array element */
+		jsonw_start_object(json);
+		jsonw_uint_field(json, "id", s->se_id);
+	} else {
+		/* New named object (session ID is the name) */
+		sprintf(buf, "%lu", s->se_id);
+		jsonw_name(json, buf);
+		jsonw_start_object(json);
+	}
 
 	/* Extract addrs/ids from the sentry */
 	session_sentry_extract(init_sen, &if_index, &tmp, &saddr, &sid, &daddr,
@@ -263,7 +271,7 @@ static int cmd_session_json_cb(struct session *s, void *data)
 		return -1;  /* Stop walk we are full */
 
 	/* Add the session json */
-	cmd_session_json(s, json, sd->sd_features);
+	cmd_session_json(s, json, sd->sd_features, false);
 
 	return 0;
 }
@@ -1067,6 +1075,7 @@ enum cmd_op {
 	OP_SHOW_SENTRIES,
 	OP_DELETE,
 	OP_LIST,
+	OP_SHOW_DP_SESSIONS,
 };
 
 enum cmd_cfg {
@@ -1106,6 +1115,10 @@ static const struct session_command session_cmd_op[] = {
 	[OP_LIST] = {
 		.tokens = "list",
 		.handler = cmd_op_list,
+	},
+	[OP_SHOW_DP_SESSIONS] = {
+		.tokens = "show dataplane sessions",
+		.handler = cmd_op_show_dp_sessions,
 	},
 };
 

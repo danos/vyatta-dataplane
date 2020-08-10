@@ -33,6 +33,12 @@
 #include "util.h"
 #include "vplane_log.h"
 
+enum sd_order {
+	SD_ORDER_NONE,
+	SD_ORDER_DESCENDING,
+	SD_ORDER_ASCENDING
+};
+
 enum sd_orderby {
 	SD_ORDERBY_NONE,
 	SD_ORDERBY_SADDR,
@@ -86,10 +92,26 @@ struct session_filter {
 struct session_dump {
 	FILE			*sd_fp;
 	json_writer_t		*sd_json;
+	int			sd_start;
+	int			sd_count;
+	bool			sd_features;	/* Add features to json */
 	struct session_filter	*sd_sf;		/* Session filter */
 
 	/* For ordered retrieval */
+	enum sd_order	sd_order;
 	enum sd_orderby	sd_orderby;
+	uint8_t		sd_af;	/* For sd_start_addr and sd_end_addr */
+
+	union {
+		struct in6_addr	sd_start_addr;
+		uint64_t	sd_start_id;
+		uint32_t	sd_start_timeout;
+	};
+	union {
+		struct in6_addr	sd_end_addr;
+		uint64_t	sd_end_id;
+		uint32_t	sd_end_timeout;
+	};
 };
 
 static void __attribute__((format(printf, 2, 3))) cmd_err(FILE *f,
@@ -277,6 +299,122 @@ cmd_op_finalize_addrids_fltr(FILE *f, struct session_filter *sf,
 	return 0;
 }
 
+/*
+ * Finalize the ordering parameters
+ */
+static int
+cmd_op_finalize_orderby(FILE *f, struct session_filter *sf,
+			struct session_dump *sd, char *start, char *end)
+{
+	uint start_alen = 0, end_alen = 0;
+	int error = 0;
+
+	/*
+	 * The 'start' and 'end' options are dependent on the 'orderby'
+	 * option.  Note that when requesting a list of items from sessions,
+	 * then start and end will not be specified.
+	 */
+	if (!start || !sd)
+		return 0;
+
+	/*
+	 * If fetching session unordered, then just a 'start' and 'count' will
+	 * be specified.
+	 */
+	if (sd->sd_orderby == SD_ORDERBY_NONE) {
+		uint tmp = arg_to_uint(start, &error);
+		if (error < 0 || tmp > INT_MAX)
+			goto error;
+
+		sd->sd_start = (int)tmp;
+		return 0;
+	}
+
+	if (!end)
+		return -EINVAL;
+
+	if (sd->sd_orderby == SD_ORDERBY_SADDR ||
+	    sd->sd_orderby == SD_ORDERBY_DADDR) {
+
+		if (inet_pton(AF_INET, start, &sd->sd_start_addr) == 1)
+			start_alen = 4;
+		else if (inet_pton(AF_INET6, start, &sd->sd_start_addr) == 1)
+			start_alen = 16;
+		else
+			goto error;
+
+		if (inet_pton(AF_INET, end, &sd->sd_end_addr) == 1)
+			end_alen = 4;
+		else if (inet_pton(AF_INET6, end, &sd->sd_end_addr) == 1)
+			end_alen = 16;
+		else
+			goto error;
+
+		if (end_alen != start_alen)
+			goto error;
+
+		if (memcmp(&sd->sd_start_addr, &sd->sd_end_addr,
+			   start_alen) > 0)
+			sd->sd_order = SD_ORDER_DESCENDING;
+		else
+			sd->sd_order = SD_ORDER_ASCENDING;
+
+		if (start_alen == 4) {
+			sf->sf_ip = true;
+			sf->sf_ip6 = false;
+			sd->sd_af = AF_INET;
+		} else {
+			sf->sf_ip = false;
+			sf->sf_ip6 = true;
+			sd->sd_af = AF_INET6;
+		}
+	}
+
+	if (sd->sd_orderby == SD_ORDERBY_ID) {
+		ulong tmp;
+
+		tmp = arg_to_ulong(start, &error);
+		if (error < 0)
+			goto error;
+		sd->sd_start_id = tmp;
+
+		tmp = arg_to_ulong(end, &error);
+		if (error < 0)
+			goto error;
+		sd->sd_end_id = tmp;
+
+		if (sd->sd_start_id > sd->sd_end_id)
+			sd->sd_order = SD_ORDER_DESCENDING;
+		else
+			sd->sd_order = SD_ORDER_ASCENDING;
+	}
+
+	if (sd->sd_orderby == SD_ORDERBY_TO) {
+		uint tmp;
+
+		tmp = arg_to_uint(start, &error);
+		if (error < 0)
+			goto error;
+		sd->sd_start_timeout = tmp;
+
+		tmp = arg_to_uint(end, &error);
+		if (error < 0)
+			goto error;
+		sd->sd_end_timeout = tmp;
+
+		if (sd->sd_start_timeout > sd->sd_end_timeout)
+			sd->sd_order = SD_ORDER_DESCENDING;
+		else
+			sd->sd_order = SD_ORDER_ASCENDING;
+	}
+
+	return 0;
+
+error:
+	cmd_err(f, "Error with orderby params\n");
+	return -EINVAL;
+}
+
 static int
 cmd_op_parse_src_addr(FILE *f, int *argcp, char ***argvp,
 		      struct session_filter *sf)
@@ -411,6 +549,7 @@ static int
 cmd_op_parse(FILE *f, int argc, char **argv, struct session_filter *sf,
 	     struct session_dump *sd)
 {
+	char *start = NULL, *end = NULL;
 	uint16_t sport = 0, dport = 0;
 	char *cmd, *val;
 	int error = 0;
@@ -535,17 +674,50 @@ cmd_op_parse(FILE *f, int argc, char **argv, struct session_filter *sf,
 			if (error < 0)
 				return error;
 
+		} else if (!strcmp(cmd, "count")) {
+			/*
+			 * Session dump count
+			 */
+			uint tmp;
+
+			val = next_arg(&argc, &argv);
+			if (!val)
+				goto error_missing_param;
+
+			tmp = arg_to_uint(val, &error);
+			if (error < 0)
+				goto error_param_value;
+
+			if (sd)
+				sd->sd_count = tmp;
+
 		} else if (!strcmp(cmd, "orderby")) {
 
 			error = cmd_op_parse_orderby(f, &argc, &argv, sd);
 			if (error < 0)
 				return error;
+
+		} else if (!strcmp(cmd, "start")) {
+			val = next_arg(&argc, &argv);
+			if (!val)
+				goto error_missing_param;
+			start = val;
+
+		} else if (!strcmp(cmd, "end")) {
+			val = next_arg(&argc, &argv);
+			if (!val)
+				goto error_missing_param;
+			end = val;
+
 		}
 	}
 	cmd = NULL;
 
 	error = cmd_op_finalize_addrids_fltr(f, sf, sport, dport);
 	if (error < 0)
+		return error;
+
+	if (cmd_op_finalize_orderby(f, sf, sd, start, end) < 0)
 		return error;
 
 	/* Default to both IP and IPv6 if neither is specified */
@@ -642,6 +814,163 @@ cmd_session_filter(const struct session *s, const struct session_filter *sf)
 	}
 
 	return true;
+}
+
+/*
+ * Does this session belong to the current batch?
+ */
+static bool
+cmd_session_batch(const struct session *s, struct session_dump *sd)
+{
+	const struct sentry *sen = rcu_dereference(s->se_sen);
+
+	if (sd->sd_orderby == SD_ORDERBY_NONE) {
+		/* Skip? */
+		if (sd->sd_start-- > 0)
+			return false;
+
+		/* Filled? */
+		if (sd->sd_count-- <= 0)
+			return false;
+
+	} else if (sd->sd_orderby == SD_ORDERBY_SADDR ||
+		   sd->sd_orderby == SD_ORDERBY_DADDR) {
+
+		bool src = (sd->sd_orderby == SD_ORDERBY_SADDR);
+		const struct in6_addr *sentry_addr;
+		const void *saddr;
+		const void *daddr;
+		uint alen;
+		int af;
+
+		if (sd->sd_af == 0)
+			return false;
+
+		if (sd->sd_af == AF_INET &&
+		    (sen->sen_flags & SENTRY_IPv4) == 0)
+			return false;
+
+		if (sd->sd_af == AF_INET6 &&
+		    (sen->sen_flags & SENTRY_IPv6) == 0)
+			return false;
+
+		/* Extract addrs from the sentry */
+		session_sentry_extract_addrs(sen, &af, &saddr, &daddr);
+		sentry_addr = src ? saddr : daddr;
+
+		/* Is sentry < start addr? */
+		alen = (af == AF_INET) ? 4 : 16;
+
+		const void *a1, *a2, *b1, *b2;
+
+		if (sd->sd_order == SD_ORDER_DESCENDING) {
+			a1 = &sd->sd_start_addr;
+			b1 = &sd->sd_end_addr;
+			a2 = b2 = sentry_addr;
+		} else {
+			a1 = b1 = sentry_addr;
+			a2 = &sd->sd_start_addr;
+			b2 = &sd->sd_end_addr;
+		}
+
+		if (memcmp(a1, a2, alen) < 0 || memcmp(b1, b2, alen) > 0)
+			return false;
+
+	} else if (sd->sd_orderby == SD_ORDERBY_ID) {
+		uint64_t a1, a2, b1, b2;
+
+		if (sd->sd_order == SD_ORDER_DESCENDING) {
+			a1 = sd->sd_start_id;
+			b1 = sd->sd_end_id;
+			a2 = b2 = s->se_id;
+		} else {
+			a1 = b1 = s->se_id;
+			a2 = sd->sd_start_id;
+			b2 = sd->sd_end_id;
+		}
+		if (a1 < a2 || b1 > b2)
+			return false;
+
+	} else if (sd->sd_orderby == SD_ORDERBY_TO) {
+		sess_time_to_expire(s);
+		uint32_t a1, a2, b1, b2;
+
+		if (sd->sd_order == SD_ORDER_DESCENDING) {
+			a1 = sd->sd_start_timeout;
+			b1 = sd->sd_end_timeout;
+			a2 = b2 = sess_time_to_expire(s);
+		} else {
+			a1 = b1 = sess_time_to_expire(s);
+			a2 = sd->sd_start_timeout;
+			b2 = sd->sd_end_timeout;
+		}
+		if (a1 < a2 || b1 > b2)
+			return false;
+
+	}
+	return true;
+}
+
+/*
+ * Callback for session table walk
+ */
+static int cmd_session_show_cb(struct session *s, void *data)
+{
+	struct session_dump *sd = data;
+	struct session_filter *sf = sd->sd_sf;
+
+	if (!cmd_session_filter(s, sf))
+		return 0;
+
+	if (!cmd_session_batch(s, sd))
+		return 0;
+
+	cmd_session_json(s, sd->sd_json, sd->sd_features, true);
+	return 0;
+}
+
+static int cmd_session_show(struct session_dump *sd)
+{
+	json_writer_t *json;
+
+	json = jsonw_new(sd->sd_fp);
+	if (!json)
+		return -EINVAL;
+	sd->sd_json = json;
+
+	jsonw_name(json, "sessions");
+	jsonw_start_array(json);
+
+	session_table_walk(cmd_session_show_cb, sd);
+
+	jsonw_end_array(json);
+	jsonw_destroy(&json);
+
+	return 0;
+}
+
+/*
+ * cmd_op_show_dp_sessions
+ */
+int cmd_op_show_dp_sessions(FILE *f, int argc, char **argv)
+{
+	struct session_filter sf = {0};
+	struct session_dump sd = {0};
+	int rc;
+
+	sd.sd_fp = f;
+	sd.sd_sf = &sf;
+
+	/* Return features in json unless 'brief' option is specified */
+	sd.sd_features = true;
+
+	rc = cmd_op_parse(f, argc, argv, &sf, &sd);
+	if (rc < 0)
+		return rc;
+
+	cmd_session_show(&sd);
+
+	return 0;
 }
 
 /*
