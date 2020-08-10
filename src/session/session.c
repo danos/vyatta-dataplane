@@ -1380,6 +1380,25 @@ void session_sentry_extract(struct sentry *sen, uint32_t *if_index, int *af,
 	ids_extract(&sen->sen_addrids[0], sid, did);
 }
 
+/* Extract addrs from a sentry */
+void session_sentry_extract_addrs(const struct sentry *sen, int *af,
+				  const void **saddr, const void **daddr)
+{
+	if (sen->sen_flags & SENTRY_IPv4) {
+		*af = AF_INET;
+		*saddr = &sen->sen_addrids[1];
+		*daddr = &sen->sen_addrids[2];
+	} else if (sen->sen_flags & SENTRY_IPv6) {
+		*af = AF_INET6;
+		*saddr = &sen->sen_addrids[1];
+		*daddr = &sen->sen_addrids[5];
+	} else {
+		*af = 0;
+		*saddr = NULL;
+		*daddr = NULL;
+	}
+}
+
 /* Destroy a session */
 void session_expire(struct session *s, struct rte_mbuf *m)
 {

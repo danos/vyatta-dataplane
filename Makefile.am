@@ -115,6 +115,7 @@ SESSION_FILES = \
 	src/session/session.c \
 	src/session/session_cmds.c \
 	src/session/session_feature.c \
+	src/session/session_op.c \
 	src/session/session_watch.c
 
 CORE_FILES = \

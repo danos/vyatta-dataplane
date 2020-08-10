@@ -877,6 +877,10 @@ void session_sentry_extract(struct sentry *sen, uint32_t *if_index, int *af,
 		const void **saddr, uint16_t *sid, const void **daddr,
 		uint16_t *did);
 
+/* Extract addrs from a sentry */
+void session_sentry_extract_addrs(const struct sentry *sen, int *af,
+				  const void **saddr, const void **daddr);
+
 /**
  * Execute the session GC path.
  *

@@ -25,6 +25,7 @@
 #include "session.h"
 #include "session_cmds.h"
 #include "session_feature.h"
+#include "session_op.h"
 #include "session_private.h"
 #include "urcu.h"
 #include "util.h"
@@ -1052,6 +1053,7 @@ enum cmd_op {
 	OP_SHOW_SESSIONS,
 	OP_SHOW_SENTRIES,
 	OP_DELETE,
+	OP_LIST,
 };
 
 enum cmd_cfg {
@@ -1087,6 +1089,10 @@ static const struct session_command session_cmd_op[] = {
 	[OP_DELETE] = {
 		.tokens = "clear session",
 		.handler = cmd_op_delete_sessions,
+	},
+	[OP_LIST] = {
+		.tokens = "list",
+		.handler = cmd_op_list,
 	},
 };
 
