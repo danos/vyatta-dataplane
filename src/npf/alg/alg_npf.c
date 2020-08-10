@@ -515,6 +515,13 @@ int npf_alg_session_json(json_writer_t *json,
 			  npf_alg_child_session_json, &ctx);
 
 	jsonw_end_array(json);
+
+	/* ALG-specific session json */
+	struct npf_alg *alg = npf_alg_session_get_alg(se);
+
+	if (alg_has_op(alg, se_json))
+		alg->na_ops->se_json(json, se);
+
 	jsonw_end_object(json);
 	return 0;
 }

@@ -674,12 +674,146 @@ static void sip_alg_periodic(struct npf_alg *sip)
 	sip_ht_gc(sip);
 }
 
+static void
+sip_alg_session_media_json(json_writer_t *json, struct sip_alg_media *m)
+{
+	char buf[INET6_ADDRSTRLEN];
+	int af;
+
+	jsonw_start_object(json);
+
+	if (m->m_proto == sdp_proto_udp)
+		jsonw_string_field(json, "proto", "udp");
+	else if (m->m_proto == sdp_proto_rtp)
+		jsonw_string_field(json, "proto", "rtp");
+	else
+		jsonw_string_field(json, "proto", "unknown");
+
+	if (m->m_rtp_alen) {
+		af = (m->m_rtp_alen == 4) ? AF_INET : AF_INET6;
+		inet_ntop(af, &m->m_rtp_addr, buf, sizeof(buf));
+		jsonw_string_field(json, "rtp_addr", buf);
+	}
+	if (m->m_rtp_port)
+		jsonw_uint_field(json, "rtp_port", m->m_rtp_port);
+
+	if (m->m_rtcp_alen) {
+		af = (m->m_rtcp_alen == 4) ? AF_INET : AF_INET6;
+		inet_ntop(af, &m->m_rtcp_addr, buf, sizeof(buf));
+		jsonw_string_field(json, "rtcp_addr", buf);
+	}
+	if (m->m_rtcp_port)
+		jsonw_uint_field(json, "rtcp_port", m->m_rtcp_port);
+
+	if (m->m_trtp_alen) {
+		af = (m->m_trtp_alen == 4) ? AF_INET : AF_INET6;
+		inet_ntop(af, &m->m_trtp_addr, buf, sizeof(buf));
+		jsonw_string_field(json, "trtp_addr", buf);
+	}
+	if (m->m_trtp_port)
+		jsonw_uint_field(json, "trtp_port", m->m_trtp_port);
+
+	if (m->m_trtcp_alen) {
+		af = (m->m_trtcp_alen == 4) ? AF_INET : AF_INET6;
+		inet_ntop(af, &m->m_trtcp_addr, buf, sizeof(buf));
+		jsonw_string_field(json, "trtcp_addr", buf);
+	}
+	if (m->m_trtcp_port)
+		jsonw_uint_field(json, "trtcp_port", m->m_trtcp_port);
+
+	jsonw_end_object(json);
+}
+
+static void
+sip_alg_session_callid_json(json_writer_t *json, npf_session_t *se,
+			    osip_call_id_t *call_id)
+{
+	char *number, *host;
+	struct npf_alg *sip = npf_alg_session_get_alg(se);
+	struct sip_alg_request *sr;
+	struct sip_alg_media *m, *tmp;
+	uint32_t if_idx = npf_session_get_if_index(se);
+	char buf[100];
+
+	number = osip_call_id_get_number(call_id);
+	host = osip_call_id_get_host(call_id);
+
+	if (!number)
+		return;
+
+	jsonw_start_object(json);
+
+	if (!host)
+		snprintf(buf, sizeof(buf), "%s", number);
+	else
+		snprintf(buf, sizeof(buf), "%s@%s", number, host);
+	jsonw_string_field(json, "number", buf);
+
+	sr = sip_request_lookup_by_call_id(sip, if_idx, call_id);
+	if (!sr) {
+		jsonw_end_object(json);
+		return;
+	}
+
+	jsonw_name(json, "media");
+	jsonw_start_array(json);
+
+	cds_list_for_each_entry_safe(m, tmp, &sr->sr_media_list_head, m_node)
+		sip_alg_session_media_json(json, m);
+
+	jsonw_end_array(json);
+	jsonw_end_object(json);
+}
+
+static void
+sip_alg_session_json(json_writer_t *json, npf_session_t *se)
+{
+	struct sip_alg_session *ss;
+	char buf[INET6_ADDRSTRLEN];
+
+	if (!json || !se)
+		return;
+
+	ss = npf_alg_session_get_private(se);
+	if (!ss)
+		return;
+
+	jsonw_name(json, "sip");
+	jsonw_start_object(json);
+
+	if (ss->ss_via_alen)
+		jsonw_string_field(
+			json, "via_addr",
+			inet_ntop(ss->ss_via_alen == 4 ? AF_INET : AF_INET6,
+				  &ss->ss_via_addr,
+				  buf, sizeof(buf)));
+
+	if (ss->ss_via_port)
+		jsonw_uint_field(json, "via_port", ntohs(ss->ss_via_port));
+
+	if (ss->ss_call_id_count > 0) {
+		int i;
+
+		jsonw_name(json, "callids");
+		jsonw_start_array(json);
+
+		for (i = 0; i < ss->ss_call_id_count; i++)
+			sip_alg_session_callid_json(json, se,
+						    ss->ss_call_ids[i]);
+
+		jsonw_end_array(json);
+	}
+
+	jsonw_end_object(json);
+}
+
 /* alg struct */
 static const struct npf_alg_ops sip_ops = {
 	.name		= NPF_ALG_SIP_NAME,
 	.se_init	= sip_alg_session_init,
 	.se_destroy	= sip_alg_session_destroy,
 	.se_expire	= sip_alg_session_expire,
+	.se_json	= sip_alg_session_json,
 	.inspect	= sip_alg_inspect,
 	.config		= sip_alg_config,
 	.nat_inspect	= sip_alg_nat_inspect,
