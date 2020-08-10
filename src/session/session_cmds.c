@@ -154,48 +154,21 @@ static int cmd_feature_json(struct session *s __unused,
 	return 0;
 }
 
-static int cmd_session_json(struct session *s, void *data)
+static void
+cmd_session_json(struct session *s, json_writer_t *json, bool add_feat)
 {
-	struct session_dump *sd = data;
 	char buf[INET6_ADDRSTRLEN];
 	uint32_t if_index;
 	const void *saddr;
 	const void *daddr;
 	uint16_t sid;
 	uint16_t did;
-	json_writer_t *json = sd->sd_data;
 	struct sentry *init_sen = rcu_dereference(s->se_sen);
 	int tmp;
 
-	if (sd->sd_filter) {
-		if ((sd->sd_filter & SD_FILTER_NAT) &&
-		    !session_is_nat(s))
-			return 0;
-		if ((sd->sd_filter & SD_FILTER_NAT64) &&
-		    !session_is_nat64(s))
-			return 0;
-		if ((sd->sd_filter & SD_FILTER_NAT46) &&
-		    !session_is_nat46(s))
-			return 0;
-		if ((sd->sd_filter & SD_FILTER_ALG) &&
-		    !session_is_alg(s))
-			return 0;
-		if ((sd->sd_filter & SD_FILTER_CONN_ID) &&
-		    (s->se_id != sd->sd_conn_id))
-			return 0;
-	}
-
-	/* Skip? */
-	if (sd->sd_start-- > 0)
-		return 0;
-
-	/* Filled? */
-	if (sd->sd_count-- <= 0)
-		return -1;  /* Stop walk we are full */
-
 	/* No sentry?  (racing with expiration) */
 	if (!init_sen)
-		return 0;
+		return;
 
 	sprintf(buf, "%lu", s->se_id);
 	jsonw_name(json, buf);
@@ -226,8 +199,13 @@ static int cmd_session_json(struct session *s, void *data)
 	else
 		jsonw_uint_field(json, "parent", 0);
 
+	uint64_t ts = rte_get_timer_cycles();
+	if (ts > s->se_create_time)
+		jsonw_uint_field(json, "duration",
+				 (ts - s->se_create_time) / rte_get_timer_hz());
+
 	/* Add feature json if desired */
-	if (sd->sd_features) {
+	if (add_feat) {
 		jsonw_int_field(json, "features_count",
 				rte_atomic16_read(&s->se_feature_count));
 		jsonw_name(json, "features");
@@ -251,6 +229,41 @@ static int cmd_session_json(struct session *s, void *data)
 	jsonw_end_object(json); /* End of counters */
 
 	jsonw_end_object(json);
+}
+
+static int cmd_session_json_cb(struct session *s, void *data)
+{
+	struct session_dump *sd = data;
+	json_writer_t *json = sd->sd_data;
+
+	if (sd->sd_filter) {
+		if ((sd->sd_filter & SD_FILTER_NAT) &&
+		    !session_is_nat(s))
+			return 0;
+		if ((sd->sd_filter & SD_FILTER_NAT64) &&
+		    !session_is_nat64(s))
+			return 0;
+		if ((sd->sd_filter & SD_FILTER_NAT46) &&
+		    !session_is_nat46(s))
+			return 0;
+		if ((sd->sd_filter & SD_FILTER_ALG) &&
+		    !session_is_alg(s))
+			return 0;
+		if ((sd->sd_filter & SD_FILTER_CONN_ID) &&
+		    (s->se_id != sd->sd_conn_id))
+			return 0;
+	}
+
+	/* Skip? */
+	if (sd->sd_start-- > 0)
+		return 0;
+
+	/* Filled? */
+	if (sd->sd_count-- <= 0)
+		return -1;  /* Stop walk we are full */
+
+	/* Add the session json */
+	cmd_session_json(s, json, sd->sd_features);
 
 	return 0;
 }
@@ -339,7 +352,7 @@ static void cmd_session_show(struct session_dump *sd)
 	jsonw_name(json, "sessions");
 	jsonw_start_object(json);
 
-	session_table_walk(cmd_session_json, sd);
+	session_table_walk(cmd_session_json_cb, sd);
 
 	jsonw_end_object(json);
 	jsonw_end_object(json);
