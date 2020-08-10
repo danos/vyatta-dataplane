@@ -95,6 +95,7 @@ struct session_dump {
 	int			sd_start;
 	int			sd_count;
 	bool			sd_features;	/* Add features to json */
+	bool			sd_summary;
 	struct session_filter	*sd_sf;		/* Session filter */
 
 	/* For ordered retrieval */
@@ -112,6 +113,33 @@ struct session_dump {
 		uint64_t	sd_end_id;
 		uint32_t	sd_end_timeout;
 	};
+};
+
+struct sess_summary_proto {
+	uint32_t	sp_total;
+	uint32_t	sp_closed;
+	uint32_t	sp_opening;
+	uint32_t	sp_estbd;
+	uint32_t	sp_closing;
+};
+
+struct session_summary {
+	uint32_t	ss_total;
+	uint32_t	ss_ip;
+	uint32_t	ss_ip6;
+	uint32_t	ss_in;
+	uint32_t	ss_out;
+	uint32_t	ss_ft_snat;
+	uint32_t	ss_ft_dnat;
+	uint32_t	ss_ft_nat64;
+	uint32_t	ss_ft_nat46;
+	uint32_t	ss_ft_alg;
+	uint32_t	ss_ft_app;
+	uint32_t	ss_ft_other;
+
+	struct sess_summary_proto ss_tcp;
+	struct sess_summary_proto ss_udp;
+	struct sess_summary_proto ss_other;
 };
 
 static void __attribute__((format(printf, 2, 3))) cmd_err(FILE *f,
@@ -709,6 +737,13 @@ cmd_op_parse(FILE *f, int argc, char **argv, struct session_filter *sf,
 				goto error_missing_param;
 			end = val;
 
+		} else if (!strcmp(cmd, "brief")) {
+			if (sd)
+				sd->sd_features = false;
+
+		} else if (!strcmp(cmd, "summary")) {
+			if (sd)
+				sd->sd_summary = true;
 		}
 	}
 	cmd = NULL;
@@ -950,6 +985,141 @@ static int cmd_session_show(struct session_dump *sd)
 }
 
 /*
+ * Callback for session table summary walk
+ */
+static int cmd_session_show_summary_cb(struct session *s, void *data)
+{
+	const struct sentry *sen = rcu_dereference(s->se_sen);
+	struct session_summary *ss = data;
+
+	ss->ss_total++;
+
+	/* Address family */
+	if ((sen->sen_flags & SENTRY_IPv4) != 0)
+		ss->ss_ip++;
+	else if ((sen->sen_flags & SENTRY_IPv6) != 0)
+		ss->ss_ip6++;
+
+	if (session_is_in(s))
+		ss->ss_in++;
+	else if (session_is_out(s))
+		ss->ss_out++;
+
+	if (session_is_snat(s))
+		ss->ss_ft_snat++;
+	else if (session_is_dnat(s))
+		ss->ss_ft_dnat++;
+	else if (session_is_nat64(s))
+		ss->ss_ft_nat64++;
+	else if (session_is_nat46(s))
+		ss->ss_ft_nat46++;
+	else if (session_is_alg(s))
+		ss->ss_ft_alg++;
+	else if (session_is_app(s))
+		ss->ss_ft_app++;
+	else
+		ss->ss_ft_other++;
+
+	struct sess_summary_proto *sp;
+
+	if (sen->sen_protocol == IPPROTO_TCP)
+		sp = &ss->ss_tcp;
+	else if (sen->sen_protocol == IPPROTO_UDP)
+		sp = &ss->ss_udp;
+	else
+		sp = &ss->ss_other;
+
+	sp->sp_total++;
+
+	switch (s->se_gen_state) {
+	case SESSION_STATE_NONE:
+	case SESSION_STATE_CLOSED:
+		sp->sp_closed++;
+		break;
+	case SESSION_STATE_NEW:
+		sp->sp_opening++;
+		break;
+	case SESSION_STATE_ESTABLISHED:
+		sp->sp_estbd++;
+		break;
+	case SESSION_STATE_TERMINATING:
+		sp->sp_closing++;
+		break;
+	};
+
+	return 0;
+}
+
+static void
+cmd_sess_summary_proto(json_writer_t *json, const char *name,
+		       struct sess_summary_proto *sp)
+{
+	jsonw_name(json, name);
+	jsonw_start_object(json);
+
+	jsonw_uint_field(json, "total", sp->sp_total);
+	jsonw_uint_field(json, "closed", sp->sp_closed);
+	jsonw_uint_field(json, "opening", sp->sp_opening);
+	jsonw_uint_field(json, "established", sp->sp_estbd);
+	jsonw_uint_field(json, "closing", sp->sp_closing);
+
+	jsonw_end_object(json);
+}
+
+static int cmd_session_show_summary(struct session_dump *sd)
+{
+	json_writer_t *json;
+	struct session_summary summary = {0};
+	struct session_summary *ss = &summary;
+
+	json = jsonw_new(sd->sd_fp);
+	if (!json)
+		return -EINVAL;
+
+	session_table_walk(cmd_session_show_summary_cb, ss);
+
+	jsonw_name(json, "summary");
+	jsonw_start_object(json);
+
+	jsonw_uint_field(json, "total", ss->ss_total);
+
+	jsonw_name(json, "address-family");
+	jsonw_start_object(json);
+	jsonw_uint_field(json, "ip", ss->ss_ip);
+	jsonw_uint_field(json, "ip6", ss->ss_ip6);
+	jsonw_end_object(json);
+
+	jsonw_name(json, "direction");
+	jsonw_start_object(json);
+	jsonw_uint_field(json, "in", ss->ss_in);
+	jsonw_uint_field(json, "out", ss->ss_out);
+	jsonw_end_object(json);
+
+	jsonw_name(json, "protocol");
+	jsonw_start_object(json);
+	cmd_sess_summary_proto(json, "tcp", &ss->ss_tcp);
+	cmd_sess_summary_proto(json, "udp", &ss->ss_udp);
+	cmd_sess_summary_proto(json, "other", &ss->ss_other);
+	jsonw_end_object(json);
+
+	jsonw_name(json, "feature");
+	jsonw_start_object(json);
+	jsonw_uint_field(json, "snat", ss->ss_ft_snat);
+	jsonw_uint_field(json, "dnat", ss->ss_ft_dnat);
+	jsonw_uint_field(json, "nat64", ss->ss_ft_nat64);
+	jsonw_uint_field(json, "nat46", ss->ss_ft_nat46);
+	jsonw_uint_field(json, "alg", ss->ss_ft_alg);
+	jsonw_uint_field(json, "app", ss->ss_ft_app);
+	jsonw_uint_field(json, "other", ss->ss_ft_other);
+	jsonw_end_object(json);
+
+	jsonw_end_object(json);
+	jsonw_destroy(&json);
+
+	return 0;
+}
+
+/*
  * cmd_op_show_dp_sessions
  */
 int cmd_op_show_dp_sessions(FILE *f, int argc, char **argv)
@@ -967,6 +1137,11 @@ int cmd_op_show_dp_sessions(FILE *f, int argc, char **argv)
 	rc = cmd_op_parse(f, argc, argv, &sf, &sd);
 	if (rc < 0)
 		return rc;
+
+	if (sd.sd_summary) {
+		cmd_session_show_summary(&sd);
+		return 0;
+	}
 
 	cmd_session_show(&sd);
 
