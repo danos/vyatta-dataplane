@@ -115,12 +115,12 @@ struct crypto_session {
 	const struct crypto_session_operations *s_ops;
 	int8_t direction;	/* -1 | XFRM_POLICY_IN | _OUT*/
 	uint8_t cipher_init;
-	uint16_t digest_len;	/* in bytes */
-	uint16_t block_size;    /* in bytes */
-	uint16_t iv_len;        /* in bytes */
+	uint8_t digest_len;    /* in bytes */
+	uint8_t block_size;    /* in bytes */
+	uint8_t iv_len;        /* in bytes */
 	EVP_CIPHER_CTX *ctx;
 	HMAC_CTX *hmac_ctx;
-	uint16_t nonce_len;     /* in bytes */
+	uint8_t nonce_len;     /* in bytes */
 	char iv[EVP_MAX_IV_LENGTH];
 	/*
 	 * Max nonce slips into 2nd cacheline, however normal use case
@@ -131,8 +131,8 @@ struct crypto_session {
 	 */
 	unsigned char nonce[EVP_MAX_IV_LENGTH];
 	/* --- cacheline 1 boundary (64 bytes) was 2 bytes ago --- */
-	uint16_t key_len;	/* in bytes */
-	uint16_t auth_alg_key_len; /* in bytes */
+	uint8_t key_len;	/* in bytes */
+	uint8_t auth_alg_key_len; /* in bytes */
 	uint8_t key[EVP_MAX_KEY_LENGTH];
 	/* --- cacheline 2 boundary (128 bytes) was 6 bytes ago --- */
 	char auth_alg_name[64];
