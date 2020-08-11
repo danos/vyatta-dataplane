@@ -994,6 +994,7 @@ int if_fal_create_l3_intf(struct ifnet *ifp);
 int if_fal_delete_l3_intf(struct ifnet *ifp);
 int if_set_l3_intf_attr(struct ifnet *ifp,
 			struct fal_attribute_t *attr);
+int if_fal_l3_get_stats(struct ifnet *ifp, struct if_data *stats);
 
 /* TODO:  Look into consolidating the if_is_uplink and
  * is_local_controller checks across the codebase.

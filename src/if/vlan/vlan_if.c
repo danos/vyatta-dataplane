@@ -255,48 +255,6 @@ vlan_if_l3_disable(struct ifnet *ifp)
 	return if_fal_delete_l3_intf(ifp);
 }
 
-static int
-vlan_if_get_stats(struct ifnet *ifp, struct if_data *stats)
-{
-	int i;
-	int ret;
-	uint64_t cntrs[FAL_ROUTER_INTERFACE_STAT_MAX];
-	enum fal_router_interface_stat_t
-		cntr_ids[FAL_ROUTER_INTERFACE_STAT_MAX];
-
-	if (!ifp->fal_l3)
-		return 0;
-
-	for (i = FAL_ROUTER_INTERFACE_STAT_MIN;
-	     i < FAL_ROUTER_INTERFACE_STAT_MAX; i++)
-		cntr_ids[i] = i;
-
-	memset(cntrs, 0, sizeof(cntrs));
-	ret = fal_get_router_interface_stats(ifp->fal_l3,
-					     FAL_ROUTER_INTERFACE_STAT_MAX,
-					     cntr_ids, cntrs);
-	if (ret < 0 && ret != -EOPNOTSUPP)
-		return ret;
-
-	if (ret != -EOPNOTSUPP) {
-		/*
-		 * If HW stats aren't supported then not overwriting
-		 * these values here will ensure that at least the
-		 * software stats are still maintained based on for-us
-		 * traffic
-		 */
-		stats->ifi_ibytes = cntrs[FAL_ROUTER_INTERFACE_STAT_IN_OCTETS];
-		stats->ifi_ipackets =
-			cntrs[FAL_ROUTER_INTERFACE_STAT_IN_PACKETS];
-	}
-	/*
-	 * Hw doesn't count from-us packets so sum the hw and sw stats here.
-	 */
-	stats->ifi_obytes += cntrs[FAL_ROUTER_INTERFACE_STAT_OUT_OCTETS];
-	stats->ifi_opackets += cntrs[FAL_ROUTER_INTERFACE_STAT_OUT_PACKETS];
-	return 0;
-}
-
 static enum dp_ifnet_iana_type
 vlan_if_iana_type(struct ifnet *ifp __unused)
 {
@@ -314,7 +272,7 @@ static const struct ift_ops vlan_if_ops = {
 	.ifop_set_broadcast = ether_if_set_broadcast,
 	.ifop_set_promisc = vlan_if_set_promisc,
 	.ifop_dump = vlan_if_dump,
-	.ifop_get_stats = vlan_if_get_stats,
+	.ifop_get_stats = if_fal_l3_get_stats,
 	.ifop_l3_enable = vlan_if_l3_enable,
 	.ifop_iana_type = vlan_if_iana_type,
 };
