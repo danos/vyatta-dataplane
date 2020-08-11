@@ -57,4 +57,8 @@ int crypto_rte_setup_session(struct crypto_session *session,
 int crypto_rte_destroy_session(struct crypto_session *session,
 			       uint8_t rte_cdev_id);
 
+int crypto_rte_op_alloc(struct rte_mbuf *m);
+
+void crypto_rte_op_free(struct rte_mbuf *m);
+
 #endif

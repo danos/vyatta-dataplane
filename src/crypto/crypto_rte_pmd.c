@@ -601,3 +601,36 @@ int crypto_rte_destroy_session(struct crypto_session *session,
 	session->rte_session = NULL;
 	return err;
 }
+
+int crypto_rte_op_alloc(struct rte_mbuf *m)
+{
+	struct rte_crypto_op *cop;
+	struct pktmbuf_mdata *mdata;
+
+	cop = rte_crypto_op_alloc(crypto_op_pool,
+				      RTE_CRYPTO_OP_TYPE_SYMMETRIC);
+	if (cop == NULL)
+		return -ENOMEM;
+
+	cop->status = RTE_CRYPTO_OP_STATUS_NOT_PROCESSED;
+	cop->sess_type = RTE_CRYPTO_OP_WITH_SESSION;
+	cop->sym->m_src = m;
+
+	mdata = pktmbuf_mdata(m);
+	mdata->cop = cop;
+	pktmbuf_mdata_set(m, PKT_MDATA_CRYPTO_OP);
+
+	return 0;
+}
+
+void crypto_rte_op_free(struct rte_mbuf *m)
+{
+	struct rte_crypto_op *cop;
+	struct pktmbuf_mdata *mdata;
+
+	mdata = pktmbuf_mdata(m);
+	cop = mdata->cop;
+	mdata->cop = NULL;
+	pktmbuf_mdata_clear(m, PKT_MDATA_CRYPTO_OP);
+	rte_crypto_op_free(cop);
+}

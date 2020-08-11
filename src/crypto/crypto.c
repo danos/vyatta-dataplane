@@ -141,7 +141,8 @@ static const char * const ipsec_counter_names[] = {
 	[FLOW_CACHE_HIT] = "hit flow cache",
 	[FLOW_CACHE_MISS] = "missed flow cache",
 	[DROPPED_NO_BIND] = "dropped feature attachment point missing",
-	[DROPPED_ON_FP_NO_PR] = "dropped on fp but no policy"
+	[DROPPED_ON_FP_NO_PR] = "dropped on fp but no policy",
+	[DROPPED_COP_ALLOC_FAILED] = "dropped on crypto op allocation failure"
 };
 
 unsigned long ipsec_counters[RTE_MAX_LCORE][IPSEC_CNT_MAX] __rte_cache_aligned;
@@ -173,6 +174,7 @@ struct crypto_pkt_ctx {
 	void *l3hdr;
 	struct ifnet *in_ifp;
 	struct ifnet *nxt_ifp;
+	struct rte_crypto_op *cop;
 	/*
 	 * These fields are are bi-directional. They may be
 	 * set by the forwarding thread and modified by the
@@ -579,6 +581,7 @@ static void crypto_process_encrypt_packet(struct crypto_pkt_ctx *cctx,
 
 static void crypto_pkt_ctx_forward_and_free(struct crypto_pkt_ctx *ctx)
 {
+	crypto_rte_op_free(ctx->mbuf);
 	switch (ctx->action) {
 	case CRYPTO_ACT_VTI_INPUT:
 	case CRYPTO_ACT_INPUT_WITH_FEATURES:
@@ -675,6 +678,7 @@ drop_check:
 			struct crypto_pkt_ctx *ctx =
 				cpb->local_crypto_q[xfrm][i];
 
+			crypto_rte_op_free(ctx->mbuf);
 			rte_pktmbuf_free(ctx->mbuf);
 			release_crypto_packet_ctx(ctx);
 			IPSEC_CNT_INC(FAILED_TO_BURST);
@@ -778,6 +782,13 @@ static int crypto_enqueue_internal(enum crypto_xfrm xfrm,
 		}
 	}
 	ctx->in_ifp = NULL;
+
+	if (crypto_rte_op_alloc(m)) {
+		IPSEC_CNT_INC(DROPPED_COP_ALLOC_FAILED);
+		release_crypto_packet_ctx(ctx);
+		goto free_mbuf_on_error;
+	}
+
 	crypto_ctx_save_ifp(ctx, m, in_ifp);
 	ctx->nxt_ifp = nxt_ifp;
 	ctx->spi = spi;
@@ -976,6 +987,7 @@ void crypto_purge_queue(struct rte_ring *pmd_queue)
 		for (i = 0; i < count; i++) {
 			struct crypto_pkt_ctx *ctx =
 				contexts[i];
+			crypto_rte_op_free(ctx->mbuf);
 			rte_pktmbuf_free(ctx->mbuf);
 			release_crypto_packet_ctx(ctx);
 		}
