@@ -105,6 +105,12 @@ OPENSSL_init_crypto(uint32_t opts __attribute__ ((__unused__)),
 struct crypto_session_operations;
 struct crypto_visitor_operations;
 
+/* maximum length (in bytes) of initialization vector in any algorithm */
+#define CRYPTO_MAX_IV_LENGTH 16
+
+/* maximum length (in bytes) of key in any algorithm */
+#define CRYPTO_MAX_KEY_LENGTH 32
+
 enum crypto_dir {
 	CRYPTO_DIR_IN = 0,
 	CRYPTO_DIR_OUT
@@ -121,7 +127,7 @@ struct crypto_session {
 	EVP_CIPHER_CTX *ctx;
 	HMAC_CTX *hmac_ctx;
 	uint8_t nonce_len;     /* in bytes */
-	char iv[EVP_MAX_IV_LENGTH];
+	char iv[CRYPTO_MAX_IV_LENGTH];
 	/*
 	 * Max nonce slips into 2nd cacheline, however normal use case
 	 * aes128g/256gcm is 4 bytes and so it is within first cache
@@ -129,15 +135,15 @@ struct crypto_session {
 	 *
 	 * NB nonce is at offset 50.
 	 */
-	unsigned char nonce[EVP_MAX_IV_LENGTH];
+	unsigned char nonce[CRYPTO_MAX_IV_LENGTH];
 	/* --- cacheline 1 boundary (64 bytes) was 2 bytes ago --- */
 	uint8_t key_len;	/* in bytes */
 	uint8_t auth_alg_key_len; /* in bytes */
-	uint8_t key[EVP_MAX_KEY_LENGTH];
+	uint8_t key[CRYPTO_MAX_KEY_LENGTH];
 	/* --- cacheline 2 boundary (128 bytes) was 6 bytes ago --- */
 	char auth_alg_name[64];
 	/* --- cacheline 3 boundary (192 bytes) was 6 bytes ago --- */
-	char auth_alg_key[EVP_MAX_KEY_LENGTH];
+	char auth_alg_key[CRYPTO_MAX_KEY_LENGTH];
 
 	const EVP_CIPHER *cipher;
 	const EVP_MD *md;
