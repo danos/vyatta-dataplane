@@ -121,29 +121,26 @@ struct crypto_session {
 	const struct crypto_session_operations *s_ops;
 	int8_t direction;	/* -1 | XFRM_POLICY_IN | _OUT*/
 	uint8_t cipher_init;
-	uint8_t digest_len;    /* in bytes */
-	uint8_t block_size;    /* in bytes */
-	uint8_t iv_len;        /* in bytes */
+	uint8_t digest_len;           /* in bytes */
+	uint8_t block_size;           /* in bytes */
+	uint8_t iv_len;               /* in bytes */
+	uint8_t nonce_len;            /* in bytes */
+	uint8_t key_len;	      /* in bytes */
+	uint8_t auth_alg_key_len;     /* in bytes */
+	char iv[CRYPTO_MAX_IV_LENGTH];
+	unsigned char nonce[CRYPTO_MAX_IV_LENGTH];
+	uint8_t key[CRYPTO_MAX_KEY_LENGTH];
+
+	/* --- cacheline 1 boundary (64 bytes) was 16 bytes ago --- */
+
+	char auth_alg_key[CRYPTO_MAX_KEY_LENGTH];
 	EVP_CIPHER_CTX *ctx;
 	HMAC_CTX *hmac_ctx;
-	uint8_t nonce_len;     /* in bytes */
-	char iv[CRYPTO_MAX_IV_LENGTH];
-	/*
-	 * Max nonce slips into 2nd cacheline, however normal use case
-	 * aes128g/256gcm is 4 bytes and so it is within first cache
-	 * line
-	 *
-	 * NB nonce is at offset 50.
-	 */
-	unsigned char nonce[CRYPTO_MAX_IV_LENGTH];
-	/* --- cacheline 1 boundary (64 bytes) was 2 bytes ago --- */
-	uint8_t key_len;	/* in bytes */
-	uint8_t auth_alg_key_len; /* in bytes */
-	uint8_t key[CRYPTO_MAX_KEY_LENGTH];
-	/* --- cacheline 2 boundary (128 bytes) was 6 bytes ago --- */
+
+	/* --- cacheline 2 boundary (128 bytes)  --- */
+
 	char auth_alg_name[64];
-	/* --- cacheline 3 boundary (192 bytes) was 6 bytes ago --- */
-	char auth_alg_key[CRYPTO_MAX_KEY_LENGTH];
+	/* --- cacheline 3 boundary (192 bytes)  --- */
 
 	const EVP_CIPHER *cipher;
 	const EVP_MD *md;
