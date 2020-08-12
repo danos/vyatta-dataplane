@@ -82,6 +82,7 @@ struct qos_dev qos_devices[NUM_DEVS] = {
 	  qos_dpdk_queue_read_stats,
 	  qos_dpdk_queue_clear_stats,
 	  qos_dpdk_dscp_resgrp_json,
+	  qos_dpdk_check_rate,
 	},
 	{ qos_hw_init,
 	  qos_hw_disable,
@@ -94,6 +95,7 @@ struct qos_dev qos_devices[NUM_DEVS] = {
 	  qos_hw_queue_read_stats,
 	  qos_hw_queue_clear_stats,
 	  qos_hw_dscp_resgrp_json,
+	  qos_hw_check_rate,
 	}
 };
 
@@ -446,30 +448,38 @@ static int qos_sched_setup_dscp_map(struct sched_info *qinfo,
  * is given as a percentage, calculates the rate from the parent. Otherwise
  * returns the rate provided in the bandwidth structure.
  */
-static uint32_t qos_rate_get(struct qos_rate_info *bw_info, uint32_t parent_bw)
+static uint32_t qos_rate_get(struct qos_rate_info *bw_info, uint32_t parent_bw,
+			     struct sched_info *qinfo)
 {
+	uint32_t rate;
+
 	if (bw_info->bw_is_percent) {
 		const float precision = 0.0001;
 		float full_pct = bw_info->rate.bw_percent;
 		uint32_t whole_pct = (uint32_t)bw_info->rate.bw_percent;
 
 		if (fabs(full_pct - (float)whole_pct) < precision)
-			return ((uint64_t)parent_bw * whole_pct) / 100;
+			rate = ((uint64_t)parent_bw * whole_pct) / 100;
 		else
-			return (parent_bw * full_pct) / 100;
+			rate = (parent_bw * full_pct) / 100;
 	} else
-		return bw_info->rate.bandwidth;
+		rate = bw_info->rate.bandwidth;
+
+	rate = QOS_CHECK_RATE(qinfo)(rate, parent_bw);
+
+	return rate;
 }
 
 /*
  * Sets the rate (bytes/sec) into the given bandwidth structure. Returns
  * the rate provided.
  */
-static uint32_t qos_abs_rate_set(struct qos_rate_info *bw_info, uint32_t abs_bw)
+static uint32_t qos_abs_rate_set(struct qos_rate_info *bw_info, uint32_t abs_bw,
+				 uint32_t parent_bw, struct sched_info *qinfo)
 {
 	bw_info->bw_is_percent = false;
 	bw_info->rate.bandwidth = abs_bw;
-	return abs_bw;
+	return qos_rate_get(bw_info, parent_bw, qinfo);
 }
 
 /*
@@ -477,11 +487,12 @@ static uint32_t qos_abs_rate_set(struct qos_rate_info *bw_info, uint32_t abs_bw)
  * the actual rate of the entity (see qos_rate_get for details)
  */
 static uint32_t qos_percent_rate_set(struct qos_rate_info *bw_info,
-			float percent_bw, uint32_t parent_bw)
+			float percent_bw, uint32_t parent_bw,
+			struct sched_info *qinfo)
 {
 	bw_info->bw_is_percent = true;
 	bw_info->rate.bw_percent = percent_bw;
-	return qos_rate_get(bw_info, parent_bw);
+	return qos_rate_get(bw_info, parent_bw, qinfo);
 }
 
 /*
@@ -785,7 +796,7 @@ struct sched_info *qos_sched_new(struct ifnet *ifp,
 		struct queue_map *qmap = &qinfo->queue_map[i];
 
 		pp->shaper.tb_rate = qos_abs_rate_set(&profile_rates[i],
-						      UINT32_MAX);
+						      UINT32_MAX, 0, qinfo);
 		pp->shaper.tb_size = qos_abs_burst_set(&profile_rates[i],
 						       DEFAULT_TBSIZE);
 		pp->shaper.tc_period = qos_period_set(&profile_rates[i], 10);
@@ -798,7 +809,7 @@ struct sched_info *qos_sched_new(struct ifnet *ifp,
 		for (j = 0; j < RTE_SCHED_TRAFFIC_CLASSES_PER_PIPE; j++) {
 			pp->shaper.tc_rate[j] =
 			    qos_abs_rate_set(&profile_tc_rates[i].tc_rate[j],
-					     UINT32_MAX);
+					     UINT32_MAX, 0, qinfo);
 		}
 
 		qmap->dscp_enabled = 0;
@@ -845,7 +856,7 @@ struct sched_info *qos_sched_new(struct ifnet *ifp,
 
 		/* Default params */
 		sp->params.tb_rate = qos_abs_rate_set(&sp->subport_rate,
-						      UINT32_MAX);
+						      UINT32_MAX, 0, qinfo);
 		sp->params.tb_size = qos_abs_burst_set(&sp->subport_rate,
 						       DEFAULT_TBSIZE);
 		sp->params.tc_period = qos_period_set(&sp->subport_rate, 10);
@@ -853,7 +864,7 @@ struct sched_info *qos_sched_new(struct ifnet *ifp,
 		for (j = 0; j < RTE_SCHED_TRAFFIC_CLASSES_PER_PIPE; j++) {
 			sp->params.tc_rate[j] =
 				qos_abs_rate_set(&sp->sp_tc_rates.tc_rate[j],
-						 UINT32_MAX);
+						 UINT32_MAX, 0, qinfo);
 			sp->qsize[j] = 0;    // Default to inherit from port
 		}
 	}
@@ -878,13 +889,14 @@ void qos_sched_subport_params_check(
 		struct qos_shaper_conf *params,
 		struct qos_rate_info *config_rate,
 		struct qos_rate_info *config_tc_rate,
-		uint16_t max_pkt_len, uint32_t max_burst_size, uint32_t bps)
+		uint16_t max_pkt_len, uint32_t max_burst_size, uint32_t bps,
+		struct sched_info *qinfo)
 {
 	uint32_t min_rate = (max_pkt_len * 1000) / params->tc_period;
 	uint32_t tc_period = 0, period = 0;
 	unsigned int i;
 
-	params->tb_rate = qos_rate_get(config_rate, bps);
+	params->tb_rate = qos_rate_get(config_rate, bps, qinfo);
 
 	/* squash rate down to actual line rate */
 	if (params->tb_rate > bps)
@@ -901,7 +913,7 @@ void qos_sched_subport_params_check(
 	period = params->tc_period;
 	for (i = 0; i < RTE_SCHED_TRAFFIC_CLASSES_PER_PIPE; i++) {
 		params->tc_rate[i] = qos_rate_get(&config_tc_rate[i],
-						  params->tb_rate);
+						  params->tb_rate, qinfo);
 		if (params->tc_rate[i] > bps)
 			params->tc_rate[i] = bps;
 		if (params->tc_rate[i] > params->tb_rate)
@@ -2208,7 +2220,8 @@ static int cmd_qos_port(struct ifnet *ifp, int argc, char **argv)
 }
 
 static int cmd_qos_subport_queue(struct subport_info *sinfo, unsigned int qid,
-				 int argc, char **argv)
+				 int argc, char **argv,
+				 struct sched_info *qinfo)
 {
 	/*
 	 * Called from cmd_qos_subport after "queue <a>" has been parsed.
@@ -2249,7 +2262,7 @@ static int cmd_qos_subport_queue(struct subport_info *sinfo, unsigned int qid,
 		params->tc_rate[qid] =
 			qos_percent_rate_set(
 				&sinfo->sp_tc_rates.tc_rate[qid],
-				rate, params->tb_rate);
+				rate, params->tb_rate, qinfo);
 	} else if (strcmp(argv[2], "rate") == 0) {
 		unsigned int rate;
 
@@ -2260,7 +2273,8 @@ static int cmd_qos_subport_queue(struct subport_info *sinfo, unsigned int qid,
 
 		params->tc_rate[qid] =
 			qos_abs_rate_set(
-				&sinfo->sp_tc_rates.tc_rate[qid], rate);
+				&sinfo->sp_tc_rates.tc_rate[qid], rate,
+				params->tb_rate, qinfo);
 	} else {
 		RTE_LOG(ERR, QOS,
 			"unknown subport queue parameter: '%s'\n", argv[2]);
@@ -2362,7 +2376,8 @@ static int cmd_qos_subport(struct ifnet *ifp, int argc, char **argv)
 			/* bytes/sec */
 			params->tb_rate = qos_percent_rate_set(
 					    &sinfo->subport_rate, percent_bw,
-					    ifp->if_qos->port_params.rate);
+					    ifp->if_qos->port_params.rate,
+					    qinfo);
 		} else if (get_unsigned(argv[1], &value) < 0) {
 			RTE_LOG(ERR, QOS, "number expected after %s\n",
 				argv[0]);
@@ -2370,7 +2385,8 @@ static int cmd_qos_subport(struct ifnet *ifp, int argc, char **argv)
 		} else if (strcmp(argv[0], "rate") == 0) {
 			/* bytes/sec */
 			params->tb_rate =
-				qos_abs_rate_set(&sinfo->subport_rate, value);
+				qos_abs_rate_set(&sinfo->subport_rate, value,
+						 0, qinfo);
 		} else if (strcmp(argv[0], "size") == 0) {
 			/* credits (bytes) */
 			params->tb_size =
@@ -2389,7 +2405,8 @@ static int cmd_qos_subport(struct ifnet *ifp, int argc, char **argv)
 			 * Nothing more to parse after queue so can
 			 * just return.
 			 */
-			return cmd_qos_subport_queue(sinfo, value, argc, argv);
+			return cmd_qos_subport_queue(sinfo, value, argc, argv,
+						     qinfo);
 		}
 		argc -= 2, argv += 2;
 	}
@@ -2535,7 +2552,7 @@ static int cmd_qos_profile_queue(struct sched_info *qinfo, unsigned int profile,
 		pipe->shaper.tc_rate[value] = qos_percent_rate_set(
 						&pipe_tc_rates[value],
 						percent_bw,
-						pipe->shaper.tb_rate);
+						pipe->shaper.tb_rate, qinfo);
 	} else if (strcmp(argv[2], "rate") == 0) {
 		unsigned int rate;
 
@@ -2551,7 +2568,8 @@ static int cmd_qos_profile_queue(struct sched_info *qinfo, unsigned int profile,
 			return -EINVAL;
 		}
 		pipe->shaper.tc_rate[value] = qos_abs_rate_set(
-						&pipe_tc_rates[value], rate);
+						&pipe_tc_rates[value], rate,
+						pipe->shaper.tb_rate, qinfo);
 	} else if (strcmp(argv[2], "wrr-weight") == 0) {
 		unsigned int weight;
 		unsigned int qindex;
@@ -2882,7 +2900,8 @@ static int cmd_qos_profile(struct ifnet *ifp, int argc, char **argv)
 			pipe->shaper.tb_rate = qos_percent_rate_set(
 						 &qinfo->profile_rates[profile],
 						 percent_bw,
-						 qinfo->port_params.rate);
+						 qinfo->port_params.rate,
+						 qinfo);
 		} else if (get_unsigned(argv[1], &value) < 0) {
 			DP_DEBUG(QOS, ERR, DATAPLANE,
 				 "number expected after %s\n", argv[0]);
@@ -2890,7 +2909,9 @@ static int cmd_qos_profile(struct ifnet *ifp, int argc, char **argv)
 		} else if (strcmp(argv[0], "rate") == 0) {
 			pipe->shaper.tb_rate = qos_abs_rate_set(
 						 &qinfo->profile_rates[profile],
-						 value);
+						 value,
+						 qinfo->port_params.rate,
+						 qinfo);
 		} else if (strcmp(argv[0], "size") == 0) {
 			pipe->shaper.tb_size = qos_abs_burst_set(
 						 &qinfo->profile_rates[profile],

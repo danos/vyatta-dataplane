@@ -22,6 +22,38 @@
 #include "ether.h"
 
 /*
+ * Only allow a child shaper to use 99.6% of the parent bandwidth so when we
+ * borrow tokens we don't set the time into the future.
+ * 99.6 was chosen by testing, no failures were seen using it.  If the time
+ * is incorrectly advanced we drop the packets on the backplane which is far
+ * harder to diagnose so forcing them into the shaper is preferrable.
+ */
+#define	MAX_RATE_FLOAT	99.6
+#define	MAX_RATE_SCALED	996
+
+uint32_t qos_dpdk_check_rate(uint32_t rate, uint32_t parent_bw)
+{
+	/*
+	 * Check whether the rate is close or equal to the parent bandwidth.
+	 * If it is we may run into time issues when borrowing tokens which
+	 * turns off the shaper so make sure we only set the rate to 99.6%
+	 * of the parent
+	 */
+	if (parent_bw) {
+		float percent;
+
+		percent = (((float)rate * 100.0) / (float)parent_bw);
+		if (percent > MAX_RATE_FLOAT) {
+			uint64_t tmp_rate = rate;
+
+			tmp_rate = tmp_rate * MAX_RATE_SCALED;
+			rate = tmp_rate / 1000;
+		}
+	}
+	return rate;
+}
+
+/*
  * Return the DSCP wred resource group name associated with a map entry
  * in a queue index.
  */
@@ -480,7 +512,7 @@ int qos_dpdk_start(struct ifnet *ifp, struct sched_info *qinfo,
 		qos_sched_subport_params_check(
 			&sinfo->params, &sinfo->subport_rate,
 			sinfo->sp_tc_rates.tc_rate, max_pkt_len,
-			max_burst_size, bps);
+			max_burst_size, bps, qinfo);
 	}
 
 	qos_sched_pipe_check(qinfo, max_pkt_len, max_burst_size, bps);

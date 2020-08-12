@@ -25,6 +25,11 @@
 _Static_assert(MAX_DSCP == FAL_QOS_MAP_DSCP_VALUES, "max DSCP value mismatch");
 _Static_assert(MAX_PCP == FAL_QOS_MAP_PCP_VALUES, "max PCP value mismatch");
 
+uint32_t qos_hw_check_rate(uint32_t rate, uint32_t parent_bw __unused)
+{
+	return rate;
+}
+
 static fal_object_t
 qos_hw_get_map(uint32_t port_obj_id, uint32_t subport_id,
 	       uint32_t pipe_id, enum qos_obj_hw_type hw_type)
@@ -2303,7 +2308,7 @@ int qos_hw_start(struct ifnet *ifp, struct sched_info *qinfo, uint64_t bps,
 		 */
 		qos_sched_subport_params_check(params, &sinfo->subport_rate,
 				sinfo->sp_tc_rates.tc_rate, max_pkt_len,
-				max_burst_size, bps);
+				max_burst_size, bps, qinfo);
 
 		/* Update NPF rules */
 		npf_cfg_commit_all();
