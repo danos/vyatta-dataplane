@@ -1,3 +1,12 @@
+vyatta-dataplane (3.10.62) unstable; urgency=medium
+
+  [ Brian Russell ]
+  * qos: extend mark-map to include dp
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Thu, 13 Aug 2020 10:17:11 +0100
+
 vyatta-dataplane (3.10.61) unstable; urgency=medium
 
   [ Brian Russell ]
