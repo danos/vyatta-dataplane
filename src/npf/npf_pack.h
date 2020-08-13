@@ -45,7 +45,6 @@ enum {
 
 struct npf_pack_dp_session {
 	uint64_t	se_id;	/* for logging */
-	uint64_t	se_etime;
 	uint32_t	se_custom_timeout;
 	uint32_t	se_timeout;
 	uint16_t	se_flags;
