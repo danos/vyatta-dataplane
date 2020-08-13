@@ -1,3 +1,53 @@
+vyatta-dataplane (3.11.7) unstable; urgency=medium
+
+  [ Robert Shearman ]
+  * controller: extend timeout for adding a port (Fixes: VRVDR-52458)
+
+  [ Paul Atkins ]
+  * 3.10.58
+
+  [ Karthik Murugesan ]
+  * vxlan: Added null check to avoid null-pointer dereference
+
+  [ Paul Atkins ]
+  * 3.10.59
+
+  [ Paul Aitken ]
+  * DPI: add application group database
+  * DPI: application resource groups
+  * DPI: application resource group parsing
+  * DPI: new APIs for application resource groups
+  * DPI: add application resource groups to app firewall
+  * DPI: add application resource groups to Makefile
+
+  [ Paul Atkins ]
+  * 3.10.60
+
+  [ Karthik Murugesan ]
+  * ptp: Added support for G.8275.1 profiles
+
+  [ Shweta Choudaha ]
+  * Mirror: Add support for source vlan config
+  * Mirror: Add support to show vlan info for src intf
+
+  [ Manohar Rapeti ]
+  * if: Spurious error logs messages (Bugfix: VRVDR-52346)
+
+  [ Brian Russell ]
+  * qos: don't enable dscp mapping if designation in use
+  * qos: allocate a priority local designation
+
+  [ Paul Atkins ]
+  * 3.10.61
+
+  [ Brian Russell ]
+  * qos: extend mark-map to include dp
+
+  [ Paul Atkins ]
+  * 3.10.62
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Thu, 13 Aug 2020 14:29:20 +0100
+
 vyatta-dataplane (3.11.6) unstable; urgency=medium
 
   [ Gavin Shearer ]
