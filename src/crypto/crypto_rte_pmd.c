@@ -233,3 +233,36 @@ int crypto_rte_set_session_parameters(struct crypto_session *ctx,
 	return err;
 }
 
+/*
+ * select PMD to create based on algorithm requirements
+ * Ideally, DPDK should provide an API to query capability based on driver type
+ * However, the DPDK API for querying capabilities requires a device to
+ * be created first which presents unnecessary overhead.
+ * Use a static method of selection for now.
+ *
+ */
+int
+crypto_rte_select_pmd_type(enum rte_crypto_cipher_algorithm cipher_algo,
+			   enum rte_crypto_aead_algorithm aead_algo,
+			   enum cryptodev_type *dev_type, bool *setup_openssl)
+{
+	if (aead_algo == RTE_CRYPTO_AEAD_AES_GCM) {
+		*dev_type = CRYPTODEV_AESNI_GCM;
+		*setup_openssl = false;
+		return 0;
+	}
+
+	switch (cipher_algo) {
+	case RTE_CRYPTO_CIPHER_3DES_CBC:
+	case RTE_CRYPTO_CIPHER_AES_CBC:
+		*dev_type = CRYPTODEV_AESNI_MB;
+		*setup_openssl = true;
+		break;
+
+	default:
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
