@@ -311,6 +311,22 @@ qos_sched_res_grp_update(char *grp)
 			if (ret == -1)
 				return;
 		}
+
+		for (i = 0; i < qinfo->n_subports; i++) {
+			struct subport_info *subport = &qinfo->subport[i];
+			struct qos_mark_map *mark_map = subport->mark_map;
+
+			if (!mark_map || SLIST_EMPTY(&mark_map->dscp_grps))
+				continue;
+
+			struct dscp_grp_list *dscp_grp;
+			SLIST_FOREACH(dscp_grp, &mark_map->dscp_grps, list) {
+				if (!strcmp(grp, dscp_grp->name)) {
+					qinfo->reset_port = QOS_NPF_COMMIT;
+					break;
+				}
+			}
+		}
 	}
 }
 
@@ -1475,8 +1491,42 @@ static struct qos_mark_map *qos_mark_map_find(char *map_name)
 	return NULL;
 }
 
+static void qos_mark_map_delete_rcu(struct rcu_head *head)
+{
+	struct qos_mark_map *mark_map =
+		caa_container_of(head, struct qos_mark_map, obj_rcu);
+	struct dscp_grp_list *dscp_grp;
+
+	if (mark_map->mark_obj)
+		qos_hw_del_map(mark_map->mark_obj);
+
+	while ((dscp_grp = SLIST_FIRST(&mark_map->dscp_grps)) != NULL) {
+		SLIST_REMOVE_HEAD(&mark_map->dscp_grps, list);
+		free(dscp_grp);
+	}
+
+	free(mark_map);
+}
+
+static int qos_mark_map_delete(char *map_name)
+{
+	struct qos_mark_map *mark_map;
+
+	mark_map = qos_mark_map_find(map_name);
+	if (!mark_map) {
+		DP_DEBUG(QOS, DEBUG, DATAPLANE,
+			 "failed to find mark-map %s during delete\n",
+			 map_name);
+		return -ENOENT;
+	}
+	cds_list_del_rcu(&mark_map->list);
+	call_rcu(&mark_map->obj_rcu, qos_mark_map_delete_rcu);
+	return 0;
+}
+
 static int qos_mark_map_store(char *map_name, enum egress_map_type type,
-			      uint64_t dscp_set, uint8_t designation,
+			      uint64_t dscp_set, char *grp_name,
+			      uint8_t designation,
 			      enum fal_packet_colour color,
 			      uint8_t remark_value)
 {
@@ -1496,6 +1546,7 @@ static int qos_mark_map_store(char *map_name, enum egress_map_type type,
 		cds_list_add_tail_rcu(&mark_map->list,
 				      &qos_mark_map_list_head);
 		mark_map->type = type;
+		SLIST_INIT(&mark_map->dscp_grps);
 	} else if (mark_map->type != type) {
 		DP_DEBUG(QOS, ERR, DATAPLANE,
 			 "Invalid mark-map type, types must be the same\n");
@@ -1507,6 +1558,17 @@ static int qos_mark_map_store(char *map_name, enum egress_map_type type,
 			if (dscp_set & (1ul << dscp))
 				mark_map->pcp_value[dscp] = remark_value;
 		}
+		struct dscp_grp_list *dscp_grp;
+		dscp_grp = calloc(1, sizeof(*dscp_grp) + strlen(grp_name) + 1);
+		if (!dscp_grp) {
+			DP_DEBUG(QOS, ERR, DATAPLANE,
+				 "Failed to allocate mark-map\n");
+			qos_mark_map_delete(mark_map->map_name);
+			return -ENOMEM;
+		}
+		strcpy(dscp_grp->name, grp_name);
+		dscp_grp->pcp_val = remark_value;
+		SLIST_INSERT_HEAD(&mark_map->dscp_grps, dscp_grp, list);
 	} else {
 		int index = designation * FAL_NUM_PACKET_COLOURS + color;
 		struct qos_mark_map_entry *entry =
@@ -1516,33 +1578,6 @@ static int qos_mark_map_store(char *map_name, enum egress_map_type type,
 		entry->color = color;
 		entry->pcp_value = remark_value;
 	}
-	return 0;
-}
-
-static void qos_mark_map_delete_rcu(struct rcu_head *head)
-{
-	struct qos_mark_map *mark_map =
-		caa_container_of(head, struct qos_mark_map, obj_rcu);
-
-	if (mark_map->mark_obj)
-		qos_hw_del_map(mark_map->mark_obj);
-
-	free(mark_map);
-}
-
-static int qos_mark_map_delete(char *map_name)
-{
-	struct qos_mark_map *mark_map;
-
-	mark_map = qos_mark_map_find(map_name);
-	if (!mark_map) {
-		DP_DEBUG(QOS, DEBUG, DATAPLANE,
-			 "failed to find mark-map %s during delete\n",
-			 map_name);
-		return -ENOENT;
-	}
-	cds_list_del_rcu(&mark_map->list);
-	call_rcu(&mark_map->obj_rcu, qos_mark_map_delete_rcu);
 	return 0;
 }
 
@@ -3429,7 +3464,7 @@ static int cmd_qos_enable(struct ifnet *ifp,
 static int cmd_qos_mark_map(int argc, char **argv)
 {
 	char *map_name;
-	char *dscp_group_name;
+	char *dscp_group_name = NULL;
 	int err;
 	uint32_t pcp_value;
 	uint64_t dscp_set;
@@ -3536,7 +3571,7 @@ static int cmd_qos_mark_map(int argc, char **argv)
 			 "invalid mark-map pcp value %u\n", pcp_value);
 		return -EINVAL;
 	}
-	return qos_mark_map_store(map_name, type, dscp_set,
+	return qos_mark_map_store(map_name, type, dscp_set, dscp_group_name,
 				  (uint8_t)designation, color,
 				  (uint8_t)pcp_value);
 }

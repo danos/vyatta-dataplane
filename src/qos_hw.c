@@ -17,6 +17,7 @@
 #include "netinet6/ip6_funcs.h"
 #include "npf/config/npf_config.h"
 #include "npf_shim.h"
+#include "npf/npf_rule_gen.h"
 #include "vplane_debug.h"
 #include "vplane_log.h"
 #include "ether.h"
@@ -2611,7 +2612,7 @@ int qos_hw_start(struct ifnet *ifp, struct sched_info *qinfo, uint64_t bps,
 		 uint16_t max_pkt_len)
 {
 	unsigned int subport;
-	int ret;
+	int ret, i;
 	static uint32_t max_burst_size = 0;
 	struct fal_attribute_t max_burst_attr = {
 			FAL_SWITCH_ATTR_MAX_BURST_SIZE};
@@ -2637,6 +2638,46 @@ int qos_hw_start(struct ifnet *ifp, struct sched_info *qinfo, uint64_t bps,
 		qos_sched_subport_params_check(params, &sinfo->subport_rate,
 				sinfo->sp_tc_rates.tc_rate, max_pkt_len,
 				max_burst_size, bps, qinfo);
+
+		/*
+		 * If it's been a resource group change and we have a
+		 * mark-map check whether it uses dscp-groups and recalculate
+		 * the masks before resetting the port.
+		 */
+		if (qinfo->reset_port == QOS_NPF_COMMIT && sinfo->mark_map) {
+			struct qos_mark_map *mark_map = sinfo->mark_map;
+
+			if (SLIST_EMPTY(&mark_map->dscp_grps))
+				continue;
+
+			/* Clear previous config */
+			for (i = 0; i < MAX_DSCP; i++)
+				mark_map->pcp_value[i] = 0;
+
+			if (!SLIST_EMPTY(&mark_map->dscp_grps) &&
+			    mark_map->mark_obj) {
+				qos_hw_del_map(mark_map->mark_obj);
+				mark_map->mark_obj = FAL_QOS_NULL_OBJECT_ID;
+			}
+			struct dscp_grp_list *dscp_grp;
+			SLIST_FOREACH(dscp_grp, &mark_map->dscp_grps, list) {
+				uint64_t dscp_set = 0;
+				uint8_t dscp;
+
+				if (npf_dscp_group_getmask(dscp_grp->name,
+							   &dscp_set)) {
+					DP_DEBUG(QOS, ERR, DATAPLANE,
+					   "Failed to retrieve dscp-group %s\n",
+					   dscp_grp->name);
+					break;
+				}
+				for (dscp = 0; dscp < MAX_DSCP; dscp++) {
+					if (dscp_set & (1ul << dscp))
+						mark_map->pcp_value[dscp] =
+							dscp_grp->pcp_val;
+				}
+			}
+		}
 
 		/* Update NPF rules */
 		npf_cfg_commit_all();
