@@ -2975,6 +2975,21 @@ int set_crypto_engines(const char *str, bool *sticky)
 	*sticky = crypto_sticky;
 	return bitmask_numset(&crypto_cpus);
 }
+
+int next_available_crypto_lcore(void)
+{
+	int lcore;
+
+	lcore = next_available_lcore(SOCKET_ID_ANY, &crypto_cpus, true);
+
+	if (lcore < 0) {
+		RTE_LOG(ERR, DATAPLANE, "no crypto thread found\n");
+		return -1;
+	}
+
+	return lcore;
+}
+
 /*
  * Assign one forwarding thread to have crypto processing role
  */

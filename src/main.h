@@ -181,4 +181,6 @@ extern bool single_cpu;
 
 extern uint16_t nb_ports_total;
 
+int next_available_crypto_lcore(void);
+
 #endif /* MAIN_H */
