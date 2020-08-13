@@ -1,3 +1,27 @@
+vyatta-dataplane (3.11.8) unstable; urgency=medium
+
+  [ Robert Shearman ]
+  * fal_plugin: add object model for MPLS
+  * fal_plugin: add FAL object for VRFs
+  * fal_plugin: add attributes for MPLS TTL mode (Closes: VRVDR-52435)
+  * fal: add next hop label attributes
+  * nh_common: add FAL programming helpers
+  * route: make use of FAL nh_common helpers
+  * route_v6: make use of FAL nh_common helpers
+  * mpls: signal FAL create/update/delete of MPLS routes
+  * fal: signal use of next hop groups
+  * fal: translate IPv6 nexthops with IPv4 mapped addresses to IPv4 nexthop
+  * tests: test IPv6 labeled routes via attached IPv4 nexthops
+  * vrf: create and use FAL VRF object
+  * fal: support MPLS deagg routes
+  * mpls: add support for dumping one MPLS route
+  * mpls: add support for signalling change to TTL mode to FAL
+    (Closes: VRVDR-52436)
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Thu, 13 Aug 2020 15:09:49 +0100
+
 vyatta-dataplane (3.11.7) unstable; urgency=medium
 
   [ Robert Shearman ]
