@@ -183,10 +183,10 @@ int fal_plugin_qos_new_map(fal_object_t switch_id,
 		break;
 
 	case FAL_QOS_MAP_TYPE_DESIGNATOR_TO_DOT1P:
-		if (map_list->count != FAL_QOS_MAP_DESIGNATION_VALUES) {
+		if (map_list->count != FAL_QOS_MAP_DES_DP_VALUES) {
 			ERROR("%s: map-type (%u), expected %d values, got %d\n",
 			      __func__, map_type,
-			      FAL_QOS_MAP_DESIGNATION_VALUES,
+			      FAL_QOS_MAP_DES_DP_VALUES,
 			      map_list->count);
 			return -EINVAL;
 		}

@@ -2161,7 +2161,7 @@ qos_hw_create_egress_map(struct qos_obj_db_obj *db_obj,
 			 struct qos_mark_map *mark_map)
 {
 	struct fal_qos_map_list_t map_list;
-	uint32_t dscp, des;
+	uint32_t dscp, entry;
 	enum fal_qos_map_type_t map_type;
 
 	if (mark_map->type == EGRESS_DSCP) {
@@ -2173,13 +2173,15 @@ qos_hw_create_egress_map(struct qos_obj_db_obj *db_obj,
 		map_list.count = FAL_QOS_MAP_DSCP_VALUES;
 		map_type = FAL_QOS_MAP_TYPE_DSCP_TO_DOT1P;
 	} else {
-		map_list.des_used = mark_map->des_used;
-		map_list.count = FAL_QOS_MAP_DESIGNATION_VALUES;
+		map_list.count = FAL_QOS_MAP_DES_DP_VALUES;
 		map_type = FAL_QOS_MAP_TYPE_DESIGNATOR_TO_DOT1P;
-		for (des = 0; des < FAL_QOS_MAP_DESIGNATION_VALUES; des++) {
-			map_list.list[des].key.des = des;
-			map_list.list[des].value.dot1p =
-					mark_map->pcp_value[des];
+		for (entry = 0; entry < FAL_QOS_MAP_DES_DP_VALUES; entry++) {
+			map_list.list[entry].key.des =
+				entry/FAL_NUM_PACKET_COLOURS;
+			map_list.list[entry].key.color =
+				entry%FAL_NUM_PACKET_COLOURS;
+			map_list.list[entry].value.dot1p =
+				mark_map->entries[entry].pcp_value;
 		}
 	}
 

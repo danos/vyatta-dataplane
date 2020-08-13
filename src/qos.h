@@ -96,12 +96,21 @@ enum egress_map_type {
 	EGRESS_DESIGNATION_PCP = 4
 };
 
+struct qos_mark_map_entry {
+	uint8_t des;
+	enum fal_packet_colour color;
+	uint8_t pcp_value;
+};
+
 struct qos_mark_map {
 	struct rcu_head obj_rcu;
 	struct cds_list_head list;
 	enum egress_map_type type;
 	uint8_t des_used;
-	uint8_t pcp_value[MAX_DSCP];
+	union {
+		struct qos_mark_map_entry entries[FAL_QOS_MAP_DES_DP_VALUES];
+		uint8_t pcp_value[MAX_DSCP];
+	};
 	fal_object_t mark_obj;
 	char map_name[0];
 };

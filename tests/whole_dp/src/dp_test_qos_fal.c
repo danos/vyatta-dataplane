@@ -1417,14 +1417,28 @@ DP_START_TEST(qos_fal_basic, fal_egress_map)
 /*
  * fal_egress_map_cmds and fal_egress_map_qos_cmds2 created from:
  *
- *   set policy qos mark-map des-mark designation 0 pcp-mark 7
- *   set policy qos mark-map des-mark designation 1 pcp-mark 6
- *   set policy qos mark-map des-mark designation 2 pcp-mark 5
- *   set policy qos mark-map des-mark designation 3 pcp-mark 4
- *   set policy qos mark-map des-mark designation 4 pcp-mark 3
- *   set policy qos mark-map des-mark designation 5 pcp-mark 2
- *   set policy qos mark-map des-mark designation 6 pcp-mark 1
- *   set policy qos mark-map des-mark designation 7 pcp-mark 0
+ *   set policy qos mark-map des-mark designation 0 drop-precedence green
+ *       pcp-mark 7
+ *   set policy qos mark-map des-mark designation 0 drop-precedence yellow
+ *       pcp-mark 7
+ *   set policy qos mark-map des-mark designation 0 drop-precedence red
+ *       pcp-mark 7
+ *   set policy qos mark-map des-mark designation 1 drop-precedence green
+ *       pcp-mark  6
+ *   set policy qos mark-map des-mark designation 2 drop-precedence green
+ *       pcp-mark  5
+ *   set policy qos mark-map des-mark designation 3 drop-precedence green
+ *       pcp-mark  4
+ *   set policy qos mark-map des-mark designation 4 drop-precedence green
+ *       pcp-mark  3
+ *   set policy qos mark-map des-mark designation 5 drop-precedence green
+ *       pcp-mark 2
+ *   set policy qos mark-map des-mark designation 5 drop-precedence yellow
+ *       pcp-mark 2
+ *   set policy qos mark-map des-mark designation 6 drop-precedence green
+ *       pcp-mark 1
+ *   set policy qos mark-map des-mark designation 7 drop-precedence green
+ *       pcp-mark 0
  *
  *   set policy qos name trunk-policy shaper default profile-1
  *   set policy qos name trunk-policy shaper profile profile-1 bandwidth 100Mbit
@@ -1437,14 +1451,17 @@ DP_START_TEST(qos_fal_basic, fal_egress_map)
  */
 
 const char *fal_egress_map_qos_glb_cmds2[] = {
-	"qos global-object-cmd mark-map des-mark designation 0 pcp 7",
-	"qos global-object-cmd mark-map des-mark designation 1 pcp 6",
-	"qos global-object-cmd mark-map des-mark designation 2 pcp 5",
-	"qos global-object-cmd mark-map des-mark designation 3 pcp 4",
-	"qos global-object-cmd mark-map des-mark designation 4 pcp 3",
-	"qos global-object-cmd mark-map des-mark designation 5 pcp 2",
-	"qos global-object-cmd mark-map des-mark designation 6 pcp 1",
-	"qos global-object-cmd mark-map des-mark designation 7 pcp 0",
+	"qos global-object-cmd mark-map des-mark designation 0 drop-prec green pcp 7",
+	"qos global-object-cmd mark-map des-mark designation 0 drop-prec yellow pcp 7",
+	"qos global-object-cmd mark-map des-mark designation 0 drop-prec red pcp 7",
+	"qos global-object-cmd mark-map des-mark designation 1 drop-prec green pcp 6",
+	"qos global-object-cmd mark-map des-mark designation 2 drop-prec green pcp 5",
+	"qos global-object-cmd mark-map des-mark designation 3 drop-prec green pcp 4",
+	"qos global-object-cmd mark-map des-mark designation 4 drop-prec green pcp 3",
+	"qos global-object-cmd mark-map des-mark designation 5 drop-prec green pcp 2",
+	"qos global-object-cmd mark-map des-mark designation 5 drop-prec yellow pcp 2",
+	"qos global-object-cmd mark-map des-mark designation 6 drop-prec green pcp 1",
+	"qos global-object-cmd mark-map des-mark designation 7 drop-prec green pcp 0",
 };
 
 const char *fal_egress_map_qos_glb_delete_cmds2[] = {
@@ -1482,7 +1499,15 @@ const char *fal_egress_map_qos_int_cmds2[] = {
 };
 
 int8_t fal_egress_map_expected_pcp_values2[] = {
-	7, 6, 5, 4, 3, 2, 1, 0,   /* designation 0-7 */
+						/* designation 0-7  x dp 0-2*/
+						7, 7, 7,
+						6, 0, 0,
+						5, 0, 0,
+						4, 0, 0,
+						3, 0, 0,
+						2, 2, 0,
+						1, 0, 0,
+						0, 0, 0,
 };
 
 DP_START_TEST(qos_fal_basic, fal_egress_map2)
@@ -1546,14 +1571,12 @@ DP_START_TEST(qos_fal_basic, fal_egress_map2)
 /*
  * fal_egress_map_cmds and fal_egress_map_qos_cmds2 created from:
  *
- *   set policy qos mark-map des-mark designation 0 pcp-mark 7
- *   set policy qos mark-map des-mark designation 1 pcp-mark 6
- *   set policy qos mark-map des-mark designation 2 pcp-mark 5
- *   set policy qos mark-map des-mark designation 3 pcp-mark 4
- *   set policy qos mark-map des-mark designation 4 pcp-mark 3
- *   set policy qos mark-map des-mark designation 5 pcp-mark 2
- *   set policy qos mark-map des-mark designation 6 pcp-mark 1
- *   set policy qos mark-map des-mark designation 7 pcp-mark 0
+ *   set policy qos mark-map des-mark designation 0 drop-precedence green
+ *       pcp-mark 2
+ *   set policy qos mark-map des-mark designation 3 drop-precedence yellow
+ *       pcp-mark 4
+ *   set policy qos mark-map des-mark designation 6 drop-precedence red
+ *       pcp-mark 7
  *
  *   set policy qos name trunk-policy shaper default profile-1
  *   set policy qos name trunk-policy shaper profile profile-1 bandwidth 100Mbit
@@ -1566,13 +1589,26 @@ DP_START_TEST(qos_fal_basic, fal_egress_map2)
  */
 
 const char *fal_egress_map_qos_glb_cmds3[] = {
-	"qos global-object-cmd mark-map des-mark designation 0 pcp 2",
-	"qos global-object-cmd mark-map des-mark designation 3 pcp 4",
-	"qos global-object-cmd mark-map des-mark designation 6 pcp 7",
+	"qos global-object-cmd mark-map des-mark designation 0 drop-prec green pcp 2",
+	"qos global-object-cmd mark-map des-mark designation 3 drop-prec yellow pcp 4",
+	"qos global-object-cmd mark-map des-mark designation 6 drop-prec red pcp 7",
 };
 
 int8_t fal_egress_map_expected_pcp_values3[] = {
-	2, 0, 0, 4, 0, 0, 7, 0  /* designation 0, 3, 6 */
+						/*
+						 * des/dp
+						 * 0/green,
+						 * 3/yellow,
+						 * 6/red
+						 */
+						2, 0, 0,
+						0, 0, 0,
+						0, 0, 0,
+						0, 4, 0,
+						0, 0, 0,
+						0, 0, 0,
+						0, 0, 7,
+						0, 0, 0,
 };
 
 DP_START_TEST(qos_fal_basic, fal_egress_map3)
