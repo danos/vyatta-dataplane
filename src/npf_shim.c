@@ -442,9 +442,8 @@ done:
 				pktmbuf_mdata_set(*m, PKT_MDATA_SESSION);
 
 				/* Save session stats. */
-				if (decision == NPF_DECISION_PASS)
-					npf_save_stats(se, dir,
-						       rte_pktmbuf_pkt_len(*m));
+				npf_save_stats(se, dir,
+					       rte_pktmbuf_pkt_len(*m));
 			} else {
 				if (rc != -NPF_RC_ENOSTR)
 					decision = NPF_DECISION_BLOCK;

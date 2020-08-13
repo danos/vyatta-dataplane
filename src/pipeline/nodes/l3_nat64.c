@@ -144,9 +144,8 @@ nat64_in_process_common(struct pl_packet *pkt, struct npf_if *nif, bool v4,
 				pktmbuf_mdata_set(m, PKT_MDATA_SESSION);
 
 				/* Save session stats. */
-				if (decision == NAT64_DECISION_PASS)
-					npf_save_stats(se, PFIL_IN,
-						       rte_pktmbuf_pkt_len(m));
+				npf_save_stats(se, PFIL_IN,
+					       rte_pktmbuf_pkt_len(m));
 			} else {
 				if (rc != -NPF_RC_ENOSTR)
 					decision = NAT64_DECISION_DROP;
@@ -244,9 +243,8 @@ nat64_out_process_common(struct pl_packet *pkt, bool v4, uint16_t eth_type)
 				pktmbuf_mdata_set(m, PKT_MDATA_SESSION);
 
 				/* Save session stats. */
-				if (decision == NAT64_DECISION_PASS)
-					npf_save_stats(se, PFIL_OUT,
-						       rte_pktmbuf_pkt_len(m));
+				npf_save_stats(se, PFIL_OUT,
+					       rte_pktmbuf_pkt_len(m));
 			} else {
 				if (rc != -NPF_RC_ENOSTR)
 					decision = NAT64_DECISION_DROP;
