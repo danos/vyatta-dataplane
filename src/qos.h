@@ -101,6 +101,12 @@ struct qos_mark_map_entry {
 	uint8_t pcp_value;
 };
 
+struct dscp_grp_list {
+	SLIST_ENTRY(dscp_grp_list) list;
+	uint8_t pcp_val;
+	char name[0];
+};
+
 struct qos_mark_map {
 	struct rcu_head obj_rcu;
 	struct cds_list_head list;
@@ -110,6 +116,7 @@ struct qos_mark_map {
 		uint8_t pcp_value[MAX_DSCP];
 	};
 	fal_object_t mark_obj;
+	SLIST_HEAD(dscp_grps, dscp_grp_list) dscp_grps;
 	char map_name[0];
 };
 
