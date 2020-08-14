@@ -330,6 +330,7 @@ struct qos_dev {
 				     uint32_t pipe, uint32_t tc, uint32_t q,
 				     uint64_t *random_dscp_drop,
 				     json_writer_t *wr);
+	uint32_t (*qos_check_rate)(uint32_t rate, uint32_t parent_bw);
 };
 
 extern struct qos_dev qos_devices[];
@@ -354,6 +355,7 @@ fal_object_t qos_global_map_obj;
 #define	QOS_ENABLE(qinfo)	qos_devices[qinfo->dev_id].qos_enable
 #define QOS_DSCP_RESGRP_JSON(qinfo) \
 			qos_devices[qinfo->dev_id].qos_dscp_resgrp_json
+#define QOS_CHECK_RATE(qinfo) qos_devices[qinfo->dev_id].qos_check_rate
 #define QOS_CONFIGURED(qinfo) \
 	(qinfo->dev_info.dpdk.port || qinfo->dev_info.fal.hw_port_id)
 
@@ -434,7 +436,8 @@ void qos_sched_subport_params_check(struct qos_shaper_conf *params,
 				struct qos_rate_info *config_rate,
 				struct qos_rate_info *config_tc_rate,
 				uint16_t max_pkt_len, uint32_t max_burst_size,
-				uint32_t bps);
+				uint32_t bps,
+				struct sched_info *qinfo);
 
 
 static inline void qos_sched_pipe_check(struct sched_info *qinfo,
@@ -483,7 +486,7 @@ static inline void qos_sched_pipe_check(struct sched_info *qinfo,
 			&p->shaper,
 			&qinfo->profile_rates[profile],
 			qinfo->profile_tc_rates[profile].tc_rate,
-			max_pkt_len, max_burst_size, parent_rate);
+			max_pkt_len, max_burst_size, parent_rate, qinfo);
 	}
 }
 
@@ -595,6 +598,7 @@ int qos_dpdk_enable(struct ifnet *ifp,
 int qos_dpdk_stop(__unused struct ifnet *ifp, struct sched_info *qinfo);
 int qos_dpdk_start(struct ifnet *ifp, struct sched_info *qinfo,
 		   uint64_t bps, uint16_t max_pkt_len);
+uint32_t qos_dpdk_check_rate(uint32_t rate, uint32_t parent_bw);
 
 /* The HW forwarding plugin functions */
 fal_object_t
@@ -628,6 +632,7 @@ int qos_hw_stop(__unused struct ifnet *ifp,
 		__unused struct sched_info *qinfo);
 int qos_hw_start(__unused struct ifnet *ifp, struct sched_info *qinfo,
 		 uint64_t bps, uint16_t max_pkt_len);
+uint32_t qos_hw_check_rate(uint32_t rate, uint32_t parent_bw);
 int qos_hw_init(void);
 void qos_hw_del_map(fal_object_t mark_obj);
 void qos_hw_show_legacy_map(struct queue_map *qmap, json_writer_t *wr);
