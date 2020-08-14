@@ -265,7 +265,8 @@ static uint32_t l4_summary[PMF_L4F__LEN] = {
  * string identical to the equivalent supplied field.
  */
 static int
-pkp_split_parts(char const *rule_line, struct pkp_unused **remaining)
+pkp_split_parts(char const *rule_line, struct pkp_unused **remaining,
+		char delimiter)
 {
 	if (!rule_line || !remaining)
 		return -EINVAL;
@@ -275,10 +276,10 @@ pkp_split_parts(char const *rule_line, struct pkp_unused **remaining)
 
 	/* Find number of space separated parts */
 	for (char const *p = rule_line; *p; ++p, ++slen) {
-		if (*p == ' ')
+		if (*p == delimiter)
 			continue;
 		++nparts;
-		while (p[1] && p[1] != ' ') {
+		while (p[1] && p[1] != delimiter) {
 			++slen; ++p;
 		}
 	}
@@ -302,10 +303,10 @@ pkp_split_parts(char const *rule_line, struct pkp_unused **remaining)
 	/* Split in to parts; space bounded */
 	nparts = 0;
 	for (char *p = new_rule; *p; ++p) {
-		if (*p == ' ')
+		if (*p == delimiter)
 			continue;
 		parts->pairs[nparts++].key = p;
-		while (p[1] && p[1] != ' ')
+		while (p[1] && p[1] != delimiter)
 			++p;
 		if (p[1]) {
 			p[1] = '\0';
@@ -1789,7 +1790,7 @@ pkp_parse_core_line(char const *rule_line, struct pmf_rule **prule,
 	/* Split the line in to a set of key/value fields */
 	struct pkp_unused *parts = NULL;
 
-	int rval = pkp_split_parts(rule_line, &parts);
+	int rval = pkp_split_parts(rule_line, &parts, ' ');
 	if (rval) {
 exit_error:
 		pmf_rule_free(rule);
