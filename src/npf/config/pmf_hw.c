@@ -13,6 +13,7 @@
 #include "util.h"
 #include "fal.h"
 #include "if_var.h"
+#include "netinet6/in6_var.h"
 #include "npf/config/pmf_att_rlgrp.h"
 #include "npf/config/pmf_rule.h"
 #include "npf/config/pmf_hw.h"
@@ -26,22 +27,6 @@
 static bool pmf_hw_commit_needed;
 
 /* ---- */
-
-static void
-pmf_hw_rule_gen_mask(uint8_t *mask, uint8_t plen, uint8_t blen)
-{
-	/* set bytes */
-	for (; blen && plen >= 8; --blen, plen -= 8)
-		*mask++ = 0xff;
-
-	/* mixed byte */
-	if (plen)
-		*mask++ = (0xff << (8 - plen));
-
-	/* clear bytes */
-	while (blen--)
-		*mask++ = 0;
-}
 
 bool
 pmf_hw_rule_add(struct pmf_attrl *earl, struct pmf_rule *rule)
@@ -161,21 +146,24 @@ pmf_hw_rule_add(struct pmf_attrl *earl, struct pmf_rule *rule)
 
 			struct pmf_attr_v6_prefix *v6pfx
 				= rule->pp_match.l3[PMF_L3F_SRC].pm_l3v6;
-			uint8_t blen = sizeof(v6pfx->pm_bytes);
-			uint8_t plen = v6pfx->pm_plen;
+			struct in6_addr mask;
 
-			memcpy(curfld->data.ip6, v6pfx->pm_bytes, blen);
-			pmf_hw_rule_gen_mask(curfld->mask.ip6, plen, blen);
+			static_assert(sizeof(v6pfx->pm_bytes) == 16,
+				      "unexpected size of IPv6 addr structure");
+			memcpy(curfld->data.ip6, v6pfx->pm_bytes, 16);
+			in6_prefixlen2mask(&mask, v6pfx->pm_plen);
+			memcpy(curfld->mask.ip6, mask.s6_addr, 16);
 		} else {
 			ent_attrs[nattr].id = FAL_ACL_ENTRY_ATTR_FIELD_SRC_IPV4;
 
 			struct pmf_attr_v4_prefix *v4pfx
 				= rule->pp_match.l3[PMF_L3F_SRC].pm_l3v4;
-			uint8_t blen = sizeof(v4pfx->pm_bytes);
-			uint8_t plen = v4pfx->pm_plen;
+			uint32_t mask = prefixlen_to_mask(v4pfx->pm_plen);
 
-			memcpy(curfld->data.ip4, v4pfx->pm_bytes, blen);
-			pmf_hw_rule_gen_mask(curfld->mask.ip4, plen, blen);
+			static_assert(sizeof(v4pfx->pm_bytes) == 4,
+				      "unexpected size of IPv4 addr structure");
+			memcpy(curfld->data.ip4, v4pfx->pm_bytes, 4);
+			memcpy(curfld->mask.ip4, (void *)&mask, 4);
 		}
 
 		++nattr;
@@ -191,21 +179,24 @@ pmf_hw_rule_add(struct pmf_attrl *earl, struct pmf_rule *rule)
 
 			struct pmf_attr_v6_prefix *v6pfx
 				= rule->pp_match.l3[PMF_L3F_DST].pm_l3v6;
-			uint8_t blen = sizeof(v6pfx->pm_bytes);
-			uint8_t plen = v6pfx->pm_plen;
+			struct in6_addr mask;
 
-			memcpy(curfld->data.ip6, v6pfx->pm_bytes, blen);
-			pmf_hw_rule_gen_mask(curfld->mask.ip6, plen, blen);
+			static_assert(sizeof(v6pfx->pm_bytes) == 16,
+				      "unexpected size of IPv6 addr structure");
+			memcpy(curfld->data.ip6, v6pfx->pm_bytes, 16);
+			in6_prefixlen2mask(&mask, v6pfx->pm_plen);
+			memcpy(curfld->mask.ip6, mask.s6_addr, 16);
 		} else {
 			ent_attrs[nattr].id = FAL_ACL_ENTRY_ATTR_FIELD_DST_IPV4;
 
 			struct pmf_attr_v4_prefix *v4pfx
 				= rule->pp_match.l3[PMF_L3F_DST].pm_l3v4;
-			uint8_t blen = sizeof(v4pfx->pm_bytes);
-			uint8_t plen = v4pfx->pm_plen;
+			uint32_t mask = prefixlen_to_mask(v4pfx->pm_plen);
 
-			memcpy(curfld->data.ip4, v4pfx->pm_bytes, blen);
-			pmf_hw_rule_gen_mask(curfld->mask.ip4, plen, blen);
+			static_assert(sizeof(v4pfx->pm_bytes) == 4,
+				      "unexpected size of IPv4 addr structure");
+			memcpy(curfld->data.ip4, v4pfx->pm_bytes, 4);
+			memcpy(curfld->mask.ip4, (void *)&mask, 4);
 		}
 
 		++nattr;
