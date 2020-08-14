@@ -315,9 +315,7 @@ static int null_hmac_set_icv(struct crypto_visitor_ctx *ctx __rte_unused,
 }
 
 static int
-openssl_null_hmac_set_auth_key(struct crypto_session *ctx __rte_unused,
-			       unsigned int length __rte_unused,
-			       const char key[] __rte_unused)
+openssl_null_hmac_set_auth_key(struct crypto_session *ctx __rte_unused)
 {
 	return 0;
 }
@@ -618,26 +616,24 @@ int crypto_chain_init(struct crypto_chain *chain,
 	return 0;
 }
 
-int crypto_session_set_enc_key(struct crypto_session *session,
-			       unsigned int length, const char key[])
+int crypto_session_set_enc_key(struct crypto_session *session)
 {
 	if (!session->s_ops->set_enc_key) {
 		ENGINE_DEBUG("Function not supported: set_enc_key()\n");
 		return -ENOTSUP;
 	}
 
-	return session->s_ops->set_enc_key(session, length, key);
+	return session->s_ops->set_enc_key(session);
 }
 
-int crypto_session_set_auth_key(struct crypto_session *session,
-				unsigned int length, const char key[])
+int crypto_session_set_auth_key(struct crypto_session *session)
 {
 	if (!session->s_ops->set_auth_key) {
 		ENGINE_DEBUG("Function not supported: set_auth_key()\n");
 		return -ENOTSUP;
 	}
 
-	return session->s_ops->set_auth_key(session, length, key);
+	return session->s_ops->set_auth_key(session);
 }
 
 int crypto_session_generate_iv(struct crypto_session *session,
@@ -779,9 +775,7 @@ int openssl_session_cipher_init(struct crypto_session *s)
 	return 0;
 }
 
-static int openssl_session_set_enc_key(struct crypto_session *ctx,
-				       unsigned int length,
-				       const char key[])
+static int openssl_session_set_enc_key(struct crypto_session *ctx)
 {
 	if ((ctx->direction != -1) &&
 	    openssl_session_cipher_init(ctx))
@@ -790,15 +784,8 @@ static int openssl_session_set_enc_key(struct crypto_session *ctx,
 	return 0;
 }
 
-static int openssl_session_set_auth_key(struct crypto_session *ctx,
-					unsigned int length,
-					const char key[])
+static int openssl_session_set_auth_key(struct crypto_session *ctx)
 {
-	if (length > ARRAY_SIZE(ctx->auth_alg_key)) {
-		ENGINE_ERR("Unexpect integrity key len: %d\n", length);
-		return -1;
-	}
-
 	ctx->hmac_ctx = HMAC_CTX_new();
 	if (!ctx->hmac_ctx) {
 		ENGINE_ERR_print_errors();
@@ -856,9 +843,7 @@ const struct crypto_session_operations null_hmac_openssl_sops = {
 	.set_iv = openssl_session_set_iv,
 };
 
-static int rfc4106_session_set_enc_key(struct crypto_session *ctx,
-				       unsigned int length,
-				       const char key[])
+static int rfc4106_session_set_enc_key(struct crypto_session *ctx)
 {
 	ctx->iv_len = 8;
 
@@ -869,9 +854,7 @@ static int rfc4106_session_set_enc_key(struct crypto_session *ctx,
 	return 0;
 }
 
-static int rfc4106_session_set_auth_key(struct crypto_session *ctx __unused,
-					unsigned int length __unused,
-					const char key[] __unused)
+static int rfc4106_session_set_auth_key(struct crypto_session *ctx __unused)
 {
 	return 0;
 }
@@ -996,20 +979,14 @@ int cipher_setup_ctx(const struct xfrm_algo *algo_crypt,
 		return -1;
 
 	if (algo_crypt) {
-		ret = crypto_session_set_enc_key(
-			sa->session,
-			algo_crypt->alg_key_len >> 3,
-			algo_crypt->alg_key);
+		ret = crypto_session_set_enc_key(sa->session);
 		if (ret) {
 			ENGINE_ERR("Failed to set session encryption key\n");
 			return ret;
 		}
 	}
 	if (algo_auth) {
-		ret = crypto_session_set_auth_key(
-			sa->session,
-			algo_auth->alg_key_len >> 3,
-			algo_auth->alg_key);
+		ret = crypto_session_set_auth_key(sa->session);
 		if (ret) {
 			ENGINE_ERR("Failed to set session integrity key\n");
 			return ret;

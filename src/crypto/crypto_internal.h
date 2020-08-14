@@ -223,10 +223,8 @@ struct crypto_chain_elem;
 struct crypto_session_operations {
 	const struct crypto_visitor_operations *decrypt_vops;
 	const struct crypto_visitor_operations *encrypt_vops;
-	int (*set_enc_key)(struct crypto_session *session,
-			   unsigned int length, const char key[]);
-	int (*set_auth_key)(struct crypto_session *session,
-			    unsigned int length, const char key[]);
+	int (*set_enc_key)(struct crypto_session *session);
+	int (*set_auth_key)(struct crypto_session *session);
 	int (*generate_iv)(struct crypto_session *session, char iv[]);
 	int (*set_iv)(struct crypto_session *session,
 		      unsigned int length, const char iv[]);
@@ -291,11 +289,8 @@ crypto_session_digest_len(const struct crypto_session *ctx)
 	return ctx->digest_len;
 }
 
-int crypto_session_set_enc_key(struct crypto_session *session,
-			       unsigned int length, const char key[]);
-int crypto_session_set_auth_key(struct crypto_session *session,
-				unsigned int length,
-				const char key[]);
+int crypto_session_set_enc_key(struct crypto_session *session);
+int crypto_session_set_auth_key(struct crypto_session *session);
 int crypto_session_generate_iv(struct crypto_session *session,
 			       char iv[]);
 int crypto_session_set_iv(struct crypto_session *session, unsigned int length,
