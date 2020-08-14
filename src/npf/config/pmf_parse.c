@@ -254,6 +254,113 @@ static uint32_t l4_summary[PMF_L4F__LEN] = {
 	[PMF_L4F_ICMP_VALS] = PMF_RMS_L4_ICMP_TYPE,
 };
 
+/* Auxiliary functions: */
+
+/*
+ * Create and return an initial 'struct pmf_unused' based upon a single
+ * string of space separated fields, the caller is eventually expect to
+ * free() the returned struct.
+ * It has 'num_pairs' and 'num_unused' set to number of fields, each
+ * 'pair' within has only its 'key' field set; that to a new (writeable)
+ * string identical to the equivalent supplied field.
+ */
+static int
+pkp_split_parts(char const *rule_line, struct pkp_unused **remaining)
+{
+	if (!rule_line || !remaining)
+		return -EINVAL;
+
+	unsigned int slen = 0;
+	unsigned int nparts = 0;
+
+	/* Find number of space separated parts */
+	for (char const *p = rule_line; *p; ++p, ++slen) {
+		if (*p == ' ')
+			continue;
+		++nparts;
+		while (p[1] && p[1] != ' ') {
+			++slen; ++p;
+		}
+	}
+
+	/* Allocate the part storage */
+	struct pkp_unused *parts =
+		calloc(1, 1 + slen +
+			sizeof(*parts) + nparts * sizeof(parts->pairs[0]));
+	if (!parts) {
+		RTE_LOG(ERR, FIREWALL,
+			"Error: parsed rule parts alloc failed\n");
+		return -ENOMEM;
+	}
+
+	/* Copy the data */
+	char * const new_rule = (char *)&parts->pairs[nparts];
+	parts->num_pairs = nparts;
+	parts->num_unused = nparts;
+	memcpy(new_rule, rule_line, slen + 1);
+
+	/* Split in to parts; space bounded */
+	nparts = 0;
+	for (char *p = new_rule; *p; ++p) {
+		if (*p == ' ')
+			continue;
+		parts->pairs[nparts++].key = p;
+		while (p[1] && p[1] != ' ')
+			++p;
+		if (p[1]) {
+			p[1] = '\0';
+			++p;
+		}
+	}
+
+	*remaining = parts;
+
+	return 0;
+}
+
+/*
+ * Split the array of parts in to their key/value pairs.
+ *
+ * Each part is passed in as a 'key=value' string pointed to by the
+ * 'key' field in its pair struct. Both 'num_pairs' and 'num_unused'
+ * should be initialised to the number of elements in the 'pairs' field.
+ *
+ * On exit the 'key' field now points to the key alone (the '=' being
+ * replaced with a '\0'), and the 'value' field points to the value alone.
+ *
+ * We verify that both 'key' and 'value' are not zero length.
+ */
+static int
+pkp_split_pairs(struct pkp_unused *parts)
+{
+	/* Split the parts in to key/value; equals bounded */
+	for (unsigned int nparts = 0; nparts < parts->num_pairs; ++nparts) {
+		char *p = parts->pairs[nparts].key;
+		while (*p && *p != '=')
+			++p;
+		if (*p) {
+			*p++ = '\0';
+			parts->pairs[nparts].value = p;
+		} else {
+			parts->pairs[nparts].value = (char *)empty_str;
+		}
+	}
+
+	/* Sanity check that we had a set of "key=value" entries */
+	for (unsigned int nparts = 0; nparts < parts->num_pairs; ++nparts) {
+		char const *key = parts->pairs[nparts].key;
+		char const *value = parts->pairs[nparts].value;
+
+		if (!key || !value || !*key || !*value) {
+			RTE_LOG(ERR, FIREWALL,
+				"Error: rule not in key=value form\n");
+			return -ENOTDIR;
+		}
+	}
+
+	return 0;
+}
+
 /* The parsers for match keys */
 
 static bool
@@ -1661,111 +1768,6 @@ pkp_parse_rule_pairs(struct pkp_unused *parts, struct pmf_rule *rule)
 			return -EINVAL;
 		}
 	}
-
-	return 0;
-}
-
-/*
- * Split the array of parts in to their key/value pairs.
- *
- * Each part is passed in as a 'key=value' string pointed to by the
- * 'key' field in its pair struct. Both 'num_pairs' and 'num_unused'
- * should be initialised to the number of elements in the 'pairs' field.
- *
- * On exit the 'key' field now points to the key alone (the '=' being
- * replaced with a '\0'), and the 'value' field points to the value alone.
- *
- * We verify that both 'key' and 'value' are not zero length.
- */
-static int
-pkp_split_pairs(struct pkp_unused *parts)
-{
-	/* Split the parts in to key/value; equals bounded */
-	for (unsigned int nparts = 0; nparts < parts->num_pairs; ++nparts) {
-		char *p = parts->pairs[nparts].key;
-		while (*p && *p != '=')
-			++p;
-		if (*p) {
-			*p++ = '\0';
-			parts->pairs[nparts].value = p;
-		} else {
-			parts->pairs[nparts].value = (char *)empty_str;
-		}
-	}
-
-	/* Sanity check that we had a set of "key=value" entries */
-	for (unsigned int nparts = 0; nparts < parts->num_pairs; ++nparts) {
-		char const *key = parts->pairs[nparts].key;
-		char const *value = parts->pairs[nparts].value;
-
-		if (!key || !value || !*key || !*value) {
-			RTE_LOG(ERR, FIREWALL,
-				"Error: rule not in key=value form\n");
-			return -ENOTDIR;
-		}
-	}
-
-	return 0;
-}
-
-/*
- * Create and return an initial 'struct pmf_unused' based upon a single
- * string of space separated fields, the caller is eventually expect to
- * free() the returned struct.
- * It has 'num_pairs' and 'num_unused' set to number of fields, each
- * 'pair' within has only its 'key' field set; that to a new (writeable)
- * string identical to the equivalent supplied field.
- */
-static int
-pkp_split_parts(char const *rule_line, struct pkp_unused **remaining)
-{
-	if (!rule_line || !remaining)
-		return -EINVAL;
-
-	unsigned int slen = 0;
-	unsigned int nparts = 0;
-
-	/* Find number of space separated parts */
-	for (char const *p = rule_line; *p; ++p, ++slen) {
-		if (*p == ' ')
-			continue;
-		++nparts;
-		while (p[1] && p[1] != ' ') {
-			++slen; ++p;
-		}
-	}
-
-	/* Allocate the part storage */
-	struct pkp_unused *parts =
-		calloc(1, 1 + slen +
-			sizeof(*parts) + nparts * sizeof(parts->pairs[0]));
-	if (!parts) {
-		RTE_LOG(ERR, FIREWALL,
-			"Error: parsed rule parts alloc failed\n");
-		return -ENOMEM;
-	}
-
-	/* Copy the data */
-	char * const new_rule = (char *)&parts->pairs[nparts];
-	parts->num_pairs = nparts;
-	parts->num_unused = nparts;
-	memcpy(new_rule, rule_line, slen + 1);
-
-	/* Split in to parts; space bounded */
-	nparts = 0;
-	for (char *p = new_rule; *p; ++p) {
-		if (*p == ' ')
-			continue;
-		parts->pairs[nparts++].key = p;
-		while (p[1] && p[1] != ' ')
-			++p;
-		if (p[1]) {
-			p[1] = '\0';
-			++p;
-		}
-	}
-
-	*remaining = parts;
 
 	return 0;
 }
