@@ -322,9 +322,9 @@ route_lpm6_delete(vrfid_t vrf_id, struct lpm6 *lpm,
 		struct next_hop *hops;
 		size_t size;
 
-		size = next_hop_list_get_fal_nhs(AF_INET6, *index, &hops);
+		size = next_hop_list_get_fal_nhs(AF_INET6, new_nh, &hops);
 		nhg_fal_obj = next_hop_list_get_fal_obj(
-			AF_INET6, *index, &nhl_pd_state);
+			AF_INET6, new_nh, &nhl_pd_state);
 
 		if (nhl_pd_state != PD_OBJ_STATE_FULL &&
 		    nhl_pd_state != PD_OBJ_STATE_NOT_NEEDED) {
