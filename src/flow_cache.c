@@ -349,6 +349,28 @@ err:
 	return -ENOMEM;
 }
 
+int
+flow_cache_teardown_lcore(struct flow_cache *flow_cache, unsigned int lcore)
+{
+	enum flow_cache_ftype af;
+	struct flow_cache_lcore *cache_lcore;
+
+	if (!flow_cache || !flow_cache->cache_lcore ||
+	    (lcore > get_lcore_max()))
+		return -EINVAL;
+
+	cache_lcore = &flow_cache->cache_lcore[lcore];
+	for (af = FLOW_CACHE_IPV4; af < FLOW_CACHE_MAX; af++) {
+		if (cache_lcore->cache_af[af].cache_tbl) {
+			flow_cache_empty_table(flow_cache, lcore, af);
+			cds_lfht_destroy(
+				cache_lcore->cache_af[af].cache_tbl, NULL);
+			cache_lcore->cache_af[af].cache_tbl = NULL;
+		}
+	}
+	return 0;
+}
+
 struct flow_cache *flow_cache_init(uint32_t max_size)
 {
 	struct flow_cache *cache;

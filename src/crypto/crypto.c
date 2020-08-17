@@ -1170,6 +1170,12 @@ static int dp_crypto_lcore_init(unsigned int lcore_id,
 	return 0;
 }
 
+static int dp_crypto_lcore_teardown(unsigned int lcore_id,
+				    void *arg __unused)
+{
+	return crypto_flow_cache_teardown_lcore(lcore_id);
+}
+
 static void init_context(struct rte_mempool *pool __unused,
 			 void *context __unused,
 			 void *obj,
@@ -1205,7 +1211,7 @@ static void crypto_incomplete_init(void)
 
 static struct dp_lcore_events crypto_lcore_events = {
 	.dp_lcore_events_init_fn = dp_crypto_lcore_init,
-	.dp_lcore_events_teardown_fn = NULL,
+	.dp_lcore_events_teardown_fn = dp_crypto_lcore_teardown,
 };
 
 

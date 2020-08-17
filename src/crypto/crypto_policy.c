@@ -369,6 +369,14 @@ int crypto_flow_cache_init_lcore(unsigned int lcore_id)
 	return err;
 }
 
+int crypto_flow_cache_teardown_lcore(unsigned int lcore_id)
+{
+	int err;
+
+	err = flow_cache_teardown_lcore(flow_cache, lcore_id);
+	return err;
+}
+
 int crypto_flow_cache_init(void)
 {
 	flow_cache = flow_cache_init(CRYPTO_FLOW_CACHE_MAX_COUNT);
