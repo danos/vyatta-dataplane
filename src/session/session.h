@@ -185,6 +185,9 @@ struct session {
 	uint64_t		se_etime;	/* Expiration timeout */
 	uint8_t			se_protocol_state; /* For display */
 	uint8_t			se_idle:1;
+
+	/* The following bit flags are used for op-mode commands */
+	uint8_t			se_fw:1;	/* firewall? */
 	uint8_t			se_snat:1;	/* snat? */
 	uint8_t			se_dnat:1;	/* dnat? */
 	uint8_t			se_nat64:1;	/* nat64? */
@@ -193,6 +196,7 @@ struct session {
 	uint8_t			se_in:1;	/* inbound? */
 	uint8_t			se_out:1;	/* outbound? */
 	uint8_t			se_app:1;	/* application (dpi)? */
+
 	uint8_t			se_log_creation:1;
 	uint8_t			se_log_deletion:1;
 	uint8_t			se_log_periodic:1;
@@ -239,6 +243,19 @@ struct session_counts {
 static inline void session_set_alg(struct session *s)
 {
 	s->se_alg = 1;
+}
+
+/**
+ * Mark a session as being a firewall session
+ *
+ * This state remains until the session is deleted.
+ *
+ * @param s
+ * The session
+ */
+static inline void session_set_fw(struct session *s)
+{
+	s->se_fw = 1;
 }
 
 /**
@@ -325,6 +342,16 @@ static inline void session_set_app(struct session *s)
 static inline bool session_is_alg(const struct session *s)
 {
 	return s->se_alg == 1;
+}
+
+/**
+ * Is this a firewall session
+ *
+ * @param s  The session
+ */
+static inline bool session_is_fw(const struct session *s)
+{
+	return s->se_fw == 1;
 }
 
 /**

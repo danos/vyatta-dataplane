@@ -373,6 +373,12 @@ void npf_session_add_fw_rule(npf_session_t *s, npf_rule_t *r)
 	}
 }
 
+bool npf_session_is_fw(npf_session_t *s)
+{
+	return s && (s->s_flags & SE_PASS) != 0;
+}
+
+
 /* Set the expire flag and contact ALG framework */
 static void sess_set_expired(npf_session_t *se)
 {

@@ -212,6 +212,9 @@ cmd_session_json(struct session *s, json_writer_t *json, bool add_feat,
 		jsonw_uint_field(json, "duration",
 				 (ts - s->se_create_time) / rte_get_timer_hz());
 
+	/* Bitmap of features enabled on this session */
+	jsonw_uint_field(json, "feature_type", sess_feature_type_bm(s));
+
 	/* Add feature json if desired */
 	if (add_feat) {
 		jsonw_int_field(json, "features_count",

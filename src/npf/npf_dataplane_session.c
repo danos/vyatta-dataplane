@@ -171,6 +171,9 @@ int npf_dataplane_session_establish(npf_session_t *se, npf_cache_t *npc,
 	else
 		session_set_in(s);
 
+	if (npf_session_is_fw(se))
+		session_set_fw(s);
+
 	/*
 	 * If this is an ALG secondary session, link,
 	 * and mark it as such.

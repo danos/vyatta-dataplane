@@ -60,9 +60,7 @@ static struct session_watch *session_watch_get(void)
 
 static bool check_session_type(struct session *session, unsigned int flags)
 {
-	if (dp_is_session_type(flags, FW) && !session_is_nat(session)
-	    && !session_is_nat64(session) && !session_is_nat46(session)
-	    && !session_is_alg(session))
+	if (dp_is_session_type(flags, FW) && session_is_fw(session))
 		return true;
 	if (dp_is_session_type(flags, NAT) && session_is_nat(session))
 		return true;

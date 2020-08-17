@@ -51,6 +51,7 @@ struct npf_pack_dp_session {
 	uint8_t		se_protocol;
 	uint8_t		se_protocol_state;
 	uint8_t		se_gen_state;
+	uint8_t		se_fw:1;
 	uint8_t		se_snat:1;
 	uint8_t		se_dnat:1;
 	uint8_t		se_nat64:1;

@@ -1845,6 +1845,7 @@ int session_npf_pack_pack(struct session *s, struct npf_pack_dp_session *dps,
 	dps->se_timeout = s->se_timeout;
 	dps->se_protocol_state = s->se_protocol_state;
 	dps->se_gen_state = s->se_gen_state;
+	dps->se_fw = session_is_fw(s);
 	dps->se_snat = session_is_snat(s);
 	dps->se_dnat = session_is_dnat(s);
 	dps->se_nat64 = session_is_nat64(s);
@@ -1899,6 +1900,7 @@ struct session *session_npf_pack_restore(struct npf_pack_dp_session *dps,
 	s->se_etime = get_dp_uptime() + se_timeout(s);
 	s->se_protocol_state = dps->se_protocol_state;
 	s->se_gen_state = dps->se_gen_state;
+	s->se_fw = dps->se_fw;
 	s->se_snat = dps->se_snat;
 	s->se_dnat = dps->se_dnat;
 	s->se_nat64 = dps->se_nat64;

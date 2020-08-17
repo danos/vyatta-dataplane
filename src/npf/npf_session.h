@@ -75,6 +75,7 @@ typedef bool session_pkt_hook(npf_session_t *se, npf_cache_t *npc,
 uint64_t npf_session_get_id(struct npf_session *se);
 
 void npf_session_add_fw_rule(npf_session_t *s, npf_rule_t *r);
+bool npf_session_is_fw(npf_session_t *s);
 
 /* Appfw */
 void npf_session_set_appfw_decision(npf_session_t *, npf_decision_t);

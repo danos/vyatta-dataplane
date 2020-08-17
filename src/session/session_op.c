@@ -58,7 +58,7 @@ enum sf_dir {
  * nat, nat64, alg, or dpi.
  */
 #define SF_FEATURE_ANY		0x00
-#define SF_FEATURE_OTHER	0x01
+#define SF_FEATURE_FW		0x01
 #define SF_FEATURE_SNAT		0x02
 #define SF_FEATURE_DNAT		0x04
 #define SF_FEATURE_NAT64	0x08
@@ -66,6 +66,7 @@ enum sf_dir {
 #define SF_FEATURE_ALG		0x20
 #define SF_FEATURE_APP		0x40
 #define SF_FEATURE_CONN_ID	0x80
+#define SF_FEATURE_OTHER	0x100
 
 /*
  * Session filter for list, show and clear commands
@@ -80,7 +81,7 @@ struct session_filter {
 	enum sf_dir	sf_dir;
 	uint8_t		sf_s_af;
 	uint8_t		sf_d_af;
-	uint8_t		sf_features;	/* Session feature fltr */
+	uint16_t	sf_features;	/* Session feature fltr */
 	uint16_t	sf_proto;
 	uint32_t	sf_ifindex;
 	uint64_t	sf_id;
@@ -520,6 +521,8 @@ static int cmd_op_parse_feat(FILE *f, int *argcp, char ***argvp,
 
 	if (!strcmp(val, "other"))
 		sf->sf_features |= SF_FEATURE_OTHER;
+	else if (!strcmp(val, "firewall"))
+		sf->sf_features |= SF_FEATURE_FW;
 	else if (!strcmp(val, "snat"))
 		sf->sf_features |= SF_FEATURE_SNAT;
 	else if (!strcmp(val, "dnat"))
@@ -772,6 +775,37 @@ error_param_value:
 	return -EINVAL;
 }
 
+uint16_t sess_feature_type_bm(const struct session *s)
+{
+	uint16_t sess_feat = 0;
+
+	if (session_is_fw(s))
+		sess_feat |= SF_FEATURE_FW;
+
+	if (session_is_snat(s))
+		sess_feat |= SF_FEATURE_SNAT;
+
+	if (session_is_dnat(s))
+		sess_feat |= SF_FEATURE_DNAT;
+
+	if (session_is_nat64(s))
+		sess_feat |= SF_FEATURE_NAT64;
+
+	if (session_is_nat46(s))
+		sess_feat |= SF_FEATURE_NAT46;
+
+	if (session_is_alg(s))
+		sess_feat |= SF_FEATURE_ALG;
+
+	if (session_is_app(s))
+		sess_feat |= SF_FEATURE_APP;
+
+	if (sess_feat == 0)
+		sess_feat |= SF_FEATURE_OTHER;
+
+	return sess_feat;
+}
+
 /*
  * Filter.  Returns false if pkt is to be blocked by the filter.
  */
@@ -821,28 +855,7 @@ cmd_session_filter(const struct session *s, const struct session_filter *sf)
 
 	/* Session features */
 	if (sf->sf_features) {
-		uint8_t sess_feat = 0;
-
-		if (session_is_snat(s))
-			sess_feat |= SF_FEATURE_SNAT;
-
-		if (session_is_dnat(s))
-			sess_feat |= SF_FEATURE_DNAT;
-
-		if (session_is_nat64(s))
-			sess_feat |= SF_FEATURE_NAT64;
-
-		if (session_is_nat46(s))
-			sess_feat |= SF_FEATURE_NAT46;
-
-		if (session_is_alg(s))
-			sess_feat |= SF_FEATURE_ALG;
-
-		if (session_is_app(s))
-			sess_feat |= SF_FEATURE_APP;
-
-		if (sess_feat == 0)
-			sess_feat |= SF_FEATURE_OTHER;
+		uint16_t sess_feat = sess_feature_type_bm(s);
 
 		if ((sf->sf_features & sess_feat) == 0)
 			return false;
