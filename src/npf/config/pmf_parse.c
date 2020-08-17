@@ -144,6 +144,7 @@ static pkp_key_parser pkp_nat_arange;
 
 /* The rproc parser */
 static pkp_key_parser pkp_rproc;
+static pkp_key_parser pkp_ctrdef_named;
 
 /* Types of action and nat keys */
 enum pkp_act_field {
@@ -165,6 +166,15 @@ enum pkp_rp_field {
 	PKP_RP_ACTION,
 	PKP_RP_HANDLE,
 	PKP_RP__LEN
+};
+
+/* Types of rprocs' ctrdef */
+enum pkp_rp_ctrdef_field {
+	PKP_RP_CTRDEF_PACKETS = 1,
+	PKP_RP_CTRDEF_SHARING,
+	PKP_RP_CTRDEF_TYPE,
+	PKP_RP_CTRDEF_NAMED,
+	PKP_RP_CTRDEF__LEN
 };
 
 /*
@@ -227,6 +237,12 @@ static const struct pkp_key rproc_keys[] = {
 	{"match",		PKP_RP_MATCH,		0, pkp_rproc},
 	{"rproc",		PKP_RP_ACTION,		0, pkp_rproc},
 	{"handle",		PKP_RP_HANDLE,		0, pkp_rproc},
+};
+static const struct pkp_key rproc_ctrdef_keys[] = {
+	{"packets",		PKP_RP_CTRDEF_PACKETS,	0, NULL},
+	{"sharing",		PKP_RP_CTRDEF_SHARING,	0, NULL},
+	{"type",		PKP_RP_CTRDEF_TYPE,	0, NULL},
+	{"named",		PKP_RP_CTRDEF_NAMED,	0, pkp_ctrdef_named},
 };
 
 /* Summary bits for the rule */
@@ -1461,6 +1477,93 @@ pkp_find_action_key(const char *key)
 /* The parsers for rproc (match/action/handle) keys */
 
 static bool
+pkp_ctrdef_named(struct pmf_rule *rule, struct pkp_key const *key, char *value)
+{
+	if (strcmp(value, "accept") == 0) {
+		rule->pp_summary |= PMF_RAS_COUNT_DEF_PASS;
+		return true;
+	}
+	if (strcmp(value, "drop") == 0) {
+		rule->pp_summary |= PMF_RAS_COUNT_DEF_DROP;
+		return true;
+	}
+
+	RTE_LOG(ERR, FIREWALL, "NPF: bad value in rule: %s=%s\n", key->pt_name,
+		value);
+
+	return false;
+}
+
+static struct pkp_key const *
+pkp_find_rproc_ctrdef_key(const char *key)
+{
+	for (unsigned int idx = 0; idx < ARRAY_SIZE(rproc_ctrdef_keys); ++idx)
+		if (strcmp(key, rproc_ctrdef_keys[idx].pt_name) == 0)
+			return &rproc_ctrdef_keys[idx];
+
+	return NULL;
+}
+
+static int
+pkp_parse_rproc_ctrdef_pairs(struct pkp_unused *parts, struct pmf_rule *rule)
+{
+	/* Handle the parts we recognise */
+	for (unsigned int part = 0; part < parts->num_pairs; ++part) {
+		char const *str_key = parts->pairs[part].key;
+		char *str_value = parts->pairs[part].value;
+
+		/* A prior parser may have consumed some */
+		if (!str_key)
+			continue;
+
+		/* Do we know this key? */
+		struct pkp_key const *rkey = pkp_find_rproc_ctrdef_key(str_key);
+		if (!rkey)
+			continue;
+
+		/* Does the key have a parser? */
+		if (!rkey->pt_fn)
+			continue;
+
+		/* Parse the key/value */
+		if (!rkey->pt_fn(rule, rkey, str_value))
+			return -EINVAL;
+
+		parts->pairs[part].key = NULL;
+		--parts->num_unused;
+	}
+
+	return 0;
+}
+
+static bool
+pkp_parse_rproc_ctrdef(struct pmf_rule *rule, struct pmf_proc_raw *praw)
+{
+	struct pkp_unused *parts = NULL;
+	char *pm_name = praw->pm_name;
+	char *str = &pm_name[praw->pm_argoff];
+	int rval = pkp_split_parts(str, &parts, ',');
+	if (rval) {
+exit_error:
+		if (parts)
+			free(parts);
+		return false;
+	}
+
+	/* Split the parts in to their pairs */
+	rval = pkp_split_pairs(parts);
+	if (rval)
+		goto exit_error;
+
+	pkp_parse_rproc_ctrdef_pairs(parts, rule);
+
+	if (parts)
+		free(parts);
+
+	return true;
+}
+
+static bool
 pkp_rproc(struct pmf_rule *rule, struct pkp_key const *key, char *value)
 {
 	unsigned int nprocs = 0;
@@ -1594,6 +1697,9 @@ pkp_rproc(struct pmf_rule *rule, struct pkp_key const *key, char *value)
 		switch (rp_id) {
 		case NPF_RPROC_ID_CTR_DEF:
 			summary |= PMF_RAS_COUNT_DEF;
+
+			if (!pkp_parse_rproc_ctrdef(rule, praw))
+				return false;
 			break;
 		case NPF_RPROC_ID_CTR_REF:
 			summary |= PMF_RAS_COUNT_REF;

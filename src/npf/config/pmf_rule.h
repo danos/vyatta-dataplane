@@ -314,6 +314,11 @@ enum pmf_summary {
 	PMF_RAS_PASS		= (1 << 25),
 	PMF_RAS_COUNT_DEF	= (1 << 26),
 	PMF_RAS_COUNT_REF	= (1 << 27),
+	/* Action counters (auto-per-action) */
+	PMF_RAS_COUNT_DEF_PASS	= (1 << 28),
+	PMF_RAS_COUNT_DEF_DROP	= (1 << 29),
+#define PMF_SUMMARY_COUNT_DEF_NAMED_FLAGS \
+	(PMF_RAS_COUNT_DEF_PASS|PMF_RAS_COUNT_DEF_DROP)
 };
 
 struct pmf_rule {
