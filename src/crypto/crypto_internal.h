@@ -171,7 +171,7 @@ struct sadb_sa {
 	uint32_t spi; /* Network byte order */
 	uint32_t mark_val;
 	bool blocked;
-	char SPARE1;
+	uint8_t rte_cdev_id;
 	uint16_t family;
 	enum crypto_dir dir;
 	struct iphdr iphdr;

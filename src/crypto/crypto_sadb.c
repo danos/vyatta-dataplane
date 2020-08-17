@@ -744,6 +744,7 @@ void crypto_sadb_new_sa(const struct xfrm_usersa_info *sa_info,
 	struct crypto_vrf_ctx *vrf_ctx;
 	struct ifnet *ifp;
 	int pmd_dev_id;
+	enum cryptodev_type dev_type;
 
 	if (!sa_info || !crypto_algo) {
 		SADB_ERR("Bad parameters on attempt to add SA\n");
@@ -820,6 +821,8 @@ void crypto_sadb_new_sa(const struct xfrm_usersa_info *sa_info,
 		pmd_dev_id = CRYPTO_PMD_INVALID_ID;
 
 	sa->del_pmd_dev_id = sa->pmd_dev_id = pmd_dev_id;
+
+	(void)crypto_pmd_get_info(pmd_dev_id, &sa->rte_cdev_id, &dev_type);
 
 	if (sadb_insert_sa(sa, vrf_ctx) < 0) {
 		/*

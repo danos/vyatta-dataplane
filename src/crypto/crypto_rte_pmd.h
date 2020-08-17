@@ -7,7 +7,11 @@
 
 #define CRYPTO_RTE_PMD_H
 
+#include <stdbool.h>
 #include <linux/xfrm.h>
+#include <rte_cryptodev.h>
+
+struct crypto_session;
 
 int crypto_rte_setup(void);
 

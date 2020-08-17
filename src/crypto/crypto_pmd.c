@@ -633,3 +633,20 @@ void crypto_show_pmd(FILE *f)
 	jsonw_end_object(wr);
 	jsonw_destroy(&wr);
 }
+
+int crypto_pmd_get_info(int pmd_dev_id, uint8_t *rte_dev_id,
+			enum cryptodev_type *dev_type)
+{
+	struct crypto_pmd *pmd;
+	bool err;
+
+	pmd = crypto_dev_id_to_pmd(pmd_dev_id, &err);
+	if (!pmd) {
+		pmd_not_found++;
+		return -ENOENT;
+	}
+
+	*rte_dev_id = pmd->rte_cdev_id;
+	*dev_type = pmd->dev_type;
+	return 0;
+}
