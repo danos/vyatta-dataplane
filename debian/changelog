@@ -1,3 +1,12 @@
+vyatta-dataplane (3.10.65) unstable; urgency=medium
+
+  [ Gavin Shearer ]
+  * ippf: fix issue of corrupted first byte of IPv6 address to match
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Mon, 17 Aug 2020 09:44:06 +0100
+
 vyatta-dataplane (3.10.64) unstable; urgency=medium
 
   [ Ian Wilson ]
