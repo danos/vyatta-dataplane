@@ -3450,6 +3450,59 @@ if_set_l3_intf_attr(struct ifnet *ifp, struct fal_attribute_t *attr)
 	return fal_set_router_interface_attr(ifp->fal_l3, attr);
 }
 
+/*
+ * Retrieve FAL router interface object stats for hardware-switch traffic.
+ *
+ * This function assumes:
+ * 1. For-us traffic increments counters on both the hardware and
+ *    software objects (and thus the latter shouldn't be taken into
+ *    account).
+ * 2. Software transmitted (both for punted and locally generated
+ *    traffic) packets cause counters to be incremented only on the
+ *    software objects.
+ */
+int
+if_fal_l3_get_stats(struct ifnet *ifp, struct if_data *stats)
+{
+	int i;
+	int ret;
+	uint64_t cntrs[FAL_ROUTER_INTERFACE_STAT_MAX];
+	enum fal_router_interface_stat_t
+		cntr_ids[FAL_ROUTER_INTERFACE_STAT_MAX];
+
+	if (!ifp->fal_l3)
+		return 0;
+
+	for (i = FAL_ROUTER_INTERFACE_STAT_MIN;
+	     i < FAL_ROUTER_INTERFACE_STAT_MAX; i++)
+		cntr_ids[i] = i;
+
+	memset(cntrs, 0, sizeof(cntrs));
+	ret = fal_get_router_interface_stats(ifp->fal_l3,
+					     FAL_ROUTER_INTERFACE_STAT_MAX,
+					     cntr_ids, cntrs);
+	if (ret < 0 && ret != -EOPNOTSUPP)
+		return ret;
+
+	if (ret != -EOPNOTSUPP) {
+		/*
+		 * If HW stats aren't supported then not overwriting
+		 * these values here will ensure that at least the
+		 * software stats are still maintained based on for-us
+		 * traffic
+		 */
+		stats->ifi_ibytes = cntrs[FAL_ROUTER_INTERFACE_STAT_IN_OCTETS];
+		stats->ifi_ipackets =
+			cntrs[FAL_ROUTER_INTERFACE_STAT_IN_PACKETS];
+	}
+	/*
+	 * Hw doesn't count from-us packets so sum the hw and sw stats here.
+	 */
+	stats->ifi_obytes += cntrs[FAL_ROUTER_INTERFACE_STAT_OUT_OCTETS];
+	stats->ifi_opackets += cntrs[FAL_ROUTER_INTERFACE_STAT_OUT_PACKETS];
+	return 0;
+}
+
 int if_set_backplane(struct ifnet *ifp, unsigned int ifindex)
 {
 	const struct ift_ops *ops;

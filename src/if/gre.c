@@ -2737,6 +2737,7 @@ static const struct ift_ops gre_if_ops = {
 	.ifop_uninit = gre_tunnel_delete,
 	.ifop_dump = gre_tunnel_dump,
 	.ifop_l3_enable = gre_if_l3_enable,
+	.ifop_get_stats = if_fal_l3_get_stats,
 	.ifop_iana_type = gre_iana_type,
 };
 
