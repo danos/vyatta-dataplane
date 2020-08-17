@@ -1462,7 +1462,7 @@ vxlaninfo_attr(const struct nlattr *attr, void *data)
 	return MNL_CB_OK;
 }
 
-static void set_vxlan_params(struct ifnet *ifp,
+static bool set_vxlan_params(struct ifnet *ifp,
 			     struct vxlan_vninode *vninode,
 			     struct nlattr **vxlaninfo,
 			     struct nlattr *tb[], uint flags __unused)
@@ -1477,7 +1477,15 @@ static void set_vxlan_params(struct ifnet *ifp,
 		uint32_t pifi = mnl_attr_get_u32(vxlaninfo[IFLA_VXLAN_LINK]);
 		struct ifnet *pifp = dp_ifnet_byifindex(pifi);
 
+		if (!pifp) {
+			RTE_LOG(ERR, VXLAN,
+				"vxlan %s(%u) missing parent interface\n",
+				ifp->if_name, ifp->if_index);
+			return false;
+		}
+
 		ifp->if_parent = pifp;
+
 		/* Only use link MTU if MTU not explicitly configured */
 		if (!tb[IFLA_MTU])
 			ifp->if_mtu = pifp->if_mtu - VXLAN_OVERHEAD;
@@ -1517,6 +1525,8 @@ static void set_vxlan_params(struct ifnet *ifp,
 	/* TODO: dynamically allocate source port range */
 	vninode->port_low = VXLAN_PORT_LOW;
 	vninode->port_high = VXLAN_PORT_HIGH;
+
+	return true;
 }
 
 /* Handle RTM_NEWLINK netlink on existing vxlan interface */
@@ -1546,7 +1556,12 @@ void vxlan_modify(struct ifnet *ifp, uint flags, struct nlattr *tb[],
 			ifp->if_name, vni);
 		return;
 	}
-	set_vxlan_params(ifp, vninode, vxlaninfo, tb, flags);
+	if (!set_vxlan_params(ifp,
+				vninode, vxlaninfo, tb, flags)){
+		RTE_LOG(ERR, VXLAN, "%s failed to set VXLAN parameters\n",
+			ifp->if_name);
+		return;
+	}
 }
 
 static bool
@@ -1620,7 +1635,13 @@ setup_vxlan(struct ifnet *ifp, uint flags,
 	sc = ifp->if_softc;
 	sc->scvx_vni = vni;
 
-	set_vxlan_params(ifp, vninode, vxlaninfo, tb, flags);
+	if (!set_vxlan_params(ifp,
+				vninode, vxlaninfo, tb, flags)){
+		RTE_LOG(ERR, VXLAN, "%s failed to set vxlan parameters\n",
+			ifp->if_name);
+		return false;
+	}
+
 	return true;
 }
 
