@@ -1720,10 +1720,9 @@ gre_tunnel_do_send(struct ifnet *tunnel_ifp, struct rte_mbuf *m)
 	}
 
 	/* A tunnel to ourselves. */
-	if (unlikely(ip_gre_tunnel_in(&m, outer_ip) == 1))
-		goto drop;
+	if (likely(ip_gre_tunnel_in(&m, outer_ip) == 0))
+		return;
 
-drop:
 	rte_pktmbuf_free(m);
 }
 
@@ -2372,10 +2371,9 @@ gre6_tunnel_do_send(struct ifnet *tunnel_ifp, struct rte_mbuf *m)
 	}
 
 	/* A tunnel to ourselves. */
-	if (unlikely(ip6_gre_tunnel_in(&m, outer_ip) == 1))
-		goto drop;
+	if (likely(ip6_gre_tunnel_in(&m, outer_ip) == 0))
+		return;
 
-drop:
 	rte_pktmbuf_free(m);
 }
 
