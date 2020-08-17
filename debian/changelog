@@ -1,3 +1,13 @@
+vyatta-dataplane (3.10.66) unstable; urgency=medium
+
+  [ Robert Shearman ]
+  * if: move vlan_if_get_stats to common interface code
+  * gre: add support for retrieving FAL stats
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Mon, 17 Aug 2020 10:14:51 +0100
+
 vyatta-dataplane (3.10.65) unstable; urgency=medium
 
   [ Gavin Shearer ]
