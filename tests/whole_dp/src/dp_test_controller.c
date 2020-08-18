@@ -597,6 +597,7 @@ addport_request(zsock_t *sock, zmsg_t *msg, zframe_t **envelope)
 	seqno_sendm(sock, seqno);
 	ifindex_sendm(sock, (uint32_t) ifindex);
 	zstr_send(sock, ifname1);
+	free(ifname1);
 }
 
 static void
