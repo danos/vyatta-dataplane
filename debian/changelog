@@ -1,3 +1,20 @@
+vyatta-dataplane (3.11.10) unstable; urgency=medium
+
+  [ Srinivas Narayan ]
+  * crypto: Convert lengths to uint8_t in preparation for move
+  * crypto: Avoid dependency on openssl definitions
+  * crypto: Re-arrange fields for better performance
+  * crypto: create DPDK infrastructure pools
+  * crypto: Add DPDK versions of encryption & auth algorithms
+  * crypto: clean up openssl functions
+  * crypto: determine PMD type based on algorithms
+  * crypto: provide function to determine next crypto core
+  * crypto: Create DPDK crypto PMD
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Tue, 18 Aug 2020 08:29:42 +0100
+
 vyatta-dataplane (3.11.9) unstable; urgency=medium
 
   [ aroberts ]
