@@ -137,8 +137,8 @@ repeat:
 		if (unlikely(!pr))
 			goto next_addr;
 
-		/* Ignore blacklisted addresses */
-		if (nat_pool_is_blacklist_addr(np, htonl(addr)))
+		/* Ignore blocked addresses */
+		if (nat_pool_is_blocked_addr(np, htonl(addr)))
 			goto next_addr;
 
 		apm = apm_lookup(addr, vrfid);
@@ -662,9 +662,9 @@ cgn_map_get2(struct cgn_policy *cp, vrfid_t vrfid, uint8_t proto,
 	}
 
 	/*
-	 * Is the requested public address blacklisted?
+	 * Is the requested public address blocked?
 	 */
-	if (nat_pool_is_blacklist_addr(np, taddr)) {
+	if (nat_pool_is_blocked_addr(np, taddr)) {
 		error = -CGN_POOL_ENOSPC;
 		goto error;
 	}

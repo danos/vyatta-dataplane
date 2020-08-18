@@ -35,8 +35,8 @@ void nat_pool_clear_active(struct nat_pool *np);
 /* Log port-block alloc and release? */
 bool nat_pool_log_pba(struct nat_pool *np);
 
-/* Is this a blacklisted address? */
-bool nat_pool_is_blacklist_addr(struct nat_pool *np, uint32_t addr);
+/* Is this a blocked address? */
+bool nat_pool_is_blocked_addr(struct nat_pool *np, uint32_t addr);
 
 /*
  * Check if an address in in a NAT pool.  'addr' is in network-byte order.

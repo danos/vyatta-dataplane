@@ -182,7 +182,7 @@ struct nat_pool {
 	/* address ranges */
 	struct nat_pool_ranges	*np_ranges;
 
-	struct npf_addrgrp	*np_blacklist;	/* address group */
+	struct npf_addrgrp	*np_blocklist;	/* address group */
 
 	/* NAT pool threshold and timer */
 	int32_t			np_threshold;
