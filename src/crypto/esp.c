@@ -39,6 +39,7 @@
 #include "crypto.h"
 #include "crypto_internal.h"
 #include "esp.h"
+#include "crypto_rte_pmd.h"
 
 struct ifnet;
 
@@ -800,9 +801,8 @@ static int esp_input_inner(int family, struct rte_mbuf *m, void *l3_hdr,
 		return -1;
 	}
 
-	if (unlikely(esp_generate_chain(sa, m, iphlen, esp, iv,
-					ciphertext_len + esp_len,
-					0) != 0))
+	if (crypto_rte_xform_packet(sa, m, iphlen, esp, iv,
+				    ciphertext_len + esp_len, 0))
 		return -1;
 
 	esp_replay_advance(esp, sa);
@@ -1244,8 +1244,8 @@ static int esp_output_inner(int new_family, struct sadb_sa *sa,
 	if (unlikely(sa->seq > (ESP_SEQ_SA_BLOCK_LIMIT - 1)))
 		crypto_sadb_mark_as_blocked(sa);
 
-	if (unlikely(esp_generate_chain(sa, m, h.out_hdr_len, esp_base, esp_ptr,
-					plaintext_size + esp_size, 1) != 0))
+	if (crypto_rte_xform_packet(sa, m, h.out_hdr_len, esp_base,
+				    esp_ptr, plaintext_size + esp_size, 1))
 		return -1;
 
 	crypto_session_set_iv(sa->session,
