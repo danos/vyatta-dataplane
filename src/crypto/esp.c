@@ -549,12 +549,12 @@ static int null_icv_cb(struct crypto_chain *chain __rte_unused,
  *
  * Generate and process a chain of actions for the crypto engine.
  */
-static int esp_generate_chain(struct sadb_sa *sa,
-			      struct rte_mbuf *mbuf,
-			      unsigned int l3_hdr_len,
-			      unsigned char *esp,
-			      unsigned char *iv,
-			      uint32_t text_total_len, int8_t encrypt)
+int esp_generate_chain(struct sadb_sa *sa,
+		       struct rte_mbuf *mbuf,
+		       unsigned int l3_hdr_len,
+		       unsigned char *esp,
+		       unsigned char *iv,
+		       uint32_t text_total_len, int8_t encrypt)
 {
 	struct crypto_chain chain;
 	unsigned int esp_len = esp_hdr_len(sa);

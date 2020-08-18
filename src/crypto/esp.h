@@ -54,4 +54,12 @@ void esp_replay_advance(const uint8_t *esp, struct sadb_sa *sa);
  */
 bool udp_esp_dp_interesting(const struct udphdr *udp, uint32_t *spi);
 
+/*
+ * API to invoke openssl implementation of encryption
+ */
+int esp_generate_chain(struct sadb_sa *sa, struct rte_mbuf *mbuf,
+		       unsigned int l3_hdr_len, unsigned char *esp,
+		       unsigned char *iv, uint32_t text_total_len,
+		       int8_t encrypt);
+
 #endif /* ESP_H */
