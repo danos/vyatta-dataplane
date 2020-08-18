@@ -106,11 +106,11 @@ static int get_eth_pci_addr(const char *ifname, char *addr_str, size_t len)
 
 
 /* Take list of ethernet device names: "eth2,eth3"
- * and produce PCI black list.
+ * and exclude each PCI address.
  *
  * Uses: strtok therefore overwrites argument
  */
-static void parse_blacklist(char *list)
+static void parse_exclude(char *list)
 {
 	char *ifname;
 	const char sep[] = " ,\t\r\n";
@@ -126,7 +126,7 @@ static void parse_blacklist(char *list)
 					addr_str) < 0)
 			/* can't use rte_log yet, EAL not started */
 			fprintf(stderr,
-				"Error: cannot blacklist %s %s",
+				"Error: cannot exclude %s %s",
 				ifname, addr_str);
 	}
 }
@@ -189,8 +189,9 @@ static int parse_entry(void *user, const char *section,
 			return copy_str(&cfg->console_url_uplink, value);
 		else if (strcmp(name, "control-interface") == 0)
 			return copy_str(&cfg->ctrl_intf_name, value);
-		else if (strcmp(name, "blacklist") == 0)
-			parse_blacklist(strdupa(value));
+		else if (strcmp(name, "exclude-interfaces") == 0 ||
+			 strcmp(name, "blacklist") == 0)
+			parse_exclude(strdupa(value));
 		else if (strcmp(name, "backplane") == 0)
 			cfg->backplane = strdup(value);
 		else if (strcmp(name, "update") == 0)

@@ -4853,7 +4853,7 @@ int fal_plugin_delete_ptp_port(fal_object_t port);
 enum fal_ptp_peer_type_t {
 	FAL_PTP_PEER_MASTER,	/**< PTP master */
 	FAL_PTP_PEER_SLAVE,	/**< PTP slave */
-	FAL_PTP_PEER_ALLOWED,	/**< Whitelisted PTP peer */
+	FAL_PTP_PEER_ALLOWED,	/**< Allowed PTP peer */
 };
 
 enum fal_ptp_peer_attr_t {
