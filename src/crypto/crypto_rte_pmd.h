@@ -12,6 +12,7 @@
 #include <rte_cryptodev.h>
 
 struct crypto_session;
+struct sadb_sa;
 
 int crypto_rte_setup(void);
 
@@ -60,5 +61,10 @@ int crypto_rte_destroy_session(struct crypto_session *session,
 int crypto_rte_op_alloc(struct rte_mbuf *m);
 
 void crypto_rte_op_free(struct rte_mbuf *m);
+
+int crypto_rte_xform_packet(struct sadb_sa *sa, struct rte_mbuf *m,
+			    unsigned int l3_hdr_len, unsigned char *esp,
+			    unsigned char *iv, uint32_t text_total_len,
+			    uint8_t encrypt);
 
 #endif

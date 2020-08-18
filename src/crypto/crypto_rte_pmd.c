@@ -15,6 +15,7 @@
 #include "crypto.h"
 #include "crypto_internal.h"
 #include "crypto_rte_pmd.h"
+#include "esp.h"
 
 /*
  * Support for 16K sessions ( = 8K tunnels )
@@ -633,4 +634,130 @@ void crypto_rte_op_free(struct rte_mbuf *m)
 	mdata->cop = NULL;
 	pktmbuf_mdata_clear(m, PKT_MDATA_CRYPTO_OP);
 	rte_crypto_op_free(cop);
+}
+
+
+static int crypto_rte_op_assoc_session(struct rte_crypto_op *cop,
+				       struct sadb_sa *sa)
+{
+	int err;
+
+	err = rte_crypto_op_attach_sym_session(cop,
+					       sa->session->rte_session);
+	return err;
+}
+
+static int crypto_rte_process_op(struct sadb_sa *sa, struct rte_crypto_op *cop)
+{
+	uint8_t qid;
+	int rc;
+
+	qid = sa->dir == CRYPTO_DIR_IN ? CRYPTO_DECRYPT : CRYPTO_ENCRYPT;
+	rc = rte_cryptodev_enqueue_burst(sa->rte_cdev_id, qid, &cop, 1);
+	if (rc < 1)
+		return -ENOSPC;
+
+	do {
+		rc = rte_cryptodev_dequeue_burst(sa->rte_cdev_id, qid,
+						 &cop, 1);
+	} while (rc < 1);
+
+	if (cop->status != RTE_CRYPTO_OP_STATUS_SUCCESS)
+		rc = -1;
+	else
+		rc = 0;
+
+	return rc;
+}
+
+/*
+ * setup crypto op and crypto sym op for ESP inbound packet.
+ */
+static inline int
+crypto_rte_inbound_cop_prepare(struct rte_crypto_op *cop __rte_unused,
+			       const struct sadb_sa *sa,
+			       struct rte_mbuf *m __rte_unused,
+			       uint32_t l3_hdr_len __rte_unused,
+			       unsigned char *iv __rte_unused,
+			       uint32_t payload_len __rte_unused)
+{
+	int err = 0;
+	struct crypto_session *session = sa->session;
+
+	/* fill sym op fields */
+	switch (session->cipher_algo) {
+	case RTE_CRYPTO_CIPHER_NULL:
+		break;
+
+	default:
+		err = -EINVAL;
+	}
+
+	return err;
+}
+
+/*
+ * setup crypto op and crypto sym op for ESP outbound packet.
+ */
+static inline int
+crypto_rte_outbound_cop_prepare(struct rte_crypto_op *cop __rte_unused,
+				const struct sadb_sa *sa,
+				struct rte_mbuf *m __rte_unused,
+				uint32_t l3_hdr_len __rte_unused,
+				uint32_t payload_len __rte_unused)
+{
+	int err = 0;
+	struct crypto_session *session = sa->session;
+
+	switch (session->cipher_algo) {
+	case RTE_CRYPTO_CIPHER_NULL:
+		break;
+
+	default:
+		err = -EINVAL;
+	}
+
+	return err;
+}
+
+int crypto_rte_xform_packet(struct sadb_sa *sa, struct rte_mbuf *mbuf,
+			    unsigned int l3_hdr_len,
+			    unsigned char *esp,
+			    unsigned char *iv,
+			    uint32_t text_total_len,
+			    uint8_t encrypt)
+{
+	int err;
+	struct rte_crypto_op *cop;
+	struct pktmbuf_mdata *mdata;
+
+	crypto_session_set_direction(sa, encrypt);
+
+	if (sa->session->cipher_algo != RTE_CRYPTO_CIPHER_NULL) {
+		err = esp_generate_chain(sa, mbuf, l3_hdr_len, esp, iv,
+					 text_total_len, encrypt);
+		return err;
+	}
+
+	mdata = pktmbuf_mdata(mbuf);
+	cop = mdata->cop;
+	err = crypto_rte_op_assoc_session(cop, sa);
+	if (err)
+		return err;
+
+	if (encrypt)
+		err = crypto_rte_outbound_cop_prepare(cop, sa, mbuf,
+						      l3_hdr_len,
+						      text_total_len);
+	else
+		err = crypto_rte_inbound_cop_prepare(cop, sa, mbuf,
+						     l3_hdr_len,
+						     iv, text_total_len);
+
+	if (err)
+		return err;
+
+	err = crypto_rte_process_op(sa, cop);
+
+	return err;
 }
