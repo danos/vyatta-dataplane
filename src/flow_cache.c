@@ -326,6 +326,8 @@ flow_cache_init_lcore(struct flow_cache *flow_cache, unsigned int lcore)
 
 	cache_lcore = &flow_cache->cache_lcore[lcore];
 	for (af = FLOW_CACHE_IPV4; af < FLOW_CACHE_MAX; af++) {
+		if (cache_lcore->cache_af[af].cache_tbl)
+			continue;
 		cache_lcore->cache_af[af].cache_tbl =
 		cds_lfht_new(FLOW_CACHE_HASH_MIN,
 			     FLOW_CACHE_HASH_MIN,
