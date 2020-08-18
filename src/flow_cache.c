@@ -209,7 +209,7 @@ int flow_cache_lookup(struct flow_cache *cache, struct rte_mbuf *m,
 {
 	struct cds_lfht_iter iter;
 	struct cds_lfht_node *node;
-	struct flow_cache_hash_key h_key;
+	struct flow_cache_hash_key h_key = { 0 };
 	struct cds_lfht *table;
 	unsigned int lcore = dp_lcore_id();
 	uint32_t hash;
@@ -269,7 +269,7 @@ flow_cache_add(struct flow_cache *flow_cache, void *rule, uint16_t ctx,
 {
 	struct flow_cache_entry *cache_entry;
 	int error;
-	struct flow_cache_hash_key h_key;
+	struct flow_cache_hash_key h_key = { 0 };
 	struct flow_cache_af *cache_af =
 		&flow_cache->cache_lcore[dp_lcore_id()].cache_af[af];
 	struct cds_lfht *table = rcu_dereference(cache_af->cache_tbl);
