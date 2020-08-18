@@ -64,7 +64,7 @@ void crypto_rte_op_free(struct rte_mbuf *m);
 
 int crypto_rte_xform_packet(struct sadb_sa *sa, struct rte_mbuf *m,
 			    unsigned int l3_hdr_len, unsigned char *esp,
-			    unsigned char *iv, uint32_t text_total_len,
-			    uint8_t encrypt);
+			    unsigned char *iv, uint32_t text_len,
+			    uint32_t esp_len, uint8_t encrypt);
 
 #endif

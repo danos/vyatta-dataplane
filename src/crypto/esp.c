@@ -802,7 +802,7 @@ static int esp_input_inner(int family, struct rte_mbuf *m, void *l3_hdr,
 	}
 
 	if (crypto_rte_xform_packet(sa, m, iphlen, esp, iv,
-				    ciphertext_len + esp_len, 0))
+				    ciphertext_len, esp_len, 0))
 		return -1;
 
 	esp_replay_advance(esp, sa);
@@ -1245,7 +1245,7 @@ static int esp_output_inner(int new_family, struct sadb_sa *sa,
 		crypto_sadb_mark_as_blocked(sa);
 
 	if (crypto_rte_xform_packet(sa, m, h.out_hdr_len, esp_base,
-				    esp_ptr, plaintext_size + esp_size, 1))
+				    esp_ptr, plaintext_size, esp_size, 1))
 		return -1;
 
 	crypto_session_set_iv(sa->session,

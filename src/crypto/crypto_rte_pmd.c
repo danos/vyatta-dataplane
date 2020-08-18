@@ -670,19 +670,69 @@ static int crypto_rte_process_op(struct sadb_sa *sa, struct rte_crypto_op *cop)
 	return rc;
 }
 
+static inline void
+aead_gcm_iv_fill(uint8_t *gcm, struct crypto_session *s)
+{
+	memcpy(gcm, s->nonce, s->nonce_len);
+	memcpy(gcm + s->nonce_len, s->iv, s->iv_len);
+}
+
+/*
+ * helper function to fill crypto_sym op for aead algorithms
+ */
+static inline void
+crypto_rte_sop_aead_prepare(struct rte_crypto_sym_op *sop,
+			    uint32_t l3_hdr_len, uint8_t udp_len,
+			    uint32_t esp_len, uint32_t payload_len,
+			    uint16_t icv_ofs)
+{
+	struct rte_mbuf *m = sop->m_src;
+	uint16_t esp_start = dp_pktmbuf_l2_len(m) + l3_hdr_len + udp_len;
+
+	sop->aead.data.offset = esp_start + esp_len;
+	sop->aead.data.length = payload_len;
+
+	sop->aead.aad.data = rte_pktmbuf_mtod_offset(m, void *, esp_start);
+	sop->aead.aad.phys_addr = rte_pktmbuf_iova_offset(m, esp_start);
+
+	sop->aead.digest.data = rte_pktmbuf_mtod_offset(m, void*, icv_ofs);
+	sop->aead.digest.phys_addr = rte_pktmbuf_iova_offset(m, icv_ofs);
+}
+
 /*
  * setup crypto op and crypto sym op for ESP inbound packet.
  */
 static inline int
-crypto_rte_inbound_cop_prepare(struct rte_crypto_op *cop __rte_unused,
+crypto_rte_inbound_cop_prepare(struct rte_crypto_op *cop,
 			       const struct sadb_sa *sa,
-			       struct rte_mbuf *m __rte_unused,
-			       uint32_t l3_hdr_len __rte_unused,
-			       unsigned char *iv __rte_unused,
-			       uint32_t payload_len __rte_unused)
+			       struct rte_mbuf *m, uint32_t l3_hdr_len,
+			       uint8_t udp_len, uint32_t esp_len,
+			       unsigned char *iv, uint32_t payload_len)
 {
 	int err = 0;
+	struct rte_crypto_sym_op *sop;
+	uint8_t *gcm;
 	struct crypto_session *session = sa->session;
+	uint16_t icv_ofs;
+
+	memcpy(sa->session->iv, iv, sa->session->iv_len);
+
+	icv_ofs = rte_pktmbuf_pkt_len(m) - crypto_session_digest_len(session);
+
+	/* fill sym op fields */
+	sop = cop->sym;
+
+	if (session->aead_algo == RTE_CRYPTO_AEAD_AES_GCM) {
+		crypto_rte_sop_aead_prepare(sop, l3_hdr_len,
+					    udp_len, esp_len,
+					    payload_len, icv_ofs);
+
+		/* fill AAD IV (located inside crypto op) */
+		gcm = rte_crypto_op_ctod_offset(cop, uint8_t *,
+						CRYPTO_OP_IV_OFFSET);
+		aead_gcm_iv_fill(gcm, sa->session);
+		return err;
+	}
 
 	/* fill sym op fields */
 	switch (session->cipher_algo) {
@@ -700,14 +750,35 @@ crypto_rte_inbound_cop_prepare(struct rte_crypto_op *cop __rte_unused,
  * setup crypto op and crypto sym op for ESP outbound packet.
  */
 static inline int
-crypto_rte_outbound_cop_prepare(struct rte_crypto_op *cop __rte_unused,
+crypto_rte_outbound_cop_prepare(struct rte_crypto_op *cop,
 				const struct sadb_sa *sa,
-				struct rte_mbuf *m __rte_unused,
-				uint32_t l3_hdr_len __rte_unused,
-				uint32_t payload_len __rte_unused)
+				struct rte_mbuf *m, uint32_t l3_hdr_len,
+				uint8_t udp_len, uint32_t esp_len,
+				uint32_t payload_len)
 {
 	int err = 0;
+	struct rte_crypto_sym_op *sop;
+	uint8_t *gcm;
 	struct crypto_session *session = sa->session;
+	uint16_t icv_ofs;
+
+	icv_ofs = dp_pktmbuf_l2_len(m) + l3_hdr_len + udp_len + esp_len +
+		payload_len;
+
+	/* fill sym op fields */
+	sop = cop->sym;
+
+	if (session->aead_algo == RTE_CRYPTO_AEAD_AES_GCM) {
+		crypto_rte_sop_aead_prepare(sop, l3_hdr_len, udp_len,
+					    esp_len, payload_len,
+					    icv_ofs);
+
+		/* fill AAD IV (located inside crypto op) */
+		gcm = rte_crypto_op_ctod_offset(cop, uint8_t *,
+						CRYPTO_OP_IV_OFFSET);
+		aead_gcm_iv_fill(gcm, sa->session);
+		return err;
+	}
 
 	switch (session->cipher_algo) {
 	case RTE_CRYPTO_CIPHER_NULL:
@@ -721,21 +792,20 @@ crypto_rte_outbound_cop_prepare(struct rte_crypto_op *cop __rte_unused,
 }
 
 int crypto_rte_xform_packet(struct sadb_sa *sa, struct rte_mbuf *mbuf,
-			    unsigned int l3_hdr_len,
-			    unsigned char *esp,
-			    unsigned char *iv,
-			    uint32_t text_total_len,
-			    uint8_t encrypt)
+			    unsigned int l3_hdr_len, unsigned char *esp,
+			    unsigned char *iv, uint32_t text_len,
+			    uint32_t esp_len, uint8_t encrypt)
 {
 	int err;
 	struct rte_crypto_op *cop;
 	struct pktmbuf_mdata *mdata;
+	uint8_t udp_len = 0;
 
 	crypto_session_set_direction(sa, encrypt);
 
-	if (sa->session->cipher_algo != RTE_CRYPTO_CIPHER_NULL) {
+	if (unlikely(sa->session->aead_algo != RTE_CRYPTO_AEAD_AES_GCM)) {
 		err = esp_generate_chain(sa, mbuf, l3_hdr_len, esp, iv,
-					 text_total_len, encrypt);
+					 text_len + esp_len, encrypt);
 		return err;
 	}
 
@@ -745,14 +815,17 @@ int crypto_rte_xform_packet(struct sadb_sa *sa, struct rte_mbuf *mbuf,
 	if (err)
 		return err;
 
+	if (sa->udp_encap)
+		udp_len = sizeof(struct udphdr);
+
 	if (encrypt)
 		err = crypto_rte_outbound_cop_prepare(cop, sa, mbuf,
-						      l3_hdr_len,
-						      text_total_len);
+						      l3_hdr_len, udp_len,
+						      esp_len, text_len);
 	else
 		err = crypto_rte_inbound_cop_prepare(cop, sa, mbuf,
-						     l3_hdr_len,
-						     iv, text_total_len);
+						     l3_hdr_len, udp_len,
+						     esp_len, iv, text_len);
 
 	if (err)
 		return err;
