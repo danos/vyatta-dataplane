@@ -147,6 +147,5 @@
    fun:allocate_stack
    fun:pthread_create@@GLIBC_2.2.5
    fun:urcu_workqueue_create
-   fun:_cds_lfht_new
    ...
 }
