@@ -59,8 +59,8 @@ typedef struct npf_cache npf_cache_t;
  * NPF TCP states.  Note: these states are different from the TCP FSM
  * states of RFC 793.  The packet filter is a man-in-the-middle.
  */
-typedef enum {
-	NPF_TCPS_NONE = 0,
+enum tcp_session_state {
+	NPF_TCPS_NONE,
 	NPF_TCPS_SYN_SENT,
 	NPF_TCPS_SIMSYN_SENT,
 	NPF_TCPS_SYN_RECEIVED,
@@ -74,7 +74,7 @@ typedef enum {
 	NPF_TCPS_TIME_WAIT,
 	NPF_TCPS_RST_RECEIVED,
 	NPF_TCPS_CLOSED,
-} TCP_STATES;
+} __attribute__ ((__packed__));
 
 #define NPF_TCPS_FIRST		NPF_TCPS_NONE
 #define NPF_TCPS_LAST		NPF_TCPS_CLOSED
