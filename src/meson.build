@@ -25,6 +25,7 @@ crypto_sources = files(
         'crypto/crypto_sadb.c',
         'crypto/esp.c',
         'crypto/vti.c',
+        'crypto/xfrm_client.c',
         'crypto/crypto_pmd.c'
 )
 
