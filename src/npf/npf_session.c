@@ -1795,8 +1795,8 @@ int npf_session_npf_pack_state_pack(struct npf_session *se,
 	nst = &se->s_state;
 
 	for (fl = NPF_FLOW_FIRST; fl <= NPF_FLOW_LAST; fl++)
-		memcpy(&pst->pst_tcpst[fl], &nst->nst_tcpst[fl],
-		       sizeof(*pst->pst_tcpst));
+		memcpy(&pst->pst_tcp_win[fl], &nst->nst_tcp_win[fl],
+		       sizeof(*pst->pst_tcp_win));
 
 	pst->pst_state = nst->nst_state;
 

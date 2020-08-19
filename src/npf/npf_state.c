@@ -550,8 +550,8 @@ void npf_state_stats_json(json_writer_t *json)
 void
 npf_state_dump(const npf_state_t *nst __unused)
 {
-	const struct npf_tcp_window *fst = &nst->nst_tcpst[NPF_FLOW_FORW];
-	const struct npf_tcp_window *tst = &nst->nst_tcpst[NPF_FLOW_BACK];
+	const struct npf_tcp_window *fst = &nst->nst_tcp_win[NPF_FLOW_FORW];
+	const struct npf_tcp_window *tst = &nst->nst_tcp_win[NPF_FLOW_BACK];
 
 	printf("\tstate (%p) %d:\n\t\t"
 	    "F { end %u maxend %u mwin %u wscale %u }\n\t\t"
@@ -574,8 +574,8 @@ int npf_state_npf_pack_update(npf_state_t *nst,
 		return -EINVAL;
 
 	for (fl = NPF_FLOW_FIRST; fl <= NPF_FLOW_LAST; fl++)
-		memcpy(&nst->nst_tcpst[fl], &pst->pst_tcpst[fl],
-		       sizeof(*nst->nst_tcpst));
+		memcpy(&nst->nst_tcp_win[fl], &pst->pst_tcp_win[fl],
+		       sizeof(*nst->nst_tcp_win));
 
 	if (proto_idx == NPF_PROTO_IDX_TCP) {
 		npf_state_tcp_state_set(nst, state, &state_changed);

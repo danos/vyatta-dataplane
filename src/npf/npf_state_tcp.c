@@ -463,8 +463,8 @@ npf_tcp_inwindow(const npf_cache_t *npc, struct rte_mbuf *nbuf,
 		end++;
 	}
 
-	fstate = &nst->nst_tcpst[di];
-	tstate = &nst->nst_tcpst[!di];
+	fstate = &nst->nst_tcp_win[di];
+	tstate = &nst->nst_tcp_win[!di];
 	win = win ? (win << fstate->nst_wscale) : 1;
 
 	/*

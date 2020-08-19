@@ -124,7 +124,7 @@ typedef struct {
 	rte_spinlock_t		nst_lock;
 	uint8_t			nst_state;
 	uint8_t			nst_pad[3];
-	struct npf_tcp_window	nst_tcpst[NPF_FLOW_SZ];
+	struct npf_tcp_window	nst_tcp_win[NPF_FLOW_SZ];
 	struct npf_timeout	*nst_to;
 } npf_state_t;
 
