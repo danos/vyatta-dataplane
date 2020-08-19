@@ -1,3 +1,48 @@
+vyatta-dataplane (3.11.11) unstable; urgency=medium
+
+  [ Paul Atkins ]
+  * gre: don't double free mbuf if using a gre tunnel to ourself
+
+  [ Ian Wilson ]
+  * npf: Change npf to use dataplane session states for UDP etc.
+  * npf: Store generic session state in the session
+  * npf: Set the alg bit in ALG parent sessions
+  * npf: Add the se_alg feature boolean to the connsync structure
+  * npf: Change the feature uint8_ts to bits in npf_pack_dp_session
+  * npf: Replace se_nat bit with se_snat and se_dnat bits in the session
+  * npf: Add se_in and se_out bits to the session
+  * npf: Add se_app bit to the session to mark dpi sessions
+  * npf: Add function to calculate session time-to-expire for json
+  * npf: Return generic ALG json for each session
+  * npf: Return specific ALG json for each session
+  * npf: Naturally align struct npf_pack_dp_session
+  * npf: Remove se_etime from connsync session structure
+  * ut: Add test functions to create and send udp, tcp, or icmp NATd pkts
+  * session: Add command to return list of items from the dataplane sessions
+  * npf: Add address family filter to session list command
+  * npf: Add filters to session list command for ID, proto, intf and direction
+  * npf: Add filters to session list cmd for src and dest addr and port
+  * npf: Add filters to session list cmd for features
+  * npf: Separate the existing session show filter from the json
+  * npf: Add handler for "show dataplane sessions" command
+  * npf: Add handler for "show dataplane sessions summary" command
+  * npf: Add handler for "clear dataplane sessions" command
+  * ut: Rename the npf snat test cases
+  * npf: Add a flag to the session to denote that is is being used as a fw session
+
+  [ Paul Atkins ]
+  * flow_cache: move flow_cache_empty_table higher in file
+  * flow_cache: teardown the flow cache on shutdown
+  * flow_cache: don't init the flow cache multiple times per core
+  * ut: don't leak the ifname in the addport_request
+
+  [ aroberts ]
+  * Reinstall a mark-map if a resource group changes
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Wed, 19 Aug 2020 09:54:14 +0100
+
 vyatta-dataplane (3.11.10) unstable; urgency=medium
 
   [ Srinivas Narayan ]
