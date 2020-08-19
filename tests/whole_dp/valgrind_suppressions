@@ -149,3 +149,13 @@
    fun:urcu_workqueue_create
    ...
 }
+{
+   <rte check cpu flags>
+   Memcheck:Cond
+   fun:rte_cpu_get_flag_enabled
+   fun:cryptodev_aesni_mb_create
+   fun:cryptodev_aesni_mb_probe
+   ...
+   fun:crypto_rte_create_pmd
+   ...
+}
