@@ -1,3 +1,9 @@
+vyatta-dataplane (3.10.67) unstable; urgency=medium
+
+  * gre: don't double free mbuf if using a gre tunnel to ourself
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Wed, 19 Aug 2020 08:37:29 +0100
+
 vyatta-dataplane (3.10.66) unstable; urgency=medium
 
   [ Robert Shearman ]
