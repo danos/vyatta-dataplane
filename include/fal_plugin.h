@@ -1894,6 +1894,17 @@ enum fal_switch_attr_t {
 	FAL_SWITCH_ATTR_MAX_BFD_INTERVAL_CNT,
 
 	/**
+	 * @brief Local discriminator requirements in the HW for BFD sessions.
+	 * Some HW require the Local discriminator to be multiple of 2/4 etc.
+	 * due to their Session DB management. In such cases the local
+	 * discriminator is also used as a session ID
+	 *
+	 * @type  .u32
+	 * @flags READ_ONLY
+	 */
+	FAL_SWITCH_ATTR_BFD_LOCAL_DISCRIMINATOR_SHIFT,
+
+	/**
 	 * @brief SyncE Lock clock to interface
 	 *
 	 * @type u32 - ifindex for interface for clk lock
