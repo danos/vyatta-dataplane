@@ -65,6 +65,8 @@ struct config_param {
 	struct rte_ether_addr uplink_addr; /* uplink intf perm mac addr */
 	struct ip_addr rib_ip;   /* rib ctrl ip */
 	char *rib_ctrl_url;	 /* rib control url */
+	char *xfrm_push_url;	/* xfrm push from the DP url */
+	char *xfrm_pull_url;	/* xfrm pull to the DP url */
 };
 
 struct bkplane_pci {

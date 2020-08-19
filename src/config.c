@@ -208,6 +208,11 @@ static int parse_entry(void *user, const char *section,
 			return parse_ipaddr(&cfg->rib_ip, value);
 		if (strcmp(name, "control") == 0)
 			return copy_str(&cfg->rib_ctrl_url, value);
+	} else if (strcasecmp(section, "xfrm_client") == 0) {
+		if (strcmp(name, "pull") == 0)
+			return copy_str(&cfg->xfrm_pull_url, value);
+		if (strcmp(name, "push") == 0)
+			return copy_str(&cfg->xfrm_push_url, value);
 	}
 
 	return 1; /* good */
