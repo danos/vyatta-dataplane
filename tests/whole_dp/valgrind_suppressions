@@ -48,27 +48,16 @@
    <IPv4 Grouper reading icmp field for non icmp pak>
    Memcheck:Value8
    fun:g2_eval4
+   ...
    fun:npf_ruleset_inspect
-   fun:npf_hook_notrack
-   ...
-   fun:pipeline_fused_no_dyn_feats_ether_in
-   ...
-   fun:ether_input*
-   fun:process_burst
-   fun:poll_receive_queues
    ...
 }
 {
    <IPv6 Grouper reading icmp field for non icmp pak>
    Memcheck:Value8
    fun:g2_eval6
+   ...
    fun:npf_ruleset_inspect
-   ...
-   fun:pipeline_fused_no_dyn_feats_ether_in
-   ...
-   fun:ether_input*
-   fun:process_burst
-   fun:poll_receive_queues
    ...
 }
 {
@@ -153,9 +142,8 @@
    <rte check cpu flags>
    Memcheck:Cond
    fun:rte_cpu_get_flag_enabled
-   fun:cryptodev_aesni_mb_create
-   fun:cryptodev_aesni_mb_probe
    ...
+   fun:rte_vdev_init
    fun:crypto_rte_create_pmd
    ...
 }
