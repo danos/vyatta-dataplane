@@ -136,7 +136,7 @@ static inline enum npf_tcpfc npf_tcpfl2case(const uint8_t tcpfl)
 
 
 
-static uint8_t npf_tcp_strict_fsm[2][TCPFC_COUNT][NPF_TCP_NSTATES];
+static uint8_t npf_tcp_strict_fsm[NPF_FLOW_SZ][TCPFC_COUNT][NPF_TCP_NSTATES];
 
 /*
  * NPF transition table of a tracked TCP connection.
@@ -147,7 +147,7 @@ static uint8_t npf_tcp_strict_fsm[2][TCPFC_COUNT][NPF_TCP_NSTATES];
  *
  * Note that this state is different from the state in each end (host).
  */
-static uint8_t npf_tcp_fsm[NPF_TCP_NSTATES][2][TCPFC_COUNT] = {
+static uint8_t npf_tcp_fsm[NPF_TCP_NSTATES][NPF_FLOW_SZ][TCPFC_COUNT] = {
 	[NPF_TCPS_NONE] = {
 		[NPF_FLOW_FORW] = {
 			/* Handshake (1): initial SYN. */
@@ -423,17 +423,16 @@ npf_state_tcp_init(void)
  * and thus part of the connection we are tracking.
  */
 static bool
-npf_tcp_inwindow(const npf_cache_t *npc, struct rte_mbuf *nbuf, npf_state_t *nst,
-    const int di)
+npf_tcp_inwindow(const npf_cache_t *npc, struct rte_mbuf *nbuf,
+		 npf_state_t *nst, const enum npf_flow_dir di)
 {
 	const struct tcphdr * const th = &npc->npc_l4.tcp;
 	const uint8_t tcpfl = th->th_flags;
-	npf_tcpstate_t *fstate, *tstate;
+	struct npf_tcp_window *fstate, *tstate;
 	int tcpdlen, ackskew;
 	tcp_seq seq, ack, end;
 	uint32_t win;
 
-	assert(di == NPF_FLOW_FORW || di == NPF_FLOW_BACK);
 	assert(npf_cache_ipproto(npc) == IPPROTO_TCP);
 
 	/*
@@ -448,7 +447,8 @@ npf_tcp_inwindow(const npf_cache_t *npc, struct rte_mbuf *nbuf, npf_state_t *nst
 	 *	III) ACK	<= MAX { RCV.SEQ + RCV.LEN }
 	 *	IV)  ACK	>= MAX { RCV.SEQ + RCV.LEN } - MAXACKWIN
 	 *
-	 * Let these members of npf_tcpstate_t be the maximum seen values of:
+	 * Let these members of struct npf_tcp_window be the maximum seen
+	 * values of:
 	 *	nst_end		- SEQ + LEN
 	 *	nst_maxend	- ACK + MAX(WIN, 1)
 	 *	nst_maxwin	- MAX(WIN, 1)
@@ -598,13 +598,15 @@ npf_tcp_inwindow(const npf_cache_t *npc, struct rte_mbuf *nbuf, npf_state_t *nst
  */
 uint8_t
 npf_state_tcp(const npf_cache_t *npc, struct rte_mbuf *nbuf, npf_state_t *nst,
-	      int di, int *error)
+	      const enum npf_flow_dir di, int *error)
 {
 	const struct tcphdr * const th = &npc->npc_l4.tcp;
 	const uint8_t tcpfl = th->th_flags;
 	const uint8_t state = nst->nst_state;
 	uint8_t nstate;
 	const enum npf_tcpfc flagcase = npf_tcpfl2case(tcpfl);
+
+	assert(di <= NPF_FLOW_LAST);
 
 	/* Look for a transition to a new state. */
 	nstate = npf_tcp_fsm[state][di][flagcase];

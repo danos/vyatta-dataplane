@@ -1787,15 +1787,16 @@ int npf_session_npf_pack_state_pack(struct npf_session *se,
 				    struct npf_pack_session_state *pst)
 {
 	npf_state_t *nst;
+	enum npf_flow_dir fl;
 
 	if (!se || !pst)
 		return -EINVAL;
 
 	nst = &se->s_state;
-	memcpy(&pst->pst_tcpst[0], &nst->nst_tcpst[0],
-	       sizeof(*pst->pst_tcpst));
-	memcpy(&pst->pst_tcpst[1], &nst->nst_tcpst[1],
-	       sizeof(*pst->pst_tcpst));
+
+	for (fl = NPF_FLOW_FIRST; fl <= NPF_FLOW_LAST; fl++)
+		memcpy(&pst->pst_tcpst[fl], &nst->nst_tcpst[fl],
+		       sizeof(*pst->pst_tcpst));
 
 	pst->pst_state = nst->nst_state;
 

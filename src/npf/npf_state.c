@@ -90,7 +90,7 @@ static const char *npf_state_tcp_name[NPF_TCP_NSTATES] = {
 	[NPF_TCPS_CLOSED]	= "CLOSED",
 };
 
-static const uint8_t npf_generic_fsm[SESSION_STATE_SIZE][2] = {
+static const uint8_t npf_generic_fsm[SESSION_STATE_SIZE][NPF_FLOW_SZ] = {
 	[SESSION_STATE_NONE] = {
 		[NPF_FLOW_FORW]		= SESSION_STATE_NEW,
 	},
@@ -220,7 +220,7 @@ int npf_state_inspect(const npf_cache_t *npc, struct rte_mbuf *nbuf,
 		      npf_state_t *nst, bool forw)
 {
 	const uint8_t proto_idx = npf_cache_proto_idx(npc);
-	const int di = forw ? NPF_FLOW_FORW : NPF_FLOW_BACK;
+	const enum npf_flow_dir di = forw ? NPF_FLOW_FORW : NPF_FLOW_BACK;
 	int ret = 0;
 	bool state_changed = false;
 	uint8_t state;
@@ -550,8 +550,8 @@ void npf_state_stats_json(json_writer_t *json)
 void
 npf_state_dump(const npf_state_t *nst __unused)
 {
-	const npf_tcpstate_t *fst = &nst->nst_tcpst[0];
-	const npf_tcpstate_t *tst = &nst->nst_tcpst[1];
+	const struct npf_tcp_window *fst = &nst->nst_tcpst[NPF_FLOW_FORW];
+	const struct npf_tcp_window *tst = &nst->nst_tcpst[NPF_FLOW_BACK];
 
 	printf("\tstate (%p) %d:\n\t\t"
 	    "F { end %u maxend %u mwin %u wscale %u }\n\t\t"
@@ -568,14 +568,14 @@ int npf_state_npf_pack_update(npf_state_t *nst,
 			      uint8_t state, uint8_t proto_idx)
 {
 	bool state_changed = false;
+	enum npf_flow_dir fl;
 
 	if (!nst || !pst)
 		return -EINVAL;
 
-	memcpy(&nst->nst_tcpst[NPF_FLOW_FORW], &pst->pst_tcpst[NPF_FLOW_FORW],
-	       sizeof(*nst->nst_tcpst));
-	memcpy(&nst->nst_tcpst[NPF_FLOW_BACK], &pst->pst_tcpst[NPF_FLOW_BACK],
-	       sizeof(*nst->nst_tcpst));
+	for (fl = NPF_FLOW_FIRST; fl <= NPF_FLOW_LAST; fl++)
+		memcpy(&nst->nst_tcpst[fl], &pst->pst_tcpst[fl],
+		       sizeof(*nst->nst_tcpst));
 
 	if (proto_idx == NPF_PROTO_IDX_TCP) {
 		npf_state_tcp_state_set(nst, state, &state_changed);

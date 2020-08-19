@@ -96,7 +96,7 @@ struct npf_pack_npf_session {
  * Packed npf_state_t
  */
 struct npf_pack_session_state {
-	npf_tcpstate_t		pst_tcpst[2];
+	struct npf_tcp_window	pst_tcpst[2];
 	uint8_t			pst_state;
 	uint8_t			pst_pad[3];
 } __attribute__ ((__packed__));

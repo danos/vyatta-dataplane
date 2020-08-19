@@ -95,24 +95,36 @@ struct npf_state_stats {
 	uint32_t ss_nat_cnt; /* used only for session_summary */
 };
 
-#define	NPF_FLOW_FORW		0
-#define	NPF_FLOW_BACK		1
+enum npf_flow_dir {
+	NPF_FLOW_FORW,
+	NPF_FLOW_BACK
+};
+#define NPF_FLOW_FIRST	NPF_FLOW_FORW
+#define NPF_FLOW_LAST	NPF_FLOW_BACK
+#define NPF_FLOW_SZ	(NPF_FLOW_LAST + 1)
 
-typedef struct {
+/*
+ * TCP session state for windowing. Two per TCP session.  One for each
+ * direction.
+ */
+struct npf_tcp_window {
 	uint32_t	nst_end;
 	uint32_t	nst_maxend;
+	/* Keep track of maximum window seen */
 	uint32_t	nst_maxwin;
+	/* Window scaling.  From options in syn-ack, if present */
 	uint8_t		nst_wscale;
 	uint8_t		nst_pad[3];
-} npf_tcpstate_t;
+};
 
-static_assert(sizeof(npf_tcpstate_t) == 16, "npf_tcpstate_t != 16");
+static_assert(sizeof(struct npf_tcp_window) == 16,
+	      "struct npf_tcp_window != 16");
 
 typedef struct {
 	rte_spinlock_t		nst_lock;
 	uint8_t			nst_state;
 	uint8_t			nst_pad[3];
-	npf_tcpstate_t		nst_tcpst[2];
+	struct npf_tcp_window	nst_tcpst[NPF_FLOW_SZ];
 	struct npf_timeout	*nst_to;
 } npf_state_t;
 
@@ -223,7 +235,7 @@ void npf_state_tcp_init(void);
  *  3. '*error' < 0 if the packet should be discarded
  */
 uint8_t npf_state_tcp(const npf_cache_t *npc, struct rte_mbuf *nbuf,
-		      npf_state_t *nst, int di, int *error);
+		      npf_state_t *nst, const enum npf_flow_dir di, int *error);
 
 void npf_state_set_tcp_strict(bool value);
 
