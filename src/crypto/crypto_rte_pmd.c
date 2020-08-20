@@ -638,28 +638,26 @@ void crypto_rte_op_free(struct rte_mbuf *m)
 
 
 static int crypto_rte_op_assoc_session(struct rte_crypto_op *cop,
-				       struct sadb_sa *sa)
+				       struct crypto_session *session)
 {
 	int err;
 
 	err = rte_crypto_op_attach_sym_session(cop,
-					       sa->session->rte_session);
+					       session->rte_session);
 	return err;
 }
 
-static int crypto_rte_process_op(struct sadb_sa *sa, struct rte_crypto_op *cop)
+static int crypto_rte_process_op(uint8_t dev_id, enum crypto_xfrm qid,
+				 struct rte_crypto_op *cop)
 {
-	uint8_t qid;
 	int rc;
 
-	qid = sa->dir == CRYPTO_DIR_IN ? CRYPTO_DECRYPT : CRYPTO_ENCRYPT;
-	rc = rte_cryptodev_enqueue_burst(sa->rte_cdev_id, qid, &cop, 1);
+	rc = rte_cryptodev_enqueue_burst(dev_id, qid, &cop, 1);
 	if (rc < 1)
 		return -ENOSPC;
 
 	do {
-		rc = rte_cryptodev_dequeue_burst(sa->rte_cdev_id, qid,
-						 &cop, 1);
+		rc = rte_cryptodev_dequeue_burst(dev_id, qid, &cop, 1);
 	} while (rc < 1);
 
 	if (cop->status != RTE_CRYPTO_OP_STATUS_SUCCESS)
@@ -704,7 +702,7 @@ crypto_rte_sop_aead_prepare(struct rte_crypto_sym_op *sop,
  */
 static inline int
 crypto_rte_inbound_cop_prepare(struct rte_crypto_op *cop,
-			       const struct sadb_sa *sa,
+			       struct crypto_session *session,
 			       struct rte_mbuf *m, uint32_t l3_hdr_len,
 			       uint8_t udp_len, uint32_t esp_len,
 			       unsigned char *iv, uint32_t payload_len)
@@ -712,10 +710,9 @@ crypto_rte_inbound_cop_prepare(struct rte_crypto_op *cop,
 	int err = 0;
 	struct rte_crypto_sym_op *sop;
 	uint8_t *gcm;
-	struct crypto_session *session = sa->session;
 	uint16_t icv_ofs;
 
-	memcpy(sa->session->iv, iv, sa->session->iv_len);
+	memcpy(session->iv, iv, session->iv_len);
 
 	icv_ofs = rte_pktmbuf_pkt_len(m) - crypto_session_digest_len(session);
 
@@ -730,7 +727,7 @@ crypto_rte_inbound_cop_prepare(struct rte_crypto_op *cop,
 		/* fill AAD IV (located inside crypto op) */
 		gcm = rte_crypto_op_ctod_offset(cop, uint8_t *,
 						CRYPTO_OP_IV_OFFSET);
-		aead_gcm_iv_fill(gcm, sa->session);
+		aead_gcm_iv_fill(gcm, session);
 		return err;
 	}
 
@@ -751,7 +748,7 @@ crypto_rte_inbound_cop_prepare(struct rte_crypto_op *cop,
  */
 static inline int
 crypto_rte_outbound_cop_prepare(struct rte_crypto_op *cop,
-				const struct sadb_sa *sa,
+				struct crypto_session *session,
 				struct rte_mbuf *m, uint32_t l3_hdr_len,
 				uint8_t udp_len, uint32_t esp_len,
 				uint32_t payload_len)
@@ -759,7 +756,6 @@ crypto_rte_outbound_cop_prepare(struct rte_crypto_op *cop,
 	int err = 0;
 	struct rte_crypto_sym_op *sop;
 	uint8_t *gcm;
-	struct crypto_session *session = sa->session;
 	uint16_t icv_ofs;
 
 	icv_ofs = dp_pktmbuf_l2_len(m) + l3_hdr_len + udp_len + esp_len +
@@ -776,7 +772,7 @@ crypto_rte_outbound_cop_prepare(struct rte_crypto_op *cop,
 		/* fill AAD IV (located inside crypto op) */
 		gcm = rte_crypto_op_ctod_offset(cop, uint8_t *,
 						CRYPTO_OP_IV_OFFSET);
-		aead_gcm_iv_fill(gcm, sa->session);
+		aead_gcm_iv_fill(gcm, session);
 		return err;
 	}
 
@@ -800,10 +796,12 @@ int crypto_rte_xform_packet(struct sadb_sa *sa, struct rte_mbuf *mbuf,
 	struct rte_crypto_op *cop;
 	struct pktmbuf_mdata *mdata;
 	uint8_t udp_len = 0;
+	struct crypto_session *session = sa->session;
+	enum crypto_xfrm qid;
 
 	crypto_session_set_direction(sa, encrypt);
 
-	if (unlikely(sa->session->aead_algo != RTE_CRYPTO_AEAD_AES_GCM)) {
+	if (unlikely(session->aead_algo != RTE_CRYPTO_AEAD_AES_GCM)) {
 		err = esp_generate_chain(sa, mbuf, l3_hdr_len, esp, iv,
 					 text_len + esp_len, encrypt);
 		return err;
@@ -811,7 +809,7 @@ int crypto_rte_xform_packet(struct sadb_sa *sa, struct rte_mbuf *mbuf,
 
 	mdata = pktmbuf_mdata(mbuf);
 	cop = mdata->cop;
-	err = crypto_rte_op_assoc_session(cop, sa);
+	err = crypto_rte_op_assoc_session(cop, session);
 	if (err)
 		return err;
 
@@ -819,18 +817,19 @@ int crypto_rte_xform_packet(struct sadb_sa *sa, struct rte_mbuf *mbuf,
 		udp_len = sizeof(struct udphdr);
 
 	if (encrypt)
-		err = crypto_rte_outbound_cop_prepare(cop, sa, mbuf,
+		err = crypto_rte_outbound_cop_prepare(cop, session, mbuf,
 						      l3_hdr_len, udp_len,
 						      esp_len, text_len);
 	else
-		err = crypto_rte_inbound_cop_prepare(cop, sa, mbuf,
+		err = crypto_rte_inbound_cop_prepare(cop, session, mbuf,
 						     l3_hdr_len, udp_len,
 						     esp_len, iv, text_len);
 
 	if (err)
 		return err;
 
-	err = crypto_rte_process_op(sa, cop);
+	qid = sa->dir == CRYPTO_DIR_IN ? CRYPTO_DECRYPT : CRYPTO_ENCRYPT;
+	err = crypto_rte_process_op(sa->rte_cdev_id, qid, cop);
 
 	return err;
 }
