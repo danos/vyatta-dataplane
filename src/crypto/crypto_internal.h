@@ -308,9 +308,8 @@ crypto_session_create(const struct xfrm_algo *algo_crypt,
 void crypto_session_destroy(struct crypto_session *ctx);
 
 /*
- * DEPRECATED: This function is a temporary helper to set the crypto_session
- * direction. It will be removed as soon as the policy direction is can get
- * resolved on crypto_session creation.
+ * This function is invoked at the time of SA creation to
+ * set the direction and set up the session in the driver
  */
 static inline void
 crypto_session_set_direction(struct sadb_sa *sa, int direction)

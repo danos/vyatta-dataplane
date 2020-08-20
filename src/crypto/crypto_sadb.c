@@ -822,7 +822,14 @@ void crypto_sadb_new_sa(const struct xfrm_usersa_info *sa_info,
 
 	sa->del_pmd_dev_id = sa->pmd_dev_id = pmd_dev_id;
 
-	(void)crypto_pmd_get_info(pmd_dev_id, &sa->rte_cdev_id, &dev_type);
+	if (pmd_dev_id != CRYPTO_PMD_INVALID_ID) {
+		(void)crypto_pmd_get_info(pmd_dev_id, &sa->rte_cdev_id,
+					  &dev_type);
+
+		crypto_session_set_direction(sa,
+					     sa->dir == CRYPTO_DIR_IN ?
+					     XFRM_POLICY_IN : XFRM_POLICY_OUT);
+	}
 
 	if (sadb_insert_sa(sa, vrf_ctx) < 0) {
 		/*

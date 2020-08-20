@@ -799,8 +799,6 @@ int crypto_rte_xform_packet(struct sadb_sa *sa, struct rte_mbuf *mbuf,
 	struct crypto_session *session = sa->session;
 	enum crypto_xfrm qid;
 
-	crypto_session_set_direction(sa, encrypt);
-
 	if (unlikely(session->aead_algo != RTE_CRYPTO_AEAD_AES_GCM)) {
 		err = esp_generate_chain(sa, mbuf, l3_hdr_len, esp, iv,
 					 text_len + esp_len, encrypt);
