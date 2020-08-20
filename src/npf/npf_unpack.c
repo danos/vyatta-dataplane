@@ -51,7 +51,7 @@ int npf_pack_session_unpack_update(struct npf_pack_session_update *csu)
 {
 	struct npf_pack_session_state *pst;
 	struct npf_pack_dp_sess_stats *stats;
-	struct npf_pack_sentry *sen;
+	struct npf_pack_sentry_packet *psp;
 	struct npf_session *se;
 	struct ifnet *ifp;
 	struct session *s;
@@ -60,16 +60,15 @@ int npf_pack_session_unpack_update(struct npf_pack_session_update *csu)
 	if (!csu)
 		return -EINVAL;
 
-	sen = &csu->sen;
-	if (!sen)
+	psp = &csu->psp;
+	if (!psp)
 		return -EINVAL;
 
-	rc = session_npf_pack_sentry_restore(sen, &ifp);
+	rc = session_npf_pack_sentry_restore(psp, &ifp);
 	if (rc)
 		return -EINVAL;
 
-	rc = npf_pack_get_session_from_init_sentry(&csu->sen.sp_forw,
-						   &s, &se);
+	rc = npf_pack_get_session_from_init_sentry(&psp->psp_forw, &s, &se);
 	if (rc)
 		goto error;
 
@@ -83,6 +82,7 @@ int npf_pack_session_unpack_update(struct npf_pack_session_update *csu)
 		rc = npf_session_npf_pack_state_update(se, pst);
 		if (rc)
 			goto error;
+
 		stats = &csu->stats;
 		rc = session_npf_pack_stats_restore(s, stats);
 		if (rc)
@@ -97,7 +97,7 @@ int npf_pack_session_unpack_update(struct npf_pack_session_update *csu)
 
 static
 int npf_pack_restore_session(struct npf_pack_dp_session *pds,
-			     struct npf_pack_sentry *sen,
+			     struct npf_pack_sentry_packet *psp,
 			     struct npf_pack_npf_session *fw,
 			     struct npf_pack_session_state *pst,
 			     struct npf_pack_dp_sess_stats *stats,
@@ -110,14 +110,14 @@ int npf_pack_restore_session(struct npf_pack_dp_session *pds,
 	struct ifnet *ifp;
 	int rc = -EINVAL;
 
-	if (!pds || !sen || !fw || !pst || !stats)
+	if (!pds || !psp || !fw || !pst || !stats)
 		return rc;
 
-	ifp = dp_ifnet_byifname(sen->ifname);
+	ifp = dp_ifnet_byifname(psp->psp_ifname);
 	if (!ifp) {
 		RTE_LOG(ERR, DATAPLANE,
 			"npf_pack session %lu restore: Invalid ifname %s\n",
-			pds->pds_id, sen->ifname);
+			pds->pds_id, psp->psp_ifname);
 		goto error;
 	}
 
@@ -150,7 +150,7 @@ int npf_pack_restore_session(struct npf_pack_dp_session *pds,
 		}
 	}
 
-	s = session_npf_pack_restore(pds, sen, stats);
+	s = session_npf_pack_restore(pds, psp, stats);
 	if (!s) {
 		RTE_LOG(ERR, DATAPLANE,
 			"npf_pack DP session restore failed %lu, %s\n",
@@ -166,6 +166,7 @@ int npf_pack_restore_session(struct npf_pack_dp_session *pds,
 			session_get_id(s), strerror(-rc));
 		goto error;
 	}
+
 	if (npf_session_npf_pack_activate(se, ifp) != 0) {
 		RTE_LOG(ERR, DATAPLANE,
 			"npf_pack npf session activate failed %lu\n",
@@ -187,7 +188,7 @@ int npf_pack_restore_session(struct npf_pack_dp_session *pds,
 static int npf_pack_unpack_fw_session(struct npf_pack_session_fw *cs,
 				      struct npf_session **se)
 {
-	return npf_pack_restore_session(&cs->pds, &cs->sen,
+	return npf_pack_restore_session(&cs->pds, &cs->psp,
 					&cs->se, &cs->pst, &cs->stats,
 					NULL, NULL, se);
 }
@@ -195,7 +196,7 @@ static int npf_pack_unpack_fw_session(struct npf_pack_session_fw *cs,
 static int npf_pack_unpack_nat_session(struct npf_pack_session_nat *cs,
 				       struct npf_session **se)
 {
-	return npf_pack_restore_session(&cs->pds, &cs->sen,
+	return npf_pack_restore_session(&cs->pds, &cs->psp,
 					&cs->se, &cs->pst, &cs->stats,
 					&cs->pnt, NULL, se);
 }
@@ -203,7 +204,7 @@ static int npf_pack_unpack_nat_session(struct npf_pack_session_nat *cs,
 static int npf_pack_unpack_nat64_session(struct npf_pack_session_nat64 *cs,
 					 struct npf_session **se)
 {
-	return npf_pack_restore_session(&cs->pds, &cs->sen,
+	return npf_pack_restore_session(&cs->pds, &cs->psp,
 					&cs->se, &cs->pst, &cs->stats,
 					NULL, &cs->n64, se);
 }
@@ -212,22 +213,21 @@ static int
 npf_pack_unpack_nat_nat64_session(struct npf_pack_session_nat_nat64 *cs,
 				  struct npf_session **se)
 {
-	return npf_pack_restore_session(&cs->pds, &cs->sen,
+	return npf_pack_restore_session(&cs->pds, &cs->psp,
 					&cs->se, &cs->pst, &cs->stats,
 					&cs->pnt, &cs->n64, se);
 }
 
 static void npf_pack_delete_old_session(struct npf_pack_dp_session *pds,
-					struct npf_pack_sentry *sen)
+					struct npf_pack_sentry_packet *psp)
 {
 	struct session *s = NULL;
 	struct npf_session *se = NULL;
 
-	if (!pds || !sen)
+	if (!pds || !psp)
 		return;
 
-	if (!npf_pack_get_session_from_init_sentry(&sen->sp_forw,
-						   &s, &se)) {
+	if (!npf_pack_get_session_from_init_sentry(&psp->psp_forw, &s, &se)) {
 		if (s)
 			session_expire(s, NULL);
 	}
@@ -239,7 +239,7 @@ static int npf_pack_unpack_one_session(struct npf_pack_session_new *csn,
 	uint8_t msg_type;
 	struct npf_pack_session_hdr *hdr;
 	struct npf_pack_session_fw *cs;
-	struct npf_pack_sentry *sen;
+	struct npf_pack_sentry_packet *psp;
 	struct ifnet *ifp;
 	int rc;
 
@@ -247,37 +247,46 @@ static int npf_pack_unpack_one_session(struct npf_pack_session_new *csn,
 		return -EINVAL;
 
 	cs = (struct npf_pack_session_fw *)&csn->cs;
-	sen = &cs->sen;
-	if (!sen)
+
+	psp = &cs->psp;
+	if (!psp)
 		return -EINVAL;
-	rc = session_npf_pack_sentry_restore(sen, &ifp);
+
+	rc = session_npf_pack_sentry_restore(psp, &ifp);
 	if (rc)
 		return -EINVAL;
-	npf_pack_delete_old_session(&cs->pds, sen);
+
+	npf_pack_delete_old_session(&cs->pds, psp);
 	hdr = &csn->hdr;
 	msg_type = hdr->msg_type;
+
 	if (msg_type == NPF_PACK_SESSION_NEW_FW) {
 		if (hdr->len < NPF_PACK_NEW_FW_SESSION_SIZE)
 			return -EINVAL;
 		rc = npf_pack_unpack_fw_session(
 			(struct npf_pack_session_fw *)&csn->cs, se);
+
 	} else if (msg_type == NPF_PACK_SESSION_NEW_NAT) {
 		if (hdr->len < NPF_PACK_NEW_NAT_SESSION_SIZE)
 			return -EINVAL;
 		rc = npf_pack_unpack_nat_session(
 			(struct npf_pack_session_nat *)&csn->cs, se);
+
 	} else if (msg_type == NPF_PACK_SESSION_NEW_NAT64) {
 		if (hdr->len < NPF_PACK_NEW_NAT64_SESSION_SIZE)
 			return -EINVAL;
 		rc = npf_pack_unpack_nat64_session(
 			(struct npf_pack_session_nat64 *)&csn->cs, se);
+
 	} else if (msg_type == NPF_PACK_SESSION_NEW_NAT_NAT64) {
 		if (hdr->len < NPF_PACK_NEW_NAT_NAT64_SESSION_SIZE)
 			return -EINVAL;
 		rc = npf_pack_unpack_nat_nat64_session(
 			(struct npf_pack_session_nat_nat64 *)&csn->cs, se);
+
 	} else
 		return -EINVAL;
+
 	if (rc)
 		return rc;
 
@@ -312,12 +321,14 @@ static int npf_pack_unpack_peer_session(struct npf_pack_session_new *csn,
 	if ((cs->pds.pds_parent && cs_peer->pds.pds_parent) ||
 	    (!cs->pds.pds_parent && !cs_peer->pds.pds_parent))
 		return rc;
+
 	if (cs->pds.pds_parent)
 		rc = npf_nat64_session_link(se, sep);
 	else
 		rc = npf_nat64_session_link(sep, se);
 	if (rc)
 		return rc;
+
 	*se_peer = sep;
 	return 0;
 }

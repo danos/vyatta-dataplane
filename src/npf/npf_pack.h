@@ -78,10 +78,10 @@ struct npf_pack_dp_sess_stats {
 	uint64_t	pdss_bytes_out;
 } __attribute__ ((__packed__));
 
-struct npf_pack_sentry {
-	struct sentry_packet	sp_forw;
-	struct sentry_packet	sp_back;
-	char			ifname[IFNAMSIZ];
+struct npf_pack_sentry_packet {
+	struct sentry_packet	psp_forw;
+	struct sentry_packet	psp_back;
+	char			psp_ifname[IFNAMSIZ];
 } __attribute__ ((__packed__));
 
 struct npf_pack_npf_session {
@@ -132,7 +132,7 @@ struct npf_pack_npf_nat64 {
 
 struct npf_pack_session_fw {
 	struct npf_pack_dp_session	pds;
-	struct npf_pack_sentry		sen;
+	struct npf_pack_sentry_packet	psp;
 	struct npf_pack_npf_session	se;
 	struct npf_pack_session_state	pst;
 	struct npf_pack_dp_sess_stats	stats;
@@ -140,7 +140,7 @@ struct npf_pack_session_fw {
 
 struct npf_pack_session_nat {
 	struct npf_pack_dp_session	pds;
-	struct npf_pack_sentry		sen;
+	struct npf_pack_sentry_packet	psp;
 	struct npf_pack_npf_session	se;
 	struct npf_pack_session_state	pst;
 	struct npf_pack_dp_sess_stats	stats;
@@ -149,7 +149,7 @@ struct npf_pack_session_nat {
 
 struct npf_pack_session_nat64 {
 	struct npf_pack_dp_session	pds;
-	struct npf_pack_sentry		sen;
+	struct npf_pack_sentry_packet	psp;
 	struct npf_pack_npf_session	se;
 	struct npf_pack_session_state	pst;
 	struct npf_pack_dp_sess_stats	stats;
@@ -158,7 +158,7 @@ struct npf_pack_session_nat64 {
 
 struct npf_pack_session_nat_nat64 {
 	struct npf_pack_dp_session	pds;
-	struct npf_pack_sentry		sen;
+	struct npf_pack_sentry_packet	psp;
 	struct npf_pack_npf_session	se;
 	struct npf_pack_session_state	pst;
 	struct npf_pack_dp_sess_stats	stats;
@@ -186,7 +186,7 @@ struct npf_pack_session_new {
 
 struct npf_pack_session_update {
 	uint64_t			se_id;	/* for UT */
-	struct npf_pack_sentry		sen;
+	struct npf_pack_sentry_packet	psp;
 	struct npf_pack_session_state	pst;
 	struct npf_pack_dp_sess_stats	stats;
 	uint16_t			se_feature_count;

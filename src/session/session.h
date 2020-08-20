@@ -24,7 +24,7 @@
 struct ifnet;
 struct rte_mbuf;
 struct npf_pack_dp_session;
-struct npf_pack_sentry;
+struct npf_pack_sentry_packet;
 struct npf_pack_dp_sess_stats;
 
 /*
@@ -926,14 +926,14 @@ void session_gc(void);
 struct session *session_alloc(void);
 
 int session_npf_pack_pack(struct session *s, struct npf_pack_dp_session *pds,
-			  struct npf_pack_sentry *sen,
+			  struct npf_pack_sentry_packet *psp,
 			  struct npf_pack_dp_sess_stats *stats);
 int session_npf_pack_sentry_pack(struct session *s,
-				 struct npf_pack_sentry *sen);
+				 struct npf_pack_sentry_packet *psp);
 struct session *session_npf_pack_restore(struct npf_pack_dp_session *pds,
-					 struct npf_pack_sentry *sen,
+					 struct npf_pack_sentry_packet *psp,
 					 struct npf_pack_dp_sess_stats *stats);
-int session_npf_pack_sentry_restore(struct npf_pack_sentry *sen,
+int session_npf_pack_sentry_restore(struct npf_pack_sentry_packet *psp,
 				    struct ifnet **ifp);
 uint32_t session_get_npf_pack_timeout(struct session *s);
 int session_npf_pack_stats_pack(struct session *s,

@@ -1771,15 +1771,15 @@ int session_npf_pack_stats_restore(struct session *s,
 }
 
 int session_npf_pack_sentry_pack(struct session *s,
-				 struct npf_pack_sentry *sen)
+				 struct npf_pack_sentry_packet *psp)
 {
 	struct sentry *s_sen;
-	struct sentry_packet *sp_forw;
-	struct sentry_packet *sp_back;
+	struct sentry_packet *psp_forw;
+	struct sentry_packet *psp_back;
 	struct ifnet *ifp;
 	int i;
 
-	if (!s || !sen)
+	if (!s || !psp)
 		return -EINVAL;
 
 	s_sen = s->se_sen;
@@ -1789,42 +1789,45 @@ int session_npf_pack_sentry_pack(struct session *s,
 	ifp = dp_ifnet_byifindex(s_sen->sen_ifindex);
 	if (!ifp)
 		return -EINVAL;
-	strncpy(sen->ifname, ifp->if_name, IFNAMSIZ);
+	strncpy(psp->psp_ifname, ifp->if_name, IFNAMSIZ);
 
-	sp_forw = &sen->sp_forw;
-	sp_forw->sp_sentry_flags = s_sen->sen_flags;
+	psp_forw = &psp->psp_forw;
+	psp_forw->sp_sentry_flags = s_sen->sen_flags;
+
 	if (s_sen->sen_flags & SENTRY_IPv4)
-		sp_forw->sp_sentry_flags = SENTRY_IPv4;
+		psp_forw->sp_sentry_flags = SENTRY_IPv4;
 	else
-		sp_forw->sp_sentry_flags = SENTRY_IPv6;
-	sp_forw->sp_protocol = s_sen->sen_protocol;
-	sp_forw->sp_len = s_sen->sen_len;
-	for (i = 0; i < s_sen->sen_len; i++)
-		sp_forw->sp_addrids[i] = s_sen->sen_addrids[i];
+		psp_forw->sp_sentry_flags = SENTRY_IPv6;
 
-	sp_back = &sen->sp_back;
-	memset(sp_back, 0, sizeof(struct sentry_packet));
-	sentry_packet_reverse(sp_forw, sp_back);
+	psp_forw->sp_protocol = s_sen->sen_protocol;
+	psp_forw->sp_len = s_sen->sen_len;
+
+	for (i = 0; i < s_sen->sen_len; i++)
+		psp_forw->sp_addrids[i] = s_sen->sen_addrids[i];
+
+	psp_back = &psp->psp_back;
+	memset(psp_back, 0, sizeof(*psp_back));
+	sentry_packet_reverse(psp_forw, psp_back);
 
 	return 0;
 }
 
-int session_npf_pack_sentry_restore(struct npf_pack_sentry *sen,
+int session_npf_pack_sentry_restore(struct npf_pack_sentry_packet *psp,
 				    struct ifnet **ifp)
 {
 	struct ifnet *s_ifp;
 
-	if (!sen)
+	if (!psp)
 		return -EINVAL;
 
-	s_ifp = dp_ifnet_byifname(sen->ifname);
+	s_ifp = dp_ifnet_byifname(psp->psp_ifname);
 	if (!s_ifp)
 		return -EINVAL;
 
-	sen->sp_forw.sp_vrfid = s_ifp->if_vrfid;
-	sen->sp_back.sp_vrfid = s_ifp->if_vrfid;
-	sen->sp_forw.sp_ifindex = s_ifp->if_index;
-	sen->sp_back.sp_ifindex = s_ifp->if_index;
+	psp->psp_forw.sp_vrfid = s_ifp->if_vrfid;
+	psp->psp_back.sp_vrfid = s_ifp->if_vrfid;
+	psp->psp_forw.sp_ifindex = s_ifp->if_index;
+	psp->psp_back.sp_ifindex = s_ifp->if_index;
 
 	*ifp = s_ifp;
 
@@ -1832,10 +1835,10 @@ int session_npf_pack_sentry_restore(struct npf_pack_sentry *sen,
 }
 
 int session_npf_pack_pack(struct session *s, struct npf_pack_dp_session *pds,
-			  struct npf_pack_sentry *sen,
+			  struct npf_pack_sentry_packet *psp,
 			  struct npf_pack_dp_sess_stats *stats)
 {
-	if (!s || !pds || !sen || !stats)
+	if (!s || !pds || !psp || !stats)
 		return -EINVAL;
 
 	pds->pds_id = s->se_id;
@@ -1858,27 +1861,27 @@ int session_npf_pack_pack(struct session *s, struct npf_pack_dp_session *pds,
 	if (session_npf_pack_stats_pack(s, stats))
 		return -EINVAL;
 
-	return session_npf_pack_sentry_pack(s, sen);
+	return session_npf_pack_sentry_pack(s, psp);
 }
 
 struct session *session_npf_pack_restore(struct npf_pack_dp_session *pds,
-					 struct npf_pack_sentry *sen,
+					 struct npf_pack_sentry_packet *psp,
 					 struct npf_pack_dp_sess_stats *stats)
 {
 	struct session *s;
-	struct sentry_packet sp_forw;
-	struct sentry_packet sp_back;
-	struct sentry_packet *forw = &sp_forw;
-	struct sentry_packet *back = &sp_back;
+	struct sentry_packet psp_forw;
+	struct sentry_packet psp_back;
+	struct sentry_packet *forw = &psp_forw;
+	struct sentry_packet *back = &psp_back;
 	struct sentry *sen_forw;
 	struct ifnet *ifp;
 	bool created = false;
 	int rc;
 
-	if (!pds || !sen)
+	if (!pds || !psp)
 		return NULL;
 
-	rc = session_npf_pack_sentry_restore(sen, &ifp);
+	rc = session_npf_pack_sentry_restore(psp, &ifp);
 	if (rc)
 		return NULL;
 
@@ -1917,8 +1920,9 @@ struct session *session_npf_pack_restore(struct npf_pack_dp_session *pds,
 	rte_atomic64_init(&s->se_bytes_out);
 	se_init_logging(s);
 
-	memcpy(forw, &sen->sp_forw, sizeof(struct sentry_packet));
-	memcpy(back, &sen->sp_back, sizeof(struct sentry_packet));
+	memcpy(forw, &psp->psp_forw, sizeof(*forw));
+	memcpy(back, &psp->psp_back, sizeof(*back));
+
 	rc = sentry_packet_insert_both(s, forw, back, SENTRY_INIT,
 				       &sen_forw, &created);
 	if (rc || !created)
