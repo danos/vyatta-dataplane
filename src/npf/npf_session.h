@@ -171,10 +171,10 @@ int npf_session_npf_pack_state_restore(struct npf_session *se,
 int npf_session_npf_pack_state_update(struct npf_session *se,
 				      struct npf_pack_session_state *pst);
 int npf_session_npf_pack_pack(npf_session_t *se,
-			      struct npf_pack_npf_session *fw,
+			      struct npf_pack_npf_session *pns,
 			      struct npf_pack_session_state *pst);
 struct npf_session *
-npf_session_npf_pack_restore(struct npf_pack_npf_session *fw,
+npf_session_npf_pack_restore(struct npf_pack_npf_session *pns,
 			     struct npf_pack_session_state *pst,
 			     vrfid_t vrfid, uint8_t protocol,
 			     uint32_t ifindex);

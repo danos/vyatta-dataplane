@@ -84,10 +84,13 @@ struct npf_pack_sentry_packet {
 	char			psp_ifname[IFNAMSIZ];
 } __attribute__ ((__packed__));
 
+/*
+ * From npf_session_t
+ */
 struct npf_pack_npf_session {
-	int		s_flags;
-	uint32_t	s_fw_rule_hash;
-	uint32_t	s_rproc_rule_hash;
+	int		pns_flags;
+	uint32_t	pns_fw_rule_hash;
+	uint32_t	pns_rproc_rule_hash;
 } __attribute__ ((__packed__));
 
 struct npf_pack_npf_tcpstate {
@@ -133,7 +136,7 @@ struct npf_pack_npf_nat64 {
 struct npf_pack_session_fw {
 	struct npf_pack_dp_session	pds;
 	struct npf_pack_sentry_packet	psp;
-	struct npf_pack_npf_session	se;
+	struct npf_pack_npf_session	pns;
 	struct npf_pack_session_state	pst;
 	struct npf_pack_dp_sess_stats	stats;
 } __attribute__ ((__packed__));
@@ -141,7 +144,7 @@ struct npf_pack_session_fw {
 struct npf_pack_session_nat {
 	struct npf_pack_dp_session	pds;
 	struct npf_pack_sentry_packet	psp;
-	struct npf_pack_npf_session	se;
+	struct npf_pack_npf_session	pns;
 	struct npf_pack_session_state	pst;
 	struct npf_pack_dp_sess_stats	stats;
 	struct npf_pack_nat		pnt;
@@ -150,7 +153,7 @@ struct npf_pack_session_nat {
 struct npf_pack_session_nat64 {
 	struct npf_pack_dp_session	pds;
 	struct npf_pack_sentry_packet	psp;
-	struct npf_pack_npf_session	se;
+	struct npf_pack_npf_session	pns;
 	struct npf_pack_session_state	pst;
 	struct npf_pack_dp_sess_stats	stats;
 	struct npf_pack_npf_nat64	n64;
@@ -159,7 +162,7 @@ struct npf_pack_session_nat64 {
 struct npf_pack_session_nat_nat64 {
 	struct npf_pack_dp_session	pds;
 	struct npf_pack_sentry_packet	psp;
-	struct npf_pack_npf_session	se;
+	struct npf_pack_npf_session	pns;
 	struct npf_pack_session_state	pst;
 	struct npf_pack_dp_sess_stats	stats;
 	struct npf_pack_nat		pnt;

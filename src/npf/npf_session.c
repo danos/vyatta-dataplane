@@ -1842,24 +1842,24 @@ int npf_session_npf_pack_state_update(struct npf_session *se,
 }
 
 int npf_session_npf_pack_pack(npf_session_t *se,
-			      struct npf_pack_npf_session *fw,
+			      struct npf_pack_npf_session *pns,
 			      struct npf_pack_session_state *pst)
 {
 	npf_rule_t *rule;
 
-	if (!se || !fw)
+	if (!se || !pns)
 		return -EINVAL;
 
-	fw->s_flags = se->s_flags;
+	pns->pns_flags = se->s_flags;
 	rule = npf_session_get_fw_rule(se);
-	fw->s_fw_rule_hash = (rule ? npf_rule_get_hash(rule) : 0);
+	pns->pns_fw_rule_hash = (rule ? npf_rule_get_hash(rule) : 0);
 	rule = npf_session_get_rproc_rule(se);
-	fw->s_rproc_rule_hash = (rule ? npf_rule_get_hash(rule) : 0);
+	pns->pns_rproc_rule_hash = (rule ? npf_rule_get_hash(rule) : 0);
 	return npf_session_npf_pack_state_pack(se, pst);
 }
 
 struct npf_session *
-npf_session_npf_pack_restore(struct npf_pack_npf_session *fw,
+npf_session_npf_pack_restore(struct npf_pack_npf_session *pns,
 			     struct npf_pack_session_state *pst,
 			     vrfid_t vrfid, uint8_t protocol,
 			     uint32_t ifindex)
@@ -1868,23 +1868,23 @@ npf_session_npf_pack_restore(struct npf_pack_npf_session *fw,
 	npf_rule_t *rproc_rl;
 	npf_session_t *se;
 
-	if (!fw || !pst)
+	if (!pns || !pst)
 		return NULL;
 
 	se = zmalloc_aligned(sizeof(*se));
 	if (!se)
 		return NULL;
 
-	fw_rl = fw->s_fw_rule_hash ?
-			npf_get_rule_by_hash(fw->s_fw_rule_hash) : NULL;
+	fw_rl = pns->pns_fw_rule_hash ?
+			npf_get_rule_by_hash(pns->pns_fw_rule_hash) : NULL;
 	if (fw_rl)
 		npf_session_add_fw_rule(se, fw_rl);
-	rproc_rl = fw->s_rproc_rule_hash ?
-			npf_get_rule_by_hash(fw->s_rproc_rule_hash) : NULL;
+	rproc_rl = pns->pns_rproc_rule_hash ?
+		npf_get_rule_by_hash(pns->pns_rproc_rule_hash) : NULL;
 	if (rproc_rl)
 		npf_session_add_rproc_rule(se, rproc_rl);
 
-	se->s_flags = fw->s_flags;
+	se->s_flags = pns->pns_flags;
 	se->s_vrfid = vrfid;
 	se->s_if_idx = ifindex;
 	se->s_proto = protocol;
