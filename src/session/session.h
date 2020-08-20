@@ -25,7 +25,7 @@ struct ifnet;
 struct rte_mbuf;
 struct npf_pack_dp_session;
 struct npf_pack_sentry;
-struct npf_pack_session_stats;
+struct npf_pack_dp_sess_stats;
 
 /*
  * For polling during UT cleanup.
@@ -927,19 +927,19 @@ struct session *session_alloc(void);
 
 int session_npf_pack_pack(struct session *s, struct npf_pack_dp_session *dps,
 			  struct npf_pack_sentry *sen,
-			  struct npf_pack_session_stats *stats);
+			  struct npf_pack_dp_sess_stats *stats);
 int session_npf_pack_sentry_pack(struct session *s,
 				 struct npf_pack_sentry *sen);
 struct session *session_npf_pack_restore(struct npf_pack_dp_session *dps,
 					 struct npf_pack_sentry *sen,
-					 struct npf_pack_session_stats *stats);
+					 struct npf_pack_dp_sess_stats *stats);
 int session_npf_pack_sentry_restore(struct npf_pack_sentry *sen,
 				    struct ifnet **ifp);
 uint32_t session_get_npf_pack_timeout(struct session *s);
 int session_npf_pack_stats_pack(struct session *s,
-				struct npf_pack_session_stats *stats);
+				struct npf_pack_dp_sess_stats *stats);
 int session_npf_pack_stats_restore(struct session *s,
-				   struct npf_pack_session_stats *stats);
+				   struct npf_pack_dp_sess_stats *stats);
 int sess_time_to_expire(const struct session *s);
 
 static inline uint64_t session_get_id(struct session *s)

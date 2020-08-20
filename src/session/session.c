@@ -1743,29 +1743,29 @@ static void __attribute__ ((constructor)) session_event_init(void)
 
 
 int session_npf_pack_stats_pack(struct session *s,
-				struct npf_pack_session_stats *stats)
+				struct npf_pack_dp_sess_stats *stats)
 {
 	if (!s || !stats)
 		return -EINVAL;
 
-	stats->se_pkts_in = rte_atomic64_read(&s->se_pkts_in);
-	stats->se_bytes_in = rte_atomic64_read(&s->se_bytes_in);
-	stats->se_pkts_out = rte_atomic64_read(&s->se_pkts_out);
-	stats->se_bytes_out = rte_atomic64_read(&s->se_bytes_out);
+	stats->pdss_pkts_in = rte_atomic64_read(&s->se_pkts_in);
+	stats->pdss_bytes_in = rte_atomic64_read(&s->se_bytes_in);
+	stats->pdss_pkts_out = rte_atomic64_read(&s->se_pkts_out);
+	stats->pdss_bytes_out = rte_atomic64_read(&s->se_bytes_out);
 
 	return 0;
 }
 
 int session_npf_pack_stats_restore(struct session *s,
-				   struct npf_pack_session_stats *stats)
+				   struct npf_pack_dp_sess_stats *stats)
 {
 	if (!s || !stats)
 		return -EINVAL;
 
-	rte_atomic64_set(&s->se_pkts_in, stats->se_pkts_in);
-	rte_atomic64_set(&s->se_bytes_in, stats->se_bytes_in);
-	rte_atomic64_set(&s->se_pkts_out, stats->se_pkts_out);
-	rte_atomic64_set(&s->se_bytes_out, stats->se_bytes_out);
+	rte_atomic64_set(&s->se_pkts_in, stats->pdss_pkts_in);
+	rte_atomic64_set(&s->se_bytes_in, stats->pdss_bytes_in);
+	rte_atomic64_set(&s->se_pkts_out, stats->pdss_pkts_out);
+	rte_atomic64_set(&s->se_bytes_out, stats->pdss_bytes_out);
 
 	return 0;
 }
@@ -1833,7 +1833,7 @@ int session_npf_pack_sentry_restore(struct npf_pack_sentry *sen,
 
 int session_npf_pack_pack(struct session *s, struct npf_pack_dp_session *dps,
 			  struct npf_pack_sentry *sen,
-			  struct npf_pack_session_stats *stats)
+			  struct npf_pack_dp_sess_stats *stats)
 {
 	if (!s || !dps || !sen || !stats)
 		return -EINVAL;
@@ -1863,7 +1863,7 @@ int session_npf_pack_pack(struct session *s, struct npf_pack_dp_session *dps,
 
 struct session *session_npf_pack_restore(struct npf_pack_dp_session *dps,
 					 struct npf_pack_sentry *sen,
-					 struct npf_pack_session_stats *stats)
+					 struct npf_pack_dp_sess_stats *stats)
 {
 	struct session *s;
 	struct sentry_packet sp_forw;

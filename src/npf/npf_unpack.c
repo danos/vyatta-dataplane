@@ -50,7 +50,7 @@ static
 int npf_pack_session_unpack_update(struct npf_pack_session_update *csu)
 {
 	struct npf_pack_session_state *pst;
-	struct npf_pack_session_stats *stats;
+	struct npf_pack_dp_sess_stats *stats;
 	struct npf_pack_sentry *sen;
 	struct npf_session *se;
 	struct ifnet *ifp;
@@ -100,7 +100,7 @@ int npf_pack_restore_session(struct npf_pack_dp_session *dps,
 			     struct npf_pack_sentry *sen,
 			     struct npf_pack_npf_session *fw,
 			     struct npf_pack_session_state *pst,
-			     struct npf_pack_session_stats *stats,
+			     struct npf_pack_dp_sess_stats *stats,
 			     struct npf_pack_npf_nat *nat,
 			     struct npf_pack_npf_nat64 *nat64,
 			     struct npf_session **npf_se)
@@ -452,7 +452,7 @@ uint64_t npf_pack_get_session_id(struct npf_pack_message *msg)
 }
 
 /* For npf_pack UT */
-struct npf_pack_session_stats *
+struct npf_pack_dp_sess_stats *
 npf_pack_get_session_stats(struct npf_pack_message *msg)
 {
 	struct npf_pack_message_hdr *hdr;

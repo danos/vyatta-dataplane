@@ -27,7 +27,7 @@ static int npf_pack_session_pack_update(struct session *s,
 {
 	struct npf_pack_sentry *sen;
 	struct npf_pack_session_state *pst;
-	struct npf_pack_session_stats *stats;
+	struct npf_pack_dp_sess_stats *stats;
 	struct npf_session *se;
 	struct ifnet *ifp;
 	int rc;
@@ -95,7 +95,7 @@ static int npf_pack_pack_session(struct session *s,
 				 struct npf_pack_sentry *sen,
 				 struct npf_pack_npf_session *fw,
 				 struct npf_pack_session_state *pst,
-				 struct npf_pack_session_stats *stats,
+				 struct npf_pack_dp_sess_stats *stats,
 				 struct npf_pack_npf_nat *nat,
 				 struct npf_pack_npf_nat64 *nat64)
 {
