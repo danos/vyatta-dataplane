@@ -101,7 +101,7 @@ int npf_pack_restore_session(struct npf_pack_dp_session *dps,
 			     struct npf_pack_npf_session *fw,
 			     struct npf_pack_session_state *pst,
 			     struct npf_pack_dp_sess_stats *stats,
-			     struct npf_pack_npf_nat *nat,
+			     struct npf_pack_nat *pnt,
 			     struct npf_pack_npf_nat64 *nat64,
 			     struct npf_session **npf_se)
 {
@@ -130,8 +130,8 @@ int npf_pack_restore_session(struct npf_pack_dp_session *dps,
 		goto error;
 	}
 
-	if (nat) {
-		rc = npf_nat_npf_pack_restore(se, nat, ifp);
+	if (pnt) {
+		rc = npf_nat_npf_pack_restore(se, pnt, ifp);
 		if (rc) {
 			RTE_LOG(ERR, DATAPLANE,
 				"npf_pack nat session restore failed %lu %s\n",
@@ -197,7 +197,7 @@ static int npf_pack_unpack_nat_session(struct npf_pack_session_nat *cs,
 {
 	return npf_pack_restore_session(&cs->dps, &cs->sen,
 					&cs->se, &cs->pst, &cs->stats,
-					&cs->nt, NULL, se);
+					&cs->pnt, NULL, se);
 }
 
 static int npf_pack_unpack_nat64_session(struct npf_pack_session_nat64 *cs,
@@ -214,7 +214,7 @@ npf_pack_unpack_nat_nat64_session(struct npf_pack_session_nat_nat64 *cs,
 {
 	return npf_pack_restore_session(&cs->dps, &cs->sen,
 					&cs->se, &cs->pst, &cs->stats,
-					&cs->nt, &cs->n64, se);
+					&cs->pnt, &cs->n64, se);
 }
 
 static void npf_pack_delete_old_session(struct npf_pack_dp_session *dps,

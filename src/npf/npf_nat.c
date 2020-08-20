@@ -1600,24 +1600,24 @@ npf_nat_info(npf_nat_t *nat, int *type, npf_addr_t *addr,
 	return true;
 }
 
-int npf_nat_npf_pack_pack(npf_nat_t *nt, struct npf_pack_npf_nat *nat,
+int npf_nat_npf_pack_pack(npf_nat_t *nt, struct npf_pack_nat *pnt,
 			  struct sentry_packet *sp_back)
 {
 	npf_rule_t *rule;
 
-	if (!nat)
+	if (!pnt)
 		return -EINVAL;
 
 	rule = npf_nat_get_rule(nt);
-	nat->nt_rule_hash = (rule ? npf_rule_get_hash(rule) : 0);
+	pnt->pnt_rule_hash = (rule ? npf_rule_get_hash(rule) : 0);
 
-	nat->nt_l3_chk = nt->nt_l3_chk;
-	nat->nt_l4_chk = nt->nt_l4_chk;
-	nat->nt_map_flags = npf_nat_get_map_flags(nt);
-	nat->nt_taddr = nt->nt_taddr;
-	nat->nt_tport = nt->nt_tport;
-	nat->nt_oaddr = nt->nt_oaddr;
-	nat->nt_oport = nt->nt_oport;
+	pnt->pnt_l3_chk = nt->nt_l3_chk;
+	pnt->pnt_l4_chk = nt->nt_l4_chk;
+	pnt->pnt_map_flags = npf_nat_get_map_flags(nt);
+	pnt->pnt_taddr = nt->nt_taddr;
+	pnt->pnt_tport = nt->nt_tport;
+	pnt->pnt_oaddr = nt->nt_oaddr;
+	pnt->pnt_oport = nt->nt_oport;
 
 	/* Set translation address in back sentry */
 	switch (nt->nt_natpolicy->n_type) {
@@ -1633,7 +1633,7 @@ int npf_nat_npf_pack_pack(npf_nat_t *nt, struct npf_pack_npf_nat *nat,
 }
 
 int npf_nat_npf_pack_restore(struct npf_session *se,
-			     struct npf_pack_npf_nat *nat,
+			     struct npf_pack_nat *pnt,
 			     struct ifnet *ifp)
 {
 	npf_nat_t *nt;
@@ -1641,7 +1641,7 @@ int npf_nat_npf_pack_restore(struct npf_session *se,
 	npf_natpolicy_t *np;
 	int rc = -ENOENT;
 
-	if (!se || !nat || !ifp)
+	if (!se || !pnt || !ifp)
 		return -EINVAL;
 
 	/* Create a nat struct */
@@ -1649,7 +1649,8 @@ int npf_nat_npf_pack_restore(struct npf_session *se,
 	if (!nt)
 		return -ENOMEM;
 
-	rl = nat->nt_rule_hash ? npf_get_rule_by_hash(nat->nt_rule_hash) : NULL;
+	rl = pnt->pnt_rule_hash ?
+		npf_get_rule_by_hash(pnt->pnt_rule_hash) : NULL;
 	if (!rl)
 		goto error;
 
@@ -1660,13 +1661,13 @@ int npf_nat_npf_pack_restore(struct npf_session *se,
 		goto error;
 	nt->nt_natpolicy = np;
 
-	nt->nt_l3_chk = nat->nt_l3_chk;
-	nt->nt_l4_chk = nat->nt_l4_chk;
-	nt->nt_map_flags = nat->nt_map_flags;
-	nt->nt_taddr = nat->nt_taddr;
-	nt->nt_tport = nat->nt_tport;
-	nt->nt_oaddr = nat->nt_oaddr;
-	nt->nt_oport = nat->nt_oport;
+	nt->nt_l3_chk = pnt->pnt_l3_chk;
+	nt->nt_l4_chk = pnt->pnt_l4_chk;
+	nt->nt_map_flags = pnt->pnt_map_flags;
+	nt->nt_taddr = pnt->pnt_taddr;
+	nt->nt_tport = pnt->pnt_tport;
+	nt->nt_oaddr = pnt->pnt_oaddr;
+	nt->nt_oport = pnt->pnt_oport;
 
 	vrfid_t vrfid = npf_session_get_vrfid(se);
 

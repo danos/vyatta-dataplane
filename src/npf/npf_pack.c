@@ -96,7 +96,7 @@ static int npf_pack_pack_session(struct session *s,
 				 struct npf_pack_npf_session *fw,
 				 struct npf_pack_session_state *pst,
 				 struct npf_pack_dp_sess_stats *stats,
-				 struct npf_pack_npf_nat *nat,
+				 struct npf_pack_nat *pnt,
 				 struct npf_pack_npf_nat64 *nat64)
 {
 	struct npf_nat *nt;
@@ -122,11 +122,11 @@ static int npf_pack_pack_session(struct session *s,
 		return rc;
 	}
 
-	if (nat) {
+	if (pnt) {
 		nt = npf_session_get_nat(se);
 		if (!nt)
 			return -ENOENT;
-		rc = npf_nat_npf_pack_pack(nt, nat, &sen->sp_back);
+		rc = npf_nat_npf_pack_pack(nt, pnt, &sen->sp_back);
 		if (rc) {
 			RTE_LOG(ERR, DATAPLANE,
 				"cscyn pack %lu: nat session pack failed\n",
@@ -165,7 +165,7 @@ static int npf_pack_pack_nat_session(struct session *s,
 {
 	return npf_pack_pack_session(s, se, &cs->dps, &cs->sen,
 				     &cs->se, &cs->pst, &cs->stats,
-				     &cs->nt, NULL);
+				     &cs->pnt, NULL);
 }
 
 static int npf_pack_pack_nat64_session(struct session *s,
@@ -184,7 +184,7 @@ npf_pack_pack_nat_nat64_session(struct session *s,
 {
 	return npf_pack_pack_session(s, se, &cs->dps, &cs->sen,
 				     &cs->se, &cs->pst, &cs->stats,
-				     &cs->nt, &cs->n64);
+				     &cs->pnt, &cs->n64);
 }
 
 static int npf_pack_pack_one_session(struct session *s,

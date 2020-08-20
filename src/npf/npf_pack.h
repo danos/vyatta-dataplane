@@ -101,15 +101,18 @@ struct npf_pack_session_state {
 	uint8_t				pst_pad[3];
 } __attribute__ ((__packed__));
 
-struct npf_pack_npf_nat {
-	uint16_t		nt_l3_chk;
-	uint16_t		nt_l4_chk;
-	uint32_t		nt_map_flags;
-	uint32_t		nt_rule_hash;
-	uint32_t		nt_taddr;
-	uint32_t		nt_oaddr;
-	uint16_t		nt_tport;
-	uint16_t		nt_oport;
+/*
+ * Packed npf_nat_t
+ */
+struct npf_pack_nat {
+	uint16_t		pnt_l3_chk;
+	uint16_t		pnt_l4_chk;
+	uint32_t		pnt_map_flags;
+	uint32_t		pnt_rule_hash;
+	uint32_t		pnt_taddr;
+	uint32_t		pnt_oaddr;
+	uint16_t		pnt_tport;
+	uint16_t		pnt_oport;
 } __attribute__ ((__packed__));
 
 struct npf_pack_npf_nat64 {
@@ -138,7 +141,7 @@ struct npf_pack_session_nat {
 	struct npf_pack_npf_session	se;
 	struct npf_pack_session_state	pst;
 	struct npf_pack_dp_sess_stats	stats;
-	struct npf_pack_npf_nat		nt;
+	struct npf_pack_nat		pnt;
 } __attribute__ ((__packed__));
 
 struct npf_pack_session_nat64 {
@@ -156,7 +159,7 @@ struct npf_pack_session_nat_nat64 {
 	struct npf_pack_npf_session	se;
 	struct npf_pack_session_state	pst;
 	struct npf_pack_dp_sess_stats	stats;
-	struct npf_pack_npf_nat		nt;
+	struct npf_pack_nat		pnt;
 	struct npf_pack_npf_nat64	n64;
 } __attribute__ ((__packed__));
 
