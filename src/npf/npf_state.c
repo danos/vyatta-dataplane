@@ -563,18 +563,19 @@ npf_state_dump(const npf_state_t *nst __unused)
 }
 #endif
 
-int npf_state_npf_pack_update(npf_state_t *nst, struct npf_pack_npf_state *st,
+int npf_state_npf_pack_update(npf_state_t *nst,
+			      struct npf_pack_session_state *pst,
 			      uint8_t state, uint8_t proto_idx)
 {
 	bool state_changed = false;
 
-	if (!nst || !st)
+	if (!nst || !pst)
 		return -EINVAL;
 
-	memcpy(&nst->nst_tcpst[NPF_FLOW_FORW], &st->nst_tcpst[NPF_FLOW_FORW],
-	       sizeof(npf_tcpstate_t));
-	memcpy(&nst->nst_tcpst[NPF_FLOW_BACK], &st->nst_tcpst[NPF_FLOW_BACK],
-	       sizeof(npf_tcpstate_t));
+	memcpy(&nst->nst_tcpst[NPF_FLOW_FORW], &pst->pst_tcpst[NPF_FLOW_FORW],
+	       sizeof(*nst->nst_tcpst));
+	memcpy(&nst->nst_tcpst[NPF_FLOW_BACK], &pst->pst_tcpst[NPF_FLOW_BACK],
+	       sizeof(*nst->nst_tcpst));
 
 	if (proto_idx == NPF_PROTO_IDX_TCP) {
 		npf_state_tcp_state_set(nst, state, &state_changed);

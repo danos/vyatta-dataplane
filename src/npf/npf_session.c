@@ -1758,31 +1758,31 @@ void npf_save_stats(npf_session_t *se, int dir, uint64_t bytes)
 }
 
 int npf_session_npf_pack_state_pack(struct npf_session *se,
-				    struct npf_pack_npf_state *state)
+				    struct npf_pack_session_state *pst)
 {
 	npf_state_t *nst;
 
-	if (!se || !state)
+	if (!se || !pst)
 		return -EINVAL;
 
 	nst = &se->s_state;
-	memcpy(&state->nst_tcpst[0], &nst->nst_tcpst[0],
-			sizeof(npf_tcpstate_t));
-	memcpy(&state->nst_tcpst[1], &nst->nst_tcpst[1],
-			sizeof(npf_tcpstate_t));
+	memcpy(&pst->pst_tcpst[0], &nst->nst_tcpst[0],
+	       sizeof(*pst->pst_tcpst));
+	memcpy(&pst->pst_tcpst[1], &nst->nst_tcpst[1],
+	       sizeof(*pst->pst_tcpst));
 
-	state->nst_state = nst->nst_state;
+	pst->pst_state = nst->nst_state;
 
 	return 0;
 }
 
 int npf_session_npf_pack_state_restore(struct npf_session *se,
-				       struct npf_pack_npf_state *state,
+				       struct npf_pack_session_state *pst,
 				       vrfid_t vrfid)
 {
 	npf_state_t *nst;
 
-	if (!se || !state)
+	if (!se || !pst)
 		return -EINVAL;
 
 	nst = &se->s_state;
@@ -1790,7 +1790,7 @@ int npf_session_npf_pack_state_restore(struct npf_session *se,
 
 	rte_spinlock_lock(&nst->nst_lock);
 
-	if (npf_state_npf_pack_update(nst, state, state->nst_state,
+	if (npf_state_npf_pack_update(nst, pst, pst->pst_state,
 				      se->s_proto_idx)) {
 		rte_spinlock_unlock(&nst->nst_lock);
 		return -EINVAL;
@@ -1802,13 +1802,13 @@ int npf_session_npf_pack_state_restore(struct npf_session *se,
 }
 
 int npf_session_npf_pack_state_update(struct npf_session *se,
-				      struct npf_pack_npf_state *state)
+				      struct npf_pack_session_state *pst)
 {
 	npf_state_t *nst;
 	uint8_t old_state, new_state;
 	struct session *s;
 
-	if (!se || !state)
+	if (!se || !pst)
 		return -EINVAL;
 
 	nst = &se->s_state;
@@ -1816,13 +1816,13 @@ int npf_session_npf_pack_state_update(struct npf_session *se,
 	rte_spinlock_lock(&nst->nst_lock);
 
 	old_state = nst->nst_state;
-	new_state = state->nst_state;
+	new_state = pst->pst_state;
 	if (old_state == new_state) {
 		rte_spinlock_unlock(&nst->nst_lock);
 		return 0;
 	}
 
-	if (npf_state_npf_pack_update(nst, state, new_state,
+	if (npf_state_npf_pack_update(nst, pst, new_state,
 				      se->s_proto_idx)) {
 		rte_spinlock_unlock(&nst->nst_lock);
 		return -EINVAL;
@@ -1843,7 +1843,7 @@ int npf_session_npf_pack_state_update(struct npf_session *se,
 
 int npf_session_npf_pack_pack(npf_session_t *se,
 			      struct npf_pack_npf_session *fw,
-			      struct npf_pack_npf_state *state)
+			      struct npf_pack_session_state *pst)
 {
 	npf_rule_t *rule;
 
@@ -1855,12 +1855,12 @@ int npf_session_npf_pack_pack(npf_session_t *se,
 	fw->s_fw_rule_hash = (rule ? npf_rule_get_hash(rule) : 0);
 	rule = npf_session_get_rproc_rule(se);
 	fw->s_rproc_rule_hash = (rule ? npf_rule_get_hash(rule) : 0);
-	return npf_session_npf_pack_state_pack(se, state);
+	return npf_session_npf_pack_state_pack(se, pst);
 }
 
 struct npf_session *
 npf_session_npf_pack_restore(struct npf_pack_npf_session *fw,
-			     struct npf_pack_npf_state *state,
+			     struct npf_pack_session_state *pst,
 			     vrfid_t vrfid, uint8_t protocol,
 			     uint32_t ifindex)
 {
@@ -1868,7 +1868,7 @@ npf_session_npf_pack_restore(struct npf_pack_npf_session *fw,
 	npf_rule_t *rproc_rl;
 	npf_session_t *se;
 
-	if (!fw || !state)
+	if (!fw || !pst)
 		return NULL;
 
 	se = zmalloc_aligned(sizeof(*se));
@@ -1890,7 +1890,7 @@ npf_session_npf_pack_restore(struct npf_pack_npf_session *fw,
 	se->s_proto = protocol;
 	se->s_proto_idx = npf_proto_idx_from_proto(protocol);
 
-	if (npf_session_npf_pack_state_restore(se, state, vrfid))
+	if (npf_session_npf_pack_state_restore(se, pst, vrfid))
 		goto error;
 
 	rte_spinlock_init(&se->s_state.nst_lock);

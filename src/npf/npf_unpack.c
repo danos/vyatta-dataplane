@@ -49,7 +49,7 @@ static int npf_pack_get_session_from_init_sentry(struct sentry_packet *sp,
 static
 int npf_pack_session_unpack_update(struct npf_pack_session_update *csu)
 {
-	struct npf_pack_npf_state *state;
+	struct npf_pack_session_state *pst;
 	struct npf_pack_session_stats *stats;
 	struct npf_pack_sentry *sen;
 	struct npf_session *se;
@@ -79,8 +79,8 @@ int npf_pack_session_unpack_update(struct npf_pack_session_update *csu)
 	}
 
 	if (s && se) {
-		state = &csu->state;
-		rc = npf_session_npf_pack_state_update(se, state);
+		pst = &csu->pst;
+		rc = npf_session_npf_pack_state_update(se, pst);
 		if (rc)
 			goto error;
 		stats = &csu->stats;
@@ -99,7 +99,7 @@ static
 int npf_pack_restore_session(struct npf_pack_dp_session *dps,
 			     struct npf_pack_sentry *sen,
 			     struct npf_pack_npf_session *fw,
-			     struct npf_pack_npf_state *state,
+			     struct npf_pack_session_state *pst,
 			     struct npf_pack_session_stats *stats,
 			     struct npf_pack_npf_nat *nat,
 			     struct npf_pack_npf_nat64 *nat64,
@@ -110,7 +110,7 @@ int npf_pack_restore_session(struct npf_pack_dp_session *dps,
 	struct ifnet *ifp;
 	int rc = -EINVAL;
 
-	if (!dps || !sen || !fw || !state || !stats)
+	if (!dps || !sen || !fw || !pst || !stats)
 		return rc;
 
 	ifp = dp_ifnet_byifname(sen->ifname);
@@ -121,7 +121,7 @@ int npf_pack_restore_session(struct npf_pack_dp_session *dps,
 		goto error;
 	}
 
-	se = npf_session_npf_pack_restore(fw, state, ifp->if_vrfid,
+	se = npf_session_npf_pack_restore(fw, pst, ifp->if_vrfid,
 					  dps->se_protocol, ifp->if_index);
 	if (!se) {
 		RTE_LOG(ERR, DATAPLANE,
@@ -188,7 +188,7 @@ static int npf_pack_unpack_fw_session(struct npf_pack_session_fw *cs,
 				      struct npf_session **se)
 {
 	return npf_pack_restore_session(&cs->dps, &cs->sen,
-					&cs->se, &cs->state, &cs->stats,
+					&cs->se, &cs->pst, &cs->stats,
 					NULL, NULL, se);
 }
 
@@ -196,7 +196,7 @@ static int npf_pack_unpack_nat_session(struct npf_pack_session_nat *cs,
 				       struct npf_session **se)
 {
 	return npf_pack_restore_session(&cs->dps, &cs->sen,
-					&cs->se, &cs->state, &cs->stats,
+					&cs->se, &cs->pst, &cs->stats,
 					&cs->nt, NULL, se);
 }
 
@@ -204,7 +204,7 @@ static int npf_pack_unpack_nat64_session(struct npf_pack_session_nat64 *cs,
 					 struct npf_session **se)
 {
 	return npf_pack_restore_session(&cs->dps, &cs->sen,
-					&cs->se, &cs->state, &cs->stats,
+					&cs->se, &cs->pst, &cs->stats,
 					NULL, &cs->n64, se);
 }
 
@@ -213,7 +213,7 @@ npf_pack_unpack_nat_nat64_session(struct npf_pack_session_nat_nat64 *cs,
 				  struct npf_session **se)
 {
 	return npf_pack_restore_session(&cs->dps, &cs->sen,
-					&cs->se, &cs->state, &cs->stats,
+					&cs->se, &cs->pst, &cs->stats,
 					&cs->nt, &cs->n64, se);
 }
 

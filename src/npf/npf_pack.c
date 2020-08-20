@@ -26,7 +26,7 @@ static int npf_pack_session_pack_update(struct session *s,
 					uint32_t *len)
 {
 	struct npf_pack_sentry *sen;
-	struct npf_pack_npf_state *state;
+	struct npf_pack_session_state *pst;
 	struct npf_pack_session_stats *stats;
 	struct npf_session *se;
 	struct ifnet *ifp;
@@ -61,8 +61,8 @@ static int npf_pack_session_pack_update(struct session *s,
 		csu->se_feature_count = 0;
 		return 0;
 	}
-	state = &csu->state;
-	rc = npf_session_npf_pack_state_pack(se, state);
+	pst = &csu->pst;
+	rc = npf_session_npf_pack_state_pack(se, pst);
 	if (rc)
 		csu->se_feature_count = 0;
 	return 0;
@@ -94,7 +94,7 @@ static int npf_pack_pack_session(struct session *s,
 				 struct npf_pack_dp_session *dps,
 				 struct npf_pack_sentry *sen,
 				 struct npf_pack_npf_session *fw,
-				 struct npf_pack_npf_state *state,
+				 struct npf_pack_session_state *pst,
 				 struct npf_pack_session_stats *stats,
 				 struct npf_pack_npf_nat *nat,
 				 struct npf_pack_npf_nat64 *nat64)
@@ -114,7 +114,7 @@ static int npf_pack_pack_session(struct session *s,
 		return rc;
 	}
 
-	rc = npf_session_npf_pack_pack(se, fw, state);
+	rc = npf_session_npf_pack_pack(se, fw, pst);
 	if (rc) {
 		RTE_LOG(ERR, DATAPLANE,
 			"csycn pack %lu: npf session pack failed\n",
@@ -155,7 +155,7 @@ static int npf_pack_pack_fw_session(struct session *s,
 				    struct npf_pack_session_fw *cs)
 {
 	return npf_pack_pack_session(s, se, &cs->dps, &cs->sen,
-				     &cs->se, &cs->state, &cs->stats,
+				     &cs->se, &cs->pst, &cs->stats,
 				     NULL, NULL);
 }
 
@@ -164,7 +164,7 @@ static int npf_pack_pack_nat_session(struct session *s,
 				     struct npf_pack_session_nat *cs)
 {
 	return npf_pack_pack_session(s, se, &cs->dps, &cs->sen,
-				     &cs->se, &cs->state, &cs->stats,
+				     &cs->se, &cs->pst, &cs->stats,
 				     &cs->nt, NULL);
 }
 
@@ -173,7 +173,7 @@ static int npf_pack_pack_nat64_session(struct session *s,
 				       struct npf_pack_session_nat64 *cs)
 {
 	return npf_pack_pack_session(s, se, &cs->dps, &cs->sen,
-				     &cs->se, &cs->state, &cs->stats,
+				     &cs->se, &cs->pst, &cs->stats,
 				     NULL, &cs->n64);
 }
 
@@ -183,7 +183,7 @@ npf_pack_pack_nat_nat64_session(struct session *s,
 				struct npf_pack_session_nat_nat64 *cs)
 {
 	return npf_pack_pack_session(s, se, &cs->dps, &cs->sen,
-				     &cs->se, &cs->state, &cs->stats,
+				     &cs->se, &cs->pst, &cs->stats,
 				     &cs->nt, &cs->n64);
 }
 

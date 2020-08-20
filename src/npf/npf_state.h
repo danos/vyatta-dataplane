@@ -50,7 +50,7 @@
 #include "dp_session.h"
 
 struct rte_mbuf;
-struct npf_pack_npf_state;
+struct npf_pack_session_state;
 
 /* Forward Declarations */
 typedef struct npf_cache npf_cache_t;
@@ -223,7 +223,8 @@ uint32_t npf_state_get_tcp_seq(int di, npf_state_t *nst);
 
 void npf_state_set_tcp_strict(bool value);
 
-int npf_state_npf_pack_update(npf_state_t *nst, struct npf_pack_npf_state *st,
+int npf_state_npf_pack_update(npf_state_t *nst,
+			      struct npf_pack_session_state *pst,
 			      uint8_t state, uint8_t proto_idx);
 
 #endif  /* NPF_STATE_H */
