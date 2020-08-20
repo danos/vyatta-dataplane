@@ -91,7 +91,7 @@ static int npf_pack_get_new_msg_type(struct session *s, uint8_t *msg_type)
 
 static int npf_pack_pack_session(struct session *s,
 				 struct npf_session *se,
-				 struct npf_pack_dp_session *dps,
+				 struct npf_pack_dp_session *pds,
 				 struct npf_pack_sentry *sen,
 				 struct npf_pack_npf_session *fw,
 				 struct npf_pack_session_state *pst,
@@ -106,7 +106,7 @@ static int npf_pack_pack_session(struct session *s,
 	if (!s || !se)
 		return -EINVAL;
 
-	rc = session_npf_pack_pack(s, dps, sen, stats);
+	rc = session_npf_pack_pack(s, pds, sen, stats);
 	if (rc) {
 		RTE_LOG(ERR, DATAPLANE,
 			"npf_pack pack %lu: session pack failed\n",
@@ -154,7 +154,7 @@ static int npf_pack_pack_fw_session(struct session *s,
 				    struct npf_session *se,
 				    struct npf_pack_session_fw *cs)
 {
-	return npf_pack_pack_session(s, se, &cs->dps, &cs->sen,
+	return npf_pack_pack_session(s, se, &cs->pds, &cs->sen,
 				     &cs->se, &cs->pst, &cs->stats,
 				     NULL, NULL);
 }
@@ -163,7 +163,7 @@ static int npf_pack_pack_nat_session(struct session *s,
 				     struct npf_session *se,
 				     struct npf_pack_session_nat *cs)
 {
-	return npf_pack_pack_session(s, se, &cs->dps, &cs->sen,
+	return npf_pack_pack_session(s, se, &cs->pds, &cs->sen,
 				     &cs->se, &cs->pst, &cs->stats,
 				     &cs->pnt, NULL);
 }
@@ -172,7 +172,7 @@ static int npf_pack_pack_nat64_session(struct session *s,
 				       struct npf_session *se,
 				       struct npf_pack_session_nat64 *cs)
 {
-	return npf_pack_pack_session(s, se, &cs->dps, &cs->sen,
+	return npf_pack_pack_session(s, se, &cs->pds, &cs->sen,
 				     &cs->se, &cs->pst, &cs->stats,
 				     NULL, &cs->n64);
 }
@@ -182,7 +182,7 @@ npf_pack_pack_nat_nat64_session(struct session *s,
 				struct npf_session *se,
 				struct npf_pack_session_nat_nat64 *cs)
 {
-	return npf_pack_pack_session(s, se, &cs->dps, &cs->sen,
+	return npf_pack_pack_session(s, se, &cs->pds, &cs->sen,
 				     &cs->se, &cs->pst, &cs->stats,
 				     &cs->pnt, &cs->n64);
 }
@@ -276,10 +276,10 @@ static int npf_pack_pack_peer_session(struct session *s,
 	cs = (struct npf_pack_session_nat64 *)&csn->cs;
 	cs_peer = (struct npf_pack_session_nat64 *)&csn_peer->cs;
 	if (session_base_parent(s_peer) == s && session_base_parent(s) == s) {
-		cs->dps.se_parent = 1;
+		cs->pds.pds_parent = 1;
 	} else if (session_base_parent(s) == s_peer &&
 		   session_base_parent(s_peer) == s_peer) {
-		cs_peer->dps.se_parent = 1;
+		cs_peer->pds.pds_parent = 1;
 	} else {
 		RTE_LOG(ERR, DATAPLANE,
 			"npf_pack nat64 peer pack failed %lu, parent se link error\n",

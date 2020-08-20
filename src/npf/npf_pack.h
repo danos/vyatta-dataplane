@@ -43,25 +43,28 @@ enum {
 	NPF_PACK_SESSION_NEW_END,
 };
 
+/*
+ *  From 'struct session' (except stats)
+ */
 struct npf_pack_dp_session {
-	uint64_t	se_id;	/* for logging */
-	uint32_t	se_custom_timeout;
-	uint32_t	se_timeout;
-	uint16_t	se_flags;
-	uint8_t		se_protocol;
-	uint8_t		se_protocol_state;
-	uint8_t		se_gen_state;
-	uint8_t		se_fw:1;
-	uint8_t		se_snat:1;
-	uint8_t		se_dnat:1;
-	uint8_t		se_nat64:1;
-	uint8_t		se_nat46:1;
-	uint8_t		se_parent:1;
-	uint8_t		se_alg:1;
-	uint8_t		se_in:1;
-	uint8_t		se_out:1;
-	uint8_t		se_app:1;
-	uint8_t		pad[1];
+	uint64_t	pds_id;	/* for logging */
+	uint32_t	pds_custom_timeout;
+	uint32_t	pds_timeout;
+	uint16_t	pds_flags;
+	uint8_t		pds_protocol;
+	uint8_t		pds_protocol_state;
+	uint8_t		pds_gen_state;
+	uint8_t		pds_fw:1;
+	uint8_t		pds_snat:1;
+	uint8_t		pds_dnat:1;
+	uint8_t		pds_nat64:1;
+	uint8_t		pds_nat46:1;
+	uint8_t		pds_parent:1;
+	uint8_t		pds_alg:1;
+	uint8_t		pds_in:1;
+	uint8_t		pds_out:1;
+	uint8_t		pds_app:1;
+	uint8_t		pds_pad[1];
 } __attribute__ ((__packed__));
 
 /*
@@ -128,7 +131,7 @@ struct npf_pack_npf_nat64 {
 } __attribute__ ((__packed__));
 
 struct npf_pack_session_fw {
-	struct npf_pack_dp_session	dps;
+	struct npf_pack_dp_session	pds;
 	struct npf_pack_sentry		sen;
 	struct npf_pack_npf_session	se;
 	struct npf_pack_session_state	pst;
@@ -136,7 +139,7 @@ struct npf_pack_session_fw {
 } __attribute__ ((__packed__));
 
 struct npf_pack_session_nat {
-	struct npf_pack_dp_session	dps;
+	struct npf_pack_dp_session	pds;
 	struct npf_pack_sentry		sen;
 	struct npf_pack_npf_session	se;
 	struct npf_pack_session_state	pst;
@@ -145,7 +148,7 @@ struct npf_pack_session_nat {
 } __attribute__ ((__packed__));
 
 struct npf_pack_session_nat64 {
-	struct npf_pack_dp_session	dps;
+	struct npf_pack_dp_session	pds;
 	struct npf_pack_sentry		sen;
 	struct npf_pack_npf_session	se;
 	struct npf_pack_session_state	pst;
@@ -154,7 +157,7 @@ struct npf_pack_session_nat64 {
 } __attribute__ ((__packed__));
 
 struct npf_pack_session_nat_nat64 {
-	struct npf_pack_dp_session	dps;
+	struct npf_pack_dp_session	pds;
 	struct npf_pack_sentry		sen;
 	struct npf_pack_npf_session	se;
 	struct npf_pack_session_state	pst;

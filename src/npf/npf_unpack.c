@@ -96,7 +96,7 @@ int npf_pack_session_unpack_update(struct npf_pack_session_update *csu)
 }
 
 static
-int npf_pack_restore_session(struct npf_pack_dp_session *dps,
+int npf_pack_restore_session(struct npf_pack_dp_session *pds,
 			     struct npf_pack_sentry *sen,
 			     struct npf_pack_npf_session *fw,
 			     struct npf_pack_session_state *pst,
@@ -110,23 +110,23 @@ int npf_pack_restore_session(struct npf_pack_dp_session *dps,
 	struct ifnet *ifp;
 	int rc = -EINVAL;
 
-	if (!dps || !sen || !fw || !pst || !stats)
+	if (!pds || !sen || !fw || !pst || !stats)
 		return rc;
 
 	ifp = dp_ifnet_byifname(sen->ifname);
 	if (!ifp) {
 		RTE_LOG(ERR, DATAPLANE,
 			"npf_pack session %lu restore: Invalid ifname %s\n",
-			dps->se_id, sen->ifname);
+			pds->pds_id, sen->ifname);
 		goto error;
 	}
 
 	se = npf_session_npf_pack_restore(fw, pst, ifp->if_vrfid,
-					  dps->se_protocol, ifp->if_index);
+					  pds->pds_protocol, ifp->if_index);
 	if (!se) {
 		RTE_LOG(ERR, DATAPLANE,
 			"npf_pack npf session restore failed %lu\n",
-			dps->se_id);
+			pds->pds_id);
 		goto error;
 	}
 
@@ -135,7 +135,7 @@ int npf_pack_restore_session(struct npf_pack_dp_session *dps,
 		if (rc) {
 			RTE_LOG(ERR, DATAPLANE,
 				"npf_pack nat session restore failed %lu %s\n",
-				dps->se_id, strerror(-rc));
+				pds->pds_id, strerror(-rc));
 			goto error;
 		}
 	}
@@ -145,16 +145,16 @@ int npf_pack_restore_session(struct npf_pack_dp_session *dps,
 		if (rc) {
 			RTE_LOG(ERR, DATAPLANE,
 				"npf_pack nat64 session restore failed %lu %s\n",
-				dps->se_id, strerror(-rc));
+				pds->pds_id, strerror(-rc));
 			goto error;
 		}
 	}
 
-	s = session_npf_pack_restore(dps, sen, stats);
+	s = session_npf_pack_restore(pds, sen, stats);
 	if (!s) {
 		RTE_LOG(ERR, DATAPLANE,
 			"npf_pack DP session restore failed %lu, %s\n",
-			dps->se_id, strerror(-rc));
+			pds->pds_id, strerror(-rc));
 		goto error;
 	}
 	npf_session_set_dp_session(se, s);
@@ -187,7 +187,7 @@ int npf_pack_restore_session(struct npf_pack_dp_session *dps,
 static int npf_pack_unpack_fw_session(struct npf_pack_session_fw *cs,
 				      struct npf_session **se)
 {
-	return npf_pack_restore_session(&cs->dps, &cs->sen,
+	return npf_pack_restore_session(&cs->pds, &cs->sen,
 					&cs->se, &cs->pst, &cs->stats,
 					NULL, NULL, se);
 }
@@ -195,7 +195,7 @@ static int npf_pack_unpack_fw_session(struct npf_pack_session_fw *cs,
 static int npf_pack_unpack_nat_session(struct npf_pack_session_nat *cs,
 				       struct npf_session **se)
 {
-	return npf_pack_restore_session(&cs->dps, &cs->sen,
+	return npf_pack_restore_session(&cs->pds, &cs->sen,
 					&cs->se, &cs->pst, &cs->stats,
 					&cs->pnt, NULL, se);
 }
@@ -203,7 +203,7 @@ static int npf_pack_unpack_nat_session(struct npf_pack_session_nat *cs,
 static int npf_pack_unpack_nat64_session(struct npf_pack_session_nat64 *cs,
 					 struct npf_session **se)
 {
-	return npf_pack_restore_session(&cs->dps, &cs->sen,
+	return npf_pack_restore_session(&cs->pds, &cs->sen,
 					&cs->se, &cs->pst, &cs->stats,
 					NULL, &cs->n64, se);
 }
@@ -212,18 +212,18 @@ static int
 npf_pack_unpack_nat_nat64_session(struct npf_pack_session_nat_nat64 *cs,
 				  struct npf_session **se)
 {
-	return npf_pack_restore_session(&cs->dps, &cs->sen,
+	return npf_pack_restore_session(&cs->pds, &cs->sen,
 					&cs->se, &cs->pst, &cs->stats,
 					&cs->pnt, &cs->n64, se);
 }
 
-static void npf_pack_delete_old_session(struct npf_pack_dp_session *dps,
+static void npf_pack_delete_old_session(struct npf_pack_dp_session *pds,
 					struct npf_pack_sentry *sen)
 {
 	struct session *s = NULL;
 	struct npf_session *se = NULL;
 
-	if (!dps || !sen)
+	if (!pds || !sen)
 		return;
 
 	if (!npf_pack_get_session_from_init_sentry(&sen->sp_forw,
@@ -253,7 +253,7 @@ static int npf_pack_unpack_one_session(struct npf_pack_session_new *csn,
 	rc = session_npf_pack_sentry_restore(sen, &ifp);
 	if (rc)
 		return -EINVAL;
-	npf_pack_delete_old_session(&cs->dps, sen);
+	npf_pack_delete_old_session(&cs->pds, sen);
 	hdr = &csn->hdr;
 	msg_type = hdr->msg_type;
 	if (msg_type == NPF_PACK_SESSION_NEW_FW) {
@@ -295,7 +295,7 @@ static int npf_pack_unpack_peer_session(struct npf_pack_session_new *csn,
 	int rc;
 
 	cs = (struct npf_pack_session_nat64 *)&csn->cs;
-	if (!cs->dps.se_nat64 && !cs->dps.se_nat46)
+	if (!cs->pds.pds_nat64 && !cs->pds.pds_nat46)
 		return 0;
 
 	csn_peer = (struct npf_pack_session_new *)((char *)csn + csn->hdr.len);
@@ -304,15 +304,15 @@ static int npf_pack_unpack_peer_session(struct npf_pack_session_new *csn,
 	if (rc || !sep) {
 		RTE_LOG(ERR, DATAPLANE,
 			"npf_pack peer session restore failed %lu\n",
-			cs->dps.se_id);
+			cs->pds.pds_id);
 		return rc;
 	}
 
 	cs_peer = (struct npf_pack_session_nat64 *)&csn_peer->cs;
-	if ((cs->dps.se_parent && cs_peer->dps.se_parent) ||
-	    (!cs->dps.se_parent && !cs_peer->dps.se_parent))
+	if ((cs->pds.pds_parent && cs_peer->pds.pds_parent) ||
+	    (!cs->pds.pds_parent && !cs_peer->pds.pds_parent))
 		return rc;
-	if (cs->dps.se_parent)
+	if (cs->pds.pds_parent)
 		rc = npf_nat64_session_link(se, sep);
 	else
 		rc = npf_nat64_session_link(sep, se);
@@ -434,7 +434,7 @@ uint64_t npf_pack_get_session_id(struct npf_pack_message *msg)
 	struct npf_pack_message_hdr *hdr;
 	struct npf_pack_session_new *csn;
 	struct npf_pack_session_update *csu;
-	struct npf_pack_dp_session *dps;
+	struct npf_pack_dp_session *pds;
 	struct npf_pack_session_fw *fw;
 
 	hdr = &msg->hdr;
@@ -442,8 +442,8 @@ uint64_t npf_pack_get_session_id(struct npf_pack_message *msg)
 	if (hdr->msg_type == SESSION_PACK_FULL) {
 		csn = (struct npf_pack_session_new *)&msg->data.cs_new;
 		fw = (struct npf_pack_session_fw *)&csn->cs;
-		dps = (struct npf_pack_dp_session *)&fw->dps;
-		return dps->se_id;
+		pds = (struct npf_pack_dp_session *)&fw->pds;
+		return pds->pds_id;
 	} else if (hdr->msg_type == SESSION_PACK_UPDATE) {
 		csu = &msg->data.cs_update;
 		return csu->se_id;

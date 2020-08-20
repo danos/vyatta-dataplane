@@ -1831,29 +1831,29 @@ int session_npf_pack_sentry_restore(struct npf_pack_sentry *sen,
 	return 0;
 }
 
-int session_npf_pack_pack(struct session *s, struct npf_pack_dp_session *dps,
+int session_npf_pack_pack(struct session *s, struct npf_pack_dp_session *pds,
 			  struct npf_pack_sentry *sen,
 			  struct npf_pack_dp_sess_stats *stats)
 {
-	if (!s || !dps || !sen || !stats)
+	if (!s || !pds || !sen || !stats)
 		return -EINVAL;
 
-	dps->se_id = s->se_id;
-	dps->se_flags = s->se_flags;
-	dps->se_protocol = s->se_protocol;
-	dps->se_custom_timeout = s->se_custom_timeout;
-	dps->se_timeout = s->se_timeout;
-	dps->se_protocol_state = s->se_protocol_state;
-	dps->se_gen_state = s->se_gen_state;
-	dps->se_fw = session_is_fw(s);
-	dps->se_snat = session_is_snat(s);
-	dps->se_dnat = session_is_dnat(s);
-	dps->se_nat64 = session_is_nat64(s);
-	dps->se_nat46 = session_is_nat46(s);
-	dps->se_alg = session_is_alg(s);
-	dps->se_in = session_is_in(s);
-	dps->se_out = session_is_out(s);
-	dps->se_app = session_is_app(s);
+	pds->pds_id = s->se_id;
+	pds->pds_flags = s->se_flags;
+	pds->pds_protocol = s->se_protocol;
+	pds->pds_custom_timeout = s->se_custom_timeout;
+	pds->pds_timeout = s->se_timeout;
+	pds->pds_protocol_state = s->se_protocol_state;
+	pds->pds_gen_state = s->se_gen_state;
+	pds->pds_fw = session_is_fw(s);
+	pds->pds_snat = session_is_snat(s);
+	pds->pds_dnat = session_is_dnat(s);
+	pds->pds_nat64 = session_is_nat64(s);
+	pds->pds_nat46 = session_is_nat46(s);
+	pds->pds_alg = session_is_alg(s);
+	pds->pds_in = session_is_in(s);
+	pds->pds_out = session_is_out(s);
+	pds->pds_app = session_is_app(s);
 
 	if (session_npf_pack_stats_pack(s, stats))
 		return -EINVAL;
@@ -1861,7 +1861,7 @@ int session_npf_pack_pack(struct session *s, struct npf_pack_dp_session *dps,
 	return session_npf_pack_sentry_pack(s, sen);
 }
 
-struct session *session_npf_pack_restore(struct npf_pack_dp_session *dps,
+struct session *session_npf_pack_restore(struct npf_pack_dp_session *pds,
 					 struct npf_pack_sentry *sen,
 					 struct npf_pack_dp_sess_stats *stats)
 {
@@ -1875,7 +1875,7 @@ struct session *session_npf_pack_restore(struct npf_pack_dp_session *dps,
 	bool created = false;
 	int rc;
 
-	if (!dps || !sen)
+	if (!pds || !sen)
 		return NULL;
 
 	rc = session_npf_pack_sentry_restore(sen, &ifp);
@@ -1893,22 +1893,22 @@ struct session *session_npf_pack_restore(struct npf_pack_dp_session *dps,
 	}
 
 	s->se_vrfid = ifp->if_vrfid;
-	s->se_flags = dps->se_flags;
-	s->se_protocol = dps->se_protocol;
-	s->se_custom_timeout = dps->se_custom_timeout;
-	s->se_timeout = dps->se_timeout;
+	s->se_flags = pds->pds_flags;
+	s->se_protocol = pds->pds_protocol;
+	s->se_custom_timeout = pds->pds_custom_timeout;
+	s->se_timeout = pds->pds_timeout;
 	s->se_etime = get_dp_uptime() + se_timeout(s);
-	s->se_protocol_state = dps->se_protocol_state;
-	s->se_gen_state = dps->se_gen_state;
-	s->se_fw = dps->se_fw;
-	s->se_snat = dps->se_snat;
-	s->se_dnat = dps->se_dnat;
-	s->se_nat64 = dps->se_nat64;
-	s->se_nat46 = dps->se_nat46;
-	s->se_alg = dps->se_alg;
-	s->se_in = dps->se_in;
-	s->se_out = dps->se_out;
-	s->se_app = dps->se_app;
+	s->se_protocol_state = pds->pds_protocol_state;
+	s->se_gen_state = pds->pds_gen_state;
+	s->se_fw = pds->pds_fw;
+	s->se_snat = pds->pds_snat;
+	s->se_dnat = pds->pds_dnat;
+	s->se_nat64 = pds->pds_nat64;
+	s->se_nat46 = pds->pds_nat46;
+	s->se_alg = pds->pds_alg;
+	s->se_in = pds->pds_in;
+	s->se_out = pds->pds_out;
+	s->se_app = pds->pds_app;
 
 	s->se_create_time = rte_get_timer_cycles();
 	rte_atomic64_init(&s->se_pkts_in);

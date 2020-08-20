@@ -925,12 +925,12 @@ void session_gc(void);
  */
 struct session *session_alloc(void);
 
-int session_npf_pack_pack(struct session *s, struct npf_pack_dp_session *dps,
+int session_npf_pack_pack(struct session *s, struct npf_pack_dp_session *pds,
 			  struct npf_pack_sentry *sen,
 			  struct npf_pack_dp_sess_stats *stats);
 int session_npf_pack_sentry_pack(struct session *s,
 				 struct npf_pack_sentry *sen);
-struct session *session_npf_pack_restore(struct npf_pack_dp_session *dps,
+struct session *session_npf_pack_restore(struct npf_pack_dp_session *pds,
 					 struct npf_pack_sentry *sen,
 					 struct npf_pack_dp_sess_stats *stats);
 int session_npf_pack_sentry_restore(struct npf_pack_sentry *sen,
