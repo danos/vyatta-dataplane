@@ -401,8 +401,7 @@ static struct ifnet *crypto_ctx_to_in_ifp(struct crypto_pkt_ctx *ctx,
  * Decrypt the packet described by the supplied context.
  */
 static inline void
-crypto_process_decrypt_packet(struct crypto_pkt_ctx *cctx,
-			      uint32_t *bytes)
+crypto_process_decrypt_packet(struct crypto_pkt_ctx *cctx)
 {
 	int rc;
 	struct ifnet *vti_ifp = NULL;
@@ -434,9 +433,9 @@ crypto_process_decrypt_packet(struct crypto_pkt_ctx *cctx,
 	}
 
 	if (cctx->family == AF_INET)
-		rc = esp_input(m, sa, bytes, &cctx->family);
+		rc = esp_input(m, sa, &cctx->bytes, &cctx->family);
 	else
-		rc = esp_input6(m, sa, bytes, &cctx->family);
+		rc = esp_input6(m, sa, &cctx->bytes, &cctx->family);
 
 	if (rc < 0) {
 		if (vti_ifp)
@@ -514,8 +513,7 @@ crypto_process_decrypt_packet(struct crypto_pkt_ctx *cctx,
 	}
 }
 
-static void crypto_process_encrypt_packet(struct crypto_pkt_ctx *cctx,
-					  uint32_t *bytes)
+static void crypto_process_encrypt_packet(struct crypto_pkt_ctx *cctx)
 {
 	int rc;
 	struct sadb_sa *sa;
@@ -528,9 +526,11 @@ static void crypto_process_encrypt_packet(struct crypto_pkt_ctx *cctx,
 	m = cctx->mbuf;
 
 	if (cctx->family == AF_INET)
-		rc = esp_output(m, cctx->orig_family, cctx->l3hdr, sa, bytes);
+		rc = esp_output(m, cctx->orig_family, cctx->l3hdr, sa,
+				&cctx->bytes);
 	else
-		rc = esp_output6(m, cctx->orig_family, cctx->l3hdr, sa, bytes);
+		rc = esp_output6(m, cctx->orig_family, cctx->l3hdr, sa,
+				 &cctx->bytes);
 
 	if (rc < 0) {
 		if (cctx->nxt_ifp)
@@ -940,7 +940,7 @@ static void crypto_fwd_processed_packets(struct crypto_pkt_ctx **contexts,
 }
 
 struct crypto_processing_cb {
-	void (*process)(struct crypto_pkt_ctx *, uint32_t *bytes);
+	void (*process)(struct crypto_pkt_ctx *);
 	void (*post_process)(struct crypto_pkt_ctx **,  uint32_t);
 };
 
@@ -1008,7 +1008,6 @@ crypto_pmd_process_packet(struct crypto_pkt_ctx *contexts,
 			  enum crypto_xfrm xfrm)
 {
 	struct rte_mbuf *m;
-	unsigned int packet_size = 0;
 	struct sadb_sa *sa;
 
 	m = contexts->mbuf;
@@ -1025,8 +1024,9 @@ crypto_pmd_process_packet(struct crypto_pkt_ctx *contexts,
 		return 0;
 
 	contexts->sa = sa;
-	crypto_cb[xfrm].process(contexts, &packet_size);
-	return packet_size;
+	contexts->bytes = 0;
+	crypto_cb[xfrm].process(contexts);
+	return contexts->bytes;
 }
 
 /*

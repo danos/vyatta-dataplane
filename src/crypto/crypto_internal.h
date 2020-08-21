@@ -632,6 +632,8 @@ struct crypto_pkt_ctx {
 	unsigned char *esp;
 	unsigned char *iv;
 	unsigned char *icv;
+	/* bytes encrypted/decrypted */
+	uint32_t bytes;
 
 	/*
 	 * These fields are are bi-directional. They may be
