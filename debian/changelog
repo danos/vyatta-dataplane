@@ -1,3 +1,56 @@
+vyatta-dataplane (3.11.12) unstable; urgency=medium
+
+  [ Paul Atkins ]
+  * 3.10.67
+
+  [ Paul Aitken ]
+  * DPI: app groups: avoid null deref
+
+  [ Paul Atkins ]
+  * 3.10.68
+
+  [ Robert Shearman ]
+  * route_v6: fix nexthop retrieval for promotion during route delete
+  * route: fix nexthop retrieval for promotion during route delete
+    (Fixes: VRVDR-52609)
+
+  [ Srinivas Narayan ]
+  * crypto: store crypto device id in SA for faster access
+  * crypto: create session pools and queue pairs for PMD
+  * crypto: set up session in driver
+  * crypto: Pass crypto op using packet metadata
+  * crypto: Make openssl encrypt/decrypt function public
+  * crypto: set up infrastructure to invoke PMD
+  * crypto: cut over to rte PMD infra
+  * crypto: set up crypto op for AES-GCM
+
+  [ Paul Atkins ]
+  * debian: fix wording in changelog
+
+  [ Srinivas Narayan ]
+  * crypto: minimize dependency on SA
+  * crypto: set session direction at the time of SA creation
+  * crypto: Make crypto_pkt_ctx visible to other crypto modules
+  * crypto: Add packet metadata fields to crypto_pkt_ctx
+  * crypto: store SA in crypto packet context
+  * crypto: store bytes processed in crypto packet context
+  * crypto: refactor esp_input_inner
+  * crypto: re-factor esp_output_inner
+  * crypto: consolidate esp input functions
+  * crypto: consolidate esp_output functions
+  * crypto: increment output error only on encrypt op
+  * crypto: streamline post-decrypt processing
+  * crypto: Refactor post-decrypt VTI handling
+  * crypto: re-factor post-decrypt VFP handling
+  * crypto: refactor post-decrypt overlay VRF handling
+  * crypto: refactor all post-decrypt handling
+  * crypto: enable burst processing for esp_input
+  * crypto: Enable burst processing for esp_output
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Fri, 21 Aug 2020 17:51:18 +0100
+
 vyatta-dataplane (3.11.11) unstable; urgency=medium
 
   [ Paul Atkins ]
