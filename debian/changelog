@@ -1,3 +1,15 @@
+vyatta-dataplane (3.11.13) unstable; urgency=medium
+
+  [ Vinicius Soares ]
+  * npf: Moved parser auxiliary static functions to the top of the file
+  * npf: Added argument to auxiliary parser function that specifies a delimiter
+  * npf: Added support for 'auto-per-action' counter type for ACL rules.
+  * npf: Added support for 'auto-per-action' counter type for ACL rules.
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Fri, 21 Aug 2020 18:13:12 +0100
+
 vyatta-dataplane (3.11.12) unstable; urgency=medium
 
   [ Paul Atkins ]
