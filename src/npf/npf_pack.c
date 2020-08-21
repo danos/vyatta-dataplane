@@ -16,6 +16,9 @@
 #include "vplane_debug.h"
 #include "vplane_log.h"
 
+static_assert(NPF_PACK_MESSAGE_MAX_SIZE == 584,
+	      "NPF_PACK_MESSAGE_MAX_SIZE changed");
+
 uint32_t dp_session_buf_size_max(void)
 {
 	return NPF_PACK_NEW_SESSION_MAX_SIZE;

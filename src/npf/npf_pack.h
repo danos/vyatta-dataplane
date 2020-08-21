@@ -33,7 +33,7 @@
 #define NPF_PACK_MESSAGE_MAX_SIZE     NPF_PACK_NEW_SESSION_MAX_SIZE
 #define NPF_PACK_MESSAGE_MIN_SIZE     (sizeof(struct npf_pack_message_hdr))
 
-#define SESSION_PACK_VERSION	      (0x0101)
+#define SESSION_PACK_VERSION	      (0x0102)
 
 enum {
 	NPF_PACK_SESSION_NEW_FW = 1,
@@ -93,18 +93,13 @@ struct npf_pack_npf_session {
 	uint32_t	pns_rproc_rule_hash;
 } __attribute__ ((__packed__));
 
-struct npf_pack_npf_tcpstate {
-	npf_tcpstate_t	nst_tcpst;
-	uint8_t		pad[3];
-} __attribute__ ((__packed__));
-
 /*
  * Packed npf_state_t
  */
 struct npf_pack_session_state {
-	struct npf_pack_npf_tcpstate	pst_tcpst[2];
-	uint8_t				pst_state;
-	uint8_t				pst_pad[3];
+	npf_tcpstate_t		pst_tcpst[2];
+	uint8_t			pst_state;
+	uint8_t			pst_pad[3];
 } __attribute__ ((__packed__));
 
 /*

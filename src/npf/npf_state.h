@@ -103,15 +103,20 @@ typedef struct {
 	uint32_t	nst_maxend;
 	uint32_t	nst_maxwin;
 	uint8_t		nst_wscale;
+	uint8_t		nst_pad[3];
 } npf_tcpstate_t;
+
+static_assert(sizeof(npf_tcpstate_t) == 16, "npf_tcpstate_t != 16");
 
 typedef struct {
 	rte_spinlock_t		nst_lock;
 	uint8_t			nst_state;
+	uint8_t			nst_pad[3];
 	npf_tcpstate_t		nst_tcpst[2];
 	struct npf_timeout	*nst_to;
 } npf_state_t;
 
+static_assert(sizeof(npf_state_t) == 48, "npf_state_t != 48");
 
 static inline bool
 npf_state_tcp_state_is_valid(uint8_t state)
