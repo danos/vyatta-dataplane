@@ -308,24 +308,6 @@ crypto_session_create(const struct xfrm_algo *algo_crypt,
 void crypto_session_destroy(struct crypto_session *ctx);
 
 /*
- * This function is invoked at the time of SA creation to
- * set the direction and set up the session in the driver
- */
-static inline void
-crypto_session_set_direction(struct sadb_sa *sa, int direction)
-{
-	struct crypto_session *ctx = sa->session;
-	enum cryptodev_type dev_type = CRYPTODEV_MIN;
-	uint8_t rte_dev_id = 0;
-
-	if (unlikely(ctx->direction == -1)) {
-		ctx->direction = direction;
-		crypto_pmd_get_info(sa->pmd_dev_id, &rte_dev_id, &dev_type);
-		crypto_rte_setup_session(ctx, dev_type, rte_dev_id);
-	}
-}
-
-/*
  * Returns TRUE if two IPv4 (or IPv6) addresses are equal.
  */
 static inline int xfrm_addr_eq(const xfrm_address_t *addr_1,
