@@ -597,4 +597,41 @@ struct crypto_vrf_ctx *crypto_vrf_find_external(vrfid_t vrfid);
 struct crypto_vrf_ctx *crypto_vrf_get(vrfid_t vrfid);
 void crypto_vrf_check_remove(struct crypto_vrf_ctx *vrf_ctx);
 struct ifnet *crypto_policy_feat_attach_by_reqid(uint32_t reqid);
+
+/*
+ * Per packet crypto context. This carries information
+ * from the policy lookup in the forwarding thread that
+ * is needed for the SA lookup in the crypto thread.
+ */
+struct crypto_pkt_ctx {
+	/*
+	 * These fields are set up by the forwarding
+	 * thread and used to select the actions the
+	 * crypto thread will perform on the packet.
+	 */
+	struct rte_mbuf *mbuf;
+	uint32_t reqid;
+	uint32_t spi;
+	void *l3hdr;
+	struct ifnet *in_ifp;
+	struct ifnet *nxt_ifp;
+	struct rte_crypto_op *cop;
+	/*
+	 * These fields are are bi-directional. They may be
+	 * set by the forwarding thread and modified by the
+	 * crypto thread.
+	 *
+	 * TODO: Replace direction with an input action
+	 *       of either ENCRYPT or DECRYPT.
+	 */
+	uint8_t action;
+	uint8_t in_ifp_port;
+	uint16_t SPARE1;
+	uint16_t direction;
+	uint8_t orig_family;
+	uint8_t family;
+	xfrm_address_t dst; /* Only used for outbound traffic */
+	vrfid_t vrfid;
+};
+
 #endif /* CRYPTO_INTERNAL_H */
