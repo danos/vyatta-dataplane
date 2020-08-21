@@ -311,6 +311,21 @@ vyatta-dataplane (3.11.1) unstable; urgency=medium
 
  -- Paul Atkins <paul.atkins@intl.att.com>  Mon, 20 Jul 2020 21:45:59 +0100
 
+vyatta-dataplane (3.10.68) unstable; urgency=medium
+
+  [ Paul Aitken ]
+  * DPI: app groups: avoid null deref
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Wed, 19 Aug 2020 11:43:55 +0100
+
+vyatta-dataplane (3.10.67) unstable; urgency=medium
+
+  * gre: don't double free mbuf if using a gre tunnel to ourself
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Wed, 19 Aug 2020 08:37:29 +0100
+
 vyatta-dataplane (3.10.66) unstable; urgency=medium
 
   [ Robert Shearman ]

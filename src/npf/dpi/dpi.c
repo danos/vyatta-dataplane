@@ -404,7 +404,8 @@ dpi_flow_for_each_engine(struct dpi_flow *flow,
 
 	for (unsigned int i = 0; i < flow->flows_len; i++) {
 		struct flow_procs_tup *tup = &flow->flows[i];
-		if (tup && tup->procs->flow_get_id
+		if (tup && tup->flow
+			&& tup->procs->flow_get_id
 			&& tup->procs->flow_get_proto
 			&& tup->procs->flow_get_type) {
 			uint32_t app;
