@@ -575,6 +575,8 @@ crypto_show_pmd_counters(json_writer_t *wr, struct crypto_pmd *pmd)
 
 	jsonw_start_object(wr);
 	jsonw_uint_field(wr, "pmd_dev_id", pmd->dev_id);
+	jsonw_uint_field(wr, "rte_dev_id", pmd->rte_cdev_id);
+	jsonw_string_field(wr, "dev_name", pmd->dev_name);
 	jsonw_uint_field(wr, "active_sa", pmd->sa_cnt);
 	jsonw_uint_field(wr, "lcore", pmd->lcore);
 	jsonw_start_array(wr);
