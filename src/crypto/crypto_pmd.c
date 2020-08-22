@@ -377,11 +377,11 @@ int crypto_engine_set(FILE *f, const char *str)
  */
 int crypto_allocate_pmd(enum crypto_xfrm xfrm,
 			enum rte_crypto_cipher_algorithm cipher_algo,
-			enum rte_crypto_aead_algorithm aead_algo)
+			enum rte_crypto_aead_algorithm aead_algo,
+			bool *setup_openssl)
 {
 	struct crypto_pmd *pmd;
 	enum cryptodev_type dev_type;
-	bool setup_openssl;
 	int err;
 
 	/* If this is the first SA then lets go probe the number
@@ -391,7 +391,7 @@ int crypto_allocate_pmd(enum crypto_xfrm xfrm,
 		(void)crypto_engine_probe(NULL);
 
 	err = crypto_rte_select_pmd_type(cipher_algo, aead_algo, &dev_type,
-					 &setup_openssl);
+					 setup_openssl);
 	if (err)
 		return CRYPTO_PMD_INVALID_ID;
 

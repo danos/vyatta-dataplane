@@ -857,6 +857,16 @@ const struct crypto_session_operations rfc4106_openssl_sops = {
 	.set_iv = openssl_session_set_iv,
 };
 
+
+int crypto_openssl_session_setup(struct crypto_session *sess __unused)
+{
+	return 0;
+}
+
+void crypto_openssl_session_teardown(struct crypto_session *sess __unused)
+{
+}
+
 struct crypto_session *
 crypto_session_create(const struct xfrm_algo *algo_crypt,
 		      const struct xfrm_algo_auth *algo_auth,
@@ -915,6 +925,8 @@ void crypto_session_destroy(struct crypto_session *ctx)
 {
 	if (!ctx)
 		return;
+
+	crypto_openssl_session_teardown(ctx);
 
 	if (ctx->hmac_ctx)
 		HMAC_CTX_free(ctx->hmac_ctx);

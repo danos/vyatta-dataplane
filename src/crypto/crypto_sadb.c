@@ -731,7 +731,8 @@ static enum crypto_xfrm crypto_sa_to_xfrm(struct sadb_sa *sa)
  * set the direction and set up the session in the driver
  */
 static inline int
-crypto_session_set_direction(struct sadb_sa *sa, int direction)
+crypto_session_set_direction(struct sadb_sa *sa, int direction,
+			     bool setup_openssl)
 {
 	struct crypto_session *ctx = sa->session;
 	enum cryptodev_type dev_type = CRYPTODEV_MIN;
@@ -747,10 +748,19 @@ crypto_session_set_direction(struct sadb_sa *sa, int direction)
 			return err;
 		}
 
+		if (setup_openssl) {
+			err = crypto_openssl_session_setup(ctx);
+			if (err) {
+				SADB_ERR("Failed to set up openssl session\n");
+				return err;
+			}
+		}
+
 		err = crypto_rte_setup_session(ctx, dev_type,
 					       sa->rte_cdev_id);
 		if (err) {
 			SADB_ERR("Failed to set up rte session for SA\n");
+			crypto_openssl_session_teardown(ctx);
 			return err;
 		}
 	}
@@ -778,6 +788,7 @@ void crypto_sadb_new_sa(const struct xfrm_usersa_info *sa_info,
 	struct ifnet *ifp;
 	int pmd_dev_id;
 	int err;
+	bool setup_openssl = false;
 
 	if (!sa_info || !crypto_algo) {
 		SADB_ERR("Bad parameters on attempt to add SA\n");
@@ -844,7 +855,8 @@ void crypto_sadb_new_sa(const struct xfrm_usersa_info *sa_info,
 	if (sa->session) {
 		pmd_dev_id = crypto_allocate_pmd(crypto_sa_to_xfrm(sa),
 						 sa->session->cipher_algo,
-						 sa->session->aead_algo);
+						 sa->session->aead_algo,
+						 &setup_openssl);
 		if (pmd_dev_id == CRYPTO_PMD_INVALID_ID) {
 			SADB_ERR("Failed to allocate PMD for SA\n");
 			sadb_sa_destroy(sa);
@@ -859,7 +871,8 @@ void crypto_sadb_new_sa(const struct xfrm_usersa_info *sa_info,
 		err = crypto_session_set_direction(sa,
 						   sa->dir == CRYPTO_DIR_IN ?
 						   XFRM_POLICY_IN :
-						   XFRM_POLICY_OUT);
+						   XFRM_POLICY_OUT,
+						   setup_openssl);
 		if (err) {
 			SADB_ERR("Failed to set direction for SA\n");
 			sadb_sa_destroy(sa);

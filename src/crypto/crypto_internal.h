@@ -407,6 +407,10 @@ int cipher_setup_ctx(const struct xfrm_algo *,
 		     uint32_t extra_flags);
 void cipher_teardown_ctx(struct sadb_sa *sa);
 
+int crypto_openssl_session_setup(struct crypto_session *ctx);
+
+void crypto_openssl_session_teardown(struct crypto_session *ctx);
+
 void crypto_engine_summary(json_writer_t *wr, const struct sadb_sa *sa);
 
 extern uint32_t crypto_rekey_requests;
@@ -569,7 +573,8 @@ void crypto_remove_sa_from_pmd(int crypto_dev_id, enum crypto_xfrm xfrm,
 			       bool pending);
 int crypto_allocate_pmd(enum crypto_xfrm xfrm,
 			enum rte_crypto_cipher_algorithm cipher_algo,
-			enum rte_crypto_aead_algorithm aead_algo);
+			enum rte_crypto_aead_algorithm aead_algo,
+			bool *setup_openssl);
 struct rte_ring *crypto_pmd_get_q(int dev_id, enum crypto_xfrm xfrm);
 typedef bool (*crypto_pmd_walker_cb)(int pmd_dev_id, enum crypto_xfrm,
 				     struct rte_ring *,
