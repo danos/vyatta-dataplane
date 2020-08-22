@@ -171,6 +171,7 @@ static int crypto_rte_set_cipher(struct crypto_session *ctx,
 	int err;
 
 	ctx->cipher_algo = RTE_CRYPTO_CIPHER_LIST_END;
+	ctx->aead_algo = RTE_CRYPTO_AEAD_LIST_END;
 	if (strcmp("rfc4106(gcm(aes))", algo_name) == 0) {
 		err = crypto_rte_setup_aes_gcm_cipher(ctx, algo_crypt);
 		if (err)
