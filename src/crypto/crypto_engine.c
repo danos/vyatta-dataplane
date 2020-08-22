@@ -369,120 +369,6 @@ null_hmac_encrypt_openssl_vops = {
 	.icv_finalise = null_hmac_update,
 };
 
-static int openssl_aead_set_icv(struct crypto_visitor_ctx *ctx,
-				unsigned int length,
-				unsigned char icv[])
-{
-	struct crypto_session *session = ctx_session(ctx);
-
-	if (!EVP_CIPHER_CTX_ctrl(session->ctx, EVP_CTRL_GCM_SET_TAG,
-				 length, icv)) {
-		ENGINE_PKT_ERR("Setting GCM tag failed\n");
-		ENGINE_ERR_print_errors();
-		return -1;
-	}
-
-	return 0;
-}
-
-static int openssl_aead_aad_update(struct crypto_visitor_ctx *ctx,
-				   struct crypto_chain_elem *element)
-{
-	struct crypto_session *session = ctx_session(ctx);
-	int len;
-
-	if (!EVP_CipherUpdate(session->ctx, NULL, &len, element->i_data,
-			      element->data_len)) {
-		ENGINE_PKT_ERR("AAD update failed\n");
-		ENGINE_ERR_print_errors();
-		return -1;
-	}
-
-	return 0;
-}
-
-static int openssl_aead_get_tag(struct crypto_visitor_ctx *ctx,
-				struct crypto_chain_elem *element)
-{
-	struct crypto_session *session = ctx_session(ctx);
-
-	if (!EVP_CIPHER_CTX_ctrl(session->ctx, EVP_CTRL_GCM_GET_TAG,
-				 element->data_len, element->o_data)) {
-		ENGINE_PKT_ERR("Getting GCM tag failed\n");
-		ENGINE_ERR_print_errors();
-		return -1;
-	}
-
-	return 0;
-}
-
-static int openssl_aead_encrypt_payload_block(
-	struct crypto_visitor_ctx *ctx,
-	struct crypto_chain_elem *element)
-{
-	struct crypto_session *s = ctx_session(ctx);
-	int len;
-
-	if (EVP_EncryptUpdate(s->ctx, element->o_data, &len,
-			      element->i_data, element->data_len) != 1) {
-		ENGINE_ERR_print_errors();
-		return -1;
-	}
-
-	return 0;
-}
-
-static int openssl_aead_decrypt_payload_block(
-	struct crypto_visitor_ctx *ctx,
-	struct crypto_chain_elem *element)
-{
-	struct crypto_session *s = ctx_session(ctx);
-	int len;
-
-	if (EVP_DecryptUpdate(s->ctx, element->o_data, &len,
-			      element->i_data, element->data_len) != 1) {
-		ENGINE_ERR_print_errors();
-		return -1;
-	}
-
-	return 0;
-}
-
-static int nop_set(struct crypto_visitor_ctx *ctx __unused,
-		   unsigned int length __unused,
-		   unsigned char icv[] __unused)
-{
-	return 0;
-}
-
-static int nop_vops(struct crypto_visitor_ctx *ctx __unused,
-		    struct crypto_chain_elem *element __unused)
-{
-	return 0;
-}
-
-const struct crypto_visitor_operations decrypt_openssl_aead_vops = {
-	.set_iv = openssl_cipher_set_iv,
-	.set_icv = openssl_aead_set_icv,
-
-	.payload_iv = nop_vops,
-	.payload_block = openssl_aead_decrypt_payload_block,
-	.payload_finalise = openssl_cipher_payload_finalise,
-	.header_block = openssl_aead_aad_update,
-	.icv_finalise = nop_vops,
-};
-
-const struct crypto_visitor_operations encrypt_openssl_aead_vops = {
-	.set_iv = openssl_cipher_set_iv,
-	.set_icv = nop_set,
-
-	.payload_iv = nop_vops,
-	.payload_block = openssl_aead_encrypt_payload_block,
-	.payload_finalise = openssl_cipher_payload_finalise,
-	.header_block = openssl_aead_aad_update,
-	.icv_finalise = openssl_aead_get_tag,
-};
-
 /*
  * Based on RFC4303, Section 2, Table 1 + 2.
  */
@@ -832,32 +718,6 @@ const struct crypto_session_operations null_hmac_openssl_sops = {
 	.set_iv = openssl_session_set_iv,
 };
 
-static int rfc4106_session_set_enc_key(struct crypto_session *ctx)
-{
-	ctx->iv_len = 8;
-
-	if ((ctx->direction != -1) &&
-	    openssl_session_cipher_init(ctx))
-		return -1;
-
-	return 0;
-}
-
-static int rfc4106_session_set_auth_key(struct crypto_session *ctx __unused)
-{
-	return 0;
-}
-
-const struct crypto_session_operations rfc4106_openssl_sops = {
-	.decrypt_vops = &decrypt_openssl_aead_vops,
-	.encrypt_vops = &encrypt_openssl_aead_vops,
-	.set_enc_key = rfc4106_session_set_enc_key,
-	.set_auth_key = rfc4106_session_set_auth_key,
-	.generate_iv = openssl_session_generate_iv,
-	.set_iv = openssl_session_set_iv,
-};
-
-
 int crypto_openssl_session_setup(struct crypto_session *sess __unused)
 {
 	return 0;
@@ -902,9 +762,6 @@ crypto_session_create(const struct xfrm_algo *algo_crypt,
 			goto err;
 		ctx->block_size = EVP_CIPHER_block_size(ctx->cipher);
 		RAND_bytes((unsigned char *)ctx->iv, ctx->iv_len);
-
-		if (strcmp("rfc4106(gcm(aes))", algo_crypt->alg_name) == 0)
-			ctx->s_ops = &rfc4106_openssl_sops;
 	}
 
 	if  (algo_auth) {
