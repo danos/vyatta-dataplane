@@ -212,7 +212,6 @@ static int crypto_rte_set_auth(struct crypto_session *ctx,
 	ctx->auth_algo = RTE_CRYPTO_AUTH_LIST_END;
 	for (uint8_t i = 0; i < ARRAY_SIZE(md_algorithms); i++)
 		if (!strcmp(md_algorithms[i].name, algo_name)) {
-			ctx->md_name = md_algorithms[i].name;
 			ctx->auth_algo = md_algorithms[i].auth_algo;
 			break;
 		}

@@ -716,13 +716,11 @@ static int setup_md_type(struct crypto_session *ctx,
 
 	for (i = 0; i < ARRAY_SIZE(md_algorithms); i++)
 		if (!strcmp(md_algorithms[i].name, algo_name)) {
-			ctx->md_name = md_algorithms[i].name;
 			ctx->md = md_algorithms[i].fn();
 			return 0;
 		}
 
 	ENGINE_ERR("Unsupported digest algo %s\n", algo_name);
-	ctx->md_name = "Unsupported";
 	return -1;
 }
 
@@ -1120,8 +1118,8 @@ void crypto_engine_summary(json_writer_t *wr, const struct sadb_sa *sa)
 	} else
 		jsonw_string_field(wr, "cipher", "Unknown");
 
-	jsonw_string_field(wr, "digest", sess->md_name ?
-			   sess->md_name : "null");
+	jsonw_string_field(wr, "digest",
+			   rte_crypto_auth_algorithm_strings[sess->auth_algo]);
 }
 
 static int crypto_chain_dump_set_iv(struct crypto_visitor_ctx *ctx,

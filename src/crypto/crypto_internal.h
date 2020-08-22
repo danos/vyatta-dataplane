@@ -153,7 +153,6 @@ struct crypto_session {
 
 	const EVP_CIPHER *cipher;
 	const EVP_MD *md;
-	const char *md_name;
 
 	char auth_alg_name[64];
 };

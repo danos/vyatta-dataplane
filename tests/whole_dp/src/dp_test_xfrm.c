@@ -187,7 +187,7 @@ DP_START_TEST(xfrm_sa, create_two_sas_crypto_only)
 	dp_test_check_state_show("ipsec sad",
 				 "\"cipher\": \"aes-cbc\",\n"
 				 "            \"cipher_key_len\": 128,\n"
-				 "            \"digest\": \"hmac(sha1)\"",
+				 "            \"digest\": \"sha1-hmac\"",
 				 false);
 	dp_test_crypto_check_sa_count(VRF_DEFAULT_ID, 2);
 
