@@ -113,6 +113,14 @@ enum crypto_dir {
 	CRYPTO_DIR_OUT
 };
 
+struct crypto_openssl_info {
+	const struct crypto_session_operations *s_ops;
+	EVP_CIPHER_CTX     *ctx;
+	HMAC_CTX           *hmac_ctx;
+	const EVP_CIPHER   *cipher;
+	const EVP_MD       *md;
+};
+
 struct crypto_session {
 	/* All perpacket in first cacheline */
 
@@ -148,6 +156,8 @@ struct crypto_session {
 	enum rte_crypto_cipher_algorithm cipher_algo;
 	enum rte_crypto_auth_algorithm   auth_algo;
 	enum rte_crypto_aead_algorithm   aead_algo;
+
+	struct crypto_openssl_info *o_info;
 
 	uint32_t SPARE;
 
