@@ -11,6 +11,8 @@
 #include <linux/xfrm.h>
 #include <rte_cryptodev.h>
 
+#define BITS_PER_BYTE     8
+
 struct crypto_session;
 struct sadb_sa;
 

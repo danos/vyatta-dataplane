@@ -22,6 +22,7 @@
 #include <pthread.h>
 #include <rte_branch_prediction.h>
 #include <rte_common.h>
+#include <rte_crypto_sym.h>
 #include <rte_log.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -664,27 +665,22 @@ static int setup_cipher_type(struct crypto_session *ctx,
 		switch (key_len) {
 		case 128:
 			ctx->cipher = EVP_aes_128_cbc();
-			ctx->cipher_name = "CBS(AES) 128";
 			return 0;
 		case 192:
 			ctx->cipher = EVP_aes_192_cbc();
-			ctx->cipher_name = "CBS(AES) 192";
 			return 0;
 		case 256:
 			ctx->cipher = EVP_aes_256_cbc();
-			ctx->cipher_name = "CBS(AES) 256";
 			return 0;
 		default:
 			ENGINE_ERR("Unsupported cbc(aes) key size %d\n",
 				   key_len);
-			ctx->cipher_name = "CBC(AES) Unknown";
 			return -1;
 		}
 	}
 
 	if (strcmp("cbc(des3_ede)", algo_name) == 0) {
 		ctx->cipher = EVP_des_ede3_cbc();
-		ctx->cipher_name = "3DES";
 		return 0;
 	}
 
@@ -692,16 +688,13 @@ static int setup_cipher_type(struct crypto_session *ctx,
 		switch (key_len) {
 		case 160:
 			ctx->cipher = EVP_aes_128_gcm();
-			ctx->cipher_name = "gcm(aes) 128";
 			return 0;
 		case 288:
 			ctx->cipher = EVP_aes_256_gcm();
-			ctx->cipher_name = "gcm(aes) 256";
 			return 0;
 		default:
 			ENGINE_ERR("Unsupported gcm(aes) key size: %d\n",
 				   key_len);
-			ctx->cipher_name = "gcm(aes) unknown";
 			return -1;
 		}
 	}
@@ -709,11 +702,9 @@ static int setup_cipher_type(struct crypto_session *ctx,
 	if (strcmp("eNULL", algo_name) == 0 ||
 	    strcmp("ecb(cipher_null)", algo_name) == 0) {
 		ctx->cipher = EVP_enc_null();
-		ctx->cipher_name = "eNULL";
 		return 0;
 	}
 	ENGINE_ERR("Unsupported crypto algo %s\n", algo_name);
-	ctx->cipher_name = "Unsupported";
 	return  -1;
 }
 
@@ -1105,13 +1096,32 @@ void crypto_engine_load(void)
 
 void crypto_engine_summary(json_writer_t *wr, const struct sadb_sa *sa)
 {
+	struct crypto_session *sess;
+
 	if (!sa->session)
 		return;
 
-	jsonw_string_field(wr, "cipher", sa->session->cipher_name);
+	sess = sa->session;
 
-	jsonw_string_field(wr, "digest", sa->session->md_name ?
-			   sa->session->md_name : "null");
+	if (sess->aead_algo != RTE_CRYPTO_AEAD_LIST_END) {
+		jsonw_string_field(
+			wr, "cipher",
+			rte_crypto_aead_algorithm_strings[sess->aead_algo]);
+		jsonw_uint_field(
+			wr, "cipher_key_len",
+			(sess->key_len - sess->nonce_len) * BITS_PER_BYTE);
+	} else if (sess->cipher_algo != RTE_CRYPTO_CIPHER_LIST_END) {
+		jsonw_string_field(
+			wr, "cipher",
+			rte_crypto_cipher_algorithm_strings[
+				sess->cipher_algo]);
+		jsonw_uint_field(wr, "cipher_key_len",
+				 sess->key_len * BITS_PER_BYTE);
+	} else
+		jsonw_string_field(wr, "cipher", "Unknown");
+
+	jsonw_string_field(wr, "digest", sess->md_name ?
+			   sess->md_name : "null");
 }
 
 static int crypto_chain_dump_set_iv(struct crypto_visitor_ctx *ctx,

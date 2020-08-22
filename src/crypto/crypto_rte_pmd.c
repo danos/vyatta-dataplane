@@ -85,8 +85,6 @@ void crypto_rte_shutdown(void)
 	rte_mempool_free(crypto_op_pool);
 }
 
-#define BITS_PER_BYTE     8
-
 struct cipher_algo_table {
 	const char *name;
 	enum rte_crypto_cipher_algorithm cipher_algo;
@@ -148,7 +146,6 @@ static int crypto_rte_setup_aes_gcm_cipher(struct crypto_session *ctx,
 		RTE_LOG(ERR, DATAPLANE,
 			"Unsupported gcm(aes) key size: %d\n",
 			key_len);
-		ctx->cipher_name = "gcm(aes) unknown";
 		return -EINVAL;
 	}
 
