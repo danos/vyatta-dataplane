@@ -902,7 +902,6 @@ crypto_session_create(const struct xfrm_algo *algo_crypt,
 		if (setup_md_type(ctx, algo_auth->alg_name,
 				  algo_auth->alg_trunc_len) != 0)
 			goto err;
-		memcpy(ctx->auth_alg_name, algo_auth->alg_name, 64);
 	}
 
 	return ctx;
