@@ -526,20 +526,20 @@ int crypto_session_set_auth_key(struct crypto_session *session)
 int crypto_session_generate_iv(struct crypto_session *session,
 			       char iv[])
 {
-	if (!session->s_ops->generate_iv) {
-		ENGINE_DEBUG("Function not supported: generate_iv()\n");
-		return -ENOTSUP;
-	}
-
-	return session->s_ops->generate_iv(session, iv);
+	memcpy(iv, &session->iv, crypto_session_iv_len(session));
+	return 0;
 }
 
 int crypto_session_set_iv(struct crypto_session *session, unsigned int length,
 			  const char iv[])
 {
-	if (session->s_ops->set_iv)
-		return session->s_ops->set_iv(session, length, iv);
+	if (length != crypto_session_iv_len(session)) {
+		ENGINE_ERR("Unexpect IV length: %d\n", length);
+		return -1;
+	}
 
+	/* Stash IV for next packet on SA. */
+	memcpy(&session->iv, iv, length);
 	return 0;
 }
 
