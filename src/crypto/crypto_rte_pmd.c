@@ -89,17 +89,24 @@ struct cipher_algo_table {
 	const char *name;
 	enum rte_crypto_cipher_algorithm cipher_algo;
 	uint8_t iv_len;
+	uint8_t block_size;
 };
+
+#define AES_BLOCK_SIZE 16
+#define DES3_BLOCK_SIZE 8
+
+/* AES-GCM does not have padding requirements */
+#define AES_GCM_BLOCK_SIZE 1
 
 static const struct cipher_algo_table cipher_algorithms[] = {
 	{ "cbc(aes)",         RTE_CRYPTO_CIPHER_AES_CBC,
-	  IPSEC_AES_CBC_IV_SIZE },
+	  IPSEC_AES_CBC_IV_SIZE,  AES_BLOCK_SIZE  },
 	{ "cbc(des3_ede)",    RTE_CRYPTO_CIPHER_3DES_CBC,
-	  IPSEC_3DES_IV_SIZE    },
+	  IPSEC_3DES_IV_SIZE,     DES3_BLOCK_SIZE },
 	{ "eNULL",            RTE_CRYPTO_CIPHER_NULL,
-	  0                     },
+	  0,                      1               },
 	{ "ecb(cipher_null)", RTE_CRYPTO_CIPHER_NULL,
-	  0                     }
+	  0,                      1               }
 };
 
 struct md_algo_table {
@@ -134,6 +141,7 @@ static int crypto_rte_setup_aes_gcm_cipher(struct crypto_session *ctx,
 	ctx->nonce_len = AES_GCM_NONCE_LENGTH;
 	ctx->key_len = key_len;
 	ctx->iv_len = AES_GCM_IV_LENGTH;
+	ctx->block_size = AES_GCM_BLOCK_SIZE;
 
 	/* setup AES-GCM according to RFC4106 */
 	if (key_len < 4) {
@@ -179,6 +187,8 @@ static int crypto_rte_set_cipher(struct crypto_session *ctx,
 				ctx->cipher_algo =
 					cipher_algorithms[i].cipher_algo;
 				ctx->iv_len = cipher_algorithms[i].iv_len;
+				ctx->block_size =
+					cipher_algorithms[i].block_size;
 				break;
 			}
 
