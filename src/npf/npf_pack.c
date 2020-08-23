@@ -16,7 +16,7 @@
 #include "vplane_debug.h"
 #include "vplane_log.h"
 
-static_assert(NPF_PACK_MESSAGE_MAX_SIZE == 584,
+static_assert(NPF_PACK_MESSAGE_MAX_SIZE == 576,
 	      "NPF_PACK_MESSAGE_MAX_SIZE changed");
 
 uint32_t dp_session_buf_size_max(void)
@@ -102,7 +102,7 @@ static int npf_pack_pack_session(struct session *s,
 				 struct npf_pack_session_state *pst,
 				 struct npf_pack_dp_sess_stats *stats,
 				 struct npf_pack_nat *pnt,
-				 struct npf_pack_npf_nat64 *nat64)
+				 struct npf_pack_nat64 *pn64)
 {
 	struct npf_nat *nt;
 	struct npf_nat64 *n64;
@@ -140,12 +140,12 @@ static int npf_pack_pack_session(struct session *s,
 			return rc;
 		}
 	}
-	if (nat64) {
+	if (pn64) {
 		n64 = npf_session_get_nat64(se);
 		if (!n64)
 			return -ENOENT;
 
-		rc = npf_nat64_npf_pack_pack(n64, nat64);
+		rc = npf_nat64_npf_pack_pack(n64, pn64);
 		if (rc) {
 			RTE_LOG(ERR, DATAPLANE,
 				"cscyn pack %lu: nat64 session pack failed\n",
@@ -181,7 +181,7 @@ static int npf_pack_pack_nat64_session(struct session *s,
 {
 	return npf_pack_pack_session(s, se, &cs->pds, &cs->psp,
 				     &cs->pns, &cs->pst, &cs->stats,
-				     NULL, &cs->n64);
+				     NULL, &cs->pn64);
 }
 
 static int
@@ -191,7 +191,7 @@ npf_pack_pack_nat_nat64_session(struct session *s,
 {
 	return npf_pack_pack_session(s, se, &cs->pds, &cs->psp,
 				     &cs->pns, &cs->pst, &cs->stats,
-				     &cs->pnt, &cs->n64);
+				     &cs->pnt, &cs->pn64);
 }
 
 static int npf_pack_pack_one_session(struct session *s,

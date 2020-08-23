@@ -102,7 +102,7 @@ int npf_pack_restore_session(struct npf_pack_dp_session *pds,
 			     struct npf_pack_session_state *pst,
 			     struct npf_pack_dp_sess_stats *stats,
 			     struct npf_pack_nat *pnt,
-			     struct npf_pack_npf_nat64 *nat64,
+			     struct npf_pack_nat64 *nat64,
 			     struct npf_session **npf_se)
 {
 	struct session *s = NULL;
@@ -206,7 +206,7 @@ static int npf_pack_unpack_nat64_session(struct npf_pack_session_nat64 *cs,
 {
 	return npf_pack_restore_session(&cs->pds, &cs->psp,
 					&cs->pns, &cs->pst, &cs->stats,
-					NULL, &cs->n64, se);
+					NULL, &cs->pn64, se);
 }
 
 static int
@@ -215,7 +215,7 @@ npf_pack_unpack_nat_nat64_session(struct npf_pack_session_nat_nat64 *cs,
 {
 	return npf_pack_restore_session(&cs->pds, &cs->psp,
 					&cs->pns, &cs->pst, &cs->stats,
-					&cs->pnt, &cs->n64, se);
+					&cs->pnt, &cs->pn64, se);
 }
 
 static void npf_pack_delete_old_session(struct npf_pack_dp_session *pds,
