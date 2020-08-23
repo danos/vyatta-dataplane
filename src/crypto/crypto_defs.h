@@ -11,7 +11,9 @@
 #define CRYPTO_MAX_IV_LENGTH 16
 
 /* maximum length (in bytes) of key in any algorithm */
-#define CRYPTO_MAX_KEY_LENGTH 32
+#define CRYPTO_MAX_CIPHER_KEY_LENGTH 32
+
+#define CRYPTO_MAX_AUTH_KEY_LENGTH 64
 
 /*
  * constants for various encryption/hash algorithms

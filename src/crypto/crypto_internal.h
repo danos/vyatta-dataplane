@@ -135,7 +135,7 @@ struct crypto_session {
 	uint8_t auth_alg_key_len;     /* in bytes */
 	char iv[CRYPTO_MAX_IV_LENGTH];
 	unsigned char nonce[CRYPTO_MAX_IV_LENGTH];
-	uint8_t key[CRYPTO_MAX_KEY_LENGTH];
+	uint8_t key[CRYPTO_MAX_CIPHER_KEY_LENGTH];
 
 	/* --- cacheline 1 boundary (64 bytes) was 16 bytes ago --- */
 
@@ -144,7 +144,7 @@ struct crypto_session {
 	 * first cacheline. For all other ciphers, it will take 2 cachelines
 	 * to load all the required data
 	 */
-	char auth_alg_key[CRYPTO_MAX_KEY_LENGTH];
+	char auth_alg_key[CRYPTO_MAX_AUTH_KEY_LENGTH];
 
 	struct crypto_openssl_info *o_info;
 

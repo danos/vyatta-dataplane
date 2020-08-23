@@ -199,7 +199,7 @@ static int crypto_rte_set_cipher(struct crypto_session *ctx,
 		}
 
 		if ((!key_len && ctx->cipher_algo != RTE_CRYPTO_CIPHER_NULL) ||
-		    key_len > CRYPTO_MAX_KEY_LENGTH) {
+		    key_len > CRYPTO_MAX_CIPHER_KEY_LENGTH) {
 			RTE_LOG(ERR, DATAPLANE,
 				"Invalid key length %d specified with crypto algorithm %s\n",
 				key_len, algo_name);
@@ -232,7 +232,8 @@ static int crypto_rte_set_auth(struct crypto_session *ctx,
 		return -EINVAL;
 	}
 
-	if (!key_len && ctx->auth_algo != RTE_CRYPTO_AUTH_NULL) {
+	if ((!key_len && ctx->auth_algo != RTE_CRYPTO_AUTH_NULL) ||
+	    key_len > CRYPTO_MAX_AUTH_KEY_LENGTH) {
 		RTE_LOG(ERR, DATAPLANE,
 			"Invalid key size %d specified with auth algo %s\n",
 			key_len, algo_name);
