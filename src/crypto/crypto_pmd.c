@@ -392,12 +392,18 @@ int crypto_allocate_pmd(enum crypto_xfrm xfrm,
 
 	err = crypto_rte_select_pmd_type(cipher_algo, aead_algo, &dev_type,
 					 setup_openssl);
-	if (err)
+	if (err) {
+		CRYPTO_ERR("Failed to select pmd type for %s\n",
+			   (cipher_algo == RTE_CRYPTO_CIPHER_LIST_END ?
+			    rte_crypto_aead_algorithm_strings[aead_algo] :
+			    rte_crypto_cipher_algorithm_strings[cipher_algo]));
 		return CRYPTO_PMD_INVALID_ID;
-
+	}
 	pmd = crypto_pmd_find_or_create(xfrm, dev_type);
 
 	if (!pmd) {
+		CRYPTO_ERR("Failed to find or create pmd for type %d\n",
+			   dev_type);
 		pmd_alloc_fail++;
 		return CRYPTO_PMD_INVALID_ID;
 	}

@@ -292,6 +292,8 @@ crypto_rte_select_pmd_type(enum rte_crypto_cipher_algorithm cipher_algo,
 		break;
 
 	default:
+		RTE_LOG(ERR, CRYPTO, "Invalid cipher %d requested\n",
+			cipher_algo);
 		return -EINVAL;
 	}
 
