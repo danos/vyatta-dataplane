@@ -450,6 +450,8 @@ static void crypto_pmd_remove(int dev_id)
 	if (!pmd)
 		return;
 
+	lcore_dev_ids[pmd->lcore][pmd->dev_type] = CRYPTO_PMD_INVALID_ID;
+
 	rcu_assign_pointer(crypto_pmd_devs[dev_id], NULL);
 	pmd_alloc--;
 
