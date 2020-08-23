@@ -221,7 +221,7 @@ crypto_pmd_find_or_create(enum crypto_xfrm xfrm,
 	if (lcore < 0)
 		return NULL;
 
-	if (lcore_dev_ids[lcore][dev_type] >= 0) {
+	if (lcore_dev_ids[lcore][dev_type] != CRYPTO_PMD_INVALID_ID) {
 		dev_id = lcore_dev_ids[lcore][dev_type];
 		return crypto_pmd_devs[dev_id];
 	}
