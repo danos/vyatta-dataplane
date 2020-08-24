@@ -1,3 +1,36 @@
+vyatta-dataplane (3.11.14) unstable; urgency=medium
+
+  [ Mandeep Rohilla ]
+  * BFD: Switch attribute to get Local Discriminator shift
+
+  [ Srinivas Narayan ]
+  * crypto: cut over non-combined ciphers to rte infra
+  * crypto: Handle failures in session setup gracefully
+  * crypto: set up correct default for aead_algo
+  * crypto: remove references to cipher_name
+  * crypto: remove references to md_name
+  * crypto: Remove unnecessary storage of auth alg name
+  * crypto: Define separate structure for openssl info
+  * crypto: pass openssl setup decision to SA setup function
+  * crypto: Remove openssl implementation for aes-gcm
+  * crypto: define block sizes
+  * crypto: Make iv generation and storage common operations
+  * crypto: Move openssl fields to separate structure
+  * crypto: include dpdk device id and name in vplsh output
+  * crypto: Add error messages in failure path
+  * crypto: reset pmd id in array of ids by dev type
+  * crypto: Make dev-id value check specific
+  * crypto: separate definitions for cipher & digest key sizes
+
+  [ Karthik Murugesan ]
+  * vxlan: Added null check to avoid null-pointer dereference
+
+  [ Charles (Chas) Williams ]
+  * Fix potentially offensive language
+  * Fix potentially offensive language in CGNAT
+
+ -- Robert Shearman <robert.shearman@att.com>  Mon, 24 Aug 2020 17:46:44 +0100
+
 vyatta-dataplane (3.11.13) unstable; urgency=medium
 
   [ Vinicius Soares ]
