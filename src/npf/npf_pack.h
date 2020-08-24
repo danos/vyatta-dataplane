@@ -163,11 +163,14 @@ struct npf_pack_session_nat_nat64 {
 } __attribute__ ((__packed__));
 
 struct npf_pack_message_hdr {
-	uint32_t	pmh_len;
-	uint16_t	pmh_version;
-	uint8_t		pmh_flags;
-	uint8_t		pmh_type;
+	uint32_t		pmh_len;
+	uint16_t		pmh_version;
+	uint8_t			pmh_flags;
+	enum session_pack_type	pmh_type;
 } __attribute__ ((__packed__));
+
+static_assert(sizeof(struct npf_pack_message_hdr) == 8,
+	      "sizeof npf_pack_message_hdr");
 
 struct npf_pack_session_hdr {
 	uint32_t	len;

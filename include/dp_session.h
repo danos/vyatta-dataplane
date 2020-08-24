@@ -103,8 +103,7 @@ enum session_pack_type {
 	SESSION_PACK_NONE = 0,  /**< packing type not set */
 	SESSION_PACK_FULL,	/**< pack full session for later restoration */
 	SESSION_PACK_UPDATE,	/**< pack only session states and stats */
-	SESSION_PACK_MAX,
-};
+} __attribute__ ((__packed__));
 
 /** Forward declaration for session handle */
 struct session;
