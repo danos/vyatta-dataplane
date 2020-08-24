@@ -163,10 +163,10 @@ struct npf_pack_session_nat_nat64 {
 } __attribute__ ((__packed__));
 
 struct npf_pack_message_hdr {
-	uint32_t	len;
-	uint16_t	version;
-	uint8_t		flags;
-	uint8_t		msg_type;
+	uint32_t	pmh_len;
+	uint16_t	pmh_version;
+	uint8_t		pmh_flags;
+	uint8_t		pmh_type;
 } __attribute__ ((__packed__));
 
 struct npf_pack_session_hdr {

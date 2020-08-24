@@ -409,10 +409,10 @@ int dp_session_pack(struct session *session, void *buf, uint32_t size,
 	}
 
 	if (ret == 0) {
-		msg->hdr.len = dlen + sizeof(msg->hdr);
-		msg->hdr.version = SESSION_PACK_VERSION;
-		msg->hdr.msg_type = spt;
-		return (int)msg->hdr.len;
+		msg->hdr.pmh_len = dlen + sizeof(msg->hdr);
+		msg->hdr.pmh_version = SESSION_PACK_VERSION;
+		msg->hdr.pmh_type = spt;
+		return (int)msg->hdr.pmh_len;
 	}
 
 	if (ret == -EINVAL && dsize < dlen) {

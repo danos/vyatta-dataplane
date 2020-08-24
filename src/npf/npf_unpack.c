@@ -375,24 +375,24 @@ bool npf_pack_validate_msg(struct npf_pack_message *msg, uint32_t size)
 
 	if (!hdr)
 		return false;
-	if (hdr->len != size)
+	if (hdr->pmh_len != size)
 		return false;
-	if (hdr->version != SESSION_PACK_VERSION) {
+	if (hdr->pmh_version != SESSION_PACK_VERSION) {
 		RTE_LOG(ERR, DATAPLANE,
 			"npf_pack unpack: Invalid version %u\n",
-			hdr->version);
+			hdr->pmh_version);
 		return false;
 	}
-	if (hdr->msg_type == SESSION_PACK_FULL) {
+	if (hdr->pmh_type == SESSION_PACK_FULL) {
 		if (size > NPF_PACK_NEW_SESSION_MAX_SIZE)
 			return false;
-	} else if (hdr->msg_type == SESSION_PACK_UPDATE) {
+	} else if (hdr->pmh_type == SESSION_PACK_UPDATE) {
 		if (size < NPF_PACK_UPDATE_SESSION_SIZE)
 			return false;
 	} else {
 		RTE_LOG(ERR, DATAPLANE,
 			"npf_pack unpack: Invalid message type %u\n",
-			hdr->msg_type);
+			hdr->pmh_type);
 		return false;
 	}
 	return true;
@@ -412,14 +412,14 @@ static int npf_pack_unpack_session(void *data, uint32_t size,
 		return rc;
 
 	hdr = &msg->hdr;
-	*spt = hdr->msg_type;
+	*spt = hdr->pmh_type;
 
-	if (hdr->msg_type == SESSION_PACK_FULL) {
+	if (hdr->pmh_type == SESSION_PACK_FULL) {
 		csn = (struct npf_pack_session_new *)&msg->data.cs_new;
 		rc = npf_pack_session_unpack_new(csn);
 		if (rc)
 			return rc;
-	} else if (hdr->msg_type == SESSION_PACK_UPDATE) {
+	} else if (hdr->pmh_type == SESSION_PACK_UPDATE) {
 		csu = &msg->data.cs_update;
 		rc = npf_pack_session_unpack_update(csu);
 		if (rc)
@@ -436,7 +436,7 @@ int dp_session_restore(void *buf, uint32_t size, enum session_pack_type *spt)
 /* For npf_pack UT */
 uint8_t npf_pack_get_msg_type(struct npf_pack_message *msg)
 {
-	return msg->hdr.msg_type;
+	return msg->hdr.pmh_type;
 }
 
 /* For npf_pack UT */
@@ -450,12 +450,12 @@ uint64_t npf_pack_get_session_id(struct npf_pack_message *msg)
 
 	hdr = &msg->hdr;
 
-	if (hdr->msg_type == SESSION_PACK_FULL) {
+	if (hdr->pmh_type == SESSION_PACK_FULL) {
 		csn = (struct npf_pack_session_new *)&msg->data.cs_new;
 		fw = (struct npf_pack_session_fw *)&csn->cs;
 		pds = (struct npf_pack_dp_session *)&fw->pds;
 		return pds->pds_id;
-	} else if (hdr->msg_type == SESSION_PACK_UPDATE) {
+	} else if (hdr->pmh_type == SESSION_PACK_UPDATE) {
 		csu = &msg->data.cs_update;
 		return csu->se_id;
 	}
@@ -473,11 +473,11 @@ npf_pack_get_session_stats(struct npf_pack_message *msg)
 
 	hdr = &msg->hdr;
 
-	if (hdr->msg_type == SESSION_PACK_FULL) {
+	if (hdr->pmh_type == SESSION_PACK_FULL) {
 		csn = (struct npf_pack_session_new *)&msg->data.cs_new;
 		fw = (struct npf_pack_session_fw *)&csn->cs;
 		return &fw->stats;
-	} else if (hdr->msg_type == SESSION_PACK_UPDATE) {
+	} else if (hdr->pmh_type == SESSION_PACK_UPDATE) {
 		csu = &msg->data.cs_update;
 		return &csu->stats;
 	}
