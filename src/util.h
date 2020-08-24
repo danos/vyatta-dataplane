@@ -164,6 +164,7 @@ const char *nlmsg_type(unsigned int type);
 const char *ndm_state(uint16_t);
 int get_bool(const char *str, bool *ptr);
 int get_unsigned(const char *str, unsigned int *ptr);
+int get_unsigned_long(const char *str, unsigned long *ptr);
 int get_signed(const char *str, int *ptr);
 int get_signed_char(const char *str, signed char *ptr);
 int get_unsigned_short(const char *str, unsigned short *ptr);

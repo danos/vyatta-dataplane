@@ -31,7 +31,7 @@
 #define	MAX_RATE_FLOAT	99.6
 #define	MAX_RATE_SCALED	996
 
-uint32_t qos_dpdk_check_rate(uint32_t rate, uint32_t parent_bw)
+uint64_t qos_dpdk_check_rate(uint64_t rate, uint64_t parent_bw)
 {
 	/*
 	 * Check whether the rate is close or equal to the parent bandwidth.
@@ -504,6 +504,13 @@ int qos_dpdk_start(struct ifnet *ifp, struct sched_info *qinfo,
 
 		q_array_size += qos_sched_subport_qsize(&qinfo->port_params,
 							sinfo->qsize);
+
+		/*
+		 * If we've received a rate auto we use the reported
+		 * interface speed as the subport rate.
+		 */
+		if (sinfo->auto_speed)
+			qos_abs_rate_save(&sinfo->subport_rate, bps);
 
 		/*
 		 * Establish subport rates before checking pipes so that the

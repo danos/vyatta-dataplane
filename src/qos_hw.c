@@ -28,7 +28,7 @@
 _Static_assert(MAX_DSCP == FAL_QOS_MAP_DSCP_VALUES, "max DSCP value mismatch");
 _Static_assert(MAX_PCP == FAL_QOS_MAP_PCP_VALUES, "max PCP value mismatch");
 
-uint32_t qos_hw_check_rate(uint32_t rate, uint32_t parent_bw __unused)
+uint64_t qos_hw_check_rate(uint64_t rate, uint64_t parent_bw __unused)
 {
 	return rate;
 }
@@ -1916,7 +1916,7 @@ qos_hw_new_wrr_queue(fal_object_t tc_sched_obj, uint32_t queue_limit,
 
 static int
 qos_hw_new_tc(uint32_t tc_id, fal_object_t pipe_sched_obj,
-	      uint32_t tc_rate, uint32_t tc_size, uint32_t queue_limit,
+	      uint64_t tc_rate, uint32_t tc_size, uint32_t queue_limit,
 	      uint8_t *wrr_weight, uint8_t *designators,
 	      struct qos_red_params *red_params,
 	      struct qos_red_pipe_params **q_wred_info, uint32_t *ids,
@@ -2264,7 +2264,7 @@ qos_hw_new_pipe(uint32_t pipe_id, fal_object_t subport_sched_obj,
 		struct qos_pipe_params *pipe_params, struct queue_map *qmap,
 		uint32_t *ids, int8_t overhead)
 {
-	uint32_t tb_rate = pipe_params->shaper.tb_rate;
+	uint64_t tb_rate = pipe_params->shaper.tb_rate;
 	uint32_t tb_size = pipe_params->shaper.tb_size;
 	char ids_str[QOS_OBJ_DB_MAX_ID_LEN + 1];
 	struct qos_obj_db_obj *db_obj;
@@ -2453,7 +2453,7 @@ qos_hw_new_subport(uint32_t subport_id, fal_object_t port_sched_obj,
 {
 	struct subport_info *sinfo = qinfo->subport +
 		ids[QOS_OBJ_DB_LEVEL_SUBPORT];
-	uint32_t tb_rate = sinfo->params.tb_rate;
+	uint64_t tb_rate = sinfo->params.tb_rate;
 	uint32_t tb_size = sinfo->params.tb_size;
 	char ids_str[QOS_OBJ_DB_MAX_ID_LEN + 1];
 	fal_object_t subport_sched_obj;
@@ -2630,6 +2630,13 @@ int qos_hw_start(struct ifnet *ifp, struct sched_info *qinfo, uint64_t bps,
 	for (subport = 0; subport < qinfo->n_subports; subport++) {
 		struct subport_info *sinfo = &qinfo->subport[subport];
 		struct qos_shaper_conf *params = &sinfo->params;
+
+		/*
+		 * If we've received a rate auto we use the reported
+		 * interface speed as the subport rate.
+		 */
+		if (sinfo->auto_speed)
+			qos_abs_rate_save(&sinfo->subport_rate, bps);
 
 		/*
 		 * Establish subport rates before checking pipes so that the

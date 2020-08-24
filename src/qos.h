@@ -126,7 +126,7 @@ struct qos_rate_info {
 	bool bw_is_percent;
 	union _bw_info {
 		float bw_percent;
-		uint32_t bandwidth;
+		uint64_t bandwidth;
 	} rate;
 
 	bool burst_is_time;
@@ -143,9 +143,9 @@ struct qos_tc_rate_info {
 };
 
 struct qos_shaper_conf {
-	uint32_t	tb_rate;	/* bytes/sec */
+	uint64_t	tb_rate;	/* bytes/sec */
 	uint32_t	tb_size;
-	uint32_t	tc_rate[RTE_SCHED_TRAFFIC_CLASSES_PER_PIPE];
+	uint64_t	tc_rate[RTE_SCHED_TRAFFIC_CLASSES_PER_PIPE];
 	uint32_t	tc_period;
 #ifdef RTE_SCHED_SUBPORT_TC_OV
 	uint8_t		tc_ov_weight;	/* Weight TC 3 oversubscription */
@@ -173,6 +173,7 @@ struct subport_info {
 					[RTE_COLORS];
 	bool pipe_configured[MAX_PIPES];
 	struct qos_mark_map *mark_map;
+	bool auto_speed;
 };
 
 /* DSCP and PCP maps (per profile) */
@@ -252,8 +253,8 @@ struct qos_pipe_params {
 struct qos_port_params {
 	struct qos_pipe_params	*pipe_profiles;
 	uint32_t	n_pipe_profiles;
-	uint32_t	rate;	/* Port rate in bytes/sec */
 	uint32_t	mtu;
+	uint64_t	rate;	/* Port rate in bytes/sec */
 	int32_t		frame_overhead;
 	uint32_t	n_subports_per_port;
 	uint32_t	n_pipes_per_subport;
@@ -337,7 +338,7 @@ struct qos_dev {
 				     uint32_t pipe, uint32_t tc, uint32_t q,
 				     uint64_t *random_dscp_drop,
 				     json_writer_t *wr);
-	uint32_t (*qos_check_rate)(uint32_t rate, uint32_t parent_bw);
+	uint64_t (*qos_check_rate)(uint64_t rate, uint64_t parent_bw);
 };
 
 extern struct qos_dev qos_devices[];
@@ -443,13 +444,13 @@ void qos_sched_subport_params_check(struct qos_shaper_conf *params,
 				struct qos_rate_info *config_rate,
 				struct qos_rate_info *config_tc_rate,
 				uint16_t max_pkt_len, uint32_t max_burst_size,
-				uint32_t bps,
+				uint64_t bps,
 				struct sched_info *qinfo);
 
 
 static inline void qos_sched_pipe_check(struct sched_info *qinfo,
 					uint16_t max_pkt_len,
-					uint32_t max_burst_size, uint32_t bps)
+					uint32_t max_burst_size, uint64_t bps)
 {
 	unsigned int profile;
 
@@ -457,7 +458,7 @@ static inline void qos_sched_pipe_check(struct sched_info *qinfo,
 	     profile < qinfo->port_params.n_pipe_profiles;
 	     profile++) {
 		unsigned int subport;
-		uint32_t parent_rate = bps;
+		uint64_t parent_rate = bps;
 		struct qos_pipe_params *p
 			= qinfo->port_params.pipe_profiles + profile;
 
@@ -606,7 +607,7 @@ int qos_dpdk_enable(struct ifnet *ifp,
 int qos_dpdk_stop(__unused struct ifnet *ifp, struct sched_info *qinfo);
 int qos_dpdk_start(struct ifnet *ifp, struct sched_info *qinfo,
 		   uint64_t bps, uint16_t max_pkt_len);
-uint32_t qos_dpdk_check_rate(uint32_t rate, uint32_t parent_bw);
+uint64_t qos_dpdk_check_rate(uint64_t rate, uint64_t parent_bw);
 
 /* The HW forwarding plugin functions */
 fal_object_t
@@ -640,12 +641,13 @@ int qos_hw_stop(__unused struct ifnet *ifp,
 		__unused struct sched_info *qinfo);
 int qos_hw_start(__unused struct ifnet *ifp, struct sched_info *qinfo,
 		 uint64_t bps, uint16_t max_pkt_len);
-uint32_t qos_hw_check_rate(uint32_t rate, uint32_t parent_bw);
+uint64_t qos_hw_check_rate(uint64_t rate, uint64_t parent_bw);
 int qos_hw_init(void);
 void qos_hw_del_map(fal_object_t mark_obj);
 void qos_hw_show_legacy_map(struct queue_map *qmap, json_writer_t *wr);
 fal_object_t qos_hw_get_att_ingress_map(struct ifnet *ifp, unsigned int vlan);
 fal_object_t qos_hw_get_att_egress_map(struct ifnet *ifp, unsigned int vlan);
 struct qos_mark_map *qos_egress_map_find(char const *name);
+void qos_abs_rate_save(struct qos_rate_info *bw_info, uint64_t abs_bw);
 
 #endif /* QOS_H */
