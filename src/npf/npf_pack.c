@@ -73,24 +73,30 @@ static int npf_pack_session_pack_update(struct session *s,
 	return 0;
 }
 
-static int npf_pack_get_new_msg_type(struct session *s, uint8_t *msg_type)
+static int
+npf_pack_get_new_msg_type(struct session *s, enum pack_session_new *msg_type)
 {
 	if (!s)
 		return -ENOENT;
 
-	if (!session_is_nat(s) && !session_is_nat64(s) && !session_is_nat46(s))
+	bool is_nat = session_is_nat(s);
+	bool is_nat64 = session_is_nat64(s) || session_is_nat46(s);
+
+	if (!is_nat && !is_nat64)
 		*msg_type = NPF_PACK_SESSION_NEW_FW;
-	else if (session_is_nat(s) && !session_is_nat64(s) &&
-		 !session_is_nat46(s))
+
+	else if (is_nat && !is_nat64)
 		*msg_type = NPF_PACK_SESSION_NEW_NAT;
-	else if (!session_is_nat(s) && (session_is_nat64(s) ||
-					session_is_nat46(s)))
+
+	else if (!is_nat && is_nat64)
 		*msg_type = NPF_PACK_SESSION_NEW_NAT64;
-	else if (session_is_nat(s) && (session_is_nat64(s) ||
-				       session_is_nat46(s)))
+
+	else if (is_nat && is_nat64)
 		*msg_type = NPF_PACK_SESSION_NEW_NAT_NAT64;
+
 	else
 		return -EINVAL;
+
 	return 0;
 }
 
@@ -198,7 +204,8 @@ static int npf_pack_pack_one_session(struct session *s,
 				     struct npf_session *se,
 				     struct npf_pack_session_new *csn)
 {
-	uint8_t msg_type = 0;
+	struct npf_pack_session_hdr *psh;
+	enum pack_session_new msg_type = 0;
 	int rc;
 
 	if (!s || !csn)
@@ -207,30 +214,39 @@ static int npf_pack_pack_one_session(struct session *s,
 	rc = npf_pack_get_new_msg_type(s, &msg_type);
 	if (rc)
 		return rc;
-	csn->hdr.msg_type = msg_type;
-	if (msg_type == NPF_PACK_SESSION_NEW_FW) {
-		csn->hdr.len = NPF_PACK_NEW_FW_SESSION_SIZE;
+
+	psh = &csn->hdr;
+	psh->psh_type = msg_type;
+	rc = -EINVAL;
+
+	switch (psh->psh_type) {
+	case NPF_PACK_SESSION_NEW_FW:
+		psh->psh_len = NPF_PACK_NEW_FW_SESSION_SIZE;
 		rc = npf_pack_pack_fw_session(
 			s, se, (struct npf_pack_session_fw *)&csn->cs);
-	} else if (msg_type == NPF_PACK_SESSION_NEW_NAT) {
-		csn->hdr.len = NPF_PACK_NEW_NAT_SESSION_SIZE;
+		break;
+
+	case NPF_PACK_SESSION_NEW_NAT:
+		psh->psh_len = NPF_PACK_NEW_NAT_SESSION_SIZE;
 		rc = npf_pack_pack_nat_session(
 			s, se, (struct npf_pack_session_nat *)&csn->cs);
-	} else if (msg_type == NPF_PACK_SESSION_NEW_NAT64) {
-		csn->hdr.len = NPF_PACK_NEW_NAT64_SESSION_SIZE;
+		break;
+
+	case NPF_PACK_SESSION_NEW_NAT64:
+		psh->psh_len = NPF_PACK_NEW_NAT64_SESSION_SIZE;
 		rc = npf_pack_pack_nat64_session(
 			s, se, (struct npf_pack_session_nat64 *)&csn->cs);
-	} else if (msg_type == NPF_PACK_SESSION_NEW_NAT_NAT64) {
-		csn->hdr.len = NPF_PACK_NEW_NAT_NAT64_SESSION_SIZE;
+		break;
+
+	case NPF_PACK_SESSION_NEW_NAT_NAT64:
+		psh->psh_len = NPF_PACK_NEW_NAT_NAT64_SESSION_SIZE;
 		rc = npf_pack_pack_nat_nat64_session(
 			s, se,
 			(struct npf_pack_session_nat_nat64 *)&csn->cs);
-	} else
-		return -EINVAL;
-	if (rc)
-		return rc;
+		break;
+	};
 
-	return 0;
+	return rc;
 }
 
 static int npf_pack_pack_get_peer(struct npf_session *se,
@@ -325,7 +341,7 @@ static int npf_pack_session_pack_new(struct session *s,
 			session_get_id(s));
 		return rc;
 	}
-	*len += csn->hdr.len;
+	*len += csn->hdr.psh_len;
 
 	*peer = NULL;
 	if (!session_is_nat64(s) && !session_is_nat46(s))
@@ -339,7 +355,8 @@ static int npf_pack_session_pack_new(struct session *s,
 		return rc;
 	}
 	/* Pack peer session */
-	csn_peer = (struct npf_pack_session_new *)((char *)csn + csn->hdr.len);
+	csn_peer = (struct npf_pack_session_new *)((char *)csn +
+						   csn->hdr.psh_len);
 	rc = npf_pack_pack_peer_session(s, csn, csn_peer, s_peer, se_peer);
 	if (rc) {
 		RTE_LOG(ERR, DATAPLANE,
@@ -347,7 +364,7 @@ static int npf_pack_session_pack_new(struct session *s,
 			session_get_id(s));
 		return rc;
 	}
-	*len += csn_peer->hdr.len;
+	*len += csn_peer->hdr.psh_len;
 	*peer = s_peer;
 
 	return 0;

@@ -35,13 +35,12 @@
 
 #define SESSION_PACK_VERSION	      (0x0102)
 
-enum {
+enum pack_session_new {
 	NPF_PACK_SESSION_NEW_FW = 1,
 	NPF_PACK_SESSION_NEW_NAT,
 	NPF_PACK_SESSION_NEW_NAT64,
 	NPF_PACK_SESSION_NEW_NAT_NAT64,
-	NPF_PACK_SESSION_NEW_END,
-};
+} __attribute__ ((__packed__));
 
 /*
  *  From 'struct session' (except stats)
@@ -173,10 +172,13 @@ static_assert(sizeof(struct npf_pack_message_hdr) == 8,
 	      "sizeof npf_pack_message_hdr");
 
 struct npf_pack_session_hdr {
-	uint32_t	len;
-	uint8_t		msg_type;
-	uint8_t		pad[3];
+	uint32_t		psh_len;
+	enum pack_session_new	psh_type;
+	uint8_t			psh_pad[3];
 } __attribute__ ((__packed__));
+
+static_assert(sizeof(struct npf_pack_session_hdr) == 8,
+	      "sizeof npf_pack_session_hdr");
 
 struct npf_pack_session_new {
 	struct	npf_pack_session_hdr hdr;

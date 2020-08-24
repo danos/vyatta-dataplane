@@ -236,8 +236,7 @@ static void npf_pack_delete_old_session(struct npf_pack_dp_session *pds,
 static int npf_pack_unpack_one_session(struct npf_pack_session_new *csn,
 				       struct npf_session **se)
 {
-	uint8_t msg_type;
-	struct npf_pack_session_hdr *hdr;
+	struct npf_pack_session_hdr *psh;
 	struct npf_pack_session_fw *cs;
 	struct npf_pack_sentry_packet *psp;
 	struct ifnet *ifp;
@@ -257,40 +256,44 @@ static int npf_pack_unpack_one_session(struct npf_pack_session_new *csn,
 		return -EINVAL;
 
 	npf_pack_delete_old_session(&cs->pds, psp);
-	hdr = &csn->hdr;
-	msg_type = hdr->msg_type;
+	psh = &csn->hdr;
+	rc = -EINVAL;
 
-	if (msg_type == NPF_PACK_SESSION_NEW_FW) {
-		if (hdr->len < NPF_PACK_NEW_FW_SESSION_SIZE)
+	switch (psh->psh_type) {
+	case NPF_PACK_SESSION_NEW_FW:
+		if (psh->psh_len < NPF_PACK_NEW_FW_SESSION_SIZE)
 			return -EINVAL;
+
 		rc = npf_pack_unpack_fw_session(
 			(struct npf_pack_session_fw *)&csn->cs, se);
+		break;
 
-	} else if (msg_type == NPF_PACK_SESSION_NEW_NAT) {
-		if (hdr->len < NPF_PACK_NEW_NAT_SESSION_SIZE)
+	case NPF_PACK_SESSION_NEW_NAT:
+		if (psh->psh_len < NPF_PACK_NEW_NAT_SESSION_SIZE)
 			return -EINVAL;
+
 		rc = npf_pack_unpack_nat_session(
 			(struct npf_pack_session_nat *)&csn->cs, se);
+		break;
 
-	} else if (msg_type == NPF_PACK_SESSION_NEW_NAT64) {
-		if (hdr->len < NPF_PACK_NEW_NAT64_SESSION_SIZE)
+	case NPF_PACK_SESSION_NEW_NAT64:
+		if (psh->psh_len < NPF_PACK_NEW_NAT64_SESSION_SIZE)
 			return -EINVAL;
+
 		rc = npf_pack_unpack_nat64_session(
 			(struct npf_pack_session_nat64 *)&csn->cs, se);
+		break;
 
-	} else if (msg_type == NPF_PACK_SESSION_NEW_NAT_NAT64) {
-		if (hdr->len < NPF_PACK_NEW_NAT_NAT64_SESSION_SIZE)
+	case NPF_PACK_SESSION_NEW_NAT_NAT64:
+		if (psh->psh_len < NPF_PACK_NEW_NAT_NAT64_SESSION_SIZE)
 			return -EINVAL;
+
 		rc = npf_pack_unpack_nat_nat64_session(
 			(struct npf_pack_session_nat_nat64 *)&csn->cs, se);
+		break;
+	};
 
-	} else
-		return -EINVAL;
-
-	if (rc)
-		return rc;
-
-	return 0;
+	return rc;
 }
 
 static int npf_pack_unpack_peer_session(struct npf_pack_session_new *csn,
@@ -307,7 +310,8 @@ static int npf_pack_unpack_peer_session(struct npf_pack_session_new *csn,
 	if (!cs->pds.pds_nat64 && !cs->pds.pds_nat46)
 		return 0;
 
-	csn_peer = (struct npf_pack_session_new *)((char *)csn + csn->hdr.len);
+	csn_peer = (struct npf_pack_session_new *)((char *)csn +
+						   csn->hdr.psh_len);
 
 	rc = npf_pack_unpack_one_session(csn_peer, &sep);
 	if (rc || !sep) {
