@@ -52,7 +52,7 @@ enum session_feature_type {
 	SESSION_FEATURE_TEST,		/* For UTs, never delete */
 	SESSION_FEATURE_NPF,
 	SESSION_FEATURE_END,		/* Must be last */
-};
+} __attribute__ ((__packed__));
 
 /* Session flags */
 #define SESSION_EXPIRED		0x01
@@ -115,12 +115,13 @@ struct session_feature {
 	struct cds_lfht_node			sf_session_node;
 	struct session				*sf_session;
 	void					*sf_data;
-	uint32_t				sf_idx;
-	enum session_feature_type		sf_type;
 	const struct session_feature_ops	*sf_ops;
 	struct rcu_head				sf_rcu_head;
 	uint64_t				sf_expire_time;
+	uint32_t				sf_idx;
 	uint16_t				sf_flags;
+	enum session_feature_type		sf_type;
+	uint8_t					sf_pad;
 };
 
 /* Session sentry structs. */
