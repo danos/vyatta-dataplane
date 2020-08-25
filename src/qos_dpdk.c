@@ -44,9 +44,9 @@ uint32_t qos_dpdk_check_rate(uint32_t rate, uint32_t parent_bw)
 
 		percent = (((float)rate * 100.0) / (float)parent_bw);
 		if (percent > MAX_RATE_FLOAT) {
-			uint64_t tmp_rate = rate;
+			uint64_t tmp_rate;
 
-			tmp_rate = tmp_rate * MAX_RATE_SCALED;
+			tmp_rate = (uint64_t)parent_bw * MAX_RATE_SCALED;
 			rate = tmp_rate / 1000;
 		}
 	}
