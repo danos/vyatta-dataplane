@@ -146,21 +146,10 @@ npf_state_is_valid(uint8_t proto_idx, uint8_t state)
 		return dp_session_state_is_valid(state);
 }
 
-/*
- * Get generic state.  Non-TCP protocols already use generic state.
- * Convert TCP state to generic state.
- */
 static inline enum dp_session_state
-npf_state_get_generic_state(uint8_t proto_idx, uint8_t state)
+npf_state_tcp2gen(enum tcp_session_state tcp_state)
 {
-	if (proto_idx != NPF_PROTO_IDX_TCP) {
-		if (dp_session_state_is_valid(state))
-			return (enum dp_session_state)state;
-		else
-			return SESSION_STATE_NONE;
-	}
-
-	switch (state) {
+	switch (tcp_state) {
 	case NPF_TCPS_NONE:
 		return SESSION_STATE_NONE;
 	case NPF_TCPS_SYN_SENT:
@@ -182,6 +171,22 @@ npf_state_get_generic_state(uint8_t proto_idx, uint8_t state)
 		return SESSION_STATE_CLOSED;
 	};
 	return SESSION_STATE_CLOSED;
+}
+
+/*
+ * Get generic state.  Non-TCP protocols already use generic state.
+ * Convert TCP state to generic state.
+ */
+static inline enum dp_session_state
+npf_state_get_generic_state(uint8_t proto_idx, uint8_t state)
+{
+	if (proto_idx == NPF_PROTO_IDX_TCP)
+		return npf_state_tcp2gen((enum tcp_session_state)state);
+
+	if (dp_session_state_is_valid(state))
+		return (enum dp_session_state)state;
+
+	return SESSION_STATE_NONE;
 }
 
 static inline bool npf_state_is_established(uint8_t proto, uint8_t state)
