@@ -348,7 +348,7 @@ cmd_npf_global_timeout(FILE *f, int argc, char **argv)
 	uint8_t s;
 	char *p;
 	uint32_t tout;
-	uint8_t proto_index;
+	enum npf_proto_idx proto_index;
 	enum npf_timeout_action action;
 
 	if (argc < 5) {

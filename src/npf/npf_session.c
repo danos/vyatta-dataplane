@@ -113,7 +113,7 @@ struct npf_session {
 	/* --- cacheline 2 boundary (128 bytes) --- */
 	struct npf_session	*s_parent;	/* NULL if this == parent */
 	uint8_t			s_proto;
-	uint8_t			s_proto_idx;
+	enum npf_proto_idx	s_proto_idx;
 };
 
 static_assert(offsetof(struct npf_session, s_nat) == 64,
@@ -181,7 +181,7 @@ npf_session_get_timeout(const npf_session_t *se)
 			se->s_session->se_custom_timeout);
 }
 
-static inline bool npf_test_session_log_proto(uint8_t proto_idx)
+static inline bool npf_test_session_log_proto(enum npf_proto_idx proto_idx)
 {
 	assert(NPF_PROTO_IDX_TCP == 0);
 	assert(NPF_PROTO_IDX_UDP == 1);
@@ -193,7 +193,7 @@ static inline bool npf_test_session_log_proto(uint8_t proto_idx)
 }
 
 static inline bool
-npf_test_session_log_flag(uint8_t state, uint8_t proto_idx)
+npf_test_session_log_flag(uint8_t state, enum npf_proto_idx proto_idx)
 {
 	return NPF_TST_SESSION_LOG_FLAG(proto_idx, state) != 0;
 }
@@ -635,7 +635,7 @@ static inline void npf_session_do_watch(npf_session_t *se,
  */
 void
 npf_session_state_change(npf_state_t *nst, uint8_t old_state,
-			 uint8_t state, uint8_t proto_idx)
+			 uint8_t state, enum npf_proto_idx proto_idx)
 {
 	npf_session_t *se = caa_container_of(nst, npf_session_t, s_state);
 	npf_rule_t *rproc_rl;
@@ -1335,7 +1335,8 @@ static void sess_clear_nat64_peer(npf_session_t *se)
 int
 npf_enable_session_log(const char *proto, const char *state)
 {
-	uint8_t state_index = 0, proto_idx;
+	uint8_t state_index = 0;
+	enum npf_proto_idx proto_idx;
 
 	if (!proto || !state)
 		return -1;
@@ -1365,7 +1366,8 @@ npf_enable_session_log(const char *proto, const char *state)
 int
 npf_disable_session_log(const char *proto, const char *state)
 {
-	uint8_t state_index = 0, proto_idx;
+	uint8_t state_index = 0;
+	enum npf_proto_idx proto_idx;
 
 	if (!proto || !state)
 		return -1;

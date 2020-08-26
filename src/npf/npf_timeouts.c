@@ -69,7 +69,7 @@ void npf_timeout_ref_put(struct npf_timeout *to)
 
 /* Set a state timeout */
 int npf_timeout_set(vrfid_t vrfid, enum npf_timeout_action action,
-		uint8_t proto_idx, uint8_t state, uint32_t tout)
+		    enum npf_proto_idx proto_idx, uint8_t state, uint32_t tout)
 {
 	struct npf_timeout *to;
 	struct vrf *vrf;
@@ -109,8 +109,8 @@ int npf_timeout_set(vrfid_t vrfid, enum npf_timeout_action action,
 }
 
 /* Get a state timeout */
-uint32_t npf_timeout_get(const npf_state_t *nst, uint8_t proto_idx,
-		uint32_t custom)
+uint32_t npf_timeout_get(const npf_state_t *nst, enum npf_proto_idx proto_idx,
+			 uint32_t custom)
 {
 	if (npf_state_is_steady(nst, proto_idx) && custom)
 		return custom;

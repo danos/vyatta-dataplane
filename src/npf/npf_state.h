@@ -138,7 +138,7 @@ npf_state_tcp_state_is_valid(uint8_t state)
 }
 
 static inline bool
-npf_state_is_valid(uint8_t proto_idx, uint8_t state)
+npf_state_is_valid(enum npf_proto_idx proto_idx, uint8_t state)
 {
 	if (proto_idx == NPF_PROTO_IDX_TCP)
 		return npf_state_tcp_state_is_valid(state);
@@ -178,7 +178,7 @@ npf_state_tcp2gen(enum tcp_session_state tcp_state)
  * Convert TCP state to generic state.
  */
 static inline enum dp_session_state
-npf_state_get_generic_state(uint8_t proto_idx, uint8_t state)
+npf_state_get_generic_state(enum npf_proto_idx proto_idx, uint8_t state)
 {
 	if (proto_idx == NPF_PROTO_IDX_TCP)
 		return npf_state_tcp2gen((enum tcp_session_state)state);
@@ -205,16 +205,22 @@ static inline bool npf_state_is_closing(uint8_t proto, uint8_t state)
 
 void npf_state_stats_create(void);
 void npf_state_stats_destroy(void);
-bool npf_state_init(vrfid_t vrfid, uint8_t proto_idx, npf_state_t *nst);
-void npf_state_destroy(npf_state_t *nst, uint8_t proto_idx);
+bool npf_state_init(vrfid_t vrfid, enum npf_proto_idx proto_idx,
+		    npf_state_t *nst);
+void npf_state_destroy(npf_state_t *nst, enum npf_proto_idx proto_idx);
 int npf_state_inspect(const npf_cache_t *npc, struct rte_mbuf *nbuf,
 		      npf_state_t *nst, bool forw);
-void npf_state_update_session_state(struct session *s, uint8_t proto_idx,
-		const npf_state_t *nst);
-void npf_state_set_closed_state(npf_state_t *nst, bool lock, uint8_t proto_idx);
-const char *npf_state_get_state_name(uint8_t state, uint8_t proto_idx);
-bool npf_state_is_steady(const npf_state_t *nst, const uint8_t proto_idx);
-bool npf_tcp_state_is_closed(const npf_state_t *nst, const uint8_t proto_idx);
+void npf_state_update_session_state(struct session *s,
+				    enum npf_proto_idx proto_idx,
+				    const npf_state_t *nst);
+void npf_state_set_closed_state(npf_state_t *nst, bool lock,
+				enum npf_proto_idx proto_idx);
+const char *npf_state_get_state_name(uint8_t state,
+				     enum npf_proto_idx proto_idx);
+bool npf_state_is_steady(const npf_state_t *nst,
+			 const enum npf_proto_idx proto_idx);
+bool npf_tcp_state_is_closed(const npf_state_t *nst,
+			     const enum npf_proto_idx proto_idx);
 enum dp_session_state npf_map_str_to_generic_state(const char *state);
 uint8_t npf_map_str_to_tcp_state(const char *state);
 uint32_t npf_state_get_custom_timeout(vrfid_t vrfid, npf_cache_t *npc,
@@ -225,7 +231,7 @@ void npf_state_dump(const npf_state_t *nst);
 #endif
 
 void npf_session_state_change(npf_state_t *nst, uint8_t old_state,
-			      uint8_t new_state, uint8_t proto_idx);
+			      uint8_t new_state, enum npf_proto_idx proto_idx);
 
 void npf_state_set_icmp_strict(bool value);
 
@@ -246,6 +252,6 @@ void npf_state_set_tcp_strict(bool value);
 
 int npf_state_npf_pack_update(npf_state_t *nst,
 			      struct npf_pack_session_state *pst,
-			      uint8_t state, uint8_t proto_idx);
+			      uint8_t state, enum npf_proto_idx proto_idx);
 
 #endif  /* NPF_STATE_H */

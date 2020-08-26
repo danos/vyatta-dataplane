@@ -137,7 +137,8 @@ void npf_state_set_icmp_strict(bool value)
  * direction in a case of connection-orientated protocol.  Returns true on
  * success and false otherwise (e.g. if protocol is not supported).
  */
-bool npf_state_init(vrfid_t vrfid, uint8_t proto_idx, npf_state_t *nst)
+bool
+npf_state_init(vrfid_t vrfid, enum npf_proto_idx proto_idx, npf_state_t *nst)
 {
 	assert(SESSION_STATE_LAST < 255);
 	assert(NPF_TCPS_LAST < 255);
@@ -164,7 +165,7 @@ bool npf_state_init(vrfid_t vrfid, uint8_t proto_idx, npf_state_t *nst)
 }
 
 /* Called from npf_session_destroy */
-void npf_state_destroy(npf_state_t *nst, uint8_t proto_idx)
+void npf_state_destroy(npf_state_t *nst, enum npf_proto_idx proto_idx)
 {
 	if (proto_idx == NPF_PROTO_IDX_TCP)
 		stats_dec_tcp(nst->nst_state);
@@ -179,7 +180,7 @@ void npf_state_destroy(npf_state_t *nst, uint8_t proto_idx)
 * Set generic session state.
 */
 static inline void
-npf_state_generic_state_set(npf_state_t *nst, uint8_t proto_idx,
+npf_state_generic_state_set(npf_state_t *nst, enum npf_proto_idx proto_idx,
 		uint8_t state, bool *state_changed)
 {
 	if (unlikely(nst->nst_state != state)) {
@@ -219,7 +220,7 @@ npf_state_tcp_state_set(npf_state_t *nst, uint8_t state, bool *state_changed)
 int npf_state_inspect(const npf_cache_t *npc, struct rte_mbuf *nbuf,
 		      npf_state_t *nst, bool forw)
 {
-	const uint8_t proto_idx = npf_cache_proto_idx(npc);
+	const enum npf_proto_idx proto_idx = npf_cache_proto_idx(npc);
 	const enum npf_flow_dir di = forw ? NPF_FLOW_FORW : NPF_FLOW_BACK;
 	int ret = 0;
 	bool state_changed = false;
@@ -270,7 +271,8 @@ int npf_state_inspect(const npf_cache_t *npc, struct rte_mbuf *nbuf,
  * Mark session state as 'closed' for the period that it is going through
  * garbage collection.
  */
-void npf_state_set_closed_state(npf_state_t *nst, bool lock, uint8_t proto_idx)
+void npf_state_set_closed_state(npf_state_t *nst, bool lock,
+				enum npf_proto_idx proto_idx)
 {
 	uint8_t old_state;
 	uint8_t state;
@@ -304,8 +306,9 @@ void npf_state_set_closed_state(npf_state_t *nst, bool lock, uint8_t proto_idx)
  *
  * This is called during NPF activation and protocol state changes.
  */
-void npf_state_update_session_state(struct session *s, uint8_t proto_idx,
-		const npf_state_t *nst)
+void npf_state_update_session_state(struct session *s,
+				    enum npf_proto_idx proto_idx,
+				    const npf_state_t *nst)
 {
 	uint32_t to;
 	enum dp_session_state gen_state;
@@ -329,7 +332,8 @@ static const char *npf_state_get_state_tcp_name(uint8_t index)
 /*
  * npf_state_get_state_name: return state name for logging purpose
  */
-const char *npf_state_get_state_name(uint8_t state, uint8_t proto_idx)
+const char *
+npf_state_get_state_name(uint8_t state, enum npf_proto_idx proto_idx)
 {
 	if (proto_idx == NPF_PROTO_IDX_TCP)
 		return npf_state_get_state_tcp_name(state);
@@ -372,7 +376,7 @@ static void npf_str_to_log_name(const char *src, char *dst, int len)
  * Get state name for json summary stats
  */
 static int
-npf_state_get_state_name_json(uint8_t state, uint8_t proto_idx,
+npf_state_get_state_name_json(uint8_t state, enum npf_proto_idx proto_idx,
 			      char *dst, ulong len)
 {
 	const char *name = NULL;
@@ -413,7 +417,8 @@ npf_state_get_state_name_json(uint8_t state, uint8_t proto_idx,
 	return 0;
 }
 
-bool npf_state_is_steady(const npf_state_t *nst, const uint8_t proto_idx)
+bool npf_state_is_steady(const npf_state_t *nst,
+			 const enum npf_proto_idx proto_idx)
 {
 	if (proto_idx == NPF_PROTO_IDX_TCP)
 		return (nst->nst_state == NPF_TCPS_ESTABLISHED ? true : false);
@@ -425,7 +430,8 @@ bool npf_state_is_steady(const npf_state_t *nst, const uint8_t proto_idx)
 /*
  * Returns true if protocol is TCP and state is CLOSED
  */
-bool npf_tcp_state_is_closed(const npf_state_t *nst, const uint8_t proto_idx)
+bool npf_tcp_state_is_closed(const npf_state_t *nst,
+			     const enum npf_proto_idx proto_idx)
 {
 	if (proto_idx == NPF_PROTO_IDX_TCP)
 		return nst->nst_state == NPF_TCPS_CLOSED;
@@ -565,7 +571,7 @@ npf_state_dump(const npf_state_t *nst __unused)
 
 int npf_state_npf_pack_update(npf_state_t *nst,
 			      struct npf_pack_session_state *pst,
-			      uint8_t state, uint8_t proto_idx)
+			      uint8_t state, enum npf_proto_idx proto_idx)
 {
 	bool state_changed = false;
 	enum npf_flow_dir fl;

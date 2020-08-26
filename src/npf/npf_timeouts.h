@@ -37,9 +37,9 @@ enum npf_timeout_action {
 
 /* Protos */
 int npf_timeout_set(vrfid_t vrfid, enum npf_timeout_action action,
-		uint8_t proto_idx, uint8_t state, uint32_t tout);
-uint32_t npf_timeout_get(const npf_state_t *nst, uint8_t proto_idx,
-		uint32_t custom);
+		enum npf_proto_idx proto_idx, uint8_t state, uint32_t tout);
+uint32_t npf_timeout_get(const npf_state_t *nst, enum npf_proto_idx proto_idx,
+			 uint32_t custom);
 void npf_timeout_reset(void);
 struct npf_timeout *npf_timeout_create_instance(void);
 void npf_timeout_destroy_instance(struct npf_timeout *to);
