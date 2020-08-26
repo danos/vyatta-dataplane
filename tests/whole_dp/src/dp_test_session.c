@@ -27,6 +27,7 @@
 #include "npf/npf.h"
 #include "npf/npf_if.h"
 #include "npf/npf_cache.h"
+#include "npf/npf_pack.h"
 #include "npf/npf_session.h"
 
 #include "dp_test.h"
@@ -37,6 +38,7 @@
 #include "dp_test_lib_exp.h"
 #include "dp_test_pktmbuf_lib_internal.h"
 #include "dp_test_session_internal_lib.h"
+#include "dp_test_npf_fw_lib.h"
 #include "dp_test_npf_sess_lib.h"
 
 #define TEST_VRF 69
@@ -1155,4 +1157,206 @@ DP_START_TEST(session_link_walk, test18)
 	dp_test_nl_del_ip_addr_and_connected_vrf(IF_NAME, "1.1.1.1/24", 69);
 
 	dp_test_netlink_del_vrf(69, 0);
+} DP_END_TEST;
+
+
+/*
+ * Test session sync for a firewall session
+ *
+ * Creates a firewall session, saves it to a connsync buffer, clears the
+ * session, then restores session from the connsync buffer.
+ */
+DP_DECL_TEST_CASE(session_suite, ssync1, NULL, NULL);
+DP_START_TEST(ssync1, test19)
+{
+	/* Setup interfaces and neighbours */
+	dp_test_nl_add_ip_addr_and_connected("dp1T0", "192.0.2.1/24");
+	dp_test_nl_add_ip_addr_and_connected("dp2T1", "203.0.113.1/24");
+
+	dp_test_netlink_add_neigh("dp1T0", "192.0.2.103",
+				  "aa:bb:cc:16:0:20");
+	dp_test_netlink_add_neigh("dp2T1", "203.0.113.203",
+				  "aa:bb:cc:18:0:1");
+
+	/*
+	 * Ruleset
+	 */
+	struct dp_test_npf_rule_t rules[] = {
+		{
+			.rule = "10",
+			.pass = PASS,
+			.stateful = STATEFUL,
+			.npf = "to=any"
+		},
+		RULE_DEF_BLOCK,
+		NULL_RULE
+	};
+
+	struct dp_test_npf_ruleset_t rset = {
+		.rstype = "fw-out",
+		.name	= "FW1",
+		.enable = 1,
+		.attach_point = "dp2T1",
+		.fwd	= FWD,
+		.dir	= "out",
+		.rules	= rules
+	};
+
+	dp_test_npf_fw_add(&rset, false);
+
+	/* UDP Forwards */
+	dpt_udp("dp1T0", "aa:bb:cc:16:0:20",
+		"192.0.2.103", 10000, "203.0.113.203", 60000,
+		"192.0.2.103", 10000, "203.0.113.203", 60000,
+		"aa:bb:cc:18:0:1", "dp2T1",
+		DP_TEST_FWD_FORWARDED);
+
+	uint32_t pkts_in = 0;
+	uint32_t pkts_out = 0;
+	uint32_t bytes_in = 0;
+	uint32_t bytes_out = 0;
+	uint32_t sess_id1 = 0;
+
+	dpt_session_counters("start 0 count 1 "
+			     "src-addr 192.0.2.103 src-port 10000 "
+			     "dst-addr 203.0.113.203 dst-port 60000 "
+			     "proto 17 dir out intf dpT21",
+			     &pkts_in, &pkts_out, &bytes_in, &bytes_out,
+			     &sess_id1);
+
+	dp_test_fail_unless(pkts_out == 1, "Packets out %u, expected 1",
+			    pkts_out);
+	dp_test_fail_unless(bytes_out == 62, "Bytes out %u, expected 62",
+			    bytes_out);
+
+	/* Session ID should be 1 */
+	dp_test_fail_unless(sess_id1 > 0, "Session ID %u, expected > 0",
+			    sess_id1);
+
+	/*
+	 * Create a sentry_packet to match the forward flow
+	 */
+	uint32_t saddr;
+	uint32_t daddr;
+	const struct ifnet *ifp;
+	char realname[IFNAMSIZ];
+	struct sentry_packet sp_forw;
+	int rc;
+
+	dp_test_intf_real("dpT21", realname);
+	ifp = dp_ifnet_byifname(realname);
+
+	inet_pton(AF_INET, "192.0.2.103", &saddr);
+	inet_pton(AF_INET, "203.0.113.203", &daddr);
+
+	rc = dp_test_session_init_sentry_packet(&sp_forw, ifp->if_index,
+			SENTRY_IPv4, (uint8_t) IPPROTO_UDP, 1, htons(10000),
+			&saddr, htons(60000), &daddr);
+	dp_test_fail_unless(rc == 0, "session init sentry_packet: %d\n", rc);
+
+	/*
+	 * Use sentry_packet to lookup dataplane session
+	 */
+	struct session *s = NULL;
+	struct npf_session *se = NULL;
+	bool forw;
+
+	rc = session_lookup_by_sentry_packet(&sp_forw, &s, &forw);
+	dp_test_fail_unless(rc == 0 && s != NULL,
+			    "session_lookup_by_sentry_packet failed\n");
+
+	/*
+	 * Get the npf session from the dataplane session
+	 */
+	se = session_feature_get(s, s->se_sen->sen_ifindex,
+				 SESSION_FEATURE_NPF);
+	dp_test_fail_unless(se != NULL, "Failed to get npf session\n");
+
+	/*
+	 * Pack session.  Returns pmh_len if successful
+	 */
+	struct session *peer = NULL;
+	struct npf_pack_message buf;
+
+	bzero(&buf, sizeof(buf));
+
+	rc = dp_session_pack(s, &buf, sizeof(buf), SESSION_PACK_FULL, &peer);
+	dp_test_fail_unless(rc > 0, "dp_session_pack failed\n");
+
+	/*
+	 * Clear the session
+	 */
+	dp_test_npf_clear_sessions();
+
+	/*
+	 * Unpack and restore session from buffer
+	 */
+	enum session_pack_type spt = SESSION_PACK_NONE;
+
+	rc = dp_session_restore(&buf, buf.hdr.pmh_len, &spt);
+	dp_test_fail_unless(rc == 0 && spt == SESSION_PACK_FULL,
+			    "dp_session_restore failed\n");
+
+	/*
+	 * An identical session should now exist, except for the session ID
+	 * which should be one greater than the first session
+	 */
+	pkts_in = 0;
+	pkts_out = 0;
+	bytes_in = 0;
+	bytes_out = 0;
+	uint32_t sess_id2 = 0;
+
+	dpt_session_counters("start 0 count 1 "
+			     "src-addr 192.0.2.103 src-port 10000 "
+			     "dst-addr 203.0.113.203 dst-port 60000 "
+			     "proto 17 dir out intf dpT21",
+			     &pkts_in, &pkts_out, &bytes_in, &bytes_out,
+			     &sess_id2);
+
+	dp_test_fail_unless(pkts_out == 1,
+			    "Packets out %u, expected 1", pkts_out);
+	dp_test_fail_unless(bytes_out == 62,
+			    "Bytes out %u, expected 62", bytes_out);
+	dp_test_fail_unless(sess_id2 == sess_id1 + 1,
+			    "Session ID %u, expected %u",
+			    sess_id2, sess_id1 + 1);
+
+	/* Send another packet */
+	dpt_udp("dp1T0", "aa:bb:cc:16:0:20",
+		"192.0.2.103", 10000, "203.0.113.203", 60000,
+		"192.0.2.103", 10000, "203.0.113.203", 60000,
+		"aa:bb:cc:18:0:1", "dp2T1",
+		DP_TEST_FWD_FORWARDED);
+
+	/*
+	 * Check packet has used the restored session
+	 */
+	pkts_in = 0, pkts_out = 0, bytes_in = 0, bytes_out = 0;
+	dpt_session_counters("start 0 count 1 "
+			     "src-addr 192.0.2.103 src-port 10000 "
+			     "dst-addr 203.0.113.203 dst-port 60000 "
+			     "proto 17 dir out intf dpT21",
+			     &pkts_in, &pkts_out, &bytes_in, &bytes_out,
+			     &sess_id2);
+
+	dp_test_fail_unless(pkts_out == 2,
+			    "Packets out %u, expected 2", pkts_out);
+	dp_test_fail_unless(bytes_out == 124,
+			    "Bytes out %u, expected 124", bytes_out);
+
+	/*
+	 * Cleanup
+	 */
+	dp_test_npf_fw_del(&rset, false);
+	dp_test_npf_clear_sessions();
+
+	dp_test_netlink_del_neigh("dp1T0", "192.0.2.103",
+				  "aa:bb:cc:16:0:20");
+	dp_test_netlink_del_neigh("dp2T1", "203.0.113.203",
+				  "aa:bb:cc:18:0:1");
+
+	dp_test_nl_del_ip_addr_and_connected("dp1T0", "192.0.2.1/24");
+	dp_test_nl_del_ip_addr_and_connected("dp2T1", "203.0.113.1/24");
+
 } DP_END_TEST;
