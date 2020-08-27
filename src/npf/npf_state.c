@@ -580,35 +580,32 @@ npf_state_dump(const npf_state_t *nst __unused)
 }
 #endif
 
-int npf_state_npf_pack_update_gen(npf_state_t *nst,
-				  struct npf_pack_session_state *pst,
-				  uint8_t state, enum npf_proto_idx proto_idx)
+int npf_state_npf_pack_update_gen(npf_state_t *nst, uint8_t new_state,
+				  enum npf_proto_idx proto_idx,
+				  bool *state_changed)
 {
-	bool state_changed;
+	rte_spinlock_lock(&nst->nst_lock);
 
-	if (!nst || !pst)
-		return -EINVAL;
+	npf_state_generic_state_set(nst, proto_idx, new_state, state_changed);
 
-	npf_state_generic_state_set(nst, proto_idx, state, &state_changed);
-
+	rte_spinlock_unlock(&nst->nst_lock);
 	return 0;
 }
 
 int npf_state_npf_pack_update_tcp(npf_state_t *nst,
 				  struct npf_pack_session_state *pst,
-				  uint8_t state)
+				  bool *state_changed)
 {
-	bool state_changed;
 	enum npf_flow_dir fl;
 
-	if (!nst || !pst)
-		return -EINVAL;
+	rte_spinlock_lock(&nst->nst_lock);
 
 	for (fl = NPF_FLOW_FIRST; fl <= NPF_FLOW_LAST; fl++)
 		memcpy(&nst->nst_tcp_win[fl], &pst->pst_tcp_win[fl],
 		       sizeof(*nst->nst_tcp_win));
 
-	npf_state_tcp_state_set(nst, state, &state_changed);
+	npf_state_tcp_state_set(nst, pst->pst_state, state_changed);
 
+	rte_spinlock_unlock(&nst->nst_lock);
 	return 0;
 }

@@ -256,11 +256,11 @@ uint8_t npf_state_tcp(const npf_cache_t *npc, struct rte_mbuf *nbuf,
 
 void npf_state_set_tcp_strict(bool value);
 
-int npf_state_npf_pack_update_gen(npf_state_t *nst,
-				  struct npf_pack_session_state *pst,
-				  uint8_t state, enum npf_proto_idx proto_idx);
+int npf_state_npf_pack_update_gen(npf_state_t *nst, uint8_t new_state,
+				  enum npf_proto_idx proto_idx,
+				  bool *state_changed);
 int npf_state_npf_pack_update_tcp(npf_state_t *nst,
 				  struct npf_pack_session_state *pst,
-				  uint8_t state);
+				  bool *state_changed);
 
 #endif  /* NPF_STATE_H */

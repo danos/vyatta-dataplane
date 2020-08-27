@@ -1871,21 +1871,15 @@ npf_session_pack_state_restore_gen(struct npf_session *se,
 				   enum npf_proto_idx proto_idx)
 {
 	npf_state_t *nst;
+	bool state_changed = false;
+	int rc;
 
 	nst = &se->s_state;
 	npf_state_init(vrfid, proto_idx, nst);
 
-	rte_spinlock_lock(&nst->nst_lock);
-
-	if (npf_state_npf_pack_update_gen(nst, pst, pst->pst_state,
-					  proto_idx)) {
-		rte_spinlock_unlock(&nst->nst_lock);
-		return -EINVAL;
-	}
-
-	rte_spinlock_unlock(&nst->nst_lock);
-
-	return 0;
+	rc = npf_state_npf_pack_update_gen(nst, pst->pst_state, proto_idx,
+					   &state_changed);
+	return rc;
 }
 
 /*
@@ -1897,20 +1891,14 @@ npf_session_pack_state_restore_tcp(struct npf_session *se,
 				   vrfid_t vrfid)
 {
 	npf_state_t *nst;
+	bool state_changed = false;
+	int rc;
 
 	nst = &se->s_state;
 	npf_state_init(vrfid, NPF_PROTO_IDX_TCP, nst);
 
-	rte_spinlock_lock(&nst->nst_lock);
-
-	if (npf_state_npf_pack_update_tcp(nst, pst, pst->pst_state)) {
-		rte_spinlock_unlock(&nst->nst_lock);
-		return -EINVAL;
-	}
-
-	rte_spinlock_unlock(&nst->nst_lock);
-
-	return 0;
+	rc = npf_state_npf_pack_update_tcp(nst, pst, &state_changed);
+	return rc;
 }
 
 /*
@@ -1920,34 +1908,25 @@ int npf_session_pack_state_update_gen(struct npf_session *se,
 				      struct npf_pack_session_state *pst)
 {
 	npf_state_t *nst;
-	uint8_t old_state, new_state;
+	uint8_t old_state;
 	struct session *s;
 	enum npf_proto_idx proto_idx;
+	bool state_changed = false;
 
 	if (!se || !pst)
 		return -EINVAL;
 
 	nst = &se->s_state;
 	proto_idx = se->s_proto_idx;
-
-	rte_spinlock_lock(&nst->nst_lock);
-
 	old_state = nst->nst_state;
-	new_state = pst->pst_state;
 
-	if (old_state == new_state) {
-		rte_spinlock_unlock(&nst->nst_lock);
-		return 0;
-	}
-
-	if (npf_state_npf_pack_update_gen(nst, pst, new_state, proto_idx)) {
-		rte_spinlock_unlock(&nst->nst_lock);
+	if (npf_state_npf_pack_update_gen(nst, pst->pst_state, proto_idx,
+					  &state_changed))
 		return -EINVAL;
-	}
 
-	rte_spinlock_unlock(&nst->nst_lock);
-
-	npf_session_gen_state_change(nst, old_state, new_state, proto_idx);
+	if (state_changed)
+		npf_session_gen_state_change(nst, old_state, pst->pst_state,
+					     proto_idx);
 
 	s = se->s_session;
 	if (s)
@@ -1964,32 +1943,21 @@ int npf_session_pack_state_update_tcp(struct npf_session *se,
 				      struct npf_pack_session_state *pst)
 {
 	npf_state_t *nst;
-	uint8_t old_state, new_state;
+	uint8_t old_state;
 	struct session *s;
+	bool state_changed = false;
 
 	if (!se || !pst)
 		return -EINVAL;
 
 	nst = &se->s_state;
-
-	rte_spinlock_lock(&nst->nst_lock);
-
 	old_state = nst->nst_state;
-	new_state = pst->pst_state;
 
-	if (old_state == new_state) {
-		rte_spinlock_unlock(&nst->nst_lock);
-		return 0;
-	}
-
-	if (npf_state_npf_pack_update_tcp(nst, pst, new_state)) {
-		rte_spinlock_unlock(&nst->nst_lock);
+	if (npf_state_npf_pack_update_tcp(nst, pst, &state_changed))
 		return -EINVAL;
-	}
 
-	rte_spinlock_unlock(&nst->nst_lock);
-
-	npf_session_tcp_state_change(nst, old_state, new_state);
+	if (state_changed)
+		npf_session_tcp_state_change(nst, old_state, pst->pst_state);
 
 	s = se->s_session;
 	if (s)
