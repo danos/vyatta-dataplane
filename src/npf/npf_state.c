@@ -262,8 +262,14 @@ int npf_state_inspect(const npf_cache_t *npc, struct rte_mbuf *nbuf,
 	}
 	rte_spinlock_unlock(&nst->nst_lock);
 
-	if (state_changed)
-		npf_session_state_change(nst, old_state, state, proto_idx);
+	if (state_changed) {
+		if (proto_idx == NPF_PROTO_IDX_TCP)
+			npf_session_tcp_state_change(nst, old_state, state);
+		else
+			npf_session_gen_state_change(nst, old_state, state,
+						     proto_idx);
+	}
+
 	return ret;
 }
 
@@ -296,8 +302,13 @@ void npf_state_set_closed_state(npf_state_t *nst, bool lock,
 	if (lock)
 		rte_spinlock_unlock(&nst->nst_lock);
 
-	if (state_changed)
-		npf_session_state_change(nst, old_state, state, proto_idx);
+	if (state_changed) {
+		if (proto_idx == NPF_PROTO_IDX_TCP)
+			npf_session_tcp_state_change(nst, old_state, state);
+		else
+			npf_session_gen_state_change(nst, old_state, state,
+						     proto_idx);
+	}
 }
 
 /*

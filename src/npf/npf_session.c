@@ -653,37 +653,68 @@ static inline void npf_session_do_watch(npf_session_t *se,
 	if (se->s_session)
 		session_do_watch(se->s_session, hook);
 }
+
 /*
- * Callback from npf_state.c after a session changes state.
+ * Callback from npf_state.c after a UDP, ICMP etc. session changes state.
  */
-void
-npf_session_state_change(npf_state_t *nst, uint8_t old_state,
-			 uint8_t state, enum npf_proto_idx proto_idx)
+void npf_session_gen_state_change(npf_state_t *nst,
+				  enum dp_session_state old_state,
+				  enum dp_session_state new_state,
+				  enum npf_proto_idx proto_idx)
 {
 	npf_session_t *se = caa_container_of(nst, npf_session_t, s_state);
 	npf_rule_t *rproc_rl;
 
 	/* session logging */
-	if (proto_idx == NPF_PROTO_IDX_TCP)
-		npf_session_tcp_log(se, state);
-	else
-		npf_session_gen_log(se, state, proto_idx);
+	npf_session_gen_log(se, new_state, proto_idx);
 
 	/* Update the dataplane session state/timeout */
-	npf_state_update_session_state(se->s_session, se->s_proto_idx,
-			&se->s_state);
+	npf_state_update_session_state(se->s_session, proto_idx, nst);
 
 	/* Session rproc */
 	rproc_rl = npf_session_get_rproc_rule(se);
 
 	void *handle = npf_rule_rproc_handle_from_id(rproc_rl,
 						     NPF_RPROC_ID_SLIMIT);
-	if (handle && state != old_state)
+
+	if (handle && new_state != old_state)
 		npf_sess_limit_state_change(handle, proto_idx,
-					    old_state, state);
-	if (npf_state_get_generic_state(proto_idx, state) ==
-	    SESSION_STATE_CLOSED)
+					    old_state, new_state);
+
+	if (new_state == SESSION_STATE_CLOSED)
 		sess_set_expired(se);
+
+	npf_session_do_watch(se, SESSION_STATE_CHANGE);
+}
+
+/*
+ * Callback from npf_state.c after a TCP session changes state.
+ */
+void npf_session_tcp_state_change(npf_state_t *nst,
+				  enum tcp_session_state old_state,
+				  enum tcp_session_state new_state)
+{
+	npf_session_t *se = caa_container_of(nst, npf_session_t, s_state);
+	npf_rule_t *rproc_rl;
+
+	/* session logging */
+	npf_session_tcp_log(se, new_state);
+
+	/* Update the dataplane session state/timeout */
+	npf_state_update_session_state(se->s_session, NPF_PROTO_IDX_TCP, nst);
+
+	/* Session rproc */
+	rproc_rl = npf_session_get_rproc_rule(se);
+
+	void *handle = npf_rule_rproc_handle_from_id(rproc_rl,
+						     NPF_RPROC_ID_SLIMIT);
+	if (handle && new_state != old_state)
+		npf_sess_limit_state_change(handle, NPF_PROTO_IDX_TCP,
+					    old_state, new_state);
+
+	if (new_state == NPF_TCPS_CLOSED)
+		sess_set_expired(se);
+
 	npf_session_do_watch(se, SESSION_STATE_CHANGE);
 }
 
@@ -1861,11 +1892,13 @@ int npf_session_npf_pack_state_update(struct npf_session *se,
 	npf_state_t *nst;
 	uint8_t old_state, new_state;
 	struct session *s;
+	enum npf_proto_idx proto_idx;
 
 	if (!se || !pst)
 		return -EINVAL;
 
 	nst = &se->s_state;
+	proto_idx = se->s_proto_idx;
 
 	rte_spinlock_lock(&nst->nst_lock);
 
@@ -1876,16 +1909,18 @@ int npf_session_npf_pack_state_update(struct npf_session *se,
 		return 0;
 	}
 
-	if (npf_state_npf_pack_update(nst, pst, new_state,
-				      se->s_proto_idx)) {
+	if (npf_state_npf_pack_update(nst, pst, new_state, proto_idx)) {
 		rte_spinlock_unlock(&nst->nst_lock);
 		return -EINVAL;
 	}
 
 	rte_spinlock_unlock(&nst->nst_lock);
 
-	npf_session_state_change(nst, old_state,
-				 new_state, se->s_proto_idx);
+	if (proto_idx == NPF_PROTO_IDX_TCP)
+		npf_session_tcp_state_change(nst, old_state, new_state);
+	else
+		npf_session_gen_state_change(nst, old_state, new_state,
+					     proto_idx);
 
 	s = se->s_session;
 	if (s)

@@ -231,8 +231,13 @@ void npf_state_stats_json(json_writer_t *json);
 void npf_state_dump(const npf_state_t *nst);
 #endif
 
-void npf_session_state_change(npf_state_t *nst, uint8_t old_state,
-			      uint8_t new_state, enum npf_proto_idx proto_idx);
+void npf_session_gen_state_change(npf_state_t *nst,
+				  enum dp_session_state old_state,
+				  enum dp_session_state new_state,
+				  enum npf_proto_idx proto_idx);
+void npf_session_tcp_state_change(npf_state_t *nst,
+				  enum tcp_session_state old_state,
+				  enum tcp_session_state new_state);
 
 void npf_state_set_icmp_strict(bool value);
 
