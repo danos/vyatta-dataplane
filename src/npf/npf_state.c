@@ -212,65 +212,129 @@ npf_state_tcp_state_set(npf_state_t *nst, uint8_t state, bool *state_changed)
 }
 
 /*
+ * State inspect for sessions other than TCP and ICMP
+ */
+static inline int
+npf_state_inspect_other(npf_state_t *nst, enum npf_proto_idx proto_idx,
+			bool forw)
+{
+	enum npf_flow_dir di = forw ? NPF_FLOW_FORW : NPF_FLOW_BACK;
+	bool state_changed = false;
+	uint8_t old_state, new_state;
+
+	rte_spinlock_lock(&nst->nst_lock);
+
+	old_state = nst->nst_state;
+
+	new_state = npf_generic_fsm[nst->nst_state][di];
+
+	npf_state_generic_state_set(nst, proto_idx, new_state, &state_changed);
+
+	rte_spinlock_unlock(&nst->nst_lock);
+
+	if (state_changed)
+		npf_session_gen_state_change(nst, old_state, new_state,
+					     proto_idx);
+
+	return 0;
+}
+
+/*
+ * State inspect for TCP sessions
+ */
+static inline int
+npf_state_inspect_tcp(const npf_cache_t *npc, struct rte_mbuf *nbuf,
+			npf_state_t *nst, bool forw)
+{
+	enum npf_flow_dir di = forw ? NPF_FLOW_FORW : NPF_FLOW_BACK;
+	bool state_changed = false;
+	uint8_t old_state, new_state;
+	int rc = 0;
+
+	rte_spinlock_lock(&nst->nst_lock);
+
+	old_state = nst->nst_state;
+
+	new_state = npf_state_tcp(npc, nbuf, nst, di, &rc);
+
+	if (rc == 0)
+		npf_state_tcp_state_set(nst, new_state, &state_changed);
+
+	rte_spinlock_unlock(&nst->nst_lock);
+
+	if (state_changed)
+		npf_session_tcp_state_change(nst, old_state, new_state);
+
+	return rc;
+}
+
+/*
+ * State inspect for ICMP sessions
+ */
+static inline int
+npf_state_inspect_icmp(const npf_cache_t *npc, npf_state_t *nst, bool forw)
+{
+	enum npf_flow_dir di = forw ? NPF_FLOW_FORW : NPF_FLOW_BACK;
+	bool state_changed = false;
+	uint8_t old_state, new_state;
+	int rc = 0;
+
+	rte_spinlock_lock(&nst->nst_lock);
+
+	old_state = nst->nst_state;
+
+	/*
+	 * If a ping session does not exist, it can only be created by an ICMP
+	 * echo request. If it exists, the fwd direction will conditionally
+	 * ('strict' enabled) only pass requests and the backward only
+	 * replies.  Note, the 'strict' bit needs to be disabled because of MS
+	 * Windows clients.
+	 */
+	if ((npf_state_icmp_strict || old_state == SESSION_STATE_NONE) &&
+	    unlikely(forw ^ npf_iscached(npc, NPC_ICMP_ECHO_REQ)))
+		rc = -NPF_RC_ICMP_ECHO;
+
+	if (rc == 0) {
+		new_state = npf_generic_fsm[nst->nst_state][di];
+
+		npf_state_generic_state_set(nst, NPF_PROTO_IDX_ICMP,
+					    new_state, &state_changed);
+	}
+
+	rte_spinlock_unlock(&nst->nst_lock);
+
+	if (state_changed)
+		npf_session_gen_state_change(nst, old_state, new_state,
+					     NPF_PROTO_IDX_ICMP);
+
+	return rc;
+}
+
+/*
  * npf_state_inspect: inspect the packet according to the protocol state.
  *
  * Return 0 if packet is considered to match the state (e.g. for TCP, the
  * packet belongs to the tracked connection) and return code (< 0) otherwise.
  */
 int npf_state_inspect(const npf_cache_t *npc, struct rte_mbuf *nbuf,
-		      npf_state_t *nst, bool forw)
+		      npf_state_t *nst, enum npf_proto_idx proto_idx, bool forw)
 {
-	const enum npf_proto_idx proto_idx = npf_cache_proto_idx(npc);
-	const enum npf_flow_dir di = forw ? NPF_FLOW_FORW : NPF_FLOW_BACK;
-	int ret = 0;
-	bool state_changed = false;
-	uint8_t state;
-	uint8_t old_state;
-
-	rte_spinlock_lock(&nst->nst_lock);
-
-	old_state = nst->nst_state;
+	int rc = 0;
 
 	switch (proto_idx) {
+	case NPF_PROTO_IDX_UDP:
+	case NPF_PROTO_IDX_OTHER:
+		rc = npf_state_inspect_other(nst, proto_idx, forw);
+		break;
 	case NPF_PROTO_IDX_TCP:
-		state = npf_state_tcp(npc, nbuf, nst, di, &ret);
-		if (unlikely(ret != 0))
-			break;
-		npf_state_tcp_state_set(nst, state, &state_changed);
+		rc = npf_state_inspect_tcp(npc, nbuf, nst, forw);
 		break;
 	case NPF_PROTO_IDX_ICMP:
-		state = nst->nst_state;
-		/*
-		 * If a ping session does not exist, it can only be created by
-		 * an ICMP echo request. If it exists, the fwd direction will
-		 * conditionally ('strict' enabled) only pass requests and the
-		 * backward only replies.  Note, the 'strict' bit needs to be
-		 * disabled because of MS Windows clients.
-		 */
-		if ((npf_state_icmp_strict || state == SESSION_STATE_NONE) &&
-		    unlikely(forw ^ npf_iscached(npc, NPC_ICMP_ECHO_REQ))) {
-			ret = -NPF_RC_ICMP_ECHO;
-			break;
-		}
-		/* fall through */
-	default:
-		state = npf_generic_fsm[nst->nst_state][di];
-
-		npf_state_generic_state_set(nst, proto_idx, state,
-				&state_changed);
+		rc = npf_state_inspect_icmp(npc, nst, forw);
 		break;
-	}
-	rte_spinlock_unlock(&nst->nst_lock);
+	};
 
-	if (state_changed) {
-		if (proto_idx == NPF_PROTO_IDX_TCP)
-			npf_session_tcp_state_change(nst, old_state, state);
-		else
-			npf_session_gen_state_change(nst, old_state, state,
-						     proto_idx);
-	}
-
-	return ret;
+	return rc;
 }
 
 /*

@@ -209,7 +209,8 @@ bool npf_state_init(vrfid_t vrfid, enum npf_proto_idx proto_idx,
 		    npf_state_t *nst);
 void npf_state_destroy(npf_state_t *nst, enum npf_proto_idx proto_idx);
 int npf_state_inspect(const npf_cache_t *npc, struct rte_mbuf *nbuf,
-		      npf_state_t *nst, bool forw);
+		      npf_state_t *nst, enum npf_proto_idx proto_idx,
+		      bool forw);
 void npf_state_update_session_state(struct session *s,
 				    enum npf_proto_idx proto_idx,
 				    const npf_state_t *nst);

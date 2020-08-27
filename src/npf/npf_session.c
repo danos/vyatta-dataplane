@@ -776,7 +776,7 @@ npf_session_inspect(npf_cache_t *npc, struct rte_mbuf *nbuf,
 		return se;
 
 	/* Update the state of a session based on the supplied packet */
-	rc = npf_state_inspect(npc, nbuf, &se->s_state, sforw);
+	rc = npf_state_inspect(npc, nbuf, &se->s_state, se->s_proto_idx, sforw);
 	if (unlikely(rc < 0)) {
 		/* Silently block invalid packets. */
 		*error = rc;
@@ -1083,7 +1083,8 @@ int npf_session_activate(npf_session_t *se, const struct ifnet *ifp,
 	int rc;
 
 	if ((se->s_flags & SE_ACTIVE) == 0) {
-		rc = npf_state_inspect(npc, nbuf, &se->s_state, true);
+		rc = npf_state_inspect(npc, nbuf, &se->s_state,
+				       se->s_proto_idx, true);
 		if (unlikely(rc < 0)) {
 			/* Silently block invalid packets. */
 			npf_session_destroy(se);
