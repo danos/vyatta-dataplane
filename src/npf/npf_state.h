@@ -215,6 +215,7 @@ void npf_state_update_session_state(struct session *s,
 				    const npf_state_t *nst);
 void npf_state_set_closed_state(npf_state_t *nst, bool lock,
 				enum npf_proto_idx proto_idx);
+const char *npf_state_get_state_tcp_name(uint8_t state);
 const char *npf_state_get_state_name(uint8_t state,
 				     enum npf_proto_idx proto_idx);
 bool npf_state_is_steady(const npf_state_t *nst,

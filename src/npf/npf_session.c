@@ -207,20 +207,17 @@ void npf_reset_session_log(void)
 }
 
 static void __cold_func
-npf_session_log(npf_session_t *se, uint8_t state)
+npf_session_log(npf_session_t *se, const char *state_name, uint8_t proto,
+		enum npf_proto_idx proto_idx, const char *proto_name)
 {
-	/* return immediately if the flag is not set */
-	if (!npf_test_session_log_flag(state, se->s_proto_idx))
-		return;
-
 	/* Cannot log unactivated sessions */
-	if (!se->s_session)
+	if (unlikely(!se->s_session))
 		return;
 
 	struct sentry *sen = rcu_dereference(se->s_session->se_sen);
 
 	/* Racing with session expiration */
-	if (!sen)
+	if (unlikely(!sen))
 		return;
 
 	const void *saddr;
@@ -232,15 +229,9 @@ npf_session_log(npf_session_t *se, uint8_t state)
 	char srcip_str[INET6_ADDRSTRLEN];
 	char dstip_str[INET6_ADDRSTRLEN];
 	char dpi_info_str[MAX_DPI_LOG_SIZE];
-	uint8_t proto = se->s_proto;
 	int timeout = npf_session_get_timeout(se);
-	const char *state_name =
-		npf_state_get_state_name(state, se->s_proto_idx);
-	const char *proto_name =
-		npf_get_protocol_name_from_idx(se->s_proto_idx);
 
 	session_sentry_extract(sen, &if_index, &af, &saddr, &sid, &daddr, &did);
-
 
 	inet_ntop(af, saddr, srcip_str, sizeof(srcip_str));
 	inet_ntop(af, daddr, dstip_str, sizeof(dstip_str));
@@ -259,6 +250,38 @@ npf_session_log(npf_session_t *se, uint8_t state)
 		ntohs(did), ifnet_indextoname_safe(if_index),
 		(dpi_info_str[0] == '\0') ? "" : " ",
 		dpi_info_str);
+}
+
+static inline void
+npf_session_tcp_log(npf_session_t *se, enum tcp_session_state state)
+{
+	if (!npf_test_session_log_proto(NPF_PROTO_IDX_TCP))
+		return;
+
+	/* return immediately if the flag is not set */
+	if (likely(!npf_test_session_log_flag(state, NPF_PROTO_IDX_TCP)))
+		return;
+
+	const char *state_name = npf_state_get_state_tcp_name(state);
+
+	npf_session_log(se, state_name, IPPROTO_TCP, NPF_PROTO_IDX_TCP, "tcp");
+}
+
+static inline void
+npf_session_gen_log(npf_session_t *se, enum dp_session_state state,
+		    uint8_t proto_idx)
+{
+	if (!npf_test_session_log_proto(proto_idx))
+		return;
+
+	/* return immediately if the flag is not set */
+	if (likely(!npf_test_session_log_flag(state, proto_idx)))
+		return;
+
+	const char *proto_name = npf_get_protocol_name_from_idx(proto_idx);
+	const char *state_name = dp_session_state_name(state, true);
+
+	npf_session_log(se, state_name, se->s_proto, proto_idx, proto_name);
 }
 
 /*
@@ -640,9 +663,11 @@ npf_session_state_change(npf_state_t *nst, uint8_t old_state,
 	npf_session_t *se = caa_container_of(nst, npf_session_t, s_state);
 	npf_rule_t *rproc_rl;
 
-	/* session logging if enabled */
-	if (npf_test_session_log_proto(proto_idx))
-		npf_session_log(se, state);
+	/* session logging */
+	if (proto_idx == NPF_PROTO_IDX_TCP)
+		npf_session_tcp_log(se, state);
+	else
+		npf_session_gen_log(se, state, proto_idx);
 
 	/* Update the dataplane session state/timeout */
 	npf_state_update_session_state(se->s_session, se->s_proto_idx,

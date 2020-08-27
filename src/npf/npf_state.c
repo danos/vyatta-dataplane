@@ -322,11 +322,11 @@ void npf_state_update_session_state(struct session *s,
 	}
 }
 
-static const char *npf_state_get_state_tcp_name(uint8_t index)
+const char *npf_state_get_state_tcp_name(uint8_t state)
 {
-	if (!npf_state_tcp_state_is_valid(index))
+	if (!npf_state_tcp_state_is_valid(state))
 		return NULL;
-	return npf_state_tcp_name[index];
+	return npf_state_tcp_name[state];
 }
 
 /*
