@@ -580,11 +580,25 @@ npf_state_dump(const npf_state_t *nst __unused)
 }
 #endif
 
-int npf_state_npf_pack_update(npf_state_t *nst,
-			      struct npf_pack_session_state *pst,
-			      uint8_t state, enum npf_proto_idx proto_idx)
+int npf_state_npf_pack_update_gen(npf_state_t *nst,
+				  struct npf_pack_session_state *pst,
+				  uint8_t state, enum npf_proto_idx proto_idx)
 {
-	bool state_changed = false;
+	bool state_changed;
+
+	if (!nst || !pst)
+		return -EINVAL;
+
+	npf_state_generic_state_set(nst, proto_idx, state, &state_changed);
+
+	return 0;
+}
+
+int npf_state_npf_pack_update_tcp(npf_state_t *nst,
+				  struct npf_pack_session_state *pst,
+				  uint8_t state)
+{
+	bool state_changed;
 	enum npf_flow_dir fl;
 
 	if (!nst || !pst)
@@ -594,12 +608,7 @@ int npf_state_npf_pack_update(npf_state_t *nst,
 		memcpy(&nst->nst_tcp_win[fl], &pst->pst_tcp_win[fl],
 		       sizeof(*nst->nst_tcp_win));
 
-	if (proto_idx == NPF_PROTO_IDX_TCP) {
-		npf_state_tcp_state_set(nst, state, &state_changed);
-	} else {
-		npf_state_generic_state_set(nst, proto_idx,
-					    state, &state_changed);
-	}
+	npf_state_tcp_state_set(nst, state, &state_changed);
 
 	return 0;
 }

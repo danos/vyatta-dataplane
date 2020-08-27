@@ -1875,10 +1875,17 @@ int npf_session_npf_pack_state_restore(struct npf_session *se,
 
 	rte_spinlock_lock(&nst->nst_lock);
 
-	if (npf_state_npf_pack_update(nst, pst, pst->pst_state,
-				      se->s_proto_idx)) {
-		rte_spinlock_unlock(&nst->nst_lock);
-		return -EINVAL;
+	if (se->s_proto_idx == NPF_PROTO_IDX_TCP) {
+		if (npf_state_npf_pack_update_tcp(nst, pst, pst->pst_state)) {
+			rte_spinlock_unlock(&nst->nst_lock);
+			return -EINVAL;
+		}
+	} else {
+		if (npf_state_npf_pack_update_gen(nst, pst, pst->pst_state,
+						  se->s_proto_idx)) {
+			rte_spinlock_unlock(&nst->nst_lock);
+			return -EINVAL;
+		}
 	}
 
 	rte_spinlock_unlock(&nst->nst_lock);
@@ -1904,14 +1911,23 @@ int npf_session_npf_pack_state_update(struct npf_session *se,
 
 	old_state = nst->nst_state;
 	new_state = pst->pst_state;
+
 	if (old_state == new_state) {
 		rte_spinlock_unlock(&nst->nst_lock);
 		return 0;
 	}
 
-	if (npf_state_npf_pack_update(nst, pst, new_state, proto_idx)) {
-		rte_spinlock_unlock(&nst->nst_lock);
-		return -EINVAL;
+	if (proto_idx == NPF_PROTO_IDX_TCP) {
+		if (npf_state_npf_pack_update_tcp(nst, pst, new_state)) {
+			rte_spinlock_unlock(&nst->nst_lock);
+			return -EINVAL;
+		}
+	} else {
+		if (npf_state_npf_pack_update_gen(nst, pst, new_state,
+						  proto_idx)) {
+			rte_spinlock_unlock(&nst->nst_lock);
+			return -EINVAL;
+		}
 	}
 
 	rte_spinlock_unlock(&nst->nst_lock);
