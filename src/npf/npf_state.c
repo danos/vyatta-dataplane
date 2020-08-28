@@ -180,8 +180,8 @@ void npf_state_destroy(npf_state_t *nst, enum npf_proto_idx proto_idx)
 * Set generic session state.
 */
 static inline void
-npf_state_generic_state_set(npf_state_t *nst, enum npf_proto_idx proto_idx,
-		uint8_t state, bool *state_changed)
+npf_state_set_gen(npf_state_t *nst, enum npf_proto_idx proto_idx,
+		  uint8_t state, bool *state_changed)
 {
 	if (unlikely(nst->nst_state != state)) {
 		uint8_t old_state = nst->nst_state;
@@ -198,7 +198,7 @@ npf_state_generic_state_set(npf_state_t *nst, enum npf_proto_idx proto_idx,
 * Set TCP session state.
 */
 static inline void
-npf_state_tcp_state_set(npf_state_t *nst, uint8_t state, bool *state_changed)
+npf_state_set_tcp(npf_state_t *nst, uint8_t state, bool *state_changed)
 {
 	if (unlikely(state != NPF_TCPS_OK && nst->nst_state != state)) {
 		uint8_t old_state = nst->nst_state;
@@ -228,7 +228,7 @@ npf_state_inspect_other(npf_state_t *nst, enum npf_proto_idx proto_idx,
 
 	new_state = npf_generic_fsm[nst->nst_state][di];
 
-	npf_state_generic_state_set(nst, proto_idx, new_state, &state_changed);
+	npf_state_set_gen(nst, proto_idx, new_state, &state_changed);
 
 	rte_spinlock_unlock(&nst->nst_lock);
 
@@ -258,7 +258,7 @@ npf_state_inspect_tcp(const npf_cache_t *npc, struct rte_mbuf *nbuf,
 	new_state = npf_state_tcp(npc, nbuf, nst, di, &rc);
 
 	if (rc == 0)
-		npf_state_tcp_state_set(nst, new_state, &state_changed);
+		npf_state_set_tcp(nst, new_state, &state_changed);
 
 	rte_spinlock_unlock(&nst->nst_lock);
 
@@ -297,8 +297,8 @@ npf_state_inspect_icmp(const npf_cache_t *npc, npf_state_t *nst, bool forw)
 	if (rc == 0) {
 		new_state = npf_generic_fsm[nst->nst_state][di];
 
-		npf_state_generic_state_set(nst, NPF_PROTO_IDX_ICMP,
-					    new_state, &state_changed);
+		npf_state_set_gen(nst, NPF_PROTO_IDX_ICMP, new_state,
+				  &state_changed);
 	}
 
 	rte_spinlock_unlock(&nst->nst_lock);
@@ -352,8 +352,7 @@ void npf_state_set_gen_closed(npf_state_t *nst, bool lock,
 
 	old_state = nst->nst_state;
 
-	npf_state_generic_state_set(nst, proto_idx, SESSION_STATE_CLOSED,
-				    &state_changed);
+	npf_state_set_gen(nst, proto_idx, SESSION_STATE_CLOSED, &state_changed);
 
 	if (lock)
 		rte_spinlock_unlock(&nst->nst_lock);
@@ -377,7 +376,7 @@ void npf_state_set_tcp_closed(npf_state_t *nst, bool lock)
 
 	old_state = nst->nst_state;
 
-	npf_state_tcp_state_set(nst, NPF_TCPS_CLOSED, &state_changed);
+	npf_state_set_tcp(nst, NPF_TCPS_CLOSED, &state_changed);
 
 	if (lock)
 		rte_spinlock_unlock(&nst->nst_lock);
@@ -661,7 +660,7 @@ int npf_state_npf_pack_update_gen(npf_state_t *nst, uint8_t new_state,
 {
 	rte_spinlock_lock(&nst->nst_lock);
 
-	npf_state_generic_state_set(nst, proto_idx, new_state, state_changed);
+	npf_state_set_gen(nst, proto_idx, new_state, state_changed);
 
 	rte_spinlock_unlock(&nst->nst_lock);
 	return 0;
@@ -679,7 +678,7 @@ int npf_state_npf_pack_update_tcp(npf_state_t *nst,
 		memcpy(&nst->nst_tcp_win[fl], &pst->pst_tcp_win[fl],
 		       sizeof(*nst->nst_tcp_win));
 
-	npf_state_tcp_state_set(nst, pst->pst_state, state_changed);
+	npf_state_set_tcp(nst, pst->pst_state, state_changed);
 
 	rte_spinlock_unlock(&nst->nst_lock);
 	return 0;
