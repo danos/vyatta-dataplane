@@ -581,7 +581,7 @@ enum fal_port_attr_t {
 	FAL_PORT_ATTR_VRF_ID,		/* .u32 -- VRF id - deprecated */
 	FAL_PORT_ATTR_DPDK_PORT,	/* .u8 -- port */
 	FAL_PORT_ATTR_VLAN_ID,		/* .u16 -- VLAN ID - deprecated */
-	FAL_PORT_ATTR_PARENT_IFINDEX,	/* .u32 -- if_index */
+	FAL_PORT_ATTR_PARENT_IFINDEX,	/* .u32 -- ifindex */
 	FAL_PORT_ATTR_MTU,		/* .u16 -- MTU */
 	FAL_PORT_ATTR_HW_SWITCH_MODE, /* .u8 - enable/disable */
 	FAL_PORT_ATTR_MAC_ADDRESS,	/* .mac -- primary MAC address */
@@ -800,14 +800,14 @@ enum fal_port_synce_admin_status_t {
 	FAL_PORT_SYNCE_ENABLE
 };
 
-void fal_plugin_l2_new_port(unsigned int if_index,
+void fal_plugin_l2_new_port(unsigned int ifindex,
 			    uint32_t attr_count,
 			    const struct fal_attribute_t *attr_list);
 
 /**
- * @brief Get port attributes from interface if_index.
+ * @brief Get port attributes from interface ifindex.
  *
- * @param[in] if_index The if_index of the interface
+ * @param[in] ifindex The ifindex of the interface
  * @param[in] attr_count Number of attributes
  * @param[inout] attr_list Array of attributes
  *
@@ -815,42 +815,42 @@ void fal_plugin_l2_new_port(unsigned int if_index,
  *	   unsupported by the FAL plugin, it should return
  *	   an error.
  */
-int fal_plugin_l2_get_attrs(unsigned int if_index,
+int fal_plugin_l2_get_attrs(unsigned int ifindex,
 			    uint32_t attr_count,
 			    struct fal_attribute_t *attr_list);
 
 /*
- * Update the attributes on interface if_index
+ * Update the attributes on interface ifindex
  */
-int fal_plugin_l2_upd_port(unsigned int if_index,
+int fal_plugin_l2_upd_port(unsigned int ifindex,
 			   struct fal_attribute_t *attr);
 
 /*
- * Delete the interface if_index
+ * Delete the interface ifindex
  */
-void fal_plugin_l2_del_port(unsigned int if_index);
+void fal_plugin_l2_del_port(unsigned int ifindex);
 
 /* No attributes */
 
 /*
- * Add the address to the interface if_index
+ * Add the address to the interface ifindex
  */
-void fal_plugin_l2_new_addr(unsigned int if_index,
+void fal_plugin_l2_new_addr(unsigned int ifindex,
 			    const struct rte_ether_addr *addr,
 			    uint32_t attr_count,
 			    const struct fal_attribute_t *attr_list);
 
 /*
- * Update the addr on the interface if_index
+ * Update the addr on the interface ifindex
  */
-void fal_plugin_l2_upd_addr(unsigned int if_index,
+void fal_plugin_l2_upd_addr(unsigned int ifindex,
 			    const struct rte_ether_addr *addr,
 			    struct fal_attribute_t *attr);
 
 /*
- * Delete the address on the interface if_index
+ * Delete the address on the interface ifindex
  */
-void fal_plugin_l2_del_addr(unsigned int if_index,
+void fal_plugin_l2_del_addr(unsigned int ifindex,
 			    const struct rte_ether_addr *addr);
 
 /* Router interface operations */
@@ -1223,7 +1223,7 @@ enum fal_tunnel_attr_t {
 	FAL_TUNNEL_ATTR_TYPE,
 
 	/**
-	 * @brief Tunnel underlay interface if_index
+	 * @brief Tunnel underlay interface ifindex
 	 *
 	 * Underlay interface to provide transport reachability for the tunnel.
 	 *
@@ -1243,7 +1243,7 @@ enum fal_tunnel_attr_t {
 	FAL_TUNNEL_ATTR_NEXTHOP,
 
 	/**
-	 * @brief Tunnel overlay interface if_index
+	 * @brief Tunnel overlay interface ifindex
 	 *
 	 * Overlay interface is router interface.
 	 *
@@ -1959,26 +1959,26 @@ enum fal_address_entry_attr_t {
 };
 
 /*
- * Add the IP address to the interface if_index
+ * Add the IP address to the interface ifindex
  */
-void fal_plugin_ip_new_addr(unsigned int if_index,
+void fal_plugin_ip_new_addr(unsigned int ifindex,
 			    struct fal_ip_address_t *ipaddr,
 			    uint8_t prefixlen,
 			    uint32_t attr_count,
 			    const struct fal_attribute_t *attr_list);
 
 /*
- * Update the IP address on the interface if_index
+ * Update the IP address on the interface ifindex
  */
-void fal_plugin_ip_upd_addr(unsigned int if_index,
+void fal_plugin_ip_upd_addr(unsigned int ifindex,
 			    struct fal_ip_address_t *ipaddr,
 			    uint8_t prefixlen,
 			    struct fal_attribute_t *attr);
 
 /*
- * Delete the IP address on the interface if_index
+ * Delete the IP address on the interface ifindex
  */
-void fal_plugin_ip_del_addr(unsigned int if_index,
+void fal_plugin_ip_del_addr(unsigned int ifindex,
 			    struct fal_ip_address_t *ipaddr,
 			    uint8_t prefixlen);
 
@@ -2011,16 +2011,16 @@ enum fal_neighbor_entry_attr_t {
 };
 
 /**
- * @brief Create an IP neighbor for address on interface if_index
+ * @brief Create an IP neighbor for address on interface ifindex
  *
- * @param[in] if_index Index of interface to add neighbour to
+ * @param[in] ifindex Index of interface to add neighbour to
  * @param[in] ipaddr Address of neighbour to add
  * @param[in] attr_count Count of the attributes
  * @param[in] attr_list List of attributes
  *
  * @return 0 on success. Negative errno on failure.
  */
-int fal_plugin_ip_new_neigh(unsigned int if_index,
+int fal_plugin_ip_new_neigh(unsigned int ifindex,
 			    struct fal_ip_address_t *ipaddr,
 			    uint32_t attr_count,
 			    const struct fal_attribute_t *attr_list);
@@ -2028,50 +2028,50 @@ int fal_plugin_ip_new_neigh(unsigned int if_index,
 /**
  * @brief Update an IP neighbor
  *
- * @param[in] if_index Index of interface to update neighbour on
+ * @param[in] ifindex Index of interface to update neighbour on
  * @param[in] ipaddr Address of neighbour to update
  * @param[in] attr Attribute to update
  *
  * @return 0 on success. Negative errno on failure.
  */
-int fal_plugin_ip_upd_neigh(unsigned int if_index,
+int fal_plugin_ip_upd_neigh(unsigned int ifindex,
 			    struct fal_ip_address_t *ipaddr,
 			    struct fal_attribute_t *attr);
 
 /**
  * @brief Query attributes for an IP neighbor
  *
- * @param[in] if_index Index of interface for neighbour to query
+ * @param[in] ifindex Index of interface for neighbour to query
  * @param[in] ipaddr Address of neighbour to query
  * @param[in] attr_count Count of the attributes
  * @param[in] attr_list List of attributes to query
  *
  * @return 0 on success. Negative errno on failure.
  */
-int fal_plugin_ip_get_neigh_attrs(unsigned int if_index,
+int fal_plugin_ip_get_neigh_attrs(unsigned int ifindex,
 				  struct fal_ip_address_t *ipaddr,
 				  uint32_t attr_count,
 				  struct fal_attribute_t *attr_list);
 
 /**
- * @brief Delete an IP neighbor for address on interface if_index
+ * @brief Delete an IP neighbor for address on interface ifindex
  *
- * @param[in] if_index Index of interface to delete neighbour on
+ * @param[in] ifindex Index of interface to delete neighbour on
  * @param[in] ipaddr Address of neighbour to delete
  *
  * @return 0 on success. Negative errno on failure.
  */
-int fal_plugin_ip_del_neigh(unsigned int if_index,
+int fal_plugin_ip_del_neigh(unsigned int ifindex,
 			    struct fal_ip_address_t *ipaddr);
 
 /**
  * @brief Dump info for an IP neighbor
  *
- * @param[in] if_index Index of interface to dump neighbour on
+ * @param[in] ifindex Index of interface to dump neighbour on
  * @param[in] ipaddr Address of neighbour to dump
  * @param[inout] json writer object
  */
-void fal_plugin_ip_dump_neigh(unsigned int if_index,
+void fal_plugin_ip_dump_neigh(unsigned int ifindex,
 			      struct fal_ip_address_t *ipaddr,
 			      json_writer_t *wr);
 
@@ -3862,7 +3862,7 @@ enum fal_qos_sched_group_attr_t {
 	/**
 	 * @brief Scheduler group index
 	 *
-	 * For FAL_QOS_SCHED_GROUP_LEVEL_PORT this is the if_index of the
+	 * For FAL_QOS_SCHED_GROUP_LEVEL_PORT this is the ifindex of the
 	 * port on which the scheduler group should be applied. For all
 	 * other levels, this is a 0-based unique identifier particular to
 	 * the level that may be used for debugging purposes or configuration
@@ -4459,11 +4459,11 @@ int fal_plugin_vlan_feature_get_attr(fal_object_t obj,
 /**
  * @brief set backplane port
  * @param[in] bp_ifindex backplane interface ifindex
- * @param[in] if_index interface for which backplane binding
+ * @param[in] ifindex interface for which backplane binding
  *            is to be set
  * @return Returns 0 for success, error code on failure
  */
-int fal_plugin_backplane_bind(unsigned int bp_ifindex, unsigned int if_index);
+int fal_plugin_backplane_bind(unsigned int bp_ifindex, unsigned int ifindex);
 
 /**
  * @brief dump backplane information for specified backplane port
