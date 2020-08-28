@@ -129,14 +129,10 @@ static inline enum npf_tcpfc npf_tcpfl2case(const uint8_t tcpfl)
 #define sS2 NPF_TCPS_SIMSYN_SENT  /*TCP_CONNTRACK_SYN_SENT2*/
 
 /*
- * sIV and sIG are only used as the values stored in npf_tcp_strict_fsm
+ * Lookup table for TCP strict.  Used to determine if the flagcase is valid
+ * for a given packet direction and the current session .
  */
-#define sIG 0			/* Ignore */
-#define sIV NPF_TCP_NSTATES	/* Invalid */
-
-
-
-static uint8_t npf_tcp_strict_fsm[NPF_FLOW_SZ][TCPFC_COUNT][NPF_TCP_NSTATES];
+static bool npf_tcp_strict_is_valid[NPF_FLOW_SZ][TCPFC_COUNT][NPF_TCP_NSTATES];
 
 /*
  * NPF transition table of a tracked TCP connection.
@@ -355,62 +351,56 @@ void npf_state_tcp_init(void)
 {
 	enum tcp_session_state state;
 
-	/* sIG is 0 */
-	memset(npf_tcp_strict_fsm, 0, sizeof(npf_tcp_strict_fsm));
-	/* for receiving initial tcp syn packet */
+	memset(npf_tcp_strict_is_valid, true, sizeof(npf_tcp_strict_is_valid));
 
 	/* for receiving initial tcp syn ack packet */
-	npf_tcp_strict_fsm[NPF_FLOW_FORW][TCPFC_SYNACK][sNO] = sIV;
-	npf_tcp_strict_fsm[NPF_FLOW_FORW][TCPFC_SYNACK][sSS] = sIV;
-	npf_tcp_strict_fsm[NPF_FLOW_FORW][TCPFC_SYNACK][sES] = sIV;
-	npf_tcp_strict_fsm[NPF_FLOW_FORW][TCPFC_SYNACK][sFW] = sIV;
-	npf_tcp_strict_fsm[NPF_FLOW_FORW][TCPFC_SYNACK][sCW] = sIV;
-	npf_tcp_strict_fsm[NPF_FLOW_FORW][TCPFC_SYNACK][sLA] = sIV;
-	npf_tcp_strict_fsm[NPF_FLOW_FORW][TCPFC_SYNACK][sTW] = sIV;
-	npf_tcp_strict_fsm[NPF_FLOW_FORW][TCPFC_SYNACK][sCL] = sIV;
+	npf_tcp_strict_is_valid[NPF_FLOW_FORW][TCPFC_SYNACK][sNO] = false;
+	npf_tcp_strict_is_valid[NPF_FLOW_FORW][TCPFC_SYNACK][sSS] = false;
+	npf_tcp_strict_is_valid[NPF_FLOW_FORW][TCPFC_SYNACK][sES] = false;
+	npf_tcp_strict_is_valid[NPF_FLOW_FORW][TCPFC_SYNACK][sFW] = false;
+	npf_tcp_strict_is_valid[NPF_FLOW_FORW][TCPFC_SYNACK][sCW] = false;
+	npf_tcp_strict_is_valid[NPF_FLOW_FORW][TCPFC_SYNACK][sLA] = false;
+	npf_tcp_strict_is_valid[NPF_FLOW_FORW][TCPFC_SYNACK][sTW] = false;
+	npf_tcp_strict_is_valid[NPF_FLOW_FORW][TCPFC_SYNACK][sCL] = false;
 
 	/* for receiving initial tcp FIN packet */
-	npf_tcp_strict_fsm[NPF_FLOW_FORW][TCPFC_FIN][sNO] = sIV;
-	npf_tcp_strict_fsm[NPF_FLOW_FORW][TCPFC_FIN][sSS] = sIV;
-	npf_tcp_strict_fsm[NPF_FLOW_FORW][TCPFC_FIN][sS2] = sIV;
+	npf_tcp_strict_is_valid[NPF_FLOW_FORW][TCPFC_FIN][sNO] = false;
+	npf_tcp_strict_is_valid[NPF_FLOW_FORW][TCPFC_FIN][sSS] = false;
+	npf_tcp_strict_is_valid[NPF_FLOW_FORW][TCPFC_FIN][sS2] = false;
 
 	/* ack */
-	npf_tcp_strict_fsm[NPF_FLOW_FORW][TCPFC_ACK][sNO] = sIV;
-	npf_tcp_strict_fsm[NPF_FLOW_FORW][TCPFC_ACK][sSS] = sIV;
-	npf_tcp_strict_fsm[NPF_FLOW_FORW][TCPFC_ACK][sS2] = sIV;
+	npf_tcp_strict_is_valid[NPF_FLOW_FORW][TCPFC_ACK][sNO] = false;
+	npf_tcp_strict_is_valid[NPF_FLOW_FORW][TCPFC_ACK][sSS] = false;
+	npf_tcp_strict_is_valid[NPF_FLOW_FORW][TCPFC_ACK][sS2] = false;
 
-	/* rst */
 	/* invalid flag combinations */
-	for (state = NPF_TCPS_FIRST; state <= NPF_TCPS_LAST; state++)
-		npf_tcp_strict_fsm[NPF_FLOW_FORW][TCPFC_INVALID][state] = sIV;
-
-	/*reply*/
+	for (state = NPF_TCPS_FIRST; state <= NPF_TCPS_LAST; state++) {
+		npf_tcp_strict_is_valid[NPF_FLOW_FORW][TCPFC_INVALID][state] =
+			false;
+		npf_tcp_strict_is_valid[NPF_FLOW_BACK][TCPFC_INVALID][state] =
+			false;
+	}
 
 	/*syn*/
-	npf_tcp_strict_fsm[NPF_FLOW_BACK][TCPFC_SYN][sNO] = sIV;
-	npf_tcp_strict_fsm[NPF_FLOW_BACK][TCPFC_SYN][sSR] = sIV;
-	npf_tcp_strict_fsm[NPF_FLOW_BACK][TCPFC_SYN][sES] = sIV;
-	npf_tcp_strict_fsm[NPF_FLOW_BACK][TCPFC_SYN][sFW] = sIV;
-	npf_tcp_strict_fsm[NPF_FLOW_BACK][TCPFC_SYN][sCW] = sIV;
-	npf_tcp_strict_fsm[NPF_FLOW_BACK][TCPFC_SYN][sLA] = sIV;
-	npf_tcp_strict_fsm[NPF_FLOW_BACK][TCPFC_SYN][sTW] = sIV;
-	npf_tcp_strict_fsm[NPF_FLOW_BACK][TCPFC_SYN][sCL] = sIV;
+	npf_tcp_strict_is_valid[NPF_FLOW_BACK][TCPFC_SYN][sNO] = false;
+	npf_tcp_strict_is_valid[NPF_FLOW_BACK][TCPFC_SYN][sSR] = false;
+	npf_tcp_strict_is_valid[NPF_FLOW_BACK][TCPFC_SYN][sES] = false;
+	npf_tcp_strict_is_valid[NPF_FLOW_BACK][TCPFC_SYN][sFW] = false;
+	npf_tcp_strict_is_valid[NPF_FLOW_BACK][TCPFC_SYN][sCW] = false;
+	npf_tcp_strict_is_valid[NPF_FLOW_BACK][TCPFC_SYN][sLA] = false;
+	npf_tcp_strict_is_valid[NPF_FLOW_BACK][TCPFC_SYN][sTW] = false;
+	npf_tcp_strict_is_valid[NPF_FLOW_BACK][TCPFC_SYN][sCL] = false;
 
 	/*synack*/
-	npf_tcp_strict_fsm[NPF_FLOW_BACK][TCPFC_SYNACK][sNO] = sIV;
+	npf_tcp_strict_is_valid[NPF_FLOW_BACK][TCPFC_SYNACK][sNO] = false;
 
 	/*fin*/
-	npf_tcp_strict_fsm[NPF_FLOW_BACK][TCPFC_FIN][sNO] = sIV;
-	npf_tcp_strict_fsm[NPF_FLOW_BACK][TCPFC_FIN][sSS] = sIV;
-	npf_tcp_strict_fsm[NPF_FLOW_BACK][TCPFC_FIN][sS2] = sIV;
+	npf_tcp_strict_is_valid[NPF_FLOW_BACK][TCPFC_FIN][sNO] = false;
+	npf_tcp_strict_is_valid[NPF_FLOW_BACK][TCPFC_FIN][sSS] = false;
+	npf_tcp_strict_is_valid[NPF_FLOW_BACK][TCPFC_FIN][sS2] = false;
 
 	/* ack */
-	npf_tcp_strict_fsm[NPF_FLOW_BACK][TCPFC_ACK][sNO] = sIV;
-
-	/* rst */
-	/* invalid flag combinations */
-	for (state = NPF_TCPS_FIRST; state <= NPF_TCPS_LAST; state++)
-		npf_tcp_strict_fsm[NPF_FLOW_BACK][TCPFC_INVALID][state] = sIV;
+	npf_tcp_strict_is_valid[NPF_FLOW_BACK][TCPFC_ACK][sNO] = false;
 
 	npf_state_tcp_fsm_init();
 }
@@ -626,7 +616,11 @@ npf_state_tcp(const npf_cache_t *npc, struct rte_mbuf *nbuf, npf_state_t *nst,
 			return old_state;
 		}
 
-		if (npf_tcp_strict_fsm[di][flagcase][old_state] == sIV) {
+		/*
+		 * Is the flagcase valid for the packet direction and current
+		 * state?
+		 */
+		if (!npf_tcp_strict_is_valid[di][flagcase][old_state]) {
 			*error = -NPF_RC_TCP_STATE;
 			return old_state;
 		}
