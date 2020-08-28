@@ -142,8 +142,6 @@ npf_state_init(vrfid_t vrfid, enum npf_proto_idx proto_idx, npf_state_t *nst)
 {
 	assert(SESSION_STATE_LAST < 255);
 	assert(NPF_TCPS_LAST < 255);
-	assert(NPF_TCPS_OK <= 255);
-	assert(NPF_TCPS_OK > NPF_TCPS_LAST);
 
 	rte_spinlock_init(&nst->nst_lock);
 
@@ -200,7 +198,7 @@ npf_state_set_gen(npf_state_t *nst, enum npf_proto_idx proto_idx,
 static inline void
 npf_state_set_tcp(npf_state_t *nst, uint8_t state, bool *state_changed)
 {
-	if (unlikely(state != NPF_TCPS_OK && nst->nst_state != state)) {
+	if (unlikely(nst->nst_state != state)) {
 		uint8_t old_state = nst->nst_state;
 
 		stats_dec_tcp(old_state);

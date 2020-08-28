@@ -208,7 +208,7 @@ void npf_reset_session_log(void)
 
 static void __cold_func
 npf_session_log(npf_session_t *se, const char *state_name, uint8_t proto,
-		enum npf_proto_idx proto_idx, const char *proto_name)
+		enum npf_proto_idx proto_idx __unused, const char *proto_name)
 {
 	/* Cannot log unactivated sessions */
 	if (unlikely(!se->s_session))

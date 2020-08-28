@@ -155,7 +155,7 @@ static uint8_t npf_tcp_fsm[NPF_TCP_NSTATES][NPF_FLOW_SZ][TCPFC_COUNT] = {
 			/* We have missed some of all of the the handshake */
 			[TCPFC_ACK]	= NPF_TCPS_ESTABLISHED,
 			[TCPFC_SYNACK]	= NPF_TCPS_SYN_RECEIVED,
-			[TCPFC_INVALID]	= NPF_TCPS_ERR,
+			[TCPFC_INVALID]	= NPF_TCPS_NONE,
 			[TCPFC_FIN]	= NPF_TCPS_FIN_SENT,
 			[TCPFC_RST]	= NPF_TCPS_CLOSED,
 		},
@@ -163,7 +163,7 @@ static uint8_t npf_tcp_fsm[NPF_TCP_NSTATES][NPF_FLOW_SZ][TCPFC_COUNT] = {
 	[NPF_TCPS_SYN_SENT] = {
 		[NPF_FLOW_FORW] = {
 			/* SYN may be retransmitted. */
-			[TCPFC_SYN]	= NPF_TCPS_OK,
+			[TCPFC_SYN]	= NPF_TCPS_NONE,
 			[TCPFC_RST]	= NPF_TCPS_RST_RECEIVED,
 		},
 		[NPF_FLOW_BACK] = {
@@ -177,14 +177,14 @@ static uint8_t npf_tcp_fsm[NPF_TCP_NSTATES][NPF_FLOW_SZ][TCPFC_COUNT] = {
 	[NPF_TCPS_SIMSYN_SENT] = {
 		[NPF_FLOW_FORW] = {
 			/* Original SYN re-transmission. */
-			[TCPFC_SYN]	= NPF_TCPS_OK,
+			[TCPFC_SYN]	= NPF_TCPS_NONE,
 			/* SYN-ACK response to simultaneous SYN. */
 			[TCPFC_SYNACK]	= NPF_TCPS_SYN_RECEIVED,
 			[TCPFC_RST]	= NPF_TCPS_RST_RECEIVED,
 		},
 		[NPF_FLOW_BACK] = {
 			/* Simultaneous SYN re-transmission.*/
-			[TCPFC_SYN]	= NPF_TCPS_OK,
+			[TCPFC_SYN]	= NPF_TCPS_NONE,
 			/* SYN-ACK response to original SYN. */
 			[TCPFC_SYNACK]	= NPF_TCPS_SYN_RECEIVED,
 			/* FIN may occur early. */
@@ -202,9 +202,9 @@ static uint8_t npf_tcp_fsm[NPF_TCP_NSTATES][NPF_FLOW_SZ][TCPFC_COUNT] = {
 		},
 		[NPF_FLOW_BACK] = {
 			/* SYN-ACK may be retransmitted. */
-			[TCPFC_SYNACK]	= NPF_TCPS_OK,
+			[TCPFC_SYNACK]	= NPF_TCPS_NONE,
 			/* XXX: ACK of late SYN in simultaneous case? */
-			[TCPFC_ACK]	= NPF_TCPS_OK,
+			[TCPFC_ACK]	= NPF_TCPS_NONE,
 			/* FIN may occur early. */
 			[TCPFC_FIN]	= NPF_TCPS_FIN_RECEIVED,
 			[TCPFC_RST]	= NPF_TCPS_RST_RECEIVED,
@@ -216,13 +216,13 @@ static uint8_t npf_tcp_fsm[NPF_TCP_NSTATES][NPF_FLOW_SZ][TCPFC_COUNT] = {
 		 * FIN packets may have ACK set.
 		 */
 		[NPF_FLOW_FORW] = {
-			[TCPFC_ACK]	= NPF_TCPS_OK,
+			[TCPFC_ACK]	= NPF_TCPS_NONE,
 			/* FIN by the sender. */
 			[TCPFC_FIN]	= NPF_TCPS_FIN_SENT,
 			[TCPFC_RST]	= NPF_TCPS_RST_RECEIVED,
 		},
 		[NPF_FLOW_BACK] = {
-			[TCPFC_ACK]	= NPF_TCPS_OK,
+			[TCPFC_ACK]	= NPF_TCPS_NONE,
 			/* FIN by the receiver. */
 			[TCPFC_FIN]	= NPF_TCPS_FIN_RECEIVED,
 			[TCPFC_RST]	= NPF_TCPS_RST_RECEIVED,
@@ -231,8 +231,8 @@ static uint8_t npf_tcp_fsm[NPF_TCP_NSTATES][NPF_FLOW_SZ][TCPFC_COUNT] = {
 	[NPF_TCPS_FIN_SENT] = {
 		[NPF_FLOW_FORW] = {
 			/* FIN may be re-transmitted.  Late ACK as well. */
-			[TCPFC_ACK]	= NPF_TCPS_OK,
-			[TCPFC_FIN]	= NPF_TCPS_OK,
+			[TCPFC_ACK]	= NPF_TCPS_NONE,
+			[TCPFC_FIN]	= NPF_TCPS_NONE,
 			[TCPFC_RST]	= NPF_TCPS_RST_RECEIVED,
 		},
 		[NPF_FLOW_BACK] = {
@@ -253,20 +253,20 @@ static uint8_t npf_tcp_fsm[NPF_TCP_NSTATES][NPF_FLOW_SZ][TCPFC_COUNT] = {
 			[TCPFC_RST]	= NPF_TCPS_RST_RECEIVED,
 		},
 		[NPF_FLOW_BACK] = {
-			[TCPFC_ACK]	= NPF_TCPS_OK,
-			[TCPFC_FIN]	= NPF_TCPS_OK,
+			[TCPFC_ACK]	= NPF_TCPS_NONE,
+			[TCPFC_FIN]	= NPF_TCPS_NONE,
 			[TCPFC_RST]	= NPF_TCPS_RST_RECEIVED,
 		},
 	},
 	[NPF_TCPS_CLOSE_WAIT] = {
 		/* Sender has sent the FIN and closed its end. */
 		[NPF_FLOW_FORW] = {
-			[TCPFC_ACK]	= NPF_TCPS_OK,
+			[TCPFC_ACK]	= NPF_TCPS_NONE,
 			[TCPFC_FIN]	= NPF_TCPS_LAST_ACK,
 			[TCPFC_RST]	= NPF_TCPS_RST_RECEIVED,
 		},
 		[NPF_FLOW_BACK] = {
-			[TCPFC_ACK]	= NPF_TCPS_OK,
+			[TCPFC_ACK]	= NPF_TCPS_NONE,
 			[TCPFC_FIN]	= NPF_TCPS_LAST_ACK,
 			[TCPFC_RST]	= NPF_TCPS_RST_RECEIVED,
 		},
@@ -274,12 +274,12 @@ static uint8_t npf_tcp_fsm[NPF_TCP_NSTATES][NPF_FLOW_SZ][TCPFC_COUNT] = {
 	[NPF_TCPS_FIN_WAIT] = {
 		/* Receiver has closed its end. */
 		[NPF_FLOW_FORW] = {
-			[TCPFC_ACK]	= NPF_TCPS_OK,
+			[TCPFC_ACK]	= NPF_TCPS_NONE,
 			[TCPFC_FIN]	= NPF_TCPS_LAST_ACK,
 			[TCPFC_RST]	= NPF_TCPS_RST_RECEIVED,
 		},
 		[NPF_FLOW_BACK] = {
-			[TCPFC_ACK]	= NPF_TCPS_OK,
+			[TCPFC_ACK]	= NPF_TCPS_NONE,
 			[TCPFC_FIN]	= NPF_TCPS_LAST_ACK,
 			[TCPFC_RST]	= NPF_TCPS_RST_RECEIVED,
 		},
@@ -311,20 +311,20 @@ static uint8_t npf_tcp_fsm[NPF_TCP_NSTATES][NPF_FLOW_SZ][TCPFC_COUNT] = {
 		[NPF_FLOW_FORW] = {
 			[TCPFC_SYN]	= NPF_TCPS_SYN_SENT,
 			/*  Prevent TIME-WAIT assassination (RFC 1337).*/
-			[TCPFC_RST]	= NPF_TCPS_OK,
+			[TCPFC_RST]	= NPF_TCPS_NONE,
 		},
 		[NPF_FLOW_BACK] = {
 			/*  Prevent TIME-WAIT assassination (RFC 1337).*/
-			[TCPFC_RST]	= NPF_TCPS_OK,
+			[TCPFC_RST]	= NPF_TCPS_NONE,
 		},
 	},
 };
 
 /*
- * Change the uninitialized state machine values from 0 (NPF_TCPS_NONE) to
- * NPF_TCPS_OK, which is effectively a NOP, i.e. no state transition will
- * occur.  The prevents unexpected flags and state combinations from forcing
- * the session to CLOSED state.
+ * Change the uninitialized state machine values from 0 (NPF_TCPS_NONE) to the
+ * same state value, i.e. no state transition will occur.  The prevents
+ * unexpected flags and state combinations from forcing the session to CLOSED
+ * state.
  */
 static void npf_state_tcp_fsm_init(void)
 {
@@ -339,14 +339,14 @@ static void npf_state_tcp_fsm_init(void)
 
 		for (fc = 0; fc < TCPFC_COUNT; fc++)
 			if (npf_tcp_fsm[state][di][fc] == NPF_TCPS_NONE)
-				npf_tcp_fsm[state][di][fc] = NPF_TCPS_OK;
+				npf_tcp_fsm[state][di][fc] = state;
 
 		/* Back */
 		di = NPF_FLOW_BACK;
 
 		for (fc = 0; fc < TCPFC_COUNT; fc++)
 			if (npf_tcp_fsm[state][di][fc] == NPF_TCPS_NONE)
-				npf_tcp_fsm[state][di][fc] = NPF_TCPS_OK;
+				npf_tcp_fsm[state][di][fc] = state;
 	}
 }
 
@@ -354,8 +354,6 @@ void
 npf_state_tcp_init(void)
 {
 	uint8_t state;
-
-	/*compared to: nf_conntrack_proto_tcp.c */
 
 	/* sIG is 0 */
 	memset(npf_tcp_strict_fsm, 0, sizeof(npf_tcp_strict_fsm));
@@ -591,10 +589,14 @@ npf_tcp_inwindow(const npf_cache_t *npc, struct rte_mbuf *nbuf,
 
 /*
  * npf_state_tcp: inspect TCP segment, determine whether it belongs to
- * the connection and track its state.  Returns either:
+ * the connection and track its state.
+ *
+ * Returns either:
  *  1. the new TCP state,
- *  2. NPF_TCPS_OK, if no state change is required, or
- *  3. A negative return code if the packet should be discarded
+ *  2. the old state, if no state change is required or if an error occurred.
+ *
+ *  Any error is set in the '*error' parameter.  If one is returned then the
+ *  packet should be discarded
  */
 uint8_t
 npf_state_tcp(const npf_cache_t *npc, struct rte_mbuf *nbuf, npf_state_t *nst,
@@ -602,39 +604,41 @@ npf_state_tcp(const npf_cache_t *npc, struct rte_mbuf *nbuf, npf_state_t *nst,
 {
 	const struct tcphdr * const th = &npc->npc_l4.tcp;
 	const uint8_t tcpfl = th->th_flags;
-	const uint8_t state = nst->nst_state;
-	uint8_t nstate;
+	const uint8_t old_state = nst->nst_state;
+	uint8_t new_state;
 	const enum npf_tcpfc flagcase = npf_tcpfl2case(tcpfl);
 
 	assert(di <= NPF_FLOW_LAST);
 
 	/* Look for a transition to a new state. */
-	nstate = npf_tcp_fsm[state][di][flagcase];
+	new_state = npf_tcp_fsm[old_state][di][flagcase];
 
-	/* only filter on invalid state transitions */
-	/* let npf actually handle the state transitions */
+	/*
+	 * Only filter on invalid state transitions.  Let npf actually handle
+	 * the state transitions.
+	 */
 	if (npf_state_tcp_strict) {
 		/* Only a SYN or RST can create a session. */
-		if (state == NPF_TCPS_NONE &&
+		if (old_state == NPF_TCPS_NONE &&
 		    (tcpfl & CORE_TCP_FLAGS) != TH_SYN &&
 		    (tcpfl & TH_RST) == 0) {
 			*error = -NPF_RC_TCP_SYN;
-			return NPF_TCPS_ERR;
+			return old_state;
 		}
 
-		if (npf_tcp_strict_fsm[di][flagcase][state] == sIV) {
+		if (npf_tcp_strict_fsm[di][flagcase][old_state] == sIV) {
 			*error = -NPF_RC_TCP_STATE;
-			return NPF_TCPS_ERR;
+			return old_state;
 		}
 	}
 
 	/* Determine whether TCP packet really belongs to this connection. */
 	if (!npf_tcp_inwindow(npc, nbuf, nst, di)) {
 		*error = -NPF_RC_TCP_WIN;
-		return NPF_TCPS_ERR;
+		return old_state;
 	}
 
-	return nstate;
+	return new_state;
 }
 
 void npf_state_set_tcp_strict(bool value)

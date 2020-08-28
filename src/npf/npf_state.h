@@ -80,14 +80,6 @@ enum tcp_session_state {
 #define NPF_TCPS_LAST		NPF_TCPS_CLOSED
 #define NPF_TCP_NSTATES		(NPF_TCPS_LAST + 1)
 
-/*
- * NPF_TCPS_OK is used to denote that *no* state change should take place.
- * It *must* be greater than NPF_TCPS_LAST.
- */
-#define NPF_TCPS_OK		NPF_TCP_NSTATES
-#define NPF_TCPS_ERR		(NPF_TCP_NSTATES + 1)
-
-
 /* State statistics struct */
 struct npf_state_stats {
 	uint32_t ss_tcp_ct[NPF_TCP_NSTATES];
