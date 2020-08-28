@@ -1842,7 +1842,28 @@ void npf_save_stats(npf_session_t *se, int dir, uint64_t bytes)
 	}
 }
 
-int npf_session_npf_pack_state_pack(struct npf_session *se,
+/*
+ * Pack session state for protocols other than TCP
+ */
+int npf_session_pack_state_pack_gen(struct npf_session *se,
+				    struct npf_pack_session_state *pst)
+{
+	npf_state_t *nst;
+
+	if (!se || !pst)
+		return -EINVAL;
+
+	nst = &se->s_state;
+
+	pst->pst_state = nst->nst_state;
+
+	return 0;
+}
+
+/*
+ * Pack session state for TCP
+ */
+int npf_session_pack_state_pack_tcp(struct npf_session *se,
 				    struct npf_pack_session_state *pst)
 {
 	npf_state_t *nst;
@@ -1973,6 +1994,7 @@ int npf_session_npf_pack_pack(npf_session_t *se,
 			      struct npf_pack_session_state *pst)
 {
 	npf_rule_t *rule;
+	int rc;
 
 	if (!se || !pns)
 		return -EINVAL;
@@ -1982,7 +2004,13 @@ int npf_session_npf_pack_pack(npf_session_t *se,
 	pns->pns_fw_rule_hash = (rule ? npf_rule_get_hash(rule) : 0);
 	rule = npf_session_get_rproc_rule(se);
 	pns->pns_rproc_rule_hash = (rule ? npf_rule_get_hash(rule) : 0);
-	return npf_session_npf_pack_state_pack(se, pst);
+
+	if (se->s_proto_idx == NPF_PROTO_IDX_TCP)
+		rc = npf_session_pack_state_pack_tcp(se, pst);
+	else
+		rc = npf_session_pack_state_pack_gen(se, pst);
+
+	return rc;
 }
 
 struct npf_session *

@@ -159,7 +159,9 @@ void npf_session_disassoc_nif(unsigned int if_index);
 
 void npf_save_stats(npf_session_t *se, int dir, uint64_t bytes);
 
-int npf_session_npf_pack_state_pack(struct npf_session *se,
+int npf_session_pack_state_pack_gen(struct npf_session *se,
+				    struct npf_pack_session_state *pst);
+int npf_session_pack_state_pack_tcp(struct npf_session *se,
 				    struct npf_pack_session_state *pst);
 int npf_session_pack_state_update_gen(struct npf_session *se,
 				      struct npf_pack_session_state *pst);
