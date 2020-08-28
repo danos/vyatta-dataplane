@@ -438,8 +438,13 @@ static void sess_clear_parent(npf_session_t *se)
 /* Closes a session, which will result in it being marked as expired. */
 static void sess_close(npf_session_t *se)
 {
-	npf_state_set_closed_state(&se->s_state,
-				   (se->s_flags & SE_ACTIVE), se->s_proto_idx);
+	if (se->s_proto_idx == NPF_PROTO_IDX_TCP)
+		npf_state_set_tcp_closed(&se->s_state,
+					 (se->s_flags & SE_ACTIVE));
+	else
+		npf_state_set_gen_closed(&se->s_state,
+					 (se->s_flags & SE_ACTIVE),
+					 se->s_proto_idx);
 }
 
 void npf_session_set_appfw_decision(npf_session_t *se, npf_decision_t decision)

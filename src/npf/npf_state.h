@@ -221,8 +221,9 @@ int npf_state_inspect(const npf_cache_t *npc, struct rte_mbuf *nbuf,
 void npf_state_update_session_state(struct session *s,
 				    enum npf_proto_idx proto_idx,
 				    const npf_state_t *nst);
-void npf_state_set_closed_state(npf_state_t *nst, bool lock,
-				enum npf_proto_idx proto_idx);
+void npf_state_set_gen_closed(npf_state_t *nst, bool lock,
+			      enum npf_proto_idx proto_idx);
+void npf_state_set_tcp_closed(npf_state_t *nst, bool lock);
 const char *npf_state_get_state_tcp_name(uint8_t state);
 const char *npf_state_get_state_name(uint8_t state,
 				     enum npf_proto_idx proto_idx);

@@ -338,14 +338,13 @@ int npf_state_inspect(const npf_cache_t *npc, struct rte_mbuf *nbuf,
 }
 
 /*
- * Mark session state as 'closed' for the period that it is going through
- * garbage collection.
+ * Mark (non-TCP) session state as 'closed' for the period that it is going
+ * through garbage collection.
  */
-void npf_state_set_closed_state(npf_state_t *nst, bool lock,
-				enum npf_proto_idx proto_idx)
+void npf_state_set_gen_closed(npf_state_t *nst, bool lock,
+			      enum npf_proto_idx proto_idx)
 {
 	uint8_t old_state;
-	uint8_t state;
 	bool state_changed = false;
 
 	if (lock)
@@ -353,26 +352,38 @@ void npf_state_set_closed_state(npf_state_t *nst, bool lock,
 
 	old_state = nst->nst_state;
 
-	if (proto_idx == NPF_PROTO_IDX_TCP) {
-		state = NPF_TCPS_CLOSED;
-		npf_state_tcp_state_set(nst, NPF_TCPS_CLOSED,
-				&state_changed);
-	} else {
-		state = SESSION_STATE_CLOSED;
-		npf_state_generic_state_set(nst, proto_idx,
-				SESSION_STATE_CLOSED, &state_changed);
-	}
+	npf_state_generic_state_set(nst, proto_idx, SESSION_STATE_CLOSED,
+				    &state_changed);
 
 	if (lock)
 		rte_spinlock_unlock(&nst->nst_lock);
 
-	if (state_changed) {
-		if (proto_idx == NPF_PROTO_IDX_TCP)
-			npf_session_tcp_state_change(nst, old_state, state);
-		else
-			npf_session_gen_state_change(nst, old_state, state,
-						     proto_idx);
-	}
+	if (state_changed)
+		npf_session_gen_state_change(nst, old_state,
+					     SESSION_STATE_CLOSED, proto_idx);
+}
+
+/*
+ * Mark TCP session state as 'closed' for the period that it is going through
+ * garbage collection.
+ */
+void npf_state_set_tcp_closed(npf_state_t *nst, bool lock)
+{
+	uint8_t old_state;
+	bool state_changed = false;
+
+	if (lock)
+		rte_spinlock_lock(&nst->nst_lock);
+
+	old_state = nst->nst_state;
+
+	npf_state_tcp_state_set(nst, NPF_TCPS_CLOSED, &state_changed);
+
+	if (lock)
+		rte_spinlock_unlock(&nst->nst_lock);
+
+	if (state_changed)
+		npf_session_tcp_state_change(nst, old_state, NPF_TCPS_CLOSED);
 }
 
 /*
