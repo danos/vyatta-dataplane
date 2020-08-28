@@ -381,10 +381,22 @@ cmd_npf_global_timeout(FILE *f, int argc, char **argv)
 		return -1;
 	}
 
-	if (proto_index == NPF_PROTO_IDX_TCP)
+	if (proto_index == NPF_PROTO_IDX_TCP) {
 		s = npf_map_str_to_tcp_state(argv[3]);
-	else
+
+		if (s == NPF_TCPS_NONE) {
+			npf_cmd_err(f, "%s", "invalid state name");
+			return -1;
+		}
+
+	} else {
 		s = npf_map_str_to_generic_state(argv[3]);
+
+		if (s == SESSION_STATE_NONE) {
+			npf_cmd_err(f, "%s", "invalid state name");
+			return -1;
+		}
+	}
 
 	/* Parse timeout */
 	tout = strtoul(argv[4], &p, 10);

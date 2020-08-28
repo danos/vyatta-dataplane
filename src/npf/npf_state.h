@@ -216,7 +216,7 @@ void npf_state_update_session_state(struct session *s,
 void npf_state_set_gen_closed(npf_state_t *nst, bool lock,
 			      enum npf_proto_idx proto_idx);
 void npf_state_set_tcp_closed(npf_state_t *nst, bool lock);
-const char *npf_state_get_state_tcp_name(uint8_t state);
+const char *npf_state_get_state_tcp_name(enum tcp_session_state state);
 const char *npf_state_get_state_name(uint8_t state,
 				     enum npf_proto_idx proto_idx);
 bool npf_state_is_steady(const npf_state_t *nst,
@@ -224,7 +224,7 @@ bool npf_state_is_steady(const npf_state_t *nst,
 bool npf_tcp_state_is_closed(const npf_state_t *nst,
 			     const enum npf_proto_idx proto_idx);
 enum dp_session_state npf_map_str_to_generic_state(const char *state);
-uint8_t npf_map_str_to_tcp_state(const char *state);
+enum tcp_session_state npf_map_str_to_tcp_state(const char *state);
 uint32_t npf_state_get_custom_timeout(vrfid_t vrfid, npf_cache_t *npc,
 				      struct rte_mbuf *nbuf);
 void npf_state_stats_json(json_writer_t *json);
@@ -247,13 +247,19 @@ void npf_state_set_icmp_strict(bool value);
 void npf_state_tcp_init(void);
 
 /*
- * npf_state_tcp returns either:
+ * npf_state_tcp: inspect TCP segment, determine whether it belongs to
+ * the connection and track its state.
+ *
+ * Returns either:
  *  1. the new TCP state,
- *  2. NPF_TCPS_OK, if no state change is required, or
- *  3. '*error' < 0 if the packet should be discarded
+ *  2. the old state, if no state change is required or if an error occurred.
+ *
+ *  Any error is set in the '*error' parameter.  If one is returned then the
+ *  packet should be discarded
  */
-uint8_t npf_state_tcp(const npf_cache_t *npc, struct rte_mbuf *nbuf,
-		      npf_state_t *nst, const enum npf_flow_dir di, int *error);
+enum tcp_session_state npf_state_tcp(const npf_cache_t *npc,
+				     struct rte_mbuf *nbuf, npf_state_t *nst,
+				     const enum npf_flow_dir di, int *error);
 
 void npf_state_set_tcp_strict(bool value);
 

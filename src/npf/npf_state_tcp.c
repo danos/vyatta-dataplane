@@ -147,7 +147,8 @@ static uint8_t npf_tcp_strict_fsm[NPF_FLOW_SZ][TCPFC_COUNT][NPF_TCP_NSTATES];
  *
  * Note that this state is different from the state in each end (host).
  */
-static uint8_t npf_tcp_fsm[NPF_TCP_NSTATES][NPF_FLOW_SZ][TCPFC_COUNT] = {
+static enum tcp_session_state
+npf_tcp_fsm[NPF_TCP_NSTATES][NPF_FLOW_SZ][TCPFC_COUNT] = {
 	[NPF_TCPS_NONE] = {
 		[NPF_FLOW_FORW] = {
 			/* Handshake (1): initial SYN. */
@@ -328,7 +329,7 @@ static uint8_t npf_tcp_fsm[NPF_TCP_NSTATES][NPF_FLOW_SZ][TCPFC_COUNT] = {
  */
 static void npf_state_tcp_fsm_init(void)
 {
-	uint8_t state;
+	enum tcp_session_state state;
 	uint di, fc;
 
 	assert(NPF_TCPS_NONE == 0);
@@ -350,10 +351,9 @@ static void npf_state_tcp_fsm_init(void)
 	}
 }
 
-void
-npf_state_tcp_init(void)
+void npf_state_tcp_init(void)
 {
-	uint8_t state;
+	enum tcp_session_state state;
 
 	/* sIG is 0 */
 	memset(npf_tcp_strict_fsm, 0, sizeof(npf_tcp_strict_fsm));
@@ -529,7 +529,7 @@ npf_tcp_inwindow(const npf_cache_t *npc, struct rte_mbuf *nbuf,
 
 	if (unlikely(tcpfl & TH_RST)) {
 		/* RST to the initial SYN may have zero SEQ - fix it up. */
-		if (seq == 0 && nst->nst_state == NPF_TCPS_SYN_SENT) {
+		if (seq == 0 && nst->nst_tcp_state == NPF_TCPS_SYN_SENT) {
 			end = fstate->nst_end;
 			seq = end;
 		}
@@ -598,14 +598,14 @@ npf_tcp_inwindow(const npf_cache_t *npc, struct rte_mbuf *nbuf,
  *  Any error is set in the '*error' parameter.  If one is returned then the
  *  packet should be discarded
  */
-uint8_t
+enum tcp_session_state
 npf_state_tcp(const npf_cache_t *npc, struct rte_mbuf *nbuf, npf_state_t *nst,
 	      const enum npf_flow_dir di, int *error)
 {
 	const struct tcphdr * const th = &npc->npc_l4.tcp;
 	const uint8_t tcpfl = th->th_flags;
-	const uint8_t old_state = nst->nst_state;
-	uint8_t new_state;
+	const enum tcp_session_state old_state = nst->nst_tcp_state;
+	enum tcp_session_state new_state;
 	const enum npf_tcpfc flagcase = npf_tcpfl2case(tcpfl);
 
 	assert(di <= NPF_FLOW_LAST);

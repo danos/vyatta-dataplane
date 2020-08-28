@@ -1413,7 +1413,7 @@ npf_enable_session_log(const char *proto, const char *state)
 
 	if (proto_idx == NPF_PROTO_IDX_TCP) {
 		state_index = npf_map_str_to_tcp_state(state);
-		if (!npf_state_tcp_state_is_valid(state_index))
+		if (state_index == NPF_TCPS_NONE)
 			return -1;
 	} else {
 		state_index = npf_map_str_to_generic_state(state);
@@ -1444,7 +1444,7 @@ npf_disable_session_log(const char *proto, const char *state)
 
 	if (proto_idx == NPF_PROTO_IDX_TCP) {
 		state_index = npf_map_str_to_tcp_state(state);
-		if (!npf_state_tcp_state_is_valid(state_index))
+		if (state_index == NPF_TCPS_NONE)
 			return -1;
 	} else {
 		state_index = npf_map_str_to_generic_state(state);
@@ -1883,7 +1883,7 @@ int npf_session_pack_state_pack_tcp(struct npf_session *se,
 		memcpy(&pst->pst_tcp_win[fl], &nst->nst_tcp_win[fl],
 		       sizeof(*pst->pst_tcp_win));
 
-	pst->pst_state = nst->nst_state;
+	pst->pst_state = nst->nst_tcp_state;
 
 	return 0;
 }
@@ -1978,7 +1978,7 @@ int npf_session_pack_state_update_tcp(struct npf_session *se,
 		return -EINVAL;
 
 	nst = &se->s_state;
-	old_state = nst->nst_state;
+	old_state = nst->nst_tcp_state;
 
 	if (npf_state_npf_pack_update_tcp(nst, pst, &state_changed))
 		return -EINVAL;

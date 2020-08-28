@@ -116,7 +116,7 @@ uint32_t npf_timeout_get(const npf_state_t *nst, enum npf_proto_idx proto_idx,
 		return custom;
 
 	if (proto_idx == NPF_PROTO_IDX_TCP)
-		return nst->nst_to->to_tcp[nst->nst_state];
+		return nst->nst_to->to_tcp[nst->nst_tcp_state];
 
 	return nst->nst_to->to[proto_idx][nst->nst_state];
 }
