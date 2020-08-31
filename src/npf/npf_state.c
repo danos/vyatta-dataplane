@@ -385,24 +385,42 @@ void npf_state_set_tcp_closed(npf_state_t *nst, bool lock)
 }
 
 /*
- * Update the dataplane session (if present) state/timeout with the
- * current NPF protocol state.
+ * Update a dataplane session other than TCP (if present) state/timeout with
+ * the current NPF protocol state.
  *
  * This is called during NPF activation and protocol state changes.
  */
-void npf_state_update_session_state(struct session *s,
-				    enum npf_proto_idx proto_idx,
-				    const npf_state_t *nst)
+void npf_state_update_gen_session(struct session *s,
+				  enum npf_proto_idx proto_idx,
+				  const npf_state_t *nst)
 {
 	uint32_t to;
-	enum dp_session_state gen_state;
+	enum dp_session_state gen_state = nst->nst_state;
 
 	if (s) {
 		to = npf_timeout_get(nst, proto_idx, s->se_custom_timeout);
-		gen_state = npf_state_get_generic_state(proto_idx,
-							nst->nst_state);
-		session_set_protocol_state_timeout(s, nst->nst_state,
-						   gen_state, to);
+
+		/* Protocol state and gen state are the same */
+		session_set_protocol_state_timeout(s, gen_state, gen_state, to);
+	}
+}
+
+/*
+ * Update a dataplane TCP session state/timeout with the current NPF protocol
+ * state.
+ */
+void npf_state_update_tcp_session(struct session *s, const npf_state_t *nst)
+{
+	uint32_t to;
+	enum tcp_session_state tcp_state = nst->nst_tcp_state;
+	enum dp_session_state gen_state = npf_state_tcp2gen(tcp_state);
+
+	if (s) {
+		to = npf_timeout_get(nst, NPF_PROTO_IDX_TCP,
+				     s->se_custom_timeout);
+
+		/* Protocol state and gen state are different */
+		session_set_protocol_state_timeout(s, tcp_state, gen_state, to);
 	}
 }
 
