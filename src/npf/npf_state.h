@@ -220,8 +220,6 @@ void npf_state_set_tcp_closed(npf_state_t *nst, bool lock);
 const char *npf_state_get_state_tcp_name(enum tcp_session_state state);
 const char *npf_state_get_state_name(uint8_t state,
 				     enum npf_proto_idx proto_idx);
-bool npf_state_is_steady(const npf_state_t *nst,
-			 const enum npf_proto_idx proto_idx);
 bool npf_tcp_state_is_closed(const npf_state_t *nst,
 			     const enum npf_proto_idx proto_idx);
 enum dp_session_state npf_map_str_to_generic_state(const char *state);

@@ -149,7 +149,9 @@ npf_state_init(vrfid_t vrfid, enum npf_proto_idx proto_idx, npf_state_t *nst)
 	struct npf_timeout *to = vrf_get_npf_timeout_rcu(vrfid);
 	if (!to)
 		return false;
-	nst->nst_to = npf_timeout_ref_get(to);
+
+	npf_timeout_ref_get(to);
+	rcu_assign_pointer(nst->nst_to, to);
 
 	if (proto_idx == NPF_PROTO_IDX_TCP) {
 		nst->nst_tcp_state = NPF_TCPS_NONE;
@@ -165,13 +167,19 @@ npf_state_init(vrfid_t vrfid, enum npf_proto_idx proto_idx, npf_state_t *nst)
 /* Called from npf_session_destroy */
 void npf_state_destroy(npf_state_t *nst, enum npf_proto_idx proto_idx)
 {
+	struct npf_timeout *to;
+
 	if (proto_idx == NPF_PROTO_IDX_TCP)
 		stats_dec_tcp(nst->nst_tcp_state);
 	else
 		stats_dec(proto_idx, nst->nst_state);
 
+	to = rcu_dereference(nst->nst_to);
+	to = rcu_cmpxchg_pointer(&nst->nst_to, to, NULL);
+
 	/* Release reference on vrf npf timeout struct */
-	npf_timeout_ref_put(nst->nst_to);
+	if (to)
+		npf_timeout_ref_put(to);
 }
 
 /*
@@ -394,14 +402,16 @@ void npf_state_update_gen_session(struct session *s,
 				  enum npf_proto_idx proto_idx,
 				  const npf_state_t *nst)
 {
-	uint32_t to;
+	uint32_t timeout;
 	enum dp_session_state gen_state = nst->nst_state;
 
 	if (s) {
-		to = npf_timeout_get(nst, proto_idx, s->se_custom_timeout);
+		timeout = npf_gen_timeout_get(nst, gen_state, proto_idx,
+					      s->se_custom_timeout);
 
 		/* Protocol state and gen state are the same */
-		session_set_protocol_state_timeout(s, gen_state, gen_state, to);
+		session_set_protocol_state_timeout(s, gen_state, gen_state,
+						   timeout);
 	}
 }
 
@@ -411,16 +421,17 @@ void npf_state_update_gen_session(struct session *s,
  */
 void npf_state_update_tcp_session(struct session *s, const npf_state_t *nst)
 {
-	uint32_t to;
+	uint32_t timeout;
 	enum tcp_session_state tcp_state = nst->nst_tcp_state;
 	enum dp_session_state gen_state = npf_state_tcp2gen(tcp_state);
 
 	if (s) {
-		to = npf_timeout_get(nst, NPF_PROTO_IDX_TCP,
-				     s->se_custom_timeout);
+		timeout = npf_tcp_timeout_get(nst, tcp_state,
+					      s->se_custom_timeout);
 
 		/* Protocol state and gen state are different */
-		session_set_protocol_state_timeout(s, tcp_state, gen_state, to);
+		session_set_protocol_state_timeout(s, tcp_state, gen_state,
+						   timeout);
 	}
 }
 
@@ -517,16 +528,6 @@ npf_state_get_state_name_json(uint8_t state, enum npf_proto_idx proto_idx,
 	strncpy(dst, name, len);
 
 	return 0;
-}
-
-bool npf_state_is_steady(const npf_state_t *nst,
-			 const enum npf_proto_idx proto_idx)
-{
-	if (proto_idx == NPF_PROTO_IDX_TCP)
-		return (nst->nst_tcp_state == NPF_TCPS_ESTABLISHED);
-	else
-		return (nst->nst_state == SESSION_STATE_ESTABLISHED) ?
-			true : false;
 }
 
 /*

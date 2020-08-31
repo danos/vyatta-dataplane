@@ -165,22 +165,6 @@ uint64_t npf_session_get_id(struct npf_session *se)
 	return 0;
 }
 
-/*
- * Get session timeout value.
- *
- * The state-dependent timeout value is overridden with a custom timeout if:
- *
- *   a) the session tuple matched a configured custom timeout at the time
- *      the session was created, and
- *   b) the session state is steady (i.e. is in 'established' state).
- */
-static int
-npf_session_get_timeout(const npf_session_t *se)
-{
-	return npf_timeout_get(&se->s_state, se->s_proto_idx,
-			se->s_session->se_custom_timeout);
-}
-
 static inline bool npf_test_session_log_proto(enum npf_proto_idx proto_idx)
 {
 	assert(NPF_PROTO_IDX_TCP == 0);
@@ -207,8 +191,8 @@ void npf_reset_session_log(void)
 }
 
 static void __cold_func
-npf_session_log(npf_session_t *se, const char *state_name, uint8_t proto,
-		enum npf_proto_idx proto_idx __unused, const char *proto_name)
+npf_session_log(npf_session_t *se, const char *state_name, uint32_t timeout,
+		uint8_t proto, const char *proto_name)
 {
 	/* Cannot log unactivated sessions */
 	if (unlikely(!se->s_session))
@@ -229,7 +213,6 @@ npf_session_log(npf_session_t *se, const char *state_name, uint8_t proto,
 	char srcip_str[INET6_ADDRSTRLEN];
 	char dstip_str[INET6_ADDRSTRLEN];
 	char dpi_info_str[MAX_DPI_LOG_SIZE];
-	int timeout = npf_session_get_timeout(se);
 
 	session_sentry_extract(sen, &if_index, &af, &saddr, &sid, &daddr, &did);
 
@@ -255,6 +238,9 @@ npf_session_log(npf_session_t *se, const char *state_name, uint8_t proto,
 static inline void
 npf_session_tcp_log(npf_session_t *se, enum tcp_session_state state)
 {
+	uint32_t timeout;
+	npf_state_t *nst = &se->s_state;
+
 	if (!npf_test_session_log_proto(NPF_PROTO_IDX_TCP))
 		return;
 
@@ -264,13 +250,19 @@ npf_session_tcp_log(npf_session_t *se, enum tcp_session_state state)
 
 	const char *state_name = npf_state_get_state_tcp_name(state);
 
-	npf_session_log(se, state_name, IPPROTO_TCP, NPF_PROTO_IDX_TCP, "tcp");
+	timeout = npf_tcp_timeout_get(nst, state,
+				      se->s_session->se_custom_timeout);
+
+	npf_session_log(se, state_name, timeout, IPPROTO_TCP, "tcp");
 }
 
 static inline void
 npf_session_gen_log(npf_session_t *se, enum dp_session_state state,
 		    uint8_t proto_idx)
 {
+	uint32_t timeout;
+	npf_state_t *nst = &se->s_state;
+
 	if (!npf_test_session_log_proto(proto_idx))
 		return;
 
@@ -278,10 +270,13 @@ npf_session_gen_log(npf_session_t *se, enum dp_session_state state,
 	if (likely(!npf_test_session_log_flag(state, proto_idx)))
 		return;
 
-	const char *proto_name = npf_get_protocol_name_from_idx(proto_idx);
 	const char *state_name = dp_session_state_name(state, true);
+	const char *proto_name = npf_get_protocol_name_from_idx(proto_idx);
 
-	npf_session_log(se, state_name, se->s_proto, proto_idx, proto_name);
+	timeout = npf_gen_timeout_get(nst, state, proto_idx,
+				      se->s_session->se_custom_timeout);
+
+	npf_session_log(se, state_name, timeout, se->s_proto, proto_name);
 }
 
 /*

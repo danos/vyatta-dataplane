@@ -16,15 +16,22 @@
 #include "urcu.h"
 #include "vplane_log.h"
 
+/* Default timeout for new sessions */
+#define NPF_NEW_SESS_TIMEOUT 30
+
 static void timeout_init(struct npf_timeout *to)
 {
 	enum npf_proto_idx proto;
 
 	to->to_set_count                  = 0;
+
+	/*
+	 * TCP session state timeouts
+	 */
 	to->to_tcp[NPF_TCPS_NONE]         = 0;
 		/* Unsynchronised states. */
-	to->to_tcp[NPF_TCPS_SYN_SENT]     = 30;
-	to->to_tcp[NPF_TCPS_SIMSYN_SENT]  = 30;
+	to->to_tcp[NPF_TCPS_SYN_SENT]     = NPF_NEW_SESS_TIMEOUT;
+	to->to_tcp[NPF_TCPS_SIMSYN_SENT]  = NPF_NEW_SESS_TIMEOUT;
 	to->to_tcp[NPF_TCPS_SYN_RECEIVED] = 60;
 		/* Established: 24 hours. */
 	to->to_tcp[NPF_TCPS_ESTABLISHED]  = 60 * 60 * 24;
@@ -41,14 +48,17 @@ static void timeout_init(struct npf_timeout *to)
 	to->to_tcp[NPF_TCPS_RST_RECEIVED] = 10;
 	to->to_tcp[NPF_TCPS_CLOSED]       = 0;
 
+	/*
+	 * Non-TCP session state timeouts
+	 */
 	for (proto = NPF_PROTO_IDX_FIRST; proto <= NPF_PROTO_IDX_LAST;
 	     proto++) {
 		if (proto == NPF_PROTO_IDX_TCP)
 			continue;
-		to->to[proto][SESSION_STATE_NONE]		= 0;
-		to->to[proto][SESSION_STATE_NEW]		= 30;
-		to->to[proto][SESSION_STATE_ESTABLISHED]	= 60;
-		to->to[proto][SESSION_STATE_CLOSED]		= 0;
+		to->to[proto][SESSION_STATE_NONE]	= 0;
+		to->to[proto][SESSION_STATE_NEW]	= NPF_NEW_SESS_TIMEOUT;
+		to->to[proto][SESSION_STATE_ESTABLISHED] = 60;
+		to->to[proto][SESSION_STATE_CLOSED]	= 0;
 	}
 }
 
@@ -108,17 +118,50 @@ int npf_timeout_set(vrfid_t vrfid, enum npf_timeout_action action,
 	return 0;
 }
 
-/* Get a state timeout */
-uint32_t npf_timeout_get(const npf_state_t *nst, enum npf_proto_idx proto_idx,
-			 uint32_t custom)
+/*
+ * Get session timeout value for sessions other than TCP.
+ *
+ * The state-dependent timeout value is overridden with a custom timeout if:
+ *
+ *   a) the session tuple matched a configured custom timeout at the time
+ *      the session was created, and
+ *   b) the session state is steady (i.e. is in 'established' state).
+ */
+uint32_t npf_gen_timeout_get(const npf_state_t *nst,
+			     enum dp_session_state state,
+			     enum npf_proto_idx proto_idx, uint32_t custom)
 {
-	if (npf_state_is_steady(nst, proto_idx) && custom)
+	/* Custom timeout only applies to Established sessions */
+	if (custom && state == SESSION_STATE_ESTABLISHED)
 		return custom;
 
-	if (proto_idx == NPF_PROTO_IDX_TCP)
-		return nst->nst_to->to_tcp[nst->nst_tcp_state];
+	const struct npf_timeout *to;
 
-	return nst->nst_to->to[proto_idx][nst->nst_state];
+	to = rcu_dereference(nst->nst_to);
+	if (unlikely(!to))
+		return NPF_NEW_SESS_TIMEOUT;
+
+	return to->to[proto_idx][state];
+}
+
+/*
+ * Get session state timeout for TCP sessions
+ */
+uint32_t npf_tcp_timeout_get(const npf_state_t *nst,
+			     enum tcp_session_state tcp_state,
+			     uint32_t custom)
+{
+	/* Custom timeout only applies to Established sessions */
+	if (custom && tcp_state == NPF_TCPS_ESTABLISHED)
+		return custom;
+
+	const struct npf_timeout *to;
+
+	to = rcu_dereference(nst->nst_to);
+	if (unlikely(!to))
+		return NPF_NEW_SESS_TIMEOUT;
+
+	return to->to_tcp[tcp_state];
 }
 
 static void timeout_reset(struct vrf *vrf, struct npf_timeout *to)
