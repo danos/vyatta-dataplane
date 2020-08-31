@@ -77,44 +77,29 @@ void npf_timeout_ref_put(struct npf_timeout *to)
 		free(to);
 }
 
-/* Set a state timeout */
-int npf_timeout_set(vrfid_t vrfid, enum npf_timeout_action action,
-		    enum npf_proto_idx proto_idx, uint8_t state, uint32_t tout)
+/*
+ * Set a state timeout for sessions other than TCP
+ */
+int npf_gen_timeout_set(struct npf_timeout *to, enum npf_proto_idx proto_idx,
+			enum dp_session_state state, uint32_t tout)
 {
-	struct npf_timeout *to;
-	struct vrf *vrf;
+	if (!to || state == SESSION_STATE_NONE || state > SESSION_STATE_LAST)
+		return -1;
 
-	/*
-	 * We can race with VRF creation, so manage VRF reference counts
-	 * to maintain state
-	 */
-	vrf = vrf_find_or_create(vrfid);
-	if (!vrf)
-		return -EINVAL;
-	to = vrf_get_npf_timeout_rcu(vrfid);
-	if (!to)
-		return -EINVAL;
+	to->to[proto_idx][state] = tout;
+	return 0;
+}
 
+/*
+ * Set a state timeout for TCP sessions
+ */
+int npf_tcp_timeout_set(struct npf_timeout *to, enum tcp_session_state state,
+			uint32_t tout)
+{
+	if (!to || state == NPF_TCPS_NONE || state > NPF_TCPS_LAST)
+		return -1;
 
-	/* Manage ref count */
-	switch (action) {
-	case TIMEOUT_SET:
-		vrf_find_or_create(vrfid); /* Inc on set */
-		to->to_set_count++;
-		break;
-	case TIMEOUT_DEL:
-		vrf_delete_by_ptr(vrf);   /* Dec on reset */
-		to->to_set_count--;
-		break;
-	};
-
-	if (proto_idx == NPF_PROTO_IDX_TCP)
-		to->to_tcp[state] = tout;
-	else
-		to->to[proto_idx][state] = tout;
-
-	/* Always release initial reference */
-	vrf_delete_by_ptr(vrf);
+	to->to_tcp[state] = tout;
 	return 0;
 }
 

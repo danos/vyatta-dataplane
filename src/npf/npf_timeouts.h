@@ -36,8 +36,10 @@ enum npf_timeout_action {
 };
 
 /* Protos */
-int npf_timeout_set(vrfid_t vrfid, enum npf_timeout_action action,
-		enum npf_proto_idx proto_idx, uint8_t state, uint32_t tout);
+int npf_gen_timeout_set(struct npf_timeout *to, enum npf_proto_idx proto_idx,
+			enum dp_session_state state, uint32_t tout);
+int npf_tcp_timeout_set(struct npf_timeout *to, enum tcp_session_state state,
+			uint32_t tout);
 uint32_t npf_gen_timeout_get(const npf_state_t *nst,
 			     enum dp_session_state state,
 			     enum npf_proto_idx proto_idx, uint32_t custom);

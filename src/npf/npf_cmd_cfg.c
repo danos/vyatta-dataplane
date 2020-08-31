@@ -41,6 +41,7 @@
 #include "npf/npf_session.h"
 #include "npf/npf_state.h"
 #include "npf/npf_timeouts.h"
+#include "npf/npf_vrf.h"
 #include "npf/rproc/npf_ext_session_limit.h"
 #include "npf/zones/npf_zone_public.h"
 #include "npf/app_group/app_group_cmd.h"
@@ -345,24 +346,37 @@ static int
 cmd_npf_global_timeout(FILE *f, int argc, char **argv)
 {
 	vrfid_t vrfid;
-	uint8_t s;
+	struct vrf *vrf = NULL;
 	char *p;
 	uint32_t tout;
-	enum npf_proto_idx proto_index;
+	enum npf_proto_idx proto_idx;
 	enum npf_timeout_action action;
+	struct npf_timeout *to;
+	int rc = -1;
 
 	if (argc < 5) {
 		npf_cmd_err(f, "%s", npf_cmd_str_missing_arg);
-		return -1;
+		goto end;
 	}
 
 	/* Parse vrf id */
 	vrfid = strtoul(argv[0], NULL, 10);
 	if ((vrfid == VRF_INVALID_ID) || (vrfid >= VRF_ID_MAX)) {
 		npf_cmd_err(f, "%s", "invalid global timeout VRF");
-		return -1;
+		goto end;
 	}
 
+	/*
+	 * We can race with VRF creation, so manage VRF reference counts
+	 * to maintain state.  Take a temp reference on the vrf.
+	 */
+	vrf = vrf_find_or_create(vrfid);
+	if (!vrf)
+		goto end;
+
+	to = vrf_get_npf_timeout_rcu(vrfid);
+	if (!to)
+		goto end;
 
 	/* Parse action */
 	if (!strcmp(argv[1], "update"))
@@ -371,42 +385,72 @@ cmd_npf_global_timeout(FILE *f, int argc, char **argv)
 		action = TIMEOUT_DEL;
 	else {
 		npf_cmd_err(f, "%s", "invalid global timeout action");
-		return -1;
+		goto end;
 	}
 
 	/* Parse protocol */
-	proto_index = npf_proto_idx_from_str(argv[2]);
-	if (proto_index == NPF_PROTO_IDX_NONE) {
+	proto_idx = npf_proto_idx_from_str(argv[2]);
+	if (proto_idx == NPF_PROTO_IDX_NONE) {
 		npf_cmd_err(f, "%s", "invalid global timeout protocol");
-		return -1;
-	}
-
-	if (proto_index == NPF_PROTO_IDX_TCP) {
-		s = npf_map_str_to_tcp_state(argv[3]);
-
-		if (s == NPF_TCPS_NONE) {
-			npf_cmd_err(f, "%s", "invalid state name");
-			return -1;
-		}
-
-	} else {
-		s = dp_session_name2state(argv[3]);
-
-		if (s == SESSION_STATE_NONE) {
-			npf_cmd_err(f, "%s", "invalid state name");
-			return -1;
-		}
+		goto end;
 	}
 
 	/* Parse timeout */
 	tout = strtoul(argv[4], &p, 10);
 	if (*p != '\0') {
 		npf_cmd_err(f, "%s", "invalid global timeout value");
-		return -1;
+		goto end;
 	}
 
+	if (proto_idx == NPF_PROTO_IDX_TCP) {
+		enum tcp_session_state state;
 
-	return npf_timeout_set(vrfid, action, proto_index, s, tout);
+		state = npf_map_str_to_tcp_state(argv[3]);
+
+		if (state == NPF_TCPS_NONE) {
+			npf_cmd_err(f, "%s", "invalid state name");
+			goto end;
+		}
+
+		/* Set the TCP timeout */
+		rc = npf_tcp_timeout_set(to, state, tout);
+		if (rc < 0)
+			goto end;
+	} else {
+		enum dp_session_state state;
+
+		state = dp_session_name2state(argv[3]);
+
+		if (state == SESSION_STATE_NONE) {
+			npf_cmd_err(f, "%s", "invalid state name");
+			goto end;
+		}
+
+		/* Set the non-TCP timeout */
+		rc = npf_gen_timeout_set(to, proto_idx, state, tout);
+		if (rc < 0)
+			goto end;
+	}
+
+	/* Take/release permanent refernece on the vrf */
+	switch (action) {
+	case TIMEOUT_SET:
+		vrf_find_or_create(vrfid); /* Inc on set */
+		to->to_set_count++;
+		break;
+	case TIMEOUT_DEL:
+		vrf_delete_by_ptr(vrf);   /* Dec on reset */
+		to->to_set_count--;
+		break;
+	};
+	rc = 0;
+
+end:
+	/* Always release temp vrf reference */
+	if (vrf)
+		vrf_delete_by_ptr(vrf);
+
+	return rc;
 }
 
 /*
