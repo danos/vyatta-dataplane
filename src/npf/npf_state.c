@@ -64,8 +64,6 @@
 #include "npf/npf_pack.h"
 #include "npf/npf_rc.h"
 
-struct rte_mbuf;
-
 /*
  * TCP state name.
  *
@@ -107,10 +105,33 @@ static const uint8_t npf_generic_fsm[SESSION_STATE_SIZE][NPF_FLOW_SZ] = {
 static struct npf_state_stats *stats;
 static bool npf_state_icmp_strict;
 
-#define stats_inc_tcp(a)	(stats[dp_lcore_id()].ss_tcp_ct[(a)]++)
-#define stats_inc(a, b)		(stats[dp_lcore_id()].ss_ct[(a)][(b)]++)
-#define stats_dec(a, b)		(stats[dp_lcore_id()].ss_ct[(a)][(b)]--)
-#define stats_dec_tcp(a)	(stats[dp_lcore_id()].ss_tcp_ct[(a)]--)
+static inline void stats_inc_tcp(enum tcp_session_state tcp_state)
+{
+	if (likely(tcp_state <= NPF_TCPS_LAST))
+		stats[dp_lcore_id()].ss_tcp_ct[tcp_state]++;
+}
+
+static inline void stats_dec_tcp(enum tcp_session_state tcp_state)
+{
+	if (likely(tcp_state <= NPF_TCPS_LAST))
+		stats[dp_lcore_id()].ss_tcp_ct[tcp_state]--;
+}
+
+static inline void stats_inc(enum npf_proto_idx proto_idx,
+			     enum dp_session_state state)
+{
+	if (likely(state <= SESSION_STATE_LAST &&
+		   proto_idx <= NPF_PROTO_IDX_LAST))
+		stats[dp_lcore_id()].ss_ct[proto_idx][state]++;
+}
+
+static inline void stats_dec(enum npf_proto_idx proto_idx,
+			     enum dp_session_state state)
+{
+	if (likely(state <= SESSION_STATE_LAST &&
+		   proto_idx <= NPF_PROTO_IDX_LAST))
+		stats[dp_lcore_id()].ss_ct[proto_idx][state]--;
+}
 
 /* state stats - create/destroy */
 void npf_state_stats_create(void)
