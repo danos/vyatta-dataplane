@@ -176,6 +176,7 @@ npf_state_init(vrfid_t vrfid, enum npf_proto_idx proto_idx, npf_state_t *nst)
 
 	if (proto_idx == NPF_PROTO_IDX_TCP) {
 		nst->nst_tcp_state = NPF_TCPS_NONE;
+		nst->nst_gen_state = SESSION_STATE_NONE;
 		stats_inc_tcp(NPF_TCPS_NONE);
 	} else {
 		nst->nst_gen_state = SESSION_STATE_NONE;
@@ -235,6 +236,7 @@ npf_state_set_tcp(npf_state_t *nst, enum tcp_session_state state,
 		stats_inc_tcp(state);
 
 		nst->nst_tcp_state = state;
+		nst->nst_gen_state = npf_state_tcp2gen(state);
 		*state_changed = true;
 	}
 }
