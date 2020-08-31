@@ -390,7 +390,7 @@ cmd_npf_global_timeout(FILE *f, int argc, char **argv)
 		}
 
 	} else {
-		s = npf_map_str_to_generic_state(argv[3]);
+		s = dp_session_name2state(argv[3]);
 
 		if (s == SESSION_STATE_NONE) {
 			npf_cmd_err(f, "%s", "invalid state name");

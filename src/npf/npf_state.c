@@ -562,21 +562,6 @@ bool npf_tcp_state_is_closed(const npf_state_t *nst,
 	return false;
 }
 
-/* convert CLI generic state to numerical value */
-enum dp_session_state npf_map_str_to_generic_state(const char *name)
-{
-	if (!strcmp(name, "new"))
-		return SESSION_STATE_NEW;
-	else if (!strcmp(name, "established"))
-		return SESSION_STATE_ESTABLISHED;
-	else if (!strcmp(name, "terminating"))
-		return SESSION_STATE_TERMINATING;
-	else if (!strcmp(name, "closed"))
-		return SESSION_STATE_CLOSED;
-	else
-		return SESSION_STATE_NONE;
-}
-
 /* convert CLI TCP state to numerical value */
 enum tcp_session_state npf_map_str_to_tcp_state(const char *name)
 {

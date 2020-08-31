@@ -23,6 +23,7 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <stdbool.h>
+#include <string.h>
 
 /**
  * Session types
@@ -92,6 +93,20 @@ dp_session_state_name(enum dp_session_state state, bool upper)
 		break;
 	};
 	return upper ? "NONE" : "none";
+}
+
+static inline enum dp_session_state dp_session_name2state(const char *name)
+{
+	if (!strcmp(name, "new") || !strcmp(name, "opening"))
+		return SESSION_STATE_NEW;
+	else if (!strcmp(name, "established"))
+		return SESSION_STATE_ESTABLISHED;
+	else if (!strcmp(name, "terminating") || !strcmp(name, "closing"))
+		return SESSION_STATE_TERMINATING;
+	else if (!strcmp(name, "closed"))
+		return SESSION_STATE_CLOSED;
+	else
+		return SESSION_STATE_NONE;
 }
 
 /**

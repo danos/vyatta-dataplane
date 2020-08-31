@@ -222,7 +222,6 @@ const char *npf_state_get_state_name(uint8_t state,
 				     enum npf_proto_idx proto_idx);
 bool npf_tcp_state_is_closed(const npf_state_t *nst,
 			     const enum npf_proto_idx proto_idx);
-enum dp_session_state npf_map_str_to_generic_state(const char *state);
 enum tcp_session_state npf_map_str_to_tcp_state(const char *state);
 uint32_t npf_state_get_custom_timeout(vrfid_t vrfid, npf_cache_t *npc,
 				      struct rte_mbuf *nbuf);

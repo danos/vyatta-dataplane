@@ -1414,7 +1414,7 @@ npf_enable_session_log(const char *proto, const char *state)
 		if (state_index == NPF_TCPS_NONE)
 			return -1;
 	} else {
-		state_index = npf_map_str_to_generic_state(state);
+		state_index = dp_session_name2state(state);
 		if (state_index == SESSION_STATE_NONE)
 			return -1;
 	}
@@ -1445,7 +1445,7 @@ npf_disable_session_log(const char *proto, const char *state)
 		if (state_index == NPF_TCPS_NONE)
 			return -1;
 	} else {
-		state_index = npf_map_str_to_generic_state(state);
+		state_index = dp_session_name2state(state);
 		if (state_index == SESSION_STATE_NONE)
 			return -1;
 	}
