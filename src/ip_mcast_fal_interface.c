@@ -220,6 +220,9 @@ static int fal_mcast_int_disable(struct cds_lfht *viftable, vrfid_t vrf_id,
 {
 	int ret;
 
+	if (!*rpf_lst)
+		return 0;
+
 	if ((*rpf_lst)->count == 1) {
 		fal_cleanup_ipmc_rpf_group(fal_rpf, rpf_lst);
 
