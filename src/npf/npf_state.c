@@ -178,7 +178,7 @@ npf_state_init(vrfid_t vrfid, enum npf_proto_idx proto_idx, npf_state_t *nst)
 		nst->nst_tcp_state = NPF_TCPS_NONE;
 		stats_inc_tcp(NPF_TCPS_NONE);
 	} else {
-		nst->nst_state = SESSION_STATE_NONE;
+		nst->nst_gen_state = SESSION_STATE_NONE;
 		stats_inc(proto_idx, SESSION_STATE_NONE);
 	}
 
@@ -193,7 +193,7 @@ void npf_state_destroy(npf_state_t *nst, enum npf_proto_idx proto_idx)
 	if (proto_idx == NPF_PROTO_IDX_TCP)
 		stats_dec_tcp(nst->nst_tcp_state);
 	else
-		stats_dec(proto_idx, nst->nst_state);
+		stats_dec(proto_idx, nst->nst_gen_state);
 
 	to = rcu_dereference(nst->nst_to);
 	to = rcu_cmpxchg_pointer(&nst->nst_to, to, NULL);
@@ -208,15 +208,15 @@ void npf_state_destroy(npf_state_t *nst, enum npf_proto_idx proto_idx)
 */
 static inline void
 npf_state_set_gen(npf_state_t *nst, enum npf_proto_idx proto_idx,
-		  uint8_t state, bool *state_changed)
+		  enum dp_session_state state, bool *state_changed)
 {
-	if (unlikely(nst->nst_state != state)) {
-		uint8_t old_state = nst->nst_state;
+	if (unlikely(nst->nst_gen_state != state)) {
+		enum dp_session_state old_state = nst->nst_gen_state;
 
 		stats_dec(proto_idx, old_state);
 		stats_inc(proto_idx, state);
 
-		nst->nst_state = state;
+		nst->nst_gen_state = state;
 		*state_changed = true;
 	}
 }
@@ -248,13 +248,13 @@ npf_state_inspect_other(npf_state_t *nst, enum npf_proto_idx proto_idx,
 {
 	enum npf_flow_dir di = forw ? NPF_FLOW_FORW : NPF_FLOW_BACK;
 	bool state_changed = false;
-	uint8_t old_state, new_state;
+	enum dp_session_state old_state, new_state;
 
 	rte_spinlock_lock(&nst->nst_lock);
 
-	old_state = nst->nst_state;
+	old_state = nst->nst_gen_state;
 
-	new_state = npf_generic_fsm[nst->nst_state][di];
+	new_state = npf_generic_fsm[nst->nst_gen_state][di];
 
 	npf_state_set_gen(nst, proto_idx, new_state, &state_changed);
 
@@ -304,12 +304,12 @@ npf_state_inspect_icmp(const npf_cache_t *npc, npf_state_t *nst, bool forw)
 {
 	enum npf_flow_dir di = forw ? NPF_FLOW_FORW : NPF_FLOW_BACK;
 	bool state_changed = false;
-	uint8_t old_state, new_state;
+	enum dp_session_state old_state, new_state;
 	int rc = 0;
 
 	rte_spinlock_lock(&nst->nst_lock);
 
-	old_state = nst->nst_state;
+	old_state = nst->nst_gen_state;
 
 	/*
 	 * If a ping session does not exist, it can only be created by an ICMP
@@ -323,7 +323,7 @@ npf_state_inspect_icmp(const npf_cache_t *npc, npf_state_t *nst, bool forw)
 		rc = -NPF_RC_ICMP_ECHO;
 
 	if (rc == 0) {
-		new_state = npf_generic_fsm[nst->nst_state][di];
+		new_state = npf_generic_fsm[nst->nst_gen_state][di];
 
 		npf_state_set_gen(nst, NPF_PROTO_IDX_ICMP, new_state,
 				  &state_changed);
@@ -372,13 +372,13 @@ int npf_state_inspect(const npf_cache_t *npc, struct rte_mbuf *nbuf,
 void npf_state_set_gen_closed(npf_state_t *nst, bool lock,
 			      enum npf_proto_idx proto_idx)
 {
-	uint8_t old_state;
+	enum dp_session_state old_state;
 	bool state_changed = false;
 
 	if (lock)
 		rte_spinlock_lock(&nst->nst_lock);
 
-	old_state = nst->nst_state;
+	old_state = nst->nst_gen_state;
 
 	npf_state_set_gen(nst, proto_idx, SESSION_STATE_CLOSED, &state_changed);
 
@@ -424,11 +424,11 @@ void npf_state_update_gen_session(struct session *s,
 				  const npf_state_t *nst)
 {
 	uint32_t timeout;
-	enum dp_session_state gen_state = nst->nst_state;
+	enum dp_session_state gen_state = nst->nst_gen_state;
 
 	if (s) {
-		timeout = npf_gen_timeout_get(nst, gen_state, proto_idx,
-					      s->se_custom_timeout);
+		timeout = npf_gen_timeout_get(nst, gen_state,
+					      proto_idx, s->se_custom_timeout);
 
 		/* Protocol state and gen state are the same */
 		session_set_protocol_state_timeout(s, gen_state, gen_state,

@@ -1858,7 +1858,7 @@ int npf_session_pack_state_pack_gen(struct npf_session *se,
 
 	nst = &se->s_state;
 
-	pst->pst_state = nst->nst_state;
+	pst->pst_state = nst->nst_gen_state;
 
 	return 0;
 }
@@ -1943,7 +1943,7 @@ int npf_session_pack_state_update_gen(struct npf_session *se,
 
 	nst = &se->s_state;
 	proto_idx = se->s_proto_idx;
-	old_state = nst->nst_state;
+	old_state = nst->nst_gen_state;
 
 	if (npf_state_npf_pack_update_gen(nst, pst->pst_state, proto_idx,
 					  &state_changed))

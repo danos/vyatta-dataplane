@@ -120,7 +120,6 @@ typedef struct {
 	union {
 		enum tcp_session_state	nst_tcp_state;
 		enum dp_session_state	nst_gen_state;
-		uint8_t			nst_state;
 	};
 	uint8_t				nst_pad[3];
 	struct npf_tcp_window	nst_tcp_win[NPF_FLOW_SZ];
