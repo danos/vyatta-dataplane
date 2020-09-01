@@ -344,6 +344,9 @@ npf_match_tcpfl(const npf_cache_t *npc, uint32_t fl)
 	const uint8_t tcpfl = (fl >> 8) & 0xff, mask = fl & 0xff;
 	const struct tcphdr *th = &npc->npc_l4.tcp;
 
+	if (unlikely(!npf_iscached(npc, NPC_IP46)))
+		return -1;
+
 	/* already attempted at beginning of hook */
 	if (unlikely(npf_cache_ipproto(npc) != IPPROTO_TCP))
 		return -1;
