@@ -126,22 +126,6 @@ typedef struct {
 
 static_assert(sizeof(npf_state_t) == 48, "npf_state_t != 48");
 
-static inline bool
-npf_state_tcp_state_is_valid(uint8_t state)
-{
-	assert(NPF_TCPS_FIRST == 0);
-	return state <= NPF_TCPS_LAST;
-}
-
-static inline bool
-npf_state_is_valid(enum npf_proto_idx proto_idx, uint8_t state)
-{
-	if (proto_idx == NPF_PROTO_IDX_TCP)
-		return npf_state_tcp_state_is_valid(state);
-	else
-		return dp_session_state_is_valid(state);
-}
-
 static inline enum dp_session_state
 npf_state_tcp2gen(enum tcp_session_state tcp_state)
 {

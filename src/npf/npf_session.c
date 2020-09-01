@@ -146,40 +146,29 @@ static_assert(offsetof(struct npf_session, s_parent) == 128,
  */
 static uint64_t npf_log_flag;
 
-#define NPF_SET_SESSION_LOG_FLAG(p, f) (npf_log_flag |=  (1ull << ((p<<4) + f)))
-#define NPF_CLR_SESSION_LOG_FLAG(p, f) (npf_log_flag &= ~(1ull << ((p<<4) + f)))
-#define NPF_TST_SESSION_LOG_FLAG(p, f) (npf_log_flag &   (1ull << ((p<<4) + f)))
-#define NPF_SESSION_LOG_MASK(p) (0x000000000000ffffull << (p<<4))
-
 /* Forward reference */
 static void sess_clear_nat64_peer(npf_session_t *se);
 
+static void npf_sess_log_flag_set(enum npf_proto_idx proto_idx, uint8_t state)
+{
+	uint8_t shift = (proto_idx << 4) + state;
+	npf_log_flag |= (1ull << shift);
+}
+
+static void npf_sess_log_flag_clr(enum npf_proto_idx proto_idx, uint8_t state)
+{
+	uint8_t shift = (proto_idx << 4) + state;
+	npf_log_flag &= ~(1ull << shift);
+}
+
 /*
- * Get the dataplane session ID given an npf session.  If se or se->s_session
- * are NULL then 0 is returned.
+ * Is a specific session state log flag set for the given protocol and state?
  */
-uint64_t npf_session_get_id(struct npf_session *se)
-{
-	if (se)
-		return session_get_id(se->s_session);
-	return 0;
-}
-
-static inline bool npf_test_session_log_proto(enum npf_proto_idx proto_idx)
-{
-	assert(NPF_PROTO_IDX_TCP == 0);
-	assert(NPF_PROTO_IDX_UDP == 1);
-	assert(NPF_PROTO_IDX_ICMP == 2);
-	assert(NPF_PROTO_IDX_OTHER == 3);
-	assert(NPF_TCPS_LAST < 16);
-
-	return (npf_log_flag & NPF_SESSION_LOG_MASK(proto_idx)) != 0;
-}
-
 static inline bool
-npf_test_session_log_flag(uint8_t state, enum npf_proto_idx proto_idx)
+npf_sess_log_flag_tst(enum npf_proto_idx proto_idx, uint8_t state)
 {
-	return NPF_TST_SESSION_LOG_FLAG(proto_idx, state) != 0;
+	uint8_t shift = (proto_idx << 4) + state;
+	return (npf_log_flag & (1ull << shift)) != 0ull;
 }
 
 /*
@@ -188,6 +177,15 @@ npf_test_session_log_flag(uint8_t state, enum npf_proto_idx proto_idx)
 void npf_reset_session_log(void)
 {
 	npf_log_flag = 0;
+}
+
+/*
+ * Get the dataplane session ID given an npf session.  If se or se->s_session
+ * are NULL then 0 is returned.
+ */
+uint64_t npf_session_get_id(struct npf_session *se)
+{
+	return se ? session_get_id(se->s_session) : 0ull;
 }
 
 static void __cold_func
@@ -241,11 +239,8 @@ npf_session_tcp_log(npf_session_t *se, enum tcp_session_state state)
 	uint32_t timeout;
 	npf_state_t *nst = &se->s_state;
 
-	if (!npf_test_session_log_proto(NPF_PROTO_IDX_TCP))
-		return;
-
 	/* return immediately if the flag is not set */
-	if (likely(!npf_test_session_log_flag(state, NPF_PROTO_IDX_TCP)))
+	if (likely(!npf_sess_log_flag_tst(NPF_PROTO_IDX_TCP, (uint8_t)state)))
 		return;
 
 	const char *state_name = npf_state_get_state_tcp_name(state);
@@ -263,11 +258,8 @@ npf_session_gen_log(npf_session_t *se, enum dp_session_state state,
 	uint32_t timeout;
 	npf_state_t *nst = &se->s_state;
 
-	if (!npf_test_session_log_proto(proto_idx))
-		return;
-
 	/* return immediately if the flag is not set */
-	if (likely(!npf_test_session_log_flag(state, proto_idx)))
+	if (likely(!npf_sess_log_flag_tst(proto_idx, (uint8_t)state)))
 		return;
 
 	const char *state_name = dp_session_state_name(state, true);
@@ -1407,63 +1399,79 @@ static void sess_clear_nat64_peer(npf_session_t *se)
 }
 
 int
-npf_enable_session_log(const char *proto, const char *state)
+npf_enable_session_log(const char *proto_name, const char *state_name)
 {
-	uint8_t state_index = 0;
 	enum npf_proto_idx proto_idx;
 
-	if (!proto || !state)
+	if (!proto_name || !state_name)
 		return -1;
 
-	proto_idx = npf_proto_idx_from_str(proto);
+	proto_idx = npf_proto_idx_from_str(proto_name);
 	if (proto_idx == NPF_PROTO_IDX_NONE)
 		return -1;
 
 	/* timeout state no longer used so ignore request to enable log */
-	if (strcmp(state, "timeout") == 0)
+	if (strcmp(state_name, "timeout") == 0)
 		return 0;
 
 	if (proto_idx == NPF_PROTO_IDX_TCP) {
-		state_index = npf_map_str_to_tcp_state(state);
-		if (state_index == NPF_TCPS_NONE)
+		enum tcp_session_state tcp_state;
+
+		tcp_state = npf_map_str_to_tcp_state(state_name);
+
+		if (tcp_state == NPF_TCPS_NONE)
 			return -1;
+
+		npf_sess_log_flag_set(NPF_PROTO_IDX_TCP, (uint8_t)tcp_state);
 	} else {
-		state_index = dp_session_name2state(state);
-		if (state_index == SESSION_STATE_NONE)
+		enum dp_session_state gen_state;
+
+		gen_state = dp_session_name2state(state_name);
+
+		if (gen_state == SESSION_STATE_NONE)
 			return -1;
+
+		npf_sess_log_flag_set(proto_idx, (uint8_t)gen_state);
 	}
-	NPF_SET_SESSION_LOG_FLAG(proto_idx, state_index);
 
 	return 0;
 }
 
 int
-npf_disable_session_log(const char *proto, const char *state)
+npf_disable_session_log(const char *proto_name, const char *state_name)
 {
-	uint8_t state_index = 0;
 	enum npf_proto_idx proto_idx;
 
-	if (!proto || !state)
+	if (!proto_name || !state_name)
 		return -1;
 
-	proto_idx = npf_proto_idx_from_str(proto);
+	proto_idx = npf_proto_idx_from_str(proto_name);
 	if (proto_idx == NPF_PROTO_IDX_NONE)
 		return -1;
 
 	/* timeout state no longer used so ignore request to disable log */
-	if (strcmp(state, "timeout") == 0)
+	if (strcmp(state_name, "timeout") == 0)
 		return 0;
 
 	if (proto_idx == NPF_PROTO_IDX_TCP) {
-		state_index = npf_map_str_to_tcp_state(state);
-		if (state_index == NPF_TCPS_NONE)
+		enum tcp_session_state tcp_state;
+
+		tcp_state = npf_map_str_to_tcp_state(state_name);
+
+		if (tcp_state == NPF_TCPS_NONE)
 			return -1;
+
+		npf_sess_log_flag_clr(NPF_PROTO_IDX_TCP, (uint8_t)tcp_state);
 	} else {
-		state_index = dp_session_name2state(state);
-		if (state_index == SESSION_STATE_NONE)
+		enum dp_session_state gen_state;
+
+		gen_state = dp_session_name2state(state_name);
+
+		if (gen_state == SESSION_STATE_NONE)
 			return -1;
+
+		npf_sess_log_flag_clr(proto_idx, (uint8_t)gen_state);
 	}
-	NPF_CLR_SESSION_LOG_FLAG(proto_idx, state_index);
 
 	return 0;
 }

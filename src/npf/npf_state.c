@@ -460,9 +460,9 @@ void npf_state_update_tcp_session(struct session *s, const npf_state_t *nst)
 
 const char *npf_state_get_state_tcp_name(enum tcp_session_state state)
 {
-	if (!npf_state_tcp_state_is_valid(state))
-		return NULL;
-	return npf_state_tcp_name[state];
+	if (state <= NPF_TCPS_LAST)
+		return npf_state_tcp_name[state];
+	return "none";
 }
 
 /*
