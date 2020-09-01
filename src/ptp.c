@@ -450,6 +450,33 @@ int ptp_port_create(FILE *f, uint16_t port_id, int argc, char **argv)
 			attrs[num_attrs].id = FAL_PTP_PORT_VLAN_ID;
 			attrs[num_attrs].value.u16 = vlan_id;
 
+		} else if (strstr(*argv, "additional-path=")) {
+			struct ifnet *ifp;
+			char *ifname, *vlan_str;
+			uint16_t vlan_id;
+
+			/* additional-path=ifname,vlan-id */
+
+			ifname = strchr(*argv, '=') + 1;
+			vlan_str = strchr(ifname, ',');
+			if (!vlan_str) {
+				rc = -EINVAL;
+				goto error;
+			}
+			*vlan_str++ = '\0';	/* remove ',' from ifname */
+
+			ifp = dp_ifnet_byifname(ifname);
+			if (!ifp)
+				goto error;
+
+			rc = get_unsigned_short(vlan_str, &vlan_id);
+			if (rc < 0)
+				goto error;
+
+			attrs[num_attrs].id = FAL_PTP_PORT_ADDITIONAL_PATH;
+			attrs[num_attrs].value.ptp_port_path.ifindex = ifp->if_index;
+			attrs[num_attrs].value.ptp_port_path.vlan_id = vlan_id;
+
 		} else if (strstr(*argv, "log-min-delay-req-interval=")) {
 			int8_t log_min_delay_req_interval;
 
