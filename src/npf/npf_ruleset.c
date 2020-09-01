@@ -1840,6 +1840,8 @@ npf_ruleset_inspect(npf_cache_t *npc, struct rte_mbuf *nbuf,
 		 * grouper support - so perform a slow search of the list.
 		 */
 		cds_list_for_each_entry_rcu(rl, &rg->rg_rules, r_entry) {
+			if (unlikely(!npc))
+				break;
 			if (npf_rule_match(npc, nbuf, ifp, dir, se, rl))
 				return rl;
 		}

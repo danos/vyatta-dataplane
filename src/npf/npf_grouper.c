@@ -50,8 +50,12 @@ int npf_grouper_build(g2_config_t **g_ctx)
 int npf_grouper_match(int af, g2_config_t *g_ctx, npf_cache_t *npc,
 		      void *data, npf_rule_t **rl)
 {
-	uint8_t *pkt = (uint8_t *)npc->npc_grouper;
+	uint8_t *pkt;
 
+	if (unlikely(!npc))
+		return 0;
+
+	pkt = (uint8_t *)npc->npc_grouper;
 	if (af == AF_INET)
 		*rl = g2_eval4(g_ctx, pkt, data);
 	else
