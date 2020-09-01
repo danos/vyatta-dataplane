@@ -153,6 +153,15 @@ enum npf_rc_en {
 	/* No L4 ports or not ICMP echo */
 	NPF_RC_L4_PROTO,
 
+	/* A packet with a bad IP header version */
+	NPF_RC_L3_HDR_VER,
+
+	/* A packet with an invalid IP header length field */
+	NPF_RC_L3_HDR_LEN,
+
+	/* A Non-IP packet when an IPv4/IPv6 packet is required */
+	NPF_RC_NON_IP,
+
 	/*
 	 * If a ping session does not exist, it can only be created by an ICMP
 	 * echo request. If it exists, the fwd direction will conditionally

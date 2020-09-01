@@ -79,6 +79,10 @@ static void npf_rc_ctrl_init(void)
 				break;
 
 			/* the following may occur from  npf cache */
+			case NPF_RC_L3_HDR_VER:
+			case NPF_RC_L3_HDR_LEN:
+			case NPF_RC_NON_IP:
+			case NPF_RC_L3_SHORT:
 			case NPF_RC_L3_PROTO:
 			case NPF_RC_L4_SHORT:
 				npf_rc_ctrl[dir][rc].bm =
@@ -110,7 +114,6 @@ static void npf_rc_ctrl_init(void)
 				break;
 
 			/* NAT and NAT64 */
-			case NPF_RC_L3_SHORT:
 			case NPF_RC_MBUF_ENOMEM:
 			case NPF_RC_NAT_ENOSPC:
 			case NPF_RC_NAT_ENOMEM:
@@ -156,6 +159,9 @@ static void npf_rc_ctrl_init(void)
 			case NPF_RC_BLOCK:
 				npf_rc_ctrl[dir][rc].cat = RC_CAT_BLOCK;
 				break;
+			case NPF_RC_L3_HDR_VER:
+			case NPF_RC_L3_HDR_LEN:
+			case NPF_RC_NON_IP:
 			case NPF_RC_L3_PROTO:
 			case NPF_RC_L4_PROTO:
 			case NPF_RC_L4_SHORT:
@@ -241,6 +247,12 @@ const char *npf_rc_str(int rc)
 		return "RC_PASS";
 	case NPF_RC_BLOCK:
 		return "RC_BLOCK";
+	case NPF_RC_L3_HDR_VER:
+		return "RC_L3_HDR_VER";
+	case NPF_RC_L3_HDR_LEN:
+		return "RC_L3_HDR_LEN";
+	case NPF_RC_NON_IP:
+		return "RC_NON_IP";
 	case NPF_RC_L3_SHORT:
 		return "RC_L3_SHORT";
 	case NPF_RC_L4_SHORT:
@@ -320,6 +332,12 @@ const char *npf_rc_detail_str(int rc)
 		return "pass";
 	case NPF_RC_BLOCK:
 		return "block";
+	case NPF_RC_L3_HDR_VER:
+		return "invalid IP header version field";
+	case NPF_RC_L3_HDR_LEN:
+		return "invalid IP header length field";
+	case NPF_RC_NON_IP:
+		return "non-IP packet";
 	case NPF_RC_L3_PROTO:
 		return "protocol mismatch";
 	case NPF_RC_L3_SHORT:
