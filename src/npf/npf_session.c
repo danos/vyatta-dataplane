@@ -666,7 +666,6 @@ void npf_session_gen_state_change(npf_state_t *nst,
 				  enum npf_proto_idx proto_idx)
 {
 	npf_session_t *se = caa_container_of(nst, npf_session_t, s_state);
-	npf_rule_t *rproc_rl;
 
 	/* session logging */
 	npf_session_gen_log(se, new_state, proto_idx);
@@ -674,15 +673,19 @@ void npf_session_gen_state_change(npf_state_t *nst,
 	/* Update the dataplane session state/timeout */
 	npf_state_update_gen_session(se->s_session, proto_idx, nst);
 
-	/* Session rproc */
-	rproc_rl = npf_session_get_rproc_rule(se);
+	/* Call session limit rproc if state has changed */
+	if (new_state != old_state) {
+		npf_rule_t *rproc_rl;
+		void *handle;
 
-	void *handle = npf_rule_rproc_handle_from_id(rproc_rl,
-						     NPF_RPROC_ID_SLIMIT);
+		rproc_rl = npf_session_get_rproc_rule(se);
+		handle = npf_rule_rproc_handle_from_id(rproc_rl,
+						       NPF_RPROC_ID_SLIMIT);
 
-	if (handle && new_state != old_state)
-		npf_sess_limit_state_change(handle, proto_idx,
-					    old_state, new_state);
+		if (handle)
+			npf_sess_limit_state_change(handle, old_state,
+						    new_state);
+	}
 
 	if (new_state == SESSION_STATE_CLOSED)
 		sess_set_expired(se);
@@ -698,7 +701,6 @@ void npf_session_tcp_state_change(npf_state_t *nst,
 				  enum tcp_session_state new_state)
 {
 	npf_session_t *se = caa_container_of(nst, npf_session_t, s_state);
-	npf_rule_t *rproc_rl;
 
 	/* session logging */
 	npf_session_tcp_log(se, new_state);
@@ -706,14 +708,26 @@ void npf_session_tcp_state_change(npf_state_t *nst,
 	/* Update the dataplane session state/timeout */
 	npf_state_update_tcp_session(se->s_session, nst);
 
-	/* Session rproc */
-	rproc_rl = npf_session_get_rproc_rule(se);
+	/* Call session limit rproc if state has changed */
+	if (new_state != old_state) {
+		npf_rule_t *rproc_rl;
+		void *handle;
 
-	void *handle = npf_rule_rproc_handle_from_id(rproc_rl,
-						     NPF_RPROC_ID_SLIMIT);
-	if (handle && new_state != old_state)
-		npf_sess_limit_state_change(handle, NPF_PROTO_IDX_TCP,
-					    old_state, new_state);
+		rproc_rl = npf_session_get_rproc_rule(se);
+		handle = npf_rule_rproc_handle_from_id(rproc_rl,
+						       NPF_RPROC_ID_SLIMIT);
+
+		if (handle) {
+			enum dp_session_state old_gen_st, new_gen_st;
+
+			old_gen_st = npf_state_tcp2gen(old_state);
+			new_gen_st = npf_state_tcp2gen(new_state);
+
+			if (old_gen_st != new_gen_st)
+				npf_sess_limit_state_change(handle, old_gen_st,
+							    new_gen_st);
+		}
+	}
 
 	if (new_state == NPF_TCPS_CLOSED)
 		sess_set_expired(se);

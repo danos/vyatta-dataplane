@@ -1158,20 +1158,10 @@ npf_sess_limit_update_rates(struct npf_sess_limit_param_t *lp)
  * Called when the session belonging to a limit-enabled rproc rule changes
  * state.  May be called from both main and forwarding threads.
  */
-void npf_sess_limit_state_change(void *handle, enum npf_proto_idx proto_idx,
-				 uint8_t prev_state, uint8_t state)
+void npf_sess_limit_state_change(void *handle, enum dp_session_state prev_state,
+				 enum dp_session_state state)
 {
 	struct npf_sess_limit_param_t *lp = handle;
-
-	/*
-	 * We dont care about the various types of TCP half-open state, for
-	 * example, so convert to a generic state
-	 */
-	state = npf_state_get_generic_state(proto_idx, state);
-	prev_state = npf_state_get_generic_state(proto_idx, prev_state);
-
-	if (state == prev_state)
-		return;
 
 	rte_spinlock_lock(&lp->lp_lock);
 

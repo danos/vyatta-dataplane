@@ -169,36 +169,6 @@ npf_state_tcp2gen(enum tcp_session_state tcp_state)
 	return SESSION_STATE_CLOSED;
 }
 
-/*
- * Get generic state.  Non-TCP protocols already use generic state.
- * Convert TCP state to generic state.
- */
-static inline enum dp_session_state
-npf_state_get_generic_state(enum npf_proto_idx proto_idx, uint8_t state)
-{
-	if (proto_idx == NPF_PROTO_IDX_TCP)
-		return npf_state_tcp2gen((enum tcp_session_state)state);
-
-	if (dp_session_state_is_valid(state))
-		return (enum dp_session_state)state;
-
-	return SESSION_STATE_NONE;
-}
-
-static inline bool npf_state_is_established(uint8_t proto, uint8_t state)
-{
-	if (proto == IPPROTO_TCP)
-		return state == NPF_TCPS_ESTABLISHED;
-	return state == SESSION_STATE_ESTABLISHED;
-}
-
-static inline bool npf_state_is_closing(uint8_t proto, uint8_t state)
-{
-	if (proto == IPPROTO_TCP)
-		return state > NPF_TCPS_ESTABLISHED;
-	return state > SESSION_STATE_ESTABLISHED;
-}
-
 void npf_state_stats_create(void);
 void npf_state_stats_destroy(void);
 bool npf_state_init(vrfid_t vrfid, enum npf_proto_idx proto_idx,
