@@ -1,3 +1,10 @@
+vyatta-dataplane (3.10.69) unstable; urgency=medium
+
+  [ Charles (Chas) Williams ]
+  * ptp: add additional-path support (Bugfix: VRVDR-48480)
+
+ -- Robert Shearman <robert.shearman@att.com>  Tue, 01 Sep 2020 11:42:50 +0100
+
 vyatta-dataplane (3.10.68) unstable; urgency=medium
 
   [ Paul Aitken ]
