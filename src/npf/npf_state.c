@@ -245,10 +245,10 @@ npf_state_set_tcp(npf_state_t *nst, enum tcp_session_state state,
  * State inspect for sessions other than TCP and ICMP
  */
 static inline int
-npf_state_inspect_other(npf_state_t *nst, enum npf_proto_idx proto_idx,
-			bool forw)
+npf_state_inspect_other(npf_session_t *se, npf_state_t *nst,
+			enum npf_proto_idx proto_idx,
+			enum npf_flow_dir flow_dir)
 {
-	enum npf_flow_dir di = forw ? NPF_FLOW_FORW : NPF_FLOW_BACK;
 	bool state_changed = false;
 	enum dp_session_state old_state, new_state;
 
@@ -256,14 +256,14 @@ npf_state_inspect_other(npf_state_t *nst, enum npf_proto_idx proto_idx,
 
 	old_state = nst->nst_gen_state;
 
-	new_state = npf_generic_fsm[nst->nst_gen_state][di];
+	new_state = npf_generic_fsm[nst->nst_gen_state][flow_dir];
 
 	npf_state_set_gen(nst, proto_idx, new_state, &state_changed);
 
 	rte_spinlock_unlock(&nst->nst_lock);
 
 	if (state_changed)
-		npf_session_gen_state_change(nst, old_state, new_state,
+		npf_session_gen_state_change(se, nst, old_state, new_state,
 					     proto_idx);
 
 	return 0;
@@ -274,9 +274,9 @@ npf_state_inspect_other(npf_state_t *nst, enum npf_proto_idx proto_idx,
  */
 static inline int
 npf_state_inspect_tcp(const npf_cache_t *npc, struct rte_mbuf *nbuf,
-			npf_state_t *nst, bool forw)
+		      npf_session_t *se, npf_state_t *nst,
+		      enum npf_flow_dir flow_dir)
 {
-	enum npf_flow_dir di = forw ? NPF_FLOW_FORW : NPF_FLOW_BACK;
 	bool state_changed = false;
 	enum tcp_session_state old_state, new_state;
 	int rc = 0;
@@ -285,7 +285,7 @@ npf_state_inspect_tcp(const npf_cache_t *npc, struct rte_mbuf *nbuf,
 
 	old_state = nst->nst_tcp_state;
 
-	new_state = npf_state_tcp(npc, nbuf, nst, di, &rc);
+	new_state = npf_state_tcp(npc, nbuf, nst, flow_dir, &rc);
 
 	if (rc == 0)
 		npf_state_set_tcp(nst, new_state, &state_changed);
@@ -293,7 +293,7 @@ npf_state_inspect_tcp(const npf_cache_t *npc, struct rte_mbuf *nbuf,
 	rte_spinlock_unlock(&nst->nst_lock);
 
 	if (state_changed)
-		npf_session_tcp_state_change(nst, old_state, new_state);
+		npf_session_tcp_state_change(se, nst, old_state, new_state);
 
 	return rc;
 }
@@ -302,9 +302,9 @@ npf_state_inspect_tcp(const npf_cache_t *npc, struct rte_mbuf *nbuf,
  * State inspect for ICMP sessions
  */
 static inline int
-npf_state_inspect_icmp(const npf_cache_t *npc, npf_state_t *nst, bool forw)
+npf_state_inspect_icmp(const npf_cache_t *npc, npf_session_t *se,
+		       npf_state_t *nst, enum npf_flow_dir flow_dir)
 {
-	enum npf_flow_dir di = forw ? NPF_FLOW_FORW : NPF_FLOW_BACK;
 	bool state_changed = false;
 	enum dp_session_state old_state, new_state;
 	int rc = 0;
@@ -321,11 +321,12 @@ npf_state_inspect_icmp(const npf_cache_t *npc, npf_state_t *nst, bool forw)
 	 * Windows clients.
 	 */
 	if ((npf_state_icmp_strict || old_state == SESSION_STATE_NONE) &&
-	    unlikely(forw ^ npf_iscached(npc, NPC_ICMP_ECHO_REQ)))
+	    unlikely((flow_dir == NPF_FLOW_FORW) ^
+		     npf_iscached(npc, NPC_ICMP_ECHO_REQ)))
 		rc = -NPF_RC_ICMP_ECHO;
 
 	if (rc == 0) {
-		new_state = npf_generic_fsm[nst->nst_gen_state][di];
+		new_state = npf_generic_fsm[nst->nst_gen_state][flow_dir];
 
 		npf_state_set_gen(nst, NPF_PROTO_IDX_ICMP, new_state,
 				  &state_changed);
@@ -334,7 +335,7 @@ npf_state_inspect_icmp(const npf_cache_t *npc, npf_state_t *nst, bool forw)
 	rte_spinlock_unlock(&nst->nst_lock);
 
 	if (state_changed)
-		npf_session_gen_state_change(nst, old_state, new_state,
+		npf_session_gen_state_change(se, nst, old_state, new_state,
 					     NPF_PROTO_IDX_ICMP);
 
 	return rc;
@@ -347,20 +348,22 @@ npf_state_inspect_icmp(const npf_cache_t *npc, npf_state_t *nst, bool forw)
  * packet belongs to the tracked connection) and return code (< 0) otherwise.
  */
 int npf_state_inspect(const npf_cache_t *npc, struct rte_mbuf *nbuf,
-		      npf_state_t *nst, enum npf_proto_idx proto_idx, bool forw)
+		      npf_session_t *se, npf_state_t *nst,
+		      enum npf_proto_idx proto_idx, bool forw)
 {
+	enum npf_flow_dir flow_dir = forw ? NPF_FLOW_FORW : NPF_FLOW_BACK;
 	int rc = 0;
 
 	switch (proto_idx) {
 	case NPF_PROTO_IDX_UDP:
 	case NPF_PROTO_IDX_OTHER:
-		rc = npf_state_inspect_other(nst, proto_idx, forw);
+		rc = npf_state_inspect_other(se, nst, proto_idx, flow_dir);
 		break;
 	case NPF_PROTO_IDX_TCP:
-		rc = npf_state_inspect_tcp(npc, nbuf, nst, forw);
+		rc = npf_state_inspect_tcp(npc, nbuf, se, nst, flow_dir);
 		break;
 	case NPF_PROTO_IDX_ICMP:
-		rc = npf_state_inspect_icmp(npc, nst, forw);
+		rc = npf_state_inspect_icmp(npc, se, nst, flow_dir);
 		break;
 	};
 
@@ -371,7 +374,7 @@ int npf_state_inspect(const npf_cache_t *npc, struct rte_mbuf *nbuf,
  * Mark (non-TCP) session state as 'closed' for the period that it is going
  * through garbage collection.
  */
-void npf_state_set_gen_closed(npf_state_t *nst, bool lock,
+void npf_state_set_gen_closed(npf_state_t *nst, npf_session_t *se, bool lock,
 			      enum npf_proto_idx proto_idx)
 {
 	enum dp_session_state old_state;
@@ -388,7 +391,7 @@ void npf_state_set_gen_closed(npf_state_t *nst, bool lock,
 		rte_spinlock_unlock(&nst->nst_lock);
 
 	if (state_changed)
-		npf_session_gen_state_change(nst, old_state,
+		npf_session_gen_state_change(se, nst, old_state,
 					     SESSION_STATE_CLOSED, proto_idx);
 }
 
@@ -396,7 +399,7 @@ void npf_state_set_gen_closed(npf_state_t *nst, bool lock,
  * Mark TCP session state as 'closed' for the period that it is going through
  * garbage collection.
  */
-void npf_state_set_tcp_closed(npf_state_t *nst, bool lock)
+void npf_state_set_tcp_closed(npf_state_t *nst, npf_session_t *se, bool lock)
 {
 	enum tcp_session_state old_state;
 	bool state_changed = false;
@@ -412,7 +415,8 @@ void npf_state_set_tcp_closed(npf_state_t *nst, bool lock)
 		rte_spinlock_unlock(&nst->nst_lock);
 
 	if (state_changed)
-		npf_session_tcp_state_change(nst, old_state, NPF_TCPS_CLOSED);
+		npf_session_tcp_state_change(se, nst, old_state,
+					     NPF_TCPS_CLOSED);
 }
 
 /*

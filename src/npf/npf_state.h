@@ -159,15 +159,15 @@ bool npf_state_init(vrfid_t vrfid, enum npf_proto_idx proto_idx,
 		    npf_state_t *nst);
 void npf_state_destroy(npf_state_t *nst, enum npf_proto_idx proto_idx);
 int npf_state_inspect(const npf_cache_t *npc, struct rte_mbuf *nbuf,
-		      npf_state_t *nst, enum npf_proto_idx proto_idx,
-		      bool forw);
+		      npf_session_t *se, npf_state_t *nst,
+		      enum npf_proto_idx proto_idx, bool forw);
 void npf_state_update_gen_session(struct session *s,
 				  enum npf_proto_idx proto_idx,
 				  const npf_state_t *nst);
 void npf_state_update_tcp_session(struct session *s, const npf_state_t *nst);
-void npf_state_set_gen_closed(npf_state_t *nst, bool lock,
+void npf_state_set_gen_closed(npf_state_t *nst, npf_session_t *se, bool lock,
 			      enum npf_proto_idx proto_idx);
-void npf_state_set_tcp_closed(npf_state_t *nst, bool lock);
+void npf_state_set_tcp_closed(npf_state_t *nst, npf_session_t *se, bool lock);
 const char *npf_state_get_tcp_name(enum tcp_session_state state);
 bool npf_tcp_state_is_closed(const npf_state_t *nst,
 			     const enum npf_proto_idx proto_idx);
@@ -179,11 +179,11 @@ void npf_state_stats_json(json_writer_t *json);
 void npf_state_dump(const npf_state_t *nst);
 #endif
 
-void npf_session_gen_state_change(npf_state_t *nst,
+void npf_session_gen_state_change(npf_session_t *se, npf_state_t *nst,
 				  enum dp_session_state old_state,
 				  enum dp_session_state new_state,
 				  enum npf_proto_idx proto_idx);
-void npf_session_tcp_state_change(npf_state_t *nst,
+void npf_session_tcp_state_change(npf_session_t *se, npf_state_t *nst,
 				  enum tcp_session_state old_state,
 				  enum tcp_session_state new_state);
 

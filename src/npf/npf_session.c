@@ -426,10 +426,10 @@ static void sess_clear_parent(npf_session_t *se)
 static void sess_close(npf_session_t *se)
 {
 	if (se->s_proto_idx == NPF_PROTO_IDX_TCP)
-		npf_state_set_tcp_closed(&se->s_state,
+		npf_state_set_tcp_closed(&se->s_state, se,
 					 (se->s_flags & SE_ACTIVE));
 	else
-		npf_state_set_gen_closed(&se->s_state,
+		npf_state_set_gen_closed(&se->s_state, se,
 					 (se->s_flags & SE_ACTIVE),
 					 se->s_proto_idx);
 }
@@ -651,13 +651,11 @@ static inline void npf_session_do_watch(npf_session_t *se,
 /*
  * Callback from npf_state.c after a UDP, ICMP etc. session changes state.
  */
-void npf_session_gen_state_change(npf_state_t *nst,
+void npf_session_gen_state_change(npf_session_t *se, npf_state_t *nst,
 				  enum dp_session_state old_state,
 				  enum dp_session_state new_state,
 				  enum npf_proto_idx proto_idx)
 {
-	npf_session_t *se = caa_container_of(nst, npf_session_t, s_state);
-
 	/* session logging */
 	npf_session_gen_log(se, new_state, proto_idx);
 
@@ -687,12 +685,10 @@ void npf_session_gen_state_change(npf_state_t *nst,
 /*
  * Callback from npf_state.c after a TCP session changes state.
  */
-void npf_session_tcp_state_change(npf_state_t *nst,
+void npf_session_tcp_state_change(npf_session_t *se, npf_state_t *nst,
 				  enum tcp_session_state old_state,
 				  enum tcp_session_state new_state)
 {
-	npf_session_t *se = caa_container_of(nst, npf_session_t, s_state);
-
 	/* session logging */
 	npf_session_tcp_log(se, new_state);
 
@@ -784,7 +780,8 @@ npf_session_inspect(npf_cache_t *npc, struct rte_mbuf *nbuf,
 		return se;
 
 	/* Update the state of a session based on the supplied packet */
-	rc = npf_state_inspect(npc, nbuf, &se->s_state, se->s_proto_idx, sforw);
+	rc = npf_state_inspect(npc, nbuf, se, &se->s_state,
+			       se->s_proto_idx, sforw);
 	if (unlikely(rc < 0)) {
 		/* Silently block invalid packets. */
 		*error = rc;
@@ -1091,7 +1088,7 @@ int npf_session_activate(npf_session_t *se, const struct ifnet *ifp,
 	int rc;
 
 	if ((se->s_flags & SE_ACTIVE) == 0) {
-		rc = npf_state_inspect(npc, nbuf, &se->s_state,
+		rc = npf_state_inspect(npc, nbuf, se, &se->s_state,
 				       se->s_proto_idx, true);
 		if (unlikely(rc < 0)) {
 			/* Silently block invalid packets. */
@@ -1969,8 +1966,8 @@ int npf_session_pack_state_update_gen(struct npf_session *se,
 		return -EINVAL;
 
 	if (state_changed)
-		npf_session_gen_state_change(nst, old_state, pst->pst_gen_state,
-					     proto_idx);
+		npf_session_gen_state_change(se, nst, old_state,
+					     pst->pst_gen_state, proto_idx);
 
 	s = se->s_session;
 	if (s)
@@ -2001,7 +1998,7 @@ int npf_session_pack_state_update_tcp(struct npf_session *se,
 		return -EINVAL;
 
 	if (state_changed)
-		npf_session_tcp_state_change(nst, old_state,
+		npf_session_tcp_state_change(se, nst, old_state,
 					     pst->pst_tcp_state);
 
 	s = se->s_session;
