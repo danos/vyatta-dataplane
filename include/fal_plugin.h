@@ -3659,7 +3659,7 @@ int fal_plugin_qos_upd_map(fal_object_t map_id,
  * @param[in] map object id
  * @param[in] json writer object
  */
-void fal_plugin_qos_dump_map(fal_object_t map,
+void fal_plugin_qos_dump_map(fal_object_t map_id,
 			     json_writer_t *wr);
 
 /**
@@ -3988,7 +3988,7 @@ int fal_plugin_qos_new_sched_group(fal_object_t switch_id, uint32_t attr_count,
  *
  * @return 0 on success, failure status code on error
  */
-int fal_plugin_qos_del_sched_group(fal_object_t scheduler_group);
+int fal_plugin_qos_del_sched_group(fal_object_t sched_group_id);
 
 /**
  * @brief Update a scheduler group attribute
@@ -4020,7 +4020,7 @@ int fal_plugin_qos_get_sched_group_attrs(fal_object_t sched_group_id,
  * @param[in] sched group object id
  * @param[in] json writer object
  */
-void fal_plugin_qos_dump_sched_group(fal_object_t sg,
+void fal_plugin_qos_dump_sched_group(fal_object_t sched_group_id,
 				     json_writer_t *wr);
 
 void fal_plugin_dump_memory_buffer_errors(json_writer_t *wr);
@@ -4721,7 +4721,7 @@ enum fal_ptp_clock_profile_t {
  */
 int fal_plugin_create_ptp_clock(uint32_t attr_count,
 				struct fal_attribute_t *attr_list,
-				fal_object_t *clock);
+				fal_object_t *clock_id);
 
 /**
  * @brief Delete a PTP clock.
@@ -4730,7 +4730,7 @@ int fal_plugin_create_ptp_clock(uint32_t attr_count,
  *
  * @return 0 on success, error code for failure
  */
-int fal_plugin_delete_ptp_clock(fal_object_t clock);
+int fal_plugin_delete_ptp_clock(fal_object_t clock_id);
 
 /**
  * @brief Dump the status of a PTP clock.
@@ -4738,7 +4738,7 @@ int fal_plugin_delete_ptp_clock(fal_object_t clock);
  * @param[in] obj  PTP clock
  * @param[in] json JSON writer object
  */
-int fal_plugin_dump_ptp_clock(fal_object_t clock, json_writer_t *wr);
+int fal_plugin_dump_ptp_clock(fal_object_t clock_id, json_writer_t *wr);
 
 enum fal_ptp_port_attr_t {
 	/**
@@ -4853,7 +4853,7 @@ enum fal_ptp_port_attr_t {
  */
 int fal_plugin_create_ptp_port(uint32_t attr_count,
 			       struct fal_attribute_t *attr_list,
-			       fal_object_t *port);
+			       fal_object_t *port_id);
 
 /**
  * @brief Delete a PTP port on a PTP clock.
@@ -4862,7 +4862,7 @@ int fal_plugin_create_ptp_port(uint32_t attr_count,
  *
  * @return 0 on success, error code for failure
  */
-int fal_plugin_delete_ptp_port(fal_object_t port);
+int fal_plugin_delete_ptp_port(fal_object_t port_id);
 
 enum fal_ptp_peer_type_t {
 	FAL_PTP_PEER_MASTER,	/**< PTP master */
@@ -4914,7 +4914,7 @@ enum fal_ptp_peer_attr_t {
  */
 int fal_plugin_create_ptp_peer(uint32_t attr_count,
 			       struct fal_attribute_t *attr_list,
-			       fal_object_t *peer);
+			       fal_object_t *peer_id);
 
 /**
  * @brief Delete a PTP peer on a PTP port.
@@ -4923,7 +4923,7 @@ int fal_plugin_create_ptp_peer(uint32_t attr_count,
  *
  * @return 0 on success, error code for failure
  */
-int fal_plugin_delete_ptp_peer(fal_object_t peer);
+int fal_plugin_delete_ptp_peer(fal_object_t peer_id);
 
 /* Stuff for L3 ACLs */
 
@@ -5475,7 +5475,7 @@ int fal_plugin_acl_get_table_attr(fal_object_t table_id,
  */
 int fal_plugin_acl_create_entry(uint32_t attr_count,
 			 const struct fal_attribute_t *attr,
-			 fal_object_t *new_entry_id);
+			 fal_object_t *entry_id);
 
 /**
  * @brief Delete an entry/rule
