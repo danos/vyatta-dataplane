@@ -425,17 +425,17 @@ void npf_state_update_gen_session(struct session *s,
 				  enum npf_proto_idx proto_idx,
 				  const npf_state_t *nst)
 {
+	if (unlikely(!s))
+		return;
+
 	uint32_t timeout;
 	enum dp_session_state gen_state = nst->nst_gen_state;
 
-	if (s) {
-		timeout = npf_gen_timeout_get(nst, gen_state,
-					      proto_idx, s->se_custom_timeout);
+	timeout = npf_gen_timeout_get(nst, gen_state, proto_idx,
+				      s->se_custom_timeout);
 
-		/* Protocol state and gen state are the same */
-		session_set_protocol_state_timeout(s, gen_state, gen_state,
-						   timeout);
-	}
+	/* Protocol state and gen state are the same */
+	session_set_protocol_state_timeout(s, gen_state, gen_state, timeout);
 }
 
 /*
@@ -444,18 +444,17 @@ void npf_state_update_gen_session(struct session *s,
  */
 void npf_state_update_tcp_session(struct session *s, const npf_state_t *nst)
 {
+	if (unlikely(!s))
+		return;
+
 	uint32_t timeout;
 	enum tcp_session_state tcp_state = nst->nst_tcp_state;
 	enum dp_session_state gen_state = npf_state_tcp2gen(tcp_state);
 
-	if (s) {
-		timeout = npf_tcp_timeout_get(nst, tcp_state,
-					      s->se_custom_timeout);
+	timeout = npf_tcp_timeout_get(nst, tcp_state, s->se_custom_timeout);
 
-		/* Protocol state and gen state are different */
-		session_set_protocol_state_timeout(s, tcp_state, gen_state,
-						   timeout);
-	}
+	/* Protocol state and gen state are different */
+	session_set_protocol_state_timeout(s, tcp_state, gen_state, timeout);
 }
 
 const char *npf_state_get_tcp_name(enum tcp_session_state state)

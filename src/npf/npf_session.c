@@ -627,13 +627,12 @@ static void npf_session_add_rproc_rule(npf_session_t *s, npf_rule_t *r)
 /*
  *  Update initial dataplane state/timeout
  */
-void npf_session_update_state(npf_session_t *se)
+void npf_session_update_state(npf_session_t *se, struct session *s)
 {
 	if (se->s_proto_idx == NPF_PROTO_IDX_TCP)
-		npf_state_update_tcp_session(se->s_session, &se->s_state);
+		npf_state_update_tcp_session(s, &se->s_state);
 	else
-		npf_state_update_gen_session(se->s_session, se->s_proto_idx,
-					     &se->s_state);
+		npf_state_update_gen_session(s, se->s_proto_idx, &se->s_state);
 }
 
 /*
