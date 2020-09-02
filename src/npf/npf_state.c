@@ -524,17 +524,6 @@ static const char *npf_state_name_summary_json(enum dp_session_state state)
 	return "none";
 }
 
-/*
- * Returns true if protocol is TCP and state is CLOSED
- */
-bool npf_tcp_state_is_closed(const npf_state_t *nst,
-			     const enum npf_proto_idx proto_idx)
-{
-	if (proto_idx == NPF_PROTO_IDX_TCP)
-		return nst->nst_tcp_state == NPF_TCPS_CLOSED;
-	return false;
-}
-
 /* convert CLI TCP state to numerical value */
 enum tcp_session_state npf_map_str_to_tcp_state(const char *name)
 {

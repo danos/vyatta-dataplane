@@ -169,8 +169,6 @@ void npf_state_set_gen_closed(npf_state_t *nst, npf_session_t *se, bool lock,
 			      enum npf_proto_idx proto_idx);
 void npf_state_set_tcp_closed(npf_state_t *nst, npf_session_t *se, bool lock);
 const char *npf_state_get_tcp_name(enum tcp_session_state state);
-bool npf_tcp_state_is_closed(const npf_state_t *nst,
-			     const enum npf_proto_idx proto_idx);
 enum tcp_session_state npf_map_str_to_tcp_state(const char *state);
 uint32_t npf_state_get_custom_timeout(vrfid_t vrfid, npf_cache_t *npc,
 				      struct rte_mbuf *nbuf);

@@ -1083,13 +1083,14 @@ bool npf_session_is_active(const npf_session_t *se)
 }
 
 int npf_session_activate(npf_session_t *se, const struct ifnet *ifp,
-		npf_cache_t *npc, struct rte_mbuf *nbuf)
+			 npf_cache_t *npc, struct rte_mbuf *nbuf)
 {
+	npf_state_t *nst = &se->s_state;
 	int rc;
 
 	if ((se->s_flags & SE_ACTIVE) == 0) {
-		rc = npf_state_inspect(npc, nbuf, se, &se->s_state,
-				       se->s_proto_idx, true);
+		rc = npf_state_inspect(npc, nbuf, se, nst, se->s_proto_idx,
+				       true);
 		if (unlikely(rc < 0)) {
 			/* Silently block invalid packets. */
 			npf_session_destroy(se);
@@ -1101,7 +1102,8 @@ int npf_session_activate(npf_session_t *se, const struct ifnet *ifp,
 		 * CLOSED.  We want to allow the packet though, but not
 		 * activate the session.
 		 */
-		if (npf_tcp_state_is_closed(&se->s_state, se->s_proto_idx)) {
+		if (se->s_proto_idx == NPF_PROTO_IDX_TCP &&
+		    nst->nst_tcp_state == NPF_TCPS_CLOSED) {
 			npf_session_destroy(se);
 			return -NPF_RC_ENOSTR;
 		}
@@ -1119,7 +1121,7 @@ int npf_session_activate(npf_session_t *se, const struct ifnet *ifp,
 
 		se->s_flags |= SE_ACTIVE;
 
-		if (npf_nat64_session_log_enabled(se->s_nat64))
+		if (unlikely(npf_nat64_session_log_enabled(se->s_nat64)))
 			npf_session_nat64_log(se, true);
 
 		npf_session_do_watch(se, SESSION_ACTIVATE);
