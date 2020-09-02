@@ -208,12 +208,21 @@ enum tcp_session_state npf_state_tcp(const npf_cache_t *npc,
 
 void npf_state_set_tcp_strict(bool value);
 
-int npf_state_npf_pack_update_gen(npf_state_t *nst,
-				  struct npf_pack_session_state *pst,
-				  enum npf_proto_idx proto_idx,
-				  bool *state_changed);
-int npf_state_npf_pack_update_tcp(npf_state_t *nst,
-				  struct npf_pack_session_state *pst,
-				  bool *state_changed);
+/* Pack non-TCP session state */
+void npf_state_pack_gen(npf_state_t *nst, struct npf_pack_session_state *pst);
+
+/* Pack TCP session state */
+void npf_state_pack_tcp(npf_state_t *nst, struct npf_pack_session_state *pst);
+
+/* Update non-TCP session state from a connsync restore or update */
+void npf_state_pack_update_gen(npf_state_t *nst,
+			       struct npf_pack_session_state *pst,
+			       enum npf_proto_idx proto_idx,
+			       bool *state_changed);
+
+/* Update TCP session state from a connsync restore or update */
+void npf_state_pack_update_tcp(npf_state_t *nst,
+			       struct npf_pack_session_state *pst,
+			       bool *state_changed);
 
 #endif  /* NPF_STATE_H */

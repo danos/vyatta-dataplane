@@ -1871,15 +1871,10 @@ void npf_save_stats(npf_session_t *se, int dir, uint64_t bytes)
 int npf_session_pack_state_pack_gen(struct npf_session *se,
 				    struct npf_pack_session_state *pst)
 {
-	npf_state_t *nst;
-
 	if (!se || !pst)
 		return -EINVAL;
 
-	nst = &se->s_state;
-
-	pst->pst_gen_state = nst->nst_gen_state;
-
+	npf_state_pack_gen(&se->s_state, pst);
 	return 0;
 }
 
@@ -1889,20 +1884,10 @@ int npf_session_pack_state_pack_gen(struct npf_session *se,
 int npf_session_pack_state_pack_tcp(struct npf_session *se,
 				    struct npf_pack_session_state *pst)
 {
-	npf_state_t *nst;
-	enum npf_flow_dir fl;
-
 	if (!se || !pst)
 		return -EINVAL;
 
-	nst = &se->s_state;
-
-	for (fl = NPF_FLOW_FIRST; fl <= NPF_FLOW_LAST; fl++)
-		memcpy(&pst->pst_tcp_win[fl], &nst->nst_tcp_win[fl],
-		       sizeof(*pst->pst_tcp_win));
-
-	pst->pst_tcp_state = nst->nst_tcp_state;
-
+	npf_state_pack_tcp(&se->s_state, pst);
 	return 0;
 }
 
@@ -1917,13 +1902,12 @@ npf_session_pack_state_restore_gen(struct npf_session *se,
 {
 	npf_state_t *nst;
 	bool state_changed = false;
-	int rc;
 
 	nst = &se->s_state;
 	npf_state_init(vrfid, proto_idx, nst);
 
-	rc = npf_state_npf_pack_update_gen(nst, pst, proto_idx, &state_changed);
-	return rc;
+	npf_state_pack_update_gen(nst, pst, proto_idx, &state_changed);
+	return 0;
 }
 
 /*
@@ -1936,13 +1920,12 @@ npf_session_pack_state_restore_tcp(struct npf_session *se,
 {
 	npf_state_t *nst;
 	bool state_changed = false;
-	int rc;
 
 	nst = &se->s_state;
 	npf_state_init(vrfid, NPF_PROTO_IDX_TCP, nst);
 
-	rc = npf_state_npf_pack_update_tcp(nst, pst, &state_changed);
-	return rc;
+	npf_state_pack_update_tcp(nst, pst, &state_changed);
+	return 0;
 }
 
 /*
@@ -1964,8 +1947,7 @@ int npf_session_pack_state_update_gen(struct npf_session *se,
 	proto_idx = se->s_proto_idx;
 	old_state = nst->nst_gen_state;
 
-	if (npf_state_npf_pack_update_gen(nst, pst, proto_idx, &state_changed))
-		return -EINVAL;
+	npf_state_pack_update_gen(nst, pst, proto_idx, &state_changed);
 
 	if (state_changed)
 		npf_session_gen_state_change(se, nst, old_state,
@@ -1996,8 +1978,7 @@ int npf_session_pack_state_update_tcp(struct npf_session *se,
 	nst = &se->s_state;
 	old_state = nst->nst_tcp_state;
 
-	if (npf_state_npf_pack_update_tcp(nst, pst, &state_changed))
-		return -EINVAL;
+	npf_state_pack_update_tcp(nst, pst, &state_changed);
 
 	if (state_changed)
 		npf_session_tcp_state_change(se, nst, old_state,

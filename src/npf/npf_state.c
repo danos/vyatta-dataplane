@@ -646,22 +646,41 @@ npf_state_dump(const npf_state_t *nst __unused)
 }
 #endif
 
-int npf_state_npf_pack_update_gen(npf_state_t *nst,
-				  struct npf_pack_session_state *pst,
-				  enum npf_proto_idx proto_idx,
-				  bool *state_changed)
+/* Pack non-TCP session state */
+void npf_state_pack_gen(npf_state_t *nst, struct npf_pack_session_state *pst)
+{
+	pst->pst_gen_state = nst->nst_gen_state;
+}
+
+/* Pack TCP session state */
+void npf_state_pack_tcp(npf_state_t *nst, struct npf_pack_session_state *pst)
+{
+	enum npf_flow_dir fl;
+
+	for (fl = NPF_FLOW_FIRST; fl <= NPF_FLOW_LAST; fl++)
+		memcpy(&pst->pst_tcp_win[fl], &nst->nst_tcp_win[fl],
+		       sizeof(*pst->pst_tcp_win));
+
+	pst->pst_tcp_state = nst->nst_tcp_state;
+}
+
+/* Update non-TCP session state from a connsync restore or update */
+void npf_state_pack_update_gen(npf_state_t *nst,
+			       struct npf_pack_session_state *pst,
+			       enum npf_proto_idx proto_idx,
+			       bool *state_changed)
 {
 	rte_spinlock_lock(&nst->nst_lock);
 
 	npf_state_set_gen(nst, proto_idx, pst->pst_gen_state, state_changed);
 
 	rte_spinlock_unlock(&nst->nst_lock);
-	return 0;
 }
 
-int npf_state_npf_pack_update_tcp(npf_state_t *nst,
-				  struct npf_pack_session_state *pst,
-				  bool *state_changed)
+/* Update TCP session state from a connsync restore or update */
+void npf_state_pack_update_tcp(npf_state_t *nst,
+			       struct npf_pack_session_state *pst,
+			       bool *state_changed)
 {
 	enum npf_flow_dir fl;
 
@@ -674,5 +693,4 @@ int npf_state_npf_pack_update_tcp(npf_state_t *nst,
 	npf_state_set_tcp(nst, pst->pst_tcp_state, state_changed);
 
 	rte_spinlock_unlock(&nst->nst_lock);
-	return 0;
 }
