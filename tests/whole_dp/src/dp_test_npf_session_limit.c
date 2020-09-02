@@ -16,6 +16,7 @@
 #include "in_cksum.h"
 #include "if_var.h"
 #include "main.h"
+#include "npf/npf_state.h"
 
 #include "dp_test.h"
 #include "dp_test_str.h"
@@ -446,8 +447,7 @@ _dp_test_create_tcp_sessions(uint nsessions, const char *exp_state,
 						  IPPROTO_TCP,
 						  fwd_pkt->rx_intf, &state);
 
-			state_str = dp_test_npf_sess_state_str(IPPROTO_TCP,
-							       state);
+			state_str = npf_state_get_tcp_name(state);
 
 			dp_test_fail_unless(!strcmp(state_str,
 						    tcp_pkt1_state[npkts-1]),

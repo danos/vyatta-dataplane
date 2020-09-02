@@ -168,9 +168,7 @@ void npf_state_update_tcp_session(struct session *s, const npf_state_t *nst);
 void npf_state_set_gen_closed(npf_state_t *nst, bool lock,
 			      enum npf_proto_idx proto_idx);
 void npf_state_set_tcp_closed(npf_state_t *nst, bool lock);
-const char *npf_state_get_state_tcp_name(enum tcp_session_state state);
-const char *npf_state_get_state_name(uint8_t state,
-				     enum npf_proto_idx proto_idx);
+const char *npf_state_get_tcp_name(enum tcp_session_state state);
 bool npf_tcp_state_is_closed(const npf_state_t *nst,
 			     const enum npf_proto_idx proto_idx);
 enum tcp_session_state npf_map_str_to_tcp_state(const char *state);

@@ -772,18 +772,15 @@ dp_test_npf_tcp_post_cb4(uint pktno, bool forw,
 	if (!rv) {
 		dp_test_fail("Session not found: %s", desc);
 		dp_test_npf_print_sessions(NULL);
-	} else {
-		if (pktno < ARRAY_SIZE(expected_tcp_state) &&
-		    state != expected_tcp_state[pktno]) {
-			dp_test_fail(
-				"%s, exp state %s, actual state %s",
-				desc,
-				npf_state_get_state_name(
-					expected_tcp_state[pktno],
-					NPF_PROTO_IDX_TCP),
-				npf_state_get_state_name(state,
-							 NPF_PROTO_IDX_TCP));
-		}
+		return;
+	}
+
+	if (pktno < ARRAY_SIZE(expected_tcp_state) &&
+	    state != expected_tcp_state[pktno]) {
+		dp_test_fail("%s, exp state %s, actual state %s",
+			     desc,
+			     npf_state_get_tcp_name(expected_tcp_state[pktno]),
+			     npf_state_get_tcp_name(state));
 	}
 }
 
@@ -964,20 +961,17 @@ dp_test_npf_tcp_post_cb5(uint pktno, bool forw,
 		 */
 		if (pktno == 5)
 			return;
-		dp_test_fail("Session not found: %s", desc);
 		dp_test_npf_print_sessions(NULL);
-	} else {
-		if (pktno < ARRAY_SIZE(expected_tcp_state) &&
-		    state != expected_tcp_state[pktno]) {
-			dp_test_fail(
-				"%s, exp state %s, actual state %s",
-				desc,
-				npf_state_get_state_name(
-					expected_tcp_state[pktno],
-					NPF_PROTO_IDX_TCP),
-				npf_state_get_state_name(state,
-							 NPF_PROTO_IDX_TCP));
-		}
+		dp_test_fail("Session not found: %s", desc);
+		return;
+	}
+
+	if (pktno < ARRAY_SIZE(expected_tcp_state) &&
+	    state != expected_tcp_state[pktno]) {
+		dp_test_fail("%s, exp state %s, actual state %s",
+			     desc,
+			     npf_state_get_tcp_name(expected_tcp_state[pktno]),
+			     npf_state_get_tcp_name(state));
 	}
 
 	/*

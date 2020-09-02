@@ -458,23 +458,11 @@ void npf_state_update_tcp_session(struct session *s, const npf_state_t *nst)
 	}
 }
 
-const char *npf_state_get_state_tcp_name(enum tcp_session_state state)
+const char *npf_state_get_tcp_name(enum tcp_session_state state)
 {
 	if (state <= NPF_TCPS_LAST)
 		return npf_state_tcp_name[state];
 	return "none";
-}
-
-/*
- * npf_state_get_state_name: return state name for logging purpose
- */
-const char *
-npf_state_get_state_name(uint8_t state, enum npf_proto_idx proto_idx)
-{
-	if (proto_idx == NPF_PROTO_IDX_TCP)
-		return npf_state_get_state_tcp_name(state);
-	else
-		return dp_session_state_name(state, true);
 }
 
 /*
@@ -509,48 +497,28 @@ static void npf_str_to_log_name(const char *src, char *dst, int len)
 }
 
 /*
- * Get state name for json summary stats
+ * Generic state name used in summary stats
+ *
+ * For UDP, ICMP, and other we are not interested in SESSION_STATE_NONE or
+ * SESSION_STATE_TERMINATING.
+ *
+ * Note that these names are different from those returned by
+ * dp_session_state_name.
  */
-static int
-npf_state_get_state_name_json(uint8_t state, enum npf_proto_idx proto_idx,
-			      char *dst, ulong len)
+static const char *npf_state_name_summary_json(enum dp_session_state state)
 {
-	const char *name = NULL;
-
-	if (proto_idx == NPF_PROTO_IDX_TCP) {
-		name = npf_state_get_state_tcp_name(state);
-		npf_str_to_json_name(name, dst, len);
-		return 0;
-	}
-
-	/*
-	 * For UDP, ICMP, and other we are not interested in
-	 * SESSION_STATE_NONE or SESSION_STATE_TERMINATING.
-	 */
 	switch (state) {
 	case SESSION_STATE_NEW:
-		name = "new";
-		break;
+		return "new";
 	case SESSION_STATE_ESTABLISHED:
-		name = "established";
-		break;
+		return "established";
 	case SESSION_STATE_CLOSED:
-		name = "closed";
-		break;
+		return "closed";
 	case SESSION_STATE_TERMINATING:
 	case SESSION_STATE_NONE:
 		break;
 	};
-
-	if (!name)
-		return -EINVAL;
-
-	if (strlen(name) >= len)
-		return -ENOSPC;
-
-	strncpy(dst, name, len);
-
-	return 0;
+	return "none";
 }
 
 /*
@@ -602,11 +570,10 @@ uint32_t npf_state_get_custom_timeout(vrfid_t vrfid, npf_cache_t *npc,
 
 void npf_state_stats_json(json_writer_t *json)
 {
-	uint8_t state, proto;
+	enum npf_proto_idx proto;
 	uint32_t tmp;
 	uint32_t i;
 	char name[40];
-	int rc;
 
 	/* Temporary fixup until vplane-config-npf is updated */
 	FOREACH_DP_LCORE(i) {
@@ -624,12 +591,17 @@ void npf_state_stats_json(json_writer_t *json)
 	jsonw_name(json, "tcp");
 	jsonw_start_object(json);
 
-	for (state = NPF_TCPS_FIRST; state <= NPF_TCPS_LAST; state++) {
-		npf_state_get_state_name_json(state, NPF_PROTO_IDX_TCP, name,
-					      sizeof(name));
+	enum tcp_session_state tcp_state;
+
+	for (tcp_state = NPF_TCPS_FIRST; tcp_state <= NPF_TCPS_LAST;
+	     tcp_state++) {
+		/* Copy state name to name[] buffer */
+		npf_str_to_json_name(npf_state_get_tcp_name(tcp_state),
+				     name, sizeof(name));
+
 		tmp = 0;
 		FOREACH_DP_LCORE(i)
-			tmp += stats[i].ss_tcp_ct[state];
+			tmp += stats[i].ss_tcp_ct[tcp_state];
 		jsonw_uint_field(json, name, tmp);
 	}
 
@@ -640,6 +612,8 @@ void npf_state_stats_json(json_writer_t *json)
 	 */
 	for (proto = NPF_PROTO_IDX_FIRST;
 	     proto <= NPF_PROTO_IDX_LAST; proto++) {
+		enum dp_session_state state;
+
 		if (proto == NPF_PROTO_IDX_TCP)
 			continue;
 
@@ -648,10 +622,10 @@ void npf_state_stats_json(json_writer_t *json)
 
 		for (state = SESSION_STATE_FIRST;
 		     state <= SESSION_STATE_LAST;  state++) {
-			rc = npf_state_get_state_name_json(state, proto, name,
-							   sizeof(name));
-			if (rc < 0)
-				continue;
+
+			/* Copy state name to name[] buffer */
+			npf_str_to_json_name(npf_state_name_summary_json(state),
+					     name, sizeof(name));
 
 			tmp = 0;
 			FOREACH_DP_LCORE(i)

@@ -243,7 +243,7 @@ npf_session_tcp_log(npf_session_t *se, enum tcp_session_state state)
 	if (likely(!npf_sess_log_flag_tst(NPF_PROTO_IDX_TCP, (uint8_t)state)))
 		return;
 
-	const char *state_name = npf_state_get_state_tcp_name(state);
+	const char *state_name = npf_state_get_tcp_name(state);
 
 	timeout = npf_tcp_timeout_get(nst, state,
 				      se->s_session->se_custom_timeout);
