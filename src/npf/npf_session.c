@@ -1880,7 +1880,7 @@ int npf_session_pack_state_pack_gen(struct npf_session *se,
 
 	nst = &se->s_state;
 
-	pst->pst_state = nst->nst_gen_state;
+	pst->pst_gen_state = nst->nst_gen_state;
 
 	return 0;
 }
@@ -1903,7 +1903,7 @@ int npf_session_pack_state_pack_tcp(struct npf_session *se,
 		memcpy(&pst->pst_tcp_win[fl], &nst->nst_tcp_win[fl],
 		       sizeof(*pst->pst_tcp_win));
 
-	pst->pst_state = nst->nst_tcp_state;
+	pst->pst_tcp_state = nst->nst_tcp_state;
 
 	return 0;
 }
@@ -1924,8 +1924,7 @@ npf_session_pack_state_restore_gen(struct npf_session *se,
 	nst = &se->s_state;
 	npf_state_init(vrfid, proto_idx, nst);
 
-	rc = npf_state_npf_pack_update_gen(nst, pst->pst_state, proto_idx,
-					   &state_changed);
+	rc = npf_state_npf_pack_update_gen(nst, pst, proto_idx, &state_changed);
 	return rc;
 }
 
@@ -1955,7 +1954,7 @@ int npf_session_pack_state_update_gen(struct npf_session *se,
 				      struct npf_pack_session_state *pst)
 {
 	npf_state_t *nst;
-	uint8_t old_state;
+	enum dp_session_state old_state;
 	struct session *s;
 	enum npf_proto_idx proto_idx;
 	bool state_changed = false;
@@ -1967,12 +1966,11 @@ int npf_session_pack_state_update_gen(struct npf_session *se,
 	proto_idx = se->s_proto_idx;
 	old_state = nst->nst_gen_state;
 
-	if (npf_state_npf_pack_update_gen(nst, pst->pst_state, proto_idx,
-					  &state_changed))
+	if (npf_state_npf_pack_update_gen(nst, pst, proto_idx, &state_changed))
 		return -EINVAL;
 
 	if (state_changed)
-		npf_session_gen_state_change(nst, old_state, pst->pst_state,
+		npf_session_gen_state_change(nst, old_state, pst->pst_gen_state,
 					     proto_idx);
 
 	s = se->s_session;
@@ -1990,7 +1988,7 @@ int npf_session_pack_state_update_tcp(struct npf_session *se,
 				      struct npf_pack_session_state *pst)
 {
 	npf_state_t *nst;
-	uint8_t old_state;
+	enum tcp_session_state old_state;
 	struct session *s;
 	bool state_changed = false;
 
@@ -2004,7 +2002,8 @@ int npf_session_pack_state_update_tcp(struct npf_session *se,
 		return -EINVAL;
 
 	if (state_changed)
-		npf_session_tcp_state_change(nst, old_state, pst->pst_state);
+		npf_session_tcp_state_change(nst, old_state,
+					     pst->pst_tcp_state);
 
 	s = se->s_session;
 	if (s)

@@ -654,13 +654,14 @@ npf_state_dump(const npf_state_t *nst __unused)
 }
 #endif
 
-int npf_state_npf_pack_update_gen(npf_state_t *nst, uint8_t new_state,
+int npf_state_npf_pack_update_gen(npf_state_t *nst,
+				  struct npf_pack_session_state *pst,
 				  enum npf_proto_idx proto_idx,
 				  bool *state_changed)
 {
 	rte_spinlock_lock(&nst->nst_lock);
 
-	npf_state_set_gen(nst, proto_idx, new_state, state_changed);
+	npf_state_set_gen(nst, proto_idx, pst->pst_gen_state, state_changed);
 
 	rte_spinlock_unlock(&nst->nst_lock);
 	return 0;
@@ -678,7 +679,7 @@ int npf_state_npf_pack_update_tcp(npf_state_t *nst,
 		memcpy(&nst->nst_tcp_win[fl], &pst->pst_tcp_win[fl],
 		       sizeof(*nst->nst_tcp_win));
 
-	npf_state_set_tcp(nst, pst->pst_state, state_changed);
+	npf_state_set_tcp(nst, pst->pst_tcp_state, state_changed);
 
 	rte_spinlock_unlock(&nst->nst_lock);
 	return 0;
