@@ -1,3 +1,12 @@
+vyatta-dataplane (3.11.16) unstable; urgency=medium
+
+  [ Robert Shearman ]
+  * dpdk-eth: avoid duplicate link up/link down logs (Fixes: VRVDR-52606)
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Thu, 03 Sep 2020 16:15:43 +0100
+
 vyatta-dataplane (3.11.15) unstable; urgency=medium
 
   [ Shweta Choudaha ]
