@@ -144,9 +144,9 @@ struct qos_tc_rate_info {
 
 struct qos_shaper_conf {
 	uint64_t	tb_rate;	/* bytes/sec */
-	uint32_t	tb_size;
 	uint64_t	tc_rate[RTE_SCHED_TRAFFIC_CLASSES_PER_PIPE];
 	uint32_t	tc_period;
+	uint32_t	tb_size;
 #ifdef RTE_SCHED_SUBPORT_TC_OV
 	uint8_t		tc_ov_weight;	/* Weight TC 3 oversubscription */
 #endif
