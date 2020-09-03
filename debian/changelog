@@ -1,3 +1,50 @@
+vyatta-dataplane (3.11.15) unstable; urgency=medium
+
+  [ Shweta Choudaha ]
+  * portmonitor: add and replay multiple cfg command
+
+  [ Ian Wilson ]
+  * npf: Rename npf_pack_npf_state to npf_pack_session_state
+  * npf: Rename npf_pack_session_stats to npf_pack_dp_sess_stats
+
+  [ Charles (Chas) Williams ]
+  * ptp: add additional-path support (Bugfix: VRVDR-48480)
+
+  [ Ian Wilson ]
+  * npf: Rename struct npf_pack_npf_nat to struct npf_pack_nat
+  * npf: Change prefix in npf_pack_dp_session from 'dps_' to 'pds_'
+  * npf: Rename npf_pack_sentry to npf_pack_sentry_packet
+  * npf: Use 'pns' for prefix and pointer variable for npf_pack_npf_session
+  * npf: Naturally align npf_tcpstate_t and npf_state_t
+  * npf: Rename npf_pack_npf_nat64 to npf_pack_nat64
+  * npf: Prefix npf_pack_message_hdr objects with 'pmh_'
+  * npf: Add packed attribute to 'enum session_pack_type'
+  * npf: Prefix npf_pack_session_hdr objects with 'psh_'
+  * session: Pack enum session_feature_type and re-arrange session_feature
+  * ut: Add function to fetch session counters
+  * ut: Tests connsync for a firewall UDP session
+  * ut: Tests connsync for a firewall TCP session with TCP strict enabled
+
+  [ Robert Shearman ]
+  * 3.10.69
+
+  [ Paul Atkins ]
+  * flow_cache: initialise the flow_cache_hash_key to 0
+  * ut: modify the stack trace for the urcu resize valgrind suppression
+  * ut: return -EOPNOTSUPP in the test fal code in ...l2_get_attrs
+  * rte_acl: free the name when calling npf_rte_acl_destroy
+  * ut: add a valgrind suppression for rte_cpu_get_flag_enabled
+  * ut: add more wildcards to the grouper suppression to catch all calls
+  * ut: free the contexts created in the npf_apt tests
+
+  [ Robert Shearman ]
+  * include: standardise FAL interface index parameter naming
+  * include: standardise FAL object parameter naming (Fixes: VRVDR-52849)
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Thu, 03 Sep 2020 13:36:47 +0100
+
 vyatta-dataplane (3.11.14) unstable; urgency=medium
 
   [ Mandeep Rohilla ]
