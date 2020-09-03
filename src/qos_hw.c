@@ -1999,7 +1999,7 @@ qos_hw_egress_map_attach(struct qos_obj_db_obj *db_obj,
 		{ .id = FAL_QOS_MAP_ATTR_MAP_TO_VALUE_LIST,
 		  .value.maplist = map_list },
 	};
-	fal_object_t map_obj;
+	fal_object_t map_obj = FAL_QOS_NULL_OBJECT_ID;
 	int ret;
 
 	if (!*mark_obj) {
