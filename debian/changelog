@@ -1,3 +1,13 @@
+vyatta-dataplane (3.11.17) unstable; urgency=medium
+
+  [ aroberts ]
+  * Add 100G support for Qos shaper commands
+  * Add dependency with 64bit qos structure in dpdk
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Fri, 04 Sep 2020 09:54:23 +0100
+
 vyatta-dataplane (3.11.16) unstable; urgency=medium
 
   [ Robert Shearman ]
