@@ -104,18 +104,20 @@ static const char expected_ingress_map_vlan_str[] =
 
 static const char expected_ingress_map_str[] =
 "{\"ingress-maps\":"
-"[{\"name\":\"in-map-1\","
-"\"type\":\"pcp\","
-"\"system-default\":false,"
-"\"map\":"
-"[{\"designation\":0,\"DPs\":[{\"DP\":0,\"pcp/mask\":1}]},"
-"{\"designation\":1,\"DPs\":[{\"DP\":0,\"pcp/mask\":2}]},"
-"{\"designation\":2,\"DPs\":[{\"DP\":0,\"pcp/mask\":4}]},"
-"{\"designation\":3,\"DPs\":[{\"DP\":0,\"pcp/mask\":8}]},"
-"{\"designation\":4,\"DPs\":[{\"DP\":0,\"pcp/mask\":16}]},"
-"{\"designation\":5,\"DPs\":[{\"DP\":0,\"pcp/mask\":32}]},"
-"{\"designation\":6,\"DPs\":[{\"DP\":0,\"pcp/mask\":64}]},"
-"{\"designation\":7,\"DPs\":[{\"DP\":0,\"pcp/mask\":128}]}]}]}";
+	"[{\"name\":\"in-map-1\","
+	"\"type\":\"pcp\","
+	"\"system-default\":false,"
+	"\"map\":"
+		"[{\"designation\":0,\"DPs\":[{\"DP\":0,\"pcp/mask\":1}]},"
+		"{\"designation\":1,\"DPs\":[{\"DP\":0,\"pcp/mask\":2}]},"
+		"{\"designation\":2,\"DPs\":[{\"DP\":0,\"pcp/mask\":4}]},"
+		"{\"designation\":3,\"DPs\":[{\"DP\":0,\"pcp/mask\":8}]},"
+		"{\"designation\":4,\"DPs\":[{\"DP\":0,\"pcp/mask\":16}]},"
+		"{\"designation\":5,\"DPs\":[{\"DP\":0,\"pcp/mask\":32}]},"
+		"{\"designation\":6,\"DPs\":[{\"DP\":0,\"pcp/mask\":64}]},"
+		"{\"designation\":7,\"DPs\":[{\"DP\":0,\"pcp/mask\":128}]}]"
+	"}]"
+"}";
 
 DP_START_TEST(qos_class_basic, class_basic)
 {
@@ -223,29 +225,45 @@ const char *ingress_multi_map_cmds2[] = {
 
 static const char  expected_ingress_multi_map_cmds1[] =
 "{\"ingress-maps\":"
-"[{\"name\":\"in-map-1\","
-"\"type\":\"pcp\","
-"\"system-default\":false,"
-"\"map\":"
-"[{\"designation\":0,\"DPs\":[{\"DP\":0,\"pcp/mask\":1}]},"
-"{\"designation\":1,\"DPs\":[{\"DP\":0,\"pcp/mask\":2}]},"
-"{\"designation\":2,\"DPs\":[{\"DP\":0,\"pcp/mask\":4}]},"
-"{\"designation\":4,\"DPs\":[{\"DP\":0,\"pcp/mask\":8},{\"DP\":1,\"pcp/mask\":16}]},"
-"{\"designation\":5,\"DPs\":[{\"DP\":0,\"pcp/mask\":32}]},"
-"{\"designation\":7,\"DPs\":[{\"DP\":0,\"pcp/mask\":64},"
-"{\"DP\":1,\"pcp/mask\":128}]}]}]}";
+	"[{\"name\":\"in-map-1\","
+	"\"type\":\"pcp\","
+	"\"system-default\":false,"
+	"\"map\":"
+		"[{\"designation\":0,\"DPs\":"
+			"[{\"DP\":0,\"pcp/mask\":1}]},"
+		"{\"designation\":1,\"DPs\":"
+			"[{\"DP\":0,\"pcp/mask\":2}]},"
+		"{\"designation\":2,\"DPs\":"
+			"[{\"DP\":0,\"pcp/mask\":4}]},"
+		"{\"designation\":4,\"DPs\":"
+			"[{\"DP\":0,\"pcp/mask\":8},"
+			"{\"DP\":1,\"pcp/mask\":16}]},"
+		"{\"designation\":5,\"DPs\":"
+			"[{\"DP\":0,\"pcp/mask\":32}]},"
+		"{\"designation\":7,\"DPs\":"
+			"[{\"DP\":0,\"pcp/mask\":64},"
+			"{\"DP\":1,\"pcp/mask\":128}]}]"
+	"}]"
+"}";
 
 static const char  expected_ingress_multi_map_cmds2[] =
 "{\"ingress-maps\":"
-"[{\"name\":\"in-map-2\","
-"\"type\":\"dscp\","
-"\"system-default\":false,"
-"\"map\":"
-"[{\"designation\":0,\"DPs\":[{\"DP\":0,\"pcp/mask\":70093866270720}]},"
-"{\"designation\":1,\"DPs\":[{\"DP\":0,\"pcp/mask\":211106232532992}]},"
-"{\"designation\":2,\"DPs\":[{\"DP\":0,\"pcp/mask\":9223372036854775807}]},"
-"{\"designation\":3,\"DPs\":[{\"DP\":0,\"pcp/mask\":274861129728}]},"
-"{\"designation\":4,\"DPs\":[{\"DP\":0,\"pcp/mask\":16777215}]}]}]}";
+	"[{\"name\":\"in-map-2\","
+	"\"type\":\"dscp\","
+	"\"system-default\":false,"
+	"\"map\":"
+		"[{\"designation\":0,\"DPs\":"
+			"[{\"DP\":0,\"pcp/mask\":70093866270720}]},"
+		"{\"designation\":1,\"DPs\":"
+			"[{\"DP\":0,\"pcp/mask\":211106232532992}]},"
+		"{\"designation\":2,\"DPs\":"
+			"[{\"DP\":0,\"pcp/mask\":9223372036854775807}]},"
+		"{\"designation\":3,\"DPs\":"
+			"[{\"DP\":0,\"pcp/mask\":274861129728}]},"
+		"{\"designation\":4,\"DPs\":"
+			"[{\"DP\":0,\"pcp/mask\":16777215}]}]"
+	"}]"
+"}";
 
 const char *ingress_rg_add_cmds[] = {
 	"npf-cfg add dscp-group:rt 0 38;39;40;41;42;43;44;45",
@@ -479,17 +497,25 @@ static const char  expected_ingress_map_vlan_dp_cmds[] =
 
 static const char expected_ingress_map_dp_cmds[] =
 "{\"ingress-maps\":"
-"[{\"name\":\"in-map-1\","
-"\"type\":\"pcp\","
-"\"system-default\":false,"
-"\"map\":"
-"[{\"designation\":0,\"DPs\":[{\"DP\":0,\"pcp/mask\":1}]},"
-"{\"designation\":1,\"DPs\":[{\"DP\":0,\"pcp/mask\":2}]},"
-"{\"designation\":2,\"DPs\":[{\"DP\":0,\"pcp/mask\":4}]},"
-"{\"designation\":3,\"DPs\":[{\"DP\":0,\"pcp/mask\":8},"
-"{\"DP\":1,\"pcp/mask\":16}]},"
-"{\"designation\":5,\"DPs\":[{\"DP\":0,\"pcp/mask\":32},"
-"{\"DP\":1,\"pcp/mask\":64},{\"DP\":2,\"pcp/mask\":128}]}]}]}";
+	"[{\"name\":\"in-map-1\","
+	"\"type\":\"pcp\","
+	"\"system-default\":false,"
+	"\"map\":"
+		"[{\"designation\":0,\"DPs\":"
+			"[{\"DP\":0,\"pcp/mask\":1}]},"
+		"{\"designation\":1,\"DPs\":"
+			"[{\"DP\":0,\"pcp/mask\":2}]},"
+		"{\"designation\":2,\"DPs\":"
+			"[{\"DP\":0,\"pcp/mask\":4}]},"
+		"{\"designation\":3,\"DPs\":"
+			"[{\"DP\":0,\"pcp/mask\":8},"
+			"{\"DP\":1,\"pcp/mask\":16}]},"
+		"{\"designation\":5,\"DPs\":"
+			"[{\"DP\":0,\"pcp/mask\":32},"
+			"{\"DP\":1,\"pcp/mask\":64},"
+			"{\"DP\":2,\"pcp/mask\":128}]}]"
+	"}]"
+"}";
 
 DP_START_TEST(qos_class_basic, class_map_multi_dps)
 {
@@ -578,42 +604,63 @@ const char *ingress_sysdef2[] = {
 
 static const char  expected_ingress_sysdef1[] =
 "{\"ingress-maps\":"
-"[{\"name\":\"in-map-1\","
-"\"type\":\"pcp\","
-"\"system-default\":true,"
-"\"map\":"
-"[{\"designation\":0,\"DPs\":[{\"DP\":0,\"pcp/mask\":1},"
-"{\"DP\":1,\"pcp/mask\":2},{\"DP\":2,\"pcp/mask\":4}]},"
-"{\"designation\":1,\"DPs\":[{\"DP\":0,\"pcp/mask\":8},"
-"{\"DP\":1,\"pcp/mask\":16},{\"DP\":2,\"pcp/mask\":32}]},"
-"{\"designation\":2,\"DPs\":[{\"DP\":0,\"pcp/mask\":64},"
-"{\"DP\":1,\"pcp/mask\":128}]}]}]}";
+	"[{\"name\":\"in-map-1\","
+	"\"type\":\"pcp\","
+	"\"system-default\":true,"
+	"\"map\":"
+		"[{\"designation\":0,\"DPs\":"
+			"[{\"DP\":0,\"pcp/mask\":1},"
+			"{\"DP\":1,\"pcp/mask\":2},"
+			"{\"DP\":2,\"pcp/mask\":4}]},"
+		"{\"designation\":1,\"DPs\":"
+			"[{\"DP\":0,\"pcp/mask\":8},"
+			"{\"DP\":1,\"pcp/mask\":16},"
+			"{\"DP\":2,\"pcp/mask\":32}]},"
+		"{\"designation\":2,\"DPs\":"
+			"[{\"DP\":0,\"pcp/mask\":64},"
+			"{\"DP\":1,\"pcp/mask\":128}]}]"
+	"}]"
+"}";
 
 static const char  expected_ingress_sysdef2_false[] =
 "{\"ingress-maps\":"
-"[{\"name\":\"in-map-2\","
-"\"type\":\"pcp\","
-"\"system-default\":false,"
-"\"map\":"
-"[{\"designation\":2,\"DPs\":[{\"DP\":0,\"pcp/mask\":1},{\"DP\":1,\"pcp/mask\":2},"
-"{\"DP\":2,\"pcp/mask\":4}]},"
-"{\"designation\":3,\"DPs\":[{\"DP\":0,\"pcp/mask\":8},"
-"{\"DP\":1,\"pcp/mask\":16},{\"DP\":2,\"pcp/mask\":32}]},"
-"{\"designation\":4,\"DPs\":[{\"DP\":0,\"pcp/mask\":64},"
-"{\"DP\":1,\"pcp/mask\":128}]}]}]}";
+	"[{\"name\":\"in-map-2\","
+	"\"type\":\"pcp\","
+	"\"system-default\":false,"
+	"\"map\":"
+		"[{\"designation\":2,\"DPs\":"
+			"[{\"DP\":0,\"pcp/mask\":1},"
+			"{\"DP\":1,\"pcp/mask\":2},"
+			"{\"DP\":2,\"pcp/mask\":4}]},"
+		"{\"designation\":3,\"DPs\":"
+			"[{\"DP\":0,\"pcp/mask\":8},"
+			"{\"DP\":1,\"pcp/mask\":16},"
+			"{\"DP\":2,\"pcp/mask\":32}]},"
+		"{\"designation\":4,\"DPs\":"
+			"[{\"DP\":0,\"pcp/mask\":64},"
+			"{\"DP\":1,\"pcp/mask\":128}]}]"
+	"}]"
+"}";
 
 static const char  expected_ingress_sysdef2_true[] =
 "{\"ingress-maps\":"
-"[{\"name\":\"in-map-2\","
-"\"type\":\"pcp\","
-"\"system-default\":true,"
-"\"map\":"
-"[{\"designation\":2,\"DPs\":[{\"DP\":0,\"pcp/mask\":1},"
-"{\"DP\":1,\"pcp/mask\":2},{\"DP\":2,\"pcp/mask\":4}]},"
-"{\"designation\":3,\"DPs\":[{\"DP\":0,\"pcp/mask\":8},"
-"{\"DP\":1,\"pcp/mask\":16},{\"DP\":2,\"pcp/mask\":32}]},"
-"{\"designation\":4,\"DPs\":[{\"DP\":0,\"pcp/mask\":64},"
-"{\"DP\":1,\"pcp/mask\":128}]}]}]}";
+	"[{\"name\":\"in-map-2\","
+	"\"type\":\"pcp\","
+	"\"system-default\":true,"
+	"\"map\":"
+	"[{\"designation\":2,\"DPs\":"
+		"[{\"DP\":0,\"pcp/mask\":1},"
+		"{\"DP\":1,\"pcp/mask\":2},"
+		"{\"DP\":2,\"pcp/mask\":4}]},"
+	"{\"designation\":3,\"DPs\":"
+		"[{\"DP\":0,\"pcp/mask\":8},"
+		"{\"DP\":1,\"pcp/mask\":16},"
+		"{\"DP\":2,\"pcp/mask\":32}]},"
+	"{\"designation\":4,\"DPs\":"
+		"[{\"DP\":0,\"pcp/mask\":64},"
+		"{\"DP\":1,\"pcp/mask\":128}]}]"
+	"}]"
+"}";
 
 
 DP_START_TEST(qos_class_basic, class_single_sysdef)
@@ -732,15 +779,22 @@ const char *ingress_policy_cmds[] = {
 
 static const char  expected_ingress_map_2_pol[] =
 "{\"ingress-maps\":"
-"[{\"name\":\"in-map-2\","
-"\"type\":\"dscp\","
-"\"system-default\":false,"
-"\"map\":"
-"[{\"designation\":0,\"DPs\":[{\"DP\":0,\"pcp/mask\":70093866270720}]},"
-"{\"designation\":1,\"DPs\":[{\"DP\":0,\"pcp/mask\":211106232532992}]},"
-"{\"designation\":2,\"DPs\":[{\"DP\":0,\"pcp/mask\":9223372036854775807}]},"
-"{\"designation\":3,\"DPs\":[{\"DP\":0,\"pcp/mask\":274861129728}]},"
-"{\"designation\":4,\"DPs\":[{\"DP\":0,\"pcp/mask\":16777215}]}]}]}";
+	"[{\"name\":\"in-map-2\","
+	"\"type\":\"dscp\","
+	"\"system-default\":false,"
+	"\"map\":"
+		"[{\"designation\":0,\"DPs\":"
+			"[{\"DP\":0,\"pcp/mask\":70093866270720}]},"
+		"{\"designation\":1,\"DPs\":"
+			"[{\"DP\":0,\"pcp/mask\":211106232532992}]},"
+		"{\"designation\":2,\"DPs\":"
+			"[{\"DP\":0,\"pcp/mask\":9223372036854775807}]},"
+		"{\"designation\":3,\"DPs\":"
+			"[{\"DP\":0,\"pcp/mask\":274861129728}]},"
+		"{\"designation\":4,\"DPs\":"
+			"[{\"DP\":0,\"pcp/mask\":16777215}]}]"
+	"}]"
+"}";
 
 DP_START_TEST(qos_class_basic, class_map_to_policy)
 {
