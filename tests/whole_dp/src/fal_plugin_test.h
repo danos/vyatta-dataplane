@@ -25,6 +25,7 @@ struct vlan_feat {
 	int      ifindex;
 	uint16_t vlan;
 	uint32_t mac_limit;
+	fal_object_t       map_obj;
 	struct fal_policer *policer[FAL_TRAFFIC_MAX];
 };
 

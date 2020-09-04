@@ -412,6 +412,92 @@ int fal_plugin_qos_get_map_attrs(fal_object_t map_id, uint32_t attr_count,
 	return ret;
 }
 
+void fal_plugin_qos_dump_map(fal_object_t obj, json_writer_t *wr)
+{
+	struct fal_bcm_qos_map *map = (struct fal_bcm_qos_map *) obj;
+	int i;
+
+	switch (map->map_type) {
+	case FAL_QOS_MAP_TYPE_DSCP_TO_DESIGNATOR:
+		jsonw_name(wr, "fal-qos-dscp2des");
+		jsonw_start_array(wr);
+		for (i = 0; i < FAL_QOS_MAP_DSCP_VALUES; i++) {
+			int tc, dp;
+
+			tc = map->code_points[i].tc_id;
+			dp = map->code_points[i].drop_precedence;
+
+			jsonw_start_object(wr);
+			jsonw_uint_field(wr, "dscp", i);
+			jsonw_uint_field(wr, "des", tc);
+			jsonw_uint_field(wr, "dp", dp);
+			jsonw_end_object(wr);
+		}
+
+		jsonw_end_array(wr);
+		break;
+
+	case FAL_QOS_MAP_TYPE_DOT1P_TO_DESIGNATOR:
+		jsonw_name(wr, "fal-qos-dot1p2des");
+		jsonw_start_array(wr);
+		for (i = 0; i < FAL_QOS_MAP_PCP_VALUES; i++) {
+			int tc, dp;
+
+			tc = map->code_points[i].tc_id;
+			dp = map->code_points[i].drop_precedence;
+
+			jsonw_start_object(wr);
+			jsonw_uint_field(wr, "pcp", i);
+			jsonw_uint_field(wr, "des", tc);
+			jsonw_uint_field(wr, "dp", dp);
+			jsonw_end_object(wr);
+		}
+
+		jsonw_end_array(wr);
+		break;
+
+	case FAL_QOS_MAP_TYPE_DSCP_TO_DOT1P:
+		jsonw_name(wr, "fal-qos-dscp2dot1p");
+		jsonw_start_array(wr);
+		for (i = 0; i < FAL_QOS_MAP_DSCP_VALUES; i++) {
+			uint8_t pcp;
+
+			pcp = map->code_points[i].dot1p;
+
+			jsonw_start_object(wr);
+			jsonw_uint_field(wr, "dscp", i);
+			jsonw_uint_field(wr, "pcp", pcp);
+			jsonw_end_object(wr);
+		}
+		jsonw_end_array(wr);
+		break;
+
+	case FAL_QOS_MAP_TYPE_DESIGNATOR_TO_DOT1P:
+		jsonw_name(wr, "fal-qos-des2dot1p");
+		jsonw_start_array(wr);
+		for (i = 0; i < FAL_QOS_MAP_DES_DP_VALUES; i++) {
+			uint8_t pcp;
+
+			pcp = map->code_points[i].dot1p;
+
+			jsonw_start_object(wr);
+			jsonw_uint_field(wr, "des",
+					 i/FAL_NUM_PACKET_COLOURS);
+			jsonw_uint_field(wr, "dp",
+					 i%FAL_NUM_PACKET_COLOURS);
+			jsonw_uint_field(wr, "pcp", pcp);
+			jsonw_end_object(wr);
+		}
+		jsonw_end_array(wr);
+		break;
+
+	default:
+		ERROR("Dump of unsupported map type\n");
+		break;
+	}
+}
+
+
 /**
  * @brief New QoS queue
  *

@@ -85,6 +85,23 @@ const char *ingress_map_cmds[] = {
 	"ingress-map in-map-1 complete",
 };
 
+static const char expected_ingress_map_vlan_str[] =
+"{\"dpT21\":"
+	"{\"ingress-maps\":"
+		"[{\"vlan\":0,"
+		"\"fal-qos-dot1p2des\":"
+			"[{\"pcp\":0,\"des\":0,\"dp\":0},"
+			"{\"pcp\":1,\"des\":1,\"dp\":0},"
+			"{\"pcp\":2,\"des\":2,\"dp\":0},"
+			"{\"pcp\":3,\"des\":3,\"dp\":0},"
+			"{\"pcp\":4,\"des\":4,\"dp\":0},"
+			"{\"pcp\":5,\"des\":5,\"dp\":0},"
+			"{\"pcp\":6,\"des\":6,\"dp\":0},"
+			"{\"pcp\":7,\"des\":7,\"dp\":0}]"
+		"}]"
+	"}"
+"}";
+
 static const char expected_ingress_map_str[] =
 "{\"ingress-maps\":"
 "[{\"name\":\"in-map-1\","
@@ -121,11 +138,13 @@ DP_START_TEST(qos_class_basic, class_basic)
 
 	dp_test_qos_send_config(ingress_map_cmds, expected_ingress_map_str,
 			"qos show ingress-maps", 9, debug);
-	dp_test_qos_send_if_cmd("dp2T1", "ingress-map in-map-1 vlan 0", debug);
-
+	dp_test_qos_send_if_cmd("dp2T1", "ingress-map in-map-1 vlan 0",
+			expected_ingress_map_vlan_str,
+			"qos show platform",
+			debug);
 	/* Cleanup */
 	dp_test_qos_send_if_cmd("dp2T1", "ingress-map in-map-1 vlan 0 delete",
-				debug);
+				"{ }", "qos show platform", debug);
 	dp_test_qos_send_cmd("ingress-map in-map-1 delete",
 			"{ }",
 			"qos show ingress-maps", debug);
@@ -246,6 +265,89 @@ const char *ingress_rg_del_cmds[] = {
 	"npf-cfg commit"
 };
 
+static const char  expected_ingress_multi_map_vlan_cmds[] =
+"{\"dpT21\":"
+	"{\"ingress-maps\":"
+		"[{\"vlan\":0,"
+		"\"fal-qos-dot1p2des\":"
+			"[{\"pcp\":0,\"des\":0,\"dp\":0},"
+			"{\"pcp\":1,\"des\":1,\"dp\":0},"
+			"{\"pcp\":2,\"des\":2,\"dp\":0},"
+			"{\"pcp\":3,\"des\":4,\"dp\":0},"
+			"{\"pcp\":4,\"des\":4,\"dp\":1},"
+			"{\"pcp\":5,\"des\":5,\"dp\":0},"
+			"{\"pcp\":6,\"des\":7,\"dp\":0},"
+			"{\"pcp\":7,\"des\":7,\"dp\":1}]},"
+		"{\"vlan\":10,"
+		"\"fal-qos-dscp2des\":"
+			"[{\"dscp\":0,\"des\":4,\"dp\":0},"
+			"{\"dscp\":1,\"des\":4,\"dp\":0},"
+			"{\"dscp\":2,\"des\":4,\"dp\":0},"
+			"{\"dscp\":3,\"des\":4,\"dp\":0},"
+			"{\"dscp\":4,\"des\":4,\"dp\":0},"
+			"{\"dscp\":5,\"des\":4,\"dp\":0},"
+			"{\"dscp\":6,\"des\":4,\"dp\":0},"
+			"{\"dscp\":7,\"des\":4,\"dp\":0},"
+			"{\"dscp\":8,\"des\":4,\"dp\":0},"
+			"{\"dscp\":9,\"des\":4,\"dp\":0},"
+			"{\"dscp\":10,\"des\":4,\"dp\":0},"
+			"{\"dscp\":11,\"des\":4,\"dp\":0},"
+			"{\"dscp\":12,\"des\":4,\"dp\":0},"
+			"{\"dscp\":13,\"des\":4,\"dp\":0},"
+			"{\"dscp\":14,\"des\":4,\"dp\":0},"
+			"{\"dscp\":15,\"des\":4,\"dp\":0},"
+			"{\"dscp\":16,\"des\":4,\"dp\":0},"
+			"{\"dscp\":17,\"des\":4,\"dp\":0},"
+			"{\"dscp\":18,\"des\":4,\"dp\":0},"
+			"{\"dscp\":19,\"des\":4,\"dp\":0},"
+			"{\"dscp\":20,\"des\":4,\"dp\":0},"
+			"{\"dscp\":21,\"des\":4,\"dp\":0},"
+			"{\"dscp\":22,\"des\":4,\"dp\":0},"
+			"{\"dscp\":23,\"des\":4,\"dp\":0},"
+			"{\"dscp\":24,\"des\":3,\"dp\":0},"
+			"{\"dscp\":25,\"des\":3,\"dp\":0},"
+			"{\"dscp\":26,\"des\":3,\"dp\":0},"
+			"{\"dscp\":27,\"des\":3,\"dp\":0},"
+			"{\"dscp\":28,\"des\":3,\"dp\":0},"
+			"{\"dscp\":29,\"des\":3,\"dp\":0},"
+			"{\"dscp\":30,\"des\":3,\"dp\":0},"
+			"{\"dscp\":31,\"des\":3,\"dp\":0},"
+			"{\"dscp\":32,\"des\":3,\"dp\":0},"
+			"{\"dscp\":33,\"des\":3,\"dp\":0},"
+			"{\"dscp\":34,\"des\":3,\"dp\":0},"
+			"{\"dscp\":35,\"des\":3,\"dp\":0},"
+			"{\"dscp\":36,\"des\":3,\"dp\":0},"
+			"{\"dscp\":37,\"des\":3,\"dp\":0},"
+			"{\"dscp\":38,\"des\":0,\"dp\":0},"
+			"{\"dscp\":39,\"des\":0,\"dp\":0},"
+			"{\"dscp\":40,\"des\":0,\"dp\":0},"
+			"{\"dscp\":41,\"des\":0,\"dp\":0},"
+			"{\"dscp\":42,\"des\":0,\"dp\":0},"
+			"{\"dscp\":43,\"des\":0,\"dp\":0},"
+			"{\"dscp\":44,\"des\":0,\"dp\":0},"
+			"{\"dscp\":45,\"des\":0,\"dp\":0},"
+			"{\"dscp\":46,\"des\":1,\"dp\":0},"
+			"{\"dscp\":47,\"des\":1,\"dp\":0},"
+			"{\"dscp\":48,\"des\":2,\"dp\":0},"
+			"{\"dscp\":49,\"des\":2,\"dp\":0},"
+			"{\"dscp\":50,\"des\":2,\"dp\":0},"
+			"{\"dscp\":51,\"des\":2,\"dp\":0},"
+			"{\"dscp\":52,\"des\":2,\"dp\":0},"
+			"{\"dscp\":53,\"des\":2,\"dp\":0},"
+			"{\"dscp\":54,\"des\":2,\"dp\":0},"
+			"{\"dscp\":55,\"des\":2,\"dp\":0},"
+			"{\"dscp\":56,\"des\":2,\"dp\":0},"
+			"{\"dscp\":57,\"des\":2,\"dp\":0},"
+			"{\"dscp\":58,\"des\":2,\"dp\":0},"
+			"{\"dscp\":59,\"des\":2,\"dp\":0},"
+			"{\"dscp\":60,\"des\":2,\"dp\":0},"
+			"{\"dscp\":61,\"des\":2,\"dp\":0},"
+			"{\"dscp\":62,\"des\":2,\"dp\":0},"
+			"{\"dscp\":63,\"des\":2,\"dp\":0}]"
+		"}]"
+	"}"
+"}";
+
 DP_START_TEST(qos_class_basic, class_multimaps)
 {
 	bool debug = (dp_test_debug_get() == 2 ? true : false);
@@ -278,14 +380,25 @@ DP_START_TEST(qos_class_basic, class_multimaps)
 	dp_test_qos_send_config(ingress_multi_map_cmds2,
 			expected_ingress_multi_map_cmds2,
 			"qos show ingress-maps", 6, debug);
-	dp_test_qos_send_if_cmd("dp2T1", "ingress-map in-map-1 vlan 0", debug);
-	dp_test_qos_send_if_cmd("dp2T1", "ingress-map in-map-2 vlan 10", debug);
+	dp_test_qos_send_if_cmd("dp2T1", "ingress-map in-map-1 vlan 0",
+			NULL, "", debug);
+	/*
+	 * Validating "ingress-map in-map-1 vlan 0"
+	 * as part of "ingress-map in-map-2 vlan 10"
+	 */
+	dp_test_qos_send_if_cmd("dp2T1", "ingress-map in-map-2 vlan 10",
+			expected_ingress_multi_map_vlan_cmds,
+			"qos show platform", debug);
 
 	/* Cleanup */
-	dp_test_qos_send_if_cmd("dp2T1", "ingress-map in-map-1 vlan 10 delete",
-				debug);
+	dp_test_qos_send_if_cmd("dp2T1", "ingress-map in-map-2 vlan 10 delete",
+			NULL, "", debug);
+	/*
+	 * Validating "ingress-map in-map-2 vlan 10 delete"
+	 * as part of "ingress-map in-map-1 vlan 0 delete"
+	 */
 	dp_test_qos_send_if_cmd("dp2T1", "ingress-map in-map-1 vlan 0 delete",
-				debug);
+			"{ }", "qos show platform", debug);
 	dp_test_qos_send_cmd("ingress-map in-map-1 delete",
 			expected_ingress_multi_map_cmds2,
 			"qos show ingress-maps",
@@ -347,6 +460,23 @@ const char *ingress_map_dp_cmds[] = {
 	"ingress-map in-map-1 complete",
 };
 
+static const char  expected_ingress_map_vlan_dp_cmds[] =
+"{\"dpT21\":"
+	"{\"ingress-maps\":"
+		"[{\"vlan\":0,"
+		"\"fal-qos-dot1p2des\":"
+			"[{\"pcp\":0,\"des\":0,\"dp\":0},"
+			"{\"pcp\":1,\"des\":1,\"dp\":0},"
+			"{\"pcp\":2,\"des\":2,\"dp\":0},"
+			"{\"pcp\":3,\"des\":3,\"dp\":0},"
+			"{\"pcp\":4,\"des\":3,\"dp\":1},"
+			"{\"pcp\":5,\"des\":5,\"dp\":0},"
+			"{\"pcp\":6,\"des\":5,\"dp\":1},"
+			"{\"pcp\":7,\"des\":5,\"dp\":2}]"
+		"}]"
+	"}"
+"}";
+
 static const char expected_ingress_map_dp_cmds[] =
 "{\"ingress-maps\":"
 "[{\"name\":\"in-map-1\","
@@ -383,11 +513,13 @@ DP_START_TEST(qos_class_basic, class_map_multi_dps)
 	dp_test_qos_send_config(ingress_map_dp_cmds,
 			expected_ingress_map_dp_cmds,
 			"qos show ingress-maps", 9, debug);
-	dp_test_qos_send_if_cmd("dp2T1", "ingress-map in-map-1 vlan 0", debug);
+	dp_test_qos_send_if_cmd("dp2T1", "ingress-map in-map-1 vlan 0",
+			expected_ingress_map_vlan_dp_cmds,
+			"qos show platform", debug);
 
 	/* Cleanup */
 	dp_test_qos_send_if_cmd("dp2T1", "ingress-map in-map-1 vlan 0 delete",
-				debug);
+				"{ }", "qos show platform", debug);
 	dp_test_qos_send_cmd("ingress-map in-map-1 delete",
 			"{ }",
 			"qos show ingress-maps", debug);
@@ -675,9 +807,7 @@ DP_START_TEST(qos_class_basic, class_map_to_policy)
 	json_object_put(j_obj);
 
 	/* Cleanup */
-	dp_test_qos_send_if_cmd("dp2T1", "ingress-map in-map-1 vlan 0 delete",
-				debug);
-	dp_test_qos_send_if_cmd("dp2T2", "disable", debug);
+	dp_test_qos_send_if_cmd("dp2T2", "disable", NULL, "", debug);
 	dp_test_qos_send_cmd("ingress-map in-map-2 delete",
 			"{ }",
 			"qos show ingress-maps", debug);
@@ -801,7 +931,7 @@ DP_START_TEST(qos_class_basic, class_policy_skip_des)
 	json_object_put(j_obj);
 
 	/* Cleanup */
-	dp_test_qos_send_if_cmd("dp2T1", "disable", debug);
+	dp_test_qos_send_if_cmd("dp2T1", "disable", NULL, "", debug);
 
 	ret = dp_test_qos_class_hw_switch_if("dp2T1", false);
 	dp_test_fail_unless((ret == 0),
@@ -895,7 +1025,7 @@ DP_START_TEST(qos_class_basic, class_policy_vci)
 	json_object_put(j_obj);
 
 	/* Cleanup */
-	dp_test_qos_send_if_cmd("dp2T1", "disable", debug);
+	dp_test_qos_send_if_cmd("dp2T1", "disable", NULL, "", debug);
 
 	ret = dp_test_qos_class_hw_switch_if("dp2T1", false);
 	dp_test_fail_unless((ret == 0),
