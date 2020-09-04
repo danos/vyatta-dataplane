@@ -178,6 +178,7 @@ static bool
 dp_test_npf_json_get_portmap_port(const char *prot, const char *addr,
 				  uint16_t port)
 {
+	bool rv = false;
 	json_object *jmap, *jarray;
 	struct dp_test_json_find_key key[] = { {"protocols", NULL},
 					       {"protocol", prot },
@@ -194,11 +195,8 @@ dp_test_npf_json_get_portmap_port(const char *prot, const char *addr,
 		return false;
 	}
 
-	if (json_object_get_type(jarray) != json_type_array) {
-		json_object_put(jarray);
-		json_object_put(jmap);
-		return false;
-	}
+	if (json_object_get_type(jarray) != json_type_array)
+		goto cleanup;
 
 	uint arraylen, i;
 	json_object *jvalue;
@@ -212,13 +210,15 @@ dp_test_npf_json_get_portmap_port(const char *prot, const char *addr,
 			continue;
 
 		if (json_object_get_int(jvalue) == (int)port) {
-			json_object_put(jmap);
-			return true;
+			rv = true;
+			goto cleanup;
 		}
 	}
 
+cleanup:
+	json_object_put(jarray);
 	json_object_put(jmap);
-	return false;
+	return rv;
 }
 
 /*
