@@ -246,6 +246,7 @@ int fal_plugin_qos_new_map(fal_object_t switch_id,
 			      __func__, map_type);
 			ret = -EINVAL;
 			fal_free_deferred(map);
+			return ret;
 		}
 		*new_map_id = (fal_object_t)map;
 	}
