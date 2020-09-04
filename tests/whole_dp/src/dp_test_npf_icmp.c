@@ -33,6 +33,19 @@
 #include "dp_test_npf_sess_lib.h"
 #include "dp_test_npf_nat_lib.h"
 
+/*
+ * icmpv4_1 Match on ICMP type and code
+ * icmpv4_2 ICMP groups, accept packets specified by the firewall
+ * icmpv4_3 ICMP groups, drop packets specified by the firewall
+ * icmpv6_1 Match on ICMP type and code
+ * icmpv6_2 ICMP groups, accept packets specified by the firewall
+ * icmpv6_3 ICMP groups, drop packets specified by the firewall
+ * icmpv4_4 ICMP echo request and reply  with a stateful firewall rule
+ * icmpv6_4 ICMPv6 echo request and reply  with a stateful firewall rule
+ * icmpv4_5 Strict ICMP echo request/response sessions
+ * icmpv6_5 Strict ICMP echo request/response sessions
+ * icmpv4_6 ICMP echo request and reply with SNAT
+ */
 
 struct dp_test_npf_icmp_t {
 	/* DP_TEST_FWD_FORWARDED or DP_TEST_FWD_DROPPED */
@@ -53,8 +66,6 @@ struct dp_test_npf_icmp_t {
 
 DP_DECL_TEST_SUITE(npf_icmp);
 
-DP_DECL_TEST_CASE(npf_icmp, icmp_ipv4, NULL, NULL);
-
 /*
  * Match on ICMP type and code
  *
@@ -64,7 +75,8 @@ DP_DECL_TEST_CASE(npf_icmp, icmp_ipv4, NULL, NULL);
  *                    dp1T0 |     | dp2T1
  *                    intf1 +-----+ intf2
  */
-DP_START_TEST(icmp_ipv4, test1)
+DP_DECL_TEST_CASE(npf_icmp, icmpv4_1, NULL, NULL);
+DP_START_TEST(icmpv4_1, test)
 {
 	struct dp_test_pkt_desc_t *pkt;
 	struct dp_test_expected *test_exp;
@@ -244,7 +256,8 @@ DP_START_TEST(icmp_ipv4, test1)
 /*
  * ICMP groups, accept packets specified by the firewall
  */
-DP_START_TEST(icmp_ipv4, test2)
+DP_DECL_TEST_CASE(npf_icmp, icmpv4_2, NULL, NULL);
+DP_START_TEST(icmpv4_2, test)
 {
 	struct dp_test_pkt_desc_t *pkt;
 	struct dp_test_expected *test_exp;
@@ -371,7 +384,8 @@ DP_START_TEST(icmp_ipv4, test2)
 /*
  * ICMP groups, drop packets specified by the firewall
  */
-DP_START_TEST(icmp_ipv4, test3)
+DP_DECL_TEST_CASE(npf_icmp, icmpv4_3, NULL, NULL);
+DP_START_TEST(icmpv4_3, test)
 {
 	struct dp_test_pkt_desc_t *pkt;
 	struct dp_test_expected *test_exp;
@@ -496,7 +510,6 @@ DP_START_TEST(icmp_ipv4, test3)
 
 } DP_END_TEST;
 
-DP_DECL_TEST_CASE(npf_icmp, icmp_ipv6, NULL, NULL);
 
 /*
  * Match on ICMP type and code
@@ -508,7 +521,8 @@ DP_DECL_TEST_CASE(npf_icmp, icmp_ipv6, NULL, NULL);
  *                    intf1 +-----+ intf2
  *
  */
-DP_START_TEST(icmp_ipv6, test1)
+DP_DECL_TEST_CASE(npf_icmp, icmpv6_1, NULL, NULL);
+DP_START_TEST(icmpv6_1, test)
 {
 	struct dp_test_pkt_desc_t *pkt;
 	struct dp_test_expected *test_exp;
@@ -673,7 +687,8 @@ DP_START_TEST(icmp_ipv6, test1)
 /*
  * ICMP groups, accept packets specified by the firewall
  */
-DP_START_TEST(icmp_ipv6, test2)
+DP_DECL_TEST_CASE(npf_icmp, icmpv6_2, NULL, NULL);
+DP_START_TEST(icmpv6_2, test)
 {
 	struct dp_test_pkt_desc_t *pkt;
 	struct dp_test_expected *test_exp;
@@ -799,7 +814,8 @@ DP_START_TEST(icmp_ipv6, test2)
 /*
  * ICMP groups, drop packets specified by the firewall
  */
-DP_START_TEST(icmp_ipv6, test3)
+DP_DECL_TEST_CASE(npf_icmp, icmpv6_3, NULL, NULL);
+DP_START_TEST(icmpv6_3, test)
 {
 	struct dp_test_pkt_desc_t *pkt;
 	struct dp_test_expected *test_exp;
@@ -925,7 +941,8 @@ DP_START_TEST(icmp_ipv6, test3)
 /*
  * ICMP echo request and reply  with a stateful firewall rule
  */
-DP_START_TEST(icmp_ipv4, test4)
+DP_DECL_TEST_CASE(npf_icmp, icmpv4_4, NULL, NULL);
+DP_START_TEST(icmpv4_4, test)
 {
 	char *dp1T0_mac = dp_test_intf_name2mac_str("dp1T0");
 	char *dp2T1_mac = dp_test_intf_name2mac_str("dp2T1");
@@ -1124,7 +1141,8 @@ DP_START_TEST(icmp_ipv4, test4)
 /*
  * ICMPv6 echo request and reply  with a stateful firewall rule
  */
-DP_START_TEST(icmp_ipv6, test4)
+DP_DECL_TEST_CASE(npf_icmp, icmpv6_4, NULL, NULL);
+DP_START_TEST(icmpv6_4, test)
 {
 	/* Setup interfaces and neighbours */
 	dp_test_nl_add_ip_addr_and_connected("dp1T0", "2001:1:1::1/64");
@@ -1258,7 +1276,8 @@ DP_START_TEST(icmp_ipv6, test4)
  * Then enforce within that session that the forward packets must be echo
  * requests, and the reverse packets echo replies.
  */
-DP_START_TEST(icmp_ipv4, test5)
+DP_DECL_TEST_CASE(npf_icmp, icmpv4_5, NULL, NULL);
+DP_START_TEST(icmpv4_5, test)
 {
 	/* Setup interfaces and neighbours */
 	dp_test_nl_add_ip_addr_and_connected("dp1T0", "100.101.102.1/24");
@@ -1466,7 +1485,8 @@ DP_START_TEST(icmp_ipv4, test5)
  * Then enforce within that session that the forward packets must be echo
  * requests, and the reverse packets echo replies.
  */
-DP_START_TEST(icmp_ipv6, test5)
+DP_DECL_TEST_CASE(npf_icmp, icmpv6_5, NULL, NULL);
+DP_START_TEST(icmpv6_5, test)
 {
 	/* Setup interfaces and neighbours */
 	dp_test_nl_add_ip_addr_and_connected("dp1T0", "2001:1:1::1/64");
@@ -1652,7 +1672,8 @@ DP_START_TEST(icmp_ipv6, test5)
 /*
  * ICMP echo request and reply with SNAT
  */
-DP_START_TEST(icmp_ipv4, test6)
+DP_DECL_TEST_CASE(npf_icmp, icmpv4_6, NULL, NULL);
+DP_START_TEST(icmpv4_6, test)
 {
 	char *dp1T0_mac = dp_test_intf_name2mac_str("dp1T0");
 	char *dp2T1_mac = dp_test_intf_name2mac_str("dp2T1");
