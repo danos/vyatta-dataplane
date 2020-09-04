@@ -278,9 +278,6 @@ DP_START_TEST(limit, test1)
 	 * Delete the limit from the profile while it is still
 	 * assigned
 	 */
-	del_profile("p1");
-	set_profile("p1", lim1);
-	verify_plugin_limit(INT1, 1, lim1);
 
 	/*
 	 * Assign same profile to another interface
