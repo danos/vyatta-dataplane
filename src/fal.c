@@ -1715,7 +1715,7 @@ static const struct fal_attribute_t **next_hop_to_attr_list(
 			nh_attr_count++;
 			nh_attr[nh_attr_count].id =
 				FAL_NEXT_HOP_ATTR_ROUTER_INTF;
-			nh_attr[nh_attr_count].value.u32 = ifp ? ifp->fal_l3 :
+			nh_attr[nh_attr_count].value.objid = ifp ? ifp->fal_l3 :
 				FAL_NULL_OBJECT_ID;
 			nh_attr_count++;
 		}
