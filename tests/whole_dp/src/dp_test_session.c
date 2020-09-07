@@ -1605,6 +1605,11 @@ DP_START_TEST(ssync2, test20)
 	/*
 	 * Cleanup
 	 */
+	free(fwd_in);
+	free(fwd_out);
+	free(rev_in);
+	free(rev_out);
+
 	dp_test_npf_cmd("npf-ut fw global tcp-strict disable", false);
 	dp_test_npf_fw_del(&rset, false);
 	dp_test_npf_clear_sessions();
