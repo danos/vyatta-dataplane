@@ -1521,6 +1521,7 @@ int dpt_session_counters(const char *options,
 	bool err;
 	char cmd[1000];
 	int l;
+	int rc = 0;
 
 	l = snprintf(cmd, sizeof(cmd), "session-op show dataplane sessions");
 	if (options)
@@ -1549,44 +1550,62 @@ int dpt_session_counters(const char *options,
 	};
 
 	jarray = dp_test_json_find(jresp, ip_keys, ARRAY_SIZE(ip_keys));
-	if (!jarray)
+	if (!jarray) {
+		json_object_put(jresp);
 		return -1;
+	}
 
 	int len = json_object_array_length(jarray);
 	json_object *jobj, *counters_json;
 
-	if (len > 1)
-		return -1;
+	if (len > 1) {
+		rc = -1;
+		goto cleanup;
+	}
 
 	jobj = json_object_array_get_idx(jarray, 0);
 
-	if (!json_object_object_get_ex(jobj, "counters", &counters_json))
-		return -1;
+	if (!json_object_object_get_ex(jobj, "counters", &counters_json)) {
+		rc = -1;
+		goto cleanup;
+	}
 
 	if (!dp_test_json_int_field_from_obj(counters_json,
-					     "packets_in", (int *)pkts_in))
-		return -1;
+					     "packets_in", (int *)pkts_in)) {
+		rc = -1;
+		goto cleanup;
+	}
 
 	if (!dp_test_json_int_field_from_obj(counters_json,
-					     "packets_out", (int *)pkts_out))
-		return -1;
+					     "packets_out", (int *)pkts_out)) {
+		rc = -1;
+		goto cleanup;
+	}
 
 	if (!dp_test_json_int_field_from_obj(counters_json,
-					     "bytes_in", (int *)bytes_in))
-		return -1;
+					     "bytes_in", (int *)bytes_in)) {
+		rc = -1;
+		goto cleanup;
+	}
 
 	if (!dp_test_json_int_field_from_obj(counters_json,
-					     "bytes_out", (int *)bytes_out))
-		return -1;
+					     "bytes_out", (int *)bytes_out)) {
+		rc = -1;
+		goto cleanup;
+	}
 
 	if (sess_id) {
 		if (!dp_test_json_int_field_from_obj(jobj, "id",
-						     (int *)sess_id))
-			return -1;
+						     (int *)sess_id))  {
+			rc = -1;
+			goto cleanup;
+		}
 	}
 
+cleanup:
+	json_object_put(jarray);
 	json_object_put(jresp);
-	return 0;
+	return rc;
 }
 
 /*
