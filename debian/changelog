@@ -1,3 +1,16 @@
+vyatta-dataplane (3.11.18) unstable; urgency=medium
+
+  [ aroberts ]
+  * Don't allow a child shaper to exceed 99.6% of parent rate
+
+  [ Manohar Rapeti ]
+  * qos: mem leak in dataplane UT (Bugfix: VRVDR-49730)
+  * qos: uninitialised value (Bugfix: VRVDR-49730)
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Tue, 08 Sep 2020 08:38:25 +0100
+
 vyatta-dataplane (3.11.17) unstable; urgency=medium
 
   [ aroberts ]
