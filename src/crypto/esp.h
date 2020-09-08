@@ -22,16 +22,9 @@ struct rte_mbuf;
 struct sadb_sa;
 struct udphdr;
 
-int esp_input(struct rte_mbuf *m, struct sadb_sa *sa, uint32_t *bytes,
-	      uint8_t *new_family);
-int esp_input6(struct rte_mbuf *m, struct sadb_sa *sa, uint32_t *bytes,
-	       uint8_t *new_family);
+void esp_input(struct crypto_pkt_ctx *ctx_arr[], uint16_t count);
 
-
-int esp_output(struct rte_mbuf *m,  uint8_t family, void *l3hdr,
-	       struct sadb_sa *sa, uint32_t *bytes);
-int esp_output6(struct rte_mbuf *m, uint8_t family, void *l3hdr,
-		struct sadb_sa *sa, uint32_t *bytes);
+void esp_output(struct crypto_pkt_ctx *ctx_arr[], uint16_t count);
 
 /*
  * RFC 4303 requires the pad length and next header fields to be right aligned
@@ -53,5 +46,13 @@ void esp_replay_advance(const uint8_t *esp, struct sadb_sa *sa);
  * Returns true if packet requires crypto processing, false otherwise
  */
 bool udp_esp_dp_interesting(const struct udphdr *udp, uint32_t *spi);
+
+/*
+ * API to invoke openssl implementation of encryption
+ */
+int esp_generate_chain(struct sadb_sa *sa, struct rte_mbuf *mbuf,
+		       unsigned int l3_hdr_len, unsigned char *esp,
+		       unsigned char *iv, uint32_t text_total_len,
+		       int8_t encrypt);
 
 #endif /* ESP_H */

@@ -19,6 +19,7 @@
  * a set of utility function that allows retrieval of sessions data.
  */
 
+#include <assert.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <stdbool.h>
@@ -63,6 +64,36 @@ enum dp_session_state {
 	SESSION_STATE_CLOSED,
 };
 
+#define SESSION_STATE_FIRST	SESSION_STATE_NONE
+#define SESSION_STATE_LAST	SESSION_STATE_CLOSED
+#define SESSION_STATE_SIZE	(SESSION_STATE_LAST + 1)
+
+static inline bool
+dp_session_state_is_valid(enum dp_session_state state)
+{
+	static_assert(SESSION_STATE_FIRST == 0,
+		      "SESSION_STATE_FIRST != 0");
+	return state <= SESSION_STATE_LAST;
+}
+
+static inline const char *
+dp_session_state_name(enum dp_session_state state, bool upper)
+{
+	switch (state) {
+	case SESSION_STATE_NEW:
+		return upper ? "OPENING" : "opening";
+	case SESSION_STATE_ESTABLISHED:
+		return upper ? "ESTABLISHED" : "established";
+	case SESSION_STATE_TERMINATING:
+		return upper ? "CLOSING" : "closing";
+	case SESSION_STATE_CLOSED:
+		return upper ? "CLOSED" : "closed";
+	case SESSION_STATE_NONE:
+		break;
+	};
+	return upper ? "NONE" : "none";
+}
+
 /**
  * Session packing type.
  *
@@ -72,8 +103,7 @@ enum session_pack_type {
 	SESSION_PACK_NONE = 0,  /**< packing type not set */
 	SESSION_PACK_FULL,	/**< pack full session for later restoration */
 	SESSION_PACK_UPDATE,	/**< pack only session states and stats */
-	SESSION_PACK_MAX,
-};
+} __attribute__ ((__packed__));
 
 /** Forward declaration for session handle */
 struct session;
@@ -201,6 +231,15 @@ uint64_t dp_session_unique_id(const struct session *session);
  * @param [in] session
  */
 enum dp_session_state dp_session_get_state(const struct session *session);
+
+/**
+ * Get a sessions generic protocol state name
+ *
+ * @param [in] session
+ * @param [in] upper
+ */
+const char *dp_session_get_state_name(const struct session *session,
+				      bool upper);
 
 /**
  * is session in an expired state?

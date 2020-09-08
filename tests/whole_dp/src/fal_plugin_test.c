@@ -159,6 +159,7 @@ int fal_plugin_l2_get_attrs(unsigned int if_index,
 			    struct fal_attribute_t *attr_list)
 {
 	uint32_t i;
+	int rc = -EOPNOTSUPP;
 
 	DEBUG("%s(if_index %d, attr_count %d, ...)\n",
 					__func__, if_index, attr_count);
@@ -168,13 +169,14 @@ int fal_plugin_l2_get_attrs(unsigned int if_index,
 		/* Any old non zero value */
 		case FAL_PORT_ATTR_QOS_INGRESS_MAP_ID:
 			attr_list[i].value.objid = 0xff;
+			rc = 0;
 			break;
 		default:
 			DEBUG("%s requested %u\n", __func__, attr_list[i].id);
 			break;
 		}
 	}
-	return 0;
+	return rc;
 }
 
 static const char *fal_port_attr_t_to_str(enum fal_port_attr_t val)
@@ -216,6 +218,10 @@ static const char *fal_port_attr_t_to_str(enum fal_port_attr_t val)
 		return "ingress_mirror_session";
 	case FAL_PORT_ATTR_EGRESS_MIRROR_SESSION:
 		return "egress_mirror_session";
+	case FAL_PORT_ATTR_INGRESS_MIRROR_VLAN:
+		return "ingress_mirror_vlans";
+	case FAL_PORT_ATTR_EGRESS_MIRROR_VLAN:
+		return "egress_mirror_vlans";
 	case FAL_PORT_ATTR_HW_MIRRORING:
 		return "hw_mirroring";
 	case FAL_PORT_ATTR_UNICAST_STORM_CONTROL_POLICER_ID:
@@ -232,6 +238,14 @@ static const char *fal_port_attr_t_to_str(enum fal_port_attr_t val)
 		return "capture-bind";
 	case FAL_PORT_ATTR_HW_CAPTURE:
 		return "hw-capture";
+	case FAL_PORT_ATTR_GLOBAL_FLOW_CONTROL_MODE:
+		return "pause";
+	case FAL_PORT_ATTR_REMOTE_ADVERTISED_FLOW_CONTROL_MODE:
+		return "pause-advertised";
+	case FAL_PORT_ATTR_QOS_EGRESS_MAP_ID:
+		return "egress-map-id";
+	case FAL_PORT_ATTR_SYNCE_ADMIN_STATUS:
+		return "synce_admin";
 	}
 	assert(0);
 	return "ERROR";

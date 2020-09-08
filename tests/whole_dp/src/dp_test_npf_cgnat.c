@@ -70,7 +70,7 @@ DP_DECL_TEST_SUITE(npf_cgnat);
  * cgnat15  - VRF interface deleted while CGNAT policy and sessions present
  * cgnat16  - Tests random port allocation within port block.
  * cgnat17  - Exercises op-mode show commands
- * cgnat18  - Tests public address blacklist
+ * cgnat18  - Tests public address blocklist
  *
  * cgnat20  - UDP  129 pkts with different src addrs
  *
@@ -2261,7 +2261,7 @@ DP_START_TEST_FULL_RUN(cgnat17, test)
 
 
 /*
- * npf_cgnat_18 - Tests blacklist
+ * npf_cgnat_18 - Tests blocklist
  *
  *    Private                                       Public
  *                       dp1T0 +---+ dp2T1
@@ -2271,9 +2271,9 @@ DP_START_TEST_FULL_RUN(cgnat17, test)
 DP_DECL_TEST_CASE(npf_cgnat, cgnat18, cgnat_setup, cgnat_teardown);
 DP_START_TEST(cgnat18, test)
 {
-	dpt_addr_grp_create("BLACKLIST1", "1.1.1.11/32");
+	dpt_addr_grp_create("BLOCKLIST1", "1.1.1.11/32");
 	dp_test_npf_cmd_fmt(false,
-			    "npf-ut fw table add BLACKLIST1 1.1.1.13/32");
+			    "npf-ut fw table add BLOCKLIST1 1.1.1.13/32");
 
 	dpt_cgn_cmd_fmt(false, true,
 			"nat-ut pool add POOL1 "
@@ -2294,15 +2294,15 @@ DP_START_TEST(cgnat18, test)
 		  DP_TEST_FWD_FORWARDED);
 
 	/*
-	 * Add blacklist to pool, and run GC to expire sessions using
-	 * blacklisted addresses.
+	 * Add blocked address to pool, and run GC to expire sessions using
+	 * blocked addresses.
 	 *
-	 * Blacklist addresses: 1.1.1.11, 1.1.1.13
+	 * Blocklist addresses: 1.1.1.11, 1.1.1.13
 	 * Useable addresses:   1.1.1.12, 1.1.1.14
 	 */
 	dpt_cgn_cmd_fmt(false, true,
 			"nat-ut pool update POOL1 "
-			"blacklist=BLACKLIST1");
+			"blacklist=BLOCKLIST1");
 
 	/*
 	 * We need to explicitly clear existing sessions
@@ -2347,8 +2347,8 @@ DP_START_TEST(cgnat18, test)
 	dp_test_npf_cmd_fmt(false, "nat-ut pool delete POOL1");
 
 	dp_test_npf_cmd_fmt(false,
-			    "npf-ut fw table remove BLACKLIST1 1.1.1.13/32");
-	dpt_addr_grp_destroy("BLACKLIST1", "1.1.1.11/32");
+			    "npf-ut fw table remove BLOCKLIST1 1.1.1.13/32");
+	dpt_addr_grp_destroy("BLOCKLIST1", "1.1.1.11/32");
 
 } DP_END_TEST;
 

@@ -570,6 +570,7 @@ int npf_rte_acl_destroy(int af __rte_unused, npf_match_ctx_t **m_ctx)
 	if (ctx) {
 		rte_acl_reset(ctx->acl_ctx);
 		rte_acl_free(ctx->acl_ctx);
+		free(ctx->name);
 		free(ctx);
 		*m_ctx = NULL;
 	}

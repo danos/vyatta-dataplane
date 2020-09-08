@@ -5,7 +5,9 @@
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
+#include <rte_bus_vdev.h>
 #include <rte_config.h>
+#include <rte_cryptodev.h>
 #include <rte_lcore.h>
 #include <rte_log.h>
 #include <rte_malloc.h>
@@ -26,8 +28,10 @@
 #include "urcu.h"
 #include "vplane_debug.h"
 #include "vplane_log.h"
+#include "crypto_rte_pmd.h"
 
-#define MAX_CRYPTO_PMD 32
+#define MAX_CRYPTO_PMD 128
+
 /*
  * Dynamic number of pmds supported. Based upon the number of crypto
  * engines available which is reported from either a probe or a set.
@@ -48,13 +52,15 @@ struct pmd_counters {
 	uint64_t bytes;
 };
 
+#define DEV_NAME_LEN 64
+
 struct crypto_pmd {
 	struct cds_list_head next;
 	struct crypto_pmd_q_pair q_pair;
 	unsigned int lcore;
 	int dev_id;
 	unsigned int sa_cnt;
-	char SPARE[4];
+	int rte_cdev_id;
 	struct rcu_head pmd_rcu;
 	/* --- cacheline 1 boundary (64 bytes) --- */
 	/*
@@ -67,6 +73,8 @@ struct crypto_pmd {
 	struct rate_stats rates[MAX_CRYPTO_XFRM];
 	unsigned int sa_cnt_per_type[MAX_CRYPTO_XFRM];
 	unsigned int pending_remove[MAX_CRYPTO_XFRM];
+	char dev_name[DEV_NAME_LEN];
+	enum cryptodev_type dev_type;
 };
 
 static_assert(offsetof(struct crypto_pmd, padding) == 64,
@@ -178,12 +186,26 @@ crypto_pmd_alloc_loadshare(enum crypto_xfrm xfrm)
 	return best_pmd;
 }
 
+/*
+ * array of pmd dev ids per core per pmd type
+ * Used to determine if we already have a specific type of PMD
+ * running on the desired core
+ */
+static int8_t lcore_dev_ids[RTE_MAX_LCORE][CRYPTODEV_MAX];
+
 static struct crypto_pmd *
-crypto_pmd_find_or_create(enum crypto_xfrm xfrm)
+crypto_pmd_find_or_create(enum crypto_xfrm xfrm,
+			  enum cryptodev_type dev_type)
 {
-	unsigned int cpu_socket, dev_id;
+	unsigned int cpu_socket;
+	uint8_t dev_id;
 	struct crypto_pmd *pmd;
 	enum crypto_xfrm q;
+	int err;
+	int lcore;
+
+	if (pmd_alloc == 0)
+		memset(lcore_dev_ids, -1, sizeof(lcore_dev_ids));
 
 	if (xfrm == MAX_CRYPTO_XFRM)
 		return NULL;
@@ -191,6 +213,22 @@ crypto_pmd_find_or_create(enum crypto_xfrm xfrm)
 	if (pmd_alloc >= max_pmds)
 		return crypto_pmd_alloc_loadshare(xfrm);
 
+	/*
+	 * check if we have an existing PMD of the desired type
+	 * on the next available crypto core
+	 */
+	lcore = next_available_crypto_lcore();
+	if (lcore < 0)
+		return NULL;
+
+	if (lcore_dev_ids[lcore][dev_type] != CRYPTO_PMD_INVALID_ID) {
+		dev_id = lcore_dev_ids[lcore][dev_type];
+		return crypto_pmd_devs[dev_id];
+	}
+
+	/*
+	 * allocate id for device
+	 */
 	for (dev_id = 0; dev_id < MAX_CRYPTO_PMD; dev_id++)
 		if (!crypto_pmd_devs[dev_id])
 			break;
@@ -202,6 +240,7 @@ crypto_pmd_find_or_create(enum crypto_xfrm xfrm)
 	}
 
 	cpu_socket = rte_lcore_to_socket_id(rte_get_master_lcore());
+
 	pmd = rte_zmalloc_socket("crypto pmd",
 				 sizeof(*pmd),
 				 RTE_CACHE_LINE_SIZE,
@@ -211,6 +250,19 @@ crypto_pmd_find_or_create(enum crypto_xfrm xfrm)
 		pmd_create_failed++;
 		return NULL;
 	}
+
+	pmd->dev_id = dev_id;
+
+	err = crypto_rte_create_pmd(cpu_socket, dev_id,
+				    dev_type, pmd->dev_name, DEV_NAME_LEN,
+				    &pmd->rte_cdev_id);
+	if (err != 0) {
+		CRYPTO_ERR("Could not create DPDK PMD\n");
+		rte_free(pmd);
+		return NULL;
+	}
+
+	pmd->dev_type = dev_type;
 
 	CDS_INIT_LIST_HEAD(&pmd->next);
 
@@ -222,13 +274,13 @@ crypto_pmd_find_or_create(enum crypto_xfrm xfrm)
 		crypto_create_ring("pmd-de-q", PMD_RING_SIZE,
 				   cpu_socket, dev_id,
 				   RING_F_SC_DEQ);
-	pmd->dev_id = dev_id;
+
 	/* Need to add the pmd to the table as the callback
 	 * from crypto_assign_engine needs to locate pmd
 	 */
 	rcu_assign_pointer(crypto_pmd_devs[dev_id], pmd);
 
-	if (crypto_assign_engine(pmd->dev_id) < 0) {
+	if (crypto_assign_engine(pmd->dev_id, lcore) < 0) {
 		pmd_engine_assign_fail++;
 		rcu_assign_pointer(crypto_pmd_devs[dev_id], NULL);
 		for (q = MIN_CRYPTO_XFRM; q < MAX_CRYPTO_XFRM; q++)
@@ -237,6 +289,7 @@ crypto_pmd_find_or_create(enum crypto_xfrm xfrm)
 		return NULL;
 	}
 
+	lcore_dev_ids[lcore][dev_type] = pmd->dev_id;
 	pmd_alloc++;
 	pmd_total_created++;
 
@@ -322,9 +375,14 @@ int crypto_engine_set(FILE *f, const char *str)
  * existing PMD or create a new one. If a new one is created
  * then link it to a crypto_engine
  */
-int crypto_allocate_pmd(enum crypto_xfrm xfrm)
+int crypto_allocate_pmd(enum crypto_xfrm xfrm,
+			enum rte_crypto_cipher_algorithm cipher_algo,
+			enum rte_crypto_aead_algorithm aead_algo,
+			bool *setup_openssl)
 {
 	struct crypto_pmd *pmd;
+	enum cryptodev_type dev_type;
+	int err;
 
 	/* If this is the first SA then lets go probe the number
 	 * of crypto engines we have.
@@ -332,9 +390,20 @@ int crypto_allocate_pmd(enum crypto_xfrm xfrm)
 	if (!pmd_alloc)
 		(void)crypto_engine_probe(NULL);
 
-	pmd = crypto_pmd_find_or_create(xfrm);
+	err = crypto_rte_select_pmd_type(cipher_algo, aead_algo, &dev_type,
+					 setup_openssl);
+	if (err) {
+		CRYPTO_ERR("Failed to select pmd type for %s\n",
+			   (cipher_algo == RTE_CRYPTO_CIPHER_LIST_END ?
+			    rte_crypto_aead_algorithm_strings[aead_algo] :
+			    rte_crypto_cipher_algorithm_strings[cipher_algo]));
+		return CRYPTO_PMD_INVALID_ID;
+	}
+	pmd = crypto_pmd_find_or_create(xfrm, dev_type);
 
 	if (!pmd) {
+		CRYPTO_ERR("Failed to find or create pmd for type %d\n",
+			   dev_type);
 		pmd_alloc_fail++;
 		return CRYPTO_PMD_INVALID_ID;
 	}
@@ -359,9 +428,16 @@ static void pmd_purge_and_release_queues(struct crypto_pmd *pmd)
 static void pmd_rcu_free(struct rcu_head *head)
 {
 	struct crypto_pmd *pmd;
+	int err;
 
 	pmd  = caa_container_of(head, struct crypto_pmd, pmd_rcu);
 	pmd_purge_and_release_queues(pmd);
+
+	err = crypto_rte_destroy_pmd(pmd->dev_type, pmd->dev_name,
+				     pmd->dev_id);
+	if (err != 0)
+		CRYPTO_ERR("Could not destroy pmd %s\n", pmd->dev_name);
+
 	rte_free(pmd);
 }
 
@@ -373,6 +449,8 @@ static void crypto_pmd_remove(int dev_id)
 
 	if (!pmd)
 		return;
+
+	lcore_dev_ids[pmd->lcore][pmd->dev_type] = CRYPTO_PMD_INVALID_ID;
 
 	rcu_assign_pointer(crypto_pmd_devs[dev_id], NULL);
 	pmd_alloc--;
@@ -394,6 +472,7 @@ void crypto_pmd_remove_all(void)
 }
 
 void crypto_remove_sa_from_pmd(int dev_id, enum crypto_xfrm xfrm,
+			       struct crypto_session *ctx,
 			       bool pending)
 {
 	bool err;
@@ -405,6 +484,8 @@ void crypto_remove_sa_from_pmd(int dev_id, enum crypto_xfrm xfrm,
 		pmd_not_found++;
 		return;
 	}
+
+	crypto_rte_destroy_session(ctx, pmd->rte_cdev_id);
 
 	pmd->sa_cnt_per_type[xfrm]--;
 	pmd->sa_cnt--;
@@ -502,6 +583,8 @@ crypto_show_pmd_counters(json_writer_t *wr, struct crypto_pmd *pmd)
 
 	jsonw_start_object(wr);
 	jsonw_uint_field(wr, "pmd_dev_id", pmd->dev_id);
+	jsonw_uint_field(wr, "rte_dev_id", pmd->rte_cdev_id);
+	jsonw_string_field(wr, "dev_name", pmd->dev_name);
 	jsonw_uint_field(wr, "active_sa", pmd->sa_cnt);
 	jsonw_uint_field(wr, "lcore", pmd->lcore);
 	jsonw_start_array(wr);
@@ -564,4 +647,21 @@ void crypto_show_pmd(FILE *f)
 
 	jsonw_end_object(wr);
 	jsonw_destroy(&wr);
+}
+
+int crypto_pmd_get_info(int pmd_dev_id, uint8_t *rte_dev_id,
+			enum cryptodev_type *dev_type)
+{
+	struct crypto_pmd *pmd;
+	bool err;
+
+	pmd = crypto_dev_id_to_pmd(pmd_dev_id, &err);
+	if (!pmd) {
+		pmd_not_found++;
+		return -ENOENT;
+	}
+
+	*rte_dev_id = pmd->rte_cdev_id;
+	*dev_type = pmd->dev_type;
+	return 0;
 }

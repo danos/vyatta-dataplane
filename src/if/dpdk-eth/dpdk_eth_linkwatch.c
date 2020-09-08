@@ -129,18 +129,24 @@ void linkwatch_timer(struct rte_timer *tim __rte_unused, void *arg)
 }
 
 /* Check link state */
-void linkwatch_update_port_status(portid_t port, bool link_down)
+void linkwatch_update_port_status(portid_t port, enum linkwatch_flags flags)
 {
 	struct rte_eth_link link;
+	int old_status;
 
 	rte_eth_link_get_nowait(port, &link);
 	/* The kernel needs to be informed that the link is operationally down
 	 * when the port is stopped, so intervene in this case as the link state
 	 * in some if not all DPDK PMDs remains up.
 	 */
-	if (link_down)
+	if (flags & LINKWATCH_FLAG_FORCE_LINK_DOWN)
 		link.link_status = ETH_LINK_DOWN;
-	notify_port_status(port, &link);
+
+	old_status = if_port_isup(port);
+	if (flags & LINKWATCH_FLAG_FORCE_NOTIFY ||
+	    link.link_status != old_status)
+		notify_port_status(port, &link);
+
 	send_port_status(port, &link);
 }
 
@@ -176,7 +182,8 @@ static int link_state_event(void *arg)
 		if (bitmask_isset(&lsc_irq_pending, port)) {
 			bitmask_clear(&lsc_irq_pending, port);
 			if (dpdk_eth_if_port_started(port))
-				linkwatch_update_port_status(port, false);
+				linkwatch_update_port_status(
+					port, LINKWATCH_FLAG_NONE);
 		}
 
 		if (bitmask_isset(&link_reset_pending, port)) {

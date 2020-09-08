@@ -6788,3 +6788,82 @@ DP_START_TEST(imp_fwd_outlabels, v4_ecmp)
 
 	dp_test_netlink_set_mpls_forwarding("dp1T1", false);
 } DP_END_TEST;
+
+DP_START_TEST(imp_fwd_outlabels, v6_single)
+{
+	struct ip6_hdr *ip6;
+	struct dp_test_expected *exp;
+	struct rte_mbuf *expected_pak;
+	label_t expected_labels[DP_TEST_MAX_LBLS];
+	struct rte_mbuf *test_pak;
+	const char *nh_mac_str;
+	uint8_t ttls[DP_TEST_MAX_LBLS];
+	int i, nlbls, len = 22;
+
+	/* Set up the interface addresses */
+	dp_test_nl_add_ip_addr_and_connected("dp1T1", "2001:1:1::1/64");
+	dp_test_nl_add_ip_addr_and_connected("dp2T2", "2.2.2.2/24");
+	dp_test_netlink_set_mpls_forwarding("dp1T2", true);
+
+	nh_mac_str = "aa:bb:cc:dd:ee:ff";
+	dp_test_netlink_add_neigh("dp2T2", "2.2.2.1", nh_mac_str);
+
+	for (nlbls = 1; nlbls <= DP_TEST_MAX_LBLS; nlbls++) {
+		char lstack_str[TEST_MAX_CMD_LEN + 1] = {'\0'};
+		char label_str[TEST_MAX_CMD_LEN + 1];
+		char route1[TEST_MAX_CMD_LEN + 1];
+
+		for (i = 0; i < nlbls; i++) {
+			snprintf(label_str, sizeof(label_str), " %d", 122 + i);
+			strncat(lstack_str, label_str, TEST_MAX_CMD_LEN);
+			expected_labels[i] = 122 + i;
+			ttls[i] = DP_TEST_PAK_DEFAULT_TTL - 1;
+		}
+
+		/* Add the route / nh arp we want the packet to follow */
+		snprintf(route1, TEST_MAX_CMD_LEN,
+			 "2010:73:2::0/64 nh 2.2.2.1 int:dp2T2 lbls %s",
+			 lstack_str);
+		dp_test_netlink_add_route(route1);
+
+		/*
+		 * Test packet
+		 */
+		test_pak = dp_test_create_ipv6_pak("2010:73:0::", "2010:73:2::",
+						   1, &len);
+		(void)dp_test_pktmbuf_eth_init(
+			test_pak,
+			dp_test_intf_name2mac_str("dp1T1"),
+			NULL, RTE_ETHER_TYPE_IPV6);
+
+		/*
+		 * Expected packet
+		 */
+		expected_pak = dp_test_create_mpls_pak(nlbls, expected_labels,
+						       ttls, test_pak);
+		(void)dp_test_pktmbuf_eth_init(
+			expected_pak,
+			nh_mac_str,
+			dp_test_intf_name2mac_str("dp2T2"),
+			RTE_ETHER_TYPE_MPLS);
+
+		ip6 = dp_test_get_mpls_pak_payload(expected_pak);
+		ip6->ip6_hlim = DP_TEST_PAK_DEFAULT_TTL - 1;
+
+		exp = dp_test_exp_create(expected_pak);
+		rte_pktmbuf_free(expected_pak);
+		dp_test_exp_set_oif_name(exp, "dp2T2");
+
+		dp_test_pak_receive(test_pak, "dp1T1", exp);
+
+		/* Clean up */
+		dp_test_netlink_del_route(route1);
+	}
+
+	/* Clean up */
+	dp_test_netlink_set_mpls_forwarding("dp1T2", false);
+	dp_test_netlink_del_neigh("dp2T2", "2.2.2.1", nh_mac_str);
+	dp_test_nl_del_ip_addr_and_connected("dp1T1", "2001:1:1::1/64");
+	dp_test_nl_del_ip_addr_and_connected("dp2T2", "2.2.2.2/24");
+
+} DP_END_TEST;

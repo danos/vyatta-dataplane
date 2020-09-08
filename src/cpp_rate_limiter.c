@@ -1,7 +1,7 @@
 /*
  * cpp_rate_limiter.c
  *
- * Copyright (c) 2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2019-2020, AT&T Intellectual Property.  All rights reserved.
  * All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
@@ -72,6 +72,10 @@ static const uint32_t cpp_rl_pb_attr_map[] = {
 	FAL_CPP_LIMITER_ATTR_TCP,
 [CPP_RL__CPP_LIMITER__CPP_ATTRIBUTE__CPP_ATTR_EN__CPP_ATTR_DEFAULT] =
 	FAL_CPP_LIMITER_ATTR_DEFAULT,
+[CPP_RL__CPP_LIMITER__CPP_ATTRIBUTE__CPP_ATTR_EN__CPP_ATTR_PIM] =
+	FAL_CPP_LIMITER_ATTR_PIM,
+[CPP_RL__CPP_LIMITER__CPP_ATTRIBUTE__CPP_ATTR_EN__CPP_ATTR_IP_MULTICAST] =
+	FAL_CPP_LIMITER_ATTR_IP_MC,
 };
 
 static uint32_t cpp_rl_pb_attr_map_size = sizeof(cpp_rl_pb_attr_map) /
@@ -121,6 +125,8 @@ static const char * const cpp_rl_prot_name[] = {
 	[FAL_CPP_LIMITER_ATTR_UDP] = "udp",
 	[FAL_CPP_LIMITER_ATTR_TCP] = "tcp",
 	[FAL_CPP_LIMITER_ATTR_DEFAULT] = "default",
+	[FAL_CPP_LIMITER_ATTR_PIM] = "pim",
+	[FAL_CPP_LIMITER_ATTR_IP_MC] = "ip-multicast",
 };
 
 static uint32_t cpp_rl_prot_name_size = sizeof(cpp_rl_prot_name) /

@@ -13,6 +13,7 @@
 #include <rte_timer.h>
 #include <stdint.h>
 
+#include "crypto_rte_pmd.h"
 #include "urcu.h"
 
 /*
@@ -81,5 +82,7 @@ int crypto_attach_pmd(struct cds_list_head *pmd_list,
 void dp_crypto_periodic(struct cds_list_head *pmd_list);
 void crypto_pmd_remove_all(void);
 void crypto_flow_cache_timer_handler(struct rte_timer *tmr, void *arg);
+int crypto_pmd_get_info(int pmd_dev_id, uint8_t *rte_dev_id,
+			enum cryptodev_type *dev_type);
 
 #endif /* _CRYPTO_MAIN_H_ */

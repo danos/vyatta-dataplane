@@ -338,6 +338,25 @@ size_t snprintfcat(char *buf, size_t size, const char *fmt, ...)
  */
 int get_unsigned(const char *str, unsigned int *ptr)
 {
+	int ret;
+	unsigned long val = 0;
+
+	ret = get_unsigned_long(str, &val);
+	if (ret)
+		return ret;
+
+	if (val > UINT_MAX)
+		return -ERANGE;
+
+	*ptr = val;
+	return 0;
+}
+
+/* convert string to unsigned value.
+ * returns 0 on success, -errno on error
+ */
+int get_unsigned_long(const char *str, unsigned long *ptr)
+{
 	char *endp = NULL;
 	unsigned long val;
 
@@ -346,8 +365,6 @@ int get_unsigned(const char *str, unsigned int *ptr)
 	if (*str == '\0' || !endp || *endp)
 		return -EINVAL;
 	if (val == ULONG_MAX && errno == ERANGE)
-		return -ERANGE;
-	if (val > UINT_MAX)
 		return -ERANGE;
 
 	*ptr = val;
@@ -381,7 +398,7 @@ int get_signed(const char *str, int *ptr)
 int get_unsigned_short(const char *str, unsigned short *ptr)
 {
 	int result;
-	unsigned int val;
+	unsigned int val = 0;
 
 	result = get_unsigned(str, &val);
 	if (result < 0)

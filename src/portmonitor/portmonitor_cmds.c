@@ -59,7 +59,8 @@ static const struct dp_event_ops portmonitor_event_ops = {
 static void
 portmonitor_event_if_index_set(struct ifnet *ifp)
 {
-	struct cfg_if_list_entry *le;
+	struct cfg_if_list_entry *le, *tle;
+	int rc;
 
 	if (!portmonitor_cfg_list)
 		return;
@@ -79,14 +80,24 @@ portmonitor_event_if_index_set(struct ifnet *ifp)
 	if (f == NULL)
 		RTE_LOG(ERR, DATAPLANE, "PM: open_memstream() failed\n");
 	else {
-		if (cmd_portmonitor(f, le->le_argc, le->le_argv) < 0)
-			RTE_LOG(ERR, DATAPLANE,
-				"PM: replay failed: %s\n", outbuf);
+		cds_list_for_each_entry_safe(le, tle,
+					     &portmonitor_cfg_list->if_list,
+					     le_node) {
+			if (strcmp(ifp->if_name, le->le_ifname))
+				continue;
+
+			if (cmd_portmonitor(f, le->le_argc, le->le_argv) < 0)
+				RTE_LOG(ERR, DATAPLANE,
+					"PM: replay failed: %s\n", outbuf);
+			rc = cfg_if_list_del(portmonitor_cfg_list,
+					     ifp->if_name);
+			if (rc)
+				RTE_LOG(ERR, DATAPLANE,
+					"PM: cfg_if_list del failed (%s)\n",
+					strerror(-rc));
+		}
 		free(outbuf);
 	}
-
-	cfg_if_list_del(portmonitor_cfg_list, ifp->if_name);
-
 	if (!portmonitor_cfg_list->if_list_count) {
 		cfg_if_list_destroy(&portmonitor_cfg_list);
 		dp_event_unregister(&portmonitor_event_ops);
@@ -96,10 +107,26 @@ portmonitor_event_if_index_set(struct ifnet *ifp)
 static void
 portmonitor_event_if_index_unset(struct ifnet *ifp, uint32_t ifindex __unused)
 {
+	struct cfg_if_list_entry *le, *tle;
+	int rc;
+
 	if (!portmonitor_cfg_list)
 		return;
 
 	cfg_if_list_del(portmonitor_cfg_list, ifp->if_name);
+	cds_list_for_each_entry_safe(le, tle,
+				     &portmonitor_cfg_list->if_list,
+				     le_node) {
+		if (strcmp(ifp->if_name, le->le_ifname))
+			continue;
+
+		rc = cfg_if_list_del(portmonitor_cfg_list, ifp->if_name);
+		if (rc)
+			RTE_LOG(ERR, DATAPLANE,
+				"PM: %s cfg_if_list_del failed (%s)\n",
+				__func__,
+				strerror(-rc));
+	}
 	if (!portmonitor_cfg_list->if_list_count) {
 		dp_event_unregister(&portmonitor_event_ops);
 		cfg_if_list_destroy(&portmonitor_cfg_list);
@@ -359,12 +386,27 @@ static void pm_fal_src_update(const struct ifnet *ifp,
 	pm_if_update_hw_mirroring(ifp);
 }
 
+static void portmonitor_srcif_vlan_free(struct rcu_head *head)
+{
+	struct vlan_info *vinfo;
+
+	vinfo = caa_container_of(head, struct vlan_info, vlan_rcu);
+
+	if (vinfo->vlanids)
+		free(vinfo->vlanids);
+	vinfo->num_vlans = 0;
+	vinfo->vlanids = NULL;
+
+	free(vinfo);
+}
+
 static void portmonitor_srcif_delete(struct portmonitor_srcif *pmsrcif)
 
 {
 	const struct portmonitor_session *pmsess;
 	const struct portmonitor_info *pminfo;
 	struct ifnet *ifp;
+	struct vlan_info *rxvi, *txvi;
 
 	ifp = dp_ifnet_byifname(pmsrcif->ifname);
 	if (ifp == NULL) {
@@ -384,6 +426,16 @@ static void portmonitor_srcif_delete(struct portmonitor_srcif *pmsrcif)
 		pm_fal_src_update(ifp, pmsess,
 				  FAL_PORT_ATTR_EGRESS_MIRROR_SESSION, true);
 
+	rxvi = rcu_dereference(pmsrcif->rx_vinfo);
+	txvi = rcu_dereference(pmsrcif->tx_vinfo);
+	if (txvi) {
+		rcu_assign_pointer(pmsrcif->tx_vinfo, NULL);
+		call_rcu(&txvi->vlan_rcu, portmonitor_srcif_vlan_free);
+	}
+	if (rxvi) {
+		rcu_assign_pointer(pmsrcif->rx_vinfo, NULL);
+		call_rcu(&rxvi->vlan_rcu, portmonitor_srcif_vlan_free);
+	}
 	if (ifp == pmsrcif->ifp)
 		portmonitor_info_delete(ifp);
 }
@@ -931,6 +983,23 @@ static void show_one_session(struct portmonitor_session *s, json_writer_t *wr)
 				jsonw_string_field(wr, "direction", "rx");
 			else if (pminfo->direction & PORTMONITOR_DIRECTION_TX)
 				jsonw_string_field(wr, "direction", "tx");
+			int i;
+			struct vlan_info *rxvi, *txvi;
+
+			rxvi = rcu_dereference(pmsrcif->rx_vinfo);
+			txvi = rcu_dereference(pmsrcif->tx_vinfo);
+			jsonw_name(wr, "rx_vlan");
+			jsonw_start_array(wr);
+			if (rxvi)
+				for (i = 0; i < rxvi->num_vlans; i++)
+					jsonw_uint(wr, rxvi->vlanids[i]);
+			jsonw_end_array(wr);
+			jsonw_name(wr, "tx_vlan");
+			jsonw_start_array(wr);
+			if (txvi)
+				for (i = 0; i < txvi->num_vlans; i++)
+					jsonw_uint(wr, txvi->vlanids[i]);
+			jsonw_end_array(wr);
 		}
 		jsonw_end_object(wr);
 	}
@@ -1002,6 +1071,151 @@ static bool get_value(char *strval, uint32_t *val)
 	return false;
 }
 
+/*
+ * Validates source interface vlan information
+ * It assumes that first 7 argv (0to6) params are already
+ * validated and assumes the following
+ * portmonitor set session <id> srcif <ifname>
+ * vlan {rx|tx} <num> <vlanid1> <vlanid2> ...
+ *
+ * For a valid portmonitor vlan command at least 9 params
+ * are expected followed by <num> vlans
+ */
+static int pm_validate_srcif_vlans(FILE *f, int argc,
+				   char **argv, unsigned int *num,
+				   bool *tx_vlan)
+{
+	if (argc < 9) {
+		fprintf(f,
+			"Invalid num of args portmonitor vlan direction %d\n",
+			argc);
+		return -1;
+	}
+
+	if (strcmp(argv[7], "rx") == 0) {
+		*tx_vlan = false;
+	} else if (strcmp(argv[7], "tx") == 0) {
+		*tx_vlan = true;
+	} else {
+		fprintf(f,
+			"Invalid portmonitor vlan direction %s\n",
+			argv[7]);
+		return -1;
+	}
+	if (!get_value(argv[8], num)) {
+		fprintf(f,
+			"Invalid portmonitor vlans %s\n",
+			argv[8]);
+			return -1;
+	}
+	if (argc != (int) (9 + *num)) {
+		fprintf(f,
+		"Invalid number of vlans %d, expected %s\n",
+		argc, argv[8]);
+		return -1;
+	}
+	return 0;
+}
+
+/* Update source interface vlans to be monitored for ingress (rx)
+ * and egress (tx). Currently functionality to monitor for specific
+ * vlans is only supported in hardware so dataplane data structures
+ * are only needed in control path and are used to update information
+ * to the FAL plugins. The update is always sent to FAL and plugin
+ * should decipher it to add and delete as needed
+ */
+static int pm_upd_srcif_vlans(FILE *f,
+			      const char *ifname, bool tx_vlan,
+			      int argc, char **argv)
+{
+	int i, rc;
+	uint32_t vlanid;
+	const struct ifnet *ifp;
+	struct portmonitor_srcif *pmsrcif;
+	struct fal_u32_list_t *vlist;
+	uint16_t *pvlanids = NULL;
+	struct vlan_info *old_vi, *new_vi;
+
+	ifp = dp_ifnet_byifname(ifname);
+	if (!ifp) {
+		fprintf(f, "Portmonitor: unknown src interface %s\n", ifname);
+		return -1;
+	}
+	pmsrcif = get_pmsrcif_byifindex(ifp->if_index);
+	if (!pmsrcif) {
+		fprintf(f, "Portmonitor: vlans src interface %s not found\n",
+			ifp->if_name);
+		return -1;
+	}
+	vlist = calloc(1, sizeof(*vlist) + (argc * sizeof(vlist->list[0])));
+	if (!vlist) {
+		RTE_LOG(ERR, DATAPLANE, "Portmonitor: out of memory\n");
+		return -1;
+	}
+	struct fal_attribute_t attr = {
+		.id = FAL_PORT_ATTR_INGRESS_MIRROR_VLAN,
+		.value.u32list = vlist
+	};
+
+	if (argc) {
+		pvlanids = calloc(1, argc * sizeof(*pvlanids));
+		if (!pvlanids) {
+			RTE_LOG(ERR, DATAPLANE, "Portmonitor: out of memory\n");
+			free(vlist);
+			return -1;
+		}
+	}
+	/* if argc is 0, it indicates that no vlans are configured
+	 * and plugins will interpret it to a delete all vlans for the
+	 * direction, so always update FAL
+	 */
+	vlist->count = 0;
+	for (i = 0; i < argc; i++) {
+		if (!get_value(argv[i+1], &vlanid) || (vlanid > 4094)) {
+			fprintf(f, "Invalid portmonitor vlan %s\n", argv[i+1]);
+			free(vlist);
+			free(pvlanids);
+			return -1;
+		}
+		pvlanids[i] = vlanid;
+		vlist->list[i] = vlanid;
+		vlist->count++;
+	}
+	new_vi = calloc(1, sizeof(*new_vi));
+	if (!new_vi) {
+		RTE_LOG(ERR, DATAPLANE, "Portmonitor: out of memory\n");
+		free(vlist);
+		free(pvlanids);
+		return -1;
+	}
+	if (tx_vlan) {
+		attr.id = FAL_PORT_ATTR_EGRESS_MIRROR_VLAN;
+
+		old_vi = rcu_dereference(pmsrcif->tx_vinfo);
+		new_vi->num_vlans = vlist->count;
+		new_vi->vlanids = pvlanids;
+		rcu_assign_pointer(pmsrcif->tx_vinfo, new_vi);
+		if (old_vi)
+			call_rcu(&old_vi->vlan_rcu,
+				 portmonitor_srcif_vlan_free);
+	} else {
+		old_vi = rcu_dereference(pmsrcif->rx_vinfo);
+		new_vi->num_vlans = vlist->count;
+		new_vi->vlanids = pvlanids;
+		rcu_assign_pointer(pmsrcif->rx_vinfo, new_vi);
+		if (old_vi)
+			call_rcu(&old_vi->vlan_rcu,
+				 portmonitor_srcif_vlan_free);
+	}
+	rc = fal_l2_upd_port(ifp->if_index, &attr);
+	if (rc < 0 && (rc != -EOPNOTSUPP))
+		RTE_LOG(ERR, DATAPLANE,
+			"Portmonitor: FAL vlan upd failed (%s)\n",
+			strerror(-rc));
+	free(vlist);
+	return 0;
+}
+
 int cmd_portmonitor(FILE *f, int argc, char **argv)
 {
 	uint32_t session_id;
@@ -1012,6 +1226,9 @@ int cmd_portmonitor(FILE *f, int argc, char **argv)
 	uint32_t erspan_hdr_type;
 	struct portmonitor_session *pmsess;
 	int rc;
+	unsigned int num;
+	bool tx_vlan;
+	bool upd_vlan = false;
 
 	if (argc < 3)
 		goto bad_command;
@@ -1196,13 +1413,22 @@ int cmd_portmonitor(FILE *f, int argc, char **argv)
 				return -1;
 			}
 		} else if (strcmp(argv[4], "srcif") == 0) {
-			if (!get_value(argv[6], &vid)) {
-				fprintf(f, "Invalid vid %s\n", argv[6]);
-				return -1;
-			}
-			if (!get_value(argv[7], &direction)) {
-				fprintf(f, "Invalid direction %s\n", argv[7]);
-				return -1;
+			if (strcmp(argv[6], "vlan") == 0) {
+				if (pm_validate_srcif_vlans(f, argc,
+						argv, &num, &tx_vlan) < 0)
+					goto bad_command;
+				upd_vlan = true;
+			} else {
+				if (!get_value(argv[6], &vid)) {
+					fprintf(f, "Invalid vid %s\n",
+						argv[6]);
+					return -1;
+				}
+				if (!get_value(argv[7], &direction)) {
+					fprintf(f, "Invalid direction %s\n",
+						argv[7]);
+					return -1;
+				}
 			}
 			if (!dp_ifnet_byifname(argv[5])) {
 				if (portmonitor_replay_init() < 0) {
@@ -1213,8 +1439,19 @@ int cmd_portmonitor(FILE *f, int argc, char **argv)
 				RTE_LOG(INFO, DATAPLANE,
 					"Caching portmonitor srcif for %s\n",
 					argv[5]);
-				cfg_if_list_add(portmonitor_cfg_list,
+				cfg_if_list_add_multi(portmonitor_cfg_list,
 						argv[5], argc, argv);
+				return 0;
+			}
+			if (upd_vlan) {
+				char **argv8 = argv + 8;
+
+				if (pm_upd_srcif_vlans(f, argv[5],
+						tx_vlan, num, argv8) < 0) {
+					fprintf(f, "Upd src vlans %s failed\n",
+						argv[5]);
+					return -1;
+				}
 				return 0;
 			}
 			if (portmonitor_session_set_srcif(f, pmsess, argv[5],

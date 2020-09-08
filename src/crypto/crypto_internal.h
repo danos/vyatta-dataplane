@@ -17,15 +17,18 @@
 #include <openssl/err.h>
 #include <openssl/evp.h>
 #include <openssl/hmac.h>
+#include <rte_cryptodev.h>
 #include <rte_log.h>
 #include <rte_memcpy.h>
 #include <rte_mbuf.h>
 #include <sys/queue.h>
 
+#include "crypto_defs.h"
 #include "crypto_main.h"
 #include "json_writer.h"
 #include "vplane_log.h"
 #include "vrf_internal.h"
+#include "crypto_rte_pmd.h"
 
 #define CRYPTO_DATA_ERR(args...)			\
 	DP_DEBUG(CRYPTO_DATA, ERR, CRYPTO, args)
@@ -110,39 +113,47 @@ enum crypto_dir {
 	CRYPTO_DIR_OUT
 };
 
+struct crypto_openssl_info {
+	const struct crypto_session_operations *s_ops;
+	EVP_CIPHER_CTX     *ctx;
+	HMAC_CTX           *hmac_ctx;
+	const EVP_CIPHER   *cipher;
+	const EVP_MD       *md;
+};
+
 struct crypto_session {
 	/* All perpacket in first cacheline */
-	const struct crypto_session_operations *s_ops;
+
+	struct rte_cryptodev_sym_session *rte_session;
 	int8_t direction;	/* -1 | XFRM_POLICY_IN | _OUT*/
 	uint8_t cipher_init;
-	uint16_t digest_len;	/* in bytes */
-	uint16_t block_size;    /* in bytes */
-	uint16_t iv_len;        /* in bytes */
-	EVP_CIPHER_CTX *ctx;
-	HMAC_CTX *hmac_ctx;
-	uint16_t nonce_len;     /* in bytes */
-	char iv[EVP_MAX_IV_LENGTH];
-	/*
-	 * Max nonce slips into 2nd cacheline, however normal use case
-	 * aes128g/256gcm is 4 bytes and so it is within first cache
-	 * line
-	 *
-	 * NB nonce is at offset 50.
-	 */
-	unsigned char nonce[EVP_MAX_IV_LENGTH];
-	/* --- cacheline 1 boundary (64 bytes) was 2 bytes ago --- */
-	uint16_t key_len;	/* in bytes */
-	uint16_t auth_alg_key_len; /* in bytes */
-	uint8_t key[EVP_MAX_KEY_LENGTH];
-	/* --- cacheline 2 boundary (128 bytes) was 6 bytes ago --- */
-	char auth_alg_name[64];
-	/* --- cacheline 3 boundary (192 bytes) was 6 bytes ago --- */
-	char auth_alg_key[EVP_MAX_KEY_LENGTH];
+	uint8_t digest_len;           /* in bytes */
+	uint8_t block_size;           /* in bytes */
+	uint8_t iv_len;               /* in bytes */
+	uint8_t nonce_len;            /* in bytes */
+	uint8_t key_len;	      /* in bytes */
+	uint8_t auth_alg_key_len;     /* in bytes */
+	char iv[CRYPTO_MAX_IV_LENGTH];
+	unsigned char nonce[CRYPTO_MAX_IV_LENGTH];
+	uint8_t key[CRYPTO_MAX_CIPHER_KEY_LENGTH];
 
-	const EVP_CIPHER *cipher;
-	const EVP_MD *md;
-	const char *md_name;
-	const char *cipher_name;
+	/* --- cacheline 1 boundary (64 bytes) was 16 bytes ago --- */
+
+	/*
+	 * For AES-128-GCM, all the data required should be within the
+	 * first cacheline. For all other ciphers, it will take 2 cachelines
+	 * to load all the required data
+	 */
+	char auth_alg_key[CRYPTO_MAX_AUTH_KEY_LENGTH];
+
+	struct crypto_openssl_info *o_info;
+
+	enum rte_crypto_aead_algorithm   aead_algo;
+	enum rte_crypto_cipher_algorithm cipher_algo;
+
+	/* --- cacheline 2 boundary (128 bytes) --- */
+
+	enum rte_crypto_auth_algorithm   auth_algo;
 };
 
 /*
@@ -161,7 +172,7 @@ struct sadb_sa {
 	uint32_t spi; /* Network byte order */
 	uint32_t mark_val;
 	bool blocked;
-	char SPARE1;
+	uint8_t rte_cdev_id;
 	uint16_t family;
 	enum crypto_dir dir;
 	struct iphdr iphdr;
@@ -213,10 +224,8 @@ struct crypto_chain_elem;
 struct crypto_session_operations {
 	const struct crypto_visitor_operations *decrypt_vops;
 	const struct crypto_visitor_operations *encrypt_vops;
-	int (*set_enc_key)(struct crypto_session *session,
-			   unsigned int length, const char key[]);
-	int (*set_auth_key)(struct crypto_session *session,
-			    unsigned int length, const char key[]);
+	int (*set_enc_key)(struct crypto_session *session);
+	int (*set_auth_key)(struct crypto_session *session);
 	int (*generate_iv)(struct crypto_session *session, char iv[]);
 	int (*set_iv)(struct crypto_session *session,
 		      unsigned int length, const char iv[]);
@@ -281,11 +290,8 @@ crypto_session_digest_len(const struct crypto_session *ctx)
 	return ctx->digest_len;
 }
 
-int crypto_session_set_enc_key(struct crypto_session *session,
-			       unsigned int length, const char key[]);
-int crypto_session_set_auth_key(struct crypto_session *session,
-				unsigned int length,
-				const char key[]);
+int crypto_session_set_enc_key(struct crypto_session *session);
+int crypto_session_set_auth_key(struct crypto_session *session);
 int crypto_session_generate_iv(struct crypto_session *session,
 			       char iv[]);
 int crypto_session_set_iv(struct crypto_session *session, unsigned int length,
@@ -297,18 +303,6 @@ crypto_session_create(const struct xfrm_algo *algo_crypt,
 		      int direction);
 
 void crypto_session_destroy(struct crypto_session *ctx);
-
-/*
- * DEPRECATED: This function is a temporary helper to set the crypto_session
- * direction. It will be removed as soon as the policy direction is can get
- * resolved on crypto_session creation.
- */
-static inline void
-crypto_session_set_direction(struct crypto_session *ctx, int direction)
-{
-	if (unlikely(ctx->direction == -1))
-		ctx->direction = direction;
-}
 
 /*
  * Returns TRUE if two IPv4 (or IPv6) addresses are equal.
@@ -404,6 +398,10 @@ int cipher_setup_ctx(const struct xfrm_algo *,
 		     uint32_t extra_flags);
 void cipher_teardown_ctx(struct sadb_sa *sa);
 
+int crypto_openssl_session_setup(struct crypto_session *ctx);
+
+void crypto_openssl_session_teardown(struct crypto_session *ctx);
+
 void crypto_engine_summary(json_writer_t *wr, const struct sadb_sa *sa);
 
 extern uint32_t crypto_rekey_requests;
@@ -470,6 +468,7 @@ enum ipsec_cnt_types {
 	FLOW_CACHE_MISS,
 	DROPPED_NO_BIND,
 	DROPPED_ON_FP_NO_PR,
+	DROPPED_COP_ALLOC_FAILED,
 	IPSEC_CNT_MAX /* this must be last */
 };
 
@@ -561,8 +560,12 @@ void crypto_delete_queue(struct rte_ring *pmd_queue);
  * Prototypes for crypto_pmd.c
  */
 void crypto_remove_sa_from_pmd(int crypto_dev_id, enum crypto_xfrm xfrm,
+			       struct crypto_session *ctx,
 			       bool pending);
-int crypto_allocate_pmd(enum crypto_xfrm xfrm);
+int crypto_allocate_pmd(enum crypto_xfrm xfrm,
+			enum rte_crypto_cipher_algorithm cipher_algo,
+			enum rte_crypto_aead_algorithm aead_algo,
+			bool *setup_openssl);
 struct rte_ring *crypto_pmd_get_q(int dev_id, enum crypto_xfrm xfrm);
 typedef bool (*crypto_pmd_walker_cb)(int pmd_dev_id, enum crypto_xfrm,
 				     struct rte_ring *,
@@ -578,4 +581,66 @@ struct crypto_vrf_ctx *crypto_vrf_find_external(vrfid_t vrfid);
 struct crypto_vrf_ctx *crypto_vrf_get(vrfid_t vrfid);
 void crypto_vrf_check_remove(struct crypto_vrf_ctx *vrf_ctx);
 struct ifnet *crypto_policy_feat_attach_by_reqid(uint32_t reqid);
+
+/*
+ * Per packet crypto context. This carries information
+ * from the policy lookup in the forwarding thread that
+ * is needed for the SA lookup in the crypto thread.
+ */
+struct crypto_pkt_ctx {
+	/*
+	 * These fields are set up by the forwarding
+	 * thread and used to select the actions the
+	 * crypto thread will perform on the packet.
+	 */
+	struct rte_mbuf *mbuf;
+	uint32_t reqid;
+	uint32_t spi;
+	void *l3hdr;
+	struct ifnet *in_ifp;
+	struct ifnet *nxt_ifp;
+	struct rte_crypto_op *cop;
+
+	/*
+	 * These fields are set and used in the crypto thread
+	 */
+	struct sadb_sa *sa;
+	uint16_t iphlen;
+	uint16_t udp_len;
+	uint16_t base_len;
+	uint16_t esp_len;
+	uint16_t ciphertext_len;
+	uint16_t plaintext_size;
+	uint16_t plaintext_size_orig;
+	uint16_t icv_len;
+	uint16_t prev_off;
+	uint16_t head_trim;
+	unsigned char *esp;
+	unsigned char *iv;
+	unsigned char *icv;
+	char *hdr;
+	char *tail;
+	unsigned int counter_modify;
+	/* bytes encrypted/decrypted */
+	uint32_t bytes;
+	int status;
+
+	/*
+	 * These fields are are bi-directional. They may be
+	 * set by the forwarding thread and modified by the
+	 * crypto thread.
+	 *
+	 * TODO: Replace direction with an input action
+	 *       of either ENCRYPT or DECRYPT.
+	 */
+	uint8_t action;
+	uint8_t in_ifp_port;
+	uint16_t SPARE1;
+	uint16_t direction;
+	uint8_t orig_family;
+	uint8_t family;
+	xfrm_address_t dst; /* Only used for outbound traffic */
+	vrfid_t vrfid;
+};
+
 #endif /* CRYPTO_INTERNAL_H */

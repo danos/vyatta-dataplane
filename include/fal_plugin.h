@@ -357,6 +357,11 @@ struct fal_object_list_t {
 	fal_object_t list[0];
 };
 
+struct fal_u32_list_t {
+	uint32_t count;
+	uint32_t list[0];
+};
+
 /*
  * modeled after sai_packet_color_t
  * used to set actions based on packet colour
@@ -436,6 +441,7 @@ union fal_attribute_value_t {
 	struct fal_acl_action_data_t *aclaction;
 	char if_name[IFNAMSIZ];
 	uint8_t eui64[8];
+	struct fal_u32_list_t *u32list;
 	struct fal_ptp_port_path_t ptp_port_path;
 };
 
@@ -547,6 +553,25 @@ typedef enum _fal_port_poe_class_t {
 
 } fal_port_poe_class_t;
 
+
+/**
+ * @brief Attribute data for #FAL_PORT_ATTR_GLOBAL_FLOW_CONTROL_MODE
+ */
+enum fal_port_flow_control_mode_t {
+	/** Disable flow control for both tx and rx */
+	FAL_PORT_FLOW_CONTROL_MODE_DISABLE,
+
+	/** Enable flow control for rx only */
+	FAL_PORT_FLOW_CONTROL_MODE_RX_ONLY,
+
+	/** Enable flow control for tx only */
+	FAL_PORT_FLOW_CONTROL_MODE_TX_ONLY,
+
+	/** Enable flow control for both tx and rx */
+	FAL_PORT_FLOW_CONTROL_MODE_BOTH_ENABLE,
+
+};
+
 /* Layer 2 operations */
 
 enum fal_port_attr_t {
@@ -556,7 +581,7 @@ enum fal_port_attr_t {
 	FAL_PORT_ATTR_VRF_ID,		/* .u32 -- VRF id - deprecated */
 	FAL_PORT_ATTR_DPDK_PORT,	/* .u8 -- port */
 	FAL_PORT_ATTR_VLAN_ID,		/* .u16 -- VLAN ID - deprecated */
-	FAL_PORT_ATTR_PARENT_IFINDEX,	/* .u32 -- if_index */
+	FAL_PORT_ATTR_PARENT_IFINDEX,	/* .u32 -- ifindex */
 	FAL_PORT_ATTR_MTU,		/* .u16 -- MTU */
 	FAL_PORT_ATTR_HW_SWITCH_MODE, /* .u8 - enable/disable */
 	FAL_PORT_ATTR_MAC_ADDRESS,	/* .mac -- primary MAC address */
@@ -627,7 +652,24 @@ enum fal_port_attr_t {
 	 * @default empty
 	 */
 	FAL_PORT_ATTR_EGRESS_MIRROR_SESSION,
-
+	/**
+	 * @brief Ingress Mirror vlan list
+	 * Ingress mirroring vlan list
+	 * Delete all vlans for Ingress if count 0 in objlist.
+	 * @type fal_object_list_t
+	 * @flags CREATE_AND_SET
+	 * @default empty
+	 */
+	FAL_PORT_ATTR_INGRESS_MIRROR_VLAN,
+	/**
+	 * @brief Egress Mirror vlan list
+	 * Egress(Tx) mirroring vlan list
+	 * Delete all vlans for Egress if count 0 in objlist.
+	 * @type fal_object_list_t
+	 * @flags CREATE_AND_SET
+	 * @default empty
+	 */
+	FAL_PORT_ATTR_EGRESS_MIRROR_VLAN,
 	/**
 	 * @brief Is mirroring in hardware enabled
 	 * True means mirroring will be done in hardware, false
@@ -712,6 +754,40 @@ enum fal_port_attr_t {
 	 * @flags READ_ONLY
 	 */
 	FAL_PORT_ATTR_HW_CAPTURE,
+
+	/**
+	 * @brief Global pause-frame flow control on Interface.
+	 * @type fal_port_flow_control_mode_t
+	 * @flags CREATE_AND_SET
+	 * @default FAL_PORT_FLOW_CONTROL_MODE_DISABLE
+	 **/
+	FAL_PORT_ATTR_GLOBAL_FLOW_CONTROL_MODE,
+
+	/**
+	 * @brief Query Remote port Advertised flow control mode
+	 * @type fal_port_flow_control_mode_t
+	 * @flags READ_ONLY
+	 **/
+	FAL_PORT_ATTR_REMOTE_ADVERTISED_FLOW_CONTROL_MODE,
+
+	/**
+	 * @brief Enable egress QoS marking on port
+	 *
+	 * Set map id = FAL_NULL_OBJECT_ID to remove map
+	 * @type fal_object_t
+	 * @flags CREATE_AND_SET
+	 * @default FAL_NULL_OBJECT_ID
+	 *
+	 */
+	FAL_PORT_ATTR_QOS_EGRESS_MAP_ID,
+
+	/** @brief Enable/Disable SyncE on interface
+	 *
+	 * @type u8 - disable/enable
+	 * @default - FAL_PORT_SYNCE_DISABLE
+	 */
+	FAL_PORT_ATTR_SYNCE_ADMIN_STATUS,
+
 };
 
 enum fal_port_hw_switching_t {
@@ -719,14 +795,19 @@ enum fal_port_hw_switching_t {
 	FAL_PORT_HW_SWITCHING_ENABLE
 };
 
-void fal_plugin_l2_new_port(unsigned int if_index,
+enum fal_port_synce_admin_status_t {
+	FAL_PORT_SYNCE_DISABLE,
+	FAL_PORT_SYNCE_ENABLE
+};
+
+void fal_plugin_l2_new_port(unsigned int ifindex,
 			    uint32_t attr_count,
 			    const struct fal_attribute_t *attr_list);
 
 /**
- * @brief Get port attributes from interface if_index.
+ * @brief Get port attributes from interface ifindex.
  *
- * @param[in] if_index The if_index of the interface
+ * @param[in] ifindex The ifindex of the interface
  * @param[in] attr_count Number of attributes
  * @param[inout] attr_list Array of attributes
  *
@@ -734,42 +815,42 @@ void fal_plugin_l2_new_port(unsigned int if_index,
  *	   unsupported by the FAL plugin, it should return
  *	   an error.
  */
-int fal_plugin_l2_get_attrs(unsigned int if_index,
+int fal_plugin_l2_get_attrs(unsigned int ifindex,
 			    uint32_t attr_count,
 			    struct fal_attribute_t *attr_list);
 
 /*
- * Update the attributes on interface if_index
+ * Update the attributes on interface ifindex
  */
-int fal_plugin_l2_upd_port(unsigned int if_index,
+int fal_plugin_l2_upd_port(unsigned int ifindex,
 			   struct fal_attribute_t *attr);
 
 /*
- * Delete the interface if_index
+ * Delete the interface ifindex
  */
-void fal_plugin_l2_del_port(unsigned int if_index);
+void fal_plugin_l2_del_port(unsigned int ifindex);
 
 /* No attributes */
 
 /*
- * Add the address to the interface if_index
+ * Add the address to the interface ifindex
  */
-void fal_plugin_l2_new_addr(unsigned int if_index,
+void fal_plugin_l2_new_addr(unsigned int ifindex,
 			    const struct rte_ether_addr *addr,
 			    uint32_t attr_count,
 			    const struct fal_attribute_t *attr_list);
 
 /*
- * Update the addr on the interface if_index
+ * Update the addr on the interface ifindex
  */
-void fal_plugin_l2_upd_addr(unsigned int if_index,
+void fal_plugin_l2_upd_addr(unsigned int ifindex,
 			    const struct rte_ether_addr *addr,
 			    struct fal_attribute_t *attr);
 
 /*
- * Delete the address on the interface if_index
+ * Delete the address on the interface ifindex
  */
-void fal_plugin_l2_del_addr(unsigned int if_index,
+void fal_plugin_l2_del_addr(unsigned int ifindex,
 			    const struct rte_ether_addr *addr);
 
 /* Router interface operations */
@@ -792,10 +873,19 @@ enum fal_router_interface_attr_t {
 	/**
 	 * @brief VRF ID
 	 *
+	 * Deprecated in favour of FAL_ROUTER_INTERFACE_ATTR_VRF_OBJ.
+	 *
 	 * @flags MANDATORY_ON_CREATE
 	 * @type  uint32_t
 	 */
 	FAL_ROUTER_INTERFACE_ATTR_VRF_ID,
+	/**
+	 * @brief VRF object bound to
+	 *
+	 * @flags MANDATORY_ON_CREATE
+	 * @type  fal_object_t
+	 */
+	FAL_ROUTER_INTERFACE_ATTR_VRF_OBJ,
 	/**
 	 * @brief Associated Vlan
 	 *
@@ -942,6 +1032,19 @@ enum fal_router_interface_attr_t {
 	 */
 	FAL_ROUTER_INTERFACE_ATTR_V6_MCAST_ENABLE,
 
+	/**
+	 * @brief Egress QOS Marking map
+	 *
+	 * If an egress map is applied on a L3 interface then the
+	 * traffic sent out of the interface is subjected to egress
+	 * marking and will be sent out with the remarked values
+	 * corresponding to the egress map.
+	 *
+	 * @type fal_object_t
+	 * @flags CREATE_AND_SET
+	 * @default FAL_NULL_OBJECT_ID
+	 */
+	FAL_ROUTER_INTERFACE_ATTR_EGRESS_QOS_MAP,
 	FAL_ROUTER_INTERFACE_ATTR_MAX
 };
 
@@ -1120,7 +1223,7 @@ enum fal_tunnel_attr_t {
 	FAL_TUNNEL_ATTR_TYPE,
 
 	/**
-	 * @brief Tunnel underlay interface if_index
+	 * @brief Tunnel underlay interface ifindex
 	 *
 	 * Underlay interface to provide transport reachability for the tunnel.
 	 *
@@ -1140,7 +1243,7 @@ enum fal_tunnel_attr_t {
 	FAL_TUNNEL_ATTR_NEXTHOP,
 
 	/**
-	 * @brief Tunnel overlay interface if_index
+	 * @brief Tunnel overlay interface ifindex
 	 *
 	 * Overlay interface is router interface.
 	 *
@@ -1637,6 +1740,40 @@ int fal_plugin_stp_get_port_attribute(unsigned int child_ifindex,
 
 /* Global switch operations */
 
+/**
+ * MPLS TTL modes
+ *
+ * See RFC 3443 for further details.
+ */
+enum fal_mpls_ttl_mode {
+	/**
+	 * Uniform mode
+	 *
+	 * On pushing a label, inherit MPLS TTL from MPLS, IPv4 or
+	 * IPv6 packet, decrementing it by 1.
+	 *
+	 * On popping a label, copy MPLS outermost TTL into next
+	 * outermost MPLS TTL, if available, or into the IPv4 or IPv6
+	 * packet TTL.
+	 */
+	FAL_MPLS_TTL_MODE_UNIFORM,
+	/**
+	 * Pipe mode
+	 *
+	 * On pushing a label, set TTL to configured value,
+	 * decrementing payload TTL by 1.
+	 *
+	 * On popping a label, preserve the outermost MPLS TTL, if
+	 * available, or the IPv4 or IPv6 packet TTL, but decrement by
+	 * 1.
+	 *
+	 * On swapping for an implicit-null, preserve the outermost
+	 * MPLS TTL, if available, or the IPv4 or IPv6 packet TTL, but
+	 * don't decrement.
+	 */
+	FAL_MPLS_TTL_MODE_PIPE,
+};
+
 enum fal_switch_attr_t {
 	/**
 	 * @brief Action for Packets that result in ICMP Redirect
@@ -1761,6 +1898,45 @@ enum fal_switch_attr_t {
 	 * @flags READ_ONLY
 	 */
 	FAL_SWITCH_ATTR_MAX_BFD_INTERVAL_CNT,
+
+	/**
+	 * @brief Local discriminator requirements in the HW for BFD sessions.
+	 * Some HW require the Local discriminator to be multiple of 2/4 etc.
+	 * due to their Session DB management. In such cases the local
+	 * discriminator is also used as a session ID
+	 *
+	 * @type  .u32
+	 * @flags READ_ONLY
+	 */
+	FAL_SWITCH_ATTR_BFD_LOCAL_DISCRIMINATOR_SHIFT,
+
+	/**
+	 * @brief SyncE Lock clock to interface
+	 *
+	 * @type u32 - ifindex for interface for clk lock
+	 * @default 0
+	 */
+	FAL_SWITCH_ATTR_SYNCE_CLOCK_SOURCE_PORT,
+
+	/**
+	 * @brief How to treat TTL for MPLS encap and decap of IPv4
+	 * and IPv6 packets
+	 *
+	 * @type enum fal_mpls_ttl_mode
+	 * @flags CREATE_AND_SET
+	 * @default FAL_MPLS_TTL_MODE_UNIFORM
+	 */
+	FAL_SWITCH_ATTR_MPLS_IP_TTL_MODE,
+
+	/**
+	 * @brief TTL for MPLS encap of IPv4 and IPv6 packets when in
+	 * pipe TTL mode
+	 *
+	 * @type .u8
+	 * @flags CREATE_AND_SET
+	 * @default 255
+	 */
+	FAL_SWITCH_ATTR_MPLS_PIPE_TTL,
 };
 
 /*
@@ -1783,26 +1959,26 @@ enum fal_address_entry_attr_t {
 };
 
 /*
- * Add the IP address to the interface if_index
+ * Add the IP address to the interface ifindex
  */
-void fal_plugin_ip_new_addr(unsigned int if_index,
+void fal_plugin_ip_new_addr(unsigned int ifindex,
 			    struct fal_ip_address_t *ipaddr,
 			    uint8_t prefixlen,
 			    uint32_t attr_count,
 			    const struct fal_attribute_t *attr_list);
 
 /*
- * Update the IP address on the interface if_index
+ * Update the IP address on the interface ifindex
  */
-void fal_plugin_ip_upd_addr(unsigned int if_index,
+void fal_plugin_ip_upd_addr(unsigned int ifindex,
 			    struct fal_ip_address_t *ipaddr,
 			    uint8_t prefixlen,
 			    struct fal_attribute_t *attr);
 
 /*
- * Delete the IP address on the interface if_index
+ * Delete the IP address on the interface ifindex
  */
-void fal_plugin_ip_del_addr(unsigned int if_index,
+void fal_plugin_ip_del_addr(unsigned int ifindex,
 			    struct fal_ip_address_t *ipaddr,
 			    uint8_t prefixlen);
 
@@ -1835,16 +2011,16 @@ enum fal_neighbor_entry_attr_t {
 };
 
 /**
- * @brief Create an IP neighbor for address on interface if_index
+ * @brief Create an IP neighbor for address on interface ifindex
  *
- * @param[in] if_index Index of interface to add neighbour to
+ * @param[in] ifindex Index of interface to add neighbour to
  * @param[in] ipaddr Address of neighbour to add
  * @param[in] attr_count Count of the attributes
  * @param[in] attr_list List of attributes
  *
  * @return 0 on success. Negative errno on failure.
  */
-int fal_plugin_ip_new_neigh(unsigned int if_index,
+int fal_plugin_ip_new_neigh(unsigned int ifindex,
 			    struct fal_ip_address_t *ipaddr,
 			    uint32_t attr_count,
 			    const struct fal_attribute_t *attr_list);
@@ -1852,50 +2028,50 @@ int fal_plugin_ip_new_neigh(unsigned int if_index,
 /**
  * @brief Update an IP neighbor
  *
- * @param[in] if_index Index of interface to update neighbour on
+ * @param[in] ifindex Index of interface to update neighbour on
  * @param[in] ipaddr Address of neighbour to update
  * @param[in] attr Attribute to update
  *
  * @return 0 on success. Negative errno on failure.
  */
-int fal_plugin_ip_upd_neigh(unsigned int if_index,
+int fal_plugin_ip_upd_neigh(unsigned int ifindex,
 			    struct fal_ip_address_t *ipaddr,
 			    struct fal_attribute_t *attr);
 
 /**
  * @brief Query attributes for an IP neighbor
  *
- * @param[in] if_index Index of interface for neighbour to query
+ * @param[in] ifindex Index of interface for neighbour to query
  * @param[in] ipaddr Address of neighbour to query
  * @param[in] attr_count Count of the attributes
  * @param[in] attr_list List of attributes to query
  *
  * @return 0 on success. Negative errno on failure.
  */
-int fal_plugin_ip_get_neigh_attrs(unsigned int if_index,
+int fal_plugin_ip_get_neigh_attrs(unsigned int ifindex,
 				  struct fal_ip_address_t *ipaddr,
 				  uint32_t attr_count,
 				  struct fal_attribute_t *attr_list);
 
 /**
- * @brief Delete an IP neighbor for address on interface if_index
+ * @brief Delete an IP neighbor for address on interface ifindex
  *
- * @param[in] if_index Index of interface to delete neighbour on
+ * @param[in] ifindex Index of interface to delete neighbour on
  * @param[in] ipaddr Address of neighbour to delete
  *
  * @return 0 on success. Negative errno on failure.
  */
-int fal_plugin_ip_del_neigh(unsigned int if_index,
+int fal_plugin_ip_del_neigh(unsigned int ifindex,
 			    struct fal_ip_address_t *ipaddr);
 
 /**
  * @brief Dump info for an IP neighbor
  *
- * @param[in] if_index Index of interface to dump neighbour on
+ * @param[in] ifindex Index of interface to dump neighbour on
  * @param[in] ipaddr Address of neighbour to dump
  * @param[inout] json writer object
  */
-void fal_plugin_ip_dump_neigh(unsigned int if_index,
+void fal_plugin_ip_dump_neigh(unsigned int ifindex,
 			      struct fal_ip_address_t *ipaddr,
 			      json_writer_t *wr);
 
@@ -1916,7 +2092,25 @@ enum fal_packet_action_t {
 };
 
 enum fal_route_entry_attr_t {
+	/**
+	 * @brief Next hop group id
+	 *
+	 * This attribute only takes effect when ATTR_PACKET_ACTION is set to
+	 * FORWARD.
+	 *
+	 * @type fal_object_id_t
+	 * @flags CREATE_AND_SET
+	 * @default FAL_NULL_OBJECT_ID
+	 * @validonly FAL_ROUTE_ENTRY_ATTR_PACKET_ACTION ==
+	 *					FAL_PACKET_ACTION_FORWARD
+	 */
 	FAL_ROUTE_ENTRY_ATTR_NEXT_HOP_GROUP,	/* .objid */
+	/**
+	 * @brief Packet action
+	 *
+	 * @type fal_packet_action_t
+	 * @flags MANDATORY_ON_CREATE | CREATE_AND_SET
+	 */
 	FAL_ROUTE_ENTRY_ATTR_PACKET_ACTION,	/* .u32 - fal_packet_action_t */
 };
 
@@ -2006,6 +2200,25 @@ int fal_plugin_ip_walk_routes(fal_plugin_route_walk_fn cb,
  * IP Nexthop Group operations
  */
 
+enum fal_next_hop_group_use {
+	/**
+	 * @brief The next hop group will be used for IP routing
+	 *
+	 * Give a hint that the next hop group won't be linked to from
+	 * MPLS label routes.
+	 */
+	FAL_NHG_USE_IP,
+	/**
+	 * @brief The next hop group will be used for MPLS label switching.
+	 *
+	 * Give a hint that the next hop group will only be used for
+	 * MPLS label switching, i.e. that the packet already has at
+	 * least one label on it when it is subjected to this
+	 * forwarding action.
+	 */
+	FAL_NHG_USE_MPLS_LABEL_SWITCH,
+};
+
 /**
  * @brief Create a next hop group object
  *
@@ -2063,6 +2276,14 @@ enum fal_next_hop_group_attr_t {
 	 * @flags READ_ONLY
 	 */
 	FAL_NEXT_HOP_GROUP_ATTR_NEXTHOP_OBJECT,	/* .objid */
+	/**
+	 * @brief Hint for how the next-hop-group will be used
+	 *
+	 * @type fal_next_hop_group_use
+	 * @default FAL_NHG_USE_IP,
+	 * @flags CREATE_ONLY
+	 */
+	FAL_NEXT_HOP_GROUP_ATTR_USE,
 };
 /**
  * @brief Query attributes for a next hop group object
@@ -2140,8 +2361,10 @@ enum fal_next_hop_attr_t {
 	/**
 	 * @brief Next hop router interface
 	 *
+	 * Mutually exclusive with FAL_NEXT_HOP_ATTR_VRF_LOOKUP
+	 *
 	 * @type fal_object_t
-	 * @flags MANDATORY_ON_CREATE | CREATE_ONLY
+	 * @flags CREATE_ONLY
 	 * @default FAL_NULL_OBJECT_ID
 	 */
 	FAL_NEXT_HOP_ATTR_ROUTER_INTF,		/* .objid */
@@ -2170,6 +2393,34 @@ enum fal_next_hop_attr_t {
 	 * @flags CREATE_AND_SET
 	 */
 	FAL_NEXT_HOP_ATTR_USABILITY,			/* .i32 */
+	/**
+	 * @brief Next hop outgoing MPLS labels
+	 *
+	 * This gives the label stack to apply to the packet in bottom
+	 * to top (inner-most to outer-most) ordering in host byte
+	 * ordering. The following well-known labels are specific
+	 * semantics:
+	 *
+	 * * implicit-NULL - won't appear on the wire, but will
+	 *   indicate a penultimate-hop pop. Not valid for next-hop
+	 *   groups link to by IP routes. Must be the one and only
+	 *   label.
+	 *
+	 * @type fal_u32_list_t
+	 * @flags CREATE_ONLY
+	 */
+	FAL_NEXT_HOP_ATTR_MPLS_LABELSTACK,	/* .u32list */
+	/**
+	 * @brief VRF to perform lookup in
+	 *
+	 * Mutually exclusive with FAL_NEXT_HOP_ATTR_ROUTER_INTF and
+	 * label-stack must be empty.
+	 *
+	 * @type fal_object_t
+	 * @flags CREATE_ONLY
+	 * @default FAL_NULL_OBJECT_ID
+	 */
+	FAL_NEXT_HOP_ATTR_VRF_LOOKUP,		/* .objid */
 };
 
 /**
@@ -3298,8 +3549,11 @@ enum fal_qos_map_type_t {
 	/** QOS Map to set designator to DOT1P */
 	FAL_QOS_MAP_TYPE_DESIGNATOR_TO_DOT1P = 0x0000000b,
 
+	/** QOS Map to set designator to DSCP */
+	FAL_QOS_MAP_TYPE_DESIGNATOR_TO_DSCP = 0x0000000c,
+
 	/** Max value */
-	FAL_QOS_MAP_TYPE_MAX = FAL_QOS_MAP_TYPE_DESIGNATOR_TO_DOT1P,
+	FAL_QOS_MAP_TYPE_MAX = FAL_QOS_MAP_TYPE_DESIGNATOR_TO_DSCP,
 };
 
 /**
@@ -3405,7 +3659,7 @@ int fal_plugin_qos_upd_map(fal_object_t map_id,
  * @param[in] map object id
  * @param[in] json writer object
  */
-void fal_plugin_qos_dump_map(fal_object_t map,
+void fal_plugin_qos_dump_map(fal_object_t map_id,
 			     json_writer_t *wr);
 
 /**
@@ -3608,7 +3862,7 @@ enum fal_qos_sched_group_attr_t {
 	/**
 	 * @brief Scheduler group index
 	 *
-	 * For FAL_QOS_SCHED_GROUP_LEVEL_PORT this is the if_index of the
+	 * For FAL_QOS_SCHED_GROUP_LEVEL_PORT this is the ifindex of the
 	 * port on which the scheduler group should be applied. For all
 	 * other levels, this is a 0-based unique identifier particular to
 	 * the level that may be used for debugging purposes or configuration
@@ -3734,7 +3988,7 @@ int fal_plugin_qos_new_sched_group(fal_object_t switch_id, uint32_t attr_count,
  *
  * @return 0 on success, failure status code on error
  */
-int fal_plugin_qos_del_sched_group(fal_object_t scheduler_group);
+int fal_plugin_qos_del_sched_group(fal_object_t sched_group_id);
 
 /**
  * @brief Update a scheduler group attribute
@@ -3766,7 +4020,7 @@ int fal_plugin_qos_get_sched_group_attrs(fal_object_t sched_group_id,
  * @param[in] sched group object id
  * @param[in] json writer object
  */
-void fal_plugin_qos_dump_sched_group(fal_object_t sg,
+void fal_plugin_qos_dump_sched_group(fal_object_t sched_group_id,
 				     json_writer_t *wr);
 
 void fal_plugin_dump_memory_buffer_errors(json_writer_t *wr);
@@ -4143,6 +4397,17 @@ enum fal_vlan_feature_attr_t {
 	 * @flags READ_ONLY
 	 */
 	FAL_VLAN_FEATURE_ATTR_MAC_COUNT,
+
+	/**
+	 * @brief Enable egress QoS marking on vlan on port
+	 *
+	 * Set map id = FAL_NULL_OBJECT_ID to remove map
+	 * @type fal_object_t
+	 * @flags CREATE_AND_SET
+	 * @default FAL_NULL_OBJECT_ID
+	 *
+	 */
+	FAL_VLAN_FEATURE_ATTR_QOS_EGRESS_MAP_ID,
 };
 
 /**
@@ -4194,11 +4459,11 @@ int fal_plugin_vlan_feature_get_attr(fal_object_t obj,
 /**
  * @brief set backplane port
  * @param[in] bp_ifindex backplane interface ifindex
- * @param[in] if_index interface for which backplane binding
+ * @param[in] ifindex interface for which backplane binding
  *            is to be set
  * @return Returns 0 for success, error code on failure
  */
-int fal_plugin_backplane_bind(unsigned int bp_ifindex, unsigned int if_index);
+int fal_plugin_backplane_bind(unsigned int bp_ifindex, unsigned int ifindex);
 
 /**
  * @brief dump backplane information for specified backplane port
@@ -4318,6 +4583,22 @@ enum fal_cpp_limiter_attr_t {
 	 * @flags MANDATORY_ON_CREATE | CREATE_ONLY
 	 */
 	FAL_CPP_LIMITER_ATTR_DEFAULT = 13,
+
+	/**
+	 * @brief Rate limiter for PIM packets
+	 *
+	 * @type fal_object_t
+	 * @flags CREATE_ONLY
+	 */
+	FAL_CPP_LIMITER_ATTR_PIM = 14,
+
+	/**
+	 * @brief Rate limiter for IP multicast packets
+	 *
+	 * @type fal_object_t
+	 * @flags CREATE_ONLY
+	 */
+	FAL_CPP_LIMITER_ATTR_IP_MC = 15,
 };
 
 /*
@@ -4425,6 +4706,8 @@ enum fal_ptp_clock_profile_t {
 	FAL_PTP_CLOCK_G82752_PROFILE = 2, /** G.8275.2 Telecom profile */
 	FAL_PTP_CLOCK_G82752_APTS_PROFILE = 3,
 					/** G.8275.2 w/ APTS Telecom profile */
+	FAL_PTP_CLOCK_G82751_FWD_PROFILE = 4,
+	FAL_PTP_CLOCK_G82751_NON_FWD_PROFILE = 5,
 };
 
 /**
@@ -4438,7 +4721,7 @@ enum fal_ptp_clock_profile_t {
  */
 int fal_plugin_create_ptp_clock(uint32_t attr_count,
 				struct fal_attribute_t *attr_list,
-				fal_object_t *clock);
+				fal_object_t *clock_id);
 
 /**
  * @brief Delete a PTP clock.
@@ -4447,7 +4730,7 @@ int fal_plugin_create_ptp_clock(uint32_t attr_count,
  *
  * @return 0 on success, error code for failure
  */
-int fal_plugin_delete_ptp_clock(fal_object_t clock);
+int fal_plugin_delete_ptp_clock(fal_object_t clock_id);
 
 /**
  * @brief Dump the status of a PTP clock.
@@ -4455,7 +4738,7 @@ int fal_plugin_delete_ptp_clock(fal_object_t clock);
  * @param[in] obj  PTP clock
  * @param[in] json JSON writer object
  */
-int fal_plugin_dump_ptp_clock(fal_object_t clock, json_writer_t *wr);
+int fal_plugin_dump_ptp_clock(fal_object_t clock_id, json_writer_t *wr);
 
 enum fal_ptp_port_attr_t {
 	/**
@@ -4570,7 +4853,7 @@ enum fal_ptp_port_attr_t {
  */
 int fal_plugin_create_ptp_port(uint32_t attr_count,
 			       struct fal_attribute_t *attr_list,
-			       fal_object_t *port);
+			       fal_object_t *port_id);
 
 /**
  * @brief Delete a PTP port on a PTP clock.
@@ -4579,12 +4862,12 @@ int fal_plugin_create_ptp_port(uint32_t attr_count,
  *
  * @return 0 on success, error code for failure
  */
-int fal_plugin_delete_ptp_port(fal_object_t port);
+int fal_plugin_delete_ptp_port(fal_object_t port_id);
 
 enum fal_ptp_peer_type_t {
 	FAL_PTP_PEER_MASTER,	/**< PTP master */
 	FAL_PTP_PEER_SLAVE,	/**< PTP slave */
-	FAL_PTP_PEER_ALLOWED,	/**< Whitelisted PTP peer */
+	FAL_PTP_PEER_ALLOWED,	/**< Allowed PTP peer */
 };
 
 enum fal_ptp_peer_attr_t {
@@ -4631,7 +4914,7 @@ enum fal_ptp_peer_attr_t {
  */
 int fal_plugin_create_ptp_peer(uint32_t attr_count,
 			       struct fal_attribute_t *attr_list,
-			       fal_object_t *peer);
+			       fal_object_t *peer_id);
 
 /**
  * @brief Delete a PTP peer on a PTP port.
@@ -4640,7 +4923,7 @@ int fal_plugin_create_ptp_peer(uint32_t attr_count,
  *
  * @return 0 on success, error code for failure
  */
-int fal_plugin_delete_ptp_peer(fal_object_t peer);
+int fal_plugin_delete_ptp_peer(fal_object_t peer_id);
 
 /* Stuff for L3 ACLs */
 
@@ -5192,7 +5475,7 @@ int fal_plugin_acl_get_table_attr(fal_object_t table_id,
  */
 int fal_plugin_acl_create_entry(uint32_t attr_count,
 			 const struct fal_attribute_t *attr,
-			 fal_object_t *new_entry_id);
+			 fal_object_t *entry_id);
 
 /**
  * @brief Delete an entry/rule
@@ -5868,5 +6151,143 @@ typedef void (*fal_bfd_session_state_change_notification_fn)(
 	struct fal_bfd_session_state_notification_t *data);
 
 /* End of BFD Definitions */
+
+enum fal_mpls_route_attr_t {
+	/**
+	 * @brief Next hop group id
+	 *
+	 * This attribute only takes effect when ATTR_PACKET_ACTION is set to
+	 * FORWARD.
+	 *
+	 * @type fal_object_id_t
+	 * @flags CREATE_AND_SET
+	 * @default FAL_NULL_OBJECT_ID
+	 * @validonly FAL_MPLS_ROUTE_ATTR_PACKET_ACTION ==
+	 *					FAL_PACKET_ACTION_FORWARD
+	 */
+	FAL_MPLS_ROUTE_ATTR_NEXT_HOP_GROUP,	/* .objid */
+	/**
+	 * @brief Packet action
+	 *
+	 * @type fal_packet_action_t
+	 * @flags MANDATORY_ON_CREATE | CREATE_AND_SET
+	 */
+	FAL_MPLS_ROUTE_ATTR_PACKET_ACTION,	/* .u32 - fal_packet_action_t */
+};
+
+struct fal_mpls_route_t {
+	/**
+	 * @brief MPLS label
+	 */
+	uint32_t label;
+};
+
+/**
+ * @brief Create an MPLS route
+ *
+ * @param[in] mpls_route MPLS route key
+ * @param[in] attr_count Number of attributes
+ * @param[in] attr_list The attributes and values for the route
+ *
+ * @return 0 on success or failure status.
+ */
+int fal_plugin_create_mpls_route(const struct fal_mpls_route_t *mpls_route,
+				 uint32_t attr_count,
+				 const struct fal_attribute_t *attr_list);
+
+/**
+ * @brief Delete an MPLS route
+ *
+ * @param[in] mpls_route MPLS route key
+ *
+ * @return 0 on success or failure status.
+ */
+int fal_plugin_delete_mpls_route(const struct fal_mpls_route_t *mpls_route);
+
+/**
+ * @brief Set an MPLS route attribute
+ *
+ * @param[in] mpls_route MPLS route key
+ * @param[in] attr The attribute to change and the new value
+ *
+ * @return 0 on success or failure status.
+ */
+int fal_plugin_set_mpls_route_attr(const struct fal_mpls_route_t *mpls_route,
+				   const struct fal_attribute_t *attr);
+
+/**
+ * @brief Get an MPLS route attribute
+ *
+ * @param[in] mpls_route MPLS route key
+ * @param[in] attr_count Number of attributes
+ * @param[in/out] attr_list A list of the attributes and their
+ *                          associated values
+ *
+ * @return 0 on success or failure status.
+ */
+int fal_plugin_get_mpls_route_attr(const struct fal_mpls_route_t *mpls_route,
+				   uint32_t attr_count,
+				   struct fal_attribute_t *attr_list);
+
+enum fal_vrf_attr_t {
+	/**
+	 * @brief VRF ID
+	 *
+	 * Application-generated ID for the VRF that may be used by
+	 * the FAL plugin for ease of debugging programming and packet
+	 * forwarding issues.
+	 *
+	 * @type uint32_t
+	 * @flags CREATE_ONLY | MANDATORY_ON_CREATE
+	 */
+	FAL_VRF_ATTR_ID,	/* .u32 */
+};
+
+/**
+ * @brief Create a VRF
+ *
+ * @param[in] attr_count Number of attributes
+ * @param[in] attr_list The attributes and values for the VRF
+ * @param[out] obj Object ID for the VRF returned
+ *
+ * @return 0 on success or failure status.
+ */
+int fal_plugin_create_vrf(uint32_t attr_count,
+			  const struct fal_attribute_t *attr_list,
+			  fal_object_t *obj);
+
+/**
+ * @brief Delete a VRF
+ *
+ * @param[in] obj Object ID for the VRF to be deleted
+ *
+ * @return 0 on success or failure status.
+ */
+int fal_plugin_delete_vrf(fal_object_t obj);
+
+/**
+ * @brief Set a VRF attribute
+ *
+ * @param[in] obj Object ID for the VRF to be updated
+ * @param[in] attr The attribute to change and the new value
+ *
+ * @return 0 on success or failure status.
+ */
+int fal_plugin_set_vrf_attr(fal_object_t obj,
+			    const struct fal_attribute_t *attr);
+
+/**
+ * @brief Get a VRF attribute
+ *
+ * @param[in] obj Object ID for the VRF to be queried
+ * @param[in] attr_count Number of attributes
+ * @param[in/out] attr_list A list of the attributes and their
+ *                          associated values
+ *
+ * @return 0 on success or failure status.
+ */
+int fal_plugin_get_vrf_attr(fal_object_t obj,
+			    uint32_t attr_count,
+			    struct fal_attribute_t *attr_list);
 
 #endif /* VYATTA_DATAPLANE_FAL_PLUGIN_H */

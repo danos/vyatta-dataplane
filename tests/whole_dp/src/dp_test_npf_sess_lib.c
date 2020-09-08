@@ -1494,3 +1494,169 @@ dp_test_npf_print_session_table(bool nat)
 
 	json_object_put(jobj);
 }
+
+/*
+ * Return counters for one session.  Session filter should be fully specified,
+ * e.g.
+ *
+ * uint32_t pkts_in = 0, pkts_out = 0;
+ * uint32_t bytes_in = 0, bytes_out = 0;
+ * uint32_t sess_id = 0;
+ *
+ * dpt_session_counters("start 0 count 1 "
+ *			"src-addr 192.0.2.103 src-port 10000 "
+ *			"dst-addr 203.0.113.203 dst-port 60000 "
+ *			"proto 17 dir out intf dpT21",
+ *                      &pkts_in, &pkts_out, &bytes_in, &bytes_out,
+ *                      &sess_id);
+ */
+int dpt_session_counters(const char *options,
+			 uint32_t *pkts_in, uint32_t *pkts_out,
+			 uint32_t *bytes_in, uint32_t *bytes_out,
+			 uint32_t *sess_id)
+{
+	json_object *jresp;
+	const char *str;
+	char *response;
+	bool err;
+	char cmd[1000];
+	int l;
+
+	l = snprintf(cmd, sizeof(cmd), "session-op show dataplane sessions");
+	if (options)
+		l += snprintf(cmd+l, sizeof(cmd)-l, " %s", options);
+
+	response = dp_test_console_request_w_err(cmd, &err, false);
+	if (!response || err)
+		return -1;
+
+	jresp = parse_json(response, parse_err_str, sizeof(parse_err_str));
+	free(response);
+	if (!jresp)
+		return -1;
+
+	/* For debug */
+	if (0) {
+		str = json_object_to_json_string_ext(jresp,
+						     JSON_C_TO_STRING_PRETTY);
+		if (str)
+			printf("%s\n", str);
+	}
+
+	json_object *jarray;
+	struct dp_test_json_find_key ip_keys[] = {
+		{"sessions", NULL}
+	};
+
+	jarray = dp_test_json_find(jresp, ip_keys, ARRAY_SIZE(ip_keys));
+	if (!jarray)
+		return -1;
+
+	int len = json_object_array_length(jarray);
+	json_object *jobj, *counters_json;
+
+	if (len > 1)
+		return -1;
+
+	jobj = json_object_array_get_idx(jarray, 0);
+
+	if (!json_object_object_get_ex(jobj, "counters", &counters_json))
+		return -1;
+
+	if (!dp_test_json_int_field_from_obj(counters_json,
+					     "packets_in", (int *)pkts_in))
+		return -1;
+
+	if (!dp_test_json_int_field_from_obj(counters_json,
+					     "packets_out", (int *)pkts_out))
+		return -1;
+
+	if (!dp_test_json_int_field_from_obj(counters_json,
+					     "bytes_in", (int *)bytes_in))
+		return -1;
+
+	if (!dp_test_json_int_field_from_obj(counters_json,
+					     "bytes_out", (int *)bytes_out))
+		return -1;
+
+	if (sess_id) {
+		if (!dp_test_json_int_field_from_obj(jobj, "id",
+						     (int *)sess_id))
+			return -1;
+	}
+
+	json_object_put(jresp);
+	return 0;
+}
+
+/*
+ * Uses the newer "session-op show dataplane sessions" command.
+ *
+ * A simple example is as follows:
+ *
+ *   dpt_show_sessions2("start 0 count 10");
+ */
+void dpt_show_sessions2(const char *options)
+{
+	json_object *jresp;
+	const char *str;
+	char *response;
+	bool err;
+	char cmd[1000];
+	int l;
+
+	l = snprintf(cmd, sizeof(cmd), "session-op show dataplane sessions");
+	if (options)
+		l += snprintf(cmd+l, sizeof(cmd)-l, " %s", options);
+
+	response = dp_test_console_request_w_err(cmd, &err, false);
+	if (!response || err)
+		return;
+
+	jresp = parse_json(response, parse_err_str, sizeof(parse_err_str));
+	free(response);
+	if (!jresp)
+		return;
+
+	if (1) {
+		str = json_object_to_json_string_ext(jresp,
+						     JSON_C_TO_STRING_PRETTY);
+		if (str)
+			printf("%s\n", str);
+	}
+
+	json_object *jarray;
+	struct dp_test_json_find_key ip_keys[] = {
+		{"sessions", NULL}
+	};
+
+	jarray = dp_test_json_find(jresp, ip_keys, ARRAY_SIZE(ip_keys));
+	assert(jarray);
+
+	if (jarray) {
+		int len = json_object_array_length(jarray);
+		json_object *jobj;
+		const char *saddr, *daddr;
+		int i;
+		bool rv;
+
+		for (i = 0; i < len; ++i) {
+			jobj = json_object_array_get_idx(jarray, i);
+
+			rv = dp_test_json_string_field_from_obj(jobj,
+								"src_addr",
+								&saddr);
+			if (!rv)
+				break;
+			rv = dp_test_json_string_field_from_obj(jobj,
+								"dst_addr",
+								&daddr);
+			if (!rv)
+				break;
+
+			printf("%-15s %-15s\n", saddr, daddr);
+		}
+	}
+
+	json_object_put(jresp);
+}

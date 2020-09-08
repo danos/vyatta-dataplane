@@ -59,7 +59,7 @@ struct ifnet;
 struct npf_config;
 struct npf_session;
 struct rte_mbuf;
-struct npf_pack_npf_nat;
+struct npf_pack_nat;
 
 typedef struct npf_cache npf_cache_t;
 typedef struct npf_session npf_session_t;
@@ -139,9 +139,8 @@ npf_nat_clone_and_undo(struct rte_mbuf *m, const struct ifnet *in_ifp,
 struct rte_mbuf *
 npf_nat_copy_and_undo(struct rte_mbuf *m, const struct ifnet *in_ifp,
 		      const struct ifnet *out_ifp);
-int npf_nat_npf_pack_pack(npf_nat_t *nt, struct npf_pack_npf_nat *nat,
+int npf_nat_npf_pack_pack(npf_nat_t *nt, struct npf_pack_nat *pnt,
 			  struct sentry_packet *sp_back);
-int npf_nat_npf_pack_restore(struct npf_session *se,
-			     struct npf_pack_npf_nat *nat,
+int npf_nat_npf_pack_restore(struct npf_session *se, struct npf_pack_nat *pnt,
 			     struct ifnet *ifp);
 #endif /* NPF_NAT_H */

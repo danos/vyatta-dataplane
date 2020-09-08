@@ -67,6 +67,7 @@ struct vrf {
 	struct rcu_head rcu;
 	char v_name[VRF_NAME_SIZE];
 	uint32_t v_external_id;
+	fal_object_t v_fal_obj;
 
 	/* SNMP Statistics */
 	struct arp_stats v_arpstat;

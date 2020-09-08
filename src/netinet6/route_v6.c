@@ -44,6 +44,7 @@
 #include "json_writer.h"
 #include "lcore_sched.h"
 #include "lpm/lpm6.h"
+#include "mpls/mpls_label_table.h"
 #include "netinet6/route_v6.h"
 #include "netinet6/nd6_nbr.h"
 #include "pktmbuf_internal.h"
@@ -164,7 +165,8 @@ route_nexthop6_new(struct next_hop *nh, uint16_t size,
 {
 	int rc;
 
-	rc = nexthop_new(AF_INET6, nh, size, RTPROT_UNSPEC, slot);
+	rc = nexthop_new(AF_INET6, nh, size, RTPROT_UNSPEC, FAL_NHG_USE_IP,
+			 slot);
 	if (rc >= 0)
 		return rc;
 
@@ -194,11 +196,13 @@ route_lpm6_add(vrfid_t vrf_id, struct lpm6 *lpm,
 	int rc;
 	struct pd_obj_state_and_flags *pd_state;
 	struct pd_obj_state_and_flags *old_pd_state;
+	enum pd_obj_state nhl_pd_state;
+	fal_object_t nhg_fal_obj;
+	struct next_hop *hops;
 	uint32_t old_nh;
 	bool demoted = false;
-	struct next_hop_list *nextl =
-		rcu_dereference(nh6_tbl.entry[next_hop]);
 	bool update_pd_state = true;
+	size_t size;
 
 	rc = lpm6_add(lpm, ip->s6_addr, depth, next_hop, scope, &pd_state,
 		      &old_nh, &old_pd_state);
@@ -228,29 +232,25 @@ route_lpm6_add(vrfid_t vrf_id, struct lpm6 *lpm,
 		return rc;
 	}
 
-	if (nextl->pd_state != PD_OBJ_STATE_FULL &&
-	    nextl->pd_state != PD_OBJ_STATE_NOT_NEEDED) {
-		pd_state->state = nextl->pd_state;
-		nextl = nextl6_blackhole;
+	size = next_hop_list_get_fal_nhs(AF_INET6, next_hop, &hops);
+	nhg_fal_obj = next_hop_list_get_fal_obj(
+		AF_INET6, next_hop, &nhl_pd_state);
+
+	if (nhl_pd_state != PD_OBJ_STATE_FULL &&
+	    nhl_pd_state != PD_OBJ_STATE_NOT_NEEDED) {
+		pd_state->state = nhl_pd_state;
 		update_pd_state = false;
 	}
 
 	if (demoted) {
-		struct next_hop_list *nextl =
-			rcu_dereference(nh6_tbl.entry[next_hop]);
-
 		if (old_pd_state->created) {
 			rc = fal_ip6_upd_route(vrf_id, ip, depth,
 					       tableid,
-					       nextl->siblings,
-					       nextl->nsiblings,
-					       nextl->nhg_fal_obj);
+					       hops, size, nhg_fal_obj);
 		} else {
 			rc = fal_ip6_new_route(vrf_id, ip, depth,
 					       tableid,
-					       nextl->siblings,
-					       nextl->nsiblings,
-					       nextl->nhg_fal_obj);
+					       hops, size, nhg_fal_obj);
 		}
 		if (update_pd_state)
 			pd_state->state = fal_state_to_pd_state(rc);
@@ -268,9 +268,7 @@ route_lpm6_add(vrfid_t vrf_id, struct lpm6 *lpm,
 	 * platform, if there is one.
 	 */
 	rc = fal_ip6_new_route(vrf_id, ip, depth, tableid,
-			       nextl->siblings,
-			       nextl->nsiblings,
-			       nextl->nhg_fal_obj);
+			       hops, size, nhg_fal_obj);
 	if (update_pd_state)
 		pd_state->state = fal_state_to_pd_state(rc);
 	if (!rc)
@@ -318,30 +316,30 @@ route_lpm6_delete(vrfid_t vrf_id, struct lpm6 *lpm,
 	}
 
 	if (promoted) {
-		struct next_hop_list *nextl =
-			rcu_dereference(nh6_tbl.entry[new_nh]);
-
 		bool update_new_pd_state = true;
+		enum pd_obj_state nhl_pd_state;
+		fal_object_t nhg_fal_obj;
+		struct next_hop *hops;
+		size_t size;
 
-		if (nextl->pd_state != PD_OBJ_STATE_FULL &&
-		    nextl->pd_state != PD_OBJ_STATE_NOT_NEEDED) {
-			new_pd_state->state = nextl->pd_state;
-			nextl = nextl6_blackhole;
+		size = next_hop_list_get_fal_nhs(AF_INET6, new_nh, &hops);
+		nhg_fal_obj = next_hop_list_get_fal_obj(
+			AF_INET6, new_nh, &nhl_pd_state);
+
+		if (nhl_pd_state != PD_OBJ_STATE_FULL &&
+		    nhl_pd_state != PD_OBJ_STATE_NOT_NEEDED) {
+			new_pd_state->state = nhl_pd_state;
 			update_new_pd_state = false;
 		}
 
 		if (pd_state.created) {
 			rc = fal_ip6_upd_route(vrf_id, ip, depth,
 					       lpm6_get_id(lpm),
-					       nextl->siblings,
-					       nextl->nsiblings,
-					       nextl->nhg_fal_obj);
+					       hops, size, nhg_fal_obj);
 		} else {
 			rc = fal_ip6_new_route(vrf_id, ip, depth,
 					       lpm6_get_id(lpm),
-					       nextl->siblings,
-					       nextl->nsiblings,
-					       nextl->nhg_fal_obj);
+					       hops, size, nhg_fal_obj);
 		}
 		if (update_new_pd_state)
 			new_pd_state->state = fal_state_to_pd_state(rc);
@@ -384,6 +382,10 @@ route_lpm6_update(vrfid_t vrf_id __unused, struct lpm6 *lpm,
 	uint32_t new_nh;
 	uint32_t dummy_old_nh;
 	bool update_new_pd_state = true;
+	enum pd_obj_state nhl_pd_state;
+	fal_object_t nhg_fal_obj;
+	struct next_hop *hops;
+	size_t size;
 
 	/*
 	 * Remove an old entry from the lpm, and add a new one. lpm
@@ -438,24 +440,22 @@ route_lpm6_update(vrfid_t vrf_id __unused, struct lpm6 *lpm,
 		route6_sw_stats[PD_OBJ_STATE_ERROR]++;
 	}
 
-	struct next_hop_list *nextl =
-		rcu_dereference(nh6_tbl.entry[next_hop]);
+	size = next_hop_list_get_fal_nhs(AF_INET6, next_hop, &hops);
+	nhg_fal_obj = next_hop_list_get_fal_obj(
+		AF_INET6, next_hop, &nhl_pd_state);
 
-	if (nextl->pd_state != PD_OBJ_STATE_FULL &&
-	    nextl->pd_state != PD_OBJ_STATE_NOT_NEEDED) {
-		new_pd_state->state = nextl->pd_state;
-		nextl = nextl6_blackhole;
+	if (nhl_pd_state != PD_OBJ_STATE_FULL &&
+	    nhl_pd_state != PD_OBJ_STATE_NOT_NEEDED) {
+		new_pd_state->state = nhl_pd_state;
 		update_new_pd_state = false;
 	}
 
 	if (pd_state.created) {
 		rc = fal_ip6_upd_route(vrf_id, ip, depth, tableid,
-				       nextl->siblings, nextl->nsiblings,
-				       nextl->nhg_fal_obj);
+				       hops, size, nhg_fal_obj);
 	} else {
 		rc = fal_ip6_new_route(vrf_id, ip, depth, tableid,
-				       nextl->siblings, nextl->nsiblings,
-				       nextl->nhg_fal_obj);
+				       hops, size, nhg_fal_obj);
 	}
 
 	route6_hw_stats[pd_state.state]--;
@@ -842,7 +842,8 @@ static int nexthop6_cmpfn(struct cds_lfht_node *node, const void *key)
 		caa_container_of(node, const struct next_hop_list, nh_node);
 	uint16_t i;
 
-	if (h_key->size != nl->nsiblings)
+	if (h_key->size != nl->nsiblings ||
+	    h_key->use != nl->use)
 		return false;
 
 	for (i = 0; i < h_key->size; i++) {
@@ -901,11 +902,18 @@ void route_v6_uninit(struct vrf *vrf, struct route6_head *rt6_head)
 	rt6_head->rt6_table = NULL;
 }
 
+static struct next_hop_list *
+route6_get_nh_blackhole(void)
+{
+	return nextl6_blackhole;
+}
+
 struct nh_common nh6_common = {
 	.nh_hash = nexthop6_hashfn,
 	.nh_compare = nexthop6_cmpfn,
 	.nh_get_hash_tbl = route6_get_nh_hash_table,
 	.nh_get_nh_tbl = route6_get_nh_table,
+	.nh_get_blackhole = route6_get_nh_blackhole,
 };
 
 void nexthop_v6_tbl_init(void)
@@ -926,7 +934,8 @@ void nexthop_v6_tbl_init(void)
 	nh_common_register(AF_INET6, &nh6_common);
 
 	/* reserve a drop nexthop */
-	if (nexthop_new(AF_INET6, &nh_drop, 1, RTPROT_UNSPEC, &idx))
+	if (nexthop_new(AF_INET6, &nh_drop, 1, RTPROT_UNSPEC, FAL_NHG_USE_IP,
+			&idx))
 		rte_panic("%s: can't create drop nexthop\n", __func__);
 	nextl6_blackhole =
 		rcu_dereference(nh6_tbl.entry[idx]);
@@ -1649,13 +1658,23 @@ void rt6_print_nexthop(json_writer_t *json, uint32_t next_hop,
 		rcu_dereference(nh6_tbl.entry[next_hop]);
 	const struct next_hop *array;
 	unsigned int i, j;
-
+	const char *use_str = NULL;
 
 	jsonw_uint_field(json, "nh_index", next_hop);
 	if (unlikely(!nextl))
 		return;
 	array = rcu_dereference(nextl->siblings);
 	jsonw_uint_field(json, "nh_refcount", nextl->refcount);
+	switch (nextl->use) {
+	case FAL_NHG_USE_IP:
+		use_str = "ip";
+		break;
+	case FAL_NHG_USE_MPLS_LABEL_SWITCH:
+		use_str = "mpls-lswitch";
+		break;
+	}
+	if (use_str)
+		jsonw_string_field(json, "use", use_str);
 	if (v == RT_PRINT_NH_DETAIL &&
 	    fal_state_is_obj_present(nextl->pd_state)) {
 		/*
@@ -2849,6 +2868,7 @@ route6_handle_fal_l3_enable_change(struct ifnet *ifp)
 		 */
 		rt6_lpm_walk_util(route6_fal_upd_for_changed_nhl,
 				  &nhl->index);
+		mpls_update_all_routes_for_nh_change(AF_INET6, nhl->index);
 
 		next_hop_list_fal_l3_enable_changed_finish(
 			AF_INET6, nhl, old_nhg_obj, old_nh_objs);

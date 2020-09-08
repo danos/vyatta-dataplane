@@ -17,15 +17,18 @@
 #include "netinet6/ip6_funcs.h"
 #include "npf/config/npf_config.h"
 #include "npf_shim.h"
+#include "npf/npf_rule_gen.h"
 #include "vplane_debug.h"
 #include "vplane_log.h"
 #include "ether.h"
 #include "fal.h"
+#include "if_var.h"
+#include "dp_event.h"
 
 _Static_assert(MAX_DSCP == FAL_QOS_MAP_DSCP_VALUES, "max DSCP value mismatch");
 _Static_assert(MAX_PCP == FAL_QOS_MAP_PCP_VALUES, "max PCP value mismatch");
 
-uint32_t qos_hw_check_rate(uint32_t rate, uint32_t parent_bw __unused)
+uint64_t qos_hw_check_rate(uint64_t rate, uint64_t parent_bw __unused)
 {
 	return rate;
 }
@@ -490,6 +493,41 @@ static int qos_hw_ingressm_config(struct qos_ingress_map *map,
 	return ret;
 }
 
+fal_object_t qos_hw_get_att_egress_map(struct ifnet *ifp, unsigned int vlan)
+{
+	if (!ifp)
+		return 0;
+
+	if (!vlan) {
+		struct fal_attribute_t port_attr_list[] = {
+			{ .id = FAL_PORT_ATTR_QOS_EGRESS_MAP_ID,
+			  .value.objid = FAL_QOS_NULL_OBJECT_ID }
+		};
+		if (fal_l2_get_attrs(ifp->if_index, 1, &port_attr_list[0]) == 0)
+			return port_attr_list[0].value.objid;
+
+		return 0;
+	}
+
+	struct fal_attribute_t vlan_attr[1] = {
+		{ .id = FAL_VLAN_FEATURE_ATTR_QOS_EGRESS_MAP_ID,
+		  .value.objid = FAL_QOS_NULL_OBJECT_ID }
+	};
+
+	struct if_vlan_feat *vlan_feat = if_vlan_feat_get(ifp, vlan);
+	if (!vlan_feat) {
+		DP_DEBUG(QOS_HW, ERR, DATAPLANE,
+			 "Egress-map failed to retrieve intf %s vlan %d\n",
+			 ifp->if_name, vlan);
+		return 0;
+	}
+	if (!fal_vlan_feature_get_attr(vlan_feat->fal_vlan_feat, 1,
+				       &vlan_attr[0]))
+		return vlan_attr[0].value.objid;
+
+	return 0;
+}
+
 fal_object_t qos_hw_get_att_ingress_map(struct ifnet *ifp, unsigned int vlan)
 {
 	if (!ifp)
@@ -525,11 +563,296 @@ fal_object_t qos_hw_get_att_ingress_map(struct ifnet *ifp, unsigned int vlan)
 	return 0;
 }
 
+static void qos_hw_egressm_attrs(struct qos_mark_map *map,
+				  struct fal_qos_map_list_t *map_list)
+{
+	int i;
+	int max_entries = (map->type == EGRESS_DSCP) ?
+				FAL_QOS_MAP_DSCP_VALUES :
+				FAL_QOS_MAP_DESIGNATION_VALUES;
+
+	map_list->des_used = map->des_used;
+	for (i = 0; i < max_entries; i++) {
+		if (map->des_used & (1 << i)) {
+			map_list->count++;
+			map_list->list[i].key.des = i;
+			if (map->type == EGRESS_DESIGNATION_DSCP) {
+				map_list->list[i].value.dscp =
+					map->pcp_value[i];
+			} else if (map->type == EGRESS_DESIGNATION_PCP) {
+				map_list->list[i].value.dot1p =
+					map->pcp_value[i];
+			}
+		}
+	}
+}
+
+static int
+qos_hw_if_set_egress_map(struct ifnet *ifp, struct qos_mark_map *map)
+{
+	struct fal_attribute_t l3_egr_map_attr = {
+		.id = FAL_ROUTER_INTERFACE_ATTR_EGRESS_QOS_MAP,
+	};
+	int ret = 0;
+
+	if (!map) {
+		// Delete case
+		l3_egr_map_attr.value.objid = FAL_QOS_NULL_OBJECT_ID;
+		RTE_LOG(ERR, DATAPLANE,
+			"%s Egress map object is NULL\n",
+			ifp->if_name);
+	} else {
+		l3_egr_map_attr.value.objid = map->mark_obj;
+	}
+	ret = if_set_l3_intf_attr(ifp, &l3_egr_map_attr);
+
+	if (ret != 0) {
+		RTE_LOG(ERR, DATAPLANE,
+			"%s Setting Egress map %s failed: %d (%s)\n",
+			ifp->if_name, map ? map->map_name : "", ret,
+			strerror(-ret));
+		return ret;
+	}
+
+	if (map) {
+		ifp->egr_map_obj = map->mark_obj;
+		RTE_LOG(INFO, DATAPLANE,
+			"%s Setting egress map:%s\n",
+			ifp->if_name, map->map_name);
+	}
+	return 0;
+}
+
+static int qos_hw_egressm_attach(unsigned int ifindex, unsigned int vlan,
+				  struct qos_mark_map *map)
+{
+	int ret = 0;
+	struct ifnet *ifp = dp_ifnet_byifindex(ifindex);
+
+	if (map->mark_obj == FAL_QOS_NULL_OBJECT_ID) {
+		DP_DEBUG(QOS_HW, ERR, DATAPLANE,
+			 "Invalid egress-map attach, not created %s\n",
+			 map->map_name);
+
+		return -ENOENT;
+	}
+
+	if (!ifp) {
+		DP_DEBUG(QOS_HW, ERR, DATAPLANE,
+			 "Failed to retrieve ifp for egress feature %u\n",
+			 ifindex);
+		return -ENOENT;
+	}
+	if (map->type != EGRESS_DESIGNATION_DSCP) {
+		struct fal_attribute_t port_attr_list = {
+			.id = FAL_PORT_ATTR_QOS_EGRESS_MAP_ID,
+			.value.objid = map->mark_obj
+		};
+		struct if_vlan_feat *vlan_feat;
+
+		fal_l2_upd_port(ifindex, &port_attr_list);
+
+
+		struct fal_attribute_t vlan_attr[] = {
+			{ .id = FAL_VLAN_FEATURE_INTERFACE_ID,
+			  .value.u32 = ifindex },
+			{ .id = FAL_VLAN_FEATURE_VLAN_ID,
+			  .value.u16 = vlan },
+			{ .id = FAL_VLAN_FEATURE_ATTR_QOS_EGRESS_MAP_ID,
+			  .value.objid = map->mark_obj }
+		};
+
+		vlan_feat = if_vlan_feat_get(ifp, vlan);
+		if (!vlan_feat) {
+			ret = if_vlan_feat_create(ifp, vlan,
+					FAL_NULL_OBJECT_ID);
+			if (ret) {
+				DP_DEBUG(QOS_HW, ERR, DATAPLANE,
+					"Failed to create feature for if %s"
+					" vlan %u\n",
+					ifp->if_name, vlan);
+				return ret;
+			}
+			vlan_feat = if_vlan_feat_get(ifp, vlan);
+			if (!vlan_feat) {
+				DP_DEBUG(QOS_HW, ERR, DATAPLANE,
+					 "Failed to get feature for if %s "
+					 "vlan %u\n",
+					 ifp->if_name, vlan);
+				return -ENOENT;
+			}
+			ret = fal_vlan_feature_create(ARRAY_SIZE(vlan_attr),
+					vlan_attr, &vlan_feat->fal_vlan_feat);
+			if (ret && ret != -EOPNOTSUPP) {
+				DP_DEBUG(QOS_HW, ERR, DATAPLANE,
+				    "Can not create vlan_feat for vlan %u "
+				    "fal %d\n",
+				    vlan, ret);
+				if_vlan_feat_delete(ifp, vlan);
+				return ret;
+			}
+		} else {
+			ret = fal_vlan_feature_set_attr(
+					vlan_feat->fal_vlan_feat,
+					&vlan_attr[2]);
+			if (ret) {
+				DP_DEBUG(QOS_HW, ERR, DATAPLANE,
+					 "Failed to add egress map to if %s "
+					 "vlan %u\n",
+					 ifp->if_name, vlan);
+				return ret;
+			}
+		}
+		vlan_feat->refcount++;
+		DP_DEBUG(QOS_HW, ERR, DATAPLANE,
+			 "Successfully added feature for if %s vlan %u\n",
+			ifp->if_name, vlan);
+	} else if (map->type == EGRESS_DESIGNATION_DSCP) {
+		qos_hw_if_set_egress_map(ifp, map);
+	} else {
+		DP_DEBUG(QOS_HW, ERR, DATAPLANE,
+			 "Unknown Egress map type:%d for ifindex:%u\n",
+			 map->type, ifindex);
+		return -EOPNOTSUPP;
+	}
+	DP_DEBUG(QOS_HW, DEBUG, DATAPLANE,
+		 "Created egress feature on if:%s ifindex:%d vlan %u\n",
+		 ifp->if_name, ifp->if_index, vlan);
+
+	return ret;
+}
+
+static int qos_hw_egressm_detach(unsigned int ifindex, unsigned int vlan,
+				  struct qos_mark_map *map)
+{
+	if (!vlan) {
+		struct fal_attribute_t port_attr_list[] = {
+			{ .id = FAL_PORT_ATTR_QOS_EGRESS_MAP_ID,
+			  .value.objid = FAL_NULL_OBJECT_ID }
+		};
+
+		fal_l2_upd_port(ifindex, &port_attr_list[0]);
+		DP_DEBUG(QOS_HW, DEBUG, DATAPLANE,
+			 "Removed egress feature on if %u\n", ifindex);
+		return 0;
+	}
+
+	int ret;
+	struct ifnet *ifp = dp_ifnet_byifindex(ifindex);
+	if (!ifp) {
+		DP_DEBUG(QOS_HW, ERR, DATAPLANE,
+			 "Failed to retrieve ifp for egress feat %u\n",
+			 ifindex);
+
+		return -ENOENT;
+	}
+
+	if (map->type != EGRESS_DESIGNATION_DSCP) {
+		struct if_vlan_feat *vlan_feat = NULL;
+		struct fal_attribute_t vlan_attr[1] = {
+			{ .id = FAL_VLAN_FEATURE_ATTR_QOS_EGRESS_MAP_ID,
+			  .value.objid = FAL_NULL_OBJECT_ID }
+		};
+		vlan_feat = if_vlan_feat_get(ifp, vlan);
+		if (!vlan_feat) {
+			DP_DEBUG(QOS_HW, ERR, DATAPLANE,
+				 "Could not find vlan feat for intf %s vlan %d\n",
+				 ifp->if_name, vlan);
+			return -ENOENT;
+		}
+
+		ret = fal_vlan_feature_set_attr(vlan_feat->fal_vlan_feat,
+						vlan_attr);
+		if (ret && ret != -EOPNOTSUPP) {
+			DP_DEBUG(QOS_HW, ERR, DATAPLANE,
+				 "Could not remove vlan_feat for vlan %d in fal (%d)\n",
+				 vlan, ret);
+			return ret;
+		}
+
+		vlan_feat->refcount--;
+
+		if (!vlan_feat->refcount) {
+			ret = fal_vlan_feature_delete(vlan_feat->fal_vlan_feat);
+			if (ret) {
+				DP_DEBUG(QOS_HW, ERR, DATAPLANE,
+					"Could not destroy fal vlan feature obj"
+					" for %s vlan %d (%d)\n",
+					ifp->if_name, vlan, ret);
+				return ret;
+			}
+
+			ret = if_vlan_feat_delete(ifp, vlan);
+			if (ret) {
+				DP_DEBUG(QOS_HW, ERR, DATAPLANE,
+					"Could not destroy vlan feature obj for "
+					"%s vlan %d (%d)\n",
+					ifp->if_name, vlan, ret);
+				return ret;
+			}
+		}
+	} else if (map->type == EGRESS_DESIGNATION_DSCP) {
+		qos_hw_if_set_egress_map(ifp, NULL);
+	} else {
+		DP_DEBUG(QOS_HW, ERR, DATAPLANE,
+			 "Unknown Egress map type:%d for ifindex:%u\n",
+			 map->type, ifindex);
+		return -EOPNOTSUPP;
+	}
+
+	DP_DEBUG(QOS_HW, DEBUG, DATAPLANE,
+		 "Deleted vlan egress feature obj for %s vlan %u\n",
+		 ifp->if_name, vlan);
+
+	return 0;
+}
+
+static int qos_hw_egressm_config(struct qos_mark_map *map,
+				  bool create)
+{
+	if (!create) {
+		/* Make sure the attach went ok */
+		if (map->mark_obj != FAL_QOS_NULL_OBJECT_ID) {
+			fal_qos_del_map(map->mark_obj);
+			map->mark_obj = FAL_QOS_NULL_OBJECT_ID;
+		}
+		DP_DEBUG(QOS_HW, DEBUG, DATAPLANE,
+			 "Deleted fal egress map %s\n", map->map_name);
+		return 0;
+	}
+
+	struct fal_qos_map_list_t map_list = {0};
+	struct fal_attribute_t attr_list[] = {
+		{ .id = FAL_QOS_MAP_ATTR_TYPE,
+		  .value.u8 = FAL_QOS_MAP_TYPE_DESIGNATOR_TO_DOT1P },
+		{ .id = FAL_QOS_MAP_ATTR_MAP_TO_VALUE_LIST,
+		  .value.maplist = &map_list },
+	};
+	int ret;
+
+	if (map->type == EGRESS_DESIGNATION_DSCP)
+		attr_list[0].value.u8 = FAL_QOS_MAP_TYPE_DESIGNATOR_TO_DSCP;
+
+	qos_hw_egressm_attrs(map, &map_list);
+
+	ret = fal_qos_new_map(FAL_QOS_NULL_OBJECT_ID, ARRAY_SIZE(attr_list),
+			      attr_list, &map->mark_obj);
+
+	DP_DEBUG(QOS_HW, DEBUG, DATAPLANE, "Created egress map %s with"
+			" mark_obj:%lu\n", map->map_name, map->mark_obj);
+
+	return ret;
+}
+
 int qos_hw_init(void)
 {
 	qos_ingressm.qos_ingressm_attach = qos_hw_ingressm_attach;
 	qos_ingressm.qos_ingressm_detach = qos_hw_ingressm_detach;
 	qos_ingressm.qos_ingressm_config = qos_hw_ingressm_config;
+
+	qos_egressm.qos_egressm_attach = qos_hw_egressm_attach;
+	qos_egressm.qos_egressm_detach = qos_hw_egressm_detach;
+	qos_egressm.qos_egressm_config = qos_hw_egressm_config;
 
 	return 0;
 }
@@ -1593,7 +1916,7 @@ qos_hw_new_wrr_queue(fal_object_t tc_sched_obj, uint32_t queue_limit,
 
 static int
 qos_hw_new_tc(uint32_t tc_id, fal_object_t pipe_sched_obj,
-	      uint32_t tc_rate, uint32_t tc_size, uint32_t queue_limit,
+	      uint64_t tc_rate, uint32_t tc_size, uint32_t queue_limit,
 	      uint8_t *wrr_weight, uint8_t *designators,
 	      struct qos_red_params *red_params,
 	      struct qos_red_pipe_params **q_wred_info, uint32_t *ids,
@@ -1676,7 +1999,7 @@ qos_hw_egress_map_attach(struct qos_obj_db_obj *db_obj,
 		{ .id = FAL_QOS_MAP_ATTR_MAP_TO_VALUE_LIST,
 		  .value.maplist = map_list },
 	};
-	fal_object_t map_obj;
+	fal_object_t map_obj = FAL_QOS_NULL_OBJECT_ID;
 	int ret;
 
 	if (!*mark_obj) {
@@ -1941,7 +2264,7 @@ qos_hw_new_pipe(uint32_t pipe_id, fal_object_t subport_sched_obj,
 		struct qos_pipe_params *pipe_params, struct queue_map *qmap,
 		uint32_t *ids, int8_t overhead)
 {
-	uint32_t tb_rate = pipe_params->shaper.tb_rate;
+	uint64_t tb_rate = pipe_params->shaper.tb_rate;
 	uint32_t tb_size = pipe_params->shaper.tb_size;
 	char ids_str[QOS_OBJ_DB_MAX_ID_LEN + 1];
 	struct qos_obj_db_obj *db_obj;
@@ -2000,14 +2323,20 @@ qos_hw_new_pipe(uint32_t pipe_id, fal_object_t subport_sched_obj,
 		}
 	} else if (qmap->designation && qmap->local_priority) {
 		/*
-		 * Look for a designation not currently in use.
+		 * If a designator for the PLQ was supplied by
+		 * config then use it. Otherwise, look for a
+		 * designation not currently in use.
 		 */
-		for (cp = 0, bit = 1; cp < INGRESS_DESIGNATORS;
-		     cp++, bit <<= 1) {
-			if (!(pipe_params->des_set & bit)) {
-				if (lp_des == INGRESS_DESIGNATORS)
-					lp_des = cp;
-				break;
+		lp_des = qos_get_prio_lp_des();
+
+		if (lp_des == INGRESS_DESIGNATORS) {
+			for (cp = 0, bit = 1; cp < INGRESS_DESIGNATORS;
+			     cp++, bit <<= 1) {
+				if (!(pipe_params->des_set & bit)) {
+					if (lp_des == INGRESS_DESIGNATORS)
+						lp_des = cp;
+					break;
+				}
 			}
 		}
 	}
@@ -2124,7 +2453,7 @@ qos_hw_new_subport(uint32_t subport_id, fal_object_t port_sched_obj,
 {
 	struct subport_info *sinfo = qinfo->subport +
 		ids[QOS_OBJ_DB_LEVEL_SUBPORT];
-	uint32_t tb_rate = sinfo->params.tb_rate;
+	uint64_t tb_rate = sinfo->params.tb_rate;
 	uint32_t tb_size = sinfo->params.tb_size;
 	char ids_str[QOS_OBJ_DB_MAX_ID_LEN + 1];
 	fal_object_t subport_sched_obj;
@@ -2283,7 +2612,7 @@ int qos_hw_start(struct ifnet *ifp, struct sched_info *qinfo, uint64_t bps,
 		 uint16_t max_pkt_len)
 {
 	unsigned int subport;
-	int ret;
+	int ret, i;
 	static uint32_t max_burst_size = 0;
 	struct fal_attribute_t max_burst_attr = {
 			FAL_SWITCH_ATTR_MAX_BURST_SIZE};
@@ -2303,12 +2632,59 @@ int qos_hw_start(struct ifnet *ifp, struct sched_info *qinfo, uint64_t bps,
 		struct qos_shaper_conf *params = &sinfo->params;
 
 		/*
+		 * If we've received a rate auto we use the reported
+		 * interface speed as the subport rate.
+		 */
+		if (sinfo->auto_speed)
+			qos_abs_rate_save(&sinfo->subport_rate, bps);
+
+		/*
 		 * Establish subport rates before checking pipes so that the
 		 * pipes can be checked against their actual subport rates.
 		 */
 		qos_sched_subport_params_check(params, &sinfo->subport_rate,
 				sinfo->sp_tc_rates.tc_rate, max_pkt_len,
 				max_burst_size, bps, qinfo);
+
+		/*
+		 * If it's been a resource group change and we have a
+		 * mark-map check whether it uses dscp-groups and recalculate
+		 * the masks before resetting the port.
+		 */
+		if (qinfo->reset_port == QOS_NPF_COMMIT && sinfo->mark_map) {
+			struct qos_mark_map *mark_map = sinfo->mark_map;
+
+			if (SLIST_EMPTY(&mark_map->dscp_grps))
+				continue;
+
+			/* Clear previous config */
+			for (i = 0; i < MAX_DSCP; i++)
+				mark_map->pcp_value[i] = 0;
+
+			if (!SLIST_EMPTY(&mark_map->dscp_grps) &&
+			    mark_map->mark_obj) {
+				qos_hw_del_map(mark_map->mark_obj);
+				mark_map->mark_obj = FAL_QOS_NULL_OBJECT_ID;
+			}
+			struct dscp_grp_list *dscp_grp;
+			SLIST_FOREACH(dscp_grp, &mark_map->dscp_grps, list) {
+				uint64_t dscp_set = 0;
+				uint8_t dscp;
+
+				if (npf_dscp_group_getmask(dscp_grp->name,
+							   &dscp_set)) {
+					DP_DEBUG(QOS, ERR, DATAPLANE,
+					   "Failed to retrieve dscp-group %s\n",
+					   dscp_grp->name);
+					break;
+				}
+				for (dscp = 0; dscp < MAX_DSCP; dscp++) {
+					if (dscp_set & (1ul << dscp))
+						mark_map->pcp_value[dscp] =
+							dscp_grp->pcp_val;
+				}
+			}
+		}
 
 		/* Update NPF rules */
 		npf_cfg_commit_all();
@@ -2322,3 +2698,35 @@ int qos_hw_start(struct ifnet *ifp, struct sched_info *qinfo, uint64_t bps,
 
 	return ret;
 }
+
+static void
+qos_hw_if_feat_mode_change(struct ifnet *ifp,
+			     enum if_feat_mode_event event)
+{
+	struct fal_attribute_t l3_egr_map_attr = {
+		.id = FAL_ROUTER_INTERFACE_ATTR_EGRESS_QOS_MAP,
+	};
+	int ret = 0;
+
+	if (event != IF_FEAT_MODE_EVENT_L3_FAL_ENABLED)
+		return;
+
+	if (ifp->egr_map_obj == FAL_NULL_OBJECT_ID)
+		return;
+
+	l3_egr_map_attr.value.objid = ifp->egr_map_obj;
+	ret = if_set_l3_intf_attr(ifp, &l3_egr_map_attr);
+
+	if (ret != 0) {
+		RTE_LOG(ERR, DATAPLANE,
+			"%s Setting Egress map_objid %lu failed: %d (%s)\n",
+			ifp->if_name, ifp->egr_map_obj, ret,
+			strerror(-ret));
+	}
+}
+
+static const struct dp_event_ops qos_events = {
+	.if_feat_mode_change = qos_hw_if_feat_mode_change,
+};
+
+DP_STARTUP_EVENT_REGISTER(qos_events);

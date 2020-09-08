@@ -433,12 +433,12 @@ sub ib_match {
       @ib_devices;
 }
 
-my @blacklisted_devices;
+my @excluded_devices;
 
-# extract list of blacklisted network devices
+# extract list of excluded network devices
 # then convert them into absolute device paths
 # and return a hash
-sub get_blacklist {
+sub get_excluded_devices {
     my $ini = Config::Tiny->read($DATAPLANE_CFG);
 
     die "Can't read $DATAPLANE_CFG: $!\n"
@@ -447,17 +447,18 @@ sub get_blacklist {
     my $cfg = $ini->{'Dataplane'};
     die "Can't find Dataplane section in $DATAPLANE_CFG\n"
       unless defined($cfg);
-    my $blacklist = $cfg->{'blacklist'};
-    return unless defined($blacklist);
+    my $excluded = $cfg->{'exclude-interfaces'};
+    $excluded = $cfg->{'blacklist'} unless defined($excluded);
+    return unless defined($excluded);
 
-    foreach my $ifname ( split /,/, $blacklist ) {
+    foreach my $ifname ( split /,/, $excluded ) {
         my $ifdev = "/sys/class/net/$ifname/device";
 
         # skip non-existent devices (or pseudo)
         next unless -l $ifdev;
 
         # "/sys/devices/pci0000:00/0000:00:03.0/"
-        push @blacklisted_devices, abs_path($ifdev) . '/';
+        push @excluded_devices, abs_path($ifdev) . '/';
     }
 }
 
@@ -505,7 +506,7 @@ sub scan_bus {
 
         # check if network device is a leaf of the bus device
         my $devpath = abs_path($path) . '/';
-        next if grep { $_ =~ /^$devpath/ } @blacklisted_devices;
+        next if grep { $_ =~ /^$devpath/ } @excluded_devices;
         push @devices, $dev_id;
         my $group = get_iommu_group($devpath);
         if ($group) {
@@ -671,7 +672,7 @@ my @buses = (
 );
 
 # main
-get_blacklist();
+get_excluded_devices();
 
 foreach my $bus (@buses) {
     my $type      = $bus->{type};

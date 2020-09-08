@@ -99,7 +99,7 @@ struct nat_pool_cfg {
 	struct nat_pool_range	np_range[NAT_POOL_MAX_RANGES];
 
 	/* Address group name */
-	const char		*np_blacklist_name;
+	const char		*np_blocklist_name;
 };
 
 struct match {
@@ -137,12 +137,12 @@ bool nat_pool_log_pba(struct nat_pool *np)
 	return !np || np->np_log_pba;
 }
 
-/* Is this a blacklisted address? */
+/* Is this a blocked address? */
 bool
-nat_pool_is_blacklist_addr(struct nat_pool *np, uint32_t addr)
+nat_pool_is_blocked_addr(struct nat_pool *np, uint32_t addr)
 {
-	return np->np_blacklist &&
-		npf_addrgrp_lookup_v4_by_handle(np->np_blacklist, addr) == 0;
+	return np->np_blocklist &&
+		npf_addrgrp_lookup_v4_by_handle(np->np_blocklist, addr) == 0;
 }
 
 /*
@@ -555,16 +555,16 @@ static struct nat_pool *nat_pool_create(struct nat_pool_cfg *cfg, int *error)
 	np->np_port_end	= cfg->np_port_end;
 	np->np_pa	= cfg->np_pa;
 	np->np_log_pba	= cfg->np_log_pba;
-	np->np_blacklist = NULL;
+	np->np_blocklist = NULL;
 
-	if (cfg->np_blacklist_name) {
+	if (cfg->np_blocklist_name) {
 		/* We store a pointer the address group */
-		np->np_blacklist =
-			npf_addrgrp_lookup_name(cfg->np_blacklist_name);
+		np->np_blocklist =
+			npf_addrgrp_lookup_name(cfg->np_blocklist_name);
 
 		/* Take reference on ag since we are storing ptr */
-		if (np->np_blacklist)
-			npf_addrgrp_get(np->np_blacklist);
+		if (np->np_blocklist)
+			npf_addrgrp_get(np->np_blocklist);
 	}
 
 	/* Initialize non-config items */
@@ -664,8 +664,8 @@ static void nat_pool_destroy(struct nat_pool *np, bool rcu_free)
 
 	assert(rte_atomic32_read(&np->np_refcnt) == 0);
 
-	/* Release reference on blacklist address-group */
-	ag = rcu_xchg_pointer(&np->np_blacklist, NULL);
+	/* Release reference on blocked address-group */
+	ag = rcu_xchg_pointer(&np->np_blocklist, NULL);
 	if (ag)
 		npf_addrgrp_put(ag);
 
@@ -1003,7 +1003,7 @@ nat_pool_jsonw_one(json_writer_t *json, struct nat_pool *np)
 	nat_pool_jsonw_mappings(json, np);
 	nat_pool_jsonw_pba(json, np);
 
-	name = npf_addrgrp_handle2name(np->np_blacklist);
+	name = npf_addrgrp_handle2name(np->np_blocklist);
 	if (name)
 		jsonw_string_field(json, "blacklist", name);
 
@@ -1380,16 +1380,16 @@ nat_pool_cfg_parse_aa(char *item __unused, char *value,
 }
 
 /*
- * Parse blacklist name.  blacklist=<name>
+ * Parse blocklist name.  blacklist=<name>
  */
 static int
-nat_pool_cfg_parse_blacklist(char *item __unused, char *value,
+nat_pool_cfg_parse_blocklist(char *item __unused, char *value,
 			     struct nat_pool_cfg *cfg)
 {
 	if (!npf_addrgrp_lookup_name(value))
 		return -EINVAL;
 
-	cfg->np_blacklist_name = value;
+	cfg->np_blocklist_name = value;
 
 	return 0;
 }
@@ -1490,7 +1490,7 @@ static int nat_pool_cfg_parse(FILE *f __unused, int argc, char **argv,
 			rc = nat_pool_cfg_parse_aa(item, value, cfg);
 
 		else if (!strcmp(item, "blacklist"))
-			rc = nat_pool_cfg_parse_blacklist(item, value, cfg);
+			rc = nat_pool_cfg_parse_blocklist(item, value, cfg);
 
 		if (rc)
 			goto error;
@@ -1545,8 +1545,8 @@ int nat_pool_cfg_add(FILE *f, int argc, char **argv)
 		cfg.np_log_pba	= np->np_log_pba;
 		cfg.np_nranges	 = 0;
 
-		cfg.np_blacklist_name =
-			npf_addrgrp_handle2name(np->np_blacklist);
+		cfg.np_blocklist_name =
+			npf_addrgrp_handle2name(np->np_blocklist);
 
 	} else {
 		cfg.np_type	= NPT_CGNAT;
@@ -1559,7 +1559,7 @@ int nat_pool_cfg_add(FILE *f, int argc, char **argv)
 		cfg.np_pa	= NAT_PA_SEQUENTIAL;
 		cfg.np_log_pba	= true;
 		cfg.np_nranges	 = 0;
-		cfg.np_blacklist_name = NULL;
+		cfg.np_blocklist_name = NULL;
 	}
 
 	rc = nat_pool_cfg_parse(f, argc, argv, &cfg);
@@ -1613,11 +1613,11 @@ int nat_pool_cfg_add(FILE *f, int argc, char **argv)
 		np->np_pa	= cfg.np_pa;
 		np->np_log_pba	= cfg.np_log_pba;
 
-		/* Has blacklist address-group changed? */
-		const char *name = npf_addrgrp_handle2name(np->np_blacklist);
+		/* Has blocklist address-group changed? */
+		const char *name = npf_addrgrp_handle2name(np->np_blocklist);
 
-		npf_addrgrp_update_handle(name, cfg.np_blacklist_name,
-					  &np->np_blacklist);
+		npf_addrgrp_update_handle(name, cfg.np_blocklist_name,
+					  &np->np_blocklist);
 
 		/* State derived from config */
 		np->np_nports = np->np_port_end - np->np_port_start + 1;

@@ -67,21 +67,6 @@
 struct rte_mbuf;
 
 /*
- * Generic state name for UDP and ICMP, and other non-TCP protocols.
- *
- * Logger uses the upper-case form shown here.
- * npf commands use the lower-case form.
- * json uses use the lower-case form, plus hyphens replaced with underscores.
- */
-static const char *npf_state_generic_name[NPF_ANY_SESSION_NSTATES] = {
-	[NPF_ANY_SESSION_NONE]		= "NONE",
-	[NPF_ANY_SESSION_NEW]		= "NEW",
-	[NPF_ANY_SESSION_ESTABLISHED]	= "ESTABLISHED",
-	[NPF_ANY_SESSION_TERMINATING]	= "TERMINATING",
-	[NPF_ANY_SESSION_CLOSED]	= "CLOSED",
-};
-
-/*
  * TCP state name.
  *
  * Logger uses the upper-case form shown here.
@@ -105,17 +90,17 @@ static const char *npf_state_tcp_name[NPF_TCP_NSTATES] = {
 	[NPF_TCPS_CLOSED]	= "CLOSED",
 };
 
-static const uint8_t npf_generic_fsm[NPF_ANY_SESSION_NSTATES][2] = {
-	[NPF_ANY_SESSION_NONE] = {
-		[NPF_FLOW_FORW]		= NPF_ANY_SESSION_NEW,
+static const uint8_t npf_generic_fsm[SESSION_STATE_SIZE][2] = {
+	[SESSION_STATE_NONE] = {
+		[NPF_FLOW_FORW]		= SESSION_STATE_NEW,
 	},
-	[NPF_ANY_SESSION_NEW] = {
-		[NPF_FLOW_FORW]		= NPF_ANY_SESSION_NEW,
-		[NPF_FLOW_BACK]		= NPF_ANY_SESSION_ESTABLISHED,
+	[SESSION_STATE_NEW] = {
+		[NPF_FLOW_FORW]		= SESSION_STATE_NEW,
+		[NPF_FLOW_BACK]		= SESSION_STATE_ESTABLISHED,
 	},
-	[NPF_ANY_SESSION_ESTABLISHED] = {
-		[NPF_FLOW_FORW]		= NPF_ANY_SESSION_ESTABLISHED,
-		[NPF_FLOW_BACK]		= NPF_ANY_SESSION_ESTABLISHED,
+	[SESSION_STATE_ESTABLISHED] = {
+		[NPF_FLOW_FORW]		= SESSION_STATE_ESTABLISHED,
+		[NPF_FLOW_BACK]		= SESSION_STATE_ESTABLISHED,
 	},
 };
 
@@ -154,7 +139,7 @@ void npf_state_set_icmp_strict(bool value)
  */
 bool npf_state_init(vrfid_t vrfid, uint8_t proto_idx, npf_state_t *nst)
 {
-	assert(NPF_ANY_SESSION_LAST < 255);
+	assert(SESSION_STATE_LAST < 255);
 	assert(NPF_TCPS_LAST < 255);
 	assert(NPF_TCPS_OK <= 255);
 	assert(NPF_TCPS_OK > NPF_TCPS_LAST);
@@ -171,8 +156,8 @@ bool npf_state_init(vrfid_t vrfid, uint8_t proto_idx, npf_state_t *nst)
 		nst->nst_state = NPF_TCPS_NONE;
 		stats_inc_tcp(NPF_TCPS_NONE);
 	} else {
-		nst->nst_state = NPF_ANY_SESSION_NONE;
-		stats_inc(proto_idx, NPF_ANY_SESSION_NONE);
+		nst->nst_state = SESSION_STATE_NONE;
+		stats_inc(proto_idx, SESSION_STATE_NONE);
 	}
 
 	return true;
@@ -261,7 +246,7 @@ int npf_state_inspect(const npf_cache_t *npc, struct rte_mbuf *nbuf,
 		 * backward only replies.  Note, the 'strict' bit needs to be
 		 * disabled because of MS Windows clients.
 		 */
-		if ((npf_state_icmp_strict || state == NPF_ANY_SESSION_NONE) &&
+		if ((npf_state_icmp_strict || state == SESSION_STATE_NONE) &&
 		    unlikely(forw ^ npf_iscached(npc, NPC_ICMP_ECHO_REQ))) {
 			ret = -NPF_RC_ICMP_ECHO;
 			break;
@@ -301,9 +286,9 @@ void npf_state_set_closed_state(npf_state_t *nst, bool lock, uint8_t proto_idx)
 		npf_state_tcp_state_set(nst, NPF_TCPS_CLOSED,
 				&state_changed);
 	} else {
-		state = NPF_ANY_SESSION_CLOSED;
+		state = SESSION_STATE_CLOSED;
 		npf_state_generic_state_set(nst, proto_idx,
-				NPF_ANY_SESSION_CLOSED, &state_changed);
+				SESSION_STATE_CLOSED, &state_changed);
 	}
 
 	if (lock)
@@ -323,18 +308,15 @@ void npf_state_update_session_state(struct session *s, uint8_t proto_idx,
 		const npf_state_t *nst)
 {
 	uint32_t to;
+	enum dp_session_state gen_state;
 
 	if (s) {
 		to = npf_timeout_get(nst, proto_idx, s->se_custom_timeout);
-		session_set_protocol_state_timeout(s, nst->nst_state, to);
+		gen_state = npf_state_get_generic_state(proto_idx,
+							nst->nst_state);
+		session_set_protocol_state_timeout(s, nst->nst_state,
+						   gen_state, to);
 	}
-}
-
-static const char *npf_state_get_state_generic_name(uint8_t index)
-{
-	if (!npf_state_generic_state_is_valid(index))
-		return NULL;
-	return npf_state_generic_name[index];
 }
 
 static const char *npf_state_get_state_tcp_name(uint8_t index)
@@ -352,7 +334,7 @@ const char *npf_state_get_state_name(uint8_t state, uint8_t proto_idx)
 	if (proto_idx == NPF_PROTO_IDX_TCP)
 		return npf_state_get_state_tcp_name(state);
 	else
-		return npf_state_get_state_generic_name(state);
+		return dp_session_state_name(state, true);
 }
 
 /*
@@ -386,18 +368,49 @@ static void npf_str_to_log_name(const char *src, char *dst, int len)
 	dst[i] = '\0';
 }
 
-static void
+/*
+ * Get state name for json summary stats
+ */
+static int
 npf_state_get_state_name_json(uint8_t state, uint8_t proto_idx,
-			      char *dst, int len)
+			      char *dst, ulong len)
 {
-	const char *upper;
+	const char *name = NULL;
 
-	if (proto_idx == NPF_PROTO_IDX_TCP)
-		upper = npf_state_get_state_tcp_name(state);
-	else
-		upper = npf_state_get_state_generic_name(state);
+	if (proto_idx == NPF_PROTO_IDX_TCP) {
+		name = npf_state_get_state_tcp_name(state);
+		npf_str_to_json_name(name, dst, len);
+		return 0;
+	}
 
-	npf_str_to_json_name(upper, dst, len);
+	/*
+	 * For UDP, ICMP, and other we are not interested in
+	 * SESSION_STATE_NONE or SESSION_STATE_TERMINATING.
+	 */
+	switch (state) {
+	case SESSION_STATE_NEW:
+		name = "new";
+		break;
+	case SESSION_STATE_ESTABLISHED:
+		name = "established";
+		break;
+	case SESSION_STATE_CLOSED:
+		name = "closed";
+		break;
+	case SESSION_STATE_TERMINATING:
+	case SESSION_STATE_NONE:
+		break;
+	};
+
+	if (!name)
+		return -EINVAL;
+
+	if (strlen(name) >= len)
+		return -ENOSPC;
+
+	strncpy(dst, name, len);
+
+	return 0;
 }
 
 bool npf_state_is_steady(const npf_state_t *nst, const uint8_t proto_idx)
@@ -405,7 +418,7 @@ bool npf_state_is_steady(const npf_state_t *nst, const uint8_t proto_idx)
 	if (proto_idx == NPF_PROTO_IDX_TCP)
 		return (nst->nst_state == NPF_TCPS_ESTABLISHED ? true : false);
 	else
-		return (nst->nst_state == NPF_ANY_SESSION_ESTABLISHED) ?
+		return (nst->nst_state == SESSION_STATE_ESTABLISHED) ?
 			true : false;
 }
 
@@ -420,19 +433,18 @@ bool npf_tcp_state_is_closed(const npf_state_t *nst, const uint8_t proto_idx)
 }
 
 /* convert CLI generic state to numerical value */
-uint8_t npf_map_str_to_generic_state(const char *name)
+enum dp_session_state npf_map_str_to_generic_state(const char *name)
 {
-	uint8_t state;
-	char upper[40];
-
-	npf_str_to_log_name(name, upper, sizeof(upper));
-
-	for (state = NPF_ANY_SESSION_FIRST;
-	     state <= NPF_ANY_SESSION_LAST;  state++)
-		if (strcmp(upper, npf_state_generic_name[state]) == 0)
-			return state;
-
-	return NPF_ANY_SESSION_NSTATES;
+	if (!strcmp(name, "new"))
+		return SESSION_STATE_NEW;
+	else if (!strcmp(name, "established"))
+		return SESSION_STATE_ESTABLISHED;
+	else if (!strcmp(name, "terminating"))
+		return SESSION_STATE_TERMINATING;
+	else if (!strcmp(name, "closed"))
+		return SESSION_STATE_CLOSED;
+	else
+		return SESSION_STATE_NONE;
 }
 
 /* convert CLI TCP state to numerical value */
@@ -477,6 +489,7 @@ void npf_state_stats_json(json_writer_t *json)
 	uint32_t tmp;
 	uint32_t i;
 	char name[40];
+	int rc;
 
 	/* Temporary fixup until vplane-config-npf is updated */
 	FOREACH_DP_LCORE(i) {
@@ -487,8 +500,8 @@ void npf_state_stats_json(json_writer_t *json)
 	FOREACH_DP_LCORE(i) {
 		for (proto = NPF_PROTO_IDX_FIRST;
 				proto <= NPF_PROTO_IDX_LAST; proto++)
-			stats[i].ss_ct[proto][NPF_ANY_SESSION_CLOSED] +=
-				stats[i].ss_ct[proto][NPF_ANY_SESSION_NONE];
+			stats[i].ss_ct[proto][SESSION_STATE_CLOSED] +=
+				stats[i].ss_ct[proto][SESSION_STATE_NONE];
 	}
 
 	jsonw_name(json, "tcp");
@@ -516,10 +529,13 @@ void npf_state_stats_json(json_writer_t *json)
 		jsonw_name(json, npf_get_protocol_name_from_idx(proto));
 		jsonw_start_object(json);
 
-		for (state = NPF_ANY_SESSION_FIRST;
-		     state <= NPF_ANY_SESSION_LAST;  state++) {
-			npf_state_get_state_name_json(state, proto, name,
-						      sizeof(name)),
+		for (state = SESSION_STATE_FIRST;
+		     state <= SESSION_STATE_LAST;  state++) {
+			rc = npf_state_get_state_name_json(state, proto, name,
+							   sizeof(name));
+			if (rc < 0)
+				continue;
+
 			tmp = 0;
 			FOREACH_DP_LCORE(i)
 				tmp +=  stats[i].ss_ct[proto][state];
@@ -547,18 +563,19 @@ npf_state_dump(const npf_state_t *nst __unused)
 }
 #endif
 
-int npf_state_npf_pack_update(npf_state_t *nst, struct npf_pack_npf_state *st,
+int npf_state_npf_pack_update(npf_state_t *nst,
+			      struct npf_pack_session_state *pst,
 			      uint8_t state, uint8_t proto_idx)
 {
 	bool state_changed = false;
 
-	if (!nst || !st)
+	if (!nst || !pst)
 		return -EINVAL;
 
-	memcpy(&nst->nst_tcpst[NPF_FLOW_FORW], &st->nst_tcpst[NPF_FLOW_FORW],
-	       sizeof(npf_tcpstate_t));
-	memcpy(&nst->nst_tcpst[NPF_FLOW_BACK], &st->nst_tcpst[NPF_FLOW_BACK],
-	       sizeof(npf_tcpstate_t));
+	memcpy(&nst->nst_tcpst[NPF_FLOW_FORW], &pst->pst_tcpst[NPF_FLOW_FORW],
+	       sizeof(*nst->nst_tcpst));
+	memcpy(&nst->nst_tcpst[NPF_FLOW_BACK], &pst->pst_tcpst[NPF_FLOW_BACK],
+	       sizeof(*nst->nst_tcpst));
 
 	if (proto_idx == NPF_PROTO_IDX_TCP) {
 		npf_state_tcp_state_set(nst, state, &state_changed);

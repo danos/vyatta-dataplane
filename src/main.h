@@ -37,6 +37,7 @@ extern volatile bool running;
 extern bitmask_t linkup_port_mask;	/*  has carrier */
 extern bitmask_t active_port_mask;
 extern bitmask_t poll_port_mask;
+extern bitmask_t enabled_port_mask;
 extern unsigned int slowpath_mtu;
 
 struct rte_mempool *mbuf_pool(unsigned int portid);
@@ -106,7 +107,7 @@ int eth_port_config(portid_t portid);
 int eth_port_configure(portid_t portid, struct rte_eth_conf *dev_conf);
 unsigned int probe_crypto_engines(bool *sticky);
 int set_crypto_engines(const char *str, bool *sticky);
-int crypto_assign_engine(int crypto_dev_id);
+int crypto_assign_engine(int crypto_dev_id, int lcore);
 void crypto_unassign_from_engine(int lcore);
 void register_forwarding_cores(void);
 int reconfigure_queues(portid_t portid, uint16_t nb_rx_qs, uint16_t nb_tx_qs);
@@ -178,6 +179,8 @@ extern bool single_cpu;
 #define IGNORE_SANITIZER
 #endif
 
-extern uint16_t nb_ports;
+extern uint16_t nb_ports_total;
+
+int next_available_crypto_lcore(void);
 
 #endif /* MAIN_H */

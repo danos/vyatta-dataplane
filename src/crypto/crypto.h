@@ -88,6 +88,7 @@ int crypto_engine_set(FILE *f, const char *str);
 int crypto_engine_probe(FILE *f);
 void crypto_show_cache(FILE *f, const char *str);
 int crypto_flow_cache_init_lcore(unsigned int lcore_id);
+int crypto_flow_cache_teardown_lcore(unsigned int lcore_id);
 int crypto_flow_cache_init(void);
 unsigned long hash_xfrm_address(const xfrm_address_t *addr,
 				const uint16_t family);

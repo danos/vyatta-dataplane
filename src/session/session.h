@@ -19,12 +19,13 @@
 #include "if_var.h"
 #include "urcu.h"
 #include "util.h"
+#include "dp_session.h"
 
 struct ifnet;
 struct rte_mbuf;
 struct npf_pack_dp_session;
-struct npf_pack_sentry;
-struct npf_pack_session_stats;
+struct npf_pack_sentry_packet;
+struct npf_pack_dp_sess_stats;
 
 /*
  * For polling during UT cleanup.
@@ -51,7 +52,7 @@ enum session_feature_type {
 	SESSION_FEATURE_TEST,		/* For UTs, never delete */
 	SESSION_FEATURE_NPF,
 	SESSION_FEATURE_END,		/* Must be last */
-};
+} __attribute__ ((__packed__));
 
 /* Session flags */
 #define SESSION_EXPIRED		0x01
@@ -114,12 +115,13 @@ struct session_feature {
 	struct cds_lfht_node			sf_session_node;
 	struct session				*sf_session;
 	void					*sf_data;
-	uint32_t				sf_idx;
-	enum session_feature_type		sf_type;
 	const struct session_feature_ops	*sf_ops;
 	struct rcu_head				sf_rcu_head;
 	uint64_t				sf_expire_time;
+	uint32_t				sf_idx;
 	uint16_t				sf_flags;
+	enum session_feature_type		sf_type;
+	uint8_t					sf_pad;
 };
 
 /* Session sentry structs. */
@@ -184,14 +186,22 @@ struct session {
 	uint64_t		se_etime;	/* Expiration timeout */
 	uint8_t			se_protocol_state; /* For display */
 	uint8_t			se_idle:1;
-	uint8_t			se_nat:1;	/* nat? */
+
+	/* The following bit flags are used for op-mode commands */
+	uint8_t			se_fw:1;	/* firewall? */
+	uint8_t			se_snat:1;	/* snat? */
+	uint8_t			se_dnat:1;	/* dnat? */
 	uint8_t			se_nat64:1;	/* nat64? */
 	uint8_t			se_nat46:1;	/* nat46? */
 	uint8_t			se_alg:1;	/* alg? */
+	uint8_t			se_in:1;	/* inbound? */
+	uint8_t			se_out:1;	/* outbound? */
+	uint8_t			se_app:1;	/* application (dpi)? */
+
 	uint8_t			se_log_creation:1;
 	uint8_t			se_log_deletion:1;
 	uint8_t			se_log_periodic:1;
-	rte_atomic16_t		pad2;
+	uint8_t			se_gen_state;	/* Generic state for display */
 	uint32_t		se_log_interval;
 	uint64_t		se_ltime;	/* time of next periodic log */
 	uint64_t		se_create_time;	/* time session was created */
@@ -237,6 +247,19 @@ static inline void session_set_alg(struct session *s)
 }
 
 /**
+ * Mark a session as being a firewall session
+ *
+ * This state remains until the session is deleted.
+ *
+ * @param s
+ * The session
+ */
+static inline void session_set_fw(struct session *s)
+{
+	s->se_fw = 1;
+}
+
+/**
  * Mark a session as being natted.
  *
  * This state remains until the session is deleted.
@@ -244,9 +267,14 @@ static inline void session_set_alg(struct session *s)
  * @param s
  * The session
  */
-static inline void session_set_nat(struct session *s)
+static inline void session_set_snat(struct session *s)
 {
-	s->se_nat = 1;
+	s->se_snat = 1;
+}
+
+static inline void session_set_dnat(struct session *s)
+{
+	s->se_dnat = 1;
 }
 
 /**
@@ -276,15 +304,55 @@ static inline void session_set_nat46(struct session *s)
 }
 
 /**
+ * Mark session created by inbound flow.
+ *
+ * @param s  The session
+ */
+static inline void session_set_in(struct session *s)
+{
+	s->se_in = 1;
+}
+
+/**
+ * Mark session created by outbound flow.
+ *
+ * @param s  The session
+ */
+static inline void session_set_out(struct session *s)
+{
+	s->se_out = 1;
+}
+
+/**
+ * Mark session as a dpi session
+ *
+ * @param s  The session
+ */
+static inline void session_set_app(struct session *s)
+{
+	s->se_app = 1;
+}
+
+/**
  * Test an ALG session.
  *
  * Test if this is an alg session
  *
  * @param s  The session
  */
-static inline bool session_is_alg(struct session *s)
+static inline bool session_is_alg(const struct session *s)
 {
 	return s->se_alg == 1;
+}
+
+/**
+ * Is this a firewall session
+ *
+ * @param s  The session
+ */
+static inline bool session_is_fw(const struct session *s)
+{
+	return s->se_fw == 1;
 }
 
 /**
@@ -295,9 +363,19 @@ static inline bool session_is_alg(struct session *s)
  * @param s
  * The session
  */
-static inline bool session_is_nat(struct session *s)
+static inline bool session_is_snat(const struct session *s)
 {
-	return s->se_nat == 1;
+	return s->se_snat == 1;
+}
+
+static inline bool session_is_dnat(const struct session *s)
+{
+	return s->se_dnat == 1;
+}
+
+static inline bool session_is_nat(const struct session *s)
+{
+	return s->se_snat == 1 || s->se_dnat == 1;
 }
 
 /**
@@ -306,7 +384,7 @@ static inline bool session_is_nat(struct session *s)
  * @param s
  * The session
  */
-static inline bool session_is_nat64(struct session *s)
+static inline bool session_is_nat64(const struct session *s)
 {
 	return s->se_nat64 == 1;
 }
@@ -317,9 +395,35 @@ static inline bool session_is_nat64(struct session *s)
  * @param s
  * The session
  */
-static inline bool session_is_nat46(struct session *s)
+static inline bool session_is_nat46(const struct session *s)
 {
 	return s->se_nat46 == 1;
+}
+
+/**
+ * Test session in/out.
+ *
+ * @param s  The session
+ */
+static inline bool session_is_in(const struct session *s)
+{
+	return s->se_in == 1;
+}
+
+static inline bool session_is_out(const struct session *s)
+{
+	return s->se_out == 1;
+}
+
+/**
+ * Test if this is a dpi session
+ *
+ * @param s
+ * The session
+ */
+static inline bool session_is_app(const struct session *s)
+{
+	return s->se_app == 1;
 }
 
 /**
@@ -522,11 +626,15 @@ struct session *session_base_parent(struct session *s);
  * @param state
  * The current protocol state.
  *
+ * @param gen_state
+ * The generic or common protocol state.  Derived from 'state'.
+ *
  * @param timeout
  * The protocol state timeout.
  */
 void session_set_protocol_state_timeout(struct session *s, uint8_t state,
-		uint32_t timeout);
+					enum dp_session_state gen_state,
+					uint32_t timeout);
 
 /**
  * Set custom timeout
@@ -797,6 +905,10 @@ void session_sentry_extract(struct sentry *sen, uint32_t *if_index, int *af,
 		const void **saddr, uint16_t *sid, const void **daddr,
 		uint16_t *did);
 
+/* Extract addrs from a sentry */
+void session_sentry_extract_addrs(const struct sentry *sen, int *af,
+				  const void **saddr, const void **daddr);
+
 /**
  * Execute the session GC path.
  *
@@ -814,21 +926,22 @@ void session_gc(void);
  */
 struct session *session_alloc(void);
 
-int session_npf_pack_pack(struct session *s, struct npf_pack_dp_session *dps,
-			  struct npf_pack_sentry *sen,
-			  struct npf_pack_session_stats *stats);
+int session_npf_pack_pack(struct session *s, struct npf_pack_dp_session *pds,
+			  struct npf_pack_sentry_packet *psp,
+			  struct npf_pack_dp_sess_stats *stats);
 int session_npf_pack_sentry_pack(struct session *s,
-				 struct npf_pack_sentry *sen);
-struct session *session_npf_pack_restore(struct npf_pack_dp_session *dps,
-					 struct npf_pack_sentry *sen,
-					 struct npf_pack_session_stats *stats);
-int session_npf_pack_sentry_restore(struct npf_pack_sentry *sen,
+				 struct npf_pack_sentry_packet *psp);
+struct session *session_npf_pack_restore(struct npf_pack_dp_session *pds,
+					 struct npf_pack_sentry_packet *psp,
+					 struct npf_pack_dp_sess_stats *stats);
+int session_npf_pack_sentry_restore(struct npf_pack_sentry_packet *psp,
 				    struct ifnet **ifp);
 uint32_t session_get_npf_pack_timeout(struct session *s);
 int session_npf_pack_stats_pack(struct session *s,
-				struct npf_pack_session_stats *stats);
+				struct npf_pack_dp_sess_stats *stats);
 int session_npf_pack_stats_restore(struct session *s,
-				   struct npf_pack_session_stats *stats);
+				   struct npf_pack_dp_sess_stats *stats);
+int sess_time_to_expire(const struct session *s);
 
 static inline uint64_t session_get_id(struct session *s)
 {

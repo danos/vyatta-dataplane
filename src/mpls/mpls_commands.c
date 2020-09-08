@@ -210,13 +210,16 @@ int cmd_mpls(FILE *f, int argc, char **argv)
 		return 0;
 	} else if (argc >= 3 && !strcmp(argv[1], "show")) {
 		if (!strcmp(argv[2], "tables")) {
-			mpls_label_table_set_dump(f, -1);
+			mpls_label_table_set_dump(f, -1, MPLS_LABEL_ALL);
 			return 0;
 		} else if (!strcmp(argv[2], "ifconfig")) {
 			cmd_mifconfig(f, argc, argv);
 			return 0;
 		} else if (!strcmp(argv[2], "config")) {
 			mpls_config_dump(f);
+			return 0;
+		} else if (!strcmp(argv[2], "label") && argc >= 4) {
+			mpls_label_table_set_dump(f, -1, atoi(argv[3]));
 			return 0;
 		}
 	} else if (argc >= 3 && !strcmp(argv[1], "oam")) {

@@ -22,6 +22,7 @@
 #include <pthread.h>
 #include <rte_branch_prediction.h>
 #include <rte_common.h>
+#include <rte_crypto_sym.h>
 #include <rte_log.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -37,6 +38,7 @@
 #include "util.h"
 #include "vplane_debug.h"
 #include "vplane_log.h"
+#include "crypto_rte_pmd.h"
 
 #define ENGINE_DEBUG(args...)				\
 	DP_DEBUG(CRYPTO, DEBUG, ENGINE, args)
@@ -55,16 +57,6 @@ typedef EVP_MD * (*evp_md_fn_t)(void);
 struct md_algo_table {
 	const char *name;
 	evp_md_fn_t fn;
-};
-
-static const struct md_algo_table md_algorithms[] = {
-	{ "hmac(sha1)",		(evp_md_fn_t)EVP_sha1},
-	{ "hmac(sha256)",	(evp_md_fn_t)EVP_sha256},
-	{ "hmac(sha384)",	(evp_md_fn_t)EVP_sha384},
-	{ "hmac(sha512)",	(evp_md_fn_t)EVP_sha512},
-	{ "hmac(md5)",		(evp_md_fn_t)EVP_md5},
-	{ "rfc4106(gcm(aes))",  (evp_md_fn_t)EVP_md_null},
-	{ "aNULL",		(evp_md_fn_t)EVP_md_null},
 };
 
 const char *eng_cmd_str[] = {"ENG_CIPHER_INIT |", "ENG_DIGEST_INIT |",
@@ -162,7 +154,7 @@ static void ENGINE_ERR_print_errors(void)
 static int hmac_update(struct crypto_session *sa,
 		       unsigned char *text, uint32_t len)
 {
-	if (!HMAC_Update(sa->hmac_ctx, text, len)) {
+	if (!HMAC_Update(sa->o_info->hmac_ctx, text, len)) {
 		ENGINE_ERR("HMAC update failed\n");
 		return -1;
 	}
@@ -186,7 +178,8 @@ static int openssl_cipher_set_iv(struct crypto_visitor_ctx *ctx,
 	memcpy(alg_iv, s->nonce, s->nonce_len);
 	memcpy(alg_iv + s->nonce_len, iv, s->iv_len);
 
-	if (EVP_CipherInit_ex(s->ctx, NULL, NULL, NULL, alg_iv, -1) != 1) {
+	if (EVP_CipherInit_ex(s->o_info->ctx, NULL, NULL, NULL,
+			      alg_iv, -1) != 1) {
 		ENGINE_ERR_print_errors();
 		return -1;
 	}
@@ -200,7 +193,7 @@ static int openssl_hmac_set_icv(struct crypto_visitor_ctx *ctx,
 {
 	struct crypto_session *session = ctx_session(ctx);
 
-	if (!HMAC_Init_ex(session->hmac_ctx, NULL, 0, NULL, NULL)) {
+	if (!HMAC_Init_ex(session->o_info->hmac_ctx, NULL, 0, NULL, NULL)) {
 		ENGINE_ERR("HMAC init failed\n");
 		return -1;
 	}
@@ -215,7 +208,7 @@ static int openssl_encrypt_hmac_payload_block(
 	struct crypto_session *session = ctx_session(ctx);
 	int len;
 
-	if (EVP_EncryptUpdate(session->ctx, element->o_data, &len,
+	if (EVP_EncryptUpdate(session->o_info->ctx, element->o_data, &len,
 			      element->i_data, element->data_len) != 1) {
 		ENGINE_ERR_print_errors();
 		return -1;
@@ -250,7 +243,7 @@ static int openssl_hmac_decrypt_payload_block(
 			return -1;
 	}
 
-	if (EVP_DecryptUpdate(s->ctx, element->o_data, &len,
+	if (EVP_DecryptUpdate(s->o_info->ctx, element->o_data, &len,
 			      element->i_data, element->data_len) != 1) {
 		ENGINE_ERR_print_errors();
 		return -1;
@@ -265,7 +258,7 @@ static int openssl_cipher_payload_finalise(struct crypto_visitor_ctx *ctx,
 	struct crypto_session *s = ctx_session(ctx);
 	int len;
 
-	if (EVP_CipherFinal_ex(s->ctx, element->o_data, &len) != 1) {
+	if (EVP_CipherFinal_ex(s->o_info->ctx, element->o_data, &len) != 1) {
 		ENGINE_ERR_print_errors();
 		return -1;
 	}
@@ -292,7 +285,7 @@ static int openssl_hmac_finalise(struct crypto_visitor_ctx *ctx,
 	struct crypto_session *session = ctx_session(ctx);
 	uint32_t md_len = 0;
 
-	if (!HMAC_Final(session->hmac_ctx, element->o_data, &md_len)) {
+	if (!HMAC_Final(session->o_info->hmac_ctx, element->o_data, &md_len)) {
 		ENGINE_ERR("Digest finalise failed\n");
 		return -1;
 	}
@@ -314,9 +307,7 @@ static int null_hmac_set_icv(struct crypto_visitor_ctx *ctx __rte_unused,
 }
 
 static int
-openssl_null_hmac_set_auth_key(struct crypto_session *ctx __rte_unused,
-			       unsigned int length __rte_unused,
-			       const char key[] __rte_unused)
+openssl_null_hmac_set_auth_key(struct crypto_session *ctx __rte_unused)
 {
 	return 0;
 }
@@ -367,120 +358,6 @@ null_hmac_encrypt_openssl_vops = {
 	.payload_finalise = openssl_cipher_payload_finalise,
 	.header_block = null_hmac_update,
 	.icv_finalise = null_hmac_update,
-};
-
-static int openssl_aead_set_icv(struct crypto_visitor_ctx *ctx,
-				unsigned int length,
-				unsigned char icv[])
-{
-	struct crypto_session *session = ctx_session(ctx);
-
-	if (!EVP_CIPHER_CTX_ctrl(session->ctx, EVP_CTRL_GCM_SET_TAG,
-				 length, icv)) {
-		ENGINE_PKT_ERR("Setting GCM tag failed\n");
-		ENGINE_ERR_print_errors();
-		return -1;
-	}
-
-	return 0;
-}
-
-static int openssl_aead_aad_update(struct crypto_visitor_ctx *ctx,
-				   struct crypto_chain_elem *element)
-{
-	struct crypto_session *session = ctx_session(ctx);
-	int len;
-
-	if (!EVP_CipherUpdate(session->ctx, NULL, &len, element->i_data,
-			      element->data_len)) {
-		ENGINE_PKT_ERR("AAD update failed\n");
-		ENGINE_ERR_print_errors();
-		return -1;
-	}
-
-	return 0;
-}
-
-static int openssl_aead_get_tag(struct crypto_visitor_ctx *ctx,
-				struct crypto_chain_elem *element)
-{
-	struct crypto_session *session = ctx_session(ctx);
-
-	if (!EVP_CIPHER_CTX_ctrl(session->ctx, EVP_CTRL_GCM_GET_TAG,
-				 element->data_len, element->o_data)) {
-		ENGINE_PKT_ERR("Getting GCM tag failed\n");
-		ENGINE_ERR_print_errors();
-		return -1;
-	}
-
-	return 0;
-}
-
-static int openssl_aead_encrypt_payload_block(
-	struct crypto_visitor_ctx *ctx,
-	struct crypto_chain_elem *element)
-{
-	struct crypto_session *s = ctx_session(ctx);
-	int len;
-
-	if (EVP_EncryptUpdate(s->ctx, element->o_data, &len,
-			      element->i_data, element->data_len) != 1) {
-		ENGINE_ERR_print_errors();
-		return -1;
-	}
-
-	return 0;
-}
-
-static int openssl_aead_decrypt_payload_block(
-	struct crypto_visitor_ctx *ctx,
-	struct crypto_chain_elem *element)
-{
-	struct crypto_session *s = ctx_session(ctx);
-	int len;
-
-	if (EVP_DecryptUpdate(s->ctx, element->o_data, &len,
-			      element->i_data, element->data_len) != 1) {
-		ENGINE_ERR_print_errors();
-		return -1;
-	}
-
-	return 0;
-}
-
-static int nop_set(struct crypto_visitor_ctx *ctx __unused,
-		   unsigned int length __unused,
-		   unsigned char icv[] __unused)
-{
-	return 0;
-}
-
-static int nop_vops(struct crypto_visitor_ctx *ctx __unused,
-		    struct crypto_chain_elem *element __unused)
-{
-	return 0;
-}
-
-const struct crypto_visitor_operations decrypt_openssl_aead_vops = {
-	.set_iv = openssl_cipher_set_iv,
-	.set_icv = openssl_aead_set_icv,
-
-	.payload_iv = nop_vops,
-	.payload_block = openssl_aead_decrypt_payload_block,
-	.payload_finalise = openssl_cipher_payload_finalise,
-	.header_block = openssl_aead_aad_update,
-	.icv_finalise = nop_vops,
-};
-
-const struct crypto_visitor_operations encrypt_openssl_aead_vops = {
-	.set_iv = openssl_cipher_set_iv,
-	.set_icv = nop_set,
-
-	.payload_iv = nop_vops,
-	.payload_block = openssl_aead_encrypt_payload_block,
-	.payload_finalise = openssl_cipher_payload_finalise,
-	.header_block = openssl_aead_aad_update,
-	.icv_finalise = openssl_aead_get_tag,
 };
 
 /*
@@ -593,8 +470,8 @@ const struct crypto_visitor_operations *
 crypto_session_get_vops(struct crypto_session *session)
 {
 	return session->direction == XFRM_POLICY_OUT ?
-		session->s_ops->encrypt_vops :
-		session->s_ops->decrypt_vops;
+		session->o_info->s_ops->encrypt_vops :
+		session->o_info->s_ops->decrypt_vops;
 }
 
 int crypto_chain_init(struct crypto_chain *chain,
@@ -617,159 +494,162 @@ int crypto_chain_init(struct crypto_chain *chain,
 	return 0;
 }
 
-int crypto_session_set_enc_key(struct crypto_session *session,
-			       unsigned int length, const char key[])
+int crypto_session_set_enc_key(struct crypto_session *session)
 {
-	if (!session->s_ops->set_enc_key) {
+	if (!session->o_info->s_ops->set_enc_key) {
 		ENGINE_DEBUG("Function not supported: set_enc_key()\n");
 		return -ENOTSUP;
 	}
 
-	return session->s_ops->set_enc_key(session, length, key);
+	return session->o_info->s_ops->set_enc_key(session);
 }
 
-int crypto_session_set_auth_key(struct crypto_session *session,
-				unsigned int length, const char key[])
+int crypto_session_set_auth_key(struct crypto_session *session)
 {
-	if (!session->s_ops->set_auth_key) {
+	if (!session->o_info->s_ops->set_auth_key) {
 		ENGINE_DEBUG("Function not supported: set_auth_key()\n");
 		return -ENOTSUP;
 	}
 
-	return session->s_ops->set_auth_key(session, length, key);
+	return session->o_info->s_ops->set_auth_key(session);
 }
 
 int crypto_session_generate_iv(struct crypto_session *session,
 			       char iv[])
 {
-	if (!session->s_ops->generate_iv) {
-		ENGINE_DEBUG("Function not supported: generate_iv()\n");
-		return -ENOTSUP;
-	}
-
-	return session->s_ops->generate_iv(session, iv);
+	memcpy(iv, &session->iv, crypto_session_iv_len(session));
+	return 0;
 }
 
 int crypto_session_set_iv(struct crypto_session *session, unsigned int length,
 			  const char iv[])
 {
-	if (session->s_ops->set_iv)
-		return session->s_ops->set_iv(session, length, iv);
+	if (length != crypto_session_iv_len(session)) {
+		ENGINE_ERR("Unexpect IV length: %d\n", length);
+		return -1;
+	}
 
+	/* Stash IV for next packet on SA. */
+	memcpy(&session->iv, iv, length);
 	return 0;
 }
 
-static int setup_cipher_type(struct crypto_session *ctx,
-			     const char *algo_name,
-			     const uint32_t key_len)
+static int setup_cipher_type(struct crypto_session *ctx)
 {
-	if (strcmp("cbc(aes)", algo_name) == 0) {
+	struct crypto_openssl_info *o_ctx = ctx->o_info;
+	uint32_t key_len = ctx->key_len * BITS_PER_BYTE;
+
+	if (ctx->cipher_algo == RTE_CRYPTO_CIPHER_LIST_END) {
+		RTE_LOG(ERR, DATAPLANE, "Invalid cipher algorithm\n");
+		return -EINVAL;
+	}
+
+	switch (ctx->cipher_algo) {
+	case RTE_CRYPTO_CIPHER_AES_CBC:
 		switch (key_len) {
 		case 128:
-			ctx->cipher = EVP_aes_128_cbc();
-			ctx->cipher_name = "CBS(AES) 128";
-			return 0;
+			o_ctx->cipher = EVP_aes_128_cbc();
+			break;
 		case 192:
-			ctx->cipher = EVP_aes_192_cbc();
-			ctx->cipher_name = "CBS(AES) 192";
-			return 0;
+			o_ctx->cipher = EVP_aes_192_cbc();
+			break;
 		case 256:
-			ctx->cipher = EVP_aes_256_cbc();
-			ctx->cipher_name = "CBS(AES) 256";
-			return 0;
+			o_ctx->cipher = EVP_aes_256_cbc();
+			break;
 		default:
 			ENGINE_ERR("Unsupported cbc(aes) key size %d\n",
 				   key_len);
-			ctx->cipher_name = "CBC(AES) Unknown";
-			return -1;
+			return -EINVAL;
 		}
+
+		break;
+
+	case RTE_CRYPTO_CIPHER_3DES_CBC:
+		o_ctx->cipher = EVP_des_ede3_cbc();
+		break;
+
+	case RTE_CRYPTO_CIPHER_NULL:
+		o_ctx->cipher = EVP_enc_null();
+		break;
+
+	default:
+		ENGINE_ERR("Unsupported crypto algo %s\n",
+			   rte_crypto_cipher_algorithm_strings[
+				   ctx->cipher_algo]);
 	}
 
-	if (strcmp("cbc(des3_ede)", algo_name) == 0) {
-		ctx->cipher = EVP_des_ede3_cbc();
-		ctx->cipher_name = "3DES";
-		return 0;
+	if (!o_ctx->cipher) {
+		RTE_LOG(ERR, DATAPLANE, "Could not allocate cipher context\n");
+		return -ENOMEM;
 	}
-
-	if (strcmp("rfc4106(gcm(aes))", algo_name) == 0) {
-		switch (key_len) {
-		case 160:
-			ctx->cipher = EVP_aes_128_gcm();
-			ctx->cipher_name = "gcm(aes) 128";
-			return 0;
-		case 288:
-			ctx->cipher = EVP_aes_256_gcm();
-			ctx->cipher_name = "gcm(aes) 256";
-			return 0;
-		default:
-			ENGINE_ERR("Unsupported gcm(aes) key size: %d\n",
-				   key_len);
-			ctx->cipher_name = "gcm(aes) unknown";
-			return -1;
-		}
-	}
-
-	if (strcmp("eNULL", algo_name) == 0 ||
-	    strcmp("ecb(cipher_null)", algo_name) == 0) {
-		ctx->cipher = EVP_enc_null();
-		ctx->cipher_name = "eNULL";
-		return 0;
-	}
-	ENGINE_ERR("Unsupported crypto algo %s\n", algo_name);
-	ctx->cipher_name = "Unsupported";
-	return  -1;
+	return 0;
 }
 
-static int setup_md_type(struct crypto_session *ctx,
-			 const char *algo_name,
-			 const uint32_t alg_trunc_len __unused)
+static int setup_md_type(struct crypto_session *ctx)
 {
-	unsigned int i;
+	static evp_md_fn_t evp_fns[RTE_CRYPTO_AUTH_LIST_END] = {
+		[RTE_CRYPTO_AUTH_NULL]        = (evp_md_fn_t)EVP_md_null,
+		[RTE_CRYPTO_AUTH_SHA1_HMAC]   = (evp_md_fn_t)EVP_sha1,
+		[RTE_CRYPTO_AUTH_SHA256_HMAC] = (evp_md_fn_t)EVP_sha256,
+		[RTE_CRYPTO_AUTH_SHA384_HMAC] =	(evp_md_fn_t)EVP_sha384,
+		[RTE_CRYPTO_AUTH_SHA512_HMAC] =	(evp_md_fn_t)EVP_sha512,
+		[RTE_CRYPTO_AUTH_MD5_HMAC]    = (evp_md_fn_t)EVP_md5,
+	};
 
-	for (i = 0; i < ARRAY_SIZE(md_algorithms); i++)
-		if (!strcmp(md_algorithms[i].name, algo_name)) {
-			ctx->md_name = md_algorithms[i].name;
-			ctx->md = md_algorithms[i].fn();
-			return 0;
-		}
+	if (ctx->auth_algo == RTE_CRYPTO_AUTH_LIST_END) {
+		RTE_LOG(ERR, DATAPLANE, "Invalid digest algorithm\n");
+		return -EINVAL;
+	}
 
-	ENGINE_ERR("Unsupported digest algo %s\n", algo_name);
-	ctx->md_name = "Unsupported";
-	return -1;
+	if (!evp_fns[ctx->auth_algo]) {
+		RTE_LOG(ERR, DATAPLANE, "Unsupported digest algo %s\n",
+			rte_crypto_auth_algorithm_strings[ctx->auth_algo]);
+		return -EOPNOTSUPP;
+	}
+
+	ctx->o_info->md = evp_fns[ctx->auth_algo]();
+	if (!ctx->o_info->md) {
+		RTE_LOG(ERR, DATAPLANE,
+			"Could not set up openssl context for %s\n",
+			rte_crypto_auth_algorithm_strings[ctx->auth_algo]);
+		return -ENOMEM;
+	}
+	return 0;
 }
 
 int openssl_session_cipher_init(struct crypto_session *s)
 {
 	int encrypt = s->direction == XFRM_POLICY_OUT;
+	struct crypto_openssl_info *o_s = s->o_info;
 
 	if (likely(s->cipher_init || !s->block_size))
 		return 0;
 
-	s->ctx = EVP_CIPHER_CTX_new();
-	if (!s->ctx) {
+	o_s->ctx = EVP_CIPHER_CTX_new();
+	if (!o_s->ctx) {
 		ENGINE_ERR_print_errors();
 		return -1;
 	}
 
-	if (EVP_CipherInit_ex(s->ctx, s->cipher, NULL,
+	if (EVP_CipherInit_ex(o_s->ctx, o_s->cipher, NULL,
 			      s->key, NULL, encrypt) != 1) {
 		ENGINE_ERR_print_errors();
-		EVP_CIPHER_CTX_free(s->ctx);
-		s->ctx = NULL;
+		EVP_CIPHER_CTX_free(o_s->ctx);
+		o_s->ctx = NULL;
 		return -1;
 	}
-	if (EVP_CIPHER_mode(s->cipher) == EVP_CIPH_GCM_MODE) {
-		if (!EVP_CIPHER_CTX_ctrl(s->ctx, EVP_CTRL_GCM_SET_IVLEN,
+	if (EVP_CIPHER_mode(o_s->cipher) == EVP_CIPH_GCM_MODE) {
+		if (!EVP_CIPHER_CTX_ctrl(o_s->ctx, EVP_CTRL_GCM_SET_IVLEN,
 					 s->nonce_len + s->iv_len, NULL)) {
-			EVP_CIPHER_CTX_free(s->ctx);
-			s->ctx = NULL;
+			EVP_CIPHER_CTX_free(o_s->ctx);
+			o_s->ctx = NULL;
 			ENGINE_ERR_print_errors();
 			return -1;
 		}
 	}
-	if (EVP_CIPHER_CTX_set_padding(s->ctx, 0) != 1) {
-		EVP_CIPHER_CTX_free(s->ctx);
-		s->ctx = NULL;
+	if (EVP_CIPHER_CTX_set_padding(o_s->ctx, 0) != 1) {
+		EVP_CIPHER_CTX_free(o_s->ctx);
+		o_s->ctx = NULL;
 		ENGINE_ERR_print_errors();
 		return -1;
 	}
@@ -778,18 +658,8 @@ int openssl_session_cipher_init(struct crypto_session *s)
 	return 0;
 }
 
-static int openssl_session_set_enc_key(struct crypto_session *ctx,
-				       unsigned int length,
-				       const char key[])
+static int openssl_session_set_enc_key(struct crypto_session *ctx)
 {
-	if (length > ARRAY_SIZE(ctx->key)) {
-		ENGINE_ERR("Unexpect encyption key len: %d\n", length);
-		return -1;
-	}
-
-	ctx->key_len = length;
-	memcpy(ctx->key, key, length);
-
 	if ((ctx->direction != -1) &&
 	    openssl_session_cipher_init(ctx))
 		return -1;
@@ -797,29 +667,20 @@ static int openssl_session_set_enc_key(struct crypto_session *ctx,
 	return 0;
 }
 
-static int openssl_session_set_auth_key(struct crypto_session *ctx,
-					unsigned int length,
-					const char key[])
+static int openssl_session_set_auth_key(struct crypto_session *ctx)
 {
-	if (length > ARRAY_SIZE(ctx->auth_alg_key)) {
-		ENGINE_ERR("Unexpect integrity key len: %d\n", length);
-		return -1;
-	}
-
-	ctx->hmac_ctx = HMAC_CTX_new();
-	if (!ctx->hmac_ctx) {
+	ctx->o_info->hmac_ctx = HMAC_CTX_new();
+	if (!ctx->o_info->hmac_ctx) {
 		ENGINE_ERR_print_errors();
 		return -1;
 	}
-	ctx->auth_alg_key_len = length;
-	memcpy(ctx->auth_alg_key, key, length);
 
-	if (!HMAC_Init_ex(ctx->hmac_ctx,
+	if (!HMAC_Init_ex(ctx->o_info->hmac_ctx,
 			  ctx->auth_alg_key,
 			  ctx->auth_alg_key_len,
-			  ctx->md, NULL)) {
-		HMAC_CTX_free(ctx->hmac_ctx);
-		ctx->hmac_ctx = NULL;
+			  ctx->o_info->md, NULL)) {
+		HMAC_CTX_free(ctx->o_info->hmac_ctx);
+		ctx->o_info->hmac_ctx = NULL;
 		ENGINE_ERR_print_errors();
 		return -1;
 	}
@@ -865,50 +726,81 @@ const struct crypto_session_operations null_hmac_openssl_sops = {
 	.set_iv = openssl_session_set_iv,
 };
 
-static int rfc4106_session_set_enc_key(struct crypto_session *ctx,
-				       unsigned int length,
-				       const char key[])
+int crypto_openssl_session_setup(struct crypto_session *sess)
 {
-	/* setup AES-GCM according to RFC4106 */
-	if (length < 4) {
-		ENGINE_ERR("key_len too small: %d\n", length);
-		return -1;
+	struct crypto_openssl_info *o_ctx;
+	int err;
+
+	if (sess->o_info)
+		return -EEXIST;
+
+	sess->o_info = calloc(1, sizeof(*sess->o_info));
+	if (!sess->o_info)
+		return -ENOMEM;
+
+	o_ctx = sess->o_info;
+
+	if (sess->auth_algo != RTE_CRYPTO_AUTH_LIST_END)
+		o_ctx->s_ops = &default_openssl_sops;
+	else
+		o_ctx->s_ops = &null_hmac_openssl_sops;
+
+	if (sess->cipher_algo == RTE_CRYPTO_CIPHER_LIST_END ||
+	    sess->auth_algo == RTE_CRYPTO_AUTH_LIST_END) {
+		RTE_LOG(ERR, DATAPLANE,
+			"Invalid cipher/auth algo: cipher (%d), auth (%d)\n",
+			sess->cipher_algo, sess->auth_algo);
+		return -EINVAL;
 	}
 
-	ctx->key_len = length - 4;
+	ENGINE_DEBUG("Setup cipher %s, key size(%d)\n",
+		     rte_crypto_cipher_algorithm_strings[sess->cipher_algo],
+		     sess->key_len * BITS_PER_BYTE);
 
-	if (ctx->key_len > ARRAY_SIZE(ctx->key)) {
-		ENGINE_ERR("Unexpect encyption key len: %d\n", length);
-		return -1;
+	if (setup_cipher_type(sess) != 0)
+		goto error;
+
+	sess->block_size = EVP_CIPHER_block_size(o_ctx->cipher);
+
+	ENGINE_DEBUG("Setup digest %s\n",
+		     rte_crypto_auth_algorithm_strings[sess->auth_algo]);
+
+	if (setup_md_type(sess) != 0)
+		goto error;
+
+	RAND_bytes((unsigned char *)sess->iv, sess->iv_len);
+
+	err = crypto_session_set_enc_key(sess);
+	if (err) {
+		ENGINE_ERR("Failed to set session encryption key\n");
+		goto error;
 	}
-	memcpy(ctx->key, key, ctx->key_len);
-	ctx->nonce_len = 4;
-	memcpy(ctx->nonce, key + ctx->key_len, ctx->nonce_len);
 
-	ctx->iv_len = 8;
-
-	if ((ctx->direction != -1) &&
-	    openssl_session_cipher_init(ctx))
-		return -1;
+	err = crypto_session_set_auth_key(sess);
+	if (err) {
+		ENGINE_ERR("Failed to set session integrity key\n");
+		goto error;
+	}
 
 	return 0;
+
+error:
+	return -1;
 }
 
-static int rfc4106_session_set_auth_key(struct crypto_session *ctx __unused,
-					unsigned int length __unused,
-					const char key[] __unused)
+void crypto_openssl_session_teardown(struct crypto_session *sess)
 {
-	return 0;
-}
+	if (!sess->o_info)
+		return;
 
-const struct crypto_session_operations rfc4106_openssl_sops = {
-	.decrypt_vops = &decrypt_openssl_aead_vops,
-	.encrypt_vops = &encrypt_openssl_aead_vops,
-	.set_enc_key = rfc4106_session_set_enc_key,
-	.set_auth_key = rfc4106_session_set_auth_key,
-	.generate_iv = openssl_session_generate_iv,
-	.set_iv = openssl_session_set_iv,
-};
+	if (sess->o_info->hmac_ctx)
+		HMAC_CTX_free(sess->o_info->hmac_ctx);
+	if (sess->o_info->ctx)
+		EVP_CIPHER_CTX_free(sess->o_info->ctx);
+
+	free(sess->o_info);
+	sess->o_info = NULL;
+}
 
 struct crypto_session *
 crypto_session_create(const struct xfrm_algo *algo_crypt,
@@ -921,35 +813,17 @@ crypto_session_create(const struct xfrm_algo *algo_crypt,
 	if (!ctx)
 		return NULL;
 
-	if (algo_auth)
-		ctx->s_ops = &default_openssl_sops;
-	else
-		ctx->s_ops = &null_hmac_openssl_sops;
+	/* set up DPDK versions of data structures */
+	if (crypto_rte_set_session_parameters(ctx, algo_crypt, algo_auth)) {
+		RTE_LOG(ERR, DATAPLANE,
+			"Failed to set session parameters for %s %s\n",
+			algo_crypt->alg_name,
+			algo_auth ? algo_auth->alg_name : "");
+		goto err;
+	}
 
 	ctx->direction = direction;
-
-	if (algo_crypt) {
-		ENGINE_DEBUG("Setup Cipher %s%d\n", algo_crypt->alg_name,
-			     algo_crypt->alg_key_len);
-		if (setup_cipher_type(ctx, algo_crypt->alg_name,
-				      algo_crypt->alg_key_len) != 0)
-			goto err;
-		ctx->block_size = EVP_CIPHER_block_size(ctx->cipher);
-		ctx->iv_len = EVP_CIPHER_iv_length(ctx->cipher);
-		RAND_bytes((unsigned char *)ctx->iv, ctx->iv_len);
-
-		if (strcmp("rfc4106(gcm(aes))", algo_crypt->alg_name) == 0)
-			ctx->s_ops = &rfc4106_openssl_sops;
-	}
-
-	if  (algo_auth) {
-		ENGINE_DEBUG("Setup Digest %s\n", algo_auth->alg_name);
-		if (setup_md_type(ctx, algo_auth->alg_name,
-				  algo_auth->alg_trunc_len) != 0)
-			goto err;
-		memcpy(ctx->auth_alg_name, algo_auth->alg_name, 64);
-		ctx->digest_len = algo_auth->alg_trunc_len >> 3;
-	}
+	RAND_bytes((unsigned char *)ctx->iv, ctx->iv_len + ctx->nonce_len);
 
 	return ctx;
 
@@ -963,10 +837,7 @@ void crypto_session_destroy(struct crypto_session *ctx)
 	if (!ctx)
 		return;
 
-	if (ctx->hmac_ctx)
-		HMAC_CTX_free(ctx->hmac_ctx);
-	if (ctx->ctx)
-		EVP_CIPHER_CTX_free(ctx->ctx);
+	crypto_openssl_session_teardown(ctx);
 
 	free(ctx);
 }
@@ -1004,35 +875,12 @@ int cipher_setup_ctx(const struct xfrm_algo *algo_crypt,
 		     const struct xfrm_encap_tmpl *tmpl,
 		     struct sadb_sa *sa, uint32_t extra_flags)
 {
-	int ret;
-
 	if (check_algorithmic_requirements(algo_crypt, algo_auth))
 		return -1;
 
 	sa->session = crypto_session_create(algo_crypt, algo_auth, -1);
 	if (!sa->session)
 		return -1;
-
-	if (algo_crypt) {
-		ret = crypto_session_set_enc_key(
-			sa->session,
-			algo_crypt->alg_key_len >> 3,
-			algo_crypt->alg_key);
-		if (ret) {
-			ENGINE_ERR("Failed to set session encryption key\n");
-			return ret;
-		}
-	}
-	if (algo_auth) {
-		ret = crypto_session_set_auth_key(
-			sa->session,
-			algo_auth->alg_key_len >> 3,
-			algo_auth->alg_key);
-		if (ret) {
-			ENGINE_ERR("Failed to set session integrity key\n");
-			return ret;
-		}
-	}
 
 	sa->udp_encap = 0;
 	if (tmpl) {
@@ -1146,13 +994,32 @@ void crypto_engine_load(void)
 
 void crypto_engine_summary(json_writer_t *wr, const struct sadb_sa *sa)
 {
+	struct crypto_session *sess;
+
 	if (!sa->session)
 		return;
 
-	jsonw_string_field(wr, "cipher", sa->session->cipher_name);
+	sess = sa->session;
 
-	jsonw_string_field(wr, "digest", sa->session->md_name ?
-			   sa->session->md_name : "null");
+	if (sess->aead_algo != RTE_CRYPTO_AEAD_LIST_END) {
+		jsonw_string_field(
+			wr, "cipher",
+			rte_crypto_aead_algorithm_strings[sess->aead_algo]);
+		jsonw_uint_field(
+			wr, "cipher_key_len",
+			(sess->key_len - sess->nonce_len) * BITS_PER_BYTE);
+	} else if (sess->cipher_algo != RTE_CRYPTO_CIPHER_LIST_END) {
+		jsonw_string_field(
+			wr, "cipher",
+			rte_crypto_cipher_algorithm_strings[
+				sess->cipher_algo]);
+		jsonw_uint_field(wr, "cipher_key_len",
+				 sess->key_len * BITS_PER_BYTE);
+	} else
+		jsonw_string_field(wr, "cipher", "Unknown");
+
+	jsonw_string_field(wr, "digest",
+			   rte_crypto_auth_algorithm_strings[sess->auth_algo]);
 }
 
 static int crypto_chain_dump_set_iv(struct crypto_visitor_ctx *ctx,

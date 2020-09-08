@@ -209,7 +209,7 @@ int flow_cache_lookup(struct flow_cache *cache, struct rte_mbuf *m,
 {
 	struct cds_lfht_iter iter;
 	struct cds_lfht_node *node;
-	struct flow_cache_hash_key h_key;
+	struct flow_cache_hash_key h_key = { 0 };
 	struct cds_lfht *table;
 	unsigned int lcore = dp_lcore_id();
 	uint32_t hash;
@@ -269,7 +269,7 @@ flow_cache_add(struct flow_cache *flow_cache, void *rule, uint16_t ctx,
 {
 	struct flow_cache_entry *cache_entry;
 	int error;
-	struct flow_cache_hash_key h_key;
+	struct flow_cache_hash_key h_key = { 0 };
 	struct flow_cache_af *cache_af =
 		&flow_cache->cache_lcore[dp_lcore_id()].cache_af[af];
 	struct cds_lfht *table = rcu_dereference(cache_af->cache_tbl);
@@ -297,6 +297,23 @@ flow_cache_add(struct flow_cache *flow_cache, void *rule, uint16_t ctx,
 	return 0;
 }
 
+static void
+flow_cache_empty_table(struct flow_cache *flow_cache, unsigned int lcore,
+		       enum flow_cache_ftype af)
+{
+	struct flow_cache_lcore *cache_lcore = &flow_cache->cache_lcore[lcore];
+	struct flow_cache_entry *cache_entry;
+	struct cds_lfht_iter iter;
+	struct cds_lfht *table;
+
+	table = rcu_dereference(cache_lcore->cache_af[af].cache_tbl);
+	if (!table)
+		return;
+
+	cds_lfht_for_each_entry(table, &iter, cache_entry, fl_node)
+		flow_cache_entry_remove(cache_lcore, cache_entry);
+}
+
 int
 flow_cache_init_lcore(struct flow_cache *flow_cache, unsigned int lcore)
 {
@@ -309,6 +326,8 @@ flow_cache_init_lcore(struct flow_cache *flow_cache, unsigned int lcore)
 
 	cache_lcore = &flow_cache->cache_lcore[lcore];
 	for (af = FLOW_CACHE_IPV4; af < FLOW_CACHE_MAX; af++) {
+		if (cache_lcore->cache_af[af].cache_tbl)
+			continue;
 		cache_lcore->cache_af[af].cache_tbl =
 		cds_lfht_new(FLOW_CACHE_HASH_MIN,
 			     FLOW_CACHE_HASH_MIN,
@@ -330,6 +349,28 @@ err:
 			cache_lcore->cache_af[tmp_af].cache_tbl = NULL;
 		}
 	return -ENOMEM;
+}
+
+int
+flow_cache_teardown_lcore(struct flow_cache *flow_cache, unsigned int lcore)
+{
+	enum flow_cache_ftype af;
+	struct flow_cache_lcore *cache_lcore;
+
+	if (!flow_cache || !flow_cache->cache_lcore ||
+	    (lcore > get_lcore_max()))
+		return -EINVAL;
+
+	cache_lcore = &flow_cache->cache_lcore[lcore];
+	for (af = FLOW_CACHE_IPV4; af < FLOW_CACHE_MAX; af++) {
+		if (cache_lcore->cache_af[af].cache_tbl) {
+			flow_cache_empty_table(flow_cache, lcore, af);
+			cds_lfht_destroy(
+				cache_lcore->cache_af[af].cache_tbl, NULL);
+			cache_lcore->cache_af[af].cache_tbl = NULL;
+		}
+	}
+	return 0;
 }
 
 struct flow_cache *flow_cache_init(uint32_t max_size)
@@ -392,23 +433,6 @@ void flow_cache_age(struct flow_cache *flow_cache)
 			}
 		}
 	}
-}
-
-static void
-flow_cache_empty_table(struct flow_cache *flow_cache, unsigned int lcore,
-		       enum flow_cache_ftype af)
-{
-	struct flow_cache_lcore *cache_lcore = &flow_cache->cache_lcore[lcore];
-	struct flow_cache_entry *cache_entry;
-	struct cds_lfht_iter iter;
-	struct cds_lfht *table;
-
-	table = rcu_dereference(cache_lcore->cache_af[af].cache_tbl);
-	if (!table)
-		return;
-
-	cds_lfht_for_each_entry(table, &iter, cache_entry, fl_node)
-		flow_cache_entry_remove(cache_lcore, cache_entry);
 }
 
 static void

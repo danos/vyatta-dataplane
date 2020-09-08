@@ -324,4 +324,58 @@ dp_test_npf_json_get_nat_rule(const char *ifname, const char *num, bool snat);
 void
 dp_test_npf_print_nat(const char *desc);
 
+/*
+ *  nat_udp_rcv("dp1T0", "aa:bb:cc:dd:1:a1", 0,
+ *		"100.64.0.1", 49152, "1.1.1.1", 80,
+ *		"1.1.1.11",    1024, "1.1.1.1", 80,
+ *		"aa:bb:cc:dd:2:b1", 0, "dp2T1",
+ *		DP_TEST_FWD_FORWARDED);
+ */
+void
+_nat_udp(const char *rx_intf, const char *pre_smac, int pre_vlan,
+	   const char *pre_saddr, uint16_t pre_sport,
+	   const char *pre_daddr, uint16_t pre_dport,
+	   const char *post_saddr, uint16_t post_sport,
+	   const char *post_daddr, uint16_t post_dport,
+	   const char *post_dmac, int post_vlan, const char *tx_intf,
+	   int status, bool icmp_err,
+	   const char *file, const char *func, int line);
+
+#define nat_udp_rcv(_a, _b, _c, _d, _e, _f, _g, _h,			\
+		  _i, _j, _k, _l, _m, _n, _o)				\
+	_nat_udp(_a, _b, _c, _d, _e, _f, _g, _h,			\
+		   _i, _j, _k, _l, _m, _n, _o, false,			\
+		   __FILE__, __func__, __LINE__)
+
+#define nat_udp_err(_a, _b, _c, _d, _e, _f, _g, _h,			\
+		  _i, _j, _k, _l, _m, _n, _o)				\
+	_nat_udp(_a, _b, _c, _d, _e, _f, _g, _h,			\
+		   _i, _j, _k, _l, _m, _n, _o, true,			\
+		   __FILE__, __func__, __LINE__)
+
+void
+_nat_tcp(uint8_t flags, const char *rx_intf, const char *pre_smac,
+	   const char *pre_saddr, uint16_t pre_sport,
+	   const char *pre_daddr, uint16_t pre_dport,
+	   const char *post_saddr, uint16_t post_sport,
+	   const char *post_daddr, uint16_t post_dport,
+	   const char *post_dmac, const char *tx_intf,
+	   int status,
+	   const char *file, const char *func, int line);
+#define nat_tcp_rcv(_a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n) \
+	_nat_tcp(_a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, \
+		   __FILE__, __func__, __LINE__)
+
+void
+_nat_icmp(uint8_t icmp_type, const char *rx_intf, const char *pre_smac,
+	    const char *pre_saddr, uint16_t pre_icmp_id,
+	    const char *pre_daddr,
+	    const char *post_saddr, uint16_t post_icmp_id,
+	    const char *post_daddr,
+	    const char *post_dmac, const char *tx_intf,
+	    const char *file, const char *func, int line);
+#define nat_icmp_rcv(_a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k)	\
+	_nat_icmp(_a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k,		\
+		  __FILE__, __func__, __LINE__)
+
 #endif

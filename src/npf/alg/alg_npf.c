@@ -427,6 +427,105 @@ npf_alg_cfg(FILE *f, int argc, char **argv)
 	return -1;
 }
 
+struct npf_alg_child_json_ctx {
+	json_writer_t	*json;
+	struct session	*s;
+};
+
+/*
+ * Add per-child json for a parent session
+ */
+static void npf_alg_child_session_json(struct session *child, void *data)
+{
+	struct npf_alg_child_json_ctx *ctx = data;
+	json_writer_t *json = ctx->json;
+	struct session *parent = NULL;
+
+	/*
+	 * The walk function also calls the callback for the parent session
+	 * and grandchild sessions, so we skip them here.  We are only
+	 * interested in children.
+	 */
+	if (child == ctx->s)
+		return;
+
+	if (child->se_link)
+		parent = child->se_link->sl_parent;
+
+	/* Only return children, not grandchildren */
+	if (!parent || parent != ctx->s)
+		return;
+
+	jsonw_start_object(json);
+	jsonw_uint_field(json, "id", child->se_id);
+	jsonw_end_object(json);
+}
+
+/*
+ * Add ALG info to session json
+ */
+int npf_alg_session_json(json_writer_t *json,
+			 struct npf_session *se,
+			 struct npf_session_alg *sa __unused)
+{
+	const char *name;
+	struct npf_session *parent;
+	struct npf_session *base_parent;
+	struct npf_alg_child_json_ctx ctx = {
+		.json = json,
+		.s = npf_session_get_dp_session(se),
+	};
+
+	/* Name of specific alg */
+	name = npf_alg_name(se);
+	if (!name)
+		name = "unknown";
+
+	/* Will return NULL if this is a parent */
+	parent = npf_session_get_parent(se);
+
+	/* If this is the base parent then base_parent will equal se */
+	base_parent = (struct npf_session *)npf_session_get_base_parent(se);
+
+	jsonw_name(json, "alg");
+	jsonw_start_object(json);
+
+	jsonw_string_field(json, "name", name);
+
+	if (parent)
+		jsonw_uint_field(json, "parent",
+				 npf_session_get_id(parent));
+
+	if (base_parent != se && base_parent != parent) {
+		jsonw_uint_field(json, "base_parent",
+				 npf_session_get_id(base_parent));
+
+		/* Is base parent the grandparent? */
+		bool bp_is_gp;
+
+		bp_is_gp = (npf_session_get_parent(parent) == base_parent);
+		jsonw_bool_field(json, "bp_is_gp", bp_is_gp);
+	}
+
+	/* Walk children */
+	jsonw_name(json, "children");
+	jsonw_start_array(json);
+
+	session_link_walk(npf_session_get_dp_session(se), false,
+			  npf_alg_child_session_json, &ctx);
+
+	jsonw_end_array(json);
+
+	/* ALG-specific session json */
+	struct npf_alg *alg = npf_alg_session_get_alg(se);
+
+	if (alg_has_op(alg, se_json))
+		alg->na_ops->se_json(json, se);
+
+	jsonw_end_object(json);
+	return 0;
+}
+
 /*
  * Dump contents of alg tuple tables
  */

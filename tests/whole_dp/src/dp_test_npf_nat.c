@@ -74,9 +74,9 @@ DP_DECL_TEST_SUITE(npf_nat);
  *                              Dest 172.0.2.1 changed to 10.0.1.1
  *
  */
-DP_DECL_TEST_CASE(npf_nat, npf_snat, NULL, NULL);
+DP_DECL_TEST_CASE(npf_nat, snat1, NULL, NULL);
 
-DP_START_TEST(npf_snat, test1)
+DP_START_TEST(snat1, test1)
 {
 	struct dp_test_pkt_desc_t *pre, *post;
 	struct rte_mbuf *pre_pak, *post_pak;
@@ -331,9 +331,9 @@ DP_START_TEST(npf_snat, test1)
  *                              Dest 172.0.2.254, port y changed to 10.0.1.x
  *
  */
-DP_DECL_TEST_CASE(npf_nat, npf_snat_masquerade, NULL, NULL);
+DP_DECL_TEST_CASE(npf_nat, snat2, NULL, NULL);
 
-DP_START_TEST(npf_snat_masquerade, test1)
+DP_START_TEST(snat2, test1)
 {
 	struct dp_test_pkt_desc_t *pre, *post;
 	struct rte_mbuf *pre_pak, *post_pak;
@@ -763,9 +763,9 @@ DP_START_TEST(npf_snat_masquerade, test1)
  *                     Source 10.0.1.1 changed to 172.0.2.1
  *
  */
-DP_DECL_TEST_CASE(npf_nat, npf_dnat, NULL, NULL);
+DP_DECL_TEST_CASE(npf_nat, dnat1, NULL, NULL);
 
-DP_START_TEST(npf_dnat, test1)
+DP_START_TEST(dnat1, test1)
 {
 	struct dp_test_pkt_desc_t *pre, *post;
 	struct rte_mbuf *pre_pak, *post_pak;
@@ -1022,9 +1022,9 @@ DP_START_TEST(npf_dnat, test1)
  *              Dest 10.0.1.3 changed to 172.0.2.3
  *
  */
-DP_DECL_TEST_CASE(npf_nat, npf_bidir_nat, NULL, NULL);
+DP_DECL_TEST_CASE(npf_nat, bi_nat1, NULL, NULL);
 
-DP_START_TEST_DONT_RUN(npf_bidir_nat, test1)
+DP_START_TEST_DONT_RUN(bi_nat1, test1)
 {
 	struct dp_test_pkt_desc_t *pre, *post;
 	struct rte_mbuf *pre_pak, *post_pak;
@@ -1330,9 +1330,9 @@ DP_START_TEST_DONT_RUN(npf_bidir_nat, test1)
  * The backwards packet hits the reverse DNAT session created by packet 1, and
  * so never hits the SNAT rule.
  */
-DP_DECL_TEST_CASE(npf_nat, npf_bidir_nat2, NULL, NULL);
+DP_DECL_TEST_CASE(npf_nat, bi_nat2, NULL, NULL);
 
-DP_START_TEST_DONT_RUN(npf_bidir_nat2, test1)
+DP_START_TEST_DONT_RUN(bi_nat2, test1)
 {
 	struct dp_test_pkt_desc_t *pre, *post;
 	struct rte_mbuf *pre_pak, *post_pak;
@@ -1712,7 +1712,9 @@ DP_START_TEST_DONT_RUN(npf_bidir_nat2, test1)
  *
  */
 
-DP_START_TEST(npf_snat, addr_ranges)
+DP_DECL_TEST_CASE(npf_nat, snat3, NULL, NULL);
+
+DP_START_TEST(snat3, addr_ranges)
 {
 	struct dp_test_pkt_desc_t *pre, *post;
 	struct rte_mbuf *pre_pak, *post_pak;
@@ -1949,9 +1951,9 @@ DP_START_TEST(npf_snat, addr_ranges)
  *                              Dest 172.0.2.254, port y changed to 10.0.1.x
  *
  */
-DP_DECL_TEST_CASE(npf_nat, npf_snat_exclude, NULL, NULL);
+DP_DECL_TEST_CASE(npf_nat, snat4, NULL, NULL);
 
-DP_START_TEST(npf_snat_exclude, test1)
+DP_START_TEST(snat4, test1)
 {
 	struct dp_test_pkt_desc_t *pre, *post;
 	struct rte_mbuf *pre_pak, *post_pak;
@@ -2252,9 +2254,9 @@ DP_START_TEST(npf_snat_exclude, test1)
  *                             +-----+
  *                              snat -->
  */
-DP_DECL_TEST_CASE(npf_nat, npf_snat_port_range, NULL, NULL);
+DP_DECL_TEST_CASE(npf_nat, snat5, NULL, NULL);
 
-DP_START_TEST(npf_snat_port_range, test1)
+DP_START_TEST(snat5, test1)
 {
 
 	struct dp_test_pkt_desc_t *pre, *post;
@@ -2624,9 +2626,9 @@ DP_START_TEST(npf_snat_port_range, test1)
  *                              Dest 172.0.2.254, port y changed to 10.0.1.x
  *
  */
-DP_DECL_TEST_CASE(npf_nat, npf_snat_groups, NULL, NULL);
+DP_DECL_TEST_CASE(npf_nat, snat6, NULL, NULL);
 
-DP_START_TEST(npf_snat_groups, test1)
+DP_START_TEST(snat6, test1)
 {
 	struct dp_test_pkt_desc_t *pre, *post;
 	struct rte_mbuf *pre_pak, *post_pak;
@@ -2788,8 +2790,9 @@ DP_START_TEST(npf_snat_groups, test1)
  *
  * The second session will have the same trans port.
  */
-DP_DECL_TEST_CASE(npf_nat, npf_snat10, NULL, NULL);
-DP_START_TEST(npf_snat10, test1)
+DP_DECL_TEST_CASE(npf_nat, snat7, NULL, NULL);
+
+DP_START_TEST(snat7, test1)
 {
 	/* Setup interfaces and neighbours */
 	dp_test_nl_add_ip_addr_and_connected("dp1T0", "192.0.2.1/24");

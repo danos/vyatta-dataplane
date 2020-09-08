@@ -21,6 +21,7 @@
 #include "fal_plugin.h"
 #include "fal_bfd.h"
 #include "if_var.h"
+#include "ip6_funcs.h"
 #include "mpls/mpls.h"
 #include "nh_common.h"
 #include "route.h"
@@ -593,6 +594,40 @@ static struct fal_capture_ops *new_dyn_capture_ops(void *lib)
 	return ops;
 }
 
+static struct fal_mpls_ops *new_dyn_mpls_ops(void *lib)
+{
+	struct fal_mpls_ops *mpls_ops = calloc(1, sizeof(*mpls_ops));
+
+	if (!mpls_ops) {
+		RTE_LOG(ERR, DATAPLANE, "Could not allocate mpls ops\n");
+		return NULL;
+	}
+
+	mpls_ops->create_route = dlsym(lib, "fal_plugin_create_mpls_route");
+	mpls_ops->delete_route = dlsym(lib, "fal_plugin_delete_mpls_route");
+	mpls_ops->set_route_attr = dlsym(lib, "fal_plugin_set_mpls_route_attr");
+	mpls_ops->get_route_attr = dlsym(lib, "fal_plugin_get_mpls_route_attr");
+
+	return mpls_ops;
+}
+
+static struct fal_vrf_ops *new_dyn_vrf_ops(void *lib)
+{
+	struct fal_vrf_ops *vrf_ops = calloc(1, sizeof(*vrf_ops));
+
+	if (!vrf_ops) {
+		RTE_LOG(ERR, DATAPLANE, "Could not allocate vrf ops\n");
+		return NULL;
+	}
+
+	vrf_ops->create = dlsym(lib, "fal_plugin_create_vrf");
+	vrf_ops->delete = dlsym(lib, "fal_plugin_delete_vrf");
+	vrf_ops->set_attr = dlsym(lib, "fal_plugin_set_vrf_attr");
+	vrf_ops->get_attr = dlsym(lib, "fal_plugin_get_vrf_attr");
+
+	return vrf_ops;
+}
+
 static void register_dyn_msg_handlers(void *lib)
 {
 	struct message_handler *handler =
@@ -624,6 +659,8 @@ static void register_dyn_msg_handlers(void *lib)
 	handler->ptp = new_dyn_ptp_ops(lib);
 	handler->capture = new_dyn_capture_ops(lib);
 	handler->bfd = new_dyn_bfd_ops(lib);
+	handler->mpls = new_dyn_mpls_ops(lib);
+	handler->vrf = new_dyn_vrf_ops(lib);
 
 	fal_register_message_handler(handler);
 }
@@ -1586,20 +1623,34 @@ void fal_ip6_dump_neigh(unsigned int if_index,
 	fal_ip_dump_neigh(if_index, &faddr, wr);
 }
 
+static inline bool
+is_deagg_nh(struct ifnet *ifp, enum fal_next_hop_group_use use,
+	    unsigned int label_count,
+	    const union next_hop_outlabels *lbls)
+{
+	return ifp && is_lo(ifp) && use == FAL_NHG_USE_MPLS_LABEL_SWITCH &&
+		(label_count == 0 ||
+		 (label_count == 1 &&
+		  nh_outlabels_get_value(lbls, 0) == MPLS_IMPLICITNULL));
+}
+
 static enum fal_packet_action_t
 next_hop_to_packet_action(const struct next_hop *nh)
 {
 	struct ifnet *ifp;
 
-	if (nh->flags & RTF_BLACKHOLE ||
-	    nh_outlabels_present(&nh->outlabels))
+	if (nh->flags & RTF_BLACKHOLE)
 		return FAL_PACKET_ACTION_DROP;
 
 	if (nh->flags & (RTF_LOCAL|RTF_BROADCAST|RTF_SLOWPATH|RTF_REJECT))
 		return FAL_PACKET_ACTION_TRAP;
 
 	ifp = dp_nh_get_ifp(nh);
-	if (!ifp || ifp->fal_l3 == FAL_NULL_OBJECT_ID)
+	if (!ifp ||
+	    (ifp->fal_l3 == FAL_NULL_OBJECT_ID &&
+	     !is_deagg_nh(ifp, FAL_NHG_USE_MPLS_LABEL_SWITCH,
+			 nh_outlabels_get_cnt(&nh->outlabels),
+			  &nh->outlabels)))
 		return FAL_PACKET_ACTION_TRAP;
 
 	return FAL_PACKET_ACTION_FORWARD;
@@ -1607,7 +1658,8 @@ next_hop_to_packet_action(const struct next_hop *nh)
 
 static const struct fal_attribute_t **next_hop_to_attr_list(
 	fal_object_t nhg_object, size_t nhops,
-	const struct next_hop hops[], uint32_t **attr_count)
+	const struct next_hop hops[],
+	enum fal_next_hop_group_use use, uint32_t **attr_count)
 {
 	const struct fal_attribute_t **nh_attr_list;
 	size_t i;
@@ -1625,10 +1677,17 @@ static const struct fal_attribute_t **next_hop_to_attr_list(
 		const struct next_hop *nh = &hops[i];
 		struct fal_attribute_t *nh_attr;
 		struct ifnet *ifp;
-		unsigned int nh_attr_count;
+		unsigned int max_attrs = 7;
+		unsigned int nh_attr_count = 0;
+		struct fal_u32_list_t *label_list;
+		unsigned int label_count =
+			nh_outlabels_get_cnt(&nh->outlabels);
+		unsigned int label_idx;
 
 		nh_attr_list[i] = nh_attr = calloc(
-			6, sizeof(*nh_attr));
+			1, sizeof(*nh_attr) * max_attrs +
+			offsetof(typeof(*label_list),
+				 list[label_count]));
 		if (!nh_attr) {
 			while (i--)
 				free((struct fal_attribute_t *)
@@ -1637,14 +1696,29 @@ static const struct fal_attribute_t **next_hop_to_attr_list(
 			free(nh_attr_list);
 			return NULL;
 		}
-		nh_attr[0].id = FAL_NEXT_HOP_ATTR_NEXT_HOP_GROUP;
-		nh_attr[0].value.objid = nhg_object;
-		nh_attr[1].id = FAL_NEXT_HOP_ATTR_INTF;
+		label_list = (struct fal_u32_list_t *)&nh_attr[max_attrs];
+
+		nh_attr[nh_attr_count].id = FAL_NEXT_HOP_ATTR_NEXT_HOP_GROUP;
+		nh_attr[nh_attr_count].value.objid = nhg_object;
+		nh_attr_count++;
 		ifp = dp_nh_get_ifp(nh);
-		nh_attr[1].value.u32 = ifp ? ifp->if_index : 0;
-		nh_attr[2].id = FAL_NEXT_HOP_ATTR_ROUTER_INTF;
-		nh_attr[2].value.u32 = ifp ? ifp->fal_l3 : FAL_NULL_OBJECT_ID;
-		nh_attr_count = 3;
+		if (is_deagg_nh(ifp, use, label_count, &nh->outlabels)) {
+			nh_attr[nh_attr_count].id =
+				FAL_NEXT_HOP_ATTR_VRF_LOOKUP;
+			nh_attr[nh_attr_count].value.objid =
+				get_vrf(ifp->if_vrfid)->v_fal_obj;
+			nh_attr_count++;
+		} else {
+			nh_attr[nh_attr_count].id = FAL_NEXT_HOP_ATTR_INTF;
+			nh_attr[nh_attr_count].value.u32 =
+				ifp ? ifp->if_index : 0;
+			nh_attr_count++;
+			nh_attr[nh_attr_count].id =
+				FAL_NEXT_HOP_ATTR_ROUTER_INTF;
+			nh_attr[nh_attr_count].value.u32 = ifp ? ifp->fal_l3 :
+				FAL_NULL_OBJECT_ID;
+			nh_attr_count++;
+		}
 		if (nh->flags & (RTF_GATEWAY | RTF_NEIGH_CREATED)) {
 			nh_attr[nh_attr_count].id = FAL_NEXT_HOP_ATTR_IP;
 			fal_attr_set_ip_addr(&nh_attr[nh_attr_count],
@@ -1662,6 +1736,19 @@ static const struct fal_attribute_t **next_hop_to_attr_list(
 			nh_attr[nh_attr_count].id = FAL_NEXT_HOP_ATTR_USABILITY;
 			nh_attr[nh_attr_count].value.u32 =
 				FAL_NEXT_HOP_UNUSABLE;
+			nh_attr_count++;
+		}
+		if (label_count) {
+			nh_attr[nh_attr_count].id =
+				FAL_NEXT_HOP_ATTR_MPLS_LABELSTACK;
+			nh_attr[nh_attr_count].value.u32list =
+				label_list;
+			label_list->count = label_count;
+			for (label_idx = 0; label_idx < label_count;
+			     label_idx++)
+				label_list->list[label_idx] =
+					nh_outlabels_get_value(
+						&nh->outlabels, label_idx);
 			nh_attr_count++;
 		}
 		(*attr_count)[i] = nh_attr_count;
@@ -1685,11 +1772,15 @@ fal_next_hop_group_packet_action(uint32_t nhops, const struct next_hop hops[])
 	return FAL_PACKET_ACTION_FORWARD;
 }
 
-int fal_ip_new_next_hops(size_t nhops, const struct next_hop hops[],
+
+int fal_ip_new_next_hops(enum fal_next_hop_group_use use,
+			 size_t nhops, const struct next_hop hops[],
 			 fal_object_t *nhg_object,
 			 fal_object_t *obj_list)
 {
 	const struct fal_attribute_t **nh_attr_list;
+	struct fal_attribute_t nhg_attrs[1];
+	uint32_t nhg_attr_count = 0;
 	uint32_t *nh_attr_count;
 	uint32_t i;
 	int ret;
@@ -1713,14 +1804,21 @@ int fal_ip_new_next_hops(size_t nhops, const struct next_hop hops[],
 	if (action != FAL_PACKET_ACTION_FORWARD)
 		return FAL_RC_NOT_REQ;
 
+	if (use != FAL_NHG_USE_IP) {
+		nhg_attrs[nhg_attr_count].id =
+			FAL_NEXT_HOP_GROUP_ATTR_USE;
+		nhg_attrs[nhg_attr_count].value.u32 = use;
+		nhg_attr_count++;
+	}
+
 	ret = call_handler_def_ret(ip, -EOPNOTSUPP,
-				   new_next_hop_group, 0, NULL,
-				   nhg_object);
+				   new_next_hop_group, nhg_attr_count,
+				   nhg_attrs, nhg_object);
 	if (ret < 0)
 		return ret;
 
 	nh_attr_list = next_hop_to_attr_list(*nhg_object, nhops, hops,
-					     &nh_attr_count);
+					     use, &nh_attr_count);
 	if (!nh_attr_list) {
 		ret = -ENOMEM;
 		goto error;
@@ -3431,8 +3529,16 @@ void fal_attr_set_ip_addr(struct fal_attribute_t *attr,
 		break;
 
 	case AF_INET6:
-		attr->value.ipaddr.addr_family = FAL_IP_ADDR_FAMILY_IPV6;
-		attr->value.ipaddr.addr.addr6 = ip->address.ip_v6;
+		if (IN6_IS_ADDR_V4MAPPED(&ip->address.ip_v6)) {
+			attr->value.ipaddr.addr_family =
+				FAL_IP_ADDR_FAMILY_IPV4;
+			attr->value.ipaddr.addr.addr4.s_addr =
+				V4MAPPED_IPV6_TO_IPV4(ip->address.ip_v6);
+		} else {
+			attr->value.ipaddr.addr_family =
+				FAL_IP_ADDR_FAMILY_IPV6;
+			attr->value.ipaddr.addr.addr6 = ip->address.ip_v6;
+		}
 		break;
 	}
 }
@@ -3662,3 +3768,63 @@ int dp_fal_bfd_set_switch_attr(const struct fal_attribute_t *attr)
 }
 
 /* End of BFD functions */
+
+int fal_create_mpls_route(const struct fal_mpls_route_t *mpls_route,
+			  uint32_t attr_count,
+			  const struct fal_attribute_t *attr_list)
+{
+	return call_handler_def_ret(
+		mpls, -EOPNOTSUPP, create_route, mpls_route,
+		attr_count, attr_list);
+}
+
+int fal_delete_mpls_route(const struct fal_mpls_route_t *mpls_route)
+{
+	return call_handler_def_ret(
+		mpls, -EOPNOTSUPP, delete_route, mpls_route);
+}
+
+int fal_set_mpls_route_attr(const struct fal_mpls_route_t *mpls_route,
+			    const struct fal_attribute_t *attr)
+{
+	return call_handler_def_ret(
+		mpls, -EOPNOTSUPP, set_route_attr, mpls_route,
+		attr);
+}
+
+int fal_get_mpls_route_attr(const struct fal_mpls_route_t *mpls_route,
+			    uint32_t attr_count,
+			    struct fal_attribute_t *attr_list)
+{
+	return call_handler_def_ret(
+		mpls, -EOPNOTSUPP, get_route_attr, mpls_route,
+		attr_count, attr_list);
+}
+
+int fal_vrf_create(uint32_t attr_count,
+		   const struct fal_attribute_t *attr_list,
+		   fal_object_t *obj)
+{
+	return call_handler_def_ret(vrf, -EOPNOTSUPP, create,
+				    attr_count, attr_list, obj);
+}
+
+int fal_vrf_delete(fal_object_t obj)
+{
+	return call_handler_def_ret(vrf, -EOPNOTSUPP, delete, obj);
+}
+
+int fal_set_vrf_attr(fal_object_t obj,
+		     const struct fal_attribute_t *attr)
+{
+	return call_handler_def_ret(vrf, -EOPNOTSUPP, set_attr, obj,
+				    attr);
+}
+
+int fal_get_vrf_attr(fal_object_t obj,
+		     uint32_t attr_count,
+		     struct fal_attribute_t *attr_list)
+{
+	return call_handler_def_ret(vrf, -EOPNOTSUPP, get_attr, obj,
+				    attr_count, attr_list);
+}

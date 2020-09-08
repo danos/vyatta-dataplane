@@ -1,3 +1,493 @@
+vyatta-dataplane (3.11.18) unstable; urgency=medium
+
+  [ aroberts ]
+  * Don't allow a child shaper to exceed 99.6% of parent rate
+
+  [ Manohar Rapeti ]
+  * qos: mem leak in dataplane UT (Bugfix: VRVDR-49730)
+  * qos: uninitialised value (Bugfix: VRVDR-49730)
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Tue, 08 Sep 2020 08:38:25 +0100
+
+vyatta-dataplane (3.11.17) unstable; urgency=medium
+
+  [ aroberts ]
+  * Add 100G support for Qos shaper commands
+  * Add dependency with 64bit qos structure in dpdk
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Fri, 04 Sep 2020 09:54:23 +0100
+
+vyatta-dataplane (3.11.16) unstable; urgency=medium
+
+  [ Robert Shearman ]
+  * dpdk-eth: avoid duplicate link up/link down logs (Fixes: VRVDR-52606)
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Thu, 03 Sep 2020 16:15:43 +0100
+
+vyatta-dataplane (3.11.15) unstable; urgency=medium
+
+  [ Shweta Choudaha ]
+  * portmonitor: add and replay multiple cfg command
+
+  [ Ian Wilson ]
+  * npf: Rename npf_pack_npf_state to npf_pack_session_state
+  * npf: Rename npf_pack_session_stats to npf_pack_dp_sess_stats
+
+  [ Charles (Chas) Williams ]
+  * ptp: add additional-path support (Bugfix: VRVDR-48480)
+
+  [ Ian Wilson ]
+  * npf: Rename struct npf_pack_npf_nat to struct npf_pack_nat
+  * npf: Change prefix in npf_pack_dp_session from 'dps_' to 'pds_'
+  * npf: Rename npf_pack_sentry to npf_pack_sentry_packet
+  * npf: Use 'pns' for prefix and pointer variable for npf_pack_npf_session
+  * npf: Naturally align npf_tcpstate_t and npf_state_t
+  * npf: Rename npf_pack_npf_nat64 to npf_pack_nat64
+  * npf: Prefix npf_pack_message_hdr objects with 'pmh_'
+  * npf: Add packed attribute to 'enum session_pack_type'
+  * npf: Prefix npf_pack_session_hdr objects with 'psh_'
+  * session: Pack enum session_feature_type and re-arrange session_feature
+  * ut: Add function to fetch session counters
+  * ut: Tests connsync for a firewall UDP session
+  * ut: Tests connsync for a firewall TCP session with TCP strict enabled
+
+  [ Robert Shearman ]
+  * 3.10.69
+
+  [ Paul Atkins ]
+  * flow_cache: initialise the flow_cache_hash_key to 0
+  * ut: modify the stack trace for the urcu resize valgrind suppression
+  * ut: return -EOPNOTSUPP in the test fal code in ...l2_get_attrs
+  * rte_acl: free the name when calling npf_rte_acl_destroy
+  * ut: add a valgrind suppression for rte_cpu_get_flag_enabled
+  * ut: add more wildcards to the grouper suppression to catch all calls
+  * ut: free the contexts created in the npf_apt tests
+
+  [ Robert Shearman ]
+  * include: standardise FAL interface index parameter naming
+  * include: standardise FAL object parameter naming (Fixes: VRVDR-52849)
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Thu, 03 Sep 2020 13:36:47 +0100
+
+vyatta-dataplane (3.11.14) unstable; urgency=medium
+
+  [ Mandeep Rohilla ]
+  * BFD: Switch attribute to get Local Discriminator shift
+
+  [ Srinivas Narayan ]
+  * crypto: cut over non-combined ciphers to rte infra
+  * crypto: Handle failures in session setup gracefully
+  * crypto: set up correct default for aead_algo
+  * crypto: remove references to cipher_name
+  * crypto: remove references to md_name
+  * crypto: Remove unnecessary storage of auth alg name
+  * crypto: Define separate structure for openssl info
+  * crypto: pass openssl setup decision to SA setup function
+  * crypto: Remove openssl implementation for aes-gcm
+  * crypto: define block sizes
+  * crypto: Make iv generation and storage common operations
+  * crypto: Move openssl fields to separate structure
+  * crypto: include dpdk device id and name in vplsh output
+  * crypto: Add error messages in failure path
+  * crypto: reset pmd id in array of ids by dev type
+  * crypto: Make dev-id value check specific
+  * crypto: separate definitions for cipher & digest key sizes
+
+  [ Karthik Murugesan ]
+  * vxlan: Added null check to avoid null-pointer dereference
+
+  [ Charles (Chas) Williams ]
+  * Fix potentially offensive language
+  * Fix potentially offensive language in CGNAT
+
+ -- Robert Shearman <robert.shearman@att.com>  Mon, 24 Aug 2020 17:46:44 +0100
+
+vyatta-dataplane (3.11.13) unstable; urgency=medium
+
+  [ Vinicius Soares ]
+  * npf: Moved parser auxiliary static functions to the top of the file
+  * npf: Added argument to auxiliary parser function that specifies a delimiter
+  * npf: Added support for 'auto-per-action' counter type for ACL rules.
+  * npf: Added support for 'auto-per-action' counter type for ACL rules.
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Fri, 21 Aug 2020 18:13:12 +0100
+
+vyatta-dataplane (3.11.12) unstable; urgency=medium
+
+  [ Paul Atkins ]
+  * 3.10.67
+
+  [ Paul Aitken ]
+  * DPI: app groups: avoid null deref
+
+  [ Paul Atkins ]
+  * 3.10.68
+
+  [ Robert Shearman ]
+  * route_v6: fix nexthop retrieval for promotion during route delete
+  * route: fix nexthop retrieval for promotion during route delete
+    (Fixes: VRVDR-52609)
+
+  [ Srinivas Narayan ]
+  * crypto: store crypto device id in SA for faster access
+  * crypto: create session pools and queue pairs for PMD
+  * crypto: set up session in driver
+  * crypto: Pass crypto op using packet metadata
+  * crypto: Make openssl encrypt/decrypt function public
+  * crypto: set up infrastructure to invoke PMD
+  * crypto: cut over to rte PMD infra
+  * crypto: set up crypto op for AES-GCM
+
+  [ Paul Atkins ]
+  * debian: fix wording in changelog
+
+  [ Srinivas Narayan ]
+  * crypto: minimize dependency on SA
+  * crypto: set session direction at the time of SA creation
+  * crypto: Make crypto_pkt_ctx visible to other crypto modules
+  * crypto: Add packet metadata fields to crypto_pkt_ctx
+  * crypto: store SA in crypto packet context
+  * crypto: store bytes processed in crypto packet context
+  * crypto: refactor esp_input_inner
+  * crypto: re-factor esp_output_inner
+  * crypto: consolidate esp input functions
+  * crypto: consolidate esp_output functions
+  * crypto: increment output error only on encrypt op
+  * crypto: streamline post-decrypt processing
+  * crypto: Refactor post-decrypt VTI handling
+  * crypto: re-factor post-decrypt VFP handling
+  * crypto: refactor post-decrypt overlay VRF handling
+  * crypto: refactor all post-decrypt handling
+  * crypto: enable burst processing for esp_input
+  * crypto: Enable burst processing for esp_output
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Fri, 21 Aug 2020 17:51:18 +0100
+
+vyatta-dataplane (3.11.11) unstable; urgency=medium
+
+  [ Paul Atkins ]
+  * gre: don't double free mbuf if using a gre tunnel to ourself
+
+  [ Ian Wilson ]
+  * npf: Change npf to use dataplane session states for UDP etc.
+  * npf: Store generic session state in the session
+  * npf: Set the alg bit in ALG parent sessions
+  * npf: Add the se_alg feature boolean to the connsync structure
+  * npf: Change the feature uint8_ts to bits in npf_pack_dp_session
+  * npf: Replace se_nat bit with se_snat and se_dnat bits in the session
+  * npf: Add se_in and se_out bits to the session
+  * npf: Add se_app bit to the session to mark dpi sessions
+  * npf: Add function to calculate session time-to-expire for json
+  * npf: Return generic ALG json for each session
+  * npf: Return specific ALG json for each session
+  * npf: Naturally align struct npf_pack_dp_session
+  * npf: Remove se_etime from connsync session structure
+  * ut: Add test functions to create and send udp, tcp, or icmp NATd pkts
+  * session: Add command to return list of items from the dataplane sessions
+  * npf: Add address family filter to session list command
+  * npf: Add filters to session list command for ID, proto, intf and direction
+  * npf: Add filters to session list cmd for src and dest addr and port
+  * npf: Add filters to session list cmd for features
+  * npf: Separate the existing session show filter from the json
+  * npf: Add handler for "show dataplane sessions" command
+  * npf: Add handler for "show dataplane sessions summary" command
+  * npf: Add handler for "clear dataplane sessions" command
+  * ut: Rename the npf snat test cases
+  * npf: Add a flag to the session to denote that is being used as a fw session
+
+  [ Paul Atkins ]
+  * flow_cache: move flow_cache_empty_table higher in file
+  * flow_cache: teardown the flow cache on shutdown
+  * flow_cache: don't init the flow cache multiple times per core
+  * ut: don't leak the ifname in the addport_request
+
+  [ aroberts ]
+  * Reinstall a mark-map if a resource group changes
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Wed, 19 Aug 2020 09:54:14 +0100
+
+vyatta-dataplane (3.11.10) unstable; urgency=medium
+
+  [ Srinivas Narayan ]
+  * crypto: Convert lengths to uint8_t in preparation for move
+  * crypto: Avoid dependency on openssl definitions
+  * crypto: Re-arrange fields for better performance
+  * crypto: create DPDK infrastructure pools
+  * crypto: Add DPDK versions of encryption & auth algorithms
+  * crypto: clean up openssl functions
+  * crypto: determine PMD type based on algorithms
+  * crypto: provide function to determine next crypto core
+  * crypto: Create DPDK crypto PMD
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Tue, 18 Aug 2020 08:29:42 +0100
+
+vyatta-dataplane (3.11.9) unstable; urgency=medium
+
+  [ aroberts ]
+  * Don't allow a child shaper to exceed 99.6% of parent rate
+
+  [ Paul Atkins ]
+  * 3.10.63
+
+  [ Ian Wilson ]
+  * npf: Increment session stats if session matched, and the pkt is not dropped
+
+  [ Paul Atkins ]
+  * 3.10.64
+
+  [ Gavin Shearer ]
+  * ippf: fix issue of corrupted first byte of IPv6 address to match
+
+  [ Paul Atkins ]
+  * 3.10.65
+
+  [ Robert Shearman ]
+  * if: move vlan_if_get_stats to common interface code
+  * gre: add support for retrieving FAL stats
+
+  [ Paul Atkins ]
+  * 3.10.66
+
+  [ Brian Russell ]
+  * qos: specify designator for the priority local queue
+  * qos: uprev protocol versions
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Mon, 17 Aug 2020 15:44:18 +0100
+
+vyatta-dataplane (3.11.8) unstable; urgency=medium
+
+  [ Robert Shearman ]
+  * fal_plugin: add object model for MPLS
+  * fal_plugin: add FAL object for VRFs
+  * fal_plugin: add attributes for MPLS TTL mode (Closes: VRVDR-52435)
+  * fal: add next hop label attributes
+  * nh_common: add FAL programming helpers
+  * route: make use of FAL nh_common helpers
+  * route_v6: make use of FAL nh_common helpers
+  * mpls: signal FAL create/update/delete of MPLS routes
+  * fal: signal use of next hop groups
+  * fal: translate IPv6 nexthops with IPv4 mapped addresses to IPv4 nexthop
+  * tests: test IPv6 labeled routes via attached IPv4 nexthops
+  * vrf: create and use FAL VRF object
+  * fal: support MPLS deagg routes
+  * mpls: add support for dumping one MPLS route
+  * mpls: add support for signalling change to TTL mode to FAL
+    (Closes: VRVDR-52436)
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Thu, 13 Aug 2020 15:09:49 +0100
+
+vyatta-dataplane (3.11.7) unstable; urgency=medium
+
+  [ Robert Shearman ]
+  * controller: extend timeout for adding a port (Fixes: VRVDR-52458)
+
+  [ Paul Atkins ]
+  * 3.10.58
+
+  [ Karthik Murugesan ]
+  * vxlan: Added null check to avoid null-pointer dereference
+
+  [ Paul Atkins ]
+  * 3.10.59
+
+  [ Paul Aitken ]
+  * DPI: add application group database
+  * DPI: application resource groups
+  * DPI: application resource group parsing
+  * DPI: new APIs for application resource groups
+  * DPI: add application resource groups to app firewall
+  * DPI: add application resource groups to Makefile
+
+  [ Paul Atkins ]
+  * 3.10.60
+
+  [ Karthik Murugesan ]
+  * ptp: Added support for G.8275.1 profiles
+
+  [ Shweta Choudaha ]
+  * Mirror: Add support for source vlan config
+  * Mirror: Add support to show vlan info for src intf
+
+  [ Manohar Rapeti ]
+  * if: Spurious error logs messages (Bugfix: VRVDR-52346)
+
+  [ Brian Russell ]
+  * qos: don't enable dscp mapping if designation in use
+  * qos: allocate a priority local designation
+
+  [ Paul Atkins ]
+  * 3.10.61
+
+  [ Brian Russell ]
+  * qos: extend mark-map to include dp
+
+  [ Paul Atkins ]
+  * 3.10.62
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Thu, 13 Aug 2020 14:29:20 +0100
+
+vyatta-dataplane (3.11.6) unstable; urgency=medium
+
+  [ Gavin Shearer ]
+  * cpp: add support for PIM and IP multicast
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Wed, 05 Aug 2020 16:23:14 +0100
+
+vyatta-dataplane (3.11.5) unstable; urgency=medium
+
+  [ Brian Russell ]
+  * qos: restore protocol version 10
+
+  [ Rishi Narain ]
+  * SyncE: Allowing ESMC frame flow from vyatta-dataplane
+  * SyncE: New feature support
+
+  [ Ramkumar Ganapathysubramanian ]
+  * Removed unnecessary error logs in L3 Interface attribute set
+
+  [ Paul Atkins ]
+  * dp_event: reorder some of the dp_events in the enum
+  * event: add a public event notifier for vrf create/delete events
+  * 3.10.56
+
+  [ Charles (Chas) Williams ]
+  * netvsc: increase driver limits (Bugfix: VRVDR-52360)
+  * ptp: check switch nexthop interface is reachable (Bugfix: VRVDR-52447)
+
+  [ Paul Atkins ]
+  * 3.10.57
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Wed, 05 Aug 2020 10:01:32 +0100
+
+vyatta-dataplane (3.11.4) unstable; urgency=medium
+
+  [ Paul Atkins ]
+  * 3.10.54
+  * Jenkins: change master branch target to be DANOS:Glasgow
+
+  [ Simon Barber ]
+  * Convert return string of vplsh led blink cmd to json
+
+  [ Paul Aitken ]
+  * dataplane abort due to short string in rte_jhash
+
+  [ Ramkumar Ganapathysubramanian ]
+  * Adding support for DSCP or PCP value in QoS egress-map
+
+  [ Paul Aitken ]
+  * DPI: Inconsistent use of protocol in DPI output
+  * Avoid buffer overrun in sip_alg_hash
+
+  [ Robert Shearman ]
+  * 3.10.55
+
+ -- Robert Shearman <robert.shearman@att.com>  Tue, 28 Jul 2020 09:43:59 +0100
+
+vyatta-dataplane (3.11.3) unstable; urgency=medium
+
+  [ Robert Shearman ]
+  * fal: check for conditions that violate FAL route API contract
+  * lpm: pass pd_state by reference in walk callback
+  * route: update dependent routes when interface FAL L3 state changes
+  * route6: update dependent routes when interface FAL L3 state changes
+    (Fixes: VRVDR-50303)
+
+  [ Paul Atkins ]
+  * 3.10.52
+
+  [ Robert Shearman ]
+  * nh_common: skip over backup next-hops when fixing up protected tracking
+    (Fixes: VRVDR-52257)
+  * ut: add symbols for router-interface FAL object in test FAL
+  * ut: test PIC edge with a gateway being used by both primary & backup
+
+  [ Ian Wilson ]
+  * npf: Add npf return code counters
+  * npf: Add commands to show return code counters
+  * npf: Add mechanism to filter return code show output dependent on type
+  * npf: Add commands to clear return code counters
+  * ut: Add function to fetch and print npf return code counts
+  * npf: Change nat64 to use nat64_decision_t instead of npf_decision_t
+  * npf: Increment return code counters in npf_hook_track
+  * npf: Change npf_cache_all to return either a 0 or a negative return code
+  * npf: Change the function used by npf_cache_all to return a return code
+  * npf: Add return codes to npf_cache_all
+  * npf: Add param to npf_get_cache to allow return code to be returned
+  * npf: Add return codes to npf state functions
+  * npf: Add return codes to npf_hook_track calls to session functions
+  * npf: Add return codes to the function to rewrite l3 and l4 fields
+  * npf: Add return code to npf_icmpv4_err_nat
+  * npf: Change nat64 common functions to have a single return point
+  * npf: Add return codes to the nat64 map and convert functions
+  * npf: Add return codes to nat64
+  * npf: Add optional pointer, rcp, to npf_hook_notrack parameters
+  * npf: Increment l2 return code counters in bridging
+  * npf: Add single return point in local firewall functions
+  * npf: Increment return code counts for local firewall
+  * npf: Increment return code counts for ACL firewall
+  * npf: Return select detailed return code stats for nat64
+
+  [ Paul Atkins ]
+  * 3.10.53
+
+  [ Robert Shearman ]
+  * storm_ctl: fix write to heap after free when deleting an instance
+    (Fixes: VRVDR-52115)
+  * tests: add test for storm-control out of order profile delete
+  * Makefile.am: reduce dependencies of fal_plugin_test_la
+
+  [ Charles (Chas) Williams ]
+  * main: handle sparse port configurations (Bugfix: VRVDR-49805)
+  * netvsc: set more reasonable queue lengths (Bugfix: VRVDR-49805)
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Fri, 24 Jul 2020 16:13:59 +0100
+
+vyatta-dataplane (3.11.2) unstable; urgency=medium
+
+  [ bs775m ]
+  * fal_plugin :add attributes for enb/dis pause frame
+  * vyatta-datapath:add support for enb/dis pauseframe
+
+  [ Charles (Chas) Williams ]
+  * Correct enumeration declaration
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Fri, 24 Jul 2020 09:12:29 +0100
+
+vyatta-dataplane (3.11.1) unstable; urgency=medium
+
+  [ Mandeep Rohilla ]
+  * BFD: Add support for querying max interval values supported
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Mon, 20 Jul 2020 21:45:59 +0100
+
 vyatta-dataplane (3.10.70) unstable; urgency=medium
 
   [ aroberts ]

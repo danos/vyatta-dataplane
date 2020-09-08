@@ -1,0 +1,32 @@
+// Copyright (c) 2020, AT&T Intellectual Property.  All rights reserved.
+//
+// SPDX-License-Identifier: LGPL-2.1-only
+//
+// Interface breakout config definitions
+//
+
+
+syntax="proto2";
+
+option go_package = "github.com/danos/vyatta-dataplane/protobuf/go/PauseConfig";
+
+message PauseConfig {
+    enum PauseValue {
+        NONE    = 0;
+        RX      = 1;
+        TX      = 2;
+        BOTH    = 3;
+    }
+
+    message PauseIfConfig {
+        // Interface that pause config relates to
+        optional string ifname = 1;
+
+        // Whether pause frames should be received or transmitted
+        optional PauseValue value = 2;
+    }
+
+    oneof mtype {
+        PauseIfConfig pauseif = 1;
+    }
+}

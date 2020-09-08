@@ -68,7 +68,7 @@ void _dp_test_session_msg_check_rcvd(void *packed_session,
 {
 	int i;
 	uint64_t se_id;
-	struct npf_pack_session_stats *stats;
+	struct npf_pack_dp_sess_stats *stats;
 	struct npf_pack_message *msg = packed_session;
 
 	_dp_test_fail_unless(sess, file, line,
@@ -77,8 +77,9 @@ void _dp_test_session_msg_check_rcvd(void *packed_session,
 	stats =  npf_pack_get_session_stats(msg);
 	_dp_test_fail_unless(stats, file, line,
 			"Couldn't get stats from npf_pack message\n");
-	if (stats->se_pkts_in == pkts_per_session &&
-	    stats->se_pkts_out == pkts_per_session) {
+
+	if (stats->pdss_pkts_in == pkts_per_session &&
+	    stats->pdss_pkts_out == pkts_per_session) {
 		for (i = 0; i < DP_TEST_MAX_TEST_SESSIONS; i++) {
 			if (sess[i].se_id == se_id) {
 				sess[i].completed = true;

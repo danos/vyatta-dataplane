@@ -21,6 +21,7 @@ CRYTPO_FILES = \
 	src/crypto/crypto.c \
 	src/crypto/crypto_engine.c \
 	src/crypto/crypto_policy.c \
+	src/crypto/crypto_rte_pmd.c \
 	src/crypto/crypto_sadb.c \
 	src/crypto/esp.c \
 	src/crypto/vti.c \
@@ -114,6 +115,7 @@ SESSION_FILES = \
 	src/session/session.c \
 	src/session/session_cmds.c \
 	src/session/session_feature.c \
+	src/session/session_op.c \
 	src/session/session_watch.c
 
 CORE_FILES = \
@@ -417,7 +419,9 @@ PROTO_FILES = \
 	protobuf/IPAddressOrLabel.proto \
 	protobuf/Route.proto \
 	protobuf/RibUpdate.proto \
-	protobuf/MacLimitConfig.proto
+	protobuf/MacLimitConfig.proto \
+	protobuf/PauseConfig.proto  \
+	protobuf/SynceConfig.proto
 
 %.pb-c.c %.pb-c.h: %.proto
 	$(AM_V_GEN)@PROTOC_C@ -I=$(dir $^) --c_out=$(dir $@) $^

@@ -1017,6 +1017,9 @@ static int setup_interfaces(uint8_t startid, uint8_t num_ports,
 	}
 
 	for (portid = startid; portid < startid + num_ports; portid++) {
+		if (!bitmask_isset(&enabled_port_mask, portid))
+			continue;
+
 		if (!is_local_controller()) {
 			if (if_port_is_uplink(portid)) {
 				if (cont_src != CONT_SRC_UPLINK)
@@ -1490,7 +1493,7 @@ void main_loop(void)
 
 			/* Connect shadow interfaces to controller */
 			rc = setup_interfaces(0,
-					      nb_ports,
+					      nb_ports_total,
 					      cont_src, false);
 			if (rc < 0)
 				reset_dataplane(cont_src, true);

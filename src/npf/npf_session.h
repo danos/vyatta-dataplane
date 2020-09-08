@@ -54,7 +54,7 @@ struct npf_alg;
 struct npf_session;
 struct rte_mbuf;
 struct npf_pack_npf_session;
-struct npf_pack_npf_state;
+struct npf_pack_session_state;
 
 /* Forward Declarations */
 typedef struct npf_rule npf_rule_t;
@@ -75,6 +75,7 @@ typedef bool session_pkt_hook(npf_session_t *se, npf_cache_t *npc,
 uint64_t npf_session_get_id(struct npf_session *se);
 
 void npf_session_add_fw_rule(npf_session_t *s, npf_rule_t *r);
+bool npf_session_is_fw(npf_session_t *s);
 
 /* Appfw */
 void npf_session_set_appfw_decision(npf_session_t *, npf_decision_t);
@@ -163,18 +164,18 @@ void npf_session_disassoc_nif(unsigned int if_index);
 void npf_save_stats(npf_session_t *se, int dir, uint64_t bytes);
 
 int npf_session_npf_pack_state_pack(struct npf_session *se,
-				    struct npf_pack_npf_state *state);
+				    struct npf_pack_session_state *pst);
 int npf_session_npf_pack_state_restore(struct npf_session *se,
-				       struct npf_pack_npf_state *state,
+				       struct npf_pack_session_state *pst,
 				       vrfid_t vrfid);
 int npf_session_npf_pack_state_update(struct npf_session *se,
-				      struct npf_pack_npf_state *state);
+				      struct npf_pack_session_state *pst);
 int npf_session_npf_pack_pack(npf_session_t *se,
-			      struct npf_pack_npf_session *fw,
-			      struct npf_pack_npf_state *state);
+			      struct npf_pack_npf_session *pns,
+			      struct npf_pack_session_state *pst);
 struct npf_session *
-npf_session_npf_pack_restore(struct npf_pack_npf_session *fw,
-			     struct npf_pack_npf_state *state,
+npf_session_npf_pack_restore(struct npf_pack_npf_session *pns,
+			     struct npf_pack_session_state *pst,
 			     vrfid_t vrfid, uint8_t protocol,
 			     uint32_t ifindex);
 int npf_session_npf_pack_activate(struct npf_session *se, struct ifnet *ifp);

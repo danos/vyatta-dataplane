@@ -51,6 +51,8 @@ struct npf_session *npf_alg_session(struct npf_cache *npc, struct rte_mbuf *m,
 void npf_alg_session_expire(struct npf_session *se, struct npf_session_alg *sa);
 void npf_alg_session_destroy(struct npf_session *se,
 			     struct npf_session_alg *sa);
+int npf_alg_session_json(json_writer_t *json, struct npf_session *se,
+			 struct npf_session_alg *sa);
 
 void npf_alg_reset(bool hard);
 int npf_alg_cfg(FILE *f, int argc, char **argv);

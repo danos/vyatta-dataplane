@@ -63,7 +63,13 @@ static int nat_session_establish(npf_cache_t *npc, struct rte_mbuf *nbuf,
 		return rc;
 
 	/* Mark this session as containing NAT */
-	session_set_nat(*ss);
+	if (npf_nat_type(nt) == NPF_NATOUT) {
+		session_set_snat(*ss);
+		session_set_out(*ss);
+	} else {
+		session_set_dnat(*ss);
+		session_set_in(*ss);
+	}
 
 	return 0;
 }
@@ -114,7 +120,8 @@ static const struct session_feature_ops ops = {
  * for success or -NPF_RC_DP_SESS_ESTB for failure.
  */
 int npf_dataplane_session_establish(npf_session_t *se, npf_cache_t *npc,
-		struct rte_mbuf *nbuf, const struct ifnet *ifp)
+				    struct rte_mbuf *nbuf,
+				    const struct ifnet *ifp, bool out)
 {
 
 	npf_nat_t *nt = npf_session_get_nat(se);
@@ -158,6 +165,15 @@ int npf_dataplane_session_establish(npf_session_t *se, npf_cache_t *npc,
 		goto bad;
 	}
 
+	/* Mark direction on dataplane session */
+	if (out)
+		session_set_out(s);
+	else
+		session_set_in(s);
+
+	if (npf_session_is_fw(se))
+		session_set_fw(s);
+
 	/*
 	 * If this is an ALG secondary session, link,
 	 * and mark it as such.
@@ -169,6 +185,8 @@ int npf_dataplane_session_establish(npf_session_t *se, npf_cache_t *npc,
 		if (rc)
 			goto bad;
 
+		/* Mark both the parent and child as alg sessions */
+		session_set_alg(npf_session_get_dp_session(parent));
 		session_set_alg(s);
 	}
 

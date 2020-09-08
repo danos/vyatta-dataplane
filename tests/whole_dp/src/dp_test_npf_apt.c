@@ -94,6 +94,7 @@ DP_START_TEST(apt1, test)
 	rp = apt_dport_lookup(ai, ALG_FEAT_NPF,
 			      IPPROTO_TCP, htons(1000), true);
 	dp_test_fail_unless(!rp, "apt_dport_lookup");
+	free(ctx);
 
 } DP_END_TEST;
 
@@ -160,6 +161,7 @@ DP_START_TEST(apt2, test)
 	/* Expired tuple should no longer be found */
 	te = apt_tuple_v4_lookup(ai, ALG_FEAT_NPF, &key.v4_key);
 	dp_test_fail_unless(!te, "apt_tuple_v4_lookup");
+	free(ctx);
 
 } DP_END_TEST;
 
@@ -177,7 +179,8 @@ DP_START_TEST(apt3, test)
 	struct ifnet *ifp;
 	struct vrf *vrf;
 	vrfid_t vrf_id;
-	void *ctx;
+	void *ctx1;
+	void *ctx2;
 	int rc;
 
 	/*
@@ -198,8 +201,8 @@ DP_START_TEST(apt3, test)
 	dp_test_fail_unless(ai, "apt_instance_find_or_create");
 
 	/* Add dest port  */
-	ctx = calloc(1, 16);
-	rc = apt_dport_add(ai, ALG_FEAT_NPF, ctx,
+	ctx1 = calloc(1, 16);
+	rc = apt_dport_add(ai, ALG_FEAT_NPF, ctx1,
 			   IPPROTO_TCP, htons(1000), "SIP");
 	dp_test_fail_unless(rc == 0, "apt_dport_add");
 
@@ -214,9 +217,9 @@ DP_START_TEST(apt3, test)
 	};
 
 	/* Add tuple */
-	ctx = calloc(1, 16);
+	ctx2 = calloc(1, 16);
 	rc = 0;
-	apt_tuple_add(ai, ALG_FEAT_NPF, ctx, &key, 0, true, false, &rc);
+	apt_tuple_add(ai, ALG_FEAT_NPF, ctx2, &key, 0, true, false, &rc);
 	dp_test_fail_unless(rc == 0, "apt_tuple_v4_add");
 
 	/*
@@ -227,6 +230,8 @@ DP_START_TEST(apt3, test)
 	dp_test_nl_del_ip_addr_and_connected_vrf("dp2T1",
 						 "1.1.1.254/24", test_vrf);
 	dp_test_netlink_del_vrf(test_vrf, 0);
+	free(ctx1);
+	free(ctx2);
 
 } DP_END_TEST;
 

@@ -121,6 +121,27 @@ dp_test_qos_show(void)
 	}
 }
 
+/*
+ * This function is just to aid unit-test development.
+ * When you're trying to check for an expected value somewhere deep in the
+ * json output from "qos show ingress-maps", it can be useful to dump it
+ * out in a "readable" format.
+ */
+
+void
+dp_test_qos_ingress_maps_show(void)
+{
+	json_object *jobj;
+	struct dp_test_json_mismatches *mismatches = NULL;
+
+	jobj = dp_test_json_do_show_cmd("qos show ingress-maps",
+			&mismatches, false);
+	if (jobj) {
+		dp_test_qos_json_dump(jobj);
+		json_object_put(jobj);
+	}
+}
+
 __attribute__((format(printf, 5, 6)))
 static void
 _dp_test_qos_json_error(bool debug, const char *file, const int line,
@@ -1562,24 +1583,52 @@ void _dp_test_qos_delete_config_from_if(const char *if_name, bool debug,
 				dp_test_intf_real(if_name, real));
 }
 
-void _dp_test_qos_send_config(const char *cmd_list[], int num_cmds, bool debug,
-			      const char *file, const int line)
+void _dp_test_qos_verify_config(const char *expected_json_str,
+		const char *verify_cmd,
+		bool negate_match, bool debug)
+{
+	if (expected_json_str != NULL) {
+		json_object *expected_json;
+		expected_json = dp_test_json_create("%s", expected_json_str);
+		dp_test_check_json_state(verify_cmd, expected_json,
+				DP_TEST_JSON_CHECK_SUBSET,
+				negate_match);
+		json_object_put(expected_json);
+	}
+
+}
+void _dp_test_qos_send_config(const char *cmd_list[],
+		const char *expected_json_str,
+		const char *verify_cmd,
+		int num_cmds, bool debug,
+		const char *file, const int line)
 
 {
 	int i = 0;
 
 	for (i = 0; i < num_cmds; i++) {
 		dp_test_send_config_src(dp_test_cont_src_get(),
-					"qos global-object-cmd %s",
-					cmd_list[i]);
+				"qos global-object-cmd %s",
+				cmd_list[i]);
 	}
+
+	_dp_test_qos_verify_config(expected_json_str,
+			verify_cmd, false, debug);
+
 }
 
-void _dp_test_qos_send_cmd(const char *cmd, bool debug,
-			   const char *file, const int line)
+void _dp_test_qos_send_cmd(const char *cmd,
+		const char *expected_json_str,
+		const char *verify_cmd,
+		bool debug,
+		const char *file, const int line)
 {
-		dp_test_send_config_src(dp_test_cont_src_get(),
-					"qos global-object-cmd %s", cmd);
+	dp_test_send_config_src(dp_test_cont_src_get(),
+			"qos global-object-cmd %s", cmd);
+
+	_dp_test_qos_verify_config(expected_json_str,
+			verify_cmd, false, debug);
+
 }
 
 void _dp_test_qos_send_if_cmd(const char *if_name,

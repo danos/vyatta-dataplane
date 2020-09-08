@@ -57,6 +57,7 @@ struct next_hop_list {
 	struct next_hop      hop0;      /* optimization for non-ECMP */
 	uint32_t             refcount;	/* # of LPM's referring */
 	enum pd_obj_state    pd_state;
+	enum fal_next_hop_group_use use;
 	struct cds_lfht_node nh_node;
 	fal_object_t         nhg_fal_obj;   /* FAL handle for next_hop_group */
 	fal_object_t         *nh_fal_obj; /* Per-nh FAL handles */
@@ -71,6 +72,7 @@ struct nexthop_hash_key {
 	const struct next_hop *nh;
 	size_t		       size;
 	uint8_t		       proto;
+	enum fal_next_hop_group_use use;
 };
 
 /*
@@ -103,7 +105,8 @@ void __nexthop_destroy(struct next_hop_list *nextl);
 void nexthop_destroy(struct rcu_head *head);
 
 int nexthop_new(int family, const struct next_hop *nh, uint16_t size,
-		uint8_t proto, uint32_t *slot);
+		uint8_t proto, enum fal_next_hop_group_use use,
+		uint32_t *slot);
 
 /*
  * Create a next_hop based on the given information.  This nexthop will then
@@ -383,6 +386,16 @@ next_hop_list_fal_l3_enable_changed_finish(int family,
 					   fal_object_t *old_nh_objs);
 
 /*
+ * Get the FAL next-hop-group object for the given next-hop-list index
+ */
+fal_object_t next_hop_list_get_fal_obj(int family, uint32_t nhl_idx,
+				       enum pd_obj_state *pd_state);
+
+size_t
+next_hop_list_get_fal_nhs(int family, uint32_t nhl_idx,
+			  struct next_hop **hops);
+
+/*
  * Per AF hash function for a nexthop.
  */
 typedef int (nh_common_hash_fn)(const struct nexthop_hash_key *key,
@@ -412,6 +425,7 @@ struct nh_common {
 	nh_common_cmp_fn *nh_compare;
 	nh_common_get_hash_tbl_fn *nh_get_hash_tbl;
 	nh_common_get_nh_tbl_fn *nh_get_nh_tbl;
+	struct next_hop_list *(*nh_get_blackhole)(void);
 };
 
 /*

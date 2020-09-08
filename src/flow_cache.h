@@ -50,6 +50,7 @@ struct flow_cache *flow_cache_init(uint32_t max_entries);
  *   -ENOMEM on failure
  */
 int flow_cache_init_lcore(struct flow_cache *cache, unsigned int lcore_id);
+int flow_cache_teardown_lcore(struct flow_cache *cache, unsigned int lcore_id);
 
 /**
  *

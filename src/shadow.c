@@ -413,7 +413,6 @@ static int shadow_output(struct shadow_if_info *sii, struct rte_mbuf *m,
 
 			return ret;
 		}
-		return -1;
 	}
 
 	if (team) {

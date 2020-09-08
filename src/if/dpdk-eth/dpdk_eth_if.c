@@ -113,7 +113,7 @@ static void soft_stop_port(struct ifnet *ifp)
 	bitmask_clear(&started_port_mask, port);
 	rte_eth_led_off(port);
 
-	linkwatch_update_port_status(port, true);
+	linkwatch_update_port_status(port, LINKWATCH_FLAG_FORCE_LINK_DOWN);
 
 	/* Stop monitoring port */
 	rte_timer_stop(&sc->scd_link_timer);
@@ -138,7 +138,7 @@ static void soft_start_port(struct ifnet *ifp)
 	rte_eth_led_on(port);
 
 	bitmask_set(&started_port_mask, port);
-	linkwatch_update_port_status(port, false);
+	linkwatch_update_port_status(port, LINKWATCH_FLAG_FORCE_NOTIFY);
 
 	/* Start timer to send keepalive messages */
 	if (rte_timer_reset(&sc->scd_link_timer,

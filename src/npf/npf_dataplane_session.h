@@ -18,6 +18,7 @@
 
 /* Protos */
 int npf_dataplane_session_establish(npf_session_t *se, npf_cache_t *npc,
-		struct rte_mbuf *nbuf, const struct ifnet *ifp);
+				    struct rte_mbuf *nbuf,
+				    const struct ifnet *ifp, bool out);
 
 #endif /* NPF_DATAPLANE_SESSION_H */

@@ -47,30 +47,13 @@
 #include "npf/npf_ruleset.h"
 #include "util.h"
 #include "vrf_internal.h"
+#include "dp_session.h"
 
 struct rte_mbuf;
-struct npf_pack_npf_state;
+struct npf_pack_session_state;
 
 /* Forward Declarations */
 typedef struct npf_cache npf_cache_t;
-
-/*
- * Generic session states and timeout table.
- *
- * Note: used for connnection-less protocols.
- *       only npf_state.c and npf_shim.c inlcude this header file.
- */
-typedef enum {
-	NPF_ANY_SESSION_NONE = 0,
-	NPF_ANY_SESSION_NEW,
-	NPF_ANY_SESSION_ESTABLISHED,
-	NPF_ANY_SESSION_TERMINATING,
-	NPF_ANY_SESSION_CLOSED,
-} ANY_STATES;
-
-#define NPF_ANY_SESSION_FIRST		NPF_ANY_SESSION_NONE
-#define NPF_ANY_SESSION_LAST		NPF_ANY_SESSION_CLOSED
-#define NPF_ANY_SESSION_NSTATES		(NPF_ANY_SESSION_LAST + 1)
 
 /*
  * NPF TCP states.  Note: these states are different from the TCP FSM
@@ -108,7 +91,7 @@ typedef enum {
 /* State statistics struct */
 struct npf_state_stats {
 	uint32_t ss_tcp_ct[NPF_TCP_NSTATES];
-	uint32_t ss_ct[NPF_PROTO_IDX_COUNT][NPF_ANY_SESSION_NSTATES];
+	uint32_t ss_ct[NPF_PROTO_IDX_COUNT][SESSION_STATE_SIZE];
 	uint32_t ss_nat_cnt; /* used only for session_summary */
 };
 
@@ -120,22 +103,20 @@ typedef struct {
 	uint32_t	nst_maxend;
 	uint32_t	nst_maxwin;
 	uint8_t		nst_wscale;
+	uint8_t		nst_pad[3];
 } npf_tcpstate_t;
+
+static_assert(sizeof(npf_tcpstate_t) == 16, "npf_tcpstate_t != 16");
 
 typedef struct {
 	rte_spinlock_t		nst_lock;
 	uint8_t			nst_state;
+	uint8_t			nst_pad[3];
 	npf_tcpstate_t		nst_tcpst[2];
 	struct npf_timeout	*nst_to;
 } npf_state_t;
 
-
-static inline bool
-npf_state_generic_state_is_valid(uint8_t state)
-{
-	assert(NPF_ANY_SESSION_FIRST == 0);
-	return state <= NPF_ANY_SESSION_LAST;
-}
+static_assert(sizeof(npf_state_t) == 48, "npf_state_t != 48");
 
 static inline bool
 npf_state_tcp_state_is_valid(uint8_t state)
@@ -150,28 +131,32 @@ npf_state_is_valid(uint8_t proto_idx, uint8_t state)
 	if (proto_idx == NPF_PROTO_IDX_TCP)
 		return npf_state_tcp_state_is_valid(state);
 	else
-		return npf_state_generic_state_is_valid(state);
+		return dp_session_state_is_valid(state);
 }
 
 /*
  * Get generic state.  Non-TCP protocols already use generic state.
  * Convert TCP state to generic state.
  */
-static inline uint8_t
+static inline enum dp_session_state
 npf_state_get_generic_state(uint8_t proto_idx, uint8_t state)
 {
-	if (proto_idx != NPF_PROTO_IDX_TCP)
-		return state;
+	if (proto_idx != NPF_PROTO_IDX_TCP) {
+		if (dp_session_state_is_valid(state))
+			return (enum dp_session_state)state;
+		else
+			return SESSION_STATE_NONE;
+	}
 
 	switch (state) {
 	case NPF_TCPS_NONE:
-		return NPF_ANY_SESSION_NONE;
+		return SESSION_STATE_NONE;
 	case NPF_TCPS_SYN_SENT:
 	case NPF_TCPS_SIMSYN_SENT:
 	case NPF_TCPS_SYN_RECEIVED:
-		return NPF_ANY_SESSION_NEW;
+		return SESSION_STATE_NEW;
 	case NPF_TCPS_ESTABLISHED:
-		return NPF_ANY_SESSION_ESTABLISHED;
+		return SESSION_STATE_ESTABLISHED;
 	case NPF_TCPS_FIN_SENT:
 	case NPF_TCPS_FIN_RECEIVED:
 	case NPF_TCPS_CLOSE_WAIT:
@@ -180,25 +165,25 @@ npf_state_get_generic_state(uint8_t proto_idx, uint8_t state)
 	case NPF_TCPS_LAST_ACK:
 	case NPF_TCPS_TIME_WAIT:
 	case NPF_TCPS_RST_RECEIVED:
-		return NPF_ANY_SESSION_TERMINATING;
+		return SESSION_STATE_TERMINATING;
 	case NPF_TCPS_CLOSED:
-		return NPF_ANY_SESSION_CLOSED;
+		return SESSION_STATE_CLOSED;
 	};
-	return NPF_ANY_SESSION_CLOSED;
+	return SESSION_STATE_CLOSED;
 }
 
 static inline bool npf_state_is_established(uint8_t proto, uint8_t state)
 {
 	if (proto == IPPROTO_TCP)
 		return state == NPF_TCPS_ESTABLISHED;
-	return state == NPF_ANY_SESSION_ESTABLISHED;
+	return state == SESSION_STATE_ESTABLISHED;
 }
 
 static inline bool npf_state_is_closing(uint8_t proto, uint8_t state)
 {
 	if (proto == IPPROTO_TCP)
 		return state > NPF_TCPS_ESTABLISHED;
-	return state > NPF_ANY_SESSION_ESTABLISHED;
+	return state > SESSION_STATE_ESTABLISHED;
 }
 
 void npf_state_stats_create(void);
@@ -213,7 +198,7 @@ void npf_state_set_closed_state(npf_state_t *nst, bool lock, uint8_t proto_idx);
 const char *npf_state_get_state_name(uint8_t state, uint8_t proto_idx);
 bool npf_state_is_steady(const npf_state_t *nst, const uint8_t proto_idx);
 bool npf_tcp_state_is_closed(const npf_state_t *nst, const uint8_t proto_idx);
-uint8_t npf_map_str_to_generic_state(const char *state);
+enum dp_session_state npf_map_str_to_generic_state(const char *state);
 uint8_t npf_map_str_to_tcp_state(const char *state);
 uint32_t npf_state_get_custom_timeout(vrfid_t vrfid, npf_cache_t *npc,
 				      struct rte_mbuf *nbuf);
@@ -243,7 +228,8 @@ uint32_t npf_state_get_tcp_seq(int di, npf_state_t *nst);
 
 void npf_state_set_tcp_strict(bool value);
 
-int npf_state_npf_pack_update(npf_state_t *nst, struct npf_pack_npf_state *st,
+int npf_state_npf_pack_update(npf_state_t *nst,
+			      struct npf_pack_session_state *pst,
 			      uint8_t state, uint8_t proto_idx);
 
 #endif  /* NPF_STATE_H */

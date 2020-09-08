@@ -22,6 +22,8 @@
 #include "nh_common.h"
 #include "route.h"
 
+#define MPLS_LABEL_ALL (1 << 20)
+
 struct cds_lfht;
 struct rte_mbuf;
 
@@ -63,7 +65,8 @@ mpls_label_table_lookup(struct cds_lfht *label_table, uint32_t in_label,
 	__attribute__((hot));
 
 void mpls_label_table_resize(int labelspace, uint32_t max_label);
-void mpls_label_table_set_dump(FILE *fp, const int labelspace);
+void mpls_label_table_set_dump(FILE *fp, int labelspace,
+			       uint32_t label_filter);
 void mpls_oam_v4_lookup(int labelspace, uint8_t nlabels,
 			const label_t *labels,
 			uint32_t saddr, uint32_t daddr,
@@ -71,5 +74,11 @@ void mpls_oam_v4_lookup(int labelspace, uint8_t nlabels,
 			uint64_t bitmask, unsigned int masklen,
 			struct mpls_oam_outinfo outinfo[],
 			unsigned int max_fanout);
+
+uint32_t *mpls_label_table_hw_stats_get(void);
+int mpls_label_table_get_pd_subset_data(json_writer_t *json,
+					enum pd_obj_state subset);
+
+void mpls_update_all_routes_for_nh_change(int family, uint32_t nhl_idx);
 
 #endif

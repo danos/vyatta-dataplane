@@ -38,6 +38,7 @@
 #include "crypto_internal.h"
 #include "crypto_main.h"
 #include "crypto_policy.h"
+#include "crypto_rte_pmd.h"
 #include "crypto_sadb.h"
 #include "dp_event.h"
 #include "esp.h"
@@ -140,7 +141,8 @@ static const char * const ipsec_counter_names[] = {
 	[FLOW_CACHE_HIT] = "hit flow cache",
 	[FLOW_CACHE_MISS] = "missed flow cache",
 	[DROPPED_NO_BIND] = "dropped feature attachment point missing",
-	[DROPPED_ON_FP_NO_PR] = "dropped on fp but no policy"
+	[DROPPED_ON_FP_NO_PR] = "dropped on fp but no policy",
+	[DROPPED_COP_ALLOC_FAILED] = "dropped on crypto op allocation failure"
 };
 
 unsigned long ipsec_counters[RTE_MAX_LCORE][IPSEC_CNT_MAX] __rte_cache_aligned;
@@ -153,41 +155,6 @@ static const char * const xfrm_names[] = {
 struct crypto_iphdr_ctx {
 	unsigned int iphlen;
 	uint8_t nxt_proto;
-};
-
-/*
- * Per packet crypto context. This carries information
- * from the policy lookup in the forwarding thread that
- * is needed for the SA lookup in the crypto thread.
- */
-struct crypto_pkt_ctx {
-	/*
-	 * These fields are set up by the forwarding
-	 * thread and used to select the actions the
-	 * crypto thread will perform on the packet.
-	 */
-	struct rte_mbuf *mbuf;
-	uint32_t reqid;
-	uint32_t spi;
-	void *l3hdr;
-	struct ifnet *in_ifp;
-	struct ifnet *nxt_ifp;
-	/*
-	 * These fields are are bi-directional. They may be
-	 * set by the forwarding thread and modified by the
-	 * crypto thread.
-	 *
-	 * TODO: Replace direction with an input action
-	 *       of either ENCRYPT or DECRYPT.
-	 */
-	uint8_t action;
-	uint8_t in_ifp_port;
-	uint16_t SPARE1;
-	uint16_t direction;
-	uint8_t orig_family;
-	uint8_t family;
-	xfrm_address_t dst; /* Only used for outbound traffic */
-	vrfid_t vrfid;
 };
 
 static int crypto_vrf_insert(struct crypto_vrf_ctx *vrf_ctx)
@@ -428,18 +395,123 @@ static struct ifnet *crypto_ctx_to_in_ifp(struct crypto_pkt_ctx *ctx,
 	return ifp;
 }
 
-/*
- * crypto_process_decrypt_packet()
- *
- * Decrypt the packet described by the supplied context.
- */
-static void crypto_process_decrypt_packet(struct crypto_pkt_ctx *cctx,
-					  struct rte_mbuf *m,
-					  struct sadb_sa *sa,
-					  uint32_t *bytes)
+static inline void
+crypto_post_decrypt_handle_vti(struct crypto_pkt_ctx *cctx,
+			       struct rte_mbuf *m,
+			       struct ifnet *vti_ifp)
 {
-	int rc;
+	if (!(vti_ifp->if_flags & IFF_UP)) {
+		cctx->action = CRYPTO_ACT_DROP;
+		return;
+	}
+	cctx->in_ifp = vti_ifp;
+	pktmbuf_clear_rx_vlan(m);
+	pktmbuf_set_vrf(m, vti_ifp->if_vrfid);
+	set_spath_rx_meta_data(m, vti_ifp,
+			       ntohs(ethhdr(m)->ether_type),
+			       TUN_META_FLAGS_DEFAULT);
+	if (unlikely(vti_ifp->capturing))
+		capture_burst(vti_ifp, &m, 1);
+	cctx->action = CRYPTO_ACT_VTI_INPUT;
+	if_incr_in(vti_ifp, m);
+}
+
+static inline void
+crypto_post_decrypt_handle_vfp(struct crypto_pkt_ctx *cctx,
+			       struct rte_mbuf *m,
+			       struct ifnet *vfp_ifp)
+{
+	if (!(vfp_ifp->if_flags & IFF_UP)) {
+		cctx->action = CRYPTO_ACT_DROP;
+		return;
+	}
+	cctx->in_ifp = vfp_ifp;
+
+	if (unlikely(vfp_ifp->capturing))
+		capture_burst(vfp_ifp, &m, 1);
+
+	cctx->action = CRYPTO_ACT_INPUT_WITH_FEATURES;
+	if_incr_in(vfp_ifp, m);
+}
+
+static inline void
+crypto_post_decrypt_set_overlay_vrf(struct sadb_sa *sa, struct rte_mbuf *m,
+				    struct ifnet *vfp_ifp)
+{
+	/*
+	 * Set the overlay vrf if different from input
+	 * VRF. If this goes to the kernel then it
+	 * will need the correct vrf set, so set it in
+	 * meta too just in case.
+	 */
+	if (pktmbuf_get_vrf(m) == sa->overlay_vrf_id)
+		return;
+
+	pktmbuf_set_vrf(m, sa->overlay_vrf_id);
+	set_spath_rx_meta_data(m,
+			       vfp_ifp ? vfp_ifp :
+			       dp_ifnet_byifindex(
+				       dp_vrf_get_external_id(
+					       sa->overlay_vrf_id)),
+			       ntohs(ethhdr(m)->ether_type),
+			       TUN_META_FLAGS_DEFAULT);
+}
+
+static inline void
+crypto_post_decrypt_handle_packet(struct crypto_pkt_ctx *cctx,
+				  struct sadb_sa *sa,
+				  struct rte_mbuf *m,
+				  int rc, struct ifnet *vti_ifp)
+{
+	if (rc < 0) {
+		if (vti_ifp)
+			if_incr_error(vti_ifp);
+		CRYPTO_DATA_ERR("ESP Input failed %d\n", rc);
+		IPSEC_CNT_INC(DROPPED_ESP_INPUT_FAIL);
+		cctx->action = CRYPTO_ACT_DROP;
+		return;
+	}
+
+	if (vti_ifp)
+		crypto_post_decrypt_handle_vti(cctx, m, vti_ifp);
+	else {
+		struct ifnet *feat_attach_ifp =
+			rcu_dereference(sa->feat_attach_ifp);
+
+		/*
+		 * If the SA has a virtual feature point bound to
+		 * it, then switch the input interface to the feature
+		 * point so that input features can be run.
+		 */
+		if (feat_attach_ifp) {
+			crypto_post_decrypt_handle_vfp(cctx, m,
+						       feat_attach_ifp);
+		} else {
+			cctx->in_ifp = crypto_ctx_to_in_ifp(cctx, m);
+			if (unlikely(!cctx->in_ifp)) {
+				CRYPTO_DATA_ERR("No_ifp\n");
+				IPSEC_CNT_INC(DROPPED_NO_IFP);
+				cctx->action = CRYPTO_ACT_DROP;
+				return;
+			}
+			cctx->action = CRYPTO_ACT_INPUT;
+		}
+		crypto_post_decrypt_set_overlay_vrf(sa, m, feat_attach_ifp);
+	}
+}
+
+static inline void
+crypto_process_decrypt_packet(struct crypto_pkt_ctx *cctx)
+{
 	struct ifnet *vti_ifp = NULL;
+	struct sadb_sa *sa;
+	struct rte_mbuf *m;
+
+	if (unlikely(cctx->action == CRYPTO_ACT_DROP))
+		return;
+
+	sa = cctx->sa;
+	m = cctx->mbuf;
 
 	/*
 	 * If this packet has come from a VTI, replace the
@@ -459,103 +531,27 @@ static void crypto_process_decrypt_packet(struct crypto_pkt_ctx *cctx,
 		return;
 	}
 
-	if (cctx->family == AF_INET)
-		rc = esp_input(m, sa, bytes, &cctx->family);
-	else
-		rc = esp_input6(m, sa, bytes, &cctx->family);
+	esp_input(&cctx, 1);
 
-	if (rc < 0) {
-		if (vti_ifp)
-			if_incr_error(vti_ifp);
-		CRYPTO_DATA_ERR("ESP Input failed %d\n", rc);
-		IPSEC_CNT_INC(DROPPED_ESP_INPUT_FAIL);
-		cctx->action = CRYPTO_ACT_DROP;
-	} else {
-		if (vti_ifp) {
-			if (!(vti_ifp->if_flags & IFF_UP)) {
-				cctx->action = CRYPTO_ACT_DROP;
-				return;
-			}
-			cctx->in_ifp = vti_ifp;
-			pktmbuf_clear_rx_vlan(m);
-			pktmbuf_set_vrf(m, vti_ifp->if_vrfid);
-			set_spath_rx_meta_data(m, vti_ifp,
-					       ntohs(ethhdr(m)->ether_type),
-					       TUN_META_FLAGS_DEFAULT);
-			if (unlikely(vti_ifp->capturing))
-				capture_burst(vti_ifp, &m, 1);
-			cctx->action = CRYPTO_ACT_VTI_INPUT;
-			if_incr_in(vti_ifp, m);
-		} else {
-			struct ifnet *feat_attach_ifp =
-				rcu_dereference(sa->feat_attach_ifp);
-
-			/*
-			 * If the SA has a virtual feature point bound to
-			 * it, then switch the input interface to the feature
-			 * point so that input features can be run.
-			 */
-			if (feat_attach_ifp) {
-				if (!(feat_attach_ifp->if_flags & IFF_UP)) {
-					cctx->action = CRYPTO_ACT_DROP;
-					return;
-				}
-				cctx->in_ifp = feat_attach_ifp;
-
-				if (unlikely(feat_attach_ifp->capturing))
-					capture_burst(feat_attach_ifp, &m, 1);
-
-				cctx->action = CRYPTO_ACT_INPUT_WITH_FEATURES;
-			} else {
-				cctx->in_ifp = crypto_ctx_to_in_ifp(cctx, m);
-				if (unlikely(!cctx->in_ifp)) {
-					CRYPTO_DATA_ERR("No_ifp\n");
-					IPSEC_CNT_INC(DROPPED_NO_IFP);
-					cctx->action = CRYPTO_ACT_DROP;
-					return;
-				}
-
-				cctx->action = CRYPTO_ACT_INPUT;
-			}
-			/*
-			 * Set the overlay vrf if different from input
-			 * VRF. If this goes to the kernel then it
-			 * will need the correct vrf set, so set it in
-			 * meta too just in case.
-			 */
-			if (pktmbuf_get_vrf(m) != sa->overlay_vrf_id) {
-				pktmbuf_set_vrf(m, sa->overlay_vrf_id);
-				set_spath_rx_meta_data(
-					m,
-					feat_attach_ifp ? feat_attach_ifp :
-					dp_ifnet_byifindex(
-						dp_vrf_get_external_id(
-						sa->overlay_vrf_id)),
-					ntohs(ethhdr(m)->ether_type),
-					TUN_META_FLAGS_DEFAULT);
-			}
-			if (feat_attach_ifp)
-				if_incr_in(feat_attach_ifp, m);
-		}
-	}
+	crypto_post_decrypt_handle_packet(cctx, sa, m, cctx->status, vti_ifp);
 }
 
-static void crypto_process_encrypt_packet(struct crypto_pkt_ctx *cctx,
-					  struct rte_mbuf *m,
-					  struct sadb_sa *sa,
-					  uint32_t *bytes)
+
+static void crypto_process_encrypt_packet(struct crypto_pkt_ctx *cctx)
 {
-	int rc;
+	struct rte_mbuf *m;
 
-	if (cctx->family == AF_INET)
-		rc = esp_output(m, cctx->orig_family, cctx->l3hdr, sa, bytes);
-	else
-		rc = esp_output6(m, cctx->orig_family, cctx->l3hdr, sa, bytes);
+	if (unlikely(cctx->action == CRYPTO_ACT_DROP))
+		return;
 
-	if (rc < 0) {
+	m = cctx->mbuf;
+
+	esp_output(&cctx, 1);
+
+	if (cctx->status < 0) {
 		if (cctx->nxt_ifp)
 			if_incr_oerror(cctx->nxt_ifp);
-		CRYPTO_DATA_ERR("ESP Output failed %d\n", rc);
+		CRYPTO_DATA_ERR("ESP Output failed %d\n", cctx->status);
 		cctx->action = CRYPTO_ACT_DROP;
 		IPSEC_CNT_INC(DROPPED_ESP_OUTPUT_FAIL);
 	} else {
@@ -578,6 +574,7 @@ static void crypto_process_encrypt_packet(struct crypto_pkt_ctx *cctx,
 
 static void crypto_pkt_ctx_forward_and_free(struct crypto_pkt_ctx *ctx)
 {
+	crypto_rte_op_free(ctx->mbuf);
 	switch (ctx->action) {
 	case CRYPTO_ACT_VTI_INPUT:
 	case CRYPTO_ACT_INPUT_WITH_FEATURES:
@@ -674,6 +671,7 @@ drop_check:
 			struct crypto_pkt_ctx *ctx =
 				cpb->local_crypto_q[xfrm][i];
 
+			crypto_rte_op_free(ctx->mbuf);
 			rte_pktmbuf_free(ctx->mbuf);
 			release_crypto_packet_ctx(ctx);
 			IPSEC_CNT_INC(FAILED_TO_BURST);
@@ -777,6 +775,13 @@ static int crypto_enqueue_internal(enum crypto_xfrm xfrm,
 		}
 	}
 	ctx->in_ifp = NULL;
+
+	if (crypto_rte_op_alloc(m)) {
+		IPSEC_CNT_INC(DROPPED_COP_ALLOC_FAILED);
+		release_crypto_packet_ctx(ctx);
+		goto free_mbuf_on_error;
+	}
+
 	crypto_ctx_save_ifp(ctx, m, in_ifp);
 	ctx->nxt_ifp = nxt_ifp;
 	ctx->spi = spi;
@@ -951,8 +956,7 @@ static void crypto_fwd_processed_packets(struct crypto_pkt_ctx **contexts,
 }
 
 struct crypto_processing_cb {
-	void (*process)(struct crypto_pkt_ctx *, struct rte_mbuf *,
-			struct sadb_sa *, uint32_t *bytes);
+	void (*process)(struct crypto_pkt_ctx *);
 	void (*post_process)(struct crypto_pkt_ctx **,  uint32_t);
 };
 
@@ -975,6 +979,7 @@ void crypto_purge_queue(struct rte_ring *pmd_queue)
 		for (i = 0; i < count; i++) {
 			struct crypto_pkt_ctx *ctx =
 				contexts[i];
+			crypto_rte_op_free(ctx->mbuf);
 			rte_pktmbuf_free(ctx->mbuf);
 			release_crypto_packet_ctx(ctx);
 		}
@@ -1003,7 +1008,8 @@ sadb_lookup_sa(struct rte_mbuf *m __unused, enum crypto_xfrm xfrm,
 		struct ifnet *err_ifp;
 
 		ctx->action = CRYPTO_ACT_DROP;
-		IPSEC_CNT_INC(NO_OUT_SA);
+		if (xfrm == CRYPTO_ENCRYPT)
+			IPSEC_CNT_INC(NO_OUT_SA);
 		err_ifp = ((xfrm == CRYPTO_ENCRYPT) ? ctx->nxt_ifp :
 			   crypto_ctx_to_in_ifp(ctx, ctx->mbuf));
 		if (err_ifp && is_vti(err_ifp))
@@ -1019,7 +1025,6 @@ crypto_pmd_process_packet(struct crypto_pkt_ctx *contexts,
 			  enum crypto_xfrm xfrm)
 {
 	struct rte_mbuf *m;
-	unsigned int packet_size = 0;
 	struct sadb_sa *sa;
 
 	m = contexts->mbuf;
@@ -1035,8 +1040,10 @@ crypto_pmd_process_packet(struct crypto_pkt_ctx *contexts,
 	if (unlikely(!sa))
 		return 0;
 
-	crypto_cb[xfrm].process(contexts, m, sa, &packet_size);
-	return packet_size;
+	contexts->sa = sa;
+	contexts->bytes = 0;
+	crypto_cb[xfrm].process(contexts);
+	return contexts->bytes;
 }
 
 /*
@@ -1169,6 +1176,12 @@ static int dp_crypto_lcore_init(unsigned int lcore_id,
 	return 0;
 }
 
+static int dp_crypto_lcore_teardown(unsigned int lcore_id,
+				    void *arg __unused)
+{
+	return crypto_flow_cache_teardown_lcore(lcore_id);
+}
+
 static void init_context(struct rte_mempool *pool __unused,
 			 void *context __unused,
 			 void *obj,
@@ -1204,7 +1217,7 @@ static void crypto_incomplete_init(void)
 
 static struct dp_lcore_events crypto_lcore_events = {
 	.dp_lcore_events_init_fn = dp_crypto_lcore_init,
-	.dp_lcore_events_teardown_fn = NULL,
+	.dp_lcore_events_teardown_fn = dp_crypto_lcore_teardown,
 };
 
 
@@ -1242,6 +1255,9 @@ void dp_crypto_init(void)
 
 	if (!crypto_dp_sp->pool)
 		rte_panic("Could not allocate crypto context pool\n");
+
+	if (crypto_rte_setup())
+		rte_panic("Could not set up crypto infrastructure pools\n");
 
 	crypto_engine_load();
 
@@ -1291,6 +1307,7 @@ void dp_crypto_shutdown(void)
 	udp_handler_unregister(AF_INET, htons(ESP_PORT));
 	udp_handler_unregister(AF_INET6, htons(ESP_PORT));
 	crypto_engine_shutdown();
+	crypto_rte_shutdown();
 }
 
 void crypto_show_summary(FILE *f)

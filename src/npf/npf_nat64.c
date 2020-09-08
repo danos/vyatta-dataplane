@@ -1553,33 +1553,32 @@ stats:
 	return NAT64_DECISION_PASS;
 }
 
-int npf_nat64_npf_pack_pack(struct npf_nat64 *n64,
-			    struct npf_pack_npf_nat64 *cn64)
+int npf_nat64_npf_pack_pack(struct npf_nat64 *n64, struct npf_pack_nat64 *pn64)
 {
 	npf_rule_t *rule;
 
-	if (!n64 || !cn64)
+	if (!n64 || !pn64)
 		return -EINVAL;
 
 	rule = npf_nat64_get_rule(n64);
-	cn64->n64_rule_hash = (rule ? npf_rule_get_hash(rule) : 0);
-	cn64->n64_rproc_id = npf_nat64_get_rproc_id(n64);
-	cn64->n64_map_flags = n64->n64_map_flags;
-	cn64->n64_v6 = npf_nat64_is_v6(n64);
-	cn64->n64_linked = npf_nat64_is_linked(n64);
-	npf_nat64_get_trans(n64, &cn64->n64_t_addr, &cn64->n64_t_port);
+	pn64->pn64_rule_hash = (rule ? npf_rule_get_hash(rule) : 0);
+	pn64->pn64_rproc_id = npf_nat64_get_rproc_id(n64);
+	pn64->pn64_map_flags = n64->n64_map_flags;
+	pn64->pn64_v6 = npf_nat64_is_v6(n64);
+	pn64->pn64_linked = npf_nat64_is_linked(n64);
+	npf_nat64_get_trans(n64, &pn64->pn64_t_addr, &pn64->pn64_t_port);
 
 	return 0;
 }
 
 int npf_nat64_npf_pack_restore(struct npf_session *se,
-			       struct npf_pack_npf_nat64 *nat64)
+			       struct npf_pack_nat64 *pn64)
 {
 	struct npf_nat64 *n64;
 	npf_rule_t *rl;
 	int rc = -EINVAL;
 
-	if (!se || !nat64)
+	if (!se || !pn64)
 		return -EINVAL;
 
 	/* Create a nat64 struct */
@@ -1587,23 +1586,23 @@ int npf_nat64_npf_pack_restore(struct npf_session *se,
 	if (!n64)
 		return -ENOMEM;
 
-	rl = nat64->n64_rule_hash ?
-		npf_get_rule_by_hash(nat64->n64_rule_hash) : NULL;
+	rl = pn64->pn64_rule_hash ?
+		npf_get_rule_by_hash(pn64->pn64_rule_hash) : NULL;
 
 	if (rl) {
 		n64->n64_rule = npf_rule_get(rl);
 		n64->n64_np = npf_rule_get_natpolicy(rl);
 	}
 
-	n64->n64_rproc_id = nat64->n64_rproc_id;
-	n64->n64_map_flags = nat64->n64_map_flags;
+	n64->n64_rproc_id = pn64->pn64_rproc_id;
+	n64->n64_map_flags = pn64->pn64_map_flags;
 	n64->n64_vrfid = npf_session_get_vrfid(se);
 
-	memcpy(&n64->n64_t_addr, &nat64->n64_t_addr, sizeof(npf_addr_t));
-	n64->n64_t_port = nat64->n64_t_port;
+	memcpy(&n64->n64_t_addr, &pn64->pn64_t_addr, sizeof(npf_addr_t));
+	n64->n64_t_port = pn64->pn64_t_port;
 
-	n64->n64_v6 = nat64->n64_v6;
-	if (!nat64->n64_linked)
+	n64->n64_v6 = pn64->pn64_v6;
+	if (!pn64->pn64_linked)
 		goto error;
 
 	rte_spinlock_init(&n64->n64_lock);

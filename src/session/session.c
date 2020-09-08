@@ -416,6 +416,25 @@ void sentry_delete(struct sentry *sen)
 	}
 }
 
+/*
+ * Determine a sessions time-to-expire.  Note that this can go negative due
+ * the periodic nature of the garbage collection.  Used by show command.
+ */
+int sess_time_to_expire(const struct session *s)
+{
+	int tmp;
+
+	if (s->se_flags & SESSION_EXPIRED)
+		tmp = 0;
+	else if (!s->se_etime)
+		tmp = s->se_custom_timeout ?
+			s->se_custom_timeout : s->se_timeout;
+	else
+		tmp = (int) (s->se_etime - get_dp_uptime());
+
+	return tmp;
+}
+
 /* Get etime based on config */
 static inline uint32_t se_timeout(struct session *s)
 {
@@ -1262,10 +1281,12 @@ int session_establish(struct rte_mbuf *m, const struct ifnet *ifp,
 
 /* Set the protocol timeout, and current protocol state */
 void session_set_protocol_state_timeout(struct session *s, uint8_t state,
-		uint32_t timeout)
+					enum dp_session_state gen_state,
+					uint32_t timeout)
 {
 	s->se_timeout = timeout;
 	s->se_protocol_state = state;
+	s->se_gen_state = gen_state;
 }
 
 /* Set the custom timeout */
@@ -1357,6 +1378,25 @@ void session_sentry_extract(struct sentry *sen, uint32_t *if_index, int *af,
 	}
 
 	ids_extract(&sen->sen_addrids[0], sid, did);
+}
+
+/* Extract addrs from a sentry */
+void session_sentry_extract_addrs(const struct sentry *sen, int *af,
+				  const void **saddr, const void **daddr)
+{
+	if (sen->sen_flags & SENTRY_IPv4) {
+		*af = AF_INET;
+		*saddr = &sen->sen_addrids[1];
+		*daddr = &sen->sen_addrids[2];
+	} else if (sen->sen_flags & SENTRY_IPv6) {
+		*af = AF_INET6;
+		*saddr = &sen->sen_addrids[1];
+		*daddr = &sen->sen_addrids[5];
+	} else {
+		*af = 0;
+		*saddr = NULL;
+		*daddr = NULL;
+	}
 }
 
 /* Destroy a session */
@@ -1703,43 +1743,43 @@ static void __attribute__ ((constructor)) session_event_init(void)
 
 
 int session_npf_pack_stats_pack(struct session *s,
-				struct npf_pack_session_stats *stats)
+				struct npf_pack_dp_sess_stats *stats)
 {
 	if (!s || !stats)
 		return -EINVAL;
 
-	stats->se_pkts_in = rte_atomic64_read(&s->se_pkts_in);
-	stats->se_bytes_in = rte_atomic64_read(&s->se_bytes_in);
-	stats->se_pkts_out = rte_atomic64_read(&s->se_pkts_out);
-	stats->se_bytes_out = rte_atomic64_read(&s->se_bytes_out);
+	stats->pdss_pkts_in = rte_atomic64_read(&s->se_pkts_in);
+	stats->pdss_bytes_in = rte_atomic64_read(&s->se_bytes_in);
+	stats->pdss_pkts_out = rte_atomic64_read(&s->se_pkts_out);
+	stats->pdss_bytes_out = rte_atomic64_read(&s->se_bytes_out);
 
 	return 0;
 }
 
 int session_npf_pack_stats_restore(struct session *s,
-				   struct npf_pack_session_stats *stats)
+				   struct npf_pack_dp_sess_stats *stats)
 {
 	if (!s || !stats)
 		return -EINVAL;
 
-	rte_atomic64_set(&s->se_pkts_in, stats->se_pkts_in);
-	rte_atomic64_set(&s->se_bytes_in, stats->se_bytes_in);
-	rte_atomic64_set(&s->se_pkts_out, stats->se_pkts_out);
-	rte_atomic64_set(&s->se_bytes_out, stats->se_bytes_out);
+	rte_atomic64_set(&s->se_pkts_in, stats->pdss_pkts_in);
+	rte_atomic64_set(&s->se_bytes_in, stats->pdss_bytes_in);
+	rte_atomic64_set(&s->se_pkts_out, stats->pdss_pkts_out);
+	rte_atomic64_set(&s->se_bytes_out, stats->pdss_bytes_out);
 
 	return 0;
 }
 
 int session_npf_pack_sentry_pack(struct session *s,
-				 struct npf_pack_sentry *sen)
+				 struct npf_pack_sentry_packet *psp)
 {
 	struct sentry *s_sen;
-	struct sentry_packet *sp_forw;
-	struct sentry_packet *sp_back;
+	struct sentry_packet *psp_forw;
+	struct sentry_packet *psp_back;
 	struct ifnet *ifp;
 	int i;
 
-	if (!s || !sen)
+	if (!s || !psp)
 		return -EINVAL;
 
 	s_sen = s->se_sen;
@@ -1749,90 +1789,99 @@ int session_npf_pack_sentry_pack(struct session *s,
 	ifp = dp_ifnet_byifindex(s_sen->sen_ifindex);
 	if (!ifp)
 		return -EINVAL;
-	strncpy(sen->ifname, ifp->if_name, IFNAMSIZ);
+	strncpy(psp->psp_ifname, ifp->if_name, IFNAMSIZ);
 
-	sp_forw = &sen->sp_forw;
-	sp_forw->sp_sentry_flags = s_sen->sen_flags;
+	psp_forw = &psp->psp_forw;
+	psp_forw->sp_sentry_flags = s_sen->sen_flags;
+
 	if (s_sen->sen_flags & SENTRY_IPv4)
-		sp_forw->sp_sentry_flags = SENTRY_IPv4;
+		psp_forw->sp_sentry_flags = SENTRY_IPv4;
 	else
-		sp_forw->sp_sentry_flags = SENTRY_IPv6;
-	sp_forw->sp_protocol = s_sen->sen_protocol;
-	sp_forw->sp_len = s_sen->sen_len;
-	for (i = 0; i < s_sen->sen_len; i++)
-		sp_forw->sp_addrids[i] = s_sen->sen_addrids[i];
+		psp_forw->sp_sentry_flags = SENTRY_IPv6;
 
-	sp_back = &sen->sp_back;
-	memset(sp_back, 0, sizeof(struct sentry_packet));
-	sentry_packet_reverse(sp_forw, sp_back);
+	psp_forw->sp_protocol = s_sen->sen_protocol;
+	psp_forw->sp_len = s_sen->sen_len;
+
+	for (i = 0; i < s_sen->sen_len; i++)
+		psp_forw->sp_addrids[i] = s_sen->sen_addrids[i];
+
+	psp_back = &psp->psp_back;
+	memset(psp_back, 0, sizeof(*psp_back));
+	sentry_packet_reverse(psp_forw, psp_back);
 
 	return 0;
 }
 
-int session_npf_pack_sentry_restore(struct npf_pack_sentry *sen,
+int session_npf_pack_sentry_restore(struct npf_pack_sentry_packet *psp,
 				    struct ifnet **ifp)
 {
 	struct ifnet *s_ifp;
 
-	if (!sen)
+	if (!psp)
 		return -EINVAL;
 
-	s_ifp = dp_ifnet_byifname(sen->ifname);
+	s_ifp = dp_ifnet_byifname(psp->psp_ifname);
 	if (!s_ifp)
 		return -EINVAL;
 
-	sen->sp_forw.sp_vrfid = s_ifp->if_vrfid;
-	sen->sp_back.sp_vrfid = s_ifp->if_vrfid;
-	sen->sp_forw.sp_ifindex = s_ifp->if_index;
-	sen->sp_back.sp_ifindex = s_ifp->if_index;
+	psp->psp_forw.sp_vrfid = s_ifp->if_vrfid;
+	psp->psp_back.sp_vrfid = s_ifp->if_vrfid;
+	psp->psp_forw.sp_ifindex = s_ifp->if_index;
+	psp->psp_back.sp_ifindex = s_ifp->if_index;
 
 	*ifp = s_ifp;
 
 	return 0;
 }
 
-int session_npf_pack_pack(struct session *s, struct npf_pack_dp_session *dps,
-			  struct npf_pack_sentry *sen,
-			  struct npf_pack_session_stats *stats)
+int session_npf_pack_pack(struct session *s, struct npf_pack_dp_session *pds,
+			  struct npf_pack_sentry_packet *psp,
+			  struct npf_pack_dp_sess_stats *stats)
 {
-	if (!s || !dps || !sen || !stats)
+	if (!s || !pds || !psp || !stats)
 		return -EINVAL;
 
-	dps->se_id = s->se_id;
-	dps->se_flags = s->se_flags;
-	dps->se_protocol = s->se_protocol;
-	dps->se_custom_timeout = s->se_custom_timeout;
-	dps->se_timeout = s->se_timeout;
-	dps->se_etime = s->se_etime;
-	dps->se_protocol_state = s->se_protocol_state;
-	dps->se_nat = session_is_nat(s);
-	dps->se_nat64 = session_is_nat64(s);
-	dps->se_nat46 = session_is_nat46(s);
+	pds->pds_id = s->se_id;
+	pds->pds_flags = s->se_flags;
+	pds->pds_protocol = s->se_protocol;
+	pds->pds_custom_timeout = s->se_custom_timeout;
+	pds->pds_timeout = s->se_timeout;
+	pds->pds_protocol_state = s->se_protocol_state;
+	pds->pds_gen_state = s->se_gen_state;
+	pds->pds_fw = session_is_fw(s);
+	pds->pds_snat = session_is_snat(s);
+	pds->pds_dnat = session_is_dnat(s);
+	pds->pds_nat64 = session_is_nat64(s);
+	pds->pds_nat46 = session_is_nat46(s);
+	pds->pds_alg = session_is_alg(s);
+	pds->pds_in = session_is_in(s);
+	pds->pds_out = session_is_out(s);
+	pds->pds_app = session_is_app(s);
 
 	if (session_npf_pack_stats_pack(s, stats))
 		return -EINVAL;
 
-	return session_npf_pack_sentry_pack(s, sen);
+	return session_npf_pack_sentry_pack(s, psp);
 }
 
-struct session *session_npf_pack_restore(struct npf_pack_dp_session *dps,
-					 struct npf_pack_sentry *sen,
-					 struct npf_pack_session_stats *stats)
+struct session *session_npf_pack_restore(struct npf_pack_dp_session *pds,
+					 struct npf_pack_sentry_packet *psp,
+					 struct npf_pack_dp_sess_stats *stats)
 {
 	struct session *s;
-	struct sentry_packet sp_forw;
-	struct sentry_packet sp_back;
-	struct sentry_packet *forw = &sp_forw;
-	struct sentry_packet *back = &sp_back;
+	struct sentry_packet psp_forw;
+	struct sentry_packet psp_back;
+	struct sentry_packet *forw = &psp_forw;
+	struct sentry_packet *back = &psp_back;
 	struct sentry *sen_forw;
 	struct ifnet *ifp;
 	bool created = false;
 	int rc;
 
-	if (!dps || !sen)
+	if (!pds || !psp)
 		return NULL;
 
-	rc = session_npf_pack_sentry_restore(sen, &ifp);
+	rc = session_npf_pack_sentry_restore(psp, &ifp);
 	if (rc)
 		return NULL;
 
@@ -1847,15 +1896,22 @@ struct session *session_npf_pack_restore(struct npf_pack_dp_session *dps,
 	}
 
 	s->se_vrfid = ifp->if_vrfid;
-	s->se_flags = dps->se_flags;
-	s->se_protocol = dps->se_protocol;
-	s->se_custom_timeout = dps->se_custom_timeout;
-	s->se_timeout = dps->se_timeout;
-	s->se_etime = dps->se_etime;
-	s->se_protocol_state = dps->se_protocol_state;
-	s->se_nat = dps->se_nat;
-	s->se_nat64 = dps->se_nat64;
-	s->se_nat46 = dps->se_nat46;
+	s->se_flags = pds->pds_flags;
+	s->se_protocol = pds->pds_protocol;
+	s->se_custom_timeout = pds->pds_custom_timeout;
+	s->se_timeout = pds->pds_timeout;
+	s->se_etime = get_dp_uptime() + se_timeout(s);
+	s->se_protocol_state = pds->pds_protocol_state;
+	s->se_gen_state = pds->pds_gen_state;
+	s->se_fw = pds->pds_fw;
+	s->se_snat = pds->pds_snat;
+	s->se_dnat = pds->pds_dnat;
+	s->se_nat64 = pds->pds_nat64;
+	s->se_nat46 = pds->pds_nat46;
+	s->se_alg = pds->pds_alg;
+	s->se_in = pds->pds_in;
+	s->se_out = pds->pds_out;
+	s->se_app = pds->pds_app;
 
 	s->se_create_time = rte_get_timer_cycles();
 	rte_atomic64_init(&s->se_pkts_in);
@@ -1864,8 +1920,9 @@ struct session *session_npf_pack_restore(struct npf_pack_dp_session *dps,
 	rte_atomic64_init(&s->se_bytes_out);
 	se_init_logging(s);
 
-	memcpy(forw, &sen->sp_forw, sizeof(struct sentry_packet));
-	memcpy(back, &sen->sp_back, sizeof(struct sentry_packet));
+	memcpy(forw, &psp->psp_forw, sizeof(*forw));
+	memcpy(back, &psp->psp_back, sizeof(*back));
+
 	rc = sentry_packet_insert_both(s, forw, back, SENTRY_INIT,
 				       &sen_forw, &created);
 	if (rc || !created)
@@ -1940,8 +1997,7 @@ bool dp_session_is_established(const struct session *session)
 {
 	if (!session)
 		return false;
-	return npf_state_is_established(session->se_protocol,
-					session->se_protocol_state);
+	return session->se_gen_state == SESSION_STATE_ESTABLISHED;
 }
 
 bool dp_session_is_expired(const struct session *session)
@@ -1951,22 +2007,12 @@ bool dp_session_is_expired(const struct session *session)
 
 enum dp_session_state dp_session_get_state(const struct session *session)
 {
-	uint8_t proto_idx = npf_proto_idx_from_proto(session->se_protocol);
-	uint8_t state =
-	    npf_state_get_generic_state(session->se_protocol, proto_idx);
+	return session->se_gen_state;
+}
 
-	switch (state) {
-	case NPF_ANY_SESSION_NEW:
-		return SESSION_STATE_NEW;
-	case NPF_ANY_SESSION_ESTABLISHED:
-		return SESSION_STATE_ESTABLISHED;
-	case NPF_ANY_SESSION_TERMINATING:
-		return SESSION_STATE_TERMINATING;
-	case NPF_ANY_SESSION_CLOSED:
-		return SESSION_STATE_CLOSED;
-	default:
-		return SESSION_STATE_NONE;
-	};
+const char *dp_session_get_state_name(const struct session *session, bool upper)
+{
+	return dp_session_state_name(session->se_gen_state, upper);
 }
 
 uint64_t dp_session_unique_id(const struct session *session)

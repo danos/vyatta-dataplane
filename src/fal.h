@@ -66,6 +66,8 @@ struct message_handler {
 	struct fal_ptp_ops *ptp;
 	struct fal_capture_ops *capture;
 	struct fal_bfd_ops *bfd;
+	struct fal_mpls_ops *mpls;
+	struct fal_vrf_ops *vrf;
 
 	LIST_ENTRY(message_handler) link;
 };
@@ -581,6 +583,30 @@ struct fal_capture_ops {
 	void (*delete)(fal_object_t obj);
 };
 
+struct fal_mpls_ops {
+	int (*create_route)(const struct fal_mpls_route_t *mpls_route,
+			    uint32_t attr_count,
+			    const struct fal_attribute_t *attr_list);
+	int (*delete_route)(const struct fal_mpls_route_t *mpls_route);
+	int (*set_route_attr)(const struct fal_mpls_route_t *mpls_route,
+			      const struct fal_attribute_t *attr);
+	int (*get_route_attr)(const struct fal_mpls_route_t *mpls_route,
+			      uint32_t attr_count,
+			      struct fal_attribute_t *attr_list);
+};
+
+struct fal_vrf_ops {
+	int (*create)(uint32_t attr_count,
+		      const struct fal_attribute_t *attr_list,
+		      fal_object_t *obj);
+	int (*delete)(fal_object_t obj);
+	int (*set_attr)(fal_object_t obj,
+			const struct fal_attribute_t *attr);
+	int (*get_attr)(fal_object_t obj,
+			uint32_t attr_count,
+			struct fal_attribute_t *attr_list);
+};
+
 enum fal_rc {
 	/* All good */
 	FAL_RC_SUCCESS = 0,
@@ -779,7 +805,8 @@ void fal_ip4_upd_addr(unsigned int if_index,
 		      const struct if_addr *ifa);
 void fal_ip4_del_addr(unsigned int if_index,
 		      const struct if_addr *ifa);
-int fal_ip_new_next_hops(size_t nhops, const struct next_hop hops[],
+int fal_ip_new_next_hops(enum fal_next_hop_group_use use,
+			 size_t nhops, const struct next_hop hops[],
 			 fal_object_t *nhg_object, fal_object_t *obj);
 int fal_ip_del_next_hops(fal_object_t nhg_object, size_t nhops,
 			 const fal_object_t *obj);
@@ -1070,5 +1097,25 @@ int fal_capture_create(uint32_t attr_count,
 		       const struct fal_attribute_t *attr_list,
 		       fal_object_t *obj);
 void fal_capture_delete(fal_object_t obj);
+
+int fal_create_mpls_route(const struct fal_mpls_route_t *mpls_route,
+			  uint32_t attr_count,
+			  const struct fal_attribute_t *attr_list);
+int fal_delete_mpls_route(const struct fal_mpls_route_t *mpls_route);
+int fal_set_mpls_route_attr(const struct fal_mpls_route_t *mpls_route,
+			    const struct fal_attribute_t *attr);
+int fal_get_mpls_route_attr(const struct fal_mpls_route_t *mpls_route,
+			    uint32_t attr_count,
+			    struct fal_attribute_t *attr_list);
+
+int fal_vrf_create(uint32_t attr_count,
+		   const struct fal_attribute_t *attr_list,
+		   fal_object_t *obj);
+int fal_vrf_delete(fal_object_t obj);
+int fal_set_vrf_attr(fal_object_t obj,
+		     const struct fal_attribute_t *attr);
+int fal_get_vrf_attr(fal_object_t obj,
+		     uint32_t attr_count,
+		     struct fal_attribute_t *attr_list);
 
 #endif /* FAL_H */

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -27,7 +27,7 @@ struct npf_timeout {
 	rte_atomic32_t	to_refcnt;
 	uint32_t	to_set_count;
 	uint32_t	to_tcp[NPF_TCP_NSTATES];
-	uint32_t	to[NPF_PROTO_IDX_COUNT][NPF_ANY_SESSION_NSTATES];
+	uint32_t	to[NPF_PROTO_IDX_COUNT][SESSION_STATE_SIZE];
 };
 
 enum npf_timeout_action {

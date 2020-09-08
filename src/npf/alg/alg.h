@@ -77,6 +77,7 @@ struct npf_alg_ops {
 				 struct rte_mbuf *, struct npf_nat *);
 	void		(*periodic)(struct npf_alg *);
 	void		(*tuple_delete)(struct apt_tuple *at);
+	void		(*se_json)(json_writer_t *json, npf_session_t *se);
 	const char	*name;
 };
 

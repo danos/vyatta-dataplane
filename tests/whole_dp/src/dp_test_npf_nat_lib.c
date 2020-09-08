@@ -1287,3 +1287,387 @@ _dpt_npf_nat_pak_receive(const char *descr,
 			sleep(delay);
 	}
 }
+
+struct nat_ctx {
+	bool		do_check;
+	uint16_t	port;
+	validate_cb	saved_cb;
+};
+
+static struct nat_ctx nat_ctx = {
+	.do_check = true,
+	.saved_cb = dp_test_pak_verify,
+};
+
+/*
+ * This is called *after* the packet has been modified, but *before* the pkt
+ * queued on the tx ring is checked.
+ */
+static void
+nat_validate_cb(struct rte_mbuf *mbuf, struct ifnet *ifp,
+		struct dp_test_expected *expected,
+		enum dp_test_fwd_result_e fwd_result)
+{
+	struct nat_ctx *ctx = dp_test_exp_get_validate_ctx(expected);
+
+	/* call the saved check routine */
+	if (ctx->do_check) {
+		(ctx->saved_cb)(mbuf, ifp, expected, fwd_result);
+	} else {
+		expected->pak_correct[0] = true;
+		expected->pak_checked[0] = true;
+	}
+}
+
+/*
+ * nat_udp
+ */
+void
+_nat_udp(const char *rx_intf, const char *pre_smac, int pre_vlan,
+	 const char *pre_saddr, uint16_t pre_sport,
+	 const char *pre_daddr, uint16_t pre_dport,
+	 const char *post_saddr, uint16_t post_sport,
+	 const char *post_daddr, uint16_t post_dport,
+	 const char *post_dmac, int post_vlan, const char *tx_intf,
+	 int status, bool icmp_err,
+	 const char *file, const char *func, int line)
+{
+	struct dp_test_expected *test_exp;
+	struct rte_mbuf *test_pak, *exp_pak;
+	int len = 20;
+
+	/* Pre IPv4 UDP packet */
+	struct dp_test_pkt_desc_t pre_pkt_UDP = {
+		.text       = "IPv4 UDP",
+		.len        = len,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
+		.l3_src     = pre_saddr,
+		.l2_src     = pre_smac,
+		.l3_dst     = pre_daddr,
+		.l2_dst     = NULL,
+		.proto      = IPPROTO_UDP,
+		.l4         = {
+			.udp = {
+				.sport = pre_sport,
+				.dport = pre_dport
+			}
+		},
+		.rx_intf    = rx_intf,
+		.tx_intf    = tx_intf
+	};
+
+	/* Post IPv4 UDP packet */
+	struct dp_test_pkt_desc_t post_pkt_UDP = {
+		.text       = "IPv4 UDP",
+		.len        = len,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
+		.l3_src     = post_saddr,
+		.l2_src     = dp_test_intf_name2mac_str(tx_intf),
+		.l3_dst     = post_daddr,
+		.l2_dst     = post_dmac,
+		.proto      = IPPROTO_UDP,
+		.l4         = {
+			.udp = {
+				.sport = post_sport,
+				.dport = post_dport
+			}
+		},
+		.rx_intf    = rx_intf,
+		.tx_intf    = tx_intf
+	};
+
+	test_pak = dp_test_v4_pkt_from_desc(&pre_pkt_UDP);
+
+	/*
+	 * Create ICMP error message if expecting a drop for outbound packets
+	 */
+	if (status == DP_TEST_FWD_DROPPED && icmp_err) {
+		struct icmphdr *icph;
+		struct iphdr *ip;
+		int icmplen;
+		struct rte_mbuf *payload_pak;
+		const char *intf_addr;
+
+		/* src of icmp error pkt is output intf */
+		if (!strcmp(rx_intf, "dp1T0"))
+			intf_addr = "100.64.0.254";
+		else
+			intf_addr = "1.1.1.254";
+
+		icmplen = sizeof(struct iphdr) + sizeof(struct udphdr) +
+			pre_pkt_UDP.len;
+
+		payload_pak = dp_test_v4_pkt_from_desc(&pre_pkt_UDP);
+		dp_test_ipv4_decrement_ttl(payload_pak);
+
+		exp_pak = dp_test_create_icmp_ipv4_pak(intf_addr,
+						       pre_pkt_UDP.l3_src,
+						       ICMP_DEST_UNREACH,
+						       ICMP_HOST_UNREACH,
+						       DPT_ICMP_UNREACH_DATA(0),
+						       1, &icmplen,
+						       iphdr(payload_pak),
+						       &ip, &icph);
+		rte_pktmbuf_free(payload_pak);
+
+		test_exp = dp_test_exp_create(exp_pak);
+		rte_pktmbuf_free(exp_pak);
+
+		dp_test_exp_set_oif_name(test_exp, rx_intf);
+		status = DP_TEST_FWD_FORWARDED;
+
+		exp_pak = dp_test_exp_get_pak(test_exp);
+		ip = iphdr(exp_pak);
+
+		/* Set TOS, then reset checksum */
+		ip->tos = 0xc0;
+		ip->check = 0;
+		ip->check = rte_ipv4_cksum((const struct rte_ipv4_hdr *)ip);
+
+		dp_test_pktmbuf_eth_init(
+			exp_pak, pre_pkt_UDP.l2_src,
+			dp_test_intf_name2mac_str(rx_intf),
+			RTE_ETHER_TYPE_IPV4);
+	} else {
+
+		exp_pak = dp_test_v4_pkt_from_desc(&post_pkt_UDP);
+		test_exp = dp_test_exp_from_desc(exp_pak, &post_pkt_UDP);
+		rte_pktmbuf_free(exp_pak);
+	}
+
+	/* vlan */
+	if (pre_vlan > 0)
+		dp_test_pktmbuf_vlan_init(test_pak, pre_vlan);
+
+	if (post_vlan > 0) {
+		dp_test_exp_set_vlan_tci(test_exp, post_vlan);
+
+		(void)dp_test_pktmbuf_eth_init(
+			dp_test_exp_get_pak(test_exp),
+			post_dmac,
+			dp_test_intf_name2mac_str(tx_intf),
+			RTE_ETHER_TYPE_IPV4);
+	}
+
+	dp_test_exp_set_fwd_status(test_exp, status);
+
+	dp_test_exp_set_validate_ctx(test_exp, &nat_ctx, false);
+	dp_test_exp_set_validate_cb(test_exp, nat_validate_cb);
+
+	_dp_test_pak_receive(test_pak, rx_intf, test_exp,
+			     file, func, line);
+}
+
+/*
+ * nat_tcp
+ */
+void
+_nat_tcp(uint8_t flags, const char *rx_intf, const char *pre_smac,
+	 const char *pre_saddr, uint16_t pre_sport,
+	 const char *pre_daddr, uint16_t pre_dport,
+	 const char *post_saddr, uint16_t post_sport,
+	 const char *post_daddr, uint16_t post_dport,
+	 const char *post_dmac, const char *tx_intf,
+	 int status,
+	 const char *file, const char *func, int line)
+{
+	struct dp_test_expected *test_exp;
+	struct rte_mbuf *test_pak, *exp_pak;
+
+	/* Pre IPv4 TCP packet */
+	struct dp_test_pkt_desc_t pre_pkt_TCP = {
+		.text       = "IPv4 TCP",
+		.len        = 20,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
+		.l3_src     = pre_saddr,
+		.l2_src     = pre_smac,
+		.l3_dst     = pre_daddr,
+		.l2_dst     = NULL,
+		.proto      = IPPROTO_TCP,
+		.l4         = {
+			.tcp = {
+				.sport = pre_sport,
+				.dport = pre_dport,
+				.flags = flags,
+				.seq = 0,
+				.ack = 0,
+				.win = 8192,
+				.opts = NULL
+			}
+		},
+		.rx_intf    = rx_intf,
+		.tx_intf    = tx_intf
+	};
+
+	/* Post IPv4 TCP packet */
+	struct dp_test_pkt_desc_t post_pkt_TCP = {
+		.text       = "IPv4 TCP",
+		.len        = 20,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
+		.l3_src     = post_saddr,
+		.l2_src     = dp_test_intf_name2mac_str(tx_intf),
+		.l3_dst     = post_daddr,
+		.l2_dst     = post_dmac,
+		.proto      = IPPROTO_TCP,
+		.l4         = {
+			.tcp = {
+				.sport = post_sport,
+				.dport = post_dport,
+				.flags = flags,
+				.seq = 0,
+				.ack = 0,
+				.win = 8192,
+				.opts = NULL
+			}
+		},
+		.rx_intf    = rx_intf,
+		.tx_intf    = tx_intf
+	};
+
+	test_pak = dp_test_v4_pkt_from_desc(&pre_pkt_TCP);
+
+	/*
+	 * Create ICMP error message if expecting a drop for outbound packets
+	 */
+	if (status == DP_TEST_FWD_DROPPED && !strcmp(rx_intf, "dp1T0")) {
+		struct icmphdr *icph;
+		struct iphdr *ip;
+		int icmplen;
+		struct rte_mbuf *payload_pak;
+		const char *intf_addr;
+
+		/* src of icmp error pkt is output intf */
+		if (!strcmp(rx_intf, "dp1T0"))
+			intf_addr = "100.64.0.254";
+		else
+			intf_addr = "1.1.1.254";
+
+		icmplen = sizeof(struct iphdr) + sizeof(struct tcphdr) +
+			pre_pkt_TCP.len;
+
+		payload_pak = dp_test_v4_pkt_from_desc(&pre_pkt_TCP);
+		dp_test_ipv4_decrement_ttl(payload_pak);
+
+		exp_pak = dp_test_create_icmp_ipv4_pak(intf_addr,
+						       pre_pkt_TCP.l3_src,
+						       ICMP_DEST_UNREACH,
+						       ICMP_HOST_UNREACH,
+						       DPT_ICMP_UNREACH_DATA(0),
+						       1, &icmplen,
+						       iphdr(payload_pak),
+						       &ip, &icph);
+		rte_pktmbuf_free(payload_pak);
+
+		test_exp = dp_test_exp_create(exp_pak);
+		rte_pktmbuf_free(exp_pak);
+
+		dp_test_exp_set_oif_name(test_exp, rx_intf);
+		status = DP_TEST_FWD_FORWARDED;
+
+		exp_pak = dp_test_exp_get_pak(test_exp);
+		ip = iphdr(exp_pak);
+
+		/* Set TOS, then reset checksum */
+		ip->tos = 0xc0;
+		ip->check = 0;
+		ip->check = rte_ipv4_cksum((const struct rte_ipv4_hdr *)ip);
+
+		dp_test_pktmbuf_eth_init(
+			exp_pak, pre_pkt_TCP.l2_src,
+			dp_test_intf_name2mac_str(rx_intf),
+			RTE_ETHER_TYPE_IPV4);
+	} else {
+
+		exp_pak = dp_test_v4_pkt_from_desc(&post_pkt_TCP);
+		test_exp = dp_test_exp_from_desc(exp_pak, &post_pkt_TCP);
+		rte_pktmbuf_free(exp_pak);
+	}
+
+	dp_test_exp_set_fwd_status(test_exp, status);
+
+	dp_test_exp_set_validate_ctx(test_exp, &nat_ctx, false);
+	dp_test_exp_set_validate_cb(test_exp, nat_validate_cb);
+
+	_dp_test_pak_receive(test_pak, rx_intf, test_exp,
+			     file, func, line);
+}
+
+
+/*
+ * nat_icmp
+ */
+void
+_nat_icmp(uint8_t icmp_type,
+	  const char *rx_intf, const char *pre_smac,
+	  const char *pre_saddr, uint16_t pre_icmp_id,
+	  const char *pre_daddr,
+	  const char *post_saddr, uint16_t post_icmp_id,
+	  const char *post_daddr,
+	  const char *post_dmac, const char *tx_intf,
+	  const char *file, const char *func, int line)
+{
+	struct dp_test_expected *test_exp;
+	struct rte_mbuf *test_pak, *exp_pak;
+
+	/* Pre IPv4 ICMP packet */
+	struct dp_test_pkt_desc_t pre_pkt_ICMP = {
+		.text       = "IPv4 ICMP",
+		.len        = 20,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
+		.l3_src     = pre_saddr,
+		.l2_src     = pre_smac,
+		.l3_dst     = pre_daddr,
+		.l2_dst     = NULL,
+		.proto      = IPPROTO_ICMP,
+		.l4         = {
+			.icmp = {
+				.type = icmp_type,
+				.code = 0,
+				{
+					.dpt_icmp_id = pre_icmp_id,
+					.dpt_icmp_seq = 0,
+				},
+			}
+		},
+		.rx_intf    = rx_intf,
+		.tx_intf    = tx_intf
+	};
+
+	/* Post IPv4 ICMP packet */
+	struct dp_test_pkt_desc_t post_pkt_ICMP = {
+		.text       = "Packet A, IPv4 ICMP",
+		.len        = 20,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
+		.l3_src     = post_saddr,
+		.l2_src     = dp_test_intf_name2mac_str(tx_intf),
+		.l3_dst     = post_daddr,
+		.l2_dst     = post_dmac,
+		.proto      = IPPROTO_ICMP,
+		.l4         = {
+			.icmp = {
+				.type = icmp_type,
+				.code = 0,
+				{
+					.dpt_icmp_id = post_icmp_id,
+					.dpt_icmp_seq = 0,
+				},
+			}
+		},
+		.rx_intf    = rx_intf,
+		.tx_intf    = tx_intf
+	};
+
+	test_pak = dp_test_v4_pkt_from_desc(&pre_pkt_ICMP);
+
+	exp_pak = dp_test_v4_pkt_from_desc(&post_pkt_ICMP);
+	test_exp = dp_test_exp_from_desc(exp_pak, &post_pkt_ICMP);
+	rte_pktmbuf_free(exp_pak);
+
+	dp_test_exp_set_fwd_status(test_exp, DP_TEST_FWD_FORWARDED);
+
+	dp_test_exp_set_validate_ctx(test_exp, &nat_ctx, false);
+	dp_test_exp_set_validate_cb(test_exp, nat_validate_cb);
+
+	_dp_test_pak_receive(test_pak, rx_intf, test_exp,
+			     file, func, line);
+}

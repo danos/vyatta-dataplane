@@ -25,6 +25,7 @@
 #include "session.h"
 #include "session_cmds.h"
 #include "session_feature.h"
+#include "session_op.h"
 #include "session_private.h"
 #include "urcu.h"
 #include "util.h"
@@ -153,18 +154,98 @@ static int cmd_feature_json(struct session *s __unused,
 	return 0;
 }
 
-static int cmd_session_json(struct session *s, void *data)
+void
+cmd_session_json(struct session *s, json_writer_t *json, bool add_feat,
+		 bool is_json_array)
 {
-	struct session_dump *sd = data;
 	char buf[INET6_ADDRSTRLEN];
 	uint32_t if_index;
 	const void *saddr;
 	const void *daddr;
 	uint16_t sid;
 	uint16_t did;
-	json_writer_t *json = sd->sd_data;
 	struct sentry *init_sen = rcu_dereference(s->se_sen);
 	int tmp;
+
+	/* No sentry?  (racing with expiration) */
+	if (!init_sen)
+		return;
+
+	if (is_json_array) {
+		/* New array element */
+		jsonw_start_object(json);
+		jsonw_uint_field(json, "id", s->se_id);
+	} else {
+		/* New named object (session ID is the name) */
+		sprintf(buf, "%lu", s->se_id);
+		jsonw_name(json, buf);
+		jsonw_start_object(json);
+	}
+
+	/* Extract addrs/ids from the sentry */
+	session_sentry_extract(init_sen, &if_index, &tmp, &saddr, &sid, &daddr,
+			&did);
+
+	jsonw_uint_field(json, "vrf_id", s->se_vrfid);
+	jsonw_string_field(json, "src_addr",
+			inet_ntop(tmp, saddr, buf, sizeof(buf)));
+	jsonw_uint_field(json, "src_port", ntohs(sid));
+	jsonw_string_field(json, "dst_addr",
+			inet_ntop(tmp, daddr, buf, sizeof(buf)));
+	jsonw_uint_field(json, "dst_port", ntohs(did));
+
+	jsonw_uint_field(json, "proto", s->se_protocol);
+	jsonw_string_field(json, "interface", ifnet_indextoname_safe(if_index));
+
+	jsonw_int_field(json, "time_to_expire", sess_time_to_expire(s));
+	jsonw_int_field(json, "state_expire_window", s->se_timeout);
+	jsonw_int_field(json, "state", s->se_protocol_state);
+	jsonw_int_field(json, "gen_state", s->se_gen_state);
+
+	if (s->se_link && s->se_link->sl_parent)
+		jsonw_uint_field(json, "parent", s->se_link->sl_parent->se_id);
+	else
+		jsonw_uint_field(json, "parent", 0);
+
+	uint64_t ts = rte_get_timer_cycles();
+	if (ts > s->se_create_time)
+		jsonw_uint_field(json, "duration",
+				 (ts - s->se_create_time) / rte_get_timer_hz());
+
+	/* Bitmap of features enabled on this session */
+	jsonw_uint_field(json, "feature_type", sess_feature_type_bm(s));
+
+	/* Add feature json if desired */
+	if (add_feat) {
+		jsonw_int_field(json, "features_count",
+				rte_atomic16_read(&s->se_feature_count));
+		jsonw_name(json, "features");
+		jsonw_start_array(json);
+		session_feature_walk_session(s, SESSION_FEATURE_ALL,
+				cmd_feature_json, json);
+		jsonw_end_array(json);
+	}
+
+	/* Session counters */
+	jsonw_name(json, "counters");
+	jsonw_start_object(json);
+	jsonw_uint_field(json, "packets_in",
+			 rte_atomic64_read(&s->se_pkts_in));
+	jsonw_uint_field(json, "bytes_in",
+			 rte_atomic64_read(&s->se_bytes_in));
+	jsonw_uint_field(json, "packets_out",
+			 rte_atomic64_read(&s->se_pkts_out));
+	jsonw_uint_field(json, "bytes_out",
+			 rte_atomic64_read(&s->se_bytes_out));
+	jsonw_end_object(json); /* End of counters */
+
+	jsonw_end_object(json);
+}
+
+static int cmd_session_json_cb(struct session *s, void *data)
+{
+	struct session_dump *sd = data;
+	json_writer_t *json = sd->sd_data;
 
 	if (sd->sd_filter) {
 		if ((sd->sd_filter & SD_FILTER_NAT) &&
@@ -192,71 +273,8 @@ static int cmd_session_json(struct session *s, void *data)
 	if (sd->sd_count-- <= 0)
 		return -1;  /* Stop walk we are full */
 
-	/* No sentry?  (racing with expiration) */
-	if (!init_sen)
-		return 0;
-
-	sprintf(buf, "%lu", s->se_id);
-	jsonw_name(json, buf);
-	jsonw_start_object(json);
-
-	/* Extract addrs/ids from the sentry */
-	session_sentry_extract(init_sen, &if_index, &tmp, &saddr, &sid, &daddr,
-			&did);
-
-	jsonw_uint_field(json, "vrf_id", s->se_vrfid);
-	jsonw_string_field(json, "src_addr",
-			inet_ntop(tmp, saddr, buf, sizeof(buf)));
-	jsonw_uint_field(json, "src_port", ntohs(sid));
-	jsonw_string_field(json, "dst_addr",
-			inet_ntop(tmp, daddr, buf, sizeof(buf)));
-	jsonw_uint_field(json, "dst_port", ntohs(did));
-
-	jsonw_uint_field(json, "proto", s->se_protocol);
-	jsonw_string_field(json, "interface", ifnet_indextoname_safe(if_index));
-
-	if (s->se_flags & SESSION_EXPIRED)
-		tmp = 0;
-	else if (!s->se_etime)
-		tmp = s->se_custom_timeout ?
-			s->se_custom_timeout : s->se_timeout;
-	else
-		tmp = (int) (s->se_etime - get_dp_uptime());
-
-	jsonw_int_field(json, "time_to_expire", tmp);
-	jsonw_int_field(json, "state_expire_window", s->se_timeout);
-	jsonw_int_field(json, "state", s->se_protocol_state);
-
-	if (s->se_link && s->se_link->sl_parent)
-		jsonw_uint_field(json, "parent", s->se_link->sl_parent->se_id);
-	else
-		jsonw_uint_field(json, "parent", 0);
-
-	/* Add feature json if desired */
-	if (sd->sd_features) {
-		jsonw_int_field(json, "features_count",
-				rte_atomic16_read(&s->se_feature_count));
-		jsonw_name(json, "features");
-		jsonw_start_array(json);
-		session_feature_walk_session(s, SESSION_FEATURE_ALL,
-				cmd_feature_json, json);
-		jsonw_end_array(json);
-	}
-
-	/* Session counters */
-	jsonw_name(json, "counters");
-	jsonw_start_object(json);
-	jsonw_uint_field(json, "packets_in",
-			 rte_atomic64_read(&s->se_pkts_in));
-	jsonw_uint_field(json, "bytes_in",
-			 rte_atomic64_read(&s->se_bytes_in));
-	jsonw_uint_field(json, "packets_out",
-			 rte_atomic64_read(&s->se_pkts_out));
-	jsonw_uint_field(json, "bytes_out",
-			 rte_atomic64_read(&s->se_bytes_out));
-	jsonw_end_object(json); /* End of counters */
-
-	jsonw_end_object(json);
+	/* Add the session json */
+	cmd_session_json(s, json, sd->sd_features, false);
 
 	return 0;
 }
@@ -345,7 +363,7 @@ static void cmd_session_show(struct session_dump *sd)
 	jsonw_name(json, "sessions");
 	jsonw_start_object(json);
 
-	session_table_walk(cmd_session_json, sd);
+	session_table_walk(cmd_session_json_cb, sd);
 
 	jsonw_end_object(json);
 	jsonw_end_object(json);
@@ -1059,6 +1077,9 @@ enum cmd_op {
 	OP_SHOW_SESSIONS,
 	OP_SHOW_SENTRIES,
 	OP_DELETE,
+	OP_LIST,
+	OP_SHOW_DP_SESSIONS,
+	OP_CLEAR_DP_SESSIONS,
 };
 
 enum cmd_cfg {
@@ -1094,6 +1115,18 @@ static const struct session_command session_cmd_op[] = {
 	[OP_DELETE] = {
 		.tokens = "clear session",
 		.handler = cmd_op_delete_sessions,
+	},
+	[OP_LIST] = {
+		.tokens = "list",
+		.handler = cmd_op_list,
+	},
+	[OP_SHOW_DP_SESSIONS] = {
+		.tokens = "show dataplane sessions",
+		.handler = cmd_op_show_dp_sessions,
+	},
+	[OP_CLEAR_DP_SESSIONS] = {
+		.tokens = "clear dataplane sessions",
+		.handler = cmd_op_clear_dp_sessions,
 	},
 };
 

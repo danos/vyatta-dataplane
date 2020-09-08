@@ -66,6 +66,8 @@ dp_test_qos_json_dump(json_object *j_obj);
 void
 dp_test_qos_show(void);
 
+void
+dp_test_qos_ingress_maps_show(void);
 /*
  * Functions that handle the JSON output from "qos show"
  */
@@ -458,19 +460,33 @@ _dp_test_qos_attach_config_to_if(const char *if_name, const char *cmd_list[],
 					 __FILE__, __LINE__)
 
 void
-_dp_test_qos_send_config(const char *cmd_list[], int num_cmds,
-			 bool debug, const char *file, const int line);
+_dp_test_qos_send_config(const char *cmd_list[],
+		const char *expected_json_str,
+		const char *verify_cmd, int num_cmds,
+		bool debug, const char *file, const int line);
 
-#define dp_test_qos_send_config(cmd_list, num_cmds, debug)  \
-	_dp_test_qos_send_config(cmd_list, num_cmds, debug, \
-					 __FILE__, __LINE__)
+#define dp_test_qos_send_config(cmd_list, exp_json_str, verify_cmd, \
+		num_cmds, debug)  \
+		_dp_test_qos_send_config(cmd_list, exp_json_str, verify_cmd, \
+				num_cmds, debug, __FILE__, __LINE__)
+
+
+void _dp_test_qos_verify_config(const char *expected_json_str,
+		const char *verify_cmd,
+		bool negate_match, bool debug);
 
 void
-_dp_test_qos_send_cmd(const char *cmd, bool debug,
-		      const char *file, const int line);
+_dp_test_qos_send_cmd(const char *cmd,
+		const char *expected_cmd_str,
+		const char *verify_cmd,
+		bool debug,
+		const char *file, const int line);
 
-#define dp_test_qos_send_cmd(cmd, debug)  \
-	_dp_test_qos_send_cmd(cmd, debug, __FILE__, __LINE__)
+#define dp_test_qos_send_cmd(cmd, exp_json_str, verify_cmd,  \
+		debug)  \
+		_dp_test_qos_send_cmd(cmd, exp_json_str,  \
+				verify_cmd,  \
+				debug, __FILE__, __LINE__)
 
 void
 _dp_test_qos_send_if_cmd(const char *if_name, const char *cmd, bool debug,

@@ -77,6 +77,7 @@
 #include "power.h"
 #include "protobuf.h"
 #include "protobuf/SpeedConfig.pb-c.h"
+#include "protobuf/SynceConfig.pb-c.h"
 #include "protobuf/BreakoutConfig.pb-c.h"
 #include "rt_tracker.h"
 #include "session/session_cmds.h"
@@ -96,6 +97,7 @@
 #include "backplane.h"
 #include "vlan_modify.h"
 #include "ptp.h"
+#include "protobuf/PauseConfig.pb-c.h"
 
 #define MAX_CMDLINE 512
 #define MAX_ARGS    128
@@ -1269,6 +1271,76 @@ PB_REGISTER_CMD(speed_cmd) = {
 	.handler = cmd_speed_handler,
 };
 
+static int cmd_synce_handler(struct pb_msg *msg)
+{
+	void *payload = (void *)((char *)msg->msg);
+	struct fal_attribute_t synce_attr;
+	int len = msg->msg_len;
+	int ret = -1;
+	int action = -1;
+	int ifindex = -1;
+
+	SynceConfig *smsg = synce_config__unpack(NULL, len, payload);
+
+	if (!smsg) {
+		RTE_LOG(ERR, DATAPLANE,
+			"Failed to read SynceConfig protobuf command\n");
+		return ret;
+	}
+
+	action = smsg->action;
+	ifindex = smsg->ifindex;
+
+	switch (action) {
+	case SYNCE_CONFIG__ACTION__SYNCE_ENABLE_INTF:
+		synce_attr.id = FAL_PORT_ATTR_SYNCE_ADMIN_STATUS;
+		synce_attr.value.u8 = FAL_PORT_SYNCE_ENABLE;
+		ret = fal_l2_upd_port(ifindex, &synce_attr);
+		if (ret < 0) {
+			RTE_LOG(ERR, DATAPLANE, "ENABLE_INTF failed for "
+					"ifindex:%d, %d (%s)\n", ifindex, ret,
+					strerror(ret));
+		}
+		break;
+	case SYNCE_CONFIG__ACTION__SYNCE_DISABLE_INTF:
+		synce_attr.id = FAL_PORT_ATTR_SYNCE_ADMIN_STATUS;
+		synce_attr.value.u8 = FAL_PORT_SYNCE_DISABLE;
+		ret = fal_l2_upd_port(ifindex, &synce_attr);
+		if (ret < 0) {
+			RTE_LOG(ERR, DATAPLANE, "DISABLE_INTF failed for "
+					"ifindex:%d, %d (%s)\n", ifindex, ret,
+					strerror(ret));
+		}
+
+		break;
+	case SYNCE_CONFIG__ACTION__SYNCE_SET_CLK_SRC:
+		synce_attr.id = FAL_SWITCH_ATTR_SYNCE_CLOCK_SOURCE_PORT;
+		synce_attr.value.u32 = ifindex;
+
+		ret = fal_set_switch_attr(&synce_attr);
+
+		if (ret < 0) {
+			RTE_LOG(ERR, DATAPLANE, "CMD_SET_CLK_SRC failed for "
+					"ifindex:%d, %d (%s)\n", ifindex, ret,
+					strerror(ret));
+		}
+		break;
+	default:
+		RTE_LOG(ERR, DATAPLANE, "%s %d", __func__, __LINE__);
+		break;
+	}
+
+	synce_config__free_unpacked(smsg, NULL);
+	smsg = NULL;
+
+	return ret;
+}
+
+PB_REGISTER_CMD(synce_cmd) = {
+	.cmd = "vyatta:synce",
+	.handler = cmd_synce_handler,
+};
+
 static const char *poe_class_to_string(fal_port_poe_class_t class)
 {
 	switch (class) {
@@ -1515,6 +1587,88 @@ static int cmd_ring(FILE *f, int argc, char **argv)
 	return 0;
 }
 
+static int
+cmd_pause_handler(struct pb_msg *msg)
+{
+	struct fal_attribute_t attr;
+	void *payload = msg->msg;
+	int len = msg->msg_len;
+	struct ifnet *ifp;
+	int rv = 0;
+	enum fal_port_flow_control_mode_t pause_mode;
+
+	PauseConfig *bmsg = pause_config__unpack(NULL, len, payload);
+
+	if (!bmsg) {
+		RTE_LOG(ERR, DATAPLANE,
+			"failed to read PauseConfig protobuf command\n");
+		return -1;
+	}
+
+	switch (bmsg->mtype_case) {
+	case PAUSE_CONFIG__MTYPE_PAUSEIF:
+		if (!bmsg->pauseif->ifname)
+			goto free_msg;
+
+		ifp = dp_ifnet_byifname(bmsg->pauseif->ifname);
+		if (!ifp) {
+			RTE_LOG(ERR, DATAPLANE,
+			"Invalid interface in PauseConfig protobuf command\n");
+			rv = -1;
+			goto free_msg;
+		}
+
+		RTE_LOG(DEBUG, DATAPLANE,
+			"Rcvd Pause Mode: %d of interface %s\n",
+				bmsg->pauseif->value, ifp->if_name);
+
+		switch (bmsg->pauseif->value) {
+		case PAUSE_CONFIG__PAUSE_VALUE__NONE:
+			pause_mode = FAL_PORT_FLOW_CONTROL_MODE_DISABLE;
+			break;
+		case PAUSE_CONFIG__PAUSE_VALUE__RX:
+			pause_mode = FAL_PORT_FLOW_CONTROL_MODE_RX_ONLY;
+			break;
+		case PAUSE_CONFIG__PAUSE_VALUE__TX:
+			pause_mode = FAL_PORT_FLOW_CONTROL_MODE_TX_ONLY;
+			break;
+		case PAUSE_CONFIG__PAUSE_VALUE__BOTH:
+			pause_mode = FAL_PORT_FLOW_CONTROL_MODE_BOTH_ENABLE;
+			break;
+		default:
+			RTE_LOG(ERR, DATAPLANE,
+					"Unknown PAUSE_CONFIG__PAUSE_VALUE\n");
+			rv = -1;
+			goto free_msg;
+		}
+		break;
+	default:
+		RTE_LOG(ERR, DATAPLANE,
+				"Unknown mtype pauseif message :");
+		rv = -1;
+		goto free_msg;
+	}
+
+	attr.value.u8 = pause_mode;
+	ifp->if_pause = pause_mode;
+	attr.id = FAL_PORT_ATTR_GLOBAL_FLOW_CONTROL_MODE;
+
+	rv = fal_l2_upd_port(ifp->if_index, &attr);
+	if (rv < 0) {
+		RTE_LOG(ERR, DATAPLANE,
+			"Fal l2 update for port: %d Failed\n", ifp->if_index);
+	}
+
+free_msg:
+	pause_config__free_unpacked(bmsg, NULL);
+	return rv;
+}
+
+PB_REGISTER_CMD(pause_cmd) = {
+	.cmd = "vyatta:pause",
+	.handler = cmd_pause_handler,
+};
+
 static struct cfg_if_list *breakout_cfg_list;
 
 static void
@@ -1730,6 +1884,7 @@ static const cmd_t cmd_table[] = {
 	{ 0,	"ifconfig",	cmd_ifconfig,	"Show interface settings" },
 	{ 1,	"ifconfig",	cmd_ifconfig,	"Show interface settings" },
 	{ 2,	"ifconfig",	cmd_ifconfig,	"Show interface settings" },
+	{ 3,	"ifconfig",	cmd_ifconfig,	"Show interface settings" },
 	{ 0,	"incomplete",	cmd_incomplete,	"Show incomplete stats" },
 	{ 0,	"ipsec",	cmd_ipsec,	"Show IPsec information" },
 	{ 0,	"l2tpeth",	cmd_l2tp,	"Show l2tp sessions" },
@@ -1741,6 +1896,7 @@ static const cmd_t cmd_table[] = {
 	{ 0,	"memory",	cmd_memory,	"Memory pool statistics" },
 	{ 0,	"mode",		cmd_power_show,	"Power management mode" },
 	{ 0,	"mpls",		cmd_mpls,	"Show mpls information" },
+	{ 1,	"mpls",		cmd_mpls,	"Show mpls information" },
 	{ 0,	"mstp-op",	cmd_mstp_op,	"MSTP operational commands" },
 	{ 0,	"mstp-ut",	cmd_mstp_ut,	"MSTP unit-test" },
 	{ 0,	"multicast",	cmd_multicast,	"Multicast information" },
@@ -1757,14 +1913,10 @@ static const cmd_t cmd_table[] = {
 	{ 0,	"poe",		cmd_poe_op,	"poe commands" },
 	{ 0,	"poe-ut",	cmd_poe_ut,	"poe commands" },
 	{ 0,	"portmonitor",	cmd_portmonitor, "portmonitor command" },
+	{ 1,	"portmonitor",	cmd_portmonitor, "portmonitor command" },
 	{ 0,	"ptp",		cmd_ptp_op,	"PTP commands" },
 	{ 0,	"ptp-ut",	cmd_ptp_ut,	"PTP (unit tests)" },
-	{ 1,	"qos",		cmd_qos_op,	"Show Qos information" },
-	{ 2,	"qos",		cmd_qos_op,	"Show Qos information" },
-	{ 3,	"qos",		cmd_qos_op,	"Show Qos information" },
-	{ 4,	"qos",		cmd_qos_op,	"Show Qos information" },
-	{ 5,	"qos",		cmd_qos_op,	"Show Qos information" },
-	{ 6,	"qos",		cmd_qos_op,	"Show Qos information" },
+	{ 8,	"qos",		cmd_qos_op,	"Show Qos information" },
 	{ 0,	"reset",	cmd_reset,	"Reset dataplane" },
 	{ 0,	"ring",		cmd_ring,	"Display ring information" },
 	{ 0,	"route",	cmd_route,	"Display routing information" },

@@ -85,6 +85,21 @@ const char *ingress_map_cmds[] = {
 	"ingress-map in-map-1 complete",
 };
 
+static const char expected_ingress_map_str[] =
+"{\"ingress-maps\":"
+"[{\"name\":\"in-map-1\","
+"\"type\":\"pcp\","
+"\"system-default\":false,"
+"\"map\":"
+"[{\"designation\":0,\"DPs\":[{\"DP\":0,\"pcp/mask\":1}]},"
+"{\"designation\":1,\"DPs\":[{\"DP\":0,\"pcp/mask\":2}]},"
+"{\"designation\":2,\"DPs\":[{\"DP\":0,\"pcp/mask\":4}]},"
+"{\"designation\":3,\"DPs\":[{\"DP\":0,\"pcp/mask\":8}]},"
+"{\"designation\":4,\"DPs\":[{\"DP\":0,\"pcp/mask\":16}]},"
+"{\"designation\":5,\"DPs\":[{\"DP\":0,\"pcp/mask\":32}]},"
+"{\"designation\":6,\"DPs\":[{\"DP\":0,\"pcp/mask\":64}]},"
+"{\"designation\":7,\"DPs\":[{\"DP\":0,\"pcp/mask\":128}]}]}]}";
+
 DP_START_TEST(qos_class_basic, class_basic)
 {
 	bool debug = (dp_test_debug_get() == 2 ? true : false);
@@ -104,13 +119,16 @@ DP_START_TEST(qos_class_basic, class_basic)
 	dp_test_fail_unless((ret == 0),
 			    "failed to set hw-switching on dp2T1\n");
 
-	dp_test_qos_send_config(ingress_map_cmds, 9, debug);
+	dp_test_qos_send_config(ingress_map_cmds, expected_ingress_map_str,
+			"qos show ingress-maps", 9, debug);
 	dp_test_qos_send_if_cmd("dp2T1", "ingress-map in-map-1 vlan 0", debug);
 
 	/* Cleanup */
 	dp_test_qos_send_if_cmd("dp2T1", "ingress-map in-map-1 vlan 0 delete",
 				debug);
-	dp_test_qos_send_cmd("ingress-map in-map-1 delete", debug);
+	dp_test_qos_send_cmd("ingress-map in-map-1 delete",
+			"{ }",
+			"qos show ingress-maps", debug);
 
 	ret = dp_test_qos_class_hw_switch_if("dp2T1", false);
 	dp_test_fail_unless((ret == 0),
@@ -162,7 +180,7 @@ DP_START_TEST(qos_class_basic, class_basic)
  *						 policy ingress-map in-map-2
  */
 
-const char *ingress_multi_map_cmds[] = {
+const char *ingress_multi_map_cmds1[] = {
 	"ingress-map in-map-1 pcp 0 designation 0 drop-prec green",
 	"ingress-map in-map-1 pcp 1 designation 1 drop-prec green",
 	"ingress-map in-map-1 pcp 2 designation 2 drop-prec green",
@@ -172,6 +190,9 @@ const char *ingress_multi_map_cmds[] = {
 	"ingress-map in-map-1 pcp 6 designation 7 drop-prec green",
 	"ingress-map in-map-1 pcp 7 designation 7 drop-prec yellow",
 	"ingress-map in-map-1 complete",
+};
+
+const char *ingress_multi_map_cmds2[] = {
 	"ingress-map in-map-2 dscp-group rt designation 0 drop-prec green",
 	"ingress-map in-map-2 dscp-group voice designation 1 drop-prec green",
 	"ingress-map in-map-2 dscp-group control designation 2 drop-prec green",
@@ -179,6 +200,33 @@ const char *ingress_multi_map_cmds[] = {
 	"ingress-map in-map-2 dscp-group data2 designation 4 drop-prec green",
 	"ingress-map in-map-2 complete",
 };
+
+
+static const char  expected_ingress_multi_map_cmds1[] =
+"{\"ingress-maps\":"
+"[{\"name\":\"in-map-1\","
+"\"type\":\"pcp\","
+"\"system-default\":false,"
+"\"map\":"
+"[{\"designation\":0,\"DPs\":[{\"DP\":0,\"pcp/mask\":1}]},"
+"{\"designation\":1,\"DPs\":[{\"DP\":0,\"pcp/mask\":2}]},"
+"{\"designation\":2,\"DPs\":[{\"DP\":0,\"pcp/mask\":4}]},"
+"{\"designation\":4,\"DPs\":[{\"DP\":0,\"pcp/mask\":8},{\"DP\":1,\"pcp/mask\":16}]},"
+"{\"designation\":5,\"DPs\":[{\"DP\":0,\"pcp/mask\":32}]},"
+"{\"designation\":7,\"DPs\":[{\"DP\":0,\"pcp/mask\":64},"
+"{\"DP\":1,\"pcp/mask\":128}]}]}]}";
+
+static const char  expected_ingress_multi_map_cmds2[] =
+"{\"ingress-maps\":"
+"[{\"name\":\"in-map-2\","
+"\"type\":\"dscp\","
+"\"system-default\":false,"
+"\"map\":"
+"[{\"designation\":0,\"DPs\":[{\"DP\":0,\"pcp/mask\":70093866270720}]},"
+"{\"designation\":1,\"DPs\":[{\"DP\":0,\"pcp/mask\":211106232532992}]},"
+"{\"designation\":2,\"DPs\":[{\"DP\":0,\"pcp/mask\":9223372036854775807}]},"
+"{\"designation\":3,\"DPs\":[{\"DP\":0,\"pcp/mask\":274861129728}]},"
+"{\"designation\":4,\"DPs\":[{\"DP\":0,\"pcp/mask\":16777215}]}]}]}";
 
 const char *ingress_rg_add_cmds[] = {
 	"npf-cfg add dscp-group:rt 0 38;39;40;41;42;43;44;45",
@@ -224,7 +272,12 @@ DP_START_TEST(qos_class_basic, class_multimaps)
 	}
 	dp_test_send_config_src(dp_test_cont_src_get(), "%s",
 				ingress_rg_add_cmds[i++]);
-	dp_test_qos_send_config(ingress_multi_map_cmds, 15, debug);
+	dp_test_qos_send_config(ingress_multi_map_cmds1,
+			expected_ingress_multi_map_cmds1,
+			"qos show ingress-maps", 9, debug);
+	dp_test_qos_send_config(ingress_multi_map_cmds2,
+			expected_ingress_multi_map_cmds2,
+			"qos show ingress-maps", 6, debug);
 	dp_test_qos_send_if_cmd("dp2T1", "ingress-map in-map-1 vlan 0", debug);
 	dp_test_qos_send_if_cmd("dp2T1", "ingress-map in-map-2 vlan 10", debug);
 
@@ -233,8 +286,14 @@ DP_START_TEST(qos_class_basic, class_multimaps)
 				debug);
 	dp_test_qos_send_if_cmd("dp2T1", "ingress-map in-map-1 vlan 0 delete",
 				debug);
-	dp_test_qos_send_cmd("ingress-map in-map-1 delete", debug);
-	dp_test_qos_send_cmd("ingress-map in-map-2 delete", debug);
+	dp_test_qos_send_cmd("ingress-map in-map-1 delete",
+			expected_ingress_multi_map_cmds2,
+			"qos show ingress-maps",
+			debug);
+	dp_test_qos_send_cmd("ingress-map in-map-2 delete",
+			"{ }",
+			"qos show ingress-maps",
+			debug);
 	i = 0;
 	while (!strstr(ingress_rg_del_cmds[i], "npf-cfg commit")) {
 		dp_test_send_config_src(dp_test_cont_src_get(), "%s",
@@ -288,6 +347,20 @@ const char *ingress_map_dp_cmds[] = {
 	"ingress-map in-map-1 complete",
 };
 
+static const char expected_ingress_map_dp_cmds[] =
+"{\"ingress-maps\":"
+"[{\"name\":\"in-map-1\","
+"\"type\":\"pcp\","
+"\"system-default\":false,"
+"\"map\":"
+"[{\"designation\":0,\"DPs\":[{\"DP\":0,\"pcp/mask\":1}]},"
+"{\"designation\":1,\"DPs\":[{\"DP\":0,\"pcp/mask\":2}]},"
+"{\"designation\":2,\"DPs\":[{\"DP\":0,\"pcp/mask\":4}]},"
+"{\"designation\":3,\"DPs\":[{\"DP\":0,\"pcp/mask\":8},"
+"{\"DP\":1,\"pcp/mask\":16}]},"
+"{\"designation\":5,\"DPs\":[{\"DP\":0,\"pcp/mask\":32},"
+"{\"DP\":1,\"pcp/mask\":64},{\"DP\":2,\"pcp/mask\":128}]}]}]}";
+
 DP_START_TEST(qos_class_basic, class_map_multi_dps)
 {
 	bool debug = (dp_test_debug_get() == 2 ? true : false);
@@ -307,13 +380,17 @@ DP_START_TEST(qos_class_basic, class_map_multi_dps)
 	dp_test_fail_unless((ret == 0),
 			    "failed to set hw-switching on dp2T1\n");
 
-	dp_test_qos_send_config(ingress_map_dp_cmds, 9, debug);
+	dp_test_qos_send_config(ingress_map_dp_cmds,
+			expected_ingress_map_dp_cmds,
+			"qos show ingress-maps", 9, debug);
 	dp_test_qos_send_if_cmd("dp2T1", "ingress-map in-map-1 vlan 0", debug);
 
 	/* Cleanup */
 	dp_test_qos_send_if_cmd("dp2T1", "ingress-map in-map-1 vlan 0 delete",
 				debug);
-	dp_test_qos_send_cmd("ingress-map in-map-1 delete", debug);
+	dp_test_qos_send_cmd("ingress-map in-map-1 delete",
+			"{ }",
+			"qos show ingress-maps", debug);
 
 	ret = dp_test_qos_class_hw_switch_if("dp2T1", false);
 	dp_test_fail_unless((ret == 0),
@@ -368,6 +445,46 @@ const char *ingress_sysdef2[] = {
 	"ingress-map in-map-2 complete"
 };
 
+static const char  expected_ingress_sysdef1[] =
+"{\"ingress-maps\":"
+"[{\"name\":\"in-map-1\","
+"\"type\":\"pcp\","
+"\"system-default\":true,"
+"\"map\":"
+"[{\"designation\":0,\"DPs\":[{\"DP\":0,\"pcp/mask\":1},"
+"{\"DP\":1,\"pcp/mask\":2},{\"DP\":2,\"pcp/mask\":4}]},"
+"{\"designation\":1,\"DPs\":[{\"DP\":0,\"pcp/mask\":8},"
+"{\"DP\":1,\"pcp/mask\":16},{\"DP\":2,\"pcp/mask\":32}]},"
+"{\"designation\":2,\"DPs\":[{\"DP\":0,\"pcp/mask\":64},"
+"{\"DP\":1,\"pcp/mask\":128}]}]}]}";
+
+static const char  expected_ingress_sysdef2_false[] =
+"{\"ingress-maps\":"
+"[{\"name\":\"in-map-2\","
+"\"type\":\"pcp\","
+"\"system-default\":false,"
+"\"map\":"
+"[{\"designation\":2,\"DPs\":[{\"DP\":0,\"pcp/mask\":1},{\"DP\":1,\"pcp/mask\":2},"
+"{\"DP\":2,\"pcp/mask\":4}]},"
+"{\"designation\":3,\"DPs\":[{\"DP\":0,\"pcp/mask\":8},"
+"{\"DP\":1,\"pcp/mask\":16},{\"DP\":2,\"pcp/mask\":32}]},"
+"{\"designation\":4,\"DPs\":[{\"DP\":0,\"pcp/mask\":64},"
+"{\"DP\":1,\"pcp/mask\":128}]}]}]}";
+
+static const char  expected_ingress_sysdef2_true[] =
+"{\"ingress-maps\":"
+"[{\"name\":\"in-map-2\","
+"\"type\":\"pcp\","
+"\"system-default\":true,"
+"\"map\":"
+"[{\"designation\":2,\"DPs\":[{\"DP\":0,\"pcp/mask\":1},"
+"{\"DP\":1,\"pcp/mask\":2},{\"DP\":2,\"pcp/mask\":4}]},"
+"{\"designation\":3,\"DPs\":[{\"DP\":0,\"pcp/mask\":8},"
+"{\"DP\":1,\"pcp/mask\":16},{\"DP\":2,\"pcp/mask\":32}]},"
+"{\"designation\":4,\"DPs\":[{\"DP\":0,\"pcp/mask\":64},"
+"{\"DP\":1,\"pcp/mask\":128}]}]}]}";
+
+
 DP_START_TEST(qos_class_basic, class_single_sysdef)
 {
 	bool debug = (dp_test_debug_get() == 2 ? true : false);
@@ -376,18 +493,27 @@ DP_START_TEST(qos_class_basic, class_single_sysdef)
 
 	dp_test_qos_debug(debug);
 
-	dp_test_qos_send_config(ingress_sysdef1, 10, debug);
+	dp_test_qos_send_config(ingress_sysdef1, expected_ingress_sysdef1,
+			"qos show ingress-maps", 10, debug);
 	/* Second system-default should fail */
 	dp_test_set_config_err(-EINVAL);
-	dp_test_qos_send_config(ingress_sysdef2, 10, debug);
-
-	dp_test_qos_send_cmd("ingress-map in-map-1 delete", debug);
+	dp_test_qos_send_config(ingress_sysdef2,
+			expected_ingress_sysdef2_false,
+			"qos show ingress-maps", 10, debug);
+	dp_test_qos_send_cmd("ingress-map in-map-1 delete",
+			expected_ingress_sysdef2_false,
+			"qos show ingress-maps", debug);
 	/* Now it should succeed */
-	dp_test_qos_send_cmd("ingress-map in-map-2 system-default", debug);
-	dp_test_qos_send_cmd("ingress-map in-map-2 complete", debug);
+	dp_test_qos_send_cmd("ingress-map in-map-2 system-default", NULL,
+			"", debug);
+	dp_test_qos_send_cmd("ingress-map in-map-2 complete",
+			expected_ingress_sysdef2_true,
+			"qos show ingress-maps", debug);
 
 	/* Cleanup */
-	dp_test_qos_send_cmd("ingress-map in-map-2 delete", debug);
+	dp_test_qos_send_cmd("ingress-map in-map-2 delete",
+			"{ }",
+			"qos show ingress-maps", debug);
 
 	dp_test_qos_debug(false);
 
@@ -473,6 +599,18 @@ const char *ingress_policy_cmds[] = {
 	"enable",
 };
 
+static const char  expected_ingress_map_2_pol[] =
+"{\"ingress-maps\":"
+"[{\"name\":\"in-map-2\","
+"\"type\":\"dscp\","
+"\"system-default\":false,"
+"\"map\":"
+"[{\"designation\":0,\"DPs\":[{\"DP\":0,\"pcp/mask\":70093866270720}]},"
+"{\"designation\":1,\"DPs\":[{\"DP\":0,\"pcp/mask\":211106232532992}]},"
+"{\"designation\":2,\"DPs\":[{\"DP\":0,\"pcp/mask\":9223372036854775807}]},"
+"{\"designation\":3,\"DPs\":[{\"DP\":0,\"pcp/mask\":274861129728}]},"
+"{\"designation\":4,\"DPs\":[{\"DP\":0,\"pcp/mask\":16777215}]}]}]}";
+
 DP_START_TEST(qos_class_basic, class_map_to_policy)
 {
 	bool debug = (dp_test_debug_get() == 2 ? true : false);
@@ -505,7 +643,9 @@ DP_START_TEST(qos_class_basic, class_map_to_policy)
 	}
 	dp_test_send_config_src(dp_test_cont_src_get(), "%s",
 				ingress_rg_add_cmds[i++]);
-	dp_test_qos_send_config(ingress_map_2_pol_cmds, 6, debug);
+	dp_test_qos_send_config(ingress_map_2_pol_cmds,
+			expected_ingress_map_2_pol,
+			"qos show ingress-maps", 6, debug);
 	dp_test_qos_attach_config_to_if("dp2T2", ingress_policy_cmds, debug);
 
 	/*
@@ -539,7 +679,9 @@ DP_START_TEST(qos_class_basic, class_map_to_policy)
 	dp_test_qos_send_if_cmd("dp2T1", "ingress-map in-map-1 vlan 0 delete",
 				debug);
 	dp_test_qos_send_if_cmd("dp2T2", "disable", debug);
-	dp_test_qos_send_cmd("ingress-map in-map-2 delete", debug);
+	dp_test_qos_send_cmd("ingress-map in-map-2 delete",
+			"{ }",
+			"qos show ingress-maps", debug);
 	i = 0;
 	while (!strstr(ingress_rg_del_cmds[i], "npf-cfg commit")) {
 		dp_test_send_config_src(dp_test_cont_src_get(), "%s",

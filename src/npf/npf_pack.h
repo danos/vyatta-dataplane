@@ -33,131 +33,152 @@
 #define NPF_PACK_MESSAGE_MAX_SIZE     NPF_PACK_NEW_SESSION_MAX_SIZE
 #define NPF_PACK_MESSAGE_MIN_SIZE     (sizeof(struct npf_pack_message_hdr))
 
-#define SESSION_PACK_VERSION	      (0x0100)
+#define SESSION_PACK_VERSION	      (0x0102)
 
-enum {
+enum pack_session_new {
 	NPF_PACK_SESSION_NEW_FW = 1,
 	NPF_PACK_SESSION_NEW_NAT,
 	NPF_PACK_SESSION_NEW_NAT64,
 	NPF_PACK_SESSION_NEW_NAT_NAT64,
-	NPF_PACK_SESSION_NEW_END,
-};
+} __attribute__ ((__packed__));
 
+/*
+ *  From 'struct session' (except stats)
+ */
 struct npf_pack_dp_session {
-	uint64_t	se_id;	/* for logging */
-	uint16_t	se_flags;
-	uint8_t		se_protocol;
-	uint32_t	se_custom_timeout;
-	uint32_t	se_timeout;
-	uint64_t	se_etime;
-	uint8_t		se_protocol_state;
-	uint8_t		se_nat;
-	uint8_t		se_nat64;
-	uint8_t		se_nat46;
-	uint8_t		se_parent;
+	uint64_t	pds_id;	/* for logging */
+	uint32_t	pds_custom_timeout;
+	uint32_t	pds_timeout;
+	uint16_t	pds_flags;
+	uint8_t		pds_protocol;
+	uint8_t		pds_protocol_state;
+	uint8_t		pds_gen_state;
+	uint8_t		pds_fw:1;
+	uint8_t		pds_snat:1;
+	uint8_t		pds_dnat:1;
+	uint8_t		pds_nat64:1;
+	uint8_t		pds_nat46:1;
+	uint8_t		pds_parent:1;
+	uint8_t		pds_alg:1;
+	uint8_t		pds_in:1;
+	uint8_t		pds_out:1;
+	uint8_t		pds_app:1;
+	uint8_t		pds_pad[1];
 } __attribute__ ((__packed__));
 
-struct npf_pack_sentry {
-	struct sentry_packet	sp_forw;
-	struct sentry_packet	sp_back;
-	char			ifname[IFNAMSIZ];
+/*
+ * Stats from dataplane session, 'struct session'.  These are separate from
+ * 'struct npf_pack_dp_session' since they are periodically updated.
+ */
+struct npf_pack_dp_sess_stats {
+	uint64_t	pdss_pkts_in;
+	uint64_t	pdss_bytes_in;
+	uint64_t	pdss_pkts_out;
+	uint64_t	pdss_bytes_out;
 } __attribute__ ((__packed__));
 
+struct npf_pack_sentry_packet {
+	struct sentry_packet	psp_forw;
+	struct sentry_packet	psp_back;
+	char			psp_ifname[IFNAMSIZ];
+} __attribute__ ((__packed__));
+
+/*
+ * From npf_session_t
+ */
 struct npf_pack_npf_session {
-	int		s_flags;
-	uint32_t	s_fw_rule_hash;
-	uint32_t	s_rproc_rule_hash;
+	int		pns_flags;
+	uint32_t	pns_fw_rule_hash;
+	uint32_t	pns_rproc_rule_hash;
 } __attribute__ ((__packed__));
 
-struct npf_pack_npf_tcpstate {
-	npf_tcpstate_t	nst_tcpst;
-	uint8_t		pad[3];
+/*
+ * Packed npf_state_t
+ */
+struct npf_pack_session_state {
+	npf_tcpstate_t		pst_tcpst[2];
+	uint8_t			pst_state;
+	uint8_t			pst_pad[3];
 } __attribute__ ((__packed__));
 
-struct npf_pack_npf_state {
-	struct npf_pack_npf_tcpstate	nst_tcpst[2];
-	uint8_t				nst_state;
-	uint8_t				pad[3];
+/*
+ * Packed npf_nat_t
+ */
+struct npf_pack_nat {
+	uint16_t		pnt_l3_chk;
+	uint16_t		pnt_l4_chk;
+	uint32_t		pnt_map_flags;
+	uint32_t		pnt_rule_hash;
+	uint32_t		pnt_taddr;
+	uint32_t		pnt_oaddr;
+	uint16_t		pnt_tport;
+	uint16_t		pnt_oport;
 } __attribute__ ((__packed__));
 
-struct npf_pack_session_stats {
-	uint64_t	se_pkts_in;
-	uint64_t	se_bytes_in;
-	uint64_t	se_pkts_out;
-	uint64_t	se_bytes_out;
-} __attribute__ ((__packed__));
-
-struct npf_pack_npf_nat {
-	uint16_t		nt_l3_chk;
-	uint16_t		nt_l4_chk;
-	uint32_t		nt_map_flags;
-	uint32_t		nt_rule_hash;
-	uint32_t		nt_taddr;
-	uint32_t		nt_oaddr;
-	uint16_t		nt_tport;
-	uint16_t		nt_oport;
-} __attribute__ ((__packed__));
-
-struct npf_pack_npf_nat64 {
-	uint32_t		n64_rule_hash;
-	int			n64_rproc_id;
-	uint32_t		n64_map_flags;
-	struct in6_addr		n64_t_addr;
-	in_port_t		n64_t_port;
-	uint8_t			n64_v6;
-	uint8_t			n64_linked;
-	uint8_t			n64_has_np;
-	uint8_t			pad[3];
+struct npf_pack_nat64 {
+	uint32_t		pn64_rule_hash;
+	int32_t			pn64_rproc_id;
+	struct in6_addr		pn64_t_addr;
+	uint32_t		pn64_map_flags;
+	in_port_t		pn64_t_port;
+	uint8_t			pn64_v6;
+	uint8_t			pn64_linked;
 } __attribute__ ((__packed__));
 
 struct npf_pack_session_fw {
-	struct npf_pack_dp_session	dps;
-	struct npf_pack_sentry		sen;
-	struct npf_pack_npf_session	se;
-	struct npf_pack_npf_state	state;
-	struct npf_pack_session_stats	stats;
+	struct npf_pack_dp_session	pds;
+	struct npf_pack_sentry_packet	psp;
+	struct npf_pack_npf_session	pns;
+	struct npf_pack_session_state	pst;
+	struct npf_pack_dp_sess_stats	stats;
 } __attribute__ ((__packed__));
 
 struct npf_pack_session_nat {
-	struct npf_pack_dp_session	dps;
-	struct npf_pack_sentry		sen;
-	struct npf_pack_npf_session	se;
-	struct npf_pack_npf_state	state;
-	struct npf_pack_session_stats	stats;
-	struct npf_pack_npf_nat		nt;
+	struct npf_pack_dp_session	pds;
+	struct npf_pack_sentry_packet	psp;
+	struct npf_pack_npf_session	pns;
+	struct npf_pack_session_state	pst;
+	struct npf_pack_dp_sess_stats	stats;
+	struct npf_pack_nat		pnt;
 } __attribute__ ((__packed__));
 
 struct npf_pack_session_nat64 {
-	struct npf_pack_dp_session	dps;
-	struct npf_pack_sentry		sen;
-	struct npf_pack_npf_session	se;
-	struct npf_pack_npf_state	state;
-	struct npf_pack_session_stats	stats;
-	struct npf_pack_npf_nat64	n64;
+	struct npf_pack_dp_session	pds;
+	struct npf_pack_sentry_packet	psp;
+	struct npf_pack_npf_session	pns;
+	struct npf_pack_session_state	pst;
+	struct npf_pack_dp_sess_stats	stats;
+	struct npf_pack_nat64		pn64;
 } __attribute__ ((__packed__));
 
 struct npf_pack_session_nat_nat64 {
-	struct npf_pack_dp_session	dps;
-	struct npf_pack_sentry		sen;
-	struct npf_pack_npf_session	se;
-	struct npf_pack_npf_state	state;
-	struct npf_pack_session_stats	stats;
-	struct npf_pack_npf_nat		nt;
-	struct npf_pack_npf_nat64	n64;
+	struct npf_pack_dp_session	pds;
+	struct npf_pack_sentry_packet	psp;
+	struct npf_pack_npf_session	pns;
+	struct npf_pack_session_state	pst;
+	struct npf_pack_dp_sess_stats	stats;
+	struct npf_pack_nat		pnt;
+	struct npf_pack_nat64		pn64;
 } __attribute__ ((__packed__));
 
 struct npf_pack_message_hdr {
-	uint32_t	len;
-	uint16_t	version;
-	uint8_t		flags;
-	uint8_t		msg_type;
+	uint32_t		pmh_len;
+	uint16_t		pmh_version;
+	uint8_t			pmh_flags;
+	enum session_pack_type	pmh_type;
 } __attribute__ ((__packed__));
 
+static_assert(sizeof(struct npf_pack_message_hdr) == 8,
+	      "sizeof npf_pack_message_hdr");
+
 struct npf_pack_session_hdr {
-	uint32_t	len;
-	uint8_t		msg_type;
-	uint8_t		pad[3];
+	uint32_t		psh_len;
+	enum pack_session_new	psh_type;
+	uint8_t			psh_pad[3];
 } __attribute__ ((__packed__));
+
+static_assert(sizeof(struct npf_pack_session_hdr) == 8,
+	      "sizeof npf_pack_session_hdr");
 
 struct npf_pack_session_new {
 	struct	npf_pack_session_hdr hdr;
@@ -166,9 +187,9 @@ struct npf_pack_session_new {
 
 struct npf_pack_session_update {
 	uint64_t			se_id;	/* for UT */
-	struct npf_pack_sentry		sen;
-	struct npf_pack_npf_state	state;
-	struct npf_pack_session_stats	stats;
+	struct npf_pack_sentry_packet	psp;
+	struct npf_pack_session_state	pst;
+	struct npf_pack_dp_sess_stats	stats;
 	uint16_t			se_feature_count;
 	uint8_t				pad[2];
 } __attribute__ ((__packed__));
@@ -185,7 +206,7 @@ bool npf_pack_validate_msg(struct npf_pack_message *msg, uint32_t size);
 uint8_t npf_pack_get_msg_type(struct npf_pack_message *msg);
 uint64_t npf_pack_get_session_id(struct npf_pack_message *msg);
 
-struct npf_pack_session_stats *
+struct npf_pack_dp_sess_stats *
 npf_pack_get_session_stats(struct npf_pack_message *msg);
 
 #endif	/* NPF_PACK_H */

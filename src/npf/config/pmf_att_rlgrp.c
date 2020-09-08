@@ -28,13 +28,16 @@ enum pmf_eark_flags {
 	PMF_EARKF_LL_CREATED	= (1 << 1),
 	PMF_EARKF_CNT_PACKET	= (1 << 2),
 	PMF_EARKF_CNT_BYTE	= (1 << 3),
+	PMF_EARKF_TYPE_NAMED	= (1 << 4),
 };
 
 struct pmf_cntr {
+	TAILQ_ENTRY(pmf_cntr)	eark_list;
 	struct pmf_group_ext	*eark_group;
 	char			eark_name[CNTR_NAME_LEN];
 	uintptr_t		eark_objid;	/* FAL object */
 	uint16_t		eark_flags;
+	uint16_t		eark_refcount;
 };
 
 enum pmf_earl_flags {
@@ -46,7 +49,7 @@ struct pmf_attrl {
 	TAILQ_ENTRY(pmf_attrl)	earl_list;
 	struct pmf_group_ext	*earl_group;
 	struct pmf_rule		*earl_rule;
-	struct pmf_cntr		earl_cntr;
+	struct pmf_cntr		*earl_cntr;
 	uintptr_t		earl_objid;	/* FAL object */
 	uint16_t		earl_index;
 	uint16_t		earl_flags;
@@ -66,6 +69,7 @@ enum pmf_earg_flags {
 struct pmf_group_ext {
 	TAILQ_ENTRY(pmf_group_ext) earg_list;
 	TAILQ_HEAD(pmf_rlqh, pmf_attrl) earg_rules;
+	TAILQ_HEAD(pmf_cnqh, pmf_cntr) earg_cntrs;
 	struct npf_attpt_group	*earg_base;
 	struct pmf_rlset_ext	*earg_rlset;
 	struct pmf_attrl	*earg_rlattr;
@@ -123,7 +127,9 @@ pmf_arlg_attrl_get_grp(struct pmf_attrl const *earl)
 struct pmf_cntr *
 pmf_arlg_attrl_get_cntr(struct pmf_attrl *earl)
 {
-	struct pmf_cntr *eark = &earl->earl_cntr;
+	struct pmf_cntr *eark = earl->earl_cntr;
+	if (!eark)
+		return NULL;
 
 	if (!(eark->eark_flags & PMF_EARKF_PUBLISHED))
 		return NULL;
@@ -182,6 +188,182 @@ pmf_arlg_cntr_byt_enabled(struct pmf_cntr const *eark)
 	return (eark->eark_flags & PMF_EARKF_CNT_BYTE);
 }
 
+/*
+ * Returns true if the group has named counters (e.g. auto-per-action).
+ */
+static bool
+pmf_arlg_cntr_type_named(struct pmf_group_ext const *earg)
+{
+	if (earg->earg_summary & PMF_RAS_COUNT_DEF)
+		return (earg->earg_summary & PMF_SUMMARY_COUNT_DEF_NAMED_FLAGS);
+	return false;
+}
+
+/*
+ * Returns true if the group has numbered counters (auto-per-rule).
+ */
+static bool
+pmf_arlg_cntr_type_numbered(struct pmf_group_ext const *earg)
+{
+	if (earg->earg_summary & PMF_RAS_COUNT_DEF)
+		return !pmf_arlg_cntr_type_named(earg);
+	return false;
+}
+
+/*
+ * Returns true if the auto-per-action group has action "accept" counters.
+ */
+static bool
+pmf_arlg_cntr_type_named_accept(struct pmf_group_ext const *earg)
+{
+	if (earg->earg_summary & PMF_RAS_COUNT_DEF)
+		return (earg->earg_summary & PMF_RAS_COUNT_DEF_PASS);
+	return false;
+}
+
+/*
+ * Returns true if the auto-per-action group has action "drop" counters.
+ */
+static bool
+pmf_arlg_cntr_type_named_drop(struct pmf_group_ext const *earg)
+{
+	if (earg->earg_summary & PMF_RAS_COUNT_DEF)
+		return (earg->earg_summary & PMF_RAS_COUNT_DEF_DROP);
+	return false;
+}
+
+static struct pmf_cntr *
+pmf_arlg_find_cntr(struct pmf_group_ext *earg, const char *name)
+{
+	struct pmf_cntr *eark;
+
+	TAILQ_FOREACH(eark, &earg->earg_cntrs, eark_list)
+		if (strcmp(name, eark->eark_name) == 0)
+			return eark;
+
+	return NULL;
+}
+
+static void
+pmf_arlg_cntr_refcount_inc(struct pmf_cntr *eark)
+{
+	eark->eark_refcount++;
+}
+
+/*
+ * Decrements the number of users of the counter.
+ * Returns true if the counter still has users left.
+ */
+static bool
+pmf_arlg_cntr_refcount_dec(struct pmf_cntr *eark)
+{
+	if (--eark->eark_refcount > 0)
+		return true;
+
+	return false;
+}
+
+static struct pmf_cntr *
+pmf_arlg_alloc_cntr(struct pmf_group_ext *earg, const char *name)
+{
+	struct pmf_cntr *eark;
+
+	eark = calloc(1, sizeof(*eark));
+	if (!eark) {
+		RTE_LOG(ERR, FIREWALL,
+			"Error: OOM for counter %s\n", name);
+		return NULL;
+	}
+	snprintf(eark->eark_name, sizeof(eark->eark_name), "%s", name);
+	TAILQ_INSERT_HEAD(&earg->earg_cntrs, eark, eark_list);
+
+	return eark;
+}
+
+static void
+pmf_arlg_free_cntr(struct pmf_group_ext *earg, struct pmf_cntr *eark)
+{
+	if (!earg || !eark)
+		return;
+
+	TAILQ_REMOVE(&earg->earg_cntrs, eark, eark_list);
+	free(eark);
+}
+
+static struct pmf_cntr *
+pmf_arlg_get_or_alloc_cntr(struct pmf_group_ext *earg, const char *name)
+{
+	struct pmf_cntr *eark;
+
+	if (!earg || !name)
+		return NULL;
+
+	eark = pmf_arlg_find_cntr(earg, name);
+
+	if (!eark) {
+		eark = pmf_arlg_alloc_cntr(earg, name);
+		if (!eark)
+			return NULL;
+	}
+
+	pmf_arlg_cntr_refcount_inc(eark);
+
+	return eark;
+}
+
+static struct pmf_cntr *
+pmf_arlg_alloc_numbered_cntr(struct pmf_group_ext *earg, struct pmf_attrl *earl)
+{
+	char eark_name[CNTR_NAME_LEN];
+	struct pmf_cntr *eark;
+
+	if (!earg || !earl)
+		return NULL;
+
+	snprintf(eark_name, sizeof(eark_name), "%u", earl->earl_index);
+	if (pmf_arlg_find_cntr(earg, eark_name)) {
+		RTE_LOG(ERR, FIREWALL,
+			"Error: Attempt to alloc numbered counter that already exists (%d)\n",
+			earl->earl_index);
+		return NULL;
+	}
+
+	eark = pmf_arlg_alloc_cntr(earg, eark_name);
+	if (!eark)
+		return NULL;
+
+	pmf_arlg_cntr_refcount_inc(eark);
+
+	return eark;
+}
+
+static struct pmf_cntr *
+pmf_arlg_get_or_alloc_named_cntr(struct pmf_group_ext *earg, const char *name)
+{
+	struct pmf_cntr *eark;
+
+	eark = pmf_arlg_get_or_alloc_cntr(earg, name);
+	if (!eark)
+		return NULL;
+
+	/* Is it a new counter? */
+	if (!(eark->eark_flags & PMF_EARKF_PUBLISHED))
+		eark->eark_flags |= PMF_EARKF_TYPE_NAMED;
+
+	return eark;
+}
+
+static struct pmf_cntr *
+pmf_arlg_get_or_alloc_action_cntr_accept(struct pmf_group_ext *earg)
+{
+	return pmf_arlg_get_or_alloc_named_cntr(earg, "accept");
+}
+
+static struct pmf_cntr *
+pmf_arlg_get_or_alloc_action_cntr_drop(struct pmf_group_ext *earg)
+{
+	return pmf_arlg_get_or_alloc_named_cntr(earg, "drop");
+}
 
 char const *
 pmf_arlg_grp_get_name(struct pmf_group_ext const *earg)
@@ -256,7 +438,8 @@ pmf_arlg_recalc_summary(struct pmf_group_ext *earg, struct pmf_rule *rule)
 {
 	uint32_t group_summary = 0;
 
-#define RLATTR_SUMMARY_MASK (PMF_RMS_IP_FAMILY|PMF_RAS_COUNT_DEF)
+#define RLATTR_SUMMARY_MASK (PMF_RMS_IP_FAMILY|PMF_RAS_COUNT_DEF| \
+	PMF_SUMMARY_COUNT_DEF_NAMED_FLAGS)
 	if (rule)
 		group_summary |= rule->pp_summary & RLATTR_SUMMARY_MASK;
 
@@ -363,18 +546,43 @@ pmf_arlg_hw_ntfy_cntr_add(struct pmf_group_ext *earg, struct pmf_attrl *earl)
 	if (!(earl->earl_rule->pp_summary & PMF_RAS_COUNT_REF))
 		return;
 
-	struct pmf_cntr *eark = &earl->earl_cntr;
+	struct pmf_cntr *eark = NULL;
 
-	eark->eark_group = earg;
-	snprintf(eark->eark_name, sizeof(eark->eark_name),
-		 "%u", earl->earl_index);
-	eark->eark_objid = 0;
-	eark->eark_flags = PMF_EARKF_CNT_PACKET;
+	if (pmf_arlg_cntr_type_numbered(earg)) {
+		/* Counter type: auto-per-rule: */
+		eark = pmf_arlg_alloc_numbered_cntr(earg, earl);
+		if (!eark)
+			return;
+		earl->earl_cntr = eark;
+	} else if (pmf_arlg_cntr_type_named(earg)) {
+		/* Counter type: auto-per-action: */
 
-	if (pmf_hw_counter_create(eark))
-		eark->eark_flags |= PMF_EARKF_LL_CREATED;
+		/* Rule's action should have a counter? */
+		if (pmf_arlg_cntr_type_named_accept(earg) &&
+		    (earl->earl_rule->pp_summary & PMF_RAS_PASS))
+			eark = pmf_arlg_get_or_alloc_action_cntr_accept(earg);
 
-	eark->eark_flags |= PMF_EARKF_PUBLISHED;
+		if (pmf_arlg_cntr_type_named_drop(earg) &&
+		    (earl->earl_rule->pp_summary & PMF_RAS_DROP))
+			eark = pmf_arlg_get_or_alloc_action_cntr_drop(earg);
+
+		if (!eark)
+			return;
+
+		earl->earl_cntr = eark;
+	} else
+		return;
+
+	if (!(eark->eark_flags & PMF_EARKF_PUBLISHED)) {
+		eark->eark_group = earg;
+		eark->eark_objid = 0;
+		eark->eark_flags |= PMF_EARKF_CNT_PACKET;
+		eark->eark_flags |= PMF_EARKF_PUBLISHED;
+	}
+
+	if (!(eark->eark_flags & PMF_EARKF_LL_CREATED))
+		if (pmf_hw_counter_create(eark))
+			eark->eark_flags |= PMF_EARKF_LL_CREATED;
 }
 
 static void
@@ -383,16 +591,19 @@ pmf_arlg_hw_ntfy_cntr_del(struct pmf_group_ext *earg, struct pmf_attrl *earl)
 	if (!(earg->earg_flags & PMF_EARGF_PUBLISHED))
 		return;
 
-	struct pmf_cntr *eark = &earl->earl_cntr;
-
-	if (!(eark->eark_flags & PMF_EARKF_PUBLISHED))
+	struct pmf_cntr *eark = earl->earl_cntr;
+	if (!eark)
 		return;
 
-	pmf_hw_counter_delete(eark);
+	earl->earl_cntr = NULL;
 
-	eark->eark_flags &= ~(PMF_EARKF_PUBLISHED|PMF_EARKF_LL_CREATED);
+	if (pmf_arlg_cntr_refcount_dec(eark))
+		return;
 
-	memset(eark, 0, sizeof(*eark));
+	if (eark->eark_flags & PMF_EARKF_LL_CREATED)
+		pmf_hw_counter_delete(eark);
+
+	pmf_arlg_free_cntr(earg, eark);
 }
 
 static void
@@ -893,6 +1104,7 @@ pmf_arlg_attpt_grp_ev_handler(enum npf_attpt_ev_type event,
 		earg->earg_rgname = rg_name;
 		earg->earg_flags |= PMF_EARGF_DEFERRED;
 		TAILQ_INIT(&earg->earg_rules);
+		TAILQ_INIT(&earg->earg_cntrs);
 		bool ok = npf_attpt_group_set_extend(agr, earg);
 		if (!ok) {
 			RTE_LOG(ERR, FIREWALL,
@@ -1298,10 +1510,8 @@ pmf_arlg_dump(FILE *fp)
 				rg_attr_rl ? " GAttr" : "",
 				rg_family ? rg_v6 ? " v6" : " v4" : ""
 				);
-			/* Stats - i.e. COUNTERS - cheat for now */
-			struct pmf_attrl *earl;
-			TAILQ_FOREACH(earl, &earg->earg_rules, earl_list) {
-				struct pmf_cntr *eark = &earl->earl_cntr;
+			struct pmf_cntr *eark;
+			TAILQ_FOREACH(eark, &earg->earg_cntrs, eark_list) {
 				uint32_t ct_flags = eark->eark_flags;
 				bool ct_published
 					= (ct_flags & PMF_EARKF_PUBLISHED);
@@ -1334,6 +1544,7 @@ pmf_arlg_dump(FILE *fp)
 					);
 			}
 			/* Rules - i.e. ENTRIES */
+			struct pmf_attrl *earl;
 			TAILQ_FOREACH(earl, &earg->earg_rules, earl_list) {
 				uint32_t rl_flags = earl->earl_flags;
 				bool rl_published
@@ -1467,15 +1678,11 @@ pmf_arlg_cmd_show_counters(FILE *fp, char const *ifname, int dir,
 
 			jsonw_string_field(json, "name", earg->earg_rgname);
 
-			/* Stats - i.e. COUNTERS - cheat for now */
-			struct pmf_attrl *earl;
+			struct pmf_cntr *eark;
 			jsonw_name(json, "counters");
 			jsonw_start_array(json);
-			TAILQ_FOREACH(earl, &earg->earg_rules, earl_list) {
-				struct pmf_cntr *eark = &earl->earl_cntr;
-
+			TAILQ_FOREACH(eark, &earg->earg_cntrs, eark_list)
 				pmf_arlg_show_cntr(json, eark);
-			}
 			jsonw_end_array(json);
 
 			jsonw_end_object(json);
@@ -1526,11 +1733,8 @@ pmf_arlg_cmd_clear_counters(char const *ifname, int dir, char const *rgname)
 			if (rgname && strcmp(rgname, earg->earg_rgname) != 0)
 				continue;
 
-			/* Stats - i.e. COUNTERS - cheat for now */
-			struct pmf_attrl *earl;
-			TAILQ_FOREACH(earl, &earg->earg_rules, earl_list) {
-				struct pmf_cntr *eark = &earl->earl_cntr;
-
+			struct pmf_cntr *eark;
+			TAILQ_FOREACH(eark, &earg->earg_cntrs, eark_list) {
 				uint32_t ct_flags = eark->eark_flags;
 				if (!(ct_flags & PMF_EARKF_PUBLISHED))
 					continue;

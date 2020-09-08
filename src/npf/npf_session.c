@@ -373,6 +373,12 @@ void npf_session_add_fw_rule(npf_session_t *s, npf_rule_t *r)
 	}
 }
 
+bool npf_session_is_fw(npf_session_t *s)
+{
+	return s && (s->s_flags & SE_PASS) != 0;
+}
+
+
 /* Set the expire flag and contact ALG framework */
 static void sess_set_expired(npf_session_t *se)
 {
@@ -651,7 +657,7 @@ npf_session_state_change(npf_state_t *nst, uint8_t old_state,
 		npf_sess_limit_state_change(handle, proto_idx,
 					    old_state, state);
 	if (npf_state_get_generic_state(proto_idx, state) ==
-	    NPF_ANY_SESSION_CLOSED)
+	    SESSION_STATE_CLOSED)
 		sess_set_expired(se);
 	npf_session_do_watch(se, SESSION_STATE_CHANGE);
 }
@@ -1061,7 +1067,8 @@ int npf_session_activate(npf_session_t *se, const struct ifnet *ifp,
 		 * Create a dataplane session with the npf session as
 		 * a feature.
 		 */
-		rc = npf_dataplane_session_establish(se, npc, nbuf, ifp);
+		bool out = (se->s_flags & PFIL_OUT) != 0;
+		rc = npf_dataplane_session_establish(se, npc, nbuf, ifp, out);
 		if (rc)
 			return rc;
 
@@ -1228,6 +1235,10 @@ bool npf_session_set_dpi(npf_session_t *se, void *data)
 	uint64_t * const ptr = (uint64_t *)&se->s_dpi;
 	uint64_t const new = (uintptr_t)data;
 	uint64_t const expected = 0;
+
+	/* Mark this session as containing DPI */
+	session_set_app(npf_session_get_dp_session(se));
+
 	if (rte_atomic64_cmpset(ptr, expected, new))
 		return true;
 
@@ -1374,7 +1385,7 @@ npf_enable_session_log(const char *proto, const char *state)
 			return -1;
 	} else {
 		state_index = npf_map_str_to_generic_state(state);
-		if (!npf_state_generic_state_is_valid(state_index))
+		if (state_index == SESSION_STATE_NONE)
 			return -1;
 	}
 	NPF_SET_SESSION_LOG_FLAG(proto_idx, state_index);
@@ -1404,7 +1415,7 @@ npf_disable_session_log(const char *proto, const char *state)
 			return -1;
 	} else {
 		state_index = npf_map_str_to_generic_state(state);
-		if (!npf_state_generic_state_is_valid(state_index))
+		if (state_index == SESSION_STATE_NONE)
 			return -1;
 	}
 	NPF_CLR_SESSION_LOG_FLAG(proto_idx, state_index);
@@ -1457,6 +1468,10 @@ void npf_session_feature_json(json_writer_t *json, npf_session_t *se)
 	/* DPI json */
 	if (se->s_dpi)
 		dpi_info_json(se->s_dpi, json);
+
+	/* ALG json */
+	if (se->s_alg)
+		npf_alg_session_json(json, se, se->s_alg);
 }
 
 static inline const char *npf_session_log_event(
@@ -1743,31 +1758,31 @@ void npf_save_stats(npf_session_t *se, int dir, uint64_t bytes)
 }
 
 int npf_session_npf_pack_state_pack(struct npf_session *se,
-				    struct npf_pack_npf_state *state)
+				    struct npf_pack_session_state *pst)
 {
 	npf_state_t *nst;
 
-	if (!se || !state)
+	if (!se || !pst)
 		return -EINVAL;
 
 	nst = &se->s_state;
-	memcpy(&state->nst_tcpst[0], &nst->nst_tcpst[0],
-			sizeof(npf_tcpstate_t));
-	memcpy(&state->nst_tcpst[1], &nst->nst_tcpst[1],
-			sizeof(npf_tcpstate_t));
+	memcpy(&pst->pst_tcpst[0], &nst->nst_tcpst[0],
+	       sizeof(*pst->pst_tcpst));
+	memcpy(&pst->pst_tcpst[1], &nst->nst_tcpst[1],
+	       sizeof(*pst->pst_tcpst));
 
-	state->nst_state = nst->nst_state;
+	pst->pst_state = nst->nst_state;
 
 	return 0;
 }
 
 int npf_session_npf_pack_state_restore(struct npf_session *se,
-				       struct npf_pack_npf_state *state,
+				       struct npf_pack_session_state *pst,
 				       vrfid_t vrfid)
 {
 	npf_state_t *nst;
 
-	if (!se || !state)
+	if (!se || !pst)
 		return -EINVAL;
 
 	nst = &se->s_state;
@@ -1775,7 +1790,7 @@ int npf_session_npf_pack_state_restore(struct npf_session *se,
 
 	rte_spinlock_lock(&nst->nst_lock);
 
-	if (npf_state_npf_pack_update(nst, state, state->nst_state,
+	if (npf_state_npf_pack_update(nst, pst, pst->pst_state,
 				      se->s_proto_idx)) {
 		rte_spinlock_unlock(&nst->nst_lock);
 		return -EINVAL;
@@ -1787,13 +1802,13 @@ int npf_session_npf_pack_state_restore(struct npf_session *se,
 }
 
 int npf_session_npf_pack_state_update(struct npf_session *se,
-				      struct npf_pack_npf_state *state)
+				      struct npf_pack_session_state *pst)
 {
 	npf_state_t *nst;
 	uint8_t old_state, new_state;
 	struct session *s;
 
-	if (!se || !state)
+	if (!se || !pst)
 		return -EINVAL;
 
 	nst = &se->s_state;
@@ -1801,13 +1816,13 @@ int npf_session_npf_pack_state_update(struct npf_session *se,
 	rte_spinlock_lock(&nst->nst_lock);
 
 	old_state = nst->nst_state;
-	new_state = state->nst_state;
+	new_state = pst->pst_state;
 	if (old_state == new_state) {
 		rte_spinlock_unlock(&nst->nst_lock);
 		return 0;
 	}
 
-	if (npf_state_npf_pack_update(nst, state, new_state,
+	if (npf_state_npf_pack_update(nst, pst, new_state,
 				      se->s_proto_idx)) {
 		rte_spinlock_unlock(&nst->nst_lock);
 		return -EINVAL;
@@ -1827,25 +1842,25 @@ int npf_session_npf_pack_state_update(struct npf_session *se,
 }
 
 int npf_session_npf_pack_pack(npf_session_t *se,
-			      struct npf_pack_npf_session *fw,
-			      struct npf_pack_npf_state *state)
+			      struct npf_pack_npf_session *pns,
+			      struct npf_pack_session_state *pst)
 {
 	npf_rule_t *rule;
 
-	if (!se || !fw)
+	if (!se || !pns)
 		return -EINVAL;
 
-	fw->s_flags = se->s_flags;
+	pns->pns_flags = se->s_flags;
 	rule = npf_session_get_fw_rule(se);
-	fw->s_fw_rule_hash = (rule ? npf_rule_get_hash(rule) : 0);
+	pns->pns_fw_rule_hash = (rule ? npf_rule_get_hash(rule) : 0);
 	rule = npf_session_get_rproc_rule(se);
-	fw->s_rproc_rule_hash = (rule ? npf_rule_get_hash(rule) : 0);
-	return npf_session_npf_pack_state_pack(se, state);
+	pns->pns_rproc_rule_hash = (rule ? npf_rule_get_hash(rule) : 0);
+	return npf_session_npf_pack_state_pack(se, pst);
 }
 
 struct npf_session *
-npf_session_npf_pack_restore(struct npf_pack_npf_session *fw,
-			     struct npf_pack_npf_state *state,
+npf_session_npf_pack_restore(struct npf_pack_npf_session *pns,
+			     struct npf_pack_session_state *pst,
 			     vrfid_t vrfid, uint8_t protocol,
 			     uint32_t ifindex)
 {
@@ -1853,29 +1868,29 @@ npf_session_npf_pack_restore(struct npf_pack_npf_session *fw,
 	npf_rule_t *rproc_rl;
 	npf_session_t *se;
 
-	if (!fw || !state)
+	if (!pns || !pst)
 		return NULL;
 
 	se = zmalloc_aligned(sizeof(*se));
 	if (!se)
 		return NULL;
 
-	fw_rl = fw->s_fw_rule_hash ?
-			npf_get_rule_by_hash(fw->s_fw_rule_hash) : NULL;
+	fw_rl = pns->pns_fw_rule_hash ?
+			npf_get_rule_by_hash(pns->pns_fw_rule_hash) : NULL;
 	if (fw_rl)
 		npf_session_add_fw_rule(se, fw_rl);
-	rproc_rl = fw->s_rproc_rule_hash ?
-			npf_get_rule_by_hash(fw->s_rproc_rule_hash) : NULL;
+	rproc_rl = pns->pns_rproc_rule_hash ?
+		npf_get_rule_by_hash(pns->pns_rproc_rule_hash) : NULL;
 	if (rproc_rl)
 		npf_session_add_rproc_rule(se, rproc_rl);
 
-	se->s_flags = fw->s_flags;
+	se->s_flags = pns->pns_flags;
 	se->s_vrfid = vrfid;
 	se->s_if_idx = ifindex;
 	se->s_proto = protocol;
 	se->s_proto_idx = npf_proto_idx_from_proto(protocol);
 
-	if (npf_session_npf_pack_state_restore(se, state, vrfid))
+	if (npf_session_npf_pack_state_restore(se, pst, vrfid))
 		goto error;
 
 	rte_spinlock_init(&se->s_state.nst_lock);

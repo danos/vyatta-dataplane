@@ -82,12 +82,25 @@ struct portmonitor_filter {
 	uint8_t		type;		/* filter type: in or out */
 };
 
+struct vlan_info {
+	struct rcu_head	vlan_rcu;		/* Chain for RCU free */
+	uint8_t num_vlans;			/* Num of Rx vlans */
+	uint16_t *vlanids;			/* Rx vlan array ptr */
+};
+
 struct portmonitor_srcif {
 	struct ifnet			*ifp;		/* source ifp */
 	char				ifname[IFNAMSIZ]; /* source ifname */
 	struct portmonitor_session	*pm_session;	/* srcif session */
 	struct cds_list_head		srcif_list;	/* Linked list chain */
 	struct rcu_head			srcif_rcu;	/* Chain for rcu free */
+
+	/* Mirroring for specific vlans is not supported in dataplane
+	 * This information not used in dataplane but is passed to
+	 * FAL plugins as some platforms may support it in hardware
+	 */
+	struct vlan_info *rx_vinfo;			/* rx vlan info */
+	struct vlan_info *tx_vinfo;			/* tx vlan info */
 };
 
 struct erspan_v2_hdr {
