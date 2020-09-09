@@ -1423,27 +1423,62 @@ npf_disable_session_log(const char *proto, const char *state)
 	return 0;
 }
 
-static int npf_session_json_nat(json_writer_t *json, npf_session_t *se)
+static void npf_session_json_rule(json_writer_t *json, npf_rule_t *rl)
+{
+	if (!rl)
+		return;
+
+	const char *name = npf_rule_get_name(rl);
+	rule_no_t num = npf_rule_get_num(rl);
+
+	jsonw_name(json, "rule");
+	jsonw_start_object(json);
+
+	jsonw_string_field(json, "name", name ? name : "<UNKNOWN>");
+	jsonw_uint_field(json, "number", num);
+
+	jsonw_end_object(json);
+}
+
+static void npf_session_json_nat(json_writer_t *json, npf_session_t *se)
 {
 	npf_addr_t taddr;
 	uint16_t tport;
 	int type;
 	u_int masq = 0;
 	char buf[INET_ADDRSTRLEN];
+	npf_nat_t *nt = se->s_nat;
 
-	if (!npf_nat_info(se->s_nat, &type, &taddr, &tport, &masq))
-		return -ENOENT;
+	if (!nt || !npf_nat_info(nt, &type, &taddr, &tport, &masq))
+		return;
 
 	jsonw_name(json, "nat");
 	jsonw_start_object(json);
+
 	jsonw_uint_field(json, "trans_type", type);
 	jsonw_string_field(json, "trans_addr",
 			inet_ntop(AF_INET, &taddr, buf, sizeof(buf)));
 	jsonw_uint_field(json, "trans_port", ntohs(tport));
 	jsonw_uint_field(json, "masquerade", masq);
-	jsonw_end_object(json);
 
-	return 0;
+	npf_session_json_rule(json, npf_nat_get_rule(nt));
+
+	jsonw_end_object(json);
+}
+
+static void npf_session_json_fw(json_writer_t *json, npf_session_t *se)
+{
+	npf_rule_t *rl = npf_session_get_fw_rule(se);
+
+	if (!rl)
+		return;
+
+	jsonw_name(json, "firewall");
+	jsonw_start_object(json);
+
+	npf_session_json_rule(json, rl);
+
+	jsonw_end_object(json);
 }
 
 void npf_session_feature_json(json_writer_t *json, npf_session_t *se)
@@ -1456,6 +1491,10 @@ void npf_session_feature_json(json_writer_t *json, npf_session_t *se)
 		jsonw_string_field(json, "interface", "unkn");
 
 	jsonw_uint_field(json, "flags", se->s_flags);
+
+	/* Firewall json */
+	if (npf_session_is_fw(se))
+		npf_session_json_fw(json, se);
 
 	/* NAT json */
 	if (se->s_nat)
