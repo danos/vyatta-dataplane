@@ -136,8 +136,6 @@ bool npf_session_is_nat_pinhole(const npf_session_t *se, int dir);
 bool npf_session_forward_dir(npf_session_t *se, int di);
 npf_nat_t *npf_session_retnat(npf_session_t *se, const int di, bool *forw);
 
-int npf_session_json_nat(json_writer_t *json, npf_session_t *se);
-
 void npf_session_feature_json(json_writer_t *json, npf_session_t *se);
 void npf_session_feature_log(enum session_log_event event, struct session *s,
 			    struct session_feature *sf);

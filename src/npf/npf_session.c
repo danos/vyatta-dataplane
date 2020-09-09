@@ -1423,7 +1423,7 @@ npf_disable_session_log(const char *proto, const char *state)
 	return 0;
 }
 
-int npf_session_json_nat(json_writer_t *json, npf_session_t *se)
+static int npf_session_json_nat(json_writer_t *json, npf_session_t *se)
 {
 	npf_addr_t taddr;
 	uint16_t tport;
