@@ -1275,6 +1275,7 @@ main_init_src(enum cont_src_en cont_src)
 static void
 main_destroy_src(enum cont_src_en cont_src)
 {
+	cleanup_requests(cont_src);
 	destroy_requests(cont_src);
 	controller_unsubscribe(cont_src);
 	route_broker_unsubscribe(cont_src);

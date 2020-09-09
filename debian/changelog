@@ -488,6 +488,15 @@ vyatta-dataplane (3.11.1) unstable; urgency=medium
 
  -- Paul Atkins <paul.atkins@intl.att.com>  Mon, 20 Jul 2020 21:45:59 +0100
 
+vyatta-dataplane (3.10.70) unstable; urgency=medium
+
+  [ aroberts ]
+  * Don't allow a child shaper to exceed 99.6% of parent rate
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Fri, 04 Sep 2020 10:15:04 +0100
+
 vyatta-dataplane (3.10.69) unstable; urgency=medium
 
   [ Charles (Chas) Williams ]

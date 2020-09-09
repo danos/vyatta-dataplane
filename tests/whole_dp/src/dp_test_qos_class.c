@@ -442,7 +442,6 @@ const char *ingress_sysdef2[] = {
 	"ingress-map in-map-2 pcp 6 designation 4 drop-prec green",
 	"ingress-map in-map-2 pcp 7 designation 4 drop-prec yellow",
 	"ingress-map in-map-2 system-default",
-	"ingress-map in-map-2 complete"
 };
 
 static const char  expected_ingress_sysdef1[] =
@@ -499,7 +498,7 @@ DP_START_TEST(qos_class_basic, class_single_sysdef)
 	dp_test_set_config_err(-EINVAL);
 	dp_test_qos_send_config(ingress_sysdef2,
 			expected_ingress_sysdef2_false,
-			"qos show ingress-maps", 10, debug);
+			"qos show ingress-maps", 9, debug);
 	dp_test_qos_send_cmd("ingress-map in-map-1 delete",
 			expected_ingress_sysdef2_false,
 			"qos show ingress-maps", debug);
