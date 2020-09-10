@@ -1,3 +1,24 @@
+vyatta-dataplane (3.11.20) unstable; urgency=medium
+
+  [ Paul Atkins ]
+  * crypto: policy_rule_find_by_tag should return NULL not false
+
+  [ Gavin Shearer ]
+  * cpp: request that the burst rate is set to 100ms
+
+  [ Manohar Rapeti ]
+  * qos: enhanced "qos show platform" (Bugfix: VRVDR-52788)
+  * qos: possible accessing of freed pointer (Bugfix: VRVDR-52788)
+  * qos: Indentation fix (Bugfix: VRVDR-52788)
+
+  [ Ian Wilson ]
+  * ut: Renamed npf ICMP tests
+  * ut: Added test for ICMP pkts with corrupted embedded packet
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Thu, 10 Sep 2020 09:36:33 +0100
+
 vyatta-dataplane (3.11.19) unstable; urgency=medium
 
   * 3.10.70
