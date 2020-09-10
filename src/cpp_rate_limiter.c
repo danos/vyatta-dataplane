@@ -20,6 +20,7 @@
 #define CPP_RL_ERR(fmt, args...) \
 	rte_log(RTE_LOG_ERR, RTE_LOGTYPE_CPP_RL, "CPP_RL: " fmt, ## args)
 
+#define CPP_RL_DEF_BURST_MS	100	/* default burst rate in milliseconds */
 
 /* === cfg-mode === */
 
@@ -623,30 +624,40 @@ cpp_rl_cfg(struct pb_msg *msg)
 				/* FAL_POLICER_ATTR_METER_TYPE attribute */
 				policer_attr_list[0].value.u32 =
 					FAL_POLICER_METER_TYPE_PACKETS;
-				/*
-				 * FAL_POLICER_ATTR_CBS attribute -
-				 * need a minimum of 1 pps
-				 */
-				policer_attr_list[3].value.u64 = 1;
+
 				/* FAL_POLICER_ATTR_CIR attribute */
 				policer_attr_list[4].value.u64 =
 					parameter->rate_pps;
+
+				/*
+				 * FAL_POLICER_ATTR_CBS attribute is
+				 * the CIR rate * ms burst size, giving
+				 * the packets-per-second burst.
+				 */
+				policer_attr_list[3].value.u64 =
+					policer_attr_list[4].value.u64 *
+					CPP_RL_DEF_BURST_MS / 1000;
 			}
 
 			if (parameter->has_rate_kbps) {
 				/* FAL_POLICER_ATTR_METER_TYPE attribute */
 				policer_attr_list[0].value.u32 =
 					FAL_POLICER_METER_TYPE_BYTES;
-				/*
-				 * FAL_POLICER_ATTR_CBS attribute -
-				 * need a minimum of 1 kbps
-				 */
-				policer_attr_list[3].value.u64 = 1 * (1024 / 8);
+
 				/* FAL_POLICER_ATTR_CIR attribute */
 				/* convert from kilobits into bytes */
 				policer_attr_list[4].value.u64 =
 					((uint64_t)parameter->rate_kbps)
 					* (1024 / 8);
+
+				/*
+				 * FAL_POLICER_ATTR_CBS attribute is
+				 * the CIR rate * ms burst size, giving
+				 * the bytes-per-second burst.
+				 */
+				policer_attr_list[3].value.u64 =
+					policer_attr_list[4].value.u64 *
+					CPP_RL_DEF_BURST_MS / 1000;
 			}
 		}
 
