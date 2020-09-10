@@ -44,6 +44,7 @@ struct rte_ether_addr;
 static fal_object_t fal_test_plugin_next_obj = 1;
 
 static zhash_t *fal_test_brports;
+static zhash_t *fal_test_ingressm_port;
 
 int fal_plugin_init(void)
 {
@@ -51,6 +52,10 @@ int fal_plugin_init(void)
 
 	fal_test_brports = zhash_new();
 	if (!fal_test_brports)
+		return -ENOMEM;
+
+	fal_test_ingressm_port = zhash_new();
+	if (!fal_test_ingressm_port)
 		return -ENOMEM;
 
 	return 0;
@@ -159,6 +164,7 @@ int fal_plugin_l2_get_attrs(unsigned int if_index,
 			    struct fal_attribute_t *attr_list)
 {
 	uint32_t i;
+	char ifi_str[16];
 	int rc = -EOPNOTSUPP;
 
 	DEBUG("%s(if_index %d, attr_count %d, ...)\n",
@@ -166,9 +172,12 @@ int fal_plugin_l2_get_attrs(unsigned int if_index,
 
 	for (i = 0; i < attr_count; i++) {
 		switch (attr_list[i].id) {
-		/* Any old non zero value */
 		case FAL_PORT_ATTR_QOS_INGRESS_MAP_ID:
-			attr_list[i].value.objid = 0xff;
+			snprintf(ifi_str, sizeof(ifi_str),
+					"%u", if_index);
+			attr_list[i].value.objid =
+				(fal_object_t)zhash_lookup
+				(fal_test_ingressm_port, ifi_str);
 			rc = 0;
 			break;
 		default:
@@ -254,10 +263,21 @@ static const char *fal_port_attr_t_to_str(enum fal_port_attr_t val)
 int fal_plugin_l2_upd_port(unsigned int if_index,
 			   struct fal_attribute_t *attr)
 {
+	char ifi_str[16];
 	DEBUG("%s(if_index %d, { id %d %s %p })\n",
-	      __func__, if_index, attr->id,
-	      fal_port_attr_t_to_str(attr->id),
-	      attr->value.ptr);
+			__func__, if_index, attr->id,
+			fal_port_attr_t_to_str(attr->id),
+			attr->value.ptr);
+	if (attr->id == FAL_PORT_ATTR_QOS_INGRESS_MAP_ID) {
+		snprintf(ifi_str, sizeof(ifi_str), "%u", if_index);
+		if (attr->value.objid != FAL_NULL_OBJECT_ID)
+			zhash_insert(fal_test_ingressm_port, ifi_str,
+					(void *)(fal_object_t)
+					attr->value.objid);
+		else
+			zhash_delete(fal_test_ingressm_port, ifi_str);
+	}
+
 	return 0;
 }
 
@@ -851,6 +871,10 @@ int fal_plugin_vlan_feature_create(uint32_t attr_count,
 			DEBUG("%s attr: MAC_LIMIT: %d\n", __func__,
 				  vf->mac_limit);
 			break;
+		case FAL_VLAN_FEATURE_ATTR_QOS_INGRESS_MAP_ID:
+			vf->map_obj = attr_list[i].value.objid;
+			break;
+
 		}
 	}
 
@@ -903,6 +927,34 @@ int fal_plugin_vlan_feature_set_attr(fal_object_t obj,
 	}
 	return 0;
 }
+
+int
+fal_plugin_vlan_feature_get_attr(fal_object_t obj, uint32_t attr_count,
+		struct fal_attribute_t *attr_list)
+{
+	uint32_t i;
+	struct vlan_feat *vf = (struct vlan_feat *)obj;
+
+	for (i = 0; i < attr_count; i++) {
+		switch (attr_list[i].id) {
+		case FAL_VLAN_FEATURE_ATTR_QOS_INGRESS_MAP_ID:
+			attr_list->value.objid = vf->map_obj;
+			break;
+
+		case FAL_VLAN_FEATURE_ATTR_MAC_COUNT:
+			attr_list->value.u32 = 0;
+			break;
+
+		default:
+			ERROR("%s: Unhandled attribute %d\n",
+					__func__, attr_list[i].id);
+			break;
+		}
+	}
+
+	return 0;
+}
+
 
 static bool vlan_stats_cleared;
 

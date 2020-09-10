@@ -1632,14 +1632,21 @@ void _dp_test_qos_send_cmd(const char *cmd,
 }
 
 void _dp_test_qos_send_if_cmd(const char *if_name,
-			      const char *cmd, bool debug,
-			      const char *file, const int line)
+		const char *cmd,
+		const char *expected_json_str,
+		const char *verify_cmd,
+		bool debug,
+		const char *file, const int line)
 
 {
 	char real[IFNAMSIZ];
 
 	dp_test_send_config_src(dp_test_cont_src_get(), "qos %s %s",
 				dp_test_intf_real(if_name, real), cmd);
+
+	_dp_test_qos_verify_config(expected_json_str,
+			verify_cmd, false, debug);
+
 }
 
 void _dp_test_qos_attach_config_to_if(const char *if_name,

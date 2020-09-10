@@ -489,11 +489,18 @@ _dp_test_qos_send_cmd(const char *cmd,
 				debug, __FILE__, __LINE__)
 
 void
-_dp_test_qos_send_if_cmd(const char *if_name, const char *cmd, bool debug,
-		      const char *file, const int line);
+_dp_test_qos_send_if_cmd(const char *if_name,
+		const char *cmd,
+		const char *expected_cmd_str,
+		const char *verify_cmd,
+		bool debug,
+		const char *file, const int line);
 
-#define dp_test_qos_send_if_cmd(if_name, cmd, debug)  \
-	_dp_test_qos_send_if_cmd(if_name, cmd, debug, __FILE__, __LINE__)
+#define dp_test_qos_send_if_cmd(if_name, cmd, exp_json_str, verify_cmd, \
+		debug)  \
+		_dp_test_qos_send_if_cmd(if_name, \
+				cmd, exp_json_str, verify_cmd, \
+				debug, __FILE__, __LINE__)
 
 /*
  * QoS packet test functions

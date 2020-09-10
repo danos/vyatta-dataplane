@@ -46,6 +46,7 @@ fal_plugin_qos_new_map
 fal_plugin_qos_del_map
 fal_plugin_qos_upd_map
 fal_plugin_qos_get_map_attrs
+fal_plugin_qos_dump_map
 fal_plugin_qos_new_queue
 fal_plugin_qos_del_queue
 fal_plugin_qos_upd_queue
@@ -78,6 +79,7 @@ fal_plugin_vlan_feature_create
 fal_plugin_vlan_feature_delete
 fal_plugin_vlan_feature_update
 fal_plugin_vlan_feature_set_attr
+fal_plugin_vlan_feature_get_attr
 fal_plugin_vlan_clear_stats
 fal_plugin_vlan_get_stats
 fal_plugin_create_cpp_limiter
