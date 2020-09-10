@@ -33,6 +33,19 @@
 #include "dp_test_npf_sess_lib.h"
 #include "dp_test_npf_nat_lib.h"
 
+/*
+ * icmpv4_1 Match on ICMP type and code
+ * icmpv4_2 ICMP groups, accept packets specified by the firewall
+ * icmpv4_3 ICMP groups, drop packets specified by the firewall
+ * icmpv6_1 Match on ICMP type and code
+ * icmpv6_2 ICMP groups, accept packets specified by the firewall
+ * icmpv6_3 ICMP groups, drop packets specified by the firewall
+ * icmpv4_4 ICMP echo request and reply  with a stateful firewall rule
+ * icmpv6_4 ICMPv6 echo request and reply  with a stateful firewall rule
+ * icmpv4_5 Strict ICMP echo request/response sessions
+ * icmpv6_5 Strict ICMP echo request/response sessions
+ * icmpv4_6 ICMP echo request and reply with SNAT
+ */
 
 struct dp_test_npf_icmp_t {
 	/* DP_TEST_FWD_FORWARDED or DP_TEST_FWD_DROPPED */
@@ -53,8 +66,6 @@ struct dp_test_npf_icmp_t {
 
 DP_DECL_TEST_SUITE(npf_icmp);
 
-DP_DECL_TEST_CASE(npf_icmp, icmp_ipv4, NULL, NULL);
-
 /*
  * Match on ICMP type and code
  *
@@ -64,7 +75,8 @@ DP_DECL_TEST_CASE(npf_icmp, icmp_ipv4, NULL, NULL);
  *                    dp1T0 |     | dp2T1
  *                    intf1 +-----+ intf2
  */
-DP_START_TEST(icmp_ipv4, test1)
+DP_DECL_TEST_CASE(npf_icmp, icmpv4_1, NULL, NULL);
+DP_START_TEST(icmpv4_1, test)
 {
 	struct dp_test_pkt_desc_t *pkt;
 	struct dp_test_expected *test_exp;
@@ -244,7 +256,8 @@ DP_START_TEST(icmp_ipv4, test1)
 /*
  * ICMP groups, accept packets specified by the firewall
  */
-DP_START_TEST(icmp_ipv4, test2)
+DP_DECL_TEST_CASE(npf_icmp, icmpv4_2, NULL, NULL);
+DP_START_TEST(icmpv4_2, test)
 {
 	struct dp_test_pkt_desc_t *pkt;
 	struct dp_test_expected *test_exp;
@@ -371,7 +384,8 @@ DP_START_TEST(icmp_ipv4, test2)
 /*
  * ICMP groups, drop packets specified by the firewall
  */
-DP_START_TEST(icmp_ipv4, test3)
+DP_DECL_TEST_CASE(npf_icmp, icmpv4_3, NULL, NULL);
+DP_START_TEST(icmpv4_3, test)
 {
 	struct dp_test_pkt_desc_t *pkt;
 	struct dp_test_expected *test_exp;
@@ -496,7 +510,6 @@ DP_START_TEST(icmp_ipv4, test3)
 
 } DP_END_TEST;
 
-DP_DECL_TEST_CASE(npf_icmp, icmp_ipv6, NULL, NULL);
 
 /*
  * Match on ICMP type and code
@@ -508,7 +521,8 @@ DP_DECL_TEST_CASE(npf_icmp, icmp_ipv6, NULL, NULL);
  *                    intf1 +-----+ intf2
  *
  */
-DP_START_TEST(icmp_ipv6, test1)
+DP_DECL_TEST_CASE(npf_icmp, icmpv6_1, NULL, NULL);
+DP_START_TEST(icmpv6_1, test)
 {
 	struct dp_test_pkt_desc_t *pkt;
 	struct dp_test_expected *test_exp;
@@ -673,7 +687,8 @@ DP_START_TEST(icmp_ipv6, test1)
 /*
  * ICMP groups, accept packets specified by the firewall
  */
-DP_START_TEST(icmp_ipv6, test2)
+DP_DECL_TEST_CASE(npf_icmp, icmpv6_2, NULL, NULL);
+DP_START_TEST(icmpv6_2, test)
 {
 	struct dp_test_pkt_desc_t *pkt;
 	struct dp_test_expected *test_exp;
@@ -799,7 +814,8 @@ DP_START_TEST(icmp_ipv6, test2)
 /*
  * ICMP groups, drop packets specified by the firewall
  */
-DP_START_TEST(icmp_ipv6, test3)
+DP_DECL_TEST_CASE(npf_icmp, icmpv6_3, NULL, NULL);
+DP_START_TEST(icmpv6_3, test)
 {
 	struct dp_test_pkt_desc_t *pkt;
 	struct dp_test_expected *test_exp;
@@ -925,7 +941,8 @@ DP_START_TEST(icmp_ipv6, test3)
 /*
  * ICMP echo request and reply  with a stateful firewall rule
  */
-DP_START_TEST(icmp_ipv4, test4)
+DP_DECL_TEST_CASE(npf_icmp, icmpv4_4, NULL, NULL);
+DP_START_TEST(icmpv4_4, test)
 {
 	char *dp1T0_mac = dp_test_intf_name2mac_str("dp1T0");
 	char *dp2T1_mac = dp_test_intf_name2mac_str("dp2T1");
@@ -1124,7 +1141,8 @@ DP_START_TEST(icmp_ipv4, test4)
 /*
  * ICMPv6 echo request and reply  with a stateful firewall rule
  */
-DP_START_TEST(icmp_ipv6, test4)
+DP_DECL_TEST_CASE(npf_icmp, icmpv6_4, NULL, NULL);
+DP_START_TEST(icmpv6_4, test)
 {
 	/* Setup interfaces and neighbours */
 	dp_test_nl_add_ip_addr_and_connected("dp1T0", "2001:1:1::1/64");
@@ -1258,7 +1276,8 @@ DP_START_TEST(icmp_ipv6, test4)
  * Then enforce within that session that the forward packets must be echo
  * requests, and the reverse packets echo replies.
  */
-DP_START_TEST(icmp_ipv4, test5)
+DP_DECL_TEST_CASE(npf_icmp, icmpv4_5, NULL, NULL);
+DP_START_TEST(icmpv4_5, test)
 {
 	/* Setup interfaces and neighbours */
 	dp_test_nl_add_ip_addr_and_connected("dp1T0", "100.101.102.1/24");
@@ -1466,7 +1485,8 @@ DP_START_TEST(icmp_ipv4, test5)
  * Then enforce within that session that the forward packets must be echo
  * requests, and the reverse packets echo replies.
  */
-DP_START_TEST(icmp_ipv6, test5)
+DP_DECL_TEST_CASE(npf_icmp, icmpv6_5, NULL, NULL);
+DP_START_TEST(icmpv6_5, test)
 {
 	/* Setup interfaces and neighbours */
 	dp_test_nl_add_ip_addr_and_connected("dp1T0", "2001:1:1::1/64");
@@ -1652,7 +1672,8 @@ DP_START_TEST(icmp_ipv6, test5)
 /*
  * ICMP echo request and reply with SNAT
  */
-DP_START_TEST(icmp_ipv4, test6)
+DP_DECL_TEST_CASE(npf_icmp, icmpv4_6, NULL, NULL);
+DP_START_TEST(icmpv4_6, test)
 {
 	char *dp1T0_mac = dp_test_intf_name2mac_str("dp1T0");
 	char *dp2T1_mac = dp_test_intf_name2mac_str("dp2T1");
@@ -1858,5 +1879,132 @@ DP_START_TEST(icmp_ipv4, test6)
 
 	dp_test_nl_del_ip_addr_and_connected("dp1T0", "100.101.102.1/24");
 	dp_test_nl_del_ip_addr_and_connected("dp2T1", "200.201.202.1/24");
+
+} DP_END_TEST;
+
+/*
+ * Create an ICMP unreachable packet with an embedded packet in the payload
+ */
+static void
+gen_icmp_unreach(struct rte_mbuf **rv_pak, struct dp_test_expected **rv_exp,
+		 const void *payload, int payload_len)
+{
+	struct rte_mbuf *test_pak;
+	struct iphdr *ip;
+	struct dp_test_expected *exp;
+
+	test_pak = dp_test_create_icmp_ipv4_pak("11.0.0.1",
+						"21.0.0.1",
+						ICMP_DEST_UNREACH,
+						ICMP_NET_UNREACH,
+						DPT_ICMP_UNREACH_DATA(0),
+						1, /* one mbuf please */
+						&payload_len, payload,
+						&ip, NULL);
+
+	dp_test_set_pak_ip_field(ip, DP_TEST_SET_TOS,
+				 IPTOS_PREC_INTERNETCONTROL);
+
+	(void)dp_test_pktmbuf_eth_init(test_pak,
+				       dp_test_intf_name2mac_str("dp1T0"),
+				       NULL, RTE_ETHER_TYPE_IPV4);
+
+	exp = dp_test_exp_create(test_pak);
+
+	(void)dp_test_pktmbuf_eth_init(dp_test_exp_get_pak(exp),
+				       "aa:bb:cc:dd:21:1",
+				       dp_test_intf_name2mac_str("dp2T1"),
+				       RTE_ETHER_TYPE_IPV4);
+	dp_test_ipv4_decrement_ttl(dp_test_exp_get_pak(exp));
+
+	dp_test_exp_set_oif_name(exp, "dp2T1");
+
+	*rv_pak = test_pak;
+	*rv_exp = exp;
+}
+
+/*
+ * ICMP error message with corrupted embedded packet.
+ *
+ * If the embedded packet IP or IPv6 header is corrupted such that
+ * npf_ipv4_valid or npf_ipv6_valid fails then the packet cache off the
+ * embedded packet will not have been fully setup, including the pointers to
+ * the IP/IPv6 addresses.
+ *
+ * Any attempt to subsequently access the addresses will fail.  This may occur
+ * NAT or a firewall wule with logging enabled.
+ */
+DP_DECL_TEST_CASE(npf_icmp, icmpv4_7, NULL, NULL);
+DP_START_TEST_DONT_RUN(icmpv4_7, test)
+{
+	struct rte_mbuf *test_pak, *embd_pak;
+	struct dp_test_expected *exp;
+	struct iphdr *embd_ip;
+	int len = 20;
+	int embd_len;
+
+	/* Setup */
+	dp_test_nl_add_ip_addr_and_connected("dp1T0", "10.0.0.1/24");
+	dp_test_nl_add_ip_addr_and_connected("dp2T1", "20.0.0.1/24");
+
+	dp_test_netlink_add_neigh("dp1T0", "11.0.0.1", "aa:bb:cc:dd:11:1");
+	dp_test_netlink_add_neigh("dp2T1", "21.0.0.1", "aa:bb:cc:dd:21:1");
+
+	dp_test_netlink_add_route("0.0.0.0/0 nh 21.0.0.1 int:dp2T1");
+
+	/*
+	 * Add firewall rule with logging enabled
+	 */
+	dp_test_npf_cmd_fmt(false, "npf-ut add fw:FW_OUT 10 "
+			    "action=accept to=any rproc=log");
+	dp_test_npf_cmd_fmt(false,
+			    "npf-ut attach interface:%s fw-out fw:FW_OUT",
+			    dp_test_intf_real_buf("dp2T1"));
+	dp_test_npf_commit();
+
+	/*
+	 * Create UDP pkt to be embedded within ICMP error packet
+	 */
+	embd_pak = dp_test_create_ipv4_pak("21.0.0.1", "11.0.0.1",
+					   1, &len);
+	embd_ip = iphdr(embd_pak);
+	dp_test_set_pak_ip_field(embd_ip, DP_TEST_SET_DF, 1);
+	embd_len = sizeof(struct iphdr) + sizeof(struct udphdr) + len;
+
+	/*
+	 * Send an ICMP unreachable with the above good pkt embedded within it
+	 */
+	gen_icmp_unreach(&test_pak, &exp, embd_ip, embd_len);
+	dp_test_pak_receive(test_pak, "dp1T0", exp);
+
+	/*
+	 * Repeat test.  But this time corrupt the embedded packet IP header
+	 * version field.  This will cause the caching of the embedded packet
+	 * to fail.
+	 */
+	dp_test_set_pak_ip_field(embd_ip, DP_TEST_SET_VERSION, 5);
+	gen_icmp_unreach(&test_pak, &exp, embd_ip, embd_len);
+	dp_test_pak_receive(test_pak, "dp1T0", exp);
+
+	/* Delete firewall rule */
+	dp_test_npf_cmd_fmt(false,
+			    "npf-ut detach interface:%s fw-out fw:FW_OUT",
+			    dp_test_intf_real_buf("dp2T1"));
+	dp_test_npf_cmd_fmt(false, "npf-ut delete fw:FW_OUT");
+	dp_test_npf_commit();
+
+	/*
+	 * Cleanup
+	 */
+	rte_pktmbuf_free(embd_pak);
+	dp_test_netlink_del_route("0.0.0.0/0 nh 21.0.0.1 int:dp2T1");
+
+	dp_test_netlink_del_neigh("dp1T0", "11.0.0.1", "aa:bb:cc:dd:11:1");
+	dp_test_netlink_del_neigh("dp2T1", "21.0.0.1", "aa:bb:cc:dd:21:1");
+
+	dp_test_nl_del_ip_addr_and_connected("dp1T0", "10.0.0.1/24");
+	dp_test_nl_del_ip_addr_and_connected("dp2T1", "20.0.0.1/24");
+
+	dp_test_npf_cleanup();
 
 } DP_END_TEST;
