@@ -312,13 +312,13 @@ vrf_link_create(const struct ifinfomsg *ifi, const char *ifname,
 				  vrfinfo_attr, vrfinfo) != MNL_CB_OK) {
 		RTE_LOG(ERR, DATAPLANE, "Could not get vrfinfo for: %s\n",
 			ifname);
-		return false;
+		return NULL;
 	}
 
 	if (!vrfinfo[IFLA_VRF_TABLE]) {
 		RTE_LOG(ERR, DATAPLANE, "Missing VRF table attribute for: %s\n",
 			ifname);
-		return false;
+		return NULL;
 	}
 
 	return vrf_if_create(ifname, ifi->ifi_index,
