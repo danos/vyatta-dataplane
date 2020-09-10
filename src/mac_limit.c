@@ -11,6 +11,7 @@
 #include <rte_jhash.h>
 #include <dp_event.h>
 #include <vplane_log.h>
+#include <vplane_debug.h>
 #include <fal.h>
 #include <if_var.h>
 #include <urcu/list.h>
@@ -65,7 +66,7 @@ static int mac_limit_fal_apply(struct mac_limit_entry *entry,
 	if (!mac_limit_check_vlan(ifp, vlan))
 		return 0;
 
-	RTE_LOG(DEBUG, MAC_LIMIT,
+	DP_DEBUG(MAC_LIMIT, DEBUG, MAC_LIMIT,
 		"%s update %d int %s profile %s limit %d\n",
 		__func__, update, ifp->if_name, profile->mlp_name,
 		profile->mlp_limit);
@@ -83,7 +84,7 @@ static int mac_limit_fal_apply(struct mac_limit_entry *entry,
 
 	vlan_feat = if_vlan_feat_get(ifp, vlan);
 	if (!vlan_feat) {
-		RTE_LOG(DEBUG, MAC_LIMIT,
+		DP_DEBUG(MAC_LIMIT, DEBUG, MAC_LIMIT,
 			"Create vlan feature for Intf: %s, vlan: %d\n",
 			ifp->if_name, vlan);
 		rv = if_vlan_feat_create(ifp, vlan, FAL_NULL_OBJECT_ID);
@@ -110,7 +111,7 @@ static int mac_limit_fal_apply(struct mac_limit_entry *entry,
 			}
 		}
 	} else {
-		RTE_LOG(DEBUG, MAC_LIMIT, "Found vlan feature\n");
+		DP_DEBUG(MAC_LIMIT, DEBUG, MAC_LIMIT, "Found vlan feature\n");
 		rv = fal_vlan_feature_set_attr(vlan_feat->fal_vlan_feat,
 					       &vlan_attr[2]);
 		if (rv) {
@@ -167,7 +168,7 @@ static int mac_limit_fal_unapply(struct mac_limit_entry *entry)
 	vlan_feat->refcount--;
 
 	if (vlan_feat && !vlan_feat->refcount) {
-		RTE_LOG(DEBUG, MAC_LIMIT, "Remove vlan feature\n");
+		DP_DEBUG(MAC_LIMIT, DEBUG, MAC_LIMIT, "Remove vlan feature\n");
 		rv = fal_vlan_feature_delete(vlan_feat->fal_vlan_feat);
 		if (rv) {
 			RTE_LOG(ERR, MAC_LIMIT,
@@ -277,12 +278,13 @@ mac_limit_add_profile(const char *name)
 		free(profile);
 		profile = caa_container_of(ret_node, struct mac_limit_profile,
 					   mlp_node);
-		RTE_LOG(DEBUG, MAC_LIMIT,
+		DP_DEBUG(MAC_LIMIT, DEBUG, MAC_LIMIT,
 			"Found an existing profile %s (%lx)\n",
 			name, (unsigned long)profile);
 	} else {
 		CDS_INIT_LIST_HEAD(&profile->mlp_list);
-		RTE_LOG(DEBUG, MAC_LIMIT, "Added profile %s (%lx)\n", name,
+		DP_DEBUG(MAC_LIMIT, DEBUG, MAC_LIMIT,
+			 "Added profile %s (%lx)\n", name,
 			(unsigned long)profile);
 	}
 
@@ -337,7 +339,8 @@ mac_limit_profile_set_limit(struct mac_limit_profile *profile, uint32_t limit)
 
 	profile->mlp_limit = limit;
 
-	RTE_LOG(DEBUG, MAC_LIMIT, "mac limit profile %s %s limit %d\n",
+	DP_DEBUG(MAC_LIMIT, DEBUG, MAC_LIMIT,
+		 "mac limit profile %s %s limit %d\n",
 		profile->mlp_name, limit ? "set" : "delete",
 		profile->mlp_limit);
 
@@ -388,12 +391,12 @@ static int mac_limit_set_profile(MacLimitConfig__MacLimitProfileConfig *cfg)
 
 	if (!set) {
 		if (!cds_list_empty(&profile->mlp_list)) {
-			RTE_LOG(DEBUG, MAC_LIMIT,
+			DP_DEBUG(MAC_LIMIT, DEBUG, MAC_LIMIT,
 				"Not deleting profile %s, list not EMPTY\n",
 				profile->mlp_name);
 			return 0;
 		}
-		/* Delete the profile if it is not referred to by anythign */
+		/* Delete the profile if it is not referred to by anything */
 		mac_limit_delete_profile(profile);
 	}
 
@@ -440,7 +443,7 @@ static struct mac_limit_entry *mle_add_entry(struct ifnet *ifp,
 	entry->mle_vlan = vlan;
 	entry->mle_ifp = ifp;
 	cds_list_add_tail(&entry->mle_list, mac_limit_list);
-	RTE_LOG(DEBUG, MAC_LIMIT,
+	DP_DEBUG(MAC_LIMIT, DEBUG, MAC_LIMIT,
 		"Allocated entry %lx for Intf: %s, vlan: %d\n",
 		(unsigned long)entry, ifp->if_name, vlan);
 	return entry;
@@ -461,7 +464,7 @@ static void mle_delete_entry(struct mac_limit_entry *entry)
 
 	cds_list_del(&entry->mle_list);
 	cds_list_del(&entry->mle_profile_list);
-	RTE_LOG(DEBUG, MAC_LIMIT, "Freeing entry %lx\n",
+	DP_DEBUG(MAC_LIMIT, DEBUG, MAC_LIMIT, "Freeing entry %lx\n",
 		(unsigned long)entry);
 	call_rcu(&entry->mle_rcu, mle_entry_free);
 }
@@ -483,7 +486,7 @@ static int mac_limit_set_intf_cfg(MacLimitConfig__MacLimitIfVLANConfig *cfg)
 	vlan = cfg->vlan;
 	pname = cfg->profile;
 
-	RTE_LOG(DEBUG, MAC_LIMIT,
+	DP_DEBUG(MAC_LIMIT, DEBUG, MAC_LIMIT,
 		"set_intf_cfg: %s intf %s vlan %u profile %s\n",
 		set ? "Set" : "Delete",
 		ifname, vlan, pname);
@@ -750,7 +753,7 @@ mac_limit_if_vlan_add(struct ifnet *ifp, uint16_t vlan)
 	if (!entry)
 		return;
 
-	RTE_LOG(DEBUG, MAC_LIMIT,
+	DP_DEBUG(MAC_LIMIT, DEBUG, MAC_LIMIT,
 		"%s: Found entry for intf %s, vlan %d\n",
 		__func__, ifp->if_name, vlan);
 
@@ -766,7 +769,7 @@ mac_limit_if_vlan_del(struct ifnet *ifp, uint16_t vlan)
 	if (!entry)
 		return;
 
-	RTE_LOG(DEBUG, MAC_LIMIT,
+	DP_DEBUG(MAC_LIMIT, DEBUG, MAC_LIMIT,
 		"%s: Found entry for intf %s vlan %d\n",
 			__func__, ifp->if_name, vlan);
 
