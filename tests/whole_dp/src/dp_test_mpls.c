@@ -80,6 +80,9 @@ DP_START_TEST(mpls_config, lswap_route_add_del)
 
 	/* Add an labelled route entry */
 	dp_test_netlink_add_route("222 mpt:ipv4 nh 2.2.2.1 int:dp2T2 lbls 122");
+	/* Re-add it without verifier to make sure redundant updates are ok */
+	dp_test_netlink_add_route_nv(
+		"222 mpt:ipv4 nh 2.2.2.1 int:dp2T2 lbls 122");
 	/* Remove it */
 	dp_test_netlink_del_route("222 mpt:ipv4 nh 2.2.2.1 int:dp2T2 lbls 122");
 	/* Re-add but modified  */
