@@ -679,7 +679,7 @@ static struct policy_rule *policy_rule_find_by_tag(uint32_t tag,
 	default:
 		POLICY_ERR(
 			"Failed to find policy rule to hash table: Bad direction\n");
-		return false;
+		return NULL;
 	}
 
 	cds_lfht_lookup(hash_table, tag, policy_rule_tag_match, &tag, &iter);

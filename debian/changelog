@@ -1,3 +1,15 @@
+vyatta-dataplane (3.11.19) unstable; urgency=medium
+
+  * 3.10.70
+  * ut: remove mac limit tests that removes profile while in use
+  * ut: dp_test_npf_json_get_portmap_port leaking json array
+  * controller: cleanup all requests on shutdown
+  * ut: fix mem leak in the qos class tests
+  * ut: free the packet descriptors in the session tests
+  * ut: cleanup json array after use in sess lib
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Wed, 09 Sep 2020 08:43:39 +0100
+
 vyatta-dataplane (3.11.18) unstable; urgency=medium
 
   [ aroberts ]
