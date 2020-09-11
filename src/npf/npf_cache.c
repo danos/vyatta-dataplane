@@ -136,15 +136,6 @@ npf_tcpsaw(const npf_cache_t *npc, tcp_seq *seq, tcp_seq *ack, uint32_t *win)
 	return 0;
 }
 
-bool
-npf_fetch_grouper(npf_cache_t *npc, char **ptr)
-{
-	if (!npf_iscached(npc, NPC_GROUPER))
-		return false;
-	*ptr = npc->npc_grouper;
-	return true;
-}
-
 static inline void
 npf_update_grouper(npf_cache_t *npc, void *from, uint offset, uint length)
 {
@@ -248,62 +239,6 @@ void npf_store_tcp_options(npf_cache_t *npc, struct rte_mbuf *nbuf, void *buf)
 	uint16_t len = (th->doff << 2) - sizeof(struct tcphdr);
 
 	nbuf_advstore(&nbuf, &ptr, offset, len, buf);
-}
-
-/*
- * Re-write the MSS value in an existing TCP option, if present
- */
-
-bool npf_store_tcp_mss(const npf_cache_t *npc, struct rte_mbuf *nbuf,
-		       uint16_t *mss)
-{
-	void *n_ptr = dp_pktmbuf_mtol4(nbuf, void *);
-	const struct tcphdr *th = &npc->npc_l4.tcp;
-	uint topts_len, step;
-
-	/* Determine if there are any TCP options, get their length. */
-	topts_len = (th->doff << 2) - sizeof(struct tcphdr);
-	if (topts_len <= 0)
-		/* No options. */
-		return false;
-
-	/* First step: advance over TCP header up to options. */
-	step = sizeof(struct tcphdr);
-
-	while (topts_len > 0) {
-		uint8_t opt, len;
-
-		if (__nbuf_advfetch(&nbuf, &n_ptr, step, sizeof(opt), &opt))
-			return false;
-
-		switch (opt) {
-		case TCPOPT_EOL:
-			/* Done. */
-			return false;
-		case TCPOPT_NOP:
-			topts_len--;
-			step = 1;
-			break;
-		case TCPOPT_MAXSEG:
-			if (nbuf_advstore(&nbuf, &n_ptr, 2,
-					  sizeof(*mss), mss))
-				return false;
-
-			return true;
-		default:
-			if (__nbuf_advfetch(&nbuf, &n_ptr, 1, sizeof(len),
-					    &len))
-				return false;
-
-			if (len < 2 || len > topts_len)
-				return false;
-
-			topts_len -= len;
-			step = len - 1;
-			break;
-		}
-	}
-	return false;
 }
 
 /*

@@ -280,13 +280,10 @@ typedef struct npf_cache {
 
 int npf_tcpsaw(const npf_cache_t *npc, tcp_seq *seq, tcp_seq *ack,
 	       uint32_t *win);
-bool npf_fetch_grouper(npf_cache_t *npc, char **ptr);
 bool npf_fetch_tcpopts(const npf_cache_t *npc, struct rte_mbuf *nbuf,
 		       uint16_t *mss, uint8_t *wscale);
 void *npf_get_tcp_options(npf_cache_t *npc, struct rte_mbuf *nbuf, void *buf);
 void npf_store_tcp_options(npf_cache_t *npc, struct rte_mbuf *nbuf, void *buf);
-bool npf_store_tcp_mss(const npf_cache_t *npc, struct rte_mbuf *nbuf,
-		       uint16_t *mss);
 void npf_recache_ip_ttl(npf_cache_t *npc, struct rte_mbuf *nbuf);
 
 
