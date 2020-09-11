@@ -579,28 +579,6 @@ _dp_test_qos_get_json_rules(const char *if_name, const uint subport,
 }
 
 json_object *
-_dp_test_qos_get_json_groups(const char *if_name, const uint subport,
-			     bool debug, const char *file, const int line)
-{
-	char real_if_name[IFNAMSIZ];
-
-	/* Convert the test if-name into a real if-name */
-	dp_test_intf_real(if_name, real_if_name);
-
-	/* Build the key for the required object */
-	struct dp_test_json_search_key key[] = {
-		{ real_if_name, NULL, 0 },
-		{ "shaper", NULL, 0 },
-		{ "subports", NULL, subport },
-		{ "rules", NULL, 0 },
-		{ "groups", NULL, 0 },
-	};
-
-	return _dp_test_qos_get_json(key, ARRAY_SIZE(key), __func__, debug,
-				     file, line);
-}
-
-json_object *
 _dp_test_qos_get_json_groups_rules(const char *if_name, const uint subport,
 				   bool debug, const char *file, const int line)
 {
