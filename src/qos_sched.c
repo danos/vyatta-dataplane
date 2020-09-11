@@ -4594,59 +4594,6 @@ int16_t qos_get_overhead(const char *name)
 	return qos_get_overhead_from_ifnet(ifp);
 }
 
-static void
-qos_sched_update_subport_stats(struct sched_info *qinfo, unsigned int subport)
-{
-	struct subport_info *sinfo = qinfo->subport + subport;
-	struct rte_sched_subport_stats64 *queue_stats = &sinfo->queue_stats;
-
-	QOS_SUBPORT_RD_STATS(qinfo)(qinfo, subport, queue_stats);
-}
-
-static void
-qos_sched_update_pipe_stats(struct sched_info *qinfo, unsigned int subport,
-			    unsigned int pipe)
-{
-	uint32_t tc;
-	uint32_t q;
-
-	for (tc = 0; tc < RTE_SCHED_TRAFFIC_CLASSES_PER_PIPE; tc++) {
-		for (q = 0; q < RTE_SCHED_QUEUES_PER_TRAFFIC_CLASS; q++) {
-			uint32_t qid;
-			uint64_t qlen;
-			bool qlen_in_pkts;
-			struct queue_stats *queue_stats;
-
-			qid = qos_sched_calc_qindex(qinfo, subport, pipe, tc,
-						    q);
-			queue_stats = qinfo->queue_stats + qid;
-
-			QOS_QUEUE_RD_STATS(qinfo)(qinfo, subport, pipe, tc,
-						  q, queue_stats, &qlen,
-						  &qlen_in_pkts);
-		}
-	}
-}
-
-void qos_sched_update_if_stats(const struct ifnet *ifp)
-{
-	struct sched_info *qinfo = ifp->if_qos;
-	unsigned int subport;
-	unsigned int pipe;
-
-	if (qinfo == NULL)
-		return;
-
-	for (subport = 0; subport < qinfo->n_subports; subport++) {
-		if (QOS_CONFIGURED(qinfo)) {
-			qos_sched_update_subport_stats(qinfo, subport);
-			for (pipe = 0; pipe < qinfo->n_pipes; pipe++)
-				qos_sched_update_pipe_stats(qinfo, subport,
-							    pipe);
-		}
-	}
-}
-
 bool qos_sched_subport_get_stats(struct sched_info *qinfo, uint16_t vlan_id,
 				 struct rte_sched_subport_stats64 *stats)
 {

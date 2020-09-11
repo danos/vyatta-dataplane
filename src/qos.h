@@ -554,7 +554,6 @@ struct npf_act_grp *qos_ag_set_or_get_head(struct subport_info *subport,
 					   struct npf_act_grp *act_grp);
 int16_t qos_get_overhead(const char *name);
 int16_t qos_get_overhead_from_ifnet(struct ifnet *ifp);
-void qos_sched_update_if_stats(const struct ifnet *ifp);
 bool qos_sched_subport_get_stats(struct sched_info *qinfo, uint16_t vlan_id,
 				 struct rte_sched_subport_stats64 *stats);
 struct ifnet *qos_get_vlan_ifp(const char *att_pnt, uint16_t *vlan_id);
