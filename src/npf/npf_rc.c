@@ -78,7 +78,7 @@ static void npf_rc_ctrl_init(void)
 				npf_rc_ctrl[dir][rc].bm = RCT_BIT_ALL;
 				break;
 
-			/* the following may occur from  npf cache */
+			/* the following may occur from npf cache */
 			case NPF_RC_L3_HDR_VER:
 			case NPF_RC_L3_HDR_LEN:
 			case NPF_RC_NON_IP:
