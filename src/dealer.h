@@ -26,15 +26,4 @@ int try_controller_response(zsock_t *socket, enum cont_src_en cont_src);
  */
 void conf_query(enum cont_src_en cont_src);
 
-#ifdef DEALER_TEST
-/*
- * The following function are use for the purposes of unit-testing only.
- *
- * They should not be used in production code
- */
-int __test_process_dealer_msg(zmsg_t *msg, enum cont_src_en cont_src);
-int __test_process_dealer_reject(zmsg_t *reject, enum cont_src_en cont_src);
-int __test_process_dealer_accept(zmsg_t *accept, enum cont_src_en cont_src);
-#endif /* DEALER_TEST */
-
 #endif /* DEALER_H */
