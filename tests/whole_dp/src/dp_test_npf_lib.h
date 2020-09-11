@@ -56,11 +56,6 @@ extern struct dp_test_npf_rule_t rule_10_block_udp[];
 const char *npf_action_string(bool accept);
 
 /*
- * Enable/disable npf debugging in the dataplane
- */
-void dp_test_npf_debug(bool enable);
-
-/*
  * Get the real interface name.  Return in a temporary buffer from a circular
  * array.
  */
@@ -167,10 +162,6 @@ _dp_test_npf_commit(const char *file, int line);
 void
 dp_test_npf_print_sessions(const char *desc);
 
-/* Pretty prints "npf fw list sessions summary" */
-void
-dp_test_npf_print_sessions_summary(const char *desc);
-
 /* Pretty prints "npf fw list sessions nat" */
 void
 dp_test_npf_print_nat_sessions(const char *desc);
@@ -258,29 +249,8 @@ json_object *_dp_test_npf_json_get_rs_name(json_object *jarray,
 	_dp_test_npf_json_get_rs_name(jarray, name, __FILE__, __LINE__)
 
 /*
- * Get json object in ruleset groups array with specific interface
- *
- * Returns json object.  json_object_put should be called once the caller has
- * finished with the object.
- *
- * Example useage (zones):
- *
- * jarray = dp_test_npf_json_get_rs("fw-in", "dp1T0", "in");
- * jobj = dp_test_npf_json_get_rs_intf(jarray, "dp2T1");
- * ...
- * json_object_put(jarray);
- * json_object_put(jobj);
- */
-json_object *_dp_test_npf_json_get_rs_intf(json_object *jarray,
-					   const char *intf,
-					   const char *file, int line);
-
-#define dp_test_npf_json_get_rs_intf(jarray, intf)			\
-	_dp_test_npf_json_get_rs_intf(jarray, intf, __FILE__, __LINE__)
-
-/*
  * Get a specific rule from a json ruleset.  The ruleset is typically what is
- * returned by dp_test_npf_json_get_rs_name or dp_test_npf_json_get_rs_intf.
+ * returned by dp_test_npf_json_get_rs_name.
  *
  * Returns json object.  json_object_put should be called once the caller has
  * finished with the object.
@@ -345,31 +315,6 @@ _dp_test_npf_json_get_rule(const char *rstype, const char *attach_point,
 #define dp_test_npf_json_get_rule(rstype, ap, dir, rsname, rule)  \
 	_dp_test_npf_json_get_rule(rstype, ap, dir, rsname, rule, \
 				   false, __FILE__, __LINE__)
-
-/*
- * Get the packet count for all rules in a ruleset
- */
-bool
-_dp_test_npf_ruleset_pkt_count(struct dp_test_npf_ruleset_t *rset,
-			       uint *packets, bool debug,
-			       const char *file, int line);
-
-#define dp_test_npf_ruleset_pkt_count(rset, pkts)		\
-	_dp_test_npf_ruleset_pkt_count(rset, pkts, false,	\
-				       __FILE__, __LINE__)
-
-/*
- * Get the packet count for one rule in a ruleset
- */
-bool
-_dp_test_npf_rule_pkt_count(struct dp_test_npf_ruleset_t *rset,
-			    const char *rule,
-			    uint *packets, bool debug,
-			    const char *file, int line);
-
-#define dp_test_npf_rule_pkt_count(rset, rule, pkts)		\
-	_dp_test_npf_rule_pkt_count(rset, rule, pkts, false,	\
-				    __FILE__, __LINE__)
 
 /*
  * Verify the packet count of an npf rule.
@@ -448,11 +393,5 @@ npf_decision_t _dp_test_npf_raw(int index, struct rte_mbuf *pkt,
 			 __FILE__, __LINE__)
 
 const char *npf_decision_str(npf_decision_t decision);
-
-/* Show npf return code counters */
-void dpt_npf_show_rc_counts(bool only_non_zero, uint rct_bm);
-
-/* Clear npf rc counters */
-void dpt_npf_clear_rc_counts(void);
 
 #endif
