@@ -103,12 +103,5 @@ void _dp_test_session_unlink_all(struct session *s, const char *file, int line);
 #define dp_test_session_unlink_all(s) \
 	_dp_test_session_unlink_all(s, __FILE__, __LINE__)
 
-
-void _dp_test_session_feature_register(enum session_feature_type type,
-		const struct session_feature_ops *ops, const char *file,
-		int line);
-#define dp_test_session_feature_register(type, ops) \
-	_dp_test_session_feature_register(type, ops, __FILE__, __LINE__)
-
 #endif  /* __DP_TEST_SESSION_LIB_H__ */
 
