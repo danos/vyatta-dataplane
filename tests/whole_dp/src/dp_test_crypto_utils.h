@@ -55,8 +55,6 @@ void _dp_test_crypto_create_policy(const char *file, int line,
 void _dp_test_crypto_delete_policy(const char *file, int line,
 				   const struct dp_test_crypto_policy *policy,
 				   bool verify);
-void _dp_test_crypto_update_policy(const char *file, int line,
-				   const struct dp_test_crypto_policy *policy);
 void _dp_test_crypto_check_policy_count(vrfid_t vrfid,
 					unsigned int num_policies, int af,
 					const char *file, int line);

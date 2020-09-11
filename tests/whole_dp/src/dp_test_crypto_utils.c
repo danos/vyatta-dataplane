@@ -530,39 +530,6 @@ void _dp_test_crypto_create_policy(const char *file, int line,
 }
 
 /*
- * _dp_test_crypto_update_policy()
- *
- * Create an IPsec policy in the dataplane
- */
-void _dp_test_crypto_update_policy(const char *file, int line,
-				   const struct dp_test_crypto_policy *policy)
-{
-	struct xfrm_selector sel;
-	xfrm_address_t dst;
-
-	build_xfrm_selector(&sel, policy->d_prefix, policy->s_prefix,
-			    policy->proto, policy->family);
-
-	if (dp_test_prefix_str_to_xfrm_addr(policy->dst, &dst,
-					    NULL, policy->dst_family))
-		dp_test_assert_internal(0);
-
-	_dp_test_netlink_xfrm_policy(XFRM_MSG_UPDPOLICY,
-				     &sel, &dst,
-				     policy->dst_family,
-				     policy->dir,
-				     policy->priority,
-				     policy->reqid,
-				     policy->mark,
-				     policy->action,
-				     policy->vrfid,
-					 policy->passthrough,
-				     file, line);
-
-	_wait_for_policy(policy, true, file, line);
-}
-
-/*
  * _dp_test_delete_ipsec_policy()
  *
  * Delete an IPsec policy from the dataplane
