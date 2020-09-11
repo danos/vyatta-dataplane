@@ -47,11 +47,6 @@ void vrf_set_npf_timeout(struct vrf *vrf, struct npf_timeout *to)
 	rcu_assign_pointer(vrf->v_to, to);
 }
 
-struct npf_timeout *vrf_get_npf_timeout(struct vrf *vrf)
-{
-	return vrf ? vrf->v_to : NULL;
-}
-
 struct npf_timeout *vrf_get_npf_timeout_rcu(vrfid_t vrf_id)
 {
 	struct vrf *vrf = get_vrf(vrf_id);
