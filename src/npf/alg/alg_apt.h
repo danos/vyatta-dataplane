@@ -94,8 +94,6 @@ int alg_apt_tuple_pair(struct apt_tuple *at1, struct apt_tuple *at2);
 void *apt_tuple_get_client_handle(struct apt_tuple *at);
 void apt_tuple_clear_client_handle(struct apt_tuple *at);
 uint32_t apt_tuple_get_client_flags(struct apt_tuple *at);
-void apt_tuple_set_client_flags(struct apt_tuple *at, uint32_t flags);
-void apt_tuple_clear_client_flags(struct apt_tuple *at, uint32_t flags);
 void *apt_tuple_get_client_data(struct apt_tuple *at);
 void apt_tuple_set_client_data(struct apt_tuple *at, void *data);
 
@@ -141,6 +139,5 @@ struct apt_event_ops {
 };
 
 void apt_event_register(const struct apt_event_ops *ops);
-void apt_event_unregister(const struct apt_event_ops *ops);
 
 #endif /* _ALG_TUPLE_H_ */
