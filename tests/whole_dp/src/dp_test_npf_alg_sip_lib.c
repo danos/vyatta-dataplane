@@ -1574,66 +1574,6 @@ dp_test_npf_alg_sip_pak(struct dp_test_pkt_desc_t *pkt, const char *payload)
 	return m;
 }
 
-/*
- * Creates a test packet from a packet descriptor and an RTP data array.
- */
-struct rte_mbuf *
-dp_test_npf_alg_rtp_pak(struct dp_test_pkt_desc_t *pkt,	const uint8_t *payload,
-			uint plen)
-{
-	struct rte_mbuf *m;
-	struct iphdr *ip;
-	struct udphdr *udp;
-
-	if (!pkt || !payload)
-		return NULL;
-
-	pkt->len = plen;
-
-	m = dp_test_v4_pkt_from_desc(pkt);
-	ip = iphdr(m);
-	udp = (struct udphdr *)(ip + 1);
-
-	memcpy((char *)(udp + 1), payload, plen);
-
-	return m;
-}
-
-/*
- * Run a SIP payload through the parser to check it is valid
- */
-bool
-_dp_test_npf_alg_sip_payload_check(const char *payload, uint plen, bool sdp,
-				   char *file, int line)
-{
-	struct sip_alg_request *sr = NULL;
-	char err[120];
-	int rc;
-
-	sr = sip_alg_request_alloc(true);
-	_dp_test_fail_unless(sr != NULL, file, line,
-			     "Failed to alloc or init SIP req");
-	if (sr == NULL)
-		return false;
-
-	rc = osip_message_parse(sr->sr_sip, payload, plen);
-	_dp_test_fail_unless(rc == 0, file, line,
-			     "SIP parse error %d", rc);
-
-	/* Get the sdp portion if present */
-	if (sdp) {
-		rc = sip_alg_get_sdp(sr);
-		_dp_test_fail_unless(rc == 0, file, line,
-				     "Failed to get SDP");
-	}
-
-	rc = dp_test_sip_alg_verify(sr, err, sizeof(err));
-	_dp_test_fail_unless(rc == 0, file, line, "SIP verify failed");
-
-	dp_test_sip_alg_request_free(sr);
-	return true;
-}
-
 __attribute__((format(printf, 1, 2)))
 void
 dp_test_npf_sip_debug(const char *fmt, ...)
