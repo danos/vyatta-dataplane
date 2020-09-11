@@ -16,22 +16,6 @@
 
 #include "dp_test_json_utils.h"
 
-/*
- * Add or delete an ALG port
- */
-void
-_dp_test_npf_set_alg_port(uint iid, const char *name, uint16_t port,
-			  const char *file, int line);
-
-#define dp_test_npf_set_alg_port(iid, name, port)			\
-	_dp_test_npf_set_alg_port(iid, name, port, __FILE__, __LINE__)
-
-void
-_dp_test_npf_delete_alg_port(uint iid, const char *name, uint16_t port,
-			  const char *file, int line);
-
-#define dp_test_npf_delete_alg_port(iid, name, port)			\
-	_dp_test_npf_delete_alg_port(iid, name, port, __FILE__, __LINE__)
 
 /*
  * Verify that an ALF tuple exists

@@ -27,37 +27,6 @@
 #include "dp_test_npf_alg_lib.h"
 
 /*
- * dp_test_npf_set_alg_port(1, "sip", 5090)
- */
-void
-_dp_test_npf_set_alg_port(uint iid, const char *name, uint16_t port,
-			  const char *file, int line)
-{
-	char cmd[80];
-
-	spush(cmd, sizeof(cmd), "npf-ut fw alg %u set %s port %u",
-	      iid, name, port);
-	_dp_test_npf_cmd(cmd, false, file, line);
-}
-
-/*
- * dp_test_npf_delete_alg_port(1, "sip", 5090)
- *
- * Deleting a non-default port will cause the default port to be added back
- * for that ALG.
- */
-void
-_dp_test_npf_delete_alg_port(uint iid, const char *name, uint16_t port,
-			     const char *file, int line)
-{
-	char cmd[80];
-
-	spush(cmd, sizeof(cmd), "npf-ut fw alg %u delete %s port %u",
-	      iid, name, port);
-	_dp_test_npf_cmd(cmd, false, file, line);
-}
-
-/*
  *
  *The output of "npf-op fw dump-alg" looks like:
  *
