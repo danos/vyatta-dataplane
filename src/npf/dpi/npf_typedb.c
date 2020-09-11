@@ -147,19 +147,6 @@ typedb_init(void)
 	return 0;
 }
 
-void
-typedb_destroy(void)
-{
-	if (type_name_ht)
-		cds_lfht_destroy(type_name_ht, NULL);
-
-	if (type_id_ht)
-		cds_lfht_destroy(type_id_ht, NULL);
-
-	type_name_ht = NULL;
-	type_id_ht = NULL;
-}
-
 /*
  * Return the type ID from the given tdb_entry
  */
@@ -173,48 +160,6 @@ typedb_entry_get_id(struct tdb_entry *e)
 }
 
 /*
- * Convert the given type DB name entry to JSON.
- * This is a callback from typedb_name_walk.
- */
-int
-typedb_name_entry_to_json(json_writer_t *json, struct tdb_entry *entry)
-{
-	char buf[11]; /* "id" is u32. "0x" + 8 digits + null = 11. */
-
-	jsonw_name(json, entry->te_name);
-	jsonw_start_object(json);
-	snprintf(buf, sizeof(buf), "%#x", entry->te_id);
-	jsonw_string_field(json, "id", buf);
-	jsonw_uint_field(json, "refcount", entry->te_refcount);
-	jsonw_end_object(json);
-
-	/* Tell the walker to continue. */
-	return 0;
-}
-
-/*
- * Walk the type name hash.
- */
-int
-typedb_name_walk(json_writer_t *json, type_walker_t *callback)
-{
-	struct cds_lfht_iter iter;
-	struct tdb_entry *entry;
-	int rc = 0;
-
-	if (!type_name_ht)
-		return rc;
-
-	cds_lfht_for_each_entry(type_name_ht, &iter, entry, te_name_ht_node) {
-		rc = callback(json, entry);
-		if (rc)
-			break;
-	}
-
-	return rc;
-}
-
-/*
  * Lookup the given type name in the type DB.
  * Return the type ID, or DPI_APP_TYPE_NONE if not found.
  */
@@ -224,45 +169,6 @@ typedb_name_to_id(const char *name)
 	struct tdb_entry *entry = typedb_find_name(name);
 
 	return entry ? entry->te_id : DPI_APP_TYPE_NONE;
-}
-
-/* Convert the given type DB ID entry to JSON.
- * This is a callback from typedb_name_walk.
- */
-int
-typedb_id_entry_to_json(json_writer_t *json, struct tdb_entry *entry)
-{
-	char buf[11]; /* "id" is u32. "0x" + 8 digits + null = 11. */
-
-	snprintf(buf, sizeof(buf), "%#x", entry->te_id);
-	jsonw_name(json, buf);
-	jsonw_start_object(json);
-	jsonw_string_field(json, "name", entry->te_name);
-	jsonw_uint_field(json, "refcount", entry->te_refcount);
-	jsonw_end_object(json);
-
-	/* Tell the walker to continue. */
-	return 0;
-}
-
-/* Walk the type ID hash. */
-int
-typedb_id_walk(json_writer_t *json, type_walker_t *callback)
-{
-	struct cds_lfht_iter iter;
-	struct tdb_entry *entry;
-	int rc = 0;
-
-	if (!type_id_ht)
-		return rc;
-
-	cds_lfht_for_each_entry(type_id_ht, &iter, entry, te_id_ht_node) {
-		rc = callback(json, entry);
-		if (rc)
-			break;
-	}
-
-	return rc;
 }
 
 /*
