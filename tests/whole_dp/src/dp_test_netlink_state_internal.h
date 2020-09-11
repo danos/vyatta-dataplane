@@ -208,17 +208,6 @@ void _dp_test_netlink_replace_route(const char *route_string, bool verify,
 	_dp_test_netlink_replace_route(route_string, false, false, \
 				   __FILE__, __func__, __LINE__)
 
-void
-_dp_test_netlink_replace_route_fmt(bool verify, bool incomplete,
-				   const char *file, const char *func,
-				   int line, const char *format, ...)
-	__attribute__((__format__(printf, 6, 7)));
-
-#define dp_test_nl_replace_route_fmt(verify, fmt_str, ...)		\
-	_dp_test_netlink_replace_route_fmt(verify, __FILE__, __func__,	\
-					   __LINE__, fmt_str,		\
-					   ##__VA_ARGS__)
-
 #define dp_test_netlink_del_route_nv(route_str)			\
 	_dp_test_netlink_del_route(route_str, false,			\
 				   __FILE__, __func__, __LINE__)
