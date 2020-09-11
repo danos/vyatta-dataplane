@@ -306,12 +306,3 @@ send_controller_connect(zsock_t *csocket, enum cont_src_en cont_src)
 
 	return rc;
 }
-
-/*
- * The following functions should be used exclusively to enable unit-tests.
- * They should **not** be used to implement real functionality.
- */
-int __test_build_connect_msg(zmsg_t *msg, enum cont_src_en cont_src)
-{
-	return build_connect_msg(msg, cont_src);
-}

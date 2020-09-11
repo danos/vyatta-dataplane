@@ -59,10 +59,4 @@ int zmsg_send_and_destroy(zmsg_t **msg, void *dest);
  */
 int zactor_terminated(zloop_t *loop, zsock_t *sock, void *arg);
 
-/*
- * The following APIs are exclusively to be used for unit-testing purposes. They
- * should not be used in production code.
- */
-int __test_build_connect_msg(zmsg_t *msg, enum cont_src_en cont_src);
-
 #endif
