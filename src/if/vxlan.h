@@ -138,7 +138,6 @@ struct ifnet *vxlan_create(const struct ifinfomsg *ifi, const char *ifname,
 			   enum cont_src_en cont_src);
 void vxlan_modify(struct ifnet *ifp, uint flags, struct nlattr *tb[],
 		  struct nlattr *data);
-struct ifnet *vxlan_find_if(uint32_t vni);
 int vxlan_neigh_change(const struct nlmsghdr *nlh,
 			      const struct ndmsg *ndm,
 			      struct nlattr *tb[]);
@@ -148,19 +147,6 @@ void vxlan_tbl_walk(vxlan_walker_t walk_func, void *ctx);
 
 /* update MTU of all VXLANs bound to specified device */
 void vxlan_mtu_update(struct ifnet *ifp);
-
-/*
- * vxlan flags
- */
-void vxlan_set_flags(struct ifnet *ifp, uint32_t flags, bool set);
-uint32_t vxlan_get_flags(struct ifnet *ifp);
-
-/* associate ethernet device with vxlan */
-void vxlan_set_device(struct ifnet *vxl_ifp, struct ifnet *ifp);
-/* set vxlan transport vrf */
-void vxlan_set_t_vrfid(struct ifnet *ifp, vrfid_t t_vrfid);
-/* Send already l3 encapped packet for vxlan */
-void vxlan_send_encapped(struct rte_mbuf *m, struct ifnet *ifp, uint8_t af);
 
 uint32_t vxlan_get_vni(struct ifnet *ifp);
 

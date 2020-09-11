@@ -221,16 +221,6 @@ vxlan_vni_destroy(struct vxlan_vninode *vni)
 		call_rcu(&vni->vni_rcu, vxlan_vni_free);
 }
 
-struct ifnet *vxlan_find_if(uint32_t vni)
-{
-	struct vxlan_vninode *vni_node = vxlan_vni_lookup(vni);
-
-	if (vni_node)
-		return vni_node->ifp;
-
-	return NULL;
-}
-
 ALWAYS_INLINE
 uint32_t vxlan_get_vni(struct ifnet *ifp)
 {
@@ -848,49 +838,6 @@ vxlan_send_packet(struct ifnet *ifp, uint32_t vni, struct ip_addr *dip,
 	IPSTAT_INC_IFP(ifp, IPSTATS_MIB_OUTDISCARDS);
 	if_incr_dropped(ifp);
 	return -EFAULT;
-}
-
-/* Use this API for sending already encapped vxlan packet */
-void vxlan_send_encapped(struct rte_mbuf *m, struct ifnet *ifp, uint8_t af)
-{
-	struct ifnet *dif = NULL;
-	uint32_t vni;
-	struct vxlan_vninode *vnode;
-	struct ip_addr sip, dip, nhip;
-	int err;
-
-	struct iphdr *ip;
-	struct ip6_hdr *ip6;
-
-	if (!ifp)
-		return;
-
-	vni = vxlan_get_vni(ifp);
-
-	if (af == AF_INET) {
-		ip = iphdr(m);
-		dip.type = AF_INET;
-		dip.address.ip_v4.s_addr = ip->daddr;
-
-	} else {
-		ip6 = ip6hdr(m);
-		dip.type = AF_INET6;
-		dip.address.ip_v6 = ip6->ip6_dst;
-	}
-	vnode = vxlan_vni_lookup(vni);
-	if (unlikely(vnode == NULL))
-		goto drop;
-
-	err = vxlan_select_src(vnode, &dip, m, &dif, &sip, &nhip);
-	if (unlikely(err != 0))
-		goto drop;
-
-	(void)vxlan_resolve_send_pak(m, &nhip, &dip, ifp, dif);
-	return;
- drop:
-	rte_pktmbuf_free(m);
-	IPSTAT_INC_IFP(ifp, IPSTATS_MIB_OUTDISCARDS);
-	if_incr_dropped(ifp);
 }
 
 static void
@@ -1954,73 +1901,10 @@ static void vxlan_destroy(void)
 	udp_handler_unregister(AF_INET6, htons(VXLAN_GPE_PORT));
 }
 
-/*
- * vxlan_set_flags
- *
- * set/clear flags that define the behavior of a vxlan
- */
-void vxlan_set_flags(struct ifnet *ifp, uint32_t flags, bool set)
-{
-	struct vxlan_vninode *vnode;
-
-	vnode = vxlan_vni_lookup(vxlan_get_vni(ifp));
-	if (vnode) {
-		if (set)
-			vnode->flags |= flags;
-		else
-			vnode->flags &= (~flags);
-	}
-}
-
-uint32_t vxlan_get_flags(struct ifnet *ifp)
-{
-	if (ifp->if_type != IFT_VXLAN)
-		return 0;
-
-	struct vxlan_vninode *vnode = vxlan_vni_lookup(vxlan_get_vni(ifp));
-
-	return vnode ? vnode->flags : 0;
-}
-
-/* bind vxlan to specified device. Used to allow delayed binding */
-void vxlan_set_device(struct ifnet *vxl_ifp, struct ifnet *ifp)
-{
-	uint16_t ifmtu = VXLAN_MTU;
-
-	if (ifp)
-		ifmtu = ifp->if_mtu - VXLAN_OVERHEAD;
-
-	vxl_ifp->if_parent = ifp;
-	vxl_ifp->if_mtu = ifmtu;
-}
-
 /* Update mtu of all VXLAN interfaces bound to specified device */
 void vxlan_mtu_update(struct ifnet *ifp)
 {
 	vxlan_tbl_walk(vxlan_walker_update_mtu, ifp);
-}
-
-void vxlan_set_t_vrfid(struct ifnet *ifp, vrfid_t t_vrfid)
-{
-	struct vxlan_vninode *vnode;
-
-	if (ifp == NULL)
-		return;
-	vnode = vxlan_vni_lookup(vxlan_get_vni(ifp));
-	if (vnode == NULL)
-		return;
-	if (vnode->t_vrfid == t_vrfid)
-		return;
-	if (t_vrfid == VRF_INVALID_ID)
-		return;
-	vrf_delete(vnode->t_vrfid);
-
-	if (vrf_find_or_create(t_vrfid) == NULL) {
-		vnode->t_vrfid = VRF_INVALID_ID;
-		RTE_LOG(ERR, VXLAN, "vxlan %s(%u) missing vrf %u\n",
-			ifp->if_name, ifp->if_index, t_vrfid);
-	} else
-		vnode->t_vrfid = t_vrfid;
 }
 
 /*
