@@ -722,18 +722,6 @@ int vti_set_output_vrf(const struct ifnet *ifp, struct rte_mbuf *m)
 	return -1;
 }
 
-int vti_get_peer_addr(const struct ifnet *ifp, uint32_t *af, void **addr)
-{
-	struct vti_tunnel_ctxt *ctxt = rcu_dereference(ifp->if_softc);
-
-	if (ctxt) {
-		*af = ctxt->key.family;
-		*addr = &ctxt->key.dst;
-		return 0;
-	}
-	return -1;
-}
-
 static enum dp_ifnet_iana_type
 vti_iana_type(struct ifnet *ifp __unused)
 {
