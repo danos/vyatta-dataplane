@@ -49,7 +49,6 @@ bool npf_originate_fw(struct ifnet *ifp, uint16_t npf_flags,
 		struct rte_mbuf **m, uint16_t ether_type);
 void npf_reset_config(enum cont_src_en cont_src);
 void npf_print_state_stats(json_writer_t *json);
-int npf_json_nat_session(json_writer_t *json, void *data);
 
 bool npf_feature_is_nat(void *data);
 #endif /* NPF_SHIM */

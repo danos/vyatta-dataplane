@@ -741,16 +741,6 @@ void npf_print_state_stats(json_writer_t *json)
 	npf_state_stats_json(json);
 }
 
-/*
- * Pass-through to write NAT json for a dataplane session
- */
-int npf_json_nat_session(json_writer_t *json, void *data)
-{
-	npf_session_t *se = data;
-
-	return npf_session_json_nat(json, se);
-}
-
 /* Shim routine for determining whether this NPF session is natted */
 bool npf_feature_is_nat(void *data)
 {
