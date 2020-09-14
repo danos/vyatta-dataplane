@@ -590,15 +590,6 @@ npf_tcp_inwindow(const npf_cache_t *npc, struct rte_mbuf *nbuf, npf_state_t *nst
 }
 
 /*
- * Return a TCP sequence number to be used for spoofed TCP resets
- */
-uint32_t
-npf_state_get_tcp_seq(int di, npf_state_t *nst)
-{
-	return nst->nst_tcpst[di].nst_end;
-}
-
-/*
  * npf_state_tcp: inspect TCP segment, determine whether it belongs to
  * the connection and track its state.  Returns either:
  *  1. the new TCP state,
