@@ -2423,38 +2423,6 @@ bool crypto_policy_outbound_match(struct ifnet *in_ifp, struct rte_mbuf **mbuf,
 	return (result.decision != NPF_DECISION_UNMATCHED);
 }
 
-bool crypto_policy_outbound_active(struct ifnet *in_ifp, struct rte_mbuf **mbuf,
-				   uint32_t *af, void **addr, uint16_t eth_type)
-{
-	struct npf_config *npf_conf = vrf_get_npf_conf_rcu(in_ifp->if_vrfid);
-	struct policy_rule *pr;
-	npf_result_t result;
-
-	if (npf_active(npf_conf, NPF_IPSEC)) {
-		result = npf_hook_notrack(npf_get_ruleset(npf_conf,
-					  NPF_RS_IPSEC), mbuf, in_ifp,
-					  PFIL_OUT, 0, eth_type, NULL);
-		if (likely(result.decision == NPF_DECISION_UNMATCHED))
-			return false;
-
-		/* Only in the case of an ALLOW policy do we set a tag */
-		if (unlikely(!result.tag_set)) {
-			*af = 0;
-			return true;
-		}
-
-		pr = policy_rule_find_by_tag(result.tag, XFRM_POLICY_OUT);
-		if (unlikely(!pr))
-			return false;
-
-		*af = pr->output_peer_af;
-		*addr = &pr->output_peer;
-
-		return true;
-	}
-	return false;
-}
-
 /*
  * Encrypt and output a packet on a s2s virtual feature point interface.
  */
