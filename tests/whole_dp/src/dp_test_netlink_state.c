@@ -1965,23 +1965,6 @@ _dp_test_netlink_replace_route(const char *route_str, bool verify,
 }
 
 void
-_dp_test_netlink_replace_route_fmt(bool verify, bool incomplete,
-				   const char *file,
-				   const char *func, int line,
-				   const char *format, ...)
-{
-	char cmd[DP_TEST_TMP_BUF];
-	va_list ap;
-
-	va_start(ap, format);
-	vsnprintf(cmd, sizeof(cmd), format, ap);
-	va_end(ap);
-
-	dp_test_netlink_route(cmd, RTM_NEWROUTE, true, verify, incomplete,
-			      file, func, line);
-}
-
-void
 _dp_test_netlink_del_route(const char *route_str, bool verify,
 			   const char *file, const char *func,
 			   int line)

@@ -1475,20 +1475,6 @@ _dp_test_intf_loopback_delete(const char *name,
 	dp_test_intf_virt_del(name);
 }
 
-void _dp_test_intf_lord_create(const char *name, vrfid_t vrf_id,
-			      const char *file, int line)
-{
-	dp_test_intf_virt_add(name);
-	_dp_test_netlink_create_lord(name, vrf_id, true, file, NULL, line);
-}
-
-void _dp_test_intf_lord_delete(const char *name, vrfid_t vrf_id,
-			      const char *file, int line)
-{
-	_dp_test_netlink_del_lord(name, vrf_id, true, file, NULL, line);
-	dp_test_intf_virt_del(name);
-}
-
 void _dp_test_intf_vfp_create(const char *name, vrfid_t vrf_id, bool verify,
 			      const char *file, const char *func, int line)
 {
@@ -1519,54 +1505,4 @@ void _dp_test_intf_vrf_if_delete(const char *name, vrfid_t vrf_id,
 	_dp_test_netlink_del_vrf_if(name, vrf_id, tableid, true,
 					file, NULL, line);
 	dp_test_intf_virt_del(name);
-}
-
-/* Take an interface name and find the vrfid using a show cmd */
-void
-_dp_test_intf_name2vrfid(const char *if_name, uint32_t *vrf_id,
-			 const char *file, const char *func, int line)
-{
-	char cmd[DP_TEST_TMP_BUF_SMALL];
-	char real_if_name[IFNAMSIZ];
-	json_object *j_resp;
-	char *response;
-	bool err;
-
-	dp_test_intf_real(if_name, real_if_name);
-	snprintf(cmd, sizeof(cmd), "ifconfig %s", real_if_name);
-	response = dp_test_console_request_w_err(cmd, &err, false);
-	if (!response || err)
-		dp_test_assert_internal(false);
-	j_resp = parse_json(response, parse_err_str, sizeof(parse_err_str));
-	free(response);
-	if (!j_resp)
-		dp_test_assert_internal(false);
-
-	/* Get interfaces object */
-	json_object *j_interfaces;
-	struct dp_test_json_find_key interfaces_key[] = {
-		{ "interfaces", NULL },
-	};
-
-	j_interfaces = dp_test_json_find(j_resp, interfaces_key,
-					 ARRAY_SIZE(interfaces_key));
-	_dp_test_fail_unless(j_interfaces, file, line,
-			     "Can't find json interfaces obj\n");
-
-	/* Find vrf_id */
-	struct dp_test_json_find_key vrf_id_key[] = {
-		{"vrf_id", NULL},
-	};
-	json_object *j_vrf_id;
-
-	j_vrf_id = dp_test_json_find(j_interfaces, vrf_id_key,
-				     ARRAY_SIZE(vrf_id_key));
-	_dp_test_fail_unless(j_vrf_id, file, line,
-			     "Can't find json vrf_id obj\n");
-	*vrf_id = (uint32_t)json_object_get_int(j_vrf_id);
-	_dp_test_fail_unless(*vrf_id != 0, file, line,
-			     "Can't find json vrf_id int\n");
-	json_object_put(j_vrf_id);
-	json_object_put(j_interfaces);
-	json_object_put(j_resp);
 }

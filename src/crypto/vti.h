@@ -33,6 +33,5 @@ int vti_handle_inbound(const xfrm_address_t *dst, const uint8_t family,
 int vti_table_init(struct vrf *vrf);
 void vti_table_uninit(struct vrf *vrf);
 int vti_set_output_vrf(const struct ifnet *ifp, struct rte_mbuf *m);
-int vti_get_peer_addr(const struct ifnet *ifp, uint32_t *af, void **addr);
 
 #endif /* VTI_H */

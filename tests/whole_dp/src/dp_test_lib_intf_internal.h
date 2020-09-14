@@ -75,11 +75,6 @@ struct rte_ether_addr *dp_test_intf_name2mac(const char *if_name);
 uint8_t dp_test_intf_name2state(const char *if_name);
 void dp_test_intf_name_add_state(const char *if_name, uint8_t state);
 void dp_test_intf_name_del_state(const char *if_name, uint8_t state);
-void _dp_test_intf_name2vrfid(const char *if_name, uint32_t *vrf_id,
-			      const char *file, const char *func, int line);
-#define dp_test_intf_name2vrfid(if_name, vrf_id) \
-	_dp_test_intf_name2vrfid(if_name, vrf_id, \
-				 __FILE__, __func__, __LINE__)
 struct rte_ether_addr *dp_test_intf_port2mac(portid_t port_id);
 void dp_test_intf_port2name(portid_t port_id, char *if_name);
 int dp_test_intf_port2index(portid_t port_id);
@@ -227,15 +222,6 @@ void dp_test_intf_vti_delete(const char *vti_name,
 			     const char *vti_remote,
 			     uint16_t mark,
 			     vrfid_t vrf_id);
-
-void _dp_test_intf_lord_create(const char *name, vrfid_t vrf_id,
-			       const char *file, int line);
-void _dp_test_intf_lord_delete(const char *name, vrfid_t vrf_id,
-			       const char *file, int line);
-#define dp_test_intf_lord_create(name, vrf_id)				\
-	_dp_test_intf_lord_create(name, vrf_id, __FILE__, __LINE__)
-#define dp_test_intf_lord_delete(name, vrf_id)				\
-	_dp_test_intf_lord_delete(name, vrf_id, __FILE__, __LINE__)
 
 void _dp_test_intf_vfp_create(const char *name, vrfid_t vrf_id, bool verfiy,
 			      const char *file, const char *func, int line);

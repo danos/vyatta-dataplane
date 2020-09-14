@@ -281,20 +281,3 @@ void conf_query(enum cont_src_en cont_src)
 	free(type);
 	zmsg_destroy(&zmsg);
 }
-
-#ifdef DEALER_TEST
-int __test_process_dealer_msg(zmsg_t *msg, enum cont_src_en cont_src)
-{
-	return process_dealer_msg(msg, cont_src);
-}
-
-int __test_process_dealer_reject(zmsg_t *reject, enum cont_src_en cont_src)
-{
-	return process_dealer_reject(reject, cont_src);
-}
-
-int __test_process_dealer_accept(zmsg_t *accept, enum cont_src_en cont_src)
-{
-	return process_dealer_accept(accept, cont_src);
-}
-#endif

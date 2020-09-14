@@ -201,26 +201,6 @@ struct nsh_tlv {
 	void *ntlv_val;
 };
 
-/* add hdr with Type 1 metadata */
-int nsh_add_t1_hdr(struct rte_mbuf *pak, enum nsh_np nxtproto,
-		   struct nsh_md_t1 *t1_hdr);
-
-/* get expected size of metadata */
-int nsh_get_metadata_size(struct nsh_tlv *tlv_arr, unsigned int num_tlvs,
-			  unsigned int *nsh_size);
-
-/* add hdr with Type 2 metadata */
-int nsh_add_t2_hdr(char *buf, unsigned int len, enum nsh_np nxtproto,
-		   struct nsh_tlv *tlv_arr, unsigned int num_tlvs);
-
-/* parse hdr and extract fields into tlv array.
- * No additional memory is allocated. TLV value pointers point
- * into payload of buffer
- */
-int nsh_extract(struct rte_mbuf *pak, struct nsh **nsh_start,
-		struct nsh_tlv *tlv_arr, unsigned int max_tlvs,
-		unsigned int *num_tlvs);
-
 /*
  * Parse hdr, return payload proto and pointer to payload */
 int nsh_get_payload(struct nsh *nsh_start, enum nsh_np *nxtproto,

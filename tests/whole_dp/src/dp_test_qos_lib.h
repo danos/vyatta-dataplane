@@ -221,14 +221,6 @@ _dp_test_qos_get_json_rules(const char *if_name, const uint subport,
 				    __FILE__, __LINE__)
 
 json_object *
-_dp_test_qos_get_json_groups(const char *if_name, const uint subport,
-			     bool debug, const char *file, const int line);
-
-#define dp_test_qos_get_json_groups(if_name, subport, debug)  \
-	_dp_test_qos_get_json_groups(if_name, subport, debug, \
-				     __FILE__, __LINE__)
-
-json_object *
 _dp_test_qos_get_json_groups_rules(const char *if_name, const uint subport,
 				   bool debug, const char *file,
 				   const int line);

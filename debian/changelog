@@ -1,3 +1,27 @@
+vyatta-dataplane (3.11.22) unstable; urgency=medium
+
+  [ Gavin Shearer ]
+  * npf: ensure cache ptr set if grouper/rule processing
+  * npf: check IPv4/v6 proto before accessing cached protocol
+  * npf: add check to npf_remark_dscp for non-IP packets
+  * npf: update npf_cache_all() to not convert failures to success
+  * npf: init cache IP addresses pointer to NULL for embedded pkts
+  * npf: enable test for a bad embedded ICMP error packet
+  * npf: remove double space from "from  npf"
+
+  [ Philip Downey ]
+  * MCAST Avoid deferencing unitialised fal RFP object (Fixes: VRVDR-46304)
+
+  [ Thomas Kiely ]
+  * Debug keyword "flow-cache" missing
+  * Make MAC limit debugs conditional
+
+  [ Paul Atkins ]
+  * mpls: track pd state when updating label table entry update
+  * ut: add mpls test for sending existing route update
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Mon, 14 Sep 2020 13:42:54 +0100
+
 vyatta-dataplane (3.11.21) unstable; urgency=medium
 
   [ Paul Atkins ]
