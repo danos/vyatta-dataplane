@@ -65,8 +65,6 @@ void cgn_log_resource_session_table(enum cgn_resource_type type,
 void cgn_log_resource_dest_session_table(enum cgn_resource_type type,
 					 struct cgn_session *cse,
 					 int16_t count, int16_t max_count);
-void cgn_log_resource_apm_table(enum cgn_resource_type type,
-				int32_t count, int32_t limit_count);
 void cgn_log_resource_pool(enum cgn_resource_type type, struct nat_pool *np,
 			   int32_t count, int32_t max_count);
 
@@ -105,26 +103,6 @@ enum cgn_log_format {
 
 	CGN_LOG_FORMAT_COUNT		/* Must be last */
 };
-
-/**
- * Get the name associated with the given CGNAT log format
- *
- * @param format The format of the log to get the name
- * @return returns the name of the log format - NULL will be returned
- *	   if an invalid format is passed in.
- */
-const char *cgn_get_log_format_name(enum cgn_log_format format);
-
-/**
- * Get the log format associated with a given CGNAT log format name
- *
- * @param name the name to look up
- * @param format a pointer to a format which will be filled in with
- *	  the enum value on success.
- *
- * @return returns 0 on success and a negative errno on failure
- */
-int cgn_get_log_format(const char *name, enum cgn_log_format *format);
 
 /* Enable and disable a named log handler for a give log type */
 int cgn_log_enable_handler(enum cgn_log_type ltype, const char *name);
