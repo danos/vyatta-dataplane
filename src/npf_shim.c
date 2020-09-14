@@ -96,7 +96,7 @@ npf_hook_notrack(const npf_ruleset_t *rlset, struct rte_mbuf **m,
 
 			/* Cache everything. drop if junk. */
 			rc = npf_cache_all(n, *m, eth_type);
-			if (unlikely(rc < 0)) {
+			if (unlikely(rc < 0 && rc != -NPF_RC_NON_IP)) {
 				if (rcp)
 					*rcp = rc;
 				goto result;

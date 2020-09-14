@@ -164,6 +164,9 @@ npf_mark_arg_create(npf_rule_t *rl, const char *params, uint32_t tag,
 void npf_remark_dscp(npf_cache_t *npc, struct rte_mbuf **m, uint8_t n,
 		     npf_rproc_result_t *result)
 {
+	if (unlikely(!npf_iscached(npc, NPC_IP46)))
+		return;
+
 	if (unlikely(npf_prepare_for_l4_header_change(m, npc) != 0)) {
 		if (net_ratelimit())
 			RTE_LOG(ERR, FIREWALL,

@@ -343,7 +343,7 @@ npf_cache_ipv6_routing_hdr(npf_cache_t *npc, struct rte_mbuf *nbuf, void *n_ptr)
  * Limited validation checks for IPv4 packet.
  * These are redundant when routing, but necessary for bridging.
  */
-static bool
+static int
 npf_ipv4_valid(const struct rte_mbuf *m, const void *n_ptr)
 {
 	const struct ip *ip = n_ptr;
@@ -353,26 +353,29 @@ npf_ipv4_valid(const struct rte_mbuf *m, const void *n_ptr)
 	eod = rte_pktmbuf_mtod(m, char *) + rte_pktmbuf_data_len(m);
 
 	if (unlikely((const char *) n_ptr + sizeof(struct ip) > eod))
-		return false;
+		return -NPF_RC_L3_SHORT;
 
 	if (unlikely(ip->ip_v != IPVERSION))
-		return false;
+		return -NPF_RC_L3_HDR_VER;
 
 	hlen = ip->ip_hl << 2;
-	if (unlikely(hlen < sizeof(struct ip) ||
-		     (const char *) n_ptr + hlen > eod))
-		return false;
+	if (unlikely(hlen < sizeof(struct ip)))
+		return -NPF_RC_L3_HDR_LEN;
+	if (unlikely((const char *) n_ptr + hlen > eod))
+		return -NPF_RC_L3_SHORT;
 
-	return true;
+	return 0;
 }
 
-static bool
+static int
 npf_fetch_ipv4(npf_cache_t *npc, struct rte_mbuf *nbuf, const void *n_ptr)
 {
-	struct ip *ip = &npc->npc_ip.v4;
+	int rc = npf_ipv4_valid(nbuf, n_ptr);
 
-	if (unlikely(!npf_ipv4_valid(nbuf, n_ptr)))
-		return false;
+	if (unlikely(rc < 0))
+		return rc;
+
+	struct ip *ip = &npc->npc_ip.v4;
 
 	memcpy(ip, n_ptr, sizeof(struct ip));
 
@@ -385,31 +388,36 @@ npf_fetch_ipv4(npf_cache_t *npc, struct rte_mbuf *nbuf, const void *n_ptr)
 	npc->npc_info |= NPC_IP4;
 	npc->npc_hlen = ip->ip_hl << 2;
 	npc->npc_next_proto = npc->npc_ip.v4.ip_p;
-	return true;
+	return 0;
 }
 
 /* Limited validation checks for IPv6 packet. */
-static bool
+static int
 npf_ipv6_valid(const struct rte_mbuf *m, const void *n_ptr)
 {
 	const char *eod
 		= rte_pktmbuf_mtod(m, char *) + rte_pktmbuf_data_len(m);
 
 	if ((const char *) n_ptr + sizeof(struct ip6_hdr) > eod)
-		return false;
+		return -NPF_RC_L3_SHORT;
 
 	const struct ip6_hdr *ip6 = n_ptr;
 
-	return (ip6->ip6_vfc & IPV6_VERSION_MASK) == IPV6_VERSION;
+	if ((ip6->ip6_vfc & IPV6_VERSION_MASK) != IPV6_VERSION)
+		return -NPF_RC_L3_HDR_VER;
+
+	return 0;
 }
 
-static bool
+static int
 npf_fetch_ipv6(npf_cache_t *npc, struct rte_mbuf *nbuf, void *n_ptr)
 {
-	struct ip6_hdr *ip6 = &npc->npc_ip.v6;
+	int rc = npf_ipv6_valid(nbuf, n_ptr);
 
-	if (unlikely(!npf_ipv6_valid(nbuf, n_ptr)))
-		return false;
+	if (unlikely(rc < 0))
+		return rc;
+
+	struct ip6_hdr *ip6 = &npc->npc_ip.v6;
 
 	uint32_t hlen = sizeof(struct ip6_hdr), next_hlen;
 	uint16_t last_unfrg_hlen;
@@ -541,14 +549,14 @@ npf_fetch_ipv6(npf_cache_t *npc, struct rte_mbuf *nbuf, void *n_ptr)
 	npc->npc_srcdst = (npf_srcdst_t *)&ip6->ip6_src;
 	npc->npc_info |= NPC_IP6;
 
-	return true;
+	return 0;
 }
 
 
 /*
  * npf_fetch_ip: fetch, check and cache IP header.
  */
-static bool npf_fetch_ip(npf_cache_t *npc, struct rte_mbuf *nbuf, void *n_ptr,
+static int npf_fetch_ip(npf_cache_t *npc, struct rte_mbuf *nbuf, void *n_ptr,
 			 uint16_t eth_proto)
 {
 	switch (ntohs(eth_proto)) {
@@ -559,7 +567,7 @@ static bool npf_fetch_ip(npf_cache_t *npc, struct rte_mbuf *nbuf, void *n_ptr,
 		return npf_fetch_ipv6(npc, nbuf, n_ptr);
 
 	default:
-		return false;
+		return -NPF_RC_NON_IP;
 	}
 }
 
@@ -773,15 +781,15 @@ static int _npf_cache_all_at(npf_cache_t *npc, struct rte_mbuf *nbuf,
 			     void *n_ptr, uint16_t eth_proto, bool icmp_err,
 			     bool update_grouper)
 {
-	if (!npf_fetch_ip(npc, nbuf, n_ptr, eth_proto))
-		return 0; /* true as this might be a non-ip packet */
+	int rc = npf_fetch_ip(npc, nbuf, n_ptr, eth_proto);
+
+	if (unlikely(rc < 0))
+		return rc;
 
 	u_int hlen = npf_cache_hlen(npc);
 
 	if (unlikely(npf_iscached(npc, NPC_IPFRAG)))
 		return 0;
-
-	int rc = 0;
 
 	switch (npf_cache_ipproto(npc)) {
 	case IPPROTO_TCP:

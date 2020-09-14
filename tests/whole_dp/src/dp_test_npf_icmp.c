@@ -1935,7 +1935,7 @@ gen_icmp_unreach(struct rte_mbuf **rv_pak, struct dp_test_expected **rv_exp,
  * NAT or a firewall wule with logging enabled.
  */
 DP_DECL_TEST_CASE(npf_icmp, icmpv4_7, NULL, NULL);
-DP_START_TEST_DONT_RUN(icmpv4_7, test)
+DP_START_TEST(icmpv4_7, test)
 {
 	struct rte_mbuf *test_pak, *embd_pak;
 	struct dp_test_expected *exp;

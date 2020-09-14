@@ -1,3 +1,20 @@
+vyatta-dataplane (3.11.21) unstable; urgency=medium
+
+  [ Paul Atkins ]
+  * netlink: vrf_link_create should return NULL not false on failure
+
+  [ Robert Shearman ]
+  * fal: fix generation of next-hop router interface attribute
+    (Fixes: VRVDR-52948)
+
+  [ Ian Wilson ]
+  * npf: Unused function npf_json_nat_session removed
+  * npf: Return rule details in firewall and NAT session json
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Fri, 11 Sep 2020 08:37:49 +0100
+
 vyatta-dataplane (3.11.20) unstable; urgency=medium
 
   [ Paul Atkins ]

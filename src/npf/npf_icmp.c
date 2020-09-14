@@ -57,6 +57,7 @@ npf_icmp_err_session_find(int di, struct rte_mbuf *nbuf, npf_cache_t *npc,
 	/* Init the embedded npc. */
 	npf_cache_t enpc;
 	npf_cache_init(&enpc);
+	enpc.npc_srcdst = NULL;
 
 	/* Inspect the embedded packet. */
 	if (!npf_cache_all_at(&enpc, nbuf, n_ptr, ether_proto))
