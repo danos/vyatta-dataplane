@@ -125,14 +125,12 @@ static int appfw_parse_rule_elements(struct appfw_handle *ah,
 		 * the protocol, type and name branches.
 		 */
 		if (!strcmp(k, "protocol"))
-			ar->ar_protocol = dpi_app_name_to_id(ar->ar_engine, v)
-				& DPI_APP_MASK;
+			ar->ar_protocol = dpi_app_name_to_id(ar->ar_engine, v);
 		else if (!strcmp(k, "type")) {
 			ar->ar_type = dpi_app_type_name_to_id(ar->ar_engine,
 					v);
 		} else if (!strcmp(k, "name"))
-			ar->ar_id = dpi_app_name_to_id(ar->ar_engine, v)
-				& DPI_APP_MASK;
+			ar->ar_id = dpi_app_name_to_id(ar->ar_engine, v);
 		else if (!strcmp(k, "engine"))
 			ar->ar_engine = dpi_engine_name_to_id(v);
 		else if (!strcmp(k, "group"))
@@ -195,15 +193,17 @@ fail:
 	return false;
 }
 
+/* Match the given application firewall rule (ar)
+ * against the given protocol, application name, and application type.
+ *
+ * Return true on a match; false if no match.
+ *
+ * NB fields in the appFW rule (ar) are set to DPI_APP_NA
+ * if they are not used in the match.
+ */
 static bool appfw_match_rule(struct appfw_rule *ar, uint32_t proto,
 		uint32_t name, uint32_t type)
 {
-	/*
-	 * Discard the engine bits from the app name and proto.
-	 */
-	name &= DPI_APP_MASK;
-	proto &= DPI_APP_MASK;
-
 	/* Match most-specific to least-specific */
 	if (ar->ar_protocol != DPI_APP_NA && ar->ar_id != DPI_APP_NA) {
 		if ((proto == ar->ar_protocol) && (name == ar->ar_id))
