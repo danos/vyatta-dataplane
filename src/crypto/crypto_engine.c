@@ -1090,12 +1090,6 @@ const struct crypto_visitor_operations crypto_chain_dump_vops = {
 	.icv_finalise = crypto_chain_dump_elem,
 };
 
-const struct crypto_visitor_operations *
-crypto_chain_dump_get_vops(void)
-{
-	return &crypto_chain_dump_vops;
-}
-
 /*
  * libcrypto locking mechanism callbacks for multi threading
  */

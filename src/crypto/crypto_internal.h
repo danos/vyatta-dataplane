@@ -269,9 +269,6 @@ struct crypto_visitor_operations {
 const struct crypto_visitor_operations *
 crypto_session_get_vops(struct crypto_session *session);
 
-const struct crypto_visitor_operations *
-crypto_chain_dump_get_vops(void);
-
 static inline uint32_t
 crypto_session_block_size(const struct crypto_session *ctx)
 {
