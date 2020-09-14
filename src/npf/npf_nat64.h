@@ -89,7 +89,6 @@ int npf_nat64_session_link(struct npf_session *se1, struct npf_session *se2);
 void npf_nat64_session_unlink(struct npf_session *se);
 void npf_nat64_session_destroy(struct npf_session *se);
 bool npf_nat64_session_is_nat64(npf_session_t *se);
-bool npf_nat64_session_is_nat46(npf_session_t *se);
 void npf_nat64_session_json(json_writer_t *json, npf_session_t *se);
 
 npf_rule_t *npf_nat64_get_rule(struct npf_nat64 *n64);
