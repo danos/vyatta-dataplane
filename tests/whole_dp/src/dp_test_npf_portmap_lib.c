@@ -120,57 +120,6 @@ dp_test_npf_json_get_portmap(const char *addr, const char *state)
 }
 
 /*
- * Returns true if the portmap "state" string is retrieved ok
- */
-bool
-dp_test_npf_json_get_portmap_state(const char *addr, char **state)
-{
-	json_object *jmap;
-	bool rv;
-	const char *str;
-
-	jmap = dp_test_npf_json_get_portmap(addr, NULL);
-	if (!jmap)
-		return false;
-
-	rv = dp_test_json_string_field_from_obj(jmap, "state", &str);
-	if (rv)
-		*state = strdup(str);
-
-	json_object_put(jmap);
-	return rv;
-}
-
-/*
- * Returns true if the portmap "used" count is retrieved ok
- */
-bool
-dp_test_npf_json_get_portmap_used(const char *prot,
-				  const char *addr, uint *used)
-{
-	json_object *jmap, *jprot;
-	bool rv;
-	struct dp_test_json_find_key key[] = { {"protocols", NULL},
-					       {"protocol", prot } };
-
-	jmap = dp_test_npf_json_get_portmap(addr, NULL);
-	if (!jmap)
-		return false;
-
-	jprot = dp_test_json_find(jmap, key, ARRAY_SIZE(key));
-
-	if (!jprot) {
-		json_object_put(jmap);
-		return false;
-	}
-
-	rv = dp_test_json_int_field_from_obj(jprot, "ports_used", (int *)used);
-
-	json_object_put(jmap);
-	return rv;
-}
-
-/*
  * Returns true if the given port is in the portmap ports list.  Only
  * considers "ACTIVE" portmaps.
  */

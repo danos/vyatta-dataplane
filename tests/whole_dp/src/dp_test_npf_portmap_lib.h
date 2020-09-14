@@ -17,19 +17,6 @@
 
 #include "dp_test_npf_lib.h"
 
-/*
- * Returns true successfully if the portmap "state" string is retrieved ok
- */
-bool
-dp_test_npf_json_get_portmap_state(const char *addr, char **state);
-
-/*
- * Returns true if the portmap "used" count as retrieved ok
- */
-bool
-dp_test_npf_json_get_portmap_used(const char *prot,
-				  const char *addr, uint *used);
-
 void
 dp_test_npf_print_portmap(void);
 
