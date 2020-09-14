@@ -402,23 +402,6 @@ drop:
 	return false;
 }
 
-bool arp_is_arp_reply(struct ifnet *ifp, struct rte_mbuf *m)
-{
-	struct rte_ether_hdr *eh;
-	struct ether_arp *ah;
-	uint16_t op;
-
-	if (!arp_input_validate(ifp, m))
-		return false;
-
-	eh = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
-	ah = (struct ether_arp *) (eh + 1);
-	op = ntohs(ah->arp_op);
-	if (op == ARPOP_REPLY)
-		return true;
-	return false;
-}
-
 /* Walk the ARP table.
  * Only called by console (main thread);
  * Can not be called safely from forwarding loop.
