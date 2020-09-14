@@ -57,7 +57,6 @@ struct ifnet;
 int npf_ncode_process(npf_cache_t *npc, const npf_rule_t *rl,
 		      const struct ifnet *ifp, int dir,
 		      npf_session_t *se, struct rte_mbuf *nbuf);
-int npf_ncode_validate(const void *nc, size_t sz, int *errat);
 
 /* Error codes. */
 #define	NPF_ERR_OPCODE		-1	/* Invalid instruction. */
