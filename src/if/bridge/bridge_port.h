@@ -73,11 +73,6 @@ uint8_t bridge_port_get_state(struct bridge_port *port);
  */
 
 /*
- * Remove all VLANs from the allowed list for this bridge port
- */
-void bridge_port_flush_vlans(struct bridge_port *port);
-
-/*
  * Check if a VLAN is in the allowed list for this bridge port
  */
 bool bridge_port_lookup_vlan(struct bridge_port *port, uint16_t vlan);
@@ -117,20 +112,6 @@ uint16_t bridge_port_get_pvid(struct bridge_port *port);
  * If a VLAN belongs to this list it will be removed from the frame on egress
  * from the bridge code.
  */
-/*
- * Add a VLAN to the untag list for this bridge port
- */
-void bridge_port_add_untag_vlan(struct bridge_port *port, uint16_t vlan);
-
-/*
- * Remove a VLAN from the untag list for this bridge port
- */
-void bridge_port_remove_untag_vlan(struct bridge_port *port, uint16_t vlan);
-
-/*
- * Remove all VLANs from the untag list for this bridge port
- */
-void bridge_port_flush_untag_vlans(struct bridge_port *port);
 
 /*
  * Check if a VLAN is in the untag list for this bridge port
@@ -150,11 +131,6 @@ bool bridge_port_synchronize_untag_vlans(struct bridge_port *port,
  */
 bool bridge_port_get_untag_vlans(
 	struct bridge_port *port, struct bridge_vlan_set *to_vlans);
-
-/*
- * Clear all data related to a bridge port.
- */
-void bridge_port_reset(struct bridge_port *port);
 
 /*
  * Get the interface the bridge port is associated with.
