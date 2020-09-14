@@ -1432,12 +1432,6 @@ uint64_t npf_natpolicy_get_map_range(const npf_natpolicy_t *np)
 	return (uint64_t)addrs * ports;
 }
 
-/* Return the type of nat (SNAT/DNAT) from the policy */
-uint8_t npf_natpolicy_get_type(npf_natpolicy_t *np)
-{
-	return np->n_type;
-}
-
 /* Get the type of nat (NATIN/NATOUT) */
 uint8_t npf_nat_type(npf_nat_t *nt)
 {
@@ -1550,43 +1544,6 @@ int npf_nat_free_map(npf_natpolicy_t *np, npf_rule_t *rl, uint32_t map_flags,
 		npf_nat_log_map_error("put", rl, np, ip_prot, &addr, port, 1,
 				      rc);
 	return rc;
-}
-
-static void npf_natpolicy_dump(const npf_natpolicy_t *np)
-{
-	char start[INET_ADDRSTRLEN], stop[INET_ADDRSTRLEN];
-
-	inet_ntop(AF_INET, &np->n_taddr, start, sizeof(start));
-	inet_ntop(AF_INET, &np->n_taddr_stop, stop, sizeof(stop));
-	RTE_LOG(ERR, FIREWALL, " NATP(%p): type %s flags 0x%x refcnt: %u\n",
-			np, (np->n_type == NPF_NATOUT) ? "NATOUT" : "NATIN",
-			np->n_flags, rte_atomic32_read(&np->n_refcnt));
-
-	if (!(np->n_flags & NPF_NAT_TABLE)) {
-		RTE_LOG(ERR, FIREWALL,
-		"           taddr %s-%s tport %d-%d addr_sz: %hhu\n",
-		start, stop, np->n_tport, np->n_tport_stop, np->n_addr_sz);
-	} else {
-		RTE_LOG(ERR, FIREWALL,
-		"           table %s tport %d-%d addr_sz: %hhu\n",
-		npf_addrgrp_tid2name(np->n_table_id), np->n_tport,
-		np->n_tport_stop, np->n_addr_sz);
-	}
-}
-
-void npf_nat_dump(const npf_nat_t *nt)
-{
-	char oaddr[INET_ADDRSTRLEN], taddr[INET_ADDRSTRLEN];
-	npf_addr_t t_addr, o_addr;
-	in_port_t t_port, o_port;
-
-	npf_nat_get_orig(nt, &o_addr, &o_port);
-	npf_nat_get_trans(nt, &t_addr, &t_port);
-
-	inet_ntop(AF_INET, &o_addr, oaddr, sizeof(oaddr));
-	inet_ntop(AF_INET, &t_addr, taddr, sizeof(taddr));
-
-	npf_natpolicy_dump(nt->nt_natpolicy);
 }
 
 bool
