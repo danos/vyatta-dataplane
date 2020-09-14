@@ -244,19 +244,10 @@ void cgn_cgn_port_tcp_etime_set(uint16_t port, uint32_t timeout)
 	cgn_port_tcp_etime[port] = timeout;
 }
 
-uint32_t cgn_cgn_port_tcp_etime_get(uint16_t port)
-{
-	return cgn_port_tcp_etime[port];
-}
 
 void cgn_cgn_port_udp_etime_set(uint16_t port, uint32_t timeout)
 {
 	cgn_port_udp_etime[port] = timeout;
-}
-
-uint32_t cgn_cgn_port_udp_etime_get(uint16_t port)
-{
-	return cgn_port_udp_etime[port];
 }
 
 /*
