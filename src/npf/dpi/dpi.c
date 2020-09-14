@@ -690,3 +690,29 @@ uint32_t dpi_refcount_dec(uint8_t engine_id)
 
 	return 0;
 }
+
+bool dpi_flow_pkt_count_maxed(struct dpi_flow *dpi_flow, uint32_t max)
+{
+	if (!dpi_flow)
+		return false;
+
+	for (unsigned int i = 0; i < dpi_flow->flows_len; i++) {
+		struct dpi_engine_flow *engine_flow = dpi_flow->flows[i].flow;
+
+		if (!engine_flow)
+			continue;
+
+		uint32_t cnt;
+		const struct dpi_flow_stats *ds;
+		ds = dpi_flow_get_stats(engine_flow, true);
+		cnt = ds->pkts;
+
+		ds = dpi_flow_get_stats(engine_flow, false);
+		cnt += ds->pkts;
+
+		if (cnt >= max)
+			return true;
+	}
+
+	return false;
+}

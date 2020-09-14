@@ -219,23 +219,6 @@ static bool appfw_match_rule(struct appfw_rule *ar, uint32_t proto,
 	return false;
 }
 
-/* Return the sum of the forward and backward packet counts
- * for the given dpi_flow.
- */
-static uint32_t appfw_pkt_count(struct dpi_flow *df)
-{
-	uint32_t cnt;
-	struct dpi_engine_flow *def = (struct dpi_engine_flow *)df;
-
-	const struct dpi_flow_stats *ds = dpi_flow_get_stats(def, true);
-	cnt = ds->pkts;
-
-	ds = dpi_flow_get_stats(def, false);
-	cnt += ds->pkts;
-
-	return cnt;
-}
-
 static npf_decision_t appfw_decision(struct appfw_handle *ah,
 		struct dpi_flow *dpi_flow)
 {
@@ -250,9 +233,8 @@ static npf_decision_t appfw_decision(struct appfw_handle *ah,
 	 * If offloaded, or hit pkt limit, then run the app-fw
 	 * rules, as we will shall make the decision.
 	 */
-	uint32_t pkt_count = appfw_pkt_count(dpi_flow);
-
-	if (dpi_flow_get_offloaded(dpi_flow) || (pkt_count >= APPFW_MAX_PKTS)) {
+	if (dpi_flow_get_offloaded(dpi_flow) ||
+	    dpi_flow_pkt_count_maxed(dpi_flow, APPFW_MAX_PKTS)) {
 		cds_list_for_each_entry(ar, &ah->ah_rules, ar_list) {
 			engine_id = ar->ar_engine;
 
