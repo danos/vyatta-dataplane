@@ -50,7 +50,5 @@
 /* Forward Declarations */
 typedef struct json_writer json_writer_t;
 
-uint npf_ncode_opcode_noperands(enum npf_opcode_type_enum opcode);
-
 void npf_json_ncode(const void *nc, size_t len, json_writer_t *json);
 #endif /* NPF_DISASSEMBLE_H */
