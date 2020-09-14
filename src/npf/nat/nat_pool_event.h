@@ -53,7 +53,4 @@ void nat_pool_event(enum np_evt evt, struct nat_pool *np);
 /* Register event ops */
 bool nat_pool_event_register(const struct np_event_ops *ops);
 
-/* Unregister event ops */
-void nat_pool_event_unregister(const struct np_event_ops *op);
-
 #endif /* _NAT_POOL_EVENT_H_ */

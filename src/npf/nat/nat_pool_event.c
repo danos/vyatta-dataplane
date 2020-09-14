@@ -70,15 +70,3 @@ bool nat_pool_event_register(const struct np_event_ops *ops)
 	}
 	return false;
 }
-
-/* Unregister event ops */
-void nat_pool_event_unregister(const struct np_event_ops *op)
-{
-	struct np_event_ops *ops = (struct np_event_ops *) op;
-	uint32_t i;
-
-	for (i = 0; i < ARRAY_SIZE(np_ops); i++) {
-		if (rcu_cmpxchg_pointer(&np_ops[i], ops, NULL) == ops)
-			return;
-	}
-}
