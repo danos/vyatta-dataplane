@@ -760,12 +760,6 @@ npf_attpt_item_up_fn_context(const struct npf_attpt_item *ap)
 	return ap->ap_fn_context;
 }
 
-size_t
-npf_attpt_item_rls_count(const struct npf_attpt_item *ap)
-{
-	return attach_point_rls_count(ap);
-}
-
 int
 npf_attpt_item_set_up(enum npf_attach_type attach_type,
 		      const char *attach_point,
@@ -1007,26 +1001,6 @@ void npf_attpt_walk_rlsets(struct npf_attpt_item *ap,
 
 		ars = zlistx_next(ap->ap_rulesets);
 	}
-}
-
-int npf_attpt_group_find(struct npf_attpt_rlset *ars,
-			 enum npf_rule_class group_class, const char *group)
-{
-	if (!ars || !group_valid(group_class, group))
-		return -EINVAL;
-
-	/* Acquire the attached group */
-	struct npf_rlgrp_key rg_key = {
-		.rgk_class = group_class,
-		.rgk_name = group,
-	};
-	struct ag_handle agh;
-	struct npf_attpt_group *agr
-		= attached_group_find(ars, &rg_key, &agh);
-	if (!agr)
-		return -ENOENT;
-
-	return 0;
 }
 
 struct npf_attpt_rlset *
