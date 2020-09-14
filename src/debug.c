@@ -137,6 +137,7 @@ static const char *debug_bits[] = {
 	"vrf",		"multicast",		"mpls_control",
 	"mpls_pkterr",	"dpi",          "qos_dp",       "qos_hw",
 	"storm_ctl",	"cpp_rl",	"ptp",          "cgnat",
+	"flow-cache", "mac-limit",
 };
 
 /* find debug bit based on name, allow abbreviation */
