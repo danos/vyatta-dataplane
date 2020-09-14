@@ -334,6 +334,9 @@ mpls_label_table_ins_lbl_internal(struct cds_lfht *label_table,
 		old_label_table_node = caa_container_of(node,
 							struct label_table_node,
 							node);
+		label_table_node->pd_created = old_label_table_node->pd_created;
+		label_table_node->pd_state = old_label_table_node->pd_state;
+
 		free_label_table_node(old_label_table_node);
 	} else {
 		added_new = true;
