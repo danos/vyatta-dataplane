@@ -71,15 +71,6 @@ bool cgn_policy_record_dest(struct cgn_policy *cp, uint32_t addr, int dir)
 	return false;
 }
 
-/*
- * Compare two policies.  Returns -1, 0, or 1 is p1 is less than, equal, or
- * greater than p2.
- */
-int cgn_policy_cmp(struct cgn_policy *p1, struct cgn_policy *p2)
-{
-	return strcmp(p1->cp_name, p2->cp_name);
-}
-
 static ulong cgn_policy_hash(const char *name)
 {
 	return rte_jhash(name, strlen(name), 0);
