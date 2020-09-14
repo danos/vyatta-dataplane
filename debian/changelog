@@ -1,3 +1,18 @@
+vyatta-dataplane (3.11.23) unstable; urgency=medium
+
+  * zmq_dp: remove unused code
+  * dealer: remove unused code
+  * ut: remove unused code in dp_test_crypto_utils
+  * ut: remove unused code in dp_test_lib_intf
+  * ut: remove unused code in dp_test_netlink_state
+  * ut: remove unused code in dp_test_qos_lib
+  * vxlan: remove unused code
+  * vti: remove unused code
+  * qos_sched: remove unused code
+  * nsh: remove unused code
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Mon, 14 Sep 2020 14:14:45 +0100
+
 vyatta-dataplane (3.11.22) unstable; urgency=medium
 
   [ Gavin Shearer ]
