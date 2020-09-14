@@ -139,6 +139,8 @@ npf_nat_t *npf_session_retnat(npf_session_t *se, const int di, bool *forw);
 void npf_session_feature_json(json_writer_t *json, npf_session_t *se);
 void npf_session_feature_log(enum session_log_event event, struct session *s,
 			    struct session_feature *sf);
+int npf_session_feature_nat_info(npf_session_t *se, uint32_t *taddr,
+				 uint16_t *tport);
 
 void npf_session_set_nat64(npf_session_t *se, struct npf_nat64 *nat64);
 struct npf_nat64 *npf_session_get_nat64(npf_session_t *se);

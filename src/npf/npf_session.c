@@ -1513,6 +1513,24 @@ void npf_session_feature_json(json_writer_t *json, npf_session_t *se)
 		npf_alg_session_json(json, se, se->s_alg);
 }
 
+int npf_session_feature_nat_info(npf_session_t *se, uint32_t *taddr,
+				 uint16_t *tport)
+{
+	npf_nat_t *nt = se->s_nat;
+	npf_addr_t npf_taddr;
+	int type;
+	uint masq = 0;
+
+	if (!nt)
+		return -EINVAL;
+
+	if (!npf_nat_info(nt, &type, &npf_taddr, tport, &masq))
+		return -EINVAL;
+
+	*taddr = npf_taddr.s6_addr32[0];
+	return 0;
+}
+
 static inline const char *npf_session_log_event(
 	enum session_log_event event)
 {

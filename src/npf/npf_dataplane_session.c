@@ -107,12 +107,19 @@ static void dps_feature_log(enum session_log_event event, struct session *s,
 	npf_session_feature_log(event, s, sf);
 }
 
+static int dps_feature_nat_info(void *data, uint32_t *taddr, uint16_t *tport)
+{
+	npf_session_t *se = data;
+	return npf_session_feature_nat_info(se, taddr, tport);
+}
+
 /* Callbacks for the npf_session_t */
 static const struct session_feature_ops ops = {
 	.expired = dps_feature_expire,
 	.destroy = dps_feature_destroy,
 	.json = dps_feature_json,
 	.log = dps_feature_log,
+	.nat_info = dps_feature_nat_info,
 };
 
 /*
