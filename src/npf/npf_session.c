@@ -880,25 +880,6 @@ npf_session_find_or_create(npf_cache_t *npc, struct rte_mbuf *mbuf,
 	return se;
 }
 
-
-/*
- * Find a session matching the packet passed in,  possibly looking
- * with swapped keys (for reverse flows).
- * The caller should ensure a session exists before calling here.
- */
-npf_session_t *
-npf_session_lookup(struct rte_mbuf *m, npf_cache_t *npc,
-		const struct ifnet *ifp, const int di)
-{
-	/* Can the packet have session tracking state? */
-	if (!npf_session_trackable_p(npc))
-		return NULL;
-
-	bool sforw = false;
-
-	return npf_session_find(m, di, ifp, &sforw, NULL);
-}
-
 /*
  * Session create rproc. Return 'false' to block session creation.
  */
@@ -1170,12 +1151,6 @@ npf_nat_t *npf_session_get_nat(const npf_session_t *se)
 	return NULL;
 }
 
-/* Get natpolicy of session nat */
-npf_natpolicy_t *npf_session_get_natpolicy(npf_session_t *se)
-{
-	return npf_nat_get_policy(se->s_nat);
-}
-
 void npf_session_set_dp_session(npf_session_t *se, struct session *s)
 {
 	se->s_session = s;
@@ -1278,12 +1253,6 @@ void npf_session_expire(npf_session_t *se)
 		/* Send out expiry only if the watch was acked before */
 		npf_session_do_watch(se, SESSION_EXPIRE);
 	}
-}
-
-bool
-npf_session_is_expired(const npf_session_t *se)
-{
-	return (se->s_flags & SE_EXPIRE) != 0;
 }
 
 /*

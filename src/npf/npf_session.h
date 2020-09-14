@@ -106,8 +106,6 @@ npf_session_t *npf_session_find_or_create(npf_cache_t *npc,
 		int *error);
 npf_session_t *npf_session_find_by_npc(npf_cache_t *npc, const int di,
 		const struct ifnet *ifp, bool embedded);
-npf_session_t *npf_session_lookup(struct rte_mbuf *m, npf_cache_t *npc,
-		const struct ifnet *ifp, const int di);
 npf_session_t *npf_session_establish(npf_cache_t *npc,
 		struct rte_mbuf *nbuf, const struct ifnet *ifp,
 		const int di, int *error);
@@ -119,7 +117,6 @@ int npf_session_activate(npf_session_t *se, const struct ifnet *ifp,
 		npf_cache_t *npc, struct rte_mbuf *nbuf);
 vrfid_t npf_session_get_vrfid(npf_session_t *se);
 npf_nat_t *npf_session_get_nat(const npf_session_t *se);
-npf_natpolicy_t *npf_session_get_natpolicy(npf_session_t *se);
 void npf_session_setnat(npf_session_t *se, npf_nat_t *nt, bool pinhole);
 
 void npf_session_set_dp_session(npf_session_t *se, struct session *s);
@@ -129,7 +126,6 @@ int npf_session_sentry_extract(npf_session_t *se, uint32_t *if_index, int *af,
 			       npf_addr_t **dst, uint16_t *did);
 
 void npf_session_expire(npf_session_t *se);
-bool npf_session_is_expired(const npf_session_t *se);
 void npf_session_destroy(npf_session_t *se);
 bool npf_session_is_pass(const npf_session_t *se, npf_rule_t **rl);
 bool npf_session_is_nat_pinhole(const npf_session_t *se, int dir);
