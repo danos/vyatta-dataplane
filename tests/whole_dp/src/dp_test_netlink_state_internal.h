@@ -386,18 +386,6 @@ void _dp_test_netlink_del_lo(const char *name, bool verify, const char *file,
 #define dp_test_netlink_del_lo(name, verify)				\
 	_dp_test_netlink_del_lo(name, verify, __FILE__, __func__, __LINE__)
 
-void _dp_test_netlink_create_lord(const char *name, vrfid_t vrf_id, bool verify,
-				  const char *file, const char *func, int line);
-
-void _dp_test_netlink_del_lord(const char *name, vrfid_t vrf_id, bool verify,
-			       const char *file, const char *func, int line);
-#define dp_test_netlink_create_lord(name, vrf_id, verify)		\
-	_dp_test_netlink_create_lord(name, vrf_id, verify,		\
-				     __FILE__, __func__, __LINE__)
-#define dp_test_netlink_del_lord(name, vrf_id, verify)			\
-	_dp_test_netlink_del_lord(name, vrf_id, verify,			\
-				  __FILE__, __func__, __LINE__)
-
 void _dp_test_netlink_create_vfp(const char *name, vrfid_t vrf_id, bool verify,
 				 const char *file, const char *func, int line);
 
