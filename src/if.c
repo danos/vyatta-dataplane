@@ -366,27 +366,6 @@ struct ifnet *dp_ifnet_byifname(const char *ifname)
 	return ifp;
 }
 
-/**
- * Find local DPDK interface by the eth_dev->data->name
- */
-struct ifnet *ifnet_byethname(const char *ethname)
-{
-	struct ifnet *ifp;
-	struct cds_lfht_iter iter;
-
-	cds_lfht_for_each_entry(ifname_hash, &iter, ifp, ifname_hash) {
-		if (ifp->if_local_port && !ifp->unplugged) {
-			struct rte_eth_dev *eth_dev =
-				&rte_eth_devices[ifp->if_port];
-
-			if (strcmp(eth_dev->data->name, ethname) == 0)
-				return ifp;
-		}
-	}
-
-	return NULL;
-}
-
 void dp_ifnet_walk(dp_ifnet_iter_func_t func, void *arg)
 {
 	struct ifnet *ifp;
@@ -2423,16 +2402,6 @@ bool if_is_control_channel(struct ifnet *ifp)
 	return (!strcmp(ifp->if_name, config.ctrl_intf_name));
 }
 
-/* Is this port owned by the cont_src passed in ?
- * Ports are owned by the cont_src that created them
- */
-bool if_port_is_owned_by_src(enum cont_src_en cont_src, portid_t portid)
-{
-	const struct ifnet *ifp = ifnet_byport(portid);
-
-	return (ifp && ifp->if_cont_src == cont_src);
-}
-
 /*
  * Used in json output so consider backwards compatibility
  * before changing existing values
@@ -3515,20 +3484,6 @@ int if_set_backplane(struct ifnet *ifp, unsigned int ifindex)
 		return -EOPNOTSUPP;
 
 	return ops->ifop_set_backplane(ifp, ifindex);
-}
-
-int if_get_backplane(struct ifnet *ifp, unsigned int *ifindex)
-{
-	const struct ift_ops *ops;
-
-	ops = if_get_ops(ifp);
-	if (!ops)
-		return -EINVAL;
-
-	if (!ops->ifop_get_backplane)
-		return -EOPNOTSUPP;
-
-	return ops->ifop_get_backplane(ifp, ifindex);
 }
 
 int if_set_speed(struct ifnet *ifp, bool autoneg,

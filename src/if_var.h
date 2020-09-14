@@ -715,8 +715,6 @@ void if_mpls_stats(const struct ifnet *ifp, struct if_mpls_data *stats);
 
 const char *if_flags2str(char *buf, unsigned int flags);
 
-struct ifnet *ifnet_byethname(const char *name);
-
 struct ifnet *ifnet_byifname_cont_src(enum cont_src_en cont_src,
 				      const char *ifname);
 void if_set_vrf(struct ifnet *ifp, vrfid_t vrf_id);
@@ -992,7 +990,6 @@ void incomplete_route_del(const void *dst,
 void if_set_cont_src(struct ifnet *ifp, enum cont_src_en cont_src);
 bool if_port_is_uplink(portid_t portid);
 bool if_is_control_channel(struct ifnet *ifp);
-bool if_port_is_owned_by_src(enum cont_src_en cont_src, portid_t portid);
 bool if_port_is_bkplane(portid_t portid);
 
 int if_fal_create_l3_intf(struct ifnet *ifp);
@@ -1076,11 +1073,10 @@ struct if_vlan_feat *if_vlan_feat_get(struct ifnet *ifp, uint16_t vlan);
 int if_vlan_feat_delete(struct ifnet *ifp, uint16_t vlan);
 
 /*
- * APIs to set/get backplane interface
+ * API to set backplane interface
  * Currently supported only on ethernet interfaces
  */
 int if_set_backplane(struct ifnet *ifp, unsigned int ifindex);
-int if_get_backplane(struct ifnet *ifp, unsigned int *ifindex);
 
 static inline bool
 if_is_hwport(struct ifnet *ifp)
