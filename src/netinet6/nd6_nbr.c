@@ -1289,44 +1289,6 @@ int nd6_input(struct ifnet *ifp, struct rte_mbuf *m)
 }
 
 /*
- * Check if the packet is an ND solicited NA.
- * return true if solicited NA
- */
-bool nd6_is_sol_na(struct rte_mbuf *m)
-{
-	struct ip6_hdr *ip6 = ip6hdr(m);
-	struct icmp6_hdr *icmp6;
-	unsigned int off, icmp6len;
-	struct nd_neighbor_advert *nd_na;
-	uint32_t flags;
-
-	if (!ip6_valid_packet(m, ip6))
-		return false;
-
-	if (likely(ip6->ip6_nxt != IPPROTO_ICMPV6))
-		return false;
-
-	off = dp_pktmbuf_l2_len(m) + sizeof(*ip6);
-	icmp6 = ip6_exthdr(m, off, sizeof(*icmp6));
-	if (unlikely(!icmp6))
-		return false;
-
-	if (icmp6->icmp6_type != ND_NEIGHBOR_ADVERT)
-		return false;
-
-	icmp6len = rte_pktmbuf_pkt_len(m) - off;
-	nd_na = ip6_exthdr(m, off, icmp6len);
-	if (!nd_na)
-		return false;
-
-	flags = nd_na->nd_na_flags_reserved;
-	if ((flags & ND_NA_FLAG_SOLICITED) == 0)
-		return false;
-
-	return true;
-}
-
-/*
  * Walk the ND6 table.
  * Only called by console (main thread);
  * Can not be called safely from forwarding loop.
