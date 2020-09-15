@@ -84,7 +84,6 @@ struct if_storm_ctl_info {
 	struct cds_lfht            *sc_instance_tbl;
 };
 
-static struct cfg_if_list *cfg_list_storm;
 static unsigned int storm_ctl_policy_cnt;
 
 #define STORM_CTL_DETECTION_DEFAULT_INTERVAL 5
@@ -100,65 +99,9 @@ static struct cds_lfht *storm_ctl_profile_tbl;
 
 static bool storm_ctl_monitor_running;
 
-static void
-storm_ctl_event_if_index_set(struct ifnet *ifp);
-static void
-storm_ctl_event_if_index_unset(struct ifnet *ifp, uint32_t ifindex);
 static void storm_ctl_trigger_actions(struct storm_ctl_instance *instance,
 				      enum fal_traffic_type tr_type,
 				      uint64_t pkt_drops);
-
-static const struct dp_event_ops storm_ctl_event_ops = {
-	.if_index_set = storm_ctl_event_if_index_set,
-	.if_index_unset = storm_ctl_event_if_index_unset,
-};
-
-static void
-storm_ctl_event_if_index_set(struct ifnet *ifp)
-{
-	struct cfg_if_list_entry *le;
-
-	if (!cfg_list_storm)
-		return;
-
-	le = cfg_if_list_lookup(cfg_list_storm, ifp->if_name);
-	if (!le)
-		return;
-
-	RTE_LOG(INFO, DATAPLANE,
-			"Replaying storm_ctl command %s for interface %s\n",
-			le->le_buf, ifp->if_name);
-	cmd_storm_ctl_cfg(NULL, le->le_argc, le->le_argv);
-	cfg_if_list_del(cfg_list_storm, ifp->if_name);
-	if (!cfg_list_storm->if_list_count) {
-		cfg_if_list_destroy(&cfg_list_storm);
-		dp_event_unregister(&storm_ctl_event_ops);
-	}
-}
-
-static void
-storm_ctl_event_if_index_unset(struct ifnet *ifp, uint32_t ifindex __unused)
-{
-	if (!cfg_list_storm)
-		return;
-
-	cfg_if_list_del(cfg_list_storm, ifp->if_name);
-	if (!cfg_list_storm->if_list_count) {
-		cfg_if_list_destroy(&cfg_list_storm);
-		dp_event_unregister(&storm_ctl_event_ops);
-	}
-}
-
-static int storm_ctl_replay_init(void)
-{
-	if (!cfg_list_storm) {
-		cfg_list_storm = cfg_if_list_create();
-		if (!cfg_list_storm)
-			return -ENOMEM;
-	}
-	dp_event_register(&storm_ctl_event_ops);
-	return 0;
-}
 
 static struct rte_timer storm_ctl_monitor_tmr;
 
@@ -1445,17 +1388,10 @@ static int storm_ctl_set_intf_cfg(bool set, FILE *f, int argc, char **argv)
 	ifname = argv[2];
 	ifp = dp_ifnet_byifname(ifname);
 	if (!ifp) {
-		if (!cfg_list_storm && storm_ctl_replay_init()) {
-			RTE_LOG(ERR, DATAPLANE,
-					"Could not set up command replay cache\n");
-			return -ENOMEM;
-		}
-
-		RTE_LOG(INFO, DATAPLANE,
-			"Caching storm-ctl command for interface %s\n",
+		RTE_LOG(ERR, DATAPLANE,
+			"Storm control applied, but interface missing %s\n",
 			ifname);
-		cfg_if_list_add(cfg_list_storm, ifname, argc, argv);
-		return 0;
+		return -1;
 	}
 
 	if (ifp->if_type != IFT_ETHER) {
