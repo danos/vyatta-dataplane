@@ -224,9 +224,6 @@ FILES_NOT_FOR_TEST = \
 	src/shadow_receive.c
 
 NPF_FILES = \
-	src/npf/alg/apt/apt.c \
-	src/npf/alg/apt/apt_dport.c \
-	src/npf/alg/apt/apt_tuple.c \
         src/npf/alg/alg_apt.c \
         src/npf/apm/apm.c \
         src/npf/alg/alg.c \
@@ -565,7 +562,6 @@ dataplane_test_SOURCES += \
 	tests/whole_dp/src/dp_test_npf_nat64.c \
 	tests/whole_dp/src/dp_test_npf_nat_lib.c \
 	tests/whole_dp/src/dp_test_npf_nptv6.c \
-	tests/whole_dp/src/dp_test_npf_apt.c \
 	tests/whole_dp/src/dp_test_npf_alg_lib.c \
 	tests/whole_dp/src/dp_test_npf_alg_sip_call.c \
 	tests/whole_dp/src/dp_test_npf_alg_sip_lib.c \

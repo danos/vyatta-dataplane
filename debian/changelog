@@ -1,3 +1,15 @@
+vyatta-dataplane (3.11.24) unstable; urgency=medium
+
+  [ Paul Aitken ]
+  * NPF: prevent possible null deref
+
+  [ Gavin Shearer ]
+  * cgn: add locking when sending logs ZMQ
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Tue, 15 Sep 2020 13:37:16 +0100
+
 vyatta-dataplane (3.11.23) unstable; urgency=medium
 
   * zmq_dp: remove unused code
