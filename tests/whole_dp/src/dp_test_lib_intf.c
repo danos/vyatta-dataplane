@@ -582,20 +582,6 @@ dp_test_intf_name2intf(const char *if_name)
 }
 
 /*
- * Convert if_name to oper state flags
- */
-uint8_t
-dp_test_intf_name2state(const char *if_name)
-{
-	struct dp_test_intf *intf;
-
-	intf = dp_test_intf_name2intf(if_name);
-	dp_test_assert_internal(intf);
-
-	return intf->state;
-}
-
-/*
  * Set op_state flags on if_name intf
  */
 void
@@ -745,22 +731,6 @@ dp_test_intf_port2index(portid_t port_id)
 	return intf->ifindex;
 }
 
-/*
- *
- * Convert port_id to interface mac.
- */
-struct rte_ether_addr *
-dp_test_intf_port2mac(portid_t port_id)
-{
-	struct dp_test_intf *intf;
-
-	dp_test_assert_internal(port_id < dp_test_intf_count());
-	intf = dp_test_intf_port2intf(port_id);
-	dp_test_assert_internal(intf);
-
-	return &intf->mac;
-}
-
 static int
 dp_test_intf_ip4_find(in_addr_t ip4, struct dp_test_intf *intf)
 {
@@ -851,52 +821,6 @@ void
 dp_test_intf_del_addr(const char *if_name, struct dp_test_addr *addr)
 {
 	dp_test_intf_addr(if_name, addr, false);
-}
-
-static bool
-dp_test_intf_has_ip4(const char *if_name, const in_addr_t ip4)
-{
-	struct dp_test_intf *intf;
-	int i;
-
-	intf = dp_test_intf_name2intf(if_name);
-	dp_test_assert_internal(intf);
-
-	for (i = 0; i < DP_TEST_INTF_ADDR_MAX; i++)
-		if (intf->ip4[i] == ip4)
-			return true;
-
-	return false;
-}
-
-static bool
-dp_test_intf_has_ip6(const char *if_name, const struct in6_addr *ip6)
-{
-	struct dp_test_intf *intf;
-	int i;
-
-	intf = dp_test_intf_name2intf(if_name);
-	dp_test_assert_internal(intf);
-
-	for (i = 0; i < DP_TEST_INTF_ADDR_MAX; i++)
-		if (IN6_ARE_ADDR_EQUAL(&intf->ip6[i], ip6))
-			return true;
-
-	return false;
-}
-
-bool
-dp_test_intf_has_addr(const char *if_name, const struct dp_test_addr *addr)
-{
-	switch (addr->family) {
-	case AF_INET:
-		return dp_test_intf_has_ip4(if_name, addr->addr.ipv4);
-	case AF_INET6:
-		return dp_test_intf_has_ip6(if_name, &addr->addr.ipv6);
-	default:
-		dp_test_assert_internal(false);
-	}
-	return false;
 }
 
 static void
