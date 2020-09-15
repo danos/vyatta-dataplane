@@ -92,13 +92,6 @@ struct dpt_zone_cfg {
 
 void dpt_zone_cfg(struct dpt_zone_cfg *cfg, bool add, bool debug);
 
-
-/*
- * npf zones
- */
-const char *dp_test_zone_attach_point_name(const char *from_zone,
-					   const char *to_zone);
-
 void _dp_test_zone_add(const char *zname, const char *file, int line);
 
 #define dp_test_zone_add(name) \
@@ -199,10 +192,6 @@ _dp_test_npf_fw_addr_group_addr_del(const char *table, const char *addr,
 #define NPF_ZONES_SHOW_RSETS 0x04
 #define NPF_ZONES_SHOW_ALL   (NPF_ZONES_SHOW_INTFS | NPF_ZONES_SHOW_POLS | \
 			      NPF_ZONES_SHOW_RSETS)
-
-void dp_test_zone_print_zones(const char *zone, const char *policy,
-			      uint8_t flags);
-
 
 /*
  * Add a port group

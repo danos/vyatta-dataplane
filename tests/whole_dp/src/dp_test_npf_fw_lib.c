@@ -157,16 +157,6 @@ void dpt_zone_cfg(struct dpt_zone_cfg *cfg, bool add, bool debug)
 	}
 }
 
-
-const char *
-dp_test_zone_attach_point_name(const char *from_zone, const char *to_zone)
-{
-	static char name[100];
-
-	spush(name, sizeof(name), "%s>%s", from_zone, to_zone);
-	return name;
-}
-
 void
 _dp_test_zone_add(const char *zname, const char *file, int line)
 {
@@ -247,60 +237,6 @@ _dp_test_zone_intf_del(const char *zname, const char *ifname,
 
 	_dp_test_npf_cmd(cmd, false, file, line);
 }
-
-static json_object *
-dp_test_zone_json_get_zones(const char *zone, const char *policy,
-			    uint8_t flags)
-{
-	json_object *jresp;
-	char *response;
-	bool err;
-	char cmd[TEST_MAX_CMD_LEN];
-
-	spush(cmd, sizeof(cmd),
-	      "npf-op show zones %s %s %u",
-	      zone ? zone : "all",
-	      policy ? policy : "all", flags);
-
-	response = dp_test_console_request_w_err(cmd, &err, false);
-	if (!response || err) {
-		printf("  no response\n");
-		return NULL;
-	}
-
-	jresp = parse_json(response, parse_err_str, sizeof(parse_err_str));
-
-	if (!jresp) {
-		printf("  failed to parse json\n");
-		printf("%s\n", response);
-		free(response);
-		return NULL;
-	}
-	free(response);
-
-	return jresp;
-}
-
-void
-dp_test_zone_print_zones(const char *zone, const char *policy,
-			 uint8_t flags)
-{
-	json_object *jobj;
-	const char *str;
-
-	jobj = dp_test_zone_json_get_zones(zone, policy, flags);
-	if (!jobj) {
-		printf("Zones not found\n");
-		return;
-	}
-
-	str = json_object_to_json_string_ext(jobj, JSON_C_TO_STRING_PRETTY);
-	if (str)
-		printf("%s\n", str);
-	json_object_put(jobj);
-}
-
-
 
 /*
  * Create an address-group.  Table is a number string, e.g. "0" or "1".

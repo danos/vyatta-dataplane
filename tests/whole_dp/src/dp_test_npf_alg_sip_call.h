@@ -122,10 +122,6 @@ dp_test_sip_call_replace_outs_fqdn(struct dp_test_sip_pkt_t *sip_call,
 				   const char *tgt, const char *trans);
 
 void
-dp_test_sip_pkt_insert_attr(struct dp_test_sip_pkt_t *sip_pkt,
-			    const char *before, const char *attr);
-
-void
 dp_test_sip_pkt_via_replace_str(struct dp_test_sip_pkt_t *sip_pkt,
 				const char *old, const char *new);
 

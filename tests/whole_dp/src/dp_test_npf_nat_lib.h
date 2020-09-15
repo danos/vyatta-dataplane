@@ -36,15 +36,6 @@ struct dp_test_npf_nat_rule_t {
 	const char *trans_port;
 };
 
-/*
- * Enable/disable NAT debugging
- *
- * 1. Prints the npf string during _dp_test_npf_nat_add
- * 2. Printd the json object for the nat rule during _dp_test_npf_nat_verify
- */
-void dp_test_npf_nat_set_debug(bool on);
-bool dp_test_npf_nat_get_debug(void);
-
 /* Simple SNAT and DNAT config */
 void dpt_snat_cfg(const char *intf, uint8_t ipproto,
 		  const char *from_addr, const char *trans_addr,
@@ -164,42 +155,6 @@ enum dp_test_nat_dir {
 };
 
 /*
- * Wrapper around dp_test_pak_receive to create, send, and verify NAT'd
- * packets.
- *
- * descr	Description of the packet being sent
- * pre		pre-NAT packet descriptor
- * post		post-NAT packet descriptor
- * dir		Direction of the packet relative to the NAT session
- * ttype	SNAT or DNAT
- * verify_sess	Verify the NAT session exists during packet validation callback
- * count	Number of packets to send
- * delay	Delay in seconds between packets
- *
- * Note, the delay is for use when sending mutliple packets, however this
- * should *only* be used in a private build, i.e. dont commit test code with a
- * non-zero delay.
- */
-void
-_dpt_npf_nat_pak_receive(const char *descr,
-			 struct dp_test_pkt_desc_t *pre,
-			 struct dp_test_pkt_desc_t *post,
-			 enum dp_test_nat_dir dir,
-			 enum dp_test_trans_type ttype,
-			 bool verify_sess,
-			 uint count, uint delay,
-			 const char *file, int line);
-
-#define dpt_npf_nat_pak_receive(descr, pre, post, dir, ttype, vs)	\
-	_dpt_npf_nat_pak_receive(descr, pre, post, dir, ttype,		\
-				 vs, 1, 0, __FILE__, __LINE__)
-
-#define dpt_npf_nat_pak_receive_n(descr, pre, post, dir, ttype, vs,	\
-				  count, dly)				\
-	_dpt_npf_nat_pak_receive(descr, pre, post, dir, ttype, vs,	\
-				 count, dly, __FILE__, __LINE__)
-
-/*
  * NAT validation context.  Expectation is as follows:
  *
  * DNAT Forwards  - dest   addr translated to 'taddr'
@@ -257,24 +212,8 @@ struct dp_test_nat_cb_ctx {
 };
 
 void
-dp_test_npf_nat_ctx_set_dnat(struct dp_test_nat_ctx *ctx);
-
-void
-dp_test_npf_nat_ctx_set_snat(struct dp_test_nat_ctx *ctx);
-
-void
-dp_test_npf_nat_ctx_set_dir(struct dp_test_nat_ctx *ctx,
-			    enum dp_test_nat_dir dir);
-
-void
-dp_test_npf_nat_ctx_set_oaddr(struct dp_test_nat_ctx *ctx, uint32_t oaddr);
-
-void
 dp_test_npf_nat_ctx_set_oaddr_str(struct dp_test_nat_ctx *ctx,
 				  const char *oaddr_str);
-
-void
-dp_test_npf_nat_ctx_set_taddr(struct dp_test_nat_ctx *ctx, uint32_t taddr);
 
 void
 dp_test_npf_nat_ctx_set_taddr_str(struct dp_test_nat_ctx *ctx,
@@ -317,65 +256,5 @@ _dp_test_nat_set_validation(struct dp_test_nat_cb_ctx *ctx,
  */
 json_object *
 dp_test_npf_json_get_nat_rule(const char *ifname, const char *num, bool snat);
-
-/*
- * Pretty print NAT firewall rules
- */
-void
-dp_test_npf_print_nat(const char *desc);
-
-/*
- *  nat_udp_rcv("dp1T0", "aa:bb:cc:dd:1:a1", 0,
- *		"100.64.0.1", 49152, "1.1.1.1", 80,
- *		"1.1.1.11",    1024, "1.1.1.1", 80,
- *		"aa:bb:cc:dd:2:b1", 0, "dp2T1",
- *		DP_TEST_FWD_FORWARDED);
- */
-void
-_nat_udp(const char *rx_intf, const char *pre_smac, int pre_vlan,
-	   const char *pre_saddr, uint16_t pre_sport,
-	   const char *pre_daddr, uint16_t pre_dport,
-	   const char *post_saddr, uint16_t post_sport,
-	   const char *post_daddr, uint16_t post_dport,
-	   const char *post_dmac, int post_vlan, const char *tx_intf,
-	   int status, bool icmp_err,
-	   const char *file, const char *func, int line);
-
-#define nat_udp_rcv(_a, _b, _c, _d, _e, _f, _g, _h,			\
-		  _i, _j, _k, _l, _m, _n, _o)				\
-	_nat_udp(_a, _b, _c, _d, _e, _f, _g, _h,			\
-		   _i, _j, _k, _l, _m, _n, _o, false,			\
-		   __FILE__, __func__, __LINE__)
-
-#define nat_udp_err(_a, _b, _c, _d, _e, _f, _g, _h,			\
-		  _i, _j, _k, _l, _m, _n, _o)				\
-	_nat_udp(_a, _b, _c, _d, _e, _f, _g, _h,			\
-		   _i, _j, _k, _l, _m, _n, _o, true,			\
-		   __FILE__, __func__, __LINE__)
-
-void
-_nat_tcp(uint8_t flags, const char *rx_intf, const char *pre_smac,
-	   const char *pre_saddr, uint16_t pre_sport,
-	   const char *pre_daddr, uint16_t pre_dport,
-	   const char *post_saddr, uint16_t post_sport,
-	   const char *post_daddr, uint16_t post_dport,
-	   const char *post_dmac, const char *tx_intf,
-	   int status,
-	   const char *file, const char *func, int line);
-#define nat_tcp_rcv(_a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n) \
-	_nat_tcp(_a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, \
-		   __FILE__, __func__, __LINE__)
-
-void
-_nat_icmp(uint8_t icmp_type, const char *rx_intf, const char *pre_smac,
-	    const char *pre_saddr, uint16_t pre_icmp_id,
-	    const char *pre_daddr,
-	    const char *post_saddr, uint16_t post_icmp_id,
-	    const char *post_daddr,
-	    const char *post_dmac, const char *tx_intf,
-	    const char *file, const char *func, int line);
-#define nat_icmp_rcv(_a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k)	\
-	_nat_icmp(_a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k,		\
-		  __FILE__, __func__, __LINE__)
 
 #endif

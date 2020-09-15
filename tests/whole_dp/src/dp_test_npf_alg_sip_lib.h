@@ -105,25 +105,6 @@ _dp_test_alg_sip_set_validation(struct dp_test_alg_sip_ctx *ctx,
 struct rte_mbuf *
 dp_test_npf_alg_sip_pak(struct dp_test_pkt_desc_t *pkt, const char *payload);
 
-/*
- * Creates a test packet from a packet descriptor and an RTP data array.
- */
-struct rte_mbuf *
-dp_test_npf_alg_rtp_pak(struct dp_test_pkt_desc_t *pkt,	const uint8_t *payload,
-			uint plen);
-
-/*
- * Validate SIP message string.  Useful for checking a SIP message before
- * using it in a packet.
- */
-bool
-_dp_test_npf_alg_sip_payload_check(const char *payload, uint plen, bool sdp,
-				   char *file, int line);
-
-#define dp_test_npf_alg_sip_payload_check(payload, plen, sdp)  \
-	_dp_test_npf_alg_sip_payload_check(payload, plen, sdp, \
-					   __FILE__, __LINE__)
-
 void
 dp_test_npf_sip_debug(const char *fmt, ...);
 

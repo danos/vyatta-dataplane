@@ -79,21 +79,9 @@ enum dp_test_sip_resp {
 enum dp_test_sip_req
 dp_test_npf_sip_msg_req(const char *msg);
 
-/*
- * Returns the SIP response enum value if this is a SIP response, else returns
- * 0.  If it is a response, then the code (180, 200 etc.) is written to 'code'
- * and the string ("RINGING", "OK" etc.) is written to 'str'.
- */
-enum dp_test_sip_resp
-dp_test_npf_sip_msg_resp(const char *msg, uint *code, char **strp);
-
 /* Is this a SIP request? */
 bool
 dp_test_npf_sip_msg_is_req(const char *msg);
-
-/* Is this a SIP BYE request? */
-bool
-dp_test_npf_sip_msg_is_req_bye(const char *msg);
 
 /*
  * Replace a string, free old string, assign new string to pointer
@@ -101,15 +89,6 @@ dp_test_npf_sip_msg_is_req_bye(const char *msg);
 void
 dp_test_npf_sip_replace_ptr(char **strp, const char *needle,
 			    const char *replacement);
-
-/*
- * Change the FQDNs to IP addresses
- */
-void
-dp_test_sip_replace_fqdn(char **msgp, bool snat, bool forw,
-			 const char *ins_fqdn, const char *ins_ip,
-			 const char *outs_fqdn, const char *outs_ip,
-			 const char *tgt, const char *trans);
 
 void
 dp_test_sip_replace_ins_fqdn(char **msgp, bool snat, bool forw,
@@ -161,19 +140,6 @@ dp_test_npf_sip_set_content_length(const char *sip, uint clen);
  */
 char *
 dp_test_npf_sip_reset_content_length(char *sip);
-
-/*
- * Insert an SDP attribute to the SDP portion of a SIP message string, and
- * update the content-length field.  Free's the original SIP message, and sets
- * sipp to point to the new message.
- */
-void
-_dp_test_npf_sip_insert_attr(char **sipp, const char *before,
-			     const char *attr, const char *file, int line);
-
-#define dp_test_npf_sip_insert_attr(sipp, before, attr)		\
-	_dp_test_npf_sip_insert_attr(sipp, before, attr,	\
-				     __FILE__, __LINE__)
 
 /*
  * Split a SIP message into its constituent parts.  Returns a pointer to an

@@ -68,62 +68,12 @@ dp_test_npf_sip_msg_req(const char *msg)
 }
 
 /*
- * SIP response first-lines are of the form:
- *
- * "SIP/2.0 180 Ringing\r\n"
- */
-enum dp_test_sip_resp
-dp_test_npf_sip_msg_resp(const char *msg, uint *code, char **strp)
-{
-	char *p, *first_line;
-
-	/*
-	 * Request or response info is always in first line
-	 */
-	p = strstr(msg, "\r\n");
-	first_line = strndup(msg, p - msg);
-
-	int rc;
-	char str1[21], str2[21];
-	uint u  = 0;
-
-	str1[0] = '\0';
-	str2[0] = '\0';
-
-	rc = sscanf(first_line, "%20s %3u %20s", str1, &u, str2);
-	free(first_line);
-	if (rc != 3 || u < 100 || u > 606)
-		return 0;
-
-	if (!strstr(str1, "SIP"))
-		return 0;
-
-	if (strp)
-		*strp = strdup(str2);
-
-	if (code)
-		*code = u;
-
-	return u/100;
-}
-
-/*
  * Is this a SIP request?
  */
 bool
 dp_test_npf_sip_msg_is_req(const char *msg)
 {
 	return dp_test_npf_sip_msg_req(msg) != 0;
-}
-
-bool
-dp_test_npf_sip_msg_is_req_bye(const char *msg)
-{
-	enum dp_test_sip_req req;
-
-	req = dp_test_npf_sip_msg_req(msg);
-
-	return req == DP_TEST_SIP_REQ_BYE;
 }
 
 /*
@@ -141,41 +91,6 @@ dp_test_npf_sip_replace_ptr(char **strp, const char *needle,
 
 	free(*strp);
 	*strp = new;
-}
-
-/*
- * Change the FQDNs to IP addresses
- */
-void
-dp_test_sip_replace_fqdn(char **msgp, bool snat, bool forw,
-			 const char *ins_fqdn, const char *ins_ip,
-			 const char *outs_fqdn, const char *outs_ip,
-			 const char *tgt, const char *trans)
-{
-	char *msg = *msgp;
-	bool req = dp_test_npf_sip_msg_is_req(msg);
-
-	if (forw) {
-		dp_test_npf_sip_replace_ptr(msgp, ins_fqdn, ins_ip);
-
-		if (snat)
-			dp_test_npf_sip_replace_ptr(msgp, outs_fqdn, outs_ip);
-
-		if (!snat && req)
-			dp_test_npf_sip_replace_ptr(msgp, outs_fqdn, tgt);
-
-		if (!snat && !req)
-			dp_test_npf_sip_replace_ptr(msgp, outs_fqdn, outs_ip);
-	}
-
-	if (!forw) {
-		dp_test_npf_sip_replace_ptr(msgp, outs_fqdn, outs_ip);
-
-		if (snat)
-			dp_test_npf_sip_replace_ptr(msgp, ins_fqdn, trans);
-		else
-			dp_test_npf_sip_replace_ptr(msgp, ins_fqdn, ins_ip);
-	}
 }
 
 void
@@ -423,39 +338,6 @@ dp_test_npf_sip_reset_content_length(char *sip)
 		}
 	}
 	return sip;
-}
-
-/*
- * Insert an SDP attribute to the SDP portion of a SIP message string, and
- * update the content-length field. e.g. an RTCP attribute:
- *
- * "a=rtcp:10003 IN IP4 192.168.1.2\r\n"
- *
- * might be inserted after "m=audio 60000 RTP/AVP 0\r\n" in an INVITE
- */
-void
-_dp_test_npf_sip_insert_attr(char **sipp, const char *after,
-			     const char *attr, const char *file, int line)
-{
-	if (!sipp || !*sipp || !after || !attr)
-		_dp_test_fail(file, line, "EINVAL");
-
-	char *sip = *sipp, *tmp, *new;
-
-	tmp = dp_test_str_insert_after(sip, after, attr);
-	if (!tmp)
-		_dp_test_fail(file, line,
-			      "Failed to insert attribute \"%s\"", attr);
-
-	/* This call takes care of freeing 'tmp' */
-	new = dp_test_npf_sip_reset_content_length(tmp);
-
-	_dp_test_fail_unless(
-		new, file, line,
-		"Failed to set content-length after inserting attribute");
-
-	free(sip);
-	*sipp = new;
 }
 
 /*

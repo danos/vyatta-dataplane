@@ -355,11 +355,3 @@ void _dp_test_session_unlink_all(struct session *s, const char *file, int line)
 	_dp_test_fail_unless(cds_list_empty(&s->se_link->sl_link), file, line,
 			"session unlink_all: not unlinked\n");
 }
-
-/* For completness only, nothing to check */
-void _dp_test_session_feature_register(enum session_feature_type type,
-		const struct session_feature_ops *ops, const char *file,
-		int line)
-{
-	session_feature_register(type, ops);
-}

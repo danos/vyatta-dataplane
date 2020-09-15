@@ -227,23 +227,6 @@ dp_test_sip_call_replace_outs_fqdn(struct dp_test_sip_pkt_t *sip_call,
 }
 
 void
-dp_test_sip_pkt_insert_attr(struct dp_test_sip_pkt_t *sip_pkt,
-			    const char *before, const char *attr)
-{
-	if (sip_pkt->msg_pre == NULL)
-		sip_pkt->msg_pre = strdup(sip_pkt->msg);
-
-	if (sip_pkt->msg_post == NULL)
-		sip_pkt->msg_post = strdup(sip_pkt->msg);
-
-	if (sip_pkt->msg_pre)
-		dp_test_npf_sip_insert_attr(&sip_pkt->msg_pre, before, attr);
-
-	if (sip_pkt->msg_post)
-		dp_test_npf_sip_insert_attr(&sip_pkt->msg_post, before, attr);
-}
-
-void
 dp_test_sip_pkt_via_replace_str(struct dp_test_sip_pkt_t *sip_pkt,
 				const char *old, const char *new)
 {
