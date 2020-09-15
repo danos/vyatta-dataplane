@@ -1588,8 +1588,6 @@ if_hwport_init(const char *if_name, unsigned int portid,
 		return NULL;
 	}
 
-	ifname_hash_insert(ifp);
-
 	return ifp;
 }
 
