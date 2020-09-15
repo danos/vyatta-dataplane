@@ -807,7 +807,7 @@ icmp_err_session: __cold_label;
  * If any of the checks fail then the cache is invalidated, and NULL returned.
  */
 static npf_session_t *
-npf_session_find_valid_cached(struct rte_mbuf *mbuf, bool check_if_dir,
+npf_session_find_valid_cached(struct rte_mbuf *mbuf,
 			      const struct ifnet *ifp, int dir)
 {
 	npf_session_t *se = NULL;
@@ -815,7 +815,7 @@ npf_session_find_valid_cached(struct rte_mbuf *mbuf, bool check_if_dir,
 	if (pktmbuf_mdata_exists(mbuf, PKT_MDATA_SESSION)) {
 		struct pktmbuf_mdata *mdata = pktmbuf_mdata(mbuf);
 		se = mdata->md_session;
-		if ((se->s_flags & SE_EXPIRE) || (check_if_dir &&
+		if ((se->s_flags & SE_EXPIRE) || (ifp &&
 		    (npf_session_get_if_index(se) != ifp->if_index ||
 		     !npf_session_forward_dir(se, dir)))) {
 			pktmbuf_mdata_clear(mbuf, PKT_MDATA_SESSION);
@@ -833,7 +833,7 @@ npf_session_find_valid_cached(struct rte_mbuf *mbuf, bool check_if_dir,
 npf_session_t *
 npf_session_find_cached(struct rte_mbuf *mbuf)
 {
-	return npf_session_find_valid_cached(mbuf, false, NULL, 0);
+	return npf_session_find_valid_cached(mbuf, NULL, 0);
 }
 
 /*
@@ -845,7 +845,7 @@ npf_session_t *
 npf_session_find_or_create(npf_cache_t *npc, struct rte_mbuf *mbuf,
 			   const struct ifnet *ifp, int dir, int *error)
 {
-	npf_session_t *se = npf_session_find_valid_cached(mbuf, true, ifp, dir);
+	npf_session_t *se = npf_session_find_valid_cached(mbuf, ifp, dir);
 	if (se)
 		return se;
 
