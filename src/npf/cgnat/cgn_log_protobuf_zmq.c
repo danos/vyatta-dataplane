@@ -38,6 +38,7 @@ struct cgn_zmq {
 
 struct cgnat_zmq_ctx {
 	const char *endpoint;
+	rte_spinlock_t lock;
 	rte_atomic32_t hwm;
 	struct cgn_zmq *sender;
 	rte_atomic64_t msgs_sent;
@@ -49,17 +50,21 @@ struct cgnat_zmq_ctx {
 struct cgnat_zmq_ctx cgnat_zmq_ctx[CGN_LOG_TYPE_COUNT] = {
 	[CGN_LOG_TYPE_SESSION] = {
 		.endpoint = "ipc:///var/run/vyatta/cgnat-event-session",
+		.lock = RTE_SPINLOCK_INITIALIZER,
 	},
 	[CGN_LOG_TYPE_PORT_BLOCK_ALLOCATION] = {
 		.endpoint =
 		     "ipc:///var/run/vyatta/cgnat-event-port-block-allocation",
+		.lock = RTE_SPINLOCK_INITIALIZER,
 	},
 	[CGN_LOG_TYPE_SUBSCRIBER] = {
 		.endpoint = "ipc:///var/run/vyatta/cgnat-event-subscriber",
+		.lock = RTE_SPINLOCK_INITIALIZER,
 	},
 	[CGN_LOG_TYPE_RES_CONSTRAINT] = {
 		.endpoint =
 			"ipc:///var/run/vyatta/cgnat-event-resource-constraint",
+		.lock = RTE_SPINLOCK_INITIALIZER,
 	},
 };
 
@@ -174,11 +179,14 @@ static int cl_zmq_init(enum cgn_log_type ltype,
 	if (sender == NULL)
 		return -ENOMEM;
 
+	rte_spinlock_lock(&zmqctx->lock);
+
 	sender->sock = zsock_new(ZMQ_PUSH);
 	if (sender->sock == NULL) {
 		RTE_LOG(ERR, CGNAT, "%s: zsock_new failed (%s)\n",
 			__func__, strerror(errno));
 		free(sender);
+		rte_spinlock_unlock(&zmqctx->lock);
 		return -ECONNREFUSED;
 	}
 
@@ -193,6 +201,7 @@ static int cl_zmq_init(enum cgn_log_type ltype,
 			__func__, zmqctx->endpoint, strerror(errno));
 		zsock_destroy(&(sender->sock));
 		free(sender);
+		rte_spinlock_unlock(&zmqctx->lock);
 		return -ECONNREFUSED;
 	}
 
@@ -203,11 +212,13 @@ static int cl_zmq_init(enum cgn_log_type ltype,
 			__func__, zmqctx->endpoint, strerror(errno));
 		zsock_destroy(&(sender->sock));
 		free(sender);
+		rte_spinlock_unlock(&zmqctx->lock);
 		return -ENOTSOCK;
 	}
 
 	rcu_assign_pointer(zmqctx->sender, sender);
 
+	rte_spinlock_unlock(&zmqctx->lock);
 	return 0;
 }
 
@@ -225,6 +236,8 @@ static void cl_zmq_fini(enum cgn_log_type ltype,
 
 	zmqctx = &cgnat_zmq_ctx[ltype];
 
+	rte_spinlock_lock(&zmqctx->lock);
+
 	old_sender = zmqctx->sender;
 	rcu_assign_pointer(zmqctx->sender, NULL);
 
@@ -232,6 +245,8 @@ static void cl_zmq_fini(enum cgn_log_type ltype,
 		zsock_destroy(&(old_sender->sock));
 		call_rcu(&old_sender->rcu, cl_reclaim_zmqctx);
 	}
+
+	rte_spinlock_unlock(&zmqctx->lock);
 }
 
 int cl_zmq_set_hwm(enum cgn_log_type ltype, int32_t hwm)
@@ -281,6 +296,8 @@ static int cl_protobuf_zmq_send(enum cgn_log_type ltype, void *buf,
 		return 0;
 	}
 
+	rte_spinlock_lock(&zmqctx->lock);
+
 	/* send the protobuf (without copying) */
 
 	rv = zmq_msg_init_data(&zpb, buf, buflen, cl_protobuf_msg_free, NULL);
@@ -290,6 +307,7 @@ static int cl_protobuf_zmq_send(enum cgn_log_type ltype, void *buf,
 		if (net_ratelimit())
 			RTE_LOG(DEBUG, CGNAT, "%s: zmq_msg_init_data failure "
 				"(%s)\n", __func__, strerror(errno));
+		rte_spinlock_unlock(&zmqctx->lock);
 		return -errno;
 	}
 
@@ -300,12 +318,14 @@ static int cl_protobuf_zmq_send(enum cgn_log_type ltype, void *buf,
 		if (net_ratelimit())
 			RTE_LOG(DEBUG, CGNAT, "%s: zmq_send failure (%s)\n",
 				__func__, strerror(errno));
+		rte_spinlock_unlock(&zmqctx->lock);
 		return -errno;
 	}
 
 	rte_atomic64_inc(&zmqctx->msgs_sent);
 	zmq_msg_close(&zpb);
 
+	rte_spinlock_unlock(&zmqctx->lock);
 	return 0;
 }
 
