@@ -773,8 +773,12 @@ static int _npf_cache_all_at(npf_cache_t *npc, struct rte_mbuf *nbuf,
 			     void *n_ptr, uint16_t eth_proto, bool icmp_err,
 			     bool update_grouper)
 {
-	if (!npf_fetch_ip(npc, nbuf, n_ptr, eth_proto))
-		return 0; /* true as this might be a non-ip packet */
+	if (!npf_fetch_ip(npc, nbuf, n_ptr, eth_proto)) {
+		if (icmp_err)
+			return -NPF_RC_INTL;
+		else
+			return 0; /* true as this might be a non-ip packet */
+	}
 
 	u_int hlen = npf_cache_hlen(npc);
 
