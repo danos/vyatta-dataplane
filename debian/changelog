@@ -1,3 +1,15 @@
+vyatta-dataplane (3.11.26) unstable; urgency=medium
+
+  * ut: remove dp_test_lib_cmd as the code in it is not used
+  * ut: remove unused code in dp_test_netlink_state.c
+  * ut: remove unused code in dp_test_qos_lib.c
+  * ut: remove unused code in dp_test_str.c
+  * ut: remove unused code in dp_test_console.c
+  * ut: remove unused code in dp_test_lib.c
+  * ut: remove unused code in dp_test_lib_intf.c
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Wed, 16 Sep 2020 09:40:24 +0100
+
 vyatta-dataplane (3.11.25) unstable; urgency=medium
 
   * npf: remove the code in src/npf/alg/apt as it is not used
