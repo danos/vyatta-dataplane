@@ -151,6 +151,7 @@ int npf_json_ruleset(const npf_ruleset_t *ruleset, json_writer_t *json);
 npf_rule_group_t *npf_rule_group_create(npf_ruleset_t *ruleset,
 					enum npf_rule_class group_class,
 					const char *group, uint8_t dir);
+int npf_parse_group_acl_rule(npf_rule_group_t *rg, const char *rule_line);
 int npf_make_rule(npf_rule_group_t *rg, uint32_t rule_no,
 		  const char *rule_line, uint32_t ruleset_type_flags);
 void *npf_rule_rproc_handle_for_logger(npf_rule_t *rl);
@@ -174,6 +175,7 @@ void npf_ruleset_set_stateful(npf_rule_group_t *rg, bool value);
 bool npf_ruleset_is_stateful(const npf_ruleset_t *ruleset);
 bool npf_rule_stateful(const npf_rule_t *rl);
 enum npf_ruleset_type npf_type_of_ruleset(const npf_ruleset_t *ruleset);
+uint8_t npf_ruleset_af(npf_rule_group_t *rg);
 
 const char *npf_ruleset_get_name(npf_rule_group_t *rg);
 bool npf_ruleset_uses_cache(const npf_ruleset_t *ruleset);

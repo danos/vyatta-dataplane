@@ -43,6 +43,22 @@ npf_replace_ruleset(npf_ruleset_t **dp_ruleset, npf_ruleset_t *new_dp_ruleset)
 		npf_ruleset_free(old_dp_ruleset);
 }
 
+static bool
+npf_cfg_group_acl_rule_cb(void *param, struct npf_cfg_rule_walk_state *state)
+{
+	npf_rule_group_t *rg = param;
+	int ret;
+
+	/* ACLs use this rule for group attributes */
+	if (state->index == UINT32_MAX) {
+		ret = npf_parse_group_acl_rule(rg, state->rule);
+		if (ret)
+			return false;
+	}
+
+	return true;
+}
+
 struct create_ruleset_info {
 	int error;
 	npf_ruleset_t **new_dp_ruleset;
@@ -100,8 +116,17 @@ npf_cfg_create_ruleset_group_cb(const struct npf_attpt_group *rsg, void *ctx)
 		return false;
 	}
 
+	/*
+	 * Look for any rules that contain rule group info, e.g. ACL rule 0.
+	 * This must happen before the grouper is setup.
+	 */
+	if (rgk->rgk_class == NPF_RULE_CLASS_ACL)
+		npf_cfg_rule_group_walk(rgk->rgk_class, rgk->rgk_name, rg,
+					npf_cfg_group_acl_rule_cb);
+
 	uint32_t count = npf_cfg_rule_count(rgk->rgk_class, rgk->rgk_name);
 
+	/* Initialize the grouper before creating the rules */
 	info->error = npf_match_setup(rg, count);
 	if (info->error)
 		return false;
