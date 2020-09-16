@@ -1527,6 +1527,20 @@ npf_process_rule_config(npf_rule_t *rl)
 	return 0;
 }
 
+static zhashx_t *npf_rule_config_ht_init(void)
+{
+	zhashx_t *config_ht;
+
+	config_ht = zhashx_new();
+	if (!config_ht)
+		return NULL;
+
+	zhashx_set_destructor(config_ht, (zhashx_destructor_fn *)zstr_free);
+	zhashx_set_duplicator(config_ht, (zhashx_duplicator_fn *)strdup);
+
+	return config_ht;
+}
+
 int
 npf_make_rule(npf_rule_group_t *rg, uint32_t rule_no, const char *rule_line,
 	      uint32_t ruleset_type_flags)
@@ -1548,18 +1562,13 @@ npf_make_rule(npf_rule_group_t *rg, uint32_t rule_no, const char *rule_line,
 		goto error;
 	}
 
-	rl->r_state->rs_config_ht = zhashx_new();
+	rl->r_state->rs_config_ht = npf_rule_config_ht_init();
 	if (!rl->r_state->rs_config_ht) {
 		RTE_LOG(ERR, FIREWALL, "Error: rule hash table allocation "
 			"failed\n");
 		ret = -ENOMEM;
 		goto error;
 	}
-
-	zhashx_set_destructor(rl->r_state->rs_config_ht,
-			      (zhashx_destructor_fn *)zstr_free);
-	zhashx_set_duplicator(rl->r_state->rs_config_ht,
-				(zhashx_duplicator_fn *)strdup);
 
 	/*
 	 * Add a back reference to the group and insert in the rule into
