@@ -1848,7 +1848,7 @@ npf_ruleset_inspect(npf_cache_t *npc, struct rte_mbuf *nbuf,
 		 */
 		pd.rg = rg;
 
-		int af;
+		int af = 0;
 		void *match_ctx = NULL;
 
 		if (!npc) {
@@ -1870,6 +1870,10 @@ npf_ruleset_inspect(npf_cache_t *npc, struct rte_mbuf *nbuf,
 				match_ctx = rg->match_ctx_v6;
 			}
 		}
+
+		/* Match the address-family if set. */
+		if (rg->rg_af && rg->rg_af != af)
+			continue;
 
 		if (match_ctx) {
 			match = npf_match_classify(rs_type, af, match_ctx,
