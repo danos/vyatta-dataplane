@@ -1734,14 +1734,6 @@ struct rte_mbuf *dp_test_get_read_pkt(void)
 	return m;
 }
 
-uint8_t dp_test_get_read_port(void)
-{
-	int port = g_read_pkt.port;
-
-	g_read_pkt.port = 0;
-	return port;
-}
-
 uint16_t dp_test_get_read_meta_flags(void)
 {
 	uint16_t flags = g_read_pkt.m.flags;

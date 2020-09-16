@@ -8,7 +8,6 @@
  */
 
 #include "dp_test_controller.h"
-#include "dp_test_lib_cmd.h"
 #include "dp_test/dp_test_macros.h"
 
 #include "bitmask.h"

@@ -102,46 +102,6 @@ dp_test_qos_json_dump(json_object *j_obj)
 		printf("%s\n", str);
 }
 
-/*
- * This function is just to aid unit-test development.
- * When you're trying to check for an expected value somewhere deep in the
- * json output from "qos show", it can be useful to dump it out in a
- * "readable" format.
- */
-void
-dp_test_qos_show(void)
-{
-	json_object *jobj;
-	struct dp_test_json_mismatches *mismatches = NULL;
-
-	jobj = dp_test_json_do_show_cmd("qos show", &mismatches, false);
-	if (jobj) {
-		dp_test_qos_json_dump(jobj);
-		json_object_put(jobj);
-	}
-}
-
-/*
- * This function is just to aid unit-test development.
- * When you're trying to check for an expected value somewhere deep in the
- * json output from "qos show ingress-maps", it can be useful to dump it
- * out in a "readable" format.
- */
-
-void
-dp_test_qos_ingress_maps_show(void)
-{
-	json_object *jobj;
-	struct dp_test_json_mismatches *mismatches = NULL;
-
-	jobj = dp_test_json_do_show_cmd("qos show ingress-maps",
-			&mismatches, false);
-	if (jobj) {
-		dp_test_qos_json_dump(jobj);
-		json_object_put(jobj);
-	}
-}
-
 __attribute__((format(printf, 5, 6)))
 static void
 _dp_test_qos_json_error(bool debug, const char *file, const int line,
@@ -890,23 +850,6 @@ void _dp_test_qos_clear_counters(const char *if_name, bool debug,
 			       if_name ? real_if_name : "");
 }
 
-/*
- * QoS hardware JSON functions - using "qos hw" rather than "qos show" to
- * retrieve operational state via the FAL
- */
-void
-dp_test_qos_hw(void)
-{
-	json_object *j_obj;
-	struct dp_test_json_mismatches *mismatches = NULL;
-
-	j_obj = dp_test_json_do_show_cmd("qos hw", &mismatches, true);
-	if (j_obj) {
-		dp_test_qos_json_dump(j_obj);
-		json_object_put(j_obj);
-	}
-}
-
 static json_object *
 _dp_test_qos_hw_get_json(struct dp_test_json_search_key *key, uint32_t key_size,
 			 const char *func, bool debug, const char *file,
@@ -1066,98 +1009,6 @@ _dp_test_qos_hw_check_sched_group(json_object *j_obj, int32_t level,
 				     "%s failed to match lpq %d int_val %d\n",
 				     __func__, lpq, int_value);
 	}
-}
-
-void
-_dp_test_qos_hw_check_ingress_map(json_object *j_map_obj, int32_t map_type,
-				  struct des_dp_pair *map_list,
-				  bool debug,
-				  const char *file, const int line)
-{
-	json_object *j_map_list_obj;
-	int32_t int_value;
-	uint32_t length;
-	uint8_t max_cp;
-	uint8_t cp;
-	uint8_t i;
-	bool rc;
-
-	_dp_test_fail_unless(j_map_obj != NULL, file, line, "null map\n");
-	_dp_test_fail_unless(map_list != NULL, file, line, "null map-list\n");
-
-	if (debug)
-		dp_test_qos_json_dump(j_map_obj);
-
-	if (map_type >= 0) {
-		rc = dp_test_json_int_field_from_obj(j_map_obj, "map-type",
-						     &int_value);
-		_dp_test_fail_unless(rc && int_value == map_type, file, line,
-				     "%s failed to match map-type %d\n",
-				     __func__, map_type);
-	}
-
-	struct dp_test_json_search_key key[] = {
-		{ "map-list", NULL, -1 },
-	};
-
-	j_map_list_obj = dp_test_json_search(j_map_obj, key, 1);
-	_dp_test_fail_unless(j_map_list_obj != NULL, file, line,
-			     "%s failed to find map-list array\n", __func__);
-
-	max_cp = map_type == FAL_QOS_MAP_TYPE_DSCP_TO_DESIGNATOR ?
-		FAL_QOS_MAP_DSCP_VALUES : FAL_QOS_MAP_PCP_VALUES;
-	length = json_object_array_length(j_map_list_obj);
-
-	struct des_dp_pair json_map[FAL_QOS_MAP_DSCP_VALUES] = { { 0 } };
-
-	for (i = 0; i < length; i++) {
-		json_object *j_map_entry;
-		const char *cp_bitmap_str;
-		uint64_t cp_bitmap;
-		int dp;
-		int des;
-		bool rc1;
-		bool rc2;
-		bool rc3;
-
-		j_map_entry = json_object_array_get_idx(j_map_list_obj, i);
-
-		rc1 = dp_test_json_string_field_from_obj(j_map_entry,
-							"cp-bitmap",
-							&cp_bitmap_str);
-		rc2 = dp_test_json_int_field_from_obj(j_map_entry,
-						      "designator", &des);
-		rc3 = dp_test_json_int_field_from_obj(j_map_entry,
-						      "drop-precedence",
-						      &dp);
-		_dp_test_fail_unless(rc1 && rc2 && rc3, file, line,
-				     "%s failed to extract map from map-list\n",
-				     __func__);
-
-		cp_bitmap = strtoul(cp_bitmap_str, NULL, 10);
-
-		for (cp = 0; cp < max_cp; cp++) {
-			if (cp_bitmap & (1ul << cp)) {
-				json_map[cp].des = des;
-				json_map[cp].dp = dp;
-			}
-		}
-	}
-
-	for (cp = 0; cp < max_cp; cp++) {
-		_dp_test_fail_unless(json_map[cp].des == map_list[cp].des &&
-				     json_map[cp].dp == map_list[cp].dp,
-				     file, line,
-				     "%s failed to match code-point %u des %u"
-				     " drop-precedence %u vs "
-				     "des %d drop-precedence %d\n",
-				     __func__, cp, map_list[cp].des,
-				     map_list[cp].dp,
-				     json_map[cp].des,
-				     json_map[cp].dp);
-	}
-
-	json_object_put(j_map_list_obj);
 }
 
 void
@@ -1742,11 +1593,6 @@ _dp_test_qos_pkt_forw_test(const char *ifname, uint vlan_id,
 			     __func__, line);
 
 	/* Verify */
-	/*
-	 * If you're not getting the numbers you expect here it can be useful
-	 * to insert dp_test_qos_show(); here and decode the JSON by hand.
-	 */
-	/* dp_test_qos_show(); */
 	_dp_test_qos_check_subport_tc_counter(ifname, subport, tc, "packets", 1,
 					      debug, file, line);
 	_dp_test_qos_check_subport_tc_counter(ifname, subport, tc, "bytes", 74,
@@ -1823,11 +1669,6 @@ _dp_test_qos_pkt_remark_test(const char *ifname, const uint vlan_id,
 			     __func__, line);
 
 	/* Verify */
-	/*
-	 * If you're not getting the numbers you expect here it can be useful
-	 * to insert dp_test_qos_show(); here are decode the JSON by hand.
-	 */
-	/* dp_test_qos_show(); */
 	_dp_test_qos_check_subport_tc_counter(ifname, subport, tc, "packets", 1,
 					      debug, file, line);
 	_dp_test_qos_check_subport_tc_counter(ifname, subport, tc, "bytes", 74,
@@ -1905,11 +1746,6 @@ _dp_test_qos_pkt_force_drop(const char *ifname, const uint vlan_id,
 			      test_exp);
 
 	/* Verify */
-	/*
-	 * If you're not getting the numbers you expect here it can be useful
-	 * to insert dp_test_qos_show(); here and decode the JSON by hand.
-	 */
-	/* dp_test_qos_show(); */
 	_dp_test_qos_check_subport_tc_counter(ifname, subport, tc, "packets",
 					      queue_limit, debug, file, line);
 	_dp_test_qos_check_subport_tc_counter(ifname, subport, tc, "dropped", 1,

@@ -3219,22 +3219,6 @@ _dp_test_netlink_del_lo(const char *name, bool verify,
 }
 
 void
-_dp_test_netlink_create_lord(const char *name, vrfid_t vrf_id, bool verify,
-			     const char *file, const char *func, int line)
-{
-	dp_test_netlink_lo_or_vfp(name, verify, RTM_NEWLINK, vrf_id,
-				  file, func, line, false);
-}
-
-void
-_dp_test_netlink_del_lord(const char *name, vrfid_t vrf_id, bool verify,
-			  const char *file, const char *func, int line)
-{
-	dp_test_netlink_lo_or_vfp(name, verify, RTM_DELLINK, vrf_id,
-				  file, func, line, false);
-}
-
-void
 _dp_test_netlink_create_vfp(const char *name, vrfid_t vrf_id, bool verify,
 			    const char *file, const char *func, int line)
 {

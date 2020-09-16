@@ -1,3 +1,19 @@
+vyatta-dataplane (3.11.25) unstable; urgency=medium
+
+  * npf: remove the code in src/npf/alg/apt as it is not used
+  * ut: remove unused code in dp_test_npf_alg_sip_lib
+  * ut: remove unused code in dp_test_npf_alg_sip_call
+  * ut: remove unused code in dp_test_npf_alg_sip_parse
+  * ut: remove unused code in dp_test_npf_alg_lib
+  * ut: remove unused code in dp_test_npf_lib
+  * ut: remove unused code in dp_test_npf_sess_lib
+  * ut: remove unused code in dp_test_session_internal_lib
+  * ut: remove unused code in dp_test_npf_nat_lib
+  * ut: remove unused code in dp_test_npf_fw_lib
+  * ut: remove unused code in dp_test_npf_portmap_lib
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Tue, 15 Sep 2020 13:41:22 +0100
+
 vyatta-dataplane (3.11.24) unstable; urgency=medium
 
   [ Paul Aitken ]

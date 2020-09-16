@@ -211,23 +211,3 @@ dp_test_console_request_reply(const char *cmd, bool print)
 		printf("console rep value: %s\n", reply ? reply : "<NULL>");
 	free(reply);
 }
-
-char *
-dp_test_console_request_src(enum cont_src_en cont_src, const char *request,
-			    bool print)
-{
-	return dp_test_console_request_w_err_src(cont_src, request, NULL,
-						 print);
-}
-
-void
-dp_test_console_request_reply_src(enum cont_src_en cont_src, const char *cmd,
-				  bool print)
-{
-	char *reply;
-
-	reply = dp_test_console_request_src(cont_src, cmd, print);
-	if (print)
-		printf("console rep value: %s\n", reply ? reply : "<NULL>");
-	free(reply);
-}

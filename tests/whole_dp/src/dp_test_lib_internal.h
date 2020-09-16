@@ -97,7 +97,6 @@ dp_test_pak_verify(struct rte_mbuf *pak, struct ifnet *ifp,
 void dp_test_inject_pkt_slow_path(struct rte_mbuf *buf, portid_t port,
 		uint32_t ifindex, uint16_t flags, uint16_t proto);
 struct rte_mbuf *dp_test_get_read_pkt(void);
-uint8_t dp_test_get_read_port(void);
 uint16_t dp_test_get_read_meta_flags(void);
 uint32_t dp_test_get_read_meta_iif(void);
 uint16_t dp_test_get_read_proto(void);

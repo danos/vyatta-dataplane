@@ -63,11 +63,6 @@ _dp_test_qos_op_cmd_fmt(bool debug, const char *file, const int line,
 void
 dp_test_qos_json_dump(json_object *j_obj);
 
-void
-dp_test_qos_show(void);
-
-void
-dp_test_qos_ingress_maps_show(void);
 /*
  * Functions that handle the JSON output from "qos show"
  */
@@ -229,12 +224,6 @@ _dp_test_qos_get_json_groups_rules(const char *if_name, const uint subport,
 	_dp_test_qos_get_json_groups_rules(if_name, subport, debug, \
 					   __FILE__, __LINE__)
 
-/*
- * Functions that handle the JSON output from "qos hw"
- */
-void
-dp_test_qos_hw(void);
-
 #define dp_test_qos_hw_get_json(key, key_size, debug)			   \
 	_dp_test_qos_hw_get_json(key, key_size, __func__, debug, __FILE__, \
 				 __LINE__)
@@ -279,16 +268,6 @@ _dp_test_qos_hw_check_sched_group(json_object *j_obj, int32_t level,
 	_dp_test_qos_hw_check_sched_group(j_obj, level, max_children,	     \
 					  current_children, lpq, debug,      \
 					  __FILE__, __LINE__)
-
-void
-_dp_test_qos_hw_check_ingress_map(json_object *j_map_obj, int32_t map_type,
-				  struct des_dp_pair *map_list,
-				  bool debug,
-				  const char *file, const int line);
-
-#define dp_test_qos_hw_check_ingress_map(j_map_obj, map_type, map_list, debug)\
-	_dp_test_qos_hw_check_ingress_map(j_map_obj, map_type, map_list,   \
-					  debug, __FILE__, __LINE__)
 
 void
 _dp_test_qos_hw_check_egress_map(json_object *j_map_obj, int32_t map_type,

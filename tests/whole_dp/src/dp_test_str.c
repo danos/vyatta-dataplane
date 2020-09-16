@@ -20,56 +20,6 @@
 #include "dp_test_str.h"
 
 /*
- * Convert string to IP address and mask.  Returns 1 if successful,
- * 0 if not.
- */
-int
-dp_test_str2ip(const char *str, in_addr_t *ip_addr, int *mask)
-{
-	char *sub;
-	int rv;
-
-	/* Remove the mask, if present */
-	sub = strstr(str, "/");
-	if (sub) {
-		*mask = atoi(sub+1);
-		*sub = '\0';
-	} else {
-		*mask = 32;
-	}
-
-	/* Convert from text to IP address */
-	rv = inet_pton(AF_INET, str, ip_addr);
-
-	return rv;
-}
-
-/*
- * Convert string to IPv6 address and mask.  Returns 1 if successful,
- * 0 if not.
- */
-int
-dp_test_str2ip6(const char *str, struct in6_addr *ip6_addr, int *mask)
-{
-	char *sub;
-	int rv;
-
-	/* Remove the mask, if present */
-	sub = strstr(str, "/");
-	if (sub) {
-		*mask = atoi(sub+1);
-		*sub = '\0';
-	} else {
-		*mask = 128;
-	}
-
-	/* Convert from text to IPv6 address */
-	rv = inet_pton(AF_INET6, str, ip6_addr);
-
-	return rv;
-}
-
-/*
  * Convert IPv4 or IPv6 string and prefix length to a network string and
  * prefix, e.g.  "10.1.1.1/24" to "10.1.1.0/24", or "2001:1:1::1/64", to
  * "2001:1:1::/64"
@@ -134,47 +84,6 @@ dp_test_ipstr_to_range(const char *ipstr, char *range, uint rlen)
 }
 
 /*
- * Convert MAC address to a temporary string
- */
-#define MAC_STR_MAX 20
-#define N_MAC_STR 4
-static char mac_str[N_MAC_STR][MAC_STR_MAX];
-static int cur_mac_str;
-
-char *
-dp_test_mac2str(struct rte_ether_addr *mac)
-{
-	char *str = mac_str[cur_mac_str];
-
-	if (++cur_mac_str >= N_MAC_STR)
-		cur_mac_str = 0;
-
-	spush(str, MAC_STR_MAX, "%02x:%02x:%02x:%02x:%02x:%02x",
-	      mac->addr_bytes[0], mac->addr_bytes[1],
-	      mac->addr_bytes[2], mac->addr_bytes[3],
-	      mac->addr_bytes[4], mac->addr_bytes[5]);
-
-	return str;
-}
-
-/*
- * Take a MAC address string with leading zeros or no leading zeros, and lower
- * or upper case hex digits and convert it to no leading zeros and lowercase.
- * This is typically the MAC address string format returned from the
- * dataplane.
- */
-char *
-dp_test_canonicalise_macstr(const char *macstr, char *canon)
-{
-	struct rte_ether_addr mac;
-
-	if (!ether_aton_r(macstr, &mac))
-		return NULL;
-
-	return ether_ntoa_r(&mac, canon);
-}
-
-/*
  * Insert a string (insert) into another string (haystack) before or after a
  * sub-string (needle).
  *
@@ -216,18 +125,6 @@ dp_test_str_insert(const char *haystack, const char *needle,
 	strcat(new, haystack + insert_pos);
 
 	return new;
-}
-
-/*
- * Insert a string into another string, before a sub-string.  The sub-string
- * should be a string, and not a pointer into haystack.  Returns a new string,
- * which the caller must free.
- */
-char *
-dp_test_str_insert_before(const char *haystack, const char *needle,
-			  const char *insert)
-{
-	return dp_test_str_insert(haystack, needle, insert, false);
 }
 
 /*

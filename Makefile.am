@@ -527,7 +527,6 @@ dataplane_test_SOURCES += \
 	tests/whole_dp/src/dp_test_ip_multicast.c \
 	tests/whole_dp/src/dp_test_json_utils.c \
 	tests/whole_dp/src/dp_test_lib.c \
-	tests/whole_dp/src/dp_test_lib_cmd.c \
 	tests/whole_dp/src/dp_test_lib_exp.c \
 	tests/whole_dp/src/dp_test_lib_intf.c \
 	tests/whole_dp/src/dp_test_lib_pb.c \

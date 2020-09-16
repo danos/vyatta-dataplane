@@ -72,16 +72,12 @@ struct rte_ether_addr *dp_test_intf_name2mac(const char *if_name);
 
 #define DP_TEST_INTF_STATE_BRIDGE 0x01
 #define DP_TEST_INTF_STATE_PBR    0x02
-uint8_t dp_test_intf_name2state(const char *if_name);
 void dp_test_intf_name_add_state(const char *if_name, uint8_t state);
 void dp_test_intf_name_del_state(const char *if_name, uint8_t state);
-struct rte_ether_addr *dp_test_intf_port2mac(portid_t port_id);
 void dp_test_intf_port2name(portid_t port_id, char *if_name);
 int dp_test_intf_port2index(portid_t port_id);
 void dp_test_intf_add_addr(const char *if_name, struct dp_test_addr *addr);
 void dp_test_intf_del_addr(const char *if_name, struct dp_test_addr *addr);
-bool dp_test_intf_has_addr(const char *if_name,
-			   const struct dp_test_addr *addr);
 void dp_test_intf_initial_stats_for_if(const char *ifname,
 				       struct if_data *stats);
 void dp_test_intf_delta_stats_for_if(const char *ifname,
