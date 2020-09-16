@@ -1144,69 +1144,6 @@ static int cmd_lag(FILE *f, int argc __unused, char **argv __unused)
 	return 0;
 }
 
-static struct cfg_if_list *speed_cfg_list;
-
-static void
-speed_event_if_index_set(struct ifnet *ifp);
-static void
-speed_event_if_index_unset(struct ifnet *ifp, uint32_t ifindex __unused);
-static int
-cmd_speed_handler(struct pb_msg *msg);
-
-static const struct dp_event_ops speed_event_ops = {
-	.if_index_set = speed_event_if_index_set,
-	.if_index_unset = speed_event_if_index_unset,
-};
-
-static void
-speed_event_if_index_set(struct ifnet *ifp)
-{
-	struct cfg_if_list_entry *le;
-
-	if (!speed_cfg_list)
-		return;
-
-	le = cfg_if_list_lookup(speed_cfg_list, ifp->if_name);
-	if (!le)
-		return;
-
-	struct pb_msg msg;
-	msg.msg_len = le->le_argc;
-	msg.msg = le->le_buf;
-	msg.fp = NULL;
-	cmd_speed_handler(&msg);
-	cfg_if_list_del(speed_cfg_list, ifp->if_name);
-	if (!speed_cfg_list->if_list_count) {
-		dp_event_unregister(&speed_event_ops);
-		cfg_if_list_destroy(&speed_cfg_list);
-	}
-}
-
-static void
-speed_event_if_index_unset(struct ifnet *ifp, uint32_t ifindex __unused)
-{
-	if (!speed_cfg_list)
-		return;
-
-	cfg_if_list_del(speed_cfg_list, ifp->if_name);
-	if (!speed_cfg_list->if_list_count) {
-		dp_event_unregister(&speed_event_ops);
-		cfg_if_list_destroy(&speed_cfg_list);
-	}
-}
-
-static int speed_replay_init(void)
-{
-	if (!speed_cfg_list) {
-		speed_cfg_list = cfg_if_list_create();
-		if (!speed_cfg_list)
-			return -ENOMEM;
-
-		dp_event_register(&speed_event_ops);
-	}
-	return 0;
-}
-
 /*
  * Set the speed and duplex of an interface
  *
@@ -1249,14 +1186,9 @@ cmd_speed_handler(struct pb_msg *msg)
 
 	ifp = dp_ifnet_byifname(smsg->ifname);
 	if (!ifp) {
-		bool failed = true;
-		if (speed_replay_init() == 0) {
-			cfg_if_list_bin_add(speed_cfg_list, (smsg->ifname),
-					    payload, len);
-			failed = false;
-		}
-		RTE_LOG(ERR, DATAPLANE, "%s: failed to find %s (caching%s)\n",
-			__func__, (smsg->ifname), failed ? " failed" : "");
+		RTE_LOG(ERR, DATAPLANE,
+			"speed applied, but interface missing %s\n",
+			smsg->ifname);
 		goto OUT;
 	}
 	if_set_speed(ifp, autoneg, speed, duplex);
