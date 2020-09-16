@@ -55,7 +55,8 @@ Depends: adduser,
          ${misc:Depends},
          ${perl:Depends},
          ${shlibs:Depends}
-Breaks: vplane-controller (<< 3.6.8)
+Breaks: vplane-controller (<< 3.6.8),
+	vyatta-poe (<< 0.3)
 Provides: fal-acl,
           fal-acl-commit,
           fal-backplane,

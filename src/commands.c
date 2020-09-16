@@ -1330,63 +1330,6 @@ static void poe_status(struct ifnet *ifp, void *arg)
 	}
 }
 
-static struct cfg_if_list *poe_cfg_list;
-
-static void
-poe_event_if_index_set(struct ifnet *ifp);
-static void
-poe_event_if_index_unset(struct ifnet *ifp, uint32_t ifindex __unused);
-
-static const struct dp_event_ops poe_event_ops = {
-	.if_index_set = poe_event_if_index_set,
-	.if_index_unset = poe_event_if_index_unset,
-};
-
-static void
-poe_event_if_index_set(struct ifnet *ifp)
-{
-	struct cfg_if_list_entry *le;
-
-	if (!poe_cfg_list)
-		return;
-
-	le = cfg_if_list_lookup(poe_cfg_list, ifp->if_name);
-	if (!le)
-		return;
-
-	cmd_poe(NULL, le->le_argc, le->le_argv);
-	cfg_if_list_del(poe_cfg_list, ifp->if_name);
-	if (!poe_cfg_list->if_list_count) {
-		dp_event_unregister(&poe_event_ops);
-		cfg_if_list_destroy(&poe_cfg_list);
-	}
-}
-
-static void
-poe_event_if_index_unset(struct ifnet *ifp, uint32_t ifindex __unused)
-{
-	if (!poe_cfg_list)
-		return;
-
-	cfg_if_list_del(poe_cfg_list, ifp->if_name);
-	if (!poe_cfg_list->if_list_count) {
-		dp_event_unregister(&poe_event_ops);
-		cfg_if_list_destroy(&poe_cfg_list);
-	}
-}
-
-static int poe_replay_init(void)
-{
-	if (!poe_cfg_list) {
-		poe_cfg_list = cfg_if_list_create();
-		if (!poe_cfg_list)
-			return -ENOMEM;
-
-		dp_event_register(&poe_event_ops);
-	}
-	return 0;
-}
-
 /*
  * Set the PoE mode of an interface
  *
@@ -1423,18 +1366,11 @@ int cmd_poe(FILE *f, int argc, char **argv)
 
 		ifp = dp_ifnet_byifname(argv[2]);
 		if (!ifp) {
-			if (poe_replay_init() == 0) {
-				cfg_if_list_add(poe_cfg_list,
-						argv[2], argc, argv);
-				rc = 0;
-			}
-
 			RTE_LOG(ERR, DATAPLANE,
-				"%s: failed to find %s (%scaching)\n",
-				__func__, argv[2], rc ? "not " : "");
-			if (f)
-				fprintf(f, "%s: failed to find %s (%scaching)\n",
-					__func__, argv[2], rc ? "not " : "");
+				"poe applied, but interface missing %s\n",
+				argv[2]);
+			fprintf(f, "%s: failed to find %s\n",
+				__func__, argv[2]);
 			goto err_out;
 		}
 
