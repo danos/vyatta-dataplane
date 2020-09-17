@@ -539,6 +539,7 @@ dataplane_test_SOURCES += \
 	tests/whole_dp/src/dp_test_mstp_fwd.c \
 	tests/whole_dp/src/dp_test_nat.c \
 	tests/whole_dp/src/dp_test_netlink_state.c \
+	tests/whole_dp/src/dp_test_npf_acl.c \
 	tests/whole_dp/src/dp_test_npf_commands.c \
 	tests/whole_dp/src/dp_test_npf_feat.c \
 	tests/whole_dp/src/dp_test_npf_defrag.c \

@@ -728,7 +728,7 @@ _dpt_icmp(uint8_t icmp_type,
 			RTE_ETHER_TYPE_IPV4);
 	}
 
-	dp_test_exp_set_fwd_status(test_exp, DP_TEST_FWD_FORWARDED);
+	dp_test_exp_set_fwd_status(test_exp, status);
 
 	_dp_test_pak_receive(test_pak, rx_intf, test_exp,
 			     file, func, line);
