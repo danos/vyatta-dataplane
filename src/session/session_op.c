@@ -43,9 +43,17 @@ enum sd_orderby {
 	SD_ORDERBY_NONE,
 	SD_ORDERBY_SADDR,
 	SD_ORDERBY_DADDR,
+	SD_ORDERBY_TADDR,
 	SD_ORDERBY_ID,
 	SD_ORDERBY_TO,
 };
+
+static inline bool sd_orderby_addr(enum sd_orderby orderby)
+{
+	return orderby == SD_ORDERBY_SADDR ||
+		orderby == SD_ORDERBY_DADDR ||
+		orderby == SD_ORDERBY_TADDR;
+}
 
 enum sf_dir {
 	SF_DIR_NONE,
@@ -85,6 +93,12 @@ struct session_filter {
 	uint16_t	sf_proto;
 	uint32_t	sf_ifindex;
 	uint64_t	sf_id;
+
+	/* Translation address, mask, port, and addr family */
+	struct in6_addr	sf_taddr;
+	struct in6_addr	sf_tmask;
+	uint16_t	sf_tport;
+	uint8_t		sf_taf;
 };
 
 /*
@@ -362,8 +376,7 @@ cmd_op_finalize_orderby(FILE *f, struct session_filter *sf,
 	if (!end)
 		return -EINVAL;
 
-	if (sd->sd_orderby == SD_ORDERBY_SADDR ||
-	    sd->sd_orderby == SD_ORDERBY_DADDR) {
+	if (sd_orderby_addr(sd->sd_orderby)) {
 
 		if (inet_pton(AF_INET, start, &sd->sd_start_addr) == 1)
 			start_alen = 4;
@@ -397,6 +410,15 @@ cmd_op_finalize_orderby(FILE *f, struct session_filter *sf,
 			sf->sf_ip6 = true;
 			sd->sd_af = AF_INET6;
 		}
+	}
+
+	/*
+	 * If ordering by trans addr then session filter MUST be SNAT or DNAT.
+	 */
+	if (sd->sd_orderby == SD_ORDERBY_TADDR) {
+		if (sf->sf_features != SF_FEATURE_SNAT &&
+		    sf->sf_features != SF_FEATURE_DNAT)
+			goto error;
 	}
 
 	if (sd->sd_orderby == SD_ORDERBY_ID) {
@@ -508,6 +530,41 @@ error:
 	return -EINVAL;
 }
 
+static int
+cmd_op_parse_trans_addr(FILE *f, int *argcp, char ***argvp,
+			struct session_filter *sf)
+{
+	char *val;
+	int error, i, alen = 0;
+
+	val = next_arg(argcp, argvp);
+	if (!val)
+		goto error;
+
+	error = cmd_op_parse_addr_mask(val, &sf->sf_taddr, &sf->sf_tmask,
+				       &sf->sf_taf);
+	if (error < 0)
+		goto error;
+
+	if (sf->sf_taf == AF_INET)
+		alen = 4;
+	else if (sf->sf_taf == AF_INET6)
+		alen = 16;
+	else
+		goto error;
+
+	/* Clear the host bits */
+	for (i = 0; i < alen; i++)
+		sf->sf_taddr.s6_addr[i] =
+			sf->sf_taddr.s6_addr[i] & sf->sf_tmask.s6_addr[i];
+
+	return 0;
+
+error:
+	cmd_err(f, "Error with translation address filter params\n");
+	return -EINVAL;
+}
+
 static int cmd_op_parse_feat(FILE *f, int *argcp, char ***argvp,
 			     struct session_filter *sf)
 {
@@ -561,6 +618,8 @@ static int cmd_op_parse_orderby(FILE *f, int *argcp, char ***argvp,
 		sd->sd_orderby = SD_ORDERBY_DADDR;
 	else if (!strcmp(val, "src_addr"))
 		sd->sd_orderby = SD_ORDERBY_SADDR;
+	else if (!strcmp(val, "trans_addr"))
+		sd->sd_orderby = SD_ORDERBY_TADDR;
 	else if (!strcmp(val, "id"))
 		sd->sd_orderby = SD_ORDERBY_ID;
 	else if (!strcmp(val, "time_to_expire"))
@@ -697,6 +756,30 @@ cmd_op_parse(FILE *f, int argc, char **argv, struct session_filter *sf,
 
 			sf->sf_proto = tmp;
 
+		} else if (!strcmp(cmd, "trans-addr")) {
+			/*
+			 * Translation address filter
+			 */
+			error = cmd_op_parse_trans_addr(f, &argc, &argv, sf);
+			if (error < 0)
+				return error;
+
+		} else if (!strcmp(cmd, "trans-port")) {
+			/*
+			 * Translation port filter
+			 */
+			uint tmp;
+			val = next_arg(&argc, &argv);
+			if (!val)
+				goto error_missing_param;
+
+			tmp = arg_to_uint(val, &error);
+			if (error < 0 || tmp > USHRT_MAX)
+				goto error_param_value;
+
+			/* cmd_feature_nat_info returns network order */
+			sf->sf_tport = htons(tmp);
+
 		} else if (!strcmp(cmd, "feat")) {
 			/*
 			 * Session feature filter
@@ -806,6 +889,27 @@ uint16_t sess_feature_type_bm(const struct session *s)
 	return sess_feat;
 }
 
+static int cmd_feature_nat_info(const struct session *s, uint32_t *taddr,
+				uint16_t *tport)
+{
+	const struct session_feature_ops *ops;
+	void *sf_data;
+
+	ops = feature_operations[SESSION_FEATURE_NPF];
+
+	/* Only if the feature has a nat_info op */
+	if (!ops->nat_info)
+		return -ENOENT;
+
+	sf_data = session_feature_get((struct session *)s,
+				      s->se_sen->sen_ifindex,
+				      SESSION_FEATURE_NPF);
+	if (!sf_data)
+		return -ENOENT;
+
+	return ops->nat_info(sf_data, taddr, tport);
+}
+
 /*
  * Filter.  Returns false if pkt is to be blocked by the filter.
  */
@@ -861,11 +965,56 @@ cmd_session_filter(const struct session *s, const struct session_filter *sf)
 			return false;
 	}
 
+	/* Translation address and/or port */
+	if (sf->sf_taf || sf->sf_tport) {
+
+		/* Only SNAT and DNAT are supported for now */
+		if (session_is_snat(s) || session_is_dnat(s)) {
+			uint32_t taddr;
+			uint16_t tport;
+			int rc;
+
+			/* Get sessions translation address and port */
+			rc = cmd_feature_nat_info(s, &taddr, &tport);
+			if (rc < 0)
+				return false;
+
+			/*
+			 * If a translation address filter is specified then
+			 * compare with session translation address
+			 */
+			if (sf->sf_taf == AF_INET &&
+			    (taddr & sf->sf_tmask.s6_addr32[0]) !=
+			    sf->sf_taddr.s6_addr32[0])
+				return false;
+
+			/*
+			 * If a translation port filter is specified then
+			 * compare with session translation port. Both
+			 * sf_tport and tport are in network order.
+			 */
+			if (sf->sf_tport && tport != sf->sf_tport)
+				return false;
+		} else
+			return false;
+	}
+
 	return true;
 }
 
 /*
  * Does this session belong to the current batch?
+ *
+ * We consider both ascending and descending ordering.  As such we use
+ * convenience variables a1, a2, b1, and b2 in the two comparison operations,
+ * and initialise them according to ascending/descending and whats being
+ * compared.
+ *
+ * For ascending, so we want  target (a1) >= start (a2), and
+ *                            target (b1) <= end (b2)
+ *
+ * For descending, so we want target (a2) <= start (a1), and
+ *                            target (b2) >= end (b1)
  */
 static bool
 cmd_session_batch(const struct session *s, struct session_dump *sd)
@@ -922,6 +1071,31 @@ cmd_session_batch(const struct session *s, struct session_dump *sd)
 		}
 
 		if (memcmp(a1, a2, alen) < 0 || memcmp(b1, b2, alen) > 0)
+			return false;
+
+	} else if (sd->sd_orderby == SD_ORDERBY_TADDR) {
+		uint32_t taddr;
+		uint16_t tport;
+		int rc;
+
+		rc = cmd_feature_nat_info(s, &taddr, &tport);
+		if (rc < 0)
+			return false;
+
+		const void *a1, *a2, *b1, *b2;
+
+		if (sd->sd_order == SD_ORDER_DESCENDING) {
+			a1 = &sd->sd_start_addr;
+			b1 = &sd->sd_end_addr;
+			a2 = b2 = &taddr;
+		} else {
+			a1 = b1 = &taddr;
+			a2 = &sd->sd_start_addr;
+			b2 = &sd->sd_end_addr;
+		}
+
+		if (memcmp(a1, a2, sizeof(taddr)) < 0 ||
+		    memcmp(b1, b2, sizeof(taddr)) > 0)
 			return false;
 
 	} else if (sd->sd_orderby == SD_ORDERBY_ID) {
@@ -1198,6 +1372,19 @@ static int cmd_session_json_list(struct session *s, void *data)
 			inet_ntop(AF_INET6, addr, addr_str, sizeof(addr_str));
 			jsonw_string(sd->sd_json, addr_str);
 		}
+		break;
+	}
+	case SD_ORDERBY_TADDR: {
+		uint32_t taddr;
+		uint16_t tport;
+		int rc;
+
+		rc = cmd_feature_nat_info(s, &taddr, &tport);
+		if (rc < 0)
+			return 0;
+
+		jsonw_uint(sd->sd_json, ntohl(taddr));
+
 		break;
 	}
 	case SD_ORDERBY_ID:

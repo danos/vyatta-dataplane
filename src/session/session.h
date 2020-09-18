@@ -105,6 +105,7 @@ struct session_feature_ops {
 	void	(*json)(json_writer_t *json, struct session_feature *sf);
 	void	(*log)(enum session_log_event event, struct session *s,
 		       struct session_feature *sf);
+	int	(*nat_info)(void *data, uint32_t *taddr, uint16_t *tport);
 };
 
 #define SESS_FEAT_REQ_EXPIRY	0x01		/* feature marked for expiry */
