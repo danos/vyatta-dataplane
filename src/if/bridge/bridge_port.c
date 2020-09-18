@@ -175,12 +175,6 @@ bridge_port_get_state(struct bridge_port *port)
 	return CMM_LOAD_SHARED(port->state[MSTP_MSTI_IST]);
 }
 
-void
-bridge_port_flush_vlans(struct bridge_port *port)
-{
-	bridge_vlan_set_clear(port->vlans);
-}
-
 bool
 bridge_port_lookup_vlan(struct bridge_port *port, uint16_t vlan)
 {
@@ -213,24 +207,6 @@ bridge_port_get_pvid(struct bridge_port *port)
 	return CMM_LOAD_SHARED(port->pvid);
 }
 
-void
-bridge_port_add_untag_vlan(struct bridge_port *port, uint16_t vlan)
-{
-	bridge_vlan_set_add(port->untag_vlans, vlan);
-}
-
-void
-bridge_port_remove_untag_vlan(struct bridge_port *port, uint16_t vlan)
-{
-	bridge_vlan_set_remove(port->untag_vlans, vlan);
-}
-
-void
-bridge_port_flush_untag_vlans(struct bridge_port *port)
-{
-	bridge_vlan_set_clear(port->untag_vlans);
-}
-
 bool
 bridge_port_lookup_untag_vlan(struct bridge_port *port, uint16_t vlan)
 {
@@ -249,14 +225,6 @@ bridge_port_get_untag_vlans(
 	struct bridge_port *port, struct bridge_vlan_set *to_vlans)
 {
 	return bridge_port_set_synchronize(to_vlans, port->untag_vlans);
-}
-
-void
-bridge_port_reset(struct bridge_port *port)
-{
-	bridge_port_flush_vlans(port);
-	bridge_port_flush_untag_vlans(port);
-	bridge_port_set_pvid(port, 0);
 }
 
 struct ifnet *bridge_port_get_interface(struct bridge_port *port)

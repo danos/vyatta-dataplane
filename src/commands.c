@@ -2422,12 +2422,6 @@ console_unbind(enum cont_src_en cont_src)
 		config.console_url_bound_uplink = NULL;
 }
 
-const char *
-console_endpoint_get(void)
-{
-	return console_endpoint;
-}
-
 void
 console_endpoint_set(const char *endpoint)
 {

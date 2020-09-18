@@ -42,13 +42,6 @@ void crypto_policy_update_pending_if(struct ifnet *ifp);
 
 int crypto_policy_init(void);
 
-/*
- * Check if outbound policy is active  and return af/address if true
- */
-bool crypto_policy_outbound_active(struct ifnet *in_ifp, struct rte_mbuf **mbuf,
-				   uint32_t *af, void **addr,
-				   uint16_t eth_type);
-
 void crypto_incmpl_policy_init(void);
 void crypto_incmpl_xfrm_policy_add(uint32_t ifindex, const struct nlmsghdr *nlh,
 				   const struct xfrm_selector *sel,

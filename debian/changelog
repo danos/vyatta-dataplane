@@ -1,3 +1,10 @@
+vyatta-dataplane (3.11.27) unstable; urgency=medium
+
+  * commands: remove the code to handle out of order cfg for speed
+  * storm_ctl: remove the code to handle out of order cfg
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Thu, 17 Sep 2020 13:11:51 +0100
+
 vyatta-dataplane (3.11.26) unstable; urgency=medium
 
   * ut: remove dp_test_lib_cmd as the code in it is not used

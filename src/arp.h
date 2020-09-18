@@ -58,8 +58,6 @@ typedef void ll_walkhash_f_t(const struct ifnet *, struct llentry *, void *);
 void arp_walk(const struct ifnet *, ll_walkhash_f_t *, void *);
 struct rte_mbuf *arprequest(struct ifnet *ifp, struct sockaddr *sa);
 
-bool arp_is_arp_reply(struct ifnet *ifp, struct rte_mbuf *m);
-
 void arp_entry_destroy(struct lltable *llt, struct llentry *lle);
 
 #endif /* ARP_H */

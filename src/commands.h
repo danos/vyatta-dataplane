@@ -53,7 +53,6 @@ int console_cmd(char *line, char **outbuf, size_t *outsize, cmd_func_t fn,
 		bool on_main);
 int console_bind(enum cont_src_en cont_src);
 void console_unbind(enum cont_src_en cont_src);
-const char *console_endpoint_get(void);
 void console_endpoint_set(const char *endpoint);
 
 void show_address(json_writer_t *wr, const struct ifnet *ifp);
