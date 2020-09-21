@@ -126,6 +126,7 @@ struct npf_rule_group {
 	struct cds_list_head rg_entry;	/* used in chaining rule groups */
 
 	uint8_t rg_dir;			/* direction - IN, OUT, or both */
+	uint8_t rg_af;			/* Addr family (0 for agnostic) */
 
 	npf_match_ctx_t *match_ctx_v4;
 	npf_match_ctx_t *match_ctx_v6;
@@ -1527,6 +1528,55 @@ npf_process_rule_config(npf_rule_t *rl)
 	return 0;
 }
 
+static zhashx_t *npf_rule_config_ht_init(void)
+{
+	zhashx_t *config_ht;
+
+	config_ht = zhashx_new();
+	if (!config_ht)
+		return NULL;
+
+	zhashx_set_destructor(config_ht, (zhashx_destructor_fn *)zstr_free);
+	zhashx_set_duplicator(config_ht, (zhashx_duplicator_fn *)strdup);
+
+	return config_ht;
+}
+
+/*
+ * ACLs use rule 0 for group attributes.  Parse that rule string and store any
+ * required params in the rule group.
+ */
+int npf_parse_group_acl_rule(npf_rule_group_t *rg, const char *rule_line)
+{
+	zhashx_t *tmp_config_ht;
+	const char *str;
+	int rc = 0;
+
+	tmp_config_ht = npf_rule_config_ht_init();
+
+	rc = npf_parse_rule_line(tmp_config_ht, rule_line);
+	if (rc)
+		goto end;
+
+	/* family */
+	str = zhashx_lookup(tmp_config_ht, "family");
+	if (str) {
+		uint8_t af = 0;
+
+		if (!strcmp(str, "inet"))
+			af = AF_INET;
+		else if (!strcmp(str, "inet6"))
+			af = AF_INET6;
+
+		if (af)
+			rg->rg_af = af;
+	}
+
+end:
+	zhashx_destroy(&tmp_config_ht);
+	return rc;
+}
+
 int
 npf_make_rule(npf_rule_group_t *rg, uint32_t rule_no, const char *rule_line,
 	      uint32_t ruleset_type_flags)
@@ -1548,18 +1598,13 @@ npf_make_rule(npf_rule_group_t *rg, uint32_t rule_no, const char *rule_line,
 		goto error;
 	}
 
-	rl->r_state->rs_config_ht = zhashx_new();
+	rl->r_state->rs_config_ht = npf_rule_config_ht_init();
 	if (!rl->r_state->rs_config_ht) {
 		RTE_LOG(ERR, FIREWALL, "Error: rule hash table allocation "
 			"failed\n");
 		ret = -ENOMEM;
 		goto error;
 	}
-
-	zhashx_set_destructor(rl->r_state->rs_config_ht,
-			      (zhashx_destructor_fn *)zstr_free);
-	zhashx_set_duplicator(rl->r_state->rs_config_ht,
-				(zhashx_duplicator_fn *)strdup);
 
 	/*
 	 * Add a back reference to the group and insert in the rule into
@@ -1803,7 +1848,7 @@ npf_ruleset_inspect(npf_cache_t *npc, struct rte_mbuf *nbuf,
 		 */
 		pd.rg = rg;
 
-		int af;
+		int af = 0;
 		void *match_ctx = NULL;
 
 		if (!npc) {
@@ -1825,6 +1870,10 @@ npf_ruleset_inspect(npf_cache_t *npc, struct rte_mbuf *nbuf,
 				match_ctx = rg->match_ctx_v6;
 			}
 		}
+
+		/* Match the address-family if set. */
+		if (rg->rg_af && rg->rg_af != af)
+			continue;
 
 		if (match_ctx) {
 			match = npf_match_classify(rs_type, af, match_ctx,
@@ -1894,6 +1943,12 @@ enum npf_ruleset_type
 npf_type_of_ruleset(const npf_ruleset_t *ruleset)
 {
 	return ruleset ? ruleset->rs_type : NPF_RS_TYPE_COUNT;
+}
+
+/* AF_INET, AF_INET6, or 0 if both or unknown */
+uint8_t npf_ruleset_af(npf_rule_group_t *rg)
+{
+	return rg->rg_af;
 }
 
 /*
