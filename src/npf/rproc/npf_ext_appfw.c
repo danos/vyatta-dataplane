@@ -125,14 +125,12 @@ static int appfw_parse_rule_elements(struct appfw_handle *ah,
 		 * the protocol, type and name branches.
 		 */
 		if (!strcmp(k, "protocol"))
-			ar->ar_protocol = dpi_app_name_to_id(ar->ar_engine, v)
-				& DPI_APP_MASK;
+			ar->ar_protocol = dpi_app_name_to_id(ar->ar_engine, v);
 		else if (!strcmp(k, "type")) {
 			ar->ar_type = dpi_app_type_name_to_id(ar->ar_engine,
 					v);
 		} else if (!strcmp(k, "name"))
-			ar->ar_id = dpi_app_name_to_id(ar->ar_engine, v)
-				& DPI_APP_MASK;
+			ar->ar_id = dpi_app_name_to_id(ar->ar_engine, v);
 		else if (!strcmp(k, "engine"))
 			ar->ar_engine = dpi_engine_name_to_id(v);
 		else if (!strcmp(k, "group"))
@@ -195,15 +193,17 @@ fail:
 	return false;
 }
 
+/* Match the given application firewall rule (ar)
+ * against the given protocol, application name, and application type.
+ *
+ * Return true on a match; false if no match.
+ *
+ * NB fields in the appFW rule (ar) are set to DPI_APP_NA
+ * if they are not used in the match.
+ */
 static bool appfw_match_rule(struct appfw_rule *ar, uint32_t proto,
 		uint32_t name, uint32_t type)
 {
-	/*
-	 * Discard the engine bits from the app name and proto.
-	 */
-	name &= DPI_APP_MASK;
-	proto &= DPI_APP_MASK;
-
 	/* Match most-specific to least-specific */
 	if (ar->ar_protocol != DPI_APP_NA && ar->ar_id != DPI_APP_NA) {
 		if ((proto == ar->ar_protocol) && (name == ar->ar_id))
@@ -217,23 +217,6 @@ static bool appfw_match_rule(struct appfw_rule *ar, uint32_t proto,
 		return true;
 
 	return false;
-}
-
-/* Return the sum of the forward and backward packet counts
- * for the given dpi_flow.
- */
-static uint32_t appfw_pkt_count(struct dpi_flow *df)
-{
-	uint32_t cnt;
-	struct dpi_engine_flow *def = (struct dpi_engine_flow *)df;
-
-	const struct dpi_flow_stats *ds = dpi_flow_get_stats(def, true);
-	cnt = ds->pkts;
-
-	ds = dpi_flow_get_stats(def, false);
-	cnt += ds->pkts;
-
-	return cnt;
 }
 
 static npf_decision_t appfw_decision(struct appfw_handle *ah,
@@ -250,9 +233,8 @@ static npf_decision_t appfw_decision(struct appfw_handle *ah,
 	 * If offloaded, or hit pkt limit, then run the app-fw
 	 * rules, as we will shall make the decision.
 	 */
-	uint32_t pkt_count = appfw_pkt_count(dpi_flow);
-
-	if (dpi_flow_get_offloaded(dpi_flow) || (pkt_count >= APPFW_MAX_PKTS)) {
+	if (dpi_flow_get_offloaded(dpi_flow) ||
+	    dpi_flow_pkt_count_maxed(dpi_flow, APPFW_MAX_PKTS)) {
 		cds_list_for_each_entry(ar, &ah->ah_rules, ar_list) {
 			engine_id = ar->ar_engine;
 

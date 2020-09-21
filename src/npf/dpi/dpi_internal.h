@@ -413,4 +413,9 @@ bool no_app_type(uint32_t app_type);
 void dpi_refcount_inc(uint8_t engine_id);
 uint32_t dpi_refcount_dec(uint8_t engine_id);
 
+/* Return true if the sum of the forward and backward packet counts
+ * for the given dpi_flow is greater than the specified maximum.
+ */
+bool dpi_flow_pkt_count_maxed(struct dpi_flow *dpi_flow, uint32_t max);
+
 #endif /* DPI_H */
