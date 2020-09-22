@@ -45,6 +45,7 @@ static void acl_setup(void)
 
 	dp_test_netlink_add_neigh("dp1T0", "10.0.1.2", "aa:bb:cc:dd:1:a1");
 	dp_test_netlink_add_neigh("dp2T1", "20.0.2.2", "aa:bb:cc:dd:2:b1");
+	dp_test_netlink_add_neigh("dp2T1", "20.0.2.3", "aa:bb:cc:dd:2:b3");
 
 	/* Setup v6 interfaces and neighbours */
 	dp_test_nl_add_ip_addr_and_connected("dp1T0", "2001:1:1::1/64");
@@ -61,6 +62,7 @@ static void acl_teardown(void)
 {
 	dp_test_netlink_del_neigh("dp1T0", "10.0.1.2", "aa:bb:cc:dd:1:a1");
 	dp_test_netlink_del_neigh("dp2T1", "20.0.2.2", "aa:bb:cc:dd:2:b1");
+	dp_test_netlink_del_neigh("dp2T1", "20.0.2.3", "aa:bb:cc:dd:2:b3");
 
 	dp_test_nl_del_ip_addr_and_connected("dp1T0", "10.0.1.1/24");
 	dp_test_nl_del_ip_addr_and_connected("dp2T1", "20.0.2.1/24");
@@ -124,23 +126,48 @@ static void _dpt_icmp6(uint8_t icmp_type, const char *rx_intf,
 		   __FILE__, __func__, __LINE__)
 
 /*
- * acl1 - v4 drop acl
+ * acl1 - IPv4 acl on input
  */
 DP_DECL_TEST_CASE(npf_acl, acl1, acl_setup, acl_teardown);
 DP_START_TEST(acl1, test)
 {
-	/* set security ip-packet-filter group v4test ip-version ipv4 */
 	dp_test_npf_cmd("npf-ut add acl:v4test 0 family=inet", false);
 
-	/* set security ip-packet-filter group v4test rule 10 action drop */
-	dp_test_npf_cmd("npf-ut add acl:v4test 10 action=drop", false);
+	/* Drop ICMP */
+	dp_test_npf_cmd("npf-ut add acl:v4test 10 "
+			"src-addr=10.0.1.2 "
+			"dst-addr=20.0.2.2 "
+			"proto-base=1 "
+			"action=drop", false);
 
-	/* set security ip-packet-filter interface dp0p1s1 in v4test */
+	/* Drop UDP */
+	dp_test_npf_cmd("npf-ut add acl:v4test 20 "
+			"src-addr=10.0.1.2 src-port=10000 "
+			"dst-addr=20.0.2.2 dst-port=20000 "
+			"proto-base=17 "
+			"action=drop", false);
+
+	/* Drop TCP */
+	dp_test_npf_cmd("npf-ut add acl:v4test 30 "
+			"src-addr=10.0.1.2 src-port=32878 "
+			"dst-addr=20.0.2.2 dst-port=80 "
+			"proto-base=6 "
+			"action=drop", false);
+
 	dp_test_npf_cmd("npf-ut attach interface:dpT10 acl-in acl:v4test",
 			false);
 
 	dp_test_npf_cmd("npf-ut commit", false);
 
+	/* ICMP, no acl match */
+	dpt_icmp(ICMP_ECHO,
+		 "dp1T0", "aa:bb:cc:dd:1:a1",
+		 "10.0.1.3", 1234, "20.0.2.2",
+		 "10.0.1.3", 1234, "20.0.2.2",
+		 "aa:bb:cc:dd:2:b1", "dp2T1",
+		 DP_TEST_FWD_FORWARDED);
+
+	/* ICMP, acl match */
 	dpt_icmp(ICMP_ECHO,
 		 "dp1T0", "aa:bb:cc:dd:1:a1",
 		 "10.0.1.2", 10000, "20.0.2.2",
@@ -148,11 +175,40 @@ DP_START_TEST(acl1, test)
 		 "aa:bb:cc:dd:2:b1", "dp2T1",
 		 DP_TEST_FWD_DROPPED);
 
+	/* ICMP6 */
 	dpt_icmp6(ICMP6_ECHO_REQUEST,
 		  "dp1T0", "aa:bb:cc:dd:1:a1",
 		  "2001:1:1::2", 10000, "2002:2:2::1",
 		  "aa:bb:cc:dd:2:b1", "dp2T1",
 		  DP_TEST_FWD_FORWARDED);
+
+	/* UDP, no acl match */
+	dpt_udp("dp1T0", "aa:bb:cc:dd:1:a1",
+		 "10.0.1.2", 10000, "20.0.2.3", 30000,
+		 "10.0.1.2", 10000, "20.0.2.3", 30000,
+		 "aa:bb:cc:dd:2:b3", "dp2T1",
+		 DP_TEST_FWD_FORWARDED);
+
+	/* UDP, acl match */
+	dpt_udp("dp1T0", "aa:bb:cc:dd:1:a1",
+		 "10.0.1.2", 10000, "20.0.2.2", 20000,
+		 "10.0.1.2", 10000, "20.0.2.2", 20000,
+		 "aa:bb:cc:dd:2:b1", "dp2T1",
+		 DP_TEST_FWD_DROPPED);
+
+	/* TCP, no acl match */
+	dpt_tcp(TH_SYN, "dp1T0", "aa:bb:cc:dd:1:a1",
+		"10.0.1.2", 32878, "20.0.2.2", 1024,
+		"10.0.1.2", 32878, "20.0.2.2", 1024,
+		"aa:bb:cc:dd:2:b1", "dp2T1",
+		DP_TEST_FWD_FORWARDED);
+
+	/* TCP, acl match */
+	dpt_tcp(TH_SYN, "dp1T0", "aa:bb:cc:dd:1:a1",
+		"10.0.1.2", 32878, "20.0.2.2", 80,
+		"10.0.1.2", 32878, "20.0.2.2", 80,
+		"aa:bb:cc:dd:2:b1", "dp2T1",
+		DP_TEST_FWD_DROPPED);
 
 	/*****************************************************************
 	 * Unconfig
@@ -165,18 +221,34 @@ DP_START_TEST(acl1, test)
 } DP_END_TEST;
 
 /*
- * acl2 - v6 drop acl
+ * acl2 - v6 drop acl on input
  */
 DP_DECL_TEST_CASE(npf_acl, acl2, acl_setup, acl_teardown);
 DP_START_TEST(acl2, test)
 {
-	/* set security ip-packet-filter group v6test ip-version ipv6 */
 	dp_test_npf_cmd("npf-ut add acl:v6test 0 family=inet6", false);
 
-	/* set security ip-packet-filter group v6test rule 10 action drop */
-	dp_test_npf_cmd("npf-ut add acl:v6test 10 action=drop", false);
+	/* Drop ICMP */
+	dp_test_npf_cmd("npf-ut add acl:v6test 10 "
+			"src-addr=2001:1:1::2 "
+			"dst-addr=2002:2:2::1 "
+			"proto-base=58 "
+			"action=drop", false);
 
-	/* set security ip-packet-filter interface dp0p1s1 in v6test */
+	/* Drop UDP */
+	dp_test_npf_cmd("npf-ut add acl:v6test 20 "
+			"src-addr=2001:1:1::2 "
+			"dst-addr=2002:2:2::1 "
+			"proto-base=17 "
+			"action=drop", false);
+
+	/* Drop TCP */
+	dp_test_npf_cmd("npf-ut add acl:v6test 30 "
+			"src-addr=2001:1:1::2 "
+			"dst-addr=2002:2:2::1 dst-port=80 "
+			"proto-base=6 "
+			"action=drop", false);
+
 	dp_test_npf_cmd("npf-ut attach interface:dpT10 acl-in acl:v6test",
 			false);
 
@@ -189,11 +261,47 @@ DP_START_TEST(acl2, test)
 		 "aa:bb:cc:dd:2:b1", "dp2T1",
 		 DP_TEST_FWD_FORWARDED);
 
+	/* ICMP, no acl match */
+	dpt_icmp6(ICMP6_ECHO_REQUEST,
+		  "dp1T0", "aa:bb:cc:dd:1:a1",
+		  "2001:1:1::3", 10000, "2002:2:2::1",
+		  "aa:bb:cc:dd:2:b1", "dp2T1",
+		  DP_TEST_FWD_FORWARDED);
+
+	/* ICMP, acl match */
 	dpt_icmp6(ICMP6_ECHO_REQUEST,
 		  "dp1T0", "aa:bb:cc:dd:1:a1",
 		  "2001:1:1::2", 10000, "2002:2:2::1",
 		  "aa:bb:cc:dd:2:b1", "dp2T1",
 		  DP_TEST_FWD_DROPPED);
+
+	/* UDP, no acl match */
+	dpt_udp("dp1T0", "aa:bb:cc:dd:1:a1",
+		"2001:1:1::3", 4321, "2002:2:2::1", 1024,
+		"2001:1:1::3", 4321, "2002:2:2::1", 1024,
+		"aa:bb:cc:dd:2:b1", "dp2T1",
+		DP_TEST_FWD_FORWARDED);
+
+	/* UDP, acl match */
+	dpt_udp("dp1T0", "aa:bb:cc:dd:1:a1",
+		"2001:1:1::2", 1234, "2002:2:2::1", 1024,
+		"2001:1:1::2", 1234, "2002:2:2::1", 1024,
+		"aa:bb:cc:dd:2:b1", "dp2T1",
+		DP_TEST_FWD_DROPPED);
+
+	/* TCP, no acl match */
+	dpt_tcp(TH_SYN, "dp1T0", "aa:bb:cc:dd:1:a1",
+		"2001:1:1::3", 30123, "2002:2:2::1", 80,
+		"2001:1:1::3", 30123, "2002:2:2::1", 80,
+		"aa:bb:cc:dd:2:b1", "dp2T1",
+		DP_TEST_FWD_FORWARDED);
+
+	/* TCP, acl match */
+	dpt_tcp(TH_SYN, "dp1T0", "aa:bb:cc:dd:1:a1",
+		"2001:1:1::2", 2121, "2002:2:2::1", 80,
+		"2001:1:1::2", 2121, "2002:2:2::1", 80,
+		"aa:bb:cc:dd:2:b1", "dp2T1",
+		DP_TEST_FWD_DROPPED);
 
 	/*****************************************************************
 	 * Unconfig
