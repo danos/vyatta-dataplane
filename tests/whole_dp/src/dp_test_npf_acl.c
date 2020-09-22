@@ -401,3 +401,97 @@ DP_START_TEST(acl4, test)
 	dp_test_npf_cmd("npf-ut commit", false);
 
 } DP_END_TEST;
+
+/*
+ *
+ */
+static void dpt_gre_spath(const char *gre_name,
+			  const char *gre_local, const char *gre_remote,
+			  const char *tx_intf, const char *nh_mac_str,
+			  int status)
+{
+	struct dp_test_expected *exp;
+	struct rte_mbuf *test_pak, *payload_pak;
+	int len = 64;
+	int gre_pl_len;
+	void *gre_payload;
+
+	payload_pak = dp_test_create_ipv4_pak("10.73.0.0", "10.73.2.0",
+					   1, &len);
+	dp_test_pktmbuf_eth_init(payload_pak, nh_mac_str,
+				 dp_test_intf_name2mac_str(tx_intf),
+				 RTE_ETHER_TYPE_IPV4);
+
+	gre_pl_len = rte_pktmbuf_data_len(payload_pak);
+
+	test_pak = dp_test_create_gre_ipv4_pak(
+		gre_local, gre_remote, 1, &gre_pl_len, ETH_P_TEB, 0, 0,
+		&gre_payload);
+	memcpy(gre_payload, rte_pktmbuf_mtod(payload_pak,
+				const struct rte_ether_hdr *), gre_pl_len);
+	dp_test_set_pak_ip_field(iphdr(test_pak), DP_TEST_SET_DF, 1);
+	dp_test_pktmbuf_eth_init(test_pak,
+				 nh_mac_str,
+				 dp_test_intf_name2mac_str(tx_intf),
+				 RTE_ETHER_TYPE_IPV4);
+
+	exp = dp_test_exp_create(test_pak);
+	rte_pktmbuf_free(test_pak);
+	dp_test_exp_set_oif_name(exp, tx_intf);
+	dp_test_exp_set_fwd_status(exp, status);
+	dp_test_send_spath_pkt(payload_pak, gre_name, exp);
+}
+
+/*
+ * acl5. Tests ACL egress on the ip_lookup_and_originate output path using a
+ * GRE tunneled pkt.
+ */
+DP_DECL_TEST_CASE(npf_acl, acl5, NULL, NULL);
+DP_START_TEST(acl5, test)
+{
+	const char *nh_mac_str2, *nh_mac_str3;
+
+	dp_test_npf_cmd("npf-ut add acl:v4test 0 family=inet", false);
+	dp_test_npf_cmd("npf-ut add acl:v4test 10 "
+			"dst-addr=1.1.2.3 action=drop", false);
+	dp_test_npf_cmd("npf-ut attach interface:dpT11 acl-out acl:v4test",
+			false);
+	dp_test_npf_cmd("npf-ut commit", false);
+
+	nh_mac_str2 = "aa:bb:cc:dd:ee:f2";
+	nh_mac_str3 = "aa:bb:cc:dd:ee:f3";
+
+	dp_test_nl_add_ip_addr_and_connected("dp1T1", "1.1.2.1/24");
+	dp_test_netlink_add_neigh("dp1T1", "1.1.2.2", nh_mac_str2);
+	dp_test_netlink_add_neigh("dp1T1", "1.1.2.3", nh_mac_str3);
+
+	/*
+	 * No acl match
+	 */
+	dp_test_intf_gre_l2_create("tun1", "1.1.2.1", "1.1.2.2", 0);
+	dpt_gre_spath("tun1", "1.1.2.1", "1.1.2.2", "dp1T1", nh_mac_str2,
+		      DP_TEST_FWD_FORWARDED);
+	dp_test_intf_gre_l2_delete("tun1", "1.1.2.1", "1.1.2.2", 0);
+
+	/*
+	 * acl match
+	 */
+	dp_test_intf_gre_l2_create("tun2", "1.1.2.1", "1.1.2.3", 0);
+	dpt_gre_spath("tun2", "1.1.2.1", "1.1.2.3", "dp1T1", nh_mac_str3,
+		      DP_TEST_FWD_DROPPED);
+	dp_test_intf_gre_l2_delete("tun2", "1.1.2.1", "1.1.2.3", 0);
+
+
+	/*
+	 * Clean up
+	 */
+	dp_test_npf_cmd("npf-ut detach interface:dpT11 acl-out acl:v4test",
+			false);
+	dp_test_npf_cmd("npf-ut delete acl:v4test", false);
+	dp_test_npf_cmd("npf-ut commit", false);
+
+	dp_test_netlink_del_neigh("dp1T1", "1.1.2.2", nh_mac_str2);
+	dp_test_netlink_del_neigh("dp1T1", "1.1.2.3", nh_mac_str3);
+	dp_test_nl_del_ip_addr_and_connected("dp1T1", "1.1.2.1/24");
+
+} DP_END_TEST;
