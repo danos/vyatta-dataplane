@@ -92,6 +92,13 @@ enum pl_l3_v6_encap_fused_feat {
 	PL_L3_V6_ENCAP_FUSED_FEAT_ACL = 1,
 };
 
+enum pl_l3_v4_out_spath_fused_feat {
+	PL_L3_V4_OUT_SPATH_FUSED_FEAT_DEFRAG = 1,
+	PL_L3_V4_OUT_FUSED_FEAT_FW_ORIG = 2,
+	PL_L3_V4_OUT_SPATH_FUSED_FEAT_FW = 3,
+	PL_L3_V4_OUT_SPATH_FUSED_FEAT_ACL = 4,
+};
+
 enum pl_l3_v4_route_lookup_fused_feat {
 	PL_L3_V4_ROUTE_LOOKUP_FUSED_FEAT_IPSEC = 1,
 };

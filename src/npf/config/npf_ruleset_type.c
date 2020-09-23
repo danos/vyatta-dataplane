@@ -85,8 +85,9 @@ static const struct npf_ruleset_features {
 	},
 	[NPF_RS_ORIGINATE] = {
 		.name = "originate",
-		.flags = NPF_RS_FLAG_NOTRACK | NPF_RS_FLAG_DIR_OUT,
-		.feat_flags = 0,
+		.flags = NPF_RS_FLAG_NOTRACK | NPF_RS_FLAG_DIR_OUT
+			| NPF_RS_FLAG_FEAT_INTF,
+		.feat_flags = IF_FEAT_FLAG_DEFRAG | IF_FEAT_FLAG_FW_ORIG,
 		.log_level = RTE_LOGTYPE_FIREWALL,
 		.log_name = "originate",
 	},

@@ -91,6 +91,7 @@ PIPELINE_NODE_FILES = \
 	src/pipeline/nodes/l3_v4_no_address.c \
 	src/pipeline/nodes/l3_v4_no_forwarding.c \
 	src/pipeline/nodes/l3_v4_out.c \
+	src/pipeline/nodes/l3_v4_out_spath.c \
 	src/pipeline/nodes/l3_v4_post_route_lookup.c \
 	src/pipeline/nodes/l3_v4_route_lookup.c \
 	src/pipeline/nodes/l3_v4_rpf.c \
@@ -351,7 +352,7 @@ PL_GEN_FUSED_OPTS = \
 	--entry vyatta:ipv4-route-lookup \
 	--entry vyatta:ipv4-out \
 	--entry vyatta:ipv6-out \
-	--entry vyatta:ipv4-defrag-out-spath \
+	--entry vyatta:ipv4-out-spath \
 	--entry vyatta:ipv6-defrag-out-spath \
 	--entry vyatta:ipv4-encap \
 	--entry vyatta:ipv6-encap \
@@ -371,6 +372,7 @@ PL_GEN_FUSED_OPTS = \
 	--feature-point vyatta:ipv4-validate \
 	--feature-point vyatta:ipv4-route-lookup \
 	--feature-point vyatta:ipv4-out \
+	--feature-point vyatta:ipv4-out-spath \
 	--feature-point vyatta:ipv4-encap \
 	--feature-point vyatta:ipv4-udp-in \
 	--feature-point vyatta:ipv6-drop \

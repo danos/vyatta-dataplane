@@ -18,6 +18,7 @@ extern struct pl_node_registration *const ipv4_encap_node_ptr;
 extern struct pl_node_registration *const ipv4_route_lookup_node_ptr;
 extern struct pl_node_registration *const ipv4_l4_node_ptr;
 extern struct pl_node_registration *const ipv4_udp_in_node_ptr;
+extern struct pl_node_registration *const ipv4_out_spath_node_ptr;
 
 extern struct pl_node_registration *const ipv6_drop_node_ptr;
 extern struct pl_node_registration *const ipv6_l4_node_ptr;
@@ -55,6 +56,7 @@ PL_DECLARE_FEATURE(ipv4_defrag_in_feat);
 PL_DECLARE_FEATURE(ipv4_defrag_out_feat);
 PL_DECLARE_FEATURE(ipv6_defrag_in_feat);
 PL_DECLARE_FEATURE(ipv6_defrag_out_feat);
+PL_DECLARE_FEATURE(ipv4_defrag_out_spath_feat);
 
 PL_DECLARE_FEATURE(ipv4_dpi_in_feat);
 PL_DECLARE_FEATURE(ipv6_dpi_in_feat);
@@ -65,11 +67,14 @@ PL_DECLARE_FEATURE(ipv4_acl_in_feat);
 PL_DECLARE_FEATURE(ipv4_acl_out_feat);
 PL_DECLARE_FEATURE(ipv6_acl_in_feat);
 PL_DECLARE_FEATURE(ipv6_acl_out_feat);
+PL_DECLARE_FEATURE(ipv4_acl_out_spath_feat);
 
 PL_DECLARE_FEATURE(ipv4_fw_in_feat);
 PL_DECLARE_FEATURE(ipv4_fw_out_feat);
 PL_DECLARE_FEATURE(ipv6_fw_in_feat);
 PL_DECLARE_FEATURE(ipv6_fw_out_feat);
+PL_DECLARE_FEATURE(ipv4_fw_orig_feat);
+PL_DECLARE_FEATURE(ipv4_fw_out_spath_feat);
 
 PL_DECLARE_FEATURE(ipv4_pbr_feat);
 PL_DECLARE_FEATURE(ipv6_pbr_feat);
