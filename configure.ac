@@ -99,11 +99,6 @@ AX_VALGRIND_DFLT([memcheck], [on])
 AX_VALGRIND_CHECK
 
 # Checks for libraries.
-PKG_CHECK_MODULES(CPPUTEST, [cpputest >= 3.8], , [
-	PKG_CHECK_MODULES(CPPUTEST, [cpputest >= 3.4],
-		AC_DEFINE([CPPUTEST_LT_3_8], 1, [CppUtest < 3.8 detected])
-	)
-])
 PKG_CHECK_MODULES(LIBCAP, [libcap], , [
 	AC_SEARCH_LIBS([cap_get_proc], [cap], , [
 		AC_MSG_ERROR([No library 'libcap' found])
