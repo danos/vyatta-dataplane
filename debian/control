@@ -3,12 +3,10 @@ Section: non-free/net
 Priority: optional
 Maintainer: Vyatta Package Maintainers <DL-vyatta-help@att.com>
 Standards-Version: 3.9.8
-Build-Depends: autoconf-archive (>= 20150925),
+Build-Depends: meson,
                bvnos-linux-libc-dev-vyatta (>> 4.19.16-0vyatta6),
                check,
-               debhelper (>= 9),
-               debhelper (>= 9.20160709) | dh-systemd (>= 10.2.4),
-               dh-autoreconf,
+               debhelper (>= 9.20160709),
                dh-exec,
                golang-goprotobuf-dev,
                lcov,
@@ -37,7 +35,6 @@ Build-Depends: autoconf-archive (>= 20150925),
                protobuf-c-compiler,
                protobuf-compiler,
                python3,
-               valgrind <pkg.vyatta-dataplane.valgrind>
 
 Package: vyatta-dataplane
 Section: non-free/net
