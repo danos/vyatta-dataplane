@@ -382,6 +382,8 @@ struct ifnet {
 
 	/* vlan-modify default entry */
 	struct vlan_mod_tbl_entry *vlan_mod_default;
+
+	uint16_t          ip_out_spath_features;
 };
 
 static_assert(offsetof(struct ifnet, if_vlantbl) == 64,

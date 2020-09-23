@@ -636,9 +636,10 @@ ip_spath_filter_internal(struct ifnet *ifp, struct ifnet *l2_ifp,
 		.npf_flags = npf_flags,
 		.in_ifp = NULL,
 		.out_ifp = ifp,
+		.l2_proto = ETH_P_IP,
 	};
 
-	if (!pipeline_fused_ipv4_defrag_out_spath(&pl_pkt))
+	if (!pipeline_fused_ipv4_out_spath(&pl_pkt))
 		return 1;
 
 	if (unlikely(m != pl_pkt.mbuf))
