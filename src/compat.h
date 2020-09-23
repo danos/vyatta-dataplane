@@ -58,11 +58,7 @@
 #define MAX_MP_SELECT_LABELS 4
 #endif
 
-#ifdef HAVE_RTE_PORT_ID_16_BITS
 typedef uint16_t portid_t;
-#else
-typedef uint8_t portid_t;
-#endif
 
 #ifndef PKT_RX_VLAN
 #define PKT_RX_VLAN PKT_RX_VLAN_PKT

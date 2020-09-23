@@ -158,30 +158,6 @@ AC_CHECK_MEMBERS([struct bpf_aux_data.vlan_tag], [],
 	[AC_MSG_ERROR([No library 'libpcap' with 'struct bpf_aux_data' found])],
 	[[#include <pcap.h>]])
 
-CFLAGS_BACK=$CFLAGS
-CFLAGS+=" $DPDK_CFLAGS -Werror"
-AC_MSG_CHECKING([whether DPDK's port IDs are uint16_t])
-AC_COMPILE_IFELSE(
-	[AC_LANG_PROGRAM(
-		[[
-#include <rte_ethdev.h>
-int foo(uint16_t a, enum rte_eth_event_type b, void *c, void *d)
-{
-    return 0;
-}
-		]],
-		[[
-rte_eth_dev_callback_register(0, 0, foo, NULL);
-		]])
-	],[
-		AC_MSG_RESULT([yes])
-		AC_DEFINE(HAVE_RTE_PORT_ID_16_BITS, [1],
-		    [whether DPDK's port IDs are uint16_t])
-	],[
-		AC_MSG_RESULT([no])
-])
-CFLAGS=$CFLAGS_BACK
-
 AC_ARG_WITH([systemd],
     AS_HELP_STRING([--without-systemd], [Ignore presence of systemd and disable it]))
 
