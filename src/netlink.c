@@ -47,6 +47,7 @@
 #include "fal.h"
 #include "fal_plugin.h"
 #include "if/bridge/bridge.h"
+#include "if/dpdk-eth/dpdk_eth_if.h"
 #include "if/dpdk-eth/vhost.h"
 #include "if/gre.h"
 #include "if/macvlan.h"
@@ -329,7 +330,7 @@ vrf_link_create(const struct ifinfomsg *ifi, const char *ifname,
 static struct ifnet *
 dataplane_tuntap_create(unsigned int if_idx, const char *ifname)
 {
-	return if_hwport_alloc(ifname, if_idx);
+	return dpdk_eth_if_alloc(ifname, if_idx);
 }
 
 /*

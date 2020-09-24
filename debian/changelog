@@ -1,3 +1,13 @@
+vyatta-dataplane (3.11.30) unstable; urgency=medium
+
+  [ Srinivas Narayan ]
+  * crypto: set ICV offset correctly for multi-segment packets
+  * crypto: Initialize status to avoid spurious drops
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Thu, 24 Sep 2020 15:05:14 +0100
+
 vyatta-dataplane (3.11.29) unstable; urgency=medium
 
   [ Paul Aitken ]
