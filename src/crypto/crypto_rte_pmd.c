@@ -710,10 +710,11 @@ static inline void
 crypto_rte_sop_aead_prepare(struct rte_crypto_sym_op *sop,
 			    uint32_t l3_hdr_len, uint8_t udp_len,
 			    uint32_t esp_len, uint32_t payload_len,
-			    uint16_t icv_ofs)
+			    uint16_t icv_len)
 {
-	struct rte_mbuf *m = sop->m_src;
+	struct rte_mbuf *m = sop->m_src, *last_seg = m;
 	uint16_t esp_start = dp_pktmbuf_l2_len(m) + l3_hdr_len + udp_len;
+	uint16_t icv_ofs;
 
 	sop->aead.data.offset = esp_start + esp_len;
 	sop->aead.data.length = payload_len;
@@ -721,8 +722,13 @@ crypto_rte_sop_aead_prepare(struct rte_crypto_sym_op *sop,
 	sop->aead.aad.data = rte_pktmbuf_mtod_offset(m, void *, esp_start);
 	sop->aead.aad.phys_addr = rte_pktmbuf_iova_offset(m, esp_start);
 
-	sop->aead.digest.data = rte_pktmbuf_mtod_offset(m, void*, icv_ofs);
-	sop->aead.digest.phys_addr = rte_pktmbuf_iova_offset(m, icv_ofs);
+	if (unlikely(m->nb_segs > 1))
+		last_seg = rte_pktmbuf_lastseg(m);
+	icv_ofs = last_seg->data_len - icv_len;
+	sop->aead.digest.data = rte_pktmbuf_mtod_offset(last_seg, void *,
+							icv_ofs);
+	sop->aead.digest.phys_addr =
+		rte_pktmbuf_iova_offset(last_seg, icv_ofs);
 }
 
 /*
@@ -738,10 +744,11 @@ crypto_rte_inbound_cop_prepare(struct rte_crypto_op *cop,
 	int err = 0;
 	struct rte_crypto_sym_op *sop;
 	uint8_t *ivc;
-	uint16_t icv_ofs;
+	uint16_t icv_ofs, icv_len;
 
 	memcpy(session->iv, iv, session->iv_len);
-	icv_ofs = rte_pktmbuf_pkt_len(m) - crypto_session_digest_len(session);
+	icv_len = crypto_session_digest_len(session);
+	icv_ofs = rte_pktmbuf_pkt_len(m) - icv_len;
 
 	/* fill sym op fields */
 	sop = cop->sym;
@@ -749,7 +756,7 @@ crypto_rte_inbound_cop_prepare(struct rte_crypto_op *cop,
 	if (session->aead_algo == RTE_CRYPTO_AEAD_AES_GCM) {
 		crypto_rte_sop_aead_prepare(sop, l3_hdr_len,
 					    udp_len, esp_len,
-					    payload_len, icv_ofs);
+					    payload_len, icv_len);
 
 		/* fill AAD IV (located inside crypto op) */
 		ivc = rte_crypto_op_ctod_offset(cop, uint8_t *,
@@ -793,10 +800,11 @@ crypto_rte_outbound_cop_prepare(struct rte_crypto_op *cop,
 	int err = 0;
 	struct rte_crypto_sym_op *sop;
 	uint8_t *ivc;
-	uint16_t icv_ofs;
+	uint16_t icv_ofs, icv_len;
 
 	icv_ofs = dp_pktmbuf_l2_len(m) + l3_hdr_len + udp_len + esp_len +
 		payload_len;
+	icv_len = crypto_session_digest_len(session);
 
 	/* fill sym op fields */
 	sop = cop->sym;
@@ -804,7 +812,7 @@ crypto_rte_outbound_cop_prepare(struct rte_crypto_op *cop,
 	if (session->aead_algo == RTE_CRYPTO_AEAD_AES_GCM) {
 		crypto_rte_sop_aead_prepare(sop, l3_hdr_len, udp_len,
 					    esp_len, payload_len,
-					    icv_ofs);
+					    icv_len);
 
 		/* fill AAD IV (located inside crypto op) */
 		ivc = rte_crypto_op_ctod_offset(cop, uint8_t *,

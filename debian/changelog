@@ -1,3 +1,19 @@
+vyatta-dataplane (3.11.29) unstable; urgency=medium
+
+  [ Paul Aitken ]
+  * DPI: fix appFW "ten packets" functionality
+  * DPI: make appFW cognisant of engine ID
+
+  [ Ian Wilson ]
+  * npf: Initialisation of config ht moved out of npf_make_rule
+  * npf: Parse special ACL group-attribute rule if present
+  * npf: Skip ruleset inspection for address-family if not enabled on group
+  * ut: Add simple software ACL tests
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Mon, 21 Sep 2020 07:55:22 +0100
+
 vyatta-dataplane (3.11.28) unstable; urgency=medium
 
   [ Paul Atkins ]

@@ -1040,6 +1040,7 @@ crypto_pmd_process_packet(struct crypto_pkt_ctx *contexts,
 	if (unlikely(!sa))
 		return 0;
 
+	contexts->status = 0;
 	contexts->sa = sa;
 	contexts->bytes = 0;
 	crypto_cb[xfrm].process(contexts);
