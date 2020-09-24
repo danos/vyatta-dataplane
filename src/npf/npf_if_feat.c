@@ -39,10 +39,12 @@ static void npf_if_feat_enable_acl_out(struct ifnet *ifp, bool enable)
 		pl_node_add_feature_by_inst(&ipv4_acl_out_feat, ifp);
 		pl_node_add_feature_by_inst(&ipv6_acl_out_feat, ifp);
 		pl_node_add_feature_by_inst(&ipv4_acl_out_spath_feat, ifp);
+		pl_node_add_feature_by_inst(&ipv6_acl_out_spath_feat, ifp);
 	} else {
 		pl_node_remove_feature_by_inst(&ipv4_acl_out_feat, ifp);
 		pl_node_remove_feature_by_inst(&ipv6_acl_out_feat, ifp);
 		pl_node_remove_feature_by_inst(&ipv4_acl_out_spath_feat, ifp);
+		pl_node_remove_feature_by_inst(&ipv6_acl_out_spath_feat, ifp);
 	}
 }
 
@@ -57,12 +59,15 @@ static void npf_if_feat_enable_defrag(struct ifnet *ifp, bool enable)
 		pl_node_add_feature_by_inst(&ipv4_defrag_out_feat, ifp);
 		pl_node_add_feature_by_inst(&ipv6_defrag_out_feat, ifp);
 		pl_node_add_feature_by_inst(&ipv4_defrag_out_spath_feat, ifp);
+		pl_node_add_feature_by_inst(&ipv6_defrag_out_spath_feat, ifp);
 	} else {
 		pl_node_remove_feature_by_inst(&ipv4_defrag_in_feat, ifp);
 		pl_node_remove_feature_by_inst(&ipv6_defrag_in_feat, ifp);
 		pl_node_remove_feature_by_inst(&ipv4_defrag_out_feat, ifp);
 		pl_node_remove_feature_by_inst(&ipv6_defrag_out_feat, ifp);
 		pl_node_remove_feature_by_inst(&ipv4_defrag_out_spath_feat,
+					       ifp);
+		pl_node_remove_feature_by_inst(&ipv6_defrag_out_spath_feat,
 					       ifp);
 	}
 }
@@ -78,12 +83,14 @@ static void npf_if_feat_enable_fw(struct ifnet *ifp, bool enable)
 		pl_node_add_feature_by_inst(&ipv4_fw_out_feat, ifp);
 		pl_node_add_feature_by_inst(&ipv6_fw_out_feat, ifp);
 		pl_node_add_feature_by_inst(&ipv4_fw_out_spath_feat, ifp);
+		pl_node_add_feature_by_inst(&ipv6_fw_out_spath_feat, ifp);
 	} else {
 		pl_node_remove_feature_by_inst(&ipv4_fw_in_feat, ifp);
 		pl_node_remove_feature_by_inst(&ipv6_fw_in_feat, ifp);
 		pl_node_remove_feature_by_inst(&ipv4_fw_out_feat, ifp);
 		pl_node_remove_feature_by_inst(&ipv6_fw_out_feat, ifp);
 		pl_node_remove_feature_by_inst(&ipv4_fw_out_spath_feat, ifp);
+		pl_node_remove_feature_by_inst(&ipv6_fw_out_spath_feat, ifp);
 	}
 }
 
@@ -94,10 +101,10 @@ static void npf_if_feat_enable_fw_orig(struct ifnet *ifp, bool enable)
 {
 	if (enable) {
 		pl_node_add_feature_by_inst(&ipv4_fw_orig_feat, ifp);
-		//pl_node_add_feature_by_inst(&ipv6_fw_orig_feat, ifp);
+		pl_node_add_feature_by_inst(&ipv6_fw_orig_feat, ifp);
 	} else {
 		pl_node_remove_feature_by_inst(&ipv4_fw_orig_feat, ifp);
-		//pl_node_remove_feature_by_inst(&ipv6_fw_orig_feat, ifp);
+		pl_node_remove_feature_by_inst(&ipv6_fw_orig_feat, ifp);
 	}
 }
 

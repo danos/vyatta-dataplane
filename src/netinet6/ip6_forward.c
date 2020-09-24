@@ -913,9 +913,10 @@ ip6_spath_filter_internal(struct ifnet *ifp, struct ifnet *l2_ifp,
 		.npf_flags = npf_flags,
 		.in_ifp = NULL,
 		.out_ifp = ifp,
+		.l2_proto = ETH_P_IPV6,
 	};
 
-	if (!pipeline_fused_ipv6_defrag_out_spath(&pl_pkt))
+	if (!pipeline_fused_ipv6_out_spath(&pl_pkt))
 		return 1;
 
 	if (unlikely(m != pl_pkt.mbuf))
