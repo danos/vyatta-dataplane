@@ -116,5 +116,24 @@ _dp_test_session_count_verify(uint exp_count, bool warn,
 	_dp_test_session_count_verify(count, SC_FAIL,		\
 					  __FILE__, __func__, __LINE__)
 
+/*
+ * Return counters for one session.  Session filter should be fully specified,
+ * e.g.
+ *
+ * uint32_t pkts_in = 0, pkts_out = 0;
+ * uint32_t bytes_in = 0, bytes_out = 0;
+ * uint32_t sess_id = 0;
+ *
+ * dp_test_session_counters("start 0 count 1 "
+ *			"src-addr 192.0.2.103 src-port 10000 "
+ *			"dst-addr 203.0.113.203 dst-port 60000 "
+ *			"proto 17 dir out intf dpT21",
+ *                      &pkts_in, &pkts_out, &bytes_in, &bytes_out,
+ *                      &sess_id);
+ */
+int dp_test_session_counters(const char *options,
+			 uint32_t *pkts_in, uint32_t *pkts_out,
+			 uint32_t *bytes_in, uint32_t *bytes_out,
+			 uint32_t *sess_id);
 
 #endif  /* __DP_TEST_SESSION_LIB_H__ */
