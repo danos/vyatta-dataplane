@@ -86,6 +86,12 @@ ipv4_fw_out_spath_process(struct pl_packet *pkt, void *context __unused)
 }
 
 ALWAYS_INLINE unsigned int
+ipv6_fw_out_spath_process(struct pl_packet *pkt, void *context __unused)
+{
+	return ip_fw_out_process_common(pkt, V6_PKT);
+}
+
+ALWAYS_INLINE unsigned int
 ipv4_fw_orig_process(struct pl_packet *pkt, void *context __unused)
 {
 	if (pkt->npf_flags & NPF_FLAG_FROM_US) {
@@ -165,6 +171,17 @@ PL_REGISTER_NODE(ipv4_fw_out_spath_node) = {
 	}
 };
 
+PL_REGISTER_NODE(ipv6_fw_out_spath_node) = {
+	.name = "vyatta:ipv6-fw-out-spath",
+	.type = PL_PROC,
+	.handler = ipv6_fw_out_spath_process,
+	.num_next = IPV6_FW_OUT_SPATH_NUM,
+	.next = {
+		[IPV6_FW_OUT_SPATH_ACCEPT]  = "term-noop",
+		[IPV6_FW_OUT_SPATH_DROP]    = "term-drop",
+	}
+};
+
 /* Register Features */
 PL_REGISTER_FEATURE(ipv4_fw_out_feat) = {
 	.name = "vyatta:ipv4-fw-out",
@@ -189,9 +206,23 @@ PL_REGISTER_FEATURE(ipv4_fw_orig_feat) = {
 	.id = PL_L3_V4_OUT_FUSED_FEAT_FW_ORIG,
 };
 
+PL_REGISTER_FEATURE(ipv6_fw_orig_feat) = {
+	.name = "vyatta:ipv6-fw-orig",
+	.node_name = "ipv6-fw-orig",
+	.feature_point = "ipv6-out-spath",
+	.id = PL_L3_V6_OUT_FUSED_FEAT_FW_ORIG,
+};
+
 PL_REGISTER_FEATURE(ipv4_fw_out_spath_feat) = {
 	.name = "vyatta:ipv4-fw-out-spath",
 	.node_name = "ipv4-fw-out-spath",
 	.feature_point = "ipv4-out-spath",
 	.id = PL_L3_V4_OUT_SPATH_FUSED_FEAT_FW,
+};
+
+PL_REGISTER_FEATURE(ipv6_fw_out_spath_feat) = {
+	.name = "vyatta:ipv6-fw-out-spath",
+	.node_name = "ipv6-fw-out-spath",
+	.feature_point = "ipv6-out-spath",
+	.id = PL_L3_V6_OUT_SPATH_FUSED_FEAT_FW,
 };

@@ -147,7 +147,7 @@ PL_REGISTER_NODE(ipv6_defrag_out_spath_node) = {
 	.handler = ipv6_defrag_out_spath_process,
 	.num_next = IPV6_DEFRAG_OUT_SPATH_NUM,
 	.next = {
-		[IPV6_DEFRAG_OUT_SPATH_ACCEPT] = "ipv6-fw-orig",
+		[IPV6_DEFRAG_OUT_SPATH_ACCEPT] = "term-noop",
 		[IPV6_DEFRAG_OUT_SPATH_FINISH] = "term-finish"
 	}
 };
@@ -165,4 +165,11 @@ PL_REGISTER_FEATURE(ipv6_defrag_out_feat) = {
 	.node_name = "ipv6-defrag-out",
 	.feature_point = "ipv6-out",
 	.id = PL_L3_V6_OUT_FUSED_FEAT_DEFRAG,
+};
+
+PL_REGISTER_FEATURE(ipv6_defrag_out_spath_feat) = {
+	.name = "vyatta:ipv6-defrag-out-spath",
+	.node_name = "ipv6-defrag-out-spath",
+	.feature_point = "ipv6-out-spath",
+	.id = PL_L3_V6_OUT_SPATH_FUSED_FEAT_DEFRAG,
 };
