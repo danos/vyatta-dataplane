@@ -213,5 +213,5 @@ AC_CONFIG_LINKS(tests/whole_dp/dummyfs/sys/module/.dummy:tests/whole_dp/dummyfs/
 PKG_PROG_PKG_CONFIG
 PKG_INSTALLDIR
 
-AC_CONFIG_FILES([Makefile src/version.h protobuf/vyatta-dataplane-proto.pc debian/vyatta-dataplane-dev.pc debian/libvyattafal.pc])
+AC_CONFIG_FILES([Makefile protobuf/vyatta-dataplane-proto.pc debian/vyatta-dataplane-dev.pc debian/libvyattafal.pc])
 AC_OUTPUT
