@@ -586,4 +586,34 @@ struct crypto_pkt_ctx {
 	vrfid_t vrfid;
 };
 
+/*
+ * Move bad (unprocessed) mbufs beyond the good (processed) ones.
+ * bad_idx[] contains the indexes of bad context pointers.
+ */
+static inline void
+move_bad_mbufs(struct crypto_pkt_ctx *ctx_arr[], uint16_t count,
+	       const uint16_t bad_idx[], uint16_t bad_count)
+{
+	uint16_t i, j, k;
+	struct crypto_pkt_ctx *tmp_ctx_arr[bad_count];
+
+	if (likely(!bad_count))
+		return;
+
+	j = 0;
+	k = 0;
+
+	/* copy bad ones into a temp place */
+	for (i = 0; i < count; i++) {
+		if (j != bad_count && i == bad_idx[j])
+			tmp_ctx_arr[j++] = ctx_arr[i];
+		else
+			ctx_arr[k++] = ctx_arr[i];
+	}
+
+	/* copy bad ones after the good ones */
+	for (i = 0; i != bad_count; i++)
+		ctx_arr[k + i] = tmp_ctx_arr[i];
+}
+
 #endif /* CRYPTO_INTERNAL_H */

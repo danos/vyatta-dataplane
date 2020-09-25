@@ -1335,7 +1335,7 @@ void esp_output(struct crypto_pkt_ctx *ctx_arr[], uint16_t count)
 {
 	struct esp_hdr_ctx h[count];
 	struct crypto_pkt_ctx *ctx;
-	uint16_t i;
+	uint16_t i, bad_idx[count], bad_count = 0;
 
 	for (i = 0; i < count; i++) {
 		ctx = ctx_arr[i];
@@ -1343,14 +1343,18 @@ void esp_output(struct crypto_pkt_ctx *ctx_arr[], uint16_t count)
 					   ctx->mbuf,
 					   ctx->orig_family,
 					   ctx->l3hdr, &h[i],
-					   ctx) != 0)
+					   ctx) != 0) {
 			ctx_arr[i]->status = -1;
+			bad_idx[bad_count] = i;
+			bad_count++;
+		}
 	}
+
+	move_bad_mbufs(ctx_arr, count, bad_idx, bad_count);
+	count -= bad_count;
 
 	for (i = 0; i < count; i++) {
 		ctx = ctx_arr[i];
-		if (ctx->status == -1)
-			continue;
 
 		if (unlikely(crypto_rte_xform_packet(ctx->sa, ctx->mbuf,
 						     ctx->out_hdr_len,
