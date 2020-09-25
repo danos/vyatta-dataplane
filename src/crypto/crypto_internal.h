@@ -554,6 +554,7 @@ struct crypto_pkt_ctx {
 	struct ifnet *in_ifp;
 	struct ifnet *nxt_ifp;
 	struct rte_crypto_op *cop;
+	uint16_t out_ethertype;
 
 	/*
 	 * These fields are set and used in the crypto thread

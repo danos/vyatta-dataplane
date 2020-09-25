@@ -773,6 +773,10 @@ static int crypto_enqueue_internal(enum crypto_xfrm xfrm,
 			release_crypto_packet_ctx(ctx);
 			goto free_mbuf_on_error;
 		}
+		if (family == AF_INET)
+			ctx->out_ethertype = ETH_P_IP;
+		else
+			ctx->out_ethertype = ETH_P_IPV6;
 	}
 	ctx->in_ifp = NULL;
 

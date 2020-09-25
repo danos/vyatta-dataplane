@@ -72,7 +72,6 @@ struct esp_hdr_ctx {
 	unsigned int pre_len;
 	unsigned int tot_len;
 	unsigned int out_align_val;
-	uint16_t out_ethertype;
 	uint8_t proto_ip;
 	uint8_t out_proto_nxt;
 };
@@ -1135,13 +1134,11 @@ static int esp_out_hdr_parse6(struct rte_mbuf *m, void *l3hdr,
 	if (new_family == AF_INET) {
 		h->out_new_hdr = esp_out_new_hdr4;
 		h->out_hdr_len = sizeof(struct iphdr);
-		h->out_ethertype = ETH_P_IP;
 		h->out_align_val = 8;
 		h->out_proto_nxt = IPPROTO_IP;  /* for transport mode */
 	} else {
 		h->out_new_hdr = esp_out_new_hdr6;
 		h->out_hdr_len = sizeof(struct ip6_hdr);
-		h->out_ethertype = ETH_P_IPV6;
 		h->out_align_val = 8;
 		h->out_proto_nxt = IPPROTO_IPV6;  /* for transport mode */
 	}
@@ -1168,13 +1165,11 @@ static void esp_out_hdr_parse4(void *l3hdr, struct esp_hdr_ctx *h,
 	if (new_family == AF_INET) {
 		h->out_new_hdr = esp_out_new_hdr4;
 		h->out_hdr_len = sizeof(struct iphdr);
-		h->out_ethertype = ETH_P_IP;
 		h->out_align_val = 4;
 		h->out_proto_nxt = ip->protocol; /* for transport mode */
 	} else {
 		h->out_new_hdr = esp_out_new_hdr6;
 		h->out_hdr_len = sizeof(struct ip6_hdr);
-		h->out_ethertype = ETH_P_IPV6;
 		h->out_align_val = 8;
 		h->out_proto_nxt = IPPROTO_IPV6;  /* for transport mode */
 	}
@@ -1321,7 +1316,7 @@ static int esp_output_pre_encrypt(int new_family, struct sadb_sa *sa,
 }
 
 static void esp_output_post_encrypt(struct sadb_sa *sa, char *tail,
-				    char *hdr, struct esp_hdr_ctx *h,
+				    char *hdr, uint16_t out_ethertype,
 				    unsigned int plaintext_size_orig,
 				    unsigned int counter_modify,
 				    uint32_t *bytes)
@@ -1333,7 +1328,7 @@ static void esp_output_post_encrypt(struct sadb_sa *sa, char *tail,
 			      tail - crypto_session_iv_len(sa->session));
 
 	eth_hdr = (struct rte_ether_hdr *)hdr;
-	eth_hdr->ether_type = htons(h->out_ethertype);
+	eth_hdr->ether_type = htons(out_ethertype);
 
 	crypto_sadb_increment_counters(sa, plaintext_size_orig -
 				       counter_modify, 1);
@@ -1377,7 +1372,7 @@ void esp_output(struct crypto_pkt_ctx *ctx_arr[], uint16_t count)
 
 		esp_output_post_encrypt(ctx->sa,
 					ctx->tail,
-					ctx->hdr, &h[i],
+					ctx->hdr, ctx->out_ethertype,
 					ctx->plaintext_size_orig,
 					ctx->counter_modify, &ctx->bytes);
 	}
