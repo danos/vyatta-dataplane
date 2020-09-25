@@ -60,49 +60,6 @@ struct crypto_dp {
 	struct rte_ring *crypto_q[MAX_CRYPTO_XFRM];
 };
 
-#if !HAVE_DECL_HMAC_CTX_NEW
-static inline HMAC_CTX *HMAC_CTX_new(void)
-{
-	return (HMAC_CTX *)calloc(1, sizeof(HMAC_CTX));
-}
-
-static inline void HMAC_CTX_free(HMAC_CTX *ctx)
-{
-	HMAC_CTX_cleanup(ctx);
-	free(ctx);
-}
-
-struct ossl_init_settings_st {
-	char *appname;
-};
-
-# define OPENSSL_INIT_LOAD_CRYPTO_STRINGS    0x00000002L
-# define OPENSSL_INIT_NO_ADD_ALL_DIGESTS     0x00000020L
-# define OPENSSL_INIT_LOAD_CONFIG            0x00000040L
-# define OPENSSL_INIT_NO_LOAD_CONFIG         0x00000080L
-# define OPENSSL_INIT_ASYNC                  0x00000100L
-# define OPENSSL_INIT_ENGINE_RDRAND          0x00000200L
-# define OPENSSL_INIT_ENGINE_DYNAMIC         0x00000400L
-# define OPENSSL_INIT_ENGINE_OPENSSL         0x00000800L
-# define OPENSSL_INIT_ENGINE_CRYPTODEV       0x00001000L
-# define OPENSSL_INIT_ENGINE_CAPI            0x00002000L
-# define OPENSSL_INIT_ENGINE_PADLOCK         0x00004000L
-# define OPENSSL_INIT_ENGINE_AFALG           0x00008000L
-
-# define OPENSSL_INIT_ENGINE_ALL_BUILTIN \
-	(OPENSSL_INIT_ENGINE_RDRAND | OPENSSL_INIT_ENGINE_DYNAMIC	\
-	 | OPENSSL_INIT_ENGINE_CRYPTODEV | OPENSSL_INIT_ENGINE_CAPI |	\
-	 OPENSSL_INIT_ENGINE_PADLOCK)
-
-static inline void
-OPENSSL_init_crypto(uint32_t opts __attribute__ ((__unused__)),
-		    const struct ossl_init_settings_st *settings
-		    __attribute__ ((__unused__)))
-{
-	OPENSSL_config(NULL);
-}
-#endif
-
 #define CRYPTO_PMD_INVALID_ID -1
 
 struct crypto_session_operations;

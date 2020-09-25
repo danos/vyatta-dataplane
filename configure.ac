@@ -111,7 +111,7 @@ AC_CHECK_HEADER([ini.h])
 
 PKG_CHECK_MODULES(CHECK, [check])
 PKG_CHECK_MODULES(JSON_C, [json-c])
-PKG_CHECK_MODULES(LIBCRYPTO, [libcrypto])
+PKG_CHECK_MODULES(LIBCRYPTO, [libcrypto >= 1.1.1d])
 PKG_CHECK_MODULES(LIBCZMQ, [libczmq >= 3.0.2])
 PKG_CHECK_MODULES(LIBZMQ, [libzmq >= 4.0.4])
 PKG_CHECK_MODULES(LIBURCU_CDS, [liburcu-cds >= 0.8.0])
@@ -151,8 +151,6 @@ AS_IF([test "x$with_lto" != "xno"],
 ])
 
 AC_CHECK_HEADERS(valgrind/memcheck.h)
-AC_CHECK_HEADERS(openssl/hmac.h)
-AC_CHECK_DECLS([HMAC_CTX_new],,,[#include<openssl/hmac.h>])
 
 AC_CHECK_MEMBERS([struct bpf_aux_data.vlan_tag], [],
 	[AC_MSG_ERROR([No library 'libpcap' with 'struct bpf_aux_data' found])],
