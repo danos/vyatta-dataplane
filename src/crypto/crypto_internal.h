@@ -570,6 +570,7 @@ struct crypto_pkt_ctx {
 	uint16_t icv_len;
 	uint16_t prev_off;
 	uint16_t head_trim;
+	uint16_t out_hdr_len;
 	unsigned char *esp;
 	unsigned char *iv;
 	unsigned char *icv;

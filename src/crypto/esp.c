@@ -68,7 +68,7 @@ struct esp_hdr_ctx {
 				    void *l3hdr, void *new_l3hdr,
 				    unsigned int pre_len, unsigned int udp_size,
 				    struct sadb_sa *sa);
-	unsigned int out_hdr_len;
+	uint16_t out_hdr_len;
 	unsigned int pre_len;
 	unsigned int tot_len;
 	unsigned int out_align_val;
@@ -1311,6 +1311,7 @@ static int esp_output_pre_encrypt(int new_family, struct sadb_sa *sa,
 	pkt_info->counter_modify = counter_modify;
 	pkt_info->hdr = hdr;
 	pkt_info->tail = tail;
+	pkt_info->out_hdr_len = h->out_hdr_len;
 
 	return 0;
 }
@@ -1357,7 +1358,7 @@ void esp_output(struct crypto_pkt_ctx *ctx_arr[], uint16_t count)
 			continue;
 
 		if (unlikely(crypto_rte_xform_packet(ctx->sa, ctx->mbuf,
-						     h[i].out_hdr_len,
+						     ctx->out_hdr_len,
 						     ctx->esp,
 						     ctx->iv,
 						     ctx->plaintext_size,
