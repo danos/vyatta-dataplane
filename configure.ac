@@ -26,13 +26,6 @@ LT_INIT([dlopen])
 AC_PROG_MAKE_SET
 AX_PTHREAD
 
-# Exactly match the architecture flags used by dpdk or inlining errors during build
-AC_CANONICAL_HOST
-AS_CASE([$host_cpu],
-	[x86_64], [EXTRA_CFLAGS="$EXTRA_CFLAGS -m64 -march=corei7" EXTRA_CXXFLAGS="$EXTRA_CXXFLAGS -m64 -march=corei7"],
-	[AC_MSG_ERROR([unsupported CPU architecture: $host_cpu])]
-	)
-
 COMMON_WARNINGS="-Wall -Wextra
             -Wundef
             -Wwrite-strings
