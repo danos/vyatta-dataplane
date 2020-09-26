@@ -913,21 +913,7 @@ void esp_input(struct crypto_pkt_ctx *ctx_arr[], uint16_t count)
 			ctx_arr[i]->status = -1;
 	}
 
-	for (i = 0; i < count; i++) {
-		if (unlikely(ctx_arr[i]->status == -1))
-			continue;
-
-		ctx = ctx_arr[i];
-		if (unlikely(crypto_rte_xform_packet(ctx->sa,
-						     ctx->mbuf,
-						     ctx->iphlen,
-						     ctx->esp,
-						     ctx->iv,
-						     ctx->ciphertext_len,
-						     ctx->esp_len,
-						     0) != 0))
-			ctx_arr[i]->status = -1;
-	}
+	crypto_rte_xform_packets(ctx_arr, count);
 
 	for (i = 0; i < count; i++) {
 		if (unlikely(ctx_arr[i]->status == -1))
@@ -1353,17 +1339,7 @@ void esp_output(struct crypto_pkt_ctx *ctx_arr[], uint16_t count)
 	move_bad_mbufs(ctx_arr, count, bad_idx, bad_count);
 	count -= bad_count;
 
-	for (i = 0; i < count; i++) {
-		ctx = ctx_arr[i];
-
-		if (unlikely(crypto_rte_xform_packet(ctx->sa, ctx->mbuf,
-						     ctx->out_hdr_len,
-						     ctx->esp,
-						     ctx->iv,
-						     ctx->plaintext_size,
-						     ctx->esp_len, 1) != 0))
-			ctx->status = -1;
-	}
+	crypto_rte_xform_packets(ctx_arr, count);
 
 	for (i = 0; i < count; i++) {
 		ctx = ctx_arr[i];

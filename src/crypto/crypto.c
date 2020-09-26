@@ -142,7 +142,8 @@ static const char * const ipsec_counter_names[] = {
 	[FLOW_CACHE_MISS] = "missed flow cache",
 	[DROPPED_NO_BIND] = "dropped feature attachment point missing",
 	[DROPPED_ON_FP_NO_PR] = "dropped on fp but no policy",
-	[DROPPED_COP_ALLOC_FAILED] = "dropped on crypto op allocation failure"
+	[DROPPED_COP_ALLOC_FAILED] = "dropped on crypto op allocation failure",
+	[CRYPTO_OP_FAILED] = "encrypt/decrypt op failed"
 };
 
 unsigned long ipsec_counters[RTE_MAX_LCORE][IPSEC_CNT_MAX] __rte_cache_aligned;
@@ -1048,7 +1049,7 @@ crypto_pmd_process_packets(struct crypto_pkt_ctx *contexts[],
 {
 	struct rte_mbuf *m;
 	unsigned int total_bytes = 0;
-	uint16_t i;
+	uint16_t i, bad_idx[count], bad_count = 0;
 
 	for (i = 0; i < count; i++) {
 		m = contexts[i]->mbuf;
@@ -1062,11 +1063,16 @@ crypto_pmd_process_packets(struct crypto_pkt_ctx *contexts[],
 
 		contexts[i]->bytes = 0;
 		contexts[i]->sa = sadb_lookup_sa(m, xfrm, contexts[i]);
-		if (unlikely(!contexts[i]->sa))
+		if (unlikely(!contexts[i]->sa)) {
 			contexts[i]->status = -1;
-		else
+			contexts[i]->action = CRYPTO_ACT_DROP;
+			bad_idx[bad_count++] = i;
+		} else
 			contexts[i]->status = 0;
 	}
+
+	move_bad_mbufs(contexts, count, bad_idx, bad_count);
+	count -= bad_count;
 
 	crypto_cb[xfrm].process(count, contexts, &total_bytes);
 

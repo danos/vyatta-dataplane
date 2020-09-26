@@ -656,25 +656,39 @@ static int crypto_rte_op_assoc_session(struct rte_crypto_op *cop,
 	return err;
 }
 
-static int crypto_rte_process_op(uint8_t dev_id, enum crypto_xfrm qid,
-				 struct rte_crypto_op *cop)
+struct crypto_rte_pkt_batch {
+	uint8_t cdev_id;
+	uint16_t batch_size;
+	enum crypto_xfrm qid;
+	struct rte_crypto_op *cop_arr[MAX_CRYPTO_PKT_BURST];
+};
+
+static inline
+void crypto_rte_process_op_batch(struct crypto_rte_pkt_batch *batch)
 {
-	int rc;
+	uint8_t enqueued = 0, dequeued = 0, tmp_cnt;
 
-	rc = rte_cryptodev_enqueue_burst(dev_id, qid, &cop, 1);
-	if (rc < 1)
-		return -ENOSPC;
+	while (dequeued < batch->batch_size) {
+		tmp_cnt = rte_cryptodev_enqueue_burst(
+			batch->cdev_id, batch->qid,
+			&batch->cop_arr[enqueued],
+			batch->batch_size - enqueued);
+		enqueued += tmp_cnt;
 
-	do {
-		rc = rte_cryptodev_dequeue_burst(dev_id, qid, &cop, 1);
-	} while (rc < 1);
+		tmp_cnt = rte_cryptodev_dequeue_burst(
+			batch->cdev_id, batch->qid,
+			&batch->cop_arr[dequeued],
+			batch->batch_size - dequeued);
+		dequeued += tmp_cnt;
 
-	if (cop->status != RTE_CRYPTO_OP_STATUS_SUCCESS)
-		rc = -1;
-	else
-		rc = 0;
+		if (!tmp_cnt)
+			break;
+	}
 
-	return rc;
+	if (dequeued < batch->batch_size)
+		IPSEC_CNT_INC_BY(CRYPTO_OP_FAILED,
+				 (batch->batch_size - dequeued));
+	batch->batch_size = 0;
 }
 
 static inline void
@@ -845,45 +859,77 @@ crypto_rte_outbound_cop_prepare(struct rte_crypto_op *cop,
 	return err;
 }
 
-int crypto_rte_xform_packet(struct sadb_sa *sa, struct rte_mbuf *mbuf,
-			    unsigned int l3_hdr_len, unsigned char *esp,
-			    unsigned char *iv, uint32_t text_len,
-			    uint32_t esp_len, uint8_t encrypt)
+inline __attribute__((always_inline)) void
+crypto_rte_xform_packets(struct crypto_pkt_ctx *cctx_arr[], uint16_t count)
 {
 	int err;
+	struct crypto_session *session;
+	enum crypto_xfrm qid;
+	uint16_t i, text_len, hdr_len;
+	struct crypto_rte_pkt_batch pkt_batch;
+	struct crypto_pkt_ctx *cctx;
+	bool encrypt;
 	struct rte_crypto_op *cop;
 	struct pktmbuf_mdata *mdata;
-	struct crypto_session *session = sa->session;
-	enum crypto_xfrm qid;
 
-	if (unlikely(mbuf->next)) {
-		if (sa->session->cipher_init) {
-			err = esp_generate_chain(sa, mbuf, l3_hdr_len, esp, iv,
-						text_len + esp_len, encrypt);
-			return err;
+	pkt_batch.cdev_id = 0;
+	pkt_batch.qid = 0;
+	pkt_batch.batch_size = 0;
+	for (i = 0; i < count; i++) {
+		cctx = cctx_arr[i];
+		session = cctx->sa->session;
+		encrypt = (cctx->sa->dir == CRYPTO_DIR_OUT);
+
+		if (unlikely(cctx->mbuf->next && session->cipher_init)) {
+			crypto_rte_process_op_batch(&pkt_batch);
+			hdr_len = encrypt ? cctx->out_hdr_len : cctx->iphlen;
+			text_len = encrypt ? cctx->plaintext_size :
+				cctx->ciphertext_len;
+			err = esp_generate_chain(cctx->sa, cctx->mbuf,
+						 hdr_len, cctx->esp, cctx->iv,
+						 text_len + cctx->esp_len,
+						 encrypt);
+			if (err)
+				cctx_arr[i]->status = -1;
+			continue;
 		}
+
+		mdata = pktmbuf_mdata(cctx->mbuf);
+		cop = mdata->cop;
+
+		err = crypto_rte_op_assoc_session(cop, session);
+		if (err) {
+			cctx_arr[i]->status = -1;
+			continue;
+		}
+
+		if (encrypt) {
+			err = crypto_rte_outbound_cop_prepare(
+				cop, session, cctx->mbuf,
+				cctx->out_hdr_len,
+				cctx->sa->udp_encap, cctx->esp_len,
+				cctx->plaintext_size);
+			qid = CRYPTO_ENCRYPT;
+		} else {
+			err = crypto_rte_inbound_cop_prepare(
+				cop, session, cctx->mbuf, cctx->iphlen,
+				cctx->sa->udp_encap, cctx->esp_len,
+				cctx->iv, cctx->ciphertext_len);
+			qid = CRYPTO_DECRYPT;
+		}
+		if (unlikely(err)) {
+			cctx_arr[i]->status = -1;
+			continue;
+		}
+
+		if (pkt_batch.cdev_id != cctx->sa->rte_cdev_id ||
+		    pkt_batch.qid != qid) {
+			crypto_rte_process_op_batch(&pkt_batch);
+			pkt_batch.cdev_id = cctx->sa->rte_cdev_id;
+			pkt_batch.qid = qid;
+		}
+		pkt_batch.cop_arr[pkt_batch.batch_size] = cop;
+		pkt_batch.batch_size++;
 	}
-
-	mdata = pktmbuf_mdata(mbuf);
-	cop = mdata->cop;
-	err = crypto_rte_op_assoc_session(cop, session);
-	if (err)
-		return err;
-
-	if (encrypt)
-		err = crypto_rte_outbound_cop_prepare(cop, session, mbuf,
-						      l3_hdr_len, sa->udp_encap,
-						      esp_len, text_len);
-	else
-		err = crypto_rte_inbound_cop_prepare(cop, session, mbuf,
-						     l3_hdr_len, sa->udp_encap,
-						     esp_len, iv, text_len);
-
-	if (err)
-		return err;
-
-	qid = sa->dir == CRYPTO_DIR_IN ? CRYPTO_DECRYPT : CRYPTO_ENCRYPT;
-	err = crypto_rte_process_op(sa->rte_cdev_id, qid, cop);
-
-	return err;
+	crypto_rte_process_op_batch(&pkt_batch);
 }

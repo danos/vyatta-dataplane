@@ -423,6 +423,7 @@ enum ipsec_cnt_types {
 	DROPPED_NO_BIND,
 	DROPPED_ON_FP_NO_PR,
 	DROPPED_COP_ALLOC_FAILED,
+	CRYPTO_OP_FAILED,
 	IPSEC_CNT_MAX /* this must be last */
 };
 
