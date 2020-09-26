@@ -577,8 +577,7 @@ int esp_generate_chain(struct sadb_sa *sa,
 	chain.icv_offset = dp_pktmbuf_l2_len(mbuf) + l3_hdr_len +
 		text_total_len;
 
-	if (sa->udp_encap)
-		chain.icv_offset += sizeof(struct udphdr);
+	chain.icv_offset += sa->udp_encap;
 
 	if (!encrypt) {
 		chain.icv_callback = icv_len ? check_icv_cb : null_icv_cb;
@@ -717,7 +716,7 @@ static void esp_input_nat_l4cksum_fixup(int family, struct rte_mbuf *m)
 static int esp_input_pre_decrypt(struct crypto_pkt_ctx *pkt_info)
 {
 	int head_trim  = 0;
-	unsigned int esp_len, ciphertext_len, udp_len = 0;
+	unsigned int esp_len, ciphertext_len;
 	unsigned int iphlen, icv_len;
 	unsigned int base_len;
 	unsigned char *iv = NULL, *esp = NULL;
@@ -754,10 +753,7 @@ static int esp_input_pre_decrypt(struct crypto_pkt_ctx *pkt_info)
 	}
 
 	esp =  dp_pktmbuf_mtol4(m, unsigned char *);
-	if (sa->udp_encap) {
-		esp += sizeof(struct udphdr);
-		udp_len = sizeof(struct udphdr);
-	}
+	esp += sa->udp_encap;
 
 	if (unlikely(sa->replay_window &&
 		     esp_replay_check(esp, sa) < 0)) {
@@ -784,9 +780,9 @@ static int esp_input_pre_decrypt(struct crypto_pkt_ctx *pkt_info)
 	iv = esp + 8;
 
 	/* ESP length = SPI(4) + SEQ(4) + IV_LEN */
-	head_trim = esp_len + udp_len;
+	head_trim = esp_len + sa->udp_encap;
 	icv_len = esp_icv_len(sa);
-	ciphertext_len = base_len - iphlen - esp_len - udp_len - icv_len;
+	ciphertext_len = base_len - iphlen - esp_len - sa->udp_encap - icv_len;
 
 	if (ciphertext_len  % crypto_session_block_size(sa->session)) {
 		ESP_ERR("Invalid ctext len %d block_size %d",
@@ -796,7 +792,6 @@ static int esp_input_pre_decrypt(struct crypto_pkt_ctx *pkt_info)
 	}
 
 	pkt_info->iphlen = iphlen;
-	pkt_info->udp_len = udp_len;
 	pkt_info->base_len = base_len;
 	pkt_info->esp_len = esp_len;
 	pkt_info->ciphertext_len = ciphertext_len;
@@ -864,10 +859,10 @@ static int esp_input_post_decrypt(int family, struct rte_mbuf *m,
 	if (sa->mode == XFRM_MODE_TRANSPORT) {
 		new_l3_hdr = (char *)((char *)pkt_info->l3hdr +
 				      pkt_info->esp_len +
-				      pkt_info->udp_len);
+				      sa->udp_encap);
 		memmove(new_l3_hdr, pkt_info->l3hdr, pkt_info->iphlen);
 		new_total = pkt_info->base_len - pkt_info->esp_len -
-			pkt_info->udp_len - tail_trim;
+			sa->udp_encap - tail_trim;
 		(*tran_fixup)(new_l3_hdr, new_total, next_hdr,
 			      pkt_info->prev_off);
 
@@ -897,7 +892,7 @@ static int esp_input_post_decrypt(int family, struct rte_mbuf *m,
 	/*
 	 * RFC 3948: Section 3.1.2
 	 */
-	if (unlikely(sa->udp_encap == 1 && sa->mode == XFRM_MODE_TRANSPORT))
+	if (unlikely(sa->udp_encap && sa->mode == XFRM_MODE_TRANSPORT))
 		esp_input_nat_l4cksum_fixup(family, m);
 
 	/* Count the decapped payload against the receiving SA */
@@ -1235,8 +1230,8 @@ static int esp_output_pre_encrypt(int new_family, struct sadb_sa *sa,
 	udp_base = esp_base = esp_ptr = plaintext - esp_size;
 	enc_inc += esp_size;
 
-	if (sa->udp_encap) {
-		udp_size = sizeof(struct udphdr);
+	udp_size = sa->udp_encap;
+	if (udp_size) {
 		enc_inc += udp_size;
 		udp_base -= udp_size;
 		udp = (struct udphdr *) udp_base;

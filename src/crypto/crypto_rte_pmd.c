@@ -853,7 +853,6 @@ int crypto_rte_xform_packet(struct sadb_sa *sa, struct rte_mbuf *mbuf,
 	int err;
 	struct rte_crypto_op *cop;
 	struct pktmbuf_mdata *mdata;
-	uint8_t udp_len = 0;
 	struct crypto_session *session = sa->session;
 	enum crypto_xfrm qid;
 
@@ -871,16 +870,13 @@ int crypto_rte_xform_packet(struct sadb_sa *sa, struct rte_mbuf *mbuf,
 	if (err)
 		return err;
 
-	if (sa->udp_encap)
-		udp_len = sizeof(struct udphdr);
-
 	if (encrypt)
 		err = crypto_rte_outbound_cop_prepare(cop, session, mbuf,
-						      l3_hdr_len, udp_len,
+						      l3_hdr_len, sa->udp_encap,
 						      esp_len, text_len);
 	else
 		err = crypto_rte_inbound_cop_prepare(cop, session, mbuf,
-						     l3_hdr_len, udp_len,
+						     l3_hdr_len, sa->udp_encap,
 						     esp_len, iv, text_len);
 
 	if (err)
