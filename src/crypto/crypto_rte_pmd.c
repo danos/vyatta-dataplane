@@ -613,44 +613,34 @@ int crypto_rte_destroy_session(struct crypto_session *session,
 	return err;
 }
 
-int crypto_rte_op_alloc(struct rte_mbuf *m)
+int crypto_rte_op_alloc(struct rte_crypto_op *cops[], uint16_t count)
 {
-	struct rte_crypto_op *cop;
-	struct pktmbuf_mdata *mdata;
+	uint16_t i;
 
-	cop = rte_crypto_op_alloc(crypto_op_pool,
-				      RTE_CRYPTO_OP_TYPE_SYMMETRIC);
-	if (cop == NULL)
+	if (rte_crypto_op_bulk_alloc(crypto_op_pool,
+				     RTE_CRYPTO_OP_TYPE_SYMMETRIC,
+				     cops, count) != count)
 		return -ENOMEM;
 
-	cop->status = RTE_CRYPTO_OP_STATUS_NOT_PROCESSED;
-	cop->sess_type = RTE_CRYPTO_OP_WITH_SESSION;
-	cop->sym->m_src = m;
-
-	mdata = pktmbuf_mdata(m);
-	mdata->cop = cop;
-	pktmbuf_mdata_set(m, PKT_MDATA_CRYPTO_OP);
+	for (i = 0; i < count; i++)
+		cops[i]->sess_type = RTE_CRYPTO_OP_WITH_SESSION;
 
 	return 0;
 }
 
-void crypto_rte_op_free(struct rte_mbuf *m)
+void crypto_rte_op_free(struct rte_crypto_op *cops[], uint16_t count)
 {
-	struct rte_crypto_op *cop;
-	struct pktmbuf_mdata *mdata;
-
-	mdata = pktmbuf_mdata(m);
-	cop = mdata->cop;
-	mdata->cop = NULL;
-	pktmbuf_mdata_clear(m, PKT_MDATA_CRYPTO_OP);
-	rte_crypto_op_free(cop);
+	for (uint16_t i = 0; i < count; i++)
+		rte_crypto_op_free(cops[i]);
 }
 
-static int crypto_rte_op_assoc_session(struct rte_crypto_op *cop,
-				       struct crypto_session *session)
+static inline int
+crypto_rte_op_assoc_session(struct rte_crypto_op *cop,
+			    struct crypto_session *session)
 {
 	int err;
 
+	cop->status = RTE_CRYPTO_OP_STATUS_NOT_PROCESSED;
 	err = rte_crypto_op_attach_sym_session(cop,
 					       session->rte_session);
 	return err;
@@ -870,11 +860,14 @@ crypto_rte_xform_packets(struct crypto_pkt_ctx *cctx_arr[], uint16_t count)
 	struct crypto_pkt_ctx *cctx;
 	bool encrypt;
 	struct rte_crypto_op *cop;
-	struct pktmbuf_mdata *mdata;
+	struct crypto_pkt_buffer *cpb = cpbdb[dp_lcore_id()];
 
 	pkt_batch.cdev_id = 0;
 	pkt_batch.qid = 0;
 	pkt_batch.batch_size = 0;
+
+	assert(count <= MAX_CRYPTO_PKT_BURST);
+
 	for (i = 0; i < count; i++) {
 		cctx = cctx_arr[i];
 		session = cctx->sa->session;
@@ -894,14 +887,14 @@ crypto_rte_xform_packets(struct crypto_pkt_ctx *cctx_arr[], uint16_t count)
 			continue;
 		}
 
-		mdata = pktmbuf_mdata(cctx->mbuf);
-		cop = mdata->cop;
+		cop = cpb->cops[i];
 
 		err = crypto_rte_op_assoc_session(cop, session);
 		if (err) {
 			cctx_arr[i]->status = -1;
 			continue;
 		}
+		cop->sym->m_src = cctx->mbuf;
 
 		if (encrypt) {
 			err = crypto_rte_outbound_cop_prepare(

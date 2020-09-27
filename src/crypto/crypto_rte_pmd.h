@@ -61,9 +61,9 @@ int crypto_rte_setup_session(struct crypto_session *session,
 int crypto_rte_destroy_session(struct crypto_session *session,
 			       uint8_t rte_cdev_id);
 
-int crypto_rte_op_alloc(struct rte_mbuf *m);
+int crypto_rte_op_alloc(struct rte_crypto_op *cops[], uint16_t count);
 
-void crypto_rte_op_free(struct rte_mbuf *m);
+void crypto_rte_op_free(struct rte_crypto_op *cops[], uint16_t count);
 
 void crypto_rte_xform_packets(struct crypto_pkt_ctx *ctx_arr[], uint16_t count);
 

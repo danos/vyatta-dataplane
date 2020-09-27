@@ -554,7 +554,6 @@ struct crypto_pkt_ctx {
 	void *l3hdr;
 	struct ifnet *in_ifp;
 	struct ifnet *nxt_ifp;
-	struct rte_crypto_op *cop;
 	uint16_t out_ethertype;
 	int8_t   status;
 	uint8_t  udp_len;
@@ -564,6 +563,9 @@ struct crypto_pkt_ctx {
 	uint8_t  family;
 	struct sadb_sa *sa;
 	struct ifnet *vti_ifp;
+
+	/* --- cacheline 1 boundary (64 bytes) --- */
+
 	uint16_t iphlen;
 	uint16_t base_len;
 	uint16_t ciphertext_len;

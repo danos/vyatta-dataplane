@@ -63,6 +63,7 @@
 #include "vplane_log.h"
 #include "vrf_internal.h"
 #include "vti.h"
+#include "crypto_rte_pmd.h"
 
 struct cds_list_head;
 
@@ -591,7 +592,6 @@ static void crypto_process_encrypt_packets(uint16_t count,
 
 static void crypto_pkt_ctx_forward_and_free(struct crypto_pkt_ctx *ctx)
 {
-	crypto_rte_op_free(ctx->mbuf);
 	switch (ctx->action) {
 	case CRYPTO_ACT_VTI_INPUT:
 	case CRYPTO_ACT_INPUT_WITH_FEATURES:
@@ -688,7 +688,6 @@ drop_check:
 			struct crypto_pkt_ctx *ctx =
 				cpb->local_crypto_q[xfrm][i];
 
-			crypto_rte_op_free(ctx->mbuf);
 			rte_pktmbuf_free(ctx->mbuf);
 			release_crypto_packet_ctx(ctx);
 			IPSEC_CNT_INC(FAILED_TO_BURST);
@@ -797,12 +796,6 @@ static int crypto_enqueue_internal(enum crypto_xfrm xfrm,
 	}
 	ctx->in_ifp = NULL;
 	ctx->vti_ifp = NULL;
-
-	if (crypto_rte_op_alloc(m)) {
-		IPSEC_CNT_INC(DROPPED_COP_ALLOC_FAILED);
-		release_crypto_packet_ctx(ctx);
-		goto free_mbuf_on_error;
-	}
 
 	crypto_ctx_save_ifp(ctx, m, in_ifp);
 	ctx->nxt_ifp = nxt_ifp;
@@ -1002,7 +995,7 @@ void crypto_purge_queue(struct rte_ring *pmd_queue)
 		for (i = 0; i < count; i++) {
 			struct crypto_pkt_ctx *ctx =
 				contexts[i];
-			crypto_rte_op_free(ctx->mbuf);
+
 			rte_pktmbuf_free(ctx->mbuf);
 			release_crypto_packet_ctx(ctx);
 		}
@@ -1184,6 +1177,11 @@ static int dp_crypto_lcore_init(unsigned int lcore_id,
 		for (q = MIN_CRYPTO_XFRM; q < MAX_CRYPTO_XFRM; q++)
 			cpb->pmd_dev_id[q] = CRYPTO_PMD_INVALID_ID;
 
+		err = crypto_rte_op_alloc(cpb->cops, MAX_CRYPTO_PKT_BURST);
+		if (err)
+			rte_panic("no memory for crypto ops on lcore %u",
+				  lcore_id);
+
 		cpbdb[lcore_id] = cpb;
 
 		RTE_PER_LCORE(crypto_pkt_buffer) = cpb;
@@ -1194,6 +1192,9 @@ static int dp_crypto_lcore_init(unsigned int lcore_id,
 static int dp_crypto_lcore_teardown(unsigned int lcore_id,
 				    void *arg __unused)
 {
+	struct crypto_pkt_buffer *cpb = cpbdb[lcore_id];
+
+	crypto_rte_op_free(cpb->cops, MAX_CRYPTO_PKT_BURST);
 	return crypto_flow_cache_teardown_lcore(lcore_id);
 }
 
