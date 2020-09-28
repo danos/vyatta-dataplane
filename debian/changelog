@@ -1,3 +1,16 @@
+vyatta-dataplane (3.11.33) unstable; urgency=medium
+
+  [ Nicholas Brown ]
+  * remove config for cpputest
+  * Don't check DPDK port size
+  * Require a recent openssl version
+  * Don't set cpu arch in attempt to match DPDK
+  * PACKAGE_VERSION is already defined in build_config.h
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Mon, 28 Sep 2020 10:12:48 +0100
+
 vyatta-dataplane (3.11.32) unstable; urgency=medium
 
   [ Charles (Chas) Williams ]
