@@ -453,8 +453,8 @@ nobase_protogopkgs_DATA = $(GO_PROTO_GENERATED_FILES)
 pkgconfig_DATA = protobuf/vyatta-dataplane-proto.pc debian/vyatta-dataplane-dev.pc debian/libvyattafal.pc
 lib_LTLIBRARIES = libvyatta-dataplane-proto.la libvyatta-jsonw.la
 libvyatta_dataplane_proto_la_SOURCES = $(PROTO_FILES:.proto=.pb.cc)
-libvyatta_dataplane_proto_la_CPPFLAGS = $(AM_CPPFLAGS) $(shell pkg-config --cflags protobuf)
-libvyatta_dataplane_proto_la_LDFLAGS = $(shell pkg-config --cflags --libs protobuf) -version-info 1:0:0 -shared
+libvyatta_dataplane_proto_la_CPPFLAGS = $(AM_CPPFLAGS) $(PROTOBUF_CFLAGS)
+libvyatta_dataplane_proto_la_LDFLAGS = $(PROTOBUF_LIBS) -version-info 1:0:0 -shared
 
 libvyatta_jsonw_la_SOURCES = src/json_writer.c
 libvyatta_jsonw_la_CPPFLAGS = $(dataplane_CPPFLAGS)
