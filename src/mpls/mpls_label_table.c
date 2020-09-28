@@ -815,7 +815,6 @@ int mpls_label_table_get_pd_subset_data(json_writer_t *json,
 		jsonw_end_object(json);
 	}
 	jsonw_end_array(json);
-	jsonw_destroy(&json);
 
 	return 0;
 }
