@@ -67,5 +67,4 @@ You **must not** introduce any new warnings.
 [1]: https://www.kernel.org/doc/Documentation/CodingStyle "Linux Kernel Coding Style"
 [2]: https://github.com/torvalds/linux/blob/master/scripts/checkpatch.pl "checkpatch script"
 [3]: http://cppcheck.sourceforge.net/ "Cppcheck Static Analyser"
-[4]: http://cpputest.github.io/ "Cpputest Unit Test Framework"
 [5]: http://libcheck.github.io/check/ "Check Unit Test Framework"

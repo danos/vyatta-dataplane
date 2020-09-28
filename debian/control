@@ -6,7 +6,6 @@ Standards-Version: 3.9.8
 Build-Depends: autoconf-archive (>= 20150925),
                bvnos-linux-libc-dev-vyatta (>> 4.19.16-0vyatta6),
                check,
-               cpputest,
                debhelper (>= 9),
                debhelper (>= 9.20160709) | dh-systemd (>= 10.2.4),
                dh-autoreconf,

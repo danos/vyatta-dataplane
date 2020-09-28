@@ -1,3 +1,12 @@
+vyatta-dataplane (3.11.32) unstable; urgency=medium
+
+  [ Charles (Chas) Williams ]
+  * debian: cleanup .postinst script (Bugfix: VRVDR-53193)
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Fri, 25 Sep 2020 08:14:15 +0100
+
 vyatta-dataplane (3.11.31) unstable; urgency=medium
 
   [ Robert Shearman ]

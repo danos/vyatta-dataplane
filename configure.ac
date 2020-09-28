@@ -26,13 +26,6 @@ LT_INIT([dlopen])
 AC_PROG_MAKE_SET
 AX_PTHREAD
 
-# Exactly match the architecture flags used by dpdk or inlining errors during build
-AC_CANONICAL_HOST
-AS_CASE([$host_cpu],
-	[x86_64], [EXTRA_CFLAGS="$EXTRA_CFLAGS -m64 -march=corei7" EXTRA_CXXFLAGS="$EXTRA_CXXFLAGS -m64 -march=corei7"],
-	[AC_MSG_ERROR([unsupported CPU architecture: $host_cpu])]
-	)
-
 COMMON_WARNINGS="-Wall -Wextra
             -Wundef
             -Wwrite-strings
@@ -99,11 +92,6 @@ AX_VALGRIND_DFLT([memcheck], [on])
 AX_VALGRIND_CHECK
 
 # Checks for libraries.
-PKG_CHECK_MODULES(CPPUTEST, [cpputest >= 3.8], , [
-	PKG_CHECK_MODULES(CPPUTEST, [cpputest >= 3.4],
-		AC_DEFINE([CPPUTEST_LT_3_8], 1, [CppUtest < 3.8 detected])
-	)
-])
 PKG_CHECK_MODULES(LIBCAP, [libcap], , [
 	AC_SEARCH_LIBS([cap_get_proc], [cap], , [
 		AC_MSG_ERROR([No library 'libcap' found])
@@ -116,7 +104,7 @@ AC_CHECK_HEADER([ini.h])
 
 PKG_CHECK_MODULES(CHECK, [check])
 PKG_CHECK_MODULES(JSON_C, [json-c])
-PKG_CHECK_MODULES(LIBCRYPTO, [libcrypto])
+PKG_CHECK_MODULES(LIBCRYPTO, [libcrypto >= 1.1.1d])
 PKG_CHECK_MODULES(LIBCZMQ, [libczmq >= 3.0.2])
 PKG_CHECK_MODULES(LIBZMQ, [libzmq >= 4.0.4])
 PKG_CHECK_MODULES(LIBURCU_CDS, [liburcu-cds >= 0.8.0])
@@ -156,36 +144,10 @@ AS_IF([test "x$with_lto" != "xno"],
 ])
 
 AC_CHECK_HEADERS(valgrind/memcheck.h)
-AC_CHECK_HEADERS(openssl/hmac.h)
-AC_CHECK_DECLS([HMAC_CTX_new],,,[#include<openssl/hmac.h>])
 
 AC_CHECK_MEMBERS([struct bpf_aux_data.vlan_tag], [],
 	[AC_MSG_ERROR([No library 'libpcap' with 'struct bpf_aux_data' found])],
 	[[#include <pcap.h>]])
-
-CFLAGS_BACK=$CFLAGS
-CFLAGS+=" $DPDK_CFLAGS -Werror"
-AC_MSG_CHECKING([whether DPDK's port IDs are uint16_t])
-AC_COMPILE_IFELSE(
-	[AC_LANG_PROGRAM(
-		[[
-#include <rte_ethdev.h>
-int foo(uint16_t a, enum rte_eth_event_type b, void *c, void *d)
-{
-    return 0;
-}
-		]],
-		[[
-rte_eth_dev_callback_register(0, 0, foo, NULL);
-		]])
-	],[
-		AC_MSG_RESULT([yes])
-		AC_DEFINE(HAVE_RTE_PORT_ID_16_BITS, [1],
-		    [whether DPDK's port IDs are uint16_t])
-	],[
-		AC_MSG_RESULT([no])
-])
-CFLAGS=$CFLAGS_BACK
 
 AC_ARG_WITH([systemd],
     AS_HELP_STRING([--without-systemd], [Ignore presence of systemd and disable it]))
@@ -251,5 +213,5 @@ AC_CONFIG_LINKS(tests/whole_dp/dummyfs/sys/module/.dummy:tests/whole_dp/dummyfs/
 PKG_PROG_PKG_CONFIG
 PKG_INSTALLDIR
 
-AC_CONFIG_FILES([Makefile src/version.h protobuf/vyatta-dataplane-proto.pc debian/vyatta-dataplane-dev.pc debian/libvyattafal.pc])
+AC_CONFIG_FILES([Makefile protobuf/vyatta-dataplane-proto.pc debian/vyatta-dataplane-dev.pc debian/libvyattafal.pc])
 AC_OUTPUT
