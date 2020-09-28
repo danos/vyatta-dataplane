@@ -486,8 +486,8 @@ EXTRA_dataplane_DEPENDENCIES = $(srcdir)/dataplane.section-ordering libvyatta-js
 
 dataplane_test_SOURCES = $(CORE_FILES) $(CRYTPO_FILES) $(IPV6_FILES) $(NPF_FILES) $(MPLS_FILES) $(DPI_FILES) $(APP_GROUP_FILES) $(PIPELINE_FILES) $(SESSION_FILES) $(PROTO_FILES:.proto=.pb-c.c) $(CONNSYNC_FILES)
 dataplane_test_SOURCES += \
-	tests/common/src/dp_test_pktmbuf_lib.c \
-	tests/common/src/dp_test_crypto_lib.c \
+	tests/whole_dp/src/dp_test_pktmbuf_lib.c \
+	tests/whole_dp/src/dp_test_crypto_lib.c \
 	tests/whole_dp/src/dp_test.c \
 	tests/whole_dp/src/dp_test_arp.c \
 	tests/whole_dp/src/dp_test_bitmask.c \
@@ -701,7 +701,7 @@ VALGRIND_SUPPRESSIONS_FILES = $(srcdir)/tests/whole_dp/valgrind_suppressions
 EXTRA_DIST = $(VALGRIND_SUPPRESSIONS_FILES)
 
 dataplane_test_CPPFLAGS = $(dataplane_CPPFLAGS) $(JSON_C_CFLAGS)
-dataplane_test_CPPFLAGS += -I$(srcdir)/include/dp_test -I$(srcdir)/tests/whole_dp/src -I$(srcdir)/tests/common/inc
+dataplane_test_CPPFLAGS += -I$(srcdir)/include/dp_test -I$(srcdir)/tests/whole_dp/src
 
 dataplane_test_CFLAGS = $(dataplane_CFLAGS) -fno-lto -UNDEBUG -O0 -g $(CODE_COVERAGE_CFLAGS)
 dataplane_test_CFLAGS += -Wno-unused-parameter
@@ -720,7 +720,7 @@ EXTRA_dataplane_test_DEPENDENCIES = $(EXTRA_dataplane_DEPENDENCIES) tests/whole_
 
 dist_check_SCRIPTS = tests/whole_dp/dataplane_test.sh
 fal_plugin_test_la_CPPFLAGS = $(dataplane_CPPFLAGS) $(JSON_C_CFLAGS)
-fal_plugin_test_la_CPPFLAGS += -I$(srcdir)/tests/whole_dp/src -I$(srcdir)/tests/common/inc $(SWPORT_CFLAGS)
+fal_plugin_test_la_CPPFLAGS += -I$(srcdir)/tests/whole_dp/src $(SWPORT_CFLAGS)
 
 fal_plugin_test_la_CFLAGS = $(dataplane_CFLAGS) -fPIC -UNDEBUG -O0 -g $(CODE_COVERAGE_CFLAGS)
 fal_plugin_test_la_CFLAGS += -Wno-unused-parameter
