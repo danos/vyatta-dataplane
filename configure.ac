@@ -114,6 +114,7 @@ PKG_CHECK_MODULES(LIBOSIP2, [libosip2])
 PKG_CHECK_MODULES_STATIC(DPDK, [libdpdk >= 19.11])
 PKG_CHECK_MODULES(SWPORT, [vyatta-dpdk-swport >= 0.1.3])
 PKG_CHECK_MODULES([PROTOBUF_C], [libprotobuf-c >= 1.0.0])
+PKG_CHECK_MODULES(DPI, [libndpi >= 2.6.0])
 
 AC_ARG_VAR([PROTOC_C], [protobuf compiler command])
 AC_PATH_PROG([PROTOC_C], [protoc-c], [],
@@ -121,16 +122,6 @@ AC_PATH_PROG([PROTOC_C], [protoc-c], [],
 if test -z "$PROTOC_C"; then
    AC_MSG_ERROR([Could not find protoc-c])
 fi
-
-AC_ARG_WITH([dpi], AS_HELP_STRING([--without-dpi], [Build without ndpi library (default: test)]))
-
-AS_IF([test "x$with_dpi" != "xno"], [
-	PKG_CHECK_MODULES(DPI, [libndpi >= 2.6.0] , [HAVE_NDPI=1] , [HAVE_NDPI=0]
-		AC_MSG_WARN([nDPI engine not found]))
-])
-
-AM_CONDITIONAL([USE_NDPI], [test "$HAVE_NDPI" = 1])
-AM_COND_IF([USE_NDPI], [AC_DEFINE([USE_NDPI], [], [Use nDPI library])], [])
 
 # Always use the Gold linker so we can specify text section locations with/without LTO
 AX_CHECK_LINK_FLAG([-fuse-ld=gold], [LDFLAGS+=" -fuse-ld=gold"],
