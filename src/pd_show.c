@@ -126,7 +126,7 @@ static enum pd_obj_state pd_obj_state_parse(const char *name)
 {
 	int i;
 
-	for (i = PD_OBJ_STATE_PARTIAL; i < PD_OBJ_STATE_LAST; i++)
+	for (i = PD_OBJ_STATE_FULL; i < PD_OBJ_STATE_LAST; i++)
 		if (strcasecmp(pd_obj_state_names[i], name) == 0)
 			return i;
 
