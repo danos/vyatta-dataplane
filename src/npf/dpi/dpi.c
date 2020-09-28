@@ -42,32 +42,22 @@ struct id_entry {
 };
 
 /* DPI engine dpi_engine_procs instances */
-#ifdef USE_NDPI
 extern struct dpi_engine_procs ndpi_engine_procs;
-#endif /* USE_NDPI */
 extern struct dpi_engine_procs user_engine_procs;
 
 /* Array of known DPI engine dpi_engine_procs */
 static struct dpi_engine_procs *engine_procs[] = {
 	&user_engine_procs,
-#ifdef USE_NDPI
 	&ndpi_engine_procs,
-#endif /* USE_NDPI */
 };
 
 struct id_entry engine_name_id_map[] = {
-#ifdef USE_NDPI
 	{ "ndpi", IANA_NDPI },
-#endif /* USE_NDPI */
 	{ "user", IANA_USER },
 };
 
 #define NULL_ENGINE (NULL)
-#ifdef USE_NDPI
 static uint8_t global_engine = IANA_NDPI;
-#else
-static uint8_t global_engine = IANA_USER;
-#endif /* USER_NDPI */
 
 static unsigned int engine_procs_len = ARRAY_SIZE(engine_procs);
 static unsigned int engine_names_len = ARRAY_SIZE(engine_name_id_map);

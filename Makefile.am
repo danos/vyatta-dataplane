@@ -330,10 +330,8 @@ DPI_FILES = src/npf/dpi/dpi.c src/npf/rproc/npf_ext_dpi.c \
 	    src/npf/rproc/npf_ext_app.c \
 	    src/npf/dpi/npf_appdb.c \
 	    src/npf/dpi/npf_typedb.c \
-	    src/npf/dpi/dpi_user.c
-if USE_NDPI
-DPI_FILES += src/npf/dpi/ndpi.c
-endif
+	    src/npf/dpi/dpi_user.c \
+	    src/npf/dpi/ndpi.c
 
 APP_GROUP_FILES = src/npf/app_group/app_group.c \
                   src/npf/app_group/app_group_db.c \

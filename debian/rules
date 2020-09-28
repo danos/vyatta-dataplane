@@ -27,12 +27,6 @@ else
 	DATAPLANE_SANITIZER=""
 endif
 
-ifneq (,$(filter no_dpi,$(DEB_BUILD_OPTIONS)))
-	DATAPLANE_DPI="--without-dpi"
-else
-	DATAPLANE_DPI=""
-endif
-
 ifneq (,$(filter no_lto,$(DEB_BUILD_OPTIONS)))
 	DATAPLANE_LTO="--without-lto"
 else
@@ -44,7 +38,6 @@ DATAPLANE_CONFIGURE_FLAGS= \
 	$(WHOLE_DP_ALL_TESTS) \
 	$(DATAPLANE_SANITIZER) \
 	$(WHOLE_DP_TEST) \
-	$(DATAPLANE_DPI) \
 	$(DATAPLANE_LTO)
 
 # Don't override the optimisation flags as they differ for different
