@@ -1,3 +1,39 @@
+vyatta-dataplane (3.11.34) unstable; urgency=medium
+
+  [ Nicholas Brown ]
+  * Treat ndpi dependency like other dependencies
+  * Use pkgconfig macro variables for protobuf
+  * Move all test code to single directory
+
+  [ Nachiketa Prachanda ]
+  * dp_test: remove undefined functions from headers
+  * rename dpt_session_counters
+  * dp_test: export dpt_session_counters function
+
+  [ Paul Atkins ]
+  * npf: remove unused code from alg/alg_apt.c
+  * npf: remove unused code from cgnat/cgn_session.c
+  * npf: remove unused code from cgnat/cgn_sess_state.c
+  * npf: remove unused code from cgnat/cgn_log.c
+  * npf: remove unused code from cgnat/cgn_policy.c
+  * npf: remove unused code from config/npf_attach_point.c
+  * npf: remove unused code from config/pmf_att_rlgrp.c
+  * npf: remove unused code from config/pmf_parse.c
+  * npf: remove unused code from dpi/npf_typedb.c
+  * npf: remove unused code from nat/nat_pool_event.c
+  * npf: remove unused code from zones/npf_zone_private.c
+  * npf: remove unused code from npf_vrf.c
+  * npf: remove unused code from npf_tblset.c
+  * npf: remove unused code from npf_cache.c
+  * npf: remove unused code from npf_nat.c
+  * npf: remove unused code from npf_nat64.c
+  * npf: remove unused code from npf_processor.c
+  * npf: remove unused code from npf_state_tcp.c
+  * npf: remove unused code from npf_disassemble.c
+  * npf: remove unused code from npf_session.c
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Tue, 29 Sep 2020 09:07:41 +0100
+
 vyatta-dataplane (3.11.33) unstable; urgency=medium
 
   [ Nicholas Brown ]

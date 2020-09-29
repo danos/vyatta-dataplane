@@ -25,6 +25,26 @@
 				      __FILE__, __func__, __LINE__)
 
 /*
+ * Verify the npf global TCP session count
+ */
+void
+_dp_test_npf_tcp_session_count_verify(uint exp_count, bool warn,
+				      const char *file, int line);
+
+#define dp_test_npf_tcp_session_count_verify(count)		     \
+	_dp_test_npf_tcp_session_count_verify(count, SC_FAIL,   \
+					      __FILE__, __LINE__)
+
+/*
+ * Verify the npf global UDP session count
+ */
+#define _dp_test_npf_udp_session_count_verify _dp_test_session_udp_count_verify
+
+#define dp_test_npf_udp_session_count_verify(count)		     \
+	_dp_test_session_udp_count_verify(count, SC_FAIL,   \
+					      __FILE__, __LINE__)
+
+/*
  * Verify the npf NAT session count
  */
 void
@@ -59,6 +79,15 @@ dp_test_npf_extract_ids_from_pkt_desc(struct dp_test_pkt_desc_t *pkt,
 	_dp_test_session_verify(desc, saddr, src_id, daddr, dst_id, \
 				proto, intf, flgs, msk, exists,	\
 				__FILE__, __LINE__)
+
+#define dp_test_npf_session_verify_count(desc, saddr, src_id, daddr, dst_id, \
+					 proto, intf, flgs, msk,	\
+					 pkts_in, bytes_in, pkts_out,	\
+					 bytes_out)			\
+	_dp_test_session_verify_count(desc, saddr, src_id, daddr, dst_id, \
+				      proto, intf, flgs, msk,	\
+				      pkts_in, bytes_in, pkts_out,	\
+				      bytes_out, __FILE__, __LINE__)
 
 /**
  * Verify the presence/absence of an npf session.  The 5-tuple is derived from
@@ -177,10 +206,22 @@ bool
 dp_test_npf_nat_session_count(uint *count);
 
 /*
+ * Get the number of UDP sessions
+ */
+bool
+dp_test_npf_udp_session_count(uint *count);
+
+/*
  * Get the number of TCP sessions
  */
 bool
 dp_test_npf_tcp_session_count(uint *count);
+
+/*
+ * Get the number of non-UDP/TCP sessions
+ */
+bool
+dp_test_npf_other_session_count(uint *count);
 
 /*
  * Iterate over all npf fw or nat sessions.  Callback function may return true
@@ -253,9 +294,42 @@ dp_test_npf_session_state(const char *saddr, uint16_t src_id,
  */
 const char *dp_test_npf_sess_state_str(uint8_t proto, uint state);
 
+void dp_test_npf_print_session(const char *saddr, uint16_t src_id,
+			       const char *daddr, uint16_t dst_id,
+			       uint8_t proto, const char *intf);
+
 /*
  * List all session table entries in prettied json format
  */
 void dp_test_npf_print_session_table(bool nat);
+
+/*
+ * Return counters for one session.  Session filter should be fully specified,
+ * e.g.
+ *
+ * uint32_t pkts_in = 0, pkts_out = 0;
+ * uint32_t bytes_in = 0, bytes_out = 0;
+ * uint32_t sess_id = 0;
+ *
+ * dpt_session_counters("start 0 count 1 "
+ *			"src-addr 192.0.2.103 src-port 10000 "
+ *			"dst-addr 203.0.113.203 dst-port 60000 "
+ *			"proto 17 dir out intf dpT21",
+ *                      &pkts_in, &pkts_out, &bytes_in, &bytes_out,
+ *                      &sess_id);
+ */
+int dpt_session_counters(const char *options,
+			 uint32_t *pkts_in, uint32_t *pkts_out,
+			 uint32_t *bytes_in, uint32_t *bytes_out,
+			 uint32_t *sess_id);
+
+/*
+ * Uses the newer "session-op show dataplane sessions" command.
+ *
+ * A simple example is as follows:
+ *
+ *   dpt_show_sessions2("start 0 count 10");
+ */
+void dpt_show_sessions2(const char *options);
 
 #endif
