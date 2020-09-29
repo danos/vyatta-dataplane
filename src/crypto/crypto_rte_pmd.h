@@ -65,6 +65,7 @@ int crypto_rte_op_alloc(struct rte_crypto_op *cops[], uint16_t count);
 
 void crypto_rte_op_free(struct rte_crypto_op *cops[], uint16_t count);
 
-void crypto_rte_xform_packets(struct crypto_pkt_ctx *ctx_arr[], uint16_t count);
+uint16_t crypto_rte_xform_packets(struct crypto_pkt_ctx *ctx_arr[],
+				  uint16_t count);
 
 #endif

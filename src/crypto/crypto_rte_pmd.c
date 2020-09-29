@@ -849,7 +849,7 @@ crypto_rte_outbound_cop_prepare(struct rte_crypto_op *cop,
 	return err;
 }
 
-inline __attribute__((always_inline)) void
+inline __attribute__((always_inline)) uint16_t
 crypto_rte_xform_packets(struct crypto_pkt_ctx *cctx_arr[], uint16_t count)
 {
 	int err;
@@ -861,6 +861,7 @@ crypto_rte_xform_packets(struct crypto_pkt_ctx *cctx_arr[], uint16_t count)
 	bool encrypt;
 	struct rte_crypto_op *cop;
 	struct crypto_pkt_buffer *cpb = cpbdb[dp_lcore_id()];
+	uint16_t bad_idx[count], bad_cnt = 0;
 
 	pkt_batch.cdev_id = 0;
 	pkt_batch.qid = 0;
@@ -890,8 +891,8 @@ crypto_rte_xform_packets(struct crypto_pkt_ctx *cctx_arr[], uint16_t count)
 		cop = cpb->cops[i];
 
 		err = crypto_rte_op_assoc_session(cop, session);
-		if (err) {
-			cctx_arr[i]->status = -1;
+		if (unlikely(err)) {
+			cctx->status = -1;
 			continue;
 		}
 		cop->sym->m_src = cctx->mbuf;
@@ -911,7 +912,7 @@ crypto_rte_xform_packets(struct crypto_pkt_ctx *cctx_arr[], uint16_t count)
 			qid = CRYPTO_DECRYPT;
 		}
 		if (unlikely(err)) {
-			cctx_arr[i]->status = -1;
+			cctx->status = -1;
 			continue;
 		}
 
@@ -925,4 +926,9 @@ crypto_rte_xform_packets(struct crypto_pkt_ctx *cctx_arr[], uint16_t count)
 		pkt_batch.batch_size++;
 	}
 	crypto_rte_process_op_batch(&pkt_batch);
+	for (i = 0; i < count; i++)
+		if (cctx_arr[i]->status < 0)
+			bad_idx[bad_cnt++] = i;
+	move_bad_mbufs(cctx_arr, count, bad_idx, bad_cnt);
+	return count - bad_cnt;
 }

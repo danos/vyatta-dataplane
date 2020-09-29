@@ -927,11 +927,10 @@ void esp_input(struct crypto_pkt_ctx *ctx_arr[], uint16_t count)
 	}
 }
 
-static unsigned int esp_out_new_hdr6(bool transport, uint8_t orig_family,
-				     void *l3hdr, void *new_l3hdr,
-				     unsigned int pre_len,
-				     unsigned int udp_size,
-				     struct sadb_sa *sa)
+static inline unsigned int
+esp_out_new_hdr6(bool transport, uint8_t orig_family, void *l3hdr,
+		 void *new_l3hdr, unsigned int pre_len, unsigned int udp_size,
+		 struct sadb_sa *sa)
 {
 	struct ip6_hdr *new_ip6 = (struct ip6_hdr *)new_l3hdr;
 	unsigned int counter_modify = 0;
@@ -977,11 +976,10 @@ static unsigned int esp_out_new_hdr6(bool transport, uint8_t orig_family,
 	return counter_modify;
 }
 
-static unsigned int esp_out_new_hdr4(bool transport, uint8_t orig_family,
-				     void *l3hdr,
-				     void *new_l3hdr, unsigned int pre_len,
-				     unsigned int udp_size,
-				     struct sadb_sa *sa)
+static inline unsigned int
+esp_out_new_hdr4(bool transport, uint8_t orig_family, void *l3hdr,
+		 void *new_l3hdr, unsigned int pre_len,
+		 unsigned int udp_size, struct sadb_sa *sa)
 {
 	struct iphdr *new_ip = (struct iphdr *)new_l3hdr;
 	struct iphdr *ip = (struct iphdr *)l3hdr;
@@ -1051,8 +1049,9 @@ static unsigned int esp_out_new_hdr4(bool transport, uint8_t orig_family,
  * Dest(1) is a Dest immediately followed by Routing
  * Dest(2) is a Dest without a following Routing
  */
-static int esp_out_proc_exthdr6(struct rte_mbuf *m, struct ip6_hdr *ip6,
-				uint8_t *proto, unsigned int *offset)
+static inline int
+esp_out_proc_exthdr6(struct rte_mbuf *m, struct ip6_hdr *ip6,
+		     uint8_t *proto, unsigned int *offset)
 {
 	struct ip6_ext *ip6e;
 	struct ip6_frag *ip6f;
@@ -1105,10 +1104,9 @@ static int esp_out_proc_exthdr6(struct rte_mbuf *m, struct ip6_hdr *ip6,
 	return 0;
 }
 
-static int esp_out_hdr_parse6(struct rte_mbuf *m, void *l3hdr,
-			      struct esp_hdr_ctx *h,
-			      uint8_t new_family,
-			      bool transport)
+static inline int
+esp_out_hdr_parse6(struct rte_mbuf *m, void *l3hdr, struct esp_hdr_ctx *h,
+		   uint8_t new_family, bool transport)
 {
 	struct ip6_hdr *ip6 = l3hdr;
 
@@ -1138,8 +1136,9 @@ static int esp_out_hdr_parse6(struct rte_mbuf *m, void *l3hdr,
 	return 0;
 }
 
-static void esp_out_hdr_parse4(void *l3hdr, struct esp_hdr_ctx *h,
-			       uint8_t new_family)
+static inline void
+esp_out_hdr_parse4(void *l3hdr, struct esp_hdr_ctx *h,
+		   uint8_t new_family)
 {
 	struct iphdr *ip = l3hdr;
 
@@ -1160,14 +1159,13 @@ static void esp_out_hdr_parse4(void *l3hdr, struct esp_hdr_ctx *h,
 	h->tot_len = ntohs(ip->tot_len);
 }
 
-static int esp_output_pre_encrypt(int new_family, struct sadb_sa *sa,
-				  struct rte_mbuf *m, uint8_t orig_family,
-				  void *l3hdr, struct esp_hdr_ctx *h,
-				  struct crypto_pkt_ctx *pkt_info)
+static inline uint16_t
+esp_output_pre_encrypt(struct crypto_pkt_ctx *ctx_arr[],
+		       struct esp_hdr_ctx h_arr[], uint16_t count)
 {
 	int block_size;
 	unsigned int icv_size, tail_len, padding, enc_inc, udp_size = 0;
-	unsigned int i, counter_modify = 0;
+	unsigned int i, counter_modify = 0, j;
 	unsigned int esp_size, plaintext_size, plaintext_size_orig;
 	bool transport;
 	unsigned char *plaintext = NULL, *esp_base, *esp_ptr = NULL;
@@ -1175,183 +1173,189 @@ static int esp_output_pre_encrypt(int new_family, struct sadb_sa *sa,
 	char *hdr,  *tail = NULL;
 	struct udphdr *udp = NULL;
 	unsigned char *new_l3hdr;
+	struct crypto_pkt_ctx *ctx;
+	uint16_t bad_idx[count], bad_cnt = 0;
+	struct sadb_sa *sa;
+	struct rte_mbuf *m;
+	struct esp_hdr_ctx *h;
 
-	if (!sa) {
-		ESP_ERR("No SA for the outbound pkt\n");
-		return -1;
-	}
+	for (j = 0; j < count; j++) {
+		ctx = ctx_arr[j];
+		m = ctx->mbuf;
+		h = &h_arr[j];
 
-	transport = (sa->mode == XFRM_MODE_TRANSPORT) ? 1 : 0;
+		sa = ctx->sa;
+		if (unlikely(!ctx->sa)) {
+			ESP_ERR("No SA for the outbound pkt\n");
+			ctx->status = -1;
+			bad_idx[bad_cnt++] = j;
+			continue;
+		}
 
-	if (orig_family == AF_INET) {
-		esp_out_hdr_parse4(l3hdr, h, new_family);
-	} else {
-		if (esp_out_hdr_parse6(m, l3hdr, h, new_family, transport) < 0)
-			return -1;
-		if (!transport)
-			m->l3_len = sizeof(struct ip6_hdr);
-	}
+		transport = (sa->mode == XFRM_MODE_TRANSPORT) ? 1 : 0;
 
-	icv_size = esp_icv_len(sa);
-	esp_size = esp_hdr_len(sa);
+		if (ctx->orig_family == AF_INET) {
+			esp_out_hdr_parse4(ctx->l3hdr, h, ctx->family);
+		} else {
+			if (unlikely(esp_out_hdr_parse6(m, ctx->l3hdr, h,
+							ctx->family,
+							transport) < 0)) {
+				ctx->status = -1;
+				bad_idx[bad_cnt++] = j;
+				continue;
+			}
+			if (!transport)
+				m->l3_len = sizeof(struct ip6_hdr);
+		}
 
-	plaintext = l3hdr;
-	plaintext_size_orig = plaintext_size = h->tot_len;
+		icv_size = esp_icv_len(sa);
+		esp_size = esp_hdr_len(sa);
 
-	if (transport) {
+		plaintext = ctx->l3hdr;
+		plaintext_size_orig = plaintext_size = h->tot_len;
+
+		if (transport) {
+			/*
+			 * ESP follows header options
+			 */
+			plaintext += h->pre_len;
+			plaintext_size -= h->pre_len;
+			enc_inc = 0;
+		} else {
+			/*
+			 * Taking whole packet from start of l3 and encrypting.
+			 */
+			h->pre_len = h->out_hdr_len;
+			enc_inc = h->out_hdr_len;
+		}
+
+		udp_base = esp_base = esp_ptr = plaintext - esp_size;
+		enc_inc += esp_size;
+
+		udp_size = sa->udp_encap;
+		if (udp_size) {
+			enc_inc += udp_size;
+			udp_base -= udp_size;
+			udp = (struct udphdr *) udp_base;
+		}
+
+		hdr = rte_pktmbuf_prepend(m, enc_inc);
+		if (unlikely(!hdr)) {
+			ESP_ERR("Head room inc failed (requested %d bytes)\n",
+				enc_inc);
+			ctx->status = -1;
+			bad_idx[bad_cnt++] = j;
+			continue;
+		}
+
+		/* The ESP payload block needs to be aligned dependent on AF */
+		block_size = RTE_ALIGN(crypto_session_block_size(sa->session),
+				       h->out_align_val);
 		/*
-		 * ESP follows header options
+		 * Workout the padding and tail bytes required, based upon the
+		 * plain text and the minimum two tail bytes, padding len and
+		 * next_hdr
 		 */
-		plaintext += h->pre_len;
-		plaintext_size -= h->pre_len;
-		enc_inc = 0;
-	} else {
-		/*
-		 * Taking whole packet from start of l3 and encrypting.
-		 */
-		h->pre_len = h->out_hdr_len;
-		enc_inc = h->out_hdr_len;
+		padding = RTE_ALIGN(plaintext_size + 2, block_size) -
+			(plaintext_size + 2);
+
+		tail_len =  padding + 2 + icv_size;
+		tail = pktmbuf_append_alloc(m, tail_len);
+		if (unlikely(!tail)) {
+			ESP_PKT_ERR("Tail room inc for %d bytes failed\n",
+				    tail_len);
+			ctx->status = -1;
+			bad_idx[bad_cnt++] = j;
+			continue;
+		}
+
+		/* Set the padding using RFC specified pattern */
+		for (i = 1; i <= padding; i++)
+			*tail++ = i;
+		*tail++ = padding;
+		*tail++ = transport ? h->out_proto_nxt : h->proto_ip;
+		plaintext_size += padding + 2;
+
+		new_l3hdr = udp_base - h->out_hdr_len;
+		udp_size += esp_size + plaintext_size + icv_size;
+
+		counter_modify = (*h->out_new_hdr)(transport, ctx->orig_family,
+						   ctx->l3hdr, new_l3hdr,
+						   h->pre_len, udp_size, sa);
+
+		if (udp) {
+			udp->dest = sa->udp_dport;
+			udp->source = sa->udp_sport;
+			udp->check = 0;
+			udp->len = htons(udp_size);
+		}
+		/* Add Spi, sequence and IV */
+		*(uint32_t *)esp_ptr = (sa->spi);
+		esp_ptr += 4;
+		*(uint32_t *)esp_ptr = htonl(++(sa->seq));
+		esp_ptr += 4;
+
+		crypto_session_generate_iv(sa->session, (char *)esp_ptr);
+
+		if (unlikely(sa->seq == ESP_SEQ_SA_REKEY_THRESHOLD)) {
+			crypto_rekey_requests++;
+			crypto_expire_request(sa->spi,
+					      crypto_sadb_get_reqid(sa),
+					      IPPROTO_ESP, 0 /* hard */);
+		}
+		if (unlikely(sa->seq > (ESP_SEQ_SA_BLOCK_LIMIT - 1)))
+			crypto_sadb_mark_as_blocked(sa);
+
+		/* set up output parameters */
+		ctx->esp = esp_base;
+		ctx->iv = esp_ptr;
+		ctx->plaintext_size = plaintext_size;
+		ctx->plaintext_size_orig = plaintext_size_orig;
+		ctx->esp_len = esp_size;
+		ctx->counter_modify = counter_modify;
+		ctx->hdr = hdr;
+		ctx->tail = tail;
+		ctx->out_hdr_len = h->out_hdr_len;
 	}
 
-	udp_base = esp_base = esp_ptr = plaintext - esp_size;
-	enc_inc += esp_size;
+	move_bad_mbufs(ctx_arr, count, bad_idx, bad_cnt);
 
-	udp_size = sa->udp_encap;
-	if (udp_size) {
-		enc_inc += udp_size;
-		udp_base -= udp_size;
-		udp = (struct udphdr *) udp_base;
-	}
-
-	hdr = rte_pktmbuf_prepend(m, enc_inc);
-	if (!hdr) {
-		ESP_ERR("Head room inc failed (requested %d bytes)\n", enc_inc);
-		return -1;
-	}
-
-	/* The ESP payload block needs to be aligned dependent on AF */
-	block_size = RTE_ALIGN(crypto_session_block_size(sa->session),
-			       h->out_align_val);
-	/*
-	 * Workout the padding and tail bytes required, based upon the
-	 * plain text and the minimum two tail bytes, padding len and next_hdr
-	 */
-	padding = RTE_ALIGN(plaintext_size + 2, block_size) -
-		(plaintext_size + 2);
-
-	tail_len =  padding + 2 + icv_size;
-	tail = pktmbuf_append_alloc(m, tail_len);
-	if (!tail) {
-		ESP_PKT_ERR("Tail room inc failed (requested %d bytes)\n",
-			    tail_len);
-		return -1;
-	}
-
-	/* Set the padding using RFC specified pattern */
-	for (i = 1; i <= padding; i++)
-		*tail++ = i;
-	*tail++ = padding;
-	*tail++ = transport ? h->out_proto_nxt : h->proto_ip;
-	plaintext_size += padding + 2;
-
-	new_l3hdr = udp_base - h->out_hdr_len;
-	udp_size += esp_size + plaintext_size + icv_size;
-
-	counter_modify = (*h->out_new_hdr)(transport, orig_family, l3hdr,
-					   new_l3hdr, h->pre_len, udp_size, sa);
-
-	if (udp) {
-		udp->dest = sa->udp_dport;
-		udp->source = sa->udp_sport;
-		udp->check = 0;
-		udp->len = htons(udp_size);
-	}
-	/* Add Spi, sequence and IV */
-	*(uint32_t *)esp_ptr = (sa->spi);
-	esp_ptr += 4;
-	*(uint32_t *)esp_ptr = htonl(++(sa->seq));
-	esp_ptr += 4;
-
-	crypto_session_generate_iv(sa->session, (char *)esp_ptr);
-
-	if (unlikely(sa->seq == ESP_SEQ_SA_REKEY_THRESHOLD)) {
-		crypto_rekey_requests++;
-		crypto_expire_request(sa->spi,
-				      crypto_sadb_get_reqid(sa),
-				      IPPROTO_ESP, 0 /* hard */);
-	}
-	if (unlikely(sa->seq > (ESP_SEQ_SA_BLOCK_LIMIT - 1)))
-		crypto_sadb_mark_as_blocked(sa);
-
-	/* set up output parameters */
-	pkt_info->esp = esp_base;
-	pkt_info->iv = esp_ptr;
-	pkt_info->plaintext_size = plaintext_size;
-	pkt_info->plaintext_size_orig = plaintext_size_orig;
-	pkt_info->esp_len = esp_size;
-	pkt_info->counter_modify = counter_modify;
-	pkt_info->hdr = hdr;
-	pkt_info->tail = tail;
-	pkt_info->out_hdr_len = h->out_hdr_len;
-
-	return 0;
+	return count - bad_cnt;
 }
 
-static void esp_output_post_encrypt(struct sadb_sa *sa, char *tail,
-				    char *hdr, uint16_t out_ethertype,
-				    unsigned int plaintext_size_orig,
-				    unsigned int counter_modify,
-				    uint32_t *bytes)
+static inline void
+esp_output_post_encrypt(struct crypto_pkt_ctx *ctx_arr[], uint16_t count)
 {
 	struct rte_ether_hdr *eth_hdr;
+	uint16_t i, iv_len;
+	struct crypto_pkt_ctx *ctx;
 
-	crypto_session_set_iv(sa->session,
-			      crypto_session_iv_len(sa->session),
-			      tail - crypto_session_iv_len(sa->session));
+	for (i = 0; i < count; i++) {
+		ctx = ctx_arr[i];
+		iv_len = crypto_session_iv_len(ctx->sa->session);
 
-	eth_hdr = (struct rte_ether_hdr *)hdr;
-	eth_hdr->ether_type = htons(out_ethertype);
+		crypto_session_set_iv(ctx->sa->session, iv_len,
+				      ctx->tail - iv_len);
 
-	crypto_sadb_increment_counters(sa, plaintext_size_orig -
-				       counter_modify, 1);
-	*bytes = plaintext_size_orig - counter_modify;
+		eth_hdr = (struct rte_ether_hdr *)ctx->hdr;
+		eth_hdr->ether_type = htons(ctx->out_ethertype);
+
+		crypto_sadb_increment_counters(ctx->sa,
+					       ctx->plaintext_size_orig -
+					       ctx->counter_modify, 1);
+		ctx->bytes = ctx->plaintext_size_orig - ctx->counter_modify;
+	}
 }
 
 void esp_output(struct crypto_pkt_ctx *ctx_arr[], uint16_t count)
 {
 	struct esp_hdr_ctx h[count];
-	struct crypto_pkt_ctx *ctx;
-	uint16_t i, bad_idx[count], bad_count = 0;
 
-	for (i = 0; i < count; i++) {
-		ctx = ctx_arr[i];
-		if (esp_output_pre_encrypt(ctx->family, ctx->sa,
-					   ctx->mbuf,
-					   ctx->orig_family,
-					   ctx->l3hdr, &h[i],
-					   ctx) != 0) {
-			ctx_arr[i]->status = -1;
-			bad_idx[bad_count] = i;
-			bad_count++;
-		}
-	}
+	count = esp_output_pre_encrypt(ctx_arr, h, count);
 
-	move_bad_mbufs(ctx_arr, count, bad_idx, bad_count);
-	count -= bad_count;
+	count = crypto_rte_xform_packets(ctx_arr, count);
 
-	crypto_rte_xform_packets(ctx_arr, count);
-
-	for (i = 0; i < count; i++) {
-		ctx = ctx_arr[i];
-		if (ctx->status == -1)
-			continue;
-
-		esp_output_post_encrypt(ctx->sa,
-					ctx->tail,
-					ctx->hdr, ctx->out_ethertype,
-					ctx->plaintext_size_orig,
-					ctx->counter_modify, &ctx->bytes);
-	}
+	esp_output_post_encrypt(ctx_arr, count);
 }
 
 bool udp_esp_dp_interesting(const struct udphdr *udp,
