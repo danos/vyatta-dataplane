@@ -113,6 +113,7 @@ PKG_CHECK_MODULES(LIBMNL, [libmnl])
 PKG_CHECK_MODULES(LIBOSIP2, [libosip2])
 PKG_CHECK_MODULES_STATIC(DPDK, [libdpdk >= 19.11])
 PKG_CHECK_MODULES(SWPORT, [vyatta-dpdk-swport >= 0.1.3])
+PKG_CHECK_MODULES([PROTOBUF], [protobuf])
 PKG_CHECK_MODULES([PROTOBUF_C], [libprotobuf-c >= 1.0.0])
 PKG_CHECK_MODULES(DPI, [libndpi >= 2.6.0])
 
@@ -201,7 +202,6 @@ AC_CONFIG_LINKS(tests/whole_dp/dummyfs/sys/devices/system/cpu/cpu1/topology/phys
 AC_CONFIG_LINKS(tests/whole_dp/dummyfs/sys/devices/system/cpu/cpu1/topology/thread_siblings:tests/whole_dp/dummyfs/sys/devices/system/cpu/cpu1/topology/thread_siblings)
 AC_CONFIG_LINKS(tests/whole_dp/dummyfs/sys/module/.dummy:tests/whole_dp/dummyfs/sys/module/.dummy)
 
-PKG_PROG_PKG_CONFIG
 PKG_INSTALLDIR
 
 AC_CONFIG_FILES([Makefile protobuf/vyatta-dataplane-proto.pc debian/vyatta-dataplane-dev.pc debian/libvyattafal.pc])
