@@ -86,9 +86,6 @@ struct cgn_session *cgn_session_lookup_icmp_err(struct cgn_packet *sp, int dir);
 
 struct cgn_session *cgn_session_find_cached(struct rte_mbuf *mbuf);
 
-struct cgn_session *cgn_session_get(struct cgn_session *cse);
-void cgn_session_put(struct cgn_session *cse);
-
 void cgn_session_set_max(int32_t val);
 
 /* Threshold */
@@ -101,7 +98,6 @@ void cgn_session_id_list(FILE *f, int argc, char **argv);
 void cgn_session_show(FILE *f, int argc, char **argv);
 void cgn_session_clear(FILE *f, int argc, char **argv);
 void cgn_session_update(FILE *f, int argc, char **argv);
-ulong cgn_session_count(void);
 
 void cgn_session_expire_policy(bool restart_timer, struct cgn_policy *cp);
 void cgn_session_expire_pool(bool restart_timer, struct nat_pool *np,

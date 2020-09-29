@@ -45,34 +45,6 @@ int cgn_get_log_type(const char *name, enum cgn_log_type *type)
 	return -ENOENT;
 }
 
-static const struct cgn_log_format_info {
-	const char *name;
-} cgn_log_format_info[CGN_LOG_FORMAT_COUNT] = {
-	[CGN_LOG_FORMAT_RTE_LOG]	= { .name = "rte_log", },
-	[CGN_LOG_FORMAT_PROTOBUF]	= { .name = "protobuf", },
-};
-
-const char *cgn_get_log_format_name(enum cgn_log_format format)
-{
-	if (format >= CGN_LOG_FORMAT_COUNT)
-		return NULL;
-	return cgn_log_format_info[format].name;
-}
-
-int cgn_get_log_format(const char *name, enum cgn_log_format *format)
-{
-	enum cgn_log_format f;
-
-	for (f = 0; f < CGN_LOG_FORMAT_COUNT; f++) {
-		if (strcmp(name, cgn_log_format_info[f].name) == 0) {
-			*format = f;
-			return 0;
-		}
-	}
-
-	return -ENOENT;
-}
-
 extern const struct cgn_log_fns cgn_rte_log_fns, cgn_protobuf_fns;
 
 static const struct cgn_log_fns *cgn_log_fns[] = {
@@ -172,11 +144,6 @@ void cgn_log_resource_dest_session_table(enum cgn_resource_type type,
 	CGN_LOG_FN_BODY(CGN_LOG_TYPE_RES_CONSTRAINT, res_constraint,
 			resource_dest_session_table, type, cse, count,
 			max_count)
-
-void cgn_log_resource_apm_table(enum cgn_resource_type type,
-				int32_t count, int32_t limit_count)
-	CGN_LOG_FN_BODY(CGN_LOG_TYPE_RES_CONSTRAINT, res_constraint,
-			resource_apm_table, type, count, limit_count)
 
 void cgn_log_resource_pool(enum cgn_resource_type type, struct nat_pool *np,
 			   int32_t count, int32_t max_count)

@@ -305,24 +305,6 @@ cgn_session_stats_periodic(struct cgn_session *cse)
 	cgn_session_stats_periodic_inline(cse);
 }
 
-/* Count hash table nodes */
-static ulong cgn_session_table_nodes(struct cds_lfht *ht)
-{
-	unsigned long count;
-	long dummy;
-
-	if (!ht)
-		return 0;
-
-	cds_lfht_count_nodes(ht, &dummy, &count, &dummy);
-	return count;
-}
-
-ulong cgn_session_count(void)
-{
-	return cgn_session_table_nodes(cgn_sess_ht[CGN_DIR_FORW]);
-}
-
 static inline struct cgn_session *
 sentry2session(const struct cgn_sentry *ce, int dir)
 {
@@ -469,28 +451,6 @@ void cgn_session_destroy(struct cgn_session *cse, bool rcu_free)
 		call_rcu(&cse->cs_rcu_head, cgn_session_rcu_free);
 	else
 		free(cse);
-}
-
-/*
- * cgn_session_get: Get a reference to a cgnat session
- */
-struct cgn_session *cgn_session_get(struct cgn_session *cse)
-{
-	if (cse)
-		rte_atomic16_inc(&cse->cs_refcnt);
-	return cse;
-}
-
-/*
- * cgn_session_put: release a reference, which might allow G/C thread
- * to destroy this session.
- */
-void cgn_session_put(struct cgn_session *cse)
-{
-	if (cse) {
-		assert(rte_atomic16_read(&cse->cs_refcnt) > 0);
-		rte_atomic16_dec(&cse->cs_refcnt);
-	}
 }
 
 /*
@@ -3134,9 +3094,6 @@ void cgn_session_uninit(void)
 
 	/* Expire all entries and run gc multiple times */
 	cgn_session_cleanup();
-
-	assert(cgn_session_table_nodes(cgn_sess_ht[CGN_DIR_FORW]) == 0);
-	assert(cgn_session_table_nodes(cgn_sess_ht[CGN_DIR_BACK]) == 0);
 
 	/* Destroy the session hash tables */
 	dp_ht_destroy_deferred(cgn_sess_ht[CGN_DIR_FORW]);

@@ -94,7 +94,6 @@ int npf_create_natpolicy(npf_rule_t *rl, uint8_t type, uint32_t flags,
 			 npf_addr_t *taddr_stop, uint32_t match_mask,
 			 in_port_t tport, in_port_t tport_stop);
 uint64_t npf_natpolicy_get_map_range(const npf_natpolicy_t *np);
-uint8_t npf_natpolicy_get_type(npf_natpolicy_t *np);
 void npf_natpolicy_update_masq(npf_rule_t *rl, const npf_addr_t *addr);
 npf_nat_t *npf_nat_custom_nat(npf_nat_t *pnat, uint32_t flags);
 void npf_nat_finalise(npf_cache_t *npc, npf_session_t *se, int di,
@@ -130,7 +129,6 @@ int npf_nat_alloc_map(npf_natpolicy_t *np, npf_rule_t *rl, uint32_t map_flags,
 int npf_nat_free_map(npf_natpolicy_t *np, npf_rule_t *rl, uint32_t map_flags,
 		uint8_t ip_prot, vrfid_t vrfid, const npf_addr_t addr,
 		in_port_t port);
-void npf_nat_dump(const npf_nat_t *nt);
 bool npf_nat_info(npf_nat_t *nat, int *type, npf_addr_t *addr,
 		  in_port_t *port, u_int *masq);
 struct rte_mbuf *

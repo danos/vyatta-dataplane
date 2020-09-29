@@ -270,15 +270,6 @@ npf_attpt_item_fn_ctx *npf_attpt_item_up_fn_context(
 		const struct npf_attpt_item *ap);
 
 /**
- * Give the count of the number of rulesets on an attach point
- *
- * @param handle A pointer to the attach point item
- * @return the number of rules
- */
-size_t
-npf_attpt_item_rls_count(const struct npf_attpt_item *handle);
-
-/**
  * Set the state of an attach point to up. It can now have configuration
  * applied to it.
  *
@@ -410,18 +401,6 @@ typedef bool (npf_attpt_walk_rlsets_cb)(struct npf_attpt_rlset *ars, void *ctx);
  */
 void npf_attpt_walk_rlsets(
 	struct npf_attpt_item *ap, npf_attpt_walk_rlsets_cb *fn, void *ctx);
-
-/**
- * Lookup a group associated with an attachment point
- *
- * @param ars This ruleset attached to a point
- * @param group_class The class of the rule-group that is being looked up
- * @param group The name of the rule-group being looked up.
- * @return Returns 0 on successfully finding an entry matching the group, or
- *         a negative errno on failure.
-  */
-int npf_attpt_group_find(struct npf_attpt_rlset *ars,
-			 enum npf_rule_class group_class, const char *group);
 
 /**
  * Return the ruleset a group is attached to

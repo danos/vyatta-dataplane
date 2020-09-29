@@ -380,13 +380,6 @@ npf_zone_find_or_create(const char *name)
 	return nz;
 }
 
-const char *npf_zone_name(struct npf_zone *nz)
-{
-	if (nz)
-		return nz->nz_name;
-	return NULL;
-}
-
 struct npf_zone *npf_zone_zif2zone_private(const struct npf_zone_intf *zif)
 {
 	if (zif)

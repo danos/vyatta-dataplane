@@ -171,10 +171,7 @@ extern uint32_t cgn_sess_tcp_etime[];
  * Get or set TCP or UDP per-port Established expiry times
  */
 void cgn_cgn_port_tcp_etime_set(uint16_t port, uint32_t timeout);
-uint32_t cgn_cgn_port_tcp_etime_get(uint16_t port);
 void cgn_cgn_port_udp_etime_set(uint16_t port, uint32_t timeout);
-uint32_t cgn_cgn_port_udp_etime_get(uint16_t port);
-
 
 static inline const char *cgn_tcp_state_str(enum cgn_tcp_state state)
 {

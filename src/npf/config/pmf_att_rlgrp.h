@@ -25,7 +25,6 @@ int pmf_arlg_cmd_clear_counters(char const *ifname, int dir,
 				char const *rgname);
 
 uint16_t pmf_arlg_attrl_get_index(struct pmf_attrl const *earl);
-struct pmf_rule const *pmf_arlg_attrl_get_rule(struct pmf_attrl const *earl);
 struct pmf_group_ext *pmf_arlg_attrl_get_grp(struct pmf_attrl const *earl);
 struct pmf_cntr *pmf_arlg_attrl_get_cntr(struct pmf_attrl *earl);
 uintptr_t pmf_arlg_attrl_get_objid(struct pmf_attrl const *earl);

@@ -39,7 +39,6 @@ int npf_zone_intf_del(const char *name, const char *ifname);
 void npf_zone_intf_get(struct npf_zone_intf *zif);
 void npf_zone_intf_put(struct npf_zone_intf **zifp);
 struct npf_zone_intf *npf_zone_ifname2zif(const char *ifname);
-const char *npf_zone_name(struct npf_zone *nz);
 
 struct npf_config *npf_zone_config(const struct npf_zone *from_zone,
 				   const struct npf_zone *to_zone);

@@ -217,17 +217,6 @@ void apt_event_register(const struct apt_event_ops *ops)
 	}
 }
 
-void apt_event_unregister(const struct apt_event_ops *op)
-{
-	uint32_t i;
-	struct apt_event_ops *ops = (struct apt_event_ops *) op;
-
-	for (i = 0; i < ARRAY_SIZE(apt_ops); i++) {
-		if (rcu_cmpxchg_pointer(&apt_ops[i], ops, NULL) == ops)
-			return;
-	}
-}
-
 /*
  * Hash table matching function
  */
@@ -796,18 +785,6 @@ void apt_tuple_clear_client_handle(struct apt_tuple *at)
 uint32_t apt_tuple_get_client_flags(struct apt_tuple *at)
 {
 	return at->at_client_flags;
-}
-
-/* Set client flags */
-void apt_tuple_set_client_flags(struct apt_tuple *at, uint32_t flags)
-{
-	at->at_client_flags |= flags;
-}
-
-/* Clear client flags */
-void apt_tuple_clear_client_flags(struct apt_tuple *at, uint32_t flags)
-{
-	at->at_client_flags &= ~flags;
 }
 
 /* Get client data */

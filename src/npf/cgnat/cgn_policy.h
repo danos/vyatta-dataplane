@@ -149,12 +149,6 @@ void cgn_policy_update_sess_rate(struct cgn_policy *cp,
 				 uint32_t sess_rate_max,
 				 uint64_t sess_rate_max_time);
 
-/*
- * Compare two policies.  Returns -1, 0, or 1 is p1 is less than, equal, or
- * greater than p2.
- */
-int cgn_policy_cmp(struct cgn_policy *p1, struct cgn_policy *p2);
-
 struct cgn_policy *cgn_policy_lookup(const char *name);
 struct cgn_policy *cgn_policy_get(struct cgn_policy *cp);
 void cgn_policy_put(struct cgn_policy *cp);

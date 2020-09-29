@@ -14,7 +14,6 @@ struct vrf;
 struct npf_config;
 
 void vrf_set_npf_timeout(struct vrf *vrf, struct npf_timeout *to);
-struct npf_timeout *vrf_get_npf_timeout(struct vrf *vrf);
 struct npf_timeout *vrf_get_npf_timeout_rcu(vrfid_t vrf_id);
 
 void vrf_set_npf_alg(struct vrf *vrf, struct npf_alg_instance *ai);

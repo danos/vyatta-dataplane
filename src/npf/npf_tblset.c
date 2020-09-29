@@ -273,16 +273,6 @@ npf_tbl_destroy(struct npf_tbl *nt)
 }
 
 /*
- * Get users table ID
- */
-uint32_t npf_tbl_id(struct npf_tbl *nt)
-{
-	if (nt)
-		return nt->nt_id;
-	return 0;
-}
-
-/*
  * Number of entries in the table
  */
 uint npf_tbl_size(struct npf_tbl *nt)

@@ -224,7 +224,6 @@ void npf_state_tcp_init(void);
  */
 uint8_t npf_state_tcp(const npf_cache_t *npc, struct rte_mbuf *nbuf,
 		      npf_state_t *nst, int di, int *error);
-uint32_t npf_state_get_tcp_seq(int di, npf_state_t *nst);
 
 void npf_state_set_tcp_strict(bool value);
 

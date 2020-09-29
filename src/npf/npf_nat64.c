@@ -793,18 +793,6 @@ bool npf_nat64_session_is_nat64(npf_session_t *se)
 	return false;
 }
 
-/*
- * Is this a nat46 session?
- */
-bool npf_nat64_session_is_nat46(npf_session_t *se)
-{
-	struct npf_nat64 *nat64;
-
-	nat64 = npf_session_get_nat64(se);
-	if (nat64)
-		return nat64->n64_rproc_id == NPF_RPROC_ID_NAT46;
-	return false;
-}
 
 /*
  * Add nat64 session stats

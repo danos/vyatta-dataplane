@@ -101,20 +101,6 @@ struct npf_tbl *npf_tbl_create(uint32_t id, uint tbl_sz, uint tbl_sz_max,
 int npf_tbl_destroy(struct npf_tbl *nt);
 
 /**
- * @brief Get table ID.
- *
- * Return the table ID value that the user passed to npf_tbl_create
- *
- * @param nt Table handle
- * @return Table ID.
- *
- * Example:
- *
- *	uint32_t tid = npf_tbl_id(foo_tbl);
- */
-uint32_t npf_tbl_id(struct npf_tbl *nt);
-
-/**
  * @brief Get number of entries in a table
  *
  * @param nt Table handle

@@ -240,30 +240,6 @@ static const struct npf_instruction {
 
 static uint npf_instruction_size = ARRAY_SIZE(npf_instructions);
 
-/*
- * Get the number of operands for a specific opcode
- */
-uint
-npf_ncode_opcode_noperands(enum npf_opcode_type_enum opcode)
-{
-	const struct npf_instruction *insn;
-	enum npf_operand_type_enum operand;
-	uint noperands, i;
-
-	if (opcode > NPF_OPCODE_MAX)
-		return 0;
-
-	insn = &npf_instructions[opcode];
-
-	noperands = 0;
-	for (i = 0; i < ARRAY_SIZE(insn->op); i++) {
-		operand = insn->op[i];
-		if (operand <= NPF_OPERAND_MAX)
-			noperands += npf_operand_nwords[operand];
-	}
-	return noperands;
-}
-
 static void
 npf_tcpflags2str(char *buf, unsigned int tfl)
 {

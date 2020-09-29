@@ -30,7 +30,5 @@ int pkp_parse_rule_line(char const *rule_line, struct pmf_rule **prule,
 			struct pkp_unused **remaining);
 int pkp_parse_rproc_line(char const *rproc_line, struct pmf_rule **prule,
 			struct pkp_unused **remaining);
-int pkp_parse_args(unsigned int ac, char **av, struct pmf_rule **prule,
-			struct pkp_unused **remaining);
 
 #endif /* _PMF_PARSE_H_ */
