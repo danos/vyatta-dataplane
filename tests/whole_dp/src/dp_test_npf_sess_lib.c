@@ -81,6 +81,64 @@ _dp_test_session_count_verify(uint exp_count, bool warn,
 }
 
 /*
+ * Verify the npf global TCP session count
+ */
+void
+_dp_test_npf_tcp_session_count_verify(uint exp_count, bool warn,
+				      const char *file, int line)
+{
+	uint count = 0;
+	bool rv;
+
+	rv = dp_test_npf_tcp_session_count(&count);
+
+	_dp_test_fail_unless(rv, file, line,
+			     "Failed to get TCP session count\n");
+
+	if (count != exp_count) {
+		char str[80];
+
+		snprintf(str, sizeof(str),
+			 "TCP session count expected %d, actual %d",
+			 exp_count, count);
+
+		if (warn)
+			printf("\nWarning: %s %d %s\n", file, line, str);
+		else
+			_dp_test_fail(file, line, "\n%s\n", str);
+	}
+}
+
+/*
+ * Verify the npf global UDP session count
+ */
+void
+_dp_test_session_udp_count_verify(uint exp_count, bool warn,
+				  const char *file, int line)
+{
+	uint count = 0;
+	bool rv;
+
+	rv = dp_test_npf_udp_session_count(&count);
+
+	_dp_test_fail_unless(rv, file, line,
+			     "Failed to get UDP session count\n");
+
+	if (count != exp_count) {
+		char str[80];
+
+		snprintf(str, sizeof(str),
+			 "UDP session count expected %d, actual %d",
+			 exp_count, count);
+
+		if (warn)
+			printf("\nWarning: %s %d %s\n", file, line, str);
+		else
+			_dp_test_fail(file, line, "\n%s\n", str);
+	}
+}
+
+/*
  * Verify the npf NAT session count
  */
 void
@@ -284,6 +342,136 @@ struct dp_test_npf_poll_cmd {
 	int pkts_out;
 	int bytes_out;
 };
+
+static int
+_dp_test_npf_session_verify_count_internal(zloop_t *loop, int poller,
+					   void *arg)
+{
+	struct dp_test_npf_poll_cmd *cmd = arg;
+	char real_ifname[IFNAMSIZ];
+	json_object *jobj;
+	json_object *counter_obj;
+	unsigned int index = 0;
+	int found_pkts_in;
+	int found_bytes_in;
+	int found_pkts_out;
+	int found_bytes_out;
+
+	--(cmd->poll_cnt);
+
+	dp_test_intf_real(cmd->intf, real_ifname);
+
+	jobj = dp_test_npf_json_get_session(cmd->saddr, cmd->src_id,
+					    cmd->daddr, cmd->dst_id,
+					    cmd->proto, real_ifname,
+					    cmd->exp_flags, cmd->flags_mask,
+					    &index);
+
+	if (cmd->response)
+		json_object_put(cmd->response);
+	cmd->response = jobj;
+	if (jobj) {
+		if (!json_object_object_get_ex(jobj, "counters", &counter_obj))
+			goto done;
+
+		if (!dp_test_json_int_field_from_obj(counter_obj, "packets_in",
+						     &found_pkts_in))
+			goto done;
+		if (!dp_test_json_int_field_from_obj(counter_obj, "bytes_in",
+						     &found_bytes_in))
+			goto done;
+		if (!dp_test_json_int_field_from_obj(counter_obj, "packets_out",
+						     &found_pkts_out))
+			goto done;
+		if (!dp_test_json_int_field_from_obj(counter_obj, "bytes_out",
+						     &found_bytes_out))
+			goto done;
+		/* We have values for all of them */
+		if (cmd->pkts_in == found_pkts_in &&
+		    cmd->bytes_in == found_bytes_in &&
+		    cmd->pkts_out == found_pkts_out &&
+		    cmd->bytes_out == found_bytes_out) {
+			cmd->result = true;
+			return -1;
+		}
+	}
+done:
+	cmd->result = false;
+	if (cmd->poll_cnt == 0)
+		return -1;
+	return 0;
+}
+
+/*
+ * Verify the presence/absence of an npf session. the counts must match as
+ * well as the values identifying the session.  Poll for a matching session
+ * for the standard poll delay and record a test failure if not found.
+ *
+ * @param desc       [in] Optional text to be prepended to any error message
+ * @param saddr      [in] Source address string
+ * @param src_id     [in] Source ID in host order (TCP port, ICMP id)
+ * @param daddr      [in] Dest address string
+ * @param dst_id     [in] Dest ID in host order (TCP port, ICMP id)
+ * @param proto      [in] IP protocol
+ * @param intf       [in] Interface string, e.g. "dp2T1"
+ * @param exp_flags  [in] Expected flags, e.g. SE_ACTIVE | SE_PASS
+ * @param flags_mask [in] Flags mask, e.g. SE_FLAGS_MASK
+ * @param pkts_in    [in] expected count
+ * @param bytes_in   [in] expected count
+ * @param pkts_out   [in] expected count
+ * @param bytes_out  [in] expected count
+ *
+ * @return true if found
+ */
+void
+_dp_test_session_verify_count(char *desc,
+				  const char *saddr, uint16_t src_id,
+				  const char *daddr, uint16_t dst_id,
+				  uint8_t proto, const char *intf,
+				  uint32_t exp_flags,
+				  uint32_t flags_mask,
+				  int pkts_in, int bytes_in,
+				  int pkts_out,
+				  int bytes_out, const char *file,
+				  int line)
+{
+	zloop_t *loop = zloop_new();
+	int timer;
+	struct dp_test_npf_poll_cmd cmd = {
+		.poll_cnt = DP_TEST_POLL_COUNT,
+		.saddr = saddr,
+		.src_id = src_id,
+		.daddr = daddr,
+		.dst_id = dst_id,
+		.proto = proto,
+		.intf = intf,
+		.exp_flags = exp_flags,
+		.flags_mask = flags_mask,
+		.pkts_in = pkts_in,
+		.bytes_in = bytes_in,
+		.pkts_out = pkts_out,
+		.bytes_out = bytes_out,
+	};
+	const char *str;
+
+	timer = zloop_timer(loop, dp_test_wait_sec, 0,
+			    _dp_test_npf_session_verify_count_internal, &cmd);
+	dp_test_assert_internal(timer >= 0);
+
+	zloop_start(loop);
+	zloop_destroy(&loop);
+
+	if (cmd.result) {
+		json_object_put(cmd.response);
+		return;
+	}
+
+	str = json_object_to_json_string_ext(cmd.response,
+					     JSON_C_TO_STRING_PRETTY);
+	_dp_test_fail(file, line, "Did not find the expected counts:\n%s\n",
+		      str ? str : "");
+}
+
 
 /**
  * Verify the presence/absence of an npf session.  The 5-tuple is derived from
@@ -512,6 +700,57 @@ dp_test_npf_nat_session_count(uint *count)
 	session_counts(&used, &max, &sc);
 
 	*count = sc.sc_nat;
+
+	return true;
+}
+
+/*
+ * Get the count of all npf TCP sessions
+ */
+bool
+dp_test_npf_tcp_session_count(uint *count)
+{
+	uint32_t used;
+	uint32_t max;
+	struct session_counts sc = { 0 };
+
+	session_counts(&used, &max, &sc);
+
+	*count = sc.sc_tcp;
+
+	return true;
+}
+
+/*
+ * Get the count of all npf UDP sessions
+ */
+bool
+dp_test_npf_udp_session_count(uint *count)
+{
+	uint32_t used;
+	uint32_t max;
+	struct session_counts sc = { 0 };
+
+	session_counts(&used, &max, &sc);
+
+	*count = sc.sc_udp;
+
+	return true;
+}
+
+/*
+ * Get the count of all non TCP/UDP/NAT sessions
+ */
+bool
+dp_test_npf_other_session_count(uint *count)
+{
+	uint32_t used;
+	uint32_t max;
+	struct session_counts sc = { 0 };
+
+	session_counts(&used, &max, &sc);
+
+	*count = sc.sc_icmp + sc.sc_icmp6 + sc.sc_other;
 
 	return true;
 }
@@ -1191,6 +1430,36 @@ dp_test_npf_sess_state_str(uint8_t proto, uint state)
 	return npf_state_get_state_name(state, NPF_PROTO_IDX_OTHER);
 }
 
+void
+dp_test_npf_print_session(const char *saddr, uint16_t src_id,
+			  const char *daddr, uint16_t dst_id,
+			  uint8_t proto, const char *intf)
+{
+	char real_ifname[IFNAMSIZ];
+	json_object *jobj;
+	const char *str;
+	uint index;
+
+	dp_test_intf_real(intf, real_ifname);
+
+	jobj = dp_test_npf_json_get_session(saddr, src_id,
+					    daddr, dst_id,
+					    proto,
+					    real_ifname,
+					    0, 0, &index);
+	if (!jobj) {
+		printf("Session not found "
+		       "(src=%s:%u dst=%s:%u proto=%u intf=%s)\n",
+		       saddr, src_id, daddr, dst_id, proto, intf);
+		return;
+	}
+
+	str = json_object_to_json_string_ext(jobj, JSON_C_TO_STRING_PRETTY);
+	if (str)
+		printf("\"%u\":%s\n", index, str);
+	json_object_put(jobj);
+}
+
 /*
  * List all session table entries in prettied json format
  */
@@ -1337,4 +1606,76 @@ cleanup:
 	json_object_put(jarray);
 	json_object_put(jresp);
 	return rc;
+}
+
+/*
+ * Uses the newer "session-op show dataplane sessions" command.
+ *
+ * A simple example is as follows:
+ *
+ *   dpt_show_sessions2("start 0 count 10");
+ */
+void dpt_show_sessions2(const char *options)
+{
+	json_object *jresp;
+	const char *str;
+	char *response;
+	bool err;
+	char cmd[1000];
+	int l;
+
+	l = snprintf(cmd, sizeof(cmd), "session-op show dataplane sessions");
+	if (options)
+		l += snprintf(cmd+l, sizeof(cmd)-l, " %s", options);
+
+	response = dp_test_console_request_w_err(cmd, &err, false);
+	if (!response || err)
+		return;
+
+	jresp = parse_json(response, parse_err_str, sizeof(parse_err_str));
+	free(response);
+	if (!jresp)
+		return;
+
+	if (1) {
+		str = json_object_to_json_string_ext(jresp,
+						     JSON_C_TO_STRING_PRETTY);
+		if (str)
+			printf("%s\n", str);
+	}
+
+	json_object *jarray;
+	struct dp_test_json_find_key ip_keys[] = {
+		{"sessions", NULL}
+	};
+
+	jarray = dp_test_json_find(jresp, ip_keys, ARRAY_SIZE(ip_keys));
+	assert(jarray);
+
+	if (jarray) {
+		int len = json_object_array_length(jarray);
+		json_object *jobj;
+		const char *saddr, *daddr;
+		int i;
+		bool rv;
+
+		for (i = 0; i < len; ++i) {
+			jobj = json_object_array_get_idx(jarray, i);
+
+			rv = dp_test_json_string_field_from_obj(jobj,
+								"src_addr",
+								&saddr);
+			if (!rv)
+				break;
+			rv = dp_test_json_string_field_from_obj(jobj,
+								"dst_addr",
+								&daddr);
+			if (!rv)
+				break;
+
+			printf("%-15s %-15s\n", saddr, daddr);
+		}
+	}
+
+	json_object_put(jresp);
 }
