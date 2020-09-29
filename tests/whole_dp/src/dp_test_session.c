@@ -1218,7 +1218,7 @@ DP_START_TEST(ssync1, test19)
 	uint32_t bytes_out = 0;
 	uint32_t sess_id1 = 0;
 
-	dpt_session_counters("start 0 count 1 "
+	dp_test_session_counters("start 0 count 1 "
 			     "src-addr 192.0.2.103 src-port 10000 "
 			     "dst-addr 203.0.113.203 dst-port 60000 "
 			     "proto 17 dir out intf dpT21",
@@ -1308,7 +1308,7 @@ DP_START_TEST(ssync1, test19)
 	bytes_out = 0;
 	uint32_t sess_id2 = 0;
 
-	dpt_session_counters("start 0 count 1 "
+	dp_test_session_counters("start 0 count 1 "
 			     "src-addr 192.0.2.103 src-port 10000 "
 			     "dst-addr 203.0.113.203 dst-port 60000 "
 			     "proto 17 dir out intf dpT21",
@@ -1334,7 +1334,7 @@ DP_START_TEST(ssync1, test19)
 	 * Check packet has used the restored session
 	 */
 	pkts_in = 0, pkts_out = 0, bytes_in = 0, bytes_out = 0;
-	dpt_session_counters("start 0 count 1 "
+	dp_test_session_counters("start 0 count 1 "
 			     "src-addr 192.0.2.103 src-port 10000 "
 			     "dst-addr 203.0.113.203 dst-port 60000 "
 			     "proto 17 dir out intf dpT21",
@@ -1483,7 +1483,7 @@ DP_START_TEST(ssync2, test20)
 	/*
 	 * Check sessions exists, and packet counts are as expected
 	 */
-	dpt_session_counters("start 0 count 1 "
+	dp_test_session_counters("start 0 count 1 "
 			     "src-addr 1.1.1.11 src-port 1000 "
 			     "dst-addr 2.2.2.11 dst-port 80 "
 			     "proto 6 dir out intf dpT21",
@@ -1583,7 +1583,7 @@ DP_START_TEST(ssync2, test20)
 	bytes_out = 0;
 	uint32_t sess_id2 = 0;
 
-	dpt_session_counters("start 0 count 1 "
+	dp_test_session_counters("start 0 count 1 "
 			     "src-addr 1.1.1.11 src-port 1000 "
 			     "dst-addr 2.2.2.11 dst-port 80 "
 			     "proto 6 dir out intf dpT21",
