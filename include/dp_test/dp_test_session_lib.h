@@ -106,6 +106,47 @@ bool _dp_test_session_verify(char *desc,
 				    __FILE__, __LINE__)
 
 /*
+ * Verify the presence/absence of an npf session. the counts must match as
+ * well as the values identifying the session.  Poll for a matching session
+ * for the standard poll delay and record a test failure if not found.
+ *
+ * @param desc       [in] Optional text to be prepended to any error message
+ * @param saddr      [in] Source address string
+ * @param src_id     [in] Source ID in host order (TCP port, ICMP id)
+ * @param daddr      [in] Dest address string
+ * @param dst_id     [in] Dest ID in host order (TCP port, ICMP id)
+ * @param proto      [in] IP protocol
+ * @param intf       [in] Interface string, e.g. "dp2T1"
+ * @param exp_flags  [in] Expected flags, e.g. SE_ACTIVE | SE_PASS
+ * @param flags_mask [in] Flags mask, e.g. SE_FLAGS_MASK
+ * @param pkts_in    [in] expected count, as an int due to json limitations
+ * @param bytes_in   [in] expected count, as an int due to json limitations
+ * @param pkts_out   [in] expected count, as an int due to json limitations
+ * @param bytes_out  [in] expected count, as an int due to json limitations
+ *
+ * @return true if found
+ */
+void _dp_test_session_verify_count(char *desc,
+				       const char *saddr, uint16_t src_id,
+				       const char *daddr, uint16_t dst_id,
+				       uint8_t proto,
+				       const char *intf,
+				       uint32_t exp_flags, uint32_t flags_mask,
+				       int pkts_in, int bytes_in,
+				       int pkts_out, int bytes_out,
+				       const char *file, int line);
+
+#define dp_test_session_verify_count(desc, saddr, src_id, daddr, dst_id, \
+					 proto, intf, flgs, msk,	\
+					 pkts_in, bytes_in, pkts_out,	\
+					 bytes_out)			\
+	_dp_test_session_verify_count(desc, saddr, src_id, daddr, dst_id, \
+					  proto, intf, flgs, msk,	\
+					  pkts_in, bytes_in, pkts_out,	\
+					  bytes_out,			\
+					  __FILE__, __LINE__)
+
+/*
  * Verify the global session count
  */
 void
@@ -115,6 +156,17 @@ _dp_test_session_count_verify(uint exp_count, bool warn,
 #define dp_test_session_count_verify(count)				\
 	_dp_test_session_count_verify(count, SC_FAIL,		\
 					  __FILE__, __func__, __LINE__)
+
+/*
+ * Verify the global UDP session count
+ */
+void
+_dp_test_session_udp_count_verify(uint exp_count, bool warn,
+				  const char *file, int line);
+
+#define dp_test_session_udp_count_verify(count)				\
+	_dp_test_session_udp_count_verify(count, SC_FAIL,		\
+					  __FILE__, __LINE__)
 
 /*
  * Return counters for one session.  Session filter should be fully specified,
