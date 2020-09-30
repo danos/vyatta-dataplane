@@ -67,6 +67,14 @@ char *pktmbuf_append_alloc(struct rte_mbuf *m, uint16_t len)
 
 	__rte_mbuf_sanity_check(m, 1);
 
+	if (likely(m->nb_segs == 1 &&
+		   len < rte_pktmbuf_tailroom(m))) {
+		tail = (char *)m->buf_addr + m->data_off + m->data_len;
+		m->data_len = (uint16_t)(m->data_len + len);
+		m->pkt_len  = (m->pkt_len + len);
+		return (char *)tail;
+	}
+
 	tail = rte_pktmbuf_append(m, len);
 	if (tail)
 		return tail;
