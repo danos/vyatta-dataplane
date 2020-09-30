@@ -211,8 +211,7 @@ uint16_t esp_payload_padded_len(const struct crypto_overhead *overhead,
  * highest_received >= S > (highest_received - replay_window_size)
  *
  */
-int esp_replay_check(const uint8_t *esp,
-		     const struct sadb_sa *sa)
+int esp_replay_check(const uint8_t *esp, const struct sadb_sa *sa)
 {
 	const uint32_t replay_window = sa->replay_window;
 	const uint32_t pkt_seq = ntohl(*(const uint32_t *)(esp+4));
@@ -257,8 +256,7 @@ err:
  * bitmask is cleared, and a single bit set to indicate that we've
  * started afresh.
  */
-void esp_replay_advance(const uint8_t *esp,
-			struct sadb_sa *sa)
+void esp_replay_advance(const uint8_t *esp, struct sadb_sa *sa)
 {
 	const uint32_t replay_window = sa->replay_window;
 	uint32_t delta;
@@ -610,7 +608,7 @@ int esp_generate_chain(struct sadb_sa *sa,
 	return chain.icv_callback(&chain, mbuf);
 }
 
-static unsigned int
+static inline unsigned int
 esp_input_tunl_fixup4(struct sadb_sa *sa,
 		      void *l3, void *new_l3)
 {
@@ -631,7 +629,7 @@ esp_input_tunl_fixup4(struct sadb_sa *sa,
 	return ntohs(new_ip->tot_len);
 }
 
-static unsigned int
+static inline unsigned int
 esp_input_tunl_fixup6(struct sadb_sa *sa, void *l3, void *new_l3)
 {
 	struct ip6_hdr *new_ip6 = new_l3;
@@ -651,8 +649,9 @@ esp_input_tunl_fixup6(struct sadb_sa *sa, void *l3, void *new_l3)
 	return ntohs(new_ip6->ip6_plen) + sizeof(struct ip6_hdr);
 }
 
-static void esp_input_tran_fixup4(void *new_l3, unsigned int new_total,
-				  char next_hdr, unsigned int prev_off __unused)
+static inline
+void esp_input_tran_fixup4(void *new_l3, unsigned int new_total,
+			   char next_hdr, unsigned int prev_off __unused)
 {
 	struct iphdr *ip = new_l3;
 
@@ -662,8 +661,9 @@ static void esp_input_tran_fixup4(void *new_l3, unsigned int new_total,
 	ip->check = dp_in_cksum_hdr(ip);
 }
 
-static void esp_input_tran_fixup6(void *new_l3, unsigned int new_total,
-				  char next_hdr, unsigned int prev_off)
+static inline
+void esp_input_tran_fixup6(void *new_l3, unsigned int new_total,
+			   char next_hdr, unsigned int prev_off)
 {
 	struct ip6_hdr *ip6 = new_l3;
 	unsigned char *p_proto;
@@ -713,7 +713,8 @@ static void esp_input_nat_l4cksum_fixup(int family, struct rte_mbuf *m)
 	}
 }
 
-static int esp_input_pre_decrypt(struct crypto_pkt_ctx *pkt_info)
+static inline uint16_t
+esp_input_pre_decrypt(struct crypto_pkt_ctx *ctx_arr[], uint16_t count)
 {
 	int head_trim  = 0;
 	unsigned int esp_len, ciphertext_len;
@@ -722,92 +723,114 @@ static int esp_input_pre_decrypt(struct crypto_pkt_ctx *pkt_info)
 	unsigned char *iv = NULL, *esp = NULL;
 	unsigned int seg_data_remaining;
 	uint16_t prev_off = 0;
-	int family = pkt_info->family;
-	struct rte_mbuf *m = pkt_info->mbuf;
-	struct sadb_sa *sa = pkt_info->sa;
+	struct crypto_pkt_ctx *ctx;
+	uint16_t i;
+	int family;
+	struct rte_mbuf *m;
+	struct sadb_sa *sa;
+	uint16_t bad_idx[count], bad_cnt = 0;
 
-	if (!sa) {
-		ESP_ERR("No SA for the inbound packet\n");
-		return -1;
-	}
+	for (i = 0; i < count; i++) {
+		ctx = ctx_arr[i];
+		family = ctx->family;
+		m = ctx->mbuf;
+		sa = ctx->sa;
 
-	if (family == AF_INET) {
-		struct iphdr *ip = iphdr(m);
-
-		if (ip_is_fragment(ip)) {
-			ESP_ERR("IP Frag\n");
-			return -1;
+		if (unlikely(!sa)) {
+			ESP_ERR("No SA for the inbound packet\n");
+			ctx->status = -1;
+			bad_idx[bad_cnt++] = i;
+			continue;
 		}
 
-		pkt_info->l3hdr = ip;
-		base_len = ntohs(ip->tot_len);
-		iphlen = ip->ihl << 2;
-	} else {
-		struct ip6_hdr *ip6 = ip6hdr(m);
+		if (family == AF_INET) {
+			struct iphdr *ip = iphdr(m);
 
-		pkt_info->l3hdr = ip6;
-		base_len = ntohs(ip6->ip6_plen) + sizeof(struct ip6_hdr);
-		iphlen = dp_pktmbuf_l3_len(m);
-		if (sa->mode == XFRM_MODE_TRANSPORT)
-			prev_off = ip6_findprevoff(m);
+			if (unlikely(ip_is_fragment(ip))) {
+				ESP_ERR("IP Frag\n");
+				ctx->status = -1;
+				bad_idx[bad_cnt++] = i;
+				continue;
+			}
+
+			ctx->l3hdr = ip;
+			base_len = ntohs(ip->tot_len);
+			iphlen = ip->ihl << 2;
+		} else {
+			struct ip6_hdr *ip6 = ip6hdr(m);
+
+			ctx->l3hdr = ip6;
+			base_len = ntohs(ip6->ip6_plen) +
+				sizeof(struct ip6_hdr);
+			iphlen = dp_pktmbuf_l3_len(m);
+			if (sa->mode == XFRM_MODE_TRANSPORT)
+				prev_off = ip6_findprevoff(m);
+		}
+
+		esp =  dp_pktmbuf_mtol4(m, unsigned char *);
+		esp += sa->udp_encap;
+
+		if (unlikely(sa->replay_window &&
+			     esp_replay_check(esp, sa) < 0)) {
+			crypto_sadb_seq_drop_inc(sa);
+			ctx->status = -1;
+			bad_idx[bad_cnt++] = i;
+			continue;
+		}
+
+		esp_len = esp_hdr_len(sa);
+
+		/*
+		 * Now much data is there left in the segment after the ip/udp
+		 * hdr. Assumption here is that esp hdr is in the first
+		 * segment.
+		 */
+		seg_data_remaining = rte_pktmbuf_data_len(m) -
+			(esp - rte_pktmbuf_mtod(m, unsigned char *));
+
+		if (seg_data_remaining < esp_len) {
+			ESP_ERR("ESP not in first buffer\n");
+			ctx->status = -1;
+			bad_idx[bad_cnt++] = i;
+			continue;
+		}
+
+		/* iv is after the SPI(4) and the SEQ(4) */
+		iv = esp + 8;
+
+		/* ESP length = SPI(4) + SEQ(4) + IV_LEN */
+		head_trim = esp_len + sa->udp_encap;
+		icv_len = esp_icv_len(sa);
+		ciphertext_len = base_len - iphlen - esp_len -
+			sa->udp_encap - icv_len;
+
+		if (ciphertext_len  % crypto_session_block_size(sa->session)) {
+			ESP_ERR("Invalid ctext len %d block_size %d",
+				ciphertext_len,
+				crypto_session_block_size(sa->session));
+			ctx->status = -1;
+			bad_idx[bad_cnt++] = i;
+			continue;
+		}
+
+		ctx->iphlen = iphlen;
+		ctx->base_len = base_len;
+		ctx->esp_len = esp_len;
+		ctx->ciphertext_len = ciphertext_len;
+		ctx->icv_len = icv_len;
+		ctx->prev_off = prev_off;
+		ctx->head_trim = head_trim;
+		ctx->esp = esp;
+		ctx->iv = iv;
 	}
 
-	esp =  dp_pktmbuf_mtol4(m, unsigned char *);
-	esp += sa->udp_encap;
+	move_bad_mbufs(ctx_arr, count, bad_idx, bad_cnt);
 
-	if (unlikely(sa->replay_window &&
-		     esp_replay_check(esp, sa) < 0)) {
-		crypto_sadb_seq_drop_inc(sa);
-		return -1;
-	}
-
-	esp_len = esp_hdr_len(sa);
-
-	/*
-	 * Now much data is there left in the segment after the ip/udp
-	 * hdr. Assumption here is that esp hdr is in the first
-	 * segment.
-	 */
-	seg_data_remaining = rte_pktmbuf_data_len(m) -
-		(esp - rte_pktmbuf_mtod(m, unsigned char *));
-
-	if (seg_data_remaining < esp_len) {
-		ESP_ERR("ESP not in first buffer\n");
-		return -1;
-	}
-
-	/* iv is after the SPI(4) and the SEQ(4) */
-	iv = esp + 8;
-
-	/* ESP length = SPI(4) + SEQ(4) + IV_LEN */
-	head_trim = esp_len + sa->udp_encap;
-	icv_len = esp_icv_len(sa);
-	ciphertext_len = base_len - iphlen - esp_len - sa->udp_encap - icv_len;
-
-	if (ciphertext_len  % crypto_session_block_size(sa->session)) {
-		ESP_ERR("Invalid ctext len %d block_size %d",
-			ciphertext_len,
-			crypto_session_block_size(sa->session));
-		return -1;
-	}
-
-	pkt_info->iphlen = iphlen;
-	pkt_info->base_len = base_len;
-	pkt_info->esp_len = esp_len;
-	pkt_info->ciphertext_len = ciphertext_len;
-	pkt_info->icv_len = icv_len;
-	pkt_info->prev_off = prev_off;
-	pkt_info->head_trim = head_trim;
-	pkt_info->esp = esp;
-	pkt_info->iv = iv;
-
-	return 0;
+	return count - bad_cnt;
 }
 
-static int esp_input_post_decrypt(int family, struct rte_mbuf *m,
-				  struct sadb_sa *sa,
-				  struct crypto_pkt_ctx *pkt_info,
-				  uint32_t *bytes, uint8_t *new_family)
+static inline uint16_t
+esp_input_post_decrypt(struct crypto_pkt_ctx *ctx_arr[], uint16_t count)
 {
 	unsigned int counter_modify = 0;
 	int rc = 0, tail_trim = 0;
@@ -820,111 +843,122 @@ static int esp_input_post_decrypt(int family, struct rte_mbuf *m,
 	unsigned int new_total;
 	char *new_l3_hdr;
 	uint8_t post_decrypt_family;
+	uint16_t i;
+	struct crypto_pkt_ctx *ctx;
+	struct rte_mbuf *m;
+	struct sadb_sa *sa;
+	uint16_t bad_idx[count], bad_cnt = 0;
 
-	esp_replay_advance(pkt_info->esp, sa);
+	for (i = 0; i < count; i++) {
+		ctx = ctx_arr[i];
+		m = ctx->mbuf;
+		sa = ctx->sa;
 
-	rc = buf_tail_trim(m, pkt_info->icv_len, rc);
-	rc = buf_tail_read_char(m, &next_hdr, rc);
-	rc = buf_tail_read_char(m, &padding_size, rc);
-	if (rc != 0) {
-		ESP_ERR("ESP tail trim failed\n");
-		return -1;
-	}
+		esp_replay_advance(ctx->esp, sa);
 
-	if (padding_size != 0)
-		buf_tail_trim(m, padding_size, rc);
-	/* Trim the tail of  next_hdr(1), padding_size(1),
-	 * icv and padding
-	 */
-	tail_trim = 2 + padding_size + pkt_info->icv_len;
-
-	/*
-	 * We know what the next hdr type is now, so set up based on that.
-	 * In case of transport mode, the next hdr doesn't matter the 'family'
-	 * itself tells us the address family of the payload.
-	 */
-	if (((sa->mode == XFRM_MODE_TRANSPORT) && (family == AF_INET)) ||
-	    (next_hdr == IPPROTO_IPIP)) {
-		ethertype = ETH_P_IP;
-		tran_fixup = esp_input_tran_fixup4;
-		tunl_fixup = esp_input_tunl_fixup4;
-		post_decrypt_family = AF_INET;
-	} else {
-		ethertype = ETH_P_IPV6;
-		tran_fixup = esp_input_tran_fixup6;
-		tunl_fixup = esp_input_tunl_fixup6;
-		post_decrypt_family = AF_INET6;
-	}
-
-	if (sa->mode == XFRM_MODE_TRANSPORT) {
-		new_l3_hdr = (char *)((char *)pkt_info->l3hdr +
-				      pkt_info->esp_len +
-				      sa->udp_encap);
-		memmove(new_l3_hdr, pkt_info->l3hdr, pkt_info->iphlen);
-		new_total = pkt_info->base_len - pkt_info->esp_len -
-			sa->udp_encap - tail_trim;
-		(*tran_fixup)(new_l3_hdr, new_total, next_hdr,
-			      pkt_info->prev_off);
-
-		counter_modify = pkt_info->iphlen;
-	} else if (sa->mode == XFRM_MODE_TUNNEL) {
-		if (next_hdr != IPPROTO_IPV6 &&
-		    next_hdr != IPPROTO_IPIP) {
-			ESP_PKT_ERR("IPSEC: Invalid next_hdr proto %d\n",
-				next_hdr);
-			return -1;
+		rc = buf_tail_trim(m, ctx->icv_len, rc);
+		rc = buf_tail_read_char(m, &next_hdr, rc);
+		rc = buf_tail_read_char(m, &padding_size, rc);
+		if (rc != 0) {
+			ESP_ERR("ESP tail trim failed\n");
+			ctx->status = -1;
+			bad_idx[bad_cnt++] = i;
+			continue;
 		}
 
-		pkt_info->head_trim += pkt_info->iphlen;
-		new_l3_hdr = (char *)(pkt_info->esp + pkt_info->esp_len);
-		new_total = (*tunl_fixup)(sa, pkt_info->l3hdr, new_l3_hdr);
-	} else {
-		ESP_ERR("IPSEC: Unsupported mode");
-		return -1;
+		if (padding_size != 0)
+			buf_tail_trim(m, padding_size, rc);
+
+		/* Trim the tail of  next_hdr(1), padding_size(1),
+		 * icv and padding
+		 */
+		tail_trim = 2 + padding_size + ctx->icv_len;
+
+		/*
+		 * We know what the next hdr type is now, so set up based
+		 * on that. In case of transport mode, the next hdr doesn't
+		 * matter the 'family' itself tells us the address family of
+		 * the payload.
+		 */
+		if (((sa->mode == XFRM_MODE_TRANSPORT) &&
+		     (ctx->family == AF_INET)) ||
+		    (next_hdr == IPPROTO_IPIP)) {
+			ethertype = ETH_P_IP;
+			tran_fixup = esp_input_tran_fixup4;
+			tunl_fixup = esp_input_tunl_fixup4;
+			post_decrypt_family = AF_INET;
+		} else {
+			ethertype = ETH_P_IPV6;
+			tran_fixup = esp_input_tran_fixup6;
+			tunl_fixup = esp_input_tunl_fixup6;
+			post_decrypt_family = AF_INET6;
+		}
+
+		if (sa->mode == XFRM_MODE_TRANSPORT) {
+			new_l3_hdr = (char *)((char *)ctx->l3hdr +
+					      ctx->esp_len +
+					      sa->udp_encap);
+			memmove(new_l3_hdr, ctx->l3hdr, ctx->iphlen);
+			new_total = ctx->base_len - ctx->esp_len -
+				sa->udp_encap - tail_trim;
+			(*tran_fixup)(new_l3_hdr, new_total, next_hdr,
+				      ctx->prev_off);
+
+			counter_modify = ctx->iphlen;
+		} else if (sa->mode == XFRM_MODE_TUNNEL) {
+			if (next_hdr != IPPROTO_IPV6 &&
+			    next_hdr != IPPROTO_IPIP) {
+				ESP_PKT_ERR("IPSEC: Invalid nxt_hdr proto %d\n",
+					    next_hdr);
+				ctx->status = -1;
+				bad_idx[bad_cnt++] = i;
+				continue;
+			}
+
+			ctx->head_trim += ctx->iphlen;
+			new_l3_hdr = (char *)(ctx->esp + ctx->esp_len);
+			new_total = (*tunl_fixup)(sa, ctx->l3hdr, new_l3_hdr);
+		} else {
+			ESP_ERR("IPSEC: Unsupported mode");
+			ctx->status = -1;
+			bad_idx[bad_cnt++] = i;
+			continue;
+		}
+
+		rc = iptun_eth_hdr_fixup(m, ethertype, ctx->head_trim);
+		if (rc < 0) {
+			ESP_ERR("Ethernet header fixup failed\n");
+			ctx->status = -1;
+			bad_idx[bad_cnt++] = i;
+			continue;
+		}
+
+		/*
+		 * RFC 3948: Section 3.1.2
+		 */
+		if (unlikely(sa->udp_encap && sa->mode == XFRM_MODE_TRANSPORT))
+			esp_input_nat_l4cksum_fixup(ctx->family, m);
+
+		/* Count the decapped payload against the receiving SA */
+		crypto_sadb_increment_counters(sa, new_total - counter_modify,
+					       1);
+		ctx->bytes = new_total - counter_modify;
+
+		ctx->family = post_decrypt_family;
 	}
 
-	rc = iptun_eth_hdr_fixup(m, ethertype, pkt_info->head_trim);
-	if (rc < 0) {
-		ESP_ERR("Ethernet header fixup failed\n");
-		return -1;
-	}
+	move_bad_mbufs(ctx_arr, count, bad_idx, bad_cnt);
 
-	/*
-	 * RFC 3948: Section 3.1.2
-	 */
-	if (unlikely(sa->udp_encap && sa->mode == XFRM_MODE_TRANSPORT))
-		esp_input_nat_l4cksum_fixup(family, m);
-
-	/* Count the decapped payload against the receiving SA */
-	crypto_sadb_increment_counters(sa, new_total - counter_modify, 1);
-	*bytes = new_total - counter_modify;
-
-	*new_family = post_decrypt_family;
-	return 0;
+	return count - bad_cnt;
 }
 
 void esp_input(struct crypto_pkt_ctx *ctx_arr[], uint16_t count)
 {
-	uint16_t i;
-	struct crypto_pkt_ctx *ctx;
+	count = esp_input_pre_decrypt(ctx_arr, count);
 
-	for (i = 0; i < count; i++) {
-		if (esp_input_pre_decrypt(ctx_arr[i]) != 0)
-			ctx_arr[i]->status = -1;
-	}
+	count = crypto_rte_xform_packets(ctx_arr, count);
 
-	crypto_rte_xform_packets(ctx_arr, count);
-
-	for (i = 0; i < count; i++) {
-		if (unlikely(ctx_arr[i]->status == -1))
-			continue;
-
-		ctx = ctx_arr[i];
-		if (esp_input_post_decrypt(ctx->family, ctx->mbuf,
-					   ctx->sa, ctx, &ctx->bytes,
-					   &ctx->family) != 0)
-			ctx_arr[i]->status = -1;
-	}
+	count = esp_input_post_decrypt(ctx_arr, count);
 }
 
 static inline unsigned int
