@@ -228,6 +228,7 @@ void fal_plugin_sw_ports_create(void)
 	fal_sw_port_0.port_id = args.dpdk_port_id;
 }
 
+__FOR_EXPORT
 __externally_visible
 bool fal_plugin_ut_enable_rx_framer(bool enabled)
 {
@@ -238,6 +239,7 @@ bool fal_plugin_ut_enable_rx_framer(bool enabled)
 				   plugin_framer_rcv);
 }
 
+__FOR_EXPORT
 int __externally_visible
 fal_plugin_add_ut_framer_hdr(const char *name, struct rte_mbuf *mbuf)
 {
@@ -267,6 +269,7 @@ fal_plugin_get_sw_port_info(struct fal_sw_port *fal_sw_port, uint16_t *proto,
 	return 0;
 }
 
+__FOR_EXPORT
 int __externally_visible
 fal_plugin_queue_rx_direct(const char *name, struct rte_mbuf *mbuf)
 {
@@ -283,6 +286,7 @@ fal_plugin_queue_rx_direct(const char *name, struct rte_mbuf *mbuf)
 	return sw_port_enqueue_rx_mbuf(fal_sw_port->sw_port, 0, &mbuf, 1);
 }
 
+__FOR_EXPORT
 int __externally_visible
 fal_plugin_backplane_from_sw_port(const char *name, uint16_t *dpdk_port)
 {

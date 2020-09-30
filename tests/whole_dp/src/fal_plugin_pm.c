@@ -7,6 +7,7 @@
 
 #include <fal_plugin.h>
 #include <rte_log.h>
+#include "compiler.h"
 
 #define LOG(l, t, ...)						\
 	rte_log(RTE_LOG_ ## l,					\
@@ -21,7 +22,7 @@
 #define INFO(...) LOG(INFO, FAL_TEST,  __VA_ARGS__)
 #define ERROR(...) LOG(ERR, FAL_TEST, __VA_ARGS__)
 
-
+__FOR_EXPORT
 int fal_plugin_mirror_session_create(uint32_t attr_count,
 			     const struct fal_attribute_t *attr_list,
 			     fal_object_t *mr_obj_id)
@@ -29,12 +30,16 @@ int fal_plugin_mirror_session_create(uint32_t attr_count,
 	INFO("To be implemented %s\n", __func__);
 	return 0;
 }
+
+__FOR_EXPORT
 int fal_plugin_mirror_session_delete(fal_object_t mr_obj_id)
 {
 
 	INFO("To be implemented %s\n", __func__);
 	return 0;
 }
+
+__FOR_EXPORT
 int fal_plugin_mirror_session_set_attr(fal_object_t mr_obj_id,
 				 const struct fal_attribute_t *attr)
 {
@@ -42,6 +47,7 @@ int fal_plugin_mirror_session_set_attr(fal_object_t mr_obj_id,
 	return 0;
 }
 
+__FOR_EXPORT
 int fal_plugin_mirror_session_get_attr(fal_object_t mr_obj_id,
 				       uint32_t attr_count,
 				       struct fal_attribute_t *attr_list)

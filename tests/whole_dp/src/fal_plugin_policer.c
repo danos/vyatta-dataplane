@@ -106,7 +106,7 @@ static const char *fal_policer_attr_to_str(enum fal_policer_attr_t val)
  *   RATE_VAL3
  *   delete
  */
-
+__FOR_EXPORT
 int fal_plugin_policer_create(uint32_t attr_count,
 			      const struct fal_attribute_t *attr_list,
 			      fal_object_t *obj)
@@ -177,6 +177,7 @@ int fal_plugin_policer_create(uint32_t attr_count,
 	return 0;
 }
 
+__FOR_EXPORT
 int fal_plugin_policer_delete(fal_object_t obj)
 {
 	struct fal_policer *policer = (struct fal_policer *)obj;
@@ -193,6 +194,7 @@ int fal_plugin_policer_delete(fal_object_t obj)
 	return 0;
 }
 
+__FOR_EXPORT
 int fal_plugin_policer_set_attr(fal_object_t obj,
 				const struct fal_attribute_t *attr)
 {
@@ -217,6 +219,7 @@ int fal_plugin_policer_set_attr(fal_object_t obj,
 	return 0;
 }
 
+__FOR_EXPORT
 int fal_plugin_policer_get_attr(fal_object_t obj,
 				uint32_t attr_count,
 				struct fal_attribute_t *attr_list)
@@ -259,6 +262,7 @@ int fal_plugin_policer_get_attr(fal_object_t obj,
 	return 0;
 }
 
+__FOR_EXPORT
 int fal_plugin_policer_get_stats_ext(fal_object_t obj,
 				     uint32_t num_counters,
 				     const enum fal_policer_stat_type *cntr_ids,

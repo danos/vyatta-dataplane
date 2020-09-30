@@ -729,12 +729,12 @@ fal_plugin_test_la_CPPFLAGS += -I$(srcdir)/tests/whole_dp/src $(SWPORT_CFLAGS)
 
 fal_plugin_test_la_CFLAGS = $(dataplane_CFLAGS) -fPIC -UNDEBUG -O0 -g $(CODE_COVERAGE_CFLAGS)
 fal_plugin_test_la_CFLAGS += -Wno-unused-parameter
+fal_plugin_test_la_CFLAGS += -fvisibility=hidden
 
 fal_plugin_test_la_LIBADD = $(CHECK_LIBS) $(JSON_C_LIBS) $(CODE_COVERAGE_LIBS)
 
 fal_plugin_test_la_LDFLAGS = $(EXTRA_LDFLAGS) $(SWPORT_LIBS)
 fal_plugin_test_la_LDFLAGS += -avoid-version -module -shared -export-dynamic
-fal_plugin_test_la_LDFLAGS += -export-symbols $(srcdir)/tests/whole_dp/src/fal_plugin_test.sym
 
 tests/whole_dp/dummyfs/run/dataplane/platform.conf:
 	mkdir -p `dirname $@`

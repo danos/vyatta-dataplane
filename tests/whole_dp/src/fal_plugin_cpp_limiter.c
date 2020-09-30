@@ -55,6 +55,7 @@ static void free_limiter(struct cpp_limiter_obj *limiter)
 	}
 }
 
+__FOR_EXPORT
 int fal_plugin_create_cpp_limiter(uint32_t attr_count,
 				  const struct fal_attribute_t *attr_list,
 				  fal_object_t *new_limiter_id)
@@ -138,6 +139,7 @@ error:
 	return ret;
 }
 
+__FOR_EXPORT
 int fal_plugin_remove_cpp_limiter(fal_object_t limiter_id)
 {
 	struct cpp_limiter_obj *limiter = (struct cpp_limiter_obj *)limiter_id;
@@ -169,6 +171,7 @@ static int get_policer_obj(struct cpp_limiter_obj *limiter,
 	return -ENOENT;
 }
 
+__FOR_EXPORT
 int fal_plugin_get_cpp_limiter_attribute(fal_object_t limiter_id,
 					 uint32_t attr_count,
 					 struct fal_attribute_t *attr_list)
@@ -262,6 +265,7 @@ static int fal_commit_cpp_limiter(fal_object_t limiter_id)
  * Note that the following function could be merged with any other test
  * versions of the function that are added.
  */
+__FOR_EXPORT
 int fal_plugin_set_switch_attribute(const struct fal_attribute_t *attr)
 {
 	int ret = 0;
@@ -280,6 +284,7 @@ int fal_plugin_set_switch_attribute(const struct fal_attribute_t *attr)
 	return ret;
 }
 
+__FOR_EXPORT
 int fal_plugin_get_switch_attribute(uint32_t attr_count,
 				    struct fal_attribute_t *attr_list)
 {
