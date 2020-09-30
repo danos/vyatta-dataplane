@@ -17,7 +17,6 @@
 	#define __unroll_loops
 	#define __hot_data __attribute__((section("hot")))
 	#define __unused __attribute__ ((unused))
-	#define __externally_visible
 	#define expect_hint(expr, c) __builtin_expect(expr, c)
 	#define __FOR_EXPORT __attribute__((visibility("default")))
 #else /* ! __clang__ */
@@ -31,7 +30,6 @@
 	#define __unroll_loops __attribute__((optimize("unroll-loops")))
 	#define __hot_data __attribute__((section("hot")))
 	#define __unused __attribute__ ((unused))
-	#define __externally_visible __attribute__ ((externally_visible))
 	#define expect_hint(expr, c) __builtin_expect(expr, c)
 	#define __FOR_EXPORT __attribute__((visibility("default")))
 # else /* ! __GNUC__ */
@@ -44,7 +42,6 @@
 	#define __unroll_loops
 	#define __hot_data
 	#define __unused
-	#define __externally_visible
 	#define expect_hint(expr, c) expr
 	#define __FOR_EXPORT
 # endif
