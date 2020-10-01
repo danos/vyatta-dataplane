@@ -136,7 +136,6 @@ drop:
 	return v4 ? IPV4_ACL_OUT_DROP : IPV6_ACL_OUT_DROP;
 }
 
-
 ALWAYS_INLINE unsigned int
 ipv4_acl_process_in(struct pl_packet *pkt, void *context __unused)
 {
@@ -157,6 +156,18 @@ ipv4_acl_process_out(struct pl_packet *pkt, void *context __unused)
 
 ALWAYS_INLINE unsigned int
 ipv6_acl_process_out(struct pl_packet *pkt, void *context __unused)
+{
+	return ip_acl_process_common(pkt, V6_PKT, PFIL_OUT);
+}
+
+ALWAYS_INLINE unsigned int
+ipv4_acl_process_out_spath(struct pl_packet *pkt, void *context __unused)
+{
+	return ip_acl_process_common(pkt, V4_PKT, PFIL_OUT);
+}
+
+ALWAYS_INLINE unsigned int
+ipv6_acl_process_out_spath(struct pl_packet *pkt, void *context __unused)
 {
 	return ip_acl_process_common(pkt, V6_PKT, PFIL_OUT);
 }
@@ -207,6 +218,28 @@ PL_REGISTER_NODE(ipv6_acl_out_node) = {
 	}
 };
 
+PL_REGISTER_NODE(ipv4_acl_out_spath_node) = {
+	.name = "vyatta:ipv4-acl-out-spath",
+	.type = PL_PROC,
+	.handler = ipv4_acl_process_out_spath,
+	.num_next = IPV4_ACL_OUT_SPATH_NUM,
+	.next = {
+		[IPV4_ACL_OUT_SPATH_ACCEPT] = "term-noop",
+		[IPV4_ACL_OUT_SPATH_DROP]   = "term-drop",
+	}
+};
+
+PL_REGISTER_NODE(ipv6_acl_out_spath_node) = {
+	.name = "vyatta:ipv6-acl-out-spath",
+	.type = PL_PROC,
+	.handler = ipv6_acl_process_out_spath,
+	.num_next = IPV6_ACL_OUT_SPATH_NUM,
+	.next = {
+		[IPV6_ACL_OUT_SPATH_ACCEPT] = "term-noop",
+		[IPV6_ACL_OUT_SPATH_DROP]   = "term-drop",
+	}
+};
+
 /* Register Features */
 PL_REGISTER_FEATURE(ipv4_acl_in_feat) = {
 	.name = "vyatta:ipv4-acl-in",
@@ -234,4 +267,18 @@ PL_REGISTER_FEATURE(ipv6_acl_out_feat) = {
 	.node_name = "ipv6-acl-out",
 	.feature_point = "ipv6-encap",
 	.id = PL_L3_V6_ENCAP_FUSED_FEAT_ACL,
+};
+
+PL_REGISTER_FEATURE(ipv4_acl_out_spath_feat) = {
+	.name = "vyatta:ipv4-acl-out-spath",
+	.node_name = "ipv4-acl-out-spath",
+	.feature_point = "ipv4-out-spath",
+	.id = PL_L3_V4_OUT_SPATH_FUSED_FEAT_ACL,
+};
+
+PL_REGISTER_FEATURE(ipv6_acl_out_spath_feat) = {
+	.name = "vyatta:ipv6-acl-out-spath",
+	.node_name = "ipv6-acl-out-spath",
+	.feature_point = "ipv6-out-spath",
+	.id = PL_L3_V6_OUT_SPATH_FUSED_FEAT_ACL,
 };

@@ -80,6 +80,18 @@ ipv6_fw_out_process(struct pl_packet *pkt, void *context __unused)
 }
 
 ALWAYS_INLINE unsigned int
+ipv4_fw_out_spath_process(struct pl_packet *pkt, void *context __unused)
+{
+	return ip_fw_out_process_common(pkt, V4_PKT);
+}
+
+ALWAYS_INLINE unsigned int
+ipv6_fw_out_spath_process(struct pl_packet *pkt, void *context __unused)
+{
+	return ip_fw_out_process_common(pkt, V6_PKT);
+}
+
+ALWAYS_INLINE unsigned int
 ipv4_fw_orig_process(struct pl_packet *pkt, void *context __unused)
 {
 	if (pkt->npf_flags & NPF_FLAG_FROM_US) {
@@ -132,8 +144,8 @@ PL_REGISTER_NODE(ipv4_fw_orig_node) = {
 	.handler = ipv4_fw_orig_process,
 	.num_next = IPV4_FW_ORIG_NUM,
 	.next = {
-		[IPV4_FW_ORIG_ACCEPT]       = "ipv4-fw-out",
-		[IPV4_FW_ORIG_DROP]         = "term-drop",
+		[IPV4_FW_ORIG_ACCEPT]   = "term-noop",
+		[IPV4_FW_ORIG_DROP]     = "term-drop",
 	}
 };
 
@@ -145,6 +157,28 @@ PL_REGISTER_NODE(ipv6_fw_orig_node) = {
 	.next = {
 		[IPV6_FW_ORIG_ACCEPT]       = "ipv6-fw-out",
 		[IPV6_FW_ORIG_DROP]         = "ipv6-drop",
+	}
+};
+
+PL_REGISTER_NODE(ipv4_fw_out_spath_node) = {
+	.name = "vyatta:ipv4-fw-out-spath",
+	.type = PL_PROC,
+	.handler = ipv4_fw_out_spath_process,
+	.num_next = IPV4_FW_OUT_SPATH_NUM,
+	.next = {
+		[IPV4_FW_OUT_SPATH_ACCEPT]  = "term-noop",
+		[IPV4_FW_OUT_SPATH_DROP]    = "term-drop",
+	}
+};
+
+PL_REGISTER_NODE(ipv6_fw_out_spath_node) = {
+	.name = "vyatta:ipv6-fw-out-spath",
+	.type = PL_PROC,
+	.handler = ipv6_fw_out_spath_process,
+	.num_next = IPV6_FW_OUT_SPATH_NUM,
+	.next = {
+		[IPV6_FW_OUT_SPATH_ACCEPT]  = "term-noop",
+		[IPV6_FW_OUT_SPATH_DROP]    = "term-drop",
 	}
 };
 
@@ -163,4 +197,32 @@ PL_REGISTER_FEATURE(ipv6_fw_out_feat) = {
 	.feature_point = "ipv6-out",
 	.id = PL_L3_V6_OUT_FUSED_FEAT_FW,
 	.visit_after = "vyatta:ipv6-defrag-out",
+};
+
+PL_REGISTER_FEATURE(ipv4_fw_orig_feat) = {
+	.name = "vyatta:ipv4-fw-orig",
+	.node_name = "ipv4-fw-orig",
+	.feature_point = "ipv4-out-spath",
+	.id = PL_L3_V4_OUT_FUSED_FEAT_FW_ORIG,
+};
+
+PL_REGISTER_FEATURE(ipv6_fw_orig_feat) = {
+	.name = "vyatta:ipv6-fw-orig",
+	.node_name = "ipv6-fw-orig",
+	.feature_point = "ipv6-out-spath",
+	.id = PL_L3_V6_OUT_FUSED_FEAT_FW_ORIG,
+};
+
+PL_REGISTER_FEATURE(ipv4_fw_out_spath_feat) = {
+	.name = "vyatta:ipv4-fw-out-spath",
+	.node_name = "ipv4-fw-out-spath",
+	.feature_point = "ipv4-out-spath",
+	.id = PL_L3_V4_OUT_SPATH_FUSED_FEAT_FW,
+};
+
+PL_REGISTER_FEATURE(ipv6_fw_out_spath_feat) = {
+	.name = "vyatta:ipv6-fw-out-spath",
+	.node_name = "ipv6-fw-out-spath",
+	.feature_point = "ipv6-out-spath",
+	.id = PL_L3_V6_OUT_SPATH_FUSED_FEAT_FW,
 };

@@ -387,6 +387,9 @@ struct ifnet {
 
 	/* Egress map object */
 	fal_object_t      egr_map_obj;
+
+	uint16_t          ip_out_spath_features;
+	uint16_t          ip6_out_spath_features;
 };
 
 static_assert(offsetof(struct ifnet, if_vlantbl) == 64,

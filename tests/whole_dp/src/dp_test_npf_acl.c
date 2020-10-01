@@ -45,6 +45,7 @@ static void acl_setup(void)
 
 	dp_test_netlink_add_neigh("dp1T0", "10.0.1.2", "aa:bb:cc:dd:1:a1");
 	dp_test_netlink_add_neigh("dp2T1", "20.0.2.2", "aa:bb:cc:dd:2:b1");
+	dp_test_netlink_add_neigh("dp2T1", "20.0.2.3", "aa:bb:cc:dd:2:b3");
 
 	/* Setup v6 interfaces and neighbours */
 	dp_test_nl_add_ip_addr_and_connected("dp1T0", "2001:1:1::1/64");
@@ -54,6 +55,8 @@ static void acl_setup(void)
 				  "aa:bb:cc:dd:1:a1");
 	dp_test_netlink_add_neigh("dp2T1", "2002:2:2::1",
 				  "aa:bb:cc:dd:2:b1");
+	dp_test_netlink_add_neigh("dp2T1", "2002:2:2::3",
+				  "aa:bb:cc:dd:2:b3");
 
 }
 
@@ -61,6 +64,7 @@ static void acl_teardown(void)
 {
 	dp_test_netlink_del_neigh("dp1T0", "10.0.1.2", "aa:bb:cc:dd:1:a1");
 	dp_test_netlink_del_neigh("dp2T1", "20.0.2.2", "aa:bb:cc:dd:2:b1");
+	dp_test_netlink_del_neigh("dp2T1", "20.0.2.3", "aa:bb:cc:dd:2:b3");
 
 	dp_test_nl_del_ip_addr_and_connected("dp1T0", "10.0.1.1/24");
 	dp_test_nl_del_ip_addr_and_connected("dp2T1", "20.0.2.1/24");
@@ -72,6 +76,8 @@ static void acl_teardown(void)
 				  "aa:bb:cc:dd:1:a1");
 	dp_test_netlink_del_neigh("dp2T1", "2002:2:2::1",
 				  "aa:bb:cc:dd:2:b1");
+	dp_test_netlink_del_neigh("dp2T1", "2002:2:2::3",
+				  "aa:bb:cc:dd:2:b3");
 
 }
 
@@ -124,23 +130,48 @@ static void _dpt_icmp6(uint8_t icmp_type, const char *rx_intf,
 		   __FILE__, __func__, __LINE__)
 
 /*
- * acl1 - v4 drop acl
+ * acl1 - IPv4 acl on input
  */
 DP_DECL_TEST_CASE(npf_acl, acl1, acl_setup, acl_teardown);
 DP_START_TEST(acl1, test)
 {
-	/* set security ip-packet-filter group v4test ip-version ipv4 */
 	dp_test_npf_cmd("npf-ut add acl:v4test 0 family=inet", false);
 
-	/* set security ip-packet-filter group v4test rule 10 action drop */
-	dp_test_npf_cmd("npf-ut add acl:v4test 10 action=drop", false);
+	/* Drop ICMP */
+	dp_test_npf_cmd("npf-ut add acl:v4test 10 "
+			"src-addr=10.0.1.2 "
+			"dst-addr=20.0.2.2 "
+			"proto-base=1 "
+			"action=drop", false);
 
-	/* set security ip-packet-filter interface dp0p1s1 in v4test */
+	/* Drop UDP */
+	dp_test_npf_cmd("npf-ut add acl:v4test 20 "
+			"src-addr=10.0.1.2 src-port=10000 "
+			"dst-addr=20.0.2.2 dst-port=20000 "
+			"proto-base=17 "
+			"action=drop", false);
+
+	/* Drop TCP */
+	dp_test_npf_cmd("npf-ut add acl:v4test 30 "
+			"src-addr=10.0.1.2 src-port=32878 "
+			"dst-addr=20.0.2.2 dst-port=80 "
+			"proto-base=6 "
+			"action=drop", false);
+
 	dp_test_npf_cmd("npf-ut attach interface:dpT10 acl-in acl:v4test",
 			false);
 
 	dp_test_npf_cmd("npf-ut commit", false);
 
+	/* ICMP, no acl match */
+	dpt_icmp(ICMP_ECHO,
+		 "dp1T0", "aa:bb:cc:dd:1:a1",
+		 "10.0.1.3", 1234, "20.0.2.2",
+		 "10.0.1.3", 1234, "20.0.2.2",
+		 "aa:bb:cc:dd:2:b1", "dp2T1",
+		 DP_TEST_FWD_FORWARDED);
+
+	/* ICMP, acl match */
 	dpt_icmp(ICMP_ECHO,
 		 "dp1T0", "aa:bb:cc:dd:1:a1",
 		 "10.0.1.2", 10000, "20.0.2.2",
@@ -148,11 +179,40 @@ DP_START_TEST(acl1, test)
 		 "aa:bb:cc:dd:2:b1", "dp2T1",
 		 DP_TEST_FWD_DROPPED);
 
+	/* ICMP6 */
 	dpt_icmp6(ICMP6_ECHO_REQUEST,
 		  "dp1T0", "aa:bb:cc:dd:1:a1",
 		  "2001:1:1::2", 10000, "2002:2:2::1",
 		  "aa:bb:cc:dd:2:b1", "dp2T1",
 		  DP_TEST_FWD_FORWARDED);
+
+	/* UDP, no acl match */
+	dpt_udp("dp1T0", "aa:bb:cc:dd:1:a1",
+		 "10.0.1.2", 10000, "20.0.2.3", 30000,
+		 "10.0.1.2", 10000, "20.0.2.3", 30000,
+		 "aa:bb:cc:dd:2:b3", "dp2T1",
+		 DP_TEST_FWD_FORWARDED);
+
+	/* UDP, acl match */
+	dpt_udp("dp1T0", "aa:bb:cc:dd:1:a1",
+		 "10.0.1.2", 10000, "20.0.2.2", 20000,
+		 "10.0.1.2", 10000, "20.0.2.2", 20000,
+		 "aa:bb:cc:dd:2:b1", "dp2T1",
+		 DP_TEST_FWD_DROPPED);
+
+	/* TCP, no acl match */
+	dpt_tcp(TH_SYN, "dp1T0", "aa:bb:cc:dd:1:a1",
+		"10.0.1.2", 32878, "20.0.2.2", 1024,
+		"10.0.1.2", 32878, "20.0.2.2", 1024,
+		"aa:bb:cc:dd:2:b1", "dp2T1",
+		DP_TEST_FWD_FORWARDED);
+
+	/* TCP, acl match */
+	dpt_tcp(TH_SYN, "dp1T0", "aa:bb:cc:dd:1:a1",
+		"10.0.1.2", 32878, "20.0.2.2", 80,
+		"10.0.1.2", 32878, "20.0.2.2", 80,
+		"aa:bb:cc:dd:2:b1", "dp2T1",
+		DP_TEST_FWD_DROPPED);
 
 	/*****************************************************************
 	 * Unconfig
@@ -165,18 +225,34 @@ DP_START_TEST(acl1, test)
 } DP_END_TEST;
 
 /*
- * acl2 - v6 drop acl
+ * acl2 - v6 drop acl on input
  */
 DP_DECL_TEST_CASE(npf_acl, acl2, acl_setup, acl_teardown);
 DP_START_TEST(acl2, test)
 {
-	/* set security ip-packet-filter group v6test ip-version ipv6 */
 	dp_test_npf_cmd("npf-ut add acl:v6test 0 family=inet6", false);
 
-	/* set security ip-packet-filter group v6test rule 10 action drop */
-	dp_test_npf_cmd("npf-ut add acl:v6test 10 action=drop", false);
+	/* Drop ICMP */
+	dp_test_npf_cmd("npf-ut add acl:v6test 10 "
+			"src-addr=2001:1:1::2 "
+			"dst-addr=2002:2:2::1 "
+			"proto-base=58 "
+			"action=drop", false);
 
-	/* set security ip-packet-filter interface dp0p1s1 in v6test */
+	/* Drop UDP */
+	dp_test_npf_cmd("npf-ut add acl:v6test 20 "
+			"src-addr=2001:1:1::2 "
+			"dst-addr=2002:2:2::1 "
+			"proto-base=17 "
+			"action=drop", false);
+
+	/* Drop TCP */
+	dp_test_npf_cmd("npf-ut add acl:v6test 30 "
+			"src-addr=2001:1:1::2 "
+			"dst-addr=2002:2:2::1 dst-port=80 "
+			"proto-base=6 "
+			"action=drop", false);
+
 	dp_test_npf_cmd("npf-ut attach interface:dpT10 acl-in acl:v6test",
 			false);
 
@@ -189,11 +265,47 @@ DP_START_TEST(acl2, test)
 		 "aa:bb:cc:dd:2:b1", "dp2T1",
 		 DP_TEST_FWD_FORWARDED);
 
+	/* ICMP, no acl match */
+	dpt_icmp6(ICMP6_ECHO_REQUEST,
+		  "dp1T0", "aa:bb:cc:dd:1:a1",
+		  "2001:1:1::3", 10000, "2002:2:2::1",
+		  "aa:bb:cc:dd:2:b1", "dp2T1",
+		  DP_TEST_FWD_FORWARDED);
+
+	/* ICMP, acl match */
 	dpt_icmp6(ICMP6_ECHO_REQUEST,
 		  "dp1T0", "aa:bb:cc:dd:1:a1",
 		  "2001:1:1::2", 10000, "2002:2:2::1",
 		  "aa:bb:cc:dd:2:b1", "dp2T1",
 		  DP_TEST_FWD_DROPPED);
+
+	/* UDP, no acl match */
+	dpt_udp("dp1T0", "aa:bb:cc:dd:1:a1",
+		"2001:1:1::3", 4321, "2002:2:2::1", 1024,
+		"2001:1:1::3", 4321, "2002:2:2::1", 1024,
+		"aa:bb:cc:dd:2:b1", "dp2T1",
+		DP_TEST_FWD_FORWARDED);
+
+	/* UDP, acl match */
+	dpt_udp("dp1T0", "aa:bb:cc:dd:1:a1",
+		"2001:1:1::2", 1234, "2002:2:2::1", 1024,
+		"2001:1:1::2", 1234, "2002:2:2::1", 1024,
+		"aa:bb:cc:dd:2:b1", "dp2T1",
+		DP_TEST_FWD_DROPPED);
+
+	/* TCP, no acl match */
+	dpt_tcp(TH_SYN, "dp1T0", "aa:bb:cc:dd:1:a1",
+		"2001:1:1::3", 30123, "2002:2:2::1", 80,
+		"2001:1:1::3", 30123, "2002:2:2::1", 80,
+		"aa:bb:cc:dd:2:b1", "dp2T1",
+		DP_TEST_FWD_FORWARDED);
+
+	/* TCP, acl match */
+	dpt_tcp(TH_SYN, "dp1T0", "aa:bb:cc:dd:1:a1",
+		"2001:1:1::2", 2121, "2002:2:2::1", 80,
+		"2001:1:1::2", 2121, "2002:2:2::1", 80,
+		"aa:bb:cc:dd:2:b1", "dp2T1",
+		DP_TEST_FWD_DROPPED);
 
 	/*****************************************************************
 	 * Unconfig
@@ -204,3 +316,274 @@ DP_START_TEST(acl2, test)
 	dp_test_npf_cmd("npf-ut commit", false);
 
 } DP_END_TEST;
+
+
+/*
+ * acl3 - IPv4 acl on output
+ */
+DP_DECL_TEST_CASE(npf_acl, acl3, acl_setup, acl_teardown);
+DP_START_TEST(acl3, test)
+{
+	dp_test_npf_cmd("npf-ut add acl:v4test 0 family=inet", false);
+
+	/* Drop UDP */
+	dp_test_npf_cmd("npf-ut add acl:v4test 20 "
+			"src-addr=10.0.1.2 "
+			"dst-addr=20.0.2.2 "
+			"proto-base=17 "
+			"action=drop", false);
+
+	dp_test_npf_cmd("npf-ut attach interface:dpT21 acl-out acl:v4test",
+			false);
+
+	dp_test_npf_cmd("npf-ut commit", false);
+
+	/* UDP, no acl match */
+	dpt_udp("dp1T0", "aa:bb:cc:dd:1:a1",
+		 "10.0.1.3", 10000, "20.0.2.2", 30000,
+		 "10.0.1.3", 10000, "20.0.2.2", 30000,
+		 "aa:bb:cc:dd:2:b1", "dp2T1",
+		 DP_TEST_FWD_FORWARDED);
+
+	/* UDP, acl match */
+	dpt_udp("dp1T0", "aa:bb:cc:dd:1:a1",
+		 "10.0.1.2", 10000, "20.0.2.2", 20000,
+		 "10.0.1.2", 10000, "20.0.2.2", 20000,
+		 "aa:bb:cc:dd:2:b1", "dp2T1",
+		 DP_TEST_FWD_DROPPED);
+
+	/*****************************************************************
+	 * Unconfig
+	 */
+	dp_test_npf_cmd("npf-ut detach interface:dpT21 acl-out acl:v4test",
+			false);
+	dp_test_npf_cmd("npf-ut delete acl:v4test", false);
+	dp_test_npf_cmd("npf-ut commit", false);
+
+} DP_END_TEST;
+
+/*
+ * acl4 - v6 drop acl on output
+ */
+DP_DECL_TEST_CASE(npf_acl, acl4, acl_setup, acl_teardown);
+DP_START_TEST(acl4, test)
+{
+	dp_test_npf_cmd("npf-ut add acl:v6test 0 family=inet6", false);
+
+	/* Drop TCP */
+	dp_test_npf_cmd("npf-ut add acl:v6test 30 "
+			"src-addr=2001:1:1::2 "
+			"dst-addr=2002:2:2::1 dst-port=80 "
+			"proto-base=6 "
+			"action=drop", false);
+
+	dp_test_npf_cmd("npf-ut attach interface:dpT21 acl-out acl:v6test",
+			false);
+
+	dp_test_npf_cmd("npf-ut commit", false);
+
+	/* TCP, no acl match */
+	dpt_tcp(TH_SYN, "dp1T0", "aa:bb:cc:dd:1:a1",
+		"2001:1:1::3", 30123, "2002:2:2::1", 80,
+		"2001:1:1::3", 30123, "2002:2:2::1", 80,
+		"aa:bb:cc:dd:2:b1", "dp2T1",
+		DP_TEST_FWD_FORWARDED);
+
+	/* TCP, acl match */
+	dpt_tcp(TH_SYN, "dp1T0", "aa:bb:cc:dd:1:a1",
+		"2001:1:1::2", 2121, "2002:2:2::1", 80,
+		"2001:1:1::2", 2121, "2002:2:2::1", 80,
+		"aa:bb:cc:dd:2:b1", "dp2T1",
+		DP_TEST_FWD_DROPPED);
+
+	/*****************************************************************
+	 * Unconfig
+	 */
+	dp_test_npf_cmd("npf-ut detach interface:dpT21 acl-out acl:v6test",
+			false);
+	dp_test_npf_cmd("npf-ut delete acl:v6test", false);
+	dp_test_npf_cmd("npf-ut commit", false);
+
+} DP_END_TEST;
+
+/*
+ *
+ */
+static void dpt_gre_spath(const char *gre_name,
+			  const char *gre_local, const char *gre_remote,
+			  const char *tx_intf, const char *nh_mac_str,
+			  int status)
+{
+	struct dp_test_expected *exp;
+	struct rte_mbuf *test_pak, *payload_pak;
+	int len = 64;
+	int gre_pl_len;
+	void *gre_payload;
+
+	payload_pak = dp_test_create_ipv4_pak("10.73.0.0", "10.73.2.0",
+					   1, &len);
+	dp_test_pktmbuf_eth_init(payload_pak, nh_mac_str,
+				 dp_test_intf_name2mac_str(tx_intf),
+				 RTE_ETHER_TYPE_IPV4);
+
+	gre_pl_len = rte_pktmbuf_data_len(payload_pak);
+
+	test_pak = dp_test_create_gre_ipv4_pak(
+		gre_local, gre_remote, 1, &gre_pl_len, ETH_P_TEB, 0, 0,
+		&gre_payload);
+	memcpy(gre_payload, rte_pktmbuf_mtod(payload_pak,
+				const struct rte_ether_hdr *), gre_pl_len);
+	dp_test_set_pak_ip_field(iphdr(test_pak), DP_TEST_SET_DF, 1);
+	dp_test_pktmbuf_eth_init(test_pak,
+				 nh_mac_str,
+				 dp_test_intf_name2mac_str(tx_intf),
+				 RTE_ETHER_TYPE_IPV4);
+
+	exp = dp_test_exp_create(test_pak);
+	rte_pktmbuf_free(test_pak);
+	dp_test_exp_set_oif_name(exp, tx_intf);
+	dp_test_exp_set_fwd_status(exp, status);
+	dp_test_send_spath_pkt(payload_pak, gre_name, exp);
+}
+
+/*
+ * acl5. Tests ACL egress on the ip_lookup_and_originate output path using a
+ * GRE tunneled pkt.
+ */
+DP_DECL_TEST_CASE(npf_acl, acl5, NULL, NULL);
+DP_START_TEST(acl5, test)
+{
+	const char *nh_mac_str2, *nh_mac_str3;
+
+	dp_test_npf_cmd("npf-ut add acl:v4test 0 family=inet", false);
+	dp_test_npf_cmd("npf-ut add acl:v4test 10 "
+			"dst-addr=1.1.2.3 action=drop", false);
+	dp_test_npf_cmd("npf-ut attach interface:dpT11 acl-out acl:v4test",
+			false);
+	dp_test_npf_cmd("npf-ut commit", false);
+
+	nh_mac_str2 = "aa:bb:cc:dd:ee:f2";
+	nh_mac_str3 = "aa:bb:cc:dd:ee:f3";
+
+	dp_test_nl_add_ip_addr_and_connected("dp1T1", "1.1.2.1/24");
+	dp_test_netlink_add_neigh("dp1T1", "1.1.2.2", nh_mac_str2);
+	dp_test_netlink_add_neigh("dp1T1", "1.1.2.3", nh_mac_str3);
+
+	/*
+	 * No acl match
+	 */
+	dp_test_intf_gre_l2_create("tun1", "1.1.2.1", "1.1.2.2", 0);
+	dpt_gre_spath("tun1", "1.1.2.1", "1.1.2.2", "dp1T1", nh_mac_str2,
+		      DP_TEST_FWD_FORWARDED);
+	dp_test_intf_gre_l2_delete("tun1", "1.1.2.1", "1.1.2.2", 0);
+
+	/*
+	 * acl match
+	 */
+	dp_test_intf_gre_l2_create("tun2", "1.1.2.1", "1.1.2.3", 0);
+	dpt_gre_spath("tun2", "1.1.2.1", "1.1.2.3", "dp1T1", nh_mac_str3,
+		      DP_TEST_FWD_DROPPED);
+	dp_test_intf_gre_l2_delete("tun2", "1.1.2.1", "1.1.2.3", 0);
+
+
+	/*
+	 * Clean up
+	 */
+	dp_test_npf_cmd("npf-ut detach interface:dpT11 acl-out acl:v4test",
+			false);
+	dp_test_npf_cmd("npf-ut delete acl:v4test", false);
+	dp_test_npf_cmd("npf-ut commit", false);
+
+	dp_test_netlink_del_neigh("dp1T1", "1.1.2.2", nh_mac_str2);
+	dp_test_netlink_del_neigh("dp1T1", "1.1.2.3", nh_mac_str3);
+	dp_test_nl_del_ip_addr_and_connected("dp1T1", "1.1.2.1/24");
+
+} DP_END_TEST;
+
+/*
+ * acl6.  Tests ACL egress on IPv4 spath output
+ */
+DP_DECL_TEST_CASE(npf_acl, acl6, acl_setup, acl_teardown);
+DP_START_TEST(acl6, test)
+{
+	dp_test_npf_cmd("npf-ut add acl:v4test 0 family=inet", false);
+
+	/* Drop UDP */
+	dp_test_npf_cmd("npf-ut add acl:v4test 20 "
+			"dst-addr=20.0.2.2 "
+			"proto-base=17 "
+			"action=drop", false);
+
+	dp_test_npf_cmd("npf-ut attach interface:dpT21 acl-out acl:v4test",
+			false);
+
+	dp_test_npf_cmd("npf-ut commit", false);
+
+	/* UDP, no acl match */
+	dpt_udp(NULL, "aa:bb:cc:dd:1:a1",
+		 "20.0.2.1", 10000, "20.0.2.3", 30000,
+		 "20.0.2.1", 10000, "20.0.2.3", 30000,
+		 "aa:bb:cc:dd:2:b3", "dp2T1",
+		 DP_TEST_FWD_FORWARDED);
+
+	/* UDP, acl match */
+	dpt_udp(NULL, "aa:bb:cc:dd:1:a1",
+		 "20.0.2.1", 10000, "20.0.2.2", 20000,
+		 "20.0.2.1", 10000, "20.0.2.2", 20000,
+		 "aa:bb:cc:dd:2:b1", "dp2T1",
+		 DP_TEST_FWD_DROPPED);
+
+	/*****************************************************************
+	 * Unconfig
+	 */
+	dp_test_npf_cmd("npf-ut detach interface:dpT21 acl-out acl:v4test",
+			false);
+	dp_test_npf_cmd("npf-ut delete acl:v4test", false);
+	dp_test_npf_cmd("npf-ut commit", false);
+
+} DP_END_TEST;
+
+/*
+ * acl7.  Tests ACL egress on IPv6 spath output
+ */
+DP_DECL_TEST_CASE(npf_acl, acl7, acl_setup, acl_teardown);
+DP_START_TEST(acl7, test)
+{
+
+	dp_test_npf_cmd("npf-ut add acl:v6test 0 family=inet6", false);
+
+	/* Drop UDP */
+	dp_test_npf_cmd("npf-ut add acl:v6test 30 "
+			"dst-addr=2002:2:2::1 "
+			"proto-base=17 "
+			"action=drop", false);
+
+	dp_test_npf_cmd("npf-ut attach interface:dpT21 acl-out acl:v6test",
+			false);
+
+	dp_test_npf_cmd("npf-ut commit", false);
+
+	/* UDP, no acl match */
+	dpt_udp(NULL, "aa:bb:cc:dd:1:a1",
+		"2002:2:2::2", 4321, "2002:2:2::3", 1024,
+		"2002:2:2::2", 4321, "2002:2:2::3", 1024,
+		"aa:bb:cc:dd:2:b1", "dp2T1",
+		DP_TEST_FWD_FORWARDED);
+
+	/* UDP, acl match */
+	dpt_udp(NULL, "aa:bb:cc:dd:1:a1",
+		"2002:2:2::2", 1234, "2002:2:2::1", 1024,
+		"2002:2:2::2", 1234, "2002:2:2::1", 1024,
+		"aa:bb:cc:dd:2:b1", "dp2T1",
+		DP_TEST_FWD_DROPPED);
+
+	/*****************************************************************
+	 * Unconfig
+	 */
+	dp_test_npf_cmd("npf-ut detach interface:dpT21 acl-out acl:v6test",
+			false);
+	dp_test_npf_cmd("npf-ut delete acl:v6test", false);
+	dp_test_npf_cmd("npf-ut commit", false);
+
+} DP_END_TEST;
+

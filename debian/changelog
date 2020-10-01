@@ -1,3 +1,10 @@
+vyatta-dataplane (3.11.35) unstable; urgency=medium
+
+  * Revert "dp_test: remove undefined functions from headers"
+  * Revert "ut: remove unused code in dp_test_npf_sess_lib"
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Tue, 29 Sep 2020 11:28:22 +0100
+
 vyatta-dataplane (3.11.34) unstable; urgency=medium
 
   [ Nicholas Brown ]

@@ -109,7 +109,7 @@ PL_REGISTER_NODE(ipv4_defrag_out_spath_node) = {
 	.handler = ipv4_defrag_out_spath_process,
 	.num_next = IPV4_DEFRAG_OUT_SPATH_NUM,
 	.next = {
-		[IPV4_DEFRAG_OUT_SPATH_ACCEPT] = "ipv4-fw-orig",
+		[IPV4_DEFRAG_OUT_SPATH_ACCEPT] = "term-noop",
 		[IPV4_DEFRAG_OUT_SPATH_FINISH] = "term-finish"
 	}
 };
@@ -127,4 +127,11 @@ PL_REGISTER_FEATURE(ipv4_defrag_out_feat) = {
 	.node_name = "ipv4-defrag-out",
 	.feature_point = "ipv4-out",
 	.id = PL_L3_V4_OUT_FUSED_FEAT_DEFRAG,
+};
+
+PL_REGISTER_FEATURE(ipv4_defrag_out_spath_feat) = {
+	.name = "vyatta:ipv4-defrag-out-spath",
+	.node_name = "ipv4-defrag-out-spath",
+	.feature_point = "ipv4-out-spath",
+	.id = PL_L3_V4_OUT_SPATH_FUSED_FEAT_DEFRAG,
 };
