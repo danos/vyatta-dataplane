@@ -741,11 +741,9 @@ tests/whole_dp/dummyfs/run/dataplane/platform.conf:
 	echo '[dataplane]' > $@
 	echo 'fal_plugin = .libs/fal_plugin_test.so' >> $@
 
-if WHOLE_DP_TEST
 pkglib_LTLIBRARIES = fal_plugin_test.la
 check_PROGRAMS = dataplane_test
 TESTS = $(dist_check_SCRIPTS)
-endif
 
 if WHOLE_DP_ALL_TESTS
 dataplane_test_CFLAGS += -DDP_TEST_FULL_RUN

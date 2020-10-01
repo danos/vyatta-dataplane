@@ -9,12 +9,6 @@ else
 	CONFIGURE_COVERAGE_FLAGS = ""
 endif
 
-ifneq (,$(filter no_extra_tests,$(DEB_BUILD_OPTIONS)))
-	WHOLE_DP_TEST="--disable-whole_dp_test"
-else
-	WHOLE_DP_TEST=""
-endif
-
 ifneq (,$(filter all_tests,$(DEB_BUILD_OPTIONS)))
 	WHOLE_DP_ALL_TESTS="--enable-whole_dp_all_tests"
 else
@@ -37,7 +31,6 @@ DATAPLANE_CONFIGURE_FLAGS= \
 	$(CONFIGURE_COVERAGE_FLAGS) \
 	$(WHOLE_DP_ALL_TESTS) \
 	$(DATAPLANE_SANITIZER) \
-	$(WHOLE_DP_TEST) \
 	$(DATAPLANE_LTO)
 
 # Don't override the optimisation flags as they differ for different
