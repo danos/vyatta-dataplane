@@ -587,3 +587,132 @@ DP_START_TEST(acl7, test)
 
 } DP_END_TEST;
 
+/*
+ * acl8 - IPv4 drop acl on output, fragmented packet
+ */
+DP_DECL_TEST_CASE(npf_acl, acl8, acl_setup, acl_teardown);
+DP_START_TEST(acl8, test)
+{
+	dp_test_npf_cmd("npf-ut add acl:v4test 0 family=inet", false);
+
+	/* Drop UDP */
+	dp_test_npf_cmd("npf-ut add acl:v4test 10 "
+			"fragment=y "
+			"src-addr=10.0.1.2 "
+			"dst-addr=20.0.2.2 "
+			"proto-base=17 "
+			"action=drop", false);
+
+	dp_test_npf_cmd("npf-ut attach interface:dpT21 acl-out acl:v4test",
+			false);
+
+	dp_test_npf_cmd("npf-ut commit", false);
+
+	struct dp_test_expected *exp;
+	struct rte_mbuf *test_pak;
+	int len = 800;
+
+	struct dp_test_pkt_desc_t pkt_UDP = {
+		.text       = "IPv4 UDP",
+		.len        = len,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
+		.l3_src     = "10.0.1.3",
+		.l2_src     = "aa:bb:cc:dd:1:a1",
+		.l3_dst     = "20.0.2.2",
+		.l2_dst     = "aa:bb:cc:dd:2:b1",
+		.proto      = IPPROTO_UDP,
+		.l4         = {
+			.udp = {
+				.sport = 10000,
+				.dport = 30000
+			}
+		},
+		.rx_intf    = "dp1T0",
+		.tx_intf    = "dp2T1"
+	};
+
+	/*
+	 * 1st fragmented packet.  Source address does not match drop ACL so
+	 * packet should be forwarded.
+	 *
+	 * First fragment is last in the array. Array indices to get an
+	 * in-order packet are: 2, 0, 1
+	 */
+	struct rte_mbuf *frag_pkts[3] =  { 0 };
+	uint16_t frag_sizes[3] = { 400, 400, 8 };
+	int rc;
+
+	pkt_UDP.l3_src = "10.0.1.3";
+	test_pak = dp_test_v4_pkt_from_desc(&pkt_UDP);
+
+	rc = dp_test_ipv4_fragment_packet(test_pak, frag_pkts,
+					  ARRAY_SIZE(frag_pkts),
+					  frag_sizes, 0);
+	rte_pktmbuf_free(test_pak);
+
+	dp_test_fail_unless(rc == ARRAY_SIZE(frag_pkts),
+			    "dp_test_ipv4_fragment_packet failed: %d", rc);
+
+	/* frag_pkts[2] */
+	exp = dp_test_exp_create_m(NULL, 1);
+	dp_test_exp_set_pak_m(exp, 0, frag_pkts[2]);
+	dp_test_exp_set_oif_name_m(exp, 0, "dp2T1");
+	dp_test_pak_receive(frag_pkts[2], "dp1T0", exp);
+
+	/* frag_pkts[0] */
+	exp = dp_test_exp_create_m(NULL, 1);
+	dp_test_exp_set_pak_m(exp, 0, frag_pkts[0]);
+	dp_test_exp_set_oif_name_m(exp, 0, "dp2T1");
+	dp_test_pak_receive(frag_pkts[0], "dp1T0", exp);
+
+	/* frag_pkts[1] */
+	exp = dp_test_exp_create_m(NULL, 1);
+	dp_test_exp_set_pak_m(exp, 0, frag_pkts[1]);
+	dp_test_exp_set_oif_name_m(exp, 0, "dp2T1");
+	dp_test_pak_receive(frag_pkts[1], "dp1T0", exp);
+
+	/*
+	 * 2nd fragmented packet.  Source address does match drop ACL so
+	 * packet should be dropped.
+	 */
+	pkt_UDP.l3_src = "10.0.1.2";
+	test_pak = dp_test_v4_pkt_from_desc(&pkt_UDP);
+
+	rc = dp_test_ipv4_fragment_packet(test_pak, frag_pkts,
+					  ARRAY_SIZE(frag_pkts),
+					  frag_sizes, 0);
+	rte_pktmbuf_free(test_pak);
+
+	dp_test_fail_unless(rc == ARRAY_SIZE(frag_pkts),
+			    "dp_test_ipv4_fragment_packet failed: %d", rc);
+
+	/* frag_pkts[2] */
+	exp = dp_test_exp_create_m(NULL, 1);
+	dp_test_exp_set_pak_m(exp, 0, frag_pkts[2]);
+	dp_test_exp_set_oif_name_m(exp, 0, "dp2T1");
+	dp_test_exp_set_fwd_status(exp, DP_TEST_FWD_DROPPED);
+	dp_test_pak_receive(frag_pkts[2], "dp1T0", exp);
+
+	/* frag_pkts[0] */
+	exp = dp_test_exp_create_m(NULL, 1);
+	dp_test_exp_set_pak_m(exp, 0, frag_pkts[0]);
+	dp_test_exp_set_oif_name_m(exp, 0, "dp2T1");
+	dp_test_exp_set_fwd_status(exp, DP_TEST_FWD_DROPPED);
+	dp_test_pak_receive(frag_pkts[0], "dp1T0", exp);
+
+	/* frag_pkts[1] */
+	exp = dp_test_exp_create_m(NULL, 1);
+	dp_test_exp_set_pak_m(exp, 0, frag_pkts[1]);
+	dp_test_exp_set_oif_name_m(exp, 0, "dp2T1");
+	dp_test_exp_set_fwd_status(exp, DP_TEST_FWD_DROPPED);
+	dp_test_pak_receive(frag_pkts[1], "dp1T0", exp);
+
+	/*****************************************************************
+	 * Unconfig
+	 */
+	dp_test_npf_cmd("npf-ut detach interface:dpT21 acl-out acl:v4test",
+			false);
+	dp_test_npf_cmd("npf-ut delete acl:v4test", false);
+	dp_test_npf_cmd("npf-ut commit", false);
+
+} DP_END_TEST;
