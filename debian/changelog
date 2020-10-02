@@ -1,3 +1,24 @@
+vyatta-dataplane (3.11.37) unstable; urgency=medium
+
+  [ Nicholas Brown ]
+  * Update exported symbols from fal test plugin
+  * Use visibility attribute for symbols
+  * Use __FOR_EXPORT instead of __externally_visible
+
+  [ Robert Shearman ]
+  * mpls: fix crash when displaying PD subset data
+  * pd_show: allow showing objects in state full as well
+  * mpls: fix output of PD subset state (Fixes: VRVDR-53208)
+
+  [ Ian Wilson ]
+  * ut: Add test for sw acl with fragmented IPv4 pkt on output
+  * ut: Add test for sw acl with fragmented IPv6 pkt on output
+  * npf: Set address family in ruleset when grouper is not initialized
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Fri, 02 Oct 2020 14:54:03 +0100
+
 vyatta-dataplane (3.11.36) unstable; urgency=medium
 
   [ Ian Wilson ]
