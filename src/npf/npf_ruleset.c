@@ -1869,6 +1869,12 @@ npf_ruleset_inspect(npf_cache_t *npc, struct rte_mbuf *nbuf,
 				af = AF_INET6;
 				match_ctx = rg->match_ctx_v6;
 			}
+		} else {
+			/* Grouper is not setup for fragments, for example */
+			if (likely(npf_iscached(npc, NPC_IP4)))
+				af = AF_INET;
+			else if (npf_iscached(npc, NPC_IP6))
+				af = AF_INET6;
 		}
 
 		/* Match the address-family if set. */
