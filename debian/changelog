@@ -1,3 +1,21 @@
+vyatta-dataplane (3.10.70.6) unstable; urgency=medium
+
+  [ Ian Wilson ]
+  * ut: dpt_udp and dpt_tcp enhanced to support IPv6
+  * ut: Basic ingress software ACL tests enhanced to include TCP and UDP
+  * ut: Add egress software ACL tests
+  * ut: Add tests for sw ACLs on the ip_lookup_and_originate output path
+  * ut: Add tests for sw ACLs for pkts originated from the router (spath)
+  * Create ipv4-out-spath pipeline node
+  * Create ipv6-out-spath pipeline node
+  * ut: Add test for sw acl with fragmented IPv4 pkt on output
+  * ut: Add test for sw acl with fragmented IPv6 pkt on output
+  * npf: Set address family in ruleset when grouper is not initialized
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Fri, 02 Oct 2020 16:13:47 +0100
+
 vyatta-dataplane (3.10.70.5) unstable; urgency=medium
 
   [ Ian Wilson ]
