@@ -1,3 +1,15 @@
+vyatta-dataplane (3.10.70.5) unstable; urgency=medium
+
+  [ Ian Wilson ]
+  * npf: Initialisation of config ht moved out of npf_make_rule
+  * npf: Parse special ACL group-attribute rule if present
+  * npf: Skip ruleset inspection for address-family if not enabled on group
+  * ut: Add simple software ACL tests
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Fri, 02 Oct 2020 09:02:50 +0100
+
 vyatta-dataplane (3.10.70.4) unstable; urgency=medium
 
   [ aroberts ]
