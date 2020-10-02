@@ -805,8 +805,6 @@ int mpls_label_table_get_pd_subset_data(json_writer_t *json,
 {
 	struct label_table_set_entry *ls_entry;
 
-	jsonw_name(json, "mpls_tables");
-	jsonw_start_array(json);
 	cds_list_for_each_entry_rcu(ls_entry, &label_table_set, entry) {
 		jsonw_start_object(json);
 		jsonw_uint_field(json, "lblspc", ls_entry->labelspace);
@@ -814,8 +812,6 @@ int mpls_label_table_get_pd_subset_data(json_writer_t *json,
 				      subset, MPLS_LABEL_ALL);
 		jsonw_end_object(json);
 	}
-	jsonw_end_array(json);
-	jsonw_destroy(&json);
 
 	return 0;
 }
