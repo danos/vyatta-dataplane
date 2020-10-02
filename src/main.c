@@ -3355,7 +3355,8 @@ bool is_main_thread(void)
 	return pthread_equal(self, main_pthread);
 }
 
-uint16_t  __externally_visible
+__FOR_EXPORT
+uint16_t
 fal_tx_pkt_burst(uint16_t tx_port, struct rte_mbuf **bufs, uint16_t nb_bufs)
 {
 	uint16_t n;
@@ -3405,19 +3406,22 @@ full_hwq: __cold_label;
 
 }
 
-void  __externally_visible
+__FOR_EXPORT
+void
 fal_pkt_mark_set_framed(struct rte_mbuf *m)
 {
 	pktmbuf_mdata_set(m, PKT_MDATA_FAL_FRAMED);
 }
 
-bool  __externally_visible
+__FOR_EXPORT
+bool
 fal_pkt_mark_is_framed(struct rte_mbuf *m)
 {
 	return pktmbuf_mdata_exists(m, PKT_MDATA_FAL_FRAMED);
 }
 
-int __externally_visible
+__FOR_EXPORT
+int
 fal_prepare_for_header_change(struct rte_mbuf **m, uint16_t header_len)
 {
 	return pktmbuf_prepare_for_header_change(m, header_len);

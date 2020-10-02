@@ -25,7 +25,8 @@ struct bridge_vlan_set {
 	struct rte_bitmap *map;
 };
 
-struct bridge_vlan_set __externally_visible *
+__FOR_EXPORT
+struct bridge_vlan_set *
 bridge_vlan_set_create(void)
 {
 	struct bridge_vlan_set *set = zmalloc_aligned(sizeof(*set));
@@ -41,26 +42,30 @@ bridge_vlan_set_create(void)
 	return set;
 }
 
-void __externally_visible
+__FOR_EXPORT
+void
 bridge_vlan_set_free(struct bridge_vlan_set *set)
 {
 	free(set->store);
 	free(set);
 }
 
-void __externally_visible
+__FOR_EXPORT
+void
 bridge_vlan_set_add(struct bridge_vlan_set *set, uint16_t vlan)
 {
 	rte_bitmap_set(set->map, vlan);
 }
 
-void __externally_visible
+__FOR_EXPORT
+void
 bridge_vlan_set_remove(struct bridge_vlan_set *set, uint16_t vlan)
 {
 	rte_bitmap_clear(set->map, vlan);
 }
 
-bool __externally_visible
+__FOR_EXPORT
+bool
 bridge_vlan_set_is_member(struct bridge_vlan_set *set, uint16_t vlan)
 {
 	if (vlan > VLAN_N_VID)
@@ -68,13 +73,15 @@ bridge_vlan_set_is_member(struct bridge_vlan_set *set, uint16_t vlan)
 	return rte_bitmap_get(set->map, vlan);
 }
 
-void __externally_visible
+__FOR_EXPORT
+void
 bridge_vlan_set_clear(struct bridge_vlan_set *set)
 {
 	rte_bitmap_reset(set->map);
 }
 
-bool __externally_visible
+__FOR_EXPORT
+bool
 bridge_vlan_set_is_empty(struct bridge_vlan_set *set)
 {
 	uint32_t pos = 0;
@@ -86,7 +93,8 @@ bridge_vlan_set_is_empty(struct bridge_vlan_set *set)
 	return true;
 }
 
-void __externally_visible
+__FOR_EXPORT
+void
 bridge_vlan_set_synchronize(struct bridge_vlan_set *old,
 			    struct bridge_vlan_set *new,
 			    bridge_vlan_synchronize_cb add_cb,

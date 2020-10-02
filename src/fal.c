@@ -39,8 +39,8 @@ struct fal_mem {
 	uint8_t data[0];
 };
 
-
-int __externally_visible
+__FOR_EXPORT
+int
 fal_port_byifindex(int ifindex, uint16_t *portid)
 {
 	struct ifnet *ifp = dp_ifnet_byifindex(ifindex);
@@ -52,7 +52,8 @@ fal_port_byifindex(int ifindex, uint16_t *portid)
 	return 0;
 }
 
-void * __externally_visible
+__FOR_EXPORT
+void *
 fal_malloc(size_t size)
 {
 	struct fal_mem *fal_mem;
@@ -69,7 +70,8 @@ fal_malloc(size_t size)
 	return &fal_mem->data;
 }
 
-void * __externally_visible
+__FOR_EXPORT
+void *
 fal_calloc(int nmemb, size_t size)
 {
 	struct fal_mem *fal_mem;
@@ -97,7 +99,8 @@ fal_free_worker(struct rcu_head *head)
 	free(fal_mem);
 }
 
-void __externally_visible
+__FOR_EXPORT
+void
 fal_free_deferred(void *ptr)
 {
 	struct fal_mem *fal_mem;
@@ -3417,13 +3420,15 @@ void fal_qos_dump_buf_errors(json_writer_t *wr)
 	call_handler(qos, dump_buf_errors, wr);
 }
 
-int __externally_visible
+__FOR_EXPORT
+int
 fal_attach_device(const char *devargs)
 {
 	return attach_device(devargs);
 }
 
-int __externally_visible
+__FOR_EXPORT
+int
 fal_detach_device(const char *device)
 {
 	return detach_device(device);

@@ -69,6 +69,7 @@ struct fal_attribute_t *get_attribute(uint32_t id,
 	return NULL;
 }
 
+__FOR_EXPORT
 int fal_plugin_create_ptp_clock(uint32_t attr_count,
 				struct fal_attribute_t *attr_list,
 				fal_object_t *clock_obj)
@@ -134,6 +135,7 @@ int fal_plugin_create_ptp_clock(uint32_t attr_count,
 	return 0;
 }
 
+__FOR_EXPORT
 int fal_plugin_dump_ptp_clock(fal_object_t clock_obj, json_writer_t *wr)
 {
 	DEBUG("dump PTP clock 0x%lx\n", clock_obj);
@@ -149,6 +151,7 @@ int fal_plugin_dump_ptp_clock(fal_object_t clock_obj, json_writer_t *wr)
 	return 0;
 }
 
+__FOR_EXPORT
 int fal_plugin_delete_ptp_clock(fal_object_t clock_obj)
 {
 	DEBUG("deleted PTP clock 0x%lx\n", clock_obj);
@@ -158,6 +161,7 @@ int fal_plugin_delete_ptp_clock(fal_object_t clock_obj)
 	return 0;
 }
 
+__FOR_EXPORT
 int fal_plugin_create_ptp_port(uint32_t attr_count,
 			       struct fal_attribute_t *attr_list,
 			       fal_object_t *port_obj)
@@ -229,6 +233,7 @@ fal_plugin_find_ptp_port(fal_object_t port)
 	return NULL;
 }
 
+__FOR_EXPORT
 int fal_plugin_delete_ptp_port(fal_object_t port_obj)
 {
 	struct ptp_port *port;
@@ -254,6 +259,7 @@ fal_plugin_find_ptp_peer(fal_object_t peer)
 	return NULL;
 }
 
+__FOR_EXPORT
 int fal_plugin_create_ptp_peer(uint32_t attr_count,
 			       struct fal_attribute_t *attr_list,
 			       fal_object_t *peer_obj)
@@ -296,6 +302,7 @@ int fal_plugin_create_ptp_peer(uint32_t attr_count,
 	return 0;
 }
 
+__FOR_EXPORT
 int fal_plugin_delete_ptp_peer(fal_object_t peer_obj)
 {
 	struct ptp_peer *peer;

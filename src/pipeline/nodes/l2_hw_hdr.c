@@ -32,7 +32,8 @@ static int (*l2_hw_hdr_rx_feat_framer)(struct rte_mbuf *buf,
 static bool (*l2_hw_hdr_rx_framer)(struct rte_mbuf *buf,
 				   uint16_t *dpdk_port);
 
-int __externally_visible
+__FOR_EXPORT
+int
 fal_rx_bp_framer_enable(bool enable, uint32_t bp_port,
 			bool shared_channel, uint16_t ether_proto,
 			int (*feat_framer)(struct rte_mbuf *buf,
@@ -85,7 +86,8 @@ int default_feat_framer(struct rte_mbuf *mbuf, uint16_t *dpdk_port,
 /* TODO Deprecate/Remove when plugins start using the new API
  * fal_rx_bp_framer_enable
  */
-bool __externally_visible
+__FOR_EXPORT
+bool
 l2_hw_hdr_rx_enable(bool enable, uint32_t bp_port,
 		    bool shared_channel, uint16_t ether_proto,
 		    bool (*framer)(struct rte_mbuf *buf,

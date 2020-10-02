@@ -118,6 +118,7 @@ struct fal_bcm_qos_ext_buf_cntr {
  *
  * @return 0 on success, failure status code on error
  */
+__FOR_EXPORT
 int fal_plugin_qos_new_map(fal_object_t switch_id,
 			   uint32_t attr_count,
 			   const struct fal_attribute_t *attr_list,
@@ -260,6 +261,7 @@ int fal_plugin_qos_new_map(fal_object_t switch_id,
  *
  * @return 0 on success, failure status code on error
  */
+__FOR_EXPORT
 int fal_plugin_qos_del_map(fal_object_t map_id)
 {
 	struct fal_bcm_qos_map *map = (struct fal_bcm_qos_map *)map_id;
@@ -281,6 +283,7 @@ int fal_plugin_qos_del_map(fal_object_t map_id)
  *
  * @return 0 on success, failure status code on error
  */
+__FOR_EXPORT
 int fal_plugin_qos_upd_map(fal_object_t map_id,
 			   const struct fal_attribute_t *attr)
 {
@@ -341,6 +344,7 @@ int fal_plugin_qos_upd_map(fal_object_t map_id,
  *
  * @return 0 on success, failure status code on error
  */
+__FOR_EXPORT
 int fal_plugin_qos_get_map_attrs(fal_object_t map_id, uint32_t attr_count,
 				 struct fal_attribute_t *attr_list)
 {
@@ -413,6 +417,7 @@ int fal_plugin_qos_get_map_attrs(fal_object_t map_id, uint32_t attr_count,
 	return ret;
 }
 
+__FOR_EXPORT
 void fal_plugin_qos_dump_map(fal_object_t obj, json_writer_t *wr)
 {
 	struct fal_bcm_qos_map *map = (struct fal_bcm_qos_map *) obj;
@@ -509,6 +514,7 @@ void fal_plugin_qos_dump_map(fal_object_t obj, json_writer_t *wr)
  *
  * @return 0 on success, failure status code on error
  */
+__FOR_EXPORT
 int fal_plugin_qos_new_queue(fal_object_t switch_id, uint32_t attr_count,
 			     const struct fal_attribute_t *attr_list,
 			     fal_object_t *new_queue_id)
@@ -617,6 +623,7 @@ int fal_plugin_qos_new_queue(fal_object_t switch_id, uint32_t attr_count,
  *
  * @return 0 on success, failure status code on error
  */
+__FOR_EXPORT
 int fal_plugin_qos_del_queue(fal_object_t queue_id)
 {
 	struct fal_bcm_qos_queue *queue =
@@ -652,6 +659,7 @@ int fal_plugin_qos_del_queue(fal_object_t queue_id)
  *
  * @return 0 on success, failure status code on error
  */
+__FOR_EXPORT
 int fal_plugin_qos_upd_queue(fal_object_t queue_id,
 			     const struct fal_attribute_t *attr)
 {
@@ -721,6 +729,7 @@ int fal_plugin_qos_upd_queue(fal_object_t queue_id,
  *
  * @return 0 on success, failure status code on error
  */
+__FOR_EXPORT
 int fal_plugin_qos_get_queue_attrs(fal_object_t queue_id, uint32_t attr_count,
 				   struct fal_attribute_t *attr_list)
 {
@@ -792,6 +801,7 @@ int fal_plugin_qos_get_queue_attrs(fal_object_t queue_id, uint32_t attr_count,
  *
  * @return 0 on success, failure status code on error
  */
+__FOR_EXPORT
 int fal_plugin_qos_get_queue_stats(fal_object_t queue_id,
 				   uint32_t number_of_counters,
 				   const uint32_t *counter_ids,
@@ -964,6 +974,7 @@ int fal_plugin_qos_get_queue_stats_ext(fal_object_t queue_id,
  *
  * @return 0 on success, failure status code on error
  */
+__FOR_EXPORT
 int fal_plugin_qos_clear_queue_stats(fal_object_t queue_id,
 				     uint32_t number_of_counters,
 				     const uint32_t *counter_ids)
@@ -982,6 +993,7 @@ int fal_plugin_qos_clear_queue_stats(fal_object_t queue_id,
  *
  * @return 0 on success, failure status code on error
  */
+__FOR_EXPORT
 int fal_plugin_qos_new_scheduler(fal_object_t switch_id, uint32_t attr_count,
 				 const struct fal_attribute_t *attr_list,
 				 fal_object_t *new_scheduler_id)
@@ -1065,6 +1077,7 @@ int fal_plugin_qos_new_scheduler(fal_object_t switch_id, uint32_t attr_count,
  *
  * @return 0 on success, failure status code on error
  */
+__FOR_EXPORT
 int fal_plugin_qos_del_scheduler(fal_object_t scheduler_id)
 {
 	struct fal_bcm_qos_sched *sched =
@@ -1086,6 +1099,7 @@ int fal_plugin_qos_del_scheduler(fal_object_t scheduler_id)
  *
  * @return 0 on success, failure status code on error
  */
+__FOR_EXPORT
 int fal_plugin_qos_upd_scheduler(fal_object_t scheduler_id,
 				 const struct fal_attribute_t *attr)
 {
@@ -1172,6 +1186,7 @@ int fal_plugin_qos_upd_scheduler(fal_object_t scheduler_id,
  *
  * @return 0 on success, failure status code on error
  */
+__FOR_EXPORT
 int fal_plugin_qos_get_scheduler_attrs(fal_object_t scheduler_id,
 				       uint32_t attr_count,
 				       struct fal_attribute_t *attr_list)
@@ -1232,6 +1247,7 @@ int fal_plugin_qos_get_scheduler_attrs(fal_object_t scheduler_id,
  *
  * @return 0 on success, failure status code on error
  */
+__FOR_EXPORT
 int fal_plugin_qos_new_sched_group(fal_object_t switch_id,
 				   uint32_t attr_count,
 				   const struct fal_attribute_t *attr_list,
@@ -1364,6 +1380,7 @@ int fal_plugin_qos_new_sched_group(fal_object_t switch_id,
  *
  * @return 0 on success, failure status code on error
  */
+__FOR_EXPORT
 int fal_plugin_qos_del_sched_group(fal_object_t sched_group_id)
 {
 	struct fal_bcm_qos_sched_group *sched_group =
@@ -1414,6 +1431,7 @@ int fal_plugin_qos_del_sched_group(fal_object_t sched_group_id)
  *
  * @return 0 on success, failure status code on error
  */
+__FOR_EXPORT
 int fal_plugin_qos_upd_sched_group(fal_object_t sched_group_id,
 				   const struct fal_attribute_t *attr)
 {
@@ -1517,6 +1535,7 @@ uint32_t get_sched_group_child_count(struct fal_bcm_qos_sched_group *parent)
  *
  * @return 0 on success, failure status code on error
  */
+__FOR_EXPORT
 int fal_plugin_qos_get_sched_group_attrs(fal_object_t sched_group_id,
 					 uint32_t attr_count,
 					 struct fal_attribute_t *attr_list)
@@ -1617,6 +1636,7 @@ int fal_plugin_qos_get_sched_group_attrs(fal_object_t sched_group_id,
  *
  * @return 0 on success, failure status code on error
  */
+__FOR_EXPORT
 int fal_plugin_qos_new_wred(fal_object_t switch_id, uint32_t attr_count,
 			    const struct fal_attribute_t *attr_list,
 			    fal_object_t *new_wred_id)
@@ -1742,6 +1762,7 @@ int fal_plugin_qos_new_wred(fal_object_t switch_id, uint32_t attr_count,
  *
  * @return 0 on success, failure status code on error
  */
+__FOR_EXPORT
 int fal_plugin_qos_del_wred(fal_object_t wred_id)
 {
 	struct fal_bcm_qos_wred *wred = (struct fal_bcm_qos_wred *)wred_id;
@@ -1763,6 +1784,7 @@ int fal_plugin_qos_del_wred(fal_object_t wred_id)
  *
  * @return 0 on success, failure status code on error
  */
+__FOR_EXPORT
 int fal_plugin_qos_upd_wred(fal_object_t wred_id,
 			    const struct fal_attribute_t *attr)
 {
@@ -1779,6 +1801,7 @@ int fal_plugin_qos_upd_wred(fal_object_t wred_id,
  *
  * @return 0 on success, failure status code on error
  */
+__FOR_EXPORT
 int fal_plugin_qos_get_wred_attrs(fal_object_t wred_id, uint32_t attr_count,
 				  struct fal_attribute_t *attr_list)
 {
@@ -1863,6 +1886,7 @@ int fal_plugin_qos_get_wred_attrs(fal_object_t wred_id, uint32_t attr_count,
  *
  * @return 0 on success, failure otherwise
  */
+__FOR_EXPORT
 int fal_plugin_qos_get_counters(const uint32_t *cntr_ids, uint32_t num_cntrs,
 			uint64_t *cntrs)
 {
