@@ -1072,6 +1072,12 @@ crypto_pmd_process_packets(struct crypto_pkt_ctx *contexts[],
 	unsigned int total_bytes = 0;
 	uint16_t i, bad_idx[count], bad_count = 0;
 
+	/*
+	 * Prefetch entire burst of contexts into L2 cache
+	 */
+	for (i = 0; i < count; i++)
+		rte_prefetch1(contexts[i]);
+
 	for (i = 0; i < count; i++) {
 		crypto_prefetch_ctx(contexts, count, i);
 
