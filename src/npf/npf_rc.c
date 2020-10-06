@@ -579,11 +579,16 @@ npf_rct_is_feature_enabled(enum npf_rc_type rct, struct ifnet *ifp)
 
 	switch (rct) {
 	case NPF_RCT_FW4:
-		return pl_node_is_feature_enabled_by_inst(&ipv4_fw_in_feat,
-							  ifp);
+		if (pl_node_is_feature_enabled_by_inst(&ipv4_fw_in_feat, ifp) ||
+		    pl_node_is_feature_enabled_by_inst(&ipv4_fw_out_feat, ifp))
+			return true;
+		return false;
+
 	case NPF_RCT_FW6:
-		return pl_node_is_feature_enabled_by_inst(&ipv6_fw_in_feat,
-							  ifp);
+		if (pl_node_is_feature_enabled_by_inst(&ipv6_fw_in_feat, ifp) ||
+		    pl_node_is_feature_enabled_by_inst(&ipv6_fw_out_feat, ifp))
+			return true;
+		return false;
 
 	case NPF_RCT_LOC:
 		if (npf_active(npf_config, NPF_LOCAL) ||
@@ -600,14 +605,28 @@ npf_rct_is_feature_enabled(enum npf_rc_type rct, struct ifnet *ifp)
 		return false;
 
 	case NPF_RCT_ACL4:
-		return pl_node_is_feature_enabled_by_inst(&ipv4_acl_in_feat,
-							  ifp);
+		if (pl_node_is_feature_enabled_by_inst(&ipv4_acl_in_feat,
+						       ifp) ||
+		    pl_node_is_feature_enabled_by_inst(&ipv4_acl_out_feat,
+						       ifp))
+			return true;
+		return false;
+
 	case NPF_RCT_ACL6:
-		return pl_node_is_feature_enabled_by_inst(&ipv6_acl_in_feat,
-							  ifp);
+		if (pl_node_is_feature_enabled_by_inst(&ipv6_acl_in_feat,
+						       ifp) ||
+		    pl_node_is_feature_enabled_by_inst(&ipv6_acl_out_feat,
+						       ifp))
+			return true;
+		return false;
+
 	case NPF_RCT_NAT64:
-		return pl_node_is_feature_enabled_by_inst(&ipv6_nat64_in_feat,
-							  ifp);
+		if (pl_node_is_feature_enabled_by_inst(&ipv6_nat64_in_feat,
+						       ifp) ||
+		    pl_node_is_feature_enabled_by_inst(&ipv6_nat64_in_feat,
+						       ifp))
+			return true;
+		return false;
 	}
 	return false;
 }
