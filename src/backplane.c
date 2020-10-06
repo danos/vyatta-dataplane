@@ -196,6 +196,10 @@ int cmd_backplane_cfg(FILE *f, int argc, char **argv)
 	ifp = dp_ifnet_byifname(argv[2]);
 	bp_ifp = dp_ifnet_byifname(argv[3]);
 	if (!ifp || !bp_ifp) {
+		/*
+		 * Need out of order checks as the controller does not cater
+		 * for 2 different interfaces when guaranteeing ordering.
+		 */
 		if (!bp_cfg_list && backplane_replay_init()) {
 			RTE_LOG(ERR, BACKPLANE,
 				"Could not set up command replay cache\n");
