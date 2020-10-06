@@ -376,12 +376,12 @@ my @pci_devices = (
 #
 ## List of Mellanox IB device.
 my @ib_devices = (
-    # Mellanox mlx4 Nic
+    # Mellanox ConnectX-4 adapters
     { vendor => 0x15b3, device => 0x1003 },
     { vendor => 0x15b3, device => 0x1004 },
     { vendor => 0x15b3, device => 0x1007 },
 
-    # Mellanox mlx5 Nic
+    # Mellanox ConnectX-5 dapaters
     { vendor => 0x15b3, device => 0x1013 },
     { vendor => 0x15b3, device => 0x1014 },
     { vendor => 0x15b3, device => 0x1015 },
@@ -392,6 +392,12 @@ my @ib_devices = (
     { vendor => 0x15b3, device => 0x101a },
     { vendor => 0x15b3, device => 0xa2d2 },
     { vendor => 0x15b3, device => 0xa2d3 },
+
+    # Mellanox ConnectX-6 adapters
+    { vendor => 0x15b3, device => 0x101b },
+    { vendor => 0x15b3, device => 0x101c },
+    { vendor => 0x15b3, device => 0x101d },
+    { vendor => 0x15b3, device => 0x101e },
 );
 
 sub debug {
