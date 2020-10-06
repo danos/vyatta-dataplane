@@ -26,8 +26,11 @@
 #define MAX_CRYPTO_OPS 8192
 #define CRYPTO_OP_POOL_CACHE_SIZE 256
 
-#define CRYPTO_OP_IV_OFFSET (sizeof(struct rte_crypto_op) + \
-			     sizeof(struct rte_crypto_sym_op))
+#define CRYPTO_OP_CTX_OFFSET (sizeof(struct rte_crypto_op) + \
+			      sizeof(struct rte_crypto_sym_op))
+
+#define CRYPTO_OP_IV_OFFSET (CRYPTO_OP_CTX_OFFSET + \
+			     sizeof(struct crypto_pkt_ctx **))
 
 /* per session (SA) data structure used to set up operations with PMDs */
 static struct rte_mempool *crypto_session_pool;
@@ -58,7 +61,8 @@ int crypto_rte_setup(void)
 	}
 
 	uint16_t crypto_op_data_size =
-		sizeof(struct rte_crypto_sym_op) + CRYPTO_MAX_IV_LENGTH;
+		sizeof(struct rte_crypto_sym_op) +
+		sizeof(struct crypto_pkt_ctx **) + CRYPTO_MAX_IV_LENGTH;
 
 	crypto_op_pool = rte_crypto_op_pool_create("crypto_op_pool",
 						   RTE_CRYPTO_OP_TYPE_SYMMETRIC,
@@ -657,6 +661,8 @@ static inline
 void crypto_rte_process_op_batch(struct crypto_rte_pkt_batch *batch)
 {
 	uint8_t enqueued = 0, dequeued = 0, tmp_cnt;
+	struct crypto_pkt_ctx *ctx;
+	struct rte_crypto_op *cop;
 
 	while (dequeued < batch->batch_size) {
 		tmp_cnt = rte_cryptodev_enqueue_burst(
@@ -675,9 +681,23 @@ void crypto_rte_process_op_batch(struct crypto_rte_pkt_batch *batch)
 			break;
 	}
 
-	if (dequeued < batch->batch_size)
+	if (unlikely(dequeued < batch->batch_size))
 		IPSEC_CNT_INC_BY(CRYPTO_OP_FAILED,
 				 (batch->batch_size - dequeued));
+
+	for (tmp_cnt = 0; tmp_cnt < dequeued; tmp_cnt++) {
+		cop = batch->cop_arr[tmp_cnt];
+		if (likely(cop->status ==
+			   RTE_CRYPTO_OP_STATUS_SUCCESS)) {
+
+			ctx = *(rte_crypto_op_ctod_offset(
+					cop,
+					struct crypto_pkt_ctx **,
+					CRYPTO_OP_CTX_OFFSET));
+			ctx->status = 0;
+		} else
+			IPSEC_CNT_INC(CRYPTO_OP_FAILED);
+	}
 	batch->batch_size = 0;
 }
 
@@ -857,7 +877,7 @@ crypto_rte_xform_packets(struct crypto_pkt_ctx *cctx_arr[], uint16_t count)
 	enum crypto_xfrm qid;
 	uint16_t i, text_len, hdr_len;
 	struct crypto_rte_pkt_batch pkt_batch;
-	struct crypto_pkt_ctx *cctx;
+	struct crypto_pkt_ctx *cctx, **ctx_ptr;
 	bool encrypt;
 	struct rte_crypto_op *cop;
 	struct crypto_pkt_buffer *cpb = cpbdb[dp_lcore_id()];
@@ -896,7 +916,6 @@ crypto_rte_xform_packets(struct crypto_pkt_ctx *cctx_arr[], uint16_t count)
 			continue;
 		}
 		cop->sym->m_src = cctx->mbuf;
-
 		if (encrypt) {
 			err = crypto_rte_outbound_cop_prepare(
 				cop, session, cctx->mbuf,
@@ -915,6 +934,18 @@ crypto_rte_xform_packets(struct crypto_pkt_ctx *cctx_arr[], uint16_t count)
 			cctx->status = -1;
 			continue;
 		}
+
+		/*
+		 * Explicitly set status to failure for each packet
+		 * being handed to the PMD. The status will be set to 0
+		 * again after successful processing. This allows us to handle
+		 * any cases of mismatch between enqueue and dequeue
+		 */
+		cctx->status = -1;
+		ctx_ptr = rte_crypto_op_ctod_offset(cop,
+						    struct crypto_pkt_ctx **,
+						    CRYPTO_OP_CTX_OFFSET);
+		*ctx_ptr = cctx;
 
 		if (pkt_batch.cdev_id != cctx->sa->rte_cdev_id ||
 		    pkt_batch.qid != qid) {
