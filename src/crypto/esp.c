@@ -122,14 +122,16 @@ static struct rte_mbuf *buf_tail_free(struct rte_mbuf *m)
  */
 static int buf_tail_read_char(struct rte_mbuf *m, char *ptr, int err)
 {
-	struct rte_mbuf *m_last;
+	struct rte_mbuf *m_last = m;
 
 	if (err)
 		return err;
 
 	__rte_mbuf_sanity_check(m, 1);
 
-	m_last = rte_pktmbuf_lastseg(m);
+	if (unlikely(m->nb_segs > 1))
+		m_last = rte_pktmbuf_lastseg(m);
+
 	*ptr = *((char *)m_last->buf_addr + m_last->data_off +
 		 m_last->data_len - 1);
 	m_last->data_len = (uint16_t)(m_last->data_len - 1);
@@ -143,12 +145,14 @@ static int buf_tail_read_char(struct rte_mbuf *m, char *ptr, int err)
 
 static int buf_tail_trim(struct rte_mbuf *m, uint16_t len, int err)
 {
-	struct rte_mbuf *m_last;
+	struct rte_mbuf *m_last = m;
 
 	if (err)
 		return err;
 
-	m_last = rte_pktmbuf_lastseg(m);
+	if (unlikely(m->nb_segs > 1))
+		m_last = rte_pktmbuf_lastseg(m);
+
 	m->pkt_len  -= len;
 	while (len != 0) {
 		if (m_last->data_len <= len) {
