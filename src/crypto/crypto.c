@@ -75,8 +75,6 @@ struct crypto_pkt_buffer *cpbdb[RTE_MAX_LCORE];
  */
 #define PKT_RET_RING_SIZE  PMD_RING_SIZE
 
-#define CRYPTO_PREFETCH_OFFSET 3
-
 static struct crypto_dp g_crypto_dp;
 struct crypto_dp *crypto_dp_sp = &g_crypto_dp;
 static struct rte_timer flow_cache_timer;
@@ -529,6 +527,8 @@ crypto_process_decrypt_packets(uint16_t count,
 		if (unlikely(cctx[i]->action == CRYPTO_ACT_DROP))
 			continue;
 
+		crypto_prefetch_ctx(cctx, count, i);
+
 		/*
 		 * If this packet has come from a VTI, replace the
 		 * physical input interface with the VTI.  Doing so
@@ -547,6 +547,8 @@ crypto_process_decrypt_packets(uint16_t count,
 			cctx[i]->action = CRYPTO_ACT_DROP;
 			continue;
 		}
+
+		crypto_prefetch_ctx_data(cctx, count, i);
 	}
 
 	esp_input(cctx, count);
@@ -555,12 +557,16 @@ crypto_process_decrypt_packets(uint16_t count,
 		if (unlikely(cctx[i]->action == CRYPTO_ACT_DROP))
 			continue;
 
+		crypto_prefetch_ctx(cctx, count, i);
+
 		crypto_post_decrypt_handle_packet(cctx[i],
 						  cctx[i]->sa,
 						  cctx[i]->mbuf,
 						  cctx[i]->status,
 						  cctx[i]->vti_ifp);
 		*bytes += cctx[i]->bytes;
+
+		crypto_prefetch_ctx_data(cctx, count, i);
 	}
 }
 
@@ -574,6 +580,9 @@ static void crypto_process_encrypt_packets(uint16_t count,
 	esp_output(cctx, count);
 
 	for (i = 0; i < count; i++) {
+
+		crypto_prefetch_ctx(cctx, count, i);
+
 		tmp_cctx = cctx[i];
 		if (tmp_cctx->status < 0) {
 			if (tmp_cctx->nxt_ifp)
@@ -598,6 +607,8 @@ static void crypto_process_encrypt_packets(uint16_t count,
 
 			*bytes += tmp_cctx->bytes;
 		}
+
+		crypto_prefetch_ctx_data(cctx, count, i);
 	}
 }
 
@@ -981,7 +992,9 @@ static void crypto_fwd_processed_packets(struct crypto_pkt_ctx **contexts,
 		if (unlikely(contexts[i]->status < 0))
 			contexts[i]->action = CRYPTO_ACT_DROP;
 
+		crypto_prefetch_ctx(contexts, count, i);
 		crypto_pkt_ctx_forward_and_free(contexts[i]);
+		crypto_prefetch_ctx_data(contexts, count, i);
 	}
 }
 
@@ -1060,6 +1073,8 @@ crypto_pmd_process_packets(struct crypto_pkt_ctx *contexts[],
 	uint16_t i, bad_idx[count], bad_count = 0;
 
 	for (i = 0; i < count; i++) {
+		crypto_prefetch_ctx(contexts, count, i);
+
 		m = contexts[i]->mbuf;
 		if (unlikely(!m)) {
 			contexts[i]->action = CRYPTO_ACT_DROP;
@@ -1076,6 +1091,8 @@ crypto_pmd_process_packets(struct crypto_pkt_ctx *contexts[],
 			bad_idx[bad_count++] = i;
 		} else
 			contexts[i]->status = 0;
+
+		crypto_prefetch_ctx_data(contexts, count, i);
 	}
 
 	move_bad_mbufs(contexts, count, bad_idx, bad_count);

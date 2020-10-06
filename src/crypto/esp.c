@@ -746,6 +746,7 @@ esp_input_pre_decrypt(struct crypto_pkt_ctx *ctx_arr[], uint16_t count)
 	uint16_t bad_idx[count], bad_cnt = 0;
 
 	for (i = 0; i < count; i++) {
+		crypto_prefetch_ctx(ctx_arr, count, i);
 		ctx = ctx_arr[i];
 		family = ctx->family;
 		m = ctx->mbuf;
@@ -774,6 +775,8 @@ esp_input_pre_decrypt(struct crypto_pkt_ctx *ctx_arr[], uint16_t count)
 			if (sa->mode == XFRM_MODE_TRANSPORT)
 				prev_off = ip6_findprevoff(m);
 		}
+
+		crypto_prefetch_ctx_data(ctx_arr, count, i);
 
 		esp =  dp_pktmbuf_mtol4(m, unsigned char *);
 		esp += sa->udp_encap;
@@ -859,6 +862,7 @@ esp_input_post_decrypt(struct crypto_pkt_ctx *ctx_arr[], uint16_t count)
 	uint16_t bad_idx[count], bad_cnt = 0;
 
 	for (i = 0; i < count; i++) {
+		crypto_prefetch_ctx(ctx_arr, count, i);
 		ctx = ctx_arr[i];
 		m = ctx->mbuf;
 		sa = ctx->sa;
@@ -932,6 +936,8 @@ esp_input_post_decrypt(struct crypto_pkt_ctx *ctx_arr[], uint16_t count)
 			bad_idx[bad_cnt++] = i;
 			continue;
 		}
+
+		crypto_prefetch_ctx_data(ctx_arr, count, i);
 
 		rc = iptun_eth_hdr_fixup(m, ethertype, ctx->head_trim);
 		if (rc < 0) {
@@ -1222,6 +1228,7 @@ esp_output_pre_encrypt(struct crypto_pkt_ctx *ctx_arr[],
 	struct esp_hdr_ctx *h;
 
 	for (j = 0; j < count; j++) {
+		crypto_prefetch_ctx(ctx_arr, count, j);
 		ctx = ctx_arr[j];
 		m = ctx->mbuf;
 		h = &h_arr[j];
@@ -1248,6 +1255,8 @@ esp_output_pre_encrypt(struct crypto_pkt_ctx *ctx_arr[],
 
 		plaintext = ctx->l3hdr;
 		plaintext_size_orig = plaintext_size = h->tot_len;
+
+		crypto_prefetch_ctx(ctx_arr, count, j);
 
 		if (transport) {
 			/*
@@ -1364,6 +1373,7 @@ esp_output_post_encrypt(struct crypto_pkt_ctx *ctx_arr[], uint16_t count)
 	struct crypto_pkt_ctx *ctx;
 
 	for (i = 0; i < count; i++) {
+		crypto_prefetch_ctx(ctx_arr, count, i);
 		ctx = ctx_arr[i];
 		iv_len = crypto_session_iv_len(ctx->sa->session);
 
@@ -1372,6 +1382,8 @@ esp_output_post_encrypt(struct crypto_pkt_ctx *ctx_arr[], uint16_t count)
 
 		eth_hdr = (struct rte_ether_hdr *)ctx->hdr;
 		eth_hdr->ether_type = htons(ctx->out_ethertype);
+
+		crypto_prefetch_ctx_data(ctx_arr, count, i);
 
 		crypto_sadb_increment_counters(ctx->sa,
 					       ctx->plaintext_size_orig -

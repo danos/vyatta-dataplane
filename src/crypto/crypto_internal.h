@@ -636,4 +636,53 @@ move_bad_mbufs(struct crypto_pkt_ctx *ctx_arr[], uint16_t count,
 		ctx_arr[k + i] = tmp_ctx_arr[i];
 }
 
+#define CRYPTO_PREFETCH_LOOKAHEAD 10
+
+static inline
+void crypto_prefetch_ctx(struct crypto_pkt_ctx *ctx_arr[], uint16_t count,
+			 uint16_t cur)
+{
+	uint16_t i, j;
+
+	if (likely(cur % CRYPTO_PREFETCH_LOOKAHEAD))
+		return;
+
+	i = cur + CRYPTO_PREFETCH_LOOKAHEAD;
+	j = cur + 1;
+	for (; j < count && j < i; j++)
+		rte_prefetch0(ctx_arr[j]);
+}
+
+static inline
+void crypto_prefetch_ctx_data(struct crypto_pkt_ctx *ctx_arr[], uint16_t count,
+			      uint16_t cur)
+{
+	uint16_t i, j;
+
+	if (likely(cur % CRYPTO_PREFETCH_LOOKAHEAD))
+		return;
+
+	i = cur + CRYPTO_PREFETCH_LOOKAHEAD;
+	j = cur + 1;
+	for (; j < count && j < i; j++) {
+		rte_prefetch0(ctx_arr[j]->mbuf);
+		rte_prefetch0(ctx_arr[j]->sa);
+	}
+}
+
+static inline
+void crypto_prefetch_mbuf_data(struct crypto_pkt_ctx *ctx_arr[], uint16_t count,
+			       uint16_t cur)
+{
+	uint16_t i, j;
+
+	if (likely(cur % CRYPTO_PREFETCH_LOOKAHEAD))
+		return;
+
+	i = cur + CRYPTO_PREFETCH_LOOKAHEAD;
+	j = cur + 1;
+	for (; j < count && j < i; j++)
+		rte_prefetch0(ctx_arr[j]->mbuf->cacheline1);
+}
+
 #endif /* CRYPTO_INTERNAL_H */

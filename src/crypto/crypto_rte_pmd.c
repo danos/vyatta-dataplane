@@ -890,6 +890,7 @@ crypto_rte_xform_packets(struct crypto_pkt_ctx *cctx_arr[], uint16_t count)
 	assert(count <= MAX_CRYPTO_PKT_BURST);
 
 	for (i = 0; i < count; i++) {
+		crypto_prefetch_ctx(cctx_arr, count, i);
 		cctx = cctx_arr[i];
 		session = cctx->sa->session;
 		encrypt = (cctx->sa->dir == CRYPTO_DIR_OUT);
@@ -948,6 +949,8 @@ crypto_rte_xform_packets(struct crypto_pkt_ctx *cctx_arr[], uint16_t count)
 						    struct crypto_pkt_ctx **,
 						    CRYPTO_OP_CTX_OFFSET);
 		*ctx_ptr = cctx;
+
+		crypto_prefetch_ctx_data(cctx_arr, count, i);
 
 		if (pkt_batch.cdev_id != cctx->sa->rte_cdev_id ||
 		    pkt_batch.qid != qid) {
