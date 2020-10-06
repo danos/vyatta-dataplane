@@ -183,7 +183,7 @@ int cmd_backplane_cfg(FILE *f, int argc, char **argv)
 	struct ifnet *ifp, *bp_ifp;
 	int rv;
 
-	if (argc != 4) {
+	if (argc != 4 && f) {
 		fprintf(f, "\nInvalid command : ");
 		for (int i = 0; i < argc; i++)
 			fprintf(f, "%s ", argv[i]);
@@ -238,7 +238,11 @@ int cmd_backplane_cfg(FILE *f, int argc, char **argv)
 
 	return 0;
 error:
-	fprintf(f, "Usage: backplane SET <ifname> <bp-ifname>\n");
+	if (f)
+		fprintf(f, "Usage: backplane SET <ifname> <bp-ifname>\n");
+	else
+		RTE_LOG(ERR, BACKPLANE,
+			"Usage: backplane SET <ifname> <bp-ifname>\n");
 	return -EINVAL;
 }
 
