@@ -685,4 +685,21 @@ void crypto_prefetch_mbuf_data(struct crypto_pkt_ctx *ctx_arr[], uint16_t count,
 		rte_prefetch0(ctx_arr[j]->mbuf->cacheline1);
 }
 
+/*
+ * Fetch data for entire burst into L2 cache
+ * This results in a significant increase in throughput
+ * with multiple cores due to a reduction in memory
+ * contention
+ */
+static inline
+void crypto_prefetch_mbuf_payload(struct rte_mbuf *m)
+{
+	uint16_t offset = 0;
+
+	for (offset = 0; offset < rte_pktmbuf_data_len(m);
+	     offset += RTE_CACHE_LINE_SIZE)
+		rte_prefetch1(rte_pktmbuf_mtod_offset(m, void *,
+						      offset));
+}
+
 #endif /* CRYPTO_INTERNAL_H */

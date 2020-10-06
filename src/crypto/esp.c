@@ -752,6 +752,8 @@ esp_input_pre_decrypt(struct crypto_pkt_ctx *ctx_arr[], uint16_t count)
 		m = ctx->mbuf;
 		sa = ctx->sa;
 
+		crypto_prefetch_mbuf_payload(m);
+
 		if (family == AF_INET) {
 			struct iphdr *ip = iphdr(m);
 
@@ -1233,6 +1235,9 @@ esp_output_pre_encrypt(struct crypto_pkt_ctx *ctx_arr[],
 		m = ctx->mbuf;
 		h = &h_arr[j];
 		sa = ctx->sa;
+
+		crypto_prefetch_mbuf_payload(m);
+
 		transport = (sa->mode == XFRM_MODE_TRANSPORT) ? 1 : 0;
 
 		if (ctx->orig_family == AF_INET) {
