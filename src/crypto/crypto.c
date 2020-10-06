@@ -11,6 +11,7 @@
 #include <netinet/ip.h>
 #include <netinet/ip6.h>
 #include <netinet/udp.h>
+#include <openssl/rand.h>
 #include <rte_branch_prediction.h>
 #include <rte_config.h>
 #include <rte_cycles.h>
@@ -1194,7 +1195,7 @@ static int dp_crypto_lcore_init(unsigned int lcore_id,
 	struct crypto_pkt_buffer *cpb;
 	unsigned int cpu_socket;
 	uint32_t q;
-	int err;
+	int err, i;
 
 	err = crypto_flow_cache_init_lcore(lcore_id);
 	if (err)
@@ -1221,6 +1222,13 @@ static int dp_crypto_lcore_init(unsigned int lcore_id,
 
 		cpbdb[lcore_id] = cpb;
 
+		for (i = 0; i < MAX_CRYPTO_PKT_BURST; i++) {
+			err = RAND_bytes(cpb->iv_cache[i],
+					 CRYPTO_MAX_IV_LENGTH);
+			if (err != 1)
+				rte_panic("Could not generate random bytes for crypto lcore %u. System might be low on entropy",
+					  lcore_id);
+		}
 		RTE_PER_LCORE(crypto_pkt_buffer) = cpb;
 	}
 	return 0;

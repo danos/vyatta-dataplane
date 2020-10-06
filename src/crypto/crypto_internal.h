@@ -702,4 +702,7 @@ void crypto_prefetch_mbuf_payload(struct rte_mbuf *m)
 						      offset));
 }
 
+void crypto_save_iv(uint16_t idx, const char iv[], uint16_t length);
+void crypto_get_iv(uint16_t idx, char iv[], uint16_t length);
+
 #endif /* CRYPTO_INTERNAL_H */

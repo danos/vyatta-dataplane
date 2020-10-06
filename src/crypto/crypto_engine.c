@@ -534,6 +534,35 @@ int crypto_session_set_iv(struct crypto_session *session, unsigned int length,
 	return 0;
 }
 
+void crypto_save_iv(uint16_t idx, const char iv[], uint16_t length)
+{
+	struct crypto_pkt_buffer *cpb = cpbdb[dp_lcore_id()];
+
+	/* should never happen */
+	if (idx >= MAX_CRYPTO_PKT_BURST || length > CRYPTO_MAX_IV_LENGTH) {
+		ENGINE_ERR("Unexpected packet index (%d) or IV length (%d)",
+			   idx, length);
+		return;
+	}
+
+	memcpy(cpb->iv_cache[idx], iv, length);
+}
+
+void crypto_get_iv(uint16_t idx, char iv[], uint16_t length)
+{
+	struct crypto_pkt_buffer *cpb = cpbdb[dp_lcore_id()];
+
+	/* should never happen */
+	if (idx >= MAX_CRYPTO_PKT_BURST || length > CRYPTO_MAX_IV_LENGTH) {
+		ENGINE_ERR("Unexpected packet index (%d) or IV length (%d)",
+			   idx, length);
+		return;
+	}
+
+	memcpy(iv, cpb->iv_cache[idx], length);
+}
+
+
 static int setup_cipher_type(struct crypto_session *ctx)
 {
 	struct crypto_openssl_info *o_ctx = ctx->o_info;
@@ -768,8 +797,6 @@ int crypto_openssl_session_setup(struct crypto_session *sess)
 	if (setup_md_type(sess) != 0)
 		goto error;
 
-	RAND_bytes((unsigned char *)sess->iv, sess->iv_len);
-
 	err = crypto_session_set_enc_key(sess);
 	if (err) {
 		ENGINE_ERR("Failed to set session encryption key\n");
@@ -823,7 +850,12 @@ crypto_session_create(const struct xfrm_algo *algo_crypt,
 	}
 
 	ctx->direction = direction;
-	RAND_bytes((unsigned char *)ctx->iv, ctx->iv_len + ctx->nonce_len);
+	if (RAND_bytes((unsigned char *)ctx->iv,
+		       ctx->iv_len + ctx->nonce_len) != 1) {
+		RTE_LOG(ERR, DATAPLANE,
+			"Could not generate random bytes for crypto IV. System might be low on entropy\n");
+		goto err;
+	}
 
 	return ctx;
 

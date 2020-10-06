@@ -13,6 +13,7 @@
 #include <rte_timer.h>
 #include <stdint.h>
 
+#include "crypto_defs.h"
 #include "crypto_rte_pmd.h"
 #include "urcu.h"
 
@@ -52,6 +53,7 @@ struct crypto_pkt_buffer {
 	struct crypto_pkt_ctx *local_crypto_q[MAX_CRYPTO_XFRM]
 	[MAX_CRYPTO_PKT_BURST];
 	struct rte_crypto_op *cops[MAX_CRYPTO_PKT_BURST];
+	unsigned char iv_cache[MAX_CRYPTO_PKT_BURST][CRYPTO_MAX_IV_LENGTH];
 };
 
 RTE_DECLARE_PER_LCORE(struct crypto_pkt_buffer *, crypto_pkt_buffer);
