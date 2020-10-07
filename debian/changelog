@@ -1,3 +1,16 @@
+vyatta-dataplane (3.11.38) unstable; urgency=medium
+
+  [ Charles (Chas) Williams ]
+  * dpdk: add ConnectX-6 support to vplane-uio
+
+  [ Paul Atkins ]
+  * backplane: add comment about why command replay is needed
+  * backplane: check that the FILE ptr is set in the command handler
+  * rt_commands: remove the code to handle out of order cfg for garp
+  * commands: remove the code to handle out of order cfg for switchport
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Wed, 07 Oct 2020 08:54:45 +0100
+
 vyatta-dataplane (3.11.37) unstable; urgency=medium
 
   [ Nicholas Brown ]
