@@ -570,73 +570,6 @@ static void if_garp_op_update(struct ifnet *ifp, void *param)
 		ifp->ip_garp_op.garp_rep_action = ctx->action;
 }
 
-static struct cfg_if_list *cfg_garp_list;
-
-static void
-garp_event_if_index_set(struct ifnet *ifp);
-static void
-garp_event_if_index_unset(struct ifnet *ifp, uint32_t ifindex);
-static int
-cmd_arp_cfg_handler(struct pb_msg *msg);
-
-static const struct dp_event_ops garp_event_ops = {
-	.if_index_set = garp_event_if_index_set,
-	.if_index_unset = garp_event_if_index_unset,
-};
-
-static void
-garp_event_if_index_set(struct ifnet *ifp)
-{
-	struct cfg_if_list_entry *le;
-
-	if (!cfg_garp_list)
-		return;
-
-	le = cfg_if_list_lookup(cfg_garp_list, ifp->if_name);
-	if (!le)
-		return;
-
-	RTE_LOG(INFO, DATAPLANE,
-			"Replaying garp command %s for interface %s\n",
-			le->le_buf, ifp->if_name);
-
-	struct pb_msg msg = {
-		.msg_len = le->le_argc,
-		.msg     = le->le_buf,
-		.fp      = NULL
-	};
-	cmd_arp_cfg_handler(&msg);
-	cfg_if_list_del(cfg_garp_list, ifp->if_name);
-	if (!cfg_garp_list->if_list_count) {
-		cfg_if_list_destroy(&cfg_garp_list);
-		dp_event_unregister(&garp_event_ops);
-	}
-}
-
-static void
-garp_event_if_index_unset(struct ifnet *ifp, uint32_t ifindex __unused)
-{
-	if (!cfg_garp_list)
-		return;
-
-	cfg_if_list_del(cfg_garp_list, ifp->if_name);
-	if (!cfg_garp_list->if_list_count) {
-		cfg_if_list_destroy(&cfg_garp_list);
-		dp_event_unregister(&garp_event_ops);
-	}
-}
-
-static int garp_replay_init(void)
-{
-	if (!cfg_garp_list) {
-		cfg_garp_list = cfg_if_list_create();
-		if (!cfg_garp_list)
-			return -ENOMEM;
-	}
-	dp_event_register(&garp_event_ops);
-	return 0;
-}
-
 static int cmd_garp_global(struct garp_op_ctx *ctx)
 {
 	if (!ctx->set)
@@ -672,24 +605,17 @@ static void cmd_garp_intf_arpop(struct garp_op_ctx *ctx, struct ifnet *ifp)
 	}
 }
 
-static int cmd_garp_intf_pb(struct garp_op_ctx *ctx, int len, void *payload)
+static int cmd_garp_intf_pb(struct garp_op_ctx *ctx)
 {
 
 	struct ifnet *ifp;
 
 	ifp = dp_ifnet_byifname(ctx->if_name);
 	if (!ifp) {
-		if (!cfg_garp_list && garp_replay_init()) {
-			RTE_LOG(ERR, DATAPLANE,
-				"Could not set up cmd replay cache\n");
-			return -ENOMEM;
-		}
-
 		RTE_LOG(INFO, DATAPLANE,
-			"Caching garp command for interface %s\n",
+			"garp applied, but interface missing %s\n",
 			ctx->if_name);
-		cfg_if_list_bin_add(cfg_garp_list, ctx->if_name, payload, len);
-		return 0;
+		return -1;
 	}
 
 	cmd_garp_intf_arpop(ctx, ifp);
@@ -790,7 +716,7 @@ cmd_arp_cfg_handler(struct pb_msg *msg)
 	if (*ctx.if_name == '\0' || !strcmp(ctx.if_name, "all"))
 		cmd_garp_global(&ctx);
 	else
-		cmd_garp_intf_pb(&ctx, len, payload);
+		cmd_garp_intf_pb(&ctx);
 end:
 	garp_config__free_unpacked(smsg, NULL);
 	return ret;
