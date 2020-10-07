@@ -5587,6 +5587,29 @@ int fal_plugin_capture_create(uint32_t attr_count,
 			      fal_object_t *obj);
 void fal_plugin_capture_delete(fal_object_t obj);
 
+/**
+ * @brief Stat counter IDs for use in fal_plugin_capture_get_stats() call.
+ */
+enum fal_capture_stat_type {
+	FAL_CAPTURE_STAT_DROPPED_PACKETS,
+	FAL_CAPTURE_STAT_MAX
+};
+
+/**
+ * @brief Get the counters for the capture object
+ *
+ * @param[in] obj Capture object
+ * @param[in] num_counters The size of the stats array being asked for
+ * @param[in] cntr_ids Array of stats to return
+ * @param[out] stats And array to write the requested stats values into.
+ * @return Returns 0 for success, error code on failure
+ */
+int fal_plugin_capture_get_stats(
+	fal_object_t obj, uint32_t num_counters,
+	const enum fal_capture_stat_type *cntr_ids,
+	uint64_t *stats);
+
+
 /* BFD Definitions */
 
 /**

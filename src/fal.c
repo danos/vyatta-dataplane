@@ -594,6 +594,7 @@ static struct fal_capture_ops *new_dyn_capture_ops(void *lib)
 
 	ops->create = dlsym(lib, "fal_plugin_capture_create");
 	ops->delete = dlsym(lib, "fal_plugin_capture_delete");
+	ops->get_stats = dlsym(lib, "fal_plugin_capture_get_stats");
 	return ops;
 }
 
@@ -3720,6 +3721,14 @@ int fal_capture_create(uint32_t attr_count,
 void fal_capture_delete(fal_object_t obj)
 {
 	call_handler(capture, delete, obj);
+}
+
+int fal_capture_get_stats(fal_object_t obj, uint32_t num_counters,
+			  const enum fal_capture_stat_type *cntr_ids,
+			  uint64_t *stats)
+{
+	return call_handler_def_ret(capture, -EOPNOTSUPP, get_stats,
+				    obj, num_counters, cntr_ids, stats);
 }
 
 /* Start of BFD functions */

@@ -45,6 +45,7 @@ struct capture_info {
 	uint8_t capture_mask; /* bitmask of current captures */
 	struct capture_filter_list filters;
 	struct timespec last_beat;
+	uint64_t pkt_drops;
 	bool is_promisc;
 	bool is_swonly;
 	unsigned int snaplen;
