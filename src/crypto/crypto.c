@@ -468,7 +468,6 @@ crypto_post_decrypt_handle_packet(struct crypto_pkt_ctx *cctx,
 	if (rc < 0) {
 		if (vti_ifp)
 			if_incr_error(vti_ifp);
-		CRYPTO_DATA_ERR("ESP Input failed %d\n", rc);
 		IPSEC_CNT_INC(DROPPED_ESP_INPUT_FAIL);
 		cctx->action = CRYPTO_ACT_DROP;
 		return;
@@ -491,7 +490,6 @@ crypto_post_decrypt_handle_packet(struct crypto_pkt_ctx *cctx,
 		} else {
 			cctx->in_ifp = crypto_ctx_to_in_ifp(cctx, m);
 			if (unlikely(!cctx->in_ifp)) {
-				CRYPTO_DATA_ERR("No_ifp\n");
 				IPSEC_CNT_INC(DROPPED_NO_IFP);
 				cctx->action = CRYPTO_ACT_DROP;
 				return;
@@ -528,7 +526,6 @@ crypto_process_decrypt_packets(uint16_t count,
 					   cctx[i]->family),
 			    cctx[i]->family, mark, m,
 			    &cctx[i]->vti_ifp) < 0)) {
-			CRYPTO_DATA_ERR("No VTI interface found\n");
 			IPSEC_CNT_INC(NO_VTI);
 			cctx[i]->action = CRYPTO_ACT_DROP;
 			continue;
@@ -564,15 +561,12 @@ static void crypto_process_encrypt_packets(uint16_t count,
 		if (tmp_cctx->status < 0) {
 			if (tmp_cctx->nxt_ifp)
 				if_incr_oerror(tmp_cctx->nxt_ifp);
-			CRYPTO_DATA_ERR("ESP Output failed %d\n",
-					tmp_cctx->status);
 			tmp_cctx->action = CRYPTO_ACT_DROP;
 			IPSEC_CNT_INC(DROPPED_ESP_OUTPUT_FAIL);
 		} else {
 			tmp_cctx->in_ifp = crypto_ctx_to_in_ifp(tmp_cctx,
 								tmp_cctx->mbuf);
 			if (unlikely(!tmp_cctx->in_ifp)) {
-				CRYPTO_DATA_ERR("No_ifp\n");
 				IPSEC_CNT_INC(DROPPED_NO_IFP);
 				tmp_cctx->action = CRYPTO_ACT_DROP;
 				continue;
@@ -1047,7 +1041,6 @@ crypto_pmd_process_packets(struct crypto_pkt_ctx *contexts[],
 	for (i = 0; i < count; i++) {
 		m = contexts[i]->mbuf;
 		if (unlikely(!m)) {
-			CRYPTO_DATA_ERR("Null mbuf\n");
 			contexts[i]->action = CRYPTO_ACT_DROP;
 			IPSEC_CNT_INC(DROPPED_NO_MBUF);
 			continue;
