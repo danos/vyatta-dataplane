@@ -202,7 +202,7 @@ static void drop_stats_response(struct capture_info *cap_info, zsock_t *sock)
 
 	uint64_t drops = cap_info->pkt_drops;
 
-	if (cap_info->falobj != NULL) {
+	if (cap_info->falobj != FAL_NULL_OBJECT_ID) {
 
 		ret = fal_capture_get_stats(cap_info->falobj,
 					    ARRAY_SIZE(cntr_ids),
