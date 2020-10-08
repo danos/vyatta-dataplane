@@ -3624,13 +3624,10 @@ static const char *pause_enum_to_string(int pause_mode)
 	return p_mode;
 }
 
-static void show_eth_info(json_writer_t *wr, struct ifnet *ifp)
+static void show_eth_info_pause(json_writer_t *wr, struct ifnet *ifp)
 {
 	struct fal_attribute_t pause_attr;
 	int rv;
-
-	jsonw_name(wr, "eth-info");
-	jsonw_start_object(wr);
 
 	pause_attr.id = FAL_PORT_ATTR_REMOTE_ADVERTISED_FLOW_CONTROL_MODE;
 	rv = fal_l2_get_attrs(ifp->if_index, 1, &pause_attr);
@@ -3639,7 +3636,15 @@ static void show_eth_info(json_writer_t *wr, struct ifnet *ifp)
 		jsonw_string_field(wr, "pause-mode", "none");
 	else
 		jsonw_string_field(wr, "pause-mode",
-		pause_enum_to_string(pause_attr.value.u8));
+				   pause_enum_to_string(pause_attr.value.u8));
+}
+
+static void show_eth_info(json_writer_t *wr, struct ifnet *ifp)
+{
+	jsonw_name(wr, "eth-info");
+	jsonw_start_object(wr);
+
+	show_eth_info_pause(wr, ifp);
 
 	jsonw_end_object(wr);
 }
