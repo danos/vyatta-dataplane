@@ -977,8 +977,12 @@ static void crypto_fwd_processed_packets(struct crypto_pkt_ctx **contexts,
 {
 	uint32_t i;
 
-	for (i = 0; i < count; i++)
+	for (i = 0; i < count; i++) {
+		if (unlikely(contexts[i]->status < 0))
+			contexts[i]->action = CRYPTO_ACT_DROP;
+
 		crypto_pkt_ctx_forward_and_free(contexts[i]);
+	}
 }
 
 struct crypto_processing_cb {
