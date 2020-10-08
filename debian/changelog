@@ -1,3 +1,13 @@
+vyatta-dataplane (3.11.39) unstable; urgency=medium
+
+  [ Ramesh Devarajan ]
+  * capture: Print dropped frames count
+
+  [ Paul Atkins ]
+  * capture: compare fal obj against FAL_NULL_OBJECT_ID instead of NULL
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Thu, 08 Oct 2020 11:30:41 +0100
+
 vyatta-dataplane (3.11.38) unstable; urgency=medium
 
   [ Charles (Chas) Williams ]
