@@ -131,6 +131,7 @@ static struct fal_l2_ops *new_dyn_l2_ops(void *lib)
 	l2_ops->new_port = dlsym(lib, "fal_plugin_l2_new_port");
 	l2_ops->upd_port = dlsym(lib, "fal_plugin_l2_upd_port");
 	l2_ops->del_port = dlsym(lib, "fal_plugin_l2_del_port");
+	l2_ops->dump_port = dlsym(lib, "fal_plugin_l2_dump_port");
 	l2_ops->get_attrs = dlsym(lib, "fal_plugin_l2_get_attrs");
 	l2_ops->new_addr = dlsym(lib, "fal_plugin_l2_new_addr");
 	l2_ops->upd_addr = dlsym(lib, "fal_plugin_l2_upd_addr");
@@ -862,6 +863,11 @@ int fal_l2_upd_port(unsigned int if_index,
 void fal_l2_del_port(unsigned int if_index)
 {
 	call_handler(l2, del_port, if_index);
+}
+
+void fal_l2_dump_port(unsigned int if_index, json_writer_t *wr)
+{
+	call_handler(l2, dump_port, if_index, wr);
 }
 
 void fal_l2_new_addr(unsigned int if_index,

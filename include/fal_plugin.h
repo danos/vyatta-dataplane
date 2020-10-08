@@ -830,6 +830,14 @@ int fal_plugin_l2_upd_port(unsigned int ifindex,
  */
 void fal_plugin_l2_del_port(unsigned int ifindex);
 
+/**
+ * @brief Dump port
+ *
+ * @param[in] ifindex The ifindex of the interface
+ * @param[inout] json JSON writer object
+ */
+void fal_plugin_l2_dump_port(unsigned int ifindex, json_writer_t *wr);
+
 /* No attributes */
 
 /*

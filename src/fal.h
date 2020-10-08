@@ -86,6 +86,7 @@ struct fal_l2_ops {
 	int (*upd_port)(unsigned int if_index,
 			struct fal_attribute_t *attr);
 	void (*del_port)(unsigned int if_index);
+	void (*dump_port)(unsigned int if_index, json_writer_t *wr);
 	void (*new_addr)(unsigned int if_index,
 			 const void *addr,
 			 uint32_t attr_count,
@@ -662,6 +663,7 @@ int fal_l2_get_attrs(unsigned int if_index,
 int fal_l2_upd_port(unsigned int if_index,
 		    struct fal_attribute_t *attr);
 void fal_l2_del_port(unsigned int if_index);
+void fal_l2_dump_port(unsigned int if_index, json_writer_t *wr);
 void fal_l2_new_addr(unsigned int if_index,
 		     const struct rte_ether_addr *addr,
 		     uint32_t attr_count,

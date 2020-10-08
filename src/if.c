@@ -3646,6 +3646,11 @@ static void show_eth_info(json_writer_t *wr, struct ifnet *ifp)
 
 	show_eth_info_pause(wr, ifp);
 
+	jsonw_name(wr, "l2_intf_platform_state");
+	jsonw_start_object(wr);
+	fal_l2_dump_port(ifp->if_index, wr);
+	jsonw_end_object(wr);
+
 	jsonw_end_object(wr);
 }
 
