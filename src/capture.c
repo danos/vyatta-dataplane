@@ -188,6 +188,33 @@ static void pcapin_response(zsock_t *sock, char *type, zmsg_t *recv_msg,
 }
 
 /*
+ * Send response to "DROP STATS" request.
+ * Get the capture stats and increment the total drop count (software)
+ * with the received drop count in the hardware stats.
+ */
+static void drop_stats_response(struct capture_info *cap_info, zsock_t *sock)
+{
+	enum fal_capture_stat_type cntr_ids[] = {
+		FAL_CAPTURE_STAT_DROPPED_PACKETS,
+	};
+	uint64_t cntrs[ARRAY_SIZE(cntr_ids)];
+	int ret;
+
+	uint64_t drops = cap_info->pkt_drops;
+
+	if (cap_info->falobj != NULL) {
+
+		ret = fal_capture_get_stats(cap_info->falobj,
+					    ARRAY_SIZE(cntr_ids),
+					    &cntr_ids[0], &cntrs[0]);
+		if (ret >= 0)
+			drops += cntrs[0];
+	}
+
+	zsock_send(sock, "s8", "OK DROP STATS", drops);
+}
+
+/*
  * Handler for incoming requests from libpcap (filters, heartbeats and stop
  * command).
  */
@@ -214,6 +241,10 @@ static int pcapin_handler(zsock_t *sock, struct ifnet *ifp)
 	 *
 	 * Capture stop:
 	 * Frame 1 - "STOP"
+	 * Frame 2 - <slotmask>
+	 *
+	 * Drop statistics:
+	 * Frame 1 - "DROP STATS"
 	 * Frame 2 - <slotmask>
 	 *
 	 * Heartbeat:
@@ -250,6 +281,11 @@ static int pcapin_handler(zsock_t *sock, struct ifnet *ifp)
 			int stop = capture_stop(ifp, slotmask);
 			pcapin_response(sock, type, msg, "OK");
 			return stop;
+		} else if (!strcmp(type, "DROP STATS")) {
+			free(type);
+			zmsg_destroy(&msg);
+			drop_stats_response(cap_info, sock);
+			return 0;
 		} else if (!strcmp(type, "FILTER")) {
 
 			frame = zmsg_pop(msg);
@@ -377,6 +413,8 @@ static int capture_enqueue(struct capture_info *cap_info,
 				       (void **)pkts, n, NULL);
 	if (likely(ret > 0))
 		capture_wakeup(cap_info);
+	else
+		cap_info->pkt_drops += n;
 
 	return ret;
 }
@@ -398,13 +436,16 @@ void capture_hardware(const struct ifnet *ifp, struct rte_mbuf *mbuf)
 void capture_burst(const struct ifnet *ifp,
 		   struct rte_mbuf *pkts[], unsigned int n)
 {
+	struct capture_info *cap_info = ifp->cap_info;
 	struct rte_mbuf *snap[n];
 
 	/* may be called with no packets on transmit with bonding interfaces */
-	if (n == 0 || capture_mbuf_copy(pkts, snap, n) < 0)
+	if (n == 0 || capture_mbuf_copy(pkts, snap, n) < 0) {
+		cap_info->pkt_drops += n;
 		return;
+	}
 
-	if (unlikely(capture_enqueue(ifp->cap_info, snap, n) == 0))
+	if (unlikely(capture_enqueue(cap_info, snap, n) == 0))
 		pktmbuf_free_bulk(snap, n);
 }
 
@@ -642,8 +683,10 @@ static void capture_loop(struct ifnet *ifp)
 
 			rte_pktmbuf_free(m);
 
-			if (ret < 0)
+			if (ret < 0) {
+				cap_info->pkt_drops++;
 				return;
+			}
 
 			if (loops++ >= CAPTURE_MAX_LOOPS) {
 				capture_wakeup(cap_info);

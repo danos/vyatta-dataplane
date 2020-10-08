@@ -581,6 +581,10 @@ struct fal_capture_ops {
 		      const struct fal_attribute_t *attr_list,
 		      fal_object_t *obj);
 	void (*delete)(fal_object_t obj);
+	int (*get_stats)(fal_object_t obj,
+			 uint32_t num_counters,
+			 const enum fal_capture_stat_type *cntr_ids,
+			 uint64_t *stats);
 };
 
 struct fal_mpls_ops {
@@ -1097,6 +1101,9 @@ int fal_capture_create(uint32_t attr_count,
 		       const struct fal_attribute_t *attr_list,
 		       fal_object_t *obj);
 void fal_capture_delete(fal_object_t obj);
+int fal_capture_get_stats(fal_object_t obj, uint32_t num_counters,
+			  const enum fal_capture_stat_type *cntr_ids,
+			  uint64_t *stats);
 
 int fal_create_mpls_route(const struct fal_mpls_route_t *mpls_route,
 			  uint32_t attr_count,
