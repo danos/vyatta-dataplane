@@ -3624,7 +3624,7 @@ static const char *pause_enum_to_string(int pause_mode)
 	return p_mode;
 }
 
-static int cmd_pause_show(json_writer_t *wr, struct ifnet *ifp)
+static void show_eth_info(json_writer_t *wr, struct ifnet *ifp)
 {
 	struct fal_attribute_t pause_attr;
 	int rv;
@@ -3642,7 +3642,6 @@ static int cmd_pause_show(json_writer_t *wr, struct ifnet *ifp)
 		pause_enum_to_string(pause_attr.value.u8));
 
 	jsonw_end_object(wr);
-	return rv;
 }
 
 /* Show information generic interface in JSON */
@@ -3717,7 +3716,7 @@ static void ifconfig(struct ifnet *ifp, void *arg)
 		if_dump_state(ifp, wr, IF_DS_STATE_VERBOSE);
 	if_dump_state(ifp, wr, IF_DS_DEV_INFO);
 
-	cmd_pause_show(wr, ifp);
+	show_eth_info(wr, ifp);
 	show_link_state(wr, ifp);
 	show_address(wr, ifp);
 	show_stats(wr, ifp);
