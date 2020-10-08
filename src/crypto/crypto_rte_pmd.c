@@ -913,6 +913,7 @@ crypto_rte_xform_packets(struct crypto_pkt_ctx *cctx_arr[], uint16_t count)
 		err = crypto_rte_op_assoc_session(cop, session);
 		if (unlikely(err)) {
 			cctx->status = -1;
+			IPSEC_CNT_INC(CRYPTO_OP_ASSOC_FAILED);
 			continue;
 		}
 		cop->sym->m_src = cctx->mbuf;
@@ -932,6 +933,7 @@ crypto_rte_xform_packets(struct crypto_pkt_ctx *cctx_arr[], uint16_t count)
 		}
 		if (unlikely(err)) {
 			cctx->status = -1;
+			IPSEC_CNT_INC(CRYPTO_OP_PREPARE_FAILED);
 			continue;
 		}
 

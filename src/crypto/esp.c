@@ -561,9 +561,12 @@ int esp_generate_chain(struct sadb_sa *sa,
 	struct crypto_visitor_ctx ctx = {
 		.session = sa->session,
 	};
+	int err;
 
-	if (crypto_chain_init(&chain, sa->session))
+	if (crypto_chain_init(&chain, sa->session)) {
+		IPSEC_CNT_INC(CRYPTO_CHAIN_INIT_FAILED);
 		return -1;
+	}
 
 	chain.v_ctx = &ctx;
 
@@ -589,8 +592,10 @@ int esp_generate_chain(struct sadb_sa *sa,
 	}
 
 	/* process plaintext ESP header (w/o IV) */
-	if (esp_process_authdata(&chain, esp) < 0)
+	if (esp_process_authdata(&chain, esp) < 0) {
+		IPSEC_CNT_INC(CRYPTO_AUTH_OP_FAILED);
 		return -1;
+	}
 
 	/* process plaintext ESP payload IV ptr & len*/
 	if (iv_len) {
@@ -599,13 +604,23 @@ int esp_generate_chain(struct sadb_sa *sa,
 	}
 
 	text_total_len -= esp_len;
-	if (esp_process_text(&chain, mbuf, text_total_len, esp + esp_len) < 0)
+	if (esp_process_text(&chain, mbuf, text_total_len, esp + esp_len) < 0) {
+		IPSEC_CNT_INC(CRYPTO_CIPHER_OP_FAILED);
 		return -1;
+	}
 
-	if (esp_process_digest(&chain) < 0)
+	if (esp_process_digest(&chain) < 0) {
+		IPSEC_CNT_INC(CRYPTO_DIGEST_OP_FAILED);
 		return -1;
+	}
 
-	return chain.icv_callback(&chain, mbuf);
+	err = chain.icv_callback(&chain, mbuf);
+	if (err) {
+		IPSEC_CNT_INC(CRYPTO_DIGEST_CB_FAILED);
+		return -1;
+	}
+
+	return 0;
 }
 
 static inline unsigned int
@@ -740,7 +755,7 @@ esp_input_pre_decrypt(struct crypto_pkt_ctx *ctx_arr[], uint16_t count)
 			struct iphdr *ip = iphdr(m);
 
 			if (unlikely(ip_is_fragment(ip))) {
-				ESP_ERR("IP Frag\n");
+				IPSEC_CNT_INC(DROPPED_ESP_IP_FRAG);
 				ctx->status = -1;
 				bad_idx[bad_cnt++] = i;
 				continue;
@@ -782,7 +797,7 @@ esp_input_pre_decrypt(struct crypto_pkt_ctx *ctx_arr[], uint16_t count)
 			(esp - rte_pktmbuf_mtod(m, unsigned char *));
 
 		if (seg_data_remaining < esp_len) {
-			ESP_ERR("ESP not in first buffer\n");
+			IPSEC_CNT_INC(ESP_NOT_IN_FIRST_SEG);
 			ctx->status = -1;
 			bad_idx[bad_cnt++] = i;
 			continue;
@@ -801,6 +816,7 @@ esp_input_pre_decrypt(struct crypto_pkt_ctx *ctx_arr[], uint16_t count)
 			ESP_ERR("Invalid ctext len %d block_size %d",
 				ciphertext_len,
 				crypto_session_block_size(sa->session));
+			IPSEC_CNT_INC(INVALID_CIPHERTEXT_LEN);
 			ctx->status = -1;
 			bad_idx[bad_cnt++] = i;
 			continue;
@@ -853,7 +869,7 @@ esp_input_post_decrypt(struct crypto_pkt_ctx *ctx_arr[], uint16_t count)
 		rc = buf_tail_read_char(m, &next_hdr, rc);
 		rc = buf_tail_read_char(m, &padding_size, rc);
 		if (rc != 0) {
-			ESP_ERR("ESP tail trim failed\n");
+			IPSEC_CNT_INC(ESP_TAIL_TRIM_FAILED);
 			ctx->status = -1;
 			bad_idx[bad_cnt++] = i;
 			continue;
@@ -901,8 +917,7 @@ esp_input_post_decrypt(struct crypto_pkt_ctx *ctx_arr[], uint16_t count)
 		} else if (sa->mode == XFRM_MODE_TUNNEL) {
 			if (next_hdr != IPPROTO_IPV6 &&
 			    next_hdr != IPPROTO_IPIP) {
-				ESP_PKT_ERR("IPSEC: Invalid nxt_hdr proto %d\n",
-					    next_hdr);
+				IPSEC_CNT_INC(ESP_INVALID_NXT_HDR);
 				ctx->status = -1;
 				bad_idx[bad_cnt++] = i;
 				continue;
@@ -912,7 +927,7 @@ esp_input_post_decrypt(struct crypto_pkt_ctx *ctx_arr[], uint16_t count)
 			new_l3_hdr = (char *)(ctx->esp + ctx->esp_len);
 			new_total = (*tunl_fixup)(sa, ctx->l3hdr, new_l3_hdr);
 		} else {
-			ESP_ERR("IPSEC: Unsupported mode");
+			IPSEC_CNT_INC(INVALID_IPSEC_MODE);
 			ctx->status = -1;
 			bad_idx[bad_cnt++] = i;
 			continue;
@@ -920,7 +935,7 @@ esp_input_post_decrypt(struct crypto_pkt_ctx *ctx_arr[], uint16_t count)
 
 		rc = iptun_eth_hdr_fixup(m, ethertype, ctx->head_trim);
 		if (rc < 0) {
-			ESP_ERR("Ethernet header fixup failed\n");
+			IPSEC_CNT_INC(ESP_ETH_HDR_FIXUP_FAILED);
 			ctx->status = -1;
 			bad_idx[bad_cnt++] = i;
 			continue;
@@ -1219,6 +1234,7 @@ esp_output_pre_encrypt(struct crypto_pkt_ctx *ctx_arr[],
 			if (unlikely(esp_out_hdr_parse6(m, ctx->l3hdr, h,
 							ctx->family,
 							transport) < 0)) {
+				IPSEC_CNT_INC(ESP_OUT_HDR_PARSE6_FAILED);
 				ctx->status = -1;
 				bad_idx[bad_cnt++] = j;
 				continue;
@@ -1260,8 +1276,7 @@ esp_output_pre_encrypt(struct crypto_pkt_ctx *ctx_arr[],
 
 		hdr = rte_pktmbuf_prepend(m, enc_inc);
 		if (unlikely(!hdr)) {
-			ESP_ERR("Head room inc failed (requested %d bytes)\n",
-				enc_inc);
+			IPSEC_CNT_INC(ESP_HDR_PREPEND_FAILED);
 			ctx->status = -1;
 			bad_idx[bad_cnt++] = j;
 			continue;
@@ -1281,8 +1296,7 @@ esp_output_pre_encrypt(struct crypto_pkt_ctx *ctx_arr[],
 		tail_len =  padding + 2 + icv_size;
 		tail = pktmbuf_append_alloc(m, tail_len);
 		if (unlikely(!tail)) {
-			ESP_PKT_ERR("Tail room inc for %d bytes failed\n",
-				    tail_len);
+			IPSEC_CNT_INC(ESP_TAIL_APPEND_FAILED);
 			ctx->status = -1;
 			bad_idx[bad_cnt++] = j;
 			continue;

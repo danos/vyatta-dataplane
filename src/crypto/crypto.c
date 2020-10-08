@@ -144,7 +144,24 @@ static const char * const ipsec_counter_names[] = {
 	[DROPPED_NO_BIND] = "dropped feature attachment point missing",
 	[DROPPED_ON_FP_NO_PR] = "dropped on fp but no policy",
 	[DROPPED_COP_ALLOC_FAILED] = "dropped on crypto op allocation failure",
-	[CRYPTO_OP_FAILED] = "encrypt/decrypt op failed"
+	[CRYPTO_OP_FAILED] = "encrypt/decrypt op failed",
+	[CRYPTO_OP_ASSOC_FAILED] = "failed to associate session with crypto op",
+	[CRYPTO_OP_PREPARE_FAILED] = "failed to prepare crypto op",
+	[DROPPED_ESP_IP_FRAG] = "ESP IP fragment dropped",
+	[ESP_NOT_IN_FIRST_SEG] = "ESP not in first segment",
+	[INVALID_CIPHERTEXT_LEN] = "Invalid ciphertext length",
+	[ESP_TAIL_TRIM_FAILED] = "ESP tail trim failed",
+	[ESP_INVALID_NXT_HDR] = "Invalid next header protocol",
+	[INVALID_IPSEC_MODE] = "Invalid IPsec mode",
+	[ESP_ETH_HDR_FIXUP_FAILED] = "Ethernet hdr fixup failed",
+	[ESP_OUT_HDR_PARSE6_FAILED] = "IPv6 header parse failed",
+	[ESP_HDR_PREPEND_FAILED] = "Failed to prepend ESP hdr",
+	[ESP_TAIL_APPEND_FAILED] = "Failed to append ESP tail",
+	[CRYPTO_CHAIN_INIT_FAILED] = "Failed to set up cipher op chain",
+	[CRYPTO_AUTH_OP_FAILED] = "Failed auth op",
+	[CRYPTO_CIPHER_OP_FAILED] = "Failed cipher op",
+	[CRYPTO_DIGEST_OP_FAILED] = "Failed digest op",
+	[CRYPTO_DIGEST_CB_FAILED] = "Failed digest cb",
 };
 
 unsigned long ipsec_counters[RTE_MAX_LCORE][IPSEC_CNT_MAX] __rte_cache_aligned;
