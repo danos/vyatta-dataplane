@@ -736,13 +736,6 @@ esp_input_pre_decrypt(struct crypto_pkt_ctx *ctx_arr[], uint16_t count)
 		m = ctx->mbuf;
 		sa = ctx->sa;
 
-		if (unlikely(!sa)) {
-			ESP_ERR("No SA for the inbound packet\n");
-			ctx->status = -1;
-			bad_idx[bad_cnt++] = i;
-			continue;
-		}
-
 		if (family == AF_INET) {
 			struct iphdr *ip = iphdr(m);
 
@@ -1217,15 +1210,7 @@ esp_output_pre_encrypt(struct crypto_pkt_ctx *ctx_arr[],
 		ctx = ctx_arr[j];
 		m = ctx->mbuf;
 		h = &h_arr[j];
-
 		sa = ctx->sa;
-		if (unlikely(!ctx->sa)) {
-			ESP_ERR("No SA for the outbound pkt\n");
-			ctx->status = -1;
-			bad_idx[bad_cnt++] = j;
-			continue;
-		}
-
 		transport = (sa->mode == XFRM_MODE_TRANSPORT) ? 1 : 0;
 
 		if (ctx->orig_family == AF_INET) {
