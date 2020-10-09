@@ -811,6 +811,67 @@ struct ifnet *ptp_peer_dst_lookup(struct ptp_peer_t *peer, bool *connected)
 }
 
 static
+void ptp_peer_dst_resolve(struct ptp_peer_t *peer,
+			  struct ifnet *ifp,
+			  struct rte_ether_addr *dst)
+
+{
+	struct rte_mbuf *m;
+	struct llentry *lle;
+	struct sockaddr_in taddr;
+	char buf[INET_ADDRSTRLEN];
+	const char *peerip = fal_ip_address_t_to_str(&peer->ipaddr,
+						     buf,
+						     sizeof(buf));
+
+	/* Next hop is directly reachable from switch interface. */
+	if (peer->ipaddr.addr_family == FAL_IP_ADDR_FAMILY_IPV4)
+		lle = in_lltable_find(ifp, peer->ipaddr.addr.ip4);
+	else if (peer->ipaddr.addr_family == FAL_IP_ADDR_FAMILY_IPV6)
+		lle = in6_lltable_find(ifp, &peer->ipaddr.addr.addr6);
+	else {
+		RTE_LOG(ERR, DATAPLANE, "%s: bad address family?\n",
+			__func__);
+		return;
+	}
+
+	if (llentry_copy_mac(lle, dst))
+		return;
+
+	/* The lle isn't valid (yet), attempt to resolve locally. */
+
+	DP_DEBUG(PTP, ERR, DATAPLANE, "%s: resolving %s...\n",
+		 __func__, peerip);
+
+	if (peer->ipaddr.addr_family == FAL_IP_ADDR_FAMILY_IPV4) {
+		taddr.sin_family = AF_INET;
+		taddr.sin_addr.s_addr = peer->ipaddr.addr.ip4;
+
+		m = arprequest(ifp, (struct sockaddr *) &taddr);
+		if (m)
+			if_output(ifp, m, NULL, RTE_ETHER_TYPE_ARP);
+
+	} else if (peer->ipaddr.addr_family == FAL_IP_ADDR_FAMILY_IPV6) {
+		m = pktmbuf_alloc(mbuf_pool(0), if_vrfid(ifp));
+		if (!m) {
+			RTE_LOG(ERR, DATAPLANE, "%s: no mbufs for ND\n",
+				__func__);
+			return;
+		}
+
+		if (!nd6_resolve(NULL, ifp, m,
+				 &peer->ipaddr.addr.addr6,
+				 dst))
+			if_output(ifp, m, NULL, RTE_ETHER_TYPE_IPV6);
+
+	} else {
+		RTE_LOG(ERR, DATAPLANE,
+			"%s: peer %s bad address family?\n",
+			__func__, peerip);
+	}
+}
+
+static
 void ptp_peer_update(struct ptp_peer_t *peer)
 {
 	struct ptp_port_t *port;
@@ -834,58 +895,7 @@ void ptp_peer_update(struct ptp_peer_t *peer)
 		goto out;
 
 	if (nh_ifp == ifp && connected) {
-		struct llentry *lle;
-
-		/* Next hop is directly reachable from switch interface. */
-		if (peer->ipaddr.addr_family == FAL_IP_ADDR_FAMILY_IPV4)
-			lle = in_lltable_find(ifp, peer->ipaddr.addr.ip4);
-		else if (peer->ipaddr.addr_family == FAL_IP_ADDR_FAMILY_IPV6)
-			lle = in6_lltable_find(ifp, &peer->ipaddr.addr.addr6);
-		else {
-			RTE_LOG(ERR, DATAPLANE, "%s: bad address family?\n",
-				__func__);
-			goto out;
-		}
-
-		/* If the lle isn't valid, attempt to resolve locally. */
-		if (!llentry_copy_mac(lle, &newmac)) {
-			struct rte_mbuf *m;
-			struct sockaddr_in taddr;
-
-			DP_DEBUG(PTP, ERR, DATAPLANE, "%s: resolving %s...\n",
-				 __func__, peerip);
-
-			if (peer->ipaddr.addr_family ==
-			    FAL_IP_ADDR_FAMILY_IPV4) {
-				taddr.sin_family = AF_INET;
-				taddr.sin_addr.s_addr = peer->ipaddr.addr.ip4;
-
-				m = arprequest(ifp, (struct sockaddr *) &taddr);
-				if (m)
-					if_output(ifp, m, NULL,
-						  RTE_ETHER_TYPE_ARP);
-			} else if (peer->ipaddr.addr_family ==
-				   FAL_IP_ADDR_FAMILY_IPV6) {
-				m = pktmbuf_alloc(mbuf_pool(0),
-						  if_vrfid(ifp));
-				if (!m) {
-					RTE_LOG(ERR, DATAPLANE,
-						"%s: no mbufs for ND\n",
-						__func__);
-					goto out;
-				}
-
-				if (!nd6_resolve(NULL, ifp, m,
-						 &peer->ipaddr.addr.addr6,
-						 &newmac))
-					if_output(ifp, m, NULL,
-						  RTE_ETHER_TYPE_IPV6);
-			} else {
-				RTE_LOG(ERR, DATAPLANE,
-					"%s: peer %s bad address family?\n",
-					__func__, peerip);
-			}
-		}
+		ptp_peer_dst_resolve(peer, ifp, &newmac);
 	} else if (nh_ifp) {
 		/* Send packets to switch interface for routing. */
 
