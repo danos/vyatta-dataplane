@@ -769,6 +769,41 @@ struct ifnet *ptp_port_port_to_vlan(struct ptp_port_t *port)
 	return vlan_ifp;
 }
 
+/* Find the nexthop interface for the peer if it exists */
+static
+struct ifnet *ptp_peer_dst_lookup(struct ptp_peer_t *peer, bool *connected)
+{
+	struct ifnet *nh_ifp = NULL;
+	const struct vrf *vrf;
+
+	vrf = get_vrf(VRF_DEFAULT_ID);
+	if (!vrf) {
+		RTE_LOG(ERR, DATAPLANE, "%s: no default VRF?\n", __func__);
+		return NULL;
+	}
+
+	*connected = false;
+	if (peer->ipaddr.addr_family == FAL_IP_ADDR_FAMILY_IPV4) {
+		nh_ifp = nhif_dst_lookup(vrf,
+					 peer->ipaddr.addr.ip4,
+					 connected);
+	} else if (peer->ipaddr.addr_family == FAL_IP_ADDR_FAMILY_IPV6) {
+		nh_ifp = nhif_dst_lookup6(vrf,
+					  &peer->ipaddr.addr.addr6,
+					  connected);
+	} else {
+		char buf[INET_ADDRSTRLEN];
+		const char *ip = fal_ip_address_t_to_str(&peer->ipaddr,
+							 buf,
+							 sizeof(buf));
+
+		RTE_LOG(ERR, DATAPLANE, "%s: peer %s bad address family?\n",
+			__func__, ip);
+	}
+
+	return nh_ifp;
+}
+
 static
 void ptp_peer_update(struct ptp_peer_t *peer)
 {
@@ -778,7 +813,6 @@ void ptp_peer_update(struct ptp_peer_t *peer)
 	char buf[INET_ADDRSTRLEN], buf2[INET_ADDRSTRLEN];
 	const char *peerip =
 		fal_ip_address_t_to_str(&peer->ipaddr, buf2, sizeof(buf2));
-	const struct vrf *vrf;
 	bool connected;
 
 	port = rcu_dereference(peer->port);
@@ -789,30 +823,9 @@ void ptp_peer_update(struct ptp_peer_t *peer)
 	if (!ifp)
 		goto out;
 
-	/* Determine the nexthop for this address. */
-	vrf = get_vrf(VRF_DEFAULT_ID);
-	if (!vrf) {
-		RTE_LOG(ERR, DATAPLANE, "%s: no default VRF?\n", __func__);
+	nh_ifp = ptp_peer_dst_lookup(peer, &connected);
+	if (!nh_ifp)
 		goto out;
-	}
-
-	DP_DEBUG(PTP, INFO, DATAPLANE, "%s: checking peer %s on %s (vlan %d)...\n",
-				       __func__, peerip,
-				       ifp->if_name, port->vlan_id);
-
-	if (peer->ipaddr.addr_family == FAL_IP_ADDR_FAMILY_IPV4) {
-		nh_ifp = nhif_dst_lookup(vrf,
-					 peer->ipaddr.addr.ip4,
-					 &connected);
-	} else if (peer->ipaddr.addr_family == FAL_IP_ADDR_FAMILY_IPV6) {
-		nh_ifp = nhif_dst_lookup6(vrf,
-					  &peer->ipaddr.addr.addr6,
-					  &connected);
-	} else {
-		RTE_LOG(ERR, DATAPLANE, "%s: peer %s bad address family?\n",
-			__func__, peerip);
-		goto out;
-	}
 
 	if (nh_ifp == ifp && connected) {
 		struct llentry *lle;
