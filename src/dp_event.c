@@ -192,11 +192,12 @@ int dp_events_unregister(const struct dp_events_ops *ops)
 
 	for (i = 0; i < ARRAY_SIZE(dp_ops); i++) {
 		internal_ops = rcu_dereference(dp_ops[i]);
-		if (!internal_ops->public_ops)
+
+		if (!internal_ops || internal_ops->public_ops != ops)
 			continue;
 
-		if (rcu_cmpxchg_pointer(&internal_ops->public_ops,
-					ops, NULL) == ops) {
+		if (rcu_cmpxchg_pointer(&dp_ops[i],
+					internal_ops, NULL) == internal_ops) {
 			call_rcu(&internal_ops->rcu, dp_event_unregister_free);
 			return 0;
 		}
