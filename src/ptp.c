@@ -791,6 +791,7 @@ int ptp_peer_uninstall(struct ptp_peer_t *peer)
 	if (peer->installed) {
 		rc = fal_delete_ptp_peer(peer->obj_id);
 		peer->installed = false;
+		memset(&peer->mac, 0, sizeof(peer->mac));
 	}
 
 	return rc;
@@ -961,33 +962,76 @@ void ptp_peer_update(struct ptp_peer_t *peer)
 	char buf[INET_ADDRSTRLEN], buf2[INET_ADDRSTRLEN];
 	const char *peerip =
 		fal_ip_address_t_to_str(&peer->ipaddr, buf2, sizeof(buf2));
+	struct ptp_peer_t *parent = peer, *sibling;
 	bool connected;
 
 	ptp_peer_find_nexthop(peer, &ifp, &nh_ifp, &connected);
 
-	if (nh_ifp == ifp && connected) {
-		ptp_peer_dst_resolve(peer, ifp, &newmac);
-	} else if (nh_ifp) {
-		/* Send packets to switch interface for routing. */
+	/* Is this the best way to reach the peer? There are potentially
+	 * three different way to reach a.b.c.d from the peers configured
+	 * on two different PTP ports:
+	 *
+	 * PTP port 1
+	 *     peer a.b.c.d -------> sw0.<vlan_A> ---- ? --> a.b.c.d
+	 *
+	 * PTP port 2
+	 *     peer a.b.c.d -------> sw0.<vlan_B> ---- ? --> a.b.c.d
+	 *
+	 *                           sw0.<vlan_C> ---- ? --> a.b.c.d
+	 *
+	 * ifp can be either sw0.<vlan_A> or sw0.<vlan_B>. However,
+	 * nh_ifp could be sw0.<vlan_A> or sw0.<vlan_B> or sw0.<vlan_C>.
+	 * Ideally, we should use the ifp that is also the nh_ifp.
+	 */
+	cds_list_for_each_entry_rcu(sibling, &parent->siblings, slist) {
+		struct ifnet *sib_ifp, *sib_nh_ifp;
+		bool sib_connected;
 
-		if (!(ifp->if_flags & IFF_UP)) {
+		ptp_peer_find_nexthop(peer,
+				      &sib_ifp, &sib_nh_ifp, &sib_connected);
+
+		/* If the nexthop is on the same interface, and the
+		 * interface is up, prefer this peer over any other.
+		 */
+		if ((sib_ifp->if_flags & IFF_UP) && sib_nh_ifp == sib_ifp) {
 			DP_DEBUG(PTP, ERR, DATAPLANE,
-				 "%s: switch nexthop interface %s is down!\n",
-				 __func__, ifp->if_name);
-			goto out;
+				 "%s: peer %s on %s is preferred to %s\n",
+				 __func__, peerip,
+				 sib_ifp->if_name, ifp->if_name);
+			ptp_peer_uninstall(peer);
+			peer = sibling;
+			nh_ifp = sib_nh_ifp;
+			ifp = sib_ifp;
+			connected = sib_connected;
+			continue;
 		}
 
+		 /* This peer might have been active, so always uninstall. */
+		ptp_peer_uninstall(sibling);
+	}
+
+	if (!(ifp->if_flags & IFF_UP)) {
+		DP_DEBUG(PTP, ERR, DATAPLANE,
+			 "%s: switch nexthop interface %s is down!\n",
+			 __func__, ifp->if_name);
+	} else if (nh_ifp == ifp && connected) {
+		/* Next hop is directly reachable from switch interface. */
+		DP_DEBUG(PTP, INFO, DATAPLANE,
+			 "%s: peer %s is directly connected via %s.\n",
+			 __func__, peerip, ifp->if_name);
+		ptp_peer_dst_resolve(peer, ifp, &newmac);
+	} else if (nh_ifp) {
+		/* Send packets to sw0.<vlan_port> for routing. */
 		DP_DEBUG(PTP, INFO, DATAPLANE,
 			 "%s: peer %s routed via switch interface %s.\n",
 			 __func__, peerip, nh_ifp->if_name);
 		rte_ether_addr_copy(&ifp->eth_addr, &newmac);
 	} else {
 		DP_DEBUG(PTP, ERR, DATAPLANE,
-			 "%s: peer %s is unreachable from clock port %s.\n",
+			 "%s: peer %s port is unreachable from interface %s.\n",
 			 __func__, peerip, ifp->if_name);
 	}
 
-out:
 	/* If the MAC address changed (or finally resolved),
 	 * we need to update (or install) the peer in the FAL.
 	 */
