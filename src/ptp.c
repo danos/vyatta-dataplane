@@ -929,9 +929,33 @@ void ptp_peer_dst_resolve(struct ptp_peer_t *peer,
 }
 
 static
-void ptp_peer_update(struct ptp_peer_t *peer)
+void ptp_peer_find_nexthop(struct ptp_peer_t *peer,
+			   struct ifnet **ifp,
+			   struct ifnet **nh_ifp,
+			   bool *connected)
 {
 	struct ptp_port_t *port;
+
+	*ifp = NULL;
+	*nh_ifp = NULL;
+	*connected = false;
+
+	port = rcu_dereference(peer->port);
+	if (!port)
+		return;
+
+	*ifp = ptp_port_port_to_vlan(port);
+	if (!*ifp)
+		return;
+
+	*nh_ifp = ptp_peer_dst_lookup(peer, connected);
+	if (!*nh_ifp)
+		return;
+}
+
+static
+void ptp_peer_update(struct ptp_peer_t *peer)
+{
 	struct ifnet *ifp, *nh_ifp;
 	struct rte_ether_addr newmac = { { 0 } };
 	char buf[INET_ADDRSTRLEN], buf2[INET_ADDRSTRLEN];
@@ -939,17 +963,7 @@ void ptp_peer_update(struct ptp_peer_t *peer)
 		fal_ip_address_t_to_str(&peer->ipaddr, buf2, sizeof(buf2));
 	bool connected;
 
-	port = rcu_dereference(peer->port);
-	if (!port)
-		goto out;
-
-	ifp = ptp_port_port_to_vlan(port);
-	if (!ifp)
-		goto out;
-
-	nh_ifp = ptp_peer_dst_lookup(peer, &connected);
-	if (!nh_ifp)
-		goto out;
+	ptp_peer_find_nexthop(peer, &ifp, &nh_ifp, &connected);
 
 	if (nh_ifp == ifp && connected) {
 		ptp_peer_dst_resolve(peer, ifp, &newmac);
