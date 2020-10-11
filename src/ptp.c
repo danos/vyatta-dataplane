@@ -44,6 +44,22 @@ struct ptp_port_t {
 	struct cds_list_head list;
 };
 
+/* Group the peers with the same IP address. This avoids some
+ * O(n^2) behaviors when searching for the best peer to a
+ * particular IP address.
+ *
+ * a.b.c.d, port 1 -> e.g.h.i, port 1 -> j.k.l.m, port 2 -> null
+ *                          |
+ *                          V
+ *                    e.g.h.i, port 2
+ *                          |
+ *                          V
+ *                    e.g.h.i, port 3
+ *                          |
+ *                          V
+ *                         null
+ */
+
 struct ptp_peer_t {
 	enum fal_ptp_peer_type_t type;
 	struct fal_ip_address_t ipaddr;
@@ -53,7 +69,10 @@ struct ptp_peer_t {
 	bool installed;
 
 	struct rcu_head rcu;
-	struct cds_list_head list;
+	struct cds_list_head list; /**< for ptp_peer_list */
+
+	struct cds_list_head siblings; /**< peers with same IP address */
+	struct cds_list_head slist; /**< for siblings */
 };
 
 static CDS_LIST_HEAD(ptp_clock_list);
@@ -95,20 +114,64 @@ struct ptp_port_t *ptp_find_port(uint32_t clock_id, uint16_t port_id)
 	return NULL;
 }
 
+static int
+ptp_peer_compare(struct ptp_peer_t *peer,
+		 struct ptp_port_t *port,
+		 enum fal_ptp_peer_type_t type,
+		 struct fal_ip_address_t *ipaddr)
+{
+	if (rcu_dereference(peer->port) == port &&
+	    peer->type == type &&
+	    memcmp(&peer->ipaddr, ipaddr, sizeof(*ipaddr)) == 0)
+		return 1;
+
+	return 0;
+}
+
+/* Search the entire list of peers, descending into the siblings
+ * if necessary.
+ */
 static
 struct ptp_peer_t *ptp_find_peer(uint32_t clock_id, uint16_t port_id,
 				 enum fal_ptp_peer_type_t type,
 				 struct fal_ip_address_t *ipaddr)
 {
 	struct ptp_port_t *port;
-	struct ptp_peer_t *peer;
+	struct ptp_peer_t *peer, *sibling;
 
 	port = ptp_find_port(clock_id, port_id);
 	if (!port)
 		return NULL;
 
 	cds_list_for_each_entry_rcu(peer, &ptp_peer_list, list) {
-		if (rcu_dereference(peer->port) == port &&
+		if (ptp_peer_compare(peer, port, type, ipaddr))
+			return peer;
+
+		/* check siblings for a match */
+		cds_list_for_each_entry_rcu(sibling, &peer->siblings, slist) {
+			if (ptp_peer_compare(sibling, port, type, ipaddr))
+				return sibling;
+		}
+	}
+
+	return NULL;
+}
+
+/* Only search the list of unique peer IP addresses. */
+static
+struct ptp_peer_t *ptp_find_parent(uint32_t clock_id,
+				   enum fal_ptp_peer_type_t type,
+				   struct fal_ip_address_t *ipaddr)
+{
+	struct ptp_clock_t *clock;
+	struct ptp_peer_t *peer;
+
+	clock = ptp_find_clock(clock_id);
+	if (!clock)
+		return NULL;
+
+	cds_list_for_each_entry_rcu(peer, &ptp_peer_list, list) {
+		if (rcu_dereference(peer->port)->clock == clock &&
 		    peer->type == type &&
 		    memcmp(&peer->ipaddr, ipaddr, sizeof(*ipaddr)) == 0)
 			return peer;
@@ -960,7 +1023,7 @@ int ptp_peer_create(FILE *f, int argc, char **argv)
 	uint32_t clock_id = 0;
 	uint16_t port_id = 0;
 	struct ptp_port_t *port = NULL;
-	struct ptp_peer_t *peer = NULL;
+	struct ptp_peer_t *parent, *peer = NULL;
 	int rc = -EINVAL;
 	bool have_clock = false;
 	bool have_port = false;
@@ -1077,7 +1140,19 @@ next_option:
 		}
 	}
 
-	cds_list_add_rcu(&peer->list, &ptp_peer_list);
+	CDS_INIT_LIST_HEAD(&peer->list);
+	CDS_INIT_LIST_HEAD(&peer->slist);
+	CDS_INIT_LIST_HEAD(&peer->siblings);
+
+	/* If we already have a peer with this IP address, we
+	 * keep this new peer on the sibling list with that
+	 * peer.
+	 */
+	parent = ptp_find_parent(clock_id, peer->type, &peer->ipaddr);
+	if (parent)
+		cds_list_add_rcu(&peer->slist, &parent->siblings);
+	else
+		cds_list_add_rcu(&peer->list, &ptp_peer_list);
 	return 0;
 
 error:
@@ -1183,7 +1258,25 @@ int ptp_peer_delete(FILE *f, int argc, char **argv)
 	}
 
 	rcu_assign_pointer(peer->port, NULL);
+	if (!cds_list_empty(&peer->siblings)) {
+		struct ptp_peer_t *sibling, *new_parent = NULL;
+
+		/* Move remaining siblings to the new parent peer. */
+		cds_list_for_each_entry_rcu(sibling, &peer->siblings, slist) {
+			if (!new_parent) {
+				new_parent = sibling;
+				cds_list_add_rcu(&new_parent->list,
+						 &ptp_peer_list);
+				cds_list_del_rcu(&new_parent->slist);
+			} else {
+				cds_list_del_rcu(&sibling->slist);
+				cds_list_add_rcu(&sibling->slist,
+						 &new_parent->siblings);
+			}
+		}
+	}
 	cds_list_del_rcu(&peer->list);
+	cds_list_del_rcu(&peer->slist);
 	call_rcu(&peer->rcu, ptp_peer_free);
 
 error:
