@@ -543,9 +543,9 @@ struct ifnet *crypto_policy_feat_attach_by_reqid(uint32_t reqid);
  */
 struct crypto_pkt_ctx {
 	/*
-	 * These fields are set up by the forwarding
-	 * thread and used to select the actions the
-	 * crypto thread will perform on the packet.
+	 * The fields are ordered to minimize holes and
+	 * place as much critical data as possible in the
+	 * first cache line
 	 */
 	struct rte_mbuf *mbuf;
 	uint32_t reqid;
@@ -555,46 +555,32 @@ struct crypto_pkt_ctx {
 	struct ifnet *nxt_ifp;
 	struct rte_crypto_op *cop;
 	uint16_t out_ethertype;
-
-	/*
-	 * These fields are set and used in the crypto thread
-	 */
+	int8_t   status;
+	uint8_t  udp_len;
+	uint8_t  esp_len;
+	uint8_t  icv_len;
+	uint8_t  orig_family;
+	uint8_t  family;
 	struct sadb_sa *sa;
 	uint16_t iphlen;
-	uint16_t udp_len;
 	uint16_t base_len;
-	uint16_t esp_len;
 	uint16_t ciphertext_len;
 	uint16_t plaintext_size;
 	uint16_t plaintext_size_orig;
-	uint16_t icv_len;
 	uint16_t prev_off;
 	uint16_t head_trim;
 	uint16_t out_hdr_len;
+	uint8_t  action;
+	uint8_t  in_ifp_port;
+	uint16_t direction;
+	/* bytes encrypted/decrypted */
+	uint32_t bytes;
 	unsigned char *esp;
 	unsigned char *iv;
 	unsigned char *icv;
 	char *hdr;
 	char *tail;
 	unsigned int counter_modify;
-	/* bytes encrypted/decrypted */
-	uint32_t bytes;
-	int status;
-
-	/*
-	 * These fields are are bi-directional. They may be
-	 * set by the forwarding thread and modified by the
-	 * crypto thread.
-	 *
-	 * TODO: Replace direction with an input action
-	 *       of either ENCRYPT or DECRYPT.
-	 */
-	uint8_t action;
-	uint8_t in_ifp_port;
-	uint16_t SPARE1;
-	uint16_t direction;
-	uint8_t orig_family;
-	uint8_t family;
 	xfrm_address_t dst; /* Only used for outbound traffic */
 	vrfid_t vrfid;
 };
