@@ -998,8 +998,11 @@ void ptp_peer_update(struct ptp_peer_t *peer)
 
 		/* If the nexthop is on the same interface, and the
 		 * interface is up, prefer this peer over any other.
+		 * The sibling might also be better if the peer isn't
+		 * IFF_UP.
 		 */
-		if ((sib_ifp->if_flags & IFF_UP) && sib_nh_ifp == sib_ifp) {
+		if ((sib_ifp->if_flags & IFF_UP) &&
+		    (sib_nh_ifp == sib_ifp || !(ifp->if_flags & IFF_UP))) {
 			DP_DEBUG(PTP, ERR, DATAPLANE,
 				 "%s: peer %s on %s is preferred to %s\n",
 				 __func__, peerip,
