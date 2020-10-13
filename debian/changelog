@@ -1,3 +1,9 @@
+vyatta-dataplane (3.11.41) unstable; urgency=medium
+
+  * vhost: remove the code to handle out of order cfg for vhost
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Tue, 13 Oct 2020 10:34:16 +0100
+
 vyatta-dataplane (3.11.40) unstable; urgency=medium
 
   [ Nicholas Brown ]
