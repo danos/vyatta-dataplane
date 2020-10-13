@@ -39,6 +39,7 @@ debian/libvyattafal-dev/
 debian/vyatta-dataplane-dev/
 debian/vyatta-dataplane-sample-plugin/
 debian/vyatta-dataplane-test/
+debian/libvyatta-jsonw1/
 ltmain.sh
 m4/libtool.m4
 m4/ltoptions.m4

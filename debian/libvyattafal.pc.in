@@ -1,7 +1,7 @@
 prefix=@prefix@
 includedir=@includedir@
 
-Name: vyattafal-dev
+Name: Forwarding Abstraction Layer
 Description: Vyatta Forwarding Abstraction Layer development package
 Version: @VERSION@
-Cflags: -I${includedir}
+Cflags: -I${includedir}/vyatta-dataplane

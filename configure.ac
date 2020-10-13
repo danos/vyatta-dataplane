@@ -155,18 +155,6 @@ AS_IF([test "x$have_systemd" = "xyes"],
       ])
 ])
 
-# Allow whole_dp unit tests to be disabled as they have issues
-# running in a chroot without /proc and /sys, which is the case when
-# running dpkg-buildpackage in OBS.
-AC_ARG_ENABLE([whole_dp_test],
-AS_HELP_STRING([--disable-whole_dp_test], [disable whole_dp unit tests]),
-[case "${enableval}" in
-  yes) whole_dp_test=true ;;
-  no)  whole_dp_test=false ;;
-  *) AC_MSG_ERROR([bad value ${enableval} for --enable-whole_dp_test]) ;;
-esac],[whole_dp_test=true])
-AM_CONDITIONAL([WHOLE_DP_TEST], [test "x$whole_dp_test" = "xtrue"])
-
 # Run all the whole_dp unit tests. By default only a representative set of
 # them are run.
 AC_ARG_ENABLE([whole_dp_all_tests],
