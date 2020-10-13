@@ -168,7 +168,7 @@ int ipv6_originate_filter_flags(struct ifnet *out_ifp, struct rte_mbuf *m,
 	return 0;
 }
 
-int ipv6_originate_filter(struct ifnet *ifp, struct rte_mbuf *m)
+static int ipv6_originate_filter(struct ifnet *ifp, struct rte_mbuf *m)
 {
 	return ipv6_originate_filter_flags(ifp, m, NPF_FLAG_FROM_US);
 }
