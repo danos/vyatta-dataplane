@@ -993,7 +993,7 @@ void ptp_peer_update(struct ptp_peer_t *peer)
 		struct ifnet *sib_ifp, *sib_nh_ifp;
 		bool sib_connected;
 
-		ptp_peer_find_nexthop(peer,
+		ptp_peer_find_nexthop(sibling,
 				      &sib_ifp, &sib_nh_ifp, &sib_connected);
 
 		/* If the nexthop is on the same interface, and the
