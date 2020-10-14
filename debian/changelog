@@ -1,3 +1,14 @@
+vyatta-dataplane (3.11.43) unstable; urgency=medium
+
+  [ Charles (Chas) Williams ]
+  * ptp: get sibling ifp and nexthop during iteration (Bugfix: VRVDR-53302)
+  * ptp: prefer peers with reachability (Bugfix: VRVDR-53302)
+
+  [ Paul Atkins ]
+  * commands: remove the code to handle out of order cfg for poe
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Wed, 14 Oct 2020 08:31:05 +0100
+
 vyatta-dataplane (3.11.42) unstable; urgency=medium
 
   [ Ian Wilson ]
