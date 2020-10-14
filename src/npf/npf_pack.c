@@ -66,7 +66,12 @@ static int npf_pack_session_pack_update(struct session *s,
 	}
 
 	pst = &csu->pst;
-	rc = npf_session_npf_pack_state_pack(se, pst);
+
+	if (psp->psp_forw.sp_protocol == IPPROTO_TCP)
+		rc = npf_session_pack_state_pack_tcp(se, pst);
+	else
+		rc = npf_session_pack_state_pack_gen(se, pst);
+
 	if (rc)
 		csu->se_feature_count = 0;
 

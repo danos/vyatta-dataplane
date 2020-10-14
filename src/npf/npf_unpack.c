@@ -49,7 +49,6 @@ static int npf_pack_get_session_from_init_sentry(struct sentry_packet *sp,
 static
 int npf_pack_session_unpack_update(struct npf_pack_session_update *csu)
 {
-	struct npf_pack_session_state *pst;
 	struct npf_pack_dp_sess_stats *stats;
 	struct npf_pack_sentry_packet *psp;
 	struct npf_session *se;
@@ -78,8 +77,10 @@ int npf_pack_session_unpack_update(struct npf_pack_session_update *csu)
 	}
 
 	if (s && se) {
-		pst = &csu->pst;
-		rc = npf_session_npf_pack_state_update(se, pst);
+		if (s->se_protocol == IPPROTO_TCP)
+			rc = npf_session_pack_state_update_tcp(se, &csu->pst);
+		else
+			rc = npf_session_pack_state_update_gen(se, &csu->pst);
 		if (rc)
 			goto error;
 

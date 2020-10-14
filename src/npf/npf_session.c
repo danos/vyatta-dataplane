@@ -113,7 +113,7 @@ struct npf_session {
 	/* --- cacheline 2 boundary (128 bytes) --- */
 	struct npf_session	*s_parent;	/* NULL if this == parent */
 	uint8_t			s_proto;
-	uint8_t			s_proto_idx;
+	enum npf_proto_idx	s_proto_idx;
 };
 
 static_assert(offsetof(struct npf_session, s_nat) == 64,
@@ -146,56 +146,29 @@ static_assert(offsetof(struct npf_session, s_parent) == 128,
  */
 static uint64_t npf_log_flag;
 
-#define NPF_SET_SESSION_LOG_FLAG(p, f) (npf_log_flag |=  (1ull << ((p<<4) + f)))
-#define NPF_CLR_SESSION_LOG_FLAG(p, f) (npf_log_flag &= ~(1ull << ((p<<4) + f)))
-#define NPF_TST_SESSION_LOG_FLAG(p, f) (npf_log_flag &   (1ull << ((p<<4) + f)))
-#define NPF_SESSION_LOG_MASK(p) (0x000000000000ffffull << (p<<4))
-
 /* Forward reference */
 static void sess_clear_nat64_peer(npf_session_t *se);
 
-/*
- * Get the dataplane session ID given an npf session.  If se or se->s_session
- * are NULL then 0 is returned.
- */
-uint64_t npf_session_get_id(struct npf_session *se)
+static void npf_sess_log_flag_set(enum npf_proto_idx proto_idx, uint8_t state)
 {
-	if (se)
-		return session_get_id(se->s_session);
-	return 0;
+	uint8_t shift = (proto_idx << 4) + state;
+	npf_log_flag |= (1ull << shift);
+}
+
+static void npf_sess_log_flag_clr(enum npf_proto_idx proto_idx, uint8_t state)
+{
+	uint8_t shift = (proto_idx << 4) + state;
+	npf_log_flag &= ~(1ull << shift);
 }
 
 /*
- * Get session timeout value.
- *
- * The state-dependent timeout value is overridden with a custom timeout if:
- *
- *   a) the session tuple matched a configured custom timeout at the time
- *      the session was created, and
- *   b) the session state is steady (i.e. is in 'established' state).
+ * Is a specific session state log flag set for the given protocol and state?
  */
-static int
-npf_session_get_timeout(const npf_session_t *se)
-{
-	return npf_timeout_get(&se->s_state, se->s_proto_idx,
-			se->s_session->se_custom_timeout);
-}
-
-static inline bool npf_test_session_log_proto(uint8_t proto_idx)
-{
-	assert(NPF_PROTO_IDX_TCP == 0);
-	assert(NPF_PROTO_IDX_UDP == 1);
-	assert(NPF_PROTO_IDX_ICMP == 2);
-	assert(NPF_PROTO_IDX_OTHER == 3);
-	assert(NPF_TCPS_LAST < 16);
-
-	return (npf_log_flag & NPF_SESSION_LOG_MASK(proto_idx)) != 0;
-}
-
 static inline bool
-npf_test_session_log_flag(uint8_t state, uint8_t proto_idx)
+npf_sess_log_flag_tst(enum npf_proto_idx proto_idx, uint8_t state)
 {
-	return NPF_TST_SESSION_LOG_FLAG(proto_idx, state) != 0;
+	uint8_t shift = (proto_idx << 4) + state;
+	return (npf_log_flag & (1ull << shift)) != 0ull;
 }
 
 /*
@@ -206,21 +179,27 @@ void npf_reset_session_log(void)
 	npf_log_flag = 0;
 }
 
-static void __cold_func
-npf_session_log(npf_session_t *se, uint8_t state)
+/*
+ * Get the dataplane session ID given an npf session.  If se or se->s_session
+ * are NULL then 0 is returned.
+ */
+uint64_t npf_session_get_id(struct npf_session *se)
 {
-	/* return immediately if the flag is not set */
-	if (!npf_test_session_log_flag(state, se->s_proto_idx))
-		return;
+	return se ? session_get_id(se->s_session) : 0ull;
+}
 
+static void __cold_func
+npf_session_log(npf_session_t *se, const char *state_name, uint32_t timeout,
+		uint8_t proto, const char *proto_name)
+{
 	/* Cannot log unactivated sessions */
-	if (!se->s_session)
+	if (unlikely(!se->s_session))
 		return;
 
 	struct sentry *sen = rcu_dereference(se->s_session->se_sen);
 
 	/* Racing with session expiration */
-	if (!sen)
+	if (unlikely(!sen))
 		return;
 
 	const void *saddr;
@@ -232,15 +211,8 @@ npf_session_log(npf_session_t *se, uint8_t state)
 	char srcip_str[INET6_ADDRSTRLEN];
 	char dstip_str[INET6_ADDRSTRLEN];
 	char dpi_info_str[MAX_DPI_LOG_SIZE];
-	uint8_t proto = se->s_proto;
-	int timeout = npf_session_get_timeout(se);
-	const char *state_name =
-		npf_state_get_state_name(state, se->s_proto_idx);
-	const char *proto_name =
-		npf_get_protocol_name_from_idx(se->s_proto_idx);
 
 	session_sentry_extract(sen, &if_index, &af, &saddr, &sid, &daddr, &did);
-
 
 	inet_ntop(af, saddr, srcip_str, sizeof(srcip_str));
 	inet_ntop(af, daddr, dstip_str, sizeof(dstip_str));
@@ -259,6 +231,44 @@ npf_session_log(npf_session_t *se, uint8_t state)
 		ntohs(did), ifnet_indextoname_safe(if_index),
 		(dpi_info_str[0] == '\0') ? "" : " ",
 		dpi_info_str);
+}
+
+static inline void
+npf_session_tcp_log(npf_session_t *se, enum tcp_session_state state)
+{
+	uint32_t timeout;
+	npf_state_t *nst = &se->s_state;
+
+	/* return immediately if the flag is not set */
+	if (likely(!npf_sess_log_flag_tst(NPF_PROTO_IDX_TCP, (uint8_t)state)))
+		return;
+
+	const char *state_name = npf_state_get_tcp_name(state);
+
+	timeout = npf_tcp_timeout_get(nst, state,
+				      se->s_session->se_custom_timeout);
+
+	npf_session_log(se, state_name, timeout, IPPROTO_TCP, "tcp");
+}
+
+static inline void
+npf_session_gen_log(npf_session_t *se, enum dp_session_state state,
+		    uint8_t proto_idx)
+{
+	uint32_t timeout;
+	npf_state_t *nst = &se->s_state;
+
+	/* return immediately if the flag is not set */
+	if (likely(!npf_sess_log_flag_tst(proto_idx, (uint8_t)state)))
+		return;
+
+	const char *state_name = dp_session_state_name(state, true);
+	const char *proto_name = npf_get_protocol_name_from_idx(proto_idx);
+
+	timeout = npf_gen_timeout_get(nst, state, proto_idx,
+				      se->s_session->se_custom_timeout);
+
+	npf_session_log(se, state_name, timeout, se->s_proto, proto_name);
 }
 
 /*
@@ -415,8 +425,13 @@ static void sess_clear_parent(npf_session_t *se)
 /* Closes a session, which will result in it being marked as expired. */
 static void sess_close(npf_session_t *se)
 {
-	npf_state_set_closed_state(&se->s_state,
-				   (se->s_flags & SE_ACTIVE), se->s_proto_idx);
+	if (se->s_proto_idx == NPF_PROTO_IDX_TCP)
+		npf_state_set_tcp_closed(&se->s_state, se,
+					 (se->s_flags & SE_ACTIVE));
+	else
+		npf_state_set_gen_closed(&se->s_state, se,
+					 (se->s_flags & SE_ACTIVE),
+					 se->s_proto_idx);
 }
 
 void npf_session_set_appfw_decision(npf_session_t *se, npf_decision_t decision)
@@ -612,10 +627,12 @@ static void npf_session_add_rproc_rule(npf_session_t *s, npf_rule_t *r)
 /*
  *  Update initial dataplane state/timeout
  */
-void npf_session_update_state(npf_session_t *se)
+void npf_session_update_state(npf_session_t *se, struct session *s)
 {
-	npf_state_update_session_state(se->s_session, se->s_proto_idx,
-			&se->s_state);
+	if (se->s_proto_idx == NPF_PROTO_IDX_TCP)
+		npf_state_update_tcp_session(s, &se->s_state);
+	else
+		npf_state_update_gen_session(s, se->s_proto_idx, &se->s_state);
 }
 
 /*
@@ -630,35 +647,78 @@ static inline void npf_session_do_watch(npf_session_t *se,
 	if (se->s_session)
 		session_do_watch(se->s_session, hook);
 }
-/*
- * Callback from npf_state.c after a session changes state.
- */
-void
-npf_session_state_change(npf_state_t *nst, uint8_t old_state,
-			 uint8_t state, uint8_t proto_idx)
-{
-	npf_session_t *se = caa_container_of(nst, npf_session_t, s_state);
-	npf_rule_t *rproc_rl;
 
-	/* session logging if enabled */
-	if (npf_test_session_log_proto(proto_idx))
-		npf_session_log(se, state);
+/*
+ * Callback from npf_state.c after a UDP, ICMP etc. session changes state.
+ */
+void npf_session_gen_state_change(npf_session_t *se, npf_state_t *nst,
+				  enum dp_session_state old_state,
+				  enum dp_session_state new_state,
+				  enum npf_proto_idx proto_idx)
+{
+	/* session logging */
+	npf_session_gen_log(se, new_state, proto_idx);
 
 	/* Update the dataplane session state/timeout */
-	npf_state_update_session_state(se->s_session, se->s_proto_idx,
-			&se->s_state);
+	npf_state_update_gen_session(se->s_session, proto_idx, nst);
 
-	/* Session rproc */
-	rproc_rl = npf_session_get_rproc_rule(se);
+	/* Call session limit rproc if state has changed */
+	if (new_state != old_state) {
+		npf_rule_t *rproc_rl;
+		void *handle;
 
-	void *handle = npf_rule_rproc_handle_from_id(rproc_rl,
-						     NPF_RPROC_ID_SLIMIT);
-	if (handle && state != old_state)
-		npf_sess_limit_state_change(handle, proto_idx,
-					    old_state, state);
-	if (npf_state_get_generic_state(proto_idx, state) ==
-	    SESSION_STATE_CLOSED)
+		rproc_rl = npf_session_get_rproc_rule(se);
+		handle = npf_rule_rproc_handle_from_id(rproc_rl,
+						       NPF_RPROC_ID_SLIMIT);
+
+		if (handle)
+			npf_sess_limit_state_change(handle, old_state,
+						    new_state);
+	}
+
+	if (new_state == SESSION_STATE_CLOSED)
 		sess_set_expired(se);
+
+	npf_session_do_watch(se, SESSION_STATE_CHANGE);
+}
+
+/*
+ * Callback from npf_state.c after a TCP session changes state.
+ */
+void npf_session_tcp_state_change(npf_session_t *se, npf_state_t *nst,
+				  enum tcp_session_state old_state,
+				  enum tcp_session_state new_state)
+{
+	/* session logging */
+	npf_session_tcp_log(se, new_state);
+
+	/* Update the dataplane session state/timeout */
+	npf_state_update_tcp_session(se->s_session, nst);
+
+	/* Call session limit rproc if state has changed */
+	if (new_state != old_state) {
+		npf_rule_t *rproc_rl;
+		void *handle;
+
+		rproc_rl = npf_session_get_rproc_rule(se);
+		handle = npf_rule_rproc_handle_from_id(rproc_rl,
+						       NPF_RPROC_ID_SLIMIT);
+
+		if (handle) {
+			enum dp_session_state old_gen_st, new_gen_st;
+
+			old_gen_st = npf_state_tcp2gen(old_state);
+			new_gen_st = npf_state_tcp2gen(new_state);
+
+			if (old_gen_st != new_gen_st)
+				npf_sess_limit_state_change(handle, old_gen_st,
+							    new_gen_st);
+		}
+	}
+
+	if (new_state == NPF_TCPS_CLOSED)
+		sess_set_expired(se);
+
 	npf_session_do_watch(se, SESSION_STATE_CHANGE);
 }
 
@@ -720,7 +780,8 @@ npf_session_inspect(npf_cache_t *npc, struct rte_mbuf *nbuf,
 		return se;
 
 	/* Update the state of a session based on the supplied packet */
-	rc = npf_state_inspect(npc, nbuf, &se->s_state, sforw);
+	rc = npf_state_inspect(npc, nbuf, se, &se->s_state,
+			       se->s_proto_idx, sforw);
 	if (unlikely(rc < 0)) {
 		/* Silently block invalid packets. */
 		*error = rc;
@@ -1022,12 +1083,14 @@ bool npf_session_is_active(const npf_session_t *se)
 }
 
 int npf_session_activate(npf_session_t *se, const struct ifnet *ifp,
-		npf_cache_t *npc, struct rte_mbuf *nbuf)
+			 npf_cache_t *npc, struct rte_mbuf *nbuf)
 {
+	npf_state_t *nst = &se->s_state;
 	int rc;
 
 	if ((se->s_flags & SE_ACTIVE) == 0) {
-		rc = npf_state_inspect(npc, nbuf, &se->s_state, true);
+		rc = npf_state_inspect(npc, nbuf, se, nst, se->s_proto_idx,
+				       true);
 		if (unlikely(rc < 0)) {
 			/* Silently block invalid packets. */
 			npf_session_destroy(se);
@@ -1039,7 +1102,8 @@ int npf_session_activate(npf_session_t *se, const struct ifnet *ifp,
 		 * CLOSED.  We want to allow the packet though, but not
 		 * activate the session.
 		 */
-		if (npf_tcp_state_is_closed(&se->s_state, se->s_proto_idx)) {
+		if (se->s_proto_idx == NPF_PROTO_IDX_TCP &&
+		    nst->nst_tcp_state == NPF_TCPS_CLOSED) {
 			npf_session_destroy(se);
 			return -NPF_RC_ENOSTR;
 		}
@@ -1057,7 +1121,7 @@ int npf_session_activate(npf_session_t *se, const struct ifnet *ifp,
 
 		se->s_flags |= SE_ACTIVE;
 
-		if (npf_nat64_session_log_enabled(se->s_nat64))
+		if (unlikely(npf_nat64_session_log_enabled(se->s_nat64)))
 			npf_session_nat64_log(se, true);
 
 		npf_session_do_watch(se, SESSION_ACTIVATE);
@@ -1333,61 +1397,79 @@ static void sess_clear_nat64_peer(npf_session_t *se)
 }
 
 int
-npf_enable_session_log(const char *proto, const char *state)
+npf_enable_session_log(const char *proto_name, const char *state_name)
 {
-	uint8_t state_index = 0, proto_idx;
+	enum npf_proto_idx proto_idx;
 
-	if (!proto || !state)
+	if (!proto_name || !state_name)
 		return -1;
 
-	proto_idx = npf_proto_idx_from_str(proto);
+	proto_idx = npf_proto_idx_from_str(proto_name);
 	if (proto_idx == NPF_PROTO_IDX_NONE)
 		return -1;
 
 	/* timeout state no longer used so ignore request to enable log */
-	if (strcmp(state, "timeout") == 0)
+	if (strcmp(state_name, "timeout") == 0)
 		return 0;
 
 	if (proto_idx == NPF_PROTO_IDX_TCP) {
-		state_index = npf_map_str_to_tcp_state(state);
-		if (!npf_state_tcp_state_is_valid(state_index))
+		enum tcp_session_state tcp_state;
+
+		tcp_state = npf_map_str_to_tcp_state(state_name);
+
+		if (tcp_state == NPF_TCPS_NONE)
 			return -1;
+
+		npf_sess_log_flag_set(NPF_PROTO_IDX_TCP, (uint8_t)tcp_state);
 	} else {
-		state_index = npf_map_str_to_generic_state(state);
-		if (state_index == SESSION_STATE_NONE)
+		enum dp_session_state gen_state;
+
+		gen_state = dp_session_name2state(state_name);
+
+		if (gen_state == SESSION_STATE_NONE)
 			return -1;
+
+		npf_sess_log_flag_set(proto_idx, (uint8_t)gen_state);
 	}
-	NPF_SET_SESSION_LOG_FLAG(proto_idx, state_index);
 
 	return 0;
 }
 
 int
-npf_disable_session_log(const char *proto, const char *state)
+npf_disable_session_log(const char *proto_name, const char *state_name)
 {
-	uint8_t state_index = 0, proto_idx;
+	enum npf_proto_idx proto_idx;
 
-	if (!proto || !state)
+	if (!proto_name || !state_name)
 		return -1;
 
-	proto_idx = npf_proto_idx_from_str(proto);
+	proto_idx = npf_proto_idx_from_str(proto_name);
 	if (proto_idx == NPF_PROTO_IDX_NONE)
 		return -1;
 
 	/* timeout state no longer used so ignore request to disable log */
-	if (strcmp(state, "timeout") == 0)
+	if (strcmp(state_name, "timeout") == 0)
 		return 0;
 
 	if (proto_idx == NPF_PROTO_IDX_TCP) {
-		state_index = npf_map_str_to_tcp_state(state);
-		if (!npf_state_tcp_state_is_valid(state_index))
+		enum tcp_session_state tcp_state;
+
+		tcp_state = npf_map_str_to_tcp_state(state_name);
+
+		if (tcp_state == NPF_TCPS_NONE)
 			return -1;
+
+		npf_sess_log_flag_clr(NPF_PROTO_IDX_TCP, (uint8_t)tcp_state);
 	} else {
-		state_index = npf_map_str_to_generic_state(state);
-		if (state_index == SESSION_STATE_NONE)
+		enum dp_session_state gen_state;
+
+		gen_state = dp_session_name2state(state_name);
+
+		if (gen_state == SESSION_STATE_NONE)
 			return -1;
+
+		npf_sess_log_flag_clr(proto_idx, (uint8_t)gen_state);
 	}
-	NPF_CLR_SESSION_LOG_FLAG(proto_idx, state_index);
 
 	return 0;
 }
@@ -1783,81 +1865,124 @@ void npf_save_stats(npf_session_t *se, int dir, uint64_t bytes)
 	}
 }
 
-int npf_session_npf_pack_state_pack(struct npf_session *se,
+/*
+ * Pack session state for protocols other than TCP
+ */
+int npf_session_pack_state_pack_gen(struct npf_session *se,
 				    struct npf_pack_session_state *pst)
 {
-	npf_state_t *nst;
-
 	if (!se || !pst)
 		return -EINVAL;
 
-	nst = &se->s_state;
-	memcpy(&pst->pst_tcpst[0], &nst->nst_tcpst[0],
-	       sizeof(*pst->pst_tcpst));
-	memcpy(&pst->pst_tcpst[1], &nst->nst_tcpst[1],
-	       sizeof(*pst->pst_tcpst));
-
-	pst->pst_state = nst->nst_state;
-
+	npf_state_pack_gen(&se->s_state, pst);
 	return 0;
 }
 
-int npf_session_npf_pack_state_restore(struct npf_session *se,
-				       struct npf_pack_session_state *pst,
-				       vrfid_t vrfid)
+/*
+ * Pack session state for TCP
+ */
+int npf_session_pack_state_pack_tcp(struct npf_session *se,
+				    struct npf_pack_session_state *pst)
+{
+	if (!se || !pst)
+		return -EINVAL;
+
+	npf_state_pack_tcp(&se->s_state, pst);
+	return 0;
+}
+
+/*
+ * Restore session state for protocols other than TCP
+ */
+static int
+npf_session_pack_state_restore_gen(struct npf_session *se,
+				   struct npf_pack_session_state *pst,
+				   vrfid_t vrfid,
+				   enum npf_proto_idx proto_idx)
 {
 	npf_state_t *nst;
-
-	if (!se || !pst)
-		return -EINVAL;
+	bool state_changed = false;
 
 	nst = &se->s_state;
-	npf_state_init(vrfid, se->s_proto_idx, nst);
+	npf_state_init(vrfid, proto_idx, nst);
 
-	rte_spinlock_lock(&nst->nst_lock);
-
-	if (npf_state_npf_pack_update(nst, pst, pst->pst_state,
-				      se->s_proto_idx)) {
-		rte_spinlock_unlock(&nst->nst_lock);
-		return -EINVAL;
-	}
-
-	rte_spinlock_unlock(&nst->nst_lock);
-
+	npf_state_pack_update_gen(nst, pst, proto_idx, &state_changed);
 	return 0;
 }
 
-int npf_session_npf_pack_state_update(struct npf_session *se,
+/*
+ * Restore session state for TCP
+ */
+static int
+npf_session_pack_state_restore_tcp(struct npf_session *se,
+				   struct npf_pack_session_state *pst,
+				   vrfid_t vrfid)
+{
+	npf_state_t *nst;
+	bool state_changed = false;
+
+	nst = &se->s_state;
+	npf_state_init(vrfid, NPF_PROTO_IDX_TCP, nst);
+
+	npf_state_pack_update_tcp(nst, pst, &state_changed);
+	return 0;
+}
+
+/*
+ * State update for protocols other than TCP
+ */
+int npf_session_pack_state_update_gen(struct npf_session *se,
 				      struct npf_pack_session_state *pst)
 {
 	npf_state_t *nst;
-	uint8_t old_state, new_state;
+	enum dp_session_state old_state;
 	struct session *s;
+	enum npf_proto_idx proto_idx;
+	bool state_changed = false;
 
 	if (!se || !pst)
 		return -EINVAL;
 
 	nst = &se->s_state;
+	proto_idx = se->s_proto_idx;
+	old_state = nst->nst_gen_state;
 
-	rte_spinlock_lock(&nst->nst_lock);
+	npf_state_pack_update_gen(nst, pst, proto_idx, &state_changed);
 
-	old_state = nst->nst_state;
-	new_state = pst->pst_state;
-	if (old_state == new_state) {
-		rte_spinlock_unlock(&nst->nst_lock);
-		return 0;
-	}
+	if (state_changed)
+		npf_session_gen_state_change(se, nst, old_state,
+					     pst->pst_gen_state, proto_idx);
 
-	if (npf_state_npf_pack_update(nst, pst, new_state,
-				      se->s_proto_idx)) {
-		rte_spinlock_unlock(&nst->nst_lock);
+	s = se->s_session;
+	if (s)
+		s->se_etime = get_dp_uptime() +
+				  session_get_npf_pack_timeout(s);
+
+	return 0;
+}
+
+/*
+ * State update for TCP
+ */
+int npf_session_pack_state_update_tcp(struct npf_session *se,
+				      struct npf_pack_session_state *pst)
+{
+	npf_state_t *nst;
+	enum tcp_session_state old_state;
+	struct session *s;
+	bool state_changed = false;
+
+	if (!se || !pst)
 		return -EINVAL;
-	}
 
-	rte_spinlock_unlock(&nst->nst_lock);
+	nst = &se->s_state;
+	old_state = nst->nst_tcp_state;
 
-	npf_session_state_change(nst, old_state,
-				 new_state, se->s_proto_idx);
+	npf_state_pack_update_tcp(nst, pst, &state_changed);
+
+	if (state_changed)
+		npf_session_tcp_state_change(se, nst, old_state,
+					     pst->pst_tcp_state);
 
 	s = se->s_session;
 	if (s)
@@ -1872,6 +1997,7 @@ int npf_session_npf_pack_pack(npf_session_t *se,
 			      struct npf_pack_session_state *pst)
 {
 	npf_rule_t *rule;
+	int rc;
 
 	if (!se || !pns)
 		return -EINVAL;
@@ -1881,7 +2007,13 @@ int npf_session_npf_pack_pack(npf_session_t *se,
 	pns->pns_fw_rule_hash = (rule ? npf_rule_get_hash(rule) : 0);
 	rule = npf_session_get_rproc_rule(se);
 	pns->pns_rproc_rule_hash = (rule ? npf_rule_get_hash(rule) : 0);
-	return npf_session_npf_pack_state_pack(se, pst);
+
+	if (se->s_proto_idx == NPF_PROTO_IDX_TCP)
+		rc = npf_session_pack_state_pack_tcp(se, pst);
+	else
+		rc = npf_session_pack_state_pack_gen(se, pst);
+
+	return rc;
 }
 
 struct npf_session *
@@ -1893,6 +2025,7 @@ npf_session_npf_pack_restore(struct npf_pack_npf_session *pns,
 	npf_rule_t *fw_rl;
 	npf_rule_t *rproc_rl;
 	npf_session_t *se;
+	int rc;
 
 	if (!pns || !pst)
 		return NULL;
@@ -1905,6 +2038,7 @@ npf_session_npf_pack_restore(struct npf_pack_npf_session *pns,
 			npf_get_rule_by_hash(pns->pns_fw_rule_hash) : NULL;
 	if (fw_rl)
 		npf_session_add_fw_rule(se, fw_rl);
+
 	rproc_rl = pns->pns_rproc_rule_hash ?
 		npf_get_rule_by_hash(pns->pns_rproc_rule_hash) : NULL;
 	if (rproc_rl)
@@ -1916,7 +2050,13 @@ npf_session_npf_pack_restore(struct npf_pack_npf_session *pns,
 	se->s_proto = protocol;
 	se->s_proto_idx = npf_proto_idx_from_proto(protocol);
 
-	if (npf_session_npf_pack_state_restore(se, pst, vrfid))
+	if (se->s_proto_idx == NPF_PROTO_IDX_TCP)
+		rc = npf_session_pack_state_restore_tcp(se, pst, vrfid);
+	else
+		rc = npf_session_pack_state_restore_gen(se, pst, vrfid,
+							se->s_proto_idx);
+
+	if (rc)
 		goto error;
 
 	rte_spinlock_init(&se->s_state.nst_lock);

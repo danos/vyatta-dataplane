@@ -96,8 +96,11 @@ struct npf_pack_npf_session {
  * Packed npf_state_t
  */
 struct npf_pack_session_state {
-	npf_tcpstate_t		pst_tcpst[2];
-	uint8_t			pst_state;
+	struct npf_tcp_window	pst_tcp_win[2];
+	union {
+		enum tcp_session_state	pst_tcp_state;
+		enum dp_session_state	pst_gen_state;
+	};
 	uint8_t			pst_pad[3];
 } __attribute__ ((__packed__));
 

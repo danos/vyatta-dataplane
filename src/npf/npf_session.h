@@ -109,7 +109,7 @@ npf_session_t *npf_session_find_by_npc(npf_cache_t *npc, const int di,
 npf_session_t *npf_session_establish(npf_cache_t *npc,
 		struct rte_mbuf *nbuf, const struct ifnet *ifp,
 		const int di, int *error);
-void npf_session_update_state(npf_session_t *se);
+void npf_session_update_state(npf_session_t *se, struct session *s);
 uint8_t npf_session_get_proto(npf_session_t *se);
 bool npf_session_is_active(const npf_session_t *se);
 bool npf_session_is_child(const npf_session_t *se);
@@ -159,12 +159,13 @@ void npf_session_disassoc_nif(unsigned int if_index);
 
 void npf_save_stats(npf_session_t *se, int dir, uint64_t bytes);
 
-int npf_session_npf_pack_state_pack(struct npf_session *se,
+int npf_session_pack_state_pack_gen(struct npf_session *se,
 				    struct npf_pack_session_state *pst);
-int npf_session_npf_pack_state_restore(struct npf_session *se,
-				       struct npf_pack_session_state *pst,
-				       vrfid_t vrfid);
-int npf_session_npf_pack_state_update(struct npf_session *se,
+int npf_session_pack_state_pack_tcp(struct npf_session *se,
+				    struct npf_pack_session_state *pst);
+int npf_session_pack_state_update_gen(struct npf_session *se,
+				      struct npf_pack_session_state *pst);
+int npf_session_pack_state_update_tcp(struct npf_session *se,
 				      struct npf_pack_session_state *pst);
 int npf_session_npf_pack_pack(npf_session_t *se,
 			      struct npf_pack_npf_session *pns,

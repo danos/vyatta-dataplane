@@ -163,7 +163,7 @@ int npf_dataplane_session_establish(npf_session_t *se, npf_cache_t *npc,
 	npf_session_set_dp_session(se, s);
 
 	/* Update the dataplane state/timeout */
-	npf_session_update_state(se);
+	npf_session_update_state(se, s);
 
 	/* Now add the npf session as a feature datum */
 	rc = session_feature_add(s, ifp->if_index, SESSION_FEATURE_NPF, se);

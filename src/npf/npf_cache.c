@@ -1568,7 +1568,7 @@ static const char *npf_protocol_name[NPF_PROTO_IDX_COUNT + 1] = {
 };
 
 const char *
-npf_get_protocol_name_from_idx(uint8_t proto_idx)
+npf_get_protocol_name_from_idx(enum npf_proto_idx proto_idx)
 {
 	if (proto_idx <= NPF_PROTO_IDX_COUNT)
 		return npf_protocol_name[proto_idx];
@@ -1576,7 +1576,7 @@ npf_get_protocol_name_from_idx(uint8_t proto_idx)
 		return "none";
 }
 
-uint8_t npf_proto_idx_from_str(const char *proto)
+enum npf_proto_idx npf_proto_idx_from_str(const char *proto)
 {
 	uint8_t idx;
 

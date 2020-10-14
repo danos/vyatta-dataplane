@@ -1425,9 +1425,9 @@ const char *
 dp_test_npf_sess_state_str(uint8_t proto, uint state)
 {
 	if (proto == IPPROTO_TCP)
-		return npf_state_get_state_name(state, NPF_PROTO_IDX_TCP);
+		return npf_state_get_tcp_name(state);
 
-	return npf_state_get_state_name(state, NPF_PROTO_IDX_OTHER);
+	return dp_session_state_name(state, false);
 }
 
 void

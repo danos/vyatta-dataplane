@@ -59,8 +59,8 @@ typedef struct npf_cache npf_cache_t;
  * NPF TCP states.  Note: these states are different from the TCP FSM
  * states of RFC 793.  The packet filter is a man-in-the-middle.
  */
-typedef enum {
-	NPF_TCPS_NONE = 0,
+enum tcp_session_state {
+	NPF_TCPS_NONE,
 	NPF_TCPS_SYN_SENT,
 	NPF_TCPS_SIMSYN_SENT,
 	NPF_TCPS_SYN_RECEIVED,
@@ -74,19 +74,11 @@ typedef enum {
 	NPF_TCPS_TIME_WAIT,
 	NPF_TCPS_RST_RECEIVED,
 	NPF_TCPS_CLOSED,
-} TCP_STATES;
+} __attribute__ ((__packed__));
 
 #define NPF_TCPS_FIRST		NPF_TCPS_NONE
 #define NPF_TCPS_LAST		NPF_TCPS_CLOSED
 #define NPF_TCP_NSTATES		(NPF_TCPS_LAST + 1)
-
-/*
- * NPF_TCPS_OK is used to denote that *no* state change should take place.
- * It *must* be greater than NPF_TCPS_LAST.
- */
-#define NPF_TCPS_OK		NPF_TCP_NSTATES
-#define NPF_TCPS_ERR		(NPF_TCP_NSTATES + 1)
-
 
 /* State statistics struct */
 struct npf_state_stats {
@@ -95,60 +87,49 @@ struct npf_state_stats {
 	uint32_t ss_nat_cnt; /* used only for session_summary */
 };
 
-#define	NPF_FLOW_FORW		0
-#define	NPF_FLOW_BACK		1
+enum npf_flow_dir {
+	NPF_FLOW_FORW,
+	NPF_FLOW_BACK
+};
+#define NPF_FLOW_FIRST	NPF_FLOW_FORW
+#define NPF_FLOW_LAST	NPF_FLOW_BACK
+#define NPF_FLOW_SZ	(NPF_FLOW_LAST + 1)
 
-typedef struct {
+/*
+ * TCP session state for windowing. Two per TCP session.  One for each
+ * direction.
+ */
+struct npf_tcp_window {
 	uint32_t	nst_end;
 	uint32_t	nst_maxend;
+	/* Keep track of maximum window seen */
 	uint32_t	nst_maxwin;
+	/* Window scaling.  From options in syn-ack, if present */
 	uint8_t		nst_wscale;
 	uint8_t		nst_pad[3];
-} npf_tcpstate_t;
+};
 
-static_assert(sizeof(npf_tcpstate_t) == 16, "npf_tcpstate_t != 16");
+static_assert(sizeof(struct npf_tcp_window) == 16,
+	      "struct npf_tcp_window != 16");
 
+/*
+ * npf session state and timeout
+ */
 typedef struct {
 	rte_spinlock_t		nst_lock;
-	uint8_t			nst_state;
-	uint8_t			nst_pad[3];
-	npf_tcpstate_t		nst_tcpst[2];
+	enum tcp_session_state	nst_tcp_state;
+	enum dp_session_state	nst_gen_state;
+	uint8_t			nst_pad[2];
+	struct npf_tcp_window	nst_tcp_win[NPF_FLOW_SZ];
 	struct npf_timeout	*nst_to;
 } npf_state_t;
 
 static_assert(sizeof(npf_state_t) == 48, "npf_state_t != 48");
 
-static inline bool
-npf_state_tcp_state_is_valid(uint8_t state)
-{
-	assert(NPF_TCPS_FIRST == 0);
-	return state <= NPF_TCPS_LAST;
-}
-
-static inline bool
-npf_state_is_valid(uint8_t proto_idx, uint8_t state)
-{
-	if (proto_idx == NPF_PROTO_IDX_TCP)
-		return npf_state_tcp_state_is_valid(state);
-	else
-		return dp_session_state_is_valid(state);
-}
-
-/*
- * Get generic state.  Non-TCP protocols already use generic state.
- * Convert TCP state to generic state.
- */
 static inline enum dp_session_state
-npf_state_get_generic_state(uint8_t proto_idx, uint8_t state)
+npf_state_tcp2gen(enum tcp_session_state tcp_state)
 {
-	if (proto_idx != NPF_PROTO_IDX_TCP) {
-		if (dp_session_state_is_valid(state))
-			return (enum dp_session_state)state;
-		else
-			return SESSION_STATE_NONE;
-	}
-
-	switch (state) {
+	switch (tcp_state) {
 	case NPF_TCPS_NONE:
 		return SESSION_STATE_NONE;
 	case NPF_TCPS_SYN_SENT:
@@ -172,34 +153,23 @@ npf_state_get_generic_state(uint8_t proto_idx, uint8_t state)
 	return SESSION_STATE_CLOSED;
 }
 
-static inline bool npf_state_is_established(uint8_t proto, uint8_t state)
-{
-	if (proto == IPPROTO_TCP)
-		return state == NPF_TCPS_ESTABLISHED;
-	return state == SESSION_STATE_ESTABLISHED;
-}
-
-static inline bool npf_state_is_closing(uint8_t proto, uint8_t state)
-{
-	if (proto == IPPROTO_TCP)
-		return state > NPF_TCPS_ESTABLISHED;
-	return state > SESSION_STATE_ESTABLISHED;
-}
-
 void npf_state_stats_create(void);
 void npf_state_stats_destroy(void);
-bool npf_state_init(vrfid_t vrfid, uint8_t proto_idx, npf_state_t *nst);
-void npf_state_destroy(npf_state_t *nst, uint8_t proto_idx);
+bool npf_state_init(vrfid_t vrfid, enum npf_proto_idx proto_idx,
+		    npf_state_t *nst);
+void npf_state_destroy(npf_state_t *nst, enum npf_proto_idx proto_idx);
 int npf_state_inspect(const npf_cache_t *npc, struct rte_mbuf *nbuf,
-		      npf_state_t *nst, bool forw);
-void npf_state_update_session_state(struct session *s, uint8_t proto_idx,
-		const npf_state_t *nst);
-void npf_state_set_closed_state(npf_state_t *nst, bool lock, uint8_t proto_idx);
-const char *npf_state_get_state_name(uint8_t state, uint8_t proto_idx);
-bool npf_state_is_steady(const npf_state_t *nst, const uint8_t proto_idx);
-bool npf_tcp_state_is_closed(const npf_state_t *nst, const uint8_t proto_idx);
-enum dp_session_state npf_map_str_to_generic_state(const char *state);
-uint8_t npf_map_str_to_tcp_state(const char *state);
+		      npf_session_t *se, npf_state_t *nst,
+		      enum npf_proto_idx proto_idx, bool forw);
+void npf_state_update_gen_session(struct session *s,
+				  enum npf_proto_idx proto_idx,
+				  const npf_state_t *nst);
+void npf_state_update_tcp_session(struct session *s, const npf_state_t *nst);
+void npf_state_set_gen_closed(npf_state_t *nst, npf_session_t *se, bool lock,
+			      enum npf_proto_idx proto_idx);
+void npf_state_set_tcp_closed(npf_state_t *nst, npf_session_t *se, bool lock);
+const char *npf_state_get_tcp_name(enum tcp_session_state state);
+enum tcp_session_state npf_map_str_to_tcp_state(const char *state);
 uint32_t npf_state_get_custom_timeout(vrfid_t vrfid, npf_cache_t *npc,
 				      struct rte_mbuf *nbuf);
 void npf_state_stats_json(json_writer_t *json);
@@ -207,8 +177,13 @@ void npf_state_stats_json(json_writer_t *json);
 void npf_state_dump(const npf_state_t *nst);
 #endif
 
-void npf_session_state_change(npf_state_t *nst, uint8_t old_state,
-			      uint8_t new_state, uint8_t proto_idx);
+void npf_session_gen_state_change(npf_session_t *se, npf_state_t *nst,
+				  enum dp_session_state old_state,
+				  enum dp_session_state new_state,
+				  enum npf_proto_idx proto_idx);
+void npf_session_tcp_state_change(npf_session_t *se, npf_state_t *nst,
+				  enum tcp_session_state old_state,
+				  enum tcp_session_state new_state);
 
 void npf_state_set_icmp_strict(bool value);
 
@@ -217,18 +192,37 @@ void npf_state_set_icmp_strict(bool value);
 void npf_state_tcp_init(void);
 
 /*
- * npf_state_tcp returns either:
+ * npf_state_tcp: inspect TCP segment, determine whether it belongs to
+ * the connection and track its state.
+ *
+ * Returns either:
  *  1. the new TCP state,
- *  2. NPF_TCPS_OK, if no state change is required, or
- *  3. '*error' < 0 if the packet should be discarded
+ *  2. the old state, if no state change is required or if an error occurred.
+ *
+ *  Any error is set in the '*error' parameter.  If one is returned then the
+ *  packet should be discarded
  */
-uint8_t npf_state_tcp(const npf_cache_t *npc, struct rte_mbuf *nbuf,
-		      npf_state_t *nst, int di, int *error);
+enum tcp_session_state npf_state_tcp(const npf_cache_t *npc,
+				     struct rte_mbuf *nbuf, npf_state_t *nst,
+				     const enum npf_flow_dir di, int *error);
 
 void npf_state_set_tcp_strict(bool value);
 
-int npf_state_npf_pack_update(npf_state_t *nst,
-			      struct npf_pack_session_state *pst,
-			      uint8_t state, uint8_t proto_idx);
+/* Pack non-TCP session state */
+void npf_state_pack_gen(npf_state_t *nst, struct npf_pack_session_state *pst);
+
+/* Pack TCP session state */
+void npf_state_pack_tcp(npf_state_t *nst, struct npf_pack_session_state *pst);
+
+/* Update non-TCP session state from a connsync restore or update */
+void npf_state_pack_update_gen(npf_state_t *nst,
+			       struct npf_pack_session_state *pst,
+			       enum npf_proto_idx proto_idx,
+			       bool *state_changed);
+
+/* Update TCP session state from a connsync restore or update */
+void npf_state_pack_update_tcp(npf_state_t *nst,
+			       struct npf_pack_session_state *pst,
+			       bool *state_changed);
 
 #endif  /* NPF_STATE_H */

@@ -33,8 +33,8 @@ bool npf_sess_limit_check(npf_rule_t *rl);
  * Called when the session belonging to a limit-enabled rproc rule changes
  * state.  May be called from both main and forwarding threads.
  */
-void npf_sess_limit_state_change(void *handle, uint8_t proto_idx,
-				 uint8_t prev_state, uint8_t state);
+void npf_sess_limit_state_change(void *handle, enum dp_session_state prev_state,
+				 enum dp_session_state state);
 
 #endif
 

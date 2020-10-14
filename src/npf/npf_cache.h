@@ -75,7 +75,7 @@ enum npf_proto_idx {
 	NPF_PROTO_IDX_UDP,
 	NPF_PROTO_IDX_ICMP,
 	NPF_PROTO_IDX_OTHER,
-};
+} __attribute__ ((__packed__));
 
 #define NPF_PROTO_IDX_FIRST	NPF_PROTO_IDX_TCP
 #define NPF_PROTO_IDX_LAST	NPF_PROTO_IDX_OTHER
@@ -97,8 +97,8 @@ static inline uint8_t npf_proto_idx_from_proto(uint8_t proto)
 	return NPF_PROTO_IDX_OTHER;
 }
 
-const char *npf_get_protocol_name_from_idx(uint8_t proto_idx);
-uint8_t npf_proto_idx_from_str(const char *proto);
+const char *npf_get_protocol_name_from_idx(enum npf_proto_idx proto_idx);
+enum npf_proto_idx npf_proto_idx_from_str(const char *proto);
 
 /* The SCTP common header - which is all we read */
 struct npf_sctp {
@@ -207,7 +207,7 @@ typedef struct npf_cache {
 	uint16_t	npc_hlen;
 	uint8_t		npc_alen;	/* Size (v4/6) of addrs */
 	uint8_t		npc_next_proto;
-	uint8_t		npc_proto_idx;
+	enum npf_proto_idx npc_proto_idx;
 	uint8_t		npc_ipv6_routing_type;
 	uint8_t		npc_alg_flags;	/* Per-packet alg flags */
 
@@ -440,7 +440,7 @@ npf_cache_ipproto(const npf_cache_t *npc)
 	return npc->npc_next_proto;
 }
 
-static inline uint8_t
+static inline enum npf_proto_idx
 npf_cache_proto_idx(const npf_cache_t *npc)
 {
 	return npc->npc_proto_idx;
