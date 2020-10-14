@@ -21,10 +21,10 @@
 
 #include "dp_test.h"
 
-const char *pl_path =
-	"/usr/lib/x86_64-linux-gnu/vyatta-dataplane/pipeline/plugins";
+/* Same as PL_DLL_LOC */
+const char *pl_path = PKGLIB_DIR"/pipeline/plugins";
 
-static bool starts_with_proc_or_sys(const char *path)
+static bool path_needs_redirected(const char *path)
 {
 	if (!path)
 		return 0;
@@ -77,13 +77,11 @@ int open64(const char *file, int oflag, ...)
 	va_start(ap, oflag);
 
 	/*
-	 * Redirect /proc and /sys to our dummy filesystem
-	 *
 	 * To avoid unnecessary complexity, we don't deal with the
 	 * O_CREAT or O_TMPFILE semantics of calling real_open64.
 	 */
 	if (!(oflag & O_CREAT) && !(oflag & O_TMPFILE) &&
-	    starts_with_proc_or_sys(file) &&
+	    path_needs_redirected(file) &&
 	    !redirect_path(file, redirfile, sizeof(redirfile))) {
 		ret = real_open64(redirfile, oflag);
 	} else {
@@ -105,10 +103,7 @@ DIR *opendir(const char *name)
 	if (!real_opendir)
 		real_opendir = dlsym(RTLD_NEXT, "opendir");
 
-	/*
-	 * Redirect /proc and /sys to our dummy filesystem
-	 */
-	if (starts_with_proc_or_sys(name)) {
+	if (path_needs_redirected(name)) {
 		char redirname[PATH_MAX];
 
 		if (!redirect_path(name, redirname, sizeof(redirname)))
@@ -127,10 +122,7 @@ FILE *fopen(const char *__restrict filename,
 	if (!real_fopen)
 		real_fopen = dlsym(RTLD_NEXT, "fopen");
 
-	/*
-	 * Redirect /proc and /sys to our dummy filesystem
-	 */
-	if (starts_with_proc_or_sys(filename)) {
+	if (path_needs_redirected(filename)) {
 		char redirfile[PATH_MAX];
 
 		if (!redirect_path(filename, redirfile, sizeof(redirfile)))
@@ -149,10 +141,7 @@ FILE *fopen64(const char *__restrict filename,
 	if (!real_fopen64)
 		real_fopen64 = dlsym(RTLD_NEXT, "fopen64");
 
-	/*
-	 * Redirect /proc and /sys to our dummy filesystem
-	 */
-	if (starts_with_proc_or_sys(filename)) {
+	if (path_needs_redirected(filename)) {
 		char redirfile[PATH_MAX];
 
 		if (!redirect_path(filename, redirfile, sizeof(redirfile)))
@@ -169,7 +158,7 @@ int access(const char *name, int type)
 	if (!real_access)
 		real_access = dlsym(RTLD_NEXT, "access");
 
-	if (starts_with_proc_or_sys(name)) {
+	if (path_needs_redirected(name)) {
 		char redirname[PATH_MAX];
 
 		if (!redirect_path(name, redirname, sizeof(redirname)))
@@ -187,10 +176,7 @@ int __xstat(int ver, const char *pathname, struct stat *buf)
 	if (!real_xstat)
 		real_xstat = dlsym(RTLD_NEXT, "__xstat");
 
-	/*
-	 * Redirect /proc and /sys to our dummy filesystem
-	 */
-	if (starts_with_proc_or_sys(pathname)) {
+	if (path_needs_redirected(pathname)) {
 		char redirname[PATH_MAX];
 
 		if (!redirect_path(pathname, redirname, sizeof(redirname)))
@@ -208,10 +194,7 @@ int __xstat64(int ver, const char *pathname, struct stat64 *buf)
 	if (!real_xstat64)
 		real_xstat64 = dlsym(RTLD_NEXT, "__xstat64");
 
-	/*
-	 * Redirect /proc and /sys to our dummy filesystem
-	 */
-	if (starts_with_proc_or_sys(pathname)) {
+	if (path_needs_redirected(pathname)) {
 		char redirname[PATH_MAX];
 
 		if (!redirect_path(pathname, redirname, sizeof(redirname)))
@@ -228,10 +211,7 @@ void *dlopen(const char *filename, int flags)
 	if (!real_dlopen)
 		real_dlopen = dlsym(RTLD_NEXT, "dlopen");
 
-	/*
-	 * Redirect /proc and /sys to our dummy filesystem
-	 */
-	if (starts_with_proc_or_sys(filename)) {
+	if (path_needs_redirected(filename)) {
 		char redirname[PATH_MAX];
 
 		if (!redirect_path(filename, redirname, sizeof(redirname)))
