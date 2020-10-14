@@ -23,14 +23,14 @@
 enum dp_evt {
 	DP_EVT_VRF_CREATE = 1,
 	DP_EVT_VRF_DELETE,
-	DP_EVT_IF_CREATE,
-	DP_EVT_IF_DELETE,
-	DP_EVT_IF_INDEX_SET,
-	DP_EVT_IF_INDEX_UNSET,
 	DP_EVT_IF_RENAME,
 	DP_EVT_IF_VRF_SET,
 	DP_EVT_IF_ADDR_ADD,
 	DP_EVT_IF_ADDR_DEL,
+	DP_EVT_IF_CREATE,
+	DP_EVT_IF_DELETE,
+	DP_EVT_IF_INDEX_SET,
+	DP_EVT_IF_INDEX_UNSET,
 	DP_EVT_IF_MAC_ADDR_CHANGE,
 	DP_EVT_IF_LINK_CHANGE,
 	DP_EVT_IF_VLAN_ADD,
@@ -46,6 +46,14 @@ _Static_assert((int)DP_EVT_VRF_CREATE == (int)DP_EVENT_VRF_CREATE,
 	       "public and internal vrf event create events differ");
 _Static_assert((int)DP_EVT_VRF_DELETE == (int)DP_EVENT_VRF_DELETE,
 	       "public and internal vrf event delete events differ");
+_Static_assert((int)DP_EVT_IF_RENAME == (int)DP_EVENT_IF_RENAME,
+		"public and internal if event rename events differ");
+_Static_assert((int)DP_EVT_IF_VRF_SET == (int)DP_EVENT_IF_VRF_SET,
+		"public and internal if vrf event set events differ");
+_Static_assert((int)DP_EVT_IF_ADDR_ADD == (int)DP_EVENT_IF_ADDR_ADD,
+		"public and internal if addr event add events differ");
+_Static_assert((int)DP_EVT_IF_ADDR_DEL == (int)DP_EVENT_IF_ADDR_DEL,
+		"public and internal if addr event delete events differ");
 
 enum if_feat_mode_event {
 	IF_FEAT_MODE_EVENT_L3_FAL_ENABLED,

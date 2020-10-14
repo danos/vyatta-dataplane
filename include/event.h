@@ -10,6 +10,8 @@
 #include <czmq.h>
 #include "vrf.h"
 
+struct ifnet;
+
 /*
  * Callback function to process events received on sockets.
  *
@@ -73,6 +75,10 @@ int dp_send_event_to_vplaned(zmsg_t *msg);
 enum dp_event {
 	DP_EVENT_VRF_CREATE = 1,
 	DP_EVENT_VRF_DELETE,
+	DP_EVENT_IF_RENAME,
+	DP_EVENT_IF_VRF_SET,
+	DP_EVENT_IF_ADDR_ADD,
+	DP_EVENT_IF_ADDR_DEL,
 };
 
 /*
@@ -84,6 +90,16 @@ struct dp_events_ops {
 	void (*vrf_create)(struct vrf *vrf);
 	/* DP_EVENT_VRF_DELETE */
 	void (*vrf_delete)(struct vrf *vrf);
+	/* DP_EVENT_IF_RENAME */
+	void (*if_rename)(struct ifnet *ifp, const char *old_name);
+	/* DP_EVENT_IF_VRF_SET */
+	void (*if_vrf_set)(struct ifnet *ifp);
+	/* DP_EVENT_IF_ADDR_ADD */
+	void (*if_addr_add)(struct ifnet *ifp, uint32_t ifindex, int af,
+			    const void *addr);
+	/* DP_EVENT_IF_ADDR_DEL */
+	void (*if_addr_delete)(struct ifnet *ifp,
+			uint32_t ifindex, int af, const void *addr);
 };
 
 /*

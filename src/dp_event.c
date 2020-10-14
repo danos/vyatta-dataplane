@@ -24,6 +24,7 @@ static void dp_evt_notify(enum dp_evt evt, uint32_t cont_src,
 		const struct dp_event_ops *ops, void *obj, uint32_t val,
 		uint32_t val2, const void *data)
 {
+	const struct dp_events_ops *pub_ops;
 	switch (evt) {
 	case DP_EVT_IF_CREATE:
 		if (ops->if_create)
@@ -57,11 +58,21 @@ static void dp_evt_notify(enum dp_evt evt, uint32_t cont_src,
 		/* args: cont_src, ifindex, family, addr */
 		if (ops->if_addr_add)
 			ops->if_addr_add(cont_src, obj, val, val2, data);
+		else {
+			pub_ops = rcu_dereference(ops->public_ops);
+			if (pub_ops && pub_ops->if_addr_add)
+				pub_ops->if_addr_add(obj, val, val2, data);
+		}
 		break;
 	case DP_EVT_IF_ADDR_DEL:
 		/* args: cont_src, ifindex, family, addr */
 		if (ops->if_addr_delete)
 			ops->if_addr_delete(cont_src, obj, val, val2, data);
+		else {
+			pub_ops = rcu_dereference(ops->public_ops);
+			if (pub_ops && pub_ops->if_addr_delete)
+				pub_ops->if_addr_delete(obj, val, val2, data);
+		}
 		break;
 	case DP_EVT_RESET_CONFIG:
 		if (ops->reset_config)
@@ -165,6 +176,12 @@ int dp_events_register(const struct dp_events_ops *ops)
 
 	internal_ops->vrf_create = ops->vrf_create;
 	internal_ops->vrf_delete = ops->vrf_delete;
+	internal_ops->if_rename = ops->if_rename;
+	internal_ops->if_vrf_set = ops->if_vrf_set;
+
+	/* if addr_add and delete have different signature
+	 * and used directly from the public_ops.
+	 */
 
 	internal_ops->public_ops = ops;
 
@@ -192,15 +209,15 @@ int dp_events_unregister(const struct dp_events_ops *ops)
 
 	for (i = 0; i < ARRAY_SIZE(dp_ops); i++) {
 		internal_ops = rcu_dereference(dp_ops[i]);
-		if (!internal_ops->public_ops)
+
+		if (!internal_ops || internal_ops->public_ops != ops)
 			continue;
 
-		if (rcu_cmpxchg_pointer(&internal_ops->public_ops,
-					ops, NULL) == ops) {
+		if (rcu_cmpxchg_pointer(&dp_ops[i],
+					internal_ops, NULL) == internal_ops) {
 			call_rcu(&internal_ops->rcu, dp_event_unregister_free);
 			return 0;
 		}
 	}
-
 	return -ENOENT;
 }
