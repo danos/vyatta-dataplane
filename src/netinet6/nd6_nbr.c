@@ -661,7 +661,7 @@ nd6_na_output(struct ifnet *ifp, const struct rte_ether_addr *lladdr,
 		  lladdr ? 1 : 0);
 	ND6NBR_INC(natx);
 
-	if (ipv6_originate_filter(ifp, m))
+	if (ip6_spath_filter(ifp, &m))
 		return;
 
 	/*
@@ -1121,7 +1121,7 @@ static void nd6_ns_output(struct ifnet *ifp,
 	m = nd6_ns_build(ifp, res_src, taddr6, dst_mac);
 
 	if (m) {
-		if (!ipv6_originate_filter(ifp, m))
+		if (!ip6_spath_filter(ifp, &m))
 			if_output(ifp, m, NULL, ETH_P_IPV6);
 	}
 }
@@ -1718,7 +1718,7 @@ in6_ll_age(struct lltable *llt, struct llentry *lle, uint64_t cur_time)
 		rte_spinlock_unlock(&lle->ll_lock);
 
 		if (m) {
-			if (!ipv6_originate_filter(ifp, m))
+			if (!ip6_spath_filter(ifp, &m))
 				if_output(ifp, m, NULL, ETH_P_IPV6);
 		}
 

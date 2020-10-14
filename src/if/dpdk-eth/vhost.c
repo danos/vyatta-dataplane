@@ -71,7 +71,6 @@ struct vhost_event {
 static rte_spinlock_t vhost_ev_list_lock = RTE_SPINLOCK_INITIALIZER;
 
 struct vhost_event_list vhost_ev_list;
-static struct cfg_if_list *vhost_cfg_list;
 
 /**
  * Check to see if an ifp is a vhost interface by examining
@@ -651,65 +650,6 @@ static void vhost_transport_free(struct rcu_head *head)
 	free(entry);
 }
 
-
-static void
-vhost_event_if_index_set(struct ifnet *ifp);
-static void
-vhost_event_if_index_unset(struct ifnet *ifp, uint32_t ifindex);
-
-static const struct dp_event_ops vhost_event_ops = {
-	.if_index_set = vhost_event_if_index_set,
-	.if_index_unset = vhost_event_if_index_unset,
-};
-
-static void
-vhost_event_if_index_set(struct ifnet *ifp)
-{
-	struct cfg_if_list_entry *le;
-
-	if (!vhost_cfg_list)
-		return;
-
-	le = cfg_if_list_lookup(vhost_cfg_list, ifp->if_name);
-	if (!le)
-		return;
-
-	DP_DEBUG(VHOST, DEBUG, DATAPLANE,
-		 "Replaying (%s) command for interface %s\n",
-		le->le_buf, ifp->if_name);
-
-	cmd_vhost_client_cfg(NULL, le->le_argc, le->le_argv);
-	cfg_if_list_del(vhost_cfg_list, ifp->if_name);
-
-	if (!vhost_cfg_list->if_list_count)
-		cfg_if_list_destroy(&vhost_cfg_list);
-}
-
-static void
-vhost_event_if_index_unset(struct ifnet *ifp, uint32_t ifindex __unused)
-{
-	if (!vhost_cfg_list)
-		return;
-
-	cfg_if_list_del(vhost_cfg_list, ifp->if_name);
-	if (!vhost_cfg_list->if_list_count) {
-		dp_event_unregister(&vhost_event_ops);
-		cfg_if_list_destroy(&vhost_cfg_list);
-	}
-}
-
-static int vhost_replay_init(void)
-{
-	if (!vhost_cfg_list) {
-		vhost_cfg_list = cfg_if_list_create();
-		if (!vhost_cfg_list)
-			return -ENOMEM;
-
-		dp_event_register(&vhost_event_ops);
-	}
-	return 0;
-}
-
 /**
  * Add or remove transport_link to the list of interfaces that name monitors.
  * Expects pre verified string in the following format
@@ -717,7 +657,7 @@ static int vhost_replay_init(void)
  * argv[2]  vhost interface name
  * argv[3]  transport-link interface
  */
-static int cmd_vhost_transport_update(int argc, char **argv, bool add)
+static int cmd_vhost_transport_update(char **argv, bool add)
 {
 	struct ifnet *ifp;
 	struct vhost_transport *entry, *next;
@@ -726,18 +666,10 @@ static int cmd_vhost_transport_update(int argc, char **argv, bool add)
 
 	ifp = dp_ifnet_byifname(argv[2]);
 	if (!ifp) {
-		if (vhost_replay_init() < 0) {
-			RTE_LOG(ERR, DATAPLANE,
-				"Vhost could not set up replay cache\n");
-			return -ENOMEM;
-		}
 		RTE_LOG(DEBUG, DATAPLANE,
-			"Caching Vhost transport cmd for %s %s %s\n",
-			argv[2], argv[3], argv[4]);
-		cfg_if_list_add(vhost_cfg_list,
-				argv[2], argc, argv);
-
-		return 0;
+			"Vhost transport cmd but interface missing %s\n",
+			argv[2]);
+		return -1;
 	}
 
 	DP_DEBUG(VHOST, DEBUG, DATAPLANE,
@@ -894,11 +826,9 @@ static int __cmd_vhost_cfg(const char *cmd,
 		rc = cmd_vhost_disable(argv[2], true);
 	else if (strcmp(argv[1], "transport-link") == 0 && argc == 5) {
 		if (strcmp(argv[4], "add") == 0)
-			rc = cmd_vhost_transport_update(argc, argv,
-							true);
+			rc = cmd_vhost_transport_update(argv, true);
 		else if (strcmp(argv[4], "del") == 0)
-			rc = cmd_vhost_transport_update(argc, argv,
-							false);
+			rc = cmd_vhost_transport_update(argv, false);
 		else
 			goto bad_command;
 	}
