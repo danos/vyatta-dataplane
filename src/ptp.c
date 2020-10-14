@@ -998,11 +998,12 @@ void ptp_peer_update(struct ptp_peer_t *peer)
 
 		/* If the nexthop is on the same interface, and the
 		 * interface is up, prefer this peer over any other.
-		 * The sibling might also be better if the peer isn't
-		 * IFF_UP.
+		 * The sibling might also be better if the current
+		 * peer isn't reachable or IFF_UP.
 		 */
 		if ((sib_ifp->if_flags & IFF_UP) &&
-		    (sib_nh_ifp == sib_ifp || !(ifp->if_flags & IFF_UP))) {
+		    (sib_nh_ifp == sib_ifp ||
+		     (!ifp || !(ifp->if_flags & IFF_UP)))) {
 			DP_DEBUG(PTP, ERR, DATAPLANE,
 				 "%s: peer %s on %s is preferred to %s\n",
 				 __func__, peerip,
@@ -1019,7 +1020,10 @@ void ptp_peer_update(struct ptp_peer_t *peer)
 		ptp_peer_uninstall(sibling);
 	}
 
-	if (!(ifp->if_flags & IFF_UP)) {
+	if (!ifp) {
+		DP_DEBUG(PTP, ERR, DATAPLANE,
+			 "%s: peer %s is unreachable\n", __func__, peerip);
+	} else if (!(ifp->if_flags & IFF_UP)) {
 		DP_DEBUG(PTP, ERR, DATAPLANE,
 			 "%s: switch nexthop interface %s is down!\n",
 			 __func__, ifp->if_name);
