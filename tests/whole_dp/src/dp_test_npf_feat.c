@@ -288,12 +288,13 @@ DP_START_TEST_FULL_RUN(npf_feat3, test)
 } DP_END_TEST;
 
 /*
- * npf_feat4 - firewall and nat64 rulesets
+ * npf_feat4a - firewall and nat64 rulesets.  Remove nat64 first then check
+ * firewall still enabled.
  *
  * make -j4 dataplane_test_run CK_RUN_CASE=npf_feat4
  */
-DP_DECL_TEST_CASE(npf_feat, npf_feat4, NULL, NULL);
-DP_START_TEST_FULL_RUN(npf_feat4, test)
+DP_DECL_TEST_CASE(npf_feat, npf_feat4a, NULL, NULL);
+DP_START_TEST_FULL_RUN(npf_feat4a, test)
 {
 	dp_test_nl_add_ip_addr_and_connected("dp1T0", "2001:101:1::a0a:1fe/96");
 	dp_test_nl_add_ip_addr_and_connected("dp1T1", "2002:101:1::a0a:1fe/96");
@@ -337,6 +338,61 @@ DP_START_TEST_FULL_RUN(npf_feat4, test)
 
 	dp_test_wait_for_pl_defrag("dp1T1", EXP_GONE);
 	dp_test_wait_for_pl_fw("dp1T1", EXP_GONE);
+
+	dp_test_nl_del_ip_addr_and_connected("dp1T0", "2001:101:1::a0a:1fe/96");
+	dp_test_nl_del_ip_addr_and_connected("dp1T1", "2002:101:1::a0a:1fe/96");
+	dp_test_nl_del_ip_addr_and_connected("dp1T2", "3.3.3.3/24");
+} DP_END_TEST;
+
+/*
+ * npf_feat4b - firewall and nat64 rulesets.  Remove nat64 first then check
+ * firewall still enabled.
+ *
+ * make -j4 dataplane_test_run CK_RUN_CASE=npf_feat4
+ */
+DP_DECL_TEST_CASE(npf_feat, npf_feat4b, NULL, NULL);
+DP_START_TEST_FULL_RUN(npf_feat4b, test)
+{
+	dp_test_nl_add_ip_addr_and_connected("dp1T0", "2001:101:1::a0a:1fe/96");
+	dp_test_nl_add_ip_addr_and_connected("dp1T1", "2002:101:1::a0a:1fe/96");
+	dp_test_nl_add_ip_addr_and_connected("dp1T2", "3.3.3.3/24");
+
+	/*
+	 * Add nat64 and firewall to dp1T0
+	 */
+	npf_feat_fw_ruleset("dp1T0", "FW_GROUP1", true, ACTION_ADD);
+	npf_feat_nat64_ruleset("dp1T0", "N64_GROUP1", ACTION_ADD);
+
+	dp_test_wait_for_pl_defrag("dp1T0", EXP_PRESENT);
+	dp_test_wait_for_pl_fw("dp1T0", EXP_PRESENT);
+	dp_test_wait_for_pl_nat64("dp1T0", EXP_PRESENT);
+
+	dp_test_wait_for_pl_defrag("dp1T1", EXP_PRESENT);
+	dp_test_wait_for_pl_fw("dp1T1", EXP_GONE);	/* No fw on dp1T1 */
+	dp_test_wait_for_pl_nat64("dp1T1", EXP_PRESENT);
+
+	/*
+	 * Remove firewall from dp1T0.  defrag and nat64 features should still
+	 * be present on dp1T0
+	 */
+	npf_feat_fw_ruleset("dp1T0", "FW_GROUP1", true, ACTION_DEL);
+
+	dp_test_wait_for_pl_defrag("dp1T0", EXP_PRESENT);
+	dp_test_wait_for_pl_fw("dp1T0", EXP_GONE);
+	dp_test_wait_for_pl_nat64("dp1T0", EXP_PRESENT);
+
+	/*
+	 * Remove nat64 from dp1T0.
+	 */
+	npf_feat_nat64_ruleset("dp1T0", "N64_GROUP1", ACTION_DEL);
+
+	dp_test_wait_for_pl_defrag("dp1T0", EXP_GONE);
+	dp_test_wait_for_pl_fw("dp1T0", EXP_GONE);
+	dp_test_wait_for_pl_nat64("dp1T0", EXP_GONE);
+
+	dp_test_wait_for_pl_defrag("dp1T1", EXP_GONE);
+	dp_test_wait_for_pl_fw("dp1T1", EXP_GONE);
+	dp_test_wait_for_pl_nat64("dp1T1", EXP_GONE);
 
 	dp_test_nl_del_ip_addr_and_connected("dp1T0", "2001:101:1::a0a:1fe/96");
 	dp_test_nl_del_ip_addr_and_connected("dp1T1", "2002:101:1::a0a:1fe/96");
@@ -916,3 +972,101 @@ DP_START_TEST_FULL_RUN(npf_feat11, test)
 
 } DP_END_TEST;
 
+/*
+ * Test that the ipv4-fw-orig feature is enabled on *all* interfaces when it
+ * is attached to "global:".
+ *
+ * This is what happens when an 'originate' ruleset is configured on a
+ * loopback interface.
+ */
+DP_DECL_TEST_CASE(npf_feat, npf_orig_feat, NULL, NULL);
+
+DP_START_TEST_FULL_RUN(npf_orig_feat, test1)
+{
+	bool rv, debug = false;
+
+	/* Setup interfaces and neighbours */
+	dp_test_nl_add_ip_addr_and_connected("dp1T0", "1.1.1.1/24");
+	dp_test_netlink_add_neigh("dp1T0", "1.1.1.2",
+				  "aa:bb:cc:dd:1:a1");
+
+	rv = dp_pipeline_is_feature_enabled_by_inst("vyatta:ipv4-fw-orig",
+						    "dpT10");
+	dp_test_fail_unless(!rv, "ipv4-fw-orig is enabled");
+
+	dp_test_npf_cmd_fmt(debug, "npf-ut add fw:FW_ORIG 1 action=accept");
+	dp_test_npf_cmd_fmt(debug,
+			    "npf-ut attach global: originate fw:FW_ORIG");
+	dp_test_npf_commit();
+
+	rv = dp_pipeline_is_feature_enabled_by_inst("vyatta:ipv4-fw-orig",
+						    "dpT10");
+	dp_test_fail_unless(rv, "ipv4-fw-orig not enabled on dpT10 "
+			    "when attached to \"global:\"");
+
+	rv = dp_pipeline_is_feature_enabled_by_inst("vyatta:ipv4-fw-orig",
+						    "dpT11");
+	dp_test_fail_unless(rv, "ipv4-fw-orig not enabled on dpT11 "
+			    "when attached to \"global:\"");
+
+	dp_test_npf_cmd_fmt(debug,
+			    "npf-ut detach global: originate fw:FW_ORIG");
+	dp_test_npf_cmd_fmt(debug, "npf-ut delete fw:FW_ORIG");
+	dp_test_npf_commit();
+
+	rv = dp_pipeline_is_feature_enabled_by_inst("vyatta:ipv4-fw-orig",
+						    "dpT10");
+	dp_test_fail_unless(!rv, "ipv4-fw-orig is enabled");
+
+	dp_test_nl_del_ip_addr_and_connected("dp1T0", "1.1.1.1/24");
+	dp_test_netlink_del_neigh("dp1T0", "1.1.1.2",
+				  "aa:bb:cc:dd:1:a1");
+
+} DP_END_TEST;
+
+/*
+ * Test that the ipv4-fw-orig feature is enabled only on one interface when it
+ * is attached to that interface.
+ */
+DP_START_TEST_FULL_RUN(npf_orig_feat, test2)
+{
+	bool rv, debug = false;
+
+	/* Setup interfaces and neighbours */
+	dp_test_nl_add_ip_addr_and_connected("dp1T0", "1.1.1.1/24");
+	dp_test_netlink_add_neigh("dp1T0", "1.1.1.2",
+				  "aa:bb:cc:dd:1:a1");
+
+	rv = dp_pipeline_is_feature_enabled_by_inst("vyatta:ipv4-fw-orig",
+						    "dpT10");
+	dp_test_fail_unless(!rv, "ipv4-fw-orig is enabled");
+
+	dp_test_npf_cmd_fmt(debug, "npf-ut add fw:FW_ORIG 1 action=accept");
+	dp_test_npf_cmd_fmt(debug,
+			    "npf-ut attach interface:dpT10 "
+			    "originate fw:FW_ORIG");
+	dp_test_npf_commit();
+
+	rv = dp_pipeline_is_feature_enabled_by_inst("vyatta:ipv4-fw-orig",
+						    "dpT10");
+	dp_test_fail_unless(rv, "ipv4-fw-orig not enabled on dpT10");
+
+	rv = dp_pipeline_is_feature_enabled_by_inst("vyatta:ipv4-fw-orig",
+						    "dpT11");
+	dp_test_fail_unless(!rv, "ipv4-fw-orig enabled on dpT11");
+
+	dp_test_npf_cmd_fmt(debug,
+			    "npf-ut detach interface:dpT10 "
+			    "originate fw:FW_ORIG");
+	dp_test_npf_cmd_fmt(debug, "npf-ut delete fw:FW_ORIG");
+	dp_test_npf_commit();
+
+	rv = dp_pipeline_is_feature_enabled_by_inst("vyatta:ipv4-fw-orig",
+						    "dpT10");
+	dp_test_fail_unless(!rv, "ipv4-fw-orig is enabled");
+
+	dp_test_nl_del_ip_addr_and_connected("dp1T0", "1.1.1.1/24");
+	dp_test_netlink_del_neigh("dp1T0", "1.1.1.2",
+				  "aa:bb:cc:dd:1:a1");
+
+} DP_END_TEST;
