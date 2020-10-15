@@ -501,6 +501,8 @@ npf_init(void)
 	if (rc != 0)
 		RTE_LOG(ERR, DATAPLANE, "failed to register global rulesets "
 			"with NPF\n");
+	else
+		npf_gbl_attach_point_init();
 }
 
 void npf_cleanup(void)
