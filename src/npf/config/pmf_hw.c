@@ -52,8 +52,6 @@ pmf_hw_rule_add(struct pmf_attrl *earl, struct pmf_rule *rule)
 	if (!grp_was_created)
 		goto log_add;
 
-#define FAL_ENTRY_PRIORITY_TOP	(16384u)
-
 #define FAL_ENTRY_FIX_FIELDS 3
 #define FAL_ENTRY_VAR_FIELDS (2 + 7 + 5)
 #define FAL_ENTRY_TOT_FIELDS (FAL_ENTRY_FIX_FIELDS + FAL_ENTRY_VAR_FIELDS)
@@ -63,8 +61,8 @@ pmf_hw_rule_add(struct pmf_attrl *earl, struct pmf_rule *rule)
 			.value.objid = grpobj,
 		},
 		[1] = {
-			.id = FAL_ACL_ENTRY_ATTR_PRIORITY,
-			.value.u32 = FAL_ENTRY_PRIORITY_TOP - index,
+			.id = FAL_ACL_ENTRY_ATTR_RULE_NUMBER,
+			.value.u32 = index,
 		},
 		[2] = {
 			.id = FAL_ACL_ENTRY_ATTR_ADMIN_STATE,

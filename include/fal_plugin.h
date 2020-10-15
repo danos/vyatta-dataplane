@@ -5202,11 +5202,11 @@ enum fal_acl_entry_attr_t {
 	FAL_ACL_ENTRY_ATTR_TABLE_ID,
 
 	/**
-	 * @brief Priority (Highest value has highest priority)
+	 * @brief Rule number (Lowest value has highest priority)
 	 * @type uint16_t
 	 * @flags MANDATORY_ON_CREATE | CREATE_ONLY
 	 */
-	FAL_ACL_ENTRY_ATTR_PRIORITY,
+	FAL_ACL_ENTRY_ATTR_RULE_NUMBER,
 
 	/**
 	 * @brief Admin state (false is disabled)
