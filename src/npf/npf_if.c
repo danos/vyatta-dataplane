@@ -497,17 +497,16 @@ npf_if_rs_count_incr(struct ifnet *ifp, enum npf_ruleset_type rs_type)
 		return;
 	}
 
+	enum npf_rs_flag rfl = npf_get_ruleset_type_flags(rs_type);
+
 	/*
 	 * Increment interface feature ref counts for this ruleset type when
 	 * the ruleset count changes from 0 to 1 if it is a 'per interface'
 	 * type.
 	 */
 	if (niif->niif_rs_count[rs_type]++ == 0) {
-		enum npf_rs_flag rfl;
 
 		/* Are features enabled per-interface? */
-		rfl = npf_get_ruleset_type_flags(rs_type);
-
 		if ((rfl & NPF_RS_FLAG_FEAT_INTF) != 0) {
 			enum if_feat_flag ffl;
 
@@ -517,7 +516,8 @@ npf_if_rs_count_incr(struct ifnet *ifp, enum npf_ruleset_type rs_type)
 		}
 	}
 
-	npf_gbl_rs_count_incr(rs_type);
+	if ((rfl & NPF_RS_FLAG_FEAT_INTF_ALL) != 0)
+		npf_gbl_rs_count_incr(rs_type);
 }
 
 /*
@@ -540,17 +540,16 @@ npf_if_rs_count_decr(struct ifnet *ifp, enum npf_ruleset_type rs_type)
 		return;
 	}
 
+	enum npf_rs_flag rfl = npf_get_ruleset_type_flags(rs_type);
+
 	/*
 	 * Decrement interface feature ref counts for this ruleset type when
 	 * the ruleset count changes from 1 to 0 if it is a 'per interface'
 	 * type.
 	 */
 	if (--niif->niif_rs_count[rs_type] == 0) {
-		enum npf_rs_flag rfl;
 
 		/* Are features enabled per-interface? */
-		rfl = npf_get_ruleset_type_flags(rs_type);
-
 		if ((rfl & NPF_RS_FLAG_FEAT_INTF) != 0) {
 			enum if_feat_flag ffl;
 
@@ -560,7 +559,8 @@ npf_if_rs_count_decr(struct ifnet *ifp, enum npf_ruleset_type rs_type)
 		}
 	}
 
-	npf_gbl_rs_count_decr(rs_type);
+	if ((rfl & NPF_RS_FLAG_FEAT_INTF_ALL) != 0)
+		npf_gbl_rs_count_decr(rs_type);
 }
 
 /*

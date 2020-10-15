@@ -166,27 +166,15 @@ void npf_gbl_rs_count_incr(enum npf_ruleset_type rs_type)
 		return;
 	}
 
-	/*
-	 * Increment interface feature ref counts for this ruleset type for
-	 * all interfaces when the ruleset count changes from 0 to 1 if it is
-	 * a 'global' type.
-	 */
 	if (npf_rs_count[rs_type]++ == 0) {
-		enum npf_rs_flag rfl;
+		enum if_feat_flag ffl;
 
-		/* Are features applied for all interfaces? */
-		rfl = npf_get_ruleset_type_flags(rs_type);
+		/* Add niif reference for all interfaces */
+		npf_if_reference_all();
 
-		if ((rfl & NPF_RS_FLAG_FEAT_INTF_ALL) != 0) {
-			enum if_feat_flag ffl;
-
-			/* Add niif reference for all interfaces */
-			npf_if_reference_all();
-
-			/* Enable features for all interfaces */
-			ffl = npf_get_ruleset_type_feat_flags(rs_type);
-			if_feat_all_refcnt_incr(ffl);
-		}
+		/* Enable features for all interfaces */
+		ffl = npf_get_ruleset_type_feat_flags(rs_type);
+		if_feat_all_refcnt_incr(ffl);
 	}
 }
 
@@ -206,27 +194,15 @@ void npf_gbl_rs_count_decr(enum npf_ruleset_type rs_type)
 		return;
 	}
 
-	/*
-	 * Decrement interface feature ref counts for this ruleset type for
-	 * all interfaces when the ruleset count changes from 1 to 0 if it is
-	 * a 'global' type.
-	 */
 	if (--npf_rs_count[rs_type] == 0) {
-		enum npf_rs_flag rfl;
+		enum if_feat_flag ffl;
 
-		/* Are features applied for all interfaces? */
-		rfl = npf_get_ruleset_type_flags(rs_type);
+		/* Disable features for all interfaces */
+		ffl = npf_get_ruleset_type_feat_flags(rs_type);
+		if_feat_all_refcnt_decr(ffl);
 
-		if ((rfl & NPF_RS_FLAG_FEAT_INTF_ALL) != 0) {
-			enum if_feat_flag ffl;
-
-			/* Disable features for all interfaces */
-			ffl = npf_get_ruleset_type_feat_flags(rs_type);
-			if_feat_all_refcnt_decr(ffl);
-
-			/* Remove niif reference for all interfaces */
-			npf_if_release_all();
-		}
+		/* Remove niif reference for all interfaces */
+		npf_if_release_all();
 	}
 }
 
