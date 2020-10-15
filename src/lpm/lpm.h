@@ -248,10 +248,16 @@ lpm_delete(struct lpm *lpm, uint32_t ip, uint8_t depth,
 	   uint32_t *new_next_hop,
 	   struct pd_obj_state_and_flags **new_pd_state);
 
+struct lpm_walk_params {
+	uint32_t ip;
+	uint8_t depth;
+	int16_t scope;
+	uint32_t next_hop;
+};
+
 /** iterator function for LPM rule */
 typedef void (*lpm_walk_func_t)(struct lpm *lpm,
-				uint32_t ip, uint8_t depth, int16_t scope,
-				uint32_t next_hop,
+				struct lpm_walk_params *params,
 				struct pd_obj_state_and_flags *pd_state,
 				void *arg);
 

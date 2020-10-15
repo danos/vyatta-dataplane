@@ -1388,10 +1388,7 @@ int rt_delete(vrfid_t vrf_id, in_addr_t dst, uint8_t depth,
 
 /* cleaner for the next hop */
 static void flush_cleanup(struct lpm *lpm __rte_unused,
-			  uint32_t ip,
-			  uint8_t depth,
-			  int16_t scope __rte_unused,
-			  uint32_t idx,
+			  struct lpm_walk_params *params,
 			  struct pd_obj_state_and_flags *pd_state,
 			  void *arg)
 {
@@ -1401,7 +1398,8 @@ static void flush_cleanup(struct lpm *lpm __rte_unused,
 	route_sw_stats[PD_OBJ_STATE_FULL]--;
 
 	if (pd_state->created) {
-		ret = fal_ip4_del_route(vrf->v_id, htonl(ip), depth,
+		ret = fal_ip4_del_route(vrf->v_id, htonl(params->ip),
+					params->depth,
 					lpm_get_id(lpm));
 		switch (ret) {
 		case 0:
@@ -1411,20 +1409,20 @@ static void flush_cleanup(struct lpm *lpm __rte_unused,
 			/* General failure */
 			if (ret < 0) {
 				char b[INET_ADDRSTRLEN];
-				in_addr_t dst = htonl(ip);
+				in_addr_t dst = htonl(params->ip);
 
 				DP_LOG_W_VRF(
 					ERR, ROUTE, vrf->v_id,
 					"route delete %s/%d failed via FAL (%d)\n",
 					inet_ntop(AF_INET, &dst, b, sizeof(b)),
-					depth, ret);
+					params->depth, ret);
 			}
 			break;
 		}
 	} else
 		route_hw_stats[pd_state->state]--;
 
-	nexthop_put(AF_INET, idx);
+	nexthop_put(AF_INET, params->next_hop);
 }
 
 void rt_flush(struct vrf *vrf)
@@ -1656,24 +1654,24 @@ void rt_print_nexthop(json_writer_t *json, uint32_t next_hop,
  */
 static void rt_local_display(
 	struct lpm *lpm __rte_unused,
-	uint32_t ip, uint8_t depth __rte_unused,
-	int16_t scope __rte_unused,
-	uint32_t next_hop,
+	struct lpm_walk_params *params,
 	struct pd_obj_state_and_flags *pd_state __rte_unused,
 	void *arg)
 {
 	FILE *f = arg;
-	in_addr_t dst = htonl(ip);
+	in_addr_t dst = htonl(params->ip);
 	char b[INET_ADDRSTRLEN];
 	const struct next_hop_list *nextl =
-		rcu_dereference(nh_tbl.entry[next_hop]);
+		rcu_dereference(nh_tbl.entry[params->next_hop]);
 	const struct next_hop *nh;
 
 	if (unlikely(!nextl))
 		return;
 	nh = rcu_dereference(nextl->siblings);
 
-	if (nh->flags & RTF_LOCAL && !rt_is_reserved(ip, depth, scope))
+	if (nh->flags & RTF_LOCAL && !rt_is_reserved(params->ip,
+						     params->depth,
+						     params->scope))
 		fprintf(f, "\t%s\n", inet_ntop(AF_INET, &dst, b, sizeof(b)));
 }
 
@@ -1708,16 +1706,15 @@ static void __rt_display(json_writer_t *json, in_addr_t *dst, uint8_t depth,
 }
 
 static void rt_display(struct lpm *lpm __rte_unused,
-		       uint32_t ip, uint8_t depth, int16_t scope,
-		       uint32_t next_hop,
+		       struct lpm_walk_params *params,
 		       struct pd_obj_state_and_flags *pd_state __rte_unused,
 		       void *arg)
 {
 	json_writer_t *json = arg;
-	in_addr_t dst = htonl(ip);
+	in_addr_t dst = htonl(params->ip);
 
 	const struct next_hop_list *nextl =
-		rcu_dereference(nh_tbl.entry[next_hop]);
+		rcu_dereference(nh_tbl.entry[params->next_hop]);
 	const struct next_hop *nh;
 
 	if (unlikely(!nextl))
@@ -1731,26 +1728,27 @@ static void rt_display(struct lpm *lpm __rte_unused,
 	if (next_hop_list_nc_count(nextl))
 		return;
 
-	if (rt_is_reserved(ip, depth, scope))
+	if (rt_is_reserved(params->ip, params->depth, params->scope))
 		return;
 
-	__rt_display(json, &dst, depth, scope, nextl, next_hop);
+	__rt_display(json, &dst, params->depth, params->scope, nextl,
+		     params->next_hop);
 }
 
 static void rt_display_all(struct lpm *lpm __rte_unused,
-			   uint32_t ip, uint8_t depth, int16_t scope,
-			   uint32_t next_hop,
+			   struct lpm_walk_params *params,
 			   struct pd_obj_state_and_flags *pd_state __rte_unused,
 			   void *arg)
 {
 	json_writer_t *json = arg;
-	in_addr_t dst = htonl(ip);
+	in_addr_t dst = htonl(params->ip);
 	const struct next_hop_list *nextl =
-		rcu_dereference(nh_tbl.entry[next_hop]);
+		rcu_dereference(nh_tbl.entry[params->next_hop]);
 
 	if (unlikely(!nextl))
 		return;
-	__rt_display(json, &dst, depth, scope, nextl, next_hop);
+	__rt_display(json, &dst, params->depth, params->scope, nextl,
+		     params->next_hop);
 }
 
 /* Route rule list (RB-tree) is not RCU safe */
@@ -1783,10 +1781,11 @@ enum if_state_rx {
 };
 
 static void rt_if_dead(struct lpm *lpm, struct vrf *vrf,
-		       uint32_t ip, uint8_t depth, int16_t scope,
-		       uint32_t idx, void *arg, enum if_state_rx state_rx)
+		       struct lpm_walk_params *params,
+		       void *arg, enum if_state_rx state_rx)
 {
-	struct next_hop_list *nextl = rcu_dereference(nh_tbl.entry[idx]);
+	struct next_hop_list *nextl =
+		rcu_dereference(nh_tbl.entry[params->next_hop]);
 	const struct ifnet *ifp = arg;
 	unsigned int i, matches = 0;
 
@@ -1813,33 +1812,31 @@ static void rt_if_dead(struct lpm *lpm, struct vrf *vrf,
 		 * Or interface on one nh has been deleted. This mimics Kernel
 		 * behaviour but is bad as we have other ECMP nh's available
 		 */
-		route_lpm_delete(vrf->v_id, lpm, htonl(ip), depth, NULL,
-				 scope);
-		nexthop_put(AF_INET, idx);
+		route_lpm_delete(vrf->v_id, lpm, htonl(params->ip),
+				 params->depth, NULL,
+				 params->scope);
+		nexthop_put(AF_INET, params->next_hop);
 	}
 }
 
 /* Interface is being deleted */
 static void rt_if_deleted(struct lpm *lpm, struct vrf *vrf,
-			  uint32_t ip, uint8_t depth, int16_t scope,
-			  uint32_t idx,
+			  struct lpm_walk_params *params,
 			  struct pd_obj_state_and_flags *pd_state __rte_unused,
 			  void *arg)
 {
-	rt_if_dead(lpm, vrf, ip, depth, scope, idx, arg, IF_RX_LINK_DEL);
+	rt_if_dead(lpm, vrf, params, arg, IF_RX_LINK_DEL);
 }
 
 static void rt_if_clear_slowpath_flag(
 	struct lpm *lpm __rte_unused,
 	struct vrf *vrf __rte_unused,
-	uint32_t ip __rte_unused,
-	uint8_t depth __rte_unused,
-	int16_t scope __rte_unused,
-	uint32_t idx,
+	struct lpm_walk_params *params,
 	struct pd_obj_state_and_flags *pd_state __rte_unused,
 	void *arg)
 {
-	struct next_hop_list *nextl = rcu_dereference(nh_tbl.entry[idx]);
+	struct next_hop_list *nextl =
+		rcu_dereference(nh_tbl.entry[params->next_hop]);
 	const struct ifnet *ifp = arg;
 	unsigned int i;
 
@@ -1854,14 +1851,12 @@ static void rt_if_clear_slowpath_flag(
 static void rt_if_set_slowpath_flag(
 	struct lpm *lpm __rte_unused,
 	struct vrf *vrf __rte_unused,
-	uint32_t ip __rte_unused,
-	uint8_t depth __rte_unused,
-	int16_t scope __rte_unused,
-	uint32_t idx,
+	struct lpm_walk_params *params,
 	struct pd_obj_state_and_flags *pd_state __rte_unused,
 	void *arg)
 {
-	struct next_hop_list *nextl = rcu_dereference(nh_tbl.entry[idx]);
+	struct next_hop_list *nextl =
+		rcu_dereference(nh_tbl.entry[params->next_hop]);
 	const struct ifnet *ifp = arg;
 	unsigned int i;
 
@@ -1876,28 +1871,27 @@ static void rt_if_set_slowpath_flag(
 struct rt_vrf_lpm_walk_ctx {
 	struct vrf *vrf;
 	void (*func)(struct lpm *lpm, struct vrf *vrf,
-		     uint32_t ip, uint8_t depth, int16_t scope,
-		     uint32_t next_hop, struct pd_obj_state_and_flags *pd_state,
+		     struct lpm_walk_params *params,
+		     struct pd_obj_state_and_flags *pd_state,
 		     void *arg);
 	void *arg;
 };
 
-static void rt_vrf_lpm_walk_cb(struct lpm *lpm, uint32_t ip,
-			       uint8_t depth, int16_t scope,
-			       uint32_t idx,
+static void rt_vrf_lpm_walk_cb(struct lpm *lpm,
+			       struct lpm_walk_params *params,
 			       struct pd_obj_state_and_flags *pd_state,
 			       void *arg)
 {
 	const struct rt_vrf_lpm_walk_ctx *ctx = arg;
 
-	ctx->func(lpm, ctx->vrf, ip, depth, scope, idx, pd_state, ctx->arg);
+	ctx->func(lpm, ctx->vrf, params, pd_state, ctx->arg);
 }
 
 
 static void rt_lpm_walk_util(
 	void (*func)(struct lpm *lpm, struct vrf *vrf,
-		     uint32_t ip, uint8_t depth, int16_t scope,
-		     uint32_t next_hop, struct pd_obj_state_and_flags *pd_state,
+		     struct lpm_walk_params *params,
+		     struct pd_obj_state_and_flags *pd_state,
 		     void *arg),
 	void *arg)
 {
@@ -2070,15 +2064,13 @@ int rt_show_exact(struct route_head *rt_head, json_writer_t *json,
 }
 
 static void rt_summarize(struct lpm *lpm __rte_unused,
-			 uint32_t ip, uint8_t depth,
-			 int16_t scope,
-			 uint32_t nh_idx,
+			 struct lpm_walk_params *params,
 			 struct pd_obj_state_and_flags *pd_state __rte_unused,
 			 void *arg)
 {
 	uint32_t *rt_used = arg;
 	const struct next_hop_list *nextl =
-		rcu_dereference(nh_tbl.entry[nh_idx]);
+		rcu_dereference(nh_tbl.entry[params->next_hop]);
 	const struct next_hop *nh;
 
 	if (unlikely(!nextl))
@@ -2092,10 +2084,10 @@ static void rt_summarize(struct lpm *lpm __rte_unused,
 	if (next_hop_list_nc_count(nextl))
 		return;
 
-	if (rt_is_reserved(ip, depth, scope))
+	if (rt_is_reserved(params->ip, params->depth, params->scope))
 		return;
 
-	++rt_used[depth];
+	++rt_used[params->depth];
 }
 
 static double nexthop_hash_load_factor(void)
@@ -2570,8 +2562,7 @@ struct rt_show_subset {
 };
 
 static void rt_show_subset(struct lpm *lpm, struct vrf *vrf,
-			   uint32_t ip, uint8_t depth, int16_t scope,
-			   uint32_t idx,
+			   struct lpm_walk_params *params,
 			   struct pd_obj_state_and_flags *pd_state,
 			   void *arg)
 {
@@ -2588,8 +2579,7 @@ static void rt_show_subset(struct lpm *lpm, struct vrf *vrf,
 	}
 
 	if (subset->subset == pd_state->state)
-		rt_display_all(lpm, ip, depth, scope, idx, pd_state,
-			       subset->json);
+		rt_display_all(lpm, params, pd_state, subset->json);
 }
 
 /*
@@ -2609,22 +2599,23 @@ int route_get_pd_subset_data(json_writer_t *json, enum pd_obj_state subset)
 
 static void route_fal_upd_for_changed_nhl(
 	struct lpm *lpm, struct vrf *vrf,
-	uint32_t ip, uint8_t depth, int16_t scope __unused,
-	uint32_t next_hop, struct pd_obj_state_and_flags *pd_state,
+	struct lpm_walk_params *params,
+	struct pd_obj_state_and_flags *pd_state,
 	void *arg)
 {
 	const uint32_t *filter_nhl_index = arg;
 	int rc;
 
-	if (next_hop != *filter_nhl_index)
+	if (params->next_hop != *filter_nhl_index)
 		return;
 
 	if (pd_state->state != PD_OBJ_STATE_FULL)
 		return;
 
-	struct next_hop_list *nextl = rcu_dereference(nh_tbl.entry[next_hop]);
+	struct next_hop_list *nextl =
+		rcu_dereference(nh_tbl.entry[params->next_hop]);
 
-	rc = fal_ip4_upd_route(vrf->v_id, htonl(ip), depth,
+	rc = fal_ip4_upd_route(vrf->v_id, htonl(params->ip), params->depth,
 			       lpm_get_id(lpm), nextl->siblings,
 			       nextl->nsiblings, nextl->nhg_fal_obj);
 
