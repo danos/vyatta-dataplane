@@ -328,7 +328,7 @@ static void npf_rte_acl_add_v4_rule(uint8_t *match_addr, uint8_t *mask,
 				    uint32_t rule_no,
 				    struct acl4_rules *v4_rules)
 {
-	uint16_t val, val_mask, tmp;
+	uint16_t val, val_mask;
 
 	memset(v4_rules, 0, sizeof(*v4_rules));
 	v4_rules->data.category_mask = 1;
@@ -340,11 +340,9 @@ static void npf_rte_acl_add_v4_rule(uint8_t *match_addr, uint8_t *mask,
 	 */
 	val = match_addr[NPC_GPR_PROTO_OFF_v4];
 	val_mask = mask[NPC_GPR_PROTO_OFF_v4];
-	if (val > val_mask) {
-		tmp = val;
-		val = val_mask;
-		val_mask = tmp;
-	}
+	if (val_mask == 0)
+		val_mask = val;
+
 	v4_rules->field[PROTO_FIELD_IPV4].value.u8 = val;
 	v4_rules->field[PROTO_FIELD_IPV4].mask_range.u8 = val_mask;
 
