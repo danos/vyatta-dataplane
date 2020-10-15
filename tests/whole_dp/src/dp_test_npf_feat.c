@@ -999,14 +999,34 @@ DP_START_TEST_FULL_RUN(npf_orig_feat, test1)
 			    "npf-ut attach global: originate fw:FW_ORIG");
 	dp_test_npf_commit();
 
+	/* Check ipv4-fw-orig enabled on dpT10 */
 	rv = dp_pipeline_is_feature_enabled_by_inst("vyatta:ipv4-fw-orig",
 						    "dpT10");
 	dp_test_fail_unless(rv, "ipv4-fw-orig not enabled on dpT10 "
 			    "when attached to \"global:\"");
 
+	/* Check ipv4-fw-orig is enabled on dpT11 */
 	rv = dp_pipeline_is_feature_enabled_by_inst("vyatta:ipv4-fw-orig",
 						    "dpT11");
 	dp_test_fail_unless(rv, "ipv4-fw-orig not enabled on dpT11 "
+			    "when attached to \"global:\"");
+
+	/* Check ipv4-defrag-out-spath is enabled on dpT10 */
+	rv = dp_pipeline_is_feature_enabled_by_inst(
+		"vyatta:ipv4-defrag-out-spath", "dpT10");
+	dp_test_fail_unless(rv, "ipv4-defrag-out-spath not enabled on dpT10 "
+			    "when attached to \"global:\"");
+
+	/* Check ipv4-defrag-out-spath is enabled on dpT11 */
+	rv = dp_pipeline_is_feature_enabled_by_inst(
+		"vyatta:ipv4-defrag-out-spath", "dpT11");
+	dp_test_fail_unless(rv, "ipv4-defrag-out-spath not enabled on dpT11 "
+			    "when attached to \"global:\"");
+
+	/* Check ipv4-defrag-out is NOT enabled on dpT10 */
+	rv = dp_pipeline_is_feature_enabled_by_inst(
+		"vyatta:ipv4-defrag-out", "dpT10");
+	dp_test_fail_unless(!rv, "ipv4-defrag-out enabled on dpT10 "
 			    "when attached to \"global:\"");
 
 	dp_test_npf_cmd_fmt(debug,
@@ -1047,13 +1067,30 @@ DP_START_TEST_FULL_RUN(npf_orig_feat, test2)
 			    "originate fw:FW_ORIG");
 	dp_test_npf_commit();
 
+	/* Check ipv4-fw-orig is enabled on dpT10 */
 	rv = dp_pipeline_is_feature_enabled_by_inst("vyatta:ipv4-fw-orig",
 						    "dpT10");
 	dp_test_fail_unless(rv, "ipv4-fw-orig not enabled on dpT10");
 
+	/* Check ipv4-fw-orig is NOT enabled on dpT11 */
 	rv = dp_pipeline_is_feature_enabled_by_inst("vyatta:ipv4-fw-orig",
 						    "dpT11");
 	dp_test_fail_unless(!rv, "ipv4-fw-orig enabled on dpT11");
+
+	/* Check ipv4-defrag-out-spath is enabled on dpT10 */
+	rv = dp_pipeline_is_feature_enabled_by_inst(
+		"vyatta:ipv4-defrag-out-spath", "dpT10");
+	dp_test_fail_unless(rv, "ipv4-defrag-out-spath not enabled on dpT10");
+
+	/* Check ipv4-defrag-out-spath is NOT enabled on dpT11 */
+	rv = dp_pipeline_is_feature_enabled_by_inst(
+		"vyatta:ipv4-defrag-out-spath", "dpT11");
+	dp_test_fail_unless(!rv, "ipv4-defrag-out-spath not enabled on dpT11");
+
+	/* Check ipv4-defrag-out is NOT enabled on dpT10 */
+	rv = dp_pipeline_is_feature_enabled_by_inst(
+		"vyatta:ipv4-defrag-out", "dpT10");
+	dp_test_fail_unless(!rv, "ipv4-defrag-out enabled on dpT10");
 
 	dp_test_npf_cmd_fmt(debug,
 			    "npf-ut detach interface:dpT10 "
