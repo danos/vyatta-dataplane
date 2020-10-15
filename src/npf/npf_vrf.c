@@ -177,7 +177,7 @@ void npf_gbl_rs_count_incr(enum npf_ruleset_type rs_type)
 		/* Are features applied for all interfaces? */
 		rfl = npf_get_ruleset_type_flags(rs_type);
 
-		if ((rfl & NPF_RS_FLAG_FEAT_GBL) != 0) {
+		if ((rfl & NPF_RS_FLAG_FEAT_INTF_ALL) != 0) {
 			enum if_feat_flag ffl;
 
 			/* Add niif reference for all interfaces */
@@ -217,7 +217,7 @@ void npf_gbl_rs_count_decr(enum npf_ruleset_type rs_type)
 		/* Are features applied for all interfaces? */
 		rfl = npf_get_ruleset_type_flags(rs_type);
 
-		if ((rfl & NPF_RS_FLAG_FEAT_GBL) != 0) {
+		if ((rfl & NPF_RS_FLAG_FEAT_INTF_ALL) != 0) {
 			enum if_feat_flag ffl;
 
 			/* Disable features for all interfaces */
@@ -255,7 +255,7 @@ void npf_vrf_if_index_set(struct ifnet *ifp)
 
 		/* Is global ruleset count > 0? */
 		if (npf_rs_count[rs_type] > 0 &&
-		    (rfl & NPF_RS_FLAG_FEAT_GBL) != 0) {
+		    (rfl & NPF_RS_FLAG_FEAT_INTF_ALL) != 0) {
 			enum if_feat_flag ffl;
 
 			/* Enable features on interface */
@@ -288,7 +288,7 @@ void npf_vrf_if_index_unset(struct ifnet *ifp)
 		rfl = npf_get_ruleset_type_flags(rs_type);
 
 		if (npf_rs_count[rs_type] > 0 &&
-		    (rfl & NPF_RS_FLAG_FEAT_GBL) != 0) {
+		    (rfl & NPF_RS_FLAG_FEAT_INTF_ALL) != 0) {
 			enum if_feat_flag ffl;
 
 			/* Disable features on interface */
