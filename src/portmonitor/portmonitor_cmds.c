@@ -44,107 +44,6 @@ static CDS_LIST_HEAD(pmsession_list);
 static uint8_t num_sessions;
 static uint8_t num_srcif_for_all_sessions;
 
-static struct cfg_if_list *portmonitor_cfg_list;
-
-static void
-portmonitor_event_if_index_set(struct ifnet *ifp);
-static void
-portmonitor_event_if_index_unset(struct ifnet *ifp, uint32_t ifindex);
-
-static const struct dp_event_ops portmonitor_event_ops = {
-	.if_index_set = portmonitor_event_if_index_set,
-	.if_index_unset = portmonitor_event_if_index_unset,
-};
-
-static void
-portmonitor_event_if_index_set(struct ifnet *ifp)
-{
-	struct cfg_if_list_entry *le, *tle;
-	int rc;
-
-	if (!portmonitor_cfg_list)
-		return;
-
-	le = cfg_if_list_lookup(portmonitor_cfg_list, ifp->if_name);
-	if (!le)
-		return;
-
-	RTE_LOG(INFO, DATAPLANE,
-		"Replaying portmonitor %s for interface %s\n",
-		le->le_buf, ifp->if_name);
-
-	char *outbuf = NULL;
-	size_t outsize = 0;
-	FILE *f = open_memstream(&outbuf, &outsize);
-
-	if (f == NULL)
-		RTE_LOG(ERR, DATAPLANE, "PM: open_memstream() failed\n");
-	else {
-		cds_list_for_each_entry_safe(le, tle,
-					     &portmonitor_cfg_list->if_list,
-					     le_node) {
-			if (strcmp(ifp->if_name, le->le_ifname))
-				continue;
-
-			if (cmd_portmonitor(f, le->le_argc, le->le_argv) < 0)
-				RTE_LOG(ERR, DATAPLANE,
-					"PM: replay failed: %s\n", outbuf);
-			rc = cfg_if_list_del(portmonitor_cfg_list,
-					     ifp->if_name);
-			if (rc)
-				RTE_LOG(ERR, DATAPLANE,
-					"PM: cfg_if_list del failed (%s)\n",
-					strerror(-rc));
-		}
-		free(outbuf);
-	}
-	if (!portmonitor_cfg_list->if_list_count) {
-		cfg_if_list_destroy(&portmonitor_cfg_list);
-		dp_event_unregister(&portmonitor_event_ops);
-	}
-}
-
-static void
-portmonitor_event_if_index_unset(struct ifnet *ifp, uint32_t ifindex __unused)
-{
-	struct cfg_if_list_entry *le, *tle;
-	int rc;
-
-	if (!portmonitor_cfg_list)
-		return;
-
-	cfg_if_list_del(portmonitor_cfg_list, ifp->if_name);
-	cds_list_for_each_entry_safe(le, tle,
-				     &portmonitor_cfg_list->if_list,
-				     le_node) {
-		if (strcmp(ifp->if_name, le->le_ifname))
-			continue;
-
-		rc = cfg_if_list_del(portmonitor_cfg_list, ifp->if_name);
-		if (rc)
-			RTE_LOG(ERR, DATAPLANE,
-				"PM: %s cfg_if_list_del failed (%s)\n",
-				__func__,
-				strerror(-rc));
-	}
-	if (!portmonitor_cfg_list->if_list_count) {
-		dp_event_unregister(&portmonitor_event_ops);
-		cfg_if_list_destroy(&portmonitor_cfg_list);
-	}
-}
-
-static int portmonitor_replay_init(void)
-{
-	if (!portmonitor_cfg_list) {
-		portmonitor_cfg_list = cfg_if_list_create();
-		if (!portmonitor_cfg_list)
-			return -ENOMEM;
-
-		dp_event_register(&portmonitor_event_ops);
-	}
-	return 0;
-}
-
 static struct portmonitor_info *portmonitor_info_alloc(struct ifnet *ifp)
 {
 	struct portmonitor_info *pminfo;
@@ -1268,7 +1167,6 @@ int cmd_portmonitor(FILE *f, int argc, char **argv)
 					fprintf(f, "Invalid vid %s\n", argv[6]);
 					return -1;
 				}
-				cfg_if_list_del(portmonitor_cfg_list, argv[5]);
 				if (portmonitor_session_del_srcif(pmsess,
 							argv[5], vid) < 0) {
 					fprintf(f, "Cannot delete source interface %s\n",
@@ -1280,7 +1178,6 @@ int cmd_portmonitor(FILE *f, int argc, char **argv)
 					fprintf(f, "Invalid vid %s\n", argv[6]);
 					return -1;
 				}
-				cfg_if_list_del(portmonitor_cfg_list, argv[5]);
 				if (portmonitor_session_del_dstif(pmsess,
 							argv[5], vid) < 0) {
 					fprintf(f, "Cannot delete destination interface %s\n",
@@ -1431,17 +1328,10 @@ int cmd_portmonitor(FILE *f, int argc, char **argv)
 				}
 			}
 			if (!dp_ifnet_byifname(argv[5])) {
-				if (portmonitor_replay_init() < 0) {
-					RTE_LOG(ERR, DATAPLANE,
-						"Portmonitor could not set up replay cache\n");
-					return -ENOMEM;
-				}
 				RTE_LOG(INFO, DATAPLANE,
-					"Caching portmonitor srcif for %s\n",
+					"portmonitor src if set but interface missing %s\n",
 					argv[5]);
-				cfg_if_list_add_multi(portmonitor_cfg_list,
-						argv[5], argc, argv);
-				return 0;
+				return -1;
 			}
 			if (upd_vlan) {
 				char **argv8 = argv + 8;
@@ -1463,17 +1353,10 @@ int cmd_portmonitor(FILE *f, int argc, char **argv)
 				return -1;
 			}
 			if (!dp_ifnet_byifname(argv[5])) {
-				if (portmonitor_replay_init() < 0) {
-					RTE_LOG(ERR, DATAPLANE,
-						"Portmonitor could not set up replay cache\n");
-					return -ENOMEM;
-				}
 				RTE_LOG(INFO, DATAPLANE,
-					"Caching portmonitor dstif for %s\n",
+					"portmonitor dst if set but interface missing %s\n",
 					argv[5]);
-				cfg_if_list_add(portmonitor_cfg_list,
-						argv[5], argc, argv);
-				return 0;
+				return -1;
 			}
 			if (portmonitor_session_set_dstif(f, pmsess, argv[5],
 								vid) < 0)

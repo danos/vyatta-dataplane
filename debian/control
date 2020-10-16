@@ -56,7 +56,8 @@ Depends: adduser,
          ${perl:Depends},
          ${shlibs:Depends}
 Breaks: vplane-controller (<< 3.6.8),
-	vyatta-poe (<< 0.3)
+	vyatta-poe (<< 0.3),
+	vyatta-service-portmonitor-v1-yang (<< 3.8)
 Provides: fal-acl,
           fal-acl-commit,
           fal-backplane,
@@ -97,6 +98,7 @@ Provides: fal-acl,
           fal-cpp-pim-ip-mc,
           fal-mirror-vlan,
           fal-bfd-sess-id,
+          fal-acl-rule-no,
 Description: Vyatta optimized dataplane
  Vyatta dataplane is the set of tools to provide performance optimized routing
  and forwarding. It supports IPv4, IPv6, firewalling, bridging and more.

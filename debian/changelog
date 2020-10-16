@@ -44,6 +44,76 @@ vyatta-dataplane (3.12.1) unstable; urgency=medium
 
  -- Paul Atkins <paul.atkins@intl.att.com>  Mon, 12 Oct 2020 09:20:52 +0100
 
+vyatta-dataplane (3.11.46) unstable; urgency=medium
+
+  [ Gavin Shearer ]
+  * fal acl: use rule number attr instead of priority in rules
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Fri, 16 Oct 2020 15:26:35 +0100
+
+vyatta-dataplane (3.11.45) unstable; urgency=medium
+
+  [ Paul Atkins ]
+  * portmonitor_cmds: remove the code to handle out of order cfg
+
+  [ Charles (Chas) Williams ]
+  * ptp: handle unavailable interface vlan mappings (Bugfix: VRVDR-53372)
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Fri, 16 Oct 2020 09:52:15 +0100
+
+vyatta-dataplane (3.11.44) unstable; urgency=medium
+
+  [ Nicholas Brown ]
+  * Clarify UT path redirection code
+
+  [ Ian Wilson ]
+  * npf: Rename 'typedef enum TCP_STATES' to 'enum tcp_session state'
+  * npf: Rename npf_tcpstate_t to struct npf_tcp_window
+  * npf: Replace nst_tcpst with nst_tcp_win in npf_state_t
+  * npf: Pack enum dp_session_state so that is used 1 byte instead of 2
+  * npf: Add npf_state_tcp2gen to determine generic state from tcp state
+  * npf: Pack enum npf_proto_idx.  Use the enum instead of a uint8_t
+  * npf: Add separate log functions for TCP and everything else
+  * npf: Add separate state change functions for TCP and everything else
+  * npf: Add separate state pack update functions for TCP and other
+  * npf: Add separate functions for connsync update/restore of session state
+  * npf: Move spinlocks into npf_state_npf_pack_update_xxx fns
+  * npf: Use separate state inspect functions for TCP, ICMP, and other
+  * npf: Use separate connsync state update functions for TCP and other
+  * npf: Add a union to npf_state_t for the different state types
+  * npf: Add separate function for session close for TCP and other
+  * npf: Rename npf_state_tcp_state_set and npf_state_generic_state_set
+  * npf: Remove TCP session states that were outside the enum
+  * npf: Change TCP sessions to use nst_tcp_state instead of nst_state
+  * npf: Change TCP strict FSM to be a lookup table to return a boolean
+  * npf: npf_state_update_session_state replaced
+  * npf: npf_timeout_get replaced
+  * npf: Session state stats defines replaced with inline functions
+  * npf: npf_map_str_to_generic_state replaced with dp_session_name2state
+  * npf: vrf creation moved from npf_timeout_set to cmd_npf_global_timeout
+  * npf: non-TCP sessions changed to use nst_gen_state instead of nst_state
+  * npf: union of nst_tcp_state and nst_gen_state removed from npf_state_t
+  * npf: Changes to sess limit rproc to use generic session state
+  * npf: Defines NPF_SET_SESSION_LOG_FLAG etc. replaced with functions
+  * npf: Renamed functions that return session state name
+  * npf: npf_pack_session_state changed to include union of state types
+  * npf: 'struct session' pointer passed into npf_session_update_state
+  * npf: npf_session_t pointer passed into npf_state_inspect
+  * npf: npf_tcp_state_is_closed fn removed
+  * npf: Changes to connsync functions to pack and update session state
+
+  [ Nachiketa Prachanda ]
+  * fix use after free on events unregistration
+  * api: interface event notifications to plugins
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Wed, 14 Oct 2020 15:50:34 +0100
+
 vyatta-dataplane (3.11.43) unstable; urgency=medium
 
   [ Charles (Chas) Williams ]
