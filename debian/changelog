@@ -1,3 +1,15 @@
+vyatta-dataplane (3.11.45) unstable; urgency=medium
+
+  [ Paul Atkins ]
+  * portmonitor_cmds: remove the code to handle out of order cfg
+
+  [ Charles (Chas) Williams ]
+  * ptp: handle unavailable interface vlan mappings (Bugfix: VRVDR-53372)
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Fri, 16 Oct 2020 09:52:15 +0100
+
 vyatta-dataplane (3.11.44) unstable; urgency=medium
 
   [ Nicholas Brown ]
