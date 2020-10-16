@@ -1,3 +1,12 @@
+vyatta-dataplane (3.11.46) unstable; urgency=medium
+
+  [ Gavin Shearer ]
+  * fal acl: use rule number attr instead of priority in rules
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Fri, 16 Oct 2020 15:26:35 +0100
+
 vyatta-dataplane (3.11.45) unstable; urgency=medium
 
   [ Paul Atkins ]
