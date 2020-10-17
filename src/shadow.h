@@ -27,7 +27,7 @@ struct tun_meta;
 struct tun_pi;
 
 /* Number of buffers queued from dataplane to slowpath thread  */
-#define SHADOW_IO_RING_SIZE	256
+#define SHADOW_IO_RING_SIZE	1024
 
 /* per interface data structure
  *   rx - packets received on NIC and going to kernel
