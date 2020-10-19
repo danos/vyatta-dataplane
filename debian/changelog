@@ -1,3 +1,19 @@
+vyatta-dataplane (3.10.70.7) unstable; urgency=medium
+
+  [ Charles (Chas) Williams ]
+  * ptp: refactor into ptp_peer_dst_lookup (Bugfix: VRVDR-53302)
+  * ptp: refactor into ptp_peer_dst_resolve (Bugfix: VRVDR-53302)
+  * ptp: group peers by IP address (Bugfix: VRVDR-53302)
+  * ptp: refactor into ptp_peer_find_nexthop (Bugfix: VRVDR-53302)
+  * ptp: select best route for peer (Bugfix: VRVDR-53302)
+  * ptp: get sibling ifp and nexthop during iteration (Bugfix: VRVDR-53302)
+  * ptp: prefer peers with reachability (Bugfix: VRVDR-53302)
+  * ptp: handle unavailable interface vlan mappings (Bugfix: VRVDR-53372)
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Mon, 19 Oct 2020 10:27:31 +0100
+
 vyatta-dataplane (3.10.70.6) unstable; urgency=medium
 
   [ Ian Wilson ]
