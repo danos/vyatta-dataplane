@@ -175,7 +175,7 @@ dp_test_usage(int status)
 #define MAX_UT_PLUGIN_DIR_LEN 128
 
 static char dp_ut_plugin_dir[MAX_UT_PLUGIN_DIR_LEN] = ".";
-char dp_ut_dummyfs_dir[PATH_MAX] = "tests/whole_dp/dummyfs/";
+char dp_ut_dummyfs_dir[PATH_MAX] = "dummyfs/";
 static char drv_cfgfile[PATH_MAX] = "dataplane-drivers-default.conf";
 static const char *dp_feat_plugin_dir = ".";
 static const char *dp_test_platform_file = PLATFORM_FILE;

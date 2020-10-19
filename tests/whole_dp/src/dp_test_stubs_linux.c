@@ -53,7 +53,7 @@ static int redirect_path(const char *orig_path, char *redir_path, size_t size)
 	}
 
 	if (strncmp(orig_path, pl_path, strlen(pl_path)) == 0) {
-		strcpy(redir_path, ".libs");
+		strcpy(redir_path, "../../build/src/pipeline/nodes/sample");
 		strcat(redir_path, orig_path + strlen(pl_path));
 		return 0;
 	}
