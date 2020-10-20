@@ -692,7 +692,7 @@ sample_test_la_LDFLAGS = -avoid-version -module -shared -export-dynamic
 ##### END Sample Plugin
 
 if DATAPLANE_SANITIZER
-dataplane_CFLAGS += -fsanitize=address -DSANITIZE_ADDRESS
+dataplane_CFLAGS += -fsanitize=address
 dataplane_LDFLAGS += -fsanitize=address
 export SANITIZER = SANITIZER
 export ASAN_OPTIONS = verify_asan_link_order=0:detect_leaks=0
