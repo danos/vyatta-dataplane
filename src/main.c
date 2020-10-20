@@ -2142,7 +2142,8 @@ static uint16_t mbuf_pool_init(void)
 
 		socketid = port_conf->socketid;
 
-		bufs_per_socket[socketid] += port_conf->buffers;
+		bufs_per_socket[socketid] +=
+			port_conf->buffers + SHADOW_IO_RING_SIZE;
 
 		/* device may need larger buffer size */
 		if (port_conf->buf_size > buf_size[socketid]) {
@@ -2161,6 +2162,9 @@ static uint16_t mbuf_pool_init(void)
 
 		bufs_per_socket[socketid] +=
 			(num_fwd_lcores + 1) * NUMA_POOL_MBUF_CACHE_SIZE;
+
+		/* account for buffers in ring for spathintf */
+		bufs_per_socket[socketid] += SHADOW_IO_RING_SIZE;
 
 		/* Align to optimum size for mempool */
 		unsigned int nbufs = rte_align32pow2(bufs_per_socket[socketid]) - 1;
