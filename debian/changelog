@@ -1,3 +1,16 @@
+vyatta-dataplane (3.11.46) unstable; urgency=medium
+
+  [ Gavin Shearer ]
+  * fal acl: use rule number attr instead of priority in rules
+
+  [ Srinivas Narayan ]
+  * Include shadow ring in buffer count calculations
+  * Increase slowpath receive ring size
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Tue, 20 Oct 2020 10:07:06 +0100
+
 vyatta-dataplane (3.11.45) unstable; urgency=medium
 
   [ Paul Atkins ]
