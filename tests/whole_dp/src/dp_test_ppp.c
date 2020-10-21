@@ -16,6 +16,7 @@
 #include "dp_test_json_utils.h"
 #include "dp_test_netlink_state_internal.h"
 #include "dp_test_console.h"
+#include "dp_test_ppp.h"
 
 #include "pipeline/nodes/pppoe/pppoe.h"
 
@@ -24,13 +25,6 @@
 
 
 DP_DECL_TEST_SUITE(ppp);
-
-#define CREATE true
-#define NO_CREATE false
-#define VERIFY true
-#define NO_VERIFY false
-#define SESS_VALID true
-#define SESS_INVALID false
 
 static void
 dp_test_create_and_send_pppoe_msg(const char *ppp_intf,
@@ -57,7 +51,7 @@ dp_test_create_and_send_pppoe_msg(const char *ppp_intf,
 	dp_test_lib_pb_wrap_and_send_pb("vyatta:pppoe", buf2, len);
 }
 
-static void
+void
 _dp_test_create_pppoe_session(const char *ppp_intf, const char *under_intf,
 			      uint16_t session_id, const char *src_mac,
 			      const char *dst_mac, bool create, bool verify,
@@ -102,29 +96,7 @@ _dp_test_create_pppoe_session(const char *ppp_intf, const char *under_intf,
 	}
 }
 
-#define dp_test_create_pppoe_session(ppp_intf, under_intf, session_id, \
-				     src_mac, dst_mac)		       \
-	_dp_test_create_pppoe_session(ppp_intf, under_intf, session_id,	\
-				      src_mac, dst_mac, CREATE,		\
-				      VERIFY, SESS_VALID,		\
-				      __FILE__, __func__, __LINE__)
-
-#define dp_test_create_pppoe_session_nv(ppp_intf, under_intf, session_id, \
-					src_mac, dst_mac)		\
-	_dp_test_create_pppoe_session(ppp_intf, under_intf, session_id,	\
-				      src_mac, dst_mac, CREATE,		\
-				      NO_VERIFY, SESS_VALID,		\
-				      __FILE__, __func__, __LINE__)
-
-#define dp_test_verify_pppoe_session(ppp_intf, under_intf, session_id, \
-				     src_mac, dst_mac, valid)		\
-	_dp_test_create_pppoe_session(ppp_intf, under_intf, session_id,	\
-				      src_mac, dst_mac, NO_CREATE,	\
-				      VERIFY, valid,			\
-				      __FILE__, __func__, __LINE__)
-
-
-static struct pppoe_packet *
+struct pppoe_packet *
 dp_test_ipv4_pktmbuf_ppp_prepend(struct rte_mbuf *m,
 				 const char *dst_mac,
 				 const char *src_mac,

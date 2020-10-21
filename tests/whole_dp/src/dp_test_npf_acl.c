@@ -34,6 +34,7 @@
 #include "dp_test_npf_fw_lib.h"
 #include "dp_test_npf_nat_lib.h"
 #include "dp_test_npf_sess_lib.h"
+#include "dp_test_ppp.h"
 
 DP_DECL_TEST_SUITE(npf_acl);
 
@@ -847,3 +848,124 @@ DP_START_TEST(acl9, test)
 	dp_test_npf_cmd("npf-ut commit", false);
 
 } DP_END_TEST;
+
+
+/*
+ * acl10 - IPv4 egress ACL on a pppoe interface.
+ *
+ * Two packets are sent over a pppoe session.  First one is permitted by the
+ * ACL, and second one is blocked.
+ *
+ * (based on dp_test_ppp.c, TEST(ppp_traffic, ppp_traffic_1))
+ */
+
+static struct rte_mbuf *
+npf_acl_pppoe_pkt(int len, const char *d_mac, const char *s_mac,
+		  uint16_t ether_type)
+{
+	struct rte_mbuf *test_pak;
+
+	test_pak = dp_test_create_ipv4_pak("1.1.1.1", "10.73.2.1",
+					   1, &len);
+	/* Ingress dp1T0 */
+	(void)dp_test_pktmbuf_eth_init(test_pak, d_mac, s_mac, ether_type);
+
+	return test_pak;
+}
+
+static struct dp_test_expected *
+npf_acl_pppoe_exp(int len, struct rte_mbuf *test_pak, const char *oif,
+		  const char *dst_mac, uint16_t session_id)
+{
+	struct dp_test_expected *exp;
+	struct pppoe_packet *ppp_hdr;
+
+	/* Create pak we expect to receive on the tx ring */
+	exp = dp_test_exp_create(test_pak);
+
+	dp_test_exp_set_oif_name(exp, oif);
+	dp_test_ipv4_decrement_ttl(dp_test_exp_get_pak(exp));
+
+	ppp_hdr = dp_test_ipv4_pktmbuf_ppp_prepend(
+		dp_test_exp_get_pak(exp),
+		dst_mac,
+		dp_test_intf_name2mac_str(oif),
+		len + 20 + 8,
+		session_id);
+	dp_test_fail_unless(ppp_hdr, "Could not prepend ppp header");
+
+	return exp;
+}
+
+DP_DECL_TEST_CASE(npf_acl, acl10, NULL, NULL);
+DP_START_TEST(acl10, test)
+{
+	struct dp_test_expected *exp;
+	struct rte_mbuf *test_pak;
+	int len = 22;
+	const char *dst_mac = "aa:bb:cc:dd:ee:ff";
+	uint16_t session_id = 3;
+
+	dp_test_nl_add_ip_addr_and_connected("dp1T0", "1.1.1.1/24");
+	dp_test_nl_add_ip_addr_and_connected("dp2T1", "2.2.2.2/24");
+
+	dp_test_intf_ppp_create("pppoe0", VRF_DEFAULT_ID);
+	dp_test_create_pppoe_session("pppoe0", "dp2T1", session_id,
+				     dp_test_intf_name2mac_str("dp2T1"),
+				     dst_mac);
+
+	dp_test_netlink_add_route("10.73.2.0/24 nh int:pppoe0");
+
+	/*
+	 * Add egress ACL to *allow* traffic on pppoe interface
+	 */
+	dp_test_npf_cmd("npf-ut add acl:v4test 10 "
+			"src-addr=1.1.1.1 "
+			"proto-base=17 "
+			"action=accept", false);
+	dp_test_npf_cmd("npf-ut attach interface:pppoe0 acl-out acl:v4test",
+			false);
+	dp_test_npf_cmd("npf-ut commit", false);
+
+	/* Ingress dp1T0 */
+	test_pak = npf_acl_pppoe_pkt(len, dp_test_intf_name2mac_str("dp1T0"),
+				     DP_TEST_INTF_DEF_SRC_MAC,
+				     RTE_ETHER_TYPE_IPV4);
+
+	/* Create pak we expect to receive on the tx ring */
+	exp = npf_acl_pppoe_exp(len, test_pak, "dp2T1", dst_mac, session_id);
+
+	dp_test_pak_receive(test_pak, "dp1T0", exp);
+
+	/*
+	 * Change egress ACL to *block* traffic on pppoe interface
+	 */
+	dp_test_npf_cmd("npf-ut add acl:v4test 10 "
+			"src-addr=1.1.1.1 "
+			"proto-base=17 "
+			"action=drop", false);
+	dp_test_npf_cmd("npf-ut commit", false);
+
+	test_pak = npf_acl_pppoe_pkt(len, dp_test_intf_name2mac_str("dp1T0"),
+				     DP_TEST_INTF_DEF_SRC_MAC,
+				     RTE_ETHER_TYPE_IPV4);
+
+	/* Create pak we do *not* expect to receive on the tx ring */
+	exp = npf_acl_pppoe_exp(len, test_pak, "dp2T1", dst_mac, session_id);
+	dp_test_exp_set_fwd_status(exp, DP_TEST_FWD_DROPPED);
+
+	dp_test_pak_receive(test_pak, "dp1T0", exp);
+
+	/* Cleanup */
+	dp_test_npf_cmd("npf-ut detach interface:pppoe0 acl-out acl:v4test",
+			false);
+	dp_test_npf_cmd("npf-ut delete acl:v4test", false);
+	dp_test_npf_cmd("npf-ut commit", false);
+
+	dp_test_netlink_del_route("10.73.2.0/24 nh int:pppoe0");
+	dp_test_intf_ppp_delete("pppoe0", VRF_DEFAULT_ID);
+	dp_test_nl_del_ip_addr_and_connected("dp1T0", "1.1.1.1/24");
+	dp_test_nl_del_ip_addr_and_connected("dp2T1", "2.2.2.2/24");
+
+} DP_END_TEST;
+
