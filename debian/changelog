@@ -1,3 +1,16 @@
+vyatta-dataplane (3.11.48) unstable; urgency=medium
+
+  [ Ian Wilson ]
+  * ut: Verify that ipv4-orig-feat feature is enabled
+  * npf: NPF_RS_FLAG_FEAT_GBL renamed to NPF_RS_FLAG_FEAT_INTF_ALL
+  * npf: Move check of NPF_RS_FLAG_FEAT_INTF_ALL from npf_gbl_rs_count_incr
+  * npf: Enable feature on all interfaces for rulesets attached to global
+  * npf: Separate enabling of defrag-out and defrag-out-spath
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Wed, 21 Oct 2020 16:34:35 +0100
+
 vyatta-dataplane (3.11.47) unstable; urgency=medium
 
   [ Srinivas Narayan ]
