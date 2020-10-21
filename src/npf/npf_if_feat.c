@@ -58,13 +58,23 @@ static void npf_if_feat_enable_defrag(struct ifnet *ifp, bool enable)
 		pl_node_add_feature_by_inst(&ipv6_defrag_in_feat, ifp);
 		pl_node_add_feature_by_inst(&ipv4_defrag_out_feat, ifp);
 		pl_node_add_feature_by_inst(&ipv6_defrag_out_feat, ifp);
-		pl_node_add_feature_by_inst(&ipv4_defrag_out_spath_feat, ifp);
-		pl_node_add_feature_by_inst(&ipv6_defrag_out_spath_feat, ifp);
 	} else {
 		pl_node_remove_feature_by_inst(&ipv4_defrag_in_feat, ifp);
 		pl_node_remove_feature_by_inst(&ipv6_defrag_in_feat, ifp);
 		pl_node_remove_feature_by_inst(&ipv4_defrag_out_feat, ifp);
 		pl_node_remove_feature_by_inst(&ipv6_defrag_out_feat, ifp);
+	}
+}
+
+/*
+ * Enable or disable defrag feature for spath (egress)
+ */
+static void npf_if_feat_enable_defrag_spath(struct ifnet *ifp, bool enable)
+{
+	if (enable) {
+		pl_node_add_feature_by_inst(&ipv4_defrag_out_spath_feat, ifp);
+		pl_node_add_feature_by_inst(&ipv6_defrag_out_spath_feat, ifp);
+	} else {
 		pl_node_remove_feature_by_inst(&ipv4_defrag_out_spath_feat,
 					       ifp);
 		pl_node_remove_feature_by_inst(&ipv6_defrag_out_spath_feat,
@@ -173,6 +183,8 @@ void npf_if_feat_init(void)
 	if_feat_init(npf_if_feat_enable_acl_in, "acl-in", IF_FEAT_ACL_IN);
 	if_feat_init(npf_if_feat_enable_acl_out, "acl-out", IF_FEAT_ACL_OUT);
 	if_feat_init(npf_if_feat_enable_defrag, "defrag", IF_FEAT_DEFRAG);
+	if_feat_init(npf_if_feat_enable_defrag_spath, "defrag-spath",
+		     IF_FEAT_DEFRAG_SPATH);
 	if_feat_init(npf_if_feat_enable_fw, "firewall", IF_FEAT_FW);
 	if_feat_init(npf_if_feat_enable_fw_orig, "fw-orig", IF_FEAT_FW_ORIG);
 	if_feat_init(npf_if_feat_enable_pbr, "pbr", IF_FEAT_PBR);

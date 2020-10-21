@@ -144,5 +144,6 @@ struct npf_zone *npf_nif_zone(const struct npf_if *nif);
 struct npf_zone *npf_if_zone(const struct ifnet *ifp);
 
 struct npf_rc_counts *npf_if_get_rcc(struct ifnet *ifp);
+void npf_gbl_attach_point_init(void);
 
 #endif /* NPF_IF_H */

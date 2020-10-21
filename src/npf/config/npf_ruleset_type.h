@@ -41,6 +41,10 @@ enum npf_ruleset_type {
 /**
  * The following are flags associated with the different rule types to
  * give the capabilities of the rules.
+ *
+ * NPF_RS_FLAG_FEAT_INTF     - Attached to one intf, enabled on one intf
+ * NPF_RS_FLAG_FEAT_INTF_ALL - Attached to one intf, enabled on all intfs
+ * NPF_RS_FLAG_FEAT_GBL      - Attached to global, enabled on all intfs
  */
 enum npf_rs_flag {
 	NPF_RS_FLAG_NOTRACK =        1 << 0, /* not tracking state */
@@ -49,9 +53,10 @@ enum npf_rs_flag {
 	NPF_RS_FLAG_DIR_OUT =        1 << 3, /* rules are for OUT */
 	NPF_RS_FLAG_APP_FW =         1 << 4, /* rules may use app firewall */
 	NPF_RS_FLAG_FEAT_INTF =      1 << 5, /* feats enabled per intf */
-	NPF_RS_FLAG_FEAT_GBL =       1 << 6, /* feats enabled on all intfs */
-	NPF_RS_FLAG_NO_STATS =       1 << 7, /* no stats allocated per rule */
-	NPF_RS_FLAG_HASH_TBL =       1 << 8, /* hash table linkage for rules in
+	NPF_RS_FLAG_FEAT_INTF_ALL =  1 << 6, /* feats enabled on all intfs */
+	NPF_RS_FLAG_FEAT_GBL =       1 << 7, /* feats enabled on all intfs */
+	NPF_RS_FLAG_NO_STATS =       1 << 8, /* no stats allocated per rule */
+	NPF_RS_FLAG_HASH_TBL =       1 << 9, /* hash table linkage for rules in
 					      * addition to list to enable
 					      * faster lookup
 					      */

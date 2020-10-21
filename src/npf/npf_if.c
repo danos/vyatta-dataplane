@@ -497,17 +497,16 @@ npf_if_rs_count_incr(struct ifnet *ifp, enum npf_ruleset_type rs_type)
 		return;
 	}
 
+	enum npf_rs_flag rfl = npf_get_ruleset_type_flags(rs_type);
+
 	/*
 	 * Increment interface feature ref counts for this ruleset type when
 	 * the ruleset count changes from 0 to 1 if it is a 'per interface'
 	 * type.
 	 */
 	if (niif->niif_rs_count[rs_type]++ == 0) {
-		enum npf_rs_flag rfl;
 
 		/* Are features enabled per-interface? */
-		rfl = npf_get_ruleset_type_flags(rs_type);
-
 		if ((rfl & NPF_RS_FLAG_FEAT_INTF) != 0) {
 			enum if_feat_flag ffl;
 
@@ -517,7 +516,8 @@ npf_if_rs_count_incr(struct ifnet *ifp, enum npf_ruleset_type rs_type)
 		}
 	}
 
-	npf_gbl_rs_count_incr(rs_type);
+	if ((rfl & NPF_RS_FLAG_FEAT_INTF_ALL) != 0)
+		npf_gbl_rs_count_incr(rs_type);
 }
 
 /*
@@ -540,17 +540,16 @@ npf_if_rs_count_decr(struct ifnet *ifp, enum npf_ruleset_type rs_type)
 		return;
 	}
 
+	enum npf_rs_flag rfl = npf_get_ruleset_type_flags(rs_type);
+
 	/*
 	 * Decrement interface feature ref counts for this ruleset type when
 	 * the ruleset count changes from 1 to 0 if it is a 'per interface'
 	 * type.
 	 */
 	if (--niif->niif_rs_count[rs_type] == 0) {
-		enum npf_rs_flag rfl;
 
 		/* Are features enabled per-interface? */
-		rfl = npf_get_ruleset_type_flags(rs_type);
-
 		if ((rfl & NPF_RS_FLAG_FEAT_INTF) != 0) {
 			enum if_feat_flag ffl;
 
@@ -560,7 +559,8 @@ npf_if_rs_count_decr(struct ifnet *ifp, enum npf_ruleset_type rs_type)
 		}
 	}
 
-	npf_gbl_rs_count_decr(rs_type);
+	if ((rfl & NPF_RS_FLAG_FEAT_INTF_ALL) != 0)
+		npf_gbl_rs_count_decr(rs_type);
 }
 
 /*
@@ -768,4 +768,55 @@ struct npf_zone *npf_if_zone(const struct ifnet *ifp)
 	if (niif)
 		return npf_zone_zif2zone(rcu_dereference(niif->niif_zif));
 	return NULL;
+}
+
+/*
+ * This is called when a ruleset it attached to "global:"
+ */
+static void
+npf_apev_gbl_add_rlset(enum npf_attpt_ev_type ev __unused,
+		       struct npf_attpt_item *ap __unused, void *data)
+{
+	enum npf_ruleset_type rs_type = *(enum npf_ruleset_type *)data;
+	enum npf_rs_flag rfl = npf_get_ruleset_type_flags(rs_type);
+
+	if ((rfl & NPF_RS_FLAG_FEAT_GBL) != 0) {
+		rte_spinlock_lock(&niif_lock);
+
+		/* Enable the relevant features on all interfaces */
+		npf_gbl_rs_count_incr(rs_type);
+
+		rte_spinlock_unlock(&niif_lock);
+	}
+}
+
+static void
+npf_apev_gbl_del_rlset(enum npf_attpt_ev_type ev __unused,
+		       struct npf_attpt_item *ap __unused, void *data)
+{
+	enum npf_ruleset_type *rs_type = (enum npf_ruleset_type *) data;
+	enum npf_rs_flag rfl = npf_get_ruleset_type_flags(*rs_type);
+
+	if ((rfl & NPF_RS_FLAG_FEAT_GBL) != 0) {
+		rte_spinlock_lock(&niif_lock);
+
+		npf_gbl_rs_count_decr(*rs_type);
+
+		rte_spinlock_unlock(&niif_lock);
+	}
+}
+
+/*
+ * The global attach point is used when a ruleset if configured in a loopback
+ * interface.
+ */
+void npf_gbl_attach_point_init(void)
+{
+	npf_attpt_ev_listen(NPF_ATTACH_TYPE_GLOBAL,
+			    (1 << NPF_ATTPT_EV_RLSET_ADD_COMMIT),
+			    npf_apev_gbl_add_rlset);
+
+	npf_attpt_ev_listen(NPF_ATTACH_TYPE_GLOBAL,
+			    (1 << NPF_ATTPT_EV_RLSET_DEL_COMMIT),
+			    npf_apev_gbl_del_rlset);
 }
