@@ -15,6 +15,7 @@
 
 struct crypto_session;
 struct sadb_sa;
+struct crypto_pkt_ctx;
 
 int crypto_rte_setup(void);
 
@@ -60,13 +61,11 @@ int crypto_rte_setup_session(struct crypto_session *session,
 int crypto_rte_destroy_session(struct crypto_session *session,
 			       uint8_t rte_cdev_id);
 
-int crypto_rte_op_alloc(struct rte_mbuf *m);
+int crypto_rte_op_alloc(struct rte_crypto_op *cops[], uint16_t count);
 
-void crypto_rte_op_free(struct rte_mbuf *m);
+void crypto_rte_op_free(struct rte_crypto_op *cops[], uint16_t count);
 
-int crypto_rte_xform_packet(struct sadb_sa *sa, struct rte_mbuf *m,
-			    unsigned int l3_hdr_len, unsigned char *esp,
-			    unsigned char *iv, uint32_t text_len,
-			    uint32_t esp_len, uint8_t encrypt);
+uint16_t crypto_rte_xform_packets(struct crypto_pkt_ctx *ctx_arr[],
+				  uint16_t count);
 
 #endif

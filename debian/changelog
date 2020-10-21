@@ -44,14 +44,47 @@ vyatta-dataplane (3.12.1) unstable; urgency=medium
 
  -- Paul Atkins <paul.atkins@intl.att.com>  Mon, 12 Oct 2020 09:20:52 +0100
 
+vyatta-dataplane (3.11.47) unstable; urgency=medium
+
+  [ Srinivas Narayan ]
+  * crypto: store out_ethertype in context
+  * crypto: store out_hdr_len in context
+  * crypto: re-order fields in crypto_pkt_ctx
+  * crypto: store udp encap length in SA to simplify code
+  * crypto: include DPDK driver stats in output
+  * crypto: Pass packet burst to ESP
+  * crypto: Move bad mbufs to end of context array
+  * crypto: Pass a batch of packets to the PMD
+  * crypto: Allocate crypto ops when crypto pkt buffer is set up
+  * crypto: pass batches of packets to ESP encrypt functions
+  * crypto: Pass batches of packets to ESP decrypt functions
+  * crypto: Remove debug error messages in some places
+  * crypto: pass errors from PMD operations to higher layers
+  * crypto: remove unnecessary check & error
+  * crypto: Add error counters for failures
+  * crypto: Set action to drop if packet has not been processed
+  * crypto: Prefetch batches of context pointers for processing
+  * crypto: Fetch data in first mbuf into L2 cache
+  * crypto: Prefetch contexts into L2 cache
+  * crypto: add inline implementation to grow buffer
+  * crypto: Invoke rte_pktmbuf_lastseg only for multi-seg pkts
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Wed, 21 Oct 2020 09:14:31 +0100
+
 vyatta-dataplane (3.11.46) unstable; urgency=medium
 
   [ Gavin Shearer ]
   * fal acl: use rule number attr instead of priority in rules
 
   [ Paul Atkins ]
+  * Include shadow ring in buffer count calculations
+  * Increase slowpath receive ring size
 
- -- Paul Atkins <paul.atkins@intl.att.com>  Fri, 16 Oct 2020 15:26:35 +0100
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Tue, 20 Oct 2020 10:07:06 +0100
 
 vyatta-dataplane (3.11.45) unstable; urgency=medium
 

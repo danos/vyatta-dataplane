@@ -51,6 +51,7 @@ struct crypto_pkt_buffer {
 	char SPARE[6];
 	struct crypto_pkt_ctx *local_crypto_q[MAX_CRYPTO_XFRM]
 	[MAX_CRYPTO_PKT_BURST];
+	struct rte_crypto_op *cops[MAX_CRYPTO_PKT_BURST];
 };
 
 RTE_DECLARE_PER_LCORE(struct crypto_pkt_buffer *, crypto_pkt_buffer);

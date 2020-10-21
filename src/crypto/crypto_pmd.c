@@ -577,6 +577,8 @@ static void
 crypto_show_pmd_counters(json_writer_t *wr, struct crypto_pmd *pmd)
 {
 	enum crypto_xfrm q;
+	struct rte_cryptodev_stats stats;
+	int err;
 
 	if (!pmd)
 		return;
@@ -584,6 +586,20 @@ crypto_show_pmd_counters(json_writer_t *wr, struct crypto_pmd *pmd)
 	jsonw_start_object(wr);
 	jsonw_uint_field(wr, "pmd_dev_id", pmd->dev_id);
 	jsonw_uint_field(wr, "rte_dev_id", pmd->rte_cdev_id);
+
+	err = rte_cryptodev_stats_get(pmd->rte_cdev_id, &stats);
+	if (!err) {
+		jsonw_name(wr, "rte_stats");
+		jsonw_start_object(wr);
+		jsonw_uint_field(wr, "enqueued_cnt", stats.enqueued_count);
+		jsonw_uint_field(wr, "dequeued_cnt", stats.dequeued_count);
+		jsonw_uint_field(wr, "enqueued_err_cnt",
+				 stats.enqueue_err_count);
+		jsonw_uint_field(wr, "dequeued_err_cnt",
+				 stats.dequeue_err_count);
+		jsonw_end_object(wr);
+	}
+
 	jsonw_string_field(wr, "dev_name", pmd->dev_name);
 	jsonw_uint_field(wr, "active_sa", pmd->sa_cnt);
 	jsonw_uint_field(wr, "lcore", pmd->lcore);

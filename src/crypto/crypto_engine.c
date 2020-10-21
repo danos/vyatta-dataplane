@@ -885,7 +885,7 @@ int cipher_setup_ctx(const struct xfrm_algo *algo_crypt,
 	sa->udp_encap = 0;
 	if (tmpl) {
 		if (tmpl->encap_type == UDP_ENCAP_ESPINUDP) {
-			sa->udp_encap = 1;
+			sa->udp_encap = sizeof(struct udphdr);
 			sa->udp_sport = tmpl->encap_sport;
 			sa->udp_dport = tmpl->encap_dport;
 		} else {

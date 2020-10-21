@@ -104,7 +104,6 @@ enum pkt_mdata_type {
 	PKT_MDATA_CGNAT_OUT		= (1 << 11),
 	PKT_MDATA_CGNAT_IN		= (1 << 12),
 	PKT_MDATA_CGNAT_SESSION		= (1 << 13),
-	PKT_MDATA_CRYPTO_OP             = (1 << 14),
 };
 
 struct npf_session;
@@ -136,9 +135,6 @@ struct pktmbuf_mdata {
 
 	/* PKT_MDATA_L2_RCV_TYPE */
 	enum l2_packet_type md_l2_rcv_type;
-
-	/* PKT_MDATA_CRYPTO_OP */
-	struct rte_crypto_op *cop;
 
 	/* Pointers that features can register for ownership of */
 	void *md_feature_ptrs[DP_PKTMBUF_MAX_INVAR_FEATURE_PTRS];

@@ -423,6 +423,24 @@ enum ipsec_cnt_types {
 	DROPPED_NO_BIND,
 	DROPPED_ON_FP_NO_PR,
 	DROPPED_COP_ALLOC_FAILED,
+	CRYPTO_OP_FAILED,
+	CRYPTO_OP_ASSOC_FAILED,
+	CRYPTO_OP_PREPARE_FAILED,
+	DROPPED_ESP_IP_FRAG,
+	ESP_NOT_IN_FIRST_SEG,
+	INVALID_CIPHERTEXT_LEN,
+	ESP_TAIL_TRIM_FAILED,
+	ESP_INVALID_NXT_HDR,
+	INVALID_IPSEC_MODE,
+	ESP_ETH_HDR_FIXUP_FAILED,
+	ESP_OUT_HDR_PARSE6_FAILED,
+	ESP_HDR_PREPEND_FAILED,
+	ESP_TAIL_APPEND_FAILED,
+	CRYPTO_CHAIN_INIT_FAILED,
+	CRYPTO_AUTH_OP_FAILED,
+	CRYPTO_CIPHER_OP_FAILED,
+	CRYPTO_DIGEST_OP_FAILED,
+	CRYPTO_DIGEST_CB_FAILED,
 	IPSEC_CNT_MAX /* this must be last */
 };
 
@@ -543,9 +561,9 @@ struct ifnet *crypto_policy_feat_attach_by_reqid(uint32_t reqid);
  */
 struct crypto_pkt_ctx {
 	/*
-	 * These fields are set up by the forwarding
-	 * thread and used to select the actions the
-	 * crypto thread will perform on the packet.
+	 * The fields are ordered to minimize holes and
+	 * place as much critical data as possible in the
+	 * first cache line
 	 */
 	struct rte_mbuf *mbuf;
 	uint32_t reqid;
@@ -553,48 +571,135 @@ struct crypto_pkt_ctx {
 	void *l3hdr;
 	struct ifnet *in_ifp;
 	struct ifnet *nxt_ifp;
-	struct rte_crypto_op *cop;
-
-	/*
-	 * These fields are set and used in the crypto thread
-	 */
+	uint16_t out_ethertype;
+	int8_t   status;
+	uint8_t  udp_len;
+	uint8_t  esp_len;
+	uint8_t  icv_len;
+	uint8_t  orig_family;
+	uint8_t  family;
 	struct sadb_sa *sa;
+	struct ifnet *vti_ifp;
+
+	/* --- cacheline 1 boundary (64 bytes) --- */
+
 	uint16_t iphlen;
-	uint16_t udp_len;
 	uint16_t base_len;
-	uint16_t esp_len;
 	uint16_t ciphertext_len;
 	uint16_t plaintext_size;
 	uint16_t plaintext_size_orig;
-	uint16_t icv_len;
 	uint16_t prev_off;
 	uint16_t head_trim;
+	uint16_t out_hdr_len;
+	uint8_t  action;
+	uint8_t  in_ifp_port;
+	uint16_t direction;
+	/* bytes encrypted/decrypted */
+	uint32_t bytes;
 	unsigned char *esp;
 	unsigned char *iv;
 	unsigned char *icv;
 	char *hdr;
 	char *tail;
 	unsigned int counter_modify;
-	/* bytes encrypted/decrypted */
-	uint32_t bytes;
-	int status;
-
-	/*
-	 * These fields are are bi-directional. They may be
-	 * set by the forwarding thread and modified by the
-	 * crypto thread.
-	 *
-	 * TODO: Replace direction with an input action
-	 *       of either ENCRYPT or DECRYPT.
-	 */
-	uint8_t action;
-	uint8_t in_ifp_port;
-	uint16_t SPARE1;
-	uint16_t direction;
-	uint8_t orig_family;
-	uint8_t family;
 	xfrm_address_t dst; /* Only used for outbound traffic */
 	vrfid_t vrfid;
 };
+
+/*
+ * Move bad (unprocessed) mbufs beyond the good (processed) ones.
+ * bad_idx[] contains the indexes of bad context pointers.
+ */
+static inline void
+move_bad_mbufs(struct crypto_pkt_ctx *ctx_arr[], uint16_t count,
+	       const uint16_t bad_idx[], uint16_t bad_count)
+{
+	uint16_t i, j, k;
+	struct crypto_pkt_ctx *tmp_ctx_arr[bad_count];
+
+	if (likely(!bad_count))
+		return;
+
+	j = 0;
+	k = 0;
+
+	/* copy bad ones into a temp place */
+	for (i = 0; i < count; i++) {
+		if (j != bad_count && i == bad_idx[j])
+			tmp_ctx_arr[j++] = ctx_arr[i];
+		else
+			ctx_arr[k++] = ctx_arr[i];
+	}
+
+	/* copy bad ones after the good ones */
+	for (i = 0; i != bad_count; i++)
+		ctx_arr[k + i] = tmp_ctx_arr[i];
+}
+
+#define CRYPTO_PREFETCH_LOOKAHEAD 10
+
+static inline
+void crypto_prefetch_ctx(struct crypto_pkt_ctx *ctx_arr[], uint16_t count,
+			 uint16_t cur)
+{
+	uint16_t i, j;
+
+	if (likely(cur % CRYPTO_PREFETCH_LOOKAHEAD))
+		return;
+
+	i = cur + CRYPTO_PREFETCH_LOOKAHEAD;
+	j = cur + 1;
+	for (; j < count && j < i; j++)
+		rte_prefetch0(ctx_arr[j]);
+}
+
+static inline
+void crypto_prefetch_ctx_data(struct crypto_pkt_ctx *ctx_arr[], uint16_t count,
+			      uint16_t cur)
+{
+	uint16_t i, j;
+
+	if (likely(cur % CRYPTO_PREFETCH_LOOKAHEAD))
+		return;
+
+	i = cur + CRYPTO_PREFETCH_LOOKAHEAD;
+	j = cur + 1;
+	for (; j < count && j < i; j++) {
+		rte_prefetch0(ctx_arr[j]->mbuf);
+		rte_prefetch0(ctx_arr[j]->sa);
+	}
+}
+
+static inline
+void crypto_prefetch_mbuf_data(struct crypto_pkt_ctx *ctx_arr[], uint16_t count,
+			       uint16_t cur)
+{
+	uint16_t i, j;
+
+	if (likely(cur % CRYPTO_PREFETCH_LOOKAHEAD))
+		return;
+
+	i = cur + CRYPTO_PREFETCH_LOOKAHEAD;
+	j = cur + 1;
+	for (; j < count && j < i; j++)
+		rte_prefetch0(ctx_arr[j]->mbuf->cacheline1);
+}
+
+/*
+ * Fetch data for entire burst into L2 cache
+ * This results in a significant increase in throughput
+ * with multiple cores due to a reduction in memory
+ * contention
+ */
+static inline
+void crypto_prefetch_mbuf_payload(struct rte_mbuf *m)
+{
+	uint16_t offset = 0;
+
+	for (offset = 0; offset < rte_pktmbuf_data_len(m);
+	     offset += RTE_CACHE_LINE_SIZE)
+		rte_prefetch1(rte_pktmbuf_mtod_offset(m, void *,
+						      offset));
+}
 
 #endif /* CRYPTO_INTERNAL_H */

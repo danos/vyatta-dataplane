@@ -26,8 +26,11 @@
 #define MAX_CRYPTO_OPS 8192
 #define CRYPTO_OP_POOL_CACHE_SIZE 256
 
-#define CRYPTO_OP_IV_OFFSET (sizeof(struct rte_crypto_op) + \
-			     sizeof(struct rte_crypto_sym_op))
+#define CRYPTO_OP_CTX_OFFSET (sizeof(struct rte_crypto_op) + \
+			      sizeof(struct rte_crypto_sym_op))
+
+#define CRYPTO_OP_IV_OFFSET (CRYPTO_OP_CTX_OFFSET + \
+			     sizeof(struct crypto_pkt_ctx **))
 
 /* per session (SA) data structure used to set up operations with PMDs */
 static struct rte_mempool *crypto_session_pool;
@@ -58,7 +61,8 @@ int crypto_rte_setup(void)
 	}
 
 	uint16_t crypto_op_data_size =
-		sizeof(struct rte_crypto_sym_op) + CRYPTO_MAX_IV_LENGTH;
+		sizeof(struct rte_crypto_sym_op) +
+		sizeof(struct crypto_pkt_ctx **) + CRYPTO_MAX_IV_LENGTH;
 
 	crypto_op_pool = rte_crypto_op_pool_create("crypto_op_pool",
 						   RTE_CRYPTO_OP_TYPE_SYMMETRIC,
@@ -613,68 +617,88 @@ int crypto_rte_destroy_session(struct crypto_session *session,
 	return err;
 }
 
-int crypto_rte_op_alloc(struct rte_mbuf *m)
+int crypto_rte_op_alloc(struct rte_crypto_op *cops[], uint16_t count)
 {
-	struct rte_crypto_op *cop;
-	struct pktmbuf_mdata *mdata;
+	uint16_t i;
 
-	cop = rte_crypto_op_alloc(crypto_op_pool,
-				      RTE_CRYPTO_OP_TYPE_SYMMETRIC);
-	if (cop == NULL)
+	if (rte_crypto_op_bulk_alloc(crypto_op_pool,
+				     RTE_CRYPTO_OP_TYPE_SYMMETRIC,
+				     cops, count) != count)
 		return -ENOMEM;
 
-	cop->status = RTE_CRYPTO_OP_STATUS_NOT_PROCESSED;
-	cop->sess_type = RTE_CRYPTO_OP_WITH_SESSION;
-	cop->sym->m_src = m;
-
-	mdata = pktmbuf_mdata(m);
-	mdata->cop = cop;
-	pktmbuf_mdata_set(m, PKT_MDATA_CRYPTO_OP);
+	for (i = 0; i < count; i++)
+		cops[i]->sess_type = RTE_CRYPTO_OP_WITH_SESSION;
 
 	return 0;
 }
 
-void crypto_rte_op_free(struct rte_mbuf *m)
+void crypto_rte_op_free(struct rte_crypto_op *cops[], uint16_t count)
 {
-	struct rte_crypto_op *cop;
-	struct pktmbuf_mdata *mdata;
-
-	mdata = pktmbuf_mdata(m);
-	cop = mdata->cop;
-	mdata->cop = NULL;
-	pktmbuf_mdata_clear(m, PKT_MDATA_CRYPTO_OP);
-	rte_crypto_op_free(cop);
+	for (uint16_t i = 0; i < count; i++)
+		rte_crypto_op_free(cops[i]);
 }
 
-static int crypto_rte_op_assoc_session(struct rte_crypto_op *cop,
-				       struct crypto_session *session)
+static inline int
+crypto_rte_op_assoc_session(struct rte_crypto_op *cop,
+			    struct crypto_session *session)
 {
 	int err;
 
+	cop->status = RTE_CRYPTO_OP_STATUS_NOT_PROCESSED;
 	err = rte_crypto_op_attach_sym_session(cop,
 					       session->rte_session);
 	return err;
 }
 
-static int crypto_rte_process_op(uint8_t dev_id, enum crypto_xfrm qid,
-				 struct rte_crypto_op *cop)
+struct crypto_rte_pkt_batch {
+	uint8_t cdev_id;
+	uint16_t batch_size;
+	enum crypto_xfrm qid;
+	struct rte_crypto_op *cop_arr[MAX_CRYPTO_PKT_BURST];
+};
+
+static inline
+void crypto_rte_process_op_batch(struct crypto_rte_pkt_batch *batch)
 {
-	int rc;
+	uint8_t enqueued = 0, dequeued = 0, tmp_cnt;
+	struct crypto_pkt_ctx *ctx;
+	struct rte_crypto_op *cop;
 
-	rc = rte_cryptodev_enqueue_burst(dev_id, qid, &cop, 1);
-	if (rc < 1)
-		return -ENOSPC;
+	while (dequeued < batch->batch_size) {
+		tmp_cnt = rte_cryptodev_enqueue_burst(
+			batch->cdev_id, batch->qid,
+			&batch->cop_arr[enqueued],
+			batch->batch_size - enqueued);
+		enqueued += tmp_cnt;
 
-	do {
-		rc = rte_cryptodev_dequeue_burst(dev_id, qid, &cop, 1);
-	} while (rc < 1);
+		tmp_cnt = rte_cryptodev_dequeue_burst(
+			batch->cdev_id, batch->qid,
+			&batch->cop_arr[dequeued],
+			batch->batch_size - dequeued);
+		dequeued += tmp_cnt;
 
-	if (cop->status != RTE_CRYPTO_OP_STATUS_SUCCESS)
-		rc = -1;
-	else
-		rc = 0;
+		if (!tmp_cnt)
+			break;
+	}
 
-	return rc;
+	if (unlikely(dequeued < batch->batch_size))
+		IPSEC_CNT_INC_BY(CRYPTO_OP_FAILED,
+				 (batch->batch_size - dequeued));
+
+	for (tmp_cnt = 0; tmp_cnt < dequeued; tmp_cnt++) {
+		cop = batch->cop_arr[tmp_cnt];
+		if (likely(cop->status ==
+			   RTE_CRYPTO_OP_STATUS_SUCCESS)) {
+
+			ctx = *(rte_crypto_op_ctod_offset(
+					cop,
+					struct crypto_pkt_ctx **,
+					CRYPTO_OP_CTX_OFFSET));
+			ctx->status = 0;
+		} else
+			IPSEC_CNT_INC(CRYPTO_OP_FAILED);
+	}
+	batch->batch_size = 0;
 }
 
 static inline void
@@ -845,49 +869,102 @@ crypto_rte_outbound_cop_prepare(struct rte_crypto_op *cop,
 	return err;
 }
 
-int crypto_rte_xform_packet(struct sadb_sa *sa, struct rte_mbuf *mbuf,
-			    unsigned int l3_hdr_len, unsigned char *esp,
-			    unsigned char *iv, uint32_t text_len,
-			    uint32_t esp_len, uint8_t encrypt)
+inline __attribute__((always_inline)) uint16_t
+crypto_rte_xform_packets(struct crypto_pkt_ctx *cctx_arr[], uint16_t count)
 {
 	int err;
-	struct rte_crypto_op *cop;
-	struct pktmbuf_mdata *mdata;
-	uint8_t udp_len = 0;
-	struct crypto_session *session = sa->session;
+	struct crypto_session *session;
 	enum crypto_xfrm qid;
+	uint16_t i, text_len, hdr_len;
+	struct crypto_rte_pkt_batch pkt_batch;
+	struct crypto_pkt_ctx *cctx, **ctx_ptr;
+	bool encrypt;
+	struct rte_crypto_op *cop;
+	struct crypto_pkt_buffer *cpb = cpbdb[dp_lcore_id()];
+	uint16_t bad_idx[count], bad_cnt = 0;
 
-	if (unlikely(mbuf->next)) {
-		if (sa->session->cipher_init) {
-			err = esp_generate_chain(sa, mbuf, l3_hdr_len, esp, iv,
-						text_len + esp_len, encrypt);
-			return err;
+	pkt_batch.cdev_id = 0;
+	pkt_batch.qid = 0;
+	pkt_batch.batch_size = 0;
+
+	assert(count <= MAX_CRYPTO_PKT_BURST);
+
+	for (i = 0; i < count; i++) {
+		crypto_prefetch_ctx(cctx_arr, count, i);
+		cctx = cctx_arr[i];
+		session = cctx->sa->session;
+		encrypt = (cctx->sa->dir == CRYPTO_DIR_OUT);
+
+		if (unlikely(cctx->mbuf->next && session->cipher_init)) {
+			crypto_rte_process_op_batch(&pkt_batch);
+			hdr_len = encrypt ? cctx->out_hdr_len : cctx->iphlen;
+			text_len = encrypt ? cctx->plaintext_size :
+				cctx->ciphertext_len;
+			err = esp_generate_chain(cctx->sa, cctx->mbuf,
+						 hdr_len, cctx->esp, cctx->iv,
+						 text_len + cctx->esp_len,
+						 encrypt);
+			if (err)
+				cctx_arr[i]->status = -1;
+			continue;
 		}
+
+		cop = cpb->cops[i];
+
+		err = crypto_rte_op_assoc_session(cop, session);
+		if (unlikely(err)) {
+			cctx->status = -1;
+			IPSEC_CNT_INC(CRYPTO_OP_ASSOC_FAILED);
+			continue;
+		}
+		cop->sym->m_src = cctx->mbuf;
+		if (encrypt) {
+			err = crypto_rte_outbound_cop_prepare(
+				cop, session, cctx->mbuf,
+				cctx->out_hdr_len,
+				cctx->sa->udp_encap, cctx->esp_len,
+				cctx->plaintext_size);
+			qid = CRYPTO_ENCRYPT;
+		} else {
+			err = crypto_rte_inbound_cop_prepare(
+				cop, session, cctx->mbuf, cctx->iphlen,
+				cctx->sa->udp_encap, cctx->esp_len,
+				cctx->iv, cctx->ciphertext_len);
+			qid = CRYPTO_DECRYPT;
+		}
+		if (unlikely(err)) {
+			cctx->status = -1;
+			IPSEC_CNT_INC(CRYPTO_OP_PREPARE_FAILED);
+			continue;
+		}
+
+		/*
+		 * Explicitly set status to failure for each packet
+		 * being handed to the PMD. The status will be set to 0
+		 * again after successful processing. This allows us to handle
+		 * any cases of mismatch between enqueue and dequeue
+		 */
+		cctx->status = -1;
+		ctx_ptr = rte_crypto_op_ctod_offset(cop,
+						    struct crypto_pkt_ctx **,
+						    CRYPTO_OP_CTX_OFFSET);
+		*ctx_ptr = cctx;
+
+		crypto_prefetch_ctx_data(cctx_arr, count, i);
+
+		if (pkt_batch.cdev_id != cctx->sa->rte_cdev_id ||
+		    pkt_batch.qid != qid) {
+			crypto_rte_process_op_batch(&pkt_batch);
+			pkt_batch.cdev_id = cctx->sa->rte_cdev_id;
+			pkt_batch.qid = qid;
+		}
+		pkt_batch.cop_arr[pkt_batch.batch_size] = cop;
+		pkt_batch.batch_size++;
 	}
-
-	mdata = pktmbuf_mdata(mbuf);
-	cop = mdata->cop;
-	err = crypto_rte_op_assoc_session(cop, session);
-	if (err)
-		return err;
-
-	if (sa->udp_encap)
-		udp_len = sizeof(struct udphdr);
-
-	if (encrypt)
-		err = crypto_rte_outbound_cop_prepare(cop, session, mbuf,
-						      l3_hdr_len, udp_len,
-						      esp_len, text_len);
-	else
-		err = crypto_rte_inbound_cop_prepare(cop, session, mbuf,
-						     l3_hdr_len, udp_len,
-						     esp_len, iv, text_len);
-
-	if (err)
-		return err;
-
-	qid = sa->dir == CRYPTO_DIR_IN ? CRYPTO_DECRYPT : CRYPTO_ENCRYPT;
-	err = crypto_rte_process_op(sa->rte_cdev_id, qid, cop);
-
-	return err;
+	crypto_rte_process_op_batch(&pkt_batch);
+	for (i = 0; i < count; i++)
+		if (cctx_arr[i]->status < 0)
+			bad_idx[bad_cnt++] = i;
+	move_bad_mbufs(cctx_arr, count, bad_idx, bad_cnt);
+	return count - bad_cnt;
 }
