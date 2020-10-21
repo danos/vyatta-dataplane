@@ -969,3 +969,93 @@ DP_START_TEST(acl10, test)
 
 } DP_END_TEST;
 
+/*
+ * acl11 - IPv4 egress ACL on a bridge interface.
+ */
+DP_DECL_TEST_CASE(npf_acl, acl11, NULL, NULL);
+DP_START_TEST(acl11, test)
+{
+	struct rte_mbuf *test_pak;
+	struct dp_test_expected *exp;
+	int len = 20;
+
+	dp_test_intf_bridge_create("br1");
+	dp_test_intf_bridge_add_port("br1", "dp2T1");
+
+	/* Setup v4 interfaces and neighbours */
+	dp_test_nl_add_ip_addr_and_connected("dp1T0", "10.0.1.1/24");
+	dp_test_nl_add_ip_addr_and_connected("br1", "20.0.2.1/24");
+
+	dp_test_netlink_add_neigh("dp1T0", "10.0.1.2", "aa:bb:cc:dd:1:a1");
+	dp_test_netlink_add_neigh("br1", "20.0.2.2", "aa:bb:cc:dd:2:b1");
+
+	/*
+	 * Add egress ACL to br1 interface
+	 */
+	dp_test_npf_cmd("npf-ut add acl:v4test 10 "
+			"src-addr=10.0.1.2 "
+			"proto-base=17 "
+			"action=drop", false);
+	dp_test_npf_cmd("npf-ut attach interface:br1 acl-out acl:v4test",
+			false);
+	dp_test_npf_cmd("npf-ut commit", false);
+
+	/*
+	 * Packet #1.  Does not match 'drop' ACL, and is forwarded
+	 */
+	test_pak = dp_test_create_ipv4_pak("10.0.1.3", "20.0.2.2",
+					   1, &len);
+	dp_test_pktmbuf_eth_init(test_pak,
+				 dp_test_intf_name2mac_str("dp1T0"),
+				 "aa:bb:cc:dd:1:a1", RTE_ETHER_TYPE_IPV4);
+
+	exp = dp_test_exp_create(test_pak);
+	dp_test_exp_set_oif_name(exp, "dp2T1");
+	dp_test_ipv4_decrement_ttl(dp_test_exp_get_pak(exp));
+
+	dp_test_pktmbuf_eth_init(dp_test_exp_get_pak(exp),
+				 "aa:bb:cc:dd:2:b1",
+				 dp_test_intf_name2mac_str("br1"),
+				 RTE_ETHER_TYPE_IPV4);
+
+	dp_test_pak_receive(test_pak, "dp1T0", exp);
+
+
+	/*
+	 * Packet #2.  Matches 'drop' ACL, and is dropped
+	 */
+	test_pak = dp_test_create_ipv4_pak("10.0.1.2", "20.0.2.2",
+					   1, &len);
+	dp_test_pktmbuf_eth_init(test_pak,
+				 dp_test_intf_name2mac_str("dp1T0"),
+				 "aa:bb:cc:dd:1:a1", RTE_ETHER_TYPE_IPV4);
+
+	exp = dp_test_exp_create(test_pak);
+	dp_test_exp_set_oif_name(exp, "dp2T1");
+	dp_test_ipv4_decrement_ttl(dp_test_exp_get_pak(exp));
+
+	dp_test_pktmbuf_eth_init(dp_test_exp_get_pak(exp),
+				 "aa:bb:cc:dd:2:b1",
+				 dp_test_intf_name2mac_str("br1"),
+				 RTE_ETHER_TYPE_IPV4);
+	dp_test_exp_set_fwd_status(exp, DP_TEST_FWD_DROPPED);
+
+	dp_test_pak_receive(test_pak, "dp1T0", exp);
+
+
+	/* Cleanup */
+	dp_test_npf_cmd("npf-ut detach interface:br1 acl-out acl:v4test",
+			false);
+	dp_test_npf_cmd("npf-ut delete acl:v4test", false);
+	dp_test_npf_cmd("npf-ut commit", false);
+
+	dp_test_netlink_del_neigh("dp1T0", "10.0.1.2", "aa:bb:cc:dd:1:a1");
+	dp_test_netlink_del_neigh("br1", "20.0.2.2", "aa:bb:cc:dd:2:b1");
+
+	dp_test_nl_del_ip_addr_and_connected("dp1T0", "10.0.1.1/24");
+	dp_test_nl_del_ip_addr_and_connected("br1", "20.0.2.1/24");
+
+	dp_test_intf_bridge_remove_port("br1", "dp2T1");
+	dp_test_intf_bridge_del("br1");
+
+} DP_END_TEST;
