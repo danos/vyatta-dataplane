@@ -2620,6 +2620,9 @@ static void route_fal_upd_for_changed_nhl(
 			       nextl->nsiblings, nextl->nhg_fal_obj);
 
 	pd_state->state = fal_state_to_pd_state(rc);
+
+	/* Kick trackers so that clients can learn about FAL changes */
+	params->call_tracker_cbs = true;
 }
 
 static void
