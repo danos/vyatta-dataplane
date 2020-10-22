@@ -246,10 +246,6 @@ crypto_session_digest_len(const struct crypto_session *ctx)
 
 int crypto_session_set_enc_key(struct crypto_session *session);
 int crypto_session_set_auth_key(struct crypto_session *session);
-int crypto_session_generate_iv(struct crypto_session *session,
-			       char iv[]);
-int crypto_session_set_iv(struct crypto_session *session, unsigned int length,
-			  const char iv[]);
 
 struct crypto_session *
 crypto_session_create(const struct xfrm_algo *algo_crypt,
