@@ -1465,11 +1465,17 @@ lpm6_delete_all(struct lpm6 *lpm, lpm6_walk_func_t func, void *arg)
 	for (depth = 0; depth <= LPM6_MAX_DEPTH; ++depth) {
 		struct lpm6_rules_tree *head = &lpm->rules[depth];
 		struct lpm6_rule *r, *n;
+		struct lpm6_walk_params params;
 
 		RB_FOREACH_SAFE(r, lpm6_rules_tree, head, n) {
-			if (func)
-				func(r->ip, depth, r->scope, r->next_hop,
-				     &r->pd_state, arg);
+			if (func) {
+				memcpy(&params.prefix, r->ip,
+				       LPM6_IPV6_ADDR_SIZE);
+				params.pr_len = depth;
+				params.scope = r->scope;
+				params.next_hop = r->next_hop;
+				func(&params, &r->pd_state, arg);
+			}
 			rule_delete(lpm, r, depth);
 		}
 	}
@@ -1486,6 +1492,7 @@ lpm6_walk(struct lpm6 *lpm, lpm6_walk_func_t func,
 
 	for (; depth <= LPM6_MAX_DEPTH; ++depth) {
 		struct lpm6_rule *r, *n;
+		struct lpm6_walk_params params;
 
 		if (r_arg->get_next && len_match) {
 			mask_ip6(masked_ip, r_arg->addr.s6_addr, depth);
@@ -1502,11 +1509,12 @@ lpm6_walk(struct lpm6 *lpm, lpm6_walk_func_t func,
 			continue;
 
 		RB_FOREACH_FROM(r, lpm6_rules_tree, n) {
-			uint8_t tmp_ip[LPM6_IPV6_ADDR_SIZE];
-			memcpy(tmp_ip, r->ip, sizeof(tmp_ip));
+			memcpy(&params.prefix, r->ip, LPM6_IPV6_ADDR_SIZE);
+			params.pr_len = depth;
+			params.scope = r->scope;
+			params.next_hop = r->next_hop;
 
-			func(tmp_ip, depth, r->scope, r->next_hop,
-			     &r->pd_state, r_arg->walk_arg);
+			func(&params, &r->pd_state, r_arg->walk_arg);
 			if (r_arg->is_segment && (++rule_cnt == r_arg->cnt))
 				return rule_cnt;
 		}
