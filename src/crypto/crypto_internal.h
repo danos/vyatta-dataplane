@@ -342,7 +342,7 @@ int crypto_chain_walk(struct crypto_chain *chain);
 int crypto_chain_init(struct crypto_chain *chain,
 		      struct crypto_session *session);
 
-void crypto_engine_load(void);
+int crypto_engine_load(void);
 
 int cipher_setup_ctx(const struct xfrm_algo *,
 		     const struct xfrm_algo_auth *,

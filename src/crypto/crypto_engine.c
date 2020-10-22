@@ -1014,14 +1014,19 @@ uint32_t cipher_get_encryption_overhead(struct sadb_sa *sa,
 	return overhead;
 }
 
-void crypto_engine_load(void)
+int crypto_engine_load(void)
 {
 	ENGINE_DEBUG("Cryptolib init\n");
 	ERR_load_crypto_strings();
 	OpenSSL_add_all_algorithms();
-	OPENSSL_init_crypto(OPENSSL_INIT_LOAD_CONFIG |
-			    OPENSSL_INIT_ENGINE_ALL_BUILTIN, NULL);
+
+	if (OPENSSL_init_crypto(OPENSSL_INIT_LOAD_CONFIG |
+				OPENSSL_INIT_ENGINE_ALL_BUILTIN, NULL) != 1)
+		return -1;
+
 	OpenSSL_add_all_digests();
+
+	return 0;
 }
 
 void crypto_engine_summary(json_writer_t *wr, const struct sadb_sa *sa)

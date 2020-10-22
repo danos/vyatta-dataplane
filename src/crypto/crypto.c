@@ -1320,7 +1320,8 @@ void dp_crypto_init(void)
 	if (crypto_rte_setup())
 		rte_panic("Could not set up crypto infrastructure pools\n");
 
-	crypto_engine_load();
+	if (crypto_engine_load())
+		rte_panic("Could not set up crypto engine\n");
 
 	if (crypto_flow_cache_init())
 		rte_panic("Could not allocate crypto flow cache");
