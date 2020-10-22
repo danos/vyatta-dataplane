@@ -967,6 +967,17 @@ try_default:
 	}
 }
 
+static void lpm_tracker_call_cbs(struct lpm_rule *rule)
+{
+	struct rt_tracker_info *ti_iter, *next;
+
+	if (rule->tracker_count == 0)
+		return;
+
+	RB_FOREACH_SAFE(ti_iter, lpm_tracker_tree, &rule->tracker_head, next)
+		ti_iter->rti_cb_func(ti_iter);
+}
+
 int lpm_tracker_get_cover_ip_and_depth(struct rt_tracker_info *ti_info,
 				       uint32_t *ip,
 				       uint8_t *depth)
@@ -1428,8 +1439,12 @@ lpm_walk(struct lpm *lpm, lpm_walk_func_t func,
 			params.depth = depth;
 			params.scope = r->scope;
 			params.next_hop = r->next_hop;
+			params.call_tracker_cbs = false;
 
 			func(lpm, &params, &r->pd_state, r_arg->walk_arg);
+
+			if (params.call_tracker_cbs)
+				lpm_tracker_call_cbs(r);
 			if (r_arg->is_segment && (++rule_cnt == r_arg->cnt))
 				return rule_cnt;
 		}
