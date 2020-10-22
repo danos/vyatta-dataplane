@@ -190,6 +190,12 @@ struct lpm6_walk_params {
 	uint32_t pr_len;
 	int16_t scope;
 	uint32_t next_hop;
+	/*
+	 * Set this to true in the walker callback to have the callbacks of
+	 * any trackers on this entry called after the walker callback func
+	 * has been called.
+	 */
+	bool call_tracker_cbs;
 };
 
 /** iterator function for LPM rule */

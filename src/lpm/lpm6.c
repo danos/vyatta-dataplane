@@ -1439,6 +1439,16 @@ lpm6_delete(struct lpm6 *lpm, const uint8_t *ip, uint8_t depth,
 	return rc;
 }
 
+static void lpm6_tracker_call_cbs(struct lpm6_rule *rule)
+{
+	struct rt_tracker_info *ti_iter, *next;
+
+	if (rule->tracker_count == 0)
+		return;
+
+	RB_FOREACH_SAFE(ti_iter, lpm6_tracker_tree, &rule->tracker_head, next)
+		ti_iter->rti_cb_func(ti_iter);
+}
 
 /*
  * Delete all rules from the LPM table.
@@ -1513,8 +1523,12 @@ lpm6_walk(struct lpm6 *lpm, lpm6_walk_func_t func,
 			params.pr_len = depth;
 			params.scope = r->scope;
 			params.next_hop = r->next_hop;
+			params.call_tracker_cbs = false;
 
 			func(&params, &r->pd_state, r_arg->walk_arg);
+			if (params.call_tracker_cbs)
+				lpm6_tracker_call_cbs(r);
+
 			if (r_arg->is_segment && (++rule_cnt == r_arg->cnt))
 				return rule_cnt;
 		}
@@ -1753,7 +1767,6 @@ try_default:
 		return;
 	}
 }
-
 
 int lpm6_tracker_get_cover_ip_and_depth(struct rt_tracker_info *ti_info,
 					uint8_t *ip,
