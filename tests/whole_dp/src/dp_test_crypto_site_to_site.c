@@ -2548,6 +2548,79 @@ static void rx_match_policy_proto(vrfid_t vrfid)
 						    DP_TEST_FWD_LOCAL);
 }
 
+static void rx_match_policy_proto6(vrfid_t vrfid)
+{
+	struct if_data exp_stats_ifout = {0}, exp_stats_ifin = {0};
+
+	struct dp_test_crypto_policy my_opol = output_policy6;
+
+	exp_stats_ifin.ifi_ipackets = 1;
+
+	/*
+	 * Add multiple policies to verify that we don't wrongly
+	 * match a policy with the wrong protocol.
+	 */
+	static struct dp_test_crypto_policy my_ipol[3] = {
+		{
+		.d_prefix = NETWORK_WEST6,
+		.s_prefix = NETWORK_REMOTE6,
+		.proto = IPPROTO_UDP - 1,
+		.dst = PORT_EAST6,
+		.dst_family = AF_INET6,
+		.dir = XFRM_POLICY_IN,
+		.family = AF_INET6,
+		.reqid = TUNNEL_REQID,
+		.priority = 0,
+		.mark = 0,
+		.vrfid = VRF_DEFAULT_ID,
+		.action = XFRM_POLICY_BLOCK,
+		},
+		{
+		.d_prefix = NETWORK_WEST6,
+		.s_prefix = NETWORK_REMOTE6,
+		.proto = IPPROTO_UDP,
+		.dst = PORT_EAST6,
+		.dst_family = AF_INET6,
+		.dir = XFRM_POLICY_IN,
+		.family = AF_INET6,
+		.reqid = TUNNEL_REQID,
+		.priority = 0,
+		.mark = 0,
+		.vrfid = VRF_DEFAULT_ID,
+		.action = XFRM_POLICY_ALLOW,
+		.passthrough = TRUE
+		},
+		{
+		.d_prefix = NETWORK_WEST6,
+		.s_prefix = NETWORK_REMOTE6,
+		.proto = IPPROTO_UDP + 1,
+		.dst = PORT_EAST6,
+		.dst_family = AF_INET6,
+		.dir = XFRM_POLICY_IN,
+		.family = AF_INET6,
+		.reqid = TUNNEL_REQID,
+		.priority = 0,
+		.mark = 0,
+		.vrfid = VRF_DEFAULT_ID,
+		.action = XFRM_POLICY_BLOCK,
+		},
+	};
+
+	my_opol.proto = IPPROTO_TCP;
+	my_opol.s_prefix = NETWORK_WEST6;
+	my_opol.d_prefix = NETWORK_REMOTE6;
+
+	test_plaintext_packet_matching_input_policy6(vrfid,
+						    "dp2T2", "dp1T1",
+						    &exp_stats_ifout,
+						    &exp_stats_ifin,
+						    my_ipol, &my_opol, 3, 1,
+						    CLIENT_REMOTE6,
+						    PORT_WEST6,
+						    0,
+						    DP_TEST_FWD_LOCAL);
+}
+
 DP_DECL_TEST_SUITE(site_to_site_suite);
 
 DP_DECL_TEST_CASE(site_to_site_suite, encryption, NULL, NULL);
@@ -2753,6 +2826,16 @@ DP_START_TEST_FULL_RUN(decryption, rx_match_policy_proto)
 DP_START_TEST_FULL_RUN(decryption, rx_match_policy_proto_vrf)
 {
 	rx_match_policy_proto(TEST_VRF);
+} DP_END_TEST;
+
+DP_START_TEST(decryption, rx_match_policy_proto6)
+{
+	rx_match_policy_proto6(VRF_DEFAULT_ID);
+} DP_END_TEST;
+
+DP_START_TEST(decryption, rx_match_policy_proto6_vrf)
+{
+	rx_match_policy_proto6(TEST_VRF);
 } DP_END_TEST;
 
 /*
