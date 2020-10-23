@@ -1,3 +1,17 @@
+vyatta-dataplane (3.11.51) unstable; urgency=medium
+
+  [ Thomas Kiely ]
+  * Update S2S UT infra for multiple V4 policies
+  * Add V4 test to ensure correct policy match for proto
+  * ACL V4 rule setup does not handle discrete protocol
+  * Update S2S UT infra for multiple V6 policies
+  * Add V6 test to ensure correct policy match for proto
+  * ACL V6 rule setup does not handle discrete protocol
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Fri, 23 Oct 2020 10:09:01 +0100
+
 vyatta-dataplane (3.11.50) unstable; urgency=medium
 
   [ Nicholas Brown ]
