@@ -173,12 +173,6 @@ int set_main_worker_vhost_event_fd(void);
 
 extern bool single_cpu;
 
-#ifdef SANITIZE_ADDRESS
-#define IGNORE_SANITIZER __attribute__((no_sanitize_address))
-#else
-#define IGNORE_SANITIZER
-#endif
-
 extern uint16_t nb_ports_total;
 
 int next_available_crypto_lcore(void);

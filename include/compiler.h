@@ -19,6 +19,7 @@
 	#define __unused __attribute__ ((unused))
 	#define expect_hint(expr, c) __builtin_expect(expr, c)
 	#define __FOR_EXPORT __attribute__((visibility("default")))
+	#define IGNORE_SANITIZER __attribute__((no_sanitize_address))
 #else /* ! __clang__ */
 # ifdef __GNUC__
 	#define __cold_label __attribute__((cold))
@@ -32,6 +33,7 @@
 	#define __unused __attribute__ ((unused))
 	#define expect_hint(expr, c) __builtin_expect(expr, c)
 	#define __FOR_EXPORT __attribute__((visibility("default")))
+	#define IGNORE_SANITIZER __attribute__((no_sanitize_address))
 # else /* ! __GNUC__ */
 	#define __cold_label
 	#define __cold_func
@@ -44,6 +46,7 @@
 	#define __unused
 	#define expect_hint(expr, c) expr
 	#define __FOR_EXPORT
+	#define IGNORE_SANITIZER
 # endif
 #endif /* __clang__ */
 
