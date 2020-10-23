@@ -47,6 +47,7 @@ Depends: adduser,
          dmidecode [amd64],
          libconfig-tiny-perl,
          libfile-slurp-perl,
+         librte-meta-allpmds,
          lsb-base (>= 3.0-6),
          mstflint,
          rsyslog,
@@ -121,7 +122,8 @@ Description: Vyatta dataplane pipeline node build support
 Package: vyatta-dataplane-test
 Section: non-free/devel
 Architecture: any
-Depends: ${misc:Depends},
+Depends: librte-meta-allpmds,
+         ${misc:Depends},
          ${shlibs:Depends}
 Description: Vyatta dataplane test binary
  A test binary used for running unit tests
