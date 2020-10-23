@@ -434,6 +434,7 @@ void _wait_for_policy(const struct dp_test_crypto_policy *policy,
 					       "\"policies\": [{"
 						   "\"dst\": \"%s\","
 						   "\"src\": \"%s\","
+						   "\"proto\": %d,"
 						   "\"priority\": %d,%s"
 						   "\"peer\": \"%s\","
 						   "\"direction\": \"%s\","
@@ -472,6 +473,7 @@ void _wait_for_policy(const struct dp_test_crypto_policy *policy,
 	expected_json = dp_test_json_create(template,
 					    policy->d_prefix,
 					    policy->s_prefix,
+					    policy->proto,
 					    policy->priority,
 					    reqid_str,
 					    peer_str,

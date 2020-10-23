@@ -823,6 +823,7 @@ static void s2s_common_setup(vrfid_t vrfid,
 			     enum dp_test_crypo_auth_algo auth_algo,
 			     struct dp_test_crypto_policy *ipolicy,
 			     struct dp_test_crypto_policy *opolicy,
+			     uint8_t nipols, uint8_t nopols,
 			     unsigned int mode, enum vfp_presence with_vfp,
 			     enum vrf_and_xfrm_order out_of_order)
 {
@@ -831,20 +832,29 @@ static void s2s_common_setup(vrfid_t vrfid,
 	 */
 	struct dp_test_crypto_policy *ipol, *opol;
 	bool verify = true;
+	int i;
 
 	ipol = ipolicy ? ipolicy : &input_policy;
 	opol = opolicy ? opolicy : &output_policy;
+	if (!ipolicy)
+		nipols = 1;
+	if (!opolicy)
+		nopols = 1;
 
 	s2s_setup_interfaces(vrfid, with_vfp, out_of_order);
-
-	ipol->vrfid = vrfid;
-	opol->vrfid = vrfid;
 
 	if (out_of_order == VRF_XFRM_OUT_OF_ORDER)
 		verify = false;
 
-	dp_test_crypto_create_policy_verify(ipol, verify);
-	dp_test_crypto_create_policy_verify(opol, verify);
+	for (i = 0; i < nipols; i++) {
+		ipol[i].vrfid = vrfid;
+		dp_test_crypto_create_policy_verify(&ipol[i], verify);
+	}
+
+	for (i = 0; i < nopols; i++) {
+		opol[i].vrfid = vrfid;
+		dp_test_crypto_create_policy_verify(&opol[i], verify);
+	}
 
 	dp_test_crypto_check_sa_count(VRF_DEFAULT_ID, 0);
 	if (with_vfp == VFP_TRUE)
@@ -866,8 +876,11 @@ static void s2s_common_setup(vrfid_t vrfid,
 
 	if (out_of_order == VRF_XFRM_OUT_OF_ORDER) {
 		s2s_setup_interfaces_finish(vrfid, with_vfp);
-		wait_for_policy(ipol, true);
-		wait_for_policy(opol, true);
+		for (i = 0; i < nipols; i++)
+			wait_for_policy(&ipol[i], true);
+		for (i = 0; i < nopols; i++)
+			wait_for_policy(&opol[i], true);
+
 		wait_for_sa(&input_sa, true);
 		wait_for_sa(&output_sa, true);
 	}
@@ -882,8 +895,11 @@ static void s2s_common_setup6(vrfid_t vrfid,
 			      enum dp_test_crypo_auth_algo auth_algo,
 			      struct dp_test_crypto_policy *ipolicy,
 			      struct dp_test_crypto_policy *opolicy,
+			      uint8_t nipols, uint8_t nopols,
 			      unsigned int mode, enum vfp_presence with_vfp)
 {
+	int i;
+
 	/***************************************************
 	 * Configure underlying topology
 	 */
@@ -893,11 +909,19 @@ static void s2s_common_setup6(vrfid_t vrfid,
 
 	ipol = ipolicy ? ipolicy : &input_policy6;
 	opol = opolicy ? opolicy : &output_policy6;
+	if (!ipolicy)
+		nipols = 1;
+	if (!opolicy)
+		nopols = 1;
+	for (i = 0; i < nipols; i++) {
+		ipol[i].vrfid = vrfid;
+		dp_test_crypto_create_policy(&ipol[i]);
+	}
 
-	ipol->vrfid = vrfid;
-	opol->vrfid = vrfid;
-	dp_test_crypto_create_policy(ipol);
-	dp_test_crypto_create_policy(opol);
+	for (i = 0; i < nopols; i++) {
+		opol[i].vrfid = vrfid;
+		dp_test_crypto_create_policy(&opol[i]);
+	}
 
 	dp_test_crypto_check_sa_count(VRF_DEFAULT_ID, 0);
 	if (with_vfp == VFP_TRUE)
@@ -920,10 +944,14 @@ static void s2s_common_setup6(vrfid_t vrfid,
 static void s2s_common_teardown(vrfid_t vrfid,
 				struct dp_test_crypto_policy *ipolicy,
 				struct dp_test_crypto_policy *opolicy,
+				uint8_t nipols, uint8_t nopols,
 				enum vfp_presence with_vfp,
 				enum vrf_and_xfrm_order out_of_order)
 
 {
+	struct dp_test_crypto_policy *ipol, *opol;
+	int i;
+
 	if (out_of_order == VRF_XFRM_OUT_OF_ORDER) {
 		/*
 		 * Tear down the vrf first, this should cause
@@ -933,11 +961,22 @@ static void s2s_common_teardown(vrfid_t vrfid,
 		return;
 	}
 
+	/* If no policies were supplied use defaults */
+	ipol = ipolicy ? ipolicy : &input_policy;
+	opol = opolicy ? opolicy : &output_policy;
+	if (!ipolicy)
+		nipols = 1;
+	if (!opolicy)
+		nopols = 1;
+
 	dp_test_crypto_delete_sa(&input_sa);
 	dp_test_crypto_delete_sa(&output_sa);
 
-	dp_test_crypto_delete_policy(ipolicy ? ipolicy : &input_policy);
-	dp_test_crypto_delete_policy(opolicy ? opolicy : &output_policy);
+	for (i = 0; i < nipols; i++)
+		dp_test_crypto_delete_policy(&ipol[i]);
+
+	for (i = 0; i < nopols; i++)
+		dp_test_crypto_delete_policy(&opol[i]);
 
 	/***************************************************
 	 * Tear down topology
@@ -949,14 +988,30 @@ static void s2s_common_teardown(vrfid_t vrfid,
 static void s2s_common_teardown6(vrfid_t vrfid,
 				 struct dp_test_crypto_policy *ipolicy,
 				 struct dp_test_crypto_policy *opolicy,
+				 uint8_t nipols, uint8_t nopols,
 				 enum vfp_presence with_vfp)
 
 {
+	struct dp_test_crypto_policy *ipol, *opol;
+	int i;
+
+	/* If no policies were supplied use defaults */
+	ipol = ipolicy ? ipolicy : &input_policy6;
+	opol = opolicy ? opolicy : &output_policy6;
+	if (!ipolicy)
+		nipols = 1;
+	if (!opolicy)
+		nopols = 1;
+
 	dp_test_crypto_delete_sa(&input_sa6);
 	dp_test_crypto_delete_sa(&output_sa6);
 
-	dp_test_crypto_delete_policy(ipolicy ? ipolicy : &input_policy6);
-	dp_test_crypto_delete_policy(opolicy ? opolicy : &output_policy6);
+	for (i = 0; i < nipols; i++)
+		dp_test_crypto_delete_policy(&ipol[i]);
+
+	for (i = 0; i < nopols; i++)
+		dp_test_crypto_delete_policy(&opol[i]);
+
 
 	/***************************************************
 	 * Tear down topology
@@ -1196,7 +1251,7 @@ static void null_encrypt_transport_main(vrfid_t vrfid)
 	int payload_len;
 
 	s2s_common_setup(vrfid, CRYPTO_CIPHER_NULL, CRYPTO_AUTH_NULL,
-			 NULL, NULL,
+			 NULL, NULL, 0, 0,
 			 XFRM_MODE_TRANSPORT, VFP_FALSE, VRF_XFRM_IN_ORDER);
 
 	/*
@@ -1237,7 +1292,8 @@ static void null_encrypt_transport_main(vrfid_t vrfid)
 	dp_test_pak_receive(ping_pkt, "dp1T1", exp);
 	dp_test_crypto_check_sad_packets(vrfid, 1, 64);
 
-	s2s_common_teardown(vrfid, NULL, NULL, VFP_FALSE, VRF_XFRM_IN_ORDER);
+	s2s_common_teardown(vrfid, NULL, NULL, 0, 0,
+			    VFP_FALSE, VRF_XFRM_IN_ORDER);
 }
 
 static void encrypt_aesgcm_main(vrfid_t vrfid)
@@ -1268,7 +1324,7 @@ static void encrypt_aesgcm_main(vrfid_t vrfid)
 
 	s2s_common_setup(vrfid, CRYPTO_CIPHER_AES128GCM,
 			 CRYPTO_AUTH_HMAC_SHA1,
-			 NULL, NULL,
+			 NULL, NULL, 0, 0,
 			 XFRM_MODE_TUNNEL, VFP_FALSE, VRF_XFRM_IN_ORDER);
 
 	/*
@@ -1330,7 +1386,8 @@ static void encrypt_aesgcm_main(vrfid_t vrfid)
 	dp_test_assert_internal(stats_dp2T2.ifi_idropped == 0);
 	dp_test_assert_internal(ifi_odropped(&stats_dp2T2) == 0);
 
-	s2s_common_teardown(vrfid, NULL, NULL, VFP_FALSE, VRF_XFRM_IN_ORDER);
+	s2s_common_teardown(vrfid, NULL, NULL, 0, 0,
+			    VFP_FALSE, VRF_XFRM_IN_ORDER);
 }
 
 static void encrypt_main(vrfid_t vrfid, enum vrf_and_xfrm_order out_of_order)
@@ -1362,7 +1419,7 @@ static void encrypt_main(vrfid_t vrfid, enum vrf_and_xfrm_order out_of_order)
 
 	s2s_common_setup(vrfid, CRYPTO_CIPHER_AES_CBC,
 			 CRYPTO_AUTH_HMAC_SHA1,
-			 NULL, NULL,
+			 NULL, NULL, 0, 0,
 			 XFRM_MODE_TUNNEL, VFP_FALSE, out_of_order);
 
 	/*
@@ -1424,7 +1481,8 @@ static void encrypt_main(vrfid_t vrfid, enum vrf_and_xfrm_order out_of_order)
 	dp_test_assert_internal(stats_dp2T2.ifi_idropped == 0);
 	dp_test_assert_internal(ifi_odropped(&stats_dp2T2) == 0);
 
-	s2s_common_teardown(vrfid, NULL, NULL, VFP_FALSE, out_of_order);
+	s2s_common_teardown(vrfid, NULL, NULL, 0, 0,
+			    VFP_FALSE, out_of_order);
 }
 
 static void encrypt6_main(vrfid_t vrfid)
@@ -1458,7 +1516,7 @@ static void encrypt6_main(vrfid_t vrfid)
 
 	s2s_common_setup6(vrfid, CRYPTO_CIPHER_AES_CBC,
 			  CRYPTO_AUTH_HMAC_SHA1,
-			  NULL, NULL,
+			  NULL, NULL, 0, 0,
 			  XFRM_MODE_TUNNEL, VFP_FALSE);
 
 	/*
@@ -1521,7 +1579,7 @@ static void encrypt6_main(vrfid_t vrfid)
 	dp_test_assert_internal(stats_dp2T2.ifi_idropped == 0);
 	dp_test_assert_internal(ifi_odropped(&stats_dp2T2) == 0);
 
-	s2s_common_teardown6(vrfid, NULL, NULL, VFP_FALSE);
+	s2s_common_teardown6(vrfid, NULL, NULL, 0, 0, VFP_FALSE);
 }
 
 static void bad_hash_algorithm_main(vrfid_t vrfid)
@@ -1532,13 +1590,14 @@ static void bad_hash_algorithm_main(vrfid_t vrfid)
 
 	s2s_common_setup(vrfid, CRYPTO_CIPHER_AES_CBC,
 			 CRYPTO_AUTH_HMAC_XCBC,
-			 NULL, NULL,
+			 NULL, NULL, 0, 0,
 			 XFRM_MODE_TUNNEL, VFP_FALSE, VRF_XFRM_IN_ORDER);
 
 	dp_test_exp_set_fwd_status(exp, DP_TEST_FWD_DROPPED);
 	dp_test_pak_receive(ping, "dp1T1", exp);
 
-	s2s_common_teardown(vrfid, NULL, NULL, VFP_FALSE, VRF_XFRM_IN_ORDER);
+	s2s_common_teardown(vrfid, NULL, NULL, 0, 0,
+			    VFP_FALSE, VRF_XFRM_IN_ORDER);
 }
 
 static void bad_hash_algorithm6_main(vrfid_t vrfid)
@@ -1549,13 +1608,13 @@ static void bad_hash_algorithm6_main(vrfid_t vrfid)
 
 	s2s_common_setup6(vrfid, CRYPTO_CIPHER_AES_CBC,
 			  CRYPTO_AUTH_HMAC_XCBC,
-			  NULL, NULL,
+			  NULL, NULL, 0, 0,
 			  XFRM_MODE_TUNNEL, VFP_FALSE);
 
 	dp_test_exp_set_fwd_status(exp, DP_TEST_FWD_DROPPED);
 	dp_test_pak_receive(ping, "dp1T1", exp);
 
-	s2s_common_teardown6(vrfid, NULL, NULL, VFP_FALSE);
+	s2s_common_teardown6(vrfid, NULL, NULL, 0, 0, VFP_FALSE);
 }
 
 static void null_encrypt_main(vrfid_t vrfid, enum vfp_presence with_vfp)
@@ -1587,7 +1646,7 @@ static void null_encrypt_main(vrfid_t vrfid, enum vfp_presence with_vfp)
 	       sizeof(payload_v4_icmp_null_enc));
 
 	s2s_common_setup(vrfid, CRYPTO_CIPHER_NULL, CRYPTO_AUTH_NULL,
-			 NULL, NULL,
+			 NULL, NULL, 0, 0,
 			 XFRM_MODE_TUNNEL, with_vfp, VRF_XFRM_IN_ORDER);
 
 	/*
@@ -1629,7 +1688,8 @@ static void null_encrypt_main(vrfid_t vrfid, enum vfp_presence with_vfp)
 		dp_test_check_state_show("ifconfig vfp1",
 					 "tx_packets\": 1", false);
 
-	s2s_common_teardown(vrfid, NULL, NULL, with_vfp, VRF_XFRM_IN_ORDER);
+	s2s_common_teardown(vrfid, NULL, NULL, 0, 0,
+			    with_vfp, VRF_XFRM_IN_ORDER);
 }
 
 static void null_encrypt6_transport_main(vrfid_t vrfid)
@@ -1655,7 +1715,7 @@ static void null_encrypt6_transport_main(vrfid_t vrfid)
 	int payload_len;
 
 	s2s_common_setup6(vrfid, CRYPTO_CIPHER_NULL, CRYPTO_AUTH_NULL,
-			  NULL, NULL,
+			  NULL, NULL, 0, 0,
 			  XFRM_MODE_TRANSPORT, VFP_FALSE);
 
 	/*
@@ -1693,7 +1753,7 @@ static void null_encrypt6_transport_main(vrfid_t vrfid)
 	dp_test_pak_receive(ping_pkt, "dp1T1", exp);
 	dp_test_crypto_check_sad_packets(vrfid, 1, 64);
 
-	s2s_common_teardown6(vrfid, NULL, NULL, VFP_FALSE);
+	s2s_common_teardown6(vrfid, NULL, NULL, 0, 0, VFP_FALSE);
 }
 
 static void null_encrypt6_main(vrfid_t vrfid, enum vfp_presence with_vfp)
@@ -1742,7 +1802,7 @@ static void null_encrypt6_main(vrfid_t vrfid, enum vfp_presence with_vfp)
 	int payload_len;
 
 	s2s_common_setup6(vrfid, CRYPTO_CIPHER_NULL, CRYPTO_AUTH_NULL,
-			  NULL, NULL,
+			  NULL, NULL, 0, 0,
 			  XFRM_MODE_TUNNEL, with_vfp);
 
 	/*
@@ -1783,7 +1843,7 @@ static void null_encrypt6_main(vrfid_t vrfid, enum vfp_presence with_vfp)
 		dp_test_check_state_show("ifconfig vfp1",
 					 "tx_packets\": 1", false);
 
-	s2s_common_teardown6(vrfid, NULL, NULL, with_vfp);
+	s2s_common_teardown6(vrfid, NULL, NULL, 0, 0, with_vfp);
 }
 
 static void s2s_toobig6_main(vrfid_t vrfid)
@@ -1798,7 +1858,7 @@ static void s2s_toobig6_main(vrfid_t vrfid)
 
 	s2s_common_setup6(vrfid, CRYPTO_CIPHER_AES_CBC,
 			  CRYPTO_AUTH_HMAC_SHA1,
-			  NULL, NULL,
+			  NULL, NULL, 0, 0,
 			  XFRM_MODE_TUNNEL, VFP_FALSE);
 
 	/*
@@ -1840,7 +1900,7 @@ static void s2s_toobig6_main(vrfid_t vrfid)
 	/* now send test pak and check we get expected back */
 	dp_test_pak_receive(test_pak, "dp1T1", exp);
 
-	s2s_common_teardown6(vrfid, NULL, NULL, VFP_FALSE);
+	s2s_common_teardown6(vrfid, NULL, NULL, 0, 0, VFP_FALSE);
 }
 
 static void null_decrypt_main(vrfid_t vrfid, enum inner_validity valid)
@@ -1853,7 +1913,7 @@ static void null_decrypt_main(vrfid_t vrfid, enum inner_validity valid)
 	int payload_len;
 
 	s2s_common_setup(vrfid, CRYPTO_CIPHER_NULL, CRYPTO_AUTH_NULL,
-			 NULL, NULL,
+			 NULL, NULL, 0, 0,
 			 XFRM_MODE_TUNNEL, VFP_FALSE, VRF_XFRM_IN_ORDER);
 
 	/*
@@ -1959,7 +2019,8 @@ static void null_decrypt_main(vrfid_t vrfid, enum inner_validity valid)
 	dp_test_assert_internal(stats_dp2T2.ifi_idropped == 0);
 	dp_test_assert_internal(ifi_odropped(&stats_dp2T2) == 0);
 
-	s2s_common_teardown(vrfid, NULL, NULL, VFP_FALSE, VRF_XFRM_IN_ORDER);
+	s2s_common_teardown(vrfid, NULL, NULL, 0, 0,
+			    VFP_FALSE, VRF_XFRM_IN_ORDER);
 }
 
 static void null_decrypt_main6(vrfid_t vrfid, enum inner_validity valid)
@@ -1972,7 +2033,7 @@ static void null_decrypt_main6(vrfid_t vrfid, enum inner_validity valid)
 	int payload_len;
 
 	s2s_common_setup6(vrfid, CRYPTO_CIPHER_NULL, CRYPTO_AUTH_NULL,
-			  NULL, NULL,
+			  NULL, NULL, 0, 0,
 			  XFRM_MODE_TUNNEL, VFP_FALSE);
 
 	if (valid == INNER_LOCAL) {
@@ -2078,7 +2139,7 @@ static void null_decrypt_main6(vrfid_t vrfid, enum inner_validity valid)
 	dp_test_assert_internal(stats_dp2T2.ifi_idropped == 0);
 	dp_test_assert_internal(ifi_odropped(&stats_dp2T2) == 0);
 
-	s2s_common_teardown6(vrfid, NULL, NULL, VFP_FALSE);
+	s2s_common_teardown6(vrfid, NULL, NULL, 0, 0, VFP_FALSE);
 }
 
 static void
@@ -2089,6 +2150,7 @@ test_plaintext_packet_matching_input_policy(vrfid_t vrfid,
 					    struct if_data *exp_stats_ifin,
 					    struct dp_test_crypto_policy *ipol,
 					    struct dp_test_crypto_policy *opol,
+					    uint8_t nipols, uint8_t nopols,
 					    const char *saddr,
 					    const char *daddr,
 					    uint16_t udp_port,
@@ -2105,7 +2167,7 @@ test_plaintext_packet_matching_input_policy(vrfid_t vrfid,
 	s2s_common_setup(vrfid,
 			 CRYPTO_CIPHER_AES_CBC,
 			 CRYPTO_AUTH_HMAC_SHA1,
-			 ipol, opol,
+			 ipol, opol, nipols, nopols,
 			 XFRM_MODE_TUNNEL, VFP_FALSE, VRF_XFRM_IN_ORDER);
 
 	pkt = dp_test_create_udp_ipv4_pak(saddr, daddr, udp_port, udp_port,
@@ -2151,7 +2213,8 @@ test_plaintext_packet_matching_input_policy(vrfid_t vrfid,
 	inp2 = dp_test_get_vrf_stat(vrfid, AF_INET, IPSTATS_MIB_INPKTS);
 	dp_test_verify_vrf_stats(inp, inp2, dis, dis2, del, del2, exp_status);
 
-	s2s_common_teardown(vrfid, ipol, opol, VFP_FALSE, VRF_XFRM_IN_ORDER);
+	s2s_common_teardown(vrfid, ipol, opol, nipols, nopols,
+			    VFP_FALSE, VRF_XFRM_IN_ORDER);
 }
 
 static void drop_plaintext_packet_matching_input_policy_main(vrfid_t vrfid)
@@ -2165,7 +2228,7 @@ static void drop_plaintext_packet_matching_input_policy_main(vrfid_t vrfid)
 						    "dp1T1", "dp2T2",
 						    &exp_stats_ifout,
 						    &exp_stats_ifin,
-						    NULL, NULL,
+						    NULL, NULL, 0, 0,
 						    CLIENT_REMOTE,
 						    CLIENT_LOCAL,
 						    0,
@@ -2195,7 +2258,7 @@ static void drop_plaintext_local_pkt_match_inpolicy(vrfid_t vrfid)
 						    "dp1T1", "dp2T2",
 						    &exp_stats_ifout,
 						    &exp_stats_ifin,
-						    &my_ipol, &my_opol,
+						    &my_ipol, &my_opol, 1, 1,
 						    CLIENT_REMOTE,
 						    PORT_EAST,
 						    0,
@@ -2211,7 +2274,7 @@ static void drop_plaintext_local_pkt_match_inpolicy(vrfid_t vrfid)
 						    "dp1T1", "dp2T2",
 						    &exp_stats_ifout,
 						    &exp_stats_ifin,
-						    &my_ipol, &my_opol,
+						    &my_ipol, &my_opol, 1, 1,
 						    CLIENT_REMOTE,
 						    PORT_EAST,
 						    500,
@@ -2240,7 +2303,7 @@ static void rx_plaintext_local_pkt_notmatch_inpolicy(vrfid_t vrfid)
 						    "dp2T2", "dp1T1",
 						    &exp_stats_ifout,
 						    &exp_stats_ifin,
-						    &my_ipol, &my_opol,
+						    &my_ipol, &my_opol, 1, 1,
 						    CLIENT_REMOTE,
 						    PORT_WEST,
 						    0,
@@ -2255,6 +2318,7 @@ test_plaintext_packet_matching_input_policy6(vrfid_t vrfid,
 					     struct if_data *exp_stats_ifin,
 					     struct dp_test_crypto_policy *ipol,
 					     struct dp_test_crypto_policy *opol,
+					     uint8_t nipols, uint8_t nopols,
 					     const char *saddr,
 					     const char *daddr,
 					     uint16_t udp_port,
@@ -2270,7 +2334,7 @@ test_plaintext_packet_matching_input_policy6(vrfid_t vrfid,
 
 	s2s_common_setup6(vrfid, CRYPTO_CIPHER_AES_CBC,
 			  CRYPTO_AUTH_HMAC_SHA1,
-			  ipol, opol,
+			  ipol, opol, nipols, nopols,
 			  XFRM_MODE_TUNNEL, VFP_FALSE);
 
 	pkt = dp_test_create_udp_ipv6_pak(saddr, daddr, udp_port, udp_port,
@@ -2315,7 +2379,7 @@ test_plaintext_packet_matching_input_policy6(vrfid_t vrfid,
 	inp2 = dp_test_get_vrf_stat(vrfid, AF_INET6, IPSTATS_MIB_INPKTS);
 	dp_test_verify_vrf_stats(inp, inp2, dis, dis2, del, del2, exp_status);
 
-	s2s_common_teardown6(vrfid, ipol, opol, VFP_FALSE);
+	s2s_common_teardown6(vrfid, ipol, opol, nipols, nopols, VFP_FALSE);
 }
 
 static void drop_plaintext_packet_matching_input_policy6_main(vrfid_t vrfid)
@@ -2329,7 +2393,7 @@ static void drop_plaintext_packet_matching_input_policy6_main(vrfid_t vrfid)
 						     "dp1T1", "dp2T2",
 						     &exp_stats_ifout,
 						     &exp_stats_ifin,
-						     NULL, NULL,
+						     NULL, NULL, 0, 0,
 						     CLIENT_REMOTE6,
 						     CLIENT_LOCAL6,
 						     0,
@@ -2359,7 +2423,7 @@ static void drop_plaintext_local_pkt_match_inpolicy6(vrfid_t vrfid)
 						     "dp1T1", "dp2T2",
 						    &exp_stats_ifout,
 						    &exp_stats_ifin,
-						    &my_ipol, &my_opol,
+						     &my_ipol, &my_opol, 1, 1,
 						    CLIENT_REMOTE6,
 						    PORT_EAST6,
 						    0,
@@ -2375,7 +2439,7 @@ static void drop_plaintext_local_pkt_match_inpolicy6(vrfid_t vrfid)
 						    "dp1T1", "dp2T2",
 						    &exp_stats_ifout,
 						    &exp_stats_ifin,
-						    &my_ipol, &my_opol,
+						    &my_ipol, &my_opol, 1, 1,
 						    CLIENT_REMOTE6,
 						    PORT_EAST6,
 						    500,
@@ -2404,7 +2468,153 @@ static void rx_plaintext_local_pkt_notmatch_inpolicy6(vrfid_t vrfid)
 						     "dp2T2", "dp1T1",
 						    &exp_stats_ifout,
 						    &exp_stats_ifin,
-						    &my_ipol, &my_opol,
+						    &my_ipol, &my_opol, 1, 1,
+						    CLIENT_REMOTE6,
+						    PORT_WEST6,
+						    0,
+						    DP_TEST_FWD_LOCAL);
+}
+
+static void rx_match_policy_proto(vrfid_t vrfid)
+{
+	struct if_data exp_stats_ifout = {0}, exp_stats_ifin = {0};
+
+	struct dp_test_crypto_policy my_opol = output_policy;
+
+	exp_stats_ifin.ifi_ipackets = 1;
+
+	/*
+	 * Add multiple policies to verify that we don't wrongly
+	 * match a policy with the wrong protocol.
+	 */
+	static struct dp_test_crypto_policy my_ipol[3] = {
+		{
+		.d_prefix = NETWORK_WEST,
+		.s_prefix = NETWORK_REMOTE,
+		.proto = IPPROTO_UDP - 1,
+		.dst = PORT_EAST,
+		.dst_family = AF_INET,
+		.dir = XFRM_POLICY_IN,
+		.family = AF_INET,
+		.reqid = TUNNEL_REQID,
+		.priority = 0,
+		.mark = 0,
+		.vrfid = VRF_DEFAULT_ID,
+		.action = XFRM_POLICY_BLOCK,
+		},
+		{
+		.d_prefix = NETWORK_WEST,
+		.s_prefix = NETWORK_REMOTE,
+		.proto = IPPROTO_UDP,
+		.dst = PORT_EAST,
+		.dst_family = AF_INET,
+		.dir = XFRM_POLICY_IN,
+		.family = AF_INET,
+		.reqid = TUNNEL_REQID,
+		.priority = 0,
+		.mark = 0,
+		.vrfid = VRF_DEFAULT_ID,
+		.action = XFRM_POLICY_ALLOW,
+		.passthrough = TRUE
+		},
+		{
+		.d_prefix = NETWORK_WEST,
+		.s_prefix = NETWORK_REMOTE,
+		.proto = IPPROTO_UDP + 1,
+		.dst = PORT_EAST,
+		.dst_family = AF_INET,
+		.dir = XFRM_POLICY_IN,
+		.family = AF_INET,
+		.reqid = TUNNEL_REQID,
+		.priority = 0,
+		.mark = 0,
+		.vrfid = VRF_DEFAULT_ID,
+		.action = XFRM_POLICY_BLOCK,
+		},
+	};
+
+	my_opol.proto = IPPROTO_TCP;
+	my_opol.s_prefix = NETWORK_WEST;
+	my_opol.d_prefix = NETWORK_REMOTE;
+
+	test_plaintext_packet_matching_input_policy(vrfid,
+						    "dp2T2", "dp1T1",
+						    &exp_stats_ifout,
+						    &exp_stats_ifin,
+						    my_ipol, &my_opol, 3, 1,
+						    CLIENT_REMOTE,
+						    PORT_WEST,
+						    0,
+						    DP_TEST_FWD_LOCAL);
+}
+
+static void rx_match_policy_proto6(vrfid_t vrfid)
+{
+	struct if_data exp_stats_ifout = {0}, exp_stats_ifin = {0};
+
+	struct dp_test_crypto_policy my_opol = output_policy6;
+
+	exp_stats_ifin.ifi_ipackets = 1;
+
+	/*
+	 * Add multiple policies to verify that we don't wrongly
+	 * match a policy with the wrong protocol.
+	 */
+	static struct dp_test_crypto_policy my_ipol[3] = {
+		{
+		.d_prefix = NETWORK_WEST6,
+		.s_prefix = NETWORK_REMOTE6,
+		.proto = IPPROTO_UDP - 1,
+		.dst = PORT_EAST6,
+		.dst_family = AF_INET6,
+		.dir = XFRM_POLICY_IN,
+		.family = AF_INET6,
+		.reqid = TUNNEL_REQID,
+		.priority = 0,
+		.mark = 0,
+		.vrfid = VRF_DEFAULT_ID,
+		.action = XFRM_POLICY_BLOCK,
+		},
+		{
+		.d_prefix = NETWORK_WEST6,
+		.s_prefix = NETWORK_REMOTE6,
+		.proto = IPPROTO_UDP,
+		.dst = PORT_EAST6,
+		.dst_family = AF_INET6,
+		.dir = XFRM_POLICY_IN,
+		.family = AF_INET6,
+		.reqid = TUNNEL_REQID,
+		.priority = 0,
+		.mark = 0,
+		.vrfid = VRF_DEFAULT_ID,
+		.action = XFRM_POLICY_ALLOW,
+		.passthrough = TRUE
+		},
+		{
+		.d_prefix = NETWORK_WEST6,
+		.s_prefix = NETWORK_REMOTE6,
+		.proto = IPPROTO_UDP + 1,
+		.dst = PORT_EAST6,
+		.dst_family = AF_INET6,
+		.dir = XFRM_POLICY_IN,
+		.family = AF_INET6,
+		.reqid = TUNNEL_REQID,
+		.priority = 0,
+		.mark = 0,
+		.vrfid = VRF_DEFAULT_ID,
+		.action = XFRM_POLICY_BLOCK,
+		},
+	};
+
+	my_opol.proto = IPPROTO_TCP;
+	my_opol.s_prefix = NETWORK_WEST6;
+	my_opol.d_prefix = NETWORK_REMOTE6;
+
+	test_plaintext_packet_matching_input_policy6(vrfid,
+						    "dp2T2", "dp1T1",
+						    &exp_stats_ifout,
+						    &exp_stats_ifin,
+						    my_ipol, &my_opol, 3, 1,
 						    CLIENT_REMOTE6,
 						    PORT_WEST6,
 						    0,
@@ -2606,6 +2816,26 @@ DP_START_TEST_FULL_RUN(decryption, drop_plaintext_local_pkt_match_inpolicy)
 DP_START_TEST_FULL_RUN(decryption, rx_plaintext_local_pkt_notmatch_inpolicy)
 {
 	rx_plaintext_local_pkt_notmatch_inpolicy(VRF_DEFAULT_ID);
+} DP_END_TEST;
+
+DP_START_TEST_FULL_RUN(decryption, rx_match_policy_proto)
+{
+	rx_match_policy_proto(VRF_DEFAULT_ID);
+} DP_END_TEST;
+
+DP_START_TEST_FULL_RUN(decryption, rx_match_policy_proto_vrf)
+{
+	rx_match_policy_proto(TEST_VRF);
+} DP_END_TEST;
+
+DP_START_TEST(decryption, rx_match_policy_proto6)
+{
+	rx_match_policy_proto6(VRF_DEFAULT_ID);
+} DP_END_TEST;
+
+DP_START_TEST(decryption, rx_match_policy_proto6_vrf)
+{
+	rx_match_policy_proto6(TEST_VRF);
 } DP_END_TEST;
 
 /*
