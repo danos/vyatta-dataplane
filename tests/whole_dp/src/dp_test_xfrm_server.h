@@ -15,6 +15,7 @@
 #define MAX_XFRM_SOCKET_NAME_SIZE 48
 
 extern zsock_t *xfrm_server_push_sock;
+extern uint32_t xfrm_seq;
 extern uint32_t xfrm_seq_received;
 
 void dp_test_xfrm_server_thread_run(zsock_t *pipe, void *args);

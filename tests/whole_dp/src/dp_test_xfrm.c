@@ -66,12 +66,16 @@ DP_START_TEST(xfrm_policy, create_two_policies)
 	dp_test_crypto_create_policy(&input_policy);
 	dp_test_crypto_create_policy(&output_policy);
 
+	dp_test_crypto_check_policy_count(VRF_DEFAULT_ID, 2, AF_INET);
+
 	dp_test_check_state_show("ipsec spd", "\"ipv4\": 2", false);
 
 	dp_test_crypto_delete_policy(&input_policy);
 	dp_test_crypto_delete_policy(&output_policy);
 
 	dp_test_check_state_show("ipsec spd", "\"ipv4\": 0", false);
+
+	dp_test_crypto_check_policy_count(VRF_DEFAULT_ID, 0, AF_INET);
 
 } DP_END_TEST;
 
@@ -117,6 +121,8 @@ DP_START_TEST(xfrm_policy, create_two_policies_vrf)
 	dp_test_crypto_create_policy(&input_policy);
 	dp_test_crypto_create_policy(&output_policy);
 
+	dp_test_crypto_check_policy_count(TEST_VRF, 2, AF_INET);
+
 	dp_test_check_state_show("ipsec spd", "\"ipv4\": 0", false);
 	vrfid = dp_test_translate_vrf_id(TEST_VRF);
 	snprintf(cmd_str, sizeof(cmd_str), "ipsec spd vrf_id %d", vrfid);
@@ -124,6 +130,8 @@ DP_START_TEST(xfrm_policy, create_two_policies_vrf)
 
 	dp_test_crypto_delete_policy(&input_policy);
 	dp_test_crypto_delete_policy(&output_policy);
+
+	dp_test_crypto_check_policy_count(TEST_VRF, 0, AF_INET);
 
 	dp_test_check_state_show(cmd_str, "\"ipv4\": 0", false);
 	dp_test_nl_del_ip_addr_and_connected_vrf("dp1T0", "16.1.1.1/24",

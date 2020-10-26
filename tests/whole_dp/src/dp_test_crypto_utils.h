@@ -181,4 +181,7 @@ generate_exp_unreachable6(struct rte_mbuf *input_pkt, int payload_len,
 			 const char *source_ip, const char *dest_ip,
 			 const char *oif, const char *dmac);
 
+#define dp_test_crypto_check_xfrm_acks()			\
+	_dp_test_crypto_check_xfrm_acks(__FILE__, __LINE__)
+
 #endif /*_DP_TEST_CRYPTO_UTILS_H_ */
