@@ -967,6 +967,17 @@ try_default:
 	}
 }
 
+static void lpm_tracker_call_cbs(struct lpm_rule *rule)
+{
+	struct rt_tracker_info *ti_iter, *next;
+
+	if (rule->tracker_count == 0)
+		return;
+
+	RB_FOREACH_SAFE(ti_iter, lpm_tracker_tree, &rule->tracker_head, next)
+		ti_iter->rti_cb_func(ti_iter);
+}
+
 int lpm_tracker_get_cover_ip_and_depth(struct rt_tracker_info *ti_info,
 				       uint32_t *ip,
 				       uint8_t *depth)
@@ -1376,11 +1387,17 @@ lpm_delete_all(struct lpm *lpm, lpm_walk_func_t func, void *arg)
 	for (depth = 0; depth < LPM_MAX_DEPTH; ++depth) {
 		struct lpm_rules_tree *head = &lpm->rules[depth];
 		struct lpm_rule *r, *n;
+		struct lpm_walk_params params;
 
 		RB_FOREACH_SAFE(r, lpm_rules_tree, head, n) {
-			if (func)
-				func(lpm, r->ip, depth, r->scope,
-				     r->next_hop, &r->pd_state, arg);
+			if (func) {
+				params.ip = r->ip;
+				params.depth = depth;
+				params.scope = r->scope;
+				params.next_hop = r->next_hop;
+
+				func(lpm, &params, &r->pd_state, arg);
+			}
 			rule_delete(lpm, r, depth);
 		}
 	}
@@ -1398,6 +1415,7 @@ lpm_walk(struct lpm *lpm, lpm_walk_func_t func,
 	uint32_t rule_cnt = 0;
 	uint32_t ip_masked;
 	bool len_match = true;
+	struct lpm_walk_params params;
 
 	for (; depth < LPM_MAX_DEPTH; depth++) {
 		struct lpm_rule *r, *n;
@@ -1417,8 +1435,16 @@ lpm_walk(struct lpm *lpm, lpm_walk_func_t func,
 			continue;
 
 		RB_FOREACH_FROM(r, lpm_rules_tree, n) {
-			func(lpm, r->ip, depth, r->scope, r->next_hop,
-			     &r->pd_state, r_arg->walk_arg);
+			params.ip = r->ip;
+			params.depth = depth;
+			params.scope = r->scope;
+			params.next_hop = r->next_hop;
+			params.call_tracker_cbs = false;
+
+			func(lpm, &params, &r->pd_state, r_arg->walk_arg);
+
+			if (params.call_tracker_cbs)
+				lpm_tracker_call_cbs(r);
 			if (r_arg->is_segment && (++rule_cnt == r_arg->cnt))
 				return rule_cnt;
 		}

@@ -1603,14 +1603,11 @@ err:
 }
 
 /* Gleaner for the next hop */
-static void flush6_cleanup(const uint8_t *prefix __rte_unused,
-			   uint32_t pr_len __rte_unused,
-			   int16_t scope __rte_unused,
-			   uint32_t next_hop,
+static void flush6_cleanup(struct lpm6_walk_params *params,
 			   struct pd_obj_state_and_flags *pd_state __rte_unused,
 			   void *arg __rte_unused)
 {
-	nexthop_put(AF_INET6, next_hop);
+	nexthop_put(AF_INET6, params->next_hop);
 }
 
 static void rt6_flush(struct vrf *vrf)
@@ -1791,14 +1788,13 @@ static void __rt6_display(json_writer_t *json, const uint8_t *addr,
 /*
  * Walk FIB table.
  */
-static void rt6_display(const uint8_t *addr, uint32_t prefix_len, int16_t scope,
-			uint32_t next_hop,
+static void rt6_display(struct lpm6_walk_params *params,
 			struct pd_obj_state_and_flags *pd_state __rte_unused,
 			void *arg)
 {
 	json_writer_t *json = arg;
 	const struct next_hop_list *nextl =
-		rcu_dereference(nh6_tbl.entry[next_hop]);
+		rcu_dereference(nh6_tbl.entry[params->next_hop]);
 	const struct next_hop *next;
 
 	if (unlikely(!nextl))
@@ -1813,45 +1809,45 @@ static void rt6_display(const uint8_t *addr, uint32_t prefix_len, int16_t scope,
 	if (next_hop_list_nc_count(nextl))
 		return;
 
-	if (rt6_is_reserved(addr, prefix_len, scope))
+	if (rt6_is_reserved(params->prefix, params->pr_len, params->scope))
 		return;
 
-	__rt6_display(json, addr, prefix_len, scope, nextl, next_hop);
+	__rt6_display(json, params->prefix, params->pr_len, params->scope,
+		      nextl, params->next_hop);
 }
 
-static void rt6_display_all(const uint8_t *addr, uint32_t prefix_len,
-			    int16_t scope, uint32_t next_hop,
+static void rt6_display_all(struct lpm6_walk_params *params,
 			    struct pd_obj_state_and_flags *pd_state __rte_unused,
 			    void *arg)
 {
 	json_writer_t *json = arg;
 	const struct next_hop_list *nextl =
-		rcu_dereference(nh6_tbl.entry[next_hop]);
+		rcu_dereference(nh6_tbl.entry[params->next_hop]);
 
 	if (unlikely(!nextl))
 		return;
-	__rt6_display(json, addr, prefix_len, scope, nextl, next_hop);
+	__rt6_display(json, params->prefix, params->pr_len, params->scope,
+		      nextl, params->next_hop);
 }
 
 static void rt6_local_display(
-	const uint8_t *addr,
-	uint32_t prefix_len,
-	int16_t scope, uint32_t next_hop,
+	struct lpm6_walk_params *params,
 	struct pd_obj_state_and_flags *pd_state __rte_unused,
 	void *arg)
 {
 	FILE *f = arg;
 	char b1[INET6_ADDRSTRLEN];
 	const struct next_hop_list *nextl =
-		rcu_dereference(nh6_tbl.entry[next_hop]);
+		rcu_dereference(nh6_tbl.entry[params->next_hop]);
 	const struct next_hop *next;
 
 	if (unlikely(!nextl))
 		return;
 	next = rcu_dereference(nextl->siblings);
 	if (next->flags & RTF_LOCAL &&
-	    !rt6_is_reserved(addr, prefix_len, scope))
-		fprintf(f, "\t%s\n", inet_ntop(AF_INET6, addr, b1, sizeof(b1)));
+	    !rt6_is_reserved(params->prefix, params->pr_len, params->scope))
+		fprintf(f, "\t%s\n", inet_ntop(AF_INET6, params->prefix,
+					       b1, sizeof(b1)));
 }
 
 /* Route rule list (RB-tree) is not RCU safe */
@@ -1886,27 +1882,24 @@ struct rt6_vrf_lpm_walk_ctx {
 	struct vrf *vrf;
 	uint32_t table_id;
 	void (*func)(struct vrf *vrf, uint32_t table_id,
-		     const uint8_t *addr, uint32_t prefix_len,
-		     int16_t scope, uint32_t next_hop,
+		     struct lpm6_walk_params *params,
 		     struct pd_obj_state_and_flags *pd_state, void *arg);
 	void *arg;
 };
 
-static void rt6_vrf_lpm_walk_cb(const uint8_t *addr, uint32_t prefix_len,
-				int16_t scope, uint32_t next_hop,
+static void rt6_vrf_lpm_walk_cb(struct lpm6_walk_params *params,
 				struct pd_obj_state_and_flags *pd_state,
 				void *arg)
 {
 	const struct rt6_vrf_lpm_walk_ctx *ctx = arg;
 
-	ctx->func(ctx->vrf, ctx->table_id, addr, prefix_len, scope, next_hop,
+	ctx->func(ctx->vrf, ctx->table_id, params,
 		  pd_state, ctx->arg);
 }
 
 static void rt6_lpm_walk_util(
 	void (*func)(struct vrf *vrf, uint32_t table_id,
-		     const uint8_t *addr, uint32_t prefix_len,
-		     int16_t scope, uint32_t next_hop,
+		     struct lpm6_walk_params *params,
 		     struct pd_obj_state_and_flags *pd_state,
 		     void *arg),
 	void *arg)
@@ -1933,13 +1926,12 @@ static void rt6_lpm_walk_util(
 }
 
 static void rt6_if_dead(struct vrf *vrf, uint32_t table_id,
-			const uint8_t *addr, uint32_t prefix_len,
-			int16_t scope, uint32_t next_hop,
+			struct lpm6_walk_params *params,
 			struct pd_obj_state_and_flags *pd_state __rte_unused,
 			void *arg)
 {
 	struct next_hop_list *nextl =
-		rcu_dereference(nh6_tbl.entry[next_hop]);
+		rcu_dereference(nh6_tbl.entry[params->next_hop]);
 	const struct ifnet *ifp = arg;
 	unsigned int i, matches = 0;
 	struct in6_addr inaddr;
@@ -1969,24 +1961,21 @@ static void rt6_if_dead(struct vrf *vrf, uint32_t table_id,
 	 * behaviour.
 	 */
 	lpm = rcu_dereference(vrf->v_rt6_head.rt6_table[table_id]);
-	memcpy(&inaddr.s6_addr, addr, sizeof(inaddr.s6_addr));
+	memcpy(&inaddr.s6_addr, &params->prefix, sizeof(inaddr.s6_addr));
 	route_lpm6_delete(vrf->v_id, lpm, &inaddr,
-			      prefix_len, NULL, scope);
-	nexthop_put(AF_INET6, next_hop);
+			  params->pr_len, NULL, params->scope);
+	nexthop_put(AF_INET6, params->next_hop);
 }
 
 static void rt6_if_clear_slowpath_flag(
 	struct vrf *vrf __unused,
 	uint32_t table_id __unused,
-	const uint8_t *addr __unused,
-	uint32_t prefix_len __unused,
-	int16_t scope __unused,
-	uint32_t next_hop,
+	struct lpm6_walk_params *params,
 	struct pd_obj_state_and_flags *pd_state __rte_unused,
 	void *arg)
 {
 	const struct next_hop_list *nextl =
-		rcu_dereference(nh6_tbl.entry[next_hop]);
+		rcu_dereference(nh6_tbl.entry[params->next_hop]);
 	const struct ifnet *ifp = arg;
 	unsigned int i;
 
@@ -2001,14 +1990,12 @@ static void rt6_if_clear_slowpath_flag(
 static void rt6_if_set_slowpath_flag(
 	struct vrf *vrf __unused,
 	uint32_t table_id __unused,
-	const uint8_t *addr __unused,
-	uint32_t prefix_len __unused,
-	int16_t scope __unused, uint32_t next_hop,
+	struct lpm6_walk_params *params,
 	struct pd_obj_state_and_flags *pd_state __rte_unused,
 	void *arg)
 {
 	const struct next_hop_list *nextl =
-		rcu_dereference(nh6_tbl.entry[next_hop]);
+		rcu_dereference(nh6_tbl.entry[params->next_hop]);
 	const struct ifnet *ifp = arg;
 	unsigned int i;
 
@@ -2108,9 +2095,7 @@ void rt6_local_show(struct route6_head *rt6_head, FILE *f)
 	lpm6_walk_all_safe(lpm, rt6_local_display, f);
 }
 
-static void rt6_summarize(const uint8_t *addr,
-			  uint32_t prefix_len, int16_t scope,
-			  uint32_t next_hop,
+static void rt6_summarize(struct lpm6_walk_params *params,
 			  struct pd_obj_state_and_flags *pd_state __rte_unused,
 			  void *arg __rte_unused)
 {
@@ -2118,7 +2103,7 @@ static void rt6_summarize(const uint8_t *addr,
 	const struct next_hop *nh;
 	uint32_t *rt_used = arg;
 
-	nextl = rcu_dereference(nh6_tbl.entry[next_hop]);
+	nextl = rcu_dereference(nh6_tbl.entry[params->next_hop]);
 	if (unlikely(!nextl))
 		return;
 
@@ -2127,10 +2112,10 @@ static void rt6_summarize(const uint8_t *addr,
 	if (nh->flags & RTF_LOCAL)
 		return;
 
-	if (rt6_is_reserved(addr, prefix_len, scope))
+	if (rt6_is_reserved(params->prefix, params->pr_len, params->scope))
 		return;
 
-	++rt_used[prefix_len];
+	++rt_used[params->pr_len];
 }
 
 static int rt6_stats(struct route6_head *rt6_head, json_writer_t *json,
@@ -2776,8 +2761,7 @@ struct rt6_show_subset {
 };
 
 static void rt6_show_subset(struct vrf *vrf, uint32_t tableid,
-			    const uint8_t *ip, uint32_t depth, int16_t scope,
-			    uint32_t idx,
+			    struct lpm6_walk_params *params,
 			    struct pd_obj_state_and_flags *pd_state,
 			    void *arg)
 {
@@ -2794,8 +2778,7 @@ static void rt6_show_subset(struct vrf *vrf, uint32_t tableid,
 	}
 
 	if (subset->subset == pd_state->state)
-		rt6_display_all(ip, depth, scope, idx, pd_state,
-				subset->json);
+		rt6_display_all(params, pd_state, subset->json);
 }
 
 
@@ -2814,8 +2797,7 @@ int route6_get_pd_subset_data(json_writer_t *json,
 
 static void route6_fal_upd_for_changed_nhl(
 	struct vrf *vrf, uint32_t table_id,
-	const uint8_t *addr, uint32_t prefix_len,
-	int16_t scope __unused, uint32_t next_hop,
+	struct lpm6_walk_params *params,
 	struct pd_obj_state_and_flags *pd_state,
 	void *arg)
 {
@@ -2823,21 +2805,25 @@ static void route6_fal_upd_for_changed_nhl(
 	struct in6_addr ip;
 	int rc;
 
-	if (next_hop != *filter_nhl_index)
+	if (params->next_hop != *filter_nhl_index)
 		return;
 
 	if (pd_state->state != PD_OBJ_STATE_FULL)
 		return;
 
-	struct next_hop_list *nextl = rcu_dereference(nh6_tbl.entry[next_hop]);
+	struct next_hop_list *nextl =
+		rcu_dereference(nh6_tbl.entry[params->next_hop]);
 
-	memcpy(&ip.s6_addr, addr, sizeof(ip.s6_addr));
+	memcpy(&ip.s6_addr, params->prefix, sizeof(ip.s6_addr));
 
-	rc = fal_ip6_upd_route(vrf->v_id, &ip, prefix_len,
+	rc = fal_ip6_upd_route(vrf->v_id, &ip, params->pr_len,
 			       table_id, nextl->siblings,
 			       nextl->nsiblings, nextl->nhg_fal_obj);
 
 	pd_state->state = fal_state_to_pd_state(rc);
+
+	/* Kick trackers so that clients can learn about FAL changes */
+	params->call_tracker_cbs = true;
 }
 
 static void

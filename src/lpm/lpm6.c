@@ -1439,6 +1439,16 @@ lpm6_delete(struct lpm6 *lpm, const uint8_t *ip, uint8_t depth,
 	return rc;
 }
 
+static void lpm6_tracker_call_cbs(struct lpm6_rule *rule)
+{
+	struct rt_tracker_info *ti_iter, *next;
+
+	if (rule->tracker_count == 0)
+		return;
+
+	RB_FOREACH_SAFE(ti_iter, lpm6_tracker_tree, &rule->tracker_head, next)
+		ti_iter->rti_cb_func(ti_iter);
+}
 
 /*
  * Delete all rules from the LPM table.
@@ -1465,11 +1475,17 @@ lpm6_delete_all(struct lpm6 *lpm, lpm6_walk_func_t func, void *arg)
 	for (depth = 0; depth <= LPM6_MAX_DEPTH; ++depth) {
 		struct lpm6_rules_tree *head = &lpm->rules[depth];
 		struct lpm6_rule *r, *n;
+		struct lpm6_walk_params params;
 
 		RB_FOREACH_SAFE(r, lpm6_rules_tree, head, n) {
-			if (func)
-				func(r->ip, depth, r->scope, r->next_hop,
-				     &r->pd_state, arg);
+			if (func) {
+				memcpy(&params.prefix, r->ip,
+				       LPM6_IPV6_ADDR_SIZE);
+				params.pr_len = depth;
+				params.scope = r->scope;
+				params.next_hop = r->next_hop;
+				func(&params, &r->pd_state, arg);
+			}
 			rule_delete(lpm, r, depth);
 		}
 	}
@@ -1486,6 +1502,7 @@ lpm6_walk(struct lpm6 *lpm, lpm6_walk_func_t func,
 
 	for (; depth <= LPM6_MAX_DEPTH; ++depth) {
 		struct lpm6_rule *r, *n;
+		struct lpm6_walk_params params;
 
 		if (r_arg->get_next && len_match) {
 			mask_ip6(masked_ip, r_arg->addr.s6_addr, depth);
@@ -1502,11 +1519,16 @@ lpm6_walk(struct lpm6 *lpm, lpm6_walk_func_t func,
 			continue;
 
 		RB_FOREACH_FROM(r, lpm6_rules_tree, n) {
-			uint8_t tmp_ip[LPM6_IPV6_ADDR_SIZE];
-			memcpy(tmp_ip, r->ip, sizeof(tmp_ip));
+			memcpy(&params.prefix, r->ip, LPM6_IPV6_ADDR_SIZE);
+			params.pr_len = depth;
+			params.scope = r->scope;
+			params.next_hop = r->next_hop;
+			params.call_tracker_cbs = false;
 
-			func(tmp_ip, depth, r->scope, r->next_hop,
-			     &r->pd_state, r_arg->walk_arg);
+			func(&params, &r->pd_state, r_arg->walk_arg);
+			if (params.call_tracker_cbs)
+				lpm6_tracker_call_cbs(r);
+
 			if (r_arg->is_segment && (++rule_cnt == r_arg->cnt))
 				return rule_cnt;
 		}
@@ -1745,7 +1767,6 @@ try_default:
 		return;
 	}
 }
-
 
 int lpm6_tracker_get_cover_ip_and_depth(struct rt_tracker_info *ti_info,
 					uint8_t *ip,
