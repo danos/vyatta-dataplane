@@ -66,6 +66,7 @@
 #include "vplane_debug.h"
 #include "vplane_log.h"
 #include "vrf_internal.h"
+#include "crypto/xfrm_client.h"
 #include "zmq_dp.h"
 
 /* Frequency of updates to soft_ticks */
@@ -400,6 +401,7 @@ static void main_cleanup(enum cont_src_en cont_src)
 	console_unbind(cont_src);
 	controller_unsubscribe(cont_src);
 	route_broker_unsubscribe(cont_src);
+	xfrm_client_unsubscribe();
 	cleanup_requests(cont_src);
 }
 
@@ -918,6 +920,9 @@ static bool process_async_response(enum cont_src_en cont_src, zmsg_t *msg)
 			main_state_set(cont_src, MAIN_READY);
 			controller_init_event_handler(cont_src);
 			route_broker_init_event_handler(cont_src);
+			rc = xfrm_client_init();
+			if (rc < 0)
+				reset_dataplane(cont_src, true);
 		}
 
 		return true;
@@ -1279,6 +1284,7 @@ main_destroy_src(enum cont_src_en cont_src)
 	destroy_requests(cont_src);
 	controller_unsubscribe(cont_src);
 	route_broker_unsubscribe(cont_src);
+	xfrm_client_unsubscribe();
 }
 
 static void main_control_intf(struct ifnet *ifp, uint8_t family,
