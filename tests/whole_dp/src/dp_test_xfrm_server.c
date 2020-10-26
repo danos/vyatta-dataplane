@@ -14,6 +14,7 @@
 #include <libmnl/libmnl.h>
 
 #include "dp_test_controller.h"
+#include "dp_test_lib_internal.h"
 #include "dp_test_xfrm_server.h"
 #include "util.h"
 #include "zmq_dp.h"
@@ -51,6 +52,7 @@ static void process_xfrm_ack_message(zsock_t *sock)
 	assert(msg);
 	nlh = (struct nlmsghdr *)zframe_data(msg);
 	dp_test_assert_internal(nlh);
+
 	/* Netlink ACK/OK are carried in Error messages*/
 	dp_test_assert_internal(nlh->nlmsg_type == NLMSG_ERROR);
 	err_msg = mnl_nlmsg_get_payload(nlh);
@@ -98,6 +100,10 @@ dp_test_xfrm_server_thread_run(zsock_t *pipe, void *args)
 			.socket = zsock_resolve(pipe),
 			.events = ZMQ_POLLIN|ZMQ_POLLERR,
 		},
+		{
+			.socket = zsock_resolve(xfrm_server_pull_sock),
+			.events = ZMQ_POLLIN
+		},
 	};
 	int item_count = ARRAY_SIZE(items);
 
@@ -116,6 +122,8 @@ dp_test_xfrm_server_thread_run(zsock_t *pipe, void *args)
 			if (process_xfrm_actor_message(pipe))
 				break;
 
+		if (items[1].revents & ZMQ_POLLIN)
+			process_xfrm_ack_message(xfrm_server_pull_sock);
 	}
 	zsock_destroy(&xfrm_server_pull_sock);
 	zsock_destroy(&xfrm_server_push_sock);
