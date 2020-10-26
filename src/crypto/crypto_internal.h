@@ -246,10 +246,6 @@ crypto_session_digest_len(const struct crypto_session *ctx)
 
 int crypto_session_set_enc_key(struct crypto_session *session);
 int crypto_session_set_auth_key(struct crypto_session *session);
-int crypto_session_generate_iv(struct crypto_session *session,
-			       char iv[]);
-int crypto_session_set_iv(struct crypto_session *session, unsigned int length,
-			  const char iv[]);
 
 struct crypto_session *
 crypto_session_create(const struct xfrm_algo *algo_crypt,
@@ -342,7 +338,7 @@ int crypto_chain_walk(struct crypto_chain *chain);
 int crypto_chain_init(struct crypto_chain *chain,
 		      struct crypto_session *session);
 
-void crypto_engine_load(void);
+int crypto_engine_load(void);
 
 int cipher_setup_ctx(const struct xfrm_algo *,
 		     const struct xfrm_algo_auth *,
@@ -701,5 +697,8 @@ void crypto_prefetch_mbuf_payload(struct rte_mbuf *m)
 		rte_prefetch1(rte_pktmbuf_mtod_offset(m, void *,
 						      offset));
 }
+
+void crypto_save_iv(uint16_t idx, const char iv[], uint16_t length);
+void crypto_get_iv(uint16_t idx, char iv[], uint16_t length);
 
 #endif /* CRYPTO_INTERNAL_H */

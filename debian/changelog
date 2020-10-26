@@ -44,6 +44,31 @@ vyatta-dataplane (3.12.1) unstable; urgency=medium
 
  -- Paul Atkins <paul.atkins@intl.att.com>  Mon, 12 Oct 2020 09:20:52 +0100
 
+vyatta-dataplane (3.11.52) unstable; urgency=medium
+
+  [ Srinivas Narayan ]
+  * crypto: save bytes from each batch for use as IVs
+  * crypto: add return value check for engine init
+  * crypto: remove unused functions
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Mon, 26 Oct 2020 09:45:57 +0000
+
+vyatta-dataplane (3.11.51) unstable; urgency=medium
+
+  [ Thomas Kiely ]
+  * Update S2S UT infra for multiple V4 policies
+  * Add V4 test to ensure correct policy match for proto
+  * ACL V4 rule setup does not handle discrete protocol
+  * Update S2S UT infra for multiple V6 policies
+  * Add V6 test to ensure correct policy match for proto
+  * ACL V6 rule setup does not handle discrete protocol
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Fri, 23 Oct 2020 10:09:01 +0100
+
 vyatta-dataplane (3.11.50) unstable; urgency=medium
 
   [ Nicholas Brown ]

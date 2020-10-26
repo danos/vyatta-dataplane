@@ -702,10 +702,11 @@ void crypto_rte_process_op_batch(struct crypto_rte_pkt_batch *batch)
 }
 
 static inline void
-crypto_rte_iv_fill(uint8_t *iv, struct crypto_session *s)
+crypto_rte_iv_fill(uint8_t *iv, struct crypto_session *s,
+		   char *cur_iv)
 {
 	memcpy(iv, s->nonce, s->nonce_len);
-	memcpy(iv + s->nonce_len, s->iv, s->iv_len);
+	memcpy(iv + s->nonce_len, cur_iv, s->iv_len);
 }
 
 static inline void
@@ -763,7 +764,7 @@ crypto_rte_inbound_cop_prepare(struct rte_crypto_op *cop,
 			       struct crypto_session *session,
 			       struct rte_mbuf *m, uint32_t l3_hdr_len,
 			       uint8_t udp_len, uint32_t esp_len,
-			       unsigned char *iv, uint32_t payload_len)
+			       char *iv, uint32_t payload_len)
 {
 	int err = 0;
 	struct rte_crypto_sym_op *sop;
@@ -785,7 +786,7 @@ crypto_rte_inbound_cop_prepare(struct rte_crypto_op *cop,
 		/* fill AAD IV (located inside crypto op) */
 		ivc = rte_crypto_op_ctod_offset(cop, uint8_t *,
 					       CRYPTO_OP_IV_OFFSET);
-		crypto_rte_iv_fill(ivc, session);
+		crypto_rte_iv_fill(ivc, session, iv);
 		return err;
 	}
 
@@ -799,7 +800,7 @@ crypto_rte_inbound_cop_prepare(struct rte_crypto_op *cop,
 		/* copy iv from the input packet to the cop */
 		ivc = rte_crypto_op_ctod_offset(
 			cop, uint8_t *, CRYPTO_OP_IV_OFFSET);
-		crypto_rte_iv_fill(ivc, session);
+		crypto_rte_iv_fill(ivc, session, iv);
 		break;
 	case RTE_CRYPTO_CIPHER_NULL:
 		break;
@@ -819,7 +820,7 @@ crypto_rte_outbound_cop_prepare(struct rte_crypto_op *cop,
 				struct crypto_session *session,
 				struct rte_mbuf *m, uint32_t l3_hdr_len,
 				uint8_t udp_len, uint32_t esp_len,
-				uint32_t payload_len)
+				char *iv, uint32_t payload_len)
 {
 	int err = 0;
 	struct rte_crypto_sym_op *sop;
@@ -841,7 +842,7 @@ crypto_rte_outbound_cop_prepare(struct rte_crypto_op *cop,
 		/* fill AAD IV (located inside crypto op) */
 		ivc = rte_crypto_op_ctod_offset(cop, uint8_t *,
 						CRYPTO_OP_IV_OFFSET);
-		crypto_rte_iv_fill(ivc, session);
+		crypto_rte_iv_fill(ivc, session, iv);
 		return err;
 	}
 
@@ -856,7 +857,7 @@ crypto_rte_outbound_cop_prepare(struct rte_crypto_op *cop,
 		/* copy iv from the input packet to the cop */
 		ivc = rte_crypto_op_ctod_offset(
 			cop, uint8_t *, CRYPTO_OP_IV_OFFSET);
-		crypto_rte_iv_fill(ivc, session);
+		crypto_rte_iv_fill(ivc, session, iv);
 		break;
 
 	case RTE_CRYPTO_CIPHER_NULL:
@@ -923,13 +924,13 @@ crypto_rte_xform_packets(struct crypto_pkt_ctx *cctx_arr[], uint16_t count)
 				cop, session, cctx->mbuf,
 				cctx->out_hdr_len,
 				cctx->sa->udp_encap, cctx->esp_len,
-				cctx->plaintext_size);
+				(char *)cctx->iv, cctx->plaintext_size);
 			qid = CRYPTO_ENCRYPT;
 		} else {
 			err = crypto_rte_inbound_cop_prepare(
 				cop, session, cctx->mbuf, cctx->iphlen,
 				cctx->sa->udp_encap, cctx->esp_len,
-				cctx->iv, cctx->ciphertext_len);
+				(char *)cctx->iv, cctx->ciphertext_len);
 			qid = CRYPTO_DECRYPT;
 		}
 		if (unlikely(err)) {

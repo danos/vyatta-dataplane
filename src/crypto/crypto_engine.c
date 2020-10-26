@@ -514,25 +514,34 @@ int crypto_session_set_auth_key(struct crypto_session *session)
 	return session->o_info->s_ops->set_auth_key(session);
 }
 
-int crypto_session_generate_iv(struct crypto_session *session,
-			       char iv[])
+void crypto_save_iv(uint16_t idx, const char iv[], uint16_t length)
 {
-	memcpy(iv, &session->iv, crypto_session_iv_len(session));
-	return 0;
-}
+	struct crypto_pkt_buffer *cpb = cpbdb[dp_lcore_id()];
 
-int crypto_session_set_iv(struct crypto_session *session, unsigned int length,
-			  const char iv[])
-{
-	if (length != crypto_session_iv_len(session)) {
-		ENGINE_ERR("Unexpect IV length: %d\n", length);
-		return -1;
+	/* should never happen */
+	if (idx >= MAX_CRYPTO_PKT_BURST || length > CRYPTO_MAX_IV_LENGTH) {
+		ENGINE_ERR("Unexpected packet index (%d) or IV length (%d)",
+			   idx, length);
+		return;
 	}
 
-	/* Stash IV for next packet on SA. */
-	memcpy(&session->iv, iv, length);
-	return 0;
+	memcpy(cpb->iv_cache[idx], iv, length);
 }
+
+void crypto_get_iv(uint16_t idx, char iv[], uint16_t length)
+{
+	struct crypto_pkt_buffer *cpb = cpbdb[dp_lcore_id()];
+
+	/* should never happen */
+	if (idx >= MAX_CRYPTO_PKT_BURST || length > CRYPTO_MAX_IV_LENGTH) {
+		ENGINE_ERR("Unexpected packet index (%d) or IV length (%d)",
+			   idx, length);
+		return;
+	}
+
+	memcpy(iv, cpb->iv_cache[idx], length);
+}
+
 
 static int setup_cipher_type(struct crypto_session *ctx)
 {
@@ -768,8 +777,6 @@ int crypto_openssl_session_setup(struct crypto_session *sess)
 	if (setup_md_type(sess) != 0)
 		goto error;
 
-	RAND_bytes((unsigned char *)sess->iv, sess->iv_len);
-
 	err = crypto_session_set_enc_key(sess);
 	if (err) {
 		ENGINE_ERR("Failed to set session encryption key\n");
@@ -823,7 +830,12 @@ crypto_session_create(const struct xfrm_algo *algo_crypt,
 	}
 
 	ctx->direction = direction;
-	RAND_bytes((unsigned char *)ctx->iv, ctx->iv_len + ctx->nonce_len);
+	if (RAND_bytes((unsigned char *)ctx->iv,
+		       ctx->iv_len + ctx->nonce_len) != 1) {
+		RTE_LOG(ERR, DATAPLANE,
+			"Could not generate random bytes for crypto IV. System might be low on entropy\n");
+		goto err;
+	}
 
 	return ctx;
 
@@ -982,14 +994,19 @@ uint32_t cipher_get_encryption_overhead(struct sadb_sa *sa,
 	return overhead;
 }
 
-void crypto_engine_load(void)
+int crypto_engine_load(void)
 {
 	ENGINE_DEBUG("Cryptolib init\n");
 	ERR_load_crypto_strings();
 	OpenSSL_add_all_algorithms();
-	OPENSSL_init_crypto(OPENSSL_INIT_LOAD_CONFIG |
-			    OPENSSL_INIT_ENGINE_ALL_BUILTIN, NULL);
+
+	if (OPENSSL_init_crypto(OPENSSL_INIT_LOAD_CONFIG |
+				OPENSSL_INIT_ENGINE_ALL_BUILTIN, NULL) != 1)
+		return -1;
+
 	OpenSSL_add_all_digests();
+
+	return 0;
 }
 
 void crypto_engine_summary(json_writer_t *wr, const struct sadb_sa *sa)

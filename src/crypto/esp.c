@@ -1346,7 +1346,18 @@ esp_output_pre_encrypt(struct crypto_pkt_ctx *ctx_arr[],
 		*(uint32_t *)esp_ptr = htonl(++(sa->seq));
 		esp_ptr += 4;
 
-		crypto_session_generate_iv(sa->session, (char *)esp_ptr);
+		/*
+		 * For the first packet on an SA, use the original
+		 * IV. This is primarily to get the UTs to pass
+		 */
+		if (unlikely(!sa->packet_count))
+			memcpy(&cpbdb[dp_lcore_id()]->iv_cache[j][0],
+			       sa->session->iv,
+			       sa->session->nonce_len +
+			       sa->session->iv_len);
+
+		crypto_get_iv(j, (char *)esp_ptr,
+			      crypto_session_iv_len(sa->session));
 
 		if (unlikely(sa->seq == ESP_SEQ_SA_REKEY_THRESHOLD)) {
 			crypto_rekey_requests++;
@@ -1386,8 +1397,7 @@ esp_output_post_encrypt(struct crypto_pkt_ctx *ctx_arr[], uint16_t count)
 		ctx = ctx_arr[i];
 		iv_len = crypto_session_iv_len(ctx->sa->session);
 
-		crypto_session_set_iv(ctx->sa->session, iv_len,
-				      ctx->tail - iv_len);
+		crypto_save_iv(i, ctx->tail - iv_len, iv_len);
 
 		eth_hdr = (struct rte_ether_hdr *)ctx->hdr;
 		eth_hdr->ether_type = htons(ctx->out_ethertype);
