@@ -33,6 +33,7 @@
 #include "dp_test_console.h"
 #include "dp_test/dp_test_macros.h"
 #include "dp_test_route_broker.h"
+#include "dp_test_xfrm_server.h"
 
 /* DPDK debug level */
 char rte_log_level[2];
@@ -474,7 +475,9 @@ static char *get_conf_file_name(void)
 
 static void generate_conf_file(const char *cfgfile, const char *console_ep,
 			       char *req_ipc, char *req_ipc_uplink,
-			       const char *broker_ctrl_ep)
+			       const char *broker_ctrl_ep,
+			       const char *xfrm_server_push_ep,
+			       const char *xfrm_server_pull_ep)
 {
 	char buf[1024];
 	FILE *f;
@@ -520,7 +523,10 @@ static void generate_conf_file(const char *cfgfile, const char *console_ep,
 		 "%s\n"
 		 "[RIB]\n"
 		 "%s%s\n"  /* vr defines local ip */
-		 "control=%s\n",
+		 "control=%s\n"
+		 "[XFRM_CLIENT]\n"
+		 "pull=%s\n"
+		 "push=%s\n",
 		 dp_test_pname,
 		 comment_str,
 		 controller_ip_str,
@@ -537,7 +543,9 @@ static void generate_conf_file(const char *cfgfile, const char *console_ep,
 		 extra_cfg_buf,
 		 dp_ip_str ? "ip=" : "",
 		 dp_ip_str ? dp_ip_str : "",
-		 broker_ctrl_ep);
+		 broker_ctrl_ep,
+		 xfrm_server_push_ep,
+		 xfrm_server_pull_ep);
 
 	if (fwrite(buf, 1, strlen(buf) + 1, f) != strlen(buf) + 1) {
 		fprintf(stderr, "Unable to write config\n");
@@ -662,6 +670,10 @@ int __wrap_main(int argc, char **argv)
 	int dp_test_thread_internal_retval;
 	zactor_t *dp_test_actor;
 	zactor_t *dp_test_broker_actor;
+	zactor_t *dp_test_xfrm_server_actor;
+	char *xfrm_server_resp;
+	char xfrm_push_url[MAX_XFRM_SOCKET_NAME_SIZE];
+	char xfrm_pull_url[MAX_XFRM_SOCKET_NAME_SIZE];
 
 	/* Preserve name of myself. */
 	dp_test_pname = strrchr(argv[0], '/');
@@ -707,8 +719,17 @@ int __wrap_main(int argc, char **argv)
 	dp_test_broker_actor = zactor_new(dp_test_broker_thread_run, NULL);
 	broker_ctrl_ep = zstr_recv(dp_test_broker_actor);
 
+	dp_test_xfrm_server_actor =
+		zactor_new(dp_test_xfrm_server_thread_run, NULL);
+	xfrm_server_resp = zstr_recv(dp_test_xfrm_server_actor);
+	dp_test_assert_internal(sscanf(xfrm_server_resp, "%s %s",
+				       xfrm_push_url, xfrm_pull_url) == 2);
+
 	generate_conf_file(cfgfile, console_ep, req_ipc,
-			   req_ipc_uplink, broker_ctrl_ep);
+			   req_ipc_uplink, broker_ctrl_ep,
+			   xfrm_push_url, xfrm_pull_url);
+
+	zstr_free(&xfrm_server_resp);
 	zstr_free(&broker_ctrl_ep);
 	zstr_free(&req_ipc);
 	if (req_ipc_uplink)
@@ -748,6 +769,7 @@ int __wrap_main(int argc, char **argv)
 	zsock_recv(dp_test_actor, "i", &dp_test_thread_internal_retval);
 	zactor_destroy(&dp_test_actor);
 	zactor_destroy(&dp_test_broker_actor);
+	zactor_destroy(&dp_test_xfrm_server_actor);
 	cleanup_temp_files(cfgfile);
 
 	/*

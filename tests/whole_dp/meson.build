@@ -41,6 +41,7 @@ test_lib_sources = files(
         'src/dp_test_stubs.c',
         'src/dp_test_stubs_linux.c',
         'src/dp_test_wrapped_funcs.c',
+        'src/dp_test_xfrm_server.c',
 )
 
 # Only files that declare a CK test suite (using DP_DECL_TEST_SUITE())
