@@ -83,14 +83,21 @@ int xfrm_client_send_ack(uint32_t seq, int err)
 }
 
 static int
-dp_xfrm_msg_recv(zsock_t *sock, zmq_msg_t *msg)
+dp_xfrm_msg_recv(zsock_t *sock, zmq_msg_t *hdr, zmq_msg_t *msg)
 {
+	zmq_msg_init(hdr);
 	zmq_msg_init(msg);
 
+	if (zmq_msg_recv(hdr, zsock_resolve(sock), 0) <= 0)
+		goto error;
+
+	int more = zmq_msg_get(hdr, ZMQ_MORE);
+	if (!more)
+		goto error;
 	if (zmq_msg_recv(msg, zsock_resolve(sock), 0) <= 0)
 		goto error;
 
-	int more = zmq_msg_get(msg, ZMQ_MORE);
+	more = zmq_msg_get(msg, ZMQ_MORE);
 	while (more) {
 		zmq_msg_t sink;
 		zmq_msg_init(&sink);
@@ -102,26 +109,36 @@ dp_xfrm_msg_recv(zsock_t *sock, zmq_msg_t *msg)
 	return 0;
 error:
 	zmq_msg_close(msg);
+	zmq_msg_close(hdr);
 	return -1;
 }
 
 static int xfrm_netlink_recv(void *arg)
 {
-	zmq_msg_t xfrm_msg;
+	zmq_msg_t xfrm_msg, xfrm_hdr;
 	zsock_t *sock = arg;
 	const struct nlmsghdr *nlh;
+	const char *hdr;
 	uint32_t len;
 	struct xfrm_client_aux_data xfrm_aux;
 
 	errno = 0;
 
-	int rc = dp_xfrm_msg_recv(sock, &xfrm_msg);
+	int rc = dp_xfrm_msg_recv(sock, &xfrm_hdr, &xfrm_msg);
 
 	if (rc != 0) {
 		if (errno == 0)
 			return 0;
 		return -1;
 	}
+
+	/*
+	 * Get the hdr type, either START, DATA, END and are used to
+	 * deliminate a batch. All hdrs have netlink msgs to follow,
+	 * however only END is of special significance as it triggers
+	 * a npf commit and rebuild.
+	 */
+	hdr = zmq_msg_data(&xfrm_hdr);
 
 	nlh = zmq_msg_data(&xfrm_msg);
 	len = zmq_msg_size(&xfrm_msg);
@@ -155,6 +172,8 @@ static int xfrm_netlink_recv(void *arg)
 		/* Policy acks are batched in most cases */
 		if (rc != MNL_CB_OK || xfrm_aux.ack_msg)
 			xfrm_client_send_ack(nlh->nlmsg_seq, rc);
+		if (strncmp("END", hdr, strlen("END")) == 0)
+			crypto_npf_cfg_commit_flush();
 		break;
 
 	case XFRM_MSG_NEWSA: /* fall through */
@@ -175,6 +194,7 @@ static int xfrm_netlink_recv(void *arg)
 			 "XFRM netlink msg not handled\n");
 	}
 
+	zmq_msg_close(&xfrm_hdr);
 	zmq_msg_close(&xfrm_msg);
 
 	return 0;
