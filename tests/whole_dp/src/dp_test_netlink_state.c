@@ -2009,6 +2009,146 @@ _dp_test_netlink_del_route_fmt(bool verify, const char *file,
 }
 
 /*
+ * Add or delete a multicast route
+ *
+ * nlmsg_type:   RTM_NEWROUTE or RTM_DELROUTE
+ * src:          Source address of multicast stream
+ * sintf:        Interface multicast stream expected on
+ * route_string: "224.0.1.1/32 nh int:dp2T1 nh int:dp2T2"
+ */
+void _dp_test_mroute_nl(uint16_t nlmsg_type, const char *src,
+			const char *sintf, const char *route_string,
+			const char *file, const char *func, int line)
+{
+	char topic[DP_TEST_TMP_BUF];
+	char buf[MNL_SOCKET_BUFFER_SIZE];
+	char real_eth_name[IFNAMSIZ];
+	struct dp_test_route *route;
+	struct nlmsghdr *nlh;
+	struct rtmsg *rtm;
+	int iif;
+	int af, alen;
+
+	route = dp_test_parse_route(route_string);
+	dp_test_fail_unless(route->type == RTN_MULTICAST, "Not multicast");
+
+	af = route->prefix.addr.family;
+
+	dp_test_fail_unless(af == AF_INET || af == AF_INET6,
+			    "Unknown address family");
+	dp_test_fail_unless(route->prefix.len == 32 ||
+			    route->prefix.len == 128,
+			    "Multicast address is not host address");
+	dp_test_fail_unless(route->nh_cnt >= 1,
+			    "Expect 1 or more nh interfaces");
+
+	alen = (af == AF_INET) ? 4 : 16;
+
+	dp_test_intf_real(sintf, real_eth_name);
+	iif = dp_test_intf_name2index(real_eth_name);
+
+	struct in6_addr src_addr;
+	inet_pton(af, src, &src_addr);
+
+	memset(buf, 0, sizeof(buf));
+	nlh = mnl_nlmsg_put_header(buf);
+
+	nlh->nlmsg_type = nlmsg_type;
+	nlh->nlmsg_flags = NLM_F_ACK;
+
+	rtm = mnl_nlmsg_put_extra_header(nlh, sizeof(struct rtmsg));
+	rtm->rtm_family = RTNL_FAMILY_IPMR;
+	rtm->rtm_type = RTN_MULTICAST;
+	rtm->rtm_dst_len = route->prefix.len;
+	rtm->rtm_src_len = route->prefix.len;
+	rtm->rtm_tos = 0;
+	rtm->rtm_table = RT_TABLE_DEFAULT;
+	rtm->rtm_protocol = RTPROT_UNSPEC;
+	rtm->rtm_scope = 0;
+	rtm->rtm_flags = 0;
+
+	mnl_attr_put_u32(nlh, RTA_TABLE, RT_TABLE_DEFAULT);
+	mnl_attr_put(nlh, RTA_SRC, alen, src_addr.s6_addr);
+	mnl_attr_put(nlh, RTA_DST, alen, &route->prefix.addr.addr);
+	mnl_attr_put_u32(nlh, RTA_IIF, iif);
+
+	/*
+	 * Add one or more output interfaces
+	 */
+	struct nlattr *mpath_start;
+	uint i;
+
+	mpath_start = mnl_attr_nest_start(nlh, RTA_MULTIPATH);
+
+	for (i = 0; i < route->nh_cnt; i++) {
+		struct rtnexthop *rtnh;
+
+		dp_test_intf_real(route->nh[i].nh_int, real_eth_name);
+
+		rtnh = (struct rtnexthop *)mnl_nlmsg_get_payload_tail(nlh);
+		nlh->nlmsg_len += MNL_ALIGN(sizeof(*rtnh));
+
+		memset(rtnh, 0, sizeof(*rtnh));
+		rtnh->rtnh_ifindex = dp_test_intf_name2index(real_eth_name);
+		rtnh->rtnh_len = sizeof(*rtnh);
+	}
+
+	mnl_attr_nest_end(nlh, mpath_start);
+	free(route);
+
+	if (nl_generate_topic(nlh, topic, sizeof(topic)) < 0)
+		dp_test_assert_internal(0);
+
+	nl_propagate(topic, nlh);
+}
+
+/*
+ * Enable or disable multicast on an interface.
+ */
+void _dp_test_netlink_netconf_mcast(const char *ifname, int af, bool enable,
+				    const char *file, const char *func,
+				    int line)
+{
+	struct netconfmsg *ncm;
+	char topic[DP_TEST_TMP_BUF];
+	char buf[MNL_SOCKET_BUFFER_SIZE];
+	struct nlmsghdr *nlh;
+	char real_ifname[IFNAMSIZ];
+
+	dp_test_intf_real(ifname, real_ifname);
+
+	memset(buf, 0, sizeof(buf));
+	nlh = mnl_nlmsg_put_header(buf);
+	nlh->nlmsg_type = RTM_NEWNETCONF;
+	nlh->nlmsg_flags = NLM_F_ACK;
+
+	ncm = mnl_nlmsg_put_extra_header(nlh, sizeof(struct netconfmsg));
+	ncm->ncm_family = af;
+
+	/*
+	 * Attributes are:
+	 *
+	 * NETCONFA_UNSPEC,
+	 * NETCONFA_IFINDEX,
+	 * NETCONFA_FORWARDING,
+	 * NETCONFA_RP_FILTER,
+	 * NETCONFA_MC_FORWARDING,
+	 * NETCONFA_PROXY_NEIGH,
+	 */
+	mnl_attr_put_u32(nlh, NETCONFA_IFINDEX,
+			 dp_test_intf_name2index(real_ifname));
+	mnl_attr_put_u32(nlh, NETCONFA_FORWARDING, false);
+	mnl_attr_put_u32(nlh, NETCONFA_RP_FILTER, 0);
+	mnl_attr_put_u32(nlh, NETCONFA_MC_FORWARDING, enable);
+	mnl_attr_put_u32(nlh, NETCONFA_PROXY_NEIGH, 0);
+
+	if (nl_generate_topic(nlh, topic, sizeof(topic)) < 0)
+		dp_test_assert_internal(0);
+
+	nl_propagate(topic, nlh);
+}
+
+/*
  *  * RFC 2863 operational status
  *   *
  *    * From <linux/if.h> but not included in <net/if.h>, so defining here.

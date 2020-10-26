@@ -573,7 +573,7 @@ dp_test_parse_route(const char *route_string)
 	/* Populate VRF id, if present in string. Otherwise assign default */
 	const char *end = dp_test_parse_dp_vrf(route_string, &route->vrf_id);
 
-	/* Populate tabel id, if present in string. Otherwise assign default */
+	/* Populate table id, if present in string. Otherwise assign default */
 	end = dp_test_parse_dp_table(end, &route->tableid);
 
 	/* Populate prefix */
@@ -586,6 +586,12 @@ dp_test_parse_route(const char *route_string)
 	end = dp_test_parse_dp_mpt(end, &route->mpls_payload_type);
 
 	route->type = RTN_UNICAST;
+
+	if (route->prefix.addr.family == AF_INET ||
+	    route->prefix.addr.family == AF_INET6) {
+		if ((route->prefix.addr.addr.ipv6.s6_addr[0] & 0xE0) == 0xE0)
+			route->type = RTN_MULTICAST;
+	}
 
 	if (!strcmp(end, "unreachable"))
 		route->type = RTN_UNREACHABLE;
