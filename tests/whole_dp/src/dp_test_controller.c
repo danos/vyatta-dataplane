@@ -1306,6 +1306,15 @@ data_send_free(void *data, void *hint)
 	free(data);
 }
 
+void nl_propagate_xfrm(zsock_t *sock, void *data, size_t size)
+{
+	zmq_msg_t m;
+
+	zmq_msg_init_data(&m, data, size,
+			  NULL, NULL);
+	zmq_msg_send(&m, zsock_resolve(sock), 0);
+}
+
 void
 nl_propagate_broker(const char *topic, void *data, size_t size)
 {
