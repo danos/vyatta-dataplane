@@ -3713,6 +3713,14 @@ nl_generate_topic_xfrm(const struct nlmsghdr *nlh, char *buf, size_t buflen)
 	return -1;
 }
 
+/*
+ * Each netlink xfrm messages is required to have a unique
+ * sequence number that is returned back to the xfrm source
+ * via an ack message to indicate the successful processing
+ * of the message in the dataplane.
+ */
+uint32_t xfrm_seq;
+
 void _dp_test_netlink_xfrm_policy(uint16_t nlmsg_type,
 				  const struct xfrm_selector *sel,
 				  const xfrm_address_t *dst,
@@ -3737,6 +3745,7 @@ void _dp_test_netlink_xfrm_policy(uint16_t nlmsg_type,
 	nlh = mnl_nlmsg_put_header(buf);
 	nlh->nlmsg_type = nlmsg_type;
 	nlh->nlmsg_flags = NLM_F_ACK;
+	nlh->nlmsg_seq = ++xfrm_seq;
 
 	switch (nlmsg_type) {
 	case XFRM_MSG_NEWPOLICY:
@@ -3831,6 +3840,7 @@ void _dp_test_netlink_xfrm_newsa(uint32_t spi, /* Network byte order */
 	nlh = mnl_nlmsg_put_header(buf);
 	nlh->nlmsg_type = XFRM_MSG_NEWSA;
 	nlh->nlmsg_flags = NLM_F_ACK;
+	nlh->nlmsg_seq = ++xfrm_seq;
 
 	sa_info = mnl_nlmsg_put_extra_header(nlh, sizeof(*sa_info));
 	if (dp_test_setup_xfrm_usersa_info(sa_info, dst, src,
@@ -3901,6 +3911,7 @@ void dp_test_netlink_xfrm_delsa(uint32_t spi, /* Network byte order */
 	nlh = mnl_nlmsg_put_header(buf);
 	nlh->nlmsg_type = XFRM_MSG_DELSA;
 	nlh->nlmsg_flags = NLM_F_ACK;
+	nlh->nlmsg_seq = ++xfrm_seq;
 
 	usersa_id = mnl_nlmsg_put_extra_header(nlh, sizeof(*usersa_id));
 	usersa_id->family = family;
@@ -3944,6 +3955,7 @@ void dp_test_netlink_xfrm_expire(uint32_t spi, /* Network byte order */
 	nlh = mnl_nlmsg_put_header(buf);
 	nlh->nlmsg_type = XFRM_MSG_EXPIRE;
 	nlh->nlmsg_flags = NLM_F_ACK;
+	nlh->nlmsg_seq = ++xfrm_seq;
 
 	expire = mnl_nlmsg_put_extra_header(nlh, sizeof(*expire));
 	expire->hard = expire_hard;
