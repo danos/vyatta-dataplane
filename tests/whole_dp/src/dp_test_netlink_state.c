@@ -3806,8 +3806,8 @@ void _dp_test_netlink_xfrm_policy(uint16_t nlmsg_type,
 
 	if (nl_generate_topic_xfrm(nlh, topic, sizeof(topic)) < 0)
 		dp_test_assert_internal(0);
-
-	nl_propagate_xfrm(xfrm_server_push_sock, nlh, nlh->nlmsg_len);
+	/* Signal an end of batch. This is a single msg batch */
+	nl_propagate_xfrm(xfrm_server_push_sock, nlh, nlh->nlmsg_len, "END");
 }
 
 void _dp_test_netlink_xfrm_newsa(uint32_t spi, /* Network byte order */
@@ -3888,8 +3888,8 @@ void _dp_test_netlink_xfrm_newsa(uint32_t spi, /* Network byte order */
 
 	if (nl_generate_topic_xfrm(nlh, topic, sizeof(topic)) < 0)
 		dp_test_assert_internal(0);
-
-	nl_propagate_xfrm(xfrm_server_push_sock, nlh, nlh->nlmsg_len);
+	/* Signal an end of batch. This is a single msg batch */
+	nl_propagate_xfrm(xfrm_server_push_sock, nlh, nlh->nlmsg_len, "END");
 }
 
 void dp_test_netlink_xfrm_delsa(uint32_t spi, /* Network byte order */
@@ -3933,8 +3933,8 @@ void dp_test_netlink_xfrm_delsa(uint32_t spi, /* Network byte order */
 
 	if (nl_generate_topic_xfrm(nlh, topic, sizeof(topic)) < 0)
 		dp_test_assert_internal(0);
-
-	nl_propagate_xfrm(xfrm_server_push_sock, nlh, nlh->nlmsg_len);
+	/* Signal an end of batch. This is a single msg batch */
+	nl_propagate_xfrm(xfrm_server_push_sock, nlh, nlh->nlmsg_len, "END");
 }
 
 void dp_test_netlink_xfrm_expire(uint32_t spi, /* Network byte order */
@@ -3969,8 +3969,8 @@ void dp_test_netlink_xfrm_expire(uint32_t spi, /* Network byte order */
 
 	if (nl_generate_topic_xfrm(nlh, topic, sizeof(topic)) < 0)
 		dp_test_assert_internal(0);
-
-	nl_propagate_xfrm(xfrm_server_push_sock, nlh, nlh->nlmsg_len);
+	/* Signal an end of batch. This is a single msg batch */
+	nl_propagate_xfrm(xfrm_server_push_sock, nlh, nlh->nlmsg_len, "END");
 }
 
 void

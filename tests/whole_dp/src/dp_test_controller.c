@@ -1306,12 +1306,15 @@ data_send_free(void *data, void *hint)
 	free(data);
 }
 
-void nl_propagate_xfrm(zsock_t *sock, void *data, size_t size)
+void nl_propagate_xfrm(zsock_t *sock, void *data, size_t size,
+		       const char *hdr)
 {
 	zmq_msg_t m;
 
 	zmq_msg_init_data(&m, data, size,
 			  NULL, NULL);
+	zmq_send_const(zsock_resolve(sock), hdr,
+		       strlen(hdr) + 1, ZMQ_SNDMORE);
 	zmq_msg_send(&m, zsock_resolve(sock), 0);
 }
 
