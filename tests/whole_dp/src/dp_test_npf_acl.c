@@ -1059,3 +1059,192 @@ DP_START_TEST(acl11, test)
 	dp_test_intf_bridge_del("br1");
 
 } DP_END_TEST;
+
+/*
+ * IPv4 multicast forwarding and egress ACL.
+ *
+ * Based on test case ip_mfwd_4.  An egress ACL drops the packet on one of the
+ * two output interfaces.
+ */
+DP_DECL_TEST_CASE(npf_acl, acl12, NULL, NULL);
+DP_START_TEST(acl12, test)
+{
+	const char *grp_dest = "224.0.1.1"; /* Not link local */
+	const char *grp_mac = "01:00:5e:00:01:01";
+	struct dp_test_expected *exp;
+	struct rte_mbuf *test_pak;
+	int len = 22;
+
+	/* Set up the interface addresses */
+	dp_test_nl_add_ip_addr_and_connected("dp1T0", "1.1.1.1/24");
+	dp_test_netlink_netconf_mcast("dp1T0", AF_INET, true);
+
+	dp_test_nl_add_ip_addr_and_connected("dp2T1", "2.2.2.2/24");
+	dp_test_netlink_netconf_mcast("dp2T1", AF_INET, true);
+
+	dp_test_nl_add_ip_addr_and_connected("dp2T2", "3.3.3.3/24");
+	dp_test_netlink_netconf_mcast("dp2T2", AF_INET, true);
+
+	dp_test_mroute_nl(RTM_NEWROUTE, "10.73.1.1", "dp1T0",
+			  "224.0.1.1/32 nh int:dp2T1 nh int:dp2T2");
+
+	dp_test_npf_cmd("npf-ut add acl:v4test 0 family=inet", false);
+
+	dp_test_npf_cmd("npf-ut add acl:v4test 20 "
+			"src-addr=10.73.1.1 "
+			"proto-base=17 "
+			"action=drop", false);
+	dp_test_npf_cmd("npf-ut attach interface:dpT22 acl-out acl:v4test",
+			false);
+	dp_test_npf_cmd("npf-ut commit", false);
+
+	/* Create multicast pak */
+	test_pak = dp_test_create_ipv4_pak("10.73.1.1", grp_dest, 1, &len);
+	dp_test_pktmbuf_eth_init(test_pak, dp_test_intf_name2mac_str("dp1T0"),
+				 DP_TEST_INTF_DEF_SRC_MAC, RTE_ETHER_TYPE_IPV4);
+
+	/* Create pak we expect to receive on the tx ring */
+	exp = dp_test_exp_create_m(test_pak, 2);
+	dp_test_exp_set_oif_name_m(exp, 0, "dp2T1");
+	dp_test_exp_set_oif_name_m(exp, 1, "dp2T2");
+
+	dp_test_exp_set_fwd_status_m(exp, 0, DP_TEST_FWD_FORWARDED);
+	dp_test_exp_set_fwd_status_m(exp, 1, DP_TEST_FWD_DROPPED);
+
+	(void)dp_test_pktmbuf_eth_init(dp_test_exp_get_pak_m(exp, 0),
+				       grp_mac,
+				       dp_test_intf_name2mac_str("dp2T1"),
+				       RTE_ETHER_TYPE_IPV4);
+	dp_test_ipv4_decrement_ttl(dp_test_exp_get_pak_m(exp, 0));
+
+	(void)dp_test_pktmbuf_eth_init(dp_test_exp_get_pak_m(exp, 1),
+				       grp_mac,
+				       dp_test_intf_name2mac_str("dp2T2"),
+				       RTE_ETHER_TYPE_IPV4);
+	dp_test_ipv4_decrement_ttl(dp_test_exp_get_pak_m(exp, 1));
+
+	dp_test_pak_receive(test_pak, "dp1T0", exp);
+
+
+	/* Clean Up */
+
+	dp_test_npf_cmd("npf-ut detach interface:dpT22 acl-out acl:v4test",
+			false);
+	dp_test_npf_cmd("npf-ut delete acl:v4test", false);
+	dp_test_npf_cmd("npf-ut commit", false);
+
+	dp_test_mroute_nl(RTM_DELROUTE, "10.73.1.1", "dp1T0",
+			  "224.0.1.1/32 nh int:dp2T1 nh int:dp2T2");
+
+	dp_test_netlink_netconf_mcast("dp1T0", AF_INET, false);
+	dp_test_nl_del_ip_addr_and_connected("dp1T0", "1.1.1.1/24");
+
+	dp_test_netlink_netconf_mcast("dp2T1", AF_INET, false);
+	dp_test_nl_del_ip_addr_and_connected("dp2T1", "2.2.2.2/24");
+
+	dp_test_netlink_netconf_mcast("dp2T2", AF_INET, false);
+	dp_test_nl_del_ip_addr_and_connected("dp2T2", "3.3.3.3/24");
+
+} DP_END_TEST;
+
+/*
+ * IPv6 multicast forwarding and egress ACL.
+ *
+ * Based on test case ip_mfwd_5.  An egress ACL drops the packet on one of the
+ * two output interfaces.
+ */
+DP_DECL_TEST_CASE(npf_acl, acl13, NULL, NULL);
+DP_START_TEST(acl13, test)
+{
+	const char *grp_dest = "ff0e::1:1";
+	const char *grp_mac = "33:33:00:01:00:01";
+	struct dp_test_expected *exp;
+	struct rte_mbuf *test_pak;
+	int len = 22;
+
+	dp_test_nl_add_ip_addr_and_connected("dp1T0", "2001:1:1::1/64");
+	dp_test_nl_add_ip_addr_and_connected("dp2T1", "2002:2:2::1/64");
+	dp_test_nl_add_ip_addr_and_connected("dp2T2", "2003:3:3::1/64");
+
+	dp_test_netlink_add_neigh("dp1T0", "2001:1:1::2",
+				  "aa:bb:cc:dd:1:a1");
+	dp_test_netlink_add_neigh("dp2T1", "2002:2:2::2",
+				  "aa:bb:cc:dd:2:b2");
+	dp_test_netlink_add_neigh("dp2T2", "2003:3:3::2",
+				  "aa:bb:cc:dd:3:c3");
+
+	dp_test_netlink_netconf_mcast("dp1T0", AF_INET6, true);
+	dp_test_netlink_netconf_mcast("dp2T1", AF_INET6, true);
+	dp_test_netlink_netconf_mcast("dp2T2", AF_INET6, true);
+
+	/* Add multicast route */
+	dp_test_mroute_nl(RTM_NEWROUTE, "2001:1:1::2", "dp1T0",
+			  "ff0e::1:1/128 nh int:dp2T1 nh int:dp2T2");
+
+	dp_test_npf_cmd("npf-ut add acl:v6test 0 family=inet6", false);
+
+	dp_test_npf_cmd("npf-ut add acl:v6test 20 "
+			"src-addr=2001:1:1::2 "
+			"action=drop", false);
+	dp_test_npf_cmd("npf-ut attach interface:dpT22 acl-out acl:v6test",
+			false);
+	dp_test_npf_cmd("npf-ut commit", false);
+
+
+	/* Create multicast pak */
+	test_pak = dp_test_create_ipv6_pak("2001:1:1::2",
+					   grp_dest,
+					   1, &len);
+
+	dp_test_pktmbuf_eth_init(test_pak, dp_test_intf_name2mac_str("dp1T0"),
+				 DP_TEST_INTF_DEF_SRC_MAC, RTE_ETHER_TYPE_IPV6);
+
+	/* Create pak we expect to receive on the tx ring */
+	exp = dp_test_exp_create_m(test_pak, 2);
+
+	dp_test_exp_set_oif_name_m(exp, 0, "dp2T1");
+	dp_test_exp_set_oif_name_m(exp, 1, "dp2T2");
+
+	dp_test_exp_set_fwd_status_m(exp, 0, DP_TEST_FWD_FORWARDED);
+	dp_test_exp_set_fwd_status_m(exp, 1, DP_TEST_FWD_DROPPED);
+
+	(void)dp_test_pktmbuf_eth_init(dp_test_exp_get_pak_m(exp, 0),
+				       grp_mac,
+				       dp_test_intf_name2mac_str("dp2T1"),
+				       RTE_ETHER_TYPE_IPV6);
+	dp_test_ipv6_decrement_ttl(dp_test_exp_get_pak_m(exp, 0));
+
+	(void)dp_test_pktmbuf_eth_init(dp_test_exp_get_pak_m(exp, 1),
+				       grp_mac,
+				       dp_test_intf_name2mac_str("dp2T2"),
+				       RTE_ETHER_TYPE_IPV6);
+	dp_test_ipv6_decrement_ttl(dp_test_exp_get_pak_m(exp, 1));
+
+	dp_test_pak_receive(test_pak, "dp1T0", exp);
+
+
+	/* Cleanup */
+	dp_test_npf_cmd("npf-ut detach interface:dpT22 acl-out acl:v6test",
+			false);
+	dp_test_npf_cmd("npf-ut delete acl:v6test", false);
+	dp_test_npf_cmd("npf-ut commit", false);
+
+	dp_test_mroute_nl(RTM_DELROUTE, "2001:1:1::2", "dp1T0",
+			  "ff0e::1:1/128 nh int:dp2T1 nh int:dp2T2");
+
+	dp_test_netlink_netconf_mcast("dp1T0", AF_INET6, false);
+	dp_test_netlink_netconf_mcast("dp2T1", AF_INET6, false);
+	dp_test_netlink_netconf_mcast("dp2T2", AF_INET6, false);
+
+	dp_test_netlink_del_neigh("dp1T0", "2001:1:1::2",
+				  "aa:bb:cc:dd:1:a1");
+	dp_test_netlink_del_neigh("dp2T1", "2002:2:2::2",
+				  "aa:bb:cc:dd:2:b2");
+	dp_test_netlink_del_neigh("dp2T2", "2003:3:3::2",
+				  "aa:bb:cc:dd:3:c3");
+
+	dp_test_nl_del_ip_addr_and_connected("dp1T0", "2001:1:1::1/64");
+	dp_test_nl_del_ip_addr_and_connected("dp2T1", "2002:2:2::1/64");
+	dp_test_nl_del_ip_addr_and_connected("dp2T2", "2003:3:3::1/64");
+
+} DP_END_TEST;
