@@ -246,6 +246,24 @@ void _dp_test_verify_del_route(const char *route_string, bool match_nh,
 	_dp_test_verify_del_route(route_string, match_nh,		\
 				  __FILE__, __func__, __LINE__)
 
+/* Add or delete a multicast route */
+void _dp_test_mroute_nl(uint16_t nlmsg_type, const char *src,
+			const char *sintf, const char *route_string,
+			const char *file, const char *func, int line);
+
+#define dp_test_mroute_nl(nlmsg_type, src, sintf, route_string)		\
+	_dp_test_mroute_nl(nlmsg_type, src, sintf, route_string,	\
+			   __FILE__, __func__, __LINE__)
+
+/* Enable or disable multicast on an interface */
+void _dp_test_netlink_netconf_mcast(const char *ifname, int af,
+				    bool enable, const char *file,
+				    const char *func, int line);
+
+#define dp_test_netlink_netconf_mcast(ifname, af, enable)		\
+	_dp_test_netlink_netconf_mcast(ifname, af, enable,		\
+				       __FILE__, __func__, __LINE__)
+
 void _dp_test_netlink_add_vrf_incmpl(uint32_t vrf_id,
 				     uint32_t expected_ref_cnt,
 				     const char *file, int line);
