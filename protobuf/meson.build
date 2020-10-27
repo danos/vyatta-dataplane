@@ -23,6 +23,7 @@ protobuf_sources= [
         'PauseConfig.proto',
         'SynceConfig.proto',
         'LAGConfig.proto',
+        'GPCConfig.proto',
 ]
 
 install_data(protobuf_sources,

@@ -1,0 +1,167 @@
+// Copyright (c) 2020, AT&T Intellectual Property.  All rights reserved.
+//
+// SPDX-License-Identifier: LGPL-2.1-only
+//
+// Generic Packet Classifier
+//
+
+syntax="proto2";
+
+option go_package = "github.com/danos/vyatta-dataplane/protobuf/go/GPCConfig";
+
+import "IPAddress.proto";
+
+message RuleMatch {
+	enum FragValue {
+	     FRAGMENT_UNKNOWN = 0;
+	     FRAGMENT_ANY = 1;
+	     FRAGMENT_INITIAL = 2;
+	     FRAGMENT_SUBSEQUENT = 3;
+	}
+
+	message ICMPTypeAndCode {
+		optional uint32 typenum = 1;
+		optional uint32 code = 2;
+	}
+
+	enum ICMPV6Class {
+	     CLASS_UNKNOWN = 0;
+	     CLASS_INFO = 1;
+	     CLASS_ERROR = 2;
+	}
+
+	oneof match_value {
+	      IPPrefix src_ip = 1;
+	      IPPrefix dest_ip = 2;
+	      uint32 src_port = 3;
+	      uint32 dest_port = 4;
+	      FragValue fragment = 5;
+	      uint32 dscp = 6;
+	      uint32 ttl = 7;
+	      ICMPTypeAndCode icmpv4 = 8;
+	      ICMPTypeAndCode icmpv6 = 9;
+	      ICMPV6Class icmpv6_class = 10;
+	      uint32 proto_base = 11;
+	      uint32 proto_final = 12;
+	}
+}
+
+message PolicerParams {
+	// bandwidths are in bytes/sec
+	// bursts are in bytes
+	optional uint64 bw = 1;
+	optional uint64 excess_bw = 2;
+	optional uint64 burst = 3;
+	optional uint64 excess_burst = 4;
+}
+
+message RuleAction {
+	enum PacketDecision {
+	     DECISION_UNKNOWN = 0;
+	     PASS = 1;
+	     DROP = 2;
+	}
+
+	enum ColourValue {
+	     GREEN = 0;
+	     YELLOW = 1;
+	     RED = 2;
+	}
+
+	oneof action_value {
+	      PacketDecision decision = 1;
+	      uint32 designation = 2;
+	      ColourValue colour = 3;
+	      PolicerParams policer = 4;
+	}
+}
+
+message RuleCounter {
+	enum CounterType {
+	     COUNTER_UNKNOWN = 0;
+	     DISABLED = 1; // Counting disabled for this rule
+	     AUTO = 2; // auto per rule per interface
+	     NAMED = 3;
+	}
+	optional CounterType counter_type = 1;
+
+	optional string name = 2; // only if NAMED, matches GPCCounter name
+}
+
+message Rule {
+	// rule number 1-9999
+	optional uint32 number = 1;
+	repeated RuleMatch matches = 2;
+	repeated RuleAction actions = 3;
+	optional RuleCounter counter = 4;
+
+	// Values to tie back to config for debug purposes
+	optional uint32 table_index = 5;
+	optional uint32 orig_number = 6;
+	optional string result = 7;
+}
+
+enum TrafficType {
+     TRAFFIC_UNKNOWN = 0;
+     IPV4 = 1;
+     IPV6 = 2;
+}
+
+message Rules {
+	optional TrafficType traffic_type = 1;
+	repeated Rule rules = 2;
+}
+
+// Key is interface/location/traffic
+//
+message GPCTable {
+	// Interface to apply on
+	optional string ifname = 1;
+
+	enum FeatureLocation {
+	     LOCATION_UNKNOWN = 0;
+	     INGRESS = 1;
+	     EGRESS = 2;
+	     PUNT_PATH = 3;
+	}
+	optional FeatureLocation location = 2;
+
+	optional TrafficType traffic_type = 3;
+
+	optional Rules rules = 4;
+
+	repeated string table_names = 5; // debug use only, QoS only uses 1
+}
+
+// Counter names will be constructed based on how they appear in config.
+//
+// [global|local]/<group>/[<name>|result:<result>|rule:<rule>]/[<if-name>|all]
+//
+// eg. local/QOS_THINGY/result:ping/dp0xe3
+//
+message GPCCounter {
+	optional string name = 1;
+
+	enum CounterFormat {
+	     FORMAT_UNKNOWN = 0;
+	     PACKETS_ONLY = 1;
+	     PACKETS_AND_L2_L3_BYTES = 2; // QoS default, all bytes except L1
+	}
+	optional CounterFormat format = 2;
+}
+
+// Entire config for the feature.
+// Create/Modify/Delete should be inferred based on prior message.
+//
+message GPCConfig {
+	enum FeatureType {
+	     FEATURE_UNKNOWN = 0;
+	     QOS = 1;
+	     ACL = 2;
+	     // etc
+	}
+	optional FeatureType feature_type = 1;
+
+	repeated GPCCounter counters = 2;
+	repeated GPCTable tables = 3;
+}
