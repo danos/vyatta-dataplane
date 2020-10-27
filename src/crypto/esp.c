@@ -1265,7 +1265,7 @@ esp_output_pre_encrypt(struct crypto_pkt_ctx *ctx_arr[],
 		plaintext = ctx->l3hdr;
 		plaintext_size_orig = plaintext_size = h->tot_len;
 
-		crypto_prefetch_ctx(ctx_arr, count, j);
+		crypto_prefetch_ctx_data(ctx_arr, count, j);
 
 		if (transport) {
 			/*
