@@ -1233,6 +1233,8 @@ esp_output_pre_encrypt(struct crypto_pkt_ctx *ctx_arr[],
 	struct rte_mbuf *m;
 	struct esp_hdr_ctx *h;
 
+	crypto_prefetch_ivs();
+
 	for (j = 0; j < count; j++) {
 		crypto_prefetch_ctx(ctx_arr, count, j);
 		ctx = ctx_arr[j];
@@ -1391,6 +1393,8 @@ esp_output_post_encrypt(struct crypto_pkt_ctx *ctx_arr[], uint16_t count)
 	struct rte_ether_hdr *eth_hdr;
 	uint16_t i, iv_len;
 	struct crypto_pkt_ctx *ctx;
+
+	crypto_prefetch_ivs();
 
 	for (i = 0; i < count; i++) {
 		crypto_prefetch_ctx(ctx_arr, count, i);

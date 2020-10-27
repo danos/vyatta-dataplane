@@ -698,6 +698,21 @@ void crypto_prefetch_mbuf_payload(struct rte_mbuf *m)
 						      offset));
 }
 
+static inline
+void crypto_prefetch_ivs(void)
+{
+	struct crypto_pkt_buffer *cpb = cpbdb[dp_lcore_id()];
+	uint16_t i;
+
+	if (unlikely(!cpb))
+		return;
+
+	for (i = 0; i < MAX_CRYPTO_PKT_BURST; ) {
+		rte_prefetch0(cpb->iv_cache[i]);
+		i += RTE_CACHE_LINE_SIZE / CRYPTO_MAX_IV_LENGTH;
+	}
+}
+
 void crypto_save_iv(uint16_t idx, const char iv[], uint16_t length);
 void crypto_get_iv(uint16_t idx, char iv[], uint16_t length);
 
