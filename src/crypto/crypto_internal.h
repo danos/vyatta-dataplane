@@ -716,4 +716,22 @@ void crypto_prefetch_ivs(void)
 void crypto_save_iv(uint16_t idx, const char iv[], uint16_t length);
 void crypto_get_iv(uint16_t idx, char iv[], uint16_t length);
 
+static inline
+void crypto_prefetch_ops(uint16_t cur, uint16_t count)
+{
+	struct crypto_pkt_buffer *cpb = cpbdb[dp_lcore_id()];
+	uint16_t i, j;
+
+	if (unlikely(!cpb))
+		return;
+
+	if (likely(cur % CRYPTO_PREFETCH_LOOKAHEAD))
+		return;
+
+	i = cur + CRYPTO_PREFETCH_LOOKAHEAD;
+	j = cur;
+	for (; j < count && j < i; j++)
+		rte_prefetch0(cpb->cops[j]);
+}
+
 #endif /* CRYPTO_INTERNAL_H */

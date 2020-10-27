@@ -892,6 +892,9 @@ crypto_rte_xform_packets(struct crypto_pkt_ctx *cctx_arr[], uint16_t count)
 
 	for (i = 0; i < count; i++) {
 		crypto_prefetch_ctx(cctx_arr, count, i);
+
+		crypto_prefetch_ops(i, count);
+
 		cctx = cctx_arr[i];
 		session = cctx->sa->session;
 		encrypt = (cctx->sa->dir == CRYPTO_DIR_OUT);
