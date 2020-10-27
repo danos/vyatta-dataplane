@@ -68,13 +68,13 @@ dp_test_qos_fal_hw_switch_if(const char *if_name, bool enable)
 
 const char *fal_basic_cmds[] = {
 	"port subports 1 pipes 1 profiles 2 overhead 24 ql_bytes",
-	"subport 0 rate 1250000000 size 100000 period 40",
+	"subport 0 rate 1250000000 size 100000 period 40000",
 	"subport 0 queue 0 rate 1250000000 size 100000", // size N/A
 	"subport 0 queue 1 rate 1250000000 size 100000", // size N/A
 	"subport 0 queue 2 rate 1250000000 size 100000", // size N/A
 	"subport 0 queue 3 rate 1250000000 size 100000", // size N/A
 	"vlan 0 0",
-	"profile 0 percent 1 size 50000 period 10",
+	"profile 0 percent 1 size 50000 period 10000",
 	"profile 0 queue 0 rate 12500000 size 50000", // size N/A
 	"profile 0 queue 1 percent 100 size 50000",   // size N/A
 	"profile 0 queue 2 rate 12500000 size 50000", // size N/A
@@ -300,14 +300,14 @@ DP_START_TEST(qos_fal_basic, fal_basic)
 
 const char *fal_wred_cmds[] = {
 	"port subports 1 pipes 1 profiles 1 overhead 24 ql_bytes",
-	"subport 0 rate 12500000 size 50000 period 40",
+	"subport 0 rate 12500000 size 50000 period 40000",
 	"subport 0 queue 0 rate 12500000 size 50000",
 	"param 0 limit packets 4096 red 0 2048 4095 34 6",
 	"subport 0 queue 1 rate 12500000 size 50000",
 	"subport 0 queue 2 rate 12500000 size 50000",
 	"subport 0 queue 3 rate 12500000 size 50000",
 	"vlan 0 0",
-	"profile 0 rate 12500000 size 50000 period 10",
+	"profile 0 rate 12500000 size 50000 period 10000",
 	"profile 0 queue 0 rate 12500000 size 50000",
 	"profile 0 queue 1 rate 12500000 size 50000",
 	"profile 0 queue 2 rate 12500000 size 50000",
@@ -566,7 +566,7 @@ const char *fal_hw_qos_cmds[] = {
 	 * 1 msec burst = 1250000 bytes squashed
 	 * to max burst of 130048 bytes
 	 */
-	"subport 0 percent 100 msec 1 period 40",
+	"subport 0 percent 100 msec 1 period 40000",
 
 	"subport 0 queue 0 rate 1250000000 size 100000", // size N/A
 	"param 0 limit packets 512",
@@ -577,12 +577,12 @@ const char *fal_hw_qos_cmds[] = {
 	"subport 0 queue 3 rate 1250000000 size 100000", // size N/A
 	"param 3 limit packets 1",
 	"vlan 0 0",
-	"profile 3 rate 250000 msec 20 period 10",   // burst size = 5000
+	"profile 3 rate 250000 msec 20 period 10000",// burst size = 5000
 	"profile 3 queue 0 percent 100 size 1000",   // size N/A
 	"profile 3 queue 1 rate 250000 size 1000",   // size N/A
 	"profile 3 queue 2 rate 250000 size 1000",   // size N/A
 	"profile 3 queue 3 rate 250000 size 1000",   // size N/A
-	"profile 0 rate 6250000 size 30000 period 5",
+	"profile 0 rate 6250000 size 30000 period 5000",
 	"profile 0 queue 0 percent 50 size 12500",  // rate = 3125000, size N/A
 	"profile 0 queue 1 rate 3125000 size 12500", // size N/A
 	"profile 0 queue 2 percent 100 size 25000", // rate = 6250000, size N/A
@@ -655,13 +655,13 @@ const char *fal_hw_qos_cmds[] = {
 	"profile 0 queue 0x1 wrr-weight 1 4",
 	"profile 0 queue 0x2 wrr-weight 60 8",
 	"profile 0 queue 0x6 wrr-weight 40 9",
-	"profile 1 rate 250000 msec 4 period 10",  // size = 1000 (1540 MTU)
+	"profile 1 rate 250000 msec 4 period 10000",  // size = 1000 (1540 MTU)
 	"profile 1 queue 0 rate 250000 size 1000", // size N/A
 	"profile 1 queue 1 rate 250000 size 1000", // size N/A
 	"profile 1 queue 2 rate 250000 size 1000", // size N/A
 	"profile 1 queue 3 rate 250000 size 1000", // size N/A
 	"pipe 0 0 3",
-	"subport 1 rate 1250000000 size 100000 period 40",
+	"subport 1 rate 1250000000 size 100000 period 40000",
 	"subport 1 queue 0 rate 1250000000 size 100000", // size N/A
 	"subport 1 queue 1 rate 1250000000 size 100000", // size N/A
 	"subport 1 queue 2 rate 1250000000 size 100000", // size N/A
@@ -670,7 +670,7 @@ const char *fal_hw_qos_cmds[] = {
 	"vlan 10 1",
 	"pipe 1 0 1",
 	"pipe 1 1 0",
-	"subport 2 rate 1250000000 size 100000 period 40",
+	"subport 2 rate 1250000000 size 100000 period 40000",
 	"subport 2 queue 0 rate 1250000000 size 100000", // size N/A
 	"subport 2 queue 1 rate 1250000000 size 100000", // size N/A
 	"subport 2 queue 2 rate 1250000000 size 100000", // size N/A
@@ -1089,13 +1089,13 @@ DP_START_TEST(qos_fal_basic, fal_said_poc)
 
 const char *fal_local_priority_cmds[] = {
 	"port subports 1 pipes 1 profiles 1 overhead 24 ql_bytes",
-	"subport 0 rate 125000000 size 50000 period 40",
+	"subport 0 rate 125000000 size 50000 period 40000",
 	"subport 0 queue 0 rate 125000000 size 50000",
 	"subport 0 queue 1 rate 125000000 size 50000",
 	"subport 0 queue 2 rate 125000000 size 50000",
 	"subport 0 queue 3 rate 125000000 size 50000",
 	"vlan 0 0",
-	"profile 0 rate 125000000 size 50000 period 10",
+	"profile 0 rate 125000000 size 50000 period 10000",
 	"profile 0 queue 0 rate 125000000 size 50000",
 	"profile 0 queue 1 rate 125000000 size 50000",
 	"profile 0 queue 2 rate 125000000 size 50000",
@@ -1307,26 +1307,26 @@ const char *fal_egress_map_qos_glb_delete_cmds[] = {
 
 const char *fal_egress_map_qos_int_cmds[] = {
 	"port subports 2 pipes 1 profiles 2 overhead 24 ql_bytes",
-	"subport 0 rate 1250000000 size 100000 period 40",
+	"subport 0 rate 1250000000 size 100000 period 40000",
 	"subport 0 queue 0 rate 1250000000 size 100000",
 	"subport 0 queue 1 rate 1250000000 size 100000",
 	"subport 0 queue 2 rate 1250000000 size 100000",
 	"subport 0 queue 3 rate 1250000000 size 100000",
 	"vlan 0 0",
-	"profile 0 rate 12500000 size 50000 period 10",
+	"profile 0 rate 12500000 size 50000 period 10000",
 	"profile 0 queue 0 rate 12500000 size 50000",
 	"profile 0 queue 1 rate 12500000 size 50000",
 	"profile 0 queue 2 rate 12500000 size 50000",
 	"profile 0 queue 3 rate 12500000 size 50000",
 	"pipe 0 0 0",
-	"subport 1 rate 1250000000 size 100000 period 40",
+	"subport 1 rate 1250000000 size 100000 period 40000",
 	"subport 1 queue 0 rate 1250000000 size 100000",
 	"subport 1 queue 1 rate 1250000000 size 100000",
 	"subport 1 queue 2 rate 1250000000 size 100000",
 	"subport 1 queue 3 rate 1250000000 size 100000",
 	"subport 1 mark-map egress-pcp-map",
 	"vlan 10 1",
-	"profile 1 rate 25000000 size 100000 period 10",
+	"profile 1 rate 25000000 size 100000 period 10000",
 	"profile 1 queue 0 rate 25000000 size 100000",
 	"profile 1 queue 1 rate 25000000 size 100000",
 	"profile 1 queue 2 rate 25000000 size 100000",
@@ -1470,26 +1470,26 @@ const char *fal_egress_map_qos_glb_delete_cmds2[] = {
 
 const char *fal_egress_map_qos_int_cmds2[] = {
 	"port subports 2 pipes 1 profiles 2 overhead 24 ql_bytes",
-	"subport 0 rate 1250000000 size 100000 period 40",
+	"subport 0 rate 1250000000 size 100000 period 40000",
 	"subport 0 queue 0 rate 1250000000 size 100000",
 	"subport 0 queue 1 rate 1250000000 size 100000",
 	"subport 0 queue 2 rate 1250000000 size 100000",
 	"subport 0 queue 3 rate 1250000000 size 100000",
 	"vlan 0 0",
-	"profile 0 rate 12500000 size 50000 period 10",
+	"profile 0 rate 12500000 size 50000 period 10000",
 	"profile 0 queue 0 rate 12500000 size 50000",
 	"profile 0 queue 1 rate 12500000 size 50000",
 	"profile 0 queue 2 rate 12500000 size 50000",
 	"profile 0 queue 3 rate 12500000 size 50000",
 	"pipe 0 0 0",
-	"subport 1 rate 1250000000 size 100000 period 40",
+	"subport 1 rate 1250000000 size 100000 period 40000",
 	"subport 1 queue 0 rate 1250000000 size 100000",
 	"subport 1 queue 1 rate 1250000000 size 100000",
 	"subport 1 queue 2 rate 1250000000 size 100000",
 	"subport 1 queue 3 rate 1250000000 size 100000",
 	"subport 1 mark-map des-mark",
 	"vlan 10 1",
-	"profile 1 rate 25000000 size 100000 period 10",
+	"profile 1 rate 25000000 size 100000 period 10000",
 	"profile 1 queue 0 rate 25000000 size 100000",
 	"profile 1 queue 1 rate 25000000 size 100000",
 	"profile 1 queue 2 rate 25000000 size 100000",
@@ -1726,13 +1726,13 @@ const char *fal_wred_map_npf_delete_cmds[] = {
 
 const char *fal_wred_map_qos_cmds[] = {
 	"port subports 1 pipes 1 profiles 1 overhead 24 ql_bytes",
-	"subport 0 rate 1250000000 size 100000 period 40",
+	"subport 0 rate 1250000000 size 100000 period 40000",
 	"subport 0 queue 0 rate 1250000000 size 100000",
 	"subport 0 queue 1 rate 1250000000 size 100000",
 	"subport 0 queue 2 rate 1250000000 size 100000",
 	"subport 0 queue 3 rate 1250000000 size 100000",
 	"vlan 0 0",
-	"profile 0 rate 125000 size 500 period 10",
+	"profile 0 rate 125000 size 500 period 10000",
 	"profile 0 queue 0 rate 125000 size 500",
 	"profile 0 queue 1 rate 125000 size 500",
 	"profile 0 queue 2 rate 125000 size 500",
@@ -2149,7 +2149,7 @@ const char *fal_hw_wred_map_npf_delete_cmds[] = {
 
 const char *fal_hw_wred_map_qos_cmds[] = {
 	"port subports 1 pipes 1 profiles 3 overhead 24 ql_bytes",
-	"subport 0 rate 1250000000 size 100000 period 40",
+	"subport 0 rate 1250000000 size 100000 period 40000",
 	"subport 0 queue 0 rate 1250000000 size 100000",
 	"param subport 0 0 limit packets 1024",
 	"subport 0 queue 1 rate 1250000000 size 100002",
@@ -2158,12 +2158,12 @@ const char *fal_hw_wred_map_qos_cmds[] = {
 	"param subport 0 2 limit packets 4096",
 	"subport 0 queue 3 rate 1250000000 size 100000",
 	"vlan 0 0",
-	"profile 0 rate 250000 size 1000 period 10",
+	"profile 0 rate 250000 size 1000 period 10000",
 	"profile 0 queue 0 rate 250000 size 1000",
 	"profile 0 queue 1 rate 250000 size 1000",
 	"profile 0 queue 2 rate 250000 size 1000",
 	"profile 0 queue 3 rate 250000 size 1000",
-	"profile 1 rate 6250000 size 30000 period 5",
+	"profile 1 rate 6250000 size 30000 period 5000",
 	"profile 1 queue 0 rate 3125000 size 12500",
 	"profile 1 queue 1 rate 3125000 size 12500",
 	"profile 1 queue 2 rate 6250000 size 25000",

@@ -493,7 +493,7 @@ static void qos_percent_rate_save(struct qos_rate_info *bw_info,
  * is specified in msec, calculates the burst value based on the given
  * rate (bytes/sec).
  */
-static uint32_t qos_burst_get(struct qos_rate_info *bw_info, uint32_t rate)
+static uint32_t qos_burst_get(struct qos_rate_info *bw_info, uint64_t rate)
 {
 	#define DEFAULT_BURST_MS (4)
 
@@ -523,7 +523,7 @@ static uint32_t qos_abs_burst_set(struct qos_rate_info *bw_info,
  * the calculated burst of the entity (see qos_burst_get for details)
  */
 static uint32_t qos_time_burst_set(struct qos_rate_info *bw_info,
-				   uint32_t burst, uint32_t rate)
+				   uint32_t burst, uint64_t rate)
 {
 	bw_info->burst_is_time = true;
 	bw_info->burst.time_ms = burst;
@@ -792,7 +792,8 @@ struct sched_info *qos_sched_new(struct ifnet *ifp,
 		pp->shaper.tb_rate = MAX_LINERATE;
 		pp->shaper.tb_size = qos_abs_burst_set(&profile_rates[i],
 						       DEFAULT_TBSIZE);
-		pp->shaper.tc_period = qos_period_set(&profile_rates[i], 10);
+		pp->shaper.tc_period = qos_period_set(&profile_rates[i],
+						      DEFAULT_PERIOD);
 #ifdef RTE_SCHED_SUBPORT_TC_OV
 		pp->shaper.tc_ov_weight = 0;
 #endif
@@ -852,7 +853,8 @@ struct sched_info *qos_sched_new(struct ifnet *ifp,
 		sp->params.tb_rate = MAX_LINERATE;
 		sp->params.tb_size = qos_abs_burst_set(&sp->subport_rate,
 						       DEFAULT_TBSIZE);
-		sp->params.tc_period = qos_period_set(&sp->subport_rate, 10);
+		sp->params.tc_period = qos_period_set(&sp->subport_rate,
+						      DEFAULT_PERIOD);
 
 		for (j = 0; j < RTE_SCHED_TRAFFIC_CLASSES_PER_PIPE; j++) {
 			qos_abs_rate_save(&sp->sp_tc_rates.tc_rate[j],
@@ -885,7 +887,7 @@ void qos_sched_subport_params_check(
 		uint16_t max_pkt_len, uint32_t max_burst_size, uint64_t bps,
 		struct sched_info *qinfo)
 {
-	uint32_t min_rate = (max_pkt_len * 1000) / params->tc_period;
+	uint32_t min_rate = (max_pkt_len * 1000 * 1000) / params->tc_period;
 	uint32_t tc_period = 0, period = 0;
 	unsigned int i;
 
@@ -908,13 +910,12 @@ void qos_sched_subport_params_check(
 		params->tc_rate[i] = qos_rate_get(&config_tc_rate[i],
 						  params->tb_rate, qinfo,
 						  false);
-		if (params->tc_rate[i] > bps)
-			params->tc_rate[i] = bps;
 		if (params->tc_rate[i] > params->tb_rate)
 			params->tc_rate[i] = params->tb_rate;
 
 		if (params->tc_rate[i] < min_rate) {
-			tc_period = (max_pkt_len * 1000) / params->tc_rate[i];
+			tc_period = (max_pkt_len * 1000 * 1000) /
+				params->tc_rate[i];
 			/* account for rounding, ensure non-zero */
 			tc_period++;
 			if (tc_period > period)
@@ -1062,6 +1063,9 @@ static void qos_show_pipe_config(json_writer_t *wr,
 	jsonw_end_array(wr);
 
 	jsonw_name(wr, "tc_period");
+	jsonw_uint(wr, (p->shaper.tc_period / 1000));
+
+	jsonw_name(wr, "tc_period_us");
 	jsonw_uint(wr, p->shaper.tc_period);
 
 	jsonw_name(wr, "wrr_weights");
@@ -2300,7 +2304,7 @@ static int cmd_qos_subport(struct ifnet *ifp, int argc, char **argv)
 	 * <a> - subport-id
 	 * <b> - subport shaper bandwidth rate
 	 * <c> - subport shaper max-burst size
-	 * <d> - subport token-bucket period
+	 * <d> - subport token-bucket period in microseconds
 	 * <e> - traffic-class-id (0..3)
 	 * <f> - traffic-class shaper bandwidth rate
 	 * <g> - traffic-class shaper max-burst size (not-used)
@@ -2787,7 +2791,7 @@ static int cmd_qos_profile(struct ifnet *ifp, int argc, char **argv)
 	 * <a> - profile-id
 	 * <b> - profile shaper bandwidth rate
 	 * <c> - profile shaper max-burst size
-	 * <d> - profile token-bucket period
+	 * <d> - profile token-bucket period in microseconds
 	 * <e> - traffic-class-id (0..3)
 	 * <f> - traffic-class shaper bandwidth rate
 	 * <g> - traffic-class burst size (not-used)
@@ -2916,7 +2920,7 @@ static int cmd_qos_profile(struct ifnet *ifp, int argc, char **argv)
 		} else if (strcmp(argv[0], "period") == 0) {
 			pipe->shaper.tc_period =
 				qos_period_set(&qinfo->profile_rates[profile],
-						value); /* ms */
+					       value); /* microseconds */
 #ifdef RTE_SCHED_SUBPORT_TC_OV
 		} else if (strcmp(argv[0], "over-weight") == 0) {
 			pipe->shaper.tc_ov_weight = value;
