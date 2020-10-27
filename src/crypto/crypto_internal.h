@@ -644,7 +644,7 @@ void crypto_prefetch_ctx(struct crypto_pkt_ctx *ctx_arr[], uint16_t count,
 		return;
 
 	i = cur + CRYPTO_PREFETCH_LOOKAHEAD;
-	j = cur + 1;
+	j = cur;
 	for (; j < count && j < i; j++)
 		rte_prefetch0(ctx_arr[j]);
 }
@@ -659,7 +659,7 @@ void crypto_prefetch_ctx_data(struct crypto_pkt_ctx *ctx_arr[], uint16_t count,
 		return;
 
 	i = cur + CRYPTO_PREFETCH_LOOKAHEAD;
-	j = cur + 1;
+	j = cur;
 	for (; j < count && j < i; j++) {
 		rte_prefetch0(ctx_arr[j]->mbuf);
 		rte_prefetch0(ctx_arr[j]->sa);
