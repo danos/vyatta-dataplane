@@ -1,3 +1,12 @@
+vyatta-dataplane (3.11.55) unstable; urgency=medium
+
+  [ Srinivas Narayan ]
+  * crypto: tune op and session pool sizes
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Wed, 28 Oct 2020 08:11:57 +0000
+
 vyatta-dataplane (3.11.54) unstable; urgency=medium
 
   [ Ian Wilson ]
