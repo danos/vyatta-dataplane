@@ -21,10 +21,6 @@
  * Support for 16K sessions ( = 8K tunnels )
  */
 #define CRYPTO_MAX_SESSIONS (1 << 14)
-#define CRYPTO_SESSION_POOL_CACHE_SIZE 512
-
-#define MAX_CRYPTO_OPS 8192
-#define CRYPTO_OP_POOL_CACHE_SIZE 256
 
 #define CRYPTO_OP_CTX_OFFSET (sizeof(struct rte_crypto_op) + \
 			      sizeof(struct rte_crypto_sym_op))
@@ -52,8 +48,7 @@ int crypto_rte_setup(void)
 	 * allocate generic session context pool
 	 */
 	crypto_session_pool = rte_cryptodev_sym_session_pool_create(
-		"crypto_session_pool", CRYPTO_MAX_SESSIONS, 0,
-		CRYPTO_SESSION_POOL_CACHE_SIZE, 0, socket);
+		"crypto_session_pool", CRYPTO_MAX_SESSIONS, 0, 0, 0, socket);
 	if (!crypto_session_pool) {
 		RTE_LOG(ERR, DATAPLANE,
 			"Could not allocate crypto session pool\n");
@@ -64,10 +59,17 @@ int crypto_rte_setup(void)
 		sizeof(struct rte_crypto_sym_op) +
 		sizeof(struct crypto_pkt_ctx **) + CRYPTO_MAX_IV_LENGTH;
 
+	/*
+	 * dp_lcore_events_init gets invoked from the main thread as well
+	 * and leads to a UT failure if the pool is not sized to take that
+	 * into account
+	 */
+	uint16_t crypto_op_pool_size =
+		MAX_CRYPTO_PKT_BURST * (rte_lcore_count() + 1);
+
 	crypto_op_pool = rte_crypto_op_pool_create("crypto_op_pool",
 						   RTE_CRYPTO_OP_TYPE_SYMMETRIC,
-						   MAX_CRYPTO_OPS,
-						   CRYPTO_OP_POOL_CACHE_SIZE,
+						   crypto_op_pool_size, 0,
 						   crypto_op_data_size,
 						   socket);
 	if (!crypto_op_pool) {
@@ -345,9 +347,7 @@ static int crypto_rte_setup_priv_pool(enum cryptodev_type dev_type,
 		 dev_type);
 	crypto_priv_sess_pools[dev_type] =
 		rte_mempool_create(pool_name, CRYPTO_MAX_SESSIONS, session_size,
-				   CRYPTO_SESSION_POOL_CACHE_SIZE, 0,
-				   NULL, NULL, NULL, NULL,
-				   socket, 0);
+				   0, 0, NULL, NULL, NULL, NULL, socket, 0);
 	if (!crypto_priv_sess_pools[dev_type]) {
 		RTE_LOG(ERR, DATAPLANE,
 			"Could not allocate crypto session private pool for socket %d, dev %s\n",
