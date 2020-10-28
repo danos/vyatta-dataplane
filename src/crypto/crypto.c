@@ -1683,6 +1683,15 @@ static void crypto_vrf_flush(struct vrf *vrf)
 	policy_feat_flush_vrf(vrf_ctx);
 }
 
+void crypto_flush_all(void)
+{
+	vrfid_t vrf_id;
+	struct vrf *vrf;
+
+	VRF_FOREACH(vrf, vrf_id)
+		crypto_vrf_flush(get_vrf(vrf_id));
+}
+
 static const struct dp_event_ops crypto_events = {
 	.vrf_delete = crypto_vrf_flush,
 };
