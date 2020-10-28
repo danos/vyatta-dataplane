@@ -1,3 +1,15 @@
+vyatta-dataplane (3.11.56) unstable; urgency=medium
+
+  [ Srinivas Narayan ]
+  * crypto: prefetch fields in ctx in encrypt path
+  * crypto: Include current index in prefetch
+  * crypto: prefetch IVs to be used in encryption
+  * crypto: prefetch ops
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Wed, 28 Oct 2020 11:51:25 +0000
+
 vyatta-dataplane (3.11.55) unstable; urgency=medium
 
   [ Srinivas Narayan ]
