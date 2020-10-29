@@ -622,7 +622,7 @@ DP_START_TEST(zone6, test)
 		"1.1.1.1", 41003, "3.3.3.11", 1003,
 		NULL, 0, NULL, 0,
 		"aa:bb:cc:dd:3:a1", "dp1T2",
-		DP_TEST_FWD_DROPPED);
+		DP_TEST_FWD_FORWARDED);
 
 	/*
 	 * PUBLIC -> Local. Block rule.
