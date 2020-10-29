@@ -2057,7 +2057,8 @@ void _dp_test_mroute_nl(uint16_t nlmsg_type, const char *src,
 	nlh->nlmsg_flags = NLM_F_ACK;
 
 	rtm = mnl_nlmsg_put_extra_header(nlh, sizeof(struct rtmsg));
-	rtm->rtm_family = RTNL_FAMILY_IPMR;
+	rtm->rtm_family = ((af == AF_INET) ?
+			   RTNL_FAMILY_IPMR : RTNL_FAMILY_IP6MR);
 	rtm->rtm_type = RTN_MULTICAST;
 	rtm->rtm_dst_len = route->prefix.len;
 	rtm->rtm_src_len = route->prefix.len;

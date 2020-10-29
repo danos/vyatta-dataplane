@@ -175,3 +175,85 @@ DP_START_TEST(ip_mfwd_4, dp_forwarding)
 	dp_test_nl_del_ip_addr_and_connected("dp2T2", "3.3.3.3/24");
 
 } DP_END_TEST;
+
+/*
+ * IPv6 multicast forwarding
+ */
+DP_DECL_TEST_CASE(ip_msuite, ip_mfwd_5, NULL, NULL);
+DP_START_TEST(ip_mfwd_5, dp_forwarding)
+{
+	const char *grp_dest = "ff0e::1:1";
+	const char *grp_mac = "33:33:00:01:00:01";
+	struct dp_test_expected *exp;
+	struct rte_mbuf *test_pak;
+	int len = 22;
+
+	dp_test_nl_add_ip_addr_and_connected("dp1T0", "2001:1:1::1/64");
+	dp_test_nl_add_ip_addr_and_connected("dp2T1", "2002:2:2::1/64");
+	dp_test_nl_add_ip_addr_and_connected("dp2T2", "2003:3:3::1/64");
+
+	dp_test_netlink_add_neigh("dp1T0", "2001:1:1::2",
+				  "aa:bb:cc:dd:1:a1");
+	dp_test_netlink_add_neigh("dp2T1", "2002:2:2::2",
+				  "aa:bb:cc:dd:2:b2");
+	dp_test_netlink_add_neigh("dp2T2", "2003:3:3::2",
+				  "aa:bb:cc:dd:3:c3");
+
+	dp_test_netlink_netconf_mcast("dp1T0", AF_INET6, true);
+	dp_test_netlink_netconf_mcast("dp2T1", AF_INET6, true);
+	dp_test_netlink_netconf_mcast("dp2T2", AF_INET6, true);
+
+	/* Add multicast route */
+	dp_test_mroute_nl(RTM_NEWROUTE, "2001:1:1::2", "dp1T0",
+			  "ff0e::1:1/128 nh int:dp2T1 nh int:dp2T2");
+
+
+	/* Create multicast pak */
+	test_pak = dp_test_create_ipv6_pak("2001:1:1::2",
+					   grp_dest,
+					   1, &len);
+
+	dp_test_pktmbuf_eth_init(test_pak, dp_test_intf_name2mac_str("dp1T0"),
+				 DP_TEST_INTF_DEF_SRC_MAC, RTE_ETHER_TYPE_IPV6);
+
+	/* Create pak we expect to receive on the tx ring */
+	exp = dp_test_exp_create_m(test_pak, 2);
+
+	dp_test_exp_set_oif_name_m(exp, 0, "dp2T1");
+	dp_test_exp_set_oif_name_m(exp, 1, "dp2T2");
+
+	(void)dp_test_pktmbuf_eth_init(dp_test_exp_get_pak_m(exp, 0),
+				       grp_mac,
+				       dp_test_intf_name2mac_str("dp2T1"),
+				       RTE_ETHER_TYPE_IPV6);
+	dp_test_ipv6_decrement_ttl(dp_test_exp_get_pak_m(exp, 0));
+
+	(void)dp_test_pktmbuf_eth_init(dp_test_exp_get_pak_m(exp, 1),
+				       grp_mac,
+				       dp_test_intf_name2mac_str("dp2T2"),
+				       RTE_ETHER_TYPE_IPV6);
+	dp_test_ipv6_decrement_ttl(dp_test_exp_get_pak_m(exp, 1));
+
+	dp_test_pak_receive(test_pak, "dp1T0", exp);
+
+
+	/* Cleanup */
+	dp_test_mroute_nl(RTM_DELROUTE, "2001:1:1::2", "dp1T0",
+			  "ff0e::1:1/128 nh int:dp2T1 nh int:dp2T2");
+
+	dp_test_netlink_netconf_mcast("dp1T0", AF_INET6, false);
+	dp_test_netlink_netconf_mcast("dp2T1", AF_INET6, false);
+	dp_test_netlink_netconf_mcast("dp2T2", AF_INET6, false);
+
+	dp_test_netlink_del_neigh("dp1T0", "2001:1:1::2",
+				  "aa:bb:cc:dd:1:a1");
+	dp_test_netlink_del_neigh("dp2T1", "2002:2:2::2",
+				  "aa:bb:cc:dd:2:b2");
+	dp_test_netlink_del_neigh("dp2T2", "2003:3:3::2",
+				  "aa:bb:cc:dd:3:c3");
+
+	dp_test_nl_del_ip_addr_and_connected("dp1T0", "2001:1:1::1/64");
+	dp_test_nl_del_ip_addr_and_connected("dp2T1", "2002:2:2::1/64");
+	dp_test_nl_del_ip_addr_and_connected("dp2T2", "2003:3:3::1/64");
+
+} DP_END_TEST;
