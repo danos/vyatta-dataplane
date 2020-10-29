@@ -1278,18 +1278,12 @@ npf_gen_ncode(zhashx_t *config_ht, void **ncode, uint32_t *size,
 			goto error;
 		}
 
+		npf_grouper_add_proto(&ctx, proto, 0);
 		/*
-		 * Don't generate ncode for IPv6-route, as not an L4 header
-		 * and the protocol is just used to allow ipv6-route matching.
+		 * Protocol check is done in the TCP flags ncode
 		 */
-		if (!ipv6_route) {
-			npf_grouper_add_proto(&ctx, proto, 0);
-			/*
-			 * Protocol check is done in the TCP flags ncode
-			 */
-			if (!tcp_flags)
-				npf_gennc_proto_final(ctx.nc_ctx, proto);
-		}
+		if (!tcp_flags)
+			npf_gennc_proto_final(ctx.nc_ctx, proto);
 	}
 
 	/*
