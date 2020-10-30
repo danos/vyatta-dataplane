@@ -634,6 +634,8 @@ struct fal_bfd_ops {
 			uint32_t num_counters,
 			const enum fal_bfd_session_stat_t *counter_ids,
 			uint64_t *counters);
+	int (*dump_session)(fal_object_t bfd_session_id,
+			    json_writer_t *wr);
 };
 
 void fal_init(void);

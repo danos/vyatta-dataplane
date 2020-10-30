@@ -579,7 +579,8 @@ static struct fal_bfd_ops *new_dyn_bfd_ops(void *lib)
 		"fal_plugin_bfd_get_session_attribute");
 	bfd_ops->get_session_stats = dlsym(lib,
 		"fal_plugin_bfd_get_session_stats");
-
+	bfd_ops->dump_session = dlsym(lib,
+				      "fal_plugin_bfd_dump_session");
 	return bfd_ops;
 }
 
@@ -3785,6 +3786,13 @@ int dp_fal_bfd_get_switch_attrs(uint32_t attr_count,
 int dp_fal_bfd_set_switch_attr(const struct fal_attribute_t *attr)
 {
 	return fal_set_switch_attr(attr);
+}
+
+int dp_fal_bfd_dump_session(fal_object_t bfd_session_id,
+			     json_writer_t *wr)
+{
+	return call_handler_def_ret(bfd, -EOPNOTSUPP, dump_session,
+				    bfd_session_id, wr);
 }
 
 /* End of BFD functions */

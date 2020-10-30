@@ -6181,6 +6181,18 @@ typedef void (*fal_bfd_session_state_change_notification_fn)(
 	uint32_t count,
 	struct fal_bfd_session_state_notification_t *data);
 
+/**
+ * @brief Dump BFD session
+ *
+ * @param[in] bfd_session_id BFD session id
+ * @param[inout] json JSON writer object
+ *
+ * @return 0 if operation is successful otherwise a different
+ * error code is returned.
+ */
+void fal_plugin_bfd_dump_session(fal_object_t bfd_session_id,
+				 json_writer_t *wr);
+
 /* End of BFD Definitions */
 
 enum fal_mpls_route_attr_t {

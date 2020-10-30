@@ -101,4 +101,16 @@ int dp_fal_bfd_get_switch_attrs(uint32_t attr_count,
  */
 int dp_fal_bfd_set_switch_attr(const struct fal_attribute_t *attr);
 
+/**
+ * @brief Dump BFD session state
+ *
+ * @param[in] bfd_session_id  BFD session id.
+ * @param[inout] json JSON writer to dump the state into.
+ *
+ * @return 0 if operation is successful otherwise a different
+ * error code is returned.
+ */
+int dp_fal_bfd_dump_session(fal_object_t bfd_session_id,
+			    json_writer_t *wr);
+
 #endif /* VYATTA_DATAPLANE_FAL_BFD_H */
