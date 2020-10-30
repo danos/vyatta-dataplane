@@ -1337,9 +1337,9 @@ static void qos_show_ifp_platform(json_writer_t *wr,
 	jsonw_end_array(wr);  /* subports */
 }
 
-struct qos_sched_ing_map_info {
+struct qos_sched_map_info {
 	uint16_t vlan;
-	fal_object_t ingress_map;
+	fal_object_t qos_map;
 };
 
 static void show_ifp_qos(struct ifnet *ifp, void *arg)
@@ -1350,16 +1350,18 @@ static void show_ifp_qos(struct ifnet *ifp, void *arg)
 	unsigned int i, num_maps = 0;
 	struct cds_lfht_iter iter;
 	struct if_vlan_feat *vlan_feat;
-	struct fal_attribute_t ing_map_attr;
-	struct qos_sched_ing_map_info ingress_maps[VLAN_N_VID];
+	struct fal_attribute_t qos_map_attr;
+	struct qos_sched_map_info ingress_maps[VLAN_N_VID];
+	bool is_ingress_map_exist = false;
+	struct qos_sched_map_info egress_maps[VLAN_N_VID];
 	int rv;
 
 	if (context->is_platform) {
-		ing_map_attr.id = FAL_PORT_ATTR_QOS_INGRESS_MAP_ID;
-		rv = fal_l2_get_attrs(ifp->if_index, 1, &ing_map_attr);
+		qos_map_attr.id = FAL_PORT_ATTR_QOS_INGRESS_MAP_ID;
+		rv = fal_l2_get_attrs(ifp->if_index, 1, &qos_map_attr);
 
-		if (rv != -ENOENT && ing_map_attr.value.objid) {
-			ingress_maps[0].ingress_map = ing_map_attr.value.objid;
+		if (rv != -ENOENT && qos_map_attr.value.objid) {
+			ingress_maps[0].qos_map = qos_map_attr.value.objid;
 			ingress_maps[0].vlan = 0;
 			num_maps++;
 		}
@@ -1367,16 +1369,16 @@ static void show_ifp_qos(struct ifnet *ifp, void *arg)
 		if (ifp->vlan_feat_table) {
 			cds_lfht_for_each_entry(ifp->vlan_feat_table, &iter,
 						vlan_feat, vlan_feat_node) {
-				struct fal_attribute_t ing_map_attr;
+				struct fal_attribute_t qos_map_attr;
 
-				ing_map_attr.id =
+				qos_map_attr.id =
 				FAL_VLAN_FEATURE_ATTR_QOS_INGRESS_MAP_ID;
 				fal_vlan_feature_get_attr(
 						  vlan_feat->fal_vlan_feat, 1,
-						  &ing_map_attr);
-				if (ing_map_attr.value.objid) {
-					ingress_maps[num_maps].ingress_map =
-						ing_map_attr.value.objid;
+						  &qos_map_attr);
+				if (qos_map_attr.value.objid) {
+					ingress_maps[num_maps].qos_map =
+						qos_map_attr.value.objid;
 					ingress_maps[num_maps].vlan =
 						vlan_feat->vlan;
 					num_maps++;
@@ -1394,14 +1396,13 @@ static void show_ifp_qos(struct ifnet *ifp, void *arg)
 				context->sent_sysdef_map = true;
 			}
 		}
-
 	}
 
-	if (qinfo == NULL && num_maps == 0)
-		return;
-
-	jsonw_name(wr, ifp->if_name);
-	jsonw_start_object(wr);
+	if (qinfo != NULL || num_maps != 0) {
+		jsonw_name(wr, ifp->if_name);
+		jsonw_start_object(wr);
+		is_ingress_map_exist = true;
+	}
 
 	if (context->is_platform && num_maps) {
 		jsonw_name(wr, "ingress-maps");
@@ -1409,16 +1410,89 @@ static void show_ifp_qos(struct ifnet *ifp, void *arg)
 		for (i = 0; i < num_maps; i++) {
 			jsonw_start_object(wr);
 			jsonw_uint_field(wr, "vlan", ingress_maps[i].vlan);
-			fal_qos_dump_map(ingress_maps[i].ingress_map, wr);
+			fal_qos_dump_map(ingress_maps[i].qos_map, wr);
 			jsonw_end_object(wr);
 		}
 		jsonw_end_array(wr);  /* ingress maps */
 
-		if (qinfo == NULL) {
+	}
+
+	num_maps = 0;
+	if (context->is_platform) {
+		qos_map_attr.id = FAL_ROUTER_INTERFACE_ATTR_EGRESS_QOS_MAP;
+		rv = if_get_l3_intf_attr(ifp, 1, &qos_map_attr);
+
+		if (rv != -EOPNOTSUPP && qos_map_attr.value.objid) {
+			egress_maps[num_maps].qos_map =
+				qos_map_attr.value.objid;
+			egress_maps[num_maps].vlan = ifp->if_vlan;
+			num_maps++;
+		}
+
+		if (num_maps == 0) {
+			qos_map_attr.id = FAL_PORT_ATTR_QOS_EGRESS_MAP_ID;
+			rv = fal_l2_get_attrs(ifp->if_index, 1, &qos_map_attr);
+
+			if (rv != -ENOENT && qos_map_attr.value.objid) {
+				egress_maps[0].qos_map =
+					qos_map_attr.value.objid;
+				egress_maps[0].vlan = 0;
+				num_maps++;
+			}
+
+			if (ifp->vlan_feat_table) {
+				cds_lfht_for_each_entry(ifp->vlan_feat_table,
+					&iter, vlan_feat, vlan_feat_node) {
+					struct fal_attribute_t qos_map_attr;
+
+					qos_map_attr.id =
+					FAL_VLAN_FEATURE_ATTR_QOS_EGRESS_MAP_ID;
+					fal_vlan_feature_get_attr(
+						  vlan_feat->fal_vlan_feat, 1,
+						  &qos_map_attr);
+					if (qos_map_attr.value.objid) {
+						egress_maps[num_maps].qos_map =
+						qos_map_attr.value.objid;
+						egress_maps[num_maps].vlan =
+							vlan_feat->vlan;
+						num_maps++;
+					}
+				}
+			}
+		}
+
+		if (qinfo == NULL && num_maps == 0) {
+			if (!is_ingress_map_exist)
+				return;
 			jsonw_end_object(wr); /* ifname */
 			return;
 		}
+
+		if (num_maps) {
+			if (!is_ingress_map_exist) {
+				jsonw_name(wr, ifp->if_name);
+				jsonw_start_object(wr);
+			}
+			jsonw_name(wr, "egress-maps");
+			jsonw_start_array(wr);
+			for (i = 0; i < num_maps; i++) {
+				jsonw_start_object(wr);
+				jsonw_uint_field(wr, "vlan", egress_maps[
+						i].vlan);
+				fal_qos_dump_map(egress_maps[i].qos_map, wr);
+				jsonw_end_object(wr);
+			}
+			jsonw_end_array(wr);  /* egress maps */
+
+			if (qinfo == NULL) {
+				jsonw_end_object(wr); /* ifname */
+				return;
+			}
+		}
 	}
+
+	if ((qinfo == NULL) && (num_maps == 0))
+		return;
 
 	/* Put "shaper" tag on to allow for future alternates */
 	jsonw_name(wr, "shaper");
@@ -1815,13 +1889,13 @@ static void show_qos_egress_map(struct qos_show_context *context,
 	jsonw_start_object(wr);
 	jsonw_string_field(wr, "name", map->map_name);
 	jsonw_string_field(wr, "type",
-			(map->type == EGRESS_DESIGNATION_DSCP) ?
+			(map->type == EGRESS_DSCPGRP_DSCP) ?
 			"dscp" : "pcp");
 	jsonw_name(wr, "map");
 	jsonw_start_array(wr);
-	for (i = 0; i < INGRESS_DESIGNATORS; i++) {
+	for (i = 0; i < MAX_DSCP; i++) {
 		jsonw_start_object(wr);
-		jsonw_uint_field(wr, "designation", i);
+		jsonw_uint_field(wr, "indscp", i);
 		jsonw_uint_field(wr, "value", map->pcp_value[i]);
 		jsonw_end_object(wr);
 	}
@@ -4114,9 +4188,6 @@ static int qos_egressm_trgt_detach(unsigned int ifindex, unsigned int vlan,
 		return -EINVAL;
 	}
 
-	DP_DEBUG(QOS, DEBUG, DATAPLANE, "Detach egress map target %u %u\n",
-		 ifindex, vlan);
-
 	ret = (*qos_egressm.qos_egressm_detach)(ifindex, vlan, map);
 
 	return ret;
@@ -4163,9 +4234,10 @@ static int qos_egress_map_delete(char const *name)
 
 static int
 qos_egress_map_set(char const *name, enum egress_map_type type,
-		uint8_t designation, uint8_t remark_value)
+		uint64_t mask, uint8_t remark_value)
 {
 	struct qos_mark_map *map;
+	uint8_t dscp;
 
 	map = qos_egress_map_find(name);
 	if (!map) {
@@ -4180,11 +4252,11 @@ qos_egress_map_set(char const *name, enum egress_map_type type,
 	}
 
 	map->type = type;
-	map->pcp_value[designation] = remark_value;
-	map->des_used |= (1 << designation);
-	DP_DEBUG(QOS, DEBUG, DATAPLANE,
-	    "Added map name %s type %d remark_value %d designation %d\n",
-	    name, type, remark_value, designation);
+	map->dscp_used |= mask;
+	for (dscp = 0; dscp < MAX_DSCP; dscp++) {
+		if (mask & (1ul << dscp))
+			map->pcp_value[dscp] = remark_value;
+	}
 
 	return 0;
 }
@@ -4213,7 +4285,8 @@ static int cmd_qos_egress_map(struct ifnet *ifp, int argc, char **argv)
 	const char *map_name;
 	enum egress_map_type type = EGRESS_UNDEF;
 	uint8_t remark_value;
-	unsigned int desg;
+	uint64_t mask = 0;
+	int ret;
 
 	int i = 0;
 	for (i = 0; i < argc; i++)
@@ -4285,13 +4358,14 @@ static int cmd_qos_egress_map(struct ifnet *ifp, int argc, char **argv)
 		break;
 
 	case 4:
-		if (!strcmp(argv[0], "designation")) {
+		if (!strcmp(argv[0], "dscp-group")) {
 			argc--; argv++;
-			if ((get_unsigned(argv[0], &desg) < 0) ||
-			    desg > MAX_DESIGNATOR) {
+			ret = npf_dscp_group_getmask(argv[0], &mask);
+			if (ret) {
 				DP_DEBUG(QOS, ERR, DATAPLANE,
-					 "Invalid Desigation value\n");
-				return -EINVAL;
+					 "Failed to retrieve dscp group %s\n",
+					 argv[0]);
+				return -ENOENT;
 			}
 			argc--; argv++;
 		} else {
@@ -4299,7 +4373,6 @@ static int cmd_qos_egress_map(struct ifnet *ifp, int argc, char **argv)
 				 "Missing egress map type\n");
 			return -EINVAL;
 		}
-
 
 		if (!strcmp(argv[0], "dscp")) {
 			argc--; argv++;
@@ -4310,24 +4383,14 @@ static int cmd_qos_egress_map(struct ifnet *ifp, int argc, char **argv)
 				return -EINVAL;
 			}
 			argc--; argv++;
-			type = EGRESS_DESIGNATION_DSCP;
-		} else if (!strcmp(argv[0], "pcp")) {
-			argc--; argv++;
-			if ((get_unsigned_char(argv[0], &remark_value) < 0) ||
-				remark_value > MAX_PCP) {
-				DP_DEBUG(QOS, ERR, DATAPLANE,
-				"Invalid PCP value\n");
-				return -EINVAL;
-			}
-			argc--; argv++;
-			type = EGRESS_DESIGNATION_PCP;
+			type = EGRESS_DSCPGRP_DSCP;
 		} else {
 			DP_DEBUG(QOS, ERR, DATAPLANE,
-				 "Missing egress map DSCP or PCP value\n");
+				 "Missing egress map DSCP value\n");
 			return -EINVAL;
 		}
 
-		return(qos_egress_map_set(map_name, type, desg, remark_value));
+		return(qos_egress_map_set(map_name, type, mask, remark_value));
 
 	default:
 		DP_DEBUG(QOS, ERR, DATAPLANE,

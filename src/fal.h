@@ -111,6 +111,8 @@ struct fal_rif_ops {
 	int (*get_stats)(fal_object_t obj, uint32_t cntr_count,
 			 const enum fal_router_interface_stat_t *cntr_ids,
 			 uint64_t *cntrs);
+	int (*get_attr)(fal_object_t obj, uint32_t attr_count,
+			struct fal_attribute_t *attr_list);
 	void (*dump)(fal_object_t obj, json_writer_t *wr);
 };
 
@@ -688,6 +690,8 @@ fal_get_router_interface_stats(fal_object_t obj,
 			       uint32_t cntr_count,
 			       const enum fal_router_interface_stat_t *cntr_ids,
 			       uint64_t *cntrs);
+int fal_get_router_interface_attr(fal_object_t obj, uint32_t attr_count,
+				  struct fal_attribute_t *attr);
 void
 fal_dump_router_interface(fal_object_t obj, json_writer_t *wr);
 

@@ -1152,6 +1152,7 @@ fal_plugin_set_router_interface_attr(fal_object_t obj,
  */
 int
 fal_plugin_get_router_interface_attr(fal_object_t obj,
+				     uint32_t attr_count,
 				     struct fal_attribute_t *attr_list);
 
 /**
@@ -3619,8 +3620,11 @@ enum fal_qos_map_type_t {
 	/** QOS Map to set designator to DSCP */
 	FAL_QOS_MAP_TYPE_DESIGNATOR_TO_DSCP = 0x0000000c,
 
+	/** QOS Map to set DSCP to DSCP */
+	FAL_QOS_MAP_TYPE_DSCP_TO_DSCP = 0x0000000d,
+
 	/** Max value */
-	FAL_QOS_MAP_TYPE_MAX = FAL_QOS_MAP_TYPE_DESIGNATOR_TO_DSCP,
+	FAL_QOS_MAP_TYPE_MAX = FAL_QOS_MAP_TYPE_DSCP_TO_DSCP,
 };
 
 /**
