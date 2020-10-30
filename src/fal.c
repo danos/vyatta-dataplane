@@ -921,10 +921,11 @@ fal_get_router_interface_stats(fal_object_t obj,
 }
 
 int fal_get_router_interface_attr(fal_object_t obj,
-				  struct fal_attribute_t *attr)
+				  uint32_t attr_count,
+				  struct fal_attribute_t *attr_list)
 {
 	return call_handler_def_ret(rif, -EOPNOTSUPP, get_attr,
-				    obj, attr);
+				    obj, attr_count, attr_list);
 }
 
 void

@@ -3299,6 +3299,28 @@ if_set_l3_intf_attr(struct ifnet *ifp, struct fal_attribute_t *attr)
 	return fal_set_router_interface_attr(ifp->fal_l3, attr);
 }
 
+int
+if_get_l3_intf_attr(struct ifnet *ifp, uint32_t attr_count,
+		struct fal_attribute_t *attr_list)
+{
+	uint32_t i;
+
+	for (i = 0; i < attr_count; i++) {
+		switch (attr_list[i].id) {
+		case FAL_ROUTER_INTERFACE_ATTR_EGRESS_QOS_MAP:
+			if (!ifp->fal_l3)
+				return -EOPNOTSUPP;
+			break;
+
+		default:
+			return -EOPNOTSUPP;
+		}
+	}
+	return fal_get_router_interface_attr(ifp->fal_l3, attr_count,
+			attr_list);
+}
+
+
 /*
  * Retrieve FAL router interface object stats for hardware-switch traffic.
  *

@@ -567,16 +567,21 @@ static void qos_hw_egressm_attrs(struct qos_mark_map *map,
 				  struct fal_qos_map_list_t *map_list)
 {
 	int i;
-	int max_entries = (map->type == EGRESS_DSCP) ?
+	int max_entries = ((map->type == EGRESS_DSCP) ||
+				(map->type = EGRESS_DSCPGRP_DSCP)) ?
 				FAL_QOS_MAP_DSCP_VALUES :
 				FAL_QOS_MAP_DESIGNATION_VALUES;
+	uint64_t mask = ((map->type == EGRESS_DSCP) ||
+				(map->type = EGRESS_DSCPGRP_DSCP)) ?
+				map->dscp_used :
+				map->des_used;
 
 	map_list->des_used = map->des_used;
 	for (i = 0; i < max_entries; i++) {
-		if (map->des_used & (1 << i)) {
+		if (mask & (1UL << i)) {
 			map_list->count++;
 			map_list->list[i].key.des = i;
-			if (map->type == EGRESS_DESIGNATION_DSCP) {
+			if (map->type == EGRESS_DSCPGRP_DSCP) {
 				map_list->list[i].value.dscp =
 					map->pcp_value[i];
 			} else if (map->type == EGRESS_DESIGNATION_PCP) {
@@ -643,15 +648,20 @@ static int qos_hw_egressm_attach(unsigned int ifindex, unsigned int vlan,
 			 ifindex);
 		return -ENOENT;
 	}
-	if (map->type != EGRESS_DESIGNATION_DSCP) {
-		struct fal_attribute_t port_attr_list = {
-			.id = FAL_PORT_ATTR_QOS_EGRESS_MAP_ID,
-			.value.objid = map->mark_obj
-		};
+	if (map->type != EGRESS_DSCPGRP_DSCP) {
+		if (!vlan) {
+			struct fal_attribute_t port_attr_list = {
+				.id = FAL_PORT_ATTR_QOS_EGRESS_MAP_ID,
+				.value.objid = map->mark_obj
+			};
+			fal_l2_upd_port(ifindex, &port_attr_list);
+
+			DP_DEBUG(QOS_HW, DEBUG, DATAPLANE,
+				 "Created ingress feature on if %u\n", ifindex);
+
+			return 0;
+		}
 		struct if_vlan_feat *vlan_feat;
-
-		fal_l2_upd_port(ifindex, &port_attr_list);
-
 
 		struct fal_attribute_t vlan_attr[] = {
 			{ .id = FAL_VLAN_FEATURE_INTERFACE_ID,
@@ -707,7 +717,7 @@ static int qos_hw_egressm_attach(unsigned int ifindex, unsigned int vlan,
 		DP_DEBUG(QOS_HW, ERR, DATAPLANE,
 			 "Successfully added feature for if %s vlan %u\n",
 			ifp->if_name, vlan);
-	} else if (map->type == EGRESS_DESIGNATION_DSCP) {
+	} else if (map->type == EGRESS_DSCPGRP_DSCP) {
 		qos_hw_if_set_egress_map(ifp, map);
 	} else {
 		DP_DEBUG(QOS_HW, ERR, DATAPLANE,
@@ -747,7 +757,7 @@ static int qos_hw_egressm_detach(unsigned int ifindex, unsigned int vlan,
 		return -ENOENT;
 	}
 
-	if (map->type != EGRESS_DESIGNATION_DSCP) {
+	if (map->type != EGRESS_DSCPGRP_DSCP) {
 		struct if_vlan_feat *vlan_feat = NULL;
 		struct fal_attribute_t vlan_attr[1] = {
 			{ .id = FAL_VLAN_FEATURE_ATTR_QOS_EGRESS_MAP_ID,
@@ -791,7 +801,7 @@ static int qos_hw_egressm_detach(unsigned int ifindex, unsigned int vlan,
 				return ret;
 			}
 		}
-	} else if (map->type == EGRESS_DESIGNATION_DSCP) {
+	} else if (map->type == EGRESS_DSCPGRP_DSCP) {
 		qos_hw_if_set_egress_map(ifp, NULL);
 	} else {
 		DP_DEBUG(QOS_HW, ERR, DATAPLANE,
@@ -830,8 +840,8 @@ static int qos_hw_egressm_config(struct qos_mark_map *map,
 	};
 	int ret;
 
-	if (map->type == EGRESS_DESIGNATION_DSCP)
-		attr_list[0].value.u8 = FAL_QOS_MAP_TYPE_DESIGNATOR_TO_DSCP;
+	if (map->type == EGRESS_DSCPGRP_DSCP)
+		attr_list[0].value.u8 = FAL_QOS_MAP_TYPE_DSCP_TO_DSCP;
 
 	qos_hw_egressm_attrs(map, &map_list);
 

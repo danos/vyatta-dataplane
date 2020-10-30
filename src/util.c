@@ -417,7 +417,7 @@ int get_unsigned_short(const char *str, unsigned short *ptr)
 int get_unsigned_char(const char *str, unsigned char *ptr)
 {
 	int result;
-	unsigned int val;
+	unsigned int val = 0;
 
 	result = get_unsigned(str, &val);
 	if (result < 0)
