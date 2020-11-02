@@ -1593,9 +1593,6 @@ nexthop_mp_select(const struct next_hop_list *nextl,
 		return next + (nextl->nh_map->index[index]);
 	}
 
-	if (ecmp_max_path && ecmp_max_path < size)
-		size = ecmp_max_path;
-
 	path = ecmp_lookup(size, hash);
 	if (unlikely(next[path].flags & RTF_DEAD)) {
 		/* retry to find a good path */

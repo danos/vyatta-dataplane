@@ -42,9 +42,6 @@
 /* Global ECMP mode */
 static uint8_t ecmp_mode = ECMP_HRW;
 
-/* Global ECMP max path param */
-uint16_t ecmp_max_path = UINT16_MAX;
-
 /* ECMP modes */
 static const char *ecmp_modes[ECMP_MAX] = {
 	[ECMP_DISABLED]		= "disable",
@@ -196,7 +193,7 @@ unsigned int ecmp_lookup(uint32_t size, uint32_t key)
 static void ecmp_show(json_writer_t *json)
 {
 	jsonw_string_field(json, "mode", ecmp_modes[ecmp_mode]);
-	jsonw_uint_field(json, "max-path", ecmp_max_path);
+	jsonw_uint_field(json, "max-path", UINT16_MAX);
 }
 
 static int ecmp_set_mode(const char *mode)
@@ -215,26 +212,17 @@ static int ecmp_set_mode(const char *mode)
 	return -1;
 }
 
-static int ecmp_set_max_path(int val)
-{
-	ecmp_max_path = val;
-
-	return 0;
-}
-
 #define ECMP_MODES \
 	"hash-threshold|hrw|modulo-n|disable"
 
 #define CMD_ECMP_USAGE                     \
 	"Usage: ecmp show\n"               \
-"       ecmp max-path <2-65535>\n" \
 "       ecmp mode <"ECMP_MODES">\n"
 
 /*
  * Commands:
  *      ecmp show - show ecmp options
  *      ecmp mode - set ecmp mode
- *      ecmp max-path - set ecmp max-path option
  */
 int cmd_ecmp(FILE *f, int argc, char **argv)
 {
@@ -243,12 +231,6 @@ int cmd_ecmp(FILE *f, int argc, char **argv)
 	if (argc == 3 && !strcmp(argv[1], "mode")) {
 		if (strstr(ECMP_MODES, argv[2]))
 			return ecmp_set_mode(argv[2]);
-	} else if (argc == 3 && !strcmp(argv[1], "max-path")) {
-		unsigned int val = strtoul(argv[2], NULL, 0);
-
-		if (val == 0 || (val >= 2 && val <= 65535))
-			return ecmp_set_max_path(val);
-
 	} else if (argc == 2 && !strcmp(argv[1], "show")) {
 		json = jsonw_new(f);
 		jsonw_name(json, "ecmp_show");
