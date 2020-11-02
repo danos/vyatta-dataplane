@@ -995,13 +995,14 @@ void ptp_peer_update(struct ptp_peer_t *peer)
 		 * The sibling might also be better if the current
 		 * peer isn't reachable or IFF_UP.
 		 */
-		if ((sib_ifp->if_flags & IFF_UP) &&
+		if ((sib_ifp && (sib_ifp->if_flags & IFF_UP)) &&
 		    (sib_nh_ifp == sib_ifp ||
 		     (!ifp || !(ifp->if_flags & IFF_UP)))) {
 			DP_DEBUG(PTP, ERR, DATAPLANE,
 				 "%s: peer %s on %s is preferred to %s\n",
 				 __func__, peerip,
-				 sib_ifp->if_name, ifp->if_name);
+				 sib_ifp->if_name,
+				 ifp ? ifp->if_name : "(null)");
 			ptp_peer_uninstall(peer);
 			peer = sibling;
 			nh_ifp = sib_nh_ifp;
