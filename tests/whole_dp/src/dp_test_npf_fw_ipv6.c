@@ -65,7 +65,7 @@ DP_START_TEST(npf_ipv6, ipv6_routing_hdr)
 				     * 43 is the value of protocol ipv6-route,
 				     * and 1 is the ipv6-route type
 				     */
-			.npf      = "proto=43 ipv6-route=1"
+			.npf      = "proto-final=43 ipv6-route=1"
 		},
 		RULE_DEF_BLOCK,
 		NULL_RULE

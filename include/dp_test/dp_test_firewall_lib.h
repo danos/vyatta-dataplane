@@ -103,8 +103,8 @@ struct dp_test_fw_ruleset_t {
  * Note, the dataplane has changed to only accept protocol numbers. and
  * not strings
  */
-#define FW_PROTO_TCP		"proto=6"
-#define FW_PROTO_UDP		"proto=17"
+#define FW_PROTO_TCP		"proto-final=6"
+#define FW_PROTO_UDP		"proto-final=17"
 
 /*
  * firewall rule (struct dp_test_fw_rule_t) templates

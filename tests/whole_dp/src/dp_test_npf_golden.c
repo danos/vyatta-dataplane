@@ -243,13 +243,13 @@ npf_golden_in_fw(enum test_fw action, struct dp_test_golden_ctx *ctx)
 			.rule     = "10",
 			.pass     = PASS,
 			.stateful = (ctx->flags & DPT_IN_FW_S) != 0,
-			.npf      = "proto=17 dst-port=48879"
+			.npf      = "proto-final=17 dst-port=48879"
 		},
 		{
 			.rule     = "20",
 			.pass     = BLOCK,
 			.stateful = STATELESS,
-			.npf      = "proto=17 dst-port=48878"
+			.npf      = "proto-final=17 dst-port=48878"
 		},
 		RULE_DEF_BLOCK,
 		NULL_RULE
@@ -298,13 +298,13 @@ npf_golden_out_fw(enum test_fw action, struct dp_test_golden_ctx *ctx)
 			.rule     = "10",
 			.pass     = PASS,
 			.stateful = (ctx->flags & DPT_OUT_FW_S) != 0,
-			.npf      = "proto=17 src-port=57005"
+			.npf      = "proto-final=17 src-port=57005"
 		},
 		{
 			.rule     = "20",
 			.pass     = BLOCK,
 			.stateful = STATELESS,
-			.npf      = "proto=17 src-port=57004"
+			.npf      = "proto-final=17 src-port=57004"
 		},
 		RULE_DEF_BLOCK,
 		NULL_RULE
@@ -607,13 +607,13 @@ npf_golden_zone_policy_priv_to_pub(enum test_fw action,
 			.rule     = "10",
 			.pass     = PASS,
 			.stateful = (ctx->flags & DPT_ZONE_PRIV_S) != 0,
-			.npf      = "proto=17 src-port=57005"
+			.npf      = "proto-final=17 src-port=57005"
 		},
 		{
 			.rule     = "20",
 			.pass     = BLOCK,
 			.stateful = STATELESS,
-			.npf      = "proto=17 src-port=57004"
+			.npf      = "proto-final=17 src-port=57004"
 		},
 		RULE_DEF_BLOCK,
 		NULL_RULE
@@ -702,13 +702,13 @@ npf_golden_zone_policy_local_to_pub(enum test_fw action,
 			.rule     = "10",
 			.pass     = PASS,
 			.stateful = (ctx->flags & DPT_ZONE_PUB_S) != 0,
-			.npf      = "proto=17 src-port=57005"
+			.npf      = "proto-final=17 src-port=57005"
 		},
 		{
 			.rule     = "20",
 			.pass     = BLOCK,
 			.stateful = STATELESS,
-			.npf      = "proto=17 src-port=57004"
+			.npf      = "proto-final=17 src-port=57004"
 		},
 		RULE_DEF_BLOCK,
 		NULL_RULE
@@ -754,13 +754,13 @@ npf_golden_zone_policy_pub_to_local(enum test_fw action,
 			.rule     = "10",
 			.pass     = PASS,
 			.stateful = (ctx->flags & DPT_ZP_PUB_TO_LOCAL_S) != 0,
-			.npf      = "proto=17 src-port=48879"
+			.npf      = "proto-final=17 src-port=48879"
 		},
 		{
 			.rule     = "20",
 			.pass     = BLOCK,
 			.stateful = STATELESS,
-			.npf      = "proto=17 src-port=48878"
+			.npf      = "proto-final=17 src-port=48878"
 		},
 		RULE_DEF_BLOCK,
 		NULL_RULE
@@ -801,13 +801,13 @@ npf_golden_zone_policy_local_to_priv(enum test_fw action,
 			.rule     = "10",
 			.pass     = PASS,
 			.stateful = (ctx->flags & DPT_ZONE_PRIV_S) != 0,
-			.npf      = "proto=17 src-port=48879"
+			.npf      = "proto-final=17 src-port=48879"
 		},
 		{
 			.rule     = "20",
 			.pass     = BLOCK,
 			.stateful = STATELESS,
-			.npf      = "proto=17 src-port=48878"
+			.npf      = "proto-final=17 src-port=48878"
 		},
 		RULE_DEF_BLOCK,
 		NULL_RULE
@@ -853,13 +853,13 @@ npf_golden_zone_policy_priv_to_local(enum test_fw action,
 			.rule     = "10",
 			.pass     = PASS,
 			.stateful = (ctx->flags & DPT_ZP_PRIV_TO_LOCAL_S) != 0,
-			.npf      = "proto=17 src-port=57005"
+			.npf      = "proto-final=17 src-port=57005"
 		},
 		{
 			.rule     = "20",
 			.pass     = BLOCK,
 			.stateful = STATELESS,
-			.npf      = "proto=17 src-port=57004"
+			.npf      = "proto-final=17 src-port=57004"
 		},
 		RULE_DEF_BLOCK,
 		NULL_RULE
@@ -978,7 +978,7 @@ static void npf_custom_timeout(bool enable)
 	if (enable)
 		dp_test_npf_cmd_fmt(
 			false,
-			"npf-ut add custom-timeout:1 1 proto=17 handle=tag(50)");
+		"npf-ut add custom-timeout:1 1 proto-final=17 handle=tag(50)");
 	else
 		dp_test_npf_cmd_fmt(
 			false,

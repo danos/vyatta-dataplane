@@ -227,9 +227,13 @@ do_jump:
 		i_ptr = nc_fetch_word(i_ptr, &n);
 		cmpval = npf_match_ip6_rt(npc, n);
 		break;
-	case NPF_OPCODE_PROTO:
+	case NPF_OPCODE_PROTO_FINAL:
 		i_ptr = nc_fetch_word(i_ptr, &n);
-		cmpval = npf_match_proto(npc, n);
+		cmpval = npf_match_proto_final(npc, n);
+		break;
+	case NPF_OPCODE_PROTO_BASE:
+		i_ptr = nc_fetch_word(i_ptr, &n);
+		cmpval = npf_match_proto_base(npc, n);
 		break;
 	case NPF_OPCODE_ETHERPCP:
 		i_ptr = nc_fetch_word(i_ptr, &n);

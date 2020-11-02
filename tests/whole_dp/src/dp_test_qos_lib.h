@@ -19,8 +19,8 @@
  * Note, the dataplane has changed to only accept protocol numbers. and
  * not strings
  */
-#define QOS_PROTO_TCP		"proto=6"
-#define QOS_PROTO_UDP		"proto=17"
+#define QOS_PROTO_TCP		"proto-final=6"
+#define QOS_PROTO_UDP		"proto-final=17"
 
 
 struct tc_queue_pair {

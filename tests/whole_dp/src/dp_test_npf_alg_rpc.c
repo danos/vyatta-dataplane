@@ -93,7 +93,7 @@ npf_rpc_out_fw(bool enable)
 			.rule     = "10",
 			.pass     = PASS,
 			.stateful = false,
-			.npf      = "proto=17 dst-port=111"
+			.npf      = "proto-final=17 dst-port=111"
 		},
 		RULE_DEF_BLOCK,
 		NULL_RULE
@@ -137,7 +137,7 @@ DP_START_TEST(alg_rpc1b, test)
 			.rule     = "10",
 			.pass     = PASS,
 			.stateful = true,
-			.npf      = "proto=17 dst-port=111"
+			.npf      = "proto-final=17 dst-port=111"
 		},
 		RULE_DEF_BLOCK,
 		NULL_RULE
@@ -252,7 +252,7 @@ DP_START_TEST(alg_rpc1c, test)
 			.rule     = "10",
 			.pass     = PASS,
 			.stateful = true,
-			.npf      = "proto=17 dst-port=111"
+			.npf      = "proto-final=17 dst-port=111"
 		},
 		RULE_DEF_BLOCK,
 		NULL_RULE

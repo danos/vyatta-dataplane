@@ -1150,7 +1150,7 @@ DP_START_TEST(npf_addrgrp5, test1)
 			.rule = "10",
 			.pass = PASS,
 			.stateful = STATELESS,
-			.npf = "proto=17 dst-addr-group=ADDR_GRP0"
+			.npf = "proto-final=17 dst-addr-group=ADDR_GRP0"
 		},
 		RULE_DEF_BLOCK,
 		NULL_RULE

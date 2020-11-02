@@ -154,7 +154,7 @@ DP_START_TEST(defrag2, test)
 			.rule     = "10",
 			.pass     = PASS,
 			.stateful = false,
-			.npf      = "proto=17"
+			.npf      = "proto-final=17"
 		},
 		RULE_DEF_BLOCK,
 		NULL_RULE
@@ -214,7 +214,7 @@ DP_START_TEST(defrag3, test)
 			.rule     = "10",
 			.pass     = PASS,
 			.stateful = false,
-			.npf      = "proto=17"
+			.npf      = "proto-final=17"
 		},
 		RULE_DEF_BLOCK,
 		NULL_RULE
@@ -275,13 +275,13 @@ DP_START_TEST(defrag4, test)
 			.rule     = "10",
 			.pass     = PASS,
 			.stateful = false,
-			.npf      = "proto=17"
+			.npf      = "proto-final=17"
 		},
 		{
 			.rule     = "20",
 			.pass     = PASS,
 			.stateful = false,
-			.npf      = "proto=6"
+			.npf      = "proto-final=6"
 		},
 		RULE_DEF_BLOCK,
 		NULL_RULE
@@ -330,13 +330,13 @@ DP_START_TEST(defrag5, test)
 			.rule     = "10",
 			.pass     = PASS,
 			.stateful = false,
-			.npf      = "proto=17"
+			.npf      = "proto-final=17"
 		},
 		{
 			.rule     = "20",
 			.pass     = PASS,
 			.stateful = false,
-			.npf      = "proto=6"
+			.npf      = "proto-final=6"
 		},
 		RULE_DEF_BLOCK,
 		NULL_RULE

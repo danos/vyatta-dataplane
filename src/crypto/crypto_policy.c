@@ -933,7 +933,7 @@ static bool policy_rule_build_npf_str(const struct policy_rule *pr,
 	}
 
 	if (sel->proto > 0)
-		snprintf(proto_str, sizeof(proto_str) - 1, "proto=%d ",
+		snprintf(proto_str, sizeof(proto_str) - 1, "proto-final=%d ",
 			 sel->proto);
 	else
 		proto_str[0] = '\0';

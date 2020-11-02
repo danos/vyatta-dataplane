@@ -854,7 +854,7 @@ dp_test_npf_fw1(enum test_fw action, const struct dp_test_bridge_ctx *ctx)
 {
 	char proto_str[40];
 
-	snprintf(proto_str, sizeof(proto_str), "proto=%u", ctx->proto);
+	snprintf(proto_str, sizeof(proto_str), "proto-final=%u", ctx->proto);
 
 	/* UDP */
 	struct dp_test_npf_rule_t rset[] = {

@@ -104,7 +104,7 @@ DP_START_TEST(alg_tftp1b, test)
 			.rule     = "10",
 			.pass     = PASS,
 			.stateful = true,
-			.npf      = "proto=17 dst-port=69"
+			.npf      = "proto-final=17 dst-port=69"
 		},
 		RULE_DEF_BLOCK,
 		NULL_RULE
@@ -193,7 +193,7 @@ DP_START_TEST(alg_tftp1c, test)
 			.rule     = "10",
 			.pass     = PASS,
 			.stateful = true,
-			.npf      = "proto=17 dst-port=69"
+			.npf      = "proto-final=17 dst-port=69"
 		},
 		RULE_DEF_BLOCK,
 		NULL_RULE

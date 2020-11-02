@@ -1152,7 +1152,7 @@ npf_gen_ncode_protocol_list(struct npf_rule_ctx *ctx, char *value)
 			return -EINVAL;
 		}
 		npf_grouper_add_proto(ctx, proto, 0);
-		npf_gennc_proto(ctx->nc_ctx, proto);
+		npf_gennc_proto_final(ctx->nc_ctx, proto);
 	}
 
 	return 0;
@@ -1260,19 +1260,20 @@ npf_gen_ncode(zhashx_t *config_ht, void **ncode, uint32_t *size,
 	ipv6_route = zhashx_lookup(config_ht, "ipv6-route");
 
 	/*
-	 * Handle protocol
+	 * Handle final protocol (in extension chain)
 	 */
-	value = zhashx_lookup(config_ht, "proto-final");
-	if (!value)
-		value = zhashx_lookup(config_ht, "proto-base");
-	if (!value)
-		value = zhashx_lookup(config_ht, "proto");
+	char const *proto_key = "proto-final";
+	value = zhashx_lookup(config_ht, proto_key);
+	if (!value) {
+		proto_key = "proto";
+		value = zhashx_lookup(config_ht, proto_key);
+	}
 	if (value) {
 		char *endp;
 		unsigned long proto = strtoul(value, &endp, 10);
 		if (endp == value || proto > 255) {
 			RTE_LOG(ERR, FIREWALL, "NPF: unexpected value in rule: "
-				"proto=%s\n", value);
+				"%s=%s\n", proto_key, value);
 			err = -EINVAL;
 			goto error;
 		}
@@ -1287,9 +1288,26 @@ npf_gen_ncode(zhashx_t *config_ht, void **ncode, uint32_t *size,
 			 * Protocol check is done in the TCP flags ncode
 			 */
 			if (!tcp_flags)
-				npf_gennc_proto(ctx.nc_ctx, proto);
+				npf_gennc_proto_final(ctx.nc_ctx, proto);
 		}
 	}
+
+	/*
+	 * Handle base protocol in IP header
+	 */
+	value = zhashx_lookup(config_ht, "proto-base");
+	if (value) {
+		char *endp;
+		unsigned long proto_base = strtoul(value, &endp, 10);
+		if (endp == value || proto_base > 255) {
+			RTE_LOG(ERR, FIREWALL, "NPF: unexpected value in rule: "
+				"proto-base=%s\n", value);
+			err = -EINVAL;
+			goto error;
+		}
+		npf_gennc_proto_base(ctx.nc_ctx, proto_base);
+	}
+
 	value = zhashx_lookup(config_ht, "protocol-group");
 	if (value) {
 		err = npf_gen_ncode_protocol_group(&ctx, value);
@@ -1958,14 +1976,21 @@ npf_get_rule_match_string(zhashx_t *config_ht, char *buf, size_t *used_buf_len,
 		buf_app_printf(buf, used_buf_len, total_buf_len,
 			       "family %s ", value);
 
-	value = zhashx_lookup(config_ht, "proto-final");
-	if (!value)
-		value = zhashx_lookup(config_ht, "proto-base");
-	if (!value)
-		value = zhashx_lookup(config_ht, "proto");
+	value = zhashx_lookup(config_ht, "proto-base");
+	if (value) {
+		buf_app_printf(buf, used_buf_len, total_buf_len,
+			       "proto-base %s ", value);
+	}
+
+	char const *proto_key = "proto-final";
+	value = zhashx_lookup(config_ht, proto_key);
+	if (!value) {
+		proto_key = "proto";
+		value = zhashx_lookup(config_ht, proto_key);
+	}
 	if (value)
 		buf_app_printf(buf, used_buf_len, total_buf_len,
-			       "proto %s ", value);
+			       "%s %s ", proto_key, value);
 
 	value = zhashx_lookup(config_ht, "protocol-group");
 	if (value)

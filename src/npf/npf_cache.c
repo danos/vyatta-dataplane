@@ -322,7 +322,7 @@ npf_fetch_ipv4(npf_cache_t *npc, struct rte_mbuf *nbuf, const void *n_ptr)
 	npc->npc_srcdst = (npf_srcdst_t *)&ip->ip_src;
 	npc->npc_info |= NPC_IP4;
 	npc->npc_hlen = ip->ip_hl << 2;
-	npc->npc_next_proto = npc->npc_ip.v4.ip_p;
+	npc->npc_proto_final = npc->npc_ip.v4.ip_p;
 	return 0;
 }
 
@@ -360,7 +360,7 @@ npf_fetch_ipv6(npf_cache_t *npc, struct rte_mbuf *nbuf, void *n_ptr)
 
 	/* Fetch IPv6 header and set initial next-protocol value. */
 	memcpy(ip6, n_ptr, sizeof(struct ip6_hdr));
-	npc->npc_next_proto = ip6->ip6_nxt;
+	npc->npc_proto_final = ip6->ip6_nxt;
 	npc->npc_hlen = hlen;
 
 	/*
@@ -398,20 +398,20 @@ npf_fetch_ipv6(npf_cache_t *npc, struct rte_mbuf *nbuf, void *n_ptr)
 	 * Advance by the length of the current header and
 	 * prefetch the extension header.
 	 */
-	while (npc->npc_next_proto != IPPROTO_NONE) {
+	while (npc->npc_proto_final != IPPROTO_NONE) {
 		struct ip6_ext ip6e;
 
 		if (unlikely(__nbuf_advfetch(&nbuf, &n_ptr, hlen,
 				     sizeof(struct ip6_ext), &ip6e) != 0)) {
 			/* Failed to fetch header */
-			npc->npc_next_proto = IPPROTO_NONE;
+			npc->npc_proto_final = IPPROTO_NONE;
 			break;
 		}
 
 		/*
 		 * Determine whether we are going to continue.
 		 */
-		switch (npc->npc_next_proto) {
+		switch (npc->npc_proto_final) {
 		case IPPROTO_HOPOPTS:
 		case IPPROTO_DSTOPTS:
 			/*
@@ -463,11 +463,11 @@ npf_fetch_ipv6(npf_cache_t *npc, struct rte_mbuf *nbuf, void *n_ptr)
 		if (next_hlen == 0)
 			break;
 
-		if (npc->npc_next_proto != IPPROTO_FRAGMENT) {
+		if (npc->npc_proto_final != IPPROTO_FRAGMENT) {
 			last_unfrg_hlen = next_hlen;
 			last_unfrg_hofs += hlen;
 		}
-		npc->npc_next_proto = ip6e.ip6e_nxt;
+		npc->npc_proto_final = ip6e.ip6e_nxt;
 		npc->npc_hlen += next_hlen;
 		hlen = next_hlen;
 	}
@@ -766,7 +766,7 @@ static int _npf_cache_all_at(npf_cache_t *npc, struct rte_mbuf *nbuf,
 	 * Update grouper protocol, source address, and destination address
 	 */
 	if (likely(npc->npc_info & NPC_IP4)) {
-		npf_update_grouper(npc, &npc->npc_next_proto,
+		npf_update_grouper(npc, &npc->npc_proto_final,
 				   NPC_GPR_PROTO_OFF_v4,
 				   NPC_GPR_PROTO_LEN_v4);
 
@@ -781,7 +781,7 @@ static int _npf_cache_all_at(npf_cache_t *npc, struct rte_mbuf *nbuf,
 		/*
 		 * Must be IPv6 else call to npf_fetch_ip would have failed
 		 */
-		npf_update_grouper(npc, &npc->npc_next_proto,
+		npf_update_grouper(npc, &npc->npc_proto_final,
 				   NPC_GPR_PROTO_OFF_v6,
 				   NPC_GPR_PROTO_LEN_v6);
 

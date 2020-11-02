@@ -772,7 +772,7 @@ DP_START_TEST(fw_ipv4, matching)
 	 */
 	struct dp_test_npf_npf_t npf_ipv4_addr[] = {
 		{DP_TEST_FWD_FORWARDED, ""},
-		{DP_TEST_FWD_FORWARDED, "proto=17"},
+		{DP_TEST_FWD_FORWARDED, "proto-final=17"},
 		{DP_TEST_FWD_FORWARDED, "src-addr=1.1.1.0/24"},
 		{DP_TEST_FWD_FORWARDED, "src-addr=!2.1.1.0/24"},
 		{DP_TEST_FWD_FORWARDED, "src-addr=1.1.1.2"},
@@ -783,17 +783,17 @@ DP_START_TEST(fw_ipv4, matching)
 		{DP_TEST_FWD_FORWARDED, "src-addr=1.1.1.2 dst-addr=2.2.2.1"},
 		{DP_TEST_FWD_FORWARDED, "src-addr=!1.1.4.0/24"},
 		{DP_TEST_FWD_FORWARDED, "src-addr=!1.1.4.2"},
-		{DP_TEST_FWD_FORWARDED, "proto=17 src-addr=1.1.1.2 "
+		{DP_TEST_FWD_FORWARDED, "proto-final=17 src-addr=1.1.1.2 "
 			"src-port=41000 dst-addr=2.2.2.1 dst-port=1000"},
 		{DP_TEST_FWD_FORWARDED, "src-addr-group=ADDR_GRP0"},
 		{DP_TEST_FWD_FORWARDED, "dst-addr-group=ADDR_GRP1"},
-		{DP_TEST_FWD_FORWARDED, "proto=17 src-port=41000"},
-		{DP_TEST_FWD_FORWARDED, "proto=17 dst-port=1000"},
-		{DP_TEST_FWD_FORWARDED, "proto=17 src-port-group=PG1"},
-		{DP_TEST_FWD_FORWARDED, "proto=17 dst-port-group=PG2"},
-		{DP_TEST_FWD_FORWARDED, "proto=17 dst-port-group=PG3"},
-		{DP_TEST_FWD_FORWARDED, "proto=17 dst-port-group=PG5"},
-		{DP_TEST_FWD_DROPPED, "proto=6"},
+		{DP_TEST_FWD_FORWARDED, "proto-final=17 src-port=41000"},
+		{DP_TEST_FWD_FORWARDED, "proto-final=17 dst-port=1000"},
+		{DP_TEST_FWD_FORWARDED, "proto-final=17 src-port-group=PG1"},
+		{DP_TEST_FWD_FORWARDED, "proto-final=17 dst-port-group=PG2"},
+		{DP_TEST_FWD_FORWARDED, "proto-final=17 dst-port-group=PG3"},
+		{DP_TEST_FWD_FORWARDED, "proto-final=17 dst-port-group=PG5"},
+		{DP_TEST_FWD_DROPPED, "proto-final=6"},
 		{DP_TEST_FWD_DROPPED, "src-addr=1.1.2.0/24"},
 		{DP_TEST_FWD_DROPPED, "src-addr=!1.1.1.0/24"},
 		{DP_TEST_FWD_DROPPED, "src-addr=1.1.1.3"},
@@ -802,13 +802,13 @@ DP_START_TEST(fw_ipv4, matching)
 		{DP_TEST_FWD_DROPPED,
 			"src-addr=1.1.1.0/24 dst-addr=2.2.1.0/24"},
 		{DP_TEST_FWD_DROPPED, "src-addr=1.1.1.3 dst-addr=2.2.2.1"},
-		{DP_TEST_FWD_DROPPED, "proto=17 src-addr=1.1.1.2 "
+		{DP_TEST_FWD_DROPPED, "proto-final=17 src-addr=1.1.1.2 "
 			"src-port=41001 dst-addr=2.2.2.1 dst-port=1000"},
 		{DP_TEST_FWD_DROPPED, "src-addr-group=ADDR_GRP2"},
 		{DP_TEST_FWD_DROPPED, "dst-addr-group=ADDR_GRP3"},
-		{DP_TEST_FWD_DROPPED, "proto=17 src-port=41001"},
-		{DP_TEST_FWD_DROPPED, "proto=17 dst-port=1001"},
-		{DP_TEST_FWD_DROPPED, "proto=17 dst-port-group=PG4"},
+		{DP_TEST_FWD_DROPPED, "proto-final=17 src-port=41001"},
+		{DP_TEST_FWD_DROPPED, "proto-final=17 dst-port=1001"},
+		{DP_TEST_FWD_DROPPED, "proto-final=17 dst-port-group=PG4"},
 	};
 
 	struct dp_test_npf_rule_t rules[] = {
@@ -960,7 +960,7 @@ DP_START_TEST(fw_ipv6, matching)
 	 */
 	struct dp_test_npf_npf_t npf_ipv6_addr[] = {
 		{DP_TEST_FWD_FORWARDED, ""},
-		{DP_TEST_FWD_FORWARDED, "proto=17"},
+		{DP_TEST_FWD_FORWARDED, "proto-final=17"},
 		{DP_TEST_FWD_FORWARDED, "src-addr=2001:1:1::/64"},
 		{DP_TEST_FWD_FORWARDED, "src-addr=2001:1:1::2"},
 		{DP_TEST_FWD_FORWARDED, "src-addr=2001:1:1::/126"},
@@ -1020,18 +1020,18 @@ DP_START_TEST(fw_ipv6, matching)
 		 "src-addr=2001:1:1::2 dst-addr=2002:2:2::1"},
 		{DP_TEST_FWD_FORWARDED, "src-addr=!2001:1:4::/64"},
 		{DP_TEST_FWD_FORWARDED,
-		 "proto=17 src-addr=2001:1:1::2 src-port=41000 "
+		 "proto-final=17 src-addr=2001:1:1::2 src-port=41000 "
 		 "dst-addr=2002:2:2::1 dst-port=1000"},
 		{DP_TEST_FWD_FORWARDED, "src-addr-group=ADDR_GRP0"},
 		{DP_TEST_FWD_FORWARDED, "dst-addr-group=ADDR_GRP1"},
-		{DP_TEST_FWD_FORWARDED, "proto=17 src-port=41000"},
-		{DP_TEST_FWD_FORWARDED, "proto=17 dst-port=1000"},
-		{DP_TEST_FWD_FORWARDED, "proto=17 src-port-group=PG1"},
-		{DP_TEST_FWD_FORWARDED, "proto=17 dst-port-group=PG2"},
-		{DP_TEST_FWD_FORWARDED, "proto=17 dst-port-group=PG3"},
-		{DP_TEST_FWD_FORWARDED, "proto=17 dst-port-group=PG5"},
+		{DP_TEST_FWD_FORWARDED, "proto-final=17 src-port=41000"},
+		{DP_TEST_FWD_FORWARDED, "proto-final=17 dst-port=1000"},
+		{DP_TEST_FWD_FORWARDED, "proto-final=17 src-port-group=PG1"},
+		{DP_TEST_FWD_FORWARDED, "proto-final=17 dst-port-group=PG2"},
+		{DP_TEST_FWD_FORWARDED, "proto-final=17 dst-port-group=PG3"},
+		{DP_TEST_FWD_FORWARDED, "proto-final=17 dst-port-group=PG5"},
 		{DP_TEST_FWD_FORWARDED, "src-addr=!2001:1:1::3"},
-		{DP_TEST_FWD_DROPPED, "proto=6"},
+		{DP_TEST_FWD_DROPPED, "proto-final=6"},
 		{DP_TEST_FWD_DROPPED, "src-addr=2001:1:2::/64"},
 		{DP_TEST_FWD_DROPPED, "src-addr=2001:1:1::3"},
 		{DP_TEST_FWD_DROPPED, "dst-addr=2002:2:1::/64"},
@@ -1041,13 +1041,13 @@ DP_START_TEST(fw_ipv6, matching)
 		{DP_TEST_FWD_DROPPED,
 		 "src-addr=2001:1:1::3 dst-addr=2002:2:2::1"},
 		{DP_TEST_FWD_DROPPED,
-		 "proto=17 src-addr=2001:1:1::2 src-port=41001 "
+		 "proto-final=17 src-addr=2001:1:1::2 src-port=41001 "
 		 "dst-addr=2002:2:2::1 dst-port=1000"},
 		{DP_TEST_FWD_DROPPED, "src-addr-group=ADDR_GRP2"},
 		{DP_TEST_FWD_DROPPED, "dst-addr-group=ADDR_GRP3"},
-		{DP_TEST_FWD_DROPPED, "proto=17 src-port=41001"},
-		{DP_TEST_FWD_DROPPED, "proto=17 dst-port=1001"},
-		{DP_TEST_FWD_DROPPED, "proto=17 dst-port-group=PG4"},
+		{DP_TEST_FWD_DROPPED, "proto-final=17 src-port=41001"},
+		{DP_TEST_FWD_DROPPED, "proto-final=17 dst-port=1001"},
+		{DP_TEST_FWD_DROPPED, "proto-final=17 dst-port-group=PG4"},
 		{DP_TEST_FWD_DROPPED, "src-addr=!2001:1:1::2"},
 	};
 
@@ -1516,13 +1516,13 @@ DP_START_TEST(fw_ipv4, port_range1)
 
 	struct dp_test_npf_rule_t ruleset1[] = {
 		{"10", PASS, STATELESS,
-		 "proto=17 dst-addr=2.2.2.1 dst-port-group=PG1"},
+		 "proto-final=17 dst-addr=2.2.2.1 dst-port-group=PG1"},
 		RULE_DEF_BLOCK,
 		NULL_RULE };
 
 	struct dp_test_npf_rule_t ruleset2[] = {
 		{"10", BLOCK, STATELESS,
-		 "proto=17 dst-addr=2.2.2.1 dst-port-group=PG1"},
+		 "proto-final=17 dst-addr=2.2.2.1 dst-port-group=PG1"},
 		RULE_DEF_PASS,
 		NULL_RULE };
 
@@ -1742,9 +1742,11 @@ DP_START_TEST(fw_ipv4, mrules)
 	};
 
 	struct dp_test_npf_rule_t ruleset1[] = {
-		{"10", PASS, STATEFUL, "proto=17 dst-addr=2.2.2.1 dst-port=81"},
-		{"20", PASS, STATEFUL, "proto=17 dst-addr=2.2.2.1 dst-port=80"},
-		{"30", PASS, STATEFUL, "proto=1 dst-addr=2.2.2.3"},
+		{"10", PASS, STATEFUL,
+			"proto-final=17 dst-addr=2.2.2.1 dst-port=81"},
+		{"20", PASS, STATEFUL,
+			"proto-final=17 dst-addr=2.2.2.1 dst-port=80"},
+		{"30", PASS, STATEFUL, "proto-final=1 dst-addr=2.2.2.3"},
 		RULE_DEF_BLOCK,
 		NULL_RULE };
 
@@ -1780,7 +1782,8 @@ DP_START_TEST(fw_ipv4, mrules)
 	/* Run the test */
 	dp_test_pak_receive(test_pak, pkt->rx_intf, test_exp);
 
-	dp_test_npf_verify_rule_pkt_count("to proto 17, dest 2.2.2.1 port 80",
+	dp_test_npf_verify_rule_pkt_count(
+				"to proto-final 17, dest 2.2.2.1 port 80",
 				   &fw, fw.rules[1].rule, 1);
 
 	/* Verify a session was created */
@@ -1802,7 +1805,7 @@ DP_START_TEST(fw_ipv4, mrules)
 	/* Run the test */
 	dp_test_pak_receive(test_pak, pkt->rx_intf, test_exp);
 
-	dp_test_npf_verify_rule_pkt_count("to proto 1, dest 2.2.2.3",
+	dp_test_npf_verify_rule_pkt_count("to proto-final 1, dest 2.2.2.3",
 				   &fw, fw.rules[2].rule, 1);
 
 	/* Verify a session was created */
@@ -1824,7 +1827,7 @@ DP_START_TEST(fw_ipv4, mrules)
 	/* Run the test */
 	dp_test_pak_receive(test_pak, pkt->rx_intf, test_exp);
 
-	dp_test_npf_verify_rule_pkt_count("to proto 1, dest 2.2.2.1",
+	dp_test_npf_verify_rule_pkt_count("to proto-final 1, dest 2.2.2.1",
 				   &fw, fw.rules[3].rule, 1);
 
 
@@ -1894,10 +1897,10 @@ DP_START_TEST(fw_ipv6, mrules)
 
 	struct dp_test_npf_rule_t ruleset1[] = {
 		{"10", PASS, STATEFUL,
-		 "proto=17 dst-addr=2002:2:2::1 dst-port=81"},
+		 "proto-final=17 dst-addr=2002:2:2::1 dst-port=81"},
 		{"20", PASS, STATEFUL,
-		 "proto=17 dst-addr=2002:2:2::1 dst-port=80"},
-		{"30", PASS, STATEFUL, "proto=58 dst-addr=2002:2:2::3"},
+		 "proto-final=17 dst-addr=2002:2:2::1 dst-port=80"},
+		{"30", PASS, STATEFUL, "proto-final=58 dst-addr=2002:2:2::3"},
 		RULE_DEF_BLOCK,
 		NULL_RULE };
 
@@ -1934,7 +1937,7 @@ DP_START_TEST(fw_ipv6, mrules)
 	dp_test_pak_receive(test_pak, pkt->rx_intf, test_exp);
 
 	dp_test_npf_verify_rule_pkt_count(
-		"to proto 17, dest 2002:2:2::1 port 80",
+		"to proto-final 17, dest 2002:2:2::1 port 80",
 		&fw, fw.rules[1].rule, 1);
 
 	/* Verify a session was created */
@@ -1956,7 +1959,7 @@ DP_START_TEST(fw_ipv6, mrules)
 	/* Run the test */
 	dp_test_pak_receive(test_pak, pkt->rx_intf, test_exp);
 
-	dp_test_npf_verify_rule_pkt_count("to proto 58, dest 2002:2:2::3",
+	dp_test_npf_verify_rule_pkt_count("to proto-final 58, dest 2002:2:2::3",
 				   &fw, fw.rules[2].rule, 1);
 
 	/* Verify a session was created */
@@ -1978,7 +1981,7 @@ DP_START_TEST(fw_ipv6, mrules)
 	/* Run the test */
 	dp_test_pak_receive(test_pak, pkt->rx_intf, test_exp);
 
-	dp_test_npf_verify_rule_pkt_count("to proto 58, dest 2002:2:2::1",
+	dp_test_npf_verify_rule_pkt_count("to proto-final 58, dest 2002:2:2::1",
 				   &fw, fw.rules[3].rule, 1);
 
 

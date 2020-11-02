@@ -206,7 +206,7 @@ typedef struct npf_cache {
 	uint32_t	npc_info;	/* Information flags */
 	uint16_t	npc_hlen;
 	uint8_t		npc_alen;	/* Size (v4/6) of addrs */
-	uint8_t		npc_next_proto;
+	uint8_t		npc_proto_final;/* Last header in chain */
 	enum npf_proto_idx npc_proto_idx;
 	uint8_t		npc_ipv6_routing_type;
 	uint8_t		npc_alg_flags;	/* Per-packet alg flags */
@@ -437,7 +437,7 @@ npf_iscached(const npf_cache_t *npc, const int inf)
 static inline uint8_t
 npf_cache_ipproto(const npf_cache_t *npc)
 {
-	return npc->npc_next_proto;
+	return npc->npc_proto_final;
 }
 
 static inline enum npf_proto_idx

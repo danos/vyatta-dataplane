@@ -54,7 +54,8 @@ typedef struct npf_cache npf_cache_t;
 typedef struct npf_rule npf_rule_t;
 
 int npf_match_mac(const struct rte_mbuf *nbuf, uint32_t opts, const char *filt);
-int npf_match_proto(const npf_cache_t *npc, uint32_t ap);
+int npf_match_proto_final(const npf_cache_t *npc, uint32_t ap);
+int npf_match_proto_base(const npf_cache_t *npc, uint32_t ap);
 int npf_match_pcp(const struct rte_mbuf *nbuf, uint32_t pcp);
 int npf_match_table(const npf_cache_t *npc, uint32_t opts, const u_int tid);
 int npf_match_ip_fam(const npf_cache_t *npc, uint32_t fam);
