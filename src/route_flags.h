@@ -63,9 +63,10 @@
 
 /*
  * When comparing NHs for equality, mask the flags as the NEIGH_ ones are
- * local optimisations.
+ * local optimisations and UNUSABLE is local state
  */
-#define NH_FLAGS_CMP_MASK ~(RTF_NEIGH_CREATED | RTF_NEIGH_PRESENT)
+#define NH_FLAGS_CMP_MASK ~(RTF_NEIGH_CREATED | RTF_NEIGH_PRESENT | \
+			    RTF_UNUSABLE)
 
 enum rt_print_nexthop_verbosity {
 	RT_PRINT_NH_BRIEF,
