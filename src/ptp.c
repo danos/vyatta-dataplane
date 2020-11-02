@@ -495,7 +495,10 @@ int ptp_port_create(FILE *f, uint16_t port_id, int argc, char **argv)
 			ifname = strchr(*argv, '=') + 1;
 			ifp = dp_ifnet_byifname(ifname);
 			if (!ifp) {
-				// TBD -- create a replay cache
+				RTE_LOG(ERR, DATAPLANE,
+					"%s: %s is missing, bad replay?\n",
+					__func__, ifname);
+				rc = 0;
 				goto error;
 			}
 			rcu_assign_pointer(port->ifp, ifp);
@@ -727,8 +730,8 @@ int ptp_port_delete(FILE *f, uint16_t port_id, int argc, char **argv)
 
 	port = ptp_find_port(clock_id, port_id);
 	if (!port) {
-		fprintf(f, "ptp: clock %d has no port %d\n",
-			clock_id, port_id);
+		/* interface never arrived, not an error. */
+		rc = 0;
 		goto error;
 	}
 
@@ -1187,9 +1190,10 @@ next_option:
 
 	port = ptp_find_port(clock_id, port_id);
 	if (!port) {
-		fprintf(f, "ptp: clock %d port %d doesn't exist\n",
-			clock_id, port_id);
-		rc = -ENODEV;
+		RTE_LOG(ERR, DATAPLANE,
+			"%s: port-id %d is missing, bad replay?\n",
+			__func__, port_id);
+		rc = 0;
 		goto error;
 	}
 	rcu_assign_pointer(peer->port, port);
@@ -1241,6 +1245,7 @@ int ptp_peer_delete(FILE *f, int argc, char **argv)
 	uint16_t port_id = 0;
 	bool have_clock = false;
 	bool have_port = false;
+	struct ptp_port_t *port;
 	struct ptp_peer_t *peer;
 	enum fal_ptp_peer_type_t peer_type = 0;
 	bool have_peer_type = false;
@@ -1307,6 +1312,13 @@ int ptp_peer_delete(FILE *f, int argc, char **argv)
 
 	if (fal_is_ipaddr_empty(&ipaddr)) {
 		fprintf(f, "ptp: ip address required for peer\n");
+		goto error;
+	}
+
+	port = ptp_find_port(clock_id, port_id);
+	if (!port) {
+		/* interface never arrived, not an error. */
+		rc = 0;
 		goto error;
 	}
 
