@@ -1,3 +1,18 @@
+vyatta-dataplane (3.11.58) unstable; urgency=medium
+
+  [ Derek Fawcus ]
+  * NPF: Rename npc_next_proto to npc_proto_final
+  * NPF: Rename 'PROTO' opcode to 'PROTO_FINAL'
+  * NPF: Add matching against IP header protocol field
+  * NPF: Report proto-final in rule output
+
+  [ Nicholas Brown ]
+  * Depend on librte-meta-allpmds
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Mon, 02 Nov 2020 15:41:08 +0000
+
 vyatta-dataplane (3.11.57) unstable; urgency=medium
 
   [ Ian Wilson ]
