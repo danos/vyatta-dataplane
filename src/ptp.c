@@ -132,16 +132,11 @@ ptp_peer_compare(struct ptp_peer_t *peer,
  * if necessary.
  */
 static
-struct ptp_peer_t *ptp_find_peer(uint32_t clock_id, uint16_t port_id,
+struct ptp_peer_t *ptp_find_peer(struct ptp_port_t *port,
 				 enum fal_ptp_peer_type_t type,
 				 struct fal_ip_address_t *ipaddr)
 {
-	struct ptp_port_t *port;
 	struct ptp_peer_t *peer, *sibling;
-
-	port = ptp_find_port(clock_id, port_id);
-	if (!port)
-		return NULL;
 
 	cds_list_for_each_entry_rcu(peer, &ptp_peer_list, list) {
 		if (ptp_peer_compare(peer, port, type, ipaddr))
@@ -1182,12 +1177,6 @@ next_option:
 		goto error;
 	}
 
-	if (ptp_find_peer(clock_id, port_id, peer->type, &peer->ipaddr)) {
-		fprintf(f, "ptp: peer already exists\n");
-		rc = -EEXIST;
-		goto error;
-	}
-
 	port = ptp_find_port(clock_id, port_id);
 	if (!port) {
 		RTE_LOG(ERR, DATAPLANE,
@@ -1196,6 +1185,13 @@ next_option:
 		rc = 0;
 		goto error;
 	}
+
+	if (ptp_find_peer(port, peer->type, &peer->ipaddr)) {
+		fprintf(f, "ptp: peer already exists\n");
+		rc = -EEXIST;
+		goto error;
+	}
+
 	rcu_assign_pointer(peer->port, port);
 
 	/* If we already have a MAC or this is an allowed peer entry,
@@ -1322,7 +1318,7 @@ int ptp_peer_delete(FILE *f, int argc, char **argv)
 		goto error;
 	}
 
-	peer = ptp_find_peer(clock_id, port_id, peer_type, &ipaddr);
+	peer = ptp_find_peer(port, peer_type, &ipaddr);
 	if (!peer) {
 		fprintf(f, "ptp: can't find object for peer\n");
 		rc = -ENODEV;
