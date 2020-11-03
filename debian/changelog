@@ -1,3 +1,195 @@
+vyatta-dataplane (3.12.3) unstable; urgency=medium
+
+  [ Nicholas Brown ]
+  * Clarify UT path redirection code
+
+  [ Ian Wilson ]
+  * npf: Rename 'typedef enum TCP_STATES' to 'enum tcp_session state'
+  * npf: Rename npf_tcpstate_t to struct npf_tcp_window
+  * npf: Replace nst_tcpst with nst_tcp_win in npf_state_t
+  * npf: Pack enum dp_session_state so that is used 1 byte instead of 2
+  * npf: Add npf_state_tcp2gen to determine generic state from tcp state
+  * npf: Pack enum npf_proto_idx.  Use the enum instead of a uint8_t
+  * npf: Add separate log functions for TCP and everything else
+  * npf: Add separate state change functions for TCP and everything else
+  * npf: Add separate state pack update functions for TCP and other
+  * npf: Add separate functions for connsync update/restore of session state
+  * npf: Move spinlocks into npf_state_npf_pack_update_xxx fns
+  * npf: Use separate state inspect functions for TCP, ICMP, and other
+  * npf: Use separate connsync state update functions for TCP and other
+  * npf: Add a union to npf_state_t for the different state types
+  * npf: Add separate function for session close for TCP and other
+  * npf: Rename npf_state_tcp_state_set and npf_state_generic_state_set
+  * npf: Remove TCP session states that were outside the enum
+  * npf: Change TCP sessions to use nst_tcp_state instead of nst_state
+  * npf: Change TCP strict FSM to be a lookup table to return a boolean
+  * npf: npf_state_update_session_state replaced
+  * npf: npf_timeout_get replaced
+  * npf: Session state stats defines replaced with inline functions
+  * npf: npf_map_str_to_generic_state replaced with dp_session_name2state
+  * npf: vrf creation moved from npf_timeout_set to cmd_npf_global_timeout
+  * npf: non-TCP sessions changed to use nst_gen_state instead of nst_state
+  * npf: union of nst_tcp_state and nst_gen_state removed from npf_state_t
+  * npf: Changes to sess limit rproc to use generic session state
+  * npf: Defines NPF_SET_SESSION_LOG_FLAG etc. replaced with functions
+  * npf: Renamed functions that return session state name
+  * npf: npf_pack_session_state changed to include union of state types
+  * npf: 'struct session' pointer passed into npf_session_update_state
+  * npf: npf_session_t pointer passed into npf_state_inspect
+  * npf: npf_tcp_state_is_closed fn removed
+  * npf: Changes to connsync functions to pack and update session state
+
+  [ Nachiketa Prachanda ]
+  * fix use after free on events unregistration
+  * api: interface event notifications to plugins
+
+  [ Paul Atkins ]
+  * 3.11.44
+  * portmonitor_cmds: remove the code to handle out of order cfg
+
+  [ Charles (Chas) Williams ]
+  * ptp: handle unavailable interface vlan mappings (Bugfix: VRVDR-53372)
+
+  [ Paul Atkins ]
+  * 3.11.45
+
+  [ Gavin Shearer ]
+  * fal acl: use rule number attr instead of priority in rules
+
+  [ Paul Atkins ]
+  * 3.11.46
+
+  [ Srinivas Narayan ]
+  * Include shadow ring in buffer count calculations
+  * Increase slowpath receive ring size
+
+  [ Paul Atkins ]
+  * 3.11.46
+
+  [ Srinivas Narayan ]
+  * crypto: store out_ethertype in context
+  * crypto: store out_hdr_len in context
+  * crypto: re-order fields in crypto_pkt_ctx
+  * crypto: store udp encap length in SA to simplify code
+  * crypto: include DPDK driver stats in output
+  * crypto: Pass packet burst to ESP
+  * crypto: Move bad mbufs to end of context array
+  * crypto: Pass a batch of packets to the PMD
+  * crypto: Allocate crypto ops when crypto pkt buffer is set up
+  * crypto: pass batches of packets to ESP encrypt functions
+  * crypto: Pass batches of packets to ESP decrypt functions
+  * crypto: Remove debug error messages in some places
+  * crypto: pass errors from PMD operations to higher layers
+  * crypto: remove unnecessary check & error
+  * crypto: Add error counters for failures
+  * crypto: Set action to drop if packet has not been processed
+  * crypto: Prefetch batches of context pointers for processing
+  * crypto: Fetch data in first mbuf into L2 cache
+  * crypto: Prefetch contexts into L2 cache
+  * crypto: add inline implementation to grow buffer
+  * crypto: Invoke rte_pktmbuf_lastseg only for multi-seg pkts
+
+  [ Paul Atkins ]
+  * 3.11.47
+
+  [ Ian Wilson ]
+  * ut: Verify that ipv4-orig-feat feature is enabled
+  * npf: NPF_RS_FLAG_FEAT_GBL renamed to NPF_RS_FLAG_FEAT_INTF_ALL
+  * npf: Move check of NPF_RS_FLAG_FEAT_INTF_ALL from npf_gbl_rs_count_incr
+  * npf: Enable feature on all interfaces for rulesets attached to global
+  * npf: Separate enabling of defrag-out and defrag-out-spath
+
+  [ Paul Atkins ]
+  * 3.11.48
+
+  [ Ian Wilson ]
+  * ut: Tests egress ACL on a pppoe interface
+  * ut: Tests egress ACL on a bridge interface
+
+  [ Paul Atkins ]
+  * 3.11.49
+
+  [ Nicholas Brown ]
+  * Move IGNORE_SANITIZER to compiler.h
+
+  [ Paul Atkins ]
+  * 3.11.50
+
+  [ Thomas Kiely ]
+  * Update S2S UT infra for multiple V4 policies
+  * Add V4 test to ensure correct policy match for proto
+  * ACL V4 rule setup does not handle discrete protocol
+  * Update S2S UT infra for multiple V6 policies
+  * Add V6 test to ensure correct policy match for proto
+  * ACL V6 rule setup does not handle discrete protocol
+
+  [ Paul Atkins ]
+  * 3.11.51
+
+  [ Srinivas Narayan ]
+  * crypto: save bytes from each batch for use as IVs
+  * crypto: add return value check for engine init
+  * crypto: remove unused functions
+
+  [ Paul Atkins ]
+  * 3.11.52
+  * lpm: change lpm walker to take a struct of params
+  * lpm: allow the callers of lpm_walk to kick the trackers for a rule
+  * route: call the route trackers after updating the fal l3 state
+  * lpm6: change lpm6 walker to take a struct of params
+  * lpm6: allow the callers of lpm6_walk to kick the trackers for a rule
+  * route6: call the route trackers after updating the fal l3 state
+  * 3.11.53
+
+  [ Ian Wilson ]
+  * ut: Add functions to enable multicast fwding and to add multicast route
+  * ut: Add test for multicast forwarding in the dataplane
+
+  [ Paul Atkins ]
+  * 3.11.54
+
+  [ Srinivas Narayan ]
+  * crypto: tune op and session pool sizes
+
+  [ Paul Atkins ]
+  * 3.11.55
+
+  [ Srinivas Narayan ]
+  * crypto: prefetch fields in ctx in encrypt path
+  * crypto: Include current index in prefetch
+  * crypto: prefetch IVs to be used in encryption
+  * crypto: prefetch ops
+
+  [ Paul Atkins ]
+  * 3.11.56
+
+  [ Ian Wilson ]
+  * ut: Add test for IPv6 multicast forwarding in the dataplane
+
+  [ Paul Atkins ]
+  * 3.11.57
+
+  [ Derek Fawcus ]
+  * NPF: Rename npc_next_proto to npc_proto_final
+  * NPF: Rename 'PROTO' opcode to 'PROTO_FINAL'
+  * NPF: Add matching against IP header protocol field
+  * NPF: Report proto-final in rule output
+
+  [ Nicholas Brown ]
+  * Depend on librte-meta-allpmds
+
+  [ Paul Atkins ]
+  * 3.11.58
+
+  [ Ian Wilson ]
+  * npf: Local traffic, including IPv6 ND/NA, may be dropped by zone fw
+  * ut: Test IPv6 nbr egress in the presence of zones firewall
+
+  [ Paul Atkins ]
+  * 3.11.59
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Tue, 03 Nov 2020 11:51:01 +0000
+
 vyatta-dataplane (3.12.2) unstable; urgency=medium
 
   [ Nicholas Brown ]
