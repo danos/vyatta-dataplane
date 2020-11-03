@@ -44,6 +44,31 @@ vyatta-dataplane (3.12.1) unstable; urgency=medium
 
  -- Paul Atkins <paul.atkins@intl.att.com>  Mon, 12 Oct 2020 09:20:52 +0100
 
+vyatta-dataplane (3.11.59) unstable; urgency=medium
+
+  [ Ian Wilson ]
+  * npf: Local traffic, including IPv6 ND/NA, may be dropped by zone fw
+  * ut: Test IPv6 nbr egress in the presence of zones firewall
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Tue, 03 Nov 2020 09:06:14 +0000
+
+vyatta-dataplane (3.11.58) unstable; urgency=medium
+
+  [ Derek Fawcus ]
+  * NPF: Rename npc_next_proto to npc_proto_final
+  * NPF: Rename 'PROTO' opcode to 'PROTO_FINAL'
+  * NPF: Add matching against IP header protocol field
+  * NPF: Report proto-final in rule output
+
+  [ Nicholas Brown ]
+  * Depend on librte-meta-allpmds
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Mon, 02 Nov 2020 15:41:08 +0000
+
 vyatta-dataplane (3.11.57) unstable; urgency=medium
 
   [ Ian Wilson ]

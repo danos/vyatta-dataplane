@@ -92,7 +92,10 @@ static bool npf_get_zone_config(struct ifnet *in_ifp,
 
 	if (!*npf_config) {
 		/* no configuration between the two zones. */
-		*decision = NPF_DECISION_BLOCK;
+		if (npf_flags & NPF_FLAG_FROM_LOCAL)
+			*decision = NPF_DECISION_PASS;
+		else
+			*decision = NPF_DECISION_BLOCK;
 		return false;
 	}
 

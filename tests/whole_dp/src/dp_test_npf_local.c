@@ -1353,3 +1353,645 @@ DP_START_TEST(cgnat_icmpv4, drop)
 
 	cgnat_icmpv4_teardown();
 } DP_END_TEST;
+
+/*
+ * IPv6 ND and originate firewall
+ *
+ * Inject an IPv6 Neighbor Solicitation pkt in order to generate a Neighbor
+ * Advertisement pkt.
+ */
+DP_DECL_TEST_CASE(npf_local, npf_v6nbr1, NULL, NULL);
+DP_START_TEST(npf_v6nbr1, test)
+{
+	struct dp_test_expected *exp;
+	struct rte_mbuf *ns_pak;
+	struct rte_mbuf *exp_na_pak;
+	const char *neigh1_mac_str = "aa:bb:cc:dd:ee:10";
+	const char *host_ll_ip = "fe80::409f:1ff:fee8:101";
+	const char *router_ll_ip =        "fe80::5054:ff:fe79:3f5";
+	const char *router_ll_ip_subnet = "fe80::5054:ff:fe79:3f5/64";
+
+	/* Set up the interface addresses */
+	dp_test_netlink_add_ip_address("dp1T0", router_ll_ip_subnet);
+	dp_test_nl_add_ip_addr_and_connected("dp1T0", "2001:1:1::1/64");
+
+	/* And the neighbour for the return icmp packet */
+	dp_test_netlink_add_neigh("dp1T0", host_ll_ip, neigh1_mac_str);
+
+	struct dp_test_npf_rule_t rules[] = {
+		{
+			/* Router Solicitation */
+			.rule     = "10",
+			.pass     = PASS,
+			.stateful = STATELESS,
+			.npf      = "proto=58 icmpv6=133"
+		},
+		{
+			/* Router Advertisement */
+			.rule     = "20",
+			.pass     = PASS,
+			.stateful = STATELESS,
+			.npf      = "proto=58 icmpv6=134"
+		},
+		{
+			/* Neighbor Solicitation */
+			.rule     = "30",
+			.pass     = PASS,
+			.stateful = STATELESS,
+			.npf      = "proto=58 icmpv6=135"
+		},
+		{
+			/* Neighbor Advertisement */
+#define NA_RULE_INDEX 3
+			.rule     = "40",
+			.pass     = PASS,
+			.stateful = STATELESS,
+			.npf      = "proto=58 icmpv6=136"
+		},
+		RULE_DEF_BLOCK,
+		NULL_RULE
+	};
+
+	struct dp_test_npf_ruleset_t fw = {
+		.rstype = "originate",
+		.name   = "FW_ORIG",
+		.enable = 1,
+		.attach_point   = "dp1T0",
+		.fwd    = FWD,
+		.dir    = "out",
+		.rules  = rules
+	};
+	dp_test_npf_fw_add(&fw, false);
+
+	/*
+	 * Test packet
+	 */
+	ns_pak = dp_test_create_ns_pak(host_ll_ip, "ff02::1:ff00:2",
+		       IPTOS_CLASS_CS6, neigh1_mac_str, "33:33:ff:00:00:02",
+		       "2001:1:1::1");
+
+	/*
+	 * Expected packet
+	 */
+	exp_na_pak = dp_test_create_na_pak(router_ll_ip, host_ll_ip,
+			   IPTOS_CLASS_CS6, dp_test_intf_name2mac_str("dp1T0"),
+			   neigh1_mac_str, "2001:1:1::1");
+
+	exp = dp_test_exp_create(exp_na_pak);
+	rte_pktmbuf_free(exp_na_pak);
+
+	/* Set test expectations */
+	dp_test_exp_set_oif_name(exp, "dp1T0");
+	dp_test_exp_set_fwd_status(exp, DP_TEST_FWD_FORWARDED);
+
+	/* Run test */
+	dp_test_pak_receive(ns_pak, "dp1T0", exp);
+
+	/*
+	 * Change firewall to drop NA packet
+	 */
+	dp_test_npf_fw_del(&fw, false);
+	rules[NA_RULE_INDEX].pass = BLOCK;
+	dp_test_npf_fw_add(&fw, false);
+
+	/*
+	 * Test packet
+	 */
+	ns_pak = dp_test_create_ns_pak(host_ll_ip, "ff02::1:ff00:2",
+		       IPTOS_CLASS_CS6, neigh1_mac_str, "33:33:ff:00:00:02",
+		       "2001:1:1::1");
+
+	/*
+	 * Expected packet
+	 */
+	exp_na_pak = dp_test_create_na_pak(router_ll_ip, host_ll_ip,
+			   IPTOS_CLASS_CS6, dp_test_intf_name2mac_str("dp1T0"),
+			   neigh1_mac_str, "2001:1:1::1");
+
+	exp = dp_test_exp_create(exp_na_pak);
+	rte_pktmbuf_free(exp_na_pak);
+
+	/* Set test expectations */
+	dp_test_exp_set_oif_name(exp, "dp1T0");
+	dp_test_exp_set_fwd_status(exp, DP_TEST_FWD_DROPPED);
+
+	/* Run test */
+	dp_test_pak_receive(ns_pak, "dp1T0", exp);
+
+	/* Clean Up */
+	dp_test_npf_fw_del(&fw, false);
+
+	dp_test_netlink_del_neigh("dp1T0", host_ll_ip, neigh1_mac_str);
+	dp_test_nl_del_ip_addr_and_connected("dp1T0", "2001:1:1::1/64");
+	dp_test_netlink_del_ip_address("dp1T0", router_ll_ip_subnet);
+} DP_END_TEST;
+
+/*
+ * IPv6 ND, zone on interface, no local zone.
+ *
+ * Inject an IPv6 Neighbor Solicitation pkt in order to generate a Neighbor
+ * Advertisement pkt.
+ *
+ * The ND packet is forwarded.  Normally a "no-zone to zone" transition would
+ * be blocked.  However an exception is made because the flag NPF_FLAG_FROM_US
+ * is set.
+ */
+DP_DECL_TEST_CASE(npf_local, npf_v6nbr2, NULL, NULL);
+DP_START_TEST(npf_v6nbr2, test)
+{
+	struct dp_test_expected *exp;
+	struct rte_mbuf *ns_pak;
+	struct rte_mbuf *exp_na_pak;
+	const char *neigh1_mac_str = "aa:bb:cc:dd:ee:10";
+	const char *host_ll_ip = "fe80::409f:1ff:fee8:101";
+	const char *router_ll_ip =        "fe80::5054:ff:fe79:3f5";
+	const char *router_ll_ip_subnet = "fe80::5054:ff:fe79:3f5/64";
+	bool debug = false;
+
+	/* Set up the interface addresses */
+	dp_test_netlink_add_ip_address("dp1T0", router_ll_ip_subnet);
+	dp_test_nl_add_ip_addr_and_connected("dp1T0", "2001:1:1::1/64");
+
+	/* And the neighbour for the return icmp packet */
+	dp_test_netlink_add_neigh("dp1T0", host_ll_ip, neigh1_mac_str);
+
+	struct dpt_zone_cfg cfg = {
+		.private = {
+			.name = "PRIVATE",
+			.intf = { "dp1T0", NULL },
+			.local = false,
+		},
+		.public = {
+			.name = "PUBLIC",
+			.intf = { "dp2T1", NULL },
+			.local = false,
+		},
+		.local = { 0 },
+		.pub_to_priv = {
+			.name		= "PUB_TO_PRIV",
+			.pass		= BLOCK,
+			.stateful	= STATELESS,
+			.npf		= "",
+		},
+		.priv_to_pub = {
+			.name		= "PRIV_TO_PUB",
+			.pass		= PASS,
+			.stateful	= STATELESS,
+			.npf		= "",
+		},
+		.local_to_priv = { 0 },
+		.priv_to_local = {0 },
+		.local_to_pub = { 0 },
+		.pub_to_local = { 0 },
+	};
+
+	dpt_zone_cfg(&cfg, true, debug);
+
+	/*
+	 * Test packet
+	 */
+	ns_pak = dp_test_create_ns_pak(host_ll_ip, "ff02::1:ff00:2",
+		       IPTOS_CLASS_CS6, neigh1_mac_str, "33:33:ff:00:00:02",
+		       "2001:1:1::1");
+
+	/*
+	 * Expected packet
+	 */
+	exp_na_pak = dp_test_create_na_pak(router_ll_ip, host_ll_ip,
+			   IPTOS_CLASS_CS6, dp_test_intf_name2mac_str("dp1T0"),
+			   neigh1_mac_str, "2001:1:1::1");
+
+	exp = dp_test_exp_create(exp_na_pak);
+	rte_pktmbuf_free(exp_na_pak);
+
+	/* Set test expectations */
+	dp_test_exp_set_oif_name(exp, "dp1T0");
+	dp_test_exp_set_fwd_status(exp, DP_TEST_FWD_FORWARDED);
+
+	/* Run test */
+	dp_test_pak_receive(ns_pak, "dp1T0", exp);
+
+	/* Clean Up */
+	dpt_zone_cfg(&cfg, false, debug);
+
+	dp_test_netlink_del_neigh("dp1T0", host_ll_ip, neigh1_mac_str);
+	dp_test_nl_del_ip_addr_and_connected("dp1T0", "2001:1:1::1/64");
+	dp_test_netlink_del_ip_address("dp1T0", router_ll_ip_subnet);
+} DP_END_TEST;
+
+/*
+ * IPv6 ND, zone on interface, local zone.  Pass rule in LOCAL_TO_PRIV
+ * ruleset.
+ *
+ * Inject an IPv6 Neighbor Solicitation pkt in order to generate a Neighbor
+ * Advertisement pkt.
+ */
+DP_DECL_TEST_CASE(npf_local, npf_v6nbr3, NULL, NULL);
+DP_START_TEST(npf_v6nbr3, test)
+{
+	struct dp_test_expected *exp;
+	struct rte_mbuf *ns_pak;
+	struct rte_mbuf *exp_na_pak;
+	const char *neigh1_mac_str = "aa:bb:cc:dd:ee:10";
+	const char *host_ll_ip = "fe80::409f:1ff:fee8:101";
+	const char *router_ll_ip =        "fe80::5054:ff:fe79:3f5";
+	const char *router_ll_ip_subnet = "fe80::5054:ff:fe79:3f5/64";
+	bool debug = false;
+
+	/* Set up the interface addresses */
+	dp_test_netlink_add_ip_address("dp1T0", router_ll_ip_subnet);
+	dp_test_nl_add_ip_addr_and_connected("dp1T0", "2001:1:1::1/64");
+
+	/* And the neighbour for the return icmp packet */
+	dp_test_netlink_add_neigh("dp1T0", host_ll_ip, neigh1_mac_str);
+
+	struct dpt_zone_cfg cfg = {
+		.private = {
+			.name = "PRIVATE",
+			.intf = { "dp1T0", NULL },
+			.local = false,
+		},
+		.public = {
+			.name = "PUBLIC",
+			.intf = { "dp2T1", NULL },
+			.local = false,
+		},
+		.local = {
+			.name = "LOCAL",
+			.intf = { NULL },
+			.local = true,
+		},
+		.pub_to_priv = {
+			.name		= "PUB_TO_PRIV",
+			.pass		= BLOCK,
+			.stateful	= STATELESS,
+			.npf		= "",
+		},
+		.priv_to_pub = {
+			.name		= "PRIV_TO_PUB",
+			.pass		= PASS,
+			.stateful	= STATELESS,
+			.npf		= "",
+		},
+		.local_to_priv = {
+			.name		= "LOCAL_TO_PRIV",
+			.pass		= PASS,
+			.stateful	= STATELESS,
+			.npf		= "",
+		},
+		.priv_to_local = {
+			.name		= "PRIV_TO_LOCAL",
+			.pass		= PASS,
+			.stateful	= STATELESS,
+			.npf		= "",
+		},
+		.local_to_pub = { 0 },
+		.pub_to_local = { 0 },
+	};
+
+	dpt_zone_cfg(&cfg, true, debug);
+
+	/*
+	 * Test packet
+	 */
+	ns_pak = dp_test_create_ns_pak(host_ll_ip, "ff02::1:ff00:2",
+		       IPTOS_CLASS_CS6, neigh1_mac_str, "33:33:ff:00:00:02",
+		       "2001:1:1::1");
+
+	/*
+	 * Expected packet
+	 */
+	exp_na_pak = dp_test_create_na_pak(router_ll_ip, host_ll_ip,
+			   IPTOS_CLASS_CS6, dp_test_intf_name2mac_str("dp1T0"),
+			   neigh1_mac_str, "2001:1:1::1");
+
+	exp = dp_test_exp_create(exp_na_pak);
+	rte_pktmbuf_free(exp_na_pak);
+
+	/* Set test expectations */
+	dp_test_exp_set_oif_name(exp, "dp1T0");
+	dp_test_exp_set_fwd_status(exp, DP_TEST_FWD_FORWARDED);
+
+	/* Run test */
+	dp_test_pak_receive(ns_pak, "dp1T0", exp);
+
+	/* Clean Up */
+	dpt_zone_cfg(&cfg, false, debug);
+
+	dp_test_netlink_del_neigh("dp1T0", host_ll_ip, neigh1_mac_str);
+	dp_test_nl_del_ip_addr_and_connected("dp1T0", "2001:1:1::1/64");
+	dp_test_netlink_del_ip_address("dp1T0", router_ll_ip_subnet);
+} DP_END_TEST;
+
+/*
+ * IPv6 ND, zone on interface, local zone.  Pass rule in LOCAL_TO_PRIV
+ * ruleset, but packet does not match.  The UNMATCHED decision is overridden
+ * in npf_apply_firewall.
+ *
+ * Inject an IPv6 Neighbor Solicitation pkt in order to generate a Neighbor
+ * Advertisement pkt.
+ */
+DP_DECL_TEST_CASE(npf_local, npf_v6nbr4, NULL, NULL);
+DP_START_TEST(npf_v6nbr4, test)
+{
+	struct dp_test_expected *exp;
+	struct rte_mbuf *ns_pak;
+	struct rte_mbuf *exp_na_pak;
+	const char *neigh1_mac_str = "aa:bb:cc:dd:ee:10";
+	const char *host_ll_ip = "fe80::409f:1ff:fee8:101";
+	const char *router_ll_ip =        "fe80::5054:ff:fe79:3f5";
+	const char *router_ll_ip_subnet = "fe80::5054:ff:fe79:3f5/64";
+	bool debug = false;
+
+	/* Set up the interface addresses */
+	dp_test_netlink_add_ip_address("dp1T0", router_ll_ip_subnet);
+	dp_test_nl_add_ip_addr_and_connected("dp1T0", "2001:1:1::1/64");
+
+	/* And the neighbour for the return icmp packet */
+	dp_test_netlink_add_neigh("dp1T0", host_ll_ip, neigh1_mac_str);
+
+	struct dpt_zone_cfg cfg = {
+		.private = {
+			.name = "PRIVATE",
+			.intf = { "dp1T0", NULL },
+			.local = false,
+		},
+		.public = {
+			.name = "PUBLIC",
+			.intf = { "dp2T1", NULL },
+			.local = false,
+		},
+		.local = {
+			.name = "LOCAL",
+			.intf = { NULL },
+			.local = true,
+		},
+		.pub_to_priv = {
+			.name		= "PUB_TO_PRIV",
+			.pass		= BLOCK,
+			.stateful	= STATELESS,
+			.npf		= "",
+		},
+		.priv_to_pub = {
+			.name		= "PRIV_TO_PUB",
+			.pass		= PASS,
+			.stateful	= STATELESS,
+			.npf		= "",
+		},
+		.local_to_priv = {
+			.name		= "LOCAL_TO_PRIV",
+			.pass		= PASS,
+			.stateful	= STATELESS,
+			.npf		= "proto-final=1",
+		},
+		.priv_to_local = {
+			.name		= "PRIV_TO_LOCAL",
+			.pass		= PASS,
+			.stateful	= STATELESS,
+			.npf		= "",
+		},
+		.local_to_pub = { 0 },
+		.pub_to_local = { 0 },
+	};
+
+	dpt_zone_cfg(&cfg, true, debug);
+
+	/*
+	 * Test packet
+	 */
+	ns_pak = dp_test_create_ns_pak(host_ll_ip, "ff02::1:ff00:2",
+		       IPTOS_CLASS_CS6, neigh1_mac_str, "33:33:ff:00:00:02",
+		       "2001:1:1::1");
+
+	/*
+	 * Expected packet
+	 */
+	exp_na_pak = dp_test_create_na_pak(router_ll_ip, host_ll_ip,
+			   IPTOS_CLASS_CS6, dp_test_intf_name2mac_str("dp1T0"),
+			   neigh1_mac_str, "2001:1:1::1");
+
+	exp = dp_test_exp_create(exp_na_pak);
+	rte_pktmbuf_free(exp_na_pak);
+
+	/* Set test expectations */
+	dp_test_exp_set_oif_name(exp, "dp1T0");
+	dp_test_exp_set_fwd_status(exp, DP_TEST_FWD_FORWARDED);
+
+	/* Run test */
+	dp_test_pak_receive(ns_pak, "dp1T0", exp);
+
+	/* Clean Up */
+	dpt_zone_cfg(&cfg, false, debug);
+
+	dp_test_netlink_del_neigh("dp1T0", host_ll_ip, neigh1_mac_str);
+	dp_test_nl_del_ip_addr_and_connected("dp1T0", "2001:1:1::1/64");
+	dp_test_netlink_del_ip_address("dp1T0", router_ll_ip_subnet);
+} DP_END_TEST;
+
+/*
+ * IPv6 ND, zone on interface, local zone.  Block rule in LOCAL_TO_PRIV
+ * ruleset.   However the block rule is overridden in npf_apply_firewall.
+ *
+ * Inject an IPv6 Neighbor Solicitation pkt in order to generate a Neighbor
+ * Advertisement pkt.
+ */
+DP_DECL_TEST_CASE(npf_local, npf_v6nbr5, NULL, NULL);
+DP_START_TEST(npf_v6nbr5, test)
+{
+	struct dp_test_expected *exp;
+	struct rte_mbuf *ns_pak;
+	struct rte_mbuf *exp_na_pak;
+	const char *neigh1_mac_str = "aa:bb:cc:dd:ee:10";
+	const char *host_ll_ip = "fe80::409f:1ff:fee8:101";
+	const char *router_ll_ip =        "fe80::5054:ff:fe79:3f5";
+	const char *router_ll_ip_subnet = "fe80::5054:ff:fe79:3f5/64";
+	bool debug = false;
+
+	/* Set up the interface addresses */
+	dp_test_netlink_add_ip_address("dp1T0", router_ll_ip_subnet);
+	dp_test_nl_add_ip_addr_and_connected("dp1T0", "2001:1:1::1/64");
+
+	/* And the neighbour for the return icmp packet */
+	dp_test_netlink_add_neigh("dp1T0", host_ll_ip, neigh1_mac_str);
+
+	struct dpt_zone_cfg cfg = {
+		.private = {
+			.name = "PRIVATE",
+			.intf = { "dp1T0", NULL },
+			.local = false,
+		},
+		.public = {
+			.name = "PUBLIC",
+			.intf = { "dp2T1", NULL },
+			.local = false,
+		},
+		.local = {
+			.name = "LOCAL",
+			.intf = { NULL },
+			.local = true,
+		},
+		.pub_to_priv = {
+			.name		= "PUB_TO_PRIV",
+			.pass		= BLOCK,
+			.stateful	= STATELESS,
+			.npf		= "",
+		},
+		.priv_to_pub = {
+			.name		= "PRIV_TO_PUB",
+			.pass		= PASS,
+			.stateful	= STATELESS,
+			.npf		= "",
+		},
+		.local_to_priv = {
+			.name		= "LOCAL_TO_PRIV",
+			.pass		= BLOCK,
+			.stateful	= STATELESS,
+			.npf		= "",
+		},
+		.priv_to_local = {
+			.name		= "PRIV_TO_LOCAL",
+			.pass		= PASS,
+			.stateful	= STATELESS,
+			.npf		= "",
+		},
+		.local_to_pub = { 0 },
+		.pub_to_local = { 0 },
+	};
+
+	dpt_zone_cfg(&cfg, true, debug);
+
+	/*
+	 * Test packet
+	 *
+	 * In this case the NPF_FLAG_FROM_US flag does *not* cause the BLOCK
+	 * decision to be overidden in npf_apply_firewall.  The
+	 * NPF_FLAG_FROM_LOCAL and NPF_FLAG_FROM_ZONE take priority, and the
+	 * BLOCK decision is adhered to,
+	 */
+	ns_pak = dp_test_create_ns_pak(host_ll_ip, "ff02::1:ff00:2",
+		       IPTOS_CLASS_CS6, neigh1_mac_str, "33:33:ff:00:00:02",
+		       "2001:1:1::1");
+
+	/*
+	 * Expected packet
+	 */
+	exp_na_pak = dp_test_create_na_pak(router_ll_ip, host_ll_ip,
+			   IPTOS_CLASS_CS6, dp_test_intf_name2mac_str("dp1T0"),
+			   neigh1_mac_str, "2001:1:1::1");
+
+	exp = dp_test_exp_create(exp_na_pak);
+	rte_pktmbuf_free(exp_na_pak);
+
+	/* Set test expectations */
+	dp_test_exp_set_oif_name(exp, "dp1T0");
+	dp_test_exp_set_fwd_status(exp, DP_TEST_FWD_FORWARDED);
+
+	/* Run test */
+	dp_test_pak_receive(ns_pak, "dp1T0", exp);
+
+	/* Clean Up */
+	dpt_zone_cfg(&cfg, false, debug);
+
+	dp_test_netlink_del_neigh("dp1T0", host_ll_ip, neigh1_mac_str);
+	dp_test_nl_del_ip_addr_and_connected("dp1T0", "2001:1:1::1/64");
+	dp_test_netlink_del_ip_address("dp1T0", router_ll_ip_subnet);
+} DP_END_TEST;
+
+/*
+ * IPv6 ND, zone on interface, local zone.  No LOCAL_TO_PRIV ruleset.  The
+ * implicit BLOCK is overridden in npf_get_zone_config.
+ *
+ * Inject an IPv6 Neighbor Solicitation pkt in order to generate a Neighbor
+ * Advertisement pkt.
+ */
+DP_DECL_TEST_CASE(npf_local, npf_v6nbr6, NULL, NULL);
+DP_START_TEST(npf_v6nbr6, test)
+{
+	struct dp_test_expected *exp;
+	struct rte_mbuf *ns_pak;
+	struct rte_mbuf *exp_na_pak;
+	const char *neigh1_mac_str = "aa:bb:cc:dd:ee:10";
+	const char *host_ll_ip = "fe80::409f:1ff:fee8:101";
+	const char *router_ll_ip =        "fe80::5054:ff:fe79:3f5";
+	const char *router_ll_ip_subnet = "fe80::5054:ff:fe79:3f5/64";
+	bool debug = false;
+
+	/* Set up the interface addresses */
+	dp_test_netlink_add_ip_address("dp1T0", router_ll_ip_subnet);
+	dp_test_nl_add_ip_addr_and_connected("dp1T0", "2001:1:1::1/64");
+
+	/* And the neighbour for the return icmp packet */
+	dp_test_netlink_add_neigh("dp1T0", host_ll_ip, neigh1_mac_str);
+
+	struct dpt_zone_cfg cfg = {
+		.private = {
+			.name = "PRIVATE",
+			.intf = { "dp1T0", NULL },
+			.local = false,
+		},
+		.public = {
+			.name = "PUBLIC",
+			.intf = { "dp2T1", NULL },
+			.local = false,
+		},
+		.local = {
+			.name = "LOCAL",
+			.intf = { NULL },
+			.local = true,
+		},
+		.pub_to_priv = {
+			.name		= "PUB_TO_PRIV",
+			.pass		= BLOCK,
+			.stateful	= STATELESS,
+			.npf		= "",
+		},
+		.priv_to_pub = {
+			.name		= "PRIV_TO_PUB",
+			.pass		= PASS,
+			.stateful	= STATELESS,
+			.npf		= "",
+		},
+		.local_to_priv = { 0 },
+		.priv_to_local = {
+			.name		= "PRIV_TO_LOCAL",
+			.pass		= PASS,
+			.stateful	= STATELESS,
+			.npf		= "",
+		},
+		.local_to_pub = { 0 },
+		.pub_to_local = { 0 },
+	};
+
+	dpt_zone_cfg(&cfg, true, debug);
+
+	/*
+	 * Test packet
+	 */
+	ns_pak = dp_test_create_ns_pak(host_ll_ip, "ff02::1:ff00:2",
+		       IPTOS_CLASS_CS6, neigh1_mac_str, "33:33:ff:00:00:02",
+		       "2001:1:1::1");
+
+	/*
+	 * Expected packet
+	 */
+	exp_na_pak = dp_test_create_na_pak(router_ll_ip, host_ll_ip,
+			   IPTOS_CLASS_CS6, dp_test_intf_name2mac_str("dp1T0"),
+			   neigh1_mac_str, "2001:1:1::1");
+
+	exp = dp_test_exp_create(exp_na_pak);
+	rte_pktmbuf_free(exp_na_pak);
+
+	/* Set test expectations */
+	dp_test_exp_set_oif_name(exp, "dp1T0");
+	dp_test_exp_set_fwd_status(exp, DP_TEST_FWD_FORWARDED);
+
+	/* Run test */
+	dp_test_pak_receive(ns_pak, "dp1T0", exp);
+
+	/* Clean Up */
+	dpt_zone_cfg(&cfg, false, debug);
+
+	dp_test_netlink_del_neigh("dp1T0", host_ll_ip, neigh1_mac_str);
+	dp_test_nl_del_ip_addr_and_connected("dp1T0", "2001:1:1::1/64");
+	dp_test_netlink_del_ip_address("dp1T0", router_ll_ip_subnet);
+} DP_END_TEST;
