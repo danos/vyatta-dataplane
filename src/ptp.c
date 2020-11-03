@@ -933,29 +933,45 @@ void ptp_peer_dst_resolve(struct ptp_peer_t *peer,
 	}
 }
 
+enum ptp_peer_state {
+	NO_ROUTE,
+	ROUTED,		/* ptp_port -> ifp -> nh_ifp -> ... */
+	ONE_HOP,	/* ptp_port -> ifp (== nh_ifp) -> peer */
+	CONNECTED,	/* ptp_port -> peer */
+};
+
 static
-void ptp_peer_find_nexthop(struct ptp_peer_t *peer,
-			   struct ifnet **ifp,
-			   struct ifnet **nh_ifp,
-			   bool *connected)
+enum ptp_peer_state ptp_peer_find_nexthop(struct ptp_peer_t *peer,
+					  struct ifnet **ifp,
+					  struct ifnet **nh_ifp)
 {
 	struct ptp_port_t *port;
+	enum ptp_peer_state state = NO_ROUTE;
+	bool is_connected;
 
 	*ifp = NULL;
 	*nh_ifp = NULL;
-	*connected = false;
 
 	port = rcu_dereference(peer->port);
 	if (!port)
-		return;
+		return state;
 
 	*ifp = ptp_port_port_to_vlan(port);
-	if (!*ifp)
-		return;
+	if (!*ifp || !((*ifp)->if_flags & IFF_UP))
+		return state;
 
-	*nh_ifp = ptp_peer_dst_lookup(peer, connected);
-	if (!*nh_ifp)
-		return;
+	*nh_ifp = ptp_peer_dst_lookup(peer, &is_connected);
+	if (!*nh_ifp || !((*nh_ifp)->if_flags & IFF_UP))
+		return state;
+
+	if (*nh_ifp == *ifp && is_connected)
+		state = CONNECTED;
+	else if (*nh_ifp == *ifp)
+		state = ONE_HOP;
+	else if (*nh_ifp)
+		state = ROUTED;
+
+	return state;
 }
 
 static
@@ -967,9 +983,9 @@ void ptp_peer_update(struct ptp_peer_t *peer)
 	const char *peerip =
 		fal_ip_address_t_to_str(&peer->ipaddr, buf2, sizeof(buf2));
 	struct ptp_peer_t *parent = peer, *sibling;
-	bool connected;
+	enum ptp_peer_state state;
 
-	ptp_peer_find_nexthop(peer, &ifp, &nh_ifp, &connected);
+	state = ptp_peer_find_nexthop(peer, &ifp, &nh_ifp);
 
 	/* Is this the best way to reach the peer? There are potentially
 	 * three different way to reach a.b.c.d from the peers configured
@@ -989,29 +1005,25 @@ void ptp_peer_update(struct ptp_peer_t *peer)
 	 */
 	cds_list_for_each_entry_rcu(sibling, &parent->siblings, slist) {
 		struct ifnet *sib_ifp, *sib_nh_ifp;
-		bool sib_connected;
+		enum ptp_peer_state sib_state;
 
-		ptp_peer_find_nexthop(sibling,
-				      &sib_ifp, &sib_nh_ifp, &sib_connected);
+		sib_state = ptp_peer_find_nexthop(sibling,
+						  &sib_ifp, &sib_nh_ifp);
 
 		/* If the nexthop is on the same interface, and the
 		 * interface is up, prefer this peer over any other.
 		 * The sibling might also be better if the current
 		 * peer isn't reachable or IFF_UP.
 		 */
-		if ((sib_ifp && (sib_ifp->if_flags & IFF_UP)) &&
-		    (sib_nh_ifp == sib_ifp ||
-		     (!ifp || !(ifp->if_flags & IFF_UP)))) {
+		if (sib_state != NO_ROUTE && sib_state > state) {
 			DP_DEBUG(PTP, ERR, DATAPLANE,
-				 "%s: peer %s on %s is preferred to %s\n",
-				 __func__, peerip,
-				 sib_ifp->if_name,
-				 ifp ? ifp->if_name : "(null)");
+				 "%s: choosing peer %s on %s\n",
+				 __func__, peerip, sib_ifp->if_name);
 			ptp_peer_uninstall(peer);
 			peer = sibling;
 			nh_ifp = sib_nh_ifp;
 			ifp = sib_ifp;
-			connected = sib_connected;
+			state = sib_state;
 			continue;
 		}
 
@@ -1019,29 +1031,25 @@ void ptp_peer_update(struct ptp_peer_t *peer)
 		ptp_peer_uninstall(sibling);
 	}
 
-	if (!ifp) {
-		DP_DEBUG(PTP, ERR, DATAPLANE,
-			 "%s: peer %s is unreachable\n", __func__, peerip);
-	} else if (!(ifp->if_flags & IFF_UP)) {
-		DP_DEBUG(PTP, ERR, DATAPLANE,
-			 "%s: switch nexthop interface %s is down!\n",
-			 __func__, ifp->if_name);
-	} else if (nh_ifp == ifp && connected) {
+	switch (state) {
+	case CONNECTED:
 		/* Next hop is directly reachable from switch interface. */
 		DP_DEBUG(PTP, INFO, DATAPLANE,
 			 "%s: peer %s is directly connected via %s.\n",
 			 __func__, peerip, ifp->if_name);
 		ptp_peer_dst_resolve(peer, ifp, &newmac);
-	} else if (nh_ifp) {
+		break;
+	case ONE_HOP:
+	case ROUTED:
 		/* Send packets to sw0.<vlan_port> for routing. */
 		DP_DEBUG(PTP, INFO, DATAPLANE,
-			 "%s: peer %s routed via switch interface %s.\n",
+			 "%s: peer %s ROUTED via switch interface %s.\n",
 			 __func__, peerip, nh_ifp->if_name);
 		rte_ether_addr_copy(&ifp->eth_addr, &newmac);
-	} else {
+		break;
+	default:
 		DP_DEBUG(PTP, ERR, DATAPLANE,
-			 "%s: peer %s port is unreachable from interface %s.\n",
-			 __func__, peerip, ifp->if_name);
+			 "%s: peer %s is unreachable\n", __func__, peerip);
 	}
 
 	/* If the MAC address changed (or finally resolved),
