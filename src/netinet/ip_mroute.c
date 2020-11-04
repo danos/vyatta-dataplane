@@ -115,6 +115,9 @@
 #include "vrf_internal.h"
 #include "fal.h"
 #include "ip_mcast_fal_interface.h"
+#include "pl_common.h"
+#include "pl_fused.h"
+#include "npf.h"
 
 /*
  * Multicast packets are punted to the slow path when they cannot be
@@ -1039,86 +1042,30 @@ static void expire_upcalls(__attribute__((unused)) struct rte_timer *rtetm,
 }
 #endif
 
-static int mcast_ethernet_send(struct ifnet *in_ifp,
-			       struct vif *out_vifp,
-			       struct rte_mbuf *m, int plen)
-{
-	struct iphdr *ip;
-	struct rte_ether_hdr *eth_hdr;
-
-	ip = iphdr(m);
-	decrement_ttl(ip);
-
-	mcast_dst_eth_addr_t eth_daddr = mcast_dst_eth_addr(ip->daddr);
-	eth_hdr = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
-	rte_ether_addr_copy(&eth_daddr.as_addr, &eth_hdr->d_addr);
-
-	mc_ip_output(in_ifp, m, out_vifp->v_ifp, ip);
-	out_vifp->v_pkt_out++;
-	out_vifp->v_bytes_out += plen;
-	return 0;
-}
-
 static void mcast_tunnel_send(struct ifnet *in_ifp,  struct vif *out_vifp,
 			      struct rte_mbuf *m, int plen)
 {
 	struct ifnet *out_ifp;
-	struct vrf *vrf;
-	struct iphdr *ip;
 	struct mcast_mgre_tun_walk_ctx mgre_tun_walk_ctx;
 
 	out_ifp = out_vifp->v_ifp;
-	ip = iphdr(m);
 
-	switch (out_ifp->if_type) {
-	case IFT_TUNNEL_GRE:
-		decrement_ttl(ip);
-
-		/* Call GRE API which will invoke specified callback
-		 * for each end point in P2P or P2MP tunnel
-		 */
-		mgre_tun_walk_ctx.proto = ETH_P_IP;
-		mgre_tun_walk_ctx.mbuf = m;
-		mgre_tun_walk_ctx.in_ifp = in_ifp;
-		mgre_tun_walk_ctx.pkt_len = plen;
-		mgre_tun_walk_ctx.out_vif = out_vifp;
-		mgre_tun_walk_ctx.hdr_len = sizeof(struct iphdr);
-		gre_tunnel_peer_walk(out_ifp,
-				     mcast_mgre_tunnel_endpoint_send,
-				     &mgre_tun_walk_ctx);
-		/*
-		 * Decrement ref count on original mbuf as new mbuf
-		 * was transmitted in replication loop.
-		 */
-		rte_pktmbuf_free(m);
-		return;
-	case IFT_TUNNEL_VTI:
-		decrement_ttl(ip);
-		out_vifp->v_pkt_out++;
-		out_vifp->v_bytes_out += plen;
-		IPSTAT_INC_VRF(if_vrf(in_ifp), IPSTATS_MIB_OUTMCASTPKTS);
-		vti_tunnel_out(in_ifp, out_ifp, m, ETH_P_IP);
-		return;
-	default:
-		/*
-		 * Punt for any tunnels unsupported in data plane.
-		 * Note that if packet successfully switched out
-		 * of some other interfaces in the olist in the
-		 * data plane, a  duplicate packet may be sent out
-		 * of these interfaces by the kernel. Essentially,
-		 * as things stand, option is potentially duplicate
-		 * packets on some interfaces or fail to transmit
-		 * packets on other interfaces in the olist.
-		 */
-		vrf = vrf_get_rcu(if_vrfid(in_ifp));
-		if (vrf) {
-			struct mcast_vrf *mvrf = &vrf->v_mvrf4;
-			MRTSTAT_INC(mvrf, mrts_slowpath);
-		}
-		out_vifp->v_pkt_out_punt++;
-		out_vifp->v_bytes_out_punt += plen;
-		mcast_ip_deliver(in_ifp, m);
-	}
+	/* Call GRE API which will invoke specified callback
+	 * for each end point in P2P or P2MP tunnel
+	 */
+	mgre_tun_walk_ctx.proto = ETH_P_IP;
+	mgre_tun_walk_ctx.mbuf = m;
+	mgre_tun_walk_ctx.in_ifp = in_ifp;
+	mgre_tun_walk_ctx.pkt_len = plen;
+	mgre_tun_walk_ctx.out_vif = out_vifp;
+	mgre_tun_walk_ctx.hdr_len = sizeof(struct iphdr);
+	gre_tunnel_peer_walk(out_ifp, mcast_mgre_tunnel_endpoint_send,
+			     &mgre_tun_walk_ctx);
+	/*
+	 * Decrement ref count on original mbuf as new mbuf
+	 * was transmitted in replication loop.
+	 */
+	rte_pktmbuf_free(m);
 }
 
 /*
@@ -1128,20 +1075,76 @@ static void mcast_tunnel_send(struct ifnet *in_ifp,  struct vif *out_vifp,
 static void vif_send(struct ifnet *in_ifp, struct vif *out_vifp,
 		     struct rte_mbuf *m, int plen)
 {
-	if (unlikely(out_vifp->v_flags & VIFF_TUNNEL)) {
+	struct ifnet *out_ifp = out_vifp->v_ifp;
+
+	/*
+	 * Punt for any tunnels unsupported in data plane.
+	 *
+	 * Note that if a packet is successfully switched out of some
+	 * other interfaces in the olist in the data plane, a duplicate
+	 * packet may be sent out of these interfaces by the kernel.
+	 * Essentially, as things stand, the option is to potentially
+	 * duplicate packets on some interfaces or fail to transmit
+	 * packets on other interfaces in the olist.
+	 */
+	if (unlikely(out_ifp->if_type == IFT_TUNNEL_OTHER)) {
+		struct vrf *vrf = vrf_get_rcu(if_vrfid(in_ifp));
+		if (vrf) {
+			struct mcast_vrf *mvrf = &vrf->v_mvrf4;
+			MRTSTAT_INC(mvrf, mrts_slowpath);
+		}
+		out_vifp->v_pkt_out_punt++;
+		out_vifp->v_bytes_out_punt += plen;
+		mcast_ip_deliver(in_ifp, m);
+		return;
+	}
+
+	struct iphdr *ip = iphdr(m);
+
+	/*
+	 * Time to decrement ttl since packet is being forwarded, not
+	 * just punted. It was previously tested to ensure it is greater
+	 * than 1 so there is no need to test for ttl expire here.
+	 */
+	decrement_ttl(ip);
+
+	if (unlikely(out_ifp->if_type == IFT_TUNNEL_GRE &&
+		     !(out_ifp->if_flags & IFF_NOARP))) {
 		mcast_tunnel_send(in_ifp,
 				  out_vifp, m, plen);
 		return;
 	}
 
-	mcast_ethernet_send(in_ifp, out_vifp, m, plen);
+	/* OIL replication counts */
+	out_vifp->v_pkt_out++;
+	out_vifp->v_bytes_out += plen;
+
+	/*
+	 * Send the packet down the pipeline graph.
+	 */
+	struct next_hop nh = {
+		.flags = RTF_MULTICAST,
+		.u.ifp = out_ifp,
+	};
+	struct pl_packet pl_pkt = {
+		.mbuf = m,
+		.l2_pkt_type = pkt_mbuf_get_l2_traffic_type(m),
+		.l3_hdr = ip,
+		.in_ifp = in_ifp,
+		.out_ifp = out_ifp,
+		.nxt.v4 = &nh,
+		.l2_proto = ETH_P_IP,
+		.npf_flags = NPF_FLAG_CACHE_EMPTY,
+	};
+
+	pipeline_fused_ipv4_out(&pl_pkt);
 }
 
 /*
  * Packet forwarding routine once entry in the cache is made
  */
 static int ip_mdq(struct mcast_vrf *mvrf, struct rte_mbuf *m, struct ip *ip,
-		  struct ifnet *ifp, struct mfc *rt)
+		  struct ifnet *in_ifp, struct mfc *rt)
 {
 	struct vif *vifp;
 	int plen = ntohs(ip->ip_len);
@@ -1150,7 +1153,7 @@ static int ip_mdq(struct mcast_vrf *mvrf, struct rte_mbuf *m, struct ip *ip,
 
 	/* Don't forward if it didn't arrive on parent vif for its origin. */
 	vifp = get_vif_by_ifindex(rt->mfc_parent);
-	if (!vifp || (vifp->v_if_index != ifp->if_index)) {
+	if (!vifp || (vifp->v_if_index != in_ifp->if_index)) {
 		MRTSTAT_INC(mvrf, mrts_wrong_if);
 		++rt->mfc_wrong_if;
 
@@ -1195,14 +1198,19 @@ static int ip_mdq(struct mcast_vrf *mvrf, struct rte_mbuf *m, struct ip *ip,
 	cds_lfht_for_each_entry(mvrf->viftable, &iter, vifp, node) {
 		if (IF_ISSET(vifp->v_vif_index, &rt->mfc_ifset) &&
 		    ip->ip_ttl > vifp->v_threshold) {
-			if (!vifp->v_ifp)
+			struct ifnet *out_ifp = vifp->v_ifp;
+
+			if (!out_ifp)
+				continue;
+			const bool if_up = (out_ifp->if_flags & IFF_UP);
+			if (!if_up)
 				continue;
 
 			mh = mcast_create_l2l3_header(m, md,
 						      sizeof(struct iphdr));
 			if (mh) {
 				/* send the newly created packet chain */
-				vif_send(ifp, vifp, mh, plen);
+				vif_send(in_ifp, vifp, mh, plen);
 			} else {
 				rte_pktmbuf_free(md);
 				return -ENOBUFS;

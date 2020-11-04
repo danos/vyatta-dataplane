@@ -16,6 +16,7 @@
 #include "if_var.h"
 #include "if_llatbl.h"
 #include "ip_funcs.h"
+#include "ip_mcast.h"
 #include "pl_common.h"
 #include "pl_fused.h"
 #include "pl_node.h"
@@ -60,6 +61,13 @@ ipv4_encap_eth_from_nh4(struct rte_mbuf *mbuf, const struct next_hop *nh,
 	if (likely(lle != NULL)) {
 		if (llentry_copy_mac(lle, &eth_hdr->d_addr))
 			return true;
+	}
+
+	/* Derive a multicast MAC address from the IP address */
+	if (unlikely(nh->flags & RTF_MULTICAST)) {
+		mcast_dst_eth_addr_t eth_daddr = mcast_dst_eth_addr(addr);
+		rte_ether_addr_copy(&eth_daddr.as_addr, &eth_hdr->d_addr);
+		return true;
 	}
 
 	/* Not yet resolved, so try to do so */
@@ -161,8 +169,12 @@ ipv4_encap_process_common(struct pl_packet *pkt, void *context __unused,
 	 * Either way the packet has been handed to "lower layers" to
 	 * be transmitted.
 	 */
-	if (rc == IPV4_ENCAP_L2_OUT || rc == IPV4_ENCAP_NEIGH_RES_CONSUME)
-		IPSTAT_INC_IFP(out_ifp, IPSTATS_MIB_OUTFORWDATAGRAMS);
+	if (rc == IPV4_ENCAP_L2_OUT || rc == IPV4_ENCAP_NEIGH_RES_CONSUME) {
+		if (pkt->nxt.v4->flags & RTF_MULTICAST)
+			IPSTAT_INC_IFP(out_ifp, IPSTATS_MIB_OUTMCASTPKTS);
+		else
+			IPSTAT_INC_IFP(out_ifp, IPSTATS_MIB_OUTFORWDATAGRAMS);
+	}
 
 	return rc;
 }

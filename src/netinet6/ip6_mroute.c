@@ -140,6 +140,9 @@
 #include "vrf_internal.h"
 #include "fal.h"
 #include "ip_mcast_fal_interface.h"
+#include "pl_common.h"
+#include "pl_fused.h"
+#include "npf.h"
 
 /*
  * Multicast packets are punted to the slow path when they cannot be
@@ -993,94 +996,30 @@ static void expire_upcalls(__attribute__((unused)) struct rte_timer *rtetm,
 }
 #endif
 
-static int mcast6_ethernet_send(struct mif6 *mifp, struct rte_mbuf *m,
-				struct ifnet *in_ifp)
-{
-	struct ifnet *ifp = mifp->m6_ifp;
-	struct ip6_hdr *ip6 = ip6hdr(m);
-	struct rte_ether_hdr *eth_hdr;
-	mcast_dst_eth_addr_t eth_daddr;
-
-	if (unlikely(rte_pktmbuf_pkt_len(m) > ifp->if_mtu))
-		return ICMP6_PACKET_TOO_BIG;
-
-	/*
-	 * Time to decrement ttl since packet is being forwarded, not
-	 * just punted. It was previously tested to ensure it is greater
-	 * than 1 so there is no need to test for ttl expire here.
-	 */
-	ip6->ip6_hlim--;
-
-	eth_hdr = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
-	eth_daddr = mcast6_dst_eth_addr(&ip6->ip6_dst);
-	rte_ether_addr_copy(&eth_daddr.as_addr, &eth_hdr->d_addr);
-	rte_ether_addr_copy(&ifp->eth_addr, &eth_hdr->s_addr);
-
-	if_output(ifp, m, in_ifp, ETH_P_IPV6);
-	return 0;
-}
-
 static void mcast6_tunnel_send(struct ifnet *in_ifp, struct mif6 *out_mifp,
 			      struct rte_mbuf *m, int plen)
 {
 	struct ifnet *out_ifp;
-	struct vrf *vrf;
-	struct ip6_hdr *ip6;
 	struct mcast_mgre_tun_walk_ctx mgre_tun_walk_ctx;
 
 	out_ifp = out_mifp->m6_ifp;
-	ip6 = ip6hdr(m);
 
-	switch (out_ifp->if_type) {
-	case IFT_TUNNEL_GRE:
-		ip6->ip6_hlim--;
-
-		/* Call GRE API which will invoke specified callback
-		 * for each end point in P2P or P2MP tunnel
-		 */
-		mgre_tun_walk_ctx.proto = ETH_P_IPV6;
-		mgre_tun_walk_ctx.mbuf = m;
-		mgre_tun_walk_ctx.in_ifp = in_ifp;
-		mgre_tun_walk_ctx.pkt_len = plen;
-		mgre_tun_walk_ctx.out_vif = out_mifp;
-		mgre_tun_walk_ctx.hdr_len = sizeof(struct ip6_hdr);
-		gre_tunnel_peer_walk(out_ifp,
-				     mcast_mgre_tunnel_endpoint_send,
-				     &mgre_tun_walk_ctx);
-		/*
-		 * Decrement ref count on original mbuf as new mbuf
-		 * was transmitted in replication loop.
-		 */
-		rte_pktmbuf_free(m);
-		return;
-
-	case IFT_TUNNEL_VTI:
-		ip6->ip6_hlim--;
-		out_mifp->m6_pkt_out++;
-		out_mifp->m6_bytes_out += plen;
-		IP6STAT_INC_IFP(out_ifp, IPSTATS_MIB_OUTMCASTPKTS);
-		vti_tunnel_out(in_ifp, out_ifp, m, ETH_P_IPV6);
-		return;
-	default:
-		/*
-		 * Punt for any tunnels unsupported in data plane.
-		 * Note that if packet successfully switched out
-		 * of some other interfaces in the olist in the
-		 * data plane, a  duplicate packet may be sent out
-		 * of these interfaces by the kernel. Essentially,
-		 * as things stand, option is potentially duplicate
-		 * packets on some interfaces or fail to transmit
-		 * packets on other interfaces in the olist.
-		 */
-		mcast_ip6_deliver(in_ifp, m);
-		vrf = vrf_get_rcu(if_vrfid(in_ifp));
-		if (vrf) {
-			struct mcast6_vrf *mvrf6 = &vrf->v_mvrf6;
-			MRT6STAT_INC(mvrf6, mrt6s_slowpath);
-		}
-		out_mifp->m6_pkt_out_punt++;
-		out_mifp->m6_bytes_out_punt += plen;
-	}
+	/* Call GRE API which will invoke specified callback
+	 * for each end point in P2P or P2MP tunnel
+	 */
+	mgre_tun_walk_ctx.proto = ETH_P_IPV6;
+	mgre_tun_walk_ctx.mbuf = m;
+	mgre_tun_walk_ctx.in_ifp = in_ifp;
+	mgre_tun_walk_ctx.pkt_len = plen;
+	mgre_tun_walk_ctx.out_vif = out_mifp;
+	mgre_tun_walk_ctx.hdr_len = sizeof(struct ip6_hdr);
+	gre_tunnel_peer_walk(out_ifp, mcast_mgre_tunnel_endpoint_send,
+			     &mgre_tun_walk_ctx);
+	/*
+	 * Decrement ref count on original mbuf as new mbuf
+	 * was transmitted in replication loop.
+	 */
+	rte_pktmbuf_free(m);
 }
 
 /*
@@ -1090,29 +1029,75 @@ static void mcast6_tunnel_send(struct ifnet *in_ifp, struct mif6 *out_mifp,
 static void mif6_send(struct ifnet *in_ifp, struct mif6 *out_mifp,
 		      struct rte_mbuf *m, int plen)
 {
-	struct vrf *vrf;
+	struct ifnet *out_ifp = out_mifp->m6_ifp;
 
-	if (unlikely(out_mifp->m6_flags & VIFF_TUNNEL)) {
+	/*
+	 * Punt for any tunnels unsupported in data plane.
+	 *
+	 * Note that if a packet is successfully switched out of some
+	 * other interfaces in the olist in the data plane, a duplicate
+	 * packet may be sent out of these interfaces by the kernel.
+	 * Essentially, as things stand, the option is to potentially
+	 * duplicate packets on some interfaces or fail to transmit
+	 * packets on other interfaces in the olist.
+	 */
+	if (unlikely(out_ifp->if_type == IFT_TUNNEL_OTHER)) {
+		struct vrf *vrf = vrf_get_rcu(if_vrfid(in_ifp));
+		if (vrf) {
+			struct mcast6_vrf *mvrf6 = &vrf->v_mvrf6;
+			MRT6STAT_INC(mvrf6, mrt6s_slowpath);
+		}
+		out_mifp->m6_pkt_out_punt++;
+		out_mifp->m6_bytes_out_punt += plen;
+		mcast_ip6_deliver(in_ifp, m);
+		return;
+	}
+
+	struct ip6_hdr *ip6 = ip6hdr(m);
+
+	/*
+	 * Time to decrement ttl since packet is being forwarded, not
+	 * just punted. It was previously tested to ensure it is greater
+	 * than 1 so there is no need to test for ttl expire here.
+	 */
+	ip6->ip6_hlim--;
+
+	if (unlikely(out_ifp->if_type == IFT_TUNNEL_GRE &&
+		     !(out_ifp->if_flags & IFF_NOARP))) {
 		mcast6_tunnel_send(in_ifp, out_mifp, m, plen);
 		return;
 	}
 
-	if (mcast6_ethernet_send(out_mifp, m, in_ifp) == ICMP6_PACKET_TOO_BIG) {
-		vrf = vrf_get_rcu(if_vrfid(in_ifp));
-		if (vrf) {
-			struct mcast6_vrf *mvrf6 = &vrf->v_mvrf6;
-			MRT6STAT_INC(mvrf6, mrt6s_pkttoobig);
-		}
-		icmp6_error(in_ifp, m, ICMP6_PACKET_TOO_BIG,
-			    0, htonl(out_mifp->m6_ifp->if_mtu));
-	}
+	/* OIL replication counts */
+	out_mifp->m6_pkt_out++;
+	out_mifp->m6_bytes_out += plen;
+
+	/*
+	 * Send the packet down the pipeline graph.
+	 */
+	struct next_hop nh = {
+		.flags = RTF_MULTICAST,
+		.u.ifp = out_ifp,
+	};
+	struct pl_packet pl_pkt = {
+		.mbuf = m,
+		.l2_pkt_type = pkt_mbuf_get_l2_traffic_type(m),
+		.l3_hdr = ip6,
+		.in_ifp = in_ifp,
+		.out_ifp = out_ifp,
+		.nxt.v6 = &nh,
+		.l2_proto = ETH_P_IPV6,
+		.npf_flags = NPF_FLAG_CACHE_EMPTY,
+	};
+
+	pipeline_fused_ipv6_out(&pl_pkt);
 }
 
 /*
  * Packet forwarding routine once entry in the cache is made
  */
 static int ip6_mdq(struct mcast6_vrf *mvrf6, struct rte_mbuf *m,
-		   struct ifnet *ifp, struct mf6c *rt)
+		   struct ifnet *in_ifp, struct mf6c *rt)
 {
 	struct ip6_hdr *ip6 = ip6hdr(m);
 	struct mif6 *mifp;
@@ -1123,7 +1108,7 @@ static int ip6_mdq(struct mcast6_vrf *mvrf6, struct rte_mbuf *m,
 
 	/* Don't forward if it didn't arrive on parent mif* for its origin.  */
 	mifp = get_mif_by_ifindex(rt->mf6c_parent);
-	if (mifp == NULL || mifp->m6_if_index != ifp->if_index) {
+	if (mifp == NULL || mifp->m6_if_index != in_ifp->if_index) {
 		/* if wrong iif */
 		MRT6STAT_INC(mvrf6, mrt6s_wrong_if);
 		rt->mf6c_wrong_if++;
@@ -1153,7 +1138,7 @@ static int ip6_mdq(struct mcast6_vrf *mvrf6, struct rte_mbuf *m,
 	 */
 	if (IN6_IS_ADDR_UNSPECIFIED(&ip6->ip6_src) ||
 	    IN6_IS_ADDR_UNSPECIFIED(&ip6->ip6_dst)) {
-		IP6STAT_INC_IFP(ifp, IPSTATS_MIB_INADDRERRORS);
+		IP6STAT_INC_IFP(in_ifp, IPSTATS_MIB_INADDRERRORS);
 		return RTF_BLACKHOLE;
 	}
 
@@ -1165,8 +1150,8 @@ static int ip6_mdq(struct mcast6_vrf *mvrf6, struct rte_mbuf *m,
 	 * Drop packets not on loopback interface that have a loopback source
 	 * or destination address.
 	 */
-	if (in6_setscope(&ip6->ip6_src, ifp, &iszone) ||
-	    in6_setscope(&ip6->ip6_dst, ifp, &idzone))
+	if (in6_setscope(&ip6->ip6_src, in_ifp, &iszone) ||
+	    in6_setscope(&ip6->ip6_dst, in_ifp, &idzone))
 		return RTF_REJECT;
 
 	mifp->m6_pkt_in++;
@@ -1187,16 +1172,19 @@ static int ip6_mdq(struct mcast6_vrf *mvrf6, struct rte_mbuf *m,
 	 * members downstream on the interface. */
 	cds_lfht_for_each_entry(mvrf6->mif6table, &iter, mifp, node) {
 		if (IF_ISSET(mifp->m6_mif_index, &rt->mf6c_ifset)) {
-			mifp->m6_pkt_out++;
-			mifp->m6_bytes_out += plen;
-			if (!mifp->m6_ifp)
+			struct ifnet *out_ifp = mifp->m6_ifp;
+
+			if (!out_ifp)
+				continue;
+			const bool if_up = (out_ifp->if_flags & IFF_UP);
+			if (!if_up)
 				continue;
 
 			mh = mcast_create_l2l3_header(m, md,
 						      sizeof(struct ip6_hdr));
 			if (mh) {
 				/* send the newly created packet chain */
-				mif6_send(ifp, mifp, mh, plen);
+				mif6_send(in_ifp, mifp, mh, plen);
 			} else {
 				rte_pktmbuf_free(md);
 				return -ENOBUFS;

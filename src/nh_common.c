@@ -1407,9 +1407,12 @@ nexthop_hash_del_add(int family,
 		     struct next_hop_list *old_nhl,
 		     struct next_hop_list *new_nhl)
 {
-	struct nexthop_hash_key key = {.nh = new_nhl->siblings,
-				       .size = new_nhl->nsiblings,
-				       .proto = new_nhl->proto };
+	struct nexthop_hash_key key = {
+		.nh = new_nhl->siblings,
+		.size = new_nhl->nsiblings,
+		.proto = new_nhl->proto,
+		.use = new_nhl->use
+	};
 	struct cds_lfht *hash_tbl = nh_common_get_hash_table(family);
 
 	if (!hash_tbl) {

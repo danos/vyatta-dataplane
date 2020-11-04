@@ -721,7 +721,7 @@ dataplane_test_LDFLAGS += -Wl,-wrap,rte_mempool_create
 dataplane_test_LDFLAGS += -Wl,-wrap,rte_eal_init
 dataplane_test_LDFLAGS += -Wl,-wrap,popen
 dataplane_test_LDFLAGS += -Wl,-wrap,pclose
-EXTRA_dataplane_test_DEPENDENCIES = $(EXTRA_dataplane_DEPENDENCIES) tests/whole_dp/dummyfs/run/dataplane/platform.conf
+EXTRA_dataplane_test_DEPENDENCIES = $(EXTRA_dataplane_DEPENDENCIES)
 
 dist_check_SCRIPTS = tests/whole_dp/dataplane_test.sh
 fal_plugin_test_la_CPPFLAGS = $(dataplane_CPPFLAGS) $(JSON_C_CFLAGS)
@@ -735,11 +735,6 @@ fal_plugin_test_la_LIBADD = $(CHECK_LIBS) $(JSON_C_LIBS) $(CODE_COVERAGE_LIBS)
 
 fal_plugin_test_la_LDFLAGS = $(EXTRA_LDFLAGS) $(SWPORT_LIBS)
 fal_plugin_test_la_LDFLAGS += -avoid-version -module -shared -export-dynamic
-
-tests/whole_dp/dummyfs/run/dataplane/platform.conf:
-	mkdir -p `dirname $@`
-	echo '[dataplane]' > $@
-	echo 'fal_plugin = .libs/fal_plugin_test.so' >> $@
 
 pkglib_LTLIBRARIES = fal_plugin_test.la
 check_PROGRAMS = dataplane_test

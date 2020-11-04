@@ -179,6 +179,7 @@ AM_CONDITIONAL([DATAPLANE_SANITIZER], [test "x$dataplane_sanitizer" = "xtrue"])
 # Needed so dataplane_test can find it's hardcoded config
 # files during a VPATH build.
 AC_CONFIG_LINKS(dataplane-drivers-default.conf:dataplane-drivers-default.conf)
+AC_CONFIG_LINKS(tests/whole_dp/dummyfs/run/dataplane/platform.conf:tests/whole_dp/dummyfs/run/dataplane/platform.conf)
 AC_CONFIG_LINKS(tests/whole_dp/dummyfs/proc/cpuinfo:tests/whole_dp/dummyfs/proc/cpuinfo)
 AC_CONFIG_LINKS(tests/whole_dp/dummyfs/sys/bus/pci/devices/.dummy:tests/whole_dp/dummyfs/sys/bus/pci/devices/.dummy)
 AC_CONFIG_LINKS(tests/whole_dp/dummyfs/sys/devices/system/cpu/online:tests/whole_dp/dummyfs/sys/devices/system/cpu/online)

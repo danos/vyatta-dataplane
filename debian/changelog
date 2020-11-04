@@ -236,6 +236,50 @@ vyatta-dataplane (3.12.1) unstable; urgency=medium
 
  -- Paul Atkins <paul.atkins@intl.att.com>  Mon, 12 Oct 2020 09:20:52 +0100
 
+vyatta-dataplane (3.11.62) unstable; urgency=medium
+
+  [ Nicholas Brown ]
+  * platform.conf can be static
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Wed, 04 Nov 2020 12:39:24 +0000
+
+vyatta-dataplane (3.11.61) unstable; urgency=medium
+
+  [ Robert Shearman ]
+  * nh_common: fix hash key during nexthop hash del & add
+  * route_flags: ignore RTF_UNUSABLE for nexthop comparison (Fixes: VRVDR-53512)
+
+  [ Derek Fawcus ]
+  * NPF: Remove some stale code, to allow flexibility
+  * pipeline: use 'out node' for IPv4 mcast ethernet
+  * pipeline: use 'out node' for IPv6 mcast ethernet
+  * multicast: Clean up punt handling for unsup tuns
+  * multicast: Use 'out node' for IPv4/IPv6 VTI output
+  * multicast: Use 'out node' for IPv4/IPv6 P2P GRE tx
+  * multicast: Move TTL decrement during forward
+  * multicast: Move OIL replication counts
+  * multicast: Rename an interface variable
+  * multicast: Do not replicate to a DOWN interface
+  * multicast: Move pipeline walk logic
+
+  [ Ian Wilson ]
+  * ut: Test egress ACLs with IPv4 and IPv6 multicast forwarding
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Wed, 04 Nov 2020 12:37:28 +0000
+
+vyatta-dataplane (3.11.60) unstable; urgency=medium
+
+  [ Charles (Chas) Williams ]
+  * ptp: avoid dereferencing bad interface pointers (Bugfix: VRVDR-53517)
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Tue, 03 Nov 2020 13:00:25 +0000
+
 vyatta-dataplane (3.11.59) unstable; urgency=medium
 
   [ Ian Wilson ]

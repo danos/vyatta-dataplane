@@ -39,8 +39,8 @@ DP_DECL_TEST_CASE(npf_fw_ipv6, npf_ipv6, NULL, NULL);
 /*
  * This test checks that a packet with an ipv6 routing header matches
  * against a rule trying to match one. Note that the header is placed
- * as a second extension header, to ensure it is only the first header
- * that is looked at.
+ * as a second extension header, to ensure it is not only the first
+ * header that is looked at.
  */
 DP_START_TEST(npf_ipv6, ipv6_routing_hdr)
 {
@@ -62,10 +62,9 @@ DP_START_TEST(npf_ipv6, ipv6_routing_hdr)
 			.pass     = PASS,
 			.stateful = STATELESS,
 				    /*
-				     * 43 is the value of protocol ipv6-route,
-				     * and 1 is the ipv6-route type
+				     * 1 is the ipv6-route type in the ipv6 RH
 				     */
-			.npf      = "proto-final=43 ipv6-route=1"
+			.npf      = "ipv6-route=1"
 		},
 		RULE_DEF_BLOCK,
 		NULL_RULE

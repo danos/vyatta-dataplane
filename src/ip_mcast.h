@@ -120,10 +120,6 @@ struct rte_mbuf *mcast_create_l2l3_header(struct rte_mbuf *m_header,
 struct vif *get_vif_by_ifindex(unsigned int ifindex);
 struct mif6 *get_mif_by_ifindex(unsigned int ifindex);
 
-int mc_ip_output(struct ifnet *rcvif,
-		 struct rte_mbuf *m, struct ifnet *oifp,
-		 struct iphdr *ip);
-
 struct vmfcctl;
 struct vmf6cctl;
 
