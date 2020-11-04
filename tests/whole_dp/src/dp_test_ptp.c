@@ -14,8 +14,10 @@
 #include "in_cksum.h"
 #include "if_var.h"
 #include "main.h"
+#include "ptp.h"
 
 #include "dp_test.h"
+#include "dp_test_controller.h"
 #include "dp_test_str.h"
 #include "dp_test_lib_internal.h"
 #include "dp_test_lib_exp.h"
@@ -457,7 +459,6 @@ static const struct dp_test_command_t ptp_cmds[] = {
 	},
 };
 
-
 DP_DECL_TEST_SUITE(ptp);
 
 DP_DECL_TEST_CASE(ptp, ptp_cmds, NULL, NULL);
@@ -484,4 +485,166 @@ DP_START_TEST(ptp_cmds, basic)
 					false, POLL_CNT);
 		}
 	}
+} DP_END_TEST;
+
+DP_START_TEST(ptp_cmds, resolver)
+{
+	struct rte_mbuf *mbufs[64];
+	int i, count;
+	struct bridge_vlan_set *allowed_vlans = bridge_vlan_set_create();
+
+	bridge_vlan_set_add(allowed_vlans, 10);
+	bridge_vlan_set_add(allowed_vlans, 20);
+
+	dp_test_intf_bridge_create("sw0");
+	dp_test_intf_vif_create("sw0.10", "sw0", 10);
+	dp_test_intf_vif_create("sw0.20", "sw0", 20);
+	dp_test_intf_bridge_enable_vlan_filter("sw0");
+	dp_test_intf_bridge_add_port("sw0", "dpT10");
+	dp_test_intf_bridge_add_port("sw0", "dpT11");
+	dp_test_intf_bridge_port_set_vlans("sw0", "dpT10", 0,
+					   allowed_vlans, NULL);
+	dp_test_intf_bridge_port_set_vlans("sw0", "dpT11", 0,
+					   allowed_vlans, NULL);
+
+	dp_test_nl_add_ip_addr_and_connected("sw0.10", "192.168.10.1/24");
+	dp_test_nl_add_ip_addr_and_connected("sw0.20", "192.168.20.1/24");
+
+	dp_test_send_config_src(dp_test_cont_src_get(),
+				"ptp-ut clock create 0 "
+				"domain-number=0 "
+				"number-ports=2 "
+				"clock-identity=0:1:2:3:4:5:6:7 "
+				"priority1=128 "
+				"priority2=128 "
+				"slave-only=0 "
+				"two-step=0 "
+				"profile=default-profile");
+
+	dp_test_send_config_src(dp_test_cont_src_get(),
+				"ptp-ut port create 1 "
+				"clock-id=0 "
+				"underlying-interface=dpT10 "
+				"vlan-id=10 "
+				"log-min-delay-req-interval=1 "
+				"log-announce-interval=2 "
+				"announce-receipt-timeout=3 "
+				"log-min-pdelay-req-interval=1 "
+				"log-sync-interval=1 "
+				"ip=192.168.10.1 "
+				"mac=0:0:0:0:a:1 "
+				"dscp=0");
+
+	dp_test_send_config_src(dp_test_cont_src_get(),
+				"ptp-ut peer create "
+				"clock-id=0 "
+				"port-id=1 "
+				"type=master "
+				"ip=192.168.10.2");
+
+	dp_test_send_config_src(dp_test_cont_src_get(),
+				"ptp-ut port create 2 "
+				"clock-id=0 "
+				"underlying-interface=dpT11 "
+				"vlan-id=20 "
+				"log-min-delay-req-interval=1 "
+				"log-announce-interval=2 "
+				"announce-receipt-timeout=3 "
+				"log-min-pdelay-req-interval=1 "
+				"log-sync-interval=1 "
+				"ip=192.168.20.1 "
+				"mac=0:0:0:0:14:1 "
+				"dscp=0");
+
+	dp_test_send_config_src(dp_test_cont_src_get(),
+				"ptp-ut peer create "
+				"clock-id=0 "
+				"port-id=2 "
+				"type=slave "
+				"ip=192.168.20.2");
+
+	dp_test_check_state_show("ptp resolver trigger", "", true);
+
+	/* Until we have neighbors, the peers will not install. */
+	dp_test_check_state_show("ptp resolver dump",
+			"{[{\n"
+			"            \"peer\": \"192.168.20.2\",\n"
+			"            \"installed\": false,\n"
+			"            \"port-id\": 2,\n"
+			"            \"type\": \"slave\"\n"
+			"        },{\n"
+			"            \"peer\": \"192.168.10.2\",\n"
+			"            \"installed\": false,\n"
+			"            \"port-id\": 1,\n"
+			"            \"type\": \"master\"\n"
+			"        }\n"
+			"    ]\n"
+			"    }\n", true);
+
+	/* There should be two ARPs per interface  */
+	count = dp_test_pak_get_from_ring("dpT10", mbufs, 64);
+	for (i = 0; i < count; i++)
+		rte_pktmbuf_free(mbufs[i]);
+	dp_test_assert_internal(count == 2);
+
+	count = dp_test_pak_get_from_ring("dpT11", mbufs, 64);
+	for (i = 0; i < count; i++)
+		rte_pktmbuf_free(mbufs[i]);
+	dp_test_assert_internal(count == 2);
+
+	/* Add peer resolution and re-run the resolver */
+	dp_test_netlink_add_neigh("sw0.10", "192.168.10.2", "0:0:0:0:0:1");
+	dp_test_netlink_add_neigh("sw0.20", "192.168.20.2", "0:0:0:0:0:2");
+	dp_test_check_state_show("ptp resolver trigger", "", true);
+
+	dp_test_check_state_show("ptp resolver dump",
+			"{[{\n"
+			"            \"peer\": \"192.168.20.2\",\n"
+			"            \"installed\": true,\n"
+			"            \"port-id\": 2,\n"
+			"            \"mac\": \"0:0:0:0:0:2\",\n"
+			"            \"type\": \"slave\"\n"
+			"        },{\n"
+			"            \"peer\": \"192.168.10.2\",\n"
+			"            \"installed\": true,\n"
+			"            \"port-id\": 1,\n"
+			"            \"mac\": \"0:0:0:0:0:1\",\n"
+			"            \"type\": \"master\"\n"
+			"        }\n"
+			"    ]\n"
+			"    }\n", true);
+
+	dp_test_send_config_src(dp_test_cont_src_get(),
+				"ptp-ut peer delete "
+				"clock-id=0 port-id=1 "
+				"type=master "
+				"ip=192.168.10.2");
+
+	dp_test_send_config_src(dp_test_cont_src_get(),
+				"ptp-ut peer delete "
+				"clock-id=0 "
+				"port-id=2 "
+				"type=slave "
+				"ip=192.168.20.2");
+
+	dp_test_send_config_src(dp_test_cont_src_get(),
+				"ptp-ut port delete 1 clock-id=0");
+
+	dp_test_send_config_src(dp_test_cont_src_get(),
+				"ptp-ut port delete 2 clock-id=0");
+
+	dp_test_send_config_src(dp_test_cont_src_get(),
+				"ptp-ut clock delete 0");
+
+	dp_test_netlink_del_neigh("sw0.10", "192.168.10.2", "0:0:0:0:0:1");
+	dp_test_netlink_del_neigh("sw0.20", "192.168.20.2", "0:0:0:0:0:2");
+	dp_test_nl_del_ip_addr_and_connected("sw0.10", "192.168.10.1/24");
+	dp_test_nl_del_ip_addr_and_connected("sw0.20", "192.168.20.1/24");
+	dp_test_intf_bridge_remove_port("sw0", "dpT11");
+	dp_test_intf_bridge_remove_port("sw0", "dpT10");
+	dp_test_intf_vif_del("sw0.10", 10);
+	dp_test_intf_vif_del("sw0.20", 20);
+	dp_test_intf_bridge_del("sw0");
+	bridge_vlan_set_free(allowed_vlans);
+
 } DP_END_TEST;
