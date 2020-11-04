@@ -80,6 +80,7 @@ static CDS_LIST_HEAD(ptp_port_list);
 static CDS_LIST_HEAD(ptp_peer_list);
 
 static struct rte_timer ptp_peer_resolver;
+static bool ptp_peer_resolver_running;
 static unsigned int ptp_peer_resolver_period = 15;	/* seconds */
 static void ptp_peer_resolver_cb(struct rte_timer *timer, void *arg);
 
@@ -399,6 +400,7 @@ static int ptp_clock_create(FILE *f, uint32_t clock_id, int argc, char **argv)
 
 	if (!cds_list_empty(&ptp_clock_list)) {
 		rte_timer_init(&ptp_peer_resolver);
+		ptp_peer_resolver_running = true;
 		rte_timer_reset_sync(&ptp_peer_resolver,
 			     rte_get_timer_hz() * ptp_peer_resolver_period,
 			     PERIODICAL, rte_get_master_lcore(),
@@ -445,8 +447,10 @@ static int ptp_clock_delete(FILE *f, uint32_t clock_id,
 	cds_list_del_rcu(&clock->list);
 	call_rcu(&clock->rcu, ptp_clock_free);
 
-	if (cds_list_empty(&ptp_clock_list))
+	if (cds_list_empty(&ptp_clock_list)) {
 		rte_timer_stop_sync(&ptp_peer_resolver);
+		ptp_peer_resolver_running = false;
+	}
 
 error:
 	return rc;
@@ -1396,6 +1400,82 @@ error:
 	return rc;
 }
 
+static const char *ptp_peer_type_to_name(enum fal_ptp_peer_type_t type)
+{
+	const char *name;
+
+	switch (type) {
+	case FAL_PTP_PEER_MASTER:
+		name = "master";
+		break;
+	case FAL_PTP_PEER_SLAVE:
+		name = "slave";
+		break;
+	case FAL_PTP_PEER_ALLOWED:
+		name = "allowed";
+		break;
+	default:
+		name = "unknown";
+	}
+
+	return name;
+}
+
+static void ptp_resolver_peer_dump(json_writer_t *wr, struct ptp_peer_t *peer)
+{
+	struct ptp_port_t *port = rcu_dereference(peer->port);
+	char buf[INET6_ADDRSTRLEN];
+	const char *peerip = fal_ip_address_t_to_str(&peer->ipaddr,
+						     buf,
+						     sizeof(buf));
+
+	jsonw_start_object(wr);
+	jsonw_string_field(wr, "peer", peerip);
+	jsonw_bool_field(wr, "installed", peer->installed);
+	if (port)
+		jsonw_uint_field(wr, "port-id", port->port_id);
+	if (peer->installed)
+		jsonw_string_field(wr, "mac",
+				   ether_ntoa_r(&peer->mac, buf));
+	jsonw_string_field(wr, "type",
+			   ptp_peer_type_to_name(peer->type));
+	jsonw_end_object(wr);
+}
+
+static int ptp_resolver_dump(FILE *f)
+{
+	struct ptp_peer_t *peer, *sibling;
+	json_writer_t *wr;
+	int rc = -EINVAL;
+
+	wr = jsonw_new(f);
+	if (!wr) {
+		fprintf(f, "ptp: could not create json writer\n");
+		goto error;
+	}
+	jsonw_pretty(wr, true);
+	jsonw_start_array(wr);
+
+	cds_list_for_each_entry_rcu(peer, &ptp_peer_list, list) {
+		ptp_resolver_peer_dump(wr, peer);
+
+		if (!cds_list_empty(&peer->siblings)) {
+			jsonw_start_array(wr);
+			cds_list_for_each_entry_rcu(sibling,
+						    &peer->siblings, slist)
+				ptp_resolver_peer_dump(wr, sibling);
+			jsonw_end_array(wr);
+		}
+	}
+
+	jsonw_end_array(wr);
+	jsonw_destroy(&wr);
+	rc = 0;
+
+error:
+	return rc;
+}
+
 int cmd_ptp_op(FILE *f, int argc, char **argv)
 {
 	struct ptp_clock_t *clock;
@@ -1418,11 +1498,36 @@ int cmd_ptp_op(FILE *f, int argc, char **argv)
 		rc = ptp_clock_dump(f, clock);
 	}
 
+	/* ptp resolver dump */
+	if (strcmp(argv[1], "resolver") == 0 &&
+	    strcmp(argv[2], "dump") == 0 && argc == 3) {
+		rc = ptp_resolver_dump(f);
+	}
+
+	/* ptp resolver trigger */
+	if (strcmp(argv[1], "resolver") == 0 &&
+	    strcmp(argv[2], "trigger") == 0 && argc == 3) {
+		fprintf(f, "ptp: calling peer resolver...\n");
+		if (ptp_peer_resolver_running)
+			rte_timer_stop_sync(&ptp_peer_resolver);
+		ptp_peer_resolver_cb(NULL, NULL);
+		if (ptp_peer_resolver_running)
+			rte_timer_reset_sync(&ptp_peer_resolver,
+				     rte_get_timer_hz() *
+					     ptp_peer_resolver_period,
+				     PERIODICAL, rte_get_master_lcore(),
+				     ptp_peer_resolver_cb, NULL);
+		fprintf(f, "ptp: peer resolver done!\n");
+		rc = 0;
+	}
+
 error:
 	return rc;
 
 usage:
 	fprintf(f, "ptp clock dump <clock-id>\n");
+	fprintf(f, "ptp resolver dump\n");
+	fprintf(f, "ptp resolver trigger\n");
 	goto error;
 }
 
