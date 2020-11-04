@@ -31,6 +31,7 @@
 #include "dp_test_lib_intf_internal.h"
 #include "dp_test_pktmbuf_lib_internal.h"
 #include "dp_test_lib_exp.h"
+#include "dp_test_gre.h"
 
 
 /*
@@ -89,7 +90,7 @@ gre_test_create_pak(const char *outer_sip, const char *outer_dip,
 	return m;
 }
 
-static void
+void
 gre_test_build_expected_pak(struct dp_test_expected **expected,
 			    struct iphdr *payload[],
 			    struct iphdr *outer[],
@@ -229,7 +230,7 @@ gre_test_build_expected_icmp_pak(struct dp_test_expected **exp,
 	*exp = expected;
 }
 
-static void
+void
 dp_test_gre_setup_tunnel(uint32_t vrfid, const char *tun_src,
 			 const char *tun_dst)
 {
@@ -260,7 +261,7 @@ dp_test_gre_setup_tunnel(uint32_t vrfid, const char *tun_src,
 	dp_test_netlink_add_neigh("dp1T1", "1.1.1.2", nh_mac_str);
 }
 
-static void
+void
 dp_test_gre_teardown_tunnel(uint32_t vrfid, const char *tun_src,
 			    const char *tun_dst)
 {
