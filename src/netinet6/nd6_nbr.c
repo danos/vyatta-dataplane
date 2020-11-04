@@ -1440,13 +1440,14 @@ in6_lltable_lookup(struct ifnet *ifp, u_int flags,
 		}
 	} else if (flags & LLE_DELETE) {
 		/*
-		 * Only delete static or idle entries.
+		 * Only delete static entries or stale entries that are idle.
 		 * Leave dynamic in-use entries to time out - kernel may
 		 * think they are stale but they may be in active use
 		 * by the dataplane.
 		 */
 		if ((lle->la_flags & LLE_STATIC) ||
-		    !llentry_has_been_used(lle)) {
+		    ((lle->la_state == ND6_LLINFO_STALE) &&
+		     !llentry_has_been_used(lle))) {
 			ND6_DEBUG("%s/%s Delete\n", ifp->if_name,
 				  ip6_sprintf(addr));
 
