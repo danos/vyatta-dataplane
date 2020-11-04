@@ -390,23 +390,14 @@ static struct sadb_peer *sadb_lookup_peer(const xfrm_address_t *dst,
 	return node ? caa_container_of(node, struct sadb_peer, ht_node) : NULL;
 }
 
-/*
- * sadb_lookup_or_create_peer()
- *
- * Lookup and IPsec peer in the hash table using its address.
- * If there is no hash table entry for the peer, create one
- * and insert into the table.
- *
- * NOTE: This may only be called from the main thread.
- */
-static struct sadb_peer *sadb_lookup_or_create_peer(const xfrm_address_t *dst,
+static struct sadb_peer *sadb_create_peer(const xfrm_address_t *dst,
 						    uint16_t family,
 						    vrfid_t vrfid)
 {
+	struct crypto_vrf_ctx *vrf_ctx;
 	struct cds_lfht_node *ret_node;
 	struct sadb_peer_key key;
 	struct sadb_peer *peer;
-	struct crypto_vrf_ctx *vrf_ctx;
 
 	/*
 	 * Lookup/create VRF context
@@ -414,10 +405,6 @@ static struct sadb_peer *sadb_lookup_or_create_peer(const xfrm_address_t *dst,
 	vrf_ctx = crypto_vrf_get(vrfid);
 	if (!vrf_ctx)
 		return NULL;
-
-	peer = sadb_lookup_peer(dst, family, vrfid);
-	if (peer)
-		return peer;
 
 	peer = zmalloc_aligned(sizeof(*peer));
 	if (!peer) {
@@ -449,6 +436,28 @@ static struct sadb_peer *sadb_lookup_or_create_peer(const xfrm_address_t *dst,
 		return NULL;
 	}
 	vrf_ctx->count_of_peers++;
+
+	return peer;
+}
+/*
+ * sadb_lookup_or_create_peer()
+ *
+ * Lookup and IPsec peer in the hash table using its address.
+ * If there is no hash table entry for the peer, create one
+ * and insert into the table.
+ *
+ * NOTE: This may only be called from the main thread.
+ */
+static struct sadb_peer *sadb_lookup_or_create_peer(const xfrm_address_t *dst,
+						    uint16_t family,
+						    vrfid_t vrfid)
+{
+	struct sadb_peer *peer;
+
+	peer = sadb_lookup_peer(dst, family, vrfid);
+	if (peer)
+		return peer;
+	peer = sadb_create_peer(dst, family, vrfid);
 
 	return peer;
 }
@@ -557,15 +566,20 @@ sadb_find_old_sa(struct sadb_sa *sa, vrfid_t vrfid, struct sadb_peer **ret_peer)
  * Look up for a duplicate SA.
  */
 static struct sadb_sa *
-sadb_find_matching_sa(struct sadb_sa *sa, bool ign_pending_del, vrfid_t vrfid)
+sadb_find_matching_sa(struct sadb_sa *sa, bool ign_pending_del, vrfid_t vrfid,
+		      struct sadb_peer **matching_peer)
 {
 	struct sadb_peer *peer;
 	struct cds_list_head *this_entry;
 	struct sadb_sa *tmp_sa;
 
 	peer = sadb_lookup_peer(&sa->dst, sa->family, vrfid);
-	if (!peer)
+	if (!peer) {
+		*matching_peer = NULL;
 		return NULL;
+	}
+
+	*matching_peer = peer;
 
 	cds_list_for_each(this_entry, &peer->sa_list) {
 		tmp_sa = cds_list_entry(this_entry, struct sadb_sa,
@@ -585,9 +599,10 @@ sadb_find_matching_sa(struct sadb_sa *sa, bool ign_pending_del, vrfid_t vrfid)
  *
  * This function should only be called from the main thread.
  */
-static int sadb_insert_sa(struct sadb_sa *sa, struct crypto_vrf_ctx *vrf_ctx)
+static int
+sadb_insert_sa(struct sadb_sa *sa, struct crypto_vrf_ctx *vrf_ctx,
+	       struct sadb_peer *peer)
 {
-	struct sadb_peer *peer;
 
 	if (!sa)
 		return -1;
@@ -602,8 +617,9 @@ static int sadb_insert_sa(struct sadb_sa *sa, struct crypto_vrf_ctx *vrf_ctx)
 		return -1;
 	}
 
-	peer = sadb_lookup_or_create_peer(&sa->dst, sa->family,
-					  vrf_ctx->vrfid);
+	if (!peer)
+		peer = sadb_create_peer(&sa->dst, sa->family,
+						  vrf_ctx->vrfid);
 	if (!peer) {
 		sadb_remove_sa_from_spi_in_hash(sa);
 		sadb_remove_sa_from_spi_out_hash(sa, vrf_ctx->vrfid);
@@ -789,6 +805,7 @@ void crypto_sadb_new_sa(const struct xfrm_usersa_info *sa_info,
 	int pmd_dev_id;
 	int err;
 	bool setup_openssl = false;
+	struct sadb_peer *peer;
 
 	if (!sa_info || !crypto_algo) {
 		SADB_ERR("Bad parameters on attempt to add SA\n");
@@ -844,7 +861,7 @@ void crypto_sadb_new_sa(const struct xfrm_usersa_info *sa_info,
 	 * the insertion triggers an update for any registered
 	 * observers, i.e policies.
 	 */
-	retiring_sa = sadb_find_matching_sa(sa, false, vrf_id);
+	retiring_sa = sadb_find_matching_sa(sa, false, vrf_id, &peer);
 	if (retiring_sa) {
 		retiring_sa->pending_del = true;
 		crypto_pmd_mod_pending_del(retiring_sa->pmd_dev_id,
@@ -880,7 +897,7 @@ void crypto_sadb_new_sa(const struct xfrm_usersa_info *sa_info,
 		}
 	}
 
-	if (sadb_insert_sa(sa, vrf_ctx) < 0) {
+	if (sadb_insert_sa(sa, vrf_ctx, peer) < 0) {
 		/*
 		 * Even though the SA insert failed, we know
 		 * there is a pending del on the retiring_sa,

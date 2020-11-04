@@ -198,6 +198,83 @@ DP_START_TEST(xfrm_sa, create_two_sas_crypto_only)
 
 }  DP_END_TEST;
 
+DP_START_TEST(xfrm_sa, xfrm_sa_scale)
+{
+	const unsigned char crypto_key_128[] = {
+		0x01, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd, 0xef,
+		0x01, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd, 0xef};
+
+	const unsigned char auth_key[] = {
+		0x0b, 0x1b, 0x2b, 0x3b, 0x4b, 0x5b, 0x6b, 0x7b,
+		0x8b, 0x9b, 0xab, 0xbb, 0xcb, 0xeb, 0xfb, 0x1c,
+		0x2c, 0x3c, 0x4c, 0x5c};
+
+	struct dp_test_crypto_sa output_sa = {
+		.cipher_algo = CRYPTO_CIPHER_AES_CBC,
+		.cipher_key = crypto_key_128,
+		.cipher_key_len = (sizeof(crypto_key_128) * 8),
+		.auth_algo = CRYPTO_AUTH_HMAC_SHA1,
+		.auth_key = auth_key,
+		.auth_key_len = (sizeof(auth_key) * 8),
+		.spi = SPI_OUTBOUND,
+		.d_addr = PEER_ADDRESS,
+		.s_addr = LOCAL_ADDRESS,
+		.family = AF_INET,
+		.mode = XFRM_MODE_TUNNEL,
+		.reqid = TUNNEL_REQID,
+		.mark = 0,
+		.vrfid = VRF_DEFAULT_ID
+	};
+
+#define PEER_BASE_ADDR 0x0a0a0203
+
+	dp_test_crypto_check_sa_count(VRF_DEFAULT_ID, 0);
+
+#define SA_INSTALL 10
+	int ip_peer_addr = PEER_BASE_ADDR;
+	int i;
+	char ip_peer_addr_str[INET_ADDRSTRLEN];
+
+	for (i = 0; i < SA_INSTALL; i++) {
+		int tmp_ip = htonl(ip_peer_addr);
+		if (!inet_ntop(AF_INET, &tmp_ip,
+			       ip_peer_addr_str, INET_ADDRSTRLEN))
+			assert(0);
+		output_sa.d_addr = ip_peer_addr_str;
+		output_sa.spi = random();
+		dp_test_crypto_create_sa_verify(&output_sa, false);
+		ip_peer_addr++;
+	}
+
+	sleep(1);
+
+	dp_test_check_state_show("ipsec sad",
+				 "\"cipher\": \"aes-cbc\",\n"
+				 "            \"cipher_key_len\": 128,\n"
+				 "            \"digest\": \"sha1-hmac\"",
+				 false);
+
+	dp_test_crypto_check_sa_count(VRF_DEFAULT_ID, SA_INSTALL);
+	ip_peer_addr = PEER_BASE_ADDR;
+
+	for (i = 0; i < SA_INSTALL; i++) {
+		int tmp_ip = htonl(ip_peer_addr);
+		if (!inet_ntop(AF_INET, &tmp_ip,
+			       ip_peer_addr_str, INET_ADDRSTRLEN))
+			assert(0);
+		output_sa.d_addr = ip_peer_addr_str;
+		dp_test_crypto_delete_sa_verify(&output_sa, false);
+		ip_peer_addr++;
+	}
+
+	dp_test_crypto_flush();
+
+	sleep(1);
+
+	dp_test_crypto_check_sa_count(VRF_DEFAULT_ID, 0);
+
+}  DP_END_TEST;
+
 /*
  * sa_expire: Check that an XFRM_MSG_EXPIRE message removes an SA
  * from the dataplane if 'hard' is true, but not if it's false.
