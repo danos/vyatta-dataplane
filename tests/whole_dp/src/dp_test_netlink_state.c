@@ -2104,6 +2104,43 @@ void _dp_test_mroute_nl(uint16_t nlmsg_type, const char *src,
 }
 
 /*
+ * Verify an IPv4 or IPv6 multicast route
+ */
+void
+_dp_test_wait_for_mroute(const char *source, const char *group,
+			 const char *input, const char *output,
+			 bool gone, const char *file, const char *func,
+			 int line)
+{
+	json_object *expected_json;
+	bool v6 = strchr(source, ':') != NULL;
+	char cmd[22];
+
+	expected_json = dp_test_json_create(
+		"{"
+		"  \"%s\":["
+		"    {"
+		"      \"source\":\"%s\","
+		"      \"group\":\"%s\","
+		"      \"input\":\"%s\","
+		"      \"output(s)\":\"%s\","
+		"      \"forwarding\":\"fast\\/dataplane\""
+		"    }"
+		"  ]"
+		"}",
+		v6 ? "route6" : "route",
+		source, group, input, output);
+
+	snprintf(cmd, sizeof(cmd), "multicast %s",
+		 v6 ? "route6" : "route");
+
+	_dp_test_check_json_state(cmd, expected_json, NULL,
+				  DP_TEST_JSON_CHECK_SUBSET, gone,
+				  file, func, line);
+	json_object_put(expected_json);
+}
+
+/*
  * Enable or disable multicast on an interface.
  */
 void _dp_test_netlink_netconf_mcast(const char *ifname, int af, bool enable,
