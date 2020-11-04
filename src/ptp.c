@@ -1371,35 +1371,10 @@ enum ptp_obj_type {
 	PTP_PEER,
 };
 
-int cmd_ptp_op(FILE *f, int argc, char **argv)
+static int ptp_clock_dump(FILE *f, struct ptp_clock_t *clock)
 {
-	struct ptp_clock_t *clock;
 	json_writer_t *wr;
-	uint32_t clock_id;
 	int rc = -EINVAL;
-
-	if (argc < 4)
-		goto usage;
-	argc--;
-	argv++;
-
-	if (strcmp(*argv, "clock") != 0)
-		goto usage;
-	argc--;
-	argv++;
-
-	if (strcmp(*argv, "dump") != 0)
-		goto usage;
-	argc--;
-	argv++;
-
-	if (get_unsigned(*argv, &clock_id) < 0)
-		goto error;
-	clock = ptp_find_clock(clock_id);
-	if (!clock) {
-		fprintf(f, "ptp: clock %d does not exist\n", clock_id);
-		goto error;
-	}
 
 	wr = jsonw_new(f);
 	if (!wr) {
@@ -1412,11 +1387,36 @@ int cmd_ptp_op(FILE *f, int argc, char **argv)
 	rc = fal_dump_ptp_clock(clock->obj_id, wr);
 	jsonw_end_array(wr);
 	if (rc < 0) {
-		fprintf(f, "ptp: dump failed\n");
+		fprintf(f, "ptp: clock dump failed\n");
 		goto error;
 	}
-
 	jsonw_destroy(&wr);
+
+error:
+	return rc;
+}
+
+int cmd_ptp_op(FILE *f, int argc, char **argv)
+{
+	struct ptp_clock_t *clock;
+	uint32_t clock_id;
+	int rc = -EINVAL;
+
+	if (argc < 3)
+		goto usage;
+
+	/* ptp clock dump <n> */
+	if (strcmp(argv[1], "clock") == 0 &&
+	    strcmp(argv[2], "dump") == 0 && argc == 4) {
+		if (get_unsigned(argv[3], &clock_id) < 0)
+			goto error;
+		clock = ptp_find_clock(clock_id);
+		if (!clock) {
+			fprintf(f, "ptp: clock %d does not exist\n", clock_id);
+			goto error;
+		}
+		rc = ptp_clock_dump(f, clock);
+	}
 
 error:
 	return rc;
