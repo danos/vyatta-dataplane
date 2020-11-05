@@ -481,6 +481,8 @@ storm_ctl_policy_get_fal_rate(struct dp_storm_ctl_policy *policy,
 	if (policy->threshold_type == DP_STORM_CTL_THRESHOLD_ABS)
 		return policy->threshold_val;
 	else if (policy->threshold_type == DP_STORM_CTL_THRESHOLD_PCT) {
+		if (ifp->if_type == IFT_L2VLAN)
+			ifp = ifp->if_parent;
 		dp_ifnet_link_status(ifp, &link);
 		return ((uint64_t)link.link_speed * 1000 *
 			policy->threshold_val)/10000;
@@ -513,10 +515,8 @@ static int fal_policer_apply_profile(struct storm_ctl_profile *profile,
 		  .value.u64 = rate}
 	};
 	struct fal_attribute_t vlan_attr[3] = {
-		{ .id = FAL_VLAN_FEATURE_INTERFACE_ID,
-		  .value.u32 = instance->sci_ifp->if_index },
-		{ .id = FAL_VLAN_FEATURE_VLAN_ID,
-		  .value.u16 = vlan }
+		{ .id = FAL_VLAN_FEATURE_INTERFACE_ID },
+		{ .id = FAL_VLAN_FEATURE_VLAN_ID }
 	};
 	struct fal_attribute_t port_attr;
 	fal_object_t fal_obj;
@@ -537,15 +537,22 @@ static int fal_policer_apply_profile(struct storm_ctl_profile *profile,
 	}
 	rcu_assign_pointer(instance->sci_fal_obj[traf], fal_obj);
 
+	ifp = instance->sci_ifp;
+	if (ifp->if_type == IFT_L2VLAN) {
+		vlan = ifp->if_vlan;
+		ifp = ifp->if_parent;
+	}
+
 	if (vlan) {
 		/*
 		 * We have to create a vlan_feat, apply the policer to it, and
 		 * then apply the vlan_feat to the port directly.
 		 */
+		vlan_attr[0].value.u32 = ifp->if_index;
+		vlan_attr[1].value.u16 = vlan;
 		vlan_attr[2].id = fal_traffic_t_to_vlan_feat_type(traf);
 		vlan_attr[2].value.objid = instance->sci_fal_obj[traf];
 
-		ifp = instance->sci_ifp;
 		vlan_feat = if_vlan_feat_get(ifp, vlan);
 		if (!vlan_feat) {
 			rv = if_vlan_feat_create(ifp, vlan, FAL_NULL_OBJECT_ID);
@@ -583,7 +590,7 @@ static int fal_policer_apply_profile(struct storm_ctl_profile *profile,
 	} else {
 		port_attr.id = fal_traffic_t_to_storm_ctl_type(traf);
 		port_attr.value.objid = instance->sci_fal_obj[traf];
-		fal_l2_upd_port(instance->sci_ifp->if_index, &port_attr);
+		fal_l2_upd_port(ifp->if_index, &port_attr);
 	}
 
 	return rv;
@@ -597,10 +604,12 @@ static int fal_policer_unapply_profile(struct ifnet *ifp,
 	int rv = 0;
 	struct fal_attribute_t port_attr;
 	struct if_vlan_feat *vlan_feat = NULL;
-	struct fal_attribute_t vlan_attr[2] = {
-		{ .id = FAL_VLAN_FEATURE_VLAN_ID,
-		  .value.u16 = vlan }
-	};
+	struct fal_attribute_t vlan_attr;
+
+	if (ifp->if_type == IFT_L2VLAN) {
+		vlan = ifp->if_vlan;
+		ifp = ifp->if_parent;
+	}
 
 	if (vlan) {
 		vlan_feat = if_vlan_feat_get(ifp, vlan);
@@ -612,11 +621,11 @@ static int fal_policer_unapply_profile(struct ifnet *ifp,
 		}
 
 		/* Remove the storm control from the vlan feature */
-		vlan_attr[1].id = fal_traffic_t_to_vlan_feat_type(traf);
-		vlan_attr[1].value.objid = FAL_NULL_OBJECT_ID;
+		vlan_attr.id = fal_traffic_t_to_vlan_feat_type(traf);
+		vlan_attr.value.objid = FAL_NULL_OBJECT_ID;
 
 		rv = fal_vlan_feature_set_attr(vlan_feat->fal_vlan_feat,
-					       &vlan_attr[1]);
+					       &vlan_attr);
 		if (rv && rv != -EOPNOTSUPP) {
 			RTE_LOG(ERR, STORM_CTL,
 				"Could not remove vlan_feat for vlan %d in fal (%d)\n",
@@ -1394,7 +1403,7 @@ static int storm_ctl_set_intf_cfg(bool set, FILE *f, int argc, char **argv)
 		return -1;
 	}
 
-	if (ifp->if_type != IFT_ETHER) {
+	if (ifp->if_type != IFT_ETHER && ifp->if_type != IFT_L2VLAN) {
 		fprintf(f, "storm-ctl command not supported on %s",
 			ifp->if_name);
 		return -1;
