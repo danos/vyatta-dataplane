@@ -900,6 +900,8 @@ void crypto_sadb_new_sa(const struct xfrm_usersa_info *sa_info,
 		crypto_policy_feat_attach_by_reqid(sa->reqid) : NULL;
 	rcu_assign_pointer(sa->feat_attach_ifp, ifp);
 
+	/* allocate a core for post crypto processing */
+	sa->fwd_core = crypto_sa_alloc_fwd_core();
 	vrf_ctx->count_of_sas++;
 }
 
@@ -981,6 +983,7 @@ static void crypto_sadb_del_sa_internal(const xfrm_address_t *dst,
 				  crypto_sa_to_xfrm(sa),
 				  sa->session,
 				  sa->pending_del);
+	crypto_sa_free_fwd_core(sa->fwd_core);
 	call_rcu(&sa->sa_rcu, sadb_sa_rcu_free);
 	vrf_ctx->count_of_sas--;
 
@@ -1179,6 +1182,7 @@ void crypto_sadb_show_summary(FILE *f, vrfid_t vrfid)
 			spi_to_hexstr(spi_as_hexstring, sa->spi);
 			jsonw_string_field(wr, "spi", spi_as_hexstring);
 			jsonw_uint_field(wr, "pmd_dev_id", sa->pmd_dev_id);
+			jsonw_uint_field(wr, "fwd_core", sa->fwd_core);
 			jsonw_string_field(wr, "pending_delete",
 					   sa->pending_del ? "Yes" : "No");
 			crypto_engine_summary(wr, sa);

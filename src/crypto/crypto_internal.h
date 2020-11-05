@@ -162,6 +162,7 @@ struct sadb_sa {
 	/* --- cacheline 3 boundary (192 bytes) --- */
 	uint8_t replay_window;
 	uint8_t pending_del;
+	uint8_t fwd_core;
 	uint64_t replay_bitmap;
 	struct ip6_hdr ip6_hdr;
 	struct ifnet *feat_attach_ifp;
