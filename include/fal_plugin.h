@@ -1012,6 +1012,34 @@ enum fal_router_interface_attr_t {
 	 */
 	FAL_ROUTER_INTERFACE_ATTR_V6_EGRESS_ACL,
 	/**
+	 * @brief Bind point for IPv4 ingress QoS object
+	 *
+	 * Bind an ingress IPv4 QoS table to (or remove it from) an
+	 * L3 interface.  Ingress QoS handling is enabled (or updated)
+	 * by assigning a valid QoS table; similarly ingress QoS handling
+	 * is disabled by assigning FAL_NULL_OBJECT_ID
+	 *
+	 * @type fal_acl_table_t
+	 * @flags CREATE_AND_SET
+	 * @allownull true
+	 * @default FAL_NULL_OBJECT_ID
+	 */
+	FAL_ROUTER_INTERFACE_ATTR_V4_INGRESS_QOS,
+	/**
+	 * @brief Bind point for IPv6 ingress QoS object
+	 *
+	 * Bind an ingress IPv6 QoS table to (or remove it from) an
+	 * L3 interface.  Ingress QoS handling is enabled (or updated)
+	 * by assigning a valid QoS table; similarly ingress QoS handling
+	 * is disabled by assigning FAL_NULL_OBJECT_ID
+	 *
+	 * @type fal_acl_table_t
+	 * @flags CREATE_AND_SET
+	 * @allownull true
+	 * @default FAL_NULL_OBJECT_ID
+	 */
+	FAL_ROUTER_INTERFACE_ATTR_V6_INGRESS_QOS,
+	/**
 	 * @brief IPv4 mcast enable
 	 *
 	 * If an L3 interface is not enabled for IPv4 PIM or IPv4
