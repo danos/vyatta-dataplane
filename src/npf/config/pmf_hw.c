@@ -14,7 +14,7 @@
 #include "fal.h"
 #include "if_var.h"
 #include "netinet6/in6_var.h"
-#include "npf/config/pmf_att_rlgrp.h"
+#include "npf/config/gpc_db_query.h"
 #include "npf/config/pmf_rule.h"
 #include "npf/config/pmf_hw.h"
 #include "vplane_log.h"
@@ -31,18 +31,19 @@ static bool pmf_hw_commit_needed;
 bool
 pmf_hw_rule_add(struct pmf_attrl *earl, struct pmf_rule *rule)
 {
-	struct pmf_group_ext *earg = pmf_arlg_attrl_get_grp(earl);
-	struct pmf_rlset_ext *ears = pmf_arlg_grp_get_rls(earg);
-	char const *ifname = pmf_arlg_rls_get_ifname(ears);
-	struct pmf_cntr *eark = pmf_arlg_attrl_get_cntr(earl);
-	uintptr_t ctrobj = pmf_arlg_cntr_get_objid(eark);
-	uintptr_t grpobj = pmf_arlg_grp_get_objid(earg);
+	struct gpc_rule *gprl = (struct gpc_rule *)earl;
+	struct gpc_group *gprg = gpc_rule_get_group(gprl);
+	struct gpc_rlset *gprs = gpc_group_get_rlset(gprg);
+	char const *ifname = gpc_rlset_get_ifname(gprs);
+	struct gpc_cntr *gprk = gpc_rule_get_cntr(gprl);
+	uintptr_t ctrobj = gpc_cntr_get_objid(gprk);
+	uintptr_t grpobj = gpc_group_get_objid(gprg);
 	bool grp_was_created = (grpobj != FAL_NULL_OBJECT_ID);
 	uintptr_t rlobj = FAL_NULL_OBJECT_ID;
-	uint16_t index = pmf_arlg_attrl_get_index(earl);
-	bool ingress = pmf_arlg_grp_is_ingress(earg);
-	bool is_v6 = pmf_arlg_grp_is_v6(earg);
-	char const *rgname = pmf_arlg_grp_get_name(earg);
+	uint16_t index = gpc_rule_get_index(gprl);
+	bool ingress = gpc_group_is_ingress(gprg);
+	bool is_v6 = gpc_group_is_v6(gprg);
+	char const *rgname = gpc_group_get_name(gprg);
 	uint32_t summary = rule->pp_summary;
 	bool ok = true;
 	char const *ok_str = "SK";
@@ -362,7 +363,7 @@ pmf_hw_rule_add(struct pmf_attrl *earl, struct pmf_rule *rule)
 	free(actions);
 
 	if (!rc)
-		pmf_arlg_attrl_set_objid(earl, rlobj);
+		gpc_rule_set_objid(gprl, rlobj);
 
 	ok = (!rc || (rc == -EOPNOTSUPP && !grp_was_created));
 	ok_str = ok ? ((!rc) ? "OK" : "UN") : "NO";
@@ -384,15 +385,16 @@ log_add:
 void
 pmf_hw_rule_del(struct pmf_attrl *earl)
 {
-	struct pmf_group_ext *earg = pmf_arlg_attrl_get_grp(earl);
-	struct pmf_rlset_ext *ears = pmf_arlg_grp_get_rls(earg);
-	char const *ifname = pmf_arlg_rls_get_ifname(ears);
-	uintptr_t rlobj = pmf_arlg_attrl_get_objid(earl);
+	struct gpc_rule *gprl = (struct gpc_rule *)earl;
+	struct gpc_group *gprg = gpc_rule_get_group(gprl);
+	struct gpc_rlset *gprs = gpc_group_get_rlset(gprg);
+	char const *ifname = gpc_rlset_get_ifname(gprs);
+	uintptr_t rlobj = gpc_rule_get_objid(gprl);
 	bool was_created = (rlobj != FAL_NULL_OBJECT_ID);
-	uint16_t index = pmf_arlg_attrl_get_index(earl);
-	bool ingress = pmf_arlg_grp_is_ingress(earg);
-	bool is_v6 = pmf_arlg_grp_is_v6(earg);
-	char const *rgname = pmf_arlg_grp_get_name(earg);
+	uint16_t index = gpc_rule_get_index(gprl);
+	bool ingress = gpc_group_is_ingress(gprg);
+	bool is_v6 = gpc_group_is_v6(gprg);
+	char const *rgname = gpc_group_get_name(gprg);
 	bool ok = true;
 	char const *ok_str = "SK";
 	int rc = 0; /* Success */
@@ -405,7 +407,7 @@ pmf_hw_rule_del(struct pmf_attrl *earl)
 
 	rc = fal_acl_delete_entry(rlobj);
 	if (!rc)
-		pmf_arlg_attrl_set_objid(earl, FAL_NULL_OBJECT_ID);
+		gpc_rule_set_objid(gprl, FAL_NULL_OBJECT_ID);
 
 	ok = (!rc || (rc == -EOPNOTSUPP && !was_created));
 	ok_str = ok ? ((!rc) ? "OK" : "UN") : "NO";
@@ -431,14 +433,15 @@ log_delete:
 void
 pmf_hw_rule_mod(struct pmf_attrl *earl, struct pmf_rule *rule)
 {
-	struct pmf_group_ext *earg = pmf_arlg_attrl_get_grp(earl);
-	struct pmf_rlset_ext *ears = pmf_arlg_grp_get_rls(earg);
-	char const *ifname = pmf_arlg_rls_get_ifname(ears);
-	uintptr_t rlobj = pmf_arlg_attrl_get_objid(earl);
-	uint16_t index = pmf_arlg_attrl_get_index(earl);
-	bool ingress = pmf_arlg_grp_is_ingress(earg);
-	bool is_v6 = pmf_arlg_grp_is_v6(earg);
-	char const *rgname = pmf_arlg_grp_get_name(earg);
+	struct gpc_rule *gprl = (struct gpc_rule *)earl;
+	struct gpc_group *gprg = gpc_rule_get_group(gprl);
+	struct gpc_rlset *gprs = gpc_group_get_rlset(gprg);
+	char const *ifname = gpc_rlset_get_ifname(gprs);
+	uintptr_t rlobj = gpc_rule_get_objid(gprl);
+	uint16_t index = gpc_rule_get_index(gprl);
+	bool ingress = gpc_group_is_ingress(gprg);
+	bool is_v6 = gpc_group_is_v6(gprg);
+	char const *rgname = gpc_group_get_name(gprg);
 	bool ok = true;
 
 	if (!ok || DP_DEBUG_ENABLED(NPF)) {
@@ -458,13 +461,14 @@ pmf_hw_rule_mod(struct pmf_attrl *earl, struct pmf_rule *rule)
 bool
 pmf_hw_group_create(struct pmf_group_ext *earg)
 {
-	struct pmf_rlset_ext *ears = pmf_arlg_grp_get_rls(earg);
-	char const *ifname = pmf_arlg_rls_get_ifname(ears);
+	struct gpc_group *gprg = (struct gpc_group *)earg;
+	struct gpc_rlset *gprs = gpc_group_get_rlset(gprg);
+	char const *ifname = gpc_rlset_get_ifname(gprs);
 	uintptr_t grpobj = FAL_NULL_OBJECT_ID;
-	bool ingress = pmf_arlg_grp_is_ingress(earg);
-	bool is_v6 = pmf_arlg_grp_is_v6(earg);
-	char const *rgname = pmf_arlg_grp_get_name(earg);
-	uint32_t summary = pmf_arlg_grp_get_summary(earg);
+	bool ingress = gpc_group_is_ingress(gprg);
+	bool is_v6 = gpc_group_is_v6(gprg);
+	char const *rgname = gpc_group_get_name(gprg);
+	uint32_t summary = gpc_group_get_summary(gprg);
 
 	/* Bind point list */
 	struct fal_object_list_t *bp_list
@@ -618,7 +622,7 @@ pmf_hw_group_create(struct pmf_group_ext *earg)
 	free(act_list);
 
 	if (!rc)
-		pmf_arlg_grp_set_objid(earg, grpobj);
+		gpc_group_set_objid(gprg, grpobj);
 
 	bool const ok = (!rc || rc == -EOPNOTSUPP);
 	char const *ok_str = ok ? ((!rc) ? "OK" : "UN") : "NO";
@@ -637,13 +641,14 @@ pmf_hw_group_create(struct pmf_group_ext *earg)
 void
 pmf_hw_group_delete(struct pmf_group_ext *earg)
 {
-	struct pmf_rlset_ext *ears = pmf_arlg_grp_get_rls(earg);
-	char const *ifname = pmf_arlg_rls_get_ifname(ears);
-	uintptr_t grpobj = pmf_arlg_grp_get_objid(earg);
+	struct gpc_group *gprg = (struct gpc_group *)earg;
+	struct gpc_rlset *gprs = gpc_group_get_rlset(gprg);
+	char const *ifname = gpc_rlset_get_ifname(gprs);
+	uintptr_t grpobj = gpc_group_get_objid(gprg);
 	bool was_created = (grpobj != FAL_NULL_OBJECT_ID);
-	bool ingress = pmf_arlg_grp_is_ingress(earg);
-	bool is_v6 = pmf_arlg_grp_is_v6(earg);
-	char const *rgname = pmf_arlg_grp_get_name(earg);
+	bool ingress = gpc_group_is_ingress(gprg);
+	bool is_v6 = gpc_group_is_v6(gprg);
+	char const *rgname = gpc_group_get_name(gprg);
 	bool ok = true;
 	char const *ok_str = "SK";
 	int rc = 0; /* Success */
@@ -656,7 +661,7 @@ pmf_hw_group_delete(struct pmf_group_ext *earg)
 
 	rc = fal_acl_delete_table(grpobj);
 	if (!rc)
-		pmf_arlg_grp_set_objid(earg, FAL_NULL_OBJECT_ID);
+		gpc_group_set_objid(gprg, FAL_NULL_OBJECT_ID);
 
 	ok = (!rc || (rc == -EOPNOTSUPP && !was_created));
 	ok_str = ok ? ((!rc) ? "OK" : "UN") : "NO";
@@ -682,13 +687,14 @@ log_delete:
 void
 pmf_hw_group_mod(struct pmf_group_ext *earg, uint32_t new)
 {
-	struct pmf_rlset_ext *ears = pmf_arlg_grp_get_rls(earg);
-	char const *ifname = pmf_arlg_rls_get_ifname(ears);
-	uintptr_t grpobj = pmf_arlg_grp_get_objid(earg);
-	bool ingress = pmf_arlg_grp_is_ingress(earg);
-	bool is_v6 = pmf_arlg_grp_is_v6(earg);
-	char const *rgname = pmf_arlg_grp_get_name(earg);
-	uint32_t old = pmf_arlg_grp_get_summary(earg);
+	struct gpc_group *gprg = (struct gpc_group *)earg;
+	struct gpc_rlset *gprs = gpc_group_get_rlset(gprg);
+	char const *ifname = gpc_rlset_get_ifname(gprs);
+	uintptr_t grpobj = gpc_group_get_objid(gprg);
+	bool ingress = gpc_group_is_ingress(gprg);
+	bool is_v6 = gpc_group_is_v6(gprg);
+	char const *rgname = gpc_group_get_name(gprg);
+	uint32_t old = gpc_group_get_summary(gprg);
 	uint32_t chg = old ^ new;
 	uint32_t set = chg &  new;
 	uint32_t clr = chg & ~new;
@@ -708,10 +714,11 @@ pmf_hw_group_mod(struct pmf_group_ext *earg, uint32_t new)
 bool
 pmf_hw_group_attach(struct pmf_group_ext *earg, struct ifnet *ifp)
 {
-	uintptr_t grpobj = pmf_arlg_grp_get_objid(earg);
-	bool ingress = pmf_arlg_grp_is_ingress(earg);
-	bool is_v6 = pmf_arlg_grp_is_v6(earg);
-	char const *rgname = pmf_arlg_grp_get_name(earg);
+	struct gpc_group *gprg = (struct gpc_group *)earg;
+	uintptr_t grpobj = gpc_group_get_objid(gprg);
+	bool ingress = gpc_group_is_ingress(gprg);
+	bool is_v6 = gpc_group_is_v6(gprg);
+	char const *rgname = gpc_group_get_name(gprg);
 	char const *ifname = ifp->if_name;
 	bool ok = true;
 	char const *ok_str = "SK";
@@ -759,11 +766,12 @@ log_attach:
 void
 pmf_hw_group_detach(struct pmf_group_ext *earg, struct ifnet *ifp)
 {
-	uintptr_t grpobj = pmf_arlg_grp_get_objid(earg);
-	bool was_attached = pmf_arlg_grp_is_ll_attached(earg);
-	bool ingress = pmf_arlg_grp_is_ingress(earg);
-	bool is_v6 = pmf_arlg_grp_is_v6(earg);
-	char const *rgname = pmf_arlg_grp_get_name(earg);
+	struct gpc_group *gprg = (struct gpc_group *)earg;
+	uintptr_t grpobj = gpc_group_get_objid(gprg);
+	bool was_attached = gpc_group_is_ll_attached(gprg);
+	bool ingress = gpc_group_is_ingress(gprg);
+	bool is_v6 = gpc_group_is_v6(gprg);
+	char const *rgname = gpc_group_get_name(gprg);
 	char const *ifname = ifp->if_name;
 	bool ok = true;
 	char const *ok_str = "SK";
@@ -811,18 +819,19 @@ log_detach:
 bool
 pmf_hw_counter_create(struct pmf_cntr *eark)
 {
-	struct pmf_group_ext *earg = pmf_arlg_cntr_get_grp(eark);
-	struct pmf_rlset_ext *ears = pmf_arlg_grp_get_rls(earg);
-	char const *ifname = pmf_arlg_rls_get_ifname(ears);
-	uintptr_t grpobj = pmf_arlg_grp_get_objid(earg);
+	struct gpc_cntr *gprk = (struct gpc_cntr *)eark;
+	struct gpc_group *gprg = gpc_cntr_get_group(gprk);
+	struct gpc_rlset *gprs = gpc_group_get_rlset(gprg);
+	char const *ifname = gpc_rlset_get_ifname(gprs);
+	uintptr_t grpobj = gpc_group_get_objid(gprg);
 	bool grp_was_created = (grpobj != FAL_NULL_OBJECT_ID);
 	uintptr_t ctrobj = FAL_NULL_OBJECT_ID;
-	char const *ctname = pmf_arlg_cntr_get_name(eark);
-	bool ingress = pmf_arlg_grp_is_ingress(earg);
-	bool is_v6 = pmf_arlg_grp_is_v6(earg);
-	char const *rgname = pmf_arlg_grp_get_name(earg);
-	bool cnt_pkt = pmf_arlg_cntr_pkt_enabled(eark);
-	bool cnt_byt = pmf_arlg_cntr_byt_enabled(eark);
+	char const *ctname = gpc_cntr_get_name(gprk);
+	bool ingress = gpc_group_is_ingress(gprg);
+	bool is_v6 = gpc_group_is_v6(gprg);
+	char const *rgname = gpc_group_get_name(gprg);
+	bool cnt_pkt = gpc_cntr_pkt_enabled(gprk);
+	bool cnt_byt = gpc_cntr_byt_enabled(gprk);
 	bool ok = true;
 	char const *ok_str = "SK";
 	int rc = 0; /* Success */
@@ -872,7 +881,7 @@ pmf_hw_counter_create(struct pmf_cntr *eark)
 	rc = fal_acl_create_counter(nattr, cnt_attrs, &ctrobj);
 
 	if (!rc)
-		pmf_arlg_cntr_set_objid(eark, ctrobj);
+		gpc_cntr_set_objid(gprk, ctrobj);
 
 	ok = (!rc || (rc == -EOPNOTSUPP && !grp_was_created));
 	ok_str = ok ? ((!rc) ? "OK" : "UN") : "NO";
@@ -896,15 +905,16 @@ log_create:
 void
 pmf_hw_counter_delete(struct pmf_cntr *eark)
 {
-	struct pmf_group_ext *earg = pmf_arlg_cntr_get_grp(eark);
-	struct pmf_rlset_ext *ears = pmf_arlg_grp_get_rls(earg);
-	char const *ifname = pmf_arlg_rls_get_ifname(ears);
-	uintptr_t ctrobj = pmf_arlg_cntr_get_objid(eark);
+	struct gpc_cntr *gprk = (struct gpc_cntr *)eark;
+	struct gpc_group *gprg = gpc_cntr_get_group(gprk);
+	struct gpc_rlset *gprs = gpc_group_get_rlset(gprg);
+	char const *ifname = gpc_rlset_get_ifname(gprs);
+	uintptr_t ctrobj = gpc_cntr_get_objid(gprk);
 	bool was_created = (ctrobj != FAL_NULL_OBJECT_ID);
-	char const *ctname = pmf_arlg_cntr_get_name(eark);
-	bool ingress = pmf_arlg_grp_is_ingress(earg);
-	bool is_v6 = pmf_arlg_grp_is_v6(earg);
-	char const *rgname = pmf_arlg_grp_get_name(earg);
+	char const *ctname = gpc_cntr_get_name(gprk);
+	bool ingress = gpc_group_is_ingress(gprg);
+	bool is_v6 = gpc_group_is_v6(gprg);
+	char const *rgname = gpc_group_get_name(gprg);
 	bool ok = true;
 	char const *ok_str = "SK";
 	int rc = 0; /* Success */
@@ -917,7 +927,7 @@ pmf_hw_counter_delete(struct pmf_cntr *eark)
 
 	rc = fal_acl_delete_counter(ctrobj);
 	if (!rc)
-		pmf_arlg_cntr_set_objid(eark, FAL_NULL_OBJECT_ID);
+		gpc_cntr_set_objid(gprk, FAL_NULL_OBJECT_ID);
 
 	ok = (!rc || (rc == -EOPNOTSUPP && !was_created));
 	ok_str = ok ? ((!rc) ? "OK" : "UN") : "NO";
@@ -936,17 +946,18 @@ log_delete:
 bool
 pmf_hw_counter_clear(struct pmf_cntr const *eark)
 {
-	struct pmf_group_ext *earg = pmf_arlg_cntr_get_grp(eark);
-	struct pmf_rlset_ext *ears = pmf_arlg_grp_get_rls(earg);
-	char const *ifname = pmf_arlg_rls_get_ifname(ears);
-	uintptr_t ctrobj = pmf_arlg_cntr_get_objid(eark);
+	struct gpc_cntr *gprk = (struct gpc_cntr *)eark;
+	struct gpc_group *gprg = gpc_cntr_get_group(gprk);
+	struct gpc_rlset *gprs = gpc_group_get_rlset(gprg);
+	char const *ifname = gpc_rlset_get_ifname(gprs);
+	uintptr_t ctrobj = gpc_cntr_get_objid(gprk);
 	bool was_created = (ctrobj != FAL_NULL_OBJECT_ID);
-	char const *ctname = pmf_arlg_cntr_get_name(eark);
-	bool ingress = pmf_arlg_grp_is_ingress(earg);
-	bool is_v6 = pmf_arlg_grp_is_v6(earg);
-	char const *rgname = pmf_arlg_grp_get_name(earg);
-	bool cnt_pkt = pmf_arlg_cntr_pkt_enabled(eark);
-	bool cnt_byt = pmf_arlg_cntr_byt_enabled(eark);
+	char const *ctname = gpc_cntr_get_name(gprk);
+	bool ingress = gpc_group_is_ingress(gprg);
+	bool is_v6 = gpc_group_is_v6(gprg);
+	char const *rgname = gpc_group_get_name(gprg);
+	bool cnt_pkt = gpc_cntr_pkt_enabled(gprk);
+	bool cnt_byt = gpc_cntr_byt_enabled(gprk);
 	bool ok = true;
 	char const *ok_str_pkt = "SK";
 	char const *ok_str_byt = "SK";
@@ -1001,17 +1012,18 @@ bool
 pmf_hw_counter_read(struct pmf_cntr const *eark,
 		    uint64_t *pkts, uint64_t *bytes)
 {
-	struct pmf_group_ext *earg = pmf_arlg_cntr_get_grp(eark);
-	struct pmf_rlset_ext *ears = pmf_arlg_grp_get_rls(earg);
-	char const *ifname = pmf_arlg_rls_get_ifname(ears);
-	uintptr_t ctrobj = pmf_arlg_cntr_get_objid(eark);
+	struct gpc_cntr *gprk = (struct gpc_cntr *)eark;
+	struct gpc_group *gprg = gpc_cntr_get_group(gprk);
+	struct gpc_rlset *gprs = gpc_group_get_rlset(gprg);
+	char const *ifname = gpc_rlset_get_ifname(gprs);
+	uintptr_t ctrobj = gpc_cntr_get_objid(gprk);
 	bool was_created = (ctrobj != FAL_NULL_OBJECT_ID);
-	char const *ctname = pmf_arlg_cntr_get_name(eark);
-	bool ingress = pmf_arlg_grp_is_ingress(earg);
-	bool is_v6 = pmf_arlg_grp_is_v6(earg);
-	char const *rgname = pmf_arlg_grp_get_name(earg);
-	bool cnt_pkt = pmf_arlg_cntr_pkt_enabled(eark);
-	bool cnt_byt = pmf_arlg_cntr_byt_enabled(eark);
+	char const *ctname = gpc_cntr_get_name(gprk);
+	bool ingress = gpc_group_is_ingress(gprg);
+	bool is_v6 = gpc_group_is_v6(gprg);
+	char const *rgname = gpc_group_get_name(gprg);
+	bool cnt_pkt = gpc_cntr_pkt_enabled(gprk);
+	bool cnt_byt = gpc_cntr_byt_enabled(gprk);
 	bool ok = true;
 	char const *ok_str = "SK";
 	int rc = 0; /* Success */
