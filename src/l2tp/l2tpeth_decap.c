@@ -163,9 +163,9 @@ static int l2tp_recv_encap(struct rte_mbuf *m,
 	if (unlikely(ifp == NULL))
 		return -1;
 
+	pktmbuf_prepare_decap_reswitch(m);
 	l2tp_decap(m, offset);
 	if_incr_in(ifp, m);
-	pktmbuf_prepare_decap_reswitch(m);
 
 	if (rte_pktmbuf_data_len(m) < sizeof(struct rte_ether_hdr)) {
 		if_incr_error(ifp);
