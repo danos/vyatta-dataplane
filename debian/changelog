@@ -1,3 +1,13 @@
+vyatta-dataplane (3.11.63) unstable; urgency=medium
+
+  [ Ian Wilson ]
+  * ut: Export functions to build and tear-down a GRE tunnel
+  * ut: Test sw egress ACLs with GRE tunnels
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Thu, 05 Nov 2020 13:29:08 +0000
+
 vyatta-dataplane (3.11.62) unstable; urgency=medium
 
   [ Nicholas Brown ]
