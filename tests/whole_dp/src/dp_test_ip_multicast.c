@@ -14,6 +14,8 @@
 #include "dp_test/dp_test_macros.h"
 #include "dp_test_netlink_state_internal.h"
 #include "dp_test_pktmbuf_lib_internal.h"
+#include "dp_test_console.h"
+#include "dp_test_cmd_check.h"
 
 DP_DECL_TEST_SUITE(ip_msuite);
 
@@ -137,6 +139,9 @@ DP_START_TEST(ip_mfwd_4, dp_forwarding)
 	dp_test_mroute_nl(RTM_NEWROUTE, "10.73.1.1", "dp1T0",
 			  "224.0.1.1/32 nh int:dp2T1 nh int:dp2T2");
 
+	dp_test_wait_for_mroute("10.73.1.1", "224.0.1.1",
+				"dpT10", "dpT21 dpT22", false);
+
 	/* Create multicast pak */
 	test_pak = dp_test_create_ipv4_pak("10.73.1.1", grp_dest, 1, &len);
 	dp_test_pktmbuf_eth_init(test_pak, dp_test_intf_name2mac_str("dp1T0"),
@@ -164,6 +169,9 @@ DP_START_TEST(ip_mfwd_4, dp_forwarding)
 	/* Clean Up */
 	dp_test_mroute_nl(RTM_DELROUTE, "10.73.1.1", "dp1T0",
 			  "224.0.1.1/32 nh int:dp2T1 nh int:dp2T2");
+
+	dp_test_wait_for_mroute("10.73.1.1", "224.0.1.1",
+				"dpT10", "dpT21 dpT22", true);
 
 	dp_test_netlink_netconf_mcast("dp1T0", AF_INET, false);
 	dp_test_nl_del_ip_addr_and_connected("dp1T0", "1.1.1.1/24");
@@ -207,6 +215,8 @@ DP_START_TEST(ip_mfwd_5, dp_forwarding)
 	dp_test_mroute_nl(RTM_NEWROUTE, "2001:1:1::2", "dp1T0",
 			  "ff0e::1:1/128 nh int:dp2T1 nh int:dp2T2");
 
+	dp_test_wait_for_mroute("2001:1:1::2", "ff0e::1:1",
+				"dpT10", "dpT21 dpT22", false);
 
 	/* Create multicast pak */
 	test_pak = dp_test_create_ipv6_pak("2001:1:1::2",
@@ -240,6 +250,9 @@ DP_START_TEST(ip_mfwd_5, dp_forwarding)
 	/* Cleanup */
 	dp_test_mroute_nl(RTM_DELROUTE, "2001:1:1::2", "dp1T0",
 			  "ff0e::1:1/128 nh int:dp2T1 nh int:dp2T2");
+
+	dp_test_wait_for_mroute("2001:1:1::2", "ff0e::1:1",
+				"dpT10", "dpT21 dpT22", true);
 
 	dp_test_netlink_netconf_mcast("dp1T0", AF_INET6, false);
 	dp_test_netlink_netconf_mcast("dp2T1", AF_INET6, false);

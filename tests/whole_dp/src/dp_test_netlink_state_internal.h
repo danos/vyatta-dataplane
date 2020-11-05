@@ -255,6 +255,17 @@ void _dp_test_mroute_nl(uint16_t nlmsg_type, const char *src,
 	_dp_test_mroute_nl(nlmsg_type, src, sintf, route_string,	\
 			   __FILE__, __func__, __LINE__)
 
+/* Verify an IPv4 or IPv6 multicast route */
+void
+_dp_test_wait_for_mroute(const char *source, const char *group,
+			 const char *input, const char *output,
+			 bool gone, const char *file, const char *func,
+			 int line);
+
+#define dp_test_wait_for_mroute(source, group, input, output, gone)	\
+	_dp_test_wait_for_mroute(source, group, input, output, gone,	\
+				 __FILE__, __func__, __LINE__)
+
 /* Enable or disable multicast on an interface */
 void _dp_test_netlink_netconf_mcast(const char *ifname, int af,
 				    bool enable, const char *file,

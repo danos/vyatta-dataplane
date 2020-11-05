@@ -1089,6 +1089,9 @@ DP_START_TEST(acl12, test)
 	dp_test_mroute_nl(RTM_NEWROUTE, "10.73.1.1", "dp1T0",
 			  "224.0.1.1/32 nh int:dp2T1 nh int:dp2T2");
 
+	dp_test_wait_for_mroute("10.73.1.1", "224.0.1.1",
+				"dpT10", "dpT21 dpT22", false);
+
 	dp_test_npf_cmd("npf-ut add acl:v4test 0 family=inet", false);
 
 	dp_test_npf_cmd("npf-ut add acl:v4test 20 "
@@ -1137,6 +1140,9 @@ DP_START_TEST(acl12, test)
 	dp_test_mroute_nl(RTM_DELROUTE, "10.73.1.1", "dp1T0",
 			  "224.0.1.1/32 nh int:dp2T1 nh int:dp2T2");
 
+	dp_test_wait_for_mroute("10.73.1.1", "224.0.1.1",
+				"dpT10", "dpT21 dpT22", true);
+
 	dp_test_netlink_netconf_mcast("dp1T0", AF_INET, false);
 	dp_test_nl_del_ip_addr_and_connected("dp1T0", "1.1.1.1/24");
 
@@ -1181,6 +1187,9 @@ DP_START_TEST(acl13, test)
 	/* Add multicast route */
 	dp_test_mroute_nl(RTM_NEWROUTE, "2001:1:1::2", "dp1T0",
 			  "ff0e::1:1/128 nh int:dp2T1 nh int:dp2T2");
+
+	dp_test_wait_for_mroute("2001:1:1::2", "ff0e::1:1",
+				"dpT10", "dpT21 dpT22", false);
 
 	dp_test_npf_cmd("npf-ut add acl:v6test 0 family=inet6", false);
 
@@ -1232,6 +1241,9 @@ DP_START_TEST(acl13, test)
 
 	dp_test_mroute_nl(RTM_DELROUTE, "2001:1:1::2", "dp1T0",
 			  "ff0e::1:1/128 nh int:dp2T1 nh int:dp2T2");
+
+	dp_test_wait_for_mroute("2001:1:1::2", "ff0e::1:1",
+				"dpT10", "dpT21 dpT22", true);
 
 	dp_test_netlink_netconf_mcast("dp1T0", AF_INET6, false);
 	dp_test_netlink_netconf_mcast("dp2T1", AF_INET6, false);
