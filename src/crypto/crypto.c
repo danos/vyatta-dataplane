@@ -1281,6 +1281,40 @@ static struct dp_lcore_events crypto_lcore_events = {
 	.dp_lcore_events_teardown_fn = dp_crypto_lcore_teardown,
 };
 
+static bitmask_t crypto_fwd_cores;
+static uint16_t num_sas[RTE_MAX_LCORE];
+
+/*
+ * return the next least loaded forwarding core to allocate as
+ * the post-processing core for a specific SA
+ */
+uint8_t crypto_sa_alloc_fwd_core(void)
+{
+	uint16_t tmp_num_sas = UINT16_MAX;
+	uint8_t fwd_core = 0, i;
+
+	RTE_LCORE_FOREACH(i) {
+		if (bitmask_isset(&crypto_fwd_cores, i)) {
+			if (num_sas[i] < tmp_num_sas) {
+				tmp_num_sas = num_sas[i];
+				fwd_core = i;
+			}
+		}
+	}
+	num_sas[fwd_core]++;
+	return fwd_core;
+}
+
+/*
+ * deallocate post processing core
+ */
+void crypto_sa_free_fwd_core(uint8_t fwd_core)
+{
+	if (!bitmask_isset(&crypto_fwd_cores, fwd_core))
+		return;
+
+	num_sas[fwd_core]--;
+}
 
 static unsigned int crypto_ctx_pool;
 /*
@@ -1289,6 +1323,8 @@ static unsigned int crypto_ctx_pool;
 void dp_crypto_init(void)
 {
 	unsigned int cores, cache;
+
+	bitmask_zero(&crypto_fwd_cores);
 
 	CRYPTO_INFO("Crypto thread initialise begin\n");
 

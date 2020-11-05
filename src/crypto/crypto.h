@@ -92,4 +92,7 @@ int crypto_flow_cache_teardown_lcore(unsigned int lcore_id);
 int crypto_flow_cache_init(void);
 unsigned long hash_xfrm_address(const xfrm_address_t *addr,
 				const uint16_t family);
+uint8_t crypto_sa_alloc_fwd_core(void);
+void crypto_sa_free_fwd_core(uint8_t fwd_core);
+
 #endif /* CRYPTO_H */
