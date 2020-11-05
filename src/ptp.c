@@ -864,7 +864,7 @@ struct ifnet *ptp_peer_dst_lookup(struct ptp_peer_t *peer, bool *connected)
 					  &peer->ipaddr.addr.addr6,
 					  connected);
 	} else {
-		char buf[INET_ADDRSTRLEN];
+		char buf[INET6_ADDRSTRLEN];
 		const char *ip = fal_ip_address_t_to_str(&peer->ipaddr,
 							 buf,
 							 sizeof(buf));
@@ -885,7 +885,7 @@ void ptp_peer_dst_resolve(struct ptp_peer_t *peer,
 	struct rte_mbuf *m;
 	struct llentry *lle;
 	struct sockaddr_in taddr;
-	char buf[INET_ADDRSTRLEN];
+	char buf[INET6_ADDRSTRLEN];
 	const char *peerip = fal_ip_address_t_to_str(&peer->ipaddr,
 						     buf,
 						     sizeof(buf));
@@ -983,7 +983,7 @@ void ptp_peer_update(struct ptp_peer_t *peer)
 {
 	struct ifnet *ifp, *nh_ifp;
 	struct rte_ether_addr newmac = { { 0 } };
-	char buf[INET_ADDRSTRLEN], buf2[INET_ADDRSTRLEN];
+	char buf[INET6_ADDRSTRLEN], buf2[INET6_ADDRSTRLEN];
 	const char *peerip =
 		fal_ip_address_t_to_str(&peer->ipaddr, buf2, sizeof(buf2));
 	struct ptp_peer_t *parent = peer, *sibling;
