@@ -30,6 +30,7 @@
 #include "dp_test_lib_intf_internal.h"
 #include "dp_test_pktmbuf_lib_internal.h"
 #include "dp_test_lib_exp.h"
+#include "dp_test_gre.h"
 
 /*
  * Start with a simple topology, 2 interfaces both with addresses, and
@@ -80,8 +81,8 @@ gre_test_create_pak(const char *outer_sip, const char *outer_dip,
 	return m;
 }
 
-static void
-gre_test_build_expected_pak(struct dp_test_expected **expected,
+void
+gre6_test_build_expected_pak(struct dp_test_expected **expected,
 			    struct ip6_hdr *payload,
 			    struct ip6_hdr *outer)
 {
@@ -106,7 +107,7 @@ gre_test_build_expected_pak(struct dp_test_expected **expected,
 	*expected = exp;
 }
 
-static void
+void
 dp_test_gre6_setup_tunnel(uint32_t vrfid, const char *tun_src,
 			 const char *tun_dst)
 {
@@ -137,7 +138,7 @@ dp_test_gre6_setup_tunnel(uint32_t vrfid, const char *tun_src,
 	dp_test_netlink_add_neigh("dp1T1", "1:1:1::2", nh_mac_str);
 }
 
-static void
+void
 dp_test_gre6_teardown_tunnel(uint32_t vrfid, const char *tun_src,
 			    const char *tun_dst)
 {
@@ -186,8 +187,8 @@ DP_START_TEST(gre6_encap, simple_encap_6O6)
 				       DP_TEST_INTF_DEF_SRC_MAC,
 				       RTE_ETHER_TYPE_IPV6);
 	inner_ip = ip6hdr(m);
-	gre_test_build_expected_pak(&exp, inner_ip,
-				    exp_ip_outer);
+	gre6_test_build_expected_pak(&exp, inner_ip,
+				     exp_ip_outer);
 	dp_test_pak_receive(m, "dp1T1", exp);
 
 	dp_test_gre6_teardown_tunnel(VRF_DEFAULT_ID, "1:1:2::1", "1:1:2::2");

@@ -35,6 +35,7 @@
 #include "dp_test_npf_nat_lib.h"
 #include "dp_test_npf_sess_lib.h"
 #include "dp_test_ppp.h"
+#include "dp_test_gre.h"
 
 DP_DECL_TEST_SUITE(npf_acl);
 
@@ -1247,4 +1248,148 @@ DP_START_TEST(acl13, test)
 	dp_test_nl_del_ip_addr_and_connected("dp2T1", "2002:2:2::1/64");
 	dp_test_nl_del_ip_addr_and_connected("dp2T2", "2003:3:3::1/64");
 
+} DP_END_TEST;
+
+/*
+ * IPv4 Egress ACL at GRE tunnel start-point
+ */
+DP_DECL_TEST_CASE(npf_acl, acl14, NULL, NULL);
+DP_START_TEST(acl14, test)
+{
+	struct rte_mbuf *m;
+	struct dp_test_expected *exp;
+	struct iphdr *inner_ip;
+	struct iphdr *exp_ip_outer[DP_TEST_MAX_EXPECTED_PAKS];
+	int len = 32;
+
+	dp_test_gre_setup_tunnel(VRF_DEFAULT_ID, "1.1.2.1", "1.1.2.2");
+
+	/*
+	 * Egress ACL matches on UDP protocol for first packet (which is
+	 * expected to be forwarded), and GRE protocol for second packet
+	 * (dropped)
+	 */
+	dp_test_npf_cmd("npf-ut add acl:v4test 0 family=inet", false);
+	dp_test_npf_cmd("npf-ut add acl:v4test 10 "
+			"proto-base=17 "
+			"action=drop", false);
+	dp_test_npf_cmd("npf-ut attach interface:dpT22 acl-out acl:v4test",
+			false);
+	dp_test_npf_cmd("npf-ut commit", false);
+
+	/*
+	 * Packet 1.  Egress ACL on output interface does not match
+	 * encapsulation IP header.
+	 */
+	m = dp_test_create_ipv4_pak("1.1.1.2", "10.0.0.1",
+				    1, &len);
+	(void)dp_test_pktmbuf_eth_init(m, dp_test_intf_name2mac_str("dp1T1"),
+				       DP_TEST_INTF_DEF_SRC_MAC,
+				       RTE_ETHER_TYPE_IPV4);
+	inner_ip = iphdr(m);
+	dp_test_set_pak_ip_field(inner_ip, DP_TEST_SET_IP_ECN,
+				 IPTOS_ECN_NOT_ECT);
+	gre_test_build_expected_pak(&exp, &inner_ip,
+				    exp_ip_outer, 1);
+	dp_test_set_pak_ip_field(exp_ip_outer[0],
+				 DP_TEST_SET_IP_ECN, IPTOS_ECN_NOT_ECT);
+	dp_test_pak_receive(m, "dp1T1", exp);
+
+	/*
+	 * Packet 2.  egress ACL on output interface drops packet.
+	 */
+	dp_test_npf_cmd("npf-ut add acl:v4test 10 "
+			"proto-base=47 "
+			"action=drop", false);
+	dp_test_npf_cmd("npf-ut commit", false);
+
+	m = dp_test_create_ipv4_pak("1.1.1.2", "10.0.0.1",
+				    1, &len);
+	(void)dp_test_pktmbuf_eth_init(m, dp_test_intf_name2mac_str("dp1T1"),
+				       DP_TEST_INTF_DEF_SRC_MAC,
+				       RTE_ETHER_TYPE_IPV4);
+	inner_ip = iphdr(m);
+	dp_test_set_pak_ip_field(inner_ip, DP_TEST_SET_IP_ECN,
+				 IPTOS_ECN_NOT_ECT);
+	gre_test_build_expected_pak(&exp, &inner_ip,
+				    exp_ip_outer, 1);
+	dp_test_set_pak_ip_field(exp_ip_outer[0],
+				 DP_TEST_SET_IP_ECN, IPTOS_ECN_NOT_ECT);
+	dp_test_exp_set_fwd_status_m(exp, 0, DP_TEST_FWD_DROPPED);
+
+	dp_test_pak_receive(m, "dp1T1", exp);
+
+	/* And now clean up all the state we added. */
+	dp_test_npf_cmd("npf-ut detach interface:dpT22 acl-out acl:v4test",
+			false);
+	dp_test_npf_cmd("npf-ut delete acl:v4test", false);
+	dp_test_npf_cmd("npf-ut commit", false);
+
+	dp_test_gre_teardown_tunnel(VRF_DEFAULT_ID, "1.1.2.1", "1.1.2.2");
+} DP_END_TEST;
+
+/*
+ * IPv6 Egress ACL at GRE tunnel start-point
+ */
+DP_DECL_TEST_CASE(npf_acl, acl15, NULL, NULL);
+DP_START_TEST(acl15, test)
+{
+	struct rte_mbuf *m;
+	struct dp_test_expected *exp;
+	struct ip6_hdr *inner_ip;
+	struct ip6_hdr *exp_ip_outer = NULL;
+	int len = 32;
+
+	dp_test_gre6_setup_tunnel(VRF_DEFAULT_ID, "1:1:2::1", "1:1:2::2");
+
+	/*
+	 * Egress ACL matches on UDP protocol for first packet (which is
+	 * expected to be forwarded), and GRE protocol for second packet
+	 * (dropped)
+	 */
+	dp_test_npf_cmd("npf-ut add acl:v6test 0 family=inet6", false);
+	dp_test_npf_cmd("npf-ut add acl:v6test 10 "
+			"proto-base=17 "
+			"action=drop", false);
+	dp_test_npf_cmd("npf-ut attach interface:dpT22 acl-out acl:v6test",
+			false);
+	dp_test_npf_cmd("npf-ut commit", false);
+
+	/*
+	 * Packet 1.
+	 */
+	m = dp_test_create_ipv6_pak("1:1:1::2", "10:0:0::1",
+				    1, &len);
+	(void)dp_test_pktmbuf_eth_init(m, dp_test_intf_name2mac_str("dp1T1"),
+				       DP_TEST_INTF_DEF_SRC_MAC,
+				       RTE_ETHER_TYPE_IPV6);
+	inner_ip = ip6hdr(m);
+	gre6_test_build_expected_pak(&exp, inner_ip, exp_ip_outer);
+	dp_test_pak_receive(m, "dp1T1", exp);
+
+	/*
+	 * Packet 2.
+	 */
+	dp_test_npf_cmd("npf-ut add acl:v6test 10 "
+			"proto-base=47 "
+			"action=drop", false);
+	dp_test_npf_cmd("npf-ut commit", false);
+
+	m = dp_test_create_ipv6_pak("1:1:1::2", "10:0:0::1",
+				    1, &len);
+	(void)dp_test_pktmbuf_eth_init(m, dp_test_intf_name2mac_str("dp1T1"),
+				       DP_TEST_INTF_DEF_SRC_MAC,
+				       RTE_ETHER_TYPE_IPV6);
+	inner_ip = ip6hdr(m);
+	gre6_test_build_expected_pak(&exp, inner_ip, exp_ip_outer);
+	dp_test_exp_set_fwd_status_m(exp, 0, DP_TEST_FWD_DROPPED);
+	dp_test_pak_receive(m, "dp1T1", exp);
+
+	/* Cleanup */
+	dp_test_npf_cmd("npf-ut detach interface:dpT22 acl-out acl:v6test",
+			false);
+	dp_test_npf_cmd("npf-ut delete acl:v6test", false);
+	dp_test_npf_cmd("npf-ut commit", false);
+
+	dp_test_gre6_teardown_tunnel(VRF_DEFAULT_ID, "1:1:2::1", "1:1:2::2");
 } DP_END_TEST;
