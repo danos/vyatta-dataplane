@@ -18,6 +18,17 @@ struct gpc_rule;
 /* -- ruleset accessors -- */
 
 char const *gpc_rlset_get_ifname(struct gpc_rlset const *gprs);
+struct ifnet *gpc_rlset_get_ifp(struct gpc_rlset const *gprs);
+void *gpc_rlset_get_owner(struct gpc_rlset const *gprs);
+bool gpc_rlset_is_ingress(struct gpc_rlset const *gprs);
+bool gpc_rlset_is_if_created(struct gpc_rlset const *gprs);
+struct gpc_rlset *gpc_rlset_first(void);
+struct gpc_rlset *gpc_rlset_next(struct gpc_rlset const *cursor);
+
+#define GPC_RLSET_FOREACH(var) \
+	for ((var) = gpc_rlset_first(); \
+	    (var); \
+	    (var) = gpc_rlset_next((var)))
 
 /* -- group accessors -- */
 

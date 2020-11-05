@@ -46,6 +46,4 @@ bool pmf_arlg_grp_is_ll_attached(struct pmf_group_ext const *earg);
 uintptr_t pmf_arlg_grp_get_objid(struct pmf_group_ext const *earg);
 void pmf_arlg_grp_set_objid(struct pmf_group_ext *earg, uintptr_t objid);
 
-char const *pmf_arlg_rls_get_ifname(struct pmf_rlset_ext const *ears);
-
 #endif /* PMF_ATT_RLGRP_H */

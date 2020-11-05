@@ -3,20 +3,143 @@
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
+#include <sys/queue.h>		/* TAILQ macros */
 
 #include "compiler.h"
+#include "if_var.h"
 
+#include "npf/config/gpc_db_control.h"
 #include "npf/config/gpc_db_query.h"
 #include "npf/config/pmf_att_rlgrp.h"
 
-/* ---- */
+/* -- ruleset -- */
+
+enum gpc_rs_flags {
+	GPC_RSF_IN		= (1 << 0),
+	GPC_RSF_IF_CREATED	= (1 << 1),
+};
+
+struct gpc_rlset {
+	TAILQ_ENTRY(gpc_rlset) gprs_list;
+	void			*gprs_owner;	/* weak */
+	char const		*gprs_ifname;	/* weak */
+	struct ifnet		*gprs_ifp;	/* weak */
+	uint32_t		gprs_flags;
+};
+
+
+/* -- locals -- */
+
+static TAILQ_HEAD(, gpc_rlset) att_rlsets
+	= TAILQ_HEAD_INITIALIZER(att_rlsets);
 
 /* -- ruleset accessors -- */
 
 char const *
-gpc_rlset_get_ifname(struct gpc_rlset const *ars)
+gpc_rlset_get_ifname(struct gpc_rlset const *gprs)
 {
-	return pmf_arlg_rls_get_ifname((struct pmf_rlset_ext const *)ars);
+	return gprs->gprs_ifname;
+}
+
+struct ifnet *
+gpc_rlset_get_ifp(struct gpc_rlset const *gprs)
+{
+	return gprs->gprs_ifp;
+}
+
+void *
+gpc_rlset_get_owner(struct gpc_rlset const *gprs)
+{
+	return gprs->gprs_owner;
+}
+
+bool
+gpc_rlset_is_ingress(struct gpc_rlset const *gprs)
+{
+	return gprs->gprs_flags & GPC_RSF_IN;
+}
+
+bool
+gpc_rlset_is_if_created(struct gpc_rlset const *gprs)
+{
+	return gprs->gprs_flags & GPC_RSF_IF_CREATED;
+}
+
+/* -- ruleset manipulators -- */
+
+void
+gpc_rlset_set_if_created(struct gpc_rlset *gprs)
+{
+	gprs->gprs_flags |= GPC_RSF_IF_CREATED;
+}
+
+static void
+gpc_rlset_clear_if_created(struct gpc_rlset *gprs)
+{
+	gprs->gprs_flags &= ~GPC_RSF_IF_CREATED;
+}
+
+bool
+gpc_rlset_set_ifp(struct gpc_rlset *gprs)
+{
+	struct ifnet *iface = dp_ifnet_byifname(gprs->gprs_ifname);
+	if (!iface)
+		return false;
+
+	gprs->gprs_ifp = iface;
+	if (iface->if_created)
+		gpc_rlset_set_if_created(gprs);
+
+	return true;
+}
+
+void
+gpc_rlset_clear_ifp(struct gpc_rlset *gprs)
+{
+	gprs->gprs_ifp = NULL;
+	gpc_rlset_clear_if_created(gprs);
+}
+
+/* -- ruleset DB walk -- */
+
+struct gpc_rlset *
+gpc_rlset_first(void)
+{
+	return TAILQ_FIRST(&att_rlsets);
+}
+
+struct gpc_rlset *
+gpc_rlset_next(struct gpc_rlset const *cursor)
+{
+	return TAILQ_NEXT(cursor, gprs_list);
+}
+
+/* -- ruleset DB manipulation -- */
+
+void
+gpc_rlset_delete(struct gpc_rlset *gprs)
+{
+	TAILQ_REMOVE(&att_rlsets, gprs, gprs_list);
+	gprs->gprs_owner = NULL;
+}
+
+struct gpc_rlset *
+gpc_rlset_create(bool ingress, char const *if_name, void *owner)
+{
+	struct gpc_rlset *gprs = calloc(1, sizeof(*gprs));
+	if (!gprs)
+		return NULL;
+
+	gprs->gprs_flags = ingress ? GPC_RSF_IN : 0;
+	gprs->gprs_ifname = if_name;
+	gprs->gprs_ifp = NULL;
+	gprs->gprs_owner = owner;
+
+	gpc_rlset_set_ifp(gprs);
+
+	TAILQ_INSERT_TAIL(&att_rlsets, gprs, gprs_list);
+
+	return gprs;
 }
 
 /* -- group accessors -- */
