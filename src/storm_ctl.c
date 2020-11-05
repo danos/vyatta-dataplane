@@ -417,6 +417,7 @@ fal_traffic_t_to_vlan_feat_type(enum fal_traffic_type traffic)
 }
 
 static void fal_policer_get_sc_stats(struct storm_ctl_instance *instance,
+				     uint32_t num_stats,
 				     enum fal_policer_stat_type cntr_ids[],
 				     uint64_t cntrs[],
 				     enum fal_traffic_type traf)
@@ -429,7 +430,7 @@ static void fal_policer_get_sc_stats(struct storm_ctl_instance *instance,
 		return;
 
 	rv = fal_policer_get_stats_ext(fal_obj,
-				       FAL_POLICER_STAT_MAX,
+				       num_stats,
 				       cntr_ids,
 				       FAL_STATS_MODE_READ,
 				       cntrs);
@@ -1576,11 +1577,15 @@ static void storm_ctl_show_instance(json_writer_t *wr,
 		[FAL_POLICER_STAT_RED_PACKETS] = "pkts_dropped",
 		[FAL_POLICER_STAT_RED_BYTES] = "bytes_dropped"
 	};
-	enum fal_policer_stat_type cntr_ids[FAL_POLICER_STAT_MAX], j;
+	enum fal_policer_stat_type cntr_ids[] = {
+		FAL_POLICER_STAT_GREEN_PACKETS,
+		FAL_POLICER_STAT_GREEN_BYTES,
+		FAL_POLICER_STAT_RED_PACKETS,
+		FAL_POLICER_STAT_RED_BYTES
+	};
+	uint32_t num_stats = ARRAY_SIZE(cntr_ids);
+	enum fal_policer_stat_type j;
 	fal_object_t fal_obj;
-
-	for (j = 0; j < FAL_POLICER_STAT_MAX; j++)
-		cntr_ids[j] = j;
 
 	jsonw_start_object(wr);
 	jsonw_string_field(wr, "profile",
@@ -1605,10 +1610,12 @@ static void storm_ctl_show_instance(json_writer_t *wr,
 			fal_policer_dump(fal_obj, wr);
 
 		memset(cntrs, 0, sizeof(cntrs));
-		fal_policer_get_sc_stats(instance, cntr_ids, cntrs, i);
+		fal_policer_get_sc_stats(instance, num_stats, cntr_ids,
+					 cntrs, i);
 
-		for (j = 0; j < FAL_POLICER_STAT_MAX; j++)
-			jsonw_uint_field(wr, fal_stat_strs[j], cntrs[j]);
+		for (j = 0; j < num_stats; j++)
+			jsonw_uint_field(wr, fal_stat_strs[cntr_ids[j]],
+					 cntrs[j]);
 		jsonw_end_object(wr);
 	}
 	jsonw_end_object(wr);
@@ -1769,14 +1776,17 @@ error:
 static void storm_ctl_clear_intf_stats(struct ifnet *ifp, void *ctx __unused)
 {
 	int i, rc;
-	enum fal_policer_stat_type cntr_ids[FAL_POLICER_STAT_MAX];
+	enum fal_policer_stat_type cntr_ids[] = {
+		FAL_POLICER_STAT_GREEN_PACKETS,
+		FAL_POLICER_STAT_GREEN_BYTES,
+		FAL_POLICER_STAT_RED_PACKETS,
+		FAL_POLICER_STAT_RED_BYTES
+	};
+	uint32_t num_stats = ARRAY_SIZE(cntr_ids);
 	struct if_storm_ctl_info *sc_info;
 	struct storm_ctl_instance *instance;
 	struct cds_lfht_iter iter;
 	fal_object_t fal_obj;
-
-	for (i = 0; i < FAL_POLICER_STAT_MAX; i++)
-		cntr_ids[i] = i;
 
 	sc_info = rcu_dereference(ifp->sc_info);
 	if (!sc_info)
@@ -1793,7 +1803,7 @@ static void storm_ctl_clear_intf_stats(struct ifnet *ifp, void *ctx __unused)
 				continue;
 
 			rc = fal_policer_clear_stats(fal_obj,
-						     FAL_POLICER_STAT_MAX,
+						     num_stats,
 						     cntr_ids);
 			if (rc) {
 				RTE_LOG(ERR, DATAPLANE,

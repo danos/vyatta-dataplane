@@ -3088,6 +3088,12 @@ enum fal_policer_stat_type {
 	/** accepted bytes */
 	FAL_POLICER_STAT_GREEN_BYTES,
 
+	/** exceeded packets */
+	FAL_POLICER_STAT_YELLOW_PACKETS,
+
+	/** exceeded bytes */
+	FAL_POLICER_STAT_YELLOW_BYTES,
+
 	/** dropped packets */
 	FAL_POLICER_STAT_RED_PACKETS,
 
@@ -3118,6 +3124,7 @@ enum fal_policer_meter_type {
 enum fal_policer_mode_type {
 	FAL_POLICER_MODE_STORM_CTL,
 	FAL_POLICER_MODE_CPP,
+	FAL_POLICER_MODE_INGRESS,
 	FAL_POLICER_MODE_MAX
 };
 
@@ -3155,11 +3162,23 @@ enum fal_policer_attr_t {
 	 */
 	FAL_POLICER_ATTR_CIR  = 0x00000004,
 	/**
+	 * @brief Excess burst size/packets
+	 * @type uint64_t
+	 * @flags CREATE_AND_SET
+	 */
+	FAL_POLICER_ATTR_EBS  = 0x00000005,
+	/**
+	 * @brief Excess information rate BPS/PPS
+	 * @type uint64_t
+	 * @flags CREATE_AND_SET
+	 */
+	FAL_POLICER_ATTR_EIR  = 0x00000006,
+	/**
 	 * @brief Action to take for RED colour packets
 	 * @type fal_packet_action_t
 	 * @flags CREATE_AND_SET
 	 */
-	FAL_POLICER_ATTR_RED_PACKET_ACTION  = 0x00000005,
+	FAL_POLICER_ATTR_RED_PACKET_ACTION  = 0x00000007,
 };
 
 /**

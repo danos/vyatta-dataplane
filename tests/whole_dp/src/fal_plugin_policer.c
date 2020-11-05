@@ -83,8 +83,14 @@ static const char *fal_policer_attr_to_str(enum fal_policer_attr_t val)
 		return "cbs";
 	case FAL_POLICER_ATTR_CIR:
 		return "cir";
+	case FAL_POLICER_ATTR_EBS:
+		return "ebs";
+	case FAL_POLICER_ATTR_EIR:
+		return "eir";
 	case FAL_POLICER_ATTR_RED_PACKET_ACTION:
 		return "action";
+	default:
+		break;
 	}
 	assert(0);
 	return "ERROR";
