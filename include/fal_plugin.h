@@ -5013,6 +5013,9 @@ enum fal_acl_bind_point_type_t {
 enum fal_acl_action_type_t {
 	FAL_ACL_ACTION_TYPE_PACKET_ACTION,
 	FAL_ACL_ACTION_TYPE_COUNTER,
+	FAL_ACL_ACTION_TYPE_SET_DESIGNATION,
+	FAL_ACL_ACTION_TYPE_SET_COLOUR,
+	FAL_ACL_ACTION_TYPE_POLICER,
 };
 
 /**
@@ -5066,7 +5069,7 @@ struct fal_acl_field_data_t {
  * The value for an enabled ACL action
  */
 union fal_acl_action_parameter_t {
-	int32_t s32;		/* For enum values */
+	int32_t s32;		/* For enum or int values */
 	fal_object_t objid;
 };
 
@@ -5298,6 +5301,34 @@ enum fal_acl_entry_attr_t {
 	 * @default disabled
 	 */
 	FAL_ACL_ENTRY_ATTR_ACTION_COUNTER,
+
+	/**
+	 * @brief Action to set the designation (0-7)
+	 *
+	 * @type fal_acl_action_data_t int32_t
+	 * @flags CREATE_AND_SET
+	 * @default disabled
+	 */
+	FAL_ACL_ENTRY_ATTR_ACTION_SET_DESIGNATION,
+
+	/**
+	 * @brief Action to set the colour (green, yellow, or red)
+	 *
+	 * @type fal_acl_action_data_t fal_packet_colour
+	 * @flags CREATE_AND_SET
+	 * @default disabled
+	 */
+	FAL_ACL_ENTRY_ATTR_ACTION_SET_COLOUR,
+
+	/**
+	 * @brief Attach/detach a policer to the entry
+	 *
+	 * @type fal_acl_action_data_t fal_object_id_t
+	 * @flags CREATE_AND_SET
+	 * @objects FAL_OBJECT_TYPE_ACL_POLICER
+	 * @default disabled
+	 */
+	FAL_ACL_ENTRY_ATTR_ACTION_POLICER,
 
 	/*
 	 * The following chunk has match fields
