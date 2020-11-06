@@ -99,6 +99,10 @@ enum crypto_action {
 
 RTE_DEFINE_PER_LCORE(struct crypto_pkt_buffer *, crypto_pkt_buffer);
 
+RTE_DEFINE_PER_LCORE(struct crypto_fwd_info *, crypto_fwd);
+
+struct crypto_fwd_info crypto_fwd[RTE_MAX_LCORE];
+
 static const char * const ipsec_counter_names[] = {
 	[ENQUEUED_INPUT_IPV4] = "v4_in",
 	[ENQUEUED_INPUT_IPV6] = "v6_in",
@@ -1180,6 +1184,30 @@ const char *crypto_xfrm_name(enum crypto_xfrm xfrm)
 		return "Invalid XFRM";
 
 	return xfrm_names[xfrm];
+}
+
+void crypto_create_fwd_queue(unsigned int lcore_id)
+{
+	if (!RTE_PER_LCORE(crypto_fwd)) {
+		struct crypto_fwd_info *fwd_info = &crypto_fwd[lcore_id];
+		unsigned int cpu_socket = rte_lcore_to_socket_id(lcore_id);
+
+		fwd_info->fwd_q = crypto_create_ring("fwd-q", PMD_RING_SIZE,
+						     cpu_socket, lcore_id,
+						     RING_F_SC_DEQ);
+		/* crypto_create_ring is always expected to succeed */
+
+		RTE_PER_LCORE(crypto_fwd) = fwd_info;
+	}
+}
+
+void crypto_destroy_fwd_queue(void)
+{
+	if (RTE_PER_LCORE(crypto_fwd)) {
+		crypto_delete_queue(RTE_PER_LCORE(crypto_fwd)->fwd_q);
+		RTE_PER_LCORE(crypto_fwd)->fwd_q = NULL;
+		RTE_PER_LCORE(crypto_fwd) = NULL;
+	}
 }
 
 /*

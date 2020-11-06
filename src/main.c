@@ -1006,6 +1006,8 @@ forwarding_loop(unsigned int lcore_id)
 	RTE_PER_LCORE(_dp_lcore_id) = lcore_id;
 	dp_lcore_events_init(lcore_id);
 
+	crypto_create_fwd_queue(lcore_id);
+
 	pkt_burst_init(lcore_id, conf->tx_qid);
 
 	char name[16];
@@ -1485,6 +1487,8 @@ static void stop_one_cpu(unsigned int lcore)
 			RTE_LOG(ERR, DATAPLANE,
 				"core %d wait failed\n", lcore);
 		}
+
+		crypto_destroy_fwd_queue();
 	}
 	conf->running = false;
 }

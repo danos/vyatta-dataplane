@@ -56,6 +56,22 @@ struct crypto_pkt_buffer {
 	unsigned char iv_cache[MAX_CRYPTO_PKT_BURST][CRYPTO_MAX_IV_LENGTH];
 };
 
+/*
+ * crypto per-core post-processing queue
+ * The processing that needs to occur after encryption/decryption is standard
+ * IP forwarding that can occur in parallel on each forwarding core. The only
+ * constraint is that all packets associated with a particular SA need to
+ * be processed on the same forwarding core.
+ */
+struct crypto_fwd_info {
+	struct rte_ring *fwd_q;
+	uint64_t         fwd_cnt;
+};
+
+RTE_DECLARE_PER_LCORE(struct crypto_fwd_info *, crypto_fwd);
+
+extern struct crypto_fwd_info crypto_fwd[RTE_MAX_LCORE];
+
 RTE_DECLARE_PER_LCORE(struct crypto_pkt_buffer *, crypto_pkt_buffer);
 
 /*
@@ -87,5 +103,8 @@ void crypto_pmd_remove_all(void);
 void crypto_flow_cache_timer_handler(struct rte_timer *tmr, void *arg);
 int crypto_pmd_get_info(int pmd_dev_id, uint8_t *rte_dev_id,
 			enum cryptodev_type *dev_type);
+
+void crypto_create_fwd_queue(unsigned int lcore_id);
+void crypto_destroy_fwd_queue(void);
 
 #endif /* _CRYPTO_MAIN_H_ */
