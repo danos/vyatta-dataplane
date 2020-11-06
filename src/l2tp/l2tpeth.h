@@ -159,7 +159,7 @@ struct l2tp_session *l2tp_session_byid(uint32_t session_id);
 void l2tp_init_stats(struct l2tp_session *sess);
 void l2tp_session_walk(l2tp_iter_func_t func, void *arg);
 void l2tp_tunnel_walk(l2tp_iter_func_t func, void *arg);
-void l2tp_output(struct ifnet *ifp, struct rte_mbuf *m, uint16_t rx_vlan);
+void l2tp_output(struct ifnet *ifp, struct rte_mbuf *m);
 void l2tp_stats(const struct l2tp_session *session,
 		       struct l2tp_stats *stats);
 int l2tp_set_xconnect(char *cmd, char *, char*, char *);

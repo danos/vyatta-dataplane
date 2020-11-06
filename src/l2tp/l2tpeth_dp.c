@@ -38,54 +38,6 @@
 
 #define L2TP_HDR_VER_3 0x0003
 
-static int
-l2tp_undo_encap(struct ifnet *ifp, struct rte_mbuf *m,
-		struct l2tp_session *session, uint16_t rx_vlan,
-		bool tx_vlan)
-{
-	struct rte_ether_hdr *eh;
-	uint16_t vlan = 0;
-
-	if (tx_vlan) {
-		struct ether_vlan_hdr *vhdr = (struct ether_vlan_hdr *)
-			(rte_pktmbuf_mtod(m, char *) +
-			 session->hdr_len + RTE_ETHER_HDR_LEN);
-		eh = (struct rte_ether_hdr *)
-			((char *)vhdr +  sizeof(struct rte_vlan_hdr));
-
-		memmove(&vhdr->eh, eh, 2 * RTE_ETHER_ADDR_LEN);
-		vlan = sizeof(struct rte_vlan_hdr);
-	} else
-		eh = (struct rte_ether_hdr *)
-			(rte_pktmbuf_mtod(m, char *) +
-			 session->hdr_len + RTE_ETHER_HDR_LEN);
-
-	/* Replace the dest addr to be the shadow if's if we have
-	   replaced the original ether-hdr in routed case.
-	*/
-	if (rte_ether_addr_equal(&eh->s_addr, &ifp->eth_addr)) {
-		const struct ifnet *dp_ifp = ifnet_byport(m->port);
-
-		if (dp_ifp)
-			rte_ether_addr_copy(&dp_ifp->eth_addr, &eh->d_addr);
-		else
-			return -1;
-	}
-
-	if (rte_pktmbuf_adj(m, session->hdr_len + RTE_ETHER_HDR_LEN + vlan)
-		== NULL)
-		return -1;
-
-	if (rx_vlan) {
-		m->ol_flags |= PKT_RX_VLAN;
-		m->ol_flags &= ~PKT_TX_VLAN_PKT;
-		m->vlan_tci &= ~VLAN_VID_MASK;
-		m->vlan_tci |= rx_vlan;
-	}
-
-	return 0;
-}
-
 static int l2tp_add_vlan(struct rte_mbuf *m, uint8_t offset)
 {
 	struct ether_vlan_hdr *vhdr = (struct ether_vlan_hdr *)
@@ -105,7 +57,7 @@ static int l2tp_add_vlan(struct rte_mbuf *m, uint8_t offset)
 
 /* Send a packet out. */
 void
-l2tp_output(struct ifnet *ifp, struct rte_mbuf *m, uint16_t rx_vlan)
+l2tp_output(struct ifnet *ifp, struct rte_mbuf *m)
 {
 	uint8_t ip_hdr_len = sizeof(struct iphdr);
 	uint8_t flags = 0;
@@ -114,7 +66,6 @@ l2tp_output(struct ifnet *ifp, struct rte_mbuf *m, uint16_t rx_vlan)
 	struct iphdr *orig_ip = iphdr(m);
 	struct l2tp_session *session;
 	char *l2tp_hdr;
-	struct ifnet *orig_ifp = ifp;
 	bool tx_vlan = m->ol_flags & PKT_TX_VLAN_PKT;
 	struct l2tp_softc *sc = rcu_dereference(ifp->if_softc);
 
@@ -287,28 +238,11 @@ l2tp_output(struct ifnet *ifp, struct rte_mbuf *m, uint16_t rx_vlan)
 
 	uint16_t eth_type = is_ipv4 ? htons(RTE_ETHER_TYPE_IPV4) :
 				      htons(RTE_ETHER_TYPE_IPV6);
-	struct ifnet *dp_ifp = NULL;
 
-	if (crypto_policy_outbound_match(ifp, &m, eth_type)) {
-		dp_ifp = ifnet_byport(m->port);
-		if (unlikely(l2tp_undo_encap(ifp, m, session,
-					     rx_vlan, tx_vlan) < 0))
-			goto drop;
+	if (crypto_policy_check_outbound(ifp, &m, RT_TABLE_MAIN,
+					 eth_type, NULL))
+		return;
 
-		/*
-		 * The following drop must happen in the context
-		 * of a crypto match. Common to outer if, else
-		 * but do not move it outside.
-		 */
-		if (!dp_ifp)
-			goto drop;
-	}
-
-	/*
-	 * Over-ride intf due to crypto match or fallback to
-	 * original interface (e.g. child vif interface) while routing.
-	 */
-	ifp = dp_ifp ? dp_ifp : orig_ifp;
 	pktmbuf_prepare_encap_out(m);
 	if_incr_out(ifp, m);
 	if (is_ipv4)
