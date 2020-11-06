@@ -71,6 +71,8 @@ unsigned int slowpath_mtu;
 /* SNMP statistics for UDP in tunnels */
 uint64_t udpstats[UDP_MIB_MAX];
 
+static int ip_output_filter(struct ifnet *ifp, struct rte_mbuf **mp);
+
 ALWAYS_INLINE bool
 dp_ip_l2_nh_output(struct ifnet *in_ifp, struct rte_mbuf *m,
 		   struct next_hop *nh, uint16_t proto)
@@ -84,6 +86,11 @@ dp_ip_l2_nh_output(struct ifnet *in_ifp, struct rte_mbuf *m,
 		.nxt.v4 = nh,
 		.l2_proto = proto,
 	};
+
+	/* Do not call spath features if this is a forwarded pkt */
+	if (!in_ifp && proto == ETH_P_IP &&
+	    ip_output_filter(pl_pkt.out_ifp, &m))
+		return false;
 
 	if (!pipeline_fused_ipv4_encap_only(&pl_pkt))
 		return false;
@@ -606,7 +613,7 @@ static void ip_spath_frag_output(struct ifnet *ifp __unused,
  */
 static int
 ip_spath_filter_internal(struct ifnet *ifp, struct ifnet *l2_ifp,
-			 struct rte_mbuf **mp)
+			 struct rte_mbuf **mp, bool from_us)
 {
 	uint16_t npf_flags = NPF_FLAG_CACHE_EMPTY;
 	struct rte_mbuf *m = *mp;
@@ -614,8 +621,13 @@ ip_spath_filter_internal(struct ifnet *ifp, struct ifnet *l2_ifp,
 
 	dp_pktmbuf_l3_len(m) = ip->ihl << 2;
 
-	/* The kernel can still forward some packets, identify them.  */
-	if (!ip->saddr || is_local_ipv4(if_vrfid(ifp), ip->saddr)) {
+	/*
+	 * The kernel can still forward some packets, identify them.  Some
+	 * locally generated ICMP packets may use a CGNAT or SNAT address,
+	 * hence we use the from_us parameter to ensure we set the npf flags
+	 * appropriately.
+	 */
+	if (from_us || !ip->saddr || is_local_ipv4(if_vrfid(ifp), ip->saddr)) {
 		npf_flags |= NPF_FLAG_FROM_US | NPF_FLAG_FROM_LOCAL;
 		if (npf_zone_local_is_set())
 			npf_flags |= NPF_FLAG_FROM_ZONE;
@@ -661,7 +673,12 @@ ip_spath_filter(struct ifnet *l2_ifp, struct rte_mbuf **mp)
 	else
 		ifp = l2_ifp;
 
-	return ip_spath_filter_internal(ifp, l2_ifp, mp);
+	return ip_spath_filter_internal(ifp, l2_ifp, mp, false);
+}
+
+static int ip_output_filter(struct ifnet *ifp, struct rte_mbuf **mp)
+{
+	return ip_spath_filter_internal(ifp, ifp, mp, true);
 }
 
 /*
@@ -682,7 +699,7 @@ ip_spath_output(struct ifnet *l2_ifp, struct rte_mbuf *m)
 	else
 		ifp = l2_ifp;
 
-	if (ip_spath_filter_internal(ifp, l2_ifp, &m))
+	if (ip_spath_filter_internal(ifp, l2_ifp, &m, false))
 		return 0;	/* filtered or reassembled */
 
 	/* re-frag if needed */

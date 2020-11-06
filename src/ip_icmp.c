@@ -223,9 +223,6 @@ icmp_send_no_route(struct rte_mbuf *m, struct ifnet *out_ifp)
 	nh_set_ifp(&singlehop_nh, out_ifp);
 	nh = &singlehop_nh;
 
-	if (ipv4_originate_filter(out_ifp, m))
-		return false;
-
 	if (dp_ip_l2_nh_output(NULL, m, nh, ETH_P_IP)) {
 		IPSTAT_INC_IFP(out_ifp, IPSTATS_MIB_OUTPKTS);
 		return true;

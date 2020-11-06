@@ -98,9 +98,6 @@ void ip_output(struct rte_mbuf *m, bool srced_forus)
 		return;
 	}
 
-	if (ipv4_originate_filter(ifp, m))
-		return;
-
 	if (dp_ip_l2_nh_output(NULL, m, nxt, ETH_P_IP))
 		IPSTAT_INC_IFP(ifp, IPSTATS_MIB_OUTPKTS);
 
