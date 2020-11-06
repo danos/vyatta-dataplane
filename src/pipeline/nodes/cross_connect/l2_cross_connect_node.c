@@ -37,8 +37,7 @@ cross_connect_process(struct pl_packet *pkt, void *context __unused)
 	if (out_ifp->if_type == IFT_L2TPETH) {
 		if (ifp->if_parent)
 			pktmbuf_convert_rx_to_tx_vlan(m);
-		l2tp_output(out_ifp, m,
-			    ifp->if_parent ? ifp->if_vlan : 0);
+		l2tp_output(out_ifp, m);
 	} else {
 		pkt->l2_proto = ETH_P_TEB;
 		pkt->out_ifp = out_ifp;
