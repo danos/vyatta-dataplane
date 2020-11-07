@@ -1033,6 +1033,7 @@ forwarding_loop(unsigned int lcore_id)
 				process_crypto(conf);
 			if (CMM_LOAD_SHARED(conf->num_txq) > 0)
 				poll_transmit_queues(conf);
+			crypto_fwd_processed_packets();
 		}
 
 		/* Move leftover packets */

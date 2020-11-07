@@ -438,6 +438,7 @@ enum ipsec_cnt_types {
 	CRYPTO_CIPHER_OP_FAILED,
 	CRYPTO_DIGEST_OP_FAILED,
 	CRYPTO_DIGEST_CB_FAILED,
+	CRYPTO_PP_ENQ_FAILED,
 	IPSEC_CNT_MAX /* this must be last */
 };
 

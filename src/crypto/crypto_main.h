@@ -106,5 +106,6 @@ int crypto_pmd_get_info(int pmd_dev_id, uint8_t *rte_dev_id,
 
 void crypto_create_fwd_queue(unsigned int lcore_id);
 void crypto_destroy_fwd_queue(void);
+void crypto_fwd_processed_packets(void);
 
 #endif /* _CRYPTO_MAIN_H_ */

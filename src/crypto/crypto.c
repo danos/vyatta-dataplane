@@ -165,6 +165,7 @@ static const char * const ipsec_counter_names[] = {
 	[CRYPTO_CIPHER_OP_FAILED] = "Failed cipher op",
 	[CRYPTO_DIGEST_OP_FAILED] = "Failed digest op",
 	[CRYPTO_DIGEST_CB_FAILED] = "Failed digest cb",
+	[CRYPTO_PP_ENQ_FAILED] = "Postprocessing enqueue failed",
 };
 
 unsigned long ipsec_counters[RTE_MAX_LCORE][IPSEC_CNT_MAX] __rte_cache_aligned;
@@ -988,10 +989,47 @@ void crypto_enqueue_outbound(struct rte_mbuf *m, uint16_t orig_family,
 	}
 }
 
-static void crypto_fwd_processed_packets(struct crypto_pkt_ctx **contexts,
-					 unsigned int count)
+static void crypto_redirect_processed_packets(struct crypto_pkt_ctx **contexts,
+					      unsigned int count)
 {
 	uint32_t i;
+	uint8_t fwd_lcore;
+	struct crypto_pkt_ctx *ctx;
+
+	for (i = 0; i < count; i++) {
+		ctx = contexts[i];
+		fwd_lcore = ctx->sa->fwd_core;
+
+		/*
+		 * no post-crypto forwarding core has been allocated
+		 * continue forwarding on the same core
+		 */
+		if (!fwd_lcore) {
+			crypto_pkt_ctx_forward_and_free(ctx);
+			continue;
+		}
+
+		if (rte_ring_mp_enqueue(crypto_fwd[fwd_lcore].fwd_q,
+					contexts[i])) {
+			IPSEC_CNT_INC(CRYPTO_PP_ENQ_FAILED);
+			rte_pktmbuf_free(ctx->mbuf);
+			release_crypto_packet_ctx(ctx);
+		}
+	}
+}
+
+void crypto_fwd_processed_packets(void)
+{
+	struct crypto_pkt_ctx *contexts[MAX_CRYPTO_PKT_BURST];
+	unsigned int i, count, lcore = dp_lcore_id();
+
+	if (rte_ring_empty(crypto_fwd[lcore].fwd_q))
+		return;
+
+	count = rte_ring_sc_dequeue_burst(crypto_fwd[lcore].fwd_q,
+					  (void **)&contexts,
+					  MAX_CRYPTO_PKT_BURST, NULL);
+	crypto_fwd[lcore].fwd_cnt += count;
 
 	for (i = 0; i < count; i++) {
 		if (unlikely(contexts[i]->status < 0))
@@ -1011,9 +1049,9 @@ struct crypto_processing_cb {
 
 static const struct crypto_processing_cb crypto_cb[MAX_CRYPTO_XFRM] = {
 	{crypto_process_encrypt_packets,
-	 crypto_fwd_processed_packets},
+	 crypto_redirect_processed_packets},
 	{crypto_process_decrypt_packets,
-	 crypto_fwd_processed_packets} };
+	 crypto_redirect_processed_packets} };
 
 void crypto_purge_queue(struct rte_ring *pmd_queue)
 {
