@@ -1397,7 +1397,9 @@ void crypto_show_summary(FILE *f)
 			 rte_mempool_in_use_count(crypto_dp_sp->pool));
 
 	for (i = 0; i < IPSEC_CNT_MAX; i++)
-		jsonw_uint_field(wr, ipsec_counter_names[i], agg_counters[i]);
+		if (agg_counters[i])
+			jsonw_uint_field(wr, ipsec_counter_names[i],
+					 agg_counters[i]);
 	jsonw_end_object(wr);
 	jsonw_destroy(&wr);
 }
