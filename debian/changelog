@@ -1,3 +1,70 @@
+vyatta-dataplane (3.12.4) unstable; urgency=medium
+
+  [ Charles (Chas) Williams ]
+  * ptp: avoid dereferencing bad interface pointers (Bugfix: VRVDR-53517)
+
+  [ Paul Atkins ]
+  * 3.11.60
+
+  [ Robert Shearman ]
+  * nh_common: fix hash key during nexthop hash del & add
+  * route_flags: ignore RTF_UNUSABLE for nexthop comparison (Fixes: VRVDR-53512)
+
+  [ Derek Fawcus ]
+  * NPF: Remove some stale code, to allow flexibility
+  * pipeline: use 'out node' for IPv4 mcast ethernet
+  * pipeline: use 'out node' for IPv6 mcast ethernet
+  * multicast: Clean up punt handling for unsup tuns
+  * multicast: Use 'out node' for IPv4/IPv6 VTI output
+  * multicast: Use 'out node' for IPv4/IPv6 P2P GRE tx
+  * multicast: Move TTL decrement during forward
+  * multicast: Move OIL replication counts
+  * multicast: Rename an interface variable
+  * multicast: Do not replicate to a DOWN interface
+  * multicast: Move pipeline walk logic
+
+  [ Ian Wilson ]
+  * ut: Test egress ACLs with IPv4 and IPv6 multicast forwarding
+
+  [ Paul Atkins ]
+  * 3.11.61
+
+  [ Nicholas Brown ]
+  * platform.conf can be static
+
+  [ Paul Atkins ]
+  * 3.11.62
+
+  [ Ian Wilson ]
+  * ut: Export functions to build and tear-down a GRE tunnel
+  * ut: Test sw egress ACLs with GRE tunnels
+
+  [ Robert Shearman ]
+  * ecmp: remove unused "max-paths" option (Fixes: VRVDR-52393)
+
+  [ Paul Atkins ]
+  * 3.11.63
+
+  [ Ian Wilson ]
+  * ut: Add function to wait for multicast route
+
+  [ Paul Atkins ]
+  * 3.11.64
+
+  [ Mike Manning ]
+  * Dynamic entries in ND cache should not be deleted unless stale
+
+  [ Nicholas Brown ]
+  * Meson build support (Closes: VRVDR-52941)
+  * Change hard-coded UT paths
+  * Add clang-tidy Static Analysis support to Jenkinsfile
+  * Remove autotools build support
+  * Define individual meson tests for each CK test suite
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Mon, 09 Nov 2020 13:31:07 +0000
+
 vyatta-dataplane (3.12.3) unstable; urgency=medium
 
   [ Nicholas Brown ]
