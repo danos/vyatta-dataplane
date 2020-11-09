@@ -250,6 +250,7 @@ struct lcore_conf {
 	struct rate_stats rx_poll_stats[MAX_RX_QUEUE_PER_CORE];
 	struct rate_stats tx_poll_stats[MAX_TX_QUEUE_PER_CORE];
 	struct rate_stats crypt_stats;
+	struct rate_stats crypt_fwd_stats;
 	bool ded_to_feature;
 
 	/* State for when a feature has registered to use this core */
@@ -3731,6 +3732,9 @@ void load_estimator(void)
 			}
 
 		}
+
+		packets = crypto_fwd[id].fwd_cnt;
+		scale_rate_stats(&conf->crypt_fwd_stats, &packets, NULL);
 	}
 }
 
@@ -3852,6 +3856,14 @@ void show_per_core(FILE *f)
 			jsonw_end_object(wr);
 		}
 
+		if (conf->crypt_fwd_stats.packet_rate) {
+			jsonw_start_object(wr);
+			jsonw_string_field(wr, "interface", "[crypt-fwd]");
+			jsonw_uint_field(wr, "rate",
+					 conf->crypt_fwd_stats.packet_rate);
+			jsonw_uint_field(wr, "idle", 0);
+			jsonw_end_object(wr);
+		}
 		jsonw_end_array(wr);
 		jsonw_end_object(wr);
 	}
