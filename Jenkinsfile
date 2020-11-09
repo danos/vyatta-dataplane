@@ -84,7 +84,56 @@ EOF
 	    }
 	}
 
-	stage('Code Static Analysis') {
+	stage('Code Stats') {
+	    when {expression { env.CHANGE_ID == null }} // Not when this is a Pull Request
+	    steps {
+		sh 'sloccount --duplicates --wide --details vyatta-dataplane > sloccount.sc'
+		sloccountPublish pattern: '**/sloccount.sc'
+	    }
+	}
+
+	stage('checkpatch') {
+	    when {
+		allOf {
+		    // Only if this is a Pull Request
+		    expression { env.CHANGE_ID != null }
+		    expression { env.CHANGE_TARGET != null }
+		}
+	    }
+	    steps {
+		catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
+		    dir('vyatta-dataplane') {
+		    //TODO: Path to checkpatch.pl should not be hardcoded!
+			sh "PATH=~/linux-vyatta/scripts:$PATH ./scripts/checkpatch_wrapper.sh upstream/${env.CHANGE_TARGET} origin/${env.BRANCH_NAME}"
+		    }
+		}
+	    }
+	}
+
+	stage('gitlint') {
+	    when {
+		allOf {
+		    // Only if this is a Pull Request
+		    expression { env.CHANGE_ID != null }
+		    expression { env.CHANGE_TARGET != null }
+		}
+	    }
+	    agent {
+		docker { image 'jorisroovers/gitlint'
+			args '--entrypoint=""'
+			reuseNode true
+		}
+	    }
+	    steps {
+		catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
+		    dir('vyatta-dataplane') {
+		        sh "gitlint --commits upstream/${env.CHANGE_TARGET}..origin/${env.BRANCH_NAME}"
+		    }
+		}
+	    }
+	}
+
+        stage('Code Static Analysis') {
             steps {
                 writeFile file: 'osc-buildpackage_buildscript_default',
                         text: """\
@@ -115,52 +164,7 @@ EOF
                                 qualityGates: [[type: 'NEW', threshold: 1, unstable: true]]
                 }
             }
-	}
-
-	stage('Code Stats') {
-	    when {expression { env.CHANGE_ID == null }} // Not when this is a Pull Request
-	    steps {
-		sh 'sloccount --duplicates --wide --details vyatta-dataplane > sloccount.sc'
-		sloccountPublish pattern: '**/sloccount.sc'
-	    }
-	}
-
-	stage('checkpatch') {
-	    when {
-		allOf {
-		    // Only if this is a Pull Request
-		    expression { env.CHANGE_ID != null }
-		    expression { env.CHANGE_TARGET != null }
-		}
-	    }
-	    steps {
-		dir('vyatta-dataplane') {
-		//TODO: Path to checkpatch.pl should not be hardcoded!
-		    sh "PATH=~/linux-vyatta/scripts:$PATH ./scripts/checkpatch_wrapper.sh upstream/${env.CHANGE_TARGET} origin/${env.BRANCH_NAME}"
-		}
-	    }
-	}
-
-	stage('gitlint') {
-	    when {
-		allOf {
-		    // Only if this is a Pull Request
-		    expression { env.CHANGE_ID != null }
-		    expression { env.CHANGE_TARGET != null }
-		}
-	    }
-	    agent {
-		docker { image 'jorisroovers/gitlint'
-			args '--entrypoint=""'
-			reuseNode true
-		}
-	    }
-	    steps {
-		dir('vyatta-dataplane') {
-		    sh "gitlint --commits upstream/${env.CHANGE_TARGET}..origin/${env.BRANCH_NAME}"
-		}
-	    }
-	}
+        }
 
     } // stages
 
