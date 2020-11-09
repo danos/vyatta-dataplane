@@ -811,8 +811,8 @@ static void _teardown_sas(struct dp_test_crypto_sa *input,
 			  const char *file, const char *func,
 			  int line)
 {
-	_dp_test_crypto_delete_sa(file, line, input);
-	_dp_test_crypto_delete_sa(file, line, output);
+	_dp_test_crypto_delete_sa(file, line, input, true);
+	_dp_test_crypto_delete_sa(file, line, output, true);
 }
 
 #define teardown_sas(input, output)	\

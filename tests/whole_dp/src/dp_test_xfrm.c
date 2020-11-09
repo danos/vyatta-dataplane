@@ -19,7 +19,8 @@
 #define NETWORK_LOCAL "10.10.1.0/24"
 #define PEER_ADDRESS "10.10.2.3"
 #define NETWORK_REMOTE "10.10.3.0/24"
-#define TUNNEL_REQID 1234
+#define TUNNEL_REQID_OUT 1234
+#define TUNNEL_REQID_IN 0x100000
 #define TUNNEL_PRIORITY 2048
 #define SPI_OUTBOUND 0x10
 #define SPI_INBOUND 0x11
@@ -40,7 +41,7 @@ DP_START_TEST(xfrm_policy, create_two_policies)
 		.dst_family = AF_INET,
 		.dir = XFRM_POLICY_OUT,
 		.family = AF_INET,
-		.reqid = TUNNEL_REQID,
+		.reqid = TUNNEL_REQID_OUT,
 		.priority = TUNNEL_PRIORITY,
 		.mark = 0,
 		.vrfid = VRF_DEFAULT_ID
@@ -54,7 +55,7 @@ DP_START_TEST(xfrm_policy, create_two_policies)
 		.dst_family = AF_INET,
 		.dir = XFRM_POLICY_IN,
 		.family = AF_INET,
-		.reqid = TUNNEL_REQID,
+		.reqid = TUNNEL_REQID_IN,
 		.priority = TUNNEL_PRIORITY,
 		.mark = 0,
 		.vrfid = VRF_DEFAULT_ID
@@ -86,7 +87,7 @@ DP_START_TEST(xfrm_policy, create_two_policies_vrf)
 		.dst_family = AF_INET,
 		.dir = XFRM_POLICY_OUT,
 		.family = AF_INET,
-		.reqid = TUNNEL_REQID,
+		.reqid = TUNNEL_REQID_OUT,
 		.priority = TUNNEL_PRIORITY,
 		.mark = 0,
 		.vrfid = TEST_VRF
@@ -100,7 +101,7 @@ DP_START_TEST(xfrm_policy, create_two_policies_vrf)
 		.dst_family = AF_INET,
 		.dir = XFRM_POLICY_IN,
 		.family = AF_INET,
-		.reqid = TUNNEL_REQID,
+		.reqid = TUNNEL_REQID_IN,
 		.priority = TUNNEL_PRIORITY,
 		.mark = 0,
 		.vrfid = TEST_VRF
@@ -157,7 +158,7 @@ DP_START_TEST(xfrm_sa, create_two_sas_crypto_only)
 		.s_addr = LOCAL_ADDRESS,
 		.family = AF_INET,
 		.mode = XFRM_MODE_TUNNEL,
-		.reqid = TUNNEL_REQID,
+		.reqid = TUNNEL_REQID_OUT,
 		.mark = 0,
 		.vrfid = VRF_DEFAULT_ID
 	};
@@ -174,7 +175,7 @@ DP_START_TEST(xfrm_sa, create_two_sas_crypto_only)
 		.s_addr = PEER_ADDRESS,
 		.family = AF_INET,
 		.mode = XFRM_MODE_TUNNEL,
-		.reqid = TUNNEL_REQID,
+		.reqid = TUNNEL_REQID_IN,
 		.mark = 0,
 		.vrfid = VRF_DEFAULT_ID
 	};
@@ -209,6 +210,25 @@ DP_START_TEST(xfrm_sa, xfrm_sa_scale)
 		0x8b, 0x9b, 0xab, 0xbb, 0xcb, 0xeb, 0xfb, 0x1c,
 		0x2c, 0x3c, 0x4c, 0x5c};
 
+
+	struct dp_test_crypto_sa input_sa = {
+		.cipher_algo = CRYPTO_CIPHER_AES_CBC,
+		.cipher_key = crypto_key_128,
+		.cipher_key_len = (sizeof(crypto_key_128) * 8),
+		.auth_algo = CRYPTO_AUTH_HMAC_SHA1,
+		.auth_key = auth_key,
+		.auth_key_len = (sizeof(auth_key) * 8),
+		.spi = SPI_INBOUND,
+		.d_addr = LOCAL_ADDRESS,
+		.s_addr = PEER_ADDRESS,
+		.family = AF_INET,
+		.mode = XFRM_MODE_TUNNEL,
+		.reqid = TUNNEL_REQID_IN,
+		.mark = 0,
+		.vrfid = VRF_DEFAULT_ID
+	};
+
+
 	struct dp_test_crypto_sa output_sa = {
 		.cipher_algo = CRYPTO_CIPHER_AES_CBC,
 		.cipher_key = crypto_key_128,
@@ -221,53 +241,84 @@ DP_START_TEST(xfrm_sa, xfrm_sa_scale)
 		.s_addr = LOCAL_ADDRESS,
 		.family = AF_INET,
 		.mode = XFRM_MODE_TUNNEL,
-		.reqid = TUNNEL_REQID,
+		.reqid = TUNNEL_REQID_OUT,
 		.mark = 0,
 		.vrfid = VRF_DEFAULT_ID
 	};
 
-#define PEER_BASE_ADDR 0x0a0a0203
+#define PEER_BASE_OUT_ADDR 0x0a0a0203
+#define PEER_BASE_IN_ADDR 0x0b0b0203
 
 	dp_test_crypto_check_sa_count(VRF_DEFAULT_ID, 0);
 
-#define SA_INSTALL 10
-	int ip_peer_addr = PEER_BASE_ADDR;
-	int i;
+#define SA_INSTALL 32
+	int ip_peer_addr_out = PEER_BASE_OUT_ADDR;
+	int ip_peer_addr_in = PEER_BASE_IN_ADDR;
+
+	int spi_out = SPI_OUTBOUND;
+	int spi_in = SPI_INBOUND;
+	int req_id = TUNNEL_REQID_IN;
+
 	char ip_peer_addr_str[INET_ADDRSTRLEN];
+	int i, tmp_ip;
 
 	for (i = 0; i < SA_INSTALL; i++) {
-		int tmp_ip = htonl(ip_peer_addr);
+		tmp_ip = htonl(ip_peer_addr_in++);
+		if (!inet_ntop(AF_INET, &tmp_ip,
+			       ip_peer_addr_str, INET_ADDRSTRLEN))
+			assert(0);
+		input_sa.s_addr = ip_peer_addr_str;
+		input_sa.spi = spi_in++;
+		input_sa.reqid = req_id;
+		dp_test_crypto_create_sa_verify(&input_sa, false);
+
+		tmp_ip = htonl(ip_peer_addr_out++);
 		if (!inet_ntop(AF_INET, &tmp_ip,
 			       ip_peer_addr_str, INET_ADDRSTRLEN))
 			assert(0);
 		output_sa.d_addr = ip_peer_addr_str;
-		output_sa.spi = random();
+		output_sa.spi = spi_out++;
+		output_sa.reqid = req_id++;
 		dp_test_crypto_create_sa_verify(&output_sa, false);
-		ip_peer_addr++;
+
 	}
 
 	sleep(1);
-
+	printf("DONE");
 	dp_test_check_state_show("ipsec sad",
 				 "\"cipher\": \"aes-cbc\",\n"
 				 "            \"cipher_key_len\": 128,\n"
 				 "            \"digest\": \"sha1-hmac\"",
 				 false);
 
-	dp_test_crypto_check_sa_count(VRF_DEFAULT_ID, SA_INSTALL);
-	ip_peer_addr = PEER_BASE_ADDR;
+	dp_test_crypto_check_sa_count(VRF_DEFAULT_ID, SA_INSTALL * 2);
+
+	ip_peer_addr_out = PEER_BASE_OUT_ADDR;
+	ip_peer_addr_in = PEER_BASE_IN_ADDR;
+
+	spi_out = SPI_OUTBOUND;
+	spi_in = SPI_INBOUND;
+	req_id = TUNNEL_REQID_IN;
 
 	for (i = 0; i < SA_INSTALL; i++) {
-		int tmp_ip = htonl(ip_peer_addr);
+		tmp_ip = htonl(ip_peer_addr_in++);
+		if (!inet_ntop(AF_INET, &tmp_ip,
+			       ip_peer_addr_str, INET_ADDRSTRLEN))
+			assert(0);
+		input_sa.s_addr = ip_peer_addr_str;
+		input_sa.spi = spi_in++;
+		input_sa.reqid = req_id;
+		dp_test_crypto_delete_sa_verify(&input_sa, false);
+
+		tmp_ip = htonl(ip_peer_addr_out++);
 		if (!inet_ntop(AF_INET, &tmp_ip,
 			       ip_peer_addr_str, INET_ADDRSTRLEN))
 			assert(0);
 		output_sa.d_addr = ip_peer_addr_str;
+		output_sa.spi = spi_out++;
+		output_sa.reqid = req_id++;
 		dp_test_crypto_delete_sa_verify(&output_sa, false);
-		ip_peer_addr++;
 	}
-
-	dp_test_crypto_flush();
 
 	sleep(1);
 
@@ -288,7 +339,7 @@ DP_START_TEST(xfrm_sa, sa_expire)
 		.s_addr = LOCAL_ADDRESS,
 		.family = AF_INET,
 		.mode = XFRM_MODE_TUNNEL,
-		.reqid = TUNNEL_REQID,
+		.reqid = TUNNEL_REQID_OUT,
 		.mark = 0,
 		.vrfid = VRF_DEFAULT_ID
 	};
@@ -300,7 +351,7 @@ DP_START_TEST(xfrm_sa, sa_expire)
 		.s_addr = PEER_ADDRESS,
 		.family = AF_INET,
 		.mode = XFRM_MODE_TUNNEL,
-		.reqid = TUNNEL_REQID,
+		.reqid = TUNNEL_REQID_IN,
 		.mark = 0,
 		.vrfid = VRF_DEFAULT_ID
 	};

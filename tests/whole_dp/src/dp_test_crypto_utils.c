@@ -742,13 +742,14 @@ void _dp_test_crypto_create_sa(const char *file, const char *func, int line,
 }
 
 void _dp_test_crypto_delete_sa(const char *file, int line,
-			       const struct dp_test_crypto_sa *sa)
+			       const struct dp_test_crypto_sa *sa,
+			       bool verify)
 {
 	dp_test_netlink_xfrm_delsa(sa->spi, sa->d_addr, sa->s_addr,
 				   sa->family, sa->mode, sa->reqid,
 				   sa->vrfid);
-
-	_wait_for_sa(sa, false, file, line);
+	if (verify)
+		_wait_for_sa(sa, false, file, line);
 }
 
 void _dp_test_crypto_expire_sa(const char *file, int line,
