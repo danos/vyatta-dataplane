@@ -2398,23 +2398,6 @@ int crypto_policy_init(void)
 	return 0;
 }
 
-bool crypto_policy_outbound_match(struct ifnet *in_ifp, struct rte_mbuf **mbuf,
-				  uint16_t ether)
-{
-	struct npf_config *npf_conf = vrf_get_npf_conf_rcu(in_ifp->if_vrfid);
-
-	if (!npf_active(npf_conf, NPF_IPSEC))
-		return false;
-
-	const npf_ruleset_t *ruleset
-		= npf_get_ruleset(npf_conf, NPF_RS_IPSEC);
-	npf_result_t result
-		= npf_hook_notrack(ruleset, mbuf, in_ifp, PFIL_OUT, 0, ether,
-				   NULL);
-
-	return (result.decision != NPF_DECISION_UNMATCHED);
-}
-
 bool crypto_policy_outbound_active(struct ifnet *in_ifp, struct rte_mbuf **mbuf,
 				   uint32_t *af, void **addr, uint16_t eth_type)
 {
