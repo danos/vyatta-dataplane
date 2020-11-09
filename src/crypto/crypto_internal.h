@@ -492,7 +492,7 @@ void crypto_sadb_peer_overhead_subscribe(const xfrm_address_t *peer_address,
 					 vrfid_t vrfid);
 
 void crypto_sadb_peer_overhead_unsubscribe(const xfrm_address_t *peer_address,
-					   uint16_t family,
+					   uint16_t family, uint32_t reqid,
 					   struct crypto_overhead *overhead,
 					   vrfid_t vrfid);
 

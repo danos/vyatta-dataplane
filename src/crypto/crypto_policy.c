@@ -865,6 +865,7 @@ static void policy_rule_destroy(struct policy_rule *pr)
 			crypto_sadb_peer_overhead_unsubscribe(
 				&pr->output_peer,
 				pr->output_peer_af,
+				pr->reqid,
 				&pr->overhead,
 				pr->vrfid);
 	}
@@ -1500,6 +1501,7 @@ policy_rule_update(struct policy_rule *pr,
 				crypto_sadb_peer_overhead_unsubscribe(
 					&pr->output_peer,
 					pr->output_peer_af,
+					pr->reqid,
 					&pr->overhead,
 					pr->vrfid);
 

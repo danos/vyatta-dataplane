@@ -416,6 +416,7 @@ static void vti_tunnel_delete(struct ifnet *ifp)
 	if (ctxt->overhead_subscribed) {
 		crypto_sadb_peer_overhead_unsubscribe(&ctxt->key.dst,
 						      ctxt->key.family,
+						      ctxt->reqid,
 						      &ctxt->ipsec_overhead,
 						      t_vrfid);
 		ctxt->overhead_subscribed = false;
