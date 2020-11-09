@@ -70,7 +70,7 @@ foreach protobuf_definition : protobuf_sources
                 input: protobuf_definition,
                 output: '@BASENAME@.pb.go',
                 install: true,
-                install_dir: 'share/gocode/src/github.com/danos/vyatta-dataplane'
+                install_dir: 'share/gocode/src/github.com/danos/vyatta-dataplane/protobuf/go/@0@'.format(protobuf_definition.split('.')[0])
         )
 
         protobuf_generated_perl += custom_target('pl_' + protobuf_definition,
