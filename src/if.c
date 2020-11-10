@@ -3796,7 +3796,6 @@ int cmd_ifconfig(FILE *f, int argc, char **argv)
 ALWAYS_INLINE __rte_cache_aligned
 void if_output_internal(struct pl_packet *pkt)
 {
-	uint16_t rx_vlan = pktmbuf_get_rxvlanid(pkt->mbuf);
 	struct ifnet *ifp = pkt->out_ifp;
 	uint16_t proto = pkt->l2_proto;
 
@@ -3828,7 +3827,7 @@ void if_output_internal(struct pl_packet *pkt)
 	else if (ifp->if_type == IFT_VXLAN)
 		vxlan_output(ifp, pkt->mbuf, proto);
 	else if (ifp->if_type == IFT_L2TPETH)
-		l2tp_output(ifp, pkt->mbuf, rx_vlan);
+		l2tp_output(ifp, pkt->mbuf);
 	else if (ifp->if_type == IFT_TUNNEL_GRE)
 		gre_tunnel_send(pkt->in_ifp, ifp, pkt->mbuf, proto);
 	else if (ifp->if_type == IFT_TUNNEL_VTI)

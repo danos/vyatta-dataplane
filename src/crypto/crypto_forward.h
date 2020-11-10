@@ -14,17 +14,6 @@
 #include "nh_common.h"
 
 /*
- * crypto_policy_outbound_match()
- *
- * Determine if a packet matches the IPsec output policies/
- *
- * Return value: true or false
- *
- */
-bool crypto_policy_outbound_match(struct ifnet *in_ifp, struct rte_mbuf **mbuf,
-				  uint16_t ether);
-
-/*
  * crypto_policy_check_outbound()
  *
  * Check to see whether a packet matches an IPsec policy and,
