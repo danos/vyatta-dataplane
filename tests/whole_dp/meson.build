@@ -145,7 +145,7 @@ endforeach
 
 if get_option('all_tests')
   dataplane_test_full_run = ['-DDP_TEST_FULL_RUN']
-  test_timeout = 180
+  test_timeout = 300
 else
   dataplane_test_full_run = []
   test_timeout = 60
