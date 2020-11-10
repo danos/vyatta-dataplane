@@ -1938,6 +1938,8 @@ storm_ctl_if_fal_apply(struct ifnet *ifp)
 						 instance->sci_vlan)))
 			continue;
 		for (int i = FAL_TRAFFIC_UCAST; i < FAL_TRAFFIC_MAX; i++) {
+			if (instance->sci_fal_obj[i])
+				continue;
 			fal_policer_apply_profile(instance->sci_profile,
 						  instance->sci_vlan,
 						  instance, i);
