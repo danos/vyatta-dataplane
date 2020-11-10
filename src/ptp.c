@@ -132,16 +132,11 @@ ptp_peer_compare(struct ptp_peer_t *peer,
  * if necessary.
  */
 static
-struct ptp_peer_t *ptp_find_peer(uint32_t clock_id, uint16_t port_id,
+struct ptp_peer_t *ptp_find_peer(struct ptp_port_t *port,
 				 enum fal_ptp_peer_type_t type,
 				 struct fal_ip_address_t *ipaddr)
 {
-	struct ptp_port_t *port;
 	struct ptp_peer_t *peer, *sibling;
-
-	port = ptp_find_port(clock_id, port_id);
-	if (!port)
-		return NULL;
 
 	cds_list_for_each_entry_rcu(peer, &ptp_peer_list, list) {
 		if (ptp_peer_compare(peer, port, type, ipaddr))
@@ -495,7 +490,10 @@ int ptp_port_create(FILE *f, uint16_t port_id, int argc, char **argv)
 			ifname = strchr(*argv, '=') + 1;
 			ifp = dp_ifnet_byifname(ifname);
 			if (!ifp) {
-				// TBD -- create a replay cache
+				RTE_LOG(ERR, DATAPLANE,
+					"%s: %s is missing, bad replay?\n",
+					__func__, ifname);
+				rc = 0;
 				goto error;
 			}
 			rcu_assign_pointer(port->ifp, ifp);
@@ -727,8 +725,8 @@ int ptp_port_delete(FILE *f, uint16_t port_id, int argc, char **argv)
 
 	port = ptp_find_port(clock_id, port_id);
 	if (!port) {
-		fprintf(f, "ptp: clock %d has no port %d\n",
-			clock_id, port_id);
+		/* interface never arrived, not an error. */
+		rc = 0;
 		goto error;
 	}
 
@@ -1179,19 +1177,21 @@ next_option:
 		goto error;
 	}
 
-	if (ptp_find_peer(clock_id, port_id, peer->type, &peer->ipaddr)) {
+	port = ptp_find_port(clock_id, port_id);
+	if (!port) {
+		RTE_LOG(ERR, DATAPLANE,
+			"%s: port-id %d is missing, bad replay?\n",
+			__func__, port_id);
+		rc = 0;
+		goto error;
+	}
+
+	if (ptp_find_peer(port, peer->type, &peer->ipaddr)) {
 		fprintf(f, "ptp: peer already exists\n");
 		rc = -EEXIST;
 		goto error;
 	}
 
-	port = ptp_find_port(clock_id, port_id);
-	if (!port) {
-		fprintf(f, "ptp: clock %d port %d doesn't exist\n",
-			clock_id, port_id);
-		rc = -ENODEV;
-		goto error;
-	}
 	rcu_assign_pointer(peer->port, port);
 
 	/* If we already have a MAC or this is an allowed peer entry,
@@ -1241,6 +1241,7 @@ int ptp_peer_delete(FILE *f, int argc, char **argv)
 	uint16_t port_id = 0;
 	bool have_clock = false;
 	bool have_port = false;
+	struct ptp_port_t *port;
 	struct ptp_peer_t *peer;
 	enum fal_ptp_peer_type_t peer_type = 0;
 	bool have_peer_type = false;
@@ -1310,7 +1311,14 @@ int ptp_peer_delete(FILE *f, int argc, char **argv)
 		goto error;
 	}
 
-	peer = ptp_find_peer(clock_id, port_id, peer_type, &ipaddr);
+	port = ptp_find_port(clock_id, port_id);
+	if (!port) {
+		/* interface never arrived, not an error. */
+		rc = 0;
+		goto error;
+	}
+
+	peer = ptp_find_peer(port, peer_type, &ipaddr);
 	if (!peer) {
 		fprintf(f, "ptp: can't find object for peer\n");
 		rc = -ENODEV;

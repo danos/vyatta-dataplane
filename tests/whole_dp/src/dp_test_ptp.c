@@ -399,6 +399,62 @@ static const struct dp_test_command_t ptp_cmds[] = {
 		true,
 		false,
 	},
+	/* test create/delete of hotplug ports */
+	{
+		"ptp-ut clock create 0 "
+			"domain-number=0 "
+			"number-ports=1 "
+			"clock-identity=0:1:2:3:4:5:6:7 "
+			"priority1=128 "
+			"priority2=128 "
+			"slave-only=0 "
+			"two-step=0 "
+			"profile=default-profile",
+		"",
+		true,
+		false,
+	},
+	{
+		"ptp-ut port create 1 "
+			"clock-id=0 "
+			"underlying-interface=dp0ce0p1 "
+			"vlan-id=10 "
+			"log-min-delay-req-interval=1 "
+			"log-announce-interval=2 "
+			"announce-receipt-timeout=3 "
+			"log-min-pdelay-req-interval=1 "
+			"log-sync-interval=1 "
+			"ip=192.168.10.1 "
+			"mac=0:0:0:0:a:1 "
+			"dscp=0 ",
+		"",
+		true,
+		false,
+	},
+	{
+		"ptp-ut peer create clock-id=0 port-id=1 type=master ip=192.168.10.2 ",
+		"",
+		true,
+		false,
+	},
+	{
+		"ptp-ut peer delete clock-id=0 port-id=1 type=master ip=192.168.10.2",
+		"",
+		true,
+		false,
+	},
+	{
+		"ptp-ut port delete 1 clock-id=0",
+		"",
+		true,
+		false,
+	},
+	{
+		"ptp-ut clock delete 0",
+		"",
+		true,
+		false,
+	},
 };
 
 
