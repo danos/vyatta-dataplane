@@ -1,3 +1,17 @@
+vyatta-dataplane (3.11.65) unstable; urgency=medium
+
+  [ Thomas Kiely ]
+  * Originated traffic via l2tpv3/ipsec is dropped
+  * Remove function which is no longer used
+
+  [ Charles (Chas) Williams ]
+  * ptp: allow ports to not exist (yet) (Bugfix: VRVDR-53511)
+  * ptp: refactor ptp_find_peer (Bugfix: VRVDR-53511)
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Tue, 10 Nov 2020 09:03:48 +0000
+
 vyatta-dataplane (3.11.64) unstable; urgency=medium
 
   [ Ian Wilson ]
