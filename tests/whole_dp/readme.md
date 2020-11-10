@@ -18,13 +18,14 @@ build and run the tests.
 Setting `DEB_BUILD_OPTIONS="verbose"` `DH_VERBOSE=1` will generate detailed
 test output.
 
-For rebuilds, you can simply do `make -j4 check` or
-`make -j4 dataplane_test_run dataplane_test_run` from the build directory
-(most likely `obj-x86_64-linux-gnu`). This will also re-run configure and
-automake as required if you update any of the makefiles.
+The tests are integrated into the [Meson Unit Test execution framework][1].
+Use `meson test --help` for more information.
+
+For rebuilds, you can simply do `meson test` from the build directory
+(most likely `build`).
 
 Detailed test output can also be generated with the following:
-`make -j4 check V=1 VERBOSE=1`
+`meson test -v`
 
 ### Chroot Environment
 Whilst the tests build and run via OBS and osc-buildpackage, for ease
@@ -44,20 +45,26 @@ unit tests, but it avoids warnings if gdb is used on a running process.
 
 
 ## Running VR Tests
-These are run automatically as part of `make check` and the package build.
-However, they can be run manually using `make -j4 dataplane_test_run`.
+These are run automatically as part of `meson test` and the package build.
 
 ## Running Individual Tests
-Run a single suite using the `CK_RUN_SUITE` environment variable:
+You can get a list of CK test suites with:
+`meson test --list`
 
-`make -j4 dataplane_test_run CK_RUN_SUITE=dp_test_bridge.c`
+Indiviual CK test suites can be run with:
+`meson test dp_test_bridge.c`
 
 Run a single test using the `CK_RUN_CASE` environment variable:
 
-`make -j4 dataplane_test_run CK_RUN_CASE=bridge_unicast`
+`CK_RUN_CASE=bridge_unicast meson test dp_test_bridge.c`
 
-## Directly executing the test binary
-The test binary can be directly executed, which is particularly useful with GDB:
+
+## Running test in GDB
+The test binary can be executed in gdb:
+
+`CK_RUN_CASE=bridge_unicast meson test --gdb -v dp_test_bridge.c`
+
+or directly:
 
 `CK_RUN_CASE=bridge_unicast gdb --args ./dataplane_test -f -d2`
 
@@ -513,3 +520,4 @@ These are some of the things on the todo list:
   * Potential improvements to the way packets are displayed on failures.
 
 
+[1]: https://mesonbuild.com/Unit-tests.html "Meson Unit Test Execution Framework"

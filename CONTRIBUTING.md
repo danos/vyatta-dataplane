@@ -55,16 +55,17 @@ during code review.
 
 ## Static Analysis
 
-[Cppcheck][3] can be used to check the code for Static Analysis warnings.
+[clang-tidy][3] should be used to check the code for Static Analysis warnings.
 
-`cppcheck` should be in `$PATH` and `scripts/cppcheck_wrapper.sh` used
-to check the files modified by a set of changes with something like:
-
-`./scripts/cppcheck_wrapper.sh origin/master bugfix/foo`
+``` shell
+apt install clang-tidy-7
+meson build && cd build && ninja
+run-clang-tidy-7
+```
 
 You **must not** introduce any new warnings.
 
 [1]: https://www.kernel.org/doc/Documentation/CodingStyle "Linux Kernel Coding Style"
 [2]: https://github.com/torvalds/linux/blob/master/scripts/checkpatch.pl "checkpatch script"
-[3]: http://cppcheck.sourceforge.net/ "Cppcheck Static Analyser"
+[3]: https://clang.llvm.org/extra/clang-tidy/ "Clang-Tidy Code Checker"
 [5]: http://libcheck.github.io/check/ "Check Unit Test Framework"
