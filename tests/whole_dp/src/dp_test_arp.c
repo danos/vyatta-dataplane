@@ -93,7 +93,7 @@ dp_test_zero_arp_stats(const char *ifname)
 		vrf = dp_vrf_get_rcu_from_external(ifp->if_vrfid);	\
 									\
 		if (vrf) {						\
-			dp_test_fail_unless(vrf->v_arpstat.stat == value, \
+			dp_test_fail_unless(vrf->v_arpstat.stat == (value), \
 					    "\nIncorrect ARP stats counter " \
 					    #stat			\
 					    " %"PRIu64" - should be %d\n", \
