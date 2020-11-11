@@ -728,8 +728,8 @@ int fal_plugin_ip_del_route(unsigned int vrfid,
 }
 
 #define STP_INST_CHECK(_inst)						\
-	dp_test_fail_unless((_inst >= 0) && (_inst < STP_INST_COUNT),	\
-			    "invalid STP instance value: %u", _inst)
+	dp_test_fail_unless(((_inst) >= 0) && ((_inst) < STP_INST_COUNT), \
+			    "invalid STP instance value: %u", (_inst))
 
 __FOR_EXPORT
 int fal_plugin_stp_create(unsigned int bridge_ifindex,
