@@ -275,4 +275,6 @@ void pl_cmd_err(struct pl_command *cmd, const char *fmt, ...);
 
 int pl_get_max_node_count(void);
 
+bool pl_print_feats(struct pl_feature_registration *feat_reg, void *context);
+
 #endif /* PL_COMMON_H */

@@ -3531,16 +3531,6 @@ static void show_if_l2_filter(json_writer_t *wr, struct ifnet *ifp)
 	jsonw_end_object(wr);
 }
 
-static bool print_pl_feats(struct pl_feature_registration *feat_reg,
-			   void *context)
-{
-	json_writer_t *wr = context;
-
-	jsonw_string(wr, feat_reg->name);
-
-	return true;
-}
-
 static void show_af_ifconfig(json_writer_t *wr, struct ifnet *ifp)
 {
 	jsonw_name(wr, "ipv4");
@@ -3568,11 +3558,11 @@ static void show_af_ifconfig(json_writer_t *wr, struct ifnet *ifp)
 	}
 	jsonw_name(wr, "validate_features");
 	jsonw_start_array(wr);
-	pl_node_iter_features(ipv4_validate_node_ptr, ifp, print_pl_feats, wr);
+	pl_node_iter_features(ipv4_validate_node_ptr, ifp, pl_print_feats, wr);
 	jsonw_end_array(wr);
 	jsonw_name(wr, "out_features");
 	jsonw_start_array(wr);
-	pl_node_iter_features(ipv4_out_node_ptr, ifp, print_pl_feats, wr);
+	pl_node_iter_features(ipv4_out_node_ptr, ifp, pl_print_feats, wr);
 	jsonw_end_array(wr);
 	jsonw_end_object(wr);
 
@@ -3586,11 +3576,11 @@ static void show_af_ifconfig(json_writer_t *wr, struct ifnet *ifp)
 	jsonw_uint_field(wr, "redirects", ip6_redirects_get());
 	jsonw_name(wr, "validate_features");
 	jsonw_start_array(wr);
-	pl_node_iter_features(ipv6_validate_node_ptr, ifp, print_pl_feats, wr);
+	pl_node_iter_features(ipv6_validate_node_ptr, ifp, pl_print_feats, wr);
 	jsonw_end_array(wr);
 	jsonw_name(wr, "out_features");
 	jsonw_start_array(wr);
-	pl_node_iter_features(ipv6_out_node_ptr, ifp, print_pl_feats, wr);
+	pl_node_iter_features(ipv6_out_node_ptr, ifp, pl_print_feats, wr);
 	jsonw_end_array(wr);
 	jsonw_end_object(wr);
 }
@@ -3716,7 +3706,7 @@ static void ifconfig(struct ifnet *ifp, void *arg)
 
 	jsonw_name(wr, "ether_lookup_features");
 	jsonw_start_array(wr);
-	pl_node_iter_features(ether_lookup_node_ptr, ifp, print_pl_feats, wr);
+	pl_node_iter_features(ether_lookup_node_ptr, ifp, pl_print_feats, wr);
 	jsonw_end_array(wr);
 
 	jsonw_string_field(wr, "type", iftype_name(ifp->if_type));
