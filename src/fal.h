@@ -825,10 +825,10 @@ fal_next_hop_group_packet_action(uint32_t nhops, const struct next_hop hops[]);
 
 int fal_ip4_new_route(vrfid_t vrf_id, in_addr_t addr, uint8_t prefixlen,
 		      uint32_t tableid, struct next_hop hops[],
-		      size_t size, fal_object_t nhg_object);
+		      size_t nhops, fal_object_t nhg_object);
 int fal_ip4_upd_route(vrfid_t vrf_id, in_addr_t addr, uint8_t prefixlen,
 		      uint32_t tableid, struct next_hop hops[],
-		      size_t size, fal_object_t nhg_object);
+		      size_t nhops, fal_object_t nhg_object);
 int fal_ip4_del_route(vrfid_t vrf_id, in_addr_t addr, uint8_t prefixlen,
 		      uint32_t tableid);
 int fal_ip4_get_route_attrs(vrfid_t vrf_id, in_addr_t addr, uint8_t prefixlen,
@@ -888,12 +888,12 @@ int fal_ip_get_next_hop_attrs(fal_object_t nh_object,
 void fal_ip_dump_next_hop(fal_object_t nh_object, json_writer_t *wr);
 int fal_ip6_new_route(vrfid_t vrf_id, const struct in6_addr *addr,
 		      uint8_t prefixlen, uint32_t tableid,
-		      struct next_hop hops[], size_t size,
-		      fal_object_t group_obj);
+		      struct next_hop hops[], size_t nhops,
+		      fal_object_t nhg_object);
 int fal_ip6_upd_route(vrfid_t vrf_id, const struct in6_addr *addr,
 		      uint8_t prefixlen, uint32_t tableid,
-		      struct next_hop hops[], size_t size,
-		      fal_object_t group_obj);
+		      struct next_hop hops[], size_t nhops,
+		      fal_object_t nhg_object);
 int fal_ip6_del_route(vrfid_t vrf_id, const struct in6_addr *addr,
 		      uint8_t prefixlen, uint32_t tableid);
 
@@ -997,11 +997,11 @@ int fal_qos_get_map_attrs(fal_object_t map_id, uint32_t attr_count,
 			 struct fal_attribute_t *attr_list);
 int fal_qos_new_scheduler(fal_object_t switch_id, uint32_t attr_count,
 			  const struct fal_attribute_t *attr_list,
-			  fal_object_t *new_scheduler_id);
-int fal_qos_del_scheduler(fal_object_t scheduler_id);
-int fal_qos_upd_scheduler(fal_object_t scheduler_id,
+			  fal_object_t *new_sched_id);
+int fal_qos_del_scheduler(fal_object_t sched_id);
+int fal_qos_upd_scheduler(fal_object_t sched_id,
 			  const struct fal_attribute_t *attr);
-int fal_qos_get_scheduler_attrs(fal_object_t scheduler_id, uint32_t attr_count,
+int fal_qos_get_scheduler_attrs(fal_object_t sched_id, uint32_t attr_count,
 			       struct fal_attribute_t *attr_list);
 int fal_qos_new_sched_group(fal_object_t switch_id, uint32_t attr_count,
 			    const struct fal_attribute_t *attr_list,
@@ -1019,8 +1019,8 @@ int fal_qos_del_wred(fal_object_t wred_id);
 int fal_qos_upd_wred(fal_object_t wred_id,  const struct fal_attribute_t *attr);
 int fal_qos_get_wred_attrs(fal_object_t wred_id, uint32_t attr_count,
 			  struct fal_attribute_t *attr_list);
-void fal_qos_dump_map(fal_object_t obj, json_writer_t *wr);
-void fal_qos_dump_sched_group(fal_object_t obj, json_writer_t *wr);
+void fal_qos_dump_map(fal_object_t map, json_writer_t *wr);
+void fal_qos_dump_sched_group(fal_object_t sg, json_writer_t *wr);
 void fal_qos_dump_buf_errors(json_writer_t *wr);
 int fal_qos_get_counters(const uint32_t *cntr_ids, uint32_t num_cntrs,
 			uint64_t *cntrs);
@@ -1039,9 +1039,9 @@ uint8_t fal_feat_storageid(void);
 
 int fal_vlan_feature_create(uint32_t attr_count,
 			    const struct fal_attribute_t *attr_list,
-			    fal_object_t *fal_obj_id);
-int fal_vlan_feature_delete(fal_object_t fal_obj_id);
-int fal_vlan_feature_set_attr(fal_object_t fal_obj_id,
+			    fal_object_t *obj);
+int fal_vlan_feature_delete(fal_object_t obj);
+int fal_vlan_feature_set_attr(fal_object_t obj,
 			      const struct fal_attribute_t *attr);
 int fal_vlan_feature_get_attr(fal_object_t obj,
 			      uint32_t attr_count,

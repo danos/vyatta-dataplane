@@ -1874,10 +1874,10 @@ int fal_ip_del_next_hops(fal_object_t nhg_object, size_t nhops,
 /*
  * The nexthop at 'index' has changed so inform the platforms.
  */
-int fal_ip_upd_next_hop_state(const fal_object_t *obj_list,
+int fal_ip_upd_next_hop_state(const fal_object_t *nh_list,
 			      int index, bool usable)
 {
-	const fal_object_t *nh_obj = &obj_list[index];
+	const fal_object_t *nh_obj = &nh_list[index];
 	struct fal_attribute_t nh_attr;
 
 	nh_attr.id = FAL_NEXT_HOP_ATTR_USABILITY;
@@ -3444,31 +3444,32 @@ fal_detach_device(const char *device)
 
 int fal_mirror_session_create(uint32_t attr_count,
 			     const struct fal_attribute_t *attr_list,
-			     fal_object_t *obj)
+			     fal_object_t *mr_obj_id)
 {
 	return call_handler_def_ret(mirror, -EOPNOTSUPP, session_create,
-				    attr_count, attr_list, obj);
+				    attr_count, attr_list, mr_obj_id);
 
 }
 
-int fal_mirror_session_delete(fal_object_t obj)
+int fal_mirror_session_delete(fal_object_t mr_obj_id)
 {
-	return call_handler_def_ret(mirror, -EOPNOTSUPP, session_delete, obj);
+	return call_handler_def_ret(mirror, -EOPNOTSUPP, session_delete,
+				    mr_obj_id);
 }
 
-int fal_mirror_session_set_attr(fal_object_t obj,
+int fal_mirror_session_set_attr(fal_object_t mr_obj_id,
 				const struct fal_attribute_t *attr)
 {
-	return call_handler_def_ret(mirror, -EOPNOTSUPP, session_set_attr, obj,
-				    attr);
+	return call_handler_def_ret(mirror, -EOPNOTSUPP, session_set_attr,
+				    mr_obj_id, attr);
 
 }
 
-int fal_mirror_session_get_attr(fal_object_t obj, uint32_t attr_count,
+int fal_mirror_session_get_attr(fal_object_t mr_obj_id, uint32_t attr_count,
 				 struct fal_attribute_t *attr_list)
 {
-	return call_handler_def_ret(mirror, -EOPNOTSUPP, session_get_attr, obj,
-				attr_count, attr_list);
+	return call_handler_def_ret(mirror, -EOPNOTSUPP, session_get_attr,
+				    mr_obj_id, attr_count, attr_list);
 }
 
 int fal_vlan_feature_create(uint32_t attr_count,
