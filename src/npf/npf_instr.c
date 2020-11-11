@@ -58,7 +58,7 @@
 #include "npf/npf_ncode.h"
 #include "npf/npf_ruleset.h"
 
-#define NPF_PORTRANGE_MATCH(r, p) (p >= (r >> 16) && p <= (r & 0xffff))
+#define NPF_PORTRANGE_MATCH(r, p) ((p) >= ((r) >> 16) && (p) <= ((r) & 0xffff))
 
 
 /*
