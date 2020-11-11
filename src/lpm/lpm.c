@@ -102,8 +102,8 @@ struct lpm {
 	{						\
 		.valid = VALID,				\
 		.ext_entry = 0,				\
-		.depth = n_depth,			\
-		.next_hop = nhop,			\
+		.depth = (n_depth),			\
+		.next_hop = (nhop),			\
 	}
 
 #define MAX_DEPTH_TBL24 24
