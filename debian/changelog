@@ -1,3 +1,13 @@
+vyatta-dataplane (3.10.70.11) unstable; urgency=medium
+
+  [ Thomas Kiely ]
+  * Originated traffic via l2tpv3/ipsec is dropped
+  * Remove function which is no longer used
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Wed, 11 Nov 2020 08:12:51 +0000
+
 vyatta-dataplane (3.10.70.10) unstable; urgency=medium
 
   [ Charles (Chas) Williams ]
