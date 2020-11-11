@@ -145,10 +145,10 @@ endforeach
 
 if get_option('all_tests')
   dataplane_test_full_run = ['-DDP_TEST_FULL_RUN']
-  test_timeout = 300
+  test_timeout = 600
 else
   dataplane_test_full_run = []
-  test_timeout = 60
+  test_timeout = 120
 endif
 
 dataplane_test = executable(
