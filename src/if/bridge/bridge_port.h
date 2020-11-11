@@ -29,8 +29,8 @@ struct ifnet;
 /*
  * Creates a new bridge port
  */
-struct bridge_port *bridge_port_create(struct ifnet *ifp_port,
-				       struct ifnet *ifp_bridge);
+struct bridge_port *bridge_port_create(struct ifnet *port_ifp,
+				       struct ifnet *bridge_ifp);
 
 /*
  * Free the memory associated with a bridge port
