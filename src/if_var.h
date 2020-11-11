@@ -953,7 +953,7 @@ int if_add_l2_addr(struct ifnet *ifp, struct rte_ether_addr *addr);
 int if_del_l2_addr(struct ifnet *ifp, struct rte_ether_addr *addr);
 
 void ifpromisc(struct ifnet *ifp, int onswitch);
-void if_allmulti(struct ifnet *ifp, int onswitch);
+void if_allmulti(struct ifnet *ifp, int onoff);
 int if_start(struct ifnet *ifp);
 int if_stop(struct ifnet *ifp);
 int if_set_vlan_filter(struct ifnet *ifp, uint16_t vlan, bool enable);
@@ -1056,7 +1056,7 @@ int if_get_poe(struct ifnet *ifp, bool *admin_status, bool *oper_status);
 /*
  * Set the speed and duplex of an interface
  */
-int if_set_speed(struct ifnet *ifp, bool autoneg, uint32_t fixed_speed,
+int if_set_speed(struct ifnet *ifp, bool autoneg, uint32_t forced_speed,
 		 int duplex);
 
 /*
@@ -1100,7 +1100,7 @@ void if_output(struct ifnet *ifp, struct rte_mbuf *m,
 void if_output_internal(struct pl_packet *pkt);
 
 int if_allocate_feature_space(struct ifnet *ifp,
-			      enum pl_feature_point_id feat_point);
+			      enum pl_feature_point_id fp);
 int
 if_node_instance_register_storage(struct pl_node *node,
 				  struct pl_feature_registration *feat,
