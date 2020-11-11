@@ -204,9 +204,9 @@ enum dp_test_golden_flags {
 
 #define DPT_ZONE (DPT_ZONE_PRIV | DPT_ZONE_PUB | DPT_ZONE_LOCAL)
 
-#define DPT_DIFF_ZONES(ctx) ((ctx->flags & DPT_ZONE) &&	\
-			     (!(ctx->flags & DPT_ZONE_PUB) ^ \
-			      !(ctx->flags & DPT_ZONE_PRIV)))
+#define DPT_DIFF_ZONES(ctx) (((ctx)->flags & DPT_ZONE) &&    \
+			     (!((ctx)->flags & DPT_ZONE_PUB) ^	\
+			      !((ctx)->flags & DPT_ZONE_PRIV)))
 
 /* Same or no zones */
 #define DPT_SAME_ZONE(ctx) !DPT_DIFF_ZONES(ctx)
