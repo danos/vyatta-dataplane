@@ -204,7 +204,7 @@ flow_cache_parse_hdr(struct rte_mbuf *m, enum flow_cache_ftype af,
 }
 
 int flow_cache_lookup(struct flow_cache *cache, struct rte_mbuf *m,
-		      enum flow_cache_ftype af,
+		      enum flow_cache_ftype ftype,
 		      struct flow_cache_entry **entry)
 {
 	struct cds_lfht_iter iter;
@@ -218,11 +218,11 @@ int flow_cache_lookup(struct flow_cache *cache, struct rte_mbuf *m,
 		return -EINVAL;
 
 	table = rcu_dereference(
-		cache->cache_lcore[lcore].cache_af[af].cache_tbl);
+		cache->cache_lcore[lcore].cache_af[ftype].cache_tbl);
 	if (!table)
 		return -ENOENT;
 
-	flow_cache_parse_hdr(m, af, &h_key);
+	flow_cache_parse_hdr(m, ftype, &h_key);
 
 	hash = m->hash.rss;
 	if (!hash)
@@ -265,19 +265,19 @@ int flow_cache_entry_set_info(struct flow_cache_entry *entry,
 
 int
 flow_cache_add(struct flow_cache *flow_cache, void *rule, uint16_t ctx,
-	       struct rte_mbuf *m, enum flow_cache_ftype af)
+	       struct rte_mbuf *m, enum flow_cache_ftype ftype)
 {
 	struct flow_cache_entry *cache_entry;
 	int error;
 	struct flow_cache_hash_key h_key = { 0 };
 	struct flow_cache_af *cache_af =
-		&flow_cache->cache_lcore[dp_lcore_id()].cache_af[af];
+		&flow_cache->cache_lcore[dp_lcore_id()].cache_af[ftype];
 	struct cds_lfht *table = rcu_dereference(cache_af->cache_tbl);
 
 	if (!table)
 		return -1;
 
-	flow_cache_parse_hdr(m, af, &h_key);
+	flow_cache_parse_hdr(m, ftype, &h_key);
 	cache_entry = malloc_aligned(sizeof(struct flow_cache_entry));
 	if (unlikely(cache_entry == NULL))
 		return -1;
@@ -373,7 +373,7 @@ flow_cache_teardown_lcore(struct flow_cache *flow_cache, unsigned int lcore)
 	return 0;
 }
 
-struct flow_cache *flow_cache_init(uint32_t max_size)
+struct flow_cache *flow_cache_init(uint32_t max_entries)
 {
 	struct flow_cache *cache;
 	unsigned int max_lcores = get_lcore_max() + 1;
@@ -384,7 +384,7 @@ struct flow_cache *flow_cache_init(uint32_t max_size)
 		return NULL;
 	}
 
-	cache->max_lcore_entries = max_size;
+	cache->max_lcore_entries = max_entries;
 	cache->cache_lcore = calloc(1, (sizeof(struct flow_cache_lcore) *
 					max_lcores));
 	if (!cache->cache_lcore) {
