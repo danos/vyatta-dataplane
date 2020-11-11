@@ -48,7 +48,7 @@
 #define MAX_BIT_IPV4 31
 #define MAX_BIT_IPv6 127
 
-#define MAX_BIT(_alen) (_alen == 4 ? MAX_BIT_IPV4 : MAX_BIT_IPv6)
+#define MAX_BIT(_alen) ((_alen) == 4 ? MAX_BIT_IPV4 : MAX_BIT_IPv6)
 
 
 struct cidr_node {
