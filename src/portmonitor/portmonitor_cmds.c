@@ -34,10 +34,6 @@
 #include "vplane_log.h"
 #include "fal.h"
 
-#define ERSPAN_SESSION(pmsess) \
-		((pmsess->session_type == PORTMONITOR_ERSPAN_SOURCE) || \
-		(pmsess->session_type == PORTMONITOR_ERSPAN_DESTINATION))
-
 static CDS_LIST_HEAD(pmsrcif_list);
 static CDS_LIST_HEAD(pmsession_list);
 
@@ -72,6 +68,12 @@ static void portmonitor_info_deinit(struct ifnet *ifp)
 	}
 }
 
+static bool is_erspan_session(struct portmonitor_session *pmsess)
+{
+	return (pmsess->session_type == PORTMONITOR_ERSPAN_SOURCE) ||
+		(pmsess->session_type == PORTMONITOR_ERSPAN_DESTINATION);
+}
+
 static void set_srcif_enabled(struct ifnet *ifp,
 				struct portmonitor_session *pmsess,
 				bool enabled)
@@ -80,7 +82,7 @@ static void set_srcif_enabled(struct ifnet *ifp,
 	pl_node_remove_feature_by_inst(&portmonitor_in_feat, ifp);
 	pl_node_remove_feature_by_inst(&portmonitor_out_feat, ifp);
 	if (enabled && pmsess->session_type && pmsess->dest_ifp) {
-		if (ERSPAN_SESSION(pmsess)) {
+		if (is_erspan_session(pmsess)) {
 			if (!pmsess->erspan_id || !pmsess->erspan_hdr_type)
 				return;
 		}
