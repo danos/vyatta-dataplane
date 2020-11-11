@@ -37,7 +37,7 @@ struct rte_mbuf;
 #define RPC_MAX_PORT 65535
 
 /* Skip over words in an rpc msg */
-#define SKIP(a, b) ((uint32_t *)((uint8_t *)a + b))
+#define SKIP(a, b) ((uint32_t *)((uint8_t *)(a) + (b)))
 
 #define RPC_PORT_CONFIG 0
 #define RPC_PROG_CONFIG 1
