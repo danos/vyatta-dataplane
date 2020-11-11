@@ -136,9 +136,9 @@ void register_event_fd(int fd, ev_callback_t rdfunc, void *arg)
 	register_event(fd, NULL, rdfunc, arg, CONT_SRC_MAIN);
 }
 
-int dp_register_event_socket(void *socket, ev_callback_t rdfunc, void *arg)
+int dp_register_event_socket(void *socket, ev_callback_t callback, void *arg)
 {
-	return register_event(-1, socket, rdfunc, arg, CONT_SRC_MAIN);
+	return register_event(-1, socket, callback, arg, CONT_SRC_MAIN);
 }
 
 void register_event_socket_src(void *socket, ev_callback_t rdfunc, void *arg,
