@@ -749,7 +749,7 @@ static void _s2s_teardown_interfaces6(vrfid_t vrfid, enum vfp_presence with_vfp,
 
 #define s2s_teardown_interfaces_v4_v6(vrfid, vfp)			\
 	{								\
-		vrfid == VRF_DEFAULT_ID ?				\
+		(vrfid) == VRF_DEFAULT_ID ?				\
 			s2s_teardown_interfaces(vrfid, vfp) :		\
 			s2s_teardown_interfaces_leave_vrf(vrfid, vfp),	\
 		s2s_teardown_interfaces6(vrfid, vfp);			\
