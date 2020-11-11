@@ -68,14 +68,14 @@ static unsigned int engine_names_len = ARRAY_SIZE(engine_name_id_map);
  * - had the function func
  * If one is found, set engine to it.
  */
-#define ENGINE_PROC_FIND(engine, ID, func) {\
-	for (unsigned int i = 0; i < engine_procs_len; i++) {\
-		if (engine_procs[i] && engine_procs[i]->id == ID &&\
-				engine_procs[i]->func) {\
-			engine = engine_procs[i];\
-			break;\
-		} \
-	} \
+#define ENGINE_PROC_FIND(engine, ID, func) {				\
+	for (unsigned int i = 0; i < engine_procs_len; i++) {		\
+		if (engine_procs[i] && engine_procs[i]->id == (ID) &&	\
+		    engine_procs[i]->func) {				\
+			(engine) = engine_procs[i];			\
+			break;						\
+		}							\
+	}								\
 }
 
 #define CALL_IF_EXIST(_func, _procs, ...) \
