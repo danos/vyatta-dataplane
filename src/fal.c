@@ -3768,12 +3768,12 @@ int dp_fal_bfd_get_session_attribute(fal_object_t bfd_session_id,
 }
 
 int dp_fal_bfd_get_session_stats(fal_object_t bfd_session_id,
-	uint32_t number_of_counters,
+	uint32_t num_of_counters,
 	const enum fal_bfd_session_stat_t *counter_ids,
 	uint64_t *counters)
 {
 	return call_handler_def_ret(bfd, -EOPNOTSUPP, get_session_stats,
-			bfd_session_id, number_of_counters,
+			bfd_session_id, num_of_counters,
 			counter_ids, counters);
 }
 
