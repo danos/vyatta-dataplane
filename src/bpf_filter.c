@@ -57,14 +57,14 @@
 #define EXTRACT_LONG(p)		(ntohl(*(u_int32_t *)p))
 #else
 #define EXTRACT_SHORT(p)\
-	((u_int16_t)\
-		((u_int16_t)*((u_char *)p+0)<<8|\
-		 (u_int16_t)*((u_char *)p+1)<<0))
+	((u_int16_t)					\
+	 ((u_int16_t)*((u_char *)(p)+0)<<8|		\
+	  (u_int16_t)*((u_char *)(p)+1)<<0))
 #define EXTRACT_LONG(p)\
-		((u_int32_t)*((u_char *)p+0)<<24|\
-		 (u_int32_t)*((u_char *)p+1)<<16|\
-		 (u_int32_t)*((u_char *)p+2)<<8|\
-		 (u_int32_t)*((u_char *)p+3)<<0)
+	((u_int32_t)*((u_char *)(p)+0)<<24|		\
+	 (u_int32_t)*((u_char *)(p)+1)<<16|		\
+	 (u_int32_t)*((u_char *)(p)+2)<<8|		\
+	 (u_int32_t)*((u_char *)(p)+3)<<0)
 #endif
 
 #ifdef _KERNEL
