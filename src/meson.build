@@ -297,6 +297,7 @@ dataplane_deps = [
         osip2_dep,
         pcap_dep,
         pipeline_dep,
+        protobuf_generated_c_dependency,
         proto_c_dep,
         rte_bus_vdev_dep,
         rte_pmd_bond_dep,
