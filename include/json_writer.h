@@ -43,7 +43,7 @@ void jsonw_null(json_writer_t *self);
 
 /* Useful Combinations of name and value */
 void jsonw_string_field(json_writer_t *self, const char *prop, const char *val);
-void jsonw_bool_field(json_writer_t *self, const char *prop, bool value);
+void jsonw_bool_field(json_writer_t *self, const char *prop, bool val);
 void jsonw_float_field(json_writer_t *self, const char *prop, double num);
 void jsonw_uint_field(json_writer_t *self, const char *prop, uint64_t num);
 void jsonw_int_field(json_writer_t *self, const char *prop, int64_t num);
