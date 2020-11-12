@@ -1611,39 +1611,47 @@ qos_hw_upd_u32_attr(struct fal_attribute_t *attr_list, uint32_t array_size,
 
 static int
 qos_hw_create_wred(struct qos_obj_db_obj *db_obj,
+		   uint64_t tc_rate,
 		   struct qos_red_params *wred_params,
 		   struct qos_red_pipe_params *q_wred_info,
 		   fal_object_t *wred_obj)
 {
 	uint32_t switch_id = 0;
+	uint32_t wred_min_th = 0;
+	uint32_t wred_max_th = 0;
 	int ret = 0;
 
-	/*
-	 * We can get WRED configurations from two different places.  Either
-	 * from the "... traffic-class <0..3> random-detect ..." command or
-	 * the "... queue <0..31> wred-map dscp-group ..." command, but the
-	 * QoS perl validation scripts should mean that we never have both.
-	 */
-	if ((wred_params->min_th != 0 && wred_params->max_th != 0) &&
-	    (q_wred_info != NULL && q_wred_info->red_q_params.num_maps != 0)) {
-		DP_DEBUG(QOS, ERR, DATAPLANE,
-			 "Conflicting WRED configurations\n");
+	if (!qos_wred_threshold_get(wred_params, tc_rate,
+			&wred_min_th, &wred_max_th))
 		return -EINVAL;
-	}
 
 	/*
 	 * The queue can have an optional wred object associated with it.
 	 * Create the wred object if wred has been configured.
 	 * When wred is configured both min_th and max_th are non-zero.
 	 */
-	if (wred_params->min_th != 0 && wred_params->max_th != 0) {
+	if (wred_min_th != 0 && wred_max_th != 0) {
+		/*
+		 * We can get WRED configurations from two different places.
+		 * Either from the
+		 * "... traffic-class <0..3> random-detect ..." command or
+		 * the "... queue <0..31> wred-map dscp-group ..." command,
+		 * but the QoS perl validation scripts should mean that we
+		 * never have both.
+		 */
+		if (q_wred_info != NULL &&
+			q_wred_info->red_q_params.num_maps != 0) {
+			DP_DEBUG(QOS, ERR, DATAPLANE,
+				 "Conflicting WRED configurations\n");
+			return -EINVAL;
+		}
 		struct fal_attribute_t wred_attr_list[] = {
 			{ .id = FAL_QOS_WRED_ATTR_GREEN_ENABLE,
 			  .value.u8 = true },
 			{ .id = FAL_QOS_WRED_ATTR_GREEN_MIN_THRESHOLD,
-			  .value.u32 = wred_params->min_th },
+			  .value.u32 = wred_min_th },
 			{ .id = FAL_QOS_WRED_ATTR_GREEN_MAX_THRESHOLD,
-			  .value.u32 = wred_params->max_th },
+			  .value.u32 = wred_max_th },
 			{ .id = FAL_QOS_WRED_ATTR_GREEN_DROP_PROBABILITY,
 			  .value.u32 = wred_params->maxp_inv },
 			{ .id = FAL_QOS_WRED_ATTR_WEIGHT,
@@ -1704,8 +1712,12 @@ qos_hw_create_wred(struct qos_obj_db_obj *db_obj,
 			colour_params =
 				&q_wred_info->red_q_params.qparams[colour];
 
-			uint32_t min_th = colour_params->min_th;
-			uint32_t max_th = colour_params->max_th;
+			uint32_t min_th = 0;
+			uint32_t max_th = 0;
+			if (!qos_wred_threshold_get(colour_params, tc_rate,
+					&min_th, &max_th))
+				return -EINVAL;
+
 			bool enabled;
 
 			enabled = (min_th != 0 && max_th != 0) ? true : false;
@@ -1792,6 +1804,50 @@ qos_hw_create_wred(struct qos_obj_db_obj *db_obj,
 	return ret;
 }
 
+static uint64_t
+qos_hw_get_rate(fal_object_t tc_sched_obj)
+{
+	int ret = 0;
+	fal_object_t scheduler_obj;
+
+	/* Get Scheduler object */
+	struct fal_attribute_t attr_list[] = {
+		{ .id = FAL_QOS_SCHED_GROUP_ATTR_SCHEDULER_ID,
+		  .value.objid = FAL_QOS_NULL_OBJECT_ID },
+	};
+
+	ret = fal_qos_get_sched_group_attrs(tc_sched_obj, ARRAY_SIZE(attr_list),
+			attr_list);
+	if (ret) {
+		DP_DEBUG(QOS_HW, ERR, DATAPLANE,
+			"FAL failed to get sched-group attributes, status: "
+			"%d\n", ret);
+		return 0;
+	}
+	scheduler_obj = attr_list[0].value.objid;
+
+	/* Get max_bandwidth from scheduler object */
+	if (scheduler_obj != FAL_QOS_NULL_OBJECT_ID) {
+		attr_list[0].id = FAL_QOS_SCHEDULER_ATTR_MAX_BANDWIDTH_RATE;
+		attr_list[0].value.u64 = 0;
+
+		ret = fal_qos_get_scheduler_attrs(scheduler_obj,
+				ARRAY_SIZE(attr_list), attr_list);
+		if (ret) {
+			DP_DEBUG(QOS_HW, ERR, DATAPLANE,
+				"FAL failed to get sched-group attributes, status: "
+				"%d\n", ret);
+			return 0;
+		}
+		return (attr_list[0].value.u64);
+	}
+
+	DP_DEBUG(QOS_HW, ERR, DATAPLANE,
+			"Failed to get Bandwidth rate.\n");
+	return 0;
+
+}
+
 static int
 qos_hw_create_queue_and_sched(struct qos_obj_db_obj *db_obj,
 			      fal_object_t parent_obj, uint32_t queue_limit,
@@ -1806,13 +1862,19 @@ qos_hw_create_queue_and_sched(struct qos_obj_db_obj *db_obj,
 	fal_object_t sch_obj = FAL_QOS_NULL_OBJECT_ID;
 	fal_object_t queue_obj = FAL_QOS_NULL_OBJECT_ID;
 	uint32_t switch_id = 0;
+	uint64_t tc_rate = 0;
 	int ret;
 
 	DP_DEBUG(QOS_HW, DEBUG, DATAPLANE, "creating queue and scheduler\n");
 
 	*child_obj = FAL_QOS_NULL_OBJECT_ID;
 
-	ret = qos_hw_create_wred(db_obj, wred_params, q_wred_info, &wred_obj);
+	/* Get bandwidth to convert usec limits to bytes */
+	tc_rate = qos_hw_get_rate(parent_obj);
+
+	ret = qos_hw_create_wred(db_obj, tc_rate, wred_params,
+			q_wred_info, &wred_obj);
+
 	if (ret)
 		return ret;
 
@@ -2270,7 +2332,7 @@ static int qos_hw_setup_queues(struct queue_map *qmap,
 
 static int
 qos_hw_new_pipe(uint32_t pipe_id, fal_object_t subport_sched_obj,
-		const uint16_t *port_qsize, struct subport_info *sinfo,
+		struct qos_port_params *port_params, struct subport_info *sinfo,
 		struct qos_pipe_params *pipe_params, struct queue_map *qmap,
 		uint32_t *ids, int8_t overhead)
 {
@@ -2434,8 +2496,10 @@ qos_hw_new_pipe(uint32_t pipe_id, fal_object_t subport_sched_obj,
 		    ((local_priority_wrr <
 		      RTE_SCHED_QUEUES_PER_TRAFFIC_CLASS) || pcp_bitmap ||
 		     dscp_bitmap || des_bitmap)) {
-			uint32_t queue_limit = sinfo->qsize[tc_id] ?
-				sinfo->qsize[tc_id] : port_qsize[tc_id];
+
+			uint32_t queue_limit =
+					qos_sp_qsize_get(port_params,
+							sinfo, tc_id);
 
 			ids[QOS_OBJ_DB_LEVEL_TC] = tc_id;
 			ret = qos_hw_new_tc(tc_id, pipe_sched_obj,
@@ -2511,12 +2575,13 @@ qos_hw_new_subport(uint32_t subport_id, fal_object_t port_sched_obj,
 			struct qos_pipe_params *pipe_params =
 				qinfo->port_params.pipe_profiles + profile_id;
 			struct queue_map *qmap = &qinfo->queue_map[profile_id];
-			uint16_t *port_qsize = &qinfo->port_params.qsize[0];
+			struct qos_port_params *port_params =
+					&qinfo->port_params;
 
 			ids[QOS_OBJ_DB_LEVEL_PIPE] = pipe_id;
 			ret = qos_hw_new_pipe(pipe_id, subport_sched_obj,
-					      port_qsize, sinfo, pipe_params,
-					      qmap, ids, overhead);
+					port_params, sinfo, pipe_params,
+					qmap, ids, overhead);
 		}
 	}
 
