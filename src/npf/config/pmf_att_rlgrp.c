@@ -840,7 +840,7 @@ pmf_arlg_rl_del(struct pmf_group_ext *earg, uint32_t rl_idx)
 		RTE_LOG(ERR, FIREWALL,
 			"Error: No rule to delete for ACL attached group"
 			" %s/%s|%s:%u\n",
-			(dir_in) ? " In" : "Out", ears->ears_ifname,
+			(dir_in) ? " In" : "Out", pmf_arlg_rls_get_ifname(ears),
 			earg->earg_rgname, rl_idx);
 		return false;
 	}
@@ -885,7 +885,7 @@ pmf_arlg_rl_chg(struct pmf_group_ext *earg,
 		RTE_LOG(ERR, FIREWALL,
 			"Error: No rule to change for ACL attached group"
 			" %s/%s|%s:%u\n",
-			(dir_in) ? " In" : "Out", ears->ears_ifname,
+			(dir_in) ? " In" : "Out", pmf_arlg_rls_get_ifname(ears),
 			earg->earg_rgname, rl_idx);
 		return false;
 	}
@@ -929,7 +929,7 @@ pmf_arlg_rl_add(struct pmf_group_ext *earg,
 		RTE_LOG(ERR, FIREWALL,
 			"Error: OOM for ACL attached group rule"
 			" %s/%s|%s:%u\n",
-			(dir_in) ? " In" : "Out", ears->ears_ifname,
+			(dir_in) ? " In" : "Out", pmf_arlg_rls_get_ifname(ears),
 			earg->earg_rgname, rl_idx);
 		return false;
 	}
@@ -942,7 +942,8 @@ pmf_arlg_rl_add(struct pmf_group_ext *earg,
 			RTE_LOG(ERR, FIREWALL,
 				"Error: Dup rule 0 for ACL attached group rule"
 				" %s/%s|%s\n",
-				(dir_in) ? " In" : "Out", ears->ears_ifname,
+				(dir_in) ? " In" : "Out",
+				pmf_arlg_rls_get_ifname(ears),
 				earg->earg_rgname);
 			pmf_arlg_rl_free(earl);
 			return false;
@@ -974,7 +975,7 @@ pmf_arlg_rl_add(struct pmf_group_ext *earg,
 		RTE_LOG(ERR, FIREWALL,
 			"Error: No insertion point for ACL attached group"
 			" %s/%s|%s:%u\n",
-			(dir_in) ? " In" : "Out", ears->ears_ifname,
+			(dir_in) ? " In" : "Out", pmf_arlg_rls_get_ifname(ears),
 			earg->earg_rgname, rl_idx);
 		pmf_arlg_rl_free(earl);
 		return false;
@@ -1224,7 +1225,8 @@ pmf_arlg_attpt_rls_updn(struct npf_attpt_rlset *ars, bool is_up)
 	if (!ears)
 		return;
 
-	struct ifnet *iface = dp_ifnet_byifname(ears->ears_ifname);
+	char const *ifname = pmf_arlg_rls_get_ifname(ears);
+	struct ifnet *iface = dp_ifnet_byifname(ifname);
 	if (is_up) {
 		if (!iface)
 			return;
@@ -1472,9 +1474,10 @@ pmf_arlg_dump(FILE *fp)
 		bool rs_in = (rs_flags & PMF_EARSF_IN);
 		bool rs_ifp = (rs_flags & PMF_EARSF_IFP);
 		bool rs_if_created = (rs_flags & PMF_EARSF_IF_CREATED);
+		char const *ifname = pmf_arlg_rls_get_ifname(ears);
 		uint32_t if_index = rs_ifp ? ears->ears_ifp->if_index : 0;
 		fprintf(fp, " RLS:%p: %s(%u)/%s%s%s\n",
-			ears, ears->ears_ifname, if_index,
+			ears, ifname, if_index,
 			rs_in ? "In " : "Out",
 			rs_ifp ? " IFP" : "",
 			rs_if_created ? " IfCrt" : ""
@@ -1565,7 +1568,7 @@ pmf_arlg_show_cntr_ruleset(json_writer_t *json, struct pmf_rlset_ext *ears)
 	uint32_t rs_flags = ears->ears_flags;
 	bool rs_in = (rs_flags & PMF_EARSF_IN);
 
-	jsonw_string_field(json, "interface", ears->ears_ifname);
+	jsonw_string_field(json, "interface", pmf_arlg_rls_get_ifname(ears));
 	jsonw_string_field(json, "direction", rs_in ? "in" : "out");
 }
 
@@ -1649,7 +1652,7 @@ pmf_arlg_cmd_show_counters(FILE *fp, char const *ifname, int dir,
 		if (!(ears->ears_flags & PMF_EARSF_IFP))
 			continue;
 		/* Filter on interface & direction */
-		if (ifname && strcmp(ifname, ears->ears_ifname) != 0)
+		if (ifname && strcmp(ifname, pmf_arlg_rls_get_ifname(ears)))
 			continue;
 		if (dir < 0 && !(rs_flags & PMF_EARSF_IN))
 			continue;
@@ -1713,7 +1716,7 @@ pmf_arlg_cmd_clear_counters(char const *ifname, int dir, char const *rgname)
 		if (!(ears->ears_flags & PMF_EARSF_IFP))
 			continue;
 		/* Filter on interface & direction */
-		if (ifname && strcmp(ifname, ears->ears_ifname) != 0)
+		if (ifname && strcmp(ifname, pmf_arlg_rls_get_ifname(ears)))
 			continue;
 		if (dir < 0 && !(rs_flags & PMF_EARSF_IN))
 			continue;
