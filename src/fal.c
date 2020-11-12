@@ -153,6 +153,7 @@ static struct fal_rif_ops *new_dyn_rif_ops(void *lib)
 	rif_ops->get_stats = dlsym(lib,
 				   "fal_plugin_get_router_interface_stats");
 	rif_ops->dump = dlsym(lib, "fal_plugin_dump_router_interface");
+	rif_ops->get_attr = dlsym(lib, "fal_plugin_get_router_interface_attr");
 	return rif_ops;
 }
 
@@ -917,6 +918,13 @@ fal_get_router_interface_stats(fal_object_t obj,
 {
 	return call_handler_def_ret(rif, -EOPNOTSUPP, get_stats,
 				    obj, cntr_count, cntr_ids, cntrs);
+}
+
+int fal_get_router_interface_attr(fal_object_t obj,
+				  struct fal_attribute_t *attr)
+{
+	return call_handler_def_ret(rif, -EOPNOTSUPP, get_attr,
+				    obj, attr);
 }
 
 void
