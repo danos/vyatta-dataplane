@@ -1143,6 +1143,18 @@ fal_plugin_set_router_interface_attr(fal_object_t obj,
 				     const struct fal_attribute_t *attr_list);
 
 /**
+ * @brief Get attributes of the router interface
+ *
+ * @param[in] obj  Object id for router intf
+ * @param[in] attr Array of Attribute
+ *
+ * @return 0 on success.
+ */
+int
+fal_plugin_get_router_interface_attr(fal_object_t obj,
+				     struct fal_attribute_t *attr_list);
+
+/**
  * @brief Get router interface stats
  *
  * @param[in]  obj        Router interface object ID
