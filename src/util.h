@@ -173,6 +173,7 @@ float get_float(const char *str, float *ptr);
 int net_ratelimit(void);
 bool secondary_cpu(unsigned int id);
 int str_unsplit(char *, size_t, int, char **);
+char *next_arg(int *argcp, char ***argvp);
 size_t snprintfcat(char *buf, size_t size, const char *fmt, ...)
 	__attribute__ ((__format__(__printf__, 3, 4)));
 

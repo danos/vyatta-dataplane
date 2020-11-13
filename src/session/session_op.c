@@ -281,20 +281,6 @@ cmd_op_parse_addr_mask(const char *addr_str, struct in6_addr *addr,
 	return 0;
 }
 
-/* Pop next argument from list */
-static char *next_arg(int *argcp, char ***argvp)
-{
-	char *arg = NULL;
-
-	if (*argcp > 0) {
-		arg = *argvp[0];
-		*argcp -= 1;
-		*argvp += 1;
-	}
-
-	return arg;
-}
-
 /*
  * Finish setting up the addrids filter
  */

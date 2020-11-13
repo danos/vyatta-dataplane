@@ -320,6 +320,19 @@ int str_unsplit(char *buf, size_t n, int argc, char **argv)
 	return 0;
 }
 
+/* Pop next argument from list */
+char *next_arg(int *argcp, char ***argvp)
+{
+	char *arg = NULL;
+
+	if (*argcp > 0) {
+		arg = *argvp[0];
+		*argcp -= 1;
+		*argvp += 1;
+	}
+	return arg;
+}
+
 /* Like snprintf but concatinates to existing string */
 size_t snprintfcat(char *buf, size_t size, const char *fmt, ...)
 {
