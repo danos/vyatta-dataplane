@@ -385,14 +385,13 @@ pmf_arlg_grp_is_v6(struct pmf_group_ext const *earg)
 	return is_v6;
 }
 
+static bool pmf_arlg_rls_is_ingress(struct pmf_rlset_ext const *ears);
 bool
 pmf_arlg_grp_is_ingress(struct pmf_group_ext const *earg)
 {
 	struct pmf_rlset_ext *ears = earg->earg_rlset;
 
-	bool is_ingress = (ears->ears_flags & PMF_EARSF_IN);
-
-	return is_ingress;
+	return pmf_arlg_rls_is_ingress(ears);
 }
 
 bool
@@ -421,6 +420,24 @@ pmf_arlg_rls_get_ifname(struct pmf_rlset_ext const *ears)
 	return ears->ears_ifname;
 }
 
+static bool
+pmf_arlg_rls_is_ingress(struct pmf_rlset_ext const *ears)
+{
+	return ears->ears_flags & PMF_EARSF_IN;
+}
+
+static bool
+pmf_arlg_rls_is_if_created(struct pmf_rlset_ext const *ears)
+{
+	return ears->ears_flags & PMF_EARSF_IF_CREATED;
+}
+
+static void
+pmf_arlg_rls_set_if_created(struct pmf_rlset_ext *ears)
+{
+	ears->ears_flags |= PMF_EARSF_IF_CREATED;
+}
+
 static struct ifnet *
 pmf_arlg_rls_get_ifp(struct pmf_rlset_ext const *ears)
 {
@@ -446,7 +463,7 @@ pmf_arlg_rls_set_ifp(struct pmf_rlset_ext *ears)
 	ears->ears_ifp = iface;
 	ears->ears_flags |= PMF_EARSF_IFP;
 	if (iface->if_created)
-		ears->ears_flags |= PMF_EARSF_IF_CREATED;
+		pmf_arlg_rls_set_if_created(ears);
 
 	return true;
 }
@@ -535,12 +552,12 @@ pmf_alrg_hw_ntfy_grp_attach(struct pmf_group_ext *earg)
 		return;
 
 	struct pmf_rlset_ext *ears = earg->earg_rlset;
-	if (!(ears->ears_flags & PMF_EARSF_IFP))
-		return;
-	if (!(ears->ears_flags & PMF_EARSF_IF_CREATED))
+
+	struct ifnet *att_ifp = pmf_arlg_rls_get_ifp(ears);
+	if (!att_ifp || !pmf_arlg_rls_is_if_created(ears))
 		return;
 
-	if (pmf_hw_group_attach(earg, pmf_arlg_rls_get_ifp(ears)))
+	if (pmf_hw_group_attach(earg, att_ifp))
 		earg->earg_flags |= PMF_EARGF_LL_ATTACHED;
 
 	earg->earg_flags |= PMF_EARGF_ATTACHED;
@@ -555,8 +572,9 @@ pmf_alrg_hw_ntfy_grp_detach(struct pmf_group_ext *earg)
 		return;
 
 	struct pmf_rlset_ext *ears = earg->earg_rlset;
+	struct ifnet *att_ifp = pmf_arlg_rls_get_ifp(ears);
 
-	pmf_hw_group_detach(earg, pmf_arlg_rls_get_ifp(ears));
+	pmf_hw_group_detach(earg, att_ifp);
 
 	earg->earg_flags &= ~(PMF_EARGF_ATTACHED|PMF_EARGF_LL_ATTACHED);
 }
@@ -863,7 +881,7 @@ static bool
 pmf_arlg_rl_del(struct pmf_group_ext *earg, uint32_t rl_idx)
 {
 	struct pmf_rlset_ext *ears = earg->earg_rlset;
-	bool dir_in = (ears->ears_flags & PMF_EARSF_IN);
+	bool dir_in = pmf_arlg_rls_is_ingress(ears);
 
 	struct pmf_attrl *earl = pmf_arlg_rl_find(earg, rl_idx, false);
 	if (!earl) {
@@ -908,7 +926,7 @@ pmf_arlg_rl_chg(struct pmf_group_ext *earg,
 		struct pmf_rule *new_rule, uint32_t rl_idx)
 {
 	struct pmf_rlset_ext *ears = earg->earg_rlset;
-	bool dir_in = (ears->ears_flags & PMF_EARSF_IN);
+	bool dir_in = pmf_arlg_rls_is_ingress(ears);
 
 	struct pmf_attrl *earl = pmf_arlg_rl_find(earg, rl_idx, false);
 	if (!earl) {
@@ -952,7 +970,7 @@ pmf_arlg_rl_add(struct pmf_group_ext *earg,
 		struct pmf_rule *rule, uint32_t rl_idx)
 {
 	struct pmf_rlset_ext *ears = earg->earg_rlset;
-	bool dir_in = (ears->ears_flags & PMF_EARSF_IN);
+	bool dir_in = pmf_arlg_rls_is_ingress(ears);
 
 	struct pmf_attrl *earl = pmf_arlg_rl_alloc(rule, rl_idx);
 	if (!earl) {
@@ -1271,13 +1289,13 @@ pmf_arlg_attpt_rls_if_created(struct npf_attpt_rlset *ars)
 	if (!ears)
 		return;
 
-	if (ears->ears_flags & PMF_EARSF_IF_CREATED)
+	if (pmf_arlg_rls_is_if_created(ears))
 		return;
 
 	/* Mark as created */
-	ears->ears_flags |= PMF_EARSF_IF_CREATED;
+	pmf_arlg_rls_set_if_created(ears);
 
-	if (!(ears->ears_flags & PMF_EARSF_IFP))
+	if (!pmf_arlg_rls_get_ifp(ears))
 		return;
 
 	/* Claim it came up */
@@ -1481,10 +1499,9 @@ pmf_arlg_dump(FILE *fp)
 
 	/* Rulesets */
 	TAILQ_FOREACH(ears, &att_rlsets, ears_list) {
-		uint32_t rs_flags = ears->ears_flags;
-		bool rs_in = (rs_flags & PMF_EARSF_IN);
+		bool rs_in = pmf_arlg_rls_is_ingress(ears);
 		struct ifnet *rs_ifp = pmf_arlg_rls_get_ifp(ears);
-		bool rs_if_created = (rs_flags & PMF_EARSF_IF_CREATED);
+		bool rs_if_created = pmf_arlg_rls_is_if_created(ears);
 		char const *ifname = pmf_arlg_rls_get_ifname(ears);
 		uint32_t if_index = rs_ifp ? rs_ifp->if_index : 0;
 		fprintf(fp, " RLS:%p: %s(%u)/%s%s%s\n",
@@ -1576,8 +1593,7 @@ pmf_arlg_dump(FILE *fp)
 static void
 pmf_arlg_show_cntr_ruleset(json_writer_t *json, struct pmf_rlset_ext *ears)
 {
-	uint32_t rs_flags = ears->ears_flags;
-	bool rs_in = (rs_flags & PMF_EARSF_IN);
+	bool rs_in = pmf_arlg_rls_is_ingress(ears);
 
 	jsonw_string_field(json, "interface", pmf_arlg_rls_get_ifname(ears));
 	jsonw_string_field(json, "direction", rs_in ? "in" : "out");
@@ -1658,16 +1674,15 @@ pmf_arlg_cmd_show_counters(FILE *fp, char const *ifname, int dir,
 	jsonw_name(json, "rulesets");
 	jsonw_start_array(json);
 	TAILQ_FOREACH(ears, &att_rlsets, ears_list) {
-		uint32_t rs_flags = ears->ears_flags;
 		/* Skip rulesets w/o an interface */
-		if (!(ears->ears_flags & PMF_EARSF_IFP))
+		if (!pmf_arlg_rls_get_ifp(ears))
 			continue;
 		/* Filter on interface & direction */
 		if (ifname && strcmp(ifname, pmf_arlg_rls_get_ifname(ears)))
 			continue;
-		if (dir < 0 && !(rs_flags & PMF_EARSF_IN))
+		if (dir < 0 && !pmf_arlg_rls_is_ingress(ears))
 			continue;
-		if (dir > 0 && (rs_flags & PMF_EARSF_IN))
+		if (dir > 0 && pmf_arlg_rls_is_ingress(ears))
 			continue;
 
 		jsonw_start_object(json);
@@ -1722,16 +1737,15 @@ pmf_arlg_cmd_clear_counters(char const *ifname, int dir, char const *rgname)
 	/* Rulesets */
 	struct pmf_rlset_ext *ears;
 	TAILQ_FOREACH(ears, &att_rlsets, ears_list) {
-		uint32_t rs_flags = ears->ears_flags;
 		/* Skip rulesets w/o an interface */
-		if (!(ears->ears_flags & PMF_EARSF_IFP))
+		if (!pmf_arlg_rls_get_ifp(ears))
 			continue;
 		/* Filter on interface & direction */
 		if (ifname && strcmp(ifname, pmf_arlg_rls_get_ifname(ears)))
 			continue;
-		if (dir < 0 && !(rs_flags & PMF_EARSF_IN))
+		if (dir < 0 && !pmf_arlg_rls_is_ingress(ears))
 			continue;
-		if (dir > 0 && (rs_flags & PMF_EARSF_IN))
+		if (dir > 0 && pmf_arlg_rls_is_ingress(ears))
 			continue;
 
 		/* Groups - i.e. TABLES */
