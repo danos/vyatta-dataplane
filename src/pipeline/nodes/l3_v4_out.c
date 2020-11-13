@@ -210,3 +210,16 @@ PL_REGISTER_NODE(ipv4_out_node) = {
 };
 
 struct pl_node_registration *const ipv4_out_node_ptr = &ipv4_out_node;
+
+/*
+ * show features ipv4_out [interface <ifname>]
+ */
+static int cmd_pl_show_feat_ipv4_out(struct pl_command *cmd)
+{
+	return if_node_instance_feat_print(cmd, ipv4_out_node_ptr);
+}
+
+PL_REGISTER_OPCMD(pl_show_feat_ipv4_out) = {
+	.cmd = "show features ipv4_out",
+	.handler = cmd_pl_show_feat_ipv4_out,
+};

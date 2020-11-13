@@ -225,3 +225,16 @@ PL_REGISTER_NODE(ipv6_out_node) = {
 };
 
 struct pl_node_registration *const ipv6_out_node_ptr = &ipv6_out_node;
+
+/*
+ * show features ipv6_out [interface <ifname>]
+ */
+static int cmd_pl_show_feat_ipv6_out(struct pl_command *cmd)
+{
+	return if_node_instance_feat_print(cmd, ipv6_out_node_ptr);
+}
+
+PL_REGISTER_OPCMD(pl_show_feat_ipv6_out) = {
+	.cmd = "show features ipv6_out",
+	.handler = cmd_pl_show_feat_ipv6_out,
+};
