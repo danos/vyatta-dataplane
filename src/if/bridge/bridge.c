@@ -254,6 +254,7 @@ static void if_vlan_in_stats_incr(struct ifnet *ifp,
 {
 	unsigned int lcore;
 	struct bridge_vlan_stat_block *stats;
+	const struct rte_ether_hdr *eh;
 
 	/* HW ports will count this in HW */
 	if (ifp->hw_forwarding)
@@ -270,6 +271,12 @@ static void if_vlan_in_stats_incr(struct ifnet *ifp,
 	lcore = dp_lcore_id();
 	stats->stats[lcore].rx_octets += rte_pktmbuf_pkt_len(m);
 	stats->stats[lcore].rx_pkts++;
+
+	eh = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
+	if (rte_is_unicast_ether_addr(&eh->d_addr))
+		stats->stats[lcore].rx_ucast_pkts++;
+	else
+		stats->stats[lcore].rx_nucast_pkts++;
 }
 
 static void if_vlan_out_stats_incr(struct bridge_softc *sc,
@@ -278,6 +285,7 @@ static void if_vlan_out_stats_incr(struct bridge_softc *sc,
 {
 	unsigned int lcore;
 	struct bridge_vlan_stat_block *stats;
+	const struct rte_ether_hdr *eh;
 
 	/* HW ports will not count this in HW */
 	stats = rcu_dereference(sc->vlan_stats[vlan]);
@@ -287,6 +295,12 @@ static void if_vlan_out_stats_incr(struct bridge_softc *sc,
 	lcore = dp_lcore_id();
 	stats->stats[lcore].tx_octets += rte_pktmbuf_pkt_len(m);
 	stats->stats[lcore].tx_pkts++;
+
+	eh = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
+	if (rte_is_unicast_ether_addr(&eh->d_addr))
+		stats->stats[lcore].tx_ucast_pkts++;
+	else
+		stats->stats[lcore].tx_nucast_pkts++;
 }
 
 static void if_vlan_out_drop_stats_incr(struct bridge_softc *sc,

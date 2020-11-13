@@ -129,7 +129,7 @@ DP_START_TEST(switch_vlan_stats, switch_vlan_stats)
 	dp_test_verify_vlan_stats("sw0", 10, &sw_stats_zero);
 	dp_test_verify_vlan_stats("sw0", 10, &sw_stats);
 
-	/* Create frame from mac_a to mac_b */
+	/* Create unicast frame from mac_a to mac_b */
 	mac_a = "00:00:a4:00:33:dd";
 	mac_b = "00:00:a4:00:44:cc";
 	test_pak = dp_test_create_8021q_l2_pak(mac_b, mac_a, 10,
@@ -143,8 +143,29 @@ DP_START_TEST(switch_vlan_stats, switch_vlan_stats)
 	sw_stats_inc = sw_stats;
 	sw_stats_inc.rx_octets += 78;
 	sw_stats_inc.rx_pkts++;
+	sw_stats_inc.rx_ucast_pkts++;
 	sw_stats_inc.tx_octets += 78;
 	sw_stats_inc.tx_pkts++;
+	sw_stats_inc.tx_ucast_pkts++;
+	dp_test_verify_vlan_stats("sw0", 10, &sw_stats_inc);
+
+	/* Create non unicast frame from mac_a to mac_b */
+	mac_a = "00:00:a4:00:33:dd";
+	mac_b = "ff:ff:ff:ff:ff:ff";
+	test_pak = dp_test_create_8021q_l2_pak(mac_b, mac_a, 10,
+					       ETH_P_8021Q,
+					       DP_TEST_ET_LLDP,
+					       1, &len);
+	exp = dp_test_exp_create(test_pak);
+	dp_test_exp_set_oif_name(exp, "dp2T2");
+
+	dp_test_pak_receive(test_pak, "dp2T1", exp);
+	sw_stats_inc.rx_octets += 78;
+	sw_stats_inc.rx_pkts++;
+	sw_stats_inc.rx_nucast_pkts++;
+	sw_stats_inc.tx_octets += 78;
+	sw_stats_inc.tx_pkts++;
+	sw_stats_inc.tx_nucast_pkts++;
 	dp_test_verify_vlan_stats("sw0", 10, &sw_stats_inc);
 
 	dp_test_intf_switch_remove_port("sw0", "dp2T2");
