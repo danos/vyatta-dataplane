@@ -421,6 +421,36 @@ pmf_arlg_rls_get_ifname(struct pmf_rlset_ext const *ears)
 	return ears->ears_ifname;
 }
 
+static struct ifnet *
+pmf_arlg_rls_get_ifp(struct pmf_rlset_ext const *ears)
+{
+	return ears->ears_ifp;
+}
+
+static void
+pmf_arlg_rls_clear_ifp(struct pmf_rlset_ext *ears)
+{
+	/* Clear the interface pointer */
+	ears->ears_ifp = NULL;
+	ears->ears_flags &= ~PMF_EARSF_IFP;
+}
+
+static bool
+pmf_arlg_rls_set_ifp(struct pmf_rlset_ext *ears)
+{
+	/* Fill in the interface pointer */
+	struct ifnet *iface = dp_ifnet_byifname(ears->ears_ifname);
+	if (!iface)
+		return false;
+
+	ears->ears_ifp = iface;
+	ears->ears_flags |= PMF_EARSF_IFP;
+	if (iface->if_created)
+		ears->ears_flags |= PMF_EARSF_IF_CREATED;
+
+	return true;
+}
+
 /* ---- */
 
 /*
@@ -510,7 +540,7 @@ pmf_alrg_hw_ntfy_grp_attach(struct pmf_group_ext *earg)
 	if (!(ears->ears_flags & PMF_EARSF_IF_CREATED))
 		return;
 
-	if (pmf_hw_group_attach(earg, ears->ears_ifp))
+	if (pmf_hw_group_attach(earg, pmf_arlg_rls_get_ifp(ears)))
 		earg->earg_flags |= PMF_EARGF_LL_ATTACHED;
 
 	earg->earg_flags |= PMF_EARGF_ATTACHED;
@@ -526,7 +556,7 @@ pmf_alrg_hw_ntfy_grp_detach(struct pmf_group_ext *earg)
 
 	struct pmf_rlset_ext *ears = earg->earg_rlset;
 
-	pmf_hw_group_detach(earg, ears->ears_ifp);
+	pmf_hw_group_detach(earg, pmf_arlg_rls_get_ifp(ears));
 
 	earg->earg_flags &= ~(PMF_EARGF_ATTACHED|PMF_EARGF_LL_ATTACHED);
 }
@@ -1225,25 +1255,13 @@ pmf_arlg_attpt_rls_updn(struct npf_attpt_rlset *ars, bool is_up)
 	if (!ears)
 		return;
 
-	char const *ifname = pmf_arlg_rls_get_ifname(ears);
-	struct ifnet *iface = dp_ifnet_byifname(ifname);
-	if (is_up) {
-		if (!iface)
-			return;
-		/* Fill in the index */
-		ears->ears_ifp = iface;
-		ears->ears_flags |= PMF_EARSF_IFP;
-		if (iface->if_created)
-			ears->ears_flags |= PMF_EARSF_IF_CREATED;
-	}
+	if (is_up && !pmf_arlg_rls_set_ifp(ears))
+		return;
 
 	npf_attpt_walk_rlset_grps(ars, pmf_arlg_attpt_grp_updn_handler, &is_up);
 
-	if (!is_up) {
-		/* Clear the index */
-		ears->ears_ifp = NULL;
-		ears->ears_flags &= ~PMF_EARSF_IFP;
-	}
+	if (!is_up)
+		pmf_arlg_rls_clear_ifp(ears);
 }
 
 static void
@@ -1322,14 +1340,7 @@ pmf_arlg_attpt_rls_ev_handler(enum npf_attpt_ev_type event,
 			return;
 		}
 
-		/* Fill in the index */
-		struct ifnet *iface = dp_ifnet_byifname(if_name);
-		if (iface) {
-			ears->ears_ifp = iface;
-			ears->ears_flags |= PMF_EARSF_IFP;
-			if (iface->if_created)
-				ears->ears_flags |= PMF_EARSF_IF_CREATED;
-		}
+		pmf_arlg_rls_set_ifp(ears);
 
 		/* Append it to the list */
 		TAILQ_INSERT_TAIL(&att_rlsets, ears, ears_list);
@@ -1472,10 +1483,10 @@ pmf_arlg_dump(FILE *fp)
 	TAILQ_FOREACH(ears, &att_rlsets, ears_list) {
 		uint32_t rs_flags = ears->ears_flags;
 		bool rs_in = (rs_flags & PMF_EARSF_IN);
-		bool rs_ifp = (rs_flags & PMF_EARSF_IFP);
+		struct ifnet *rs_ifp = pmf_arlg_rls_get_ifp(ears);
 		bool rs_if_created = (rs_flags & PMF_EARSF_IF_CREATED);
 		char const *ifname = pmf_arlg_rls_get_ifname(ears);
-		uint32_t if_index = rs_ifp ? ears->ears_ifp->if_index : 0;
+		uint32_t if_index = rs_ifp ? rs_ifp->if_index : 0;
 		fprintf(fp, " RLS:%p: %s(%u)/%s%s%s\n",
 			ears, ifname, if_index,
 			rs_in ? "In " : "Out",
