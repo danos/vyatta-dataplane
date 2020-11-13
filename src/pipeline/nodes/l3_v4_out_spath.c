@@ -123,3 +123,16 @@ PL_REGISTER_NODE(ipv4_out_spath_node) = {
 
 struct pl_node_registration *const ipv4_out_spath_node_ptr =
 	&ipv4_out_spath_node;
+
+/*
+ * show features ipv4_out_spath [interface <ifname>]
+ */
+static int cmd_pl_show_feat_ipv4_out_spath(struct pl_command *cmd)
+{
+	return if_node_instance_feat_print(cmd, ipv4_out_spath_node_ptr);
+}
+
+PL_REGISTER_OPCMD(pl_show_feat_ipv4_out_spath) = {
+	.cmd = "show features ipv4_out_spath",
+	.handler = cmd_pl_show_feat_ipv4_out_spath,
+};
