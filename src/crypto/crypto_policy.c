@@ -708,9 +708,7 @@ policy_rule_set_peer_info(struct policy_rule *pr,
 		vti_reqid_set(&pr->output_peer, pr->output_peer_af,
 			      pr->mark.v, pr->reqid);
 	else
-		crypto_sadb_peer_overhead_subscribe(&pr->output_peer,
-						    pr->output_peer_af,
-						    pr->reqid, &pr->overhead,
+		crypto_sadb_tunl_overhead_subscribe(pr->reqid, &pr->overhead,
 						    pr->vrfid);
 }
 
@@ -862,9 +860,7 @@ static void policy_rule_destroy(struct policy_rule *pr)
 			vti_reqid_clear(&pr->output_peer, pr->output_peer_af,
 					pr->mark.v);
 		else
-			crypto_sadb_peer_overhead_unsubscribe(
-				&pr->output_peer,
-				pr->output_peer_af,
+			crypto_sadb_tunl_overhead_unsubscribe(
 				pr->reqid,
 				&pr->overhead,
 				pr->vrfid);
@@ -1498,9 +1494,7 @@ policy_rule_update(struct policy_rule *pr,
 						pr->output_peer_af,
 						pr->mark.v);
 			else
-				crypto_sadb_peer_overhead_unsubscribe(
-					&pr->output_peer,
-					pr->output_peer_af,
+				crypto_sadb_tunl_overhead_unsubscribe(
 					pr->reqid,
 					&pr->overhead,
 					pr->vrfid);

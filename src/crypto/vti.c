@@ -348,9 +348,7 @@ vti_tunnel_create(int ifindex, const char *ifname,
 	} else {
 		VTI_DEBUG("Policy reqid set to %x on create for %s\n",
 			  ctxt->reqid, ifname);
-		crypto_sadb_peer_overhead_subscribe(&ctxt->key.dst,
-						    ctxt->key.family,
-						    ctxt->reqid,
+		crypto_sadb_tunl_overhead_subscribe(ctxt->reqid,
 						    &ctxt->ipsec_overhead,
 						    t_vrfid);
 		ctxt->overhead_subscribed = true;
@@ -414,9 +412,7 @@ static void vti_tunnel_delete(struct ifnet *ifp)
 	ifp->if_softc = NULL;
 	ctxt->ifp = NULL;
 	if (ctxt->overhead_subscribed) {
-		crypto_sadb_peer_overhead_unsubscribe(&ctxt->key.dst,
-						      ctxt->key.family,
-						      ctxt->reqid,
+		crypto_sadb_tunl_overhead_unsubscribe(ctxt->reqid,
 						      &ctxt->ipsec_overhead,
 						      t_vrfid);
 		ctxt->overhead_subscribed = false;
@@ -465,21 +461,22 @@ void vti_reqid_set(const xfrm_address_t *dst, uint8_t family,
 
 	/*
 	 * If we've not previously subscribed to IPsec encryption
-	 * overhead information from the peer, do so now. Otherwise,
+	 * overhead information from the tunl, do so now. Otherwise,
 	 * we need to tell the SADB that we're now interested in a
 	 * (possibly) different reqid.
 	 */
 	if (!ctxt->overhead_subscribed) {
-		crypto_sadb_peer_overhead_subscribe(&ctxt->key.dst,
-						    ctxt->key.family, reqid,
+		crypto_sadb_tunl_overhead_subscribe(reqid,
 						    &ctxt->ipsec_overhead,
 						    t_vrfid);
 		ctxt->overhead_subscribed = true;
 	} else {
-		crypto_sadb_peer_overhead_change_reqid(&ctxt->key.dst,
-						       ctxt->key.family, reqid,
-						       &ctxt->ipsec_overhead,
-						       t_vrfid);
+		crypto_sadb_tunl_overhead_unsubscribe(ctxt->reqid,
+						     &ctxt->ipsec_overhead,
+						     t_vrfid);
+		crypto_sadb_tunl_overhead_subscribe(reqid,
+						    &ctxt->ipsec_overhead,
+						    t_vrfid);
 	}
 
 	ctxt->reqid = reqid;

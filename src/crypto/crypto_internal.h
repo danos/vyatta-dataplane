@@ -486,18 +486,11 @@ ipsec_counters[RTE_MAX_LCORE][IPSEC_CNT_MAX] __rte_cache_aligned;
 uint32_t cipher_get_encryption_overhead(struct sadb_sa *sa,
 					uint16_t family);
 
-void crypto_sadb_peer_overhead_subscribe(const xfrm_address_t *peer_address,
-					 uint16_t family, uint32_t reqid,
+void crypto_sadb_tunl_overhead_subscribe(uint32_t reqid,
 					 struct crypto_overhead *overhead,
 					 vrfid_t vrfid);
 
-void crypto_sadb_peer_overhead_unsubscribe(const xfrm_address_t *peer_address,
-					   uint16_t family, uint32_t reqid,
-					   struct crypto_overhead *overhead,
-					   vrfid_t vrfid);
-
-int crypto_sadb_peer_overhead_change_reqid(const xfrm_address_t *peer_address,
-					   uint16_t family, uint32_t reqid,
+void crypto_sadb_tunl_overhead_unsubscribe(uint32_t reqid,
 					   struct crypto_overhead *overhead,
 					   vrfid_t vrfid);
 

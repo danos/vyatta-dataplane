@@ -93,7 +93,7 @@ static unsigned int sadb_spi_out_seed;
  * This is a utility structure used for looking up
  * a peer in hash table.
  */
-struct sadb_peer_key {
+struct sadb_tunl_key {
 	uint32_t req_id;
 };
 
@@ -320,29 +320,29 @@ static void sadb_remove_sa_from_spi_out_hash(struct sadb_sa *sa,
 }
 
 /*
- * sadb_peer_hash()
+ * sadb_tunl_hash()
  *
  * Address hash function used to select a bucket in
  * the SADB hash table.
  */
-static unsigned long sadb_peer_hash(struct sadb_peer_key *key)
+static unsigned long sadb_tunl_hash(struct sadb_tunl_key *key)
 
 {
 	return key->req_id;
 }
 
 /*
- * sadb_peer_match()
+ * sadb_tunl_match()
  *
  * Comparison function used when searching the peer hash table.
  * Returns TRUE if the peer containing node matches the search key.
  */
-static int sadb_peer_match(struct cds_lfht_node *node, const void *key)
+static int sadb_tunl_match(struct cds_lfht_node *node, const void *key)
 {
-	const struct sadb_peer_key *search_key;
+	const struct sadb_tunl_key *search_key;
 	const struct sadb_peer *peer;
 
-	search_key = (const struct sadb_peer_key *)key;
+	search_key = (const struct sadb_tunl_key *)key;
 	peer = caa_container_of(node, const struct sadb_peer, ht_node);
 
 	return (peer->req_id == search_key->req_id);
@@ -357,12 +357,10 @@ static int sadb_peer_match(struct cds_lfht_node *node, const void *key)
  * This can be called from any thread that is registered as
  * an RCU read and is in a RCU read critical section
  */
-static struct sadb_peer *sadb_lookup_peer(const xfrm_address_t *dst __unused,
-					  uint16_t family __unused,
-					  vrfid_t vrfid,
+static struct sadb_peer *sadb_lookup_peer(vrfid_t vrfid,
 					  uint32_t req_id)
 {
-	struct sadb_peer_key search_key;
+	struct sadb_tunl_key search_key;
 	struct crypto_vrf_ctx *vrf_ctx;
 	struct cds_lfht_node *node;
 	struct cds_lfht_iter iter;
@@ -373,22 +371,20 @@ static struct sadb_peer *sadb_lookup_peer(const xfrm_address_t *dst __unused,
 
 	search_key.req_id = req_id;
 
-	cds_lfht_lookup(vrf_ctx->sadb_hash_table, sadb_peer_hash(&search_key),
-			sadb_peer_match, &search_key, &iter);
+	cds_lfht_lookup(vrf_ctx->sadb_hash_table, sadb_tunl_hash(&search_key),
+			sadb_tunl_match, &search_key, &iter);
 
 	node = cds_lfht_iter_get_node(&iter);
 
 	return node ? caa_container_of(node, struct sadb_peer, ht_node) : NULL;
 }
 
-static struct sadb_peer *sadb_create_peer(const xfrm_address_t *dst __unused,
-					  uint16_t family __unused,
-					  vrfid_t vrfid,
+static struct sadb_peer *sadb_create_peer(vrfid_t vrfid,
 					  uint32_t req_id)
 {
 	struct crypto_vrf_ctx *vrf_ctx;
 	struct cds_lfht_node *ret_node;
-	struct sadb_peer_key key;
+	struct sadb_tunl_key key;
 	struct sadb_peer *peer;
 
 	/*
@@ -411,8 +407,8 @@ static struct sadb_peer *sadb_create_peer(const xfrm_address_t *dst __unused,
 
 	key.req_id = peer->req_id;
 	ret_node = cds_lfht_add_unique(vrf_ctx->sadb_hash_table,
-				       sadb_peer_hash(&key),
-				       sadb_peer_match, &key, &peer->ht_node);
+				       sadb_tunl_hash(&key),
+				       sadb_tunl_match, &key, &peer->ht_node);
 	/*
 	 * We've just done a lookup that didn't find the peer. If we're
 	 * now told that the key we're trying to insert is not unique,
@@ -436,28 +432,26 @@ static struct sadb_peer *sadb_create_peer(const xfrm_address_t *dst __unused,
  *
  * NOTE: This may only be called from the main thread.
  */
-static struct sadb_peer *sadb_lookup_or_create_peer(const xfrm_address_t *dst,
-						    uint16_t family,
-						    vrfid_t vrfid,
+static struct sadb_peer *sadb_lookup_or_create_peer(vrfid_t vrfid,
 						    uint32_t req_id)
 {
 	struct sadb_peer *peer;
 
-	peer = sadb_lookup_peer(dst, family, vrfid, req_id);
+	peer = sadb_lookup_peer(vrfid, req_id);
 	if (peer)
 		return peer;
-	peer = sadb_create_peer(dst, family, vrfid, req_id);
+	peer = sadb_create_peer(vrfid, req_id);
 
 	return peer;
 }
 
 /*
- * sadb_peer_rcu_free()
+ * sadb_tunl_rcu_free()
  *
  * RCU callback to free a peer that has been removed
  * from the hash table.
  */
-static void sadb_peer_rcu_free(struct rcu_head *head)
+static void sadb_tunl_rcu_free(struct rcu_head *head)
 {
 	free(caa_container_of(head, struct sadb_peer, peer_rcu));
 }
@@ -476,7 +470,7 @@ static void sadb_remove_peer(struct sadb_peer *peer, vrfid_t vrfid)
 		return;
 
 	cds_lfht_del(vrf_ctx->sadb_hash_table, &peer->ht_node);
-	call_rcu(&peer->peer_rcu, sadb_peer_rcu_free);
+	call_rcu(&peer->peer_rcu, sadb_tunl_rcu_free);
 	vrf_ctx->count_of_peers--;
 }
 
@@ -533,7 +527,7 @@ sadb_find_old_sa(struct sadb_sa *sa, vrfid_t vrfid, struct sadb_peer **ret_peer,
 	struct cds_list_head *this_entry;
 	struct sadb_sa *tmp_sa, *match_sa = NULL;
 
-	peer = sadb_lookup_peer(&sa->dst, sa->family, vrfid, req_id);
+	peer = sadb_lookup_peer(vrfid, req_id);
 	if (!peer)
 		return NULL;
 
@@ -563,7 +557,7 @@ sadb_find_matching_sa(struct sadb_sa *sa, bool ign_pending_del, vrfid_t vrfid,
 	struct cds_list_head *this_entry;
 	struct sadb_sa *tmp_sa;
 
-	peer = sadb_lookup_peer(&sa->dst, sa->family, vrfid, req_id);
+	peer = sadb_lookup_peer(vrfid, req_id);
 	if (!peer) {
 		*matching_peer = NULL;
 		return NULL;
@@ -608,8 +602,7 @@ sadb_insert_sa(struct sadb_sa *sa, struct crypto_vrf_ctx *vrf_ctx,
 	}
 
 	if (!peer)
-		peer = sadb_create_peer(&sa->dst, sa->family,
-					vrf_ctx->vrfid, req_id);
+		peer = sadb_create_peer(vrf_ctx->vrfid, req_id);
 	if (!peer) {
 		sadb_remove_sa_from_spi_in_hash(sa);
 		sadb_remove_sa_from_spi_out_hash(sa, vrf_ctx->vrfid);
@@ -653,7 +646,7 @@ static struct sadb_sa *sadb_remove_sa(const xfrm_address_t *dst,
 	if (!dst || !src || ((family != AF_INET) && (family != AF_INET6)))
 		return NULL;
 
-	peer = sadb_lookup_peer(dst, family, vrfid, req_id);
+	peer = sadb_lookup_peer(vrfid, req_id);
 	if (!peer)
 		return NULL;
 
@@ -1339,14 +1332,13 @@ static void cypto_sadb_overhead_refresh(struct sadb_peer *peer,
 	}
 }
 
-void crypto_sadb_peer_overhead_subscribe(const xfrm_address_t *peer_address,
-					 uint16_t family, uint32_t reqid,
+void crypto_sadb_tunl_overhead_subscribe(uint32_t reqid,
 					 struct crypto_overhead *overhead,
 					 vrfid_t vrfid)
 {
 	struct sadb_peer *peer;
 
-	peer = sadb_lookup_or_create_peer(peer_address, family, vrfid, reqid);
+	peer = sadb_lookup_or_create_peer(vrfid, reqid);
 	if (!peer) {
 		SADB_ERR("Could not subscribe to peer overhead\n");
 		return;
@@ -1361,14 +1353,13 @@ void crypto_sadb_peer_overhead_subscribe(const xfrm_address_t *peer_address,
 	cypto_sadb_overhead_refresh(peer, overhead);
 }
 
-void crypto_sadb_peer_overhead_unsubscribe(const xfrm_address_t *peer_address,
-					   uint16_t family, uint32_t reqid,
+void crypto_sadb_tunl_overhead_unsubscribe(uint32_t reqid,
 					   struct crypto_overhead *overhead,
 					   vrfid_t vrfid)
 {
 	struct sadb_peer *peer;
 
-	peer = sadb_lookup_peer(peer_address, family, vrfid, reqid);
+	peer = sadb_lookup_peer(vrfid, reqid);
 	if (!peer) {
 		SADB_ERR("Overhead unsubscribe failed: peer not found.\n");
 		return;
@@ -1384,27 +1375,6 @@ void crypto_sadb_peer_overhead_unsubscribe(const xfrm_address_t *peer_address,
 	 */
 	if (cds_list_empty(&peer->sa_list) && TAILQ_EMPTY(&peer->observers))
 		sadb_remove_peer(peer, vrfid);
-}
-
-int crypto_sadb_peer_overhead_change_reqid(const xfrm_address_t *peer_address,
-					   uint16_t family, uint32_t reqid,
-					   struct crypto_overhead *overhead,
-					   vrfid_t vrfid)
-{
-	struct sadb_peer *peer;
-
-	peer = sadb_lookup_peer(peer_address, family, vrfid, reqid);
-	if (!peer) {
-		SADB_ERR("Overhead reqid change failed: peer not found.\n");
-		return -1;
-	}
-
-	overhead->bytes = 0;
-	overhead->reqid = reqid;
-	overhead->block_size = ESP_PAYLOAD_MIN_ALIGN;
-	cypto_sadb_overhead_refresh(peer, overhead);
-
-	return 1;
 }
 
 uint32_t crypto_sadb_get_reqid(struct sadb_sa *sa)
