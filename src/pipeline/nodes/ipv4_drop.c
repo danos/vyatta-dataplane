@@ -132,3 +132,33 @@ PL_REGISTER_NODE(ipv4_drop_node) = {
 
 struct pl_node_registration *const ipv4_drop_node_ptr =
 	&ipv4_drop_node;
+
+/*
+ * show features ipv4_drop
+ */
+static int cmd_pl_show_feat_ipv4_drop(struct pl_command *cmd)
+{
+	json_writer_t *wr;
+
+	wr = jsonw_new(cmd->fp);
+	if (!wr)
+		return 0;
+
+	jsonw_name(wr, "features");
+	jsonw_start_object(wr);
+
+	jsonw_name(wr, "global");
+	jsonw_start_array(wr);
+	pl_node_iter_features(ipv4_drop_node_ptr, &ipv4_drop_features,
+			      pl_print_feats, wr);
+	jsonw_end_array(wr);
+
+	jsonw_end_object(wr);
+	jsonw_destroy(&wr);
+	return 0;
+}
+
+PL_REGISTER_OPCMD(pl_show_feat_ipv4_drop) = {
+	.cmd = "show features ipv4_drop",
+	.handler = cmd_pl_show_feat_ipv4_drop,
+};
