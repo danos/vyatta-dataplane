@@ -1395,7 +1395,7 @@ static int rule_replace(struct lpm6 *lpm, struct lpm6_rule *old_rule,
  */
 int
 lpm6_delete(struct lpm6 *lpm, const uint8_t *ip, uint8_t depth,
-	    uint32_t *index, int16_t scope,
+	    uint32_t *next_hop, int16_t scope,
 	    struct pd_obj_state_and_flags *pd_state,
 	    uint32_t *new_next_hop,
 	    struct pd_obj_state_and_flags **new_pd_state)
@@ -1424,8 +1424,8 @@ lpm6_delete(struct lpm6 *lpm, const uint8_t *ip, uint8_t depth,
 	if (pd_state)
 		*pd_state = rule_to_delete->pd_state;
 
-	if (index)
-		*index = rule_to_delete->next_hop;
+	if (next_hop)
+		*next_hop = rule_to_delete->next_hop;
 
 	/* Replace with next level up rule */
 	rc = rule_replace(lpm, rule_to_delete, ip, depth, &new_rule);
