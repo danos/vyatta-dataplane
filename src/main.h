@@ -43,7 +43,7 @@ extern unsigned int slowpath_mtu;
 struct rte_mempool *mbuf_pool(unsigned int portid);
 struct rte_mempool *mbuf_pool_create(const char *name,
 				     unsigned int n,
-				     unsigned int cache_sz,
+				     unsigned int cache_size,
 				     unsigned long roomsz,
 				     int socket_id);
 
@@ -110,7 +110,8 @@ int set_crypto_engines(const char *str, bool *sticky);
 int crypto_assign_engine(int crypto_dev_id, int lcore);
 void crypto_unassign_from_engine(int lcore);
 void register_forwarding_cores(void);
-int reconfigure_queues(portid_t portid, uint16_t nb_rx_qs, uint16_t nb_tx_qs);
+int reconfigure_queues(portid_t portid, uint16_t nb_rx_queues,
+		       uint16_t nb_tx_queues);
 
 /* Rate states */
 struct rate_stats {
