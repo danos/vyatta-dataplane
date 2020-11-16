@@ -288,3 +288,16 @@ PL_REGISTER_NODE(ipv4_encap_only_node) = {
 };
 
 struct pl_node_registration *const ipv4_encap_node_ptr = &ipv4_encap_node;
+
+/*
+ * show features ipv4_encap [interface <ifname>]
+ */
+static int cmd_pl_show_feat_ipv4_encap(struct pl_command *cmd)
+{
+	return if_node_instance_feat_print(cmd, ipv4_encap_node_ptr);
+}
+
+PL_REGISTER_OPCMD(pl_show_feat_ipv4_encap) = {
+	.cmd = "show features ipv4_encap",
+	.handler = cmd_pl_show_feat_ipv4_encap,
+};
