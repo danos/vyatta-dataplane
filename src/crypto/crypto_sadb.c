@@ -570,6 +570,8 @@ sadb_find_matching_sa(struct sadb_sa *sa, bool ign_pending_del, vrfid_t vrfid,
 					peer_links);
 		if (tmp_sa->reqid == sa->reqid &&
 		    tmp_sa->spi != sa->spi &&
+		    tmp_sa->family == sa->family &&
+		    xfrm_addr_eq(&tmp_sa->dst, &sa->dst, sa->family) &&
 		    ((!ign_pending_del && !tmp_sa->pending_del) ||
 		     ign_pending_del))
 			return tmp_sa;
@@ -656,7 +658,8 @@ static struct sadb_sa *sadb_remove_sa(const xfrm_address_t *dst,
 	 */
 	cds_list_for_each_prev_safe(this_entry, next_entry, &peer->sa_list) {
 		sa = cds_list_entry(this_entry, struct sadb_sa, peer_links);
-		if (sa->spi == spi) {
+		if ((sa->spi == spi) && (sa->family == family) &&
+		    xfrm_addr_eq(&sa->dst, dst, family)) {
 			cds_list_del_rcu(&sa->peer_links);
 			goto done;
 		}
