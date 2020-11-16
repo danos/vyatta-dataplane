@@ -1238,7 +1238,7 @@ void send_sg_cnt(struct sioc_sg_req *rq, vrfid_t vrf_id, uint32_t flags)
 	zmsg_send_and_destroy(&msg, csocket);
 }
 
-void send_sg6_cnt(struct sioc_sg_req6 *sr, vrfid_t vrf_id, uint32_t flags)
+void send_sg6_cnt(struct sioc_sg_req6 *rq, vrfid_t vrf_id, uint32_t flags)
 {
 	zmsg_t *msg;
 	zsock_t *csocket = cont_socket_get(CONT_SRC_MAIN);
@@ -1252,7 +1252,7 @@ void send_sg6_cnt(struct sioc_sg_req6 *sr, vrfid_t vrf_id, uint32_t flags)
 		return;
 
 	zmsg_addstr(msg, "MRT6STAT");
-	zmsg_addmem(msg, sr, sizeof(*sr));
+	zmsg_addmem(msg, rq, sizeof(*rq));
 	zmsg_addmem(msg, &vrf_id, sizeof(vrf_id));
 	zmsg_addmem(msg, &flags, sizeof(flags));
 	zmsg_send_and_destroy(&msg, csocket);
