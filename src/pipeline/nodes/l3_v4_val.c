@@ -161,3 +161,16 @@ PL_REGISTER_NODE(ipv4_validate_node) = {
 
 struct pl_node_registration *const ipv4_validate_node_ptr =
 	&ipv4_validate_node;
+
+/*
+ * show features ipv4_validate [interface <ifname>]
+ */
+static int cmd_pl_show_feat_ipv4_validate(struct pl_command *cmd)
+{
+	return if_node_instance_feat_print(cmd, ipv4_validate_node_ptr);
+}
+
+PL_REGISTER_OPCMD(pl_show_feat_ipv4_validate) = {
+	.cmd = "show features ipv4_validate",
+	.handler = cmd_pl_show_feat_ipv4_validate,
+};
