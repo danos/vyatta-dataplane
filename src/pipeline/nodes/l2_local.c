@@ -125,3 +125,33 @@ PL_REGISTER_NODE(l2_local_node) = {
 
 struct pl_node_registration *const l2_local_node_ptr =
 	&l2_local_node;
+
+/*
+ * show features l2_local
+ */
+static int cmd_pl_show_feat_l2_local(struct pl_command *cmd)
+{
+	json_writer_t *wr;
+
+	wr = jsonw_new(cmd->fp);
+	if (!wr)
+		return 0;
+
+	jsonw_name(wr, "features");
+	jsonw_start_object(wr);
+
+	jsonw_name(wr, "global");
+	jsonw_start_array(wr);
+	pl_node_iter_features(l2_local_node_ptr, &l2_local_features,
+			      pl_print_feats, wr);
+	jsonw_end_array(wr);
+
+	jsonw_end_object(wr);
+	jsonw_destroy(&wr);
+	return 0;
+}
+
+PL_REGISTER_OPCMD(pl_show_feat_l2_local) = {
+	.cmd = "show features l2_local",
+	.handler = cmd_pl_show_feat_l2_local,
+};
