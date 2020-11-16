@@ -1365,8 +1365,11 @@ dpdk_eth_if_get_link_status(struct ifnet *ifp,
 }
 
 static enum dp_ifnet_iana_type
-dpdk_eth_iana_type(struct ifnet *ifp __unused)
+dpdk_eth_iana_type(struct ifnet *ifp)
 {
+	if (lag_is_team(ifp))
+		return DP_IFTYPE_IANA_IEEE8023ADLAG;
+
 	return DP_IFTYPE_IANA_ETHERNETCSMACD;
 }
 
