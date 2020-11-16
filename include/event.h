@@ -79,6 +79,8 @@ enum dp_event {
 	DP_EVENT_IF_VRF_SET,
 	DP_EVENT_IF_ADDR_ADD,
 	DP_EVENT_IF_ADDR_DEL,
+	DP_EVENT_IF_CREATE,
+	DP_EVENT_IF_DELETE,
 };
 
 enum dp_if_lag_event {
@@ -94,6 +96,10 @@ struct dp_events_ops {
 	void (*vrf_create)(struct vrf *vrf);
 	/* DP_EVENT_VRF_DELETE */
 	void (*vrf_delete)(struct vrf *vrf);
+	/* DP_EVENT_IF_CREATE */
+	void (*if_create)(struct ifnet *ifp);
+	/* DP_EVENT_IF_DELETE */
+	void (*if_delete)(struct ifnet *ifp);
 	/* DP_EVENT_IF_RENAME */
 	void (*if_rename)(struct ifnet *ifp, const char *old_name);
 	/* DP_EVENT_IF_VRF_SET */

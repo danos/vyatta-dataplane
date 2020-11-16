@@ -189,6 +189,8 @@ int dp_events_register(const struct dp_events_ops *ops)
 
 	internal_ops->vrf_create = ops->vrf_create;
 	internal_ops->vrf_delete = ops->vrf_delete;
+	internal_ops->if_create = ops->if_create;
+	internal_ops->if_delete = ops->if_delete;
 	internal_ops->if_rename = ops->if_rename;
 	internal_ops->if_vrf_set = ops->if_vrf_set;
 	internal_ops->if_lag_change = ops->if_lag_change;
