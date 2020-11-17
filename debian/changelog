@@ -1,3 +1,12 @@
+vyatta-dataplane (3.10.70.12) unstable; urgency=medium
+
+  [ Nicholas Brown ]
+  * Use DANOS:Shipping:2009 in Jenkinsfile
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Tue, 17 Nov 2020 09:22:00 +0000
+
 vyatta-dataplane (3.10.70.11) unstable; urgency=medium
 
   [ Thomas Kiely ]
