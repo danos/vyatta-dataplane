@@ -546,9 +546,9 @@ uint32_t qos_sched_calc_qindex(struct sched_info *qinfo, unsigned int subport,
 			       unsigned int pipe, unsigned int tc,
 			       unsigned int q);
 struct sched_info;
-int qos_sched(struct ifnet *ifp, struct sched_info *info,
-	      struct rte_mbuf **in, uint32_t n_in,
-	      struct rte_mbuf **out, uint32_t n_out);
+int qos_sched(struct ifnet *ifp, struct sched_info *qinfo,
+	      struct rte_mbuf *enq_pkts[], uint32_t n_pkts,
+	      struct rte_mbuf *deq_pkts[], uint32_t space);
 struct subport_info *qos_get_subport(const char *name, struct ifnet **ifp);
 struct npf_act_grp *qos_ag_get_head(struct subport_info *subport);
 struct npf_act_grp *qos_ag_set_or_get_head(struct subport_info *subport,
@@ -592,7 +592,7 @@ int qos_dpdk_subport_read_stats(struct sched_info *qinfo, uint32_t subport,
 int qos_dpdk_subport_clear_stats(struct sched_info *qinfo, uint32_t subport);
 int qos_dpdk_queue_read_stats(struct sched_info *qinfo, uint32_t subport,
 			      uint32_t pipe, uint32_t tc, uint32_t q,
-			      struct queue_stats *st, uint64_t *qlen,
+			      struct queue_stats *queue_stats, uint64_t *qlen,
 			      bool *qlen_in_pkts);
 int qos_dpdk_queue_clear_stats(struct sched_info *qinfo,
 			       uint32_t subport, uint32_t pipe,

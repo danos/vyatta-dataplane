@@ -4641,7 +4641,7 @@ bool qos_sched_subport_get_stats(struct sched_info *qinfo, uint16_t vlan_id,
 }
 
 void qos_save_mark_req(const char *att_pnt, enum qos_mark_type type,
-		       uint16_t no_qinqs, void **handle)
+		       uint16_t refs, void **handle)
 {
 	struct subport_info *subport;
 	struct ifnet *ifp = NULL;
@@ -4661,7 +4661,7 @@ void qos_save_mark_req(const char *att_pnt, enum qos_mark_type type,
 	mark_req->handle = handle;
 	mark_req->type = type;
 	mark_req->next = subport->marks;
-	mark_req->refs = no_qinqs;
+	mark_req->refs = refs;
 	subport->marks = mark_req;
 
 	DP_DEBUG(QOS, DEBUG, DATAPLANE,
