@@ -18,6 +18,16 @@ build and run the tests.
 Setting `DEB_BUILD_OPTIONS="verbose"` `DH_VERBOSE=1` will generate detailed
 test output.
 
+Additional 'slow' tests can be optionally be enabled with either:
+
+- If using the debian package build: `DEB_BUILD_OPTIONS="all_tests"`
+- If using meson directly: `meson setup -Dall_tests=true <builddir> <sourcedir>`
+
+It's often useful to disable Link Time Optimization to reduce rebuild times:
+
+- If using the debian package build: `DEB_BUILD_OPTIONS="no_lto"`
+- If using meson directly: `meson setup -Db_lto=false <builddir> <sourcedir>`
+
 The tests are integrated into the [Meson Unit Test execution framework][1].
 Use `meson test --help` for more information.
 
@@ -58,6 +68,14 @@ Run a single test using the `CK_RUN_CASE` environment variable:
 
 `CK_RUN_CASE=bridge_unicast meson test dp_test_bridge.c`
 
+or run directly after building only the test executable.
+
+``` shell
+ninja tests/whole_dp/dummyfs tests/whole_dp/fal_plugin_test.so tests/whole_dp/libsample_test.so src/pipeline/nodes/sample/sample_plugin.so
+ninja tests/whole_dp/dataplane_test
+cd tests/whole_dp
+CK_RUN_CASE=bridge_unicast ./dataplane_test -d2 -F ../../src/pipeline/nodes/sample -P .
+```
 
 ## Running test in GDB
 The test binary can be executed in gdb:
