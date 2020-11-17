@@ -32,14 +32,27 @@ struct gpc_rlset *gpc_rlset_next(struct gpc_rlset const *cursor);
 
 /* -- group accessors -- */
 
-char const *gpc_group_get_name(struct gpc_group const *arg);
-struct gpc_rlset *gpc_group_get_rlset(struct gpc_group const *arg);
-uint32_t gpc_group_get_summary(struct gpc_group const *arg);
-bool gpc_group_is_v6(struct gpc_group const *arg);
-bool gpc_group_is_ingress(struct gpc_group const *arg);
-bool gpc_group_is_ll_attached(struct gpc_group const *arg);
-uintptr_t gpc_group_get_objid(struct gpc_group const *arg);
-void gpc_group_set_objid(struct gpc_group *arg, uintptr_t objid);
+char const *gpc_group_get_name(struct gpc_group const *gprg);
+struct gpc_rlset *gpc_group_get_rlset(struct gpc_group const *gprg);
+void *gpc_group_get_owner(struct gpc_group const *gprg);
+uint32_t gpc_group_get_summary(struct gpc_group const *gprg);
+bool gpc_group_has_family(struct gpc_group const *gprg);
+bool gpc_group_is_v6(struct gpc_group const *gprg);
+bool gpc_group_is_ingress(struct gpc_group const *gprg);
+bool gpc_group_is_published(struct gpc_group const *gprg);
+bool gpc_group_is_ll_created(struct gpc_group const *gprg);
+bool gpc_group_is_attached(struct gpc_group const *gprg);
+bool gpc_group_is_ll_attached(struct gpc_group const *gprg);
+bool gpc_group_is_deferred(struct gpc_group const *gprg);
+uintptr_t gpc_group_get_objid(struct gpc_group const *gprg);
+void gpc_group_set_objid(struct gpc_group *gprg, uintptr_t objid);
+struct gpc_group *gpc_group_first(struct gpc_rlset const *gprs);
+struct gpc_group *gpc_group_next(struct gpc_group const *cursor);
+
+#define GPC_GROUP_FOREACH(var, head) \
+	for ((var) = gpc_group_first((head)); \
+	    (var); \
+	    (var) = gpc_group_next((var)))
 
 /* -- counter accessors -- */
 

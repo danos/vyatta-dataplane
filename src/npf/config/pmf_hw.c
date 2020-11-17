@@ -456,12 +456,11 @@ pmf_hw_rule_mod(struct pmf_attrl *earl, struct pmf_rule *rule)
 	pmf_hw_rule_add(earl, rule);
 }
 
-/* ---- */
+/* -- group FAL notification -- */
 
 bool
-pmf_hw_group_create(struct pmf_group_ext *earg)
+pmf_hw_group_create(struct gpc_group *gprg)
 {
-	struct gpc_group *gprg = (struct gpc_group *)earg;
 	struct gpc_rlset *gprs = gpc_group_get_rlset(gprg);
 	char const *ifname = gpc_rlset_get_ifname(gprs);
 	uintptr_t grpobj = FAL_NULL_OBJECT_ID;
@@ -639,9 +638,8 @@ pmf_hw_group_create(struct pmf_group_ext *earg)
 }
 
 void
-pmf_hw_group_delete(struct pmf_group_ext *earg)
+pmf_hw_group_delete(struct gpc_group *gprg)
 {
-	struct gpc_group *gprg = (struct gpc_group *)earg;
 	struct gpc_rlset *gprs = gpc_group_get_rlset(gprg);
 	char const *ifname = gpc_rlset_get_ifname(gprs);
 	uintptr_t grpobj = gpc_group_get_objid(gprg);
@@ -685,9 +683,8 @@ log_delete:
  * fields, treating this as a NO-OP is currently safe.
  */
 void
-pmf_hw_group_mod(struct pmf_group_ext *earg, uint32_t new)
+pmf_hw_group_mod(struct gpc_group *gprg, uint32_t new)
 {
-	struct gpc_group *gprg = (struct gpc_group *)earg;
 	struct gpc_rlset *gprs = gpc_group_get_rlset(gprg);
 	char const *ifname = gpc_rlset_get_ifname(gprs);
 	uintptr_t grpobj = gpc_group_get_objid(gprg);
@@ -712,9 +709,8 @@ pmf_hw_group_mod(struct pmf_group_ext *earg, uint32_t new)
 /* ---- */
 
 bool
-pmf_hw_group_attach(struct pmf_group_ext *earg, struct ifnet *ifp)
+pmf_hw_group_attach(struct gpc_group *gprg, struct ifnet *ifp)
 {
-	struct gpc_group *gprg = (struct gpc_group *)earg;
 	uintptr_t grpobj = gpc_group_get_objid(gprg);
 	bool ingress = gpc_group_is_ingress(gprg);
 	bool is_v6 = gpc_group_is_v6(gprg);
@@ -764,9 +760,8 @@ log_attach:
 }
 
 void
-pmf_hw_group_detach(struct pmf_group_ext *earg, struct ifnet *ifp)
+pmf_hw_group_detach(struct gpc_group *gprg, struct ifnet *ifp)
 {
-	struct gpc_group *gprg = (struct gpc_group *)earg;
 	uintptr_t grpobj = gpc_group_get_objid(gprg);
 	bool was_attached = gpc_group_is_ll_attached(gprg);
 	bool ingress = gpc_group_is_ingress(gprg);
