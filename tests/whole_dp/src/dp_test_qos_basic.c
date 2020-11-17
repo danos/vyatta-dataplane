@@ -66,13 +66,13 @@ DP_DECL_TEST_CASE(qos_basic, qos_basic_ipv4, NULL, NULL);
 
 const char *qos_lib_selftest_cmds[] = {
 	"port subports 1 pipes 1 profiles 2 overhead 24 ql_packets",
-	"subport 0 rate 1250000000 size 5000000 period 40",
+	"subport 0 rate 1250000000 size 5000000 period 40000",
 	"subport 0 queue 0 rate 1250000000 size 5000000",
 	"subport 0 queue 1 rate 1250000000 size 5000000",
 	"subport 0 queue 2 rate 1250000000 size 5000000",
 	"subport 0 queue 3 rate 1250000000 size 5000000",
 	"vlan 0 0",
-	"profile 0 rate 12500000 size 50000 period 10",
+	"profile 0 rate 12500000 size 50000 period 10000",
 	"profile 0 queue 0 rate 12500000 size 50000",
 	"profile 0 queue 1 rate 12500000 size 50000",
 	"profile 0 queue 2 rate 12500000 size 50000",

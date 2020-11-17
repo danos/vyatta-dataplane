@@ -19,13 +19,14 @@
 
 struct rte_sched_port;
 
-#define DEFAULT_QSIZE	64
-#define MAX_QSIZE	8192
-#define DEFAULT_TBSIZE	10000
+#define DEFAULT_QSIZE	64	/* 64 packets */
+#define MAX_QSIZE	8192	/* 8192 packets */
+#define DEFAULT_TBSIZE	10000	/* 10000 bytes or credits (1 byte/credit) */
+#define DEFAULT_PERIOD	10000	/* 10000 microseconds */
 #define DEFAULT_Q	3	/* class 3: queue 0 */
 #define MAX_PIPES       256
 
-#define MAX_RED_QUEUE_LENGTH 8192
+#define MAX_RED_QUEUE_LENGTH 8192   /* 8192 packets */
 
 #define	QOS_DPDK_ID	0
 #define	QOS_HW_ID	1

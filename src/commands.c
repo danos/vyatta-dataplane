@@ -1784,7 +1784,7 @@ static const cmd_t cmd_table[] = {
 	{ 1,	"portmonitor",	cmd_portmonitor, "portmonitor command" },
 	{ 0,	"ptp",		cmd_ptp_op,	"PTP commands" },
 	{ 0,	"ptp-ut",	cmd_ptp_ut,	"PTP (unit tests)" },
-	{ 8,	"qos",		cmd_qos_op,	"Show Qos information" },
+	{ 9,	"qos",		cmd_qos_op,	"Show Qos information" },
 	{ 0,	"reset",	cmd_reset,	"Reset dataplane" },
 	{ 0,	"ring",		cmd_ring,	"Display ring information" },
 	{ 0,	"route",	cmd_route,	"Display routing information" },
