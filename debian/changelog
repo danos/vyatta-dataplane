@@ -1,3 +1,12 @@
+vyatta-dataplane (3.10.70.13) unstable; urgency=medium
+
+  [ Daniel Gollub ]
+  * l2tpeth: restore VLAN functionatliy on L2TPv3 interfaces
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Wed, 18 Nov 2020 08:57:07 +0000
+
 vyatta-dataplane (3.10.70.12) unstable; urgency=medium
 
   [ Nicholas Brown ]
