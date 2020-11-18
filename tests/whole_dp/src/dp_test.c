@@ -147,22 +147,8 @@ dp_test_usage(int status)
 	       " -p, --poison         Poison mbuf data before each test\n"
 	       " -F --feat_plugin_dir Extra directory to check for feat plugins\n"
 	       " -P  --plugin-directory Unit-Test plugin directory\n"
-	       " -r, --routing-domain Use routing-domain VRF model\n"
 	       " -E, --external       When being run from plugin code\n"
 	       " -H, --platform       Specify the platform_conf file to use\n"
-	       " -C, --cfg            Extra config that a caller wants to pass\n"
-	       "                      into the tests. It represents a line in\n"
-	       "                      the 'dataplane' section of the config\n"
-	       "                      file.  It should be text based. As the\n"
-	       "                      config typically represents socket\n"
-	       "                      locations they should have the pid\n"
-	       "                      in them. As the pid is not available\n"
-	       "                      until the tests are run the strings\n"
-	       "                      should contain %%d in places where the\n"
-	       "                      pid is to be inserted. For example\n"
-	       "                      val_1=aaa-%%d  If multiple lines are\n"
-	       "                      needed then the option can be used\n"
-	       "                      multiple times\n"
 	       "ENV VARS:\n"
 	       " CK_RUN_SUITE          Run a single suite\n"
 	       " CK_RUN_CASE           Run a single test\n"
@@ -253,16 +239,14 @@ dp_test_parse_args(int argc, char **argv)
 		{ "help",     no_argument,       NULL, 'h' },
 		{ "poison",   no_argument,       NULL, 'p' },
 		{ "count",    required_argument, NULL, 'c' },
-		{ "routing-domain", no_argument, NULL, 'r' },
 		{ "feat_plugin_dir", required_argument, NULL, 'F'},
 		{ "plugin-directory", required_argument, NULL, 'P' },
 		{ "platform", required_argument, NULL, 'H' },
 		{ "external", no_argument, NULL, 'E' },
-		{ "cfg", required_argument, NULL, 'C' },
 		{ NULL, 0, NULL, 0}
 	};
 
-	while ((opt = getopt_long(argc, argv, "c:d:P:F:uhprEC:H:",
+	while ((opt = getopt_long(argc, argv, "c:d:P:F:uhpEH:",
 				  lgopts, &option_index)) != EOF) {
 
 		switch (opt) {
