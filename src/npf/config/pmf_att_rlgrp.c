@@ -84,6 +84,42 @@ static bool commit_pending;
 
 /* ---- */
 
+static bool
+gpc_rule_is_published(struct pmf_attrl const *earl)
+{
+	return earl->earl_flags & PMF_EARLF_PUBLISHED;
+}
+
+static bool
+gpc_rule_is_ll_created(struct pmf_attrl const *earl)
+{
+	return earl->earl_flags & PMF_EARLF_LL_CREATED;
+}
+
+static void
+gpc_rule_set_published(struct pmf_attrl *earl)
+{
+	earl->earl_flags |= PMF_EARLF_PUBLISHED;
+}
+
+static void
+gpc_rule_clear_published(struct pmf_attrl *earl)
+{
+	earl->earl_flags &= ~PMF_EARLF_PUBLISHED;
+}
+
+static void
+gpc_rule_set_ll_created(struct pmf_attrl *earl)
+{
+	earl->earl_flags |= PMF_EARLF_LL_CREATED;
+}
+
+static void
+gpc_rule_clear_ll_created(struct pmf_attrl *earl)
+{
+	earl->earl_flags &= ~PMF_EARLF_LL_CREATED;
+}
+
 uint16_t
 pmf_arlg_attrl_get_index(struct pmf_attrl const *earl)
 {
@@ -444,15 +480,15 @@ pmf_alrg_hw_ntfy_rule_add(struct pmf_group_ext *earg, struct pmf_attrl *earl)
 {
 	if (!gpc_group_is_published(earg->earg_gprg))
 		return;
-	if (earl->earl_flags & PMF_EARLF_PUBLISHED)
+	if (gpc_rule_is_published(earl))
 		return;
 
 	pmf_arlg_hw_ntfy_cntr_add(earg, earl);
 
 	if (pmf_hw_rule_add(earl, earl->earl_rule))
-		earl->earl_flags |= PMF_EARLF_LL_CREATED;
+		gpc_rule_set_ll_created(earl);
 
-	earl->earl_flags |= PMF_EARLF_PUBLISHED;
+	gpc_rule_set_published(earl);
 }
 
 static void
@@ -461,7 +497,7 @@ pmf_alrg_hw_ntfy_rule_chg(struct pmf_group_ext *earg, struct pmf_attrl *earl,
 {
 	if (!gpc_group_is_published(earg->earg_gprg))
 		return;
-	if (!(earl->earl_flags & PMF_EARLF_PUBLISHED)) {
+	if (!gpc_rule_is_published(earl)) {
 		pmf_alrg_hw_ntfy_rule_add(earg, earl);
 		return;
 	}
@@ -474,12 +510,13 @@ pmf_alrg_hw_ntfy_rule_del(struct pmf_group_ext *earg, struct pmf_attrl *earl)
 {
 	if (!gpc_group_is_published(earg->earg_gprg))
 		return;
-	if (!(earl->earl_flags & PMF_EARLF_PUBLISHED))
+	if (!gpc_rule_is_published(earl))
 		return;
 
 	pmf_hw_rule_del(earl);
 
-	earl->earl_flags &= ~(PMF_EARLF_PUBLISHED|PMF_EARLF_LL_CREATED);
+	gpc_rule_clear_ll_created(earl);
+	gpc_rule_clear_published(earl);
 
 	pmf_arlg_hw_ntfy_cntr_del(earg, earl);
 }
@@ -1398,11 +1435,9 @@ pmf_arlg_dump(FILE *fp)
 			/* Rules - i.e. ENTRIES */
 			struct pmf_attrl *earl;
 			TAILQ_FOREACH(earl, &earg->earg_rules, earl_list) {
-				uint32_t rl_flags = earl->earl_flags;
-				bool rl_published
-					= (rl_flags & PMF_EARLF_PUBLISHED);
+				bool rl_published = gpc_rule_is_published(earl);
 				bool rl_ll_create
-					= (rl_flags & PMF_EARLF_LL_CREATED);
+					= gpc_rule_is_ll_created(earl);
 				fprintf(fp, "   RL:%p(%lx): %u(%x)%s%s\n",
 					earl, earl->earl_objid,
 					earl->earl_index,
