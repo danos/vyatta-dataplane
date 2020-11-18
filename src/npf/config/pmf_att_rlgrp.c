@@ -476,12 +476,14 @@ pmf_arlg_hw_ntfy_cntr_del(struct pmf_group_ext *earg, struct pmf_attrl *earl)
 }
 
 static void
-pmf_alrg_hw_ntfy_rule_add(struct pmf_group_ext *earg, struct pmf_attrl *earl)
+gpc_rule_hw_ntfy_create(struct gpc_group *gprg, struct pmf_attrl *earl)
 {
-	if (!gpc_group_is_published(earg->earg_gprg))
+	if (!gpc_group_is_published(gprg))
 		return;
 	if (gpc_rule_is_published(earl))
 		return;
+
+	struct pmf_group_ext *earg = gpc_group_get_owner(gprg);
 
 	pmf_arlg_hw_ntfy_cntr_add(earg, earl);
 
@@ -492,13 +494,13 @@ pmf_alrg_hw_ntfy_rule_add(struct pmf_group_ext *earg, struct pmf_attrl *earl)
 }
 
 static void
-pmf_alrg_hw_ntfy_rule_chg(struct pmf_group_ext *earg, struct pmf_attrl *earl,
-			  struct pmf_rule *new_rule)
+gpc_rule_hw_ntfy_modify(struct gpc_group *gprg, struct pmf_attrl *earl,
+			struct pmf_rule *new_rule)
 {
-	if (!gpc_group_is_published(earg->earg_gprg))
+	if (!gpc_group_is_published(gprg))
 		return;
 	if (!gpc_rule_is_published(earl)) {
-		pmf_alrg_hw_ntfy_rule_add(earg, earl);
+		gpc_rule_hw_ntfy_create(gprg, earl);
 		return;
 	}
 
@@ -506,9 +508,9 @@ pmf_alrg_hw_ntfy_rule_chg(struct pmf_group_ext *earg, struct pmf_attrl *earl,
 }
 
 static void
-pmf_alrg_hw_ntfy_rule_del(struct pmf_group_ext *earg, struct pmf_attrl *earl)
+gpc_rule_hw_ntfy_delete(struct gpc_group *gprg, struct pmf_attrl *earl)
 {
-	if (!gpc_group_is_published(earg->earg_gprg))
+	if (!gpc_group_is_published(gprg))
 		return;
 	if (!gpc_rule_is_published(earl))
 		return;
@@ -517,6 +519,8 @@ pmf_alrg_hw_ntfy_rule_del(struct pmf_group_ext *earg, struct pmf_attrl *earl)
 
 	gpc_rule_clear_ll_created(earl);
 	gpc_rule_clear_published(earl);
+
+	struct pmf_group_ext *earg = gpc_group_get_owner(gprg);
 
 	pmf_arlg_hw_ntfy_cntr_del(earg, earl);
 }
@@ -532,25 +536,29 @@ pmf_alrg_hw_ntfy_rule_del(struct pmf_group_ext *earg, struct pmf_attrl *earl)
 static void
 pmf_alrg_hw_ntfy_rules_add(struct pmf_group_ext *earg)
 {
-	if (!gpc_group_is_published(earg->earg_gprg))
+	struct gpc_group *gprg = earg->earg_gprg;
+
+	if (!gpc_group_is_published(gprg))
 		return;
 
 	struct pmf_attrl *earl;
 
 	TAILQ_FOREACH(earl, &earg->earg_rules, earl_list)
-		pmf_alrg_hw_ntfy_rule_add(earg, earl);
+		gpc_rule_hw_ntfy_create(gprg, earl);
 }
 
 static void
 pmf_alrg_hw_ntfy_rules_del(struct pmf_group_ext *earg)
 {
-	if (!gpc_group_is_published(earg->earg_gprg))
+	struct gpc_group *gprg = earg->earg_gprg;
+
+	if (!gpc_group_is_published(gprg))
 		return;
 
 	struct pmf_attrl *earl;
 
 	TAILQ_FOREACH(earl, &earg->earg_rules, earl_list)
-		pmf_alrg_hw_ntfy_rule_del(earg, earl);
+		gpc_rule_hw_ntfy_delete(gprg, earl);
 }
 
 
@@ -736,7 +744,7 @@ pmf_arlg_rl_del(struct pmf_group_ext *earg, uint32_t rl_idx)
 
 	--earg->earg_num_rules;
 
-	pmf_alrg_hw_ntfy_rule_del(earg, earl);
+	gpc_rule_hw_ntfy_delete(gprg, earl);
 
 	TAILQ_REMOVE(&earg->earg_rules, earl, earl_list);
 	pmf_arlg_rl_free(earl);
@@ -783,7 +791,7 @@ pmf_arlg_rl_chg(struct pmf_group_ext *earg,
 	uint32_t new_summary = old_summary | new_rule->pp_summary;
 	gpc_group_hw_ntfy_modify(gprg, new_summary);
 
-	pmf_alrg_hw_ntfy_rule_chg(earg, earl, new_rule);
+	gpc_rule_hw_ntfy_modify(gprg, earl, new_rule);
 	pmf_arlg_rl_change(earl, new_rule);
 
 	/* We turned on new stuff above, turn off old stuff now */
@@ -845,7 +853,7 @@ pmf_arlg_rl_add(struct pmf_group_ext *earg,
 			     | rule->pp_summary;
 	gpc_group_hw_ntfy_modify(gprg, new_summary);
 
-	pmf_alrg_hw_ntfy_rule_add(earg, earl);
+	gpc_rule_hw_ntfy_create(gprg, earl);
 
 	struct pmf_attrl *cursor = TAILQ_LAST(&earg->earg_rules, pmf_rlqh);
 	if (!cursor || cursor->earl_index < rl_idx) {
