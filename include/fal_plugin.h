@@ -6054,6 +6054,24 @@ enum fal_bfd_session_attr_t {
 	FAL_BFD_SESSION_ATTR_FINAL_BIT,
 
 	/**
+	 * @brief Indicate the session is a Micro BFD session
+	 *
+	 * @type bool
+	 * @flags CREATE_ONLY
+	 * @default false
+	 */
+	FAL_BFD_SESSION_ATTR_MICRO_BFD,
+
+	/**
+	 * @brief LAG's member interface object
+	 *
+	 * @type fal_object_t
+	 * @flags CREATE_ONLY
+	 * @validonly FAL_BFD_SESSION_ATTR_MICRO_BFD == true
+	 */
+	FAL_BFD_SESSION_ATTR_LAG_MEMBER_IF,
+
+	/**
 	 * @brief End of attributes
 	 */
 	FAL_BFD_SESSION_ATTR_END,
