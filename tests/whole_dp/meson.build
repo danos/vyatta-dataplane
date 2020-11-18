@@ -261,6 +261,9 @@ else
         dataplane_test_env = []
 endif
 
+lcore_number = 0
+cores_available = run_command('nproc').stdout().to_int()
+
 foreach suite : check_tests + ['dp_test_pipeline.c']
 
         suite_env = ['CK_RUN_SUITE=@0@'.format(suite)] + dataplane_test_env
@@ -268,9 +271,14 @@ foreach suite : check_tests + ['dp_test_pipeline.c']
         test(suite, dataplane_test,
                 depends: [sample_plugin, sample_test_plugin, fal_test_plugin, dummyfs],
                 workdir: meson.current_build_dir(),
-                args: ['-d1', '-F', meson.build_root() / 'src/pipeline/nodes/sample', '-P', meson.current_build_dir()],
+                args: ['-l @0@'.format(lcore_number), '-d1', '-F', meson.build_root() / 'src/pipeline/nodes/sample', '-P', meson.current_build_dir()],
                 env: suite_env,
                 timeout: test_timeout
         )
+
+        lcore_number += 1
+        if (lcore_number >= cores_available)
+                lcore_number = 0
+	endif
 
 endforeach

@@ -149,6 +149,7 @@ dp_test_usage(int status)
 	       " -P  --plugin-directory Unit-Test plugin directory\n"
 	       " -E, --external       When being run from plugin code\n"
 	       " -H, --platform       Specify the platform_conf file to use\n"
+	       " -l, --lcore_list     Specify the lcore list passed to dpdk. eg. '0,1'\n"
 	       "ENV VARS:\n"
 	       " CK_RUN_SUITE          Run a single suite\n"
 	       " CK_RUN_CASE           Run a single test\n"
@@ -171,6 +172,13 @@ static const char *dp_test_platform_file = PLATFORM_FILE;
  * set of paths are used.
  */
 bool from_external;
+
+/*
+ * lcore list to pass through to dpdk. By default assume only 1 cpu as we
+ * know that all processors always have that.
+ * eg. Using cores 0-3, could be presented as "0,1,2,3"
+ */
+static const char *lcore_list = "0";
 
 static void
 dp_test_debug_default(void)
@@ -243,10 +251,11 @@ dp_test_parse_args(int argc, char **argv)
 		{ "plugin-directory", required_argument, NULL, 'P' },
 		{ "platform", required_argument, NULL, 'H' },
 		{ "external", no_argument, NULL, 'E' },
+		{ "lcore_list", required_argument, NULL, 'l' },
 		{ NULL, 0, NULL, 0}
 	};
 
-	while ((opt = getopt_long(argc, argv, "c:d:P:F:uhpEH:",
+	while ((opt = getopt_long(argc, argv, "c:d:P:F:uhpEH:l:",
 				  lgopts, &option_index)) != EOF) {
 
 		switch (opt) {
@@ -279,6 +288,9 @@ dp_test_parse_args(int argc, char **argv)
 		case 'E':
 			from_external = true;
 			printf("UTs being run from external repo, using paths from dev package\n");
+			break;
+		case 'l':
+			lcore_list = optarg;
 			break;
 		default:
 			fprintf(stderr, "Unknown option %c\n", opt);
@@ -719,7 +731,7 @@ int __wrap_main(int argc, char **argv)
 		"-P", dp_test_platform_file,
 		"--",
 		"-n", "1",
-		"-c", "0x1",
+		"-l", lcore_list,
 		"--syslog", "local6",
 		"--no-huge",
 		"-m", "1024",
