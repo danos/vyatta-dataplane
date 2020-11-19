@@ -745,7 +745,7 @@ pl_feat_point_node_get_max_features(enum pl_feature_point_id feat_point)
 }
 
 int dp_pipeline_register_inst_storage(const char *name,
-				      const char *node_inst_name,
+				      const char *instance,
 				      void *context)
 {
 	struct pl_feature_registration *pl_feat;
@@ -753,44 +753,44 @@ int dp_pipeline_register_inst_storage(const char *name,
 	ASSERT_MAIN();
 
 	/* Not providing a callback cleanup is allowed */
-	if (!name || !node_inst_name || !context)
+	if (!name || !instance || !context)
 		return -EINVAL;
 
 	pl_feat = pl_feat_registration_find_by_name(name);
 	if (!pl_feat)
 		return -EINVAL;
 
-	return pl_node_register_storage(pl_feat, node_inst_name, context);
+	return pl_node_register_storage(pl_feat, instance, context);
 }
 
 int dp_pipeline_unregister_inst_storage(const char *name,
-					const char *node_inst_name)
+					const char *instance)
 {
 	struct pl_feature_registration *pl_feat;
 
 	ASSERT_MAIN();
 
-	if (!name || !node_inst_name)
+	if (!name || !instance)
 		return -EINVAL;
 
 	pl_feat = pl_feat_registration_find_by_name(name);
 	if (!pl_feat)
 		return -EINVAL;
 
-	return pl_node_unregister_storage(pl_feat, node_inst_name);
+	return pl_node_unregister_storage(pl_feat, instance);
 }
 
 void *dp_pipeline_get_inst_storage(const char *node_name,
-				   const char *node_inst_name)
+				   const char *instance)
 {
 	struct pl_feature_registration *pl_feat;
 
-	if (!node_name || !node_inst_name)
+	if (!node_name || !instance)
 		return NULL;
 
 	pl_feat = pl_feat_registration_find_by_name(node_name);
 	if (!pl_feat)
 		return NULL;
 
-	return pl_node_get_storage(pl_feat, node_inst_name);
+	return pl_node_get_storage(pl_feat, instance);
 }
