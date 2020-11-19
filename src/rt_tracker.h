@@ -41,7 +41,7 @@ struct rt_tracker_info {
 void rt_tracker_uninit(struct vrf *vrf);
 
 uint32_t
-rt_tracker_client_count(struct rt_tracker_info *ti_info);
+rt_tracker_client_count(struct rt_tracker_info *tracker);
 
 int cmd_rt_tracker_op(FILE *f, int argc, char **argv);
 

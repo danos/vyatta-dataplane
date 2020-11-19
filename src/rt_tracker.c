@@ -307,18 +307,18 @@ add_client:
 }
 
 void
-dp_rt_tracker_delete(const struct vrf *vrf, struct ip_addr *ip, void *cb_ctx)
+dp_rt_tracker_delete(const struct vrf *vrf, struct ip_addr *addr, void *cb_ctx)
 {
 	struct rt_tracker_info *ti_info;
 
-	ti_info = rt_tracker_lookup(vrf->v_rt_tracker_tbl, ip);
+	ti_info = rt_tracker_lookup(vrf->v_rt_tracker_tbl, addr);
 	if (!ti_info) {
 		RTE_LOG(ERR, LPM, "Delete tracker: NOT FOUND\n");
 		return;
 	}
 	rt_tracker_client_delete(ti_info, cb_ctx);
 	if (cds_list_empty(&ti_info->rti_client_list)) {
-		switch (ip->type) {
+		switch (addr->type) {
 		case AF_INET:
 			lpm_tracker_delete(ti_info);
 			break;
