@@ -451,7 +451,7 @@ static int qos_sched_setup_dscp_map(struct sched_info *qinfo,
  * returns the rate provided in the bandwidth structure.
  */
 static uint64_t qos_rate_get(struct qos_rate_info *bw_info, uint64_t parent_bw,
-			     struct sched_info *qinfo)
+			     struct sched_info *qinfo, bool limit)
 {
 	uint64_t rate;
 
@@ -466,6 +466,9 @@ static uint64_t qos_rate_get(struct qos_rate_info *bw_info, uint64_t parent_bw,
 			rate = (parent_bw * full_pct) / 100;
 	} else
 		rate = bw_info->rate.bandwidth;
+
+	if (!limit)
+		return rate;
 
 	rate = QOS_CHECK_RATE(qinfo)(rate, parent_bw);
 
@@ -886,7 +889,7 @@ void qos_sched_subport_params_check(
 	uint32_t tc_period = 0, period = 0;
 	unsigned int i;
 
-	params->tb_rate = qos_rate_get(config_rate, bps, qinfo);
+	params->tb_rate = qos_rate_get(config_rate, bps, qinfo, true);
 
 	/* squash rate down to actual line rate */
 	if (params->tb_rate > bps)
@@ -903,7 +906,8 @@ void qos_sched_subport_params_check(
 	period = params->tc_period;
 	for (i = 0; i < RTE_SCHED_TRAFFIC_CLASSES_PER_PIPE; i++) {
 		params->tc_rate[i] = qos_rate_get(&config_tc_rate[i],
-						  params->tb_rate, qinfo);
+						  params->tb_rate, qinfo,
+						  false);
 		if (params->tc_rate[i] > bps)
 			params->tc_rate[i] = bps;
 		if (params->tc_rate[i] > params->tb_rate)

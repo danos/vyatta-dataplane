@@ -89,9 +89,6 @@ const char *qos_lib_selftest_cmds[] = {
 #define QOS_LIB_SELFTEST_PROFILE_SIZE 50000
 #define QOS_LIB_SELFTEST_PROFILE_PERIOD 10
 
-/* 99.6% of QOS_LIB_SELFTEST_PROFILE_RATE */
-#define	QOS_LIB_SELFTEST_PROFILE_QUEUE_ACTUAL_RATE 12450000
-
 DP_START_TEST(qos_basic_ipv4, qos_lib_selftest)
 {
 	bool debug = (dp_test_debug_get() == 2 ? true : false);
@@ -179,7 +176,7 @@ DP_START_TEST(qos_basic_ipv4, qos_lib_selftest)
 		value = json_object_get_int(j_obj);
 		json_object_put(j_obj);
 		dp_test_fail_unless(value ==
-				    QOS_LIB_SELFTEST_PROFILE_QUEUE_ACTUAL_RATE,
+				    QOS_LIB_SELFTEST_PROFILE_RATE,
 				    "failed to get correct tc_rate value for "
 				    "tc %u - value %u\n", tc, value);
 	}
