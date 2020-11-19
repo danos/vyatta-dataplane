@@ -3774,6 +3774,75 @@ int cmd_ifconfig(FILE *f, int argc, char **argv)
 	return 0;
 }
 
+struct pl_show_intf_ctx {
+	json_writer_t	*json;
+	char		*ifname;
+	struct pl_node_registration *node_ptr;
+};
+
+static void if_pl_print_feat(struct ifnet *ifp, void *arg)
+{
+	struct pl_show_intf_ctx *ctx = arg;
+	json_writer_t *wr = ctx->json;
+
+	if (ctx->ifname && strcmp(ctx->ifname, ifp->if_name) &&
+	    strcmp(ctx->ifname, "all"))
+		return;
+
+	jsonw_start_object(wr);
+	jsonw_name(wr, ifp->if_name);
+
+	jsonw_start_array(wr);
+	pl_node_iter_features(ctx->node_ptr, ifp, pl_print_feats, wr);
+	jsonw_end_array(wr);
+
+	jsonw_end_object(wr);
+}
+
+/*
+ * show features <node-name> [interface <ifname>]
+ */
+int if_node_instance_feat_print(struct pl_command *cmd,
+				struct pl_node_registration *node_ptr)
+{
+	int argc = cmd->argc;
+	char **argv = cmd->argv;
+	char *opt, *ifname = NULL;
+	json_writer_t *wr;
+
+	while (argc > 0) {
+		opt = next_arg(&argc, &argv);
+
+		if (!strcmp(opt, "interface")) {
+			ifname = next_arg(&argc, &argv);
+			if (!ifname)
+				return 0;
+		}
+	}
+
+	wr = jsonw_new(cmd->fp);
+	if (!wr)
+		return 0;
+
+	struct pl_show_intf_ctx ctx = {
+		.json = wr,
+		.ifname = ifname,
+		.node_ptr = node_ptr,
+	};
+
+	jsonw_name(wr, "features");
+	jsonw_start_object(wr);
+
+	jsonw_name(wr, "interface");
+	jsonw_start_array(wr);
+	dp_ifnet_walk(if_pl_print_feat, &ctx);
+	jsonw_end_array(wr);
+
+	jsonw_end_object(wr);
+	jsonw_destroy(&wr);
+	return 0;
+}
+
 /*
  * Transmit one packet
  *

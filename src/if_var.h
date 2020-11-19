@@ -938,6 +938,9 @@ bool is_s2s_feat_attach(const struct ifnet *ifp);
 int cmd_set_vfp(FILE *f, int argc, char **argv);
 int cmd_ifconfig(FILE *f, int argc, char **argv);
 
+int if_node_instance_feat_print(struct pl_command *cmd,
+				struct pl_node_registration *node_ptr);
+
 void unsup_tunnel_output(struct ifnet *ifp, struct rte_mbuf *m,
 			 struct ifnet *input_ifp, uint16_t proto);
 void vfp_output(struct ifnet *ifp, struct rte_mbuf *m,
