@@ -387,7 +387,7 @@ int crypto_flow_cache_init(void)
 }
 
 void
-crypto_flow_cache_timer_handler(struct rte_timer *timer __rte_unused,
+crypto_flow_cache_timer_handler(struct rte_timer *tmr __rte_unused,
 				void *arg __rte_unused)
 {
 	flow_cache_age(flow_cache);
