@@ -658,7 +658,7 @@ bool rt_valid_tblid(vrfid_t vrfid, uint32_t tbl_id)
  * Returns RCU protected nexthop structure or NULL.
  */
 ALWAYS_INLINE __hot_func
-struct next_hop *dp_rt_lookup(in_addr_t dst, uint32_t tblid,
+struct next_hop *dp_rt_lookup(in_addr_t dst, uint32_t tbl_id,
 			      const struct rte_mbuf *m)
 {
 	vrfid_t vrfid = pktmbuf_get_vrf(m);
@@ -667,7 +667,7 @@ struct next_hop *dp_rt_lookup(in_addr_t dst, uint32_t tblid,
 	if (!vrf)
 		return NULL;
 
-	return rt_lookup_fast(vrf, dst, tblid, m);
+	return rt_lookup_fast(vrf, dst, tbl_id, m);
 }
 
 /*
