@@ -20,7 +20,7 @@ extern zhash_t *g_pl_cmds;
 extern zhash_t *g_pl_opcmds;
 
 void
-pl_recurse_cmds(zhash_t *h, const struct pl_node_command *c, char *s);
+pl_recurse_cmds(zhash_t *cmds, const struct pl_node_command *c, char *toks);
 
 void
 pl_dump_nodes(json_writer_t *json);
