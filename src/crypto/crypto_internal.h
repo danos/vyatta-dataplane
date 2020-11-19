@@ -348,9 +348,9 @@ int cipher_setup_ctx(const struct xfrm_algo *,
 		     uint32_t extra_flags);
 void cipher_teardown_ctx(struct sadb_sa *sa);
 
-int crypto_openssl_session_setup(struct crypto_session *ctx);
+int crypto_openssl_session_setup(struct crypto_session *sess);
 
-void crypto_openssl_session_teardown(struct crypto_session *ctx);
+void crypto_openssl_session_teardown(struct crypto_session *sess);
 
 void crypto_engine_summary(json_writer_t *wr, const struct sadb_sa *sa);
 
