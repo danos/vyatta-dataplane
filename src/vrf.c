@@ -453,9 +453,9 @@ vrfid_t vrf_if_get_vrfid(struct ifnet *ifp)
 	return VRF_INVALID_ID;
 }
 
-void vrf_set_external_id(struct vrf *vrf, vrfid_t xid)
+void vrf_set_external_id(struct vrf *vrf, vrfid_t external_id)
 {
-	vrf->v_external_id = xid;
+	vrf->v_external_id = external_id;
 	vrf_find_saved_tablemap(vrf);
 }
 
