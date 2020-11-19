@@ -290,7 +290,7 @@ void dpi_app_id_to_buf(char *buf, size_t *used_buf_len,
  */
 void dpi_app_type_to_buf(char *buf, size_t *used_buf_len,
 			 const size_t total_buf_len, uint32_t type,
-			 const char *(*id_to_name)(uint32_t));
+			 const char *(*id_to_type)(uint32_t));
 
 struct dpi_engine_procs {
 	/**
