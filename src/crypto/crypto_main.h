@@ -78,11 +78,11 @@ static inline void crypto_send(struct crypto_pkt_buffer *cpb)
 }
 
 void dp_crypto_init(void);
-unsigned int dp_crypto_poll(struct cds_list_head *pmd_list);
+unsigned int dp_crypto_poll(struct cds_list_head *pmd_head);
 void dp_crypto_shutdown(void);
-int crypto_attach_pmd(struct cds_list_head *pmd_list,
+int crypto_attach_pmd(struct cds_list_head *pmd_head,
 		      int crypto_dev_id, int lcore);
-void dp_crypto_periodic(struct cds_list_head *pmd_list);
+void dp_crypto_periodic(struct cds_list_head *pmd_head);
 void crypto_pmd_remove_all(void);
 void crypto_flow_cache_timer_handler(struct rte_timer *tmr, void *arg);
 int crypto_pmd_get_info(int pmd_dev_id, uint8_t *rte_dev_id,

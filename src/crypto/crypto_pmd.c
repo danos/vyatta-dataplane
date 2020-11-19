@@ -501,7 +501,7 @@ void crypto_remove_sa_from_pmd(int dev_id, enum crypto_xfrm xfrm,
  * Insert a PMD into the list of PMDs being procssed by an engine,
  * i.e. an lcore or a pthread
  */
-int crypto_attach_pmd(struct cds_list_head *pmd_list, int dev_id, int lcore)
+int crypto_attach_pmd(struct cds_list_head *pmd_head, int dev_id, int lcore)
 {
 	bool err;
 	struct crypto_pmd *new_pmd = crypto_dev_id_to_pmd(dev_id,
@@ -514,7 +514,7 @@ int crypto_attach_pmd(struct cds_list_head *pmd_list, int dev_id, int lcore)
 	}
 
 	new_pmd->lcore = lcore;
-	cds_list_add_rcu(&new_pmd->next, pmd_list);
+	cds_list_add_rcu(&new_pmd->next, pmd_head);
 	return 0;
 }
 
