@@ -99,7 +99,8 @@ icmp6_do_exthdr(struct rte_mbuf *m, uint16_t class, uint8_t ctype, void *buf,
 void icmp6_prepare_send(struct rte_mbuf *m);
 
 struct next_hop;
-void icmp6_redirect(struct ifnet *ifp, struct rte_mbuf *m,
+/* Send icmp6 redirect without modifying original packet */
+void icmp6_redirect(struct ifnet *ifp, struct rte_mbuf *n,
 		    const struct next_hop *nxt);
 void ip6_redirects_set(bool enable);
 bool ip6_redirects_get(void);
