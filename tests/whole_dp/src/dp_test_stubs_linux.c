@@ -31,9 +31,7 @@ static bool path_needs_redirected(const char *path)
 	int pathlen = strlen(path);
 	bool match = false;
 
-	match = !memcmp(path, "/proc", MIN(pathlen, strlen("/proc"))) ||
-		!memcmp(path, "/sys", MIN(pathlen, strlen("/sys"))) ||
-		!memcmp(path, "/run", MIN(pathlen, strlen("/run")));
+	match = !memcmp(path, "/run", MIN(pathlen, strlen("/run")));
 
 	if (!from_external)
 		/*
