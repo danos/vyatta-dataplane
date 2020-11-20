@@ -481,7 +481,7 @@ storm_ctl_policy_get_fal_rate(struct dp_storm_ctl_policy *policy,
 
 	if (policy->threshold_type == DP_STORM_CTL_THRESHOLD_ABS)
 		return policy->threshold_val;
-	else if (policy->threshold_type == DP_STORM_CTL_THRESHOLD_PCT) {
+	if (policy->threshold_type == DP_STORM_CTL_THRESHOLD_PCT) {
 		if (ifp->if_type == IFT_L2VLAN)
 			ifp = ifp->if_parent;
 		dp_ifnet_link_status(ifp, &link);
@@ -692,7 +692,7 @@ static int fal_policer_modify_profile(struct storm_ctl_profile *profile,
 	if (!instance->sci_fal_obj[traf])
 		return fal_policer_apply_profile(profile, vlan,
 						 instance, traf);
-	else if (instance->sci_fal_obj[traf] &&
+	if (instance->sci_fal_obj[traf] &&
 		 profile->scp_policies[traf].threshold_type ==
 		 DP_STORM_CTL_THRESHOLD_NONE)
 		return fal_policer_unapply_profile(instance->sci_ifp, vlan,
@@ -1081,7 +1081,8 @@ static int storm_ctl_set_profile(bool set, FILE *f, int argc, char **argv)
 			return storm_ctl_set_threshold(set, tr_type,
 						       bw_type, argv[6],
 						       profile);
-		} else if (!set) {
+		}
+		if (!set) {
 			storm_ctl_set_threshold(set, tr_type,
 						DP_STORM_CTL_THRESHOLD_NONE,
 						0, profile);
@@ -1441,10 +1442,9 @@ static int storm_ctl_set_intf_cfg(bool set, FILE *f, int argc, char **argv)
 			}
 			return storm_ctl_set_profile_on_intf(set, ifp,
 							     profile, 0);
-		} else {
-			storm_ctl_set_profile_on_intf(set, ifp, NULL, 0);
-			goto check_ifp_sc;
 		}
+		storm_ctl_set_profile_on_intf(set, ifp, NULL, 0);
+		goto check_ifp_sc;
 	}
 
 	if (!strcmp(argv[3], "vlan")) {
@@ -1453,7 +1453,8 @@ static int storm_ctl_set_intf_cfg(bool set, FILE *f, int argc, char **argv)
 				goto error;
 			return storm_ctl_set_intf_vlan_cfg(set, ifp, argv[4],
 							   argv[6]);
-		} else if (!set && argc == 5) {
+		}
+		if (!set && argc == 5) {
 			storm_ctl_set_intf_vlan_cfg(set, ifp, argv[4], argv[6]);
 			goto check_ifp_sc;
 		} else {
@@ -1519,13 +1520,13 @@ int cmd_storm_ctl_cfg(FILE *f, int argc, char **argv)
 
 	if (!strcmp(argv[2], "detection-interval"))
 		return storm_ctl_set_detection_interval(set, f, argc, argv);
-	else if (!strcmp(argv[2], "notification")) {
+	if (!strcmp(argv[2], "notification")) {
 		storm_ctl_set_notification(set);
 		return 0;
-	} else if (!strcmp(argv[2], "profile")) {
+	}
+	if (!strcmp(argv[2], "profile"))
 		return storm_ctl_set_profile(set, f, argc, argv);
-	} else
-		return storm_ctl_set_intf_cfg(set, f, argc, argv);
+	return storm_ctl_set_intf_cfg(set, f, argc, argv);
 
 error:
 	fprintf(f, "Usage: storm-ctl <op> < cmd | ifname >");
