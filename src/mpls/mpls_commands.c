@@ -198,27 +198,33 @@ int cmd_mpls(FILE *f, int argc, char **argv)
 
 		mpls_label_table_resize(global_label_space_id, size);
 		return 0;
-	} else if (argc == 3 && !strcmp(argv[1], "ipttlpropagate")) {
+	}
+	if (argc == 3 && !strcmp(argv[1], "ipttlpropagate")) {
 		bool enable = !strcmp(argv[2], "enable");
 
 		mpls_global_set_ipttlpropagate(enable);
 		return 0;
-	} else if (argc == 3 && !strcmp(argv[1], "defaultttl")) {
+	}
+	if (argc == 3 && !strcmp(argv[1], "defaultttl")) {
 		int ttl = atoi(argv[2]);
 
 		mpls_global_set_defaultttl(ttl);
 		return 0;
-	} else if (argc >= 3 && !strcmp(argv[1], "show")) {
+	}
+	if (argc >= 3 && !strcmp(argv[1], "show")) {
 		if (!strcmp(argv[2], "tables")) {
 			mpls_label_table_set_dump(f, -1, MPLS_LABEL_ALL);
 			return 0;
-		} else if (!strcmp(argv[2], "ifconfig")) {
+		}
+		if (!strcmp(argv[2], "ifconfig")) {
 			cmd_mifconfig(f, argc, argv);
 			return 0;
-		} else if (!strcmp(argv[2], "config")) {
+		}
+		if (!strcmp(argv[2], "config")) {
 			mpls_config_dump(f);
 			return 0;
-		} else if (!strcmp(argv[2], "label") && argc >= 4) {
+		}
+		if (!strcmp(argv[2], "label") && argc >= 4) {
 			mpls_label_table_set_dump(f, -1, atoi(argv[3]));
 			return 0;
 		}
