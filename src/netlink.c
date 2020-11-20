@@ -488,7 +488,7 @@ static struct ifnet *unspec_link_create(const struct ifinfomsg *ifi,
 	if (!strcmp(kind, "tun")) {
 		if (is_dp_intf(ifname))
 			return dataplane_tuntap_create(if_idx, ifname);
-		else if (strncmp(ifname, "vtun", 4) == 0)
+		if (strncmp(ifname, "vtun", 4) == 0)
 			return other_tunnel_create(if_idx, ifname,
 						   mtu, macaddr);
 	}
