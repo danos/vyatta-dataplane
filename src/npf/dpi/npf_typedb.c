@@ -73,8 +73,7 @@ typedb_find_name(const char *name)
 	if (ht_node)
 		return caa_container_of(ht_node, struct tdb_entry,
 					te_name_ht_node);
-	else
-		return NULL;
+	return NULL;
 }
 
 /*
@@ -111,8 +110,7 @@ typedb_find_id(uint32_t type_id)
 	if (ht_node)
 		return caa_container_of(ht_node, struct tdb_entry,
 					te_id_ht_node);
-	else
-		return NULL;
+	return NULL;
 }
 
 int
