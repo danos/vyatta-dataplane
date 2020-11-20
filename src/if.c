@@ -2577,8 +2577,7 @@ int cmd_set_vfp(FILE *f __unused, int argc, char **argv)
 
 	if (is_get)
 		return if_get_vfp(vfp, vfp_type);
-	else
-		return if_put_vfp(vfp, vfp_type);
+	return if_put_vfp(vfp, vfp_type);
 }
 
 /* update MTU of tunnels bound to specified device */
