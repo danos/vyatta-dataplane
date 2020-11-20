@@ -147,13 +147,14 @@ static int __net_ratelimit(uint64_t now)
 		printed = 0;
 		epoch = 0;
 		return 1;
-	} else if (printed < 10) {
+	}
+	if (printed < 10) {
 		++printed;
 		return 1;
-	} else {
-		++missed;
-		return 0;
 	}
+
+	++missed;
+	return 0;
 }
 
 
@@ -178,10 +179,10 @@ static unsigned int xdigit2val(unsigned char c)
 {
 	if (isdigit(c))
 		return c - '0';
-	else if (isupper(c))
+	if (isupper(c))
 		return c - 'A' + 10;
-	else
-		return c - 'a' + 10;
+
+	return c - 'a' + 10;
 }
 
 
@@ -508,11 +509,11 @@ static unsigned char xdigit(int c)
 {
 	if (isdigit(c))
 		return c - '0';
-	else if (isupper(c))
+	if (isupper(c))
 		return c - 'A' + 10;
-	else
-		return c - 'a' + 10;
+	return c - 'a' + 10;
 }
+
 /*
  * Parse bitmask expressed as hex
  * needs to handle up to RTE_MAX_LCORE and RTE_MAX_ETHPORTS bits (ie 128)
