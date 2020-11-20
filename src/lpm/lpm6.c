@@ -789,17 +789,16 @@ lookup_step(const struct lpm6 *lpm, const struct lpm6_tbl_entry *tbl,
 	/* If it is valid and extended we calculate the new pointer to return. */
 	if (!tbl_entry.valid)
 		return -ENOENT;
-	else if (tbl_entry.ext_entry) {
+	if (tbl_entry.ext_entry) {
 		uint32_t tbl8_index = ip[first_byte-1]
 			+ tbl_entry.next_hop * LPM6_TBL8_GROUP_NUM_ENTRIES;
 
 		*tbl_next = &lpm->tbl8[tbl8_index];
 		return 1;
-	} else {
-		/* If not extended then we can have a match. */
-		*next_hop = tbl_entry.next_hop;
-		return 0;
 	}
+	/* If not extended then we can have a match. */
+	*next_hop = tbl_entry.next_hop;
+	return 0;
 }
 
 /*
@@ -1177,9 +1176,10 @@ delete_rule(struct lpm6 *lpm, const uint8_t *ip, uint8_t depth,
 		/* Continue inspecting levels until success or failure */
 		tbl_entry = CMM_ACCESS_ONCE(*tbl);
 
-		if (!tbl_entry.valid) {
+		if (!tbl_entry.valid)
 			return;
-		} else if (tbl_entry.ext_entry) {
+
+		if (tbl_entry.ext_entry) {
 			/* find next tbl8 */
 			tbl8_index = tbl_entry.next_hop *
 				LPM6_TBL8_GROUP_NUM_ENTRIES +
