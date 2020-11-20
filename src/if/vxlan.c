@@ -187,8 +187,7 @@ vxlan_vni_lookup(uint32_t vni)
 
 	if (node)
 		return caa_container_of(node, struct vxlan_vninode, vni_node);
-	else
-		return NULL;
+	return NULL;
 }
 
 /* Insert the specified vxlan node into the VNI table. */
@@ -1178,8 +1177,7 @@ vxlan_rtnode_lookup(struct vxlan_softc *sc,
 
 	if (node)
 		return caa_container_of(node, struct vxlan_rtnode, vxlrt_node);
-	else
-		return NULL;
+	return NULL;
 }
 
 /* Insert the specified vxlan node into the route table. */
@@ -1707,10 +1705,9 @@ static uint8_t ndmstate_to_flags(uint16_t state)
 {
 	if (state & NUD_PERMANENT)
 		return	IFBAF_LOCAL;
-	else if (state & NUD_NOARP)
+	if (state & NUD_NOARP)
 		return IFBAF_STATIC;
-	else
-		return IFBAF_DYNAMIC;
+	return IFBAF_DYNAMIC;
 }
 
 static void vxlan_newneigh(int ifindex,
