@@ -21,9 +21,11 @@ int dp_protobuf_get_ipaddr(IPAddress *addr_msg, struct ip_addr *addr)
 		       sizeof(addr->address.ip_v4));
 		addr->type = AF_INET;
 		return 0;
-	} else if (addr_msg->address_oneof_case ==
-		   IPADDRESS__ADDRESS_ONEOF_IPV6_ADDR &&
-		   sizeof(addr->address.ip_v6) == addr_msg->ipv6_addr.len) {
+	}
+
+	if (addr_msg->address_oneof_case ==
+	    IPADDRESS__ADDRESS_ONEOF_IPV6_ADDR &&
+	    sizeof(addr->address.ip_v6) == addr_msg->ipv6_addr.len) {
 		memcpy(&addr->address.ip_v6,
 		       addr_msg->ipv6_addr.data,
 		       addr_msg->ipv6_addr.len);
