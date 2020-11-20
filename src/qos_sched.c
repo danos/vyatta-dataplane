@@ -3700,17 +3700,16 @@ int cmd_qos_op(FILE *f, int argc, char **argv)
 	/* Check for op-mode commands first */
 	if (strcmp(argv[0], "show") == 0)
 		return cmd_qos_show(f, argc, argv);
-	else if (strcmp(argv[0], "optimised-show") == 0)
+	if (strcmp(argv[0], "optimised-show") == 0)
 		return cmd_qos_optimised_show(f, argc, argv);
-	else if (strcmp(argv[0], "clear") == 0)
+	if (strcmp(argv[0], "clear") == 0)
 		return cmd_qos_clear(f, argc, argv);
-	else if (strcmp(argv[0], "hw") == 0)
+	if (strcmp(argv[0], "hw") == 0)
 		return cmd_qos_hw(f, argc, argv);
-	else if (strcmp(argv[0], "obj-db") == 0)
+	if (strcmp(argv[0], "obj-db") == 0)
 		return cmd_qos_obj_db(f);
-	else
-		fprintf(f, "unknown qos command: %s\n", argv[0]);
 
+	fprintf(f, "unknown qos command: %s\n", argv[0]);
 	return -1;
 }
 
@@ -3969,7 +3968,7 @@ static int cmd_qos_ingress_map(struct ifnet *ifp, int argc, char **argv)
 		if (!argc)
 			return(qos_ingressm_trgt_attach(ifp->if_index, vlan,
 							map_name));
-		else if (!strcmp(argv[0], "delete"))
+		if (!strcmp(argv[0], "delete"))
 			return(qos_ingressm_trgt_detach(ifp->if_index,
 							vlan));
 		break;
@@ -4280,7 +4279,7 @@ static int cmd_qos_egress_map(struct ifnet *ifp, int argc, char **argv)
 		if (!argc)
 			return(qos_egressm_trgt_attach(ifp->if_index, vlan,
 							map_name));
-		else if (!strcmp(argv[0], "delete"))
+		if (!strcmp(argv[0], "delete"))
 			return(qos_egressm_trgt_detach(ifp->if_index, vlan,
 							map_name));
 		break;
@@ -4409,13 +4408,13 @@ int cmd_qos_cfg(__unused FILE * f, int argc, char **argv)
 
 		if (strcmp(argv[0], "mark-map") == 0)
 			return cmd_qos_mark_map(argc, argv);
-		else if (strcmp(argv[0], "platform") == 0)
+		if (strcmp(argv[0], "platform") == 0)
 			return cmd_qos_platform(argc, argv);
-		else if (strcmp(argv[0], "ingress-map") == 0)
+		if (strcmp(argv[0], "ingress-map") == 0)
 			return cmd_qos_ingress_map(NULL, argc, argv);
-		else if (strcmp(argv[0], "egress-map") == 0)
+		if (strcmp(argv[0], "egress-map") == 0)
 			return cmd_qos_egress_map(NULL, argc, argv);
-		else if (strcmp(argv[0], "lp-des") == 0)
+		if (strcmp(argv[0], "lp-des") == 0)
 			return cmd_qos_local_prio_des(argc, argv);
 
 		return -EINVAL;
@@ -4465,29 +4464,29 @@ int cmd_qos_cfg(__unused FILE * f, int argc, char **argv)
 
 	if (strcmp(argv[0], "port") == 0)
 		return cmd_qos_port(ifp, argc, argv);
-	else if (strcmp(argv[0], "param") == 0)
+	if (strcmp(argv[0], "param") == 0)
 		return cmd_qos_params(ifp, argc, argv);
-	else if (strcmp(argv[0], "subport") == 0)
+	if (strcmp(argv[0], "subport") == 0)
 		return cmd_qos_subport(ifp, argc, argv);
-	else if (strcmp(argv[0], "pipe") == 0)
+	if (strcmp(argv[0], "pipe") == 0)
 		return cmd_qos_pipe(ifp, argc, argv);
-	else if (strcmp(argv[0], "profile") == 0)
+	if (strcmp(argv[0], "profile") == 0)
 		return cmd_qos_profile(ifp, argc, argv);
-	else if (strcmp(argv[0], "vlan") == 0)
+	if (strcmp(argv[0], "vlan") == 0)
 		return cmd_qos_vlan(ifp, argc, argv);
-	else if (strcmp(argv[0], "match") == 0)
+	if (strcmp(argv[0], "match") == 0)
 		return cmd_qos_match(ifp, argc, argv);
-	else if (strcmp(argv[0], "disable") == 0)
+	if (strcmp(argv[0], "disable") == 0)
 		return cmd_qos_disable(ifp, argc, argv);
-	else if (strcmp(argv[0], "enable") == 0)
+	if (strcmp(argv[0], "enable") == 0)
 		return cmd_qos_enable(ifp, argc, argv);
-	else if (strcmp(argv[0], "ingress-map") == 0)
+	if (strcmp(argv[0], "ingress-map") == 0)
 		return cmd_qos_ingress_map(ifp, argc, argv);
-	else if (strcmp(argv[0], "egress-map") == 0)
+	if (strcmp(argv[0], "egress-map") == 0)
 		return cmd_qos_egress_map(ifp, argc, argv);
-	else
-		DP_DEBUG(QOS, ERR, DATAPLANE, "unknown qos command: %s\n",
-			 argv[0]);
+
+	DP_DEBUG(QOS, ERR, DATAPLANE, "unknown qos command: %s\n",
+		 argv[0]);
 
 	return -EINVAL;
 }
