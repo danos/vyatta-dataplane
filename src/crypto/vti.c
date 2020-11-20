@@ -104,13 +104,12 @@ static unsigned int vti_ctxt_hash(const struct vti_tunnel_key *key,
 					key->mark,
 					seed);
 
-	else
-		return rte_jhash_2words(key->dst.a6[0] +
-					key->dst.a6[1] +
-					key->dst.a6[2] +
-					key->dst.a6[3],
-					key->mark,
-					seed);
+	return rte_jhash_2words(key->dst.a6[0] +
+				key->dst.a6[1] +
+				key->dst.a6[2] +
+				key->dst.a6[3],
+				key->mark,
+				seed);
 }
 
 static int vti_ctxt_match(struct cds_lfht_node *node, const void *_key)
