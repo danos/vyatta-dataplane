@@ -137,10 +137,9 @@ static inline int rules_cmp(const struct lpm_rule *r1,
 {
 	if (r1->ip < r2->ip)
 		return -1;
-	else if (r1->ip > r2->ip)
+	if (r1->ip > r2->ip)
 		return 1;
-	else
-		return r1->scope - r2->scope;
+	return r1->scope - r2->scope;
 }
 
 static inline int tracker_cmp(const struct rt_tracker_info *r1,
