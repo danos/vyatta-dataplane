@@ -1,3 +1,99 @@
+vyatta-dataplane (3.12.5) unstable; urgency=medium
+
+  [ Thomas Kiely ]
+  * Originated traffic via l2tpv3/ipsec is dropped
+  * Remove function which is no longer used
+
+  [ Nicholas Brown ]
+  * Install Go protobuf files in correct location
+
+  [ Charles (Chas) Williams ]
+  * ptp: allow ports to not exist (yet) (Bugfix: VRVDR-53511)
+  * ptp: refactor ptp_find_peer (Bugfix: VRVDR-53511)
+
+  [ Paul Atkins ]
+  * 3.11.65
+
+  [ Nicholas Brown ]
+  * Removed 'unused-override' warnings
+  * Static Analysis as last Jenkins step
+  * Allow longer timeout for the slow tests
+  * Update docs for meson instead of make
+
+  [ Charles (Chas) Williams ]
+  * ptp: rework the peer select logic (Bugfix: VRVDR-53538)
+  * ptp: refactor cmd_ptp_op (Bugfix: VRVDR-53538)
+  * ptp: add resolver op mode commands (Bugfix: VRVDR-53538)
+  * ptp: basic resolver unit test (Bugfix: VRVDR-53538)
+  * ptp: routed resolver unit test (Bugfix: VRVDR-53538)
+  * ptp: test edge cases in resolver (Bugfix: VRVDR-53538)
+  * ptp: ensure sufficient buffer space (Bugfix: VRVDR-53538)
+
+  [ Paul Atkins ]
+  * bpf_filter: add parentheses around macro arguments
+  * lpm: add parentheses around macro arguments
+  * portmonitor_cmds: don't use a macro to determine if a sess is erspan
+  * dpi: add parentheses around macro arguments
+  * ip6_icmp: add parentheses around macro arguments
+  * alg_rpc: add parentheses around macro arguments
+  * npf_cidr_util: add parentheses around macro arguments
+  * npf_instr: add parentheses around macro arguments
+  * npf_nat: add parentheses around macro arguments
+  * ut:arp: add parentheses around macro arguments
+  * ut:crypto: add parentheses around macro arguments
+  * ut:ip6: add parentheses around macro arguments
+  * ut:mstp_fwd: add parentheses around macro arguments
+  * ut:npf: add parentheses around macro arguments
+  * ut:fal_plugin_framer: add parentheses around macro arguments
+  * ut:fal_plugin_test: add parentheses around macro arguments
+
+  [ Nicholas Brown ]
+  * Don't run clang-tidy on generated protobuf files
+  * Add missing dependency on generated files
+  * Increase UT timeout
+
+  [ Paul Atkins ]
+  * if: rename cmd_pause_show to show_eth_info
+  * if: move the showing of the pause state into its own function
+  * fal: add api to allow dumping of L2 port state
+  * fal_plugin: add a new fal plugin API to dump bfd session state
+
+  [ Daniel Gollub ]
+  * l2tpeth: restore VLAN functionatliy on L2TPv3 interfaces
+
+  [ Paul Atkins ]
+  * 3.11.66
+
+  [ Alan Dewar ]
+  * QOS: period keyword changed to microseconds units (Fixes: VRVDR-53324)
+
+  [ Nicholas Brown ]
+  * Add more details on building the UT
+
+  [ Robert Shearman ]
+  * storm_ctl: add support for configuring on VLAN subinterfaces
+    (Closes: VRVDR-53561)
+
+  [ Charles (Chas) Williams ]
+  * lag: add protobuf (Bugfix: VRVDR-52496)
+  * lag: add min links support (Bugfix: VRVDR-52496)
+  * lag: add events (Bugfix: VRVDR-52496)
+  * event: expose if_create/if_delete events (Bugfix: VRVDR-52496)
+  * lag: add IANA type (Bugfix: VRVDR-52496)
+
+  [ Ethan Li ]
+  * Define Micro BFD FAL attribute
+
+  [ Gavin Shearer ]
+  * gpc: add a Provides to ensure FAL builds against correct dataplane
+  * fal qos: Add attributes to attach QoS IPv4/IPv6 GPC to i/f
+  * fal policer: add support for trTCM policers
+  * fal gpc: add actions to set designation, colour, and policer
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Fri, 20 Nov 2020 08:57:30 +0000
+
 vyatta-dataplane (3.12.4) unstable; urgency=medium
 
   [ Charles (Chas) Williams ]
