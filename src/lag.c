@@ -163,16 +163,14 @@ int lag_min_links(struct ifnet *ifp, uint16_t *min_links)
 {
 	if (current_lag_ops->lagop_min_links)
 		return current_lag_ops->lagop_min_links(ifp, min_links);
-	else
-		return -ENOTSUP;
+	return -ENOTSUP;
 }
 
 int lag_set_min_links(struct ifnet *ifp, uint16_t min_links)
 {
 	if (current_lag_ops->lagop_set_min_links)
 		return current_lag_ops->lagop_set_min_links(ifp, min_links);
-	else
-		return -ENOTSUP;
+	return -ENOTSUP;
 }
 
 static void lag_init(void)
