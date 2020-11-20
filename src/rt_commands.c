@@ -547,9 +547,8 @@ static int nbr_res_get_cfg(FILE *f, sa_family_t af)
 	if (af == AF_INET) {
 		fprintf(f, "Parameter config not supported for ARP\n");
 		return -1;
-	} else {
-		return cmd_nd6_get_cfg(f);
 	}
+	return cmd_nd6_get_cfg(f);
 }
 
 struct garp_op_ctx {
@@ -643,16 +642,14 @@ static int cmd_nbr_res(FILE *f, sa_family_t af, int argc, char **argv)
 	if (strcmp(argv[0], "show") == 0)
 		return nbr_res_show(f, af, argc, argv);
 
-	else if (strcmp(argv[0], "flush") == 0)
+	if (strcmp(argv[0], "flush") == 0)
 		return nbr_res_flush(f, af, argc, argv);
 
-	else if (!strcmp(argv[0], "get"))
+	if (!strcmp(argv[0], "get"))
 		return nbr_res_get_cfg(f, af);
 
-	else {
-		fprintf(f, "unknown command action\n");
-		return -1;
-	}
+	fprintf(f, "unknown command action\n");
+	return -1;
 }
 
 /* Process "arp ..." command */
