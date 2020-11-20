@@ -143,8 +143,7 @@ static bool bridge_pkt_exceeds_mtu(struct rte_mbuf *m,
 		 */
 		if (bridge_intf_is_virt(out_ifp) && bridge_frag_enable)
 			return false;
-		else
-			return true;
+		return true;
 	}
 	return false;
 
@@ -367,8 +366,8 @@ bridge_get_ifstate_string(uint8_t brstate)
 {
 	if (bridge_is_ifstate_valid(brstate))
 		return bridge_ifstate_names[brstate];
-	else
-		return "UNKNOWN";
+
+	return "UNKNOWN";
 }
 
 static inline bool
@@ -438,8 +437,7 @@ bridge_rtnode_lookup(struct bridge_softc *sc,
 	node = cds_lfht_iter_get_node(&iter);
 	if (node)
 		return caa_container_of(node, struct bridge_rtnode, brt_node);
-	else
-		return NULL;
+	return NULL;
 }
 
 /*
@@ -1729,10 +1727,9 @@ static uint8_t ndmstate_to_flags(uint16_t state)
 {
 	if (state & NUD_PERMANENT)
 		return	IFBAF_LOCAL;
-	else if (state & NUD_NOARP)
+	if (state & NUD_NOARP)
 		return IFBAF_STATIC;
-	else
-		return IFBAF_DYNAMIC;
+	return IFBAF_DYNAMIC;
 }
 
 static void bridge_newneigh(int ifindex, const struct rte_ether_addr *dst,
@@ -2527,7 +2524,7 @@ bridge_macs(FILE *f, int argc, char **argv, struct ifnet *bridge)
 
 	if (strcmp(argv[0], "show") == 0)
 		return bridge_macs_show(f, argc, argv, bridge);
-	else if (strcmp(argv[0], "clear") == 0)
+	if (strcmp(argv[0], "clear") == 0)
 		return bridge_macs_clear(f, argc, argv, bridge);
 
 	fprintf(f, "Unknown bridge macs command\n");
@@ -2552,10 +2549,12 @@ bridge_frag(FILE *f, int argc, char **argv)
 	if (strcmp(argv[0], "enable") == 0) {
 		bridge_frag_enable = true;
 		return 0;
-	} else if (strcmp(argv[0], "disable") == 0) {
+	}
+	if (strcmp(argv[0], "disable") == 0) {
 		bridge_frag_enable = false;
 		return 0;
-	} else if (strcmp(argv[0], "show") == 0)
+	}
+	if (strcmp(argv[0], "show") == 0)
 		return bridge_frag_status(f, argc, argv);
 
 	fprintf(f, "Unknown bridge frag command\n");
