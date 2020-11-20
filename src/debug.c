@@ -115,13 +115,11 @@ int cmd_log(FILE *f, int argc, char **argv)
 
 	if (strcmp(argv[0], "level") == 0)
 		return cmd_log_level(f, argc, argv);
-	else if (strcmp(argv[0], "type") == 0)
+	if (strcmp(argv[0], "type") == 0)
 		return cmd_log_type(f, argc, argv);
-	else {
-		fprintf(f, "unknown log command: %s\n", argv[0]);
-		return -1;
-	}
 
+	fprintf(f, "unknown log command: %s\n", argv[0]);
+	return -1;
 }
 
 /* Control over debug settings */
