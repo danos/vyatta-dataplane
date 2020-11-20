@@ -399,6 +399,24 @@ vyatta-dataplane (3.12.1) unstable; urgency=medium
 
  -- Paul Atkins <paul.atkins@intl.att.com>  Mon, 12 Oct 2020 09:20:52 +0100
 
+vyatta-dataplane (3.11.68) unstable; urgency=medium
+
+  [ aroberts ]
+  * QOS: Don't drawback TC layer shape rate
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Fri, 20 Nov 2020 09:08:32 +0000
+
+vyatta-dataplane (3.11.67) unstable; urgency=medium
+
+  [ Alan Dewar ]
+  * QOS: period keyword changed to microseconds units (Fixes: VRVDR-53324)
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Tue, 17 Nov 2020 10:16:43 +0000
+
 vyatta-dataplane (3.11.66) unstable; urgency=medium
 
   [ Daniel Gollub ]
