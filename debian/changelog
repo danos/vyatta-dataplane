@@ -1,3 +1,43 @@
+vyatta-dataplane (3.12.6) unstable; urgency=medium
+
+  [ Paul Atkins ]
+  * 3.11.67
+
+  [ aroberts ]
+  * QOS: Don't drawback TC layer shape rate
+
+  [ Nicholas Brown ]
+  * ut: remove unused CLI options
+  * ut: expose to testharness the core list dataplane_test passes to DPDK
+  * ut: remove cpu relate stuff from dummyfs used by dataplane_test
+
+  [ Paul Atkins ]
+  * 3.11.68
+  * bridge: increment counters for ucast/nucast on vlans for local traffic
+
+  [ Ian Wilson ]
+  * Move next_arg utility function to util.c
+  * Rename print_pl_feats to pl_print_feats and move to pl_commands.c
+  * Add function to write json for an interface-based pipeline feature
+  * Add pipeline show feature commands to l3_v4_out and l3_v6_out
+  * Add pipeline show feature commands to l3_v4_out_spath and l3_v6_out_spath
+  * Add pipeline show feature commands to l3_v4_encap and l3_v6_encap
+  * Add pipeline show feature commands to l3_v4_val and l3_v6_val
+  * Add pipeline show feature commands to l2_consume, l2_ether_lookup and l2_local
+  * Add pipeline show feature commands to l3_v4_route_lookup and l3_v6_route_lookup
+  * Add pipeline show feature commands to global nodes - drop, l4, and udp_in
+  * ut: Tests local ICMP pkts with egress ACLs and the originate fw
+  * Only pass an output interface pointer to icmp_send_no_route
+  * Change ICMP pkts to use ipv4-out-spath pipeline to filter pkts
+
+  [ Robert Shearman ]
+  * storm_control: don't create duplicate policers when reacting to events
+    (Fixes: VRVDR-53623)
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Fri, 20 Nov 2020 12:00:03 +0000
+
 vyatta-dataplane (3.12.5) unstable; urgency=medium
 
   [ Thomas Kiely ]
