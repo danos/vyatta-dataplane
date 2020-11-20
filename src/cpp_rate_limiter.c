@@ -380,8 +380,8 @@ cpp_rl_limiter_cfg_changed(CppRl__CPPLimiter *cpp_msg)
 	if (limiter_obj_id == FAL_NULL_OBJECT_ID) {
 		if (cpp_msg->n_attributes)
 			return true;	/* creating limiters */
-		else
-			return false;	/* not creating limiters - no change */
+
+		return false;	/* not creating limiters - no change */
 	}
 
 	/* Iterate over attributes, which have entries per-protocol */
