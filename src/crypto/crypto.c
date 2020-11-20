@@ -1489,8 +1489,7 @@ unsigned long hash_xfrm_address(const xfrm_address_t *addr,
 {
 	if (family == AF_INET)
 		return addr->a4;
-	else
-		return (addr->a6[0] + addr->a6[1] + addr->a6[2] + addr->a6[3]);
+	return (addr->a6[0] + addr->a6[1] + addr->a6[2] + addr->a6[3]);
 }
 
 /* The vrf has been deleted so flush all the crypto state in it. */
