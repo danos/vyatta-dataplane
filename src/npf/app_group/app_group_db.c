@@ -94,8 +94,8 @@ app_group_db_find_name(const char *name)
 
 	if (ht_node)
 		return caa_container_of(ht_node, struct agdb_entry, ht_node);
-	else
-		return NULL;
+
+	return NULL;
 }
 
 static int
