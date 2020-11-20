@@ -879,7 +879,8 @@ static bool ip_punt_rate_limit(struct mfc *rt)
 			(uint)rt->mfc_punts_dropped);
 #endif
 		return false;
-	} else if (color == RTE_COLOR_YELLOW) {
+	}
+	if (color == RTE_COLOR_YELLOW) {
 		rt->mfc_punted++;
 
 #ifdef PUNT_RATE_LIMIT_DEBUG
@@ -888,16 +889,16 @@ static bool ip_punt_rate_limit(struct mfc *rt)
 			(uint)rt->mfc_punted);
 #endif
 		return false;
-	} else {
-		rt->mfc_punts_dropped++;
+	}
+
+	rt->mfc_punts_dropped++;
 
 #ifdef PUNT_RATE_LIMIT_DEBUG
-		RTE_LOG(INFO, METER, "RTE_METER_RED %s %s drop %d, punt %d\n",
-			oa, ga, (uint)rt->mfc_punts_dropped,
-			(uint)rt->mfc_punted);
+	RTE_LOG(INFO, METER, "RTE_METER_RED %s %s drop %d, punt %d\n",
+		oa, ga, (uint)rt->mfc_punts_dropped,
+		(uint)rt->mfc_punted);
 #endif
-		return true;
-	}
+	return true;
 }
 
 /*
@@ -1161,10 +1162,9 @@ static int ip_mdq(struct mcast_vrf *mvrf, struct rte_mbuf *m, struct ip *ip,
 		if (ip_punt_rate_limit(rt)) {
 			MRTSTAT_INC(mvrf, mrts_upq_ovflw);
 			return RTF_BLACKHOLE;
-		} else {
-			rt->mfc_ctrl_pkts++;
-			return RTF_SLOWPATH;
 		}
+		rt->mfc_ctrl_pkts++;
+		return RTF_SLOWPATH;
 	}
 
 	/* Rate limit this punted packet */
@@ -1173,9 +1173,8 @@ static int ip_mdq(struct mcast_vrf *mvrf, struct rte_mbuf *m, struct ip *ip,
 		if (ip_punt_rate_limit(rt)) {
 			MRTSTAT_INC(mvrf, mrts_upq_ovflw);
 			return RTF_BLACKHOLE;
-		} else {
-			return RTF_SLOWPATH;
 		}
+		return RTF_SLOWPATH;
 	}
 
 	vifp->v_pkt_in++;
