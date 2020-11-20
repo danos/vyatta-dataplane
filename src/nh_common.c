@@ -468,8 +468,7 @@ static struct next_hop_list *nexthop_lookup(int family,
 	node = cds_lfht_iter_get_node(&iter);
 	if (node)
 		return caa_container_of(node, struct next_hop_list, nh_node);
-	else
-		return NULL;
+	return NULL;
 }
 
 /* Reuse existing next hop entry */
@@ -624,8 +623,7 @@ next_hop_intf_hash_lookup(const struct ifnet *ifp)
 	if (node)
 		return caa_container_of(node, struct next_hop_intf_entry,
 					intf_hash_tbl_node);
-	else
-		return NULL;
+	return NULL;
 }
 
 
@@ -745,8 +743,7 @@ next_hop_gw_hash_lookup(struct cds_lfht *gw_hash_tbl,
 	if (node)
 		return caa_container_of(node, struct next_hop_gw_entry,
 					gw_hash_tbl_node);
-	else
-		return NULL;
+	return NULL;
 }
 
 static struct next_hop_gw_entry *
