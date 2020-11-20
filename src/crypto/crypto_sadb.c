@@ -710,8 +710,8 @@ struct sadb_sa *sadb_lookup_inbound(uint32_t spi)
 
 	if (!sa->blocked)
 		return sa;
-	else
-		return NULL;
+
+	return NULL;
 }
 
 static void sadb_sa_destroy(struct sadb_sa *sa)
@@ -1107,8 +1107,7 @@ uint32_t crypto_sadb_get_mark_val(struct sadb_sa *sa)
 {
 	if (sa)
 		return sa->mark_val;
-	else
-		return 0;
+	return 0;
 }
 
 static const char *xfrm_addr_to_str(uint16_t family,
