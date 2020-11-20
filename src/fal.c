@@ -815,7 +815,8 @@ int cmd_fal(FILE *f, int argc, char **argv)
 		 */
 		call_handler(sys, command, f, argc, argv);
 		return 0;
-	} else if ((streq(argv[0], "plugin_ret"))) {
+	}
+	if ((streq(argv[0], "plugin_ret"))) {
 		argc--;
 		argv++;
 		/*TODO Implement get_name handlers
