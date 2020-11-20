@@ -158,10 +158,9 @@ ecmp_mbuf_hash(const struct rte_mbuf *m, uint16_t ether_type)
 
 	if (ether_type == ETH_P_MPLS_UC)
 		return mpls_ecmp_hash(m);
-	else if (ether_type == RTE_ETHER_TYPE_IPV6)
+	if (ether_type == RTE_ETHER_TYPE_IPV6)
 		return ecmp_ipv6_hash(m, dp_pktmbuf_l2_len(m));
-	else
-		return ecmp_ipv4_hash(m, dp_pktmbuf_l2_len(m));
+	return ecmp_ipv4_hash(m, dp_pktmbuf_l2_len(m));
 }
 
 static unsigned int
