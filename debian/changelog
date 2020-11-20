@@ -1,3 +1,12 @@
+vyatta-dataplane (3.11.68) unstable; urgency=medium
+
+  [ aroberts ]
+  * QOS: Don't drawback TC layer shape rate
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Fri, 20 Nov 2020 09:08:32 +0000
+
 vyatta-dataplane (3.11.67) unstable; urgency=medium
 
   [ Alan Dewar ]
