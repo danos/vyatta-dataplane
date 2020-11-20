@@ -1087,7 +1087,9 @@ static int cmd_l2tp(FILE *f, int argc, char **argv)
 		if (argc < 6)
 			return -1;
 		return l2tp_set_xconnect(argv[2], argv[3], argv[4], argv[5]);
-	} else if (strcmp(argv[1], "-s") == 0) {
+	}
+
+	if (strcmp(argv[1], "-s") == 0) {
 		json_writer_t *wr = jsonw_new(f);
 
 		if (!wr)
@@ -1110,7 +1112,9 @@ static int cmd_l2tp(FILE *f, int argc, char **argv)
 		jsonw_destroy(&wr);
 
 		return 0;
-	} else if (strcmp(argv[1], "-t") == 0) {
+	}
+
+	if (strcmp(argv[1], "-t") == 0) {
 		json_writer_t *wr = jsonw_new(f);
 
 		if (!wr)
@@ -1126,7 +1130,9 @@ static int cmd_l2tp(FILE *f, int argc, char **argv)
 		jsonw_end_array(wr);
 		jsonw_destroy(&wr);
 		return 0;
-	} else if (strcmp(argv[1], "clear") == 0) {
+	}
+
+	if (strcmp(argv[1], "clear") == 0) {
 		if (argc == 2)
 			l2tp_init_stats(NULL);
 		else
