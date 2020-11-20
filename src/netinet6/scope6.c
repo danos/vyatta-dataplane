@@ -41,11 +41,10 @@ in6_setscope(struct in6_addr *in6, const struct ifnet *ifp, uint32_t *ret_id)
 	if (IN6_IS_ADDR_LOOPBACK(in6)) {
 		if (!(ifp->if_flags & IFF_LOOPBACK))
 			return EINVAL;
-		else {
-			if (ret_id != NULL)
-				*ret_id = 0; /* there's no ambiguity */
-			return 0;
-		}
+
+		if (ret_id != NULL)
+			*ret_id = 0; /* there's no ambiguity */
+		return 0;
 	}
 
 	if (ret_id != NULL)
