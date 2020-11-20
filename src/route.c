@@ -2395,8 +2395,7 @@ static enum nh_change arp_removal_nh_purge_cb(struct next_hop *next __unused,
 	if (sibling == args->sibling) {
 		if (args->count > 1)
 			return NH_CLEAR_NEIGH_CREATED;
-		else
-			return NH_DELETE;
+		return NH_DELETE;
 	}
 
 	if (args->count > 1)
