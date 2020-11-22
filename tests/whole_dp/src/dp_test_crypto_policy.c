@@ -21,6 +21,7 @@
 #include "dp_test_pktmbuf_lib_internal.h"
 #include "dp_test_crypto_utils.h"
 #include "dp_test_netlink_state_internal.h"
+#include "dp_test_npf_lib.h"
 
 /*
  *                    +-----------+
@@ -193,6 +194,8 @@ DP_START_TEST(crypto_policy, simple_policy_update)
 	dp_test_crypto_delete_policy(&tun_1_out_policy);
 
 	dp_test_crypto_check_sa_count(VRF_DEFAULT_ID, 0);
+
+	dp_test_npf_cleanup();
 
 	teardown(VRF_DEFAULT_ID);
 } DP_END_TEST;
