@@ -17,6 +17,7 @@
 #include "dp_test_lib_intf_internal.h"
 #include "dp_test_console.h"
 #include "dp_test_controller.h"
+#include "dp_test_npf_lib.h"
 
 #include "main.h"
 #include "in_cksum.h"
@@ -526,6 +527,8 @@ static void s2s_common_teardown(vrfid_t vrfid,
 		dp_test_crypto_delete_policy(&opol[i]);
 	}
 
+	dp_test_npf_cleanup();
+
 	/***************************************************
 	 * Tear down topology
 	 */
@@ -554,6 +557,8 @@ static void s2s_common_teardown6(vrfid_t vrfid,
 		dp_test_crypto_delete_policy(&ipol[i]);
 		dp_test_crypto_delete_policy(&opol[i]);
 	}
+
+	dp_test_npf_cleanup();
 
 	/***************************************************
 	 * Tear down topology
