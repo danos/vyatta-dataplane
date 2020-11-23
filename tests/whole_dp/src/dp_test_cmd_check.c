@@ -876,7 +876,7 @@ _dp_test_check_json_poll_state_interval(const char *cmd_str,
 }
 
 void
-_dp_test_check_pb_poll_state(void *buf, int len,
+_dp_test_check_pb_poll_state(void *cmd, int len,
 			     dp_test_state_pb_cb cb,
 			     void *arg,
 			     int poll_cnt,
@@ -885,8 +885,8 @@ _dp_test_check_pb_poll_state(void *buf, int len,
 {
 	if (!poll_cnt)
 		poll_cnt = DP_TEST_POLL_COUNT;
-	struct dp_test_show_cmd_poll_state cmd = {
-		.pb_req = buf,
+	struct dp_test_show_cmd_poll_state show_cmd = {
+		.pb_req = cmd,
 		.pb_req_len = len,
 		.pb_func = cb,
 		.pb_arg = arg,
@@ -900,7 +900,7 @@ _dp_test_check_pb_poll_state(void *buf, int len,
 		.result = false,
 	};
 
-	bool result = dp_test_wait_for_expected_pb(&cmd);
+	bool result = dp_test_wait_for_expected_pb(&show_cmd);
 	if (!result) {
 		printf("failed to get response\n");
 		abort();

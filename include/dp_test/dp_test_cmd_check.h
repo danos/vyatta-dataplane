@@ -264,7 +264,8 @@ void _dp_test_verify_route_no_neigh_present(const char *route,
 	_dp_test_verify_route_no_neigh_present(route,			\
 					    __FILE__, __func__, __LINE__)
 
-void _dp_test_verify_route_neigh_present(const char *route, const char *ifp,
+void _dp_test_verify_route_neigh_present(const char *route,
+					 const char *interface,
 					 bool set, const char *file,
 					 const char *func, int line);
 #define dp_test_verify_route_neigh_present(route, interface, set)  \
@@ -287,7 +288,8 @@ void _dp_test_verify_route_no_neigh_created(const char *route,
 	_dp_test_verify_route_no_neigh_created(route, \
 					       __FILE__, __func__, __LINE__)
 
-void _dp_test_verify_route_neigh_created(const char *route, const char *ifp,
+void _dp_test_verify_route_neigh_created(const char *route,
+					 const char *interface,
 					 bool set, const char *file,
 					 const char *func, int line);
 #define dp_test_verify_route_neigh_created(route, interface, set)  \
