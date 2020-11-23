@@ -751,13 +751,13 @@ int session_table_destroy_all(void)
 }
 
 /* Get counts of nodes in sentry and session ht's - for UTs */
-void session_table_counts(unsigned long *sen_ht, unsigned long *sess_ht)
+void session_table_counts(unsigned long *sen_cnt, unsigned long *sess_cnt)
 
 {
 	long dummy;
 
-	cds_lfht_count_nodes(sentry_ht, &dummy, sen_ht, &dummy);
-	cds_lfht_count_nodes(session_ht, &dummy, sess_ht, &dummy);
+	cds_lfht_count_nodes(sentry_ht, &dummy, sen_cnt, &dummy);
+	cds_lfht_count_nodes(session_ht, &dummy, sess_cnt, &dummy);
 }
 
 /*
@@ -772,9 +772,9 @@ void session_counts(uint32_t *used, uint32_t *max, struct session_counts *sc)
 }
 
 /* Set the max session limit */
-void session_set_max_sessions(uint32_t count)
+void session_set_max_sessions(uint32_t max)
 {
-	sessions_max = count ? count : DEFAULT_MAX_SESSIONS;
+	sessions_max = max ? max : DEFAULT_MAX_SESSIONS;
 }
 
 void session_set_global_logging_cfg(struct session_log_cfg *scfg)
