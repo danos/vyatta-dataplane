@@ -82,7 +82,7 @@ struct dp_test_alg_sip_ctx {
 
 
 struct sip_alg_request *
-dp_test_sip_alg_parse(struct rte_mbuf *nbuf, bool verify_sip, char *reason,
+dp_test_sip_alg_parse(struct rte_mbuf *nbuf, bool verify_sip, char *err,
 		      int len);
 
 void
