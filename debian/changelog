@@ -1,3 +1,15 @@
+vyatta-dataplane (3.10.70.14) unstable; urgency=medium
+
+  [ aroberts ]
+  * QOS: Don't drawback TC layer shape rate
+
+  [ Alan Dewar ]
+  * QOS: period keyword changed to microseconds units (Fixes: VRVDR-53324)
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Mon, 23 Nov 2020 10:54:34 +0000
+
 vyatta-dataplane (3.10.70.13) unstable; urgency=medium
 
   [ Daniel Gollub ]
