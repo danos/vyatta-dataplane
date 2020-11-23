@@ -499,7 +499,8 @@ def gen_fused_feature_invoke_by_case(f, node, feat_point, dyn_feats):
     Only the registered feature for the type is invoked
     """
 
-    print("::{} {} {}".format(node, feat_point, dyn_feats))
+    if args.debug:
+        print("::{} {} {}".format(node, feat_point, dyn_feats))
     if feat_point in feats_for_feat_point:
         features = dict(feats_for_feat_point[feat_point])
     else:
