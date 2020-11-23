@@ -45,7 +45,8 @@ bool npf_alg_bypass_cgnat(const struct ifnet *ifp, struct rte_mbuf *m);
 
 int npf_alg_session_init(struct npf_session *se, struct npf_cache *npc,
 			 const int di);
-struct npf_session *npf_alg_session(struct npf_cache *npc, struct rte_mbuf *m,
+struct npf_session *npf_alg_session(struct npf_cache *npc,
+				    struct rte_mbuf *nbuf,
 				    const struct ifnet *ifp, const int di,
 				    int *error);
 void npf_alg_session_expire(struct npf_session *se, struct npf_session_alg *sa);
