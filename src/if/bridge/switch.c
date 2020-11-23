@@ -196,15 +196,15 @@ static int cmd_switch_vlan(struct ifnet *ifp, FILE *f, int argc, char **argv)
 {
 	uint16_t vlan = 0;
 
-	if (strcmp(argv[4], "stats"))
+	if (strcmp(argv[4], "stats") != 0)
 		goto error;
 
 	if (argc == 6)
 		vlan = atoi(argv[5]);
 
-	if (!strcmp(argv[3], "show"))
+	if (strcmp(argv[3], "show") == 0)
 		switch_vlan_show_stats(ifp, vlan, f);
-	else if (!strcmp(argv[3], "clear"))
+	else if (strcmp(argv[3], "clear") == 0)
 		switch_vlan_clear_stats(ifp, vlan, f);
 	else
 		goto error;
