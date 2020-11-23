@@ -448,10 +448,10 @@ void _dp_test_qos_verify_config(const char *expected_json_str,
 
 void
 _dp_test_qos_send_cmd(const char *cmd,
-		const char *expected_cmd_str,
-		const char *verify_cmd,
-		bool debug,
-		const char *file, const int line);
+		      const char *expected_json_str,
+		      const char *verify_cmd,
+		      bool debug,
+		      const char *file, const int line);
 
 #define dp_test_qos_send_cmd(cmd, exp_json_str, verify_cmd,  \
 		debug)  \
@@ -461,11 +461,11 @@ _dp_test_qos_send_cmd(const char *cmd,
 
 void
 _dp_test_qos_send_if_cmd(const char *if_name,
-		const char *cmd,
-		const char *expected_cmd_str,
-		const char *verify_cmd,
-		bool debug,
-		const char *file, const int line);
+			 const char *cmd,
+			 const char *expected_json_str,
+			 const char *verify_cmd,
+			 bool debug,
+			 const char *file, const int line);
 
 #define dp_test_qos_send_if_cmd(if_name, cmd, exp_json_str, verify_cmd, \
 		debug)  \
