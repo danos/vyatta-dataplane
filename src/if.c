@@ -3806,8 +3806,9 @@ static void if_pl_print_feat(struct ifnet *ifp, void *arg)
 	struct pl_show_intf_ctx *ctx = arg;
 	json_writer_t *wr = ctx->json;
 
-	if (ctx->ifname && strcmp(ctx->ifname, ifp->if_name) &&
-	    strcmp(ctx->ifname, "all"))
+	if (ctx->ifname &&
+	    (strcmp(ctx->ifname, ifp->if_name) != 0) &&
+	    (strcmp(ctx->ifname, "all") != 0))
 		return;
 
 	jsonw_start_object(wr);
