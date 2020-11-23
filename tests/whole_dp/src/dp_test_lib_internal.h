@@ -89,12 +89,12 @@ void _dp_test_send_spath_pkt(struct rte_mbuf *pak, const char *virt_oif_name,
 			__FILE__, __func__, __LINE__)
 struct ifnet;
 void
-dp_test_pak_verify(struct rte_mbuf *pak, struct ifnet *ifp,
+dp_test_pak_verify(struct rte_mbuf *m, struct ifnet *ifp,
 		   struct dp_test_expected *expected,
 		   enum dp_test_fwd_result_e fwd_result);
 
 /* Read packet context processing functions */
-void dp_test_inject_pkt_slow_path(struct rte_mbuf *buf, portid_t port,
+void dp_test_inject_pkt_slow_path(struct rte_mbuf *pkt, portid_t port,
 		uint32_t ifindex, uint16_t flags, uint16_t proto);
 struct rte_mbuf *dp_test_get_read_pkt(void);
 uint16_t dp_test_get_read_meta_flags(void);
