@@ -219,7 +219,7 @@ void dp_test_intf_vti_delete(const char *vti_name,
 			     uint16_t mark,
 			     vrfid_t vrf_id);
 
-void _dp_test_intf_vfp_create(const char *name, vrfid_t vrf_id, bool verfiy,
+void _dp_test_intf_vfp_create(const char *name, vrfid_t vrf_id, bool verify,
 			      const char *file, const char *func, int line);
 #define dp_test_intf_vfp_create(name, vrf_id) \
 	_dp_test_intf_vfp_create(name, vrf_id, false, \
