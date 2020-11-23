@@ -208,7 +208,7 @@ int npf_alg_config(uint32_t ext_vrfid, const char *name, int op, int argc,
 int npf_alg_state_set(uint32_t ext_vrfid, const char *name, int op);
 
 struct npf_alg *npf_alg_tftp_create_instance(struct npf_alg_instance *ai);
-void npf_alg_tftp_destroy_instance(struct npf_alg *na);
+void npf_alg_tftp_destroy_instance(struct npf_alg *tftp);
 
 struct npf_alg *npf_alg_ftp_create_instance(struct npf_alg_instance *ai);
 void npf_alg_ftp_destroy_instance(struct npf_alg *ftp);
