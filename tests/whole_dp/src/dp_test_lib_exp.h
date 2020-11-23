@@ -86,7 +86,7 @@ struct dp_test_expected {
 };
 
 void
-dp_test_exp_set_dont_care(struct dp_test_expected *exp, unsigned int check,
+dp_test_exp_set_dont_care(struct dp_test_expected *exp, unsigned int pak_i,
 			  uint8_t *start, uint32_t len);
 
 bool
