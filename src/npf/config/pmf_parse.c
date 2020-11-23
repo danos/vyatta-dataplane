@@ -1928,10 +1928,10 @@ exit_error:
  * Parse rprocs out of a single string; Used for action-groups.
  */
 int
-pkp_parse_rproc_line(char const *rule_line, struct pmf_rule **prule,
+pkp_parse_rproc_line(char const *rproc_line, struct pmf_rule **prule,
 			struct pkp_unused **remaining)
 {
-	return pkp_parse_core_line(rule_line, prule, remaining, false);
+	return pkp_parse_core_line(rproc_line, prule, remaining, false);
 }
 
 /*
