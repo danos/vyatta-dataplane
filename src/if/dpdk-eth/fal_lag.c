@@ -110,7 +110,7 @@ fal_lag_create(const struct ifinfomsg *ifi, struct nlattr *tb[])
 		if (!rte_eth_dev_is_valid_port(dpdk_port))
 			continue;
 		rte_eth_dev_info_get(dpdk_port, &dev_info);
-		if (strcmp(dev_info.driver_name, "net_sw_port"))
+		if (strcmp(dev_info.driver_name, "net_sw_port") != 0)
 			continue;
 		if (sw_port_get_dev_info(dpdk_port, &swport_dev_info) < 0)
 			continue;
@@ -474,7 +474,7 @@ fal_lag_is_team(struct ifnet *ifp)
 
 	rte_eth_dev_info_get(ifp->if_port, &dev_info);
 
-	if (strcmp(dev_info.driver_name, "net_sw_port"))
+	if (strcmp(dev_info.driver_name, "net_sw_port") != 0)
 		return false;
 
 	if (sw_port_get_dev_info(ifp->if_port, &swport_dev_info) < 0)
