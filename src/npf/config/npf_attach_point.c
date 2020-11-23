@@ -363,9 +363,9 @@ attach_point_find(enum npf_attach_type attach_type, const char *attach_point)
 }
 
 const struct npf_attpt_key *
-npf_attpt_item_key(const struct npf_attpt_item *ap)
+npf_attpt_item_key(const struct npf_attpt_item *handle)
 {
-	return &ap->ap_key;
+	return &handle->ap_key;
 }
 
 static size_t
@@ -1004,15 +1004,15 @@ void npf_attpt_walk_rlsets(struct npf_attpt_item *ap,
 }
 
 struct npf_attpt_rlset *
-npf_attpt_group_rlset(const struct npf_attpt_group *rsg)
+npf_attpt_group_rlset(const struct npf_attpt_group *handle)
 {
-	return rsg->ag_ars;
+	return handle->ag_ars;
 }
 
 const struct npf_rlgrp_key *
-npf_attpt_group_key(const struct npf_attpt_group *rsg)
+npf_attpt_group_key(const struct npf_attpt_group *handle)
 {
-	return &rsg->ag_key;
+	return &handle->ag_key;
 }
 
 bool
@@ -1027,15 +1027,15 @@ npf_attpt_group_set_extend(struct npf_attpt_group *rsg, void *extend)
 }
 
 void *
-npf_attpt_group_get_extend(const struct npf_attpt_group *rsg)
+npf_attpt_group_get_extend(const struct npf_attpt_group *handle)
 {
-	return rsg->ag_extend;
+	return handle->ag_extend;
 }
 
 uint32_t
-npf_attpt_group_dir_mask(const struct npf_attpt_group *rsg)
+npf_attpt_group_dir_mask(const struct npf_attpt_group *handle)
 {
-	return rsg->ag_dir_mask;
+	return handle->ag_dir_mask;
 }
 
 void

@@ -216,8 +216,8 @@ enum npf_attpt_ev_type {
 typedef void (npf_attpt_ev_cb)(
 	enum npf_attpt_ev_type event, struct npf_attpt_item *ap, void *data);
 
-int npf_attpt_ev_listen(enum npf_attach_type type, uint32_t notes,
-			npf_attpt_ev_cb *cb);
+int npf_attpt_ev_listen(enum npf_attach_type type, uint32_t events,
+			npf_attpt_ev_cb *fn);
 
 void npf_attpt_ev_notify(enum npf_attpt_ev_type event,
 	struct npf_attpt_item *ap, void *data);
@@ -489,6 +489,6 @@ void *npf_attpt_rlset_get_extend(const struct npf_attpt_rlset *ars);
  * Set and Get the extension pointer assocated with an attached group
  */
 bool npf_attpt_group_set_extend(struct npf_attpt_group *rsg, void *extend);
-void *npf_attpt_group_get_extend(const struct npf_attpt_group *rsg);
+void *npf_attpt_group_get_extend(const struct npf_attpt_group *handle);
 
 #endif /*  NPF_ATTACH_POINT_H */
