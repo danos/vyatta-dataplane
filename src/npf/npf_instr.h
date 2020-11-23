@@ -70,7 +70,7 @@ int npf_match_icmp4(const npf_cache_t *npc, uint32_t tc);
 int npf_match_ip6_rt(const npf_cache_t *npc, uint32_t type);
 int npf_match_icmp6(const npf_cache_t *npc, uint32_t tc);
 int npf_match_tcpfl(const npf_cache_t *npc, uint32_t fl);
-int npf_match_dscp(const npf_cache_t *npc, const uint64_t n);
+int npf_match_dscp(const npf_cache_t *npc, const uint64_t set);
 int npf_match_etype(const struct rte_mbuf *nbuf, uint32_t etype);
 struct ifnet;
 
