@@ -32,15 +32,15 @@ struct npf_zone_policy *npf_zone_policy_ht_lookup(
 int npf_zone_cfg(const char *name);
 int npf_zone_uncfg(const char *name);
 int npf_zone_local_set(const char *name, bool set);
-int npf_zone_policy_add(const char *from_zone, const char *to_zone);
-int npf_zone_policy_del(const char *from_zone, const char *to_zone);
+int npf_zone_policy_add(const char *zname, const char *policy_name);
+int npf_zone_policy_del(const char *zname, const char *policy_name);
 int npf_zone_intf_add(const char *name, const char *ifname);
 int npf_zone_intf_del(const char *name, const char *ifname);
 void npf_zone_intf_get(struct npf_zone_intf *zif);
 void npf_zone_intf_put(struct npf_zone_intf **zifp);
 struct npf_zone_intf *npf_zone_ifname2zif(const char *ifname);
 
-struct npf_config *npf_zone_config(const struct npf_zone *from_zone,
+struct npf_config *npf_zone_config(const struct npf_zone *fm_zone,
 				   const struct npf_zone *to_zone);
 
 void npf_zone_show_private(json_writer_t *json, const char *zone,
