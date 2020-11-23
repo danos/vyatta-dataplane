@@ -219,7 +219,8 @@ dp_test_npf_cleanup(void);
  * For custom-timeout, the attach_point is the VRF ID, i.e. "1" for default
  * VRF.
  */
-json_object *_dp_test_npf_json_get_rs(const char *rsname, const char *ifname,
+json_object *_dp_test_npf_json_get_rs(const char *rstype,
+				      const char *attach_point,
 				      const char *dir, bool debug,
 				      const char *file, int line);
 
