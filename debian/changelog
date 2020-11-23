@@ -1,3 +1,13 @@
+vyatta-dataplane (3.11.69) unstable; urgency=medium
+
+  [ Robert Shearman ]
+  * storm_control: don't create duplicate policers when reacting to events
+    (Fixes: VRVDR-53623)
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Mon, 23 Nov 2020 08:22:52 +0000
+
 vyatta-dataplane (3.11.68) unstable; urgency=medium
 
   [ aroberts ]
