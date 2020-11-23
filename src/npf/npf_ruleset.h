@@ -123,7 +123,7 @@ void npf_ruleset_update_masquerade(const struct ifnet *ifp,
 void npf_rule_set_natpolicy(npf_rule_t *rl, npf_natpolicy_t *np);
 npf_natpolicy_t *npf_rule_get_natpolicy(const npf_rule_t *rl);
 void npf_free_group(npf_rule_group_t *rg);
-void npf_ruleset_free(npf_ruleset_t *ruleset);
+void npf_ruleset_free(npf_ruleset_t *rs);
 void npf_ref_stats(npf_ruleset_t *old, npf_ruleset_t *new);
 void npf_clear_stats(const npf_ruleset_t *ruleset,
 		     enum npf_rule_class group_class, const char *group_name,
