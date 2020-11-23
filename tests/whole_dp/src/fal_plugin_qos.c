@@ -418,9 +418,9 @@ int fal_plugin_qos_get_map_attrs(fal_object_t map_id, uint32_t attr_count,
 }
 
 __FOR_EXPORT
-void fal_plugin_qos_dump_map(fal_object_t obj, json_writer_t *wr)
+void fal_plugin_qos_dump_map(fal_object_t map_id, json_writer_t *wr)
 {
-	struct fal_bcm_qos_map *map = (struct fal_bcm_qos_map *) obj;
+	struct fal_bcm_qos_map *map = (struct fal_bcm_qos_map *)map_id;
 	int i;
 
 	switch (map->map_type) {
@@ -996,7 +996,7 @@ int fal_plugin_qos_clear_queue_stats(fal_object_t queue_id,
 __FOR_EXPORT
 int fal_plugin_qos_new_scheduler(fal_object_t switch_id, uint32_t attr_count,
 				 const struct fal_attribute_t *attr_list,
-				 fal_object_t *new_scheduler_id)
+				 fal_object_t *new_sched_id)
 {
 	struct fal_bcm_qos_sched *sched;
 	uint8_t sched_type = FAL_QOS_SCHEDULING_TYPE_MAX + 1;  /* bad value */
@@ -1065,7 +1065,7 @@ int fal_plugin_qos_new_scheduler(fal_object_t switch_id, uint32_t attr_count,
 		sched->max_bandwidth = max_bandwidth;
 		sched->max_burst = max_burst;
 		sched->overhead = overhead;
-		*new_scheduler_id = (fal_object_t)sched;
+		*new_sched_id = (fal_object_t)sched;
 	}
 	return ret;
 }
@@ -1078,12 +1078,12 @@ int fal_plugin_qos_new_scheduler(fal_object_t switch_id, uint32_t attr_count,
  * @return 0 on success, failure status code on error
  */
 __FOR_EXPORT
-int fal_plugin_qos_del_scheduler(fal_object_t scheduler_id)
+int fal_plugin_qos_del_scheduler(fal_object_t sched_id)
 {
 	struct fal_bcm_qos_sched *sched =
-		(struct fal_bcm_qos_sched *)scheduler_id;
+		(struct fal_bcm_qos_sched *)sched_id;
 
-	DEBUG("%s - %lx\n", __func__, scheduler_id);
+	DEBUG("%s - %lx\n", __func__, sched_id);
 	if (!sched)
 		return -EINVAL;
 
@@ -1100,14 +1100,14 @@ int fal_plugin_qos_del_scheduler(fal_object_t scheduler_id)
  * @return 0 on success, failure status code on error
  */
 __FOR_EXPORT
-int fal_plugin_qos_upd_scheduler(fal_object_t scheduler_id,
+int fal_plugin_qos_upd_scheduler(fal_object_t sched_id,
 				 const struct fal_attribute_t *attr)
 {
 	struct fal_bcm_qos_sched *sched =
-		(struct fal_bcm_qos_sched *)scheduler_id;
+		(struct fal_bcm_qos_sched *)sched_id;
 	int ret = 0;
 
-	DEBUG("%s - %lx\n", __func__, scheduler_id);
+	DEBUG("%s - %lx\n", __func__, sched_id);
 
 	if (!sched)
 		return -EINVAL;
@@ -1187,16 +1187,16 @@ int fal_plugin_qos_upd_scheduler(fal_object_t scheduler_id,
  * @return 0 on success, failure status code on error
  */
 __FOR_EXPORT
-int fal_plugin_qos_get_scheduler_attrs(fal_object_t scheduler_id,
+int fal_plugin_qos_get_scheduler_attrs(fal_object_t sched_id,
 				       uint32_t attr_count,
 				       struct fal_attribute_t *attr_list)
 {
 	struct fal_bcm_qos_sched *sched =
-		(struct fal_bcm_qos_sched *)scheduler_id;
+		(struct fal_bcm_qos_sched *)sched_id;
 	uint32_t i;
 	int ret = 0;
 
-	DEBUG("%s - %lx, attr-count: %u\n", __func__, scheduler_id, attr_count);
+	DEBUG("%s - %lx, attr-count: %u\n", __func__, sched_id, attr_count);
 
 	if (!sched)
 		return -EINVAL;
