@@ -174,7 +174,7 @@ struct apt_tuple *alg_search_all_then_any_sport(struct npf_alg_instance *ai,
 						uint32_t ifx);
 
 /* Protos */
-int npf_alg_register(struct npf_alg *np);
+int npf_alg_register(struct npf_alg *na);
 void alg_reset_instance(struct vrf *vrf, struct npf_alg_instance *ai,
 			bool hard);
 int npf_alg_manage_config_item(struct npf_alg *na, struct npf_alg_config *ac,
@@ -184,7 +184,7 @@ int npf_alg_port_handler(struct npf_alg *na, int op,
 int npf_alg_session_nat(npf_session_t *se, struct npf_nat *nat,
 			npf_cache_t *npc, const int di, struct apt_tuple *nt,
 			struct npf_alg_nat *an);
-int npf_alg_reserve_translations(npf_session_t *se, int nr_ports,
+int npf_alg_reserve_translations(npf_session_t *parent, int nr_ports,
 				 bool start_even, uint8_t alen,
 				 npf_addr_t *addr, in_port_t *port);
 int npf_alg_free_translation(npf_session_t *se, npf_addr_t *addr,
@@ -211,13 +211,13 @@ struct npf_alg *npf_alg_tftp_create_instance(struct npf_alg_instance *ai);
 void npf_alg_tftp_destroy_instance(struct npf_alg *na);
 
 struct npf_alg *npf_alg_ftp_create_instance(struct npf_alg_instance *ai);
-void npf_alg_ftp_destroy_instance(struct npf_alg *na);
+void npf_alg_ftp_destroy_instance(struct npf_alg *ftp);
 
 struct npf_alg *npf_alg_sip_create_instance(struct npf_alg_instance *ai);
-void npf_alg_sip_destroy_instance(struct npf_alg *na);
+void npf_alg_sip_destroy_instance(struct npf_alg *sip);
 
 struct npf_alg *npf_alg_rpc_create_instance(struct npf_alg_instance *ai);
-void npf_alg_rpc_destroy_instance(struct npf_alg *na);
+void npf_alg_rpc_destroy_instance(struct npf_alg *rpc);
 
 void npf_alg_flush_all(void);
 
