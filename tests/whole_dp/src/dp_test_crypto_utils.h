@@ -30,7 +30,7 @@ struct rte_mbuf *dp_test_create_esp_ipv6_pak(const char *saddr,
 					     int n, int *len,
 					     const char *payload,
 					     uint32_t spi, uint32_t seq_no,
-					     uint16_t id, uint8_t ttl,
+					     uint16_t id, uint8_t hlim,
 					     struct ip6_hdr *transport);
 
 struct dp_test_crypto_policy {
