@@ -190,7 +190,7 @@ int cmd_backplane_cfg(FILE *f, int argc, char **argv)
 		goto error;
 	}
 
-	if (strcmp(argv[1], "SET"))
+	if (strcmp(argv[1], "SET") != 0)
 		goto error;
 
 	ifp = dp_ifnet_byifname(argv[2]);
@@ -284,7 +284,7 @@ int cmd_backplane_op(FILE *f, int argc, char **argv)
 		goto usage;
 	}
 
-	if (strcmp(argv[1], "show")) {
+	if (strcmp(argv[1], "show") != 0) {
 		rv = -EINVAL;
 		goto usage;
 	}
