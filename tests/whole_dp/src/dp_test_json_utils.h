@@ -18,11 +18,11 @@ json_object *parse_json(const char *response_str, char *err_str,
 
 json_object
 *dp_test_json_do_show_cmd(const char *request,
-			  struct dp_test_json_mismatches **mismatches,
+			  struct dp_test_json_mismatches **m_ret,
 			  bool print);
 
 bool dp_test_json_subset(json_object *obj1, json_object *obj2,
-			 struct dp_test_json_mismatches **mismatches);
+			 struct dp_test_json_mismatches **mm);
 
 bool dp_test_json_superset(json_object *obj1, json_object *obj2,
 			   struct dp_test_json_mismatches **mismatches);
