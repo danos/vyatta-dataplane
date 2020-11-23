@@ -993,7 +993,7 @@ int cfg_if_list_replay(struct cfg_if_list **cfg_list, const char *ifname,
 
 	cds_list_for_each_entry_safe(entry, temp_entry, &if_list->if_list,
 				     le_node) {
-		if (strcmp(ifname, entry->le_ifname))
+		if (strcmp(ifname, entry->le_ifname) != 0)
 			continue;
 
 		if (handler) {
