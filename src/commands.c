@@ -2351,7 +2351,7 @@ console_unbind(enum cont_src_en cont_src)
 
 	response = zstr_recv(console_actor);
 	if (response) {
-		if (strcmp(response, "OK"))
+		if (strcmp(response, "OK") != 0)
 			RTE_LOG(ERR, DATAPLANE, "Console unbind"
 				" failed for ep %s\n", console_url_bound);
 	}
