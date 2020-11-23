@@ -72,7 +72,7 @@ struct fal_attribute_t *get_attribute(uint32_t id,
 __FOR_EXPORT
 int fal_plugin_create_ptp_clock(uint32_t attr_count,
 				struct fal_attribute_t *attr_list,
-				fal_object_t *clock_obj)
+				fal_object_t *clock_id)
 {
 	const struct fal_attribute_t *attr;
 
@@ -128,18 +128,18 @@ int fal_plugin_create_ptp_clock(uint32_t attr_count,
 		dp_test_fail_unless(attr->value.i32 == 100,
 				    "antenna-delay should be 100 during create");
 
-	*clock_obj = fal_test_plugin_ptp_next_obj++;
-	ptp_clock = *clock_obj;
+	*clock_id = fal_test_plugin_ptp_next_obj++;
+	ptp_clock = *clock_id;
 
 	DEBUG("created PTP clock %d, 0x%lx\n", ptp_clock_id, ptp_clock);
 	return 0;
 }
 
 __FOR_EXPORT
-int fal_plugin_dump_ptp_clock(fal_object_t clock_obj, json_writer_t *wr)
+int fal_plugin_dump_ptp_clock(fal_object_t clock_id, json_writer_t *wr)
 {
-	DEBUG("dump PTP clock 0x%lx\n", clock_obj);
-	if (clock_obj != ptp_clock)
+	DEBUG("dump PTP clock 0x%lx\n", clock_id);
+	if (clock_id != ptp_clock)
 		return -ENODEV;
 
 	jsonw_name(wr, "default-dataset");
@@ -152,10 +152,10 @@ int fal_plugin_dump_ptp_clock(fal_object_t clock_obj, json_writer_t *wr)
 }
 
 __FOR_EXPORT
-int fal_plugin_delete_ptp_clock(fal_object_t clock_obj)
+int fal_plugin_delete_ptp_clock(fal_object_t clock_id)
 {
-	DEBUG("deleted PTP clock 0x%lx\n", clock_obj);
-	if (clock_obj != ptp_clock)
+	DEBUG("deleted PTP clock 0x%lx\n", clock_id);
+	if (clock_id != ptp_clock)
 		return -ENODEV;
 	ptp_clock = FAL_NULL_OBJECT_ID;
 	return 0;
@@ -164,7 +164,7 @@ int fal_plugin_delete_ptp_clock(fal_object_t clock_obj)
 __FOR_EXPORT
 int fal_plugin_create_ptp_port(uint32_t attr_count,
 			       struct fal_attribute_t *attr_list,
-			       fal_object_t *port_obj)
+			       fal_object_t *port_id)
 {
 	const struct fal_attribute_t *attr;
 	uint16_t vlan_id = 1;
@@ -212,11 +212,11 @@ int fal_plugin_create_ptp_port(uint32_t attr_count,
 				    "Expected vlan 100 for additional path");
 	}
 
-	*port_obj = fal_test_plugin_ptp_next_obj++;
-	ptp_ports[num_ptp_ports].obj_id = *port_obj;
+	*port_id = fal_test_plugin_ptp_next_obj++;
+	ptp_ports[num_ptp_ports].obj_id = *port_id;
 	ptp_ports[num_ptp_ports].vlan_id = vlan_id;
 	num_ptp_ports++;
-	DEBUG("created PTP port 0x%lx\n", *port_obj);
+	DEBUG("created PTP port 0x%lx\n", *port_id);
 	return 0;
 }
 
@@ -234,11 +234,11 @@ fal_plugin_find_ptp_port(fal_object_t port)
 }
 
 __FOR_EXPORT
-int fal_plugin_delete_ptp_port(fal_object_t port_obj)
+int fal_plugin_delete_ptp_port(fal_object_t port_id)
 {
 	struct ptp_port *port;
 
-	port = fal_plugin_find_ptp_port(port_obj);
+	port = fal_plugin_find_ptp_port(port_id);
 	if (!port)
 		return -ENODEV;
 	port->obj_id = FAL_NULL_OBJECT_ID;
@@ -262,7 +262,7 @@ fal_plugin_find_ptp_peer(fal_object_t peer)
 __FOR_EXPORT
 int fal_plugin_create_ptp_peer(uint32_t attr_count,
 			       struct fal_attribute_t *attr_list,
-			       fal_object_t *peer_obj)
+			       fal_object_t *peer_id)
 {
 	const struct fal_attribute_t *attr;
 	enum fal_ptp_peer_type_t type;
@@ -292,26 +292,26 @@ int fal_plugin_create_ptp_peer(uint32_t attr_count,
 	if (num_ptp_peers == MAX_PTP_PEERS)
 		return -ENOMEM;
 
-	*peer_obj = fal_test_plugin_ptp_next_obj++;
+	*peer_id = fal_test_plugin_ptp_next_obj++;
 	peer = &ptp_peers[num_ptp_peers++];
-	peer->obj_id = *peer_obj;
+	peer->obj_id = *peer_id;
 	peer->ip = ip;
 	peer->type = type;
 
-	DEBUG("created PTP peer 0x%lx\n", *peer_obj);
+	DEBUG("created PTP peer 0x%lx\n", *peer_id);
 	return 0;
 }
 
 __FOR_EXPORT
-int fal_plugin_delete_ptp_peer(fal_object_t peer_obj)
+int fal_plugin_delete_ptp_peer(fal_object_t peer_id)
 {
 	struct ptp_peer *peer;
 
-	peer = fal_plugin_find_ptp_peer(peer_obj);
+	peer = fal_plugin_find_ptp_peer(peer_id);
 	if (!peer)
 		return -ENODEV;
 	peer->obj_id = FAL_NULL_OBJECT_ID;
 	num_ptp_peers--;
-	DEBUG("deleted PTP peer 0x%lx\n", peer_obj);
+	DEBUG("deleted PTP peer 0x%lx\n", peer_id);
 	return 0;
 }
