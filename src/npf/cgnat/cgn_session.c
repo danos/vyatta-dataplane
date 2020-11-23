@@ -832,24 +832,24 @@ cgn_session_map(struct ifnet *ifp, struct cgn_packet *cpk,
 /*
  * Get pointer to the 3-tuple session that contains this cs2 structure
  */
-struct cgn_session *cgn_sess_from_cs2(struct cgn_sess_s2 *ptr)
+struct cgn_session *cgn_sess_from_cs2(struct cgn_sess_s2 *cs2)
 {
 	struct cgn_session *cse = NULL;
 
-	if (ptr)
-		cse = caa_container_of(ptr, struct cgn_session, cs_s2);
+	if (cs2)
+		cse = caa_container_of(cs2, struct cgn_session, cs_s2);
 	return cse;
 }
 
 /*
  * Get pointer to the subscriber of this cs2 structure
  */
-struct cgn_source *cgn_src_from_cs2(struct cgn_sess_s2 *ptr)
+struct cgn_source *cgn_src_from_cs2(struct cgn_sess_s2 *cs2)
 {
 	struct cgn_session *cse = NULL;
 
-	if (ptr)
-		cse = caa_container_of(ptr, struct cgn_session, cs_s2);
+	if (cs2)
+		cse = caa_container_of(cs2, struct cgn_session, cs_s2);
 
 	return cse ? cse->cs_src : NULL;
 }
