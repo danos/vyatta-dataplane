@@ -1422,7 +1422,7 @@ dp_test_create_ipv4_pak(const char *saddr, const char *daddr,
 
 struct rte_mbuf *
 dp_test_create_raw_ipv4_pak(const char *saddr, const char *daddr,
-			    uint8_t ipproto, int n, const int *len)
+			    uint8_t protocol, int n, const int *len)
 {
 	struct rte_mbuf *pak;
 	struct iphdr *ip;
@@ -1441,7 +1441,7 @@ dp_test_create_raw_ipv4_pak(const char *saddr, const char *daddr,
 		rte_pktmbuf_free(pak);
 		return NULL;
 	}
-	ip = dp_test_pktmbuf_ip_init(pak, saddr, daddr, ipproto);
+	ip = dp_test_pktmbuf_ip_init(pak, saddr, daddr, protocol);
 	if (!ip) {
 		rte_pktmbuf_free(pak);
 		return NULL;
