@@ -82,12 +82,12 @@ int npf_apm_get_map(npf_apm_t *apm, uint32_t map_flags, uint8_t ip_prot,
 		int nr_ports, vrfid_t vrfid, npf_addr_t *addr, in_port_t *port);
 int npf_apm_put_map(npf_apm_t *apm, uint32_t map_flags, uint8_t ip_prot,
 		vrfid_t vrfid, npf_addr_t addr, in_port_t port);
-npf_apm_t *npf_apm_create(uint32_t mask, uint32_t table_id, uint8_t type,
-		npf_addr_t start_addr, npf_addr_t stop_addr,
-		in_port_t start_port, in_port_t stop_port);
-void npf_apm_update(npf_apm_t *apm, uint32_t mask, uint8_t type,
-		npf_addr_t addr_start, npf_addr_t addr_stop,
-		in_port_t start_port, in_port_t stop_port);
+npf_apm_t *npf_apm_create(uint32_t match_mask, uint32_t table_id, uint8_t type,
+		npf_addr_t a_start, npf_addr_t a_stop,
+		in_port_t p_start, in_port_t p_stop);
+void npf_apm_update(npf_apm_t *apm, uint32_t match_mask, uint8_t type,
+		npf_addr_t a_start, npf_addr_t a_stop,
+		in_port_t p_start, in_port_t p_stop);
 void npf_apm_destroy(npf_apm_t *apm);
 npf_apm_t *npf_apm_clone(npf_apm_t *apm);
 void npf_apm_flush_all(void);
