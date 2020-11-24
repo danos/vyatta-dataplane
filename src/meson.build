@@ -254,6 +254,7 @@ npf_sources = files(
         'npf/npf_tblset.c',
         'npf/npf_timeouts.c',
         'npf/npf_vrf.c',
+        'npf/rldb.c',
         'npf/zones/npf_zone_private.c',
         'npf/zones/npf_zone_public.c',
         'npf/rproc/npf_ext_action_group.c',
