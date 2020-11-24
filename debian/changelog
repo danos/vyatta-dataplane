@@ -1,3 +1,12 @@
+vyatta-dataplane (3.10.70.15) unstable; urgency=medium
+
+  [ aroberts ]
+  * Update the DPDK dependency for the dataplane
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Tue, 24 Nov 2020 10:26:44 +0000
+
 vyatta-dataplane (3.10.70.14) unstable; urgency=medium
 
   [ aroberts ]
