@@ -19,11 +19,16 @@ ifneq (,$(filter no_lto,$(DEB_BUILD_OPTIONS)))
 	DATAPLANE_LTO="-Db_lto=false"
 endif
 
+ifneq (,$(filter nocheck,$(DEB_BUILD_PROFILES)))
+	DATAPLANE_WITH_TESTS="-Dwith_tests=disabled"
+endif
+
 DATAPLANE_CONFIGURE_FLAGS= \
 	$(CONFIGURE_COVERAGE_FLAGS) \
 	$(WHOLE_DP_ALL_TESTS) \
 	$(DATAPLANE_SANITIZER) \
-	$(DATAPLANE_LTO)
+	$(DATAPLANE_LTO) \
+	$(DATAPLANE_WITH_TESTS)
 
 # Don't override the optimisation flags as they differ for different
 # dataplane make targets

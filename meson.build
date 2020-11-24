@@ -47,13 +47,13 @@ add_project_link_arguments(
 )
 
 cap_dep = dependency('libcap')
-check_dep = dependency('check')
+check_dep = dependency('check', required: get_option('with_tests'))
 crypto_dep = dependency('libcrypto')
 czmq_dep = dependency('libczmq', version: '>= 3.0.2')
 dl_dep = cc.find_library('dl', required : true)
 dpdk_dep = dependency('libdpdk', version: '>= 19.11')
 ini_dep = cc.find_library('inih', required: true)
-json_dep = dependency('json-c')
+json_dep = dependency('json-c', required: get_option('with_tests'))
 m_dep = cc.find_library('m', required : true)
 mnl_dep = dependency('libmnl')
 ndpi_dep = dependency('libndpi', version: '>= 2.6.0')
@@ -63,7 +63,7 @@ protobuf_dep = dependency('protobuf')
 proto_c_dep = dependency('libprotobuf-c', version: '>= 1.0.0')
 rte_bus_vdev_dep = cc.find_library('rte_bus_vdev', required : true)
 rte_pmd_bond_dep = cc.find_library('rte_pmd_bond', required : true)
-rte_pmd_ring_dep = cc.find_library('rte_pmd_ring', required : true)
+rte_pmd_ring_dep = cc.find_library('rte_pmd_ring', required: get_option('with_tests'))
 rte_pmd_vhost_dep = cc.find_library('rte_pmd_vhost', required : true)
 swport_dep = dependency('vyatta-dpdk-swport', version: '>= 0.1.3')
 systemd_dep = dependency('libsystemd', required: get_option('use_systemd'))
@@ -77,8 +77,11 @@ subdir('include')
 subdir('protobuf')
 subdir('src/pipeline')
 subdir('src')
-subdir('src/pipeline/nodes/sample')
-subdir('tests/whole_dp')
+
+if get_option('with_tests').enabled()
+        subdir('src/pipeline/nodes/sample')
+        subdir('tests/whole_dp')
+endif
 
 install_data('dataplane-drivers.conf',
         install_dir: get_option('sysconfdir') / 'vyatta'

@@ -5,18 +5,18 @@ Maintainer: Vyatta Package Maintainers <DL-vyatta-help@att.com>
 Standards-Version: 3.9.8
 Build-Depends: meson,
                bvnos-linux-libc-dev-vyatta (>> 4.19.16-0vyatta6),
-               check,
+               check <!nocheck>,
                debhelper (>= 9.20160709),
                dh-exec,
                golang-goprotobuf-dev,
-               lcov,
+               lcov <!nocheck>,
                libbsd-dev,
                libcap-dev,
                libczmq-dev,
                libdpdk-dev (>= 19.11.4-0vyatta7),
                libgoogle-protocolbuffers-perl,
                libinih-dev,
-               libjson-c-dev,
+               libjson-c-dev <!nocheck>,
                libmnl-dev,
                libndpi-dev (>= 3.0),
                libnuma-dev,
@@ -121,6 +121,7 @@ Description: Vyatta dataplane pipeline node build support
 Package: vyatta-dataplane-test
 Section: non-free/devel
 Architecture: any
+Build-Profiles: <!nocheck>
 Depends: librte-meta-allpmds,
          ${misc:Depends},
          ${shlibs:Depends}
@@ -137,6 +138,7 @@ Description: Vyatta dataplane protocol buffer files and support
 Package: vyatta-dataplane-sample-plugin
 Section: non-free/net
 Architecture: any
+Build-Profiles: <!nocheck>
 Depends: vyatta-dataplane | vyatta-dataplane-test,
          ${misc:Depends},
          ${shlibs:Depends}
