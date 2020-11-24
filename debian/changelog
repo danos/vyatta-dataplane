@@ -1,3 +1,15 @@
+vyatta-dataplane (3.11.70) unstable; urgency=medium
+
+  [ Nicholas Brown ]
+  * Jenkinsfile: Build target is now the Halifax
+
+  [ aroberts ]
+  * Update dependency on DPDK version for dataplane
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Tue, 24 Nov 2020 09:53:18 +0000
+
 vyatta-dataplane (3.11.69) unstable; urgency=medium
 
   [ Robert Shearman ]
