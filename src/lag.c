@@ -12,6 +12,7 @@
 #include <stdio.h>
 
 #include "dp_event.h"
+#include "if/dpdk-eth/dpdk_eth_if.h"
 #include "if_var.h"
 #include "lag.h"
 #include "protobuf.h"
@@ -171,6 +172,23 @@ int lag_set_min_links(struct ifnet *ifp, uint16_t min_links)
 	if (current_lag_ops->lagop_set_min_links)
 		return current_lag_ops->lagop_set_min_links(ifp, min_links);
 	return -ENOTSUP;
+}
+
+fal_object_t dp_ifnet_fal_lag_member(const struct ifnet *ifp)
+{
+	struct dpdk_eth_if_softc *member_sc;
+
+	if (ifp->if_type != IFT_ETHER)
+		return FAL_NULL_OBJECT_ID;
+
+	if (!ifp->aggregator)
+		return FAL_NULL_OBJECT_ID;
+
+	member_sc = ifp->if_softc;
+	if (!member_sc->scd_fal_lag_member_created)
+		return FAL_NULL_OBJECT_ID;
+
+	return member_sc->scd_fal_lag_member_obj;
 }
 
 static void lag_init(void)

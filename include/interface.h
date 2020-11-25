@@ -112,6 +112,13 @@ vrfid_t dp_ifnet_vrfid(const struct ifnet *ifp);
 fal_object_t dp_ifnet_fal_l3_if(const struct ifnet *ifp);
 
 /*
+ * Get interface FAL LAG member object.
+ * @param[in] ifp Pointer to ifnet structure
+ * @return interface FAL object corresponding to LAG member
+ */
+fal_object_t dp_ifnet_fal_lag_member(const struct ifnet *ifp);
+
+/*
  * Get ifnet pointer from interface index
  * @param[in] ifindex Interface index
  * @return interface structure  pointer for the given index
