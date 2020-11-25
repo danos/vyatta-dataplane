@@ -221,4 +221,17 @@ typedef int dp_ifnet_addr_iter_func_t(struct sockaddr *addr, uint8_t prefixlen,
 int dp_ifnet_addr_walk(struct ifnet *ifp, dp_ifnet_addr_iter_func_t func,
 		       void *arg);
 
+/*
+ * Interface output function to transmit packet on a given output
+ * interface.  This function assumes a fully formed L2 frame and
+ * will simply transmit the packet without attempting any resolution.
+ *
+ * @param[in] in_ifp Input interface pointer
+ * @param[in] m Pointer to mbuf
+ * @param[in] out_ifp Output interface pointer
+ * @param[in] proto Ethernet protocol
+ */
+void dp_ifnet_output(struct ifnet *in_ifp, struct rte_mbuf *m,
+		     struct ifnet *out_ifp, uint16_t proto);
+
 #endif /* VYATTA_DATAPLANE_INTERFACE_H */

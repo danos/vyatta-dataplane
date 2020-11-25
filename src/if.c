@@ -3985,3 +3985,9 @@ bool dp_ifnet_is_bridge_member(struct ifnet *ifp)
 
 	return false;
 }
+
+void dp_ifnet_output(struct ifnet *in_ifp, struct rte_mbuf *m,
+		     struct ifnet *out_ifp, uint16_t proto)
+{
+	if_output(out_ifp, m, in_ifp, proto);
+}
