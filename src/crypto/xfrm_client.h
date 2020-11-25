@@ -10,6 +10,11 @@
 
 #include "control.h"
 
+struct xfrm_client_aux_data {
+	vrfid_t  *vrf;
+	bool ack_msg;
+};
+
 extern bool xfrm_direct;
 /*
  * Close all the client sockets for this source.

@@ -56,6 +56,7 @@
 #include "storm_ctl.h"
 #include "backplane.h"
 #include "ptp.h"
+#include "crypto/xfrm_client.h"
 
 #define ZMQ_IPC_HWM (0)
 
@@ -363,6 +364,8 @@ static int process_xfrm_policy_cmd(enum cont_src_en cont_src,
 				   void *data, size_t size,
 				   const struct msg_handler *h __unused)
 {
+	struct xfrm_client_aux_data aux;
+
 	if (cont_src != CONT_SRC_MAIN) {
 		RTE_LOG(ERR, DATAPLANE,
 			"(%s) xfrm POLICY invalid controller\n",
@@ -371,8 +374,11 @@ static int process_xfrm_policy_cmd(enum cont_src_en cont_src,
 	}
 
 	vrfid_t vrf_id = VRF_DEFAULT_ID;
+
+	aux.vrf = &vrf_id;
+
 	int rc = mnl_cb_run(data, size, 0, 0, rtnl_process_xfrm,
-			    &vrf_id);
+			    &aux);
 	if (rc != MNL_CB_OK) {
 		RTE_LOG(ERR, DATAPLANE, "netlink POLICY message parse error\n");
 		return -1;

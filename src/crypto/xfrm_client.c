@@ -36,6 +36,8 @@ zsock_t *xfrm_push_socket;
  */
 bool xfrm_direct;
 
+uint32_t last_seq_sent;
+
 /*
  * Build a message back to strongswan to indicates if the
  * xfrm message, with sequenece id 'seq', was successfully
@@ -51,6 +53,11 @@ int xfrm_client_send_ack(uint32_t seq, int err)
 	struct nlmsgerr *err_msg;
 	zframe_t *frame;
 	int rc;
+
+	if (last_seq_sent == seq)
+		rte_panic("XFRM Duplicate sequence  %d", seq);
+
+	last_seq_sent = seq;
 
 	nlh = mnl_nlmsg_put_header(buf);
 	nlh->nlmsg_seq =  seq;
@@ -104,6 +111,7 @@ static int xfrm_netlink_recv(void *arg)
 	zsock_t *sock = arg;
 	const struct nlmsghdr *nlh;
 	uint32_t len;
+	struct xfrm_client_aux_data xfrm_aux;
 
 	errno = 0;
 
@@ -121,12 +129,32 @@ static int xfrm_netlink_recv(void *arg)
 	vrfid_t vrf_id = VRF_DEFAULT_ID;
 
 	switch (nlh->nlmsg_type) {
-	case XFRM_MSG_NEWPOLICY:
+	case XFRM_MSG_NEWPOLICY: /* Fall through */
 	case XFRM_MSG_UPDPOLICY:
 	case XFRM_MSG_POLEXPIRE:
 	case XFRM_MSG_DELPOLICY:
-		rc = mnl_cb_run(nlh, len, 0, 0, rtnl_process_xfrm, &vrf_id);
-		/* Policy acks are batched */
+		/*
+		 * Policy updates ACK are normally generated upon the
+		 * programming of the policy into the classifier which
+		 * occurs at the end of batch. However there are
+		 * scenarios when the policy will not be programmed
+		 * into the classifier but an ack is still be required
+		 * to returned to the xfrm source. These scenarios
+		 * include duplicate updates, errors, and incomplete
+		 * policies.  Inorder to achieve this a return code
+		 * ,rc,and an indication if an ack should be sent
+		 * ,xfrm_aux.ack_msg, are required.
+		 *
+		 * Acks are always sent in error scenarios. However
+		 * unless one of the scenarios outlined above are hit
+		 * acks are not sent until the policy has been added
+		 * to the classifier
+		 */
+		xfrm_aux.vrf = &vrf_id;
+		rc = mnl_cb_run(nlh, len, 0, 0, rtnl_process_xfrm, &xfrm_aux);
+		/* Policy acks are batched in most cases */
+		if (rc != MNL_CB_OK || xfrm_aux.ack_msg)
+			xfrm_client_send_ack(nlh->nlmsg_seq, rc);
 		break;
 
 	case XFRM_MSG_NEWSA: /* fall through */
@@ -134,16 +162,18 @@ static int xfrm_netlink_recv(void *arg)
 	case XFRM_MSG_DELSA:
 	case XFRM_MSG_EXPIRE:
 		rc = mnl_cb_run(nlh, len, 0, 0, rtnl_process_xfrm_sa, &vrf_id);
+		xfrm_client_send_ack(nlh->nlmsg_seq, rc);
+
 		break;
 	default:
 		rc = MNL_CB_ERROR;
+		xfrm_client_send_ack(nlh->nlmsg_seq, rc);
 	}
 
 	if (rc != MNL_CB_OK) {
 		DP_DEBUG(CRYPTO, ERR, DATAPLANE,
 			 "XFRM netlink msg not handled\n");
 	}
-	xfrm_client_send_ack(nlh->nlmsg_seq, rc);
 
 	zmq_msg_close(&xfrm_msg);
 
