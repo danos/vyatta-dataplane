@@ -1,3 +1,144 @@
+vyatta-dataplane (3.12.7) unstable; urgency=medium
+
+  [ Paul Atkins ]
+  * json_writer: use same parameter names in prototype and definition
+  * config: use same parameter names in prototype and definition
+  * event: use same parameter names in prototype and definition
+  * flow_cache: use same parameter names in prototype and definition
+  * fal_bfd: use same parameter names in prototype and definition
+  * fal: use same parameter names in prototype and definition
+  * bridge_port: use same parameter names in prototype and definition
+  * gre: use same parameter names in prototype and definition
+  * if: use same parameter names in prototype and definition
+  * in_cksum: use same parameter names in prototype and definition
+  * lag: use same parameter names in prototype and definition
+  * lpm6: use same parameter names in prototype and definition
+  * controller: use same parameter names in prototype and definition
+  * main: use same parameter names in prototype and definition
+  * qos: use same parameter names in prototype and definition
+  * route: use same parameter names in prototype and definition
+  * rt_tracker: use same parameter names in prototype and definition
+  * vrf: use same parameter names in prototype and definition
+  * pl_commands: use same parameter names in prototype and definition
+  * pl_node_boot: use same parameter names in prototype and definition
+  * crypto_engine: use same parameter names in prototype and definition
+  * crypto_pmd: use same parameter names in prototype and definition
+  * crypto_policy: use same parameter names in prototype and definition
+  * vti: use same parameter names in prototype and definition
+  * dpi: use same parameter names in prototype and definition
+  * in6: use same parameter names in prototype and definition
+  * ip6_icmp: use same parameter names in prototype and definition
+  * alg_npf: use same parameter names in prototype and definition
+  * app_group_dp.c: don't use 'else' after an 'if' call returns
+  * app_group_cmd.c: don't use 'else' after an 'if' call returns
+  * protobuf_util: don't use 'else' after an 'if' call returns
+  * commands: don't use 'else' after an 'if' call returns
+  * debug: don't use 'else' after an 'if' call returns
+  * config: don't use 'else' after an 'if' call returns
+  * cpp_rate_limiter: don't use 'else' after an 'if' call returns
+  * ecmp: don't use 'else' after an 'if' call returns
+  * fal: don't use 'else' after an 'if' call returns
+  * bridge: don't use 'else' after an 'if' call returns
+  * dpdk_eth_linkwatch: don't use 'else' after an 'if' call returns
+  * gre: don't use 'else' after an 'if' call returns
+  * vxlan: don't use 'else' after an 'if' call returns
+  * if: don't use 'else' after an 'if' call returns
+  * lag: don't use 'else' after an 'if' call returns
+  * l2tpeth_netlink: don't use 'else' after an 'if' call returns
+  * lpm: don't use 'else' after an 'if' call returns
+  * lpm6: don't use 'else' after an 'if' call returns
+  * ip_mroute: don't use 'else' after an 'if' call returns
+  * nh_common: don't use 'else' after an 'if' call returns
+  * netlink: don't use 'else' after an 'if' call returns
+  * qos_obj_db: don't use 'else' after an 'if' call returns
+  * qos_ext_buf_monitor: don't use 'else' after an 'if' call returns
+  * qos_dpdk: don't use 'else' after an 'if' call returns
+  * qos_sched: don't use 'else' after an 'if' call returns
+  * route: don't use 'else' after an 'if' call returns
+  * rt_commands: don't use 'else' after an 'if' call returns
+  * util: don't use 'else' after an 'if' call returns
+  * udp_handler: don't use 'else' after an 'if' call returns
+  * storm_ctl: don't use 'else' after an 'if' call returns
+  * crypto: don't use 'else' after an 'if' call returns
+  * crypto_sadb: don't use 'else' after an 'if' call returns
+  * vti: don't use 'else' after an 'if' call returns
+  * npf_appdb: don't use 'else' after an 'if' call returns
+  * npf_typedb: don't use 'else' after an 'if' call returns
+  * ip6_mroute: don't use 'else' after an 'if' call returns
+  * scope6: don't use 'else' after an 'if' call returns
+  * nd6_nbr: don't use 'else' after an 'if' call returns
+  * mpls: don't use 'else' after an 'if' call returns
+  * route_v6: don't use 'else' after an 'if' call returns
+  * mpls_forward: don't use 'else' after an 'if' call returns
+
+  [ Robert Shearman ]
+  * storm_control: don't create duplicate policers when reacting to events
+    (Fixes: VRVDR-53623)
+
+  [ Paul Atkins ]
+  * 3.11.69
+
+  [ Charles (Chas) Williams ]
+  * ut: dp_ifnet_iana_type can fail when unit testing
+
+  [ Brian Russell ]
+  * gpc: add gpc protobuf
+
+  [ Nicholas Brown ]
+  * Jenkinsfile: Build target is now the Halifax
+
+  [ aroberts ]
+  * Update dependency on DPDK version for dataplane
+
+  [ Paul Atkins ]
+  * Jenkinsfile: Build target is now master for master-next branch
+  * alg_npf:  use same parameter names in prototype and definition
+  * alg: use same parameter names in prototype and definition
+  * cgn_mbuf: use same parameter names in prototype and definition
+  * cgn_sess_state: use same parameter names in prototype and definition
+  * npf_attach_point: use same parameter names in prototype and definition
+  * cgn_session: use same parameter names in prototype and definition
+  * pmf_parse: use same parameter names in prototype and definition
+  * npf_apm: use same parameter names in prototype and definition
+  * npf_instr: use same parameter names in prototype and definition
+  * npf_match: use same parameter names in prototype and definition
+  * npf_ruleset: use same parameter names in prototype and definition
+  * npf_session: use same parameter names in prototype and definition
+  * npf_state: use same parameter names in prototype and definition
+  * npf_zone_private: use same parameter names in prototype and definition
+  * npf_match: use same parameter names in prototype and definition
+  * npf_ext_action_grp: use same parameter names in prototype and definition
+  * npf_rproc: use same parameter names in prototype and definition
+  * session: use same parameter names in prototype and definition
+  * shadow: use same parameter names in prototype and definition
+  * ut:dp_test_cmd_check: use same parameter names in prototype and definition
+  * ut:dp_test_cmd_state: use same parameter names in prototype and definition
+  * ut:dp_test_crypto_utils: use same parameter names in prototype and definition
+  * ut:dp_test_json_utils: use same parameter names in prototype and definition
+  * ut:dp_test_lib: use same parameter names in prototype and definition
+  * ut:dp_test_lib_exp: use same parameter names in prototype and definition
+  * t:dp_test_libintf: use same parameter names in prototype and definition
+  * ut:npf_alg_sip_call: use same parameter names in prototype and definition
+  * ut:npf_alg_sip_lib: use same parameter names in prototype and definition
+  * ut:firewall_lib: use same parameter names in prototype and definition
+  * ut:dp_test_npf_lib: use same parameter names in prototype and definition
+  * ut:npf_nat_lib: use same parameter names in prototype and definition
+  * ut:dp_test_pktmbuf_lib: use same parameter names in prototype and definition
+  * ut:dp_test_qos_lib: use same parameter names in prototype and definition
+  * ut:dp_test_session_lib: use same parameter names in prototype and definition
+  * ut:fal_plugin_pm: use same parameter names in prototype and definition
+  * ut:fal_plugin_test: use same parameter names in prototype and definition
+  * ut:fal_plugin_qos: use same parameter names in prototype and definition
+  * ut:fal_plugin_ptp: use same parameter names in prototype and definition
+
+  [ Ramkumar Ganapathysubramanian ]
+  * New FAL plugin to get L3 Interface attribute
+  * Dataplane changes for QoS DSCP remarking
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Wed, 25 Nov 2020 09:19:14 +0000
+
 vyatta-dataplane (3.12.6) unstable; urgency=medium
 
   [ Paul Atkins ]
