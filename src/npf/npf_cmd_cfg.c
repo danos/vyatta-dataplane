@@ -591,7 +591,7 @@ cmd_delete_rule(FILE *f, int argc, char **argv)
 
 	index = (uint32_t)strtoul(argv[1], NULL, 10);
 	if (index == 0) {
-		if (strcmp(argv[1], "0"))  {
+		if (strcmp(argv[1], "0") != 0)  {
 			npf_cmd_err(f, "invalid index: %s", argv[1]);
 			return -1;
 		}
