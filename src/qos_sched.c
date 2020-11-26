@@ -1997,7 +1997,7 @@ static int cmd_qos_show(FILE *f, int argc, char **argv)
 			unsigned int vlan = 0;
 
 			if (argc == 5) {
-				if (strcmp("vlan", argv[2]) ||
+				if ((strcmp("vlan", argv[2]) != 0) ||
 				    get_unsigned(argv[3], &vlan) < 0) {
 					fprintf(f,
 					    "Invalid syntax interface\n");
@@ -2016,7 +2016,7 @@ static int cmd_qos_show(FILE *f, int argc, char **argv)
 			unsigned int vlan = 0;
 
 			if (argc == 5) {
-				if (strcmp("vlan", argv[2]) ||
+				if ((strcmp("vlan", argv[2]) != 0) ||
 				    get_unsigned(argv[3], &vlan) < 0) {
 					fprintf(f,
 					    "Invalid syntax interface\n");
@@ -2955,7 +2955,7 @@ static int cmd_qos_profile_designation(struct queue_map *qmap,
 	}
 	argc--; argv++;
 
-	if (strcmp(argv[0], "queue")) {
+	if (strcmp(argv[0], "queue") != 0) {
 		DP_DEBUG(QOS, ERR, DATAPLANE, "Invalid designation cmd: %s\n",
 			 argv[0]);
 		return -EINVAL;
@@ -3935,7 +3935,8 @@ static int qos_ingress_map_sysdef(char const *name)
 		if (!map)
 			return -ENOMEM;
 	} else {
-		if (qos_im_sysdef && strcmp(qos_im_sysdef->name, map->name)) {
+		if (qos_im_sysdef &&
+		    (strcmp(qos_im_sysdef->name, map->name) != 0)) {
 			DP_DEBUG(QOS, ERR, DATAPLANE,
 				 "Ingress map system-default already alloced");
 			return -EINVAL;
@@ -4020,7 +4021,7 @@ static int cmd_qos_ingress_map(struct ifnet *ifp, int argc, char **argv)
 
 	case 2:
 	case 3:
-		if (strcmp(argv[0], "vlan"))
+		if (strcmp(argv[0], "vlan") != 0)
 			break;
 
 		unsigned int vlan;
@@ -4330,7 +4331,7 @@ static int cmd_qos_egress_map(struct ifnet *ifp, int argc, char **argv)
 
 	case 2:
 	case 3:
-		if (strcmp(argv[0], "vlan"))
+		if (strcmp(argv[0], "vlan") != 0)
 			break;
 
 		unsigned int vlan;
