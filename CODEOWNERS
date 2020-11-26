@@ -8,6 +8,5 @@
 
 src/*qos* brussell@vyatta.att-mail.com aroberts@vyatta.att-mail.com adewar@vyatta.att-mail.com
 
-/Makefile.am  nick.brown@att.com
-/configure.ac  nick.brown@att.com
+meson.build   nick.brown@att.com
 /Jenkinsfile  nick.brown@att.com
