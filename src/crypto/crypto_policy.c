@@ -1964,7 +1964,6 @@ crypto_policy_handle_packet_outbound(struct ifnet *vfp_ifp,
 
 drop:
 	rte_pktmbuf_free(mbuf);
-	return;
 }
 
 /*

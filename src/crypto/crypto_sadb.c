@@ -109,7 +109,7 @@ static struct cds_lfht *spi_in_hash_table;
  * the SPI) in to the hash table, not (possibly non-unique)
  * encrytion SAs.
  */
-static unsigned int sadb_spi_in_hash(uint32_t *spi_p)
+static unsigned int sadb_spi_in_hash(const uint32_t *spi_p)
 {
 	return *spi_p;
 }
