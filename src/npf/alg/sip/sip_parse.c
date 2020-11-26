@@ -139,13 +139,13 @@ static int sip_alg_sdp_update_origin(struct sip_alg_request *sr)
 	char *nettype = sdp_message_o_nettype_get(sr->sr_sdp);
 	char *addrtype = sdp_message_o_addrtype_get(sr->sr_sdp);
 
-	if (!nettype || strcmp(nettype, "IN"))
+	if (!nettype || strcmp(nettype, "IN") != 0)
 		return -EINVAL;
 
 	if (addrtype && !strcmp(addrtype, "IP6"))
 		return 0;  /* Ignore IPv6 */
 
-	if (!addrtype || strcmp(addrtype, "IP4"))
+	if (!addrtype || strcmp(addrtype, "IP4") != 0)
 		return -EINVAL;  /* Unknown/unsupported */
 
 	if (!sip_translate_addr_reqd(sr->sr_sdp->o_addr, sip_oaddr(sr)))
