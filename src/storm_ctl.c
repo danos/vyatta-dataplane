@@ -1449,7 +1449,7 @@ static int storm_ctl_set_intf_cfg(bool set, FILE *f, int argc, char **argv)
 
 	if (!strcmp(argv[3], "vlan")) {
 		if (set && argc == 7) {
-			if (strcmp(argv[5], "profile"))
+			if (strcmp(argv[5], "profile") != 0)
 				goto error;
 			return storm_ctl_set_intf_vlan_cfg(set, ifp, argv[4],
 							   argv[6]);
@@ -1823,7 +1823,7 @@ static int cmd_storm_ctl_clear(FILE *f, int argc, char **argv)
 	if (argc < 3)
 		goto error;
 
-	if (strcmp(argv[2], "stats"))
+	if (strcmp(argv[2], "stats") != 0)
 		goto error;
 
 	if (argc == 4) {
