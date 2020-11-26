@@ -249,8 +249,8 @@ pl_show_ipv6_route_lookup(struct vrf *vrf, struct pl_show_vrf_ctx *ctx)
 
 	vrfname = (vrfid == VRF_DEFAULT_ID) ? "default" : vrf_get_name(vrfid);
 
-	if (ctx->vrfname && strcmp(ctx->vrfname, vrfname) &&
-	    strcmp(ctx->vrfname, "all"))
+	if (ctx->vrfname && (strcmp(ctx->vrfname, vrfname) != 0) &&
+	    (strcmp(ctx->vrfname, "all") != 0))
 		return;
 
 	jsonw_start_object(wr);
