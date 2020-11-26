@@ -1069,7 +1069,7 @@ int cmd_capture(FILE *f, int argc, char **argv)
 		return -1;
 	}
 
-	if (strcmp(argv[1], "start")) {
+	if (strcmp(argv[1], "start") != 0) {
 		fprintf(f, "capture: unknown command\n");
 		return -1;
 	}
