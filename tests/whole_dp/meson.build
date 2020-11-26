@@ -269,7 +269,7 @@ cores_available = run_command('nproc').stdout().to_int()
 
 foreach suite : check_tests + ['dp_test_pipeline.c']
 
-        suite_env = ['CK_RUN_SUITE=@0@'.format(suite)] + dataplane_test_env
+        suite_env = ['CK_RUN_SUITE=@0@'.format(suite), 'CK_XML_LOG_FILE_NAME=test_@0@.xml'.format(suite)] + dataplane_test_env
 
         test(suite, dataplane_test,
                 depends: [sample_plugin, sample_test_plugin, fal_test_plugin, dummyfs],

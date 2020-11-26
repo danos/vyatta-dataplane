@@ -82,6 +82,19 @@ EOF
 		    sh "osc-buildpkg -v -g -T -P ${env.OBS_TARGET_PROJECT} ${env.OBS_TARGET_REPO} -- --trust-all-projects --build-uid='caller'"
 		}
 	    }
+	    post {
+		    always {
+			    sh """
+				mkdir junit_results
+				for file in ${env.OSC_BUILD_ROOT}/usr/src/packages/BUILD/build/tests/whole_dp/*.xml
+				do
+				xsltproc --output junit_results/\$(basename \$file) vyatta-dataplane/tests/whole_dp/XML_for_JUnit.xsl \$file
+				done
+			    """
+
+			    junit 'junit_results/*.xml'
+		    }
+	    }
 	}
 
 	stage('Code Stats') {
