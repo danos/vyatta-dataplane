@@ -48,7 +48,7 @@ static void _show_mac_limit_info(const char *intf, uint16_t vlan,
 	 * and if so, whether is it assigned a profile.
 	 */
 	if (present) {
-		if (strcmp(intf, NONE)) {
+		if (strcmp(intf, NONE) != 0) {
 			jexp = dp_test_json_create(
 				"{ "
 				"\"mac-limit\": "
