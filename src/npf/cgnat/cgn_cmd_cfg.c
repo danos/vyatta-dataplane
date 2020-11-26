@@ -658,7 +658,7 @@ static int cgn_sess_timeout_tcp_estbd(int argc, char **argv)
 		if (port < 0 || port > USHRT_MAX)
 			return 0;
 
-		if (strcmp(argv[3], "timeout"))
+		if (strcmp(argv[3], "timeout") != 0)
 			return 0;
 
 		timeout = cgn_arg_to_int(argv[4]);
@@ -701,7 +701,7 @@ static int cgn_sess_timeout_udp_estbd(int argc, char **argv)
 		if (port < 0 || port > USHRT_MAX)
 			return 0;
 
-		if (strcmp(argv[3], "timeout"))
+		if (strcmp(argv[3], "timeout") != 0)
 			return 0;
 
 		timeout = cgn_arg_to_int(argv[4]);
