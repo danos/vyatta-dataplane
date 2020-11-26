@@ -441,7 +441,7 @@ int cmd_rt_tracker_op(FILE *f, int argc, char **argv)
 	if (argc != 2)
 		return -1;
 
-	if (strcmp("show", argv[1]))
+	if (strcmp("show", argv[1]) != 0)
 		return -1;
 
 	wr = jsonw_new(f);
