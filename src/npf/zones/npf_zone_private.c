@@ -1069,7 +1069,7 @@ npf_zone_show_private(json_writer_t *json, const char *zone,
 	if (zi) {
 		cds_list_for_each_entry(nz, &zi->zi_zone_list, nz_node) {
 			/* Looking for one particular zone? */
-			if (zone && strcmp(zone, nz->nz_name))
+			if (zone && strcmp(zone, nz->nz_name) != 0)
 				continue;
 
 			/*
