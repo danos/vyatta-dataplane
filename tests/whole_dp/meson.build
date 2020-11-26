@@ -43,6 +43,9 @@ test_lib_sources = files(
         'src/dp_test_wrapped_funcs.c',
 )
 
+# Only files that declare a CK test suite (using DP_DECL_TEST_SUITE())
+# These will be iterated over using CK_RUN_SUITE for testing
+# Everything else belongs in test_lib_sources above
 check_tests = [
         'dp_test_arp.c',
         'dp_test_bitmask.c',
