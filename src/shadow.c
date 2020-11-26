@@ -1041,7 +1041,7 @@ void shadow_show_summary(FILE *f, const char *name)
 		     (!ifp || !rte_eth_dev_is_valid_port(port))))
 			continue;
 
-		if (name && ifp && strcmp(name, ifp->if_name))
+		if (name && ifp && strcmp(name, ifp->if_name) != 0)
 			continue;
 
 		jsonw_start_object(wr);
