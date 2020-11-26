@@ -1821,7 +1821,7 @@ int cmd_nd6_set_cfg(FILE *f, int argc, char **argv)
 	bool set = false;
 	int val = 0;
 
-	if (!argc || strcmp(argv[0], "nd6"))
+	if (!argc || strcmp(argv[0], "nd6") != 0)
 		goto error;
 
 	if (!strcmp(argv[1], "set")) {
@@ -1839,7 +1839,7 @@ int cmd_nd6_set_cfg(FILE *f, int argc, char **argv)
 		goto error;
 	}
 
-	if (strcmp(argv[2], "all")) {
+	if (strcmp(argv[2], "all") != 0) {
 		fprintf(f, "Per-interface ND param config not supported\n");
 		goto error;
 	}
