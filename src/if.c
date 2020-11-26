@@ -3991,3 +3991,12 @@ void dp_ifnet_output(struct ifnet *in_ifp, struct rte_mbuf *m,
 {
 	if_output(out_ifp, m, in_ifp, proto);
 }
+
+int dp_ifnet_get_mac_addr(struct ifnet *ifp, struct rte_ether_addr *eth_addr)
+{
+	if (!ifp || !eth_addr)
+		return -1;
+
+	rte_ether_addr_copy(&ifp->eth_addr, eth_addr);
+	return 0;
+}

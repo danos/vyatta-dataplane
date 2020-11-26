@@ -234,4 +234,14 @@ int dp_ifnet_addr_walk(struct ifnet *ifp, dp_ifnet_addr_iter_func_t func,
 void dp_ifnet_output(struct ifnet *in_ifp, struct rte_mbuf *m,
 		     struct ifnet *out_ifp, uint16_t proto);
 
+/*
+ * @brief Get the mac address of an interface
+ *
+ * @param[in] ifp Interface pointer
+ * @param[out] eth_addr Ethernet address
+ *
+ * @return 0 on success.
+ */
+int dp_ifnet_get_mac_addr(struct ifnet *ifp, struct rte_ether_addr *eth_addr);
+
 #endif /* VYATTA_DATAPLANE_INTERFACE_H */
