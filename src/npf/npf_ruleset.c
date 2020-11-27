@@ -638,7 +638,7 @@ npf_find_rule(npf_rule_group_t *rg, npf_rule_t *match)
 	cds_list_for_each_entry(rl, &rg->rg_rules, r_entry) {
 		if (match->r_state->rs_rule_no == rl->r_state->rs_rule_no)
 			return rl;
-		else if (match->r_state->rs_rule_no < rl->r_state->rs_rule_no)
+		if (match->r_state->rs_rule_no < rl->r_state->rs_rule_no)
 			return NULL;
 	}
 	return NULL;
@@ -887,8 +887,8 @@ npf_get_rule_by_hash_cb(struct npf_attpt_item *ap, void *ctx)
 	info->rl = npf_get_rule_by_hash_config(npf_conf, info->hash);
 	if (info->rl)
 		return false; /* cause walker to stop */
-	else
-		return true;
+
+	return true;
 }
 
 npf_rule_t *
@@ -1911,8 +1911,8 @@ npf_rule_decision(npf_rule_t *rl)
 		/* Match.  Either pass or block */
 		if (rl->r_pass)
 			return NPF_DECISION_PASS;
-		else
-			return NPF_DECISION_BLOCK;
+
+		return NPF_DECISION_BLOCK;
 	}
 	return NPF_DECISION_UNMATCHED;
 }
