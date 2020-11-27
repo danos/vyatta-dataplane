@@ -281,12 +281,14 @@ static int pcapin_handler(zsock_t *sock, struct ifnet *ifp)
 			int stop = capture_stop(ifp, slotmask);
 			pcapin_response(sock, type, msg, "OK");
 			return stop;
-		} else if (!strcmp(type, "DROP STATS")) {
+		}
+		if (!strcmp(type, "DROP STATS")) {
 			free(type);
 			zmsg_destroy(&msg);
 			drop_stats_response(cap_info, sock);
 			return 0;
-		} else if (!strcmp(type, "FILTER")) {
+		}
+		if (!strcmp(type, "FILTER")) {
 
 			frame = zmsg_pop(msg);
 			if (frame == NULL) {
