@@ -46,8 +46,8 @@ static ALWAYS_INLINE bool
 {
 	if (v4)
 		return rt_valid_tblid(pktmbuf_get_vrf(m), tblid);
-	else
-		return rt6_valid_tblid(pktmbuf_get_vrf(m), tblid);
+
+	return rt6_valid_tblid(pktmbuf_get_vrf(m), tblid);
 }
 
 static ALWAYS_INLINE unsigned int
