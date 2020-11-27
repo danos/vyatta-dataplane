@@ -478,7 +478,7 @@ static uint64_t qos_rate_get(struct qos_rate_info *bw_info, uint64_t parent_bw,
 		float full_pct = bw_info->rate.bw_percent;
 		uint32_t whole_pct = (uint32_t)bw_info->rate.bw_percent;
 
-		if (fabs(full_pct - (float)whole_pct) < precision)
+		if (fabsf(full_pct - (float)whole_pct) < precision)
 			rate = (parent_bw * whole_pct) / 100;
 		else
 			rate = (parent_bw * full_pct) / 100;
