@@ -623,7 +623,7 @@ npf_rct_is_feature_enabled(enum npf_rc_type rct, struct ifnet *ifp)
 	case NPF_RCT_NAT64:
 		if (pl_node_is_feature_enabled_by_inst(&ipv6_nat64_in_feat,
 						       ifp) ||
-		    pl_node_is_feature_enabled_by_inst(&ipv6_nat64_in_feat,
+		    pl_node_is_feature_enabled_by_inst(&ipv6_nat46_out_feat,
 						       ifp))
 			return true;
 		return false;
