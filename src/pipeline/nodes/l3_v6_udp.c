@@ -113,7 +113,7 @@ ipv6_udp_in_process_common(struct pl_packet *pkt, void *context __unused,
 	rc = ip6_udp_tunnel_in(m, ifp);
 	if (likely(rc == 0))
 		return IPV6_UDP_CONSUME;
-	else if (rc < 0)
+	if (rc < 0)
 		return IPV6_UDP_DROP;
 
 	pkt->mbuf = m;
