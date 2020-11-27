@@ -4071,7 +4071,7 @@ static int cmd_qos_ingress_map(struct ifnet *ifp, int argc, char **argv)
 				return -EINVAL;
 			}
 			argc--; argv++;
-			mask = (uint64_t)(1 << pcp);
+			mask = 1UL << pcp;
 			type = INGRESS_PCP;
 		} else {
 			DP_DEBUG(QOS, ERR, DATAPLANE,
