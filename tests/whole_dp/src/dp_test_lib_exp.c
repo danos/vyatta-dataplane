@@ -282,8 +282,8 @@ dp_test_exp_get_validate_cb(struct dp_test_expected *exp)
 {
 	if (exp->validate_cb)
 		return exp->validate_cb;
-	else
-		return dp_test_pak_verify;
+
+	return dp_test_pak_verify;
 }
 
 validate_cb
