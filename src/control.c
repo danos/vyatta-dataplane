@@ -569,7 +569,7 @@ static struct cds_list_head dynamic_cfg_command_list_head =
 
 static const struct msg_handler *
 find_msg_handler(const struct msg_handler *handlers,
-		 const char *name, int len)
+		 const char *name, size_t len)
 {
 	const struct msg_handler *h;
 	struct dynamic_cfg_command_entry *dynamic_cmd;

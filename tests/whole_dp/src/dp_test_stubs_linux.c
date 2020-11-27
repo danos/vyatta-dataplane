@@ -28,7 +28,7 @@ static bool path_needs_redirected(const char *path)
 {
 	if (!path)
 		return 0;
-	int pathlen = strlen(path);
+	size_t pathlen = strlen(path);
 	bool match = false;
 
 	match = !memcmp(path, "/run", MIN(pathlen, strlen("/run")));
