@@ -453,7 +453,7 @@ static int addr_cmp(uint8_t *a1, uint8_t *a2, int alen)
 	for (i = 0; i < alen; i++) {
 		if (a1[i] < a2[i])
 			return -1;
-		else if (a1[i] > a2[i])
+		if (a1[i] > a2[i])
 			return 1;
 	}
 	return 0;
