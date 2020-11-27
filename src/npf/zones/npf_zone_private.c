@@ -141,7 +141,7 @@ struct npf_zone *local_zone;
 
 
 /* Forward reference */
-static uint32_t npf_zone_policy_ht_hash(const uintptr_t nz);
+static uint32_t npf_zone_policy_ht_hash(uintptr_t nz);
 static int npf_zone_list_insert(struct npf_zone *nz);
 static int npf_zone_list_remove(struct npf_zone *nz);
 static void npf_zone_list_remove_all(struct npf_zone_inst *zi);
