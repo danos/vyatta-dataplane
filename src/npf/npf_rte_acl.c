@@ -308,7 +308,7 @@ static inline uint8_t wc_mask_to_mask(const uint8_t *wc_mask, uint8_t len)
 		tmp = wc_mask[i];
 
 		for (j = 0; j < 8; j++) {
-			if (!tmp & 0x1)
+			if (!(tmp & 0x1))
 				break;
 			mask++;
 			tmp >>= 1;
