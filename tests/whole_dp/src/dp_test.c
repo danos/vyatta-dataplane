@@ -762,6 +762,6 @@ int __wrap_main(int argc, char **argv)
 	 */
 	if (dp_test_real_main_retval != 0)
 		return dp_test_real_main_retval - 128;
-	else
-		return dp_test_thread_internal_retval;
+
+	return dp_test_thread_internal_retval;
 }
