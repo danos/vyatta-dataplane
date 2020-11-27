@@ -21,10 +21,10 @@ ipv4_l2tpv3_in_process(struct pl_packet *pkt, void *context __unused)
 	rc = l2tp_ipv4_recv_encap(m, ip);
 	if (likely(rc == 0))
 		return IPV4_L2TPV3_CONSUME;
-	else if (rc < 0)
+	if (rc < 0)
 		return IPV4_L2TPV3_DROP;
-	else
-		return IPV4_L2TPV3_ACCEPT;
+
+	return IPV4_L2TPV3_ACCEPT;
 }
 
 /* GRE decap feature */
