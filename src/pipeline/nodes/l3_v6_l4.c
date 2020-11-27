@@ -131,9 +131,9 @@ ipv6_l4_pre_process(struct pl_packet *pkt, void *context, struct ifnet *ifp)
 		return true;
 		/* other protocols */
 	}
-	if (rc == 0) {
+	if (rc == 0)
 		return false;
-	} else if (rc < 0) {
+	if (rc < 0) {
 		term_drop_process(pkt, context);
 		return false;
 	}
