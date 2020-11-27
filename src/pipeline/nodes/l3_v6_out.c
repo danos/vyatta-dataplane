@@ -145,10 +145,10 @@ ipv6_out_process_common(struct pl_packet *pkt, void *context __unused,
 	if (likely(!reassembled)) {
 		pkt->l2_proto = ETH_P_IPV6;
 		return IPV6_OUT_ENCAP;
-	} else {
-		struct ipv6_out_frag_ctx ctx = {nxt, in_ifp, pkt->l2_pkt_type};
-		ip6_refragment_packet(out_ifp, pkt->mbuf, &ctx, ipv6_out_frag);
 	}
+
+	struct ipv6_out_frag_ctx ctx = {nxt, in_ifp, pkt->l2_pkt_type};
+	ip6_refragment_packet(out_ifp, pkt->mbuf, &ctx, ipv6_out_frag);
 
 	return IPV6_OUT_FINISH;
 }
