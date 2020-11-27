@@ -921,7 +921,7 @@ npf_addrgrp_addr_cmp(uint8_t *addr1, uint8_t *addr2, uint8_t alen)
 	for (i = 0; i < alen; i++) {
 		if (addr1[i] > addr2[i])
 			return 1;
-		else if (addr1[i] < addr2[i])
+		if (addr1[i] < addr2[i])
 			return -1;
 	}
 	return 0;
