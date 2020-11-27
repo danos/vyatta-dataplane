@@ -460,7 +460,8 @@ uint64_t npf_pack_get_session_id(struct npf_pack_message *msg)
 		fw = (struct npf_pack_session_fw *)&csn->cs;
 		pds = (struct npf_pack_dp_session *)&fw->pds;
 		return pds->pds_id;
-	} else if (hdr->pmh_type == SESSION_PACK_UPDATE) {
+	}
+	if (hdr->pmh_type == SESSION_PACK_UPDATE) {
 		csu = &msg->data.cs_update;
 		return csu->se_id;
 	}
@@ -482,7 +483,8 @@ npf_pack_get_session_stats(struct npf_pack_message *msg)
 		csn = (struct npf_pack_session_new *)&msg->data.cs_new;
 		fw = (struct npf_pack_session_fw *)&csn->cs;
 		return &fw->stats;
-	} else if (hdr->pmh_type == SESSION_PACK_UPDATE) {
+	}
+	if (hdr->pmh_type == SESSION_PACK_UPDATE) {
 		csu = &msg->data.cs_update;
 		return &csu->stats;
 	}
