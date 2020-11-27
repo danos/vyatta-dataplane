@@ -73,7 +73,8 @@ pmf_hw_rule_add(struct pmf_attrl *earl, struct pmf_rule *rule)
 
 	/* Actions */
 	uint32_t num_actions
-		= !!(summary & (PMF_RAS_DROP|PMF_RAS_PASS))
+		= 1
+		+ !!(summary & (PMF_RAS_DROP|PMF_RAS_PASS))
 		+ !!(summary & PMF_RAS_COUNT_REF);
 	struct fal_acl_action_data_t *actions
 		= calloc(1, num_actions * sizeof(*actions));
