@@ -126,7 +126,7 @@ static int sip_alg_sdp_get_media_proto(struct sip_alg_request *sr, int pos)
 
 	if (strstr(proto, "UDP"))
 		return sdp_proto_udp;
-	else if (strstr(proto, "RTP"))
+	if (strstr(proto, "RTP"))
 		return sdp_proto_rtp;
 	return sdp_proto_unknown;
 }
