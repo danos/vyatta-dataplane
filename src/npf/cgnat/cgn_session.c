@@ -310,16 +310,16 @@ sentry2session(const struct cgn_sentry *ce, int dir)
 {
 	if (dir == CGN_DIR_FORW)
 		return caa_container_of(ce, struct cgn_session, cs_forw_entry);
-	else
-		return caa_container_of(ce, struct cgn_session, cs_back_entry);
+
+	return caa_container_of(ce, struct cgn_session, cs_back_entry);
 }
 
 static inline struct cgn_sentry *dir2sentry(struct cgn_session *cse, int dir)
 {
 	if (dir == CGN_DIR_FORW)
 		return &cse->cs_forw_entry;
-	else
-		return &cse->cs_back_entry;
+
+	return &cse->cs_back_entry;
 }
 
 uint32_t cgn_session_forw_addr(struct cgn_session *cse)
