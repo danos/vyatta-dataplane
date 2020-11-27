@@ -455,9 +455,10 @@ json_val_subset(json_object *value1, json_object *value2,
 	struct dp_test_json_mismatches *subobj_mismatch = NULL;
 	enum json_type type1, type2;
 
-	if (!value1) {
+	if (!value1)
 		return true;
-	} else if (!value2) {
+
+	if (!value2) {
 		dp_test_json_mismatch_record(mismatches, key, NULL,
 					     "-- missing");
 		return false;
