@@ -2097,7 +2097,7 @@ static double nexthop_hash_load_factor(void)
 	double factor;
 
 	cds_lfht_count_nodes(nexthop_hash, &dummy, &count, &dummy);
-	factor = count / NEXTHOP_HASH_TBL_SIZE;
+	factor = (double) count / (double) NEXTHOP_HASH_TBL_SIZE;
 	return factor;
 }
 
@@ -2136,7 +2136,7 @@ int rt_stats(struct route_head *rt_head, json_writer_t *json, uint32_t id)
 	jsonw_uint_field(json, "used", nh_tbl.in_use);
 	jsonw_uint_field(json, "free", NEXTHOP_HASH_TBL_SIZE - nh_tbl.in_use);
 	jsonw_uint_field(json, "hash",
-			 100. * nexthop_hash_load_factor());
+			 (unsigned int) (100. * nexthop_hash_load_factor()));
 	jsonw_uint_field(json, "neigh_present", nh_tbl.neigh_present);
 	jsonw_uint_field(json, "neigh_created", nh_tbl.neigh_created);
 	jsonw_end_object(json);
