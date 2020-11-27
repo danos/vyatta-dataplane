@@ -38,7 +38,7 @@ ether_forward_process(struct pl_packet *pkt, void *context __unused)
 		return ETHER_FORWARD_V6_ACCEPT;
 	if (et == htons(RTE_ETHER_TYPE_ARP))
 		return ETHER_FORWARD_ARP_ACCEPT;
-	else if (et == htons(ETH_P_MPLS_UC))
+	if (et == htons(ETH_P_MPLS_UC))
 		mpls_labeled_input(pkt->in_ifp, pkt->mbuf);
 	else if (et == htons(ETH_P_PPP_DISC) || et == htons(ETH_P_PPP_SES))
 		return ETHER_FORWARD_PPPOE_ACCEPT;
@@ -50,8 +50,8 @@ ether_forward_process(struct pl_packet *pkt, void *context __unused)
 			/* Drop unknown protocols */
 			if_incr_unknown(pkt->in_ifp);
 			return ETHER_FORWARD_DROP;
-		} else
-			return ETHER_FORWARD_LOCAL;
+		}
+		return ETHER_FORWARD_LOCAL;
 	} else {
 		/* always LLDP packets through to kernel*/
 		return ETHER_FORWARD_LOCAL;
