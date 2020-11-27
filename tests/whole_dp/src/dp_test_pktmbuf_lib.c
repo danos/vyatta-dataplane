@@ -1154,8 +1154,9 @@ dp_test_pktmbuf_erspan_init(struct rte_mbuf *m, uint16_t erspanid,
 					erspanid);
 		erspan->idx_dir = htonl(idx << 4 | dir);
 		return erspan;
-	} else
-		return NULL;
+	}
+
+	return NULL;
 }
 
 /**
