@@ -128,10 +128,10 @@ ipv4_out_process_common(struct pl_packet *pkt, void *context __unused,
 	if (likely(!too_big)) {
 		pkt->l2_proto = ETH_P_IP;
 		return IPV4_OUT_ENCAP;
-	} else {
-		struct ipv4_out_frag_ctx ctx = {nxt, in_ifp, pkt->l2_pkt_type};
-		ip_fragment(out_ifp, pkt->mbuf, &ctx, ipv4_out_frag);
 	}
+
+	struct ipv4_out_frag_ctx ctx = {nxt, in_ifp, pkt->l2_pkt_type};
+	ip_fragment(out_ifp, pkt->mbuf, &ctx, ipv4_out_frag);
 
 	return IPV4_OUT_FINISH;
 }
