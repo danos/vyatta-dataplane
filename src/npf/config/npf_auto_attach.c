@@ -103,8 +103,8 @@ static int get_auto_attach_point(enum npf_rule_class group_class,
 	fn = npf_auto_attach_fns[group_class];
 	if (fn)
 		return fn(group_class, group, attach_info);
-	else
-		return -ENOENT;
+
+	return -ENOENT;
 }
 
 int npf_cfg_auto_attach_rule_add(enum npf_rule_class group_class,
