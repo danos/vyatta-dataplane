@@ -64,11 +64,10 @@ ipv4_ipsec_in_process(struct pl_packet *pkt, void *context __unused)
 	rc = crypto_enqueue_inbound_v4(m, ip, ifp, spi);
 	if (likely(rc == 0))
 		return IPV4_IPSEC_IN_CONSUME;
-	else if (rc < 0)
+	if (rc < 0)
 		return IPV4_IPSEC_IN_DROP;
-	else
-		return IPV4_IPSEC_IN_ACCEPT;
 
+	return IPV4_IPSEC_IN_ACCEPT;
 }
 
 /* Crypto encryption feature */
