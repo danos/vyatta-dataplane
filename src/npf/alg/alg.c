@@ -400,11 +400,11 @@ static struct npf_alg *alg_name_to_alg(struct npf_alg_instance *ai,
 {
 	if (ai->ai_ftp && !strcmp(ai->ai_ftp->na_ops->name, name))
 		return ai->ai_ftp;
-	else if (ai->ai_tftp && !strcmp(ai->ai_tftp->na_ops->name, name))
+	if (ai->ai_tftp && !strcmp(ai->ai_tftp->na_ops->name, name))
 		return ai->ai_tftp;
-	else if (ai->ai_sip && !strcmp(ai->ai_sip->na_ops->name, name))
+	if (ai->ai_sip && !strcmp(ai->ai_sip->na_ops->name, name))
 		return ai->ai_sip;
-	else if (ai->ai_rpc && !strcmp(ai->ai_rpc->na_ops->name, name))
+	if (ai->ai_rpc && !strcmp(ai->ai_rpc->na_ops->name, name))
 		return ai->ai_rpc;
 	return NULL;
 }
