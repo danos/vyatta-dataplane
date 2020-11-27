@@ -1864,9 +1864,10 @@ int session_npf_pack_pack(struct session *s, struct npf_pack_dp_session *pds,
 	return session_npf_pack_sentry_pack(s, psp);
 }
 
-struct session *session_npf_pack_restore(struct npf_pack_dp_session *pds,
-					 struct npf_pack_sentry_packet *psp,
-					 struct npf_pack_dp_sess_stats *stats)
+int session_npf_pack_restore(struct npf_pack_dp_session *pds,
+			     struct npf_pack_sentry_packet *psp,
+			     struct npf_pack_dp_sess_stats *stats,
+			     struct session **session)
 {
 	struct session *s;
 	struct sentry_packet psp_forw;
@@ -1879,20 +1880,20 @@ struct session *session_npf_pack_restore(struct npf_pack_dp_session *pds,
 	int rc;
 
 	if (!pds || !psp)
-		return NULL;
+		return -EINVAL;
 
 	rc = session_npf_pack_sentry_restore(psp, &ifp);
 	if (rc)
-		return NULL;
+		return rc;
 
 	rc = slot_get();
 	if (rc)
-		return NULL;
+		return rc;
 
 	s = session_alloc();
 	if (!s) {
 		slot_put();
-		return NULL;
+		return -ENOMEM;
 	}
 
 	s->se_vrfid = ifp->if_vrfid;
@@ -1932,15 +1933,17 @@ struct session *session_npf_pack_restore(struct npf_pack_dp_session *pds,
 	cds_lfht_add(session_ht, s->se_id, &s->se_node);
 	s->se_flags = SESSION_INSERTED;
 
-	if (session_npf_pack_stats_restore(s, stats))
+	rc = session_npf_pack_stats_restore(s, stats);
+	if (rc) 
 		goto error;
 
-	return s;
+	*session = s;
+	return 0;
 
 error:
 	slot_put();
 	free(s);
-	return NULL;
+	return rc;
 }
 
 uint32_t session_get_npf_pack_timeout(struct session *s)

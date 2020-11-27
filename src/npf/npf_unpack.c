@@ -151,8 +151,8 @@ int npf_pack_restore_session(struct npf_pack_dp_session *pds,
 		}
 	}
 
-	s = session_npf_pack_restore(pds, psp, stats);
-	if (!s) {
+	rc = session_npf_pack_restore(pds, psp, stats, &s);
+	if (rc) {
 		RTE_LOG(ERR, DATAPLANE,
 			"npf_pack DP session restore failed %lu, %s\n",
 			pds->pds_id, strerror(-rc));

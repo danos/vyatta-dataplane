@@ -932,9 +932,10 @@ int session_npf_pack_pack(struct session *s, struct npf_pack_dp_session *pds,
 			  struct npf_pack_dp_sess_stats *stats);
 int session_npf_pack_sentry_pack(struct session *s,
 				 struct npf_pack_sentry_packet *psp);
-struct session *session_npf_pack_restore(struct npf_pack_dp_session *pds,
-					 struct npf_pack_sentry_packet *psp,
-					 struct npf_pack_dp_sess_stats *stats);
+int session_npf_pack_restore(struct npf_pack_dp_session *pds,
+			     struct npf_pack_sentry_packet *psp,
+			     struct npf_pack_dp_sess_stats *stats,
+			     struct session **session);
 int session_npf_pack_sentry_restore(struct npf_pack_sentry_packet *psp,
 				    struct ifnet **ifp);
 uint32_t session_get_npf_pack_timeout(struct session *s);
