@@ -727,20 +727,20 @@ nh_fwd_mpls(struct next_hop *nh,
 					NH_FWD_IPv6 : NH_FWD_RESWITCH_IPv6;
 			}
 			return NH_FWD_FAILURE;
-		} else {
-			/* Non-bottom of stack */
-
-			/*
-			 * If the nexthop is unlabeled then drop the packet
-			 */
-			if (unlikely(!num_labels))
-				return NH_FWD_FAILURE;
-
-			if (!have_labels || ifp)
-				return NH_FWD_SUCCESS;
-			return NH_FWD_RESWITCH_MPLS;
 		}
-	} else if (have_labels) {
+		/* Non-bottom of stack */
+
+		/*
+		 * If the nexthop is unlabeled then drop the packet
+		 */
+		if (unlikely(!num_labels))
+			return NH_FWD_FAILURE;
+
+		if (!have_labels || ifp)
+			return NH_FWD_SUCCESS;
+		return NH_FWD_RESWITCH_MPLS;
+	}
+	if (have_labels) {
 		if (!swap_labels(m, labels, cache))
 			return NH_FWD_FAILURE;
 	} else {
@@ -1801,15 +1801,18 @@ void mpls_unlabeled_input(struct ifnet *input_ifp, struct rte_mbuf *m,
 		nh_mpls_forward(payload_type, nht, nh, false, ttl,
 				m, &cache, input_ifp);
 		return;
-	} else if (likely(ret == NH_FWD_IPv4)) {
+	}
+	if (likely(ret == NH_FWD_IPv4)) {
 		mpls_forward_to_ipv4(input_ifp, input_ifp == NULL, m,
 				     nh, ttl, false);
 		return;
-	} else if (likely(ret == NH_FWD_IPv6)) {
+	}
+	if (likely(ret == NH_FWD_IPv6)) {
 		mpls_forward_to_ipv6(input_ifp, input_ifp == NULL, m,
 				     nh, ttl, false);
 		return;
-	} else if (unlikely(ret == NH_FWD_SLOWPATH)) {
+	}
+	if (unlikely(ret == NH_FWD_SLOWPATH)) {
 		/*
 		 * Put the packet back to its newly arrived
 		 * state.  NOTE: we are assuming that we
