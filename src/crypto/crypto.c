@@ -999,7 +999,7 @@ static void crypto_fwd_processed_packets(struct crypto_pkt_ctx **contexts,
 
 		crypto_prefetch_ctx(contexts, count, i);
 		crypto_pkt_ctx_forward_and_free(contexts[i]);
-		crypto_prefetch_ctx_data(contexts, count, i);
+		crypto_prefetch_ctx_data(contexts, count, i+1);
 	}
 }
 
