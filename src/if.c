@@ -2932,8 +2932,6 @@ int if_stop(struct ifnet *ifp)
 
 	if_stats_disable(ifp);
 
-	mrt_purge(ifp);
-
 	dp_event(DP_EVT_IF_ADMIN_STATUS_CHANGE, 0, ifp, false, 0, NULL);
 
 	RTE_LOG(WARNING, DATAPLANE, "%s changed state to admin down\n",

@@ -843,7 +843,6 @@ static int unspec_link_change(const struct nlmsghdr *nlh,
 		if (is_team(ifp))
 			lag_nl_team_delete(ifi, ifp);
 		else {
-			mc_del_if(ifindex);
 			if (ifp)
 				netlink_if_free(ifp);
 			else

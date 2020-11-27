@@ -93,7 +93,7 @@
 #include <rte_mbuf.h>
 #include <rte_timer.h>
 
-#include "crypto/vti.h"
+#include "dp_event.h"
 #include "if/gre.h"
 #include "if_var.h"
 #include "ip_funcs.h"
@@ -336,7 +336,7 @@ struct vif *get_vif_by_ifindex(unsigned int ifindex)
 }
 
 
-void mrt4_purge(struct ifnet *ifp)
+static void mrt4_purge(struct ifnet *ifp)
 {
 	struct vif *vifp;
 	unsigned int v_if_index;
@@ -1559,20 +1559,18 @@ void mcast_vrf_uninit(struct vrf *vrf)
 
 }
 
-int mcast_stop_ipv4(void)
+static void mcast_stop_ipv4(void)
 {
 #ifdef UPCALL_TIMER
 	rte_timer_stop(&expire_upcalls_ch);
 #endif
 	rte_timer_stop(&mrt_stats_timer);
-
-	return 0;
 }
 
 static const struct ift_ops pimreg_if_ops = {
 };
 
-void mcast_init_ipv4(void)
+static void mcast_init_ipv4(void)
 {
 	int ret;
 
@@ -1589,3 +1587,26 @@ void mcast_init_ipv4(void)
 	rte_timer_reset(&mrt_stats_timer, SG_CNT_INTERVAL, PERIODICAL,
 			rte_get_master_lcore(), mrt_stats, NULL);
 }
+
+static void mrt4_if_delete(struct ifnet *ifp)
+{
+	del_vif(ifp->if_index);
+}
+
+static void mrt4_if_admin_status_change(struct ifnet *ifp, bool up)
+{
+	/* not interested in admin-up events */
+	if (up)
+		return;
+
+	mrt4_purge(ifp);
+}
+
+static const struct dp_event_ops ip_mroute_events = {
+	.init = mcast_init_ipv4,
+	.uninit = mcast_stop_ipv4,
+	.if_delete = mrt4_if_delete,
+	.if_admin_status_change = mrt4_if_admin_status_change,
+};
+
+DP_STARTUP_EVENT_REGISTER(ip_mroute_events);
