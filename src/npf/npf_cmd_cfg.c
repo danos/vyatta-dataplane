@@ -504,7 +504,8 @@ cmd_add_rule(FILE *f, int argc, char **argv)
 		if (strcmp(argv[1], "0") != 0)  {
 			npf_cmd_err(f, "invalid index: %s", argv[1]);
 			return -1;
-		} else if (group_class == NPF_RULE_CLASS_ACL)
+		}
+		if (group_class == NPF_RULE_CLASS_ACL)
 			index = UINT32_MAX;
 	}
 
