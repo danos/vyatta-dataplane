@@ -133,6 +133,10 @@ static void dp_evt_notify(enum dp_evt evt, uint32_t cont_src,
 		if (ops->uninit)
 			ops->uninit();
 		break;
+	case DP_EVT_IF_ADMIN_STATUS_CHANGE:
+		if (ops->if_admin_status_change)
+			ops->if_admin_status_change(obj, val);
+		break;
 	default:
 		rte_panic("dp_event: unknown event: %u\n", evt);
 	}
