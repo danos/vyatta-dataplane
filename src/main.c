@@ -213,6 +213,7 @@ struct lcore_conf {
 	uint16_t high_txq;    /* highest index assigned to tx_poll */
 	uint8_t tx_qid;	      /* my tx queue for multi-queue devices */
 	uint8_t do_crypto;    /* thread is tasked with doing crypto */
+	uint8_t crypto_fwd;   /* post-crypto forwarding workload present */
 
 	/* receive queues this cpu should check for input */
 	struct lcore_rx_queue {
@@ -1034,7 +1035,8 @@ forwarding_loop(unsigned int lcore_id)
 				process_crypto(conf);
 			if (CMM_LOAD_SHARED(conf->num_txq) > 0)
 				poll_transmit_queues(conf);
-			crypto_fwd_processed_packets();
+			if (CMM_LOAD_SHARED(conf->crypto_fwd))
+				crypto_fwd_processed_packets();
 		}
 
 		/* Move leftover packets */
@@ -1586,6 +1588,20 @@ void unassign_queues(portid_t portid)
 	synchronize_rcu();
 	pkt_ring_empty(portid);
 	stop_cpus();
+}
+
+void enable_crypto_fwd(unsigned int lcore)
+{
+	struct lcore_conf *conf = lcore_conf[lcore];
+
+	CMM_STORE_SHARED(conf->crypto_fwd, 1);
+}
+
+void disable_crypto_fwd(unsigned int lcore)
+{
+	struct lcore_conf *conf = lcore_conf[lcore];
+
+	CMM_STORE_SHARED(conf->crypto_fwd, 0);
 }
 
 /* Compute load based on how much work CPU core is doing

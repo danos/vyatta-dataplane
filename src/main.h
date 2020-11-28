@@ -178,4 +178,7 @@ extern uint16_t nb_ports_total;
 
 int next_available_crypto_lcore(void);
 
+void enable_crypto_fwd(unsigned int lcore);
+void disable_crypto_fwd(unsigned int lcore);
+
 #endif /* MAIN_H */

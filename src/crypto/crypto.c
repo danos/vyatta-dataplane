@@ -1405,7 +1405,12 @@ uint8_t crypto_sa_alloc_fwd_core(void)
 			}
 		}
 	}
-	num_sas[fwd_core]++;
+
+	if (fwd_core) {
+		num_sas[fwd_core]++;
+		if (num_sas[fwd_core] == 1)
+			enable_crypto_fwd(fwd_core);
+	}
 	return fwd_core;
 }
 
@@ -1414,10 +1419,11 @@ uint8_t crypto_sa_alloc_fwd_core(void)
  */
 void crypto_sa_free_fwd_core(uint8_t fwd_core)
 {
-	if (!bitmask_isset(&crypto_fwd_cores, fwd_core))
-		return;
-
-	num_sas[fwd_core]--;
+	if (fwd_core) {
+		num_sas[fwd_core]--;
+		if (!num_sas[fwd_core])
+			disable_crypto_fwd(fwd_core);
+	}
 }
 
 static unsigned int crypto_ctx_pool;
