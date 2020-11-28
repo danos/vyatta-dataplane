@@ -989,12 +989,33 @@ void crypto_enqueue_outbound(struct rte_mbuf *m, uint16_t orig_family,
 	}
 }
 
+static inline void
+crypto_redirect_packet_batch(uint8_t core,
+			     struct crypto_pkt_ctx **contexts,
+			     unsigned int batch_cnt)
+{
+	if (!rte_ring_mp_enqueue_bulk(crypto_fwd[core].fwd_q,
+				      (void **)contexts, batch_cnt,
+				      NULL)) {
+		/*
+		 * highly unlikely scenario. Free all contexts that could
+		 * not be enqueued to post-processing thread
+		 */
+		for (unsigned int j = 0; j < batch_cnt; j++) {
+			IPSEC_CNT_INC(CRYPTO_PP_ENQ_FAILED);
+			rte_pktmbuf_free(contexts[j]->mbuf);
+			release_crypto_packet_ctx(contexts[j]);
+		}
+	}
+}
+
 static void crypto_redirect_processed_packets(struct crypto_pkt_ctx **contexts,
 					      unsigned int count)
 {
-	uint32_t i;
-	uint8_t fwd_lcore;
+	uint16_t i, batch_cnt = 0;
+	uint8_t fwd_lcore, prev_fwd_lcore = 0;
 	struct crypto_pkt_ctx *ctx;
+	struct crypto_pkt_ctx *tmp_contexts[count];
 
 	for (i = 0; i < count; i++) {
 		ctx = contexts[i];
@@ -1009,13 +1030,30 @@ static void crypto_redirect_processed_packets(struct crypto_pkt_ctx **contexts,
 			continue;
 		}
 
-		if (rte_ring_mp_enqueue(crypto_fwd[fwd_lcore].fwd_q,
-					contexts[i])) {
-			IPSEC_CNT_INC(CRYPTO_PP_ENQ_FAILED);
-			rte_pktmbuf_free(ctx->mbuf);
-			release_crypto_packet_ctx(ctx);
+		/* starting first batch */
+		if (!prev_fwd_lcore)
+			prev_fwd_lcore = fwd_lcore;
+
+		/* continuing existing batch */
+		if (prev_fwd_lcore == fwd_lcore) {
+			tmp_contexts[batch_cnt++] = contexts[i];
+			continue;
 		}
+
+		/* flush batch */
+		crypto_redirect_packet_batch(prev_fwd_lcore, tmp_contexts,
+					     batch_cnt);
+
+		/* start new batch after flush */
+		batch_cnt = 0;
+		prev_fwd_lcore = fwd_lcore;
+		tmp_contexts[batch_cnt++] = contexts[i];
 	}
+
+	/* flush final batch */
+	if (batch_cnt)
+		crypto_redirect_packet_batch(prev_fwd_lcore, tmp_contexts,
+					     batch_cnt);
 }
 
 void crypto_fwd_processed_packets(void)
