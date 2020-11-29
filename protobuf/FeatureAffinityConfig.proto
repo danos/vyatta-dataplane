@@ -1,0 +1,23 @@
+// Copyright (c) 2019, AT&T Intellectual Property.  All rights reserved.
+//
+// SPDX-License-Identifier: LGPL-2.1-only
+//
+// Affinity configuration for features
+//
+
+syntax="proto2";
+
+option go_package = "github.com/danos/vyatta-dataplane/protobuf/go/FeatureAffinityConfig";
+
+message FeatureAffinityConfig {
+	enum Feature {
+	     CRYPTO     = 0;         // cryptographic processing
+	     CRYPTO_FWD = 1;         // post-cryptographic forwarding
+	}
+
+	// feature for which affinity is being specified
+	optional Feature feature = 1;
+
+	// hex string containing CPU mask
+	optional bytes cpumask = 2;
+}
