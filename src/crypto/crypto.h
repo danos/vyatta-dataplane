@@ -94,5 +94,6 @@ unsigned long hash_xfrm_address(const xfrm_address_t *addr,
 				const uint16_t family);
 uint8_t crypto_sa_alloc_fwd_core(void);
 void crypto_sa_free_fwd_core(uint8_t fwd_core);
+int crypto_set_fwd_cores(const uint8_t *bytes, uint8_t len);
 
 #endif /* CRYPTO_H */

@@ -1229,6 +1229,11 @@ static int feature_affinity_cmd_handler(struct pb_msg *msg)
 					fmsg->cpumask.len);
 		break;
 
+	case FEATURE_AFFINITY_CONFIG__FEATURE__CRYPTO_FWD:
+		ret = crypto_set_fwd_cores(fmsg->cpumask.data,
+					   fmsg->cpumask.len);
+		break;
+
 	default:
 		ret = -EINVAL;
 		break;

@@ -1388,6 +1388,20 @@ static struct dp_lcore_events crypto_lcore_events = {
 static bitmask_t crypto_fwd_cores;
 static uint16_t num_sas[RTE_MAX_LCORE];
 
+int crypto_set_fwd_cores(const uint8_t *bytes, uint8_t len)
+{
+	int rc;
+
+	rc = bitmask_parse_bytes(&crypto_fwd_cores, bytes, len);
+	if (rc) {
+		RTE_LOG(ERR, DATAPLANE,
+			"Failed to parse cpumask for post-crypto forwarding\n");
+		return rc;
+	}
+
+	return rc;
+}
+
 /*
  * return the next least loaded forwarding core to allocate as
  * the post-processing core for a specific SA
