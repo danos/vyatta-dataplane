@@ -2976,14 +2976,14 @@ unsigned int probe_crypto_engines(bool *sticky)
  * set for future allocations.  If no mask or an empty mask is
  * passed, then auto probe the system, disabling stickyness.
  */
-int set_crypto_engines(const char *str, bool *sticky)
+int set_crypto_engines(const uint8_t *bytes, uint8_t len, bool *sticky)
 {
 	bitmask_t cores;
 	int rc;
 	char tmp[BITMASK_STRSZ];
 	bool tmp_sticky;
 
-	rc = str ? bitmask_parse(&cores, str) : 1;
+	rc = bitmask_parse_bytes(&cores, bytes, len);
 
 	if (rc || bitmask_isempty(&cores)) {
 		crypto_sticky = false;

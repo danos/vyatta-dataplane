@@ -28,6 +28,7 @@
 #include "compiler.h"
 #include "config_internal.h"
 #include "control.h"
+#include "crypto/crypto.h"
 #include "crypto/crypto_policy.h"
 #include "dpmsg.h"
 #include "event_internal.h"
@@ -1220,6 +1221,17 @@ static int feature_affinity_cmd_handler(struct pb_msg *msg)
 		RTE_LOG(ERR, DATAPLANE,
 			"failed to unpack FeatureAffinity protobuf command\n");
 		return -1;
+	}
+
+	switch (fmsg->feature) {
+	case FEATURE_AFFINITY_CONFIG__FEATURE__CRYPTO:
+		ret = crypto_engine_set(fmsg->cpumask.data,
+					fmsg->cpumask.len);
+		break;
+
+	default:
+		ret = -EINVAL;
+		break;
 	}
 
 	feature_affinity_config__free_unpacked(fmsg, NULL);

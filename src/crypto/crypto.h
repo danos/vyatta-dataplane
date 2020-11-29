@@ -84,7 +84,7 @@ void crypto_show_summary(FILE *f);
 void crypto_add_listener(const char *url);
 void crypto_show_pmd(FILE *f);
 void crypto_sadb_show_spi_mapping(FILE *f, vrfid_t vrfid);
-int crypto_engine_set(FILE *f, const char *str);
+int crypto_engine_set(uint8_t *bytes, uint8_t len);
 int crypto_engine_probe(FILE *f);
 void crypto_show_cache(FILE *f, const char *str);
 int crypto_flow_cache_init_lcore(unsigned int lcore_id);

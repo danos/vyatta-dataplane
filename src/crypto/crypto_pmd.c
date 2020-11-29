@@ -353,22 +353,20 @@ int crypto_engine_probe(FILE *f)
 		 (int) num;
 }
 
-int crypto_engine_set(FILE *f, const char *str)
+int crypto_engine_set(uint8_t *bytes, uint8_t len)
 {
 	bool tmp_sticky;
-	int num  = set_crypto_engines(str, &tmp_sticky);
-
-	if (!f)
-		return -1;
+	int num  = set_crypto_engines(bytes, len, &tmp_sticky);
 
 	if (num < 0) {
-		fprintf(f, "error invalid mask\n");
-		return -1;
+		RTE_LOG(ERR, DATAPLANE,
+			"Invalid cpu mask specified for crypto\n");
+		return -EINVAL;
 	}
 
 	set_max_pmd(num);
 
-	return crypto_cpu_describe(f, num, tmp_sticky);
+	return 0;
 }
 /*
  * Return a PMD to be used by the caller, either reusing an

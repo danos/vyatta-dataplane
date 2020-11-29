@@ -484,21 +484,11 @@ static int cmd_shadow(FILE *f, int argc, char **argv)
 
 static int cmd_ipsec_engine(FILE *f, int argc, char **argv)
 {
-	int rc;
-
 	argc -= 2;
 	argv += 2;
 
 	if (strcmp(argv[0], "probe") == 0)
 		return crypto_engine_probe(f);
-
-	if (strcmp(argv[0], "set") == 0) {
-		if (argc > 1)
-			rc = crypto_engine_set(f, argv[1]);
-		else
-			rc = crypto_engine_set(f,  NULL);
-		return rc;
-	}
 
 	fprintf(f, "Invalid IPsec command\n");
 	return -1;
