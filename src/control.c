@@ -44,6 +44,7 @@
 #include "pl_commands.h"
 #include "power.h"
 #include "protobuf.h"
+#include "protobuf/FeatureAffinityConfig.pb-c.h"
 #include "rt_tracker.h"
 #include "session/session_cmds.h"
 #include "urcu.h"
@@ -1199,3 +1200,33 @@ int cfg_if_list_cache_command(struct cfg_if_list **if_list, const char *ifname,
 
 	return cfg_if_list_add_multi(*if_list, ifname, argc, argv);
 }
+
+static int feature_affinity_cmd_handler(struct pb_msg *msg)
+{
+	void *payload = (void *)((char *)msg->msg);
+	int len = msg->msg_len, ret = 0;
+
+	if (!payload || !len) {
+		RTE_LOG(ERR, DATAPLANE,
+			"Invalid FeatureAffinity message, payload = 0x%lx, len = %d",
+			(uintptr_t)payload, len);
+		return -EINVAL;
+	}
+
+	FeatureAffinityConfig *fmsg =
+		feature_affinity_config__unpack(NULL, len, payload);
+
+	if (!fmsg) {
+		RTE_LOG(ERR, DATAPLANE,
+			"failed to unpack FeatureAffinity protobuf command\n");
+		return -1;
+	}
+
+	feature_affinity_config__free_unpacked(fmsg, NULL);
+	return ret;
+}
+
+PB_REGISTER_CMD(feature_affinity_cmd) = {
+	.cmd = "vyatta:feature-affinity",
+	.handler = feature_affinity_cmd_handler,
+};
