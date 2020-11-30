@@ -105,29 +105,37 @@ struct cipher_algo_table {
 #define AES_GCM_BLOCK_SIZE 1
 
 static const struct cipher_algo_table cipher_algorithms[] = {
-	{ "cbc(aes)",         RTE_CRYPTO_CIPHER_AES_CBC,
-	  IPSEC_AES_CBC_IV_SIZE,  AES_BLOCK_SIZE  },
-	{ "cbc(des3_ede)",    RTE_CRYPTO_CIPHER_3DES_CBC,
-	  IPSEC_3DES_IV_SIZE,     DES3_BLOCK_SIZE },
-	{ "eNULL",            RTE_CRYPTO_CIPHER_NULL,
-	  0,                      1               },
+
+	{ "aes",		RTE_CRYPTO_CIPHER_AES_CBC,
+	  IPSEC_AES_CBC_IV_SIZE,	AES_BLOCK_SIZE},
+	{ "cbc(aes)",		RTE_CRYPTO_CIPHER_AES_CBC,
+	  IPSEC_AES_CBC_IV_SIZE,	AES_BLOCK_SIZE},
+	{ "des3_ede",		RTE_CRYPTO_CIPHER_3DES_CBC,
+	  IPSEC_3DES_IV_SIZE,		DES3_BLOCK_SIZE},
+	{ "cbc(des3_ede)",	RTE_CRYPTO_CIPHER_3DES_CBC,
+	  IPSEC_3DES_IV_SIZE,		DES3_BLOCK_SIZE},
+	{ "eNULL",		RTE_CRYPTO_CIPHER_NULL,
+	  0,				1},
 	{ "ecb(cipher_null)", RTE_CRYPTO_CIPHER_NULL,
-	  0,                      1               }
+	  0,				1}
 };
 
 struct md_algo_table {
 	const char *name;
 	enum rte_crypto_auth_algorithm auth_algo;
+	uint32_t override_trunc_len; /* override truncation length, in bits. */
 };
 
 static const struct md_algo_table md_algorithms[] = {
-	{ "hmac(sha1)",		RTE_CRYPTO_AUTH_SHA1_HMAC    },
-	{ "hmac(sha256)",	RTE_CRYPTO_AUTH_SHA256_HMAC  },
-	{ "hmac(sha384)",	RTE_CRYPTO_AUTH_SHA384_HMAC  },
-	{ "hmac(sha512)",	RTE_CRYPTO_AUTH_SHA512_HMAC  },
-	{ "hmac(md5)",		RTE_CRYPTO_AUTH_MD5_HMAC     },
-	{ "rfc4106(gcm(aes))",  RTE_CRYPTO_AUTH_NULL         },
-	{ "aNULL",		RTE_CRYPTO_AUTH_NULL         }
+	{ "sha1",		RTE_CRYPTO_AUTH_SHA1_HMAC,	96},
+	{ "hmac(sha1)",		RTE_CRYPTO_AUTH_SHA1_HMAC,	96},
+	{ "hmac(sha256)",	RTE_CRYPTO_AUTH_SHA256_HMAC,	0},
+	{ "hmac(sha384)",	RTE_CRYPTO_AUTH_SHA384_HMAC,	192},
+	{ "hmac(sha512)",	RTE_CRYPTO_AUTH_SHA512_HMAC,	256},
+	{ "md5",		RTE_CRYPTO_AUTH_MD5_HMAC,	96},
+	{ "hmac(md5)",		RTE_CRYPTO_AUTH_MD5_HMAC,	96},
+	{ "rfc4106(gcm(aes))",  RTE_CRYPTO_AUTH_NULL,		0},
+	{ "aNULL",		RTE_CRYPTO_AUTH_NULL,		0}
 };
 
 static const char *cryptodev_names[CRYPTODEV_MAX] = {
@@ -220,15 +228,46 @@ static int crypto_rte_set_cipher(struct crypto_session *ctx,
 }
 
 static int crypto_rte_set_auth(struct crypto_session *ctx,
-			       const struct xfrm_algo_auth *algo_auth)
+			       const struct xfrm_algo_auth *algo_trunc_auth,
+			       const struct xfrm_algo *algo_auth)
 {
-	uint16_t key_len = algo_auth->alg_key_len / BITS_PER_BYTE;
-	const char *algo_name = algo_auth->alg_name;
+	uint16_t key_len;
+	const char *algo_name;
+	const char *alg_key;
+	unsigned int digest_len;
+
+	/*
+	 * Depending upon the source of the xfrm, either from
+	 * strongswan direct or via the kernel, the authentication
+	 * details are provided through different conventions.
+	 *
+	 * When the source is via the kernel, the kernel transposes
+	 * the information it received from strongswan in the new
+	 * convention into the old convention before replay to the rest
+	 * of the system.
+	 */
+	if (algo_trunc_auth) {
+		key_len = algo_trunc_auth->alg_key_len / BITS_PER_BYTE;
+		digest_len = algo_trunc_auth->alg_trunc_len / BITS_PER_BYTE;
+		algo_name = algo_trunc_auth->alg_name;
+		alg_key = algo_trunc_auth->alg_key;
+	} else {
+		key_len = algo_auth->alg_key_len / BITS_PER_BYTE;
+		digest_len = key_len;
+		algo_name = algo_auth->alg_name;
+		alg_key = algo_auth->alg_key;
+	}
+
 
 	ctx->auth_algo = RTE_CRYPTO_AUTH_LIST_END;
 	for (uint8_t i = 0; i < ARRAY_SIZE(md_algorithms); i++)
 		if (!strcmp(md_algorithms[i].name, algo_name)) {
 			ctx->auth_algo = md_algorithms[i].auth_algo;
+
+			/* Override legacy digest_len for "sha1", "md5" */
+			if (md_algorithms[i].override_trunc_len)
+				digest_len = md_algorithms[i].override_trunc_len
+					 / BITS_PER_BYTE;
 			break;
 		}
 
@@ -247,15 +286,17 @@ static int crypto_rte_set_auth(struct crypto_session *ctx,
 	}
 
 	ctx->auth_alg_key_len = key_len;
-	memcpy(ctx->auth_alg_key, algo_auth->alg_key, key_len);
-	ctx->digest_len = algo_auth->alg_trunc_len / BITS_PER_BYTE;
+	memcpy(ctx->auth_alg_key, alg_key, key_len);
+	ctx->digest_len = digest_len;
 
 	return 0;
 }
 
-int crypto_rte_set_session_parameters(struct crypto_session *ctx,
-				      const struct xfrm_algo *algo_crypt,
-				      const struct xfrm_algo_auth *algo_auth)
+int
+crypto_rte_set_session_parameters(struct crypto_session *ctx,
+				  const struct xfrm_algo *algo_crypt,
+				  const struct xfrm_algo_auth *algo_trunc_auth,
+				  const struct xfrm_algo *algo_auth)
 {
 	int err = 0;
 
@@ -263,7 +304,7 @@ int crypto_rte_set_session_parameters(struct crypto_session *ctx,
 	if (err)
 		return err;
 
-	err = crypto_rte_set_auth(ctx, algo_auth);
+	err = crypto_rte_set_auth(ctx, algo_trunc_auth, algo_auth);
 	return err;
 }
 

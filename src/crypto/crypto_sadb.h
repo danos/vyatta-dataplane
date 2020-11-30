@@ -25,7 +25,8 @@ void crypto_sadb_vrf_clean(struct crypto_vrf_ctx *vrf_ctx);
 
 void crypto_sadb_new_sa(const struct xfrm_usersa_info *sa_info,
 			const struct xfrm_algo *crypto_algo,
-			const struct xfrm_algo_auth *auth_algo,
+			const struct xfrm_algo_auth *auth_trunc_algo,
+			const struct xfrm_algo *auth_algo,
 			const struct xfrm_encap_tmpl *tmpl,
 			uint32_t mark_val, uint32_t extra_flags,
 			vrfid_t vrf_id);
