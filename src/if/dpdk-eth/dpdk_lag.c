@@ -171,12 +171,19 @@ dpdk_lag_create(const struct ifinfomsg *ifi, struct nlattr *tb[])
 	return ifp;
 }
 
+static bool dpdk_eth_if_is_dev_started(struct ifnet *ifp)
+{
+	struct rte_eth_dev *dev;
+
+	dev = &rte_eth_devices[ifp->if_port];
+	return dev->data->dev_started != 0;
+}
+
 static int member_add(struct ifnet *team, struct ifnet *ifp)
 {
 	int rv;
 	struct rte_eth_dev_info member_info, team_info;
-	struct rte_eth_dev *bond_dev;
-	int bond_dev_started;
+	bool bond_dev_started;
 
 	if (ifp->aggregator) {
 		/* teamd can give us redundant updates, so this is expected */
@@ -188,9 +195,7 @@ static int member_add(struct ifnet *team, struct ifnet *ifp)
 
 	rte_eth_dev_info_get(team->if_port, &team_info);
 	rte_eth_dev_info_get(ifp->if_port, &member_info);
-
-	bond_dev = &rte_eth_devices[team->if_port];
-	bond_dev_started = bond_dev->data->dev_started;
+	bond_dev_started = dpdk_eth_if_is_dev_started(team);
 
 	/* Ignore VMDQ information since we know that the BOND pmd
 	 * will never have support for VMDQ and thus provides a
@@ -302,6 +307,7 @@ static int dpdk_lag_mode_set_balance(struct ifnet *ifp)
 	struct rte_eth_bond_8023ad_conf conf;
 	int rv;
 	int mode = rte_eth_bond_mode_get(ifp->if_port);
+	bool dev_started;
 
 	if (mode == BONDING_MODE_8023AD)
 		return 0;
@@ -321,8 +327,7 @@ static int dpdk_lag_mode_set_balance(struct ifnet *ifp)
 	if (rv < 0)
 		return rv;
 
-	struct rte_eth_dev *dev = &rte_eth_devices[ifp->if_port];
-	uint8_t dev_started = dev->data->dev_started;
+	dev_started = dpdk_eth_if_is_dev_started(ifp);
 
 	if (dev_started)
 		rte_eth_dev_stop(ifp->if_port);
@@ -334,7 +339,6 @@ static int dpdk_lag_mode_set_balance(struct ifnet *ifp)
 	if (dev_started)
 		rte_eth_dev_start(ifp->if_port);
 
-
 	rte_eth_bond_xmit_policy_set(ifp->if_port, BALANCE_XMIT_POLICY_LAYER34);
 
 	return 0;
@@ -342,8 +346,7 @@ static int dpdk_lag_mode_set_balance(struct ifnet *ifp)
 
 static int dpdk_lag_mode_set_activebackup(struct ifnet *ifp)
 {
-	struct rte_eth_dev *dev = &rte_eth_devices[ifp->if_port];
-	uint8_t dev_started = dev->data->dev_started;
+	bool dev_started = dpdk_eth_if_is_dev_started(ifp);
 	int rv;
 
 	if (dev_started)
