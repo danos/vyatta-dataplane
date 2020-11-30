@@ -22,6 +22,10 @@
 
 #include "urcu.h"
 
+#ifndef BITS_PER_BYTE
+#define BITS_PER_BYTE 8
+#endif
+
 #ifndef howmany
 #define howmany(x, y) (((x) + ((y) - 1)) / (y))
 #endif
@@ -31,6 +35,7 @@
 #endif
 #define BITMASK_SZ howmany(BITMASK_BITS, UINT64_BIT)
 #define BITMASK_STRSZ ((BITMASK_SZ * 16) + 1)
+#define BITMASK_BYTESZ (BITMASK_BITS / BITS_PER_BYTE)
 
 struct bitmask {
 	uint64_t _bits[BITMASK_SZ];
@@ -118,5 +123,6 @@ static inline bool bitmask_equal(const bitmask_t *a,
 
 int bitmask_parse(bitmask_t *msk, const char *str);
 void bitmask_sprint(const bitmask_t *msk, char *buf, size_t sz);
+int bitmask_parse_bytes(bitmask_t *mask, const uint8_t *bytes, uint8_t len);
 
 #endif /* BITMASK_H */

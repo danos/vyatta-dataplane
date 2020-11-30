@@ -547,6 +547,27 @@ int bitmask_parse(bitmask_t *msk, const char *str)
 	return 0;
 }
 
+int bitmask_parse_bytes(bitmask_t *mask, const uint8_t *bytes, uint8_t len)
+{
+	unsigned int offs;
+	int i;
+
+	if (len > BITMASK_BYTESZ)
+		return -EINVAL;
+
+	bitmask_zero(mask);
+
+	for (i = len - 1, offs = 0; i >= 0; --i, ++offs) {
+		uint64_t val;
+
+		val = bytes[i];
+		val <<= (4 * (offs % (UINT64_BIT / 4)));
+		mask->_bits[offs / (UINT64_BIT / 4)] |= val;
+	}
+
+	return 0;
+}
+
 /* Print out bitmask as long hex string. */
 void bitmask_sprint(const bitmask_t *msk, char *buf, size_t sz)
 {
