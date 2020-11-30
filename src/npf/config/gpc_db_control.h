@@ -45,8 +45,23 @@ void gpc_group_hw_ntfy_modify(struct gpc_group *gprg, uint32_t new);
 void gpc_group_hw_ntfy_attach(struct gpc_group *gprg);
 void gpc_group_hw_ntfy_detach(struct gpc_group *gprg);
 
+void gpc_group_hw_ntfy_rules_create(struct gpc_group *gprg);
+void gpc_group_hw_ntfy_rules_delete(struct gpc_group *gprg);
+
 /* -- cntr -- */
 
 /* -- rule -- */
+
+struct gpc_rule *gpc_rule_create(struct gpc_group *gprg, uint32_t rl_idx,
+				 void *owner);
+void gpc_rule_delete(struct gpc_rule *gprl);
+void gpc_rule_change_rule(struct gpc_rule *gprl, struct pmf_rule *new_rule);
+
+
+void gpc_rule_hw_ntfy_create(struct gpc_group *gprg, struct gpc_rule *gprl);
+void gpc_rule_hw_ntfy_modify(struct gpc_group *gprg, struct gpc_rule *gprl,
+				struct pmf_rule *new_rule);
+void gpc_rule_hw_ntfy_delete(struct gpc_group *gprg, struct gpc_rule *gprl);
+
 
 #endif /* GPC_DB_CONTROL_H */

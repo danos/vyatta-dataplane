@@ -15,6 +15,8 @@ struct gpc_group;
 struct gpc_cntr;
 struct gpc_rule;
 
+struct pmf_rule;
+
 /* -- ruleset accessors -- */
 
 char const *gpc_rlset_get_ifname(struct gpc_rlset const *gprs);
@@ -45,7 +47,11 @@ bool gpc_group_is_attached(struct gpc_group const *gprg);
 bool gpc_group_is_ll_attached(struct gpc_group const *gprg);
 bool gpc_group_is_deferred(struct gpc_group const *gprg);
 uintptr_t gpc_group_get_objid(struct gpc_group const *gprg);
+
 void gpc_group_set_objid(struct gpc_group *gprg, uintptr_t objid);
+uint32_t gpc_group_recalc_summary(struct gpc_group *gprg,
+				  struct pmf_rule *rule);
+
 struct gpc_group *gpc_group_first(struct gpc_rlset const *gprs);
 struct gpc_group *gpc_group_next(struct gpc_group const *cursor);
 
@@ -65,10 +71,25 @@ bool gpc_cntr_byt_enabled(struct gpc_cntr const *ark);
 
 /* -- rule accessors -- */
 
-uint16_t gpc_rule_get_index(struct gpc_rule const *arl);
-struct gpc_group *gpc_rule_get_group(struct gpc_rule const *arl);
-struct gpc_cntr *gpc_rule_get_cntr(struct gpc_rule *arl);
-uintptr_t gpc_rule_get_objid(struct gpc_rule const *arl);
-void gpc_rule_set_objid(struct gpc_rule *arl, uintptr_t objid);
+uint16_t gpc_rule_get_index(struct gpc_rule const *gprl);
+struct pmf_rule *gpc_rule_get_rule(struct gpc_rule const *gprl);
+struct gpc_group *gpc_rule_get_group(struct gpc_rule const *gprl);
+void *gpc_rule_get_owner(struct gpc_rule const *gprl);
+struct gpc_cntr *gpc_rule_get_cntr(struct gpc_rule *gprl);
+uintptr_t gpc_rule_get_objid(struct gpc_rule const *gprl);
+void gpc_rule_set_objid(struct gpc_rule *gprl, uintptr_t objid);
+bool gpc_rule_is_published(struct gpc_rule const *gprl);
+bool gpc_rule_is_ll_created(struct gpc_rule const *gprl);
+
+struct gpc_rule *gpc_rule_find(struct gpc_group *gprg, uint32_t idx);
+
+struct gpc_rule *gpc_rule_first(struct gpc_group const *gprg);
+struct gpc_rule *gpc_rule_last(struct gpc_group const *gprg);
+struct gpc_rule *gpc_rule_next(struct gpc_rule const *cursor);
+
+#define GPC_RULE_FOREACH(var, head) \
+	for ((var) = gpc_rule_first((head)); \
+	    (var); \
+	    (var) = gpc_rule_next((var)))
 
 #endif /* GPC_DB_QUERY_H */

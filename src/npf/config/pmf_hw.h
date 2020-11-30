@@ -8,14 +8,14 @@
 #include <stdint.h>
 
 struct gpc_group;
+struct gpc_rule;
 struct pmf_cntr;
-struct pmf_attrl;
 struct pmf_rule;
 struct ifnet;
 
-bool pmf_hw_rule_add(struct pmf_attrl *earl, struct pmf_rule *rule);
-void pmf_hw_rule_mod(struct pmf_attrl *earl, struct pmf_rule *rule);
-void pmf_hw_rule_del(struct pmf_attrl *earl);
+bool pmf_hw_rule_add(struct gpc_rule *gprl);
+void pmf_hw_rule_mod(struct gpc_rule *gprl, struct pmf_rule *old_rule);
+void pmf_hw_rule_del(struct gpc_rule *gprl);
 
 bool pmf_hw_group_attach(struct gpc_group *gprg, struct ifnet *ifp);
 void pmf_hw_group_detach(struct gpc_group *gprg, struct ifnet *ifp);

@@ -29,9 +29,8 @@ static bool pmf_hw_commit_needed;
 /* ---- */
 
 bool
-pmf_hw_rule_add(struct pmf_attrl *earl, struct pmf_rule *rule)
+pmf_hw_rule_add(struct gpc_rule *gprl)
 {
-	struct gpc_rule *gprl = (struct gpc_rule *)earl;
 	struct gpc_group *gprg = gpc_rule_get_group(gprl);
 	struct gpc_rlset *gprs = gpc_group_get_rlset(gprg);
 	char const *ifname = gpc_rlset_get_ifname(gprs);
@@ -44,6 +43,7 @@ pmf_hw_rule_add(struct pmf_attrl *earl, struct pmf_rule *rule)
 	bool ingress = gpc_group_is_ingress(gprg);
 	bool is_v6 = gpc_group_is_v6(gprg);
 	char const *rgname = gpc_group_get_name(gprg);
+	struct pmf_rule *rule = gpc_rule_get_rule(gprl);
 	uint32_t summary = rule->pp_summary;
 	bool ok = true;
 	char const *ok_str = "SK";
@@ -383,9 +383,8 @@ log_add:
 }
 
 void
-pmf_hw_rule_del(struct pmf_attrl *earl)
+pmf_hw_rule_del(struct gpc_rule *gprl)
 {
-	struct gpc_rule *gprl = (struct gpc_rule *)earl;
 	struct gpc_group *gprg = gpc_rule_get_group(gprl);
 	struct gpc_rlset *gprs = gpc_group_get_rlset(gprg);
 	char const *ifname = gpc_rlset_get_ifname(gprs);
@@ -431,9 +430,8 @@ log_delete:
  * the FAL until such time as we generate proper modifies.
  */
 void
-pmf_hw_rule_mod(struct pmf_attrl *earl, struct pmf_rule *rule)
+pmf_hw_rule_mod(struct gpc_rule *gprl, struct pmf_rule *old_rule __unused)
 {
-	struct gpc_rule *gprl = (struct gpc_rule *)earl;
 	struct gpc_group *gprg = gpc_rule_get_group(gprl);
 	struct gpc_rlset *gprs = gpc_group_get_rlset(gprg);
 	char const *ifname = gpc_rlset_get_ifname(gprs);
@@ -452,8 +450,8 @@ pmf_hw_rule_mod(struct pmf_attrl *earl, struct pmf_rule *rule)
 			rlobj);
 	}
 
-	pmf_hw_rule_del(earl);
-	pmf_hw_rule_add(earl, rule);
+	pmf_hw_rule_del(gprl);
+	pmf_hw_rule_add(gprl);
 }
 
 /* -- group FAL notification -- */
