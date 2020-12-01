@@ -171,10 +171,19 @@ dpdk_lag_create(const struct ifinfomsg *ifi, struct nlattr *tb[])
 	return ifp;
 }
 
+static bool dpdk_eth_if_is_dev_started(struct ifnet *ifp)
+{
+	struct rte_eth_dev *dev;
+
+	dev = &rte_eth_devices[ifp->if_port];
+	return dev->data->dev_started != 0;
+}
+
 static int member_add(struct ifnet *team, struct ifnet *ifp)
 {
 	int rv;
 	struct rte_eth_dev_info member_info, team_info;
+	bool bond_dev_started;
 
 	if (ifp->aggregator) {
 		/* teamd can give us redundant updates, so this is expected */
@@ -186,6 +195,7 @@ static int member_add(struct ifnet *team, struct ifnet *ifp)
 
 	rte_eth_dev_info_get(team->if_port, &team_info);
 	rte_eth_dev_info_get(ifp->if_port, &member_info);
+	bond_dev_started = dpdk_eth_if_is_dev_started(team);
 
 	/* Ignore VMDQ information since we know that the BOND pmd
 	 * will never have support for VMDQ and thus provides a
@@ -194,9 +204,6 @@ static int member_add(struct ifnet *team, struct ifnet *ifp)
 
 	if (member_info.max_rx_queues < team_info.nb_rx_queues ||
 	    member_info.max_tx_queues < team_info.nb_tx_queues) {
-		struct rte_eth_dev *bond_dev =
-					&rte_eth_devices[team->if_port];
-		int bond_dev_started = bond_dev->data->dev_started;
 		int nb_rx_queues =
 			MIN(member_info.max_rx_queues, team_info.nb_rx_queues);
 		int nb_tx_queues =
@@ -220,13 +227,24 @@ static int member_add(struct ifnet *team, struct ifnet *ifp)
 	if (ifp->if_flags & IFF_UP)
 		unassign_queues(ifp->if_port);
 
+	/*
+	 * Start the bonding device if not already started
+	 * when adding a member. The member is configured only
+	 * when the bonding device is started.
+	 */
+	if (!bond_dev_started)
+		dpdk_eth_if_start_port(team);
 	rv = rte_eth_bond_slave_add(team->if_port, ifp->if_port);
 	if (rv < 0) {
+		if (!bond_dev_started)
+			dpdk_eth_if_stop_port(team);
 		if (ifp->if_flags & IFF_UP)
 			assign_queues(ifp->if_port);
 		if_enable_poll(ifp->if_port);
 		return rv;
 	}
+	if (!bond_dev_started)
+		dpdk_eth_if_stop_port(team);
 	/*
 	 * internals is accessed in the forwarding threads. We stop them
 	 * while we update this, but since there isn't a lock, there isn't a
@@ -289,6 +307,7 @@ static int dpdk_lag_mode_set_balance(struct ifnet *ifp)
 	struct rte_eth_bond_8023ad_conf conf;
 	int rv;
 	int mode = rte_eth_bond_mode_get(ifp->if_port);
+	bool dev_started;
 
 	if (mode == BONDING_MODE_8023AD)
 		return 0;
@@ -308,8 +327,7 @@ static int dpdk_lag_mode_set_balance(struct ifnet *ifp)
 	if (rv < 0)
 		return rv;
 
-	struct rte_eth_dev *dev = &rte_eth_devices[ifp->if_port];
-	uint8_t dev_started = dev->data->dev_started;
+	dev_started = dpdk_eth_if_is_dev_started(ifp);
 
 	if (dev_started)
 		rte_eth_dev_stop(ifp->if_port);
@@ -321,7 +339,6 @@ static int dpdk_lag_mode_set_balance(struct ifnet *ifp)
 	if (dev_started)
 		rte_eth_dev_start(ifp->if_port);
 
-
 	rte_eth_bond_xmit_policy_set(ifp->if_port, BALANCE_XMIT_POLICY_LAYER34);
 
 	return 0;
@@ -329,8 +346,7 @@ static int dpdk_lag_mode_set_balance(struct ifnet *ifp)
 
 static int dpdk_lag_mode_set_activebackup(struct ifnet *ifp)
 {
-	struct rte_eth_dev *dev = &rte_eth_devices[ifp->if_port];
-	uint8_t dev_started = dev->data->dev_started;
+	bool dev_started = dpdk_eth_if_is_dev_started(ifp);
 	int rv;
 
 	if (dev_started)
