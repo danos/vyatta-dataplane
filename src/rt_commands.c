@@ -719,7 +719,7 @@ end:
 	return ret;
 }
 
-PB_REGISTER_CMD(arp_cfg) = {
+PB_REGISTER_CMD(arp_cfg_cmd) = {
 	.cmd = "vyatta:cmd_arp_cfg",
 	.handler = cmd_arp_cfg_handler,
 };

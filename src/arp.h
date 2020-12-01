@@ -25,6 +25,15 @@ int arpresolve(struct ifnet *ifp, struct rte_mbuf *m,
 int arpresolve_fast(struct ifnet *ifp, struct rte_mbuf *m,
 		in_addr_t addr, struct rte_ether_addr *desten);
 
+struct arp_nbr_cfg {
+	uint32_t arp_aging_time;
+	int32_t  arp_max_entry;
+};
+
+extern struct arp_nbr_cfg arp_cfg;
+
+#define ARP_CFG(param) (arp_cfg.param)
+
 struct arp_stats {
 	uint64_t txrequests;	/* # of ARP requests sent by this host. */
 	uint64_t txreplies;	/* # of ARP replies sent by this host. */

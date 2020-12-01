@@ -96,6 +96,11 @@ struct	ether_arp {
 #define ARP_DEBUG(format, args...)	\
 	DP_DEBUG(ARP, DEBUG, ARP, format, ##args)
 
+struct arp_nbr_cfg arp_cfg = {
+	.arp_max_entry  = ARP_MAX_ENTRY,
+	.arp_aging_time = ARPT_KEEP,
+};
+
 static struct garp_cfg garp_cfg = {
 	.garp_req_default = 1,
 	.garp_rep_default = 1,
