@@ -718,19 +718,50 @@ pmf_hw_group_mod(struct gpc_group *gprg, uint32_t new)
 
 /* ---- */
 
+static uint32_t
+pmf_hw_rtr_intf_attr_acl(bool ingress, bool is_v6)
+{
+	if (ingress) {
+		if (is_v6)
+			return FAL_ROUTER_INTERFACE_ATTR_V6_INGRESS_ACL;
+		else
+			return FAL_ROUTER_INTERFACE_ATTR_V4_INGRESS_ACL;
+	} else {
+		if (is_v6)
+			return FAL_ROUTER_INTERFACE_ATTR_V6_EGRESS_ACL;
+		else
+			return FAL_ROUTER_INTERFACE_ATTR_V4_EGRESS_ACL;
+	}
+}
+
 bool
 pmf_hw_group_attach(struct gpc_group *gprg, struct ifnet *ifp)
 {
 	uintptr_t grpobj = gpc_group_get_objid(gprg);
+	bool is_attached = gpc_group_is_ll_attached(gprg);
 	bool ingress = gpc_group_is_ingress(gprg);
 	bool is_v6 = gpc_group_is_v6(gprg);
 	char const *rgname = gpc_group_get_name(gprg);
 	char const *ifname = ifp->if_name;
-	bool ok = true;
-	char const *ok_str = "SK";
+	bool ok = false;
+	char const *ok_str = "ER";
 	enum gpc_feature feat = gpc_group_get_feature(gprg);
 	char const *feat_str = gpc_feature_get_name(feat);
-	int rc = 0; /* Success */
+	int rc = -EINVAL;
+
+	/* Validate group feature, and not already attached */
+	switch (feat) {
+	case GPC_FEAT_ACL:
+		break;
+	default:
+		goto log_attach;
+	}
+	if (is_attached)
+		goto log_attach;
+
+	ok = true;
+	ok_str = "SK";
+	rc = 0; /* Success */
 
 	/* Nothing to do if no FAL object - e.g. vrouter */
 	if (grpobj == FAL_NULL_OBJECT_ID)
@@ -740,16 +771,12 @@ pmf_hw_group_attach(struct gpc_group *gprg, struct ifnet *ifp)
 
 	acl.value.objid = grpobj;
 
-	if (ingress) {
-		if (is_v6)
-			acl.id = FAL_ROUTER_INTERFACE_ATTR_V6_INGRESS_ACL;
-		else
-			acl.id = FAL_ROUTER_INTERFACE_ATTR_V4_INGRESS_ACL;
-	} else {
-		if (is_v6)
-			acl.id = FAL_ROUTER_INTERFACE_ATTR_V6_EGRESS_ACL;
-		else
-			acl.id = FAL_ROUTER_INTERFACE_ATTR_V4_EGRESS_ACL;
+	switch (feat) {
+	case GPC_FEAT_ACL:
+		acl.id = pmf_hw_rtr_intf_attr_acl(ingress, is_v6);
+		break;
+	case GPC_FEAT_QOS:
+		break;
 	}
 
 	pmf_hw_commit_needed = true;
@@ -780,11 +807,23 @@ pmf_hw_group_detach(struct gpc_group *gprg, struct ifnet *ifp)
 	bool is_v6 = gpc_group_is_v6(gprg);
 	char const *rgname = gpc_group_get_name(gprg);
 	char const *ifname = ifp->if_name;
-	bool ok = true;
-	char const *ok_str = "SK";
+	bool ok = false;
+	char const *ok_str = "ER";
 	enum gpc_feature feat = gpc_group_get_feature(gprg);
 	char const *feat_str = gpc_feature_get_name(feat);
-	int rc = 0; /* Success */
+	int rc = -EINVAL;
+
+	/* Validate group feature, and not already attached */
+	switch (feat) {
+	case GPC_FEAT_ACL:
+		break;
+	default:
+		goto log_detach;
+	}
+
+	ok = true;
+	ok_str = "SK";
+	rc = 0; /* Success */
 
 	/* Nothing to do if attach failed or skipped */
 	if (!was_attached)
@@ -794,16 +833,12 @@ pmf_hw_group_detach(struct gpc_group *gprg, struct ifnet *ifp)
 
 	acl.value.objid = FAL_NULL_OBJECT_ID;
 
-	if (ingress) {
-		if (is_v6)
-			acl.id = FAL_ROUTER_INTERFACE_ATTR_V6_INGRESS_ACL;
-		else
-			acl.id = FAL_ROUTER_INTERFACE_ATTR_V4_INGRESS_ACL;
-	} else {
-		if (is_v6)
-			acl.id = FAL_ROUTER_INTERFACE_ATTR_V6_EGRESS_ACL;
-		else
-			acl.id = FAL_ROUTER_INTERFACE_ATTR_V4_EGRESS_ACL;
+	switch (feat) {
+	case GPC_FEAT_ACL:
+		acl.id = pmf_hw_rtr_intf_attr_acl(ingress, is_v6);
+		break;
+	case GPC_FEAT_QOS:
+		break;
 	}
 
 	pmf_hw_commit_needed = true;
