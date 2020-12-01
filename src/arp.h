@@ -51,6 +51,8 @@ struct arp_stats {
 	uint64_t garp_reqs_dropped; /* # of GARP requests dropped */
 	uint64_t garp_reps_dropped; /* # of GARP replies dropped */
 	uint64_t mpoolfail;	/* Memory pool limit hit */
+	uint64_t memfail;	/* Out of memory hit */
+	uint64_t tablimit;	/* Cache limit hit */
 };
 
 #define ARPSTAT_ADD(vrf_id, name, val)			\

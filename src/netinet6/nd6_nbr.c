@@ -1328,7 +1328,6 @@ nd6_entry_destroy(struct lltable *llt, struct llentry *lle)
 	pkts_dropped = llentry_destroy(llt, lle);
 
 	ND6NBR_ADD(dropped, pkts_dropped);
-	rte_atomic32_dec(&llt->lle_size);
 }
 
 /*

@@ -252,10 +252,8 @@ resolved:
 	if (la == NULL) {
 		la = in_lltable_lookup(ifp, LLE_CREATE|LLE_LOCAL, addr);
 
-		/* out of memory */
+		/* out of memory or cache limit hit */
 		if (unlikely(la == NULL)) {
-			RTE_LOG(NOTICE, ARP,
-				"lltable_lookup create failed\n");
 			rte_pktmbuf_free(m);
 			return -ENOMEM;
 		}
