@@ -47,6 +47,8 @@ pmf_hw_rule_add(struct gpc_rule *gprl)
 	uint32_t summary = rule->pp_summary;
 	bool ok = true;
 	char const *ok_str = "SK";
+	enum gpc_feature feat = gpc_group_get_feature(gprg);
+	char const *feat_str = gpc_feature_get_name(feat);
 	int rc = 0; /* Success */
 
 	/* Nothing to do if no FAL object - e.g. vrouter */
@@ -371,8 +373,8 @@ pmf_hw_rule_add(struct gpc_rule *gprl)
 log_add:
 	if (!ok || DP_DEBUG_ENABLED(NPF)) {
 		ACL_LOG(ok, ACL_HW,
-			"HW-ACLv%s RL Add %s/%s|%s:%u [%lx] %x => %s(%d) [%lx]\n",
-			(is_v6) ? "6" : "4",
+			"HW-GPC(%s)v%s RL Add %s/%s|%s:%u [%lx] %x => %s(%d) [%lx]\n",
+			feat_str, (is_v6) ? "6" : "4",
 			(ingress) ? " In" : "Out", ifname, rgname, index,
 			grpobj, summary,
 			ok_str, rc, rlobj);
@@ -396,6 +398,8 @@ pmf_hw_rule_del(struct gpc_rule *gprl)
 	char const *rgname = gpc_group_get_name(gprg);
 	bool ok = true;
 	char const *ok_str = "SK";
+	enum gpc_feature feat = gpc_group_get_feature(gprg);
+	char const *feat_str = gpc_feature_get_name(feat);
 	int rc = 0; /* Success */
 
 	/* Nothing to do if no FAL object - e.g. vrouter */
@@ -414,8 +418,8 @@ pmf_hw_rule_del(struct gpc_rule *gprl)
 log_delete:
 	if (!ok || DP_DEBUG_ENABLED(NPF)) {
 		ACL_LOG(ok, ACL_HW,
-			"HW-ACLv%s RL Delete %s/%s|%s:%u [%lx] => %s(%d)\n",
-			(is_v6) ? "6" : "4",
+			"HW-GPC(%s)v%s RL Delete %s/%s|%s:%u [%lx] => %s(%d)\n",
+			feat_str, (is_v6) ? "6" : "4",
 			(ingress) ? " In" : "Out", ifname, rgname, index, rlobj,
 			ok_str, rc);
 	}
@@ -440,12 +444,14 @@ pmf_hw_rule_mod(struct gpc_rule *gprl, struct pmf_rule *old_rule __unused)
 	bool ingress = gpc_group_is_ingress(gprg);
 	bool is_v6 = gpc_group_is_v6(gprg);
 	char const *rgname = gpc_group_get_name(gprg);
+	enum gpc_feature feat = gpc_group_get_feature(gprg);
+	char const *feat_str = gpc_feature_get_name(feat);
 	bool ok = true;
 
 	if (!ok || DP_DEBUG_ENABLED(NPF)) {
 		ACL_LOG(ok, ACL_HW,
-			"HW-ACLv%s RL Modify %s/%s|%s:%u [%lx]\n",
-			(is_v6) ? "6" : "4",
+			"HW-GPC(%s)v%s RL Modify %s/%s|%s:%u [%lx]\n",
+			feat_str, (is_v6) ? "6" : "4",
 			(ingress) ? " In" : "Out", ifname, rgname, index,
 			rlobj);
 	}
@@ -466,6 +472,8 @@ pmf_hw_group_create(struct gpc_group *gprg)
 	bool is_v6 = gpc_group_is_v6(gprg);
 	char const *rgname = gpc_group_get_name(gprg);
 	uint32_t summary = gpc_group_get_summary(gprg);
+	enum gpc_feature feat = gpc_group_get_feature(gprg);
+	char const *feat_str = gpc_feature_get_name(feat);
 
 	/* Bind point list */
 	struct fal_object_list_t *bp_list
@@ -626,8 +634,8 @@ pmf_hw_group_create(struct gpc_group *gprg)
 
 	if (!ok || DP_DEBUG_ENABLED(NPF)) {
 		ACL_LOG(ok, ACL_HW,
-			"HW-ACLv%s GP Create %s/%s|%s %x => %s(%d) [%lx]\n",
-			(is_v6) ? "6" : "4",
+			"HW-GPC(%s)v%s GP Create %s/%s|%s %x => %s(%d) [%lx]\n",
+			feat_str, (is_v6) ? "6" : "4",
 			(ingress) ? " In" : "Out", ifname, rgname, summary,
 			ok_str, rc, grpobj);
 	}
@@ -647,6 +655,8 @@ pmf_hw_group_delete(struct gpc_group *gprg)
 	char const *rgname = gpc_group_get_name(gprg);
 	bool ok = true;
 	char const *ok_str = "SK";
+	enum gpc_feature feat = gpc_group_get_feature(gprg);
+	char const *feat_str = gpc_feature_get_name(feat);
 	int rc = 0; /* Success */
 
 	/* Nothing to do if no FAL object - e.g. vrouter */
@@ -665,8 +675,8 @@ pmf_hw_group_delete(struct gpc_group *gprg)
 log_delete:
 	if (!ok || DP_DEBUG_ENABLED(NPF)) {
 		ACL_LOG(ok, ACL_HW,
-			"HW-ACLv%s GP Delete %s/%s|%s [%lx] => %s(%d)\n",
-			(is_v6) ? "6" : "4",
+			"HW-GPC(%s)v%s GP Delete %s/%s|%s [%lx] => %s(%d)\n",
+			feat_str, (is_v6) ? "6" : "4",
 			(ingress) ? " In" : "Out", ifname, rgname, grpobj,
 			ok_str, rc);
 	}
@@ -694,11 +704,13 @@ pmf_hw_group_mod(struct gpc_group *gprg, uint32_t new)
 	uint32_t set = chg &  new;
 	uint32_t clr = chg & ~new;
 	bool ok = true;
+	enum gpc_feature feat = gpc_group_get_feature(gprg);
+	char const *feat_str = gpc_feature_get_name(feat);
 
 	if (!ok || DP_DEBUG_ENABLED(NPF)) {
 		ACL_LOG(ok, ACL_HW,
-			"HW-ACLv%s GP Modify %s/%s|%s [%lx] old %x set %x clr %x\n",
-			(is_v6) ? "6" : "4",
+			"HW-GPC(%s)v%s GP Modify %s/%s|%s [%lx] old %x set %x clr %x\n",
+			feat_str, (is_v6) ? "6" : "4",
 			(ingress) ? " In" : "Out", ifname, rgname, grpobj,
 			old, set, clr);
 	}
@@ -716,6 +728,8 @@ pmf_hw_group_attach(struct gpc_group *gprg, struct ifnet *ifp)
 	char const *ifname = ifp->if_name;
 	bool ok = true;
 	char const *ok_str = "SK";
+	enum gpc_feature feat = gpc_group_get_feature(gprg);
+	char const *feat_str = gpc_feature_get_name(feat);
 	int rc = 0; /* Success */
 
 	/* Nothing to do if no FAL object - e.g. vrouter */
@@ -748,8 +762,8 @@ pmf_hw_group_attach(struct gpc_group *gprg, struct ifnet *ifp)
 log_attach:
 	if (!ok || DP_DEBUG_ENABLED(NPF)) {
 		ACL_LOG(ok, ACL_HW,
-			"HW-ACLv%s GP Attach %s/%s|%s [%lx] => %s(%d)\n",
-			(is_v6) ? "6" : "4",
+			"HW-GPC(%s)v%s GP Attach %s/%s|%s [%lx] => %s(%d)\n",
+			feat_str, (is_v6) ? "6" : "4",
 			(ingress) ? " In" : "Out", ifname, rgname, grpobj,
 			ok_str, rc);
 	}
@@ -768,6 +782,8 @@ pmf_hw_group_detach(struct gpc_group *gprg, struct ifnet *ifp)
 	char const *ifname = ifp->if_name;
 	bool ok = true;
 	char const *ok_str = "SK";
+	enum gpc_feature feat = gpc_group_get_feature(gprg);
+	char const *feat_str = gpc_feature_get_name(feat);
 	int rc = 0; /* Success */
 
 	/* Nothing to do if attach failed or skipped */
@@ -800,8 +816,8 @@ pmf_hw_group_detach(struct gpc_group *gprg, struct ifnet *ifp)
 log_detach:
 	if (!ok || DP_DEBUG_ENABLED(NPF)) {
 		ACL_LOG(ok, ACL_HW,
-			"HW-ACLv%s GP Detach %s/%s|%s [%lx] => %s(%d)\n",
-			(is_v6) ? "6" : "4",
+			"HW-GPC(%s)v%s GP Detach %s/%s|%s [%lx] => %s(%d)\n",
+			feat_str, (is_v6) ? "6" : "4",
 			(ingress) ? " In" : "Out", ifname, rgname, grpobj,
 			ok_str, rc);
 	}
@@ -827,6 +843,8 @@ pmf_hw_counter_create(struct pmf_cntr *eark)
 	bool cnt_byt = gpc_cntr_byt_enabled(gprk);
 	bool ok = true;
 	char const *ok_str = "SK";
+	enum gpc_feature feat = gpc_group_get_feature(gprg);
+	char const *feat_str = gpc_feature_get_name(feat);
 	int rc = 0; /* Success */
 
 	/* Do not allocate a useless counter */
@@ -882,8 +900,8 @@ pmf_hw_counter_create(struct pmf_cntr *eark)
 log_create:
 	if (!ok || DP_DEBUG_ENABLED(NPF)) {
 		ACL_LOG(ok, ACL_HW,
-			"HW-ACLv%s CT Add %s/%s|%s:%s [%lx]%s%s => %s(%d) [%lx]\n",
-			(is_v6) ? "6" : "4",
+			"HW-GPC(%s)v%s CT Add %s/%s|%s:%s [%lx]%s%s => %s(%d) [%lx]\n",
+			feat_str, (is_v6) ? "6" : "4",
 			(ingress) ? " In" : "Out", ifname, rgname, ctname,
 			grpobj,
 			(cnt_pkt) ? " Pkt" : "",
@@ -910,6 +928,8 @@ pmf_hw_counter_delete(struct pmf_cntr *eark)
 	char const *rgname = gpc_group_get_name(gprg);
 	bool ok = true;
 	char const *ok_str = "SK";
+	enum gpc_feature feat = gpc_group_get_feature(gprg);
+	char const *feat_str = gpc_feature_get_name(feat);
 	int rc = 0; /* Success */
 
 	/* Nothing to do if no FAL object - e.g. vrouter */
@@ -928,8 +948,8 @@ pmf_hw_counter_delete(struct pmf_cntr *eark)
 log_delete:
 	if (!ok || DP_DEBUG_ENABLED(NPF)) {
 		ACL_LOG(ok, ACL_HW,
-			"HW-ACLv%s CT Delete %s/%s|%s:%s [%lx] => %s(%d)\n",
-			(is_v6) ? "6" : "4",
+			"HW-GPC(%s)v%s CT Delete %s/%s|%s:%s [%lx] => %s(%d)\n",
+			feat_str, (is_v6) ? "6" : "4",
 			(ingress) ? " In" : "Out", ifname, rgname, ctname,
 			ctrobj,
 			ok_str, rc);
@@ -954,6 +974,8 @@ pmf_hw_counter_clear(struct pmf_cntr const *eark)
 	bool ok = true;
 	char const *ok_str_pkt = "SK";
 	char const *ok_str_byt = "SK";
+	enum gpc_feature feat = gpc_group_get_feature(gprg);
+	char const *feat_str = gpc_feature_get_name(feat);
 	int rc_pkt = 0, rc_byt = 0; /* Success */
 
 	/* Nothing to do if no FAL object - e.g. vrouter */
@@ -987,9 +1009,9 @@ pmf_hw_counter_clear(struct pmf_cntr const *eark)
 log_clear:
 	if (!ok || DP_DEBUG_ENABLED(NPF)) {
 		ACL_LOG(ok, ACL_HW,
-			"HW-ACLv%s CT Clr %s/%s|%s:%s [%lx]%s%s =>"
+			"HW-GPC(%s)v%s CT Clr %s/%s|%s:%s [%lx]%s%s =>"
 				" P:%s(%d) B:%s(%d)\n",
-			(is_v6) ? "6" : "4",
+			feat_str, (is_v6) ? "6" : "4",
 			(ingress) ? " In" : "Out", ifname, rgname, ctname,
 			ctrobj,
 			(cnt_pkt) ? " Pkt" : "",
@@ -1019,6 +1041,8 @@ pmf_hw_counter_read(struct pmf_cntr const *eark,
 	bool cnt_byt = gpc_cntr_byt_enabled(gprk);
 	bool ok = true;
 	char const *ok_str = "SK";
+	enum gpc_feature feat = gpc_group_get_feature(gprg);
+	char const *feat_str = gpc_feature_get_name(feat);
 	int rc = 0; /* Success */
 
 	/* Nothing to do if no FAL object - e.g. vrouter */
@@ -1057,8 +1081,8 @@ pmf_hw_counter_read(struct pmf_cntr const *eark,
 log_read:
 	if (!ok || DP_DEBUG_ENABLED(NPF)) {
 		ACL_LOG(ok, ACL_HW,
-			"HW-ACLv%s CT Get %s/%s|%s:%s [%lx]%s%s => %s(%d)\n",
-			(is_v6) ? "6" : "4",
+			"HW-GPC(%s)v%s CT Get %s/%s|%s:%s [%lx]%s%s => %s(%d)\n",
+			feat_str, (is_v6) ? "6" : "4",
 			(ingress) ? " In" : "Out", ifname, rgname, ctname,
 			ctrobj,
 			(cnt_pkt) ? " Pkt" : "",

@@ -51,12 +51,28 @@ struct gpc_group {
 	TAILQ_HEAD(gpc_rlqh, gpc_rule) gprg_rules;
 	void			*gprg_owner;	/* weak */
 	struct gpc_rlset	*gprg_rlset;
+	enum gpc_feature	gprg_feature;
 	char const		*gprg_rgname;	/* weak */
 	uintptr_t		gprg_objid;	/* FAL object */
 	uint32_t		gprg_summary;
 	uint32_t		gprg_flags;
 };
 
+
+/* -- feature -- */
+
+char const *
+gpc_feature_get_name(enum gpc_feature feat)
+{
+	switch (feat) {
+	case GPC_FEAT_ACL:
+		return "ACL";
+	case GPC_FEAT_QOS:
+		return "QOS";
+	default:
+		return "Error";
+	}
+}
 
 /* -- rule -- */
 
@@ -209,6 +225,12 @@ void *
 gpc_group_get_owner(struct gpc_group const *gprg)
 {
 	return gprg->gprg_owner;
+}
+
+enum gpc_feature
+gpc_group_get_feature(struct gpc_group const *gprg)
+{
+	return gprg->gprg_feature;
 }
 
 uint32_t
@@ -408,7 +430,8 @@ gpc_group_delete(struct gpc_group *gprg)
 }
 
 struct gpc_group *
-gpc_group_create(struct gpc_rlset *gprs, char const *rg_name, void *owner)
+gpc_group_create(struct gpc_rlset *gprs, enum gpc_feature feat,
+		 char const *rg_name, void *owner)
 {
 	struct gpc_group *gprg = calloc(1, sizeof(*gprg));
 	if (!gprg)
@@ -416,6 +439,7 @@ gpc_group_create(struct gpc_rlset *gprs, char const *rg_name, void *owner)
 
 	gprg->gprg_owner = owner;
 	gprg->gprg_rlset = gprs;
+	gprg->gprg_feature = feat;
 	gprg->gprg_rgname = rg_name;
 	TAILQ_INIT(&gprg->gprg_rules);
 	gprg->gprg_summary = 0;

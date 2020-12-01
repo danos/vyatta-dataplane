@@ -745,7 +745,8 @@ pmf_arlg_attpt_grp_ev_handler(enum npf_attpt_ev_type event,
 		TAILQ_INIT(&earg->earg_cntrs);
 
 		struct gpc_group *gprg
-			= gpc_group_create(ears->ears_gprs, rg_name, earg);
+			= gpc_group_create(ears->ears_gprs, GPC_FEAT_ACL,
+					   rg_name, earg);
 		if (!gprg) {
 			RTE_LOG(ERR, FIREWALL,
 				"Error: Failed to create GPC group"

@@ -10,6 +10,8 @@
 #include <stdint.h>
 #include <stdbool.h>
 
+enum gpc_feature;
+
 struct gpc_rlset;
 struct gpc_group;
 struct gpc_cntr;
@@ -36,6 +38,7 @@ void gpc_group_set_deferred(struct gpc_group *gprg);
 void gpc_group_clear_deferred(struct gpc_group *gprg);
 
 struct gpc_group *gpc_group_create(struct gpc_rlset *gprs,
+				   enum gpc_feature feat,
 				   char const *rg_name, void *owner);
 void gpc_group_delete(struct gpc_group *gprg);
 

@@ -17,6 +17,13 @@ struct gpc_rule;
 
 struct pmf_rule;
 
+enum gpc_feature {
+	GPC_FEAT_ACL = 1,
+	GPC_FEAT_QOS,
+};
+
+char const *gpc_feature_get_name(enum gpc_feature feat);
+
 /* -- ruleset accessors -- */
 
 char const *gpc_rlset_get_ifname(struct gpc_rlset const *gprs);
@@ -37,6 +44,7 @@ struct gpc_rlset *gpc_rlset_next(struct gpc_rlset const *cursor);
 char const *gpc_group_get_name(struct gpc_group const *gprg);
 struct gpc_rlset *gpc_group_get_rlset(struct gpc_group const *gprg);
 void *gpc_group_get_owner(struct gpc_group const *gprg);
+enum gpc_feature gpc_group_get_feature(struct gpc_group const *gprg);
 uint32_t gpc_group_get_summary(struct gpc_group const *gprg);
 bool gpc_group_has_family(struct gpc_group const *gprg);
 bool gpc_group_is_v6(struct gpc_group const *gprg);
