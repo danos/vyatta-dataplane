@@ -122,7 +122,6 @@ static bool bridge_pvst_flood_local;
 
 static void bridge_newneigh(int ifindex, const struct rte_ether_addr *dst,
 			    uint16_t state, uint16_t vlan);
-static void bridge_timer(struct rte_timer *, void *);
 
 static bool bridge_intf_is_virt(struct ifnet *ifp)
 {
@@ -729,6 +728,44 @@ void bridge_update(const char *ifname, struct nl_bridge_info *br_info)
 		sc->scbr_vlan_default_pvid = br_info->br_vlan_default_pvid;
 }
 
+/* Should route entry be expired?
+ * For dynamic entries only, check if it has been used.
+ *  for more than BRIDGE_RTABLE_EXPIRE intervals.
+ */
+static int
+bridge_rtexpired(struct bridge_rtnode *brt, uint32_t ageing_ticks)
+{
+	if ((brt->brt_flags & IFBAF_TYPEMASK) != IFBAF_DYNAMIC)
+		return 0;
+
+	if (rte_atomic32_test_and_set(&brt->brt_unused)) {
+		/* Transition from used to unused */
+		brt->brt_expire = 0;
+		return 0;
+	}
+
+	/* If ageing_ticks is 0 then dynamic entries are never timed out */
+	if (++brt->brt_expire > ageing_ticks && ageing_ticks > 0)
+		return 1; /* expired */
+
+	return 0;
+}
+
+/* walk bridge forwarding database and timeout old entries */
+static void bridge_timer(struct rte_timer *timer __rte_unused,
+			 void *arg __rte_unused)
+{
+	struct bridge_softc *sc = arg;
+	struct cds_lfht_iter iter;
+	struct bridge_rtnode *brt;
+
+	rcu_read_lock();
+	cds_lfht_for_each_entry(sc->scbr_rthash, &iter, brt, brt_node) {
+		if (bridge_rtexpired(brt, sc->scbr_ageing_ticks))
+			bridge_rtnode_destroy(sc->scbr_rthash, brt);
+	}
+	rcu_read_unlock();
+}
 
 static int bridge_if_init(struct ifnet *ifp)
 {
@@ -1559,45 +1596,6 @@ drop:
 	if_incr_dropped(brif);
 ignore:
 	rte_pktmbuf_free(m);
-}
-
-/* Should route entry be expired?
- * For dynamic entries only, check if it has been used.
- *  for more than BRIDGE_RTABLE_EXPIRE intervals.
- */
-static int
-bridge_rtexpired(struct bridge_rtnode *brt, uint32_t ageing_ticks)
-{
-	if ((brt->brt_flags & IFBAF_TYPEMASK) != IFBAF_DYNAMIC)
-		return 0;
-
-	if (rte_atomic32_test_and_set(&brt->brt_unused)) {
-		/* Transition from used to unused */
-		brt->brt_expire = 0;
-		return 0;
-	}
-
-	/* If ageing_ticks is 0 then dynamic entries are never timed out */
-	if (++brt->brt_expire > ageing_ticks && ageing_ticks > 0)
-		return 1; /* expired */
-
-	return 0;
-}
-
-/* walk bridge forwarding database and timeout old entries */
-static void bridge_timer(struct rte_timer *timer __rte_unused,
-			 void *arg __rte_unused)
-{
-	struct bridge_softc *sc = arg;
-	struct cds_lfht_iter iter;
-	struct bridge_rtnode *brt;
-
-	rcu_read_lock();
-	cds_lfht_for_each_entry(sc->scbr_rthash, &iter, brt, brt_node) {
-		if (bridge_rtexpired(brt, sc->scbr_ageing_ticks))
-			bridge_rtnode_destroy(sc->scbr_rthash, brt);
-	}
-	rcu_read_unlock();
 }
 
 /*
