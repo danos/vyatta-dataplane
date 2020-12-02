@@ -1391,6 +1391,7 @@ static uint16_t num_sas[RTE_MAX_LCORE];
 int crypto_set_fwd_cores(const uint8_t *bytes, uint8_t len)
 {
 	int rc;
+	char tmp[BITMASK_STRSZ];
 
 	rc = bitmask_parse_bytes(&crypto_fwd_cores, bytes, len);
 	if (rc) {
@@ -1398,6 +1399,10 @@ int crypto_set_fwd_cores(const uint8_t *bytes, uint8_t len)
 			"Failed to parse cpumask for post-crypto forwarding\n");
 		return rc;
 	}
+
+	bitmask_sprint(&crypto_fwd_cores, tmp, sizeof(tmp));
+	DP_DEBUG(INIT, INFO, DATAPLANE,
+		 "Post-crypto forwarding cores set: %s\n", tmp);
 
 	return rc;
 }
