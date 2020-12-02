@@ -1,3 +1,132 @@
+vyatta-dataplane (3.12.8) unstable; urgency=medium
+
+  [ Paul Atkins ]
+  * 3.11.70
+
+  [ Charles (Chas) Williams ]
+  * api: add public api for LAG member FAL object ID (Bugfix: VRVDR-53723)
+
+  [ Nicholas Brown ]
+  * UT: Add comment about split in test files
+  * Add support for DEB_BUILD_PROFILES="nocheck"
+  * Update CODEOWNERS for new meson.build files
+
+  [ Sharmila Podury ]
+  * On reboot, disabled bond has members in u/u link state
+
+  [ Paul Atkins ]
+  * pl_gen_fused: move print inside of debug check
+  * backplane: explicitly compare strcmp result
+  * dealer: explicitly compare strcmp result
+  * commands: explicitly compare strcmp result
+  * control: explicitly compare strcmp result
+  * switch: explicitly compare strcmp result
+  * fal_lag: explicitly compare strcmp result
+  * if: explicitly compare strcmp result
+  * mac_limit: explicitly compare strcmp result
+  * pd_show: explicitly compare strcmp result
+  * pktmbuf: explicitly compare strcmp result
+  * qos_sched: explicitly compare strcmp result
+  * route_broker: explicitly compare strcmp result
+  * rt_tracker: explicitly compare strcmp result
+  * storm_ctrl: explicitly compare strcmp result
+  * vlan_modify: explicitly compare strcmp result
+  * shadow: explicitly compare strcmp result
+  * nd6_nbr: explicitly compare strcmp result
+  * alg_ftp: explicitly compare strcmp result
+  * alg_tftp: explicitly compare strcmp result
+  * alg_sip: explicitly compare strcmp result
+  * sip_parse: explicitly compare strcmp result
+  * sip_translate: explicitly compare strcmp result
+  * cgn_cmd_cfg: explicitly compare strcmp result
+  * npf_cmd_cfg: explicitly compare strcmp result
+  * npf_zone_private: explicitly compare strcmp result
+  * l3_v4_route_lookup: explicitly compare strcmp result
+  * l3_v6_route_lookup: explicitly compare strcmp result
+  * capture: explicitly compare strcmp result
+  * ut:dp_test_mac_limit: explicitly compare strcmp result
+  * ut:dp_test_npf_nat_lib: explicitly compare strcmp result
+  * ut:dp_test_route_broker: explicitly compare strcmp result
+  * ut:dp_test_npf_portmap_lib: explicitly compare strcmp result
+
+  [ Srinivas Narayan ]
+  * crypto: only emit non-zero counters
+  * crypto: Define APIs for post-processing core selection
+  * crypto: Allocate/free forwarding core for each SA
+  * crypto: allocate/free post-processing queues
+  * crypto: Fix bug in index handling
+  * crypto: redirect packets to forwarding cores
+  * crypto: Emit post crypto forwarding packet stats
+  * crypto: redirect packets in batches
+  * crypto: set up flag for presence of post-crypto workload
+
+  [ Sharmila Podury ]
+  * Refactor code that checks if device is started
+
+  [ Paul Atkins ]
+  * mpls_forward: don't use 'else' after an 'if' call returns
+  * alg: don't use 'else' after an 'if' call returns
+  * sip_parse: don't use 'else' after an 'if' call returns
+  * npf_auto_attach: don't use 'else' after an 'if' call returns
+  * cgn_session: don't use 'else' after an 'if' call returns
+  * npf_cidr_util.c: don't use 'else' after an 'if' call returns
+  * npf_addrgrp.c: don't use 'else' after an 'if' call returns
+  * npf_cache: don't use 'else' after an 'if' call returns
+  * npf_cmd_cfg: don't use 'else' after an 'if' call returns
+  * npf_instr: don't use 'else' after an 'if' call returns
+  * npf_unpack: don't use 'else' after an 'if' call returns
+  * npf_ruleset: don't use 'else' after an 'if' call returns
+  * ls_cross_connect_cmd: don't use 'else' after an 'if' call returns
+  * l2_ether_forward: don't use 'else' after an 'if' call returns
+  * l3_pbr: don't use 'else' after an 'if' call returns
+  * l3_v4_gre: don't use 'else' after an 'if' call returns
+  * l3_v4_ipsec: don't use 'else' after an 'if' call returns
+  * l3_v4_l2tpv3: don't use 'else' after an 'if' call returns
+  * l3_v4_out: don't use 'else' after an 'if' call returns
+  * l3_v4_post_route_lookup: don't use 'else' after an 'if' call returns
+  * l3_v4_udp: don't use 'else' after an 'if' call returns
+  * l3_v6_l4: don't use 'else' after an 'if' call returns
+  * l3_v6_out: don't use 'else' after an 'if' call returns
+  * l3_v6_port_route_lookup: don't use 'else' after an 'if' call returns
+  * l3_v6_udp: don't use 'else' after an 'if' call returns
+  * capture: don't use 'else' after an 'if' call returns
+  * ut:dp_test_npf_addrgroup: don't use 'else' after an 'if' call returns
+  * ut:dp_test: don't use 'else' after an 'if' call returns
+  * ut:dp_test_json_utils: don't use 'else' after an 'if' call returns
+  * ut:dp_test_lib_exp: don't use 'else' after an 'if' call returns
+  * ut:dp_test_lib: don't use 'else' after an 'if' call returns
+  * ut:dp_test_pktmbuf_lib: don't use 'else' after an 'if' call returns
+  * 3.11.71
+
+  [ Simon Barber ]
+  * CRYPTO: Tidy Static Analysis Warning
+  * CRYPTO: Remove the need for a second peer lookup during SA insertion
+  * CRYPTO:UT: Change SADB tests to us incrementing spi and req_id
+  * CRYPTO: Change SADB to use tunnel reqid instead of the dest addr
+  * Crypto: Rename SADB peer struct
+  * CRYPTO: Add peer dest address check into SA lookup
+
+  [ Mandeep Rohilla ]
+  * IF API: Api to transmit an L2 frame out of an interface
+  * IF API: Api to get the ether address of an interface
+
+  [ Charles (Chas) Williams ]
+  * clang: prevent zero length allocation
+  * clang: fix redundant expression
+  * clang: misplaced widening cast
+  * clang: fix possible loss of precision
+  * clang: fix uninitialized use of variable
+  * clang: fix misc-non-copyable-objects
+  * clang: fix promotion to double
+  * clang: remove explicit casting
+  * clang: fix signed versus unsigned comparisons
+  * clang: fix logical not usage
+  * clang: remove const qualifier in declaration
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Wed, 02 Dec 2020 11:24:52 +0000
+
 vyatta-dataplane (3.12.7) unstable; urgency=medium
 
   [ Paul Atkins ]
