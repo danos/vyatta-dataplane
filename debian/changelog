@@ -1,3 +1,13 @@
+vyatta-dataplane (3.10.70.16) unstable; urgency=medium
+
+  [ Sharmila Podury ]
+  * On reboot, disabled bond has members in u/u link state
+  * Refactor code that checks if device is started
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Wed, 02 Dec 2020 10:58:21 +0000
+
 vyatta-dataplane (3.10.70.15) unstable; urgency=medium
 
   [ aroberts ]
