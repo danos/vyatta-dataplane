@@ -197,6 +197,7 @@ Provides: fal-dev-acl,
           fal-dev-l2-port-dump,
           fal-dev-bfd-session-dump,
           fal-dev-qos-dscp-egressmap,
+          fal-dev-invalid-vrf-id,
 Description: Forwarding Abstraction Library plugin development files
  An API for dataplane FAL plugins
 

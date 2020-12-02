@@ -653,6 +653,9 @@ void vrf_init(void)
 		rte_panic("Can't init the default vrf\n");
 	dp_event(DP_EVT_VRF_CREATE, 0, vrf, 0, 0, NULL);
 
+	_Static_assert(VRF_INVALID_ID == FAL_INVALID_VRF_ID,
+		       "Invalid VRF ID for dataplane and FAL don't match");
+
 	vrf = vrf_find_or_create(VRF_INVALID_ID);
 	if (!vrf)
 		rte_panic("Can't init the invalid vrf\n");

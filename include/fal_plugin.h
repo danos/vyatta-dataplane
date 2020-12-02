@@ -421,6 +421,9 @@ struct fal_ptp_port_path_t {
 	uint32_t ifindex;	/** Underlying interface */
 };
 
+/* VRF ID value that will never be used for a forwarding VRF */
+#define FAL_INVALID_VRF_ID 0
+
 /* An attribute */
 
 union fal_attribute_value_t {
