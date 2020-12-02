@@ -3149,6 +3149,16 @@ enum fal_stats_mode {
 	FAL_STATS_MODE_READ_AND_CLEAR,
 };
 
+enum fal_policer_colour_source {
+	/* previous colour is ignored ("color-blind" in RFC4115) */
+	FAL_POLICER_COLOUR_SOURCE_UNAWARE,
+
+	/* previous colour is taken into account */
+	FAL_POLICER_COLOUR_SOURCE_AWARE,
+
+	FAL_POLICER_COLOUR_SOURCE_MAX
+};
+
 /**
  * @brief FAL attributes for policers
  */
@@ -3195,6 +3205,13 @@ enum fal_policer_attr_t {
 	 * @flags CREATE_AND_SET
 	 */
 	FAL_POLICER_ATTR_RED_PACKET_ACTION  = 0x00000007,
+	/**
+	 * @brief Policer colour source
+	 * @type enum fal_policer_colour_source
+	 * @flags CREATE_ONLY
+	 * @default FAL_POLICER_COLOUR_SOURCE_UNAWARE
+	 */
+	FAL_POLICER_ATTR_COLOUR_SOURCE = 0x00000008,
 };
 
 /**
