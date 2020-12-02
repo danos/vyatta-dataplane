@@ -1732,6 +1732,7 @@ static const cmd_t cmd_table[] = {
 	{ 0,	"affinity",	cmd_affinity,	"Show/set CPU affinity" },
 	{ 0,	"app-op",	cmd_app_op,      "Application commands" },
 	{ 0,	"arp",		cmd_arp,	"Show/reset ARP table" },
+	{ 1,	"arp",		cmd_arp,	"Show/reset ARP table" },
 	{ 0,    "backplane",    cmd_backplane_op, "Backplane op mode cmds" },
 	{ 0,	"bridge",	cmd_bridge,	"Show/clear bridge MAC table" },
 	{ 0,	"capture",	cmd_capture,	"Enable/disable packet capture" },

@@ -544,10 +544,9 @@ static int nbr_res_flush(FILE *f, sa_family_t af, int argc, char **argv)
 /* Process get sub-command */
 static int nbr_res_get_cfg(FILE *f, sa_family_t af)
 {
-	if (af == AF_INET) {
-		fprintf(f, "Parameter config not supported for ARP\n");
-		return -1;
-	}
+	if (af == AF_INET)
+		return cmd_arp_get_cfg(f);
+
 	return cmd_nd6_get_cfg(f);
 }
 

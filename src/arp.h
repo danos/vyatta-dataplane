@@ -70,5 +70,6 @@ void arp_walk(const struct ifnet *, ll_walkhash_f_t *, void *);
 struct rte_mbuf *arprequest(struct ifnet *ifp, struct sockaddr *sa);
 
 void arp_entry_destroy(struct lltable *llt, struct llentry *lle);
+int cmd_arp_get_cfg(FILE *f);
 
 #endif /* ARP_H */
