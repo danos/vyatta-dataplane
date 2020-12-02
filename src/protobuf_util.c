@@ -51,7 +51,7 @@ int dp_protobuf_create_ipaddr(IPAddress **addr_msg)
 		return -1;
 	}
 	memcpy(*addr_msg, &addr, sizeof(addr));
-	(*addr_msg)->ipv6_addr.data = malloc(sizeof(uint32_t) * 4);
+	(*addr_msg)->ipv6_addr.data = malloc(sizeof(uint8_t) * 16);
 	if (!(*addr_msg)->ipv6_addr.data) {
 		free(*addr_msg);
 		RTE_LOG(ERR, DATAPLANE,
