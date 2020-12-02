@@ -1064,7 +1064,7 @@ void crypto_fwd_processed_packets(void)
 	if (rte_ring_empty(crypto_fwd[lcore].fwd_q))
 		return;
 
-	count = rte_ring_sc_dequeue_burst(crypto_fwd[lcore].fwd_q,
+	count = rte_ring_mc_dequeue_burst(crypto_fwd[lcore].fwd_q,
 					  (void **)&contexts,
 					  MAX_CRYPTO_PKT_BURST, NULL);
 	crypto_fwd[lcore].fwd_cnt += count;
@@ -1269,8 +1269,7 @@ void crypto_create_fwd_queue(unsigned int lcore_id)
 		unsigned int cpu_socket = rte_lcore_to_socket_id(lcore_id);
 
 		fwd_info->fwd_q = crypto_create_ring("fwd-q", PMD_RING_SIZE,
-						     cpu_socket, lcore_id,
-						     RING_F_SC_DEQ);
+						     cpu_socket, lcore_id, 0);
 		/* crypto_create_ring is always expected to succeed */
 
 		RTE_PER_LCORE(crypto_fwd) = fwd_info;
@@ -1438,10 +1437,21 @@ uint8_t crypto_sa_alloc_fwd_core(void)
  */
 void crypto_sa_free_fwd_core(uint8_t fwd_core)
 {
+	struct crypto_pkt_ctx *ctx;
+	struct crypto_fwd_info *fwd_info = &crypto_fwd[fwd_core];
+
 	if (fwd_core) {
 		num_sas[fwd_core]--;
-		if (!num_sas[fwd_core])
+		if (!num_sas[fwd_core]) {
 			disable_crypto_fwd(fwd_core);
+
+			/* drain queue & free */
+			while (!rte_ring_mc_dequeue(fwd_info->fwd_q,
+						    (void **)&ctx)) {
+				rte_pktmbuf_free(ctx->mbuf);
+				release_crypto_packet_ctx(ctx);
+			}
+		}
 	}
 }
 
