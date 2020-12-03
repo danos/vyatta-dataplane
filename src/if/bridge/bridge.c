@@ -1100,7 +1100,6 @@ bridge_forward_via_tunnel(struct ifnet *br_ifp,
 drop:
 	if_incr_dropped(br_ifp);
 	rte_pktmbuf_free(m);
-	return;
 }
 
 /*
