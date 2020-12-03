@@ -573,7 +573,6 @@ enum fal_port_flow_control_mode_t {
 
 	/** Enable flow control for both tx and rx */
 	FAL_PORT_FLOW_CONTROL_MODE_BOTH_ENABLE,
-
 };
 
 /* Layer 2 operations */
@@ -791,7 +790,6 @@ enum fal_port_attr_t {
 	 * @default - FAL_PORT_SYNCE_DISABLE
 	 */
 	FAL_PORT_ATTR_SYNCE_ADMIN_STATUS,
-
 };
 
 enum fal_port_hw_switching_t {
@@ -1109,7 +1107,7 @@ enum fal_router_interface_stat_t {
 	/** Egress packet stat count */
 	FAL_ROUTER_INTERFACE_STAT_OUT_PACKETS,
 
-	FAL_ROUTER_INTERFACE_STAT_MAX,
+	FAL_ROUTER_INTERFACE_STAT_MAX
 };
 
 /**
@@ -1218,7 +1216,6 @@ enum fal_tunnel_ttl_mode_t {
 	 * field of inner header remains the same on decapsulation.
 	 */
 	FAL_TUNNEL_TTL_MODE_PIPE_MODEL
-
 };
 
 /**
@@ -2338,6 +2335,7 @@ enum fal_next_hop_group_attr_t {
 	 */
 	FAL_NEXT_HOP_GROUP_ATTR_USE,
 };
+
 /**
  * @brief Query attributes for a next hop group object
  *
@@ -2553,7 +2551,6 @@ enum fal_ipmc_entry_type_t {
 
 	/** IPMC entry with type (*,G) */
 	FAL_IPMC_ENTRY_TYPE_XG,
-
 };
 
 /**
@@ -2603,7 +2600,7 @@ enum fal_ipmc_entry_attr_t {
 	/**
 	 * @brief End of attributes
 	 */
-	FAL_IPMC_ENTRY_ATTR_END,
+	FAL_IPMC_ENTRY_ATTR_END
 };
 
 /**
@@ -2734,7 +2731,7 @@ enum fal_ipmc_group_attr_t {
 	/**
 	 * @brief End of attributes
 	 */
-	FAL_IPMC_GROUP_ATTR_END,
+	FAL_IPMC_GROUP_ATTR_END
 };
 
 enum fal_ipmc_group_member_attr_t {
@@ -2765,7 +2762,7 @@ enum fal_ipmc_group_member_attr_t {
 	/**
 	 * @brief End of attributes
 	 */
-	FAL_IPMC_GROUP_MEMBER_ATTR_END,
+	FAL_IPMC_GROUP_MEMBER_ATTR_END
 };
 
 /**
@@ -2891,7 +2888,7 @@ enum fal_rpf_group_attr_t {
 	/**
 	 * @brief End of attributes
 	 */
-	FAL_RPF_GROUP_ATTR_END,
+	FAL_RPF_GROUP_ATTR_END
 };
 
 enum fal_rpf_group_member_attr_t {
@@ -2922,7 +2919,7 @@ enum fal_rpf_group_member_attr_t {
 	/**
 	 * @brief End of attributes
 	 */
-	FAL_RPF_GROUP_MEMBER_ATTR_END,
+	FAL_RPF_GROUP_MEMBER_ATTR_END
 };
 
 /**
@@ -3135,7 +3132,7 @@ int fal_plugin_policer_clear_stats(fal_object_t obj,
 enum fal_policer_meter_type {
 	FAL_POLICER_METER_TYPE_PACKETS,
 	FAL_POLICER_METER_TYPE_BYTES,
-	FAL_POLICER_METER_TYPE
+	FAL_POLICER_METER_TYPE_MAX
 };
 
 enum fal_policer_mode_type {
@@ -3301,7 +3298,7 @@ enum fal_qos_queue_type_t {
 	FAL_QOS_QUEUE_TYPE_NON_UNICAST = 2,
 
 	/** Max value */
-	FAL_QOS_QUEUE_TYPE_MAX = FAL_QOS_QUEUE_TYPE_NON_UNICAST,
+	FAL_QOS_QUEUE_TYPE_MAX = FAL_QOS_QUEUE_TYPE_NON_UNICAST
 };
 
 /**
@@ -3417,7 +3414,7 @@ enum fal_qos_queue_attr_t {
 	FAL_QOS_QUEUE_ATTR_DESIGNATOR = 9,
 
 	/** Max value */
-	FAL_QOS_QUEUE_ATTR_MAX = FAL_QOS_QUEUE_ATTR_DESIGNATOR,
+	FAL_QOS_QUEUE_ATTR_MAX = FAL_QOS_QUEUE_ATTR_DESIGNATOR
 };
 
 /**
@@ -3645,7 +3642,7 @@ enum fal_qos_map_type_t {
 	FAL_QOS_MAP_TYPE_DSCP_TO_DSCP = 13,
 
 	/** Max value */
-	FAL_QOS_MAP_TYPE_MAX = FAL_QOS_MAP_TYPE_DSCP_TO_DSCP,
+	FAL_QOS_MAP_TYPE_MAX = FAL_QOS_MAP_TYPE_DSCP_TO_DSCP
 };
 
 /**
@@ -3708,7 +3705,7 @@ enum fal_qos_map_attr_t {
 	FAL_QOS_MAP_ATTR_INGRESS_SYSTEM_DEFAULT = 3,
 
 	/** Max value */
-	FAL_QOS_MAP_ATTR_MAX = FAL_QOS_MAP_ATTR_INGRESS_SYSTEM_DEFAULT,
+	FAL_QOS_MAP_ATTR_MAX = FAL_QOS_MAP_ATTR_INGRESS_SYSTEM_DEFAULT
 };
 
 /**
@@ -3777,7 +3774,7 @@ enum fal_qos_meter_type_t {
 	FAL_QOS_METER_TYPE_PACKETS = 1,
 
 	/* Max value */
-	FAL_QOS_METER_TYPE_MAX = FAL_QOS_METER_TYPE_PACKETS,
+	FAL_QOS_METER_TYPE_MAX = FAL_QOS_METER_TYPE_PACKETS
 };
 
 /**
@@ -3794,7 +3791,7 @@ enum fal_qos_scheduler_type_t {
 	FAL_QOS_SCHEDULING_TYPE_DWRR = 2,
 
 	/* Max value */
-	FAL_QOS_SCHEDULING_TYPE_MAX = FAL_QOS_SCHEDULING_TYPE_DWRR,
+	FAL_QOS_SCHEDULING_TYPE_MAX = FAL_QOS_SCHEDULING_TYPE_DWRR
 };
 
 /**
@@ -3863,7 +3860,7 @@ enum fal_qos_scheduler_attr_t {
 
 	/* Max value */
 	FAL_QOS_SCHEDULER_ATTR_MAX =
-		FAL_QOS_SCHEDULER_ATTR_FRAME_OVERHEAD,
+		FAL_QOS_SCHEDULER_ATTR_FRAME_OVERHEAD
 };
 
 /**
@@ -3927,7 +3924,7 @@ enum fal_qos_sched_group_level_t {
 	FAL_QOS_SCHED_GROUP_LEVEL_TC = 4,
 	FAL_QOS_SCHED_GROUP_LEVEL_QUEUE = 5,
 	FAL_QOS_SCHED_GROUP_MAX_LEVEL = FAL_QOS_SCHED_GROUP_LEVEL_QUEUE,
-	FAL_QOS_SCHED_GROUP_TOTAL_IDS = FAL_QOS_SCHED_GROUP_MAX_LEVEL + 1,
+	FAL_QOS_SCHED_GROUP_TOTAL_IDS = FAL_QOS_SCHED_GROUP_MAX_LEVEL + 1
 };
 
 /**
@@ -4056,7 +4053,7 @@ enum fal_qos_sched_group_attr_t {
 
 	/* Max value */
 	FAL_QOS_SCHED_GROUP_ATTR_MAX =
-		FAL_QOS_SCHED_GROUP_ATTR_LOCAL_PRIORITY_DESIGNATOR,
+		FAL_QOS_SCHED_GROUP_ATTR_LOCAL_PRIORITY_DESIGNATOR
 };
 
 /**
@@ -4347,6 +4344,7 @@ enum fal_mirror_session_type_t {
 	/** Enhanced Remote SPAN */
 	FAL_MIRROR_SESSION_TYPE_ENHANCED_REMOTE,
 };
+
 /**
  * @brief FAL attributes for portmonitor(mirror) session
  */
@@ -6189,8 +6187,7 @@ enum fal_bfd_session_attr_t {
 	/**
 	 * @brief End of attributes
 	 */
-	FAL_BFD_SESSION_ATTR_END,
-
+	FAL_BFD_SESSION_ATTR_END
 };
 
 /**
@@ -6205,7 +6202,6 @@ enum fal_bfd_session_stat_t {
 
 	/** Packet Drop stat count */
 	FAL_BFD_SESSION_STAT_DROP_PACKETS
-
 };
 
 /**
