@@ -101,6 +101,7 @@ cscope.po.out
 # don't ignore tool config files
 !.checkpatch.conf
 !.clang-tidy
+!.clang-format
 
 *.orig
 *.rej
