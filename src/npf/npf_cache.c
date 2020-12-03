@@ -585,7 +585,8 @@ static inline int npf_fetch_sctp(npf_cache_t *npc, struct rte_mbuf *nbuf,
 	struct npf_sctp *sh = &npc->npc_l4.sctp;
 
 	/* Ensure it is small enough in case it is within an ICMP error */
-	assert(sizeof(struct npf_sctp) <= ICMP_ERROR_MIN_L4_SIZE);
+	static_assert(sizeof(struct npf_sctp) <= ICMP_ERROR_MIN_L4_SIZE,
+		      "npf sctp structure is too big");
 
 	/* Fetch SCTP common header. */
 	if (__nbuf_advfetch(&nbuf, &n_ptr, hlen, sizeof(*sh), sh))
