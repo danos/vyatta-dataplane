@@ -118,6 +118,8 @@ struct dp_events_ops {
 	/* DP_EVT_IF_LAG_DELETE_MEMBER */
 	void (*if_lag_delete_member)(struct ifnet *team,
 				     struct ifnet *ifp);
+	/* DP_EVENT_IF_LINK_CHANGE */
+	void (*if_link_change)(struct ifnet *ifp, bool up, uint32_t speed);
 };
 
 /*

@@ -93,6 +93,11 @@ static void dp_evt_notify(enum dp_evt evt, uint32_t cont_src,
 	case DP_EVT_IF_LINK_CHANGE:
 		if (ops->if_link_change)
 			ops->if_link_change(obj, val, val2);
+		else {
+			pub_ops = rcu_dereference(ops->public_ops);
+			if (pub_ops && pub_ops->if_link_change)
+				pub_ops->if_link_change(obj, val, val2);
+		}
 		break;
 	case DP_EVT_IF_VLAN_ADD:
 		if (ops->if_vlan_add)
