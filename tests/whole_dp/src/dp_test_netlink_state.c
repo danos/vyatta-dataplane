@@ -3736,12 +3736,12 @@ void _dp_test_netlink_xfrm_policy(uint16_t nlmsg_type,
 				  const char *file,
 				  int line)
 {
-	char buf[MNL_SOCKET_BUFFER_SIZE];
 	struct xfrm_userpolicy_info *userpolicy_info_p = NULL;
 	struct xfrm_userpolicy_id *userpolicy_id;
 	struct nlmsghdr *nlh;
+	char *buf = malloc(MNL_SOCKET_BUFFER_SIZE);
 
-	memset(buf, 0, sizeof(buf));
+	memset(buf, 0, MNL_SOCKET_BUFFER_SIZE);
 	nlh = mnl_nlmsg_put_header(buf);
 	nlh->nlmsg_type = nlmsg_type;
 	nlh->nlmsg_flags = NLM_F_ACK;
@@ -3830,13 +3830,14 @@ void _dp_test_netlink_xfrm_newsa(uint32_t spi, /* Network byte order */
 				 const char *func,
 				 int line)
 {
-	char buf[MNL_SOCKET_BUFFER_SIZE];
+
 	char topic[DP_TEST_TMP_BUF];
 	unsigned int key_len;
 	struct nlmsghdr *nlh;
 	struct xfrm_usersa_info *sa_info;
+	char *buf = malloc(MNL_SOCKET_BUFFER_SIZE);
 
-	memset(buf, 0, sizeof(buf));
+	memset(buf, 0, MNL_SOCKET_BUFFER_SIZE);
 	nlh = mnl_nlmsg_put_header(buf);
 	nlh->nlmsg_type = XFRM_MSG_NEWSA;
 	nlh->nlmsg_flags = NLM_F_ACK;
@@ -3902,12 +3903,12 @@ void dp_test_netlink_xfrm_delsa(uint32_t spi, /* Network byte order */
 {
 	struct xfrm_usersa_info usersa_info;
 	struct xfrm_usersa_id *usersa_id;
-	char buf[MNL_SOCKET_BUFFER_SIZE];
 	char topic[DP_TEST_TMP_BUF];
 	struct nlmsghdr *nlh;
 	xfrm_address_t daddr;
+	char *buf = malloc(MNL_SOCKET_BUFFER_SIZE);
 
-	memset(buf, 0, sizeof(buf));
+	memset(buf, 0, MNL_SOCKET_BUFFER_SIZE);
 	nlh = mnl_nlmsg_put_header(buf);
 	nlh->nlmsg_type = XFRM_MSG_DELSA;
 	nlh->nlmsg_flags = NLM_F_ACK;
@@ -3946,12 +3947,12 @@ void dp_test_netlink_xfrm_expire(uint32_t spi, /* Network byte order */
 				 bool expire_hard,
 				 vrfid_t vrfid)
 {
-	char buf[MNL_SOCKET_BUFFER_SIZE];
 	struct xfrm_user_expire *expire;
 	char topic[DP_TEST_TMP_BUF];
 	struct nlmsghdr *nlh;
+	char *buf = malloc(MNL_SOCKET_BUFFER_SIZE);
 
-	memset(buf, 0, sizeof(buf));
+	memset(buf, 0, MNL_SOCKET_BUFFER_SIZE);
 	nlh = mnl_nlmsg_put_header(buf);
 	nlh->nlmsg_type = XFRM_MSG_EXPIRE;
 	nlh->nlmsg_flags = NLM_F_ACK;

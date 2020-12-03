@@ -1311,8 +1311,9 @@ void nl_propagate_xfrm(zsock_t *sock, void *data, size_t size,
 {
 	zmq_msg_t m;
 
-	zmq_msg_init_data(&m, data, size,
-			  NULL, NULL);
+	if (data)
+		zmq_msg_init_data(&m, (void *)data, size,
+				  data_send_free, NULL);
 	zmq_send_const(zsock_resolve(sock), hdr,
 		       strlen(hdr) + 1, ZMQ_SNDMORE);
 	zmq_msg_send(&m, zsock_resolve(sock), 0);
