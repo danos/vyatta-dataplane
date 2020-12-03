@@ -910,7 +910,7 @@ npf_addrgrp_prefix_mask_remove(struct npf_addrgrp_entry *ae, uint8_t mask)
  * Compare two addresses
  */
 static int
-npf_addrgrp_addr_cmp(uint8_t *addr1, uint8_t *addr2, uint8_t alen)
+npf_addrgrp_addr_cmp(const uint8_t *addr1, const uint8_t *addr2, uint8_t alen)
 {
 	int i;
 
@@ -1272,7 +1272,7 @@ host_bits_set(uint8_t *addr, uint8_t alen, uint8_t mask)
  * Return true if address is zero
  */
 static bool
-is_addr_zero(uint8_t *addr, uint8_t alen)
+is_addr_zero(const uint8_t *addr, uint8_t alen)
 {
 	uint i;
 
@@ -1399,7 +1399,7 @@ int npf_addrgrp_prefix_insert(const char *name, npf_addr_t *addr,
  * reverse address.  The CIDR utils use host-byte order, and address-groups
  * use network byte order.
  */
-static inline void reverse_addr(uint8_t *dst, uint8_t *src, int len)
+static inline void reverse_addr(uint8_t *dst, const uint8_t *src, int len)
 {
 	int i;
 
