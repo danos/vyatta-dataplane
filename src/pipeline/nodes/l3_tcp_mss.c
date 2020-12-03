@@ -609,9 +609,6 @@ tcp_mss_feat_enable_cmd(TCPMSSConfig *tcpmss_msg, struct pb_msg *msg)
 		return rc;
 	}
 
-	assert(ARRAY_SIZE(ifp->tcp_mss_type) == TCP_MSS_AF_SIZE);
-	assert(ARRAY_SIZE(ifp->tcp_mss_value) == TCP_MSS_AF_SIZE);
-
 	if (tcpmss_msg->mtu_option == TCPMSSCONFIG__MTUTYPE__MTU) {
 		ifp->tcp_mss_type[tcpmss_msg->af] = TCP_MSS_MTU;
 		ifp->tcp_mss_value[tcpmss_msg->af] = 0;
