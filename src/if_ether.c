@@ -216,7 +216,7 @@ void lladdr_update(struct ifnet *ifp, struct llentry *la,
 		rte_get_timer_hz() * ARP_CFG(arp_aging_time);
 
 	/* Extend the timeout for locally created proxy entries */
-	if (la->la_flags & (LLE_LOCAL | LLE_PROXY))
+	if ((la->la_flags & LLE_LOCAL) && (la->la_flags & LLE_PROXY))
 		la->ll_expire += rte_get_timer_hz() * ARP_CFG(arp_aging_time);
 }
 
@@ -404,7 +404,7 @@ static void ll_age(struct lltable *llt, struct llentry *lle, uint64_t cur_time)
 			cur_time + rte_get_timer_hz() * ARP_CFG(arp_aging_time);
 
 		/* Extend the timeout for locally created proxy entries */
-		if (lle->la_flags & (LLE_LOCAL | LLE_PROXY))
+		if ((lle->la_flags & LLE_LOCAL) && (lle->la_flags & LLE_PROXY))
 			lle->ll_expire +=
 				rte_get_timer_hz() * ARP_CFG(arp_aging_time);
 
