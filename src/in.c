@@ -142,12 +142,14 @@ in_lltable_lookup(struct ifnet *ifp, u_int flags, in_addr_t addr)
 	} else if (unlikely(flags & LLE_DELETE)) {
 		/*
 		 * Only delete static or idle entries.
-		 * Leave dynamic in-use entries to time out - kernel may
-		 * think they are stale but they may be in active use
-		 * by the dataplane.
+		 * Leave dynamic entries to time out if they are in use or
+		 * created locally (unless the deletion is for local entries).
+		 * An entry that is stale and being removed in the kernel may
+		 * be in active use in the dataplane.
 		 */
 		if ((lle->la_flags & LLE_STATIC) ||
-		    !llentry_has_been_used(lle)) {
+		    ((!(lle->la_flags & LLE_LOCAL) || (flags & LLE_LOCAL)) &&
+		     !llentry_has_been_used(lle))) {
 			rte_spinlock_lock(&lle->ll_lock);
 			arp_entry_destroy(llt, lle);
 			rte_spinlock_unlock(&lle->ll_lock);
