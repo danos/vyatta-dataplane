@@ -79,6 +79,10 @@ static const npf_rproc_ops_t *npf_rproc_handlers[] = {
 	[NPF_RPROC_ID_LAST]      = NULL
 };
 
+static_assert(ARRAY_SIZE(npf_rproc_handlers) - 1 == NPF_RPROC_ID_LAST,
+	      "npf rproc handlers iswrong size");
+
+
 unsigned int npf_rproc_max_rprocs(void)
 {
 	return	ARRAY_SIZE(npf_rproc_handlers) - 1;
@@ -105,12 +109,7 @@ int
 npf_create_rproc(const npf_rproc_ops_t *ops, npf_rule_t *rl, const char *args,
 		 void **handle)
 {
-	/*
-	 * assert at unit-test time that npf_rproc_id enum and
-	 * rproc_handlers[] array size match.
-	 */
 	assert(npf_rproc_max_rprocs() == NPF_RPROC_ID_LAST);
-	assert(ARRAY_SIZE(npf_rproc_handlers) - 1 == NPF_RPROC_ID_LAST);
 
 	if (!ops->ro_ctor) {
 		*handle = NULL;
