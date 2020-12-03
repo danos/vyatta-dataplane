@@ -128,8 +128,9 @@ struct dp_test_crypto_sa {
 
 void _dp_test_crypto_create_sa(const char *file, const char *func, int line,
 			       const struct dp_test_crypto_sa *sa, bool verify);
-void _dp_test_crypto_delete_sa(const char *file, int line,
-			       const struct dp_test_crypto_sa *sa, bool verify);
+void _dp_test_crypto_delete_sa_verify(const char *file, int line,
+				      const struct dp_test_crypto_sa *sa,
+				      bool verify);
 void _dp_test_crypto_expire_sa(const char *file, int line,
 			       const struct dp_test_crypto_sa *sa, bool hard);
 
@@ -139,9 +140,9 @@ void _dp_test_crypto_expire_sa(const char *file, int line,
 	_dp_test_crypto_create_sa(__FILE__, __func__, __LINE__, _sa, verify)
 
 #define dp_test_crypto_delete_sa(_sa)		\
-	_dp_test_crypto_delete_sa(__FILE__, __LINE__, _sa, true)
-#define dp_test_crypto_delete_sa_verify(_sa, verify)			\
-	_dp_test_crypto_delete_sa(__FILE__, __LINE__, _sa, verify)
+	_dp_test_crypto_delete_sa_verify(__FILE__, __LINE__, _sa, true)
+#define dp_test_crypto_delete_sa_verify(_sa, verify)		\
+	_dp_test_crypto_delete_sa_verify(__FILE__, __LINE__, _sa, verify)
 
 #define dp_test_crypto_expire_sa(_sa, _hard)	\
 	_dp_test_crypto_expire_sa(__FILE__, __LINE__, _sa, _hard)

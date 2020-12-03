@@ -784,9 +784,9 @@ void _dp_test_crypto_create_sa(const char *file, const char *func, int line,
 	free(algo_auth);
 }
 
-void _dp_test_crypto_delete_sa(const char *file, int line,
-			       const struct dp_test_crypto_sa *sa,
-			       bool verify)
+void _dp_test_crypto_delete_sa_verify(const char *file, int line,
+				      const struct dp_test_crypto_sa *sa,
+				      bool verify)
 {
 	dp_test_netlink_xfrm_delsa(sa->spi, sa->d_addr, sa->s_addr,
 				   sa->family, sa->mode, sa->reqid,
