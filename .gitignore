@@ -102,6 +102,7 @@ cscope.po.out
 !.checkpatch.conf
 !.clang-tidy
 !.clang-format
+!.editorconfig
 
 *.orig
 *.rej
