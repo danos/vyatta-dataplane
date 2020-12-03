@@ -680,7 +680,7 @@ static void apt_tuple_delete(struct apt_table *tbl, struct apt_tuple *at)
  */
 static struct apt_tuple *
 apt_tuple_lookup(struct apt_instance *ai, struct apt_match_key *m,
-		 enum apt_match_table *match_tbls, uint ntables)
+		 const enum apt_match_table *match_tbls, uint ntables)
 {
 	struct apt_table *tbl;
 	struct cds_lfht_node *node;
