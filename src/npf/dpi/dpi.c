@@ -289,7 +289,7 @@ dpi_session_flow_destroy(struct dpi_flow *flow)
 int
 dpi_session_first_packet(struct npf_session *se, struct npf_cache *npc,
 			 struct rte_mbuf *mbuf, int dir, size_t engines_len,
-			 uint8_t *engines)
+			 const uint8_t *engines)
 {
 	unsigned int i;
 	int ret = 0;
