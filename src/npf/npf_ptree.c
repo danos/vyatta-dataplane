@@ -129,6 +129,15 @@ struct ptree_leaf {
 	uint8_t            pl_key[0];	/* Must be last */
 };
 
+/* Ensure key starts on a word boundary */
+static_assert((offsetof(struct ptree_leaf, pl_key) & 0x3) == 0,
+	      "ptree_leaf key must start on word boundary");
+
+/* type field must be in same place in leaf and branch struct */
+static_assert(offsetof(struct ptree_node, pn_type) ==
+	      offsetof(struct ptree_leaf, pl_type),
+	      "ptree type field not in correct place");
+
 /*
  * We pass and store pointers to nodes, so casts are required to access leaf
  * objects
@@ -287,15 +296,8 @@ ptree_table_create(uint8_t keylen)
 	    (keylen & 0x3) != 0)
 		return NULL;
 
-	/* Ensure key starts on a word boundary */
-	assert((offsetof(struct ptree_leaf, pl_key) & 0x3) == 0);
-
 	if ((offsetof(struct ptree_leaf, pl_key) & 0x3) != 0)
 		return NULL;
-
-	/* type field must be in same place in leaf and branch struct */
-	assert(offsetof(struct ptree_node, pn_type) ==
-	       offsetof(struct ptree_leaf, pl_type));
 
 	pt = zmalloc_aligned(sizeof(*pt));
 	if (!pt)
