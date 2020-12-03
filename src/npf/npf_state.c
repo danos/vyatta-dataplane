@@ -161,8 +161,10 @@ void npf_state_set_icmp_strict(bool value)
 bool
 npf_state_init(vrfid_t vrfid, enum npf_proto_idx proto_idx, npf_state_t *nst)
 {
-	assert(SESSION_STATE_LAST < 255);
-	assert(NPF_TCPS_LAST < 255);
+	static_assert(SESSION_STATE_LAST < 255,
+		      "session state last is too big");
+	static_assert(NPF_TCPS_LAST < 255,
+		      "npf tcps last is too big");
 
 	rte_spinlock_init(&nst->nst_lock);
 
