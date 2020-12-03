@@ -603,7 +603,7 @@ dp_test_create_erspan_ipv4_pak(const char *saddr, const char *daddr,
 
 struct rte_mbuf *
 _dp_test_create_mpls_pak(uint8_t nlabels,
-			 label_t *labels, uint8_t mpls_ttl[],
+			 const label_t *labels, const uint8_t mpls_ttl[],
 			 const struct rte_mbuf *payload);
 
 /**
