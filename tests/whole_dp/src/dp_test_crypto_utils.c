@@ -916,4 +916,7 @@ generate_exp_unreachable6(struct rte_mbuf *input_pkt, int payload_len,
 	return exp;
 }
 
-
+void _dp_test_xfrm_set_nack(uint32_t err_count)
+{
+	xfrm_ack_err = err_count;
+}

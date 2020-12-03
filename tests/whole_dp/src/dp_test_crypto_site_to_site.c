@@ -19,6 +19,7 @@
 #include "dp_test_console.h"
 #include "dp_test_controller.h"
 #include "dp_test_npf_lib.h"
+#include "dp_test_xfrm_server.h"
 
 #include "main.h"
 #include "in_cksum.h"
@@ -843,8 +844,14 @@ static void s2s_common_setup(vrfid_t vrfid,
 
 	s2s_setup_interfaces(vrfid, with_vfp, out_of_order);
 
-	if (out_of_order == VRF_XFRM_OUT_OF_ORDER)
+	if (out_of_order == VRF_XFRM_OUT_OF_ORDER) {
 		verify = false;
+		/*
+		 * We expect the update to fail due to incomplete
+		 * interfaces so check for that
+		 */
+		dp_test_crypto_xfrm_set_nack(nipols + nopols);
+	}
 
 	for (i = 0; i < nipols; i++) {
 		ipol[i].vrfid = vrfid;
@@ -877,9 +884,9 @@ static void s2s_common_setup(vrfid_t vrfid,
 	if (out_of_order == VRF_XFRM_OUT_OF_ORDER) {
 		s2s_setup_interfaces_finish(vrfid, with_vfp);
 		for (i = 0; i < nipols; i++)
-			wait_for_policy(&ipol[i], true);
+			wait_for_policy(&ipol[i], false);
 		for (i = 0; i < nopols; i++)
-			wait_for_policy(&opol[i], true);
+			wait_for_policy(&opol[i], false);
 
 		wait_for_sa(&input_sa, true);
 		wait_for_sa(&output_sa, true);
@@ -1225,7 +1232,6 @@ static void _build_pak_and_expected_decrypt(struct rte_mbuf **enc_pkt_p,
 					transport_vrf, __FILE__,	\
 					__func__, __LINE__)
 
-
 static void null_encrypt_transport_main(vrfid_t vrfid)
 {
 	/*
@@ -1422,6 +1428,11 @@ static void encrypt_main(vrfid_t vrfid, enum vrf_and_xfrm_order out_of_order)
 			 NULL, NULL, 0, 0,
 			 XFRM_MODE_TUNNEL, VFP_FALSE, out_of_order);
 
+	if (out_of_order) {
+		s2s_common_teardown(vrfid, NULL, NULL, 0, 0,
+				    VFP_FALSE, out_of_order);
+		return;
+	}
 	/*
 	 * Construct the input ICMP ping packet.
 	 */

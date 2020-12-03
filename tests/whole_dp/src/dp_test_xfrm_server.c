@@ -40,6 +40,7 @@ static int process_xfrm_actor_message(zsock_t *sock)
 }
 
 uint32_t xfrm_seq_received;
+uint32_t xfrm_ack_err;
 
 static void process_xfrm_ack_message(zsock_t *sock)
 {
@@ -56,11 +57,18 @@ static void process_xfrm_ack_message(zsock_t *sock)
 	/* Netlink ACK/OK are carried in Error messages*/
 	dp_test_assert_internal(nlh->nlmsg_type == NLMSG_ERROR);
 	err_msg = mnl_nlmsg_get_payload(nlh);
-	/* An error code 0 indicates a ACK/OK */
-	dp_test_assert_internal(err_msg->error == 0);
+
+	/* Error code 0 indicates a ACK/OK else we have an error */
+	if (xfrm_ack_err) {
+		xfrm_ack_err--;
+		dp_test_assert_internal(err_msg->error != 0);
+	} else {
+		dp_test_assert_internal(err_msg->error == 0);
+	}
 
 	xfrm_seq_received++;
 
+	dp_test_assert_internal(xfrm_seq_received <= xfrm_seq);
 	zframe_destroy(&msg);
 }
 

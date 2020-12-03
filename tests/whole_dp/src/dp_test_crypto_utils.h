@@ -184,4 +184,9 @@ generate_exp_unreachable6(struct rte_mbuf *input_pkt, int payload_len,
 #define dp_test_crypto_check_xfrm_acks()			\
 	_dp_test_crypto_check_xfrm_acks(__FILE__, __LINE__)
 
+void _dp_test_xfrm_set_nack(uint32_t err_count);
+
+#define dp_test_crypto_xfrm_set_nack(count)	\
+	_dp_test_xfrm_set_nack(count)
+
 #endif /*_DP_TEST_CRYPTO_UTILS_H_ */
