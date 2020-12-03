@@ -579,7 +579,8 @@ static const char * const policy_names[] = {
 };
 
 
-static bool lag_member_is_active(portid_t active[], int len, uint16_t portid)
+static bool lag_member_is_active(const portid_t active[], int len, uint16_t
+				 portid)
 {
 	int i;
 
