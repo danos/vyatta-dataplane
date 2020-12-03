@@ -340,7 +340,7 @@ dp_test_exp_set_validate_ctx(struct dp_test_expected *exp, void *new_ctx,
  */
 void
 dp_test_exp_set_dont_care(struct dp_test_expected *exp, unsigned int pak_i,
-			  uint8_t *start, uint32_t len)
+			  const uint8_t *start, uint32_t len)
 {
 	struct dp_test_dont_care_range *range;
 	struct rte_mbuf *exp_pak;
