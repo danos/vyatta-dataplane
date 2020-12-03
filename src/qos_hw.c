@@ -2106,7 +2106,7 @@ qmap_to_fal_colour(uint8_t q, enum fal_packet_colour *fal_colour)
 
 static int
 qos_hw_create_ingress_map(fal_object_t pipe_sched_obj, struct queue_map *qmap,
-			  uint8_t *des2q)
+			  const uint8_t *des2q)
 {
 	uint8_t cp;
 	uint8_t q;
@@ -2214,7 +2214,7 @@ static int qos_hw_setup_queues(struct queue_map *qmap,
 			       uint8_t *wrr_weight, uint8_t *designators,
 			       struct qos_red_pipe_params **q_wred_info,
 			       uint8_t *lp_wrr, uint64_t *dscp_bitmap,
-			       uint8_t *des2q, uint8_t lp_des)
+			       const uint8_t *des2q, uint8_t lp_des)
 {
 	int cp;
 	uint8_t q;
@@ -2270,7 +2270,7 @@ static int qos_hw_setup_queues(struct queue_map *qmap,
 
 static int
 qos_hw_new_pipe(uint32_t pipe_id, fal_object_t subport_sched_obj,
-		uint16_t *port_qsize, struct subport_info *sinfo,
+		const uint16_t *port_qsize, struct subport_info *sinfo,
 		struct qos_pipe_params *pipe_params, struct queue_map *qmap,
 		uint32_t *ids, int8_t overhead)
 {
