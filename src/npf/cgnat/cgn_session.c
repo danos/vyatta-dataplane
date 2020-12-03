@@ -968,7 +968,8 @@ cgn_session_deactivate(struct cgn_session *cse)
 
 static ALWAYS_INLINE ulong cgn_hash(const struct cgn_3tuple_key *key)
 {
-	assert(sizeof(*key) == 12);
+	static_assert(sizeof(*key) == 12,
+		      "cgn 3 tuple key is wrong size");
 
 	/*
 	 * A special optimized version of jhash that handles 1 or more of
