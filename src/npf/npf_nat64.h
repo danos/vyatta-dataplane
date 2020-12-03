@@ -79,11 +79,11 @@ npf_nat64_4to6_in(const struct npf_config *npf_config,
 
 nat64_decision_t
 npf_nat64_6to4_out(npf_session_t **sep, struct ifnet *ifp, npf_cache_t *npc,
-		   struct rte_mbuf **m, uint16_t *npf_flag, int *rcp);
+		   struct rte_mbuf **m, const uint16_t *npf_flag, int *rcp);
 
 nat64_decision_t
 npf_nat64_4to6_out(npf_session_t **sep, struct ifnet *ifp, npf_cache_t *npc,
-		   struct rte_mbuf **m, uint16_t *npf_flag, int *rcp);
+		   struct rte_mbuf **m, const uint16_t *npf_flag, int *rcp);
 
 int npf_nat64_session_link(struct npf_session *se1, struct npf_session *se2);
 void npf_nat64_session_unlink(struct npf_session *se);
