@@ -1435,8 +1435,8 @@ static void init_rate_stats(struct rate_stats *stats)
 	gettimeofday(&stats->last_time, NULL);
 }
 
-void scale_rate_stats(struct rate_stats *stats, uint64_t *packets,
-		      uint64_t *bytes)
+void scale_rate_stats(struct rate_stats *stats, const uint64_t *packets,
+		      const uint64_t *bytes)
 {
 	struct timeval now, diff;
 	uint64_t scaled;

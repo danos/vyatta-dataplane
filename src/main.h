@@ -121,8 +121,8 @@ struct rate_stats {
 	uint64_t last_bytes;
 	struct timeval last_time;
 };
-void scale_rate_stats(struct rate_stats *stats, uint64_t *packets,
-		      uint64_t *bytes);
+void scale_rate_stats(struct rate_stats *stats, const uint64_t *packets,
+		      const uint64_t *bytes);
 
 #define DRV_PARAM_LIMITTXQ	(1<<0)	/* size of rxq == size of txq */
 #define DRV_PARAM_VIRTUAL	(1<<1)	/* is a "virtual" device */
