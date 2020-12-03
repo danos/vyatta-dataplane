@@ -22,6 +22,11 @@
 #define MSTP_MSTI_COUNT (STP_INST_COUNT)
 #define MSTP_MSTI_IST   (STP_INST_IST)
 
+static_assert(STP_INST_COUNT == MSTP_MSTI_COUNT,
+	      "stp and mstp values don't match");
+static_assert(STP_INST_IST == MSTP_MSTI_IST,
+	      "stp and mstp values don't match");
+
 struct mstp_vlan2mstiindex {
 	int8_t vlan2mstiindex[VLAN_N_VID];
 	struct rcu_head rcu;
