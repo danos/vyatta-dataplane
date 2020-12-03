@@ -804,7 +804,7 @@ void ids_set(uint32_t *loc, uint16_t sid, uint16_t did)
 }
 
 static ALWAYS_INLINE
-void ids_extract(uint32_t *loc, uint16_t *sid, uint16_t *did)
+void ids_extract(const uint32_t *loc, uint16_t *sid, uint16_t *did)
 {
 	*sid = *loc >> 16;
 	*did = *loc & 0xFFFF;
