@@ -324,7 +324,7 @@ static inline uint8_t wc_mask_to_mask(const uint8_t *wc_mask, uint8_t len)
  * The rules are stored in NPF in network byte order.
  * However rte_acl expects the rules to be in host byte order.
  */
-static void npf_rte_acl_add_v4_rule(uint8_t *match_addr, uint8_t *mask,
+static void npf_rte_acl_add_v4_rule(const uint8_t *match_addr, uint8_t *mask,
 				    uint32_t rule_no,
 				    struct acl4_rules *v4_rules)
 {
