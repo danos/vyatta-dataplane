@@ -56,7 +56,7 @@ pmf_hw_rule_add(struct gpc_rule *gprl)
 		goto log_add;
 
 #define FAL_ENTRY_FIX_FIELDS 3
-#define FAL_ENTRY_VAR_FIELDS (3 + 7 + 5)
+#define FAL_ENTRY_VAR_FIELDS (5 + 7 + 5)
 #define FAL_ENTRY_TOT_FIELDS (FAL_ENTRY_FIX_FIELDS + FAL_ENTRY_VAR_FIELDS)
 	struct fal_attribute_t ent_attrs[FAL_ENTRY_TOT_FIELDS] = {
 		[0] = {
@@ -79,6 +79,8 @@ pmf_hw_rule_add(struct gpc_rule *gprl)
 		= 1
 		+ !!(summary & (PMF_RAS_DROP|PMF_RAS_PASS))
 		+ !!(summary & PMF_RAS_COUNT_REF)
+		+ !!(summary & PMF_RAS_QOS_HW_DESIG)
+		+ !!(summary & PMF_RAS_QOS_COLOUR)
 		+ !!(summary & PMF_RAS_QOS_POLICE);
 	struct fal_acl_action_data_t *actions
 		= calloc(1, num_actions * sizeof(*actions));
@@ -114,6 +116,66 @@ pmf_hw_rule_add(struct gpc_rule *gprl)
 		summary &= ~PMF_RAS_COUNT_REF;
 		++nattr;
 		++num_actions;
+	}
+
+	/* Encode a designation (0..7) to set */
+	if (summary & PMF_RAS_QOS_HW_DESIG) {
+		ent_attrs[nattr].id = FAL_ACL_ENTRY_ATTR_ACTION_SET_DESIGNATION;
+		ent_attrs[nattr].value.aclaction = &actions[num_actions];
+
+		int32_t set_designation = 8; /* Invalid */
+		struct pmf_qos_mark const *qos_mark = rule->pp_action.qos_mark;
+
+		if (qos_mark && qos_mark->paqm_has_desig == PMV_TRUE)
+			set_designation = qos_mark->paqm_desig;
+
+		actions[num_actions].enable = true;
+		actions[num_actions].parameter.s32 = set_designation;
+
+		summary &= ~PMF_RAS_QOS_HW_DESIG;
+
+		/* Skip if invalid */
+		if (set_designation < 8) {
+			++nattr;
+			++num_actions;
+		}
+	}
+
+	/* Encode a colour (red/green/yellow) to set */
+	if (summary & PMF_RAS_QOS_COLOUR) {
+		ent_attrs[nattr].id = FAL_ACL_ENTRY_ATTR_ACTION_SET_COLOUR;
+		ent_attrs[nattr].value.aclaction = &actions[num_actions];
+
+		enum pmf_mark_colour cfg_colour = PMMC_UNSET;
+		struct pmf_qos_mark const *qos_mark = rule->pp_action.qos_mark;
+		if (qos_mark)
+			cfg_colour = qos_mark->paqm_colour;
+
+		enum fal_packet_colour set_colour = FAL_NUM_PACKET_COLOURS;
+		switch (cfg_colour) {
+		case PMMC_GREEN:
+			set_colour = FAL_PACKET_COLOUR_GREEN;
+			break;
+		case PMMC_YELLOW:
+			set_colour = FAL_PACKET_COLOUR_YELLOW;
+			break;
+		case PMMC_RED:
+			set_colour = FAL_PACKET_COLOUR_RED;
+			break;
+		default:
+			break;
+		}
+
+		actions[num_actions].enable = true;
+		actions[num_actions].parameter.s32 = set_colour;
+
+		summary &= ~PMF_RAS_QOS_COLOUR;
+
+		/* Skip if invalid */
+		if (set_colour < FAL_NUM_PACKET_COLOURS) {
+			++nattr;
+			++num_actions;
+		}
 	}
 
 	/* Encode use of a rule policer */
