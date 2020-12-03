@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2019-2021, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -334,6 +334,7 @@ struct pmf_rule {
 		struct pmf_nat		*nat;
 		struct pmf_pext_list	*handle;	/* "handle" rprocs */
 		struct pmf_pext_list	*extend;	/* action rprocs */
+		uintptr_t		qos_policer;	/* FAL object id */
 	} pp_action;
 	uint32_t pp_summary;
 	uint32_t pp_refcnt;
