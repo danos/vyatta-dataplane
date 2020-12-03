@@ -445,7 +445,7 @@ static int addr_incr(uint8_t *addr, int alen)
  * Similar logic to memcmp.  Return -1 if a1 < a2, +1 id a1 > a2, 0 id a1 ==
  * a2.  Addresses are in network byte order.
  */
-static int addr_cmp(uint8_t *a1, uint8_t *a2, int alen)
+static int addr_cmp(const uint8_t *a1, const uint8_t *a2, int alen)
 {
 	int i;
 
