@@ -186,15 +186,15 @@ static void qos_hw_setup_maplist(struct fal_qos_map_list_t *map_list,
 				map_list->list[l].value.des = ind;
 				switch (i) {
 				case 0:
-					map_list->list[l].value.color =
+					map_list->list[l].value.colour =
 						FAL_PACKET_COLOUR_GREEN;
 					break;
 				case 1:
-					map_list->list[l].value.color =
+					map_list->list[l].value.colour =
 						FAL_PACKET_COLOUR_YELLOW;
 					break;
 				case 2:
-					map_list->list[l].value.color =
+					map_list->list[l].value.colour =
 						FAL_PACKET_COLOUR_RED;
 					break;
 				}
@@ -2140,14 +2140,14 @@ qos_hw_create_ingress_map(fal_object_t pipe_sched_obj, struct queue_map *qmap,
 			}
 			map_list.list[cp].value.des = des;
 			ret = qmap_to_fal_colour(
-				q, &map_list.list[cp].value.color);
+				q, &map_list.list[cp].value.colour);
 			if (ret < 0)
 				return ret;
 
 			DP_DEBUG(QOS_HW, DEBUG, DATAPLANE,
 				 "map DSCP %d to tc/wrr %d/%d, des %d col %d\n",
 				 cp, qmap_to_tc(q), qmap_to_wrr(q), des,
-				 map_list.list[cp].value.color);
+				 map_list.list[cp].value.colour);
 		}
 	/*
 	 * If we're using the designation CLI the ingress-map has been
@@ -2194,7 +2194,7 @@ qos_hw_create_egress_map(struct qos_obj_db_obj *db_obj,
 		for (entry = 0; entry < FAL_QOS_MAP_DES_DP_VALUES; entry++) {
 			map_list.list[entry].key.des =
 				entry/FAL_NUM_PACKET_COLOURS;
-			map_list.list[entry].key.color =
+			map_list.list[entry].key.colour =
 				entry%FAL_NUM_PACKET_COLOURS;
 			map_list.list[entry].value.dot1p =
 				mark_map->entries[entry].pcp_value;

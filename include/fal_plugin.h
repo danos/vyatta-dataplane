@@ -391,7 +391,8 @@ struct fal_qos_map_params_t {
 	uint8_t des_used;
 	union {
 		int dp; /* deprecated */
-		enum fal_packet_colour color;
+		enum fal_packet_colour colour;
+		enum fal_packet_colour color; /* deprecated */
 	};
 };
 
