@@ -177,16 +177,18 @@ void lladdr_update(struct ifnet *ifp, struct llentry *la,
 
 	rte_spinlock_unlock(&la->ll_lock);
 
-	if (was_valid)
-		LLADDR_DEBUG("%s moved from %s to %s on %s\n",
-			     lladdr_ntop(la),
-			     ether_ntoa_r(&old_enaddr, b1),
-			     ether_ntoa_r(enaddr, b2),
-			     ifp->if_name);
-	else
+	if (was_valid) {
+		if (!rte_ether_addr_equal(enaddr, &old_enaddr))
+			LLADDR_DEBUG("%s moved from %s to %s on %s\n",
+				     lladdr_ntop(la),
+				     ether_ntoa_r(&old_enaddr, b1),
+				     ether_ntoa_r(enaddr, b2),
+				     ifp->if_name);
+	} else {
 		LLADDR_DEBUG("entry for %s resolved to %s\n",
 			     lladdr_ntop(la),
 			     ether_ntoa_r(enaddr, b1));
+	}
 
 	if (!was_valid) {
 		/* now valid: release any pending packets */
@@ -212,6 +214,11 @@ void lladdr_update(struct ifnet *ifp, struct llentry *la,
 
 	/* entry updated */
 	rte_atomic16_clear(&la->ll_idle);
+
+	/* Expiry time is updated in ll_age() for entries not just added */
+	if (la->ll_expire)
+		return;
+
 	la->ll_expire = rte_get_timer_cycles() +
 		rte_get_timer_hz() * ARP_CFG(arp_aging_time);
 
