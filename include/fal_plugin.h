@@ -3435,58 +3435,58 @@ enum fal_qos_queue_stat_t {
 	/** Get/set dropped bytes count [uint64_t] */
 	FAL_QOS_QUEUE_STAT_DROPPED_BYTES = 0x00000003,
 
-	/** Get/set green color tx packets count [uint64_t] */
+	/** Get/set green colour tx packets count [uint64_t] */
 	FAL_QOS_QUEUE_STAT_GREEN_PACKETS = 0x00000004,
 
-	/** Get/set green color tx bytes count [uint64_t] */
+	/** Get/set green colour tx bytes count [uint64_t] */
 	FAL_QOS_QUEUE_STAT_GREEN_BYTES = 0x00000005,
 
-	/** Get/set green color dropped packets count [uint64_t] */
+	/** Get/set green colour dropped packets count [uint64_t] */
 	FAL_QOS_QUEUE_STAT_GREEN_DROPPED_PACKETS = 0x00000006,
 
-	/** Get/set green color dropped packets count [uint64_t] */
+	/** Get/set green colour dropped bytes count [uint64_t] */
 	FAL_QOS_QUEUE_STAT_GREEN_DROPPED_BYTES = 0x00000007,
 
-	/** Get/set yellow color tx packets count [uint64_t] */
+	/** Get/set yellow colour tx packets count [uint64_t] */
 	FAL_QOS_QUEUE_STAT_YELLOW_PACKETS = 0x00000008,
 
-	/** Get/set yellow color tx bytes count [uint64_t] */
+	/** Get/set yellow colour tx bytes count [uint64_t] */
 	FAL_QOS_QUEUE_STAT_YELLOW_BYTES = 0x00000009,
 
-	/** Get/set yellow color dropped packets count [uint64_t] */
+	/** Get/set yellow colour dropped packets count [uint64_t] */
 	FAL_QOS_QUEUE_STAT_YELLOW_DROPPED_PACKETS = 0x0000000a,
 
-	/** Get/set yellow color dropped packets count [uint64_t] */
+	/** Get/set yellow colour dropped bytes count [uint64_t] */
 	FAL_QOS_QUEUE_STAT_YELLOW_DROPPED_BYTES = 0x0000000b,
 
-	/** Get/set red color tx packets count [uint64_t] */
+	/** Get/set red colour tx packets count [uint64_t] */
 	FAL_QOS_QUEUE_STAT_RED_PACKETS = 0x0000000c,
 
-	/** Get/set red color tx bytes count [uint64_t] */
+	/** Get/set red colour tx bytes count [uint64_t] */
 	FAL_QOS_QUEUE_STAT_RED_BYTES = 0x0000000d,
 
-	/** Get/set red color dropped packets count [uint64_t] */
+	/** Get/set red colour dropped packets count [uint64_t] */
 	FAL_QOS_QUEUE_STAT_RED_DROPPED_PACKETS = 0x0000000e,
 
-	/** Get/set red color dropped packets count [uint64_t] */
+	/** Get/set red colour dropped bytes count [uint64_t] */
 	FAL_QOS_QUEUE_STAT_RED_DROPPED_BYTES = 0x0000000f,
 
-	/** Get/set WRED green color dropped packets count [uint64_t] */
+	/** Get/set WRED green colour dropped packets count [uint64_t] */
 	FAL_QOS_QUEUE_STAT_GREEN_WRED_DROPPED_PACKETS = 0x00000010,
 
-	/** Get/set WRED green color dropped bytes count [uint64_t] */
+	/** Get/set WRED green colour dropped bytes count [uint64_t] */
 	FAL_QOS_QUEUE_STAT_GREEN_WRED_DROPPED_BYTES = 0x00000011,
 
-	/** Get/set WRED yellow color dropped packets count [uint64_t] */
+	/** Get/set WRED yellow colour dropped packets count [uint64_t] */
 	FAL_QOS_QUEUE_STAT_YELLOW_WRED_DROPPED_PACKETS = 0x00000012,
 
-	/** Get/set WRED yellow color dropped bytes count [uint64_t] */
+	/** Get/set WRED yellow colour dropped bytes count [uint64_t] */
 	FAL_QOS_QUEUE_STAT_YELLOW_WRED_DROPPED_BYTES = 0x00000013,
 
-	/** Get/set WRED red color dropped packets count [uint64_t] */
+	/** Get/set WRED red colour dropped packets count [uint64_t] */
 	FAL_QOS_QUEUE_STAT_RED_WRED_DROPPED_PACKETS = 0x00000014,
 
-	/** Get/set WRED red color dropped bytes count [uint64_t] */
+	/** Get/set WRED red colour dropped bytes count [uint64_t] */
 	FAL_QOS_QUEUE_STAT_RED_WRED_DROPPED_BYTES = 0x00000015,
 
 	/** Get/set WRED dropped packets count [uint64_t] */
@@ -3604,23 +3604,23 @@ enum fal_qos_map_type_t {
 	/** QOS Map to set DOT1P to Traffic class */
 	FAL_QOS_MAP_TYPE_DOT1P_TO_TC = 0x00000000,
 
-	/** QOS Map to set DOT1P to color */
-	FAL_QOS_MAP_TYPE_DOT1P_TO_COLOR = 0x00000001,
+	/** QOS Map to set DOT1P to colour */
+	FAL_QOS_MAP_TYPE_DOT1P_TO_COLOUR = 0x00000001,
 
 	/** QOS Map to set DSCP to Traffic class */
 	FAL_QOS_MAP_TYPE_DSCP_TO_TC = 0x00000002,
 
-	/** QOS Map to set DSCP to color */
-	FAL_QOS_MAP_TYPE_DSCP_TO_COLOR = 0x00000003,
+	/** QOS Map to set DSCP to colour */
+	FAL_QOS_MAP_TYPE_DSCP_TO_COLOUR = 0x00000003,
 
 	/** QOS Map to set traffic class to queue */
 	FAL_QOS_MAP_TYPE_TC_TO_QUEUE = 0x00000004,
 
-	/** QOS Map to set traffic class and color to DSCP */
-	FAL_QOS_MAP_TYPE_TC_AND_COLOR_TO_DSCP = 0x00000005,
+	/** QOS Map to set traffic class and colour to DSCP */
+	FAL_QOS_MAP_TYPE_TC_AND_COLOUR_TO_DSCP = 0x00000005,
 
-	/** QOS Map to set traffic class and color to DOT1P */
-	FAL_QOS_MAP_TYPE_TC_AND_COLOR_TO_DOT1P = 0x00000006,
+	/** QOS Map to set traffic class and colour to DOT1P */
+	FAL_QOS_MAP_TYPE_TC_AND_COLOUR_TO_DOT1P = 0x00000006,
 
 	/** QOS Map to set traffic class to priority group */
 	FAL_QOS_MAP_TYPE_TC_TO_PRIORITY_GROUP = 0x00000007,
@@ -3664,7 +3664,7 @@ enum fal_qos_map_attr_t {
 	 *
 	 * Defaults:
 	 * - All Dot1p/DSCP maps to traffic class 0
-	 * - All Dot1p/DSCP maps to color #FAL_PACKET_COLOR_GREEN
+	 * - All Dot1p/DSCP maps to colour #FAL_PACKET_COLOUR_GREEN
 	 * - All traffic class maps to queue 0
 	 *
 	 * @type fal_qos_map_list_t
