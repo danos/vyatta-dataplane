@@ -601,9 +601,6 @@ static int cgn_max_dest_sessions_cfg(FILE *f, int argc, char **argv)
 	if (argc < 3)
 		goto usage;
 
-	assert(CGN_DEST_SESSIONS_INIT <= CGN_DEST_SESSIONS_MAX);
-	assert(CGN_DEST_SESSIONS_MAX < USHRT_MAX);
-
 	tmp = (uint16_t)cgn_arg_to_int(argv[2]);
 	if (tmp > CGN_DEST_SESSIONS_MAX)
 		return -1;
