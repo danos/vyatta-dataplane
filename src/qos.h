@@ -156,6 +156,10 @@ struct qos_shaper_conf {
 #endif
 };
 
+static_assert(sizeof(struct qos_shaper_conf) ==
+	      sizeof(struct rte_sched_subport_params),
+	      "qos and dpdk structures are not of same size");
+
 /* Qos Scheduler sub port (one per vlan) */
 struct subport_info {
 	char attach_name[IFNAMSIZ + sizeof("/4294967295")];
