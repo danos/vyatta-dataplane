@@ -1035,7 +1035,7 @@ tbl8_recycle_check(const struct lpm6_tbl_entry *tbl8,
 	return -EINVAL;
 }
 
-static void tbl8_recycle(struct lpm6 *lpm, uint32_t indices[],
+static void tbl8_recycle(struct lpm6 *lpm, const uint32_t indices[],
 			int index_count)
 {
 	uint32_t i, j;
