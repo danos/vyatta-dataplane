@@ -87,7 +87,7 @@ static inline void clear_bit(uint8_t *a, int bit)
  * Is bit set in an address?  Address is in host byte order.  Least
  * significant bit is bit 0.
  */
-static inline bool test_bit(uint8_t *a, int bit)
+static inline bool test_bit(const uint8_t *a, int bit)
 {
 	return (a[bit/8] >> bit%8) & 1;
 }
@@ -111,7 +111,7 @@ static void clear_host_bits(uint8_t *a, int alen, int mask)
 /*
  * Compare two addresses.  Return -1 if a1 < a2, +1 id a1 > a2, 0 id a1 == a2.
  */
-static int addr_cmp(uint8_t *a1, uint8_t *a2, int alen)
+static int addr_cmp(const uint8_t *a1, const uint8_t *a2, int alen)
 {
 	int i;
 
@@ -152,7 +152,7 @@ static void addr_sr(uint8_t *addr, int alen)
  * Add a2 to a1 and store the result in r.  Returns 0 if successful, else -1.
  * r may point to the same memory as either a1 or a2.
  */
-static int addr_add(uint8_t *r, uint8_t *a1, uint8_t *a2, int alen)
+static int addr_add(uint8_t *r, const uint8_t *a1, const uint8_t *a2, int alen)
 {
 	int i;
 	uint x, co = 0;
@@ -200,7 +200,7 @@ static int addr_incr(uint8_t *addr, int alen)
  *      0x0A000008 gives 0x00000007
  *      0x0A001000 gives 0x00000FFF
  */
-static void host_mask(uint8_t *addr, uint8_t *mask, int alen)
+static void host_mask(const uint8_t *addr, uint8_t *mask, int alen)
 {
 	int i;
 
@@ -225,7 +225,7 @@ static void host_mask(uint8_t *addr, uint8_t *mask, int alen)
 /*
  * Count the number of leading zeros in an address
  */
-static int addr_clz(uint8_t *addr, int alen)
+static int addr_clz(const uint8_t *addr, int alen)
 {
 	assert(alen >= 4 && (alen & 0x3) == 0);
 
