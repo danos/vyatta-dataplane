@@ -229,11 +229,23 @@ lag_pb_create_handler(LAGConfig__LagCreate *lag_create)
 			return -EINVAL;
 
 		ret = lag_min_links(ifp, &minimum_links);
+		if (ret == -ENOTSUP)
+			return 0;
+
+		/* If min links was never set, lag_min_links will fail,
+		 * but this isn't a problem.
+		 */
+		if (ret == -EINVAL) {
+			minimum_links = 0;
+			ret = 0;
+		}
+
 		if (ret < 0) {
 			RTE_LOG(ERR, DATAPLANE, "%s: lag_min_links failed: %d\n",
 				__func__, ret);
 			return ret;
 		}
+
 		if (lag_create->minimum_links != minimum_links) {
 			lag_set_min_links(ifp, lag_create->minimum_links);
 			dp_event(DP_EVT_IF_LAG_CHANGE, 0, ifp,
