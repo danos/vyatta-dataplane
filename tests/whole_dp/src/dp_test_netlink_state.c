@@ -3527,6 +3527,7 @@ static int xfrm_attr(const struct nlattr *attr, void *data)
 	return MNL_CB_OK;
 }
 
+
 static void xfrm_nl_policy_decode(const struct nlmsghdr *nlh,
 				  const struct xfrm_userpolicy_info **info,
 				  const struct xfrm_userpolicy_id **id)
@@ -3936,6 +3937,51 @@ void dp_test_netlink_xfrm_delsa(uint32_t spi, /* Network byte order */
 		dp_test_assert_internal(0);
 	/* Signal an end of batch. This is a single msg batch */
 	nl_propagate_xfrm(xfrm_server_push_sock, nlh, nlh->nlmsg_len, "END");
+}
+
+void dp_test_netlink_xfrm_getsa(uint32_t spi, /* Network byte order */
+				const char *dst,
+				const char *src,
+				uint16_t family,
+				uint8_t mode,
+				uint32_t reqid,
+				vrfid_t vrfid)
+{
+	struct xfrm_usersa_id *usersa_id;
+	struct nlmsghdr *nlh;
+	xfrm_address_t daddr;
+	char *buf = malloc(MNL_SOCKET_BUFFER_SIZE);
+	uint32_t ifindex, mark_val = 1;
+
+	memset(buf, 0, MNL_SOCKET_BUFFER_SIZE);
+	nlh = mnl_nlmsg_put_header(buf);
+	nlh->nlmsg_type = XFRM_MSG_GETSA;
+	nlh->nlmsg_flags = NLM_F_REQUEST;
+	nlh->nlmsg_seq = ++xfrm_seq;
+
+	usersa_id = mnl_nlmsg_put_extra_header(nlh, sizeof(*usersa_id));
+	usersa_id->family = family;
+
+	if (dp_test_prefix_str_to_xfrm_addr(dst, &daddr, NULL, family))
+		dp_test_assert_internal(0);
+	memcpy(&usersa_id->daddr, &daddr, sizeof(usersa_id->daddr));
+	usersa_id->spi = spi;
+
+	if (mark_val) {
+		struct xfrm_mark mark = {
+			.v = htonl(mark_val),
+			.m = 0xffffffff};
+		mnl_attr_put(nlh, XFRMA_MARK, sizeof(struct xfrm_mark), &mark);
+	}
+
+	if (vrfid != VRF_DEFAULT_ID && vrfid != VRF_UPLINK_ID)
+		ifindex = dp_test_translate_vrf_id(vrfid);
+	else
+		ifindex = 0;
+
+	mnl_attr_put(nlh, XFRMA_IF_ID, sizeof(ifindex), &ifindex);
+
+	nl_propagate_xfrm(xfrm_server_push_sock, nlh, nlh->nlmsg_len, "STATS");
 }
 
 void dp_test_netlink_xfrm_expire(uint32_t spi, /* Network byte order */

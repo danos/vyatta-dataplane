@@ -12,6 +12,7 @@
 #include <czmq.h>
 #include <zmq.h>
 #include <libmnl/libmnl.h>
+#include <linux/xfrm.h>
 
 #include "dp_test_controller.h"
 #include "dp_test_lib_internal.h"
@@ -42,13 +43,14 @@ static int process_xfrm_actor_message(zsock_t *sock)
 
 uint32_t xfrm_seq_received;
 uint32_t xfrm_ack_err;
+uint64_t xfrm_bytes, xfrm_packets;
 
 static void process_xfrm_ack_message(zsock_t *sock)
 {
 	zframe_t *msg;
-
 	struct nlmsghdr *nlh;
 	struct nlmsgerr *err_msg;
+	struct xfrm_usersa_info *sa;
 
 	msg = zframe_recv(sock);
 	assert(msg);
@@ -56,16 +58,28 @@ static void process_xfrm_ack_message(zsock_t *sock)
 	dp_test_assert_internal(nlh);
 
 	/* Netlink ACK/OK are carried in Error messages*/
-	dp_test_assert_internal(nlh->nlmsg_type == NLMSG_ERROR);
-	err_msg = mnl_nlmsg_get_payload(nlh);
+	switch (nlh->nlmsg_type) {
+	case NLMSG_ERROR:
+		err_msg = mnl_nlmsg_get_payload(nlh);
+		if (xfrm_ack_err) {
+			xfrm_ack_err--;
+			dp_test_assert_internal(err_msg->error != 0);
+		} else {
+			dp_test_assert_internal(err_msg->error == 0);
+		}
+		break;
+	case XFRM_MSG_NEWSA:
+		/* Stats request response */
+		sa = mnl_nlmsg_get_payload(nlh);
+		dp_test_assert_internal(sa);
+		xfrm_bytes = sa->curlft.bytes;
+		xfrm_packets = sa->curlft.packets;
+		break;
+	default:
+		dp_test_assert_internal(nlh->nlmsg_type == NLMSG_ERROR);
+	}
 
 	/* Error code 0 indicates a ACK/OK else we have an error */
-	if (xfrm_ack_err) {
-		xfrm_ack_err--;
-		dp_test_assert_internal(err_msg->error != 0);
-	} else {
-		dp_test_assert_internal(err_msg->error == 0);
-	}
 
 	xfrm_seq_received++;
 

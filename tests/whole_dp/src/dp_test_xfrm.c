@@ -15,6 +15,7 @@
 
 #include "crypto/crypto_forward.h"
 
+#include "dp_test_xfrm_server.h"
 #define LOCAL_ADDRESS "10.10.2.2"
 #define NETWORK_LOCAL "10.10.1.0/24"
 #define PEER_ADDRESS "10.10.2.3"
@@ -141,7 +142,6 @@ DP_START_TEST(xfrm_policy, create_two_policies_vrf)
 } DP_END_TEST;
 
 DP_DECL_TEST_CASE(xfrm_suite, xfrm_sa, NULL, NULL);
-
 /* can we create to SAs with only key and hmac args? */
 DP_START_TEST(xfrm_sa, create_two_sas_crypto_only)
 {
@@ -192,6 +192,13 @@ DP_START_TEST(xfrm_sa, create_two_sas_crypto_only)
 
 	dp_test_crypto_create_sa(&input_sa);
 	dp_test_crypto_create_sa(&output_sa);
+
+	dp_test_xfrm_poison_sa_stats();
+	dp_test_crypto_get_sa(&input_sa);
+	dp_test_crypto_check_xfrm_sa_cntrs(0, 0, true);
+
+	dp_test_xfrm_poison_sa_stats();
+	dp_test_crypto_check_xfrm_sa_cntrs(0, 0, false);
 
 	dp_test_check_state_show("ipsec sad",
 				 "\"cipher\": \"aes-cbc\",\n"
