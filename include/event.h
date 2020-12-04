@@ -81,6 +81,9 @@ enum dp_event {
 	DP_EVENT_IF_ADDR_DEL,
 	DP_EVENT_IF_CREATE,
 	DP_EVENT_IF_DELETE,
+	DP_EVENT_IF_LAG_CHANGE,
+	DP_EVENT_IF_LAG_ADD_MEMBER,
+	DP_EVENT_IF_LAG_DELETE_MEMBER,
 };
 
 enum dp_if_lag_event {
@@ -110,12 +113,12 @@ struct dp_events_ops {
 	/* DP_EVENT_IF_ADDR_DEL */
 	void (*if_addr_delete)(struct ifnet *ifp,
 			uint32_t ifindex, int af, const void *addr);
-	/* DP_EVT_IF_LAG_CHANGE */
+	/* DP_EVENT_IF_LAG_CHANGE */
 	void (*if_lag_change)(struct ifnet *ifp, enum dp_if_lag_event event);
-	/* DP_EVT_IF_LAG_ADD_MEMBER */
+	/* DP_EVENT_IF_LAG_ADD_MEMBER */
 	void (*if_lag_add_member)(struct ifnet *team,
 				  struct ifnet *ifp);
-	/* DP_EVT_IF_LAG_DELETE_MEMBER */
+	/* DP_EVENT_IF_LAG_DELETE_MEMBER */
 	void (*if_lag_delete_member)(struct ifnet *team,
 				     struct ifnet *ifp);
 	/* DP_EVENT_IF_LINK_CHANGE */
