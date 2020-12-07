@@ -679,7 +679,6 @@ full_txring: __cold_label;
 full_hwq: __cold_label;
 	if_incr_full_hwq(ifp, 1);
 	rte_pktmbuf_free(m);
-	return;
 }
 
 void dp_pkt_burst_flush(void)

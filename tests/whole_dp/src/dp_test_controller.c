@@ -293,19 +293,19 @@ snapshot_new(void)
 static void
 delport_request(zsock_t *sock, zmsg_t *msg, zframe_t **envelope)
 {
-	return;
+	/* nothing to do */
 }
 
 static void
 snapshot_send(snapshot_t *self, zsock_t *socket, zframe_t *to)
 {
-	return;
+	/* nothing to do */
 }
 
 static void
 config_send(zsock_t *socket, zframe_t *to)
 {
-	return;
+	/* nothing to do */
 }
 
 static void send_som(snapshot_t *snap, zsock_t *sock, zframe_t **envelope,
@@ -603,25 +603,25 @@ addport_request(zsock_t *sock, zmsg_t *msg, zframe_t **envelope)
 static void
 link_request(const char *state, zsock_t *sock, zmsg_t *msg, zframe_t **envelope)
 {
-	return;
+	/* nothing to do */
 }
 
 static void
 stats_update(zmsg_t *msg)
 {
-	return;
+	/* nothing to do */
 }
 
 static void
 mrt_request(zsock_t *sock, zmsg_t *msg, zframe_t **envelope)
 {
-	return;
+	/* nothing to do */
 }
 
 static void
 mrt6_request(zsock_t *sock, zmsg_t *msg, zframe_t **envelope)
 {
-	return;
+	/* nothing to do */
 }
 
 static void

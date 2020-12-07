@@ -40,12 +40,12 @@ void capture_hardware(const struct ifnet *ifp, struct rte_mbuf *mbuf)
 void
 capture_burst(const struct ifnet *ifp, struct rte_mbuf *pkts[], unsigned int n)
 {
-	return;
+	/* nothing to do */
 }
 
 void capture_cancel(struct ifnet *ifp)
 {
-	return;
+	/* nothing to do */
 }
 
 int cmd_capture(FILE *f, int argc, char **argv)
@@ -64,7 +64,7 @@ int slowpath_init(void)
 
 void capture_init(uint16_t mbuf_sz)
 {
-	return;
+	/* nothing to do */
 }
 
 void capture_destroy(void)

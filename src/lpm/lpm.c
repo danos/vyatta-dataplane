@@ -877,7 +877,6 @@ lpm_tracker_rule_changed(struct lpm *lpm, struct rt_tracker_info *ti_info,
 		RTE_LOG(ERR, LPM, "LPM failed to update tracker\n");
 
 	ti_info->rti_cb_func(ti_info);
-	return;
 }
 
 /*

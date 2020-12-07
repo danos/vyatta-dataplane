@@ -231,7 +231,6 @@ void local_packet(struct ifnet *ifp, struct rte_mbuf *m)
 	};
 
 	pipeline_fused_l2_local(&pkt);
-	return;
 }
 
 /*

@@ -329,7 +329,6 @@ void ip_out_features(struct rte_mbuf *m, struct ifnet *ifp,
 
  drop:	__cold_label;
 	rte_pktmbuf_free(m);
-	return;
 }
 
 static ALWAYS_INLINE

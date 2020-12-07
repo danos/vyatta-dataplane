@@ -531,7 +531,6 @@ void ip6_out_features(struct rte_mbuf *m, struct ifnet *ifp,
 		pl_pkt.npf_flags |= NPF_FLAG_FROM_US;
 
 	pipeline_fused_ipv6_out(&pl_pkt);
-	return;
 }
 
 static ALWAYS_INLINE
