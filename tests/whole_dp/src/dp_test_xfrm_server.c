@@ -44,6 +44,9 @@ static int process_xfrm_actor_message(zsock_t *sock)
 uint32_t xfrm_seq_received;
 uint32_t xfrm_ack_err;
 uint64_t xfrm_bytes, xfrm_packets;
+uint32_t xfrm_expire_spi;
+xfrm_address_t xfrm_expire_dst;
+uint16_t xfrm_expire_family;
 
 static void process_xfrm_ack_message(zsock_t *sock)
 {
@@ -51,6 +54,8 @@ static void process_xfrm_ack_message(zsock_t *sock)
 	struct nlmsghdr *nlh;
 	struct nlmsgerr *err_msg;
 	struct xfrm_usersa_info *sa;
+	struct xfrm_user_expire *expire;
+	bool seq_inc = true;
 
 	msg = zframe_recv(sock);
 	assert(msg);
@@ -75,13 +80,27 @@ static void process_xfrm_ack_message(zsock_t *sock)
 		xfrm_bytes = sa->curlft.bytes;
 		xfrm_packets = sa->curlft.packets;
 		break;
+	case XFRM_MSG_EXPIRE:
+		expire = mnl_nlmsg_get_payload(nlh);
+		dp_test_assert_internal(expire);
+		dp_test_assert_internal(expire->state.id.proto == IPPROTO_ESP);
+
+		xfrm_expire_family = expire->state.family;
+		xfrm_expire_dst	= expire->state.id.daddr;
+		/*
+		 * This is a autonomous message, i.e. no xfrm request
+		 * was sent, so do not inc the xfrm_seq_received
+		 */
+		seq_inc = false;
+		break;
 	default:
 		dp_test_assert_internal(nlh->nlmsg_type == NLMSG_ERROR);
 	}
 
 	/* Error code 0 indicates a ACK/OK else we have an error */
 
-	xfrm_seq_received++;
+	if (seq_inc)
+		xfrm_seq_received++;
 
 	dp_test_assert_internal(xfrm_seq_received <= xfrm_seq);
 	zframe_destroy(&msg);
