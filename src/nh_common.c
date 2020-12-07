@@ -841,6 +841,15 @@ void next_hop_mark_path_state(enum dp_rt_path_state state,
 	struct next_hop_gw_entry *gw_entry;
 	struct cds_lfht_iter iter;
 
+	/*
+	 * The interface may have been deleted and since we may not be
+	 * running in the main thread, then it is expected there could
+	 * be a window of time between the interface being deleted and
+	 * sources updating their datastructures to reflect this.
+	 */
+	if (!ifp)
+		return;
+
 	intf_entry = next_hop_intf_hash_lookup(ifp);
 	if (!intf_entry)
 		return;
