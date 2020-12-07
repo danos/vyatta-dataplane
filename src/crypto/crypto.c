@@ -65,6 +65,7 @@
 #include "vrf_internal.h"
 #include "vti.h"
 #include "crypto_rte_pmd.h"
+#include "xfrm_client.h"
 
 struct cds_list_head;
 
@@ -1581,6 +1582,7 @@ void crypto_show_summary(FILE *f)
 
 /* runs in the context of a crypto thread */
 void crypto_expire_request(uint32_t spi, uint32_t reqid,
+			   xfrm_address_t dst, uint16_t family,
 			   uint8_t proto, uint8_t hard)
 {
 	int rv;
@@ -1592,7 +1594,8 @@ void crypto_expire_request(uint32_t spi, uint32_t reqid,
 		return;
 	}
 
-	rv = zsock_bsend(sock, "4411", spi, reqid, proto, hard);
+	rv = zsock_bsend(sock, "444444211", spi, reqid, dst.a6[0], dst.a6[1],
+			 dst.a6[2], dst.a6[3], family, proto, hard);
 	if (rv < 0)
 		CRYPTO_ERR("Failed to send expire event to main (%d)\n", rv);
 
@@ -1602,50 +1605,25 @@ void crypto_expire_request(uint32_t spi, uint32_t reqid,
 /* running in the main thread, handle crypto events */
 static int handle_crypto_event(void *arg)
 {
-	zsock_t *sock = (zsock_t *)arg;
-	int rc;
+	xfrm_address_t dst;
+	uint16_t family;
 	uint8_t proto, hard;
 	uint32_t spi, reqid;
+	zsock_t *sock = (zsock_t *)arg;
+	int rc;
 
-	rc = zsock_brecv(sock, "4411", &spi, &reqid, &proto, &hard);
+	rc = zsock_brecv(sock, "444444211", &spi, &reqid,
+			 &dst.a6[0], &dst.a6[1],
+			 &dst.a6[2], &dst.a6[3],
+			 &family, &proto, &hard);
 	if (rc < 0) {
 		CRYPTO_ERR("Failed to receive event for main\n");
 		return 0;
 	}
 
-	if (!rekey_listener)
-		return 0;
-
-	char *outbuf = NULL;
-	size_t outsize = 0;
-	FILE *f = open_memstream(&outbuf, &outsize);
-
-	if (!f) {
-		CRYPTO_ERR("Failed to open stream for rekey\n");
-		return 0;
-	}
-
-	json_writer_t *wr = jsonw_new(f);
-
-	if (!wr) {
-		CRYPTO_ERR("Failed to open json writer for rekey\n");
-		fclose(f);
-		free(outbuf);
-		return 0;
-	}
-
-	jsonw_name(wr, "REKEY");
-	jsonw_start_object(wr);
-	jsonw_uint_field(wr, "SPI", spi);
-	jsonw_uint_field(wr, "proto", proto);
-	jsonw_uint_field(wr, "reqid", reqid);
-	jsonw_uint_field(wr, "hard", hard);
-	jsonw_end_object(wr);
-	jsonw_destroy(&wr);
-
-	/* the buffer isn't flushed until fclose */
-	fclose(f);
-	zstr_send(rekey_listener, outbuf);
+	rc = xfrm_client_send_expire(&dst, family, spi, reqid, proto, hard);
+	if (rc < 0)
+		CRYPTO_ERR("Failed to send SA expire\n");
 
 	return 0;
 }

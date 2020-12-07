@@ -48,6 +48,8 @@ void crypto_sadb_increment_counters(struct sadb_sa *sa,
 				    uint32_t packets);
 
 uint32_t crypto_sadb_get_reqid(struct sadb_sa *sa);
+uint32_t crypto_sadb_get_family(struct sadb_sa *sa);
+xfrm_address_t crypto_sadb_get_dst(struct sadb_sa *sa);
 
 void crypto_sadb_mark_as_blocked(struct sadb_sa *sa);
 

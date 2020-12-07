@@ -83,6 +83,54 @@ int xfrm_client_send_ack(uint32_t seq, int err)
 	return rc;
 }
 
+int xfrm_client_send_expire(xfrm_address_t *dst, uint16_t family, uint32_t spi,
+			    uint32_t reqid, uint8_t proto, uint8_t hard)
+{
+	struct xfrm_user_expire *expire;
+	struct nlmsghdr *nlh;
+	zframe_t *frame;
+	char buf[MNL_SOCKET_BUFFER_SIZE];
+	int rc;
+
+	memset(buf, 0, MNL_SOCKET_BUFFER_SIZE);
+
+	nlh = mnl_nlmsg_put_header(buf);
+	nlh->nlmsg_type = XFRM_MSG_EXPIRE;
+	nlh->nlmsg_flags = 0;
+	nlh->nlmsg_seq = 0;
+
+	expire = mnl_nlmsg_put_extra_header(nlh, sizeof(*expire));
+	if (!expire) {
+		DP_DEBUG(CRYPTO, ERR, DATAPLANE,
+			 "XFRM expire failed SPI:%u\n", spi);
+		return -1;
+	}
+
+	expire->state.family = family;
+	expire->state.id.daddr = *dst;
+	expire->state.id.proto = proto;
+	expire->state.id.spi = spi;
+	expire->state.reqid = reqid;
+	expire->hard = hard;
+
+	frame = zframe_new(nlh, nlh->nlmsg_len);
+	if (!frame) {
+		DP_DEBUG(CRYPTO, ERR, DATAPLANE,
+			 "XFRM expire can't create frame SPI:%u\n",
+			 spi);
+		return -1;
+	}
+
+	rc = zframe_send(&frame, xfrm_push_socket, 0);
+	if (rc < 0) {
+		DP_DEBUG(CRYPTO, ERR, DATAPLANE,
+			 "XFRM expire failed to send SPU:%u\n",
+			 spi);
+		zframe_destroy(&frame);
+		return -1;
+	}
+	return rc;
+}
 /*
  * Build an SA message back to the server with the stats that were requested.
  */

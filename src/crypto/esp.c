@@ -1365,6 +1365,8 @@ esp_output_pre_encrypt(struct crypto_pkt_ctx *ctx_arr[],
 			crypto_rekey_requests++;
 			crypto_expire_request(sa->spi,
 					      crypto_sadb_get_reqid(sa),
+					      crypto_sadb_get_dst(sa),
+					      crypto_sadb_get_family(sa),
 					      IPPROTO_ESP, 0 /* hard */);
 		}
 		if (unlikely(sa->seq > (ESP_SEQ_SA_BLOCK_LIMIT - 1)))

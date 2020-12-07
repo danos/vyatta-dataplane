@@ -1344,6 +1344,7 @@ void crypto_sadb_increment_counters(struct sadb_sa *sa, uint32_t bytes,
 	    (sa->byte_count > sa->byte_limit)) {
 		crypto_sadb_mark_as_blocked(sa);
 		crypto_expire_request(sa->spi, sa->reqid,
+				      sa->dst, sa->family,
 				      IPPROTO_ESP, 0 /* hard */);
 	}
 }
@@ -1421,6 +1422,16 @@ void crypto_sadb_tunl_overhead_unsubscribe(uint32_t reqid,
 uint32_t crypto_sadb_get_reqid(struct sadb_sa *sa)
 {
 	return sa->reqid;
+}
+
+uint32_t crypto_sadb_get_family(struct sadb_sa *sa)
+{
+	return sa->family;
+}
+
+xfrm_address_t crypto_sadb_get_dst(struct sadb_sa *sa)
+{
+	return sa->dst;
 }
 
 void crypto_sadb_mark_as_blocked(struct sadb_sa *sa)

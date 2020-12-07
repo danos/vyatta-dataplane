@@ -7,6 +7,7 @@
 #define XFRM_CLIENT_H
 
 #include <czmq.h>
+#include <linux/xfrm.h>
 #include "control.h"
 #include "crypto/crypto_sadb.h"
 
@@ -28,4 +29,6 @@ int xfrm_client_init(void);
 int xfrm_client_send_ack(uint32_t seq, int err);
 int xfrm_client_send_sa_stats(uint32_t seq, uint32_t spi,
 			      struct crypto_sadb_stats *stats);
+int xfrm_client_send_expire(xfrm_address_t *dst, uint16_t family, uint32_t spi,
+			    uint32_t reqid, uint8_t proto, uint8_t hard);
 #endif /* XFRM_CLIENT_H */
