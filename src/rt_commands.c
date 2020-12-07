@@ -659,12 +659,12 @@ int cmd_arp(FILE *f, int argc, char **argv)
 }
 
 /*
- * cmd_arp_cfg_handler (replacing cmd_garp)
+ * cmd_garp_cfg_handler (replacing cmd_garp)
  * Protobuf handler for gratuitous arp commands.
  * See the GArpConfig.proto file for details.
  */
 static int
-cmd_arp_cfg_handler(struct pb_msg *msg)
+cmd_garp_cfg_handler(struct pb_msg *msg)
 {
 	void *payload = (void *)((char *)msg->msg);
 	int len = msg->msg_len;
@@ -719,9 +719,9 @@ end:
 	return ret;
 }
 
-PB_REGISTER_CMD(arp_cfg_cmd) = {
-	.cmd = "vyatta:cmd_arp_cfg",
-	.handler = cmd_arp_cfg_handler,
+PB_REGISTER_CMD(garp_cfg_cmd) = {
+	.cmd = "vyatta:garp",
+	.handler = cmd_garp_cfg_handler,
 };
 
 /* Process "nd6 ..." command */

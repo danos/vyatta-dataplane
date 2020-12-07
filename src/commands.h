@@ -18,7 +18,6 @@
 struct ifnet;
 
 int cmd_arp(FILE *f, int argc, char **argv);
-int cmd_arp_cfg(FILE *f, int argc, char **argv);
 int cmd_route(FILE *f, int argc, char **argv);
 int cmd_multicast(FILE *f, int argc, char **argv);
 int cmd_npf_cfg(FILE *f, int argc, char **argv);
