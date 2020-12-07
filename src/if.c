@@ -89,6 +89,7 @@
 #include "json_writer.h"
 #include "l2_rx_fltr.h"
 #include "l2tp/l2tpeth.h"
+#include "lag.h"
 #include "main.h"
 #include "controller.h"
 #include "netinet6/in6.h"
@@ -115,6 +116,8 @@
 struct pl_feature_registration;
 
 static void **if_node_instance_cleanup_cbs;
+
+static const struct dp_event_ops if_allmcast_event_ops;
 
 /* A child interface should only inherit the parents if_port value if it is
  * valid.
@@ -258,6 +261,8 @@ void interface_init(void)
 				   NULL);
 	if (!ifname_hash)
 		rte_panic("Can't allocate if_name hash for interfaces\n");
+
+	dp_event_register(&if_allmcast_event_ops);
 }
 
 void interface_cleanup(void)
@@ -1528,6 +1533,47 @@ void ifpromisc(struct ifnet *ifp, int onswitch)
 	l2_rx_fltr_state_change(ifp);
 }
 
+/*
+ * Whenever a member is added to or removed from a LAG (bond
+ * interface), need to ensure that the multicast promiscuous mode
+ * setting is updated.
+ */
+static void
+if_allmulti_lag_member_add(struct ifnet *lag, struct ifnet *member)
+{
+	if (lag->if_allmcast_ref != 0) {
+		DP_DEBUG(MULTICAST, INFO, MCAST,
+			 "Enable multicast promiscuous mode for LAG member %s\n",
+			 member->if_name);
+		member->if_allmcast_ref = lag->if_allmcast_ref;
+		l2_rx_fltr_state_change(member);
+	}
+}
+
+static void
+if_allmulti_lag_member_delete(struct ifnet *lag, struct ifnet *member)
+{
+	if (lag->if_allmcast_ref != 0) {
+		DP_DEBUG(MULTICAST, INFO, MCAST,
+			 "Disable multicast promiscuous mode for LAG member %s\n",
+			 member->if_name);
+		member->if_allmcast_ref = 0;
+		l2_rx_fltr_state_change(member);
+	}
+}
+
+static const struct dp_event_ops if_allmcast_event_ops = {
+	.if_lag_add_member = if_allmulti_lag_member_add,
+	.if_lag_delete_member = if_allmulti_lag_member_delete,
+};
+
+static void if_allmulti_lag_member(struct ifnet *member, void *arg)
+{
+	int onoff = *((int *)arg);
+
+	if_allmulti(member, onoff);
+}
+
 /* Enable promiscuous reception of IP multicasts from the interface */
 void if_allmulti(struct ifnet *ifp, int onoff)
 {
@@ -1544,6 +1590,21 @@ void if_allmulti(struct ifnet *ifp, int onoff)
 	else {
 		ifp->if_allmcast_ref--;
 		assert(ifp->if_allmcast_ref >= 0);
+	}
+
+	if (is_team(ifp)) {
+		int err;
+
+		/*
+		 * Propagate the multicast promiscuous mode settings
+		 * down to each member of the LAG.
+		 */
+		err = lag_walk_team_members(ifp, if_allmulti_lag_member,
+					    &onoff);
+		if (err < 0)
+			DP_DEBUG(MULTICAST, INFO, MCAST,
+				 "Failed to update multicast promiscuous mode for "
+				 "LAG members %s.\n", ifp->if_name);
 	}
 
 	l2_rx_fltr_state_change(ifp);
