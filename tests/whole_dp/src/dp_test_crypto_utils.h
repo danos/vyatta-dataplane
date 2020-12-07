@@ -190,4 +190,12 @@ void _dp_test_xfrm_set_nack(uint32_t err_count);
 #define dp_test_crypto_xfrm_set_nack(count)	\
 	_dp_test_xfrm_set_nack(count)
 
+void  _dp_test_crypto_flush(void);
+#define dp_test_crypto_flush()			\
+	_dp_test_crypto_flush()
+
+void  _dp_test_crypto_commit(void);
+#define dp_test_crypto_commit()		\
+	_dp_test_crypto_commit()
+
 #endif /*_DP_TEST_CRYPTO_UTILS_H_ */

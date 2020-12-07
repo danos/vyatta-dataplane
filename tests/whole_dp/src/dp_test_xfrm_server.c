@@ -19,6 +19,7 @@
 #include "util.h"
 #include "zmq_dp.h"
 #include "czmq.h"
+#include "dp_test_crypto_utils.h"
 
 static int process_xfrm_actor_message(zsock_t *sock)
 {
@@ -114,6 +115,8 @@ dp_test_xfrm_server_thread_run(zsock_t *pipe, void *args)
 		},
 	};
 	int item_count = ARRAY_SIZE(items);
+
+	dp_test_crypto_flush();
 
 	while (!zsys_interrupted) {
 		if (zmq_poll(items, item_count,

@@ -1306,17 +1306,18 @@ data_send_free(void *data, void *hint)
 	free(data);
 }
 
-void nl_propagate_xfrm(zsock_t *sock, void *data, size_t size,
-		       const char *hdr)
+void nl_propagate_xfrm(zsock_t *sock, const struct nlmsghdr *nlh,
+		       size_t size, const char *hdr)
 {
 	zmq_msg_t m;
 
-	if (data)
-		zmq_msg_init_data(&m, (void *)data, size,
+	if (nlh)
+		zmq_msg_init_data(&m, (void *)nlh, size,
 				  data_send_free, NULL);
 	zmq_send_const(zsock_resolve(sock), hdr,
-		       strlen(hdr) + 1, ZMQ_SNDMORE);
-	zmq_msg_send(&m, zsock_resolve(sock), 0);
+		       strlen(hdr) + 1, nlh ? ZMQ_SNDMORE : 0);
+	if (nlh)
+		zmq_msg_send(&m, zsock_resolve(sock), 0);
 }
 
 void
