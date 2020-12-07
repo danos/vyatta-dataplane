@@ -84,7 +84,7 @@ ipv6_post_route_lookup_process(struct pl_packet *pkt, void *context __unused)
 
 	/* MPLS imposition required because nh has given us a label */
 	if (unlikely(nh_outlabels_present(&nxt->outlabels))) {
-		mpls_unlabeled_input(ifp, pkt->mbuf,
+		mpls_unlabeled_input(ifp, pkt->mbuf, MPT_IPV6,
 				     NH_TYPE_V6GW, nxt, ip6->ip6_hops);
 		return IPV6_POST_ROUTE_LOOKUP_FINISH;
 	}

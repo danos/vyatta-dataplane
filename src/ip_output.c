@@ -70,7 +70,8 @@ void ip_output(struct rte_mbuf *m, bool srced_forus)
 
 	/* MPLS imposition required because nh has given us a label */
 	if (nh_outlabels_present(&nxt->outlabels)) {
-		mpls_unlabeled_input(ifp, m, NH_TYPE_V4GW, nxt, ip->ttl);
+		mpls_unlabeled_input(ifp, m, MPT_IPV4, NH_TYPE_V4GW, nxt,
+				     ip->ttl);
 		return;
 	}
 

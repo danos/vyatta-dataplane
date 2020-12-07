@@ -1719,12 +1719,12 @@ static void mpls_output(struct rte_mbuf *m)
 }
 
 void mpls_unlabeled_input(struct ifnet *input_ifp, struct rte_mbuf *m,
+			  enum mpls_payload_type payload_type,
 			  enum nh_type ip_nh_type,
 			  struct next_hop *ip_nh,
 			  uint8_t ttl)
 {
 	const union next_hop_outlabels *labels;
-	enum mpls_payload_type payload_type;
 	struct mpls_label_cache cache;
 	unsigned int num_labels;
 	uint32_t local_label;
@@ -1749,7 +1749,6 @@ void mpls_unlabeled_input(struct ifnet *input_ifp, struct rte_mbuf *m,
 		 */
 		nht = ip_nh_type;
 		nh = ip_nh;
-		payload_type = MPT_UNSPEC;
 	} else {
 		/*
 		 * Push all except the top (local) label onto the label cache
