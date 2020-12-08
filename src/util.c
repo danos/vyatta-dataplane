@@ -561,8 +561,8 @@ int bitmask_parse_bytes(bitmask_t *mask, const uint8_t *bytes, uint8_t len)
 		uint64_t val;
 
 		val = bytes[i];
-		val <<= (4 * (offs % (UINT64_BIT / 4)));
-		mask->_bits[offs / (UINT64_BIT / 4)] |= val;
+		val <<= (8 * (offs % (UINT64_BIT / 8)));
+		mask->_bits[offs / (UINT64_BIT / 8)] |= val;
 	}
 
 	return 0;
