@@ -7,15 +7,17 @@
 #define XFRM_CLIENT_H
 
 #include <czmq.h>
-
 #include "control.h"
+#include "crypto/crypto_sadb.h"
+
+extern bool xfrm_direct;
 
 struct xfrm_client_aux_data {
 	vrfid_t  *vrf;
 	bool ack_msg;
+	uint32_t seq;
 };
 
-extern bool xfrm_direct;
 /*
  * Close all the client sockets for this source.
  */
@@ -24,4 +26,6 @@ void xfrm_client_unsubscribe(void);
 int xfrm_client_init(void);
 
 int xfrm_client_send_ack(uint32_t seq, int err);
+int xfrm_client_send_sa_stats(uint32_t seq, uint32_t spi,
+			      struct crypto_sadb_stats *stats);
 #endif /* XFRM_CLIENT_H */
