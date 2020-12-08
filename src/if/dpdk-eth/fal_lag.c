@@ -470,9 +470,12 @@ static bool
 fal_lag_is_team(struct ifnet *ifp)
 {
 	struct swport_dev_info swport_dev_info;
-	struct rte_eth_dev_info dev_info;
+	struct rte_eth_dev_info dev_info = { 0 };
+	int rc;
 
-	rte_eth_dev_info_get(ifp->if_port, &dev_info);
+	rc = rte_eth_dev_info_get(ifp->if_port, &dev_info);
+	if (rc || dev_info.driver_name == NULL)
+		return false;
 
 	if (strcmp(dev_info.driver_name, "net_sw_port") != 0)
 		return false;
