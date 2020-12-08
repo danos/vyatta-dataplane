@@ -1,0 +1,38 @@
+// Copyright (c) 2020, AT&T Intellectual Property.  All rights reserved.
+//
+// SPDX-License-Identifier: LGPL-2.1-only
+//
+// Neighbor Resolution Configuration protobuf definitions
+//
+
+syntax="proto2";
+
+option go_package = "github.com/danos/vyatta-dataplane/protobuf/go/NbrResConfig";
+
+message NbrResConfig {
+	enum Prot {
+		ARP	= 0;
+		ND6	= 1;
+	}
+
+	enum Action {
+		SET	= 0;
+		DELETE	= 1;
+	}
+
+	enum Param {
+	     MAX_ENTRY = 0;
+	     RES_TOKEN = 1;
+	     AGING_TIME = 2;
+	}
+
+	optional Prot prot = 1;
+
+	optional Action	action = 2;
+
+	optional string ifname = 3;
+
+	optional Param param = 4;
+
+	optional uint32 value = 5;
+}

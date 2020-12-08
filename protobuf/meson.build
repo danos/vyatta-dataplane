@@ -24,7 +24,8 @@ protobuf_sources= [
         'SynceConfig.proto',
         'LAGConfig.proto',
         'GPCConfig.proto',
-        'FeatureAffinityConfig.proto'
+        'FeatureAffinityConfig.proto',
+        'NbrResConfig.proto',
 ]
 
 install_data(protobuf_sources,

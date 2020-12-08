@@ -39,7 +39,6 @@
 #include "ip_addr.h"
 #include "controller.h"
 #include "mstp.h"
-#include "netinet6/nd6_nbr.h"
 #include "netlink.h"
 #include "npf/config/npf_config.h"
 #include "pl_commands.h"
@@ -497,7 +496,6 @@ static const struct msg_handler message_handlers_main[] = {
 	{ 0,	"mpls",		process_config_cmd,	 NULL },
 	{ 0,	"mstp",		process_config_cmd,	 cmd_mstp },
 	{ 0,	"nat-cfg",	process_config_cmd,	 cmd_nat },
-	{ 0,	"nd6",		process_config_cmd,	 cmd_nd6_set_cfg },
 	{ 0,	"neigh",	process_netlink_data,	 NULL },
 	{ 0,	"netconf",	process_netlink_data,	 NULL },
 	{ 2,	"npf-cfg",	process_config_cmd,	 cmd_npf_cfg },
