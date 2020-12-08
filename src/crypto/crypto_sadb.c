@@ -36,6 +36,7 @@
 #include "vplane_debug.h"
 #include "vplane_log.h"
 #include "vrf_internal.h"
+#include "xfrm_client.h"
 
 #define SADB_DEBUG(args...)				\
 	DP_DEBUG(CRYPTO, DEBUG, SADB, args)
@@ -1592,13 +1593,16 @@ void crypto_incmpl_sa_make_complete(void)
 {
 	struct cds_lfht_iter iter;
 	struct crypto_incmpl_xfrm_sa *sa;
+	struct xfrm_client_aux_data aux;
+
 	vrfid_t vrf_id = VRF_DEFAULT_ID;
+	aux.vrf = &vrf_id;
 
 	crypto_incmpl_xfrm_sa_stats.if_complete++;
 
 	cds_lfht_for_each_entry(crypto_incmpl_sa, &iter,
 				sa, hash_node) {
-		rtnl_process_xfrm_sa(sa->nlh, &vrf_id);
+		rtnl_process_xfrm_sa(sa->nlh, &aux);
 	}
 }
 
