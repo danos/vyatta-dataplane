@@ -1,3 +1,106 @@
+vyatta-dataplane (3.12.9) unstable; urgency=medium
+
+  [ Srinivas Narayan ]
+  * util: Add API to construct a bitmask from a stream of bytes
+  * protobuf: Add protobuf definition for feature affinity
+  * affinity: Add dummy command handler for feature affinity
+  * crypto: migrate crypto engine set command handling to protobuf
+  * crypto: Add protobuf handling for setting crypto-fwd cpus
+  * crypto: Emit debug message for forwarding cores being set
+  * crypto: Convert fwd queue to multi-consumer
+
+  [ Robert Shearman ]
+  * nh_common: ignore path state updates for deleted interfaces
+    (Fixes: VRVDR-53541)
+  * include: add FAL_INVALID_VRF_ID define
+
+  [ Gavin Shearer ]
+  * fal: add FAL attribute for configuring a colour aware policer
+  * fal: change COLOR to COLOUR in FAL API enums for consistency
+  * fal: change color to colour in fal_qos_map_params_t
+  * fal: use decimal instead of hex for for enum values
+  * fal: remove commas after and "end" or "max" enum value
+
+  [ Charles (Chas) Williams ]
+  * event: expose if_link_change (Bugfix: VRVDR-53783)
+
+  [ Paul Atkins ]
+  * bridge: move bridge_timer and related funcs to avoid prototype
+  * bridge: remove redundant return
+  * protobuf_util: malloc ipv6 addr data as a multiple of bytes
+  * mstp: replace assert with static_assert
+  * qos: replace assert with static_assert
+  * cgn_cmd_cfg: replace assert with static_assert
+  * cgn_sess_state: replace assert with static_assert
+  * ipv6_rsmbl: replace assert with static_assert
+  * cgn_sess2: replace assert with static_assert
+  * cgn_session: replace assert with static_assert
+  * npf_cache: replace assert with static_assert
+  * npf_state: replace assert with static_assert
+  * npf_rc: replace assert with static_assert
+  * npf_state_tcp: replace assert with static_assert
+  * npf_ptree: replace assert with static_assert
+  * npf_rproc: replace assert with static_assert
+  * l3_tcp_mss: remove unnecessary asserts
+
+  [ Charles (Chas) Williams ]
+  * lag: handle first set of min links (Bugfix: VRVDR-53788)
+
+  [ Nicholas Brown ]
+  * Jenkinsfile: expose libcheck test result to Jenkins
+
+  [ Dewi Morgan ]
+  * mpls: payload_type needed for ip frag handling
+
+  [ Paul Atkins ]
+  * dpdk_lag: make pointers that are not modified const
+  * iptun_common: make pointers that are not modified const
+  * lpm6: make pointers that are not modified const
+  * qos_hw: make pointers that are not modified const
+  * sfp: make pointers that are not modified const
+  * main: make pointers that are not modified const
+  * dpi: make pointers that are not modified const
+  * ip6_options: make pointers that are not modified const
+  * alg_rpc: make pointers that are not modified const
+  * cgn_policy: make pointers that are not modified const
+  * alg_apt: make pointers that are not modified const
+  * npf_nat64: make pointers that are not modified const
+  * npf_cidr_util: make pointers that are not modified const
+  * npf_rte_acl: make pointers that are not modified const
+  * npf_addrgrp: make pointers that are not modified const
+  * ut:dp_test_npf_addrgrp: make pointers that are not modified const
+  * ut:dp_test_npf_cgnat: make pointers that are not modified const
+  * session: make pointers that are not modified const
+  * ut:dp_test_lib_exp: make pointers that are not modified const
+  * ut:dp_test_lib_intf: make pointers that are not modified const
+  * ut:dp_test_pktmbuf_lib: make pointers that are not modified const
+
+  [ Simon Barber ]
+  * CRYPTO: Retrieve and store the XFRM clients pull and push socket info
+  * CRYPTO:Add Dataplane xfrm client
+  * CRYPTO: Add hooks for xfrm_client init
+  * UT:CRYPTO Create xfrm server sockets
+  * UT:CRYPTO Convert xfrm netlink mesasges to use xfrm server
+  * UT:CRYPTO Set message sequence number in xfrm netlink hdr
+  * UT:CRYPTO Add xfrm_server ack receive processing
+  * UT:CRYPTO Check the number of xfrm acks received
+  * CRYPTO: Add support for XFRM ACKs when NPF policies are updated
+  * UT:CRYPTO Handle NACKs being returned for incomplete policies
+  * CRYPTO:Introduce batch updates from the server
+  * UT:CRYPTO: Add msg header to xfrm server messages
+  * UT:CRYPTO: Build xfrm UT messages in heap memory
+  * UT:CRYPTO: Add a public delete_sa_verify accessor
+
+  [ Charles (Chas) Williams ]
+  * clang: remove redundant control flow
+
+  [ Brian Russell ]
+  * gpc: add colour awareness to protobuf
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Tue, 08 Dec 2020 14:49:50 +0000
+
 vyatta-dataplane (3.12.8) unstable; urgency=medium
 
   [ Paul Atkins ]
