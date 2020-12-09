@@ -948,6 +948,8 @@ if_node_instance_set_cleanup_cb(struct pl_feature_registration *feat)
 		if (!fp_cbs)
 			return -ENOMEM;
 		rcu_assign_pointer(if_node_instance_cleanup_cbs, fp_cbs);
+	} else {
+		fp_cbs = if_node_instance_cleanup_cbs;
 	}
 
 	if (!fp_cbs[fp_id]) {
@@ -959,6 +961,8 @@ if_node_instance_set_cleanup_cb(struct pl_feature_registration *feat)
 		if (!feat_cbs)
 			return -ENOMEM;
 		rcu_assign_pointer(fp_cbs[fp_id], feat_cbs);
+	} else {
+		feat_cbs = fp_cbs[fp_id];
 	}
 
 	feat_cbs[feat->id] = feat->node->feat_setup_cleanup_cb;
