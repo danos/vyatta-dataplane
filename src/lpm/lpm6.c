@@ -159,12 +159,10 @@ static inline int tracker_cmp(const struct rt_tracker_info *r1,
 		      &r2->dst_addr.address.ip_v6, LPM6_IPV6_ADDR_SIZE);
 }
 
-#ifndef __clang_analyzer__
 /* Generate internal functions and make them static. */
 RB_GENERATE_STATIC(lpm6_rules_tree, lpm6_rule, link, rules_cmp)
 RB_GENERATE_STATIC(lpm6_tracker_tree, rt_tracker_info, rti_tree_node,
 		   tracker_cmp)
-#endif /* __clang_analyzer__ */
 
 /*
  * Takes an array of uint8_t (IPv6 address) and masks it using the depth.
