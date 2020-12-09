@@ -10,4 +10,14 @@ CheckOptions:
     value:           '2'
   - key:             readability-braces-around-statements.ShortStatementLines
     value:           '2'
+  - key:             readability-function-size.StatementThreshold
+    value:           '1540'
+  - key:             readability-function-size.BranchThreshold
+    value:           '98'
+  - key:             readability-function-size.ParameterThreshold
+    value:           '22'
+  - key:             readability-function-size.NestingThreshold
+    value:           '7'
+  - key:             readability-function-size.VariableThreshold
+    value:           '293'
 ...
