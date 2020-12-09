@@ -50,27 +50,27 @@ typedef struct npf_match_cb_tbl {
 	npf_match_destroy_cb_t   npf_match_destroy_cb;
 } npf_match_cb_tbl;
 
-int npf_match_register_cb_tbl(enum npf_ruleset_type rlset_type,
-			      npf_match_cb_tbl *cb);
+int npf_match_register_cb_tbl(enum npf_ruleset_type rs_type,
+			      npf_match_cb_tbl *tbl);
 
-int npf_match_init(enum npf_ruleset_type rlset_type,
+int npf_match_init(enum npf_ruleset_type rs_type,
 		   int af, const char *name,
 		   uint32_t max_rules, npf_match_ctx_t **ctx);
 
-int npf_match_add_rule(enum npf_ruleset_type rlset_type,
+int npf_match_add_rule(enum npf_ruleset_type rs_type,
 		       int af, npf_match_ctx_t *ctx, uint32_t rule_no,
 		       uint8_t *match_addr, uint8_t *mask,
 		       void *match_ctx);
 
-int npf_match_build(enum npf_ruleset_type rlset_type,
+int npf_match_build(enum npf_ruleset_type rs_type,
 		    int af, npf_match_ctx_t **ctx);
 
-int npf_match_classify(enum npf_ruleset_type rlset_type,
+int npf_match_classify(enum npf_ruleset_type rs_type,
 		       int af, npf_match_ctx_t *ctx,
 		       npf_cache_t *npc, struct npf_match_cb_data *data,
 		       npf_rule_t **rl);
 
-int npf_match_destroy(enum npf_ruleset_type rlset_type,
+int npf_match_destroy(enum npf_ruleset_type rs_type,
 		      int af, npf_match_ctx_t **ctx);
 
 #endif

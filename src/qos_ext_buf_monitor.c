@@ -228,11 +228,11 @@ qos_ext_buf_get_evt_by_sample_result(
 
 	if (sample_result == EXT_BUF_SPL_R_THRESHOLD_ONLY)
 		return EXT_BUF_EVT_THRESHOLD_ONLY;
-	else if (sample_result == EXT_BUF_SPL_R_REJECTPKT_ONLY)
+	if (sample_result == EXT_BUF_SPL_R_REJECTPKT_ONLY)
 		return EXT_BUF_EVT_REJECTPKT_ONLY;
-	else if (sample_result == EXT_BUF_SPL_R_THRESHOLD_REJECTPKT)
+	if (sample_result == EXT_BUF_SPL_R_THRESHOLD_REJECTPKT)
 		return EXT_BUF_EVT_THRESHOLD_REJECTPKT;
-	else if (sample_result == EXT_BUF_SPL_R_NONE) {
+	if (sample_result == EXT_BUF_SPL_R_NONE) {
 		if (cur_state->state == EXT_BUF_S_CLEAR)
 			return EXT_BUF_EVT_NONE;
 		cur_state->consecutive_good_samples_cnt++;

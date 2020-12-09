@@ -269,12 +269,12 @@ void cgn_sess_state_init(struct cgn_state *st, uint8_t proto, uint16_t port);
 /*
  * Evaluate session state for packet
  *
- * statep	Pointer to state variable in 3-tuple or 5-tuple session
+ * st           Pointer to state variable in 3-tuple or 5-tuple session
  * cpk		Packet decomposition
  * dir		Forwards or backwards
  * start_time	Session start time, unix epoch microseconds
  */
-void cgn_sess_state_inspect(struct cgn_state *ss, struct cgn_packet *cpk,
+void cgn_sess_state_inspect(struct cgn_state *st, struct cgn_packet *cpk,
 			    int dir, uint64_t start_time);
 
 /*

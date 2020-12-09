@@ -162,6 +162,7 @@ struct sadb_sa {
 	/* --- cacheline 3 boundary (192 bytes) --- */
 	uint8_t replay_window;
 	uint8_t pending_del;
+	uint8_t fwd_core;
 	uint64_t replay_bitmap;
 	struct ip6_hdr ip6_hdr;
 	struct ifnet *feat_attach_ifp;
@@ -348,9 +349,9 @@ int cipher_setup_ctx(const struct xfrm_algo *,
 		     uint32_t extra_flags);
 void cipher_teardown_ctx(struct sadb_sa *sa);
 
-int crypto_openssl_session_setup(struct crypto_session *ctx);
+int crypto_openssl_session_setup(struct crypto_session *sess);
 
-void crypto_openssl_session_teardown(struct crypto_session *ctx);
+void crypto_openssl_session_teardown(struct crypto_session *sess);
 
 void crypto_engine_summary(json_writer_t *wr, const struct sadb_sa *sa);
 
@@ -437,6 +438,7 @@ enum ipsec_cnt_types {
 	CRYPTO_CIPHER_OP_FAILED,
 	CRYPTO_DIGEST_OP_FAILED,
 	CRYPTO_DIGEST_CB_FAILED,
+	CRYPTO_PP_ENQ_FAILED,
 	IPSEC_CNT_MAX /* this must be last */
 };
 
@@ -484,18 +486,11 @@ ipsec_counters[RTE_MAX_LCORE][IPSEC_CNT_MAX] __rte_cache_aligned;
 uint32_t cipher_get_encryption_overhead(struct sadb_sa *sa,
 					uint16_t family);
 
-void crypto_sadb_peer_overhead_subscribe(const xfrm_address_t *peer_address,
-					 uint16_t family, uint32_t reqid,
+void crypto_sadb_tunl_overhead_subscribe(uint32_t reqid,
 					 struct crypto_overhead *overhead,
 					 vrfid_t vrfid);
 
-void crypto_sadb_peer_overhead_unsubscribe(const xfrm_address_t *peer_address,
-					   uint16_t family,
-					   struct crypto_overhead *overhead,
-					   vrfid_t vrfid);
-
-int crypto_sadb_peer_overhead_change_reqid(const xfrm_address_t *peer_address,
-					   uint16_t family, uint32_t reqid,
+void crypto_sadb_tunl_overhead_unsubscribe(uint32_t reqid,
 					   struct crypto_overhead *overhead,
 					   vrfid_t vrfid);
 

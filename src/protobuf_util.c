@@ -21,9 +21,11 @@ int dp_protobuf_get_ipaddr(IPAddress *addr_msg, struct ip_addr *addr)
 		       sizeof(addr->address.ip_v4));
 		addr->type = AF_INET;
 		return 0;
-	} else if (addr_msg->address_oneof_case ==
-		   IPADDRESS__ADDRESS_ONEOF_IPV6_ADDR &&
-		   sizeof(addr->address.ip_v6) == addr_msg->ipv6_addr.len) {
+	}
+
+	if (addr_msg->address_oneof_case ==
+	    IPADDRESS__ADDRESS_ONEOF_IPV6_ADDR &&
+	    sizeof(addr->address.ip_v6) == addr_msg->ipv6_addr.len) {
 		memcpy(&addr->address.ip_v6,
 		       addr_msg->ipv6_addr.data,
 		       addr_msg->ipv6_addr.len);
@@ -49,8 +51,7 @@ int dp_protobuf_create_ipaddr(IPAddress **addr_msg)
 		return -1;
 	}
 	memcpy(*addr_msg, &addr, sizeof(addr));
-	(*addr_msg)->ipv6_addr.data = (unsigned char *)
-		malloc(sizeof(uint32_t) * 4);
+	(*addr_msg)->ipv6_addr.data = malloc(sizeof(uint8_t) * 16);
 	if (!(*addr_msg)->ipv6_addr.data) {
 		free(*addr_msg);
 		RTE_LOG(ERR, DATAPLANE,

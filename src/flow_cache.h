@@ -65,20 +65,22 @@ int flow_cache_teardown_lcore(struct flow_cache *cache, unsigned int lcore_id);
  *   A NULL value indicates a flow entry that does not match
  *   any rule in the application's ruleset
  *
- * @param context
+ * @param ctx
  *   Application specific context corresponding to rule
  *
  * @param m
  *   Packet belonging to flow. The address family is expected
  *   to match the address family used to create the cache
  *
+ * @param ftype
+ *   The type of flow to add to the cache.
  * @return
  *   0 on success
  *   -EINVAL if the address family of the packet does not match
  *   -ENOMEM if there is a memory allocation failure
  *   -ENOSPC if the cache is full
  */
-int flow_cache_add(struct flow_cache *cache, void *rule, uint16_t context,
+int flow_cache_add(struct flow_cache *cache, void *rule, uint16_t ctx,
 		   struct rte_mbuf *m, enum flow_cache_ftype ftype);
 
 /**

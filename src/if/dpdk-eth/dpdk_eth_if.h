@@ -37,6 +37,9 @@ struct dpdk_eth_if_softc {
 	struct cds_list_head scd_fal_lag_member_link;
 	fal_object_t         scd_fal_port_lag_obj; /* Port or LAG FAL object */
 	fal_object_t         scd_fal_lag_member_obj; /* LAG member FAL object */
+	/* LAG configuration */
+	bool		     has_min_links;
+	uint16_t	     min_links;
 };
 
 void dpdk_eth_if_start_port(struct ifnet *ifp);

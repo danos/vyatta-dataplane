@@ -79,6 +79,15 @@ enum dp_event {
 	DP_EVENT_IF_VRF_SET,
 	DP_EVENT_IF_ADDR_ADD,
 	DP_EVENT_IF_ADDR_DEL,
+	DP_EVENT_IF_CREATE,
+	DP_EVENT_IF_DELETE,
+	DP_EVENT_IF_LAG_CHANGE,
+	DP_EVENT_IF_LAG_ADD_MEMBER,
+	DP_EVENT_IF_LAG_DELETE_MEMBER,
+};
+
+enum dp_if_lag_event {
+	DP_IF_LAG_EVENT_MIN_LINKS_CHANGE,
 };
 
 /*
@@ -90,6 +99,10 @@ struct dp_events_ops {
 	void (*vrf_create)(struct vrf *vrf);
 	/* DP_EVENT_VRF_DELETE */
 	void (*vrf_delete)(struct vrf *vrf);
+	/* DP_EVENT_IF_CREATE */
+	void (*if_create)(struct ifnet *ifp);
+	/* DP_EVENT_IF_DELETE */
+	void (*if_delete)(struct ifnet *ifp);
 	/* DP_EVENT_IF_RENAME */
 	void (*if_rename)(struct ifnet *ifp, const char *old_name);
 	/* DP_EVENT_IF_VRF_SET */
@@ -100,6 +113,16 @@ struct dp_events_ops {
 	/* DP_EVENT_IF_ADDR_DEL */
 	void (*if_addr_delete)(struct ifnet *ifp,
 			uint32_t ifindex, int af, const void *addr);
+	/* DP_EVENT_IF_LAG_CHANGE */
+	void (*if_lag_change)(struct ifnet *ifp, enum dp_if_lag_event event);
+	/* DP_EVENT_IF_LAG_ADD_MEMBER */
+	void (*if_lag_add_member)(struct ifnet *team,
+				  struct ifnet *ifp);
+	/* DP_EVENT_IF_LAG_DELETE_MEMBER */
+	void (*if_lag_delete_member)(struct ifnet *team,
+				     struct ifnet *ifp);
+	/* DP_EVENT_IF_LINK_CHANGE */
+	void (*if_link_change)(struct ifnet *ifp, bool up, uint32_t speed);
 };
 
 /*

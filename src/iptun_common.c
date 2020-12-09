@@ -37,7 +37,7 @@ ip_tos_ecn_set_inner(void *inner_hdr, uint16_t prot, uint8_t new_inner)
 }
 
 void
-ip6_tos_copy_inner(uint32_t *outer_flow, uint32_t *inner_flow)
+ip6_tos_copy_inner(uint32_t *outer_flow, const uint32_t *inner_flow)
 {
 	uint32_t outer = ntohl(*outer_flow);
 	uint32_t inner = ntohl(*inner_flow);
@@ -48,7 +48,7 @@ ip6_tos_copy_inner(uint32_t *outer_flow, uint32_t *inner_flow)
 }
 
 /* Copy dscp from inner Ipv6 to outer IPv4 */
-void ip_ip6_dscp_copy_inner(uint8_t *outer_tos, uint32_t *inner_flow)
+void ip_ip6_dscp_copy_inner(uint8_t *outer_tos, const uint32_t *inner_flow)
 {
 	uint32_t inner = ntohl(*inner_flow);
 
@@ -66,7 +66,7 @@ void ip6_ip_dscp_copy_inner(uint32_t *outer_flow, uint8_t inner_tos)
 }
 
 void
-ip6_tos_copy_outer_noecn(uint32_t *outer_flow, uint32_t *inner_flow)
+ip6_tos_copy_outer_noecn(const uint32_t *outer_flow, uint32_t *inner_flow)
 {
 	uint32_t outer = ntohl(*outer_flow);
 	uint32_t inner = ntohl(*inner_flow);
@@ -95,7 +95,7 @@ ip_tos_ecn_encap(uint8_t *outer_tos, uint8_t inner_tos)
 }
 
 void
-ip6_tos_ecn_encap(uint32_t *outer_flow, uint32_t *inner_flow)
+ip6_tos_ecn_encap(uint32_t *outer_flow, const uint32_t *inner_flow)
 {
 	uint32_t outer = ntohl(*outer_flow);
 	uint32_t inner = ntohl(*inner_flow);
@@ -124,7 +124,7 @@ ip6_ip_ecn_encap(uint32_t *outer_flow, uint8_t inner_tos)
 
 /* ecn encap when outer is IPv4 and inner is IPv6 */
 void
-ip_ip6_ecn_encap(uint8_t *outer_tos, uint32_t *inner_flow)
+ip_ip6_ecn_encap(uint8_t *outer_tos, const uint32_t *inner_flow)
 {
 	uint32_t inner = ntohl(*inner_flow);
 
@@ -207,7 +207,7 @@ ip_tos_ecn_decap(uint8_t outer_tos, char *inner_hdr, uint16_t prot)
  */
 char *
 mbuf_get_inner_ip(struct rte_mbuf *m, const char *outer, char *inner,
-		  uint16_t *next_prot)
+		  const uint16_t *next_prot)
 {
 	unsigned int len;
 

@@ -1161,7 +1161,7 @@ error:
  */
 nat64_decision_t
 npf_nat64_6to4_out(npf_session_t **sep, struct ifnet *ifp, npf_cache_t *npc,
-		   struct rte_mbuf **m, uint16_t *npf_flag, int *rcp)
+		   struct rte_mbuf **m, const uint16_t *npf_flag, int *rcp)
 {
 	npf_session_t *se4 = *sep;
 	struct npf_nat64 *n64;
@@ -1478,7 +1478,7 @@ error:
  */
 nat64_decision_t
 npf_nat64_4to6_out(npf_session_t **sep, struct ifnet *ifp, npf_cache_t *npc,
-		   struct rte_mbuf **m, uint16_t *npf_flag, int *rcp)
+		   struct rte_mbuf **m, const uint16_t *npf_flag, int *rcp)
 {
 	npf_session_t *se6 = *sep;
 	struct npf_nat64 *n64;

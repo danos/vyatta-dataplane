@@ -99,6 +99,10 @@ enum crypto_action {
 
 RTE_DEFINE_PER_LCORE(struct crypto_pkt_buffer *, crypto_pkt_buffer);
 
+RTE_DEFINE_PER_LCORE(struct crypto_fwd_info *, crypto_fwd);
+
+struct crypto_fwd_info crypto_fwd[RTE_MAX_LCORE];
+
 static const char * const ipsec_counter_names[] = {
 	[ENQUEUED_INPUT_IPV4] = "v4_in",
 	[ENQUEUED_INPUT_IPV6] = "v6_in",
@@ -161,6 +165,7 @@ static const char * const ipsec_counter_names[] = {
 	[CRYPTO_CIPHER_OP_FAILED] = "Failed cipher op",
 	[CRYPTO_DIGEST_OP_FAILED] = "Failed digest op",
 	[CRYPTO_DIGEST_CB_FAILED] = "Failed digest cb",
+	[CRYPTO_PP_ENQ_FAILED] = "Postprocessing enqueue failed",
 };
 
 unsigned long ipsec_counters[RTE_MAX_LCORE][IPSEC_CNT_MAX] __rte_cache_aligned;
@@ -984,10 +989,85 @@ void crypto_enqueue_outbound(struct rte_mbuf *m, uint16_t orig_family,
 	}
 }
 
-static void crypto_fwd_processed_packets(struct crypto_pkt_ctx **contexts,
-					 unsigned int count)
+static inline void
+crypto_redirect_packet_batch(uint8_t core,
+			     struct crypto_pkt_ctx **contexts,
+			     unsigned int batch_cnt)
 {
-	uint32_t i;
+	if (!rte_ring_mp_enqueue_bulk(crypto_fwd[core].fwd_q,
+				      (void **)contexts, batch_cnt,
+				      NULL)) {
+		/*
+		 * highly unlikely scenario. Free all contexts that could
+		 * not be enqueued to post-processing thread
+		 */
+		for (unsigned int j = 0; j < batch_cnt; j++) {
+			IPSEC_CNT_INC(CRYPTO_PP_ENQ_FAILED);
+			rte_pktmbuf_free(contexts[j]->mbuf);
+			release_crypto_packet_ctx(contexts[j]);
+		}
+	}
+}
+
+static void crypto_redirect_processed_packets(struct crypto_pkt_ctx **contexts,
+					      unsigned int count)
+{
+	uint16_t i, batch_cnt = 0;
+	uint8_t fwd_lcore, prev_fwd_lcore = 0;
+	struct crypto_pkt_ctx *ctx;
+	struct crypto_pkt_ctx *tmp_contexts[count];
+
+	for (i = 0; i < count; i++) {
+		ctx = contexts[i];
+		fwd_lcore = ctx->sa->fwd_core;
+
+		/*
+		 * no post-crypto forwarding core has been allocated
+		 * continue forwarding on the same core
+		 */
+		if (!fwd_lcore) {
+			crypto_pkt_ctx_forward_and_free(ctx);
+			continue;
+		}
+
+		/* starting first batch */
+		if (!prev_fwd_lcore)
+			prev_fwd_lcore = fwd_lcore;
+
+		/* continuing existing batch */
+		if (prev_fwd_lcore == fwd_lcore) {
+			tmp_contexts[batch_cnt++] = contexts[i];
+			continue;
+		}
+
+		/* flush batch */
+		crypto_redirect_packet_batch(prev_fwd_lcore, tmp_contexts,
+					     batch_cnt);
+
+		/* start new batch after flush */
+		batch_cnt = 0;
+		prev_fwd_lcore = fwd_lcore;
+		tmp_contexts[batch_cnt++] = contexts[i];
+	}
+
+	/* flush final batch */
+	if (batch_cnt)
+		crypto_redirect_packet_batch(prev_fwd_lcore, tmp_contexts,
+					     batch_cnt);
+}
+
+void crypto_fwd_processed_packets(void)
+{
+	struct crypto_pkt_ctx *contexts[MAX_CRYPTO_PKT_BURST];
+	unsigned int i, count, lcore = dp_lcore_id();
+
+	if (rte_ring_empty(crypto_fwd[lcore].fwd_q))
+		return;
+
+	count = rte_ring_mc_dequeue_burst(crypto_fwd[lcore].fwd_q,
+					  (void **)&contexts,
+					  MAX_CRYPTO_PKT_BURST, NULL);
+	crypto_fwd[lcore].fwd_cnt += count;
 
 	for (i = 0; i < count; i++) {
 		if (unlikely(contexts[i]->status < 0))
@@ -995,7 +1075,7 @@ static void crypto_fwd_processed_packets(struct crypto_pkt_ctx **contexts,
 
 		crypto_prefetch_ctx(contexts, count, i);
 		crypto_pkt_ctx_forward_and_free(contexts[i]);
-		crypto_prefetch_ctx_data(contexts, count, i);
+		crypto_prefetch_ctx_data(contexts, count, i+1);
 	}
 }
 
@@ -1007,9 +1087,9 @@ struct crypto_processing_cb {
 
 static const struct crypto_processing_cb crypto_cb[MAX_CRYPTO_XFRM] = {
 	{crypto_process_encrypt_packets,
-	 crypto_fwd_processed_packets},
+	 crypto_redirect_processed_packets},
 	{crypto_process_decrypt_packets,
-	 crypto_fwd_processed_packets} };
+	 crypto_redirect_processed_packets} };
 
 void crypto_purge_queue(struct rte_ring *pmd_queue)
 {
@@ -1182,6 +1262,29 @@ const char *crypto_xfrm_name(enum crypto_xfrm xfrm)
 	return xfrm_names[xfrm];
 }
 
+void crypto_create_fwd_queue(unsigned int lcore_id)
+{
+	if (!RTE_PER_LCORE(crypto_fwd)) {
+		struct crypto_fwd_info *fwd_info = &crypto_fwd[lcore_id];
+		unsigned int cpu_socket = rte_lcore_to_socket_id(lcore_id);
+
+		fwd_info->fwd_q = crypto_create_ring("fwd-q", PMD_RING_SIZE,
+						     cpu_socket, lcore_id, 0);
+		/* crypto_create_ring is always expected to succeed */
+
+		RTE_PER_LCORE(crypto_fwd) = fwd_info;
+	}
+}
+
+void crypto_destroy_fwd_queue(void)
+{
+	if (RTE_PER_LCORE(crypto_fwd)) {
+		crypto_delete_queue(RTE_PER_LCORE(crypto_fwd)->fwd_q);
+		RTE_PER_LCORE(crypto_fwd)->fwd_q = NULL;
+		RTE_PER_LCORE(crypto_fwd) = NULL;
+	}
+}
+
 /*
  * dp_crypto_lcore_init()
  *
@@ -1281,6 +1384,76 @@ static struct dp_lcore_events crypto_lcore_events = {
 	.dp_lcore_events_teardown_fn = dp_crypto_lcore_teardown,
 };
 
+static bitmask_t crypto_fwd_cores;
+static uint16_t num_sas[RTE_MAX_LCORE];
+
+int crypto_set_fwd_cores(const uint8_t *bytes, uint8_t len)
+{
+	int rc;
+	char tmp[BITMASK_STRSZ];
+
+	rc = bitmask_parse_bytes(&crypto_fwd_cores, bytes, len);
+	if (rc) {
+		RTE_LOG(ERR, DATAPLANE,
+			"Failed to parse cpumask for post-crypto forwarding\n");
+		return rc;
+	}
+
+	bitmask_sprint(&crypto_fwd_cores, tmp, sizeof(tmp));
+	DP_DEBUG(INIT, INFO, DATAPLANE,
+		 "Post-crypto forwarding cores set: %s\n", tmp);
+
+	return rc;
+}
+
+/*
+ * return the next least loaded forwarding core to allocate as
+ * the post-processing core for a specific SA
+ */
+uint8_t crypto_sa_alloc_fwd_core(void)
+{
+	uint16_t tmp_num_sas = UINT16_MAX;
+	uint8_t fwd_core = 0, i;
+
+	RTE_LCORE_FOREACH(i) {
+		if (bitmask_isset(&crypto_fwd_cores, i)) {
+			if (num_sas[i] < tmp_num_sas) {
+				tmp_num_sas = num_sas[i];
+				fwd_core = i;
+			}
+		}
+	}
+
+	if (fwd_core) {
+		num_sas[fwd_core]++;
+		if (num_sas[fwd_core] == 1)
+			enable_crypto_fwd(fwd_core);
+	}
+	return fwd_core;
+}
+
+/*
+ * deallocate post processing core
+ */
+void crypto_sa_free_fwd_core(uint8_t fwd_core)
+{
+	struct crypto_pkt_ctx *ctx;
+	struct crypto_fwd_info *fwd_info = &crypto_fwd[fwd_core];
+
+	if (fwd_core) {
+		num_sas[fwd_core]--;
+		if (!num_sas[fwd_core]) {
+			disable_crypto_fwd(fwd_core);
+
+			/* drain queue & free */
+			while (!rte_ring_mc_dequeue(fwd_info->fwd_q,
+						    (void **)&ctx)) {
+				rte_pktmbuf_free(ctx->mbuf);
+				release_crypto_packet_ctx(ctx);
+			}
+		}
+	}
+}
 
 static unsigned int crypto_ctx_pool;
 /*
@@ -1289,6 +1462,8 @@ static unsigned int crypto_ctx_pool;
 void dp_crypto_init(void)
 {
 	unsigned int cores, cache;
+
+	bitmask_zero(&crypto_fwd_cores);
 
 	CRYPTO_INFO("Crypto thread initialise begin\n");
 
@@ -1397,7 +1572,9 @@ void crypto_show_summary(FILE *f)
 			 rte_mempool_in_use_count(crypto_dp_sp->pool));
 
 	for (i = 0; i < IPSEC_CNT_MAX; i++)
-		jsonw_uint_field(wr, ipsec_counter_names[i], agg_counters[i]);
+		if (agg_counters[i])
+			jsonw_uint_field(wr, ipsec_counter_names[i],
+					 agg_counters[i]);
 	jsonw_end_object(wr);
 	jsonw_destroy(&wr);
 }
@@ -1489,8 +1666,7 @@ unsigned long hash_xfrm_address(const xfrm_address_t *addr,
 {
 	if (family == AF_INET)
 		return addr->a4;
-	else
-		return (addr->a6[0] + addr->a6[1] + addr->a6[2] + addr->a6[3]);
+	return (addr->a6[0] + addr->a6[1] + addr->a6[2] + addr->a6[3]);
 }
 
 /* The vrf has been deleted so flush all the crypto state in it. */

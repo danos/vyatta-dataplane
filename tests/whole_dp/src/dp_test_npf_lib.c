@@ -36,9 +36,9 @@
 /*
  * Returns "action=accept" or "action=drop"
  */
-const char *npf_action_string(bool pass)
+const char *npf_action_string(bool accept)
 {
-	return pass ? "action=accept" : "action=drop";
+	return accept ? "action=accept" : "action=drop";
 }
 
 /*

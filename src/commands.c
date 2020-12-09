@@ -484,21 +484,11 @@ static int cmd_shadow(FILE *f, int argc, char **argv)
 
 static int cmd_ipsec_engine(FILE *f, int argc, char **argv)
 {
-	int rc;
-
 	argc -= 2;
 	argv += 2;
 
 	if (strcmp(argv[0], "probe") == 0)
 		return crypto_engine_probe(f);
-
-	if (strcmp(argv[0], "set") == 0) {
-		if (argc > 1)
-			rc = crypto_engine_set(f, argv[1]);
-		else
-			rc = crypto_engine_set(f,  NULL);
-		return rc;
-	}
 
 	fprintf(f, "Invalid IPsec command\n");
 	return -1;
@@ -1087,7 +1077,9 @@ static int cmd_l2tp(FILE *f, int argc, char **argv)
 		if (argc < 6)
 			return -1;
 		return l2tp_set_xconnect(argv[2], argv[3], argv[4], argv[5]);
-	} else if (strcmp(argv[1], "-s") == 0) {
+	}
+
+	if (strcmp(argv[1], "-s") == 0) {
 		json_writer_t *wr = jsonw_new(f);
 
 		if (!wr)
@@ -1110,7 +1102,9 @@ static int cmd_l2tp(FILE *f, int argc, char **argv)
 		jsonw_destroy(&wr);
 
 		return 0;
-	} else if (strcmp(argv[1], "-t") == 0) {
+	}
+
+	if (strcmp(argv[1], "-t") == 0) {
 		json_writer_t *wr = jsonw_new(f);
 
 		if (!wr)
@@ -1126,7 +1120,9 @@ static int cmd_l2tp(FILE *f, int argc, char **argv)
 		jsonw_end_array(wr);
 		jsonw_destroy(&wr);
 		return 0;
-	} else if (strcmp(argv[1], "clear") == 0) {
+	}
+
+	if (strcmp(argv[1], "clear") == 0) {
 		if (argc == 2)
 			l2tp_init_stats(NULL);
 		else
@@ -2345,7 +2341,7 @@ console_unbind(enum cont_src_en cont_src)
 
 	response = zstr_recv(console_actor);
 	if (response) {
-		if (strcmp(response, "OK"))
+		if (strcmp(response, "OK") != 0)
 			RTE_LOG(ERR, DATAPLANE, "Console unbind"
 				" failed for ep %s\n", console_url_bound);
 	}

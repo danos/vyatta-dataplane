@@ -1362,15 +1362,15 @@ struct nh_info {
 				 SRC_MAC_STR, RTE_ETHER_TYPE_IPV6);            \
 	/* Create pak we expect to receive on the tx ring */                   \
 	exp = dp_test_exp_create(test_pak);				       \
-	if (nh.drop) {                                                         \
+	if ((nh).drop) {						       \
 		/* Is dropped, but we send an icmp unreachable */              \
 		dp_test_exp_set_oif_name(exp, "dp1T0");		               \
 		dp_test_exp_set_check_len(exp, 0);                             \
 	} else {                                                               \
-		dp_test_exp_set_oif_name(exp, nh.nh_int);		       \
+		dp_test_exp_set_oif_name(exp, (nh).nh_int);		       \
 		(void)dp_test_pktmbuf_eth_init(dp_test_exp_get_pak(exp),       \
-					nh.nh_mac_str,			       \
-					dp_test_intf_name2mac_str(nh.nh_int),  \
+					       (nh).nh_mac_str,		       \
+				       dp_test_intf_name2mac_str((nh).nh_int), \
 					RTE_ETHER_TYPE_IPV6);		       \
 		dp_test_ipv6_decrement_ttl(dp_test_exp_get_pak(exp));	       \
 	}                                                                      \

@@ -120,14 +120,14 @@ struct fal_attribute_t *get_attribute(uint32_t id,
 }
 
 __FOR_EXPORT
-void fal_plugin_l2_new_port(unsigned int if_index,
+void fal_plugin_l2_new_port(unsigned int ifindex,
 			    uint32_t attr_count,
 			    const struct fal_attribute_t *attr_list)
 {
 	const struct fal_attribute_t *attr;
 
 	DEBUG("%s(if_index %d, attr_count %d, ...)\n",
-					__func__, if_index, attr_count);
+					__func__, ifindex, attr_count);
 	dp_test_fail_unless((get_attribute(FAL_PORT_ATTR_KIND,
 					   attr_count,
 					   attr_list) != NULL),
@@ -138,34 +138,34 @@ void fal_plugin_l2_new_port(unsigned int if_index,
 			    "Expected FAL_PORT_ATTR_NAME attribute");
 	if (attr != NULL) {
 		DEBUG("%s(if_index %d, ...) name %s\n",
-		      __func__, if_index, attr->value.if_name);
+		      __func__, ifindex, attr->value.if_name);
 	}
 
 	attr = get_attribute(FAL_PORT_ATTR_DPDK_PORT, attr_count, attr_list);
 	if (attr) {
 		DEBUG("%s(if_index %d, ...) port %d\n",
-		      __func__, if_index, attr->value.u8);
+		      __func__, ifindex, attr->value.u8);
 	}
 	attr = get_attribute(FAL_PORT_ATTR_VLAN_ID, attr_count, attr_list);
 	if (attr) {
 		DEBUG("%s(if_index %d, ...) VLAN_ID %d\n",
-		      __func__, if_index, attr->value.u16);
+		      __func__, ifindex, attr->value.u16);
 	}
 	attr = get_attribute(FAL_PORT_ATTR_PARENT_IFINDEX,
 							attr_count, attr_list);
 	if (attr) {
 		DEBUG("%s(if_index %d, ...) parent if_index %d\n",
-		      __func__, if_index, attr->value.u32);
+		      __func__, ifindex, attr->value.u32);
 	}
 	attr = get_attribute(FAL_PORT_ATTR_MTU, attr_count, attr_list);
 	if (attr) {
 		DEBUG("%s(if_index %d, ...) MTU %d\n",
-		      __func__, if_index, attr->value.u16);
+		      __func__, ifindex, attr->value.u16);
 	}
 }
 
 __FOR_EXPORT
-int fal_plugin_l2_get_attrs(unsigned int if_index,
+int fal_plugin_l2_get_attrs(unsigned int ifindex,
 			    uint32_t attr_count,
 			    struct fal_attribute_t *attr_list)
 {
@@ -174,13 +174,13 @@ int fal_plugin_l2_get_attrs(unsigned int if_index,
 	int rc = -EOPNOTSUPP;
 
 	DEBUG("%s(if_index %d, attr_count %d, ...)\n",
-					__func__, if_index, attr_count);
+					__func__, ifindex, attr_count);
 
 	for (i = 0; i < attr_count; i++) {
 		switch (attr_list[i].id) {
 		case FAL_PORT_ATTR_QOS_INGRESS_MAP_ID:
 			snprintf(ifi_str, sizeof(ifi_str),
-					"%u", if_index);
+					"%u", ifindex);
 			attr_list[i].value.objid =
 				(fal_object_t)zhash_lookup
 				(fal_test_ingressm_port, ifi_str);
@@ -267,16 +267,16 @@ static const char *fal_port_attr_t_to_str(enum fal_port_attr_t val)
 }
 
 __FOR_EXPORT
-int fal_plugin_l2_upd_port(unsigned int if_index,
+int fal_plugin_l2_upd_port(unsigned int ifindex,
 			   struct fal_attribute_t *attr)
 {
 	char ifi_str[16];
 	DEBUG("%s(if_index %d, { id %d %s %p })\n",
-			__func__, if_index, attr->id,
+			__func__, ifindex, attr->id,
 			fal_port_attr_t_to_str(attr->id),
 			attr->value.ptr);
 	if (attr->id == FAL_PORT_ATTR_QOS_INGRESS_MAP_ID) {
-		snprintf(ifi_str, sizeof(ifi_str), "%u", if_index);
+		snprintf(ifi_str, sizeof(ifi_str), "%u", ifindex);
 		if (attr->value.objid != FAL_NULL_OBJECT_ID)
 			zhash_insert(fal_test_ingressm_port, ifi_str,
 					(void *)(fal_object_t)
@@ -289,13 +289,13 @@ int fal_plugin_l2_upd_port(unsigned int if_index,
 }
 
 __FOR_EXPORT
-void fal_plugin_l2_del_port(unsigned int if_index)
+void fal_plugin_l2_del_port(unsigned int ifindex)
 {
-	DEBUG("%s(if_index %d)\n", __func__, if_index);
+	DEBUG("%s(if_index %d)\n", __func__, ifindex);
 }
 
 __FOR_EXPORT
-void fal_plugin_l2_new_addr(unsigned int if_index,
+void fal_plugin_l2_new_addr(unsigned int ifindex,
 			    const struct rte_ether_addr *addr,
 			    uint32_t attr_count,
 			    const struct fal_attribute_t *attr_list)
@@ -303,28 +303,28 @@ void fal_plugin_l2_new_addr(unsigned int if_index,
 	char __addr[19];
 
 	ether_ntoa_r(addr, __addr);
-	DEBUG("%s(if_index %d, addr %s, ...)\n", __func__, if_index, __addr);
+	DEBUG("%s(if_index %d, addr %s, ...)\n", __func__, ifindex, __addr);
 }
 
 __FOR_EXPORT
-void fal_plugin_l2_upd_addr(unsigned int if_index,
+void fal_plugin_l2_upd_addr(unsigned int ifindex,
 			    const struct rte_ether_addr *addr,
 			    struct fal_attribute_t *attr)
 {
 	char __addr[19];
 
 	ether_ntoa_r(addr, __addr);
-	DEBUG("%s(if_index %d, addr %s, ...)\n", __func__, if_index, __addr);
+	DEBUG("%s(if_index %d, addr %s, ...)\n", __func__, ifindex, __addr);
 }
 
 __FOR_EXPORT
-void fal_plugin_l2_del_addr(unsigned int if_index,
+void fal_plugin_l2_del_addr(unsigned int ifindex,
 			    const struct rte_ether_addr *addr)
 {
 	char __addr[19];
 
 	ether_ntoa_r(addr, __addr);
-	DEBUG("%s(if_index %d, addr %p)\n", __func__, if_index, __addr);
+	DEBUG("%s(if_index %d, addr %p)\n", __func__, ifindex, __addr);
 }
 
 __FOR_EXPORT
@@ -349,18 +349,18 @@ void fal_plugin_br_new_port(unsigned int bridge_ifindex,
 }
 
 __FOR_EXPORT
-void fal_plugin_br_upd_port(unsigned int if_index,
+void fal_plugin_br_upd_port(unsigned int child_ifindex,
 			    struct fal_attribute_t *attr)
 {
 	char ifi_str[16];
 
 	DEBUG("%s(if_index %d, attr { id %d, ... })\n",
-				__func__, if_index, attr->id);
+				__func__, child_ifindex, attr->id);
 
-	snprintf(ifi_str, sizeof(ifi_str), "%u", if_index);
+	snprintf(ifi_str, sizeof(ifi_str), "%u", child_ifindex);
 	dp_test_fail_unless(zhash_lookup(fal_test_brports, ifi_str),
 			    "missing fal_plugin_br_new_port for %u\n",
-			    if_index);
+			    child_ifindex);
 }
 
 __FOR_EXPORT
@@ -380,16 +380,17 @@ void fal_plugin_br_del_port(unsigned int bridge_ifindex,
 }
 
 __FOR_EXPORT
-void fal_plugin_br_new_neigh(unsigned int if_index,
+void fal_plugin_br_new_neigh(unsigned int child_ifindex,
 			     uint16_t vlanid,
-			     const struct rte_ether_addr *addr,
+			     const struct rte_ether_addr *dst,
 			     uint32_t attr_count,
 			     const struct fal_attribute_t *attr_list)
 {
 	char __addr[19];
 
-	ether_ntoa_r(addr, __addr);
-	DEBUG("%s(if_index %u, vlanid %hu, addr %s, ...)\n", __func__, if_index,
+	ether_ntoa_r(dst, __addr);
+	DEBUG("%s(if_index %u, vlanid %hu, addr %s, ...)\n", __func__,
+	      child_ifindex,
 	      vlanid, __addr);
 
 	dp_test_fail_unless((get_attribute(FAL_BRIDGE_NEIGH_ATTR_STATE,
@@ -399,28 +400,28 @@ void fal_plugin_br_new_neigh(unsigned int if_index,
 }
 
 __FOR_EXPORT
-void fal_plugin_br_upd_neigh(unsigned int if_index,
+void fal_plugin_br_upd_neigh(unsigned int child_ifindex,
 			     uint16_t vlanid,
-			     const struct rte_ether_addr *addr,
+			     const struct rte_ether_addr *dst,
 			     struct fal_attribute_t *attr)
 {
 	char __addr[19];
 
-	ether_ntoa_r(addr, __addr);
-	DEBUG("%s(if_index %u, vlanid %hu, addr %s, ...)\n", __func__, if_index,
-	      vlanid, __addr);
+	ether_ntoa_r(dst, __addr);
+	DEBUG("%s(if_index %u, vlanid %hu, addr %s, ...)\n", __func__,
+	      child_ifindex, vlanid, __addr);
 }
 
 __FOR_EXPORT
-void fal_plugin_br_del_neigh(unsigned int if_index,
+void fal_plugin_br_del_neigh(unsigned int child_ifindex,
 			     uint16_t vlanid,
-			     const struct rte_ether_addr *addr)
+			     const struct rte_ether_addr *dst)
 {
 	char __addr[19];
 
-	ether_ntoa_r(addr, __addr);
-	DEBUG("%s(if_index %u, vlanid %hu, addr %p)\n", __func__, if_index,
-	      vlanid, __addr);
+	ether_ntoa_r(dst, __addr);
+	DEBUG("%s(if_index %u, vlanid %hu, addr %p)\n", __func__,
+	      child_ifindex, vlanid, __addr);
 }
 
 __FOR_EXPORT
@@ -484,7 +485,7 @@ static void fal_ntop(const struct fal_ip_address_t *ipaddr,
 }
 
 __FOR_EXPORT
-int fal_plugin_ip_new_neigh(unsigned int if_index,
+int fal_plugin_ip_new_neigh(unsigned int ifindex,
 			    struct fal_ip_address_t *ipaddr,
 			    uint32_t attr_count,
 			    const struct fal_attribute_t *attr_list)
@@ -493,13 +494,13 @@ int fal_plugin_ip_new_neigh(unsigned int if_index,
 
 	fal_ntop(ipaddr, __ipaddr, sizeof(__ipaddr));
 	DEBUG("%s(if_index %d, ipaddr %s, ...)\n",
-					__func__, if_index, __ipaddr);
+					__func__, ifindex, __ipaddr);
 
 	return 0;
 }
 
 __FOR_EXPORT
-int fal_plugin_ip_upd_neigh(unsigned int if_index,
+int fal_plugin_ip_upd_neigh(unsigned int ifindex,
 			    struct fal_ip_address_t *ipaddr,
 			    struct fal_attribute_t *attr)
 {
@@ -511,28 +512,28 @@ int fal_plugin_ip_upd_neigh(unsigned int if_index,
 
 		ether_ntoa_r(&attr->value.mac, eaddr);
 		DEBUG("%s(if_index %d, ipaddr %s, { id %d, mac %s })\n",
-				__func__, if_index, __ipaddr, attr->id, eaddr);
+				__func__, ifindex, __ipaddr, attr->id, eaddr);
 	} else
 		DEBUG("%s(if_index %d, ipaddr %s, { id %d, ... })\n",
-				__func__, if_index, __ipaddr, attr->id);
+				__func__, ifindex, __ipaddr, attr->id);
 
 	return 0;
 }
 
 __FOR_EXPORT
-int fal_plugin_ip_del_neigh(unsigned int if_index,
+int fal_plugin_ip_del_neigh(unsigned int ifindex,
 			    struct fal_ip_address_t *ipaddr)
 {
 	char __ipaddr[64];
 
 	fal_ntop(ipaddr, __ipaddr, sizeof(__ipaddr));
-	DEBUG("%s(if_index %d, ipaddr %s)\n", __func__, if_index, __ipaddr);
+	DEBUG("%s(if_index %d, ipaddr %s)\n", __func__, ifindex, __ipaddr);
 
 	return 0;
 }
 
 __FOR_EXPORT
-void fal_plugin_ip_new_addr(unsigned int if_index,
+void fal_plugin_ip_new_addr(unsigned int ifindex,
 			    struct fal_ip_address_t *ipaddr,
 			    uint8_t prefixlen,
 			    uint32_t attr_count,
@@ -542,11 +543,11 @@ void fal_plugin_ip_new_addr(unsigned int if_index,
 
 	fal_ntop(ipaddr, __ipaddr, sizeof(__ipaddr));
 	DEBUG("%s(if_index %d, ipaddr %s/%d, ...)\n",
-				__func__, if_index, __ipaddr, prefixlen);
+				__func__, ifindex, __ipaddr, prefixlen);
 }
 
 __FOR_EXPORT
-void fal_plugin_ip_upd_addr(unsigned int if_index,
+void fal_plugin_ip_upd_addr(unsigned int ifindex,
 			    struct fal_ip_address_t *ipaddr,
 			    uint8_t prefixlen,
 			    struct fal_attribute_t *attr)
@@ -556,11 +557,11 @@ void fal_plugin_ip_upd_addr(unsigned int if_index,
 	fal_ntop(ipaddr, __ipaddr, sizeof(__ipaddr));
 
 	DEBUG("%s(if_index %d, ipaddr %s/%d, { id %d, ... })\n",
-			__func__, if_index, __ipaddr, prefixlen, attr->id);
+			__func__, ifindex, __ipaddr, prefixlen, attr->id);
 }
 
 __FOR_EXPORT
-void fal_plugin_ip_del_addr(unsigned int if_index,
+void fal_plugin_ip_del_addr(unsigned int ifindex,
 			    struct fal_ip_address_t *ipaddr,
 			    uint8_t prefixlen)
 {
@@ -568,7 +569,7 @@ void fal_plugin_ip_del_addr(unsigned int if_index,
 
 	fal_ntop(ipaddr, __ipaddr, sizeof(__ipaddr));
 	DEBUG("%s(if_index %d, ipaddr %s/%d)\n",
-				__func__, if_index, __ipaddr, prefixlen);
+				__func__, ifindex, __ipaddr, prefixlen);
 }
 
 __FOR_EXPORT
@@ -653,7 +654,7 @@ int fal_plugin_ip_del_next_hops(uint32_t nh_count,
 }
 
 __FOR_EXPORT
-int fal_plugin_ip_new_route(unsigned int vrfid,
+int fal_plugin_ip_new_route(unsigned int vrf_id,
 			    struct fal_ip_address_t *ipaddr,
 			    uint8_t prefixlen,
 			    uint32_t tableid,
@@ -665,7 +666,7 @@ int fal_plugin_ip_new_route(unsigned int vrfid,
 
 	fal_ntop(ipaddr, __ipaddr, sizeof(__ipaddr));
 	DEBUG("%s(vrfid %d, ipaddr %s/%d, tableid %d, attr_count %d, ...)\n",
-			__func__, vrfid, __ipaddr,
+			__func__, vrf_id, __ipaddr,
 			prefixlen, tableid, attr_count);
 
 	attr = get_attribute(FAL_ROUTE_ENTRY_ATTR_NEXT_HOP_GROUP,
@@ -686,7 +687,7 @@ int fal_plugin_ip_new_route(unsigned int vrfid,
 }
 
 __FOR_EXPORT
-int fal_plugin_ip_upd_route(unsigned int vrfid,
+int fal_plugin_ip_upd_route(unsigned int vrf_id,
 			    struct fal_ip_address_t *ipaddr,
 			    uint8_t prefixlen,
 			    uint32_t tableid,
@@ -697,7 +698,7 @@ int fal_plugin_ip_upd_route(unsigned int vrfid,
 	fal_ntop(ipaddr, __ipaddr, sizeof(__ipaddr));
 	DEBUG("%s(vrfid %d, ipaddr %s/%d, "
 	      "tableid %d, { id %d, ... })\n",
-	      __func__, vrfid, __ipaddr, prefixlen, tableid, attr->id);
+	      __func__, vrf_id, __ipaddr, prefixlen, tableid, attr->id);
 	switch (attr->id) {
 	case FAL_ROUTE_ENTRY_ATTR_NEXT_HOP_GROUP:
 		DEBUG("%s() next-hop-group 0x%lx\n", __func__,
@@ -713,7 +714,7 @@ int fal_plugin_ip_upd_route(unsigned int vrfid,
 }
 
 __FOR_EXPORT
-int fal_plugin_ip_del_route(unsigned int vrfid,
+int fal_plugin_ip_del_route(unsigned int vrf_id,
 			    struct fal_ip_address_t *ipaddr,
 			    uint8_t prefixlen,
 			    uint32_t tableid)
@@ -722,14 +723,14 @@ int fal_plugin_ip_del_route(unsigned int vrfid,
 
 	fal_ntop(ipaddr, __ipaddr, sizeof(__ipaddr));
 	DEBUG("%s(vrfid %d, ipaddr %s/%d, tableid %d, ...)\n",
-			__func__, vrfid, __ipaddr, prefixlen, tableid);
+			__func__, vrf_id, __ipaddr, prefixlen, tableid);
 
 	return 0;
 }
 
 #define STP_INST_CHECK(_inst)						\
-	dp_test_fail_unless((_inst >= 0) && (_inst < STP_INST_COUNT),	\
-			    "invalid STP instance value: %u", _inst)
+	dp_test_fail_unless(((_inst) >= 0) && ((_inst) < STP_INST_COUNT), \
+			    "invalid STP instance value: %u", (_inst))
 
 __FOR_EXPORT
 int fal_plugin_stp_create(unsigned int bridge_ifindex,

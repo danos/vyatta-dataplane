@@ -2577,8 +2577,7 @@ int cmd_set_vfp(FILE *f __unused, int argc, char **argv)
 
 	if (is_get)
 		return if_get_vfp(vfp, vfp_type);
-	else
-		return if_put_vfp(vfp, vfp_type);
+	return if_put_vfp(vfp, vfp_type);
 }
 
 /* update MTU of tunnels bound to specified device */
@@ -3299,6 +3298,28 @@ if_set_l3_intf_attr(struct ifnet *ifp, struct fal_attribute_t *attr)
 	return fal_set_router_interface_attr(ifp->fal_l3, attr);
 }
 
+int
+if_get_l3_intf_attr(struct ifnet *ifp, uint32_t attr_count,
+		struct fal_attribute_t *attr_list)
+{
+	uint32_t i;
+
+	for (i = 0; i < attr_count; i++) {
+		switch (attr_list[i].id) {
+		case FAL_ROUTER_INTERFACE_ATTR_EGRESS_QOS_MAP:
+			if (!ifp->fal_l3)
+				return -EOPNOTSUPP;
+			break;
+
+		default:
+			return -EOPNOTSUPP;
+		}
+	}
+	return fal_get_router_interface_attr(ifp->fal_l3, attr_count,
+			attr_list);
+}
+
+
 /*
  * Retrieve FAL router interface object stats for hardware-switch traffic.
  *
@@ -3531,16 +3552,6 @@ static void show_if_l2_filter(json_writer_t *wr, struct ifnet *ifp)
 	jsonw_end_object(wr);
 }
 
-static bool print_pl_feats(struct pl_feature_registration *feat_reg,
-			   void *context)
-{
-	json_writer_t *wr = context;
-
-	jsonw_string(wr, feat_reg->name);
-
-	return true;
-}
-
 static void show_af_ifconfig(json_writer_t *wr, struct ifnet *ifp)
 {
 	jsonw_name(wr, "ipv4");
@@ -3568,11 +3579,11 @@ static void show_af_ifconfig(json_writer_t *wr, struct ifnet *ifp)
 	}
 	jsonw_name(wr, "validate_features");
 	jsonw_start_array(wr);
-	pl_node_iter_features(ipv4_validate_node_ptr, ifp, print_pl_feats, wr);
+	pl_node_iter_features(ipv4_validate_node_ptr, ifp, pl_print_feats, wr);
 	jsonw_end_array(wr);
 	jsonw_name(wr, "out_features");
 	jsonw_start_array(wr);
-	pl_node_iter_features(ipv4_out_node_ptr, ifp, print_pl_feats, wr);
+	pl_node_iter_features(ipv4_out_node_ptr, ifp, pl_print_feats, wr);
 	jsonw_end_array(wr);
 	jsonw_end_object(wr);
 
@@ -3586,11 +3597,11 @@ static void show_af_ifconfig(json_writer_t *wr, struct ifnet *ifp)
 	jsonw_uint_field(wr, "redirects", ip6_redirects_get());
 	jsonw_name(wr, "validate_features");
 	jsonw_start_array(wr);
-	pl_node_iter_features(ipv6_validate_node_ptr, ifp, print_pl_feats, wr);
+	pl_node_iter_features(ipv6_validate_node_ptr, ifp, pl_print_feats, wr);
 	jsonw_end_array(wr);
 	jsonw_name(wr, "out_features");
 	jsonw_start_array(wr);
-	pl_node_iter_features(ipv6_out_node_ptr, ifp, print_pl_feats, wr);
+	pl_node_iter_features(ipv6_out_node_ptr, ifp, pl_print_feats, wr);
 	jsonw_end_array(wr);
 	jsonw_end_object(wr);
 }
@@ -3624,13 +3635,10 @@ static const char *pause_enum_to_string(int pause_mode)
 	return p_mode;
 }
 
-static int cmd_pause_show(json_writer_t *wr, struct ifnet *ifp)
+static void show_eth_info_pause(json_writer_t *wr, struct ifnet *ifp)
 {
 	struct fal_attribute_t pause_attr;
 	int rv;
-
-	jsonw_name(wr, "eth-info");
-	jsonw_start_object(wr);
 
 	pause_attr.id = FAL_PORT_ATTR_REMOTE_ADVERTISED_FLOW_CONTROL_MODE;
 	rv = fal_l2_get_attrs(ifp->if_index, 1, &pause_attr);
@@ -3639,10 +3647,22 @@ static int cmd_pause_show(json_writer_t *wr, struct ifnet *ifp)
 		jsonw_string_field(wr, "pause-mode", "none");
 	else
 		jsonw_string_field(wr, "pause-mode",
-		pause_enum_to_string(pause_attr.value.u8));
+				   pause_enum_to_string(pause_attr.value.u8));
+}
+
+static void show_eth_info(json_writer_t *wr, struct ifnet *ifp)
+{
+	jsonw_name(wr, "eth-info");
+	jsonw_start_object(wr);
+
+	show_eth_info_pause(wr, ifp);
+
+	jsonw_name(wr, "l2_intf_platform_state");
+	jsonw_start_object(wr);
+	fal_l2_dump_port(ifp->if_index, wr);
+	jsonw_end_object(wr);
 
 	jsonw_end_object(wr);
-	return rv;
 }
 
 /* Show information generic interface in JSON */
@@ -3707,7 +3727,7 @@ static void ifconfig(struct ifnet *ifp, void *arg)
 
 	jsonw_name(wr, "ether_lookup_features");
 	jsonw_start_array(wr);
-	pl_node_iter_features(ether_lookup_node_ptr, ifp, print_pl_feats, wr);
+	pl_node_iter_features(ether_lookup_node_ptr, ifp, pl_print_feats, wr);
 	jsonw_end_array(wr);
 
 	jsonw_string_field(wr, "type", iftype_name(ifp->if_type));
@@ -3717,7 +3737,7 @@ static void ifconfig(struct ifnet *ifp, void *arg)
 		if_dump_state(ifp, wr, IF_DS_STATE_VERBOSE);
 	if_dump_state(ifp, wr, IF_DS_DEV_INFO);
 
-	cmd_pause_show(wr, ifp);
+	show_eth_info(wr, ifp);
 	show_link_state(wr, ifp);
 	show_address(wr, ifp);
 	show_stats(wr, ifp);
@@ -3772,6 +3792,76 @@ int cmd_ifconfig(FILE *f, int argc, char **argv)
 	jsonw_end_array(wr);
 	jsonw_destroy(&wr);
 
+	return 0;
+}
+
+struct pl_show_intf_ctx {
+	json_writer_t	*json;
+	char		*ifname;
+	struct pl_node_registration *node_ptr;
+};
+
+static void if_pl_print_feat(struct ifnet *ifp, void *arg)
+{
+	struct pl_show_intf_ctx *ctx = arg;
+	json_writer_t *wr = ctx->json;
+
+	if (ctx->ifname &&
+	    (strcmp(ctx->ifname, ifp->if_name) != 0) &&
+	    (strcmp(ctx->ifname, "all") != 0))
+		return;
+
+	jsonw_start_object(wr);
+	jsonw_name(wr, ifp->if_name);
+
+	jsonw_start_array(wr);
+	pl_node_iter_features(ctx->node_ptr, ifp, pl_print_feats, wr);
+	jsonw_end_array(wr);
+
+	jsonw_end_object(wr);
+}
+
+/*
+ * show features <node-name> [interface <ifname>]
+ */
+int if_node_instance_feat_print(struct pl_command *cmd,
+				struct pl_node_registration *node_ptr)
+{
+	int argc = cmd->argc;
+	char **argv = cmd->argv;
+	char *opt, *ifname = NULL;
+	json_writer_t *wr;
+
+	while (argc > 0) {
+		opt = next_arg(&argc, &argv);
+
+		if (!strcmp(opt, "interface")) {
+			ifname = next_arg(&argc, &argv);
+			if (!ifname)
+				return 0;
+		}
+	}
+
+	wr = jsonw_new(cmd->fp);
+	if (!wr)
+		return 0;
+
+	struct pl_show_intf_ctx ctx = {
+		.json = wr,
+		.ifname = ifname,
+		.node_ptr = node_ptr,
+	};
+
+	jsonw_name(wr, "features");
+	jsonw_start_object(wr);
+
+	jsonw_name(wr, "interface");
+	jsonw_start_array(wr);
+	dp_ifnet_walk(if_pl_print_feat, &ctx);
+	jsonw_end_array(wr);
+
+	jsonw_end_object(wr);
+	jsonw_destroy(&wr);
 	return 0;
 }
 
@@ -3894,4 +3984,19 @@ bool dp_ifnet_is_bridge_member(struct ifnet *ifp)
 		return true;
 
 	return false;
+}
+
+void dp_ifnet_output(struct ifnet *in_ifp, struct rte_mbuf *m,
+		     struct ifnet *out_ifp, uint16_t proto)
+{
+	if_output(out_ifp, m, in_ifp, proto);
+}
+
+int dp_ifnet_get_mac_addr(struct ifnet *ifp, struct rte_ether_addr *eth_addr)
+{
+	if (!ifp || !eth_addr)
+		return -1;
+
+	rte_ether_addr_copy(&ifp->eth_addr, eth_addr);
+	return 0;
 }

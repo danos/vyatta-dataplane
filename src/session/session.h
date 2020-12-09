@@ -521,7 +521,7 @@ int session_sentry_insert_pkt(struct session *s, uint32_t if_index,
  *
  * Create and insert an additional sentry for this session.
  *
- * @param s
+ * @param se
  * The session.
  *
  * @param if_index
@@ -534,18 +534,18 @@ int session_sentry_insert_pkt(struct session *s, uint32_t if_index,
  * @param sid
  * The source id for matching.
  *
- * @param saddr
+ * @param sa
  * The source address (IPv4 or 6)
  *
  * @param did
  * The destination id.
  *
- * @param daddr
+ * @param da
  * The destination address.
  */
-int session_sentry_insert(struct session *m, uint32_t if_index, uint16_t flags,
-		uint16_t sid, const void *saddr,
-		uint16_t did, const void *daddr);
+int session_sentry_insert(struct session *se, uint32_t if_index, uint16_t flags,
+		uint16_t sid, const void *sa,
+		uint16_t did, const void *da);
 
 /**
  * Max sessions
@@ -837,8 +837,8 @@ void session_unlink_all(struct session *s);
 typedef int (*sentry_walk_t)(struct sentry *sen, void *data);
 typedef int (*session_walk_t)(struct session *s, void *data);
 
-int sentry_table_walk(sentry_walk_t func, void *data);
-int session_table_walk(session_walk_t func, void *data);
+int sentry_table_walk(sentry_walk_t cb, void *data);
+int session_table_walk(session_walk_t cb, void *data);
 
 
 /**
@@ -860,7 +860,7 @@ int session_table_walk(session_walk_t func, void *data);
  * @param do_unlink
  * If TRUE, unlink the sessions.
  *
- * @param func
+ * @param cb
  * The callback to execute.
  *
  * @param data
@@ -869,7 +869,7 @@ int session_table_walk(session_walk_t func, void *data);
 typedef void (session_link_walk_t)(struct session *s, void *data);
 
 void session_link_walk(struct session *s, bool do_unlink,
-		session_link_walk_t *func, void *data);
+		       session_link_walk_t *cb, void *data);
 
 /**
  * Destroy all sentries/sessions.
@@ -932,9 +932,10 @@ int session_npf_pack_pack(struct session *s, struct npf_pack_dp_session *pds,
 			  struct npf_pack_dp_sess_stats *stats);
 int session_npf_pack_sentry_pack(struct session *s,
 				 struct npf_pack_sentry_packet *psp);
-struct session *session_npf_pack_restore(struct npf_pack_dp_session *pds,
-					 struct npf_pack_sentry_packet *psp,
-					 struct npf_pack_dp_sess_stats *stats);
+int session_npf_pack_restore(struct npf_pack_dp_session *pds,
+			     struct npf_pack_sentry_packet *psp,
+			     struct npf_pack_dp_sess_stats *stats,
+			     struct session **session);
 int session_npf_pack_sentry_restore(struct npf_pack_sentry_packet *psp,
 				    struct ifnet **ifp);
 uint32_t session_get_npf_pack_timeout(struct session *s);

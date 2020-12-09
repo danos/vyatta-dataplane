@@ -751,13 +751,13 @@ int session_table_destroy_all(void)
 }
 
 /* Get counts of nodes in sentry and session ht's - for UTs */
-void session_table_counts(unsigned long *sen_ht, unsigned long *sess_ht)
+void session_table_counts(unsigned long *sen_cnt, unsigned long *sess_cnt)
 
 {
 	long dummy;
 
-	cds_lfht_count_nodes(sentry_ht, &dummy, sen_ht, &dummy);
-	cds_lfht_count_nodes(session_ht, &dummy, sess_ht, &dummy);
+	cds_lfht_count_nodes(sentry_ht, &dummy, sen_cnt, &dummy);
+	cds_lfht_count_nodes(session_ht, &dummy, sess_cnt, &dummy);
 }
 
 /*
@@ -772,9 +772,9 @@ void session_counts(uint32_t *used, uint32_t *max, struct session_counts *sc)
 }
 
 /* Set the max session limit */
-void session_set_max_sessions(uint32_t count)
+void session_set_max_sessions(uint32_t max)
 {
-	sessions_max = count ? count : DEFAULT_MAX_SESSIONS;
+	sessions_max = max ? max : DEFAULT_MAX_SESSIONS;
 }
 
 void session_set_global_logging_cfg(struct session_log_cfg *scfg)
@@ -804,7 +804,7 @@ void ids_set(uint32_t *loc, uint16_t sid, uint16_t did)
 }
 
 static ALWAYS_INLINE
-void ids_extract(uint32_t *loc, uint16_t *sid, uint16_t *did)
+void ids_extract(const uint32_t *loc, uint16_t *sid, uint16_t *did)
 {
 	*sid = *loc >> 16;
 	*did = *loc & 0xFFFF;
@@ -1864,9 +1864,10 @@ int session_npf_pack_pack(struct session *s, struct npf_pack_dp_session *pds,
 	return session_npf_pack_sentry_pack(s, psp);
 }
 
-struct session *session_npf_pack_restore(struct npf_pack_dp_session *pds,
-					 struct npf_pack_sentry_packet *psp,
-					 struct npf_pack_dp_sess_stats *stats)
+int session_npf_pack_restore(struct npf_pack_dp_session *pds,
+			     struct npf_pack_sentry_packet *psp,
+			     struct npf_pack_dp_sess_stats *stats,
+			     struct session **session)
 {
 	struct session *s;
 	struct sentry_packet psp_forw;
@@ -1879,20 +1880,20 @@ struct session *session_npf_pack_restore(struct npf_pack_dp_session *pds,
 	int rc;
 
 	if (!pds || !psp)
-		return NULL;
+		return -EINVAL;
 
 	rc = session_npf_pack_sentry_restore(psp, &ifp);
 	if (rc)
-		return NULL;
+		return rc;
 
 	rc = slot_get();
 	if (rc)
-		return NULL;
+		return rc;
 
 	s = session_alloc();
 	if (!s) {
 		slot_put();
-		return NULL;
+		return -ENOMEM;
 	}
 
 	s->se_vrfid = ifp->if_vrfid;
@@ -1932,15 +1933,17 @@ struct session *session_npf_pack_restore(struct npf_pack_dp_session *pds,
 	cds_lfht_add(session_ht, s->se_id, &s->se_node);
 	s->se_flags = SESSION_INSERTED;
 
-	if (session_npf_pack_stats_restore(s, stats))
+	rc = session_npf_pack_stats_restore(s, stats);
+	if (rc) 
 		goto error;
 
-	return s;
+	*session = s;
+	return 0;
 
 error:
 	slot_put();
 	free(s);
-	return NULL;
+	return rc;
 }
 
 uint32_t session_get_npf_pack_timeout(struct session *s)

@@ -29,13 +29,16 @@ struct rte_mbuf;
 int crypto_policy_add(const struct xfrm_userpolicy_info *usr_policy,
 		      const xfrm_address_t *dst,
 		      const struct xfrm_user_tmpl *tmpl,
-		      const struct xfrm_mark *mark, vrfid_t vrfid);
+		      const struct xfrm_mark *mark, vrfid_t vrfid,
+		      uint32_t seq, bool *send_ack);
 int crypto_policy_update(const struct xfrm_userpolicy_info *usr_policy,
 			 const xfrm_address_t *dst,
 			 const struct xfrm_user_tmpl *tmpl,
-			 const struct xfrm_mark *mark, vrfid_t vrfid);
+			 const struct xfrm_mark *mark, vrfid_t vrfid,
+			 uint32_t seq, bool *send_ack);
 void crypto_policy_delete(const struct xfrm_userpolicy_id *id,
-			  const struct xfrm_mark *mark, vrfid_t vrfid);
+			  const struct xfrm_mark *mark, vrfid_t vrfid,
+			  uint32_t seq, bool *send_ack);
 struct crypto_vrf_ctx;
 void crypto_policy_flush_vrf(struct crypto_vrf_ctx *vrf_ctx);
 void crypto_policy_update_pending_if(struct ifnet *ifp);
@@ -52,4 +55,6 @@ void crypto_incmpl_xfrm_policy_del(uint32_t ifindex, const struct nlmsghdr *nlh,
 void crypto_incmpl_policy_make_complete(void);
 
 void policy_feat_flush_vrf(struct crypto_vrf_ctx *vrf_ctx);
+
+void crypto_npf_cfg_commit_flush(void);
 #endif /* CRYPTO_POLICY_H */

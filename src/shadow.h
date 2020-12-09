@@ -74,7 +74,7 @@ int slowpath_init(void);
 void set_spath_rx_meta_data(struct rte_mbuf *m, const struct ifnet *ifp,
 			    uint16_t proto, uint8_t meta_mask);
 int tap_receive(zloop_t *loop, zmq_pollitem_t *item, struct shadow_if_info *sii,
-		struct rte_mbuf **m);
+		struct rte_mbuf **pkt);
 int spath_receive(zmq_pollitem_t *item, struct tun_pi *pi,
 		  struct tun_meta *meta, struct shadow_if_info *sii,
 		  struct rte_mbuf **mbuf);

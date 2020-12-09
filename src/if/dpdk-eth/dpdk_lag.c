@@ -579,7 +579,8 @@ static const char * const policy_names[] = {
 };
 
 
-static bool lag_member_is_active(portid_t active[], int len, uint16_t portid)
+static bool lag_member_is_active(const portid_t active[], int len, uint16_t
+				 portid)
 {
 	int i;
 
@@ -691,9 +692,12 @@ dpdk_lag_walk_team_members(struct ifnet *ifp, dp_ifnet_iter_func_t iter_func,
 static bool
 dpdk_lag_is_team(struct ifnet *ifp)
 {
-	struct rte_eth_dev_info dev_info;
+	struct rte_eth_dev_info dev_info = { 0 };
+	int rc;
 
-	rte_eth_dev_info_get(ifp->if_port, &dev_info);
+	rc = rte_eth_dev_info_get(ifp->if_port, &dev_info);
+	if (rc || dev_info.driver_name == NULL)
+		return false;
 
 	DP_DEBUG(INIT, DEBUG, DATAPLANE,
 		"%d:%s dev_info.driver_name %s\n",

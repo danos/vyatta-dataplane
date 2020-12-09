@@ -40,6 +40,9 @@ enum dp_evt {
 	DP_EVT_RESET_CONFIG,
 	DP_EVT_INIT,
 	DP_EVT_UNINIT,
+	DP_EVT_IF_LAG_ADD_MEMBER,
+	DP_EVT_IF_LAG_DELETE_MEMBER,
+	DP_EVT_IF_LAG_CHANGE,
 };
 
 _Static_assert((int)DP_EVT_VRF_CREATE == (int)DP_EVENT_VRF_CREATE,
@@ -87,6 +90,9 @@ struct dp_event_ops {
 	void (*if_vlan_add)(struct ifnet *ifp, uint16_t vlan);
 	void (*if_vlan_del)(struct ifnet *ifp, uint16_t vlan);
 	void (*if_mtu_change)(struct ifnet *ifp, uint32_t mtu);
+	void (*if_lag_change)(struct ifnet *ifp, enum dp_if_lag_event event);
+	void (*if_lag_add_member)(struct ifnet *team, struct ifnet *ifp);
+	void (*if_lag_delete_member)(struct ifnet *team, struct ifnet *ifp);
 	void (*reset_config)(enum cont_src_en cont_src);
 	void (*vrf_create)(struct vrf *vrf);
 	void (*vrf_delete)(struct vrf *vrf);

@@ -37,7 +37,7 @@ struct rte_mbuf;
 #define RPC_MAX_PORT 65535
 
 /* Skip over words in an rpc msg */
-#define SKIP(a, b) ((uint32_t *)((uint8_t *)a + b))
+#define SKIP(a, b) ((uint32_t *)((uint8_t *)(a) + (b)))
 
 #define RPC_PORT_CONFIG 0
 #define RPC_PROG_CONFIG 1
@@ -225,7 +225,7 @@ static int rpc_tuple_insert(struct npf_alg *rpc,
 
 /* Parse a RPC request msg */
 static int rpc_parse_request(struct rpc_request *rr, uint32_t xid,
-			     uint32_t *rpc_data, uint8_t *buf_start,
+			     uint32_t *rpc_data, const uint8_t *buf_start,
 			     uint32_t rpc_len)
 {
 	uint32_t field_len;
@@ -293,8 +293,8 @@ static int rpc_verify_request(const struct npf_alg *rpc, struct rpc_request *rr)
 
 /* Parse a RPC reply msg */
 static int rpc_parse_reply(struct rpc_request *rr, struct rpc_reply *rp,
-			   uint32_t *rpc_data, uint32_t xid, uint8_t *buf_start,
-			   uint32_t rpc_len)
+			   uint32_t *rpc_data, uint32_t xid,
+			   const uint8_t *buf_start, uint32_t rpc_len)
 {
 	uint32_t field_len;
 

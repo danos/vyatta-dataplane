@@ -391,7 +391,8 @@ struct fal_qos_map_params_t {
 	uint8_t des_used;
 	union {
 		int dp; /* deprecated */
-		enum fal_packet_colour color;
+		enum fal_packet_colour colour;
+		enum fal_packet_colour color; /* deprecated */
 	};
 };
 
@@ -420,6 +421,9 @@ struct fal_ptp_port_path_t {
 	uint16_t vlan_id;	/** VLAN ID */
 	uint32_t ifindex;	/** Underlying interface */
 };
+
+/* VRF ID value that will never be used for a forwarding VRF */
+#define FAL_INVALID_VRF_ID 0
 
 /* An attribute */
 
@@ -569,7 +573,6 @@ enum fal_port_flow_control_mode_t {
 
 	/** Enable flow control for both tx and rx */
 	FAL_PORT_FLOW_CONTROL_MODE_BOTH_ENABLE,
-
 };
 
 /* Layer 2 operations */
@@ -787,7 +790,6 @@ enum fal_port_attr_t {
 	 * @default - FAL_PORT_SYNCE_DISABLE
 	 */
 	FAL_PORT_ATTR_SYNCE_ADMIN_STATUS,
-
 };
 
 enum fal_port_hw_switching_t {
@@ -829,6 +831,14 @@ int fal_plugin_l2_upd_port(unsigned int ifindex,
  * Delete the interface ifindex
  */
 void fal_plugin_l2_del_port(unsigned int ifindex);
+
+/**
+ * @brief Dump port
+ *
+ * @param[in] ifindex The ifindex of the interface
+ * @param[inout] json JSON writer object
+ */
+void fal_plugin_l2_dump_port(unsigned int ifindex, json_writer_t *wr);
 
 /* No attributes */
 
@@ -1004,6 +1014,34 @@ enum fal_router_interface_attr_t {
 	 */
 	FAL_ROUTER_INTERFACE_ATTR_V6_EGRESS_ACL,
 	/**
+	 * @brief Bind point for IPv4 ingress QoS object
+	 *
+	 * Bind an ingress IPv4 QoS table to (or remove it from) an
+	 * L3 interface.  Ingress QoS handling is enabled (or updated)
+	 * by assigning a valid QoS table; similarly ingress QoS handling
+	 * is disabled by assigning FAL_NULL_OBJECT_ID
+	 *
+	 * @type fal_acl_table_t
+	 * @flags CREATE_AND_SET
+	 * @allownull true
+	 * @default FAL_NULL_OBJECT_ID
+	 */
+	FAL_ROUTER_INTERFACE_ATTR_V4_INGRESS_QOS,
+	/**
+	 * @brief Bind point for IPv6 ingress QoS object
+	 *
+	 * Bind an ingress IPv6 QoS table to (or remove it from) an
+	 * L3 interface.  Ingress QoS handling is enabled (or updated)
+	 * by assigning a valid QoS table; similarly ingress QoS handling
+	 * is disabled by assigning FAL_NULL_OBJECT_ID
+	 *
+	 * @type fal_acl_table_t
+	 * @flags CREATE_AND_SET
+	 * @allownull true
+	 * @default FAL_NULL_OBJECT_ID
+	 */
+	FAL_ROUTER_INTERFACE_ATTR_V6_INGRESS_QOS,
+	/**
 	 * @brief IPv4 mcast enable
 	 *
 	 * If an L3 interface is not enabled for IPv4 PIM or IPv4
@@ -1069,7 +1107,7 @@ enum fal_router_interface_stat_t {
 	/** Egress packet stat count */
 	FAL_ROUTER_INTERFACE_STAT_OUT_PACKETS,
 
-	FAL_ROUTER_INTERFACE_STAT_MAX,
+	FAL_ROUTER_INTERFACE_STAT_MAX
 };
 
 /**
@@ -1105,6 +1143,19 @@ int fal_plugin_delete_router_interface(fal_object_t obj);
 int
 fal_plugin_set_router_interface_attr(fal_object_t obj,
 				     const struct fal_attribute_t *attr_list);
+
+/**
+ * @brief Get attributes of the router interface
+ *
+ * @param[in] obj  Object id for router intf
+ * @param[in] attr Array of Attribute
+ *
+ * @return 0 on success.
+ */
+int
+fal_plugin_get_router_interface_attr(fal_object_t obj,
+				     uint32_t attr_count,
+				     struct fal_attribute_t *attr_list);
 
 /**
  * @brief Get router interface stats
@@ -1165,7 +1216,6 @@ enum fal_tunnel_ttl_mode_t {
 	 * field of inner header remains the same on decapsulation.
 	 */
 	FAL_TUNNEL_TTL_MODE_PIPE_MODEL
-
 };
 
 /**
@@ -2285,6 +2335,7 @@ enum fal_next_hop_group_attr_t {
 	 */
 	FAL_NEXT_HOP_GROUP_ATTR_USE,
 };
+
 /**
  * @brief Query attributes for a next hop group object
  *
@@ -2500,7 +2551,6 @@ enum fal_ipmc_entry_type_t {
 
 	/** IPMC entry with type (*,G) */
 	FAL_IPMC_ENTRY_TYPE_XG,
-
 };
 
 /**
@@ -2550,7 +2600,7 @@ enum fal_ipmc_entry_attr_t {
 	/**
 	 * @brief End of attributes
 	 */
-	FAL_IPMC_ENTRY_ATTR_END,
+	FAL_IPMC_ENTRY_ATTR_END
 };
 
 /**
@@ -2681,7 +2731,7 @@ enum fal_ipmc_group_attr_t {
 	/**
 	 * @brief End of attributes
 	 */
-	FAL_IPMC_GROUP_ATTR_END,
+	FAL_IPMC_GROUP_ATTR_END
 };
 
 enum fal_ipmc_group_member_attr_t {
@@ -2712,7 +2762,7 @@ enum fal_ipmc_group_member_attr_t {
 	/**
 	 * @brief End of attributes
 	 */
-	FAL_IPMC_GROUP_MEMBER_ATTR_END,
+	FAL_IPMC_GROUP_MEMBER_ATTR_END
 };
 
 /**
@@ -2838,7 +2888,7 @@ enum fal_rpf_group_attr_t {
 	/**
 	 * @brief End of attributes
 	 */
-	FAL_RPF_GROUP_ATTR_END,
+	FAL_RPF_GROUP_ATTR_END
 };
 
 enum fal_rpf_group_member_attr_t {
@@ -2869,7 +2919,7 @@ enum fal_rpf_group_member_attr_t {
 	/**
 	 * @brief End of attributes
 	 */
-	FAL_RPF_GROUP_MEMBER_ATTR_END,
+	FAL_RPF_GROUP_MEMBER_ATTR_END
 };
 
 /**
@@ -3052,6 +3102,12 @@ enum fal_policer_stat_type {
 	/** accepted bytes */
 	FAL_POLICER_STAT_GREEN_BYTES,
 
+	/** exceeded packets */
+	FAL_POLICER_STAT_YELLOW_PACKETS,
+
+	/** exceeded bytes */
+	FAL_POLICER_STAT_YELLOW_BYTES,
+
 	/** dropped packets */
 	FAL_POLICER_STAT_RED_PACKETS,
 
@@ -3076,18 +3132,29 @@ int fal_plugin_policer_clear_stats(fal_object_t obj,
 enum fal_policer_meter_type {
 	FAL_POLICER_METER_TYPE_PACKETS,
 	FAL_POLICER_METER_TYPE_BYTES,
-	FAL_POLICER_METER_TYPE
+	FAL_POLICER_METER_TYPE_MAX
 };
 
 enum fal_policer_mode_type {
 	FAL_POLICER_MODE_STORM_CTL,
 	FAL_POLICER_MODE_CPP,
+	FAL_POLICER_MODE_INGRESS,
 	FAL_POLICER_MODE_MAX
 };
 
 enum fal_stats_mode {
 	FAL_STATS_MODE_READ,
 	FAL_STATS_MODE_READ_AND_CLEAR,
+};
+
+enum fal_policer_colour_source {
+	/* previous colour is ignored ("color-blind" in RFC4115) */
+	FAL_POLICER_COLOUR_SOURCE_UNAWARE,
+
+	/* previous colour is taken into account */
+	FAL_POLICER_COLOUR_SOURCE_AWARE,
+
+	FAL_POLICER_COLOUR_SOURCE_MAX
 };
 
 /**
@@ -3099,31 +3166,50 @@ enum fal_policer_attr_t {
 	 * @type fal_policer_meter_type
 	 * @flags CREATE_AND_SET
 	 */
-	FAL_POLICER_ATTR_METER_TYPE = 0x00000001,
+	FAL_POLICER_ATTR_METER_TYPE = 1,
 	/**
 	 * @brief Policer mode
 	 * @type fal_policer_mode_type
 	 * @flags MANDATORY_ON_CREATE | CREATE_ONLY
 	 */
-	FAL_POLICER_ATTR_MODE = 0x00000002,
+	FAL_POLICER_ATTR_MODE = 2,
 	/**
 	 * @brief Committed burst size/packets
 	 * @type uint64_t
 	 * @flags CREATE_AND_SET
 	 */
-	FAL_POLICER_ATTR_CBS  = 0x00000003,
+	FAL_POLICER_ATTR_CBS = 3,
 	/**
 	 * @brief Committed information rate BPS/PPS
 	 * @type uint64_t
 	 * @flags CREATE_AND_SET
 	 */
-	FAL_POLICER_ATTR_CIR  = 0x00000004,
+	FAL_POLICER_ATTR_CIR = 4,
+	/**
+	 * @brief Excess burst size/packets
+	 * @type uint64_t
+	 * @flags CREATE_AND_SET
+	 */
+	FAL_POLICER_ATTR_EBS = 5,
+	/**
+	 * @brief Excess information rate BPS/PPS
+	 * @type uint64_t
+	 * @flags CREATE_AND_SET
+	 */
+	FAL_POLICER_ATTR_EIR = 6,
 	/**
 	 * @brief Action to take for RED colour packets
 	 * @type fal_packet_action_t
 	 * @flags CREATE_AND_SET
 	 */
-	FAL_POLICER_ATTR_RED_PACKET_ACTION  = 0x00000005,
+	FAL_POLICER_ATTR_RED_PACKET_ACTION = 7,
+	/**
+	 * @brief Policer colour source
+	 * @type enum fal_policer_colour_source
+	 * @flags CREATE_ONLY
+	 * @default FAL_POLICER_COLOUR_SOURCE_UNAWARE
+	 */
+	FAL_POLICER_ATTR_COLOUR_SOURCE = 8,
 };
 
 /**
@@ -3203,16 +3289,16 @@ void fal_plugin_policer_dump(fal_object_t obj,
  */
 enum fal_qos_queue_type_t {
 	/** H/w Queue for all types of traffic */
-	FAL_QOS_QUEUE_TYPE_ALL = 0x00000000,
+	FAL_QOS_QUEUE_TYPE_ALL = 0,
 
 	/** H/w Unicast Queue */
-	FAL_QOS_QUEUE_TYPE_UNICAST = 0x00000001,
+	FAL_QOS_QUEUE_TYPE_UNICAST = 1,
 
 	/** H/w Multicast (Broadcast, Unknown unicast, Multicast) Queue */
-	FAL_QOS_QUEUE_TYPE_NON_UNICAST = 0x00000002,
+	FAL_QOS_QUEUE_TYPE_NON_UNICAST = 2,
 
 	/** Max value */
-	FAL_QOS_QUEUE_TYPE_MAX = FAL_QOS_QUEUE_TYPE_NON_UNICAST,
+	FAL_QOS_QUEUE_TYPE_MAX = FAL_QOS_QUEUE_TYPE_NON_UNICAST
 };
 
 /**
@@ -3225,7 +3311,7 @@ enum fal_qos_queue_attr_t {
 	 * @type fal_qos_queue_type_t
 	 * @flags MANDATORY_ON_CREATE | CREATE_ONLY | KEY
 	 */
-	FAL_QOS_QUEUE_ATTR_TYPE = 0x00000000,
+	FAL_QOS_QUEUE_ATTR_TYPE = 0,
 
 	/**
 	 * @brief Queue index
@@ -3233,7 +3319,7 @@ enum fal_qos_queue_attr_t {
 	 * @type uint8_t
 	 * @flags MANDATORY_ON_CREATE | CREATE_ONLY | KEY
 	 */
-	FAL_QOS_QUEUE_ATTR_INDEX = 0x00000001,
+	FAL_QOS_QUEUE_ATTR_INDEX = 1,
 
 	/**
 	 * @brief Parent scheduler node
@@ -3247,7 +3333,7 @@ enum fal_qos_queue_attr_t {
 	 * @objects FAL_QOS_OBJECT_TYPE_SCHEDULER_GROUP,
 	 *          FAL_QOS_OBJECT_TYPE_PORT
 	 */
-	FAL_QOS_QUEUE_ATTR_PARENT_ID = 0x00000002,
+	FAL_QOS_QUEUE_ATTR_PARENT_ID = 2,
 
 	/**
 	 * @brief Attach WRED ID to queue
@@ -3260,7 +3346,7 @@ enum fal_qos_queue_attr_t {
 	 * @allownull true
 	 * @default FAL_QOS_NULL_OBJECT_ID
 	 */
-	FAL_QOS_QUEUE_ATTR_WRED_ID = 0x00000003,
+	FAL_QOS_QUEUE_ATTR_WRED_ID = 3,
 
 	/**
 	 * @brief Attach buffer profile to queue
@@ -3271,7 +3357,7 @@ enum fal_qos_queue_attr_t {
 	 * @allownull true
 	 * @default FAL_QOS_NULL_OBJECT_ID
 	 */
-	FAL_QOS_QUEUE_ATTR_BUFFER_ID = 0x00000004,
+	FAL_QOS_QUEUE_ATTR_BUFFER_ID = 4,
 
 	/**
 	 * @brief Attach scheduler to queue
@@ -3282,7 +3368,7 @@ enum fal_qos_queue_attr_t {
 	 * @allownull true
 	 * @default FAL_QOS_NULL_OBJECT_ID
 	 */
-	FAL_QOS_QUEUE_ATTR_SCHEDULER_ID = 0x00000005,
+	FAL_QOS_QUEUE_ATTR_SCHEDULER_ID = 5,
 
 	/**
 	 * @brief Maximum queue length
@@ -3292,7 +3378,7 @@ enum fal_qos_queue_attr_t {
 	 * @default 64 packets
 	 * @default 65536 bytes
 	 */
-	FAL_QOS_QUEUE_ATTR_QUEUE_LIMIT = 0x00000006,
+	FAL_QOS_QUEUE_ATTR_QUEUE_LIMIT = 6,
 
 	/**
 	 * @brief The TC that the queue is a member of
@@ -3300,7 +3386,7 @@ enum fal_qos_queue_attr_t {
 	 * @type uint8_t
 	 * @flags CREATE_AND_SET
 	 */
-	FAL_QOS_QUEUE_ATTR_TC = 0x00000007,
+	FAL_QOS_QUEUE_ATTR_TC = 7,
 
 	/**
 	 * @brief Local control traffic priority queue
@@ -3317,7 +3403,7 @@ enum fal_qos_queue_attr_t {
 	 * @type boolean
 	 * @flags MANDATORY_ON_CREATE | CREATE_AND_SET
 	 */
-	FAL_QOS_QUEUE_ATTR_LOCAL_PRIORITY = 0x00000008,
+	FAL_QOS_QUEUE_ATTR_LOCAL_PRIORITY = 8,
 
 	/**
 	 * @brief Designator used to classify traffic to the queue
@@ -3325,10 +3411,10 @@ enum fal_qos_queue_attr_t {
 	 * @type uint8_t
 	 * @flags MANDATORY_ON_CREATE | CREATE_AND_SET
 	 */
-	FAL_QOS_QUEUE_ATTR_DESIGNATOR = 0x00000009,
+	FAL_QOS_QUEUE_ATTR_DESIGNATOR = 9,
 
 	/** Max value */
-	FAL_QOS_QUEUE_ATTR_MAX = FAL_QOS_QUEUE_ATTR_DESIGNATOR,
+	FAL_QOS_QUEUE_ATTR_MAX = FAL_QOS_QUEUE_ATTR_DESIGNATOR
 };
 
 /**
@@ -3336,82 +3422,82 @@ enum fal_qos_queue_attr_t {
  */
 enum fal_qos_queue_stat_t {
 	/** Get/set tx packets count [uint64_t] */
-	FAL_QOS_QUEUE_STAT_PACKETS = 0x00000000,
+	FAL_QOS_QUEUE_STAT_PACKETS = 0,
 
 	/** Get/set tx bytes count [uint64_t] */
-	FAL_QOS_QUEUE_STAT_BYTES = 0x00000001,
+	FAL_QOS_QUEUE_STAT_BYTES = 1,
 
 	/** Get/set dropped packets count [uint64_t] */
-	FAL_QOS_QUEUE_STAT_DROPPED_PACKETS = 0x00000002,
+	FAL_QOS_QUEUE_STAT_DROPPED_PACKETS = 2,
 
 	/** Get/set dropped bytes count [uint64_t] */
-	FAL_QOS_QUEUE_STAT_DROPPED_BYTES = 0x00000003,
+	FAL_QOS_QUEUE_STAT_DROPPED_BYTES = 3,
 
-	/** Get/set green color tx packets count [uint64_t] */
-	FAL_QOS_QUEUE_STAT_GREEN_PACKETS = 0x00000004,
+	/** Get/set green colour tx packets count [uint64_t] */
+	FAL_QOS_QUEUE_STAT_GREEN_PACKETS = 4,
 
-	/** Get/set green color tx bytes count [uint64_t] */
-	FAL_QOS_QUEUE_STAT_GREEN_BYTES = 0x00000005,
+	/** Get/set green colour tx bytes count [uint64_t] */
+	FAL_QOS_QUEUE_STAT_GREEN_BYTES = 5,
 
-	/** Get/set green color dropped packets count [uint64_t] */
-	FAL_QOS_QUEUE_STAT_GREEN_DROPPED_PACKETS = 0x00000006,
+	/** Get/set green colour dropped packets count [uint64_t] */
+	FAL_QOS_QUEUE_STAT_GREEN_DROPPED_PACKETS = 6,
 
-	/** Get/set green color dropped packets count [uint64_t] */
-	FAL_QOS_QUEUE_STAT_GREEN_DROPPED_BYTES = 0x00000007,
+	/** Get/set green colour dropped bytes count [uint64_t] */
+	FAL_QOS_QUEUE_STAT_GREEN_DROPPED_BYTES = 7,
 
-	/** Get/set yellow color tx packets count [uint64_t] */
-	FAL_QOS_QUEUE_STAT_YELLOW_PACKETS = 0x00000008,
+	/** Get/set yellow colour tx packets count [uint64_t] */
+	FAL_QOS_QUEUE_STAT_YELLOW_PACKETS = 8,
 
-	/** Get/set yellow color tx bytes count [uint64_t] */
-	FAL_QOS_QUEUE_STAT_YELLOW_BYTES = 0x00000009,
+	/** Get/set yellow colour tx bytes count [uint64_t] */
+	FAL_QOS_QUEUE_STAT_YELLOW_BYTES = 9,
 
-	/** Get/set yellow color dropped packets count [uint64_t] */
-	FAL_QOS_QUEUE_STAT_YELLOW_DROPPED_PACKETS = 0x0000000a,
+	/** Get/set yellow colour dropped packets count [uint64_t] */
+	FAL_QOS_QUEUE_STAT_YELLOW_DROPPED_PACKETS = 10,
 
-	/** Get/set yellow color dropped packets count [uint64_t] */
-	FAL_QOS_QUEUE_STAT_YELLOW_DROPPED_BYTES = 0x0000000b,
+	/** Get/set yellow colour dropped bytes count [uint64_t] */
+	FAL_QOS_QUEUE_STAT_YELLOW_DROPPED_BYTES = 11,
 
-	/** Get/set red color tx packets count [uint64_t] */
-	FAL_QOS_QUEUE_STAT_RED_PACKETS = 0x0000000c,
+	/** Get/set red colour tx packets count [uint64_t] */
+	FAL_QOS_QUEUE_STAT_RED_PACKETS = 12,
 
-	/** Get/set red color tx bytes count [uint64_t] */
-	FAL_QOS_QUEUE_STAT_RED_BYTES = 0x0000000d,
+	/** Get/set red colour tx bytes count [uint64_t] */
+	FAL_QOS_QUEUE_STAT_RED_BYTES = 13,
 
-	/** Get/set red color dropped packets count [uint64_t] */
-	FAL_QOS_QUEUE_STAT_RED_DROPPED_PACKETS = 0x0000000e,
+	/** Get/set red colour dropped packets count [uint64_t] */
+	FAL_QOS_QUEUE_STAT_RED_DROPPED_PACKETS = 14,
 
-	/** Get/set red color dropped packets count [uint64_t] */
-	FAL_QOS_QUEUE_STAT_RED_DROPPED_BYTES = 0x0000000f,
+	/** Get/set red colour dropped bytes count [uint64_t] */
+	FAL_QOS_QUEUE_STAT_RED_DROPPED_BYTES = 15,
 
-	/** Get/set WRED green color dropped packets count [uint64_t] */
-	FAL_QOS_QUEUE_STAT_GREEN_WRED_DROPPED_PACKETS = 0x00000010,
+	/** Get/set WRED green colour dropped packets count [uint64_t] */
+	FAL_QOS_QUEUE_STAT_GREEN_WRED_DROPPED_PACKETS = 16,
 
-	/** Get/set WRED green color dropped bytes count [uint64_t] */
-	FAL_QOS_QUEUE_STAT_GREEN_WRED_DROPPED_BYTES = 0x00000011,
+	/** Get/set WRED green colour dropped bytes count [uint64_t] */
+	FAL_QOS_QUEUE_STAT_GREEN_WRED_DROPPED_BYTES = 17,
 
-	/** Get/set WRED yellow color dropped packets count [uint64_t] */
-	FAL_QOS_QUEUE_STAT_YELLOW_WRED_DROPPED_PACKETS = 0x00000012,
+	/** Get/set WRED yellow colour dropped packets count [uint64_t] */
+	FAL_QOS_QUEUE_STAT_YELLOW_WRED_DROPPED_PACKETS = 18,
 
-	/** Get/set WRED yellow color dropped bytes count [uint64_t] */
-	FAL_QOS_QUEUE_STAT_YELLOW_WRED_DROPPED_BYTES = 0x00000013,
+	/** Get/set WRED yellow colour dropped bytes count [uint64_t] */
+	FAL_QOS_QUEUE_STAT_YELLOW_WRED_DROPPED_BYTES = 19,
 
-	/** Get/set WRED red color dropped packets count [uint64_t] */
-	FAL_QOS_QUEUE_STAT_RED_WRED_DROPPED_PACKETS = 0x00000014,
+	/** Get/set WRED red colour dropped packets count [uint64_t] */
+	FAL_QOS_QUEUE_STAT_RED_WRED_DROPPED_PACKETS = 20,
 
-	/** Get/set WRED red color dropped bytes count [uint64_t] */
-	FAL_QOS_QUEUE_STAT_RED_WRED_DROPPED_BYTES = 0x00000015,
+	/** Get/set WRED red colour dropped bytes count [uint64_t] */
+	FAL_QOS_QUEUE_STAT_RED_WRED_DROPPED_BYTES = 21,
 
 	/** Get/set WRED dropped packets count [uint64_t] */
-	FAL_QOS_QUEUE_STAT_WRED_DROPPED_PACKETS = 0x00000016,
+	FAL_QOS_QUEUE_STAT_WRED_DROPPED_PACKETS = 22,
 
 	/** Get/set WRED dropped bytes count [uint64_t] */
-	FAL_QOS_QUEUE_STAT_WRED_DROPPED_BYTES = 0x00000017,
+	FAL_QOS_QUEUE_STAT_WRED_DROPPED_BYTES = 23,
 
 	/** Get current queue occupancy in bytes [uint64_t] */
-	FAL_QOS_QUEUE_STAT_CURR_OCCUPANCY_BYTES = 0x00000018,
+	FAL_QOS_QUEUE_STAT_CURR_OCCUPANCY_BYTES = 24,
 
 	/** Get watermark queue occupancy in bytes [uint64_t] */
-	FAL_QOS_QUEUE_STAT_WATERMARK_BYTES = 0x00000019,
+	FAL_QOS_QUEUE_STAT_WATERMARK_BYTES = 25,
 
 	/** Max value */
 	FAL_QOS_QUEUE_STAT_MAX = FAL_QOS_QUEUE_STAT_WATERMARK_BYTES
@@ -3514,46 +3600,49 @@ int fal_plugin_qos_clear_queue_stats(fal_object_t queue_id,
  */
 enum fal_qos_map_type_t {
 	/** QOS Map to set DOT1P to Traffic class */
-	FAL_QOS_MAP_TYPE_DOT1P_TO_TC = 0x00000000,
+	FAL_QOS_MAP_TYPE_DOT1P_TO_TC = 0,
 
-	/** QOS Map to set DOT1P to color */
-	FAL_QOS_MAP_TYPE_DOT1P_TO_COLOR = 0x00000001,
+	/** QOS Map to set DOT1P to colour */
+	FAL_QOS_MAP_TYPE_DOT1P_TO_COLOUR = 1,
 
 	/** QOS Map to set DSCP to Traffic class */
-	FAL_QOS_MAP_TYPE_DSCP_TO_TC = 0x00000002,
+	FAL_QOS_MAP_TYPE_DSCP_TO_TC = 2,
 
-	/** QOS Map to set DSCP to color */
-	FAL_QOS_MAP_TYPE_DSCP_TO_COLOR = 0x00000003,
+	/** QOS Map to set DSCP to colour */
+	FAL_QOS_MAP_TYPE_DSCP_TO_COLOUR = 3,
 
 	/** QOS Map to set traffic class to queue */
-	FAL_QOS_MAP_TYPE_TC_TO_QUEUE = 0x00000004,
+	FAL_QOS_MAP_TYPE_TC_TO_QUEUE = 4,
 
-	/** QOS Map to set traffic class and color to DSCP */
-	FAL_QOS_MAP_TYPE_TC_AND_COLOR_TO_DSCP = 0x00000005,
+	/** QOS Map to set traffic class and colour to DSCP */
+	FAL_QOS_MAP_TYPE_TC_AND_COLOUR_TO_DSCP = 5,
 
-	/** QOS Map to set traffic class and color to DOT1P */
-	FAL_QOS_MAP_TYPE_TC_AND_COLOR_TO_DOT1P = 0x00000006,
+	/** QOS Map to set traffic class and colour to DOT1P */
+	FAL_QOS_MAP_TYPE_TC_AND_COLOUR_TO_DOT1P = 6,
 
 	/** QOS Map to set traffic class to priority group */
-	FAL_QOS_MAP_TYPE_TC_TO_PRIORITY_GROUP = 0x00000007,
+	FAL_QOS_MAP_TYPE_TC_TO_PRIORITY_GROUP = 7,
 
 	/** QOS Map to set DSCP to DOT1P */
-	FAL_QOS_MAP_TYPE_DSCP_TO_DOT1P = 0x00000008,
+	FAL_QOS_MAP_TYPE_DSCP_TO_DOT1P = 8,
 
 	/** QOS Map to set DSCP to designator */
-	FAL_QOS_MAP_TYPE_DSCP_TO_DESIGNATOR = 0x00000009,
+	FAL_QOS_MAP_TYPE_DSCP_TO_DESIGNATOR = 9,
 
 	/** QOS Map to set DOT1P to designator */
-	FAL_QOS_MAP_TYPE_DOT1P_TO_DESIGNATOR = 0x0000000a,
+	FAL_QOS_MAP_TYPE_DOT1P_TO_DESIGNATOR = 10,
 
 	/** QOS Map to set designator to DOT1P */
-	FAL_QOS_MAP_TYPE_DESIGNATOR_TO_DOT1P = 0x0000000b,
+	FAL_QOS_MAP_TYPE_DESIGNATOR_TO_DOT1P = 11,
 
 	/** QOS Map to set designator to DSCP */
-	FAL_QOS_MAP_TYPE_DESIGNATOR_TO_DSCP = 0x0000000c,
+	FAL_QOS_MAP_TYPE_DESIGNATOR_TO_DSCP = 12,
+
+	/** QOS Map to set DSCP to DSCP */
+	FAL_QOS_MAP_TYPE_DSCP_TO_DSCP = 13,
 
 	/** Max value */
-	FAL_QOS_MAP_TYPE_MAX = FAL_QOS_MAP_TYPE_DESIGNATOR_TO_DSCP,
+	FAL_QOS_MAP_TYPE_MAX = FAL_QOS_MAP_TYPE_DSCP_TO_DSCP
 };
 
 /**
@@ -3566,20 +3655,20 @@ enum fal_qos_map_attr_t {
 	 * @type fal_qos_qos_map_type_t
 	 * @flags MANDATORY_ON_CREATE | CREATE_ONLY
 	 */
-	FAL_QOS_MAP_ATTR_TYPE = 0x00000000,
+	FAL_QOS_MAP_ATTR_TYPE = 0,
 
 	/**
 	 * @brief Dot1p/DSCP to TC Mapping
 	 *
 	 * Defaults:
 	 * - All Dot1p/DSCP maps to traffic class 0
-	 * - All Dot1p/DSCP maps to color #FAL_PACKET_COLOR_GREEN
+	 * - All Dot1p/DSCP maps to colour #FAL_PACKET_COLOUR_GREEN
 	 * - All traffic class maps to queue 0
 	 *
 	 * @type fal_qos_map_list_t
 	 * @flags MANDATORY_ON_CREATE | CREATE_AND_SET
 	 */
-	FAL_QOS_MAP_ATTR_MAP_TO_VALUE_LIST = 0x00000001,
+	FAL_QOS_MAP_ATTR_MAP_TO_VALUE_LIST = 1,
 
 	/**
 	 * @brief Local control traffic priority queue
@@ -3598,7 +3687,7 @@ enum fal_qos_map_attr_t {
 	 * @type boolean
 	 * @flags MANDATORY_ON_CREATE | CREATE_AND_SET
 	 */
-	FAL_QOS_MAP_ATTR_LOCAL_PRIORITY_QUEUE = 0x00000002,
+	FAL_QOS_MAP_ATTR_LOCAL_PRIORITY_QUEUE = 2,
 
 	/**
 	 * @brief System default setting
@@ -3613,10 +3702,10 @@ enum fal_qos_map_attr_t {
 	 * @type boolean
 	 * @flags MANDATORY_ON_CREATE | CREATE_AND_SET
 	 */
-	FAL_QOS_MAP_ATTR_INGRESS_SYSTEM_DEFAULT = 0x00000003,
+	FAL_QOS_MAP_ATTR_INGRESS_SYSTEM_DEFAULT = 3,
 
 	/** Max value */
-	FAL_QOS_MAP_ATTR_MAX = FAL_QOS_MAP_ATTR_INGRESS_SYSTEM_DEFAULT,
+	FAL_QOS_MAP_ATTR_MAX = FAL_QOS_MAP_ATTR_INGRESS_SYSTEM_DEFAULT
 };
 
 /**
@@ -3679,13 +3768,13 @@ int fal_plugin_qos_get_map_attrs(fal_object_t map_id, uint32_t attr_count,
  */
 enum fal_qos_meter_type_t {
 	/* Metering in bytes per second */
-	FAL_QOS_METER_TYPE_BYTES = 0x00000000,
+	FAL_QOS_METER_TYPE_BYTES = 0,
 
 	/* Metering in packets per second */
-	FAL_QOS_METER_TYPE_PACKETS = 0x00000001,
+	FAL_QOS_METER_TYPE_PACKETS = 1,
 
 	/* Max value */
-	FAL_QOS_METER_TYPE_MAX = FAL_QOS_METER_TYPE_PACKETS,
+	FAL_QOS_METER_TYPE_MAX = FAL_QOS_METER_TYPE_PACKETS
 };
 
 /**
@@ -3693,16 +3782,16 @@ enum fal_qos_meter_type_t {
  */
 enum fal_qos_scheduler_type_t {
 	/** Strict Scheduling */
-	FAL_QOS_SCHEDULING_TYPE_STRICT = 0x00000000,
+	FAL_QOS_SCHEDULING_TYPE_STRICT = 0,
 
 	/** Weighted Round-Robin Scheduling */
-	FAL_QOS_SCHEDULING_TYPE_WRR = 0x00000001,
+	FAL_QOS_SCHEDULING_TYPE_WRR = 1,
 
 	/** Deficit Weighted Round-Robin Scheduling */
-	FAL_QOS_SCHEDULING_TYPE_DWRR = 0x00000002,
+	FAL_QOS_SCHEDULING_TYPE_DWRR = 2,
 
 	/* Max value */
-	FAL_QOS_SCHEDULING_TYPE_MAX = FAL_QOS_SCHEDULING_TYPE_DWRR,
+	FAL_QOS_SCHEDULING_TYPE_MAX = FAL_QOS_SCHEDULING_TYPE_DWRR
 };
 
 /**
@@ -3716,7 +3805,7 @@ enum fal_qos_scheduler_attr_t {
 	 * @flags CREATE_AND_SET
 	 * @default FAL_QOS_SCHEDULING_TYPE_WRR
 	 */
-	FAL_QOS_SCHEDULER_ATTR_SCHEDULING_TYPE = 0x00000000,
+	FAL_QOS_SCHEDULER_ATTR_SCHEDULING_TYPE = 0,
 
 	/**
 	 * @brief Scheduling algorithm weight
@@ -3729,7 +3818,7 @@ enum fal_qos_scheduler_attr_t {
 	 * @validonly FAL_QOS_SCHEDULER_ATTR_SCHEDULING_TYPE ==
 	 * FAL_QOS_SCHEDULING_TYPE_DWRR
 	 */
-	FAL_QOS_SCHEDULER_ATTR_SCHEDULING_WEIGHT = 0x00000001,
+	FAL_QOS_SCHEDULER_ATTR_SCHEDULING_WEIGHT = 1,
 
 	/**
 	 * @brief Shaper
@@ -3738,7 +3827,7 @@ enum fal_qos_scheduler_attr_t {
 	 * @flags CREATE_AND_SET
 	 * @default FAL_QOS_METER_TYPE_BYTES
 	 */
-	FAL_QOS_SCHEDULER_ATTR_METER_TYPE = 0x00000002,
+	FAL_QOS_SCHEDULER_ATTR_METER_TYPE = 2,
 
 	/**
 	 * @brief Maximum Bandwidth shape rate [bytes/sec or PPS]
@@ -3749,7 +3838,7 @@ enum fal_qos_scheduler_attr_t {
 	 * @flags CREATE_AND_SET
 	 * @default 0
 	 */
-	FAL_QOS_SCHEDULER_ATTR_MAX_BANDWIDTH_RATE = 0x00000003,
+	FAL_QOS_SCHEDULER_ATTR_MAX_BANDWIDTH_RATE = 3,
 
 	/**
 	 * @brief Maximum Burst for Bandwidth shape rate [bytes or Packets]
@@ -3758,7 +3847,7 @@ enum fal_qos_scheduler_attr_t {
 	 * @flags CREATE_AND_SET
 	 * @default 0
 	 */
-	FAL_QOS_SCHEDULER_ATTR_MAX_BANDWIDTH_BURST_RATE = 0x00000004,
+	FAL_QOS_SCHEDULER_ATTR_MAX_BANDWIDTH_BURST_RATE = 4,
 
 	/**
 	 * @brief Frame-overhead to be added/subtracted to a packet
@@ -3767,11 +3856,11 @@ enum fal_qos_scheduler_attr_t {
 	 * @flags CREATE_AND_SET
 	 * @default FAL_QOS_FRAME_OVERHEAD
 	 */
-	FAL_QOS_SCHEDULER_ATTR_FRAME_OVERHEAD = 0x00000005,
+	FAL_QOS_SCHEDULER_ATTR_FRAME_OVERHEAD = 5,
 
 	/* Max value */
 	FAL_QOS_SCHEDULER_ATTR_MAX =
-		FAL_QOS_SCHEDULER_ATTR_FRAME_OVERHEAD,
+		FAL_QOS_SCHEDULER_ATTR_FRAME_OVERHEAD
 };
 
 /**
@@ -3835,7 +3924,7 @@ enum fal_qos_sched_group_level_t {
 	FAL_QOS_SCHED_GROUP_LEVEL_TC = 4,
 	FAL_QOS_SCHED_GROUP_LEVEL_QUEUE = 5,
 	FAL_QOS_SCHED_GROUP_MAX_LEVEL = FAL_QOS_SCHED_GROUP_LEVEL_QUEUE,
-	FAL_QOS_SCHED_GROUP_TOTAL_IDS = FAL_QOS_SCHED_GROUP_MAX_LEVEL + 1,
+	FAL_QOS_SCHED_GROUP_TOTAL_IDS = FAL_QOS_SCHED_GROUP_MAX_LEVEL + 1
 };
 
 /**
@@ -3848,7 +3937,7 @@ enum fal_qos_sched_group_attr_t {
 	 * @type uint32_t
 	 * @flags READ_ONLY
 	 */
-	FAL_QOS_SCHED_GROUP_ATTR_CHILD_COUNT = 0x00000000,
+	FAL_QOS_SCHED_GROUP_ATTR_CHILD_COUNT = 0,
 
 	/**
 	 * @brief Scheduler Group child object id list
@@ -3857,7 +3946,7 @@ enum fal_qos_sched_group_attr_t {
 	 * @flags READ_ONLY
 	 * @objects FAL_QOS_OBJECT_TYPE_SCHED_GROUP, FAL_QOS_OBJECT_TYPE_QUEUE
 	 */
-	FAL_QOS_SCHED_GROUP_ATTR_CHILD_LIST = 0x00000001,
+	FAL_QOS_SCHED_GROUP_ATTR_CHILD_LIST = 1,
 
 	/**
 	 * @brief Scheduler group index
@@ -3871,7 +3960,7 @@ enum fal_qos_sched_group_attr_t {
 	 * @type uint32_t
 	 * @flags MANDATORY_ON_CREATE | CREATE_ONLY
 	 */
-	FAL_QOS_SCHED_GROUP_ATTR_SG_INDEX = 0x00000002,
+	FAL_QOS_SCHED_GROUP_ATTR_SG_INDEX = 2,
 
 	/**
 	 * @brief Scheduler group level
@@ -3879,7 +3968,7 @@ enum fal_qos_sched_group_attr_t {
 	 * @type fal_qos_sched_level_t
 	 * @flags MANDATORY_ON_CREATE | CREATE_ONLY
 	 */
-	FAL_QOS_SCHED_GROUP_ATTR_LEVEL = 0x00000003,
+	FAL_QOS_SCHED_GROUP_ATTR_LEVEL = 3,
 
 	/**
 	 * @brief Maximum number of children on group
@@ -3887,7 +3976,7 @@ enum fal_qos_sched_group_attr_t {
 	 * @type uint8_t
 	 * @flags MANDATORY_ON_CREATE | CREATE_ONLY
 	 */
-	FAL_QOS_SCHED_GROUP_ATTR_MAX_CHILDREN = 0x00000004,
+	FAL_QOS_SCHED_GROUP_ATTR_MAX_CHILDREN = 4,
 
 	/**
 	 * @brief Scheduler id
@@ -3898,7 +3987,7 @@ enum fal_qos_sched_group_attr_t {
 	 * @allownull true
 	 * @default FAL_QOS_NULL_OBJECT_ID
 	 */
-	FAL_QOS_SCHED_GROUP_ATTR_SCHEDULER_ID = 0x00000005,
+	FAL_QOS_SCHED_GROUP_ATTR_SCHEDULER_ID = 5,
 
 	/**
 	 * @brief Scheduler group parent node
@@ -3911,7 +4000,7 @@ enum fal_qos_sched_group_attr_t {
 	 * @objects FAL_QOS_OBJECT_TYPE_SCHEDULER_GROUP,
 	 *          FAL_QOS_OBJECT_TYPE_PORT
 	 */
-	FAL_QOS_SCHED_GROUP_ATTR_PARENT_ID = 0x00000006,
+	FAL_QOS_SCHED_GROUP_ATTR_PARENT_ID = 6,
 
 	/**
 	 * @brief Scheduler group ingress map node
@@ -3923,7 +4012,7 @@ enum fal_qos_sched_group_attr_t {
 	 * @flags CREATE_AND_SET
 	 * @objects FAL_QOS_OBJECT_TYPE_MAP
 	 */
-	FAL_QOS_SCHED_GROUP_ATTR_INGRESS_MAP_ID = 0x00000007,
+	FAL_QOS_SCHED_GROUP_ATTR_INGRESS_MAP_ID = 7,
 
 	/**
 	 * @brief Scheduler group vlan id
@@ -3935,7 +4024,7 @@ enum fal_qos_sched_group_attr_t {
 	 * @type uint16_t
 	 * @flags CREATE_AND_SET
 	 */
-	FAL_QOS_SCHED_GROUP_ATTR_VLAN_ID = 0x00000008,
+	FAL_QOS_SCHED_GROUP_ATTR_VLAN_ID = 8,
 
 	/**
 	 * @brief Scheduler group egress map node
@@ -3947,7 +4036,7 @@ enum fal_qos_sched_group_attr_t {
 	 * @flags CREATE_AND_SET
 	 * @objects FAL_QOS_OBJECT_TYPE_MAP
 	 */
-	FAL_QOS_SCHED_GROUP_ATTR_EGRESS_MAP_ID = 0x00000009,
+	FAL_QOS_SCHED_GROUP_ATTR_EGRESS_MAP_ID = 9,
 
 	/**
 	 * @brief Scheduler group local priority queue designator
@@ -3960,11 +4049,11 @@ enum fal_qos_sched_group_attr_t {
 	 * @type uint8_t
 	 * @flags MANDATORY_ON_CREATE| CREATE_AND_SET
 	 */
-	FAL_QOS_SCHED_GROUP_ATTR_LOCAL_PRIORITY_DESIGNATOR = 0x0000000a,
+	FAL_QOS_SCHED_GROUP_ATTR_LOCAL_PRIORITY_DESIGNATOR = 10,
 
 	/* Max value */
 	FAL_QOS_SCHED_GROUP_ATTR_MAX =
-		FAL_QOS_SCHED_GROUP_ATTR_LOCAL_PRIORITY_DESIGNATOR,
+		FAL_QOS_SCHED_GROUP_ATTR_LOCAL_PRIORITY_DESIGNATOR
 };
 
 /**
@@ -4036,7 +4125,7 @@ enum fal_qos_wred_attr_t {
 	 * @flags CREATE_AND_SET
 	 * @default false
 	 */
-	FAL_QOS_WRED_ATTR_GREEN_ENABLE = 0x00000000,
+	FAL_QOS_WRED_ATTR_GREEN_ENABLE = 0,
 
 	/**
 	 * @brief Green minimum threshold bytes
@@ -4050,7 +4139,7 @@ enum fal_qos_wred_attr_t {
 	 * @default 0
 	 * @validonly FAL_QOS_WRED_ATTR_GREEN_ENABLE == true
 	 */
-	FAL_QOS_WRED_ATTR_GREEN_MIN_THRESHOLD = 0x00000001,
+	FAL_QOS_WRED_ATTR_GREEN_MIN_THRESHOLD = 1,
 
 	/**
 	 * @brief Green maximum threshold
@@ -4063,7 +4152,7 @@ enum fal_qos_wred_attr_t {
 	 * @default 0
 	 * @validonly FAL_QOS_WRED_ATTR_GREEN_ENABLE == true
 	 */
-	FAL_QOS_WRED_ATTR_GREEN_MAX_THRESHOLD = 0x00000002,
+	FAL_QOS_WRED_ATTR_GREEN_MAX_THRESHOLD = 2,
 
 	/**
 	 * @brief Percentage 0 ~ 100
@@ -4072,7 +4161,7 @@ enum fal_qos_wred_attr_t {
 	 * @flags CREATE_AND_SET
 	 * @default 100
 	 */
-	FAL_QOS_WRED_ATTR_GREEN_DROP_PROBABILITY = 0x00000003,
+	FAL_QOS_WRED_ATTR_GREEN_DROP_PROBABILITY = 3,
 
 	/**
 	 * @brief Weight 0 ~ 15
@@ -4081,7 +4170,7 @@ enum fal_qos_wred_attr_t {
 	 * @flags CREATE_AND_SET
 	 * @default 0
 	 */
-	FAL_QOS_WRED_ATTR_WEIGHT = 0x00000004,
+	FAL_QOS_WRED_ATTR_WEIGHT = 4,
 
 	/**
 	 * @brief Yellow enable
@@ -4090,7 +4179,7 @@ enum fal_qos_wred_attr_t {
 	 * @flags CREATE_AND_SET
 	 * @default false
 	 */
-	FAL_QOS_WRED_ATTR_YELLOW_ENABLE = 0x00000005,
+	FAL_QOS_WRED_ATTR_YELLOW_ENABLE = 5,
 
 	/**
 	 * @brief Yellow minimum threshold bytes
@@ -4104,7 +4193,7 @@ enum fal_qos_wred_attr_t {
 	 * @default 0
 	 * @validonly FAL_QOS_WRED_ATTR_YELLOW_ENABLE == true
 	 */
-	FAL_QOS_WRED_ATTR_YELLOW_MIN_THRESHOLD = 0x00000006,
+	FAL_QOS_WRED_ATTR_YELLOW_MIN_THRESHOLD = 6,
 
 	/**
 	 * @brief Yellow maximum threshold
@@ -4117,7 +4206,7 @@ enum fal_qos_wred_attr_t {
 	 * @default 0
 	 * @validonly FAL_QOS_WRED_ATTR_GREEN_ENABLE == true
 	 */
-	FAL_QOS_WRED_ATTR_YELLOW_MAX_THRESHOLD = 0x00000007,
+	FAL_QOS_WRED_ATTR_YELLOW_MAX_THRESHOLD = 7,
 
 	/**
 	 * @brief Yellow Percentage 0 ~ 100
@@ -4126,7 +4215,7 @@ enum fal_qos_wred_attr_t {
 	 * @flags CREATE_AND_SET
 	 * @default 100
 	 */
-	FAL_QOS_WRED_ATTR_YELLOW_DROP_PROBABILITY = 0x00000008,
+	FAL_QOS_WRED_ATTR_YELLOW_DROP_PROBABILITY = 8,
 
 	/**
 	 * @brief Red enable
@@ -4135,7 +4224,7 @@ enum fal_qos_wred_attr_t {
 	 * @flags CREATE_AND_SET
 	 * @default false
 	 */
-	FAL_QOS_WRED_ATTR_RED_ENABLE = 0x00000009,
+	FAL_QOS_WRED_ATTR_RED_ENABLE = 9,
 
 	/**
 	 * @brief Red minimum threshold bytes
@@ -4149,7 +4238,7 @@ enum fal_qos_wred_attr_t {
 	 * @default 0
 	 * @validonly FAL_QOS_WRED_ATTR_RED_ENABLE == true
 	 */
-	FAL_QOS_WRED_ATTR_RED_MIN_THRESHOLD = 0x0000000A,
+	FAL_QOS_WRED_ATTR_RED_MIN_THRESHOLD = 10,
 
 	/**
 	 * @brief Red maximum threshold
@@ -4162,7 +4251,7 @@ enum fal_qos_wred_attr_t {
 	 * @default 0
 	 * @validonly FAL_QOS_WRED_ATTR_RED_ENABLE == true
 	 */
-	FAL_QOS_WRED_ATTR_RED_MAX_THRESHOLD = 0x0000000B,
+	FAL_QOS_WRED_ATTR_RED_MAX_THRESHOLD = 11,
 
 	/**
 	 * @brief Red percentage 0 ~ 100
@@ -4171,7 +4260,7 @@ enum fal_qos_wred_attr_t {
 	 * @flags CREATE_AND_SET
 	 * @default 100
 	 */
-	FAL_QOS_WRED_ATTR_RED_DROP_PROBABILITY = 0x0000000C,
+	FAL_QOS_WRED_ATTR_RED_DROP_PROBABILITY = 12,
 
 	/* Max value */
 	FAL_QOS_WRED_ATTR_MAX = FAL_QOS_WRED_ATTR_RED_DROP_PROBABILITY
@@ -4255,6 +4344,7 @@ enum fal_mirror_session_type_t {
 	/** Enhanced Remote SPAN */
 	FAL_MIRROR_SESSION_TYPE_ENHANCED_REMOTE,
 };
+
 /**
  * @brief FAL attributes for portmonitor(mirror) session
  */
@@ -4958,6 +5048,9 @@ enum fal_acl_bind_point_type_t {
 enum fal_acl_action_type_t {
 	FAL_ACL_ACTION_TYPE_PACKET_ACTION,
 	FAL_ACL_ACTION_TYPE_COUNTER,
+	FAL_ACL_ACTION_TYPE_SET_DESIGNATION,
+	FAL_ACL_ACTION_TYPE_SET_COLOUR,
+	FAL_ACL_ACTION_TYPE_POLICER,
 };
 
 /**
@@ -5011,7 +5104,7 @@ struct fal_acl_field_data_t {
  * The value for an enabled ACL action
  */
 union fal_acl_action_parameter_t {
-	int32_t s32;		/* For enum values */
+	int32_t s32;		/* For enum or int values */
 	fal_object_t objid;
 };
 
@@ -5243,6 +5336,34 @@ enum fal_acl_entry_attr_t {
 	 * @default disabled
 	 */
 	FAL_ACL_ENTRY_ATTR_ACTION_COUNTER,
+
+	/**
+	 * @brief Action to set the designation (0-7)
+	 *
+	 * @type fal_acl_action_data_t int32_t
+	 * @flags CREATE_AND_SET
+	 * @default disabled
+	 */
+	FAL_ACL_ENTRY_ATTR_ACTION_SET_DESIGNATION,
+
+	/**
+	 * @brief Action to set the colour (green, yellow, or red)
+	 *
+	 * @type fal_acl_action_data_t fal_packet_colour
+	 * @flags CREATE_AND_SET
+	 * @default disabled
+	 */
+	FAL_ACL_ENTRY_ATTR_ACTION_SET_COLOUR,
+
+	/**
+	 * @brief Attach/detach a policer to the entry
+	 *
+	 * @type fal_acl_action_data_t fal_object_id_t
+	 * @flags CREATE_AND_SET
+	 * @objects FAL_OBJECT_TYPE_ACL_POLICER
+	 * @default disabled
+	 */
+	FAL_ACL_ENTRY_ATTR_ACTION_POLICER,
 
 	/*
 	 * The following chunk has match fields
@@ -6046,10 +6167,27 @@ enum fal_bfd_session_attr_t {
 	FAL_BFD_SESSION_ATTR_FINAL_BIT,
 
 	/**
+	 * @brief Indicate the session is a Micro BFD session
+	 *
+	 * @type bool
+	 * @flags CREATE_ONLY
+	 * @default false
+	 */
+	FAL_BFD_SESSION_ATTR_MICRO_BFD,
+
+	/**
+	 * @brief LAG's member interface object
+	 *
+	 * @type fal_object_t
+	 * @flags CREATE_ONLY
+	 * @validonly FAL_BFD_SESSION_ATTR_MICRO_BFD == true
+	 */
+	FAL_BFD_SESSION_ATTR_LAG_MEMBER_IF,
+
+	/**
 	 * @brief End of attributes
 	 */
-	FAL_BFD_SESSION_ATTR_END,
-
+	FAL_BFD_SESSION_ATTR_END
 };
 
 /**
@@ -6064,7 +6202,6 @@ enum fal_bfd_session_stat_t {
 
 	/** Packet Drop stat count */
 	FAL_BFD_SESSION_STAT_DROP_PACKETS
-
 };
 
 /**
@@ -6172,6 +6309,18 @@ int fal_plugin_bfd_get_session_stats(fal_object_t bfd_session_id,
 typedef void (*fal_bfd_session_state_change_notification_fn)(
 	uint32_t count,
 	struct fal_bfd_session_state_notification_t *data);
+
+/**
+ * @brief Dump BFD session
+ *
+ * @param[in] bfd_session_id BFD session id
+ * @param[inout] json JSON writer object
+ *
+ * @return 0 if operation is successful otherwise a different
+ * error code is returned.
+ */
+void fal_plugin_bfd_dump_session(fal_object_t bfd_session_id,
+				 json_writer_t *wr);
 
 /* End of BFD Definitions */
 

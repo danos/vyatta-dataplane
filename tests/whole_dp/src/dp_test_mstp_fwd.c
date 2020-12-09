@@ -23,11 +23,11 @@
 #define MSTI_CHECK_VLAN_STATE(_expst, _port, _vlan)			\
 	do {enum bridge_ifstate state;					\
 		state = bridge_port_get_state_vlan(			\
-			_port->if_brport, _vlan);			\
+			(_port)->if_brport, (_vlan));			\
 		dp_test_fail_unless(					\
-			state == _expst,				\
+			state == (_expst),				\
 			"bridge_port_get_state_vlan(%s %d) failed: %s", \
-			_port->if_name, _vlan,				\
+			(_port)->if_name, (_vlan),			\
 			bridge_get_ifstate_string(state));		\
 	} while (0)
 

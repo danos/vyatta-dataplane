@@ -237,7 +237,8 @@ nd6_option(union nd_opts *ndopts)
 		/* option overruns the end of buffer, invalid */
 		memset(ndopts, 0, sizeof(*ndopts));
 		return NULL;
-	} else if (ndopts->nd_opts_search == ndopts->nd_opts_last) {
+	}
+	if (ndopts->nd_opts_search == ndopts->nd_opts_last) {
 		/* reached the end of options chain */
 		ndopts->nd_opts_done = 1;
 		ndopts->nd_opts_search = NULL;
@@ -1440,13 +1441,14 @@ in6_lltable_lookup(struct ifnet *ifp, u_int flags,
 		}
 	} else if (flags & LLE_DELETE) {
 		/*
-		 * Only delete static or idle entries.
+		 * Only delete static entries or stale entries that are idle.
 		 * Leave dynamic in-use entries to time out - kernel may
 		 * think they are stale but they may be in active use
 		 * by the dataplane.
 		 */
 		if ((lle->la_flags & LLE_STATIC) ||
-		    !llentry_has_been_used(lle)) {
+		    ((lle->la_state == ND6_LLINFO_STALE) &&
+		     !llentry_has_been_used(lle))) {
 			ND6_DEBUG("%s/%s Delete\n", ifp->if_name,
 				  ip6_sprintf(addr));
 
@@ -1603,21 +1605,21 @@ nd6_resolve_timeout(struct lltable *llt, struct llentry *lle,
 
 		return nd6_ns_build(ifp, NULL, &sin6->sin6_addr,
 				    nud ? &lle->ll_addr : NULL);
-	} else {
-		/*
-		 * Reached retry limit. Delete entry
-		 */
-		ND6_DEBUG("%s/%s Retry limit\n", ifp->if_name,
-			  lladdr_ntop6(lle));
-
-		if (nud)
-			ND6NBR_INC(nudfail);
-		else
-			ND6NBR_INC(timeouts);
-
-		nd6_unreachable(ifp, lle, m_for_icmp_unreach,
-				ifp_for_icmp_unreach);
 	}
+
+	/*
+	 * Reached retry limit. Delete entry
+	 */
+	ND6_DEBUG("%s/%s Retry limit\n", ifp->if_name,
+		  lladdr_ntop6(lle));
+
+	if (nud)
+		ND6NBR_INC(nudfail);
+	else
+		ND6NBR_INC(timeouts);
+
+	nd6_unreachable(ifp, lle, m_for_icmp_unreach,
+			ifp_for_icmp_unreach);
 	return NULL;
 }
 
@@ -1819,7 +1821,7 @@ int cmd_nd6_set_cfg(FILE *f, int argc, char **argv)
 	bool set = false;
 	int val = 0;
 
-	if (!argc || strcmp(argv[0], "nd6"))
+	if (!argc || strcmp(argv[0], "nd6") != 0)
 		goto error;
 
 	if (!strcmp(argv[1], "set")) {
@@ -1837,7 +1839,7 @@ int cmd_nd6_set_cfg(FILE *f, int argc, char **argv)
 		goto error;
 	}
 
-	if (strcmp(argv[2], "all")) {
+	if (strcmp(argv[2], "all") != 0) {
 		fprintf(f, "Per-interface ND param config not supported\n");
 		goto error;
 	}

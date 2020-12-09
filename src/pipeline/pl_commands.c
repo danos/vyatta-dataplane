@@ -2,7 +2,7 @@
  * pl_commands.c
  *
  *
- * Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2016, 2017 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -192,3 +192,12 @@ PB_REGISTER_CMD(pipeline_stats_cmd) = {
 	.cmd = "vyatta:pipeline-stats",
 	.handler = cmd_pipeline_stats_cfg,
 };
+
+bool pl_print_feats(struct pl_feature_registration *feat_reg, void *context)
+{
+	json_writer_t *wr = context;
+
+	jsonw_string(wr, feat_reg->name);
+
+	return true;
+}

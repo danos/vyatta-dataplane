@@ -33,20 +33,6 @@ License: LGPL-2.1+
  Public License can be found in "/usr/share/common-licenses/LGPL-2.1".
 
 Files:
- m4/ax_cxx_compile_stdcxx.m4
- m4/ax_valgrind_check.m4
-Copyright:
- 2008 Benjamin Kosnik <bkoz@redhat.com>
- 2012 Zack Weinberg <zackw@panix.com>
- 2013 Roy Stogner <roystgnr@ices.utexas.edu>
- 2014, 2015 Google Inc.; contributed by Alexey Sokolov <sokolov@google.com>
- 2014, 2015, 2016 Philip Withnall <philip.withnall@collabora.co.uk>
- 2015 Paul Norman <penorman@mac.com>
- 2015 Moritz Klammler <moritz@klammler.eu>
-License: FSFAP
- Copying and distribution of this file, with or without modification, are permitted in any medium without royalty provided the copyright notice and this notice are preserved. This file is offered as-is, without any warranty.
-
-Files:
  src/ip_id.c
  src/npf/alg/npf_alg_private.c
  src/npf/npf.h

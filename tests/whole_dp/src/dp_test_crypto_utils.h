@@ -30,7 +30,7 @@ struct rte_mbuf *dp_test_create_esp_ipv6_pak(const char *saddr,
 					     int n, int *len,
 					     const char *payload,
 					     uint32_t spi, uint32_t seq_no,
-					     uint16_t id, uint8_t ttl,
+					     uint16_t id, uint8_t hlim,
 					     struct ip6_hdr *transport);
 
 struct dp_test_crypto_policy {
@@ -128,8 +128,9 @@ struct dp_test_crypto_sa {
 
 void _dp_test_crypto_create_sa(const char *file, const char *func, int line,
 			       const struct dp_test_crypto_sa *sa, bool verify);
-void _dp_test_crypto_delete_sa(const char *file, int line,
-			       const struct dp_test_crypto_sa *sa);
+void _dp_test_crypto_delete_sa_verify(const char *file, int line,
+				      const struct dp_test_crypto_sa *sa,
+				      bool verify);
 void _dp_test_crypto_expire_sa(const char *file, int line,
 			       const struct dp_test_crypto_sa *sa, bool hard);
 
@@ -139,7 +140,9 @@ void _dp_test_crypto_expire_sa(const char *file, int line,
 	_dp_test_crypto_create_sa(__FILE__, __func__, __LINE__, _sa, verify)
 
 #define dp_test_crypto_delete_sa(_sa)		\
-	_dp_test_crypto_delete_sa(__FILE__, __LINE__, _sa)
+	_dp_test_crypto_delete_sa_verify(__FILE__, __LINE__, _sa, true)
+#define dp_test_crypto_delete_sa_verify(_sa, verify)		\
+	_dp_test_crypto_delete_sa_verify(__FILE__, __LINE__, _sa, verify)
 
 #define dp_test_crypto_expire_sa(_sa, _hard)	\
 	_dp_test_crypto_expire_sa(__FILE__, __LINE__, _sa, _hard)
@@ -178,5 +181,13 @@ struct dp_test_expected *
 generate_exp_unreachable6(struct rte_mbuf *input_pkt, int payload_len,
 			 const char *source_ip, const char *dest_ip,
 			 const char *oif, const char *dmac);
+
+#define dp_test_crypto_check_xfrm_acks()			\
+	_dp_test_crypto_check_xfrm_acks(__FILE__, __LINE__)
+
+void _dp_test_xfrm_set_nack(uint32_t err_count);
+
+#define dp_test_crypto_xfrm_set_nack(count)	\
+	_dp_test_xfrm_set_nack(count)
 
 #endif /*_DP_TEST_CRYPTO_UTILS_H_ */

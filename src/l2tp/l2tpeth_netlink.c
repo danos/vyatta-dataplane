@@ -103,9 +103,7 @@ l2tp_session_byid(uint32_t session_id)
 	if (likely(node != NULL))
 		return caa_container_of(node, struct l2tp_session,
 					session_node);
-	else
-		return NULL;
-
+	return NULL;
 }
 
 void l2tp_session_walk(l2tp_iter_func_t func, void *arg)

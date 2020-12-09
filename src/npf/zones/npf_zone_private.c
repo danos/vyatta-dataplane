@@ -141,7 +141,7 @@ struct npf_zone *local_zone;
 
 
 /* Forward reference */
-static uint32_t npf_zone_policy_ht_hash(const uintptr_t nz);
+static uint32_t npf_zone_policy_ht_hash(uintptr_t nz);
 static int npf_zone_list_insert(struct npf_zone *nz);
 static int npf_zone_list_remove(struct npf_zone *nz);
 static void npf_zone_list_remove_all(struct npf_zone_inst *zi);
@@ -1069,7 +1069,7 @@ npf_zone_show_private(json_writer_t *json, const char *zone,
 	if (zi) {
 		cds_list_for_each_entry(nz, &zi->zi_zone_list, nz_node) {
 			/* Looking for one particular zone? */
-			if (zone && strcmp(zone, nz->nz_name))
+			if (zone && strcmp(zone, nz->nz_name) != 0)
 				continue;
 
 			/*

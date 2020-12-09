@@ -131,9 +131,9 @@ ipv6_l4_pre_process(struct pl_packet *pkt, void *context, struct ifnet *ifp)
 		return true;
 		/* other protocols */
 	}
-	if (rc == 0) {
+	if (rc == 0)
 		return false;
-	} else if (rc < 0) {
+	if (rc < 0) {
 		term_drop_process(pkt, context);
 		return false;
 	}
@@ -199,3 +199,33 @@ PL_REGISTER_NODE(ipv6_l4_node) = {
 };
 
 struct pl_node_registration *const ipv6_l4_node_ptr = &ipv6_l4_node;
+
+/*
+ * show features ipv6_l4
+ */
+static int cmd_pl_show_feat_ipv6_l4(struct pl_command *cmd)
+{
+	json_writer_t *wr;
+
+	wr = jsonw_new(cmd->fp);
+	if (!wr)
+		return 0;
+
+	jsonw_name(wr, "features");
+	jsonw_start_object(wr);
+
+	jsonw_name(wr, "global");
+	jsonw_start_array(wr);
+	pl_node_iter_features(ipv6_l4_node_ptr, NULL,
+			      pl_print_feats, wr);
+	jsonw_end_array(wr);
+
+	jsonw_end_object(wr);
+	jsonw_destroy(&wr);
+	return 0;
+}
+
+PL_REGISTER_OPCMD(pl_show_feat_ipv6_l4) = {
+	.cmd = "show features ipv6_l4",
+	.handler = cmd_pl_show_feat_ipv6_l4,
+};

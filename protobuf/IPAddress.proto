@@ -15,3 +15,8 @@ message IPAddress {
 	      bytes ipv6_addr = 2;
 	}
 }
+
+message IPPrefix {
+	optional IPAddress address = 1;
+	optional uint32 length = 2;
+}

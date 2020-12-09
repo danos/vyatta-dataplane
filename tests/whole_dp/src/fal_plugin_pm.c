@@ -25,14 +25,14 @@
 __FOR_EXPORT
 int fal_plugin_mirror_session_create(uint32_t attr_count,
 			     const struct fal_attribute_t *attr_list,
-			     fal_object_t *mr_obj_id)
+			     fal_object_t *obj)
 {
 	INFO("To be implemented %s\n", __func__);
 	return 0;
 }
 
 __FOR_EXPORT
-int fal_plugin_mirror_session_delete(fal_object_t mr_obj_id)
+int fal_plugin_mirror_session_delete(fal_object_t obj)
 {
 
 	INFO("To be implemented %s\n", __func__);
@@ -40,7 +40,7 @@ int fal_plugin_mirror_session_delete(fal_object_t mr_obj_id)
 }
 
 __FOR_EXPORT
-int fal_plugin_mirror_session_set_attr(fal_object_t mr_obj_id,
+int fal_plugin_mirror_session_set_attr(fal_object_t obj,
 				 const struct fal_attribute_t *attr)
 {
 	INFO("To be implemented %s\n", __func__);
@@ -48,7 +48,7 @@ int fal_plugin_mirror_session_set_attr(fal_object_t mr_obj_id,
 }
 
 __FOR_EXPORT
-int fal_plugin_mirror_session_get_attr(fal_object_t mr_obj_id,
+int fal_plugin_mirror_session_get_attr(fal_object_t obj,
 				       uint32_t attr_count,
 				       struct fal_attribute_t *attr_list)
 {

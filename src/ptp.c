@@ -80,6 +80,7 @@ static CDS_LIST_HEAD(ptp_port_list);
 static CDS_LIST_HEAD(ptp_peer_list);
 
 static struct rte_timer ptp_peer_resolver;
+static bool ptp_peer_resolver_running;
 static unsigned int ptp_peer_resolver_period = 15;	/* seconds */
 static void ptp_peer_resolver_cb(struct rte_timer *timer, void *arg);
 
@@ -399,6 +400,7 @@ static int ptp_clock_create(FILE *f, uint32_t clock_id, int argc, char **argv)
 
 	if (!cds_list_empty(&ptp_clock_list)) {
 		rte_timer_init(&ptp_peer_resolver);
+		ptp_peer_resolver_running = true;
 		rte_timer_reset_sync(&ptp_peer_resolver,
 			     rte_get_timer_hz() * ptp_peer_resolver_period,
 			     PERIODICAL, rte_get_master_lcore(),
@@ -445,8 +447,10 @@ static int ptp_clock_delete(FILE *f, uint32_t clock_id,
 	cds_list_del_rcu(&clock->list);
 	call_rcu(&clock->rcu, ptp_clock_free);
 
-	if (cds_list_empty(&ptp_clock_list))
+	if (cds_list_empty(&ptp_clock_list)) {
 		rte_timer_stop_sync(&ptp_peer_resolver);
+		ptp_peer_resolver_running = false;
+	}
 
 error:
 	return rc;
@@ -860,7 +864,7 @@ struct ifnet *ptp_peer_dst_lookup(struct ptp_peer_t *peer, bool *connected)
 					  &peer->ipaddr.addr.addr6,
 					  connected);
 	} else {
-		char buf[INET_ADDRSTRLEN];
+		char buf[INET6_ADDRSTRLEN];
 		const char *ip = fal_ip_address_t_to_str(&peer->ipaddr,
 							 buf,
 							 sizeof(buf));
@@ -881,7 +885,7 @@ void ptp_peer_dst_resolve(struct ptp_peer_t *peer,
 	struct rte_mbuf *m;
 	struct llentry *lle;
 	struct sockaddr_in taddr;
-	char buf[INET_ADDRSTRLEN];
+	char buf[INET6_ADDRSTRLEN];
 	const char *peerip = fal_ip_address_t_to_str(&peer->ipaddr,
 						     buf,
 						     sizeof(buf));
@@ -933,29 +937,45 @@ void ptp_peer_dst_resolve(struct ptp_peer_t *peer,
 	}
 }
 
+enum ptp_peer_state {
+	NO_ROUTE,
+	ROUTED,		/* ptp_port -> ifp -> nh_ifp -> ... */
+	ONE_HOP,	/* ptp_port -> ifp (== nh_ifp) -> peer */
+	CONNECTED,	/* ptp_port -> peer */
+};
+
 static
-void ptp_peer_find_nexthop(struct ptp_peer_t *peer,
-			   struct ifnet **ifp,
-			   struct ifnet **nh_ifp,
-			   bool *connected)
+enum ptp_peer_state ptp_peer_find_nexthop(struct ptp_peer_t *peer,
+					  struct ifnet **ifp,
+					  struct ifnet **nh_ifp)
 {
 	struct ptp_port_t *port;
+	enum ptp_peer_state state = NO_ROUTE;
+	bool is_connected;
 
 	*ifp = NULL;
 	*nh_ifp = NULL;
-	*connected = false;
 
 	port = rcu_dereference(peer->port);
 	if (!port)
-		return;
+		return state;
 
 	*ifp = ptp_port_port_to_vlan(port);
-	if (!*ifp)
-		return;
+	if (!*ifp || !((*ifp)->if_flags & IFF_UP))
+		return state;
 
-	*nh_ifp = ptp_peer_dst_lookup(peer, connected);
-	if (!*nh_ifp)
-		return;
+	*nh_ifp = ptp_peer_dst_lookup(peer, &is_connected);
+	if (!*nh_ifp || !((*nh_ifp)->if_flags & IFF_UP))
+		return state;
+
+	if (*nh_ifp == *ifp && is_connected)
+		state = CONNECTED;
+	else if (*nh_ifp == *ifp)
+		state = ONE_HOP;
+	else if (*nh_ifp)
+		state = ROUTED;
+
+	return state;
 }
 
 static
@@ -963,13 +983,13 @@ void ptp_peer_update(struct ptp_peer_t *peer)
 {
 	struct ifnet *ifp, *nh_ifp;
 	struct rte_ether_addr newmac = { { 0 } };
-	char buf[INET_ADDRSTRLEN], buf2[INET_ADDRSTRLEN];
+	char buf[INET6_ADDRSTRLEN], buf2[INET6_ADDRSTRLEN];
 	const char *peerip =
 		fal_ip_address_t_to_str(&peer->ipaddr, buf2, sizeof(buf2));
 	struct ptp_peer_t *parent = peer, *sibling;
-	bool connected;
+	enum ptp_peer_state state;
 
-	ptp_peer_find_nexthop(peer, &ifp, &nh_ifp, &connected);
+	state = ptp_peer_find_nexthop(peer, &ifp, &nh_ifp);
 
 	/* Is this the best way to reach the peer? There are potentially
 	 * three different way to reach a.b.c.d from the peers configured
@@ -989,29 +1009,25 @@ void ptp_peer_update(struct ptp_peer_t *peer)
 	 */
 	cds_list_for_each_entry_rcu(sibling, &parent->siblings, slist) {
 		struct ifnet *sib_ifp, *sib_nh_ifp;
-		bool sib_connected;
+		enum ptp_peer_state sib_state;
 
-		ptp_peer_find_nexthop(sibling,
-				      &sib_ifp, &sib_nh_ifp, &sib_connected);
+		sib_state = ptp_peer_find_nexthop(sibling,
+						  &sib_ifp, &sib_nh_ifp);
 
 		/* If the nexthop is on the same interface, and the
 		 * interface is up, prefer this peer over any other.
 		 * The sibling might also be better if the current
 		 * peer isn't reachable or IFF_UP.
 		 */
-		if ((sib_ifp && (sib_ifp->if_flags & IFF_UP)) &&
-		    (sib_nh_ifp == sib_ifp ||
-		     (!ifp || !(ifp->if_flags & IFF_UP)))) {
+		if (sib_state != NO_ROUTE && sib_state > state) {
 			DP_DEBUG(PTP, ERR, DATAPLANE,
-				 "%s: peer %s on %s is preferred to %s\n",
-				 __func__, peerip,
-				 sib_ifp->if_name,
-				 ifp ? ifp->if_name : "(null)");
+				 "%s: choosing peer %s on %s\n",
+				 __func__, peerip, sib_ifp->if_name);
 			ptp_peer_uninstall(peer);
 			peer = sibling;
 			nh_ifp = sib_nh_ifp;
 			ifp = sib_ifp;
-			connected = sib_connected;
+			state = sib_state;
 			continue;
 		}
 
@@ -1019,29 +1035,25 @@ void ptp_peer_update(struct ptp_peer_t *peer)
 		ptp_peer_uninstall(sibling);
 	}
 
-	if (!ifp) {
-		DP_DEBUG(PTP, ERR, DATAPLANE,
-			 "%s: peer %s is unreachable\n", __func__, peerip);
-	} else if (!(ifp->if_flags & IFF_UP)) {
-		DP_DEBUG(PTP, ERR, DATAPLANE,
-			 "%s: switch nexthop interface %s is down!\n",
-			 __func__, ifp->if_name);
-	} else if (nh_ifp == ifp && connected) {
+	switch (state) {
+	case CONNECTED:
 		/* Next hop is directly reachable from switch interface. */
 		DP_DEBUG(PTP, INFO, DATAPLANE,
 			 "%s: peer %s is directly connected via %s.\n",
 			 __func__, peerip, ifp->if_name);
 		ptp_peer_dst_resolve(peer, ifp, &newmac);
-	} else if (nh_ifp) {
+		break;
+	case ONE_HOP:
+	case ROUTED:
 		/* Send packets to sw0.<vlan_port> for routing. */
 		DP_DEBUG(PTP, INFO, DATAPLANE,
-			 "%s: peer %s routed via switch interface %s.\n",
+			 "%s: peer %s ROUTED via switch interface %s.\n",
 			 __func__, peerip, nh_ifp->if_name);
 		rte_ether_addr_copy(&ifp->eth_addr, &newmac);
-	} else {
+		break;
+	default:
 		DP_DEBUG(PTP, ERR, DATAPLANE,
-			 "%s: peer %s port is unreachable from interface %s.\n",
-			 __func__, peerip, ifp->if_name);
+			 "%s: peer %s is unreachable\n", __func__, peerip);
 	}
 
 	/* If the MAC address changed (or finally resolved),
@@ -1363,35 +1375,10 @@ enum ptp_obj_type {
 	PTP_PEER,
 };
 
-int cmd_ptp_op(FILE *f, int argc, char **argv)
+static int ptp_clock_dump(FILE *f, struct ptp_clock_t *clock)
 {
-	struct ptp_clock_t *clock;
 	json_writer_t *wr;
-	uint32_t clock_id;
 	int rc = -EINVAL;
-
-	if (argc < 4)
-		goto usage;
-	argc--;
-	argv++;
-
-	if (strcmp(*argv, "clock") != 0)
-		goto usage;
-	argc--;
-	argv++;
-
-	if (strcmp(*argv, "dump") != 0)
-		goto usage;
-	argc--;
-	argv++;
-
-	if (get_unsigned(*argv, &clock_id) < 0)
-		goto error;
-	clock = ptp_find_clock(clock_id);
-	if (!clock) {
-		fprintf(f, "ptp: clock %d does not exist\n", clock_id);
-		goto error;
-	}
 
 	wr = jsonw_new(f);
 	if (!wr) {
@@ -1404,17 +1391,143 @@ int cmd_ptp_op(FILE *f, int argc, char **argv)
 	rc = fal_dump_ptp_clock(clock->obj_id, wr);
 	jsonw_end_array(wr);
 	if (rc < 0) {
-		fprintf(f, "ptp: dump failed\n");
+		fprintf(f, "ptp: clock dump failed\n");
 		goto error;
 	}
-
 	jsonw_destroy(&wr);
+
+error:
+	return rc;
+}
+
+static const char *ptp_peer_type_to_name(enum fal_ptp_peer_type_t type)
+{
+	const char *name;
+
+	switch (type) {
+	case FAL_PTP_PEER_MASTER:
+		name = "master";
+		break;
+	case FAL_PTP_PEER_SLAVE:
+		name = "slave";
+		break;
+	case FAL_PTP_PEER_ALLOWED:
+		name = "allowed";
+		break;
+	default:
+		name = "unknown";
+	}
+
+	return name;
+}
+
+static void ptp_resolver_peer_dump(json_writer_t *wr, struct ptp_peer_t *peer)
+{
+	struct ptp_port_t *port = rcu_dereference(peer->port);
+	char buf[INET6_ADDRSTRLEN];
+	const char *peerip = fal_ip_address_t_to_str(&peer->ipaddr,
+						     buf,
+						     sizeof(buf));
+
+	jsonw_start_object(wr);
+	jsonw_string_field(wr, "peer", peerip);
+	jsonw_bool_field(wr, "installed", peer->installed);
+	if (port)
+		jsonw_uint_field(wr, "port-id", port->port_id);
+	if (peer->installed)
+		jsonw_string_field(wr, "mac",
+				   ether_ntoa_r(&peer->mac, buf));
+	jsonw_string_field(wr, "type",
+			   ptp_peer_type_to_name(peer->type));
+	jsonw_end_object(wr);
+}
+
+static int ptp_resolver_dump(FILE *f)
+{
+	struct ptp_peer_t *peer, *sibling;
+	json_writer_t *wr;
+	int rc = -EINVAL;
+
+	wr = jsonw_new(f);
+	if (!wr) {
+		fprintf(f, "ptp: could not create json writer\n");
+		goto error;
+	}
+	jsonw_pretty(wr, true);
+	jsonw_start_array(wr);
+
+	cds_list_for_each_entry_rcu(peer, &ptp_peer_list, list) {
+		ptp_resolver_peer_dump(wr, peer);
+
+		if (!cds_list_empty(&peer->siblings)) {
+			jsonw_start_array(wr);
+			cds_list_for_each_entry_rcu(sibling,
+						    &peer->siblings, slist)
+				ptp_resolver_peer_dump(wr, sibling);
+			jsonw_end_array(wr);
+		}
+	}
+
+	jsonw_end_array(wr);
+	jsonw_destroy(&wr);
+	rc = 0;
+
+error:
+	return rc;
+}
+
+int cmd_ptp_op(FILE *f, int argc, char **argv)
+{
+	struct ptp_clock_t *clock;
+	uint32_t clock_id;
+	int rc = -EINVAL;
+
+	if (argc < 3)
+		goto usage;
+
+	/* ptp clock dump <n> */
+	if (strcmp(argv[1], "clock") == 0 &&
+	    strcmp(argv[2], "dump") == 0 && argc == 4) {
+		if (get_unsigned(argv[3], &clock_id) < 0)
+			goto error;
+		clock = ptp_find_clock(clock_id);
+		if (!clock) {
+			fprintf(f, "ptp: clock %d does not exist\n", clock_id);
+			goto error;
+		}
+		rc = ptp_clock_dump(f, clock);
+	}
+
+	/* ptp resolver dump */
+	if (strcmp(argv[1], "resolver") == 0 &&
+	    strcmp(argv[2], "dump") == 0 && argc == 3) {
+		rc = ptp_resolver_dump(f);
+	}
+
+	/* ptp resolver trigger */
+	if (strcmp(argv[1], "resolver") == 0 &&
+	    strcmp(argv[2], "trigger") == 0 && argc == 3) {
+		fprintf(f, "ptp: calling peer resolver...\n");
+		if (ptp_peer_resolver_running)
+			rte_timer_stop_sync(&ptp_peer_resolver);
+		ptp_peer_resolver_cb(NULL, NULL);
+		if (ptp_peer_resolver_running)
+			rte_timer_reset_sync(&ptp_peer_resolver,
+				     rte_get_timer_hz() *
+					     ptp_peer_resolver_period,
+				     PERIODICAL, rte_get_master_lcore(),
+				     ptp_peer_resolver_cb, NULL);
+		fprintf(f, "ptp: peer resolver done!\n");
+		rc = 0;
+	}
 
 error:
 	return rc;
 
 usage:
 	fprintf(f, "ptp clock dump <clock-id>\n");
+	fprintf(f, "ptp resolver dump\n");
+	fprintf(f, "ptp resolver trigger\n");
 	goto error;
 }
 

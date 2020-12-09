@@ -18,9 +18,6 @@
 
 struct nlattr;
 
-/* Global ECMP max path param */
-extern uint16_t ecmp_max_path;
-
 /* ECMP modes */
 enum ecmp_modes {
 	ECMP_DISABLED,

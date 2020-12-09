@@ -341,8 +341,7 @@ pop_label(struct rte_mbuf *m)
 
 	if (mpls_ls_get_bos(hdr->ls))
 		return true;
-	else
-		return false;
+	return false;
 }
 
 static inline bool
@@ -719,29 +718,29 @@ nh_fwd_mpls(struct next_hop *nh,
 					return NH_FWD_SLOWPATH;
 				return ifp && !is_lo(ifp) ?
 					NH_FWD_IPv4 : NH_FWD_RESWITCH_IPv4;
-			} else if (likely(payload_type == MPT_IPV6)) {
+			}
+			if (likely(payload_type == MPT_IPV6)) {
 				if (have_labels && num_labels == 0 &&
 				    unlikely(mpls_oam_ip_exception(m)))
 					return NH_FWD_SLOWPATH;
 				return ifp && !is_lo(ifp) ?
 					NH_FWD_IPv6 : NH_FWD_RESWITCH_IPv6;
-			} else
-				return NH_FWD_FAILURE;
-		} else {
-			/* Non-bottom of stack */
-
-			/*
-			 * If the nexthop is unlabeled then drop the packet
-			 */
-			if (unlikely(!num_labels))
-				return NH_FWD_FAILURE;
-
-			if (!have_labels || ifp)
-				return NH_FWD_SUCCESS;
-			else
-				return NH_FWD_RESWITCH_MPLS;
+			}
+			return NH_FWD_FAILURE;
 		}
-	} else if (have_labels) {
+		/* Non-bottom of stack */
+
+		/*
+		 * If the nexthop is unlabeled then drop the packet
+		 */
+		if (unlikely(!num_labels))
+			return NH_FWD_FAILURE;
+
+		if (!have_labels || ifp)
+			return NH_FWD_SUCCESS;
+		return NH_FWD_RESWITCH_MPLS;
+	}
+	if (have_labels) {
 		if (!swap_labels(m, labels, cache))
 			return NH_FWD_FAILURE;
 	} else {
@@ -1640,29 +1639,34 @@ mpls_labeled_forward(struct ifnet *input_ifp, bool local,
 			mpls_forward_to_ipv4(input_ifp, local, m, nh, ttl,
 					     pop);
 			return;
-		} else if (likely(ret == NH_FWD_SUCCESS)) {
+		}
+		if (likely(ret == NH_FWD_SUCCESS)) {
 			nh_mpls_forward(payload_type, nht, nh, true,
 					ttl, m, &cache, input_ifp);
 			return;
-		} else if (likely(ret == NH_FWD_IPv6)) {
+		}
+		if (likely(ret == NH_FWD_IPv6)) {
 			mpls_forward_to_ipv6(input_ifp, local, m, nh, ttl,
 					     pop);
 			return;
-		} else if (unlikely(ret == NH_FWD_RESWITCH_IPv4)) {
+		}
+		if (unlikely(ret == NH_FWD_RESWITCH_IPv4)) {
 			if (!mpls_reswitch_as_ipv4(
 				    input_ifp, m, dp_nh_get_ifp(nh) ?
 				    if_vrfid(dp_nh_get_ifp(nh)) :
 				    VRF_DEFAULT_ID, ttl))
 				goto drop;
 			return;
-		} else if (unlikely(ret == NH_FWD_RESWITCH_IPv6)) {
+		}
+		if (unlikely(ret == NH_FWD_RESWITCH_IPv6)) {
 			if (!mpls_reswitch_as_ipv6(
 				    input_ifp, m, dp_nh_get_ifp(nh) ?
 				    if_vrfid(dp_nh_get_ifp(nh)) :
 				    VRF_DEFAULT_ID, ttl))
 				goto drop;
 			return;
-		} else if (unlikely(ret == NH_FWD_SLOWPATH)) {
+		}
+		if (unlikely(ret == NH_FWD_SLOWPATH)) {
 			/*
 			 * Put the packet back to its newly arrived
 			 * state.  NOTE: we are assuming that we
@@ -1682,9 +1686,9 @@ mpls_labeled_forward(struct ifnet *input_ifp, bool local,
 				break;
 			local_packet(input_ifp, m);
 			return;
-		} else if (unlikely(ret == NH_FWD_FAILURE)) {
-			break;
 		}
+		if (unlikely(ret == NH_FWD_FAILURE))
+			break;
 		/*
 		 * We don't support push/swap and lookup semantics so we
 		 * cannot currently have labels in the label cache when we get
@@ -1715,12 +1719,12 @@ static void mpls_output(struct rte_mbuf *m)
 }
 
 void mpls_unlabeled_input(struct ifnet *input_ifp, struct rte_mbuf *m,
+			  enum mpls_payload_type payload_type,
 			  enum nh_type ip_nh_type,
 			  struct next_hop *ip_nh,
 			  uint8_t ttl)
 {
 	const union next_hop_outlabels *labels;
-	enum mpls_payload_type payload_type;
 	struct mpls_label_cache cache;
 	unsigned int num_labels;
 	uint32_t local_label;
@@ -1745,7 +1749,6 @@ void mpls_unlabeled_input(struct ifnet *input_ifp, struct rte_mbuf *m,
 		 */
 		nht = ip_nh_type;
 		nh = ip_nh;
-		payload_type = MPT_UNSPEC;
 	} else {
 		/*
 		 * Push all except the top (local) label onto the label cache
@@ -1797,15 +1800,18 @@ void mpls_unlabeled_input(struct ifnet *input_ifp, struct rte_mbuf *m,
 		nh_mpls_forward(payload_type, nht, nh, false, ttl,
 				m, &cache, input_ifp);
 		return;
-	} else if (likely(ret == NH_FWD_IPv4)) {
+	}
+	if (likely(ret == NH_FWD_IPv4)) {
 		mpls_forward_to_ipv4(input_ifp, input_ifp == NULL, m,
 				     nh, ttl, false);
 		return;
-	} else if (likely(ret == NH_FWD_IPv6)) {
+	}
+	if (likely(ret == NH_FWD_IPv6)) {
 		mpls_forward_to_ipv6(input_ifp, input_ifp == NULL, m,
 				     nh, ttl, false);
 		return;
-	} else if (unlikely(ret == NH_FWD_SLOWPATH)) {
+	}
+	if (unlikely(ret == NH_FWD_SLOWPATH)) {
 		/*
 		 * Put the packet back to its newly arrived
 		 * state.  NOTE: we are assuming that we

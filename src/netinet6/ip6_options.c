@@ -80,7 +80,8 @@
  * is not continuous in order to return an ICMPv6 error.
  */
 static int __attribute__((cold))
-ip6_unknown_opt(uint8_t *optp, struct rte_mbuf *m, struct ifnet *iif, int off)
+ip6_unknown_opt(const uint8_t *optp, struct rte_mbuf *m,
+		struct ifnet *iif, int off)
 {
 	struct ip6_hdr *ip6;
 

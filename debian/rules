@@ -4,34 +4,31 @@
 #export DH_VERBOSE=1
 
 ifneq (,$(findstring coverage,$(DEB_BUILD_OPTIONS)))
-	CONFIGURE_COVERAGE_FLAGS = "--enable-code-coverage"
-else
-	CONFIGURE_COVERAGE_FLAGS = ""
+	CONFIGURE_COVERAGE_FLAGS = "Db_coverage=true"
 endif
 
 ifneq (,$(filter all_tests,$(DEB_BUILD_OPTIONS)))
-	WHOLE_DP_ALL_TESTS="--enable-whole_dp_all_tests"
-else
-	WHOLE_DP_ALL_TESTS=""
+	WHOLE_DP_ALL_TESTS="-Dall_tests=true"
 endif
 
 ifneq (,$(filter sanitizer,$(DEB_BUILD_OPTIONS)))
-	DATAPLANE_SANITIZER="--enable-dataplane_sanitizer"
-else
-	DATAPLANE_SANITIZER=""
+	DATAPLANE_SANITIZER="-Db_sanitize=address"
 endif
 
 ifneq (,$(filter no_lto,$(DEB_BUILD_OPTIONS)))
-	DATAPLANE_LTO="--without-lto"
-else
-	DATAPLANE_LTO=""
+	DATAPLANE_LTO="-Db_lto=false"
+endif
+
+ifneq (,$(filter nocheck,$(DEB_BUILD_PROFILES)))
+	DATAPLANE_WITH_TESTS="-Dwith_tests=disabled"
 endif
 
 DATAPLANE_CONFIGURE_FLAGS= \
 	$(CONFIGURE_COVERAGE_FLAGS) \
 	$(WHOLE_DP_ALL_TESTS) \
 	$(DATAPLANE_SANITIZER) \
-	$(DATAPLANE_LTO)
+	$(DATAPLANE_LTO) \
+	$(DATAPLANE_WITH_TESTS)
 
 # Don't override the optimisation flags as they differ for different
 # dataplane make targets
@@ -45,20 +42,10 @@ export DEB_BUILD_MAINT_OPTIONS=hardening=+format,-fortify,-stackprotector,+relro
 
 # Build in a separate directory
 %:
-	dh $@ --builddirectory=build --parallel --with autoreconf,systemd
+	dh $@ --builddirectory=build --parallel --with systemd --buildsystem=meson+ninja
 
-# --enable-dependency-tracking needed if using --builddirectory until Debian bug #807050 is fixed
 override_dh_auto_configure:
-	dh_auto_configure -- --enable-dependency-tracking \
-	$(DATAPLANE_CONFIGURE_FLAGS)
-
-override_dh_auto_test:
-ifneq (,$(filter pkg.vyatta-dataplane.valgrind,$(DEB_BUILD_PROFILES)))
-# -j1 is need until Debian bug 822105 is fixed, so that 'check' depends on 'dataplane_test'
-	VERBOSE=1 dh_auto_test -- -j1 check-valgrind
-else
-	VERBOSE=1 dh_auto_test
-endif
+	dh_auto_configure -- $(DATAPLANE_CONFIGURE_FLAGS)
 
 override_dh_strip:
 	debian/bin/debug_strip --auto-dbgsym
@@ -66,13 +53,13 @@ override_dh_strip:
 # _ are replaced with - as the former are not allowed in package names.
 # The generated virtual packages have format:
 # vyatta-dataplane-<cfg|op>-<PROTO>-<VERSION>
-override_dh_gencontrol: OP_VERSIONS = $(shell ASAN_OPTIONS=verify_asan_link_order=0:detect_leaks=0 build/dataplane --list_cmd_versions \
+override_dh_gencontrol: OP_VERSIONS = $(shell ASAN_OPTIONS=verify_asan_link_order=0:detect_leaks=0 build/src/dataplane --list_cmd_versions \
 					| sed "s/_/-/g ; \
 					       s/ /-/ ; \
 					       s/$$/,/ ; \
 					       s/^/vyatta-dataplane-op-/" \
 					| tr '\n' ' ')
-override_dh_gencontrol: CFG_VERSIONS = $(shell ASAN_OPTIONS=verify_asan_link_order=0:detect_leaks=0 build/dataplane --list_msg_versions \
+override_dh_gencontrol: CFG_VERSIONS = $(shell ASAN_OPTIONS=verify_asan_link_order=0:detect_leaks=0 build/src/dataplane --list_msg_versions \
 					 | sed "s/_/-/g ; \
 						s/ /-/ ; \
 						s/$$/,/ ; \

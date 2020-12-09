@@ -1154,8 +1154,9 @@ dp_test_pktmbuf_erspan_init(struct rte_mbuf *m, uint16_t erspanid,
 					erspanid);
 		erspan->idx_dir = htonl(idx << 4 | dir);
 		return erspan;
-	} else
-		return NULL;
+	}
+
+	return NULL;
 }
 
 /**
@@ -1422,7 +1423,7 @@ dp_test_create_ipv4_pak(const char *saddr, const char *daddr,
 
 struct rte_mbuf *
 dp_test_create_raw_ipv4_pak(const char *saddr, const char *daddr,
-			    uint8_t ipproto, int n, const int *len)
+			    uint8_t protocol, int n, const int *len)
 {
 	struct rte_mbuf *pak;
 	struct iphdr *ip;
@@ -1441,7 +1442,7 @@ dp_test_create_raw_ipv4_pak(const char *saddr, const char *daddr,
 		rte_pktmbuf_free(pak);
 		return NULL;
 	}
-	ip = dp_test_pktmbuf_ip_init(pak, saddr, daddr, ipproto);
+	ip = dp_test_pktmbuf_ip_init(pak, saddr, daddr, protocol);
 	if (!ip) {
 		rte_pktmbuf_free(pak);
 		return NULL;
@@ -2260,7 +2261,7 @@ dp_test_create_erspan_ipv4_pak(const char *saddr, const char *daddr,
  */
 struct rte_mbuf *
 _dp_test_create_mpls_pak(uint8_t nlabels,
-			label_t *labels, uint8_t mpls_ttls[],
+			const label_t *labels, const uint8_t mpls_ttls[],
 			const struct rte_mbuf *payload)
 {
 	struct rte_mbuf *pak;

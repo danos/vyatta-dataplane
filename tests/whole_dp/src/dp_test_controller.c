@@ -293,19 +293,19 @@ snapshot_new(void)
 static void
 delport_request(zsock_t *sock, zmsg_t *msg, zframe_t **envelope)
 {
-	return;
+	/* nothing to do */
 }
 
 static void
 snapshot_send(snapshot_t *self, zsock_t *socket, zframe_t *to)
 {
-	return;
+	/* nothing to do */
 }
 
 static void
 config_send(zsock_t *socket, zframe_t *to)
 {
-	return;
+	/* nothing to do */
 }
 
 static void send_som(snapshot_t *snap, zsock_t *sock, zframe_t **envelope,
@@ -603,25 +603,25 @@ addport_request(zsock_t *sock, zmsg_t *msg, zframe_t **envelope)
 static void
 link_request(const char *state, zsock_t *sock, zmsg_t *msg, zframe_t **envelope)
 {
-	return;
+	/* nothing to do */
 }
 
 static void
 stats_update(zmsg_t *msg)
 {
-	return;
+	/* nothing to do */
 }
 
 static void
 mrt_request(zsock_t *sock, zmsg_t *msg, zframe_t **envelope)
 {
-	return;
+	/* nothing to do */
 }
 
 static void
 mrt6_request(zsock_t *sock, zmsg_t *msg, zframe_t **envelope)
 {
-	return;
+	/* nothing to do */
 }
 
 static void
@@ -1304,6 +1304,19 @@ static void
 data_send_free(void *data, void *hint)
 {
 	free(data);
+}
+
+void nl_propagate_xfrm(zsock_t *sock, void *data, size_t size,
+		       const char *hdr)
+{
+	zmq_msg_t m;
+
+	if (data)
+		zmq_msg_init_data(&m, (void *)data, size,
+				  data_send_free, NULL);
+	zmq_send_const(zsock_resolve(sock), hdr,
+		       strlen(hdr) + 1, ZMQ_SNDMORE);
+	zmq_msg_send(&m, zsock_resolve(sock), 0);
 }
 
 void

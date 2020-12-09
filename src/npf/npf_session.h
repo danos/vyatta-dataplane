@@ -100,7 +100,7 @@ npf_session_t *npf_session_inspect_or_create(npf_cache_t *npc,
 		const int di, uint16_t *npf_flag, int *error,
 		bool *internal_hairpin);
 npf_session_t *npf_session_find(struct rte_mbuf *m, int di,
-		const struct ifnet *ifp, bool *sforw, bool *internal_hairpin);
+		const struct ifnet *ifp, bool *sfwd, bool *internal_hairpin);
 npf_session_t *npf_session_find_or_create(npf_cache_t *npc,
 		struct rte_mbuf *mbuf, const struct ifnet *ifp, int dir,
 		int *error);

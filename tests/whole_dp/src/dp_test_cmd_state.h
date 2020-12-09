@@ -23,7 +23,7 @@ dp_test_cmd_replace_dnat(int rule_num, const char *ifname, const char *orig_ip,
 			 uint16_t dnat_port);
 void
 dp_test_cmd_delete_dnat(int rule_num, const char *ifname,
-			const char *origin_ip, uint8_t proto);
+			const char *orig_ip, uint8_t proto);
 void
 dp_test_cmd_replace_snat(int rule_num, const char *ifname, const char *orig_ip,
 			 const char *snat_ip, struct dp_test_port_range *ports);

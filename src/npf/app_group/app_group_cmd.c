@@ -58,8 +58,8 @@ parse_app(char *data, struct app_group *group, bool del)
 
 	if (del)
 		return app_group_del_app(group, app_id, true);
-	else
-		return app_group_add_app(group, app_id);
+
+	return app_group_add_app(group, app_id);
 }
 
 /* Parse a single "engine:type" string.
@@ -86,8 +86,8 @@ parse_type(char *data, struct app_group *group, bool del)
 
 	if (del)
 		return app_group_del_type(group, type_id, engine_id, true);
-	else
-		return app_group_add_type(group, type_id, engine_id);
+
+	return app_group_add_type(group, type_id, engine_id);
 }
 
 /* Parse a single "engine:protocol" string.
@@ -114,8 +114,8 @@ parse_proto(char *data, struct app_group *group, bool del)
 
 	if (del)
 		return app_group_del_proto(group, proto_id, true);
-	else
-		return app_group_add_proto(group, proto_id);
+
+	return app_group_add_proto(group, proto_id);
 }
 
 /**

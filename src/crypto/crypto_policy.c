@@ -7,6 +7,7 @@
  */
 #include <arpa/inet.h>
 #include <errno.h>
+#include <libmnl/libmnl.h>
 #include <linux/if_ether.h>
 #include <linux/snmp.h>
 #include <linux/types.h>
@@ -73,6 +74,7 @@
 #include "vplane_log.h"
 #include "vrf_internal.h"
 #include "flow_cache.h"
+#include "xfrm_client.h"
 
 #include "protobuf.h"
 #include "protobuf_util.h"
@@ -387,7 +389,7 @@ int crypto_flow_cache_init(void)
 }
 
 void
-crypto_flow_cache_timer_handler(struct rte_timer *timer __rte_unused,
+crypto_flow_cache_timer_handler(struct rte_timer *tmr __rte_unused,
 				void *arg __rte_unused)
 {
 	flow_cache_age(flow_cache);
@@ -708,9 +710,7 @@ policy_rule_set_peer_info(struct policy_rule *pr,
 		vti_reqid_set(&pr->output_peer, pr->output_peer_af,
 			      pr->mark.v, pr->reqid);
 	else
-		crypto_sadb_peer_overhead_subscribe(&pr->output_peer,
-						    pr->output_peer_af,
-						    pr->reqid, &pr->overhead,
+		crypto_sadb_tunl_overhead_subscribe(pr->reqid, &pr->overhead,
 						    pr->vrfid);
 }
 
@@ -862,9 +862,8 @@ static void policy_rule_destroy(struct policy_rule *pr)
 			vti_reqid_clear(&pr->output_peer, pr->output_peer_af,
 					pr->mark.v);
 		else
-			crypto_sadb_peer_overhead_unsubscribe(
-				&pr->output_peer,
-				pr->output_peer_af,
+			crypto_sadb_tunl_overhead_unsubscribe(
+				pr->reqid,
 				&pr->overhead,
 				pr->vrfid);
 	}
@@ -1406,11 +1405,16 @@ static void policy_update_pending_vfp_bind(vrfid_t vrfid,
 static uint32_t crypto_npf_cfg_commit_count;
 static struct rte_timer crypto_npf_cfg_commit_all_timer;
 
-static void crypto_npf_cfg_commit_flush(void)
+#define CRYPTO_NPF_CFG_COMMIT_FORCE_COUNT 2000
+
+static uint32_t batch_seq[CRYPTO_NPF_CFG_COMMIT_FORCE_COUNT];
+
+void crypto_npf_cfg_commit_flush(void)
 {
 	vrfid_t vrf_id;
 	struct vrf *vrf;
 	struct crypto_vrf_ctx *vrf_ctx;
+	uint32_t i;
 
 	npf_cfg_commit_all();
 	VRF_FOREACH(vrf, vrf_id) {
@@ -1423,6 +1427,17 @@ static void crypto_npf_cfg_commit_flush(void)
 		vrf_ctx->crypto_live_ipv6_policies =
 			vrf_ctx->crypto_total_ipv6_policies;
 	}
+
+	/*
+	 * There is an assumption that npf_cfg_commit_all completed
+	 * successfully as there is no return value. Any issues should
+	 * have been caught when the individidual policies were added
+	 * at which point an error should have been returned to the
+	 * xfrm source.
+	 */
+	for (i = 0; xfrm_direct && i < crypto_npf_cfg_commit_count ; i++)
+		xfrm_client_send_ack(batch_seq[i], MNL_CB_OK);
+
 	crypto_npf_cfg_commit_count = 0;
 }
 
@@ -1435,22 +1450,30 @@ static void crypto_npf_cfg_commit_all_timer_handler(
 		crypto_npf_cfg_commit_flush();
 }
 
-#define CRYPTO_NPF_CFG_COMMIT_FORCE_COUNT 2000
 /*
  * As the npf commit is slow and does a rebuild of the entire state
  * batch up the calls to it. This can possibly delay the application of
  * a rule, but overall will be much faster.
  */
-static void crypto_npf_cfg_commit_all(struct policy_rule *pr __unused)
+static void crypto_npf_cfg_commit_all(struct policy_rule *pr __unused,
+				      uint32_t seq)
 {
 	ASSERT_MAIN();
 
-	if (crypto_npf_cfg_commit_count == 0) {
+	/*
+	 * If the xfrm_direct path is not programming the classifier
+	 * then no batch completed will be signal and so the existing
+	 * timer based mechanism is required to commit the policies.
+	 */
+	if (!xfrm_direct && crypto_npf_cfg_commit_count == 0) {
 		rte_timer_reset(&crypto_npf_cfg_commit_all_timer,
 				rte_get_timer_hz(),
 				SINGLE, rte_get_master_lcore(),
 				crypto_npf_cfg_commit_all_timer_handler, NULL);
 	}
+
+	if (xfrm_direct)
+		batch_seq[crypto_npf_cfg_commit_count] = seq;
 	crypto_npf_cfg_commit_count++;
 
 	/* Force the commit if we have batched up too many */
@@ -1463,7 +1486,9 @@ policy_rule_update(struct policy_rule *pr,
 		   const struct xfrm_userpolicy_info *usr_policy,
 		   const xfrm_address_t *dst,
 		   const struct xfrm_user_tmpl *tmpl,
-		   const struct xfrm_mark *mark)
+		   const struct xfrm_mark *mark,
+		   uint32_t seq,
+		   bool *send_ack)
 {
 	bool was_vti_policy = pr->vti_tunnel_policy;
 	bool changed = false;
@@ -1497,9 +1522,8 @@ policy_rule_update(struct policy_rule *pr,
 						pr->output_peer_af,
 						pr->mark.v);
 			else
-				crypto_sadb_peer_overhead_unsubscribe(
-					&pr->output_peer,
-					pr->output_peer_af,
+				crypto_sadb_tunl_overhead_unsubscribe(
+					pr->reqid,
 					&pr->overhead,
 					pr->vrfid);
 
@@ -1540,15 +1564,16 @@ policy_rule_update(struct policy_rule *pr,
 
 		policy_rule_remove_from_npf(pr, was_vti_policy,
 					    old_rule_index);
-
-		crypto_npf_cfg_commit_all(pr);
+		*send_ack = false;
+		crypto_npf_cfg_commit_all(pr, seq);
 		if ((pr->dir == XFRM_POLICY_OUT) &&
 		    (!was_vti_policy || !pr->vti_tunnel_policy))
 			flow_cache_invalidate(flow_cache, flow_cache_disabled,
 					      false);
 	} else if (changed) {
+		*send_ack = false;
 		policy_rule_update_npf(pr);
-		crypto_npf_cfg_commit_all(pr);
+		crypto_npf_cfg_commit_all(pr, seq);
 	}
 
 	/* Check if this update means we need to rebind */
@@ -1567,19 +1592,23 @@ int crypto_policy_add(const struct xfrm_userpolicy_info *usr_policy,
 		      const xfrm_address_t *dst,
 		      const struct xfrm_user_tmpl *tmpl,
 		      const struct xfrm_mark *mark,
-		      vrfid_t vrfid)
+		      vrfid_t vrfid,
+		      uint32_t seq,
+		      bool *send_ack)
 {
 	struct policy_rule *pr;
+
+	*send_ack = true;
 
 	pr = policy_rule_find_by_selector(vrfid, &usr_policy->sel, mark,
 					  usr_policy->dir);
 	if (pr) {
-		if (!policy_rule_update(pr, usr_policy, dst, tmpl, mark)) {
+		if (!policy_rule_update(pr, usr_policy, dst, tmpl, mark,
+					seq, send_ack)) {
 			POLICY_ERR(
 				"Policy add failed to update existing policy\n");
 			return -1;
 		}
-
 		return 1;
 	}
 
@@ -1601,7 +1630,9 @@ int crypto_policy_add(const struct xfrm_userpolicy_info *usr_policy,
 		policy_rule_destroy(pr);
 		return -1;
 	}
-	crypto_npf_cfg_commit_all(pr);
+
+	*send_ack = false;
+	crypto_npf_cfg_commit_all(pr, seq);
 	/*
 	 * Any policy rule added, where the port is specified as part of the
 	 * selection criteria, the cache is disabled.
@@ -1635,7 +1666,9 @@ int crypto_policy_update(const struct xfrm_userpolicy_info *usr_policy,
 			 const xfrm_address_t *dst,
 			 const struct xfrm_user_tmpl *tmpl,
 			 const struct xfrm_mark *mark,
-			 vrfid_t vrfid)
+			 vrfid_t vrfid,
+			 uint32_t seq,
+			 bool *send_ack)
 {
 	struct policy_rule *pr;
 
@@ -1649,10 +1682,12 @@ int crypto_policy_update(const struct xfrm_userpolicy_info *usr_policy,
 		 * restart and the controller collapsed the add, so
 		 * treat it like an add now.
 		 */
-		return crypto_policy_add(usr_policy, dst, tmpl, mark, vrfid);
+		return crypto_policy_add(usr_policy, dst, tmpl, mark, vrfid,
+					 seq, send_ack);
 	}
 
-	if (!policy_rule_update(pr, usr_policy, dst, tmpl, mark)) {
+	if (!policy_rule_update(pr, usr_policy, dst, tmpl, mark,
+				seq, send_ack)) {
 		POLICY_ERR("Failed to update existing policy\n");
 		return -1;
 	}
@@ -1667,10 +1702,20 @@ int crypto_policy_update(const struct xfrm_userpolicy_info *usr_policy,
  *
  * MUST be called from the main thread
  */
-static void crypto_policy_delete_internal(struct policy_rule *pr, vrfid_t vrfid)
+static void crypto_policy_delete_internal(struct policy_rule *pr, vrfid_t vrfid,
+					  uint32_t seq, bool ack)
 {
 	policy_rule_remove_from_npf(pr, pr->vti_tunnel_policy, pr->rule_index);
-	crypto_npf_cfg_commit_all(pr);
+
+	/*
+	 * Is the policy is being purged as the result of a flush
+	 * style event?.  If so no ack needs to be generated, as the
+	 * event is not called due to the reception of a policy delete
+	 * from strongswan.
+	 */
+	if (ack)
+		crypto_npf_cfg_commit_all(pr, seq);
+
 	if (pr->dir == XFRM_POLICY_OUT) {
 		/*
 		 * The cache is disabled any time there is a policy that
@@ -1696,7 +1741,8 @@ static void crypto_policy_delete_internal(struct policy_rule *pr, vrfid_t vrfid)
 
 void crypto_policy_delete(const struct xfrm_userpolicy_id *id,
 			  const struct xfrm_mark *mark,
-			  vrfid_t vrfid)
+			  vrfid_t vrfid,
+			  uint32_t seq, bool *send_ack)
 {
 	struct policy_rule *pr;
 
@@ -1706,10 +1752,11 @@ void crypto_policy_delete(const struct xfrm_userpolicy_id *id,
 		 * Might have been removed by a flush,
 		 * or never received if there was a dp restart
 		 */
+		*send_ack = true;
 		return;
 	}
 
-	crypto_policy_delete_internal(pr, vrfid);
+	crypto_policy_delete_internal(pr, vrfid, seq, true);
 }
 
 void crypto_policy_flush_vrf(struct crypto_vrf_ctx *vrf_ctx)
@@ -1721,12 +1768,12 @@ void crypto_policy_flush_vrf(struct crypto_vrf_ctx *vrf_ctx)
 
 	cds_lfht_for_each_entry(vrf_ctx->input_policy_rule_sel_ht,
 				&iter, pr, sel_ht_node) {
-		crypto_policy_delete_internal(pr, vrf_ctx->vrfid);
+		crypto_policy_delete_internal(pr, vrf_ctx->vrfid, 0, false);
 	}
 
 	cds_lfht_for_each_entry(vrf_ctx->output_policy_rule_sel_ht,
 				&iter, pr, sel_ht_node) {
-		crypto_policy_delete_internal(pr, vrf_ctx->vrfid);
+		crypto_policy_delete_internal(pr, vrf_ctx->vrfid, 0, false);
 	}
 }
 
@@ -1964,7 +2011,6 @@ crypto_policy_handle_packet_outbound(struct ifnet *vfp_ifp,
 
 drop:
 	rte_pktmbuf_free(mbuf);
-	return;
 }
 
 /*
@@ -3217,14 +3263,18 @@ void crypto_incmpl_policy_make_complete(void)
 {
 	struct cds_lfht_iter iter;
 	struct crypto_incmpl_xfrm_policy *pol;
+	struct xfrm_client_aux_data aux;
+
 	vrfid_t vrf_id = VRF_DEFAULT_ID;
+	aux.vrf = &vrf_id;
 
 	crypto_incmpl_xfrm_pol_stats.if_complete++;
 
 	cds_lfht_for_each_entry(crypto_incmpl_policy, &iter,
 				pol, hash_node) {
-		rtnl_process_xfrm(pol->nlh, &vrf_id);
+		rtnl_process_xfrm(pol->nlh, &aux);
 	}
+	crypto_npf_cfg_commit_flush();
 }
 
 PB_REGISTER_CMD(crypto_policy_cmd) = {

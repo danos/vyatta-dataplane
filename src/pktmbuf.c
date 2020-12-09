@@ -546,7 +546,7 @@ int dp_pktmbuf_mdata_invar_feature_unregister(const char *name, int slot)
 	if (!pktmbuf_mdata_feat_regs[slot])
 		return -EINVAL;
 
-	if (strcmp(pktmbuf_mdata_feat_regs[slot], name))
+	if (strcmp(pktmbuf_mdata_feat_regs[slot], name) != 0)
 		return -EINVAL;
 
 	free(pktmbuf_mdata_feat_regs[slot]);

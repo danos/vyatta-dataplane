@@ -238,8 +238,7 @@ linkwatch_check_path_state(const struct dp_rt_path_unusable_key *key)
 
 		if (link.link_status == ETH_LINK_DOWN)
 			return DP_RT_PATH_UNUSABLE;
-		else
-			return DP_RT_PATH_USABLE;
+		return DP_RT_PATH_USABLE;
 	}
 
 	return DP_RT_PATH_UNKNOWN;

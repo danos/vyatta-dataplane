@@ -862,10 +862,10 @@ static bool ip6_punt_rate_limit(struct mf6c *rt)
 	if (color != RTE_COLOR_RED) {
 		rt->mf6c_punted++;
 		return false;
-	} else {
-		rt->mf6c_punts_dropped++;
-		return true;
 	}
+
+	rt->mf6c_punts_dropped++;
+	return true;
 }
 
 /*
@@ -1117,18 +1117,15 @@ static int ip6_mdq(struct mcast6_vrf *mvrf6, struct rte_mbuf *m,
 		if (ip6_punt_rate_limit(rt)) {
 			MRT6STAT_INC(mvrf6, mrt6s_upq_ovflw);
 			return RTF_BLACKHOLE;
-		} else {
-			return RTF_SLOWPATH;
 		}
+		return RTF_SLOWPATH;
 	}
 
 	/* Rate limit this punted packet */
 	if (rt->mf6c_controller) {
-		if (ip6_punt_rate_limit(rt)) {
+		if (ip6_punt_rate_limit(rt))
 			return RTF_BLACKHOLE;
-		} else {
-			return RTF_SLOWPATH;
-		}
+		return RTF_SLOWPATH;
 	}
 
 	/*

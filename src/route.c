@@ -658,7 +658,7 @@ bool rt_valid_tblid(vrfid_t vrfid, uint32_t tbl_id)
  * Returns RCU protected nexthop structure or NULL.
  */
 ALWAYS_INLINE __hot_func
-struct next_hop *dp_rt_lookup(in_addr_t dst, uint32_t tblid,
+struct next_hop *dp_rt_lookup(in_addr_t dst, uint32_t tbl_id,
 			      const struct rte_mbuf *m)
 {
 	vrfid_t vrfid = pktmbuf_get_vrf(m);
@@ -667,7 +667,7 @@ struct next_hop *dp_rt_lookup(in_addr_t dst, uint32_t tblid,
 	if (!vrf)
 		return NULL;
 
-	return rt_lookup_fast(vrf, dst, tblid, m);
+	return rt_lookup_fast(vrf, dst, tbl_id, m);
 }
 
 /*
@@ -2097,7 +2097,7 @@ static double nexthop_hash_load_factor(void)
 	double factor;
 
 	cds_lfht_count_nodes(nexthop_hash, &dummy, &count, &dummy);
-	factor = count / NEXTHOP_HASH_TBL_SIZE;
+	factor = (double) count / (double) NEXTHOP_HASH_TBL_SIZE;
 	return factor;
 }
 
@@ -2136,7 +2136,7 @@ int rt_stats(struct route_head *rt_head, json_writer_t *json, uint32_t id)
 	jsonw_uint_field(json, "used", nh_tbl.in_use);
 	jsonw_uint_field(json, "free", NEXTHOP_HASH_TBL_SIZE - nh_tbl.in_use);
 	jsonw_uint_field(json, "hash",
-			 100. * nexthop_hash_load_factor());
+			 (unsigned int) (100. * nexthop_hash_load_factor()));
 	jsonw_uint_field(json, "neigh_present", nh_tbl.neigh_present);
 	jsonw_uint_field(json, "neigh_created", nh_tbl.neigh_created);
 	jsonw_end_object(json);
@@ -2395,8 +2395,7 @@ static enum nh_change arp_removal_nh_purge_cb(struct next_hop *next __unused,
 	if (sibling == args->sibling) {
 		if (args->count > 1)
 			return NH_CLEAR_NEIGH_CREATED;
-		else
-			return NH_DELETE;
+		return NH_DELETE;
 	}
 
 	if (args->count > 1)

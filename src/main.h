@@ -43,7 +43,7 @@ extern unsigned int slowpath_mtu;
 struct rte_mempool *mbuf_pool(unsigned int portid);
 struct rte_mempool *mbuf_pool_create(const char *name,
 				     unsigned int n,
-				     unsigned int cache_sz,
+				     unsigned int cache_size,
 				     unsigned long roomsz,
 				     int socket_id);
 
@@ -106,11 +106,12 @@ void device_server_destroy(void);
 int eth_port_config(portid_t portid);
 int eth_port_configure(portid_t portid, struct rte_eth_conf *dev_conf);
 unsigned int probe_crypto_engines(bool *sticky);
-int set_crypto_engines(const char *str, bool *sticky);
+int set_crypto_engines(const uint8_t *str, uint8_t len, bool *sticky);
 int crypto_assign_engine(int crypto_dev_id, int lcore);
 void crypto_unassign_from_engine(int lcore);
 void register_forwarding_cores(void);
-int reconfigure_queues(portid_t portid, uint16_t nb_rx_qs, uint16_t nb_tx_qs);
+int reconfigure_queues(portid_t portid, uint16_t nb_rx_queues,
+		       uint16_t nb_tx_queues);
 
 /* Rate states */
 struct rate_stats {
@@ -120,8 +121,8 @@ struct rate_stats {
 	uint64_t last_bytes;
 	struct timeval last_time;
 };
-void scale_rate_stats(struct rate_stats *stats, uint64_t *packets,
-		      uint64_t *bytes);
+void scale_rate_stats(struct rate_stats *stats, const uint64_t *packets,
+		      const uint64_t *bytes);
 
 #define DRV_PARAM_LIMITTXQ	(1<<0)	/* size of rxq == size of txq */
 #define DRV_PARAM_VIRTUAL	(1<<1)	/* is a "virtual" device */
@@ -176,5 +177,8 @@ extern bool single_cpu;
 extern uint16_t nb_ports_total;
 
 int next_available_crypto_lcore(void);
+
+void enable_crypto_fwd(unsigned int lcore);
+void disable_crypto_fwd(unsigned int lcore);
 
 #endif /* MAIN_H */

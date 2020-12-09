@@ -33,6 +33,7 @@
 #include "dp_test_console.h"
 #include "dp_test/dp_test_macros.h"
 #include "dp_test_route_broker.h"
+#include "dp_test_xfrm_server.h"
 
 /* DPDK debug level */
 char rte_log_level[2];
@@ -147,22 +148,9 @@ dp_test_usage(int status)
 	       " -p, --poison         Poison mbuf data before each test\n"
 	       " -F --feat_plugin_dir Extra directory to check for feat plugins\n"
 	       " -P  --plugin-directory Unit-Test plugin directory\n"
-	       " -r, --routing-domain Use routing-domain VRF model\n"
 	       " -E, --external       When being run from plugin code\n"
 	       " -H, --platform       Specify the platform_conf file to use\n"
-	       " -C, --cfg            Extra config that a caller wants to pass\n"
-	       "                      into the tests. It represents a line in\n"
-	       "                      the 'dataplane' section of the config\n"
-	       "                      file.  It should be text based. As the\n"
-	       "                      config typically represents socket\n"
-	       "                      locations they should have the pid\n"
-	       "                      in them. As the pid is not available\n"
-	       "                      until the tests are run the strings\n"
-	       "                      should contain %%d in places where the\n"
-	       "                      pid is to be inserted. For example\n"
-	       "                      val_1=aaa-%%d  If multiple lines are\n"
-	       "                      needed then the option can be used\n"
-	       "                      multiple times\n"
+	       " -l, --lcore_list     Specify the lcore list passed to dpdk. eg. '0,1'\n"
 	       "ENV VARS:\n"
 	       " CK_RUN_SUITE          Run a single suite\n"
 	       " CK_RUN_CASE           Run a single test\n"
@@ -175,7 +163,7 @@ dp_test_usage(int status)
 #define MAX_UT_PLUGIN_DIR_LEN 128
 
 static char dp_ut_plugin_dir[MAX_UT_PLUGIN_DIR_LEN] = ".";
-char dp_ut_dummyfs_dir[PATH_MAX] = "tests/whole_dp/dummyfs/";
+char dp_ut_dummyfs_dir[PATH_MAX] = "dummyfs/";
 static char drv_cfgfile[PATH_MAX] = "dataplane-drivers-default.conf";
 static const char *dp_feat_plugin_dir = ".";
 static const char *dp_test_platform_file = PLATFORM_FILE;
@@ -185,6 +173,13 @@ static const char *dp_test_platform_file = PLATFORM_FILE;
  * set of paths are used.
  */
 bool from_external;
+
+/*
+ * lcore list to pass through to dpdk. By default assume only 1 cpu as we
+ * know that all processors always have that.
+ * eg. Using cores 0-3, could be presented as "0,1,2,3"
+ */
+static const char *lcore_list = "0";
 
 static void
 dp_test_debug_default(void)
@@ -253,16 +248,15 @@ dp_test_parse_args(int argc, char **argv)
 		{ "help",     no_argument,       NULL, 'h' },
 		{ "poison",   no_argument,       NULL, 'p' },
 		{ "count",    required_argument, NULL, 'c' },
-		{ "routing-domain", no_argument, NULL, 'r' },
 		{ "feat_plugin_dir", required_argument, NULL, 'F'},
 		{ "plugin-directory", required_argument, NULL, 'P' },
 		{ "platform", required_argument, NULL, 'H' },
 		{ "external", no_argument, NULL, 'E' },
-		{ "cfg", required_argument, NULL, 'C' },
+		{ "lcore_list", required_argument, NULL, 'l' },
 		{ NULL, 0, NULL, 0}
 	};
 
-	while ((opt = getopt_long(argc, argv, "c:d:P:F:uhprEC:H:",
+	while ((opt = getopt_long(argc, argv, "c:d:P:F:uhpEH:l:",
 				  lgopts, &option_index)) != EOF) {
 
 		switch (opt) {
@@ -295,6 +289,9 @@ dp_test_parse_args(int argc, char **argv)
 		case 'E':
 			from_external = true;
 			printf("UTs being run from external repo, using paths from dev package\n");
+			break;
+		case 'l':
+			lcore_list = optarg;
 			break;
 		default:
 			fprintf(stderr, "Unknown option %c\n", opt);
@@ -478,7 +475,9 @@ static char *get_conf_file_name(void)
 
 static void generate_conf_file(const char *cfgfile, const char *console_ep,
 			       char *req_ipc, char *req_ipc_uplink,
-			       const char *broker_ctrl_ep)
+			       const char *broker_ctrl_ep,
+			       const char *xfrm_server_push_ep,
+			       const char *xfrm_server_pull_ep)
 {
 	char buf[1024];
 	FILE *f;
@@ -524,7 +523,10 @@ static void generate_conf_file(const char *cfgfile, const char *console_ep,
 		 "%s\n"
 		 "[RIB]\n"
 		 "%s%s\n"  /* vr defines local ip */
-		 "control=%s\n",
+		 "control=%s\n"
+		 "[XFRM_CLIENT]\n"
+		 "pull=%s\n"
+		 "push=%s\n",
 		 dp_test_pname,
 		 comment_str,
 		 controller_ip_str,
@@ -541,7 +543,9 @@ static void generate_conf_file(const char *cfgfile, const char *console_ep,
 		 extra_cfg_buf,
 		 dp_ip_str ? "ip=" : "",
 		 dp_ip_str ? dp_ip_str : "",
-		 broker_ctrl_ep);
+		 broker_ctrl_ep,
+		 xfrm_server_push_ep,
+		 xfrm_server_pull_ep);
 
 	if (fwrite(buf, 1, strlen(buf) + 1, f) != strlen(buf) + 1) {
 		fprintf(stderr, "Unable to write config\n");
@@ -666,6 +670,10 @@ int __wrap_main(int argc, char **argv)
 	int dp_test_thread_internal_retval;
 	zactor_t *dp_test_actor;
 	zactor_t *dp_test_broker_actor;
+	zactor_t *dp_test_xfrm_server_actor;
+	char *xfrm_server_resp;
+	char xfrm_push_url[MAX_XFRM_SOCKET_NAME_SIZE];
+	char xfrm_pull_url[MAX_XFRM_SOCKET_NAME_SIZE];
 
 	/* Preserve name of myself. */
 	dp_test_pname = strrchr(argv[0], '/');
@@ -711,8 +719,17 @@ int __wrap_main(int argc, char **argv)
 	dp_test_broker_actor = zactor_new(dp_test_broker_thread_run, NULL);
 	broker_ctrl_ep = zstr_recv(dp_test_broker_actor);
 
+	dp_test_xfrm_server_actor =
+		zactor_new(dp_test_xfrm_server_thread_run, NULL);
+	xfrm_server_resp = zstr_recv(dp_test_xfrm_server_actor);
+	dp_test_assert_internal(sscanf(xfrm_server_resp, "%s %s",
+				       xfrm_push_url, xfrm_pull_url) == 2);
+
 	generate_conf_file(cfgfile, console_ep, req_ipc,
-			   req_ipc_uplink, broker_ctrl_ep);
+			   req_ipc_uplink, broker_ctrl_ep,
+			   xfrm_push_url, xfrm_pull_url);
+
+	zstr_free(&xfrm_server_resp);
 	zstr_free(&broker_ctrl_ep);
 	zstr_free(&req_ipc);
 	if (req_ipc_uplink)
@@ -735,7 +752,7 @@ int __wrap_main(int argc, char **argv)
 		"-P", dp_test_platform_file,
 		"--",
 		"-n", "1",
-		"-c", "0x1",
+		"-l", lcore_list,
 		"--syslog", "local6",
 		"--no-huge",
 		"-m", "1024",
@@ -752,6 +769,7 @@ int __wrap_main(int argc, char **argv)
 	zsock_recv(dp_test_actor, "i", &dp_test_thread_internal_retval);
 	zactor_destroy(&dp_test_actor);
 	zactor_destroy(&dp_test_broker_actor);
+	zactor_destroy(&dp_test_xfrm_server_actor);
 	cleanup_temp_files(cfgfile);
 
 	/*
@@ -766,6 +784,6 @@ int __wrap_main(int argc, char **argv)
 	 */
 	if (dp_test_real_main_retval != 0)
 		return dp_test_real_main_retval - 128;
-	else
-		return dp_test_thread_internal_retval;
+
+	return dp_test_thread_internal_retval;
 }

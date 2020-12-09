@@ -51,7 +51,8 @@ ipv6_post_route_lookup_process(struct pl_packet *pkt, void *context __unused)
 	if (unlikely(!nxt)) {
 		ip6_unreach(ifp, pkt->mbuf);
 		return IPV6_POST_ROUTE_LOOKUP_FINISH;
-	} else if (unlikely(nxt->flags & (RTF_SLOWPATH | RTF_LOCAL)))
+	}
+	if (unlikely(nxt->flags & (RTF_SLOWPATH | RTF_LOCAL)))
 		return IPV6_POST_ROUTE_LOOKUP_LOCAL;
 
 	ip6->ip6_hlim -= IPV6_HLIMDEC;
@@ -83,7 +84,7 @@ ipv6_post_route_lookup_process(struct pl_packet *pkt, void *context __unused)
 
 	/* MPLS imposition required because nh has given us a label */
 	if (unlikely(nh_outlabels_present(&nxt->outlabels))) {
-		mpls_unlabeled_input(ifp, pkt->mbuf,
+		mpls_unlabeled_input(ifp, pkt->mbuf, MPT_IPV6,
 				     NH_TYPE_V6GW, nxt, ip6->ip6_hops);
 		return IPV6_POST_ROUTE_LOOKUP_FINISH;
 	}

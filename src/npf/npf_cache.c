@@ -129,7 +129,8 @@ npf_tcpsaw(const npf_cache_t *npc, tcp_seq *seq, tcp_seq *ack, uint32_t *win)
 	if (npf_iscached(npc, NPC_IP4)) {
 		const struct ip *ip = &npc->npc_ip.v4;
 		return ntohs(ip->ip_len) - npf_cache_hlen(npc) - thlen;
-	} else if (npf_iscached(npc, NPC_IP6)) {
+	}
+	if (npf_iscached(npc, NPC_IP6)) {
 		const struct ip6_hdr *ip6 = &npc->npc_ip.v6;
 		return ntohs(ip6->ip6_plen) - thlen;
 	}
@@ -584,7 +585,8 @@ static inline int npf_fetch_sctp(npf_cache_t *npc, struct rte_mbuf *nbuf,
 	struct npf_sctp *sh = &npc->npc_l4.sctp;
 
 	/* Ensure it is small enough in case it is within an ICMP error */
-	assert(sizeof(struct npf_sctp) <= ICMP_ERROR_MIN_L4_SIZE);
+	static_assert(sizeof(struct npf_sctp) <= ICMP_ERROR_MIN_L4_SIZE,
+		      "npf sctp structure is too big");
 
 	/* Fetch SCTP common header. */
 	if (__nbuf_advfetch(&nbuf, &n_ptr, hlen, sizeof(*sh), sh))
@@ -1572,8 +1574,8 @@ npf_get_protocol_name_from_idx(enum npf_proto_idx proto_idx)
 {
 	if (proto_idx <= NPF_PROTO_IDX_COUNT)
 		return npf_protocol_name[proto_idx];
-	else
-		return "none";
+
+	return "none";
 }
 
 enum npf_proto_idx npf_proto_idx_from_str(const char *proto)

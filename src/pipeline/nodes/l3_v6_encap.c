@@ -280,3 +280,16 @@ PL_REGISTER_NODE(ipv6_encap_only_node) = {
 };
 
 struct pl_node_registration *const ipv6_encap_node_ptr = &ipv6_encap_node;
+
+/*
+ * show features ipv6_encap [interface <ifname>]
+ */
+static int cmd_pl_show_feat_ipv6_encap(struct pl_command *cmd)
+{
+	return if_node_instance_feat_print(cmd, ipv6_encap_node_ptr);
+}
+
+PL_REGISTER_OPCMD(pl_show_feat_ipv6_encap) = {
+	.cmd = "show features ipv6_encap",
+	.handler = cmd_pl_show_feat_ipv6_encap,
+};

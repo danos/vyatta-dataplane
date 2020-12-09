@@ -270,12 +270,12 @@ npf_alg_inspect(struct npf_session *se,	struct npf_cache *npc,
  */
 void
 npf_alg_nat_inspect(struct npf_session *se, struct npf_cache *npc,
-		    struct npf_nat *nt,	int di)
+		    struct npf_nat *nat, int di)
 {
 	struct npf_alg *alg = npf_alg_session_get_alg(se);
 
-	if (nt && alg_has_op(alg, nat_inspect))
-		alg->na_ops->nat_inspect(se, npc, nt, di);
+	if (nat && alg_has_op(alg, nat_inspect))
+		alg->na_ops->nat_inspect(se, npc, nat, di);
 }
 
 /*
@@ -284,15 +284,15 @@ npf_alg_nat_inspect(struct npf_session *se, struct npf_cache *npc,
  */
 int
 npf_alg_nat(struct npf_session *se, struct npf_cache *npc,
-	    struct rte_mbuf *nbuf, struct npf_nat *nt, const int di)
+	    struct rte_mbuf *nbuf, struct npf_nat *nat, const int di)
 {
-	const struct npf_alg *alg = npf_nat_getalg(nt);
+	const struct npf_alg *alg = npf_nat_getalg(nat);
 	int rc = 0;
 
 	if (alg_has_op(alg, nat_out) && di == PFIL_OUT)
-		rc = alg->na_ops->nat_out(se, npc, nbuf, nt);
+		rc = alg->na_ops->nat_out(se, npc, nbuf, nat);
 	else if (alg_has_op(alg, nat_in) && di == PFIL_IN)
-		rc = alg->na_ops->nat_in(se, npc, nbuf, nt);
+		rc = alg->na_ops->nat_in(se, npc, nbuf, nat);
 	return rc;
 }
 

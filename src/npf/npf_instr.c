@@ -58,7 +58,7 @@
 #include "npf/npf_ncode.h"
 #include "npf/npf_ruleset.h"
 
-#define NPF_PORTRANGE_MATCH(r, p) (p >= (r >> 16) && p <= (r & 0xffff))
+#define NPF_PORTRANGE_MATCH(r, p) ((p) >= ((r) >> 16) && (p) <= ((r) & 0xffff))
 
 
 /*
@@ -135,7 +135,7 @@ npf_match_table(const npf_cache_t *npc,	uint32_t opts, const u_int tid)
 
 	if (npf_iscached(npc, NPC_IP4))
 		return npf_addrgrp_lookup(AG_IPv4, tid, addr);
-	else if (npf_iscached(npc, NPC_IP6))
+	if (npf_iscached(npc, NPC_IP6))
 		return npf_addrgrp_lookup(AG_IPv6, tid, addr);
 
 	return -1;
@@ -146,7 +146,7 @@ npf_match_ip_fam(const npf_cache_t *npc, uint32_t fam)
 {
 	if (fam == AF_INET && npf_iscached(npc, NPC_IP4))
 		return 0;
-	else if (fam == AF_INET6 && npf_iscached(npc, NPC_IP6))
+	if (fam == AF_INET6 && npf_iscached(npc, NPC_IP6))
 		return 0;
 	return -1;
 }

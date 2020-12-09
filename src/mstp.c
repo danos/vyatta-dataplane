@@ -349,9 +349,6 @@ mstp_msti_update(struct ifnet *bridge, uint16_t mstid,
 		 bridge->if_name, mstid, mstidindex,
 		 update ? "update" : "create");
 
-	assert(STP_INST_COUNT == MSTP_MSTI_COUNT);
-	assert(STP_INST_IST == MSTP_MSTI_IST);
-
 	struct mstp_bridge *mstp = sc->scbr_mstp;
 	int ret = 0;
 

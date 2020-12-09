@@ -115,7 +115,7 @@ ipv4_udp_in_process_common(struct pl_packet *pkt, void *context __unused,
 	rc = ip_udp_tunnel_in(&m, ip, ifp);
 	if (likely(rc == 0))
 		return IPV4_UDP_CONSUME;
-	else if (rc < 0)
+	if (rc < 0)
 		return IPV4_UDP_DROP;
 
 	pkt->mbuf = m;
@@ -177,3 +177,33 @@ PL_REGISTER_FEATURE(ipv4_udp_in_feat) = {
 };
 
 struct pl_node_registration *const ipv4_udp_in_node_ptr = &ipv4_udp_in_node;
+
+/*
+ * show features ipv4_udp_in
+ */
+static int cmd_pl_show_feat_ipv4_udp_in(struct pl_command *cmd)
+{
+	json_writer_t *wr;
+
+	wr = jsonw_new(cmd->fp);
+	if (!wr)
+		return 0;
+
+	jsonw_name(wr, "features");
+	jsonw_start_object(wr);
+
+	jsonw_name(wr, "global");
+	jsonw_start_array(wr);
+	pl_node_iter_features(ipv4_udp_in_node_ptr, NULL,
+			      pl_print_feats, wr);
+	jsonw_end_array(wr);
+
+	jsonw_end_object(wr);
+	jsonw_destroy(&wr);
+	return 0;
+}
+
+PL_REGISTER_OPCMD(pl_show_feat_ipv4_udp_in) = {
+	.cmd = "show features ipv4_udp_in",
+	.handler = cmd_pl_show_feat_ipv4_udp_in,
+};

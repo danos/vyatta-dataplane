@@ -87,10 +87,10 @@ static inline enum npf_tcpfc npf_tcpfl2case(const uint8_t tcpfl)
 	enum npf_tcpfc c;
 	u_int i;
 
-	assert(TH_FIN == 0x01);
-	assert(TH_SYN == 0x02);
-	assert(TH_ACK == 0x10);
-	assert(TH_RST == 0x04);
+	static_assert(TH_FIN == 0x01, "tcp flag has wrong value");
+	static_assert(TH_SYN == 0x02, "tcp flag has wrong value");
+	static_assert(TH_ACK == 0x10, "tcp flag has wrong value");
+	static_assert(TH_RST == 0x04, "tcp flag has wrong value");
 
 	/*
 	 * Flags are shifted to use four least significant bits, thus each
@@ -328,7 +328,7 @@ static void npf_state_tcp_fsm_init(void)
 	enum tcp_session_state state;
 	uint di, fc;
 
-	assert(NPF_TCPS_NONE == 0);
+	static_assert(NPF_TCPS_NONE == 0, "npf tcps none should be 0");
 
 	for (state = NPF_TCPS_FIRST; state <= NPF_TCPS_LAST; state++) {
 		/* Forwards */

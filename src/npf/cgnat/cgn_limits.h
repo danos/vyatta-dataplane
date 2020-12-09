@@ -56,6 +56,11 @@
 #define CGN_DEST_SESSIONS_INIT	64
 #define CGN_DEST_SESSIONS_MAX	128
 
+static_assert(CGN_DEST_SESSIONS_INIT <= CGN_DEST_SESSIONS_MAX,
+	      "cgn dest sessions init too big");
+static_assert(CGN_DEST_SESSIONS_MAX < USHRT_MAX,
+	      "cgn dest session max too big");
+
 /**************************************************************************
  * CGNAT Source (private address, vrfid) Table
  **************************************************************************/

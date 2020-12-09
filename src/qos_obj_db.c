@@ -131,8 +131,8 @@ qos_obj_db_get_ids_string(enum qos_obj_db_level level, uint32_t *ids,
 	if (max_len >= 0 && len >= 0) {
 		ids_string[total_len - 1] = '\0';
 		return ids_string;
-	} else
-		return NULL;
+	}
+	return NULL;
 }
 
 static void

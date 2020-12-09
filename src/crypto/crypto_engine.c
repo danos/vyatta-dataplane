@@ -1144,7 +1144,7 @@ void crypto_engine_init(void)
 	int i;
 
 	lockarray = OPENSSL_malloc(CRYPTO_num_locks() *
-				   sizeof(*lockarray));
+				   sizeof(lockarray[0]));
 	for (i = 0; i < CRYPTO_num_locks(); i++)
 		(void)pthread_mutex_init(&(lockarray[i]), NULL);
 

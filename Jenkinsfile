@@ -24,11 +24,15 @@ pipeline {
     agent any
 
     environment {
-	OBS_TARGET_PROJECT = 'DANOS:Halifax'
+	OBS_TARGET_PROJECT = 'DANOS:Master'
 	OBS_TARGET_REPO = 'standard'
 	OBS_TARGET_ARCH = 'x86_64'
 	// # Replace : with _ in project name, as osc-buildpkg does
-	OSC_BUILD_ROOT = "${WORKSPACE}" + '/build-root/' + "${env.OBS_TARGET_PROJECT.replace(':','_')}" + '-' + "${env.OBS_TARGET_REPO}" + '-' + "${OBS_TARGET_ARCH}"
+	BUILD_ROOT_RELATIVE = 'build-root/' + "${env.OBS_TARGET_PROJECT.replace(':','_')}" + '-' + "${env.OBS_TARGET_REPO}" + '-' + "${OBS_TARGET_ARCH}"
+	OSC_BUILD_ROOT = "${WORKSPACE}" + '/' + "${env.BUILD_ROOT_RELATIVE}"
+	// CHANGE_TARGET is set for PRs.
+	// When CHANGE_TARGET is not set it's a regular build so we use BRANCH_NAME.
+	REF_BRANCH = "${env.CHANGE_TARGET != null ? env.CHANGE_TARGET : env.BRANCH_NAME}"
 	DH_VERBOSE = 1
 	DH_QUIET = 0
 	DEB_BUILD_OPTIONS ='verbose all_tests sanitizer'
@@ -78,35 +82,18 @@ EOF
 		    sh "osc-buildpkg -v -g -T -P ${env.OBS_TARGET_PROJECT} ${env.OBS_TARGET_REPO} -- --trust-all-projects --build-uid='caller'"
 		}
 	    }
-	}
-
-	stage('cppcheck Static Analysis') {
-	    when {expression { env.CHANGE_ID == null }} // Not when this is a Pull Request
-	    environment {
-		extra_cppcheck_parameters = '--xml-version=2 --error-exitcode=0'
-	    }
-	    steps {
-		dir('vyatta-dataplane') {
-		    sh "./scripts/cppcheck_wrapper.sh 2> ${WORKSPACE}/cppcheck.xml"
-		}
-		// TODO: Currently this doesn't cause a failure
-		// TODO: Fail if the number of cppcheck errors is above some threshold.
-		// TODO: Better yet would for there to be none and then remove
-		//       --error-exitcode=0 above so that it fails on any reported error.
-		sh 'cppcheck-htmlreport --title="Vyatta Dataplane" --file=cppcheck.xml --report-dir=cppcheck_reports --source-dir=vyatta-dataplane'
-	    }
 	    post {
-		success {
-		    publishHTML target: [
-			allowMissing: false,
-			alwaysLinkToLastBuild: true,
-			keepAll: true,
-			reportDir: 'cppcheck_reports',
-			reportFiles: 'index.html',
-			reportTitles: 'cppcheck Static Analysis',
-			reportName: 'cppcheck Static Analysis Report'
-		    ]
-		}
+		    always {
+			    sh """
+				mkdir junit_results
+				for file in ${env.OSC_BUILD_ROOT}/usr/src/packages/BUILD/build/tests/whole_dp/*.xml
+				do
+				xsltproc --output junit_results/\$(basename \$file) vyatta-dataplane/tests/whole_dp/XML_for_JUnit.xsl \$file
+				done
+			    """
+
+			    junit 'junit_results/*.xml'
+		    }
 	    }
 	}
 
@@ -127,9 +114,11 @@ EOF
 		}
 	    }
 	    steps {
-		dir('vyatta-dataplane') {
-		//TODO: Path to checkpatch.pl should not be hardcoded!
-		    sh "PATH=~/linux-vyatta/scripts:$PATH ./scripts/checkpatch_wrapper.sh upstream/${env.CHANGE_TARGET} origin/${env.BRANCH_NAME}"
+		catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
+		    dir('vyatta-dataplane') {
+		    //TODO: Path to checkpatch.pl should not be hardcoded!
+			sh "PATH=~/linux-vyatta/scripts:$PATH ./scripts/checkpatch_wrapper.sh upstream/${env.CHANGE_TARGET} origin/${env.BRANCH_NAME}"
+		    }
 		}
 	    }
 	}
@@ -149,11 +138,46 @@ EOF
 		}
 	    }
 	    steps {
-		dir('vyatta-dataplane') {
-		    sh "gitlint --commits upstream/${env.CHANGE_TARGET}..origin/${env.BRANCH_NAME}"
+		catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
+		    dir('vyatta-dataplane') {
+		        sh "gitlint --commits upstream/${env.CHANGE_TARGET}..origin/${env.BRANCH_NAME}"
+		    }
 		}
 	    }
 	}
+
+        stage('Code Static Analysis') {
+            steps {
+                writeFile file: 'osc-buildpackage_buildscript_default',
+                        text: """\
+                        export BUILD_ID=\"${BUILD_ID}\"
+                        export JENKINS_NODE_COOKIE=\"${JENKINS_NODE_COOKIE}\"
+                        export CC=clang-7
+                        export CCX=clang++-7
+                        meson builddir && cd builddir && ninja
+                        run-clang-tidy-7 '.*(?<!pb.cc)(?<!pb-c.c)\$' >& clang-tidy.log
+                        sed -i 's|/usr/src/packages/BUILD|${WORKSPACE}/vyatta-dataplane|g' clang-tidy.log
+                        """.stripIndent()
+                dir('vyatta-dataplane') {
+                        writeFile file: '.osc-buildpackage.conf',
+                                text: """\
+                                OSC_BUILDPACKAGE_TMP=\"${WORKSPACE}\"
+                                OSC_BUILDPACKAGE_BUILDSCRIPT=\"${WORKSPACE}/osc-buildpackage_buildscript_default\"
+                                """.stripIndent()
+                        sh "osc-buildpkg -v -g -T -P ${env.OBS_TARGET_PROJECT} ${env.OBS_TARGET_REPO} -- --trust-all-projects --build-uid='caller' --nochecks --extra-pkgs='clang-tidy-7'"
+                }
+            }
+            post {
+                always {
+                        archiveArtifacts artifacts: "${env.BUILD_ROOT_RELATIVE}/usr/src/packages/BUILD/builddir/clang-tidy.log"
+                        recordIssues enabledForFailure: true,
+                                tool: clangTidy(pattern: "${env.BUILD_ROOT_RELATIVE}/usr/src/packages/BUILD/builddir/clang-tidy.log"),
+                                sourceDirectory: 'vyatta-dataplane',
+                                referenceJobName: "DANOS/vyatta-dataplane/${env.REF_BRANCH}",
+                                qualityGates: [[type: 'NEW', threshold: 1, unstable: true]]
+                }
+            }
+        }
 
     } // stages
 

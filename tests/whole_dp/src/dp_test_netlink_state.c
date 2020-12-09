@@ -39,6 +39,7 @@
 #include "dp_test_str.h"
 #include "dp_test.h"
 #include "dp_test_crypto_lib.h"
+#include "dp_test_xfrm_server.h"
 
 struct rtvia_v6 {
 	__kernel_sa_family_t rtvia_family;
@@ -3712,6 +3713,14 @@ nl_generate_topic_xfrm(const struct nlmsghdr *nlh, char *buf, size_t buflen)
 	return -1;
 }
 
+/*
+ * Each netlink xfrm messages is required to have a unique
+ * sequence number that is returned back to the xfrm source
+ * via an ack message to indicate the successful processing
+ * of the message in the dataplane.
+ */
+uint32_t xfrm_seq;
+
 void _dp_test_netlink_xfrm_policy(uint16_t nlmsg_type,
 				  const struct xfrm_selector *sel,
 				  const xfrm_address_t *dst,
@@ -3727,15 +3736,16 @@ void _dp_test_netlink_xfrm_policy(uint16_t nlmsg_type,
 				  const char *file,
 				  int line)
 {
-	char buf[MNL_SOCKET_BUFFER_SIZE];
 	struct xfrm_userpolicy_info *userpolicy_info_p = NULL;
 	struct xfrm_userpolicy_id *userpolicy_id;
 	struct nlmsghdr *nlh;
+	char *buf = malloc(MNL_SOCKET_BUFFER_SIZE);
 
-	memset(buf, 0, sizeof(buf));
+	memset(buf, 0, MNL_SOCKET_BUFFER_SIZE);
 	nlh = mnl_nlmsg_put_header(buf);
 	nlh->nlmsg_type = nlmsg_type;
 	nlh->nlmsg_flags = NLM_F_ACK;
+	nlh->nlmsg_seq = ++xfrm_seq;
 
 	switch (nlmsg_type) {
 	case XFRM_MSG_NEWPOLICY:
@@ -3796,8 +3806,8 @@ void _dp_test_netlink_xfrm_policy(uint16_t nlmsg_type,
 
 	if (nl_generate_topic_xfrm(nlh, topic, sizeof(topic)) < 0)
 		dp_test_assert_internal(0);
-
-	nl_propagate(topic, nlh);
+	/* Signal an end of batch. This is a single msg batch */
+	nl_propagate_xfrm(xfrm_server_push_sock, nlh, nlh->nlmsg_len, "END");
 }
 
 void _dp_test_netlink_xfrm_newsa(uint32_t spi, /* Network byte order */
@@ -3820,16 +3830,18 @@ void _dp_test_netlink_xfrm_newsa(uint32_t spi, /* Network byte order */
 				 const char *func,
 				 int line)
 {
-	char buf[MNL_SOCKET_BUFFER_SIZE];
+
 	char topic[DP_TEST_TMP_BUF];
 	unsigned int key_len;
 	struct nlmsghdr *nlh;
 	struct xfrm_usersa_info *sa_info;
+	char *buf = malloc(MNL_SOCKET_BUFFER_SIZE);
 
-	memset(buf, 0, sizeof(buf));
+	memset(buf, 0, MNL_SOCKET_BUFFER_SIZE);
 	nlh = mnl_nlmsg_put_header(buf);
 	nlh->nlmsg_type = XFRM_MSG_NEWSA;
 	nlh->nlmsg_flags = NLM_F_ACK;
+	nlh->nlmsg_seq = ++xfrm_seq;
 
 	sa_info = mnl_nlmsg_put_extra_header(nlh, sizeof(*sa_info));
 	if (dp_test_setup_xfrm_usersa_info(sa_info, dst, src,
@@ -3877,8 +3889,8 @@ void _dp_test_netlink_xfrm_newsa(uint32_t spi, /* Network byte order */
 
 	if (nl_generate_topic_xfrm(nlh, topic, sizeof(topic)) < 0)
 		dp_test_assert_internal(0);
-
-	nl_propagate(topic, nlh);
+	/* Signal an end of batch. This is a single msg batch */
+	nl_propagate_xfrm(xfrm_server_push_sock, nlh, nlh->nlmsg_len, "END");
 }
 
 void dp_test_netlink_xfrm_delsa(uint32_t spi, /* Network byte order */
@@ -3891,15 +3903,16 @@ void dp_test_netlink_xfrm_delsa(uint32_t spi, /* Network byte order */
 {
 	struct xfrm_usersa_info usersa_info;
 	struct xfrm_usersa_id *usersa_id;
-	char buf[MNL_SOCKET_BUFFER_SIZE];
 	char topic[DP_TEST_TMP_BUF];
 	struct nlmsghdr *nlh;
 	xfrm_address_t daddr;
+	char *buf = malloc(MNL_SOCKET_BUFFER_SIZE);
 
-	memset(buf, 0, sizeof(buf));
+	memset(buf, 0, MNL_SOCKET_BUFFER_SIZE);
 	nlh = mnl_nlmsg_put_header(buf);
 	nlh->nlmsg_type = XFRM_MSG_DELSA;
 	nlh->nlmsg_flags = NLM_F_ACK;
+	nlh->nlmsg_seq = ++xfrm_seq;
 
 	usersa_id = mnl_nlmsg_put_extra_header(nlh, sizeof(*usersa_id));
 	usersa_id->family = family;
@@ -3921,8 +3934,8 @@ void dp_test_netlink_xfrm_delsa(uint32_t spi, /* Network byte order */
 
 	if (nl_generate_topic_xfrm(nlh, topic, sizeof(topic)) < 0)
 		dp_test_assert_internal(0);
-
-	nl_propagate(topic, nlh);
+	/* Signal an end of batch. This is a single msg batch */
+	nl_propagate_xfrm(xfrm_server_push_sock, nlh, nlh->nlmsg_len, "END");
 }
 
 void dp_test_netlink_xfrm_expire(uint32_t spi, /* Network byte order */
@@ -3934,15 +3947,16 @@ void dp_test_netlink_xfrm_expire(uint32_t spi, /* Network byte order */
 				 bool expire_hard,
 				 vrfid_t vrfid)
 {
-	char buf[MNL_SOCKET_BUFFER_SIZE];
 	struct xfrm_user_expire *expire;
 	char topic[DP_TEST_TMP_BUF];
 	struct nlmsghdr *nlh;
+	char *buf = malloc(MNL_SOCKET_BUFFER_SIZE);
 
-	memset(buf, 0, sizeof(buf));
+	memset(buf, 0, MNL_SOCKET_BUFFER_SIZE);
 	nlh = mnl_nlmsg_put_header(buf);
 	nlh->nlmsg_type = XFRM_MSG_EXPIRE;
 	nlh->nlmsg_flags = NLM_F_ACK;
+	nlh->nlmsg_seq = ++xfrm_seq;
 
 	expire = mnl_nlmsg_put_extra_header(nlh, sizeof(*expire));
 	expire->hard = expire_hard;
@@ -3956,8 +3970,8 @@ void dp_test_netlink_xfrm_expire(uint32_t spi, /* Network byte order */
 
 	if (nl_generate_topic_xfrm(nlh, topic, sizeof(topic)) < 0)
 		dp_test_assert_internal(0);
-
-	nl_propagate(topic, nlh);
+	/* Signal an end of batch. This is a single msg batch */
+	nl_propagate_xfrm(xfrm_server_push_sock, nlh, nlh->nlmsg_len, "END");
 }
 
 void

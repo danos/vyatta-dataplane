@@ -213,8 +213,10 @@ struct npf_rc_counts *npf_rc_counts_create(void)
 {
 	struct npf_rc_counts *rcc;
 
-	assert(PFIL2RC(PFIL_IN) == NPF_RC_IN);
-	assert(PFIL2RC(PFIL_OUT) == NPF_RC_OUT);
+	static_assert(PFIL2RC(PFIL_IN) == NPF_RC_IN,
+		      "npf rc is not correct");
+	static_assert(PFIL2RC(PFIL_OUT) == NPF_RC_OUT,
+		      "npf rc is not correct");
 
 	rcc = zmalloc_aligned((get_lcore_max() + 1) *
 			      sizeof(struct npf_rc_counts));
@@ -623,7 +625,7 @@ npf_rct_is_feature_enabled(enum npf_rc_type rct, struct ifnet *ifp)
 	case NPF_RCT_NAT64:
 		if (pl_node_is_feature_enabled_by_inst(&ipv6_nat64_in_feat,
 						       ifp) ||
-		    pl_node_is_feature_enabled_by_inst(&ipv6_nat64_in_feat,
+		    pl_node_is_feature_enabled_by_inst(&ipv6_nat46_out_feat,
 						       ifp))
 			return true;
 		return false;

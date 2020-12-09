@@ -188,7 +188,7 @@ static inline void *ip6_exthdr(struct rte_mbuf *m, uint16_t offs, size_t len)
 struct if_addr *in6ifa_ifplocaladdr(const struct ifnet *ifp, const struct in6_addr *addr);
 struct if_addr *in6_ifawithifp(struct ifnet *ifp, struct in6_addr *dst);
 struct lltable *in6_domifattach(struct ifnet *ifp);
-uint32_t in6_addr_hash(const void *key, uint32_t key_len, uint32_t init_val);
+uint32_t in6_addr_hash(const void *key, uint32_t key_len, uint32_t seed);
 uint16_t ip6_findprevoff(struct rte_mbuf *m);
 uint16_t ip6_findpayload(struct rte_mbuf *m, uint16_t *offset);
 

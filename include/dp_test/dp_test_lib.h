@@ -128,7 +128,7 @@ dp_test_calc_udptcp_chksum(struct rte_mbuf *m);
 struct dp_test_expected *
 dp_test_exp_create(struct rte_mbuf *test_pak);
 struct dp_test_expected *
-dp_test_exp_create_m(struct rte_mbuf *test_pak, int m);
+dp_test_exp_create_m(struct rte_mbuf *test_pak, int count);
 void
 dp_test_exp_append_m(struct dp_test_expected *exp, struct rte_mbuf *test_pak,
 		     int count);
@@ -138,7 +138,7 @@ dp_test_exp_append_m(struct dp_test_expected *exp, struct rte_mbuf *test_pak,
  * packet that we expect to see.
  */
 struct dp_test_expected *
-dp_test_exp_create_with_packet(struct rte_mbuf *test_pak);
+dp_test_exp_create_with_packet(struct rte_mbuf *exp_pak);
 
 void
 dp_test_exp_delete(struct dp_test_expected *exp);

@@ -122,7 +122,6 @@ static bool bridge_pvst_flood_local;
 
 static void bridge_newneigh(int ifindex, const struct rte_ether_addr *dst,
 			    uint16_t state, uint16_t vlan);
-static void bridge_timer(struct rte_timer *, void *);
 
 static bool bridge_intf_is_virt(struct ifnet *ifp)
 {
@@ -143,8 +142,7 @@ static bool bridge_pkt_exceeds_mtu(struct rte_mbuf *m,
 		 */
 		if (bridge_intf_is_virt(out_ifp) && bridge_frag_enable)
 			return false;
-		else
-			return true;
+		return true;
 	}
 	return false;
 
@@ -254,6 +252,7 @@ static void if_vlan_in_stats_incr(struct ifnet *ifp,
 {
 	unsigned int lcore;
 	struct bridge_vlan_stat_block *stats;
+	const struct rte_ether_hdr *eh;
 
 	/* HW ports will count this in HW */
 	if (ifp->hw_forwarding)
@@ -270,6 +269,12 @@ static void if_vlan_in_stats_incr(struct ifnet *ifp,
 	lcore = dp_lcore_id();
 	stats->stats[lcore].rx_octets += rte_pktmbuf_pkt_len(m);
 	stats->stats[lcore].rx_pkts++;
+
+	eh = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
+	if (rte_is_unicast_ether_addr(&eh->d_addr))
+		stats->stats[lcore].rx_ucast_pkts++;
+	else
+		stats->stats[lcore].rx_nucast_pkts++;
 }
 
 static void if_vlan_out_stats_incr(struct bridge_softc *sc,
@@ -278,6 +283,7 @@ static void if_vlan_out_stats_incr(struct bridge_softc *sc,
 {
 	unsigned int lcore;
 	struct bridge_vlan_stat_block *stats;
+	const struct rte_ether_hdr *eh;
 
 	/* HW ports will not count this in HW */
 	stats = rcu_dereference(sc->vlan_stats[vlan]);
@@ -287,6 +293,12 @@ static void if_vlan_out_stats_incr(struct bridge_softc *sc,
 	lcore = dp_lcore_id();
 	stats->stats[lcore].tx_octets += rte_pktmbuf_pkt_len(m);
 	stats->stats[lcore].tx_pkts++;
+
+	eh = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
+	if (rte_is_unicast_ether_addr(&eh->d_addr))
+		stats->stats[lcore].tx_ucast_pkts++;
+	else
+		stats->stats[lcore].tx_nucast_pkts++;
 }
 
 static void if_vlan_out_drop_stats_incr(struct bridge_softc *sc,
@@ -353,8 +365,8 @@ bridge_get_ifstate_string(uint8_t brstate)
 {
 	if (bridge_is_ifstate_valid(brstate))
 		return bridge_ifstate_names[brstate];
-	else
-		return "UNKNOWN";
+
+	return "UNKNOWN";
 }
 
 static inline bool
@@ -424,8 +436,7 @@ bridge_rtnode_lookup(struct bridge_softc *sc,
 	node = cds_lfht_iter_get_node(&iter);
 	if (node)
 		return caa_container_of(node, struct bridge_rtnode, brt_node);
-	else
-		return NULL;
+	return NULL;
 }
 
 /*
@@ -717,6 +728,44 @@ void bridge_update(const char *ifname, struct nl_bridge_info *br_info)
 		sc->scbr_vlan_default_pvid = br_info->br_vlan_default_pvid;
 }
 
+/* Should route entry be expired?
+ * For dynamic entries only, check if it has been used.
+ *  for more than BRIDGE_RTABLE_EXPIRE intervals.
+ */
+static int
+bridge_rtexpired(struct bridge_rtnode *brt, uint32_t ageing_ticks)
+{
+	if ((brt->brt_flags & IFBAF_TYPEMASK) != IFBAF_DYNAMIC)
+		return 0;
+
+	if (rte_atomic32_test_and_set(&brt->brt_unused)) {
+		/* Transition from used to unused */
+		brt->brt_expire = 0;
+		return 0;
+	}
+
+	/* If ageing_ticks is 0 then dynamic entries are never timed out */
+	if (++brt->brt_expire > ageing_ticks && ageing_ticks > 0)
+		return 1; /* expired */
+
+	return 0;
+}
+
+/* walk bridge forwarding database and timeout old entries */
+static void bridge_timer(struct rte_timer *timer __rte_unused,
+			 void *arg __rte_unused)
+{
+	struct bridge_softc *sc = arg;
+	struct cds_lfht_iter iter;
+	struct bridge_rtnode *brt;
+
+	rcu_read_lock();
+	cds_lfht_for_each_entry(sc->scbr_rthash, &iter, brt, brt_node) {
+		if (bridge_rtexpired(brt, sc->scbr_ageing_ticks))
+			bridge_rtnode_destroy(sc->scbr_rthash, brt);
+	}
+	rcu_read_unlock();
+}
 
 static int bridge_if_init(struct ifnet *ifp)
 {
@@ -1051,7 +1100,6 @@ bridge_forward_via_tunnel(struct ifnet *br_ifp,
 drop:
 	if_incr_dropped(br_ifp);
 	rte_pktmbuf_free(m);
-	return;
 }
 
 /*
@@ -1549,45 +1597,6 @@ ignore:
 	rte_pktmbuf_free(m);
 }
 
-/* Should route entry be expired?
- * For dynamic entries only, check if it has been used.
- *  for more than BRIDGE_RTABLE_EXPIRE intervals.
- */
-static int
-bridge_rtexpired(struct bridge_rtnode *brt, uint32_t ageing_ticks)
-{
-	if ((brt->brt_flags & IFBAF_TYPEMASK) != IFBAF_DYNAMIC)
-		return 0;
-
-	if (rte_atomic32_test_and_set(&brt->brt_unused)) {
-		/* Transition from used to unused */
-		brt->brt_expire = 0;
-		return 0;
-	}
-
-	/* If ageing_ticks is 0 then dynamic entries are never timed out */
-	if (++brt->brt_expire > ageing_ticks && ageing_ticks > 0)
-		return 1; /* expired */
-
-	return 0;
-}
-
-/* walk bridge forwarding database and timeout old entries */
-static void bridge_timer(struct rte_timer *timer __rte_unused,
-			 void *arg __rte_unused)
-{
-	struct bridge_softc *sc = arg;
-	struct cds_lfht_iter iter;
-	struct bridge_rtnode *brt;
-
-	rcu_read_lock();
-	cds_lfht_for_each_entry(sc->scbr_rthash, &iter, brt, brt_node) {
-		if (bridge_rtexpired(brt, sc->scbr_ageing_ticks))
-			bridge_rtnode_destroy(sc->scbr_rthash, brt);
-	}
-	rcu_read_unlock();
-}
-
 /*
  * Code for handling netlink message about bridging
  */
@@ -1715,10 +1724,9 @@ static uint8_t ndmstate_to_flags(uint16_t state)
 {
 	if (state & NUD_PERMANENT)
 		return	IFBAF_LOCAL;
-	else if (state & NUD_NOARP)
+	if (state & NUD_NOARP)
 		return IFBAF_STATIC;
-	else
-		return IFBAF_DYNAMIC;
+	return IFBAF_DYNAMIC;
 }
 
 static void bridge_newneigh(int ifindex, const struct rte_ether_addr *dst,
@@ -2513,7 +2521,7 @@ bridge_macs(FILE *f, int argc, char **argv, struct ifnet *bridge)
 
 	if (strcmp(argv[0], "show") == 0)
 		return bridge_macs_show(f, argc, argv, bridge);
-	else if (strcmp(argv[0], "clear") == 0)
+	if (strcmp(argv[0], "clear") == 0)
 		return bridge_macs_clear(f, argc, argv, bridge);
 
 	fprintf(f, "Unknown bridge macs command\n");
@@ -2538,10 +2546,12 @@ bridge_frag(FILE *f, int argc, char **argv)
 	if (strcmp(argv[0], "enable") == 0) {
 		bridge_frag_enable = true;
 		return 0;
-	} else if (strcmp(argv[0], "disable") == 0) {
+	}
+	if (strcmp(argv[0], "disable") == 0) {
 		bridge_frag_enable = false;
 		return 0;
-	} else if (strcmp(argv[0], "show") == 0)
+	}
+	if (strcmp(argv[0], "show") == 0)
 		return bridge_frag_status(f, argc, argv);
 
 	fprintf(f, "Unknown bridge frag command\n");

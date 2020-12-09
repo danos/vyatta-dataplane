@@ -832,7 +832,7 @@ void cgn_policy_clear(int argc, char **argv)
 }
 
 static int
-cgn_policy_cfg_parse_pool(char *value, struct cgn_policy_cfg *cgn)
+cgn_policy_cfg_parse_pool(const char *value, struct cgn_policy_cfg *cgn)
 {
 	cgn->cp_pool_name = value;
 
@@ -841,7 +841,7 @@ cgn_policy_cfg_parse_pool(char *value, struct cgn_policy_cfg *cgn)
 
 /* Match address-group name */
 static int
-cgn_policy_cfg_parse_match(char *value, struct cgn_policy_cfg *cgn)
+cgn_policy_cfg_parse_match(const char *value, struct cgn_policy_cfg *cgn)
 {
 	cgn->cp_match_ag_name = value;
 

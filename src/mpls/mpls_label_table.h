@@ -21,17 +21,12 @@
 
 #include "nh_common.h"
 #include "route.h"
+#include "mpls_forward.h"
 
 #define MPLS_LABEL_ALL (1 << 20)
 
 struct cds_lfht;
 struct rte_mbuf;
-
-enum mpls_payload_type {
-	MPT_UNSPEC = RTMPT_IP,
-	MPT_IPV4 = RTMPT_IPV4,
-	MPT_IPV6 = RTMPT_IPV6,
-};
 
 #define MPLS_OAM_MAX_FANOUT     (16)
 struct mpls_oam_outinfo {

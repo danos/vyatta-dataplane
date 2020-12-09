@@ -102,8 +102,8 @@ struct lpm {
 	{						\
 		.valid = VALID,				\
 		.ext_entry = 0,				\
-		.depth = n_depth,			\
-		.next_hop = nhop,			\
+		.depth = (n_depth),			\
+		.next_hop = (nhop),			\
 	}
 
 #define MAX_DEPTH_TBL24 24
@@ -137,10 +137,9 @@ static inline int rules_cmp(const struct lpm_rule *r1,
 {
 	if (r1->ip < r2->ip)
 		return -1;
-	else if (r1->ip > r2->ip)
+	if (r1->ip > r2->ip)
 		return 1;
-	else
-		return r1->scope - r2->scope;
+	return r1->scope - r2->scope;
 }
 
 static inline int tracker_cmp(const struct rt_tracker_info *r1,
@@ -878,7 +877,6 @@ lpm_tracker_rule_changed(struct lpm *lpm, struct rt_tracker_info *ti_info,
 		RTE_LOG(ERR, LPM, "LPM failed to update tracker\n");
 
 	ti_info->rti_cb_func(ti_info);
-	return;
 }
 
 /*

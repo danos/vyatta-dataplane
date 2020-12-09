@@ -113,11 +113,13 @@ ipv4_encap_features(struct pl_packet *pkt, enum pl_mode mode)
 static ALWAYS_INLINE unsigned int
 ipv4_encap_process_internal(struct pl_packet *pkt, enum pl_mode mode)
 {
-	if (!ipv4_encap_features(pkt, mode))
+	struct ifnet *in_ifp = pkt->in_ifp;
+
+	/* Only run the encap features if this is a forwarded packet */
+	if (in_ifp && !ipv4_encap_features(pkt, mode))
 		return IPV4_ENCAP_FEAT_CONSUME;
 
 	struct next_hop *nh = pkt->nxt.v4;
-	struct ifnet *in_ifp = pkt->in_ifp;
 	struct ifnet *out_ifp = pkt->out_ifp;
 	struct rte_mbuf *mbuf = pkt->mbuf;
 	uint16_t l2_proto = pkt->l2_proto;
@@ -288,3 +290,16 @@ PL_REGISTER_NODE(ipv4_encap_only_node) = {
 };
 
 struct pl_node_registration *const ipv4_encap_node_ptr = &ipv4_encap_node;
+
+/*
+ * show features ipv4_encap [interface <ifname>]
+ */
+static int cmd_pl_show_feat_ipv4_encap(struct pl_command *cmd)
+{
+	return if_node_instance_feat_print(cmd, ipv4_encap_node_ptr);
+}
+
+PL_REGISTER_OPCMD(pl_show_feat_ipv4_encap) = {
+	.cmd = "show features ipv4_encap",
+	.handler = cmd_pl_show_feat_ipv4_encap,
+};

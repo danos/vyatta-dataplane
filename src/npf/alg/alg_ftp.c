@@ -382,7 +382,7 @@ static int ftp_alg_config(struct npf_alg *ftp, int op, int argc,
 	};
 
 	/* Only ports */
-	if (strcmp(argv[0], "port"))
+	if (strcmp(argv[0], "port") != 0)
 		return -EINVAL;
 	argc--; argv++;
 

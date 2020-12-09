@@ -186,15 +186,15 @@ static void qos_hw_setup_maplist(struct fal_qos_map_list_t *map_list,
 				map_list->list[l].value.des = ind;
 				switch (i) {
 				case 0:
-					map_list->list[l].value.color =
+					map_list->list[l].value.colour =
 						FAL_PACKET_COLOUR_GREEN;
 					break;
 				case 1:
-					map_list->list[l].value.color =
+					map_list->list[l].value.colour =
 						FAL_PACKET_COLOUR_YELLOW;
 					break;
 				case 2:
-					map_list->list[l].value.color =
+					map_list->list[l].value.colour =
 						FAL_PACKET_COLOUR_RED;
 					break;
 				}
@@ -567,16 +567,21 @@ static void qos_hw_egressm_attrs(struct qos_mark_map *map,
 				  struct fal_qos_map_list_t *map_list)
 {
 	int i;
-	int max_entries = (map->type == EGRESS_DSCP) ?
+	int max_entries = ((map->type == EGRESS_DSCP) ||
+				(map->type = EGRESS_DSCPGRP_DSCP)) ?
 				FAL_QOS_MAP_DSCP_VALUES :
 				FAL_QOS_MAP_DESIGNATION_VALUES;
+	uint64_t mask = ((map->type == EGRESS_DSCP) ||
+				(map->type = EGRESS_DSCPGRP_DSCP)) ?
+				map->dscp_used :
+				map->des_used;
 
 	map_list->des_used = map->des_used;
 	for (i = 0; i < max_entries; i++) {
-		if (map->des_used & (1 << i)) {
+		if (mask & (1UL << i)) {
 			map_list->count++;
 			map_list->list[i].key.des = i;
-			if (map->type == EGRESS_DESIGNATION_DSCP) {
+			if (map->type == EGRESS_DSCPGRP_DSCP) {
 				map_list->list[i].value.dscp =
 					map->pcp_value[i];
 			} else if (map->type == EGRESS_DESIGNATION_PCP) {
@@ -643,15 +648,20 @@ static int qos_hw_egressm_attach(unsigned int ifindex, unsigned int vlan,
 			 ifindex);
 		return -ENOENT;
 	}
-	if (map->type != EGRESS_DESIGNATION_DSCP) {
-		struct fal_attribute_t port_attr_list = {
-			.id = FAL_PORT_ATTR_QOS_EGRESS_MAP_ID,
-			.value.objid = map->mark_obj
-		};
+	if (map->type != EGRESS_DSCPGRP_DSCP) {
+		if (!vlan) {
+			struct fal_attribute_t port_attr_list = {
+				.id = FAL_PORT_ATTR_QOS_EGRESS_MAP_ID,
+				.value.objid = map->mark_obj
+			};
+			fal_l2_upd_port(ifindex, &port_attr_list);
+
+			DP_DEBUG(QOS_HW, DEBUG, DATAPLANE,
+				 "Created ingress feature on if %u\n", ifindex);
+
+			return 0;
+		}
 		struct if_vlan_feat *vlan_feat;
-
-		fal_l2_upd_port(ifindex, &port_attr_list);
-
 
 		struct fal_attribute_t vlan_attr[] = {
 			{ .id = FAL_VLAN_FEATURE_INTERFACE_ID,
@@ -707,7 +717,7 @@ static int qos_hw_egressm_attach(unsigned int ifindex, unsigned int vlan,
 		DP_DEBUG(QOS_HW, ERR, DATAPLANE,
 			 "Successfully added feature for if %s vlan %u\n",
 			ifp->if_name, vlan);
-	} else if (map->type == EGRESS_DESIGNATION_DSCP) {
+	} else if (map->type == EGRESS_DSCPGRP_DSCP) {
 		qos_hw_if_set_egress_map(ifp, map);
 	} else {
 		DP_DEBUG(QOS_HW, ERR, DATAPLANE,
@@ -747,7 +757,7 @@ static int qos_hw_egressm_detach(unsigned int ifindex, unsigned int vlan,
 		return -ENOENT;
 	}
 
-	if (map->type != EGRESS_DESIGNATION_DSCP) {
+	if (map->type != EGRESS_DSCPGRP_DSCP) {
 		struct if_vlan_feat *vlan_feat = NULL;
 		struct fal_attribute_t vlan_attr[1] = {
 			{ .id = FAL_VLAN_FEATURE_ATTR_QOS_EGRESS_MAP_ID,
@@ -791,7 +801,7 @@ static int qos_hw_egressm_detach(unsigned int ifindex, unsigned int vlan,
 				return ret;
 			}
 		}
-	} else if (map->type == EGRESS_DESIGNATION_DSCP) {
+	} else if (map->type == EGRESS_DSCPGRP_DSCP) {
 		qos_hw_if_set_egress_map(ifp, NULL);
 	} else {
 		DP_DEBUG(QOS_HW, ERR, DATAPLANE,
@@ -830,8 +840,8 @@ static int qos_hw_egressm_config(struct qos_mark_map *map,
 	};
 	int ret;
 
-	if (map->type == EGRESS_DESIGNATION_DSCP)
-		attr_list[0].value.u8 = FAL_QOS_MAP_TYPE_DESIGNATOR_TO_DSCP;
+	if (map->type == EGRESS_DSCPGRP_DSCP)
+		attr_list[0].value.u8 = FAL_QOS_MAP_TYPE_DSCP_TO_DSCP;
 
 	qos_hw_egressm_attrs(map, &map_list);
 
@@ -2096,7 +2106,7 @@ qmap_to_fal_colour(uint8_t q, enum fal_packet_colour *fal_colour)
 
 static int
 qos_hw_create_ingress_map(fal_object_t pipe_sched_obj, struct queue_map *qmap,
-			  uint8_t *des2q)
+			  const uint8_t *des2q)
 {
 	uint8_t cp;
 	uint8_t q;
@@ -2130,14 +2140,14 @@ qos_hw_create_ingress_map(fal_object_t pipe_sched_obj, struct queue_map *qmap,
 			}
 			map_list.list[cp].value.des = des;
 			ret = qmap_to_fal_colour(
-				q, &map_list.list[cp].value.color);
+				q, &map_list.list[cp].value.colour);
 			if (ret < 0)
 				return ret;
 
 			DP_DEBUG(QOS_HW, DEBUG, DATAPLANE,
 				 "map DSCP %d to tc/wrr %d/%d, des %d col %d\n",
 				 cp, qmap_to_tc(q), qmap_to_wrr(q), des,
-				 map_list.list[cp].value.color);
+				 map_list.list[cp].value.colour);
 		}
 	/*
 	 * If we're using the designation CLI the ingress-map has been
@@ -2184,7 +2194,7 @@ qos_hw_create_egress_map(struct qos_obj_db_obj *db_obj,
 		for (entry = 0; entry < FAL_QOS_MAP_DES_DP_VALUES; entry++) {
 			map_list.list[entry].key.des =
 				entry/FAL_NUM_PACKET_COLOURS;
-			map_list.list[entry].key.color =
+			map_list.list[entry].key.colour =
 				entry%FAL_NUM_PACKET_COLOURS;
 			map_list.list[entry].value.dot1p =
 				mark_map->entries[entry].pcp_value;
@@ -2204,7 +2214,7 @@ static int qos_hw_setup_queues(struct queue_map *qmap,
 			       uint8_t *wrr_weight, uint8_t *designators,
 			       struct qos_red_pipe_params **q_wred_info,
 			       uint8_t *lp_wrr, uint64_t *dscp_bitmap,
-			       uint8_t *des2q, uint8_t lp_des)
+			       const uint8_t *des2q, uint8_t lp_des)
 {
 	int cp;
 	uint8_t q;
@@ -2260,7 +2270,7 @@ static int qos_hw_setup_queues(struct queue_map *qmap,
 
 static int
 qos_hw_new_pipe(uint32_t pipe_id, fal_object_t subport_sched_obj,
-		uint16_t *port_qsize, struct subport_info *sinfo,
+		const uint16_t *port_qsize, struct subport_info *sinfo,
 		struct qos_pipe_params *pipe_params, struct queue_map *qmap,
 		uint32_t *ids, int8_t overhead)
 {

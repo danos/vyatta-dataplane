@@ -464,8 +464,9 @@ ipv6_frag_mbuf(struct rte_mbuf *m, npf_cache_t *npc,
 	/*
 	 * Key is 9 words - src, dst and fragmentation identifier
 	 */
-	assert(sizeof(key.src_dst) == sizeof(ip6->ip6_src) +
-	       sizeof(ip6->ip6_dst));
+	static_assert(sizeof(key.src_dst) == sizeof(ip6->ip6_src) +
+		      sizeof(ip6->ip6_dst),
+		      "ipv6 frag key is wrong size");
 	memcpy(key.src_dst, &ip6->ip6_src, sizeof(ip6->ip6_src));
 	memcpy(&key.src_dst[IPV6_FRAG_KEY_WORDS/2],
 	       &ip6->ip6_dst, sizeof(ip6->ip6_dst));

@@ -121,7 +121,6 @@ int udp_input(struct rte_mbuf *m, int af, struct ifnet *input_ifp)
 	if (af == AF_INET)
 		return l2tp_udpv4_recv_encap(
 			m, dp_pktmbuf_mtol3(m, const void *), udp);
-	else
-		return l2tp_udpv6_recv_encap(
-			m, dp_pktmbuf_mtol3(m, const void *), udp);
+	return l2tp_udpv6_recv_encap(
+		m, dp_pktmbuf_mtol3(m, const void *), udp);
 }

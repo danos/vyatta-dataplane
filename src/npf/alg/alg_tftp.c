@@ -55,7 +55,7 @@ static int tftp_alg_config(struct npf_alg *tftp, int op, int argc,
 		.ci_flags = (NPF_TUPLE_KEEP | NPF_TUPLE_MATCH_PROTO_PORT)
 	};
 
-	if (strcmp(argv[0], "port"))
+	if (strcmp(argv[0], "port") != 0)
 		return -EINVAL;
 	argc--; argv++;
 

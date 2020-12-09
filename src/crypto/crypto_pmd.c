@@ -353,22 +353,20 @@ int crypto_engine_probe(FILE *f)
 		 (int) num;
 }
 
-int crypto_engine_set(FILE *f, const char *str)
+int crypto_engine_set(uint8_t *bytes, uint8_t len)
 {
 	bool tmp_sticky;
-	int num  = set_crypto_engines(str, &tmp_sticky);
-
-	if (!f)
-		return -1;
+	int num  = set_crypto_engines(bytes, len, &tmp_sticky);
 
 	if (num < 0) {
-		fprintf(f, "error invalid mask\n");
-		return -1;
+		RTE_LOG(ERR, DATAPLANE,
+			"Invalid cpu mask specified for crypto\n");
+		return -EINVAL;
 	}
 
 	set_max_pmd(num);
 
-	return crypto_cpu_describe(f, num, tmp_sticky);
+	return 0;
 }
 /*
  * Return a PMD to be used by the caller, either reusing an
@@ -501,7 +499,7 @@ void crypto_remove_sa_from_pmd(int dev_id, enum crypto_xfrm xfrm,
  * Insert a PMD into the list of PMDs being procssed by an engine,
  * i.e. an lcore or a pthread
  */
-int crypto_attach_pmd(struct cds_list_head *pmd_list, int dev_id, int lcore)
+int crypto_attach_pmd(struct cds_list_head *pmd_head, int dev_id, int lcore)
 {
 	bool err;
 	struct crypto_pmd *new_pmd = crypto_dev_id_to_pmd(dev_id,
@@ -514,7 +512,7 @@ int crypto_attach_pmd(struct cds_list_head *pmd_list, int dev_id, int lcore)
 	}
 
 	new_pmd->lcore = lcore;
-	cds_list_add_rcu(&new_pmd->next, pmd_list);
+	cds_list_add_rcu(&new_pmd->next, pmd_head);
 	return 0;
 }
 

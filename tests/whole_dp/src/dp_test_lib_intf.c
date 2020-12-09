@@ -744,7 +744,7 @@ dp_test_intf_ip4_find(in_addr_t ip4, struct dp_test_intf *intf)
 }
 
 static void
-dp_test_intf_ip4(const char *if_name, in_addr_t *ip4, bool add)
+dp_test_intf_ip4(const char *if_name, const in_addr_t *ip4, bool add)
 {
 	struct dp_test_intf *intf;
 	int i;

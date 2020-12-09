@@ -28,6 +28,7 @@
 #include "compiler.h"
 #include "config_internal.h"
 #include "control.h"
+#include "crypto/crypto.h"
 #include "crypto/crypto_policy.h"
 #include "dpmsg.h"
 #include "event_internal.h"
@@ -44,6 +45,7 @@
 #include "pl_commands.h"
 #include "power.h"
 #include "protobuf.h"
+#include "protobuf/FeatureAffinityConfig.pb-c.h"
 #include "rt_tracker.h"
 #include "session/session_cmds.h"
 #include "urcu.h"
@@ -54,6 +56,7 @@
 #include "storm_ctl.h"
 #include "backplane.h"
 #include "ptp.h"
+#include "crypto/xfrm_client.h"
 
 #define ZMQ_IPC_HWM (0)
 
@@ -361,6 +364,8 @@ static int process_xfrm_policy_cmd(enum cont_src_en cont_src,
 				   void *data, size_t size,
 				   const struct msg_handler *h __unused)
 {
+	struct xfrm_client_aux_data aux;
+
 	if (cont_src != CONT_SRC_MAIN) {
 		RTE_LOG(ERR, DATAPLANE,
 			"(%s) xfrm POLICY invalid controller\n",
@@ -369,8 +374,11 @@ static int process_xfrm_policy_cmd(enum cont_src_en cont_src,
 	}
 
 	vrfid_t vrf_id = VRF_DEFAULT_ID;
+
+	aux.vrf = &vrf_id;
+
 	int rc = mnl_cb_run(data, size, 0, 0, rtnl_process_xfrm,
-			    &vrf_id);
+			    &aux);
 	if (rc != MNL_CB_OK) {
 		RTE_LOG(ERR, DATAPLANE, "netlink POLICY message parse error\n");
 		return -1;
@@ -496,6 +504,7 @@ static const struct msg_handler message_handlers_main[] = {
 	{ 0,	"protobuf",	process_pb_cmd,          NULL },
 	{ 0,	"ptp",		process_config_cmd,      cmd_ptp_cfg },
 	{ 14,	"qos",		process_config_cmd,	 cmd_qos_cfg },
+	{ 15,	"qos",		process_config_cmd,	 cmd_qos_cfg },
 	{ 0,	"route",	process_netlink_data,	 NULL },
 	{ 3,    "storm-ctl",    process_config_cmd,      cmd_storm_ctl_cfg },
 	{ 0,	"tablemap",	process_config_cmd,	 cmd_tablemap_cfg },
@@ -568,7 +577,7 @@ static struct cds_list_head dynamic_cfg_command_list_head =
 
 static const struct msg_handler *
 find_msg_handler(const struct msg_handler *handlers,
-		 const char *name, int len)
+		 const char *name, size_t len)
 {
 	const struct msg_handler *h;
 	struct dynamic_cfg_command_entry *dynamic_cmd;
@@ -992,7 +1001,7 @@ int cfg_if_list_replay(struct cfg_if_list **cfg_list, const char *ifname,
 
 	cds_list_for_each_entry_safe(entry, temp_entry, &if_list->if_list,
 				     le_node) {
-		if (strcmp(ifname, entry->le_ifname))
+		if (strcmp(ifname, entry->le_ifname) != 0)
 			continue;
 
 		if (handler) {
@@ -1198,3 +1207,49 @@ int cfg_if_list_cache_command(struct cfg_if_list **if_list, const char *ifname,
 
 	return cfg_if_list_add_multi(*if_list, ifname, argc, argv);
 }
+
+static int feature_affinity_cmd_handler(struct pb_msg *msg)
+{
+	void *payload = (void *)((char *)msg->msg);
+	int len = msg->msg_len, ret = 0;
+
+	if (!payload || !len) {
+		RTE_LOG(ERR, DATAPLANE,
+			"Invalid FeatureAffinity message, payload = 0x%lx, len = %d",
+			(uintptr_t)payload, len);
+		return -EINVAL;
+	}
+
+	FeatureAffinityConfig *fmsg =
+		feature_affinity_config__unpack(NULL, len, payload);
+
+	if (!fmsg) {
+		RTE_LOG(ERR, DATAPLANE,
+			"failed to unpack FeatureAffinity protobuf command\n");
+		return -1;
+	}
+
+	switch (fmsg->feature) {
+	case FEATURE_AFFINITY_CONFIG__FEATURE__CRYPTO:
+		ret = crypto_engine_set(fmsg->cpumask.data,
+					fmsg->cpumask.len);
+		break;
+
+	case FEATURE_AFFINITY_CONFIG__FEATURE__CRYPTO_FWD:
+		ret = crypto_set_fwd_cores(fmsg->cpumask.data,
+					   fmsg->cpumask.len);
+		break;
+
+	default:
+		ret = -EINVAL;
+		break;
+	}
+
+	feature_affinity_config__free_unpacked(fmsg, NULL);
+	return ret;
+}
+
+PB_REGISTER_CMD(feature_affinity_cmd) = {
+	.cmd = "vyatta:feature-affinity",
+	.handler = feature_affinity_cmd_handler,
+};

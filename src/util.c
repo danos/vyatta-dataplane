@@ -147,13 +147,14 @@ static int __net_ratelimit(uint64_t now)
 		printed = 0;
 		epoch = 0;
 		return 1;
-	} else if (printed < 10) {
+	}
+	if (printed < 10) {
 		++printed;
 		return 1;
-	} else {
-		++missed;
-		return 0;
 	}
+
+	++missed;
+	return 0;
 }
 
 
@@ -178,10 +179,10 @@ static unsigned int xdigit2val(unsigned char c)
 {
 	if (isdigit(c))
 		return c - '0';
-	else if (isupper(c))
+	if (isupper(c))
 		return c - 'A' + 10;
-	else
-		return c - 'a' + 10;
+
+	return c - 'a' + 10;
 }
 
 
@@ -320,6 +321,19 @@ int str_unsplit(char *buf, size_t n, int argc, char **argv)
 	return 0;
 }
 
+/* Pop next argument from list */
+char *next_arg(int *argcp, char ***argvp)
+{
+	char *arg = NULL;
+
+	if (*argcp > 0) {
+		arg = *argvp[0];
+		*argcp -= 1;
+		*argvp += 1;
+	}
+	return arg;
+}
+
 /* Like snprintf but concatinates to existing string */
 size_t snprintfcat(char *buf, size_t size, const char *fmt, ...)
 {
@@ -417,7 +431,7 @@ int get_unsigned_short(const char *str, unsigned short *ptr)
 int get_unsigned_char(const char *str, unsigned char *ptr)
 {
 	int result;
-	unsigned int val;
+	unsigned int val = 0;
 
 	result = get_unsigned(str, &val);
 	if (result < 0)
@@ -495,11 +509,11 @@ static unsigned char xdigit(int c)
 {
 	if (isdigit(c))
 		return c - '0';
-	else if (isupper(c))
+	if (isupper(c))
 		return c - 'A' + 10;
-	else
-		return c - 'a' + 10;
+	return c - 'a' + 10;
 }
+
 /*
  * Parse bitmask expressed as hex
  * needs to handle up to RTE_MAX_LCORE and RTE_MAX_ETHPORTS bits (ie 128)
@@ -528,6 +542,27 @@ int bitmask_parse(bitmask_t *msk, const char *str)
 		val <<= (4 * (offs % (UINT64_BIT / 4)));
 
 		msk->_bits[offs / (UINT64_BIT / 4)] |= val;
+	}
+
+	return 0;
+}
+
+int bitmask_parse_bytes(bitmask_t *mask, const uint8_t *bytes, uint8_t len)
+{
+	unsigned int offs;
+	int i;
+
+	if (len > BITMASK_BYTESZ)
+		return -EINVAL;
+
+	bitmask_zero(mask);
+
+	for (i = len - 1, offs = 0; i >= 0; --i, ++offs) {
+		uint64_t val;
+
+		val = bytes[i];
+		val <<= (8 * (offs % (UINT64_BIT / 8)));
+		mask->_bits[offs / (UINT64_BIT / 8)] |= val;
 	}
 
 	return 0;

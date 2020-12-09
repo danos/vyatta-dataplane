@@ -263,3 +263,16 @@ PL_REGISTER_NODE(ether_lookup_node) = {
 
 struct pl_node_registration *const ether_lookup_node_ptr =
 	&ether_lookup_node;
+
+/*
+ * show features ether_lookup [interface <ifname>]
+ */
+static int cmd_pl_show_feat_ether_lookup(struct pl_command *cmd)
+{
+	return if_node_instance_feat_print(cmd, ether_lookup_node_ptr);
+}
+
+PL_REGISTER_OPCMD(pl_show_feat_ether_lookup) = {
+	.cmd = "show features ether_lookup",
+	.handler = cmd_pl_show_feat_ether_lookup,
+};

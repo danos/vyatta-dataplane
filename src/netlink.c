@@ -69,6 +69,7 @@
 #include "vrf_internal.h"
 #include "vrf_if.h"
 #include "vlan_modify.h"
+#include "crypto/xfrm_client.h"
 
 static int linkinfo_attr(const struct nlattr *attr, void *data)
 {
@@ -488,7 +489,7 @@ static struct ifnet *unspec_link_create(const struct ifinfomsg *ifi,
 	if (!strcmp(kind, "tun")) {
 		if (is_dp_intf(ifname))
 			return dataplane_tuntap_create(if_idx, ifname);
-		else if (strncmp(ifname, "vtun", 4) == 0)
+		if (strncmp(ifname, "vtun", 4) == 0)
 			return other_tunnel_create(if_idx, ifname,
 						   mtu, macaddr);
 	}
@@ -1476,8 +1477,13 @@ int rtnl_process_xfrm(const struct nlmsghdr *nlh, void *data)
 	const struct xfrm_mark *mark = NULL;
 	vrfid_t vrfid;
 	uint32_t ifindex = 0;
+	struct xfrm_client_aux_data *xfrm_aux;
 
-	vrfid = *(vrfid_t *)data;
+	xfrm_aux = (struct xfrm_client_aux_data *)data;
+
+	vrfid = *xfrm_aux->vrf;
+	xfrm_aux->ack_msg = false;
+
 	ret = xfrm_nl_policy_decode(nlh, &id, &policy, &tmpl, &mark, &vrfid,
 				    &ifindex);
 	if (ret < 0) {
@@ -1486,8 +1492,10 @@ int rtnl_process_xfrm(const struct nlmsghdr *nlh, void *data)
 		return MNL_CB_ERROR;
 	}
 
-	if (policy == NULL && id == NULL)
-		return MNL_CB_OK;
+	if (policy == NULL && id == NULL) {
+		xfrm_aux->ack_msg = true;
+		goto out;
+	}
 
 	if (policy) {
 		sel = &policy->sel;
@@ -1503,9 +1511,16 @@ int rtnl_process_xfrm(const struct nlmsghdr *nlh, void *data)
 	 */
 	crypto_incmpl_xfrm_policy_del(ifindex, nlh, sel, mark);
 
+	/*
+	 * If the interface a policy depends upon has not yet arrived
+	 * then the policy is rejected and strongswan will retry.
+	 * later.
+	 */
 	if (crypto_incmpl_xfrm(ifindex)) {
-		crypto_incmpl_xfrm_policy_add(ifindex, nlh, sel, mark);
-		return MNL_CB_OK;
+		RTE_LOG(NOTICE, DATAPLANE, "XFRM policy missing interface\n");
+		xfrm_aux->ack_msg = true;
+		status = -1;
+		goto out;
 	}
 
 	/*
@@ -1541,18 +1556,24 @@ int rtnl_process_xfrm(const struct nlmsghdr *nlh, void *data)
 	/*
 	 * Ignore _FWD policies since We only create IN and OUT policies.
 	 */
-	if (dir & ~(XFRM_POLICY_IN|XFRM_POLICY_OUT))
-		return MNL_CB_OK;
+	if (dir & ~(XFRM_POLICY_IN|XFRM_POLICY_OUT)) {
+		xfrm_aux->ack_msg = true;
+		goto out;
+	}
 
 	switch (nlh->nlmsg_type) {
 	case XFRM_MSG_NEWPOLICY:
-		if (crypto_policy_add(policy, peer, tmpl, mark, vrfid) < 0) {
+		if (crypto_policy_add(policy, peer, tmpl, mark, vrfid,
+				      nlh->nlmsg_seq,
+				      &xfrm_aux->ack_msg) < 0) {
 			RTE_LOG(ERR, DATAPLANE, "NEWPOLICY failure\n");
 			status = MNL_CB_ERROR;
 		}
 		break;
 	case XFRM_MSG_UPDPOLICY:
-		if (crypto_policy_update(policy, peer, tmpl, mark, vrfid) < 0) {
+		if (crypto_policy_update(policy, peer, tmpl, mark, vrfid,
+					 nlh->nlmsg_seq,
+					 &xfrm_aux->ack_msg) < 0) {
 			RTE_LOG(ERR, DATAPLANE, "UPDPOLICY failure\n");
 			status = MNL_CB_ERROR;
 		}
@@ -1564,14 +1585,15 @@ int rtnl_process_xfrm(const struct nlmsghdr *nlh, void *data)
 		id = &tmp_id;
 		/* fall through */
 	case XFRM_MSG_DELPOLICY:
-		crypto_policy_delete(id, mark, vrfid);
+		crypto_policy_delete(id, mark, vrfid, nlh->nlmsg_seq,
+				     &xfrm_aux->ack_msg);
 		break;
 	default:
 		RTE_LOG(ERR, DATAPLANE, "Unhandled XFRM policy message\n");
 		status = MNL_CB_ERROR;
 		break;
 	}
-
+out:
 	return status;
 }
 

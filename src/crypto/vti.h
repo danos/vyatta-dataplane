@@ -25,7 +25,7 @@ vti_tunnel_create(int ifindex, const char *ifname,
 		   const struct rte_ether_addr *addr, const unsigned int mtu,
 		   struct nlattr *data);
 void vti_tunnel_modify(struct ifnet *ifp, struct nlattr *data);
-void vti_tunnel_out(struct ifnet *input_ifp, struct ifnet *nxt_ifp,
+void vti_tunnel_out(struct ifnet *in_ifp, struct ifnet *nxt_ifp,
 		    struct rte_mbuf *m, uint16_t proto);
 int vti_handle_inbound(const xfrm_address_t *dst, const uint8_t family,
 		       const uint32_t mark, struct rte_mbuf *m,

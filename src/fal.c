@@ -131,6 +131,7 @@ static struct fal_l2_ops *new_dyn_l2_ops(void *lib)
 	l2_ops->new_port = dlsym(lib, "fal_plugin_l2_new_port");
 	l2_ops->upd_port = dlsym(lib, "fal_plugin_l2_upd_port");
 	l2_ops->del_port = dlsym(lib, "fal_plugin_l2_del_port");
+	l2_ops->dump_port = dlsym(lib, "fal_plugin_l2_dump_port");
 	l2_ops->get_attrs = dlsym(lib, "fal_plugin_l2_get_attrs");
 	l2_ops->new_addr = dlsym(lib, "fal_plugin_l2_new_addr");
 	l2_ops->upd_addr = dlsym(lib, "fal_plugin_l2_upd_addr");
@@ -153,6 +154,7 @@ static struct fal_rif_ops *new_dyn_rif_ops(void *lib)
 	rif_ops->get_stats = dlsym(lib,
 				   "fal_plugin_get_router_interface_stats");
 	rif_ops->dump = dlsym(lib, "fal_plugin_dump_router_interface");
+	rif_ops->get_attr = dlsym(lib, "fal_plugin_get_router_interface_attr");
 	return rif_ops;
 }
 
@@ -578,7 +580,8 @@ static struct fal_bfd_ops *new_dyn_bfd_ops(void *lib)
 		"fal_plugin_bfd_get_session_attribute");
 	bfd_ops->get_session_stats = dlsym(lib,
 		"fal_plugin_bfd_get_session_stats");
-
+	bfd_ops->dump_session = dlsym(lib,
+				      "fal_plugin_bfd_dump_session");
 	return bfd_ops;
 }
 
@@ -813,7 +816,8 @@ int cmd_fal(FILE *f, int argc, char **argv)
 		 */
 		call_handler(sys, command, f, argc, argv);
 		return 0;
-	} else if ((streq(argv[0], "plugin_ret"))) {
+	}
+	if ((streq(argv[0], "plugin_ret"))) {
 		argc--;
 		argv++;
 		/*TODO Implement get_name handlers
@@ -862,6 +866,11 @@ int fal_l2_upd_port(unsigned int if_index,
 void fal_l2_del_port(unsigned int if_index)
 {
 	call_handler(l2, del_port, if_index);
+}
+
+void fal_l2_dump_port(unsigned int if_index, json_writer_t *wr)
+{
+	call_handler(l2, dump_port, if_index, wr);
 }
 
 void fal_l2_new_addr(unsigned int if_index,
@@ -917,6 +926,14 @@ fal_get_router_interface_stats(fal_object_t obj,
 {
 	return call_handler_def_ret(rif, -EOPNOTSUPP, get_stats,
 				    obj, cntr_count, cntr_ids, cntrs);
+}
+
+int fal_get_router_interface_attr(fal_object_t obj,
+				  uint32_t attr_count,
+				  struct fal_attribute_t *attr_list)
+{
+	return call_handler_def_ret(rif, -EOPNOTSUPP, get_attr,
+				    obj, attr_count, attr_list);
 }
 
 void
@@ -1867,10 +1884,10 @@ int fal_ip_del_next_hops(fal_object_t nhg_object, size_t nhops,
 /*
  * The nexthop at 'index' has changed so inform the platforms.
  */
-int fal_ip_upd_next_hop_state(const fal_object_t *obj_list,
+int fal_ip_upd_next_hop_state(const fal_object_t *nh_list,
 			      int index, bool usable)
 {
-	const fal_object_t *nh_obj = &obj_list[index];
+	const fal_object_t *nh_obj = &nh_list[index];
 	struct fal_attribute_t nh_attr;
 
 	nh_attr.id = FAL_NEXT_HOP_ATTR_USABILITY;
@@ -3437,31 +3454,32 @@ fal_detach_device(const char *device)
 
 int fal_mirror_session_create(uint32_t attr_count,
 			     const struct fal_attribute_t *attr_list,
-			     fal_object_t *obj)
+			     fal_object_t *mr_obj_id)
 {
 	return call_handler_def_ret(mirror, -EOPNOTSUPP, session_create,
-				    attr_count, attr_list, obj);
+				    attr_count, attr_list, mr_obj_id);
 
 }
 
-int fal_mirror_session_delete(fal_object_t obj)
+int fal_mirror_session_delete(fal_object_t mr_obj_id)
 {
-	return call_handler_def_ret(mirror, -EOPNOTSUPP, session_delete, obj);
+	return call_handler_def_ret(mirror, -EOPNOTSUPP, session_delete,
+				    mr_obj_id);
 }
 
-int fal_mirror_session_set_attr(fal_object_t obj,
+int fal_mirror_session_set_attr(fal_object_t mr_obj_id,
 				const struct fal_attribute_t *attr)
 {
-	return call_handler_def_ret(mirror, -EOPNOTSUPP, session_set_attr, obj,
-				    attr);
+	return call_handler_def_ret(mirror, -EOPNOTSUPP, session_set_attr,
+				    mr_obj_id, attr);
 
 }
 
-int fal_mirror_session_get_attr(fal_object_t obj, uint32_t attr_count,
+int fal_mirror_session_get_attr(fal_object_t mr_obj_id, uint32_t attr_count,
 				 struct fal_attribute_t *attr_list)
 {
-	return call_handler_def_ret(mirror, -EOPNOTSUPP, session_get_attr, obj,
-				attr_count, attr_list);
+	return call_handler_def_ret(mirror, -EOPNOTSUPP, session_get_attr,
+				    mr_obj_id, attr_count, attr_list);
 }
 
 int fal_vlan_feature_create(uint32_t attr_count,
@@ -3761,12 +3779,12 @@ int dp_fal_bfd_get_session_attribute(fal_object_t bfd_session_id,
 }
 
 int dp_fal_bfd_get_session_stats(fal_object_t bfd_session_id,
-	uint32_t number_of_counters,
+	uint32_t num_of_counters,
 	const enum fal_bfd_session_stat_t *counter_ids,
 	uint64_t *counters)
 {
 	return call_handler_def_ret(bfd, -EOPNOTSUPP, get_session_stats,
-			bfd_session_id, number_of_counters,
+			bfd_session_id, num_of_counters,
 			counter_ids, counters);
 }
 
@@ -3779,6 +3797,13 @@ int dp_fal_bfd_get_switch_attrs(uint32_t attr_count,
 int dp_fal_bfd_set_switch_attr(const struct fal_attribute_t *attr)
 {
 	return fal_set_switch_attr(attr);
+}
+
+int dp_fal_bfd_dump_session(fal_object_t bfd_session_id,
+			     json_writer_t *wr)
+{
+	return call_handler_def_ret(bfd, -EOPNOTSUPP, dump_session,
+				    bfd_session_id, wr);
 }
 
 /* End of BFD functions */

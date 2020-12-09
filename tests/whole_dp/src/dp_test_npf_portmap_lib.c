@@ -82,7 +82,7 @@ dp_test_npf_json_portmap_match(json_object *jobj, void *arg)
 	if (vals->state) {
 		if (!dp_test_json_string_field_from_obj(jobj, "state", &str))
 			return false;
-		if (strcmp(vals->state, str))
+		if (strcmp(vals->state, str) != 0)
 			return false;
 	}
 

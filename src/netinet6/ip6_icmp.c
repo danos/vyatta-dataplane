@@ -48,7 +48,7 @@
 /* Option Formats
    Length	8-bit unsigned integer.  The length of the option (including
 		the type and length fields) in units of 8 octets.   */
-#define ICMP6_OPT_LEN(opttype, len) (((sizeof(struct opttype) + len) + 7) / 8)
+#define ICMP6_OPT_LEN(opttype, len) (((sizeof(struct opttype) + (len)) + 7) / 8)
 
 static bool ip6_redirects = true;
 uint64_t icmp6stats[ICMP6_MIB_MAX];

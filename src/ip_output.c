@@ -70,7 +70,8 @@ void ip_output(struct rte_mbuf *m, bool srced_forus)
 
 	/* MPLS imposition required because nh has given us a label */
 	if (nh_outlabels_present(&nxt->outlabels)) {
-		mpls_unlabeled_input(ifp, m, NH_TYPE_V4GW, nxt, ip->ttl);
+		mpls_unlabeled_input(ifp, m, MPT_IPV4, NH_TYPE_V4GW, nxt,
+				     ip->ttl);
 		return;
 	}
 
@@ -97,9 +98,6 @@ void ip_output(struct rte_mbuf *m, bool srced_forus)
 		ip_local_deliver(ifp, m);
 		return;
 	}
-
-	if (ipv4_originate_filter(ifp, m))
-		return;
 
 	if (dp_ip_l2_nh_output(NULL, m, nxt, ETH_P_IP))
 		IPSTAT_INC_IFP(ifp, IPSTATS_MIB_OUTPKTS);

@@ -167,29 +167,30 @@ static int parse_entry(void *user, const char *section,
 	} else if (strcasecmp(section, "controller") == 0) {
 		if (strcmp(name, "publish") == 0)
 			return copy_str(&cfg->publish_url, value);
-		else if (strcmp(name, "request") == 0)
+		if (strcmp(name, "request") == 0)
 			return copy_str(&cfg->request_url, value);
-		else if (strcmp(name, "publish_uplink") == 0)
+		if (strcmp(name, "publish_uplink") == 0)
 			return copy_str(&cfg->publish_url_uplink, value);
-		else if (strcmp(name, "request_uplink") == 0)
+		if (strcmp(name, "request_uplink") == 0)
 			return copy_str(&cfg->request_url_uplink, value);
-		else if (strcmp(name, "ip") == 0)
+		if (strcmp(name, "ip") == 0)
 			return parse_ipaddr(&cfg->remote_ip, value);
-		else if (strcmp(name, "certificate") == 0)
+		if (strcmp(name, "certificate") == 0)
 			return copy_str(&cfg->remote_cert, value);
 	} else if (strcasecmp(section, "dataplane") == 0) {
 		if (strcmp(name, "ip") == 0)
 			return parse_ipaddr(&cfg->local_ip, value);
-		else if (strcmp(name, "certificate") == 0)
+		if (strcmp(name, "certificate") == 0)
 			return copy_str(&cfg->certificate, value);
-		else if (strcmp(name, "control") == 0) {
+		if (strcmp(name, "control") == 0) {
 			cfg->console_url_set = true;
 			return copy_str(&cfg->console_url, value);
-		} else if (strcmp(name, "control-uplink") == 0)
+		}
+		if (strcmp(name, "control-uplink") == 0)
 			return copy_str(&cfg->console_url_uplink, value);
-		else if (strcmp(name, "control-interface") == 0)
+		if (strcmp(name, "control-interface") == 0)
 			return copy_str(&cfg->ctrl_intf_name, value);
-		else if (strcmp(name, "exclude-interfaces") == 0 ||
+		if (strcmp(name, "exclude-interfaces") == 0 ||
 			 strcmp(name, "blacklist") == 0)
 			parse_exclude(strdupa(value));
 		else if (strcmp(name, "backplane") == 0)
@@ -205,8 +206,13 @@ static int parse_entry(void *user, const char *section,
 	} else if (strcasecmp(section, "rib") == 0) {
 		if (strcmp(name, "ip") == 0)
 			return parse_ipaddr(&cfg->rib_ip, value);
-		else if (strcmp(name, "control") == 0)
+		if (strcmp(name, "control") == 0)
 			return copy_str(&cfg->rib_ctrl_url, value);
+	} else if (strcasecmp(section, "xfrm_client") == 0) {
+		if (strcmp(name, "pull") == 0)
+			return copy_str(&cfg->xfrm_pull_url, value);
+		if (strcmp(name, "push") == 0)
+			return copy_str(&cfg->xfrm_push_url, value);
 	}
 
 	return 1; /* good */
@@ -240,9 +246,9 @@ static char *default_endpoint_controller(void)
 {
 	if (config.local_controller)
 		return strdup(DEFAULT_CONTROLLER_REQ_IPC);
-	else
-		return addr_to_tcp(&config.remote_ip,
-				   DEFAULT_CONTROLLER_REQ_PORT);
+
+	return addr_to_tcp(&config.remote_ip,
+			   DEFAULT_CONTROLLER_REQ_PORT);
 
 }
 
@@ -255,8 +261,8 @@ char *default_endpoint_dataplane(void)
 {
 	if (config.local_controller)
 		return strdup("ipc://*");
-	else
-		return addr_to_tcp(&config.local_ip, 0);
+
+	return addr_to_tcp(&config.local_ip, 0);
 }
 
 static char *default_endpoint_dataplane_uplink(void)

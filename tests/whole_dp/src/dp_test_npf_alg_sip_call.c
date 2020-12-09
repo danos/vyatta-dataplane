@@ -153,11 +153,11 @@ dp_test_npf_sip_call_dup(struct dp_test_sip_pkt_t *sip_call, uint nmsgs)
  * dp_test_npf_sip_call_dup
  */
 void
-dp_test_npf_sip_call_free(struct dp_test_sip_pkt_t *sip_call, uint sip_call_sz)
+dp_test_npf_sip_call_free(struct dp_test_sip_pkt_t *sip_call, uint nmsgs)
 {
 	uint i;
 
-	for (i = 0; i < sip_call_sz; i++) {
+	for (i = 0; i < nmsgs; i++) {
 		if (sip_call[i].msg_pre) {
 			free(sip_call[i].msg_pre);
 			sip_call[i].msg_pre = NULL;

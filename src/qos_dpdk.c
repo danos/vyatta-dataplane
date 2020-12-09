@@ -325,12 +325,11 @@ int qos_dpdk_enable(struct ifnet *ifp,
 			DP_DEBUG(QOS_DP, ERR, DATAPLANE, "Qos start failed\n");
 			qinfo->enabled = false;
 			return -ENODEV;
-		} else {
-			DP_DEBUG(QOS_DP, DEBUG, DATAPLANE,
-				 "link status %s, speed %d, QoS not started\n",
-				 link.link_status ? "up" : "down",
-				 link.link_speed);
 		}
+		DP_DEBUG(QOS_DP, DEBUG, DATAPLANE,
+			 "link status %s, speed %d, QoS not started\n",
+			 link.link_status ? "up" : "down",
+			 link.link_speed);
 	} else {
 		DP_DEBUG(QOS_DP, DEBUG, DATAPLANE,
 			 "interface not sw forwarding, QoS not started\n");
@@ -552,7 +551,6 @@ int qos_dpdk_start(struct ifnet *ifp, struct sched_info *qinfo,
 		for (i = 0; i < RTE_SCHED_TRAFFIC_CLASSES_PER_PIPE; i++)
 			qsize[i] = (uint16_t)sinfo->qsize[i];
 
-		assert(sizeof(dpdk_params) == sizeof(*qos_params));
 		memcpy(&dpdk_params, qos_params, sizeof(*qos_params));
 		qos_copy_red_params(dpdk_red_params, sinfo);
 
@@ -765,6 +763,5 @@ int qos_sched(struct ifnet *ifp, struct sched_info *qinfo,
 	/* Get what is available to send */
 	if (space > 0)
 		return rte_sched_port_dequeue(port, deq_pkts, space);
-	else
-		return 0;
+	return 0;
 }

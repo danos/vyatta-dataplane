@@ -86,6 +86,7 @@ struct fal_l2_ops {
 	int (*upd_port)(unsigned int if_index,
 			struct fal_attribute_t *attr);
 	void (*del_port)(unsigned int if_index);
+	void (*dump_port)(unsigned int if_index, json_writer_t *wr);
 	void (*new_addr)(unsigned int if_index,
 			 const void *addr,
 			 uint32_t attr_count,
@@ -110,6 +111,8 @@ struct fal_rif_ops {
 	int (*get_stats)(fal_object_t obj, uint32_t cntr_count,
 			 const enum fal_router_interface_stat_t *cntr_ids,
 			 uint64_t *cntrs);
+	int (*get_attr)(fal_object_t obj, uint32_t attr_count,
+			struct fal_attribute_t *attr_list);
 	void (*dump)(fal_object_t obj, json_writer_t *wr);
 };
 
@@ -633,6 +636,8 @@ struct fal_bfd_ops {
 			uint32_t num_counters,
 			const enum fal_bfd_session_stat_t *counter_ids,
 			uint64_t *counters);
+	int (*dump_session)(fal_object_t bfd_session_id,
+			    json_writer_t *wr);
 };
 
 void fal_init(void);
@@ -662,6 +667,7 @@ int fal_l2_get_attrs(unsigned int if_index,
 int fal_l2_upd_port(unsigned int if_index,
 		    struct fal_attribute_t *attr);
 void fal_l2_del_port(unsigned int if_index);
+void fal_l2_dump_port(unsigned int if_index, json_writer_t *wr);
 void fal_l2_new_addr(unsigned int if_index,
 		     const struct rte_ether_addr *addr,
 		     uint32_t attr_count,
@@ -684,6 +690,8 @@ fal_get_router_interface_stats(fal_object_t obj,
 			       uint32_t cntr_count,
 			       const enum fal_router_interface_stat_t *cntr_ids,
 			       uint64_t *cntrs);
+int fal_get_router_interface_attr(fal_object_t obj, uint32_t attr_count,
+				  struct fal_attribute_t *attr);
 void
 fal_dump_router_interface(fal_object_t obj, json_writer_t *wr);
 
@@ -821,10 +829,10 @@ fal_next_hop_group_packet_action(uint32_t nhops, const struct next_hop hops[]);
 
 int fal_ip4_new_route(vrfid_t vrf_id, in_addr_t addr, uint8_t prefixlen,
 		      uint32_t tableid, struct next_hop hops[],
-		      size_t size, fal_object_t nhg_object);
+		      size_t nhops, fal_object_t nhg_object);
 int fal_ip4_upd_route(vrfid_t vrf_id, in_addr_t addr, uint8_t prefixlen,
 		      uint32_t tableid, struct next_hop hops[],
-		      size_t size, fal_object_t nhg_object);
+		      size_t nhops, fal_object_t nhg_object);
 int fal_ip4_del_route(vrfid_t vrf_id, in_addr_t addr, uint8_t prefixlen,
 		      uint32_t tableid);
 int fal_ip4_get_route_attrs(vrfid_t vrf_id, in_addr_t addr, uint8_t prefixlen,
@@ -884,12 +892,12 @@ int fal_ip_get_next_hop_attrs(fal_object_t nh_object,
 void fal_ip_dump_next_hop(fal_object_t nh_object, json_writer_t *wr);
 int fal_ip6_new_route(vrfid_t vrf_id, const struct in6_addr *addr,
 		      uint8_t prefixlen, uint32_t tableid,
-		      struct next_hop hops[], size_t size,
-		      fal_object_t group_obj);
+		      struct next_hop hops[], size_t nhops,
+		      fal_object_t nhg_object);
 int fal_ip6_upd_route(vrfid_t vrf_id, const struct in6_addr *addr,
 		      uint8_t prefixlen, uint32_t tableid,
-		      struct next_hop hops[], size_t size,
-		      fal_object_t group_obj);
+		      struct next_hop hops[], size_t nhops,
+		      fal_object_t nhg_object);
 int fal_ip6_del_route(vrfid_t vrf_id, const struct in6_addr *addr,
 		      uint8_t prefixlen, uint32_t tableid);
 
@@ -993,11 +1001,11 @@ int fal_qos_get_map_attrs(fal_object_t map_id, uint32_t attr_count,
 			 struct fal_attribute_t *attr_list);
 int fal_qos_new_scheduler(fal_object_t switch_id, uint32_t attr_count,
 			  const struct fal_attribute_t *attr_list,
-			  fal_object_t *new_scheduler_id);
-int fal_qos_del_scheduler(fal_object_t scheduler_id);
-int fal_qos_upd_scheduler(fal_object_t scheduler_id,
+			  fal_object_t *new_sched_id);
+int fal_qos_del_scheduler(fal_object_t sched_id);
+int fal_qos_upd_scheduler(fal_object_t sched_id,
 			  const struct fal_attribute_t *attr);
-int fal_qos_get_scheduler_attrs(fal_object_t scheduler_id, uint32_t attr_count,
+int fal_qos_get_scheduler_attrs(fal_object_t sched_id, uint32_t attr_count,
 			       struct fal_attribute_t *attr_list);
 int fal_qos_new_sched_group(fal_object_t switch_id, uint32_t attr_count,
 			    const struct fal_attribute_t *attr_list,
@@ -1015,8 +1023,8 @@ int fal_qos_del_wred(fal_object_t wred_id);
 int fal_qos_upd_wred(fal_object_t wred_id,  const struct fal_attribute_t *attr);
 int fal_qos_get_wred_attrs(fal_object_t wred_id, uint32_t attr_count,
 			  struct fal_attribute_t *attr_list);
-void fal_qos_dump_map(fal_object_t obj, json_writer_t *wr);
-void fal_qos_dump_sched_group(fal_object_t obj, json_writer_t *wr);
+void fal_qos_dump_map(fal_object_t map, json_writer_t *wr);
+void fal_qos_dump_sched_group(fal_object_t sg, json_writer_t *wr);
 void fal_qos_dump_buf_errors(json_writer_t *wr);
 int fal_qos_get_counters(const uint32_t *cntr_ids, uint32_t num_cntrs,
 			uint64_t *cntrs);
@@ -1035,9 +1043,9 @@ uint8_t fal_feat_storageid(void);
 
 int fal_vlan_feature_create(uint32_t attr_count,
 			    const struct fal_attribute_t *attr_list,
-			    fal_object_t *fal_obj_id);
-int fal_vlan_feature_delete(fal_object_t fal_obj_id);
-int fal_vlan_feature_set_attr(fal_object_t fal_obj_id,
+			    fal_object_t *obj);
+int fal_vlan_feature_delete(fal_object_t obj);
+int fal_vlan_feature_set_attr(fal_object_t obj,
 			      const struct fal_attribute_t *attr);
 int fal_vlan_feature_get_attr(fal_object_t obj,
 			      uint32_t attr_count,

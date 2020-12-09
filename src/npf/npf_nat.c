@@ -194,7 +194,7 @@ static inline bool before(uint32_t n1, uint32_t n2)
 	return (((int32_t) (n1 - n2)) < 0 ? true : false);
 }
 #define after(n2, n1) before(n1, n2)
-#define direction_index(a)  (a == PFIL_IN ? 0 : 1)
+#define direction_index(a)  ((a) == PFIL_IN ? 0 : 1)
 
 #define TCP_SACK_PERBLOCK 8
 

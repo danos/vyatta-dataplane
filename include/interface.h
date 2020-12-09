@@ -112,6 +112,13 @@ vrfid_t dp_ifnet_vrfid(const struct ifnet *ifp);
 fal_object_t dp_ifnet_fal_l3_if(const struct ifnet *ifp);
 
 /*
+ * Get interface FAL LAG member object.
+ * @param[in] ifp Pointer to ifnet structure
+ * @return interface FAL object corresponding to LAG member
+ */
+fal_object_t dp_ifnet_fal_lag_member(const struct ifnet *ifp);
+
+/*
  * Get ifnet pointer from interface index
  * @param[in] ifindex Interface index
  * @return interface structure  pointer for the given index
@@ -135,6 +142,7 @@ enum dp_ifnet_iana_type {
 	DP_IFTYPE_IANA_PPP = 23,
 	DP_IFTYPE_IANA_SOFTWARELOOPBACK = 24,
 	DP_IFTYPE_IANA_TUNNEL = 131,
+	DP_IFTYPE_IANA_IEEE8023ADLAG = 161,
 	DP_IFTYPE_IANA_L2VLAN = 135,
 	DP_IFTYPE_IANA_BRIDGE = 209,
 };
@@ -212,5 +220,28 @@ typedef int dp_ifnet_addr_iter_func_t(struct sockaddr *addr, uint8_t prefixlen,
  */
 int dp_ifnet_addr_walk(struct ifnet *ifp, dp_ifnet_addr_iter_func_t func,
 		       void *arg);
+
+/*
+ * Interface output function to transmit packet on a given output
+ * interface.  This function assumes a fully formed L2 frame and
+ * will simply transmit the packet without attempting any resolution.
+ *
+ * @param[in] in_ifp Input interface pointer
+ * @param[in] m Pointer to mbuf
+ * @param[in] out_ifp Output interface pointer
+ * @param[in] proto Ethernet protocol
+ */
+void dp_ifnet_output(struct ifnet *in_ifp, struct rte_mbuf *m,
+		     struct ifnet *out_ifp, uint16_t proto);
+
+/*
+ * @brief Get the mac address of an interface
+ *
+ * @param[in] ifp Interface pointer
+ * @param[out] eth_addr Ethernet address
+ *
+ * @return 0 on success.
+ */
+int dp_ifnet_get_mac_addr(struct ifnet *ifp, struct rte_ether_addr *eth_addr);
 
 #endif /* VYATTA_DATAPLANE_INTERFACE_H */

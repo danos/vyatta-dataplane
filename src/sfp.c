@@ -1076,7 +1076,7 @@ print_qsfp_vendor(const struct rte_dev_eeprom_info *eeprom_info,
  */
 static void
 convert_sff_temp(json_writer_t *wr, const char *field_name,
-		 uint8_t *xbuf,
+		 const uint8_t *xbuf,
 		 const struct sfp_calibration_constants *c_consts)
 {
 	int16_t temp;
@@ -1100,7 +1100,7 @@ convert_sff_temp(json_writer_t *wr, const char *field_name,
  */
 static void
 convert_sff_voltage(json_writer_t *wr, const char *field_name,
-		    uint8_t *xbuf,
+		    const uint8_t *xbuf,
 		    const struct sfp_calibration_constants *c_consts)
 {
 	double d;
@@ -1121,7 +1121,7 @@ convert_sff_voltage(json_writer_t *wr, const char *field_name,
  */
 static void
 convert_sff_power(json_writer_t *wr, const char *field_name,
-		  uint8_t *xbuf, bool rx,
+		  const uint8_t *xbuf, bool rx,
 		  const struct sfp_calibration_constants *c_consts)
 {
 	double mW, tmp_mW;
@@ -1150,7 +1150,7 @@ convert_sff_power(json_writer_t *wr, const char *field_name,
 
 static void
 convert_sff_bias(json_writer_t *wr, const char *field_name,
-		 uint8_t *xbuf,
+		 const uint8_t *xbuf,
 		 const struct sfp_calibration_constants *c_consts)
 {
 	double mA;
@@ -1758,7 +1758,7 @@ print_sfp_thresholds(const struct rte_dev_eeprom_info *eeprom_info,
 }
 
 static void
-convert_aw_flags(json_writer_t *wr, struct _nv *x, uint8_t *xbuf)
+convert_aw_flags(json_writer_t *wr, struct _nv *x, const uint8_t *xbuf)
 {
 	uint16_t flags;
 

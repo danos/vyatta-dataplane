@@ -453,9 +453,9 @@ vrfid_t vrf_if_get_vrfid(struct ifnet *ifp)
 	return VRF_INVALID_ID;
 }
 
-void vrf_set_external_id(struct vrf *vrf, vrfid_t xid)
+void vrf_set_external_id(struct vrf *vrf, vrfid_t external_id)
 {
-	vrf->v_external_id = xid;
+	vrf->v_external_id = external_id;
 	vrf_find_saved_tablemap(vrf);
 }
 
@@ -652,6 +652,9 @@ void vrf_init(void)
 	if (!vrf)
 		rte_panic("Can't init the default vrf\n");
 	dp_event(DP_EVT_VRF_CREATE, 0, vrf, 0, 0, NULL);
+
+	_Static_assert(VRF_INVALID_ID == FAL_INVALID_VRF_ID,
+		       "Invalid VRF ID for dataplane and FAL don't match");
 
 	vrf = vrf_find_or_create(VRF_INVALID_ID);
 	if (!vrf)

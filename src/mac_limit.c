@@ -633,7 +633,7 @@ static void mac_limit_dump(FILE *f, const char *intf,
 	wr = jsonw_new(f);
 	jsonw_name(wr, "mac-limit");
 	jsonw_start_object(wr);
-	if (strcmp(intf, "none")) {
+	if (strcmp(intf, "none") != 0) {
 		jsonw_name(wr, "instance");
 		if (mac_limit_list) {
 			jsonw_start_array(wr);
@@ -659,7 +659,7 @@ static void mac_limit_dump(FILE *f, const char *intf,
 		}
 	}
 
-	if (strcmp(profile, "none")) {
+	if (strcmp(profile, "none") != 0) {
 		jsonw_name(wr, "profile");
 		jsonw_start_array(wr);
 		cds_lfht_for_each_entry(mac_limit_profile_tbl, &iter,
@@ -702,7 +702,7 @@ int cmd_mac_limit_op(FILE *f, int argc, char **argv)
 		return 0;
 	}
 
-	if ((strcmp(argv[1], "show") || strcmp(argv[2], "status")))
+	if ((strcmp(argv[1], "show") != 0) || (strcmp(argv[2], "status") != 0))
 		goto error;
 
 	ifname = argv[3];

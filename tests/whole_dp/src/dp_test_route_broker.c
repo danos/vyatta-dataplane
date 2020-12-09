@@ -56,7 +56,7 @@ static void process_ctrl_message(zsock_t *sock)
 	assert(envelope);
 
 	msg_type = zmsg_popstr(msg);
-	if (!msg_type || strcmp(msg_type, "CONNECT")) {
+	if (!msg_type || strcmp(msg_type, "CONNECT") != 0) {
 		if (msg_type && !strcmp(msg_type, "KEEPALIVE")) {
 			/* ignore keepalives */
 			free(msg_type);

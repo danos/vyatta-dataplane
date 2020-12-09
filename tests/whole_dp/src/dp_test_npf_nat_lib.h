@@ -255,6 +255,7 @@ _dp_test_nat_set_validation(struct dp_test_nat_cb_ctx *ctx,
  * should be called once the caller has finished with the object.
  */
 json_object *
-dp_test_npf_json_get_nat_rule(const char *ifname, const char *num, bool snat);
+dp_test_npf_json_get_nat_rule(const char *real_ifname,
+			      const char *rule, bool snat);
 
 #endif

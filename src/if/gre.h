@@ -133,7 +133,7 @@ gre_tunnel_encap(struct ifnet *input_ifp, struct ifnet *tunnel_ifp,
 int mgre_ipv4_neigh_change(struct ifnet *ifp, const struct nlmsghdr *nlh,
 			   const struct ndmsg *ndm, struct nlattr *tb[]);
 const in_addr_t *
-mgre_nbma_to_tun_addr(struct ifnet *ifp, const in_addr_t *addr);
+mgre_nbma_to_tun_addr(struct ifnet *ifp, const in_addr_t *nbma);
 
 static inline bool gre_encap_l2_frame(uint16_t proto)
 {

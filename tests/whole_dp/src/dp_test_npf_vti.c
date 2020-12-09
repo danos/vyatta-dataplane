@@ -92,7 +92,7 @@ static struct dp_test_crypto_policy input_policy = {
 	.dst_family = AF_INET,
 	.dir = XFRM_POLICY_IN,
 	.family = AF_INET,
-	.reqid = VTI_TUN_REQID,
+	.reqid = VTI_TUN_REQID + 1,
 	.priority = 0,
 	.mark = INPUT_MARK,
 	.vrfid = VRF_DEFAULT_ID
@@ -120,7 +120,7 @@ static struct dp_test_crypto_sa input_sa = {
 	.s_addr = PEER,
 	.family = AF_INET,
 	.mode = XFRM_MODE_TUNNEL,
-	.reqid = VTI_TUN_REQID,
+	.reqid = VTI_TUN_REQID + 1,
 	.mark = INPUT_MARK,
 	.vrfid = VRF_DEFAULT_ID
 };

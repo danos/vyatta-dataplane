@@ -1,3 +1,817 @@
+vyatta-dataplane (3.12.9) unstable; urgency=medium
+
+  [ Srinivas Narayan ]
+  * util: Add API to construct a bitmask from a stream of bytes
+  * protobuf: Add protobuf definition for feature affinity
+  * affinity: Add dummy command handler for feature affinity
+  * crypto: migrate crypto engine set command handling to protobuf
+  * crypto: Add protobuf handling for setting crypto-fwd cpus
+  * crypto: Emit debug message for forwarding cores being set
+  * crypto: Convert fwd queue to multi-consumer
+
+  [ Robert Shearman ]
+  * nh_common: ignore path state updates for deleted interfaces
+    (Fixes: VRVDR-53541)
+  * include: add FAL_INVALID_VRF_ID define
+
+  [ Gavin Shearer ]
+  * fal: add FAL attribute for configuring a colour aware policer
+  * fal: change COLOR to COLOUR in FAL API enums for consistency
+  * fal: change color to colour in fal_qos_map_params_t
+  * fal: use decimal instead of hex for for enum values
+  * fal: remove commas after and "end" or "max" enum value
+
+  [ Charles (Chas) Williams ]
+  * event: expose if_link_change (Bugfix: VRVDR-53783)
+
+  [ Paul Atkins ]
+  * bridge: move bridge_timer and related funcs to avoid prototype
+  * bridge: remove redundant return
+  * protobuf_util: malloc ipv6 addr data as a multiple of bytes
+  * mstp: replace assert with static_assert
+  * qos: replace assert with static_assert
+  * cgn_cmd_cfg: replace assert with static_assert
+  * cgn_sess_state: replace assert with static_assert
+  * ipv6_rsmbl: replace assert with static_assert
+  * cgn_sess2: replace assert with static_assert
+  * cgn_session: replace assert with static_assert
+  * npf_cache: replace assert with static_assert
+  * npf_state: replace assert with static_assert
+  * npf_rc: replace assert with static_assert
+  * npf_state_tcp: replace assert with static_assert
+  * npf_ptree: replace assert with static_assert
+  * npf_rproc: replace assert with static_assert
+  * l3_tcp_mss: remove unnecessary asserts
+
+  [ Charles (Chas) Williams ]
+  * lag: handle first set of min links (Bugfix: VRVDR-53788)
+
+  [ Nicholas Brown ]
+  * Jenkinsfile: expose libcheck test result to Jenkins
+
+  [ Dewi Morgan ]
+  * mpls: payload_type needed for ip frag handling
+
+  [ Paul Atkins ]
+  * dpdk_lag: make pointers that are not modified const
+  * iptun_common: make pointers that are not modified const
+  * lpm6: make pointers that are not modified const
+  * qos_hw: make pointers that are not modified const
+  * sfp: make pointers that are not modified const
+  * main: make pointers that are not modified const
+  * dpi: make pointers that are not modified const
+  * ip6_options: make pointers that are not modified const
+  * alg_rpc: make pointers that are not modified const
+  * cgn_policy: make pointers that are not modified const
+  * alg_apt: make pointers that are not modified const
+  * npf_nat64: make pointers that are not modified const
+  * npf_cidr_util: make pointers that are not modified const
+  * npf_rte_acl: make pointers that are not modified const
+  * npf_addrgrp: make pointers that are not modified const
+  * ut:dp_test_npf_addrgrp: make pointers that are not modified const
+  * ut:dp_test_npf_cgnat: make pointers that are not modified const
+  * session: make pointers that are not modified const
+  * ut:dp_test_lib_exp: make pointers that are not modified const
+  * ut:dp_test_lib_intf: make pointers that are not modified const
+  * ut:dp_test_pktmbuf_lib: make pointers that are not modified const
+
+  [ Simon Barber ]
+  * CRYPTO: Retrieve and store the XFRM clients pull and push socket info
+  * CRYPTO:Add Dataplane xfrm client
+  * CRYPTO: Add hooks for xfrm_client init
+  * UT:CRYPTO Create xfrm server sockets
+  * UT:CRYPTO Convert xfrm netlink mesasges to use xfrm server
+  * UT:CRYPTO Set message sequence number in xfrm netlink hdr
+  * UT:CRYPTO Add xfrm_server ack receive processing
+  * UT:CRYPTO Check the number of xfrm acks received
+  * CRYPTO: Add support for XFRM ACKs when NPF policies are updated
+  * UT:CRYPTO Handle NACKs being returned for incomplete policies
+  * CRYPTO:Introduce batch updates from the server
+  * UT:CRYPTO: Add msg header to xfrm server messages
+  * UT:CRYPTO: Build xfrm UT messages in heap memory
+  * UT:CRYPTO: Add a public delete_sa_verify accessor
+
+  [ Charles (Chas) Williams ]
+  * clang: remove redundant control flow
+
+  [ Brian Russell ]
+  * gpc: add colour awareness to protobuf
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Tue, 08 Dec 2020 14:49:50 +0000
+
+vyatta-dataplane (3.12.8) unstable; urgency=medium
+
+  [ Paul Atkins ]
+  * 3.11.70
+
+  [ Charles (Chas) Williams ]
+  * api: add public api for LAG member FAL object ID (Bugfix: VRVDR-53723)
+
+  [ Nicholas Brown ]
+  * UT: Add comment about split in test files
+  * Add support for DEB_BUILD_PROFILES="nocheck"
+  * Update CODEOWNERS for new meson.build files
+
+  [ Sharmila Podury ]
+  * On reboot, disabled bond has members in u/u link state
+
+  [ Paul Atkins ]
+  * pl_gen_fused: move print inside of debug check
+  * backplane: explicitly compare strcmp result
+  * dealer: explicitly compare strcmp result
+  * commands: explicitly compare strcmp result
+  * control: explicitly compare strcmp result
+  * switch: explicitly compare strcmp result
+  * fal_lag: explicitly compare strcmp result
+  * if: explicitly compare strcmp result
+  * mac_limit: explicitly compare strcmp result
+  * pd_show: explicitly compare strcmp result
+  * pktmbuf: explicitly compare strcmp result
+  * qos_sched: explicitly compare strcmp result
+  * route_broker: explicitly compare strcmp result
+  * rt_tracker: explicitly compare strcmp result
+  * storm_ctrl: explicitly compare strcmp result
+  * vlan_modify: explicitly compare strcmp result
+  * shadow: explicitly compare strcmp result
+  * nd6_nbr: explicitly compare strcmp result
+  * alg_ftp: explicitly compare strcmp result
+  * alg_tftp: explicitly compare strcmp result
+  * alg_sip: explicitly compare strcmp result
+  * sip_parse: explicitly compare strcmp result
+  * sip_translate: explicitly compare strcmp result
+  * cgn_cmd_cfg: explicitly compare strcmp result
+  * npf_cmd_cfg: explicitly compare strcmp result
+  * npf_zone_private: explicitly compare strcmp result
+  * l3_v4_route_lookup: explicitly compare strcmp result
+  * l3_v6_route_lookup: explicitly compare strcmp result
+  * capture: explicitly compare strcmp result
+  * ut:dp_test_mac_limit: explicitly compare strcmp result
+  * ut:dp_test_npf_nat_lib: explicitly compare strcmp result
+  * ut:dp_test_route_broker: explicitly compare strcmp result
+  * ut:dp_test_npf_portmap_lib: explicitly compare strcmp result
+
+  [ Srinivas Narayan ]
+  * crypto: only emit non-zero counters
+  * crypto: Define APIs for post-processing core selection
+  * crypto: Allocate/free forwarding core for each SA
+  * crypto: allocate/free post-processing queues
+  * crypto: Fix bug in index handling
+  * crypto: redirect packets to forwarding cores
+  * crypto: Emit post crypto forwarding packet stats
+  * crypto: redirect packets in batches
+  * crypto: set up flag for presence of post-crypto workload
+
+  [ Sharmila Podury ]
+  * Refactor code that checks if device is started
+
+  [ Paul Atkins ]
+  * mpls_forward: don't use 'else' after an 'if' call returns
+  * alg: don't use 'else' after an 'if' call returns
+  * sip_parse: don't use 'else' after an 'if' call returns
+  * npf_auto_attach: don't use 'else' after an 'if' call returns
+  * cgn_session: don't use 'else' after an 'if' call returns
+  * npf_cidr_util.c: don't use 'else' after an 'if' call returns
+  * npf_addrgrp.c: don't use 'else' after an 'if' call returns
+  * npf_cache: don't use 'else' after an 'if' call returns
+  * npf_cmd_cfg: don't use 'else' after an 'if' call returns
+  * npf_instr: don't use 'else' after an 'if' call returns
+  * npf_unpack: don't use 'else' after an 'if' call returns
+  * npf_ruleset: don't use 'else' after an 'if' call returns
+  * ls_cross_connect_cmd: don't use 'else' after an 'if' call returns
+  * l2_ether_forward: don't use 'else' after an 'if' call returns
+  * l3_pbr: don't use 'else' after an 'if' call returns
+  * l3_v4_gre: don't use 'else' after an 'if' call returns
+  * l3_v4_ipsec: don't use 'else' after an 'if' call returns
+  * l3_v4_l2tpv3: don't use 'else' after an 'if' call returns
+  * l3_v4_out: don't use 'else' after an 'if' call returns
+  * l3_v4_post_route_lookup: don't use 'else' after an 'if' call returns
+  * l3_v4_udp: don't use 'else' after an 'if' call returns
+  * l3_v6_l4: don't use 'else' after an 'if' call returns
+  * l3_v6_out: don't use 'else' after an 'if' call returns
+  * l3_v6_port_route_lookup: don't use 'else' after an 'if' call returns
+  * l3_v6_udp: don't use 'else' after an 'if' call returns
+  * capture: don't use 'else' after an 'if' call returns
+  * ut:dp_test_npf_addrgroup: don't use 'else' after an 'if' call returns
+  * ut:dp_test: don't use 'else' after an 'if' call returns
+  * ut:dp_test_json_utils: don't use 'else' after an 'if' call returns
+  * ut:dp_test_lib_exp: don't use 'else' after an 'if' call returns
+  * ut:dp_test_lib: don't use 'else' after an 'if' call returns
+  * ut:dp_test_pktmbuf_lib: don't use 'else' after an 'if' call returns
+  * 3.11.71
+
+  [ Simon Barber ]
+  * CRYPTO: Tidy Static Analysis Warning
+  * CRYPTO: Remove the need for a second peer lookup during SA insertion
+  * CRYPTO:UT: Change SADB tests to us incrementing spi and req_id
+  * CRYPTO: Change SADB to use tunnel reqid instead of the dest addr
+  * Crypto: Rename SADB peer struct
+  * CRYPTO: Add peer dest address check into SA lookup
+
+  [ Mandeep Rohilla ]
+  * IF API: Api to transmit an L2 frame out of an interface
+  * IF API: Api to get the ether address of an interface
+
+  [ Charles (Chas) Williams ]
+  * clang: prevent zero length allocation
+  * clang: fix redundant expression
+  * clang: misplaced widening cast
+  * clang: fix possible loss of precision
+  * clang: fix uninitialized use of variable
+  * clang: fix misc-non-copyable-objects
+  * clang: fix promotion to double
+  * clang: remove explicit casting
+  * clang: fix signed versus unsigned comparisons
+  * clang: fix logical not usage
+  * clang: remove const qualifier in declaration
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Wed, 02 Dec 2020 11:24:52 +0000
+
+vyatta-dataplane (3.12.7) unstable; urgency=medium
+
+  [ Paul Atkins ]
+  * json_writer: use same parameter names in prototype and definition
+  * config: use same parameter names in prototype and definition
+  * event: use same parameter names in prototype and definition
+  * flow_cache: use same parameter names in prototype and definition
+  * fal_bfd: use same parameter names in prototype and definition
+  * fal: use same parameter names in prototype and definition
+  * bridge_port: use same parameter names in prototype and definition
+  * gre: use same parameter names in prototype and definition
+  * if: use same parameter names in prototype and definition
+  * in_cksum: use same parameter names in prototype and definition
+  * lag: use same parameter names in prototype and definition
+  * lpm6: use same parameter names in prototype and definition
+  * controller: use same parameter names in prototype and definition
+  * main: use same parameter names in prototype and definition
+  * qos: use same parameter names in prototype and definition
+  * route: use same parameter names in prototype and definition
+  * rt_tracker: use same parameter names in prototype and definition
+  * vrf: use same parameter names in prototype and definition
+  * pl_commands: use same parameter names in prototype and definition
+  * pl_node_boot: use same parameter names in prototype and definition
+  * crypto_engine: use same parameter names in prototype and definition
+  * crypto_pmd: use same parameter names in prototype and definition
+  * crypto_policy: use same parameter names in prototype and definition
+  * vti: use same parameter names in prototype and definition
+  * dpi: use same parameter names in prototype and definition
+  * in6: use same parameter names in prototype and definition
+  * ip6_icmp: use same parameter names in prototype and definition
+  * alg_npf: use same parameter names in prototype and definition
+  * app_group_dp.c: don't use 'else' after an 'if' call returns
+  * app_group_cmd.c: don't use 'else' after an 'if' call returns
+  * protobuf_util: don't use 'else' after an 'if' call returns
+  * commands: don't use 'else' after an 'if' call returns
+  * debug: don't use 'else' after an 'if' call returns
+  * config: don't use 'else' after an 'if' call returns
+  * cpp_rate_limiter: don't use 'else' after an 'if' call returns
+  * ecmp: don't use 'else' after an 'if' call returns
+  * fal: don't use 'else' after an 'if' call returns
+  * bridge: don't use 'else' after an 'if' call returns
+  * dpdk_eth_linkwatch: don't use 'else' after an 'if' call returns
+  * gre: don't use 'else' after an 'if' call returns
+  * vxlan: don't use 'else' after an 'if' call returns
+  * if: don't use 'else' after an 'if' call returns
+  * lag: don't use 'else' after an 'if' call returns
+  * l2tpeth_netlink: don't use 'else' after an 'if' call returns
+  * lpm: don't use 'else' after an 'if' call returns
+  * lpm6: don't use 'else' after an 'if' call returns
+  * ip_mroute: don't use 'else' after an 'if' call returns
+  * nh_common: don't use 'else' after an 'if' call returns
+  * netlink: don't use 'else' after an 'if' call returns
+  * qos_obj_db: don't use 'else' after an 'if' call returns
+  * qos_ext_buf_monitor: don't use 'else' after an 'if' call returns
+  * qos_dpdk: don't use 'else' after an 'if' call returns
+  * qos_sched: don't use 'else' after an 'if' call returns
+  * route: don't use 'else' after an 'if' call returns
+  * rt_commands: don't use 'else' after an 'if' call returns
+  * util: don't use 'else' after an 'if' call returns
+  * udp_handler: don't use 'else' after an 'if' call returns
+  * storm_ctl: don't use 'else' after an 'if' call returns
+  * crypto: don't use 'else' after an 'if' call returns
+  * crypto_sadb: don't use 'else' after an 'if' call returns
+  * vti: don't use 'else' after an 'if' call returns
+  * npf_appdb: don't use 'else' after an 'if' call returns
+  * npf_typedb: don't use 'else' after an 'if' call returns
+  * ip6_mroute: don't use 'else' after an 'if' call returns
+  * scope6: don't use 'else' after an 'if' call returns
+  * nd6_nbr: don't use 'else' after an 'if' call returns
+  * mpls: don't use 'else' after an 'if' call returns
+  * route_v6: don't use 'else' after an 'if' call returns
+  * mpls_forward: don't use 'else' after an 'if' call returns
+
+  [ Robert Shearman ]
+  * storm_control: don't create duplicate policers when reacting to events
+    (Fixes: VRVDR-53623)
+
+  [ Paul Atkins ]
+  * 3.11.69
+
+  [ Charles (Chas) Williams ]
+  * ut: dp_ifnet_iana_type can fail when unit testing
+
+  [ Brian Russell ]
+  * gpc: add gpc protobuf
+
+  [ Nicholas Brown ]
+  * Jenkinsfile: Build target is now the Halifax
+
+  [ aroberts ]
+  * Update dependency on DPDK version for dataplane
+
+  [ Paul Atkins ]
+  * Jenkinsfile: Build target is now master for master-next branch
+  * alg_npf:  use same parameter names in prototype and definition
+  * alg: use same parameter names in prototype and definition
+  * cgn_mbuf: use same parameter names in prototype and definition
+  * cgn_sess_state: use same parameter names in prototype and definition
+  * npf_attach_point: use same parameter names in prototype and definition
+  * cgn_session: use same parameter names in prototype and definition
+  * pmf_parse: use same parameter names in prototype and definition
+  * npf_apm: use same parameter names in prototype and definition
+  * npf_instr: use same parameter names in prototype and definition
+  * npf_match: use same parameter names in prototype and definition
+  * npf_ruleset: use same parameter names in prototype and definition
+  * npf_session: use same parameter names in prototype and definition
+  * npf_state: use same parameter names in prototype and definition
+  * npf_zone_private: use same parameter names in prototype and definition
+  * npf_match: use same parameter names in prototype and definition
+  * npf_ext_action_grp: use same parameter names in prototype and definition
+  * npf_rproc: use same parameter names in prototype and definition
+  * session: use same parameter names in prototype and definition
+  * shadow: use same parameter names in prototype and definition
+  * ut:dp_test_cmd_check: use same parameter names in prototype and definition
+  * ut:dp_test_cmd_state: use same parameter names in prototype and definition
+  * ut:dp_test_crypto_utils: use same parameter names in prototype and definition
+  * ut:dp_test_json_utils: use same parameter names in prototype and definition
+  * ut:dp_test_lib: use same parameter names in prototype and definition
+  * ut:dp_test_lib_exp: use same parameter names in prototype and definition
+  * t:dp_test_libintf: use same parameter names in prototype and definition
+  * ut:npf_alg_sip_call: use same parameter names in prototype and definition
+  * ut:npf_alg_sip_lib: use same parameter names in prototype and definition
+  * ut:firewall_lib: use same parameter names in prototype and definition
+  * ut:dp_test_npf_lib: use same parameter names in prototype and definition
+  * ut:npf_nat_lib: use same parameter names in prototype and definition
+  * ut:dp_test_pktmbuf_lib: use same parameter names in prototype and definition
+  * ut:dp_test_qos_lib: use same parameter names in prototype and definition
+  * ut:dp_test_session_lib: use same parameter names in prototype and definition
+  * ut:fal_plugin_pm: use same parameter names in prototype and definition
+  * ut:fal_plugin_test: use same parameter names in prototype and definition
+  * ut:fal_plugin_qos: use same parameter names in prototype and definition
+  * ut:fal_plugin_ptp: use same parameter names in prototype and definition
+
+  [ Ramkumar Ganapathysubramanian ]
+  * New FAL plugin to get L3 Interface attribute
+  * Dataplane changes for QoS DSCP remarking
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Wed, 25 Nov 2020 09:19:14 +0000
+
+vyatta-dataplane (3.12.6) unstable; urgency=medium
+
+  [ Paul Atkins ]
+  * 3.11.67
+
+  [ aroberts ]
+  * QOS: Don't drawback TC layer shape rate
+
+  [ Nicholas Brown ]
+  * ut: remove unused CLI options
+  * ut: expose to testharness the core list dataplane_test passes to DPDK
+  * ut: remove cpu relate stuff from dummyfs used by dataplane_test
+
+  [ Paul Atkins ]
+  * 3.11.68
+  * bridge: increment counters for ucast/nucast on vlans for local traffic
+
+  [ Ian Wilson ]
+  * Move next_arg utility function to util.c
+  * Rename print_pl_feats to pl_print_feats and move to pl_commands.c
+  * Add function to write json for an interface-based pipeline feature
+  * Add pipeline show feature commands to l3_v4_out and l3_v6_out
+  * Add pipeline show feature commands to l3_v4_out_spath and l3_v6_out_spath
+  * Add pipeline show feature commands to l3_v4_encap and l3_v6_encap
+  * Add pipeline show feature commands to l3_v4_val and l3_v6_val
+  * Add pipeline show feature commands to l2_consume, l2_ether_lookup and l2_local
+  * Add pipeline show feature commands to l3_v4_route_lookup and l3_v6_route_lookup
+  * Add pipeline show feature commands to global nodes - drop, l4, and udp_in
+  * ut: Tests local ICMP pkts with egress ACLs and the originate fw
+  * Only pass an output interface pointer to icmp_send_no_route
+  * Change ICMP pkts to use ipv4-out-spath pipeline to filter pkts
+
+  [ Robert Shearman ]
+  * storm_control: don't create duplicate policers when reacting to events
+    (Fixes: VRVDR-53623)
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Fri, 20 Nov 2020 12:00:03 +0000
+
+vyatta-dataplane (3.12.5) unstable; urgency=medium
+
+  [ Thomas Kiely ]
+  * Originated traffic via l2tpv3/ipsec is dropped
+  * Remove function which is no longer used
+
+  [ Nicholas Brown ]
+  * Install Go protobuf files in correct location
+
+  [ Charles (Chas) Williams ]
+  * ptp: allow ports to not exist (yet) (Bugfix: VRVDR-53511)
+  * ptp: refactor ptp_find_peer (Bugfix: VRVDR-53511)
+
+  [ Paul Atkins ]
+  * 3.11.65
+
+  [ Nicholas Brown ]
+  * Removed 'unused-override' warnings
+  * Static Analysis as last Jenkins step
+  * Allow longer timeout for the slow tests
+  * Update docs for meson instead of make
+
+  [ Charles (Chas) Williams ]
+  * ptp: rework the peer select logic (Bugfix: VRVDR-53538)
+  * ptp: refactor cmd_ptp_op (Bugfix: VRVDR-53538)
+  * ptp: add resolver op mode commands (Bugfix: VRVDR-53538)
+  * ptp: basic resolver unit test (Bugfix: VRVDR-53538)
+  * ptp: routed resolver unit test (Bugfix: VRVDR-53538)
+  * ptp: test edge cases in resolver (Bugfix: VRVDR-53538)
+  * ptp: ensure sufficient buffer space (Bugfix: VRVDR-53538)
+
+  [ Paul Atkins ]
+  * bpf_filter: add parentheses around macro arguments
+  * lpm: add parentheses around macro arguments
+  * portmonitor_cmds: don't use a macro to determine if a sess is erspan
+  * dpi: add parentheses around macro arguments
+  * ip6_icmp: add parentheses around macro arguments
+  * alg_rpc: add parentheses around macro arguments
+  * npf_cidr_util: add parentheses around macro arguments
+  * npf_instr: add parentheses around macro arguments
+  * npf_nat: add parentheses around macro arguments
+  * ut:arp: add parentheses around macro arguments
+  * ut:crypto: add parentheses around macro arguments
+  * ut:ip6: add parentheses around macro arguments
+  * ut:mstp_fwd: add parentheses around macro arguments
+  * ut:npf: add parentheses around macro arguments
+  * ut:fal_plugin_framer: add parentheses around macro arguments
+  * ut:fal_plugin_test: add parentheses around macro arguments
+
+  [ Nicholas Brown ]
+  * Don't run clang-tidy on generated protobuf files
+  * Add missing dependency on generated files
+  * Increase UT timeout
+
+  [ Paul Atkins ]
+  * if: rename cmd_pause_show to show_eth_info
+  * if: move the showing of the pause state into its own function
+  * fal: add api to allow dumping of L2 port state
+  * fal_plugin: add a new fal plugin API to dump bfd session state
+
+  [ Daniel Gollub ]
+  * l2tpeth: restore VLAN functionatliy on L2TPv3 interfaces
+
+  [ Paul Atkins ]
+  * 3.11.66
+
+  [ Alan Dewar ]
+  * QOS: period keyword changed to microseconds units (Fixes: VRVDR-53324)
+
+  [ Nicholas Brown ]
+  * Add more details on building the UT
+
+  [ Robert Shearman ]
+  * storm_ctl: add support for configuring on VLAN subinterfaces
+    (Closes: VRVDR-53561)
+
+  [ Charles (Chas) Williams ]
+  * lag: add protobuf (Bugfix: VRVDR-52496)
+  * lag: add min links support (Bugfix: VRVDR-52496)
+  * lag: add events (Bugfix: VRVDR-52496)
+  * event: expose if_create/if_delete events (Bugfix: VRVDR-52496)
+  * lag: add IANA type (Bugfix: VRVDR-52496)
+
+  [ Ethan Li ]
+  * Define Micro BFD FAL attribute
+
+  [ Gavin Shearer ]
+  * gpc: add a Provides to ensure FAL builds against correct dataplane
+  * fal qos: Add attributes to attach QoS IPv4/IPv6 GPC to i/f
+  * fal policer: add support for trTCM policers
+  * fal gpc: add actions to set designation, colour, and policer
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Fri, 20 Nov 2020 08:57:30 +0000
+
+vyatta-dataplane (3.12.4) unstable; urgency=medium
+
+  [ Charles (Chas) Williams ]
+  * ptp: avoid dereferencing bad interface pointers (Bugfix: VRVDR-53517)
+
+  [ Paul Atkins ]
+  * 3.11.60
+
+  [ Robert Shearman ]
+  * nh_common: fix hash key during nexthop hash del & add
+  * route_flags: ignore RTF_UNUSABLE for nexthop comparison (Fixes: VRVDR-53512)
+
+  [ Derek Fawcus ]
+  * NPF: Remove some stale code, to allow flexibility
+  * pipeline: use 'out node' for IPv4 mcast ethernet
+  * pipeline: use 'out node' for IPv6 mcast ethernet
+  * multicast: Clean up punt handling for unsup tuns
+  * multicast: Use 'out node' for IPv4/IPv6 VTI output
+  * multicast: Use 'out node' for IPv4/IPv6 P2P GRE tx
+  * multicast: Move TTL decrement during forward
+  * multicast: Move OIL replication counts
+  * multicast: Rename an interface variable
+  * multicast: Do not replicate to a DOWN interface
+  * multicast: Move pipeline walk logic
+
+  [ Ian Wilson ]
+  * ut: Test egress ACLs with IPv4 and IPv6 multicast forwarding
+
+  [ Paul Atkins ]
+  * 3.11.61
+
+  [ Nicholas Brown ]
+  * platform.conf can be static
+
+  [ Paul Atkins ]
+  * 3.11.62
+
+  [ Ian Wilson ]
+  * ut: Export functions to build and tear-down a GRE tunnel
+  * ut: Test sw egress ACLs with GRE tunnels
+
+  [ Robert Shearman ]
+  * ecmp: remove unused "max-paths" option (Fixes: VRVDR-52393)
+
+  [ Paul Atkins ]
+  * 3.11.63
+
+  [ Ian Wilson ]
+  * ut: Add function to wait for multicast route
+
+  [ Paul Atkins ]
+  * 3.11.64
+
+  [ Mike Manning ]
+  * Dynamic entries in ND cache should not be deleted unless stale
+
+  [ Nicholas Brown ]
+  * Meson build support (Closes: VRVDR-52941)
+  * Change hard-coded UT paths
+  * Add clang-tidy Static Analysis support to Jenkinsfile
+  * Remove autotools build support
+  * Define individual meson tests for each CK test suite
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Mon, 09 Nov 2020 13:31:07 +0000
+
+vyatta-dataplane (3.12.3) unstable; urgency=medium
+
+  [ Nicholas Brown ]
+  * Clarify UT path redirection code
+
+  [ Ian Wilson ]
+  * npf: Rename 'typedef enum TCP_STATES' to 'enum tcp_session state'
+  * npf: Rename npf_tcpstate_t to struct npf_tcp_window
+  * npf: Replace nst_tcpst with nst_tcp_win in npf_state_t
+  * npf: Pack enum dp_session_state so that is used 1 byte instead of 2
+  * npf: Add npf_state_tcp2gen to determine generic state from tcp state
+  * npf: Pack enum npf_proto_idx.  Use the enum instead of a uint8_t
+  * npf: Add separate log functions for TCP and everything else
+  * npf: Add separate state change functions for TCP and everything else
+  * npf: Add separate state pack update functions for TCP and other
+  * npf: Add separate functions for connsync update/restore of session state
+  * npf: Move spinlocks into npf_state_npf_pack_update_xxx fns
+  * npf: Use separate state inspect functions for TCP, ICMP, and other
+  * npf: Use separate connsync state update functions for TCP and other
+  * npf: Add a union to npf_state_t for the different state types
+  * npf: Add separate function for session close for TCP and other
+  * npf: Rename npf_state_tcp_state_set and npf_state_generic_state_set
+  * npf: Remove TCP session states that were outside the enum
+  * npf: Change TCP sessions to use nst_tcp_state instead of nst_state
+  * npf: Change TCP strict FSM to be a lookup table to return a boolean
+  * npf: npf_state_update_session_state replaced
+  * npf: npf_timeout_get replaced
+  * npf: Session state stats defines replaced with inline functions
+  * npf: npf_map_str_to_generic_state replaced with dp_session_name2state
+  * npf: vrf creation moved from npf_timeout_set to cmd_npf_global_timeout
+  * npf: non-TCP sessions changed to use nst_gen_state instead of nst_state
+  * npf: union of nst_tcp_state and nst_gen_state removed from npf_state_t
+  * npf: Changes to sess limit rproc to use generic session state
+  * npf: Defines NPF_SET_SESSION_LOG_FLAG etc. replaced with functions
+  * npf: Renamed functions that return session state name
+  * npf: npf_pack_session_state changed to include union of state types
+  * npf: 'struct session' pointer passed into npf_session_update_state
+  * npf: npf_session_t pointer passed into npf_state_inspect
+  * npf: npf_tcp_state_is_closed fn removed
+  * npf: Changes to connsync functions to pack and update session state
+
+  [ Nachiketa Prachanda ]
+  * fix use after free on events unregistration
+  * api: interface event notifications to plugins
+
+  [ Paul Atkins ]
+  * 3.11.44
+  * portmonitor_cmds: remove the code to handle out of order cfg
+
+  [ Charles (Chas) Williams ]
+  * ptp: handle unavailable interface vlan mappings (Bugfix: VRVDR-53372)
+
+  [ Paul Atkins ]
+  * 3.11.45
+
+  [ Gavin Shearer ]
+  * fal acl: use rule number attr instead of priority in rules
+
+  [ Paul Atkins ]
+  * 3.11.46
+
+  [ Srinivas Narayan ]
+  * Include shadow ring in buffer count calculations
+  * Increase slowpath receive ring size
+
+  [ Paul Atkins ]
+  * 3.11.46
+
+  [ Srinivas Narayan ]
+  * crypto: store out_ethertype in context
+  * crypto: store out_hdr_len in context
+  * crypto: re-order fields in crypto_pkt_ctx
+  * crypto: store udp encap length in SA to simplify code
+  * crypto: include DPDK driver stats in output
+  * crypto: Pass packet burst to ESP
+  * crypto: Move bad mbufs to end of context array
+  * crypto: Pass a batch of packets to the PMD
+  * crypto: Allocate crypto ops when crypto pkt buffer is set up
+  * crypto: pass batches of packets to ESP encrypt functions
+  * crypto: Pass batches of packets to ESP decrypt functions
+  * crypto: Remove debug error messages in some places
+  * crypto: pass errors from PMD operations to higher layers
+  * crypto: remove unnecessary check & error
+  * crypto: Add error counters for failures
+  * crypto: Set action to drop if packet has not been processed
+  * crypto: Prefetch batches of context pointers for processing
+  * crypto: Fetch data in first mbuf into L2 cache
+  * crypto: Prefetch contexts into L2 cache
+  * crypto: add inline implementation to grow buffer
+  * crypto: Invoke rte_pktmbuf_lastseg only for multi-seg pkts
+
+  [ Paul Atkins ]
+  * 3.11.47
+
+  [ Ian Wilson ]
+  * ut: Verify that ipv4-orig-feat feature is enabled
+  * npf: NPF_RS_FLAG_FEAT_GBL renamed to NPF_RS_FLAG_FEAT_INTF_ALL
+  * npf: Move check of NPF_RS_FLAG_FEAT_INTF_ALL from npf_gbl_rs_count_incr
+  * npf: Enable feature on all interfaces for rulesets attached to global
+  * npf: Separate enabling of defrag-out and defrag-out-spath
+
+  [ Paul Atkins ]
+  * 3.11.48
+
+  [ Ian Wilson ]
+  * ut: Tests egress ACL on a pppoe interface
+  * ut: Tests egress ACL on a bridge interface
+
+  [ Paul Atkins ]
+  * 3.11.49
+
+  [ Nicholas Brown ]
+  * Move IGNORE_SANITIZER to compiler.h
+
+  [ Paul Atkins ]
+  * 3.11.50
+
+  [ Thomas Kiely ]
+  * Update S2S UT infra for multiple V4 policies
+  * Add V4 test to ensure correct policy match for proto
+  * ACL V4 rule setup does not handle discrete protocol
+  * Update S2S UT infra for multiple V6 policies
+  * Add V6 test to ensure correct policy match for proto
+  * ACL V6 rule setup does not handle discrete protocol
+
+  [ Paul Atkins ]
+  * 3.11.51
+
+  [ Srinivas Narayan ]
+  * crypto: save bytes from each batch for use as IVs
+  * crypto: add return value check for engine init
+  * crypto: remove unused functions
+
+  [ Paul Atkins ]
+  * 3.11.52
+  * lpm: change lpm walker to take a struct of params
+  * lpm: allow the callers of lpm_walk to kick the trackers for a rule
+  * route: call the route trackers after updating the fal l3 state
+  * lpm6: change lpm6 walker to take a struct of params
+  * lpm6: allow the callers of lpm6_walk to kick the trackers for a rule
+  * route6: call the route trackers after updating the fal l3 state
+  * 3.11.53
+
+  [ Ian Wilson ]
+  * ut: Add functions to enable multicast fwding and to add multicast route
+  * ut: Add test for multicast forwarding in the dataplane
+
+  [ Paul Atkins ]
+  * 3.11.54
+
+  [ Srinivas Narayan ]
+  * crypto: tune op and session pool sizes
+
+  [ Paul Atkins ]
+  * 3.11.55
+
+  [ Srinivas Narayan ]
+  * crypto: prefetch fields in ctx in encrypt path
+  * crypto: Include current index in prefetch
+  * crypto: prefetch IVs to be used in encryption
+  * crypto: prefetch ops
+
+  [ Paul Atkins ]
+  * 3.11.56
+
+  [ Ian Wilson ]
+  * ut: Add test for IPv6 multicast forwarding in the dataplane
+
+  [ Paul Atkins ]
+  * 3.11.57
+
+  [ Derek Fawcus ]
+  * NPF: Rename npc_next_proto to npc_proto_final
+  * NPF: Rename 'PROTO' opcode to 'PROTO_FINAL'
+  * NPF: Add matching against IP header protocol field
+  * NPF: Report proto-final in rule output
+
+  [ Nicholas Brown ]
+  * Depend on librte-meta-allpmds
+
+  [ Paul Atkins ]
+  * 3.11.58
+
+  [ Ian Wilson ]
+  * npf: Local traffic, including IPv6 ND/NA, may be dropped by zone fw
+  * ut: Test IPv6 nbr egress in the presence of zones firewall
+
+  [ Paul Atkins ]
+  * 3.11.59
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Tue, 03 Nov 2020 11:51:01 +0000
+
+vyatta-dataplane (3.12.2) unstable; urgency=medium
+
+  [ Nicholas Brown ]
+  * Remove no_extra_tests DEB_BUILD_OPTIONS
+  * Add debian packaging directory to .gitignore
+  * More specific include path libvyattafal pkgconfig
+
+  [ Charles (Chas) Williams ]
+  * ptp: refactor into ptp_peer_dst_lookup (Bugfix: VRVDR-53302)
+  * ptp: refactor into ptp_peer_dst_resolve (Bugfix: VRVDR-53302)
+  * ptp: group peers by IP address (Bugfix: VRVDR-53302)
+  * ptp: refactor into ptp_peer_find_nexthop (Bugfix: VRVDR-53302)
+  * ptp: select best route for peer (Bugfix: VRVDR-53302)
+
+  [ Paul Atkins ]
+  * 3.11.40
+  * vhost: remove the code to handle out of order cfg for vhost
+  * 3.11.41
+
+  [ Ian Wilson ]
+  * npf: Check ingress and egress features when deciding to return ACL stats
+  * acl: Egress ACL in s/w path will not match dp originated IPv6 ND traffic
+  * ipv6_originate_filter made static
+
+  [ Paul Atkins ]
+  * 3.11.42
+
+  [ Charles (Chas) Williams ]
+  * ptp: get sibling ifp and nexthop during iteration (Bugfix: VRVDR-53302)
+  * ptp: prefer peers with reachability (Bugfix: VRVDR-53302)
+
+  [ Paul Atkins ]
+  * commands: remove the code to handle out of order cfg for poe
+  * 3.11.43
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Wed, 14 Oct 2020 10:02:17 +0100
+
+vyatta-dataplane (3.12.1) unstable; urgency=medium
+
+  [ Robert Shearman ]
+  * protobuf: add Path message fields for recursive labels
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Mon, 12 Oct 2020 09:20:52 +0100
+
 vyatta-dataplane (3.11.72) unstable; urgency=medium
 
   [ Robert Shearman ]
@@ -311,7 +1125,7 @@ vyatta-dataplane (3.11.46) unstable; urgency=medium
   [ Gavin Shearer ]
   * fal acl: use rule number attr instead of priority in rules
 
-  [ Srinivas Narayan ]
+  [ Paul Atkins ]
   * Include shadow ring in buffer count calculations
   * Increase slowpath receive ring size
 

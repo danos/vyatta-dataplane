@@ -45,9 +45,9 @@ ipv4_post_route_lookup_process(struct pl_packet *pkt, void *context __unused)
 		icmp_error(ifp, pkt->mbuf, ICMP_DEST_UNREACH,
 			   ICMP_NET_UNREACH, 0);
 		return IPV4_POST_ROUTE_LOOKUP_DROP;
-	} else if (unlikely(nxt->flags & (RTF_SLOWPATH | RTF_LOCAL))) {
-		return IPV4_POST_ROUTE_LOOKUP_LOCAL;
 	}
+	if (unlikely(nxt->flags & (RTF_SLOWPATH | RTF_LOCAL)))
+		return IPV4_POST_ROUTE_LOOKUP_LOCAL;
 
 	struct iphdr *ip = pkt->l3_hdr;
 	decrement_ttl(ip);
@@ -69,7 +69,7 @@ ipv4_post_route_lookup_process(struct pl_packet *pkt, void *context __unused)
 
 	/* MPLS imposition required because nh has given us a label */
 	if (unlikely(nh_outlabels_present(&nxt->outlabels))) {
-		mpls_unlabeled_input(ifp, pkt->mbuf,
+		mpls_unlabeled_input(ifp, pkt->mbuf, MPT_IPV4,
 				     NH_TYPE_V4GW, nxt, ip->ttl);
 		return IPV4_POST_ROUTE_LOOKUP_CONSUME;
 	}

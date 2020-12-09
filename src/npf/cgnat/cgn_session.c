@@ -310,16 +310,16 @@ sentry2session(const struct cgn_sentry *ce, int dir)
 {
 	if (dir == CGN_DIR_FORW)
 		return caa_container_of(ce, struct cgn_session, cs_forw_entry);
-	else
-		return caa_container_of(ce, struct cgn_session, cs_back_entry);
+
+	return caa_container_of(ce, struct cgn_session, cs_back_entry);
 }
 
 static inline struct cgn_sentry *dir2sentry(struct cgn_session *cse, int dir)
 {
 	if (dir == CGN_DIR_FORW)
 		return &cse->cs_forw_entry;
-	else
-		return &cse->cs_back_entry;
+
+	return &cse->cs_back_entry;
 }
 
 uint32_t cgn_session_forw_addr(struct cgn_session *cse)
@@ -832,24 +832,24 @@ cgn_session_map(struct ifnet *ifp, struct cgn_packet *cpk,
 /*
  * Get pointer to the 3-tuple session that contains this cs2 structure
  */
-struct cgn_session *cgn_sess_from_cs2(struct cgn_sess_s2 *ptr)
+struct cgn_session *cgn_sess_from_cs2(struct cgn_sess_s2 *cs2)
 {
 	struct cgn_session *cse = NULL;
 
-	if (ptr)
-		cse = caa_container_of(ptr, struct cgn_session, cs_s2);
+	if (cs2)
+		cse = caa_container_of(cs2, struct cgn_session, cs_s2);
 	return cse;
 }
 
 /*
  * Get pointer to the subscriber of this cs2 structure
  */
-struct cgn_source *cgn_src_from_cs2(struct cgn_sess_s2 *ptr)
+struct cgn_source *cgn_src_from_cs2(struct cgn_sess_s2 *cs2)
 {
 	struct cgn_session *cse = NULL;
 
-	if (ptr)
-		cse = caa_container_of(ptr, struct cgn_session, cs_s2);
+	if (cs2)
+		cse = caa_container_of(cs2, struct cgn_session, cs_s2);
 
 	return cse ? cse->cs_src : NULL;
 }
@@ -968,7 +968,8 @@ cgn_session_deactivate(struct cgn_session *cse)
 
 static ALWAYS_INLINE ulong cgn_hash(const struct cgn_3tuple_key *key)
 {
-	assert(sizeof(*key) == 12);
+	static_assert(sizeof(*key) == 12,
+		      "cgn 3 tuple key is wrong size");
 
 	/*
 	 * A special optimized version of jhash that handles 1 or more of

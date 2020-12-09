@@ -63,13 +63,13 @@ static int sip_alg_translate_media_connect(sdp_connection_t *c,
 	if (!addr)
 		return 0;
 
-	if (strcmp(c->c_nettype, "IN"))
+	if (strcmp(c->c_nettype, "IN") != 0)
 		return -EINVAL;
 
 	if (!strcmp(c->c_addrtype, "IP6"))
 		return 0;
 
-	if (strcmp(c->c_addrtype, "IP4"))
+	if (strcmp(c->c_addrtype, "IP4") != 0)
 		return -EINVAL;
 
 	osip_free(c->c_addr);
@@ -500,7 +500,7 @@ static int sip_alg_translate_header(osip_header_t *h, const char *oaddr,
 			 * colon.  Only replace if header port is different
 			 * than tport.
 			 */
-			if (hportp == pp && strcmp(tport, hport_str)) {
+			if (hportp == pp && (strcmp(tport, hport_str) != 0)) {
 				/* insert colon and tport */
 				strcat(insert_point, ":");
 				insert_point += 1;

@@ -29,6 +29,7 @@
 #include "dp_test/dp_test_cmd_check.h"
 #include "dp_test_crypto_lib.h"
 #include "dp_test_json_utils.h"
+#include "dp_test_xfrm_server.h"
 
 static const unsigned char default_cipher_key[] = {
 	0x1c, 0x53, 0xfa, 0xd5, 0xb5, 0x23, 0xb3, 0xe1,
@@ -418,6 +419,45 @@ static void wait_for_npf_policy(const struct dp_test_crypto_policy *policy,
 	json_object_put(expected_json);
 }
 
+static uint32_t poll_cnt;
+
+static int _dp_test_crypto_poll_xfrm_acks(zloop_t *loop, int poller, void *arg)
+{
+	bool *match = (bool *)arg;
+
+	poll_cnt--;
+
+	if (xfrm_seq == xfrm_seq_received)
+		*match = true;
+
+	/* return -1 to stop if we got what we want or run out of retries */
+	return (*match || poll_cnt == 0) ? -1 : 0;
+}
+
+static void _dp_test_crypto_check_xfrm_acks(const char *file, int line)
+{
+
+	int timer;
+	zloop_t *loop = zloop_new();
+	bool match = false;
+
+	poll_cnt = DP_TEST_POLL_COUNT;
+	timer = zloop_timer(loop, DP_TEST_POLL_INTERVAL, 0,
+			    _dp_test_crypto_poll_xfrm_acks,
+			    &match);
+	dp_test_assert_internal(timer >= 0);
+
+	/* Check the number of xfrm messages sent equal the number of acks
+	 * received.
+	 */
+	zloop_start(loop);
+	zloop_destroy(&loop);
+
+	if (!match)
+		_dp_test_fail(file, line, "Missing acks Tx %d Rx %d:\n",
+			      xfrm_seq, xfrm_seq_received);
+}
+
 /*
  * wait_for_policy()
  *
@@ -594,6 +634,9 @@ void _dp_test_crypto_check_policy_count(vrfid_t vrfid,
 					       DP_TEST_JSON_CHECK_SUBSET,
 					       false, POLL_CNT, POLL_INTERVAL);
 	json_object_put(jexp);
+
+	dp_test_crypto_check_xfrm_acks();
+
 }
 
 
@@ -741,14 +784,15 @@ void _dp_test_crypto_create_sa(const char *file, const char *func, int line,
 	free(algo_auth);
 }
 
-void _dp_test_crypto_delete_sa(const char *file, int line,
-			       const struct dp_test_crypto_sa *sa)
+void _dp_test_crypto_delete_sa_verify(const char *file, int line,
+				      const struct dp_test_crypto_sa *sa,
+				      bool verify)
 {
 	dp_test_netlink_xfrm_delsa(sa->spi, sa->d_addr, sa->s_addr,
 				   sa->family, sa->mode, sa->reqid,
 				   sa->vrfid);
-
-	_wait_for_sa(sa, false, file, line);
+	if (verify)
+		_wait_for_sa(sa, false, file, line);
 }
 
 void _dp_test_crypto_expire_sa(const char *file, int line,
@@ -796,6 +840,7 @@ void _dp_test_crypto_check_sa_count(
 	snprintf(exp_str, sizeof(exp_str), "\"total-sas\": %u", num_sas);
 	_dp_test_check_state_show(file, line, cmd_str, exp_str, false,
 				  DP_TEST_CHECK_STR_SUBSET);
+	dp_test_crypto_check_xfrm_acks();
 }
 
 struct dp_test_expected *
@@ -871,4 +916,7 @@ generate_exp_unreachable6(struct rte_mbuf *input_pkt, int payload_len,
 	return exp;
 }
 
-
+void _dp_test_xfrm_set_nack(uint32_t err_count)
+{
+	xfrm_ack_err = err_count;
+}

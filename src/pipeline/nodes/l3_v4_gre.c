@@ -20,7 +20,7 @@ ipv4_gre_in_process(struct pl_packet *pkt, void *context __unused)
 	rc = ip_gre_tunnel_in(&m, ip);
 	if (likely(rc == 0))
 		return IPV4_GRE_CONSUME;
-	else if (rc < 0)
+	if (rc < 0)
 		return IPV4_GRE_DROP;
 
 	pkt->mbuf = m;

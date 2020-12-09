@@ -531,7 +531,6 @@ void ip6_out_features(struct rte_mbuf *m, struct ifnet *ifp,
 		pl_pkt.npf_flags |= NPF_FLAG_FROM_US;
 
 	pipeline_fused_ipv6_out(&pl_pkt);
-	return;
 }
 
 static ALWAYS_INLINE
@@ -553,7 +552,7 @@ void ip6_switch(struct rte_mbuf *m, struct ifnet *ifp,
 
 	/* MPLS imposition required because nh has given us a label */
 	if (unlikely(nh_outlabels_present(&nxt->outlabels))) {
-		mpls_unlabeled_input(ifp, m, NH_TYPE_V6GW, nxt,
+		mpls_unlabeled_input(ifp, m, MPT_IPV6, NH_TYPE_V6GW, nxt,
 				     ip6->ip6_hops);
 		return;
 	}

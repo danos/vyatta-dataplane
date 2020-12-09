@@ -635,7 +635,7 @@ static int sip_alg_config(struct npf_alg *sip, int op, int argc,
 	int i;
 
 	/* Only ports, skip */
-	if (strcmp(argv[0], "port"))
+	if (strcmp(argv[0], "port") != 0)
 		return 0;
 	argc--; argv++;
 

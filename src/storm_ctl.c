@@ -417,6 +417,7 @@ fal_traffic_t_to_vlan_feat_type(enum fal_traffic_type traffic)
 }
 
 static void fal_policer_get_sc_stats(struct storm_ctl_instance *instance,
+				     uint32_t num_stats,
 				     enum fal_policer_stat_type cntr_ids[],
 				     uint64_t cntrs[],
 				     enum fal_traffic_type traf)
@@ -429,7 +430,7 @@ static void fal_policer_get_sc_stats(struct storm_ctl_instance *instance,
 		return;
 
 	rv = fal_policer_get_stats_ext(fal_obj,
-				       FAL_POLICER_STAT_MAX,
+				       num_stats,
 				       cntr_ids,
 				       FAL_STATS_MODE_READ,
 				       cntrs);
@@ -480,7 +481,9 @@ storm_ctl_policy_get_fal_rate(struct dp_storm_ctl_policy *policy,
 
 	if (policy->threshold_type == DP_STORM_CTL_THRESHOLD_ABS)
 		return policy->threshold_val;
-	else if (policy->threshold_type == DP_STORM_CTL_THRESHOLD_PCT) {
+	if (policy->threshold_type == DP_STORM_CTL_THRESHOLD_PCT) {
+		if (ifp->if_type == IFT_L2VLAN)
+			ifp = ifp->if_parent;
 		dp_ifnet_link_status(ifp, &link);
 		return ((uint64_t)link.link_speed * 1000 *
 			policy->threshold_val)/10000;
@@ -513,10 +516,8 @@ static int fal_policer_apply_profile(struct storm_ctl_profile *profile,
 		  .value.u64 = rate}
 	};
 	struct fal_attribute_t vlan_attr[3] = {
-		{ .id = FAL_VLAN_FEATURE_INTERFACE_ID,
-		  .value.u32 = instance->sci_ifp->if_index },
-		{ .id = FAL_VLAN_FEATURE_VLAN_ID,
-		  .value.u16 = vlan }
+		{ .id = FAL_VLAN_FEATURE_INTERFACE_ID },
+		{ .id = FAL_VLAN_FEATURE_VLAN_ID }
 	};
 	struct fal_attribute_t port_attr;
 	fal_object_t fal_obj;
@@ -537,15 +538,22 @@ static int fal_policer_apply_profile(struct storm_ctl_profile *profile,
 	}
 	rcu_assign_pointer(instance->sci_fal_obj[traf], fal_obj);
 
+	ifp = instance->sci_ifp;
+	if (ifp->if_type == IFT_L2VLAN) {
+		vlan = ifp->if_vlan;
+		ifp = ifp->if_parent;
+	}
+
 	if (vlan) {
 		/*
 		 * We have to create a vlan_feat, apply the policer to it, and
 		 * then apply the vlan_feat to the port directly.
 		 */
+		vlan_attr[0].value.u32 = ifp->if_index;
+		vlan_attr[1].value.u16 = vlan;
 		vlan_attr[2].id = fal_traffic_t_to_vlan_feat_type(traf);
 		vlan_attr[2].value.objid = instance->sci_fal_obj[traf];
 
-		ifp = instance->sci_ifp;
 		vlan_feat = if_vlan_feat_get(ifp, vlan);
 		if (!vlan_feat) {
 			rv = if_vlan_feat_create(ifp, vlan, FAL_NULL_OBJECT_ID);
@@ -583,7 +591,7 @@ static int fal_policer_apply_profile(struct storm_ctl_profile *profile,
 	} else {
 		port_attr.id = fal_traffic_t_to_storm_ctl_type(traf);
 		port_attr.value.objid = instance->sci_fal_obj[traf];
-		fal_l2_upd_port(instance->sci_ifp->if_index, &port_attr);
+		fal_l2_upd_port(ifp->if_index, &port_attr);
 	}
 
 	return rv;
@@ -597,10 +605,12 @@ static int fal_policer_unapply_profile(struct ifnet *ifp,
 	int rv = 0;
 	struct fal_attribute_t port_attr;
 	struct if_vlan_feat *vlan_feat = NULL;
-	struct fal_attribute_t vlan_attr[2] = {
-		{ .id = FAL_VLAN_FEATURE_VLAN_ID,
-		  .value.u16 = vlan }
-	};
+	struct fal_attribute_t vlan_attr;
+
+	if (ifp->if_type == IFT_L2VLAN) {
+		vlan = ifp->if_vlan;
+		ifp = ifp->if_parent;
+	}
 
 	if (vlan) {
 		vlan_feat = if_vlan_feat_get(ifp, vlan);
@@ -612,11 +622,11 @@ static int fal_policer_unapply_profile(struct ifnet *ifp,
 		}
 
 		/* Remove the storm control from the vlan feature */
-		vlan_attr[1].id = fal_traffic_t_to_vlan_feat_type(traf);
-		vlan_attr[1].value.objid = FAL_NULL_OBJECT_ID;
+		vlan_attr.id = fal_traffic_t_to_vlan_feat_type(traf);
+		vlan_attr.value.objid = FAL_NULL_OBJECT_ID;
 
 		rv = fal_vlan_feature_set_attr(vlan_feat->fal_vlan_feat,
-					       &vlan_attr[1]);
+					       &vlan_attr);
 		if (rv && rv != -EOPNOTSUPP) {
 			RTE_LOG(ERR, STORM_CTL,
 				"Could not remove vlan_feat for vlan %d in fal (%d)\n",
@@ -682,7 +692,7 @@ static int fal_policer_modify_profile(struct storm_ctl_profile *profile,
 	if (!instance->sci_fal_obj[traf])
 		return fal_policer_apply_profile(profile, vlan,
 						 instance, traf);
-	else if (instance->sci_fal_obj[traf] &&
+	if (instance->sci_fal_obj[traf] &&
 		 profile->scp_policies[traf].threshold_type ==
 		 DP_STORM_CTL_THRESHOLD_NONE)
 		return fal_policer_unapply_profile(instance->sci_ifp, vlan,
@@ -1071,7 +1081,8 @@ static int storm_ctl_set_profile(bool set, FILE *f, int argc, char **argv)
 			return storm_ctl_set_threshold(set, tr_type,
 						       bw_type, argv[6],
 						       profile);
-		} else if (!set) {
+		}
+		if (!set) {
 			storm_ctl_set_threshold(set, tr_type,
 						DP_STORM_CTL_THRESHOLD_NONE,
 						0, profile);
@@ -1394,7 +1405,7 @@ static int storm_ctl_set_intf_cfg(bool set, FILE *f, int argc, char **argv)
 		return -1;
 	}
 
-	if (ifp->if_type != IFT_ETHER) {
+	if (ifp->if_type != IFT_ETHER && ifp->if_type != IFT_L2VLAN) {
 		fprintf(f, "storm-ctl command not supported on %s",
 			ifp->if_name);
 		return -1;
@@ -1431,19 +1442,19 @@ static int storm_ctl_set_intf_cfg(bool set, FILE *f, int argc, char **argv)
 			}
 			return storm_ctl_set_profile_on_intf(set, ifp,
 							     profile, 0);
-		} else {
-			storm_ctl_set_profile_on_intf(set, ifp, NULL, 0);
-			goto check_ifp_sc;
 		}
+		storm_ctl_set_profile_on_intf(set, ifp, NULL, 0);
+		goto check_ifp_sc;
 	}
 
 	if (!strcmp(argv[3], "vlan")) {
 		if (set && argc == 7) {
-			if (strcmp(argv[5], "profile"))
+			if (strcmp(argv[5], "profile") != 0)
 				goto error;
 			return storm_ctl_set_intf_vlan_cfg(set, ifp, argv[4],
 							   argv[6]);
-		} else if (!set && argc == 5) {
+		}
+		if (!set && argc == 5) {
 			storm_ctl_set_intf_vlan_cfg(set, ifp, argv[4], argv[6]);
 			goto check_ifp_sc;
 		} else {
@@ -1509,13 +1520,13 @@ int cmd_storm_ctl_cfg(FILE *f, int argc, char **argv)
 
 	if (!strcmp(argv[2], "detection-interval"))
 		return storm_ctl_set_detection_interval(set, f, argc, argv);
-	else if (!strcmp(argv[2], "notification")) {
+	if (!strcmp(argv[2], "notification")) {
 		storm_ctl_set_notification(set);
 		return 0;
-	} else if (!strcmp(argv[2], "profile")) {
+	}
+	if (!strcmp(argv[2], "profile"))
 		return storm_ctl_set_profile(set, f, argc, argv);
-	} else
-		return storm_ctl_set_intf_cfg(set, f, argc, argv);
+	return storm_ctl_set_intf_cfg(set, f, argc, argv);
 
 error:
 	fprintf(f, "Usage: storm-ctl <op> < cmd | ifname >");
@@ -1567,11 +1578,15 @@ static void storm_ctl_show_instance(json_writer_t *wr,
 		[FAL_POLICER_STAT_RED_PACKETS] = "pkts_dropped",
 		[FAL_POLICER_STAT_RED_BYTES] = "bytes_dropped"
 	};
-	enum fal_policer_stat_type cntr_ids[FAL_POLICER_STAT_MAX], j;
+	enum fal_policer_stat_type cntr_ids[] = {
+		FAL_POLICER_STAT_GREEN_PACKETS,
+		FAL_POLICER_STAT_GREEN_BYTES,
+		FAL_POLICER_STAT_RED_PACKETS,
+		FAL_POLICER_STAT_RED_BYTES
+	};
+	uint32_t num_stats = ARRAY_SIZE(cntr_ids);
+	enum fal_policer_stat_type j;
 	fal_object_t fal_obj;
-
-	for (j = 0; j < FAL_POLICER_STAT_MAX; j++)
-		cntr_ids[j] = j;
 
 	jsonw_start_object(wr);
 	jsonw_string_field(wr, "profile",
@@ -1596,10 +1611,12 @@ static void storm_ctl_show_instance(json_writer_t *wr,
 			fal_policer_dump(fal_obj, wr);
 
 		memset(cntrs, 0, sizeof(cntrs));
-		fal_policer_get_sc_stats(instance, cntr_ids, cntrs, i);
+		fal_policer_get_sc_stats(instance, num_stats, cntr_ids,
+					 cntrs, i);
 
-		for (j = 0; j < FAL_POLICER_STAT_MAX; j++)
-			jsonw_uint_field(wr, fal_stat_strs[j], cntrs[j]);
+		for (j = 0; j < num_stats; j++)
+			jsonw_uint_field(wr, fal_stat_strs[cntr_ids[j]],
+					 cntrs[j]);
 		jsonw_end_object(wr);
 	}
 	jsonw_end_object(wr);
@@ -1760,14 +1777,17 @@ error:
 static void storm_ctl_clear_intf_stats(struct ifnet *ifp, void *ctx __unused)
 {
 	int i, rc;
-	enum fal_policer_stat_type cntr_ids[FAL_POLICER_STAT_MAX];
+	enum fal_policer_stat_type cntr_ids[] = {
+		FAL_POLICER_STAT_GREEN_PACKETS,
+		FAL_POLICER_STAT_GREEN_BYTES,
+		FAL_POLICER_STAT_RED_PACKETS,
+		FAL_POLICER_STAT_RED_BYTES
+	};
+	uint32_t num_stats = ARRAY_SIZE(cntr_ids);
 	struct if_storm_ctl_info *sc_info;
 	struct storm_ctl_instance *instance;
 	struct cds_lfht_iter iter;
 	fal_object_t fal_obj;
-
-	for (i = 0; i < FAL_POLICER_STAT_MAX; i++)
-		cntr_ids[i] = i;
 
 	sc_info = rcu_dereference(ifp->sc_info);
 	if (!sc_info)
@@ -1784,7 +1804,7 @@ static void storm_ctl_clear_intf_stats(struct ifnet *ifp, void *ctx __unused)
 				continue;
 
 			rc = fal_policer_clear_stats(fal_obj,
-						     FAL_POLICER_STAT_MAX,
+						     num_stats,
 						     cntr_ids);
 			if (rc) {
 				RTE_LOG(ERR, DATAPLANE,
@@ -1803,7 +1823,7 @@ static int cmd_storm_ctl_clear(FILE *f, int argc, char **argv)
 	if (argc < 3)
 		goto error;
 
-	if (strcmp(argv[2], "stats"))
+	if (strcmp(argv[2], "stats") != 0)
 		goto error;
 
 	if (argc == 4) {

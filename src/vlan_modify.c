@@ -1296,7 +1296,7 @@ int vlan_mod_flt_entry_add(const struct nlmsghdr *nlh)
 	if (ret != MNL_CB_OK)
 		return ret;
 
-	if (!filter_type || strcmp(filter_type, "u32")) {
+	if (!filter_type || strcmp(filter_type, "u32") != 0) {
 		RTE_LOG(NOTICE, DATAPLANE,
 			"Unsupported tc filter type %s\n",
 			filter_type);

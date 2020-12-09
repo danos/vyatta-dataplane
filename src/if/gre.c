@@ -252,8 +252,7 @@ gre_info_lookup(struct gre_infotbl_st *gre_infos,
 	node = cds_lfht_iter_get_node(&iter);
 	if (node)
 		return caa_container_of(node, struct gre_info_st, gre_node);
-	else
-		return NULL;
+	return NULL;
 }
 
 static struct gre_info_st *

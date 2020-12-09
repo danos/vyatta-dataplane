@@ -288,12 +288,18 @@ cgn_sess_state_inspect(struct cgn_state *st, struct cgn_packet *cpk, int dir,
 		 */
 
 		/* hist_bit relies on these asserts */
-		assert(CGN_SESS_HIST_FFIN == 0x02);
-		assert(CGN_SESS_HIST_BFIN == 0x04);
-		assert(CGN_SESS_HIST_FRST == 0x08);
-		assert(CGN_SESS_HIST_BRST == 0x10);
-		assert(CGN_SESS_HIST_FACK == 0x20);
-		assert(CGN_SESS_HIST_BACK == 0x40);
+		static_assert(CGN_SESS_HIST_FFIN == 0x02,
+			      "cgn sess hist flag is wrong");
+		static_assert(CGN_SESS_HIST_BFIN == 0x04,
+			      "cgn sess hist flag is wrong");
+		static_assert(CGN_SESS_HIST_FRST == 0x08,
+			      "cgn sess hist flag is wrong");
+		static_assert(CGN_SESS_HIST_BRST == 0x10,
+			      "cgn sess hist flag is wrong");
+		static_assert(CGN_SESS_HIST_FACK == 0x20,
+			      "cgn sess hist flag is wrong");
+		static_assert(CGN_SESS_HIST_BACK == 0x40,
+			      "cgn sess hist flag is wrong");
 
 		uint8_t hist_bit = 0x02;
 		if (!forw)

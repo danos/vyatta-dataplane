@@ -136,9 +136,9 @@ const npf_rproc_ops_t *npf_find_rproc_by_id(enum npf_rproc_id ro_id);
 enum npf_rproc_id npf_rproc_get_id(const npf_rproc_ops_t *ops);
 
 /* npf_ext_policer.c */
-void police_enable_inner_marking(void *handle);
+void police_enable_inner_marking(void *arg);
 
-void police_disable_inner_marking(void *handle);
+void police_disable_inner_marking(void *arg);
 
 void
 npf_policer_json(json_writer_t *json, npf_rule_t *rl,

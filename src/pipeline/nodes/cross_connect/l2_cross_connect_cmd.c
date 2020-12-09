@@ -108,7 +108,8 @@ static int cmd_xconnect(struct pl_command *cmd)
 		jsonw_destroy(&wr);
 
 		return 0;
-	} else if (strcmp(cmd->argv[0], "clear") == 0) {
+	}
+	if (strcmp(cmd->argv[0], "clear") == 0) {
 		if (cmd->argc == 1)
 			l2tp_init_stats(NULL);
 		else

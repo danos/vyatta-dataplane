@@ -76,7 +76,7 @@ uint16_t in6_cksum(const struct ip6_hdr *ip6, uint8_t next,
  * Assume l4 hdr is in first segment.
  */
 uint16_t
-dp_in4_cksum_mbuf(const struct rte_mbuf *pak, const struct iphdr *ip,
+dp_in4_cksum_mbuf(const struct rte_mbuf *m, const struct iphdr *ip,
 		  const void *l4_hdr)
 {
 	uint32_t sum = 0;
@@ -102,10 +102,10 @@ dp_in4_cksum_mbuf(const struct rte_mbuf *pak, const struct iphdr *ip,
 		sum = __rte_raw_cksum(&uph, sizeof(uph), sum);
 	}
 
-	start_offset = (char *)l4_hdr - rte_pktmbuf_mtod(pak, char *);
-	len = pak->pkt_len - start_offset;
+	start_offset = (char *)l4_hdr - rte_pktmbuf_mtod(m, char *);
+	len = m->pkt_len - start_offset;
 
-	rte_raw_cksum_mbuf(pak, start_offset, len, &hdr_sum);
+	rte_raw_cksum_mbuf(m, start_offset, len, &hdr_sum);
 
 	sum += hdr_sum;
 	sum = __rte_raw_cksum_reduce(sum);
@@ -117,8 +117,8 @@ dp_in4_cksum_mbuf(const struct rte_mbuf *pak, const struct iphdr *ip,
  * Checksum a TCP, UDP or ICMP IPv6 packet in an mbuf chain.
  */
 uint16_t
-dp_in6_cksum_mbuf(const struct rte_mbuf *pak, const struct ip6_hdr *ip6,
-	       const void *l4_hdr)
+dp_in6_cksum_mbuf(const struct rte_mbuf *m, const struct ip6_hdr *ip6,
+		  const void *l4_hdr)
 {
 	uint32_t sum = 0;
 	uint16_t hdr_sum = 0;
@@ -128,10 +128,10 @@ dp_in6_cksum_mbuf(const struct rte_mbuf *pak, const struct ip6_hdr *ip6,
 	if (ip6)
 		sum = __in6_cksum(ip6, ip6->ip6_nxt, 0, 0);
 
-	start_offset = (char *)l4_hdr - rte_pktmbuf_mtod(pak, char *);
-	len = pak->pkt_len - start_offset;
+	start_offset = (char *)l4_hdr - rte_pktmbuf_mtod(m, char *);
+	len = m->pkt_len - start_offset;
 
-	rte_raw_cksum_mbuf(pak, start_offset, len, &hdr_sum);
+	rte_raw_cksum_mbuf(m, start_offset, len, &hdr_sum);
 
 	sum += hdr_sum;
 	sum = __rte_raw_cksum_reduce(sum);

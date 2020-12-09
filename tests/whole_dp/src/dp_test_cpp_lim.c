@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019, AT&T Intellectual Property. All rights reserved.
+ * Copyright (c) 2019-2020, AT&T Intellectual Property. All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -196,7 +196,7 @@ void check_cpp_rate_limiter_stats(void)
 	int ret;
 	int i;
 
-	enum fal_policer_stat_type cntr_ids[FAL_POLICER_STAT_MAX] = {
+	enum fal_policer_stat_type cntr_ids[] = {
 		FAL_POLICER_STAT_GREEN_PACKETS,
 		FAL_POLICER_STAT_GREEN_BYTES,
 		FAL_POLICER_STAT_RED_PACKETS,

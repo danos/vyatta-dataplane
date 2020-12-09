@@ -121,7 +121,7 @@ struct dp_test_fw_ruleset_t {
  * If 'verify' is set we check the ruleset has been added to the dataplane.
  */
 void
-_dp_test_fw_ruleset_add(struct dp_test_fw_ruleset_t *ruleset,
+_dp_test_fw_ruleset_add(struct dp_test_fw_ruleset_t *rset,
 			 const char *class, bool debug, bool verify,
 			 const char *file, int line);
 
@@ -137,7 +137,7 @@ _dp_test_fw_ruleset_add(struct dp_test_fw_ruleset_t *ruleset,
  * dataplane.
  */
 void
-_dp_test_fw_ruleset_del(struct dp_test_fw_ruleset_t *ruleset,
+_dp_test_fw_ruleset_del(struct dp_test_fw_ruleset_t *rset,
 			 const char *class, bool debug, bool verify,
 			 const char *file, int line);
 

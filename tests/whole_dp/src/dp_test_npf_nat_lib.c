@@ -872,7 +872,7 @@ dp_test_nat_validate(struct rte_mbuf *mbuf, struct ifnet *ifp,
 	 * Check destination address for DNAT forwards or SNAT backwards
 	 */
 	if ((nat->dnat && forw) || (!nat->dnat && !forw)) {
-		if (strcmp(daddr_str, post->l3_dst)) {
+		if (strcmp(daddr_str, post->l3_dst) != 0) {
 			spush(str, len, "%s, dst IP %s, expd %s",
 			      nat->desc, daddr_str, post->l3_dst);
 			return false;
@@ -883,7 +883,7 @@ dp_test_nat_validate(struct rte_mbuf *mbuf, struct ifnet *ifp,
 	 * Check source address for SNAT forwards or DNAT back
 	 */
 	if ((!nat->dnat && forw) || (nat->dnat && !forw)) {
-		if (strcmp(saddr_str, post->l3_src)) {
+		if (strcmp(saddr_str, post->l3_src) != 0) {
 			spush(str, len, "%s, src IP %s, expd %s",
 			      nat->desc, saddr_str, post->l3_src);
 			return false;

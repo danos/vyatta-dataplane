@@ -2053,7 +2053,7 @@ dpt_cgn_map(bool print, char *real_intf, uint timeout, uint8_t ipproto,
 static int
 dpt_cgn_map2(struct ifnet *ifp, uint timeout, uint8_t ipproto,
 	     uint32_t subs_addr, uint16_t subs_port,
-	     uint32_t *pub_addr, uint16_t *pub_port)
+	     const uint32_t *pub_addr, const uint16_t *pub_port)
 {
 	struct cgn_packet cpk;
 	struct cgn_session *cse;

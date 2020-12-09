@@ -234,3 +234,84 @@ PL_REGISTER_NODE(ipv6_route_lookup_host_node) = {
 
 struct pl_node_registration *const ipv6_route_lookup_node_ptr =
 	&ipv6_route_lookup_node;
+
+struct pl_show_vrf_ctx {
+	json_writer_t	*json;
+	char		*vrfname;
+};
+
+static void
+pl_show_ipv6_route_lookup(struct vrf *vrf, struct pl_show_vrf_ctx *ctx)
+{
+	json_writer_t *wr = ctx->json;
+	vrfid_t vrfid = dp_vrf_get_vid(vrf);
+	const char *vrfname;
+
+	vrfname = (vrfid == VRF_DEFAULT_ID) ? "default" : vrf_get_name(vrfid);
+
+	if (ctx->vrfname && (strcmp(ctx->vrfname, vrfname) != 0) &&
+	    (strcmp(ctx->vrfname, "all") != 0))
+		return;
+
+	jsonw_start_object(wr);
+	jsonw_name(wr, vrfname);
+
+	jsonw_start_array(wr);
+	pl_node_iter_features(ipv6_route_lookup_node_ptr, vrf,
+			      pl_print_feats, wr);
+	jsonw_end_array(wr);
+
+	jsonw_end_object(wr);
+}
+
+/*
+ * show features ipv6_route_lookup [vrf <vrfname | default | all>]
+ */
+static int cmd_pl_show_feat_ipv6_route_lookup(struct pl_command *cmd)
+{
+	int argc = cmd->argc;
+	char **argv = cmd->argv;
+	char *opt, *vrfname = NULL;
+	json_writer_t *wr;
+	vrfid_t vrf_id;
+	struct vrf *vrf;
+
+	while (argc > 0) {
+		opt = next_arg(&argc, &argv);
+
+		if (!strcmp(opt, "vrf")) {
+			vrfname = next_arg(&argc, &argv);
+			if (!vrfname)
+				return 0;
+		}
+	}
+
+	wr = jsonw_new(cmd->fp);
+	if (!wr)
+		return 0;
+
+	struct pl_show_vrf_ctx ctx = {
+		.json = wr,
+		.vrfname = vrfname,
+	};
+
+	jsonw_name(wr, "features");
+	jsonw_start_object(wr);
+
+	jsonw_name(wr, "vrf");
+	jsonw_start_array(wr);
+
+	VRF_FOREACH(vrf, vrf_id)
+		pl_show_ipv6_route_lookup(vrf, &ctx);
+
+	jsonw_end_array(wr);
+
+	jsonw_end_object(wr);
+	jsonw_destroy(&wr);
+	return 0;
+}
+
+PL_REGISTER_OPCMD(pl_show_feat_ipv6_route_lookup) = {
+	.cmd = "show features ipv6_route_lookup",
+	.handler = cmd_pl_show_feat_ipv6_route_lookup,
+};

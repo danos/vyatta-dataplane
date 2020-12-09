@@ -65,6 +65,8 @@ struct config_param {
 	struct rte_ether_addr uplink_addr; /* uplink intf perm mac addr */
 	struct ip_addr rib_ip;   /* rib ctrl ip */
 	char *rib_ctrl_url;	 /* rib control url */
+	char *xfrm_push_url;	/* xfrm push from the DP url */
+	char *xfrm_pull_url;	/* xfrm pull to the DP url */
 };
 
 struct bkplane_pci {
@@ -96,7 +98,7 @@ void set_platform_cfg_file(const char *filename);
 const char *get_platform_cfg_file(void);
 void parse_config(void);
 void parse_driver_config(struct rxtx_param **driver_param,
-			 const char *filename);
+			 const char *cfgfile);
 
 /*
  * Are we running as VR or using uplink to a remote controller ?

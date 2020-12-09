@@ -87,8 +87,8 @@ spush(char *s, size_t remaining, const char *format, ...)
 	dp_test_assert_internal(full_size >= 0);
 	if ((unsigned int)full_size + 1 < remaining)
 		return  full_size;
-	else
-		return remaining;
+
+	return remaining;
 }
 
 /*
@@ -178,7 +178,8 @@ dp_test_addr_str_to_addr(const char *addr_str, struct dp_test_addr *addr)
 	if (inet_pton(AF_INET, buf, &addr->addr.ipv4) == 1) {
 		addr->family = AF_INET;
 		return true;
-	} else if (inet_pton(AF_INET6, buf, &addr->addr.ipv6) == 1) {
+	}
+	if (inet_pton(AF_INET6, buf, &addr->addr.ipv6) == 1) {
 		addr->family = AF_INET6;
 		return true;
 	}
@@ -296,7 +297,8 @@ dp_test_parse_dp_lbls(const char *lbl_string, struct dp_test_nh *nh)
 			 */
 			nh->num_labels = num_labels;
 			return lbl_string + (lbl_str - buf);
-		} else if (strcmp(lbl_str, "imp-null") == 0) {
+		}
+		if (strcmp(lbl_str, "imp-null") == 0) {
 			label = MPLS_IMPLICITNULL;
 		} else {
 			label = strtoul(lbl_str, &end, 0);

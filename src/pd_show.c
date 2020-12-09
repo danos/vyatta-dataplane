@@ -78,7 +78,7 @@ static int pd_show_dataplane(FILE *f, const char *name,
 		show_hw = false;
 
 	for (cmd = pd_show_cmd_table; cmd->name; ++cmd) {
-		if (name && strcmp(cmd->name, name))
+		if (name && (strcmp(cmd->name, name) != 0))
 			continue;
 
 		if (subset != PD_OBJ_STATE_LAST) {

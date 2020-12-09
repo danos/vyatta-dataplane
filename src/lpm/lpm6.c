@@ -789,17 +789,16 @@ lookup_step(const struct lpm6 *lpm, const struct lpm6_tbl_entry *tbl,
 	/* If it is valid and extended we calculate the new pointer to return. */
 	if (!tbl_entry.valid)
 		return -ENOENT;
-	else if (tbl_entry.ext_entry) {
+	if (tbl_entry.ext_entry) {
 		uint32_t tbl8_index = ip[first_byte-1]
 			+ tbl_entry.next_hop * LPM6_TBL8_GROUP_NUM_ENTRIES;
 
 		*tbl_next = &lpm->tbl8[tbl8_index];
 		return 1;
-	} else {
-		/* If not extended then we can have a match. */
-		*next_hop = tbl_entry.next_hop;
-		return 0;
 	}
+	/* If not extended then we can have a match. */
+	*next_hop = tbl_entry.next_hop;
+	return 0;
 }
 
 /*
@@ -1036,7 +1035,7 @@ tbl8_recycle_check(const struct lpm6_tbl_entry *tbl8,
 	return -EINVAL;
 }
 
-static void tbl8_recycle(struct lpm6 *lpm, uint32_t indices[],
+static void tbl8_recycle(struct lpm6 *lpm, const uint32_t indices[],
 			int index_count)
 {
 	uint32_t i, j;
@@ -1177,9 +1176,10 @@ delete_rule(struct lpm6 *lpm, const uint8_t *ip, uint8_t depth,
 		/* Continue inspecting levels until success or failure */
 		tbl_entry = CMM_ACCESS_ONCE(*tbl);
 
-		if (!tbl_entry.valid) {
+		if (!tbl_entry.valid)
 			return;
-		} else if (tbl_entry.ext_entry) {
+
+		if (tbl_entry.ext_entry) {
 			/* find next tbl8 */
 			tbl8_index = tbl_entry.next_hop *
 				LPM6_TBL8_GROUP_NUM_ENTRIES +
@@ -1395,7 +1395,7 @@ static int rule_replace(struct lpm6 *lpm, struct lpm6_rule *old_rule,
  */
 int
 lpm6_delete(struct lpm6 *lpm, const uint8_t *ip, uint8_t depth,
-	    uint32_t *index, int16_t scope,
+	    uint32_t *next_hop, int16_t scope,
 	    struct pd_obj_state_and_flags *pd_state,
 	    uint32_t *new_next_hop,
 	    struct pd_obj_state_and_flags **new_pd_state)
@@ -1424,8 +1424,8 @@ lpm6_delete(struct lpm6 *lpm, const uint8_t *ip, uint8_t depth,
 	if (pd_state)
 		*pd_state = rule_to_delete->pd_state;
 
-	if (index)
-		*index = rule_to_delete->next_hop;
+	if (next_hop)
+		*next_hop = rule_to_delete->next_hop;
 
 	/* Replace with next level up rule */
 	rc = rule_replace(lpm, rule_to_delete, ip, depth, &new_rule);

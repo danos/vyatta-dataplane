@@ -46,7 +46,7 @@ process_dealer_reject(zmsg_t *reject, enum cont_src_en cont_src)
 	}
 
 	uuid = zmsg_popstr(reject);
-	if (strcmp(uuid, config.uuid)) {
+	if (strcmp(uuid, config.uuid) != 0) {
 		RTE_LOG(ERR, DATAPLANE,
 			"main(%s) REJECT message mis-match on UUID\n",
 			cont_src_name(cont_src));
@@ -82,7 +82,7 @@ process_dealer_accept(zmsg_t *accept, enum cont_src_en cont_src)
 	*/
 	uuid = zmsg_popstr(accept);
 	if (cont_src == CONT_SRC_MAIN) {
-		if (strcmp(uuid, config.uuid)) {
+		if (strcmp(uuid, config.uuid) != 0) {
 			RTE_LOG(ERR, DATAPLANE,
 				"main(%s) ACCEPT message mis-match on UUID\n",
 				cont_src_name(cont_src));
@@ -141,7 +141,7 @@ static int process_dealer_msg(zmsg_t *rep, enum cont_src_en cont_src)
 	type = zmsg_popstr(rep);
 
 	for (h = dealer_msg_handlers; h->type && type; ++h) {
-		if (strcmp(h->type, type))
+		if (strcmp(h->type, type) != 0)
 			continue;
 
 		rc = (*h->handler)(rep, cont_src);

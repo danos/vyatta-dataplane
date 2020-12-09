@@ -172,7 +172,7 @@ static inline void cgn_rwricmpid(char *l4_ptr, uint16_t new_id)
 int cgn_cache_all(struct rte_mbuf *m, uint l3_offset, struct ifnet *ifp,
 		  int dir, struct cgn_packet *cpk, bool icmp_err);
 
-void cgn_rwrcksums(struct cgn_packet *sp, void *n_ptr,
+void cgn_rwrcksums(struct cgn_packet *cpk, void *n_ptr,
 		   uint16_t l3_chk_delta, uint16_t l4_chk_delta);
 
 #endif /* _CGN_MBUF_H_ */

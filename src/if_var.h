@@ -938,6 +938,9 @@ bool is_s2s_feat_attach(const struct ifnet *ifp);
 int cmd_set_vfp(FILE *f, int argc, char **argv);
 int cmd_ifconfig(FILE *f, int argc, char **argv);
 
+int if_node_instance_feat_print(struct pl_command *cmd,
+				struct pl_node_registration *node_ptr);
+
 void unsup_tunnel_output(struct ifnet *ifp, struct rte_mbuf *m,
 			 struct ifnet *input_ifp, uint16_t proto);
 void vfp_output(struct ifnet *ifp, struct rte_mbuf *m,
@@ -950,7 +953,7 @@ int if_add_l2_addr(struct ifnet *ifp, struct rte_ether_addr *addr);
 int if_del_l2_addr(struct ifnet *ifp, struct rte_ether_addr *addr);
 
 void ifpromisc(struct ifnet *ifp, int onswitch);
-void if_allmulti(struct ifnet *ifp, int onswitch);
+void if_allmulti(struct ifnet *ifp, int onoff);
 int if_start(struct ifnet *ifp);
 int if_stop(struct ifnet *ifp);
 int if_set_vlan_filter(struct ifnet *ifp, uint16_t vlan, bool enable);
@@ -997,6 +1000,8 @@ int if_fal_delete_l3_intf(struct ifnet *ifp);
 int if_set_l3_intf_attr(struct ifnet *ifp,
 			struct fal_attribute_t *attr);
 int if_fal_l3_get_stats(struct ifnet *ifp, struct if_data *stats);
+int if_get_l3_intf_attr(struct ifnet *ifp, uint32_t attr_count,
+		struct fal_attribute_t *attr);
 
 /* TODO:  Look into consolidating the if_is_uplink and
  * is_local_controller checks across the codebase.
@@ -1053,7 +1058,7 @@ int if_get_poe(struct ifnet *ifp, bool *admin_status, bool *oper_status);
 /*
  * Set the speed and duplex of an interface
  */
-int if_set_speed(struct ifnet *ifp, bool autoneg, uint32_t fixed_speed,
+int if_set_speed(struct ifnet *ifp, bool autoneg, uint32_t forced_speed,
 		 int duplex);
 
 /*
@@ -1097,7 +1102,7 @@ void if_output(struct ifnet *ifp, struct rte_mbuf *m,
 void if_output_internal(struct pl_packet *pkt);
 
 int if_allocate_feature_space(struct ifnet *ifp,
-			      enum pl_feature_point_id feat_point);
+			      enum pl_feature_point_id fp);
 int
 if_node_instance_register_storage(struct pl_node *node,
 				  struct pl_feature_registration *feat,

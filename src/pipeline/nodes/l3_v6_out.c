@@ -145,10 +145,10 @@ ipv6_out_process_common(struct pl_packet *pkt, void *context __unused,
 	if (likely(!reassembled)) {
 		pkt->l2_proto = ETH_P_IPV6;
 		return IPV6_OUT_ENCAP;
-	} else {
-		struct ipv6_out_frag_ctx ctx = {nxt, in_ifp, pkt->l2_pkt_type};
-		ip6_refragment_packet(out_ifp, pkt->mbuf, &ctx, ipv6_out_frag);
 	}
+
+	struct ipv6_out_frag_ctx ctx = {nxt, in_ifp, pkt->l2_pkt_type};
+	ip6_refragment_packet(out_ifp, pkt->mbuf, &ctx, ipv6_out_frag);
 
 	return IPV6_OUT_FINISH;
 }
@@ -225,3 +225,16 @@ PL_REGISTER_NODE(ipv6_out_node) = {
 };
 
 struct pl_node_registration *const ipv6_out_node_ptr = &ipv6_out_node;
+
+/*
+ * show features ipv6_out [interface <ifname>]
+ */
+static int cmd_pl_show_feat_ipv6_out(struct pl_command *cmd)
+{
+	return if_node_instance_feat_print(cmd, ipv6_out_node_ptr);
+}
+
+PL_REGISTER_OPCMD(pl_show_feat_ipv6_out) = {
+	.cmd = "show features ipv6_out",
+	.handler = cmd_pl_show_feat_ipv6_out,
+};

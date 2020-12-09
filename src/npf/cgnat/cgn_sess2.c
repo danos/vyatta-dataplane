@@ -299,7 +299,8 @@ static inline int time_after(uint32_t t0, uint32_t t1)
 /* Hash function */
 static ALWAYS_INLINE ulong cgn_sess2_hash(const struct cgn_2tuple_key *key)
 {
-	assert(sizeof(*key) == 8);
+	static_assert(sizeof(*key) == 8,
+		      "cgn sess2 key is wrong size");
 
 	/*
 	 * A special optimized version of jhash that handles 1 or more of

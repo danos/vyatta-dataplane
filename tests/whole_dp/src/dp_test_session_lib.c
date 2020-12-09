@@ -24,44 +24,44 @@
 
 #include "dp_test/dp_test_session_lib.h"
 
-void _dp_test_session_msg_valid(void *packed_session, uint32_t size,
+void _dp_test_session_msg_valid(void *msg, uint32_t size,
 				const char *file, int line)
 {
-	struct npf_pack_message *msg = packed_session;
+	struct npf_pack_message *n_msg = msg;
 
-	_dp_test_fail_unless(npf_pack_validate_msg(msg, size), file, line,
+	_dp_test_fail_unless(npf_pack_validate_msg(n_msg, size), file, line,
 				"npf_pack message invalid\n");
 }
 
-bool _dp_test_session_msg_full(void *packed_session,
+bool _dp_test_session_msg_full(void *msg,
 				const char *file, int line)
 {
-	struct npf_pack_message *msg = packed_session;
+	struct npf_pack_message *n_msg = msg;
 
-	if (npf_pack_get_msg_type(msg) == SESSION_PACK_FULL)
+	if (npf_pack_get_msg_type(n_msg) == SESSION_PACK_FULL)
 		return true;
 	return false;
 }
 
-bool _dp_test_session_msg_update(void *packed_session,
+bool _dp_test_session_msg_update(void *msg,
 				const char *file, int line)
 {
-	struct npf_pack_message *msg = packed_session;
+	struct npf_pack_message *n_msg = msg;
 
-	if (npf_pack_get_msg_type(msg) == SESSION_PACK_UPDATE)
+	if (npf_pack_get_msg_type(n_msg) == SESSION_PACK_UPDATE)
 		return true;
 	return false;
 }
 
-uint64_t _dp_test_session_msg_get_id(void *packed_session,
+uint64_t _dp_test_session_msg_get_id(void *msg,
 				const char *file, int line)
 {
-	struct npf_pack_message *msg = packed_session;
+	struct npf_pack_message *n_msg = msg;
 
-	return npf_pack_get_session_id(msg);
+	return npf_pack_get_session_id(n_msg);
 }
 
-void _dp_test_session_msg_check_rcvd(void *packed_session,
+void _dp_test_session_msg_check_rcvd(void *msg,
 				uint64_t pkts_per_session,
 				struct dp_test_session sess[],
 				const char *file, int line)
@@ -69,12 +69,12 @@ void _dp_test_session_msg_check_rcvd(void *packed_session,
 	int i;
 	uint64_t se_id;
 	struct npf_pack_dp_sess_stats *stats;
-	struct npf_pack_message *msg = packed_session;
+	struct npf_pack_message *n_msg = msg;
 
 	_dp_test_fail_unless(sess, file, line,
 			"npf_pack sess input invalid\n");
-	se_id = dp_test_session_msg_get_id(msg);
-	stats =  npf_pack_get_session_stats(msg);
+	se_id = dp_test_session_msg_get_id(n_msg);
+	stats =  npf_pack_get_session_stats(n_msg);
 	_dp_test_fail_unless(stats, file, line,
 			"Couldn't get stats from npf_pack message\n");
 
@@ -96,17 +96,17 @@ void _dp_test_session_msg_check_rcvd(void *packed_session,
 	}
 }
 
-bool _dp_test_session_msg_pulled_all(void *packed_session,
+bool _dp_test_session_msg_pulled_all(void *msg,
 				uint64_t pkts_per_session,
 				struct dp_test_session sess[],
 				const char *file, int line)
 {
 	int i;
-	struct npf_pack_message *msg = packed_session;
+	struct npf_pack_message *n_msg = msg;
 
 	_dp_test_fail_unless(sess, file, line,
 			"npf_pack sess input invalid\n");
-	dp_test_session_msg_check_rcvd(msg, pkts_per_session, sess);
+	dp_test_session_msg_check_rcvd(n_msg, pkts_per_session, sess);
 
 	for (i = 0; i < DP_TEST_MAX_TEST_SESSIONS; i++) {
 		if (sess[i].completed == false)

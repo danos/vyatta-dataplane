@@ -213,6 +213,7 @@ struct lcore_conf {
 	uint16_t high_txq;    /* highest index assigned to tx_poll */
 	uint8_t tx_qid;	      /* my tx queue for multi-queue devices */
 	uint8_t do_crypto;    /* thread is tasked with doing crypto */
+	uint8_t crypto_fwd;   /* post-crypto forwarding workload present */
 
 	/* receive queues this cpu should check for input */
 	struct lcore_rx_queue {
@@ -250,6 +251,7 @@ struct lcore_conf {
 	struct rate_stats rx_poll_stats[MAX_RX_QUEUE_PER_CORE];
 	struct rate_stats tx_poll_stats[MAX_TX_QUEUE_PER_CORE];
 	struct rate_stats crypt_stats;
+	struct rate_stats crypt_fwd_stats;
 	bool ded_to_feature;
 
 	/* State for when a feature has registered to use this core */
@@ -677,7 +679,6 @@ full_txring: __cold_label;
 full_hwq: __cold_label;
 	if_incr_full_hwq(ifp, 1);
 	rte_pktmbuf_free(m);
-	return;
 }
 
 void dp_pkt_burst_flush(void)
@@ -1006,6 +1007,8 @@ forwarding_loop(unsigned int lcore_id)
 	RTE_PER_LCORE(_dp_lcore_id) = lcore_id;
 	dp_lcore_events_init(lcore_id);
 
+	crypto_create_fwd_queue(lcore_id);
+
 	pkt_burst_init(lcore_id, conf->tx_qid);
 
 	char name[16];
@@ -1031,6 +1034,8 @@ forwarding_loop(unsigned int lcore_id)
 				process_crypto(conf);
 			if (CMM_LOAD_SHARED(conf->num_txq) > 0)
 				poll_transmit_queues(conf);
+			if (CMM_LOAD_SHARED(conf->crypto_fwd))
+				crypto_fwd_processed_packets();
 		}
 
 		/* Move leftover packets */
@@ -1429,8 +1434,8 @@ static void init_rate_stats(struct rate_stats *stats)
 	gettimeofday(&stats->last_time, NULL);
 }
 
-void scale_rate_stats(struct rate_stats *stats, uint64_t *packets,
-		      uint64_t *bytes)
+void scale_rate_stats(struct rate_stats *stats, const uint64_t *packets,
+		      const uint64_t *bytes)
 {
 	struct timeval now, diff;
 	uint64_t scaled;
@@ -1485,6 +1490,8 @@ static void stop_one_cpu(unsigned int lcore)
 			RTE_LOG(ERR, DATAPLANE,
 				"core %d wait failed\n", lcore);
 		}
+
+		crypto_destroy_fwd_queue();
 	}
 	conf->running = false;
 }
@@ -1580,6 +1587,20 @@ void unassign_queues(portid_t portid)
 	synchronize_rcu();
 	pkt_ring_empty(portid);
 	stop_cpus();
+}
+
+void enable_crypto_fwd(unsigned int lcore)
+{
+	struct lcore_conf *conf = lcore_conf[lcore];
+
+	CMM_STORE_SHARED(conf->crypto_fwd, 1);
+}
+
+void disable_crypto_fwd(unsigned int lcore)
+{
+	struct lcore_conf *conf = lcore_conf[lcore];
+
+	CMM_STORE_SHARED(conf->crypto_fwd, 0);
 }
 
 /* Compute load based on how much work CPU core is doing
@@ -2954,14 +2975,14 @@ unsigned int probe_crypto_engines(bool *sticky)
  * set for future allocations.  If no mask or an empty mask is
  * passed, then auto probe the system, disabling stickyness.
  */
-int set_crypto_engines(const char *str, bool *sticky)
+int set_crypto_engines(const uint8_t *bytes, uint8_t len, bool *sticky)
 {
 	bitmask_t cores;
 	int rc;
 	char tmp[BITMASK_STRSZ];
 	bool tmp_sticky;
 
-	rc = str ? bitmask_parse(&cores, str) : 1;
+	rc = bitmask_parse_bytes(&cores, bytes, len);
 
 	if (rc || bitmask_isempty(&cores)) {
 		crypto_sticky = false;
@@ -3726,6 +3747,9 @@ void load_estimator(void)
 			}
 
 		}
+
+		packets = crypto_fwd[id].fwd_cnt;
+		scale_rate_stats(&conf->crypt_fwd_stats, &packets, NULL);
 	}
 }
 
@@ -3847,6 +3871,14 @@ void show_per_core(FILE *f)
 			jsonw_end_object(wr);
 		}
 
+		if (conf->crypt_fwd_stats.packet_rate) {
+			jsonw_start_object(wr);
+			jsonw_string_field(wr, "interface", "[crypt-fwd]");
+			jsonw_uint_field(wr, "rate",
+					 conf->crypt_fwd_stats.packet_rate);
+			jsonw_uint_field(wr, "idle", 0);
+			jsonw_end_object(wr);
+		}
 		jsonw_end_array(wr);
 		jsonw_end_object(wr);
 	}

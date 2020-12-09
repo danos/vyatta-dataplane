@@ -198,8 +198,7 @@ icmp_send(struct rte_mbuf *m, bool srced_forus)
  * ether address already contains the next-hop ether address.
  */
 static bool
-icmp_send_no_route(struct rte_mbuf *m, struct ifnet *in_ifp,
-		   struct ifnet *out_ifp)
+icmp_send_no_route(struct rte_mbuf *m, struct ifnet *out_ifp)
 {
 	struct iphdr *ip;
 	int hlen;
@@ -224,10 +223,7 @@ icmp_send_no_route(struct rte_mbuf *m, struct ifnet *in_ifp,
 	nh_set_ifp(&singlehop_nh, out_ifp);
 	nh = &singlehop_nh;
 
-	if (ipv4_originate_filter(out_ifp, m))
-		return false;
-
-	if (dp_ip_l2_nh_output(in_ifp, m, nh, ETH_P_IP)) {
+	if (dp_ip_l2_nh_output(NULL, m, nh, ETH_P_IP)) {
 		IPSTAT_INC_IFP(out_ifp, IPSTATS_MIB_OUTPKTS);
 		return true;
 	}
@@ -667,7 +663,7 @@ bool icmp_echo_reply_out(struct ifnet *rcvifp, struct rte_mbuf *n,
 
 	if (reflect)
 		/* Reflect reply directly back to sender */
-		rv = icmp_send_no_route(m, rcvifp, rcvifp);
+		rv = icmp_send_no_route(m, rcvifp);
 	else
 		icmp_send(m, false);
 

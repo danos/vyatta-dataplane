@@ -235,10 +235,10 @@ void jsonw_bool_field(json_writer_t *self, const char *prop, bool val)
 	jsonw_bool(self, val);
 }
 
-void jsonw_float_field(json_writer_t *self, const char *prop, double val)
+void jsonw_float_field(json_writer_t *self, const char *prop, double num)
 {
 	jsonw_name(self, prop);
-	jsonw_float(self, val);
+	jsonw_float(self, num);
 }
 
 void jsonw_uint_field(json_writer_t *self, const char *prop, uint64_t num)

@@ -282,7 +282,7 @@ static int broker_ctrl_recv(void *src)
 		reset_dataplane(cont_src, false);
 		goto out;
 	}
-	if (strcmp("ACCEPT", str)) {
+	if (strcmp("ACCEPT", str) != 0) {
 		RTE_LOG(ERR, DATAPLANE,
 			"unrecognized message from broker ctrl %s\n",
 			str);
@@ -291,7 +291,7 @@ static int broker_ctrl_recv(void *src)
 	}
 
 	uuid = zmsg_popstr(msg);
-	if (strcmp(uuid, config.uuid)) {
+	if (strcmp(uuid, config.uuid) != 0) {
 		RTE_LOG(ERR, DATAPLANE,
 			"route broker(%s) ACCEPT message mis-match on UUID\n",
 			cont_src_name(cont_src));
