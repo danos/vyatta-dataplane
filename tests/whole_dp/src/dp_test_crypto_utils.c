@@ -30,6 +30,7 @@
 #include "dp_test_crypto_lib.h"
 #include "dp_test_json_utils.h"
 #include "dp_test_xfrm_server.h"
+#include "dp_test_controller.h"
 
 static const unsigned char default_cipher_key[] = {
 	0x1c, 0x53, 0xfa, 0xd5, 0xb5, 0x23, 0xb3, 0xe1,
@@ -919,4 +920,14 @@ generate_exp_unreachable6(struct rte_mbuf *input_pkt, int payload_len,
 void _dp_test_xfrm_set_nack(uint32_t err_count)
 {
 	xfrm_ack_err = err_count;
+}
+
+void  _dp_test_crypto_flush(void)
+{
+	nl_propagate_xfrm(xfrm_server_push_sock, NULL, 0, "FLUSH");
+}
+
+void  _dp_test_crypto_commit(void)
+{
+	nl_propagate_xfrm(xfrm_server_push_sock, NULL, 0, "COMMIT");
 }

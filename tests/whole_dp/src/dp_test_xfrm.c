@@ -379,7 +379,7 @@ DP_START_TEST(xfrm_sa, sa_expire)
 	dp_test_crypto_expire_sa(&output_sa, true);
 	dp_test_crypto_check_sa_count(VRF_DEFAULT_ID, 1);
 
-	dp_test_crypto_delete_sa(&input_sa);
+	dp_test_crypto_flush();
 
 	dp_test_crypto_check_sa_count(VRF_DEFAULT_ID, 0);
 

@@ -24,6 +24,7 @@
 #include "vplane_log.h"
 #include "zmq_dp.h"
 #include "crypto/crypto_policy.h"
+#include "crypto/crypto.h"
 
 zsock_t *xfrm_pull_socket;
 zsock_t *xfrm_push_socket;
@@ -93,7 +94,8 @@ dp_xfrm_msg_recv(zsock_t *sock, zmq_msg_t *hdr, zmq_msg_t *msg)
 
 	int more = zmq_msg_get(hdr, ZMQ_MORE);
 	if (!more)
-		goto error;
+		return 0;
+
 	if (zmq_msg_recv(msg, zsock_resolve(sock), 0) <= 0)
 		goto error;
 
@@ -120,11 +122,11 @@ static int xfrm_netlink_recv(void *arg)
 	const struct nlmsghdr *nlh;
 	const char *hdr;
 	uint32_t len;
+	int rc;
 	struct xfrm_client_aux_data xfrm_aux;
-
 	errno = 0;
 
-	int rc = dp_xfrm_msg_recv(sock, &xfrm_hdr, &xfrm_msg);
+	rc = dp_xfrm_msg_recv(sock, &xfrm_hdr, &xfrm_msg);
 
 	if (rc != 0) {
 		if (errno == 0)
@@ -137,11 +139,27 @@ static int xfrm_netlink_recv(void *arg)
 	 * deliminate a batch. All hdrs have netlink msgs to follow,
 	 * however only END is of special significance as it triggers
 	 * a npf commit and rebuild.
+	 *
+	 * The message types of FLUSH and COMMIT are control messages
+	 * and used with out any accompanying xfrm.
 	 */
 	hdr = zmq_msg_data(&xfrm_hdr);
+	if (strncmp("FLUSH", hdr, strlen("FLUSH")) == 0) {
+		crypto_flush_all();
+		goto end;
+	} else if (strncmp("COMMIT", hdr, strlen("COMMIT")) == 0) {
+		crypto_npf_cfg_commit_flush();
+		goto end;
+	}
 
 	nlh = zmq_msg_data(&xfrm_msg);
 	len = zmq_msg_size(&xfrm_msg);
+
+	if (!nlh || len < sizeof(*nlh)) {
+		DP_DEBUG(CRYPTO, ERR, DATAPLANE,
+			 "XFRM msg invalid\n");
+		goto end;
+	}
 
 	vrfid_t vrf_id = VRF_DEFAULT_ID;
 
@@ -193,7 +211,7 @@ static int xfrm_netlink_recv(void *arg)
 		DP_DEBUG(CRYPTO, ERR, DATAPLANE,
 			 "XFRM netlink msg not handled\n");
 	}
-
+end:
 	zmq_msg_close(&xfrm_hdr);
 	zmq_msg_close(&xfrm_msg);
 

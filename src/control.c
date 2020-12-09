@@ -366,6 +366,8 @@ static int process_xfrm_policy_cmd(enum cont_src_en cont_src,
 {
 	struct xfrm_client_aux_data aux;
 
+	xfrm_direct = false;
+
 	if (cont_src != CONT_SRC_MAIN) {
 		RTE_LOG(ERR, DATAPLANE,
 			"(%s) xfrm POLICY invalid controller\n",
@@ -391,6 +393,8 @@ static int process_xfrm_sa_cmd(enum cont_src_en cont_src,
 			       void *data, size_t size,
 			       const struct msg_handler *h __unused)
 {
+	xfrm_direct = false;
+
 	if (cont_src != CONT_SRC_MAIN) {
 		RTE_LOG(ERR, DATAPLANE,
 			"(%s) xfrm SA invalid controller\n",
