@@ -650,7 +650,7 @@ struct ifnet *bridge_create(int ifindex, const char *ifname,
 		return NULL;
 	}
 
-	ifp = if_alloc(ifname, IFT_BRIDGE, mtu, addr, SOCKET_ID_ANY);
+	ifp = if_alloc(ifname, IFT_BRIDGE, mtu, addr, SOCKET_ID_ANY, NULL);
 	if (!ifp) {
 		RTE_LOG(NOTICE, BRIDGE, "out of memory to create %s\n",
 			ifname);
@@ -767,7 +767,7 @@ static void bridge_timer(struct rte_timer *timer __rte_unused,
 	rcu_read_unlock();
 }
 
-static int bridge_if_init(struct ifnet *ifp)
+static int bridge_if_init(struct ifnet *ifp, void *ctx __unused)
 {
 	struct bridge_softc *sc;
 

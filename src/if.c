@@ -1107,7 +1107,7 @@ static void if_unset_netconf(struct ifnet *ifp)
  */
 struct ifnet *if_alloc(const char *ifname, enum if_type type,
 		       unsigned int mtu, const struct rte_ether_addr *eth_addr,
-		       int socket)
+		       int socket, void *ctx)
 {
 	const struct ift_ops *ops;
 	struct ifnet *ifp;
@@ -1161,7 +1161,7 @@ struct ifnet *if_alloc(const char *ifname, enum if_type type,
 			ifp->if_name);
 
 	if (ops->ifop_init) {
-		ret = ops->ifop_init(ifp);
+		ret = ops->ifop_init(ifp, ctx);
 		if (ret < 0) {
 			if_free(ifp);
 			return NULL;

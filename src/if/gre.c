@@ -1034,7 +1034,7 @@ gre_tunnel_create(int ifindex, const char *ifname,
 		return NULL;
 	}
 
-	ifp = if_alloc(ifname, IFT_TUNNEL_GRE, mtu, addr, SOCKET_ID_ANY);
+	ifp = if_alloc(ifname, IFT_TUNNEL_GRE, mtu, addr, SOCKET_ID_ANY, NULL);
 	if (!ifp) {
 		RTE_LOG(ERR, DATAPLANE,
 			"out of memory for gre tunnel ifnet\n");

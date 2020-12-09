@@ -387,7 +387,7 @@ struct ifnet *vrf_if_create(const char *ifname, uint32_t if_index,
 	struct vrf_softc *vrsc;
 	struct ifnet *ifp;
 
-	ifp = if_alloc(ifname, IFT_VRF, 65535, NULL, SOCKET_ID_ANY);
+	ifp = if_alloc(ifname, IFT_VRF, 65535, NULL, SOCKET_ID_ANY, NULL);
 	if (!ifp) {
 		RTE_LOG(ERR, DATAPLANE,
 			"out of memory for vrf_ifnet\n");

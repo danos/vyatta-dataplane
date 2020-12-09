@@ -1,3 +1,17 @@
+vyatta-dataplane (3.12.10) unstable; urgency=medium
+
+  [ Paul Atkins ]
+  * 3.11.72
+
+  [ Charles (Chas) Williams ]
+  * api: clean up public LAG event API
+  * lag: handle checks against non-DPDK interfaces
+
+  [ Srinivas Narayan ]
+  * Fix bug in bitmask parsing
+
+ -- Srinivas Narayan <narayan@mail.eng.vyatta.net>  Wed, 09 Dec 2020 13:31:08 +0000
+
 vyatta-dataplane (3.12.9) unstable; urgency=medium
 
   [ Srinivas Narayan ]
@@ -811,6 +825,16 @@ vyatta-dataplane (3.12.1) unstable; urgency=medium
   [ Paul Atkins ]
 
  -- Paul Atkins <paul.atkins@intl.att.com>  Mon, 12 Oct 2020 09:20:52 +0100
+
+vyatta-dataplane (3.11.72) unstable; urgency=medium
+
+  [ Robert Shearman ]
+  * nh_common: ignore path state updates for deleted interfaces
+    (Fixes: VRVDR-53541)
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Mon, 07 Dec 2020 08:29:00 +0000
 
 vyatta-dataplane (3.11.71) unstable; urgency=medium
 

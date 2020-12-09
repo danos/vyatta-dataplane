@@ -1630,7 +1630,7 @@ vxlan_create(const struct ifinfomsg *ifi, const char *ifname,
 		}
 	}
 
-	ifp = if_alloc(ifname, IFT_VXLAN, mtu, addr, SOCKET_ID_ANY);
+	ifp = if_alloc(ifname, IFT_VXLAN, mtu, addr, SOCKET_ID_ANY, NULL);
 	if (!ifp) {
 		RTE_LOG(ERR, DATAPLANE,
 			"out of memory for vxlan_ifnet\n");
@@ -1649,7 +1649,7 @@ vxlan_create(const struct ifinfomsg *ifi, const char *ifname,
 	return ifp;
 }
 
-static int vxlan_if_init(struct ifnet *ifp)
+static int vxlan_if_init(struct ifnet *ifp, void *ctx __unused)
 {
 	struct vxlan_softc *sc;
 

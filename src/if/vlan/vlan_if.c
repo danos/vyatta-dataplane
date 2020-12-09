@@ -153,7 +153,7 @@ vlan_if_create(struct ifnet *ifp, uint16_t vid,
 		return vifp;
 
 	vifp = if_alloc(ifname, IFT_L2VLAN, ifp->if_mtu, &ifp->eth_addr,
-			ifp->if_socket);
+			ifp->if_socket, NULL);
 	if (vifp) {
 		if_port_inherit(ifp, vifp);
 

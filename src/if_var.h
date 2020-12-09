@@ -497,7 +497,7 @@ struct ift_ops {
 	 * Called before the interface is started (if admin-up at
 	 * create time) and before it is added to interface databases.
 	 */
-	int (*ifop_init)(struct ifnet *ifp);
+	int (*ifop_init)(struct ifnet *ifp, void *ctx);
 
 	/*
 	 * Uninitialise the interface
@@ -657,7 +657,7 @@ if_vlan_lookup(const struct ifnet *ifp, uint16_t vid)
 
 struct ifnet *if_alloc(const char *name, enum if_type type,
 		       unsigned int mtu, const struct rte_ether_addr *eth_addr,
-		       int socketid);
+		       int socketid, void *ctx);
 void if_set_ifindex(struct ifnet *ifp, unsigned int ifindex);
 void if_unset_ifindex(struct ifnet *ifp);
 void if_free(struct ifnet *ifp);
