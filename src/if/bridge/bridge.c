@@ -767,7 +767,7 @@ static void bridge_timer(struct rte_timer *timer __rte_unused,
 	rcu_read_unlock();
 }
 
-static int bridge_if_init(struct ifnet *ifp)
+static int bridge_if_init(struct ifnet *ifp, void *ctx __unused)
 {
 	struct bridge_softc *sc;
 

@@ -1649,7 +1649,7 @@ vxlan_create(const struct ifinfomsg *ifi, const char *ifname,
 	return ifp;
 }
 
-static int vxlan_if_init(struct ifnet *ifp)
+static int vxlan_if_init(struct ifnet *ifp, void *ctx __unused)
 {
 	struct vxlan_softc *sc;
 

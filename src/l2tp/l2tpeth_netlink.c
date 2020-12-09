@@ -711,7 +711,7 @@ l2tpeth_create(int ifindex, const char *ifname, unsigned int mtu,
 	return ifp;
 }
 
-static int l2tpeth_if_init(struct ifnet *ifp)
+static int l2tpeth_if_init(struct ifnet *ifp, void *ctx __unused)
 {
 	struct l2tp_softc *sc = NULL;
 

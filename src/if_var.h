@@ -497,7 +497,7 @@ struct ift_ops {
 	 * Called before the interface is started (if admin-up at
 	 * create time) and before it is added to interface databases.
 	 */
-	int (*ifop_init)(struct ifnet *ifp);
+	int (*ifop_init)(struct ifnet *ifp, void *ctx);
 
 	/*
 	 * Uninitialise the interface

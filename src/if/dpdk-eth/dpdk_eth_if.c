@@ -678,9 +678,10 @@ dpdk_eth_if_del_l2_addr(struct ifnet *ifp, void *l2_addr)
 	return rte_eth_dev_mac_addr_remove(ifp->if_port, l2_addr);
 }
 
-static int dpdk_eth_if_init(struct ifnet *ifp)
+static int dpdk_eth_if_init(struct ifnet *ifp, void *ctx)
 {
 	struct dpdk_eth_if_softc *sc;
+	portid_t port = *(portid_t *)ctx;
 
 	sc = rte_zmalloc_socket("dpdk softc", sizeof(*sc), 0, ifp->if_socket);
 	if (!sc)
@@ -692,6 +693,7 @@ static int dpdk_eth_if_init(struct ifnet *ifp)
 
 	sc->scd_ifp = ifp;
 	ifp->if_softc = sc;
+	ifp->if_port = port;
 
 	rte_ether_addr_copy(&ifp->eth_addr, &ifp->perm_addr);
 
@@ -1438,8 +1440,6 @@ if_hwport_init(const char *if_name, unsigned int portid,
 		       &portid);
 	if (!ifp)
 		return NULL;
-
-	ifp->if_port = portid;
 
 	/*
 	 * Temporarily turn off VLAN insertion offload for Mellanox
