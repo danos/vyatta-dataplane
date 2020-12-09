@@ -148,17 +148,6 @@ unsigned long vxlan_stats[RTE_MAX_LCORE][VXLAN_STATS_MAX] __rte_cache_aligned;
 static struct vxlan_vnitbl *vxlans;
 
 /*
- * Forward references
- */
-static void vxlan_timer(struct rte_timer *, void *);
-static void vxlan_rtupdate(struct ifnet *ifp,
-			  struct ip_addr *addr,
-			  const struct rte_ether_addr *dst);
-static struct vxlan_rtnode *
-vxlan_rtnode_lookup(struct vxlan_softc *sc,
-		    const struct rte_ether_addr *addr);
-
-/*
  * VNI Table functions
  */
 static inline unsigned long
@@ -839,6 +828,134 @@ vxlan_send_packet(struct ifnet *ifp, uint32_t vni, struct ip_addr *dip,
 	return -EFAULT;
 }
 
+/*
+ * FDB functions
+ */
+/* Given key (ether address) generate a hash */
+static inline unsigned long
+vxlan_rtnode_hash(const struct rte_ether_addr *key)
+{
+	return eth_addr_hash(key, VXLAN_RTHASH_BITS);
+}
+
+/* Test if ether address matches value for this entry */
+static int vxlan_rtnode_match(struct cds_lfht_node *node,
+			      const void *key)
+{
+	const struct vxlan_rtnode *vxlrt
+		= caa_container_of(node, const struct vxlan_rtnode, vxlrt_node);
+
+	return rte_ether_addr_equal(&vxlrt->vxlrt_addr, key);
+}
+
+/* Look up a vxlan route node for the specified destination. */
+static struct vxlan_rtnode *
+vxlan_rtnode_lookup(struct vxlan_softc *sc,
+		    const struct rte_ether_addr *addr)
+{
+	struct cds_lfht_iter iter;
+
+	cds_lfht_lookup(sc->scvx_rthash,
+			vxlan_rtnode_hash(addr),
+			vxlan_rtnode_match, addr, &iter);
+
+	struct cds_lfht_node *node = cds_lfht_iter_get_node(&iter);
+
+	if (node)
+		return caa_container_of(node, struct vxlan_rtnode, vxlrt_node);
+	return NULL;
+}
+
+/* Insert the specified vxlan node into the route table. */
+static int
+vxlan_rtnode_insert(struct vxlan_softc *sc, struct vxlan_rtnode *vxlrt)
+{
+	struct cds_lfht_node *ret_node;
+
+	cds_lfht_node_init(&vxlrt->vxlrt_node);
+
+	unsigned long hash = vxlan_rtnode_hash(&vxlrt->vxlrt_addr);
+
+	ret_node = cds_lfht_add_unique(sc->scvx_rthash, hash,
+				       vxlan_rtnode_match, &vxlrt->vxlrt_addr,
+				       &vxlrt->vxlrt_node);
+	return (ret_node != &vxlrt->vxlrt_node) ? EEXIST : 0;
+}
+
+/* Update existing forwarding table entry */
+static void
+vxlan_rtupdate(struct ifnet *ifp,
+	       struct ip_addr *addr,
+	       const struct rte_ether_addr *dst)
+{
+	struct vxlan_softc *sc = ifp->if_softc;
+	struct vxlan_rtnode *vxlrt;
+
+	/*
+	 * A route for this destination might already exist.  If so,
+	 * update it.
+	 */
+	vxlrt = vxlan_rtnode_lookup(sc, dst);
+	if (unlikely(vxlrt == NULL)) {
+		vxlrt = zmalloc_aligned(sizeof(*vxlrt));
+		if (unlikely(vxlrt == NULL))
+			return;
+
+		vxlrt->vxlrt_flags = IFBAF_DYNAMIC;
+		if (addr->type == AF_INET) {
+			vxlrt->vxlrt_dst = addr->address.ip_v4;
+			vxlrt->vxlrt_flags |= IFBAF_ADDR_V4;
+		} else {
+			vxlrt->vxlrt_dst_v6 = addr->address.ip_v6;
+			vxlrt->vxlrt_flags |= IFBAF_ADDR_V6;
+		}
+		vxlrt->vxlrt_addr = *dst;
+		vxlrt->vxlrt_expire = 0;
+
+		if (vxlan_rtnode_insert(sc, vxlrt) != 0) {
+			free(vxlrt);
+			return;
+		}
+	} else if ((vxlrt->vxlrt_flags & IFBAF_TYPEMASK) == IFBAF_DYNAMIC) {
+		if (addr->type == AF_INET) {
+			vxlrt->vxlrt_dst = addr->address.ip_v4;
+			vxlrt->vxlrt_flags |= IFBAF_ADDR_V4;
+		} else {
+			vxlrt->vxlrt_dst_v6 = addr->address.ip_v6;
+			vxlrt->vxlrt_flags |= IFBAF_ADDR_V6;
+		}
+	}
+
+	/* Entry is marked used */
+	rte_atomic32_clear(&vxlrt->vxlrt_unused);
+}
+
+static void
+vxlan_rtnode_free(struct rcu_head *head)
+{
+	free(caa_container_of(head, struct vxlan_rtnode, vxlrt_rcu));
+}
+
+/* Destroy a vxlan rtnode. */
+static void
+vxlan_rtnode_destroy(struct vxlan_rtnode *vxlrt)
+{
+	call_rcu(&vxlrt->vxlrt_rcu, vxlan_rtnode_free);
+}
+
+/* Create lock free hash table. */
+static void
+vxlan_rtable_init(struct vxlan_softc *sc)
+{
+	sc->scvx_rthash = cds_lfht_new(VXLAN_RTHASH_MIN,
+				     VXLAN_RTHASH_MIN,
+				     VXLAN_RTHASH_MAX,
+				     CDS_LFHT_AUTO_RESIZE,
+				     NULL);
+	if (sc->scvx_rthash == NULL)
+		rte_panic("Can't allocate rthash\n");
+}
+
 static void
 vxlan_snoop(enum vgpe_nxt_proto nxtproto, struct ifnet *ifp,
 	    struct rte_mbuf *m __unused,
@@ -1140,134 +1257,6 @@ vxlan_output(struct ifnet *ifp, struct rte_mbuf *m, uint16_t proto)
 drop:
 	VXLAN_STAT_INC(VXLAN_STATS_OUTDISCARDS);
 	rte_pktmbuf_free(m);
-}
-
-/*
- * FDB functions
- */
-/* Given key (ether address) generate a hash */
-static inline unsigned long
-vxlan_rtnode_hash(const struct rte_ether_addr *key)
-{
-	return eth_addr_hash(key, VXLAN_RTHASH_BITS);
-}
-
-/* Test if ether address matches value for this entry */
-static int vxlan_rtnode_match(struct cds_lfht_node *node,
-			      const void *key)
-{
-	const struct vxlan_rtnode *vxlrt
-		= caa_container_of(node, const struct vxlan_rtnode, vxlrt_node);
-
-	return rte_ether_addr_equal(&vxlrt->vxlrt_addr, key);
-}
-
-/* Look up a vxlan route node for the specified destination. */
-static struct vxlan_rtnode *
-vxlan_rtnode_lookup(struct vxlan_softc *sc,
-		    const struct rte_ether_addr *addr)
-{
-	struct cds_lfht_iter iter;
-
-	cds_lfht_lookup(sc->scvx_rthash,
-			vxlan_rtnode_hash(addr),
-			vxlan_rtnode_match, addr, &iter);
-
-	struct cds_lfht_node *node = cds_lfht_iter_get_node(&iter);
-
-	if (node)
-		return caa_container_of(node, struct vxlan_rtnode, vxlrt_node);
-	return NULL;
-}
-
-/* Insert the specified vxlan node into the route table. */
-static int
-vxlan_rtnode_insert(struct vxlan_softc *sc, struct vxlan_rtnode *vxlrt)
-{
-	struct cds_lfht_node *ret_node;
-
-	cds_lfht_node_init(&vxlrt->vxlrt_node);
-
-	unsigned long hash = vxlan_rtnode_hash(&vxlrt->vxlrt_addr);
-
-	ret_node = cds_lfht_add_unique(sc->scvx_rthash, hash,
-				       vxlan_rtnode_match, &vxlrt->vxlrt_addr,
-				       &vxlrt->vxlrt_node);
-	return (ret_node != &vxlrt->vxlrt_node) ? EEXIST : 0;
-}
-
-/* Update existing forwarding table entry */
-static void
-vxlan_rtupdate(struct ifnet *ifp,
-	       struct ip_addr *addr,
-	       const struct rte_ether_addr *dst)
-{
-	struct vxlan_softc *sc = ifp->if_softc;
-	struct vxlan_rtnode *vxlrt;
-
-	/*
-	 * A route for this destination might already exist.  If so,
-	 * update it.
-	 */
-	vxlrt = vxlan_rtnode_lookup(sc, dst);
-	if (unlikely(vxlrt == NULL)) {
-		vxlrt = zmalloc_aligned(sizeof(*vxlrt));
-		if (unlikely(vxlrt == NULL))
-			return;
-
-		vxlrt->vxlrt_flags = IFBAF_DYNAMIC;
-		if (addr->type == AF_INET) {
-			vxlrt->vxlrt_dst = addr->address.ip_v4;
-			vxlrt->vxlrt_flags |= IFBAF_ADDR_V4;
-		} else {
-			vxlrt->vxlrt_dst_v6 = addr->address.ip_v6;
-			vxlrt->vxlrt_flags |= IFBAF_ADDR_V6;
-		}
-		vxlrt->vxlrt_addr = *dst;
-		vxlrt->vxlrt_expire = 0;
-
-		if (vxlan_rtnode_insert(sc, vxlrt) != 0) {
-			free(vxlrt);
-			return;
-		}
-	} else if ((vxlrt->vxlrt_flags & IFBAF_TYPEMASK) == IFBAF_DYNAMIC) {
-		if (addr->type == AF_INET) {
-			vxlrt->vxlrt_dst = addr->address.ip_v4;
-			vxlrt->vxlrt_flags |= IFBAF_ADDR_V4;
-		} else {
-			vxlrt->vxlrt_dst_v6 = addr->address.ip_v6;
-			vxlrt->vxlrt_flags |= IFBAF_ADDR_V6;
-		}
-	}
-
-	/* Entry is marked used */
-	rte_atomic32_clear(&vxlrt->vxlrt_unused);
-}
-
-static void
-vxlan_rtnode_free(struct rcu_head *head)
-{
-	free(caa_container_of(head, struct vxlan_rtnode, vxlrt_rcu));
-}
-
-/* Destroy a vxlan rtnode. */
-static void
-vxlan_rtnode_destroy(struct vxlan_rtnode *vxlrt)
-{
-	call_rcu(&vxlrt->vxlrt_rcu, vxlan_rtnode_free);
-}
-
-/* Create lock free hash table. */
-static void
-vxlan_rtable_init(struct vxlan_softc *sc)
-{
-	sc->scvx_rthash = cds_lfht_new(VXLAN_RTHASH_MIN,
-				     VXLAN_RTHASH_MIN,
-				     VXLAN_RTHASH_MAX,
-				     CDS_LFHT_AUTO_RESIZE,
-				     NULL);
-	if (sc->scvx_rthash == NULL)
-		rte_panic("Can't allocate rthash\n");
 }
 
 /* Should route entry be expired?
