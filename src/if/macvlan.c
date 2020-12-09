@@ -179,7 +179,7 @@ macvlan_create(struct ifnet *ifp, const char *mvl_name,
 	}
 
 	vifp = if_alloc(mvl_name, IFT_MACVLAN, ifp->if_mtu, eth_addr,
-			ifp->if_socket);
+			ifp->if_socket, NULL);
 	if (vifp) {
 		vifp->if_parent = ifp;
 		if_port_inherit(ifp, vifp);

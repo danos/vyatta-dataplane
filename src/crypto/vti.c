@@ -298,7 +298,7 @@ vti_tunnel_create(int ifindex, const char *ifname,
 	 * take care of doing fragmentation.
 	 */
 	ifp = if_alloc(ifname, IFT_TUNNEL_VTI, UINT16_MAX, addr,
-		       SOCKET_ID_ANY);
+		       SOCKET_ID_ANY, NULL);
 	if (!ifp) {
 		VTI_ERR("%s: can't allocate ifnet\n", ifname);
 		goto free_ctxt;

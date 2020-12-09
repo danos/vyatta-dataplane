@@ -118,7 +118,7 @@ struct ifnet *lo_or_dummy_create(enum cont_src_en cont_src,
 		return ifp;
 	}
 
-	ifp = if_alloc(ifname, IFT_LOOP, mtu, eth_addr, SOCKET_ID_ANY);
+	ifp = if_alloc(ifname, IFT_LOOP, mtu, eth_addr, SOCKET_ID_ANY, NULL);
 	if (!ifp)
 		rte_panic("out of memory for lo ifnet\n");
 
@@ -168,7 +168,7 @@ static struct ifnet *ppp_create(unsigned int ifindex, const char *ifname,
 		return ifp;
 	}
 
-	ifp = if_alloc(ifname, IFT_PPP, mtu, eth_addr, SOCKET_ID_ANY);
+	ifp = if_alloc(ifname, IFT_PPP, mtu, eth_addr, SOCKET_ID_ANY, NULL);
 	if (!ifp)
 		rte_panic("out of memory for ppp ifnet\n");
 
@@ -191,7 +191,7 @@ static struct ifnet *other_tunnel_create(unsigned int ifindex,
 	}
 
 	ifp = if_alloc(ifname, IFT_TUNNEL_OTHER, mtu, eth_addr,
-		       SOCKET_ID_ANY);
+		       SOCKET_ID_ANY, NULL);
 	if (!ifp)
 		rte_panic("out of memory for tunnel ifnet\n");
 
@@ -214,7 +214,7 @@ static struct ifnet *pimreg_tunnel_create(unsigned int ifindex,
 	}
 
 	ifp = if_alloc(ifname, IFT_TUNNEL_PIMREG, mtu, eth_addr,
-		       SOCKET_ID_ANY);
+		       SOCKET_ID_ANY, NULL);
 	if (!ifp)
 		rte_panic("out of memory for tunnel ifnet\n");
 

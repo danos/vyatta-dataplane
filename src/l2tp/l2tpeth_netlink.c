@@ -634,7 +634,7 @@ l2tpeth_create_internal(const char *ifname, unsigned int mtu,
 {
 	struct ifnet *ifp;
 
-	ifp = if_alloc(ifname, IFT_L2TPETH, mtu, addr, SOCKET_ID_ANY);
+	ifp = if_alloc(ifname, IFT_L2TPETH, mtu, addr, SOCKET_ID_ANY, NULL);
 	if (!ifp)
 		goto bad;
 

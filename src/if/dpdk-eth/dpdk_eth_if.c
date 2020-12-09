@@ -1434,7 +1434,8 @@ if_hwport_init(const char *if_name, unsigned int portid,
 		return NULL;
 	}
 
-	ifp = if_alloc(if_name, IFT_ETHER, RTE_ETHER_MTU, eth, socketid);
+	ifp = if_alloc(if_name, IFT_ETHER, RTE_ETHER_MTU, eth, socketid,
+		       &portid);
 	if (!ifp)
 		return NULL;
 
