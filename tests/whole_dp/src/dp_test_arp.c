@@ -476,7 +476,7 @@ dp_test_create_and_send_garp_msg(const char *ifname,
 
 	garp_config__pack(&garp, buf2);
 
-	dp_test_lib_pb_wrap_and_send_pb("vyatta:cmd_arp_cfg", buf2, len);
+	dp_test_lib_pb_wrap_and_send_pb("vyatta:garp", buf2, len);
 }
 
 static void

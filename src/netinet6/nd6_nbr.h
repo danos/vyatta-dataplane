@@ -80,7 +80,6 @@ lla_lookup6(struct lltable *llt, const struct in6_addr *addr);
 int nd6_lladdr_add(struct ifnet *ifp, struct in6_addr *addr,
 		   const struct rte_ether_addr *mac, uint16_t state,
 		   uint8_t ntf_flags);
-int cmd_nd6_set_cfg(FILE *f, int argc, char **argv);
 int cmd_nd6_get_cfg(FILE *f);
 
 /* Minimized inline link address lookup */

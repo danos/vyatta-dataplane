@@ -82,6 +82,8 @@
 #include "nd6.h"
 #include "nd6_nbr.h"
 #include "pktmbuf_internal.h"
+#include "protobuf.h"
+#include "protobuf/NbrResConfig.pb-c.h"
 #include "snmp_mib.h"
 #include "urcu.h"
 #include "util.h"
@@ -1328,7 +1330,6 @@ nd6_entry_destroy(struct lltable *llt, struct llentry *lle)
 	pkts_dropped = llentry_destroy(llt, lle);
 
 	ND6NBR_ADD(dropped, pkts_dropped);
-	rte_atomic32_dec(&llt->lle_size);
 }
 
 /*
@@ -1814,69 +1815,85 @@ void in6_lladdr_timer(struct rte_timer *tim __rte_unused, void *arg)
 }
 
 /*
- * nd6 {set|delete} all <param name> <param value>
+ * nd6-cfg ND6 {SET|DELETE} <param enum> <param value>
  */
-int cmd_nd6_set_cfg(FILE *f, int argc, char **argv)
+static int cmd_nd6_cfg_handler(struct pb_msg *pbmsg)
 {
-	bool set = false;
-	int val = 0;
+	NbrResConfig *msg = nbr_res_config__unpack(NULL, pbmsg->msg_len,
+							 pbmsg->msg);
+	uint32_t val;
+	char *ifname;
+	int ret = -1;
+	bool set;
 
-	if (!argc || strcmp(argv[0], "nd6") != 0)
-		goto error;
-
-	if (!strcmp(argv[1], "set")) {
-		if (argc < 5)
-			goto error;
-		if (get_signed(argv[4], &val) < 0)
-			goto error;
-		if (val <= 0)
-			goto error;
-		set = true;
-	} else if (!strcmp(argv[1], "delete")) {
-		if (argc < 4)
-			goto error;
-	} else {
-		goto error;
+	if (!msg) {
+		RTE_LOG(ERR, ND6,
+			"Cfg failed to read NbrResConfig protobuf cmd\n");
+		return ret;
 	}
-
-	if (strcmp(argv[2], "all") != 0) {
-		fprintf(f, "Per-interface ND param config not supported\n");
-		goto error;
+	if (msg->prot != NBR_RES_CONFIG__PROT__ND6) {
+		RTE_LOG(ERR, ND6,
+			"Cfg incorrect protocol (%d)\n", msg->prot);
+		goto end;
 	}
+	ifname = msg->ifname;
+	if (ifname && (*ifname != '\0' && strncmp("all", ifname, 4) != 0)) {
+		RTE_LOG(ERR, ND6,
+			"Cfg per-interface config not yet supported\n");
+		goto end;
+	}
+	set = msg->action == NBR_RES_CONFIG__ACTION__SET;
+	val = msg->value;
 
-	if (!strcmp(argv[3], "max-entry")) {
+	switch (msg->param) {
+	case NBR_RES_CONFIG__PARAM__MAX_ENTRY:
 		/*
 		 * Changes to cache size only impact subsequent resolutions.
 		 * So if cache size is reduced to less than the number of
 		 * entries for an interface, then the latter number decreases
 		 * only as entries fail to re-resolve.
 		 */
+		if (set && (int)val <= 0) {
+			RTE_LOG(ERR, ND6,
+				"Cfg max entry value %d out of range\n", val);
+			goto end;
+		}
 		nd6_cfg.nd6_max_entry = set ? val : ND6_MAX_ENTRY;
 		ND6_DEBUG("Cfg param nd6_max_entry (cache size) set to: %d\n",
 			  nd6_cfg.nd6_max_entry);
-	} else if (!strcmp(argv[3], "res-token")) {
+		break;
+	case NBR_RES_CONFIG__PARAM__RES_TOKEN:
 		/*
 		 * Changes to resolution throttling only impact subsequent
 		 * resolutions. So if this limit is reduced to less than the
 		 * number of pending resolutions for an interface in a given
 		 * second, these are not affected. Value must be a +ve int16_t.
 		 */
-		if (val >= 1 << 15)
-			goto error;
+		if (set && (val == 0 || val >= 1 << 15)) {
+			RTE_LOG(ERR, ND6,
+				"Cfg res token value %d out of range\n", val);
+			goto end;
+		}
 		nd6_cfg.nd6_res_token = set ? val : ND6_RES_TOKEN;
 		ND6_DEBUG("Cfg param nd6_res_token (resolution throttling) set "
 			  "to: %d\n", nd6_cfg.nd6_res_token);
-	} else {
-		goto error;
+		break;
+	default:
+		RTE_LOG(ERR, ND6,
+			"Cfg parameter not supported (%d)\n", msg->param);
+		goto end;
 	}
 
-	return 0;
-
-error:
-	fprintf(f,
-		"Usage: nd6 {set|delete} all {max-entry|res-token} <value>\n");
-	return -1;
+	ret = 0;
+end:
+	nbr_res_config__free_unpacked(msg, NULL);
+	return ret;
 }
+
+PB_REGISTER_CMD(nd6_cfg_cmd) = {
+	.cmd = "vyatta:nd6",
+	.handler = cmd_nd6_cfg_handler,
+};
 
 int cmd_nd6_get_cfg(FILE *f)
 {

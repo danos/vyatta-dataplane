@@ -544,10 +544,9 @@ static int nbr_res_flush(FILE *f, sa_family_t af, int argc, char **argv)
 /* Process get sub-command */
 static int nbr_res_get_cfg(FILE *f, sa_family_t af)
 {
-	if (af == AF_INET) {
-		fprintf(f, "Parameter config not supported for ARP\n");
-		return -1;
-	}
+	if (af == AF_INET)
+		return cmd_arp_get_cfg(f);
+
 	return cmd_nd6_get_cfg(f);
 }
 
@@ -659,12 +658,12 @@ int cmd_arp(FILE *f, int argc, char **argv)
 }
 
 /*
- * cmd_arp_cfg_handler (replacing cmd_garp)
+ * cmd_garp_cfg_handler (replacing cmd_garp)
  * Protobuf handler for gratuitous arp commands.
  * See the GArpConfig.proto file for details.
  */
 static int
-cmd_arp_cfg_handler(struct pb_msg *msg)
+cmd_garp_cfg_handler(struct pb_msg *msg)
 {
 	void *payload = (void *)((char *)msg->msg);
 	int len = msg->msg_len;
@@ -719,9 +718,9 @@ end:
 	return ret;
 }
 
-PB_REGISTER_CMD(arp_cfg) = {
-	.cmd = "vyatta:cmd_arp_cfg",
-	.handler = cmd_arp_cfg_handler,
+PB_REGISTER_CMD(garp_cfg_cmd) = {
+	.cmd = "vyatta:garp",
+	.handler = cmd_garp_cfg_handler,
 };
 
 /* Process "nd6 ..." command */

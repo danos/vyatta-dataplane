@@ -25,6 +25,15 @@ int arpresolve(struct ifnet *ifp, struct rte_mbuf *m,
 int arpresolve_fast(struct ifnet *ifp, struct rte_mbuf *m,
 		in_addr_t addr, struct rte_ether_addr *desten);
 
+struct arp_nbr_cfg {
+	uint32_t arp_aging_time;
+	int32_t  arp_max_entry;
+};
+
+extern struct arp_nbr_cfg arp_cfg;
+
+#define ARP_CFG(param) (arp_cfg.param)
+
 struct arp_stats {
 	uint64_t txrequests;	/* # of ARP requests sent by this host. */
 	uint64_t txreplies;	/* # of ARP replies sent by this host. */
@@ -42,6 +51,8 @@ struct arp_stats {
 	uint64_t garp_reqs_dropped; /* # of GARP requests dropped */
 	uint64_t garp_reps_dropped; /* # of GARP replies dropped */
 	uint64_t mpoolfail;	/* Memory pool limit hit */
+	uint64_t memfail;	/* Out of memory hit */
+	uint64_t tablimit;	/* Cache limit hit */
 };
 
 #define ARPSTAT_ADD(vrf_id, name, val)			\
@@ -59,5 +70,6 @@ void arp_walk(const struct ifnet *, ll_walkhash_f_t *, void *);
 struct rte_mbuf *arprequest(struct ifnet *ifp, struct sockaddr *sa);
 
 void arp_entry_destroy(struct lltable *llt, struct llentry *lle);
+int cmd_arp_get_cfg(FILE *f);
 
 #endif /* ARP_H */

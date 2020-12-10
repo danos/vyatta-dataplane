@@ -186,6 +186,8 @@ llentry_destroy(struct lltable *llt, struct llentry *lle)
 				SINGLE, rte_get_master_lcore(),
 				lladdr_timer, llt);
 
+	rte_atomic32_dec(&llt->lle_size);
+
 	return dropped;
 }
 

@@ -49,6 +49,7 @@
 
 #define ARP_MAXHOLD	8	/* packets held until entry resolved */
 #define ARP_MAXPROBES	5	/* send at most 5 requests  */
+#define ARP_MAX_ENTRY   INT32_MAX /* default maximum number of entries */
 
 /* timer values */
 #define ARPT_KEEP	(20*60)	/* once resolved, good for 20 * minutes */

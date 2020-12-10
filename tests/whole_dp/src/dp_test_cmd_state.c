@@ -210,7 +210,7 @@ _dp_test_neigh_clear_entry(const char *ifname, const char *ipaddr,
 		lle = in_lltable_lookup(ifp, 0, addr.addr.ipv4);
 		if (lle)
 			rte_atomic16_test_and_set(&lle->ll_idle);
-		in_lltable_lookup(ifp, LLE_DELETE, addr.addr.ipv4);
+		in_lltable_lookup(ifp, LLE_DELETE | LLE_LOCAL, addr.addr.ipv4);
 		break;
 	case AF_INET6:
 		lle = in6_lltable_lookup(ifp, 0, &addr.addr.ipv6);

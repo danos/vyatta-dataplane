@@ -49,6 +49,7 @@
 #include <sys/types.h>
 #include <urcu/list.h>
 
+#include "arp.h"
 #include "dp_event.h"
 #include "fal.h"
 #include "if_ether.h"
@@ -83,9 +84,17 @@ in_lltable_lookup(struct ifnet *ifp, u_int flags, in_addr_t addr)
 		if (!(flags & LLE_CREATE))
 			return NULL;
 
-		lle = llentry_new(&sin, sizeof(sin), ifp);
-		if (lle == NULL)
+		if (rte_atomic32_read(&llt->lle_size) >=
+		    ARP_CFG(arp_max_entry)) {
+			ARPSTAT_INC(if_vrfid(ifp), tablimit);
 			return NULL;
+		}
+
+		lle = llentry_new(&sin, sizeof(sin), ifp);
+		if (unlikely(!lle)) {
+			ARPSTAT_INC(if_vrfid(ifp), memfail);
+			return NULL;
+		}
 
 		lle->la_flags = flags & ~LLE_CREATE;
 		if (if_is_features_mode_active(
@@ -101,6 +110,7 @@ in_lltable_lookup(struct ifnet *ifp, u_int flags, in_addr_t addr)
 			llentry_free(lle);
 			lle = caa_container_of(node, struct llentry, ll_node);
 		} else {
+			rte_atomic32_inc(&llt->lle_size);
 			/* if on main thread */
 			if (is_main_thread() && if_is_features_mode_active(
 				    ifp, IF_FEAT_MODE_EVENT_L3_FAL_ENABLED)) {
@@ -132,12 +142,14 @@ in_lltable_lookup(struct ifnet *ifp, u_int flags, in_addr_t addr)
 	} else if (unlikely(flags & LLE_DELETE)) {
 		/*
 		 * Only delete static or idle entries.
-		 * Leave dynamic in-use entries to time out - kernel may
-		 * think they are stale but they may be in active use
-		 * by the dataplane.
+		 * Leave dynamic entries to time out if they are in use or
+		 * created locally (unless the deletion is for local entries).
+		 * An entry that is stale and being removed in the kernel may
+		 * be in active use in the dataplane.
 		 */
 		if ((lle->la_flags & LLE_STATIC) ||
-		    !llentry_has_been_used(lle)) {
+		    ((!(lle->la_flags & LLE_LOCAL) || (flags & LLE_LOCAL)) &&
+		     !llentry_has_been_used(lle))) {
 			rte_spinlock_lock(&lle->ll_lock);
 			arp_entry_destroy(llt, lle);
 			rte_spinlock_unlock(&lle->ll_lock);

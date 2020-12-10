@@ -58,6 +58,8 @@
 #include "main.h"
 #include "nh_common.h"
 #include "pktmbuf_internal.h"
+#include "protobuf.h"
+#include "protobuf/NbrResConfig.pb-c.h"
 #include "route.h"
 #include "route_flags.h"
 #include "urcu.h"
@@ -92,9 +94,20 @@ struct	ether_arp {
 #define	arp_pln	ea_hdr.ar_pln
 #define	arp_op	ea_hdr.ar_op
 
+/*
+ * ARP does not yet have a state machine where entries go into REACHABLE state,
+ * but use this to ensure entries are not aged out before this time.
+ */
+#define ARP_REACHABLE_TIME 30
+
 /* Debugging messages */
 #define ARP_DEBUG(format, args...)	\
 	DP_DEBUG(ARP, DEBUG, ARP, format, ##args)
+
+struct arp_nbr_cfg arp_cfg = {
+	.arp_aging_time = ARPT_KEEP,
+	.arp_max_entry  = ARP_MAX_ENTRY,
+};
 
 static struct garp_cfg garp_cfg = {
 	.garp_req_default = 1,
@@ -247,10 +260,8 @@ resolved:
 	if (la == NULL) {
 		la = in_lltable_lookup(ifp, LLE_CREATE|LLE_LOCAL, addr);
 
-		/* out of memory */
+		/* out of memory or cache limit hit */
 		if (unlikely(la == NULL)) {
-			RTE_LOG(NOTICE, ARP,
-				"lltable_lookup create failed\n");
 			rte_pktmbuf_free(m);
 			return -ENOMEM;
 		}
@@ -426,4 +437,104 @@ arp_entry_destroy(struct lltable *llt, struct llentry *lle)
 
 	pkts_dropped = llentry_destroy(llt, lle);
 	ARPSTAT_ADD(if_vrfid(llt->llt_ifp), dropped, pkts_dropped);
+}
+
+/*
+ * arp-cfg ARP {SET|DELETE} <param enum> <param value>
+ */
+static int cmd_arp_cfg_handler(struct pb_msg *pbmsg)
+{
+	NbrResConfig *msg = nbr_res_config__unpack(NULL, pbmsg->msg_len,
+							 pbmsg->msg);
+	uint32_t val;
+	char *ifname;
+	int ret = -1;
+	bool set;
+
+	if (!msg) {
+		RTE_LOG(ERR, ARP,
+			"Cfg failed to read NbrResConfig protobuf cmd\n");
+		return ret;
+	}
+	if (msg->prot != NBR_RES_CONFIG__PROT__ARP) {
+		RTE_LOG(ERR, ARP,
+			"Cfg incorrect protocol (%d)\n", msg->prot);
+		goto end;
+	}
+	ifname = msg->ifname;
+	if (ifname && (*ifname != '\0' && strncmp("all", ifname, 4) != 0)) {
+		RTE_LOG(ERR, ARP,
+			"Cfg per-interface config not yet supported\n");
+		goto end;
+	}
+	set = msg->action == NBR_RES_CONFIG__ACTION__SET;
+	val = msg->value;
+
+	switch (msg->param) {
+	case NBR_RES_CONFIG__PARAM__AGING_TIME:
+		/*
+		 * While ARP does not have a reachable time (30s) before entries
+		 * can go stale due to it not yet having a state machine, ensure
+		 * that entries cannot be aged out in less than this time.
+		 */
+		if (set && val < ARP_REACHABLE_TIME) {
+			RTE_LOG(ERR, ARP,
+				"Cfg res token value %d out of range\n", val);
+			goto end;
+		}
+		arp_cfg.arp_aging_time = set ? val : ARPT_KEEP;
+		ARP_DEBUG("Cfg param arp_aging_time (arp timeout) set to: %d\n",
+			  arp_cfg.arp_aging_time);
+		break;
+	case NBR_RES_CONFIG__PARAM__MAX_ENTRY:
+		/*
+		 * Changes to cache size only impact subsequent resolutions.
+		 * So if cache size is reduced to less than the number of
+		 * entries for an interface, then the latter number decreases
+		 * only as entries fail to re-resolve.
+		 */
+		if (set && (int)val <= 0) {
+			RTE_LOG(ERR, ARP,
+				"Cfg max entry value %d out of range\n", val);
+			goto end;
+		}
+		arp_cfg.arp_max_entry = set ? val : ARP_MAX_ENTRY;
+		ARP_DEBUG("Cfg param arp_max_entry (cache size) set to: %d\n",
+			  arp_cfg.arp_max_entry);
+		break;
+	default:
+		RTE_LOG(ERR, ARP,
+			"Cfg parameter not supported (%d)\n", msg->param);
+		goto end;
+	}
+
+	ret = 0;
+end:
+	nbr_res_config__free_unpacked(msg, NULL);
+	return ret;
+}
+
+PB_REGISTER_CMD(arp_cfg_cmd) = {
+	.cmd = "vyatta:arp",
+	.handler = cmd_arp_cfg_handler,
+};
+
+int cmd_arp_get_cfg(FILE *f)
+{
+	json_writer_t *wr = jsonw_new(f);
+
+	if (!wr) {
+		RTE_LOG(NOTICE, DATAPLANE,
+			"arp: Error creating JSON object for cfg params\n");
+		return -1;
+	}
+
+	jsonw_pretty(wr, true);
+
+	jsonw_uint_field(wr, "Aging time",	   arp_cfg.arp_aging_time);
+	jsonw_int_field(wr, "Max entries",	   arp_cfg.arp_max_entry);
+
+	jsonw_destroy(&wr);
+
+	return 0;
 }

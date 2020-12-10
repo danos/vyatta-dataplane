@@ -177,16 +177,18 @@ void lladdr_update(struct ifnet *ifp, struct llentry *la,
 
 	rte_spinlock_unlock(&la->ll_lock);
 
-	if (was_valid)
-		LLADDR_DEBUG("%s moved from %s to %s on %s\n",
-			     lladdr_ntop(la),
-			     ether_ntoa_r(&old_enaddr, b1),
-			     ether_ntoa_r(enaddr, b2),
-			     ifp->if_name);
-	else
+	if (was_valid) {
+		if (!rte_ether_addr_equal(enaddr, &old_enaddr))
+			LLADDR_DEBUG("%s moved from %s to %s on %s\n",
+				     lladdr_ntop(la),
+				     ether_ntoa_r(&old_enaddr, b1),
+				     ether_ntoa_r(enaddr, b2),
+				     ifp->if_name);
+	} else {
 		LLADDR_DEBUG("entry for %s resolved to %s\n",
 			     lladdr_ntop(la),
 			     ether_ntoa_r(enaddr, b1));
+	}
 
 	if (!was_valid) {
 		/* now valid: release any pending packets */
@@ -212,11 +214,17 @@ void lladdr_update(struct ifnet *ifp, struct llentry *la,
 
 	/* entry updated */
 	rte_atomic16_clear(&la->ll_idle);
-	la->ll_expire = rte_get_timer_cycles() + rte_get_timer_hz() * ARPT_KEEP;
+
+	/* Expiry time is updated in ll_age() for entries not just added */
+	if (la->ll_expire)
+		return;
+
+	la->ll_expire = rte_get_timer_cycles() +
+		rte_get_timer_hz() * ARP_CFG(arp_aging_time);
 
 	/* Extend the timeout for locally created proxy entries */
-	if (la->la_flags & (LLE_LOCAL | LLE_PROXY))
-		la->ll_expire += rte_get_timer_hz() * ARPT_KEEP;
+	if ((la->la_flags & LLE_LOCAL) && (la->la_flags & LLE_PROXY))
+		la->ll_expire += rte_get_timer_hz() * ARP_CFG(arp_aging_time);
 }
 
 static int
@@ -399,11 +407,13 @@ static void ll_probe(struct lltable *llt, struct llentry *la)
 static void ll_age(struct lltable *llt, struct llentry *lle, uint64_t cur_time)
 {
 	if (llentry_has_been_used_and_clear(lle)) {
-		lle->ll_expire = cur_time + rte_get_timer_hz() * ARPT_KEEP;
+		lle->ll_expire =
+			cur_time + rte_get_timer_hz() * ARP_CFG(arp_aging_time);
 
 		/* Extend the timeout for locally created proxy entries */
-		if (lle->la_flags & (LLE_LOCAL | LLE_PROXY))
-			lle->ll_expire += rte_get_timer_hz() * ARPT_KEEP;
+		if ((lle->la_flags & LLE_LOCAL) && (lle->la_flags & LLE_PROXY))
+			lle->ll_expire +=
+				rte_get_timer_hz() * ARP_CFG(arp_aging_time);
 
 	} else if ((int64_t)(cur_time - lle->ll_expire) >= 0) {
 		LLADDR_DEBUG("expire entry for %s, flags %#x\n",
