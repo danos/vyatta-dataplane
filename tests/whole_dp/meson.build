@@ -286,3 +286,13 @@ foreach suite : check_tests + ['dp_test_pipeline.c']
 	endif
 
 endforeach
+
+valgrind = find_program('valgrind', required: false)
+if valgrind.found()
+        add_test_setup('valgrind',
+                exe_wrapper : [valgrind,
+                        '--error-exitcode=1', '--tool=memcheck', '--leak-check=full', '--show-reachable=no',
+                        '--suppressions=@0@'.format(meson.current_source_dir() / 'valgrind_suppressions')
+                ],
+                timeout_multiplier : 100)
+endif
