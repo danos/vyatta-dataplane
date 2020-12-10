@@ -1199,7 +1199,7 @@ static int ip6_mdq(struct mcast6_vrf *mvrf6, struct rte_mbuf *m,
 static void sg6_cnt_update(struct vrf *vrf, struct mf6c *rt,
 			   bool last_mfc_deletion)
 {
-	struct sioc_sg_req6 sr;
+	struct sioc_sg_req6 sr = { 0 };
 	uint32_t flags = 0;
 
 	enum fal_ip_mcast_entry_stat_type cntr_ids[] = {
