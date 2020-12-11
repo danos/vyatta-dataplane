@@ -34,6 +34,7 @@
 
 #include "npf/nat/nat_pool_public.h"
 #include "npf/cgnat/cgn.h"
+#include "npf/cgnat/cgn_test.h"
 #include "npf/apm/apm.h"
 #include "npf/cgnat/cgn_limits.h"
 #include "npf/cgnat/cgn_policy.h"

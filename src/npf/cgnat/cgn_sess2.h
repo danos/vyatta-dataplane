@@ -162,7 +162,4 @@ uint64_t cgn_sess2_pkts_in_tot(struct cgn_sess2 *s2);
 uint64_t cgn_sess2_bytes_in_tot(struct cgn_sess2 *s2);
 uint8_t cgn_sess2_dir(struct cgn_sess2 *s2);
 
-/* Used by unit-tests only */
-size_t cgn_sess2_size(void);
-
 #endif

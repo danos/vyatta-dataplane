@@ -11,6 +11,7 @@
 #include <errno.h>
 #include <netinet/in.h>
 #include <linux/if.h>
+#include <rte_log.h>
 
 #include "compiler.h"
 #include "if_var.h"
@@ -18,6 +19,7 @@
 #include "soft_ticks.h"
 #include "czmq.h"
 #include "zmq_dp.h"
+#include "vplane_log.h"
 
 #include "npf/cgnat/cgn.h"
 #include "npf/cgnat/cgn_log.h"

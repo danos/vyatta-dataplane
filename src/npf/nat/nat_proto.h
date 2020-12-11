@@ -7,6 +7,7 @@
 #ifndef _NAT_PROTO_H_
 #define _NAT_PROTO_H_
 
+#include <netinet/in.h>
 
 /*
  * Protocol classification

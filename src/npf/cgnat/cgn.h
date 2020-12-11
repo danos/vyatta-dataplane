@@ -12,8 +12,6 @@
 #include <stdint.h>
 
 #include <rte_atomic.h>
-#include <rte_log.h>
-#include "vplane_log.h"
 
 /*
  * Packet direction relative to interface with cgnat policy.  Note that this
@@ -40,13 +38,5 @@ extern bool cgn_hairpinning_gbl;
 extern bool cgn_snat_alg_bypass_gbl;
 extern rte_atomic64_t cgn_sess2_ht_created;
 extern rte_atomic64_t cgn_sess2_ht_destroyed;
-
-/* For unit-tests */
-struct ifnet;
-struct rte_mbuf;
-
-void dp_test_npf_clear_cgnat(void);
-bool ipv4_cgnat_test(struct rte_mbuf **mbufp, struct ifnet *ifp,
-		     int dir, int *error);
 
 #endif

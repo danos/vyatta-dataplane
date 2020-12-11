@@ -121,9 +121,6 @@ void cgn_sess_list_show(void);
 
 void cgn_session_cleanup(void);
 
-/* Used by unit-tests only */
-size_t cgn_session_size(void);
-
 /* Session Logging thread */
 int cgn_set_helper_thread(unsigned int core_num);
 int cgn_disable_helper_thread(void);

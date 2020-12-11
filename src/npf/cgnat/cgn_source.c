@@ -16,12 +16,14 @@
 #include <linux/if.h>
 #include <dpdk/rte_jhash.h>
 #include <urcu/list.h>
+#include <rte_log.h>
 
 #include "compiler.h"
 #include "if_var.h"
 #include "urcu.h"
 #include "util.h"
 #include "soft_ticks.h"
+#include "vplane_log.h"
 
 #include "npf/npf_addrgrp.h"
 #include "npf/nat/nat_proto.h"

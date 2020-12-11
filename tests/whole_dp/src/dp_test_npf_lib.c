@@ -20,6 +20,7 @@
 #include "npf/npf_timeouts.h"
 #include "npf/alg/alg_npf.h"
 #include "npf/alg/alg.h"
+#include "npf/cgnat/cgn_test.h"
 
 #include "dp_test.h"
 #include "dp_test_lib_internal.h"

@@ -5,17 +5,19 @@
  */
 
 /**
- * @file cgn.c - CGNAT module init and uninit and other global functions.
+ * @file cgn.c - CGNAT global variables and event handlers.
  */
 
 #include <errno.h>
 #include <netinet/in.h>
 #include <linux/if.h>
+#include <rte_log.h>
 
 #include "compiler.h"
 #include "if_var.h"
 #include "util.h"
 #include "dp_event.h"
+#include "vplane_log.h"
 
 #include "npf/cgnat/cgn.h"
 #include "npf/cgnat/cgn_rc.h"
@@ -126,12 +128,3 @@ static const struct dp_event_ops cgn_event_ops = {
 
 /* Register event handler */
 DP_STARTUP_EVENT_REGISTER(cgn_event_ops);
-
-
-/* Called from unit-tests */
-void dp_test_npf_clear_cgnat(void)
-{
-	cgn_session_cleanup();
-	apm_cleanup();
-	cgn_source_cleanup();
-}

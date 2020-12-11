@@ -42,6 +42,7 @@
 #include "npf/cgnat/cgn_public.h"
 #include "npf/cgnat/cgn_session.h"
 #include "npf/cgnat/cgn_source.h"
+#include "npf/cgnat/cgn_test.h"
 
 
 enum cgnat_result {

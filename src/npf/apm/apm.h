@@ -12,7 +12,12 @@
 #ifndef _APM_H_
 #define _APM_H_
 
+#include <values.h>
+#include <stdint.h>
 #include <urcu/list.h>
+
+#include "if_var.h"
+#include "urcu.h"
 
 #include "npf/nat/nat_proto.h"
 
