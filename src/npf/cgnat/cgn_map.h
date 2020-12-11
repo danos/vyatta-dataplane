@@ -30,7 +30,7 @@ cgn_map_get2(struct cgn_policy *cp, vrfid_t vrfid, uint8_t proto,
 	     uint32_t oaddr, uint32_t taddr, uint16_t tport,
 	     struct cgn_source **srcp);
 
-int cgn_map_put(struct nat_pool *np, vrfid_t vrfid, int dir, uint8_t proto,
+int cgn_map_put(struct nat_pool *np, vrfid_t vrfid, uint8_t proto,
 		uint32_t oaddr, uint32_t taddr, uint16_t tport);
 
 void cgn_alloc_pool_available(struct nat_pool *np, struct apm *apm);

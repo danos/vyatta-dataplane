@@ -20,7 +20,8 @@
 enum cgn_dir {
 	CGN_DIR_IN = 0,
 	CGN_DIR_OUT = 1
-};
+} __attribute__ ((__packed__));
+
 #define CGN_DIR_SZ 2
 
 static inline enum cgn_dir cgn_reverse_dir(enum cgn_dir dir)

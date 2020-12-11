@@ -252,7 +252,7 @@ static inline const char *cgn_sess_event_str(enum cgn_sess_event event)
 	return "???";
 }
 
-static inline const char *cgn_dir_str(uint dir)
+static inline const char *cgn_dir_str(enum cgn_dir dir)
 {
 	switch (dir) {
 	case CGN_DIR_OUT:
@@ -275,7 +275,7 @@ void cgn_sess_state_init(struct cgn_state *st, uint8_t proto, uint16_t port);
  * start_time	Session start time, unix epoch microseconds
  */
 void cgn_sess_state_inspect(struct cgn_state *st, struct cgn_packet *cpk,
-			    int dir, uint64_t start_time);
+			    enum cgn_dir dir, uint64_t start_time);
 
 /*
  * Get state-dependent expiry time

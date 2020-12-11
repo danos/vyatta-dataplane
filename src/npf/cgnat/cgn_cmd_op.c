@@ -141,7 +141,8 @@ static void cgn_show_summary(FILE *f, int argc __unused, char **argv __unused)
 /*
  * Write json for errors in one direction
  */
-static void cgn_show_errors_dir(json_writer_t *json, int dir, const char *name)
+static void cgn_show_errors_dir(json_writer_t *json, enum cgn_dir dir,
+				const char *name)
 {
 	uint64_t count;
 	int err;

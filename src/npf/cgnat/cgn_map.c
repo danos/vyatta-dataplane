@@ -811,8 +811,8 @@ error:
  *   3. session is reaped by garbage collector
  *   4. session clear command
  */
-int cgn_map_put(struct nat_pool *np, vrfid_t vrfid, int dir __unused,
-		uint8_t proto, uint32_t oaddr,	uint32_t taddr, uint16_t tport)
+int cgn_map_put(struct nat_pool *np, vrfid_t vrfid, uint8_t proto,
+		uint32_t oaddr, uint32_t taddr, uint16_t tport)
 {
 	struct cgn_source *src;
 	struct apm *apm;

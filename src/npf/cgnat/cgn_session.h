@@ -8,6 +8,7 @@
 #define _CGN_SESSION_H_
 
 #include "util.h"
+#include "npf/cgnat/cgn.h"
 
 struct cgn_3tuple_key;
 struct cgn_session;
@@ -52,21 +53,22 @@ uint16_t cgn_session_get_l4_delta(const struct cgn_session *cse, bool forw);
  * tid     - translation ID
  * add_dst - Add 2-tuple table
  */
-struct cgn_session *cgn_session_establish(struct cgn_packet *cpk, int dir,
+struct cgn_session *cgn_session_establish(struct cgn_packet *cpk,
+					  enum cgn_dir dir,
 					  uint32_t taddr, uint16_t tid,
 					  int *error, struct cgn_source *src);
 
 int cgn_session_activate(struct cgn_session *cse,
-			 struct cgn_packet *cpk, int dir);
+			 struct cgn_packet *cpk, enum cgn_dir dir);
 
 void cgn_session_destroy(struct cgn_session *cse, bool rcu_free);
 
 struct cgn_session *cgn_session_lookup(const struct cgn_3tuple_key *key,
-				       int dir);
-struct cgn_session *cgn_session_inspect(struct cgn_packet *cpk, int dir,
-					int *error);
+				       enum cgn_dir dir);
+struct cgn_session *cgn_session_inspect(struct cgn_packet *cpk,
+					enum cgn_dir dir, int *error);
 struct cgn_session *cgn_session_lookup_icmp_err(struct cgn_packet *cpk,
-						int dir);
+						enum cgn_dir dir);
 
 struct cgn_session *cgn_session_find_cached(struct rte_mbuf *mbuf);
 

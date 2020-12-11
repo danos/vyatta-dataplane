@@ -131,10 +131,10 @@ void cgn_sess_s2_disable(struct cgn_sess_s2 *cs2);
 int16_t cgn_sess_s2_count(struct cgn_sess_s2 *cs2);
 struct cgn_sess2 *cgn_sess_s2_establish(struct cgn_sess_s2 *cs2,
 					struct cgn_packet *cpk,
-					int dir, int *error);
+					enum cgn_dir dir, int *error);
 int cgn_sess_s2_activate(struct cgn_sess_s2 *cs2, struct cgn_sess2 *s2);
 struct cgn_sess2 *cgn_sess_s2_inspect(struct cgn_sess_s2 *cs2,
-				      struct cgn_packet *cpk, int dir);
+				      struct cgn_packet *cpk, enum cgn_dir dir);
 uint cgn_sess_s2_fltr_count(struct cgn_sess_s2 *cs2,
 			    struct cgn_sess_fltr *fltr);
 uint32_t cgn_sess_s2_unexpired(struct cgn_sess_s2 *cs2);

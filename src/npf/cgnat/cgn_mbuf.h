@@ -59,7 +59,7 @@ struct cgn_packet {
  * Init the direction dependent part of the hash key in the packet cache
  * structure.
  */
-static inline void cgn_pkt_key_init(struct cgn_packet *cpk, int dir)
+static inline void cgn_pkt_key_init(struct cgn_packet *cpk, enum cgn_dir dir)
 {
 	if (dir == CGN_DIR_OUT) {
 		/* Hash key is source address and port */
@@ -170,7 +170,7 @@ static inline void cgn_rwricmpid(char *l4_ptr, uint16_t new_id)
 }
 
 int cgn_cache_all(struct rte_mbuf *m, uint l3_offset, struct ifnet *ifp,
-		  int dir, struct cgn_packet *cpk, bool icmp_err);
+		  enum cgn_dir dir, struct cgn_packet *cpk, bool icmp_err);
 
 void cgn_rwrcksums(struct cgn_packet *cpk, void *n_ptr,
 		   uint16_t l3_chk_delta, uint16_t l4_chk_delta);

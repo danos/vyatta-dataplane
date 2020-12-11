@@ -271,15 +271,15 @@ cgn_sess_state_init(struct cgn_state *st, uint8_t proto, uint16_t port)
  * start_time	Session start time, unix epoch microseconds
  */
 void
-cgn_sess_state_inspect(struct cgn_state *st, struct cgn_packet *cpk, int dir,
-		       uint64_t start_time)
+cgn_sess_state_inspect(struct cgn_state *st, struct cgn_packet *cpk,
+		       enum cgn_dir dir, uint64_t start_time)
 {
 	uint8_t new;
 
 	rte_spinlock_lock(&st->st_lock);
 
 	if (st->st_proto == NAT_PROTO_TCP) {
-		bool forw = (dir == CGN_DIR_FORW);
+		bool forw = (dir == CGN_DIR_OUT);
 		enum cgn_tcp_event event;
 		uint64_t rtt;
 

@@ -11,6 +11,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "npf/cgnat/cgn.h"
+
 /*
  * Used by CGNAT unit-tests only
  */
@@ -20,7 +22,7 @@ struct rte_mbuf;
 
 void dp_test_npf_clear_cgnat(void);
 bool ipv4_cgnat_test(struct rte_mbuf **mbufp, struct ifnet *ifp,
-		     int dir, int *error);
+		     enum cgn_dir dir, int *error);
 size_t cgn_session_size(void);
 size_t cgn_sess2_size(void);
 

@@ -202,7 +202,7 @@ cgn_parse_l4(struct rte_mbuf *m, uint l4_offset, uint8_t ipproto,
  * Extract the fields we need from the mbuf
  */
 int cgn_cache_all(struct rte_mbuf *m, uint l3_offset, struct ifnet *ifp,
-		  int dir, struct cgn_packet *cpk, bool icmp_err)
+		  enum cgn_dir dir, struct cgn_packet *cpk, bool icmp_err)
 {
 	unsigned char buf[sizeof(struct iphdr)];
 	struct iphdr *ip;

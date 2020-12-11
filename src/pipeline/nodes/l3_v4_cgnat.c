@@ -57,7 +57,8 @@ enum cgnat_result {
 #include "npf/alg/alg_npf.h"
 
 static inline bool
-ipv4_cgnat_out_bypass(struct ifnet *ifp, struct rte_mbuf *mbuf, int dir)
+ipv4_cgnat_out_bypass(struct ifnet *ifp, struct rte_mbuf *mbuf,
+		      enum cgn_dir dir)
 {
 	/* Check bypass enable/disable option */
 	if (likely(!cgn_snat_alg_bypass_gbl))
@@ -86,7 +87,7 @@ ipv4_cgnat_out_bypass(struct ifnet *ifp, struct rte_mbuf *mbuf, int dir)
  */
 static struct cgn_session *
 cgnat_try_initial(struct ifnet *ifp, struct cgn_packet *cpk,
-		  struct rte_mbuf *mbuf, int dir, int *error)
+		  struct rte_mbuf *mbuf, enum cgn_dir dir, int *error)
 {
 	struct cgn_source *src = NULL;
 	struct cgn_session *cse;
@@ -137,7 +138,7 @@ cgnat_try_initial(struct ifnet *ifp, struct cgn_packet *cpk,
 	cse = cgn_session_establish(cpk, dir, taddr, tport, error, src);
 	if (!cse) {
 		/* Release mapping */
-		cgn_map_put(cp->cp_pool, vrfid, dir, cpk->cpk_proto, oaddr,
+		cgn_map_put(cp->cp_pool, vrfid, cpk->cpk_proto, oaddr,
 			    taddr, tport);
 		return NULL;
 	}
@@ -161,7 +162,7 @@ cgnat_try_initial(struct ifnet *ifp, struct cgn_packet *cpk,
  */
 static ALWAYS_INLINE void
 cgn_translate_at(struct cgn_packet *cpk, struct cgn_session *cse,
-		 int dir, void *n_ptr, bool embd, bool undo)
+		 enum cgn_dir dir, void *n_ptr, bool embd, bool undo)
 {
 	uint32_t taddr;
 	uint16_t tport;
@@ -243,7 +244,7 @@ cgn_translate_at(struct cgn_packet *cpk, struct cgn_session *cse,
  */
 static void
 cgn_untranslate_at(struct cgn_packet *cpk, struct cgn_session *cse,
-		   int dir, void *n_ptr)
+		   enum cgn_dir dir, void *n_ptr)
 {
 	cgn_translate_at(cpk, cse, dir, n_ptr, false, true);
 }
@@ -254,7 +255,7 @@ cgn_untranslate_at(struct cgn_packet *cpk, struct cgn_session *cse,
  * Translate the outer IP header of an ICMP error message.
  */
 static void
-cgn_translate_l3_at(struct cgn_packet *cpk, int dir, void *n_ptr,
+cgn_translate_l3_at(struct cgn_packet *cpk, enum cgn_dir dir, void *n_ptr,
 		    uint32_t new_addr)
 {
 	uint32_t old_addr;
@@ -305,7 +306,7 @@ struct rte_mbuf *cgn_copy_or_clone_and_undo(struct rte_mbuf *mbuf,
 	if (!cse)
 		return NULL;
 
-	int dir = did_cgnat_out ? CGN_DIR_OUT : CGN_DIR_IN;
+	enum cgn_dir dir = did_cgnat_out ? CGN_DIR_OUT : CGN_DIR_IN;
 
 	/* Validate the session */
 	struct ifnet *cse_ifp =
@@ -346,12 +347,12 @@ struct rte_mbuf *cgn_copy_or_clone_and_undo(struct rte_mbuf *mbuf,
  * ICMP error message.  Look for a cgnat'd embedded packet, and translate if
  * found.
  *
- * If an error is encounted then we just return a single error number,
+ * If an error is encountered then we just return a single error number,
  * '-CGN_BUF_ICMP' regardless of the actual error.
  */
 static int
 ipv4_cgnat_icmp_err(struct cgn_packet *ocpk, struct ifnet *ifp,
-		    struct rte_mbuf **mbufp, int dir)
+		    struct rte_mbuf **mbufp, enum cgn_dir dir)
 {
 	struct rte_mbuf *mbuf = *mbufp;
 	struct cgn_session *cse;
@@ -486,7 +487,7 @@ ipv4_cgnat_icmp_err(struct cgn_packet *ocpk, struct ifnet *ifp,
  */
 static enum cgnat_result
 ipv4_cgnat_common(struct cgn_packet *cpk, struct ifnet *ifp,
-		  struct rte_mbuf **mbufp, int dir, int *errorp)
+		  struct rte_mbuf **mbufp, enum cgn_dir dir, int *errorp)
 {
 	enum cgnat_result result = CGNAT_ACCEPT;
 	struct rte_mbuf *mbuf = NULL;
@@ -666,7 +667,7 @@ error:
  * Unit-test wrapper around cgnat
  */
 bool ipv4_cgnat_test(struct rte_mbuf **mbufp, struct ifnet *ifp,
-		     int dir, int *error)
+		     enum cgn_dir dir, int *error)
 {
 	enum cgnat_result result;
 	struct rte_mbuf *mbuf = *mbufp;

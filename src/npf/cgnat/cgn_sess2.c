@@ -334,7 +334,7 @@ static int cgn_sess2_match(struct cds_lfht_node *node, const void *key)
  */
 struct cgn_sess2 *
 cgn_sess_s2_establish(struct cgn_sess_s2 *cs2, struct cgn_packet *cpk,
-		      int dir, int *error)
+		      enum cgn_dir dir, int *error)
 {
 	struct cgn_sess2 *s2;
 
@@ -469,7 +469,7 @@ cgn_sess2_deactivate(struct cgn_sess_s2 *cs2, struct cgn_sess2 *s2)
 /* Populate lookup key from packet cache */
 static inline void
 cgn_sess2_lookup_key_from_cpk(struct cgn_2tuple_key *key,
-			      struct cgn_packet *cpk, int dir)
+			      struct cgn_packet *cpk, enum cgn_dir dir)
 {
 	key->k_expired = false;
 	key->k_pad = 0;
@@ -511,7 +511,8 @@ cgn_sess2_lookup(struct cgn_sess_s2 *cs2, struct cgn_2tuple_key *key)
  * Does the cached packet match a destination session?
  */
 struct cgn_sess2 *
-cgn_sess_s2_inspect(struct cgn_sess_s2 *cs2, struct cgn_packet *cpk, int dir)
+cgn_sess_s2_inspect(struct cgn_sess_s2 *cs2, struct cgn_packet *cpk,
+		    enum cgn_dir dir)
 {
 	struct cgn_2tuple_key key;
 	struct cgn_sess2 *s2;

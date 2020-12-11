@@ -135,7 +135,8 @@ static_assert(offsetof(struct cgn_policy, cp_sess_rate_list) == 128,
 static_assert(offsetof(struct cgn_policy, cp_name) == 192,
 	      "third cache line exceeded");
 
-bool cgn_policy_record_dest(struct cgn_policy *cp, uint32_t addr, int dir);
+bool cgn_policy_record_dest(struct cgn_policy *cp, uint32_t addr,
+			    enum cgn_dir dir);
 
 void cgn_policy_update_stats(struct cgn_policy *cp,
 			     uint64_t pkts_out, uint64_t bytes_out,
