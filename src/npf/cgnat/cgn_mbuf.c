@@ -51,7 +51,7 @@ static int cgn_decode_icmp(struct cgn_packet *cpk, void *l4)
 	cpk->cpk_l4ports = false;
 	cpk->cpk_info |= CPK_ICMP;
 	cpk->cpk_cksum = ic->icmp_cksum;
-	cpk->cpk_hlen += sizeof(struct icmp);
+	cpk->cpk_l4_len = sizeof(struct icmp);
 
 	switch (ic->icmp_type) {
 	case ICMP_ECHO:
@@ -137,7 +137,7 @@ cgn_parse_l4(struct rte_mbuf *m, uint l4_offset, uint8_t ipproto,
 			cpk->cpk_l4ports = true;
 
 			if (unlikely(cpk->cpk_info & CPK_ICMP_EMBD_SHORT)) {
-				cpk->cpk_hlen += ICMP_ERROR_MIN_L4_SIZE;
+				cpk->cpk_l4_len = ICMP_ERROR_MIN_L4_SIZE;
 				break;
 			}
 
@@ -148,7 +148,7 @@ cgn_parse_l4(struct rte_mbuf *m, uint l4_offset, uint8_t ipproto,
 				cpk->cpk_keepalive = false;
 
 			cpk->cpk_cksum = tcp->check;
-			cpk->cpk_hlen += sizeof(struct tcphdr);
+			cpk->cpk_l4_len = sizeof(struct tcphdr);
 			break;
 		}
 	case IPPROTO_DCCP:
@@ -162,7 +162,7 @@ cgn_parse_l4(struct rte_mbuf *m, uint l4_offset, uint8_t ipproto,
 			cpk->cpk_cksum = dh->dc_checksum;
 
 			if (unlikely(cpk->cpk_info & CPK_ICMP_EMBD_SHORT)) {
-				cpk->cpk_hlen += ICMP_ERROR_MIN_L4_SIZE;
+				cpk->cpk_l4_len = ICMP_ERROR_MIN_L4_SIZE;
 				break;
 			}
 			uint8_t type = (dh->dc_res_type_x >> 1) & 0x0f;
@@ -170,7 +170,7 @@ cgn_parse_l4(struct rte_mbuf *m, uint l4_offset, uint8_t ipproto,
 			if (type == DCCP_RESP || type == DCCP_RST)
 				cpk->cpk_keepalive = false;
 
-			cpk->cpk_hlen += sizeof(struct cgn_dccp);
+			cpk->cpk_l4_len = sizeof(struct cgn_dccp);
 			break;
 		}
 	case IPPROTO_UDP:
@@ -183,7 +183,7 @@ cgn_parse_l4(struct rte_mbuf *m, uint l4_offset, uint8_t ipproto,
 			cpk->cpk_did = udp->dest;
 			cpk->cpk_l4ports = true;
 			cpk->cpk_cksum = udp->check;
-			cpk->cpk_hlen += sizeof(struct udphdr);
+			cpk->cpk_l4_len = sizeof(struct udphdr);
 			break;
 		}
 	case IPPROTO_ICMP:
@@ -224,7 +224,7 @@ int cgn_cache_all(struct rte_mbuf *m, uint l3_offset, struct ifnet *ifp,
 	cpk->cpk_vrfid    = pktmbuf_get_vrf(m);
 	cpk->cpk_len      = rte_pktmbuf_pkt_len(m) - dp_pktmbuf_l2_len(m);
 	cpk->cpk_l3_len   = ip->ihl << 2;
-	cpk->cpk_hlen     = cpk->cpk_l3_len;
+	cpk->cpk_l4_len   = 0;
 	cpk->cpk_keepalive = true;
 	cpk->cpk_pkt_instd = true;
 	cpk->cpk_sid      = 0;

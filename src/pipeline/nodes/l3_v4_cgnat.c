@@ -379,7 +379,9 @@ ipv4_cgnat_icmp_err(struct cgn_packet *ocpk, struct ifnet *ifp,
 	 * Ensure both the outer and inner headers are both in the first mbuf
 	 * segment.
 	 */
-	error = pktmbuf_prepare_for_header_change(mbufp, offs + ecpk.cpk_hlen);
+	error = pktmbuf_prepare_for_header_change(mbufp, offs +
+						  ecpk.cpk_l3_len +
+						  ecpk.cpk_l4_len);
 	if (error)
 		return -CGN_BUF_ICMP;
 
@@ -539,7 +541,8 @@ translate:
 	 */
 	error = pktmbuf_prepare_for_header_change(mbufp,
 						  dp_pktmbuf_l2_len(*mbufp) +
-						  cpk->cpk_hlen);
+						  cpk->cpk_l3_len +
+						  cpk->cpk_l4_len);
 	if (unlikely(error)) {
 		error = -CGN_BUF_ENOMEM;
 		goto error;

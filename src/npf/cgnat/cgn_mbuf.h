@@ -37,20 +37,25 @@ struct cgn_packet {
 
 	uint32_t	cpk_ifindex;
 	uint32_t	cpk_info;
+
 	vrfid_t		cpk_vrfid;	/* VRF id */
 	uint8_t		cpk_keepalive:1; /* Can we clear idle flag? */
 	uint8_t		cpk_pkt_instd:1;
 	uint8_t		cpk_tcp_flags;
 	uint8_t		cpk_proto;	/* tcp, udp, other enum */
 	uint8_t		cpk_l4ports;	/* true if there are l4ports*/
+
 	uint16_t	cpk_cksum;	/* l4 checksum */
-	uint16_t	cpk_sid;
-	uint16_t	cpk_did;
-	uint32_t	cpk_saddr;
-	uint32_t	cpk_daddr;
-	uint32_t	cpk_l3_len;	/* IP header length */
-	uint32_t	cpk_hlen;	/* l3 + l4 */
-	size_t		cpk_len;	/* l3 + l4 + data */
+	uint16_t	cpk_sid;	/* source port or id */
+	uint16_t	cpk_did;	/* dest port or id */
+	uint8_t		cpk_pad1[2];
+
+	uint32_t	cpk_saddr;	/* source address */
+	uint32_t	cpk_daddr;	/* destination address */
+
+	uint16_t	cpk_l3_len;	/* IP header length */
+	uint16_t	cpk_l4_len;	/* L4 header length */
+	uint32_t	cpk_len;	/* l3 + l4 + data */
 };
 
 #define cpk_ipproto	cpk_key.k_ipproto
