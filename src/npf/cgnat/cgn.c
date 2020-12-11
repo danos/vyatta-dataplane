@@ -50,20 +50,6 @@ rte_atomic64_t cgn_sess2_ht_created;
 rte_atomic64_t cgn_sess2_ht_destroyed;
 
 /*
- * Extract an integer from a string
- */
-int cgn_arg_to_int(const char *arg)
-{
-	char *p;
-	unsigned long val = strtoul(arg, &p, 10);
-
-	if (p == arg || val > INT_MAX)
-		return -1;
-
-	return (uint32_t) val;
-}
-
-/*
  * NAT pool has been de-activated.  Clear all sessions and mappings that
  * derive from this nat pool.
  */

@@ -9,6 +9,9 @@
 
 #include "npf/npf_addr.h"
 
+/* Extract int from string */
+int cgn_arg_to_int(const char *arg);
+
 /* npf_rule_gen.c */
 int npf_parse_ip_addr(char *value, sa_family_t *fam, npf_addr_t *addr,
 		      npf_netmask_t *masklen, bool *negate);

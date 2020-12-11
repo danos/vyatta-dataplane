@@ -49,9 +49,6 @@ struct rte_mbuf *cgn_copy_or_clone_and_undo(struct rte_mbuf *mbuf,
 					    const struct ifnet *out_if,
 					    bool copy);
 
-/* Extract int from string */
-int cgn_arg_to_int(const char *arg);
-
 /* For unit-tests */
 void dp_test_npf_clear_cgnat(void);
 bool ipv4_cgnat_test(struct rte_mbuf **mbufp, struct ifnet *ifp,
