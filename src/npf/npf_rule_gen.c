@@ -1999,7 +1999,7 @@ npf_get_rule_match_string(zhashx_t *config_ht, char *buf, size_t *used_buf_len,
 	value = zhashx_lookup(config_ht, "ipv6-route");
 	if (value)
 		buf_app_printf(buf, used_buf_len, total_buf_len,
-			       "type %s ", value);
+			       "RH-type %s ", value);
 
 	value = zhashx_lookup(config_ht, "icmpv4");
 	if (!value)
