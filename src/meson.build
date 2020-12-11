@@ -164,6 +164,10 @@ not_for_test_sources = files(
         'shadow_receive.c'
 )
 
+gpc_sources = files(
+        'gpc/gpc_config.c'
+)
+
 npf_sources = files(
         'npf/alg/alg_apt.c',
         'npf/apm/apm.c',
@@ -317,6 +321,7 @@ dataplane_common_sources = [
         core_sources,
         crypto_sources,
         dpi_sources,
+        gpc_sources,
         ipv6_sources,
         mpls_sources,
         npf_sources,
