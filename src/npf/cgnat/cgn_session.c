@@ -143,31 +143,17 @@ static_assert(sizeof(struct cgn_session) == 256,
 	      "cgn_session structure: larger than expected");
 
 /* session hash tables */
-struct cds_lfht *cgn_sess_ht[CGN_DIR_SZ];
+static struct cds_lfht *cgn_sess_ht[CGN_DIR_SZ];
 
 /* GC Timer */
-struct rte_timer cgn_gc_timer;
+static struct rte_timer cgn_gc_timer;
 
-/* cs_id resource */
+/*
+ * Monotonically increasing count.  Used to assign a value to a new session
+ * in the sessions cs_id object.  Wraps when it reaches max.
+ */
 static rte_atomic32_t cgn_id_resource;
 
-/* max 3-tuple sessions, and sessions used */
-int32_t cgn_sessions_max = CGN_SESSIONS_MAX;
-
-/* Global count of all 3-tuple sessions */
-rte_atomic32_t cgn_sessions_used;
-
-/* max 2-tuple sessions per 3-tuple session*/
-int16_t cgn_dest_sessions_max = CGN_DEST_SESSIONS_INIT;
-
-/* Size of 2-tuple hash table that may be added per 3-tuple session */
-int16_t cgn_dest_ht_max = CGN_DEST_SESSIONS_INIT;
-
-/* Global count of all 5-tuple sessions */
-rte_atomic32_t cgn_sess2_used;
-
-/* Set true when table is full.  Re-evaluated after GC. */
-bool cgn_session_table_full;
 
 /* Forward references */
 static void cgn_session_expire_all(bool clear_map, bool restart_timer);
@@ -196,8 +182,6 @@ static struct rte_timer session_table_threshold_timer;
 	if (!is_cgn_helper_thread()) \
 		rte_panic("not on cgnat helper thread\n"); \
 }
-
-uint8_t cgn_helper_thread_enabled;
 
 #define CGN_HELPER_INVALID_CORE_NUM	UINT_MAX
 

@@ -19,23 +19,6 @@ struct cgn_sess2;
 struct nat_pool;
 struct ifnet;
 
-
-extern int32_t cgn_sessions_max;
-extern int16_t cgn_dest_sessions_max;
-extern int16_t cgn_dest_ht_max;
-
-/* Global count of all 3-tuple sessions */
-extern rte_atomic32_t cgn_sessions_used;
-
-/* Global count of all 5-tuple sessions */
-extern rte_atomic32_t cgn_sess2_used;
-
-/* Is session table full? */
-extern bool cgn_session_table_full;
-
-/* Is CGNAT helper core enabled? */
-extern uint8_t cgn_helper_thread_enabled;
-
 uint32_t cgn_session_ifindex(struct cgn_session *cse);
 uint32_t cgn_session_id(struct cgn_session *cse);
 

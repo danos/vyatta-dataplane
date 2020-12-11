@@ -33,14 +33,14 @@
 #include "npf/nat/nat_pool_public.h"
 
 
-/*
- * cgnat globals
- */
+/**************************************************************************
+ * CGNAT Global Variables
+ **************************************************************************/
 
 /* Hairpinning config enable/disable */
 bool cgn_hairpinning_gbl = true;
 
-/* snat-alg-bypass enable/disable */
+/* snat-alg-bypass config enable/disable */
 bool cgn_snat_alg_bypass_gbl;
 
 /*
@@ -50,6 +50,37 @@ bool cgn_snat_alg_bypass_gbl;
  */
 rte_atomic64_t cgn_sess2_ht_created;
 rte_atomic64_t cgn_sess2_ht_destroyed;
+
+/* max 3-tuple sessions, and sessions used */
+int32_t cgn_sessions_max = CGN_SESSIONS_MAX;
+
+/*
+ * Count of all 3-tuple sessions.  Incremented and compared against
+ * cgn_sessions_max before a 3-tuple session is created.  If it exceeds
+ * cgn_sessions_max then cgn_session_table_full is set true.  It is
+ * decremented by the GC routine a time after the session has expired.
+ */
+rte_atomic32_t cgn_sessions_used;
+
+/* max 2-tuple sessions per 3-tuple session*/
+int16_t cgn_dest_sessions_max = CGN_DEST_SESSIONS_INIT;
+
+/* Size of 2-tuple hash table that may be added per 3-tuple session */
+int16_t cgn_dest_ht_max = CGN_DEST_SESSIONS_INIT;
+
+/* Global count of all 5-tuple sessions */
+rte_atomic32_t cgn_sess2_used;
+
+/* Set true when table is full.  Re-evaluated after GC. */
+bool cgn_session_table_full;
+
+/* Is CGNAT helper core enabled? */
+uint8_t cgn_helper_thread_enabled;
+
+
+/**************************************************************************
+ * CGNAT Event Handlers
+ **************************************************************************/
 
 /*
  * NAT pool has been de-activated.  Clear all sessions and mappings that
