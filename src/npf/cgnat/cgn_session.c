@@ -600,14 +600,12 @@ cgn_session_establish(struct cgn_packet *cpk, int dir,
 		return NULL;
 	}
 
-	if (dir == CGN_DIR_OUT) {
-		oaddr = cpk->cpk_saddr;
-		oid   = cpk->cpk_sid;
-		dst_port = cpk->cpk_did;
-	} else {
-		oaddr = cpk->cpk_daddr;
-		oid   = cpk->cpk_did;
-	}
+	/* Sessions are only ever created by outbound flows/ctx */
+	assert(dir == CGN_DIR_OUT);
+
+	oaddr = cpk->cpk_saddr;
+	oid   = cpk->cpk_sid;
+	dst_port = cpk->cpk_did;
 
 	cse = cgn_session_create(error);
 	if (!cse) {

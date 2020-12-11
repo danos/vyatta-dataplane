@@ -96,10 +96,12 @@ cgnat_try_initial(struct ifnet *ifp, struct cgn_packet *cpk,
 	uint16_t tport;
 	vrfid_t vrfid = cpk->cpk_vrfid;
 
-	if (dir == CGN_DIR_OUT)
-		oaddr = cpk->cpk_saddr;
-	else
-		oaddr = cpk->cpk_daddr;
+	if (unlikely(dir == CGN_DIR_IN)) {
+		*error = -CGN_SESS_ENOENT;
+		return NULL;
+	}
+
+	oaddr = cpk->cpk_saddr;
 
 	/*
 	 * Lookup source address in policy list on the interface
