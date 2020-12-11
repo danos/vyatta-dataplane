@@ -19,6 +19,7 @@
 #include "npf/cgnat/cgn_mbuf.h"
 #include "npf/cgnat/cgn_sess2.h"
 #include "npf/cgnat/cgn_sess_state.h"
+#include "npf/cgnat/cgn_time.h"
 
 /*
  * NAT TCP State Machine for 5-tuple TCP sessions (rfc7857)

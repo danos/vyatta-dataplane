@@ -49,18 +49,6 @@ struct rte_mbuf *cgn_copy_or_clone_and_undo(struct rte_mbuf *mbuf,
 					    const struct ifnet *out_if,
 					    bool copy);
 
-/* Dataplane uptime in seconds. Accurate to 10 millisecs. */
-uint32_t cgn_uptime_secs(void);
-
-/* Unix epoch time in microseconds. */
-uint64_t cgn_time_usecs(void);
-
-/* Convert a soft_ticks value in milliseconds to an Epoch time in microsecs */
-uint64_t cgn_ticks2timestamp(uint64_t ticks);
-
-/* Convert start time in soft_ticks into duration in microseconds */
-uint64_t cgn_start2duration(uint64_t start_time);
-
 /* Extract int from string */
 int cgn_arg_to_int(const char *arg);
 

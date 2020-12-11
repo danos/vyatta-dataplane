@@ -46,6 +46,7 @@
 #include "npf/cgnat/cgn_mbuf.h"
 #include "npf/cgnat/cgn_log.h"
 #include "npf/cgnat/cgn_if.h"
+#include "npf/cgnat/cgn_time.h"
 
 DP_DECL_TEST_SUITE(npf_cgnat);
 

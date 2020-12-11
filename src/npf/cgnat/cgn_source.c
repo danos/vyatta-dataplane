@@ -35,6 +35,7 @@
 #include "npf/cgnat/cgn_source.h"
 #include "npf/cgnat/cgn_limits.h"
 #include "npf/cgnat/cgn_log.h"
+#include "npf/cgnat/cgn_time.h"
 
 
 /* source GC Timer */

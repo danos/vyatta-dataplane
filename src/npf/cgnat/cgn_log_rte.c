@@ -24,6 +24,7 @@
 #include "npf/cgnat/cgn_sess_state.h"
 #include "npf/cgnat/cgn_session.h"
 #include "npf/cgnat/cgn_sess2.h"
+#include "npf/cgnat/cgn_time.h"
 #include "npf/nat/nat_pool.h"
 
 #define ADDR_CHARS 16

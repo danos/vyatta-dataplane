@@ -32,7 +32,6 @@
 #include <rte_jhash.h>
 #include <rte_mbuf.h>
 #include <rte_timer.h>
-#include <time.h>
 
 #include "compiler.h"
 #include "if_var.h"
@@ -61,6 +60,7 @@
 #include "npf/cgnat/cgn_sess2.h"
 #include "npf/cgnat/cgn_sess_state.h"
 #include "npf/cgnat/cgn_source.h"
+#include "npf/cgnat/cgn_time.h"
 
 
 /*
