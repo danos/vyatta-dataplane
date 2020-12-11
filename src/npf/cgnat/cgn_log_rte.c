@@ -32,6 +32,17 @@
 	rte_log(level, RTE_LOGTYPE_CGNAT, "CGNAT: " __VA_ARGS__)
 
 /*
+ * Format an IPv4 host-byte ordered address
+ */
+static char *cgn_addrstr(uint32_t addr, char *str, size_t slen)
+{
+	snprintf(str, slen, "%u.%u.%u.%u",
+		 (addr >> 24) & 0xFF, (addr >> 16) & 0xFF,
+		 (addr >>  8) & 0xFF, addr & 0xFF);
+	return str;
+}
+
+/*
  * Log subscriber session start - SUBSCRIBER_START
  */
 static void cl_rte_log_subscriber_start(uint32_t addr)

@@ -162,17 +162,6 @@ int cgn_arg_to_int(const char *arg)
 }
 
 /*
- * Format an IPv4 host-byte ordered address
- */
-char *cgn_addrstr(uint32_t addr, char *str, size_t slen)
-{
-	snprintf(str, slen, "%u.%u.%u.%u",
-		 (addr >> 24) & 0xFF, (addr >> 16) & 0xFF,
-		 (addr >>  8) & 0xFF, addr & 0xFF);
-	return str;
-}
-
-/*
  * NAT pool has been de-activated.  Clear all sessions and mappings that
  * derive from this nat pool.
  */

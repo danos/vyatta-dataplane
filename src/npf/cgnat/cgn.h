@@ -64,9 +64,6 @@ uint64_t cgn_start2duration(uint64_t start_time);
 /* Extract int from string */
 int cgn_arg_to_int(const char *arg);
 
-/* Format host byte order address to string */
-char *cgn_addrstr(uint32_t addr, char *str, size_t slen);
-
 /* For unit-tests */
 void dp_test_npf_clear_cgnat(void);
 bool ipv4_cgnat_test(struct rte_mbuf **mbufp, struct ifnet *ifp,
