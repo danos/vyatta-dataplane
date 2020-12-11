@@ -18,7 +18,7 @@
 #include "npf/nat/nat_proto.h"
 
 #include "npf/cgnat/cgn.h"
-#include "npf/cgnat/cgn_errno.h"
+#include "npf/cgnat/cgn_rc.h"
 #include "npf/cgnat/cgn_if.h"
 #include "npf/cgnat/cgn_mbuf.h"
 

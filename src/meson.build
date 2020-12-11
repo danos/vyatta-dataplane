@@ -191,6 +191,7 @@ npf_sources = files(
         'npf/cgnat/cgn_map.c',
         'npf/cgnat/cgn_mbuf.c',
         'npf/cgnat/cgn_policy.c',
+        'npf/cgnat/cgn_rc.c',
         'npf/cgnat/cgn_session.c',
         'npf/cgnat/cgn_sess2.c',
         'npf/cgnat/cgn_sess_state.c',

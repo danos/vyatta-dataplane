@@ -1,16 +1,16 @@
 /*
- * Copyright (c) 2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2019-2020, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
 
 /*
- * CGNAT error numbers.  We try to account for every packet disposition in
+ * CGNAT return codes.  We try to account for every packet disposition in
  * both directions.
  */
 
-#ifndef _CGN_ERRNO_H_
-#define _CGN_ERRNO_H_
+#ifndef _CGN_RC_H_
+#define _CGN_RC_H_
 
 #include "npf/cgnat/cgn.h"
 
@@ -127,6 +127,8 @@ static ALWAYS_INLINE void cgn_rc_inc(enum cgn_dir dir, int error)
 
 uint64_t cgn_rc_read(enum cgn_dir dir, enum cgn_rc_en rc);
 void cgn_rc_clear(enum cgn_dir dir, enum cgn_rc_en rc);
+void cgn_rc_init(void);
+void cgn_rc_uninit(void);
 
 static inline const char *cgn_rc_str(int error)
 {

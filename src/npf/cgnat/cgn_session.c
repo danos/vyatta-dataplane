@@ -49,7 +49,7 @@
 #include "npf/cgnat/cgn.h"
 #include "npf/apm/apm.h"
 #include "npf/cgnat/cgn_cmd_cfg.h"
-#include "npf/cgnat/cgn_errno.h"
+#include "npf/cgnat/cgn_rc.h"
 #include "npf/cgnat/cgn_if.h"
 #include "npf/cgnat/cgn_hash_key.h"
 #include "npf/cgnat/cgn_limits.h"

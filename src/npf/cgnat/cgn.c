@@ -20,10 +20,9 @@
 #include "dp_event.h"
 
 #include "npf/cgnat/cgn.h"
-#include "npf/cgnat/cgn_errno.h"
+#include "npf/cgnat/cgn_rc.h"
 #include "npf/apm/apm.h"
 #include "npf/cgnat/cgn_cmd_cfg.h"
-#include "npf/cgnat/cgn_errno.h"
 #include "npf/cgnat/cgn_if.h"
 #include "npf/cgnat/cgn_policy.h"
 #include "npf/cgnat/cgn_session.h"
@@ -57,52 +56,6 @@ rte_atomic64_t cgn_sess2_ht_destroyed;
  * soft_ticks in order to get a 'unix epoch' millisec time.
  */
 static uint64_t cgn_epoch_ms;
-
-/* Return code and error counters. */
-struct cgn_rc_t *cgn_rc;
-
-uint64_t cgn_rc_read(enum cgn_dir dir, enum cgn_rc_en rc)
-{
-	uint64_t sum;
-	uint i;
-
-	if (rc >= CGN_RC_SZ || dir >= CGN_DIR_SZ || !cgn_rc)
-		return 0UL;
-
-	sum = 0UL;
-	FOREACH_DP_LCORE(i)
-		sum += cgn_rc[i].dir[dir].count[rc];
-
-	return sum;
-}
-
-void cgn_rc_clear(enum cgn_dir dir, enum cgn_rc_en rc)
-{
-	uint i;
-
-	if (rc >= CGN_RC_SZ || dir >= CGN_DIR_SZ || !cgn_rc)
-		return;
-
-	FOREACH_DP_LCORE(i)
-		cgn_rc[i].dir[dir].count[rc] = 0UL;
-}
-
-/*
- * Init cgnat global per-core return code counters
- */
-static void cgn_rc_init(void)
-{
-	if (cgn_rc)
-		return;
-
-	cgn_rc = zmalloc_aligned((get_lcore_max() + 1) * sizeof(*cgn_rc));
-}
-
-static void cgn_rc_uninit(void)
-{
-	free(cgn_rc);
-	cgn_rc = NULL;
-}
 
 /*
  * Dataplane uptime in seconds. Accurate to 10 millisecs.  Used to expire

@@ -25,7 +25,7 @@
 
 #include "npf/cgnat/cgn.h"
 #include "npf/apm/apm.h"
-#include "npf/cgnat/cgn_errno.h"
+#include "npf/cgnat/cgn_rc.h"
 #include "npf/cgnat/cgn_limits.h"
 #include "npf/cgnat/cgn_log.h"
 #include "npf/cgnat/cgn_map.h"
