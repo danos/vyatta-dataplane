@@ -15,9 +15,6 @@
 #include <rte_log.h>
 #include "vplane_log.h"
 
-struct ifnet;
-struct rte_mbuf;
-
 /*
  * Packet direction relative to interface with cgnat policy.  Note that this
  * is 1 bit in 'struct cgn_sess2'.
@@ -44,12 +41,10 @@ extern bool cgn_snat_alg_bypass_gbl;
 extern rte_atomic64_t cgn_sess2_ht_created;
 extern rte_atomic64_t cgn_sess2_ht_destroyed;
 
-struct rte_mbuf *cgn_copy_or_clone_and_undo(struct rte_mbuf *mbuf,
-					    const struct ifnet *in_ifp,
-					    const struct ifnet *out_if,
-					    bool copy);
-
 /* For unit-tests */
+struct ifnet;
+struct rte_mbuf;
+
 void dp_test_npf_clear_cgnat(void);
 bool ipv4_cgnat_test(struct rte_mbuf **mbufp, struct ifnet *ifp,
 		     int dir, int *error);

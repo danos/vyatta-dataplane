@@ -61,7 +61,7 @@
 #include "util.h"
 #include "nh_common.h"
 #include "npf/npf_nat.h"
-#include "npf/cgnat/cgn.h"
+#include "npf/cgnat/cgn_public.h"
 #include "fal.h"
 #include "netinet6/ip6_funcs.h"
 #include "vplane_log.h"

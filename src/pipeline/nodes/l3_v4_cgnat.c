@@ -39,6 +39,7 @@
 #include "npf/cgnat/cgn_map.h"
 #include "npf/cgnat/cgn_mbuf.h"
 #include "npf/cgnat/cgn_policy.h"
+#include "npf/cgnat/cgn_public.h"
 #include "npf/cgnat/cgn_session.h"
 #include "npf/cgnat/cgn_source.h"
 
