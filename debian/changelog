@@ -1,3 +1,30 @@
+vyatta-dataplane (3.12.11) unstable; urgency=medium
+
+  [ Mandeep Rohilla ]
+  * IF EVT: Allow intf type specific context to be passed
+  * IF EVT: Add customised initialisation for different int type
+
+  [ Simon Barber ]
+  * CRYPTO: Disable xfrm_direct path if xfrms received from vplaned
+  * CRYPTO: Pass xfrm_client_aux_data to rtnl_process_xfrm_sa
+  * CRYPTO: Add xfrm client flush and commits commands
+  * UT:CRYPTO: Add support to crypto for flush & commit cmd from xfrm_server
+  * UT:CRYPTO Test new flush command
+
+  [ Mike Manning ]
+  * Provide config params for ARP aging time and maximum number of entries
+  * Check for ARP cache limit when maximum number of entries exceeded
+  * Modify GArp protobuf command from cmd_arp_cfg to garp
+  * Convert configuration command for ND to using protobufs
+  * Allow configuration of ARP aging time and maximum number of entries
+  * ARP dynamic local entries should not be removed due to kernel deletions
+  * Extend time to expiry only for locally created proxy entries
+  * Minor improvements to lladdr_update() for use by pipelined arp
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Thu, 10 Dec 2020 14:09:00 +0000
+
 vyatta-dataplane (3.12.10) unstable; urgency=medium
 
   [ Paul Atkins ]
