@@ -29,6 +29,7 @@
 #include "route_flags.h"
 #include "route_v6.h"
 #include "urcu.h"
+#include "npf/npf.h"
 
 static RTE_DEFINE_PER_LCORE(struct next_hop, ll_nexthop);
 
@@ -128,6 +129,13 @@ ipv6_post_route_lookup_process(struct pl_packet *pkt, void *context __unused)
 			return IPV6_POST_ROUTE_LOOKUP_FINISH;
 		}
 		icmp6_redirect(ifp, pkt->mbuf, nxt);
+		/*
+		 * Cache will have been used for handling
+		 * the ICMPv6 redirect, so ensure it is created
+		 * again when continuing with the original
+		 * packet.
+		 */
+		pkt->npf_flags |= NPF_FLAG_CACHE_EMPTY;
 	}
 
 	/* macvlan mac passthrough check & replace ifp */

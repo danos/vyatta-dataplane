@@ -312,9 +312,16 @@ void ip_out_features(struct rte_mbuf *m, struct ifnet *ifp,
 		 */
 		if (unlikely(nxt_ifp == ifp)) {
 			if (ip_same_network(ifp, addr, ip->saddr) &&
-			    ip_redirects_get())
+			    ip_redirects_get()) {
 				icmp_error(ifp, m, ICMP_REDIRECT,
 					   ICMP_REDIR_HOST, addr);
+				/*
+				 * Cache will have been used for handling the
+				 * ICMP redirect, so ensure it is created again
+				 * when continuing with the original packet.
+				 */
+				pl_pkt.npf_flags |= NPF_FLAG_CACHE_EMPTY;
+			}
 		}
 	}
 
