@@ -46,8 +46,6 @@ struct netlink_handler {
 		       enum cont_src_en cont_src);
 };
 
-void mc_del_if(int ifindex);
-
 void register_netlink_handler(uint8_t, const struct netlink_handler *);
 int rtnl_process(const struct nlmsghdr *nlh, void *data);
 int rtnl_process_xfrm(const struct nlmsghdr *nlh, void *data);

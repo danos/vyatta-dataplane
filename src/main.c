@@ -96,7 +96,6 @@
 #include "config_internal.h"
 #include "crypto/crypto_forward.h"
 #include "crypto/crypto_main.h"
-#include "crypto/vti.h"
 #include "dp_event.h"
 #include "ether.h"
 #include "event_internal.h"
@@ -108,12 +107,9 @@
 #include "if_llatbl.h"
 #include "if_var.h"
 #include "ip_funcs.h"
-#include "ip_mcast.h"
 #include "ip_ttl.h"
 #include "json_writer.h"
 #include "l2_rx_fltr.h"
-#include "l2tp/l2tpeth.h"
-#include "lag.h"
 #include "main.h"
 #include "controller.h"
 #include "mpls/mpls_label_table.h"
@@ -136,7 +132,6 @@
 #include "vplane_debug.h"
 #include "vplane_log.h"
 #include "vrf_internal.h"
-#include "pipeline/nodes/pppoe/pppoe.h"
 #include "backplane.h"
 
 packet_input_t packet_input_func __hot_data = ether_input_no_dyn_feats;
@@ -3615,8 +3610,6 @@ main(int argc, char **argv)
 	ip6_init();
 	init_eth_ports(0, nb_ports_total);
 	fragment_tables_timer_init();
-	mcast_init_ipv4();
-	mcast_init_ipv6();
 	mpls_init();
 
 	ip_id_init();
@@ -3667,8 +3660,6 @@ main(int argc, char **argv)
 	pkt_ring_destroy();
 	vrf_cleanup();
 	npf_cleanup();
-	mcast_stop_ipv6();
-	mcast_stop_ipv4();
 
 	dp_event(DP_EVT_UNINIT, 0, NULL, 0, 0, NULL);
 

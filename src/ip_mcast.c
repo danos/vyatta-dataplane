@@ -68,18 +68,6 @@ void mc_debug_if_flags(struct ifnet *ifp, unsigned int new_flags,
 		 (new_flags & IFF_ALLMULTI) ? "set" : "clr");
 }
 
-void mc_del_if(int ifindex)
-{
-	del_vif(ifindex);
-	del_m6if(ifindex);
-}
-
-void mrt_purge(struct ifnet *ifp)
-{
-	mrt4_purge(ifp);
-	mrt6_purge(ifp);
-}
-
 void mc_dumpall(FILE *f, struct vrf *vrf)
 {
 	mvif_dump(f, vrf);

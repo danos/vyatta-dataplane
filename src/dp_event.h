@@ -43,6 +43,7 @@ enum dp_evt {
 	DP_EVT_IF_LAG_ADD_MEMBER,
 	DP_EVT_IF_LAG_DELETE_MEMBER,
 	DP_EVT_IF_LAG_CHANGE,
+	DP_EVT_IF_ADMIN_STATUS_CHANGE,
 };
 
 _Static_assert((int)DP_EVT_VRF_CREATE == (int)DP_EVENT_VRF_CREATE,
@@ -98,6 +99,7 @@ struct dp_event_ops {
 	void (*vrf_delete)(struct vrf *vrf);
 	void (*init)(void);
 	void (*uninit)(void);
+	void (*if_admin_status_change)(struct ifnet *ifp, bool up);
 
 	const struct dp_events_ops *public_ops;
 	struct rcu_head rcu;

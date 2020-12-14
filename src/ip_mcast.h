@@ -135,9 +135,6 @@ int del_m6if(mifi_t);
 
 void mc_debug_if_flags(struct ifnet *ifp, unsigned int new_flags,
 		       unsigned int msg_type);
-void mrt_purge(struct ifnet *ifp);
-void mrt4_purge(struct ifnet *ifp);
-void mrt6_purge(struct ifnet *ifp);
 
 /* Multicast Fastpath Route Lookup */
 int mcast_ip(struct iphdr *, struct ifnet *, struct rte_mbuf *);
@@ -146,12 +143,6 @@ int mcast_ip6(struct ip6_hdr *, struct ifnet *, struct rte_mbuf *);
 /* Local deliver */
 void mcast_ip_deliver(struct ifnet *ifp, struct rte_mbuf *m);
 void mcast_ip6_deliver(struct ifnet *ifp, struct rte_mbuf *m);
-
-void mcast_init_ipv4(void);
-void mcast_init_ipv6(void);
-
-int mcast_stop_ipv4(void);
-int mcast_stop_ipv6(void);
 
 int mcast_vrf_init(struct vrf *vrf);
 void mcast_vrf_uninit(struct vrf *vrf);

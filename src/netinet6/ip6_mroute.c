@@ -117,7 +117,7 @@
 #include <rte_mbuf.h>
 #include <rte_timer.h>
 
-#include "crypto/vti.h"
+#include "dp_event.h"
 #include "if/gre.h"
 #include "if_var.h"
 #include "in6.h"
@@ -361,7 +361,7 @@ struct mif6* get_mif_by_ifindex(unsigned int ifindex)
 	return mifp;
 }
 
-void mrt6_purge(struct ifnet *ifp)
+static void mrt6_purge(struct ifnet *ifp)
 {
 	struct mif6 *mifp;
 	struct mf6c *rt;
@@ -1537,13 +1537,11 @@ void mcast6_vrf_uninit(struct vrf *vrf)
 
 }
 
-int mcast_stop_ipv6(void)
+static void mcast_stop_ipv6(void)
 {
 #ifdef UPCALL_TIMER
 	rte_timer_stop(&expire_upcalls_ch);
 #endif
-
-	return 0;
 }
 
 static void expire_mf6c(struct vrf *vrf, struct mf6c *rt)
@@ -1576,7 +1574,7 @@ static void expire_mf6c(struct vrf *vrf, struct mf6c *rt)
 		call_rcu(&rt->rcu_head, mf6c_free);
 }
 
-void mcast_init_ipv6(void)
+static void mcast_init_ipv6(void)
 {
 
 #ifdef UPCALL_TIMER
@@ -1588,3 +1586,26 @@ void mcast_init_ipv6(void)
 	rte_timer_reset(&mrt6_stats_timer, SG_CNT_INTERVAL, PERIODICAL,
 			rte_get_master_lcore(), mrt6_stats, NULL);
 }
+
+static void mrt6_if_delete(struct ifnet *ifp)
+{
+	del_m6if(ifp->if_index);
+}
+
+static void mrt6_if_admin_status_change(struct ifnet *ifp, bool up)
+{
+	/* not interested in admin-up events */
+	if (up)
+		return;
+
+	mrt6_purge(ifp);
+}
+
+static const struct dp_event_ops ip6_mroute_events = {
+	.init = mcast_init_ipv6,
+	.uninit = mcast_stop_ipv6,
+	.if_delete = mrt6_if_delete,
+	.if_admin_status_change = mrt6_if_admin_status_change,
+};
+
+DP_STARTUP_EVENT_REGISTER(ip6_mroute_events);

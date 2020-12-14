@@ -990,11 +990,20 @@ static void bridge_fal_newport(struct ifnet *ifp)
 			{ .id = FAL_BRIDGE_PORT_ATTR_UNTAGGED_VLANS,
 			  .value.ptr = untagged },
 			{ .id = FAL_BRIDGE_PORT_ATTR_PORT_VLAN_ID,
-			  .value.u16 = bridge_port_get_pvid(brport) },
+			  .value.u16 = 0 },
 		};
 		if (vlans && untagged) {
-			bridge_port_get_vlans(brport, vlans);
-			bridge_port_get_untag_vlans(brport, untagged);
+			/*
+			 * Only populate if admin up since we want to
+			 * not program the port as being part of the
+			 * VLAN to save resources if it's admin down
+			 */
+			if (ifp->if_flags & IFF_UP) {
+				bridge_port_get_vlans(brport, vlans);
+				bridge_port_get_untag_vlans(brport, untagged);
+				attr_list[3].value.u16 =
+					bridge_port_get_pvid(brport);
+			}
 
 			fal_br_new_port(ifm->if_index, ifp->if_index,
 					ARRAY_SIZE(attr_list), attr_list);
@@ -1078,6 +1087,65 @@ static void bridge_if_feat_mode_change(
 	default:
 		break;
 	}
+}
+
+
+/*
+ * React to inteface admin status changes since we want to not program
+ * the port as being part of the VLAN to save resources if it's admin
+ * down
+ */
+static void
+bridge_if_admin_status_change(struct ifnet *ifp, bool up)
+{
+	struct fal_attribute_t vlan_update;
+	struct bridge_vlan_set *untagged;
+	struct bridge_vlan_set *vlans;
+	struct bridge_port *brport;
+	uint16_t pvid;
+
+	brport = rcu_dereference(ifp->if_brport);
+	if (!brport)
+		/* nothing to do if not a bridge port */
+		return;
+
+	/* nothing to do if not created in the FAL */
+	if (!bridge_port_is_fal_created(brport))
+		return;
+
+	vlans = bridge_vlan_set_create();
+	if (!vlans) {
+		RTE_LOG(ERR, BRIDGE,
+			"out of memory allocating vlan sets during FAL admin status event\n");
+		return;
+	}
+	if (up)
+		bridge_port_get_vlans(brport, vlans);
+	vlan_update.id = FAL_BRIDGE_PORT_ATTR_TAGGED_VLANS;
+	vlan_update.value.ptr = vlans;
+	fal_br_upd_port(ifp->if_index, &vlan_update);
+	bridge_vlan_set_free(vlans);
+
+	untagged = bridge_vlan_set_create();
+	if (!untagged) {
+		RTE_LOG(ERR, BRIDGE,
+			"out of memory allocating vlan sets during FAL admin status event\n");
+		return;
+	}
+	if (up)
+		bridge_port_get_untag_vlans(brport, untagged);
+	vlan_update.id = FAL_BRIDGE_PORT_ATTR_UNTAGGED_VLANS;
+	vlan_update.value.ptr = untagged;
+	fal_br_upd_port(ifp->if_index, &vlan_update);
+	bridge_vlan_set_free(untagged);
+
+	if (up)
+		pvid = bridge_port_get_pvid(brport);
+	else
+		pvid = 0;
+	vlan_update.id = FAL_BRIDGE_PORT_ATTR_PORT_VLAN_ID;
+	vlan_update.value.u16 = pvid;
+	fal_br_upd_port(ifp->if_index, &vlan_update);
 }
 
 static void
@@ -2163,18 +2231,26 @@ bridge_netlink_update_port(int ifindex, struct nlattr *tb[], int msg_type)
 	rv = MNL_CB_OK;
 
 	/*
+	 * Only update in FAL if created in the FAL and if admin up
+	 * since we want to not program the port as being part of the
+	 * VLAN to save resources if it's admin down
+	 */
+
+	/*
 	 * compare new vlan config with the old
 	 * and synchronize them
 	 */
 	if (bridge_port_synchronize_vlans(brport, new_vlans) &&
-	    bridge_port_is_fal_created(brport)) {
+	    bridge_port_is_fal_created(brport) &&
+	    port->if_flags & IFF_UP) {
 		vlan_update.id = FAL_BRIDGE_PORT_ATTR_TAGGED_VLANS;
 		vlan_update.value.ptr = new_vlans;
 		fal_br_upd_port(ifindex, &vlan_update);
 	}
 
 	if (bridge_port_synchronize_untag_vlans(brport, new_untagged) &&
-	    bridge_port_is_fal_created(brport)) {
+	    bridge_port_is_fal_created(brport) &&
+	    port->if_flags & IFF_UP) {
 		vlan_update.id = FAL_BRIDGE_PORT_ATTR_UNTAGGED_VLANS;
 		vlan_update.value.ptr = new_untagged;
 		fal_br_upd_port(ifindex, &vlan_update);
@@ -2186,7 +2262,14 @@ bridge_netlink_update_port(int ifindex, struct nlattr *tb[], int msg_type)
 			.value.u16 = pvid };
 
 		bridge_port_set_pvid(brport, pvid);
-		if (bridge_port_is_fal_created(brport))
+		/*
+		 * only update in FAL if created in the FAL and if
+		 * admin up since we want to not program the port as
+		 * being part of the VLAN to save resources if it's
+		 * admin down
+		 */
+		if (bridge_port_is_fal_created(brport) &&
+		    port->if_flags & IFF_UP)
 			fal_br_upd_port(ifindex, &pvid_update);
 	}
 
@@ -2701,6 +2784,7 @@ static void bridge_init(void)
 static const struct dp_event_ops bridge_events = {
 	.init = bridge_init,
 	.if_feat_mode_change = bridge_if_feat_mode_change,
+	.if_admin_status_change = bridge_if_admin_status_change,
 };
 
 DP_STARTUP_EVENT_REGISTER(bridge_events);
