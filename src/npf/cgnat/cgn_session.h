@@ -54,7 +54,6 @@ uint16_t cgn_session_get_l4_delta(const struct cgn_session *cse, bool forw);
  * add_dst - Add 2-tuple table
  */
 struct cgn_session *cgn_session_establish(struct cgn_packet *cpk,
-					  enum cgn_dir dir,
 					  uint32_t taddr, uint16_t tid,
 					  int *error, struct cgn_source *src);
 

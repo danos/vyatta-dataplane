@@ -57,12 +57,8 @@ static void cgn_policy_free_sess_rate(struct cgn_policy *cp);
  * (cp_log_sess_all), of from an address-group of subscriber addresses and/or
  * prefixes (cp_log_sess_ag).
  */
-bool cgn_policy_record_dest(struct cgn_policy *cp, uint32_t addr,
-			    enum cgn_dir dir)
+bool cgn_policy_record_dest(struct cgn_policy *cp, uint32_t addr)
 {
-	if (dir != CGN_DIR_OUT)
-		return false;
-
 	if (cp->cp_log_sess_all)
 		return true;
 

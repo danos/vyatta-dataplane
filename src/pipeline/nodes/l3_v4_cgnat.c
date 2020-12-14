@@ -57,15 +57,10 @@ enum cgnat_result {
 #include "npf/alg/alg_npf.h"
 
 static inline bool
-ipv4_cgnat_out_bypass(struct ifnet *ifp, struct rte_mbuf *mbuf,
-		      enum cgn_dir dir)
+ipv4_cgnat_out_bypass(struct ifnet *ifp, struct rte_mbuf *mbuf)
 {
 	/* Check bypass enable/disable option */
 	if (likely(!cgn_snat_alg_bypass_gbl))
-		return false;
-
-	/* Only applies to outbound traffic */
-	if (dir != CGN_DIR_OUT)
 		return false;
 
 	/* Is SNAT configured on interface? */
@@ -80,14 +75,11 @@ ipv4_cgnat_out_bypass(struct ifnet *ifp, struct rte_mbuf *mbuf,
 }
 
 /*
- * cgnat_try_initial.
- *
- * Currently this is only called with dir CGN_DIR_OUT, but that might not
- * always be the case.
+ * cgnat_try_initial.  Sessions are always created in an 'outbound' context.
  */
 static struct cgn_session *
 cgnat_try_initial(struct ifnet *ifp, struct cgn_packet *cpk,
-		  struct rte_mbuf *mbuf, enum cgn_dir dir, int *error)
+		  struct rte_mbuf *mbuf, int *error)
 {
 	struct cgn_session *cse;
 	struct cgn_policy *cp;
@@ -113,7 +105,7 @@ cgnat_try_initial(struct ifnet *ifp, struct cgn_packet *cpk,
 	}
 
 	/* Should SNAT-ALG pkts bypass CGNAT? */
-	if (unlikely(ipv4_cgnat_out_bypass(ifp, mbuf, dir))) {
+	if (unlikely(ipv4_cgnat_out_bypass(ifp, mbuf))) {
 		*error = -CGN_PCY_BYPASS;
 		goto error;
 	}
@@ -133,7 +125,7 @@ cgnat_try_initial(struct ifnet *ifp, struct cgn_packet *cpk,
 	}
 
 	/* Create a session. */
-	cse = cgn_session_establish(cpk, dir, cmi.cmi_taddr, cmi.cmi_tid,
+	cse = cgn_session_establish(cpk, cmi.cmi_taddr, cmi.cmi_tid,
 				    error, cmi.cmi_src);
 	if (!cse)
 		goto error;
@@ -531,7 +523,7 @@ ipv4_cgnat_common(struct cgn_packet *cpk, struct ifnet *ifp,
 		}
 
 		/* Get policy and mapping.  Create a session. */
-		cse = cgnat_try_initial(ifp, cpk, *mbufp, dir, &error);
+		cse = cgnat_try_initial(ifp, cpk, *mbufp, &error);
 		if (!cse)
 			goto error;
 		new_inactive_session = true;

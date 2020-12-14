@@ -581,9 +581,8 @@ static void cgn_session_slot_put(void)
  * cgn_session_establish
  */
 struct cgn_session *
-cgn_session_establish(struct cgn_packet *cpk, enum cgn_dir dir,
-		      uint32_t taddr, uint16_t tid, int *error,
-		      struct cgn_source *src)
+cgn_session_establish(struct cgn_packet *cpk, uint32_t taddr, uint16_t tid,
+		      int *error, struct cgn_source *src)
 {
 	struct cgn_session *cse;
 	struct cgn_policy *cp = src->sr_policy;
@@ -600,8 +599,6 @@ cgn_session_establish(struct cgn_packet *cpk, enum cgn_dir dir,
 	}
 
 	/* Sessions are only ever created by outbound flows/ctx */
-	assert(dir == CGN_DIR_OUT);
-
 	oaddr = cpk->cpk_saddr;
 	oid   = cpk->cpk_sid;
 	dst_port = cpk->cpk_did;
@@ -662,7 +659,7 @@ cgn_session_establish(struct cgn_packet *cpk, enum cgn_dir dir,
 	/*
 	 * Is cse session recording destination address and port?
 	 */
-	if (cgn_policy_record_dest(cp, oaddr, dir)) {
+	if (cgn_policy_record_dest(cp, oaddr)) {
 
 		*error = cgn_sess_s2_enable(cs2);
 
@@ -807,8 +804,7 @@ cgn_session_map(struct ifnet *ifp, struct cgn_packet *cpk,
 	}
 
 	/* Create a session. */
-	cse = cgn_session_establish(cpk, CGN_DIR_OUT, pub_addr, pub_port,
-				    error, src);
+	cse = cgn_session_establish(cpk, pub_addr, pub_port, error, src);
 	if (!cse)
 		goto error;
 
