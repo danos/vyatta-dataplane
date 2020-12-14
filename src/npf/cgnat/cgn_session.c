@@ -578,16 +578,14 @@ static void cgn_session_slot_put(void)
 }
 
 /*
- * cgn_session_establish
+ * cgn_session_establish.  Sessions are only ever created by outbound
+ * flows/ctx.
  */
 struct cgn_session *
-cgn_session_establish(struct cgn_packet *cpk, uint32_t taddr, uint16_t tid,
-		      int *error, struct cgn_source *src)
+cgn_session_establish(struct cgn_packet *cpk, struct cgn_map *cmi,
+		      struct cgn_policy *cp, int *error)
 {
 	struct cgn_session *cse;
-	struct cgn_policy *cp = src->sr_policy;
-	uint32_t oaddr;
-	uint16_t oid, dst_port = 0;
 
 	/*
 	 * Reserve a slot from the counters.  The slot MUST be returned if an
@@ -597,11 +595,6 @@ cgn_session_establish(struct cgn_packet *cpk, uint32_t taddr, uint16_t tid,
 		*error = -CGN_S1_ENOSPC;
 		return NULL;
 	}
-
-	/* Sessions are only ever created by outbound flows/ctx */
-	oaddr = cpk->cpk_saddr;
-	oid   = cpk->cpk_sid;
-	dst_port = cpk->cpk_did;
 
 	cse = cgn_session_create(error);
 	if (!cse) {
@@ -619,15 +612,15 @@ cgn_session_establish(struct cgn_packet *cpk, uint32_t taddr, uint16_t tid,
 	 */
 	cse->cs_forw_entry.ce_ifindex =	cpk->cpk_key.k_ifindex;
 	cse->cs_forw_entry.ce_ipproto = cpk->cpk_ipproto;
-	cse->cs_forw_entry.ce_addr = oaddr;
-	cse->cs_forw_entry.ce_port = oid;
+	cse->cs_forw_entry.ce_addr = cmi->cmi_oaddr;
+	cse->cs_forw_entry.ce_port = cmi->cmi_oid;
 	cse->cs_forw_entry.ce_established = false;
 
 	/* Populate back entry */
 	cse->cs_back_entry.ce_ifindex =	cpk->cpk_key.k_ifindex;
 	cse->cs_back_entry.ce_ipproto = cpk->cpk_ipproto;
-	cse->cs_back_entry.ce_addr = taddr;
-	cse->cs_back_entry.ce_port = tid;
+	cse->cs_back_entry.ce_addr = cmi->cmi_taddr;
+	cse->cs_back_entry.ce_port = cmi->cmi_tid;
 	cse->cs_back_entry.ce_established = false;
 
 	rte_atomic16_set(&cse->cs_refcnt, 0);
@@ -641,11 +634,11 @@ cgn_session_establish(struct cgn_packet *cpk, uint32_t taddr, uint16_t tid,
 	cse->cs_map_instd = !cpk->cpk_pkt_instd;
 
 	/* calculate checksum deltas */
-	const uint32_t *oip32 = (const uint32_t *)&oaddr;
-	const uint32_t *nip32 = (const uint32_t *)&taddr;
+	const uint32_t *oip32 = (const uint32_t *)&cmi->cmi_oaddr;
+	const uint32_t *nip32 = (const uint32_t *)&cmi->cmi_taddr;
 
 	cse->cs_l3_chk_delta = ~ip_fixup32_cksum(0, *oip32, *nip32);
-	cse->cs_l4_chk_delta = ~ip_fixup16_cksum(0, oid, tid);
+	cse->cs_l4_chk_delta = ~ip_fixup16_cksum(0, cmi->cmi_oid, cmi->cmi_tid);
 
 	struct cgn_sess_s2 *cs2 = &cse->cs_s2;
 
@@ -654,12 +647,12 @@ cgn_session_establish(struct cgn_packet *cpk, uint32_t taddr, uint16_t tid,
 	 * for PCP sessions.
 	 */
 	if (likely(cse->cs_pkt_instd))
-		cs2->cs2_dst_port = dst_port;
+		cse->cs_s2.cs2_dst_port = cpk->cpk_did;
 
 	/*
 	 * Is cse session recording destination address and port?
 	 */
-	if (cgn_policy_record_dest(cp, oaddr)) {
+	if (cgn_policy_record_dest(cp, cmi->cmi_oaddr)) {
 
 		*error = cgn_sess_s2_enable(cs2);
 
@@ -674,10 +667,13 @@ cgn_session_establish(struct cgn_packet *cpk, uint32_t taddr, uint16_t tid,
 	}
 
 	/* Take reference on source */
-	cse->cs_src = cgn_source_get(src);
+	cse->cs_src = cgn_source_get(cmi->cmi_src);
 
 	/* We already have a mapping */
 	cse->cs_map_flag = true;
+
+	/* The session now holds the mapping */
+	cmi->cmi_reserved = false;
 
 	cse->cs_id = rte_atomic32_add_return(&cgn_id_resource, 1);
 
@@ -694,11 +690,9 @@ struct cgn_session *
 cgn_session_map(struct ifnet *ifp, struct cgn_packet *cpk,
 		uint32_t pub_addr, uint16_t pub_port, int *error)
 {
-	struct cgn_source *src = NULL;
 	struct cgn_session *cse, *in_cse = NULL;
 	struct cgn_policy *cp;
 	int rc = 0;
-	uint32_t oaddr;
 	vrfid_t vrfid = cpk->cpk_vrfid;
 
 	/*
@@ -749,12 +743,21 @@ cgn_session_map(struct ifnet *ifp, struct cgn_packet *cpk,
 		return cse;
 	}
 
-	oaddr = cpk->cpk_saddr;
+	/* Mapping info */
+	struct cgn_map cmi = {
+		.cmi_reserved = false,
+		.cmi_proto = cpk->cpk_proto,
+		.cmi_oid = cpk->cpk_sid,
+		.cmi_oaddr = cpk->cpk_saddr,
+		.cmi_tid = pub_port,
+		.cmi_taddr = pub_addr,
+		.cmi_src = NULL,
+	};
 
 	/*
 	 * Lookup source address in policy list on the interface
 	 */
-	cp = cgn_if_find_policy_by_addr(ifp, oaddr);
+	cp = cgn_if_find_policy_by_addr(ifp, cmi.cmi_oaddr);
 	if (!cp) {
 		*error = -CGN_PCY_ENOENT;
 		return NULL;
@@ -766,17 +769,6 @@ cgn_session_map(struct ifnet *ifp, struct cgn_packet *cpk,
 		return NULL;
 	}
 
-	/* Mapping info */
-	struct cgn_map cmi = {
-		.cmi_reserved = false,
-		.cmi_proto = cpk->cpk_proto,
-		.cmi_oid = 0,
-		.cmi_oaddr = oaddr,
-		.cmi_tid = 0,
-		.cmi_taddr = 0,
-		.cmi_src = NULL,
-	};
-
 	/*
 	 * Allocate public address and port.
 	 *
@@ -784,19 +776,11 @@ cgn_session_map(struct ifnet *ifp, struct cgn_packet *cpk,
 	 * function as packet flows, cgn_map_get.  This obtains a mapping
 	 * using the config in the relevant policy.
 	 */
-	if (pub_addr == 0 && pub_port == 0) {
+	if (cmi.cmi_taddr == 0 && cmi.cmi_tid == 0)
 		rc = cgn_map_get(&cmi, cp, vrfid);
-	} else {
-		cmi.cmi_taddr = pub_addr;
-		cmi.cmi_tid = pub_port;
-
+	else
 		/* Use specified public address and port */
 		rc = cgn_map_get2(&cmi, cp, vrfid);
-	}
-
-	pub_addr = cmi.cmi_taddr;
-	pub_port = cmi.cmi_tid;
-	src = cmi.cmi_src;
 
 	if (rc) {
 		*error = rc;
@@ -804,12 +788,9 @@ cgn_session_map(struct ifnet *ifp, struct cgn_packet *cpk,
 	}
 
 	/* Create a session. */
-	cse = cgn_session_establish(cpk, pub_addr, pub_port, error, src);
+	cse = cgn_session_establish(cpk, &cmi, cp, error);
 	if (!cse)
 		goto error;
-
-	/* The session now holds the mapping reservation */
-	cmi.cmi_reserved = false;
 
 	/* Add session to hash tables */
 	rc = cgn_session_activate(cse, cpk, CGN_DIR_OUT);

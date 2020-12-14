@@ -125,13 +125,9 @@ cgnat_try_initial(struct ifnet *ifp, struct cgn_packet *cpk,
 	}
 
 	/* Create a session. */
-	cse = cgn_session_establish(cpk, cmi.cmi_taddr, cmi.cmi_tid,
-				    error, cmi.cmi_src);
+	cse = cgn_session_establish(cpk, &cmi, cp, error);
 	if (!cse)
 		goto error;
-
-	/* The session now holds the mapping reservation */
-	cmi.cmi_reserved = false;
 
 	return cse;
 

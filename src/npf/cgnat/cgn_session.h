@@ -17,6 +17,7 @@ struct cgn_packet;
 struct cgn_policy;
 struct cgn_source;
 struct cgn_sess2;
+struct cgn_map;
 struct nat_pool;
 struct ifnet;
 
@@ -54,8 +55,8 @@ uint16_t cgn_session_get_l4_delta(const struct cgn_session *cse, bool forw);
  * add_dst - Add 2-tuple table
  */
 struct cgn_session *cgn_session_establish(struct cgn_packet *cpk,
-					  uint32_t taddr, uint16_t tid,
-					  int *error, struct cgn_source *src);
+					  struct cgn_map *cmi,
+					  struct cgn_policy *cp, int *error);
 
 int cgn_session_activate(struct cgn_session *cse,
 			 struct cgn_packet *cpk, enum cgn_dir dir);
