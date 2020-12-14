@@ -781,7 +781,8 @@ crypto_session_set_direction(struct sadb_sa *sa, int direction,
  */
 void crypto_sadb_new_sa(const struct xfrm_usersa_info *sa_info,
 			const struct xfrm_algo *crypto_algo,
-			const struct xfrm_algo_auth *auth_algo,
+			const struct xfrm_algo_auth *auth_trunc_algo,
+			const struct xfrm_algo *auth_algo,
 			const struct xfrm_encap_tmpl *tmpl,
 			uint32_t mark_val, uint32_t extra_flags,
 			vrfid_t vrf_id)
@@ -841,8 +842,8 @@ void crypto_sadb_new_sa(const struct xfrm_usersa_info *sa_info,
 
 	CDS_INIT_LIST_HEAD(&sa->peer_links);
 
-	if (cipher_setup_ctx(crypto_algo, auth_algo, sa_info, tmpl,
-			     sa, extra_flags))
+	if (cipher_setup_ctx(crypto_algo, auth_trunc_algo, auth_algo,
+			     sa_info, tmpl, sa, extra_flags))
 		sa->blocked = true;
 	/*
 	 * Need to allocate the crypto_pmd before inserting the sa as

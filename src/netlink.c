@@ -1608,7 +1608,8 @@ static void process_xfrm_newsa(struct xfrm_usersa_info *sa_info,
 			       uint32_t *ifindex)
 {
 	struct xfrm_algo_aead *aead_algo;
-	struct xfrm_algo_auth *auth_algo;
+	struct xfrm_algo_auth *auth_trunc_algo;
+	struct xfrm_algo *auth_algo;
 	struct xfrm_algo *crypto_algo = NULL;
 	struct xfrm_encap_tmpl *tmpl = NULL;
 	struct xfrm_mark *mark;
@@ -1631,12 +1632,9 @@ static void process_xfrm_newsa(struct xfrm_usersa_info *sa_info,
 
 	/*
 	 * Authentication algorithm
-	 *
-	 * As in the kernel, prefer AUTH_TRUNC over AUTH.
 	 */
-	auth_algo = get_nl_attr_payload(attrs[XFRMA_ALG_AUTH_TRUNC]);
-	if (!auth_algo)
-		auth_algo = get_nl_attr_payload(attrs[XFRMA_ALG_AUTH]);
+	auth_trunc_algo = get_nl_attr_payload(attrs[XFRMA_ALG_AUTH_TRUNC]);
+	auth_algo = get_nl_attr_payload(attrs[XFRMA_ALG_AUTH]);
 
 	/*
 	 * TODO: Currently SADB doesn't cope with no AUTH algo, should it?
@@ -1679,11 +1677,11 @@ static void process_xfrm_newsa(struct xfrm_usersa_info *sa_info,
 		crypto_algo->alg_key_len = aead_algo->alg_key_len;
 		memcpy(crypto_algo->alg_key, aead_algo->alg_key,
 		       aead_algo->alg_key_len / 8);
-		auth_algo = (struct xfrm_algo_auth *)aead_algo;
+		auth_trunc_algo = (struct xfrm_algo_auth *)aead_algo;
 	}
 
-	crypto_sadb_new_sa(sa_info, crypto_algo, auth_algo, tmpl,
-			   mark_val, extra_flags, vrf_id);
+	crypto_sadb_new_sa(sa_info, crypto_algo, auth_trunc_algo, auth_algo,
+			   tmpl, mark_val, extra_flags, vrf_id);
 
  scrub:
 	/*
@@ -1704,9 +1702,10 @@ static void process_xfrm_newsa(struct xfrm_usersa_info *sa_info,
 		memset(crypto_algo->alg_key, 0xff,
 		       (crypto_algo->alg_key_len >> 3));
 
-	auth_algo = get_nl_attr_payload(attrs[XFRMA_ALG_AUTH_TRUNC]);
-	if (auth_algo)
-		memset(auth_algo->alg_key, 0xff, (auth_algo->alg_key_len >> 3));
+	auth_trunc_algo = get_nl_attr_payload(attrs[XFRMA_ALG_AUTH_TRUNC]);
+	if (auth_trunc_algo)
+		memset(auth_trunc_algo->alg_key, 0xff,
+		       (auth_trunc_algo->alg_key_len >> 3));
 
 	auth_algo = get_nl_attr_payload(attrs[XFRMA_ALG_AUTH]);
 	if (auth_algo)

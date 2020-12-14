@@ -250,7 +250,8 @@ int crypto_session_set_auth_key(struct crypto_session *session);
 
 struct crypto_session *
 crypto_session_create(const struct xfrm_algo *algo_crypt,
-		      const struct xfrm_algo_auth *algo_auth,
+		      const struct xfrm_algo_auth *algo_trunc_auth,
+		      const struct xfrm_algo *algo_auth,
 		      int direction);
 
 void crypto_session_destroy(struct crypto_session *ctx);
@@ -343,6 +344,7 @@ int crypto_engine_load(void);
 
 int cipher_setup_ctx(const struct xfrm_algo *,
 		     const struct xfrm_algo_auth *,
+		     const struct xfrm_algo *,
 		     const struct xfrm_usersa_info *,
 		     const struct xfrm_encap_tmpl *t,
 		     struct sadb_sa *,

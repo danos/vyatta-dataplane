@@ -811,7 +811,8 @@ void crypto_openssl_session_teardown(struct crypto_session *sess)
 
 struct crypto_session *
 crypto_session_create(const struct xfrm_algo *algo_crypt,
-		      const struct xfrm_algo_auth *algo_auth,
+		      const struct xfrm_algo_auth *algo_trunc_auth,
+		      const struct xfrm_algo *algo_auth,
 		      int direction)
 {
 	struct crypto_session *ctx;
@@ -821,11 +822,13 @@ crypto_session_create(const struct xfrm_algo *algo_crypt,
 		return NULL;
 
 	/* set up DPDK versions of data structures */
-	if (crypto_rte_set_session_parameters(ctx, algo_crypt, algo_auth)) {
+	if (crypto_rte_set_session_parameters(ctx, algo_crypt,
+					      algo_trunc_auth, algo_auth)) {
 		RTE_LOG(ERR, DATAPLANE,
-			"Failed to set session parameters for %s %s\n",
+			"Failed to set session parameters for %s %s%s\n",
 			algo_crypt->alg_name,
-			algo_auth ? algo_auth->alg_name : "");
+			algo_auth ? algo_auth->alg_name : "",
+			algo_trunc_auth ? algo_trunc_auth->alg_name : "");
 		goto err;
 	}
 
@@ -833,7 +836,8 @@ crypto_session_create(const struct xfrm_algo *algo_crypt,
 	if (RAND_bytes((unsigned char *)ctx->iv,
 		       ctx->iv_len + ctx->nonce_len) != 1) {
 		RTE_LOG(ERR, DATAPLANE,
-			"Could not generate random bytes for crypto IV. System might be low on entropy\n");
+			"Could not generate random bytes for crypto IV."
+			" System might be low on entropy\n");
 		goto err;
 	}
 
@@ -854,11 +858,13 @@ void crypto_session_destroy(struct crypto_session *ctx)
 	free(ctx);
 }
 
-static int check_algorithmic_requirements(const struct xfrm_algo *crypt,
-					  const struct xfrm_algo_auth *auth)
+static int
+check_algorithmic_requirements(const struct xfrm_algo *crypt,
+			       const struct xfrm_algo_auth *trunc_auth,
+			       const struct xfrm_algo *auth)
 {
 	/* check RFC4301 */
-	if (!crypt && !auth) {
+	if (!crypt && !auth && !trunc_auth) {
 		ENGINE_ERR("Invalid algorithmic combination: both NULL\n");
 		return -1;
 	}
@@ -873,7 +879,8 @@ static int check_algorithmic_requirements(const struct xfrm_algo *crypt,
 	}
 
 	/* check RFC3686 */
-	if ((strcmp("ctr(aes)", crypt->alg_name) == 0) && !auth) {
+	if ((strcmp("ctr(aes)", crypt->alg_name) == 0) && !auth &&
+	    !trunc_auth) {
 		ENGINE_ERR("Invalid AES-CTR authentication method: NULL\n");
 		return -1;
 	}
@@ -882,15 +889,18 @@ static int check_algorithmic_requirements(const struct xfrm_algo *crypt,
 }
 
 int cipher_setup_ctx(const struct xfrm_algo *algo_crypt,
-		     const struct xfrm_algo_auth *algo_auth,
+		     const struct xfrm_algo_auth *algo_trunc_auth,
+		     const struct xfrm_algo *algo_auth,
 		     const struct xfrm_usersa_info *sa_info,
 		     const struct xfrm_encap_tmpl *tmpl,
 		     struct sadb_sa *sa, uint32_t extra_flags)
 {
-	if (check_algorithmic_requirements(algo_crypt, algo_auth))
+	if (check_algorithmic_requirements(algo_crypt, algo_trunc_auth,
+					   algo_auth))
 		return -1;
 
-	sa->session = crypto_session_create(algo_crypt, algo_auth, -1);
+	sa->session = crypto_session_create(algo_crypt, algo_trunc_auth,
+					    algo_auth, -1);
 	if (!sa->session)
 		return -1;
 
