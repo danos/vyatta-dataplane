@@ -583,7 +583,7 @@ static void cgn_session_slot_put(void)
  */
 struct cgn_session *
 cgn_session_establish(struct cgn_packet *cpk, struct cgn_map *cmi,
-		      struct cgn_policy *cp, int *error)
+		      int *error)
 {
 	struct cgn_session *cse;
 
@@ -640,31 +640,12 @@ cgn_session_establish(struct cgn_packet *cpk, struct cgn_map *cmi,
 	cse->cs_l3_chk_delta = ~ip_fixup32_cksum(0, *oip32, *nip32);
 	cse->cs_l4_chk_delta = ~ip_fixup16_cksum(0, cmi->cmi_oid, cmi->cmi_tid);
 
-	struct cgn_sess_s2 *cs2 = &cse->cs_s2;
-
 	/*
 	 * Remember the dest port that created this session.  This is unknown
 	 * for PCP sessions.
 	 */
 	if (likely(cse->cs_pkt_instd))
 		cse->cs_s2.cs2_dst_port = cpk->cpk_did;
-
-	/*
-	 * Is cse session recording destination address and port?
-	 */
-	if (cgn_policy_record_dest(cp, cmi->cmi_oaddr)) {
-
-		*error = cgn_sess_s2_enable(cs2);
-
-		if (*error < 0) {
-			free(cse);
-			cgn_session_slot_put();
-			return NULL;
-		}
-		cs2->cs2_log_start = cp->cp_log_sess_start ? 1 : 0;
-		cs2->cs2_log_end = cp->cp_log_sess_end ? 1 : 0;
-		cs2->cs2_log_periodic = cp->cp_log_sess_periodic;
-	}
 
 	/* Take reference on source */
 	cse->cs_src = cgn_source_get(cmi->cmi_src);
@@ -788,9 +769,12 @@ cgn_session_map(struct ifnet *ifp, struct cgn_packet *cpk,
 	}
 
 	/* Create a session. */
-	cse = cgn_session_establish(cpk, &cmi, cp, error);
+	cse = cgn_session_establish(cpk, &cmi, error);
 	if (!cse)
 		goto error;
+
+	/* Check if we want to record sub-sessions */
+	cgn_session_try_enable_sub_sess(cse, cp, cmi.cmi_oaddr);
 
 	/* Add session to hash tables */
 	rc = cgn_session_activate(cse, cpk, CGN_DIR_OUT);
@@ -857,6 +841,33 @@ static void cgn_sentry_delete(struct cgn_sentry *ce, enum cgn_dir dir);
 static inline bool cgn_sess_s2_is_enabled(struct cgn_session *cse)
 {
 	return cse->cs_s2.cs2_enbld;
+}
+
+/*
+ * Check if we can enable sub-sessions on this 3-tuple session
+ */
+void cgn_session_try_enable_sub_sess(struct cgn_session *cse,
+				     struct cgn_policy *cp, uint32_t oaddr)
+{
+	struct cgn_sess_s2 *cs2 = &cse->cs_s2;
+
+	/* Already enabled? */
+	if (cs2->cs2_enbld)
+		return;
+
+	if (cgn_policy_record_dest(cp, oaddr)) {
+		cs2->cs2_enbld = true;
+
+		/*
+		 * The max value cannot change after the HT is created, so set
+		 * it here from the user-configurable global.
+		 */
+		cs2->cs2_max = cgn_dest_sessions_max;
+
+		cs2->cs2_log_start = cp->cp_log_sess_start ? 1 : 0;
+		cs2->cs2_log_end = cp->cp_log_sess_end ? 1 : 0;
+		cs2->cs2_log_periodic = cp->cp_log_sess_periodic;
+	}
 }
 
 /*

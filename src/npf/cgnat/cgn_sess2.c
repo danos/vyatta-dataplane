@@ -99,24 +99,6 @@ static int cgn_sess2_activate(struct cgn_sess_s2 *cs2, struct cgn_sess2 *s2);
  */
 
 /*
- * Enable a cse session for recording dest addr and port.  Called when the
- * session is created, and before it is added to the session table.
- *
- * cs2 is the s2 table and state structure embedded in each 3-tuple session.
- */
-int cgn_sess_s2_enable(struct cgn_sess_s2 *cs2)
-{
-	/*
-	 * The max value cannot change after the HT is created, so set it here
-	 * from the user-configurable global.
-	 */
-	cs2->cs2_max = cgn_dest_sessions_max;
-
-	cs2->cs2_enbld = true;
-	return 0;
-}
-
-/*
  * Disable recording of dest addr and port for a given 3-tuple session.
  */
 void cgn_sess_s2_disable(struct cgn_sess_s2 *cs2)

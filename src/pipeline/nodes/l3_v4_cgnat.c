@@ -125,9 +125,12 @@ cgnat_try_initial(struct ifnet *ifp, struct cgn_packet *cpk,
 	}
 
 	/* Create a session. */
-	cse = cgn_session_establish(cpk, &cmi, cp, error);
+	cse = cgn_session_establish(cpk, &cmi, error);
 	if (!cse)
 		goto error;
+
+	/* Check if we want to record sub-sessions */
+	cgn_session_try_enable_sub_sess(cse, cp, cmi.cmi_oaddr);
 
 	return cse;
 

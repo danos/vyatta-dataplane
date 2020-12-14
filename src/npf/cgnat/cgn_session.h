@@ -49,14 +49,16 @@ void cgn_session_get_back(const struct cgn_session *cse,
 uint16_t cgn_session_get_l3_delta(const struct cgn_session *cse, bool forw);
 uint16_t cgn_session_get_l4_delta(const struct cgn_session *cse, bool forw);
 
+void cgn_session_try_enable_sub_sess(struct cgn_session *cse,
+				     struct cgn_policy *cp, uint32_t oaddr);
+
 /*
  * taddr   - translation addr
  * tid     - translation ID
  * add_dst - Add 2-tuple table
  */
 struct cgn_session *cgn_session_establish(struct cgn_packet *cpk,
-					  struct cgn_map *cmi,
-					  struct cgn_policy *cp, int *error);
+					  struct cgn_map *cmi, int *error);
 
 int cgn_session_activate(struct cgn_session *cse,
 			 struct cgn_packet *cpk, enum cgn_dir dir);

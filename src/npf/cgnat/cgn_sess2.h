@@ -126,7 +126,6 @@ struct cgn_sess_fltr {
  * 'struct cgn_sess_s2' is the 2-tuple table and state embedded in each
  * 3-tuple session.
  */
-int cgn_sess_s2_enable(struct cgn_sess_s2 *cs2);
 void cgn_sess_s2_disable(struct cgn_sess_s2 *cs2);
 int16_t cgn_sess_s2_count(struct cgn_sess_s2 *cs2);
 struct cgn_sess2 *cgn_sess_s2_establish(struct cgn_sess_s2 *cs2,
