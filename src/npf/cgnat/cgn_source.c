@@ -137,7 +137,7 @@ struct nat_pool *cgn_source_get_pool(struct cgn_source *src)
  * Add port block to source list
  */
 int
-cgn_source_add_block(struct cgn_source *src, uint8_t proto,
+cgn_source_add_block(struct cgn_source *src, enum nat_proto proto,
 		     struct apm_port_block *pb, struct nat_pool *np)
 {
 	assert(rte_spinlock_is_locked(&src->sr_lock));
@@ -158,7 +158,7 @@ cgn_source_add_block(struct cgn_source *src, uint8_t proto,
 	/*
 	 * Set active_block for other protocols, if they are not already set.
 	 */
-	uint8_t p;
+	enum nat_proto p;
 	for (p = NAT_PROTO_FIRST; p < NAT_PROTO_COUNT; p++)
 		if (p != proto && src->sr_active_block[p] == NULL)
 			src->sr_active_block[p] = pb;
@@ -216,7 +216,7 @@ cgn_source_del_block(struct cgn_source *src, struct apm_port_block *pb,
 	/* Release reference on source */
 	cgn_source_put(src);
 
-	uint8_t p;
+	enum nat_proto p;
 	for (p = NAT_PROTO_FIRST; p < NAT_PROTO_COUNT; p++) {
 		/* This block can no longer be the Active block */
 		if (pb == src->sr_active_block[p])
@@ -369,7 +369,7 @@ cgn_source_create(struct cgn_policy *cp, uint32_t addr, vrfid_t vrfid,
 		  int *error)
 {
 	struct cgn_source *src;
-	uint8_t proto;
+	enum nat_proto proto;
 
 	if (!cgn_src_slot_get()) {
 		*error = -CGN_SRC_ENOSPC;

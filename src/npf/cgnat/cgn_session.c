@@ -1319,7 +1319,8 @@ int cgn_session_walk(cgn_sesswalk_cb cb, void *data)
  */
 static uint32_t cgn_session_expiry_time(struct cgn_session *cse)
 {
-	uint8_t proto, state;
+	enum nat_proto proto;
+	uint8_t state;
 	uint32_t etime;
 
 	if (cse->cs_back_entry.ce_expired)
@@ -1711,7 +1712,7 @@ int cgn_op_session_map(FILE *f, int argc, char **argv)
 	struct cgn_session *cse;
 	json_writer_t *json;
 	struct ifnet *ifp = NULL;
-	uint8_t proto = 0;
+	uint8_t ipproto = 0;
 	char *sa_arg = NULL;
 	char *pa_arg = NULL;
 	int rc, i, error = 0;
@@ -1758,10 +1759,10 @@ int cgn_op_session_map(FILE *f, int argc, char **argv)
 	}
 
 	/* check the protocol */
-	proto = fltr.cf_subs.k_ipproto;
+	ipproto = fltr.cf_subs.k_ipproto;
 
-	if (proto != IPPROTO_TCP && proto != IPPROTO_UDP &&
-	    proto != IPPROTO_UDPLITE && proto != IPPROTO_DCCP) {
+	if (ipproto != IPPROTO_TCP && ipproto != IPPROTO_UDP &&
+	    ipproto != IPPROTO_UDPLITE && ipproto != IPPROTO_DCCP) {
 		error = -CGN_PCP_EINVAL;
 		goto error;
 	}
@@ -1783,7 +1784,7 @@ int cgn_op_session_map(FILE *f, int argc, char **argv)
 	cpk.cpk_sid = fltr.cf_subs.k_port;
 	cpk.cpk_daddr = fltr.cf_pub.k_addr;
 	cpk.cpk_did = fltr.cf_pub.k_port;
-	cpk.cpk_ipproto = proto;
+	cpk.cpk_ipproto = ipproto;
 	cpk.cpk_ifindex = ifp->if_index;
 	cpk.cpk_key.k_ifindex = cgn_if_key_index(ifp);
 	cpk.cpk_l4ports = true;
@@ -1831,7 +1832,7 @@ int cgn_op_session_map(FILE *f, int argc, char **argv)
 
 	jsonw_int_field(json, "result", result);
 	jsonw_string_field(json, "intf", ifp->if_name);
-	jsonw_uint_field(json, "proto", proto);
+	jsonw_uint_field(json, "proto", ipproto);
 	jsonw_string_field(json, "subs_addr", subs_addr);
 	jsonw_uint_field(json, "subs_port", ntohs(cse->cs_forw_entry.ce_port));
 	jsonw_string_field(json, "pub_addr", pub_addr);
@@ -1859,7 +1860,7 @@ error:
 	jsonw_string_field(json, "error", cgn_rc_str(error));
 
 	jsonw_string_field(json, "intf", ifp ? ifp->if_name : "?");
-	jsonw_uint_field(json, "proto", proto);
+	jsonw_uint_field(json, "proto", ipproto);
 	jsonw_string_field(json, "subs_addr", sa_arg ? sa_arg : "0.0.0.0");
 	jsonw_uint_field(json, "subs_port", ntohs(fltr.cf_subs.k_port));
 	jsonw_string_field(json, "pub_addr", pa_arg ? pa_arg : "0.0.0.0");

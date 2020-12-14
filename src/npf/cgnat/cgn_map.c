@@ -102,8 +102,9 @@ void cgn_alloc_pool_available(struct nat_pool *np, struct apm *apm)
  * If successful, the returned apm will be LOCKED.
  */
 static struct apm *
-cgn_alloc_addr_rrobin(struct nat_pool *np, uint8_t proto, uint32_t addr_hint,
-		      struct nat_pool_range *pr, vrfid_t vrfid, int *error)
+cgn_alloc_addr_rrobin(struct nat_pool *np, enum nat_proto proto,
+		      uint32_t addr_hint, struct nat_pool_range *pr,
+		      vrfid_t vrfid, int *error)
 {
 	uint32_t addr, start_addr;
 	struct apm *apm, *lu_apm = NULL;
@@ -325,7 +326,7 @@ error:
  */
 static uint16_t
 cgn_source_find_port(struct apm_port_block **pbp, struct cgn_source *src,
-		     uint8_t proto)
+		     enum nat_proto proto)
 {
 	return apm_block_list_first_free_port(&src->sr_block_list, proto,
 					      src->sr_active_block[proto],
@@ -631,7 +632,7 @@ error:
 int cgn_map_get2(struct cgn_map *cmi, struct cgn_policy *cp, vrfid_t vrfid)
 {
 	struct apm_port_block *pb;
-	uint8_t proto  = cmi->cmi_proto;
+	enum nat_proto proto  = cmi->cmi_proto;
 	struct cgn_source *src;
 	struct nat_pool *np;
 	struct apm *apm = NULL;

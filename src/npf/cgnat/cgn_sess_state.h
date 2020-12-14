@@ -34,7 +34,7 @@ enum cgn_state_history {
  */
 struct cgn_state {
 	uint8_t		st_state;
-	uint8_t		st_proto;
+	enum nat_proto	st_proto;
 	uint8_t		st_hist;
 	uint8_t		st_pad1[1];
 	uint16_t	st_dst_port; /* Outbound dest port */
@@ -264,7 +264,8 @@ static inline const char *cgn_dir_str(enum cgn_dir dir)
 }
 
 /* Initialize session state */
-void cgn_sess_state_init(struct cgn_state *st, uint8_t proto, uint16_t port);
+void cgn_sess_state_init(struct cgn_state *st, enum nat_proto proto,
+			 uint16_t port);
 
 /*
  * Evaluate session state for packet
@@ -280,7 +281,7 @@ void cgn_sess_state_inspect(struct cgn_state *st, struct cgn_packet *cpk,
 /*
  * Get state-dependent expiry time
  */
-uint32_t cgn_sess_state_expiry_time(uint8_t proto, uint16_t port,
+uint32_t cgn_sess_state_expiry_time(enum nat_proto proto, uint16_t port,
 				    uint8_t state);
 
 /*

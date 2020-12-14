@@ -18,6 +18,7 @@
 
 #include "pktmbuf_internal.h"
 #include "npf/cgnat/cgn_hash_key.h"
+#include "npf/nat/nat_proto.h"
 
 /*
  * cgn_packet - decomposition of a packet
@@ -42,7 +43,7 @@ struct cgn_packet {
 	uint8_t		cpk_keepalive:1; /* Can we clear idle flag? */
 	uint8_t		cpk_pkt_instd:1;
 	uint8_t		cpk_tcp_flags;
-	uint8_t		cpk_proto;	/* tcp, udp, other enum */
+	enum nat_proto	cpk_proto;	/* tcp, udp, other enum */
 	uint8_t		cpk_l4ports;	/* true if there are l4ports*/
 
 	uint16_t	cpk_cksum;	/* l4 checksum */

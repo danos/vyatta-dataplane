@@ -256,7 +256,7 @@ void cgn_cgn_port_udp_etime_set(uint16_t port, uint32_t timeout)
  * order.
  */
 void
-cgn_sess_state_init(struct cgn_state *st, uint8_t proto, uint16_t port)
+cgn_sess_state_init(struct cgn_state *st, enum nat_proto proto, uint16_t port)
 {
 	st->st_state = CGN_SESS_STATE_CLOSED;
 	st->st_proto = proto;
@@ -386,7 +386,7 @@ cgn_sess_state_inspect(struct cgn_state *st, struct cgn_packet *cpk,
  *
  * port is in host byte order.
  */
-uint32_t cgn_sess_state_expiry_time(uint8_t proto, uint16_t port,
+uint32_t cgn_sess_state_expiry_time(enum nat_proto proto, uint16_t port,
 				    uint8_t state)
 {
 	uint32_t etime;

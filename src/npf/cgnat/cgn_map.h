@@ -7,6 +7,8 @@
 #ifndef _CGN_MAP_H_
 #define _CGN_MAP_H_
 
+#include "npf/nat/nat_proto.h"
+
 struct cgn_policy;
 struct cgn_source;
 struct nat_pool;
