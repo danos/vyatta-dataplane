@@ -407,23 +407,22 @@ void cgn_session_destroy(struct cgn_session *cse, bool rcu_free)
 	if (!cse)
 		return;
 
-	/* Release address and port mapping */
-	uint32_t taddr, oaddr;
-	uint16_t tport, oport;
-	struct nat_pool *np;
-	uint8_t proto;
-
-	/* todo - store forw/rev flag at session creation time */
-	cgn_session_get_back(cse, &taddr, &tport);
-	cgn_session_get_forw(cse, &oaddr, &oport);
-	proto = nat_proto_from_ipproto(cse->cs_forw_entry.ce_ipproto);
-
-	np = cgn_source_get_pool(cse->cs_src);
-	assert(np);
+	assert(cse->cs_src);
 
 	/* Release mapping if one exists */
-	if (rte_atomic16_cmpset(&cse->cs_map_flag, true, false))
-		cgn_map_put(np, cse->cs_vrfid, proto, oaddr, taddr, tport);
+	if (rte_atomic16_cmpset(&cse->cs_map_flag, true, false)) {
+
+		/* Release address and port mapping */
+		struct cgn_map cmi = {0};
+
+		cgn_session_get_back(cse, &cmi.cmi_taddr, &cmi.cmi_tid);
+		cmi.cmi_reserved = true;
+		cmi.cmi_src = cse->cs_src;
+		cmi.cmi_proto = nat_proto_from_ipproto(
+			cse->cs_forw_entry.ce_ipproto);
+
+		cgn_map_put(&cmi, cse->cs_vrfid);
+	}
 
 	/* Release reference on source */
 	cgn_source_put(cse->cs_src);
@@ -770,6 +769,17 @@ cgn_session_map(struct ifnet *ifp, struct cgn_packet *cpk,
 		return NULL;
 	}
 
+	/* Mapping info */
+	struct cgn_map cmi = {
+		.cmi_reserved = false,
+		.cmi_proto = cpk->cpk_proto,
+		.cmi_oid = 0,
+		.cmi_oaddr = oaddr,
+		.cmi_tid = 0,
+		.cmi_taddr = 0,
+		.cmi_src = NULL,
+	};
+
 	/*
 	 * Allocate public address and port.
 	 *
@@ -777,13 +787,19 @@ cgn_session_map(struct ifnet *ifp, struct cgn_packet *cpk,
 	 * function as packet flows, cgn_map_get.  This obtains a mapping
 	 * using the config in the relevant policy.
 	 */
-	if (pub_addr == 0 && pub_port == 0)
-		rc = cgn_map_get(cp, vrfid, cpk->cpk_proto, oaddr,
-				 &pub_addr, &pub_port, &src);
-	else
+	if (pub_addr == 0 && pub_port == 0) {
+		rc = cgn_map_get(&cmi, cp, vrfid);
+	} else {
+		cmi.cmi_taddr = pub_addr;
+		cmi.cmi_tid = pub_port;
+
 		/* Use specified public address and port */
-		rc = cgn_map_get2(cp, vrfid, cpk->cpk_proto, oaddr,
-				  pub_addr, pub_port, &src);
+		rc = cgn_map_get2(&cmi, cp, vrfid);
+	}
+
+	pub_addr = cmi.cmi_taddr;
+	pub_port = cmi.cmi_tid;
+	src = cmi.cmi_src;
 
 	if (rc) {
 		*error = rc;
@@ -793,12 +809,11 @@ cgn_session_map(struct ifnet *ifp, struct cgn_packet *cpk,
 	/* Create a session. */
 	cse = cgn_session_establish(cpk, CGN_DIR_OUT, pub_addr, pub_port,
 				    error, src);
-	if (!cse) {
-		/* Release mapping */
-		cgn_map_put(cp->cp_pool, vrfid, cpk->cpk_proto, oaddr,
-			    pub_addr, pub_port);
-		return NULL;
-	}
+	if (!cse)
+		goto error;
+
+	/* The session now holds the mapping reservation */
+	cmi.cmi_reserved = false;
 
 	/* Add session to hash tables */
 	rc = cgn_session_activate(cse, cpk, CGN_DIR_OUT);
@@ -809,6 +824,13 @@ cgn_session_map(struct ifnet *ifp, struct cgn_packet *cpk,
 		return NULL;
 	}
 	return cse;
+
+error:
+	if (cmi.cmi_reserved)
+		/* Release mapping */
+		cgn_map_put(&cmi, vrfid);
+
+	return NULL;
 }
 
 /*
@@ -2231,25 +2253,20 @@ cgn_session_set_expired(struct cgn_session *cse, bool update_stats)
  */
 static void cgn_session_clear_mapping(struct cgn_session *cse)
 {
-	struct nat_pool *np;
-
 	if (cse->cs_src)
 		cse->cs_src->sr_paired_addr = 0;
 
-	np = cgn_source_get_pool(cse->cs_src);
-	assert(np);
-
 	/* Release mapping immediately */
 	if (rte_atomic16_cmpset(&cse->cs_map_flag, true, false)) {
-		uint32_t taddr, oaddr;
-		uint16_t tport, oport;
-		uint8_t proto;
+		struct cgn_map cmi = {0};
 
-		cgn_session_get_back(cse, &taddr, &tport);
-		cgn_session_get_forw(cse, &oaddr, &oport);
-		proto = nat_proto_from_ipproto(cse->cs_forw_entry.ce_ipproto);
+		cgn_session_get_back(cse, &cmi.cmi_taddr, &cmi.cmi_tid);
+		cmi.cmi_reserved = true;
+		cmi.cmi_src = cse->cs_src;
+		cmi.cmi_proto = nat_proto_from_ipproto(
+			cse->cs_forw_entry.ce_ipproto);
 
-		cgn_map_put(np, cse->cs_vrfid, proto, oaddr, taddr, tport);
+		cgn_map_put(&cmi, cse->cs_vrfid);
 	}
 }
 

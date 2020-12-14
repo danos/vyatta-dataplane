@@ -89,61 +89,66 @@ static struct cgn_session *
 cgnat_try_initial(struct ifnet *ifp, struct cgn_packet *cpk,
 		  struct rte_mbuf *mbuf, enum cgn_dir dir, int *error)
 {
-	struct cgn_source *src = NULL;
 	struct cgn_session *cse;
 	struct cgn_policy *cp;
 	int rc = 0;
-	uint32_t oaddr, taddr;
-	uint16_t tport;
 	vrfid_t vrfid = cpk->cpk_vrfid;
 
-	if (unlikely(dir == CGN_DIR_IN)) {
-		*error = -CGN_SESS_ENOENT;
-		return NULL;
-	}
+	/* Mapping info */
+	struct cgn_map cmi = {
+		.cmi_reserved = false,
+		.cmi_proto = cpk->cpk_proto,
+		.cmi_oid = cpk->cpk_sid,
+		.cmi_oaddr = cpk->cpk_saddr,
+		.cmi_tid = 0,
+		.cmi_taddr = 0,
+		.cmi_src = NULL,
+	};
 
-	oaddr = cpk->cpk_saddr;
-
-	/*
-	 * Lookup source address in policy list on the interface
-	 */
-	cp = cgn_if_find_policy_by_addr(ifp, oaddr);
+	/* Find policy from the source address */
+	cp = cgn_if_find_policy_by_addr(ifp, cmi.cmi_oaddr);
 	if (!cp) {
 		*error = -CGN_PCY_ENOENT;
-		return NULL;
+		goto error;
 	}
 
 	/* Should SNAT-ALG pkts bypass CGNAT? */
 	if (unlikely(ipv4_cgnat_out_bypass(ifp, mbuf, dir))) {
 		*error = -CGN_PCY_BYPASS;
-		return NULL;
+		goto error;
 	}
 
 	/* Check if session table is full *before* getting a mapping. */
 	if (unlikely(cgn_session_table_full)) {
 		*error = -CGN_S1_ENOSPC;
-		return NULL;
+		goto error;
 	}
 
 	/* Allocate public address and port */
-	rc = cgn_map_get(cp, vrfid, cpk->cpk_proto, oaddr,
-			 &taddr, &tport, &src);
+	rc = cgn_map_get(&cmi, cp, vrfid);
 
 	if (rc) {
 		*error = rc;
-		return NULL;
+		goto error;
 	}
 
 	/* Create a session. */
-	cse = cgn_session_establish(cpk, dir, taddr, tport, error, src);
-	if (!cse) {
-		/* Release mapping */
-		cgn_map_put(cp->cp_pool, vrfid, cpk->cpk_proto, oaddr,
-			    taddr, tport);
-		return NULL;
-	}
+	cse = cgn_session_establish(cpk, dir, cmi.cmi_taddr, cmi.cmi_tid,
+				    error, cmi.cmi_src);
+	if (!cse)
+		goto error;
+
+	/* The session now holds the mapping reservation */
+	cmi.cmi_reserved = false;
 
 	return cse;
+
+error:
+	if (cmi.cmi_reserved)
+		/* Release mapping */
+		cgn_map_put(&cmi, vrfid);
+
+	return NULL;
 }
 
 /*

@@ -335,8 +335,18 @@ cgn_source_find_port(struct apm_port_block **pbp, struct cgn_source *src,
 /*
  * Allocate an address and port from the apm module.
  *
- * Writes to *taddr and *tport (in network byte order), and to **srcp.
- * Returns 'enum cgn_errno'.
+ * Inputs:
+ *    vrfid
+ *    cp			- cgnat policy
+ *    cmi->cmi_proto		- 'Condensed' nat proto
+ *    cmi->cmi_oaddr		- Subscribers source addr
+ *
+ * Outputs (if successful):
+ *    cmi->cmi_src		- subscriber struct)
+ *    cmi->cmi_taddr		- Allocated public addr
+ *    cmi->cmi_tid		- Allocated public port
+ *    cmi->cmi_reserved = true
+ *    return 'enum cgn_errno'
  *
  * There are two locks that may be used here - one in the source address
  * structure (struct cgn_source) and one is in the public address structure
@@ -352,11 +362,10 @@ cgn_source_find_port(struct apm_port_block **pbp, struct cgn_source *src,
  * the port from the port-block.
  */
 int
-cgn_map_get(struct cgn_policy *cp, vrfid_t vrfid, uint8_t proto,
-	    uint32_t oaddr, uint32_t *taddr, uint16_t *tport,
-	    struct cgn_source **srcp)
+cgn_map_get(struct cgn_map *cmi, struct cgn_policy *cp, vrfid_t vrfid)
 {
 	struct apm_port_block *pb;
+	enum nat_proto proto = cmi->cmi_proto;
 	struct cgn_source *src;
 	struct nat_pool *np;
 	struct apm *apm = NULL;
@@ -364,8 +373,13 @@ cgn_map_get(struct cgn_policy *cp, vrfid_t vrfid, uint8_t proto,
 	int error;
 
 	assert(proto <= NAT_PROTO_LAST);
+	assert(cmi->cmi_oaddr);
+	assert(cp);
 
-	/* Get public address pool */
+	if (unlikely(!cp || cmi->cmi_oaddr == 0))
+		return -CGN_RC_UNKWN;
+
+	/* Get public address pool from the policy */
 	np = cgn_policy_get_pool(cp);
 	if (!np)
 		/* No pool attached to policy, or pool is not active */
@@ -378,14 +392,13 @@ cgn_map_get(struct cgn_policy *cp, vrfid_t vrfid, uint8_t proto,
 	 * Find (or create) and LOCK a subscriber address structure.  The
 	 * source struct remains locked until the end of cgn_map_get.
 	 */
-	src = cgn_source_find_and_lock(cp, ntohl(oaddr), vrfid, &error);
+	src = cgn_source_find_and_lock(cp, ntohl(cmi->cmi_oaddr), vrfid,
+				       &error);
 
 	if (unlikely(!src)) {
 		nat_pool_incr_map_fails(np);
 		return error;
 	}
-	/* Return the subscriber structure pointer to the caller */
-	*srcp = src;
 
 	/* src is LOCKED from here on */
 
@@ -576,8 +589,12 @@ cgn_map_get(struct cgn_policy *cp, vrfid_t vrfid, uint8_t proto,
 		port = apm_block_alloc_random_port(pb, proto);
 
 port_found:
-	*taddr = htonl(apm->apm_addr);
-	*tport = htons(port);
+	/* Successful! */
+	cmi->cmi_src = src;
+	cmi->cmi_taddr = htonl(apm->apm_addr);
+	cmi->cmi_tid = htons(port);
+	cmi->cmi_reserved = true;
+
 	rte_atomic32_inc(&src->sr_map_active);
 
 	assert(!rte_spinlock_is_locked(&apm->apm_lock));
@@ -611,12 +628,10 @@ error:
  * Obtain mapping specified by taddr *and* tport.  taddr and tport are in
  * network byte order. Used by PCP.
  */
-int
-cgn_map_get2(struct cgn_policy *cp, vrfid_t vrfid, uint8_t proto,
-	     uint32_t oaddr, uint32_t taddr, uint16_t tport,
-	     struct cgn_source **srcp)
+int cgn_map_get2(struct cgn_map *cmi, struct cgn_policy *cp, vrfid_t vrfid)
 {
 	struct apm_port_block *pb;
+	uint8_t proto  = cmi->cmi_proto;
 	struct cgn_source *src;
 	struct nat_pool *np;
 	struct apm *apm = NULL;
@@ -624,8 +639,10 @@ cgn_map_get2(struct cgn_policy *cp, vrfid_t vrfid, uint8_t proto,
 	int error = 0;
 
 	assert(proto <= NAT_PROTO_LAST);
+	assert(cmi->cmi_oaddr);
+	assert(cp);
 
-	if (taddr == 0 || tport == 0)
+	if (cmi->cmi_taddr == 0 || cmi->cmi_tid == 0)
 		return -CGN_PCP_EINVAL;
 
 	/* Get public address pool */
@@ -638,15 +655,13 @@ cgn_map_get2(struct cgn_policy *cp, vrfid_t vrfid, uint8_t proto,
 	nat_pool_incr_map_reqs(np);
 
 	/* Find (or create) and LOCK a source address structure */
-	src = cgn_source_find_and_lock(cp, ntohl(oaddr), vrfid, &error);
+	src = cgn_source_find_and_lock(cp, ntohl(cmi->cmi_oaddr),
+				       vrfid, &error);
 
 	if (unlikely(!src)) {
 		nat_pool_incr_map_fails(np);
 		return error;
 	}
-
-	/* Return the subscriber structure pointer to the caller */
-	*srcp = src;
 
 	/* src is LOCKED from here on */
 
@@ -656,7 +671,7 @@ cgn_map_get2(struct cgn_policy *cp, vrfid_t vrfid, uint8_t proto,
 	 * Is the requested public address in the NAT pool for the policy that
 	 * is being used by this subscriber?
 	 */
-	if (!nat_pool_is_pool_addr(np, taddr)) {
+	if (!nat_pool_is_pool_addr(np, cmi->cmi_taddr)) {
 		error = -CGN_POOL_ENOSPC;
 		goto error;
 	}
@@ -664,15 +679,16 @@ cgn_map_get2(struct cgn_policy *cp, vrfid_t vrfid, uint8_t proto,
 	/*
 	 * Is the requested public address blocked?
 	 */
-	if (nat_pool_is_blocked_addr(np, taddr)) {
+	if (nat_pool_is_blocked_addr(np, cmi->cmi_taddr)) {
 		error = -CGN_POOL_ENOSPC;
 		goto error;
 	}
 
 	/* Lookup public address in apm table */
-	apm = apm_lookup(taddr, vrfid);
+	apm = apm_lookup(cmi->cmi_taddr, vrfid);
 	if (!apm) {
-		apm = apm_create_and_insert(ntohl(taddr), vrfid, np, &error);
+		apm = apm_create_and_insert(ntohl(cmi->cmi_taddr), vrfid,
+					    np, &error);
 
 		/* Either out of memory, or apm table is full */
 		if (unlikely(!apm))
@@ -689,7 +705,7 @@ cgn_map_get2(struct cgn_policy *cp, vrfid_t vrfid, uint8_t proto,
 	}
 
 	/* Find the port-block for the given port */
-	port = ntohs(tport);
+	port = ntohs(cmi->cmi_tid);
 	block = apm_block(port, apm->apm_port_start, apm->apm_port_block_sz);
 	pb = apm->apm_blocks[block];
 
@@ -768,6 +784,8 @@ cgn_map_get2(struct cgn_policy *cp, vrfid_t vrfid, uint8_t proto,
 	}
 
 	/* Success.  Increments stats and unlock the subscriber. */
+	cmi->cmi_src = src;
+	cmi->cmi_reserved = true;
 
 	rte_atomic32_inc(&src->sr_map_active);
 
@@ -810,52 +828,65 @@ error:
  *   2. We fail to translate a packet for which a new session was created
  *   3. session is reaped by garbage collector
  *   4. session clear command
+ *
+ * Inputs:
+ *    vrfid
+ *    cmi->cmi_reserved
+ *    cmi->cmi_proto
+ *    cmi->cmi_src
+ *    cmi->cmi_taddr
+ *    cmi->cmi_tid
  */
-int cgn_map_put(struct nat_pool *np, vrfid_t vrfid, uint8_t proto,
-		uint32_t oaddr, uint32_t taddr, uint16_t tport)
+int cgn_map_put(struct cgn_map *cmi, vrfid_t vrfid)
 {
 	struct cgn_source *src;
+	struct nat_pool *np;
 	struct apm *apm;
 
-	assert(proto <= NAT_PROTO_LAST);
-	assert(np);
+	assert(cmi->cmi_src);
+	assert(cmi->cmi_taddr);
+	assert(cmi->cmi_tid);
+	assert(cmi->cmi_reserved);
 
-	/* Lookup subscriber address in source table */
-	src = cgn_source_lookup(ntohl(oaddr), vrfid);
-	if (unlikely(!src))
+	if (!cmi->cmi_reserved)
 		return 0;
+
+	if (unlikely(!cmi->cmi_src || cmi->cmi_taddr == 0 ||
+		     cmi->cmi_tid == 0))
+		return -CGN_RC_UNKWN;
+
+	src = cmi->cmi_src;
 
 	/* Lock the source */
-	assert(!rte_spinlock_is_locked(&src->sr_lock));
 	rte_spinlock_lock(&src->sr_lock);
 
+	/* Get pool from subscriber (not policy) */
+	np = cgn_source_get_pool(src);
+	if (unlikely(!np))
+		goto unlock_end;
+
 	/* Lookup public address in apm table */
-	apm = apm_lookup(ntohl(taddr), vrfid);
-	if (unlikely(!apm)) {
-		rte_spinlock_unlock(&src->sr_lock);
-		return 0;
-	}
+	apm = apm_lookup(ntohl(cmi->cmi_taddr), vrfid);
+	if (unlikely(!apm))
+		goto unlock_end;
 
 	uint16_t port, block;
 	struct apm_port_block *pb;
 
 	/* Find the port-block for the given port */
-	port = ntohs(tport);
+	port = ntohs(cmi->cmi_tid);
 	block = apm_block(port, apm->apm_port_start, apm->apm_port_block_sz);
 	pb = apm->apm_blocks[block];
 
-	assert(pb);
-
 	/* Should never happen */
-	if (unlikely(!pb)) {
-		rte_spinlock_unlock(&src->sr_lock);
-		return 0;
-	}
+	if (unlikely(!pb))
+		goto unlock_end;
+
 	assert(apm_block_get_source(pb) &&
 	       apm_block_get_source(pb) == src);
 
 	/* Clear bit in port-block bitmap */
-	apm_block_release_port(pb, proto, port);
+	apm_block_release_port(pb, cmi->cmi_proto, port);
 
 	/*
 	 * Can we free the port block?
@@ -864,7 +895,6 @@ int cgn_map_put(struct nat_pool *np, vrfid_t vrfid, uint8_t proto,
 		/*
 		 * Lock the apm before releasing the port-block
 		 */
-		assert(!rte_spinlock_is_locked(&apm->apm_lock));
 		rte_spinlock_lock(&apm->apm_lock);
 
 		/*
@@ -892,6 +922,10 @@ int cgn_map_put(struct nat_pool *np, vrfid_t vrfid, uint8_t proto,
 	 */
 	nat_pool_decr_map_active(np);
 
+	/* Reservation has been released */
+	cmi->cmi_reserved = false;
+
+unlock_end:
 	/* Unlock source */
 	rte_spinlock_unlock(&src->sr_lock);
 
