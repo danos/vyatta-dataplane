@@ -1,3 +1,39 @@
+vyatta-dataplane (3.12.12) unstable; urgency=medium
+
+  [ Mark Gillott ]
+  * if: track LAG members when updating multicast promiscuous mode
+    (Fixes: VRVDR-53559)
+
+  [ Gavin Shearer ]
+  * npf: change ipv6-route show firewall output
+
+  [ Nicholas Brown ]
+  * Add a test setup for easy use of valgrind
+
+  [ Robert Shearman ]
+  * if: generate events on admin-status changes
+  * ip_mcast: make use of dp events to improve modularity
+  * bridge: remove admin-down ports from VLANs in the FAL (Fixes: VRVDR-53674)
+
+  [ Nicholas Brown ]
+  * ignore corrupt libcheck results files
+
+  [ Paul Atkins ]
+  * main: fix memleak in check_broken_firmware
+  * ut: free xfrm server endpoints after use
+
+  [ Simon Barber ]
+  * CRYPTO: Handle SA netlink messages straight from IKE control-plane
+  * CRYPTO: Pass a ptr to a container to rtnl_process_xfrm_sa
+  * CRYPTO: Add support for XFRM_GETSA stats service
+  * UT:CRYPTO: Add code to test request and process xfrm SA stats
+  * CRYPTO: Add SA expire xfrm message generation
+  * UT:CRYPTO: Handle xfrm direct SA expire messages
+
+  [ Paul Atkins ]
+
+ -- Paul Atkins <paul.atkins@intl.att.com>  Mon, 14 Dec 2020 14:35:45 +0000
+
 vyatta-dataplane (3.12.11) unstable; urgency=medium
 
   [ Mandeep Rohilla ]
