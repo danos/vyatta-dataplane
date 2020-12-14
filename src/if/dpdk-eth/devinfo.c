@@ -378,8 +378,10 @@ void check_broken_firmware(void)
 		if (is_ethernet_device(dev_path)) {
 			index = __get_firmware_index(dev_path);
 
-			if (index == -1)
+			if (index == -1) {
+				free(dev_path);
 				continue;
+			}
 
 			for (i = 0; i < ndevs; i++) {
 				if (index == dev_index[i]) {

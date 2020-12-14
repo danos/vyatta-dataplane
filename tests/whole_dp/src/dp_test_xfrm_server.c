@@ -103,6 +103,8 @@ dp_test_xfrm_server_thread_run(zsock_t *pipe, void *args)
 
 	zsock_signal(pipe, 0);
 	zstr_send(pipe, socket_names);
+	free(ep_push);
+	free(ep_pull);
 
 	zmq_pollitem_t items[] = {
 		{
