@@ -15,6 +15,11 @@
 #include "crypto_internal.h"
 #include "util.h"
 
+struct crypto_sadb_stats {
+	uint64_t bytes;
+	uint64_t packets;
+};
+
 struct crypto_vrf_ctx;
 struct ifnet;
 struct sadb_sa;
@@ -43,6 +48,8 @@ void crypto_sadb_increment_counters(struct sadb_sa *sa,
 				    uint32_t packets);
 
 uint32_t crypto_sadb_get_reqid(struct sadb_sa *sa);
+uint32_t crypto_sadb_get_family(struct sadb_sa *sa);
+xfrm_address_t crypto_sadb_get_dst(struct sadb_sa *sa);
 
 void crypto_sadb_mark_as_blocked(struct sadb_sa *sa);
 
@@ -60,4 +67,7 @@ void crypto_incmpl_xfrm_sa_del(uint32_t ifindex, const struct nlmsghdr *nlh,
 			       const struct xfrm_usersa_info  *sa_info);
 void crypto_incmpl_sa_make_complete(void);
 
+bool crypto_sadb_get_stats(vrfid_t vrf_id, xfrm_address_t addr,
+			   uint16_t family, uint32_t spi,
+			   struct crypto_sadb_stats *sa);
 #endif /* CRYPTO_SADB_H */

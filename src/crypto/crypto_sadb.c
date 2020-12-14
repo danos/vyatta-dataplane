@@ -232,11 +232,12 @@ static int sadb_spi_out_match(struct cds_lfht_node *node, const void *key)
 }
 
 /*
- * Used by the fast path to lookup an output (encrypt) SA by SPI and dest addr.
+ * Find a specific SA.
  */
-struct sadb_sa *sadb_lookup_sa_outbound(vrfid_t vrfid,
-					const xfrm_address_t *dst,
-					uint16_t family, uint32_t spi)
+static struct sadb_sa *
+sadb_lookup_sa_outbound_noblock(vrfid_t vrfid,
+				 const xfrm_address_t *dst,
+				 uint16_t family, uint32_t spi)
 {
 	struct cds_lfht_node *node;
 	struct cds_lfht_iter iter;
@@ -261,18 +262,26 @@ struct sadb_sa *sadb_lookup_sa_outbound(vrfid_t vrfid,
 
 	sa =  node ? caa_container_of(node, struct sadb_sa,
 				      spi_ht_node) : NULL;
+	return sa;
+}
 
-	if (!sa) {
+/*
+ * Used by the fast path to lookup an output (encrypt) SA by SPI and dest addr.
+ */
+struct sadb_sa *sadb_lookup_sa_outbound(vrfid_t vrfid,
+					const xfrm_address_t *dst,
+					uint16_t family, uint32_t spi)
+{
+	struct sadb_sa *sa;
+
+	sa = sadb_lookup_sa_outbound_noblock(vrfid, dst, family, spi);
+	if (!sa)
 		IPSEC_CNT_INC(DROPPED_NO_SPI_TO_SA);
-		return NULL;
-	}
-
-	if (sa->blocked)
+	else if (sa->blocked)
 		return NULL;
 
 	return sa;
 }
-
 
 static bool sadb_add_sa_to_spi_out_hash(struct sadb_sa *sa,
 					struct crypto_vrf_ctx *vrf_ctx)
@@ -692,6 +701,15 @@ done:
 	return sa;
 }
 
+static struct sadb_sa *
+sadb_lookup_inbound_noblock(uint32_t spi)
+{
+	struct sadb_sa *sa;
+
+	sa = sadb_lookup_sa_by_spi_in(spi);
+	return sa;
+}
+
 /*
  * sadb_lookup_inbound()
  *
@@ -705,17 +723,14 @@ struct sadb_sa *sadb_lookup_inbound(uint32_t spi)
 {
 	struct sadb_sa *sa;
 
-	sa = sadb_lookup_sa_by_spi_in(spi);
-	if (!sa) {
+	sa = sadb_lookup_inbound_noblock(spi);
+
+	if (!sa)
 		IPSEC_CNT_INC(DROPPED_NO_SPI_TO_SA);
+	else if (sa->blocked)
 		return NULL;
-	}
 
-
-	if (!sa->blocked)
-		return sa;
-
-	return NULL;
+	return sa;
 }
 
 static void sadb_sa_destroy(struct sadb_sa *sa)
@@ -1148,6 +1163,27 @@ static const char *xfrm_addr_to_str(uint16_t family,
 
 #define SPI_LEN_IN_HEXCHARS (8+1) /* 32 bit SPI */
 
+bool
+crypto_sadb_get_stats(vrfid_t vrf_id, xfrm_address_t daddr,
+		      uint16_t family, uint32_t spi,
+		      struct crypto_sadb_stats *sa_stats)
+{
+	struct sadb_sa *sa;
+
+	sa = sadb_lookup_sa_outbound_noblock(vrf_id, &daddr,
+					      family, spi);
+	if (!sa) {
+		sa = sadb_lookup_inbound_noblock(spi);
+		if (!sa)
+			return false;
+	}
+
+	sa_stats->bytes = sa->byte_count;
+	sa_stats->packets = sa->packet_count;
+
+	return true;
+}
+
 void crypto_sadb_show_summary(FILE *f, vrfid_t vrfid)
 {
 	json_writer_t *wr;
@@ -1308,6 +1344,7 @@ void crypto_sadb_increment_counters(struct sadb_sa *sa, uint32_t bytes,
 	    (sa->byte_count > sa->byte_limit)) {
 		crypto_sadb_mark_as_blocked(sa);
 		crypto_expire_request(sa->spi, sa->reqid,
+				      sa->dst, sa->family,
 				      IPPROTO_ESP, 0 /* hard */);
 	}
 }
@@ -1385,6 +1422,16 @@ void crypto_sadb_tunl_overhead_unsubscribe(uint32_t reqid,
 uint32_t crypto_sadb_get_reqid(struct sadb_sa *sa)
 {
 	return sa->reqid;
+}
+
+uint32_t crypto_sadb_get_family(struct sadb_sa *sa)
+{
+	return sa->family;
+}
+
+xfrm_address_t crypto_sadb_get_dst(struct sadb_sa *sa)
+{
+	return sa->dst;
 }
 
 void crypto_sadb_mark_as_blocked(struct sadb_sa *sa)

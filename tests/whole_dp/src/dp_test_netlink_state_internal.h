@@ -524,4 +524,12 @@ void dp_test_netlink_xfrm_expire(uint32_t spi, /* Network byte order */
 				 bool expire_hard,
 				 vrfid_t vrfid);
 
+void dp_test_netlink_xfrm_getsa(uint32_t spi, /* Network byte order */
+				const char *dst,
+				const char *src,
+				uint16_t family,
+				uint8_t mode,
+				uint32_t reqid,
+				vrfid_t vrfid);
+
 #endif /* _DP_TEST_NETLINK_STATE_INTERNAL_H_ */

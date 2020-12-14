@@ -83,6 +83,100 @@ int xfrm_client_send_ack(uint32_t seq, int err)
 	return rc;
 }
 
+int xfrm_client_send_expire(xfrm_address_t *dst, uint16_t family, uint32_t spi,
+			    uint32_t reqid, uint8_t proto, uint8_t hard)
+{
+	struct xfrm_user_expire *expire;
+	struct nlmsghdr *nlh;
+	zframe_t *frame;
+	char buf[MNL_SOCKET_BUFFER_SIZE];
+	int rc;
+
+	memset(buf, 0, MNL_SOCKET_BUFFER_SIZE);
+
+	nlh = mnl_nlmsg_put_header(buf);
+	nlh->nlmsg_type = XFRM_MSG_EXPIRE;
+	nlh->nlmsg_flags = 0;
+	nlh->nlmsg_seq = 0;
+
+	expire = mnl_nlmsg_put_extra_header(nlh, sizeof(*expire));
+	if (!expire) {
+		DP_DEBUG(CRYPTO, ERR, DATAPLANE,
+			 "XFRM expire failed SPI:%u\n", spi);
+		return -1;
+	}
+
+	expire->state.family = family;
+	expire->state.id.daddr = *dst;
+	expire->state.id.proto = proto;
+	expire->state.id.spi = spi;
+	expire->state.reqid = reqid;
+	expire->hard = hard;
+
+	frame = zframe_new(nlh, nlh->nlmsg_len);
+	if (!frame) {
+		DP_DEBUG(CRYPTO, ERR, DATAPLANE,
+			 "XFRM expire can't create frame SPI:%u\n",
+			 spi);
+		return -1;
+	}
+
+	rc = zframe_send(&frame, xfrm_push_socket, 0);
+	if (rc < 0) {
+		DP_DEBUG(CRYPTO, ERR, DATAPLANE,
+			 "XFRM expire failed to send SPU:%u\n",
+			 spi);
+		zframe_destroy(&frame);
+		return -1;
+	}
+	return rc;
+}
+/*
+ * Build an SA message back to the server with the stats that were requested.
+ */
+int xfrm_client_send_sa_stats(uint32_t seq, uint32_t spi,
+			      struct crypto_sadb_stats *stats)
+{
+	struct nlmsghdr *nlh;
+	struct xfrm_usersa_info *sa;
+	zframe_t *frame;
+	char buf[MNL_SOCKET_BUFFER_SIZE];
+	int rc;
+
+	memset(buf, 0, MNL_SOCKET_BUFFER_SIZE);
+
+	/* the stats are returned in a NEWSA xfrm which is not intuitive */
+	nlh = mnl_nlmsg_put_header(buf);
+	nlh->nlmsg_type = XFRM_MSG_NEWSA;
+	nlh->nlmsg_flags = NLM_F_ACK;
+	nlh->nlmsg_seq = seq;
+
+	sa = mnl_nlmsg_put_extra_header(nlh, sizeof(*sa));
+	if (!sa) {
+		DP_DEBUG(CRYPTO, ERR, DATAPLANE,
+			 "XFRM sa stats failed SPI:%u\n", spi);
+		return -1;
+	}
+	sa->curlft.bytes = stats->bytes;
+	sa->curlft.packets = stats->packets;
+
+	frame = zframe_new(nlh, nlh->nlmsg_len);
+	if (!frame) {
+		DP_DEBUG(CRYPTO, ERR, DATAPLANE,
+			 "XFRM sa stats framing failed SPI:%u\n", spi);
+		return -1;
+	}
+
+	rc = zframe_send(&frame, xfrm_push_socket, 0);
+	if (rc < 0) {
+		DP_DEBUG(CRYPTO, ERR, DATAPLANE,
+			 "XFRM sa stats framing failed SPI:%u\n", spi);
+		zframe_destroy(&frame);
+	}
+
+	return rc;
+}
+
 static int
 dp_xfrm_msg_recv(zsock_t *sock, zmq_msg_t *hdr, zmq_msg_t *msg)
 {
@@ -162,6 +256,8 @@ static int xfrm_netlink_recv(void *arg)
 	}
 
 	vrfid_t vrf_id = VRF_DEFAULT_ID;
+	xfrm_aux.vrf = &vrf_id;
+	xfrm_aux.seq = nlh->nlmsg_seq;
 
 	switch (nlh->nlmsg_type) {
 	case XFRM_MSG_NEWPOLICY: /* Fall through */
@@ -185,7 +281,6 @@ static int xfrm_netlink_recv(void *arg)
 		 * acks are not sent until the policy has been added
 		 * to the classifier
 		 */
-		xfrm_aux.vrf = &vrf_id;
 		rc = mnl_cb_run(nlh, len, 0, 0, rtnl_process_xfrm, &xfrm_aux);
 		/* Policy acks are batched in most cases */
 		if (rc != MNL_CB_OK || xfrm_aux.ack_msg)
@@ -198,9 +293,18 @@ static int xfrm_netlink_recv(void *arg)
 	case XFRM_MSG_UPDSA:
 	case XFRM_MSG_DELSA:
 	case XFRM_MSG_EXPIRE:
-		rc = mnl_cb_run(nlh, len, 0, 0, rtnl_process_xfrm_sa, &vrf_id);
-		xfrm_client_send_ack(nlh->nlmsg_seq, rc);
-
+	case XFRM_MSG_GETSA:
+		rc = mnl_cb_run(nlh, len, 0, 0, rtnl_process_xfrm_sa,
+				&xfrm_aux);
+		/*
+		 * For all SA messages apart from the GETSA then the
+		 * ack response is always sent from here. Successful
+		 * GETSA processing generates an message back to the
+		 * server and so does not require an ACK, however if
+		 * it is unsuccessful an error is sent from here.
+		 */
+		if (rc != MNL_CB_OK || xfrm_aux.ack_msg)
+			xfrm_client_send_ack(nlh->nlmsg_seq, rc);
 		break;
 	default:
 		rc = MNL_CB_ERROR;

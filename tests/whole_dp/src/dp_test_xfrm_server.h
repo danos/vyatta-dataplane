@@ -19,5 +19,7 @@ extern uint32_t xfrm_seq;
 extern uint32_t xfrm_seq_received;
 extern uint32_t xfrm_ack_err;
 
+extern uint64_t xfrm_bytes;
+extern uint64_t xfrm_packets;
 
 void dp_test_xfrm_server_thread_run(zsock_t *pipe, void *args);

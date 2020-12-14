@@ -422,41 +422,101 @@ static void wait_for_npf_policy(const struct dp_test_crypto_policy *policy,
 
 static uint32_t poll_cnt;
 
-static int _dp_test_crypto_poll_xfrm_acks(zloop_t *loop, int poller, void *arg)
-{
-	bool *match = (bool *)arg;
+struct dp_test_crypto_reponses_cb {
+	enum dp_test_crypto_check_resp_type type;
+	bool match;
+	bool valid;
+	/* Expected values */
+	uint64_t pkts;
+	uint64_t bytes;
+	/* Record the tested values */
+	uint32_t tx_ack;
+	uint32_t rx_ack;
+	uint64_t actual_pkts;
+	uint64_t actual_bytes;
+};
 
+static int _dp_test_crypto_poll_response(zloop_t *loop, int poller, void *arg)
+{
+	struct dp_test_crypto_reponses_cb *aux;
+
+	aux = (struct dp_test_crypto_reponses_cb *) arg;
 	poll_cnt--;
 
-	if (xfrm_seq == xfrm_seq_received)
-		*match = true;
-
+	switch (aux->type) {
+	case DP_TEST_CHECK_CRYPTO_SEQ:
+		aux->tx_ack = xfrm_seq;
+		aux->rx_ack = xfrm_seq_received;
+		if (aux->tx_ack == aux->rx_ack)
+			aux->valid = true;
+		break;
+	case DP_TEST_CHECK_CRYPTO_SA_STATS:
+		aux->actual_pkts = xfrm_packets;
+		aux->actual_bytes = xfrm_bytes;
+		if (aux->match) {
+			if (aux->pkts == aux->actual_pkts &&
+			    aux->bytes == aux->actual_bytes)
+				aux->valid = true;
+		} else {
+			if (aux->pkts != aux->actual_pkts ||
+			    aux->bytes != aux->actual_bytes)
+				aux->valid = true;
+		}
+		break;
+	default:
+		dp_test_assert_internal(false);
+	}
 	/* return -1 to stop if we got what we want or run out of retries */
-	return (*match || poll_cnt == 0) ? -1 : 0;
+	return (aux->valid || poll_cnt == 0) ? -1 : 0;
 }
 
-static void _dp_test_crypto_check_xfrm_acks(const char *file, int line)
+/*
+ * Check the xfrm responses received, either
+ * - The number of rx acks sent versus the number of tx acks received.
+ * - The stats on a particular SA versus those as expected.
+ */
+void
+_dp_test_crypto_check_xfrm_resp(const char *file, int line,
+				enum dp_test_crypto_check_resp_type type,
+				uint64_t exp_bytes,
+				uint64_t exp_packets,
+				bool match)
 {
-
+	struct dp_test_crypto_reponses_cb aux;
 	int timer;
 	zloop_t *loop = zloop_new();
-	bool match = false;
+
+	aux.type = type;
+	aux.match = match;
+	aux.valid = false;
+	aux.bytes = exp_bytes;
+	aux.pkts = exp_packets;
 
 	poll_cnt = DP_TEST_POLL_COUNT;
 	timer = zloop_timer(loop, DP_TEST_POLL_INTERVAL, 0,
-			    _dp_test_crypto_poll_xfrm_acks,
-			    &match);
+			    _dp_test_crypto_poll_response,
+			    &aux);
 	dp_test_assert_internal(timer >= 0);
 
-	/* Check the number of xfrm messages sent equal the number of acks
-	 * received.
-	 */
 	zloop_start(loop);
 	zloop_destroy(&loop);
 
-	if (!match)
-		_dp_test_fail(file, line, "Missing acks Tx %d Rx %d:\n",
-			      xfrm_seq, xfrm_seq_received);
+	if (!aux.valid)
+		switch (type) {
+		case DP_TEST_CHECK_CRYPTO_SEQ:
+			_dp_test_fail(file, line, "Missing acks Tx %d Rx %d:\n",
+				      aux.tx_ack, aux.rx_ack);
+			break;
+		case DP_TEST_CHECK_CRYPTO_SA_STATS:
+			_dp_test_fail(file, line, "SA stats expected "
+				      "pkts %lu bytes %lu, "
+				      "got pkts %lu btyes %lu\n",
+				      aux.pkts, aux.bytes, aux.actual_pkts,
+				      aux.actual_bytes);
+			break;
+		default:
+			dp_test_assert_internal(false);
+		}
 }
 
 /*
@@ -796,6 +856,14 @@ void _dp_test_crypto_delete_sa_verify(const char *file, int line,
 		_wait_for_sa(sa, false, file, line);
 }
 
+void _dp_test_crypto_get_sa(const char *file, int line,
+				   const struct dp_test_crypto_sa *sa)
+{
+	dp_test_netlink_xfrm_getsa(sa->spi, sa->d_addr, sa->s_addr,
+				   sa->family, sa->mode, sa->reqid,
+				   sa->vrfid);
+}
+
 void _dp_test_crypto_expire_sa(const char *file, int line,
 			       const struct dp_test_crypto_sa *sa, bool hard)
 {
@@ -930,4 +998,10 @@ void  _dp_test_crypto_flush(void)
 void  _dp_test_crypto_commit(void)
 {
 	nl_propagate_xfrm(xfrm_server_push_sock, NULL, 0, "COMMIT");
+}
+
+void _dp_test_xfrm_poison_sa_stats(void)
+{
+	xfrm_packets = 0xcafe;
+	xfrm_bytes = 0xf00d;
 }

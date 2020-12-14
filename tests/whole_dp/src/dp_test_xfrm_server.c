@@ -12,6 +12,7 @@
 #include <czmq.h>
 #include <zmq.h>
 #include <libmnl/libmnl.h>
+#include <linux/xfrm.h>
 
 #include "dp_test_controller.h"
 #include "dp_test_lib_internal.h"
@@ -42,13 +43,19 @@ static int process_xfrm_actor_message(zsock_t *sock)
 
 uint32_t xfrm_seq_received;
 uint32_t xfrm_ack_err;
+uint64_t xfrm_bytes, xfrm_packets;
+uint32_t xfrm_expire_spi;
+xfrm_address_t xfrm_expire_dst;
+uint16_t xfrm_expire_family;
 
 static void process_xfrm_ack_message(zsock_t *sock)
 {
 	zframe_t *msg;
-
 	struct nlmsghdr *nlh;
 	struct nlmsgerr *err_msg;
+	struct xfrm_usersa_info *sa;
+	struct xfrm_user_expire *expire;
+	bool seq_inc = true;
 
 	msg = zframe_recv(sock);
 	assert(msg);
@@ -56,18 +63,44 @@ static void process_xfrm_ack_message(zsock_t *sock)
 	dp_test_assert_internal(nlh);
 
 	/* Netlink ACK/OK are carried in Error messages*/
-	dp_test_assert_internal(nlh->nlmsg_type == NLMSG_ERROR);
-	err_msg = mnl_nlmsg_get_payload(nlh);
+	switch (nlh->nlmsg_type) {
+	case NLMSG_ERROR:
+		err_msg = mnl_nlmsg_get_payload(nlh);
+		if (xfrm_ack_err) {
+			xfrm_ack_err--;
+			dp_test_assert_internal(err_msg->error != 0);
+		} else {
+			dp_test_assert_internal(err_msg->error == 0);
+		}
+		break;
+	case XFRM_MSG_NEWSA:
+		/* Stats request response */
+		sa = mnl_nlmsg_get_payload(nlh);
+		dp_test_assert_internal(sa);
+		xfrm_bytes = sa->curlft.bytes;
+		xfrm_packets = sa->curlft.packets;
+		break;
+	case XFRM_MSG_EXPIRE:
+		expire = mnl_nlmsg_get_payload(nlh);
+		dp_test_assert_internal(expire);
+		dp_test_assert_internal(expire->state.id.proto == IPPROTO_ESP);
 
-	/* Error code 0 indicates a ACK/OK else we have an error */
-	if (xfrm_ack_err) {
-		xfrm_ack_err--;
-		dp_test_assert_internal(err_msg->error != 0);
-	} else {
-		dp_test_assert_internal(err_msg->error == 0);
+		xfrm_expire_family = expire->state.family;
+		xfrm_expire_dst	= expire->state.id.daddr;
+		/*
+		 * This is a autonomous message, i.e. no xfrm request
+		 * was sent, so do not inc the xfrm_seq_received
+		 */
+		seq_inc = false;
+		break;
+	default:
+		dp_test_assert_internal(nlh->nlmsg_type == NLMSG_ERROR);
 	}
 
-	xfrm_seq_received++;
+	/* Error code 0 indicates a ACK/OK else we have an error */
+
+	if (seq_inc)
+		xfrm_seq_received++;
 
 	dp_test_assert_internal(xfrm_seq_received <= xfrm_seq);
 	zframe_destroy(&msg);

@@ -1728,6 +1728,19 @@ static void process_xfrm_delsa(struct xfrm_usersa_info *sa_info,
 	crypto_sadb_del_sa(sa_info, vrfid);
 }
 
+static int
+process_xfrm_getsa(const struct xfrm_usersa_id *sa_id,
+		   vrfid_t vrf_id, uint32_t seq)
+{
+	struct crypto_sadb_stats sa;
+
+	if (!crypto_sadb_get_stats(vrf_id, sa_id->daddr,
+				   sa_id->family, sa_id->spi, &sa))
+		return -1;
+
+	return xfrm_client_send_sa_stats(seq, sa_id->spi, &sa);
+}
+
 /*
  * rtnl_process_xfrm_sa()
  *
@@ -1746,9 +1759,13 @@ int rtnl_process_xfrm_sa(const struct nlmsghdr *nlh, void *data)
 	const struct xfrm_usersa_id *sa_id;
 	const char *msg_type_str;
 	vrfid_t vrf_id;
-	uint32_t ifindex = 0;
+	uint32_t seq, ifindex = 0;
+	struct xfrm_client_aux_data *xfrm_aux;
 
-	vrf_id = *(vrfid_t *)data;
+	xfrm_aux = (struct xfrm_client_aux_data *)data;
+	vrf_id = *xfrm_aux->vrf;
+	seq = xfrm_aux->seq;
+	xfrm_aux->ack_msg = true;
 
 	switch (nlh->nlmsg_type) {
 
@@ -1804,6 +1821,30 @@ int rtnl_process_xfrm_sa(const struct nlmsghdr *nlh, void *data)
 			crypto_sadb_del_sa(&expire->state, vrf_id);
 		break;
 
+	case XFRM_MSG_GETSA:
+		if (payload_size < sizeof(*sa_id)) {
+			RTE_LOG(ERR, DATAPLANE, "xfrm: too short for GETSA\n");
+			return MNL_CB_ERROR;
+		}
+
+		sa_id = mnl_nlmsg_get_payload(nlh);
+		if (mnl_attr_parse(nlh, sizeof(*sa_id),
+				   xfrm_attr, attrs)  != MNL_CB_OK) {
+			RTE_LOG(ERR, DATAPLANE,
+				"xfrm: can't parse attributes to GETA\n");
+			return MNL_CB_ERROR;
+		}
+
+		if (process_xfrm_getsa(sa_id, vrf_id, seq) < 0)
+			return -1;
+		/*
+		 * If we have successfully processed the stats request
+		 * then we do not need to send an ack back, as the
+		 * stats response message is in effect the ack.
+		 */
+		xfrm_aux->ack_msg = false;
+
+		return MNL_CB_OK;
 	default:
 		RTE_LOG(ERR, DATAPLANE, "xfrm: unexpected netlink SA msg %u\n",
 			nlh->nlmsg_type);

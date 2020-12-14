@@ -133,8 +133,10 @@ void _dp_test_crypto_delete_sa_verify(const char *file, int line,
 				      bool verify);
 void _dp_test_crypto_expire_sa(const char *file, int line,
 			       const struct dp_test_crypto_sa *sa, bool hard);
+void _dp_test_crypto_get_sa(const char *file, int line,
+			    const struct dp_test_crypto_sa *sa);
 
-#define dp_test_crypto_create_sa(_sa)		\
+#define dp_test_crypto_create_sa(_sa)					\
 	_dp_test_crypto_create_sa(__FILE__, __func__, __LINE__, _sa, true)
 #define dp_test_crypto_create_sa_verify(_sa, verify)	\
 	_dp_test_crypto_create_sa(__FILE__, __func__, __LINE__, _sa, verify)
@@ -143,6 +145,9 @@ void _dp_test_crypto_expire_sa(const char *file, int line,
 	_dp_test_crypto_delete_sa_verify(__FILE__, __LINE__, _sa, true)
 #define dp_test_crypto_delete_sa_verify(_sa, verify)		\
 	_dp_test_crypto_delete_sa_verify(__FILE__, __LINE__, _sa, verify)
+
+#define dp_test_crypto_get_sa(_sa)		\
+	_dp_test_crypto_get_sa(__FILE__, __LINE__, _sa)
 
 #define dp_test_crypto_expire_sa(_sa, _hard)	\
 	_dp_test_crypto_expire_sa(__FILE__, __LINE__, _sa, _hard)
@@ -182,8 +187,25 @@ generate_exp_unreachable6(struct rte_mbuf *input_pkt, int payload_len,
 			 const char *source_ip, const char *dest_ip,
 			 const char *oif, const char *dmac);
 
-#define dp_test_crypto_check_xfrm_acks()			\
-	_dp_test_crypto_check_xfrm_acks(__FILE__, __LINE__)
+enum dp_test_crypto_check_resp_type {
+	DP_TEST_CHECK_CRYPTO_SEQ,
+	DP_TEST_CHECK_CRYPTO_SA_STATS,
+};
+
+void
+_dp_test_crypto_check_xfrm_resp(const char *file, int line,
+				enum dp_test_crypto_check_resp_type type,
+				uint64_t exp_bytes, uint64_t exp_packets,
+				bool match);
+#define dp_test_crypto_check_xfrm_acks()	\
+	_dp_test_crypto_check_xfrm_resp(__FILE__, __LINE__,	\
+					DP_TEST_CHECK_CRYPTO_SEQ,	\
+					0, 0, true)
+
+#define dp_test_crypto_check_xfrm_sa_cntrs(_pkts, _bytes, _match)	\
+	_dp_test_crypto_check_xfrm_resp(__FILE__, __LINE__,		\
+					DP_TEST_CHECK_CRYPTO_SA_STATS,	\
+					_pkts, _bytes, _match)
 
 void _dp_test_xfrm_set_nack(uint32_t err_count);
 
@@ -197,5 +219,9 @@ void  _dp_test_crypto_flush(void);
 void  _dp_test_crypto_commit(void);
 #define dp_test_crypto_commit()		\
 	_dp_test_crypto_commit()
+
+void _dp_test_xfrm_poison_sa_stats(void);
+#define dp_test_xfrm_poison_sa_stats()	\
+	_dp_test_xfrm_poison_sa_stats()
 
 #endif /*_DP_TEST_CRYPTO_UTILS_H_ */
