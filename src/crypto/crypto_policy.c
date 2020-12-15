@@ -688,6 +688,34 @@ static bool policy_prepare_rldb_rule(struct policy_rule *pr,
 	return true;
 }
 
+static
+struct rldb_db_handle *policy_rule_get_rldb(struct crypto_vrf_ctx *vrf_ctx,
+					    struct policy_rule *pr)
+{
+	struct rldb_db_handle *db = NULL;
+
+	switch (pr->dir) {
+	case XFRM_POLICY_IN:
+		if (pr->sel.family == AF_INET)
+			db = vrf_ctx->input_policy_v4_rldb;
+		else
+			db = vrf_ctx->input_policy_v6_rldb;
+		break;
+	case XFRM_POLICY_OUT:
+		if (pr->sel.family == AF_INET)
+			db = vrf_ctx->output_policy_v4_rldb;
+		else
+			db = vrf_ctx->output_policy_v6_rldb;
+		break;
+	default:
+		POLICY_ERR(
+			"Failed to find rule database: Bad direction\n");
+		break;
+	}
+
+	return db;
+}
+
 static int policy_rule_tag_match(struct cds_lfht_node *node, const void *tag_p)
 {
 	uint32_t search_tag = *(const uint32_t *)tag_p;
