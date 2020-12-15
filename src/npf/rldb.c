@@ -221,6 +221,49 @@ error:
 	return rc;
 }
 
+/*
+ * start a sequence of operations
+ */
+int rldb_start_transaction(struct rldb_db_handle *db)
+{
+	if (!db)
+		return -EINVAL;
+
+	if (rldb_disabled) {
+		RLDB_ERR("RLDB is not initialized\n");
+		return -ENODEV;
+	}
+
+	return npf_rte_acl_start_transaction(db->af, db->match_ctx);
+}
+
+/*
+ * commit a sequence of operations
+ */
+int rldb_commit_transaction(struct rldb_db_handle *db)
+{
+	int rc;
+
+	if (!db)
+		return -EINVAL;
+
+	if (rldb_disabled) {
+		RLDB_ERR("RLDB is not initialized\n");
+		return -ENODEV;
+	}
+
+	rc = npf_rte_acl_commit_transaction(db->af, db->match_ctx);
+	if (rc < 0)
+		goto error;
+
+	db->stats.rldb_transaction_cnt++;
+
+	return 0;
+error:
+	db->stats.rldb_err.transaction_failed++;
+	return rc;
+}
+
 static int rldb_rule_match(struct cds_lfht_node *node, const void *key)
 {
 	const uint32_t *key_rule_no = key;
