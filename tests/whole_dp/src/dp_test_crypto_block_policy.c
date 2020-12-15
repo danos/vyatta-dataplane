@@ -222,7 +222,7 @@ static void setup(void)
 	output_policy.dir = XFRM_POLICY_OUT;
 	output_policy.family = AF_INET;
 	output_policy.reqid = TUNNEL_REQID;
-	output_policy.priority = 0;
+	output_policy.priority = 200000;
 	output_policy.mark = 0;
 	output_policy.vrfid = VRF_DEFAULT_ID;
 
