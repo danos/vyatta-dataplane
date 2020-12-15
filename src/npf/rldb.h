@@ -11,6 +11,8 @@
 #include <stdint.h>
 #include <json_writer.h>
 
+#define RLDB_NAME_MAX 64
+
 enum rldb_l3_field {
 	RLDB_L3F_SRC	= 1,
 	RLDB_L3F_DST,
@@ -163,4 +165,4 @@ int rldb_destroy(struct rldb_db_handle *db);
  */
 int rldb_cleanup(void);
 
-#endif
+#endif /* NPF_RULE_DB_H */
