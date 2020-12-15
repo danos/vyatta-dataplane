@@ -1363,6 +1363,44 @@ static bool all_other_policies_can_be_cached(const struct policy_rule *pr)
 	return result;
 }
 
+__rte_unused
+static int policy_rule_remove_from_rldb(struct policy_rule *pr,
+					struct crypto_vrf_ctx *vrf_ctx,
+					bool vti_tunnel_policy,
+					struct rldb_rule_handle *rh)
+{
+	int rc;
+	struct rldb_db_handle *db;
+
+	/* We don't create rldb rules for VTI tunnel policies */
+	if (vti_tunnel_policy)
+		return 0;
+
+	db = policy_rule_get_rldb(vrf_ctx, pr);
+	if (!db) {
+		POLICY_ERR("Failed to delete policy\n");
+		return -1;
+	}
+
+	rc = rldb_del_rule(db, rh);
+	if (rc < 0) {
+		POLICY_ERR("Failed to delete policy from rule database\n");
+		return -1;
+	}
+
+	if (pr->sel.family == AF_INET) {
+		--vrf_ctx->crypto_total_ipv4_policies;
+		POLICY_DEBUG("Remaining IPv4 policies: %d\n",
+			     vrf_ctx->crypto_total_ipv4_policies);
+	} else {
+		--vrf_ctx->crypto_total_ipv6_policies;
+		POLICY_DEBUG("Remaining IPv6 policies: %d\n",
+			     vrf_ctx->crypto_total_ipv6_policies);
+	}
+
+	return 0;
+}
+
 static void policy_rule_remove_from_npf(struct policy_rule *pr,
 					bool vti_tunnel_policy,
 					uint32_t rule_index)
