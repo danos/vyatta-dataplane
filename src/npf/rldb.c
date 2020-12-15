@@ -9,6 +9,7 @@
 #include <rte_jhash.h>
 
 #include "npf_rte_acl.h"
+#include "npf_rule_gen.h"
 
 #include "urcu.h"
 #include "util.h"
@@ -219,6 +220,144 @@ error:
 	}
 
 	return rc;
+}
+
+static void rldb_prepare_rule_v4(struct rldb_rule_spec *rule,
+				 uint8_t *match_addr, uint8_t *mask)
+{
+	uint8_t proto = 0;
+	uint16_t loport = 0, hiport = 0;
+	struct rldb_v4_prefix *pfx;
+
+	/* protocol */
+	if (rule->rldb_flags & NPFRL_FLAG_PROTO)
+		proto = rule->rldb_proto.npfrl_proto;
+
+	match_addr[NPC_GPR_PROTO_OFF_v4] = proto;
+	mask[NPC_GPR_PROTO_OFF_v4] = proto ? 0 : ~0;
+
+	/* src addr */
+	if (rule->rldb_flags & NPFRL_FLAG_SRC_PFX) {
+		pfx = &rule->rldb_src_addr.v4_pfx;
+		*(uint32_t *) &match_addr[NPC_GPR_SADDR_OFF_v4] =
+		    *(uint32_t *) &pfx->npfrl_bytes;
+		*(uint32_t *) &mask[NPC_GPR_SADDR_OFF_v4] =
+		    htonl(npf_prefix_to_host_mask4(pfx->npfrl_plen));
+	}
+
+	/* dst addr */
+	if (rule->rldb_flags & NPFRL_FLAG_DST_PFX) {
+		pfx = &rule->rldb_dst_addr.v4_pfx;
+		*(uint32_t *) &match_addr[NPC_GPR_DADDR_OFF_v4] =
+		    *(uint32_t *) &pfx->npfrl_bytes;
+		*(uint32_t *) &mask[NPC_GPR_DADDR_OFF_v4] =
+		    htonl(npf_prefix_to_host_mask4(pfx->npfrl_plen));
+	}
+
+	/* src port */
+	if (rule->rldb_flags & NPFRL_FLAG_SRC_PORT_RANGE) {
+		loport = rule->rldb_src_port_range.npfrl_loport;
+		hiport = rule->rldb_src_port_range.npfrl_hiport;
+	} else {
+		loport = 0;
+		hiport = 0xFFFF;
+	}
+
+	match_addr[NPC_GPR_SPORT_OFF_v4 + 1] = loport >> 8;
+	match_addr[NPC_GPR_SPORT_OFF_v4] = loport & 0xFF;
+
+	mask[NPC_GPR_SPORT_OFF_v4 + 1] = hiport >> 8;
+	mask[NPC_GPR_SPORT_OFF_v4] = hiport & 0xFF;
+
+	/* dst port */
+	if (rule->rldb_flags & NPFRL_FLAG_DST_PORT_RANGE) {
+		loport = rule->rldb_dst_port_range.npfrl_loport;
+		hiport = rule->rldb_dst_port_range.npfrl_hiport;
+	} else {
+		loport = 0;
+		hiport = 0xFFFF;
+	}
+
+	match_addr[NPC_GPR_DPORT_OFF_v4 + 1] = loport >> 8;
+	match_addr[NPC_GPR_DPORT_OFF_v4] = loport & 0xFF;
+
+	mask[NPC_GPR_DPORT_OFF_v4 + 1] = hiport >> 8;
+	mask[NPC_GPR_DPORT_OFF_v4] = hiport & 0xFF;
+}
+
+__rte_unused
+static void rldb_prepare_rule_v6(struct rldb_rule_spec *rule,
+				 uint8_t *match_addr, uint8_t *mask)
+{
+	uint8_t proto = 0;
+	uint16_t loport = 0, hiport = 0;
+	unsigned int i;
+	struct in6_addr addr_mask;
+	uint8_t *addr_mask_ptr;
+	struct rldb_v6_prefix *pfx;
+
+	/* protocol */
+	if (rule->rldb_flags & NPFRL_FLAG_PROTO)
+		proto = rule->rldb_proto.npfrl_proto;
+
+	match_addr[NPC_GPR_PROTO_OFF_v6] = proto;
+	mask[NPC_GPR_PROTO_OFF_v6] = proto ? 0 : ~0;
+
+	/* src addr */
+	if (rule->rldb_flags & NPFRL_FLAG_SRC_PFX) {
+		pfx = &rule->rldb_src_addr.v6_pfx;
+		npf_masklen_to_grouper_mask(AF_INET6, pfx->npfrl_plen,
+					    &addr_mask);
+		addr_mask_ptr = (uint8_t *) &addr_mask.s6_addr;
+		for (i = 0; i < NPC_GPR_SADDR_LEN_v6; i++) {
+			match_addr[NPC_GPR_SADDR_OFF_v6 + i] =
+			    pfx->npfrl_bytes[i];
+			mask[NPC_GPR_SADDR_OFF_v6 + i] = addr_mask_ptr[i];
+		}
+	}
+
+	/* dst addr */
+	if (rule->rldb_flags & NPFRL_FLAG_DST_PFX) {
+		pfx = &rule->rldb_dst_addr.v6_pfx;
+		npf_masklen_to_grouper_mask(AF_INET6, pfx->npfrl_plen,
+					    &addr_mask);
+		addr_mask_ptr = (uint8_t *) &addr_mask.s6_addr;
+		for (i = 0; i < NPC_GPR_DADDR_LEN_v6; i++) {
+			match_addr[NPC_GPR_DADDR_OFF_v6 + i] =
+			    pfx->npfrl_bytes[i];
+			mask[NPC_GPR_DADDR_OFF_v6 + i] = addr_mask_ptr[i];
+		}
+	}
+
+	/* src port */
+	if (rule->rldb_flags & NPFRL_FLAG_SRC_PORT_RANGE) {
+		loport = rule->rldb_src_port_range.npfrl_loport;
+		hiport = rule->rldb_src_port_range.npfrl_hiport;
+	} else {
+		loport = 0;
+		hiport = 0xFFFF;
+	}
+
+	match_addr[NPC_GPR_SPORT_OFF_v6] = loport >> 8;
+	match_addr[NPC_GPR_SPORT_OFF_v6 + 1] = loport & 0xFF;
+
+	mask[NPC_GPR_SPORT_OFF_v6] = hiport >> 8;
+	mask[NPC_GPR_SPORT_OFF_v6 + 1] = hiport & 0xFF;
+
+	/* dst port */
+	if (rule->rldb_flags & NPFRL_FLAG_DST_PORT_RANGE) {
+		loport = rule->rldb_dst_port_range.npfrl_loport;
+		hiport = rule->rldb_dst_port_range.npfrl_hiport;
+	} else {
+		loport = 0;
+		hiport = 0xFFFF;
+	}
+
+	match_addr[NPC_GPR_DPORT_OFF_v6] = loport >> 8;
+	match_addr[NPC_GPR_DPORT_OFF_v6 + 1] = loport & 0xFF;
+
+	mask[NPC_GPR_DPORT_OFF_v6] = hiport >> 8;
+	mask[NPC_GPR_DPORT_OFF_v6 + 1] = hiport & 0xFF;
 }
 
 /*
