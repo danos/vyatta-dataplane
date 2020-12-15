@@ -96,7 +96,6 @@ npf_if_dealloc(struct npf_if_internal *niif)
 {
 	npf_rc_counts_destroy(&niif->niif_rcc);
 
-	npf_config_release(&niif->niif_if.nif_conf);
 	free(niif);	/* call_rcu not required */
 }
 

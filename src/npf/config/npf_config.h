@@ -90,15 +90,6 @@ enum npf_active_bits {
 				   NPF_NAT46 : NPF_NAT64)
 
 /**
- * Free the npf config attach point.
- *
- * @param npf_conf Pointer to structure registered earlier with
- *	  npf_attpt_item_set_up(), which is used to point to rulesets when
- *	  they are in use. This is associated with the attach point.
- */
-void npf_config_release(struct npf_config *npf_conf);
-
-/**
  * Initialise the configuration code.
  *
  * This should be called a single time, before any other APIs in this file
