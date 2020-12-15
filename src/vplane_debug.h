@@ -59,6 +59,7 @@
 #define DP_DBG_CGNAT		(1ull << 36)
 #define DP_DBG_FLOW_CACHE	(1ull << 37)
 #define DP_DBG_MAC_LIMIT	(1ull << 38)
+#define DP_DBG_GPC		(1ull << 39)
 
 /* Default to only debugging startup and link events.
  * Skip ARP and route since they can flood log.

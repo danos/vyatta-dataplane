@@ -1,3 +1,13 @@
+vyatta-dataplane (3.12.13) unstable; urgency=medium
+
+  [ Nicholas Brown ]
+  * Don't run perform Static Analysis on generated pipeline code
+  * enable function complexity checks
+
+  [ Simon Barber ]
+
+ -- Simon Barber <sbarber@mail.eng.vyatta.net>  Tue, 15 Dec 2020 11:02:28 +0000
+
 vyatta-dataplane (3.12.12) unstable; urgency=medium
 
   [ Mark Gillott ]
