@@ -145,6 +145,7 @@ struct policy_rule {
 	bool vti_tunnel_policy;
 	uint8_t flags;
 	struct pr_feat_attach *feat_attach;
+	struct rldb_rule_handle *rh;
 };
 
 struct policy_rule_key {
