@@ -221,6 +221,17 @@ error:
 	return rc;
 }
 
+static int rldb_rule_match(struct cds_lfht_node *node, const void *key)
+{
+	const uint32_t *key_rule_no = key;
+
+	struct rldb_rule_handle *rh = caa_container_of(node,
+						       struct rldb_rule_handle,
+						       ht_node);
+
+	return rh->rule_no == *key_rule_no;
+}
+
 __rte_unused
 static int rldb_rule_handle_create(uint32_t rule_no,
 				   struct rldb_rule_spec const *in_spec,
@@ -286,10 +297,30 @@ int rldb_del_rule(struct rldb_db_handle *db __rte_unused,
 /*
  * find rule by rule number
  */
-int rldb_find_rule(struct rldb_db_handle *db __rte_unused,
-		   uint32_t rule_no __rte_unused,
-		   struct rldb_rule_handle **out_rule __rte_unused)
+int rldb_find_rule(struct rldb_db_handle *db, uint32_t rule_no,
+		   struct rldb_rule_handle **out_rh)
 {
+	struct cds_lfht_node *node;
+	struct cds_lfht_iter iter;
+
+	if (!out_rh || !db || !rule_no)
+		return -EINVAL;
+
+	if (rldb_disabled)
+		return -ENODEV;
+
+	cds_lfht_lookup(db->ht, rule_no, rldb_rule_match, &rule_no, &iter);
+
+	node = cds_lfht_iter_get_node(&iter);
+
+	/* no match */
+	if (!node) {
+		*out_rh = NULL;
+		return -ENOENT;
+	}
+
+	*out_rh = caa_container_of(node, struct rldb_rule_handle, ht_node);
+
 	return 0;
 }
 
