@@ -284,19 +284,161 @@ int rldb_clear_stats(struct rldb_db_handle *db __rte_unused)
 /*
  * walk rule database
  */
-void rldb_walk(struct rldb_db_handle *db __rte_unused,
-	       rldb_walker_t walker __rte_unused, void *userdata __rte_unused)
+void rldb_walk(struct rldb_db_handle *db, rldb_walker_t walker, void *userdata)
 {
+	struct cds_lfht_iter iter;
+	struct rldb_rule_handle *rh;
 
+	if (!db || !walker)
+		return;
+
+	if (rldb_disabled) {
+		RLDB_ERR("RLDB is not initialized\n");
+		return;
+	}
+
+	cds_lfht_for_each_entry(db->ht, &iter, rh, ht_node) {
+		if (walker(rh, userdata) < 0)
+			return;
+	}
+}
+
+#define PREFIX_STRLEN (INET6_ADDRSTRLEN + sizeof("/128"))
+
+static const char *rldb_prefix_str(uint16_t family, union rldb_pfx *rldb_pfx,
+				   char *buf, size_t blen)
+{
+	char addrbuf[INET6_ADDRSTRLEN];
+	const char *addrstr;
+	uint32_t count;
+	int16_t prefix_len = -1;
+
+	switch (family) {
+	case AF_INET:
+		addrstr =
+		    inet_ntop(family, (void *)&rldb_pfx->v4_pfx.npfrl_bytes[0],
+			      addrbuf, sizeof(addrbuf));
+		prefix_len = rldb_pfx->v4_pfx.npfrl_plen;
+		break;
+	case AF_INET6:
+		addrstr =
+		    inet_ntop(family, (void *)&rldb_pfx->v6_pfx.npfrl_bytes[0],
+			      addrbuf, sizeof(addrbuf));
+		prefix_len = rldb_pfx->v6_pfx.npfrl_plen;
+		break;
+	default:
+		addrstr = NULL;
+	}
+
+	count = snprintf(buf, blen, "%s", addrstr ? : "[bad address]");
+	if (prefix_len >= 0)
+		snprintf(buf + count, blen - count, "/%d", prefix_len);
+
+	return buf;
+}
+
+static const char *rldb_port_range(struct rldb_l4port_range *pr, char *buf,
+				   size_t blen)
+{
+	int rc;
+
+	if (pr->npfrl_loport == pr->npfrl_hiport)
+		rc = snprintf(buf, blen, "%u", pr->npfrl_loport);
+	else
+		rc = snprintf(buf, blen, "%u-%u", pr->npfrl_loport,
+			      pr->npfrl_hiport);
+
+	if (rc < 0)
+		snprintf(buf, blen, "[bad port-range]");
+
+	return buf;
+}
+
+static void rldb_dump_rule_spec(struct rldb_rule_spec *rule, json_writer_t *wr)
+{
+	char prefix_buf[PREFIX_STRLEN];
+	uint16_t af = 0;
+
+	if (rule->rldb_flags & NPFRL_FLAG_V4_PFX)
+		af = AF_INET;
+	else if (rule->rldb_flags & NPFRL_FLAG_V6_PFX)
+		af = AF_INET6;
+
+	jsonw_uint_field(wr, "priority", rule->rldb_priority);
+	jsonw_uint_field(wr, "flags", rule->rldb_flags);
+
+	jsonw_string_field(wr, "src_addr",
+			   rldb_prefix_str(af, &rule->rldb_src_addr, prefix_buf,
+					   sizeof(prefix_buf)));
+
+	jsonw_string_field(wr, "dst_addr",
+			   rldb_prefix_str(af, &rule->rldb_dst_addr, prefix_buf,
+					   sizeof(prefix_buf)));
+
+	jsonw_uint_field(wr, "proto", rule->rldb_proto.npfrl_proto);
+
+	jsonw_string_field(wr, "sport",
+			   rldb_port_range(&rule->rldb_src_port_range,
+					   prefix_buf, sizeof(prefix_buf)));
+	jsonw_string_field(wr, "dport",
+			   rldb_port_range(&rule->rldb_dst_port_range,
+					   prefix_buf, sizeof(prefix_buf)));
 }
 
 /*
  * dump rule database in json form
  */
-void rldb_dump(struct rldb_db_handle *db __rte_unused,
-	       json_writer_t *wr __rte_unused)
+void rldb_dump(struct rldb_db_handle *db, json_writer_t *wr)
 {
+	struct cds_lfht_iter iter;
+	struct rldb_rule_handle *rh;
+	struct rldb_stats *stats;
 
+	if (!db || !wr)
+		return;
+
+	if (rldb_disabled) {
+		RLDB_ERR("RLDB is not initialized\n");
+		return;
+	}
+
+	jsonw_string_field(wr, "name", db->name);
+	jsonw_uint_field(wr, "flags", db->flags);
+
+	/* stats */
+	stats = &db->stats;
+
+	jsonw_name(wr, "stats");
+	jsonw_start_object(wr);
+	jsonw_uint_field(wr, "rules_added", stats->rldb_rules_added);
+	jsonw_uint_field(wr, "rules_deleted", stats->rldb_rules_deleted);
+	jsonw_uint_field(wr, "rule_cnt", stats->rldb_rule_cnt);
+	jsonw_uint_field(wr, "transaction_cnt", stats->rldb_transaction_cnt);
+
+	jsonw_name(wr, "error-counters");
+	jsonw_start_object(wr);
+	jsonw_uint_field(wr, "rule_add_failed",
+			 db->stats.rldb_err.rule_add_failed);
+	jsonw_uint_field(wr, "rule_del_failed",
+			 db->stats.rldb_err.rule_del_failed);
+	jsonw_uint_field(wr, "transaction_failed",
+			 db->stats.rldb_err.transaction_failed);
+	jsonw_end_object(wr);
+
+	jsonw_end_object(wr);
+
+	/* rules */
+
+	jsonw_name(wr, "rules");
+
+	jsonw_start_array(wr);
+	cds_lfht_for_each_entry(db->ht, &iter, rh, ht_node) {
+		jsonw_start_object(wr);
+		jsonw_uint_field(wr, "rule_no", rh->rule_no);
+		rldb_dump_rule_spec(&rh->rule, wr);
+		jsonw_end_object(wr);
+	}
+	jsonw_end_array(wr);
 }
 
 /*
