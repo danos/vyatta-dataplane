@@ -267,17 +267,36 @@ int rldb_match(struct rldb_db_handle *db __rte_unused,
 /*
  * get statistics at database level
  */
-int rldb_get_stats(struct rldb_db_handle *db __rte_unused,
-		   struct rldb_stats *stats __rte_unused)
+int rldb_get_stats(struct rldb_db_handle *db, struct rldb_stats *stats)
 {
+	if (!db)
+		return -EINVAL;
+
+	if (rldb_disabled) {
+		RLDB_ERR("RLDB is not initialized\n");
+		return -ENODEV;
+	}
+
+	memcpy(stats, &db->stats, sizeof(*stats));
+
 	return 0;
 }
 
 /*
  * clear statistics at database level
  */
-int rldb_clear_stats(struct rldb_db_handle *db __rte_unused)
+int rldb_clear_stats(struct rldb_db_handle *db)
 {
+	if (!db)
+		return -EINVAL;
+
+	if (rldb_disabled) {
+		RLDB_ERR("RLDB is not initialized\n");
+		return -ENODEV;
+	}
+
+	memset(&db->stats, 0, sizeof(db->stats));
+
 	return 0;
 }
 
