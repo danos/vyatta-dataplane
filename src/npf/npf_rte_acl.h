@@ -14,6 +14,10 @@
 int npf_rte_acl_init(int af, const char *name, uint32_t max_rules,
 		     npf_match_ctx_t **m_ctx);
 
+int npf_rte_acl_start_transaction(int af, npf_match_ctx_t *m_ctx);
+
+int npf_rte_acl_commit_transaction(int af, npf_match_ctx_t *m_ctx);
+
 int npf_rte_acl_add_rule(int af, npf_match_ctx_t *m_ctx,
 			 uint32_t rule_no,
 			 uint8_t *match_add, uint8_t *mask,

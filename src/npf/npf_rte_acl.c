@@ -12,10 +12,26 @@
 #include "../ip_funcs.h"
 #include "../netinet6/ip6_funcs.h"
 
+#define MAX_TRANSACTION_ENTRIES 512
+
 struct npf_match_ctx {
 	struct rte_acl_ctx *acl_ctx;
 	char *name;
 	uint16_t num_rules;
+	struct trans_entry   *tr;
+	uint32_t              tr_num_entries;
+	bool                  tr_in_progress;
+};
+
+enum rule_op {
+	RULE_OP_ADD,
+	RULE_OP_DELETE
+};
+
+struct trans_entry {
+	enum rule_op               rule_op;
+	struct npf_match_ctx      *trie;
+	struct rte_acl_rule       *rule;
 };
 
 /* rte acl stuff */
@@ -248,6 +264,8 @@ int npf_rte_acl_init(int af, const char *name, uint32_t max_rules,
 	char acl_name[RTE_ACL_NAMESIZE];
 	npf_match_ctx_t *tmp_ctx;
 	static uint32_t ctx_id;
+	size_t tr_sz;
+	int err;
 
 	tmp_ctx = calloc(1, sizeof(npf_match_ctx_t));
 	if (!tmp_ctx) {
@@ -290,11 +308,34 @@ int npf_rte_acl_init(int af, const char *name, uint32_t max_rules,
 		return -ENOMEM;
 	}
 
+	tr_sz = (sizeof(struct trans_entry) + rule_size)
+		* MAX_TRANSACTION_ENTRIES;
+	tmp_ctx->tr = rte_zmalloc("trie_transaction_records", tr_sz,
+				  RTE_CACHE_LINE_SIZE);
+	if (!tmp_ctx->tr) {
+		RTE_LOG(ERR, DATAPLANE,
+			"Could not allocate transaction record memory pool for trie %s\n",
+			tmp_ctx->name);
+		err = -ENOMEM;
+		goto error;
+	}
+
 	*m_ctx = tmp_ctx;
 
 	return 0;
-}
 
+error:
+	if (tmp_ctx->acl_ctx)
+		rte_acl_free(tmp_ctx->acl_ctx);
+
+	if (tmp_ctx->name)
+		free(tmp_ctx->name);
+
+	if (tmp_ctx)
+		free(tmp_ctx);
+
+	return err;
+}
 
 /*
  * convert big-endian wildcard mask to mask
@@ -317,6 +358,34 @@ static inline uint8_t wc_mask_to_mask(const uint8_t *wc_mask, uint8_t len)
 			break;
 	}
 	return ((len * 8) - mask);
+}
+
+__rte_unused
+static int npf_rte_acl_record_transaction_entry(npf_match_ctx_t *m_ctx,
+						enum rule_op rule_op,
+						const struct rte_acl_rule
+						*acl_rule, size_t rule_sz)
+{
+	struct trans_entry *t_entry = NULL;
+	uintptr_t ptr;
+
+	if (m_ctx->tr_num_entries >= MAX_TRANSACTION_ENTRIES) {
+		RTE_LOG(ERR, DATAPLANE,
+			"Number of transaction entries for trie %s exceeded (%u).\n",
+			m_ctx->name, MAX_TRANSACTION_ENTRIES);
+		return -ENOMEM;
+	}
+
+	t_entry = &m_ctx->tr[m_ctx->tr_num_entries++];
+	t_entry->rule_op = rule_op;
+	t_entry->trie = m_ctx;
+
+	ptr = (uintptr_t) t_entry + sizeof(struct trans_entry);
+
+	t_entry->rule = (struct rte_acl_rule *)ptr;
+
+	memcpy(t_entry->rule, acl_rule, rule_sz);
+	return 0;
 }
 
 /*
@@ -465,6 +534,21 @@ static void npf_rte_acl_add_v6_rule(uint8_t *match_addr, uint8_t *mask,
 		*(uint16_t *)&mask[NPC_GPR_DPORT_OFF_v6];
 }
 
+static int _npf_rte_acl_add_rule(int af, npf_match_ctx_t *m_ctx,
+				 const struct rte_acl_rule *acl_rule)
+{
+	int err;
+
+	err = rte_acl_add_rules(m_ctx->acl_ctx, acl_rule, 1);
+	if (err) {
+		RTE_LOG(ERR, DATAPLANE, "Could not add rule for af %d : %d\n",
+			af, err);
+		return err;
+	}
+
+	return 0;
+}
+
 int npf_rte_acl_add_rule(int af, npf_match_ctx_t *m_ctx, uint32_t rule_no,
 			 uint8_t *match_addr, uint8_t *mask,
 			 void *match_ctx __rte_unused)
@@ -482,12 +566,9 @@ int npf_rte_acl_add_rule(int af, npf_match_ctx_t *m_ctx, uint32_t rule_no,
 		acl_rule = (const struct rte_acl_rule *)&v6_rules;
 	}
 
-	err = rte_acl_add_rules(m_ctx->acl_ctx, acl_rule, 1);
-	if (err) {
-		RTE_LOG(ERR, DATAPLANE, "Could not add rule for af %d : %d\n",
-			af, err);
+	err = _npf_rte_acl_add_rule(af, m_ctx, acl_rule);
+	if (err < 0)
 		return err;
-	}
 
 	m_ctx->num_rules++;
 
@@ -597,6 +678,86 @@ int npf_rte_acl_match(int af, npf_match_ctx_t *m_ctx,
 	return 1;
 }
 
+int npf_rte_acl_start_transaction(int af __unused, npf_match_ctx_t *m_ctx)
+{
+	if (m_ctx->tr_in_progress) {
+		RTE_LOG(ERR, DATAPLANE,
+			"Transaction already in progress for trie %s\n",
+			m_ctx->name);
+		return -EINPROGRESS;
+	}
+
+	m_ctx->tr_in_progress = true;
+	return 0;
+}
+
+/* Rollsback all operations of the current transaction.
+ * In the unexpected case that an individual rollback operation
+ * failed, this method will continue rolling back all other rules.
+ *
+ * Return code is smaller zero if at least one rollback action did
+ * not succeed.
+ */
+static int npf_rte_acl_rollback_transaction(int af, npf_match_ctx_t *m_ctx)
+{
+	uint32_t i;
+	int rc = 0;
+
+	/* Rollbacks are not yet ready for prime-time.
+	 *
+	 * Transaction failures are considered fatal since then.
+	 */
+	rte_panic("Fatal error: NPF RTE ACL transaction failed.\n.");
+
+	for (i = 0; i < m_ctx->tr_num_entries; i++) {
+		struct trans_entry *te = &m_ctx->tr[i];
+
+		switch (te->rule_op) {
+		case RULE_OP_ADD:
+			if (_npf_rte_acl_del_rule(af, te->trie, te->rule) < 0)
+				rc = -1;
+			break;
+		case RULE_OP_DELETE:
+			if (_npf_rte_acl_add_rule(af, te->trie, te->rule) < 0)
+				rc = -1;
+			break;
+		default:
+			RTE_LOG(ERR, DATAPLANE,
+				"Unexpected transaction rule operation (%d) for trie %s\n",
+				te->rule_op, m_ctx->name);
+			rc = -1;
+			break;
+		}
+
+		if (rc < 0) {
+			RTE_LOG(ERR, DATAPLANE,
+				"Failed to rollback rule on trie %s\n",
+				m_ctx->name);
+		}
+	}
+
+	return rc;
+}
+
+int npf_rte_acl_commit_transaction(int af, npf_match_ctx_t *m_ctx)
+{
+	int rc = 0;
+	rc = npf_rte_acl_build(af, &m_ctx);
+
+	/* build failed -> rollback transaction */
+	if (rc < 0) {
+		if (npf_rte_acl_rollback_transaction(af, m_ctx) < 0) {
+			RTE_LOG(ERR, DATAPLANE,
+				"FATAL: Transaction rollback of trie failed %s\n",
+				m_ctx->name);
+		}
+	}
+
+	m_ctx->tr_num_entries = 0;
+	m_ctx->tr_in_progress = false;
+	return rc;
+}
+
 int npf_rte_acl_destroy(int af __rte_unused, npf_match_ctx_t **m_ctx)
 {
 	npf_match_ctx_t *ctx = *m_ctx;
@@ -605,6 +766,7 @@ int npf_rte_acl_destroy(int af __rte_unused, npf_match_ctx_t **m_ctx)
 		rte_acl_reset(ctx->acl_ctx);
 		rte_acl_free(ctx->acl_ctx);
 		free(ctx->name);
+		rte_free(ctx->tr);
 		free(ctx);
 		*m_ctx = NULL;
 	}
