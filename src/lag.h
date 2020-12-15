@@ -39,7 +39,7 @@ struct lag_ops {
 	int (*lagop_walk_team_members)(struct ifnet *ifp,
 				      dp_ifnet_iter_func_t func, void *arg);
 	bool (*lagop_can_start)(const struct ifnet *ifp);
-	bool (*lagop_port_is_member)(struct ifnet *team, struct ifnet *ifp);
+	bool (*lagop_port_is_member)(struct ifnet *ifp);
 	bool (*lagop_is_team)(struct ifnet *ifp);
 	bool (*lagop_can_startstop_member)(struct ifnet *ifp);
 	int (*lagop_set_l2_address)(struct ifnet *ifp,
