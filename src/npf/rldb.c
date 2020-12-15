@@ -221,6 +221,48 @@ error:
 	return rc;
 }
 
+__rte_unused
+static int rldb_rule_handle_create(uint32_t rule_no,
+				   struct rldb_rule_spec const *in_spec,
+				   struct rldb_rule_handle **out_rh)
+{
+	int rc;
+	struct rldb_rule_handle *rh;
+	struct rte_mempool_cache *cache;
+
+	cache = rte_mempool_default_cache(rldb_mempool, rte_lcore_id());
+	if (unlikely(rte_mempool_generic_get(rldb_mempool, (void *)&rh,
+					     1, cache) != 0)) {
+		RLDB_ERR
+		    ("Could not allocate memory from rldb memory pool for "
+		     "rule %u.\n", rule_no);
+		rc = -ENOMEM;
+		goto error;
+	}
+
+	memset(rh, 0, sizeof(*rh));
+
+	rh->rule_no = rule_no;
+	memcpy(&rh->rule, in_spec, sizeof(rh->rule));
+
+	if (out_rh)
+		*out_rh = rh;
+
+	return 0;
+
+error:
+	return rc;
+}
+
+__rte_unused
+static void rldb_rule_handle_destroy(struct rldb_rule_handle *rh)
+{
+	struct rte_mempool_cache *cache;
+
+	cache = rte_mempool_default_cache(rldb_mempool, rte_lcore_id());
+	rte_mempool_generic_put(rldb_mempool, (void *)&rh, 1, cache);
+}
+
 /*
  * add rule to the specified database
  */
