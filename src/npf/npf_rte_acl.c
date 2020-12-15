@@ -528,6 +528,44 @@ int npf_rte_acl_build(int af, npf_match_ctx_t **m_ctx)
 	return 0;
 }
 
+static int
+_npf_rte_acl_del_rule(int af, struct npf_match_ctx *m_ctx,
+			   const struct rte_acl_rule *acl_rule)
+{
+	int err = 0;
+
+	err = rte_acl_del_rule(m_ctx->acl_ctx, acl_rule);
+	if (err && err != -ENOENT) {
+		RTE_LOG(ERR, DATAPLANE,
+			"Could not remove rule for af %d : %d\n", af, err);
+		return err;
+	}
+
+	/* Only reduce counter if there was a matching delete */
+	if (err != -ENOENT)
+		m_ctx->num_rules--;
+
+	return err;
+}
+
+int npf_rte_acl_del_rule(int af, npf_match_ctx_t *m_ctx, uint32_t rule_no,
+			 uint8_t *match_addr, uint8_t *mask)
+{
+	struct acl4_rules v4_rules;
+	struct acl6_rules v6_rules;
+	const struct rte_acl_rule *acl_rule;
+
+	if (af == AF_INET) {
+		npf_rte_acl_add_v4_rule(match_addr, mask, rule_no, &v4_rules);
+		acl_rule = (const struct rte_acl_rule *)&v4_rules;
+	} else {
+		npf_rte_acl_add_v6_rule(match_addr, mask, rule_no, &v6_rules);
+		acl_rule = (const struct rte_acl_rule *)&v6_rules;
+	}
+
+	return _npf_rte_acl_del_rule(af, m_ctx, acl_rule);
+}
+
 int npf_rte_acl_match(int af, npf_match_ctx_t *m_ctx,
 		      npf_cache_t *npc __rte_unused,
 		      struct npf_match_cb_data *data,
