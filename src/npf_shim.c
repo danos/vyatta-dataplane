@@ -44,6 +44,7 @@
 #include "npf/rproc/npf_ext_log.h"
 #include "npf/nat/nat_pool_public.h"
 #include "pktmbuf_internal.h"
+#include "rldb.h"
 #include "urcu.h"
 #include "vplane_log.h"
 #include "vrf_internal.h"
@@ -495,6 +496,7 @@ npf_init(void)
 	npf_ruleset_gc_init();
 	npf_state_stats_create();
 	nat_pool_init();
+	rldb_init();
 
 	int rc = npf_attpt_item_set_up(NPF_ATTACH_TYPE_GLOBAL, "",
 				       &npf_global_config, NULL);
@@ -512,6 +514,7 @@ void npf_cleanup(void)
 	npf_if_cleanup();
 	npf_state_stats_destroy();
 	nat_pool_uninit();
+	rldb_cleanup();
 }
 
 static int
