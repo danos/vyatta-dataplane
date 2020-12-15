@@ -688,6 +688,7 @@ static bool policy_prepare_rldb_rule(struct policy_rule *pr,
 	return true;
 }
 
+__rte_unused
 static
 struct rldb_db_handle *policy_rule_get_rldb(struct crypto_vrf_ctx *vrf_ctx,
 					    struct policy_rule *pr)
@@ -714,6 +715,48 @@ struct rldb_db_handle *policy_rule_get_rldb(struct crypto_vrf_ctx *vrf_ctx,
 	}
 
 	return db;
+}
+
+__rte_unused
+static bool policy_rule_add_to_rldb(struct crypto_vrf_ctx *vrf_ctx,
+				    struct policy_rule *pr)
+{
+	int rc;
+	struct rldb_db_handle *db = NULL;
+	struct rldb_rule_spec rule = { 0 };
+
+	/*
+	 * Packets are routed into VTI tunnels, so we
+	 * don't need to create RLDB rules for them.
+	 */
+	if (pr->vti_tunnel_policy)
+		return true;
+
+	rc = policy_prepare_rldb_rule(pr, &rule);
+	if (rc < 0)
+		return false;
+
+	db = policy_rule_get_rldb(vrf_ctx, pr);
+	if (!db)
+		return false;
+
+	rc = rldb_add_rule(db, pr->rule_index, &rule, &pr->rh);
+	if (rc < 0) {
+		POLICY_ERR("Failed to add policy rule to rule database\n");
+		return false;
+	}
+
+	if (pr->sel.family == AF_INET) {
+		++vrf_ctx->crypto_total_ipv4_policies;
+		POLICY_DEBUG("Active IPv4 policies: %d\n",
+			     vrf_ctx->crypto_total_ipv4_policies);
+	} else {
+		++vrf_ctx->crypto_total_ipv6_policies;
+		POLICY_DEBUG("Active IPv6 policies: %d\n",
+			     vrf_ctx->crypto_total_ipv6_policies);
+	}
+
+	return true;
 }
 
 static int policy_rule_tag_match(struct cds_lfht_node *node, const void *tag_p)
