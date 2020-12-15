@@ -64,6 +64,7 @@
 #include "pipeline/nodes/pl_nodes_common.h"
 #include "pktmbuf_internal.h"
 #include "pl_node.h"
+#include "rldb.h"
 #include "route.h"
 #include "route_flags.h"
 #include "route_v6.h"
@@ -606,6 +607,85 @@ policy_rule_find_by_selector(vrfid_t vrfid,
 
 	return node ? caa_container_of(node, struct policy_rule, sel_ht_node)
 		    : NULL;
+}
+
+__rte_unused
+static bool policy_prepare_rldb_rule(struct policy_rule *pr,
+				     struct rldb_rule_spec *rule)
+{
+	rule->rldb_user_data = (uintptr_t)pr;
+	rule->rldb_priority = pr->policy_priority;
+
+	if (pr->sel.proto) {
+		rule->rldb_flags |= NPFRL_FLAG_PROTO;
+		rule->rldb_proto.npfrl_proto = pr->sel.proto;
+	}
+
+	if (pr->sel.family == AF_INET) {
+		struct rldb_v4_prefix *pfx;
+		rule->rldb_flags |= NPFRL_FLAG_V4_PFX;
+
+		/* src */
+		if (pr->sel.prefixlen_s) {
+			rule->rldb_flags |= NPFRL_FLAG_SRC_PFX;
+			pfx = &rule->rldb_src_addr.v4_pfx;
+			memcpy(pfx->npfrl_bytes, &pr->sel.saddr.a4,
+			       sizeof(pfx->npfrl_bytes));
+			pfx->npfrl_plen = pr->sel.prefixlen_s;
+		}
+
+		/* dst */
+		if (pr->sel.prefixlen_d) {
+			rule->rldb_flags |= NPFRL_FLAG_DST_PFX;
+			pfx = &rule->rldb_dst_addr.v4_pfx;
+			memcpy(pfx->npfrl_bytes, &pr->sel.daddr.a4,
+			       sizeof(pfx->npfrl_bytes));
+			pfx->npfrl_plen = pr->sel.prefixlen_d;
+		}
+	} else if (pr->sel.family == AF_INET6) {
+		struct rldb_v6_prefix *pfx;
+		rule->rldb_flags |= NPFRL_FLAG_V6_PFX;
+
+		/* src */
+		if (pr->sel.prefixlen_s) {
+			rule->rldb_flags |= NPFRL_FLAG_SRC_PFX;
+			pfx = &rule->rldb_src_addr.v6_pfx;
+			memcpy(pfx->npfrl_bytes, &pr->sel.saddr.a6,
+			       sizeof(pfx->npfrl_bytes));
+			pfx->npfrl_plen = pr->sel.prefixlen_s;
+		}
+
+		/* dst */
+		if (pr->sel.prefixlen_d) {
+			rule->rldb_flags |= NPFRL_FLAG_DST_PFX;
+			pfx = &rule->rldb_dst_addr.v6_pfx;
+			memcpy(pfx->npfrl_bytes, &pr->sel.daddr.a6,
+			       sizeof(pfx->npfrl_bytes));
+			pfx->npfrl_plen = pr->sel.prefixlen_d;
+		}
+	} else {
+		POLICY_ERR(
+			"Failed to add policy rule: AF not supported\n");
+		return false;
+	}
+
+	/*
+	 * Port ranges are not yet supported.
+	 * This mimics the pre-RLDB behavior.
+	 */
+	if (pr->sel.sport) {
+		rule->rldb_flags |= NPFRL_FLAG_SRC_PORT_RANGE;
+		rule->rldb_src_port_range.npfrl_loport = pr->sel.sport;
+		rule->rldb_src_port_range.npfrl_hiport = pr->sel.sport;
+	}
+
+	if (pr->sel.dport) {
+		rule->rldb_flags |= NPFRL_FLAG_DST_PORT_RANGE;
+		rule->rldb_dst_port_range.npfrl_loport = pr->sel.dport;
+		rule->rldb_dst_port_range.npfrl_hiport = pr->sel.dport;
+	}
+
+	return true;
 }
 
 static int policy_rule_tag_match(struct cds_lfht_node *node, const void *tag_p)
