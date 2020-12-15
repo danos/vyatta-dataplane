@@ -550,6 +550,17 @@ fal_lag_set_min_links(struct ifnet *ifp, uint16_t min_links)
 	return 0;
 }
 
+static bool
+fal_lag_port_is_member(struct ifnet *ifp)
+{
+	if (ifp->if_type != IFT_ETHER)
+		return false;
+
+	if (!ifp->aggregator)
+		return false;
+
+	return true;
+}
 
 const struct lag_ops fal_lag_ops = {
 	.lagop_etype_slow_tx = fal_lag_etype_slow_tx,
@@ -572,6 +583,7 @@ const struct lag_ops fal_lag_ops = {
 	.lagop_set_l2_address = fal_lag_set_l2_address,
 	.lagop_min_links = fal_lag_min_links,
 	.lagop_set_min_links = fal_lag_set_min_links,
+	.lagop_port_is_member = fal_lag_port_is_member,
 };
 
 static void
