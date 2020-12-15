@@ -155,7 +155,7 @@ EOF
                         export CC=clang-7
                         export CCX=clang++-7
                         meson builddir && cd builddir && ninja
-                        run-clang-tidy-7 '.*(?<!pb.cc)(?<!pb-c.c)\$' >& clang-tidy.log
+                        run-clang-tidy-7 '.*(?<!pb.cc)(?<!pb-c.c)(?<!pl_fused_gen.[ch])\$' >& clang-tidy.log
                         sed -i 's|/usr/src/packages/BUILD|${WORKSPACE}/vyatta-dataplane|g' clang-tidy.log
                         """.stripIndent()
                 dir('vyatta-dataplane') {
