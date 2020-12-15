@@ -71,6 +71,7 @@ int lag_walk_team_members(struct ifnet *ifp, dp_ifnet_iter_func_t func,
 			 void *arg);
 bool lag_can_start(const struct ifnet *ifp);
 bool lag_is_team(struct ifnet *ifp);
+bool lag_port_is_member(struct ifnet *ifp);
 int lag_can_startstop_member(struct ifnet *ifp);
 int lag_set_l2_address(struct ifnet *ifp, struct rte_ether_addr *macaddr);
 int lag_min_links(struct ifnet *ifp, uint16_t *min_links);

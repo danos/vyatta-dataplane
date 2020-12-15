@@ -150,6 +150,15 @@ lag_is_team(struct ifnet *ifp)
 	return current_lag_ops->lagop_is_team(ifp);
 }
 
+bool
+lag_port_is_member(struct ifnet *ifp)
+{
+	if (current_lag_ops->lagop_port_is_member)
+		return current_lag_ops->lagop_port_is_member(ifp);
+
+	return false;
+}
+
 int lag_can_startstop_member(struct ifnet *ifp)
 {
 	return current_lag_ops->lagop_can_startstop_member(ifp);
