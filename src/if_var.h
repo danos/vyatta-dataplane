@@ -1094,6 +1094,11 @@ int if_vlan_feat_delete(struct ifnet *ifp, uint16_t vlan);
  */
 int if_set_backplane(struct ifnet *ifp, unsigned int ifindex);
 
+/*
+ * Set the usability of an interface
+ */
+int if_set_usability(struct ifnet *ifp, bool usability);
+
 static inline bool
 if_is_hwport(struct ifnet *ifp)
 {
