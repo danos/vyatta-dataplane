@@ -360,7 +360,6 @@ static inline uint8_t wc_mask_to_mask(const uint8_t *wc_mask, uint8_t len)
 	return ((len * 8) - mask);
 }
 
-__rte_unused
 static int npf_rte_acl_record_transaction_entry(npf_match_ctx_t *m_ctx,
 						enum rule_op rule_op,
 						const struct rte_acl_rule
@@ -557,14 +556,29 @@ int npf_rte_acl_add_rule(int af, npf_match_ctx_t *m_ctx, uint32_t rule_no,
 	struct acl6_rules v6_rules;
 	const struct rte_acl_rule *acl_rule;
 	int err = 0;
+	size_t rule_sz;
+
+	if (!m_ctx->tr_in_progress) {
+		RTE_LOG(ERR, DATAPLANE,
+			"Could not add rule %u for trie %s: no transaction in progress\n",
+			rule_no, m_ctx->name);
+		return -EINVAL;
+	}
 
 	if (af == AF_INET) {
 		npf_rte_acl_add_v4_rule(match_addr, mask, rule_no, &v4_rules);
 		acl_rule = (const struct rte_acl_rule *)&v4_rules;
+		rule_sz = sizeof(struct acl4_rules);
 	} else {
 		npf_rte_acl_add_v6_rule(match_addr, mask, rule_no, &v6_rules);
 		acl_rule = (const struct rte_acl_rule *)&v6_rules;
+		rule_sz = sizeof(struct acl6_rules);
 	}
+
+	err = npf_rte_acl_record_transaction_entry(m_ctx, RULE_OP_ADD,
+						   acl_rule, rule_sz);
+	if (err)
+		return err;
 
 	err = _npf_rte_acl_add_rule(af, m_ctx, acl_rule);
 	if (err < 0)
@@ -575,7 +589,7 @@ int npf_rte_acl_add_rule(int af, npf_match_ctx_t *m_ctx, uint32_t rule_no,
 	return 0;
 }
 
-int npf_rte_acl_build(int af, npf_match_ctx_t **m_ctx)
+static int npf_rte_acl_build(int af, npf_match_ctx_t **m_ctx)
 {
 	struct rte_acl_config cfg = { 0 };
 	int err;
@@ -635,14 +649,31 @@ int npf_rte_acl_del_rule(int af, npf_match_ctx_t *m_ctx, uint32_t rule_no,
 	struct acl4_rules v4_rules;
 	struct acl6_rules v6_rules;
 	const struct rte_acl_rule *acl_rule;
+	int err = 0;
+	size_t rule_sz;
+
 
 	if (af == AF_INET) {
 		npf_rte_acl_add_v4_rule(match_addr, mask, rule_no, &v4_rules);
 		acl_rule = (const struct rte_acl_rule *)&v4_rules;
+		rule_sz = sizeof(struct acl4_rules);
 	} else {
 		npf_rte_acl_add_v6_rule(match_addr, mask, rule_no, &v6_rules);
 		acl_rule = (const struct rte_acl_rule *)&v6_rules;
+		rule_sz = sizeof(struct acl6_rules);
 	}
+
+	if (!m_ctx->tr_in_progress) {
+		RTE_LOG(ERR, DATAPLANE,
+			"Could not delete rule %d from trie %s: no transaction in progress\n",
+			rule_no, m_ctx->name);
+		return -EINVAL;
+	}
+
+	err = npf_rte_acl_record_transaction_entry(m_ctx, RULE_OP_DELETE,
+						   acl_rule, rule_sz);
+	if (err)
+		return err;
 
 	return _npf_rte_acl_del_rule(af, m_ctx, acl_rule);
 }

@@ -2392,10 +2392,36 @@ static int crypto_npf_rte_acl_match(int af, npf_match_ctx_t *ctx,
 	return 1;
 }
 
+static int crypto_npf_rte_acl_init(int af, const char *name, uint32_t max_rules,
+				   npf_match_ctx_t **m_ctx)
+{
+	int rc;
+
+	rc = npf_rte_acl_init(af, name, max_rules, m_ctx);
+	if (rc < 0)
+		return rc;
+
+	/* tolerate multiple init match calls */
+	npf_rte_acl_start_transaction(af, *m_ctx);
+
+	return 0;
+}
+
+static int crypto_npf_rte_acl_build(int af, npf_match_ctx_t **ctx)
+{
+	int rc;
+
+	rc = npf_rte_acl_commit_transaction(af, *ctx);
+	if (rc < 0)
+		return rc;
+
+	return npf_rte_acl_start_transaction(af, *ctx);
+}
+
 static npf_match_cb_tbl crypto_npf_match_cb_tbl = {
-	.npf_match_init_cb     = npf_rte_acl_init,
+	.npf_match_init_cb     = crypto_npf_rte_acl_init,
 	.npf_match_add_rule_cb = npf_rte_acl_add_rule,
-	.npf_match_build_cb    = npf_rte_acl_build,
+	.npf_match_build_cb    = crypto_npf_rte_acl_build,
 	.npf_match_classify_cb = crypto_npf_rte_acl_match,
 	.npf_match_destroy_cb  = npf_rte_acl_destroy
 };

@@ -26,8 +26,6 @@ int npf_rte_acl_add_rule(int af, npf_match_ctx_t *m_ctx,
 int npf_rte_acl_del_rule(int af, npf_match_ctx_t *m_ctx, uint32_t rule_no,
 			 uint8_t *match_addr, uint8_t *mask);
 
-int npf_rte_acl_build(int af, npf_match_ctx_t **m_ctx);
-
 int npf_rte_acl_match(int af, npf_match_ctx_t *m_ctx, npf_cache_t *npc,
 		      struct npf_match_cb_data *data, uint32_t *rule_no);
 
