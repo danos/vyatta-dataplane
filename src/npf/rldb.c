@@ -611,14 +611,44 @@ int rldb_find_rule(struct rldb_db_handle *db, uint32_t rule_no,
 /*
  * match packets against rules in the specified database
  */
-int rldb_match(struct rldb_db_handle *db __rte_unused,
+int rldb_match(struct rldb_db_handle *db,
 	       /* array of packets to be matched */
-	       struct rte_mbuf *m[] __rte_unused,
+	       struct rte_mbuf *m[],
 	       /* number of packets */
-	       uint32_t num_packets __rte_unused,
-	       struct rldb_result *results __rte_unused)
+	       uint32_t num_packets, struct rldb_result *result)
 {
-	return 0;
+	uint32_t rule_no = 0;
+	struct rldb_rule_handle *rh;
+	struct npf_match_cb_data data = { 0 };
+	int rc = 0;
+
+	if (!db || !m || num_packets != 1)
+		return -EINVAL;
+
+	if (rldb_disabled)
+		return -ENODEV;
+
+	/* non-npc variant. Supports only standard 5-tuple packets */
+	data.mbuf = m[0];
+	rc = npf_rte_acl_match(db->af, db->match_ctx, NULL, &data, &rule_no);
+	if (rc == -ENOENT)
+		goto error;
+
+	if (rc != 0 && rc != -ENOENT)
+		goto error;
+
+	if (result) {
+		rc = rldb_find_rule(db, rule_no, &rh);
+		if (rc < 0)
+			goto error;
+
+		result->rldb_rule_no = rule_no;
+		result->rldb_user_data = rh->rule.rldb_user_data;
+	}
+
+error:
+	db->stats.rldb_err.rule_match_failed++;
+	return rc;
 }
 
 /*
@@ -797,6 +827,8 @@ void rldb_dump(struct rldb_db_handle *db, json_writer_t *wr)
 			 db->stats.rldb_err.rule_add_failed);
 	jsonw_uint_field(wr, "rule_del_failed",
 			 db->stats.rldb_err.rule_del_failed);
+	jsonw_uint_field(wr, "rule_match_failed",
+			 db->stats.rldb_err.rule_match_failed);
 	jsonw_uint_field(wr, "transaction_failed",
 			 db->stats.rldb_err.transaction_failed);
 	jsonw_end_object(wr);

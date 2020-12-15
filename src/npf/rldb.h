@@ -79,6 +79,7 @@ struct rldb_stats {
 	struct err_cntrs {
 		uint64_t rule_add_failed;
 		uint64_t rule_del_failed;
+		uint64_t rule_match_failed;
 		uint64_t transaction_failed;
 	} rldb_err;
 };
