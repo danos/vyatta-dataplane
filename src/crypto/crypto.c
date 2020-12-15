@@ -56,6 +56,7 @@
 #include "pktmbuf_internal.h"
 #include "pl_common.h"
 #include "pl_fused.h"
+#include "rldb.h"
 #include "shadow.h"
 #include "udp_handler.h"
 #include "urcu.h"
@@ -213,6 +214,31 @@ struct crypto_vrf_ctx *crypto_vrf_find_external(vrfid_t vrfid)
 	return rcu_dereference(vrf->crypto);
 }
 
+static int crypto_rldb_create(struct crypto_vrf_ctx *vrf_ctx, const char *name,
+			      int flags, struct rldb_db_handle **db)
+{
+	int rc;
+	char buf[RLDB_NAME_MAX];
+
+	snprintf(buf, sizeof(buf), "%s-vrf%u", name, vrf_ctx->vrfid);
+	rc = rldb_create(buf, flags, db);
+	if (rc < 0) {
+		DP_DEBUG(CRYPTO, ERR, POLICY,
+			 "Failed to create policy rule database %s\n", buf);
+		return rc;
+	}
+
+	rc = rldb_start_transaction(*db);
+	if (rc < 0) {
+		DP_DEBUG(CRYPTO, ERR, POLICY,
+			 "Failed to prepare transaction for rule database %s\n",
+			 buf);
+		return rc;
+	}
+
+	return 0;
+}
+
 /*
  * Lookup/create crypto VRF context block
  */
@@ -267,6 +293,30 @@ struct crypto_vrf_ctx *crypto_vrf_get(vrfid_t vrfid)
 		goto vrf_ctx_get_fail;
 
 	/*
+	 * Allocate ACL rule database
+	 */
+
+	if (crypto_rldb_create(vrf_ctx, "crypto-in4", NPFRL_FLAG_V4_PFX,
+			       &vrf_ctx->input_policy_v4_rldb) < 0) {
+		goto vrf_ctx_get_fail;
+	}
+
+	if (crypto_rldb_create(vrf_ctx, "crypto-out4", NPFRL_FLAG_V4_PFX,
+			       &vrf_ctx->output_policy_v4_rldb) < 0) {
+		goto vrf_ctx_get_fail;
+	}
+
+	if (crypto_rldb_create(vrf_ctx, "crypto-in6", NPFRL_FLAG_V6_PFX,
+			       &vrf_ctx->input_policy_v6_rldb) < 0) {
+		goto vrf_ctx_get_fail;
+	}
+
+	if (crypto_rldb_create(vrf_ctx, "crypto-out6", NPFRL_FLAG_V6_PFX,
+			       &vrf_ctx->output_policy_v6_rldb) < 0) {
+		goto vrf_ctx_get_fail;
+	}
+
+	/*
 	 * Hang crypto block off VRF
 	 */
 	if (crypto_vrf_insert(vrf_ctx) < 0) {
@@ -286,6 +336,15 @@ vrf_ctx_get_fail:
 		cds_lfht_destroy(vrf_ctx->output_policy_rule_sel_ht, NULL);
 	if (vrf_ctx->s2s_bind_hash_table)
 		cds_lfht_destroy(vrf_ctx->s2s_bind_hash_table, NULL);
+	if (vrf_ctx->input_policy_v4_rldb)
+		rldb_destroy(vrf_ctx->input_policy_v4_rldb);
+	if (vrf_ctx->output_policy_v4_rldb)
+		rldb_destroy(vrf_ctx->output_policy_v4_rldb);
+	if (vrf_ctx->input_policy_v6_rldb)
+		rldb_destroy(vrf_ctx->input_policy_v6_rldb);
+	if (vrf_ctx->output_policy_v6_rldb)
+		rldb_destroy(vrf_ctx->output_policy_v6_rldb);
+
 	free(vrf_ctx);
 	return NULL;
 }
@@ -301,6 +360,11 @@ static inline void crypto_vrf_free(struct rcu_head *head)
 	dp_ht_destroy_deferred(vrf_ctx->sadb_hash_table);
 	dp_ht_destroy_deferred(vrf_ctx->spi_out_hash_table);
 	dp_ht_destroy_deferred(vrf_ctx->s2s_bind_hash_table);
+
+	rldb_destroy(vrf_ctx->input_policy_v4_rldb);
+	rldb_destroy(vrf_ctx->input_policy_v6_rldb);
+	rldb_destroy(vrf_ctx->output_policy_v4_rldb);
+	rldb_destroy(vrf_ctx->output_policy_v6_rldb);
 
 	free(vrf_ctx);
 }
