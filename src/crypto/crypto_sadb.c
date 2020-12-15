@@ -919,7 +919,7 @@ int crypto_sadb_new_sa(const struct xfrm_usersa_info *sa_info,
 	 * point bound to it.
 	 */
 	ifp = (sa->dir == CRYPTO_DIR_IN) ?
-		crypto_policy_feat_attach_by_reqid(sa->reqid) : NULL;
+		crypto_policy_feat_attach_by_reqid(vrf_ctx, sa->reqid) : NULL;
 	rcu_assign_pointer(sa->feat_attach_ifp, ifp);
 
 	/* allocate a core for post crypto processing */

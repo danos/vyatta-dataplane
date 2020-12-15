@@ -2868,22 +2868,27 @@ bool crypto_policy_check_inbound_terminating(struct ifnet *in_ifp,
  * For a given reqid, find the matching output policy and retrieve the
  * virtual feature point interface, if any.
  */
-struct ifnet *crypto_policy_feat_attach_by_reqid(uint32_t reqid)
+struct ifnet *crypto_policy_feat_attach_by_reqid(struct crypto_vrf_ctx *vrf_ctx,
+						 uint32_t reqid)
 {
 	struct cds_lfht_iter iter;
 	struct cds_lfht_node *node;
+	struct cds_lfht *ht;
 
-	cds_lfht_first(output_policy_rule_tag_ht, &iter);
+	ht = vrf_ctx->output_policy_rule_sel_ht;
+
+	cds_lfht_first(ht, &iter);
 	while ((node = cds_lfht_iter_get_node(&iter)) != NULL) {
 		struct policy_rule *pr;
 
-		pr = caa_container_of(node, struct policy_rule, tag_ht_node);
+		pr = caa_container_of(node, struct policy_rule, sel_ht_node);
 
 		if (pr->reqid == reqid)
 			return pr->feat_attach ?
 				dp_nh_get_ifp(&pr->feat_attach->nh) : NULL;
-		cds_lfht_next(output_policy_rule_tag_ht, &iter);
+		cds_lfht_next(ht, &iter);
 	}
+
 	return NULL;
 }
 
