@@ -413,7 +413,6 @@ static int rldb_rule_match(struct cds_lfht_node *node, const void *key)
 	return rh->rule_no == *key_rule_no;
 }
 
-__rte_unused
 static int rldb_rule_handle_create(uint32_t rule_no,
 				   struct rldb_rule_spec const *in_spec,
 				   struct rldb_rule_handle **out_rh)
@@ -456,13 +455,75 @@ static void rldb_rule_handle_destroy(struct rldb_rule_handle *rh)
 
 /*
  * add rule to the specified database
+ *
+ * rule_no MUST NOT be 0.
  */
-int rldb_add_rule(struct rldb_db_handle *db __rte_unused,
-		  uint32_t rule_no __rte_unused,
-		  struct rldb_rule_spec const *in_spec __rte_unused,
-		  struct rldb_rule_handle **out_rule __rte_unused)
+int rldb_add_rule(struct rldb_db_handle *db, uint32_t rule_no,
+		  struct rldb_rule_spec const *in_spec,
+		  struct rldb_rule_handle **out_rh)
 {
+	int rc;
+	struct rldb_rule_handle *rh = NULL;
+	struct cds_lfht_node *node;
+	uint8_t match_addr[NPC_GPR_SIZE_v6] = { 0 };
+	uint8_t mask[NPC_GPR_SIZE_v6] = { 0 };
+
+	if (!db || !rule_no || !in_spec || !out_rh)
+		return -EINVAL;
+
+	if (rldb_disabled)
+		return -ENODEV;
+
+	rc = rldb_rule_handle_create(rule_no, in_spec, &rh);
+	if (rc < 0) {
+		RLDB_ERR("Could not create rule handle for rule %u\n", rule_no);
+		goto error;
+	}
+
+	switch (db->af) {
+	case AF_INET:
+		rldb_prepare_rule_v4(&rh->rule, match_addr, mask);
+		break;
+	case AF_INET6:
+		rldb_prepare_rule_v6(&rh->rule, match_addr, mask);
+		break;
+	default:
+		rc = -EAFNOSUPPORT;
+		goto error;
+	}
+
+	node = cds_lfht_add_unique(db->ht, rule_no,
+				   rldb_rule_match, &rh, &rh->ht_node);
+	if (node != &rh->ht_node) {
+		RLDB_ERR("Could not add rule %u to rldb \"%s\".\n",
+			 rule_no, db->name);
+		rc = -EEXIST;
+		goto error;
+	}
+
+	rc = npf_rte_acl_add_rule(db->af, db->match_ctx, rh->rule_no,
+				  match_addr, mask, NULL);
+	if (rc < 0) {
+		RLDB_ERR("Failed to add ACL rule: %u\n", rh->rule_no);
+		goto delete_and_error;
+	}
+
+	*out_rh = rh;
+
+	db->stats.rldb_rules_added++;
+	db->stats.rldb_rule_cnt++;
+
 	return 0;
+
+delete_and_error:
+	cds_lfht_del(db->ht, &rh->ht_node);
+
+error:
+	if (rh)
+		rldb_rule_handle_destroy(rh);
+
+	db->stats.rldb_err.rule_add_failed++;
+	return rc;
 }
 
 /*
@@ -761,12 +822,22 @@ void rldb_dump(struct rldb_db_handle *db, json_writer_t *wr)
  */
 int rldb_destroy(struct rldb_db_handle *db)
 {
+	struct cds_lfht_iter iter;
+	struct rldb_rule_handle *rh;
+
 	if (!db)
 		return -EINVAL;
 
 	if (rldb_disabled) {
 		RLDB_ERR("RLDB is not initialized\n");
 		return -ENODEV;
+	}
+
+	if (db->ht) {
+		cds_lfht_for_each_entry(db->ht, &iter, rh, ht_node) {
+			if (!cds_lfht_del(db->ht, &rh->ht_node))
+				rldb_rule_handle_destroy(rh);
+		}
 	}
 
 	cds_lfht_del(rldb_global_ht, &db->ht_node);
