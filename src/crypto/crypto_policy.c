@@ -1046,6 +1046,51 @@ static void policy_rule_remove_from_hash_tables(struct policy_rule *pr)
 	policy_rule_remove_from_tag_ht(pr);
 }
 
+__rte_unused
+static bool policy_rule_update_rldb(struct policy_rule *pr)
+{
+	int rc;
+	struct rldb_db_handle *db;
+	struct rldb_rule_spec rule = { 0 };
+	struct crypto_vrf_ctx *vrf_ctx;
+
+
+	/*
+	 * Packets are routed into VTI tunnels,
+	 * so we don't have an rldb rule to update.
+	 */
+	if (pr->vti_tunnel_policy)
+		return true;
+
+	vrf_ctx = crypto_vrf_get(pr->vrfid);
+	if (!vrf_ctx)
+		return false;
+
+	db = policy_rule_get_rldb(vrf_ctx, pr);
+	if (!db)
+		return false;
+
+	rc = rldb_del_rule(db, pr->rh);
+	if (rc < 0) {
+		POLICY_ERR("Failed to update rule %u: %d\n",
+			   pr->rule_index, -rc);
+		return false;
+	}
+
+	rc = policy_prepare_rldb_rule(pr, &rule);
+	if (rc < 0)
+		return false;
+
+	rc = rldb_add_rule(db, pr->rule_index, &rule, &pr->rh);
+	if (rc < 0) {
+		POLICY_ERR("Failed to update rule %u: %d\n",
+			   pr->rule_index, -rc);
+		return false;
+	}
+
+	return true;
+}
+
 static bool policy_rule_build_npf_str(const struct policy_rule *pr,
 				      char *buf, size_t len)
 {
