@@ -117,15 +117,13 @@ struct pr_feat_attach {
  * struct policy_rule
  *
  * This is the type for entries in the policy rule
- * database. Each entry tracks a single NPF rule.
- * A given NPF rule can be used by both an input and
+ * database. Each entry tracks a single rldb rule handle.
+ * A given rldb rule can be used by both an input and
  * output policy since their selectors can overlap.
  *
- * The policy database is indexd by the NPF rule tag
+ * The policy database is indexd by the rule_index
  * value and also by a subset of the fields in the
- * selector. This subset is the same subset used to
- * build the text of the NPF rule corresponding to0
- * the selector.
+ * selector.
  */
 struct policy_rule {
 	struct cds_lfht_node tag_ht_node;
@@ -495,7 +493,7 @@ static int policy_rule_sel_match(struct cds_lfht_node *node, const void *key)
 
 	/*
 	 * Match if and only if the all the fields used to build the
-	 * NPF rule are the same (see build_policy_npf_rule()).
+	 * rldb rule are the same (see policy_prepare_rldb_rule()).
 	 *
 	 */
 	return (policy_rule_sel_eq(&pr->sel, search_key->sel) &&
@@ -609,12 +607,11 @@ policy_rule_find_by_selector(vrfid_t vrfid,
 		    : NULL;
 }
 
-__rte_unused
 static bool policy_prepare_rldb_rule(struct policy_rule *pr,
 				     struct rldb_rule_spec *rule)
 {
-	rule->rldb_user_data = (uintptr_t)pr;
-	rule->rldb_priority = pr->policy_priority;
+	rule->rldb_user_data = (uintptr_t)pr->tag;
+	rule->rldb_priority = pr->tag;
 
 	if (pr->sel.proto) {
 		rule->rldb_flags |= NPFRL_FLAG_PROTO;
@@ -688,7 +685,6 @@ static bool policy_prepare_rldb_rule(struct policy_rule *pr,
 	return true;
 }
 
-__rte_unused
 static
 struct rldb_db_handle *policy_rule_get_rldb(struct crypto_vrf_ctx *vrf_ctx,
 					    struct policy_rule *pr)
@@ -717,7 +713,6 @@ struct rldb_db_handle *policy_rule_get_rldb(struct crypto_vrf_ctx *vrf_ctx,
 	return db;
 }
 
-__rte_unused
 static bool policy_rule_add_to_rldb(struct crypto_vrf_ctx *vrf_ctx,
 				    struct policy_rule *pr)
 {
@@ -740,7 +735,7 @@ static bool policy_rule_add_to_rldb(struct crypto_vrf_ctx *vrf_ctx,
 	if (!db)
 		return false;
 
-	rc = rldb_add_rule(db, pr->rule_index, &rule, &pr->rh);
+	rc = rldb_add_rule(db, pr->tag, &rule, &pr->rh);
 	if (rc < 0) {
 		POLICY_ERR("Failed to add policy rule to rule database\n");
 		return false;
@@ -1046,7 +1041,6 @@ static void policy_rule_remove_from_hash_tables(struct policy_rule *pr)
 	policy_rule_remove_from_tag_ht(pr);
 }
 
-__rte_unused
 static bool policy_rule_update_rldb(struct policy_rule *pr)
 {
 	int rc;
@@ -1081,7 +1075,7 @@ static bool policy_rule_update_rldb(struct policy_rule *pr)
 	if (rc < 0)
 		return false;
 
-	rc = rldb_add_rule(db, pr->rule_index, &rule, &pr->rh);
+	rc = rldb_add_rule(db, pr->tag, &rule, &pr->rh);
 	if (rc < 0) {
 		POLICY_ERR("Failed to update rule %u: %d\n",
 			   pr->rule_index, -rc);
@@ -1190,6 +1184,7 @@ static void group_name_by_vrf(char *buf, int buflen, int dir, vrfid_t vrf)
 		snprintf(buf, buflen, "out-%d", vrf);
 }
 
+__rte_unused
 static bool policy_rule_update_npf(struct policy_rule *pr)
 {
 	char buffer[POLICY_RULE_BUFSIZE];
@@ -1228,6 +1223,7 @@ static bool policy_rule_update_npf(struct policy_rule *pr)
 }
 
 #define POL_VRF_STRLEN 16
+__rte_unused
 static bool policy_rule_add_to_npf(struct policy_rule *pr)
 {
 	char buffer[POLICY_RULE_BUFSIZE];
@@ -1363,7 +1359,6 @@ static bool all_other_policies_can_be_cached(const struct policy_rule *pr)
 	return result;
 }
 
-__rte_unused
 static int policy_rule_remove_from_rldb(struct policy_rule *pr,
 					struct crypto_vrf_ctx *vrf_ctx,
 					bool vti_tunnel_policy,
@@ -1401,6 +1396,7 @@ static int policy_rule_remove_from_rldb(struct policy_rule *pr,
 	return 0;
 }
 
+__rte_unused
 static void policy_rule_remove_from_npf(struct policy_rule *pr,
 					bool vti_tunnel_policy,
 					uint32_t rule_index)
@@ -1798,6 +1794,7 @@ static void crypto_npf_cfg_commit_all(struct policy_rule *pr,
 
 static bool
 policy_rule_update(struct policy_rule *pr,
+		   struct crypto_vrf_ctx *vrf_ctx,
 		   const struct xfrm_userpolicy_info *usr_policy,
 		   const xfrm_address_t *dst,
 		   const struct xfrm_user_tmpl *tmpl,
@@ -1808,7 +1805,10 @@ policy_rule_update(struct policy_rule *pr,
 	bool was_vti_policy = pr->vti_tunnel_policy;
 	bool changed = false;
 
+	*send_ack = true;
+
 	if (usr_policy->dir == XFRM_POLICY_OUT) {
+
 		if ((usr_policy->action == XFRM_POLICY_ALLOW) &&
 		    (pr->action == XFRM_POLICY_BLOCK)) {
 			/*
@@ -1857,7 +1857,7 @@ policy_rule_update(struct policy_rule *pr,
 	}
 
 	if (pr->policy_priority != usr_policy->priority) {
-		uint32_t old_rule_index = pr->rule_index;
+		struct rldb_rule_handle *old_rh = pr->rh;
 
 		/*
 		 * Since the priority of the policy has changed, we must
@@ -1871,14 +1871,15 @@ policy_rule_update(struct policy_rule *pr,
 		 */
 		pr->rule_index = (pr->policy_priority << PR_TAG_SIZE) + pr->tag;
 
-		if (!policy_rule_add_to_npf(pr)) {
+		policy_rule_remove_from_rldb(pr, vrf_ctx, was_vti_policy,
+					     old_rh);
+
+		if (!policy_rule_add_to_rldb(vrf_ctx, pr)) {
 			POLICY_ERR(
-				"Failed to add updated policy rule to NPF\n");
+				"Failed to add updated policy rule to rldb\n");
 			return false;
 		}
 
-		policy_rule_remove_from_npf(pr, was_vti_policy,
-					    old_rule_index);
 		*send_ack = false;
 		crypto_npf_cfg_commit_all(pr, seq);
 		if ((pr->dir == XFRM_POLICY_OUT) &&
@@ -1887,7 +1888,7 @@ policy_rule_update(struct policy_rule *pr,
 					      false);
 	} else if (changed) {
 		*send_ack = false;
-		policy_rule_update_npf(pr);
+		policy_rule_update_rldb(pr);
 		crypto_npf_cfg_commit_all(pr, seq);
 	}
 
@@ -1912,14 +1913,19 @@ int crypto_policy_add(const struct xfrm_userpolicy_info *usr_policy,
 		      bool *send_ack)
 {
 	struct policy_rule *pr;
+	struct crypto_vrf_ctx *vrf_ctx;
+
+	vrf_ctx = crypto_vrf_get(vrfid);
+	if (!vrf_ctx)
+		return -1;
 
 	*send_ack = true;
 
 	pr = policy_rule_find_by_selector(vrfid, &usr_policy->sel, mark,
 					  usr_policy->dir);
 	if (pr) {
-		if (!policy_rule_update(pr, usr_policy, dst, tmpl, mark,
-					seq, send_ack)) {
+		if (!policy_rule_update(pr, vrf_ctx, usr_policy, dst, tmpl,
+					mark, seq, send_ack)) {
 			POLICY_ERR(
 				"Policy add failed to update existing policy\n");
 			return -1;
@@ -1941,8 +1947,8 @@ int crypto_policy_add(const struct xfrm_userpolicy_info *usr_policy,
 		return -1;
 	}
 
-	if (!policy_rule_add_to_npf(pr)) {
-		POLICY_ERR("Failed to add policy rule NPF filter\n");
+	if (!policy_rule_add_to_rldb(vrf_ctx, pr)) {
+		POLICY_ERR("Failed to add policy rule to rldb\n");
 		policy_rule_remove_from_hash_tables(pr);
 		policy_rule_destroy(pr);
 		return -1;
@@ -1988,6 +1994,11 @@ int crypto_policy_update(const struct xfrm_userpolicy_info *usr_policy,
 			 bool *send_ack)
 {
 	struct policy_rule *pr;
+	struct crypto_vrf_ctx *vrf_ctx;
+
+	vrf_ctx = crypto_vrf_get(vrfid);
+	if (!vrf_ctx)
+		return -1;
 
 	pr = policy_rule_find_by_selector(vrfid, &usr_policy->sel, mark,
 					  usr_policy->dir);
@@ -2003,7 +2014,7 @@ int crypto_policy_update(const struct xfrm_userpolicy_info *usr_policy,
 					 seq, send_ack);
 	}
 
-	if (!policy_rule_update(pr, usr_policy, dst, tmpl, mark,
+	if (!policy_rule_update(pr, vrf_ctx, usr_policy, dst, tmpl, mark,
 				seq, send_ack)) {
 		POLICY_ERR("Failed to update existing policy\n");
 		return -1;
@@ -2019,10 +2030,12 @@ int crypto_policy_update(const struct xfrm_userpolicy_info *usr_policy,
  *
  * MUST be called from the main thread
  */
-static void crypto_policy_delete_internal(struct policy_rule *pr, vrfid_t vrfid,
+static void crypto_policy_delete_internal(struct policy_rule *pr,
+					  struct crypto_vrf_ctx *vrf_ctx,
 					  uint32_t seq, bool ack)
 {
-	policy_rule_remove_from_npf(pr, pr->vti_tunnel_policy, pr->rule_index);
+	policy_rule_remove_from_rldb(pr, vrf_ctx, pr->vti_tunnel_policy,
+				     pr->rh);
 
 	/*
 	 * Is the policy is being purged as the result of a flush
@@ -2055,7 +2068,7 @@ static void crypto_policy_delete_internal(struct policy_rule *pr, vrfid_t vrfid,
 	policy_rule_remove_from_hash_tables(pr);
 	policy_rule_destroy(pr);
 
-	crypto_vrf_check_remove(crypto_vrf_find(vrfid));
+	crypto_vrf_check_remove(vrf_ctx);
 }
 
 void crypto_policy_delete(const struct xfrm_userpolicy_id *id,
@@ -2064,6 +2077,9 @@ void crypto_policy_delete(const struct xfrm_userpolicy_id *id,
 			  uint32_t seq, bool *send_ack)
 {
 	struct policy_rule *pr;
+	struct crypto_vrf_ctx *vrf_ctx;
+
+	vrf_ctx = crypto_vrf_find(vrfid);
 
 	pr = policy_rule_find_by_selector(vrfid, &id->sel, mark, id->dir);
 	if (!pr) {
@@ -2075,7 +2091,7 @@ void crypto_policy_delete(const struct xfrm_userpolicy_id *id,
 		return;
 	}
 
-	crypto_policy_delete_internal(pr, vrfid, seq, true);
+	crypto_policy_delete_internal(pr, vrf_ctx, seq, true);
 }
 
 void crypto_policy_flush_vrf(struct crypto_vrf_ctx *vrf_ctx)
@@ -2087,12 +2103,12 @@ void crypto_policy_flush_vrf(struct crypto_vrf_ctx *vrf_ctx)
 
 	cds_lfht_for_each_entry(vrf_ctx->input_policy_rule_sel_ht,
 				&iter, pr, sel_ht_node) {
-		crypto_policy_delete_internal(pr, vrf_ctx->vrfid, 0, false);
+		crypto_policy_delete_internal(pr, vrf_ctx, 0, false);
 	}
 
 	cds_lfht_for_each_entry(vrf_ctx->output_policy_rule_sel_ht,
 				&iter, pr, sel_ht_node) {
-		crypto_policy_delete_internal(pr, vrf_ctx->vrfid, 0, false);
+		crypto_policy_delete_internal(pr, vrf_ctx, 0, false);
 	}
 }
 
@@ -2217,7 +2233,7 @@ crypto_policy_handle_packet_outbound_checks(struct rte_mbuf *mbuf,
 /*
  * crypto_policy_handle_packet_outbound()
  *
- * Handle a packet that has matched the NPF rule for an IPsec output policy.
+ * Handle a packet that has matched the rldb rule for an IPsec output policy.
  *
  * This function always consumes the packet, either dropping it on an error
  * or queuing it to the crypto thread for encryption.
@@ -2335,7 +2351,7 @@ drop:
 /*
  * crypto_policy_handle_packet6_outbound()
  *
- * Handle a packet that has matched the NPF rule for an IPsec output policy.
+ * Handle a packet that has matched the rldb rule for an IPsec output policy.
  *
  * This function always consumes the packet, either dropping it on an error
  * or queuing it to the crypto thread for encryption.
@@ -2861,15 +2877,12 @@ bool crypto_policy_check_outbound(struct ifnet *in_ifp, struct rte_mbuf **mbuf,
 {
 	struct policy_rule *pr = NULL;
 	struct flow_cache_entry *cache_entry;
-	vrfid_t vrfid = pktmbuf_get_vrf(*mbuf);
+	vrfid_t vrfid;
 	bool v4 = (eth_type == htons(RTE_ETHER_TYPE_IPV4));
 	bool freed = false;
-	struct npf_config *npf_conf = vrf_get_npf_conf_rcu(vrfid);
 	bool seen_by_crypto;
+	int err;
 	union crypto_ctx ctx;
-
-	if (likely(!npf_active(npf_conf, NPF_IPSEC)))
-		return false;
 
 	seen_by_crypto = ((*mbuf)->ol_flags & PKT_RX_SEEN_BY_CRYPTO);
 
@@ -2897,8 +2910,25 @@ bool crypto_policy_check_outbound(struct ifnet *in_ifp, struct rte_mbuf **mbuf,
 				return false;
 		}
 	} else {
-		const npf_ruleset_t *rlset =
-			npf_get_ruleset(npf_conf, NPF_RS_IPSEC);
+		struct rldb_result result;
+		struct crypto_vrf_ctx *vrf_ctx;
+		struct rldb_db_handle *db_in, *db_out;
+		uint32_t tag = 0;
+
+		vrfid = pktmbuf_get_vrf(*mbuf);
+		vrf_ctx = crypto_vrf_find(vrfid);
+
+		/* no crypto fo this VRF */
+		if (!vrf_ctx)
+			return false;
+
+		if (v4) {
+			db_in = vrf_ctx->input_policy_v4_rldb;
+			db_out = vrf_ctx->output_policy_v4_rldb;
+		} else {
+			db_in = vrf_ctx->input_policy_v6_rldb;
+			db_out = vrf_ctx->output_policy_v6_rldb;
+		}
 
 		/*
 		 * If this packet was received encrypted,  then we don't need to
@@ -2906,7 +2936,17 @@ bool crypto_policy_check_outbound(struct ifnet *in_ifp, struct rte_mbuf **mbuf,
 		 * it should have been received encrypted,  and so now needs to
 		 * be dropped.
 		 */
-		int dir = PFIL_OUT | (seen_by_crypto ? 0 : PFIL_IN);
+		int dir = XFRM_POLICY_OUT;
+
+		if (likely(!seen_by_crypto)) {
+			err = rldb_match(db_in, mbuf, 1, &result);
+			if (likely(err == -ENOENT))
+				;
+			else if (err == 0) {
+				tag = result.rldb_user_data;
+				dir = XFRM_POLICY_IN;
+			}
+		}
 
 		/*
 		 * Packets matching an input policy must be dropped if
@@ -2914,36 +2954,33 @@ bool crypto_policy_check_outbound(struct ifnet *in_ifp, struct rte_mbuf **mbuf,
 		 * and this routine is only called for such unencrypted
 		 * packets.
 		 *
-		 * If no policy matches we find NPF_DECISION_UNMATCHED.
-		 * Otherwise one of NPF_DECISION_PASS (for an ALLOW policy)
-		 * or NPF_DECISION_BLOCK (for a BLOCK policy).
+		 * If no policy matches we find -ENOENT.
+		 * Otherwise one a ALLOW policy or a BLOCK polic.
 		 *
 		 * Only block rules are currently used in the input policy.
 		 */
-		npf_result_t result =
-			npf_hook_notrack(rlset, mbuf, in_ifp, dir, 0, eth_type,
-					 NULL);
+
+		if (likely(tag == 0)) {
+			err = rldb_match(db_out, mbuf, 1, &result);
+			if (likely(err == -ENOENT))
+				;
+			else if (err == 0) {
+				tag = result.rldb_user_data;
+				dir = XFRM_POLICY_OUT;
+			}
+		}
 
 		/*
 		 * No input and no output policy matched,  allow normal
 		 * processing
 		 */
-		if (likely(result.decision == NPF_DECISION_UNMATCHED)) {
+		if (likely(err == -ENOENT)) {
 			crypto_flow_cache_add(flow_cache, NULL, *mbuf, v4,
 					      seen_by_crypto, XFRM_POLICY_OUT);
 			return false;
 		}
 
-		if (likely(result.tag_set)) {
-			dir = XFRM_POLICY_OUT;
-			pr = policy_rule_find_by_tag(result.tag, dir);
-			if (!pr) {
-				pr = policy_rule_find_by_tag(result.tag,
-							     XFRM_POLICY_IN);
-				if (pr)
-					dir = XFRM_POLICY_IN;
-			}
-		}
+		pr = policy_rule_find_by_tag(tag, dir);
 
 		/*
 		 * We found a policy. If it has a selector
@@ -3058,12 +3095,9 @@ crypto_policy_check_inbound(struct ifnet *in_ifp, struct rte_mbuf **mbuf,
 	struct flow_cache_entry *cache_entry;
 	bool v4 = (eth_type == htons(RTE_ETHER_TYPE_IPV4));
 	bool freed = false;
-	vrfid_t vrfid = pktmbuf_get_vrf(*mbuf);
-	struct npf_config *npf_conf = vrf_get_npf_conf_rcu(vrfid);
+	vrfid_t vrfid;
 	union crypto_ctx ctx;
-
-	if (likely(!npf_active(npf_conf, NPF_IPSEC)))
-		return false;
+	struct crypto_vrf_ctx *vrf_ctx;
 
 	if ((*mbuf)->ol_flags & PKT_RX_SEEN_BY_CRYPTO)
 		return false;
@@ -3082,10 +3116,16 @@ crypto_policy_check_inbound(struct ifnet *in_ifp, struct rte_mbuf **mbuf,
 			goto drop;
 
 	} else {
-		const npf_ruleset_t *rlset =
-			npf_get_ruleset(npf_conf, NPF_RS_IPSEC);
+		struct rldb_result result;
+		struct rldb_db_handle *db;
+		int err;
 
-		int dir = PFIL_IN;
+		vrfid = pktmbuf_get_vrf(*mbuf);
+		vrf_ctx = crypto_vrf_find(vrfid);
+
+		/* no crypto fo this VRF */
+		if (!vrf_ctx)
+			return false;
 
 		/*
 		 * Packets matching an input policy must be dropped if
@@ -3093,48 +3133,44 @@ crypto_policy_check_inbound(struct ifnet *in_ifp, struct rte_mbuf **mbuf,
 		 * and this routine is only called for such unencrypted
 		 * packets.
 		 *
-		 * If no policy matches we find NPF_DECISION_UNMATCHED.
-		 * Otherwise one of NPF_DECISION_PASS (for an ALLOW policy)
-		 * or NPF_DECISION_BLOCK (for a BLOCK policy).
+		 * If no policy matches we find -ENOENT.
+		 * Otherwise one a ALLOW policy or a BLOCK policy.
 		 *
 		 * Only block rules are currently used in the input policy.
 		 */
-		npf_result_t result =
-			npf_hook_notrack(rlset, mbuf, in_ifp, dir, 0, eth_type,
-					 NULL);
 
-		/* No input policy matched */
-		if (likely(result.decision == NPF_DECISION_UNMATCHED))
+		db = v4 ? vrf_ctx->input_policy_v4_rldb
+		       : vrf_ctx->input_policy_v6_rldb;
+
+		err = rldb_match(db, mbuf, 1, &result);
+		if (likely(err == -ENOENT))
 			return false;
 
-		if (likely(result.tag_set)) {
-			pr = policy_rule_find_by_tag(result.tag,
-						     XFRM_POLICY_IN);
-			if (pr) {
-				/*
-				 * We found an input policy. If it has a
-				 * selector with an ifindex set, then
-				 * check we match.
-				 */
-				if (pr->sel.ifindex) {
-					if (pr->sel.ifindex !=
-					    (int)in_ifp->if_index) {
-						/* We don't have a match */
-						return false;
-					}
+		pr = policy_rule_find_by_tag((uint32_t) result.rldb_user_data,
+					     XFRM_POLICY_IN);
+		if (pr) {
+			/*
+			 * We found an input policy. If it has a
+			 * selector with an ifindex set, then
+			 * check we match.
+			 */
+			if (pr->sel.ifindex) {
+				if (pr->sel.ifindex !=
+				    (int)in_ifp->if_index) {
+					/* We don't have a match */
+					return false;
 				}
-
-				/*
-				 * We found an input policy, add it to the
-				 * flow cache and drop the packet.
-				 */
-				crypto_flow_cache_add(flow_cache, pr, *mbuf, v4,
-						      false, XFRM_POLICY_IN);
-
-				if (pr->action == XFRM_POLICY_BLOCK)
-					goto drop;
 			}
 
+			/*
+			 * We found an input policy, add it to the
+			 * flow cache and drop the packet.
+			 */
+			crypto_flow_cache_add(flow_cache, pr, *mbuf, v4,
+					      false, XFRM_POLICY_IN);
+
+			if (pr->action == XFRM_POLICY_BLOCK)
+				goto drop;
 		}
 	}
 	return false;
