@@ -112,13 +112,21 @@ void dp_rt_signal_path_state(const char *source,
 {
 	char buf[INET6_ADDRSTRLEN];
 
-	if (key->type == DP_RT_PATH_UNUSABLE_KEY_INTF)
+	if (key->type == DP_RT_PATH_UNUSABLE_KEY_INTF) {
+		struct ifnet *ifp;
+
+		ifp = dp_ifnet_byifindex(key->ifindex);
+		if (!ifp)
+			return;
+
 		DP_DEBUG(ROUTE, DEBUG, ROUTE,
 			 "paths using if %s marked %s by %s\n",
 			 ifnet_indextoname(key->ifindex),
 			 dp_rt_path_state_to_str(state),
 			 source);
-	else
+		if_set_usability(ifp, (state == DP_RT_PATH_USABLE) ?
+				       true : false);
+	} else
 		DP_DEBUG(ROUTE, DEBUG, ROUTE,
 			 "paths using if %s, gw %s marked %s by %s\n",
 			 ifnet_indextoname(key->ifindex),
