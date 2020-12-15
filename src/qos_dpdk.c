@@ -373,11 +373,9 @@ static void qos_copy_red_params(struct rte_red_params
 		for (j = 0; j < RTE_COLORS; j++) {
 			uint32_t wred_min_th = 0;
 			uint32_t wred_max_th = 0;
-			if (!qos_wred_threshold_get(&sinfo->red_params[i][j],
+			qos_wred_threshold_get(&sinfo->red_params[i][j],
 					sinfo->params.tc_rate[i],
-					&wred_min_th, &wred_max_th))
-				DP_DEBUG(QOS_DP, DEBUG, DATAPLANE,
-					 "Conflicting WRED threshold values.\n");
+					&wred_min_th, &wred_max_th);
 
 			dpdk[i][j].min_th = (uint16_t)wred_min_th;
 			dpdk[i][j].max_th = (uint16_t)wred_max_th;
@@ -416,7 +414,8 @@ static int qos_dpdk_setup_params(struct ifnet *ifp, struct sched_info *qinfo,
 	dpdk_port_params->n_pipes_per_subport = qos_params->n_pipes_per_subport;
 	for (i = 0; i < RTE_SCHED_TRAFFIC_CLASSES_PER_PIPE; i++)
 		dpdk_port_params->qsize[i] = qos_queue_size_get(
-				&qos_params->qsize[i],
+				qos_params->qsize[i],
+				qos_params->qsize_type,
 				qos_params->rate);
 	for (i = 0; i < qos_params->n_pipe_profiles; i++) {
 		struct rte_sched_pipe_params *to = &pipe_profiles[i];
@@ -449,11 +448,9 @@ static int qos_dpdk_setup_params(struct ifnet *ifp, struct sched_info *qinfo,
 
 				uint32_t wred_min_th = 0;
 				uint32_t wred_max_th = 0;
-				if (!qos_wred_threshold_get(&params->qparams[k],
+				qos_wred_threshold_get(&params->qparams[k],
 						from->shaper.tb_rate,
-						&wred_min_th, &wred_max_th))
-					DP_DEBUG(QOS_DP, DEBUG, DATAPLANE,
-						 "Conflicting WRED threshold values.\n");
+						&wred_min_th, &wred_max_th);
 
 				err = rte_red_init_q_params(
 						&qred_info->red_q_params,

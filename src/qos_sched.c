@@ -64,6 +64,23 @@
 
 #define	MAX_LINERATE	(100000000000/8) /* 100Gbits converted to bytes */
 
+/*
+ * Queue limit range from vyatta-policy-qos-groupings-v1:
+ *     9000..500000000
+ */
+#define MAX_QUEUE_LIMIT_BYTES 500000000
+#define MIN_QUEUE_LIMIT_BYTES 9000
+
+/*
+ * Threshold range from vyatta-policy-qos-groupings-v1:
+ *     min_th =  64..499999998
+ *     max_th = 128..499999999
+ */
+#define MAX_THRESHOLD_RANGE_MIN 128
+#define MAX_THRESHOLD_RANGE_MAX (MAX_QUEUE_LIMIT_BYTES - 1)
+#define MIN_THRESHOLD_RANGE_MIN 64
+#define MIN_THRESHOLD_RANGE_MAX (MAX_THRESHOLD_RANGE_MAX - 1)
+
 static CDS_LIST_HEAD(qos_ingress_maps);
 static CDS_LIST_HEAD(qos_egress_maps);
 
@@ -572,11 +589,11 @@ static bool qos_qsize_type_get(const char *size_type_arg,
 		enum qos_queue_size_type *size_type)
 {
 	if (!strcmp(size_type_arg, "packets"))
-		*size_type = WRED_PACKETS;
+		*size_type = QOS_QUEUE_SIZE_PACKETS;
 	else if (!strcmp(size_type_arg, "bytes"))
-		*size_type = WRED_BYTES;
+		*size_type = QOS_QUEUE_SIZE_BYTES;
 	else if (!strcmp(size_type_arg, "usec"))
-		*size_type = WRED_USEC;
+		*size_type = QOS_QUEUE_SIZE_USEC;
 	else {
 		DP_DEBUG(QOS, ERR, DATAPLANE,
 				"Invalid queue size type field\n");
@@ -588,34 +605,87 @@ static bool qos_qsize_type_get(const char *size_type_arg,
 bool qos_wred_threshold_get(struct qos_red_params *wred_params,
 		uint64_t rate, uint32_t *wred_min_th, uint32_t *wred_max_th)
 {
-	if (wred_params->qsize_type == WRED_BYTES ||
-	    wred_params->qsize_type == WRED_PACKETS) {
+	if (wred_params->qsize_type == QOS_QUEUE_SIZE_BYTES ||
+	    wred_params->qsize_type == QOS_QUEUE_SIZE_PACKETS) {
 		*wred_min_th = wred_params->min_th;
 		*wred_max_th = wred_params->max_th;
 		return true;
 	}
 
-	if (wred_params->qsize_type == WRED_USEC &&
+	if (wred_params->qsize_type == QOS_QUEUE_SIZE_USEC &&
 		rate != 0) {
-		*wred_min_th = ((rate * wred_params->min_th) / 1000000);
-		*wred_max_th = ((rate * wred_params->max_th) / 1000000);
+		uint64_t min_th = ((rate * wred_params->min_th) / USEC_PER_SEC);
+		uint64_t max_th = ((rate * wred_params->max_th) / USEC_PER_SEC);
+
+		/* Range check after byte conversion. */
+		if ((min_th != 0) && (max_th != 0)) {
+			/* Squash the values if out of range */
+			if (min_th < MIN_THRESHOLD_RANGE_MIN) {
+				RTE_LOG(INFO, QOS,
+					"Rounding up min_th from "
+					"%"PRIu64" to %d\n",
+					min_th, MIN_THRESHOLD_RANGE_MIN);
+				min_th = MIN_THRESHOLD_RANGE_MIN;
+			} else if (min_th > MIN_THRESHOLD_RANGE_MAX) {
+				RTE_LOG(INFO, QOS,
+					"Rounding down min_th from "
+					"%"PRIu64" to %d\n",
+					min_th, MIN_THRESHOLD_RANGE_MAX);
+				min_th = MIN_THRESHOLD_RANGE_MAX;
+			}
+
+			if (max_th < MAX_THRESHOLD_RANGE_MIN) {
+				RTE_LOG(INFO, QOS,
+					"Rounding up max_th from "
+					"%"PRIu64" to %d\n",
+					max_th, MAX_THRESHOLD_RANGE_MIN);
+				max_th = MAX_THRESHOLD_RANGE_MIN;
+			} else if (max_th > MAX_THRESHOLD_RANGE_MAX) {
+				RTE_LOG(INFO, QOS,
+					"Rounding down max_th from "
+					"%"PRIu64" to %d\n",
+					max_th, MAX_THRESHOLD_RANGE_MAX);
+				max_th = MAX_THRESHOLD_RANGE_MAX;
+			}
+			*wred_min_th = (uint32_t)min_th;
+			*wred_max_th = (uint32_t)max_th;
+		}
 		return true;
 	}
 
-	DP_DEBUG(QOS, ERR, DATAPLANE,
-				"Invalid threshold parameters\n");
+	RTE_LOG(ERR, QOS, "Invalid threshold type\n");
 	return false;
 }
 
-uint32_t qos_queue_size_get(struct qos_queue_size *qsize,
+uint32_t qos_queue_size_get(uint32_t qsize,
+		enum qos_queue_size_type qsize_type,
 		uint64_t rate)
 {
-	if (qsize->size_type == WRED_BYTES ||
-	    qsize->size_type == WRED_PACKETS)
-		return qsize->size_val;
+	if (qsize_type == QOS_QUEUE_SIZE_BYTES ||
+		qsize_type == QOS_QUEUE_SIZE_PACKETS)
+		return qsize;
 
-	if (qsize->size_type == WRED_USEC)
-		return ((rate * qsize->size_val) / 1000000);
+	if (qsize_type == QOS_QUEUE_SIZE_USEC) {
+		uint64_t queue_limit = ((rate * qsize) / USEC_PER_SEC);
+
+		/* Queue limit range check after byte conversion. */
+		if (queue_limit) {
+			if (queue_limit > MAX_QUEUE_LIMIT_BYTES) {
+				RTE_LOG(INFO, QOS,
+					"Rounding down queue limit from "
+					"%"PRIu64" to %d\n",
+					queue_limit, MAX_QUEUE_LIMIT_BYTES);
+				queue_limit = MAX_QUEUE_LIMIT_BYTES;
+			} else if (queue_limit < MIN_QUEUE_LIMIT_BYTES) {
+				RTE_LOG(INFO, QOS,
+					"Rounding up queue limit from "
+					"%"PRIu64" to %d\n",
+					queue_limit, MIN_QUEUE_LIMIT_BYTES);
+				queue_limit = MIN_QUEUE_LIMIT_BYTES;
+			}
+		}
+		return (uint32_t)queue_limit;
+	}
 
 	DP_DEBUG(QOS, ERR, DATAPLANE,
 			"Invalid Queue size type.\n");
@@ -625,7 +695,8 @@ uint32_t qos_queue_size_get(struct qos_queue_size *qsize,
 uint32_t qos_sp_qsize_get(struct qos_port_params *pp,
 			struct subport_info *sinfo, int tc)
 {
-	uint32_t qsize = qos_queue_size_get(&sinfo->qsize[tc],
+	uint32_t qsize = qos_queue_size_get(sinfo->qsize[tc],
+			sinfo->qsize_type,
 			sinfo->params.tb_rate);
 
 	if (!qsize) {
@@ -633,18 +704,12 @@ uint32_t qos_sp_qsize_get(struct qos_port_params *pp,
 		 * If subports don't have Queue size defined,
 		 * inherit their queue sizes from the port.
 		 */
-		qsize = qos_queue_size_get(&pp->qsize[tc], pp->rate);
+		qsize = qos_queue_size_get(pp->qsize[tc],
+				pp->qsize_type,
+				pp->rate);
 	}
 
 	return qsize;
-}
-
-static void qos_queue_size_set(struct qos_queue_size *q_info,
-			       enum qos_queue_size_type qsize_type,
-				   uint32_t value)
-{
-	q_info->size_type = qsize_type;
-	q_info->size_val  = value;
 }
 
 struct qos_red_pipe_params *
@@ -879,9 +944,9 @@ struct sched_info *qos_sched_new(struct ifnet *ifp,
 	qinfo->reset_port = QOS_INSTALL;
 	rte_spinlock_init(&qinfo->stats_lock);
 
+	qinfo->port_params.qsize_type = QOS_QUEUE_SIZE_PACKETS;
 	for (i = 0; i < RTE_SCHED_TRAFFIC_CLASSES_PER_PIPE; i++)
-		qos_queue_size_set(&qinfo->port_params.qsize[i],
-				   WRED_PACKETS, DEFAULT_QSIZE);
+		qinfo->port_params.qsize[i] = DEFAULT_QSIZE;
 
 	/* Default parms for pipes */
 	for (i = 0; i < profiles; i++) {
@@ -956,12 +1021,12 @@ struct sched_info *qos_sched_new(struct ifnet *ifp,
 		sp->params.tc_period = qos_period_set(&sp->subport_rate,
 						      DEFAULT_PERIOD);
 
+		sp->qsize_type = QOS_QUEUE_SIZE_PACKETS;
 		for (j = 0; j < RTE_SCHED_TRAFFIC_CLASSES_PER_PIPE; j++) {
 			qos_abs_rate_save(&sp->sp_tc_rates.tc_rate[j],
 					  MAX_LINERATE);
 			sp->params.tc_rate[j] = MAX_LINERATE;
-			/* Default to inherit from port */
-			qos_queue_size_set(&sp->qsize[j], WRED_PACKETS, 0);
+			sp->qsize[j] = 0;    // Default to inherit from port
 		}
 	}
 
@@ -3539,20 +3604,20 @@ static int cmd_qos_params(struct ifnet *ifp, int argc, char **argv)
 			 * If it's packets we round down the value to 8192
 			 * otherwise it's bytes which aren't limited
 			 */
-			if ((qsize_type == WRED_PACKETS) &&
+			if ((qsize_type == QOS_QUEUE_SIZE_PACKETS) &&
 				(value > MAX_QSIZE)) {
 				value = MAX_QSIZE;
 				RTE_LOG(INFO, QOS,
 					"Rounding down qsize to %d on %s\n",
 					MAX_QSIZE, ifp->if_name);
 			}
-			if (subport_id == 0)
-				qos_queue_size_set(
-					&qinfo->port_params.qsize[tc_id],
-					qsize_type, value);
+			if (subport_id == 0) {
+				qinfo->port_params.qsize[tc_id] = value;
+				qinfo->port_params.qsize_type = qsize_type;
+			}
 
-			qos_queue_size_set(&sinfo->qsize[tc_id],
-					qsize_type, value);
+			sinfo->qsize[tc_id] = value;
+			sinfo->qsize_type = qsize_type;
 			argc--, argv++;	/* Allow for new unit field */
 		} else if (strcmp(argv[0], "red") == 0) {
 			int rc;
