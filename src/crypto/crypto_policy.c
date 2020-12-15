@@ -1646,21 +1646,89 @@ static struct rte_timer crypto_npf_cfg_commit_all_timer;
 
 static uint32_t batch_seq[CRYPTO_NPF_CFG_COMMIT_FORCE_COUNT];
 
+static int crypto_policy_rldb_commit(struct crypto_vrf_ctx *vrf_ctx)
+{
+	int rc = 0;
+
+	if (rldb_commit_transaction(vrf_ctx->input_policy_v4_rldb) < 0) {
+		POLICY_ERR("Policy commit for IPv4 inbound failed\n");
+		rc = -1;
+	}
+	rldb_start_transaction(vrf_ctx->input_policy_v4_rldb);
+
+	if (rldb_commit_transaction(vrf_ctx->output_policy_v4_rldb) < 0) {
+		POLICY_ERR("Policy commit for IPv4 outbound failed\n");
+		rc = -1;
+	}
+	rldb_start_transaction(vrf_ctx->output_policy_v4_rldb);
+
+	if (rldb_commit_transaction(vrf_ctx->input_policy_v6_rldb) < 0) {
+		POLICY_ERR("Policy commit for IPv6 inbound failed\n");
+		rc = -1;
+	}
+	rldb_start_transaction(vrf_ctx->input_policy_v6_rldb);
+
+	if (rldb_commit_transaction(vrf_ctx->output_policy_v6_rldb) < 0) {
+		POLICY_ERR("Policy commit for IPv6 outbound failed\n");
+		rc = -1;
+	}
+	rldb_start_transaction(vrf_ctx->output_policy_v6_rldb);
+
+	return rc;
+}
+
 void crypto_npf_cfg_commit_flush(void)
 {
 	vrfid_t vrf_id;
 	struct vrf *vrf;
 	struct crypto_vrf_ctx *vrf_ctx;
 	uint32_t i;
+	int rc = MNL_CB_OK;
 
-	npf_cfg_commit_all();
 	VRF_FOREACH(vrf, vrf_id) {
 		vrf_ctx = crypto_vrf_find(vrf_id);
 		if (!vrf_ctx)
 			continue;
 
+		if (crypto_policy_rldb_commit(vrf_ctx) < 0)
+			rc = MNL_CB_ERROR;
+
+		/* Enable IPsec in IPv4 feature pipeline and
+		 * update live count.
+		 */
+
+		if (vrf_ctx->crypto_live_ipv4_policies == 0 &&
+		    vrf_ctx->crypto_total_ipv4_policies > 0) {
+
+			pl_node_add_feature_by_inst(&ipv4_ipsec_out_feat, vrf);
+
+		} else if (vrf_ctx->crypto_live_ipv4_policies > 0 &&
+			   vrf_ctx->crypto_total_ipv4_policies == 0) {
+
+			pl_node_remove_feature_by_inst(&ipv4_ipsec_out_feat,
+					       vrf);
+		}
+
 		vrf_ctx->crypto_live_ipv4_policies =
 			vrf_ctx->crypto_total_ipv4_policies;
+
+
+		/* Enable IPsec in IPv6 feature pipeline and
+		 * update live count.
+		 */
+
+		if (vrf_ctx->crypto_live_ipv6_policies == 0 &&
+		    vrf_ctx->crypto_total_ipv6_policies > 0) {
+
+			pl_node_add_feature_by_inst(&ipv6_ipsec_out_feat, vrf);
+
+		} else if (vrf_ctx->crypto_live_ipv6_policies > 0 &&
+			   vrf_ctx->crypto_total_ipv6_policies == 0) {
+
+			pl_node_remove_feature_by_inst(&ipv6_ipsec_out_feat,
+						       vrf);
+		}
+
 		vrf_ctx->crypto_live_ipv6_policies =
 			vrf_ctx->crypto_total_ipv6_policies;
 	}
@@ -1673,7 +1741,7 @@ void crypto_npf_cfg_commit_flush(void)
 	 * xfrm source.
 	 */
 	for (i = 0; xfrm_direct && i < crypto_npf_cfg_commit_count ; i++)
-		xfrm_client_send_ack(batch_seq[i], MNL_CB_OK);
+		xfrm_client_send_ack(batch_seq[i], rc);
 
 	crypto_npf_cfg_commit_count = 0;
 }
