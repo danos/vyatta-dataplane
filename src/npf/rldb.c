@@ -285,7 +285,6 @@ static void rldb_prepare_rule_v4(struct rldb_rule_spec *rule,
 	mask[NPC_GPR_DPORT_OFF_v4] = hiport & 0xFF;
 }
 
-__rte_unused
 static void rldb_prepare_rule_v6(struct rldb_rule_spec *rule,
 				 uint8_t *match_addr, uint8_t *mask)
 {
@@ -447,7 +446,6 @@ error:
 	return rc;
 }
 
-__rte_unused
 static void rldb_rule_handle_destroy(struct rldb_rule_handle *rh)
 {
 	struct rte_mempool_cache *cache;
@@ -470,10 +468,53 @@ int rldb_add_rule(struct rldb_db_handle *db __rte_unused,
 /*
  * delete rule from the specified database
  */
-int rldb_del_rule(struct rldb_db_handle *db __rte_unused,
-		  struct rldb_rule_handle *rule __rte_unused)
+int rldb_del_rule(struct rldb_db_handle *db, struct rldb_rule_handle *rh)
 {
+	int rc;
+	uint32_t rule_no;
+	uint8_t match_addr[NPC_GPR_SIZE_v6];
+	uint8_t mask[NPC_GPR_SIZE_v6];
+
+	if (!db || !rh)
+		return -EINVAL;
+
+	if (rldb_disabled)
+		return -ENODEV;
+
+	switch (db->af) {
+	case AF_INET:
+		rldb_prepare_rule_v4(&rh->rule, match_addr, mask);
+		break;
+	case AF_INET6:
+		rldb_prepare_rule_v6(&rh->rule, match_addr, mask);
+		break;
+	default:
+		rc = -EAFNOSUPPORT;
+		goto error;
+	}
+
+	rule_no = rh->rule_no;
+
+	rc = npf_rte_acl_del_rule(db->af, db->match_ctx, rule_no,
+				  match_addr, mask);
+	if (rc < 0) {
+		RLDB_ERR("Failed to remove ACL rule %u from ACL trie\n",
+			 rule_no);
+		goto error;
+
+	}
+
+	cds_lfht_del(db->ht, &rh->ht_node);
+	rldb_rule_handle_destroy(rh);
+
+	db->stats.rldb_rules_deleted++;
+	db->stats.rldb_rule_cnt--;
+
 	return 0;
+
+error:
+	db->stats.rldb_err.rule_del_failed++;
+	return rc;
 }
 
 /*
