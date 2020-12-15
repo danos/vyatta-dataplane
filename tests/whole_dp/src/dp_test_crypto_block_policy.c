@@ -225,6 +225,7 @@ static void setup(void)
 	output_policy.priority = 200000;
 	output_policy.mark = 0;
 	output_policy.vrfid = VRF_DEFAULT_ID;
+	output_policy.rule_no = 0;
 
 	/*
 	 * Add a route to the EAST network. This is to make sure
@@ -265,6 +266,7 @@ DP_START_TEST(single_policy, single_allow_policy)
 	struct dp_test_expected *expectation;
 	struct rte_mbuf *input_pkt;
 
+	output_policy.rule_no++;
 	output_policy.action = XFRM_POLICY_ALLOW;
 	dp_test_crypto_create_policy(&output_policy);
 
@@ -294,6 +296,7 @@ DP_START_TEST_FULL_RUN(single_policy, single_block_policy)
 	struct rte_mbuf *input_pkt;
 	int payload_len;
 
+	output_policy.rule_no++;
 	output_policy.action = XFRM_POLICY_BLOCK;
 	dp_test_crypto_create_policy(&output_policy);
 
@@ -327,6 +330,7 @@ DP_START_TEST_FULL_RUN(single_policy, modfy_allow_to_block)
 	struct rte_mbuf *input_pkt;
 	int payload_len;
 
+	output_policy.rule_no++;
 	output_policy.action = XFRM_POLICY_ALLOW;
 	dp_test_crypto_create_policy(&output_policy);
 
@@ -374,6 +378,7 @@ DP_START_TEST_FULL_RUN(single_policy, modfy_block_to_allow)
 	struct rte_mbuf *input_pkt;
 	int payload_len;
 
+	output_policy.rule_no++;
 	output_policy.action = XFRM_POLICY_BLOCK;
 	dp_test_crypto_create_policy(&output_policy);
 

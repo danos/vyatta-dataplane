@@ -47,6 +47,7 @@ struct dp_test_crypto_policy {
 	uint8_t  action;
 	vrfid_t vrfid;
 	bool	passthrough;
+	uint32_t rule_no;
 };
 
 void _dp_test_crypto_create_policy(const char *file, int line,

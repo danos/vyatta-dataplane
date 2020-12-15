@@ -189,6 +189,7 @@ static const struct dp_test_crypto_policy tun_1_in_policy = {
 	.family = AF_INET,
 	.reqid = TUN_1_REQID,
 	.priority = 1000,
+	.rule_no = 1,
 	.mark = 0,
 	.vrfid = VRF_DEFAULT_ID
 };
@@ -203,6 +204,7 @@ static const struct dp_test_crypto_policy tun_1_out_policy = {
 	.family = AF_INET,
 	.reqid = TUN_1_REQID,
 	.priority = 1000,
+	.rule_no = 2,
 	.mark = 0,
 	.vrfid = VRF_DEFAULT_ID
 };
@@ -245,6 +247,7 @@ static const struct dp_test_crypto_policy tun_2_in_policy = {
 	.family = AF_INET,
 	.reqid = TUN_2_REQID,
 	.priority = 1000,
+	.rule_no = 3,
 	.mark = 0,
 	.vrfid = VRF_DEFAULT_ID
 };
@@ -259,6 +262,7 @@ static const struct dp_test_crypto_policy tun_2_out_policy = {
 	.family = AF_INET,
 	.reqid = TUN_2_REQID,
 	.priority = 1000,
+	.rule_no = 4,
 	.mark = 0,
 	.vrfid = VRF_DEFAULT_ID
 };
@@ -438,6 +442,7 @@ static const struct dp_test_crypto_policy tun_3_in_policy = {
 	.family = AF_INET,
 	.reqid = TUN_3_REQID,
 	.priority = 1000,
+	.rule_no = 5,
 	.mark = 0,
 	.vrfid = VRF_DEFAULT_ID
 };
@@ -452,6 +457,7 @@ static const struct dp_test_crypto_policy tun_3_out_policy = {
 	.family = AF_INET,
 	.reqid = TUN_3_REQID,
 	.priority = 1000,
+	.rule_no = 6,
 	.mark = 0,
 	.vrfid = VRF_DEFAULT_ID
 };

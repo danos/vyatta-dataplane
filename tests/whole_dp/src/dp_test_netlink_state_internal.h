@@ -468,14 +468,16 @@ void _dp_test_netlink_xfrm_policy(uint16_t nlmsg_type,
 				  uint8_t action,
 				  vrfid_t vrfid,
 				  bool passthrough,
+				  uint32_t rule_no,
 				  const char *file,
 				  int line);
 #define dp_test_netlink_xfrm_policy(nlmsg_type, sel, dst, dst_family, dir,    \
 				    priority, reqid, mark_val, action, vrfid, \
-				    passthrough)			\
+				    passthrough, rule_no)		      \
 	_dp_test_netlink_xfrm_policy(nlmsg_type, sel, dst, dst_family, dir, \
 				     priority, reqid, mark_val, action, \
-				     vrfid, passthrough, __FILE__, __LINE__)
+				     vrfid, passthrough, rule_no, __FILE__, \
+				     __LINE__)
 
 void _dp_test_netlink_xfrm_newsa(uint32_t spi, /* Network byte order */
 				 const char *dst,

@@ -624,7 +624,8 @@ void _dp_test_crypto_create_policy(const char *file, int line,
 				     policy->mark,
 				     policy->action,
 				     policy->vrfid,
-					 policy->passthrough,
+				     policy->passthrough,
+				     policy->rule_no,
 				     file, line);
 
 
@@ -660,7 +661,8 @@ void _dp_test_crypto_delete_policy(const char *file, int line,
 				     policy->mark,
 				     policy->action,
 				     policy->vrfid,
-					 policy->passthrough,
+				     policy->passthrough,
+				     policy->rule_no,
 				     file, line);
 
 	if (verify)
