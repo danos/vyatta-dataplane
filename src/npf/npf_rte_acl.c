@@ -684,7 +684,7 @@ int npf_rte_acl_match(int af, npf_match_ctx_t *m_ctx,
 		      uint32_t *rule_no)
 {
 	int ret;
-	uint32_t results = UINT32_MAX;
+	uint32_t results = 0;
 	const uint8_t *pkt_data[1];
 	struct rte_mbuf *m = data->mbuf;
 	uint8_t *nlp;
@@ -703,10 +703,10 @@ int npf_rte_acl_match(int af, npf_match_ctx_t *m_ctx,
 
 	ret = rte_acl_classify(m_ctx->acl_ctx, pkt_data, &results, 1, 1);
 	if (ret)
-		return 0;
+		return -EINVAL;
 
 	*rule_no = results;
-	return 1;
+	return results ? 0 : -ENOENT;
 }
 
 int npf_rte_acl_start_transaction(int af __unused, npf_match_ctx_t *m_ctx)
