@@ -1,3 +1,29 @@
+vyatta-dataplane (3.12.14) unstable; urgency=medium
+
+  [ Alan Dewar ]
+  * GPC: add debug constants and flag
+  * GPC: dummy protobuf handler
+
+  [ Paul Atkins ]
+  * ut: tidies to the whole_dp readme file
+  * gre: check v6 addresses are equal using the v6 member of the union
+  * vxlan: move the FDB functions to allow removal of forward declarations
+  * lpm: remove old clang analyzer tags as they are not helpful
+  * if: allow multiple node instance callback to be set
+
+  [ Simon Barber ]
+  * CRYPTO: Block sending of xfrm acks if the old control is still active
+
+  [ Derek Fawcus ]
+  * NPF: Static analysis fixes
+
+  [ Gavin Shearer ]
+  * npf: set cache-empty flag after an ICMP host redirect
+
+  [ Simon Barber ]
+
+ -- Simon Barber <sbarber@mail.eng.vyatta.net>  Wed, 16 Dec 2020 18:03:40 +0000
+
 vyatta-dataplane (3.12.13) unstable; urgency=medium
 
   [ Nicholas Brown ]
