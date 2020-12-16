@@ -49,24 +49,23 @@ static void npf_config_free_rcu(struct rcu_head *head)
 	free(npf_conf);
 }
 
-static int npf_config_default_alloc_free(struct npf_config **npf_confp,
-					 bool alloc)
+static int npf_config_default_alloc(struct npf_config **npf_confp)
 {
-	struct npf_config *npf_conf;
+	struct npf_config *npf_conf = calloc(sizeof(*npf_conf), 1);
 
-	if (alloc) {
-		npf_conf = calloc(sizeof(*npf_conf), 1);
+	if (npf_conf == NULL)
+		return -ENOMEM;
 
-		if (npf_conf == NULL)
-			return -ENOMEM;
+	rcu_assign_pointer(*npf_confp, npf_conf);
+	return 0;
+}
 
-		rcu_assign_pointer(*npf_confp, npf_conf);
-	} else {
-		npf_conf = *npf_confp;
+static int npf_config_default_free(struct npf_config **npf_confp)
+{
+	struct npf_config *npf_conf = *npf_confp;
 
-		rcu_assign_pointer(*npf_confp, NULL);
-		call_rcu(&npf_conf->nc_rcu, npf_config_free_rcu);
-	}
+	rcu_assign_pointer(*npf_confp, NULL);
+	call_rcu(&npf_conf->nc_rcu, npf_config_free_rcu);
 
 	return 0;
 }
@@ -91,7 +90,7 @@ static int npf_config_alloc(struct npf_config **npf_confp,
 	if (npf_attpt_item_fn)
 		rc = npf_attpt_item_fn(npf_confp, true);
 	else
-		rc = npf_config_default_alloc_free(npf_confp, true);
+		rc = npf_config_default_alloc(npf_confp);
 
 	if (rc) {
 		free(attach_point);
@@ -223,7 +222,7 @@ static void npf_cfg_commit(struct npf_attpt_item *ap, enum npf_commit_type type)
 		if (npf_attpt_item_fn)
 			npf_attpt_item_fn(npf_conf_p, false);
 		else
-			npf_config_default_alloc_free(npf_conf_p, false);
+			npf_config_default_free(npf_conf_p);
 	}
 }
 
