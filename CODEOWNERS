@@ -6,7 +6,14 @@
 # Do not use @user, @@group or @org/team syntax as these are either Github or Bitbucket specific
 # Use only emails addresses
 
+/src/npf_shim.* ian.wilson@intl.att.com paitken@vyatta.att-mail.com dfawcus+atlassian@vyatta.att-mail.com gsheare@vyatta.att-mail.com
+/src/npf/ ian.wilson@intl.att.com paitken@vyatta.att-mail.com dfawcus+atlassian@vyatta.att-mail.com gsheare@vyatta.att-mail.com
+/src/npf/app_group/ paitken@vyatta.att-mail.com dfawcus+atlassian@vyatta.att-mail.com gsheare@vyatta.att-mail.com
+/src/npf/dpi/ paitken@vyatta.att-mail.com dfawcus+atlassian@vyatta.att-mail.com gsheare@vyatta.att-mail.com
+
 src/*qos* brussell@vyatta.att-mail.com aroberts@vyatta.att-mail.com adewar@vyatta.att-mail.com
+
+/src/session/ ian.wilson@intl.att.com paitken@vyatta.att-mail.com dfawcus+atlassian@vyatta.att-mail.com gsheare@vyatta.att-mail.com
 
 meson.build   nick.brown@att.com
 /Jenkinsfile  nick.brown@att.com
