@@ -157,6 +157,8 @@ Dataplane:
 
     * pub/sub to controller
     * dealer/router to controller
+    * push/pull to broker
+    * push/pull for xfrms
     * console connection
 
 Test code:
@@ -164,9 +166,10 @@ Test code:
   * Wrapper functions (main and a version of random crypto uses)
   * Dummy controller providing the zmq connections and ability to use them
   * zmq console connection - send commands and get output
+  * zmq broker connection - to send route updates
   * JSON parsing to allow us to parse command replies
-  * netlink generation to inject state
-  * dummy /proc /sys filesystems
+  * netlink generation to inject state (interfaces etc)
+  * injection of routes (via a protobuf based format)
   * Check UT infra  http://libcheck.github.io/check/
   * New 'main' which brings the tests up and runs them
   * stubs for dataplane code not included, shadow.c and a few other files
@@ -180,10 +183,11 @@ then calls.
 The dataplane code then goes through the normal init sequence.  It calls 'rte_eal_init'
 to initialise dpdk.  The standard dpdk init queries the pci bus to find the set of
 interfaces, and it queries the filesystem to get the number of cores. The test
-environment fakes this up so that consistent results are returned irrespective of
-where the tests are being run.  Arguments are passed into the dpdk init to stop it using
-hugepages (we are not testing performance) and to provide a set of interfaces - each of
-the interfaces we use is using the rte_eth_null driver, which is a standard PMD.
+environment by default uses only a singler core so we can be sure that we are not
+asking for cores the processor does not have.  Arguments are passed into the dpdk init
+to stop it using hugepages (we are not testing performance) and to provide a set of
+interfaces - each of the interfaces we use is using the rte_eth_null driver, which is
+a standard PMD.
 
 Once it has gone through the dpdk init, it proceeds through the rest of the init
 as normal, and then the forwarding thread drops into the forwarding_loop, and the
@@ -279,6 +283,8 @@ Interfaces are named 'dpxTy' and we create 20 interfaces.
 
 These interfaces get setup at init via the netlink APIs (see below).
 
+We also add 2 switchport interfaces to allow testing on switchports.
+
 Within the dpdk, each of these PMDs has an rx and a tx ring associated with it.  When the
 PMD is queried to see if it has any packets, it returns the packets on the rx ring.  To
 inject packets we simply add them to the ring on the receiving interface.
@@ -328,7 +334,7 @@ Verifying with JSON follows this standard pattern:
 
  * given a string (for example a route) turn this into the set of 'expected JSON'
  * create the 'cmd' string
- * every millisec for 1 second:
+ * every millisec for 2 seconds:
  * send the cmd to dataplane via the console zmq
     * wait for the response
     * compare the expected JSON with the returned JSON. The comparisons can be
@@ -369,11 +375,7 @@ add/remove a route via netlink.  The netlink func will pass the line etc through
 a failure the user knows what was being attempted when the failure happened.
 
 
-
-
-
 ### Creating a packet and the expectations for it
-
 
 #### Interface Test name vs Real name
 
