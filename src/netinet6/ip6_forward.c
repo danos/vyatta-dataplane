@@ -521,6 +521,13 @@ void ip6_out_features(struct rte_mbuf *m, struct ifnet *ifp,
 				return;
 			}
 			icmp6_redirect(ifp, m, nxt);
+			/*
+			 * Cache will have been used for handling
+			 * the ICMPv6 redirect, so ensure it is created
+			 * again when continuing with the original
+			 * packet.
+			 */
+			pl_pkt.npf_flags |= NPF_FLAG_CACHE_EMPTY;
 		}
 	}
 

@@ -32,6 +32,7 @@
 #include "route_flags.h"
 #include "snmp_mib.h"
 #include "urcu.h"
+#include "npf/npf.h"
 
 ALWAYS_INLINE unsigned int
 ipv4_post_route_lookup_process(struct pl_packet *pkt, void *context __unused)
@@ -101,9 +102,17 @@ ipv4_post_route_lookup_process(struct pl_packet *pkt, void *context __unused)
 		else
 			addr = ip->daddr;
 		if (ip_same_network(ifp, addr, ip->saddr) &&
-		    ip_redirects_get())
+		    ip_redirects_get()) {
 			icmp_error(ifp, pkt->mbuf, ICMP_REDIRECT,
 				   ICMP_REDIR_HOST, addr);
+			/*
+			 * Cache will have been used for handling
+			 * the ICMP redirect, so ensure it is created
+			 * again when continuing with the original
+			 * packet.
+			 */
+			pkt->npf_flags |= NPF_FLAG_CACHE_EMPTY;
+		}
 	}
 
 	/* macvlan mac passthrough check & replace ifp */
