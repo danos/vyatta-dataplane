@@ -55,6 +55,8 @@ int xfrm_client_send_ack(uint32_t seq, int err)
 	zframe_t *frame;
 	int rc;
 
+	if (!xfrm_direct)
+		return 0;
 	if (last_seq_sent == seq)
 		rte_panic("XFRM Duplicate sequence  %d", seq);
 
