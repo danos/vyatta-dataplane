@@ -62,10 +62,12 @@ static int npf_config_default_alloc(struct npf_config **npf_confp)
 
 static int npf_config_default_free(struct npf_config **npf_confp)
 {
-	struct npf_config *npf_conf = *npf_confp;
+	struct npf_config *npf_conf;
 
-	rcu_assign_pointer(*npf_confp, NULL);
-	call_rcu(&npf_conf->nc_rcu, npf_config_free_rcu);
+	npf_conf = rcu_xchg_pointer(npf_confp, NULL);
+
+	if (npf_conf)
+		call_rcu(&npf_conf->nc_rcu, npf_config_free_rcu);
 
 	return 0;
 }
