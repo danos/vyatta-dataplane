@@ -188,10 +188,10 @@ static inline int gre_info_match(struct cds_lfht_node *node, const void *key)
 			return 0;
 	} else {
 		if (!IN6_ARE_ADDR_EQUAL(&gre_info->iph6.ip6_dst,
-					&key_gre_info->remote))
+					&key_gre_info->remote6))
 			return 0;
 		if (!IN6_ARE_ADDR_EQUAL(&gre_info->iph6.ip6_src,
-					&key_gre_info->local))
+					&key_gre_info->local6))
 			return 0;
 	}
 	if (gre_info->flags & GRE_KEY) {

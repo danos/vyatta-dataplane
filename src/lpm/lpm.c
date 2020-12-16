@@ -150,12 +150,10 @@ static inline int tracker_cmp(const struct rt_tracker_info *r1,
 		      sizeof(r1->dst_addr.address.ip_v4.s_addr));
 }
 
-#ifndef __clang_analyzer__
 /* Generate internal functions and make them static. */
 RB_GENERATE_STATIC(lpm_rules_tree, lpm_rule, link, rules_cmp)
 RB_GENERATE_STATIC(lpm_tracker_tree, rt_tracker_info, rti_tree_node,
 		   tracker_cmp)
-#endif /* __clang_analyzer__ */
 
 /*
  * Converts a given depth value to its corresponding mask value.
