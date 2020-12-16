@@ -744,7 +744,7 @@ npf_gen_ncode_port_group(struct npf_rule_ctx *ctx, char *value,
 		.ctx = ctx,
 		.options = options,
 		.rule_count = 0,
-		.error = 0.
+		.error = 0,
 	};
 
 	/*
@@ -1005,7 +1005,7 @@ npf_gen_ncode_icmp_group(struct npf_rule_ctx *ctx, char *value,
 		.ctx = ctx,
 		.options = options,
 		.rule_count = 0,
-		.error = 0.
+		.error = 0,
 	};
 	enum npf_rule_class group_class = (options & NC_MATCH_ICMP) ?
 		NPF_RULE_CLASS_ICMP_GROUP : NPF_RULE_CLASS_ICMPV6_GROUP;
@@ -1186,7 +1186,7 @@ npf_gen_ncode_protocol_group(struct npf_rule_ctx *ctx, char *value)
 	struct group_cb_info info = {
 		.ctx = ctx,
 		.rule_count = 0,
-		.error = 0.
+		.error = 0,
 	};
 
 	/*
