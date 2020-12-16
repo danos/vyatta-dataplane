@@ -1,3 +1,12 @@
+vyatta-dataplane (3.10.70.17) unstable; urgency=medium
+
+  [ aroberts ]
+  * Reinstall a mark-map if a resource group changes
+
+  [ Simon Barber ]
+
+ -- Simon Barber <sbarber@mail.eng.vyatta.net>  Wed, 16 Dec 2020 14:24:21 +0000
+
 vyatta-dataplane (3.10.70.16) unstable; urgency=medium
 
   [ Sharmila Podury ]
