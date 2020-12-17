@@ -326,7 +326,7 @@ static void lle_dump(const struct ifnet *ifp, struct llentry *la, void *arg)
 	if (la->la_flags & LLE_CREATED_IN_HW) {
 		jsonw_name(json, "platform_state");
 		jsonw_start_object(json);
-		fal_ip4_dump_neigh(ifp->if_index, sin, json);
+		fal_ip4_dump_neigh(ifp->if_index, ifp->fal_l3, sin, json);
 		jsonw_end_object(json);
 	}
 
@@ -410,7 +410,7 @@ static void lle6_dump(const struct ifnet *ifp, struct llentry *la, void *arg)
 	if (la->la_flags & LLE_CREATED_IN_HW) {
 		jsonw_name(json, "platform_state");
 		jsonw_start_object(json);
-		fal_ip6_dump_neigh(ifp->if_index, sin6, json);
+		fal_ip6_dump_neigh(ifp->if_index, ifp->fal_l3, sin6, json);
 		jsonw_end_object(json);
 	}
 

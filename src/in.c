@@ -115,6 +115,7 @@ in_lltable_lookup(struct ifnet *ifp, u_int flags, in_addr_t addr)
 			if (is_main_thread() && if_is_features_mode_active(
 				    ifp, IF_FEAT_MODE_EVENT_L3_FAL_ENABLED)) {
 				ret = fal_ip4_new_neigh(lle->ifp->if_index,
+							lle->ifp->fal_l3,
 							&sin, 0, NULL);
 				if (ret < 0 && ret != -EOPNOTSUPP) {
 					RTE_LOG(NOTICE, DATAPLANE,
