@@ -387,6 +387,7 @@ struct pmf_pext_list *pmf_rproc_hlist_create(uint32_t num);
 struct pmf_proc_raw *pmf_rproc_raw_create(uint32_t data_len, void *data);
 
 struct pmf_nat *pmf_nat_create(void);
+struct pmf_qos_mark *pmf_qos_mark_create(void);
 struct pmf_rule *pmf_rule_alloc(void);
 
 #endif /* _PMF_RULE_H_ */
