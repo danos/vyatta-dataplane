@@ -205,7 +205,7 @@ static void vrf_find_saved_tablemap(struct vrf *vrf)
 }
 
 static struct vrf *
-vrf_alloc(vrfid_t vrf_id)
+vrf_alloc(vrfid_t vrf_id, fal_object_t vrf_obj)
 {
 	struct vrf *vrf_var;
 
@@ -216,6 +216,7 @@ vrf_alloc(vrfid_t vrf_id)
 		goto err;
 
 	vrf_var->v_id = vrf_id;
+	vrf_var->v_fal_obj = vrf_obj;
 
 	if (route_init(vrf_var) < 0)
 		goto err;
@@ -265,6 +266,7 @@ vrf_create(vrfid_t vrf_id)
 			.value.u32 = vrf_id,
 		},
 	};
+	fal_object_t vrf_obj;
 	struct vrf *vrf_var;
 	int ret;
 
@@ -273,6 +275,12 @@ vrf_create(vrfid_t vrf_id)
 			     VRF_ID_MAX);
 		return NULL;
 	}
+
+	ret = fal_vrf_create(ARRAY_SIZE(attr_list), attr_list,
+			     &vrf_obj);
+	if (ret < 0 && ret != -EOPNOTSUPP)
+		DP_LOG_W_VRF(ERR, DATAPLANE, vrf_id,
+			     "FAL create failed: %s\n", strerror(-ret));
 
 	vrf_var = get_vrf(vrf_id);
 	if (vrf_var) {
@@ -284,18 +292,20 @@ vrf_create(vrfid_t vrf_id)
 		return NULL;
 	}
 
-	vrf_var = vrf_alloc(vrf_id);
-	if (vrf_var == NULL)
+	vrf_var = vrf_alloc(vrf_id, vrf_obj);
+	if (vrf_var == NULL) {
+		if (vrf_obj) {
+			ret = fal_vrf_delete(vrf_obj);
+			if (ret < 0 && ret != -EOPNOTSUPP)
+				DP_LOG_W_VRF(ERR, DATAPLANE, vrf_id,
+					     "FAL delete failed: %s\n",
+					     strerror(-ret));
+		}
 		return NULL;
+	}
 
 	vrf_inc_ref_count(vrf_var);
 	rcu_assign_pointer(vrf_table[vrf_id], vrf_var);
-
-	ret = fal_vrf_create(ARRAY_SIZE(attr_list), attr_list,
-			     &vrf_var->v_fal_obj);
-	if (ret < 0 && ret != -EOPNOTSUPP)
-		DP_LOG_W_VRF(ERR, DATAPLANE, vrf_id,
-			     "FAL create failed: %s\n", strerror(-ret));
 
 	return vrf_var;
 }
