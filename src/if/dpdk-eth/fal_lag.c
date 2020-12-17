@@ -562,6 +562,27 @@ fal_lag_port_is_member(struct ifnet *ifp)
 	return true;
 }
 
+static int
+fal_lag_set_member_usable(struct ifnet *ifp, bool usable)
+{
+	struct ifnet *team_ifp;
+
+	team_ifp = ifp->aggregator;
+	if (ifp->if_type != IFT_ETHER || !team_ifp)
+		return -1;
+
+	/* If no change then it's a no-op */
+	if (fal_lag_member_enabled[ifp->if_port].usable == usable)
+		return 0;
+
+	fal_lag_member_enabled[ifp->if_port].usable = usable;
+	/*
+	 * TODO: Add the necessary logic to check min links and take
+	 * appropriate actions
+	 */
+	return 0;
+}
+
 const struct lag_ops fal_lag_ops = {
 	.lagop_etype_slow_tx = fal_lag_etype_slow_tx,
 	.lagop_member_sync_mac_address = fal_lag_member_sync_mac_address,
@@ -569,6 +590,7 @@ const struct lag_ops fal_lag_ops = {
 	.lagop_mode_set_balance = fal_lag_mode_set_balance,
 	.lagop_mode_set_activebackup = fal_lag_mode_set_activebackup,
 	.lagop_select = fal_lag_select,
+	.lagop_set_member_usable = fal_lag_set_member_usable,
 	.lagop_set_activeport = fal_lag_set_activeport,
 	.lagop_delete = fal_lag_delete,
 	.lagop_can_start = fal_lag_can_start,
