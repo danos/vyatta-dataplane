@@ -257,19 +257,10 @@
  * have involved a fair amount of extra code, especially translating
  * between DPDK interface APIs and SAI port attributes.
  *
- * In addition, there are a number of objects and attributes that
- * don't fit well with the way the dataplane is currently
- * designed. Such objects include the router interface (there is no
- * distinction between L2 and L3 interface in the dataplane), and not
- * all interface types are represented in SAI and some of the
- * interface types have special handling in certain places (tunnels
- * use different attributes in L3 nexthops vs other interfaces),
- * whereas it simplifies the dataplane side not to have to deal with
- * such differences, even if the interface types are not fully modeled
- * in the FAL yet. Another difference is that the SAI model does not
- * account for having a multipath connected route (which could be
- * present in certain use cases, e.g. VRRP) and it also requires the
- * neighbour to be created before a nexthop can refer to it.
+ * In addition, the SAI model does not account for having a multipath
+ * connected route (which could be present in certain use cases,
+ * e.g. VRRP) and it also requires the neighbour to be created before
+ * a nexthop can refer to it.
  *
  * However, the biggest reason for not using SAI at this point is so
  * we can move quickly and diverge from the API where using SAI would
