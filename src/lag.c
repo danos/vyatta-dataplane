@@ -61,6 +61,14 @@ int lag_select(struct ifnet *ifp, bool enable)
 	return current_lag_ops->lagop_select(ifp, enable);
 }
 
+int lag_set_member_usable(struct ifnet *ifp, bool usable)
+{
+	if (current_lag_ops->lagop_set_member_usable)
+		return current_lag_ops->lagop_set_member_usable(ifp, usable);
+
+	return 0;
+}
+
 int lag_set_activeport(struct ifnet *ifp, struct ifnet *ifp_member)
 {
 	return current_lag_ops->lagop_set_activeport(ifp, ifp_member);

@@ -31,6 +31,7 @@ struct lag_ops {
 	int (*lagop_mode_set_balance)(struct ifnet *ifp);
 	int (*lagop_mode_set_activebackup)(struct ifnet *ifp);
 	int (*lagop_select)(struct ifnet *ifp, bool sel);
+	int (*lagop_set_member_usable)(struct ifnet *ifp, bool usable);
 	int (*lagop_set_activeport)(struct ifnet *ifp,
 				    struct ifnet *ifp_member);
 	void (*lagop_refresh_actor_state)(struct ifnet *team);
@@ -63,6 +64,7 @@ int lag_nl_member_update(const struct ifinfomsg *ifi, struct ifnet *ifp,
 int lag_mode_set_balance(struct ifnet *ifp);
 int lag_mode_set_activebackup(struct ifnet *ifp);
 int lag_select(struct ifnet *ifp, bool enable);
+int lag_set_member_usable(struct ifnet *ifp, bool usable);
 int lag_set_activeport(struct ifnet *ifp, struct ifnet *ifp_member);
 void lag_refresh_actor_state(struct ifnet *team);
 int lag_summary(FILE *fp);
