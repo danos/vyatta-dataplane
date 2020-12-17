@@ -1935,6 +1935,10 @@ static int fal_ip_new_route(unsigned int vrf_id,
 			     uint32_t attr_count,
 			     const struct fal_attribute_t *attr_list)
 {
+	/* Multiple tables not supported in FAL plugins outside of VRFs */
+	if (tableid != RT_TABLE_MAIN)
+		return -EOPNOTSUPP;
+
 	return call_handler_def_ret(
 		ip, -EOPNOTSUPP, new_route, vrf_id, ipaddr, prefixlen,
 		tableid, attr_count, attr_list);
@@ -1946,6 +1950,10 @@ static int fal_ip_upd_route(unsigned int vrf_id,
 			    uint32_t tableid,
 			    struct fal_attribute_t *attr)
 {
+	/* Multiple tables not supported in FAL plugins outside of VRFs */
+	if (tableid != RT_TABLE_MAIN)
+		return -EOPNOTSUPP;
+
 	return call_handler_def_ret(
 		ip, -EOPNOTSUPP, upd_route, vrf_id, ipaddr, prefixlen,
 		tableid, attr);
@@ -1956,6 +1964,10 @@ static int fal_ip_del_route(unsigned int vrf_id,
 			    uint8_t prefixlen,
 			    uint32_t tableid)
 {
+	/* Multiple tables not supported in FAL plugins outside of VRFs */
+	if (tableid != RT_TABLE_MAIN)
+		return -EOPNOTSUPP;
+
 	return call_handler_def_ret(
 		ip, -EOPNOTSUPP, del_route, vrf_id, ipaddr, prefixlen,
 		tableid);
@@ -1968,6 +1980,10 @@ static int fal_ip_get_route_attrs(unsigned int vrf_id,
 				  uint32_t attr_count,
 				  const struct fal_attribute_t *attr_list)
 {
+	/* Multiple tables not supported in FAL plugins outside of VRFs */
+	if (tableid != RT_TABLE_MAIN)
+		return -EOPNOTSUPP;
+
 	return call_handler_def_ret(
 		ip, -EOPNOTSUPP, get_route_attrs, vrf_id, ipaddr, prefixlen,
 		tableid, attr_count, attr_list);
