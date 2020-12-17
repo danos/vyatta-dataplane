@@ -734,6 +734,15 @@ pmf_hw_rtr_intf_attr_acl(bool ingress, bool is_v6)
 	}
 }
 
+static uint32_t
+pmf_hw_rtr_intf_attr_qos(bool is_v6)
+{
+	if (is_v6)
+		return FAL_ROUTER_INTERFACE_ATTR_V6_INGRESS_QOS;
+	else
+		return FAL_ROUTER_INTERFACE_ATTR_V4_INGRESS_QOS;
+}
+
 bool
 pmf_hw_group_attach(struct gpc_group *gprg, struct ifnet *ifp)
 {
@@ -752,6 +761,10 @@ pmf_hw_group_attach(struct gpc_group *gprg, struct ifnet *ifp)
 	/* Validate group feature, and not already attached */
 	switch (feat) {
 	case GPC_FEAT_ACL:
+		break;
+	case GPC_FEAT_QOS:
+		if (!ingress)
+			goto log_attach;
 		break;
 	default:
 		goto log_attach;
@@ -776,6 +789,7 @@ pmf_hw_group_attach(struct gpc_group *gprg, struct ifnet *ifp)
 		acl.id = pmf_hw_rtr_intf_attr_acl(ingress, is_v6);
 		break;
 	case GPC_FEAT_QOS:
+		acl.id = pmf_hw_rtr_intf_attr_qos(is_v6);
 		break;
 	}
 
@@ -817,6 +831,10 @@ pmf_hw_group_detach(struct gpc_group *gprg, struct ifnet *ifp)
 	switch (feat) {
 	case GPC_FEAT_ACL:
 		break;
+	case GPC_FEAT_QOS:
+		if (!ingress)
+			goto log_detach;
+		break;
 	default:
 		goto log_detach;
 	}
@@ -838,6 +856,7 @@ pmf_hw_group_detach(struct gpc_group *gprg, struct ifnet *ifp)
 		acl.id = pmf_hw_rtr_intf_attr_acl(ingress, is_v6);
 		break;
 	case GPC_FEAT_QOS:
+		acl.id = pmf_hw_rtr_intf_attr_qos(is_v6);
 		break;
 	}
 
