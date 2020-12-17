@@ -24,7 +24,17 @@
 #include "vplane_debug.h"
 #include "vplane_log.h"
 
-static bool fal_lag_member_enabled[LAG_MAX_MEMBERS];
+struct lag_member_state {
+	/* Indicates whether Teamd has selected the member for LAG */
+	bool enabled;
+	/*
+	 * Indicates whether the member is usable based on fault detection
+	 * protocols or not.  Assume innocent till proven guilty
+	 */
+	bool usable;
+};
+
+static struct lag_member_state fal_lag_member_enabled[LAG_MAX_MEMBERS];
 
 static int fal_lag_member_delete(struct ifnet *team_ifp, struct ifnet *ifp);
 
@@ -183,11 +193,16 @@ fal_lag_select(struct ifnet *ifp, bool enable)
 	struct fal_attribute_t attr_list[] = {
 		{
 			.id = FAL_LAG_MEMBER_ATTR_EGRESS_DISABLE,
-			.value.booldata = !enable,
+			.value.booldata =
+			!(enable &&
+			  fal_lag_member_enabled[ifp->if_port].usable),
 		},
 		{
 			.id = FAL_LAG_MEMBER_ATTR_INGRESS_DISABLE,
-			.value.booldata = !enable,
+			.value.booldata =
+			!(enable &&
+			  fal_lag_member_enabled[ifp->if_port].usable),
+
 		},
 	};
 	unsigned int i;
@@ -200,10 +215,10 @@ fal_lag_select(struct ifnet *ifp, bool enable)
 		"teamd runner %sselected ifindex %d:%s (port %u)\n",
 		enable ? "" : "de", ifp->if_index, ifp->if_name, ifp->if_port);
 
-	if (fal_lag_member_enabled[ifp->if_port] == enable)
+	if (fal_lag_member_enabled[ifp->if_port].enabled == enable)
 		return 0;
 
-	fal_lag_member_enabled[ifp->if_port] = enable;
+	fal_lag_member_enabled[ifp->if_port].enabled = enable;
 
 	member_sc = ifp->if_softc;
 
@@ -299,11 +314,15 @@ fal_lag_member_apply(struct ifnet *ifp)
 		},
 		{
 			.id = FAL_LAG_MEMBER_ATTR_EGRESS_DISABLE,
-			.value.booldata = fal_lag_member_enabled[ifp->if_port],
+			.value.booldata =
+			!(fal_lag_member_enabled[ifp->if_port].enabled &&
+			  fal_lag_member_enabled[ifp->if_port].usable),
 		},
 		{
 			.id = FAL_LAG_MEMBER_ATTR_INGRESS_DISABLE,
-			.value.booldata = fal_lag_member_enabled[ifp->if_port],
+			.value.booldata =
+			!(fal_lag_member_enabled[ifp->if_port].enabled &&
+			  fal_lag_member_enabled[ifp->if_port].usable),
 		},
 	};
 	int ret;
@@ -352,6 +371,8 @@ fal_lag_member_add(struct ifnet *team_ifp, struct ifnet *ifp)
 	if_notify_emb_feat_change(ifp);
 
 	if (fal_lag_can_create_in_fal(ifp)) {
+		/* Innocent till proven guilty */
+		fal_lag_member_enabled[ifp->if_port].usable = true;
 		ret = fal_lag_member_apply(ifp);
 		if (ret < 0) {
 			rcu_assign_pointer(ifp->aggregator, NULL);
@@ -405,6 +426,7 @@ fal_lag_member_delete(struct ifnet *team_ifp __unused, struct ifnet *ifp)
 	if (ret < 0)
 		return ret;
 
+	fal_lag_member_enabled[ifp->if_port].usable = false;
 	rcu_assign_pointer(ifp->aggregator, NULL);
 	if_notify_emb_feat_change(ifp);
 
