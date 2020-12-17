@@ -91,6 +91,13 @@ enum pmf_nat_type {
 	PMN_DNAT,
 };
 
+enum pmf_mark_colour {
+	PMMC_UNSET,
+	PMMC_RED,
+	PMMC_YELLOW,
+	PMMC_GREEN,
+};
+
 /*
  * NB: Each attribute is malloc'ed individually, and so may be free'ed
  *     or easily duplicated.  They are either fixed size, or contain
@@ -324,6 +331,16 @@ enum pmf_summary {
 	(PMF_RAS_COUNT_DEF_PASS|PMF_RAS_COUNT_DEF_DROP)
 };
 
+/*
+ * The parsed result of a QoS mark.
+ */
+struct pmf_qos_mark {
+	enum pmf_value			paqm_has_desig: 2;
+
+	uint8_t				paqm_desig : 3;
+	enum pmf_mark_colour		paqm_colour : 3;
+};
+
 struct pmf_rule {
 	struct {
 		union pmf_mattr_l2	l2[PMF_L2F__LEN];
@@ -337,6 +354,7 @@ struct pmf_rule {
 		struct pmf_nat		*nat;
 		struct pmf_pext_list	*handle;	/* "handle" rprocs */
 		struct pmf_pext_list	*extend;	/* action rprocs */
+		struct pmf_qos_mark	*qos_mark;
 		uintptr_t		qos_policer;	/* FAL object id */
 	} pp_action;
 	uint32_t pp_summary;
