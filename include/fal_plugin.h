@@ -2051,8 +2051,77 @@ enum fal_neighbor_entry_attr_t {
 	FAL_NEIGH_ENTRY_ATTR_USED,
 };
 
+struct fal_neighbor_entry_t {
+	/*
+	 * Router interface that the neighbor is on
+	 */
+	fal_object_t router_intf_obj;
+
+	/*
+	 * Address of the neighbor
+	 */
+	struct fal_ip_address_t ip_addr;
+};
+
+/**
+ * @brief Create an IP neighbor for address on router interface
+ *
+ * @param[in] neigh_entry Key for the neighbor
+ * @param[in] attr_count Count of the attributes
+ * @param[in] attr_list List of attributes
+ *
+ * @return 0 on success. Negative errno on failure.
+ */
+int fal_plugin_create_ip_neigh(const struct fal_neighbor_entry_t *neigh_entry,
+			       uint32_t attr_count,
+			       const struct fal_attribute_t *attr_list);
+
+/**
+ * @brief Update an IP neighbor
+ *
+ * @param[in] neigh_entry Key for the neighbor
+ * @param[in] attr Attribute to update
+ *
+ * @return 0 on success. Negative errno on failure.
+ */
+int fal_plugin_set_ip_neigh_attr(const struct fal_neighbor_entry_t *neigh_entry,
+				 const struct fal_attribute_t *attr);
+
+/**
+ * @brief Query attributes for an IP neighbor
+ *
+ * @param[in] neigh_entry Key for the neighbor
+ * @param[in] attr_count Count of the attributes
+ * @param[in] attr_list List of attributes to query
+ *
+ * @return 0 on success. Negative errno on failure.
+ */
+int fal_plugin_get_ip_neigh_attrs(
+	const struct fal_neighbor_entry_t *neigh_entry,
+	uint32_t attr_count, struct fal_attribute_t *attr_list);
+
+/**
+ * @brief Delete an IP neighbor for address on router interface
+ *
+ * @param[in] neigh_entry Key for the neighbor
+ *
+ * @return 0 on success. Negative errno on failure.
+ */
+int fal_plugin_delete_ip_neigh(const struct fal_neighbor_entry_t *neigh_entry);
+
+/**
+ * @brief Dump info for an IP neighbor
+ *
+ * @param[in] neigh_entry Key for the neighbor
+ * @param[inout] wr json writer object
+ */
+void fal_plugin_dump_ip_neigh(const struct fal_neighbor_entry_t *neigh_entry,
+			      json_writer_t *wr);
+
 /**
  * @brief Create an IP neighbor for address on interface ifindex
+ *
+ * Deprecated in favour of fal_plugin_create_ip_neigh.
  *
  * @param[in] ifindex Index of interface to add neighbour to
  * @param[in] ipaddr Address of neighbour to add
@@ -2069,6 +2138,8 @@ int fal_plugin_ip_new_neigh(unsigned int ifindex,
 /**
  * @brief Update an IP neighbor
  *
+ * Deprecated in favour of fal_plugin_set_ip_neigh_attr.
+ *
  * @param[in] ifindex Index of interface to update neighbour on
  * @param[in] ipaddr Address of neighbour to update
  * @param[in] attr Attribute to update
@@ -2081,6 +2152,8 @@ int fal_plugin_ip_upd_neigh(unsigned int ifindex,
 
 /**
  * @brief Query attributes for an IP neighbor
+ *
+ * Deprecated in favour of fal_plugin_get_ip_neigh_attrs.
  *
  * @param[in] ifindex Index of interface for neighbour to query
  * @param[in] ipaddr Address of neighbour to query
@@ -2097,6 +2170,8 @@ int fal_plugin_ip_get_neigh_attrs(unsigned int ifindex,
 /**
  * @brief Delete an IP neighbor for address on interface ifindex
  *
+ * Deprecated in favour of fal_plugin_delete_ip_neigh.
+ *
  * @param[in] ifindex Index of interface to delete neighbour on
  * @param[in] ipaddr Address of neighbour to delete
  *
@@ -2107,6 +2182,8 @@ int fal_plugin_ip_del_neigh(unsigned int ifindex,
 
 /**
  * @brief Dump info for an IP neighbor
+ *
+ * Deprecated in favour of fal_plugin_dump_ip_neigh.
  *
  * @param[in] ifindex Index of interface to dump neighbour on
  * @param[in] ipaddr Address of neighbour to dump
