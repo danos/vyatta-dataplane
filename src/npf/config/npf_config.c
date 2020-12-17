@@ -32,12 +32,23 @@ enum npf_commit_type {
 	NPF_COMMIT_DELETE
 };
 
-void npf_config_release(struct npf_config *npf_conf)
+/*
+ * Free the npf config attach point.
+ *
+ * npf_conf - Pointer to structure registered earlier with
+ * npf_attpt_item_set_up(), which is used to point to rulesets when they are
+ * in use. This is associated with the attach point.
+ */
+static void npf_config_release(struct npf_config *npf_conf)
 {
-	assert(npf_conf->nc_attached == false);
+	if (!npf_conf)
+		return;
 
-	free((void *)npf_conf->nc_attach_point);
-	npf_conf->nc_attach_point = NULL;
+	npf_conf->nc_attached = false;
+
+	const char *ap = rcu_xchg_pointer(&npf_conf->nc_attach_point, NULL);
+	if (ap)
+		free((void *)ap);
 }
 
 static void npf_config_free_rcu(struct rcu_head *head)
@@ -49,24 +60,25 @@ static void npf_config_free_rcu(struct rcu_head *head)
 	free(npf_conf);
 }
 
-static int npf_config_default_alloc_free(struct npf_config **npf_confp,
-					 bool alloc)
+static int npf_config_default_alloc(struct npf_config **npf_confp)
+{
+	struct npf_config *npf_conf = calloc(sizeof(*npf_conf), 1);
+
+	if (npf_conf == NULL)
+		return -ENOMEM;
+
+	rcu_assign_pointer(*npf_confp, npf_conf);
+	return 0;
+}
+
+static int npf_config_default_free(struct npf_config **npf_confp)
 {
 	struct npf_config *npf_conf;
 
-	if (alloc) {
-		npf_conf = calloc(sizeof(*npf_conf), 1);
+	npf_conf = rcu_xchg_pointer(npf_confp, NULL);
 
-		if (npf_conf == NULL)
-			return -ENOMEM;
-
-		rcu_assign_pointer(*npf_confp, npf_conf);
-	} else {
-		npf_conf = *npf_confp;
-
-		rcu_assign_pointer(*npf_confp, NULL);
+	if (npf_conf)
 		call_rcu(&npf_conf->nc_rcu, npf_config_free_rcu);
-	}
 
 	return 0;
 }
@@ -78,8 +90,15 @@ static int npf_config_alloc(struct npf_config **npf_confp,
 	char *attach_point;
 	int rc;
 
-	if (*npf_confp != NULL && (*npf_confp)->nc_attached)
-		return 0;	/* already allocated and associated */
+	if (*npf_confp != NULL) {
+		if ((*npf_confp)->nc_attached)
+			/* already allocated and associated */
+			return 0;
+
+		/* This should not happen.  But handle it anyway */
+		if ((*npf_confp)->nc_attach_point)
+			npf_config_release(*npf_confp);
+	}
 
 	attach_point = strdup(apk->apk_point);
 	if (attach_point == NULL)
@@ -91,7 +110,7 @@ static int npf_config_alloc(struct npf_config **npf_confp,
 	if (npf_attpt_item_fn)
 		rc = npf_attpt_item_fn(npf_confp, true);
 	else
-		rc = npf_config_default_alloc_free(npf_confp, true);
+		rc = npf_config_default_alloc(npf_confp);
 
 	if (rc) {
 		free(attach_point);
@@ -215,15 +234,16 @@ static void npf_cfg_commit(struct npf_attpt_item *ap, enum npf_commit_type type)
 
 	if (npf_conf->nc_active_flags == 0 && npf_conf->nc_attached) {
 
-		npf_conf->nc_attached = false;
-
 		npf_attpt_item_fn_ctx *npf_attpt_item_fn =
 			npf_attpt_item_up_fn_context(ap);
 
 		if (npf_attpt_item_fn)
 			npf_attpt_item_fn(npf_conf_p, false);
 		else
-			npf_config_default_alloc_free(npf_conf_p, false);
+			npf_config_default_free(npf_conf_p);
+
+		/* Clear nc_attached, and free nc_attach_point if necessary */
+		npf_config_release(*npf_conf_p);
 	}
 }
 
