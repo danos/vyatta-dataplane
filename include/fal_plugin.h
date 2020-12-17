@@ -2155,6 +2155,23 @@ enum fal_route_entry_attr_t {
 	FAL_ROUTE_ENTRY_ATTR_PACKET_ACTION,	/* .u32 - fal_packet_action_t */
 };
 
+struct fal_route_entry_t {
+	/*
+	 * The VRF that the route belongs to
+	 */
+	fal_object_t vrf_obj;
+
+	/*
+	 * The address of the prefix for the route
+	 */
+	struct fal_ip_address_t ip_addr;
+
+	/*
+	 * The length of the prefix for the route
+	 */
+	uint8_t prefix_len;
+};
+
 /* Route walk type enum */
 enum fal_route_walk_type_t {
 	FAL_ROUTE_WALK_TYPE_ALL,
@@ -2172,6 +2189,53 @@ enum fal_route_walk_attr_t {
 	FAL_ROUTE_WALK_ATTR_TYPE,	/* .u32 - fal_route_walk_type_t */
 };
 
+/**
+ * @brief Create an IP route entry
+ *
+ * @param[in] route Key identifying the route
+ * @param[in] attr_count Count of the attributes
+ * @param[in] attr_list List of attributes to create the route with
+ *
+ * @return 0 on success. Negative errno on failure.
+ */
+int fal_plugin_create_route_entry(const struct fal_route_entry_t *route,
+				  uint32_t attr_count,
+				  const struct fal_attribute_t *attr_list);
+
+/**
+ * @brief Set an IP route entry's attribute
+ *
+ * @param[in] route Key identifying the route
+ * @param[in] attr Attributes to set for the route
+ *
+ * @return 0 on success. Negative errno on failure.
+ */
+int fal_plugin_set_route_entry_attr(const struct fal_route_entry_t *route,
+				    struct fal_attribute_t *attr);
+
+/**
+ * @brief Delete an IP route entry
+ *
+ * @param[in] route Key identifying the route
+ *
+ * @return 0 on success. Negative errno on failure.
+ */
+int fal_plugin_delete_route_entry(const struct fal_route_entry_t *route);
+
+/**
+ * @brief Query attributes for an IP route entry
+ *
+ * @param[in] route Key identifying the route
+ * @param[in] attr_count Count of the attributes
+ * @param[inout] attr_list List of attributes to query
+ *
+ * @return 0 on success. Negative errno on failure.
+ */
+int fal_plugin_get_route_entry_attrs(const struct fal_route_entry_t *route,
+				     uint32_t attr_count,
+				     struct fal_attribute_t *attr_list);
+
+/* deprecated in favour of fal_plugin_create_route_entry */
 int fal_plugin_ip_new_route(unsigned int vrf_id,
 			    struct fal_ip_address_t *ipaddr,
 			    uint8_t prefixlen,
@@ -2179,12 +2243,14 @@ int fal_plugin_ip_new_route(unsigned int vrf_id,
 			    uint32_t attr_count,
 			    const struct fal_attribute_t *attr_list);
 
+/* deprecated in favour of fal_plugin_set_route_entry_attr */
 int fal_plugin_ip_upd_route(unsigned int vrf_id,
 			    struct fal_ip_address_t *ipaddr,
 			    uint8_t prefixlen,
 			    uint32_t tableid,
 			    struct fal_attribute_t *attr);
 
+/* deprecated in favour of fal_plugin_delete_route_entry */
 int fal_plugin_ip_del_route(unsigned int vrf_id,
 			    struct fal_ip_address_t *ipaddr,
 			    uint8_t prefixlen,
@@ -2192,6 +2258,8 @@ int fal_plugin_ip_del_route(unsigned int vrf_id,
 
 /**
  * @brief Query attributes for a route
+ *
+ * Deprecated in favour of fal_plugin_get_route_entry_attrs.
  *
  * @param[in] vrf VRF ID of the route to be queried
  * @param[in] ipaddr Network address of the route to be queried
