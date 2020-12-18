@@ -878,18 +878,37 @@ static void s2s_common_setup(vrfid_t vrfid,
 	input_sa.vrfid = vrfid;
 	output_sa.vrfid = vrfid;
 
+	if (out_of_order == VRF_XFRM_OUT_OF_ORDER)
+		/*
+		 * We expect the sa creates to fail due to incomplete
+		 * interfaces so check for that
+		 */
+		dp_test_crypto_xfrm_set_nack(2);
+
 	dp_test_crypto_create_sa_verify(&input_sa, verify);
 	dp_test_crypto_create_sa_verify(&output_sa, verify);
 
 	if (out_of_order == VRF_XFRM_OUT_OF_ORDER) {
-		s2s_setup_interfaces_finish(vrfid, with_vfp);
-		for (i = 0; i < nipols; i++)
-			wait_for_policy(&ipol[i], false);
-		for (i = 0; i < nopols; i++)
-			wait_for_policy(&opol[i], false);
+		/*
+		 * We need to put a scheduling barrier between the two
+		 * SA creations above and the completion of interface
+		 * setup up below.  There is a potential reordering
+		 * race where the the interface could become complete
+		 * in the dataplane before the attempted creation of
+		 * the SAs above in the dataplane, and so rather than
+		 * return an error as expected it returns OK.
+		 */
+		dp_test_crypto_check_xfrm_acks();
 
-		wait_for_sa(&input_sa, true);
-		wait_for_sa(&output_sa, true);
+		s2s_setup_interfaces_finish(vrfid, with_vfp);
+
+		for (i = 0; i < nipols; i++)
+			dp_test_crypto_create_policy_verify(&ipol[i], true);
+		for (i = 0; i < nopols; i++)
+			dp_test_crypto_create_policy_verify(&ipol[i], true);
+
+		dp_test_crypto_create_sa_verify(&input_sa, true);
+		dp_test_crypto_create_sa_verify(&output_sa, true);
 	}
 
 	if (with_vfp == VFP_TRUE)

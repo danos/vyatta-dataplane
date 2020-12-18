@@ -28,7 +28,7 @@ int crypto_sadb_init(void);
 int crypto_sadb_vrf_init(struct crypto_vrf_ctx *vrf_ctx);
 void crypto_sadb_vrf_clean(struct crypto_vrf_ctx *vrf_ctx);
 
-void crypto_sadb_new_sa(const struct xfrm_usersa_info *sa_info,
+int crypto_sadb_new_sa(const struct xfrm_usersa_info *sa_info,
 			const struct xfrm_algo *crypto_algo,
 			const struct xfrm_algo_auth *auth_trunc_algo,
 			const struct xfrm_algo *auth_algo,
@@ -36,7 +36,7 @@ void crypto_sadb_new_sa(const struct xfrm_usersa_info *sa_info,
 			uint32_t mark_val, uint32_t extra_flags,
 			vrfid_t vrf_id);
 
-void crypto_sadb_del_sa(const struct xfrm_usersa_info *sa_info, vrfid_t vrfid);
+int crypto_sadb_del_sa(const struct xfrm_usersa_info *sa_info, vrfid_t vrfid);
 void crypto_sadb_flush_vrf(struct crypto_vrf_ctx *vrf_ctx);
 
 struct sadb_sa *sadb_lookup_inbound(uint32_t spi);

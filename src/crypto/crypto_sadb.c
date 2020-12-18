@@ -794,7 +794,7 @@ crypto_session_set_direction(struct sadb_sa *sa, int direction,
  *
  * This function is called from the main thread only.
  */
-void crypto_sadb_new_sa(const struct xfrm_usersa_info *sa_info,
+int crypto_sadb_new_sa(const struct xfrm_usersa_info *sa_info,
 			const struct xfrm_algo *crypto_algo,
 			const struct xfrm_algo_auth *auth_trunc_algo,
 			const struct xfrm_algo *auth_algo,
@@ -813,12 +813,12 @@ void crypto_sadb_new_sa(const struct xfrm_usersa_info *sa_info,
 
 	if (!sa_info || !crypto_algo) {
 		SADB_ERR("Bad parameters on attempt to add SA\n");
-		return;
+		return -1;
 	}
 
 	vrf_ctx = crypto_vrf_get(vrf_id);
 	if (!vrf_ctx)
-		return;
+		return -1;
 
 	SADB_DEBUG("NEWSA SPI = %x Mark = %x VRF %d\n",
 		   ntohl(sa_info->id.spi), mark_val, vrf_id);
@@ -826,7 +826,7 @@ void crypto_sadb_new_sa(const struct xfrm_usersa_info *sa_info,
 	sa = zmalloc_aligned(sizeof(*sa));
 	if (!sa) {
 		SADB_ERR("Failed to allocate SA\n");
-		return;
+		return -1;
 	}
 
 	sa->family = sa_info->family;
@@ -882,7 +882,7 @@ void crypto_sadb_new_sa(const struct xfrm_usersa_info *sa_info,
 		if (pmd_dev_id == CRYPTO_PMD_INVALID_ID) {
 			SADB_ERR("Failed to allocate PMD for SA\n");
 			sadb_sa_destroy(sa);
-			return;
+			return -1;
 		}
 	} else
 		pmd_dev_id = CRYPTO_PMD_INVALID_ID;
@@ -898,7 +898,7 @@ void crypto_sadb_new_sa(const struct xfrm_usersa_info *sa_info,
 		if (err) {
 			SADB_ERR("Failed to set direction for SA\n");
 			sadb_sa_destroy(sa);
-			return;
+			return -1;
 		}
 	}
 
@@ -911,7 +911,7 @@ void crypto_sadb_new_sa(const struct xfrm_usersa_info *sa_info,
 		 */
 		SADB_ERR("Failed to insert SA into SADB\n");
 		sadb_sa_destroy(sa);
-		return;
+		return -1;
 	}
 
 	/*
@@ -925,6 +925,8 @@ void crypto_sadb_new_sa(const struct xfrm_usersa_info *sa_info,
 	/* allocate a core for post crypto processing */
 	sa->fwd_core = crypto_sa_alloc_fwd_core();
 	vrf_ctx->count_of_sas++;
+
+	return 0;
 }
 
 /*
@@ -963,13 +965,13 @@ static void crypto_sadb_resurrect_sa(struct sadb_sa *sa, vrfid_t vrfid,
 	sadb_refresh_osbervers_of_sa(old_sa, peer, false);
 }
 
-static void crypto_sadb_del_sa_internal(const xfrm_address_t *dst,
-					const xfrm_address_t *src,
-					uint32_t spi,
-					uint16_t family,
-					struct crypto_vrf_ctx *vrf_ctx,
-					bool resurrect_old_sa,
-					uint32_t req_id)
+static int crypto_sadb_del_sa_internal(const xfrm_address_t *dst,
+				       const xfrm_address_t *src,
+				       uint32_t spi,
+				       uint16_t family,
+				       struct crypto_vrf_ctx *vrf_ctx,
+				       bool resurrect_old_sa,
+				       uint32_t req_id)
 {
 	static struct sadb_sa *sa;
 
@@ -995,7 +997,7 @@ static void crypto_sadb_del_sa_internal(const xfrm_address_t *dst,
 
 		SADB_ERR("SA delete for %s SPI %x failed: not found\n",
 			 dstip_str, ntohl(spi));
-		return;
+		return -1;
 	}
 
 	/* If this is an active SA, then we need to restore an old SA
@@ -1013,6 +1015,8 @@ static void crypto_sadb_del_sa_internal(const xfrm_address_t *dst,
 	vrf_ctx->count_of_sas--;
 
 	crypto_vrf_check_remove(vrf_ctx);
+
+	return 0;
 }
 
 /*
@@ -1022,24 +1026,24 @@ static void crypto_sadb_del_sa_internal(const xfrm_address_t *dst,
  *
  * This function is called from the main thread only.
  */
-void crypto_sadb_del_sa(const struct xfrm_usersa_info *sa_info, vrfid_t vrfid)
+int crypto_sadb_del_sa(const struct xfrm_usersa_info *sa_info, vrfid_t vrfid)
 {
 	struct crypto_vrf_ctx *vrf_ctx;
 
 	if (!sa_info)
-		return;
+		return -1;
 
 	vrf_ctx = crypto_vrf_find(vrfid);
 	if (!vrf_ctx)
-		return;
+		return -1;
 
-	crypto_sadb_del_sa_internal(&sa_info->id.daddr,
-				    &sa_info->saddr,
-				    sa_info->id.spi,
-				    sa_info->family,
-				    vrf_ctx,
-				    true,
-				    sa_info->reqid);
+	return crypto_sadb_del_sa_internal(&sa_info->id.daddr,
+					   &sa_info->saddr,
+					   sa_info->id.spi,
+					   sa_info->family,
+					   vrf_ctx,
+					   true,
+					   sa_info->reqid);
 }
 
 void crypto_sadb_flush_vrf(struct crypto_vrf_ctx *vrf_ctx)

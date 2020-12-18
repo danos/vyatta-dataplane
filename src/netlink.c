@@ -1601,7 +1601,7 @@ out:
  *
  * Process an XFRM new or update SA message.
  */
-static void process_xfrm_newsa(struct xfrm_usersa_info *sa_info,
+static int process_xfrm_newsa(struct xfrm_usersa_info *sa_info,
 			       const char *msg_type_str,
 			       struct nlattr **attrs,
 			       vrfid_t vrf_id,
@@ -1615,6 +1615,7 @@ static void process_xfrm_newsa(struct xfrm_usersa_info *sa_info,
 	struct xfrm_mark *mark;
 	uint32_t mark_val;
 	uint32_t extra_flags = 0;
+	int rc = MNL_CB_OK;
 
 	/*
 	 * VRF. Use topic default if no attribute
@@ -1622,7 +1623,7 @@ static void process_xfrm_newsa(struct xfrm_usersa_info *sa_info,
 	xfrm_attr_vrf(&sa_info->sel, &vrf_id, ifindex);
 
 	if (crypto_incmpl_xfrm(*ifindex))
-		return;
+		return MNL_CB_ERROR;
 
 	/*
 	 * AEAD/crypto algorithm
@@ -1643,6 +1644,7 @@ static void process_xfrm_newsa(struct xfrm_usersa_info *sa_info,
 		RTE_LOG(ERR, DATAPLANE,
 			"Missing XFRMA_ALG_* attribute on XFRM %s message\n",
 			msg_type_str);
+		rc = MNL_CB_ERROR;
 		goto scrub;
 	}
 
@@ -1651,6 +1653,7 @@ static void process_xfrm_newsa(struct xfrm_usersa_info *sa_info,
 		if (!mark) {
 			RTE_LOG(ERR, DATAPLANE,
 				"Could not decode MARK attr\n");
+			rc = MNL_CB_ERROR;
 			goto scrub;
 		}
 		mark_val = mark->v;
@@ -1665,6 +1668,7 @@ static void process_xfrm_newsa(struct xfrm_usersa_info *sa_info,
 		if (!tmpl) {
 			RTE_LOG(ERR, DATAPLANE,
 				"Could not decode ENCAP attr\n");
+			rc = MNL_CB_ERROR;
 			goto scrub;
 		}
 	}
@@ -1680,8 +1684,10 @@ static void process_xfrm_newsa(struct xfrm_usersa_info *sa_info,
 		auth_trunc_algo = (struct xfrm_algo_auth *)aead_algo;
 	}
 
-	crypto_sadb_new_sa(sa_info, crypto_algo, auth_trunc_algo, auth_algo,
-			   tmpl, mark_val, extra_flags, vrf_id);
+	if (crypto_sadb_new_sa(sa_info, crypto_algo, auth_trunc_algo, auth_algo,
+			       tmpl, mark_val, extra_flags, vrf_id) != 0)
+		rc = MNL_CB_ERROR;
+	/* The above failure case needs to fall into scrub */
 
  scrub:
 	/*
@@ -1710,6 +1716,7 @@ static void process_xfrm_newsa(struct xfrm_usersa_info *sa_info,
 	auth_algo = get_nl_attr_payload(attrs[XFRMA_ALG_AUTH]);
 	if (auth_algo)
 		memset(auth_algo->alg_key, 0xff, (auth_algo->alg_key_len >> 3));
+	return rc;
 }
 
 /*
@@ -1717,15 +1724,17 @@ static void process_xfrm_newsa(struct xfrm_usersa_info *sa_info,
  *
  * Process an XFRM delete SA message.
  */
-static void process_xfrm_delsa(struct xfrm_usersa_info *sa_info,
+static int process_xfrm_delsa(struct xfrm_usersa_info *sa_info,
 			       vrfid_t vrfid, uint32_t *ifindex)
 {
 	xfrm_attr_vrf(sa_info ? &sa_info->sel : NULL, &vrfid, ifindex);
 
 	if (crypto_incmpl_xfrm(*ifindex))
-		return;
+		return MNL_CB_ERROR;
 
-	crypto_sadb_del_sa(sa_info, vrfid);
+	if (crypto_sadb_del_sa(sa_info, vrfid) != 0)
+		return MNL_CB_ERROR;
+	return MNL_CB_OK;
 }
 
 static int
@@ -1787,8 +1796,9 @@ int rtnl_process_xfrm_sa(const struct nlmsghdr *nlh, void *data)
 			return MNL_CB_ERROR;
 		}
 
-		process_xfrm_newsa(sa_info, msg_type_str, attrs, vrf_id,
-				   &ifindex);
+		if (process_xfrm_newsa(sa_info, msg_type_str, attrs, vrf_id,
+				       &ifindex) != MNL_CB_OK)
+			return MNL_CB_ERROR;
 		break;
 
 	case XFRM_MSG_DELSA:
@@ -1804,11 +1814,13 @@ int rtnl_process_xfrm_sa(const struct nlmsghdr *nlh, void *data)
 			return MNL_CB_ERROR;
 		}
 		sa_info = get_nl_attr_payload(attrs[XFRMA_SA]);
-		if (!sa_info)
+		if (!sa_info) {
 			RTE_LOG(ERR, DATAPLANE,
 				"Could not decode DELSA XFRM_SA attribute\n");
-
-		process_xfrm_delsa(sa_info, vrf_id, &ifindex);
+			return MNL_CB_ERROR;
+		}
+		if (process_xfrm_delsa(sa_info, vrf_id, &ifindex) != MNL_CB_OK)
+			return MNL_CB_ERROR;
 		break;
 
 	case XFRM_MSG_EXPIRE:
@@ -1836,7 +1848,7 @@ int rtnl_process_xfrm_sa(const struct nlmsghdr *nlh, void *data)
 		}
 
 		if (process_xfrm_getsa(sa_id, vrf_id, seq) < 0)
-			return -1;
+			return MNL_CB_ERROR;
 		/*
 		 * If we have successfully processed the stats request
 		 * then we do not need to send an ack back, as the
