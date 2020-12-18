@@ -319,7 +319,7 @@ fal_lag_set_member_state(struct ifnet *team_ifp, struct ifnet *ifp,
 	    tx_hash_enable)
 		return 0;
 
-	if (!fal_lag_min_links(team_ifp, &min_links))
+	if (fal_lag_min_links(team_ifp, &min_links) < 0)
 		return fal_lag_set_member_tx_hash_state(ifp, tx_hash_enable);
 
 	if (old_count < min_links) {
