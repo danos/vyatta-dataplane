@@ -2096,7 +2096,7 @@ void _dp_test_mroute_nl(uint16_t nlmsg_type, const char *src,
 	}
 
 	mnl_attr_nest_end(nlh, mpath_start);
-	free(route);
+	dp_test_free_route(route);
 
 	if (nl_generate_topic(nlh, topic, sizeof(topic)) < 0)
 		dp_test_assert_internal(0);
