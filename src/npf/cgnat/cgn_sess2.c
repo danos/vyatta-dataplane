@@ -312,11 +312,11 @@ static int cgn_sess2_match(struct cds_lfht_node *node, const void *key)
 }
 
 /*
- * Create an s2 session
+ * Create an s2 session. Sessions are only ever created in the 'out' context.
  */
 struct cgn_sess2 *
 cgn_sess_s2_establish(struct cgn_sess_s2 *cs2, struct cgn_packet *cpk,
-		      enum cgn_dir dir, int *error)
+		      int *error)
 {
 	struct cgn_sess2 *s2;
 
@@ -337,20 +337,13 @@ cgn_sess_s2_establish(struct cgn_sess_s2 *cs2, struct cgn_packet *cpk,
 		return NULL;
 	}
 
-	if (dir == CGN_DIR_OUT) {
-		s2->s2_addr = cpk->cpk_daddr;
-		s2->s2_port   = cpk->cpk_did;
-		rte_atomic32_inc(&s2->s2_pkts_out);
-		rte_atomic32_add(&s2->s2_bytes_out, cpk->cpk_len);
-	} else {
-		s2->s2_addr = cpk->cpk_saddr;
-		s2->s2_port   = cpk->cpk_sid;
-		rte_atomic32_inc(&s2->s2_pkts_in);
-		rte_atomic32_add(&s2->s2_bytes_in, cpk->cpk_len);
-	}
+	s2->s2_addr = cpk->cpk_daddr;
+	s2->s2_port   = cpk->cpk_did;
+	rte_atomic32_inc(&s2->s2_pkts_out);
+	rte_atomic32_add(&s2->s2_bytes_out, cpk->cpk_len);
 
 	s2->s2_cs2 = cs2;
-	s2->s2_dir = dir;
+	s2->s2_dir = CGN_DIR_OUT;
 	s2->s2_expired = false;
 	s2->s2_start_time = cgn_time_usecs();
 	s2->s2_id = rte_atomic32_add_return(&cs2->cs2_id, 1);
@@ -362,7 +355,8 @@ cgn_sess_s2_establish(struct cgn_sess_s2 *cs2, struct cgn_packet *cpk,
 	cgn_sess_state_init(&s2->s2_state,
 			    nat_proto_from_ipproto(cpk->cpk_ipproto),
 			    ntohs(s2->s2_port));
-	cgn_sess_state_inspect(&s2->s2_state, cpk, dir, s2->s2_start_time);
+	cgn_sess_state_inspect(&s2->s2_state, cpk, CGN_DIR_OUT,
+			       s2->s2_start_time);
 
 	return s2;
 }

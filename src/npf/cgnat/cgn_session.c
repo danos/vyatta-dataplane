@@ -915,8 +915,10 @@ int cgn_session_activate(struct cgn_session *cse,
 		struct cgn_sess2 *s2;
 		int error = 0;
 
+		assert(dir == CGN_DIR_OUT);
+
 		/* Create an s2 session */
-		s2 = cgn_sess_s2_establish(&cse->cs_s2, cpk, dir, &error);
+		s2 = cgn_sess_s2_establish(&cse->cs_s2, cpk, &error);
 		if (s2)
 			error = cgn_sess_s2_activate(&cse->cs_s2, s2);
 
@@ -1170,14 +1172,14 @@ cgn_session_inspect_s2(struct cgn_session *cse, struct cgn_sentry *ce,
 		/*
 		 * cpk_keepalive is only set true for certain pkts in
 		 * the outbound direction.  Pkts for which it is *not*
-		 * set include: TCP RST and all ICMP pkts except
+		 * set also include: TCP RST and all ICMP pkts except
 		 * Echo Requests.
 		 */
 		if (cpk->cpk_keepalive) {
+			assert(dir == CGN_DIR_OUT);
 
 			/* Create an s2 session */
-			s2 = cgn_sess_s2_establish(&cse->cs_s2, cpk,
-						   dir, &error);
+			s2 = cgn_sess_s2_establish(&cse->cs_s2, cpk, &error);
 			if (s2)
 				error = cgn_sess_s2_activate(&cse->cs_s2, s2);
 
