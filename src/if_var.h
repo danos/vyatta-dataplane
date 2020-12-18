@@ -625,6 +625,17 @@ struct ift_ops {
 	 */
 	int (*ifop_get_link_status)(struct ifnet *ifp,
 				    struct dp_ifnet_link_status *if_link);
+
+	/*
+	 * Set the usability of the interface
+	 *
+	 * The interface can be marked as usable or unusable.
+	 *
+	 * Optional function - This allows link failure detection protocols
+	 * such as BFD/uBFD to influence forwarding decision quicker. It's
+	 * a no-op, if not implemented by the interface type.
+	 */
+	int (*ifop_set_usability)(struct ifnet *ifp, bool usable);
 };
 
 struct lltable *in_domifattach(struct ifnet *);
@@ -1082,6 +1093,11 @@ int if_vlan_feat_delete(struct ifnet *ifp, uint16_t vlan);
  * Currently supported only on ethernet interfaces
  */
 int if_set_backplane(struct ifnet *ifp, unsigned int ifindex);
+
+/*
+ * Set the usability of an interface
+ */
+int if_set_usability(struct ifnet *ifp, bool usability);
 
 static inline bool
 if_is_hwport(struct ifnet *ifp)

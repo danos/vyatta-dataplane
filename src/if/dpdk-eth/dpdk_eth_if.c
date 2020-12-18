@@ -1375,6 +1375,14 @@ dpdk_eth_iana_type(struct ifnet *ifp)
 	return DP_IFTYPE_IANA_ETHERNETCSMACD;
 }
 
+static int dpdk_eth_if_set_usability(struct ifnet *ifp, bool usable)
+{
+	if (!lag_port_is_member(ifp))
+		return 0;
+
+	return lag_set_member_usable(ifp, usable);
+}
+
 static const struct ift_ops dpdk_eth_if_ops = {
 	.ifop_set_mtu = dpdk_eth_if_set_mtu,
 	.ifop_set_l2_address = dpdk_eth_if_set_l2_address,
@@ -1399,6 +1407,7 @@ static const struct ift_ops dpdk_eth_if_ops = {
 	.ifop_set_speed = dpdk_eth_if_set_speed,
 	.ifop_get_link_status = dpdk_eth_if_get_link_status,
 	.ifop_iana_type = dpdk_eth_iana_type,
+	.ifop_set_usability = dpdk_eth_if_set_usability,
 };
 
 static void dpdk_eth_init(void)

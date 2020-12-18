@@ -31,6 +31,7 @@ struct lag_ops {
 	int (*lagop_mode_set_balance)(struct ifnet *ifp);
 	int (*lagop_mode_set_activebackup)(struct ifnet *ifp);
 	int (*lagop_select)(struct ifnet *ifp, bool sel);
+	int (*lagop_set_member_usable)(struct ifnet *ifp, bool usable);
 	int (*lagop_set_activeport)(struct ifnet *ifp,
 				    struct ifnet *ifp_member);
 	void (*lagop_refresh_actor_state)(struct ifnet *team);
@@ -39,7 +40,7 @@ struct lag_ops {
 	int (*lagop_walk_team_members)(struct ifnet *ifp,
 				      dp_ifnet_iter_func_t func, void *arg);
 	bool (*lagop_can_start)(const struct ifnet *ifp);
-	bool (*lagop_port_is_member)(struct ifnet *team, struct ifnet *ifp);
+	bool (*lagop_port_is_member)(struct ifnet *ifp);
 	bool (*lagop_is_team)(struct ifnet *ifp);
 	bool (*lagop_can_startstop_member)(struct ifnet *ifp);
 	int (*lagop_set_l2_address)(struct ifnet *ifp,
@@ -63,6 +64,7 @@ int lag_nl_member_update(const struct ifinfomsg *ifi, struct ifnet *ifp,
 int lag_mode_set_balance(struct ifnet *ifp);
 int lag_mode_set_activebackup(struct ifnet *ifp);
 int lag_select(struct ifnet *ifp, bool enable);
+int lag_set_member_usable(struct ifnet *ifp, bool usable);
 int lag_set_activeport(struct ifnet *ifp, struct ifnet *ifp_member);
 void lag_refresh_actor_state(struct ifnet *team);
 int lag_summary(FILE *fp);
@@ -71,6 +73,7 @@ int lag_walk_team_members(struct ifnet *ifp, dp_ifnet_iter_func_t func,
 			 void *arg);
 bool lag_can_start(const struct ifnet *ifp);
 bool lag_is_team(struct ifnet *ifp);
+bool lag_port_is_member(struct ifnet *ifp);
 int lag_can_startstop_member(struct ifnet *ifp);
 int lag_set_l2_address(struct ifnet *ifp, struct rte_ether_addr *macaddr);
 int lag_min_links(struct ifnet *ifp, uint16_t *min_links);

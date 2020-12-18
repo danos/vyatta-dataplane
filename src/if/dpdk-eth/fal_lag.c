@@ -24,7 +24,18 @@
 #include "vplane_debug.h"
 #include "vplane_log.h"
 
-static bool fal_lag_member_enabled[LAG_MAX_MEMBERS];
+struct lag_member_state {
+	/* Indicates whether Teamd has selected the member for LAG */
+	bool enabled;
+	/*
+	 * Indicates whether the member is usable based on fault detection
+	 * protocols or not.  Assume innocent till proven guilty
+	 */
+	bool usable;
+	bool tx_hash_enabled;
+};
+
+static struct lag_member_state fal_lag_member_enabled[LAG_MAX_MEMBERS];
 
 static int fal_lag_member_delete(struct ifnet *team_ifp, struct ifnet *ifp);
 
@@ -177,33 +188,57 @@ fal_lag_mode_set_activebackup(struct ifnet *ifp __unused)
 }
 
 static int
-fal_lag_select(struct ifnet *ifp, bool enable)
+fal_lag_min_links(struct ifnet *ifp, uint16_t *min_links)
+{
+	struct dpdk_eth_if_softc *sc;
+
+	if (ifp->if_type != IFT_ETHER)
+		return -ENOTSUP;
+
+	sc = rcu_dereference(ifp->if_softc);
+	if (!sc || !sc->has_min_links)
+		return -EINVAL;
+	*min_links = sc->min_links;
+	return 0;
+}
+
+static int
+fal_lag_get_usable_member_count(struct ifnet *team_ifp)
+{
+	struct dpdk_eth_if_softc *member_sc;
+	struct dpdk_eth_if_softc *sc;
+	struct ifnet *member_ifp;
+	int count = 0;
+
+	sc = team_ifp->if_softc;
+
+	cds_list_for_each_entry_rcu(member_sc,
+				    &sc->scd_fal_lag_members_head,
+				    scd_fal_lag_member_link) {
+		member_ifp = member_sc->scd_ifp;
+		if (fal_lag_member_enabled[member_ifp->if_port].enabled &&
+		    fal_lag_member_enabled[member_ifp->if_port].usable)
+			count++;
+	}
+	return count;
+}
+
+static int
+fal_lag_set_member_tx_hash_state(struct ifnet *ifp, bool tx_hash_enable)
 {
 	struct dpdk_eth_if_softc *member_sc;
 	struct fal_attribute_t attr_list[] = {
 		{
 			.id = FAL_LAG_MEMBER_ATTR_EGRESS_DISABLE,
-			.value.booldata = !enable,
+			.value.booldata = !tx_hash_enable,
 		},
 		{
 			.id = FAL_LAG_MEMBER_ATTR_INGRESS_DISABLE,
-			.value.booldata = !enable,
+			.value.booldata = !tx_hash_enable,
 		},
 	};
 	unsigned int i;
 	int ret;
-
-	if (ifp->if_type != IFT_ETHER || !ifp->aggregator)
-		return -1;
-
-	DP_DEBUG(LAG, DEBUG, DATAPLANE,
-		"teamd runner %sselected ifindex %d:%s (port %u)\n",
-		enable ? "" : "de", ifp->if_index, ifp->if_name, ifp->if_port);
-
-	if (fal_lag_member_enabled[ifp->if_port] == enable)
-		return 0;
-
-	fal_lag_member_enabled[ifp->if_port] = enable;
 
 	member_sc = ifp->if_softc;
 
@@ -216,14 +251,110 @@ fal_lag_select(struct ifnet *ifp, bool enable)
 			member_sc->scd_fal_lag_member_obj, &attr_list[i]);
 		if (ret < 0) {
 			RTE_LOG(ERR, DATAPLANE,
-				"failed to set FAL member interface %s to %s: %s\n",
-				ifp->if_name, enable ? "enabled" : "disabled",
+				"%s: member %s attr %d to %s failed: %s\n",
+				__func__, ifp->if_name, attr_list[i].id,
+				tx_hash_enable ? "enabled" : "disabled",
 				strerror(-ret));
 			return -1;
 		}
 	}
-
+	fal_lag_member_enabled[ifp->if_port].tx_hash_enabled = tx_hash_enable;
 	return 0;
+}
+
+static int
+fal_lag_set_all_member_tx_hash_state(struct ifnet *team_ifp,
+				     bool tx_hash_enable)
+{
+	struct dpdk_eth_if_softc *member_sc;
+	struct dpdk_eth_if_softc *sc;
+	struct ifnet *m_ifp;
+	int count = 0;
+	int ret;
+
+	sc = team_ifp->if_softc;
+
+	cds_list_for_each_entry_rcu(member_sc,
+				    &sc->scd_fal_lag_members_head,
+				    scd_fal_lag_member_link) {
+
+		m_ifp = member_sc->scd_ifp;
+		if (fal_lag_member_enabled[m_ifp->if_port].tx_hash_enabled ==
+		    tx_hash_enable)
+			continue;
+
+		ret = fal_lag_set_member_tx_hash_state(m_ifp, tx_hash_enable);
+		if (ret < 0) {
+			RTE_LOG(ERR, DATAPLANE,
+				"%s: Failed to %sable tx hash state for member %s on LAG %s\n",
+				__func__, tx_hash_enable ? "En" : "Dis",
+				m_ifp->if_name, team_ifp->if_name);
+			return ret;
+		}
+		count++;
+	}
+	RTE_LOG(INFO, DATAPLANE,
+		"%s:%sabled tx hash state for %d member(s) on LAG %s\n",
+		__func__, tx_hash_enable ? "En" : "Dis",
+		count, team_ifp->if_name);
+	return 0;
+}
+
+static int
+fal_lag_set_member_state(struct ifnet *team_ifp, struct ifnet *ifp,
+			 bool enable, bool usable)
+{
+	bool tx_hash_enable;
+	uint16_t min_links = 0;
+	int old_count;
+
+	old_count = fal_lag_get_usable_member_count(team_ifp);
+
+	fal_lag_member_enabled[ifp->if_port].enabled = enable;
+	fal_lag_member_enabled[ifp->if_port].usable = usable;
+
+	tx_hash_enable = (enable && usable);
+
+	if (fal_lag_member_enabled[ifp->if_port].tx_hash_enabled ==
+	    tx_hash_enable)
+		return 0;
+
+	if (!fal_lag_min_links(team_ifp, &min_links))
+		return fal_lag_set_member_tx_hash_state(ifp, tx_hash_enable);
+
+	if (old_count < min_links) {
+		if (tx_hash_enable)
+			/* Enable all */
+			return fal_lag_set_all_member_tx_hash_state(
+				team_ifp, tx_hash_enable);
+	} else if (old_count == min_links) {
+		if (!tx_hash_enable)
+			/* Disable all */
+			return fal_lag_set_all_member_tx_hash_state(
+				team_ifp, tx_hash_enable);
+	}
+	return fal_lag_set_member_tx_hash_state(ifp, tx_hash_enable);
+}
+
+static int
+fal_lag_select(struct ifnet *ifp, bool enable)
+{
+	struct ifnet *team_ifp;
+
+	team_ifp = ifp->aggregator;
+	if (ifp->if_type != IFT_ETHER || !team_ifp)
+		return -1;
+
+	if (fal_lag_member_enabled[ifp->if_port].enabled == enable)
+		return 0;
+
+	DP_DEBUG(LAG, DEBUG, DATAPLANE,
+		"teamd runner %sselected ifindex %d:%s (port %u)\n",
+		enable ? "" : "de", ifp->if_index, ifp->if_name, ifp->if_port);
+
+	return fal_lag_set_member_state(
+		team_ifp, ifp, enable,
+		fal_lag_member_enabled[ifp->if_port].usable);
 }
 
 static int
@@ -299,11 +430,15 @@ fal_lag_member_apply(struct ifnet *ifp)
 		},
 		{
 			.id = FAL_LAG_MEMBER_ATTR_EGRESS_DISABLE,
-			.value.booldata = fal_lag_member_enabled[ifp->if_port],
+			.value.booldata =
+			!(fal_lag_member_enabled[ifp->if_port].enabled &&
+			  fal_lag_member_enabled[ifp->if_port].usable),
 		},
 		{
 			.id = FAL_LAG_MEMBER_ATTR_INGRESS_DISABLE,
-			.value.booldata = fal_lag_member_enabled[ifp->if_port],
+			.value.booldata =
+			!(fal_lag_member_enabled[ifp->if_port].enabled &&
+			  fal_lag_member_enabled[ifp->if_port].usable),
 		},
 	};
 	int ret;
@@ -352,6 +487,8 @@ fal_lag_member_add(struct ifnet *team_ifp, struct ifnet *ifp)
 	if_notify_emb_feat_change(ifp);
 
 	if (fal_lag_can_create_in_fal(ifp)) {
+		/* Innocent till proven guilty */
+		fal_lag_member_enabled[ifp->if_port].usable = true;
 		ret = fal_lag_member_apply(ifp);
 		if (ret < 0) {
 			rcu_assign_pointer(ifp->aggregator, NULL);
@@ -405,6 +542,7 @@ fal_lag_member_delete(struct ifnet *team_ifp __unused, struct ifnet *ifp)
 	if (ret < 0)
 		return ret;
 
+	fal_lag_member_enabled[ifp->if_port].usable = false;
 	rcu_assign_pointer(ifp->aggregator, NULL);
 	if_notify_emb_feat_change(ifp);
 
@@ -504,21 +642,6 @@ fal_lag_set_l2_address(struct ifnet *ifp, struct rte_ether_addr *macaddr)
 }
 
 static int
-fal_lag_min_links(struct ifnet *ifp, uint16_t *min_links)
-{
-	struct dpdk_eth_if_softc *sc;
-
-	if (ifp->if_type != IFT_ETHER)
-		return -ENOTSUP;
-
-	sc = rcu_dereference(ifp->if_softc);
-	if (!sc || !sc->has_min_links)
-		return -EINVAL;
-	*min_links = sc->min_links;
-	return 0;
-}
-
-static int
 fal_lag_set_min_links(struct ifnet *ifp, uint16_t min_links)
 {
 	struct dpdk_eth_if_softc *sc = ifp->if_softc;
@@ -528,6 +651,39 @@ fal_lag_set_min_links(struct ifnet *ifp, uint16_t min_links)
 	return 0;
 }
 
+static bool
+fal_lag_port_is_member(struct ifnet *ifp)
+{
+	if (ifp->if_type != IFT_ETHER)
+		return false;
+
+	if (!ifp->aggregator)
+		return false;
+
+	return true;
+}
+
+static int
+fal_lag_set_member_usable(struct ifnet *ifp, bool usable)
+{
+	struct ifnet *team_ifp;
+
+	team_ifp = ifp->aggregator;
+	if (ifp->if_type != IFT_ETHER || !team_ifp)
+		return -1;
+
+	/* If no change then it's a no-op */
+	if (fal_lag_member_enabled[ifp->if_port].usable == usable)
+		return 0;
+
+	DP_DEBUG(LAG, DEBUG, DATAPLANE,
+		 "Member %d/%s signalled as %susable\n",
+		 ifp->if_index, ifp->if_name, usable ? "" : "un");
+
+	return fal_lag_set_member_state(
+		team_ifp, ifp, fal_lag_member_enabled[ifp->if_port].enabled,
+		usable);
+}
 
 const struct lag_ops fal_lag_ops = {
 	.lagop_etype_slow_tx = fal_lag_etype_slow_tx,
@@ -536,6 +692,7 @@ const struct lag_ops fal_lag_ops = {
 	.lagop_mode_set_balance = fal_lag_mode_set_balance,
 	.lagop_mode_set_activebackup = fal_lag_mode_set_activebackup,
 	.lagop_select = fal_lag_select,
+	.lagop_set_member_usable = fal_lag_set_member_usable,
 	.lagop_set_activeport = fal_lag_set_activeport,
 	.lagop_delete = fal_lag_delete,
 	.lagop_can_start = fal_lag_can_start,
@@ -550,6 +707,7 @@ const struct lag_ops fal_lag_ops = {
 	.lagop_set_l2_address = fal_lag_set_l2_address,
 	.lagop_min_links = fal_lag_min_links,
 	.lagop_set_min_links = fal_lag_set_min_links,
+	.lagop_port_is_member = fal_lag_port_is_member,
 };
 
 static void

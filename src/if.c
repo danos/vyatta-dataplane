@@ -3493,6 +3493,20 @@ int if_set_speed(struct ifnet *ifp, bool autoneg,
 	return ret;
 }
 
+int if_set_usability(struct ifnet *ifp, bool usability)
+{
+	const struct ift_ops *ops;
+
+	ops = if_get_ops(ifp);
+	if (!ops)
+		return -EINVAL;
+
+	if (ops->ifop_set_usability)
+		return ops->ifop_set_usability(ifp, usability);
+
+	return 0;
+}
+
 /* Show link state (only applies to physical ports) */
 static void show_link_state(json_writer_t *wr, struct ifnet *ifp)
 {
