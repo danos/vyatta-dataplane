@@ -979,6 +979,8 @@ void esp_input(struct crypto_pkt_ctx *ctx_arr[], uint16_t count)
 	count = crypto_rte_xform_packets(ctx_arr, count);
 
 	count = esp_input_post_decrypt(ctx_arr, count);
+
+	(void) count;
 }
 
 static inline unsigned int
