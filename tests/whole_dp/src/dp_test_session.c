@@ -1279,7 +1279,7 @@ DP_START_TEST(ssync1, test19)
 	struct session *peer = NULL;
 	struct npf_pack_message buf;
 
-	bzero(&buf, sizeof(buf));
+	memset(&buf, 0, sizeof(buf));
 
 	rc = dp_session_pack(s, &buf, sizeof(buf), SESSION_PACK_FULL, &peer);
 	dp_test_fail_unless(rc > 0, "dp_session_pack failed\n");
@@ -1548,7 +1548,7 @@ DP_START_TEST(ssync2, test20)
 	struct session *peer = NULL;
 	struct npf_pack_message buf;
 
-	bzero(&buf, sizeof(buf));
+	memset(&buf, 0, sizeof(buf));
 
 	rc = dp_session_pack(s, &buf, sizeof(buf), SESSION_PACK_FULL, &peer);
 	dp_test_fail_unless(rc > 0, "dp_session_pack failed\n");
