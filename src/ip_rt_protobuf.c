@@ -158,7 +158,7 @@ nexthop_list_create(Route *route, enum nh_type nh_type, bool *missing_ifp)
 	Path *path;
 	size_t i;
 
-	n = next = calloc(sizeof(*next), route->n_paths);
+	next = calloc(sizeof(*next), route->n_paths);
 	if (!next)
 		return NULL;
 
