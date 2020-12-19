@@ -529,7 +529,7 @@ npf_parse_ip_addr(char *value, sa_family_t *fam, npf_addr_t *addr,
 	return 0;
 }
 
-static void
+void
 npf_masklen_to_grouper_mask(sa_family_t fam, npf_netmask_t masklen,
 			    npf_addr_t *addr_mask)
 {
