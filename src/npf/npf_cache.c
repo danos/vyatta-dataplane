@@ -69,9 +69,12 @@
 
 #define IPV6_HDR_FO_MASK 0xFFF8		/* fragment hdr mask - in host order */
 
-static int npf_rw_proto_cksum(npf_cache_t *, struct rte_mbuf *, uint16_t);
-static int npf_set_ip_size(npf_cache_t *, struct rte_mbuf *, uint16_t);
-static int npf_rw_udp_len(npf_cache_t *, struct rte_mbuf *, uint16_t);
+static int npf_rw_proto_cksum(npf_cache_t *npc,
+			      struct rte_mbuf *nbuf, uint16_t sum);
+static int npf_set_ip_size(npf_cache_t *npc,
+			   struct rte_mbuf *nbuf, uint16_t sz);
+static int npf_rw_udp_len(npf_cache_t *npc,
+			  struct rte_mbuf *nbuf, uint16_t len);
 
 /*
  * Optimized version of npf_fetch_datum.

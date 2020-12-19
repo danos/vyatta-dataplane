@@ -137,17 +137,17 @@ static struct rte_meter_srtcm_params mfc_meter_params = {
 static struct rte_meter_srtcm_profile mfc_meter_profile;
 
 static struct rte_timer mrt_stats_timer;
-static void mrt_stats(struct rte_timer *, void *arg);
+static void mrt_stats(struct rte_timer *rtetm, void *arg);
 
 #define UPCALL_TIMER 1
 #ifdef UPCALL_TIMER
 static struct rte_timer expire_upcalls_ch;
-static void	expire_upcalls(struct rte_timer *, void *arg);
+static void	expire_upcalls(struct rte_timer *rtetm, void *arg);
 #endif
 
-static void	expire_mfc(struct vrf *, struct mfc *);
-static int	ip_mdq(struct mcast_vrf *, struct rte_mbuf *, struct ip *ip,
-		 struct ifnet *, struct mfc *);
+static void	expire_mfc(struct vrf *vrf, struct mfc *rt);
+static int	ip_mdq(struct mcast_vrf *mvrf, struct rte_mbuf *m,
+		       struct ip *ip, struct ifnet *in_ifp, struct mfc *rt);
 static void sg_cnt_update(struct vrf *vrf, struct mfc *rt,
 			  bool last_mfc_deletion);
 

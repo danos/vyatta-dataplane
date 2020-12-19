@@ -167,10 +167,10 @@ static struct rte_timer expire_upcalls_ch;
 static void expire_upcalls(struct rte_timer *rtetm, void *arg);
 #endif
 static struct rte_timer mrt6_stats_timer;
-static void mrt6_stats(struct rte_timer *, void *arg);
+static void mrt6_stats(struct rte_timer *rtetm, void *arg);
 
-static int ip6_mdq(struct mcast6_vrf *, struct rte_mbuf *,
-		   struct ifnet *, struct mf6c *);
+static int ip6_mdq(struct mcast6_vrf *mvrf6, struct rte_mbuf *m,
+		   struct ifnet *in_ifp, struct mf6c *rt);
 static void expire_mf6c(struct vrf *vrf, struct mf6c *rt);
 static void sg6_cnt_update(struct vrf *vrf, struct mf6c *rt,
 			   bool last_mfc_deletion);
