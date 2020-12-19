@@ -166,6 +166,7 @@ int access(const char *name, int type)
 	return real_access(name, type);
 }
 
+/* NOLINTNEXTLINE(readability-inconsistent-declaration-parameter-name) */
 int __xstat(int ver, const char *pathname, struct stat *buf)
 {
 	static int (*real_xstat)(int ver, const char *pathname,
@@ -184,6 +185,7 @@ int __xstat(int ver, const char *pathname, struct stat *buf)
 	return real_xstat(ver, pathname, buf);
 }
 
+/* NOLINTNEXTLINE(readability-inconsistent-declaration-parameter-name) */
 int __xstat64(int ver, const char *pathname, struct stat64 *buf)
 {
 	static int (*real_xstat64)(int ver, const char *pathname,
@@ -202,6 +204,7 @@ int __xstat64(int ver, const char *pathname, struct stat64 *buf)
 	return real_xstat64(ver, pathname, buf);
 }
 
+/* NOLINTNEXTLINE(readability-inconsistent-declaration-parameter-name) */
 void *dlopen(const char *filename, int flags)
 {
 	static void *(*real_dlopen)(const char *filename, int flags);
