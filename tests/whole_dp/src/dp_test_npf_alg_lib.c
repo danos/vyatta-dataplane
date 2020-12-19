@@ -304,6 +304,7 @@ _dp_test_npf_alg_tuple_verify(uint npf_id, const char *alg, uint8_t proto,
 		l += spush(str + l, sizeof(str) - l, ", srcip: %s", srcip);
 	if (dstip)
 		l += spush(str + l, sizeof(str) - l, ", dstip: %s", dstip);
+	(void) l;
 
 	jobj = dp_test_npf_json_get_alg_tuple(npf_id, alg, proto, dport,
 					      sport, dstip, srcip);

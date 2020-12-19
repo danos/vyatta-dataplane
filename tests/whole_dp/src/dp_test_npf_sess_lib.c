@@ -300,6 +300,8 @@ _dp_test_session_verify(char *desc,
 		   "  Src [%s, %d] Dst [%s, %d] proto %d %s",
 		   saddr, src_id, daddr, dst_id, proto, intf);
 
+	(void) l;
+
 	if (!ok) {
 		printf("not ok\n");
 		spush(err_str, sizeof(err_str),
@@ -588,6 +590,7 @@ _dp_test_npf_nat_session_verify(char *desc,
 	l += spush(sess_str+l, sizeof(sess_str)-l, " proto %d %s",
 		   proto, intf);
 	l += spush(sess_str+l, sizeof(sess_str)-l, " ttype %d", trans_type);
+	(void) l;
 
 	if (!ok) {
 		spush(err_str, sizeof(err_str),
@@ -1526,6 +1529,7 @@ int dp_test_session_counters(const char *options,
 	l = snprintf(cmd, sizeof(cmd), "session-op show dataplane sessions");
 	if (options)
 		l += snprintf(cmd+l, sizeof(cmd)-l, " %s", options);
+	(void) l;
 
 	response = dp_test_console_request_w_err(cmd, &err, false);
 	if (!response || err)
@@ -1627,6 +1631,7 @@ void dpt_show_sessions2(const char *options)
 	l = snprintf(cmd, sizeof(cmd), "session-op show dataplane sessions");
 	if (options)
 		l += snprintf(cmd+l, sizeof(cmd)-l, " %s", options);
+	(void) l;
 
 	response = dp_test_console_request_w_err(cmd, &err, false);
 	if (!response || err)

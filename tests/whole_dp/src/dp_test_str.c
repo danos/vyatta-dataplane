@@ -79,6 +79,7 @@ dp_test_ipstr_to_range(const char *ipstr, char *range, uint rlen)
 	int l;
 	l = spush(range, rlen, "%s-", inet_ntoa(lo));
 	l += spush(range + l, rlen - l, "%s", inet_ntoa(hi));
+	(void) l;
 
 	return 1;
 }

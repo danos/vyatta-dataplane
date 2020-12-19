@@ -3261,6 +3261,7 @@ get_next_flow_field_combo(struct flow_fields *value)
 			    ": %s, %s: %d,%d",
 			    value->ip_src_str, value->ip_dst_str,
 			    value->udp_src, value->udp_dst);
+	(void) written;
 	return true;
 }
 

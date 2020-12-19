@@ -222,6 +222,7 @@ _pbr_set_policy_ip(const char *intf, const char *name, int rule,
 	if (dst != NULL)
 		len += snprintf(match + len, sizeof(match) - len,
 				"to %s ", dst);
+	(void) len;
 
 	if (vrf_id) {
 		snprintf(vrf_rproc, sizeof(vrf_rproc),
