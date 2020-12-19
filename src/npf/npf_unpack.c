@@ -258,7 +258,6 @@ static int npf_pack_unpack_one_session(struct npf_pack_session_new *csn,
 
 	npf_pack_delete_old_session(&cs->pds, psp);
 	psh = &csn->hdr;
-	rc = -EINVAL;
 
 	switch (psh->psh_type) {
 	case NPF_PACK_SESSION_NEW_FW:

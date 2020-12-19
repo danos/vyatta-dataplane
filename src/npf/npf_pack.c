@@ -222,7 +222,6 @@ static int npf_pack_pack_one_session(struct session *s,
 
 	psh = &csn->hdr;
 	psh->psh_type = msg_type;
-	rc = -EINVAL;
 
 	switch (psh->psh_type) {
 	case NPF_PACK_SESSION_NEW_FW:
