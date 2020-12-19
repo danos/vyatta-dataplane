@@ -554,7 +554,7 @@ _dp_test_check_state_clean(const char *file, int line, bool print)
 		if (!expected_json) {
 			printf("%s:%d %s - %s", __FILE__, __LINE__, __func__,
 			       parse_err_str);
-			dp_test_assert_internal(!"dp_test_json_create failed");
+			dp_test_abort_internal();
 		}
 
 		if (cmd_expect_clean_json[i].filter[0])
@@ -596,7 +596,7 @@ dp_test_json_create(const char *fmt_str, ...)
 	if (!jobj) {
 		printf("%s:%d %s - %s", __FILE__, __LINE__, __func__,
 		       parse_err_str);
-		dp_test_assert_internal(!"dp_test_json_create failed");
+		dp_test_abort_internal();
 	}
 	return jobj;
 };
