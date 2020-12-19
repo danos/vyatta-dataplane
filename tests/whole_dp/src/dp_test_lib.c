@@ -367,7 +367,7 @@ dp_test_parse_dp_nh(const char *nh_string, struct dp_test_nh *nh)
 		strncpy(buf, str, len);
 		buf[len] = '\0';
 		if (!dp_test_addr_str_to_addr(buf, &nh->nh_addr))
-			dp_test_assert_internal(0);
+			dp_test_abort_internal();
 		str = strchrnul(str, ' ');
 
 		if (*str) {

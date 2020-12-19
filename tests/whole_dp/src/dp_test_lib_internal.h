@@ -118,6 +118,13 @@ bool dp_test_read_pkt_available(void);
 		assert(expr);						\
 	})
 
+#define dp_test_abort_internal()					\
+	({								\
+		printf("Internal error: %s:%d\n",			\
+			       __func__, __LINE__);			\
+		abort();						\
+	})
+
 /* override soft-ticks time for tests that want to do timer dependent stuff. */
 void dp_test_enable_soft_tick_override(void);
 void dp_test_disable_soft_tick_override(void);

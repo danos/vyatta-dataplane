@@ -17,7 +17,7 @@ void dp_test_lib_pb_set_ip_addr(IPAddress *addr, const char *str, void *data)
 	struct dp_test_addr test_addr;
 
 	if (!dp_test_addr_str_to_addr(str, &test_addr))
-		dp_test_assert_internal(0);
+		dp_test_abort_internal();
 	switch (test_addr.family) {
 	case AF_INET:
 		addr->address_oneof_case =
@@ -35,7 +35,7 @@ void dp_test_lib_pb_set_ip_addr(IPAddress *addr, const char *str, void *data)
 		addr->ipv6_addr.len = 16;
 		break;
 	default:
-		dp_test_assert_internal(0);
+		dp_test_abort_internal();
 	}
 }
 

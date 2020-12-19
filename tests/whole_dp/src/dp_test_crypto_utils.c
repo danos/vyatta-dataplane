@@ -61,7 +61,7 @@ static struct xfrm_algo *cipher_algo_alloc(const char *alg_name,
 	if (key_len_in_bits != 128 && key_len_in_bits != 256 &&
 	    key_len_in_bits == AES128GM_KEY_LEN &&
 	    strcmp(alg_name, "eNULL") != 0)
-		dp_test_assert_internal(0);
+		dp_test_abort_internal();
 
 	cipher_algo = malloc(sizeof(*cipher_algo) + key_len_in_bytes);
 	dp_test_assert_internal(cipher_algo);
@@ -83,7 +83,7 @@ static struct xfrm_algo_aead *algo_aead_alloc(const char *alg_name,
 
 	if (key_len_in_bits != AES128GM_KEY_LEN ||
 	    strcmp(alg_name, "rfc4106(gcm(aes))") != 0)
-		dp_test_assert_internal(0);
+		dp_test_abort_internal();
 
 	aead_algo = malloc(sizeof(*aead_algo) + key_len_in_bytes);
 	dp_test_assert_internal(aead_algo);
@@ -105,7 +105,7 @@ static struct xfrm_algo_auth *auth_algo_alloc(const char *alg_name,
 
 	/* Only 160 bit keys are supported */
 	if (key_len_in_bits != 160 && strcmp(alg_name, "aNULL") != 0)
-		dp_test_assert_internal(0);
+		dp_test_abort_internal();
 
 	algo_auth = malloc(sizeof(*algo_auth) + key_len_in_bytes);
 	dp_test_assert_internal(algo_auth);
@@ -357,11 +357,11 @@ static void build_xfrm_selector(struct xfrm_selector *sel,
 
 	if (dp_test_prefix_str_to_xfrm_addr(d_prefix, &sel->daddr,
 					    &sel->prefixlen_d, family))
-		dp_test_assert_internal(0);
+		dp_test_abort_internal();
 
 	if (dp_test_prefix_str_to_xfrm_addr(s_prefix, &sel->saddr,
 					    &sel->prefixlen_s, family))
-		dp_test_assert_internal(0);
+		dp_test_abort_internal();
 
 	sel->family = family;
 	sel->proto = proto;
@@ -613,7 +613,7 @@ void _dp_test_crypto_create_policy(const char *file, int line,
 
 	if (dp_test_prefix_str_to_xfrm_addr(policy->dst, &dst,
 					    NULL, policy->dst_family))
-		dp_test_assert_internal(0);
+		dp_test_abort_internal();
 
 	_dp_test_netlink_xfrm_policy(XFRM_MSG_NEWPOLICY,
 				     &sel, &dst,
@@ -649,7 +649,7 @@ void _dp_test_crypto_delete_policy(const char *file, int line,
 
 	if (dp_test_prefix_str_to_xfrm_addr(policy->dst, &dst,
 					    NULL, policy->dst_family))
-		dp_test_assert_internal(0);
+		dp_test_abort_internal();
 
 	_dp_test_netlink_xfrm_policy(XFRM_MSG_DELPOLICY,
 				     &sel, &dst,

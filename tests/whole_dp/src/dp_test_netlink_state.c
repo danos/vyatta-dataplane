@@ -254,7 +254,7 @@ dp_test_netlink_interface_l2_all(const char *ifname, int mtu,
 	mnl_attr_nest_end(nlh, linkinfo);
 
 	if (nl_generate_topic(nlh, topic, sizeof(topic)) < 0)
-		dp_test_assert_internal(0);
+		dp_test_abort_internal();
 
 	if (verify) {
 		struct rte_ether_addr *mac_addr;
@@ -551,7 +551,7 @@ dp_test_netlink_tunnel(const char *tun_name,
 	mnl_attr_put_strz(nlh, IFLA_IFNAME, tun_name);
 
 	if (nl_generate_topic(nlh, topic, sizeof(topic)) < 0)
-		dp_test_assert_internal(0);
+		dp_test_abort_internal();
 
 	if (verify) {
 		char cmd[TEST_MAX_CMD_LEN];
@@ -704,7 +704,7 @@ dp_test_netlink_ppp(const char *intf_name,
 	mnl_attr_put_strz(nlh, IFLA_IFNAME, intf_name);
 
 	if (nl_generate_topic(nlh, topic, sizeof(topic)) < 0)
-		dp_test_assert_internal(0);
+		dp_test_abort_internal();
 
 	if (verify) {
 		char cmd[TEST_MAX_CMD_LEN];
@@ -1106,7 +1106,7 @@ dp_test_netlink_ip_address(const char *ifname, const char *prefix_str,
 					 prefix.len));
 
 	if (nl_generate_topic(nlh, topic, sizeof(topic)) < 0)
-		dp_test_assert_internal(0);
+		dp_test_abort_internal();
 
 	if (verify) {
 		/*
@@ -1674,7 +1674,7 @@ dp_test_netlink_route_nl(struct dp_test_route *route, uint16_t nl_type,
 		}
 
 		if (nl_generate_topic(nlh, topic, sizeof(topic)) < 0)
-			dp_test_assert_internal(0);
+			dp_test_abort_internal();
 
 		nl_propagate_broker(topic, nlh, nlh->nlmsg_len);
 	}
@@ -2099,7 +2099,7 @@ void _dp_test_mroute_nl(uint16_t nlmsg_type, const char *src,
 	dp_test_free_route(route);
 
 	if (nl_generate_topic(nlh, topic, sizeof(topic)) < 0)
-		dp_test_assert_internal(0);
+		dp_test_abort_internal();
 
 	nl_propagate(topic, nlh);
 }
@@ -2182,7 +2182,7 @@ void _dp_test_netlink_netconf_mcast(const char *ifname, int af, bool enable,
 	mnl_attr_put_u32(nlh, NETCONFA_PROXY_NEIGH, 0);
 
 	if (nl_generate_topic(nlh, topic, sizeof(topic)) < 0)
-		dp_test_assert_internal(0);
+		dp_test_abort_internal();
 
 	nl_propagate(topic, nlh);
 }
@@ -2262,7 +2262,7 @@ dp_test_netlink_bridge(const char *br_name, uint16_t nlmsg_type, bool verify,
 
 
 	if (nl_generate_topic(nlh, topic, sizeof(topic)) < 0)
-		dp_test_assert_internal(0);
+		dp_test_abort_internal();
 
 	if (verify) {
 		char cmd[TEST_MAX_CMD_LEN];
@@ -2354,7 +2354,7 @@ dp_test_netlink_bridge_port_state(const char *br_name, const char *eth_name,
 	mnl_attr_nest_end(nlh, br_proto_info);
 
 	if (nl_generate_topic(nlh, topic, sizeof(topic)) < 0)
-		dp_test_assert_internal(0);
+		dp_test_abort_internal();
 
 	/*
 	 * And now test it is there. Display bridge and look for port.
@@ -2520,7 +2520,7 @@ _dp_test_netlink_bridge_port_set(const char *br_name,
 		mnl_attr_nest_end(nlh, br_af_spec);
 	}
 	if (nl_generate_topic(nlh, topic, sizeof(topic)) < 0)
-		dp_test_assert_internal(0);
+		dp_test_abort_internal();
 
 	/*We need to generate the expected vlan_filtering object*/
 	char *vlanbuf = NULL;
@@ -2638,7 +2638,7 @@ void _dp_test_netlink_set_bridge_vlan_filter(const char *br_name, bool verify,
 
 
 	if (nl_generate_topic(nlh, topic, sizeof(topic)) < 0)
-		dp_test_assert_internal(0);
+		dp_test_abort_internal();
 
 	if (verify) {
 		char cmd[TEST_MAX_CMD_LEN];
@@ -2841,7 +2841,7 @@ dp_test_netlink_vxlan(const char *vxlan_name, uint16_t nlmsg_type,
 	mnl_attr_nest_end(nlh, vxlan_info);
 
 	if (nl_generate_topic(nlh, topic, sizeof(topic)) < 0)
-		dp_test_assert_internal(0);
+		dp_test_abort_internal();
 
 	if (verify) {
 		char cmd[TEST_MAX_CMD_LEN];
@@ -2988,7 +2988,7 @@ dp_test_netlink_vlan(const char *vif_name, uint16_t nlmsg_type,
 				 dp_test_intf_name2index(real_parent_name));
 
 	if (nl_generate_topic(nlh, topic, sizeof(topic)) < 0)
-		dp_test_assert_internal(0);
+		dp_test_abort_internal();
 
 	if (verify) {
 		char cmd[TEST_MAX_CMD_LEN];
@@ -3123,7 +3123,7 @@ dp_test_netlink_macvlan(const char *vif_name, uint16_t nlmsg_type,
 				 dp_test_intf_name2index(real_parent_name));
 
 	if (nl_generate_topic(nlh, topic, sizeof(topic)) < 0)
-		dp_test_assert_internal(0);
+		dp_test_abort_internal();
 
 	if (verify) {
 		char cmd[TEST_MAX_CMD_LEN];
@@ -3255,7 +3255,7 @@ dp_test_netlink_vti(const char *tun_name,
 	mnl_attr_put_strz(nlh, IFLA_IFNAME, tun_name);
 
 	if (nl_generate_topic(nlh, topic, sizeof(topic)) < 0)
-		dp_test_assert_internal(0);
+		dp_test_abort_internal();
 
 	nl_propagate(topic, nlh);
 
@@ -3347,7 +3347,7 @@ dp_test_netlink_lo_or_vfp(const char *name, bool verify, uint16_t nl_type,
 	mnl_attr_put_u32(nlh, IFLA_GROUP, 0);
 
 	if (nl_generate_topic(nlh, topic, sizeof(topic)) < 0)
-		dp_test_assert_internal(0);
+		dp_test_abort_internal();
 
 	if (verify) {
 		char cmd[TEST_MAX_CMD_LEN];
@@ -3456,7 +3456,7 @@ dp_test_netlink_vrf_if(const char *name, bool verify, uint16_t nl_type,
 	mnl_attr_put_u32(nlh, IFLA_GROUP, 0);
 
 	if (nl_generate_topic(nlh, topic, sizeof(topic)) < 0)
-		dp_test_assert_internal(0);
+		dp_test_abort_internal();
 
 	if (verify) {
 		char cmd[TEST_MAX_CMD_LEN];
@@ -3806,7 +3806,7 @@ void _dp_test_netlink_xfrm_policy(uint16_t nlmsg_type,
 	char topic[DP_TEST_TMP_BUF];
 
 	if (nl_generate_topic_xfrm(nlh, topic, sizeof(topic)) < 0)
-		dp_test_assert_internal(0);
+		dp_test_abort_internal();
 	/* Signal an end of batch. This is a single msg batch */
 	nl_propagate_xfrm(xfrm_server_push_sock, nlh, nlh->nlmsg_len, "END");
 }
@@ -3847,7 +3847,7 @@ void _dp_test_netlink_xfrm_newsa(uint32_t spi, /* Network byte order */
 	sa_info = mnl_nlmsg_put_extra_header(nlh, sizeof(*sa_info));
 	if (dp_test_setup_xfrm_usersa_info(sa_info, dst, src,
 					   spi, family, mode, reqid, flags))
-		dp_test_assert_internal(0);
+		dp_test_abort_internal();
 
 	if (crypto_algo) {
 		key_len = crypto_algo->alg_key_len / 8;
@@ -3889,7 +3889,7 @@ void _dp_test_netlink_xfrm_newsa(uint32_t spi, /* Network byte order */
 	}
 
 	if (nl_generate_topic_xfrm(nlh, topic, sizeof(topic)) < 0)
-		dp_test_assert_internal(0);
+		dp_test_abort_internal();
 	/* Signal an end of batch. This is a single msg batch */
 	nl_propagate_xfrm(xfrm_server_push_sock, nlh, nlh->nlmsg_len, "END");
 }
@@ -3919,13 +3919,13 @@ void dp_test_netlink_xfrm_delsa(uint32_t spi, /* Network byte order */
 	usersa_id->family = family;
 
 	if (dp_test_prefix_str_to_xfrm_addr(dst, &daddr, NULL, family))
-		dp_test_assert_internal(0);
+		dp_test_abort_internal();
 	memcpy(&usersa_id->daddr, &daddr, sizeof(usersa_id->daddr));
 	usersa_id->spi = spi;
 
 	if (dp_test_setup_xfrm_usersa_info(&usersa_info, dst, src,
 					   spi, family, mode, reqid, 0))
-		dp_test_assert_internal(0);
+		dp_test_abort_internal();
 
 	if (vrfid != VRF_DEFAULT_ID && vrfid != VRF_UPLINK_ID) {
 		usersa_info.sel.ifindex = dp_test_translate_vrf_id(vrfid);
@@ -3934,7 +3934,7 @@ void dp_test_netlink_xfrm_delsa(uint32_t spi, /* Network byte order */
 	mnl_attr_put(nlh, XFRMA_SA, sizeof(usersa_info), &usersa_info);
 
 	if (nl_generate_topic_xfrm(nlh, topic, sizeof(topic)) < 0)
-		dp_test_assert_internal(0);
+		dp_test_abort_internal();
 	/* Signal an end of batch. This is a single msg batch */
 	nl_propagate_xfrm(xfrm_server_push_sock, nlh, nlh->nlmsg_len, "END");
 }
@@ -3963,7 +3963,7 @@ void dp_test_netlink_xfrm_getsa(uint32_t spi, /* Network byte order */
 	usersa_id->family = family;
 
 	if (dp_test_prefix_str_to_xfrm_addr(dst, &daddr, NULL, family))
-		dp_test_assert_internal(0);
+		dp_test_abort_internal();
 	memcpy(&usersa_id->daddr, &daddr, sizeof(usersa_id->daddr));
 	usersa_id->spi = spi;
 
@@ -4009,13 +4009,13 @@ void dp_test_netlink_xfrm_expire(uint32_t spi, /* Network byte order */
 
 	if (dp_test_setup_xfrm_usersa_info(&expire->state, dst, src,
 					   spi, family, mode, reqid, 0))
-		dp_test_assert_internal(0);
+		dp_test_abort_internal();
 
 	if (vrfid != VRF_DEFAULT_ID && vrfid != VRF_UPLINK_ID)
 		expire->state.sel.ifindex = dp_test_translate_vrf_id(vrfid);
 
 	if (nl_generate_topic_xfrm(nlh, topic, sizeof(topic)) < 0)
-		dp_test_assert_internal(0);
+		dp_test_abort_internal();
 	/* Signal an end of batch. This is a single msg batch */
 	nl_propagate_xfrm(xfrm_server_push_sock, nlh, nlh->nlmsg_len, "END");
 }

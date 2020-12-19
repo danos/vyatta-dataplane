@@ -961,13 +961,13 @@ dp_test_json_route_add(json_object *route_set,
 			mpls_ls_get_label(route->prefix.addr.addr.mpls));
 		if (!json_object_object_get_ex(route_set, "mpls_tables",
 					       &mpls_tables_json))
-			dp_test_assert_internal(0);
+			dp_test_abort_internal();
 
 		mpls_table_json = json_object_array_get_idx(
 			mpls_tables_json, 0);
 		if (!json_object_object_get_ex(mpls_table_json,
 					       "mpls_routes", &routes))
-			dp_test_assert_internal(0);
+			dp_test_abort_internal();
 	} else {
 		if (route->prefix.addr.family == AF_INET) {
 			route_lookup_str = "route_lookup";
@@ -995,7 +995,7 @@ dp_test_json_route_add(json_object *route_set,
 			if (!json_object_object_get_ex(route_set,
 						       route_lookup_str,
 						       &routes))
-				dp_test_assert_internal(0);
+				dp_test_abort_internal();
 		} else {
 			json_route = dp_test_json_create(
 				"    {"
@@ -1014,12 +1014,12 @@ dp_test_json_route_add(json_object *route_set,
 			if (!json_object_object_get_ex(route_set,
 						       route_show_str,
 						       &routes))
-				dp_test_assert_internal(0);
+				dp_test_abort_internal();
 		}
 	}
 
 	if (json_object_array_add(routes, json_route) != 0)
-		dp_test_assert_internal(0);
+		dp_test_abort_internal();
 	return json_route;
 }
 
@@ -1560,7 +1560,7 @@ dp_test_json_intf_add(json_object *intf_set, const char *ifname,
 
 	if (!json_object_object_get_ex(intf_set, "interfaces",
 				       &intfs))
-		dp_test_assert_internal(0);
+		dp_test_abort_internal();
 
 	link_str =
 	"  \"link\": "
@@ -1677,7 +1677,7 @@ dp_test_json_intf_add(json_object *intf_set, const char *ifname,
 		dp_test_exp_ipv6_out_feat());
 
 	if (json_object_array_add(intfs, intf) != 0)
-		dp_test_assert_internal(0);
+		dp_test_abort_internal();
 
 	return intf;
 }
@@ -1705,7 +1705,7 @@ dp_test_json_intf_add_lo(json_object *intf_set, const char *ifname)
 
 	if (!json_object_object_get_ex(intf_set, "interfaces",
 				       &intfs))
-		dp_test_assert_internal(0);
+		dp_test_abort_internal();
 
 	intf = dp_test_json_create("{"
 				   "  \"name\": \"%s\","
@@ -1773,7 +1773,7 @@ dp_test_json_intf_add_lo(json_object *intf_set, const char *ifname)
 	dp_test_assert_internal(intf);
 
 	if (json_object_array_add(intfs, intf) != 0)
-		dp_test_assert_internal(0);
+		dp_test_abort_internal();
 
 	return intf;
 }
