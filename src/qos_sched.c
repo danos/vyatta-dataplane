@@ -3620,6 +3620,9 @@ static int cmd_qos_mark_map(int argc, char **argv)
 		/* account for extra drop-prec <value> args */
 		argc -= 2;
 		argv += 2;
+
+		(void) argc;
+		(void) argv;
 	} else {
 
 		DP_DEBUG(QOS, DEBUG, DATAPLANE,
