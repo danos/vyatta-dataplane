@@ -506,7 +506,7 @@ void vti_reqid_set(const xfrm_address_t *dst, uint8_t family,
 void vti_reqid_clear(const xfrm_address_t *dst, uint8_t family, uint32_t mark);
 
 void crypto_expire_request(uint32_t spi, uint32_t reqid,
-			   xfrm_address_t dest, uint16_t family,
+			   xfrm_address_t dst, uint16_t family,
 			   uint8_t proto, uint8_t hard);
 void crypto_engine_init(void);
 void crypto_engine_shutdown(void);

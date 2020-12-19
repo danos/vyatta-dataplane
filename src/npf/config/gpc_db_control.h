@@ -63,7 +63,7 @@ void gpc_rule_change_rule(struct gpc_rule *gprl, struct pmf_rule *new_rule);
 
 void gpc_rule_hw_ntfy_create(struct gpc_group *gprg, struct gpc_rule *gprl);
 void gpc_rule_hw_ntfy_modify(struct gpc_group *gprg, struct gpc_rule *gprl,
-				struct pmf_rule *new_rule);
+				struct pmf_rule *old_rule);
 void gpc_rule_hw_ntfy_delete(struct gpc_group *gprg, struct gpc_rule *gprl);
 
 
