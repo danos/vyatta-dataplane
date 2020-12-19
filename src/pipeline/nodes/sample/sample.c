@@ -60,7 +60,7 @@ sample_process(struct pl_packet *pkt __attribute__((unused)),
 static int
 sample_feat_cmd(struct pb_msg *msg)
 {
-	int ret;
+	int ret = 0;
 
 	SampleFeatConfig *sample_msg =
 		sample_feat_config__unpack(NULL, msg->msg_len, msg->msg);
@@ -75,12 +75,10 @@ sample_feat_cmd(struct pb_msg *msg)
 	}
 
 	if (sample_msg->is_active == false) {
-		ret = dp_pipeline_disable_feature_by_inst("sample:sample",
-							  sample_msg->if_name);
-		ret = dp_pipeline_unregister_inst_storage("sample:sample",
-							  sample_msg->if_name);
-		if (ret)
-			goto out;
+		dp_pipeline_disable_feature_by_inst("sample:sample",
+						    sample_msg->if_name);
+		dp_pipeline_unregister_inst_storage("sample:sample",
+						    sample_msg->if_name);
 	} else {
 		ret = dp_pipeline_register_inst_storage("sample:sample",
 							sample_msg->if_name,
