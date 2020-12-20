@@ -96,7 +96,7 @@ static int ftp_parse_port(struct ftp_parse *fp, char *sptr, int dlen)
 	if (dlen < 18)
 		return -ENOENT;
 
-	if (memcmp("PORT ", sptr, 5))
+	if (memcmp("PORT ", sptr, 5) != 0)
 		return -ENOENT;
 
 	/* scan rest, make sure we stop */
@@ -130,7 +130,7 @@ static int ftp_parse_229(struct ftp_parse *fp, npf_cache_t *npc,
 	if (dlen < 11)
 		return -ENOENT;
 
-	if (strncmp("229 ", sptr, 4))
+	if (strncmp("229 ", sptr, 4) != 0)
 		return -ENOENT;
 
 	/* advance to '(' */
@@ -168,7 +168,7 @@ static int ftp_parse_eprt(struct ftp_parse *fp, char *sptr, int dlen)
 	if (dlen < 18)
 		return -ENOENT;
 
-	if (memcmp("EPRT ", sptr, 5))
+	if (memcmp("EPRT ", sptr, 5) != 0)
 		return -ENOENT;
 
 	rc = sscanf(sptr+5, "%c%d%c%64[0-9.a-fA-f:]%c%lu",
@@ -221,7 +221,7 @@ static int ftp_parse_227(struct ftp_parse *fp, char *sptr, int dlen)
 	if (dlen < 17)
 		return -ENOENT;
 
-	if (strncmp("227 ", sptr, 4))
+	if (strncmp("227 ", sptr, 4) != 0)
 		return -ENOENT;
 
 	/*

@@ -140,7 +140,7 @@ static int l2tp_recv_encap(struct rte_mbuf *m,
 		return 1;
 
 	if (s->peer_cookie_len != 0
-		&& memcmp(l2tp, s->peer_cookie, s->peer_cookie_len)) {
+		&& memcmp(l2tp, s->peer_cookie, s->peer_cookie_len) != 0) {
 		++stats->rx_cookie_discards;
 		return -1; /* discard - bad cookie */
 	}

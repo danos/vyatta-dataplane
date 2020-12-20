@@ -268,9 +268,9 @@ static int apt_table_match(struct cds_lfht_node *node, const void *key)
 			return 0;
 		if (at->at_dport != m->m_dport)
 			return 0;
-		if (memcmp(&at->at_srcip, m->m_srcip, m->m_alen))
+		if (memcmp(&at->at_srcip, m->m_srcip, m->m_alen) != 0)
 			return 0;
-		if (memcmp(&at->at_dstip, m->m_dstip, m->m_alen))
+		if (memcmp(&at->at_dstip, m->m_dstip, m->m_alen) != 0)
 			return 0;
 		break;
 

@@ -42,7 +42,7 @@ dp_test_cmd_sock_recv1(enum cont_src_en cont_src, zsock_t *cmd_sock,
 	char *topic = zmsg_popstr(msg);
 
 	if (!return_err)
-		dp_test_assert_internal(strncmp("ERROR", topic, 5));
+		dp_test_assert_internal(strncmp("ERROR", topic, 5) != 0);
 	else
 		*return_err = !strncmp("ERROR", topic, 5);
 

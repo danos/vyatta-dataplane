@@ -438,7 +438,7 @@ static int cmd_init_sf(FILE *f, struct session_filter_params *sf,
 	int tmp;
 
 	/* Source address */
-	if (strncmp(saddr, "any", 3)) {
+	if (strncmp(saddr, "any", 3) != 0) {
 		if (inet_pton(AF_INET, saddr, sf->sf_srcip) == 1)
 			sf->sf_s_af = AF_INET;
 		else if (inet_pton(AF_INET6, saddr, sf->sf_srcip) == 1)
@@ -451,7 +451,7 @@ static int cmd_init_sf(FILE *f, struct session_filter_params *sf,
 		sf->sf_flags |= FILTER_BY_ANY_SRCIP;
 
 	/* Destination address */
-	if (strncmp(daddr, "any", 3)) {
+	if (strncmp(daddr, "any", 3) != 0) {
 		if (inet_pton(AF_INET, daddr, sf->sf_dstip) == 1)
 			sf->sf_d_af = AF_INET;
 		else if (inet_pton(AF_INET6, daddr, sf->sf_dstip) == 1)
@@ -464,7 +464,7 @@ static int cmd_init_sf(FILE *f, struct session_filter_params *sf,
 		sf->sf_flags |= FILTER_BY_ANY_DSTIP;
 
 	/* Source port/id */
-	if (strncmp(sid, "any", 3)) {
+	if (strncmp(sid, "any", 3) != 0) {
 		tmp = arg_to_int(sid);
 		if (tmp < 0 || tmp > USHRT_MAX) {
 			cmd_err(f, "invalid filter source id: %s\n", sid);
@@ -475,7 +475,7 @@ static int cmd_init_sf(FILE *f, struct session_filter_params *sf,
 		sf->sf_flags |= FILTER_BY_ANY_SRC_ID;
 
 	/* Destination port/id */
-	if (strncmp(did, "any", 3)) {
+	if (strncmp(did, "any", 3) != 0) {
 		tmp = arg_to_int(did);
 		if (tmp < 0 || tmp > USHRT_MAX) {
 			cmd_err(f, "invalid filter destination id: %s\n", did);
@@ -486,7 +486,7 @@ static int cmd_init_sf(FILE *f, struct session_filter_params *sf,
 		sf->sf_flags |= FILTER_BY_ANY_DST_ID;
 
 	/* protocol */
-	if (strncmp(proto, "any", 3)) {
+	if (strncmp(proto, "any", 3) != 0) {
 		tmp = arg_to_int(proto);
 		if (tmp < 0 || tmp > USHRT_MAX) {
 			cmd_err(f, "invalid filter protocol: %s\n", proto);

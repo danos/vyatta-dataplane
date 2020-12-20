@@ -220,7 +220,7 @@ static struct if_addr *ifa_find(struct ifnet *ifp, int family,
 		case AF_INET6:
 			sin6 = satosin6(sa);
 			if (memcmp(&sin6->sin6_addr, addr,
-				   sizeof(struct in6_addr)))
+				   sizeof(struct in6_addr)) != 0)
 				continue;
 			break;
 		default:

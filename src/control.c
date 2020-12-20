@@ -589,7 +589,7 @@ find_msg_handler(const struct msg_handler *handlers,
 	struct dynamic_cfg_command_entry *dynamic_cmd;
 
 	for (h = handlers; h->topic; ++h) {
-		if (memcmp(name, h->topic, MIN(len, strlen(h->topic))))
+		if (memcmp(name, h->topic, MIN(len, strlen(h->topic))) != 0)
 			continue;
 
 		return h;
@@ -599,7 +599,7 @@ find_msg_handler(const struct msg_handler *handlers,
 	cds_list_for_each_entry_rcu(dynamic_cmd, &dynamic_cfg_command_list_head,
 				    list_entry) {
 		if (memcmp(name, dynamic_cmd->handler.topic,
-			   MIN(len, strlen(dynamic_cmd->handler.topic))))
+			   MIN(len, strlen(dynamic_cmd->handler.topic))) != 0)
 			continue;
 		return &dynamic_cmd->handler;
 	}

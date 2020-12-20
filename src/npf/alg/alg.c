@@ -684,7 +684,7 @@ int npf_alg_reserve_translations(npf_session_t *parent, int nr_ports,
 	 * Ensure that the translations come from the same
 	 * (parent) translation address.
 	 */
-	if (memcmp(addr, &paddr, alen)) {
+	if (memcmp(addr, &paddr, alen) != 0) {
 		tmp = ntohs(*port);
 		for (i = 0; i < nr_ports; i++)
 			npf_nat_free_map(np, rl, nat_flags, ip_prot, vrfid,

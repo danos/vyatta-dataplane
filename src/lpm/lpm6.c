@@ -303,7 +303,7 @@ rule_find_any(struct lpm6 *lpm, const uint8_t *ip, uint8_t depth)
 	else
 		r = RB_MAX(lpm6_rules_tree, &lpm->rules[depth]);
 
-	if (r && memcmp(ip, r->ip, LPM6_IPV6_ADDR_SIZE))
+	if (r && memcmp(ip, r->ip, LPM6_IPV6_ADDR_SIZE) != 0)
 		return NULL;
 
 	return r;
@@ -1349,7 +1349,8 @@ static int rule_replace(struct lpm6 *lpm, struct lpm6_rule *old_rule,
 		 * with a lower scope. Otherwise it is not, and we
 		 * need to check a different depth.
 		 */
-		if (memcmp(old_rule->ip, sub_rule->ip, LPM6_IPV6_ADDR_SIZE))
+		if (memcmp(old_rule->ip,
+			   sub_rule->ip, LPM6_IPV6_ADDR_SIZE) != 0)
 			sub_rule = NULL;
 		else
 			sub_depth = depth;
@@ -1560,7 +1561,8 @@ void lpm6_subtree_walk(struct lpm6 *lpm,
 
 		RB_FOREACH_FROM(r, lpm6_rules_tree, n) {
 			mask_ip6(masked_ip, r->ip, root_depth);
-			if (memcmp(masked_ip, root_ip, LPM6_IPV6_ADDR_SIZE))
+			if (memcmp(masked_ip,
+				   root_ip, LPM6_IPV6_ADDR_SIZE) != 0)
 				break;
 			/*
 			 * Have to take a copy of the IP addr as the callback
@@ -1737,7 +1739,7 @@ lpm6_tracker_update(struct lpm6 *lpm, struct lpm6_rule *old_rule,
 		mask_ip6(masked_ip,
 			 (const uint8_t *)&ti_iter->dst_addr.address.ip_v6,
 			 depth);
-		if (memcmp(masked_ip, ip, LPM6_IPV6_ADDR_SIZE))
+		if (memcmp(masked_ip, ip, LPM6_IPV6_ADDR_SIZE) != 0)
 			break;
 
 		/* Tracker changed ?*/
@@ -1756,7 +1758,7 @@ try_default:
 				 (const uint8_t *)
 				 &ti_iter->dst_addr.address.ip_v6,
 				 depth);
-			if (memcmp(masked_ip, ip, LPM6_IPV6_ADDR_SIZE))
+			if (memcmp(masked_ip, ip, LPM6_IPV6_ADDR_SIZE) != 0)
 				break;
 
 			/* Tracker changed ? */
