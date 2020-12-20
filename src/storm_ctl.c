@@ -861,7 +861,8 @@ static int storm_ctl_set_threshold(bool set,
 			 * The value is restricted to have 2 fractional
 			 * digits in the yang model
 			 */
-			policy->threshold_val = strtof(val, NULL) * 100;
+			policy->threshold_val = (unsigned long)
+						(strtof(val, NULL) * 100);
 	} else {
 		profile->scp_policies[tr_type].threshold_type =
 			DP_STORM_CTL_THRESHOLD_NONE;

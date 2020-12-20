@@ -1722,9 +1722,9 @@ void if_mpls_stats(const struct ifnet *ifp, struct if_mpls_data *stats)
  * when sampling at 5 second intervals.
  */
 static const uint32_t cexp[3] = {
-	0.9200444146293232 * FSCALE,	/* exp(-1/12) */
-	0.9834714538216174 * FSCALE,	/* exp(-1/60) */
-	0.9944598480048967 * FSCALE,	/* exp(-1/180) */
+	(uint32_t) (0.9200444146293232 * FSCALE),	/* exp(-1/12) */
+	(uint32_t) (0.9834714538216174 * FSCALE),	/* exp(-1/60) */
+	(uint32_t) (0.9944598480048967 * FSCALE),	/* exp(-1/180) */
 };
 
 /* Convert from scaled value to displayable counter
