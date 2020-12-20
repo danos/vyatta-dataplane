@@ -91,6 +91,10 @@ install_data('dataplane-drivers-default.conf',
         install_dir: get_option('datadir') / 'vyatta'
 )
 
+install_data('mlx4_core.conf',
+        install_dir: '/etc/modprobe.d'
+)
+
 pkg = import('pkgconfig')
 pkg.generate(
         filebase: 'vyatta-dataplane-dev',
