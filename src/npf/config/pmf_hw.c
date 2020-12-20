@@ -721,26 +721,34 @@ pmf_hw_group_mod(struct gpc_group *gprg, uint32_t new)
 static uint32_t
 pmf_hw_rtr_intf_attr_acl(bool ingress, bool is_v6)
 {
+	uint32_t acl_type;
+
 	if (ingress) {
 		if (is_v6)
-			return FAL_ROUTER_INTERFACE_ATTR_V6_INGRESS_ACL;
+			acl_type = FAL_ROUTER_INTERFACE_ATTR_V6_INGRESS_ACL;
 		else
-			return FAL_ROUTER_INTERFACE_ATTR_V4_INGRESS_ACL;
+			acl_type = FAL_ROUTER_INTERFACE_ATTR_V4_INGRESS_ACL;
 	} else {
 		if (is_v6)
-			return FAL_ROUTER_INTERFACE_ATTR_V6_EGRESS_ACL;
+			acl_type = FAL_ROUTER_INTERFACE_ATTR_V6_EGRESS_ACL;
 		else
-			return FAL_ROUTER_INTERFACE_ATTR_V4_EGRESS_ACL;
+			acl_type = FAL_ROUTER_INTERFACE_ATTR_V4_EGRESS_ACL;
 	}
+
+	return acl_type;
 }
 
 static uint32_t
 pmf_hw_rtr_intf_attr_qos(bool is_v6)
 {
+	uint32_t qos_type;
+
 	if (is_v6)
-		return FAL_ROUTER_INTERFACE_ATTR_V6_INGRESS_QOS;
+		qos_type = FAL_ROUTER_INTERFACE_ATTR_V6_INGRESS_QOS;
 	else
-		return FAL_ROUTER_INTERFACE_ATTR_V4_INGRESS_QOS;
+		qos_type = FAL_ROUTER_INTERFACE_ATTR_V4_INGRESS_QOS;
+
+	return qos_type;
 }
 
 bool
