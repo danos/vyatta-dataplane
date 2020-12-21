@@ -122,13 +122,13 @@ dp_test_xfrm_server_thread_run(zsock_t *pipe, void *args)
 	xfrm_server_push_sock = zsock_new_push(NULL);
 	assert(xfrm_server_push_sock);
 	if (zsock_bind(xfrm_server_push_sock, "%s", "ipc://*") < 0)
-		dp_test_assert_internal(0);
+		dp_test_abort_internal();
 	ep_push = zsock_last_endpoint(xfrm_server_push_sock);
 
 	xfrm_server_pull_sock = zsock_new_pull(NULL);
 	assert(xfrm_server_pull_sock);
 	if (zsock_bind(xfrm_server_pull_sock, "%s", "ipc://*") < 0)
-		dp_test_assert_internal(0);
+		dp_test_abort_internal();
 	ep_pull = zsock_last_endpoint(xfrm_server_pull_sock);
 
 	snprintf(socket_names, sizeof(socket_names), "%s %s",

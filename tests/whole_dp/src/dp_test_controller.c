@@ -734,9 +734,9 @@ dp_event_msg(zmsg_t *msg)
 		ext_buf_congestion(msg);
 	else if (msg_call_back) {
 		if ((msg_call_back)(event, msg))
-			dp_test_assert_internal(0);
+			dp_test_abort_internal();
 	} else {
-		dp_test_assert_internal(0);
+		dp_test_abort_internal();
 	}
 	free(event);
 }
@@ -789,7 +789,7 @@ process_msg(enum cont_src_en cont_src, snapshot_t *snap, zsock_t *sock,
 	else if (strncmp(action, "DPEVENT", 7) == 0)
 		dp_event_msg(msg);
 	else
-		dp_test_assert_internal(0);
+		dp_test_abort_internal();
 
 	free(action);
 	zframe_destroy(&envelope);
@@ -1391,10 +1391,10 @@ dp_test_request_thread(zsock_t *pipe, void *args)
 
 	/* zactor API will send a $TERM ZMQ message on termination */
 	if (zloop_reader(loop, pipe, zactor_terminated, NULL))
-		dp_test_assert_internal(0);
+		dp_test_abort_internal();
 
 	if (zloop_reader(loop, requests, req_handler, snap))
-		dp_test_assert_internal(0);
+		dp_test_abort_internal();
 
 	ret = zloop_timer(loop, 1000, 0, check_expired, snap);
 	dp_test_assert_internal(ret >= 0);

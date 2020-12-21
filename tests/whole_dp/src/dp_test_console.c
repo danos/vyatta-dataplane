@@ -108,7 +108,7 @@ dp_test_console_request_w_err_src(enum cont_src_en cont_src,
 		       request);
 	ret = zmsg_send(&msg, cmd_sock);
 	if (ret == -1)
-		dp_test_assert_internal(0);
+		dp_test_abort_internal();
 
 	/*
 	 * Send message and await reply
@@ -159,7 +159,7 @@ dp_test_console_request_pb_src(enum cont_src_en cont_src,
 	 */
 	ret = zmsg_send(&msg, cmd_sock);
 	if (ret == -1)
-		dp_test_assert_internal(0);
+		dp_test_abort_internal();
 
 	*resp_msg = zmsg_recv(cmd_sock);
 	dp_test_assert_internal(*resp_msg);

@@ -367,7 +367,7 @@ dp_test_parse_dp_nh(const char *nh_string, struct dp_test_nh *nh)
 		strncpy(buf, str, len);
 		buf[len] = '\0';
 		if (!dp_test_addr_str_to_addr(buf, &nh->nh_addr))
-			dp_test_assert_internal(0);
+			dp_test_abort_internal();
 		str = strchrnul(str, ' ');
 
 		if (*str) {
@@ -1918,8 +1918,7 @@ dp_test_nh_state_make_key(const char *interface,
 	struct dp_test_addr addr;
 
 	key = calloc(1, sizeof(*key));
-	if (!key)
-		dp_test_assert_internal("out of memory\n");
+	dp_test_assert_internal(key != NULL);
 	/* nexthop is allowed to be null */
 	if (nexthop) {
 		if (!dp_test_addr_str_to_addr(nexthop, &addr))
@@ -1953,8 +1952,7 @@ void dp_test_make_nh_unusable_other_thread(pthread_t *nh_unusable_thread,
 	 * Spin up a thread to make the nh unusable
 	 */
 	if (pthread_create(nh_unusable_thread, NULL, nh_unusable, key) < 0)
-		dp_test_assert_internal(
-			"could not create nh_unusable pthread\n");
+		dp_test_abort_internal();
 }
 
 void dp_test_make_nh_usable_other_thread(pthread_t *nh_unusable_thread,
@@ -1968,6 +1966,5 @@ void dp_test_make_nh_usable_other_thread(pthread_t *nh_unusable_thread,
 	 * Spin up a thread to make the nh unusable
 	 */
 	if (pthread_create(nh_unusable_thread, NULL, nh_usable, key) < 0)
-		dp_test_assert_internal(
-			"could not create nh_unusable pthread\n");
+		dp_test_abort_internal();
 }
