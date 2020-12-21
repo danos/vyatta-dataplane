@@ -2109,7 +2109,7 @@ static inline int incomplete_route_match_fn(struct cds_lfht_node *node,
 		return 0;
 	if (route->label != route_key->label)
 		return 0;
-	if (memcmp(&route->dest, &route_key->dest, sizeof(struct ip_addr)))
+	if (memcmp(&route->dest, &route_key->dest, sizeof(struct ip_addr)) != 0)
 		return 0;
 
 	return 1;

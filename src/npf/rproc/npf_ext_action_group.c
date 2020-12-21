@@ -115,7 +115,7 @@ npf_action_group_cb(void *param, struct npf_cfg_rule_walk_state *state)
 	 * at least one isn't configured. NB order should always be mark then
 	 * police, or mark or police only.
 	 */
-	if (strncmp(&(state->rule[0]), PREFIX_STR, CMD_POS))
+	if (strncmp(&(state->rule[0]), PREFIX_STR, CMD_POS) != 0)
 		goto format_err;
 
 	if (!strncmp(&(state->rule[CMD_POS]), "markdscp(", 9)) {

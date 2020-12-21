@@ -669,7 +669,7 @@ bool get_switch_dev_info(const char *drv_name, const char *drv_dev_name,
 		return false;
 
 	drv_len = strlen(drv_name);
-	if (strncmp(drv_dev_name, drv_name, drv_len))
+	if (strncmp(drv_dev_name, drv_name, drv_len) != 0)
 		return false;
 
 	/* strip driver prefix + swX from name */

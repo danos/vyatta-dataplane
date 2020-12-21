@@ -2783,7 +2783,7 @@ int fal_ip4_upd_mroute(fal_object_t obj, struct mfc *rt, struct vmfcctl *mfc,
 
 	/* check what changed */
 	if (memcmp(&rt->mfc_ifset, &mfc->mfcc_ifset,
-		   sizeof(mfc->mfcc_ifset))) {
+		   sizeof(mfc->mfcc_ifset)) != 0) {
 		/* Output list change - do this first before RPF change */
 		ret = fal_create_ipmc_group(mfc->if_count,
 					    &mfc->mfcc_ifset,
@@ -3004,7 +3004,7 @@ int fal_ip6_upd_mroute(fal_object_t obj, struct mf6c *rt, struct vmf6cctl *mfc,
 
 	/* check what changed */
 	if (memcmp(&rt->mf6c_ifset, &mfc->mf6cc_ifset,
-		   sizeof(mfc->mf6cc_ifset))) {
+		   sizeof(mfc->mf6cc_ifset)) != 0) {
 		/* Output list change - do this first before RPF change */
 		ret = fal_create_ipmc_group(mfc->if_count,
 					    &mfc->mf6cc_ifset,

@@ -480,7 +480,7 @@ dp_test_netlink_tunnel(const char *tun_name,
 
 	struct nlattr *gre_link, *gre_data;
 
-	if (v6 && memcmp(&remote6, &ip6_zero, sizeof(remote6)))
+	if (v6 && memcmp(&remote6, &ip6_zero, sizeof(remote6)) != 0)
 		ifi->ifi_flags |= IFF_POINTOPOINT|IFF_NOARP;
 	else if (!v6 && remote4 != INADDR_ANY)
 		ifi->ifi_flags |= IFF_POINTOPOINT|IFF_NOARP;

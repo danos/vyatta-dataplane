@@ -594,7 +594,7 @@ static void unspec_link_modify(struct ifnet *ifp,
 	vrfid_t vrf_id, old_vrfid = ifp->if_vrfid;
 
 	/* handle device rename */
-	if (strncmp(ifp->if_name, ifname, IFNAMSIZ)) {
+	if (strncmp(ifp->if_name, ifname, IFNAMSIZ) != 0) {
 		if_rename(ifp, ifname);
 
 		struct fal_attribute_t name_attr = {
