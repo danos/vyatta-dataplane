@@ -92,7 +92,7 @@ static_assert(sizeof(struct cgn_sess2) == 128,
 /* Forward references */
 static struct cds_lfht *cgn_sess2_ht_create(ulong nbuckets);
 static void cgn_sess2_ht_destroy(struct cds_lfht **htp);
-static int cgn_sess2_activate(struct cgn_sess_s2 *cs2, struct cgn_sess2 *s2);
+static int cgn_sess2_add(struct cgn_sess_s2 *cs2, struct cgn_sess2 *s2);
 
 /*
  * API with cgn_session.c
@@ -189,7 +189,7 @@ int cgn_sess_s2_activate(struct cgn_sess_s2 *cs2, struct cgn_sess2 *s2)
 {
 	int rc;
 
-	rc = cgn_sess2_activate(cs2, s2);
+	rc = cgn_sess2_add(cs2, s2);
 
 	if (unlikely(rc < 0)) {
 		/*
@@ -362,9 +362,9 @@ cgn_sess_s2_establish(struct cgn_sess_s2 *cs2, struct cgn_packet *cpk,
 }
 
 /*
- * Activate a nested session
+ * Add a 2-tuple sub session to the 3-tuple main session
  */
-static int cgn_sess2_activate(struct cgn_sess_s2 *cs2, struct cgn_sess2 *s2)
+static int cgn_sess2_add(struct cgn_sess_s2 *cs2, struct cgn_sess2 *s2)
 {
 	/* Insert into table */
 	struct cds_lfht_node *node;
@@ -424,8 +424,7 @@ static int cgn_sess2_activate(struct cgn_sess_s2 *cs2, struct cgn_sess2 *s2)
 	return 0;
 }
 
-static void
-cgn_sess2_deactivate(struct cgn_sess_s2 *cs2, struct cgn_sess2 *s2)
+static void cgn_sess2_del(struct cgn_sess_s2 *cs2, struct cgn_sess2 *s2)
 {
 	/* Increment 2-tuple sessions destroyed in subscriber */
 	struct cgn_source *src = cgn_src_from_cs2(cs2);
@@ -764,7 +763,7 @@ cgn_sess2_gc_inspect_inline(struct cgn_sess2 *s2, uint *unexpd, uint *expd,
 	}
 
 	/* Remove from hash table */
-	cgn_sess2_deactivate(cs2, s2);
+	cgn_sess2_del(cs2, s2);
 
 	/* Release the slot */
 	cgn_sess_s2_slot_put(cs2);
