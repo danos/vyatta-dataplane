@@ -1,3 +1,51 @@
+vyatta-dataplane (3.12.15) unstable; urgency=medium
+
+  [ Nicholas Brown ]
+  * Add NPF codeowners
+
+  [ Ian Wilson ]
+  * npf: Split npf_config_default_alloc_free into separate alloc and free
+  * npf: Check npf_conf is not NULL before calling rcu callback to free it
+  * npf: Free ruleset attach point memory when it is deleted
+
+  [ Derek Fawcus ]
+  * GPC: Use ruleset ifname accessor
+  * GPC: Add new accessors for rules and groups
+  * GPC: Change the ACL FAL layer to the new accessors
+  * GPC: Add and use ifp helper functions
+  * GPC: Add and use ruleset helper functions
+  * ACL: Move ruleset database to GPC layer
+  * ACL: Move group database to GPC layer
+  * GPC: Add and use rule helpers
+  * GPC: Adjust rule notifier helpers
+  * ACL: Move rule database to GPC layer
+  * GPC: Add per feature logging
+  * GPC: Per feature attach/detach
+  * GPC: Add attach/detach for ingress QoS
+
+  [ Paul Atkins ]
+  * ut: call proper free function to free multicast route
+  * ip6_mroute: init the mroute6 stats before populating them
+
+  [ Mandeep Rohilla ]
+  * LAG: Distinguish between a member being usable and enabled
+  * LAG: Check if the given interface is a member port
+  * FAL LAG: Determine if the port is a member of a LAG
+  * LAG: Check for member port with the registered lag ops
+  * IFOP: Set the usability of an interface
+  * IF OP: Set usability of an interface
+  * LAG: Set usability of a LAG member
+  * FAL LAG: Set LAG member's usability
+  * DPDK ETH OP: Set usability of ETH type interface
+  * IF STATE: Mark an interface as unusable
+  * FAL LAG: Remove member from tx hash when micro BFD down
+
+  [ Simon Barber ]
+  * CRYPTO: Add missing return codes on failure paths in sadb
+  * UT:CRYPTO Fix timing race between SA and interface creation
+
+ -- Simon Barber <sbarber@mail.eng.vyatta.net>  Fri, 18 Dec 2020 15:44:02 +0000
+
 vyatta-dataplane (3.12.14) unstable; urgency=medium
 
   [ Alan Dewar ]
