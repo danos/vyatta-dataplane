@@ -848,8 +848,8 @@ uint32_t cgn_session_id(struct cgn_session *cse)
 }
 
 static int cgn_sentry_insert(struct cgn_sentry *ce, struct cgn_sentry **old,
-			     enum cgn_flow dir);
-static void cgn_sentry_delete(struct cgn_sentry *ce, enum cgn_flow dir);
+			     enum cgn_dir dir);
+static void cgn_sentry_delete(struct cgn_sentry *ce, enum cgn_dir dir);
 
 /*
  * Is recording of destination address and port enabled for this 3-tuple
@@ -879,16 +879,16 @@ int cgn_session_activate(struct cgn_session *cse,
 		return 0;
 
 	/* Insert forw sentry into table */
-	rc = cgn_sentry_insert(&cse->cs_forw_entry, &old, CGN_DIR_FORW);
+	rc = cgn_sentry_insert(&cse->cs_forw_entry, &old, CGN_DIR_OUT);
 	if (unlikely(rc < 0)) {
 		cgn_session_slot_put();
 		goto end;
 	}
 
 	/* Insert back sentry into table */
-	rc = cgn_sentry_insert(&cse->cs_back_entry, &old, CGN_DIR_BACK);
+	rc = cgn_sentry_insert(&cse->cs_back_entry, &old, CGN_DIR_IN);
 	if (unlikely(rc < 0)) {
-		cgn_sentry_delete(&cse->cs_forw_entry, CGN_DIR_FORW);
+		cgn_sentry_delete(&cse->cs_forw_entry, CGN_DIR_OUT);
 		cgn_session_slot_put();
 		goto end;
 	}
@@ -937,8 +937,8 @@ cgn_session_deactivate(struct cgn_session *cse)
 {
 	if (cse->cs_forw_entry.ce_active) {
 		/* Remove from sentry table */
-		cgn_sentry_delete(&cse->cs_forw_entry, CGN_DIR_FORW);
-		cgn_sentry_delete(&cse->cs_back_entry, CGN_DIR_BACK);
+		cgn_sentry_delete(&cse->cs_forw_entry, CGN_DIR_OUT);
+		cgn_sentry_delete(&cse->cs_back_entry, CGN_DIR_IN);
 
 		/* Release the slot */
 		cgn_session_slot_put();
@@ -1029,7 +1029,7 @@ cgn_session_node_first(int dir, struct cds_lfht_iter *iter)
  */
 static int
 cgn_sentry_insert(struct cgn_sentry *ce, struct cgn_sentry **old,
-		  enum cgn_flow dir)
+		  enum cgn_dir dir)
 {
 	struct cds_lfht_node *node;
 
@@ -1049,7 +1049,7 @@ cgn_sentry_insert(struct cgn_sentry *ce, struct cgn_sentry **old,
 /*
  * Delete sentry from the hash table
  */
-static void cgn_sentry_delete(struct cgn_sentry *ce, enum cgn_flow dir)
+static void cgn_sentry_delete(struct cgn_sentry *ce, enum cgn_dir dir)
 {
 	if (cgn_sess_ht[dir])
 		(void)cds_lfht_del(cgn_sess_ht[dir], &ce->ce_node);
@@ -1278,10 +1278,10 @@ int cgn_session_walk(cgn_sesswalk_cb cb, void *data)
 	struct cgn_sentry *ce;
 	int rc;
 
-	if (!cgn_sess_ht[CGN_DIR_FORW])
+	if (!cgn_sess_ht[CGN_DIR_OUT])
 		return -ENOENT;
 
-	cds_lfht_for_each_entry(cgn_sess_ht[CGN_DIR_FORW], &iter, ce, ce_node) {
+	cds_lfht_for_each_entry(cgn_sess_ht[CGN_DIR_OUT], &iter, ce, ce_node) {
 
 		cse = caa_container_of(ce, struct cgn_session, cs_forw_entry);
 
@@ -2110,7 +2110,7 @@ void cgn_session_show(FILE *f, int argc, char **argv)
 	jsonw_name(json, "sessions");
 	jsonw_start_array(json);
 
-	if (!cgn_sess_ht[CGN_DIR_FORW])
+	if (!cgn_sess_ht[CGN_DIR_OUT])
 		goto end;
 
 	/*
@@ -2191,10 +2191,10 @@ void cgn_session_id_list(FILE *f, int argc __unused, char **argv __unused)
 	jsonw_name(json, "ids");
 	jsonw_start_array(json);
 
-	if (!cgn_sess_ht[CGN_DIR_FORW])
+	if (!cgn_sess_ht[CGN_DIR_OUT])
 		goto end;
 
-	cds_lfht_for_each_entry(cgn_sess_ht[CGN_DIR_FORW], &iter, fw, ce_node) {
+	cds_lfht_for_each_entry(cgn_sess_ht[CGN_DIR_OUT], &iter, fw, ce_node) {
 		if (fw->ce_expired)
 			continue;
 
@@ -2266,7 +2266,7 @@ cgn_session_clear_fltr(struct cgn_sess_fltr *fltr, bool clear_map,
 	struct cgn_sentry *ce, *bk;
 	uint count = 0; /* count 2-tuple sessions cleared */
 
-	if (!cgn_sess_ht[CGN_DIR_FORW])
+	if (!cgn_sess_ht[CGN_DIR_OUT])
 		return;
 
 	/*
@@ -2275,7 +2275,7 @@ cgn_session_clear_fltr(struct cgn_sess_fltr *fltr, bool clear_map,
 	 */
 	cgn_session_stop_timer();
 
-	cds_lfht_for_each_entry(cgn_sess_ht[CGN_DIR_FORW], &iter, ce, ce_node) {
+	cds_lfht_for_each_entry(cgn_sess_ht[CGN_DIR_OUT], &iter, ce, ce_node) {
 		if (!clear_map && ce->ce_expired)
 			continue;
 
@@ -2399,10 +2399,10 @@ static void cgn_session_clear_or_update_stats_all(bool clear)
 	struct cgn_session *cse;
 	struct cgn_sentry *ce;
 
-	if (!cgn_sess_ht[CGN_DIR_FORW])
+	if (!cgn_sess_ht[CGN_DIR_OUT])
 		return;
 
-	cds_lfht_for_each_entry(cgn_sess_ht[CGN_DIR_FORW], &iter, ce, ce_node) {
+	cds_lfht_for_each_entry(cgn_sess_ht[CGN_DIR_OUT], &iter, ce, ce_node) {
 		if (ce->ce_expired)
 			continue;
 
@@ -2421,10 +2421,10 @@ cgn_session_clear_or_update_stats_fltr(struct cgn_sess_fltr *fltr, bool clear)
 	struct cgn_session *cse;
 	struct cgn_sentry *ce, *bk;
 
-	if (!cgn_sess_ht[CGN_DIR_FORW])
+	if (!cgn_sess_ht[CGN_DIR_OUT])
 		return;
 
-	cds_lfht_for_each_entry(cgn_sess_ht[CGN_DIR_FORW], &iter, ce, ce_node) {
+	cds_lfht_for_each_entry(cgn_sess_ht[CGN_DIR_OUT], &iter, ce, ce_node) {
 		if (ce->ce_expired)
 			continue;
 
@@ -2550,7 +2550,7 @@ cgn_session_expire_all(bool clear_map, bool restart_timer)
 	struct cgn_sentry *ce;
 	uint count = 0;
 
-	if (!cgn_sess_ht[CGN_DIR_FORW])
+	if (!cgn_sess_ht[CGN_DIR_OUT])
 		return;
 
 	/*
@@ -2559,7 +2559,7 @@ cgn_session_expire_all(bool clear_map, bool restart_timer)
 	 */
 	cgn_session_stop_timer();
 
-	cds_lfht_for_each_entry(cgn_sess_ht[CGN_DIR_FORW], &iter, ce, ce_node) {
+	cds_lfht_for_each_entry(cgn_sess_ht[CGN_DIR_OUT], &iter, ce, ce_node) {
 		if (!clear_map && ce->ce_expired)
 			continue;
 
@@ -2598,7 +2598,7 @@ void cgn_session_expire_pool(bool restart_timer, struct nat_pool *np,
 	struct cgn_sentry *ce;
 	uint count = 0;
 
-	if (!cgn_sess_ht[CGN_DIR_FORW])
+	if (!cgn_sess_ht[CGN_DIR_OUT])
 		return;
 
 	/*
@@ -2607,7 +2607,7 @@ void cgn_session_expire_pool(bool restart_timer, struct nat_pool *np,
 	 */
 	cgn_session_stop_timer();
 
-	cds_lfht_for_each_entry(cgn_sess_ht[CGN_DIR_FORW], &iter, ce, ce_node) {
+	cds_lfht_for_each_entry(cgn_sess_ht[CGN_DIR_OUT], &iter, ce, ce_node) {
 		struct nat_pool *cs_np;
 
 		cse = caa_container_of(ce, struct cgn_session, cs_forw_entry);
@@ -2651,7 +2651,7 @@ void cgn_session_expire_policy(bool restart_timer, struct cgn_policy *cp)
 	struct cgn_sentry *ce;
 	uint count = 0;
 
-	if (!cgn_sess_ht[CGN_DIR_FORW])
+	if (!cgn_sess_ht[CGN_DIR_OUT])
 		return;
 
 	/*
@@ -2660,7 +2660,7 @@ void cgn_session_expire_policy(bool restart_timer, struct cgn_policy *cp)
 	 */
 	cgn_session_stop_timer();
 
-	cds_lfht_for_each_entry(cgn_sess_ht[CGN_DIR_FORW], &iter, ce, ce_node) {
+	cds_lfht_for_each_entry(cgn_sess_ht[CGN_DIR_OUT], &iter, ce, ce_node) {
 		if (ce->ce_expired)
 			continue;
 
@@ -2820,11 +2820,11 @@ static void cgn_session_gc(struct rte_timer *timer, void *arg __rte_unused)
 	struct cgn_sentry *ce;
 	struct cgn_session *cse;
 
-	if (!cgn_sess_ht[CGN_DIR_FORW])
+	if (!cgn_sess_ht[CGN_DIR_OUT])
 		return;
 
 	/* Walk the forwards-flow session table */
-	cds_lfht_for_each_entry(cgn_sess_ht[CGN_DIR_FORW], &iter, ce, ce_node) {
+	cds_lfht_for_each_entry(cgn_sess_ht[CGN_DIR_OUT], &iter, ce, ce_node) {
 
 		cse = caa_container_of(ce, struct cgn_session, cs_forw_entry);
 		cgn_session_gc_inspect(cse);
@@ -2856,11 +2856,11 @@ static int cgn_session_log_walk(void)
 
 	ASSERT_CGN_HELPER_THREAD();
 
-	if (!cgn_sess_ht[CGN_DIR_FORW])
+	if (!cgn_sess_ht[CGN_DIR_OUT])
 		return 0;
 
 	/* Walk the forwards-flow session table */
-	cds_lfht_for_each_entry(cgn_sess_ht[CGN_DIR_FORW], &iter, ce, ce_node) {
+	cds_lfht_for_each_entry(cgn_sess_ht[CGN_DIR_OUT], &iter, ce, ce_node) {
 
 		cse = caa_container_of(ce, struct cgn_session, cs_forw_entry);
 
@@ -3048,16 +3048,16 @@ static void cgn_session_stop_timer(void)
  */
 void cgn_session_init(void)
 {
-	if (cgn_sess_ht[CGN_DIR_FORW])
+	if (cgn_sess_ht[CGN_DIR_OUT])
 		return;
 
-	cgn_sess_ht[CGN_DIR_FORW] =
+	cgn_sess_ht[CGN_DIR_OUT] =
 		cds_lfht_new(CGN_SESSION_HT_INIT, CGN_SESSION_HT_MIN,
 			     CGN_SESSION_HT_MAX,
 			     CDS_LFHT_AUTO_RESIZE | CDS_LFHT_ACCOUNTING,
 			     NULL);
 
-	cgn_sess_ht[CGN_DIR_BACK] =
+	cgn_sess_ht[CGN_DIR_IN] =
 		cds_lfht_new(CGN_SESSION_HT_INIT, CGN_SESSION_HT_MIN,
 			     CGN_SESSION_HT_MAX,
 			     CDS_LFHT_AUTO_RESIZE | CDS_LFHT_ACCOUNTING,
@@ -3072,18 +3072,18 @@ void cgn_session_init(void)
  */
 void cgn_session_uninit(void)
 {
-	if (!cgn_sess_ht[CGN_DIR_FORW])
+	if (!cgn_sess_ht[CGN_DIR_OUT])
 		return;
 
 	/* Expire all entries and run gc multiple times */
 	cgn_session_cleanup();
 
 	/* Destroy the session hash tables */
-	dp_ht_destroy_deferred(cgn_sess_ht[CGN_DIR_FORW]);
-	cgn_sess_ht[CGN_DIR_FORW] = NULL;
+	dp_ht_destroy_deferred(cgn_sess_ht[CGN_DIR_OUT]);
+	cgn_sess_ht[CGN_DIR_OUT] = NULL;
 
-	dp_ht_destroy_deferred(cgn_sess_ht[CGN_DIR_BACK]);
-	cgn_sess_ht[CGN_DIR_BACK] = NULL;
+	dp_ht_destroy_deferred(cgn_sess_ht[CGN_DIR_IN]);
+	cgn_sess_ht[CGN_DIR_IN] = NULL;
 }
 
 /* Used by unit-tests only */

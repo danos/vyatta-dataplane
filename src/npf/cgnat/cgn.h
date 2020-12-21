@@ -23,12 +23,6 @@ enum cgn_dir {
 };
 #define CGN_DIR_SZ 2
 
-/* Sometimes it makes more sense to refer to forw and back */
-enum cgn_flow {
-	CGN_DIR_FORW = CGN_DIR_OUT,
-	CGN_DIR_BACK = CGN_DIR_IN
-};
-
 static inline enum cgn_dir cgn_reverse_dir(enum cgn_dir dir)
 {
 	return (dir == CGN_DIR_OUT) ? CGN_DIR_IN : CGN_DIR_OUT;

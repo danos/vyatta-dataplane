@@ -255,10 +255,10 @@ static inline const char *cgn_sess_event_str(enum cgn_sess_event event)
 static inline const char *cgn_dir_str(uint dir)
 {
 	switch (dir) {
-	case CGN_DIR_FORW:
-		return "FORW";
-	case CGN_DIR_BACK:
-		return "BACK";
+	case CGN_DIR_OUT:
+		return "OUT";
+	case CGN_DIR_IN:
+		return "IN";
 	};
 	return "???";
 }
