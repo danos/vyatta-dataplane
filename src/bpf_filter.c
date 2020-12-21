@@ -41,9 +41,6 @@
 #include <stdint.h>
 #include <sys/param.h>
 
-#if !defined(_KERNEL)
-#include <strings.h>
-#endif
 #if !defined(_KERNEL) || defined(sun)
 #include <netinet/in.h>
 #endif
@@ -180,9 +177,7 @@ bpf_filter(const struct bpf_insn *pc, const u_char *p, u_int wirelen, u_int bufl
 {
 	u_int32_t A = 0, X = 0;
 	bpf_u_int32 k;
-	u_int32_t mem[BPF_MEMWORDS];
-
-	bzero(mem, sizeof(mem));
+	u_int32_t mem[BPF_MEMWORDS] = { 0 };
 
 	if (pc == NULL)
 		/*
