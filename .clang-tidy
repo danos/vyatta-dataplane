@@ -1,6 +1,5 @@
 ---
 Checks:          'bugprone-*,
-                  -bugprone-narrowing-conversions,
                   -bugprone-suspicious-missing-comma,
                   clang-diagnostic-*,
                   -clang-diagnostic-missing-braces,
