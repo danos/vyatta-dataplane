@@ -41,47 +41,44 @@
  * idle flag is in s2_state.
  */
 struct cgn_sess2 {
-	/*
-	 * s2_node and s2_rcu_head are never used at same time.  At the end of
-	 * cgn_sess2_gc_walk, the session is first removed from the hash table
-	 * and then destroyed.  The destroy function is the only place that
-	 * s2_rcu_head is used.
-	 */
-	union {
-		struct cds_lfht_node s2_node;	/* session tbl node */
-		struct rcu_head      s2_rcu_head;
-	};
-
-	struct cgn_sess_s2	*s2_cs2;        /* back pointer */
-	rte_atomic32_t		s2_pkts_in;	/* pkts in in last interval */
-	rte_atomic32_t		s2_bytes_in;	/* bytes in in last interval */
-	uint64_t		s2_bytes_in_tot;/* bytes in total */
-	uint64_t		s2_pkts_in_tot; /* pkts in total */
-	uint32_t		s2_etime;       /* expiry time */
-	uint32_t		s2_id;
+	struct cds_lfht_node	s2_node;	/* session tbl node */
 	struct cgn_2tuple_key	s2_key;		/* Hash key (8 bytes) */
-	/* --- cacheline 1 boundary (64 bytes) --- */
+	uint8_t			s2_pad1[24];	/* Placeholder for ht chngs */
 
+	uint64_t		s2_start_time;  /* unix epoch microsecs */
 	rte_atomic32_t		s2_pkts_out;	/* pkts out in last interval */
 	rte_atomic32_t		s2_bytes_out;	/* bytes out in last interval */
-	uint32_t		s2_pkts_out_tot; /* pkts out total */
-	uint16_t		s2_log_countdown;
-	uint8_t			s2_gc_pass;
+	/* --- cacheline 1 boundary (64 bytes) --- */
+
+	struct cgn_state	s2_state;	/* 32 bytes */
+	rte_atomic32_t		s2_pkts_in;	/* pkts in in last interval */
+	rte_atomic32_t		s2_bytes_in;	/* bytes in in last interval */
+
+	/*
+	 * The following are not accessed regularly in the forwarding path
+	 */
+	uint32_t		s2_etime;       /* expiry time */
+	uint32_t		s2_id;
+	struct cgn_sess_s2	*s2_cs2;        /* back pointer */
 	uint8_t			s2_dir:1;
 	uint8_t			s2_log_start:1;
 	uint8_t			s2_log_end:1;
 	uint8_t			s2_log_active:1;
-	uint64_t		s2_bytes_out_tot; /* bytes out total */
-	uint64_t		s2_start_time;  /* unix epoch microsecs */
-
-	struct cgn_state	s2_state;	/* 24 bytes */
+	uint8_t			s2_gc_pass;
+	uint16_t		s2_log_countdown;
+	uint32_t		s2_pkts_out_tot;  /* pkts out total */
 	/* --- cacheline 2 boundary (128 bytes) --- */
+
+	uint64_t		s2_bytes_out_tot; /* bytes out total */
+	uint64_t		s2_pkts_in_tot;   /* pkts in total */
+	uint64_t		s2_bytes_in_tot;  /* bytes in total */
+	struct rcu_head		s2_rcu_head;
 };
 
-static_assert(offsetof(struct cgn_sess2, s2_pkts_out) == 64,
+static_assert(offsetof(struct cgn_sess2, s2_state) == 64,
 	      "cgn_sess2 structure: first cache line size exceeded");
-static_assert(sizeof(struct cgn_sess2) == 128,
-	      "cgn_sess2 structure: larger than expected");
+static_assert(offsetof(struct cgn_sess2, s2_bytes_out_tot) == 128,
+	      "cgn_sess2 structure: second cache line size exceeded");
 
 #define s2_addr     s2_key.k_addr
 #define s2_port     s2_key.k_port
