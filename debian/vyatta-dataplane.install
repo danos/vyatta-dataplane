@@ -1,4 +1,5 @@
 debian/vfio_iommu_type1.conf etc/modprobe.d
+etc/modprobe.d/mlx4_core.conf
 etc/vyatta/dataplane-drivers.conf
 tools/* lib/vplane
 usr/sbin/dataplane
