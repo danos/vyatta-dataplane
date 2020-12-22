@@ -395,26 +395,6 @@ void dpt_cgn_print_json(const char *cmd, bool print)
 	json_object_put(jobj);
 }
 
-
-/*
- * Some simply checks before real testing
- */
-DP_DECL_TEST_CASE(npf_cgnat, cgnat_pre, cgnat_setup, cgnat_teardown);
-DP_START_TEST(cgnat_pre, test)
-{
-	/* Ensure 2-tuple session fits in two cachelines */
-	dp_test_fail_unless(cgn_sess2_size() <= 128,
-			    "2-tuple session size %lu, expected <= 128",
-			    cgn_sess2_size());
-
-	/* Ensure 3-tuple session fits in four cachelines */
-	dp_test_fail_unless(cgn_session_size() <= 256,
-			    "3-tuple session size %lu, expected <= 256",
-			    cgn_session_size());
-
-} DP_END_TEST;
-
-
 /*
  * npf_cgnat_1 - 1 UDP forwards pkt
  *
