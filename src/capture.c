@@ -560,10 +560,11 @@ msg_send:
 
 static void capture_flush(const struct capture_info *cap_info)
 {
-	struct rte_mbuf *m;
+	struct rte_mbuf *m = NULL;
 
 	while (rte_ring_sc_dequeue(cap_info->cap_ring, (void **)&m) == 0)
-		rte_pktmbuf_free(m);
+		if (m)
+			rte_pktmbuf_free(m);
 }
 
 /*
