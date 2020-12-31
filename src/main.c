@@ -2595,8 +2595,8 @@ static int port_conf_final(portid_t portid, struct rte_eth_conf *dev_conf)
 		if (!(dev_info.tx_offload_capa & DEV_TX_OFFLOAD_VLAN_INSERT)) {
 			port_conf->tx_conf.offloads &=
 						~DEV_TX_OFFLOAD_VLAN_INSERT;
-			RTE_LOG(ERR, DATAPLANE,
-				"Driver %s missing vlan insertion capability\n",
+			RTE_LOG(WARNING, DATAPLANE,
+				"Driver %s missing hardware VLAN insertion capability; performance may be reduced.\n",
 				dev_info.driver_name);
 		}
 	}
