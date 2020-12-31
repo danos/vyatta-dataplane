@@ -43,6 +43,8 @@ struct nlattr;
 
 struct vrf *vrf_table[VRF_ID_MAX] __hot_data = {NULL};
 
+static uint32_t vrf_table_hw_stats[PD_OBJ_STATE_LAST];
+
 /*
  * Infrastructure to handle table maps received out of order
  * w.r.t netlink.
@@ -205,7 +207,7 @@ static void vrf_find_saved_tablemap(struct vrf *vrf)
 }
 
 static struct vrf *
-vrf_alloc(vrfid_t vrf_id, fal_object_t vrf_obj)
+vrf_alloc(vrfid_t vrf_id, fal_object_t vrf_obj, enum pd_obj_state pd_state)
 {
 	struct vrf *vrf_var;
 
@@ -217,6 +219,7 @@ vrf_alloc(vrfid_t vrf_id, fal_object_t vrf_obj)
 
 	vrf_var->v_id = vrf_id;
 	vrf_var->v_fal_obj = vrf_obj;
+	vrf_var->v_pd_state = pd_state;
 
 	if (route_init(vrf_var) < 0)
 		goto err;
@@ -249,6 +252,8 @@ vrf_alloc(vrfid_t vrf_id, fal_object_t vrf_obj)
 		}
 	}
 
+	vrf_table_hw_stats[vrf_var->v_pd_state]++;
+
 	return vrf_var;
 err:
 	if (vrf_var)
@@ -266,6 +271,7 @@ vrf_create(vrfid_t vrf_id)
 			.value.u32 = vrf_id,
 		},
 	};
+	enum pd_obj_state pd_state;
 	fal_object_t vrf_obj;
 	struct vrf *vrf_var;
 	int ret;
@@ -281,6 +287,7 @@ vrf_create(vrfid_t vrf_id)
 	if (ret < 0 && ret != -EOPNOTSUPP)
 		DP_LOG_W_VRF(ERR, DATAPLANE, vrf_id,
 			     "FAL create failed: %s\n", strerror(-ret));
+	pd_state = fal_state_to_pd_state(ret);
 
 	vrf_var = get_vrf(vrf_id);
 	if (vrf_var) {
@@ -292,7 +299,7 @@ vrf_create(vrfid_t vrf_id)
 		return NULL;
 	}
 
-	vrf_var = vrf_alloc(vrf_id, vrf_obj);
+	vrf_var = vrf_alloc(vrf_id, vrf_obj, pd_state);
 	if (vrf_var == NULL) {
 		if (vrf_obj) {
 			ret = fal_vrf_delete(vrf_obj);
@@ -376,6 +383,7 @@ void vrf_delete_by_ptr(struct vrf *vrf)
 				     "FAL delete failed: %s\n",
 				     strerror(-ret));
 	}
+	vrf_table_hw_stats[vrf->v_pd_state]--;
 
 	call_rcu(&vrf->rcu, vrf_destroy);
 }
@@ -676,4 +684,48 @@ void vrf_cleanup(void)
 {
 	vrf_delete(VRF_DEFAULT_ID);
 	vrf_delete(VRF_INVALID_ID);
+}
+
+uint32_t *vrf_table_hw_stats_get(void)
+{
+	return vrf_table_hw_stats;
+}
+
+int vrf_table_get_pd_subset_data(json_writer_t *json,
+				 enum pd_obj_state subset)
+{
+	struct vrf *vrf;
+	vrfid_t vrf_id;
+
+	jsonw_start_object(json);
+	jsonw_name(json, "vrf_table");
+	jsonw_start_array(json);
+
+	for (vrf_id = 0; vrf_id < ARRAY_SIZE(vrf_table); vrf_id++) {
+		/*
+		 * skip invalid VRF since it doesn't have an external
+		 * ID mapping.
+		 */
+		if (vrf_id == VRF_INVALID_ID)
+			continue;
+
+		vrf = rcu_dereference(vrf_table[vrf_id]);
+		if (!vrf)
+			continue;
+
+		if (subset != PD_OBJ_STATE_LAST &&
+		    subset != vrf->v_pd_state)
+			continue;
+
+		jsonw_start_object(json);
+
+		jsonw_uint_field(json, "id", vrf->v_external_id);
+
+		jsonw_end_object(json);
+	}
+
+	jsonw_end_array(json);
+	jsonw_end_object(json);
+
+	return 0;
 }

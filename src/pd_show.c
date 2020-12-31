@@ -17,6 +17,7 @@
 #include "vplane_log.h"
 #include "fal.h"
 #include "ipmc_pd_show.h"
+#include "vrf_internal.h"
 
 static const char * const pd_obj_state_names[] = {
 	"full",
@@ -58,6 +59,8 @@ static const struct pd_show_cmd pd_show_cmd_table[] = {
 	  mroute6_get_pd_subset_data,  "Show route" },
 	{ "mpls-route", NULL, mpls_label_table_hw_stats_get,
 	  mpls_label_table_get_pd_subset_data,  "Show route" },
+	{ "vrf", NULL, vrf_table_hw_stats_get,
+	  vrf_table_get_pd_subset_data,  "Show VRF" },
 	{ NULL, NULL, NULL, NULL, NULL },
 };
 
