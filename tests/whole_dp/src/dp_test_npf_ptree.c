@@ -267,6 +267,10 @@ ptree_string2key(const char *string, uint8_t *key, uint8_t *af,
 
 	snprintf(s, sizeof(s), "%s", string);
 
+	*af = 0;
+	*mask = 0;
+	*key = 0;
+
 	if (strchr(s, '.')) {
 		*af = AF_INET;
 		*mask = 32;
