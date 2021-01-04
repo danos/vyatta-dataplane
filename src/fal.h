@@ -231,43 +231,63 @@ struct fal_ip_ops {
 	void (*del_addr)(unsigned int if_index,
 			 struct fal_ip_address_t *ipaddr,
 			 uint8_t prefixlen);
-	int (*new_neigh)(unsigned int if_index,
-			 struct fal_ip_address_t *ipaddr,
+	int (*new_neigh)(const struct fal_neighbor_entry_t *neigh_entry,
 			 uint32_t attr_count,
 			 const struct fal_attribute_t *attr_list);
-	int (*upd_neigh)(unsigned int if_index,
-			 struct fal_ip_address_t *ipaddr,
-			 struct fal_attribute_t *attr);
-	int (*get_neigh_attrs)(unsigned int if_index,
-			       struct fal_ip_address_t *ipaddr,
+	int (*upd_neigh)(const struct fal_neighbor_entry_t *neigh_entry,
+			 const struct fal_attribute_t *attr);
+	int (*get_neigh_attrs)(const struct fal_neighbor_entry_t *neigh_entry,
 			       uint32_t attr_count,
 			       const struct fal_attribute_t *attr_list);
-	int (*del_neigh)(unsigned int if_index,
-			 struct fal_ip_address_t *ipaddr);
-	void (*dump_neigh)(unsigned int if_index,
-			   struct fal_ip_address_t *ipaddr,
+	int (*del_neigh)(const struct fal_neighbor_entry_t *neigh_entry);
+	void (*dump_neigh)(const struct fal_neighbor_entry_t *neigh_entry,
 			   json_writer_t *wr);
-	int (*new_route)(uint32_t vrf_id,
-			 struct fal_ip_address_t *ipaddr,
-			 uint8_t prefixlen,
-			 uint32_t tableid,
+	int (*new_neigh_depr)(unsigned int if_index,
+			      struct fal_ip_address_t *ipaddr,
+			      uint32_t attr_count,
+			      const struct fal_attribute_t *attr_list);
+	int (*upd_neigh_depr)(unsigned int if_index,
+			      struct fal_ip_address_t *ipaddr,
+			      struct fal_attribute_t *attr);
+	int (*get_neigh_attrs_depr)(unsigned int if_index,
+				    struct fal_ip_address_t *ipaddr,
+				    uint32_t attr_count,
+				    const struct fal_attribute_t *attr_list);
+	int (*del_neigh_depr)(unsigned int if_index,
+			      struct fal_ip_address_t *ipaddr);
+	void (*dump_neigh_depr)(unsigned int if_index,
+				struct fal_ip_address_t *ipaddr,
+				json_writer_t *wr);
+	int (*new_route)(const struct fal_route_entry_t *route,
 			 uint32_t attr_count,
 			 const struct fal_attribute_t *attr_list);
-	int (*upd_route)(uint32_t vrf_id,
-			 struct fal_ip_address_t *ipaddr,
-			 uint8_t prefixlen,
-			 uint32_t tableid,
+	int (*upd_route)(const struct fal_route_entry_t *route,
 			 struct fal_attribute_t *attr);
-	int (*del_route)(uint32_t vrf_id,
-			 struct fal_ip_address_t *ipaddr,
-			 uint8_t prefixlen,
-			 uint32_t tableid);
-	int (*get_route_attrs)(uint32_t vrf_id,
-			       struct fal_ip_address_t *ipaddr,
-			       uint8_t prefixlen,
-			       uint32_t tableid,
+	int (*del_route)(const struct fal_route_entry_t *route);
+	int (*get_route_attrs)(const struct fal_route_entry_t *route,
 			       uint32_t attr_count,
 			       const struct fal_attribute_t *attr_list);
+	int (*new_route_depr)(uint32_t vrf_id,
+			      struct fal_ip_address_t *ipaddr,
+			      uint8_t prefixlen,
+			      uint32_t tableid,
+			      uint32_t attr_count,
+			      const struct fal_attribute_t *attr_list);
+	int (*upd_route_depr)(uint32_t vrf_id,
+			      struct fal_ip_address_t *ipaddr,
+			      uint8_t prefixlen,
+			      uint32_t tableid,
+			      struct fal_attribute_t *attr);
+	int (*del_route_depr)(uint32_t vrf_id,
+			      struct fal_ip_address_t *ipaddr,
+			      uint8_t prefixlen,
+			      uint32_t tableid);
+	int (*get_route_attrs_depr)(uint32_t vrf_id,
+				    struct fal_ip_address_t *ipaddr,
+				    uint8_t prefixlen,
+				    uint32_t tableid,
+				    uint32_t attr_count,
+				    const struct fal_attribute_t *attr_list);
 	int  (*walk_routes)(fal_plugin_route_walk_fn cb,
 			    uint32_t attr_count,
 			    const struct fal_attribute_t *attr_list,
@@ -788,27 +808,34 @@ int fal_get_switch_attrs(uint32_t attr_count,
 int fal_set_switch_attr(const struct fal_attribute_t *attr);
 
 int fal_ip_new_neigh(unsigned int if_index,
+		     fal_object_t rtr_intf_obj,
 		     const struct sockaddr *sa,
 		     uint32_t attr_count,
 		     const struct fal_attribute_t *attr_list);
 int fal_ip_upd_neigh(unsigned int if_index,
+		     fal_object_t rtr_intf_obj,
 		     const struct sockaddr *sa,
 		     const struct fal_attribute_t *attr);
 int fal_ip_get_neigh_attrs(unsigned int if_index,
+			   fal_object_t rtr_intf_obj,
 			   const struct sockaddr *sa,
 			   uint32_t attr_count,
 			   struct fal_attribute_t *attr_list);
 
 int fal_ip4_new_neigh(unsigned int if_index,
+		      fal_object_t rtr_intf_obj,
 		      const struct sockaddr_in *sin,
 		      uint32_t attr_count,
 		      const struct fal_attribute_t *attr_list);
 int fal_ip4_upd_neigh(unsigned int if_index,
+		      fal_object_t rtr_intf_obj,
 		      const struct sockaddr_in *sin,
 		      struct fal_attribute_t *attr);
 int fal_ip4_del_neigh(unsigned int if_index,
+		      fal_object_t rtr_intf_obj,
 		      const struct sockaddr_in *sin);
 void fal_ip4_dump_neigh(unsigned int if_index,
+			fal_object_t rtr_intf_obj,
 			const struct sockaddr_in *sin,
 			json_writer_t *wr);
 void fal_ip4_new_addr(unsigned int if_index,
@@ -827,18 +854,23 @@ int fal_ip_upd_next_hop_state(const fal_object_t *nh_list, int index,
 enum fal_packet_action_t
 fal_next_hop_group_packet_action(uint32_t nhops, const struct next_hop hops[]);
 
-int fal_ip4_new_route(vrfid_t vrf_id, in_addr_t addr, uint8_t prefixlen,
+int fal_ip4_new_route(vrfid_t vrf_id, fal_object_t vrf_obj,
+		      in_addr_t addr, uint8_t prefixlen,
 		      uint32_t tableid, struct next_hop hops[],
 		      size_t nhops, fal_object_t nhg_object);
-int fal_ip4_upd_route(vrfid_t vrf_id, in_addr_t addr, uint8_t prefixlen,
+int fal_ip4_upd_route(vrfid_t vrf_id, fal_object_t vrf_obj,
+		      in_addr_t addr, uint8_t prefixlen,
 		      uint32_t tableid, struct next_hop hops[],
 		      size_t nhops, fal_object_t nhg_object);
-int fal_ip4_del_route(vrfid_t vrf_id, in_addr_t addr, uint8_t prefixlen,
+int fal_ip4_del_route(vrfid_t vrf_id, fal_object_t vrf_obj,
+		      in_addr_t addr, uint8_t prefixlen,
 		      uint32_t tableid);
-int fal_ip4_get_route_attrs(vrfid_t vrf_id, in_addr_t addr, uint8_t prefixlen,
+int fal_ip4_get_route_attrs(vrfid_t vrf_id, fal_object_t vrf_obj,
+			    in_addr_t addr, uint8_t prefixlen,
 			    uint32_t tableid, uint32_t attr_count,
 			    const struct fal_attribute_t *attr_list);
-int fal_ip6_get_route_attrs(vrfid_t vrf_id, const struct in6_addr *addr,
+int fal_ip6_get_route_attrs(vrfid_t vrf_id, fal_object_t vrf_obj,
+			    const struct in6_addr *addr,
 			    uint8_t prefixlen, uint32_t tableid,
 			    uint32_t attr_count,
 			    const struct fal_attribute_t *attr_list);
@@ -865,15 +897,19 @@ int fal_ip6_upd_mroute(fal_object_t obj, struct mf6c *rt, struct vmf6cctl *mfc,
 			struct cds_lfht *iftable);
 
 int fal_ip6_new_neigh(unsigned int if_index,
+		      fal_object_t rtr_intf_obj,
 		      const struct sockaddr_in6 *sin6,
 		      uint32_t attr_count,
 		      const struct fal_attribute_t *attr_list);
 int fal_ip6_upd_neigh(unsigned int if_index,
+		      fal_object_t rtr_intf_obj,
 		      const struct sockaddr_in6 *sin6,
 		      struct fal_attribute_t *attr);
 int fal_ip6_del_neigh(unsigned int if_index,
+		      fal_object_t rtr_intf_obj,
 		      const struct sockaddr_in6 *sin6);
 void fal_ip6_dump_neigh(unsigned int if_index,
+			fal_object_t rtr_intf_obj,
 			const struct sockaddr_in6 *sin6,
 			json_writer_t *wr);
 void fal_ip6_new_addr(unsigned int if_index,
@@ -890,15 +926,18 @@ int fal_ip_get_next_hop_attrs(fal_object_t nh_object,
 			      uint32_t attr_count,
 			      struct fal_attribute_t *attr_list);
 void fal_ip_dump_next_hop(fal_object_t nh_object, json_writer_t *wr);
-int fal_ip6_new_route(vrfid_t vrf_id, const struct in6_addr *addr,
+int fal_ip6_new_route(vrfid_t vrf_id, fal_object_t vrf_obj,
+		      const struct in6_addr *addr,
 		      uint8_t prefixlen, uint32_t tableid,
 		      struct next_hop hops[], size_t nhops,
 		      fal_object_t nhg_object);
-int fal_ip6_upd_route(vrfid_t vrf_id, const struct in6_addr *addr,
+int fal_ip6_upd_route(vrfid_t vrf_id, fal_object_t vrf_obj,
+		      const struct in6_addr *addr,
 		      uint8_t prefixlen, uint32_t tableid,
 		      struct next_hop hops[], size_t nhops,
 		      fal_object_t nhg_object);
-int fal_ip6_del_route(vrfid_t vrf_id, const struct in6_addr *addr,
+int fal_ip6_del_route(vrfid_t vrf_id, fal_object_t vrf_obj,
+		      const struct in6_addr *addr,
 		      uint8_t prefixlen, uint32_t tableid);
 
 int fal_ip_mcast_get_stats(fal_object_t obj, uint32_t num_counters,

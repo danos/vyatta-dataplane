@@ -123,6 +123,7 @@ llentry_fal_destroy(struct lltable *llt, struct llentry *lle)
 	if (lle->la_flags & LLE_CREATED_IN_HW) {
 		if (lle->ll_sock.ss_family == AF_INET) {
 			ret = fal_ip4_del_neigh(ifp->if_index,
+						ifp->fal_l3,
 						satosin(ll_sockaddr(lle)));
 			if (ret < 0) {
 				RTE_LOG(NOTICE, DATAPLANE,
@@ -134,6 +135,7 @@ llentry_fal_destroy(struct lltable *llt, struct llentry *lle)
 			}
 		} else if (lle->ll_sock.ss_family == AF_INET6) {
 			ret = fal_ip6_del_neigh(ifp->if_index,
+						ifp->fal_l3,
 						satosin6(ll_sockaddr(lle)));
 			if (ret < 0) {
 				RTE_LOG(NOTICE, DATAPLANE,
@@ -375,6 +377,7 @@ _llentry_has_been_used(struct llentry *lle, bool clear)
 
 	ret = fal_ip_get_neigh_attrs(
 		lle->ifp->if_index,
+		lle->ifp->fal_l3,
 		ll_sockaddr(lle),
 		1, &attr);
 	if (!ret && attr.value.booldata)
@@ -383,6 +386,7 @@ _llentry_has_been_used(struct llentry *lle, bool clear)
 		attr.value.booldata = false;
 		ret = fal_ip_upd_neigh(
 			lle->ifp->if_index,
+			lle->ifp->fal_l3,
 			ll_sockaddr(lle),
 			&attr);
 		if (ret) {
@@ -449,8 +453,9 @@ llentry_issue_pending_fal_updates(struct llentry *lle)
 
 	if (new) {
 		ret = fal_ip_new_neigh(lle->ifp->if_index,
-					ll_sockaddr(lle), attr_count,
-					attr_list);
+				       lle->ifp->fal_l3,
+				       ll_sockaddr(lle), attr_count,
+				       attr_list);
 		if (ret < 0 && ret != -EOPNOTSUPP) {
 			RTE_LOG(NOTICE, DATAPLANE,
 				"FAL new neighbour %s, %s failed: %s\n",
@@ -465,7 +470,9 @@ llentry_issue_pending_fal_updates(struct llentry *lle)
 			rte_spinlock_unlock(&lle->ll_lock);
 		}
 	} else if (upd) {
-		ret = fal_ip_upd_neigh(lle->ifp->if_index, ll_sockaddr(lle),
+		ret = fal_ip_upd_neigh(lle->ifp->if_index,
+				       lle->ifp->fal_l3,
+				       ll_sockaddr(lle),
 				       attr_list);
 		if (ret < 0) {
 			RTE_LOG(NOTICE, DATAPLANE,

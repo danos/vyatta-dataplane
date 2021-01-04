@@ -259,15 +259,27 @@ static struct fal_ip_ops *new_dyn_ip_ops(void *lib)
 	ip_ops->new_addr = dlsym(lib, "fal_plugin_ip_new_addr");
 	ip_ops->upd_addr = dlsym(lib, "fal_plugin_ip_upd_addr");
 	ip_ops->del_addr = dlsym(lib, "fal_plugin_ip_del_addr");
-	ip_ops->new_neigh = dlsym(lib, "fal_plugin_ip_new_neigh");
-	ip_ops->upd_neigh = dlsym(lib, "fal_plugin_ip_upd_neigh");
-	ip_ops->get_neigh_attrs = dlsym(lib, "fal_plugin_ip_get_neigh_attrs");
-	ip_ops->dump_neigh = dlsym(lib, "fal_plugin_ip_dump_neigh");
-	ip_ops->del_neigh = dlsym(lib, "fal_plugin_ip_del_neigh");
-	ip_ops->new_route = dlsym(lib, "fal_plugin_ip_new_route");
-	ip_ops->upd_route = dlsym(lib, "fal_plugin_ip_upd_route");
-	ip_ops->del_route = dlsym(lib, "fal_plugin_ip_del_route");
-	ip_ops->get_route_attrs = dlsym(lib, "fal_plugin_ip_get_route_attrs");
+	ip_ops->new_neigh = dlsym(lib, "fal_plugin_create_ip_neigh");
+	ip_ops->upd_neigh = dlsym(lib, "fal_plugin_set_ip_neigh_attr");
+	ip_ops->get_neigh_attrs = dlsym(lib, "fal_plugin_get_ip_neigh_attrs");
+	ip_ops->dump_neigh = dlsym(lib, "fal_plugin_dump_ip_neigh");
+	ip_ops->del_neigh = dlsym(lib, "fal_plugin_delete_ip_neigh");
+	ip_ops->new_neigh_depr = dlsym(lib, "fal_plugin_ip_new_neigh");
+	ip_ops->upd_neigh_depr = dlsym(lib, "fal_plugin_ip_upd_neigh");
+	ip_ops->get_neigh_attrs_depr =
+		dlsym(lib, "fal_plugin_ip_get_neigh_attrs");
+	ip_ops->dump_neigh_depr = dlsym(lib, "fal_plugin_ip_dump_neigh");
+	ip_ops->del_neigh_depr = dlsym(lib, "fal_plugin_ip_del_neigh");
+	ip_ops->new_route = dlsym(lib, "fal_plugin_create_route_entry");
+	ip_ops->upd_route = dlsym(lib, "fal_plugin_set_route_entry_attr");
+	ip_ops->del_route = dlsym(lib, "fal_plugin_delete_route_entry");
+	ip_ops->get_route_attrs =
+		dlsym(lib, "fal_plugin_get_route_entry_attrs");
+	ip_ops->new_route_depr = dlsym(lib, "fal_plugin_ip_new_route");
+	ip_ops->upd_route_depr = dlsym(lib, "fal_plugin_ip_upd_route");
+	ip_ops->del_route_depr = dlsym(lib, "fal_plugin_ip_del_route");
+	ip_ops->get_route_attrs_depr =
+		dlsym(lib, "fal_plugin_ip_get_route_attrs");
 	ip_ops->walk_routes = dlsym(lib, "fal_plugin_ip_walk_routes");
 	ip_ops->new_next_hop_group = dlsym(
 		lib, "fal_plugin_ip_new_next_hop_group");
@@ -1414,55 +1426,92 @@ void fal_ip6_del_addr(unsigned int if_index, const struct if_addr *ifa)
 }
 
 static int _fal_ip_new_neigh(unsigned int if_index,
+			     fal_object_t rtr_intf_obj,
 			     struct fal_ip_address_t *ipaddr,
 			     uint32_t attr_count,
 			     const struct fal_attribute_t *attr_list)
 {
-	return call_handler_def_ret(
-		ip, -EOPNOTSUPP, new_neigh, if_index, ipaddr, attr_count,
+	struct fal_neighbor_entry_t neigh_entry = {
+		.router_intf_obj = rtr_intf_obj,
+		.ip_addr = *ipaddr,
+	};
+	int ret;
+
+	ret = call_handler_def_ret(
+		ip, -EOPNOTSUPP, new_neigh, &neigh_entry, attr_count,
 		attr_list);
+	if (ret == -EOPNOTSUPP)
+		ret = call_handler_def_ret(
+			ip, -EOPNOTSUPP, new_neigh_depr, if_index,
+			ipaddr, attr_count, attr_list);
+
+	return ret;
 }
 
 static int _fal_ip_upd_neigh(unsigned int if_index,
+			     fal_object_t rtr_intf_obj,
 			     struct fal_ip_address_t *ipaddr,
 			     const struct fal_attribute_t *attr)
 {
-	return call_handler_def_ret(
-		ip, -EOPNOTSUPP, upd_neigh, if_index, ipaddr,
-		(struct fal_attribute_t *)attr);
+	struct fal_neighbor_entry_t neigh_entry = {
+		.router_intf_obj = rtr_intf_obj,
+		.ip_addr = *ipaddr,
+	};
+	int ret;
+
+	ret = call_handler_def_ret(
+		ip, -EOPNOTSUPP, upd_neigh, &neigh_entry, attr);
+	if (ret == -EOPNOTSUPP)
+		ret = call_handler_def_ret(
+			ip, -EOPNOTSUPP, upd_neigh_depr, if_index, ipaddr,
+			(struct fal_attribute_t *)attr);
+
+	return ret;
 }
 
 int fal_ip_get_neigh_attrs(unsigned int if_index,
+			   fal_object_t rtr_intf_obj,
 			   const struct sockaddr *sa,
 			   uint32_t attr_count,
 			   struct fal_attribute_t *attr_list)
 {
-	struct fal_ip_address_t ipaddr = { 0 };
+	struct fal_neighbor_entry_t neigh_entry = {
+		.router_intf_obj = rtr_intf_obj,
+	};
+	int ret;
 
 	if (!fal_plugins_present())
 		return -EOPNOTSUPP;
 
 	switch (sa->sa_family) {
 	case AF_INET:
-		ipaddr.addr_family = FAL_IP_ADDR_FAMILY_IPV4;
-		ipaddr.addr.ip4 =
+		neigh_entry.ip_addr.addr_family = FAL_IP_ADDR_FAMILY_IPV4;
+		neigh_entry.ip_addr.addr.ip4 =
 			((const struct sockaddr_in *)sa)->sin_addr.s_addr;
 		break;
 	case AF_INET6:
-		ipaddr.addr_family = FAL_IP_ADDR_FAMILY_IPV6;
-		ipaddr.addr.addr6 =
+		neigh_entry.ip_addr.addr_family = FAL_IP_ADDR_FAMILY_IPV6;
+		neigh_entry.ip_addr.addr.addr6 =
 			((const struct sockaddr_in6 *)sa)->sin6_addr;
 		break;
 	default:
 		return -EOPNOTSUPP;
 	}
 
-	return call_handler_def_ret(
-		ip, -EOPNOTSUPP, get_neigh_attrs, if_index, &ipaddr,
+	ret = call_handler_def_ret(
+		ip, -EOPNOTSUPP, get_neigh_attrs, &neigh_entry,
 		attr_count, attr_list);
+	if (ret == -EOPNOTSUPP)
+		ret = call_handler_def_ret(
+			ip, -EOPNOTSUPP, get_neigh_attrs_depr, if_index,
+			&neigh_entry.ip_addr,
+			attr_count, attr_list);
+
+	return ret;
 }
 
 int fal_ip_new_neigh(unsigned int if_index,
+		     fal_object_t rtr_intf_obj,
 		     const struct sockaddr *sa,
 		     uint32_t attr_count,
 		     const struct fal_attribute_t *attr_list)
@@ -1484,12 +1533,13 @@ int fal_ip_new_neigh(unsigned int if_index,
 		return -EOPNOTSUPP;
 	}
 
-	return _fal_ip_new_neigh(if_index, &ipaddr, attr_count,
+	return _fal_ip_new_neigh(if_index, rtr_intf_obj, &ipaddr, attr_count,
 				 attr_list);
 }
 
 
 int fal_ip_upd_neigh(unsigned int if_index,
+		     fal_object_t rtr_intf_obj,
 		     const struct sockaddr *sa,
 		     const struct fal_attribute_t *attr)
 {
@@ -1513,24 +1563,44 @@ int fal_ip_upd_neigh(unsigned int if_index,
 		return -EOPNOTSUPP;
 	}
 
-	return _fal_ip_upd_neigh(if_index, &ipaddr, attr);
+	return _fal_ip_upd_neigh(if_index, rtr_intf_obj, &ipaddr, attr);
 }
 
 static int fal_ip_del_neigh(unsigned int if_index,
+			    fal_object_t rtr_intf_obj,
 			    struct fal_ip_address_t *ipaddr)
 {
-	return call_handler_def_ret(
-		ip, -EOPNOTSUPP, del_neigh, if_index, ipaddr);
+	struct fal_neighbor_entry_t neigh_entry = {
+		.router_intf_obj = rtr_intf_obj,
+		.ip_addr = *ipaddr,
+	};
+	int ret;
+
+	ret = call_handler_def_ret(
+		ip, -EOPNOTSUPP, del_neigh, &neigh_entry);
+	if (ret == -EOPNOTSUPP)
+		ret = call_handler_def_ret(
+			ip, -EOPNOTSUPP, del_neigh_depr, if_index, ipaddr);
+
+	return ret;
 }
 
 static void fal_ip_dump_neigh(unsigned int if_index,
-			     struct fal_ip_address_t *ipaddr,
-			     json_writer_t *wr)
+			      fal_object_t rtr_intf_obj,
+			      struct fal_ip_address_t *ipaddr,
+			      json_writer_t *wr)
 {
-	call_handler(ip, dump_neigh, if_index, ipaddr, wr);
+	struct fal_neighbor_entry_t neigh_entry = {
+		.router_intf_obj = rtr_intf_obj,
+		.ip_addr = *ipaddr,
+	};
+
+	call_handler(ip, dump_neigh, &neigh_entry, wr);
+	call_handler(ip, dump_neigh_depr, if_index, ipaddr, wr);
 }
 
 int fal_ip4_new_neigh(unsigned int if_index,
+		      fal_object_t rtr_intf_obj,
 		      const struct sockaddr_in *sin,
 		      uint32_t attr_count,
 		      const struct fal_attribute_t *attr_list)
@@ -1543,10 +1613,12 @@ int fal_ip4_new_neigh(unsigned int if_index,
 	if (!fal_plugins_present())
 		return 0;
 
-	return _fal_ip_new_neigh(if_index, &faddr, attr_count, attr_list);
+	return _fal_ip_new_neigh(if_index, rtr_intf_obj, &faddr,
+				 attr_count, attr_list);
 }
 
 int fal_ip6_new_neigh(unsigned int if_index,
+		      fal_object_t rtr_intf_obj,
 		      const struct sockaddr_in6 *sin6,
 		      uint32_t attr_count,
 		      const struct fal_attribute_t *attr_list)
@@ -1559,10 +1631,12 @@ int fal_ip6_new_neigh(unsigned int if_index,
 	if (!fal_plugins_present())
 		return 0;
 
-	return _fal_ip_new_neigh(if_index, &faddr, attr_count, attr_list);
+	return _fal_ip_new_neigh(if_index, rtr_intf_obj, &faddr,
+				 attr_count, attr_list);
 }
 
 int fal_ip4_upd_neigh(unsigned int if_index,
+		      fal_object_t rtr_intf_obj,
 		      const struct sockaddr_in *sin,
 		      struct fal_attribute_t *attr)
 {
@@ -1574,10 +1648,11 @@ int fal_ip4_upd_neigh(unsigned int if_index,
 	if (!fal_plugins_present())
 		return 0;
 
-	return _fal_ip_upd_neigh(if_index, &faddr, attr);
+	return _fal_ip_upd_neigh(if_index, rtr_intf_obj, &faddr, attr);
 }
 
 int fal_ip6_upd_neigh(unsigned int if_index,
+		      fal_object_t rtr_intf_obj,
 		      const struct sockaddr_in6 *sin6,
 		      struct fal_attribute_t *attr)
 {
@@ -1589,10 +1664,11 @@ int fal_ip6_upd_neigh(unsigned int if_index,
 	if (!fal_plugins_present())
 		return 0;
 
-	return _fal_ip_upd_neigh(if_index, &faddr, attr);
+	return _fal_ip_upd_neigh(if_index, rtr_intf_obj, &faddr, attr);
 }
 
 int fal_ip4_del_neigh(unsigned int if_index,
+		      fal_object_t rtr_intf_obj,
 		      const struct sockaddr_in *sin)
 {
 	struct fal_ip_address_t faddr = {
@@ -1603,10 +1679,11 @@ int fal_ip4_del_neigh(unsigned int if_index,
 	if (!fal_plugins_present())
 		return 0;
 
-	return fal_ip_del_neigh(if_index, &faddr);
+	return fal_ip_del_neigh(if_index, rtr_intf_obj, &faddr);
 }
 
 int fal_ip6_del_neigh(unsigned int if_index,
+		      fal_object_t rtr_intf_obj,
 		      const struct sockaddr_in6 *sin6)
 {
 	struct fal_ip_address_t faddr = {
@@ -1617,10 +1694,11 @@ int fal_ip6_del_neigh(unsigned int if_index,
 	if (!fal_plugins_present())
 		return 0;
 
-	return fal_ip_del_neigh(if_index, &faddr);
+	return fal_ip_del_neigh(if_index, rtr_intf_obj, &faddr);
 }
 
 void fal_ip4_dump_neigh(unsigned int if_index,
+			fal_object_t rtr_intf_obj,
 			const struct sockaddr_in *sin,
 			json_writer_t *wr)
 {
@@ -1629,10 +1707,11 @@ void fal_ip4_dump_neigh(unsigned int if_index,
 		.addr.ip4 = sin->sin_addr.s_addr
 	};
 
-	fal_ip_dump_neigh(if_index, &faddr, wr);
+	fal_ip_dump_neigh(if_index, rtr_intf_obj, &faddr, wr);
 }
 
 void fal_ip6_dump_neigh(unsigned int if_index,
+			fal_object_t rtr_intf_obj,
 			const struct sockaddr_in6 *sin6,
 			json_writer_t *wr)
 {
@@ -1641,7 +1720,7 @@ void fal_ip6_dump_neigh(unsigned int if_index,
 		.addr.addr6 = sin6->sin6_addr
 	};
 
-	fal_ip_dump_neigh(if_index, &faddr, wr);
+	fal_ip_dump_neigh(if_index, rtr_intf_obj, &faddr, wr);
 }
 
 static inline bool
@@ -1929,48 +2008,134 @@ void fal_ip_dump_next_hop(fal_object_t nh_object, json_writer_t *wr)
 }
 
 static int fal_ip_new_route(unsigned int vrf_id,
-			     struct fal_ip_address_t *ipaddr,
-			     uint8_t prefixlen,
-			     uint32_t tableid,
-			     uint32_t attr_count,
-			     const struct fal_attribute_t *attr_list)
+			    fal_object_t vrf_obj,
+			    struct fal_ip_address_t *ipaddr,
+			    uint8_t prefixlen,
+			    uint32_t tableid,
+			    uint32_t attr_count,
+			    const struct fal_attribute_t *attr_list)
 {
-	return call_handler_def_ret(
-		ip, -EOPNOTSUPP, new_route, vrf_id, ipaddr, prefixlen,
-		tableid, attr_count, attr_list);
+	struct fal_route_entry_t route = {
+		.vrf_obj = vrf_obj,
+		.ip_addr = *ipaddr,
+		.prefix_len = prefixlen,
+	};
+	int ret;
+
+	/* Multiple tables not supported in FAL plugins outside of VRFs */
+	if (tableid != RT_TABLE_MAIN)
+		return -EOPNOTSUPP;
+
+	/*
+	 * If using route handler that takes a VRF object but no VRF
+	 * object created then return an error.
+	 */
+	if (vrf_obj == FAL_NULL_OBJECT_ID &&
+	    fal_handler && fal_handler->ip && fal_handler->ip->new_route)
+		return -EINVAL;
+
+	ret = call_handler_def_ret(
+		ip, -EOPNOTSUPP, new_route, &route, attr_count, attr_list);
+	if (ret == -EOPNOTSUPP)
+		ret = call_handler_def_ret(
+			ip, -EOPNOTSUPP, new_route_depr, vrf_id, ipaddr,
+			prefixlen, tableid, attr_count, attr_list);
+
+	return ret;
 }
 
 static int fal_ip_upd_route(unsigned int vrf_id,
+			    fal_object_t vrf_obj,
 			    struct fal_ip_address_t *ipaddr,
 			    uint8_t prefixlen,
 			    uint32_t tableid,
 			    struct fal_attribute_t *attr)
 {
-	return call_handler_def_ret(
-		ip, -EOPNOTSUPP, upd_route, vrf_id, ipaddr, prefixlen,
-		tableid, attr);
+	struct fal_route_entry_t route = {
+		.vrf_obj = vrf_obj,
+		.ip_addr = *ipaddr,
+		.prefix_len = prefixlen,
+	};
+	int ret;
+
+	/* Multiple tables not supported in FAL plugins outside of VRFs */
+	if (tableid != RT_TABLE_MAIN)
+		return -EOPNOTSUPP;
+
+	ret = call_handler_def_ret(
+		ip, -EOPNOTSUPP, upd_route, &route, attr);
+	if (ret == -EOPNOTSUPP)
+		ret = call_handler_def_ret(
+			ip, -EOPNOTSUPP, upd_route_depr, vrf_id,
+			ipaddr, prefixlen, tableid, attr);
+
+	return ret;
 }
 
 static int fal_ip_del_route(unsigned int vrf_id,
+			    fal_object_t vrf_obj,
 			    struct fal_ip_address_t *ipaddr,
 			    uint8_t prefixlen,
 			    uint32_t tableid)
 {
-	return call_handler_def_ret(
-		ip, -EOPNOTSUPP, del_route, vrf_id, ipaddr, prefixlen,
-		tableid);
+	struct fal_route_entry_t route = {
+		.vrf_obj = vrf_obj,
+		.ip_addr = *ipaddr,
+		.prefix_len = prefixlen,
+	};
+	int ret;
+
+	/* Multiple tables not supported in FAL plugins outside of VRFs */
+	if (tableid != RT_TABLE_MAIN)
+		return -EOPNOTSUPP;
+
+	ret = call_handler_def_ret(
+		ip, -EOPNOTSUPP, del_route, &route);
+	if (ret == -EOPNOTSUPP)
+		ret = call_handler_def_ret(
+			ip, -EOPNOTSUPP, del_route_depr, vrf_id, ipaddr,
+			prefixlen, tableid);
+
+	return ret;
 }
 
 static int fal_ip_get_route_attrs(unsigned int vrf_id,
+				  fal_object_t vrf_obj,
 				  struct fal_ip_address_t *ipaddr,
 				  uint8_t prefixlen,
 				  uint32_t tableid,
 				  uint32_t attr_count,
 				  const struct fal_attribute_t *attr_list)
 {
-	return call_handler_def_ret(
-		ip, -EOPNOTSUPP, get_route_attrs, vrf_id, ipaddr, prefixlen,
-		tableid, attr_count, attr_list);
+	struct fal_route_entry_t route = {
+		.vrf_obj = vrf_obj,
+		.ip_addr = *ipaddr,
+		.prefix_len = prefixlen,
+	};
+	int ret;
+
+	/* Multiple tables not supported in FAL plugins outside of VRFs */
+	if (tableid != RT_TABLE_MAIN)
+		return -EOPNOTSUPP;
+
+	/*
+	 * If using route handler that takes a VRF object but no VRF
+	 * object created then return an error.
+	 */
+	if (vrf_obj == FAL_NULL_OBJECT_ID &&
+	    fal_handler && fal_handler->ip && fal_handler->ip->get_route_attrs)
+		return -EINVAL;
+
+	ret = call_handler_def_ret(
+		ip, -EOPNOTSUPP, get_route_attrs, &route, attr_count,
+		attr_list);
+	if (ret == -EOPNOTSUPP)
+		ret = call_handler_def_ret(
+			ip, -EOPNOTSUPP, get_route_attrs_depr, vrf_id,
+			ipaddr, prefixlen, tableid, attr_count,
+			attr_list);
+
+	return ret;
 }
 
 int fal_ip_walk_routes(fal_plugin_route_walk_fn cb,
@@ -1982,7 +2147,8 @@ int fal_ip_walk_routes(fal_plugin_route_walk_fn cb,
 				    attr_cnt, attr_list, arg);
 }
 
-int fal_ip4_new_route(vrfid_t vrf_id, in_addr_t addr, uint8_t prefixlen,
+int fal_ip4_new_route(vrfid_t vrf_id, fal_object_t vrf_obj,
+		      in_addr_t addr, uint8_t prefixlen,
 		      uint32_t tableid, struct next_hop hops[],
 		      size_t nhops, fal_object_t nhg_object)
 {
@@ -2002,11 +2168,12 @@ int fal_ip4_new_route(vrfid_t vrf_id, in_addr_t addr, uint8_t prefixlen,
 	if (!fal_plugins_present())
 		return 0;
 
-	return fal_ip_new_route(__vrf_id, &faddr, prefixlen, tableid,
+	return fal_ip_new_route(__vrf_id, vrf_obj, &faddr, prefixlen, tableid,
 				RTE_DIM(attr_list), attr_list);
 }
 
-int fal_ip6_new_route(vrfid_t vrf_id, const struct in6_addr *addr,
+int fal_ip6_new_route(vrfid_t vrf_id, fal_object_t vrf_obj,
+		      const struct in6_addr *addr,
 		      uint8_t prefixlen, uint32_t tableid,
 		      struct next_hop hops[], size_t nhops,
 		      fal_object_t nhg_object)
@@ -2027,11 +2194,12 @@ int fal_ip6_new_route(vrfid_t vrf_id, const struct in6_addr *addr,
 	if (!fal_plugins_present())
 		return 0;
 
-	return fal_ip_new_route(__vrf_id, &faddr, prefixlen, tableid,
+	return fal_ip_new_route(__vrf_id, vrf_obj, &faddr, prefixlen, tableid,
 				RTE_DIM(attr_list), attr_list);
 }
 
-int fal_ip4_upd_route(vrfid_t vrf_id, in_addr_t addr, uint8_t prefixlen,
+int fal_ip4_upd_route(vrfid_t vrf_id, fal_object_t vrf_obj,
+		      in_addr_t addr, uint8_t prefixlen,
 		      uint32_t tableid, struct next_hop hops[],
 		      size_t nhops, fal_object_t nhg_object)
 {
@@ -2064,7 +2232,7 @@ int fal_ip4_upd_route(vrfid_t vrf_id, in_addr_t addr, uint8_t prefixlen,
 		return -EINVAL;
 	}
 
-	ret = fal_ip_upd_route(__vrf_id, &faddr, prefixlen,
+	ret = fal_ip_upd_route(__vrf_id, vrf_obj, &faddr, prefixlen,
 			       tableid, &pa_attr);
 
 	if (!ret && action == FAL_PACKET_ACTION_FORWARD) {
@@ -2072,14 +2240,15 @@ int fal_ip4_upd_route(vrfid_t vrf_id, in_addr_t addr, uint8_t prefixlen,
 				FAL_ROUTE_ENTRY_ATTR_NEXT_HOP_GROUP,
 				.value.objid = nhg_object };
 
-		ret = fal_ip_upd_route(__vrf_id, &faddr, prefixlen,
+		ret = fal_ip_upd_route(__vrf_id, vrf_obj, &faddr, prefixlen,
 				       tableid, &fnhg_attr);
 	}
 
 	return ret;
 }
 
-int fal_ip6_upd_route(vrfid_t vrf_id, const struct in6_addr *addr,
+int fal_ip6_upd_route(vrfid_t vrf_id, fal_object_t vrf_obj,
+		      const struct in6_addr *addr,
 		      uint8_t prefixlen, uint32_t tableid,
 		      struct next_hop hops[], size_t nhops,
 		      fal_object_t nhg_object)
@@ -2112,7 +2281,7 @@ int fal_ip6_upd_route(vrfid_t vrf_id, const struct in6_addr *addr,
 		return -EINVAL;
 	}
 
-	ret = fal_ip_upd_route(__vrf_id, &faddr, prefixlen,
+	ret = fal_ip_upd_route(__vrf_id, vrf_obj, &faddr, prefixlen,
 			       tableid, &pa_attr);
 
 	if (!ret && action == FAL_PACKET_ACTION_FORWARD) {
@@ -2120,14 +2289,15 @@ int fal_ip6_upd_route(vrfid_t vrf_id, const struct in6_addr *addr,
 				FAL_ROUTE_ENTRY_ATTR_NEXT_HOP_GROUP,
 				.value.objid = nhg_object };
 
-		ret = fal_ip_upd_route(__vrf_id, &faddr, prefixlen,
+		ret = fal_ip_upd_route(__vrf_id, vrf_obj, &faddr, prefixlen,
 				       tableid, &fnhg_attr);
 	}
 
 	return ret;
 }
 
-int fal_ip4_del_route(vrfid_t vrf_id, in_addr_t addr, uint8_t prefixlen,
+int fal_ip4_del_route(vrfid_t vrf_id, fal_object_t vrf_obj,
+		      in_addr_t addr, uint8_t prefixlen,
 		      uint32_t tableid)
 {
 	uint32_t __vrf_id = vrf_id;
@@ -2139,10 +2309,11 @@ int fal_ip4_del_route(vrfid_t vrf_id, in_addr_t addr, uint8_t prefixlen,
 	if (!fal_plugins_present())
 		return 0;
 
-	return fal_ip_del_route(__vrf_id, &faddr, prefixlen, tableid);
+	return fal_ip_del_route(__vrf_id, vrf_obj, &faddr, prefixlen, tableid);
 }
 
-int fal_ip6_del_route(vrfid_t vrf_id, const struct in6_addr *addr,
+int fal_ip6_del_route(vrfid_t vrf_id, fal_object_t vrf_obj,
+		      const struct in6_addr *addr,
 		      uint8_t prefixlen, uint32_t tableid)
 {
 	uint32_t __vrf_id = vrf_id;
@@ -2154,10 +2325,11 @@ int fal_ip6_del_route(vrfid_t vrf_id, const struct in6_addr *addr,
 	if (!fal_plugins_present())
 		return 0;
 
-	return fal_ip_del_route(__vrf_id, &faddr, prefixlen, tableid);
+	return fal_ip_del_route(__vrf_id, vrf_obj, &faddr, prefixlen, tableid);
 }
 
-int fal_ip4_get_route_attrs(vrfid_t vrf_id, in_addr_t addr, uint8_t prefixlen,
+int fal_ip4_get_route_attrs(vrfid_t vrf_id, fal_object_t vrf_obj,
+			    in_addr_t addr, uint8_t prefixlen,
 			    uint32_t tableid, uint32_t attr_count,
 			    const struct fal_attribute_t *attr_list)
 {
@@ -2167,11 +2339,12 @@ int fal_ip4_get_route_attrs(vrfid_t vrf_id, in_addr_t addr, uint8_t prefixlen,
 		.addr.ip4 = addr
 	};
 
-	return fal_ip_get_route_attrs(__vrf_id, &faddr, prefixlen,
+	return fal_ip_get_route_attrs(__vrf_id, vrf_obj, &faddr, prefixlen,
 				      tableid, attr_count, attr_list);
 }
 
-int fal_ip6_get_route_attrs(vrfid_t vrf_id, const struct in6_addr *addr,
+int fal_ip6_get_route_attrs(vrfid_t vrf_id, fal_object_t vrf_obj,
+			    const struct in6_addr *addr,
 			    uint8_t prefixlen, uint32_t tableid,
 			    uint32_t attr_count,
 			    const struct fal_attribute_t *attr_list)
@@ -2182,7 +2355,7 @@ int fal_ip6_get_route_attrs(vrfid_t vrf_id, const struct in6_addr *addr,
 		.addr.addr6 = *addr
 	};
 
-	return fal_ip_get_route_attrs(__vrf_id, &faddr, prefixlen,
+	return fal_ip_get_route_attrs(__vrf_id, vrf_obj, &faddr, prefixlen,
 				      tableid, attr_count, attr_list);
 }
 

@@ -68,6 +68,7 @@ struct vrf {
 	char v_name[VRF_NAME_SIZE];
 	uint32_t v_external_id;
 	fal_object_t v_fal_obj;
+	enum pd_obj_state v_pd_state;
 
 	/* SNMP Statistics */
 	struct arp_stats v_arpstat;
@@ -170,6 +171,10 @@ void vrf_delete_all(enum cont_src_en cont_src);
 void vrf_init(void);
 void vrf_cleanup(void);
 void vrf_set_external_id(struct vrf *vrf, uint32_t external_id);
+
+uint32_t *vrf_table_hw_stats_get(void);
+int vrf_table_get_pd_subset_data(json_writer_t *json,
+				 enum pd_obj_state subset);
 
 /*
  * Set up PBR tablemap in vrf to map PBR tables (1-128)

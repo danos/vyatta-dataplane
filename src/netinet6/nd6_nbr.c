@@ -541,7 +541,8 @@ nd6_create_valid(struct ifnet *ifp, const struct in6_addr *addr,
 		rte_atomic32_inc(&llt->lle_size);
 		if (is_main_thread() && if_is_features_mode_active(
 			    lle->ifp, IF_FEAT_MODE_EVENT_L3_FAL_ENABLED)) {
-			ret = fal_ip6_new_neigh(ifp->if_index, &sin6,
+			ret = fal_ip6_new_neigh(ifp->if_index, ifp->fal_l3,
+						&sin6,
 						RTE_DIM(attr_list), attr_list);
 			if (ret < 0 && ret != -EOPNOTSUPP) {
 				RTE_LOG(NOTICE, DATAPLANE,
@@ -1402,7 +1403,8 @@ in6_lltable_lookup(struct ifnet *ifp, u_int flags,
 			if (is_main_thread() && if_is_features_mode_active(
 				    lle->ifp,
 				    IF_FEAT_MODE_EVENT_L3_FAL_ENABLED)) {
-				ret = fal_ip6_new_neigh(ifp->if_index, &sin6,
+				ret = fal_ip6_new_neigh(ifp->if_index,
+							ifp->fal_l3, &sin6,
 							RTE_DIM(attr_list),
 							attr_list);
 				if (ret < 0 && ret != -EOPNOTSUPP) {

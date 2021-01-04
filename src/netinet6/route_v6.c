@@ -189,7 +189,7 @@ route_nexthop6_new(struct next_hop *nh, uint16_t size,
  * failures and successes.
  */
 static int
-route_lpm6_add(vrfid_t vrf_id, struct lpm6 *lpm,
+route_lpm6_add(vrfid_t vrf_id, fal_object_t vrf_obj, struct lpm6 *lpm,
 	       const struct in6_addr *ip, uint8_t depth, uint32_t next_hop,
 	       int16_t scope, uint32_t tableid)
 {
@@ -244,11 +244,11 @@ route_lpm6_add(vrfid_t vrf_id, struct lpm6 *lpm,
 
 	if (demoted) {
 		if (old_pd_state->created) {
-			rc = fal_ip6_upd_route(vrf_id, ip, depth,
+			rc = fal_ip6_upd_route(vrf_id, vrf_obj, ip, depth,
 					       tableid,
 					       hops, size, nhg_fal_obj);
 		} else {
-			rc = fal_ip6_new_route(vrf_id, ip, depth,
+			rc = fal_ip6_new_route(vrf_id, vrf_obj, ip, depth,
 					       tableid,
 					       hops, size, nhg_fal_obj);
 		}
@@ -267,7 +267,7 @@ route_lpm6_add(vrfid_t vrf_id, struct lpm6 *lpm,
 	 * We have successfully added to the lpm, and now need to update the
 	 * platform, if there is one.
 	 */
-	rc = fal_ip6_new_route(vrf_id, ip, depth, tableid,
+	rc = fal_ip6_new_route(vrf_id, vrf_obj, ip, depth, tableid,
 			       hops, size, nhg_fal_obj);
 	if (update_pd_state)
 		pd_state->state = fal_state_to_pd_state(rc);
@@ -284,7 +284,7 @@ route_lpm6_add(vrfid_t vrf_id, struct lpm6 *lpm,
 }
 
 static int
-route_lpm6_delete(vrfid_t vrf_id, struct lpm6 *lpm,
+route_lpm6_delete(vrfid_t vrf_id, fal_object_t vrf_obj, struct lpm6 *lpm,
 		  const struct in6_addr *ip, uint8_t depth,
 		  uint32_t *index, int16_t scope)
 {
@@ -333,11 +333,11 @@ route_lpm6_delete(vrfid_t vrf_id, struct lpm6 *lpm,
 		}
 
 		if (pd_state.created) {
-			rc = fal_ip6_upd_route(vrf_id, ip, depth,
+			rc = fal_ip6_upd_route(vrf_id, vrf_obj, ip, depth,
 					       lpm6_get_id(lpm),
 					       hops, size, nhg_fal_obj);
 		} else {
-			rc = fal_ip6_new_route(vrf_id, ip, depth,
+			rc = fal_ip6_new_route(vrf_id, vrf_obj, ip, depth,
 					       lpm6_get_id(lpm),
 					       hops, size, nhg_fal_obj);
 		}
@@ -352,7 +352,8 @@ route_lpm6_delete(vrfid_t vrf_id, struct lpm6 *lpm,
 
 	/* successfully removed and no lower scope promoted */
 	if (pd_state.created) {
-		rc = fal_ip6_del_route(vrf_id, ip, depth, lpm6_get_id(lpm));
+		rc = fal_ip6_del_route(vrf_id, vrf_obj, ip, depth,
+				       lpm6_get_id(lpm));
 		switch (rc) {
 		case 0:
 			route6_hw_stats[pd_state.state]--;
@@ -369,7 +370,7 @@ route_lpm6_delete(vrfid_t vrf_id, struct lpm6 *lpm,
 }
 
 static int
-route_lpm6_update(vrfid_t vrf_id __unused, struct lpm6 *lpm,
+route_lpm6_update(vrfid_t vrf_id, fal_object_t vrf_obj, struct lpm6 *lpm,
 		  const struct in6_addr *ip, uint8_t depth,
 		  uint32_t *old_nh,
 		  uint32_t next_hop, int16_t scope,
@@ -451,10 +452,10 @@ route_lpm6_update(vrfid_t vrf_id __unused, struct lpm6 *lpm,
 	}
 
 	if (pd_state.created) {
-		rc = fal_ip6_upd_route(vrf_id, ip, depth, tableid,
+		rc = fal_ip6_upd_route(vrf_id, vrf_obj, ip, depth, tableid,
 				       hops, size, nhg_fal_obj);
 	} else {
-		rc = fal_ip6_new_route(vrf_id, ip, depth, tableid,
+		rc = fal_ip6_new_route(vrf_id, vrf_obj, ip, depth, tableid,
 				       hops, size, nhg_fal_obj);
 	}
 
@@ -571,6 +572,7 @@ rt6_lpm_add_reserved_routes(struct lpm6 *lpm, struct vrf *vrf)
 
 		err_code = route_lpm6_add(
 			vrf->v_id,
+			vrf->v_fal_obj,
 			lpm,
 			addr,
 			reserved_routes[rt_idx].prefix_length,
@@ -611,6 +613,7 @@ rt6_lpm_del_reserved_routes(struct lpm6 *lpm, struct vrf *vrf)
 
 		err_code = route_lpm6_delete(
 			vrf->v_id,
+			vrf->v_fal_obj,
 			lpm,
 			addr,
 			reserved_routes[rt_idx].prefix_length,
@@ -1010,9 +1013,8 @@ static void subtree_walk_route_cleanup_cb(struct lpm6 *lpm,
 	 * entry is recreaetd with correct values.
 	 */
 	memcpy(&inaddr.s6_addr, masked_ip, sizeof(inaddr.s6_addr));
-	route_lpm6_delete(changing->vrf->v_id, lpm,
-			      &inaddr, 128,
-			      &cover_nh_idx, RT_SCOPE_LINK);
+	route_lpm6_delete(changing->vrf->v_id, changing->vrf->v_fal_obj,
+			  lpm, &inaddr, 128, &cover_nh_idx, RT_SCOPE_LINK);
 	nexthop_put(AF_INET6, idx);
 }
 
@@ -1453,8 +1455,8 @@ int rt6_delete(vrfid_t vrf_id, const struct in6_addr *dst,
 	if (!err) {
 		route_delete_unlink_neigh(vrf, lpm, id, dst->s6_addr,
 					  prefix_len);
-		err = route_lpm6_delete(vrf->v_id, lpm, dst, prefix_len,
-					    &index, scope);
+		err = route_lpm6_delete(vrf->v_id, vrf->v_fal_obj, lpm, dst,
+					prefix_len, &index, scope);
 		if (err >= 0) {
 			/* A delete now always gets rid of all NHs */
 			nexthop_put(AF_INET6, index);
@@ -1525,11 +1527,12 @@ static int rt6_insert(struct vrf *vrf, struct lpm6 *lpm,
 
 	route_delete_unlink_neigh(vrf, lpm, table_id, dst->s6_addr, prefix_len);
 	if (replace)
-		err = route_lpm6_update(vrf->v_id, lpm, dst, prefix_len,
-					&old_index, *idx, scope, table_id);
+		err = route_lpm6_update(vrf->v_id, vrf->v_fal_obj, lpm, dst,
+					prefix_len, &old_index, *idx, scope,
+					table_id);
 	else
-		err = route_lpm6_add(vrf->v_id, lpm, dst, prefix_len, *idx,
-				     scope, table_id);
+		err = route_lpm6_add(vrf->v_id, vrf->v_fal_obj, lpm, dst,
+				     prefix_len, *idx, scope, table_id);
 	if (err < 0) {
 		RTE_LOG(ERR, ROUTE, "route insert %s/%u scope %u failed (%d)\n",
 			inet_ntop(AF_INET6, dst, b, sizeof(b)),
@@ -1962,7 +1965,7 @@ static void rt6_if_dead(struct vrf *vrf, uint32_t table_id,
 	 */
 	lpm = rcu_dereference(vrf->v_rt6_head.rt6_table[table_id]);
 	memcpy(&inaddr.s6_addr, &params->prefix, sizeof(inaddr.s6_addr));
-	route_lpm6_delete(vrf->v_id, lpm, &inaddr,
+	route_lpm6_delete(vrf->v_id, vrf->v_fal_obj, lpm, &inaddr,
 			  params->pr_len, NULL, params->scope);
 	nexthop_put(AF_INET6, params->next_hop);
 }
@@ -2492,7 +2495,7 @@ route6_create_neigh(struct vrf *vrf, struct lpm6 *lpm,
 				free(nh);
 				return;
 			}
-			route_lpm6_add(vrf->v_id, lpm, ip, 128,
+			route_lpm6_add(vrf->v_id, vrf->v_fal_obj, lpm, ip, 128,
 				       nh_idx, RT_SCOPE_LINK, table_id);
 			free(nh);
 		}
@@ -2703,8 +2706,9 @@ void routing6_remove_neigh_safe(struct llentry *lle)
 		if (nh && nh_is_neigh_created(nh)) {
 			/* Are we removing a path or the entire NH */
 			if (nextl->nsiblings == 1) {
-				route_lpm6_delete(vrf->v_id, lpm, ip, 128,
-						      &nh_idx, RT_SCOPE_LINK);
+				route_lpm6_delete(vrf->v_id, vrf->v_fal_obj,
+						  lpm, ip, 128,
+						  &nh_idx, RT_SCOPE_LINK);
 				nexthop_put(AF_INET6, nh_idx);
 			} else {
 				struct neigh_remove_purge_arg args = {
@@ -2722,9 +2726,10 @@ void routing6_remove_neigh_safe(struct llentry *lle)
 					&args);
 				/* Can not delete a subset of paths here */
 				if (del == nextl->nsiblings) {
-					route_lpm6_delete(vrf->v_id, lpm,
-							      ip, 128, &nh_idx,
-							      RT_SCOPE_LINK);
+					route_lpm6_delete(vrf->v_id,
+							  vrf->v_fal_obj, lpm,
+							  ip, 128, &nh_idx,
+							  RT_SCOPE_LINK);
 					nexthop_put(AF_INET6, nh_idx);
 				}
 			}
@@ -2815,7 +2820,7 @@ static void route6_fal_upd_for_changed_nhl(
 
 	memcpy(&ip.s6_addr, params->prefix, sizeof(ip.s6_addr));
 
-	rc = fal_ip6_upd_route(vrf->v_id, &ip, params->pr_len,
+	rc = fal_ip6_upd_route(vrf->v_id, vrf->v_fal_obj, &ip, params->pr_len,
 			       table_id, nextl->siblings,
 			       nextl->nsiblings, nextl->nhg_fal_obj);
 
