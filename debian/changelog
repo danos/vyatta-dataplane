@@ -1,3 +1,37 @@
+vyatta-dataplane (3.12.16) unstable; urgency=medium
+
+  [ Nicholas Brown ]
+  * Jenkinsfile: clang-tidy robustness
+
+  [ Paul Atkins ]
+  * clang: turn off all warnings that are still found when running clang
+
+  [ Charles (Chas) Williams ]
+  * clang: fix bugprone-suspicious-string-compare
+  * clang: eliminate bzero
+
+  [ Mandeep Rohilla ]
+  * LAG: Check to see if min links is configured
+
+  [ Charles (Chas) Williams ]
+  * tests: add new macro to fail unit tests
+  * tests: convert some static asserts to abort
+
+  [ Nicholas Brown ]
+  * Re-enable clang-tidy warnings that are now fixed
+  * Fomat .clang-tidy file using yaml continuations
+
+  [ Charles (Chas) Williams ]
+  * mlx4: configure default steering mode
+  * clang: fix bugprone-narrowing-conversions
+
+  [ Nicholas Brown ]
+  * Re-eneable bugprone-suspicious-missing-comma
+
+  [ Simon Barber ]
+
+ -- Simon Barber <sbarber@mail.eng.vyatta.net>  Mon, 04 Jan 2021 16:09:52 +0000
+
 vyatta-dataplane (3.12.15) unstable; urgency=medium
 
   [ Nicholas Brown ]
