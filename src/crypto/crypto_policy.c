@@ -340,6 +340,7 @@ static void crypto_flow_cache_add(struct flow_cache *flow_cache,
 			ctx.no_rule_fwd = 1;
 		}
 	}
+	ctx.context = seen_by_crypto;
 
 	/*
 	 * In case this is an input policy match, check to see if the

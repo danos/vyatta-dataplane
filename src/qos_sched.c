@@ -3538,10 +3538,10 @@ static int cmd_qos_mark_map(int argc, char **argv)
 	char *dscp_group_name = NULL;
 	int err;
 	uint32_t pcp_value;
-	uint64_t dscp_set;
-	uint32_t designation;
+	uint64_t dscp_set = 0;
+	uint32_t designation = 0;
 	enum egress_map_type type;
-	enum fal_packet_colour color;
+	enum fal_packet_colour color = 0;	/* green */
 
 	/*
 	 * Expected command format:

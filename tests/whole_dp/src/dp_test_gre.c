@@ -101,12 +101,15 @@ gre_test_build_expected_pak(struct dp_test_expected **expected,
 	struct iphdr *inner;
 	struct rte_mbuf *m;
 
+	*expected = NULL;
 	exp = dp_test_exp_create_m(NULL, num_paks);
 
 	for (i = 0; i < num_paks; i++) {
 		m = gre_test_create_pak(
 			"1.1.2.1", "1.1.2.2",
 			payload[i], &inner, &outer[i]);
+		if (!m)
+			return;
 		dp_test_pktmbuf_eth_init(m,
 					 "aa:bb:cc:dd:ee:ff",
 					 dp_test_intf_name2mac_str("dp2T2"),
@@ -301,7 +304,7 @@ DP_START_TEST(gre_encap, simple_encap)
 	struct dp_test_expected *exp_frag;
 	struct dp_test_expected *exp_icmp;
 	struct iphdr *inner_ip;
-	struct iphdr *exp_ip_outer[DP_TEST_MAX_EXPECTED_PAKS];
+	struct iphdr *exp_ip_outer[DP_TEST_MAX_EXPECTED_PAKS] = { 0 };
 	int len = 32;
 
 	dp_test_gre_setup_tunnel(VRF_DEFAULT_ID, "1.1.2.1", "1.1.2.2");
@@ -344,6 +347,7 @@ DP_START_TEST(gre_encap, simple_encap)
 				 IPTOS_ECN_NOT_ECT);
 	gre_test_build_expected_pak(&exp_no_frag, &inner_ip,
 				    exp_ip_outer, 1);
+	dp_test_assert_internal(exp_ip_outer[0] != NULL);
 	dp_test_set_pak_ip_field(exp_ip_outer[0],
 				 DP_TEST_SET_IP_ECN, IPTOS_ECN_NOT_ECT);
 	dp_test_pak_receive(m, "dp1T1", exp_no_frag);
@@ -460,6 +464,7 @@ DP_START_TEST(gre_encap, simple_encap)
 	frag_payload[0] = iphdr(frag_payload_m[0]);
 	frag_payload[1] = iphdr(frag_payload_m[1]);
 	gre_test_build_expected_pak(&exp_frag, frag_payload, frag_outer, 2);
+	dp_test_assert_internal(exp_frag != NULL);
 	rte_pktmbuf_free(frag_payload_m[0]);
 	rte_pktmbuf_free(frag_payload_m[1]);
 
@@ -729,6 +734,7 @@ DP_START_TEST(gre_encap, ignore_df)
 	dp_test_set_pak_ip_field(inner_ip, DP_TEST_SET_DF, 1);
 	gre_test_build_expected_pak(&exp_no_frag, &inner_ip,
 				    exp_ip_outer, 1);
+	dp_test_assert_internal(exp_no_frag != NULL);
 	dp_test_pak_receive(m, "dp1T1", exp_no_frag);
 
 	/* 1476 */
@@ -771,6 +777,7 @@ DP_START_TEST(gre_encap, ignore_df)
 	frag_payload[0] = iphdr(frag_payload_m[0]);
 	frag_payload[1] = iphdr(frag_payload_m[1]);
 	gre_test_build_expected_pak(&exp_frag, frag_payload, frag_outer, 2);
+	dp_test_assert_internal(exp_frag != NULL);
 	rte_pktmbuf_free(frag_payload_m[0]);
 	rte_pktmbuf_free(frag_payload_m[1]);
 
@@ -787,7 +794,7 @@ static inline void dp_test_gre_tos_encap(bool inherit, uint8_t val)
 	struct rte_mbuf *m;
 	struct dp_test_expected *exp;
 	struct iphdr *inner_ip;
-	struct iphdr *exp_ip_outer[DP_TEST_MAX_EXPECTED_PAKS];
+	struct iphdr *exp_ip_outer[DP_TEST_MAX_EXPECTED_PAKS] = { 0 };
 	int len = 32;
 
 	/* Tos 0 */
@@ -800,6 +807,7 @@ static inline void dp_test_gre_tos_encap(bool inherit, uint8_t val)
 	dp_test_set_pak_ip_field(inner_ip, DP_TEST_SET_TOS,
 				 0);
 	gre_test_build_expected_pak(&exp, &inner_ip, exp_ip_outer, 1);
+	dp_test_assert_internal(exp_ip_outer[0] != NULL);
 	dp_test_set_pak_ip_field(exp_ip_outer[0], DP_TEST_SET_TOS,
 				 0);
 	dp_test_pak_receive(m, "dp1T1", exp);
@@ -974,6 +982,8 @@ DP_START_TEST(gre_decap, ecn_decap)
 	/* loop through all inners for outer 00 */
 	exp = gre_test_build_expected_ecn_pak(&e);
 	m = dp_test_gre_build_encapped_pak(iphdr(e), &outer_ip, &inner_ip);
+	dp_test_assert_internal(outer_ip != NULL);
+	dp_test_assert_internal(inner_ip != NULL);
 	dp_test_set_pak_ip_field(outer_ip,
 				 DP_TEST_SET_IP_ECN, IPTOS_ECN_NOT_ECT);
 	dp_test_set_pak_ip_field(inner_ip,
@@ -1306,7 +1316,7 @@ DP_START_TEST(gre_vrf_encap, simple_vrf_encap)
 	struct dp_test_expected *exp_frag;
 	struct dp_test_expected *exp_icmp;
 	struct iphdr *inner_ip;
-	struct iphdr *exp_ip_outer[DP_TEST_MAX_EXPECTED_PAKS];
+	struct iphdr *exp_ip_outer[DP_TEST_MAX_EXPECTED_PAKS] = { 0 };
 	int len = 32;
 
 	dp_test_gre_setup_tunnel(TEST_VRF, "1.1.2.1", "1.1.2.2");
@@ -1349,6 +1359,7 @@ DP_START_TEST(gre_vrf_encap, simple_vrf_encap)
 				 IPTOS_ECN_NOT_ECT);
 	gre_test_build_expected_pak(&exp_no_frag, &inner_ip,
 				    exp_ip_outer, 1);
+	dp_test_assert_internal(exp_ip_outer[0] != NULL);
 	dp_test_set_pak_ip_field(exp_ip_outer[0],
 				 DP_TEST_SET_IP_ECN, IPTOS_ECN_NOT_ECT);
 
@@ -1470,6 +1481,7 @@ DP_START_TEST(gre_vrf_encap, simple_vrf_encap)
 	frag_payload[0] = iphdr(frag_payload_m[0]);
 	frag_payload[1] = iphdr(frag_payload_m[1]);
 	gre_test_build_expected_pak(&exp_frag, frag_payload, frag_outer, 2);
+	dp_test_assert_internal(exp_frag != NULL);
 	rte_pktmbuf_free(frag_payload_m[0]);
 	rte_pktmbuf_free(frag_payload_m[1]);
 

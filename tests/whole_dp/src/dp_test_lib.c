@@ -1231,6 +1231,8 @@ static void dp_test_verify_tx(bool wait_for_first)
 				64);
 			if (count) {
 				for (j = 0; j < count; j++) {
+					dp_test_assert_internal(
+							bufs[j] != NULL);
 					(*dp_test_exp_get_validate_cb(
 					    dp_test_global_expected))
 					    (bufs[j], ifp,
