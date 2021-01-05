@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: LGPL-2.1-only
-# Copyright (c) 2020, AT&T Intellectual Property. All rights reserved.
+# Copyright (c) 2020-2021, AT&T Intellectual Property. All rights reserved.
 
 jsonw_library = shared_library(
         'vyatta-jsonw',
