@@ -1773,8 +1773,8 @@ nd6_cache_age(struct lltable *llt, bool refresh_timer_expired)
 
 		if (lle->ll_expire == 0 || !refresh_timer_expired)
 			continue;
-		else
-			in6_ll_age(llt, lle, cur_time);
+
+		in6_ll_age(llt, lle, cur_time);
 	}
 }
 
