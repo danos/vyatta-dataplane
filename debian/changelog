@@ -1,3 +1,27 @@
+vyatta-dataplane (3.12.17) unstable; urgency=medium
+
+  [ Charles (Chas) Williams ]
+  * micro bfd: allow micro BFD packets when no address (Bugfix: VRVDR-46131)
+  * main: change to warning about VLAN insertion
+
+  [ Nicholas Brown ]
+  * Add .clang-format file
+  * Add .editorconfig file
+
+  [ Robert Shearman ]
+  * include: update comment comparing SAI with FAL
+  * include: add new FAL APIs for using VRF objects with routes
+  * fal: don't signal routes with non-main tables to FAL plugins
+  * vrf: create VRF FAL object before initialising VRF
+  * fal: use new FAL route APIs if supported
+  * include: add new FAL APIs for using rtr-intf objects with neighs
+  * fal: use new FAL IP neighbor APIs if supported (Fixes: VRVDR-53924)
+  * vrf: track and display PD programming state of VRFs
+
+  [ Simon Barber ]
+
+ -- Simon Barber <sbarber@mail.eng.vyatta.net>  Mon, 04 Jan 2021 17:08:39 +0000
+
 vyatta-dataplane (3.12.16) unstable; urgency=medium
 
   [ Nicholas Brown ]

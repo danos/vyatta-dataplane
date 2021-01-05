@@ -429,11 +429,6 @@ dp_test_thread_run(zsock_t *pipe, void *args)
 	zsock_send(pipe, "i", dp_test_thread_internal_retval);
 }
 
-int stat(const char *path, struct stat *buf)
-{
-	return 0;
-}
-
 int dp_test_add_to_cfg_file(int argc, char **argv)
 {
 	int i;

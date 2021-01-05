@@ -89,7 +89,7 @@ void gpc_rule_set_objid(struct gpc_rule *gprl, uintptr_t objid);
 bool gpc_rule_is_published(struct gpc_rule const *gprl);
 bool gpc_rule_is_ll_created(struct gpc_rule const *gprl);
 
-struct gpc_rule *gpc_rule_find(struct gpc_group *gprg, uint32_t idx);
+struct gpc_rule *gpc_rule_find(struct gpc_group *gprg, uint32_t index);
 
 struct gpc_rule *gpc_rule_first(struct gpc_group const *gprg);
 struct gpc_rule *gpc_rule_last(struct gpc_group const *gprg);

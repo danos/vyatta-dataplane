@@ -84,7 +84,7 @@ static struct rte_timer flow_cache_timer;
 /* between crypto and main thread */
 static zsock_t *crypto_main_pull;
 static const char crypto_inproc[] = "inproc://crypto_to_main";
-static int handle_crypto_event(void *);
+static int handle_crypto_event(void *arg);
 
 /* from the main thread to the rekey listener */
 static zsock_t *rekey_listener;

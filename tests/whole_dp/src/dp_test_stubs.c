@@ -173,6 +173,7 @@ int tap_attach(const char *ifname)
 }
 
 /* There is no syslog running in the whole_dp UT environment */
+/* NOLINTNEXTLINE(readability-inconsistent-declaration-parameter-name) */
 void syslog(int priority, const char *format, ...)
 {
 	char log_buf[DP_TEST_TMP_BUF];
