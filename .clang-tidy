@@ -27,11 +27,9 @@ Checks:          'bugprone-*,
                   portability-*,
                   readability-*,
                   -readability-braces-around-statements,
-                  -readability-named-parameter,
                   -readability-redundant-member-init,
                   -readability-implicit-bool-conversion,
-                  -readability-inconsistent-declaration-parameter-name,
-                  -readability-else-after-return'
+                  -readability-inconsistent-declaration-parameter-name'
 WarningsAsErrors: ''
 HeaderFilterRegex: ''
 AnalyzeTemporaryDtors: false
