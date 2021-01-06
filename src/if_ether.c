@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 1982, 1986, 1988, 1993
  *	The Regents of the University of California.  All rights reserved.
  *
@@ -343,13 +343,8 @@ void lladdr_nl_event(int family, struct ifnet *ifp, uint16_t type,
 
 	switch (type) {
 	case RTM_NEWNEIGH:
-		/*
-		 * We are only interested in valid neighbour entries,
-		 * i.e. ones with a link-layer address present.
-		 */
-		if (lladdr)
-			lladdr_add(ifp, (struct sockaddr *) &saddr, lladdr,
-				   ndm->ndm_state, ndm->ndm_flags);
+		lladdr_add(ifp, (struct sockaddr *) &saddr, lladdr,
+			   ndm->ndm_state, ndm->ndm_flags);
 		break;
 
 	case RTM_DELNEIGH:
