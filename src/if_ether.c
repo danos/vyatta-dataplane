@@ -266,10 +266,7 @@ lladdr_add(struct ifnet *ifp, struct sockaddr *sock,
 			return 0;
 
 		rte_spinlock_lock(&lle->ll_lock);
-		lle->la_flags &= ~(LLE_VALID | LLE_STATIC);
-
-		pktmbuf_free_bulk(lle->la_held, lle->la_numheld);
-		lle->la_numheld = 0;
+		arp_entry_destroy(ifp->if_lltable, lle);
 		rte_spinlock_unlock(&lle->ll_lock);
 	} else {
 		uint16_t new_flags = 0;
