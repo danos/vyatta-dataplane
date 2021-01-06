@@ -235,13 +235,8 @@ lladdr_add(struct ifnet *ifp, struct sockaddr *sock,
 	struct llentry *lle;
 	uint16_t flags = LLE_CREATE;
 
-	if (state & NUD_PERMANENT)
-		flags |= LLE_STATIC;
-
 	switch (sock->sa_family) {
 	case AF_INET:
-		lle = in_lltable_lookup(ifp, flags,
-					satosin(sock)->sin_addr.s_addr);
 		break;
 
 	case AF_INET6:
@@ -252,14 +247,37 @@ lladdr_add(struct ifnet *ifp, struct sockaddr *sock,
 		return -1;
 	}
 
-	if (lle == NULL) {
-		RTE_LOG(NOTICE, LLADDR, "lladdr_add create failed\n");
-		return -1;
-	}
+	if (!(state & (NUD_PERMANENT | NUD_NOARP | NUD_REACHABLE | NUD_FAILED)))
+		return 0;
 
-	if (state & (NUD_STALE|NUD_REACHABLE|NUD_NOARP|NUD_PERMANENT|
-		     NUD_DELAY|NUD_PROBE)) {
+	/* Do not create an entry as a result of a fail notification */
+	if (state & NUD_FAILED)
+		flags = 0;
+
+	if (state & NUD_PERMANENT)
+		flags |= LLE_STATIC;
+
+	lle = in_lltable_lookup(ifp, flags, satosin(sock)->sin_addr.s_addr);
+
+	if (state & NUD_FAILED) {
+
+		/* Ignore fail notification unless entry exists */
+		if (!lle)
+			return 0;
+
+		rte_spinlock_lock(&lle->ll_lock);
+		lle->la_flags &= ~(LLE_VALID | LLE_STATIC);
+
+		pktmbuf_free_bulk(lle->la_held, lle->la_numheld);
+		lle->la_numheld = 0;
+		rte_spinlock_unlock(&lle->ll_lock);
+	} else {
 		uint16_t new_flags = 0;
+
+		if (!lle) {
+			RTE_LOG(NOTICE, LLADDR, "lladdr add: create failed\n");
+			return -1;
+		}
 
 		if (state & NUD_PERMANENT)
 			new_flags |= LLE_STATIC;
@@ -267,13 +285,6 @@ lladdr_add(struct ifnet *ifp, struct sockaddr *sock,
 			new_flags |= LLE_PROXY;
 
 		lladdr_update(ifp, lle, mac, new_flags);
-	} else {
-		rte_spinlock_lock(&lle->ll_lock);
-		lle->la_flags &= ~(LLE_VALID | LLE_STATIC);
-
-		pktmbuf_free_bulk(lle->la_held, lle->la_numheld);
-		lle->la_numheld = 0;
-		rte_spinlock_unlock(&lle->ll_lock);
 	}
 
 	return 0;
