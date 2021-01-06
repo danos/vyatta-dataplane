@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2019-2021, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -127,7 +127,7 @@ struct cgn_source {
 #define SF_EXPIRED	0x01
 #define SF_DEAD		0x02
 
-int cgn_source_add_block(struct cgn_source *src, uint8_t proto,
+int cgn_source_add_block(struct cgn_source *src, enum nat_proto proto,
 			 struct apm_port_block *pb,
 			 struct nat_pool *np);
 void cgn_source_del_block(struct cgn_source *src, struct apm_port_block *pb,

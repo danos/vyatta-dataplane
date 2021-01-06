@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2019-2021, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -34,7 +34,7 @@ enum cgn_state_history {
  */
 struct cgn_state {
 	uint8_t		st_state;
-	uint8_t		st_proto;
+	enum nat_proto	st_proto;
 	uint8_t		st_hist;
 	uint8_t		st_pad1[1];
 	uint16_t	st_dst_port; /* Outbound dest port */
@@ -252,19 +252,20 @@ static inline const char *cgn_sess_event_str(enum cgn_sess_event event)
 	return "???";
 }
 
-static inline const char *cgn_dir_str(uint dir)
+static inline const char *cgn_dir_str(enum cgn_dir dir)
 {
 	switch (dir) {
-	case CGN_DIR_FORW:
-		return "FORW";
-	case CGN_DIR_BACK:
-		return "BACK";
+	case CGN_DIR_OUT:
+		return "OUT";
+	case CGN_DIR_IN:
+		return "IN";
 	};
 	return "???";
 }
 
 /* Initialize session state */
-void cgn_sess_state_init(struct cgn_state *st, uint8_t proto, uint16_t port);
+void cgn_sess_state_init(struct cgn_state *st, enum nat_proto proto,
+			 uint16_t port);
 
 /*
  * Evaluate session state for packet
@@ -275,12 +276,12 @@ void cgn_sess_state_init(struct cgn_state *st, uint8_t proto, uint16_t port);
  * start_time	Session start time, unix epoch microseconds
  */
 void cgn_sess_state_inspect(struct cgn_state *st, struct cgn_packet *cpk,
-			    int dir, uint64_t start_time);
+			    enum cgn_dir dir, uint64_t start_time);
 
 /*
  * Get state-dependent expiry time
  */
-uint32_t cgn_sess_state_expiry_time(uint8_t proto, uint16_t port,
+uint32_t cgn_sess_state_expiry_time(enum nat_proto proto, uint16_t port,
 				    uint8_t state);
 
 /*

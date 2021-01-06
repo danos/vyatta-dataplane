@@ -1,7 +1,7 @@
 /*
  * l3_v4_cgnat.c
  *
- * Copyright (c) 2019-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2019-2021, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -34,13 +34,15 @@
 #include "npf/nat/nat_pool_public.h"
 #include "npf/cgnat/cgn.h"
 #include "npf/apm/apm.h"
-#include "npf/cgnat/cgn_errno.h"
+#include "npf/cgnat/cgn_rc.h"
 #include "npf/cgnat/cgn_if.h"
 #include "npf/cgnat/cgn_map.h"
 #include "npf/cgnat/cgn_mbuf.h"
 #include "npf/cgnat/cgn_policy.h"
+#include "npf/cgnat/cgn_public.h"
 #include "npf/cgnat/cgn_session.h"
 #include "npf/cgnat/cgn_source.h"
+#include "npf/cgnat/cgn_test.h"
 
 
 enum cgnat_result {
@@ -55,14 +57,10 @@ enum cgnat_result {
 #include "npf/alg/alg_npf.h"
 
 static inline bool
-ipv4_cgnat_out_bypass(struct ifnet *ifp, struct rte_mbuf *mbuf, int dir)
+ipv4_cgnat_out_bypass(struct ifnet *ifp, struct rte_mbuf *mbuf)
 {
 	/* Check bypass enable/disable option */
 	if (likely(!cgn_snat_alg_bypass_gbl))
-		return false;
-
-	/* Only applies to outbound traffic */
-	if (dir != CGN_DIR_OUT)
 		return false;
 
 	/* Is SNAT configured on interface? */
@@ -77,68 +75,71 @@ ipv4_cgnat_out_bypass(struct ifnet *ifp, struct rte_mbuf *mbuf, int dir)
 }
 
 /*
- * cgnat_try_initial.
- *
- * Currently this is only called with dir CGN_DIR_OUT, but that might not
- * always be the case.
+ * cgnat_try_initial.  Sessions are always created in an 'outbound' context.
  */
 static struct cgn_session *
 cgnat_try_initial(struct ifnet *ifp, struct cgn_packet *cpk,
-		  struct rte_mbuf *mbuf, int dir, int *error)
+		  struct rte_mbuf *mbuf, int *error)
 {
-	struct cgn_source *src = NULL;
 	struct cgn_session *cse;
 	struct cgn_policy *cp;
 	int rc = 0;
-	uint32_t oaddr, taddr;
-	uint16_t tport;
 	vrfid_t vrfid = cpk->cpk_vrfid;
 
-	if (dir == CGN_DIR_OUT)
-		oaddr = cpk->cpk_saddr;
-	else
-		oaddr = cpk->cpk_daddr;
+	/* Mapping info */
+	struct cgn_map cmi = {
+		.cmi_reserved = false,
+		.cmi_proto = cpk->cpk_proto,
+		.cmi_oid = cpk->cpk_sid,
+		.cmi_oaddr = cpk->cpk_saddr,
+		.cmi_tid = 0,
+		.cmi_taddr = 0,
+		.cmi_src = NULL,
+	};
 
-	/*
-	 * Lookup source address in policy list on the interface
-	 */
-	cp = cgn_if_find_policy_by_addr(ifp, oaddr);
+	/* Find policy from the source address */
+	cp = cgn_if_find_policy_by_addr(ifp, cmi.cmi_oaddr);
 	if (!cp) {
 		*error = -CGN_PCY_ENOENT;
-		return NULL;
+		goto error;
 	}
 
 	/* Should SNAT-ALG pkts bypass CGNAT? */
-	if (unlikely(ipv4_cgnat_out_bypass(ifp, mbuf, dir))) {
+	if (unlikely(ipv4_cgnat_out_bypass(ifp, mbuf))) {
 		*error = -CGN_PCY_BYPASS;
-		return NULL;
+		goto error;
 	}
 
 	/* Check if session table is full *before* getting a mapping. */
 	if (unlikely(cgn_session_table_full)) {
 		*error = -CGN_S1_ENOSPC;
-		return NULL;
+		goto error;
 	}
 
 	/* Allocate public address and port */
-	rc = cgn_map_get(cp, vrfid, cpk->cpk_proto, oaddr,
-			 &taddr, &tport, &src);
+	rc = cgn_map_get(&cmi, cp, vrfid);
 
 	if (rc) {
 		*error = rc;
-		return NULL;
+		goto error;
 	}
 
 	/* Create a session. */
-	cse = cgn_session_establish(cpk, dir, taddr, tport, error, src);
-	if (!cse) {
-		/* Release mapping */
-		cgn_map_put(cp->cp_pool, vrfid, dir, cpk->cpk_proto, oaddr,
-			    taddr, tport);
-		return NULL;
-	}
+	cse = cgn_session_establish(cpk, &cmi, error);
+	if (!cse)
+		goto error;
+
+	/* Check if we want to record sub-sessions */
+	cgn_session_try_enable_sub_sess(cse, cp, cmi.cmi_oaddr);
 
 	return cse;
+
+error:
+	if (cmi.cmi_reserved)
+		/* Release mapping */
+		cgn_map_put(&cmi, vrfid);
+
+	return NULL;
 }
 
 /*
@@ -157,7 +158,7 @@ cgnat_try_initial(struct ifnet *ifp, struct cgn_packet *cpk,
  */
 static ALWAYS_INLINE void
 cgn_translate_at(struct cgn_packet *cpk, struct cgn_session *cse,
-		 int dir, void *n_ptr, bool embd, bool undo)
+		 enum cgn_dir dir, void *n_ptr, bool embd, bool undo)
 {
 	uint32_t taddr;
 	uint16_t tport;
@@ -239,7 +240,7 @@ cgn_translate_at(struct cgn_packet *cpk, struct cgn_session *cse,
  */
 static void
 cgn_untranslate_at(struct cgn_packet *cpk, struct cgn_session *cse,
-		   int dir, void *n_ptr)
+		   enum cgn_dir dir, void *n_ptr)
 {
 	cgn_translate_at(cpk, cse, dir, n_ptr, false, true);
 }
@@ -250,7 +251,7 @@ cgn_untranslate_at(struct cgn_packet *cpk, struct cgn_session *cse,
  * Translate the outer IP header of an ICMP error message.
  */
 static void
-cgn_translate_l3_at(struct cgn_packet *cpk, int dir, void *n_ptr,
+cgn_translate_l3_at(struct cgn_packet *cpk, enum cgn_dir dir, void *n_ptr,
 		    uint32_t new_addr)
 {
 	uint32_t old_addr;
@@ -301,7 +302,7 @@ struct rte_mbuf *cgn_copy_or_clone_and_undo(struct rte_mbuf *mbuf,
 	if (!cse)
 		return NULL;
 
-	int dir = did_cgnat_out ? CGN_DIR_OUT : CGN_DIR_IN;
+	enum cgn_dir dir = did_cgnat_out ? CGN_DIR_OUT : CGN_DIR_IN;
 
 	/* Validate the session */
 	struct ifnet *cse_ifp =
@@ -342,12 +343,12 @@ struct rte_mbuf *cgn_copy_or_clone_and_undo(struct rte_mbuf *mbuf,
  * ICMP error message.  Look for a cgnat'd embedded packet, and translate if
  * found.
  *
- * If an error is encounted then we just return a single error number,
+ * If an error is encountered then we just return a single error number,
  * '-CGN_BUF_ICMP' regardless of the actual error.
  */
 static int
 ipv4_cgnat_icmp_err(struct cgn_packet *ocpk, struct ifnet *ifp,
-		    struct rte_mbuf **mbufp, int dir)
+		    struct rte_mbuf **mbufp, enum cgn_dir dir)
 {
 	struct rte_mbuf *mbuf = *mbufp;
 	struct cgn_session *cse;
@@ -374,7 +375,9 @@ ipv4_cgnat_icmp_err(struct cgn_packet *ocpk, struct ifnet *ifp,
 	 * Ensure both the outer and inner headers are both in the first mbuf
 	 * segment.
 	 */
-	error = pktmbuf_prepare_for_header_change(mbufp, offs + ecpk.cpk_hlen);
+	error = pktmbuf_prepare_for_header_change(mbufp, offs +
+						  ecpk.cpk_l3_len +
+						  ecpk.cpk_l4_len);
 	if (error)
 		return -CGN_BUF_ICMP;
 
@@ -482,7 +485,7 @@ ipv4_cgnat_icmp_err(struct cgn_packet *ocpk, struct ifnet *ifp,
  */
 static enum cgnat_result
 ipv4_cgnat_common(struct cgn_packet *cpk, struct ifnet *ifp,
-		  struct rte_mbuf **mbufp, int dir, int *errorp)
+		  struct rte_mbuf **mbufp, enum cgn_dir dir, int *errorp)
 {
 	enum cgnat_result result = CGNAT_ACCEPT;
 	struct rte_mbuf *mbuf = NULL;
@@ -519,7 +522,7 @@ ipv4_cgnat_common(struct cgn_packet *cpk, struct ifnet *ifp,
 		}
 
 		/* Get policy and mapping.  Create a session. */
-		cse = cgnat_try_initial(ifp, cpk, *mbufp, dir, &error);
+		cse = cgnat_try_initial(ifp, cpk, *mbufp, &error);
 		if (!cse)
 			goto error;
 		new_inactive_session = true;
@@ -534,7 +537,8 @@ translate:
 	 */
 	error = pktmbuf_prepare_for_header_change(mbufp,
 						  dp_pktmbuf_l2_len(*mbufp) +
-						  cpk->cpk_hlen);
+						  cpk->cpk_l3_len +
+						  cpk->cpk_l4_len);
 	if (unlikely(error)) {
 		error = -CGN_BUF_ENOMEM;
 		goto error;
@@ -662,7 +666,7 @@ error:
  * Unit-test wrapper around cgnat
  */
 bool ipv4_cgnat_test(struct rte_mbuf **mbufp, struct ifnet *ifp,
-		     int dir, int *error)
+		     enum cgn_dir dir, int *error)
 {
 	enum cgnat_result result;
 	struct rte_mbuf *mbuf = *mbufp;

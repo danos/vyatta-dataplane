@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2019-2021, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -254,13 +254,13 @@ struct nat_pool *nat_pool_lookup(const char *name)
 void nat_pool_clear_addr_hints(struct nat_pool *np)
 {
 	struct nat_pool_ranges *nr = np->np_ranges;
-	uint i;
+	enum nat_proto proto;
 
 	if (!nr)
 		return;
 
-	for (i = NAT_PROTO_FIRST; i <= NAT_PROTO_LAST; i++)
-		rte_atomic32_set(&nr->nr_addr_hint[i], 0);
+	for (proto = NAT_PROTO_FIRST; proto <= NAT_PROTO_LAST; proto++)
+		rte_atomic32_set(&nr->nr_addr_hint[proto], 0);
 }
 
 /*
@@ -411,8 +411,9 @@ nat_pool_create_ranges(struct nat_pool_cfg *cfg, int *error)
 		strcpy(pr->pr_name, cfg->np_range[i].pr_name);
 	}
 
-	for (i = NAT_PROTO_FIRST; i <= NAT_PROTO_LAST; i++)
-		rte_atomic32_set(&nr->nr_addr_hint[i], 0);
+	enum nat_proto p;
+	for (p = NAT_PROTO_FIRST; p <= NAT_PROTO_LAST; p++)
+		rte_atomic32_set(&nr->nr_addr_hint[p], 0);
 
 	/*
 	 * Create a 'hidden' address-group from the set of address ranges.
@@ -965,7 +966,6 @@ static void
 nat_pool_jsonw_one(json_writer_t *json, struct nat_pool *np)
 {
 	const char *name;
-	int i;
 
 	jsonw_start_object(json);
 
@@ -1016,14 +1016,15 @@ nat_pool_jsonw_one(json_writer_t *json, struct nat_pool *np)
 	jsonw_name(json, "current");
 	jsonw_start_object(json);
 
-	for (i = NAT_PROTO_FIRST; i <= NAT_PROTO_LAST; i++) {
+	enum nat_proto p;
+	for (p = NAT_PROTO_FIRST; p <= NAT_PROTO_LAST; p++) {
 		static char str[16];
 		uint32_t addr;
 
-		addr = nat_pool_hint(np, i);
+		addr = nat_pool_hint(np, p);
 		addr = htonl(addr);
 		inet_ntop(AF_INET, &addr, str, sizeof(str));
-		jsonw_string_field(json, nat_proto_lc_str(i), str);
+		jsonw_string_field(json, nat_proto_lc_str(p), str);
 	}
 	jsonw_end_object(json);
 	jsonw_end_object(json);

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2019-2021, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -11,6 +11,7 @@
 #include <errno.h>
 #include <netinet/in.h>
 #include <linux/if.h>
+#include <rte_log.h>
 
 #include "compiler.h"
 #include "if_var.h"
@@ -18,6 +19,7 @@
 #include "soft_ticks.h"
 #include "czmq.h"
 #include "zmq_dp.h"
+#include "vplane_log.h"
 
 #include "npf/cgnat/cgn.h"
 #include "npf/cgnat/cgn_log.h"
@@ -25,6 +27,7 @@
 #include "npf/cgnat/cgn_sess_state.h"
 #include "npf/cgnat/cgn_session.h"
 #include "npf/cgnat/cgn_sess2.h"
+#include "npf/cgnat/cgn_time.h"
 #include "npf/nat/nat_pool.h"
 #include "npf/cgnat/cgn_log_protobuf_zmq.h"
 

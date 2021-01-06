@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2019-2021, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -19,6 +19,7 @@
 #include "npf/cgnat/cgn_mbuf.h"
 #include "npf/cgnat/cgn_sess2.h"
 #include "npf/cgnat/cgn_sess_state.h"
+#include "npf/cgnat/cgn_time.h"
 
 /*
  * NAT TCP State Machine for 5-tuple TCP sessions (rfc7857)
@@ -26,11 +27,11 @@
 static uint8_t
 cgn_tcp_fsm[CGN_TCP_STATE_COUNT][CGN_DIR_SZ][CGN_TCP_EVENT_COUNT] = {
 	[CGN_TCP_STATE_NONE] = {
-		[CGN_DIR_FORW] = { 0 },
-		[CGN_DIR_BACK] = { 0 },
+		[CGN_DIR_OUT] = { 0 },
+		[CGN_DIR_IN] = { 0 },
 	},
 	[CGN_TCP_STATE_CLOSED] = {
-		[CGN_DIR_FORW] = {
+		[CGN_DIR_OUT] = {
 			[CGN_TCP_EVENT_NONE]     = 0,
 			[CGN_TCP_EVENT_SYN]      = CGN_TCP_STATE_INIT,
 			[CGN_TCP_EVENT_RST]      = 0,
@@ -38,7 +39,7 @@ cgn_tcp_fsm[CGN_TCP_STATE_COUNT][CGN_DIR_SZ][CGN_TCP_EVENT_COUNT] = {
 			[CGN_TCP_EVENT_FIN]      = 0,
 			[CGN_TCP_EVENT_TO]       = 0,
 		},
-		[CGN_DIR_BACK] = {
+		[CGN_DIR_IN] = {
 			[CGN_TCP_EVENT_NONE]     = 0,
 			[CGN_TCP_EVENT_SYN]      = 0,
 			[CGN_TCP_EVENT_RST]      = 0,
@@ -48,7 +49,7 @@ cgn_tcp_fsm[CGN_TCP_STATE_COUNT][CGN_DIR_SZ][CGN_TCP_EVENT_COUNT] = {
 		},
 	},
 	[CGN_TCP_STATE_INIT] = {
-		[CGN_DIR_FORW] = {
+		[CGN_DIR_OUT] = {
 			[CGN_TCP_EVENT_NONE]     = 0,
 			[CGN_TCP_EVENT_SYN]      = 0,
 			[CGN_TCP_EVENT_RST]      = 0,
@@ -56,7 +57,7 @@ cgn_tcp_fsm[CGN_TCP_STATE_COUNT][CGN_DIR_SZ][CGN_TCP_EVENT_COUNT] = {
 			[CGN_TCP_EVENT_FIN]      = 0,
 			[CGN_TCP_EVENT_TO]       = CGN_TCP_STATE_CLOSED,
 		},
-		[CGN_DIR_BACK] = {
+		[CGN_DIR_IN] = {
 			[CGN_TCP_EVENT_NONE]     = 0,
 			[CGN_TCP_EVENT_SYN]      = CGN_TCP_STATE_ESTABLISHED,
 			[CGN_TCP_EVENT_RST]      = 0,
@@ -66,7 +67,7 @@ cgn_tcp_fsm[CGN_TCP_STATE_COUNT][CGN_DIR_SZ][CGN_TCP_EVENT_COUNT] = {
 		},
 	},
 	[CGN_TCP_STATE_ESTABLISHED] = {
-		[CGN_DIR_FORW] = {
+		[CGN_DIR_OUT] = {
 			[CGN_TCP_EVENT_NONE]     = 0,
 			[CGN_TCP_EVENT_SYN]      = 0,
 			[CGN_TCP_EVENT_RST]      = CGN_TCP_STATE_TRANS,
@@ -74,7 +75,7 @@ cgn_tcp_fsm[CGN_TCP_STATE_COUNT][CGN_DIR_SZ][CGN_TCP_EVENT_COUNT] = {
 			[CGN_TCP_EVENT_FIN]      = CGN_TCP_STATE_C_FIN_RCV,
 			[CGN_TCP_EVENT_TO]       = CGN_TCP_STATE_TRANS,
 		},
-		[CGN_DIR_BACK] = {
+		[CGN_DIR_IN] = {
 			[CGN_TCP_EVENT_NONE]     = 0,
 			[CGN_TCP_EVENT_SYN]      = 0,
 			[CGN_TCP_EVENT_RST]      = CGN_TCP_STATE_TRANS,
@@ -84,7 +85,7 @@ cgn_tcp_fsm[CGN_TCP_STATE_COUNT][CGN_DIR_SZ][CGN_TCP_EVENT_COUNT] = {
 		},
 	},
 	[CGN_TCP_STATE_TRANS] = {
-		[CGN_DIR_FORW] = {
+		[CGN_DIR_OUT] = {
 			[CGN_TCP_EVENT_NONE]     = 0,
 			[CGN_TCP_EVENT_SYN]      = 0,
 			[CGN_TCP_EVENT_RST]      = 0,
@@ -92,7 +93,7 @@ cgn_tcp_fsm[CGN_TCP_STATE_COUNT][CGN_DIR_SZ][CGN_TCP_EVENT_COUNT] = {
 			[CGN_TCP_EVENT_FIN]      = 0,
 			[CGN_TCP_EVENT_TO]       = CGN_TCP_STATE_CLOSED,
 		},
-		[CGN_DIR_BACK] = {
+		[CGN_DIR_IN] = {
 			[CGN_TCP_EVENT_NONE]     = 0,
 			[CGN_TCP_EVENT_SYN]      = 0,
 			[CGN_TCP_EVENT_RST]      = 0,
@@ -102,7 +103,7 @@ cgn_tcp_fsm[CGN_TCP_STATE_COUNT][CGN_DIR_SZ][CGN_TCP_EVENT_COUNT] = {
 		},
 	},
 	[CGN_TCP_STATE_C_FIN_RCV] = {
-		[CGN_DIR_FORW] = {
+		[CGN_DIR_OUT] = {
 			[CGN_TCP_EVENT_NONE]     = 0,
 			[CGN_TCP_EVENT_SYN]      = 0,
 			[CGN_TCP_EVENT_RST]      = 0,
@@ -110,7 +111,7 @@ cgn_tcp_fsm[CGN_TCP_STATE_COUNT][CGN_DIR_SZ][CGN_TCP_EVENT_COUNT] = {
 			[CGN_TCP_EVENT_FIN]      = 0,
 			[CGN_TCP_EVENT_TO]       = CGN_TCP_STATE_CLOSED,
 		},
-		[CGN_DIR_BACK] = {
+		[CGN_DIR_IN] = {
 			[CGN_TCP_EVENT_NONE]     = 0,
 			[CGN_TCP_EVENT_SYN]      = 0,
 			[CGN_TCP_EVENT_RST]      = 0,
@@ -120,7 +121,7 @@ cgn_tcp_fsm[CGN_TCP_STATE_COUNT][CGN_DIR_SZ][CGN_TCP_EVENT_COUNT] = {
 		},
 	},
 	[CGN_TCP_STATE_S_FIN_RCV] = {
-		[CGN_DIR_FORW] = {
+		[CGN_DIR_OUT] = {
 			[CGN_TCP_EVENT_NONE]     = 0,
 			[CGN_TCP_EVENT_SYN]      = 0,
 			[CGN_TCP_EVENT_RST]      = 0,
@@ -128,7 +129,7 @@ cgn_tcp_fsm[CGN_TCP_STATE_COUNT][CGN_DIR_SZ][CGN_TCP_EVENT_COUNT] = {
 			[CGN_TCP_EVENT_FIN]      = CGN_TCP_STATE_CS_FIN_RCV,
 			[CGN_TCP_EVENT_TO]       = CGN_TCP_STATE_CLOSED,
 		},
-		[CGN_DIR_BACK] = {
+		[CGN_DIR_IN] = {
 			[CGN_TCP_EVENT_NONE]     = 0,
 			[CGN_TCP_EVENT_SYN]      = 0,
 			[CGN_TCP_EVENT_RST]      = 0,
@@ -138,7 +139,7 @@ cgn_tcp_fsm[CGN_TCP_STATE_COUNT][CGN_DIR_SZ][CGN_TCP_EVENT_COUNT] = {
 		},
 	},
 	[CGN_TCP_STATE_CS_FIN_RCV] = {
-		[CGN_DIR_FORW] = {
+		[CGN_DIR_OUT] = {
 			[CGN_TCP_EVENT_NONE]     = 0,
 			[CGN_TCP_EVENT_SYN]      = 0,
 			[CGN_TCP_EVENT_RST]      = 0,
@@ -146,7 +147,7 @@ cgn_tcp_fsm[CGN_TCP_STATE_COUNT][CGN_DIR_SZ][CGN_TCP_EVENT_COUNT] = {
 			[CGN_TCP_EVENT_FIN]      = 0,
 			[CGN_TCP_EVENT_TO]       = CGN_TCP_STATE_CLOSED,
 		},
-		[CGN_DIR_BACK] = {
+		[CGN_DIR_IN] = {
 			[CGN_TCP_EVENT_NONE]     = 0,
 			[CGN_TCP_EVENT_SYN]      = 0,
 			[CGN_TCP_EVENT_RST]      = 0,
@@ -163,36 +164,36 @@ cgn_tcp_fsm[CGN_TCP_STATE_COUNT][CGN_DIR_SZ][CGN_TCP_EVENT_COUNT] = {
 static uint8_t
 cgn_sess_fsm[CGN_SESS_STATE_COUNT][CGN_DIR_SZ][CGN_SESS_EVENT_COUNT] = {
 	[CGN_SESS_STATE_NONE] = {
-		[CGN_DIR_FORW] = { 0 },
-		[CGN_DIR_BACK] = { 0 },
+		[CGN_DIR_OUT] = { 0 },
+		[CGN_DIR_IN] = { 0 },
 	},
 	[CGN_SESS_STATE_CLOSED] = {
-		[CGN_DIR_FORW] = {
+		[CGN_DIR_OUT] = {
 			[CGN_SESS_EVENT_NONE]     = 0,
 			[CGN_SESS_EVENT_PKT]      = CGN_SESS_STATE_INIT,
 			[CGN_SESS_EVENT_TO]       = 0,
 		},
-		[CGN_DIR_BACK] = { 0 },
+		[CGN_DIR_IN] = { 0 },
 	},
 	[CGN_SESS_STATE_INIT] = {
-		[CGN_DIR_FORW] = {
+		[CGN_DIR_OUT] = {
 			[CGN_SESS_EVENT_NONE]     = 0,
 			[CGN_SESS_EVENT_PKT]      = 0,
 			[CGN_SESS_EVENT_TO]       = CGN_SESS_STATE_CLOSED,
 		},
-		[CGN_DIR_BACK] = {
+		[CGN_DIR_IN] = {
 			[CGN_SESS_EVENT_NONE]     = 0,
 			[CGN_SESS_EVENT_PKT]      = CGN_SESS_STATE_ESTABLISHED,
 			[CGN_SESS_EVENT_TO]       = CGN_SESS_STATE_CLOSED,
 		},
 	},
 	[CGN_SESS_STATE_ESTABLISHED] = {
-		[CGN_DIR_FORW] = {
+		[CGN_DIR_OUT] = {
 			[CGN_SESS_EVENT_NONE]     = 0,
 			[CGN_SESS_EVENT_PKT]      = 0,
 			[CGN_SESS_EVENT_TO]       = CGN_SESS_STATE_CLOSED,
 		},
-		[CGN_DIR_BACK] = {
+		[CGN_DIR_IN] = {
 			[CGN_SESS_EVENT_NONE]     = 0,
 			[CGN_SESS_EVENT_PKT]      = 0,
 			[CGN_SESS_EVENT_TO]       = CGN_SESS_STATE_CLOSED,
@@ -255,7 +256,7 @@ void cgn_cgn_port_udp_etime_set(uint16_t port, uint32_t timeout)
  * order.
  */
 void
-cgn_sess_state_init(struct cgn_state *st, uint8_t proto, uint16_t port)
+cgn_sess_state_init(struct cgn_state *st, enum nat_proto proto, uint16_t port)
 {
 	st->st_state = CGN_SESS_STATE_CLOSED;
 	st->st_proto = proto;
@@ -270,15 +271,15 @@ cgn_sess_state_init(struct cgn_state *st, uint8_t proto, uint16_t port)
  * start_time	Session start time, unix epoch microseconds
  */
 void
-cgn_sess_state_inspect(struct cgn_state *st, struct cgn_packet *cpk, int dir,
-		       uint64_t start_time)
+cgn_sess_state_inspect(struct cgn_state *st, struct cgn_packet *cpk,
+		       enum cgn_dir dir, uint64_t start_time)
 {
 	uint8_t new;
 
 	rte_spinlock_lock(&st->st_lock);
 
 	if (st->st_proto == NAT_PROTO_TCP) {
-		bool forw = (dir == CGN_DIR_FORW);
+		bool forw = (dir == CGN_DIR_OUT);
 		enum cgn_tcp_event event;
 		uint64_t rtt;
 
@@ -385,7 +386,7 @@ cgn_sess_state_inspect(struct cgn_state *st, struct cgn_packet *cpk, int dir,
  *
  * port is in host byte order.
  */
-uint32_t cgn_sess_state_expiry_time(uint8_t proto, uint16_t port,
+uint32_t cgn_sess_state_expiry_time(enum nat_proto proto, uint16_t port,
 				    uint8_t state)
 {
 	uint32_t etime;
@@ -432,14 +433,14 @@ bool cgn_sess_state_timeout(struct cgn_state *st)
 
 	if (st->st_proto == NAT_PROTO_TCP) {
 
-		new = cgn_tcp_fsm[st->st_state][CGN_DIR_FORW][CGN_TCP_EVENT_TO];
+		new = cgn_tcp_fsm[st->st_state][CGN_DIR_OUT][CGN_TCP_EVENT_TO];
 
 		if (new != CGN_TCP_STATE_NONE && new != st->st_state)
 			st->st_state = new;
 
 		closed = (st->st_state == CGN_TCP_STATE_CLOSED);
 	} else {
-		new = cgn_sess_fsm[st->st_state][CGN_DIR_FORW]
+		new = cgn_sess_fsm[st->st_state][CGN_DIR_OUT]
 			[CGN_SESS_EVENT_TO];
 
 		if (new != CGN_SESS_STATE_NONE && new != st->st_state)

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2019-2021, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -32,7 +32,6 @@
 #include <rte_jhash.h>
 #include <rte_mbuf.h>
 #include <rte_timer.h>
-#include <time.h>
 
 #include "compiler.h"
 #include "if_var.h"
@@ -49,7 +48,7 @@
 #include "npf/cgnat/cgn.h"
 #include "npf/apm/apm.h"
 #include "npf/cgnat/cgn_cmd_cfg.h"
-#include "npf/cgnat/cgn_errno.h"
+#include "npf/cgnat/cgn_rc.h"
 #include "npf/cgnat/cgn_if.h"
 #include "npf/cgnat/cgn_hash_key.h"
 #include "npf/cgnat/cgn_limits.h"
@@ -61,6 +60,7 @@
 #include "npf/cgnat/cgn_sess2.h"
 #include "npf/cgnat/cgn_sess_state.h"
 #include "npf/cgnat/cgn_source.h"
+#include "npf/cgnat/cgn_time.h"
 
 
 /*
@@ -143,31 +143,17 @@ static_assert(sizeof(struct cgn_session) == 256,
 	      "cgn_session structure: larger than expected");
 
 /* session hash tables */
-struct cds_lfht *cgn_sess_ht[CGN_DIR_SZ];
+static struct cds_lfht *cgn_sess_ht[CGN_DIR_SZ];
 
 /* GC Timer */
-struct rte_timer cgn_gc_timer;
+static struct rte_timer cgn_gc_timer;
 
-/* cs_id resource */
+/*
+ * Monotonically increasing count.  Used to assign a value to a new session
+ * in the sessions cs_id object.  Wraps when it reaches max.
+ */
 static rte_atomic32_t cgn_id_resource;
 
-/* max 3-tuple sessions, and sessions used */
-int32_t cgn_sessions_max = CGN_SESSIONS_MAX;
-
-/* Global count of all 3-tuple sessions */
-rte_atomic32_t cgn_sessions_used;
-
-/* max 2-tuple sessions per 3-tuple session*/
-int16_t cgn_dest_sessions_max = CGN_DEST_SESSIONS_INIT;
-
-/* Size of 2-tuple hash table that may be added per 3-tuple session */
-int16_t cgn_dest_ht_max = CGN_DEST_SESSIONS_INIT;
-
-/* Global count of all 5-tuple sessions */
-rte_atomic32_t cgn_sess2_used;
-
-/* Set true when table is full.  Re-evaluated after GC. */
-bool cgn_session_table_full;
 
 /* Forward references */
 static void cgn_session_expire_all(bool clear_map, bool restart_timer);
@@ -196,8 +182,6 @@ static struct rte_timer session_table_threshold_timer;
 	if (!is_cgn_helper_thread()) \
 		rte_panic("not on cgnat helper thread\n"); \
 }
-
-uint8_t cgn_helper_thread_enabled;
 
 #define CGN_HELPER_INVALID_CORE_NUM	UINT_MAX
 
@@ -306,17 +290,18 @@ cgn_session_stats_periodic(struct cgn_session *cse)
 }
 
 static inline struct cgn_session *
-sentry2session(const struct cgn_sentry *ce, int dir)
+sentry2session(const struct cgn_sentry *ce, enum cgn_dir dir)
 {
-	if (dir == CGN_DIR_FORW)
+	if (dir == CGN_DIR_OUT)
 		return caa_container_of(ce, struct cgn_session, cs_forw_entry);
 
 	return caa_container_of(ce, struct cgn_session, cs_back_entry);
 }
 
-static inline struct cgn_sentry *dir2sentry(struct cgn_session *cse, int dir)
+static inline struct cgn_sentry *dir2sentry(struct cgn_session *cse,
+					    enum cgn_dir dir)
 {
-	if (dir == CGN_DIR_FORW)
+	if (dir == CGN_DIR_OUT)
 		return &cse->cs_forw_entry;
 
 	return &cse->cs_back_entry;
@@ -395,8 +380,8 @@ static struct cgn_session *cgn_session_create(int *error)
 		return NULL;
 	}
 
-	assert(cse == sentry2session(&cse->cs_forw_entry, CGN_DIR_FORW));
-	assert(cse == sentry2session(&cse->cs_back_entry, CGN_DIR_BACK));
+	assert(cse == sentry2session(&cse->cs_forw_entry, CGN_DIR_OUT));
+	assert(cse == sentry2session(&cse->cs_back_entry, CGN_DIR_IN));
 
 	return cse;
 }
@@ -422,24 +407,22 @@ void cgn_session_destroy(struct cgn_session *cse, bool rcu_free)
 	if (!cse)
 		return;
 
-	/* Release address and port mapping */
-	uint32_t taddr, oaddr;
-	uint16_t tport, oport;
-	struct nat_pool *np;
-	uint8_t proto;
-
-	/* todo - store forw/rev flag at session creation time */
-	cgn_session_get_back(cse, &taddr, &tport);
-	cgn_session_get_forw(cse, &oaddr, &oport);
-	proto = nat_proto_from_ipproto(cse->cs_forw_entry.ce_ipproto);
-
-	np = cgn_source_get_pool(cse->cs_src);
-	assert(np);
+	assert(cse->cs_src);
 
 	/* Release mapping if one exists */
-	if (rte_atomic16_cmpset(&cse->cs_map_flag, true, false))
-		cgn_map_put(np, cse->cs_vrfid, CGN_DIR_OUT,
-			    proto, oaddr, taddr, tport);
+	if (rte_atomic16_cmpset(&cse->cs_map_flag, true, false)) {
+
+		/* Release address and port mapping */
+		struct cgn_map cmi = {0};
+
+		cgn_session_get_back(cse, &cmi.cmi_taddr, &cmi.cmi_tid);
+		cmi.cmi_reserved = true;
+		cmi.cmi_src = cse->cs_src;
+		cmi.cmi_proto = nat_proto_from_ipproto(
+			cse->cs_forw_entry.ce_ipproto);
+
+		cgn_map_put(&cmi, cse->cs_vrfid);
+	}
 
 	/* Release reference on source */
 	cgn_source_put(cse->cs_src);
@@ -595,17 +578,14 @@ static void cgn_session_slot_put(void)
 }
 
 /*
- * cgn_session_establish
+ * cgn_session_establish.  Sessions are only ever created by outbound
+ * flows/ctx.
  */
 struct cgn_session *
-cgn_session_establish(struct cgn_packet *cpk, int dir,
-		      uint32_t taddr, uint16_t tid, int *error,
-		      struct cgn_source *src)
+cgn_session_establish(struct cgn_packet *cpk, struct cgn_map *cmi,
+		      int *error)
 {
 	struct cgn_session *cse;
-	struct cgn_policy *cp = src->sr_policy;
-	uint32_t oaddr;
-	uint16_t oid, dst_port = 0;
 
 	/*
 	 * Reserve a slot from the counters.  The slot MUST be returned if an
@@ -614,15 +594,6 @@ cgn_session_establish(struct cgn_packet *cpk, int dir,
 	if (unlikely(!cgn_session_slot_get())) {
 		*error = -CGN_S1_ENOSPC;
 		return NULL;
-	}
-
-	if (dir == CGN_DIR_OUT) {
-		oaddr = cpk->cpk_saddr;
-		oid   = cpk->cpk_sid;
-		dst_port = cpk->cpk_did;
-	} else {
-		oaddr = cpk->cpk_daddr;
-		oid   = cpk->cpk_did;
 	}
 
 	cse = cgn_session_create(error);
@@ -641,15 +612,15 @@ cgn_session_establish(struct cgn_packet *cpk, int dir,
 	 */
 	cse->cs_forw_entry.ce_ifindex =	cpk->cpk_key.k_ifindex;
 	cse->cs_forw_entry.ce_ipproto = cpk->cpk_ipproto;
-	cse->cs_forw_entry.ce_addr = oaddr;
-	cse->cs_forw_entry.ce_port = oid;
+	cse->cs_forw_entry.ce_addr = cmi->cmi_oaddr;
+	cse->cs_forw_entry.ce_port = cmi->cmi_oid;
 	cse->cs_forw_entry.ce_established = false;
 
 	/* Populate back entry */
 	cse->cs_back_entry.ce_ifindex =	cpk->cpk_key.k_ifindex;
 	cse->cs_back_entry.ce_ipproto = cpk->cpk_ipproto;
-	cse->cs_back_entry.ce_addr = taddr;
-	cse->cs_back_entry.ce_port = tid;
+	cse->cs_back_entry.ce_addr = cmi->cmi_taddr;
+	cse->cs_back_entry.ce_port = cmi->cmi_tid;
 	cse->cs_back_entry.ce_established = false;
 
 	rte_atomic16_set(&cse->cs_refcnt, 0);
@@ -663,43 +634,27 @@ cgn_session_establish(struct cgn_packet *cpk, int dir,
 	cse->cs_map_instd = !cpk->cpk_pkt_instd;
 
 	/* calculate checksum deltas */
-	const uint32_t *oip32 = (const uint32_t *)&oaddr;
-	const uint32_t *nip32 = (const uint32_t *)&taddr;
+	const uint32_t *oip32 = (const uint32_t *)&cmi->cmi_oaddr;
+	const uint32_t *nip32 = (const uint32_t *)&cmi->cmi_taddr;
 
 	cse->cs_l3_chk_delta = ~ip_fixup32_cksum(0, *oip32, *nip32);
-	cse->cs_l4_chk_delta = ~ip_fixup16_cksum(0, oid, tid);
-
-	struct cgn_sess_s2 *cs2 = &cse->cs_s2;
+	cse->cs_l4_chk_delta = ~ip_fixup16_cksum(0, cmi->cmi_oid, cmi->cmi_tid);
 
 	/*
 	 * Remember the dest port that created this session.  This is unknown
 	 * for PCP sessions.
 	 */
 	if (likely(cse->cs_pkt_instd))
-		cs2->cs2_dst_port = dst_port;
-
-	/*
-	 * Is cse session recording destination address and port?
-	 */
-	if (cgn_policy_record_dest(cp, oaddr, dir)) {
-
-		*error = cgn_sess_s2_enable(cs2);
-
-		if (*error < 0) {
-			free(cse);
-			cgn_session_slot_put();
-			return NULL;
-		}
-		cs2->cs2_log_start = cp->cp_log_sess_start ? 1 : 0;
-		cs2->cs2_log_end = cp->cp_log_sess_end ? 1 : 0;
-		cs2->cs2_log_periodic = cp->cp_log_sess_periodic;
-	}
+		cse->cs_s2.cs2_dst_port = cpk->cpk_did;
 
 	/* Take reference on source */
-	cse->cs_src = cgn_source_get(src);
+	cse->cs_src = cgn_source_get(cmi->cmi_src);
 
 	/* We already have a mapping */
 	cse->cs_map_flag = true;
+
+	/* The session now holds the mapping */
+	cmi->cmi_reserved = false;
 
 	cse->cs_id = rte_atomic32_add_return(&cgn_id_resource, 1);
 
@@ -716,11 +671,9 @@ struct cgn_session *
 cgn_session_map(struct ifnet *ifp, struct cgn_packet *cpk,
 		uint32_t pub_addr, uint16_t pub_port, int *error)
 {
-	struct cgn_source *src = NULL;
 	struct cgn_session *cse, *in_cse = NULL;
 	struct cgn_policy *cp;
 	int rc = 0;
-	uint32_t oaddr;
 	vrfid_t vrfid = cpk->cpk_vrfid;
 
 	/*
@@ -771,12 +724,21 @@ cgn_session_map(struct ifnet *ifp, struct cgn_packet *cpk,
 		return cse;
 	}
 
-	oaddr = cpk->cpk_saddr;
+	/* Mapping info */
+	struct cgn_map cmi = {
+		.cmi_reserved = false,
+		.cmi_proto = cpk->cpk_proto,
+		.cmi_oid = cpk->cpk_sid,
+		.cmi_oaddr = cpk->cpk_saddr,
+		.cmi_tid = pub_port,
+		.cmi_taddr = pub_addr,
+		.cmi_src = NULL,
+	};
 
 	/*
 	 * Lookup source address in policy list on the interface
 	 */
-	cp = cgn_if_find_policy_by_addr(ifp, oaddr);
+	cp = cgn_if_find_policy_by_addr(ifp, cmi.cmi_oaddr);
 	if (!cp) {
 		*error = -CGN_PCY_ENOENT;
 		return NULL;
@@ -795,13 +757,11 @@ cgn_session_map(struct ifnet *ifp, struct cgn_packet *cpk,
 	 * function as packet flows, cgn_map_get.  This obtains a mapping
 	 * using the config in the relevant policy.
 	 */
-	if (pub_addr == 0 && pub_port == 0)
-		rc = cgn_map_get(cp, vrfid, cpk->cpk_proto, oaddr,
-				 &pub_addr, &pub_port, &src);
+	if (cmi.cmi_taddr == 0 && cmi.cmi_tid == 0)
+		rc = cgn_map_get(&cmi, cp, vrfid);
 	else
 		/* Use specified public address and port */
-		rc = cgn_map_get2(cp, vrfid, cpk->cpk_proto, oaddr,
-				  pub_addr, pub_port, &src);
+		rc = cgn_map_get2(&cmi, cp, vrfid);
 
 	if (rc) {
 		*error = rc;
@@ -809,14 +769,12 @@ cgn_session_map(struct ifnet *ifp, struct cgn_packet *cpk,
 	}
 
 	/* Create a session. */
-	cse = cgn_session_establish(cpk, CGN_DIR_OUT, pub_addr, pub_port,
-				    error, src);
-	if (!cse) {
-		/* Release mapping */
-		cgn_map_put(cp->cp_pool, vrfid, CGN_DIR_OUT, cpk->cpk_proto,
-			    oaddr, pub_addr, pub_port);
-		return NULL;
-	}
+	cse = cgn_session_establish(cpk, &cmi, error);
+	if (!cse)
+		goto error;
+
+	/* Check if we want to record sub-sessions */
+	cgn_session_try_enable_sub_sess(cse, cp, cmi.cmi_oaddr);
 
 	/* Add session to hash tables */
 	rc = cgn_session_activate(cse, cpk, CGN_DIR_OUT);
@@ -827,6 +785,13 @@ cgn_session_map(struct ifnet *ifp, struct cgn_packet *cpk,
 		return NULL;
 	}
 	return cse;
+
+error:
+	if (cmi.cmi_reserved)
+		/* Release mapping */
+		cgn_map_put(&cmi, vrfid);
+
+	return NULL;
 }
 
 /*
@@ -866,8 +831,8 @@ uint32_t cgn_session_id(struct cgn_session *cse)
 }
 
 static int cgn_sentry_insert(struct cgn_sentry *ce, struct cgn_sentry **old,
-			     enum cgn_flow dir);
-static void cgn_sentry_delete(struct cgn_sentry *ce, enum cgn_flow dir);
+			     enum cgn_dir dir);
+static void cgn_sentry_delete(struct cgn_sentry *ce, enum cgn_dir dir);
 
 /*
  * Is recording of destination address and port enabled for this 3-tuple
@@ -879,12 +844,39 @@ static inline bool cgn_sess_s2_is_enabled(struct cgn_session *cse)
 }
 
 /*
+ * Check if we can enable sub-sessions on this 3-tuple session
+ */
+void cgn_session_try_enable_sub_sess(struct cgn_session *cse,
+				     struct cgn_policy *cp, uint32_t oaddr)
+{
+	struct cgn_sess_s2 *cs2 = &cse->cs_s2;
+
+	/* Already enabled? */
+	if (cs2->cs2_enbld)
+		return;
+
+	if (cgn_policy_record_dest(cp, oaddr)) {
+		cs2->cs2_enbld = true;
+
+		/*
+		 * The max value cannot change after the HT is created, so set
+		 * it here from the user-configurable global.
+		 */
+		cs2->cs2_max = cgn_dest_sessions_max;
+
+		cs2->cs2_log_start = cp->cp_log_sess_start ? 1 : 0;
+		cs2->cs2_log_end = cp->cp_log_sess_end ? 1 : 0;
+		cs2->cs2_log_periodic = cp->cp_log_sess_periodic;
+	}
+}
+
+/*
  * cgn_session_activate
  *
  * Activate new 3-tuple session.
  */
 int cgn_session_activate(struct cgn_session *cse,
-			 struct cgn_packet *cpk, int dir)
+			 struct cgn_packet *cpk, enum cgn_dir dir)
 {
 	struct cgn_sentry *old;
 	int rc = 0;
@@ -897,16 +889,16 @@ int cgn_session_activate(struct cgn_session *cse,
 		return 0;
 
 	/* Insert forw sentry into table */
-	rc = cgn_sentry_insert(&cse->cs_forw_entry, &old, CGN_DIR_FORW);
+	rc = cgn_sentry_insert(&cse->cs_forw_entry, &old, CGN_DIR_OUT);
 	if (unlikely(rc < 0)) {
 		cgn_session_slot_put();
 		goto end;
 	}
 
 	/* Insert back sentry into table */
-	rc = cgn_sentry_insert(&cse->cs_back_entry, &old, CGN_DIR_BACK);
+	rc = cgn_sentry_insert(&cse->cs_back_entry, &old, CGN_DIR_IN);
 	if (unlikely(rc < 0)) {
-		cgn_sentry_delete(&cse->cs_forw_entry, CGN_DIR_FORW);
+		cgn_sentry_delete(&cse->cs_forw_entry, CGN_DIR_OUT);
 		cgn_session_slot_put();
 		goto end;
 	}
@@ -923,8 +915,10 @@ int cgn_session_activate(struct cgn_session *cse,
 		struct cgn_sess2 *s2;
 		int error = 0;
 
+		assert(dir == CGN_DIR_OUT);
+
 		/* Create an s2 session */
-		s2 = cgn_sess_s2_establish(&cse->cs_s2, cpk, dir, &error);
+		s2 = cgn_sess_s2_establish(&cse->cs_s2, cpk, &error);
 		if (s2)
 			error = cgn_sess_s2_activate(&cse->cs_s2, s2);
 
@@ -955,8 +949,8 @@ cgn_session_deactivate(struct cgn_session *cse)
 {
 	if (cse->cs_forw_entry.ce_active) {
 		/* Remove from sentry table */
-		cgn_sentry_delete(&cse->cs_forw_entry, CGN_DIR_FORW);
-		cgn_sentry_delete(&cse->cs_back_entry, CGN_DIR_BACK);
+		cgn_sentry_delete(&cse->cs_forw_entry, CGN_DIR_OUT);
+		cgn_sentry_delete(&cse->cs_back_entry, CGN_DIR_IN);
 
 		/* Release the slot */
 		cgn_session_slot_put();
@@ -1002,7 +996,7 @@ cgn_sess_match(struct cds_lfht_node *node, const void *key)
  * Lookup hash table with given key.  Return pointer to hash table node.
  */
 static ALWAYS_INLINE struct cds_lfht_node *
-cgn_session_node(const struct cgn_3tuple_key *key, int dir,
+cgn_session_node(const struct cgn_3tuple_key *key, enum cgn_dir dir,
 		 struct cds_lfht_iter *iter)
 {
 	cds_lfht_lookup(cgn_sess_ht[dir], cgn_hash(key), cgn_sess_match,
@@ -1015,7 +1009,7 @@ cgn_session_node(const struct cgn_3tuple_key *key, int dir,
  *  Lookup hash table with given key and return the next node.
  */
 static inline struct cds_lfht_node *
-cgn_session_node_next(const struct cgn_3tuple_key *key, int dir,
+cgn_session_node_next(const struct cgn_3tuple_key *key, enum cgn_dir dir,
 		      struct cds_lfht_iter *iter)
 {
 	struct cds_lfht_node *node;
@@ -1036,7 +1030,7 @@ cgn_session_node_next(const struct cgn_3tuple_key *key, int dir,
  * Get the first node in the hash table.
  */
 static inline struct cds_lfht_node *
-cgn_session_node_first(int dir, struct cds_lfht_iter *iter)
+cgn_session_node_first(enum cgn_dir dir, struct cds_lfht_iter *iter)
 {
 	cds_lfht_first(cgn_sess_ht[dir], iter);
 	return cds_lfht_iter_get_node(iter);
@@ -1047,7 +1041,7 @@ cgn_session_node_first(int dir, struct cds_lfht_iter *iter)
  */
 static int
 cgn_sentry_insert(struct cgn_sentry *ce, struct cgn_sentry **old,
-		  enum cgn_flow dir)
+		  enum cgn_dir dir)
 {
 	struct cds_lfht_node *node;
 
@@ -1067,7 +1061,7 @@ cgn_sentry_insert(struct cgn_sentry *ce, struct cgn_sentry **old,
 /*
  * Delete sentry from the hash table
  */
-static void cgn_sentry_delete(struct cgn_sentry *ce, enum cgn_flow dir)
+static void cgn_sentry_delete(struct cgn_sentry *ce, enum cgn_dir dir)
 {
 	if (cgn_sess_ht[dir])
 		(void)cds_lfht_del(cgn_sess_ht[dir], &ce->ce_node);
@@ -1081,7 +1075,7 @@ static void cgn_sentry_delete(struct cgn_sentry *ce, enum cgn_flow dir)
  *         table.
  */
 static inline struct cgn_sentry *
-cgn_sentry_lookup(const struct cgn_3tuple_key *key, int dir)
+cgn_sentry_lookup(const struct cgn_3tuple_key *key, enum cgn_dir dir)
 {
 	struct cds_lfht_iter iter;
 	struct cds_lfht_node *node;
@@ -1097,7 +1091,7 @@ cgn_sentry_lookup(const struct cgn_3tuple_key *key, int dir)
  * cgn_session_lookup
  */
 struct cgn_session *
-cgn_session_lookup(const struct cgn_3tuple_key *key, int dir)
+cgn_session_lookup(const struct cgn_3tuple_key *key, enum cgn_dir dir)
 {
 	struct cds_lfht_iter iter;
 	struct cds_lfht_node *node;
@@ -1115,7 +1109,7 @@ cgn_session_lookup(const struct cgn_3tuple_key *key, int dir)
  * Lookup a packet embedded in an ICMP error message
  */
 struct cgn_session *
-cgn_session_lookup_icmp_err(struct cgn_packet *cpk, int dir)
+cgn_session_lookup_icmp_err(struct cgn_packet *cpk, enum cgn_dir dir)
 {
 	/*
 	 * Setup direction dependent part of hash key.  Note that this is the
@@ -1147,7 +1141,7 @@ struct cgn_session *cgn_session_find_cached(struct rte_mbuf *mbuf)
 
 static int
 cgn_session_inspect_s2(struct cgn_session *cse, struct cgn_sentry *ce,
-		       struct cgn_packet *cpk, int dir)
+		       struct cgn_packet *cpk, enum cgn_dir dir)
 {
 	struct cgn_sess2 *s2;
 	int error = 0;
@@ -1178,14 +1172,14 @@ cgn_session_inspect_s2(struct cgn_session *cse, struct cgn_sentry *ce,
 		/*
 		 * cpk_keepalive is only set true for certain pkts in
 		 * the outbound direction.  Pkts for which it is *not*
-		 * set include: TCP RST and all ICMP pkts except
+		 * set also include: TCP RST and all ICMP pkts except
 		 * Echo Requests.
 		 */
 		if (cpk->cpk_keepalive) {
+			assert(dir == CGN_DIR_OUT);
 
 			/* Create an s2 session */
-			s2 = cgn_sess_s2_establish(&cse->cs_s2, cpk,
-						   dir, &error);
+			s2 = cgn_sess_s2_establish(&cse->cs_s2, cpk, &error);
 			if (s2)
 				error = cgn_sess_s2_activate(&cse->cs_s2, s2);
 
@@ -1232,7 +1226,7 @@ cgn_session_inspect_s2(struct cgn_session *cse, struct cgn_sentry *ce,
  * path.
  */
 struct cgn_session *
-cgn_session_inspect(struct cgn_packet *cpk, int dir, int *error)
+cgn_session_inspect(struct cgn_packet *cpk, enum cgn_dir dir, int *error)
 {
 	struct cgn_sentry *ce;
 
@@ -1243,7 +1237,7 @@ cgn_session_inspect(struct cgn_packet *cpk, int dir, int *error)
 	struct cgn_session *cse = sentry2session(ce, dir);
 
 	/* Simple state mechanism for 3-tuple sessions */
-	if (unlikely(dir == CGN_DIR_BACK && !ce->ce_established))
+	if (unlikely(dir == CGN_DIR_IN && !ce->ce_established))
 		ce->ce_established = true;
 
 	/*
@@ -1296,10 +1290,10 @@ int cgn_session_walk(cgn_sesswalk_cb cb, void *data)
 	struct cgn_sentry *ce;
 	int rc;
 
-	if (!cgn_sess_ht[CGN_DIR_FORW])
+	if (!cgn_sess_ht[CGN_DIR_OUT])
 		return -ENOENT;
 
-	cds_lfht_for_each_entry(cgn_sess_ht[CGN_DIR_FORW], &iter, ce, ce_node) {
+	cds_lfht_for_each_entry(cgn_sess_ht[CGN_DIR_OUT], &iter, ce, ce_node) {
 
 		cse = caa_container_of(ce, struct cgn_session, cs_forw_entry);
 
@@ -1315,7 +1309,8 @@ int cgn_session_walk(cgn_sesswalk_cb cb, void *data)
  */
 static uint32_t cgn_session_expiry_time(struct cgn_session *cse)
 {
-	uint8_t proto, state;
+	enum nat_proto proto;
+	uint8_t state;
 	uint32_t etime;
 
 	if (cse->cs_back_entry.ce_expired)
@@ -1707,7 +1702,7 @@ int cgn_op_session_map(FILE *f, int argc, char **argv)
 	struct cgn_session *cse;
 	json_writer_t *json;
 	struct ifnet *ifp = NULL;
-	uint8_t proto = 0;
+	uint8_t ipproto = 0;
 	char *sa_arg = NULL;
 	char *pa_arg = NULL;
 	int rc, i, error = 0;
@@ -1754,10 +1749,10 @@ int cgn_op_session_map(FILE *f, int argc, char **argv)
 	}
 
 	/* check the protocol */
-	proto = fltr.cf_subs.k_ipproto;
+	ipproto = fltr.cf_subs.k_ipproto;
 
-	if (proto != IPPROTO_TCP && proto != IPPROTO_UDP &&
-	    proto != IPPROTO_UDPLITE && proto != IPPROTO_DCCP) {
+	if (ipproto != IPPROTO_TCP && ipproto != IPPROTO_UDP &&
+	    ipproto != IPPROTO_UDPLITE && ipproto != IPPROTO_DCCP) {
 		error = -CGN_PCP_EINVAL;
 		goto error;
 	}
@@ -1779,7 +1774,7 @@ int cgn_op_session_map(FILE *f, int argc, char **argv)
 	cpk.cpk_sid = fltr.cf_subs.k_port;
 	cpk.cpk_daddr = fltr.cf_pub.k_addr;
 	cpk.cpk_did = fltr.cf_pub.k_port;
-	cpk.cpk_ipproto = proto;
+	cpk.cpk_ipproto = ipproto;
 	cpk.cpk_ifindex = ifp->if_index;
 	cpk.cpk_key.k_ifindex = cgn_if_key_index(ifp);
 	cpk.cpk_l4ports = true;
@@ -1827,7 +1822,7 @@ int cgn_op_session_map(FILE *f, int argc, char **argv)
 
 	jsonw_int_field(json, "result", result);
 	jsonw_string_field(json, "intf", ifp->if_name);
-	jsonw_uint_field(json, "proto", proto);
+	jsonw_uint_field(json, "proto", ipproto);
 	jsonw_string_field(json, "subs_addr", subs_addr);
 	jsonw_uint_field(json, "subs_port", ntohs(cse->cs_forw_entry.ce_port));
 	jsonw_string_field(json, "pub_addr", pub_addr);
@@ -1855,7 +1850,7 @@ error:
 	jsonw_string_field(json, "error", cgn_rc_str(error));
 
 	jsonw_string_field(json, "intf", ifp ? ifp->if_name : "?");
-	jsonw_uint_field(json, "proto", proto);
+	jsonw_uint_field(json, "proto", ipproto);
 	jsonw_string_field(json, "subs_addr", sa_arg ? sa_arg : "0.0.0.0");
 	jsonw_uint_field(json, "subs_port", ntohs(fltr.cf_subs.k_port));
 	jsonw_string_field(json, "pub_addr", pa_arg ? pa_arg : "0.0.0.0");
@@ -2128,7 +2123,7 @@ void cgn_session_show(FILE *f, int argc, char **argv)
 	jsonw_name(json, "sessions");
 	jsonw_start_array(json);
 
-	if (!cgn_sess_ht[CGN_DIR_FORW])
+	if (!cgn_sess_ht[CGN_DIR_OUT])
 		goto end;
 
 	/*
@@ -2209,10 +2204,10 @@ void cgn_session_id_list(FILE *f, int argc __unused, char **argv __unused)
 	jsonw_name(json, "ids");
 	jsonw_start_array(json);
 
-	if (!cgn_sess_ht[CGN_DIR_FORW])
+	if (!cgn_sess_ht[CGN_DIR_OUT])
 		goto end;
 
-	cds_lfht_for_each_entry(cgn_sess_ht[CGN_DIR_FORW], &iter, fw, ce_node) {
+	cds_lfht_for_each_entry(cgn_sess_ht[CGN_DIR_OUT], &iter, fw, ce_node) {
 		if (fw->ce_expired)
 			continue;
 
@@ -2249,26 +2244,20 @@ cgn_session_set_expired(struct cgn_session *cse, bool update_stats)
  */
 static void cgn_session_clear_mapping(struct cgn_session *cse)
 {
-	struct nat_pool *np;
-
 	if (cse->cs_src)
 		cse->cs_src->sr_paired_addr = 0;
 
-	np = cgn_source_get_pool(cse->cs_src);
-	assert(np);
-
 	/* Release mapping immediately */
 	if (rte_atomic16_cmpset(&cse->cs_map_flag, true, false)) {
-		uint32_t taddr, oaddr;
-		uint16_t tport, oport;
-		uint8_t proto;
+		struct cgn_map cmi = {0};
 
-		cgn_session_get_back(cse, &taddr, &tport);
-		cgn_session_get_forw(cse, &oaddr, &oport);
-		proto = nat_proto_from_ipproto(cse->cs_forw_entry.ce_ipproto);
+		cgn_session_get_back(cse, &cmi.cmi_taddr, &cmi.cmi_tid);
+		cmi.cmi_reserved = true;
+		cmi.cmi_src = cse->cs_src;
+		cmi.cmi_proto = nat_proto_from_ipproto(
+			cse->cs_forw_entry.ce_ipproto);
 
-		cgn_map_put(np, cse->cs_vrfid, CGN_DIR_OUT, proto, oaddr,
-			    taddr, tport);
+		cgn_map_put(&cmi, cse->cs_vrfid);
 	}
 }
 
@@ -2284,7 +2273,7 @@ cgn_session_clear_fltr(struct cgn_sess_fltr *fltr, bool clear_map,
 	struct cgn_sentry *ce, *bk;
 	uint count = 0; /* count 2-tuple sessions cleared */
 
-	if (!cgn_sess_ht[CGN_DIR_FORW])
+	if (!cgn_sess_ht[CGN_DIR_OUT])
 		return;
 
 	/*
@@ -2293,7 +2282,7 @@ cgn_session_clear_fltr(struct cgn_sess_fltr *fltr, bool clear_map,
 	 */
 	cgn_session_stop_timer();
 
-	cds_lfht_for_each_entry(cgn_sess_ht[CGN_DIR_FORW], &iter, ce, ce_node) {
+	cds_lfht_for_each_entry(cgn_sess_ht[CGN_DIR_OUT], &iter, ce, ce_node) {
 		if (!clear_map && ce->ce_expired)
 			continue;
 
@@ -2417,10 +2406,10 @@ static void cgn_session_clear_or_update_stats_all(bool clear)
 	struct cgn_session *cse;
 	struct cgn_sentry *ce;
 
-	if (!cgn_sess_ht[CGN_DIR_FORW])
+	if (!cgn_sess_ht[CGN_DIR_OUT])
 		return;
 
-	cds_lfht_for_each_entry(cgn_sess_ht[CGN_DIR_FORW], &iter, ce, ce_node) {
+	cds_lfht_for_each_entry(cgn_sess_ht[CGN_DIR_OUT], &iter, ce, ce_node) {
 		if (ce->ce_expired)
 			continue;
 
@@ -2439,10 +2428,10 @@ cgn_session_clear_or_update_stats_fltr(struct cgn_sess_fltr *fltr, bool clear)
 	struct cgn_session *cse;
 	struct cgn_sentry *ce, *bk;
 
-	if (!cgn_sess_ht[CGN_DIR_FORW])
+	if (!cgn_sess_ht[CGN_DIR_OUT])
 		return;
 
-	cds_lfht_for_each_entry(cgn_sess_ht[CGN_DIR_FORW], &iter, ce, ce_node) {
+	cds_lfht_for_each_entry(cgn_sess_ht[CGN_DIR_OUT], &iter, ce, ce_node) {
 		if (ce->ce_expired)
 			continue;
 
@@ -2568,7 +2557,7 @@ cgn_session_expire_all(bool clear_map, bool restart_timer)
 	struct cgn_sentry *ce;
 	uint count = 0;
 
-	if (!cgn_sess_ht[CGN_DIR_FORW])
+	if (!cgn_sess_ht[CGN_DIR_OUT])
 		return;
 
 	/*
@@ -2577,7 +2566,7 @@ cgn_session_expire_all(bool clear_map, bool restart_timer)
 	 */
 	cgn_session_stop_timer();
 
-	cds_lfht_for_each_entry(cgn_sess_ht[CGN_DIR_FORW], &iter, ce, ce_node) {
+	cds_lfht_for_each_entry(cgn_sess_ht[CGN_DIR_OUT], &iter, ce, ce_node) {
 		if (!clear_map && ce->ce_expired)
 			continue;
 
@@ -2616,7 +2605,7 @@ void cgn_session_expire_pool(bool restart_timer, struct nat_pool *np,
 	struct cgn_sentry *ce;
 	uint count = 0;
 
-	if (!cgn_sess_ht[CGN_DIR_FORW])
+	if (!cgn_sess_ht[CGN_DIR_OUT])
 		return;
 
 	/*
@@ -2625,7 +2614,7 @@ void cgn_session_expire_pool(bool restart_timer, struct nat_pool *np,
 	 */
 	cgn_session_stop_timer();
 
-	cds_lfht_for_each_entry(cgn_sess_ht[CGN_DIR_FORW], &iter, ce, ce_node) {
+	cds_lfht_for_each_entry(cgn_sess_ht[CGN_DIR_OUT], &iter, ce, ce_node) {
 		struct nat_pool *cs_np;
 
 		cse = caa_container_of(ce, struct cgn_session, cs_forw_entry);
@@ -2669,7 +2658,7 @@ void cgn_session_expire_policy(bool restart_timer, struct cgn_policy *cp)
 	struct cgn_sentry *ce;
 	uint count = 0;
 
-	if (!cgn_sess_ht[CGN_DIR_FORW])
+	if (!cgn_sess_ht[CGN_DIR_OUT])
 		return;
 
 	/*
@@ -2678,7 +2667,7 @@ void cgn_session_expire_policy(bool restart_timer, struct cgn_policy *cp)
 	 */
 	cgn_session_stop_timer();
 
-	cds_lfht_for_each_entry(cgn_sess_ht[CGN_DIR_FORW], &iter, ce, ce_node) {
+	cds_lfht_for_each_entry(cgn_sess_ht[CGN_DIR_OUT], &iter, ce, ce_node) {
 		if (ce->ce_expired)
 			continue;
 
@@ -2838,11 +2827,11 @@ static void cgn_session_gc(struct rte_timer *timer, void *arg __rte_unused)
 	struct cgn_sentry *ce;
 	struct cgn_session *cse;
 
-	if (!cgn_sess_ht[CGN_DIR_FORW])
+	if (!cgn_sess_ht[CGN_DIR_OUT])
 		return;
 
 	/* Walk the forwards-flow session table */
-	cds_lfht_for_each_entry(cgn_sess_ht[CGN_DIR_FORW], &iter, ce, ce_node) {
+	cds_lfht_for_each_entry(cgn_sess_ht[CGN_DIR_OUT], &iter, ce, ce_node) {
 
 		cse = caa_container_of(ce, struct cgn_session, cs_forw_entry);
 		cgn_session_gc_inspect(cse);
@@ -2874,11 +2863,11 @@ static int cgn_session_log_walk(void)
 
 	ASSERT_CGN_HELPER_THREAD();
 
-	if (!cgn_sess_ht[CGN_DIR_FORW])
+	if (!cgn_sess_ht[CGN_DIR_OUT])
 		return 0;
 
 	/* Walk the forwards-flow session table */
-	cds_lfht_for_each_entry(cgn_sess_ht[CGN_DIR_FORW], &iter, ce, ce_node) {
+	cds_lfht_for_each_entry(cgn_sess_ht[CGN_DIR_OUT], &iter, ce, ce_node) {
 
 		cse = caa_container_of(ce, struct cgn_session, cs_forw_entry);
 
@@ -3066,16 +3055,16 @@ static void cgn_session_stop_timer(void)
  */
 void cgn_session_init(void)
 {
-	if (cgn_sess_ht[CGN_DIR_FORW])
+	if (cgn_sess_ht[CGN_DIR_OUT])
 		return;
 
-	cgn_sess_ht[CGN_DIR_FORW] =
+	cgn_sess_ht[CGN_DIR_OUT] =
 		cds_lfht_new(CGN_SESSION_HT_INIT, CGN_SESSION_HT_MIN,
 			     CGN_SESSION_HT_MAX,
 			     CDS_LFHT_AUTO_RESIZE | CDS_LFHT_ACCOUNTING,
 			     NULL);
 
-	cgn_sess_ht[CGN_DIR_BACK] =
+	cgn_sess_ht[CGN_DIR_IN] =
 		cds_lfht_new(CGN_SESSION_HT_INIT, CGN_SESSION_HT_MIN,
 			     CGN_SESSION_HT_MAX,
 			     CDS_LFHT_AUTO_RESIZE | CDS_LFHT_ACCOUNTING,
@@ -3090,18 +3079,18 @@ void cgn_session_init(void)
  */
 void cgn_session_uninit(void)
 {
-	if (!cgn_sess_ht[CGN_DIR_FORW])
+	if (!cgn_sess_ht[CGN_DIR_OUT])
 		return;
 
 	/* Expire all entries and run gc multiple times */
 	cgn_session_cleanup();
 
 	/* Destroy the session hash tables */
-	dp_ht_destroy_deferred(cgn_sess_ht[CGN_DIR_FORW]);
-	cgn_sess_ht[CGN_DIR_FORW] = NULL;
+	dp_ht_destroy_deferred(cgn_sess_ht[CGN_DIR_OUT]);
+	cgn_sess_ht[CGN_DIR_OUT] = NULL;
 
-	dp_ht_destroy_deferred(cgn_sess_ht[CGN_DIR_BACK]);
-	cgn_sess_ht[CGN_DIR_BACK] = NULL;
+	dp_ht_destroy_deferred(cgn_sess_ht[CGN_DIR_IN]);
+	cgn_sess_ht[CGN_DIR_IN] = NULL;
 }
 
 /* Used by unit-tests only */

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2019-2021, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  *
@@ -35,17 +35,15 @@
 #include "dp_test_npf_sess_lib.h"
 
 #include "npf/nat/nat_pool_public.h"
-#include "npf/cgnat/cgn.h"
-#include "npf/apm/apm.h"
 #include "npf/cgnat/cgn_limits.h"
-#include "npf/cgnat/cgn_policy.h"
-#include "npf/cgnat/cgn_source.h"
 #include "npf/cgnat/cgn_sess_state.h"
 #include "npf/cgnat/cgn_session.h"
 #include "npf/cgnat/cgn_sess2.h"
 #include "npf/cgnat/cgn_mbuf.h"
 #include "npf/cgnat/cgn_log.h"
 #include "npf/cgnat/cgn_if.h"
+#include "npf/cgnat/cgn_time.h"
+#include "npf/cgnat/cgn_test.h"
 
 DP_DECL_TEST_SUITE(npf_cgnat);
 

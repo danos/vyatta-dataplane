@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2019-2021, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -67,6 +67,20 @@
 #include "npf/cgnat/cgn_session.h"
 #include "npf/cgnat/cgn_source.h"
 
+
+/*
+ * Extract an integer from a string
+ */
+int cgn_arg_to_int(const char *arg)
+{
+	char *p;
+	unsigned long val = strtoul(arg, &p, 10);
+
+	if (p == arg || val > INT_MAX)
+		return -1;
+
+	return (uint32_t) val;
+}
 
 /*
  * Iterate through argv/argc looking for "intf=dp0p1", extract the interface

@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: LGPL-2.1-only
-# Copyright (c) 2020, AT&T Intellectual Property. All rights reserved.
+# Copyright (c) 2020-2021, AT&T Intellectual Property. All rights reserved.
 
 jsonw_library = shared_library(
         'vyatta-jsonw',
@@ -191,10 +191,13 @@ npf_sources = files(
         'npf/cgnat/cgn_map.c',
         'npf/cgnat/cgn_mbuf.c',
         'npf/cgnat/cgn_policy.c',
+        'npf/cgnat/cgn_rc.c',
         'npf/cgnat/cgn_session.c',
         'npf/cgnat/cgn_sess2.c',
         'npf/cgnat/cgn_sess_state.c',
         'npf/cgnat/cgn_source.c',
+        'npf/cgnat/cgn_test.c',
+        'npf/cgnat/cgn_time.c',
         'npf/config/gpc_db.c',
         'npf/config/npf_attach_point.c',
         'npf/config/npf_auto_attach.c',

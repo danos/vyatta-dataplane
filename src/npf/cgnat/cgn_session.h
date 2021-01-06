@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2019-2021, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -8,6 +8,7 @@
 #define _CGN_SESSION_H_
 
 #include "util.h"
+#include "npf/cgnat/cgn.h"
 
 struct cgn_3tuple_key;
 struct cgn_session;
@@ -16,25 +17,9 @@ struct cgn_packet;
 struct cgn_policy;
 struct cgn_source;
 struct cgn_sess2;
+struct cgn_map;
 struct nat_pool;
 struct ifnet;
-
-
-extern int32_t cgn_sessions_max;
-extern int16_t cgn_dest_sessions_max;
-extern int16_t cgn_dest_ht_max;
-
-/* Global count of all 3-tuple sessions */
-extern rte_atomic32_t cgn_sessions_used;
-
-/* Global count of all 5-tuple sessions */
-extern rte_atomic32_t cgn_sess2_used;
-
-/* Is session table full? */
-extern bool cgn_session_table_full;
-
-/* Is CGNAT helper core enabled? */
-extern uint8_t cgn_helper_thread_enabled;
 
 uint32_t cgn_session_ifindex(struct cgn_session *cse);
 uint32_t cgn_session_id(struct cgn_session *cse);
@@ -64,26 +49,28 @@ void cgn_session_get_back(const struct cgn_session *cse,
 uint16_t cgn_session_get_l3_delta(const struct cgn_session *cse, bool forw);
 uint16_t cgn_session_get_l4_delta(const struct cgn_session *cse, bool forw);
 
+void cgn_session_try_enable_sub_sess(struct cgn_session *cse,
+				     struct cgn_policy *cp, uint32_t oaddr);
+
 /*
  * taddr   - translation addr
  * tid     - translation ID
  * add_dst - Add 2-tuple table
  */
-struct cgn_session *cgn_session_establish(struct cgn_packet *cpk, int dir,
-					  uint32_t taddr, uint16_t tid,
-					  int *error, struct cgn_source *src);
+struct cgn_session *cgn_session_establish(struct cgn_packet *cpk,
+					  struct cgn_map *cmi, int *error);
 
 int cgn_session_activate(struct cgn_session *cse,
-			 struct cgn_packet *cpk, int dir);
+			 struct cgn_packet *cpk, enum cgn_dir dir);
 
 void cgn_session_destroy(struct cgn_session *cse, bool rcu_free);
 
 struct cgn_session *cgn_session_lookup(const struct cgn_3tuple_key *key,
-				       int dir);
-struct cgn_session *cgn_session_inspect(struct cgn_packet *cpk, int dir,
-					int *error);
+				       enum cgn_dir dir);
+struct cgn_session *cgn_session_inspect(struct cgn_packet *cpk,
+					enum cgn_dir dir, int *error);
 struct cgn_session *cgn_session_lookup_icmp_err(struct cgn_packet *cpk,
-						int dir);
+						enum cgn_dir dir);
 
 struct cgn_session *cgn_session_find_cached(struct rte_mbuf *mbuf);
 
@@ -120,9 +107,6 @@ void cgn_session_gc_pass(void);
 void cgn_sess_list_show(void);
 
 void cgn_session_cleanup(void);
-
-/* Used by unit-tests only */
-size_t cgn_session_size(void);
 
 /* Session Logging thread */
 int cgn_set_helper_thread(unsigned int core_num);

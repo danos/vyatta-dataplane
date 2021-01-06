@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2019-2021, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -26,7 +26,7 @@
 
 #include "npf/cgnat/cgn.h"
 #include "npf/apm/apm.h"
-#include "npf/cgnat/cgn_errno.h"
+#include "npf/cgnat/cgn_rc.h"
 #include "npf/cgnat/cgn_if.h"
 #include "npf/cgnat/cgn_policy.h"
 #include "npf/cgnat/cgn_session.h"
@@ -141,7 +141,8 @@ static void cgn_show_summary(FILE *f, int argc __unused, char **argv __unused)
 /*
  * Write json for errors in one direction
  */
-static void cgn_show_errors_dir(json_writer_t *json, int dir, const char *name)
+static void cgn_show_errors_dir(json_writer_t *json, enum cgn_dir dir,
+				const char *name)
 {
 	uint64_t count;
 	int err;

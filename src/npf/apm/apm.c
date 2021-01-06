@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2019-2021, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -37,7 +37,7 @@
 #include "npf/nat/nat_pool.h"
 
 #include "npf/apm/apm.h"
-#include "npf/cgnat/cgn_errno.h"
+#include "npf/cgnat/cgn_rc.h"
 #include "npf/cgnat/cgn_log.h"
 #include "npf/cgnat/cgn_map.h"
 

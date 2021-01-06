@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2019-2021, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -18,6 +18,7 @@
 
 #include "pktmbuf_internal.h"
 #include "npf/cgnat/cgn_hash_key.h"
+#include "npf/nat/nat_proto.h"
 
 /*
  * cgn_packet - decomposition of a packet
@@ -37,20 +38,25 @@ struct cgn_packet {
 
 	uint32_t	cpk_ifindex;
 	uint32_t	cpk_info;
+
 	vrfid_t		cpk_vrfid;	/* VRF id */
 	uint8_t		cpk_keepalive:1; /* Can we clear idle flag? */
 	uint8_t		cpk_pkt_instd:1;
 	uint8_t		cpk_tcp_flags;
-	uint8_t		cpk_proto;	/* tcp, udp, other enum */
+	enum nat_proto	cpk_proto;	/* tcp, udp, other enum */
 	uint8_t		cpk_l4ports;	/* true if there are l4ports*/
+
 	uint16_t	cpk_cksum;	/* l4 checksum */
-	uint16_t	cpk_sid;
-	uint16_t	cpk_did;
-	uint32_t	cpk_saddr;
-	uint32_t	cpk_daddr;
-	uint32_t	cpk_l3_len;	/* IP header length */
-	uint32_t	cpk_hlen;	/* l3 + l4 */
-	size_t		cpk_len;	/* l3 + l4 + data */
+	uint16_t	cpk_sid;	/* source port or id */
+	uint16_t	cpk_did;	/* dest port or id */
+	uint8_t		cpk_pad1[2];
+
+	uint32_t	cpk_saddr;	/* source address */
+	uint32_t	cpk_daddr;	/* destination address */
+
+	uint16_t	cpk_l3_len;	/* IP header length */
+	uint16_t	cpk_l4_len;	/* L4 header length */
+	uint32_t	cpk_len;	/* l3 + l4 + data */
 };
 
 #define cpk_ipproto	cpk_key.k_ipproto
@@ -59,7 +65,7 @@ struct cgn_packet {
  * Init the direction dependent part of the hash key in the packet cache
  * structure.
  */
-static inline void cgn_pkt_key_init(struct cgn_packet *cpk, int dir)
+static inline void cgn_pkt_key_init(struct cgn_packet *cpk, enum cgn_dir dir)
 {
 	if (dir == CGN_DIR_OUT) {
 		/* Hash key is source address and port */
@@ -170,7 +176,7 @@ static inline void cgn_rwricmpid(char *l4_ptr, uint16_t new_id)
 }
 
 int cgn_cache_all(struct rte_mbuf *m, uint l3_offset, struct ifnet *ifp,
-		  int dir, struct cgn_packet *cpk, bool icmp_err);
+		  enum cgn_dir dir, struct cgn_packet *cpk, bool icmp_err);
 
 void cgn_rwrcksums(struct cgn_packet *cpk, void *n_ptr,
 		   uint16_t l3_chk_delta, uint16_t l4_chk_delta);

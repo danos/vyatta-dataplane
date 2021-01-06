@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2019-2021, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -25,7 +25,7 @@
 
 #include "npf/nat/nat_proto.h"
 #include "npf/cgnat/cgn.h"
-#include "npf/cgnat/cgn_errno.h"
+#include "npf/cgnat/cgn_rc.h"
 #include "npf/cgnat/cgn_limits.h"
 #include "npf/cgnat/cgn_log.h"
 #include "npf/cgnat/cgn_mbuf.h"
@@ -33,6 +33,7 @@
 #include "npf/cgnat/cgn_sess_state.h"
 #include "npf/cgnat/cgn_session.h"
 #include "npf/cgnat/cgn_source.h"
+#include "npf/cgnat/cgn_time.h"
 
 
 /*
@@ -91,29 +92,11 @@ static_assert(sizeof(struct cgn_sess2) == 128,
 /* Forward references */
 static struct cds_lfht *cgn_sess2_ht_create(ulong nbuckets);
 static void cgn_sess2_ht_destroy(struct cds_lfht **htp);
-static int cgn_sess2_activate(struct cgn_sess_s2 *cs2, struct cgn_sess2 *s2);
+static int cgn_sess2_add(struct cgn_sess_s2 *cs2, struct cgn_sess2 *s2);
 
 /*
  * API with cgn_session.c
  */
-
-/*
- * Enable a cse session for recording dest addr and port.  Called when the
- * session is created, and before it is added to the session table.
- *
- * cs2 is the s2 table and state structure embedded in each 3-tuple session.
- */
-int cgn_sess_s2_enable(struct cgn_sess_s2 *cs2)
-{
-	/*
-	 * The max value cannot change after the HT is created, so set it here
-	 * from the user-configurable global.
-	 */
-	cs2->cs2_max = cgn_dest_sessions_max;
-
-	cs2->cs2_enbld = true;
-	return 0;
-}
 
 /*
  * Disable recording of dest addr and port for a given 3-tuple session.
@@ -206,7 +189,7 @@ int cgn_sess_s2_activate(struct cgn_sess_s2 *cs2, struct cgn_sess2 *s2)
 {
 	int rc;
 
-	rc = cgn_sess2_activate(cs2, s2);
+	rc = cgn_sess2_add(cs2, s2);
 
 	if (unlikely(rc < 0)) {
 		/*
@@ -329,11 +312,11 @@ static int cgn_sess2_match(struct cds_lfht_node *node, const void *key)
 }
 
 /*
- * Create an s2 session
+ * Create an s2 session. Sessions are only ever created in the 'out' context.
  */
 struct cgn_sess2 *
 cgn_sess_s2_establish(struct cgn_sess_s2 *cs2, struct cgn_packet *cpk,
-		      int dir, int *error)
+		      int *error)
 {
 	struct cgn_sess2 *s2;
 
@@ -354,20 +337,13 @@ cgn_sess_s2_establish(struct cgn_sess_s2 *cs2, struct cgn_packet *cpk,
 		return NULL;
 	}
 
-	if (dir == CGN_DIR_OUT) {
-		s2->s2_addr = cpk->cpk_daddr;
-		s2->s2_port   = cpk->cpk_did;
-		rte_atomic32_inc(&s2->s2_pkts_out);
-		rte_atomic32_add(&s2->s2_bytes_out, cpk->cpk_len);
-	} else {
-		s2->s2_addr = cpk->cpk_saddr;
-		s2->s2_port   = cpk->cpk_sid;
-		rte_atomic32_inc(&s2->s2_pkts_in);
-		rte_atomic32_add(&s2->s2_bytes_in, cpk->cpk_len);
-	}
+	s2->s2_addr = cpk->cpk_daddr;
+	s2->s2_port   = cpk->cpk_did;
+	rte_atomic32_inc(&s2->s2_pkts_out);
+	rte_atomic32_add(&s2->s2_bytes_out, cpk->cpk_len);
 
 	s2->s2_cs2 = cs2;
-	s2->s2_dir = dir;
+	s2->s2_dir = CGN_DIR_OUT;
 	s2->s2_expired = false;
 	s2->s2_start_time = cgn_time_usecs();
 	s2->s2_id = rte_atomic32_add_return(&cs2->cs2_id, 1);
@@ -379,15 +355,16 @@ cgn_sess_s2_establish(struct cgn_sess_s2 *cs2, struct cgn_packet *cpk,
 	cgn_sess_state_init(&s2->s2_state,
 			    nat_proto_from_ipproto(cpk->cpk_ipproto),
 			    ntohs(s2->s2_port));
-	cgn_sess_state_inspect(&s2->s2_state, cpk, dir, s2->s2_start_time);
+	cgn_sess_state_inspect(&s2->s2_state, cpk, CGN_DIR_OUT,
+			       s2->s2_start_time);
 
 	return s2;
 }
 
 /*
- * Activate a nested session
+ * Add a 2-tuple sub session to the 3-tuple main session
  */
-static int cgn_sess2_activate(struct cgn_sess_s2 *cs2, struct cgn_sess2 *s2)
+static int cgn_sess2_add(struct cgn_sess_s2 *cs2, struct cgn_sess2 *s2)
 {
 	/* Insert into table */
 	struct cds_lfht_node *node;
@@ -447,8 +424,7 @@ static int cgn_sess2_activate(struct cgn_sess_s2 *cs2, struct cgn_sess2 *s2)
 	return 0;
 }
 
-static void
-cgn_sess2_deactivate(struct cgn_sess_s2 *cs2, struct cgn_sess2 *s2)
+static void cgn_sess2_del(struct cgn_sess_s2 *cs2, struct cgn_sess2 *s2)
 {
 	/* Increment 2-tuple sessions destroyed in subscriber */
 	struct cgn_source *src = cgn_src_from_cs2(cs2);
@@ -468,7 +444,7 @@ cgn_sess2_deactivate(struct cgn_sess_s2 *cs2, struct cgn_sess2 *s2)
 /* Populate lookup key from packet cache */
 static inline void
 cgn_sess2_lookup_key_from_cpk(struct cgn_2tuple_key *key,
-			      struct cgn_packet *cpk, int dir)
+			      struct cgn_packet *cpk, enum cgn_dir dir)
 {
 	key->k_expired = false;
 	key->k_pad = 0;
@@ -510,7 +486,8 @@ cgn_sess2_lookup(struct cgn_sess_s2 *cs2, struct cgn_2tuple_key *key)
  * Does the cached packet match a destination session?
  */
 struct cgn_sess2 *
-cgn_sess_s2_inspect(struct cgn_sess_s2 *cs2, struct cgn_packet *cpk, int dir)
+cgn_sess_s2_inspect(struct cgn_sess_s2 *cs2, struct cgn_packet *cpk,
+		    enum cgn_dir dir)
 {
 	struct cgn_2tuple_key key;
 	struct cgn_sess2 *s2;
@@ -786,7 +763,7 @@ cgn_sess2_gc_inspect_inline(struct cgn_sess2 *s2, uint *unexpd, uint *expd,
 	}
 
 	/* Remove from hash table */
-	cgn_sess2_deactivate(cs2, s2);
+	cgn_sess2_del(cs2, s2);
 
 	/* Release the slot */
 	cgn_sess_s2_slot_put(cs2);

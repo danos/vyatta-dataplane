@@ -1,46 +1,46 @@
 /*
- * Copyright (c) 2019-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2019-2021, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
 
 /**
- * @file cgn.c - CGNAT module init and uninit and other global functions.
+ * @file cgn.c - CGNAT global variables and event handlers.
  */
 
 #include <errno.h>
-#include <time.h>
 #include <netinet/in.h>
 #include <linux/if.h>
+#include <rte_log.h>
 
 #include "compiler.h"
 #include "if_var.h"
 #include "util.h"
-#include "soft_ticks.h"
 #include "dp_event.h"
+#include "vplane_log.h"
 
 #include "npf/cgnat/cgn.h"
-#include "npf/cgnat/cgn_errno.h"
+#include "npf/cgnat/cgn_rc.h"
 #include "npf/apm/apm.h"
 #include "npf/cgnat/cgn_cmd_cfg.h"
-#include "npf/cgnat/cgn_errno.h"
 #include "npf/cgnat/cgn_if.h"
 #include "npf/cgnat/cgn_policy.h"
 #include "npf/cgnat/cgn_session.h"
 #include "npf/cgnat/cgn_source.h"
+#include "npf/cgnat/cgn_time.h"
 #include "npf/cgnat/cgn_log.h"
 #include "npf/nat/nat_pool_event.h"
 #include "npf/nat/nat_pool_public.h"
 
 
-/*
- * cgnat globals
- */
+/**************************************************************************
+ * CGNAT Global Variables
+ **************************************************************************/
 
 /* Hairpinning config enable/disable */
 bool cgn_hairpinning_gbl = true;
 
-/* snat-alg-bypass enable/disable */
+/* snat-alg-bypass config enable/disable */
 bool cgn_snat_alg_bypass_gbl;
 
 /*
@@ -51,126 +51,36 @@ bool cgn_snat_alg_bypass_gbl;
 rte_atomic64_t cgn_sess2_ht_created;
 rte_atomic64_t cgn_sess2_ht_destroyed;
 
-/*
- * Time in millisecs since Epoch, relative to soft_ticks==0.  This is
- * calculated once when the dataplane starts.  Its value may then be added to
- * soft_ticks in order to get a 'unix epoch' millisec time.
- */
-static uint64_t cgn_epoch_ms;
-
-/* Return code and error counters. */
-struct cgn_rc_t *cgn_rc;
-
-uint64_t cgn_rc_read(enum cgn_dir dir, enum cgn_rc_en rc)
-{
-	uint64_t sum;
-	uint i;
-
-	if (rc >= CGN_RC_SZ || dir >= CGN_DIR_SZ || !cgn_rc)
-		return 0UL;
-
-	sum = 0UL;
-	FOREACH_DP_LCORE(i)
-		sum += cgn_rc[i].dir[dir].count[rc];
-
-	return sum;
-}
-
-void cgn_rc_clear(enum cgn_dir dir, enum cgn_rc_en rc)
-{
-	uint i;
-
-	if (rc >= CGN_RC_SZ || dir >= CGN_DIR_SZ || !cgn_rc)
-		return;
-
-	FOREACH_DP_LCORE(i)
-		cgn_rc[i].dir[dir].count[rc] = 0UL;
-}
+/* max 3-tuple sessions, and sessions used */
+int32_t cgn_sessions_max = CGN_SESSIONS_MAX;
 
 /*
- * Init cgnat global per-core return code counters
+ * Count of all 3-tuple sessions.  Incremented and compared against
+ * cgn_sessions_max before a 3-tuple session is created.  If it exceeds
+ * cgn_sessions_max then cgn_session_table_full is set true.  It is
+ * decremented by the GC routine a time after the session has expired.
  */
-static void cgn_rc_init(void)
-{
-	if (cgn_rc)
-		return;
+rte_atomic32_t cgn_sessions_used;
 
-	cgn_rc = zmalloc_aligned((get_lcore_max() + 1) * sizeof(*cgn_rc));
-}
+/* max 2-tuple sessions per 3-tuple session*/
+int16_t cgn_dest_sessions_max = CGN_DEST_SESSIONS_INIT;
 
-static void cgn_rc_uninit(void)
-{
-	free(cgn_rc);
-	cgn_rc = NULL;
-}
+/* Size of 2-tuple hash table that may be added per 3-tuple session */
+int16_t cgn_dest_ht_max = CGN_DEST_SESSIONS_INIT;
 
-/*
- * Dataplane uptime in seconds. Accurate to 10 millisecs.  Used to expire
- * table entries.
- */
-uint32_t cgn_uptime_secs(void)
-{
-	return (uint32_t)(soft_ticks / 1000);
-}
+/* Global count of all 5-tuple sessions */
+rte_atomic32_t cgn_sess2_used;
 
-/*
- * Unix epoch time in microseconds.  Used for TCP 5-tuple sessions RTT
- * calculations.
- */
-uint64_t cgn_time_usecs(void)
-{
-	struct timeval tod;
+/* Set true when table is full.  Re-evaluated after GC. */
+bool cgn_session_table_full;
 
-	gettimeofday(&tod, NULL);
-	return (tod.tv_sec * 1000000) + tod.tv_usec;
-}
+/* Is CGNAT helper core enabled? */
+uint8_t cgn_helper_thread_enabled;
 
-/* Initialize cgn_epoch_ms */
-static void cgn_init_time(void)
-{
-	cgn_epoch_ms = (cgn_time_usecs()) / 1000 - soft_ticks;
-}
 
-/*
- * Convert soft_ticks in millisecs to Epoch timestamp in microseconds
- */
-uint64_t cgn_ticks2timestamp(uint64_t ticks)
-{
-	return (cgn_epoch_ms + ticks) * 1000;
-}
-
-/*
- * Convert start time in soft_ticks into duration in microseconds.
- */
-uint64_t cgn_start2duration(uint64_t start_time)
-{
-	return (soft_ticks - start_time) * 1000;
-}
-
-/*
- * Extract an integer from a string
- */
-int cgn_arg_to_int(const char *arg)
-{
-	char *p;
-	unsigned long val = strtoul(arg, &p, 10);
-
-	if (p == arg || val > INT_MAX)
-		return -1;
-
-	return (uint32_t) val;
-}
-
-/*
- * Format an IPv4 host-byte ordered address
- */
-char *cgn_addrstr(uint32_t addr, char *str, size_t slen)
-{
-	snprintf(str, slen, "%u.%u.%u.%u",
-		 (addr >> 24) & 0xFF, (addr >> 16) & 0xFF,
-		 (addr >>  8) & 0xFF, addr & 0xFF);
-	return str;
-}
+/**************************************************************************
+ * CGNAT Event Handlers
+ **************************************************************************/
 
 /*
  * NAT pool has been de-activated.  Clear all sessions and mappings that
@@ -249,12 +159,3 @@ static const struct dp_event_ops cgn_event_ops = {
 
 /* Register event handler */
 DP_STARTUP_EVENT_REGISTER(cgn_event_ops);
-
-
-/* Called from unit-tests */
-void dp_test_npf_clear_cgnat(void)
-{
-	cgn_session_cleanup();
-	apm_cleanup();
-	cgn_source_cleanup();
-}

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2019-2021, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -24,12 +24,24 @@
 #include "npf/cgnat/cgn_sess_state.h"
 #include "npf/cgnat/cgn_session.h"
 #include "npf/cgnat/cgn_sess2.h"
+#include "npf/cgnat/cgn_time.h"
 #include "npf/nat/nat_pool.h"
 
 #define ADDR_CHARS 16
 
 #define CGNAT_RTE_LOG(level, ...) \
 	rte_log(level, RTE_LOGTYPE_CGNAT, "CGNAT: " __VA_ARGS__)
+
+/*
+ * Format an IPv4 host-byte ordered address
+ */
+static char *cgn_addrstr(uint32_t addr, char *str, size_t slen)
+{
+	snprintf(str, slen, "%u.%u.%u.%u",
+		 (addr >> 24) & 0xFF, (addr >> 16) & 0xFF,
+		 (addr >>  8) & 0xFF, addr & 0xFF);
+	return str;
+}
 
 /*
  * Log subscriber session start - SUBSCRIBER_START

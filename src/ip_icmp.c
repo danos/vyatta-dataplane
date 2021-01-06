@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 1982, 1986, 1988, 1993
  *	The Regents of the University of California.  All rights reserved.
  *
@@ -61,7 +61,7 @@
 #include "util.h"
 #include "nh_common.h"
 #include "npf/npf_nat.h"
-#include "npf/cgnat/cgn.h"
+#include "npf/cgnat/cgn_public.h"
 #include "fal.h"
 #include "netinet6/ip6_funcs.h"
 #include "vplane_log.h"

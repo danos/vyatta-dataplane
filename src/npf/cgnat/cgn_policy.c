@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2019-2021, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -27,6 +27,7 @@
 #include "npf/cgnat/cgn_policy.h"
 #include "npf/cgnat/cgn_session.h"
 #include "npf/cgnat/cgn_source.h"
+#include "npf/cgnat/cgn_time.h"
 
 
 /*
@@ -56,11 +57,8 @@ static void cgn_policy_free_sess_rate(struct cgn_policy *cp);
  * (cp_log_sess_all), of from an address-group of subscriber addresses and/or
  * prefixes (cp_log_sess_ag).
  */
-bool cgn_policy_record_dest(struct cgn_policy *cp, uint32_t addr, int dir)
+bool cgn_policy_record_dest(struct cgn_policy *cp, uint32_t addr)
 {
-	if (dir != CGN_DIR_OUT)
-		return false;
-
 	if (cp->cp_log_sess_all)
 		return true;
 

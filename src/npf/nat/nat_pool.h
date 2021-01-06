@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2019-2021, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -224,13 +224,13 @@ static inline uint16_t nat_pool_get_mbpu(const struct nat_pool *np)
  * address after this one when doing the next allocation.
  */
 static inline void
-nat_pool_hint_set(struct nat_pool *np, uint32_t addr, uint8_t proto)
+nat_pool_hint_set(struct nat_pool *np, uint32_t addr, enum nat_proto proto)
 {
 	rte_atomic32_set(&np->np_ranges->nr_addr_hint[proto], addr);
 }
 
 static inline uint32_t
-nat_pool_hint(struct nat_pool *np, uint8_t proto)
+nat_pool_hint(struct nat_pool *np, enum nat_proto proto)
 {
 	return rte_atomic32_read(&np->np_ranges->nr_addr_hint[proto]);
 }
