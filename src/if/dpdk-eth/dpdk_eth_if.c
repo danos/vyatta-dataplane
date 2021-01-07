@@ -302,9 +302,15 @@ static void reconfigure_slave(struct ifnet *ifp, void *arg)
 	struct rte_eth_conf *conf = arg;
 	struct rte_eth_conf *slave_conf;
 	struct rte_eth_dev *slave_dev;
+	bool dev_started;
+
+	slave_dev = &rte_eth_devices[ifp->if_port];
+	slave_conf = &slave_dev->data->dev_conf;
+	dev_started = slave_dev->data->dev_started;
 
 	/* Ensure slave is stopped as stopping master does not do this */
-	rte_eth_dev_stop(ifp->if_port);
+	if (dev_started)
+		rte_eth_dev_stop(ifp->if_port);
 
 	/*
 	 * Update slave config to match the master jumbo config
@@ -314,8 +320,6 @@ static void reconfigure_slave(struct ifnet *ifp, void *arg)
 	 * set up its queues, and start it, so don't call
 	 * rte_eth_dev_configure() directly here.
 	 */
-	slave_dev = &rte_eth_devices[ifp->if_port];
-	slave_conf = &slave_dev->data->dev_conf;
 	if (conf->rxmode.offloads & DEV_RX_OFFLOAD_SCATTER)
 		slave_conf->rxmode.offloads |= DEV_RX_OFFLOAD_SCATTER;
 	else
@@ -324,6 +328,9 @@ static void reconfigure_slave(struct ifnet *ifp, void *arg)
 		slave_conf->rxmode.offloads |= DEV_RX_OFFLOAD_JUMBO_FRAME;
 	else
 		slave_conf->rxmode.offloads &= ~(DEV_RX_OFFLOAD_JUMBO_FRAME);
+
+	if (dev_started)
+		rte_eth_dev_start(ifp->if_port);
 }
 
 /*
