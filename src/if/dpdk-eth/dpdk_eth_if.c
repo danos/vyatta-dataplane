@@ -383,9 +383,15 @@ static void reconfigure_member(struct ifnet *ifp, void *arg)
 	struct rte_eth_conf *conf = arg;
 	struct rte_eth_conf *member_conf;
 	struct rte_eth_dev *member_dev;
+	bool dev_started;
+
+	member_dev = &rte_eth_devices[ifp->if_port];
+	member_conf = &member_dev->data->dev_conf;
+	dev_started = member_dev->data->dev_started;
 
 	/* Ensure member is stopped as stopping the bond port doesn't do this */
-	rte_eth_dev_stop(ifp->if_port);
+	if (dev_started)
+		rte_eth_dev_stop(ifp->if_port);
 
 	/*
 	 * Update member config to match the aggregate jumbo config
@@ -395,8 +401,6 @@ static void reconfigure_member(struct ifnet *ifp, void *arg)
 	 * set up its queues, and start it, so don't call
 	 * rte_eth_dev_configure() directly here.
 	 */
-	member_dev = &rte_eth_devices[ifp->if_port];
-	member_conf = &member_dev->data->dev_conf;
 	if (conf->rxmode.offloads & DEV_RX_OFFLOAD_SCATTER)
 		member_conf->rxmode.offloads |= DEV_RX_OFFLOAD_SCATTER;
 	else
@@ -405,6 +409,9 @@ static void reconfigure_member(struct ifnet *ifp, void *arg)
 		member_conf->rxmode.offloads |= DEV_RX_OFFLOAD_JUMBO_FRAME;
 	else
 		member_conf->rxmode.offloads &= ~(DEV_RX_OFFLOAD_JUMBO_FRAME);
+
+	if (dev_started)
+		rte_eth_dev_start(ifp->if_port);
 }
 
 /*
