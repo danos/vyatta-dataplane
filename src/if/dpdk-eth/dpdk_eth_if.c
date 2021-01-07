@@ -949,7 +949,8 @@ dpdk_eth_if_show_dev_info(struct ifnet *ifp, json_writer_t *wr)
 
 		jsonw_bool_field(wr, "mac_addr_settable", settable);
 		jsonw_string_field(wr, "eth_dev_data_name", dev->data->name);
-
+		jsonw_bool_field(wr, "dev_started", dev->data->dev_started);
+		jsonw_bool_field(wr, "scattered_rx", dev->data->scattered_rx);
 		jsonw_uint_field(wr, "lsc", dev->data->dev_conf.intr_conf.lsc);
 		/*
 		 * workaround to determine switch id until we have
