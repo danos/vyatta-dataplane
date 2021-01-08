@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2019-2021, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -76,7 +76,7 @@ struct cgn_source {
 	uint64_t		sr_unk_pkts_in;
 	uint64_t		sr_unk_pkts_in_tot;
 	struct cgn_policy	*sr_policy;     /* Back ptr to policy */
-	uint64_t		sr_start_time;  /* millisecs */
+	uint64_t		sr_start_time;  /* unix epoch us */
 
 	/* 3-tuple sessions created and destroyed in current interval */
 	rte_atomic32_t		sr_sess_created;

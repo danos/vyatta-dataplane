@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2019-2021, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -372,7 +372,7 @@ static void cl_protobuf_subscriber_start(uint32_t addr)
 	msg.has_subscriberaddress = 1;
 	msg.subscriberaddress = addr;
 
-	microsecs_to_timestamp(cgn_ticks2timestamp(soft_ticks), &start_ts);
+	microsecs_to_timestamp(unix_epoch_us, &start_ts);
 	msg.starttimestamp = &start_ts;
 
 	cl_protobuf_log_send_subscriber(&msg);
@@ -408,9 +408,9 @@ static void cl_protobuf_subscriber_end(uint32_t addr, uint64_t start_time,
 	msg.has_outpackets = 1;
 	msg.outpackets = pkts_out;
 
-	microsecs_to_timestamp(cgn_ticks2timestamp(start_time), &start_ts);
+	microsecs_to_timestamp(start_time, &start_ts);
 	msg.starttimestamp = &start_ts;
-	microsecs_to_timestamp(cgn_ticks2timestamp(end_time), &end_ts);
+	microsecs_to_timestamp(end_time, &end_ts);
 	msg.endtimestamp = &end_ts;
 
 	cl_protobuf_log_send_subscriber(&msg);

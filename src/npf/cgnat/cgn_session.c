@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2019-2021, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -120,8 +120,8 @@ struct cgn_session {
 
 	uint64_t		cs_unk_pkts_tot;
 	struct rcu_head		cs_rcu_head;	/* 16 bytes */
-	uint64_t		cs_start_time;
-	uint64_t		cs_end_time;
+	uint64_t		cs_start_time;	/* unix epoch us */
+	uint64_t		cs_end_time;	/* unix epoch us */
 
 	uint32_t		cs_id;		/* unique identifier */
 	uint32_t		cs_ifindex;	/* Copy of ifp->ifindex */
@@ -656,7 +656,7 @@ cgn_session_establish(struct cgn_packet *cpk, int dir,
 	rte_atomic16_set(&cse->cs_idle, 0);
 	cse->cs_vrfid = cpk->cpk_vrfid;
 	cse->cs_ifindex = cpk->cpk_ifindex;
-	cse->cs_start_time = soft_ticks;
+	cse->cs_start_time = unix_epoch_us;
 
 	/* Was the session created by a packet or by map command? */
 	cse->cs_pkt_instd = cpk->cpk_pkt_instd;
@@ -2033,10 +2033,8 @@ cgn_session_jsonw_one(json_writer_t *json, struct cgn_sess_fltr *fltr,
 		jsonw_uint_field(json, "max_to", max_timeout);
 	}
 
-	jsonw_uint_field(json, "start_time",
-			 cgn_ticks2timestamp(cse->cs_start_time));
-	jsonw_uint_field(json, "duration",
-			 cgn_start2duration(cse->cs_start_time));
+	jsonw_uint_field(json, "start_time", cse->cs_start_time);
+	jsonw_uint_field(json, "duration", unix_epoch_us - cse->cs_start_time);
 
 	jsonw_end_object(json);
 
@@ -2232,7 +2230,7 @@ cgn_session_set_expired(struct cgn_session *cse, bool update_stats)
 {
 	cse->cs_forw_entry.ce_expired = true;
 	cse->cs_back_entry.ce_expired = true;
-	cse->cs_end_time = soft_ticks;
+	cse->cs_end_time = unix_epoch_us;
 	cse->cs_etime = 0;
 
 	/*

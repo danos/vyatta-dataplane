@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2019-2021, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -384,7 +384,7 @@ cgn_source_create(struct cgn_policy *cp, uint32_t addr, vrfid_t vrfid,
 	src->sr_vrfid = vrfid;
 	rte_spinlock_init(&src->sr_lock);
 	rte_atomic32_set(&src->sr_refcnt, 0);
-	src->sr_start_time = soft_ticks;
+	src->sr_start_time = unix_epoch_us;
 
 	/* Take reference on policy */
 	src->sr_policy = cgn_policy_get(cp);
@@ -476,7 +476,7 @@ static void cgn_source_destroy(struct cgn_source *src)
 
 	if (!src->sr_policy || src->sr_policy->cp_log_subs)
 		cgn_log_subscriber_end(
-			src->sr_addr, src->sr_start_time, soft_ticks,
+			src->sr_addr, src->sr_start_time, unix_epoch_us,
 			src->sr_pkts_out_tot, src->sr_bytes_out_tot,
 			src->sr_pkts_in_tot,
 			src->sr_bytes_in_tot,
@@ -906,10 +906,8 @@ cgn_source_jsonw_one(json_writer_t *json, uint detail __unused,
 	if (detail)
 		cgn_source_jsonw_port_blocks(json, src);
 
-	jsonw_uint_field(json, "start_time",
-			 cgn_ticks2timestamp(src->sr_start_time));
-	jsonw_uint_field(json, "duration",
-			 cgn_start2duration(src->sr_start_time));
+	jsonw_uint_field(json, "start_time", src->sr_start_time);
+	jsonw_uint_field(json, "duration", unix_epoch_us - src->sr_start_time);
 	jsonw_uint_field(json, "map_reqs", src->sr_map_reqs);
 	jsonw_uint_field(json, "map_fails", src->sr_map_fails);
 	jsonw_uint_field(json, "map_active",
