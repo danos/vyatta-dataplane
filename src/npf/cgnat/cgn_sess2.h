@@ -128,6 +128,7 @@ struct cgn_sess_fltr {
  */
 void cgn_sess_s2_disable(struct cgn_sess_s2 *cs2);
 int16_t cgn_sess_s2_count(struct cgn_sess_s2 *cs2);
+uint64_t cgn_sess2_timestamp(void);
 struct cgn_sess2 *cgn_sess_s2_establish(struct cgn_sess_s2 *cs2,
 					struct cgn_packet *cpk,
 					int *error);

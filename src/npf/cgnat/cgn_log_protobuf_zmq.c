@@ -687,7 +687,7 @@ static void cl_protobuf_sess_active_and_end(struct cgn_sess2 *s2,
 static void cl_protobuf_sess_active(struct cgn_sess2 *s2)
 {
 	cl_protobuf_sess_active_and_end(s2,
-		SESSION_EVENT_TYPE__SESSION_EVENT_ACTIVE, cgn_time_usecs());
+		SESSION_EVENT_TYPE__SESSION_EVENT_ACTIVE, unix_epoch_us);
 }
 
 /*
