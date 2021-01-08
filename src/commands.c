@@ -486,6 +486,7 @@ static int cmd_ipsec_engine(FILE *f, int argc, char **argv)
 {
 	argc -= 2;
 	argv += 2;
+	(void) argc;
 
 	if (strcmp(argv[0], "probe") == 0)
 		return crypto_engine_probe(f);
