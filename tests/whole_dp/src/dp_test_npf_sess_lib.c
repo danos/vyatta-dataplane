@@ -781,8 +781,6 @@ dp_test_npf_sess_match_flags(json_object *jnew, json_object *jcur,
 	uint32_t flags_new = dp_test_npf_session_flags_from_json(jnew);
 	uint32_t flags_cur = dp_test_npf_session_flags_from_json(jcur);
 
-	return true;
-
 	/* flags preference, most preferred to least preferred */
 	uint32_t pref[] = {
 		SE_ACTIVE,
