@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2019-2021, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -51,13 +51,6 @@ bool cgn_snat_alg_bypass_gbl;
 rte_atomic64_t cgn_sess2_ht_created;
 rte_atomic64_t cgn_sess2_ht_destroyed;
 
-/*
- * Time in millisecs since Epoch, relative to soft_ticks==0.  This is
- * calculated once when the dataplane starts.  Its value may then be added to
- * soft_ticks in order to get a 'unix epoch' millisec time.
- */
-static uint64_t cgn_epoch_ms;
-
 /* Return code and error counters. */
 struct cgn_rc_t *cgn_rc;
 
@@ -102,49 +95,6 @@ static void cgn_rc_uninit(void)
 {
 	free(cgn_rc);
 	cgn_rc = NULL;
-}
-
-/*
- * Dataplane uptime in seconds. Accurate to 10 millisecs.  Used to expire
- * table entries.
- */
-uint32_t cgn_uptime_secs(void)
-{
-	return (uint32_t)(soft_ticks / 1000);
-}
-
-/*
- * Unix epoch time in microseconds.  Used for TCP 5-tuple sessions RTT
- * calculations.
- */
-uint64_t cgn_time_usecs(void)
-{
-	struct timeval tod;
-
-	gettimeofday(&tod, NULL);
-	return (tod.tv_sec * 1000000) + tod.tv_usec;
-}
-
-/* Initialize cgn_epoch_ms */
-static void cgn_init_time(void)
-{
-	cgn_epoch_ms = (cgn_time_usecs()) / 1000 - soft_ticks;
-}
-
-/*
- * Convert soft_ticks in millisecs to Epoch timestamp in microseconds
- */
-uint64_t cgn_ticks2timestamp(uint64_t ticks)
-{
-	return (cgn_epoch_ms + ticks) * 1000;
-}
-
-/*
- * Convert start time in soft_ticks into duration in microseconds.
- */
-uint64_t cgn_start2duration(uint64_t start_time)
-{
-	return (soft_ticks - start_time) * 1000;
 }
 
 /*
@@ -205,7 +155,6 @@ static void cgn_init(void)
 	cgn_session_init();
 	cgn_source_init();
 	apm_init();
-	cgn_init_time();
 }
 
 /*

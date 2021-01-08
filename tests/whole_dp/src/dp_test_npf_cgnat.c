@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2019-2021, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  *
@@ -5265,6 +5265,7 @@ DP_START_TEST_DONT_RUN(cgnat43, test)
 	uint16_t subs_port;
 	int rc, error;
 	bool rv;
+	struct timespec ts;
 
 	/*******************************************************************
 	 * Get execution time of gettimeofday()
@@ -5284,7 +5285,7 @@ loop1:
 		for (j = 0; j < inner_count; j++) {
 			if (overhead > 0)
 				/* Do task */
-				cgn_time_usecs();
+				clock_gettime(CLOCK_REALTIME_COARSE, &ts);
 		}
 	}
 	nsecs2 = cgn_time_nsecs();
