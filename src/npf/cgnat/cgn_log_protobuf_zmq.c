@@ -955,7 +955,7 @@ cl_protobuf_sess_clear(const char *desc, uint count, uint64_t clear_time)
 	msg.eventtype = CONSTRAINT_EVENT_TYPE__CONSTRAINT_EVENT_SESSION_CLEAR;
 
 	msg.timestamp = &cur_ts;
-	microsecs_to_timestamp(cgn_ticks2timestamp(clear_time), msg.timestamp);
+	microsecs_to_timestamp(clear_time, msg.timestamp);
 
 	msg.has_count = 1;
 	msg.count = count;
