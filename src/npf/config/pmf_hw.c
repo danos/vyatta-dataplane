@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2019-2021, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -56,7 +56,7 @@ pmf_hw_rule_add(struct gpc_rule *gprl)
 		goto log_add;
 
 #define FAL_ENTRY_FIX_FIELDS 3
-#define FAL_ENTRY_VAR_FIELDS (2 + 7 + 5)
+#define FAL_ENTRY_VAR_FIELDS (3 + 7 + 5)
 #define FAL_ENTRY_TOT_FIELDS (FAL_ENTRY_FIX_FIELDS + FAL_ENTRY_VAR_FIELDS)
 	struct fal_attribute_t ent_attrs[FAL_ENTRY_TOT_FIELDS] = {
 		[0] = {
@@ -74,11 +74,14 @@ pmf_hw_rule_add(struct gpc_rule *gprl)
 	};
 	unsigned int nattr = FAL_ENTRY_FIX_FIELDS;
 
+	fal_object_t policer_obj = rule->pp_action.qos_policer;
+
 	/* Actions */
 	uint32_t num_actions
 		= 1
 		+ !!(summary & (PMF_RAS_DROP|PMF_RAS_PASS))
-		+ !!(summary & PMF_RAS_COUNT_REF);
+		+ !!(summary & PMF_RAS_COUNT_REF)
+		+ (policer_obj != FAL_NULL_OBJECT_ID);
 	struct fal_acl_action_data_t *actions
 		= calloc(1, num_actions * sizeof(*actions));
 	if (!actions)
@@ -111,6 +114,18 @@ pmf_hw_rule_add(struct gpc_rule *gprl)
 		actions[num_actions].parameter.objid = ctrobj;
 
 		summary &= ~PMF_RAS_COUNT_REF;
+		++nattr;
+		++num_actions;
+	}
+
+	/* Encode use of a rule policer */
+	if (policer_obj != FAL_NULL_OBJECT_ID) {
+		ent_attrs[nattr].id = FAL_ACL_ENTRY_ATTR_ACTION_POLICER;
+		ent_attrs[nattr].value.aclaction = &actions[num_actions];
+
+		actions[num_actions].enable = true;
+		actions[num_actions].parameter.objid = policer_obj;
+
 		++nattr;
 		++num_actions;
 	}
