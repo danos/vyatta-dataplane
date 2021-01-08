@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2019-2021, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -697,8 +697,7 @@ cgn_policy_jsonw_one(json_writer_t *json, struct cgn_policy *cp)
 		jsonw_string_field(json, "subscriber", ad_str);
 		jsonw_uint_field(json, "max_sess_rate", node->ps_sess_rate_max);
 		jsonw_uint_field(
-			json, "time",
-			cgn_ticks2timestamp(node->ps_sess_rate_max_time));
+			json, "time", node->ps_sess_rate_max_time);
 
 		jsonw_end_object(json);
 		i++;

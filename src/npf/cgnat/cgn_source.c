@@ -984,14 +984,13 @@ cgn_source_jsonw_one(json_writer_t *json, uint detail __unused,
 	/* 20 sec max */
 	rate_max = cgn_count2rate(src->sr_sess_rate_max, CGN_SRC_GC_INTERVAL);
 	jsonw_uint_field(json, "sess_rate_max", rate_max);
-	jsonw_uint_field(json, "sess_rate_max_tm",
-			 cgn_ticks2timestamp(src->sr_sess_rate_max_time));
+	jsonw_uint_field(json, "sess_rate_max_tm", src->sr_sess_rate_max_time);
 
 	/* 1 minute max */
 	rate_max = cgn_count2rate(src->sr_sess_rate_1m_max, 60);
 	jsonw_uint_field(json, "sess_rate_1m_max", rate_max);
 	jsonw_uint_field(json, "sess_rate_1m_max_tm",
-			 cgn_ticks2timestamp(src->sr_sess_rate_1m_max_time));
+			 src->sr_sess_rate_1m_max_time);
 
 	jsonw_end_object(json);
 }
@@ -1257,7 +1256,7 @@ cgn_source_stats_periodic(struct cgn_source *src)
 		uint rate_max;
 
 		src->sr_sess_rate_1m_max = sess_crtd_1m;
-		src->sr_sess_rate_1m_max_time = soft_ticks;
+		src->sr_sess_rate_1m_max_time = unix_epoch_us;
 
 		/* Convert count to sessions-per-sec rate */
 		rate_max = cgn_count2rate(src->sr_sess_rate_1m_max,
@@ -1278,7 +1277,7 @@ cgn_source_stats_periodic(struct cgn_source *src)
 	/* Check 20 sec max session rate */
 	if (sess_crtd > src->sr_sess_rate_max) {
 		src->sr_sess_rate_max = sess_crtd;
-		src->sr_sess_rate_max_time = soft_ticks;
+		src->sr_sess_rate_max_time = unix_epoch_us;
 	}
 
 	/*
