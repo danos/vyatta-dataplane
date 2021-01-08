@@ -2004,6 +2004,8 @@ dpt_cgn_map(bool print, char *real_intf, uint timeout, uint8_t ipproto,
 		l += snprintf(cmd + l, sizeof(cmd) - l,
 			      " pub-port %u", *pub_port);
 
+	(void) l;
+
 	response = dp_test_console_request_w_err(cmd, &err, false);
 
 	if (!response || err)
