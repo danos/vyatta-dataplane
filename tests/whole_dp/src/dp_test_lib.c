@@ -984,6 +984,8 @@ dp_test_pak_verify(struct rte_mbuf *m, struct ifnet *ifp,
 		sent_check_len + check_start,
 		NULL, 0, 0);
 
+	(void) written;
+
 	if (fwd_result != expected->fwd_result[check]) {
 		bool final_result = false;  /* VR failure */
 
@@ -1151,6 +1153,8 @@ dp_test_pak_verify(struct rte_mbuf *m, struct ifnet *ifp,
 			sent_check_len + check_start,
 			diff_at, diff_cnt,
 			pak_info);
+
+		(void) written;
 
 		_dp_test_fail(file, line, "%s", buf);
 	} else {

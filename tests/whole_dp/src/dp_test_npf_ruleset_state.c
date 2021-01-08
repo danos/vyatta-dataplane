@@ -348,6 +348,8 @@ dpt_show_ruleset_state(const char *rs_name, const char *if_name)
 	l += snprintf(cmd+l, sizeof(cmd)-l, "npf-op state %s %s",
 		      intf_str, rs_name);
 
+	(void) l;
+
 	response = dp_test_console_request_w_err(cmd, &err, false);
 	if (!response || err) {
 		dp_test_fail("no response from dataplane");
