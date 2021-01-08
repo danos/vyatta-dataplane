@@ -52,8 +52,7 @@ static void cl_rte_log_subscriber_start(uint32_t addr)
 
 	RTE_LOG(NOTICE, CGNAT,
 		"SUBSCRIBER_START subs-addr=%s start-time=%lu\n",
-		cgn_addrstr(addr, str1, ADDR_CHARS),
-		cgn_ticks2timestamp(soft_ticks));
+		cgn_addrstr(addr, str1, ADDR_CHARS), unix_epoch_us);
 }
 
 /*
@@ -69,8 +68,7 @@ static void cl_rte_log_subscriber_end(uint32_t addr, uint64_t start_time,
 	RTE_LOG(NOTICE, CGNAT,
 		"SUBSCRIBER_END subs-addr=%s start-time=%lu "
 		"end-time=%lu sessions=%lu forw=%lu/%lu back=%lu/%lu\n",
-		cgn_addrstr(addr, str1, ADDR_CHARS),
-		cgn_ticks2timestamp(start_time), cgn_ticks2timestamp(end_time),
+		cgn_addrstr(addr, str1, ADDR_CHARS), start_time, end_time,
 		sessions, pkts_out, bytes_out, pkts_in, bytes_in);
 }
 
