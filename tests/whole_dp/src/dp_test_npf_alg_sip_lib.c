@@ -457,6 +457,8 @@ static const char *dp_test_alg_sip_desc(enum dp_test_alg_sip_part part,
 	else
 		l += spush(str + l, len - l, " part %u", part);
 
+	(void) l;
+
 	return str;
 }
 
@@ -741,6 +743,8 @@ dp_test_sip_alg_uri_str(struct osip_uri *uri, char *str, int len)
 	if (uri->port)
 		l += spush(str + l, len - l, "%s%s",
 			   l > 0 ? " ":"", uri->port);
+
+	(void) l;
 
 	return str;
 }

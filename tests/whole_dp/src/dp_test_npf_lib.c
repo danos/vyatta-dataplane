@@ -501,7 +501,6 @@ _dp_test_npf_ruleset_attach(struct dp_test_npf_ruleset_t *rset,
 {
 	char cmd[TEST_MAX_CMD_LEN];
 	const char *attach_type, *attach_point;
-	int l = 0;
 
 	attach_type = dp_test_npf_ruleset_attach_type(rset->rstype);
 	_dp_test_fail_unless(attach_type, file, line,
@@ -512,9 +511,9 @@ _dp_test_npf_ruleset_attach(struct dp_test_npf_ruleset_t *rset,
 	_dp_test_fail_unless(attach_point, file, line,
 			     "Failed to determine attach point");
 
-	l += spush(cmd + l, sizeof(cmd) - l,
-		   "npf-ut attach %s:%s %s %s:%s",
-		   attach_type, attach_point, rset->rstype, class, rset->name);
+	spush(cmd, sizeof(cmd),
+	      "npf-ut attach %s:%s %s %s:%s",
+	      attach_type, attach_point, rset->rstype, class, rset->name);
 
 	_dp_test_npf_cmd(cmd, debug, file, line);
 
@@ -531,7 +530,6 @@ _dp_test_npf_ruleset_detach(struct dp_test_npf_ruleset_t *rset,
 {
 	char cmd[TEST_MAX_CMD_LEN];
 	const char *attach_type, *attach_point;
-	int l = 0;
 
 	attach_type = dp_test_npf_ruleset_attach_type(rset->rstype);
 	_dp_test_fail_unless(attach_type, file, line,
@@ -542,9 +540,9 @@ _dp_test_npf_ruleset_detach(struct dp_test_npf_ruleset_t *rset,
 	_dp_test_fail_unless(attach_point, file, line,
 			     "Failed to determine attach point");
 
-	l += spush(cmd + l, sizeof(cmd) - l,
-		   "npf-ut detach %s:%s %s %s:%s",
-		   attach_type, attach_point, rset->rstype, class, rset->name);
+	spush(cmd, sizeof(cmd),
+	      "npf-ut detach %s:%s %s %s:%s",
+	      attach_type, attach_point, rset->rstype, class, rset->name);
 
 	_dp_test_npf_cmd(cmd, debug, file, line);
 
@@ -679,9 +677,8 @@ dp_test_npf_json_get_rs_groups(const char *rstype,
 	char cmd[TEST_MAX_CMD_LEN];
 	char *response;
 	bool err;
-	int l = 0;
 
-	l += snprintf(cmd+l, sizeof(cmd)-l, "npf-op show all: %s", rstype);
+	snprintf(cmd, sizeof(cmd), "npf-op show all: %s", rstype);
 
 	response = dp_test_console_request_w_err(cmd, &err, false);
 	if (!response || err) {

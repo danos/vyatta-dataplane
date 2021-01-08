@@ -47,6 +47,8 @@ static void dp_test_map_count_build_expected(char *expected,
 
 	written += spush(expected + written, exp_size - written,
 			 "],");
+
+	(void) written;
 }
 
 static void _dp_test_verify_nh_map_count(const char *addr,

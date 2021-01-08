@@ -1474,6 +1474,8 @@ dp_test_pak_check_fwd_result(struct dp_test_expected *expected,
 					 "to be forwarded onto: %s",
 					 expected->oif_name[i]);
 
+		(void) written;
+
 		_dp_test_fail(file, line, "%s\nMissing packet:\n%s",
 			      expected->description, buf);
 	}

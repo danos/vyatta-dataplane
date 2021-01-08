@@ -1169,6 +1169,8 @@ dp_test_json_route_add_nh(json_object *route_show, int route_family,
 	written += spush(json_str + written, sizeof(json_str) - written,
 			 "          } ");
 
+	(void) written;
+
 	nh_obj = dp_test_json_create("%s", json_str);
 
 	/* add to the route show object */

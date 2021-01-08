@@ -848,6 +848,10 @@ static bool process_port_response(enum cont_src_en cont_src,
 		 */
 		rc = add_port_parse_response(cont_src, msg, req->portid,
 					     &ifindex, &ifname);
+		if (rc < 0)
+			RTE_LOG(ERR, DATAPLANE,
+				"main(%s) unexpected add port parse response: %s\n",
+				cont_src_name(cont_src), strerror(-rc));
 		break;
 	default:
 		RTE_LOG(ERR, DATAPLANE,

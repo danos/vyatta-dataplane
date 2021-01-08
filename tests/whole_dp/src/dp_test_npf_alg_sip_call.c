@@ -89,6 +89,8 @@ _dp_test_npf_sip_pak_receive(uint seq, const char *descr,
 			   ttype == DP_TEST_TRANS_SNAT ? "SNAT" : "DNAT",
 			   ndir == DP_TEST_NAT_DIR_FORW ? "Forw" : "Back");
 
+		(void) l;
+
 		memset(nctx, 0, sizeof(*nctx));
 
 		nctx->verify_session = true;

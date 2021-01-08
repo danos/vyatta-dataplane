@@ -52,7 +52,7 @@ static void qos_ext_buf_test_init(void)
 
 static void dp_test_qos_ext_buf_state_transition(void)
 {
-	int ret = 0;
+	int ret;
 	struct qos_ext_buf_state_record *cur_state = &buf_stats.cur_state;
 	enum qos_ext_buf_event evt;
 
@@ -69,8 +69,9 @@ static void dp_test_qos_ext_buf_state_transition(void)
 	cur_state->state = EXT_BUF_S_CLEAR;
 	evt = EXT_BUF_EVT_THRESHOLD_ONLY;
 	ret = qos_ext_buf_state_transit(cur_state, evt);
-	dp_test_fail_unless(cur_state->state == EXT_BUF_S_THRESHOLD_ONLY,
-		"S_THRESHOLD_ONLY state is expected!");
+	dp_test_fail_unless(ret == 1 &&
+			    cur_state->state == EXT_BUF_S_THRESHOLD_ONLY,
+			    "S_THRESHOLD_ONLY state is expected!");
 	dp_test_fail_unless(cur_state->consecutive_periods_cnt == 1,
 		"Bad periods cnt is expected to be 1!");
 
@@ -78,22 +79,23 @@ static void dp_test_qos_ext_buf_state_transition(void)
 	cur_state->state = EXT_BUF_S_REJECTPKT_ONLY;
 	evt = EXT_BUF_EVT_THRESHOLD_ONLY;
 	ret = qos_ext_buf_state_transit(cur_state, evt);
-	dp_test_fail_unless(cur_state->state == EXT_BUF_S_REJECTPKT_ONLY,
-		"S_REJECTPKT_ONLY state is expected!");
+	dp_test_fail_unless(ret == 0 &&
+			    cur_state->state == EXT_BUF_S_REJECTPKT_ONLY,
+			    "S_REJECTPKT_ONLY state is expected!");
 
 	/* S_REJECTPKT -> S_THRESHOLD_REJECTPKT */
 	cur_state->state = EXT_BUF_S_REJECTPKT_ONLY;
 	evt = EXT_BUF_EVT_THRESHOLD_REJECTPKT;
 	ret = qos_ext_buf_state_transit(cur_state, evt);
-	dp_test_fail_unless(
-		cur_state->state == EXT_BUF_S_THRESHOLD_REJECTPKT,
-		"S_THRESHOLD_AND_REJECTPKT state is expected!");
+	dp_test_fail_unless(ret == 1 &&
+			    cur_state->state == EXT_BUF_S_THRESHOLD_REJECTPKT,
+			    "S_THRESHOLD_AND_REJECTPKT state is expected!");
 
 	/* S_REJECTPKT -> S_CLEAR */
 	cur_state->state = EXT_BUF_S_REJECTPKT_ONLY;
 	evt = EXT_BUF_EVT_CLEAR;
 	ret = qos_ext_buf_state_transit(cur_state, evt);
-	dp_test_fail_unless(cur_state->state == EXT_BUF_S_CLEAR,
+	dp_test_fail_unless(ret == 1 && cur_state->state == EXT_BUF_S_CLEAR,
 		"S_CLEAR state is expected!");
 }
 

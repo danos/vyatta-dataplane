@@ -294,7 +294,6 @@ dpt_show_rulesets(const char *rs_name, const char *if_name)
 	char intf_str[50];
 	char *response;
 	bool err;
-	int l = 0;
 
 	if (if_name) {
 		char real_if[IFNAMSIZ];
@@ -303,8 +302,8 @@ dpt_show_rulesets(const char *rs_name, const char *if_name)
 	} else
 		snprintf(intf_str, sizeof(intf_str), "all:");
 
-	l += snprintf(cmd+l, sizeof(cmd)-l, "npf-op show %s %s",
-		      intf_str, rs_name);
+	snprintf(cmd, sizeof(cmd), "npf-op show %s %s",
+		 intf_str, rs_name);
 
 	response = dp_test_console_request_w_err(cmd, &err, false);
 	if (!response || err) {

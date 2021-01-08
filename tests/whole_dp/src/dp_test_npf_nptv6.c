@@ -869,9 +869,8 @@ dp_test_npf_show_rules(const char *rstype)
 	char cmd[TEST_MAX_CMD_LEN];
 	char *response;
 	bool err;
-	int l = 0;
 
-	l += snprintf(cmd+l, sizeof(cmd)-l, "npf-op show all: %s", rstype);
+	snprintf(cmd, sizeof(cmd), "npf-op show all: %s", rstype);
 
 	response = dp_test_console_request_w_err(cmd, &err, false);
 	if (!response || err) {

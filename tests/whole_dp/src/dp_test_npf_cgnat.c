@@ -1399,6 +1399,8 @@ static void dpt_cgn_show_subscriber_count(uint start, uint count, bool detail)
 		l += snprintf(cmd + l, sizeof(cmd) - l,
 			      " start %u count %u", start, count);
 
+	(void) l;
+
 	response = dp_test_console_request_w_err(cmd, &err, false);
 
 	if (!response || err)
@@ -1492,6 +1494,8 @@ static void dpt_cgn_show_public_count(uint start, uint count, bool detail)
 	if (count > 0)
 		l += snprintf(cmd + l, sizeof(cmd) - l,
 			      " start %u count %u", start, count);
+
+	(void) l;
 
 	response = dp_test_console_request_w_err(cmd, &err, false);
 
@@ -1608,14 +1612,13 @@ _dpt_cgn_show_session(char *_cmd, uint count, bool print, bool debug)
 	int sess_count = 0;
 	char *response;
 	char cmd[120];
-	int l = 0;
 	bool err;
 	bool print_json = debug;
 
 	/*
 	 * Send command to dataplane
 	 */
-	l += snprintf(cmd + l, sizeof(cmd) - l, "%s count %u", _cmd, count);
+	snprintf(cmd, sizeof(cmd), "%s count %u", _cmd, count);
 	if (debug)
 		printf("Cmd: %s\n", cmd);
 
@@ -1710,7 +1713,7 @@ dpt_cgn_show_session(const char *fltr, uint count, bool per_subs, bool print,
 		     bool debug)
 {
 	char cmd[120];
-	int l = 0;
+	int l;
 	int rv, found = 0;
 
 	if (per_subs) {
@@ -1775,6 +1778,8 @@ dpt_cgn_show_session(const char *fltr, uint count, bool per_subs, bool print,
 
 		if (fltr)
 			l += snprintf(cmd + l, sizeof(cmd) - l, " %s", fltr);
+
+		(void) l;
 
 		rv = _dpt_cgn_show_session(cmd, count, print, debug);
 		found += rv;

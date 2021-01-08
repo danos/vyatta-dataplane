@@ -1134,6 +1134,7 @@ dp_test_pktmbuf_gre(struct rte_mbuf *m, uint16_t prot, uint32_t checksum,
 		*u32p = htonl(seq);
 		cursor += sizeof(seq);
 	}
+	(void) cursor;
 
 	return gre;
 }
