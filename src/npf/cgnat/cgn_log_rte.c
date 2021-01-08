@@ -95,7 +95,7 @@ static void cl_rte_log_pb_alloc(uint32_t pvt_addr, uint32_t pub_addr,
 		cgn_log_name_or_unknown(policy_name),
 		cgn_addrstr(pub_addr, str2, ADDR_CHARS),
 		cgn_log_name_or_unknown(pool_name),
-		port_start, port_end, cgn_ticks2timestamp(start_time));
+		port_start, port_end, start_time);
 }
 
 /*
@@ -117,8 +117,7 @@ static void cl_rte_log_pb_release(uint32_t pvt_addr, uint32_t pub_addr,
 		cgn_log_name_or_unknown(policy_name),
 		cgn_addrstr(pub_addr, str2, ADDR_CHARS),
 		cgn_log_name_or_unknown(pool_name),
-		port_start, port_end, cgn_ticks2timestamp(start_time),
-		cgn_ticks2timestamp(end_time));
+		port_start, port_end, start_time, end_time);
 }
 
 /*
