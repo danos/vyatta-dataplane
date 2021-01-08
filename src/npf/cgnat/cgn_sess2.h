@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2019-2021, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -129,6 +129,7 @@ struct cgn_sess_fltr {
 int cgn_sess_s2_enable(struct cgn_sess_s2 *cs2);
 void cgn_sess_s2_disable(struct cgn_sess_s2 *cs2);
 int16_t cgn_sess_s2_count(struct cgn_sess_s2 *cs2);
+uint64_t cgn_sess2_timestamp(void);
 struct cgn_sess2 *cgn_sess_s2_establish(struct cgn_sess_s2 *cs2,
 					struct cgn_packet *cpk,
 					int dir, int *error);

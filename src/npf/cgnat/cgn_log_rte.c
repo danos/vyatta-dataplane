@@ -182,7 +182,7 @@ static void cl_rte_log_sess_active(struct cgn_sess2 *s2)
 	len = cl_rte_log_sess_common(s2, log_str, sizeof(log_str));
 
 	len += snprintf(log_str + len, sizeof(log_str) - len,
-			" cur-time=%lu", cgn_time_usecs());
+			" cur-time=%lu", unix_epoch_us);
 
 	len += snprintf(log_str + len, sizeof(log_str) - len,
 			" out=%u/%lu in=%lu/%lu",
