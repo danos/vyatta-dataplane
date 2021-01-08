@@ -469,7 +469,7 @@ static void cl_protobuf_pb_alloc(uint32_t pvt_addr, uint32_t pub_addr,
 	msg.has_endportnumber = 1;
 	msg.endportnumber = port_end;
 
-	microsecs_to_timestamp(cgn_ticks2timestamp(start_time), &start_ts);
+	microsecs_to_timestamp(start_time, &start_ts);
 	msg.starttimestamp = &start_ts;
 
 	cl_protobuf_log_send_pba(&msg);
@@ -509,9 +509,9 @@ static void cl_protobuf_pb_release(uint32_t pvt_addr, uint32_t pub_addr,
 	msg.has_endportnumber = 1;
 	msg.endportnumber = port_end;
 
-	microsecs_to_timestamp(cgn_ticks2timestamp(start_time), &start_ts);
+	microsecs_to_timestamp(start_time, &start_ts);
 	msg.starttimestamp = &start_ts;
-	microsecs_to_timestamp(cgn_ticks2timestamp(end_time), &end_ts);
+	microsecs_to_timestamp(end_time, &end_ts);
 	msg.endtimestamp = &end_ts;
 
 	cl_protobuf_log_send_pba(&msg);
@@ -720,7 +720,7 @@ static void cl_protobuf_resource_common(enum cgn_resource_type type,
 	msg->has_constraintlimit = 1;
 	msg->constraintlimit = constraint_limit_to_pb(type);
 
-	microsecs_to_timestamp(cgn_ticks2timestamp(soft_ticks), msg->timestamp);
+	microsecs_to_timestamp(unix_epoch_us, msg->timestamp);
 }
 
 /*

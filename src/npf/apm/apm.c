@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2019-2021, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -70,7 +70,7 @@ struct apm_port_block {
 	struct apm		*pb_apm;	/* back ptr */
 	struct cgn_source	*pb_src;	/* ptr to source */
 	struct rcu_head		pb_rcu_head;
-	uint64_t		pb_start_time;
+	uint64_t		pb_start_time;	/* unix epoch us */
 	uint16_t		pb_port_start;  /* first port in block */
 	uint16_t		pb_port_end;    /* last port in block */
 	uint16_t		pb_nports;	/* end - start + 1 */
@@ -448,8 +448,8 @@ apm_block_create(struct apm *apm, uint16_t block)
 	/* Back pointer to apm */
 	pb->pb_apm = apm;
 
-	/* start time in millisecs */
-	pb->pb_start_time = soft_ticks;
+	/* start time in unix epoch microsecs */
+	pb->pb_start_time = unix_epoch_us;
 
 	/* Determine first and last ports in this block */
 	pb->pb_port_start = (block * apm->apm_port_block_sz) +
@@ -526,7 +526,7 @@ void apm_log_block_release(struct apm_port_block *pb, uint32_t src_addr,
 	cgn_log_pb_release(src_addr,
 			   pb->pb_apm->apm_addr,
 			   pb->pb_port_start, pb->pb_port_end,
-			   pb->pb_start_time, soft_ticks,
+			   pb->pb_start_time, unix_epoch_us,
 			   policy_name, pool_name);
 }
 
