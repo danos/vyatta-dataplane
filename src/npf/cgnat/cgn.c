@@ -27,7 +27,6 @@
 #include "npf/cgnat/cgn_policy.h"
 #include "npf/cgnat/cgn_session.h"
 #include "npf/cgnat/cgn_source.h"
-#include "npf/cgnat/cgn_time.h"
 #include "npf/cgnat/cgn_log.h"
 #include "npf/nat/nat_pool_event.h"
 #include "npf/nat/nat_pool_public.h"
@@ -115,7 +114,6 @@ static void cgn_init(void)
 	cgn_session_init();
 	cgn_source_init();
 	apm_init();
-	cgn_init_time();
 }
 
 /*

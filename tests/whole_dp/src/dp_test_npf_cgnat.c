@@ -42,7 +42,6 @@
 #include "npf/cgnat/cgn_mbuf.h"
 #include "npf/cgnat/cgn_log.h"
 #include "npf/cgnat/cgn_if.h"
-#include "npf/cgnat/cgn_time.h"
 #include "npf/cgnat/cgn_test.h"
 
 DP_DECL_TEST_SUITE(npf_cgnat);
@@ -5270,6 +5269,7 @@ DP_START_TEST_DONT_RUN(cgnat43, test)
 	uint16_t subs_port;
 	int rc, error;
 	bool rv;
+	struct timespec ts;
 
 	/*******************************************************************
 	 * Get execution time of gettimeofday()
@@ -5289,7 +5289,7 @@ loop1:
 		for (j = 0; j < inner_count; j++) {
 			if (overhead > 0)
 				/* Do task */
-				cgn_time_usecs();
+				clock_gettime(CLOCK_REALTIME_COARSE, &ts);
 		}
 	}
 	nsecs2 = cgn_time_nsecs();

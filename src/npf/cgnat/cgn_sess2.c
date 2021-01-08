@@ -33,7 +33,6 @@
 #include "npf/cgnat/cgn_sess_state.h"
 #include "npf/cgnat/cgn_session.h"
 #include "npf/cgnat/cgn_source.h"
-#include "npf/cgnat/cgn_time.h"
 
 
 /*
@@ -658,7 +657,7 @@ static inline bool cgn_sess2_expired(struct cgn_sess2 *s2)
 		etime = cgn_sess2_expiry_time(s2);
 
 		/* Set expiry time */
-		s2->s2_etime = cgn_uptime_secs() + etime;
+		s2->s2_etime = get_dp_uptime() + etime;
 
 		return false;
 	}
@@ -666,7 +665,7 @@ static inline bool cgn_sess2_expired(struct cgn_sess2 *s2)
 	/*
 	 * Session was already idle.  Has it timed-out?
 	 */
-	if (time_after(cgn_uptime_secs(), s2->s2_etime)) {
+	if (time_after(get_dp_uptime(), s2->s2_etime)) {
 		/* yes, session has timed-out */
 
 		/*
@@ -683,7 +682,7 @@ static inline bool cgn_sess2_expired(struct cgn_sess2 *s2)
 		}
 
 		/* Else reset expiry timer */
-		s2->s2_etime = cgn_uptime_secs() + cgn_sess2_expiry_time(s2);
+		s2->s2_etime = get_dp_uptime() + cgn_sess2_expiry_time(s2);
 	}
 
 	return false;
@@ -942,7 +941,7 @@ static void
 cgn_sess2_jsonw_one(json_writer_t *json, struct cgn_sess2 *s2)
 {
 	char dst_str[16];
-	uint32_t uptime = cgn_uptime_secs();
+	uint32_t uptime = get_dp_uptime();
 	uint32_t max_timeout = cgn_sess2_expiry_time(s2);
 
 	inet_ntop(AF_INET, &s2->s2_addr, dst_str, sizeof(dst_str));

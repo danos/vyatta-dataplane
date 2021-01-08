@@ -60,7 +60,6 @@
 #include "npf/cgnat/cgn_sess2.h"
 #include "npf/cgnat/cgn_sess_state.h"
 #include "npf/cgnat/cgn_source.h"
-#include "npf/cgnat/cgn_time.h"
 
 
 /*
@@ -2016,7 +2015,7 @@ cgn_session_jsonw_one(json_writer_t *json, struct cgn_sess_fltr *fltr,
 	}
 
 	if (!cgn_sess_s2_is_enabled(cse) || cse->cs_map_instd) {
-		uint32_t uptime = cgn_uptime_secs();
+		uint32_t uptime = get_dp_uptime();
 		uint32_t max_timeout = cgn_session_expiry_time(cse);
 
 		if (rte_atomic16_read(&cse->cs_idle))
@@ -2709,7 +2708,7 @@ static inline bool cgn_session_expired(struct cgn_session *cse)
 		etime = cgn_session_expiry_time(cse);
 
 		/* Set expiry time */
-		cse->cs_etime = cgn_uptime_secs() + etime;
+		cse->cs_etime = get_dp_uptime() + etime;
 
 		return false;
 	}
@@ -2717,7 +2716,7 @@ static inline bool cgn_session_expired(struct cgn_session *cse)
 	/*
 	 * Session was already idle.  Has it timed-out?
 	 */
-	if (time_after(cgn_uptime_secs(), cse->cs_etime)) {
+	if (time_after(get_dp_uptime(), cse->cs_etime)) {
 		/* yes, session has timed-out */
 
 		/* Mark session as expired */
