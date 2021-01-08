@@ -2377,7 +2377,7 @@ cgn_session_clear_fltr(struct cgn_sess_fltr *fltr, bool clear_map,
 
 	/* Log session clear command instead of every session */
 	if (count)
-		cgn_log_sess_clear(fltr->cf_desc, count, soft_ticks);
+		cgn_log_sess_clear(fltr->cf_desc, count, unix_epoch_us);
 
 	if (restart_timer)
 		cgn_session_start_timer();
@@ -2593,7 +2593,7 @@ cgn_session_expire_all(bool clear_map, bool restart_timer)
 
 	/* Log session clear command instead of every session */
 	if (count)
-		cgn_log_sess_clear("all", count, soft_ticks);
+		cgn_log_sess_clear("all", count, unix_epoch_us);
 
 	if (restart_timer)
 		cgn_session_start_timer();
@@ -2649,7 +2649,7 @@ void cgn_session_expire_pool(bool restart_timer, struct nat_pool *np,
 	if (count) {
 		char desc[60];
 		snprintf(desc, sizeof(desc), "pool %s", nat_pool_name(np));
-		cgn_log_sess_clear(desc, count, soft_ticks);
+		cgn_log_sess_clear(desc, count, unix_epoch_us);
 	}
 
 	if (restart_timer)
@@ -2694,7 +2694,7 @@ void cgn_session_expire_policy(bool restart_timer, struct cgn_policy *cp)
 	if (count) {
 		char desc[60];
 		snprintf(desc, sizeof(desc), "policy %s", cp->cp_name);
-		cgn_log_sess_clear(desc, count, soft_ticks);
+		cgn_log_sess_clear(desc, count, unix_epoch_us);
 	}
 
 	if (restart_timer)

@@ -514,7 +514,7 @@ cl_rte_log_sess_clear(const char *desc, uint count, uint64_t clear_time)
 
 	snprintf(log_str, sizeof(log_str),
 			"desc=\"%s\" count=%u time=%lu", desc, count,
-			cgn_ticks2timestamp(clear_time));
+		 clear_time);
 
 	RTE_LOG(NOTICE, CGNAT, "SESSION_CLEAR %s\n", log_str);
 }
