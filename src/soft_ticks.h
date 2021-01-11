@@ -19,17 +19,7 @@ extern volatile uint64_t soft_ticks;
 /* Microsecs since dataplane started. Updated every 10ms */
 extern uint64_t soft_ticks_us;
 
-/*
- * Return soft_ticks value, with option to refresh it.  If refreshed then
- * it will be accurate to 1ms, else it may be up to 10ms slow.
- */
-uint64_t get_soft_ticks(bool refresh);
-
-/*
- * Get unix epoch in microsecs. Updated every 10ms by default.  If 'refresh'
- * is true then it is updated when this is called, and should be accurate to
- * 1ms.
- */
-uint64_t unix_epoch_us(bool refresh);
+/* Unix epoch in microsecs. Updated every 10ms. */
+extern uint64_t unix_epoch_us;
 
 #endif /* _SOFT_TICKS_H_ */

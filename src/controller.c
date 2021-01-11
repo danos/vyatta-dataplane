@@ -78,16 +78,19 @@ volatile uint64_t soft_ticks;
 /* Microsecs since dataplane started */
 uint64_t soft_ticks_us;
 
+/* Unix epoch in microsecs */
+uint64_t unix_epoch_us;
+
 static uint64_t soft_clock_override;
 
 /* Unix epoch when dataplane started */
-struct timespec start_ts;
+static struct timespec start_ts;
 
 /* Unix epoch in microsecs when dataplane started */
 static uint64_t start_us;
 
 /* Unix epoch, refreshed every 10ms */
-struct timespec cur_ts;
+static struct timespec unix_epoch_ts;
 
 /* How long to wait in main loop (poll).
    Determines the minimum resolution of timers used ARP, Heartbeat, etc */
@@ -429,47 +432,21 @@ static void timestamp_init(void)
 {
 	/* Get unix epoch start time. Precision of 1ns. */
 	clock_gettime(CLOCK_REALTIME, &start_ts);
-	cur_ts = start_ts;
+	unix_epoch_ts = start_ts;
 
 	start_us = ts_to_usecs(&start_ts);
+	unix_epoch_us = start_us;
 }
 
-static void timestamp_update(void)
-{
-	/* Get unix epoch time.  Precision of 1ms. */
-	clock_gettime(CLOCK_REALTIME_COARSE, &cur_ts);
-}
-
-/*
- * Get unix epoch in microsecs.  Updated every 10ms by default.  If 'refresh'
- * is true then it is updated when called, and should be accurate to 1ms.
- */
-uint64_t unix_epoch_us(bool refresh)
-{
-	if (refresh)
-		timestamp_update();
-
-	return ts_to_usecs(&cur_ts);
-}
-
+/* Update unix_epoch_ts and calculate microsecs since start */
 static inline void update_soft_ticks(void)
 {
-	/* Update cur_ts and calculate microsecs since start */
-	soft_ticks_us = unix_epoch_us(true) - start_us;
+	/* Get unix epoch time.  Precision of 1ms. */
+	clock_gettime(CLOCK_REALTIME_COARSE, &unix_epoch_ts);
 
+	unix_epoch_us = ts_to_usecs(&unix_epoch_ts);
+	soft_ticks_us = unix_epoch_us - start_us;
 	soft_ticks = soft_ticks_us / USEC_PER_MSEC;
-}
-
-/*
- * Return soft_ticks value, with option to refresh it.  If refreshed then
- * it will be accurate to 1ms, else it may be up to 10ms slow.
- */
-uint64_t get_soft_ticks(bool refresh)
-{
-	if (refresh)
-		update_soft_ticks();
-
-	return soft_ticks;
 }
 
 /* Call back from timer every second. */
