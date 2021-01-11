@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2011-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -68,10 +68,28 @@
 #include "vrf_internal.h"
 #include "zmq_dp.h"
 
-/* Frequency of updates to soft_ticks */
+/* Frequency of updates to soft_ticks (i.e. every 10ms) */
 #define SOFT_CLOCK_HZ	    100
+
+/* Millisecs since dataplane started */
 volatile uint64_t soft_ticks;
+
+/* Microsecs since dataplane started */
+uint64_t soft_ticks_us;
+
+/* Unix epoch in microsecs */
+uint64_t unix_epoch_us;
+
 static uint64_t soft_clock_override;
+
+/* Unix epoch when dataplane started */
+static struct timespec start_ts;
+
+/* Unix epoch in microsecs when dataplane started */
+static uint64_t start_us;
+
+/* Unix epoch, refreshed every 10ms */
+static struct timespec unix_epoch_ts;
 
 /* How long to wait in main loop (poll).
    Determines the minimum resolution of timers used ARP, Heartbeat, etc */
@@ -403,6 +421,32 @@ static void main_cleanup(enum cont_src_en cont_src)
 	cleanup_requests(cont_src);
 }
 
+static uint64_t ts_to_usecs(struct timespec *ts)
+{
+	return (ts->tv_sec * USEC_PER_SEC) + (ts->tv_nsec / NSEC_PER_USEC);
+}
+
+static void timestamp_init(void)
+{
+	/* Get unix epoch start time. Precision of 1ns. */
+	clock_gettime(CLOCK_REALTIME, &start_ts);
+	unix_epoch_ts = start_ts;
+
+	start_us = ts_to_usecs(&start_ts);
+	unix_epoch_us = start_us;
+}
+
+/* Update unix_epoch_ts and calculate microsecs since start */
+static inline void update_soft_ticks(void)
+{
+	/* Get unix epoch time.  Precision of 1ms. */
+	clock_gettime(CLOCK_REALTIME_COARSE, &unix_epoch_ts);
+
+	unix_epoch_us = ts_to_usecs(&unix_epoch_ts);
+	soft_ticks_us = unix_epoch_us - start_us;
+	soft_ticks = soft_ticks_us / USEC_PER_MSEC;
+}
+
 /* Call back from timer every second. */
 static void load_timer_event(struct rte_timer *tim __rte_unused,
 			     void *arg __rte_unused)
@@ -430,7 +474,7 @@ static void soft_clock_event(struct rte_timer *tim __rte_unused,
 	if (soft_clock_override)
 		return;
 
-	soft_ticks += 1000 / SOFT_CLOCK_HZ;
+	update_soft_ticks();
 }
 
 /* Call back from timer after reset sleep has completed. */
@@ -1408,6 +1452,9 @@ void main_loop(void)
 	rte_timer_reset(&soft_clock_timer,
 			rte_get_timer_hz() / SOFT_CLOCK_HZ, PERIODICAL,
 			rte_get_master_lcore(), soft_clock_event, NULL);
+
+	/* Init timestamps */
+	timestamp_init();
 
 	main_init_src(CONT_SRC_MAIN);
 	if (!is_local_controller())
