@@ -64,6 +64,23 @@
 
 #define	MAX_LINERATE	(100000000000/8) /* 100Gbits converted to bytes */
 
+/*
+ * Queue limit range from vyatta-policy-qos-groupings-v1:
+ *     9000..500000000
+ */
+#define MAX_QUEUE_LIMIT_BYTES 500000000
+#define MIN_QUEUE_LIMIT_BYTES 9000
+
+/*
+ * Threshold range from vyatta-policy-qos-groupings-v1:
+ *     min_th =  64..499999998
+ *     max_th = 128..499999999
+ */
+#define MAX_THRESHOLD_RANGE_MIN 128
+#define MAX_THRESHOLD_RANGE_MAX (MAX_QUEUE_LIMIT_BYTES - 1)
+#define MIN_THRESHOLD_RANGE_MIN 64
+#define MIN_THRESHOLD_RANGE_MAX (MAX_THRESHOLD_RANGE_MAX - 1)
+
 static CDS_LIST_HEAD(qos_ingress_maps);
 static CDS_LIST_HEAD(qos_egress_maps);
 
@@ -568,6 +585,133 @@ static uint32_t qos_period_set(struct qos_rate_info *bw_info, uint32_t period)
 	return qos_period_get(bw_info, period);
 }
 
+static bool qos_qsize_type_get(const char *size_type_arg,
+		enum qos_queue_size_type *size_type)
+{
+	if (!strcmp(size_type_arg, "packets"))
+		*size_type = QOS_QUEUE_SIZE_PACKETS;
+	else if (!strcmp(size_type_arg, "bytes"))
+		*size_type = QOS_QUEUE_SIZE_BYTES;
+	else if (!strcmp(size_type_arg, "usec"))
+		*size_type = QOS_QUEUE_SIZE_USEC;
+	else {
+		DP_DEBUG(QOS, ERR, DATAPLANE,
+				"Invalid queue size type field\n");
+		return false;
+	}
+	return true;
+}
+
+bool qos_wred_threshold_get(struct qos_red_params *wred_params,
+		uint64_t rate, uint32_t *wred_min_th, uint32_t *wred_max_th)
+{
+	if (wred_params->qsize_type == QOS_QUEUE_SIZE_BYTES ||
+	    wred_params->qsize_type == QOS_QUEUE_SIZE_PACKETS) {
+		*wred_min_th = wred_params->min_th;
+		*wred_max_th = wred_params->max_th;
+		return true;
+	}
+
+	if (wred_params->qsize_type == QOS_QUEUE_SIZE_USEC &&
+		rate != 0) {
+		uint64_t min_th = ((rate * wred_params->min_th) / USEC_PER_SEC);
+		uint64_t max_th = ((rate * wred_params->max_th) / USEC_PER_SEC);
+
+		/* Range check after byte conversion. */
+		if ((min_th != 0) && (max_th != 0)) {
+			/* Squash the values if out of range */
+			if (min_th < MIN_THRESHOLD_RANGE_MIN) {
+				RTE_LOG(INFO, QOS,
+					"Rounding up min_th from "
+					"%"PRIu64" to %d\n",
+					min_th, MIN_THRESHOLD_RANGE_MIN);
+				min_th = MIN_THRESHOLD_RANGE_MIN;
+			} else if (min_th > MIN_THRESHOLD_RANGE_MAX) {
+				RTE_LOG(INFO, QOS,
+					"Rounding down min_th from "
+					"%"PRIu64" to %d\n",
+					min_th, MIN_THRESHOLD_RANGE_MAX);
+				min_th = MIN_THRESHOLD_RANGE_MAX;
+			}
+
+			if (max_th < MAX_THRESHOLD_RANGE_MIN) {
+				RTE_LOG(INFO, QOS,
+					"Rounding up max_th from "
+					"%"PRIu64" to %d\n",
+					max_th, MAX_THRESHOLD_RANGE_MIN);
+				max_th = MAX_THRESHOLD_RANGE_MIN;
+			} else if (max_th > MAX_THRESHOLD_RANGE_MAX) {
+				RTE_LOG(INFO, QOS,
+					"Rounding down max_th from "
+					"%"PRIu64" to %d\n",
+					max_th, MAX_THRESHOLD_RANGE_MAX);
+				max_th = MAX_THRESHOLD_RANGE_MAX;
+			}
+			*wred_min_th = (uint32_t)min_th;
+			*wred_max_th = (uint32_t)max_th;
+		}
+		return true;
+	}
+
+	RTE_LOG(ERR, QOS, "Invalid threshold type\n");
+	return false;
+}
+
+uint32_t qos_queue_size_get(uint32_t qsize,
+		enum qos_queue_size_type qsize_type,
+		uint64_t rate)
+{
+	if (qsize_type == QOS_QUEUE_SIZE_BYTES ||
+		qsize_type == QOS_QUEUE_SIZE_PACKETS)
+		return qsize;
+
+	if (qsize_type == QOS_QUEUE_SIZE_USEC) {
+		uint64_t queue_limit = ((rate * qsize) / USEC_PER_SEC);
+
+		/* Queue limit range check after byte conversion. */
+		if (queue_limit) {
+			if (queue_limit > MAX_QUEUE_LIMIT_BYTES) {
+				RTE_LOG(INFO, QOS,
+					"Rounding down queue limit from "
+					"%"PRIu64" to %d\n",
+					queue_limit, MAX_QUEUE_LIMIT_BYTES);
+				queue_limit = MAX_QUEUE_LIMIT_BYTES;
+			} else if (queue_limit < MIN_QUEUE_LIMIT_BYTES) {
+				RTE_LOG(INFO, QOS,
+					"Rounding up queue limit from "
+					"%"PRIu64" to %d\n",
+					queue_limit, MIN_QUEUE_LIMIT_BYTES);
+				queue_limit = MIN_QUEUE_LIMIT_BYTES;
+			}
+		}
+		return (uint32_t)queue_limit;
+	}
+
+	DP_DEBUG(QOS, ERR, DATAPLANE,
+			"Invalid Queue size type.\n");
+	return 0;
+}
+
+uint32_t qos_sp_qsize_get(struct qos_port_params *pp,
+			struct subport_info *sinfo, int tc)
+{
+	uint32_t qsize = qos_queue_size_get(sinfo->qsize[tc],
+			sinfo->qsize_type,
+			sinfo->params.tb_rate);
+
+	if (!qsize) {
+		/*
+		 * If subports don't have Queue size defined,
+		 * inherit their queue sizes from the port.
+		 */
+		qsize = qos_queue_size_get(pp->qsize[tc],
+				pp->qsize_type,
+				pp->rate);
+	}
+
+	return qsize;
+}
+
 struct qos_red_pipe_params *
 qos_red_find_q_params(struct qos_pipe_params *pipe, unsigned int qindex)
 {
@@ -582,9 +726,10 @@ qos_red_find_q_params(struct qos_pipe_params *pipe, unsigned int qindex)
 
 static int
 qos_red_init_q_params(struct qos_red_q_params *wred_params,
-		      unsigned int qmax, unsigned int qmin, unsigned int prob,
-		      bool wred_per_dscp, uint64_t dscp_set, char *grp_name,
-		      uint8_t dp)
+		      enum qos_queue_size_type qsize_type, unsigned int qmax,
+			  unsigned int qmin, unsigned int prob,
+			  bool wred_per_dscp, uint64_t dscp_set,
+			  char *grp_name, uint8_t dp)
 {
 	int wred_index, ret;
 
@@ -600,6 +745,7 @@ qos_red_init_q_params(struct qos_red_q_params *wred_params,
 	wred_params->dps_in_use |= (1 << wred_index);
 	wred_params->qparams[wred_index].max_th = qmax;
 	wred_params->qparams[wred_index].min_th = qmin;
+	wred_params->qparams[wred_index].qsize_type = qsize_type;
 	wred_params->qparams[wred_index].maxp_inv = prob;
 	wred_params->dscp_set[wred_index] = dscp_set;
 	ret = asprintf(&wred_params->grp_names[wred_index], "%s", grp_name);
@@ -798,6 +944,7 @@ struct sched_info *qos_sched_new(struct ifnet *ifp,
 	qinfo->reset_port = QOS_INSTALL;
 	rte_spinlock_init(&qinfo->stats_lock);
 
+	qinfo->port_params.qsize_type = QOS_QUEUE_SIZE_PACKETS;
 	for (i = 0; i < RTE_SCHED_TRAFFIC_CLASSES_PER_PIPE; i++)
 		qinfo->port_params.qsize[i] = DEFAULT_QSIZE;
 
@@ -874,6 +1021,7 @@ struct sched_info *qos_sched_new(struct ifnet *ifp,
 		sp->params.tc_period = qos_period_set(&sp->subport_rate,
 						      DEFAULT_PERIOD);
 
+		sp->qsize_type = QOS_QUEUE_SIZE_PACKETS;
 		for (j = 0; j < RTE_SCHED_TRAFFIC_CLASSES_PER_PIPE; j++) {
 			qos_abs_rate_save(&sp->sp_tc_rates.tc_rate[j],
 					  MAX_LINERATE);
@@ -2721,14 +2869,14 @@ static int cmd_qos_profile_queue(struct sched_info *qinfo, unsigned int profile,
 	 * "queue <a> rate <b> size <c>"
 	 * "queue <a> percent <k> size <c>"
 	 * "queue <d> wrr-weight <e>"
-	 * "queue <d> dscp-group <f> <g> <h> <i>"
-	 * "queue <d> drop-prec <l> <g> <h> <i>"
+	 * "queue <d> dscp-group <f> <m> <g> <h> <i>"
+	 * "queue <d> drop-prec  <l> <m> <g> <h> <i>"
 	 * "queue <d> wred-weight <j>"
 	 *
 	 * <a> - traffic-class-id (0..3)
 	 * <b> - traffic-class shaper bandwidth rate
 	 * <c> - traffic-class burst size (not-used)
-	 * <d> - qmap (wrr-id << 3 | tc_id)
+	 * <d> - qmap: (dp << 5) | (wrr-queue-id << 2) | tc-id (0x0-0x3)
 	 * <e> - pipe-queue's wrr-weight (1..100)
 	 * <f> - Name of the DSCP resource group
 	 * <g> - wred max threshold (1..8191)
@@ -2737,6 +2885,7 @@ static int cmd_qos_profile_queue(struct sched_info *qinfo, unsigned int profile,
 	 * <j> - wred filter weight (1..12)
 	 * <k> - traffic-class shaper percentage bandwidth rate
 	 * <l> - drop precedence; "green", "yellow" or "red"
+	 * <m> - units ("bytes", "packets" or "usec")
 	 */
 	struct qos_pipe_params *pipe
 		= qinfo->port_params.pipe_profiles + profile;
@@ -2825,11 +2974,13 @@ static int cmd_qos_profile_queue(struct sched_info *qinfo, unsigned int profile,
 		uint8_t dp = 0;
 		int err;
 		struct qos_red_pipe_params *qred_info;
+		enum qos_queue_size_type qsize_type;
 
-		if (argc < 7 ||
+		if (argc < 8 ||
 		    get_unsigned(argv[5], &qmax) < 0 ||
 		    get_unsigned(argv[6], &qmin) < 0 ||
-		    get_unsigned(argv[7], &prob) < 0) {
+		    get_unsigned(argv[7], &prob) < 0 ||
+		    !qos_qsize_type_get(argv[4], &qsize_type)) {
 			DP_DEBUG(QOS, ERR, DATAPLANE,
 				 "Invalid per queue RED input\n");
 			return -EINVAL;
@@ -2873,9 +3024,11 @@ static int cmd_qos_profile_queue(struct sched_info *qinfo, unsigned int profile,
 		if (!qred_info)
 			return -EINVAL;
 
-		err = qos_red_init_q_params(&qred_info->red_q_params, qmax,
-					    qmin, prob, wred_per_dscp,
-					    dscp_set, argv[3], dp);
+		err = qos_red_init_q_params(&qred_info->red_q_params,
+					qsize_type, qmax, qmin,
+					prob, wred_per_dscp, dscp_set,
+					argv[3], dp);
+
 		if (err < 0) {
 			if (qred_info->red_q_params.num_maps == 0) {
 				SLIST_REMOVE_HEAD(&pipe->red_head, list);
@@ -2884,14 +3037,6 @@ static int cmd_qos_profile_queue(struct sched_info *qinfo, unsigned int profile,
 			return -EINVAL;
 		}
 
-		if (!strcmp(argv[4], "packets"))
-			qred_info->red_q_params.unit = WRED_PACKETS;
-		else if (!strcmp(argv[4], "bytes"))
-			qred_info->red_q_params.unit = WRED_BYTES;
-		else {
-			DP_DEBUG(QOS, ERR, DATAPLANE, "Invalid unit field\n");
-			return -EINVAL;
-		}
 		DP_DEBUG(QOS, DEBUG, DATAPLANE,
 			 "per Q red prof %d dscp-grp %s %u %u prob %u "
 			 "mask %"PRIx64"\n", profile, argv[3], qmin,
@@ -2994,8 +3139,8 @@ static int cmd_qos_profile(struct ifnet *ifp, int argc, char **argv)
 	 * "profile <a> percent <r> msec <s> [period <d>]"
 	 * "profile <a> queue <e> rate <f> size <g>"
 	 * "profile <a> [queue <h> wrr-weight <i>]"
-	 * "profile <a> [queue <h> dscp-group <m> <n> <o> <p>]"
-	 * "profile <a> [queue <h> drop-prec <u> <n> <o> <p>]"
+	 * "profile <a> [queue <h> dscp-group <m> <t> <n> <o> <p>]"
+	 * "profile <a> [queue <h> drop-prec  <u> <t> <n> <o> <p>]"
 	 * "profile <a> [queue <h> wred-weight <q>]"
 	 * "profile <a> [over-weight <j>]"
 	 * "profile <a> [pcp <k> <h>]"
@@ -3010,7 +3155,7 @@ static int cmd_qos_profile(struct ifnet *ifp, int argc, char **argv)
 	 * <e> - traffic-class-id (0..3)
 	 * <f> - traffic-class shaper bandwidth rate
 	 * <g> - traffic-class burst size (not-used)
-	 * <h> - (dp << 5) | (wrr-queue-id << 3) | traffic-class-id (0x0..0x1F)
+	 * <h> - qmap: (dp << 5) | (wrr-queue-id << 2) | tc-id (0x0-0x3)
 	 * <i> - pipe-queue's wrr-weight
 	 * <j> - profile overweight value
 	 * <k> - PCP value (0..7)
@@ -3024,6 +3169,7 @@ static int cmd_qos_profile(struct ifnet *ifp, int argc, char **argv)
 	 * <s> - profile shaper max-burst size in msec
 	 * <t> - classification value used to determine queue
 	 * <u> - drop precedence; "green", "yellow" or "red"
+	 * <t> - units ("bytes", "packets" or "usec")
 	 */
 	--argc, ++argv; /* skip "profile" */
 	if (argc < 2) {
@@ -3326,15 +3472,17 @@ static int cmd_qos_red(struct qos_red_params red_params[][RTE_COLORS],
 	/*
 	 * Expected command format:
 	 *
-	 * "red <e> <f> <g> <h> <i>"
+	 * "red <e> <f> <g> <h> <i> <j>"
 	 *
 	 * <e> - meter-colour (not-used: green/yellow/red)
-	 * <f> - min-threshold
-	 * <g> - max-threshold
-	 * <h> - mark-probability
-	 * <i> - filter-weight
+	 * <f> - units ("bytes", "packets" or "usec")
+	 * <g> - min-threshold
+	 * <h> - max-threshold
+	 * <i> - mark-probability
+	 * <j> - filter-weight
 	 */
-	if (argc < 6)
+
+	if (argc < 7)
 		return -1;
 
 	if (get_unsigned(argv[1], &color) < 0)
@@ -3343,20 +3491,24 @@ static int cmd_qos_red(struct qos_red_params red_params[][RTE_COLORS],
 	if (color >= RTE_COLORS)
 		return -3;
 
-	if (get_unsigned(argv[2], &value) < 0)
+	if (!qos_qsize_type_get(argv[2], &value))
 		return -4;
-	red.min_th = value;
+	red.qsize_type = value;
 
 	if (get_unsigned(argv[3], &value) < 0)
 		return -5;
-	red.max_th = value;
+	red.min_th = value;
 
 	if (get_unsigned(argv[4], &value) < 0)
 		return -6;
-	red.maxp_inv = value;
+	red.max_th = value;
 
 	if (get_unsigned(argv[5], &value) < 0)
 		return -7;
+	red.maxp_inv = value;
+
+	if (get_unsigned(argv[6], &value) < 0)
+		return -8;
 	red.wq_log2 = value;
 
 	red_params[tc][color] = red;
@@ -3378,7 +3530,8 @@ static int cmd_qos_params(struct ifnet *ifp, int argc, char **argv)
 	/*
 	 * Expected command format:
 	 *
-	 * "param [subport <b>] <c> [limit <d>] [red <e> <f> <g> <h> <i>]"
+	 * "param [subport <b>] <c> [limit <j> <d>]
+	 *        [red <e> <j> <f> <g> <h> <i>]"
 	 *
 	 * <b> - subport-id
 	 * <c> - traffic-class-id (0..3)
@@ -3388,6 +3541,7 @@ static int cmd_qos_params(struct ifnet *ifp, int argc, char **argv)
 	 * <g> - max-threshold
 	 * <h> - mark-probability
 	 * <i> - filter-weight
+	 * <j> - size type ("packets", "bytes", "usec")
 	 */
 	--argc, ++argv; /* skip "param" */
 	if (argc < 2) {
@@ -3429,6 +3583,7 @@ static int cmd_qos_params(struct ifnet *ifp, int argc, char **argv)
 
 		if (strcmp(argv[0], "limit") == 0) {
 			unsigned int value;
+			enum qos_queue_size_type qsize_type;
 
 			if (argc < 3) {
 				DP_DEBUG(QOS, ERR, DATAPLANE,
@@ -3436,9 +3591,12 @@ static int cmd_qos_params(struct ifnet *ifp, int argc, char **argv)
 				return -EINVAL;
 			}
 
+			if (!qos_qsize_type_get(argv[1], &qsize_type))
+				return -EINVAL;
+
 			if (get_unsigned(argv[2], &value) < 0) {
 				DP_DEBUG(QOS, ERR, DATAPLANE,
-					 "number expected after limit units\n");
+					 "number expected after limit type\n");
 				return -EINVAL;
 			}
 
@@ -3446,18 +3604,20 @@ static int cmd_qos_params(struct ifnet *ifp, int argc, char **argv)
 			 * If it's packets we round down the value to 8192
 			 * otherwise it's bytes which aren't limited
 			 */
-			if (strcmp(argv[1], "packets") == 0) {
-				if (value > MAX_QSIZE) {
-					value = MAX_QSIZE;
-					RTE_LOG(INFO, QOS,
-					    "Rounding down qsize to %d on %s\n",
-					    MAX_QSIZE, ifp->if_name);
-				}
+			if ((qsize_type == QOS_QUEUE_SIZE_PACKETS) &&
+				(value > MAX_QSIZE)) {
+				value = MAX_QSIZE;
+				RTE_LOG(INFO, QOS,
+					"Rounding down qsize to %d on %s\n",
+					MAX_QSIZE, ifp->if_name);
 			}
-			if (subport_id == 0)
+			if (subport_id == 0) {
 				qinfo->port_params.qsize[tc_id] = value;
+				qinfo->port_params.qsize_type = qsize_type;
+			}
 
 			sinfo->qsize[tc_id] = value;
+			sinfo->qsize_type = qsize_type;
 			argc--, argv++;	/* Allow for new unit field */
 		} else if (strcmp(argv[0], "red") == 0) {
 			int rc;

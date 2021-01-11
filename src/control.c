@@ -511,6 +511,7 @@ static const struct msg_handler message_handlers_main[] = {
 	{ 0,	"ptp",		process_config_cmd,      cmd_ptp_cfg },
 	{ 14,	"qos",		process_config_cmd,	 cmd_qos_cfg },
 	{ 15,	"qos",		process_config_cmd,	 cmd_qos_cfg },
+	{ 16,	"qos",		process_config_cmd,	 cmd_qos_cfg },
 	{ 0,	"route",	process_netlink_data,	 NULL },
 	{ 3,    "storm-ctl",    process_config_cmd,      cmd_storm_ctl_cfg },
 	{ 0,	"tablemap",	process_config_cmd,	 cmd_tablemap_cfg },

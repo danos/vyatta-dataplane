@@ -50,15 +50,10 @@ struct rte_sched_port;
 
 struct npf_act_grp;
 
-struct red_params {
-	uint32_t min_th;   /* Minimum threshold in bytes for queue */
-	uint32_t max_th;   /* Maximum threshold in bytes for queue */
-	uint16_t maxp_inv; /* Inverse of packet marking probability */
-};
-
-enum wred_unit {
-	WRED_PACKETS,
-	WRED_BYTES
+enum qos_queue_size_type {
+	QOS_QUEUE_SIZE_PACKETS,
+	QOS_QUEUE_SIZE_BYTES,
+	QOS_QUEUE_SIZE_USEC
 };
 
 enum qos_state {
@@ -70,6 +65,7 @@ enum qos_state {
 struct qos_red_params {
 	uint32_t	min_th;
 	uint32_t	max_th;
+	enum qos_queue_size_type qsize_type;
 	uint16_t	maxp_inv;
 	/* Negated log2 of queue weight
 	 * (wq = 1 / (2 ^ wq_log2))
@@ -177,6 +173,7 @@ struct subport_info {
 	struct rte_sched_subport_stats64 queue_stats; /* Non-zeroing counts */
 	struct rte_sched_subport_stats64 clear_stats; /* Counts at last clear */
 	uint32_t qsize[RTE_SCHED_TRAFFIC_CLASSES_PER_PIPE];
+	enum qos_queue_size_type qsize_type;
 	struct qos_red_params red_params[RTE_SCHED_TRAFFIC_CLASSES_PER_PIPE]
 					[RTE_COLORS];
 	bool pipe_configured[MAX_PIPES];
@@ -237,7 +234,6 @@ struct qos_red_q_params {
 	uint64_t	dscp_set[RTE_NUM_DSCP_MAPS];
 	struct qos_red_params qparams[RTE_NUM_DSCP_MAPS];
 	char		*grp_names[RTE_NUM_DSCP_MAPS];
-	enum wred_unit	unit;
 	uint8_t		num_maps;
 	uint8_t		filter_weight;
 	uint8_t         dps_in_use;
@@ -266,7 +262,8 @@ struct qos_port_params {
 	int32_t		frame_overhead;
 	uint32_t	n_subports_per_port;
 	uint32_t	n_pipes_per_subport;
-	uint16_t	qsize[RTE_SCHED_TRAFFIC_CLASSES_PER_PIPE];
+	uint32_t	qsize[RTE_SCHED_TRAFFIC_CLASSES_PER_PIPE];
+	enum qos_queue_size_type qsize_type;
 };
 
 /* Qos Scheduler handles (one per physical port) */
@@ -552,6 +549,13 @@ void qos_sched_stop(struct ifnet *ifp);
 uint32_t qos_sched_calc_qindex(struct sched_info *qinfo, unsigned int subport,
 			       unsigned int pipe, unsigned int tc,
 			       unsigned int q);
+bool qos_wred_threshold_get(struct qos_red_params *wred_params,
+		uint64_t rate, uint32_t *wred_min_th, uint32_t *wred_max_th);
+uint32_t qos_queue_size_get(uint32_t qsize,
+		enum qos_queue_size_type qsize_type,
+		uint64_t rate);
+uint32_t qos_sp_qsize_get(struct qos_port_params *pp,
+			  struct subport_info *sinfo, int tc);
 struct sched_info;
 int qos_sched(struct ifnet *ifp, struct sched_info *qinfo,
 	      struct rte_mbuf *enq_pkts[], uint32_t n_pkts,

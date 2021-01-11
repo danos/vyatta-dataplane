@@ -302,7 +302,7 @@ const char *fal_wred_cmds[] = {
 	"port subports 1 pipes 1 profiles 1 overhead 24 ql_bytes",
 	"subport 0 rate 12500000 size 50000 period 40000",
 	"subport 0 queue 0 rate 12500000 size 50000",
-	"param 0 limit packets 4096 red 0 2048 4095 34 6",
+	"param 0 limit packets 4096 red 0 packets 2048 4095 34 6",
 	"subport 0 queue 1 rate 12500000 size 50000",
 	"subport 0 queue 2 rate 12500000 size 50000",
 	"subport 0 queue 3 rate 12500000 size 50000",
