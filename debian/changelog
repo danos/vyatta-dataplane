@@ -1,3 +1,81 @@
+vyatta-dataplane (3.12.18) unstable; urgency=medium
+
+  [ Charles (Chas) Williams ]
+  * clang: fix readability-named-parameter
+  * clang: fix readability-inconsistent-declaration-parameter-name
+  * tests: fix readability-inconsistent-declaration-parameter-name
+  * clang: fix else after return
+
+  [ Nicholas Brown ]
+  * Re-enable some clang-tidy checks
+  * Remove old CODEOWNERS user
+
+  [ Charles (Chas) Williams ]
+  * tests: gre: fix clang-tidy CallAndMessage issues
+  * crypto: ensure ctx.context is set to some value
+  * clang: quiet warnings about uninitialized usage
+  * qos: fix possibly uninitialized values
+  * tests: lib: make sure we have a valid mbuf pointer
+  * tests: npf: ensure ptree_string2key returns something
+  * clang-tidy: re-enable clang-analyzer-core.CallAndMessage
+
+  [ Ian Wilson ]
+  * cgnat: Move cgn_addrstr to cgn_log_rte.c and make static
+  * cgnat: Move all 'return code' code into cgn_rc.h and cgn_rc.c
+  * cgnat: Move time related functions into cgn_time.c and cgn_time.h
+  * cgnat: Move cgn_arg_to_int to cgn_cmd_cfg.c
+  * cgnat: Replace include of cgn.h with cgn_public.h in ip_icmp.c
+  * cgnat: Move function that only exist for unit-tests into cgn_test.c
+  * cgnat: Move global variables to cgn.c
+  * cgnat: Sessions are only created in outbound context
+  * cgnat: Replace 'enum cgn_flow' with 'enum cgn_dir'
+  * cgnat: Use 'enum cgn_dir' instead of 'int' for the direction variable
+  * cgnat: Remove cgnat cache object cpk_hlen and add cpk_l4_len
+  * cgnat: Use a 'cgnat map info' struct to pass data to/from mapping fns
+  * cgnat: Use correct type for 'enum nat_proto' vars and params
+  * cgnat: Remove direction parameter from session create path
+  * cgnat: Change cgn_session_establish to use 'struct cgn_map'
+  * cgnat: Move test for sub-session enable out of cgn_session_establish
+  * cgnat: Sub-sessions are only created in the outbound context
+  * cgnat: Rename cgn_sess2_activate and deactivate to cgn_sess2_add and del
+  * Fixup copyright dates for 2021
+
+  [ Charles (Chas) Williams ]
+  * ip_rt_protobuf: fix clang deadstore warning
+  * controller: check return from add port parse
+  * esp: fix deadstore in esp_input
+  * qos_sched: fix clang deadstore in parsing
+  * npf: remove dead store before enumerated switch
+  * pipeline: remove checks in tear downs
+  * esp: remove dead store before enumerated switch
+  * tests: check ret to avoid dead stores in qos tests
+  * tests: fix deadstore in unit tests
+
+  [ Mike Manning ]
+  * ARP and ND: entry should not be valid after failure notification
+  * ARP: restrict handling of notifications from kernel
+  * ARP: remove entry after failure notification
+
+  [ Ian Wilson ]
+  * Update soft_ticks using clock_gettime
+
+  [ Derek Fawcus ]
+  * GPC: Add policer action to the ACL at FAL API
+
+  [ Nicholas Brown ]
+  * command: fix clang deadstore warning
+  * dp_test: fix clang deadstore warning
+  * npf test: fix clang deadstore warning
+  * npf test: remove spurious return
+  * clang: Re-enable clang-analyzer-deadcode.DeadStores
+
+  [ Charles (Chas) Williams ]
+  * debian: remove libxen dependency
+
+  [ Simon Barber ]
+
+ -- Simon Barber <sbarber@mail.eng.vyatta.net>  Mon, 11 Jan 2021 14:12:50 +0000
+
 vyatta-dataplane (3.12.17) unstable; urgency=medium
 
   [ Charles (Chas) Williams ]
