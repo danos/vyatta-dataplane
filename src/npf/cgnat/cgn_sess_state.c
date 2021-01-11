@@ -19,7 +19,6 @@
 #include "npf/cgnat/cgn_mbuf.h"
 #include "npf/cgnat/cgn_sess2.h"
 #include "npf/cgnat/cgn_sess_state.h"
-#include "npf/cgnat/cgn_time.h"
 
 /*
  * NAT TCP State Machine for 5-tuple TCP sessions (rfc7857)
@@ -321,7 +320,7 @@ cgn_sess_state_inspect(struct cgn_state *st, struct cgn_packet *cpk,
 
 			/* External rtt.  Look for incoming SYN-ACK. */
 			if (!forw && (cpk->cpk_tcp_flags & TH_ACK)) {
-				rtt = cgn_time_usecs() - start_time;
+				rtt = cgn_sess2_timestamp() - start_time;
 				st->st_ext_rtt = rtt;
 			}
 
@@ -343,7 +342,8 @@ cgn_sess_state_inspect(struct cgn_state *st, struct cgn_packet *cpk,
 
 				/* Int rtt. Look for first forw ACK */
 				if (forw) {
-					rtt = cgn_time_usecs() - start_time -
+					rtt = cgn_sess2_timestamp() -
+						start_time -
 						st->st_ext_rtt;
 					st->st_int_rtt = rtt;
 				}

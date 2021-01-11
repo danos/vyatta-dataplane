@@ -27,7 +27,6 @@
 #include "npf/cgnat/cgn_policy.h"
 #include "npf/cgnat/cgn_session.h"
 #include "npf/cgnat/cgn_source.h"
-#include "npf/cgnat/cgn_time.h"
 
 
 /*
@@ -695,8 +694,7 @@ cgn_policy_jsonw_one(json_writer_t *json, struct cgn_policy *cp)
 		jsonw_string_field(json, "subscriber", ad_str);
 		jsonw_uint_field(json, "max_sess_rate", node->ps_sess_rate_max);
 		jsonw_uint_field(
-			json, "time",
-			cgn_ticks2timestamp(node->ps_sess_rate_max_time));
+			json, "time", node->ps_sess_rate_max_time);
 
 		jsonw_end_object(json);
 		i++;

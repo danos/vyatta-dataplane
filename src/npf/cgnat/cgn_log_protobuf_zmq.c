@@ -27,7 +27,6 @@
 #include "npf/cgnat/cgn_sess_state.h"
 #include "npf/cgnat/cgn_session.h"
 #include "npf/cgnat/cgn_sess2.h"
-#include "npf/cgnat/cgn_time.h"
 #include "npf/nat/nat_pool.h"
 #include "npf/cgnat/cgn_log_protobuf_zmq.h"
 
@@ -375,7 +374,7 @@ static void cl_protobuf_subscriber_start(uint32_t addr)
 	msg.has_subscriberaddress = 1;
 	msg.subscriberaddress = addr;
 
-	microsecs_to_timestamp(cgn_ticks2timestamp(soft_ticks), &start_ts);
+	microsecs_to_timestamp(unix_epoch_us, &start_ts);
 	msg.starttimestamp = &start_ts;
 
 	cl_protobuf_log_send_subscriber(&msg);
@@ -411,9 +410,9 @@ static void cl_protobuf_subscriber_end(uint32_t addr, uint64_t start_time,
 	msg.has_outpackets = 1;
 	msg.outpackets = pkts_out;
 
-	microsecs_to_timestamp(cgn_ticks2timestamp(start_time), &start_ts);
+	microsecs_to_timestamp(start_time, &start_ts);
 	msg.starttimestamp = &start_ts;
-	microsecs_to_timestamp(cgn_ticks2timestamp(end_time), &end_ts);
+	microsecs_to_timestamp(end_time, &end_ts);
 	msg.endtimestamp = &end_ts;
 
 	cl_protobuf_log_send_subscriber(&msg);
@@ -472,7 +471,7 @@ static void cl_protobuf_pb_alloc(uint32_t pvt_addr, uint32_t pub_addr,
 	msg.has_endportnumber = 1;
 	msg.endportnumber = port_end;
 
-	microsecs_to_timestamp(cgn_ticks2timestamp(start_time), &start_ts);
+	microsecs_to_timestamp(start_time, &start_ts);
 	msg.starttimestamp = &start_ts;
 
 	cl_protobuf_log_send_pba(&msg);
@@ -512,9 +511,9 @@ static void cl_protobuf_pb_release(uint32_t pvt_addr, uint32_t pub_addr,
 	msg.has_endportnumber = 1;
 	msg.endportnumber = port_end;
 
-	microsecs_to_timestamp(cgn_ticks2timestamp(start_time), &start_ts);
+	microsecs_to_timestamp(start_time, &start_ts);
 	msg.starttimestamp = &start_ts;
-	microsecs_to_timestamp(cgn_ticks2timestamp(end_time), &end_ts);
+	microsecs_to_timestamp(end_time, &end_ts);
 	msg.endtimestamp = &end_ts;
 
 	cl_protobuf_log_send_pba(&msg);
@@ -687,7 +686,7 @@ static void cl_protobuf_sess_active_and_end(struct cgn_sess2 *s2,
 static void cl_protobuf_sess_active(struct cgn_sess2 *s2)
 {
 	cl_protobuf_sess_active_and_end(s2,
-		SESSION_EVENT_TYPE__SESSION_EVENT_ACTIVE, cgn_time_usecs());
+		SESSION_EVENT_TYPE__SESSION_EVENT_ACTIVE, unix_epoch_us);
 }
 
 /*
@@ -723,7 +722,7 @@ static void cl_protobuf_resource_common(enum cgn_resource_type type,
 	msg->has_constraintlimit = 1;
 	msg->constraintlimit = constraint_limit_to_pb(type);
 
-	microsecs_to_timestamp(cgn_ticks2timestamp(soft_ticks), msg->timestamp);
+	microsecs_to_timestamp(unix_epoch_us, msg->timestamp);
 }
 
 /*
@@ -955,7 +954,7 @@ cl_protobuf_sess_clear(const char *desc, uint count, uint64_t clear_time)
 	msg.eventtype = CONSTRAINT_EVENT_TYPE__CONSTRAINT_EVENT_SESSION_CLEAR;
 
 	msg.timestamp = &cur_ts;
-	microsecs_to_timestamp(cgn_ticks2timestamp(clear_time), msg.timestamp);
+	microsecs_to_timestamp(clear_time, msg.timestamp);
 
 	msg.has_count = 1;
 	msg.count = count;

@@ -24,7 +24,6 @@
 #include "npf/cgnat/cgn_sess_state.h"
 #include "npf/cgnat/cgn_session.h"
 #include "npf/cgnat/cgn_sess2.h"
-#include "npf/cgnat/cgn_time.h"
 #include "npf/nat/nat_pool.h"
 
 #define ADDR_CHARS 16
@@ -52,8 +51,7 @@ static void cl_rte_log_subscriber_start(uint32_t addr)
 
 	RTE_LOG(NOTICE, CGNAT,
 		"SUBSCRIBER_START subs-addr=%s start-time=%lu\n",
-		cgn_addrstr(addr, str1, ADDR_CHARS),
-		cgn_ticks2timestamp(soft_ticks));
+		cgn_addrstr(addr, str1, ADDR_CHARS), unix_epoch_us);
 }
 
 /*
@@ -69,8 +67,7 @@ static void cl_rte_log_subscriber_end(uint32_t addr, uint64_t start_time,
 	RTE_LOG(NOTICE, CGNAT,
 		"SUBSCRIBER_END subs-addr=%s start-time=%lu "
 		"end-time=%lu sessions=%lu forw=%lu/%lu back=%lu/%lu\n",
-		cgn_addrstr(addr, str1, ADDR_CHARS),
-		cgn_ticks2timestamp(start_time), cgn_ticks2timestamp(end_time),
+		cgn_addrstr(addr, str1, ADDR_CHARS), start_time, end_time,
 		sessions, pkts_out, bytes_out, pkts_in, bytes_in);
 }
 
@@ -97,7 +94,7 @@ static void cl_rte_log_pb_alloc(uint32_t pvt_addr, uint32_t pub_addr,
 		cgn_log_name_or_unknown(policy_name),
 		cgn_addrstr(pub_addr, str2, ADDR_CHARS),
 		cgn_log_name_or_unknown(pool_name),
-		port_start, port_end, cgn_ticks2timestamp(start_time));
+		port_start, port_end, start_time);
 }
 
 /*
@@ -119,8 +116,7 @@ static void cl_rte_log_pb_release(uint32_t pvt_addr, uint32_t pub_addr,
 		cgn_log_name_or_unknown(policy_name),
 		cgn_addrstr(pub_addr, str2, ADDR_CHARS),
 		cgn_log_name_or_unknown(pool_name),
-		port_start, port_end, cgn_ticks2timestamp(start_time),
-		cgn_ticks2timestamp(end_time));
+		port_start, port_end, start_time, end_time);
 }
 
 /*
@@ -197,7 +193,7 @@ static void cl_rte_log_sess_active(struct cgn_sess2 *s2)
 	len = cl_rte_log_sess_common(s2, log_str, sizeof(log_str));
 
 	len += snprintf(log_str + len, sizeof(log_str) - len,
-			" cur-time=%lu", cgn_time_usecs());
+			" cur-time=%lu", unix_epoch_us);
 
 	len += snprintf(log_str + len, sizeof(log_str) - len,
 			" out=%u/%lu in=%lu/%lu",
@@ -529,7 +525,7 @@ cl_rte_log_sess_clear(const char *desc, uint count, uint64_t clear_time)
 
 	snprintf(log_str, sizeof(log_str),
 			"desc=\"%s\" count=%u time=%lu", desc, count,
-			cgn_ticks2timestamp(clear_time));
+		 clear_time);
 
 	RTE_LOG(NOTICE, CGNAT, "SESSION_CLEAR %s\n", log_str);
 }

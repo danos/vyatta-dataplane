@@ -60,7 +60,6 @@
 #include "npf/cgnat/cgn_sess2.h"
 #include "npf/cgnat/cgn_sess_state.h"
 #include "npf/cgnat/cgn_source.h"
-#include "npf/cgnat/cgn_time.h"
 
 
 /*
@@ -120,8 +119,8 @@ struct cgn_session {
 
 	uint64_t		cs_unk_pkts_tot;
 	struct rcu_head		cs_rcu_head;	/* 16 bytes */
-	uint64_t		cs_start_time;
-	uint64_t		cs_end_time;
+	uint64_t		cs_start_time;	/* unix epoch us */
+	uint64_t		cs_end_time;	/* unix epoch us */
 
 	uint32_t		cs_id;		/* unique identifier */
 	uint32_t		cs_ifindex;	/* Copy of ifp->ifindex */
@@ -627,7 +626,7 @@ cgn_session_establish(struct cgn_packet *cpk, struct cgn_map *cmi,
 	rte_atomic16_set(&cse->cs_idle, 0);
 	cse->cs_vrfid = cpk->cpk_vrfid;
 	cse->cs_ifindex = cpk->cpk_ifindex;
-	cse->cs_start_time = soft_ticks;
+	cse->cs_start_time = unix_epoch_us;
 
 	/* Was the session created by a packet or by map command? */
 	cse->cs_pkt_instd = cpk->cpk_pkt_instd;
@@ -2016,7 +2015,7 @@ cgn_session_jsonw_one(json_writer_t *json, struct cgn_sess_fltr *fltr,
 	}
 
 	if (!cgn_sess_s2_is_enabled(cse) || cse->cs_map_instd) {
-		uint32_t uptime = cgn_uptime_secs();
+		uint32_t uptime = get_dp_uptime();
 		uint32_t max_timeout = cgn_session_expiry_time(cse);
 
 		if (rte_atomic16_read(&cse->cs_idle))
@@ -2029,10 +2028,8 @@ cgn_session_jsonw_one(json_writer_t *json, struct cgn_sess_fltr *fltr,
 		jsonw_uint_field(json, "max_to", max_timeout);
 	}
 
-	jsonw_uint_field(json, "start_time",
-			 cgn_ticks2timestamp(cse->cs_start_time));
-	jsonw_uint_field(json, "duration",
-			 cgn_start2duration(cse->cs_start_time));
+	jsonw_uint_field(json, "start_time", cse->cs_start_time);
+	jsonw_uint_field(json, "duration", unix_epoch_us - cse->cs_start_time);
 
 	jsonw_end_object(json);
 
@@ -2228,7 +2225,7 @@ cgn_session_set_expired(struct cgn_session *cse, bool update_stats)
 {
 	cse->cs_forw_entry.ce_expired = true;
 	cse->cs_back_entry.ce_expired = true;
-	cse->cs_end_time = soft_ticks;
+	cse->cs_end_time = unix_epoch_us;
 	cse->cs_etime = 0;
 
 	/*
@@ -2369,7 +2366,7 @@ cgn_session_clear_fltr(struct cgn_sess_fltr *fltr, bool clear_map,
 
 	/* Log session clear command instead of every session */
 	if (count)
-		cgn_log_sess_clear(fltr->cf_desc, count, soft_ticks);
+		cgn_log_sess_clear(fltr->cf_desc, count, unix_epoch_us);
 
 	if (restart_timer)
 		cgn_session_start_timer();
@@ -2585,7 +2582,7 @@ cgn_session_expire_all(bool clear_map, bool restart_timer)
 
 	/* Log session clear command instead of every session */
 	if (count)
-		cgn_log_sess_clear("all", count, soft_ticks);
+		cgn_log_sess_clear("all", count, unix_epoch_us);
 
 	if (restart_timer)
 		cgn_session_start_timer();
@@ -2641,7 +2638,7 @@ void cgn_session_expire_pool(bool restart_timer, struct nat_pool *np,
 	if (count) {
 		char desc[60];
 		snprintf(desc, sizeof(desc), "pool %s", nat_pool_name(np));
-		cgn_log_sess_clear(desc, count, soft_ticks);
+		cgn_log_sess_clear(desc, count, unix_epoch_us);
 	}
 
 	if (restart_timer)
@@ -2686,7 +2683,7 @@ void cgn_session_expire_policy(bool restart_timer, struct cgn_policy *cp)
 	if (count) {
 		char desc[60];
 		snprintf(desc, sizeof(desc), "policy %s", cp->cp_name);
-		cgn_log_sess_clear(desc, count, soft_ticks);
+		cgn_log_sess_clear(desc, count, unix_epoch_us);
 	}
 
 	if (restart_timer)
@@ -2711,7 +2708,7 @@ static inline bool cgn_session_expired(struct cgn_session *cse)
 		etime = cgn_session_expiry_time(cse);
 
 		/* Set expiry time */
-		cse->cs_etime = cgn_uptime_secs() + etime;
+		cse->cs_etime = get_dp_uptime() + etime;
 
 		return false;
 	}
@@ -2719,7 +2716,7 @@ static inline bool cgn_session_expired(struct cgn_session *cse)
 	/*
 	 * Session was already idle.  Has it timed-out?
 	 */
-	if (time_after(cgn_uptime_secs(), cse->cs_etime)) {
+	if (time_after(get_dp_uptime(), cse->cs_etime)) {
 		/* yes, session has timed-out */
 
 		/* Mark session as expired */

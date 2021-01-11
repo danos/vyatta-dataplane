@@ -33,7 +33,6 @@
 #include "npf/cgnat/cgn_sess_state.h"
 #include "npf/cgnat/cgn_session.h"
 #include "npf/cgnat/cgn_source.h"
-#include "npf/cgnat/cgn_time.h"
 
 
 /*
@@ -73,7 +72,7 @@ struct cgn_sess2 {
 	uint8_t			s2_log_end:1;
 	uint8_t			s2_log_active:1;
 	uint64_t		s2_bytes_out_tot; /* bytes out total */
-	uint64_t		s2_start_time;  /* epoch, microsecs */
+	uint64_t		s2_start_time;  /* unix epoch microsecs */
 
 	struct cgn_state	s2_state;	/* 24 bytes */
 	/* --- cacheline 2 boundary (128 bytes) --- */
@@ -312,6 +311,19 @@ static int cgn_sess2_match(struct cds_lfht_node *node, const void *key)
 }
 
 /*
+ * Sub-sessions require a 1ms precision timestamp for TCP RTT calculations.
+ */
+uint64_t cgn_sess2_timestamp(void)
+{
+	struct timespec ts;
+
+	/* Get unix epoch time.  Precision of 1ms. */
+	clock_gettime(CLOCK_REALTIME_COARSE, &ts);
+
+	return (ts.tv_sec * USEC_PER_SEC) + (ts.tv_nsec / NSEC_PER_USEC);
+}
+
+/*
  * Create an s2 session. Sessions are only ever created in the 'out' context.
  */
 struct cgn_sess2 *
@@ -345,7 +357,7 @@ cgn_sess_s2_establish(struct cgn_sess_s2 *cs2, struct cgn_packet *cpk,
 	s2->s2_cs2 = cs2;
 	s2->s2_dir = CGN_DIR_OUT;
 	s2->s2_expired = false;
-	s2->s2_start_time = cgn_time_usecs();
+	s2->s2_start_time = cgn_sess2_timestamp();
 	s2->s2_id = rte_atomic32_add_return(&cs2->cs2_id, 1);
 
 	/* Randomise the initial logging interval */
@@ -645,7 +657,7 @@ static inline bool cgn_sess2_expired(struct cgn_sess2 *s2)
 		etime = cgn_sess2_expiry_time(s2);
 
 		/* Set expiry time */
-		s2->s2_etime = cgn_uptime_secs() + etime;
+		s2->s2_etime = get_dp_uptime() + etime;
 
 		return false;
 	}
@@ -653,7 +665,7 @@ static inline bool cgn_sess2_expired(struct cgn_sess2 *s2)
 	/*
 	 * Session was already idle.  Has it timed-out?
 	 */
-	if (time_after(cgn_uptime_secs(), s2->s2_etime)) {
+	if (time_after(get_dp_uptime(), s2->s2_etime)) {
 		/* yes, session has timed-out */
 
 		/*
@@ -670,7 +682,7 @@ static inline bool cgn_sess2_expired(struct cgn_sess2 *s2)
 		}
 
 		/* Else reset expiry timer */
-		s2->s2_etime = cgn_uptime_secs() + cgn_sess2_expiry_time(s2);
+		s2->s2_etime = get_dp_uptime() + cgn_sess2_expiry_time(s2);
 	}
 
 	return false;
@@ -709,11 +721,17 @@ cgn_sess2_log_start_and_active(struct cgn_sess2 *s2)
 	return count;
 }
 
+/*
+ * We log the end of the sub-session using the dataplane timestamp.  This has
+ * less precision than the mechanism we used for setting s2_start_time, but
+ * thats ok.  10ms is ok for logging, whereas the s2_start_time required 1ms
+ * precision since it is also used for TCP RTT calculations.
+ */
 static inline unsigned int
 cgn_sess2_log_end(struct cgn_sess2 *s2)
 {
 	if (unlikely(s2->s2_expired && s2->s2_log_end)) {
-		cgn_log_sess_end(s2, cgn_time_usecs());
+		cgn_log_sess_end(s2, unix_epoch_us);
 		s2->s2_log_end = false;
 		return 1;
 	}
@@ -923,7 +941,7 @@ static void
 cgn_sess2_jsonw_one(json_writer_t *json, struct cgn_sess2 *s2)
 {
 	char dst_str[16];
-	uint32_t uptime = cgn_uptime_secs();
+	uint32_t uptime = get_dp_uptime();
 	uint32_t max_timeout = cgn_sess2_expiry_time(s2);
 
 	inet_ntop(AF_INET, &s2->s2_addr, dst_str, sizeof(dst_str));
@@ -937,8 +955,7 @@ cgn_sess2_jsonw_one(json_writer_t *json, struct cgn_sess2 *s2)
 	cgn_sess_state_jsonw(json, &s2->s2_state);
 
 	jsonw_uint_field(json, "start_time", s2->s2_start_time);
-	jsonw_uint_field(json, "duration",
-			 cgn_time_usecs() - s2->s2_start_time);
+	jsonw_uint_field(json, "duration", unix_epoch_us - s2->s2_start_time);
 
 	jsonw_bool_field(json, "exprd", s2->s2_expired);
 

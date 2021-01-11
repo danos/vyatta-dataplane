@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2019-2021, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -19,7 +19,10 @@ enum cgn_resource_type {
 /* subscriber session start */
 void cgn_log_subscriber_start(uint32_t addr);
 
-/* subscriber session end */
+/*
+ * subscriber session end.  start_time and end_time are unix epoch
+ * microseconds.
+ */
 void cgn_log_subscriber_end(uint32_t addr,
 			    uint64_t start_time, uint64_t end_time,
 			    uint64_t pkts_out, uint64_t bytes_out,
