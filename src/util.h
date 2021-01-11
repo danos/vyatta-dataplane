@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2017-2021, AT&T Intellectual Property. All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property. All rights reserved.
  * Copyright (c) 2011-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -30,7 +30,6 @@
 #include <time.h>
 
 #include "compiler.h"
-#include "soft_ticks.h"
 #include "urcu.h"
 #include "vrf.h"
 
@@ -47,8 +46,6 @@ struct rte_ether_addr;
 #define US_PER_MS 1000u
 #define S_PER_DAY 86400u
 #define USEC_PER_SEC 1000000u
-#define MSEC_PER_SEC 1000
-#define USEC_PER_MSEC 1000
 #define NSEC_PER_USEC 1000
 
 
@@ -140,10 +137,10 @@ unsigned int dp_lcore_id(void)
 #define FOREACH_DP_LCORE(_i) \
 	for ((_i) = 0; (_i) <= get_lcore_max(); (_i)++)
 
-/* Current time in seconds since boot */
+/* Current time since boot */
 static inline time_t get_dp_uptime(void)
 {
-	return (time_t) (soft_ticks / MSEC_PER_SEC);
+	return (time_t) (rte_get_timer_cycles() / rte_get_timer_hz());
 }
 
 static inline uint64_t timespec_diff_us(struct timespec *start,
