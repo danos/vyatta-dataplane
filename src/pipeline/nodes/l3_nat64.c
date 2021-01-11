@@ -211,7 +211,7 @@ nat64_out_process_common(struct pl_packet *pkt, bool v4, uint16_t eth_type)
 	npf_session_t *se;
 	npf_cache_t *npc;
 	int rc = NPF_RC_UNMATCHED;
-	int rv;
+	int rv = 0;
 
 	npf_flags = pkt->npf_flags;
 	m = pkt->mbuf;
