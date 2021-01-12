@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2018-2021, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -75,8 +75,8 @@ ip_dpi_process_common(struct pl_packet *pkt, bool v4, int dir)
 	}
 
 	/* Attach the DPI flow info, do first packet inspection */
-	uint8_t engines[] = {dpi_global_engine()};
-	(void)dpi_session_first_packet(se, npc, m, dir, 1, engines);
+	uint8_t engines[] = {IANA_USER, IANA_NDPI};
+	(void)dpi_session_first_packet(se, npc, m, dir, 2, engines);
 
 done:
 	if (dir == PFIL_IN)
