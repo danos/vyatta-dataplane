@@ -1,3 +1,18 @@
+vyatta-dataplane (3.11.72.2) unstable; urgency=medium
+
+  [ Nicholas Brown ]
+  * Update Jenkins build target for 2012 release
+
+  [ Ian Wilson ]
+  * Update soft_ticks using clock_gettime (re-factored)
+
+  [ Nicholas Brown ]
+  * Remove old CODEOWNERS user
+
+  [ Simon Barber ]
+
+ -- Simon Barber <sbarber@mail.eng.vyatta.net>  Tue, 12 Jan 2021 08:47:45 +0000
+
 vyatta-dataplane (3.11.72.1) unstable; urgency=medium
 
   * UNRELEASED
