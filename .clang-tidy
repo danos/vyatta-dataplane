@@ -2,7 +2,6 @@
 Checks:          'bugprone-*,
                   -bugprone-suspicious-missing-comma,
                   clang-diagnostic-*,
-                  -clang-diagnostic-missing-braces,
                   -clang-diagnostic-address-of-packed-member,
                   -clang-diagnostic-warning,
                   clang-analyzer-*,

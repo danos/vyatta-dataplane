@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2020-2021, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -1297,9 +1297,12 @@ static int cmd_session_show_summary(struct session_dump *sd)
  */
 int cmd_op_show_dp_sessions(FILE *f, int argc, char **argv)
 {
-	struct session_filter sf = {0};
-	struct session_dump sd = {0};
+	struct session_filter sf;
+	struct session_dump sd;
 	int rc;
+
+	memset(&sf, 0, sizeof(sf));
+	memset(&sd, 0, sizeof(sd));
 
 	sd.sd_fp = f;
 	sd.sd_sf = &sf;
@@ -1393,9 +1396,12 @@ static int cmd_session_json_list(struct session *s, void *data)
  */
 int cmd_op_list(FILE *f, int argc, char **argv)
 {
-	struct session_filter sf = {0};
-	struct session_dump sd = {0};
+	struct session_filter sf;
+	struct session_dump sd;
 	int rc;
+
+	memset(&sf, 0, sizeof(sf));
+	memset(&sd, 0, sizeof(sd));
 
 	sd.sd_fp = f;
 	sd.sd_sf = &sf;
@@ -1444,8 +1450,10 @@ static int cmd_session_clear_cb(struct session *s, void *data)
  */
 int cmd_op_clear_dp_sessions(FILE *f, int argc, char **argv)
 {
-	struct session_filter sf = {0};
+	struct session_filter sf;
 	int rc;
+
+	memset(&sf, 0, sizeof(sf));
 
 	rc = cmd_op_parse(f, argc, argv, &sf, NULL);
 	if (rc < 0)

@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2018-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2018-2021, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -221,8 +221,8 @@ void qos_hw_show_legacy_map(struct queue_map *qmap, json_writer_t *wr)
 {
 	uint8_t cp;
 	int des;
-	uint8_t des2q[INGRESS_DESIGNATORS] = {0};
-	struct ingress_designator designation[INGRESS_DESIGNATORS] = {0};
+	uint8_t des2q[INGRESS_DESIGNATORS] = { 0 };
+	struct ingress_designator designation[INGRESS_DESIGNATORS] = {{ 0 }};
 	uint8_t dp;
 
 	for (cp = 0; cp < MAX_DSCP; cp++) {
