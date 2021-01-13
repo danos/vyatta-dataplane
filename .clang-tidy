@@ -7,8 +7,6 @@ Checks:          'bugprone-*,
                   -clang-diagnostic-warning,
                   clang-analyzer-*,
                   -clang-analyzer-valist.Uninitialized,
-                  -clang-analyzer-unix.API,
-                  -clang-analyzer-optin.portability.UnixAPI,
                   -clang-analyzer-optin.performance.Padding,
                   -clang-analyzer-core.VLASize,
                   -clang-analyzer-unix.Malloc,
@@ -17,7 +15,6 @@ Checks:          'bugprone-*,
                   -clang-analyzer-core.UndefinedBinaryOperatorResult,
                   -clang-analyzer-core.uninitialized.UndefReturn,
                   -clang-analyzer-core.uninitialized.Branch,
-                  -clang-analyzer-core.DivideZero,
                   -clang-analyzer-core.NullDereference,
                   misc-*,
                   -misc-unused-parameters,
@@ -26,8 +23,7 @@ Checks:          'bugprone-*,
                   readability-*,
                   -readability-braces-around-statements,
                   -readability-redundant-member-init,
-                  -readability-implicit-bool-conversion,
-                  -readability-inconsistent-declaration-parameter-name'
+                  -readability-implicit-bool-conversion'
 WarningsAsErrors: ''
 HeaderFilterRegex: ''
 AnalyzeTemporaryDtors: false

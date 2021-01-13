@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2015-2017 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -3712,6 +3712,8 @@ DP_START_TEST_FULL_RUN(imp_fwd_ecmp, payloadv4)
 	for (i = 0; i < lswap->nh_cnt; i++)
 		total_pkts += nh_pkts[i];
 
+	assert(lswap->nh_cnt > 0);
+	assert(total_pkts > 0);
 	unsigned int upper_bound = (total_pkts * 13) / (lswap->nh_cnt * 10);
 	unsigned int lower_bound = (total_pkts * 7) / (lswap->nh_cnt * 10);
 	unsigned int ave = (total_pkts * 10) / (lswap->nh_cnt * 10);
@@ -3852,6 +3854,8 @@ DP_START_TEST_FULL_RUN(disp_fwd_ecmp, payloadv4)
 	for (i = 0; i < lswap->nh_cnt; i++)
 		total_pkts += nh_pkts[i];
 
+	assert(lswap->nh_cnt > 0);
+	assert(total_pkts > 0);
 	unsigned int upper_bound = (total_pkts * 12) / (lswap->nh_cnt * 10);
 	unsigned int lower_bound = (total_pkts * 8) / (lswap->nh_cnt * 10);
 	unsigned int ave = (total_pkts * 10) / (lswap->nh_cnt * 10);
@@ -3984,6 +3988,8 @@ DP_START_TEST_FULL_RUN(lswap_fwd_ecmp, payloadv4)
 	for (i = 0; i < lswap->nh_cnt; i++)
 		total_pkts += nh_pkts[i];
 
+	assert(lswap->nh_cnt > 0);
+	assert(total_pkts > 0);
 	unsigned int upper_bound = (total_pkts * 12) / (lswap->nh_cnt * 10);
 	unsigned int lower_bound = (total_pkts * 8) / (lswap->nh_cnt * 10);
 	unsigned int ave = (total_pkts * 10) / (lswap->nh_cnt * 10);

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020, AT&T Intellectual Property. All rights reserved.
+ * Copyright (c) 2020-2021, AT&T Intellectual Property. All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  *
@@ -451,6 +451,12 @@ int ip_route_pb_handler(void *data, size_t len, enum cont_src_en cont_src)
 	if (!rtupdate->route->prefix) {
 		RTE_LOG(NOTICE, DATAPLANE,
 			"missing prefix in RibUpdate protobuf message\n");
+		goto free_msg;
+	}
+
+	if (rtupdate->route->n_paths == 0) {
+		RTE_LOG(NOTICE, DATAPLANE,
+			"Invalid n_paths in RibUpdate protobuf message\n");
 		goto free_msg;
 	}
 
