@@ -230,6 +230,8 @@ static int xfrm_netlink_recv(void *arg)
 		return -1;
 	}
 
+	xfrm_direct = true;
+
 	/*
 	 * Get the hdr type, either START, DATA, END and are used to
 	 * deliminate a batch. All hdrs have netlink msgs to follow,
@@ -366,8 +368,6 @@ int xfrm_client_init(void)
 		zsock_resolve(xfrm_pull_socket),
 		xfrm_netlink_recv,
 		xfrm_pull_socket);
-
-	xfrm_direct = true;
 
 	return 0;
 }
