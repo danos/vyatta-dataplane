@@ -321,7 +321,7 @@ static void crypto_flow_cache_add(struct flow_cache *flow_cache,
 				  bool v4, bool seen_by_crypto,
 				  int dir)
 {
-	union crypto_ctx ctx;
+	union crypto_ctx ctx = { .context = 0 }; /* SA Fix */
 	enum flow_cache_ftype af = v4 ? FLOW_CACHE_IPV4 : FLOW_CACHE_IPV6;
 	struct flow_cache_entry *cache_entry;
 
@@ -340,7 +340,6 @@ static void crypto_flow_cache_add(struct flow_cache *flow_cache,
 			ctx.no_rule_fwd = 1;
 		}
 	}
-	ctx.context = seen_by_crypto;
 
 	/*
 	 * In case this is an input policy match, check to see if the
