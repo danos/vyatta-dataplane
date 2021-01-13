@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2019-2021, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -410,7 +410,7 @@ unpublish_group:
 		/* A group is only visible if it has attr rule, and a family */
 		if (gpc_group_is_published(gprg)) {
 			gpc_group_hw_ntfy_detach(gprg);
-			gpc_group_hw_ntfy_rules_create(gprg);
+			gpc_group_hw_ntfy_rules_delete(gprg);
 			/* eventually delete counters */
 			gpc_group_hw_ntfy_delete(gprg);
 			/* Enable deferred republish */
