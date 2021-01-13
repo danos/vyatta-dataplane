@@ -1,3 +1,41 @@
+vyatta-dataplane (3.12.19) unstable; urgency=medium
+
+  [ Ian Wilson ]
+  * Uninitialised variable in nat64_out_process_common
+  * Revert "Update soft_ticks using clock_gettime"
+  * Update soft_ticks using clock_gettime (re-factored)
+  * cgnat: Change 3-tuple sess and subscriber structs to use unix_epoch_us
+  * cgnat: Change port-block start and end times to use unix_epoch_us
+  * cgnat: Change sub-sessions to use unix_epoch_us
+  * cgnat: Change the clear-session log messages to use unix_epoch_us
+  * cgnat: Change max subscriber session timestamps to use unix_epoch_us
+  * cgnat: Remove last uses of the cgnat specific time functions
+
+  [ Charles (Chas) Williams ]
+  * lag: preserve started state across reconfigure (Bugfix: VRVDR-53928)
+  * dpdk_eth_if: add some additional state debugging (Bugfix: VRVDR-53928)
+
+  [ Karthik Murugesan ]
+  * Queue depth and WRED threshold configuration enhancement
+  * Added range check for time to byte conversion
+
+  [ Paul Aitken ]
+  * DPI: engines_len inconsistency
+
+  [ Charles (Chas) Williams ]
+  * ip_rt: reject bad rib updates
+  * dp_test_mpls: ensure no division by zero
+  * clang: re-enable clang checks
+
+  [ Gavin Shearer ]
+  * gpc: fix issue of calling create fn instead of delete (Fixes: VRVDR-53959)
+
+  [ Simon Barber ]
+  * CRYPTO: Do not set xfrm_direct true
+  * CRYPTO: Undo IPSEC breakage caused by clang fix
+
+ -- Simon Barber <sbarber@mail.eng.vyatta.net>  Wed, 13 Jan 2021 20:21:22 +0000
+
 vyatta-dataplane (3.12.18) unstable; urgency=medium
 
   [ Charles (Chas) Williams ]
