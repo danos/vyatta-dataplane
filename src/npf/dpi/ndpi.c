@@ -289,7 +289,8 @@ dpi_ndpi_session_flow_destroy(struct dpi_engine_flow *dpi_flow)
 static int
 dpi_ndpi_session_first_packet(struct npf_session *se __unused,
 		struct npf_cache *npc __unused, struct rte_mbuf *mbuf,
-		int dir, uint32_t data_len, struct dpi_engine_flow **dpi_flow)
+		int dir, uint32_t data_len __unused,
+		struct dpi_engine_flow **dpi_flow)
 {
 	struct ndpi_flow *flow = zmalloc_aligned(sizeof(struct ndpi_flow));
 	if (!flow)
@@ -315,8 +316,7 @@ dpi_ndpi_session_first_packet(struct npf_session *se __unused,
 	if (!flow->dest_id)
 		goto dest_id_error;
 
-	if (data_len != 0 && !dpi_ndpi_process_pkt(
-				(struct dpi_engine_flow *)flow, mbuf, dir))
+	if (!dpi_ndpi_process_pkt((struct dpi_engine_flow *)flow, mbuf, dir))
 		return -EINVAL;
 
 	*dpi_flow = (struct dpi_engine_flow *)flow;
