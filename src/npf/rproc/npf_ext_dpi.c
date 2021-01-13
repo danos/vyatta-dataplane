@@ -178,9 +178,15 @@ dpi_match(npf_cache_t *npc, struct rte_mbuf *mbuf, const struct ifnet *ifp,
 	/* Find or attach the DPI flow info. Do first packet inspection */
 	struct dpi_flow *dpi_flow = npf_session_get_dpi(se);
 	if (!dpi_flow) {
+#ifdef USE_NDPI
 		uint8_t engines[] = {IANA_USER, IANA_NDPI};
+		size_t engines_len = 2;
+#else
+		uint8_t engines[] = {IANA_USER};
+		size_t engines_len = 1;
+#endif /* USER_NDPI */
 		int error = dpi_session_first_packet(se, npc, mbuf,
-				dir, 2, engines);
+				dir, engines_len, engines);
 		if (error)
 			goto drop;
 		dpi_flow = npf_session_get_dpi(se);
