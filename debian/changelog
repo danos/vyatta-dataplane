@@ -1,3 +1,17 @@
+vyatta-dataplane (3.11.72.3) unstable; urgency=medium
+
+  [ Ian Wilson ]
+  * cgnat: Change 3-tuple sess and subscriber structs to use unix_epoch_us
+  * cgnat: Change port-block start and end times to use unix_epoch_us
+  * cgnat: Change sub-sessions to use unix_epoch_us
+  * cgnat: Change the clear-session log messages to use unix_epoch_us
+  * cgnat: Change max subscriber session timestamps to use unix_epoch_us
+  * cgnat: Remove last uses of the cgnat specific time functions
+
+  [ Simon Barber ]
+
+ -- Simon Barber <sbarber@mail.eng.vyatta.net>  Wed, 13 Jan 2021 09:54:35 +0000
+
 vyatta-dataplane (3.11.72.2) unstable; urgency=medium
 
   [ Nicholas Brown ]
