@@ -1,3 +1,13 @@
+vyatta-dataplane (3.11.72.6) unstable; urgency=medium
+
+  [ Charles (Chas) Williams ]
+  * lag: preserve started state across reconfigure (Bugfix: VRVDR-53928)
+  * dpdk_eth_if: add some additional state debugging (Bugfix: VRVDR-53928)
+
+  [ Simon Barber ]
+
+ -- Simon Barber <sbarber@mail.eng.vyatta.net>  Thu, 14 Jan 2021 18:09:02 +0000
+
 vyatta-dataplane (3.11.72.5) unstable; urgency=medium
 
   [ Srinivas Narayan ]
