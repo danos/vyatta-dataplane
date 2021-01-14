@@ -844,10 +844,13 @@ err:
 	return NULL;
 }
 
-void crypto_session_destroy(struct crypto_session *ctx)
+static void
+crypto_session_destroy(struct crypto_session *ctx, uint8_t rte_cdev_id)
 {
 	if (!ctx)
 		return;
+
+	crypto_rte_destroy_session(ctx, rte_cdev_id);
 
 	crypto_openssl_session_teardown(ctx);
 
@@ -948,7 +951,7 @@ int cipher_setup_ctx(const struct xfrm_algo *algo_crypt,
 
 void cipher_teardown_ctx(struct sadb_sa *sa)
 {
-	crypto_session_destroy(sa->session);
+	crypto_session_destroy(sa->session, sa->rte_cdev_id);
 	sa->session = NULL;
 }
 
