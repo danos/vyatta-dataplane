@@ -1008,7 +1008,6 @@ static int crypto_sadb_del_sa_internal(const xfrm_address_t *dst,
 
 	crypto_remove_sa_from_pmd(sa->del_pmd_dev_id,
 				  crypto_sa_to_xfrm(sa),
-				  sa->session,
 				  sa->pending_del);
 	crypto_sa_free_fwd_core(sa->fwd_core);
 	call_rcu(&sa->sa_rcu, sadb_sa_rcu_free);
