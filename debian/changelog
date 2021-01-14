@@ -1,3 +1,12 @@
+vyatta-dataplane (3.11.72.5) unstable; urgency=medium
+
+  [ Srinivas Narayan ]
+  * crypto: destroy session in driver from RCU callback
+
+  [ Simon Barber ]
+
+ -- Simon Barber <sbarber@mail.eng.vyatta.net>  Thu, 14 Jan 2021 15:56:25 +0000
+
 vyatta-dataplane (3.11.72.4) unstable; urgency=medium
 
   [ Paul Aitken ]
