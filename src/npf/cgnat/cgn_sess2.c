@@ -36,14 +36,20 @@
 
 
 /*
+ * s2 session table entry (aka 'sentry')
+ */
+struct cgn_s2entry {
+	struct cds_lfht_node	s2e_node;	/* hash tbl node */
+	struct cgn_2tuple_key	s2e_key;	/* Hash key */
+};
+
+/*
  * Forward and backwards stats are split over two cachelines.
  *
  * idle flag is in s2_state.
  */
 struct cgn_sess2 {
-	struct cds_lfht_node	s2_node;	/* session tbl node */
-	struct cgn_2tuple_key	s2_key;		/* Hash key (8 bytes) */
-	uint8_t			s2_pad1[24];	/* Placeholder for ht chngs */
+	struct cgn_s2entry	s2_sentry[CGN_DIR_SZ];
 
 	uint64_t		s2_start_time;  /* unix epoch microsecs */
 	rte_atomic32_t		s2_pkts_out;	/* pkts out in last interval */
@@ -80,9 +86,12 @@ static_assert(offsetof(struct cgn_sess2, s2_state) == 64,
 static_assert(offsetof(struct cgn_sess2, s2_bytes_out_tot) == 128,
 	      "cgn_sess2 structure: second cache line size exceeded");
 
-#define s2_addr     s2_key.k_addr
-#define s2_port     s2_key.k_port
-#define s2_expired  s2_key.k_expired
+#define s2_node     s2_sentry[CGN_DIR_OUT].s2e_node
+#define s2_key      s2_sentry[CGN_DIR_OUT].s2e_key
+
+#define s2_addr     s2_sentry[CGN_DIR_OUT].s2e_key.k_addr
+#define s2_port     s2_sentry[CGN_DIR_OUT].s2e_key.k_port
+#define s2_expired  s2_sentry[CGN_DIR_OUT].s2e_key.k_expired
 
 
 /* Forward references */
