@@ -254,8 +254,6 @@ crypto_session_create(const struct xfrm_algo *algo_crypt,
 		      const struct xfrm_algo *algo_auth,
 		      int direction);
 
-void crypto_session_destroy(struct crypto_session *ctx);
-
 /*
  * Returns TRUE if two IPv4 (or IPv6) addresses are equal.
  */
@@ -526,7 +524,6 @@ void crypto_delete_queue(struct rte_ring *pmd_queue);
  * Prototypes for crypto_pmd.c
  */
 void crypto_remove_sa_from_pmd(int crypto_dev_id, enum crypto_xfrm xfrm,
-			       struct crypto_session *ctx,
 			       bool pending);
 int crypto_allocate_pmd(enum crypto_xfrm xfrm,
 			enum rte_crypto_cipher_algorithm cipher_algo,
