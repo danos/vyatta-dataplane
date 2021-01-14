@@ -1,3 +1,12 @@
+vyatta-dataplane (3.11.72.4) unstable; urgency=medium
+
+  [ Paul Aitken ]
+  * DPI: engines_len inconsistency
+
+  [ Simon Barber ]
+
+ -- Simon Barber <sbarber@mail.eng.vyatta.net>  Thu, 14 Jan 2021 09:43:14 +0000
+
 vyatta-dataplane (3.11.72.3) unstable; urgency=medium
 
   [ Ian Wilson ]
