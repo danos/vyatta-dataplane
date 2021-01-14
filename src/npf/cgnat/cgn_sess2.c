@@ -86,7 +86,7 @@ static_assert(offsetof(struct cgn_sess2, s2_bytes_out_tot) == 128,
 
 
 /* Forward references */
-static struct cds_lfht *cgn_sess2_ht_create(ulong nbuckets);
+static struct cds_lfht *cgn_sess2_ht_create(ulong max);
 static void cgn_sess2_ht_destroy(struct cds_lfht **htp);
 static int cgn_sess2_add(struct cgn_sess_s2 *cs2, struct cgn_sess2 *s2);
 
@@ -1084,15 +1084,26 @@ end:
 	return count;
 }
 
+#define CGN_SESS2_MIN_BUCKETS 32
+
 /*
- * Create hash table.  Keep it very simple - fixed number of buckets, no auto
- * resize, and no accounting.  A 64 bucket table uses approx 1.7k.
+ * Create hash table
  */
-static struct cds_lfht *cgn_sess2_ht_create(ulong nbuckets)
+static struct cds_lfht *cgn_sess2_ht_create(ulong max)
 {
 	struct cds_lfht *ht;
 
-	ht = cds_lfht_new(nbuckets, nbuckets, nbuckets, 0, NULL);
+	/* Number of hash buckets must be a power of two */
+	max = rte_align32pow2(max);
+
+	/*
+	 * Table is used for both forwards and backwards sentries, so double
+	 * the max session value.
+	 */
+	max <<= 1;
+
+	ht = cds_lfht_new(CGN_SESS2_MIN_BUCKETS, CGN_SESS2_MIN_BUCKETS, max,
+			  CDS_LFHT_AUTO_RESIZE, NULL);
 
 	if (likely(ht))
 		rte_atomic64_inc(&cgn_sess2_ht_created);
