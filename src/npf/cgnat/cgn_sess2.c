@@ -93,6 +93,11 @@ static_assert(offsetof(struct cgn_sess2, s2_bytes_out_tot) == 128,
 #define s2_port     s2_sentry[CGN_DIR_OUT].s2e_key.k_port
 #define s2_expired  s2_sentry[CGN_DIR_OUT].s2e_key.k_expired
 
+static inline struct cgn_sess2 *
+sentry2sess2(const struct cgn_s2entry *s2e, enum cgn_dir dir)
+{
+	return caa_container_of(s2e, struct cgn_sess2, s2_sentry[dir]);
+}
 
 /* Forward references */
 static struct cds_lfht *cgn_sess2_ht_create(ulong max);
@@ -309,11 +314,11 @@ static ALWAYS_INLINE ulong cgn_sess2_hash(const struct cgn_2tuple_key *key)
  */
 static int cgn_sess2_match(struct cds_lfht_node *node, const void *key)
 {
-	const struct cgn_sess2 *s2;
+	const struct cgn_s2entry *s2e;
 
-	s2 = caa_container_of(node, struct cgn_sess2, s2_node);
+	s2e = caa_container_of(node, struct cgn_s2entry, s2e_node);
 
-	return !memcmp(&s2->s2_key, key, sizeof(s2->s2_key));
+	return !memcmp(&s2e->s2e_key, key, sizeof(s2e->s2e_key));
 }
 
 /*
@@ -355,8 +360,22 @@ cgn_sess_s2_establish(struct cgn_sess_s2 *cs2, struct cgn_packet *cpk,
 		return NULL;
 	}
 
-	s2->s2_addr = cpk->cpk_daddr;
-	s2->s2_port   = cpk->cpk_did;
+	/*
+	 * Populate forw sentry.  Matched with outbound destination address
+	 * and port.
+	 */
+	s2->s2_sentry[CGN_DIR_OUT].s2e_key.k_addr = cpk->cpk_daddr;
+	s2->s2_sentry[CGN_DIR_OUT].s2e_key.k_port = cpk->cpk_did;
+	s2->s2_sentry[CGN_DIR_OUT].s2e_key.k_dir = CGN_DIR_OUT;
+
+	/*
+	 * Populate back sentry.  Matched with inbound source address and
+	 * port.
+	 */
+	s2->s2_sentry[CGN_DIR_IN].s2e_key.k_addr = cpk->cpk_daddr;
+	s2->s2_sentry[CGN_DIR_IN].s2e_key.k_port = cpk->cpk_did;
+	s2->s2_sentry[CGN_DIR_IN].s2e_key.k_dir = CGN_DIR_IN;
+
 	rte_atomic32_inc(&s2->s2_pkts_out);
 	rte_atomic32_add(&s2->s2_bytes_out, cpk->cpk_len);
 
@@ -380,18 +399,42 @@ cgn_sess_s2_establish(struct cgn_sess_s2 *cs2, struct cgn_packet *cpk,
 }
 
 /*
+ * Insert forwards or backwards sentry into table
+ */
+static int
+cgn_sess2_sentry_insert(struct cds_lfht *ht, struct cgn_s2entry *s2e)
+{
+	struct cds_lfht_node *node;
+
+	node = cds_lfht_add_unique(ht, cgn_sess2_hash(&s2e->s2e_key),
+				   cgn_sess2_match, &s2e->s2e_key,
+				   &s2e->s2e_node);
+
+	/* Did we lose the race to insert the sentry? */
+	if (node != &s2e->s2e_node)
+		return -CGN_S2_EEXIST;
+
+	return 0;
+}
+
+static void
+cgn_sess2_sentry_delete(struct cds_lfht *ht, struct cgn_s2entry *s2e)
+{
+	if (ht)
+		(void)cds_lfht_del(ht, &s2e->s2e_node);
+}
+
+/*
  * Add a 2-tuple sub session to the 3-tuple main session
  */
 static int cgn_sess2_add(struct cgn_sess_s2 *cs2, struct cgn_sess2 *s2)
 {
-	/* Insert into table */
-	struct cds_lfht_node *node;
+	int rc;
 
 	/*
-	 * Is this the first ever s2 session to be activated?  If so, then we
-	 * add this directly to the cs2 structure.
+	 * First try and add s2 as the cached, or embedded, session
 	 */
-	if (!rcu_dereference(cs2->cs2_ht) && !rcu_dereference(cs2->cs2_s2)) {
+	if (!rcu_dereference(cs2->cs2_s2)) {
 		struct cgn_sess2 *old;
 
 		old = rcu_cmpxchg_pointer(&cs2->cs2_s2, NULL, s2);
@@ -400,19 +443,21 @@ static int cgn_sess2_add(struct cgn_sess_s2 *cs2, struct cgn_sess2 *s2)
 			/* Success! */
 			return 0;
 
-		/* Lost race to add s2 as the embedded session */
+		/*
+		 * Lost race to add s2 as the cached session.  If it is
+		 * identical then return an error ...
+		 */
 		if (!memcmp(&s2->s2_key, &old->s2_key, sizeof(s2->s2_key)))
 			return -CGN_S2_EEXIST;
 
-		/* Fall thru to add s2 to hash table */
+		/* ... Else fall thru to add s2 to the hash table */
 	}
 
-	/*
-	 * Is this the second ever s2 session to be activated?  If so, then
-	 * create a hash table for it.
-	 */
-	if (!rcu_dereference(cs2->cs2_ht)) {
-		struct cds_lfht *old, *new;
+	struct cds_lfht *ht = rcu_dereference(cs2->cs2_ht);
+
+	/* Create a hash table if one does not exist */
+	if (!ht) {
+		struct cds_lfht *old;
 
 		/*
 		 * cgn_dest_sessions_max and cgn_dest_ht_max may have changed
@@ -422,22 +467,35 @@ static int cgn_sess2_add(struct cgn_sess_s2 *cs2, struct cgn_sess2 *s2)
 		 */
 		cs2->cs2_max = cgn_dest_sessions_max;
 
-		new = cgn_sess2_ht_create(cgn_dest_ht_max);
-		if (!new)
+		ht = cgn_sess2_ht_create(cgn_dest_ht_max);
+		if (!ht)
 			return -CGN_S2_ENOMEM;
 
-		old = rcu_cmpxchg_pointer(&cs2->cs2_ht, NULL, new);
-		if (old != NULL)
-			/* Lost race to add hash table.  Thats ok. */
-			cgn_sess2_ht_destroy(&new);
+		old = rcu_cmpxchg_pointer(&cs2->cs2_ht, NULL, ht);
+		if (old != NULL) {
+			/*
+			 * Lost race to add hash table to main session.  Thats
+			 * ok. Destroy the one we just created here, and
+			 * continue with the other table.
+			 */
+			cgn_sess2_ht_destroy(&ht);
+			ht = old;
+		}
 	}
 
-	node = cds_lfht_add_unique(cs2->cs2_ht, cgn_sess2_hash(&s2->s2_key),
-				   cgn_sess2_match, &s2->s2_key, &s2->s2_node);
+	/* Insert forwards/out sentry */
+	rc = cgn_sess2_sentry_insert(ht, &s2->s2_sentry[CGN_DIR_OUT]);
 
-	/* Did we loose the race to insert s2? */
-	if (node != &s2->s2_node)
-		return -CGN_S2_EEXIST;
+	if (unlikely(rc < 0))
+		return rc;
+
+	/* Insert backwards/in sentry */
+	rc = cgn_sess2_sentry_insert(ht, &s2->s2_sentry[CGN_DIR_IN]);
+
+	if (unlikely(rc < 0)) {
+		cgn_sess2_sentry_delete(ht, &s2->s2_sentry[CGN_DIR_OUT]);
+		return rc;
+	}
 
 	return 0;
 }
@@ -454,9 +512,9 @@ static void cgn_sess2_del(struct cgn_sess_s2 *cs2, struct cgn_sess2 *s2)
 		return;
 	}
 
-	/* Remove from table */
-	if (cs2->cs2_ht)
-		(void)cds_lfht_del(cs2->cs2_ht, &s2->s2_node);
+	/* Remove forwards and backwards sentries from the table */
+	cgn_sess2_sentry_delete(cs2->cs2_ht, &s2->s2_sentry[CGN_DIR_IN]);
+	cgn_sess2_sentry_delete(cs2->cs2_ht, &s2->s2_sentry[CGN_DIR_OUT]);
 }
 
 /* Populate lookup key from packet cache */
@@ -477,27 +535,31 @@ cgn_sess2_lookup_key_from_cpk(struct cgn_2tuple_key *key,
 }
 
 static struct cgn_sess2 *
-cgn_sess2_lookup(struct cgn_sess_s2 *cs2, struct cgn_2tuple_key *key)
+cgn_sess2_lookup(struct cgn_sess_s2 *cs2, struct cgn_2tuple_key *key,
+		 enum cgn_dir dir)
 {
 	/* Does key match embedded session? */
 	if (likely(cs2->cs2_s2 &&
-		   cgn_sess2_match(&cs2->cs2_s2->s2_node, key)))
+		   cgn_sess2_match(&cs2->cs2_s2->s2_sentry[dir].s2e_node, key)))
 		return cs2->cs2_s2;
 
 	if (unlikely(!cs2->cs2_ht))
 		return NULL;
 
 	struct cds_lfht_iter iter;
+	struct cgn_s2entry *s2e;
 	struct cds_lfht_node *node;
 
 	cds_lfht_lookup(cs2->cs2_ht, cgn_sess2_hash(key), cgn_sess2_match,
 			key, &iter);
 
 	node = cds_lfht_iter_get_node(&iter);
-	if (node)
-		return caa_container_of(node, struct cgn_sess2, s2_node);
+	if (!node)
+		return NULL;
 
-	return NULL;
+	s2e = caa_container_of(node, struct cgn_s2entry, s2e_node);
+
+	return sentry2sess2(s2e, dir);
 }
 
 /*
@@ -512,7 +574,7 @@ cgn_sess_s2_inspect(struct cgn_sess_s2 *cs2, struct cgn_packet *cpk,
 
 	cgn_sess2_lookup_key_from_cpk(&key, cpk, dir);
 
-	s2 = cgn_sess2_lookup(cs2, &key);
+	s2 = cgn_sess2_lookup(cs2, &key, dir);
 	if (!s2)
 		return NULL;
 
@@ -1018,7 +1080,7 @@ uint cgn_sess_s2_fltr_count(struct cgn_sess_s2 *cs2,
 	if (fltr->cf_dst_mask == 0xffffffff &&
 	    cgn_s2_key_valid(&fltr->cf_dst)) {
 
-		s2 = cgn_sess2_lookup(cs2, &fltr->cf_dst);
+		s2 = cgn_sess2_lookup(cs2, &fltr->cf_dst, fltr->cf_dir);
 		if (s2 && cgn_sess2_show_fltr(s2, fltr))
 			return 1;
 	}
@@ -1059,7 +1121,7 @@ uint cgn_sess_s2_show(json_writer_t *json, struct cgn_sess_s2 *cs2,
 	if (fltr->cf_dst_mask == 0xffffffff &&
 	    cgn_s2_key_valid(&fltr->cf_dst)) {
 
-		s2 = cgn_sess2_lookup(cs2, &fltr->cf_dst);
+		s2 = cgn_sess2_lookup(cs2, &fltr->cf_dst, fltr->cf_dir);
 
 		if (s2 && cgn_sess2_show_fltr(s2, fltr)) {
 			cgn_sess2_jsonw_one(json, s2);
