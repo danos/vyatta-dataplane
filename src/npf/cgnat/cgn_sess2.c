@@ -86,7 +86,6 @@ static_assert(offsetof(struct cgn_sess2, s2_state) == 64,
 static_assert(offsetof(struct cgn_sess2, s2_bytes_out_tot) == 128,
 	      "cgn_sess2 structure: second cache line size exceeded");
 
-#define s2_expired  s2_sentry[CGN_DIR_OUT].s2e_key.k_expired
 
 static inline struct cgn_sess2 *
 sentry2sess2(const struct cgn_s2entry *s2e, enum cgn_dir dir)
@@ -98,6 +97,7 @@ sentry2sess2(const struct cgn_s2entry *s2e, enum cgn_dir dir)
 static struct cds_lfht *cgn_sess2_ht_create(ulong max);
 static void cgn_sess2_ht_destroy(struct cds_lfht **htp);
 static int cgn_sess2_add(struct cgn_sess_s2 *cs2, struct cgn_sess2 *s2);
+static bool s2_expired(struct cgn_sess2 *s2);
 
 /*
  * API with cgn_session.c
@@ -397,7 +397,6 @@ cgn_sess_s2_establish(struct cgn_sess_s2 *cs2, struct cgn_packet *cpk,
 
 	s2->s2_cs2 = cs2;
 	s2->s2_dir = CGN_DIR_OUT;
-	s2->s2_expired = false;
 	s2->s2_start_time = cgn_sess2_timestamp();
 	s2->s2_id = rte_atomic32_add_return(&cs2->cs2_id, 1);
 
@@ -681,7 +680,7 @@ uint32_t cgn_sess_s2_unexpired(struct cgn_sess_s2 *cs2)
 	uint32_t count = 0;
 
 	/* Check embedded session */
-	if (cs2->cs2_s2 && !cs2->cs2_s2->s2_expired)
+	if (cs2->cs2_s2 && !s2_expired(cs2->cs2_s2))
 		count++;
 
 	if (!cs2->cs2_ht)
@@ -721,13 +720,21 @@ static void cgn_sess2_set_expired(struct cgn_sess2 *s2, bool close, bool log)
 	if (close)
 		cgn_sess_state_close(&s2->s2_state);
 
-	s2->s2_expired = true;
+	s2->s2_sentry[CGN_DIR_OUT].s2e_key.k_expired = true;
+	s2->s2_sentry[CGN_DIR_IN].s2e_key.k_expired = true;
 
 	/* Add stats to 3-tuple session totals */
 	cgn_sess2_stats_periodic(s2);
 
 	if (!log)
 		s2->s2_log_end = false;
+}
+
+/* Already expired? */
+static bool s2_expired(struct cgn_sess2 *s2)
+{
+	/* Only need to check one sentry as both are set at same time */
+	return s2->s2_sentry[CGN_DIR_OUT].s2e_key.k_expired;
 }
 
 /*
@@ -738,7 +745,7 @@ static inline bool cgn_sess2_expired(struct cgn_sess2 *s2)
 	uint32_t etime;
 
 	/* Already expired? */
-	if (unlikely(s2->s2_expired))
+	if (unlikely(s2_expired(s2)))
 		return true;
 
 	if (rte_atomic16_test_and_set(&s2->s2_state.st_idle)) {
@@ -821,7 +828,7 @@ cgn_sess2_log_start_and_active(struct cgn_sess2 *s2)
 static inline unsigned int
 cgn_sess2_log_end(struct cgn_sess2 *s2)
 {
-	if (unlikely(s2->s2_expired && s2->s2_log_end)) {
+	if (unlikely(s2_expired(s2) && s2->s2_log_end)) {
 		cgn_log_sess_end(s2, unix_epoch_us);
 		s2->s2_log_end = false;
 		return 1;
@@ -927,7 +934,7 @@ void cgn_sess_s2_gc_walk(struct cgn_sess_s2 *cs2, uint *unexpd, uint *expd)
 
 static inline uint cgn_sess_s2_expire_one(struct cgn_sess2 *s2)
 {
-	if (!s2->s2_expired) {
+	if (!s2_expired(s2)) {
 		cgn_sess2_set_expired(s2, true, false);
 		return 1;
 	}
@@ -971,7 +978,7 @@ uint cgn_sess_s2_expire_all(struct cgn_sess_s2 *cs2)
 static inline uint
 cgn_sess_s2_expire_id_one(struct cgn_sess2 *s2, uint32_t s2_id)
 {
-	if (!s2->s2_expired && (s2_id == 0 || s2_id == s2->s2_id)) {
+	if (!s2_expired(s2) && (s2_id == 0 || s2_id == s2->s2_id)) {
 		cgn_sess2_set_expired(s2, true, false);
 		return 1;
 	}
@@ -1012,7 +1019,7 @@ uint cgn_sess_s2_expire_id(struct cgn_sess_s2 *cs2, uint32_t s2_id)
 static void cgn_sess2_clear_or_update_stats_one(struct cgn_sess2 *s2,
 						bool clear)
 {
-	if (s2->s2_expired)
+	if (s2_expired(s2))
 		return;
 
 	cgn_sess2_stats_periodic(s2);
@@ -1111,7 +1118,7 @@ cgn_sess2_jsonw_one(json_writer_t *json, struct cgn_sess2 *s2)
 	jsonw_uint_field(json, "start_time", s2->s2_start_time);
 	jsonw_uint_field(json, "duration", unix_epoch_us - s2->s2_start_time);
 
-	jsonw_bool_field(json, "exprd", s2->s2_expired);
+	jsonw_bool_field(json, "exprd", s2_expired(s2));
 
 	if (rte_atomic16_read(&s2->s2_state.st_idle))
 		jsonw_uint_field(json, "cur_to",
