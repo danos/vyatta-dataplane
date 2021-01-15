@@ -86,8 +86,6 @@ static_assert(offsetof(struct cgn_sess2, s2_state) == 64,
 static_assert(offsetof(struct cgn_sess2, s2_bytes_out_tot) == 128,
 	      "cgn_sess2 structure: second cache line size exceeded");
 
-#define s2_key      s2_sentry[CGN_DIR_OUT].s2e_key
-
 #define s2_addr     s2_sentry[CGN_DIR_OUT].s2e_key.k_addr
 #define s2_port     s2_sentry[CGN_DIR_OUT].s2e_key.k_port
 #define s2_expired  s2_sentry[CGN_DIR_OUT].s2e_key.k_expired
@@ -302,6 +300,22 @@ static ALWAYS_INLINE ulong cgn_sess2_hash(const struct cgn_2tuple_key *key)
 			     sizeof(*key) / sizeof(uint32_t), 0);
 }
 
+/* Compare two keys.  Returns -1, 0, or 1, similar to memcmp */
+static inline int
+keycmp(const struct cgn_2tuple_key *k1, const struct cgn_2tuple_key *k2)
+{
+	return memcmp(k1, k2, sizeof(*k1));
+}
+
+/* Compare the keys of two sub-sessions */
+static inline int
+s2_keycmp(const struct cgn_sess2 *s2a, const struct cgn_sess2 *s2b,
+	  enum cgn_dir dir)
+{
+	return keycmp(&s2a->s2_sentry[dir].s2e_key,
+		      &s2b->s2_sentry[dir].s2e_key);
+}
+
 /*
  * Hash table match function.
  *
@@ -317,7 +331,7 @@ static int cgn_sess2_match(struct cds_lfht_node *node, const void *key)
 
 	s2e = caa_container_of(node, struct cgn_s2entry, s2e_node);
 
-	return !memcmp(&s2e->s2e_key, key, sizeof(s2e->s2e_key));
+	return !keycmp(&s2e->s2e_key, key);
 }
 
 /*
@@ -446,7 +460,7 @@ static int cgn_sess2_add(struct cgn_sess_s2 *cs2, struct cgn_sess2 *s2)
 		 * Lost race to add s2 as the cached session.  If it is
 		 * identical then return an error ...
 		 */
-		if (!memcmp(&s2->s2_key, &old->s2_key, sizeof(s2->s2_key)))
+		if (!s2_keycmp(s2, old, CGN_DIR_OUT))
 			return -CGN_S2_EEXIST;
 
 		/* ... Else fall thru to add s2 to the hash table */
