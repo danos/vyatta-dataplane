@@ -12,7 +12,7 @@
 #include "npf_match.h"
 
 int npf_rte_acl_init(int af, const char *name, uint32_t max_rules,
-		     npf_match_ctx_t **m_ctx);
+		     struct rte_mempool *mempool, npf_match_ctx_t **m_ctx);
 
 int npf_rte_acl_start_transaction(int af, npf_match_ctx_t *m_ctx);
 
@@ -30,5 +30,7 @@ int npf_rte_acl_match(int af, npf_match_ctx_t *m_ctx, npf_cache_t *npc,
 		      struct npf_match_cb_data *data, uint32_t *rule_no);
 
 int npf_rte_acl_destroy(int af, npf_match_ctx_t **m_ctx);
+
+size_t npf_rte_acl_rule_size(int af);
 
 #endif

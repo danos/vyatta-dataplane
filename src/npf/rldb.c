@@ -46,7 +46,10 @@ struct rldb_rule_handle {
 	struct rldb_rule_spec rule;
 };
 
-static struct rte_mempool *rldb_mempool;
+static struct rte_mempool *rldb_acl4_mempool;
+static struct rte_mempool *rldb_acl6_mempool;
+
+static struct rte_mempool *rldb_rh_mempool;
 static struct cds_lfht *rldb_global_ht;
 
 static bool rldb_disabled;
@@ -59,13 +62,35 @@ static rte_atomic32_t rldb_counter;
 int rldb_init(void)
 {
 	int rc;
-	rldb_mempool = rte_mempool_create("rldb_pool", RLDB_MAX_ELEMENTS,
+	rldb_rh_mempool = rte_mempool_create("rldb_rh_pool", RLDB_MAX_ELEMENTS,
 					  sizeof(struct rldb_rule_handle),
 					  0, 0, NULL, NULL, NULL, NULL,
 					  rte_socket_id(), 0);
 
-	if (!rldb_mempool) {
-		RLDB_ERR("Could not allocate rldb pool\n");
+	if (!rldb_rh_mempool) {
+		RLDB_ERR("Could not allocate rldb rule-handle pool\n");
+		return -ENOMEM;
+	}
+
+	rldb_acl4_mempool = rte_mempool_create("rldb_acl4_pool",
+					       RLDB_MAX_ELEMENTS,
+					       npf_rte_acl_rule_size(AF_INET),
+					       0, 0, NULL, NULL, NULL, NULL,
+					       rte_socket_id(), 0);
+
+	if (!rldb_acl4_mempool) {
+		RLDB_ERR("Could not allocate rldb acl pool for IPv4\n");
+		return -ENOMEM;
+	}
+
+	rldb_acl6_mempool = rte_mempool_create("rldb_acl6_pool",
+					       RLDB_MAX_ELEMENTS,
+					       npf_rte_acl_rule_size(AF_INET6),
+					       0, 0, NULL, NULL, NULL, NULL,
+					       rte_socket_id(), 0);
+
+	if (!rldb_acl6_mempool) {
+		RLDB_ERR("Could not allocate rldb acl pool for IPvi6\n");
 		return -ENOMEM;
 	}
 
@@ -141,6 +166,7 @@ int rldb_create(const char *name, uint32_t flags, struct rldb_db_handle **_db)
 {
 	uint32_t hash;
 	struct rldb_db_handle *db = NULL;
+	struct rte_mempool *rule_mempool;
 	size_t name_len;
 	struct cds_lfht_node *node;
 	int id, rc = 0;
@@ -167,11 +193,13 @@ int rldb_create(const char *name, uint32_t flags, struct rldb_db_handle **_db)
 	id = rte_atomic32_add_return(&rldb_counter, 1);
 	snprintf(db->name, RLDB_NAME_MAX, "%s-%d", name, id);
 
-	if (flags & NPFRL_FLAG_V4_PFX)
+	if (flags & NPFRL_FLAG_V4_PFX) {
 		db->af = AF_INET;
-	else if (flags & NPFRL_FLAG_V6_PFX)
+		rule_mempool = rldb_acl4_mempool;
+	} else if (flags & NPFRL_FLAG_V6_PFX) {
 		db->af = AF_INET6;
-	else {
+		rule_mempool = rldb_acl6_mempool;
+	} else {
 		rc = -EAFNOSUPPORT;
 		goto error;
 	}
@@ -201,7 +229,7 @@ int rldb_create(const char *name, uint32_t flags, struct rldb_db_handle **_db)
 	}
 
 	rc = npf_rte_acl_init(db->af, db->name, RLDB_MAX_RULES,
-			      &db->match_ctx);
+			      rule_mempool, &db->match_ctx);
 	if (rc < 0) {
 		RLDB_ERR
 		    ("Could not add rldb (%s): NPF rte_acl could not be "
@@ -421,8 +449,8 @@ static int rldb_rule_handle_create(uint32_t rule_no,
 	struct rldb_rule_handle *rh;
 	struct rte_mempool_cache *cache;
 
-	cache = rte_mempool_default_cache(rldb_mempool, rte_lcore_id());
-	if (unlikely(rte_mempool_generic_get(rldb_mempool, (void *)&rh,
+	cache = rte_mempool_default_cache(rldb_rh_mempool, rte_lcore_id());
+	if (unlikely(rte_mempool_generic_get(rldb_rh_mempool, (void *)&rh,
 					     1, cache) != 0)) {
 		RLDB_ERR
 		    ("Could not allocate memory from rldb memory pool for "
@@ -449,8 +477,8 @@ static void rldb_rule_handle_destroy(struct rldb_rule_handle *rh)
 {
 	struct rte_mempool_cache *cache;
 
-	cache = rte_mempool_default_cache(rldb_mempool, rte_lcore_id());
-	rte_mempool_generic_put(rldb_mempool, (void *)&rh, 1, cache);
+	cache = rte_mempool_default_cache(rldb_rh_mempool, rte_lcore_id());
+	rte_mempool_generic_put(rldb_rh_mempool, (void *)&rh, 1, cache);
 }
 
 /*
@@ -895,10 +923,18 @@ int rldb_cleanup(void)
 		cds_lfht_destroy(rldb_global_ht, NULL);
 	}
 
-	if (rldb_mempool)
-		rte_mempool_free(rldb_mempool);
+	if (rldb_rh_mempool)
+		rte_mempool_free(rldb_rh_mempool);
 
-	rldb_mempool = NULL;
+	if (rldb_acl4_mempool)
+		rte_mempool_free(rldb_acl4_mempool);
+
+	if (rldb_acl6_mempool)
+		rte_mempool_free(rldb_acl6_mempool);
+
+	rldb_rh_mempool = NULL;
+	rldb_acl4_mempool = NULL;
+	rldb_acl6_mempool = NULL;
 	rldb_global_ht = NULL;
 
 	rldb_disabled = true;

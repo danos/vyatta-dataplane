@@ -250,22 +250,40 @@ enum {
 RTE_ACL_RULE_DEF(acl4_rules, RTE_DIM(ipv4_defs));
 RTE_ACL_RULE_DEF(acl6_rules, RTE_DIM(ipv6_defs));
 
+static uint32_t
+acl_rule_hash(const void *data, uint32_t data_len, uint32_t init_val)
+{
+	const struct rte_acl_rule *rule = (const struct rte_acl_rule *) data;
+
+	return rte_jhash(&rule->data.userdata, data_len, init_val);
+}
+
 /*
  * Packet matching callback functions which use the rte_acl API
  */
 
 int npf_rte_acl_init(int af, const char *name, uint32_t max_rules,
-		     npf_match_ctx_t **m_ctx)
+		     struct rte_mempool *mempool, npf_match_ctx_t **m_ctx)
 {
+	size_t key_len = sizeof(((struct rte_acl_rule *) 0)->data.userdata);
 	struct rte_acl_param acl_param = {
 		.socket_id = SOCKET_ID_ANY,
 		.max_rule_num = max_rules,
+		.flags = ACL_F_USE_HASHTABLE,
+		.hash_func = acl_rule_hash,
+		.hash_key_len = key_len,
+		.rule_pool = mempool,
 	};
 	char acl_name[RTE_ACL_NAMESIZE];
 	npf_match_ctx_t *tmp_ctx;
 	static uint32_t ctx_id;
-	size_t tr_sz;
+	size_t tr_sz, rule_size;
 	int err;
+
+	if (af == AF_INET)
+		rule_size = RTE_ACL_RULE_SZ(RTE_DIM(ipv4_defs));
+	else
+		rule_size = RTE_ACL_RULE_SZ(RTE_DIM(ipv6_defs));
 
 	tmp_ctx = calloc(1, sizeof(npf_match_ctx_t));
 	if (!tmp_ctx) {
@@ -293,10 +311,8 @@ int npf_rte_acl_init(int af, const char *name, uint32_t max_rules,
 		free(tmp_ctx);
 		return -ENOMEM;
 	}
-	if (af == AF_INET)
-		acl_param.rule_size = RTE_ACL_RULE_SZ(RTE_DIM(ipv4_defs));
-	else
-		acl_param.rule_size = RTE_ACL_RULE_SZ(RTE_DIM(ipv6_defs));
+
+	acl_param.rule_size = rule_size;
 
 	tmp_ctx->acl_ctx = rte_acl_create(&acl_param);
 	if (tmp_ctx->acl_ctx == NULL) {
@@ -803,4 +819,12 @@ int npf_rte_acl_destroy(int af __rte_unused, npf_match_ctx_t **m_ctx)
 	}
 
 	return 0;
+}
+
+size_t npf_rte_acl_rule_size(int af)
+{
+	if (af == AF_INET)
+		return RTE_ACL_RULE_SZ(RTE_DIM(ipv4_defs));
+	else
+		return RTE_ACL_RULE_SZ(RTE_DIM(ipv6_defs));
 }
