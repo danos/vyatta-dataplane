@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2019-2021, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -40,7 +40,7 @@ struct cgn_2tuple_key {
 	uint32_t  k_addr;     /* Address (net order) */
 	uint16_t  k_port;     /* port or id (net order) */
 	bool	  k_expired;  /* Expired session */
-	uint8_t   k_pad;      /* pad to multiple of 4 bytes */
+	enum cgn_dir k_dir;
 } __attribute__((__packed__));
 
 #endif /* _CGN_HASH_KEY_H_ */

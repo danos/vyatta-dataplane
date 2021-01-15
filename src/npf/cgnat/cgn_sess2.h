@@ -74,8 +74,7 @@ static inline bool cgn_sess_key_valid(struct cgn_3tuple_key *key)
 
 static inline bool cgn_s2_key_valid(struct cgn_2tuple_key *key)
 {
-	return (key->k_addr && key->k_port &&
-		!key->k_expired && key->k_pad == 0);
+	return (key->k_addr && key->k_port && !key->k_expired);
 }
 
 enum cgn_show_dir {

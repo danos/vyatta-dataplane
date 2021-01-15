@@ -465,7 +465,7 @@ cgn_sess2_lookup_key_from_cpk(struct cgn_2tuple_key *key,
 			      struct cgn_packet *cpk, enum cgn_dir dir)
 {
 	key->k_expired = false;
-	key->k_pad = 0;
+	key->k_dir = dir;
 
 	if (dir == CGN_DIR_OUT) {
 		key->k_addr = cpk->cpk_daddr;
