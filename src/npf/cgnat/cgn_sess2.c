@@ -86,7 +86,6 @@ static_assert(offsetof(struct cgn_sess2, s2_state) == 64,
 static_assert(offsetof(struct cgn_sess2, s2_bytes_out_tot) == 128,
 	      "cgn_sess2 structure: second cache line size exceeded");
 
-#define s2_node     s2_sentry[CGN_DIR_OUT].s2e_node
 #define s2_key      s2_sentry[CGN_DIR_OUT].s2e_key
 
 #define s2_addr     s2_sentry[CGN_DIR_OUT].s2e_key.k_addr
@@ -672,10 +671,17 @@ uint32_t cgn_sess_s2_unexpired(struct cgn_sess_s2 *cs2)
 		return count;
 
 	struct cds_lfht_iter iter;
-	struct cgn_sess2 *s2;
+	struct cgn_s2entry *s2e;
 
-	cds_lfht_for_each_entry(cs2->cs2_ht, &iter, s2, s2_node) {
-		if (!s2->s2_expired)
+	/*
+	 * There are two ht nodes per sub-session ('in' and 'out'), so to
+	 * iterate over each sub-session we only need to look at one of them.
+	 */
+	cds_lfht_for_each_entry(cs2->cs2_ht, &iter, s2e, s2e_node) {
+		if (s2e->s2e_key.k_dir != CGN_DIR_OUT)
+			continue;
+
+		if (!s2e->s2e_key.k_expired)
 			count++;
 	}
 	return count;
@@ -874,9 +880,22 @@ void cgn_sess_s2_gc_walk(struct cgn_sess_s2 *cs2, uint *unexpd, uint *expd)
 	if (unlikely(cs2->cs2_ht)) {
 		struct cds_lfht_iter iter;
 		struct cgn_sess2 *s2;
+		struct cgn_s2entry *s2e;
 
-		cds_lfht_for_each_entry(cs2->cs2_ht, &iter, s2, s2_node)
+		/*
+		 * There are two ht nodes per sub-session ('in' and 'out'), so
+		 * to iterate over each sub-session we only need to look at
+		 * one of them.
+		 */
+		cds_lfht_for_each_entry(cs2->cs2_ht, &iter, s2e, s2e_node) {
+			if (s2e->s2e_key.k_dir != CGN_DIR_OUT)
+				continue;
+
+			s2 = caa_container_of(s2e, struct cgn_sess2,
+					      s2_sentry[CGN_DIR_OUT]);
+
 			cgn_sess2_gc_inspect(s2, unexpd, expd, cs2);
+		}
 	}
 
 	/*
@@ -910,9 +929,21 @@ uint cgn_sess_s2_expire_all(struct cgn_sess_s2 *cs2)
 
 	struct cds_lfht_iter iter;
 	struct cgn_sess2 *s2;
+	struct cgn_s2entry *s2e;
 
-	cds_lfht_for_each_entry(cs2->cs2_ht, &iter, s2, s2_node)
+	/*
+	 * There are two ht nodes per sub-session ('in' and 'out'), so to
+	 * iterate over each sub-session we only need to look at one of them.
+	 */
+	cds_lfht_for_each_entry(cs2->cs2_ht, &iter, s2e, s2e_node) {
+		if (s2e->s2e_key.k_dir != CGN_DIR_OUT)
+			continue;
+
+		s2 = caa_container_of(s2e, struct cgn_sess2,
+				      s2_sentry[CGN_DIR_OUT]);
+
 		count += cgn_sess_s2_expire_one(s2);
+	}
 
 	return count;
 }
@@ -942,9 +973,21 @@ uint cgn_sess_s2_expire_id(struct cgn_sess_s2 *cs2, uint32_t s2_id)
 
 	struct cds_lfht_iter iter;
 	struct cgn_sess2 *s2;
+	struct cgn_s2entry *s2e;
 
-	cds_lfht_for_each_entry(cs2->cs2_ht, &iter, s2, s2_node)
+	/*
+	 * There are two ht nodes per sub-session ('in' and 'out'), so to
+	 * iterate over each sub-session we only need to look at one of them.
+	 */
+	cds_lfht_for_each_entry(cs2->cs2_ht, &iter, s2e, s2e_node) {
+		if (s2e->s2e_key.k_dir != CGN_DIR_OUT)
+			continue;
+
+		s2 = caa_container_of(s2e, struct cgn_sess2,
+				      s2_sentry[CGN_DIR_OUT]);
+
 		count += cgn_sess_s2_expire_id_one(s2, s2_id);
+	}
 
 	return count;
 }
@@ -967,17 +1010,29 @@ static void cgn_sess2_clear_or_update_stats_one(struct cgn_sess2 *s2,
 
 void cgn_sess2_clear_or_update_stats(struct cgn_sess_s2 *cs2, bool clear)
 {
-	struct cds_lfht_iter iter;
-	struct cgn_sess2 *s2;
-
 	if (cs2->cs2_s2)
 		cgn_sess2_clear_or_update_stats_one(cs2->cs2_s2, clear);
 
 	if (!cs2->cs2_ht)
 		return;
 
-	cds_lfht_for_each_entry(cs2->cs2_ht, &iter, s2, s2_node)
+	struct cds_lfht_iter iter;
+	struct cgn_sess2 *s2;
+	struct cgn_s2entry *s2e;
+
+	/*
+	 * There are two ht nodes per sub-session ('in' and 'out'), so to
+	 * iterate over each sub-session we only need to look at one of them.
+	 */
+	cds_lfht_for_each_entry(cs2->cs2_ht, &iter, s2e, s2e_node) {
+		if (s2e->s2e_key.k_dir != CGN_DIR_OUT)
+			continue;
+
+		s2 = caa_container_of(s2e, struct cgn_sess2,
+				      s2_sentry[CGN_DIR_OUT]);
+
 		cgn_sess2_clear_or_update_stats_one(s2, clear);
+	}
 }
 
 static inline unsigned int
@@ -997,9 +1052,22 @@ int cgn_sess_s2_log_walk(struct cgn_sess_s2 *cs2)
 	if (unlikely(cs2->cs2_ht)) {
 		struct cds_lfht_iter iter;
 		struct cgn_sess2 *s2;
+		struct cgn_s2entry *s2e;
 
-		cds_lfht_for_each_entry(cs2->cs2_ht, &iter, s2, s2_node)
+		/*
+		 * There are two ht nodes per sub-session ('in' and 'out'), so
+		 * to iterate over each sub-session we only need to look at
+		 * one of them.
+		 */
+		cds_lfht_for_each_entry(cs2->cs2_ht, &iter, s2e, s2e_node) {
+			if (s2e->s2e_key.k_dir != CGN_DIR_OUT)
+				continue;
+
+			s2 = caa_container_of(s2e, struct cgn_sess2,
+					      s2_sentry[CGN_DIR_OUT]);
+
 			count += cgn_sess2_log_inspect(s2);
+		}
 	}
 
 	return count;
@@ -1095,8 +1163,19 @@ uint cgn_sess_s2_fltr_count(struct cgn_sess_s2 *cs2,
 		return count;
 
 	struct cds_lfht_iter iter;
+	struct cgn_s2entry *s2e;
 
-	cds_lfht_for_each_entry(cs2->cs2_ht, &iter, s2, s2_node) {
+	/*
+	 * There are two ht nodes per sub-session ('in' and 'out'), so to
+	 * iterate over each sub-session we only need to look at one of them.
+	 */
+	cds_lfht_for_each_entry(cs2->cs2_ht, &iter, s2e, s2e_node) {
+		if (s2e->s2e_key.k_dir != CGN_DIR_OUT)
+			continue;
+
+		s2 = caa_container_of(s2e, struct cgn_sess2,
+				      s2_sentry[CGN_DIR_OUT]);
+
 		if (cgn_sess2_show_fltr(s2, fltr))
 			count++;
 	}
@@ -1139,8 +1218,18 @@ uint cgn_sess_s2_show(json_writer_t *json, struct cgn_sess_s2 *cs2,
 		goto end;
 
 	struct cds_lfht_iter iter;
+	struct cgn_s2entry *s2e;
 
-	cds_lfht_for_each_entry(cs2->cs2_ht, &iter, s2, s2_node) {
+	/*
+	 * There are two ht nodes per sub-session ('in' and 'out'), so to
+	 * iterate over each sub-session we only need to look at one of them.
+	 */
+	cds_lfht_for_each_entry(cs2->cs2_ht, &iter, s2e, s2e_node) {
+		if (s2e->s2e_key.k_dir != CGN_DIR_OUT)
+			continue;
+
+		s2 = caa_container_of(s2e, struct cgn_sess2,
+				      s2_sentry[CGN_DIR_OUT]);
 
 		if (cgn_sess2_show_fltr(s2, fltr)) {
 			cgn_sess2_jsonw_one(json, s2);
