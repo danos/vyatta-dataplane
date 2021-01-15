@@ -86,8 +86,6 @@ static_assert(offsetof(struct cgn_sess2, s2_state) == 64,
 static_assert(offsetof(struct cgn_sess2, s2_bytes_out_tot) == 128,
 	      "cgn_sess2 structure: second cache line size exceeded");
 
-#define s2_addr     s2_sentry[CGN_DIR_OUT].s2e_key.k_addr
-#define s2_port     s2_sentry[CGN_DIR_OUT].s2e_key.k_port
 #define s2_expired  s2_sentry[CGN_DIR_OUT].s2e_key.k_expired
 
 static inline struct cgn_sess2 *
@@ -240,14 +238,19 @@ uint32_t cgn_sess2_ipproto(struct cgn_sess2 *s2)
 	return cgn_session_ipproto(cse);
 }
 
+/*
+ * The outbound address and port are the 'reference' values.  We use these in
+ * show output, logging etc.  The 'in' values will be identical except for
+ * some ALG sessions.
+ */
 uint32_t cgn_sess2_addr(struct cgn_sess2 *s2)
 {
-	return s2->s2_addr;
+	return s2->s2_sentry[CGN_DIR_OUT].s2e_key.k_addr;
 }
 
 uint16_t cgn_sess2_port(struct cgn_sess2 *s2)
 {
-	return s2->s2_port;
+	return s2->s2_sentry[CGN_DIR_OUT].s2e_key.k_port;
 }
 
 uint64_t cgn_sess2_start_time(struct cgn_sess2 *s2)
@@ -404,7 +407,7 @@ cgn_sess_s2_establish(struct cgn_sess_s2 *cs2, struct cgn_packet *cpk,
 
 	cgn_sess_state_init(&s2->s2_state,
 			    nat_proto_from_ipproto(cpk->cpk_ipproto),
-			    ntohs(s2->s2_port));
+			    ntohs(cgn_sess2_port(s2)));
 	cgn_sess_state_inspect(&s2->s2_state, cpk, CGN_DIR_OUT,
 			       s2->s2_start_time);
 
@@ -1093,13 +1096,14 @@ cgn_sess2_jsonw_one(json_writer_t *json, struct cgn_sess2 *s2)
 	char dst_str[16];
 	uint32_t uptime = get_dp_uptime();
 	uint32_t max_timeout = cgn_sess2_expiry_time(s2);
+	uint32_t addr = cgn_sess2_addr(s2);
 
-	inet_ntop(AF_INET, &s2->s2_addr, dst_str, sizeof(dst_str));
+	inet_ntop(AF_INET, &addr, dst_str, sizeof(dst_str));
 
 	jsonw_start_object(json);
 
 	jsonw_string_field(json, "dst_addr", dst_str);
-	jsonw_uint_field(json, "dst_port", htons(s2->s2_port));
+	jsonw_uint_field(json, "dst_port", htons(cgn_sess2_port(s2)));
 	jsonw_uint_field(json, "id", s2->s2_id);
 
 	cgn_sess_state_jsonw(json, &s2->s2_state);
@@ -1134,10 +1138,11 @@ cgn_sess2_show_fltr(struct cgn_sess2 *s2, struct cgn_sess_fltr *fltr)
 {
 	/* Filter on destination address and port */
 	if (fltr->cf_dst_mask &&
-	    fltr->cf_dst.k_addr != (s2->s2_addr & fltr->cf_dst_mask))
+	    fltr->cf_dst.k_addr !=
+	    (cgn_sess2_addr(s2) & fltr->cf_dst_mask))
 		return false;
 
-	if (fltr->cf_dst.k_port && fltr->cf_dst.k_port != s2->s2_port)
+	if (fltr->cf_dst.k_port && fltr->cf_dst.k_port != cgn_sess2_port(s2))
 		return false;
 
 	/* Filter on session ID */
