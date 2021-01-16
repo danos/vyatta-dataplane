@@ -184,7 +184,7 @@ dpi_ndpi_init(void)
 
 	RTE_LCORE_FOREACH(lcore) {
 		struct ndpi_detection_module_struct *detect
-			= ndpi_init_detection_module();
+			= ndpi_init_detection_module(ndpi_no_prefs);
 		if (!detect) {
 			RTE_LOG(ERR, DATAPLANE,
 				"Failed to initialise detection module: %d\n",
