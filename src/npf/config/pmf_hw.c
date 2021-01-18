@@ -510,12 +510,12 @@ pmf_hw_group_create(struct gpc_group *gprg)
 		return false;
 	}
 	act_list->count = num_actions;
+	fal_object_t * const actions = &act_list->list[0];
 	num_actions = 0;
 	if (summary & (PMF_RAS_DROP|PMF_RAS_PASS))
-		act_list->list[num_actions++]
-				= FAL_ACL_ACTION_TYPE_PACKET_ACTION;
+		actions[num_actions++] = FAL_ACL_ACTION_TYPE_PACKET_ACTION;
 	if (summary & PMF_RAS_COUNT_REF)
-		act_list->list[num_actions++] = FAL_ACL_ACTION_TYPE_COUNTER;
+		actions[num_actions++] = FAL_ACL_ACTION_TYPE_COUNTER;
 
 #define FAL_TABLE_FIX_FIELDS 5
 #define FAL_TABLE_VAR_FIELDS (7 + 5)
