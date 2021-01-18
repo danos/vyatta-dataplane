@@ -310,6 +310,9 @@ enum pmf_summary {
 	PMF_RMS_L4_ICMP_CODE	= (1 << 20),
 	/* L4 Spare */
 	/* Actions follow */
+	PMF_RAS_QOS_HW_DESIG	= (1 << 21),
+	PMF_RAS_QOS_COLOUR	= (1 << 22),
+	PMF_RAS_QOS_POLICE	= (1 << 23),
 	PMF_RAS_DROP		= (1 << 24),
 	PMF_RAS_PASS		= (1 << 25),
 	PMF_RAS_COUNT_DEF	= (1 << 26),
