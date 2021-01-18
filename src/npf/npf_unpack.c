@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2019-2021, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -168,7 +168,8 @@ int npf_pack_restore_session(struct npf_pack_dp_session *pds,
 		goto error;
 	}
 
-	if (npf_session_npf_pack_activate(se, ifp) != 0) {
+	rc = npf_session_npf_pack_activate(se, ifp);
+	if (rc) {
 		RTE_LOG(ERR, DATAPLANE,
 			"npf_pack npf session activate failed %lu\n",
 			session_get_id(s));
