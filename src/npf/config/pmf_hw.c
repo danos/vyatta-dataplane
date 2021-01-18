@@ -74,14 +74,12 @@ pmf_hw_rule_add(struct gpc_rule *gprl)
 	};
 	unsigned int nattr = FAL_ENTRY_FIX_FIELDS;
 
-	fal_object_t policer_obj = rule->pp_action.qos_policer;
-
 	/* Actions */
 	uint32_t num_actions
 		= 1
 		+ !!(summary & (PMF_RAS_DROP|PMF_RAS_PASS))
 		+ !!(summary & PMF_RAS_COUNT_REF)
-		+ (policer_obj != FAL_NULL_OBJECT_ID);
+		+ !!(summary & PMF_RAS_QOS_POLICE);
 	struct fal_acl_action_data_t *actions
 		= calloc(1, num_actions * sizeof(*actions));
 	if (!actions)
@@ -119,15 +117,22 @@ pmf_hw_rule_add(struct gpc_rule *gprl)
 	}
 
 	/* Encode use of a rule policer */
-	if (policer_obj != FAL_NULL_OBJECT_ID) {
+	if (summary & PMF_RAS_QOS_POLICE) {
 		ent_attrs[nattr].id = FAL_ACL_ENTRY_ATTR_ACTION_POLICER;
 		ent_attrs[nattr].value.aclaction = &actions[num_actions];
+
+		fal_object_t policer_obj = rule->pp_action.qos_policer;
 
 		actions[num_actions].enable = true;
 		actions[num_actions].parameter.objid = policer_obj;
 
-		++nattr;
-		++num_actions;
+		summary &= ~PMF_RAS_QOS_POLICE;
+
+		/* Skip if invalid */
+		if (policer_obj != FAL_NULL_OBJECT_ID) {
+			++nattr;
+			++num_actions;
+		}
 	}
 
 	summary &= ~PMF_RAS_COUNT_DEF;
@@ -501,7 +506,10 @@ pmf_hw_group_create(struct gpc_group *gprg)
 	/* Action list */
 	uint32_t num_actions
 		= !!(summary & (PMF_RAS_DROP|PMF_RAS_PASS))
-		+ !!(summary & PMF_RAS_COUNT_REF);
+		+ !!(summary & PMF_RAS_COUNT_REF)
+		+ !!(summary & PMF_RAS_QOS_HW_DESIG)
+		+ !!(summary & PMF_RAS_QOS_COLOUR)
+		+ !!(summary & PMF_RAS_QOS_POLICE);
 	struct fal_object_list_t *act_list
 		= calloc(1, sizeof(*act_list) +
 			    num_actions * sizeof(act_list->list[0]));
@@ -516,6 +524,12 @@ pmf_hw_group_create(struct gpc_group *gprg)
 		actions[num_actions++] = FAL_ACL_ACTION_TYPE_PACKET_ACTION;
 	if (summary & PMF_RAS_COUNT_REF)
 		actions[num_actions++] = FAL_ACL_ACTION_TYPE_COUNTER;
+	if (summary & PMF_RAS_QOS_HW_DESIG)
+		actions[num_actions++] = FAL_ACL_ACTION_TYPE_SET_DESIGNATION;
+	if (summary & PMF_RAS_QOS_COLOUR)
+		actions[num_actions++] = FAL_ACL_ACTION_TYPE_SET_COLOUR;
+	if (summary & PMF_RAS_QOS_POLICE)
+		actions[num_actions++] = FAL_ACL_ACTION_TYPE_POLICER;
 
 #define FAL_TABLE_FIX_FIELDS 5
 #define FAL_TABLE_VAR_FIELDS (7 + 5)
