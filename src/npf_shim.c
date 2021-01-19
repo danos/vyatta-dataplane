@@ -284,7 +284,7 @@ npf_hook_track(struct ifnet *in_ifp, struct rte_mbuf **m,
 	}
 
 	/* SNAT forward (OUT), DNAT reply */
-	if (dir == PFIL_OUT) {
+	if (dir == PFIL_OUT && !internal_hairpin) {
 		npf_nat_t *nt = npf_session_get_nat(se);
 		if (nt) {
 			rc = nat_do_subsequent(npc, m, se, nt, dir);
@@ -389,7 +389,7 @@ pass:
 		npf_log_pkt(npc, *m, rl, dir);
 
 	/* DNAT forward (IN), SNAT reply */
-	if (dir == PFIL_IN) {
+	if (dir == PFIL_IN && !internal_hairpin) {
 		npf_nat_t *nt = npf_session_get_nat(se);
 		if (nt) {
 			/*
