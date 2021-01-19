@@ -1,3 +1,18 @@
+vyatta-dataplane (3.12.20) unstable; urgency=medium
+
+  [ Srinivas Narayan ]
+  * crypto: destroy session in driver from RCU callback
+
+  [ Simon Barber ]
+  * Allow for V6 route delete num_paths == 0
+
+  [ Paul Aitken ]
+  * DPI: fix nDPI 3.4
+
+  [ Simon Barber ]
+
+ -- Simon Barber <sbarber@mail.eng.vyatta.net>  Mon, 18 Jan 2021 08:13:13 +0000
+
 vyatta-dataplane (3.12.19) unstable; urgency=medium
 
   [ Ian Wilson ]

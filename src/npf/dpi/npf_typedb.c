@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020 AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2020-2021, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -229,7 +229,7 @@ typedb_find_or_alloc(const char *name)
 	static uint32_t user_type_id = DPI_APP_BASE;
 
 	/* No name? No entry. */
-	if ((!name) || (!*name))
+	if (!name || strlen(name) < 1)
 		return NULL;
 
 	/* First, search for an existing entry. */

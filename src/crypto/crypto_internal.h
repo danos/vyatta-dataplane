@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2020, AT&T Intellectual Property. All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property. All rights reserved.
  * Copyright (c) 2015-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -606,10 +606,11 @@ move_bad_mbufs(struct crypto_pkt_ctx *ctx_arr[], uint16_t count,
 	       const uint16_t bad_idx[], uint16_t bad_count)
 {
 	uint16_t i, j, k;
-	struct crypto_pkt_ctx *tmp_ctx_arr[bad_count];
 
 	if (likely(!bad_count))
 		return;
+
+	struct crypto_pkt_ctx *tmp_ctx_arr[bad_count];
 
 	j = 0;
 	k = 0;
