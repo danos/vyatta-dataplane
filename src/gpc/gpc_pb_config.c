@@ -724,6 +724,73 @@ gpc_pb_action_delete(struct gpc_pb_action *action)
 	call_rcu(&action->action_rcu, gpc_pb_action_free);
 }
 
+static struct pmf_qos_mark *
+gpc_qos_mark_attach(struct pmf_rule *rule)
+{
+	struct pmf_qos_mark *qos_mark = rule->pp_action.qos_mark;
+
+	if (qos_mark)
+		return qos_mark;
+
+	/* This memory will be freed by pmf_rule_dealloc */
+	qos_mark = pmf_qos_mark_create();
+	if (!qos_mark) {
+		RTE_LOG(ERR, GPC,
+			"Error: No memory for parsed qos mark type\n");
+		return NULL;
+	}
+
+	rule->pp_action.qos_mark = qos_mark;
+
+	return qos_mark;
+}
+
+static int
+gpc_pb_action_designation(struct gpc_pb_action *action,
+			  struct pmf_rule *pmf_rule, uint8_t designation)
+{
+	struct pmf_qos_mark *qos_mark = gpc_qos_mark_attach(pmf_rule);
+
+	if (!qos_mark)
+		return -ENOMEM;
+
+	action->action_type = GPC_RULE_ACTION_VALUE_DESIGNATION;
+	action->action_value.designation = designation;
+
+	pmf_rule->pp_summary |= PMF_RAS_QOS_HW_DESIG;
+
+	qos_mark->paqm_desig = designation;
+	qos_mark->paqm_has_desig = PMV_TRUE;
+	return 0;
+}
+
+/*
+ * Map protobuf's idea of packet colour into the PMF's idea of packet colour.
+ */
+static enum pmf_mark_colour gpc_map_pb_colour_to_pmf_colour[] = {
+	[RULE_ACTION__COLOUR_VALUE__GREEN] = PMMC_GREEN,
+	[RULE_ACTION__COLOUR_VALUE__YELLOW] = PMMC_YELLOW,
+	[RULE_ACTION__COLOUR_VALUE__RED] = PMMC_RED
+};
+
+static int
+gpc_pb_action_colour(struct gpc_pb_action *action,
+		     struct pmf_rule *pmf_rule, uint8_t pb_colour)
+{
+	struct pmf_qos_mark *qos_mark = gpc_qos_mark_attach(pmf_rule);
+
+	if (!qos_mark)
+		return -ENOMEM;
+
+	action->action_type = GPC_RULE_ACTION_VALUE_COLOUR;
+	action->action_value.colour = pb_colour;
+
+	pmf_rule->pp_summary |= PMF_RAS_QOS_COLOUR;
+
+	qos_mark->paqm_colour = gpc_map_pb_colour_to_pmf_colour[pb_colour];
+	return 0;
+}
+
 static int
 gpc_pb_action_parse(struct gpc_pb_rule *rule, RuleAction *msg)
 {
@@ -763,19 +830,36 @@ gpc_pb_action_parse(struct gpc_pb_rule *rule, RuleAction *msg)
 		}
 		break;
 	case RULE_ACTION__ACTION_VALUE_DESIGNATION:
-		action->action_type = GPC_RULE_ACTION_VALUE_DESIGNATION;
-		action->action_value.designation = msg->designation;
+		if (msg->designation > GPC_MAX_DESIGNATION) {
+			RTE_LOG(ERR, GPC,
+				"Unexpected designation value: %u\n",
+				msg->designation);
+			rv = -EINVAL;
+		} else {
+			rv = gpc_pb_action_designation(action, pmf_rule,
+						(uint8_t)msg->designation);
+		}
 		break;
 	case RULE_ACTION__ACTION_VALUE_COLOUR:
-		action->action_type = GPC_RULE_ACTION_VALUE_COLOUR;
-		action->action_value.colour = msg->colour;
+		if (msg->colour > RULE_ACTION__COLOUR_VALUE__RED) {
+			RTE_LOG(ERR, GPC,
+				"Unexpected packet-colour value: %u\n",
+				msg->colour);
+			rv = -EINVAL;
+		} else {
+			rv = gpc_pb_action_colour(action, pmf_rule,
+						  (uint8_t)msg->colour);
+		}
 		break;
 	case RULE_ACTION__ACTION_VALUE_POLICER:
-		action->action_type = GPC_RULE_ACTION_VALUE_POLICER;
 		rv = gpc_pb_policer_parse(msg->policer, action);
-		if (!rv)
+		if (!rv) {
+			action->action_type = GPC_RULE_ACTION_VALUE_POLICER;
+
 			pmf_rule->pp_action.qos_policer =
 				action->action_value.policer.objid;
+			pmf_rule->pp_summary |= PMF_RAS_QOS_POLICE;
+		}
 		break;
 	default:
 		RTE_LOG(ERR, GPC, "Unknown RuleAction value case value %u\n",
