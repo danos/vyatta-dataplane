@@ -9,6 +9,7 @@
 
 #include <assert.h>
 #include <errno.h>
+#include <netinet/icmp6.h>
 #include <urcu/list.h>
 #include <vplane_log.h>
 #include <vplane_debug.h>
@@ -16,6 +17,7 @@
 #include "gpc_pb.h"
 #include "gpc_util.h"
 #include "ip.h"
+#include "npf/config/pmf_rule.h"
 #include "protobuf.h"
 #include "protobuf/GPCConfig.pb-c.h"
 #include "protobuf/IPAddress.pb-c.h"
@@ -60,19 +62,89 @@ gpc_pb_policer_parse(struct _PolicerParams *msg,
  * GPC match functions
  */
 static void
+gpc_pb_match_free(struct rcu_head *head)
+{
+	struct gpc_pb_match *match;
+
+	match = caa_container_of(head, struct gpc_pb_match, match_rcu);
+	free(match);
+}
+
+static void
 gpc_pb_match_delete(struct gpc_pb_match *match)
 {
 	assert(match);
 
 	cds_list_del(&match->match_list);
 	DP_DEBUG(GPC, DEBUG, GPC, "Freeing GPC match %p\n", match);
-	free(match);
+	call_rcu(&match->match_rcu, gpc_pb_match_free);
+}
+
+static int
+gpc_match_ip(uint32_t pt_field __unused, struct pmf_rule *pmf_rule __unused,
+	     IPPrefix * proto_pfx __unused,
+	     struct ip_prefix *cfg_pfx __unused)
+{
+	return 0;
+}
+
+static int
+gpc_match_port(uint32_t pt_field __unused, struct pmf_rule *pmf_rule __unused,
+	       uint32_t proto_port __unused, uint32_t *cfg_port __unused)
+{
+	return 0;
+}
+
+static int
+gpc_match_fragment(struct pmf_rule *pmf_rule __unused,
+		   RuleMatch__FragValue proto_fragment __unused,
+		   uint8_t *cfg_fragment __unused)
+{
+	return 0;
+}
+
+static int
+gpc_match_dscp(struct pmf_rule *pmf_rule __unused, uint32_t proto_dscp __unused,
+	       uint32_t *cfg_dscp __unused)
+{
+	return 0;
+}
+
+static int
+gpc_match_ttl(struct pmf_rule *pmf_rule __unused, uint32_t proto_ttl __unused,
+	      uint32_t *cfg_ttl __unused)
+{
+	return 0;
+}
+
+static int
+gpc_match_icmp(struct pmf_rule *pmf_rule __unused,
+	       RuleMatch__ICMPTypeAndCode * proto_icmp __unused,
+	       struct icmp_type_code *cfg_icmp __unused, bool is_v4 __unused)
+{
+	return 0;
+}
+
+static int
+gpc_match_icmpv6_class(struct pmf_rule *pmf_rule __unused,
+		       RuleMatch__ICMPV6Class proto_v6class __unused,
+		       uint8_t *cfg_v6class __unused)
+{
+	return 0;
+}
+
+static int
+gpc_match_proto(uint32_t pt_field __unused, struct pmf_rule *pmf_rule __unused,
+		uint32_t proto_proto __unused, uint32_t *cfg_proto __unused)
+{
+	return 0;
 }
 
 static int
 gpc_pb_match_parse(struct gpc_pb_rule *rule, RuleMatch *msg)
 {
 	struct gpc_pb_match *match;
+	struct pmf_rule *pmf_rule = rule->pmf_rule;
 	int rv = 0;
 
 	match = calloc(1, sizeof(*match));
@@ -84,51 +156,67 @@ gpc_pb_match_parse(struct gpc_pb_rule *rule, RuleMatch *msg)
 
 	switch (msg->match_value_case) {
 	case RULE_MATCH__MATCH_VALUE__NOT_SET:
+		match->match_type = GPC_RULE_MATCH_VALUE_NOT_SET;
 		rv = -EINVAL;
 		break;
 	case RULE_MATCH__MATCH_VALUE_SRC_IP:
 		match->match_type = GPC_RULE_MATCH_VALUE_SRC_IP;
+		rv = gpc_match_ip(PMF_L3F_SRC, pmf_rule, msg->src_ip,
+				  &match->match_value.src_ip);
 		break;
 	case RULE_MATCH__MATCH_VALUE_DEST_IP:
 		match->match_type = GPC_RULE_MATCH_VALUE_DEST_IP;
+		rv = gpc_match_ip(PMF_L3F_DST, pmf_rule, msg->dest_ip,
+				  &match->match_value.dest_ip);
 		break;
 	case RULE_MATCH__MATCH_VALUE_SRC_PORT:
 		match->match_type = GPC_RULE_MATCH_VALUE_SRC_PORT;
-		match->match_value.src_port = msg->src_port;
+		rv = gpc_match_port(PMF_L4F_SRC, pmf_rule, msg->src_port,
+				    &match->match_value.src_port);
 		break;
 	case RULE_MATCH__MATCH_VALUE_DEST_PORT:
 		match->match_type = GPC_RULE_MATCH_VALUE_DEST_PORT;
-		match->match_value.dest_port = msg->dest_port;
+		rv = gpc_match_port(PMF_L4F_DST, pmf_rule, msg->dest_port,
+				    &match->match_value.dest_port);
 		break;
 	case RULE_MATCH__MATCH_VALUE_FRAGMENT:
 		match->match_type = GPC_RULE_MATCH_VALUE_FRAGMENT;
-		match->match_value.fragment = msg->fragment;
+		rv = gpc_match_fragment(pmf_rule, msg->fragment,
+					&match->match_value.fragment);
 		break;
 	case RULE_MATCH__MATCH_VALUE_DSCP:
 		match->match_type = GPC_RULE_MATCH_VALUE_DSCP;
-		match->match_value.dscp = msg->dscp;
+		rv = gpc_match_dscp(pmf_rule, msg->dscp,
+				    &match->match_value.dscp);
 		break;
 	case RULE_MATCH__MATCH_VALUE_TTL:
 		match->match_type = GPC_RULE_MATCH_VALUE_TTL;
-		match->match_value.ttl = msg->ttl;
+		rv = gpc_match_ttl(pmf_rule, msg->ttl, &match->match_value.ttl);
 		break;
 	case RULE_MATCH__MATCH_VALUE_ICMPV4:
 		match->match_type = GPC_RULE_MATCH_VALUE_ICMPV4;
+		rv = gpc_match_icmp(pmf_rule, msg->icmpv4,
+				    &match->match_value.icmpv4, true);
 		break;
 	case RULE_MATCH__MATCH_VALUE_ICMPV6:
 		match->match_type = GPC_RULE_MATCH_VALUE_ICMPV6;
+		rv = gpc_match_icmp(pmf_rule, msg->icmpv6,
+				    &match->match_value.icmpv6, false);
 		break;
 	case RULE_MATCH__MATCH_VALUE_ICMPV6_CLASS:
 		match->match_type = GPC_RULE_MATCH_VALUE_ICMPV6_CLASS;
-		match->match_value.icmpv6_class = msg->icmpv6_class;
+		rv = gpc_match_icmpv6_class(pmf_rule, msg->icmpv6_class,
+					    &match->match_value.icmpv6_class);
 		break;
 	case RULE_MATCH__MATCH_VALUE_PROTO_BASE:
 		match->match_type = GPC_RULE_MATCH_VALUE_PROTO_BASE;
-		match->match_value.proto_base = msg->proto_base;
+		rv = gpc_match_proto(PMF_L3F_PROTOB, pmf_rule, msg->proto_base,
+				     &match->match_value.proto_base);
 		break;
 	case RULE_MATCH__MATCH_VALUE_PROTO_FINAL:
 		match->match_type = GPC_RULE_MATCH_VALUE_PROTO_FINAL;
-		match->match_value.proto_final = msg->proto_final;
+		rv = gpc_match_proto(PMF_L3F_PROTOF, pmf_rule, msg->proto_final,
+				     &match->match_value.proto_final);
 		break;
 	default:
 		RTE_LOG(ERR, GPC, "Unknown RuleMatch value case value %u\n",
@@ -151,20 +239,29 @@ gpc_pb_match_parse(struct gpc_pb_rule *rule, RuleMatch *msg)
  * GPC action functions
  */
 static void
+gpc_pb_action_free(struct rcu_head *head)
+{
+	struct gpc_pb_action *action;
+
+	action = caa_container_of(head, struct gpc_pb_action, action_rcu);
+	free(action);
+}
+
+static void
 gpc_pb_action_delete(struct gpc_pb_action *action)
 {
 	assert(action);
 
 	cds_list_del(&action->action_list);
 	DP_DEBUG(GPC, DEBUG, GPC, "Freeing GPC action %p\n", action);
-	free(action);
-
+	call_rcu(&action->action_rcu, gpc_pb_action_free);
 }
 
 static int
 gpc_pb_action_parse(struct gpc_pb_rule *rule, RuleAction *msg)
 {
 	struct gpc_pb_action *action;
+	struct pmf_rule *pmf_rule = rule->pmf_rule;
 	int rv = 0;
 
 	action = calloc(1, sizeof(*action));
@@ -181,6 +278,22 @@ gpc_pb_action_parse(struct gpc_pb_rule *rule, RuleAction *msg)
 	case RULE_ACTION__ACTION_VALUE_DECISION:
 		action->action_type = GPC_RULE_ACTION_VALUE_DECISION;
 		action->action_value.decision = msg->decision;
+		switch (action->action_value.decision) {
+		case RULE_ACTION__PACKET_DECISION__PASS:
+			pmf_rule->pp_action.fate = PMV_TRUE;
+			pmf_rule->pp_summary |= PMF_RAS_PASS;
+			break;
+		case RULE_ACTION__PACKET_DECISION__DROP:
+			pmf_rule->pp_action.fate = PMV_FALSE;
+			pmf_rule->pp_summary |= PMF_RAS_DROP;
+			break;
+		default:
+			RTE_LOG(ERR, GPC,
+				"Unexpected value in rule: decision=%u\n",
+				action->action_value.decision);
+			rv = -EINVAL;
+			break;
+		}
 		break;
 	case RULE_ACTION__ACTION_VALUE_DESIGNATION:
 		action->action_type = GPC_RULE_ACTION_VALUE_DESIGNATION;
@@ -347,6 +460,12 @@ gpc_pb_rule_delete(struct gpc_pb_rule *rule)
 	rule->number = 0;
 
 	/*
+	 * Delete the pmf_rule if we have one attached
+	 */
+	pmf_rule_free(rule->pmf_rule);
+	rule->pmf_rule = NULL;
+
+	/*
 	 * Delete any matches and actions attached to this rule
 	 */
 	cds_list_for_each_entry_safe(match, tmp_match, &rule->match_list,
@@ -396,6 +515,12 @@ gpc_pb_rule_parse(struct gpc_pb_table *table, Rule *msg)
 	 */
 	rule->number = msg->number;
 
+	rule->pmf_rule = pmf_rule_alloc();
+	if (!rule->pmf_rule) {
+		RTE_LOG(ERR, GPC,
+			"Failed to allocate PMF rule\n");
+		goto error_path;
+	}
 	for (i = 0; i < msg->n_matches; i++) {
 		rv = gpc_pb_match_parse(rule, msg->matches[i]);
 		if (rv)
