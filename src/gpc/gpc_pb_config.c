@@ -19,6 +19,8 @@
 #include "gpc_pb.h"
 #include "gpc_util.h"
 #include "ip.h"
+#include "npf/config/gpc_db_control.h"
+#include "npf/config/gpc_db_query.h"
 #include "npf/config/pmf_rule.h"
 #include "protobuf.h"
 #include "protobuf/GPCConfig.pb-c.h"
@@ -771,6 +773,9 @@ gpc_pb_action_parse(struct gpc_pb_rule *rule, RuleAction *msg)
 	case RULE_ACTION__ACTION_VALUE_POLICER:
 		action->action_type = GPC_RULE_ACTION_VALUE_POLICER;
 		rv = gpc_pb_policer_parse(msg->policer, action);
+		if (!rv)
+			pmf_rule->pp_action.qos_policer =
+				action->action_value.policer.objid;
 		break;
 	default:
 		RTE_LOG(ERR, GPC, "Unknown RuleAction value case value %u\n",
@@ -931,6 +936,12 @@ gpc_pb_rule_delete(struct gpc_pb_rule *rule)
 	rule->pmf_rule = NULL;
 
 	/*
+	 * Delete the gpc_rule if we have one attached
+	 */
+	gpc_rule_delete(rule->gpc_rule);
+	rule->gpc_rule = NULL;
+
+	/*
 	 * Delete any matches and actions attached to this rule
 	 */
 	cds_list_for_each_entry_safe(match, tmp_match, &rule->match_list,
@@ -980,12 +991,18 @@ gpc_pb_rule_parse(struct gpc_pb_table *table, Rule *msg)
 	 */
 	rule->number = msg->number;
 
-	rule->pmf_rule = pmf_rule_alloc();
-	if (!rule->pmf_rule) {
-		RTE_LOG(ERR, GPC,
-			"Failed to allocate PMF rule\n");
+	rule->gpc_rule = gpc_rule_create(table->gpc_group, rule->number, &rule);
+	if (!rule->gpc_rule) {
+		RTE_LOG(ERR, GPC, "Failed to allocate GPC rule\n");
 		goto error_path;
 	}
+
+	rule->pmf_rule = pmf_rule_alloc();
+	if (!rule->pmf_rule) {
+		RTE_LOG(ERR, GPC, "Failed to allocate PMF rule\n");
+		goto error_path;
+	}
+
 	for (i = 0; i < msg->n_matches; i++) {
 		rv = gpc_pb_match_parse(rule, msg->matches[i]);
 		if (rv)
@@ -1018,6 +1035,12 @@ gpc_pb_rule_parse(struct gpc_pb_table *table, Rule *msg)
 			goto error_path;
 		}
 	}
+
+	/*
+	 * By now the pmf_rule will have been fully updated and we can
+	 * add the pmf_rule to the gpc_rule.
+	 */
+	gpc_rule_change_rule(rule->gpc_rule, rule->pmf_rule);
 	return rv;
 
  error_path:
@@ -1135,6 +1158,24 @@ gpc_pb_table_delete(struct gpc_pb_table *table)
 	for (i = 0; i < table->n_rules; i++)
 		gpc_pb_rule_delete(&table->rules_table[i]);
 
+	if (table->gpc_group) {
+		/*
+		 * Tell the hardware that we are deleting a bunch of stuff
+		 */
+		gpc_group_hw_ntfy_detach(table->gpc_group);
+		gpc_group_hw_ntfy_rules_delete(table->gpc_group);
+		gpc_group_hw_ntfy_delete(table->gpc_group);
+	}
+
+	if (table->gpc_group) {
+		gpc_group_delete(table->gpc_group);
+		table->gpc_group = NULL;
+	}
+	if (table->gpc_rlset) {
+		gpc_rlset_delete(table->gpc_rlset);
+		table->gpc_rlset = NULL;
+	}
+
 	call_rcu(&table->table_rcu, gpc_pb_table_free);
 }
 
@@ -1170,10 +1211,13 @@ gpc_pb_table_add(struct gpc_pb_feature *feature, GPCTable *msg)
 
 	table->ifname = strdup(msg->ifname);
 	if (!table->ifname) {
+		RTE_LOG(ERR, GPC,
+			"Failed to allocate memory for interface-name\n");
 		rv = -ENOMEM;
 		goto error_path;
 	}
 	table->location = msg->location;
+	table->traffic_type = msg->traffic_type;
 
 	cds_list_add_tail(&table->table_list, &feature->table_list);
 	DP_DEBUG(GPC, DEBUG, GPC,
@@ -1184,23 +1228,59 @@ gpc_pb_table_add(struct gpc_pb_feature *feature, GPCTable *msg)
 	for (i = 0; i < msg->n_table_names; i++) {
 		table->table_names[i] = strdup(msg->table_names[i]);
 		if (!table->table_names[i]) {
+			RTE_LOG(ERR, GPC,
+				"Failed to allocate memory for table-name\n");
 			rv = -ENOMEM;
 			goto error_path;
 		}
 		table->n_table_names = i + 1;
 	}
 
+	table->gpc_rlset = gpc_rlset_create(true, table->ifname, &table);
+	if (!table->gpc_rlset) {
+		RTE_LOG(ERR, GPC, "Failed to create ruleset for table\n");
+		rv = -ENOMEM;
+		goto error_path;
+	}
+
+	if (table->n_table_names == 0)
+		table->gpc_group = gpc_group_create(table->gpc_rlset,
+						    GPC_FEAT_QOS,
+						    "what-no-table-name?",
+						    &table);
+	else
+		/* Just use the first table-name for the timebeing */
+		table->gpc_group = gpc_group_create(table->gpc_rlset,
+						    GPC_FEAT_QOS,
+						    table->table_names[0],
+						    &table);
+	if (!table->gpc_group) {
+		RTE_LOG(ERR, GPC, "Failed to create group for table\n");
+		rv = -ENOMEM;
+		goto error_path;
+	}
+
+	if (table->traffic_type == TRAFFIC_TYPE__IPV4)
+		gpc_group_set_v4(table->gpc_group);
+	else
+		gpc_group_set_v6(table->gpc_group);
+
 	/* Parse the rest of config message */
 	rv = gpc_pb_rules_parse(table, msg->rules);
 	if (rv)
 		goto error_path;
 
+	/*
+	 * Everything should be in place - tell the FAL about all this stuff
+	 */
+	gpc_group_hw_ntfy_create(table->gpc_group, NULL);
+	gpc_group_hw_ntfy_rules_create(table->gpc_group);
+	gpc_group_hw_ntfy_attach(table->gpc_group);
 	return rv;
 
  error_path:
 	RTE_LOG(ERR, GPC, "Failed to allocate memory for table\n");
 	gpc_pb_table_delete(table);
-
 	return rv;
 
 }
