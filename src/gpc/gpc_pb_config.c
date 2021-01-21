@@ -8,6 +8,7 @@
  */
 
 #include <errno.h>
+#include <urcu/list.h>
 #include <vplane_log.h>
 #include <vplane_debug.h>
 #include <urcu/list.h>
@@ -16,6 +17,7 @@
 #include "ip.h"
 #include "protobuf.h"
 #include "protobuf/GPCConfig.pb-c.h"
+#include "protobuf/IPAddress.pb-c.h"
 #include "urcu.h"
 #include "util.h"
 
@@ -29,9 +31,27 @@ static struct cds_list_head *gpc_feature_list;
  */
 
 static int
-gpc_pb_policer_parse(struct _PolicerParams *msg __unused,
-		     struct gpc_pb_action *action __unused)
+gpc_pb_policer_parse(struct _PolicerParams *msg,
+		     struct gpc_pb_action *action)
 {
+	/*
+	 * Mandatory field checking.
+	 */
+	if (!msg->has_bw) {
+		RTE_LOG(ERR, GPC,
+			"PolicerParams protobuf missing mandatory field\n");
+		return -EPERM;
+	}
+
+	action->action_value.policer.bw = msg->bw;
+	if (msg->has_burst)
+		action->action_value.policer.burst = msg->burst;
+	if (msg->has_excess_bw)
+		action->action_value.policer.excess_bw = msg->excess_bw;
+	if (msg->has_excess_burst)
+		action->action_value.policer.excess_burst = msg->excess_burst;
+	if (msg->has_awareness)
+		action->action_value.policer.awareness = msg->awareness;
 	return 0;
 }
 
@@ -111,6 +131,8 @@ gpc_pb_match_parse(struct gpc_pb_rule *rule, RuleMatch *msg)
 		match->match_value.proto_final = msg->proto_final;
 		break;
 	default:
+		RTE_LOG(ERR, GPC, "Unknown RuleMatch value case value %u\n",
+			msg->match_value_case);
 		rv = -EINVAL;
 		break;
 	}
@@ -174,6 +196,8 @@ gpc_pb_action_parse(struct gpc_pb_rule *rule, RuleAction *msg)
 		rv = gpc_pb_policer_parse(msg->policer, action);
 		break;
 	default:
+		RTE_LOG(ERR, GPC, "Unknown RuleAction value case value %u\n",
+			msg->action_value_case);
 		rv = -EINVAL;
 		break;
 	}
@@ -305,7 +329,6 @@ gpc_pb_rule_counter_parse(struct gpc_pb_rule *rule, RuleCounter *msg)
 /*
  * GPC rule functions
  */
-
 static void
 gpc_pb_rule_free(struct rcu_head *head)
 {
@@ -414,6 +437,30 @@ gpc_pb_rule_parse(struct gpc_pb_table *table, Rule *msg)
 	RTE_LOG(ERR, GPC, "Problems parsing Rule protobuf, %d\n", rv);
 	gpc_pb_rule_delete(rule);
 	return rv;
+}
+
+void
+gpc_pb_rule_match_walk(struct gpc_pb_rule *rule,
+		       gpc_pb_rule_match_walker_cb walker_cb,
+		       struct gpc_walk_context *context)
+{
+	struct gpc_pb_match *match;
+
+	cds_list_for_each_entry(match, &rule->match_list, match_list)
+		if (!walker_cb(match, context))
+			return;
+}
+
+void
+gpc_pb_rule_action_walk(struct gpc_pb_rule *rule,
+			gpc_pb_rule_action_walker_cb walker_cb,
+			struct gpc_walk_context *context)
+{
+	struct gpc_pb_action *action;
+
+	cds_list_for_each_entry(action, &rule->action_list, action_list)
+		if (!walker_cb(action, context))
+			return;
 }
 
 /*
@@ -543,7 +590,7 @@ gpc_pb_table_add(struct gpc_pb_feature *feature, GPCTable *msg)
 			rv = -ENOMEM;
 			goto error_path;
 		}
-		table->n_table_names = i;
+		table->n_table_names = i + 1;
 	}
 
 	CDS_INIT_LIST_HEAD(&table->rule_list);
@@ -631,6 +678,18 @@ gpc_pb_table_parse(struct gpc_pb_feature *feature, GPCTable *msg)
 		break;
 	}
 	return rv;
+}
+
+void
+gpc_pb_table_rule_walk(struct gpc_pb_table *table,
+		       gpc_pb_table_rule_walker_cb walker_cb,
+		       struct gpc_walk_context *context)
+{
+	struct gpc_pb_rule *rule;
+
+	cds_list_for_each_entry(rule, &table->rule_list, rule_list)
+		if (!walker_cb(rule, context))
+			return;
 }
 
 /*
@@ -785,6 +844,51 @@ gpc_pb_feature_parse(GPCConfig *msg)
 		break;
 	}
 	return rv;
+}
+
+void
+gpc_pb_feature_table_walk(struct gpc_pb_feature *feature,
+			  gpc_pb_feature_table_walker_cb walker_cb,
+			  struct gpc_walk_context *context)
+{
+	struct gpc_pb_table *table;
+
+	cds_list_for_each_entry(table, &feature->table_list, table_list) {
+		if ((!context->ifname ||
+		     !strcmp(table->ifname, context->ifname)) &&
+		    (!context->location ||
+		     table->location == context->location) &&
+		    (!context->traffic_type ||
+		     table->traffic_type == context->traffic_type))
+			if (!walker_cb(table, context))
+				return;
+	}
+}
+
+void
+gpc_pb_feature_counter_walk(struct gpc_pb_feature *feature,
+			    gpc_pb_feature_counter_walker_cb walker_cb,
+			    struct gpc_walk_context *context)
+{
+	struct gpc_pb_counter *counter;
+
+	cds_list_for_each_entry(counter, &feature->counter_list, counter_list)
+		if (!walker_cb(counter, context))
+			return;
+}
+
+void
+gpc_pb_feature_walk(gpc_pb_feature_walker_cb walker_cb,
+		    struct gpc_walk_context *context)
+{
+	struct gpc_pb_feature *feature;
+
+	if (gpc_feature_list)
+		cds_list_for_each_entry(feature, gpc_feature_list, feature_list)
+			if (!context->feature_type ||
+			    feature->type == context->feature_type)
+				if (!walker_cb(feature, context))
+					return;
 }
 
 static int
