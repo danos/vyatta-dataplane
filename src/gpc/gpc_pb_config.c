@@ -26,6 +26,168 @@
 static struct cds_list_head *gpc_feature_list;
 
 /*
+ * Protobuf parsing functions
+ */
+
+static int
+gpc_pb_policer_parse(struct _PolicerParams *msg __unused,
+		     struct gpc_pb_action *action __unused)
+{
+	return 0;
+}
+
+/*
+ * GPC match functions
+ */
+static void
+gpc_pb_match_delete(struct gpc_pb_match *match)
+{
+	assert(match);
+
+	cds_list_del(&match->match_list);
+	DP_DEBUG(GPC, DEBUG, GPC, "Freeing GPC match %p\n", match);
+	free(match);
+}
+
+static int
+gpc_pb_match_parse(struct gpc_pb_rule *rule, RuleMatch *msg)
+{
+	struct gpc_pb_match *match;
+	int rv = 0;
+
+	match = calloc(1, sizeof(*match));
+	if (!match) {
+		RTE_LOG(ERR, GPC,
+			"Failed to allocate GPC match\n");
+		return -ENOMEM;
+	}
+
+	switch (msg->match_value_case) {
+	case RULE_MATCH__MATCH_VALUE__NOT_SET:
+		rv = -EINVAL;
+		break;
+	case RULE_MATCH__MATCH_VALUE_SRC_IP:
+		match->match_type = GPC_RULE_MATCH_VALUE_SRC_IP;
+		break;
+	case RULE_MATCH__MATCH_VALUE_DEST_IP:
+		match->match_type = GPC_RULE_MATCH_VALUE_DEST_IP;
+		break;
+	case RULE_MATCH__MATCH_VALUE_SRC_PORT:
+		match->match_type = GPC_RULE_MATCH_VALUE_SRC_PORT;
+		match->match_value.src_port = msg->src_port;
+		break;
+	case RULE_MATCH__MATCH_VALUE_DEST_PORT:
+		match->match_type = GPC_RULE_MATCH_VALUE_DEST_PORT;
+		match->match_value.dest_port = msg->dest_port;
+		break;
+	case RULE_MATCH__MATCH_VALUE_FRAGMENT:
+		match->match_type = GPC_RULE_MATCH_VALUE_FRAGMENT;
+		match->match_value.fragment = msg->fragment;
+		break;
+	case RULE_MATCH__MATCH_VALUE_DSCP:
+		match->match_type = GPC_RULE_MATCH_VALUE_DSCP;
+		match->match_value.dscp = msg->dscp;
+		break;
+	case RULE_MATCH__MATCH_VALUE_TTL:
+		match->match_type = GPC_RULE_MATCH_VALUE_TTL;
+		match->match_value.ttl = msg->ttl;
+		break;
+	case RULE_MATCH__MATCH_VALUE_ICMPV4:
+		match->match_type = GPC_RULE_MATCH_VALUE_ICMPV4;
+		break;
+	case RULE_MATCH__MATCH_VALUE_ICMPV6:
+		match->match_type = GPC_RULE_MATCH_VALUE_ICMPV6;
+		break;
+	case RULE_MATCH__MATCH_VALUE_ICMPV6_CLASS:
+		match->match_type = GPC_RULE_MATCH_VALUE_ICMPV6_CLASS;
+		match->match_value.icmpv6_class = msg->icmpv6_class;
+		break;
+	case RULE_MATCH__MATCH_VALUE_PROTO_BASE:
+		match->match_type = GPC_RULE_MATCH_VALUE_PROTO_BASE;
+		match->match_value.proto_base = msg->proto_base;
+		break;
+	case RULE_MATCH__MATCH_VALUE_PROTO_FINAL:
+		match->match_type = GPC_RULE_MATCH_VALUE_PROTO_FINAL;
+		match->match_value.proto_final = msg->proto_final;
+		break;
+	default:
+		rv = -EINVAL;
+		break;
+	}
+	if (rv) {
+		free(match);
+	} else {
+		cds_list_add_tail(&match->match_list, &rule->match_list);
+		DP_DEBUG(GPC, DEBUG, GPC,
+			 "Added GPC match %p to GPC rule %p\n",
+			 match, rule);
+	}
+	return rv;
+}
+
+/*
+ * GPC action functions
+ */
+static void
+gpc_pb_action_delete(struct gpc_pb_action *action)
+{
+	assert(action);
+
+	cds_list_del(&action->action_list);
+	DP_DEBUG(GPC, DEBUG, GPC, "Freeing GPC action %p\n", action);
+	free(action);
+
+}
+
+static int
+gpc_pb_action_parse(struct gpc_pb_rule *rule, RuleAction *msg)
+{
+	struct gpc_pb_action *action;
+	int rv = 0;
+
+	action = calloc(1, sizeof(*action));
+	if (!action) {
+		RTE_LOG(ERR, GPC,
+			"Failed to allocate GPC action\n");
+		return -ENOMEM;
+	}
+
+	switch (msg->action_value_case) {
+	case RULE_ACTION__ACTION_VALUE__NOT_SET:
+		rv = -EINVAL;
+		break;
+	case RULE_ACTION__ACTION_VALUE_DECISION:
+		action->action_type = GPC_RULE_ACTION_VALUE_DECISION;
+		action->action_value.decision = msg->decision;
+		break;
+	case RULE_ACTION__ACTION_VALUE_DESIGNATION:
+		action->action_type = GPC_RULE_ACTION_VALUE_DESIGNATION;
+		action->action_value.designation = msg->designation;
+		break;
+	case RULE_ACTION__ACTION_VALUE_COLOUR:
+		action->action_type = GPC_RULE_ACTION_VALUE_COLOUR;
+		action->action_value.colour = msg->colour;
+		break;
+	case RULE_ACTION__ACTION_VALUE_POLICER:
+		action->action_type = GPC_RULE_ACTION_VALUE_POLICER;
+		rv = gpc_pb_policer_parse(msg->policer, action);
+		break;
+	default:
+		rv = -EINVAL;
+		break;
+	}
+	if (rv) {
+		free(action);
+	} else {
+		cds_list_add_tail(&action->action_list, &rule->action_list);
+		DP_DEBUG(GPC, DEBUG, GPC,
+			 "Added GPC action %p to GPC rule %p\n",
+			 action, rule);
+	}
+	return rv;
+}
+
+/*
  * GPC counter functions
  */
 static void
@@ -145,6 +307,9 @@ gpc_pb_rule_counter_parse(struct gpc_pb_rule *rule, RuleCounter *msg)
 static void
 gpc_pb_rule_delete(struct gpc_pb_rule *rule)
 {
+	struct gpc_pb_match *match, *tmp_match;
+	struct gpc_pb_action *action, *tmp_action;
+
 	assert(rule);
 
 	if (rule->number == 0)
@@ -157,12 +322,25 @@ gpc_pb_rule_delete(struct gpc_pb_rule *rule)
 	 * Mark the rule as unused.
 	 */
 	rule->number = 0;
+
+	/*
+	 * Delete any matches and actions attached to this rule
+	 */
+	cds_list_for_each_entry_safe(match, tmp_match, &rule->match_list,
+				     match_list)
+		gpc_pb_match_delete(match);
+
+	cds_list_for_each_entry_safe(action, tmp_action, &rule->action_list,
+				     action_list)
+		gpc_pb_action_delete(action);
+
 }
 
 static int
 gpc_pb_rule_parse(struct gpc_pb_table *table, Rule *msg)
 {
 	struct gpc_pb_rule *rule;
+	uint32_t i;
 	int rv = 0;
 
 	if (!msg) {
@@ -194,6 +372,18 @@ gpc_pb_rule_parse(struct gpc_pb_table *table, Rule *msg)
 	 * Mark the rule as used, that is non-zero
 	 */
 	rule->number = msg->number;
+
+	for (i = 0; i < msg->n_matches; i++) {
+		rv = gpc_pb_match_parse(rule, msg->matches[i]);
+		if (rv)
+			goto error_path;
+	}
+
+	for (i = 0; i < msg->n_actions; i++)  {
+		rv = gpc_pb_action_parse(rule, msg->actions[i]);
+		if (rv)
+			goto error_path;
+	}
 
 	if (msg->counter) {
 		rv = gpc_pb_rule_counter_parse(rule, msg->counter);
