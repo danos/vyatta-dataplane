@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2019-2021, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -134,6 +134,8 @@ static pkp_key_parser pkp_icmp_grp;
 /* The action parsers */
 static pkp_key_parser pkp_fate;
 static pkp_key_parser pkp_stateful;
+static pkp_key_parser pkp_qos_colour;
+static pkp_key_parser pkp_qos_desig;
 static pkp_key_parser pkp_nat_type;
 static pkp_key_parser pkp_nat_pinhole;
 static pkp_key_parser pkp_nat_exclude;
@@ -150,6 +152,8 @@ static pkp_key_parser pkp_ctrdef_named;
 enum pkp_act_field {
 	PKP_ACT_FATE  = 1,
 	PKP_ACT_STATEFUL,
+	PKP_ACT_QOS_COLOUR,
+	PKP_ACT_QOS_DESIG,
 	PKP_ACT_NAT_TYPE,
 	PKP_ACT_NAT_PINHOLE,
 	PKP_ACT_NAT_EXCLUDE,
@@ -225,6 +229,8 @@ static struct pkp_key action_keys[] = {
 	/* Actions */
 	{"action",		PKP_ACT_FATE,		0, pkp_fate},
 	{"stateful",		PKP_ACT_STATEFUL,	0, pkp_stateful},
+	{"qos-colour",		PKP_ACT_QOS_COLOUR,	0, pkp_qos_colour},
+	{"qos-desig",		PKP_ACT_QOS_DESIG,	0, pkp_qos_desig},
 	{"nat-type",		PKP_ACT_NAT_TYPE,	0, pkp_nat_type},
 	{"nat-pinhole",		PKP_ACT_NAT_PINHOLE,	0, pkp_nat_pinhole},
 	{"nat-exclude",		PKP_ACT_NAT_EXCLUDE,	0, pkp_nat_exclude},
@@ -1266,6 +1272,76 @@ pkp_stateful(struct pmf_rule *rule, struct pkp_key const *key, char *value)
 	}
 
 	rule->pp_action.stateful = rule_stateful;
+
+	return true;
+}
+
+static struct pmf_qos_mark *
+pkp_qos_mark_attach(struct pmf_rule *rule)
+{
+	struct pmf_qos_mark *qos_mark = rule->pp_action.qos_mark;
+
+	if (qos_mark)
+		return qos_mark;
+
+	qos_mark = pmf_qos_mark_create();
+	if (!qos_mark) {
+		RTE_LOG(ERR, FIREWALL,
+			"Error: No memory for parsed qos mark type\n");
+		return NULL;
+	}
+
+	rule->pp_action.qos_mark = qos_mark;
+
+	return qos_mark;
+}
+
+static bool
+pkp_qos_colour(struct pmf_rule *rule, struct pkp_key const *key, char *value)
+{
+	enum pmf_mark_colour mark_colour;
+
+	if (strcmp(value, "red") == 0)
+		mark_colour = PMMC_RED;
+	else if (strcmp(value, "yellow") == 0)
+		mark_colour = PMMC_YELLOW;
+	else if (strcmp(value, "green") == 0)
+		mark_colour = PMMC_GREEN;
+	else {
+		RTE_LOG(ERR, FIREWALL,
+			"NPF: unexpected value in rule: %s=%s\n",
+			key->pt_name, value);
+		return false;
+	}
+
+	struct pmf_qos_mark *mark = pkp_qos_mark_attach(rule);
+	if (!mark)
+		return false;
+
+	mark->paqm_colour = mark_colour;
+	rule->pp_summary |= PMF_RAS_QOS_COLOUR;
+
+	return true;
+}
+
+static bool
+pkp_qos_desig(struct pmf_rule *rule, struct pkp_key const *key, char *value)
+{
+	char *endp = NULL;
+	unsigned long designation = strtoul(value, &endp, 10);
+	if (endp == value || *endp || designation > 7) {
+		RTE_LOG(ERR, FIREWALL,
+			"NPF: bad value in rule: %s=%s\n", key->pt_name, value);
+		return false;
+	}
+
+	struct pmf_qos_mark *mark = pkp_qos_mark_attach(rule);
+	if (!mark)
+		return false;
+
+	mark->paqm_desig = designation;
+	mark->paqm_has_desig = PMV_TRUE;
+	rule->pp_summary |= PMF_RAS_QOS_HW_DESIG;
 
 	return true;
 }

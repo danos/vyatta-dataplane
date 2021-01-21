@@ -91,6 +91,13 @@ enum pmf_nat_type {
 	PMN_DNAT,
 };
 
+enum pmf_mark_colour {
+	PMMC_UNSET,
+	PMMC_RED,
+	PMMC_YELLOW,
+	PMMC_GREEN,
+};
+
 /*
  * NB: Each attribute is malloc'ed individually, and so may be free'ed
  *     or easily duplicated.  They are either fixed size, or contain
@@ -310,6 +317,9 @@ enum pmf_summary {
 	PMF_RMS_L4_ICMP_CODE	= (1 << 20),
 	/* L4 Spare */
 	/* Actions follow */
+	PMF_RAS_QOS_HW_DESIG	= (1 << 21),
+	PMF_RAS_QOS_COLOUR	= (1 << 22),
+	PMF_RAS_QOS_POLICE	= (1 << 23),
 	PMF_RAS_DROP		= (1 << 24),
 	PMF_RAS_PASS		= (1 << 25),
 	PMF_RAS_COUNT_DEF	= (1 << 26),
@@ -319,6 +329,16 @@ enum pmf_summary {
 	PMF_RAS_COUNT_DEF_DROP	= (1 << 29),
 #define PMF_SUMMARY_COUNT_DEF_NAMED_FLAGS \
 	(PMF_RAS_COUNT_DEF_PASS|PMF_RAS_COUNT_DEF_DROP)
+};
+
+/*
+ * The parsed result of a QoS mark.
+ */
+struct pmf_qos_mark {
+	enum pmf_value			paqm_has_desig: 2;
+
+	uint8_t				paqm_desig : 3;
+	enum pmf_mark_colour		paqm_colour : 3;
 };
 
 struct pmf_rule {
@@ -334,6 +354,7 @@ struct pmf_rule {
 		struct pmf_nat		*nat;
 		struct pmf_pext_list	*handle;	/* "handle" rprocs */
 		struct pmf_pext_list	*extend;	/* action rprocs */
+		struct pmf_qos_mark	*qos_mark;
 		uintptr_t		qos_policer;	/* FAL object id */
 	} pp_action;
 	uint32_t pp_summary;
@@ -366,6 +387,7 @@ struct pmf_pext_list *pmf_rproc_hlist_create(uint32_t num);
 struct pmf_proc_raw *pmf_rproc_raw_create(uint32_t data_len, void *data);
 
 struct pmf_nat *pmf_nat_create(void);
+struct pmf_qos_mark *pmf_qos_mark_create(void);
 struct pmf_rule *pmf_rule_alloc(void);
 
 #endif /* _PMF_RULE_H_ */

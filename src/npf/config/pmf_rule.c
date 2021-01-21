@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2019-2021, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -78,6 +78,14 @@ pmf_rule_dealloc(struct pmf_rule *rule)
 		}
 		free(nat);
 		rule->pp_action.nat = NULL;
+	}
+
+	/* Free any qos mark elements */
+	if (rule->pp_action.qos_mark) {
+		struct pmf_qos_mark *qos_mark = rule->pp_action.qos_mark;
+
+		free(qos_mark);
+		rule->pp_action.qos_mark = NULL;
 	}
 
 	free(rule);
@@ -302,6 +310,18 @@ error_exit:
 		}
 	}
 
+	/* Copy any qos mark elements */
+	if (old_rule->pp_action.qos_mark) {
+		struct pmf_qos_mark *old_mark = old_rule->pp_action.qos_mark;
+
+		struct pmf_qos_mark *new_mark = malloc(sizeof(*new_mark));
+		if (!new_mark)
+			goto error_exit;
+
+		memcpy(new_mark, old_mark, sizeof(*new_mark));
+		new_rule->pp_action.qos_mark = new_mark;
+	}
+
 	/* Copy values */
 	new_rule->pp_action.fate = old_rule->pp_action.fate;
 	new_rule->pp_action.stateful = old_rule->pp_action.stateful;
@@ -449,6 +469,20 @@ pmf_nat_create(void)
 	nat->pan_tports = NULL;
 
 	return nat;
+}
+
+struct pmf_qos_mark *
+pmf_qos_mark_create(void)
+{
+	struct pmf_qos_mark *qos_mark = malloc(sizeof(*qos_mark));
+	if (!qos_mark)
+		return NULL;
+
+	qos_mark->paqm_has_desig = PMV_UNSET;
+	qos_mark->paqm_desig = 0;
+	qos_mark->paqm_colour = PMMC_UNSET;
+
+	return qos_mark;
 }
 
 static struct pmf_pext_list *
