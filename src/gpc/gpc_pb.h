@@ -161,6 +161,7 @@ struct gpc_pb_rule {
 	struct cds_list_head		match_list;
 	struct cds_list_head		action_list;
 	struct gpc_pb_rule_counter	counter;
+	struct gpc_rule			*gpc_rule;
 	struct pmf_rule			*pmf_rule;
 	/*
 	 * The VCI code can collapse multiple tables into a single table.
@@ -186,7 +187,7 @@ struct gpc_pb_table {
 	char			*ifname;
 	/* location - ingress/egress/punt-path */
 	uint32_t		location;
-	/* Other operational fields */
+	/* Other config related fields */
 	struct cds_list_head	rule_list;
 	/* traffic-type - ipv4/ipv6 */
 	uint32_t		traffic_type;
@@ -196,6 +197,9 @@ struct gpc_pb_table {
 	 * name using the table_index field from the gpc_pb_rule struct.
 	 */
 	uint32_t		n_table_names;
+	/* Internal operational fields */
+	struct gpc_rlset	*gpc_rlset;
+	struct gpc_group	*gpc_group;
 	/* The following array is variable length */
 	char			*table_names[0];
 };
