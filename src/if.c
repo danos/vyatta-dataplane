@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2017-2020, AT&T Intellectual Property.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property.
  * All rights reserved.
  * Copyright (c) 1980, 1986, 1993
  *	The Regents of the University of California.  All rights reserved.
@@ -3296,7 +3296,7 @@ if_fal_create_l3_intf(struct ifnet *ifp)
 		return -EINVAL;
 	}
 	if (ret == 0)
-		rcu_assign_pointer(ifp->fal_l3, fal_l3);
+		CMM_STORE_SHARED(ifp->fal_l3, fal_l3);
 	if (ret == -EOPNOTSUPP)
 		ret = 0;
 	if (ret < 0)
@@ -3317,7 +3317,7 @@ if_fal_delete_l3_intf(struct ifnet *ifp)
 
 	ret = fal_delete_router_interface(ifp->fal_l3);
 	if (ret == 0)
-		rcu_assign_pointer(ifp->fal_l3, FAL_NULL_OBJECT_ID);
+		CMM_STORE_SHARED(ifp->fal_l3, FAL_NULL_OBJECT_ID);
 
 	if (ret == -EOPNOTSUPP)
 		ret = 0;
@@ -3826,7 +3826,7 @@ static void ifconfig(struct ifnet *ifp, void *arg)
 	show_if_l2_filter(wr, ifp);
 	show_af_ifconfig(wr, ifp);
 
-	fal_l3 = rcu_dereference(ifp->fal_l3);
+	fal_l3 = CMM_LOAD_SHARED(ifp->fal_l3);
 	if (fal_l3) {
 		jsonw_name(wr, "router_intf_platform_state");
 		jsonw_start_object(wr);

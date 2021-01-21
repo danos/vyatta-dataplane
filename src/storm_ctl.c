@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2018-2020, AT&T Intellectual Property.
+ * Copyright (c) 2018-2021, AT&T Intellectual Property.
  * All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
@@ -425,7 +425,7 @@ static void fal_policer_get_sc_stats(struct storm_ctl_instance *instance,
 	fal_object_t fal_obj;
 	int rv;
 
-	fal_obj = rcu_dereference(instance->sci_fal_obj[traf]);
+	fal_obj = CMM_LOAD_SHARED(instance->sci_fal_obj[traf]);
 	if (!fal_obj)
 		return;
 
@@ -450,7 +450,7 @@ static int fal_policer_get_cfg(struct storm_ctl_instance *instance,
 	fal_object_t fal_obj;
 	int rv;
 
-	fal_obj = rcu_dereference(instance->sci_fal_obj[traf]);
+	fal_obj = CMM_LOAD_SHARED(instance->sci_fal_obj[traf]);
 	if (!fal_obj)
 		return 0;
 
@@ -536,7 +536,7 @@ static int fal_policer_apply_profile(struct storm_ctl_profile *profile,
 			instance->sci_ifp->if_name, vlan, rv);
 		return rv;
 	}
-	rcu_assign_pointer(instance->sci_fal_obj[traf], fal_obj);
+	CMM_STORE_SHARED(instance->sci_fal_obj[traf], fal_obj);
 
 	ifp = instance->sci_ifp;
 	if (ifp->if_type == IFT_L2VLAN) {
@@ -648,7 +648,7 @@ static int fal_policer_unapply_profile(struct ifnet *ifp,
 			ifp->if_name, vlan, rv);
 		return rv;
 	}
-	rcu_assign_pointer(instance->sci_fal_obj[traf], FAL_NULL_OBJECT_ID);
+	CMM_STORE_SHARED(instance->sci_fal_obj[traf], FAL_NULL_OBJECT_ID);
 
 	if (vlan_feat && !vlan_feat->refcount) {
 		rv = fal_vlan_feature_delete(vlan_feat->fal_vlan_feat);
@@ -1607,7 +1607,7 @@ static void storm_ctl_show_instance(json_writer_t *wr,
 		jsonw_uint_field(wr, "max_rate_kbps", max_rate);
 		jsonw_uint_field(wr, "burst_kbps", burst_rate);
 
-		fal_obj = rcu_dereference(instance->sci_fal_obj[i]);
+		fal_obj = CMM_LOAD_SHARED(instance->sci_fal_obj[i]);
 		if (fal_obj)
 			fal_policer_dump(fal_obj, wr);
 
@@ -1800,7 +1800,7 @@ static void storm_ctl_clear_intf_stats(struct ifnet *ifp, void *ctx __unused)
 		memset(instance->sci_pkt_drops, 0,
 		       sizeof(instance->sci_pkt_drops));
 		for (i = 0; i < FAL_TRAFFIC_MAX; i++) {
-			fal_obj = rcu_dereference(instance->sci_fal_obj[i]);
+			fal_obj = CMM_LOAD_SHARED(instance->sci_fal_obj[i]);
 			if (!fal_obj)
 				continue;
 
