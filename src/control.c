@@ -534,7 +534,7 @@ static const struct msg_handler message_handlers_main[] = {
 	{ 0,	"tc_qdisc",	process_netlink_data,	 NULL },
 	{ 0,	"tc_chain",	process_netlink_data,	 NULL },
 	{ 0,	"tc_filter",	process_netlink_data,	 NULL },
-	{ 0,	NULL,		NULL }
+	{ 0,	NULL,		NULL,                    NULL }
 };
 
 void list_all_main_msg_versions(FILE *f)
@@ -556,7 +556,7 @@ static const struct msg_handler message_handlers_uplink[] = {
 	{ 0,	"neigh",	process_netlink_data,	 NULL },
 	{ 0,	"netconf",	process_netlink_data,	 NULL },
 	{ 0,	"route",	process_netlink_data,	 NULL },
-	{ 0,	NULL,		NULL }
+	{ 0,	NULL,		NULL,                    NULL }
 };
 
 static const struct msg_handler *message_handlers[CONT_SRC_COUNT] = {
@@ -568,7 +568,7 @@ static const struct msg_handler *message_handlers[CONT_SRC_COUNT] = {
  * Topics accepted in ready state
  */
 static const struct msg_handler ready_handlers[] = {
-	{ 0,    NULL,           NULL }
+	{ 0,    NULL,           NULL,                    NULL }
 };
 
 /*

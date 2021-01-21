@@ -598,7 +598,7 @@ static void unspec_link_modify(struct ifnet *ifp,
 		if_rename(ifp, ifname);
 
 		struct fal_attribute_t name_attr = {
-			FAL_PORT_ATTR_NAME};
+			.id = FAL_PORT_ATTR_NAME};
 
 		snprintf(name_attr.value.if_name,
 			 sizeof(name_attr.value.if_name),

@@ -2653,7 +2653,7 @@ static void update_tunnel_mtu(struct ifnet *ifp)
 
 int if_set_mtu(struct ifnet *ifp, uint32_t mtu, bool force_update)
 {
-	struct fal_attribute_t mtu_attr = { FAL_PORT_ATTR_MTU, };
+	struct fal_attribute_t mtu_attr = { .id = FAL_PORT_ATTR_MTU, };
 	struct fal_attribute_t l3_mtu_attr = {
 		.id = FAL_ROUTER_INTERFACE_ATTR_MTU,
 	};
@@ -2707,7 +2707,7 @@ int if_set_mtu(struct ifnet *ifp, uint32_t mtu, bool force_update)
 
 int if_set_l2_address(struct ifnet *ifp, uint32_t l2_addr_len, void *l2_addr)
 {
-	struct fal_attribute_t mac_attr = { FAL_PORT_ATTR_MAC_ADDRESS, };
+	struct fal_attribute_t mac_attr = { .id = FAL_PORT_ATTR_MAC_ADDRESS, };
 	struct fal_attribute_t l3_mac_attr = {
 		.id = FAL_ROUTER_INTERFACE_ATTR_SRC_MAC_ADDRESS,
 	};
@@ -2769,7 +2769,8 @@ int if_set_l2_address(struct ifnet *ifp, uint32_t l2_addr_len, void *l2_addr)
 
 int if_set_poe(struct ifnet *ifp, bool enable)
 {
-	struct fal_attribute_t poe_attr = { FAL_PORT_ATTR_POE_ADMIN_STATUS, };
+	struct fal_attribute_t poe_attr = {
+		.id = FAL_PORT_ATTR_POE_ADMIN_STATUS, };
 
 	/*
 	 * Don't make any changes if the device has been hot

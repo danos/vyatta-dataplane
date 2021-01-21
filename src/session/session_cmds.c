@@ -766,7 +766,7 @@ cmd_op_delete_sessions(FILE *f, int argc, char **argv)
 		NUM_FLT_PARAMS = 11
 	};
 
-	struct session_filter_params sf = { {0} };
+	struct session_filter_params sf = { .sf_id = 0 };
 	int rc;
 
 	if (argc < 1) {

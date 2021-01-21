@@ -2783,7 +2783,7 @@ int qos_hw_start(struct ifnet *ifp, struct sched_info *qinfo, uint64_t bps,
 	int ret, i;
 	static uint32_t max_burst_size = 0;
 	struct fal_attribute_t max_burst_attr = {
-			FAL_SWITCH_ATTR_MAX_BURST_SIZE};
+			.id = FAL_SWITCH_ATTR_MAX_BURST_SIZE};
 
 	DP_DEBUG(QOS_HW, DEBUG, DATAPLANE, "hardware start, if-index: %u",
 		 ifp->if_index);

@@ -145,7 +145,7 @@ void vlan_nl_modify(struct ifnet *ifp,
 	struct ifnet *pifp = ifp->if_parent;
 	bool vlan_changed = false;
 	struct fal_attribute_t vlan_attr = {
-			FAL_PORT_ATTR_VLAN_ID, };
+			.id = FAL_PORT_ATTR_VLAN_ID, };
 
 	if (pifp && kind && kdata)
 		vlan_changed = change_vlan(ifp, tb, kind, kdata, cont_src);

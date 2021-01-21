@@ -1338,7 +1338,7 @@ int cmd_poe(FILE *f, int argc, char **argv)
 {
 	struct ifnet *ifp;
 	fal_port_poe_priority_t priority = FAL_PORT_POE_PRIORITY_LOW;
-	struct fal_attribute_t poe_attr = { FAL_PORT_ATTR_POE_PRIORITY, };
+	struct fal_attribute_t poe_attr = { .id = FAL_PORT_ATTR_POE_PRIORITY, };
 	int rc = 0;
 
 	if (argc < 2)
