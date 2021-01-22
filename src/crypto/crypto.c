@@ -1020,6 +1020,13 @@ static void crypto_redirect_processed_packets(struct crypto_pkt_ctx **contexts,
 
 	for (i = 0; i < count; i++) {
 		ctx = contexts[i];
+
+		/* No SA found in the SADB. */
+		if (!ctx->sa) {
+			crypto_pkt_ctx_forward_and_free(ctx);
+			continue;
+		}
+
 		fwd_lcore = ctx->sa->fwd_core;
 
 		/*
