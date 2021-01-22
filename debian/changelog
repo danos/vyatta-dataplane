@@ -1,3 +1,27 @@
+vyatta-dataplane (3.12.21) unstable; urgency=medium
+
+  [ Charles (Chas) Williams ]
+  * clang: fix variable length array size warnings (Bugfix: VRVDR-54147)
+  * npf: avoid returning success during failure (Bugfix: VRVDR-54155)
+  * clang: normalize brace usage (Bugfix: VRVDR-54146)
+  * rcu: fix compiler errors with pointers and integers (Bugfix: VRVDR-54202)
+
+  [ Derek Fawcus ]
+  * ACL: Add new summary bits for actions
+  * ACL: Adjust FAL message code for readability
+  * ACL: Use new summary bits for encoding new actions
+  * GPC: Add represention of parsed mark action
+  * ACL: Add helper routines for parsed marking
+  * ACL: Parse the qos mark actions
+  * GPC: Add QoS actions - set colour / designation
+
+  [ Daniel Gollub ]
+  * crypto: avoid dereferecing bad sa pointer
+
+  [ Simon Barber ]
+
+ -- Simon Barber <sbarber@mail.eng.vyatta.net>  Fri, 22 Jan 2021 19:20:49 +0000
+
 vyatta-dataplane (3.12.20) unstable; urgency=medium
 
   [ Srinivas Narayan ]
