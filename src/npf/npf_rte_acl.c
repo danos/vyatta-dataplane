@@ -5,6 +5,7 @@
  */
 
 #include <rte_acl.h>
+#include <rte_rcu_qsbr.h>
 #include <rte_ip.h>
 #include "vplane_log.h"
 #include "npf_rte_acl.h"
@@ -265,7 +266,8 @@ acl_rule_hash(const void *data, uint32_t data_len, uint32_t init_val)
  */
 
 int npf_rte_acl_init(int af, const char *name, uint32_t max_rules,
-		     struct rte_mempool *mempool, npf_match_ctx_t **m_ctx)
+		     struct rte_mempool *mempool, struct rte_rcu_qsbr *rcu_v,
+		     npf_match_ctx_t **m_ctx)
 {
 	size_t key_len = sizeof(((struct rte_acl_rule *) 0)->data.userdata);
 	struct rte_acl_param acl_param = {
@@ -276,10 +278,14 @@ int npf_rte_acl_init(int af, const char *name, uint32_t max_rules,
 		.hash_key_len = key_len,
 		.rule_pool = mempool,
 	};
+	struct rte_acl_rcu_config rcu_conf = {
+		.v = rcu_v,
+		.mode = RTE_ACL_QSBR_MODE_SYNC
+	};
 	char acl_name[RTE_ACL_NAMESIZE];
 	npf_match_ctx_t *tmp_ctx;
-	static uint32_t ctx_id;
 	size_t tr_sz, rule_size;
+	int32_t id;
 	int err;
 
 	if (af == AF_INET)
@@ -325,6 +331,14 @@ int npf_rte_acl_init(int af, const char *name, uint32_t max_rules,
 		free(tmp_ctx->name);
 		free(tmp_ctx);
 		return -ENOMEM;
+	}
+
+	err = rte_acl_rcu_qsbr_add(tmp_ctx->acl_ctx, &rcu_conf);
+	if (err) {
+		RTE_LOG(ERR, DATAPLANE, "Failed to enable RCU for ACL ctx %s\n",
+			tmp_ctx->name);
+		goto error;
+
 	}
 
 	tr_sz = (sizeof(struct trans_entry) + rule_size)
@@ -828,6 +842,6 @@ size_t npf_rte_acl_rule_size(int af)
 {
 	if (af == AF_INET)
 		return RTE_ACL_RULE_SZ(RTE_DIM(ipv4_defs));
-	else
-		return RTE_ACL_RULE_SZ(RTE_DIM(ipv6_defs));
+
+	return RTE_ACL_RULE_SZ(RTE_DIM(ipv6_defs));
 }

@@ -11,6 +11,7 @@
 #include "npf_rte_acl.h"
 #include "npf_rule_gen.h"
 
+#include "main.h"
 #include "urcu.h"
 #include "util.h"
 #include "vplane_log.h"
@@ -229,7 +230,7 @@ int rldb_create(const char *name, uint32_t flags, struct rldb_db_handle **_db)
 	}
 
 	rc = npf_rte_acl_init(db->af, db->name, RLDB_MAX_RULES,
-			      rule_mempool, &db->match_ctx);
+			      rule_mempool, dp_rcu_qsbr_get(), &db->match_ctx);
 	if (rc < 0) {
 		RLDB_ERR
 		    ("Could not add rldb (%s): NPF rte_acl could not be "
