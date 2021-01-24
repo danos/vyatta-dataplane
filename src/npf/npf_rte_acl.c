@@ -14,6 +14,8 @@
 
 #define MAX_TRANSACTION_ENTRIES 512
 
+static rte_atomic32_t ctx_id;
+
 struct npf_match_ctx {
 	struct rte_acl_ctx *acl_ctx;
 	char *name;
@@ -299,8 +301,9 @@ int npf_rte_acl_init(int af, const char *name, uint32_t max_rules,
 	 * configuration. In order to ensure that a new context is created
 	 * each time, a unique number is suffixed to the name
 	 */
-	snprintf(acl_name, RTE_ACL_NAMESIZE, "%s-%s-%d", name,
-		 af == AF_INET ? "ipv4" : "ipv6", ctx_id++);
+
+	id = rte_atomic32_add_return(&ctx_id, 1);
+	snprintf(acl_name, RTE_ACL_NAMESIZE, "%s-%d", name, id);
 	acl_param.name = acl_name;
 
 	tmp_ctx->name = strdup(acl_name);
@@ -706,7 +709,7 @@ int npf_rte_acl_match(int af, npf_match_ctx_t *m_ctx,
 	uint8_t *nlp;
 
 	if (!m_ctx->num_rules)
-		return 0;
+		return -ENOENT;
 
 	if (af == AF_INET) {
 		nlp = (uint8_t *)iphdr(m);
