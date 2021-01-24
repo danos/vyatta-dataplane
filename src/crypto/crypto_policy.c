@@ -1645,6 +1645,7 @@ static struct rte_timer crypto_npf_cfg_commit_all_timer;
 #define CRYPTO_NPF_CFG_COMMIT_FORCE_COUNT 2000
 
 static uint32_t batch_seq[CRYPTO_NPF_CFG_COMMIT_FORCE_COUNT];
+static struct policy_rule *batch_pr[CRYPTO_NPF_CFG_COMMIT_FORCE_COUNT];
 
 static int crypto_policy_rldb_commit(struct crypto_vrf_ctx *vrf_ctx)
 {
@@ -1736,12 +1737,17 @@ void crypto_npf_cfg_commit_flush(void)
 	/*
 	 * There is an assumption that npf_cfg_commit_all completed
 	 * successfully as there is no return value. Any issues should
-	 * have been caught when the individidual policies were added
+	 * have been caught when the individual policies were added
 	 * at which point an error should have been returned to the
 	 * xfrm source.
 	 */
-	for (i = 0; xfrm_direct && i < crypto_npf_cfg_commit_count ; i++)
-		xfrm_client_send_ack(batch_seq[i], rc);
+	for (i = 0; i < crypto_npf_cfg_commit_count ; i++) {
+		if (batch_pr[i])
+			batch_pr[i]->flags ^= POLICY_F_PENDING_ADD;
+
+		if (xfrm_direct)
+			xfrm_client_send_ack(batch_seq[i], rc);
+	}
 
 	crypto_npf_cfg_commit_count = 0;
 }
@@ -1760,7 +1766,7 @@ static void crypto_npf_cfg_commit_all_timer_handler(
  * batch up the calls to it. This can possibly delay the application of
  * a rule, but overall will be much faster.
  */
-static void crypto_npf_cfg_commit_all(struct policy_rule *pr __unused,
+static void crypto_npf_cfg_commit_all(struct policy_rule *pr,
 				      uint32_t seq)
 {
 	ASSERT_MAIN();
@@ -1779,6 +1785,10 @@ static void crypto_npf_cfg_commit_all(struct policy_rule *pr __unused,
 
 	if (xfrm_direct)
 		batch_seq[crypto_npf_cfg_commit_count] = seq;
+
+	if (!(pr->flags & POLICY_F_PENDING_DEL))
+		batch_pr[crypto_npf_cfg_commit_count] = pr;
+
 	crypto_npf_cfg_commit_count++;
 
 	/* Force the commit if we have batched up too many */
@@ -1923,6 +1933,8 @@ int crypto_policy_add(const struct xfrm_userpolicy_info *usr_policy,
 		return -1;
 	}
 
+	pr->flags = POLICY_F_PENDING_ADD;
+
 	if (!policy_rule_add_to_hash_tables(pr)) {
 		POLICY_ERR("Failed to add policy rule to hash tables\n");
 		policy_rule_destroy(pr);
@@ -2018,8 +2030,10 @@ static void crypto_policy_delete_internal(struct policy_rule *pr, vrfid_t vrfid,
 	 * event is not called due to the reception of a policy delete
 	 * from strongswan.
 	 */
-	if (ack)
+	if (ack) {
+		pr->flags |= POLICY_F_PENDING_DEL;
 		crypto_npf_cfg_commit_all(pr, seq);
+	}
 
 	if (pr->dir == XFRM_POLICY_OUT) {
 		/*
@@ -2623,12 +2637,16 @@ void crypto_policy_show_summary(FILE *f, vrfid_t vrfid, bool brief)
 
 		cds_lfht_for_each_entry(output_policy_rule_tag_ht, &iter, pr,
 					tag_ht_node) {
+			if (pr->flags & POLICY_F_PENDING_ADD)
+				continue;
 			if (dp_vrf_get_external_id(pr->vrfid) == vrfid)
 				policy_rule_to_json(wr, pr);
 		}
 
 		cds_lfht_for_each_entry(input_policy_rule_tag_ht, &iter, pr,
 					tag_ht_node) {
+			if (pr->flags & POLICY_F_PENDING_ADD)
+				continue;
 			if (dp_vrf_get_external_id(pr->vrfid) == vrfid)
 				policy_rule_to_json(wr, pr);
 		}
