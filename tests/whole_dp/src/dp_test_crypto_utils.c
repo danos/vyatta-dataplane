@@ -543,14 +543,15 @@ void _wait_for_policy(const struct dp_test_crypto_policy *policy,
 /*
  * _dp_test_create_ipsec_policy()
  *
- * Create an IPsec policy in the dataplane
+ * Create or Update an IPsec policy in the dataplane
  */
 void _dp_test_crypto_create_policy(const char *file, int line,
 				   const struct dp_test_crypto_policy *policy,
-				   bool verify)
+				   bool verify, bool update)
 {
 	struct xfrm_selector sel;
 	xfrm_address_t dst;
+	int action = update ? XFRM_MSG_UPDPOLICY : XFRM_MSG_NEWPOLICY;
 
 	build_xfrm_selector(&sel, policy->d_prefix, policy->s_prefix,
 			    policy->proto, policy->family);
@@ -559,7 +560,7 @@ void _dp_test_crypto_create_policy(const char *file, int line,
 					    NULL, policy->dst_family))
 		dp_test_abort_internal();
 
-	_dp_test_netlink_xfrm_policy(XFRM_MSG_NEWPOLICY,
+	_dp_test_netlink_xfrm_policy(action,
 				     &sel, &dst,
 				     policy->dst_family,
 				     policy->dir,

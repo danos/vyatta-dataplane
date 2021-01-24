@@ -52,7 +52,7 @@ struct dp_test_crypto_policy {
 
 void _dp_test_crypto_create_policy(const char *file, int line,
 				   const struct dp_test_crypto_policy *policy,
-				   bool verify);
+				   bool verify, bool update);
 void _dp_test_crypto_delete_policy(const char *file, int line,
 				   const struct dp_test_crypto_policy *policy,
 				   bool verify);
@@ -61,13 +61,14 @@ void _dp_test_crypto_check_policy_count(vrfid_t vrfid,
 					const char *file, int line);
 
 #define dp_test_crypto_create_policy(_policy)			\
-	_dp_test_crypto_create_policy(__FILE__, __LINE__, _policy, true)
+	_dp_test_crypto_create_policy(__FILE__, __LINE__, _policy, true, false)
 
 #define dp_test_crypto_create_policy_verify(_policy, _verify)  \
-	_dp_test_crypto_create_policy(__FILE__, __LINE__, _policy, _verify)
+	_dp_test_crypto_create_policy(__FILE__, __LINE__, _policy, _verify, \
+				      false)
 
 #define dp_test_crypto_update_policy(_policy)		\
-	_dp_test_crypto_create_policy(__FILE__, __LINE__, _policy, true)
+	_dp_test_crypto_create_policy(__FILE__, __LINE__, _policy, true, true)
 
 #define dp_test_crypto_delete_policy(_policy)		\
 	_dp_test_crypto_delete_policy(__FILE__, __LINE__, _policy, true)

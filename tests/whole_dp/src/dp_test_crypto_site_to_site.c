@@ -771,11 +771,12 @@ static void _setup_policies(struct dp_test_crypto_policy *input,
 			    vrfid_t vrfid, const char *file, int line)
 {
 	bool verify = true;
+	bool update = false;
 
 	input->vrfid = vrfid;
 	output->vrfid = vrfid;
-	_dp_test_crypto_create_policy(file, line, input, verify);
-	_dp_test_crypto_create_policy(file, line, output, verify);
+	_dp_test_crypto_create_policy(file, line, input, verify, update);
+	_dp_test_crypto_create_policy(file, line, output, verify, update);
 }
 #define setup_policies(input, output, vrf) \
 	_setup_policies(input, output, vrf, __FILE__, __LINE__)
