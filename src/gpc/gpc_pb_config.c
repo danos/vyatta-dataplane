@@ -33,8 +33,69 @@ static struct cds_list_head *gpc_feature_list;
  */
 
 static int
-gpc_pb_policer_parse(struct _PolicerParams *msg,
-		     struct gpc_pb_action *action)
+gpc_pb_ip_prefix_parse(IPPrefix *msg, struct ip_prefix *cfg_pfx)
+{
+	int rv = 0;
+
+	/*
+	 * Mandatory field checking.
+	 */
+	if (!msg->has_length || !msg->address) {
+		RTE_LOG(ERR, GPC,
+			"IPPrefix protobuf missing mandatory field\n");
+		return -EPERM;
+	}
+	cfg_pfx->prefix_length = msg->length;
+
+	switch (msg->address->address_oneof_case) {
+	case IPADDRESS__ADDRESS_ONEOF_IPV4_ADDR:
+		cfg_pfx->addr.type = AF_INET;
+		cfg_pfx->addr.address.ip_v4.s_addr =
+			htonl(msg->address->ipv4_addr);
+		break;
+	case IPADDRESS__ADDRESS_ONEOF_IPV6_ADDR:
+		cfg_pfx->addr.type = AF_INET6;
+		memcpy(&cfg_pfx->addr.address.ip_v6,
+		       &msg->address->ipv6_addr.data[0],
+		       msg->address->ipv6_addr.len);
+		break;
+	case IPADDRESS__ADDRESS_ONEOF__NOT_SET:
+		/* fallthrough */
+	default:
+		RTE_LOG(ERR, GPC, "Unknown IPAddress case value %u\n",
+			msg->address->address_oneof_case);
+		rv = -EINVAL;
+		break;
+	}
+	return rv;
+}
+
+static int
+gpc_pb_icmp_parse(struct _RuleMatch__ICMPTypeAndCode *msg,
+		  struct icmp_type_code *icmp)
+{
+	/*
+	 * Mandatory field checking.
+	 */
+	if (!msg->has_typenum && !msg->has_code) {
+		RTE_LOG(ERR, GPC,
+			"ICMPTypeCode protobuf missing mandatory field\n");
+		return -1;
+	}
+
+	icmp->has_typenum = msg->has_typenum;
+	if (msg->has_typenum)
+		icmp->typenum = msg->typenum;
+
+	icmp->has_code = msg->has_code;
+	if (msg->has_code)
+		icmp->code = msg->code;
+
+	return 0;
+}
+
+static int
+gpc_pb_policer_parse(struct _PolicerParams *msg, struct gpc_pb_action *action)
 {
 	/*
 	 * Mandatory field checking.
@@ -106,10 +167,18 @@ static uint32_t l4_summary[PMF_L4F__LEN] = {
 
 static int
 gpc_match_ip(uint32_t pt_field, struct pmf_rule *pmf_rule,
-	     IPPrefix * proto_pfx __unused, struct ip_prefix *cfg_pfx)
+	     IPPrefix *proto_pfx, struct ip_prefix *cfg_pfx)
 {
 	uint32_t summary_bit;
 	void *pmf_pfx;
+	int rv;
+
+	/*
+	 * Parse the ip-prefix in the protobuf and save it as config.
+	 */
+	rv = gpc_pb_ip_prefix_parse(proto_pfx, cfg_pfx);
+	if (rv)
+		return rv;
 
 	/* Avoid duplicate match fields */
 	summary_bit = l3_summary[pt_field];
@@ -289,10 +358,16 @@ gpc_match_ttl(struct pmf_rule *pmf_rule, uint32_t proto_ttl, uint32_t *cfg_ttl)
 
 static int
 gpc_match_icmp(struct pmf_rule *pmf_rule,
-	       RuleMatch__ICMPTypeAndCode * proto_icmp __unused,
+	       RuleMatch__ICMPTypeAndCode *proto_icmp,
 	       struct icmp_type_code *cfg_icmp, bool is_v4)
 {
 	uint32_t summary_bit;
+	int rv;
+
+	/* Parse the protobuf icmp and save it in the config. */
+	rv = gpc_pb_icmp_parse(proto_icmp, cfg_icmp);
+	if (rv)
+		return rv;
 
 	/* Avoid duplicate match fields */
 	summary_bit = l4_summary[PMF_L4F_ICMP_VALS];
