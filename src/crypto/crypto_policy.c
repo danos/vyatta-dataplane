@@ -109,6 +109,9 @@ struct pr_feat_attach {
 	struct rcu_head pr_feat_rcu;
 };
 
+#define POLICY_F_PENDING_ADD 0x0001
+#define POLICY_F_PENDING_DEL 0x0002
+
 /*
  * struct policy_rule
  *
@@ -140,7 +143,7 @@ struct policy_rule {
 	uint32_t policy_priority;
 	uint32_t rule_index;
 	bool vti_tunnel_policy;
-	bool pending_delete;
+	uint8_t flags;
 	struct pr_feat_attach *feat_attach;
 };
 
@@ -805,7 +808,6 @@ policy_rule_create(const struct xfrm_userpolicy_info *usr_policy,
 
 	cds_lfht_node_init(&pr->tag_ht_node);
 	cds_lfht_node_init(&pr->sel_ht_node);
-	pr->pending_delete = false;
 	return pr;
 }
 
@@ -872,7 +874,7 @@ static void policy_rule_destroy(struct policy_rule *pr)
 		POLICY_ERR("Failed to free policy tag %d\n", pr->tag);
 
 	policy_feat_attach_destroy(pr);
-	pr->pending_delete = true;
+	pr->flags |= POLICY_F_PENDING_DEL;
 	call_rcu(&pr->policy_rule_rcu, policy_rule_rcu_invalidate);
 }
 
@@ -2643,7 +2645,7 @@ bool crypto_policy_check_outbound(struct ifnet *in_ifp, struct rte_mbuf **mbuf,
 				      seen_by_crypto, dir);
 	}
 
-	if (pr && !pr->pending_delete) {
+	if (pr && !(pr->flags & POLICY_F_PENDING_DEL)) {
 		if (pr->action != XFRM_POLICY_BLOCK) {
 			struct pr_feat_attach *attach;
 			struct pktmbuf_mdata *mdata;
