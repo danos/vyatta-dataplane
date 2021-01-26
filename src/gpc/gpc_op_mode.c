@@ -165,6 +165,8 @@ gpc_op_show_action(struct gpc_pb_action *action,
 			const char *aware = gpc_get_policer_awareness_str(val);
 			jsonw_string_field(wr, "awareness", aware);
 		}
+		jsonw_uint_field(wr, "packets", 0);
+		jsonw_uint_field(wr, "drops", 0);
 		break;
 	default:
 		RTE_LOG(ERR, GPC, "Unknown GPC Action action-type %u\n",
@@ -209,6 +211,7 @@ gpc_op_show_rule(struct gpc_pb_rule *rule, struct gpc_walk_context *walk_ctx)
 		jsonw_end_object(wr);
 	}
 
+	jsonw_uint_field(wr, "packets", 0);
 	jsonw_uint_field(wr, "table-index", rule->table_index);
 	jsonw_uint_field(wr, "orig-number", rule->orig_number);
 	if (rule->result)
