@@ -5,6 +5,7 @@
  */
 
 #include <rte_acl.h>
+#include <rte_rcu_qsbr.h>
 #include <rte_ip.h>
 #include "vplane_log.h"
 #include "npf_rte_acl.h"
@@ -12,10 +13,28 @@
 #include "../ip_funcs.h"
 #include "../netinet6/ip6_funcs.h"
 
+#define MAX_TRANSACTION_ENTRIES 512
+
+static rte_atomic32_t ctx_id;
+
 struct npf_match_ctx {
 	struct rte_acl_ctx *acl_ctx;
 	char *name;
 	uint16_t num_rules;
+	struct trans_entry   *tr;
+	uint32_t              tr_num_entries;
+	bool                  tr_in_progress;
+};
+
+enum rule_op {
+	RULE_OP_ADD,
+	RULE_OP_DELETE
+};
+
+struct trans_entry {
+	enum rule_op               rule_op;
+	struct npf_match_ctx      *trie;
+	struct rte_acl_rule       *rule;
 };
 
 /* rte acl stuff */
@@ -234,20 +253,45 @@ enum {
 RTE_ACL_RULE_DEF(acl4_rules, RTE_DIM(ipv4_defs));
 RTE_ACL_RULE_DEF(acl6_rules, RTE_DIM(ipv6_defs));
 
+static uint32_t
+acl_rule_hash(const void *data, uint32_t data_len, uint32_t init_val)
+{
+	const struct rte_acl_rule *rule = (const struct rte_acl_rule *) data;
+
+	return rte_jhash(&rule->data.userdata, data_len, init_val);
+}
+
 /*
  * Packet matching callback functions which use the rte_acl API
  */
 
 int npf_rte_acl_init(int af, const char *name, uint32_t max_rules,
+		     struct rte_mempool *mempool, struct rte_rcu_qsbr *rcu_v,
 		     npf_match_ctx_t **m_ctx)
 {
+	size_t key_len = sizeof(((struct rte_acl_rule *) 0)->data.userdata);
 	struct rte_acl_param acl_param = {
 		.socket_id = SOCKET_ID_ANY,
 		.max_rule_num = max_rules,
+		.flags = ACL_F_USE_HASHTABLE,
+		.hash_func = acl_rule_hash,
+		.hash_key_len = key_len,
+		.rule_pool = mempool,
+	};
+	struct rte_acl_rcu_config rcu_conf = {
+		.v = rcu_v,
+		.mode = RTE_ACL_QSBR_MODE_SYNC
 	};
 	char acl_name[RTE_ACL_NAMESIZE];
 	npf_match_ctx_t *tmp_ctx;
-	static uint32_t ctx_id;
+	size_t tr_sz, rule_size;
+	int32_t id;
+	int err;
+
+	if (af == AF_INET)
+		rule_size = RTE_ACL_RULE_SZ(RTE_DIM(ipv4_defs));
+	else
+		rule_size = RTE_ACL_RULE_SZ(RTE_DIM(ipv6_defs));
 
 	tmp_ctx = calloc(1, sizeof(npf_match_ctx_t));
 	if (!tmp_ctx) {
@@ -263,8 +307,9 @@ int npf_rte_acl_init(int af, const char *name, uint32_t max_rules,
 	 * configuration. In order to ensure that a new context is created
 	 * each time, a unique number is suffixed to the name
 	 */
-	snprintf(acl_name, RTE_ACL_NAMESIZE, "%s-%s-%d", name,
-		 af == AF_INET ? "ipv4" : "ipv6", ctx_id++);
+
+	id = rte_atomic32_add_return(&ctx_id, 1);
+	snprintf(acl_name, RTE_ACL_NAMESIZE, "%s-%d", name, id);
 	acl_param.name = acl_name;
 
 	tmp_ctx->name = strdup(acl_name);
@@ -275,10 +320,8 @@ int npf_rte_acl_init(int af, const char *name, uint32_t max_rules,
 		free(tmp_ctx);
 		return -ENOMEM;
 	}
-	if (af == AF_INET)
-		acl_param.rule_size = RTE_ACL_RULE_SZ(RTE_DIM(ipv4_defs));
-	else
-		acl_param.rule_size = RTE_ACL_RULE_SZ(RTE_DIM(ipv6_defs));
+
+	acl_param.rule_size = rule_size;
 
 	tmp_ctx->acl_ctx = rte_acl_create(&acl_param);
 	if (tmp_ctx->acl_ctx == NULL) {
@@ -290,11 +333,42 @@ int npf_rte_acl_init(int af, const char *name, uint32_t max_rules,
 		return -ENOMEM;
 	}
 
+	err = rte_acl_rcu_qsbr_add(tmp_ctx->acl_ctx, &rcu_conf);
+	if (err) {
+		RTE_LOG(ERR, DATAPLANE, "Failed to enable RCU for ACL ctx %s\n",
+			tmp_ctx->name);
+		goto error;
+
+	}
+
+	tr_sz = (sizeof(struct trans_entry) + rule_size)
+		* MAX_TRANSACTION_ENTRIES;
+	tmp_ctx->tr = rte_zmalloc("trie_transaction_records", tr_sz,
+				  RTE_CACHE_LINE_SIZE);
+	if (!tmp_ctx->tr) {
+		RTE_LOG(ERR, DATAPLANE,
+			"Could not allocate transaction record memory pool for trie %s\n",
+			tmp_ctx->name);
+		err = -ENOMEM;
+		goto error;
+	}
+
 	*m_ctx = tmp_ctx;
 
 	return 0;
-}
 
+error:
+	if (tmp_ctx->acl_ctx)
+		rte_acl_free(tmp_ctx->acl_ctx);
+
+	if (tmp_ctx->name)
+		free(tmp_ctx->name);
+
+	if (tmp_ctx)
+		free(tmp_ctx);
+
+	return err;
+}
 
 /*
  * convert big-endian wildcard mask to mask
@@ -317,6 +391,33 @@ static inline uint8_t wc_mask_to_mask(const uint8_t *wc_mask, uint8_t len)
 			break;
 	}
 	return ((len * 8) - mask);
+}
+
+static int npf_rte_acl_record_transaction_entry(npf_match_ctx_t *m_ctx,
+						enum rule_op rule_op,
+						const struct rte_acl_rule
+						*acl_rule, size_t rule_sz)
+{
+	struct trans_entry *t_entry = NULL;
+	uintptr_t ptr;
+
+	if (m_ctx->tr_num_entries >= MAX_TRANSACTION_ENTRIES) {
+		RTE_LOG(ERR, DATAPLANE,
+			"Number of transaction entries for trie %s exceeded (%u).\n",
+			m_ctx->name, MAX_TRANSACTION_ENTRIES);
+		return -ENOMEM;
+	}
+
+	t_entry = &m_ctx->tr[m_ctx->tr_num_entries++];
+	t_entry->rule_op = rule_op;
+	t_entry->trie = m_ctx;
+
+	ptr = (uintptr_t) t_entry + sizeof(struct trans_entry);
+
+	t_entry->rule = (struct rte_acl_rule *)ptr;
+
+	memcpy(t_entry->rule, acl_rule, rule_sz);
+	return 0;
 }
 
 /*
@@ -465,22 +566,10 @@ static void npf_rte_acl_add_v6_rule(uint8_t *match_addr, uint8_t *mask,
 		*(uint16_t *)&mask[NPC_GPR_DPORT_OFF_v6];
 }
 
-int npf_rte_acl_add_rule(int af, npf_match_ctx_t *m_ctx, uint32_t rule_no,
-			 uint8_t *match_addr, uint8_t *mask,
-			 void *match_ctx __rte_unused)
+static int _npf_rte_acl_add_rule(int af, npf_match_ctx_t *m_ctx,
+				 const struct rte_acl_rule *acl_rule)
 {
-	struct acl4_rules v4_rules;
-	struct acl6_rules v6_rules;
-	const struct rte_acl_rule *acl_rule;
-	int err = 0;
-
-	if (af == AF_INET) {
-		npf_rte_acl_add_v4_rule(match_addr, mask, rule_no, &v4_rules);
-		acl_rule = (const struct rte_acl_rule *)&v4_rules;
-	} else {
-		npf_rte_acl_add_v6_rule(match_addr, mask, rule_no, &v6_rules);
-		acl_rule = (const struct rte_acl_rule *)&v6_rules;
-	}
+	int err;
 
 	err = rte_acl_add_rules(m_ctx->acl_ctx, acl_rule, 1);
 	if (err) {
@@ -489,12 +578,51 @@ int npf_rte_acl_add_rule(int af, npf_match_ctx_t *m_ctx, uint32_t rule_no,
 		return err;
 	}
 
+	return 0;
+}
+
+int npf_rte_acl_add_rule(int af, npf_match_ctx_t *m_ctx, uint32_t rule_no,
+			 uint8_t *match_addr, uint8_t *mask,
+			 void *match_ctx __rte_unused)
+{
+	struct acl4_rules v4_rules;
+	struct acl6_rules v6_rules;
+	const struct rte_acl_rule *acl_rule;
+	int err = 0;
+	size_t rule_sz;
+
+	if (!m_ctx->tr_in_progress) {
+		RTE_LOG(ERR, DATAPLANE,
+			"Could not add rule %u for trie %s: no transaction in progress\n",
+			rule_no, m_ctx->name);
+		return -EINVAL;
+	}
+
+	if (af == AF_INET) {
+		npf_rte_acl_add_v4_rule(match_addr, mask, rule_no, &v4_rules);
+		acl_rule = (const struct rte_acl_rule *)&v4_rules;
+		rule_sz = sizeof(struct acl4_rules);
+	} else {
+		npf_rte_acl_add_v6_rule(match_addr, mask, rule_no, &v6_rules);
+		acl_rule = (const struct rte_acl_rule *)&v6_rules;
+		rule_sz = sizeof(struct acl6_rules);
+	}
+
+	err = npf_rte_acl_record_transaction_entry(m_ctx, RULE_OP_ADD,
+						   acl_rule, rule_sz);
+	if (err)
+		return err;
+
+	err = _npf_rte_acl_add_rule(af, m_ctx, acl_rule);
+	if (err < 0)
+		return err;
+
 	m_ctx->num_rules++;
 
 	return 0;
 }
 
-int npf_rte_acl_build(int af, npf_match_ctx_t **m_ctx)
+static int npf_rte_acl_build(int af, npf_match_ctx_t **m_ctx)
 {
 	struct rte_acl_config cfg = { 0 };
 	int err;
@@ -528,19 +656,74 @@ int npf_rte_acl_build(int af, npf_match_ctx_t **m_ctx)
 	return 0;
 }
 
+static int
+_npf_rte_acl_del_rule(int af, struct npf_match_ctx *m_ctx,
+			   const struct rte_acl_rule *acl_rule)
+{
+	int err = 0;
+
+	err = rte_acl_del_rule(m_ctx->acl_ctx, acl_rule);
+	if (err && err != -ENOENT) {
+		RTE_LOG(ERR, DATAPLANE,
+			"Could not remove rule for af %d : %d\n", af, err);
+		return err;
+	}
+
+	/* Only reduce counter if there was a matching delete */
+	if (err != -ENOENT)
+		m_ctx->num_rules--;
+
+	return err;
+}
+
+int npf_rte_acl_del_rule(int af, npf_match_ctx_t *m_ctx, uint32_t rule_no,
+			 uint8_t *match_addr, uint8_t *mask)
+{
+	struct acl4_rules v4_rules;
+	struct acl6_rules v6_rules;
+	const struct rte_acl_rule *acl_rule;
+	int err = 0;
+	size_t rule_sz;
+
+
+	if (af == AF_INET) {
+		npf_rte_acl_add_v4_rule(match_addr, mask, rule_no, &v4_rules);
+		acl_rule = (const struct rte_acl_rule *)&v4_rules;
+		rule_sz = sizeof(struct acl4_rules);
+	} else {
+		npf_rte_acl_add_v6_rule(match_addr, mask, rule_no, &v6_rules);
+		acl_rule = (const struct rte_acl_rule *)&v6_rules;
+		rule_sz = sizeof(struct acl6_rules);
+	}
+
+	if (!m_ctx->tr_in_progress) {
+		RTE_LOG(ERR, DATAPLANE,
+			"Could not delete rule %d from trie %s: no transaction in progress\n",
+			rule_no, m_ctx->name);
+		return -EINVAL;
+	}
+
+	err = npf_rte_acl_record_transaction_entry(m_ctx, RULE_OP_DELETE,
+						   acl_rule, rule_sz);
+	if (err)
+		return err;
+
+	return _npf_rte_acl_del_rule(af, m_ctx, acl_rule);
+}
+
 int npf_rte_acl_match(int af, npf_match_ctx_t *m_ctx,
 		      npf_cache_t *npc __rte_unused,
 		      struct npf_match_cb_data *data,
 		      uint32_t *rule_no)
 {
 	int ret;
-	uint32_t results = UINT32_MAX;
+	uint32_t results = 0;
 	const uint8_t *pkt_data[1];
 	struct rte_mbuf *m = data->mbuf;
 	uint8_t *nlp;
 
 	if (!m_ctx->num_rules)
-		return 0;
+		return -ENOENT;
 
 	if (af == AF_INET) {
 		nlp = (uint8_t *)iphdr(m);
@@ -553,10 +736,90 @@ int npf_rte_acl_match(int af, npf_match_ctx_t *m_ctx,
 
 	ret = rte_acl_classify(m_ctx->acl_ctx, pkt_data, &results, 1, 1);
 	if (ret)
-		return 0;
+		return -EINVAL;
 
 	*rule_no = results;
-	return 1;
+	return results ? 0 : -ENOENT;
+}
+
+int npf_rte_acl_start_transaction(int af __unused, npf_match_ctx_t *m_ctx)
+{
+	if (m_ctx->tr_in_progress) {
+		RTE_LOG(ERR, DATAPLANE,
+			"Transaction already in progress for trie %s\n",
+			m_ctx->name);
+		return -EINPROGRESS;
+	}
+
+	m_ctx->tr_in_progress = true;
+	return 0;
+}
+
+/* Rollsback all operations of the current transaction.
+ * In the unexpected case that an individual rollback operation
+ * failed, this method will continue rolling back all other rules.
+ *
+ * Return code is smaller zero if at least one rollback action did
+ * not succeed.
+ */
+static int npf_rte_acl_rollback_transaction(int af, npf_match_ctx_t *m_ctx)
+{
+	uint32_t i;
+	int rc = 0;
+
+	/* Rollbacks are not yet ready for prime-time.
+	 *
+	 * Transaction failures are considered fatal since then.
+	 */
+	rte_panic("Fatal error: NPF RTE ACL transaction failed.\n.");
+
+	for (i = 0; i < m_ctx->tr_num_entries; i++) {
+		struct trans_entry *te = &m_ctx->tr[i];
+
+		switch (te->rule_op) {
+		case RULE_OP_ADD:
+			if (_npf_rte_acl_del_rule(af, te->trie, te->rule) < 0)
+				rc = -1;
+			break;
+		case RULE_OP_DELETE:
+			if (_npf_rte_acl_add_rule(af, te->trie, te->rule) < 0)
+				rc = -1;
+			break;
+		default:
+			RTE_LOG(ERR, DATAPLANE,
+				"Unexpected transaction rule operation (%d) for trie %s\n",
+				te->rule_op, m_ctx->name);
+			rc = -1;
+			break;
+		}
+
+		if (rc < 0) {
+			RTE_LOG(ERR, DATAPLANE,
+				"Failed to rollback rule on trie %s\n",
+				m_ctx->name);
+		}
+	}
+
+	return rc;
+}
+
+int npf_rte_acl_commit_transaction(int af, npf_match_ctx_t *m_ctx)
+{
+	int rc = 0;
+	rc = npf_rte_acl_build(af, &m_ctx);
+
+	/* build failed -> rollback transaction */
+	if (rc < 0) {
+		if (npf_rte_acl_rollback_transaction(af, m_ctx) < 0) {
+			RTE_LOG(ERR, DATAPLANE,
+				"FATAL: Transaction rollback of trie failed %s\n",
+				m_ctx->name);
+		}
+	}
+
+	m_ctx->tr_num_entries = 0;
+	m_ctx->tr_in_progress = false;
+	return rc;
 }
 
 int npf_rte_acl_destroy(int af __rte_unused, npf_match_ctx_t **m_ctx)
@@ -567,9 +830,18 @@ int npf_rte_acl_destroy(int af __rte_unused, npf_match_ctx_t **m_ctx)
 		rte_acl_reset(ctx->acl_ctx);
 		rte_acl_free(ctx->acl_ctx);
 		free(ctx->name);
+		rte_free(ctx->tr);
 		free(ctx);
 		*m_ctx = NULL;
 	}
 
 	return 0;
+}
+
+size_t npf_rte_acl_rule_size(int af)
+{
+	if (af == AF_INET)
+		return RTE_ACL_RULE_SZ(RTE_DIM(ipv4_defs));
+
+	return RTE_ACL_RULE_SZ(RTE_DIM(ipv6_defs));
 }

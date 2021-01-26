@@ -367,59 +367,6 @@ static void build_xfrm_selector(struct xfrm_selector *sel,
 	sel->proto = proto;
 }
 
-static void wait_for_npf_policy(const struct dp_test_crypto_policy *policy,
-				bool check_present, uint32_t vrf_id,
-				const char *file, int line)
-{
-	json_object *expected_json;
-	char proto_str[100];
-	char vrf_str[100];
-	static const char template[] =
-	  "{"
-	      "\"config\": [{"
-		  "\"attach_type\": \"vrf\","
-		  "\"attach_point\": \"%d\","
-		  "\"rulesets\": [{"
-		      "\"ruleset_type\": \"ipsec\","
-		      "\"groups\": [{"
-			  "\"class\": \"ipsec\","
-			  "\"name\": \"%s\","
-			  "\"direction\": \"out\","
-			  "\"rules\": {"
-			      "\""__JSON_ANY_KEY_VAL__"\": {"
-				  "\"action\": \"%s \","
-				  "\"match\": \"%sfrom %s to %s *\","
-			      "}"
-			  "}"
-		      "}]"
-		  "}]"
-	      "}]"
-	   "}";
-
-	if (policy->proto)
-		snprintf(proto_str, 100, "proto-final %d ", policy->proto);
-
-	snprintf(vrf_str, 100, "out-%d", vrf_id);
-
-	char const *npf_action =
-		(policy->action == XFRM_POLICY_ALLOW) ? "pass" : "block";
-	expected_json = dp_test_json_create(template,
-					    vrf_id,
-					    vrf_str,
-					    npf_action,
-					    policy->proto ? proto_str : "",
-					    policy->s_prefix,
-					    policy->d_prefix);
-
-	_dp_test_check_json_state("npf-op show all: ipsec",
-				  expected_json, NULL,
-				  DP_TEST_JSON_CHECK_SUBSET,
-				  !check_present,
-				  file, "", line);
-
-	json_object_put(expected_json);
-}
-
 static uint32_t poll_cnt;
 
 struct dp_test_crypto_reponses_cb {
@@ -591,22 +538,20 @@ void _wait_for_policy(const struct dp_test_crypto_policy *policy,
 				  file, "", line);
 
 	json_object_put(expected_json);
-
-	if (policy->dir == XFRM_POLICY_OUT && !policy->mark)
-		wait_for_npf_policy(policy, check_present, vrf_id, file, line);
 }
 
 /*
  * _dp_test_create_ipsec_policy()
  *
- * Create an IPsec policy in the dataplane
+ * Create or Update an IPsec policy in the dataplane
  */
 void _dp_test_crypto_create_policy(const char *file, int line,
 				   const struct dp_test_crypto_policy *policy,
-				   bool verify)
+				   bool verify, bool update)
 {
 	struct xfrm_selector sel;
 	xfrm_address_t dst;
+	int action = update ? XFRM_MSG_UPDPOLICY : XFRM_MSG_NEWPOLICY;
 
 	build_xfrm_selector(&sel, policy->d_prefix, policy->s_prefix,
 			    policy->proto, policy->family);
@@ -615,7 +560,7 @@ void _dp_test_crypto_create_policy(const char *file, int line,
 					    NULL, policy->dst_family))
 		dp_test_abort_internal();
 
-	_dp_test_netlink_xfrm_policy(XFRM_MSG_NEWPOLICY,
+	_dp_test_netlink_xfrm_policy(action,
 				     &sel, &dst,
 				     policy->dst_family,
 				     policy->dir,
@@ -624,7 +569,8 @@ void _dp_test_crypto_create_policy(const char *file, int line,
 				     policy->mark,
 				     policy->action,
 				     policy->vrfid,
-					 policy->passthrough,
+				     policy->passthrough,
+				     policy->rule_no,
 				     file, line);
 
 
@@ -660,7 +606,8 @@ void _dp_test_crypto_delete_policy(const char *file, int line,
 				     policy->mark,
 				     policy->action,
 				     policy->vrfid,
-					 policy->passthrough,
+				     policy->passthrough,
+				     policy->rule_no,
 				     file, line);
 
 	if (verify)

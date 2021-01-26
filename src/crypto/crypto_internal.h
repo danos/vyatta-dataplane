@@ -26,6 +26,7 @@
 #include "crypto_defs.h"
 #include "crypto_main.h"
 #include "json_writer.h"
+#include "rldb.h"
 #include "vplane_log.h"
 #include "vrf_internal.h"
 #include "crypto_rte_pmd.h"
@@ -451,6 +452,10 @@ struct crypto_vrf_ctx {
 	struct cds_lfht *spi_out_hash_table;
 	struct cds_lfht *sadb_hash_table;
 	struct cds_lfht *s2s_bind_hash_table;
+	struct rldb_db_handle *input_policy_v4_rldb;
+	struct rldb_db_handle *output_policy_v4_rldb;
+	struct rldb_db_handle *input_policy_v6_rldb;
+	struct rldb_db_handle *output_policy_v6_rldb;
 	vrfid_t vrfid;
 	/*
 	 * total policy counts indicate the number
@@ -543,7 +548,8 @@ struct crypto_vrf_ctx *crypto_vrf_find(vrfid_t vrfid);
 struct crypto_vrf_ctx *crypto_vrf_find_external(vrfid_t vrfid);
 struct crypto_vrf_ctx *crypto_vrf_get(vrfid_t vrfid);
 void crypto_vrf_check_remove(struct crypto_vrf_ctx *vrf_ctx);
-struct ifnet *crypto_policy_feat_attach_by_reqid(uint32_t reqid);
+struct ifnet *crypto_policy_feat_attach_by_reqid(struct crypto_vrf_ctx *vrf_ctx,
+						 uint32_t reqid);
 
 /*
  * Per packet crypto context. This carries information

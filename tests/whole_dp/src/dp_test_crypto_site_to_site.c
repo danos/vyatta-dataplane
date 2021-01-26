@@ -100,6 +100,8 @@
 #define LINK_LOCAL  "169.254.0.1/32"
 #define LINK_LOCAL6 "fe80::1/128"
 
+#define RULE_PRIORITY 1
+
 static void
 dp_test_create_and_send_s2s_msg(CryptoPolicyConfig__Action action,
 				int af,
@@ -165,7 +167,8 @@ static struct dp_test_crypto_policy output_policy = {
 	.dir = XFRM_POLICY_OUT,
 	.family = AF_INET,
 	.reqid = TUNNEL_REQID,
-	.priority = 0,
+	.priority = RULE_PRIORITY,
+	.rule_no = 1,
 	.mark = 0,
 	.vrfid = VRF_DEFAULT_ID
 };
@@ -179,7 +182,8 @@ static struct dp_test_crypto_policy output_policy6 = {
 	.dir = XFRM_POLICY_OUT,
 	.family = AF_INET6,
 	.reqid = TUNNEL_REQID,
-	.priority = 0,
+	.priority = RULE_PRIORITY,
+	.rule_no = 2,
 	.mark = 0,
 	.vrfid = VRF_DEFAULT_ID
 };
@@ -193,7 +197,8 @@ static struct dp_test_crypto_policy output_policy46 = {
 	.dir = XFRM_POLICY_OUT,
 	.family = AF_INET,
 	.reqid = TUNNEL_REQID,
-	.priority = 0,
+	.priority = RULE_PRIORITY,
+	.rule_no = 3,
 	.mark = 0,
 	.vrfid = VRF_DEFAULT_ID
 };
@@ -207,7 +212,8 @@ static struct dp_test_crypto_policy output_policy64 = {
 	.dir = XFRM_POLICY_OUT,
 	.family = AF_INET6,
 	.reqid = TUNNEL_REQID,
-	.priority = 0,
+	.priority = RULE_PRIORITY,
+	.rule_no = 4,
 	.mark = 0,
 	.vrfid = VRF_DEFAULT_ID
 };
@@ -221,7 +227,8 @@ static struct dp_test_crypto_policy input_policy = {
 	.dir = XFRM_POLICY_IN,
 	.family = AF_INET,
 	.reqid = TUNNEL_REQID,
-	.priority = 0,
+	.priority = RULE_PRIORITY,
+	.rule_no = 5,
 	.mark = 0,
 	.vrfid = VRF_DEFAULT_ID
 };
@@ -235,7 +242,8 @@ static struct dp_test_crypto_policy input_policy6 = {
 	.dir = XFRM_POLICY_IN,
 	.family = AF_INET6,
 	.reqid = TUNNEL_REQID,
-	.priority = 0,
+	.priority = RULE_PRIORITY,
+	.rule_no = 6,
 	.mark = 0,
 	.vrfid = VRF_DEFAULT_ID
 };
@@ -250,7 +258,8 @@ static struct dp_test_crypto_policy input_policy64 = {
 	.dir = XFRM_POLICY_IN,
 	.family = AF_INET,
 	.reqid = TUNNEL_REQID,
-	.priority = 0,
+	.priority = RULE_PRIORITY,
+	.rule_no = 7,
 	.mark = 0,
 	.vrfid = VRF_DEFAULT_ID
 };
@@ -265,7 +274,8 @@ static struct dp_test_crypto_policy input_policy46 = {
 	.dir = XFRM_POLICY_IN,
 	.family = AF_INET6,
 	.reqid = TUNNEL_REQID,
-	.priority = 0,
+	.priority = RULE_PRIORITY,
+	.rule_no = 8,
 	.mark = 0,
 	.vrfid = VRF_DEFAULT_ID
 };
@@ -761,11 +771,12 @@ static void _setup_policies(struct dp_test_crypto_policy *input,
 			    vrfid_t vrfid, const char *file, int line)
 {
 	bool verify = true;
+	bool update = false;
 
 	input->vrfid = vrfid;
 	output->vrfid = vrfid;
-	_dp_test_crypto_create_policy(file, line, input, verify);
-	_dp_test_crypto_create_policy(file, line, output, verify);
+	_dp_test_crypto_create_policy(file, line, input, verify, update);
+	_dp_test_crypto_create_policy(file, line, output, verify, update);
 }
 #define setup_policies(input, output, vrf) \
 	_setup_policies(input, output, vrf, __FILE__, __LINE__)
@@ -2527,7 +2538,8 @@ static void rx_match_policy_proto(vrfid_t vrfid)
 		.dir = XFRM_POLICY_IN,
 		.family = AF_INET,
 		.reqid = TUNNEL_REQID,
-		.priority = 0,
+		.priority = RULE_PRIORITY,
+		.rule_no = 1,
 		.mark = 0,
 		.vrfid = VRF_DEFAULT_ID,
 		.action = XFRM_POLICY_BLOCK,
@@ -2541,7 +2553,8 @@ static void rx_match_policy_proto(vrfid_t vrfid)
 		.dir = XFRM_POLICY_IN,
 		.family = AF_INET,
 		.reqid = TUNNEL_REQID,
-		.priority = 0,
+		.priority = RULE_PRIORITY,
+		.rule_no = 2,
 		.mark = 0,
 		.vrfid = VRF_DEFAULT_ID,
 		.action = XFRM_POLICY_ALLOW,
@@ -2556,7 +2569,8 @@ static void rx_match_policy_proto(vrfid_t vrfid)
 		.dir = XFRM_POLICY_IN,
 		.family = AF_INET,
 		.reqid = TUNNEL_REQID,
-		.priority = 0,
+		.priority = RULE_PRIORITY,
+		.rule_no = 3,
 		.mark = 0,
 		.vrfid = VRF_DEFAULT_ID,
 		.action = XFRM_POLICY_BLOCK,
@@ -2600,7 +2614,8 @@ static void rx_match_policy_proto6(vrfid_t vrfid)
 		.dir = XFRM_POLICY_IN,
 		.family = AF_INET6,
 		.reqid = TUNNEL_REQID,
-		.priority = 0,
+		.priority = RULE_PRIORITY,
+		.rule_no = 1,
 		.mark = 0,
 		.vrfid = VRF_DEFAULT_ID,
 		.action = XFRM_POLICY_BLOCK,
@@ -2614,7 +2629,8 @@ static void rx_match_policy_proto6(vrfid_t vrfid)
 		.dir = XFRM_POLICY_IN,
 		.family = AF_INET6,
 		.reqid = TUNNEL_REQID,
-		.priority = 0,
+		.priority = RULE_PRIORITY,
+		.rule_no = 2,
 		.mark = 0,
 		.vrfid = VRF_DEFAULT_ID,
 		.action = XFRM_POLICY_ALLOW,
@@ -2629,7 +2645,8 @@ static void rx_match_policy_proto6(vrfid_t vrfid)
 		.dir = XFRM_POLICY_IN,
 		.family = AF_INET6,
 		.reqid = TUNNEL_REQID,
-		.priority = 0,
+		.priority = RULE_PRIORITY,
+		.rule_no = 3,
 		.mark = 0,
 		.vrfid = VRF_DEFAULT_ID,
 		.action = XFRM_POLICY_BLOCK,

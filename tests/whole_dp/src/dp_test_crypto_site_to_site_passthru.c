@@ -17,6 +17,7 @@
 #include "dp_test_lib_intf_internal.h"
 #include "dp_test_console.h"
 #include "dp_test_controller.h"
+#include "dp_test_npf_lib.h"
 
 #include "main.h"
 #include "in_cksum.h"
@@ -105,6 +106,7 @@ static struct dp_test_crypto_policy output_policy = {
 	.family = AF_INET,
 	.reqid = TUNNEL_REQID,
 	.priority = 3000,
+	.rule_no = 1,
 	.mark = 0,
 	.vrfid = VRF_DEFAULT_ID
 };
@@ -119,6 +121,7 @@ static struct dp_test_crypto_policy output_passthru_policy = {
 	.family = AF_INET,
 	.reqid = TUNNEL_REQID,
 	.priority = 1000,
+	.rule_no = 2,
 	.mark = 0,
 	.action = XFRM_POLICY_ALLOW,
 	.vrfid = VRF_DEFAULT_ID,
@@ -135,6 +138,7 @@ static struct dp_test_crypto_policy output_policy6 = {
 	.family = AF_INET6,
 	.reqid = TUNNEL_REQID,
 	.priority = 3000,
+	.rule_no = 3,
 	.mark = 0,
 	.vrfid = VRF_DEFAULT_ID
 };
@@ -149,6 +153,7 @@ static struct dp_test_crypto_policy output_passthru_policy6 = {
 	.family = AF_INET6,
 	.reqid = TUNNEL_REQID,
 	.priority = 1000,
+	.rule_no = 4,
 	.mark = 0,
 	.action = XFRM_POLICY_ALLOW,
 	.vrfid = VRF_DEFAULT_ID,
@@ -165,6 +170,7 @@ static struct dp_test_crypto_policy input_policy = {
 	.family = AF_INET,
 	.reqid = TUNNEL_REQID,
 	.priority = 3000,
+	.rule_no = 5,
 	.mark = 0,
 	.vrfid = VRF_DEFAULT_ID
 };
@@ -179,6 +185,7 @@ static struct dp_test_crypto_policy input_passthru_policy = {
 	.family = AF_INET,
 	.reqid = TUNNEL_REQID,
 	.priority = 1000,
+	.rule_no = 6,
 	.mark = 0,
 	.action = XFRM_POLICY_ALLOW,
 	.vrfid = VRF_DEFAULT_ID,
@@ -195,6 +202,7 @@ static struct dp_test_crypto_policy input_policy6 = {
 	.family = AF_INET6,
 	.reqid = TUNNEL_REQID,
 	.priority = 3000,
+	.rule_no = 7,
 	.mark = 0,
 	.vrfid = VRF_DEFAULT_ID
 };
@@ -209,6 +217,7 @@ static struct dp_test_crypto_policy input_passthru_policy6 = {
 	.family = AF_INET6,
 	.reqid = TUNNEL_REQID,
 	.priority = 1000,
+	.rule_no = 8,
 	.mark = 0,
 	.action = XFRM_POLICY_ALLOW,
 	.vrfid = VRF_DEFAULT_ID,
@@ -526,6 +535,8 @@ static void s2s_common_teardown(vrfid_t vrfid,
 		dp_test_crypto_delete_policy(&opol[i]);
 	}
 
+	dp_test_npf_cleanup();
+
 	/***************************************************
 	 * Tear down topology
 	 */
@@ -554,6 +565,8 @@ static void s2s_common_teardown6(vrfid_t vrfid,
 		dp_test_crypto_delete_policy(&ipol[i]);
 		dp_test_crypto_delete_policy(&opol[i]);
 	}
+
+	dp_test_npf_cleanup();
 
 	/***************************************************
 	 * Tear down topology

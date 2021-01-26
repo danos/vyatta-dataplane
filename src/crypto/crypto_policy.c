@@ -53,17 +53,10 @@
 #include "json_writer.h"
 #include "lcore_sched.h"
 #include "nh_common.h"
-#include "npf/npf.h"
-#include "npf/config/npf_attach_point.h"
-#include "npf/config/npf_config.h"
-#include "npf/config/npf_rule_group.h"
-#include "npf/config/npf_ruleset_type.h"
-#include "npf/npf_match.h"
-#include "npf/npf_rte_acl.h"
-#include "npf_shim.h"
 #include "pipeline/nodes/pl_nodes_common.h"
 #include "pktmbuf_internal.h"
 #include "pl_node.h"
+#include "rldb.h"
 #include "route.h"
 #include "route_flags.h"
 #include "route_v6.h"
@@ -109,23 +102,22 @@ struct pr_feat_attach {
 	struct rcu_head pr_feat_rcu;
 };
 
+#define POLICY_F_PENDING_ADD 0x0001
+#define POLICY_F_PENDING_DEL 0x0002
+
 /*
  * struct policy_rule
  *
  * This is the type for entries in the policy rule
- * database. Each entry tracks a single NPF rule.
- * A given NPF rule can be used by both an input and
+ * database. Each entry tracks a single rldb rule handle.
+ * A given rldb rule can be used by both an input and
  * output policy since their selectors can overlap.
  *
- * The policy database is indexd by the NPF rule tag
+ * The policy database is indexd by the rule_index
  * value and also by a subset of the fields in the
- * selector. This subset is the same subset used to
- * build the text of the NPF rule corresponding to0
- * the selector.
+ * selector.
  */
 struct policy_rule {
-	struct cds_lfht_node tag_ht_node;
-	uint32_t tag;
 	int action;
 	struct cds_lfht_node sel_ht_node;
 	struct xfrm_selector sel;
@@ -140,8 +132,9 @@ struct policy_rule {
 	uint32_t policy_priority;
 	uint32_t rule_index;
 	bool vti_tunnel_policy;
-	bool pending_delete;
+	uint8_t flags;
 	struct pr_feat_attach *feat_attach;
+	struct rldb_rule_handle *rh;
 };
 
 struct policy_rule_key {
@@ -151,51 +144,10 @@ struct policy_rule_key {
 
 bool flow_cache_disabled;
 
-/*
- * Lock free hash tables for policy rule database.
- */
-struct cds_lfht *input_policy_rule_tag_ht;
-struct cds_lfht *output_policy_rule_tag_ht;
-
 uint32_t crypto_rekey_requests;
 
 #define POLICY_RULE_BUFSIZE (1024 * sizeof(char))
 #define ATTACH_GROUP_BUFSIZE 32
-
-/*
- * The NPF rules corresponding to policies have tag values
- * appended to the rule text. These are used to associate
- * a rule matched by an NPF query with the corresponding
- * struct policy_rule (see below).
- *
- * The tag map is a segmented bitmap that is used to
- * allocate a unique tag value to the NPF rule that is
- * created for each policy. When a packet is matched
- * in NPF, the tag value returned is used to find the
- * corresponding struct policy_rule.
- */
-#define PR_TAG_SIZE             13
-#define TM_SECTION_SIZE         512
-#define TM_SECTION_BITS         (TM_SECTION_SIZE << 3)
-#define TM_WORD_BITS            LONGBITS
-#define TM_SECTION_WORDS        (TM_SECTION_BITS / TM_WORD_BITS)
-#define TM_SECTION_COUNT        ((1 << PR_TAG_SIZE) / TM_SECTION_BITS)
-#define TM_SECTION_OF_BIT(b)    ((b) / TM_SECTION_BITS)
-#define TM_SECTION_BIT(b)       ((b) % TM_SECTION_BITS)
-#define TM_WORD_OF_BIT(b)       ((b) / TM_WORD_BITS)
-#define TM_BIT_WITHIN_WORD(b)   (1 << ((b) - 1))
-
-struct tagmap_section {
-	unsigned long bitmap_words[TM_SECTION_WORDS];
-	unsigned long inuse_count;
-};
-
-struct tagmap {
-	struct tagmap_section *sections[TM_SECTION_COUNT];
-	int next_section;
-};
-
-static struct tagmap policy_tagmap;
 
 #define CRYPTO_FLOW_CACHE_MAX_COUNT  8192
 
@@ -222,80 +174,6 @@ struct s2s_binding {
 	vrfid_t vrfid;
 	uint ifindex;
 };
-
-static bool policy_rule_peer_is_set(const struct policy_rule *pr)
-{
-	uint16_t af = pr->output_peer_af;
-	return af == AF_INET || af == AF_INET6;
-}
-
-static bool tagmap_expand(struct tagmap *tm)
-{
-	if (tm->next_section >= TM_SECTION_COUNT)
-		return false;
-
-	tm->sections[tm->next_section] =
-		calloc(1, sizeof(struct tagmap_section));
-	if (!tm->sections[tm->next_section])
-		return false;
-
-	tm->next_section++;
-
-	return true;
-}
-
-static bool tagmap_init(struct tagmap *tm)
-{
-	if (tm) {
-		int i;
-
-		for (i = 0; i < TM_SECTION_COUNT; i++)
-			tm->sections[i] = NULL;
-		tm->next_section = 0;
-
-		return tagmap_expand(tm);
-	}
-	return false;
-}
-
-static unsigned int tagmap_section_alloc(struct tagmap_section *tms)
-{
-	unsigned int i;
-	int bit;
-
-	if (!tms || (tms->inuse_count == TM_SECTION_BITS))
-		return 0;
-
-	for (i = 0; i < TM_SECTION_WORDS; i++) {
-		bit = __builtin_ffsl(~tms->bitmap_words[i]);
-		if (bit) {
-			tms->bitmap_words[i] |=  1L << (bit - 1);
-			tms->inuse_count++;
-			return bit + i * TM_WORD_BITS;
-		}
-	}
-	return 0;
-}
-
-static bool tagmap_section_free(struct tagmap_section *tms, int bit)
-{
-	unsigned long mask;
-	unsigned int idx;
-
-	if (!tms || (tms->inuse_count == 0))
-		return false;
-
-	idx = TM_WORD_OF_BIT(bit);
-	mask = 1L << (bit % TM_WORD_BITS);
-
-	if (tms->bitmap_words[idx] & mask) {
-		tms->bitmap_words[idx] &= ~mask;
-		tms->inuse_count--;
-		return true;
-	}
-
-	return false;
-}
 
 static struct flow_cache_entry *
 crypto_flow_cache_lookup(struct rte_mbuf *m, bool v4)
@@ -395,56 +273,6 @@ crypto_flow_cache_timer_handler(struct rte_timer *tmr __rte_unused,
 	flow_cache_age(flow_cache);
 }
 
-static unsigned int allocate_tag(struct tagmap *tm)
-{
-	unsigned int bit;
-	int i;
-
-	if (!tm)
-		return 0;
-
-	/*
-	 * Attempt to allocate a tag in an
-	 * existing section of the tagmap.
-	 */
-	for (i = 0; i < tm->next_section; i++) {
-		bit = tagmap_section_alloc(tm->sections[i]);
-		if (bit)
-			return bit + i * TM_SECTION_BITS;
-	}
-
-	/*
-	 * All the existing sections of the
-	 * tagmap are full so add a new one.
-	 */
-	if (!tagmap_expand(tm))
-		return 0;
-
-	bit = tagmap_section_alloc(tm->sections[i]);
-	if (bit)
-		return bit + i * TM_SECTION_BITS;
-
-	return 0;
-}
-
-static bool free_tag(struct tagmap *tm, unsigned int tag)
-{
-	unsigned int bit = tag - 1;
-	int section_idx;
-
-	if (!tm || tag == 0)
-		return false;
-
-	section_idx = TM_SECTION_OF_BIT(bit);
-	if ((section_idx >= TM_SECTION_COUNT) ||
-	    (section_idx >= tm->next_section) ||
-	    (!tm->sections[section_idx]))
-		return false;
-
-	return tagmap_section_free(tm->sections[section_idx],
-				   TM_SECTION_BIT(bit));
-}
-
 static unsigned long policy_rule_sel_hash(const struct policy_rule_key *key)
 {
 	unsigned long h;
@@ -490,7 +318,7 @@ static int policy_rule_sel_match(struct cds_lfht_node *node, const void *key)
 
 	/*
 	 * Match if and only if the all the fields used to build the
-	 * NPF rule are the same (see build_policy_npf_rule()).
+	 * rldb rule are the same (see policy_prepare_rldb_rule()).
 	 *
 	 */
 	return (policy_rule_sel_eq(&pr->sel, search_key->sel) &&
@@ -604,92 +432,151 @@ policy_rule_find_by_selector(vrfid_t vrfid,
 		    : NULL;
 }
 
-static int policy_rule_tag_match(struct cds_lfht_node *node, const void *tag_p)
+static bool policy_prepare_rldb_rule(struct policy_rule *pr,
+				     struct rldb_rule_spec *rule)
 {
-	uint32_t search_tag = *(const uint32_t *)tag_p;
-	const struct policy_rule *pr;
+	rule->rldb_user_data = (uintptr_t)pr;
+	rule->rldb_priority = pr->policy_priority;
 
-	pr = caa_container_of(node, const struct policy_rule, tag_ht_node);
+	if (pr->sel.proto) {
+		rule->rldb_flags |= NPFRL_FLAG_PROTO;
+		rule->rldb_proto.npfrl_proto = pr->sel.proto;
+	}
 
-	return (pr->tag == search_tag);
-}
+	if (pr->sel.family == AF_INET) {
+		struct rldb_v4_prefix *pfx;
+		rule->rldb_flags |= NPFRL_FLAG_V4_PFX;
 
-static bool policy_rule_add_to_tag_ht(struct policy_rule *pr)
-{
-	struct cds_lfht_node *ret_node;
-	struct cds_lfht *hash_table;
+		/* src */
+		if (pr->sel.prefixlen_s) {
+			rule->rldb_flags |= NPFRL_FLAG_SRC_PFX;
+			pfx = &rule->rldb_src_addr.v4_pfx;
+			memcpy(pfx->npfrl_bytes, &pr->sel.saddr.a4,
+			       sizeof(pfx->npfrl_bytes));
+			pfx->npfrl_plen = pr->sel.prefixlen_s;
+		}
 
-	switch (pr->dir) {
-	case XFRM_POLICY_IN:
-		hash_table = input_policy_rule_tag_ht;
-		break;
-	case XFRM_POLICY_OUT:
-		hash_table = output_policy_rule_tag_ht;
-		break;
-	default:
+		/* dst */
+		if (pr->sel.prefixlen_d) {
+			rule->rldb_flags |= NPFRL_FLAG_DST_PFX;
+			pfx = &rule->rldb_dst_addr.v4_pfx;
+			memcpy(pfx->npfrl_bytes, &pr->sel.daddr.a4,
+			       sizeof(pfx->npfrl_bytes));
+			pfx->npfrl_plen = pr->sel.prefixlen_d;
+		}
+	} else if (pr->sel.family == AF_INET6) {
+		struct rldb_v6_prefix *pfx;
+		rule->rldb_flags |= NPFRL_FLAG_V6_PFX;
+
+		/* src */
+		if (pr->sel.prefixlen_s) {
+			rule->rldb_flags |= NPFRL_FLAG_SRC_PFX;
+			pfx = &rule->rldb_src_addr.v6_pfx;
+			memcpy(pfx->npfrl_bytes, &pr->sel.saddr.a6,
+			       sizeof(pfx->npfrl_bytes));
+			pfx->npfrl_plen = pr->sel.prefixlen_s;
+		}
+
+		/* dst */
+		if (pr->sel.prefixlen_d) {
+			rule->rldb_flags |= NPFRL_FLAG_DST_PFX;
+			pfx = &rule->rldb_dst_addr.v6_pfx;
+			memcpy(pfx->npfrl_bytes, &pr->sel.daddr.a6,
+			       sizeof(pfx->npfrl_bytes));
+			pfx->npfrl_plen = pr->sel.prefixlen_d;
+		}
+	} else {
 		POLICY_ERR(
-			"Failed to add policy rule to hash table: Bad direction\n");
+			"Failed to add policy rule: AF not supported\n");
 		return false;
 	}
 
-	ret_node = cds_lfht_add_unique(hash_table, pr->tag,
-				       policy_rule_tag_match,
-				       &pr->tag,
-				       &pr->tag_ht_node);
-
-	if (ret_node != &pr->tag_ht_node) {
-		POLICY_ERR("Failed to add rule to tag hash table\n");
-		return false;
+	/*
+	 * Port ranges are not yet supported.
+	 * This mimics the pre-RLDB behavior.
+	 */
+	if (pr->sel.sport) {
+		rule->rldb_flags |= NPFRL_FLAG_SRC_PORT_RANGE;
+		rule->rldb_src_port_range.npfrl_loport = pr->sel.sport;
+		rule->rldb_src_port_range.npfrl_hiport = pr->sel.sport;
 	}
+
+	if (pr->sel.dport) {
+		rule->rldb_flags |= NPFRL_FLAG_DST_PORT_RANGE;
+		rule->rldb_dst_port_range.npfrl_loport = pr->sel.dport;
+		rule->rldb_dst_port_range.npfrl_hiport = pr->sel.dport;
+	}
+
 	return true;
 }
 
-static void policy_rule_remove_from_tag_ht(struct policy_rule *pr)
+static
+struct rldb_db_handle *policy_rule_get_rldb(struct crypto_vrf_ctx *vrf_ctx,
+					    struct policy_rule *pr)
 {
-	struct cds_lfht *hash_table;
+	struct rldb_db_handle *db = NULL;
 
 	switch (pr->dir) {
 	case XFRM_POLICY_IN:
-		hash_table = input_policy_rule_tag_ht;
+		if (pr->sel.family == AF_INET)
+			db = vrf_ctx->input_policy_v4_rldb;
+		else
+			db = vrf_ctx->input_policy_v6_rldb;
 		break;
 	case XFRM_POLICY_OUT:
-		hash_table = output_policy_rule_tag_ht;
+		if (pr->sel.family == AF_INET)
+			db = vrf_ctx->output_policy_v4_rldb;
+		else
+			db = vrf_ctx->output_policy_v6_rldb;
 		break;
 	default:
 		POLICY_ERR(
-			"Failed to remove policy rule from hash table: Bad direction\n");
-		return;
+			"Failed to find rule database: Bad direction\n");
+		break;
 	}
 
-	cds_lfht_del(hash_table, &pr->tag_ht_node);
+	return db;
 }
 
-static struct policy_rule *policy_rule_find_by_tag(uint32_t tag,
-						   int policy_direction)
+static bool policy_rule_add_to_rldb(struct crypto_vrf_ctx *vrf_ctx,
+				    struct policy_rule *pr)
 {
-	struct cds_lfht *hash_table;
-	struct cds_lfht_node *node;
-	struct cds_lfht_iter iter;
+	int rc;
+	struct rldb_db_handle *db = NULL;
+	struct rldb_rule_spec rule = { 0 };
 
-	switch (policy_direction) {
-	case XFRM_POLICY_IN:
-		hash_table = input_policy_rule_tag_ht;
-		break;
-	case XFRM_POLICY_OUT:
-		hash_table = output_policy_rule_tag_ht;
-		break;
-	default:
-		POLICY_ERR(
-			"Failed to find policy rule to hash table: Bad direction\n");
-		return NULL;
+	/*
+	 * Packets are routed into VTI tunnels, so we
+	 * don't need to create RLDB rules for them.
+	 */
+	if (pr->vti_tunnel_policy)
+		return true;
+
+	rc = policy_prepare_rldb_rule(pr, &rule);
+	if (rc < 0)
+		return false;
+
+	db = policy_rule_get_rldb(vrf_ctx, pr);
+	if (!db)
+		return false;
+
+	rc = rldb_add_rule(db, pr->rule_index, &rule, &pr->rh);
+	if (rc < 0) {
+		POLICY_ERR("Failed to add policy rule to rule database\n");
+		return false;
 	}
 
-	cds_lfht_lookup(hash_table, tag, policy_rule_tag_match, &tag, &iter);
+	if (pr->sel.family == AF_INET) {
+		++vrf_ctx->crypto_total_ipv4_policies;
+		POLICY_DEBUG("Active IPv4 policies: %d\n",
+			     vrf_ctx->crypto_total_ipv4_policies);
+	} else {
+		++vrf_ctx->crypto_total_ipv6_policies;
+		POLICY_DEBUG("Active IPv6 policies: %d\n",
+			     vrf_ctx->crypto_total_ipv6_policies);
+	}
 
-	node = cds_lfht_iter_get_node(&iter);
-
-	return node ? caa_container_of(node, struct policy_rule, tag_ht_node)
-		    : NULL;
+	return true;
 }
 
 static void
@@ -720,7 +607,7 @@ policy_rule_set_mark(struct policy_rule *pr, const struct xfrm_mark *mark)
 	if (mark) {
 		/*
 		 * This policy is for a VTI tunnel so we inhibit
-		 * the creation of an NPF rule as these are only
+		 * the creation of an rldb rule as these are only
 		 * required for site-to site tunnels.
 		 */
 		pr->vti_tunnel_policy = true;
@@ -742,31 +629,9 @@ policy_rule_create(const struct xfrm_userpolicy_info *usr_policy,
 {
 	struct policy_rule *pr;
 
-	/*
-	 * The policy priority is used as the top 16 bits of the NPF
-	 * rule index. Since NPF uses a signed int for the index, we
-	 * want to avoid setting the top bit. The algorithm currently
-	 * used by strongSwan to calculate policy priority always gives
-	 * a result that is less than 2^14, but make sure we catch any
-	 * future changes.
-	 */
-	if (usr_policy->priority > (uint32_t)
-	    ((1 << (32 - PR_TAG_SIZE)) - 1)) {
-		POLICY_ERR(
-			"Failed to create policy rule: priority too high\n");
-		return NULL;
-	}
-
 	pr = zmalloc_aligned(sizeof(*pr));
 	if (!pr) {
 		POLICY_ERR("Policy rule allocation failed\n");
-		return NULL;
-	}
-
-	pr->tag = allocate_tag(&policy_tagmap);
-	if (!pr->tag) {
-		POLICY_ERR("Policy rule tag allocation failed\n");
-		free(pr);
 		return NULL;
 	}
 
@@ -779,8 +644,7 @@ policy_rule_create(const struct xfrm_userpolicy_info *usr_policy,
 		      XFRM_POLICY_BLOCK : usr_policy->action);
 	pr->dir = usr_policy->dir;
 	pr->policy_priority = usr_policy->priority;
-	/* Policy priority is not unique, so rule index must include tag. */
-	pr->rule_index = (usr_policy->priority << PR_TAG_SIZE) + pr->tag;
+	pr->rule_index = usr_policy->index;
 	memcpy(&pr->sel, &usr_policy->sel, sizeof(pr->sel));
 
 	policy_rule_set_mark(pr, mark);
@@ -795,7 +659,7 @@ policy_rule_create(const struct xfrm_userpolicy_info *usr_policy,
 			POLICY_ERR(
 				"Failed to create policy rule: "
 				"Mismatch of tmpl and dst\n");
-			free_tag(&policy_tagmap, pr->tag);
+
 			free(pr);
 			return NULL;
 		}
@@ -803,9 +667,7 @@ policy_rule_create(const struct xfrm_userpolicy_info *usr_policy,
 			policy_rule_set_peer_info(pr, tmpl, dst);
 	}
 
-	cds_lfht_node_init(&pr->tag_ht_node);
 	cds_lfht_node_init(&pr->sel_ht_node);
-	pr->pending_delete = false;
 	return pr;
 }
 
@@ -868,11 +730,8 @@ static void policy_rule_destroy(struct policy_rule *pr)
 				pr->vrfid);
 	}
 
-	if (!free_tag(&policy_tagmap, pr->tag))
-		POLICY_ERR("Failed to free policy tag %d\n", pr->tag);
-
 	policy_feat_attach_destroy(pr);
-	pr->pending_delete = true;
+	pr->flags |= POLICY_F_PENDING_DEL;
 	call_rcu(&pr->policy_rule_rcu, policy_rule_rcu_invalidate);
 }
 
@@ -880,279 +739,71 @@ static bool policy_rule_add_to_hash_tables(struct policy_rule *pr)
 {
 	if (!policy_rule_add_to_selector_ht(pr))
 		return false;
-	if (policy_rule_add_to_tag_ht(pr))
-		return true;
-	policy_rule_remove_from_selector_ht(pr);
-	return false;
+
+	return true;
 }
 
 static void policy_rule_remove_from_hash_tables(struct policy_rule *pr)
 {
 	policy_rule_remove_from_selector_ht(pr);
-	policy_rule_remove_from_tag_ht(pr);
 }
 
-static bool policy_rule_build_npf_str(const struct policy_rule *pr,
-				      char *buf, size_t len)
+static bool policy_rule_update_rldb(struct policy_rule *pr)
 {
-	const struct xfrm_selector *sel = &pr->sel;
-	char saddr_str[INET6_ADDRSTRLEN+1];
-	char daddr_str[INET6_ADDRSTRLEN+1];
-	struct in_addr ia_src, ia_dst;
-	struct in6_addr i6a;
-	char proto_str[32];
-	char sport_str[32];
-	char dport_str[32];
-	char tag_str[23];
+	int rc;
+	struct rldb_db_handle *db;
+	struct rldb_rule_spec rule = { 0 };
+	struct crypto_vrf_ctx *vrf_ctx;
 
-	int res;
-
-	if (sel->family == AF_INET6) {
-		memcpy(&i6a.s6_addr32, &sel->saddr.a6, sizeof(i6a.s6_addr32));
-		if (!inet_ntop(AF_INET6, &i6a, saddr_str, INET6_ADDRSTRLEN)) {
-			POLICY_ERR("Crypto policy src get fail-%d\n", errno);
-			return false;
-		}
-		memcpy(&i6a.s6_addr32, &sel->daddr.a6, sizeof(i6a.s6_addr32));
-		if (!inet_ntop(AF_INET6, &i6a, daddr_str, INET6_ADDRSTRLEN)) {
-			POLICY_ERR("Crypto policy dst get fail-%d\n", errno);
-			return false;
-		}
-	} else {
-		ia_src.s_addr = sel->saddr.a4;
-		if (!inet_ntop(AF_INET, &ia_src, saddr_str, INET_ADDRSTRLEN)) {
-			POLICY_ERR("Crypto policy src get fail-%d\n", errno);
-			return false;
-		}
-		ia_dst.s_addr = sel->daddr.a4;
-		if (!inet_ntop(AF_INET, &ia_dst, daddr_str, INET_ADDRSTRLEN)) {
-			POLICY_ERR("Crypto policy dst get fail- %d\n", errno);
-			return false;
-		}
-	}
-
-	if (sel->proto > 0)
-		snprintf(proto_str, sizeof(proto_str) - 1, "proto-final=%d ",
-			 sel->proto);
-	else
-		proto_str[0] = '\0';
-
-	if (sel->sport > 0)
-		snprintf(sport_str, sizeof(sport_str) - 1, "src-port=%d ",
-			 ntohs(sel->sport));
-	else
-		sport_str[0] = '\0';
-
-	if (sel->dport > 0)
-		snprintf(dport_str, sizeof(dport_str) - 1, "dst-port=%d ",
-			 ntohs(sel->dport));
-	else
-		dport_str[0] = '\0';
-
-	char const *npf_action;
-
-	/* NB: While non-passthrough IN policies arrive as ALLOW, what they
-	 * mean in DP terms is allow encrypted traffic and drop any
-	 * packets that arrive in the clear matching the policies.
-	 * DP doesn't check IN policies for encrypted traffic and
-	 * therefore these are simply marked as DROP and only checked
-	 * for packets arriving in the clear.
-	 */
-	if ((pr->action == XFRM_POLICY_ALLOW) &&
-			((pr->dir == XFRM_POLICY_OUT) ||
-			 !policy_rule_peer_is_set(pr))) {
-		npf_action = "action=accept";
-		snprintf(tag_str, sizeof(tag_str) - 1, "handle=tag(%u)",
-			 pr->tag);
-	} else {
-		npf_action = "action=drop";
-		snprintf(tag_str, sizeof(tag_str) - 1, "handle=tag(%u)",
-			 pr->tag);
-	}
-
-	res = snprintf(buf, len-1,
-		       "%s %s src-addr=%s/%d %s dst-addr=%s/%d %s %s",
-		       npf_action, proto_str,
-		       saddr_str, sel->prefixlen_s, sport_str,
-		       daddr_str, sel->prefixlen_d, dport_str, tag_str);
-
-	if ((res < 0) || (res > (int)(len-2))) {
-		POLICY_ERR("Failed to format NPF rule from XFRM selector\n");
-		return false;
-	}
-	return true;
-}
-
-static void group_name_by_vrf(char *buf, int buflen, int dir, vrfid_t vrf)
-{
-	if (dir == XFRM_POLICY_IN)
-		snprintf(buf, buflen, "in-%d", vrf);
-	else
-		snprintf(buf, buflen, "out-%d", vrf);
-}
-
-static bool policy_rule_update_npf(struct policy_rule *pr)
-{
-	char buffer[POLICY_RULE_BUFSIZE];
-	char group_name[ATTACH_GROUP_BUFSIZE];
 
 	/*
 	 * Packets are routed into VTI tunnels,
-	 * so we don't have an NPF rule to update.
+	 * so we don't have an rldb rule to update.
 	 */
 	if (pr->vti_tunnel_policy)
 		return true;
-
-	group_name_by_vrf(group_name, sizeof(group_name), pr->dir,
-			  dp_vrf_get_external_id(pr->vrfid));
-
-	if (!policy_rule_build_npf_str(pr, buffer, POLICY_RULE_BUFSIZE))
-		return false;
-
-	/* NPF returns 0 on success - this replaces any existing rule */
-	int rule_ret = npf_cfg_rule_add(NPF_RULE_CLASS_IPSEC, group_name,
-					pr->rule_index, buffer);
-
-	if (rule_ret != 0) {
-		POLICY_ERR("Failed to update rule for %s crypto NPF rule tag "
-			   "%d: %s - errno %d\n",
-			   pr->dir == XFRM_POLICY_IN ? "input" : "output",
-			   pr->tag, buffer, -rule_ret);
-		return false;
-	}
-
-	POLICY_DEBUG("Updated %s crypto NPF rule index %d: %s\n",
-		     pr->dir == XFRM_POLICY_IN ? "input" : "output",
-		     pr->rule_index, buffer);
-
-	return true;
-}
-
-#define POL_VRF_STRLEN 16
-static bool policy_rule_add_to_npf(struct policy_rule *pr)
-{
-	char buffer[POLICY_RULE_BUFSIZE];
-	char vrf_buf[POL_VRF_STRLEN];
-	char attach_buf[ATTACH_GROUP_BUFSIZE];
-	char group_name[ATTACH_GROUP_BUFSIZE];
-	struct crypto_vrf_ctx *vrf_ctx;
 
 	vrf_ctx = crypto_vrf_get(pr->vrfid);
 	if (!vrf_ctx)
 		return false;
 
-	/*
-	 * Packets are routed into VTI tunnels, so we
-	 * don't need to create NPF rules for them.
-	 */
-	if (pr->vti_tunnel_policy)
-		return true;
-
-	if (!policy_rule_build_npf_str(pr, buffer, POLICY_RULE_BUFSIZE))
+	db = policy_rule_get_rldb(vrf_ctx, pr);
+	if (!db)
 		return false;
 
-	snprintf(vrf_buf, sizeof(vrf_buf), "%d",
-		 dp_vrf_get_external_id(pr->vrfid));
-
-	bool attach_group =
-		(vrf_ctx->crypto_total_ipv4_policies +
-		 vrf_ctx->crypto_total_ipv6_policies == 0);
-
-	if (attach_group) {
-		group_name_by_vrf(attach_buf, sizeof(attach_buf),
-				  XFRM_POLICY_IN,
-				  dp_vrf_get_external_id(pr->vrfid));
-
-		int attach_ret =
-			npf_cfg_attach_dir_group(
-				NPF_ATTACH_TYPE_VRF, vrf_buf,
-				NPF_RS_IPSEC, NPF_RULE_CLASS_IPSEC, attach_buf,
-				NPF_RS_FLAG_DIR_IN);
-		if (attach_ret != 0) {
-			POLICY_ERR("Failed to attach input group for %s "
-				   "crypto NPF rule tag %d: %s - errno %d\n",
-				   pr->dir == XFRM_POLICY_IN ?
-					"input" : "output",
-				   pr->tag, buffer, -attach_ret);
-			return false;
-		}
-
-		group_name_by_vrf(attach_buf, sizeof(attach_buf),
-				  XFRM_POLICY_OUT,
-				  dp_vrf_get_external_id(pr->vrfid));
-		attach_ret =
-			npf_cfg_attach_dir_group(
-				NPF_ATTACH_TYPE_VRF, vrf_buf,
-				NPF_RS_IPSEC, NPF_RULE_CLASS_IPSEC, attach_buf,
-				NPF_RS_FLAG_DIR_OUT);
-		if (attach_ret != 0) {
-			POLICY_ERR("Failed to attach output group for %s "
-				   "crypto NPF rule tag %d: %s - errno %d\n",
-				   pr->dir == XFRM_POLICY_IN ?
-					"input" : "output",
-				   pr->tag, buffer, -attach_ret);
-			goto failed_attach_group;
-		}
-		POLICY_INFO("Attached NPF groups in VRF %s\n", vrf_buf);
-	}
-
-	group_name_by_vrf(group_name, sizeof(group_name), pr->dir,
-			  dp_vrf_get_external_id(pr->vrfid));
-
-	int rule_ret = npf_cfg_rule_add(NPF_RULE_CLASS_IPSEC, group_name,
-					pr->rule_index, buffer);
-
-	if (rule_ret != 0) {
-		POLICY_ERR("Failed to add rule for %s crypto NPF rule tag %d: "
-			   "%s - errno %d\n",
-			   pr->dir == XFRM_POLICY_IN ? "input" : "output",
-			   pr->tag, buffer, -rule_ret);
-		if (attach_group)
-			goto failed_add_rule;
+	rc = rldb_del_rule(db, pr->rh);
+	if (rc < 0) {
+		POLICY_ERR("Failed to update rule %u: %d\n",
+			   pr->rule_index, -rc);
 		return false;
 	}
 
-	POLICY_DEBUG("Added %s crypto NPF rule index %d: %s\n",
-		     pr->dir == XFRM_POLICY_IN ? "input" : "output",
-		     pr->rule_index, buffer);
+	rc = policy_prepare_rldb_rule(pr, &rule);
+	if (rc < 0)
+		return false;
 
-	if (pr->sel.family == AF_INET) {
-		if (++vrf_ctx->crypto_total_ipv4_policies == 1)
-			pl_node_add_feature_by_inst(&ipv4_ipsec_out_feat,
-						    get_vrf(pr->vrfid));
-		POLICY_DEBUG("Active IPv4 policies: %d\n",
-			     vrf_ctx->crypto_total_ipv4_policies);
-	} else {
-		if (++vrf_ctx->crypto_total_ipv6_policies == 1)
-			pl_node_add_feature_by_inst(&ipv6_ipsec_out_feat,
-						    get_vrf(pr->vrfid));
-		POLICY_DEBUG("Active IPv6 policies: %d\n",
-			     vrf_ctx->crypto_total_ipv6_policies);
+	rc = rldb_add_rule(db, pr->rule_index, &rule, &pr->rh);
+	if (rc < 0) {
+		POLICY_ERR("Failed to update rule %u: %d\n",
+			   pr->rule_index, -rc);
+		return false;
 	}
 
 	return true;
-
-failed_add_rule:
-	group_name_by_vrf(attach_buf, sizeof(attach_buf), XFRM_POLICY_OUT,
-			  dp_vrf_get_external_id(pr->vrfid));
-	npf_cfg_detach_group(NPF_ATTACH_TYPE_VRF, vrf_buf,
-			     NPF_RS_IPSEC, NPF_RULE_CLASS_IPSEC, attach_buf);
-failed_attach_group:
-	group_name_by_vrf(attach_buf, sizeof(attach_buf), XFRM_POLICY_IN,
-			  dp_vrf_get_external_id(pr->vrfid));
-	npf_cfg_detach_group(NPF_ATTACH_TYPE_VRF, vrf_buf,
-			     NPF_RS_IPSEC, NPF_RULE_CLASS_IPSEC, attach_buf);
-	return false;
 }
 
-static bool all_other_policies_can_be_cached(const struct policy_rule *pr)
+static bool all_other_policies_can_be_cached(struct crypto_vrf_ctx *vrf_ctx,
+					     const struct policy_rule *pr)
 {
-	const struct policy_rule *check_pr;
-	struct cds_lfht_iter iter;
 	bool result = true;
 
-	cds_lfht_for_each_entry(output_policy_rule_tag_ht,
-				&iter, check_pr, tag_ht_node) {
+	const struct policy_rule *check_pr;
+	struct cds_lfht_iter iter;
+	struct cds_lfht *ht;
+
+	ht = vrf_ctx->output_policy_rule_sel_ht;
+
+	cds_lfht_for_each_entry(ht, &iter, check_pr, sel_ht_node) {
 		if (check_pr == pr)
 			continue;
 		if ((check_pr->sel.sport > 0) || (check_pr->sel.dport > 0)) {
@@ -1164,75 +815,41 @@ static bool all_other_policies_can_be_cached(const struct policy_rule *pr)
 	return result;
 }
 
-static void policy_rule_remove_from_npf(struct policy_rule *pr,
+static int policy_rule_remove_from_rldb(struct policy_rule *pr,
+					struct crypto_vrf_ctx *vrf_ctx,
 					bool vti_tunnel_policy,
-					uint32_t rule_index)
+					struct rldb_rule_handle *rh)
 {
-	char vrf_buf[POL_VRF_STRLEN];
-	struct crypto_vrf_ctx *vrf_ctx;
-	char attach_buf[ATTACH_GROUP_BUFSIZE];
-	char group_name[ATTACH_GROUP_BUFSIZE];
+	int rc;
+	struct rldb_db_handle *db;
 
-	/* We don't create NPF rules for VTI tunnel policies */
+	/* We don't create rldb rules for VTI tunnel policies */
 	if (vti_tunnel_policy)
-		return;
+		return 0;
 
-	vrf_ctx = crypto_vrf_find(pr->vrfid);
-	if (!vrf_ctx)
-		return;
+	db = policy_rule_get_rldb(vrf_ctx, pr);
+	if (!db) {
+		POLICY_ERR("Failed to delete policy\n");
+		return -1;
+	}
 
-	snprintf(vrf_buf, sizeof(vrf_buf), "%d",
-		 dp_vrf_get_external_id(pr->vrfid));
-
-	group_name_by_vrf(group_name, sizeof(group_name), pr->dir,
-			  dp_vrf_get_external_id(pr->vrfid));
-
-	bool detach_group =
-		(vrf_ctx->crypto_total_ipv4_policies +
-		 vrf_ctx->crypto_total_ipv6_policies == 1);
-
-	int rule_ret = npf_cfg_rule_delete(NPF_RULE_CLASS_IPSEC, group_name,
-					   rule_index, NULL);
-
-	if (rule_ret != 0)
-		POLICY_ERR("Failed to delete rule for %s crypto NPF rule tag "
-			   "%d - errno %d\n",
-			   pr->dir == XFRM_POLICY_IN ? "input" : "output",
-			   pr->tag, -rule_ret);
-	else {
-		POLICY_DEBUG("Removed %s crypto NPF rule tag %d index %d\n",
-			     pr->dir == XFRM_POLICY_IN ? "input" : "output",
-			     pr->tag, rule_index);
-		if (detach_group) {
-			group_name_by_vrf(attach_buf, sizeof(attach_buf),
-					  XFRM_POLICY_OUT,
-					  dp_vrf_get_external_id(pr->vrfid));
-			npf_cfg_detach_group(NPF_ATTACH_TYPE_VRF, vrf_buf,
-					     NPF_RS_IPSEC, NPF_RULE_CLASS_IPSEC,
-					     attach_buf);
-
-			snprintf(attach_buf, sizeof(attach_buf), "in-%d",
-				 dp_vrf_get_external_id(pr->vrfid));
-			npf_cfg_detach_group(NPF_ATTACH_TYPE_VRF, vrf_buf,
-					     NPF_RS_IPSEC, NPF_RULE_CLASS_IPSEC,
-					     attach_buf);
-			POLICY_INFO("Detached NPF groups in VRF %s\n", vrf_buf);
-		}
+	rc = rldb_del_rule(db, rh);
+	if (rc < 0) {
+		POLICY_ERR("Failed to delete policy from rule database\n");
+		return -1;
 	}
 
 	if (pr->sel.family == AF_INET) {
-		if (!--vrf_ctx->crypto_total_ipv4_policies)
-			pl_node_remove_feature_by_inst(&ipv4_ipsec_out_feat,
-					       get_vrf(pr->vrfid));
+		--vrf_ctx->crypto_total_ipv4_policies;
 		POLICY_DEBUG("Remaining IPv4 policies: %d\n",
 			     vrf_ctx->crypto_total_ipv4_policies);
 	} else {
-		if (!--vrf_ctx->crypto_total_ipv6_policies)
-			pl_node_remove_feature_by_inst(&ipv6_ipsec_out_feat,
-						       get_vrf(pr->vrfid));
+		--vrf_ctx->crypto_total_ipv6_policies;
 		POLICY_DEBUG("Remaining IPv6 policies: %d\n",
 			     vrf_ctx->crypto_total_ipv6_policies);
 	}
+
+	return 0;
 }
 
 static unsigned long policy_bind_sel_hash(const struct xfrm_selector *sel)
@@ -1408,6 +1025,38 @@ static struct rte_timer crypto_npf_cfg_commit_all_timer;
 #define CRYPTO_NPF_CFG_COMMIT_FORCE_COUNT 2000
 
 static uint32_t batch_seq[CRYPTO_NPF_CFG_COMMIT_FORCE_COUNT];
+static struct policy_rule *batch_pr[CRYPTO_NPF_CFG_COMMIT_FORCE_COUNT];
+
+static int crypto_policy_rldb_commit(struct crypto_vrf_ctx *vrf_ctx)
+{
+	int rc = 0;
+
+	if (rldb_commit_transaction(vrf_ctx->input_policy_v4_rldb) < 0) {
+		POLICY_ERR("Policy commit for IPv4 inbound failed\n");
+		rc = -1;
+	}
+	rldb_start_transaction(vrf_ctx->input_policy_v4_rldb);
+
+	if (rldb_commit_transaction(vrf_ctx->output_policy_v4_rldb) < 0) {
+		POLICY_ERR("Policy commit for IPv4 outbound failed\n");
+		rc = -1;
+	}
+	rldb_start_transaction(vrf_ctx->output_policy_v4_rldb);
+
+	if (rldb_commit_transaction(vrf_ctx->input_policy_v6_rldb) < 0) {
+		POLICY_ERR("Policy commit for IPv6 inbound failed\n");
+		rc = -1;
+	}
+	rldb_start_transaction(vrf_ctx->input_policy_v6_rldb);
+
+	if (rldb_commit_transaction(vrf_ctx->output_policy_v6_rldb) < 0) {
+		POLICY_ERR("Policy commit for IPv6 outbound failed\n");
+		rc = -1;
+	}
+	rldb_start_transaction(vrf_ctx->output_policy_v6_rldb);
+
+	return rc;
+}
 
 void crypto_npf_cfg_commit_flush(void)
 {
@@ -1415,15 +1064,52 @@ void crypto_npf_cfg_commit_flush(void)
 	struct vrf *vrf;
 	struct crypto_vrf_ctx *vrf_ctx;
 	uint32_t i;
+	int rc = MNL_CB_OK;
 
-	npf_cfg_commit_all();
 	VRF_FOREACH(vrf, vrf_id) {
 		vrf_ctx = crypto_vrf_find(vrf_id);
 		if (!vrf_ctx)
 			continue;
 
+		if (crypto_policy_rldb_commit(vrf_ctx) < 0)
+			rc = MNL_CB_ERROR;
+
+		/* Enable IPsec in IPv4 feature pipeline and
+		 * update live count.
+		 */
+
+		if (vrf_ctx->crypto_live_ipv4_policies == 0 &&
+		    vrf_ctx->crypto_total_ipv4_policies > 0) {
+
+			pl_node_add_feature_by_inst(&ipv4_ipsec_out_feat, vrf);
+
+		} else if (vrf_ctx->crypto_live_ipv4_policies > 0 &&
+			   vrf_ctx->crypto_total_ipv4_policies == 0) {
+
+			pl_node_remove_feature_by_inst(&ipv4_ipsec_out_feat,
+					       vrf);
+		}
+
 		vrf_ctx->crypto_live_ipv4_policies =
 			vrf_ctx->crypto_total_ipv4_policies;
+
+
+		/* Enable IPsec in IPv6 feature pipeline and
+		 * update live count.
+		 */
+
+		if (vrf_ctx->crypto_live_ipv6_policies == 0 &&
+		    vrf_ctx->crypto_total_ipv6_policies > 0) {
+
+			pl_node_add_feature_by_inst(&ipv6_ipsec_out_feat, vrf);
+
+		} else if (vrf_ctx->crypto_live_ipv6_policies > 0 &&
+			   vrf_ctx->crypto_total_ipv6_policies == 0) {
+
+			pl_node_remove_feature_by_inst(&ipv6_ipsec_out_feat,
+						       vrf);
+		}
+
 		vrf_ctx->crypto_live_ipv6_policies =
 			vrf_ctx->crypto_total_ipv6_policies;
 	}
@@ -1431,12 +1117,17 @@ void crypto_npf_cfg_commit_flush(void)
 	/*
 	 * There is an assumption that npf_cfg_commit_all completed
 	 * successfully as there is no return value. Any issues should
-	 * have been caught when the individidual policies were added
+	 * have been caught when the individual policies were added
 	 * at which point an error should have been returned to the
 	 * xfrm source.
 	 */
-	for (i = 0; xfrm_direct && i < crypto_npf_cfg_commit_count ; i++)
-		xfrm_client_send_ack(batch_seq[i], MNL_CB_OK);
+	for (i = 0; i < crypto_npf_cfg_commit_count ; i++) {
+		if (batch_pr[i])
+			batch_pr[i]->flags ^= POLICY_F_PENDING_ADD;
+
+		if (xfrm_direct)
+			xfrm_client_send_ack(batch_seq[i], rc);
+	}
 
 	crypto_npf_cfg_commit_count = 0;
 }
@@ -1455,7 +1146,7 @@ static void crypto_npf_cfg_commit_all_timer_handler(
  * batch up the calls to it. This can possibly delay the application of
  * a rule, but overall will be much faster.
  */
-static void crypto_npf_cfg_commit_all(struct policy_rule *pr __unused,
+static void crypto_npf_cfg_commit_all(struct policy_rule *pr,
 				      uint32_t seq)
 {
 	ASSERT_MAIN();
@@ -1474,6 +1165,10 @@ static void crypto_npf_cfg_commit_all(struct policy_rule *pr __unused,
 
 	if (xfrm_direct)
 		batch_seq[crypto_npf_cfg_commit_count] = seq;
+
+	if (!(pr->flags & POLICY_F_PENDING_DEL))
+		batch_pr[crypto_npf_cfg_commit_count] = pr;
+
 	crypto_npf_cfg_commit_count++;
 
 	/* Force the commit if we have batched up too many */
@@ -1483,6 +1178,7 @@ static void crypto_npf_cfg_commit_all(struct policy_rule *pr __unused,
 
 static bool
 policy_rule_update(struct policy_rule *pr,
+		   struct crypto_vrf_ctx *vrf_ctx,
 		   const struct xfrm_userpolicy_info *usr_policy,
 		   const xfrm_address_t *dst,
 		   const struct xfrm_user_tmpl *tmpl,
@@ -1493,7 +1189,10 @@ policy_rule_update(struct policy_rule *pr,
 	bool was_vti_policy = pr->vti_tunnel_policy;
 	bool changed = false;
 
+	*send_ack = true;
+
 	if (usr_policy->dir == XFRM_POLICY_OUT) {
+
 		if ((usr_policy->action == XFRM_POLICY_ALLOW) &&
 		    (pr->action == XFRM_POLICY_BLOCK)) {
 			/*
@@ -1542,28 +1241,24 @@ policy_rule_update(struct policy_rule *pr,
 	}
 
 	if (pr->policy_priority != usr_policy->priority) {
-		uint32_t old_rule_index = pr->rule_index;
-
+		struct rldb_rule_handle *old_rh = pr->rh;
 		/*
 		 * Since the priority of the policy has changed, we must
-		 * insert a new NPF rule with an index that is based on
+		 * insert a new rldb rule with an index that is based on
 		 * the new priority and remove the old rule.
 		 */
 		pr->policy_priority = usr_policy->priority;
-		/*
-		 * Policy priority is not unique, so the
-		 * rule index must include the tag.
-		 */
-		pr->rule_index = (pr->policy_priority << PR_TAG_SIZE) + pr->tag;
+		pr->rule_index = usr_policy->index;
 
-		if (!policy_rule_add_to_npf(pr)) {
+		policy_rule_remove_from_rldb(pr, vrf_ctx, was_vti_policy,
+					     old_rh);
+
+		if (!policy_rule_add_to_rldb(vrf_ctx, pr)) {
 			POLICY_ERR(
-				"Failed to add updated policy rule to NPF\n");
+				"Failed to add updated policy rule to rldb\n");
 			return false;
 		}
 
-		policy_rule_remove_from_npf(pr, was_vti_policy,
-					    old_rule_index);
 		*send_ack = false;
 		crypto_npf_cfg_commit_all(pr, seq);
 		if ((pr->dir == XFRM_POLICY_OUT) &&
@@ -1572,7 +1267,7 @@ policy_rule_update(struct policy_rule *pr,
 					      false);
 	} else if (changed) {
 		*send_ack = false;
-		policy_rule_update_npf(pr);
+		policy_rule_update_rldb(pr);
 		crypto_npf_cfg_commit_all(pr, seq);
 	}
 
@@ -1597,14 +1292,19 @@ int crypto_policy_add(const struct xfrm_userpolicy_info *usr_policy,
 		      bool *send_ack)
 {
 	struct policy_rule *pr;
+	struct crypto_vrf_ctx *vrf_ctx;
+
+	vrf_ctx = crypto_vrf_get(vrfid);
+	if (!vrf_ctx)
+		return -1;
 
 	*send_ack = true;
 
 	pr = policy_rule_find_by_selector(vrfid, &usr_policy->sel, mark,
 					  usr_policy->dir);
 	if (pr) {
-		if (!policy_rule_update(pr, usr_policy, dst, tmpl, mark,
-					seq, send_ack)) {
+		if (!policy_rule_update(pr, vrf_ctx, usr_policy, dst, tmpl,
+					mark, seq, send_ack)) {
 			POLICY_ERR(
 				"Policy add failed to update existing policy\n");
 			return -1;
@@ -1618,14 +1318,16 @@ int crypto_policy_add(const struct xfrm_userpolicy_info *usr_policy,
 		return -1;
 	}
 
+	pr->flags = POLICY_F_PENDING_ADD;
+
 	if (!policy_rule_add_to_hash_tables(pr)) {
 		POLICY_ERR("Failed to add policy rule to hash tables\n");
 		policy_rule_destroy(pr);
 		return -1;
 	}
 
-	if (!policy_rule_add_to_npf(pr)) {
-		POLICY_ERR("Failed to add policy rule NPF filter\n");
+	if (!policy_rule_add_to_rldb(vrf_ctx, pr)) {
+		POLICY_ERR("Failed to add policy rule to rldb\n");
 		policy_rule_remove_from_hash_tables(pr);
 		policy_rule_destroy(pr);
 		return -1;
@@ -1671,6 +1373,11 @@ int crypto_policy_update(const struct xfrm_userpolicy_info *usr_policy,
 			 bool *send_ack)
 {
 	struct policy_rule *pr;
+	struct crypto_vrf_ctx *vrf_ctx;
+
+	vrf_ctx = crypto_vrf_get(vrfid);
+	if (!vrf_ctx)
+		return -1;
 
 	pr = policy_rule_find_by_selector(vrfid, &usr_policy->sel, mark,
 					  usr_policy->dir);
@@ -1686,7 +1393,7 @@ int crypto_policy_update(const struct xfrm_userpolicy_info *usr_policy,
 					 seq, send_ack);
 	}
 
-	if (!policy_rule_update(pr, usr_policy, dst, tmpl, mark,
+	if (!policy_rule_update(pr, vrf_ctx, usr_policy, dst, tmpl, mark,
 				seq, send_ack)) {
 		POLICY_ERR("Failed to update existing policy\n");
 		return -1;
@@ -1702,10 +1409,12 @@ int crypto_policy_update(const struct xfrm_userpolicy_info *usr_policy,
  *
  * MUST be called from the main thread
  */
-static void crypto_policy_delete_internal(struct policy_rule *pr, vrfid_t vrfid,
+static void crypto_policy_delete_internal(struct policy_rule *pr,
+					  struct crypto_vrf_ctx *vrf_ctx,
 					  uint32_t seq, bool ack)
 {
-	policy_rule_remove_from_npf(pr, pr->vti_tunnel_policy, pr->rule_index);
+	policy_rule_remove_from_rldb(pr, vrf_ctx, pr->vti_tunnel_policy,
+				     pr->rh);
 
 	/*
 	 * Is the policy is being purged as the result of a flush
@@ -1713,8 +1422,10 @@ static void crypto_policy_delete_internal(struct policy_rule *pr, vrfid_t vrfid,
 	 * event is not called due to the reception of a policy delete
 	 * from strongswan.
 	 */
-	if (ack)
+	if (ack) {
+		pr->flags |= POLICY_F_PENDING_DEL;
 		crypto_npf_cfg_commit_all(pr, seq);
+	}
 
 	if (pr->dir == XFRM_POLICY_OUT) {
 		/*
@@ -1725,7 +1436,7 @@ static void crypto_policy_delete_internal(struct policy_rule *pr, vrfid_t vrfid,
 		 */
 		if (flow_cache_disabled &&
 		    ((pr->sel.sport > 0) || (pr->sel.dport > 0)) &&
-		    all_other_policies_can_be_cached(pr))
+		    all_other_policies_can_be_cached(vrf_ctx, pr))
 			flow_cache_disabled = false;
 
 		if (!flow_cache_disabled)
@@ -1736,7 +1447,7 @@ static void crypto_policy_delete_internal(struct policy_rule *pr, vrfid_t vrfid,
 	policy_rule_remove_from_hash_tables(pr);
 	policy_rule_destroy(pr);
 
-	crypto_vrf_check_remove(crypto_vrf_find(vrfid));
+	crypto_vrf_check_remove(vrf_ctx);
 }
 
 void crypto_policy_delete(const struct xfrm_userpolicy_id *id,
@@ -1745,6 +1456,9 @@ void crypto_policy_delete(const struct xfrm_userpolicy_id *id,
 			  uint32_t seq, bool *send_ack)
 {
 	struct policy_rule *pr;
+	struct crypto_vrf_ctx *vrf_ctx;
+
+	vrf_ctx = crypto_vrf_find(vrfid);
 
 	pr = policy_rule_find_by_selector(vrfid, &id->sel, mark, id->dir);
 	if (!pr) {
@@ -1756,7 +1470,7 @@ void crypto_policy_delete(const struct xfrm_userpolicy_id *id,
 		return;
 	}
 
-	crypto_policy_delete_internal(pr, vrfid, seq, true);
+	crypto_policy_delete_internal(pr, vrf_ctx, seq, true);
 }
 
 void crypto_policy_flush_vrf(struct crypto_vrf_ctx *vrf_ctx)
@@ -1768,12 +1482,12 @@ void crypto_policy_flush_vrf(struct crypto_vrf_ctx *vrf_ctx)
 
 	cds_lfht_for_each_entry(vrf_ctx->input_policy_rule_sel_ht,
 				&iter, pr, sel_ht_node) {
-		crypto_policy_delete_internal(pr, vrf_ctx->vrfid, 0, false);
+		crypto_policy_delete_internal(pr, vrf_ctx, 0, false);
 	}
 
 	cds_lfht_for_each_entry(vrf_ctx->output_policy_rule_sel_ht,
 				&iter, pr, sel_ht_node) {
-		crypto_policy_delete_internal(pr, vrf_ctx->vrfid, 0, false);
+		crypto_policy_delete_internal(pr, vrf_ctx, 0, false);
 	}
 }
 
@@ -1898,7 +1612,7 @@ crypto_policy_handle_packet_outbound_checks(struct rte_mbuf *mbuf,
 /*
  * crypto_policy_handle_packet_outbound()
  *
- * Handle a packet that has matched the NPF rule for an IPsec output policy.
+ * Handle a packet that has matched the rldb rule for an IPsec output policy.
  *
  * This function always consumes the packet, either dropping it on an error
  * or queuing it to the crypto thread for encryption.
@@ -2016,7 +1730,7 @@ drop:
 /*
  * crypto_policy_handle_packet6_outbound()
  *
- * Handle a packet that has matched the NPF rule for an IPsec output policy.
+ * Handle a packet that has matched the rldb rule for an IPsec output policy.
  *
  * This function always consumes the packet, either dropping it on an error
  * or queuing it to the crypto thread for encryption.
@@ -2278,9 +1992,10 @@ void crypto_policy_bind_show_summary(FILE *f, vrfid_t vrfid)
 void crypto_policy_show_summary(FILE *f, vrfid_t vrfid, bool brief)
 {
 	json_writer_t *wr;
-	const struct policy_rule *pr;
-	struct cds_lfht_iter iter;
 	struct crypto_vrf_ctx *vrf_ctx;
+	const struct policy_rule *pr;
+	struct cds_lfht *ht;
+	struct cds_lfht_iter iter;
 
 	vrf_ctx = crypto_vrf_find_external(vrfid);
 
@@ -2316,19 +2031,28 @@ void crypto_policy_show_summary(FILE *f, vrfid_t vrfid, bool brief)
 		jsonw_name(wr, "policies");
 		jsonw_start_array(wr);
 
-		cds_lfht_for_each_entry(output_policy_rule_tag_ht, &iter, pr,
-					tag_ht_node) {
-			if (dp_vrf_get_external_id(pr->vrfid) == vrfid)
-				policy_rule_to_json(wr, pr);
+		ht = vrf_ctx ? vrf_ctx->output_policy_rule_sel_ht : NULL;
+		if (ht) {
+			cds_lfht_for_each_entry(ht, &iter, pr, sel_ht_node) {
+				if (pr->flags & POLICY_F_PENDING_ADD)
+					continue;
+				if (dp_vrf_get_external_id(pr->vrfid) == vrfid)
+					policy_rule_to_json(wr, pr);
+			}
 		}
 
-		cds_lfht_for_each_entry(input_policy_rule_tag_ht, &iter, pr,
-					tag_ht_node) {
-			if (dp_vrf_get_external_id(pr->vrfid) == vrfid)
-				policy_rule_to_json(wr, pr);
+		ht = vrf_ctx ? vrf_ctx->input_policy_rule_sel_ht : NULL;
+		if (ht) {
+			cds_lfht_for_each_entry(ht, &iter, pr, sel_ht_node) {
+				if (pr->flags & POLICY_F_PENDING_ADD)
+					continue;
+				if (dp_vrf_get_external_id(pr->vrfid) == vrfid)
+					policy_rule_to_json(wr, pr);
+			}
 		}
 		jsonw_end_array(wr);
 	}
+
 	jsonw_end_object(wr);
 	jsonw_destroy(&wr);
 }
@@ -2349,7 +2073,7 @@ crypto_flow_cache_dump_entry(struct flow_cache_entry *entry,
 	if (pr) {
 		jsonw_uint_field(wr, "PR_index",
 				 pr->rule_index);
-		jsonw_uint_field(wr, "PR_Tag", pr->tag);
+		jsonw_uint_field(wr, "PR_Tag", 0);
 	}
 	jsonw_uint_field(wr, "IN_rule_checked",
 			 ctx.in_rule_checked);
@@ -2373,33 +2097,6 @@ void crypto_show_cache(FILE *f, const char *str)
 	jsonw_destroy(&wr);
 }
 
-static int crypto_npf_rte_acl_match(int af, npf_match_ctx_t *ctx,
-				    npf_cache_t *npc,
-				    struct npf_match_cb_data *data,
-				    npf_rule_t **rl)
-{
-	int ret;
-	uint32_t rule_no;
-
-	ret = npf_rte_acl_match(af, ctx, npc, data, &rule_no);
-	if (!ret)
-		return ret;
-
-	*rl = npf_rule_group_find_rule(data->rg, rule_no);
-	if (!*rl)
-		return 0;
-
-	return 1;
-}
-
-static npf_match_cb_tbl crypto_npf_match_cb_tbl = {
-	.npf_match_init_cb     = npf_rte_acl_init,
-	.npf_match_add_rule_cb = npf_rte_acl_add_rule,
-	.npf_match_build_cb    = npf_rte_acl_build,
-	.npf_match_classify_cb = crypto_npf_rte_acl_match,
-	.npf_match_destroy_cb  = npf_rte_acl_destroy
-};
-
 /*
  * crypto_policy_init()
  *
@@ -2407,47 +2104,7 @@ static npf_match_cb_tbl crypto_npf_match_cb_tbl = {
  */
 int crypto_policy_init(void)
 {
-	if (!tagmap_init(&policy_tagmap)) {
-		POLICY_ERR("Failed to initialise policy rule bitmap\n");
-		return -1;
-	}
-
-	/*
-	 * Create hash tables for input policy rule structures
-	 */
-	input_policy_rule_tag_ht = cds_lfht_new(POLICY_RULE_HT_MIN_BUCKETS,
-						POLICY_RULE_HT_MIN_BUCKETS,
-						POLICY_RULE_HT_MAX_BUCKETS,
-						CDS_LFHT_AUTO_RESIZE,
-						NULL);
-	if (!input_policy_rule_tag_ht) {
-		POLICY_ERR("Failed to allocate policy rule tag hash table\n");
-		return -1;
-	}
-
-	/*
-	 * Create hash tables for output policy rule structures
-	 */
-	output_policy_rule_tag_ht = cds_lfht_new(POLICY_RULE_HT_MIN_BUCKETS,
-						 POLICY_RULE_HT_MIN_BUCKETS,
-						 POLICY_RULE_HT_MAX_BUCKETS,
-						 CDS_LFHT_AUTO_RESIZE,
-						 NULL);
-	if (!output_policy_rule_tag_ht) {
-		POLICY_ERR("Failed to allocate policy rule tag hash table\n");
-		return -1;
-	}
-
 	rte_timer_init(&crypto_npf_cfg_commit_all_timer);
-
-	/*
-	 * register packet match callbacks for crypto rulesets
-	 */
-	if (npf_match_register_cb_tbl(NPF_RS_IPSEC,
-				      &crypto_npf_match_cb_tbl)) {
-		POLICY_ERR("Failed to register npf callback table\n");
-		return -1;
-	}
 
 	return 0;
 }
@@ -2512,15 +2169,12 @@ bool crypto_policy_check_outbound(struct ifnet *in_ifp, struct rte_mbuf **mbuf,
 {
 	struct policy_rule *pr = NULL;
 	struct flow_cache_entry *cache_entry;
-	vrfid_t vrfid = pktmbuf_get_vrf(*mbuf);
+	vrfid_t vrfid;
 	bool v4 = (eth_type == htons(RTE_ETHER_TYPE_IPV4));
 	bool freed = false;
-	struct npf_config *npf_conf = vrf_get_npf_conf_rcu(vrfid);
 	bool seen_by_crypto;
+	int err;
 	union crypto_ctx ctx;
-
-	if (likely(!npf_active(npf_conf, NPF_IPSEC)))
-		return false;
 
 	seen_by_crypto = ((*mbuf)->ol_flags & PKT_RX_SEEN_BY_CRYPTO);
 
@@ -2548,8 +2202,25 @@ bool crypto_policy_check_outbound(struct ifnet *in_ifp, struct rte_mbuf **mbuf,
 				return false;
 		}
 	} else {
-		const npf_ruleset_t *rlset =
-			npf_get_ruleset(npf_conf, NPF_RS_IPSEC);
+		struct rldb_result result;
+		struct crypto_vrf_ctx *vrf_ctx;
+		struct rldb_db_handle *db_in, *db_out;
+		int dir = XFRM_POLICY_OUT;
+
+		vrfid = pktmbuf_get_vrf(*mbuf);
+		vrf_ctx = crypto_vrf_find(vrfid);
+
+		/* no crypto fo this VRF */
+		if (!vrf_ctx)
+			return false;
+
+		if (v4) {
+			db_in = vrf_ctx->input_policy_v4_rldb;
+			db_out = vrf_ctx->output_policy_v4_rldb;
+		} else {
+			db_in = vrf_ctx->input_policy_v6_rldb;
+			db_out = vrf_ctx->output_policy_v6_rldb;
+		}
 
 		/*
 		 * If this packet was received encrypted,  then we don't need to
@@ -2557,7 +2228,18 @@ bool crypto_policy_check_outbound(struct ifnet *in_ifp, struct rte_mbuf **mbuf,
 		 * it should have been received encrypted,  and so now needs to
 		 * be dropped.
 		 */
-		int dir = PFIL_OUT | (seen_by_crypto ? 0 : PFIL_IN);
+
+		if (likely(!seen_by_crypto)) {
+			err = rldb_match(db_in, mbuf, 1, &result);
+			if (likely(err == -ENOENT))
+				;
+			else if (err == 0) {
+
+				dir = XFRM_POLICY_IN;
+				pr = (struct policy_rule *)
+					result.rldb_user_data;
+			}
+		}
 
 		/*
 		 * Packets matching an input policy must be dropped if
@@ -2565,35 +2247,33 @@ bool crypto_policy_check_outbound(struct ifnet *in_ifp, struct rte_mbuf **mbuf,
 		 * and this routine is only called for such unencrypted
 		 * packets.
 		 *
-		 * If no policy matches we find NPF_DECISION_UNMATCHED.
-		 * Otherwise one of NPF_DECISION_PASS (for an ALLOW policy)
-		 * or NPF_DECISION_BLOCK (for a BLOCK policy).
+		 * If no policy matches we find -ENOENT.
+		 * Otherwise one a ALLOW policy or a BLOCK polic.
 		 *
 		 * Only block rules are currently used in the input policy.
 		 */
-		npf_result_t result =
-			npf_hook_notrack(rlset, mbuf, in_ifp, dir, 0, eth_type,
-					 NULL);
+
+		if (likely(!pr)) {
+
+			err = rldb_match(db_out, mbuf, 1, &result);
+			if (likely(err == -ENOENT))
+				;
+			else if (err == 0) {
+
+				dir = XFRM_POLICY_OUT;
+				pr = (struct policy_rule *)
+					result.rldb_user_data;
+			}
+		}
 
 		/*
 		 * No input and no output policy matched,  allow normal
 		 * processing
 		 */
-		if (likely(result.decision == NPF_DECISION_UNMATCHED)) {
+		if (likely(!pr && err == -ENOENT)) {
 			crypto_flow_cache_add(flow_cache, NULL, *mbuf, v4,
 					      seen_by_crypto, XFRM_POLICY_OUT);
 			return false;
-		}
-
-		if (likely(result.tag_set)) {
-			dir = XFRM_POLICY_OUT;
-			pr = policy_rule_find_by_tag(result.tag, dir);
-			if (!pr) {
-				pr = policy_rule_find_by_tag(result.tag,
-							     XFRM_POLICY_IN);
-				if (pr)
-					dir = XFRM_POLICY_IN;
-			}
 		}
 
 		/*
@@ -2617,7 +2297,7 @@ bool crypto_policy_check_outbound(struct ifnet *in_ifp, struct rte_mbuf **mbuf,
 				      seen_by_crypto, dir);
 	}
 
-	if (pr && !pr->pending_delete) {
+	if (pr && !(pr->flags & POLICY_F_PENDING_DEL)) {
 		if (pr->action != XFRM_POLICY_BLOCK) {
 			struct pr_feat_attach *attach;
 			struct pktmbuf_mdata *mdata;
@@ -2709,12 +2389,9 @@ crypto_policy_check_inbound(struct ifnet *in_ifp, struct rte_mbuf **mbuf,
 	struct flow_cache_entry *cache_entry;
 	bool v4 = (eth_type == htons(RTE_ETHER_TYPE_IPV4));
 	bool freed = false;
-	vrfid_t vrfid = pktmbuf_get_vrf(*mbuf);
-	struct npf_config *npf_conf = vrf_get_npf_conf_rcu(vrfid);
+	vrfid_t vrfid;
 	union crypto_ctx ctx;
-
-	if (likely(!npf_active(npf_conf, NPF_IPSEC)))
-		return false;
+	struct crypto_vrf_ctx *vrf_ctx;
 
 	if ((*mbuf)->ol_flags & PKT_RX_SEEN_BY_CRYPTO)
 		return false;
@@ -2733,10 +2410,16 @@ crypto_policy_check_inbound(struct ifnet *in_ifp, struct rte_mbuf **mbuf,
 			goto drop;
 
 	} else {
-		const npf_ruleset_t *rlset =
-			npf_get_ruleset(npf_conf, NPF_RS_IPSEC);
+		struct rldb_result result;
+		struct rldb_db_handle *db;
+		int err;
 
-		int dir = PFIL_IN;
+		vrfid = pktmbuf_get_vrf(*mbuf);
+		vrf_ctx = crypto_vrf_find(vrfid);
+
+		/* no crypto fo this VRF */
+		if (!vrf_ctx)
+			return false;
 
 		/*
 		 * Packets matching an input policy must be dropped if
@@ -2744,48 +2427,44 @@ crypto_policy_check_inbound(struct ifnet *in_ifp, struct rte_mbuf **mbuf,
 		 * and this routine is only called for such unencrypted
 		 * packets.
 		 *
-		 * If no policy matches we find NPF_DECISION_UNMATCHED.
-		 * Otherwise one of NPF_DECISION_PASS (for an ALLOW policy)
-		 * or NPF_DECISION_BLOCK (for a BLOCK policy).
+		 * If no policy matches we find -ENOENT.
+		 * Otherwise one a ALLOW policy or a BLOCK policy.
 		 *
 		 * Only block rules are currently used in the input policy.
 		 */
-		npf_result_t result =
-			npf_hook_notrack(rlset, mbuf, in_ifp, dir, 0, eth_type,
-					 NULL);
 
-		/* No input policy matched */
-		if (likely(result.decision == NPF_DECISION_UNMATCHED))
+		db = v4 ? vrf_ctx->input_policy_v4_rldb
+		       : vrf_ctx->input_policy_v6_rldb;
+
+		err = rldb_match(db, mbuf, 1, &result);
+		if (likely(err == -ENOENT))
 			return false;
 
-		if (likely(result.tag_set)) {
-			pr = policy_rule_find_by_tag(result.tag,
-						     XFRM_POLICY_IN);
-			if (pr) {
-				/*
-				 * We found an input policy. If it has a
-				 * selector with an ifindex set, then
-				 * check we match.
-				 */
-				if (pr->sel.ifindex) {
-					if (pr->sel.ifindex !=
-					    (int)in_ifp->if_index) {
-						/* We don't have a match */
-						return false;
-					}
+		pr = (struct policy_rule *)result.rldb_user_data;
+
+		if (pr) {
+			/*
+			 * We found an input policy. If it has a
+			 * selector with an ifindex set, then
+			 * check we match.
+			 */
+			if (pr->sel.ifindex) {
+				if (pr->sel.ifindex !=
+				    (int)in_ifp->if_index) {
+					/* We don't have a match */
+					return false;
 				}
-
-				/*
-				 * We found an input policy, add it to the
-				 * flow cache and drop the packet.
-				 */
-				crypto_flow_cache_add(flow_cache, pr, *mbuf, v4,
-						      false, XFRM_POLICY_IN);
-
-				if (pr->action == XFRM_POLICY_BLOCK)
-					goto drop;
 			}
 
+			/*
+			 * We found an input policy, add it to the
+			 * flow cache and drop the packet.
+			 */
+			crypto_flow_cache_add(flow_cache, pr, *mbuf, v4,
+					      false, XFRM_POLICY_IN);
+
+			if (pr->action == XFRM_POLICY_BLOCK)
+				goto drop;
 		}
 	}
 	return false;
@@ -2840,22 +2519,27 @@ bool crypto_policy_check_inbound_terminating(struct ifnet *in_ifp,
  * For a given reqid, find the matching output policy and retrieve the
  * virtual feature point interface, if any.
  */
-struct ifnet *crypto_policy_feat_attach_by_reqid(uint32_t reqid)
+struct ifnet *crypto_policy_feat_attach_by_reqid(struct crypto_vrf_ctx *vrf_ctx,
+						 uint32_t reqid)
 {
 	struct cds_lfht_iter iter;
 	struct cds_lfht_node *node;
+	struct cds_lfht *ht;
 
-	cds_lfht_first(output_policy_rule_tag_ht, &iter);
+	ht = vrf_ctx->output_policy_rule_sel_ht;
+
+	cds_lfht_first(ht, &iter);
 	while ((node = cds_lfht_iter_get_node(&iter)) != NULL) {
 		struct policy_rule *pr;
 
-		pr = caa_container_of(node, struct policy_rule, tag_ht_node);
+		pr = caa_container_of(node, struct policy_rule, sel_ht_node);
 
 		if (pr->reqid == reqid)
 			return pr->feat_attach ?
 				dp_nh_get_ifp(&pr->feat_attach->nh) : NULL;
-		cds_lfht_next(output_policy_rule_tag_ht, &iter);
+		cds_lfht_next(ht, &iter);
 	}
+
 	return NULL;
 }
 

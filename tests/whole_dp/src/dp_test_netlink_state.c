@@ -3734,6 +3734,7 @@ void _dp_test_netlink_xfrm_policy(uint16_t nlmsg_type,
 				  uint8_t action,
 				  vrfid_t vrfid,
 				  bool passthrough,
+				  uint32_t rule_no,
 				  const char *file,
 				  int line)
 {
@@ -3754,6 +3755,7 @@ void _dp_test_netlink_xfrm_policy(uint16_t nlmsg_type,
 		userpolicy_info_p = mnl_nlmsg_put_extra_header(nlh, sizeof(*userpolicy_info_p));
 		userpolicy_info_p->priority = priority;
 		userpolicy_info_p->dir = dir;
+		userpolicy_info_p->index = rule_no;
 		userpolicy_info_p->action = action;
 		memcpy(&userpolicy_info_p->sel, sel, sizeof(userpolicy_info_p->sel));
 		break;
@@ -3761,6 +3763,7 @@ void _dp_test_netlink_xfrm_policy(uint16_t nlmsg_type,
 		userpolicy_id = mnl_nlmsg_put_extra_header(nlh, sizeof(*userpolicy_id));
 
 		userpolicy_id->dir = dir;
+		userpolicy_id->index = rule_no;
 		memcpy(&userpolicy_id->sel, sel, sizeof(userpolicy_id->sel));
 		break;
 	default:

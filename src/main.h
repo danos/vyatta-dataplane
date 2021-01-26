@@ -181,4 +181,6 @@ int next_available_crypto_lcore(void);
 void enable_crypto_fwd(unsigned int lcore);
 void disable_crypto_fwd(unsigned int lcore);
 
+struct rte_rcu_qsbr *dp_rcu_qsbr_get(void);
+
 #endif /* MAIN_H */

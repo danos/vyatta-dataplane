@@ -44,6 +44,7 @@ DP_START_TEST(xfrm_policy, create_two_policies)
 		.family = AF_INET,
 		.reqid = TUNNEL_REQID_OUT,
 		.priority = TUNNEL_PRIORITY,
+		.rule_no = 1,
 		.mark = 0,
 		.vrfid = VRF_DEFAULT_ID
 	};
@@ -58,6 +59,7 @@ DP_START_TEST(xfrm_policy, create_two_policies)
 		.family = AF_INET,
 		.reqid = TUNNEL_REQID_IN,
 		.priority = TUNNEL_PRIORITY,
+		.rule_no = 2,
 		.mark = 0,
 		.vrfid = VRF_DEFAULT_ID
 	};
@@ -94,6 +96,7 @@ DP_START_TEST(xfrm_policy, create_two_policies_vrf)
 		.family = AF_INET,
 		.reqid = TUNNEL_REQID_OUT,
 		.priority = TUNNEL_PRIORITY,
+		.rule_no = 1,
 		.mark = 0,
 		.vrfid = TEST_VRF
 	};
@@ -108,6 +111,7 @@ DP_START_TEST(xfrm_policy, create_two_policies_vrf)
 		.family = AF_INET,
 		.reqid = TUNNEL_REQID_IN,
 		.priority = TUNNEL_PRIORITY,
+		.rule_no = 2,
 		.mark = 0,
 		.vrfid = TEST_VRF
 	};

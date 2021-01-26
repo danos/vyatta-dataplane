@@ -35,6 +35,9 @@ void buf_app_printf(char *buf, size_t *used_buf_len,
 int npf_parse_ip_addr(char *value, sa_family_t *fam, npf_addr_t *addr,
 		      npf_netmask_t *masklen, bool *negate);
 
+void npf_masklen_to_grouper_mask(sa_family_t fam, npf_netmask_t masklen,
+			    npf_addr_t *addr_mask);
+
 int npf_gen_ncode(zhashx_t *config_ht, void **ncode, uint32_t *size,
 		  bool any_match_rprocs,
 		  struct npf_rule_grouper_info *grouper_info);

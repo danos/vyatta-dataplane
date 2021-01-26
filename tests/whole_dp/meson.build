@@ -109,6 +109,7 @@ check_tests = [
         'dp_test_npf_prot_group.c',
         'dp_test_npf_ptree.c',
         'dp_test_npf_qos.c',
+        'dp_test_npf_rldb.c',
         'dp_test_npf_ruleset_state.c',
         'dp_test_npf_session_limit.c',
         'dp_test_npf_snat_overrun.c',
