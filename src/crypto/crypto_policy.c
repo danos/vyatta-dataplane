@@ -118,8 +118,6 @@ struct pr_feat_attach {
  * selector.
  */
 struct policy_rule {
-	struct cds_lfht_node tag_ht_node;
-	uint32_t tag;
 	int action;
 	struct cds_lfht_node sel_ht_node;
 	struct xfrm_selector sel;
@@ -146,51 +144,10 @@ struct policy_rule_key {
 
 bool flow_cache_disabled;
 
-/*
- * Lock free hash tables for policy rule database.
- */
-struct cds_lfht *input_policy_rule_tag_ht;
-struct cds_lfht *output_policy_rule_tag_ht;
-
 uint32_t crypto_rekey_requests;
 
 #define POLICY_RULE_BUFSIZE (1024 * sizeof(char))
 #define ATTACH_GROUP_BUFSIZE 32
-
-/*
- * The NPF rules corresponding to policies have tag values
- * appended to the rule text. These are used to associate
- * a rule matched by an NPF query with the corresponding
- * struct policy_rule (see below).
- *
- * The tag map is a segmented bitmap that is used to
- * allocate a unique tag value to the NPF rule that is
- * created for each policy. When a packet is matched
- * in NPF, the tag value returned is used to find the
- * corresponding struct policy_rule.
- */
-#define PR_TAG_SIZE             13
-#define TM_SECTION_SIZE         512
-#define TM_SECTION_BITS         (TM_SECTION_SIZE << 3)
-#define TM_WORD_BITS            LONGBITS
-#define TM_SECTION_WORDS        (TM_SECTION_BITS / TM_WORD_BITS)
-#define TM_SECTION_COUNT        ((1 << PR_TAG_SIZE) / TM_SECTION_BITS)
-#define TM_SECTION_OF_BIT(b)    ((b) / TM_SECTION_BITS)
-#define TM_SECTION_BIT(b)       ((b) % TM_SECTION_BITS)
-#define TM_WORD_OF_BIT(b)       ((b) / TM_WORD_BITS)
-#define TM_BIT_WITHIN_WORD(b)   (1 << ((b) - 1))
-
-struct tagmap_section {
-	unsigned long bitmap_words[TM_SECTION_WORDS];
-	unsigned long inuse_count;
-};
-
-struct tagmap {
-	struct tagmap_section *sections[TM_SECTION_COUNT];
-	int next_section;
-};
-
-static struct tagmap policy_tagmap;
 
 #define CRYPTO_FLOW_CACHE_MAX_COUNT  8192
 
@@ -217,74 +174,6 @@ struct s2s_binding {
 	vrfid_t vrfid;
 	uint ifindex;
 };
-
-static bool tagmap_expand(struct tagmap *tm)
-{
-	if (tm->next_section >= TM_SECTION_COUNT)
-		return false;
-
-	tm->sections[tm->next_section] =
-		calloc(1, sizeof(struct tagmap_section));
-	if (!tm->sections[tm->next_section])
-		return false;
-
-	tm->next_section++;
-
-	return true;
-}
-
-static bool tagmap_init(struct tagmap *tm)
-{
-	if (tm) {
-		int i;
-
-		for (i = 0; i < TM_SECTION_COUNT; i++)
-			tm->sections[i] = NULL;
-		tm->next_section = 0;
-
-		return tagmap_expand(tm);
-	}
-	return false;
-}
-
-static unsigned int tagmap_section_alloc(struct tagmap_section *tms)
-{
-	unsigned int i;
-	int bit;
-
-	if (!tms || (tms->inuse_count == TM_SECTION_BITS))
-		return 0;
-
-	for (i = 0; i < TM_SECTION_WORDS; i++) {
-		bit = __builtin_ffsl(~tms->bitmap_words[i]);
-		if (bit) {
-			tms->bitmap_words[i] |=  1L << (bit - 1);
-			tms->inuse_count++;
-			return bit + i * TM_WORD_BITS;
-		}
-	}
-	return 0;
-}
-
-static bool tagmap_section_free(struct tagmap_section *tms, int bit)
-{
-	unsigned long mask;
-	unsigned int idx;
-
-	if (!tms || (tms->inuse_count == 0))
-		return false;
-
-	idx = TM_WORD_OF_BIT(bit);
-	mask = 1L << (bit % TM_WORD_BITS);
-
-	if (tms->bitmap_words[idx] & mask) {
-		tms->bitmap_words[idx] &= ~mask;
-		tms->inuse_count--;
-		return true;
-	}
-
-	return false;
-}
 
 static struct flow_cache_entry *
 crypto_flow_cache_lookup(struct rte_mbuf *m, bool v4)
@@ -382,56 +271,6 @@ crypto_flow_cache_timer_handler(struct rte_timer *tmr __rte_unused,
 				void *arg __rte_unused)
 {
 	flow_cache_age(flow_cache);
-}
-
-static unsigned int allocate_tag(struct tagmap *tm)
-{
-	unsigned int bit;
-	int i;
-
-	if (!tm)
-		return 0;
-
-	/*
-	 * Attempt to allocate a tag in an
-	 * existing section of the tagmap.
-	 */
-	for (i = 0; i < tm->next_section; i++) {
-		bit = tagmap_section_alloc(tm->sections[i]);
-		if (bit)
-			return bit + i * TM_SECTION_BITS;
-	}
-
-	/*
-	 * All the existing sections of the
-	 * tagmap are full so add a new one.
-	 */
-	if (!tagmap_expand(tm))
-		return 0;
-
-	bit = tagmap_section_alloc(tm->sections[i]);
-	if (bit)
-		return bit + i * TM_SECTION_BITS;
-
-	return 0;
-}
-
-static bool free_tag(struct tagmap *tm, unsigned int tag)
-{
-	unsigned int bit = tag - 1;
-	int section_idx;
-
-	if (!tm || tag == 0)
-		return false;
-
-	section_idx = TM_SECTION_OF_BIT(bit);
-	if ((section_idx >= TM_SECTION_COUNT) ||
-	    (section_idx >= tm->next_section) ||
-	    (!tm->sections[section_idx]))
-		return false;
-
-	return tagmap_section_free(tm->sections[section_idx],
-				   TM_SECTION_BIT(bit));
 }
 
 static unsigned long policy_rule_sel_hash(const struct policy_rule_key *key)
@@ -740,97 +579,6 @@ static bool policy_rule_add_to_rldb(struct crypto_vrf_ctx *vrf_ctx,
 	return true;
 }
 
-static int policy_rule_tag_match(struct cds_lfht_node *node, const void *tag_p)
-{
-	uint32_t search_tag = *(const uint32_t *)tag_p;
-	const struct policy_rule *pr;
-
-	pr = caa_container_of(node, const struct policy_rule, tag_ht_node);
-
-	return (pr->tag == search_tag);
-}
-
-__rte_unused
-static bool policy_rule_add_to_tag_ht(struct policy_rule *pr)
-{
-	struct cds_lfht_node *ret_node;
-	struct cds_lfht *hash_table;
-
-	switch (pr->dir) {
-	case XFRM_POLICY_IN:
-		hash_table = input_policy_rule_tag_ht;
-		break;
-	case XFRM_POLICY_OUT:
-		hash_table = output_policy_rule_tag_ht;
-		break;
-	default:
-		POLICY_ERR(
-			"Failed to add policy rule to hash table: Bad direction\n");
-		return false;
-	}
-
-	ret_node = cds_lfht_add_unique(hash_table, pr->tag,
-				       policy_rule_tag_match,
-				       &pr->tag,
-				       &pr->tag_ht_node);
-
-	if (ret_node != &pr->tag_ht_node) {
-		POLICY_ERR("Failed to add rule to tag hash table\n");
-		return false;
-	}
-	return true;
-}
-
-__rte_unused
-static void policy_rule_remove_from_tag_ht(struct policy_rule *pr)
-{
-	struct cds_lfht *hash_table;
-
-	switch (pr->dir) {
-	case XFRM_POLICY_IN:
-		hash_table = input_policy_rule_tag_ht;
-		break;
-	case XFRM_POLICY_OUT:
-		hash_table = output_policy_rule_tag_ht;
-		break;
-	default:
-		POLICY_ERR(
-			"Failed to remove policy rule from hash table: Bad direction\n");
-		return;
-	}
-
-	cds_lfht_del(hash_table, &pr->tag_ht_node);
-}
-
-__rte_unused
-static struct policy_rule *policy_rule_find_by_tag(uint32_t tag,
-						   int policy_direction)
-{
-	struct cds_lfht *hash_table;
-	struct cds_lfht_node *node;
-	struct cds_lfht_iter iter;
-
-	switch (policy_direction) {
-	case XFRM_POLICY_IN:
-		hash_table = input_policy_rule_tag_ht;
-		break;
-	case XFRM_POLICY_OUT:
-		hash_table = output_policy_rule_tag_ht;
-		break;
-	default:
-		POLICY_ERR(
-			"Failed to find policy rule to hash table: Bad direction\n");
-		return NULL;
-	}
-
-	cds_lfht_lookup(hash_table, tag, policy_rule_tag_match, &tag, &iter);
-
-	node = cds_lfht_iter_get_node(&iter);
-
-	return node ? caa_container_of(node, struct policy_rule, tag_ht_node)
-		    : NULL;
-}
-
 static void
 policy_rule_set_peer_info(struct policy_rule *pr,
 			  const struct xfrm_user_tmpl *tmpl,
@@ -881,31 +629,9 @@ policy_rule_create(const struct xfrm_userpolicy_info *usr_policy,
 {
 	struct policy_rule *pr;
 
-	/*
-	 * The policy priority is used as the top 16 bits of the NPF
-	 * rule index. Since NPF uses a signed int for the index, we
-	 * want to avoid setting the top bit. The algorithm currently
-	 * used by strongSwan to calculate policy priority always gives
-	 * a result that is less than 2^14, but make sure we catch any
-	 * future changes.
-	 */
-	if (usr_policy->priority > (uint32_t)
-	    ((1 << (32 - PR_TAG_SIZE)) - 1)) {
-		POLICY_ERR(
-			"Failed to create policy rule: priority too high\n");
-		return NULL;
-	}
-
 	pr = zmalloc_aligned(sizeof(*pr));
 	if (!pr) {
 		POLICY_ERR("Policy rule allocation failed\n");
-		return NULL;
-	}
-
-	pr->tag = allocate_tag(&policy_tagmap);
-	if (!pr->tag) {
-		POLICY_ERR("Policy rule tag allocation failed\n");
-		free(pr);
 		return NULL;
 	}
 
@@ -933,7 +659,7 @@ policy_rule_create(const struct xfrm_userpolicy_info *usr_policy,
 			POLICY_ERR(
 				"Failed to create policy rule: "
 				"Mismatch of tmpl and dst\n");
-			free_tag(&policy_tagmap, pr->tag);
+
 			free(pr);
 			return NULL;
 		}
@@ -941,7 +667,6 @@ policy_rule_create(const struct xfrm_userpolicy_info *usr_policy,
 			policy_rule_set_peer_info(pr, tmpl, dst);
 	}
 
-	cds_lfht_node_init(&pr->tag_ht_node);
 	cds_lfht_node_init(&pr->sel_ht_node);
 	return pr;
 }
@@ -1004,9 +729,6 @@ static void policy_rule_destroy(struct policy_rule *pr)
 				&pr->overhead,
 				pr->vrfid);
 	}
-
-	if (!free_tag(&policy_tagmap, pr->tag))
-		POLICY_ERR("Failed to free policy tag %d\n", pr->tag);
 
 	policy_feat_attach_destroy(pr);
 	pr->flags |= POLICY_F_PENDING_DEL;
@@ -2382,37 +2104,6 @@ void crypto_show_cache(FILE *f, const char *str)
  */
 int crypto_policy_init(void)
 {
-	if (!tagmap_init(&policy_tagmap)) {
-		POLICY_ERR("Failed to initialise policy rule bitmap\n");
-		return -1;
-	}
-
-	/*
-	 * Create hash tables for input policy rule structures
-	 */
-	input_policy_rule_tag_ht = cds_lfht_new(POLICY_RULE_HT_MIN_BUCKETS,
-						POLICY_RULE_HT_MIN_BUCKETS,
-						POLICY_RULE_HT_MAX_BUCKETS,
-						CDS_LFHT_AUTO_RESIZE,
-						NULL);
-	if (!input_policy_rule_tag_ht) {
-		POLICY_ERR("Failed to allocate policy rule tag hash table\n");
-		return -1;
-	}
-
-	/*
-	 * Create hash tables for output policy rule structures
-	 */
-	output_policy_rule_tag_ht = cds_lfht_new(POLICY_RULE_HT_MIN_BUCKETS,
-						 POLICY_RULE_HT_MIN_BUCKETS,
-						 POLICY_RULE_HT_MAX_BUCKETS,
-						 CDS_LFHT_AUTO_RESIZE,
-						 NULL);
-	if (!output_policy_rule_tag_ht) {
-		POLICY_ERR("Failed to allocate policy rule tag hash table\n");
-		return -1;
-	}
-
 	rte_timer_init(&crypto_npf_cfg_commit_all_timer);
 
 	return 0;
