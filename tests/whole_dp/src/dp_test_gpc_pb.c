@@ -494,6 +494,8 @@ const char *expected_reply_1 =
 	"                },{"
 	"                  \"flags\": 1,"
 	"                  \"bandwidth\": 12345678,"
+	"                  \"packets\":0,"
+	"                  \"drops\":0"
 	"                }"
 	"              ],"
 	"              \"table-index\":1,"
