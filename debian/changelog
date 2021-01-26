@@ -1,3 +1,60 @@
+vyatta-dataplane (3.12.22) unstable; urgency=medium
+
+  [ Srinivas Narayan ]
+  * ut: Add calls to cleanup NPF state
+  * ut: Add call to cleanup NPF state between tests
+
+  [ Daniel Gollub ]
+  * npf: expose npf_masklen_to_grouper_mask to allow usage in rldb
+  * npf_rte_acl: Add npf_rte_acl_del_rule method
+  * npf_rte_acl: Stage transaction implementation
+  * npf_rte_acl: cutover to transactions
+  * npf_rte_acl: more fine-grain return value for match
+
+  [ Srinivas Narayan ]
+  * Initial version of NPF rule database API
+
+  [ Daniel Gollub ]
+  * rldb: base implementation
+  * rldb: implement rldb dump methods
+  * rldb: implement stats methods
+  * rldb: implement rldb_rule_handle helpers
+  * rldb: implement rldb_find_rule method
+  * rldb: implement transaction methods
+  * rldb: implement rldb ACL rule marshaling helpers
+  * rldb: implement rldb_del_rule method
+  * rldb: implement rldb_add_rule method
+  * rldb: implement rldb_match method
+  * npf_rte_acl: enable rte_acl hashtable usage
+  * npf_rte_acl: setup rte_acl with counter-id
+  * npf: init rldb
+  * main: register DPDK's RCU QSBR variable
+  * rldb: enable rte_acl rcu support
+  * ut: initial rldb API tests
+  * ut: avoid priority value 0 in crypto tests
+  * ut: rule number becomes mandatory for crypto policies
+  * ut: crypto policy rldb cutover preparation
+  * ut: send update policy XFRM message
+  * cerypto: introduce policy_rule flags
+  * crypto: create rldb instances per AF/VRF/dir
+  * crypto: avoid rule_tag_ht in feat_attach_by_reqid
+  * crypto: prepare policy_rule for rldb cutover
+  * crypto: stage policy_prepare_rldb_rule
+  * crypto: stage policy_rule_get_rldb
+  * crypto: stage policy_rule_add_to_rldb
+  * crypto: stage policy_rule_update_rldb
+  * crypto: stage policy_rule_remove_from_rldb
+  * crypto: stage crypto_policy_rldb_commit
+  * crypto: introduce policy_rule pending_add flag
+  * crypto: cutover from npf to rldb
+  * crypto: drop unused NPF code
+  * crypto: discontinue policy-rule tags
+  * crypto: drop unused PR-TAG code
+
+  [ Simon Barber ]
+
+ -- Simon Barber <sbarber@mail.eng.vyatta.net>  Tue, 26 Jan 2021 11:33:18 +0000
+
 vyatta-dataplane (3.12.21) unstable; urgency=medium
 
   [ Charles (Chas) Williams ]
