@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  */
@@ -52,7 +52,7 @@ typedef uint16_t                rule_no_t;
 #include "npf/config/npf_rule_group.h"
 #include "npf/config/npf_ruleset_type.h"
 #include "npf/npf.h"
-#include "src/npf/nat/nat_proto.h"
+#include "npf/nat/nat_proto.h"
 #include "pktmbuf_internal.h"
 
 /* Forward Declarations */

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -17,7 +17,7 @@
 
 #include "npf/npf.h"
 #include "npf/npf_session.h"
-#include "src/npf/npf_cache.h"
+#include "npf/npf_cache.h"
 
 /* Used for building grouper */
 struct npf_rule_grouper_info {
