@@ -10,7 +10,6 @@ jsonw_library = shared_library(
 )
 
 internal_inc = include_directories(
-        '../',
         '.',
         'npf',
         'netinet6',

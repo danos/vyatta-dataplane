@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2015-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -30,7 +30,7 @@
 #include "npf/npf_nat.h"
 #include "npf/npf_pack.h"
 #include "npf/npf_rc.h"
-#include "src/npf/nat/nat_proto.h"
+#include "npf/nat/nat_proto.h"
 #include "npf_tblset.h"
 #include "urcu.h"
 #include "util.h"

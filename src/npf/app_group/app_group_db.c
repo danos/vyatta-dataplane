@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2020-2021, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -9,8 +9,8 @@
  */
 
 #include <rte_jhash.h>
-#include "src/npf/config/npf_config.h"
-#include "src/npf/dpi/dpi_internal.h"
+#include "npf/config/npf_config.h"
+#include "npf/dpi/dpi_internal.h"
 #include "app_group_db.h"
 
 #define APP_GRP_NAME_HT_SIZE	32
