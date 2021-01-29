@@ -2774,6 +2774,55 @@ int qos_hw_start(struct ifnet *ifp, struct sched_info *qinfo, uint64_t bps,
 	return ret;
 }
 
+/* Delete egress map object.
+ */
+int
+qos_egress_map_subport_delete(struct ifnet *ifp, struct ifnet *parent_ifp,
+		bool isSubIf)
+{
+	struct egress_map_subport_info *list_entry = NULL;
+	int list_cnt = 0;
+
+	if (isSubIf) {
+		SLIST_FOREACH(list_entry,
+				&parent_ifp->egr_map_info->egr_map_head,
+				egr_map_list) {
+			if (list_entry->vlan_id == ifp->if_vlan)
+				break;
+		}
+		if (list_entry) {
+			SLIST_REMOVE(&parent_ifp->egr_map_info->egr_map_head,
+					list_entry, egress_map_subport_info,
+					egr_map_list);
+			free(list_entry);
+			list_entry = NULL;
+		}
+	} else {
+		SLIST_FOREACH(list_entry,
+				&parent_ifp->egr_map_info->egr_map_head,
+				egr_map_list) {
+			list_cnt++;
+			if (list_entry->vlan_id == ifp->if_vlan)
+				break;
+		}
+		if (list_cnt == 1) {
+			/* Only parent egress map info exists */
+			SLIST_REMOVE(&parent_ifp->egr_map_info->egr_map_head,
+					list_entry, egress_map_subport_info,
+					egr_map_list);
+			SLIST_REMOVE_HEAD(
+					&parent_ifp->egr_map_info->egr_map_head,
+					egr_map_list);
+
+			free(list_entry);
+			list_entry = NULL;
+			free(parent_ifp->egr_map_info);
+			parent_ifp->egr_map_info = NULL;
+		}
+	}
+	return 0;
+}
+
 static void
 qos_hw_if_feat_mode_change(struct ifnet *ifp,
 			     enum if_feat_mode_event event)
