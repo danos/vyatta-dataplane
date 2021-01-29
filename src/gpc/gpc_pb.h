@@ -49,12 +49,6 @@ enum gpc_counter_type {
 	GPC_COUNTER_TYPE_NAMED,
 };
 
-enum gpc_config_action {
-	CREATE,
-	MODIFY,
-	DELETE
-};
-
 /*
  * Constants
  */
@@ -200,135 +194,10 @@ struct gpc_pb_feature {
 	struct cds_list_head	counter_list;
 };
 
-struct gpc_walk_context {
-	uint32_t	feature_type;
-	char		*ifname;
-	uint32_t	location;
-	uint32_t	traffic_type;
-	void		*data;
+enum gpc_config_action {
+	CREATE,
+	MODIFY,
+	DELETE
 };
-
-/**
- * Type for function passed in as a parameter in calls to
- * gpc_pb_rule_match_walk()
- */
-typedef bool (gpc_pb_rule_match_walker_cb)(struct gpc_pb_match *match,
-					   struct gpc_walk_context *context);
-
-/**
- * Walk over the matches of a GPC rule, calling a function for each match.
- *
- * @param rule A pointer to the GPC protobuf rule to walk.
- * @param walker_cb This function is called back.
- *	The function should return "true" to continue to the next entry,
- *	or "false" to end the walk of entries.
- * @param context This is passed into the walker_cb() function.
- */
-void
-gpc_pb_rule_match_walk(struct gpc_pb_rule *rule,
-		       gpc_pb_rule_match_walker_cb walker_cb,
-		       struct gpc_walk_context *context);
-
-/**
- * Type for function passed in as a parameter in calls to
- * gpc_pb_rule_action_walk()
- */
-typedef bool (gpc_pb_rule_action_walker_cb)(struct gpc_pb_action *action,
-					    struct gpc_walk_context *context);
-
-/**
- * Walk over the actions of a GPC rule, calling a function for each action.
- *
- * @param rule A pointer to the GPC protobuf rule to walk.
- * @param walker_cb This function is called back.
- *	The function should return "true" to continue to the next entry,
- *	or "false" to end the walk of entries.
- * @param context This is passed into the walker_cb() function.
- */
-void
-gpc_pb_rule_action_walk(struct gpc_pb_rule *rule,
-			gpc_pb_rule_action_walker_cb walker_cb,
-			struct gpc_walk_context *context);
-
-/**
- * Type for function passed in as a parameter in calls to
- * gpc_pb_table_rule_walk()
- */
-typedef bool (gpc_pb_table_rule_walker_cb)(struct gpc_pb_rule *rule,
-					   struct gpc_walk_context *context);
-
-/**
- * Walk over the rules of a GPC table, calling a function for each rule.
- *
- * @param table A pointer to the GPC table to walk.
- * @param walker_cb This function is called back.
- *	The function should return "true" to continue to the next entry,
- *	or "false" to end the walk of entries.
- * @param context This is passed into the walker_cb() function.
- */
-void
-gpc_pb_table_rule_walk(struct gpc_pb_table *table,
-		       gpc_pb_table_rule_walker_cb walker_cb,
-		       struct gpc_walk_context *context);
-
-/**
- * Type for function passed in as a parameter in calls to
- * gpc_pb_feature_table_walk()
- */
-typedef bool (gpc_pb_feature_table_walker_cb)(struct gpc_pb_table *table,
-					      struct gpc_walk_context *context);
-
-/**
- * Walk over the tables of a GPC feature, calling a function for each table.
- *
- * @param feature A pointer to the GPC feature to walk.
- * @param walker_cb This function is called back.
- *	The function should return "true" to continue to the next entry,
- *	or "false" to end the walk of entries.
- * @param context This is passed into the walker_cb() function.
- */
-void gpc_pb_feature_table_walk(struct gpc_pb_feature *feature,
-			       gpc_pb_feature_table_walker_cb walker_cb,
-			       struct gpc_walk_context *context);
-
-/**
- * Type for function passed in as a parameter in calls to
- * gpc_pb_feature_counter_walk()
- */
-typedef bool (gpc_pb_feature_counter_walker_cb)(struct gpc_pb_counter *counter,
-					      struct gpc_walk_context *context);
-
-/**
- * Walk over the counters of a GPC feature, calling a function for each table.
- *
- * @param feature A pointer to the GPC feature to walk.
- * @param walker_cb This function is called back.
- *	The function should return "true" to continue to the next entry,
- *	or "false" to end the walk of entries.
- * @param context This is passed into the walker_cb() function.
- */
-void gpc_pb_feature_counter_walk(struct gpc_pb_feature *feature,
-				 gpc_pb_feature_counter_walker_cb walker_cb,
-				 struct gpc_walk_context *context);
-
-
-/**
- * Type for function passed in as a parameter in calls to
- * gpc_pb_feature_walk()
- */
-typedef bool (gpc_pb_feature_walker_cb)(struct gpc_pb_feature *feature,
-					struct gpc_walk_context *context);
-
-/**
- * Walk over the features of the GPC config, calling a function for each
- * feature.
- *
- * @param walker_cb This function is called back.
- *	The function should return "true" to continue to the next entry,
- *	or "false" to end the walk of entries.
- * @param context This is passed into the walker_cb() function.
- */
-void gpc_pb_feature_walk(gpc_pb_feature_walker_cb walker_cb,
-			 struct gpc_walk_context *context);
 
 #endif /* GPC_PB_H */
