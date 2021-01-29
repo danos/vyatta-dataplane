@@ -294,8 +294,15 @@ static void map_rcu_free(struct rcu_head *head)
 	struct port_map *pm = caa_container_of(head, struct port_map,
 					       pm_rcu_head);
 
-	/* Sanity check - can only happen with a bug. */
-	apm_free_map_sanity(pm);
+	/*
+	 * Perform a sanity check if marked as dead, as it means it
+	 * was called from the GC routine. It is not called if released
+	 * for other reasons which happens when forcing releases of
+	 * the resources even if they are in use. This currently occurs
+	 * when the dataplane is shutdown or due to unit tests.
+	 */
+	if ((pm->pm_flags & PM_FLAG_DEAD) != 0)
+		apm_free_map_sanity(pm);
 
 	rte_free(pm);
 }
