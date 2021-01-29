@@ -14,12 +14,9 @@
 #include <vplane_debug.h>
 
 #include "commands.h"
-#include "include/fal_plugin.h"
-#include "fal.h"
 #include "gpc_pb.h"
 #include "gpc_util.h"
 #include "json_writer.h"
-#include "npf/config/gpc_db_query.h"
 #include "urcu.h"
 #include "util.h"
 
@@ -244,11 +241,7 @@ gpc_op_show_table(struct gpc_pb_table *table,
 	jsonw_start_array(wr);
 	for (i = 0; i < table->n_table_names; i++) {
 		jsonw_start_object(wr);
-		/*
-		 * i + 1 because table-index starts at one, but we place the
-		 * first table-name in table_names[0]
-		 */
-		jsonw_uint_field(wr, "table-index", i + 1);
+		jsonw_uint_field(wr, "index", i);
 		jsonw_string_field(wr, "name", table->table_names[i]);
 		jsonw_end_object(wr);
 	}

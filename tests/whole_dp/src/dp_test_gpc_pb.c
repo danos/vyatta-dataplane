@@ -293,12 +293,6 @@ dp_test_gpc_setup_rule(Rule *gpc_rule, uint32_t rule_number,
 	gpc_rule->actions = actions;
 
 	gpc_rule->counter = counter;
-
-	gpc_rule->has_table_index = true;
-	gpc_rule->table_index = 1;
-
-	gpc_rule->has_orig_number = true;
-	gpc_rule->orig_number = rule_number;
 }
 
 
@@ -496,8 +490,8 @@ const char *expected_reply_1 =
 	"                  \"bandwidth\": 12345678,"
 	"                }"
 	"              ],"
-	"              \"table-index\":1,"
-	"              \"orig-number\":1"
+	"              \"table-index\":0,"
+	"              \"orig-number\":0"
 	"            },{"
 	"              \"rule-number\":2,"
 	"              \"matches\":["
@@ -524,14 +518,14 @@ const char *expected_reply_1 =
 	"                  \"colour\":\"yellow\""
 	"                }"
 	"              ],"
-	"              \"table-index\":1,"
-	"              \"orig-number\":2"
+	"              \"table-index\":0,"
+	"              \"orig-number\":0"
 	"            }"
 	"          ],"
 	"          \"traffic-type\":\"ipv4\","
 	"          \"table-names\":["
 	"            {"
-	"              \"table-index\": 1,"
+	"              \"index\": 0,"
 	"              \"name\": \"gpc-table-name-1\""
 	"            }"
 	"          ]"
@@ -550,7 +544,7 @@ dp_test_gpc_check_state(const char *expected_reply)
 
 	jexp = dp_test_json_create("%s", expected_reply);
 	dp_test_check_json_poll_state("gpc show", jexp,
-				      DP_TEST_JSON_CHECK_SUBSET, false,
+				      DP_TEST_JSON_CHECK_EXACT, false,
 				      DP_TEST_POLL_COUNT);
 	json_object_put(jexp);
 }
