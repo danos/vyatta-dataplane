@@ -80,346 +80,63 @@ gpc_pb_match_delete(struct gpc_pb_match *match)
 	call_rcu(&match->match_rcu, gpc_pb_match_free);
 }
 
-/*
- * The following tables were copied from pmf_parse.c
- * We probably need a new pmf_parse function to return the summary bit based
- * upon level and field index.  We don't use the l2_summary table in GPC.
- */
-
-/* Summary bits for the rule */
-static uint32_t l3_summary[PMF_L3F__LEN] = {
-	[PMF_L3F_SRC] = PMF_RMS_L3_SRC,
-	[PMF_L3F_DST] = PMF_RMS_L3_DST,
-	[PMF_L3F_PROTOF] = PMF_RMS_L3_PROTO_FINAL,
-	[PMF_L3F_PROTOB] = PMF_RMS_L3_PROTO_BASE,
-	[PMF_L3F_DSCP] = PMF_RMS_L3_DSCP,
-	[PMF_L3F_TTL] = PMF_RMS_L3_TTL,
-	[PMF_L3F_FRAG] = PMF_RMS_L3_FRAG,
-	[PMF_L3F_RH] = PMF_RMS_L3_RH,
-};
-static uint32_t l4_summary[PMF_L4F__LEN] = {
-	[PMF_L4F_SRC] = PMF_RMS_L4_SRC,
-	[PMF_L4F_DST] = PMF_RMS_L4_DST,
-	[PMF_L4F_TCP_FLAGS] = PMF_RMS_L4_TCPFL,
-	[PMF_L4F_ICMP_VALS] = PMF_RMS_L4_ICMP_TYPE,
-};
-
 static int
-gpc_match_ip(uint32_t pt_field, struct pmf_rule *pmf_rule,
-	     IPPrefix * proto_pfx __unused, struct ip_prefix *cfg_pfx)
+gpc_match_ip(uint32_t pt_field __unused, struct pmf_rule *pmf_rule __unused,
+	     IPPrefix * proto_pfx __unused,
+	     struct ip_prefix *cfg_pfx __unused)
 {
-	uint32_t summary_bit;
-	void *pmf_pfx;
-
-	/* Avoid duplicate match fields */
-	summary_bit = l3_summary[pt_field];
-	if (pmf_rule->pp_summary & summary_bit) {
-		DP_DEBUG(GPC, DEBUG, GPC, "Duplicate match key: %s\n",
-			 (pt_field == PMF_L3F_SRC) ? "src-ip" : "dest-ip");
-		return -EEXIST;
-	}
-
-	if (cfg_pfx->addr.type == AF_INET)
-		pmf_pfx = pmf_v4_prefix_create(false,
-					       cfg_pfx->prefix_length,
-					       &cfg_pfx->addr.address.ip_v4);
-	else
-		pmf_pfx = pmf_v6_prefix_create(false,
-					       cfg_pfx->prefix_length,
-					       &cfg_pfx->addr.address.ip_v6);
-
-	if (!pmf_pfx) {
-		RTE_LOG(ERR, GPC, "No memory for %s prefix\n",
-			(pt_field == PMF_L3F_SRC) ? "src-ip" : "dest-ip");
-		return -ENOMEM;
-	}
-
-	if (cfg_pfx->addr.type == AF_INET)
-		pmf_rule->pp_match.l3[pt_field].pm_l3v4 = pmf_pfx;
-	else
-		pmf_rule->pp_match.l3[pt_field].pm_l3v6 = pmf_pfx;
-
-	pmf_rule->pp_summary |= summary_bit;
-
 	return 0;
 }
 
 static int
-gpc_match_port(uint32_t pt_field, struct pmf_rule *pmf_rule,
-	       uint32_t proto_port, uint32_t *cfg_port)
+gpc_match_port(uint32_t pt_field __unused, struct pmf_rule *pmf_rule __unused,
+	       uint32_t proto_port __unused, uint32_t *cfg_port __unused)
 {
-	uint32_t summary_bit;
-
-	/* Save the protobuf port in the config */
-	*cfg_port = proto_port;
-
-	/* Avoid duplicate match fields */
-	summary_bit = l4_summary[pt_field];
-	if (pmf_rule->pp_summary & summary_bit) {
-		DP_DEBUG(GPC, DEBUG, GPC, "Duplicate match key: %s\n",
-			 (pt_field == PMF_L4F_SRC) ? "src-port" : "dest-port");
-		return -EEXIST;
-	}
-
-	struct pmf_attr_l4port_range l4ports = {
-		.pm_tag = PMAT_L4_PORT_RANGE,
-		.pm_loport = *cfg_port,
-		.pm_hiport = *cfg_port,
-	};
-
-	struct pmf_attr_l4port_range *vp = pmf_leaf_attr_copy(&l4ports);
-	if (!vp) {
-		RTE_LOG(ERR, GPC, "No memory for parsed %s\n",
-			(pt_field == PMF_L4F_SRC) ? "src-port" : "dest-port");
-		return -ENOMEM;
-	}
-
-	pmf_rule->pp_match.l4[pt_field].pm_l4port_range = vp;
-	pmf_rule->pp_summary |= summary_bit;
-
 	return 0;
 }
 
 static int
-gpc_match_fragment(struct pmf_rule *pmf_rule,
-		   RuleMatch__FragValue proto_fragment,
-		   uint8_t *cfg_fragment)
+gpc_match_fragment(struct pmf_rule *pmf_rule __unused,
+		   RuleMatch__FragValue proto_fragment __unused,
+		   uint8_t *cfg_fragment __unused)
 {
-	uint32_t summary_bit;
-
-	/* Save the protobuf fragment in the config */
-	*cfg_fragment = proto_fragment;
-
-	/*
-	 * Avoid duplicate match fields
-	 */
-	summary_bit = l3_summary[PMF_L3F_FRAG];
-	if (pmf_rule->pp_summary & summary_bit) {
-		DP_DEBUG(GPC, DEBUG, GPC, "Duplicate match key: fragment\n");
-		return -EEXIST;
-	}
-
-	/*
-	 * Currently pmf_parse.c:pkp_fragment only handles 'fragment=y'.
-	 * We will evential need support for: 'fragment=any',
-	 * 'fragment=initial' and 'fragment=subsequent', but currently it is
-	 * on or off!
-	 */
-	struct pmf_attr_frag ip_frag = {
-		.pm_tag = PMAT_IP_FRAG
-	};
-
-	struct pmf_attr_frag *vp = pmf_leaf_attr_copy(&ip_frag);
-	if (!vp) {
-		RTE_LOG(ERR, GPC, "No memory for parsed fragment\n");
-		return -ENOMEM;
-	}
-
-	pmf_rule->pp_match.l3[PMF_L3F_FRAG].pm_l3frag = vp;
-	pmf_rule->pp_summary |= summary_bit;
-
 	return 0;
 }
 
 static int
-gpc_match_dscp(struct pmf_rule *pmf_rule, uint32_t proto_dscp,
-	       uint32_t *cfg_dscp)
+gpc_match_dscp(struct pmf_rule *pmf_rule __unused, uint32_t proto_dscp __unused,
+	       uint32_t *cfg_dscp __unused)
 {
-	uint32_t summary_bit;
-
-	/* Save the protobuf dscp in the config */
-	*cfg_dscp = proto_dscp;
-
-	/* Avoid duplicate match fields */
-	summary_bit = l3_summary[PMF_L3F_DSCP];
-	if (pmf_rule->pp_summary & summary_bit) {
-		DP_DEBUG(GPC, DEBUG, GPC,
-			 "Duplicate match key: dscp\n");
-		return -EEXIST;
-	}
-
-	struct pmf_attr_dscp ip_dscp = {
-		.pm_tag = PMAT_IP_DSCP,
-		.pm_dscp = *cfg_dscp
-	};
-
-	struct pmf_attr_dscp *vp = pmf_leaf_attr_copy(&ip_dscp);
-	if (!vp) {
-		RTE_LOG(ERR, GPC, "No memory for parsed dscp\n");
-		return -ENOMEM;
-	}
-
-	pmf_rule->pp_match.l3[PMF_L3F_DSCP].pm_l3dscp = vp;
-	pmf_rule->pp_summary |= summary_bit;
-
 	return 0;
 }
 
 static int
-gpc_match_ttl(struct pmf_rule *pmf_rule, uint32_t proto_ttl, uint32_t *cfg_ttl)
+gpc_match_ttl(struct pmf_rule *pmf_rule __unused, uint32_t proto_ttl __unused,
+	      uint32_t *cfg_ttl __unused)
 {
-	uint32_t summary_bit;
-
-	/* Save the protobuf ttl in the config */
-	*cfg_ttl = proto_ttl;
-
-	/* Avoid duplicate match fields */
-	summary_bit = l3_summary[PMF_L3F_TTL];
-	if (pmf_rule->pp_summary & summary_bit) {
-		DP_DEBUG(GPC, DEBUG, GPC, "Duplicate match key: ttl\n");
-		return -EEXIST;
-	}
-
-	struct pmf_attr_ttl ip_ttl = {
-		.pm_tag = PMAT_IP_TTL,
-		.pm_ttl = *cfg_ttl
-	};
-
-	struct pmf_attr_ttl *vp = pmf_leaf_attr_copy(&ip_ttl);
-	if (!vp) {
-		RTE_LOG(ERR, GPC, "No memory for parsed ttl\n");
-		return -ENOMEM;
-	}
-
-	pmf_rule->pp_match.l3[PMF_L3F_TTL].pm_l3ttl = vp;
-	pmf_rule->pp_summary |= summary_bit;
-
 	return 0;
 }
 
 static int
-gpc_match_icmp(struct pmf_rule *pmf_rule,
+gpc_match_icmp(struct pmf_rule *pmf_rule __unused,
 	       RuleMatch__ICMPTypeAndCode * proto_icmp __unused,
-	       struct icmp_type_code *cfg_icmp, bool is_v4)
+	       struct icmp_type_code *cfg_icmp __unused, bool is_v4 __unused)
 {
-	uint32_t summary_bit;
-
-	/* Avoid duplicate match fields */
-	summary_bit = l4_summary[PMF_L4F_ICMP_VALS];
-	if (pmf_rule->pp_summary & summary_bit) {
-		DP_DEBUG(GPC, DEBUG, GPC, "Duplicate match key: icmp%s\n",
-			 (is_v4) ? "v4" : "v6");
-		return -EEXIST;
-	}
-
-	struct pmf_attr_l4icmp_vals l4icmp = {
-		.pm_named = false,
-	};
-
-	l4icmp.pm_tag = (is_v4) ? PMAT_L4_ICMP_V4_VALS : PMAT_L4_ICMP_V6_VALS;
-
-	if (cfg_icmp->has_code) {
-		l4icmp.pm_code = cfg_icmp->code;
-		l4icmp.pm_any_code = false;
-	} else {
-		l4icmp.pm_any_code = true;
-	}
-	if (cfg_icmp->has_typenum)
-		l4icmp.pm_type = cfg_icmp->typenum;
-
-	struct pmf_attr_l4icmp_vals *vp = pmf_leaf_attr_copy(&l4icmp);
-
-	if (!vp) {
-		RTE_LOG(ERR, GPC, "No memory for parsed icmp%s\n",
-			(is_v4) ? "v4" : "v6");
-		return -ENOMEM;
-	}
-
-	pmf_rule->pp_match.l4[PMF_L4F_ICMP_VALS].pm_l4icmp_vals = vp;
-	if (!vp->pm_any_code)
-		pmf_rule->pp_summary |= PMF_RMS_L4_ICMP_CODE;
-	else
-		pmf_rule->pp_summary |=	PMF_RMS_L4_ICMP_TYPE;
-
 	return 0;
 }
 
 static int
-gpc_match_icmpv6_class(struct pmf_rule *pmf_rule,
-		       RuleMatch__ICMPV6Class proto_v6class,
-		       uint8_t *cfg_v6class)
+gpc_match_icmpv6_class(struct pmf_rule *pmf_rule __unused,
+		       RuleMatch__ICMPV6Class proto_v6class __unused,
+		       uint8_t *cfg_v6class __unused)
 {
-	uint32_t summary_bit;
-
-	/* Save the protobuf v6class in the config */
-	*cfg_v6class = proto_v6class;
-
-	/* Avoid duplicate match fields */
-	summary_bit = l4_summary[PMF_L4F_ICMP_VALS];
-	if (pmf_rule->pp_summary & summary_bit) {
-		DP_DEBUG(GPC, DEBUG, GPC,
-			 "Duplicate match key: icmpv6-class\n");
-		return -EEXIST;
-	}
-
-	struct pmf_attr_l4icmp_vals l4icmp = {
-		.pm_tag = PMAT_L4_ICMP_V6_VALS,
-		.pm_named = false,
-		.pm_any_code = true,
-		.pm_class = true,
-	};
-
-	if (*cfg_v6class == RULE_MATCH__ICMPV6_CLASS__CLASS_INFO)
-		l4icmp.pm_type = ICMP6_INFOMSG_MASK;
-
-	struct pmf_attr_l4icmp_vals *vp = pmf_leaf_attr_copy(&l4icmp);
-	if (!vp) {
-		RTE_LOG(ERR, GPC, "No memory for parsed icmpv6-class\n");
-		return -ENOMEM;
-	}
-	pmf_rule->pp_match.l4[PMF_L4F_ICMP_VALS].pm_l4icmp_vals = vp;
-	pmf_rule->pp_summary |= summary_bit;
-
 	return 0;
 }
 
 static int
-gpc_match_proto(uint32_t pt_field, struct pmf_rule *pmf_rule,
-		uint32_t proto_proto, uint32_t *cfg_proto)
+gpc_match_proto(uint32_t pt_field __unused, struct pmf_rule *pmf_rule __unused,
+		uint32_t proto_proto __unused, uint32_t *cfg_proto __unused)
 {
-	uint32_t summary_bit;
-
-	/* Save the protobuf proto value in the config */
-	*cfg_proto = proto_proto;
-
-	/* Avoid duplicate match fields */
-	summary_bit = l3_summary[pt_field];
-	if (pmf_rule->pp_summary & summary_bit) {
-		DP_DEBUG(GPC, DEBUG, GPC, "Duplicate match key: proto-%s\n",
-			 (pt_field == PMF_L3F_PROTOB) ? "base" : "final");
-		return -EEXIST;
-	}
-
-	struct pmf_attr_proto ip_proto = {
-		.pm_tag = PMAT_IP_PROTO,
-	};
-
-	ip_proto.pm_base = (pt_field == PMF_L3F_PROTOB);
-	ip_proto.pm_final = (pt_field == PMF_L3F_PROTOF);
-
-	if (*cfg_proto < 256) {
-		ip_proto.pm_proto = *cfg_proto;
-	} else {
-		if (ip_proto.pm_final)
-			ip_proto.pm_unknown = true;
-		else {
-			RTE_LOG(ERR, GPC,
-				"Bad value in rule: proto-base=%u\n",
-				*cfg_proto);
-			return -EINVAL;
-		}
-	}
-
-	struct pmf_attr_proto *vp = pmf_leaf_attr_copy(&ip_proto);
-	if (!vp) {
-		RTE_LOG(ERR, GPC, "No memory for parsed proto-%s\n",
-			(pt_field == PMF_L3F_PROTOB) ? "base" : "final");
-		return -ENOMEM;
-	}
-
-	pmf_rule->pp_match.l3[pt_field].pm_l3proto = vp;
-	pmf_rule->pp_summary |= summary_bit;
-
 	return 0;
 }
 
