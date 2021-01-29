@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2018-2021, AT&T Intellectual Property.
+ * Copyright (c) 2018-2020, AT&T Intellectual Property.
  * All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
@@ -171,8 +171,7 @@ int fal_plugin_policer_create(uint32_t attr_count,
 	assert(policer->meter == FAL_POLICER_METER_TYPE_BYTES ||
 	       policer->meter == FAL_POLICER_METER_TYPE_PACKETS);
 	assert(policer->mode == FAL_POLICER_MODE_STORM_CTL ||
-	       policer->mode == FAL_POLICER_MODE_CPP ||
-	       policer->mode == FAL_POLICER_MODE_INGRESS);
+	       policer->mode == FAL_POLICER_MODE_CPP);
 	assert(policer->action == FAL_PACKET_ACTION_DROP);
 
 	if (policer->rate == RATE_VAL1)

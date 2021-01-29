@@ -125,7 +125,6 @@ gpc_op_show_action(struct gpc_pb_action *action,
 	struct gpc_show_context *show_ctx =
 		(struct gpc_show_context *)walk_ctx->data;
 	json_writer_t *wr = show_ctx->wr;
-	struct gpc_pb_policer *policer;
 
 	jsonw_start_object(wr);
 	switch (action->action_type) {
@@ -144,24 +143,17 @@ gpc_op_show_action(struct gpc_pb_action *action,
 			gpc_get_pkt_colour_str(action->action_value.colour));
 		break;
 	case GPC_RULE_ACTION_VALUE_POLICER:
-		policer = &action->action_value.policer;
-
-		jsonw_uint_field(wr, "flags", policer->flags);
-		if (policer->flags & POLICER_HAS_BW)
-			jsonw_uint_field(wr, "bandwidth", policer->bw);
-		if (policer->flags & POLICER_HAS_BURST)
-			jsonw_uint_field(wr, "burst", policer->burst);
-		if (policer->flags & POLICER_HAS_EXCESS_BW)
-			jsonw_uint_field(wr, "excess-bandwidth",
-					 policer->excess_bw);
-		if (policer->flags & POLICER_HAS_EXCESS_BURST)
-			jsonw_uint_field(wr, "excess-burst",
-					 policer->excess_burst);
-		if (policer->flags & POLICER_HAS_AWARENESS) {
-			uint32_t val = policer->awareness;
-			const char *aware = gpc_get_policer_awareness_str(val);
-			jsonw_string_field(wr, "awareness", aware);
-		}
+		jsonw_uint_field(wr, "bandwidth",
+				 action->action_value.policer.bw);
+		jsonw_uint_field(wr, "burst",
+				 action->action_value.policer.burst);
+		jsonw_uint_field(wr, "excess-bandwidth",
+				 action->action_value.policer.excess_bw);
+		jsonw_uint_field(wr, "excess-burst",
+				 action->action_value.policer.excess_burst);
+		uint32_t value = action->action_value.policer.awareness;
+		const char *aware = gpc_get_policer_awareness_str(value);
+		jsonw_string_field(wr, "awareness", aware);
 		break;
 	default:
 		RTE_LOG(ERR, GPC, "Unknown GPC Action action-type %u\n",

@@ -11,7 +11,6 @@
 #define GPC_PB_H
 
 #include <urcu/list.h>
-#include "fal_plugin.h"
 #include "ip.h"
 #include "npf/config/pmf_rule.h"
 #include "urcu.h"
@@ -20,14 +19,6 @@
 /*
  * Enum definitions
  */
-enum policer_flags_type {
-	POLICER_HAS_BW           = (1 << 0),
-	POLICER_HAS_BURST        = (1 << 1),
-	POLICER_HAS_EXCESS_BW    = (1 << 2),
-	POLICER_HAS_EXCESS_BURST = (1 << 3),
-	POLICER_HAS_AWARENESS    = (1 << 4),
-};
-
 enum gpc_rule_match_value_type {
 	GPC_RULE_MATCH_VALUE_NOT_SET,
 	GPC_RULE_MATCH_VALUE_SRC_IP,
@@ -83,9 +74,7 @@ struct gpc_pb_policer {
 	uint64_t        burst;
 	uint64_t        excess_bw;
 	uint64_t        excess_burst;
-	uint32_t        flags;
 	uint8_t         awareness;
-	fal_object_t    objid;
 };
 
 /*

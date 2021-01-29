@@ -13,8 +13,6 @@
 #include <vplane_log.h>
 #include <vplane_debug.h>
 #include <urcu/list.h>
-#include "fal.h"
-#include "fal_plugin.h"
 #include "gpc_pb.h"
 #include "gpc_util.h"
 #include "ip.h"
@@ -96,101 +94,9 @@ gpc_pb_icmp_parse(struct _RuleMatch__ICMPTypeAndCode *msg,
 	return 0;
 }
 
-/*
- * A policer has three mandatory attributes and up to five optional attributes.
- */
-#define MAX_POLICER_ATTR_SIZE 8
-
-static int
-gpc_pb_policer_create(struct gpc_pb_policer *policer)
-{
-	uint32_t attr_count;
-	int rv;
-
-	/* Create the policer. */
-	struct fal_attribute_t attr_list[MAX_POLICER_ATTR_SIZE] = {
-		{ .id = FAL_POLICER_ATTR_METER_TYPE,
-		  .value.u32 = FAL_POLICER_METER_TYPE_BYTES },
-		{ .id = FAL_POLICER_ATTR_MODE,
-		  .value.u32 = FAL_POLICER_MODE_INGRESS },
-		{ .id = FAL_POLICER_ATTR_RED_PACKET_ACTION,
-		  .value.u32 = FAL_PACKET_ACTION_DROP},
-	};
-
-	attr_count = 3;
-
-	/*
-	 * The protobuf bandwidths are in bytes/sec, which agrees with the
-	 * FAL's bandwidth units.
-	 */
-	if (policer->flags & POLICER_HAS_BW) {
-		attr_list[attr_count].id = FAL_POLICER_ATTR_CIR;
-		attr_list[attr_count].value.u64 = policer->bw;
-		attr_count++;
-	}
-	if (policer->flags & POLICER_HAS_EXCESS_BW) {
-		attr_list[attr_count].id = FAL_POLICER_ATTR_EIR;
-		attr_list[attr_count].value.u64 = policer->excess_bw;
-		attr_count++;
-	}
-	if (policer->flags & POLICER_HAS_BURST) {
-		attr_list[attr_count].id = FAL_POLICER_ATTR_CBS;
-		attr_list[attr_count].value.u64 = policer->burst;
-		attr_count++;
-	}
-	if (policer->flags & POLICER_HAS_EXCESS_BURST) {
-		attr_list[attr_count].id = FAL_POLICER_ATTR_EBS;
-		attr_list[attr_count].value.u64 = policer->excess_burst;
-		attr_count++;
-	}
-	if (policer->flags & POLICER_HAS_AWARENESS &&
-	    policer->awareness != POLICER_AWARENESS__AWARENESS_UNKNOWN) {
-		attr_list[attr_count].id = FAL_POLICER_ATTR_COLOUR_SOURCE;
-		/*
-		 * The protobuf definitions of colour-aware and colour-unaware
-		 * don't match the FAL definitions.
-		 */
-		if (policer->awareness == POLICER_AWARENESS__COLOUR_UNAWARE)
-			attr_list[attr_count].value.u64 =
-				FAL_POLICER_COLOUR_SOURCE_UNAWARE;
-		else
-			attr_list[attr_count].value.u64 =
-				FAL_POLICER_COLOUR_SOURCE_AWARE;
-		attr_count++;
-	}
-
-	/* Create policer from attribute list. */
-	rv = fal_policer_create(attr_count, attr_list, &policer->objid);
-	if (rv) {
-		RTE_LOG(ERR, GPC,
-			"Failed to create FAL policer %d\n", rv);
-		return rv;
-	}
-	DP_DEBUG(GPC, DEBUG, GPC, "Created FAL policer 0x%" PRIXPTR "\n",
-		 policer->objid);
-	return rv;
-}
-
-static void
-gpc_pb_policer_delete(struct gpc_pb_policer *policer)
-{
-	int rv;
-
-	if (policer->objid != FAL_NULL_OBJECT_ID) {
-		rv = fal_policer_delete(policer->objid);
-		if (rv) {
-			RTE_LOG(ERR, GPC, "Failed to delete FAL policer 0x%"
-				PRIXPTR " rv %d\n", policer->objid, rv);
-		}
-		policer->objid = FAL_NULL_OBJECT_ID;
-	}
-}
-
 static int
 gpc_pb_policer_parse(struct _PolicerParams *msg, struct gpc_pb_action *action)
 {
-	struct gpc_pb_policer *policer = &action->action_value.policer;
-
 	/*
 	 * Mandatory field checking.
 	 */
@@ -200,26 +106,16 @@ gpc_pb_policer_parse(struct _PolicerParams *msg, struct gpc_pb_action *action)
 		return -EPERM;
 	}
 
-	policer->objid = FAL_NULL_OBJECT_ID;
-	policer->bw = msg->bw;
-	policer->flags = POLICER_HAS_BW;
-	if (msg->has_burst) {
-		policer->flags |= POLICER_HAS_BURST;
-		policer->burst = msg->burst;
-	}
-	if (msg->has_excess_bw) {
-		policer->flags |= POLICER_HAS_EXCESS_BW;
-		policer->excess_bw = msg->excess_bw;
-	}
-	if (msg->has_excess_burst) {
-		policer->flags |= POLICER_HAS_EXCESS_BURST;
-		policer->excess_burst = msg->excess_burst;
-	}
-	if (msg->has_awareness) {
-		policer->flags |= POLICER_HAS_AWARENESS;
-		policer->awareness = msg->awareness;
-	}
-	return gpc_pb_policer_create(policer);
+	action->action_value.policer.bw = msg->bw;
+	if (msg->has_burst)
+		action->action_value.policer.burst = msg->burst;
+	if (msg->has_excess_bw)
+		action->action_value.policer.excess_bw = msg->excess_bw;
+	if (msg->has_excess_burst)
+		action->action_value.policer.excess_burst = msg->excess_burst;
+	if (msg->has_awareness)
+		action->action_value.policer.awareness = msg->awareness;
+	return 0;
 }
 
 /*
@@ -717,9 +613,6 @@ gpc_pb_action_delete(struct gpc_pb_action *action)
 
 	cds_list_del(&action->action_list);
 	DP_DEBUG(GPC, DEBUG, GPC, "Freeing GPC action %p\n", action);
-	if (action->action_type == GPC_RULE_ACTION_VALUE_POLICER)
-		gpc_pb_policer_delete(&action->action_value.policer);
-
 	call_rcu(&action->action_rcu, gpc_pb_action_free);
 }
 
