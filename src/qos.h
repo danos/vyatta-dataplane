@@ -675,6 +675,6 @@ void qos_abs_rate_save(struct qos_rate_info *bw_info, uint64_t abs_bw);
 struct egress_map_subport_info *qos_egress_map_subport_get(
 		struct ifnet *parent_ifp, int vlan_id);
 struct egress_map_subport_info *qos_egress_map_subport_new(struct ifnet *ifp,
-				 struct ifnet *parent_ifp, bool isParent);
+				 struct ifnet *parent_ifp, bool is_sub_if);
 
 #endif /* QOS_H */

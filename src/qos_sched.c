@@ -373,11 +373,10 @@ qos_init(void)
 	}
 }
 
-/* Create new QoS egress map object.
- */
+/* Create new QoS egress map object */
 struct egress_map_subport_info *
 qos_egress_map_subport_new(struct ifnet *ifp, struct ifnet *parent_ifp,
-		bool isSubIf)
+		bool is_sub_if)
 {
 	struct egress_map_subport_info *parent_egr_map = NULL;
 	struct egress_map_subport_info *egr_map_info = NULL;
@@ -386,7 +385,7 @@ qos_egress_map_subport_new(struct ifnet *ifp, struct ifnet *parent_ifp,
 	struct egress_map_subport_info *list_prev_entry = NULL;
 	bool new_list = false;
 
-	if (isSubIf && parent_ifp->egr_map_info) {
+	if (is_sub_if && parent_ifp->egr_map_info) {
 		SLIST_FOREACH(list_entry,
 				&parent_ifp->egr_map_info->egr_map_head,
 				egr_map_list) {
@@ -426,7 +425,6 @@ qos_egress_map_subport_new(struct ifnet *ifp, struct ifnet *parent_ifp,
 				&parent_ifp->egr_map_info->egr_map_head);
 	}
 
-
 	/* Create a entry for the sub-port now */
 	if (ifp->if_type == IFT_L2VLAN && ifp->if_vlan != 0) {
 		egr_map_info = calloc(1, sizeof(
@@ -454,8 +452,7 @@ qos_egress_map_subport_new(struct ifnet *ifp, struct ifnet *parent_ifp,
 	return temp_egr_map_info;
 }
 
-/* Get QoS egress map object for a given parent ifp and vlan
- */
+/* Get QoS egress map object for a given parent ifp and vlan */
 struct egress_map_subport_info *
 qos_egress_map_subport_get(struct ifnet *parent_ifp,
 				 int vlan_id)
@@ -4560,11 +4557,6 @@ static int cmd_qos_egress_map(struct ifnet *ifp, int argc, char **argv)
 	uint64_t mask = 0;
 	int ret;
 
-	int i = 0;
-	for (i = 0; i < argc; i++)
-		DP_DEBUG(QOS, ERR, DATAPLANE, "%s - "
-				"argv[%d]:%s\n",
-				__func__, i, argv[i]);
 	/* Skip egress-map */
 	argc--; argv++;
 
@@ -4688,6 +4680,8 @@ static void
 qos_if_index_set(struct ifnet *ifp)
 {
 	int rv;
+	struct ifnet *parent_ifp = NULL;
+	struct egress_map_subport_info *egr_map_subport = NULL;
 
 	rv = cfg_if_list_replay(&qos_cfg_list, ifp->if_name, cmd_qos_cfg);
 
@@ -4695,6 +4689,23 @@ qos_if_index_set(struct ifnet *ifp)
 		DP_DEBUG(QOS, ERR, DATAPLANE,
 			 "qos cache replay failed for %s, rv %d (%s)",
 			 ifp->if_name, rv, strerror(-rv));
+
+	parent_ifp = ifp->if_parent;
+	if (parent_ifp) {
+		/*
+		 * Create a egress map object for sub-ports by default
+		 * since it might inherit the same from parent
+		 */
+		if (ifp->if_type == IFT_L2VLAN) {
+			egr_map_subport = qos_egress_map_subport_new(ifp,
+					parent_ifp, true);
+			if (!egr_map_subport) {
+				DP_DEBUG(QOS, ERR, DATAPLANE,
+					 "Failed to create egr_map_subport\n");
+				return;
+			}
+		}
+	}
 }
 
 static void
