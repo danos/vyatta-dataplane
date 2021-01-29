@@ -86,6 +86,7 @@ struct sched_info;
 struct portmonitor_info;
 struct npf_if;
 struct cgn_intf;
+struct egress_map_info;
 
 /*
  * Software statistics maintained per-core.
@@ -390,6 +391,8 @@ struct ifnet {
 
 	uint16_t          ip_out_spath_features;
 	uint16_t          ip6_out_spath_features;
+
+	struct egress_map_info *egr_map_info;
 };
 
 static_assert(offsetof(struct ifnet, if_vlantbl) == 64,

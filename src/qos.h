@@ -195,6 +195,18 @@ struct queue_map {
 	uint64_t reset_mask;
 };
 
+/* Egress map sub-port/VIF information */
+struct egress_map_subport_info {
+	SLIST_ENTRY(egress_map_subport_info) egr_map_list;
+	int vlan_id;
+	fal_object_t egr_map_obj;
+};
+
+/* Egress map infprmation per Physical port */
+struct egress_map_info {
+	SLIST_HEAD(egr_map_head, egress_map_subport_info) egr_map_head;
+};
+
 #define CONF_ID_Q_CONFIG  0x80
 #define CONF_ID_Q_DEFAULT 0x40
 #define CONF_ID_Q_IN_USE (CONF_ID_Q_CONFIG | CONF_ID_Q_DEFAULT)
@@ -652,5 +664,9 @@ fal_object_t qos_hw_get_att_ingress_map(struct ifnet *ifp, unsigned int vlan);
 fal_object_t qos_hw_get_att_egress_map(struct ifnet *ifp, unsigned int vlan);
 struct qos_mark_map *qos_egress_map_find(char const *name);
 void qos_abs_rate_save(struct qos_rate_info *bw_info, uint64_t abs_bw);
+struct egress_map_subport_info *qos_egress_map_subport_get(
+		struct ifnet *parent_ifp, int vlan_id);
+struct egress_map_subport_info *qos_egress_map_subport_new(struct ifnet *ifp,
+				 struct ifnet *parent_ifp, bool isParent);
 
 #endif /* QOS_H */
