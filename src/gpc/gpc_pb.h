@@ -118,7 +118,6 @@ struct gpc_pb_match {
 
 struct gpc_pb_counter {
 	struct cds_list_head	counter_list;
-	struct rcu_head		counter_rcu;
 	/* format - packet-only/packets-and-bytes */
 	uint32_t		format;
 	char			*name;

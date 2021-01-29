@@ -24,248 +24,6 @@
  */
 static struct cds_list_head *gpc_feature_list;
 
-/*
- * GPC counter functions
- */
-static void
-gpc_pb_counter_free(struct rcu_head *head)
-{
-	struct gpc_pb_counter *counter;
-
-	counter = caa_container_of(head, struct gpc_pb_counter, counter_rcu);
-	free(counter->name);
-	free(counter);
-}
-
-static void
-gpc_pb_counter_delete(struct gpc_pb_counter *counter)
-{
-	if (!counter)
-		return;
-
-	cds_list_del(&counter->counter_list);
-	DP_DEBUG(GPC, DEBUG, GPC, "Freeing GPC counter %p\n", counter);
-
-	call_rcu(&counter->counter_rcu, gpc_pb_counter_free);
-}
-
-static int
-gpc_pb_counter_parse(struct gpc_pb_feature *feature, GPCCounter *msg)
-{
-	struct gpc_pb_counter *counter;
-
-	/*
-	 * Mandatory field checking.
-	 */
-	if (!msg->has_format) {
-		RTE_LOG(ERR, GPC,
-			"GPCCounter protobuf missing mandatory field\n");
-		return -EPERM;
-	}
-
-	counter = calloc(1, sizeof(*counter));
-	if (!counter) {
-		RTE_LOG(ERR, GPC,
-			"Failed to allocate GPC counter\n");
-		return -ENOMEM;
-	}
-
-	counter->format = msg->format;
-	if (msg->name) {
-		counter->name = strdup(msg->name);
-		if (!counter->name) {
-			RTE_LOG(ERR, GPC,
-				"Failed to allocate name for counter\n");
-			goto error_path;
-		}
-	}
-
-	cds_list_add_tail(&counter->counter_list, &feature->counter_list);
-	DP_DEBUG(GPC, DEBUG, GPC,
-		 "Added GPC counter %p to GPC feature %p\n",
-		 counter, feature);
-
-	return 0;
-
- error_path:
-	free(counter);
-	return -ENOMEM;
-}
-
-static int
-gpc_pb_rule_counter_parse(struct gpc_pb_rule *rule, RuleCounter *msg)
-{
-	struct gpc_pb_rule_counter *counter = &rule->counter;
-	int rv = 0;
-
-	/*
-	 * Mandatory field checking.
-	 */
-	if (!msg->has_counter_type) {
-		RTE_LOG(ERR, GPC,
-			"RuleCounter protobuf missing mandatory field\n");
-		return -EPERM;
-	}
-
-	switch (msg->counter_type) {
-	case RULE_COUNTER__COUNTER_TYPE__COUNTER_UNKNOWN:
-		counter->counter_type = GPC_COUNTER_TYPE_UNKNOWN;
-		break;
-	case RULE_COUNTER__COUNTER_TYPE__DISABLED:
-		counter->counter_type = GPC_COUNTER_TYPE_DISABLED;
-		break;
-	case RULE_COUNTER__COUNTER_TYPE__AUTO:
-		counter->counter_type = GPC_COUNTER_TYPE_AUTO;
-		break;
-	case RULE_COUNTER__COUNTER_TYPE__NAMED:
-		counter->counter_type = GPC_COUNTER_TYPE_NAMED;
-		if (msg->name) {
-			counter->name = strdup(msg->name);
-			if (!counter->name) {
-				RTE_LOG(ERR, GPC,
-					"Failed to allocate counter name\n");
-				return -ENOMEM;
-			}
-		}
-		break;
-	default:
-		RTE_LOG(ERR, GPC, "Unknown rule counter type %u\n",
-			msg->counter_type);
-		rv = -EINVAL;
-		break;
-	}
-
-	return rv;
-}
-
-/*
- * GPC rule functions
- */
-
-static void
-gpc_pb_rule_free(struct rcu_head *head)
-{
-	struct gpc_pb_rule *rule;
-
-	rule = caa_container_of(head, struct gpc_pb_rule, rule_rcu);
-	free(rule->result);
-	free(rule);
-}
-
-static void
-gpc_pb_rule_delete(struct gpc_pb_rule *rule)
-{
-	if (!rule)
-		return;
-
-	cds_list_del(&rule->rule_list);
-	DP_DEBUG(GPC, DEBUG, GPC, "Freeing GPC rule %p\n", rule);
-
-	call_rcu(&rule->rule_rcu, gpc_pb_rule_free);
-}
-
-static int
-gpc_pb_rule_parse(struct gpc_pb_table *table, Rule *msg)
-{
-	struct gpc_pb_rule *rule;
-	int rv = 0;
-
-	if (!msg) {
-		RTE_LOG(ERR, GPC,
-			"Failed to read Rule protobuf\n");
-		return -EPERM;
-	}
-	/*
-	 * Mandatory field checking.
-	 */
-	if (!msg->has_number) {
-		RTE_LOG(ERR, GPC,
-			"Rule protobuf missing mandatory field\n");
-		return -EPERM;
-	}
-
-	rule = calloc(1, sizeof(*rule));
-	if (!rule) {
-		RTE_LOG(ERR, GPC,
-			"Failed to allocate GPC rule\n");
-		return -ENOMEM;
-	}
-
-	rule->number = msg->number;
-	CDS_INIT_LIST_HEAD(&rule->match_list);
-	CDS_INIT_LIST_HEAD(&rule->action_list);
-
-	if (msg->counter) {
-		rv = gpc_pb_rule_counter_parse(rule, msg->counter);
-		if (rv)
-			goto error_path;
-	}
-
-	if (msg->has_table_index)
-		rule->table_index = msg->table_index;
-
-	if (msg->has_orig_number)
-		rule->orig_number = msg->orig_number;
-
-	if (msg->result) {
-		rule->result = strdup(msg->result);
-		if (!rule->result) {
-			RTE_LOG(ERR, GPC, "Failed to allocate result name\n");
-			rv = -ENOMEM;
-			goto error_path;
-		}
-	}
-
-	cds_list_add_tail(&rule->rule_list, &table->rule_list);
-	return rv;
-
- error_path:
-	RTE_LOG(ERR, GPC, "Problems parsing Rule protobuf, %d\n", rv);
-	gpc_pb_rule_delete(rule);
-	return rv;
-}
-
-/*
- * GPC rules functions
- */
-static int
-gpc_pb_rules_parse(struct gpc_pb_table *table, Rules *msg)
-{
-	struct gpc_pb_rule *rule, *tmp_rule;
-	uint32_t i;
-	int rv;
-
-	if (!msg) {
-		RTE_LOG(ERR, GPC,
-			"Failed to read Rules protobuf\n");
-		return -EPERM;
-	}
-	/*
-	 * Mandatory field checking.
-	 */
-	if (!msg->traffic_type) {
-		RTE_LOG(ERR, GPC,
-			"Rules protobuf missing mandatory field\n");
-		return -EPERM;
-	}
-
-	table->traffic_type = msg->traffic_type;
-
-	for (i = 0; i < msg->n_rules; i++) {
-		rv = gpc_pb_rule_parse(table, msg->rules[i]);
-		if (rv)
-			goto error_path;
-	}
-	return rv;
-
- error_path:
-	RTE_LOG(ERR, GPC, "Problems parsing Rules protobuf: %d\n", rv);
-	cds_list_for_each_entry_safe(rule, tmp_rule, &table->rule_list,
-				     rule_list)
-		gpc_pb_rule_delete(rule);
-
-	return rv;
-}
 
 /*
  * GPC table functions
@@ -288,17 +46,11 @@ gpc_pb_table_free(struct rcu_head *head)
 static void
 gpc_pb_table_delete(struct gpc_pb_table *table)
 {
-	struct gpc_pb_rule *rule, *tmp_rule;
-
 	if (!table)
 		return;
 
 	cds_list_del(&table->table_list);
 	DP_DEBUG(GPC, DEBUG, GPC, "Freeing GPC table %p\n", table);
-
-	cds_list_for_each_entry_safe(rule, tmp_rule, &table->rule_list,
-				     rule_list)
-		gpc_pb_rule_delete(rule);
 
 	call_rcu(&table->table_rcu, gpc_pb_table_free);
 }
@@ -356,11 +108,6 @@ gpc_pb_table_add(struct gpc_pb_feature *feature, GPCTable *msg)
 	}
 
 	CDS_INIT_LIST_HEAD(&table->rule_list);
-
-	/* Parse the rest of config message */
-	rv = gpc_pb_rules_parse(table, msg->rules);
-	if (rv)
-		goto error_path;
 
 	return rv;
 
@@ -458,7 +205,6 @@ static void
 gpc_pb_feature_delete(struct gpc_pb_feature *feature)
 {
 	struct gpc_pb_table *table, *tmp_table;
-	struct gpc_pb_counter *counter, *tmp_counter;
 
 	if (!feature)
 		return;
@@ -469,11 +215,6 @@ gpc_pb_feature_delete(struct gpc_pb_feature *feature)
 	cds_list_for_each_entry_safe(table, tmp_table, &feature->table_list,
 				     table_list)
 		gpc_pb_table_delete(table);
-
-	cds_list_for_each_entry_safe(counter, tmp_counter,
-				     &feature->counter_list,
-				     counter_list)
-		gpc_pb_counter_delete(counter);
 
 	call_rcu(&feature->feature_rcu, gpc_pb_feature_free);
 }
@@ -524,11 +265,6 @@ gpc_pb_feature_add(GPCConfig *msg)
 			goto error_path;
 	}
 
-	for (i = 0; i < msg->n_counters; i++) {
-		rv = gpc_pb_counter_parse(feature, msg->counters[i]);
-		if (rv)
-			goto error_path;
-	}
 	return 0;
 
  error_path:
