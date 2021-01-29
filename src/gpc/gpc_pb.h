@@ -12,7 +12,6 @@
 
 #include <urcu/list.h>
 #include "ip.h"
-#include "npf/config/pmf_rule.h"
 #include "urcu.h"
 #include "util.h"
 
@@ -150,14 +149,12 @@ struct gpc_pb_rule {
 	struct cds_list_head		match_list;
 	struct cds_list_head		action_list;
 	struct gpc_pb_rule_counter	counter;
-	struct pmf_rule			*pmf_rule;
 	/*
 	 * The VCI code can collapse multiple tables into a single table.
 	 * The following fields tell us what table this rule originally
 	 * came from, what its original rule-number was, and the name of the
 	 * result associated with it.
 	 */
-	/* Debug fields */
 	uint32_t			table_index;
 	uint32_t			orig_number;
 	char				*result;
