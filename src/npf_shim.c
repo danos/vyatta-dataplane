@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2011-2017 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -458,11 +458,14 @@ done:
 
 result:
 	/*
-	 * Generate any ICMP or ICMPv6 errors; the original packet is
-	 * always blocked (i.e. decision == NPF_DECISION_BLOCK).
-	 * Only IPv4 ICMP 'Too Big' for the moment.
+	 * Can jump here blocking the packet due to failing to cache the
+	 * packet, or errors returned trying to create or lookup a session.
 	 */
 	if (in_ifp && unlikely(too_big)) {
+		/*
+		 * Generate any ICMP or ICMPv6 "too big" errors.
+		 * Only IPv4 ICMP 'Too Big' for the moment.
+		 */
 		IPSTAT_INC_IFP(ifp, IPSTATS_MIB_FRAGFAILS);
 		icmp_error_out(in_ifp, *m,
 			       ICMP_DEST_UNREACH, ICMP_FRAG_NEEDED,
