@@ -2437,7 +2437,7 @@ crypto_policy_check_inbound(struct ifnet *in_ifp, struct rte_mbuf **mbuf,
 		       : vrf_ctx->input_policy_v6_rldb;
 
 		err = rldb_match(db, mbuf, 1, &result);
-		if (likely(err == -ENOENT))
+		if (err)
 			return false;
 
 		pr = (struct policy_rule *)result.rldb_user_data;
