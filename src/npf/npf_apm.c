@@ -263,20 +263,22 @@ static void port_stats_dec(struct port_map *pm, enum nat_proto nprot,
 	ps->ps_used--;
 }
 
-/* Free the entry */
-static void map_rcu_free(struct rcu_head *head)
+/*
+ * Check that not trying to free mappings that still have ports allocated.
+ */
+static void apm_free_map_sanity(struct port_map *pm)
 {
-	struct port_map *pm = caa_container_of(head, struct port_map,
-								pm_rcu_head);
-	int i, nprot;
+	int nprot;
 
-	/* Sanity, can only happen with a bug */
 	for (nprot = NAT_PROTO_FIRST; nprot < NAT_PROTO_COUNT; nprot++) {
-		struct port_section **pp_sections =
-			pm->pm_nprot[nprot].pp_sections;
+		struct port_section **pp_sections;
+		int i;
+
+		pp_sections = pm->pm_nprot[nprot].pp_sections;
+
 		for (i = 0; i < PM_SECTION_CNT; i++) {
 			assert((pp_sections[i] && pp_sections[i]->ps_used)
-				== 0);
+			       == 0);
 			if (pp_sections[i] && pp_sections[i]->ps_used)
 				rte_panic("NPF port map: prot %s: section: "
 					  "%d used: %d\n",
@@ -284,6 +286,24 @@ static void map_rcu_free(struct rcu_head *head)
 					   pp_sections[i]->ps_used);
 		}
 	}
+}
+
+/* Free the entry */
+static void map_rcu_free(struct rcu_head *head)
+{
+	struct port_map *pm = caa_container_of(head, struct port_map,
+					       pm_rcu_head);
+
+	/*
+	 * Perform a sanity check if marked as dead, as it means it
+	 * was called from the GC routine. It is not called if released
+	 * for other reasons which happens when forcing releases of
+	 * the resources even if they are in use. This currently occurs
+	 * when the dataplane is shutdown or due to unit tests.
+	 */
+	if ((pm->pm_flags & PM_FLAG_DEAD) != 0)
+		apm_free_map_sanity(pm);
+
 	rte_free(pm);
 }
 

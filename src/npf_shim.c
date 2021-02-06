@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2011-2017 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -285,7 +285,7 @@ npf_hook_track(struct ifnet *in_ifp, struct rte_mbuf **m,
 	}
 
 	/* SNAT forward (OUT), DNAT reply */
-	if (dir == PFIL_OUT) {
+	if (dir == PFIL_OUT && !internal_hairpin) {
 		npf_nat_t *nt = npf_session_get_nat(se);
 		if (nt) {
 			rc = nat_do_subsequent(npc, m, se, nt, dir);
@@ -390,7 +390,7 @@ pass:
 		npf_log_pkt(npc, *m, rl, dir);
 
 	/* DNAT forward (IN), SNAT reply */
-	if (dir == PFIL_IN) {
+	if (dir == PFIL_IN && !internal_hairpin) {
 		npf_nat_t *nt = npf_session_get_nat(se);
 		if (nt) {
 			/*
@@ -459,11 +459,14 @@ done:
 
 result:
 	/*
-	 * Generate any ICMP or ICMPv6 errors; the original packet is
-	 * always blocked (i.e. decision == NPF_DECISION_BLOCK).
-	 * Only IPv4 ICMP 'Too Big' for the moment.
+	 * Can jump here blocking the packet due to failing to cache the
+	 * packet, or errors returned trying to create or lookup a session.
 	 */
 	if (in_ifp && unlikely(too_big)) {
+		/*
+		 * Generate any ICMP or ICMPv6 "too big" errors.
+		 * Only IPv4 ICMP 'Too Big' for the moment.
+		 */
 		IPSTAT_INC_IFP(ifp, IPSTATS_MIB_FRAGFAILS);
 		icmp_error_out(in_ifp, *m,
 			       ICMP_DEST_UNREACH, ICMP_FRAG_NEEDED,

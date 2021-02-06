@@ -24,7 +24,7 @@ pipeline {
     agent any
 
     environment {
-	OBS_TARGET_PROJECT = 'DANOS:Master'
+	OBS_TARGET_PROJECT = 'DANOS:Inverness'
 	OBS_TARGET_REPO = 'standard'
 	OBS_TARGET_ARCH = 'x86_64'
 	// # Replace : with _ in project name, as osc-buildpkg does

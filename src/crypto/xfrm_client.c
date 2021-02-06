@@ -243,6 +243,7 @@ static int xfrm_netlink_recv(void *arg)
 	 */
 	hdr = zmq_msg_data(&xfrm_hdr);
 	if (strncmp("FLUSH", hdr, strlen("FLUSH")) == 0) {
+		last_seq_sent = 0;
 		crypto_flush_all();
 		goto end;
 	} else if (strncmp("COMMIT", hdr, strlen("COMMIT")) == 0) {

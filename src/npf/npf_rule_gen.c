@@ -814,7 +814,7 @@ struct npf_icmp_name_table icmpv4_name_table[] = {
 	{ "timestamp-reply",				14,	-1 },
 	{ "address-mask-request",			17,	-1 },
 	{ "address-mask-reply",				18,	-1 },
-	{ NULL }
+	{ NULL, 0, 0 }
 };
 
 struct npf_icmp_name_table icmpv6_name_table[] = {
@@ -843,7 +843,7 @@ struct npf_icmp_name_table icmpv6_name_table[] = {
 	{ "redirect",					137,	-1 },
 	{ "mobile-prefix-solicitation",			146,	-1 },
 	{ "mobile-prefix-advertisement",		147,	-1 },
-	{ NULL }
+	{ NULL, 0, 0 }
 };
 
 static int

@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: LGPL-2.1-only
-# Copyright (c) 2020-2021, AT&T Intellectual Property. All rights reserved.
+# Copyright (c) 2020, AT&T Intellectual Property. All rights reserved.
 
 internal_test_inc = include_directories(
         'src'
@@ -63,7 +63,6 @@ check_tests = [
         'dp_test_crypto_site_to_site_passthru.c',
         'dp_test_esp.c',
         'dp_test_fails.c',
-        'dp_test_gpc_pb.c',
         'dp_test_gre.c',
         'dp_test_gre6.c',
         'dp_test_if_config.c',

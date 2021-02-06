@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2017-2021, AT&T Intellectual Property.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.
  * All rights reserved.
  * Copyright (c) 2011-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
@@ -1338,7 +1338,7 @@ int cmd_poe(FILE *f, int argc, char **argv)
 {
 	struct ifnet *ifp;
 	fal_port_poe_priority_t priority = FAL_PORT_POE_PRIORITY_LOW;
-	struct fal_attribute_t poe_attr = { FAL_PORT_ATTR_POE_PRIORITY, };
+	struct fal_attribute_t poe_attr = { .id = FAL_PORT_ATTR_POE_PRIORITY, };
 	int rc = 0;
 
 	if (argc < 2)
@@ -1744,7 +1744,6 @@ static const cmd_t cmd_table[] = {
 	{ 0,	"debug",	cmd_debug,	"Debug logging level" },
 	{ 0,	"ecmp",		cmd_ecmp,	"Show/set ecmp options" },
 	{ 0,	"fal",		cmd_fal,	"FAL debugging commands" },
-	{ 0,    "gpc",          cmd_gpc_op,     "GPC OP mode information" },
 	{ 0,	"gre",		cmd_gre,	"Show gre information" },
 	{ 0,	"help",		cmd_help,	"This help" },
 	{ 0,	"hotplug",	cmd_hotplug,	"Hotplug event" },

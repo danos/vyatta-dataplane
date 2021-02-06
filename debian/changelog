@@ -1,3 +1,47 @@
+vyatta-dataplane (3.12.25) unstable; urgency=medium
+
+  [ Srinivas Narayan ]
+  * crypto : broaden error checking
+
+  [ Ramkumar Ganapathysubramanian ]
+  * Creating new structures to hold QoS egress map information
+  * Qos changes to support hierarchical egress map
+
+  [ Daniel Gollub ]
+  * crypto: reset XFRM/nl seq counter on flush
+
+  [ Gavin Shearer ]
+  * fw: improve comment at "result:" in npf_hook_track()
+  * fw: skip NAT processing with session in wrong direction
+  * nat: split map_rcu_free sanity check into a different function
+  * nat: only call map_rcu_free sanity if from GC function
+
+ -- Srinivas Narayan <narayan@mail.eng.vyatta.net>  Fri, 05 Feb 2021 15:40:07 +0000
+
+vyatta-dataplane (3.12.24) unstable; urgency=medium
+
+  * Revert "GPC: add zeroed counters to op-mode json"
+  * Revert "GPC: temporary commit to stop crashes"
+  * Revert "GPC: add new QoS actions to pmf_rule struct"
+  * Revert "GPC: call new gpc_db APIs to instantiate config"
+  * Revert "GPC: create a FAL policer when necessary"
+  * Revert "UT: extend the GPC unit-test to test something"
+  * Revert "UT: add initial protobuf utility functions"
+  * Revert "GPC: add ip-prefix and icmp parse functions"
+  * Revert "GPC: fill in most empty rule match functions"
+  * Revert "GPC: add rule action code and empty match code"
+  * Revert "GPC: complete initial op-mode code"
+  * Revert "GPC: add config walk functions"
+  * Revert "GPC: add more utility functions"
+  * Revert "GPC: add match and action parsing"
+  * Revert "GPC: add rule and counter parsing"
+  * Revert "GPC: add feature and table parsing"
+  * Revert "GPC: give gpc_config.c a better name"
+  * Revert "GPC: add GPC structs and enums"
+  * Revert "GPC: add utility functions for later use"
+
+ -- Simon Barber <sbarber@mail.eng.vyatta.net>  Tue, 02 Feb 2021 12:17:31 +0000
+
 vyatta-dataplane (3.12.23) unstable; urgency=medium
 
   [ Alan Dewar ]

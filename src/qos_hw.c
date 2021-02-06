@@ -28,6 +28,13 @@
 _Static_assert(MAX_DSCP == FAL_QOS_MAP_DSCP_VALUES, "max DSCP value mismatch");
 _Static_assert(MAX_PCP == FAL_QOS_MAP_PCP_VALUES, "max PCP value mismatch");
 
+static struct egress_map_subport_info *
+qos_egress_map_subport_get_or_create(struct ifnet *ifp,
+		struct ifnet *parent_ifp, bool is_sub_if);
+static int
+qos_egress_map_subport_delete(struct ifnet *ifp, struct ifnet *parent_ifp,
+		bool is_sub_if);
+
 uint64_t qos_hw_check_rate(uint64_t rate, uint64_t parent_bw __unused)
 {
 	return rate;
@@ -495,37 +502,47 @@ static int qos_hw_ingressm_config(struct qos_ingress_map *map,
 
 fal_object_t qos_hw_get_att_egress_map(struct ifnet *ifp, unsigned int vlan)
 {
-	if (!ifp)
-		return 0;
+	struct fal_attribute_t qos_map_attr;
+	int rv = 0;
 
-	if (!vlan) {
-		struct fal_attribute_t port_attr_list[] = {
-			{ .id = FAL_PORT_ATTR_QOS_EGRESS_MAP_ID,
+	if (!ifp)
+		return FAL_NULL_OBJECT_ID;
+
+	if (ifp->if_type == IFT_ETHER) {
+		qos_map_attr.id = FAL_ROUTER_INTERFACE_ATTR_EGRESS_QOS_MAP;
+		rv = if_get_l3_intf_attr(ifp, 1, &qos_map_attr);
+		if (rv != -EOPNOTSUPP && qos_map_attr.value.objid)
+			return qos_map_attr.value.objid;
+	} else {
+		if (!vlan) {
+			struct fal_attribute_t port_attr_list[] = {
+				{ .id = FAL_PORT_ATTR_QOS_EGRESS_MAP_ID,
+				  .value.objid = FAL_QOS_NULL_OBJECT_ID }
+			};
+			if (fal_l2_get_attrs(ifp->if_index, 1,
+						 &port_attr_list[0]) == 0)
+				return port_attr_list[0].value.objid;
+
+			return FAL_NULL_OBJECT_ID;
+		}
+
+		struct fal_attribute_t vlan_attr[1] = {
+			{ .id = FAL_VLAN_FEATURE_ATTR_QOS_EGRESS_MAP_ID,
 			  .value.objid = FAL_QOS_NULL_OBJECT_ID }
 		};
-		if (fal_l2_get_attrs(ifp->if_index, 1, &port_attr_list[0]) == 0)
-			return port_attr_list[0].value.objid;
 
-		return 0;
+		struct if_vlan_feat *vlan_feat = if_vlan_feat_get(ifp, vlan);
+		if (!vlan_feat) {
+			DP_DEBUG(QOS_HW, ERR, DATAPLANE,
+				 "Egress-map failed to retrieve intf %s vlan %d\n",
+				 ifp->if_name, vlan);
+			return FAL_NULL_OBJECT_ID;
+		}
+		if (!fal_vlan_feature_get_attr(vlan_feat->fal_vlan_feat, 1,
+					       &vlan_attr[0]))
+			return vlan_attr[0].value.objid;
 	}
-
-	struct fal_attribute_t vlan_attr[1] = {
-		{ .id = FAL_VLAN_FEATURE_ATTR_QOS_EGRESS_MAP_ID,
-		  .value.objid = FAL_QOS_NULL_OBJECT_ID }
-	};
-
-	struct if_vlan_feat *vlan_feat = if_vlan_feat_get(ifp, vlan);
-	if (!vlan_feat) {
-		DP_DEBUG(QOS_HW, ERR, DATAPLANE,
-			 "Egress-map failed to retrieve intf %s vlan %d\n",
-			 ifp->if_name, vlan);
-		return 0;
-	}
-	if (!fal_vlan_feature_get_attr(vlan_feat->fal_vlan_feat, 1,
-				       &vlan_attr[0]))
-		return vlan_attr[0].value.objid;
-
-	return 0;
+	return FAL_NULL_OBJECT_ID;
 }
 
 fal_object_t qos_hw_get_att_ingress_map(struct ifnet *ifp, unsigned int vlan)
@@ -599,9 +616,15 @@ qos_hw_if_set_egress_map(struct ifnet *ifp, struct qos_mark_map *map)
 		.id = FAL_ROUTER_INTERFACE_ATTR_EGRESS_QOS_MAP,
 	};
 	int ret = 0;
+	struct ifnet *child_ifp = NULL;
+	struct ifnet *parent_ifp = NULL;
+	struct ifnet *temp_ifp = NULL;
+	struct egress_map_subport_info *egr_map_subport = NULL;
+	struct egress_map_subport_info *parent_egr_map_subport = NULL;
+	bool is_sub_if = false;
 
 	if (!map) {
-		// Delete case
+		/* Delete case */
 		l3_egr_map_attr.value.objid = FAL_QOS_NULL_OBJECT_ID;
 		RTE_LOG(ERR, DATAPLANE,
 			"%s Egress map object is NULL\n",
@@ -609,6 +632,43 @@ qos_hw_if_set_egress_map(struct ifnet *ifp, struct qos_mark_map *map)
 	} else {
 		l3_egr_map_attr.value.objid = map->mark_obj;
 	}
+
+	if (ifp->if_type == IFT_L2VLAN) {
+		parent_ifp = ifp->if_parent;
+		if ((!map) || (map->mark_obj == FAL_QOS_NULL_OBJECT_ID)) {
+			parent_egr_map_subport = qos_egress_map_subport_get(
+						parent_ifp, 0);
+			if (!parent_egr_map_subport) {
+				DP_DEBUG(QOS, ERR, DATAPLANE,
+					 "Failed to get info for parent egr_map_subport ifp:%s\n",
+					 parent_ifp->if_name);
+				return -EINVAL;
+			}
+			l3_egr_map_attr.value.objid =
+				(parent_egr_map_subport) ?
+				parent_egr_map_subport->egr_map_obj :
+				FAL_QOS_NULL_OBJECT_ID;
+		}
+		temp_ifp = parent_ifp;
+		is_sub_if = true;
+	} else {
+		temp_ifp = ifp;
+		is_sub_if = false;
+	}
+	if (map && map->mark_obj != FAL_QOS_NULL_OBJECT_ID) {
+		egr_map_subport = qos_egress_map_subport_get_or_create(
+					ifp, temp_ifp, is_sub_if);
+		if (!egr_map_subport)
+			return -ENOMEM;
+	} else {
+		qos_egress_map_subport_delete(ifp, temp_ifp,
+					is_sub_if);
+	}
+
+	/*
+	 * For VIF interface and no egress map, have to apply
+	 * parent interface egress map
+	 */
 	ret = if_set_l3_intf_attr(ifp, &l3_egr_map_attr);
 
 	if (ret != 0) {
@@ -618,7 +678,41 @@ qos_hw_if_set_egress_map(struct ifnet *ifp, struct qos_mark_map *map)
 			strerror(-ret));
 		return ret;
 	}
+	if (egr_map_subport)
+		egr_map_subport->egr_map_obj = (map) ? map->mark_obj :
+						FAL_QOS_NULL_OBJECT_ID;
 
+	/*
+	 * If the interface has sub-ports, need to check if egress-map
+	 * has to be inherited to sub-ports which does not have any
+	 * specific egress-map configured
+	 */
+	cds_list_for_each_entry_rcu(child_ifp, &ifp->if_list, if_list) {
+		if (!child_ifp || child_ifp->if_parent != ifp
+				|| child_ifp->if_type != IFT_L2VLAN)
+			continue;
+
+		egr_map_subport =
+			qos_egress_map_subport_get_or_create(
+					child_ifp, ifp, true);
+		if (!egr_map_subport)
+			return -ENOMEM;
+
+		if (egr_map_subport->egr_map_obj ==
+				FAL_QOS_NULL_OBJECT_ID) {
+			ret = if_set_l3_intf_attr(child_ifp,
+				&l3_egr_map_attr);
+			if (ret != 0) {
+				RTE_LOG(ERR, DATAPLANE,
+					"%s Setting Egress map %s failed: %d (%s)\n",
+					child_ifp->if_name,
+					map ? map->map_name :
+					"", ret,
+					strerror(-ret));
+				return ret;
+			}
+		}
+	}
 	if (map) {
 		ifp->egr_map_obj = map->mark_obj;
 		RTE_LOG(INFO, DATAPLANE,
@@ -735,18 +829,6 @@ static int qos_hw_egressm_attach(unsigned int ifindex, unsigned int vlan,
 static int qos_hw_egressm_detach(unsigned int ifindex, unsigned int vlan,
 				  struct qos_mark_map *map)
 {
-	if (!vlan) {
-		struct fal_attribute_t port_attr_list[] = {
-			{ .id = FAL_PORT_ATTR_QOS_EGRESS_MAP_ID,
-			  .value.objid = FAL_NULL_OBJECT_ID }
-		};
-
-		fal_l2_upd_port(ifindex, &port_attr_list[0]);
-		DP_DEBUG(QOS_HW, DEBUG, DATAPLANE,
-			 "Removed egress feature on if %u\n", ifindex);
-		return 0;
-	}
-
 	int ret;
 	struct ifnet *ifp = dp_ifnet_byifindex(ifindex);
 	if (!ifp) {
@@ -757,6 +839,17 @@ static int qos_hw_egressm_detach(unsigned int ifindex, unsigned int vlan,
 		return -ENOENT;
 	}
 
+	if (!vlan && ifp->if_type != IFT_ETHER) {
+		struct fal_attribute_t port_attr_list[] = {
+			{ .id = FAL_PORT_ATTR_QOS_EGRESS_MAP_ID,
+			  .value.objid = FAL_NULL_OBJECT_ID }
+		};
+
+		fal_l2_upd_port(ifindex, &port_attr_list[0]);
+		DP_DEBUG(QOS_HW, DEBUG, DATAPLANE,
+			 "Removed egress feature on if %u\n", ifindex);
+		return 0;
+	}
 	if (map->type != EGRESS_DSCPGRP_DSCP) {
 		struct if_vlan_feat *vlan_feat = NULL;
 		struct fal_attribute_t vlan_attr[1] = {
@@ -2690,7 +2783,7 @@ int qos_hw_start(struct ifnet *ifp, struct sched_info *qinfo, uint64_t bps,
 	int ret, i;
 	static uint32_t max_burst_size = 0;
 	struct fal_attribute_t max_burst_attr = {
-			FAL_SWITCH_ATTR_MAX_BURST_SIZE};
+			.id = FAL_SWITCH_ATTR_MAX_BURST_SIZE};
 
 	DP_DEBUG(QOS_HW, DEBUG, DATAPLANE, "hardware start, if-index: %u",
 		 ifp->if_index);
@@ -2774,22 +2867,134 @@ int qos_hw_start(struct ifnet *ifp, struct sched_info *qinfo, uint64_t bps,
 	return ret;
 }
 
+static struct egress_map_subport_info *
+qos_egress_map_subport_get_or_create(struct ifnet *ifp,
+		struct ifnet *parent_ifp, bool is_sub_if)
+{
+	struct egress_map_subport_info *egr_map_subport = NULL;
+	struct ifnet *temp_ifp;
+
+	if (is_sub_if)
+		temp_ifp = parent_ifp;
+	else
+		temp_ifp = ifp;
+
+	egr_map_subport = qos_egress_map_subport_get(temp_ifp,
+		ifp->if_vlan);
+	if (!egr_map_subport) {
+		egr_map_subport = qos_egress_map_subport_new(
+			ifp, temp_ifp, is_sub_if);
+		if (!egr_map_subport) {
+			DP_DEBUG(QOS, ERR, DATAPLANE,
+				 "Failed to allocate memory for egr_map_subport for %s\n",
+				 (is_sub_if) ? "Child" : "Parent");
+			return NULL;
+		}
+	}
+	return egr_map_subport;
+}
+
+/* Delete egress map object */
+static int
+qos_egress_map_subport_delete(struct ifnet *ifp, struct ifnet *parent_ifp,
+		bool is_sub_if)
+{
+	struct egress_map_subport_info *list_entry = NULL;
+	int list_cnt = 0;
+
+	if (is_sub_if) {
+		SLIST_FOREACH(list_entry,
+				&parent_ifp->egr_map_info->egr_map_head,
+				egr_map_list) {
+			if (list_entry->vlan_id == ifp->if_vlan)
+				break;
+		}
+		if (list_entry) {
+			SLIST_REMOVE(&parent_ifp->egr_map_info->egr_map_head,
+					list_entry, egress_map_subport_info,
+					egr_map_list);
+			free(list_entry);
+			list_entry = NULL;
+		}
+	} else {
+		SLIST_FOREACH(list_entry,
+				&parent_ifp->egr_map_info->egr_map_head,
+				egr_map_list) {
+			list_cnt++;
+			if (list_entry->vlan_id == ifp->if_vlan)
+				break;
+		}
+		if (list_cnt == 1) {
+			/* Only parent egress map info exists */
+			SLIST_REMOVE(&parent_ifp->egr_map_info->egr_map_head,
+					list_entry, egress_map_subport_info,
+					egr_map_list);
+			SLIST_REMOVE_HEAD(
+					&parent_ifp->egr_map_info->egr_map_head,
+					egr_map_list);
+
+			free(list_entry);
+			list_entry = NULL;
+			free(parent_ifp->egr_map_info);
+			parent_ifp->egr_map_info = NULL;
+		}
+	}
+	return 0;
+}
+
 static void
 qos_hw_if_feat_mode_change(struct ifnet *ifp,
 			     enum if_feat_mode_event event)
 {
+	struct ifnet *parent_ifp;
+	struct egress_map_subport_info *egr_map_subport = NULL;
+	struct egress_map_subport_info *parent_egr_map_subport = NULL;
 	struct fal_attribute_t l3_egr_map_attr = {
 		.id = FAL_ROUTER_INTERFACE_ATTR_EGRESS_QOS_MAP,
 	};
 	int ret = 0;
 
+	/*
+	 * This function primarily handles the inheritance of egress map
+	 * from parent interface when sub-interface is created
+	 */
 	if (event != IF_FEAT_MODE_EVENT_L3_FAL_ENABLED)
 		return;
 
-	if (ifp->egr_map_obj == FAL_NULL_OBJECT_ID)
+	if (ifp->if_type != IFT_L2VLAN)
 		return;
 
-	l3_egr_map_attr.value.objid = ifp->egr_map_obj;
+	/*
+	 * Check if sub-interface already has egress map configured, if
+	 * so then nothing to do here
+	 */
+	parent_ifp = ifp->if_parent;
+	if (parent_ifp) {
+		parent_egr_map_subport = qos_egress_map_subport_get(parent_ifp,
+			0);
+		if (!parent_egr_map_subport) {
+			DP_DEBUG(QOS, ERR, DATAPLANE,
+				 "Failed to get info for parent_egr_map_subport ifp:%s\n",
+				 ifp->if_name);
+			return;
+		}
+		egr_map_subport = qos_egress_map_subport_get(ifp, ifp->if_vlan);
+	} else {
+		DP_DEBUG(QOS, ERR, DATAPLANE,
+			 "Parent interface does not exist for this subinterface ifp:%s\n",
+			 ifp->if_name);
+		return;
+	}
+	if (egr_map_subport) {
+		DP_DEBUG(QOS, ERR, DATAPLANE,
+			 "Sub interface ifp:%s already have a egress map attached!\n",
+			 ifp->if_name);
+		return;
+	}
+
+	l3_egr_map_attr.value.objid = (parent_egr_map_subport) ?
+		parent_egr_map_subport->egr_map_obj : FAL_NULL_OBJECT_ID;
+
 	ret = if_set_l3_intf_attr(ifp, &l3_egr_map_attr);
 
 	if (ret != 0) {

@@ -373,6 +373,111 @@ qos_init(void)
 	}
 }
 
+/* Create new QoS egress map object */
+struct egress_map_subport_info *
+qos_egress_map_subport_new(struct ifnet *ifp, struct ifnet *parent_ifp,
+		bool is_sub_if)
+{
+	struct egress_map_subport_info *parent_egr_map = NULL;
+	struct egress_map_subport_info *egr_map_info = NULL;
+	struct egress_map_subport_info *temp_egr_map_info = NULL;
+	struct egress_map_subport_info *list_entry = NULL;
+	struct egress_map_subport_info *list_prev_entry = NULL;
+	bool new_list = false;
+
+	if (is_sub_if && parent_ifp->egr_map_info) {
+		SLIST_FOREACH(list_entry,
+				&parent_ifp->egr_map_info->egr_map_head,
+				egr_map_list) {
+			if (list_entry->vlan_id < ifp->if_vlan)
+				list_prev_entry = list_entry;
+			else
+				break;
+		}
+		if (list_entry && list_entry->vlan_id == ifp->if_vlan)
+			return list_entry;
+		temp_egr_map_info = list_prev_entry;
+	} else if (!parent_ifp->egr_map_info) {
+		new_list = true;
+		/* Create an entry for parent first */
+		parent_ifp->egr_map_info = calloc(1, sizeof(
+				struct egress_map_info));
+		if (!parent_ifp->egr_map_info) {
+			RTE_LOG(ERR, DATAPLANE,
+					"Failed to allocate memory for egress map info\n");
+			return NULL;
+		}
+		parent_egr_map = calloc(1, sizeof(
+				struct egress_map_subport_info));
+		if (!parent_egr_map) {
+			RTE_LOG(ERR, DATAPLANE,
+				"Failed to allocate memory for egress map subport for parent\n");
+			free(ifp->egr_map_info);
+			return NULL;
+		}
+		parent_egr_map->vlan_id = 0;
+		SLIST_INIT(&parent_ifp->egr_map_info->egr_map_head);
+		SLIST_INSERT_HEAD(&parent_ifp->egr_map_info->egr_map_head,
+						parent_egr_map, egr_map_list);
+		temp_egr_map_info = parent_egr_map;
+	} else {
+		temp_egr_map_info = SLIST_FIRST(
+				&parent_ifp->egr_map_info->egr_map_head);
+	}
+
+	/* Create a entry for the sub-port now */
+	if (ifp->if_type == IFT_L2VLAN && ifp->if_vlan != 0) {
+		egr_map_info = calloc(1, sizeof(
+				struct egress_map_subport_info));
+		if (!egr_map_info) {
+			RTE_LOG(ERR, DATAPLANE,
+					"Failed to allocate memory for egress map subport\n");
+			if (new_list) {
+				SLIST_REMOVE_HEAD(
+					&ifp->egr_map_info->egr_map_head,
+					egr_map_list);
+				free(parent_egr_map);
+				free(parent_ifp->egr_map_info);
+				parent_ifp->egr_map_info = NULL;
+			}
+			return NULL;
+		}
+		egr_map_info->vlan_id = ifp->if_vlan;
+		if (temp_egr_map_info) {
+			SLIST_INSERT_AFTER(temp_egr_map_info,
+					egr_map_info, egr_map_list);
+			temp_egr_map_info = egr_map_info;
+		}
+	}
+	return temp_egr_map_info;
+}
+
+/* Get QoS egress map object for a given parent ifp and vlan */
+struct egress_map_subport_info *
+qos_egress_map_subport_get(struct ifnet *parent_ifp,
+				 int vlan_id)
+{
+	struct egress_map_subport_info *list_entry = NULL;
+
+	if (!parent_ifp)
+		return NULL;
+
+	if (!parent_ifp->egr_map_info) {
+		DP_DEBUG(QOS, ERR, DATAPLANE,
+			 "%s: parent egr_map_info is NULL\n", __func__);
+		return NULL;
+	}
+
+	SLIST_FOREACH(list_entry, &parent_ifp->egr_map_info->egr_map_head,
+				egr_map_list) {
+		if (list_entry->vlan_id == vlan_id)
+			return list_entry;
+		if (list_entry->vlan_id > vlan_id)
+			break;
+	}
+	return NULL;
+}
+
 /* Sets the PCP value to map to the given queue for a particular profile. */
 static int qos_sched_profile_pcp_map_set(struct sched_info *qinfo,
 					 unsigned int profile, uint8_t pcp,
@@ -4452,11 +4557,6 @@ static int cmd_qos_egress_map(struct ifnet *ifp, int argc, char **argv)
 	uint64_t mask = 0;
 	int ret;
 
-	int i = 0;
-	for (i = 0; i < argc; i++)
-		DP_DEBUG(QOS, ERR, DATAPLANE, "%s - "
-				"argv[%d]:%s\n",
-				__func__, i, argv[i]);
 	/* Skip egress-map */
 	argc--; argv++;
 
@@ -4580,6 +4680,8 @@ static void
 qos_if_index_set(struct ifnet *ifp)
 {
 	int rv;
+	struct ifnet *parent_ifp = NULL;
+	struct egress_map_subport_info *egr_map_subport = NULL;
 
 	rv = cfg_if_list_replay(&qos_cfg_list, ifp->if_name, cmd_qos_cfg);
 
@@ -4587,6 +4689,23 @@ qos_if_index_set(struct ifnet *ifp)
 		DP_DEBUG(QOS, ERR, DATAPLANE,
 			 "qos cache replay failed for %s, rv %d (%s)",
 			 ifp->if_name, rv, strerror(-rv));
+
+	parent_ifp = ifp->if_parent;
+	if (parent_ifp) {
+		/*
+		 * Create a egress map object for sub-ports by default
+		 * since it might inherit the same from parent
+		 */
+		if (ifp->if_type == IFT_L2VLAN) {
+			egr_map_subport = qos_egress_map_subport_new(ifp,
+					parent_ifp, true);
+			if (!egr_map_subport) {
+				DP_DEBUG(QOS, ERR, DATAPLANE,
+					 "Failed to create egr_map_subport\n");
+				return;
+			}
+		}
+	}
 }
 
 static void

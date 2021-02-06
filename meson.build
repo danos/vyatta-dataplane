@@ -30,7 +30,6 @@ add_project_arguments(
         '-include', 'build_config.h',
         '-D_GNU_SOURCE',
         cc.get_supported_arguments([
-                '-Wno-missing-field-initializers',
                 '-Wno-deprecated-declarations',
                 '-Wno-stringop-overflow',
                 '-Wno-stringop-truncation',

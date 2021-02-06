@@ -525,8 +525,7 @@ rule_del_error:
 	gpc_rule_hw_ntfy_delete(gprg, gprl);
 	gpc_rule_delete(gprl);
 
-	if (gpc_group_get_feature(gprg) == GPC_FEAT_ACL)
-		free(earl);
+	free(earl);
 
 	/* If any were published, recalculate and notify */
 	if (old_summary) {
@@ -832,8 +831,7 @@ pmf_arlg_attpt_grp_ev_handler(enum npf_attpt_ev_type event,
 			/* gpc_rule_hw_ntfy_delete(gprg, cursor); is a NO-OP */
 			gpc_rule_delete(cursor);
 
-			if (gpc_group_get_feature(gprg) == GPC_FEAT_ACL)
-				free(earl);
+			free(earl);
 		}
 
 		/* Sanity before freeing */
@@ -1141,77 +1139,62 @@ pmf_arlg_dump(FILE *fp)
 		/* Groups - i.e. TABLES */
 		struct gpc_group *gprg;
 		GPC_GROUP_FOREACH(gprg, gprs) {
-			if (gpc_group_get_feature(gprg) == GPC_FEAT_ACL) {
-				struct pmf_group_ext *earg =
-					gpc_group_get_owner(gprg);
-				uint32_t rg_flags = earg->earg_flags;
-				bool rg_published =
-					gpc_group_is_published(gprg);
-				bool rg_attached = gpc_group_is_attached(gprg);
-				bool rg_deferred = gpc_group_is_deferred(gprg);
-				bool rg_attr_rl = (rg_flags &
-						   PMF_EARGF_RULE_ATTR);
-				bool rg_family = gpc_group_has_family(gprg);
-				bool rg_v6 = gpc_group_is_v6(gprg);
-				bool rg_ll_create =
-					gpc_group_is_ll_created(gprg);
-				bool rg_ll_attach =
-					gpc_group_is_ll_attached(gprg);
-				fprintf(fp,
-					"  GRP:%p(%lx): %s(%u/%x)%s%s%s%s%s%s%s\n",
-					gprg, gpc_group_get_objid(gprg),
-					gpc_group_get_name(gprg),
-					earg->earg_num_rules,
-					gpc_group_get_summary(gprg),
-					rg_published ? " Pub" : "",
-					rg_ll_create ? " LLcrt" : "",
-					rg_attached ? " Att" : "",
-					rg_ll_attach ? " LLatt" : "",
-					rg_deferred ? " Defr" : "",
-					rg_attr_rl ? " GAttr" : "",
-					rg_family ? rg_v6 ? " v6" : " v4" : ""
+			struct pmf_group_ext *earg = gpc_group_get_owner(gprg);
+			uint32_t rg_flags = earg->earg_flags;
+			bool rg_published = gpc_group_is_published(gprg);
+			bool rg_attached = gpc_group_is_attached(gprg);
+			bool rg_deferred = gpc_group_is_deferred(gprg);
+			bool rg_attr_rl = (rg_flags & PMF_EARGF_RULE_ATTR);
+			bool rg_family = gpc_group_has_family(gprg);
+			bool rg_v6 = gpc_group_is_v6(gprg);
+			bool rg_ll_create = gpc_group_is_ll_created(gprg);
+			bool rg_ll_attach = gpc_group_is_ll_attached(gprg);
+			fprintf(fp,
+				"  GRP:%p(%lx): %s(%u/%x)%s%s%s%s%s%s%s\n",
+				gprg, gpc_group_get_objid(gprg),
+				gpc_group_get_name(gprg),
+				earg->earg_num_rules,
+				gpc_group_get_summary(gprg),
+				rg_published ? " Pub" : "",
+				rg_ll_create ? " LLcrt" : "",
+				rg_attached ? " Att" : "",
+				rg_ll_attach ? " LLatt" : "",
+				rg_deferred ? " Defr" : "",
+				rg_attr_rl ? " GAttr" : "",
+				rg_family ? rg_v6 ? " v6" : " v4" : ""
+				);
+			struct pmf_cntr *eark;
+			TAILQ_FOREACH(eark, &earg->earg_cntrs, eark_list) {
+				uint32_t ct_flags = eark->eark_flags;
+				bool ct_published
+					= (ct_flags & PMF_EARKF_PUBLISHED);
+				if (!ct_published)
+					continue;
+				bool ct_ll_create
+					= (ct_flags & PMF_EARKF_LL_CREATED);
+				bool ct_cnt_packet
+					= (ct_flags & PMF_EARKF_CNT_PACKET);
+				bool ct_cnt_byte
+					= (ct_flags & PMF_EARKF_CNT_BYTE);
+				fprintf(fp, "   CT:%p(%lx): %s%s%s%s%s\n",
+					eark, eark->eark_objid,
+					eark->eark_name,
+					ct_published ? " Pub" : "",
+					ct_ll_create ? " LLcrt" : "",
+					ct_cnt_packet ? " Pkt" : "",
+					ct_cnt_byte ? " Byte" : ""
 					);
-				struct pmf_cntr *eark;
-				TAILQ_FOREACH(eark, &earg->earg_cntrs,
-					      eark_list) {
-					uint32_t ct_flags = eark->eark_flags;
-					bool ct_published
-						= (ct_flags &
-						   PMF_EARKF_PUBLISHED);
-					if (!ct_published)
-						continue;
-					bool ct_ll_create
-						= (ct_flags &
-						   PMF_EARKF_LL_CREATED);
-					bool ct_cnt_packet
-						= (ct_flags &
-						   PMF_EARKF_CNT_PACKET);
-					bool ct_cnt_byte
-						= (ct_flags &
-						   PMF_EARKF_CNT_BYTE);
-					fprintf(fp,
-						"   CT:%p(%lx): %s%s%s%s%s\n",
-						eark, eark->eark_objid,
-						eark->eark_name,
-						ct_published ? " Pub" : "",
-						ct_ll_create ? " LLcrt" : "",
-						ct_cnt_packet ? " Pkt" : "",
-						ct_cnt_byte ? " Byte" : ""
-						);
-					uint64_t val_pkt = -1;
-					uint64_t val_byt = -1;
-					pmf_hw_counter_read(eark, &val_pkt,
-							    &val_byt);
-					fprintf(fp,
-						"      %s(%lu/%lx)) %s(%lu/%lx)\n",
-						ct_cnt_packet ? "Pkt" : "-",
-						(unsigned long)val_pkt,
-						(unsigned long)val_pkt,
-						ct_cnt_byte ? "Byte" : "-",
-						(unsigned long)val_byt,
-						(unsigned long)val_byt
-						);
-				}
+				uint64_t val_pkt = -1;
+				uint64_t val_byt = -1;
+				pmf_hw_counter_read(eark, &val_pkt, &val_byt);
+				fprintf(fp, "      %s(%lu/%lx)) %s(%lu/%lx)\n",
+					ct_cnt_packet ? "Pkt" : "-",
+					(unsigned long)val_pkt,
+					(unsigned long)val_pkt,
+					ct_cnt_byte ? "Byte" : "-",
+					(unsigned long)val_byt,
+					(unsigned long)val_byt
+					);
 			}
 			/* Rules - i.e. ENTRIES */
 			struct gpc_rule *gprl;

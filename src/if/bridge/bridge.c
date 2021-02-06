@@ -2773,7 +2773,7 @@ static void bridge_init(void)
 			  strerror(-ret));
 
 	struct fal_attribute_t punt_pvst = {
-		FAL_SWITCH_ATTR_PUNT_PVST};
+		.id = FAL_SWITCH_ATTR_PUNT_PVST};
 
 	if (fal_get_switch_attrs(1, &punt_pvst) == 0)
 		bridge_pvst_flood_local = punt_pvst.value.booldata;
