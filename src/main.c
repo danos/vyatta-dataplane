@@ -270,28 +270,31 @@ static const uint8_t NO_OWNER = 255;
 /* Port configuration */
 static struct port_conf {
 	struct rte_ring *pkt_ring[MAX_TX_QUEUE_PER_PORT];
-	int8_t		socketid;	/* NUMA socket */
-	uint8_t		rx_queues;
-	uint8_t		tx_queues;
 	uint8_t		nrings;
-	bool		percoreq;
 	uint8_t		max_rings;
-	uint16_t	rx_desc;
-	uint16_t	tx_desc;
-	uint16_t	buffers;
-	uint32_t	buf_size;
-	bitmask_t	rx_cpu_affinity;
-	bitmask_t	tx_cpu_affinity;
+	bool		percoreq;
 	bitmask_t	tx_enabled_queues;
 	bitmask_t	rx_enabled_queues;
-	bool            uses_queue_state;
-
-	uint64_t dev_flags;
-	struct rte_mempool *rx_pool;	/* Receive buffer pool */
-	struct rte_eth_txconf tx_conf;
-	struct rte_eth_rxconf rx_conf;
-	enum rte_eth_rx_mq_mode rx_mq_mode;
 } __rte_cache_aligned port_config[DATAPLANE_MAX_PORTS] __hot_data;
+
+/* Port allocations */
+static struct port_alloc {
+	uint64_t		 dev_flags;
+	uint32_t		 buf_size;
+	uint16_t		 rx_desc;
+	uint16_t		 tx_desc;
+	uint16_t		 buffers;
+	uint8_t			 rx_queues;
+	uint8_t			 tx_queues;
+	int8_t			 socketid;	/* NUMA socket */
+	bool			 uses_queue_state;
+	bitmask_t		 rx_cpu_affinity;
+	bitmask_t		 tx_cpu_affinity;
+	struct rte_eth_txconf    tx_conf;
+	struct rte_eth_rxconf    rx_conf;
+	enum rte_eth_rx_mq_mode  rx_mq_mode;
+	struct rte_mempool	*rx_pool;	/* Receive buffer pool */
+} port_allocations[DATAPLANE_MAX_PORTS];
 
 /* Per socket mbuf pool */
 static struct rte_mempool *numa_pool[RTE_MAX_NUMA_NODES];
@@ -1186,6 +1189,7 @@ int reconfigure_queues(portid_t portid,
 		       uint16_t nb_rx_queues, uint16_t nb_tx_queues)
 {
 	struct port_conf *port_conf = &port_config[portid];
+	struct port_alloc *port_alloc = &port_allocations[portid];
 	struct rte_eth_dev *eth_dev = &rte_eth_devices[portid];
 	struct rte_eth_conf dev_conf;
 	int ret;
@@ -1206,13 +1210,13 @@ int reconfigure_queues(portid_t portid,
 		goto out;
 	}
 
-	port_conf->rx_queues = nb_rx_queues;
-	port_conf->tx_queues = nb_tx_queues;
+	port_alloc->rx_queues = nb_rx_queues;
+	port_alloc->tx_queues = nb_tx_queues;
 	bitmask_zero(&port_conf->tx_enabled_queues);
 	bitmask_zero(&port_conf->rx_enabled_queues);
-	for (q = 0; q < port_conf->tx_queues; q++)
+	for (q = 0; q < port_alloc->tx_queues; q++)
 		bitmask_set(&port_conf->tx_enabled_queues, q);
-	for (q = 0; q < port_conf->rx_queues; q++)
+	for (q = 0; q < port_alloc->rx_queues; q++)
 		bitmask_set(&port_conf->rx_enabled_queues, q);
 
 out:
@@ -1222,22 +1226,23 @@ out:
 int
 eth_port_configure(portid_t portid, struct rte_eth_conf *dev_conf)
 {
-	struct port_conf *port_conf = &port_config[portid];
+	struct port_alloc *port_alloc = &port_allocations[portid];
 	uint16_t queueid;
 	int ret;
 	int8_t socketid;
 
-	if (port_conf->socketid == SOCKET_ID_ANY)
+	if (port_alloc->socketid == SOCKET_ID_ANY)
 		socketid = 0;
 	else
-		socketid = port_conf->socketid;
+		socketid = port_alloc->socketid;
 
 	DP_DEBUG(INIT, DEBUG, DATAPLANE,
 		"Configure port %u (rxq %u, txq %u, socket %d)\n",
-		 portid, port_conf->rx_queues, port_conf->tx_queues, socketid);
+		 portid, port_alloc->rx_queues,
+		 port_alloc->tx_queues, socketid);
 
-	ret = rte_eth_dev_configure(portid, port_conf->rx_queues,
-				    port_conf->tx_queues, dev_conf);
+	ret = rte_eth_dev_configure(portid, port_alloc->rx_queues,
+				    port_alloc->tx_queues, dev_conf);
 	if (ret < 0) {
 		RTE_LOG(ERR, DATAPLANE,
 			 "Cannot configure device: err=%d, port=%u\n",
@@ -1245,11 +1250,11 @@ eth_port_configure(portid_t portid, struct rte_eth_conf *dev_conf)
 		return -1;
 	}
 
-	for (queueid = 0; queueid < port_conf->rx_queues; ++queueid) {
+	for (queueid = 0; queueid < port_alloc->rx_queues; ++queueid) {
 		ret = rte_eth_rx_queue_setup(portid, queueid,
-					     port_conf->rx_desc,
-					     socketid, &port_conf->rx_conf,
-					     port_conf->rx_pool);
+					     port_alloc->rx_desc,
+					     socketid, &port_alloc->rx_conf,
+					     port_alloc->rx_pool);
 		if (ret < 0) {
 			RTE_LOG(ERR, DATAPLANE,
 				 "rte_eth_rx_queue_setup: err=%d, port=%u\n",
@@ -1258,10 +1263,10 @@ eth_port_configure(portid_t portid, struct rte_eth_conf *dev_conf)
 		}
 	}
 
-	for (queueid = 0; queueid < port_conf->tx_queues; ++queueid) {
+	for (queueid = 0; queueid < port_alloc->tx_queues; ++queueid) {
 		ret = rte_eth_tx_queue_setup(portid, queueid,
-					     port_conf->tx_desc,
-					     socketid, &port_conf->tx_conf);
+					     port_alloc->tx_desc,
+					     socketid, &port_alloc->tx_conf);
 		if (ret < 0) {
 			RTE_LOG(ERR, DATAPLANE,
 				"rte_eth_tx_queue_setup: err=%d, port=%u\n",
@@ -1768,17 +1773,18 @@ static bitmask_t cpu_affinity_online(const bitmask_t *cpu_affinity_mask)
 static int assign_port_receive_queues(portid_t portid)
 {
 	struct port_conf *port_conf = &port_config[portid];
+	struct port_alloc *port_alloc = &port_allocations[portid];
 	unsigned int q;
-	bitmask_t allowed = cpu_affinity_online(&port_conf->rx_cpu_affinity);
+	bitmask_t allowed = cpu_affinity_online(&port_alloc->rx_cpu_affinity);
 
-	for (q = 0; q < port_conf->rx_queues; q++) {
+	for (q = 0; q < port_alloc->rx_queues; q++) {
 		struct lcore_conf *conf;
 		int i, lcore;
 
 		if (!bitmask_isset(&port_conf->rx_enabled_queues, q))
 			continue;
 
-		lcore = next_available_lcore(port_conf->socketid,
+		lcore = next_available_lcore(port_alloc->socketid,
 					     &allowed,
 					     false);
 		if (lcore < 0) {
@@ -1799,19 +1805,19 @@ static int assign_port_receive_queues(portid_t portid)
 		else {
 			RTE_LOG(ERR, DATAPLANE,
 				"Socket %d has no unused rx queues\n",
-				port_conf->socketid);
+				port_alloc->socketid);
 			return -ENOMEM;
 		}
 found:
 		bitmask_clear(&allowed, lcore);
 		if (bitmask_isempty(&allowed))
 			allowed = cpu_affinity_online(		/* start over */
-				&port_conf->rx_cpu_affinity);
+				&port_alloc->rx_cpu_affinity);
 		_CMM_STORE_SHARED(conf->num_rxq, conf->num_rxq + 1);
 
 		DP_DEBUG(INIT, DEBUG, DATAPLANE,
 			 "Assign RX port %u queue %u to core %u (node %u)\n",
-			 portid, q, lcore, port_conf->socketid);
+			 portid, q, lcore, port_alloc->socketid);
 
 		struct lcore_rx_queue *rxq = &conf->rx_poll[i];
 		struct rate_stats *rxq_stats = &conf->rx_poll_stats[i];
@@ -1835,7 +1841,8 @@ found:
 static int assign_port_transmit_queues(portid_t portid)
 {
 	struct port_conf *port_conf = &port_config[portid];
-	bitmask_t allowed = cpu_affinity_online(&port_conf->tx_cpu_affinity);
+	struct port_alloc *port_alloc = &port_allocations[portid];
+	bitmask_t allowed = cpu_affinity_online(&port_alloc->tx_cpu_affinity);
 	struct ifnet *ifp = ifport_table[portid];
 	uint16_t q;
 	uint8_t r;
@@ -1845,7 +1852,7 @@ static int assign_port_transmit_queues(portid_t portid)
 	 * gaps for not-enabled rings.
 	 */
 	for (r = 0, q = 0;
-	     r < port_conf->nrings && q < port_conf->tx_queues;
+	     r < port_conf->nrings && q < port_alloc->tx_queues;
 	     q++) {
 		struct lcore_conf *conf;
 		int i, lcore;
@@ -1853,7 +1860,7 @@ static int assign_port_transmit_queues(portid_t portid)
 		if (!bitmask_isset(&port_conf->tx_enabled_queues, q))
 			continue;
 
-		lcore = next_available_lcore(port_conf->socketid,
+		lcore = next_available_lcore(port_alloc->socketid,
 					     &allowed,
 					     true);
 		if (lcore < 0) {
@@ -1874,7 +1881,7 @@ static int assign_port_transmit_queues(portid_t portid)
 		else {
 			RTE_LOG(ERR, DATAPLANE,
 				"Socket %d has no unused tx queues\n",
-				port_conf->socketid);
+				port_alloc->socketid);
 			return -ENOMEM;
 		}
 
@@ -1882,7 +1889,7 @@ found:
 		bitmask_clear(&allowed, lcore);
 		if (bitmask_isempty(&allowed))
 			allowed = cpu_affinity_online(		/* start over */
-				&port_conf->tx_cpu_affinity);
+				&port_alloc->tx_cpu_affinity);
 		_CMM_STORE_SHARED(conf->num_txq, conf->num_txq + 1);
 
 		struct lcore_tx_queue *txq = &conf->tx_poll[i];
@@ -1907,7 +1914,7 @@ found:
 
 		DP_DEBUG(INIT, DEBUG, DATAPLANE,
 			 "Assign TX port %u queue %u to core %u (node %u)\n",
-			 portid, q, lcore, port_conf->socketid);
+			 portid, q, lcore, port_alloc->socketid);
 
 		bitmask_set(&conf->portmask, portid);
 	}
@@ -2057,7 +2064,7 @@ void disable_transmit_thread(portid_t portid)
 
 bool port_uses_queue_state(uint16_t portid)
 {
-	struct port_conf *port_conf = &port_config[portid];
+	struct port_alloc *port_alloc = &port_allocations[portid];
 	struct rte_eth_dev *dev = &rte_eth_devices[portid];
 
 	/*
@@ -2066,21 +2073,21 @@ bool port_uses_queue_state(uint16_t portid)
 	 */
 
 	return !strncmp(dev->data->name, "eth_vhost", 9) &&
-		port_conf->tx_queues > 1 && port_conf->rx_queues > 1;
+		port_alloc->tx_queues > 1 && port_alloc->rx_queues > 1;
 }
 
 void set_port_uses_queue_state(uint16_t portid, bool val)
 {
-	struct port_conf *port_conf = &port_config[portid];
+	struct port_alloc *port_alloc = &port_allocations[portid];
 
-	CMM_STORE_SHARED(port_conf->uses_queue_state, val);
+	CMM_STORE_SHARED(port_alloc->uses_queue_state, val);
 }
 
 bool get_port_uses_queue_state(uint16_t portid)
 {
-	struct port_conf *port_conf = &port_config[portid];
+	struct port_alloc *port_alloc = &port_allocations[portid];
 
-	return CMM_ACCESS_ONCE(port_conf->uses_queue_state);
+	return CMM_ACCESS_ONCE(port_alloc->uses_queue_state);
 }
 
 void reset_port_all_queue_state(uint16_t portid)
@@ -2139,6 +2146,7 @@ void track_port_queue_state(uint16_t portid, uint16_t queue_id, bool rx,
 void set_port_queue_state(uint16_t portid)
 {
 	struct port_conf *port_conf = &port_config[portid];
+	struct port_alloc *port_alloc = &port_allocations[portid];
 	unsigned int lcore;
 	bool percoreq = true;
 	unsigned int q = 0;
@@ -2148,7 +2156,7 @@ void set_port_queue_state(uint16_t portid)
 	bitmask_copy(&temp_mask, &port_conf->tx_enabled_queues);
 
 	RTE_LCORE_FOREACH(lcore) {
-		if (q >= port_conf->tx_queues ||
+		if (q >= port_alloc->tx_queues ||
 		    !bitmask_isset(&temp_mask, q)) {
 			percoreq = false;
 			break;
@@ -2174,9 +2182,9 @@ void set_port_queue_state(uint16_t portid)
 /* Steal mbuf pool on an existing port (for use creating control packets) */
 struct rte_mempool *mbuf_pool(unsigned int portid)
 {
-	const struct port_conf *port_conf = &port_config[portid];
+	const struct port_alloc *port_alloc = &port_allocations[portid];
 
-	return port_conf->rx_pool;
+	return port_alloc->rx_pool;
 }
 
 /* Create a standard mbuf pool */
@@ -2225,22 +2233,22 @@ static uint16_t mbuf_pool_init(void)
 
 	/* How many mbufs are needed for each device? */
 	for (portid = 0; portid < nb_ports_total; ++portid) {
-		const struct port_conf *port_conf = &port_config[portid];
+		const struct port_alloc *port_alloc = &port_allocations[portid];
 
 		if (!bitmask_isset(&enabled_port_mask, portid) ||
 		    !rte_eth_dev_is_valid_port(portid))
 			continue;
 
-		socketid = port_conf->socketid;
+		socketid = port_alloc->socketid;
 
 		bufs_per_socket[socketid] +=
-			port_conf->buffers + SHADOW_IO_RING_SIZE;
+			port_alloc->buffers + SHADOW_IO_RING_SIZE;
 
 		/* device may need larger buffer size */
-		if (port_conf->buf_size > buf_size[socketid]) {
-			buf_size[socketid] = port_conf->buf_size;
-			if (max_mbuf_sz < port_conf->buf_size)
-				max_mbuf_sz = port_conf->buf_size;
+		if (port_alloc->buf_size > buf_size[socketid]) {
+			buf_size[socketid] = port_alloc->buf_size;
+			if (max_mbuf_sz < port_alloc->buf_size)
+				max_mbuf_sz = port_alloc->buf_size;
 		}
 	}
 
@@ -2295,11 +2303,11 @@ retry:
 
 	/* Assign mbuf pool for each device */
 	for (portid = 0; portid < nb_ports_total; ++portid) {
-		struct port_conf *port_conf = &port_config[portid];
+		struct port_alloc *port_alloc = &port_allocations[portid];
 
 		if (!bitmask_isset(&enabled_port_mask, portid))
 			continue;
-		port_conf->rx_pool = numa_pool[port_conf->socketid];
+		port_alloc->rx_pool = numa_pool[port_alloc->socketid];
 	}
 
 	return max_mbuf_sz;
@@ -2308,30 +2316,30 @@ retry:
 /* Initialize interface specific mbuf pool. */
 int mbuf_pool_init_portid(const portid_t portid)
 {
-	struct port_conf *port_conf = &port_config[portid];
+	struct port_alloc *port_alloc = &port_allocations[portid];
 
 	/*
 	 * mbuf pool can't be destroyed so may exist
 	 * from previous use of this port.
 	 */
-	if (port_conf->rx_pool == NULL) {
+	if (port_alloc->rx_pool == NULL) {
 		unsigned int buf_size = RTE_MBUF_DEFAULT_BUF_SIZE;
-		int socketid = port_conf->socketid;
+		int socketid = port_alloc->socketid;
 
-		if (port_conf->buf_size > buf_size)
-			buf_size = port_conf->buf_size;
+		if (port_alloc->buf_size > buf_size)
+			buf_size = port_alloc->buf_size;
 
 		/* Align to optimum size for mempool */
-		unsigned int nbufs = rte_align32pow2(port_conf->buffers) - 1;
+		unsigned int nbufs = rte_align32pow2(port_alloc->buffers) - 1;
 
 		char name[RTE_MEMPOOL_NAMESIZE];
 
 		snprintf(name, RTE_MEMPOOL_NAMESIZE, "mbuf_%u", portid);
 
-		port_conf->rx_pool = mbuf_pool_create(name, nbufs,
+		port_alloc->rx_pool = mbuf_pool_create(name, nbufs,
 						      MBUF_CACHE_SIZE_DEFAULT,
 						      buf_size, socketid);
-		if (port_conf->rx_pool == NULL) {
+		if (port_alloc->rx_pool == NULL) {
 			RTE_LOG(ERR, DATAPLANE,
 				"could not create pool %s with %u bufs\n",
 				name, nbufs);
@@ -2640,7 +2648,7 @@ int set_main_worker_vhost_event_fd(void)
 static int port_conf_final(portid_t portid, struct rte_eth_conf *dev_conf)
 {
 	struct rte_eth_dev_info dev_info;
-	struct port_conf *port_conf = &port_config[portid];
+	struct port_alloc *port_alloc = &port_allocations[portid];
 
 	if (!dev_conf)
 		return -1;
@@ -2649,11 +2657,11 @@ static int port_conf_final(portid_t portid, struct rte_eth_conf *dev_conf)
 
 	rte_eth_dev_info_get(portid, &dev_info);
 
-	dev_conf->intr_conf.lsc = (port_conf->dev_flags &
+	dev_conf->intr_conf.lsc = (port_alloc->dev_flags &
 				   RTE_ETH_DEV_INTR_LSC) ? 1 : 0;
 
-	dev_conf->rxmode.offloads = port_conf->rx_conf.offloads;
-	dev_conf->rxmode.mq_mode = port_conf->rx_mq_mode;
+	dev_conf->rxmode.offloads = port_alloc->rx_conf.offloads;
+	dev_conf->rxmode.mq_mode = port_alloc->rx_mq_mode;
 
 	/* DPDK 18.08 errors if offload flags don't match PMD caps */
 	if (dev_info.rx_offload_capa & DEV_RX_OFFLOAD_VLAN_FILTER)
@@ -2666,9 +2674,9 @@ static int port_conf_final(portid_t portid, struct rte_eth_conf *dev_conf)
 	/* If we want VLAN offload, but don't have it,
 	 * continue but issue a warning.
 	 */
-	if (port_conf->tx_conf.offloads & DEV_TX_OFFLOAD_VLAN_INSERT) {
+	if (port_alloc->tx_conf.offloads & DEV_TX_OFFLOAD_VLAN_INSERT) {
 		if (!(dev_info.tx_offload_capa & DEV_TX_OFFLOAD_VLAN_INSERT)) {
-			port_conf->tx_conf.offloads &=
+			port_alloc->tx_conf.offloads &=
 						~DEV_TX_OFFLOAD_VLAN_INSERT;
 			RTE_LOG(WARNING, DATAPLANE,
 				"Driver %s missing hardware VLAN insertion capability; performance may be reduced.\n",
@@ -2676,7 +2684,7 @@ static int port_conf_final(portid_t portid, struct rte_eth_conf *dev_conf)
 		}
 	}
 
-	dev_conf->txmode.offloads = port_conf->tx_conf.offloads;
+	dev_conf->txmode.offloads = port_alloc->tx_conf.offloads;
 
 	DP_DEBUG(INIT, INFO, DATAPLANE,
 		 "Port %d, tx_offloads 0x%lx, rx_offloads 0x%lx\n",
@@ -2689,6 +2697,7 @@ static int port_conf_init(portid_t portid)
 {
 	struct rte_eth_dev *dev = &rte_eth_devices[portid];
 	struct port_conf *port_conf = &port_config[portid];
+	struct port_alloc *port_alloc = &port_allocations[portid];
 	int socketid = rte_eth_dev_socket_id(portid);
 	struct rte_eth_dev_info dev_info;
 	const struct rxtx_param *parm;
@@ -2702,45 +2711,46 @@ static int port_conf_init(portid_t portid)
 	if (socketid < 0) /* SOCKET_ID_ANY */
 		socketid = 0;
 
-	port_conf->socketid = socketid;
+	port_alloc->socketid = socketid;
 
 	rte_eth_dev_info_get(portid, &dev_info);
 	parm = get_driver_param(dev_info.driver_name, dev_info.speed_capa);
 
-	port_conf->rx_desc = parm->rx_desc;
-	port_conf->tx_desc = parm->tx_desc;
+	port_alloc->rx_desc = parm->rx_desc;
+	port_alloc->tx_desc = parm->tx_desc;
 	if (hypervisor_id() &&
 	    !(parm->drv_flags & DRV_PARAM_VIRTUAL)) {
 		if (parm->tx_desc_vm_multiplier)
 			tx_desc_vm_multiplier = parm->tx_desc_vm_multiplier;
 		else
 			tx_desc_vm_multiplier = MAX_TX_DESC_VM_MULTIPLIER;
-		port_conf->tx_desc = tx_desc_vm_multiplier * port_conf->tx_desc;
+		port_alloc->tx_desc = tx_desc_vm_multiplier *
+				      port_alloc->tx_desc;
 	}
-	if (port_conf->rx_desc > dev_info.rx_desc_lim.nb_max) {
-		port_conf->rx_desc = dev_info.rx_desc_lim.nb_max;
+	if (port_alloc->rx_desc > dev_info.rx_desc_lim.nb_max) {
+		port_alloc->rx_desc = dev_info.rx_desc_lim.nb_max;
 		DP_DEBUG(INIT, INFO, DATAPLANE,
 			"Lowering rx buf to max supported %d for port %u\n",
 			dev_info.tx_desc_lim.nb_max, portid);
 	}
-	if (port_conf->tx_desc > dev_info.tx_desc_lim.nb_max) {
-		port_conf->tx_desc = dev_info.tx_desc_lim.nb_max;
+	if (port_alloc->tx_desc > dev_info.tx_desc_lim.nb_max) {
+		port_alloc->tx_desc = dev_info.tx_desc_lim.nb_max;
 		DP_DEBUG(INIT, INFO, DATAPLANE,
 			"Lowering tx buf to max supported %d for port %u\n",
 			dev_info.tx_desc_lim.nb_max, portid);
 	}
-	port_conf->rx_queues = parm->max_rxq;
-	port_conf->tx_queues = rte_lcore_count();
+	port_alloc->rx_queues = parm->max_rxq;
+	port_alloc->tx_queues = rte_lcore_count();
 
-	port_conf->buf_size = dev_info.min_rx_bufsize + MBUF_OVERHEAD;
-	port_conf->rx_cpu_affinity = all_lcores_mask();
-	port_conf->tx_cpu_affinity = all_lcores_mask();
+	port_alloc->buf_size = dev_info.min_rx_bufsize + MBUF_OVERHEAD;
+	port_alloc->rx_cpu_affinity = all_lcores_mask();
+	port_alloc->tx_cpu_affinity = all_lcores_mask();
 	bitmask_zero(&port_conf->tx_enabled_queues);
 	bitmask_zero(&port_conf->rx_enabled_queues);
 
 	/* reduce Rx queues if limited by device or system */
-	if (port_conf->rx_queues > avail_cores)
-		port_conf->rx_queues = avail_cores;
+	if (port_alloc->rx_queues > avail_cores)
+		port_alloc->rx_queues = avail_cores;
 
 	/* If an adapter has VMDQ support, the start of the virtual
 	 * machine queues may not overlap with the non-VMDQ queues.
@@ -2756,16 +2766,16 @@ static int port_conf_init(portid_t portid)
 		pf_max_tx_queues = dev_info.max_tx_queues;
 	}
 
-	if (port_conf->rx_queues > pf_max_rx_queues ||
+	if (port_alloc->rx_queues > pf_max_rx_queues ||
 	    parm->drv_flags & DRV_PARAM_USE_ALL_RXQ)
-		port_conf->rx_queues = pf_max_rx_queues;
+		port_alloc->rx_queues = pf_max_rx_queues;
 
 	/* Account for worst case Rx buffers */
-	port_conf->buffers = port_conf->rx_queues *
+	port_alloc->buffers = port_alloc->rx_queues *
 		(parm->rx_desc + parm->extra);
 
 	if (parm->match && strstr(parm->match, "bond"))
-		port_conf->buffers *= DATAPLANE_MEMBER_MULTIPLIER;
+		port_alloc->buffers *= DATAPLANE_MEMBER_MULTIPLIER;
 
 	/* If device does not have enough TX queues for each lcore
 	 * then disable percoreq mode.
@@ -2773,10 +2783,10 @@ static int port_conf_init(portid_t portid)
 	 * Further, some devices, flagged as DRV_PARAM_LIMITTXQ,
 	 * cannot support more TX queues than RX queues.
 	 */
-	if (port_conf->tx_queues > pf_max_tx_queues ||
+	if (port_alloc->tx_queues > pf_max_tx_queues ||
 	    parm->drv_flags & DRV_PARAM_NO_DIRECT ||
 	    ((parm->drv_flags & DRV_PARAM_LIMITTXQ) &&
-	     port_conf->tx_queues > port_conf->rx_queues)) {
+	     port_alloc->tx_queues > port_alloc->rx_queues)) {
 		if (parm->drv_flags & DRV_PARAM_USE_ALL_TXQ) {
 			port_conf->max_rings = pf_max_tx_queues;
 		} else {
@@ -2792,7 +2802,7 @@ static int port_conf_init(portid_t portid)
 				 * so reduce the number of queues to use
 				 * accordingly.
 				 */
-				max_txq = port_conf->rx_queues / 2;
+				max_txq = port_alloc->rx_queues / 2;
 
 			/*
 			 * Make sure that we still have at least one
@@ -2812,19 +2822,19 @@ static int port_conf_init(portid_t portid)
 			if (parm->drv_flags & DRV_PARAM_LIMITTXQ)
 				max_txq =
 					RTE_MIN(max_txq,
-						RTE_MIN(port_conf->tx_queues,
-							port_conf->rx_queues));
+						RTE_MIN(port_alloc->tx_queues,
+							port_alloc->rx_queues));
 			else
 				/*
 				 * Don't ask for more queues than there
 				 * are cores, since they won't be used.
 				 */
 				max_txq = RTE_MIN(max_txq,
-						  port_conf->tx_queues);
+						  port_alloc->tx_queues);
 
 			port_conf->max_rings = max_txq;
 		}
-		port_conf->tx_queues = port_conf->max_rings;
+		port_alloc->tx_queues = port_conf->max_rings;
 		port_conf->percoreq = false;
 	} else {
 		port_conf->percoreq = true;
@@ -2832,15 +2842,15 @@ static int port_conf_init(portid_t portid)
 	}
 	port_conf->nrings = port_conf->max_rings;
 
-	for (q = 0; q < port_conf->tx_queues; q++)
+	for (q = 0; q < port_alloc->tx_queues; q++)
 		bitmask_set(&port_conf->tx_enabled_queues, q);
-	for (q = 0; q < port_conf->rx_queues; q++)
+	for (q = 0; q < port_alloc->rx_queues; q++)
 		bitmask_set(&port_conf->rx_enabled_queues, q);
 
 	DP_DEBUG(INIT, DEBUG, DATAPLANE,
 		 "Port %u %s rx_queues %d tx_queues %d percoreq %d\n",
 		 portid, dev_info.driver_name,
-		 port_conf->rx_queues, port_conf->tx_queues,
+		 port_alloc->rx_queues, port_alloc->tx_queues,
 		 port_conf->percoreq ? 1 : 0);
 
 	tx_pkt_ring_size = parm->tx_pkt_ring_size ? parm->tx_pkt_ring_size :
@@ -2864,38 +2874,38 @@ static int port_conf_init(portid_t portid)
 	/* If not percoreq or QoS is enabled then there will
 	 * need to be a pkt ring.
 	 */
-	port_conf->buffers += tx_pkt_ring_size * port_conf->max_rings;
+	port_alloc->buffers += tx_pkt_ring_size * port_conf->max_rings;
 
 	/* Overhead of every Tx queue being full */
-	port_conf->buffers +=  port_conf->tx_desc * port_conf->tx_queues;
+	port_alloc->buffers += port_alloc->tx_desc * port_alloc->tx_queues;
 
 	/* Defaults from PMD and eth_base_conf */
-	port_conf->tx_conf = dev_info.default_txconf;
-	port_conf->tx_conf.offloads |= eth_base_conf.txmode.offloads;
-	port_conf->rx_conf = dev_info.default_rxconf;
-	port_conf->rx_conf.offloads |= eth_base_conf.rxmode.offloads;
-	port_conf->rx_mq_mode = eth_base_conf.rxmode.mq_mode;
+	port_alloc->tx_conf = dev_info.default_txconf;
+	port_alloc->tx_conf.offloads |= eth_base_conf.txmode.offloads;
+	port_alloc->rx_conf = dev_info.default_rxconf;
+	port_alloc->rx_conf.offloads |= eth_base_conf.rxmode.offloads;
+	port_alloc->rx_mq_mode = eth_base_conf.rxmode.mq_mode;
 
 	/* This avoids head of line blocking when one queue is overloaded. */
-	port_conf->rx_conf.rx_drop_en = 1;
+	port_alloc->rx_conf.rx_drop_en = 1;
 
 	/* Set offloads from conf file */
-	port_conf->rx_conf.offloads |= parm->rx_offloads;
-	port_conf->rx_conf.offloads &= ~parm->neg_rx_offloads;
-	port_conf->tx_conf.offloads |= parm->tx_offloads;
-	port_conf->tx_conf.offloads &= ~parm->neg_tx_offloads;
+	port_alloc->rx_conf.offloads |= parm->rx_offloads;
+	port_alloc->rx_conf.offloads &= ~parm->neg_rx_offloads;
+	port_alloc->tx_conf.offloads |= parm->tx_offloads;
+	port_alloc->tx_conf.offloads &= ~parm->neg_tx_offloads;
 	if (parm->rx_mq_mode_set)
-		port_conf->rx_mq_mode = parm->rx_mq_mode;
+		port_alloc->rx_mq_mode = parm->rx_mq_mode;
 
 	/* Potentially restrict device capabilities */
-	port_conf->dev_flags = dev->data->dev_flags;
-	port_conf->dev_flags |= parm->dev_flags;
-	port_conf->dev_flags &= ~parm->neg_dev_flags;
+	port_alloc->dev_flags = dev->data->dev_flags;
+	port_alloc->dev_flags |= parm->dev_flags;
+	port_alloc->dev_flags &= ~parm->neg_dev_flags;
 
 	DP_DEBUG(INIT, INFO, DATAPLANE,
 		 "Port %u %s on socket %d (mbufs %u) (rx %u) (tx %u)\n",
-		 portid, dev_info.driver_name, port_conf->socketid,
-		 port_conf->buffers, port_conf->rx_desc, port_conf->tx_desc);
+		 portid, dev_info.driver_name, port_alloc->socketid,
+		 port_alloc->buffers, port_alloc->rx_desc, port_alloc->tx_desc);
 
 	return 0;
 }
@@ -3139,12 +3149,12 @@ reassign_queues_for_all_ports(void)
 	portid_t portid;
 
 	for (portid = 0; portid < DATAPLANE_MAX_PORTS; ++portid) {
-		struct port_conf *port_conf = &port_config[portid];
+		struct port_alloc *port_alloc = &port_allocations[portid];
 
 		if (!bitmask_isset(&enabled_port_mask, portid))
 			continue;
-		set_port_affinity(portid, &port_conf->rx_cpu_affinity,
-				  &port_conf->tx_cpu_affinity);
+		set_port_affinity(portid, &port_alloc->rx_cpu_affinity,
+				  &port_alloc->tx_cpu_affinity);
 	}
 }
 
@@ -3967,7 +3977,7 @@ void show_per_core(FILE *f)
 
 static void show_ifp_affinity(struct ifnet *ifp, void *arg)
 {
-	const struct port_conf *port_conf = &port_config[ifp->if_port];
+	const struct port_alloc *port_alloc = &port_allocations[ifp->if_port];
 	char tmp[BITMASK_STRSZ];
 	unsigned int lcore, q;
 	json_writer_t *wr = arg;
@@ -3993,17 +4003,17 @@ static void show_ifp_affinity(struct ifnet *ifp, void *arg)
 
 	bitmask_t affinity_online;
 	bitmask_t cpu_affinity;
-	bitmask_or(&cpu_affinity, &port_conf->rx_cpu_affinity,
-		   &port_conf->tx_cpu_affinity);
+	bitmask_or(&cpu_affinity, &port_alloc->rx_cpu_affinity,
+		   &port_alloc->tx_cpu_affinity);
 	affinity_online = cpu_affinity_online(&cpu_affinity);
 	bitmask_sprint(&affinity_online, tmp, sizeof(tmp));
 	jsonw_string_field(wr, "affinity", tmp);
 
-	affinity_online = cpu_affinity_online(&port_conf->rx_cpu_affinity);
+	affinity_online = cpu_affinity_online(&port_alloc->rx_cpu_affinity);
 	bitmask_sprint(&affinity_online, tmp, sizeof(tmp));
 	jsonw_string_field(wr, "rx_affinity", tmp);
 
-	affinity_online = cpu_affinity_online(&port_conf->tx_cpu_affinity);
+	affinity_online = cpu_affinity_online(&port_alloc->tx_cpu_affinity);
 	bitmask_sprint(&affinity_online, tmp, sizeof(tmp));
 	jsonw_string_field(wr, "tx_affinity", tmp);
 
@@ -4047,17 +4057,17 @@ int show_affinity(FILE *f, int argc, char **argv)
 void set_port_affinity(portid_t portid, const bitmask_t *rx_mask,
 		       const bitmask_t *tx_mask)
 {
-	struct port_conf *port_conf = &port_config[portid];
+	struct port_alloc *port_alloc = &port_allocations[portid];
 
 	if (rx_mask)
-		port_conf->rx_cpu_affinity = *rx_mask;
+		port_alloc->rx_cpu_affinity = *rx_mask;
 	else
-		port_conf->rx_cpu_affinity = all_lcores_mask();
+		port_alloc->rx_cpu_affinity = all_lcores_mask();
 
 	if (tx_mask)
-		port_conf->tx_cpu_affinity = *tx_mask;
+		port_alloc->tx_cpu_affinity = *tx_mask;
 	else
-		port_conf->tx_cpu_affinity = all_lcores_mask();
+		port_alloc->tx_cpu_affinity = all_lcores_mask();
 
 	/* reassign queues to make the affinity take effect */
 	if (dpdk_eth_if_port_started(portid)) {
@@ -4166,18 +4176,18 @@ dp_allocate_lcore_to_feature(unsigned int lcore,
 
 	/* Check all ports to see if one is configured for this core */
 	for (portid = 0; portid < DATAPLANE_MAX_PORTS; ++portid) {
-		struct port_conf *port_conf = &port_config[portid];
+		struct port_alloc *port_alloc = &port_allocations[portid];
 
 		/*
 		 * If the affinity is the same as the all_lcores_mask
 		 * then not configured.
 		 */
-		if (bitmask_equal(&all_lcores, &port_conf->rx_cpu_affinity) &&
-		    bitmask_equal(&all_lcores, &port_conf->tx_cpu_affinity))
+		if (bitmask_equal(&all_lcores, &port_alloc->rx_cpu_affinity) &&
+		    bitmask_equal(&all_lcores, &port_alloc->tx_cpu_affinity))
 			continue;
 
-		if (bitmask_isset(&port_conf->rx_cpu_affinity, lcore) ||
-		    bitmask_isset(&port_conf->tx_cpu_affinity, lcore)) {
+		if (bitmask_isset(&port_alloc->rx_cpu_affinity, lcore) ||
+		    bitmask_isset(&port_alloc->tx_cpu_affinity, lcore)) {
 			RTE_LOG(ERR, DATAPLANE,
 				"Request to allocate cfged forwarding core %d to feature\n",
 				lcore);
