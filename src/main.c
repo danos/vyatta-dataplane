@@ -283,7 +283,7 @@ static struct port_alloc {
 	uint32_t		 buf_size;
 	uint16_t		 rx_desc;
 	uint16_t		 tx_desc;
-	uint16_t		 buffers;
+	uint32_t		 buffers;
 	uint8_t			 rx_queues;
 	uint8_t			 tx_queues;
 	int8_t			 socketid;	/* NUMA socket */
