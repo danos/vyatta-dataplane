@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2019-2021, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  *
@@ -368,6 +368,7 @@ DP_START_TEST(alg_rpc2, test)
 		.ifname		= "dp2T1",
 		.proto		= IPPROTO_UDP,
 		.map		= "dynamic",
+		.port_alloc	= NULL,
 		.from_addr	= "1.1.1.0/24",
 		.from_port	= NULL,
 		.to_addr	= NULL,
@@ -492,6 +493,7 @@ DP_START_TEST(alg_rpc3, test)
 		.ifname		= "dp2T1",
 		.proto		= IPPROTO_UDP,
 		.map		= "dynamic",
+		.port_alloc	= NULL,
 		.from_addr	= "1.1.1.0/24",
 		.from_port	= NULL,
 		.to_addr	= NULL,
@@ -608,6 +610,7 @@ DP_START_TEST(alg_rpc4, test)
 		.ifname		= "dp1T0",
 		.proto		= IPPROTO_UDP,
 		.map		= "dynamic",
+		.port_alloc	= NULL,
 		.from_addr	= NULL,
 		.from_port	= NULL,
 		.to_addr	= "2.2.2.254",
@@ -707,6 +710,7 @@ DP_START_TEST(alg_rpc5, test)
 		.ifname		= "dp2T1",
 		.proto		= IPPROTO_UDP,
 		.map		= "dynamic",
+		.port_alloc	= NULL,
 		.from_addr	= "1.1.1.0/24",
 		.from_port	= NULL,
 		.to_addr	= NULL,

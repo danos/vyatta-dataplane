@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2015 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -109,6 +109,15 @@ dp_test_npf_nat_map_cmd(char *str, size_t len,
 	} else
 		l += spush(str+l, len-l, "trans-port=%s ", nat->trans_port);
 
+	if (nat->port_alloc) {
+		if (strcmp(nat->port_alloc, "sequential") == 0)
+			l += spush(str+l, len-l,
+				   "trans-port-alloc=sequential ");
+		else if (strcmp(nat->port_alloc, "random") == 0)
+			l += spush(str+l, len-l,
+				   "trans-port-alloc=random ");
+	}
+
 	return l;
 }
 
@@ -183,7 +192,7 @@ _dp_test_npf_nat_add(const struct dp_test_npf_nat_rule_t *nat, bool snat,
 {
 	char rifname[IFNAMSIZ];
 	char match[100];
-	char map[100];
+	char map[140];
 	uint l;
 
 	dp_test_intf_real(nat->ifname, rifname);
@@ -283,6 +292,7 @@ void dpt_snat_cfg(const char *intf, uint8_t ipproto,
 		.ifname		= intf,
 		.proto		= ipproto,
 		.map		= "dynamic",
+		.port_alloc	= NULL,
 		.from_addr	= from_addr,
 		.from_port	= NULL,
 		.to_addr	= NULL,
@@ -309,6 +319,7 @@ void dpt_dnat_cfg(const char *intf, uint8_t ipproto,
 		.ifname		= intf,
 		.proto		= ipproto,
 		.map		= "dynamic",
+		.port_alloc	= NULL,
 		.from_addr	= NULL,
 		.from_port	= NULL,
 		.to_addr	= to_addr,

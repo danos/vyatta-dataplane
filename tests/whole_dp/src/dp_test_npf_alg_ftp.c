@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2018-2021, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  *
@@ -721,6 +721,7 @@ DP_START_TEST(alg_ftp2, test)
 		.ifname		= "dp2T1",
 		.proto		= IPPROTO_TCP,
 		.map		= "dynamic",
+		.port_alloc	= NULL,
 		.from_addr	= "1.1.1.11",
 		.from_port	= NULL,
 		.to_addr	= NULL,
@@ -951,6 +952,7 @@ DP_START_TEST(alg_ftp3, test)
 		.ifname		= "dp1T0",
 		.proto		= IPPROTO_TCP,
 		.map		= "dynamic",
+		.port_alloc	= NULL,
 		.from_addr	= NULL,
 		.from_port	= NULL,
 		.to_addr	= "2.2.2.20",
@@ -1170,6 +1172,7 @@ DP_START_TEST(alg_ftp4, test)
 		.ifname		= "dp1T0",
 		.proto		= IPPROTO_TCP,
 		.map		= "dynamic",
+		.port_alloc	= NULL,
 		.from_addr	= NULL,
 		.from_port	= NULL,
 		.to_addr	= "2.2.2.20",
@@ -1386,6 +1389,7 @@ DP_START_TEST(alg_ftp5, test)
 		.ifname		= "dp2T1",
 		.proto		= IPPROTO_TCP,
 		.map		= "dynamic",
+		.port_alloc	= NULL,
 		.from_addr	= "1.1.1.11",
 		.from_port	= NULL,
 		.to_addr	= NULL,
@@ -1583,6 +1587,7 @@ DP_START_TEST(alg_ftp5a, test)
 		.ifname		= "dp2T1",
 		.proto		= IPPROTO_TCP,
 		.map		= "dynamic",
+		.port_alloc	= NULL,
 		.from_addr	= "1.1.1.11",
 		.from_port	= NULL,
 		.to_addr	= NULL,
@@ -1780,6 +1785,7 @@ DP_START_TEST(alg_ftp5b, test)
 		.ifname		= "dp2T1",
 		.proto		= IPPROTO_TCP,
 		.map		= "dynamic",
+		.port_alloc	= NULL,
 		.from_addr	= "1.1.1.11",
 		.from_port	= NULL,
 		.to_addr	= NULL,
@@ -1977,6 +1983,7 @@ DP_START_TEST(alg_ftp6, test)
 		.ifname		= "dp1T0",
 		.proto		= IPPROTO_TCP,
 		.map		= "dynamic",
+		.port_alloc	= NULL,
 		.from_addr	= NULL,
 		.from_port	= NULL,
 		.to_addr	= "2.2.2.20",

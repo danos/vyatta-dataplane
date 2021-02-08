@@ -228,6 +228,7 @@ DP_START_TEST(npf_mbuf3, test)
 		.ifname		= "dp2T1",
 		.proto		= IPPROTO_TCP,
 		.map		= "dynamic",
+		.port_alloc	= NULL,
 		.from_addr	= "100.64.0.1",
 		.from_port	= NULL,
 		.to_addr	= NULL,

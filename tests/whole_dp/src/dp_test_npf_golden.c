@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2020, AT&T Intellectual Property. All rights reserved.
+ * Copyright (c) 2018-2021, AT&T Intellectual Property. All rights reserved.
  * All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
@@ -364,6 +364,7 @@ npf_golden_in_dnat(enum test_fw action, struct dp_test_golden_ctx *ctx)
 		.ifname		= "dp1T0",
 		.proto		= IPPROTO_UDP,
 		.map		= "dynamic",
+		.port_alloc	= NULL,
 		.from_addr	= NULL,
 		.from_port	= NULL,
 		.to_addr	= "2.2.2.12",
@@ -394,6 +395,7 @@ npf_golden_in_dnat_local(enum test_fw action, struct dp_test_golden_ctx *ctx)
 		.ifname		= "dp1T0",
 		.proto		= IPPROTO_UDP,
 		.map		= "dynamic",
+		.port_alloc	= NULL,
 		.from_addr	= NULL,
 		.from_port	= NULL,
 		.to_addr	= "1.1.1.2",
@@ -424,6 +426,7 @@ npf_golden_out_snat(enum test_fw action, struct dp_test_golden_ctx *ctx)
 		.ifname		= "dp1T1",
 		.proto		= IPPROTO_UDP,
 		.map		= "dynamic",
+		.port_alloc	= NULL,
 		.from_addr	= "1.1.1.11",
 		.from_port	= NULL,
 		.to_addr	= NULL,
@@ -456,6 +459,7 @@ npf_golden_out_snat_local(enum test_fw action, struct dp_test_golden_ctx *ctx)
 		.ifname		= "dp1T1",
 		.proto		= IPPROTO_UDP,
 		.map		= "dynamic",
+		.port_alloc	= NULL,
 		.from_addr	= "2.2.2.2",
 		.from_port	= NULL,
 		.to_addr	= NULL,
