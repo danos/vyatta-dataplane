@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2018-2021, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -666,6 +666,9 @@ int npf_alg_reserve_translations(npf_session_t *parent, int nr_ports,
 
 	/* Currently, all algs need a mapped port */
 	nat_flags = NPF_NAT_MAP_PORT;
+
+	if ((npf_nat_get_map_flags(pnat) & NPF_NAT_PA_SEQ) != 0)
+		nat_flags |= NPF_NAT_PA_SEQ;
 
 	/* Start on even boundary? */
 	if (start_even)

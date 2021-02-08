@@ -91,6 +91,13 @@ enum pmf_nat_type {
 	PMN_DNAT,
 };
 
+/* NAT port allocation */
+enum pmf_nat_pa {
+	PMPA_UNSET,
+	PMPA_RAND,
+	PMPA_SEQ,
+};
+
 enum pmf_mark_colour {
 	PMMC_UNSET,
 	PMMC_RED,
@@ -284,6 +291,7 @@ struct pmf_nat {
 	enum pmf_value			pan_pinhole : 2;
 	enum pmf_value			pan_exclude : 2;
 	enum pmf_value			pan_masquerade : 2;
+	enum pmf_nat_pa			pan_port_alloc : 2;
 
 	/* Following only valid for "nat-src" / "nat-dst" */
 	union {

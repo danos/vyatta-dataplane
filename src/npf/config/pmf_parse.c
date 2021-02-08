@@ -141,6 +141,7 @@ static pkp_key_parser pkp_nat_pinhole;
 static pkp_key_parser pkp_nat_exclude;
 static pkp_key_parser pkp_nat_masq;
 static pkp_key_parser pkp_nat_port;
+static pkp_key_parser pkp_nat_port_alloc;
 static pkp_key_parser pkp_nat_addr_grp;
 static pkp_key_parser pkp_nat_arange;
 
@@ -159,6 +160,7 @@ enum pkp_act_field {
 	PKP_ACT_NAT_EXCLUDE,
 	PKP_ACT_NAT_MASQ,
 	PKP_ACT_NAT_PORT,
+	PKP_ACT_NAT_PORT_ALLOC,
 	PKP_ACT_NAT_ADDR,
 	PKP_ACT_NAT_ADDR_GROUP,
 	PKP_ACT__LEN
@@ -236,6 +238,7 @@ static struct pkp_key action_keys[] = {
 	{"nat-exclude",		PKP_ACT_NAT_EXCLUDE,	0, pkp_nat_exclude},
 	{"trans-addr-masquerade", PKP_ACT_NAT_MASQ,	0, pkp_nat_masq},
 	{"trans-port",		PKP_ACT_NAT_PORT,	0, pkp_nat_port},
+	{"trans-port-alloc",	PKP_ACT_NAT_PORT_ALLOC,	0, pkp_nat_port_alloc},
 	{"trans-addr-group",	PKP_ACT_NAT_ADDR_GROUP,	0, pkp_nat_addr_grp},
 	{"trans-addr",		PKP_ACT_NAT_ADDR,	0, pkp_nat_arange},
 };
@@ -1361,6 +1364,7 @@ pkp_nat_attach(struct pmf_rule *rule)
 		return NULL;
 	}
 
+	nat->pan_port_alloc = PMPA_RAND;
 	rule->pp_action.nat = nat;
 
 	return nat;
@@ -1481,6 +1485,33 @@ pkp_nat_port(struct pmf_rule *rule, struct pkp_key const *key, char *value)
 	}
 
 	nat->pan_tports = vp;
+
+	return true;
+}
+
+/* Port allocation - sequential or random */
+static bool
+pkp_nat_port_alloc(struct pmf_rule *rule, struct pkp_key const *key,
+		   char *value)
+{
+	enum pmf_nat_pa pa;
+
+	if (strcmp(value, "sequential") == 0)
+		pa = PMPA_SEQ;
+	else if (strcmp(value, "random") == 0)
+		pa = PMPA_RAND;
+	else {
+		RTE_LOG(ERR, FIREWALL,
+			"NPF: unexpected value in rule: %s=%s\n",
+			key->pt_name, value);
+		return false;
+	}
+
+	struct pmf_nat *nat = pkp_nat_attach(rule);
+	if (!nat)
+		return false;
+
+	nat->pan_port_alloc = pa;
 
 	return true;
 }

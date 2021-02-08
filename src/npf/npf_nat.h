@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  */
@@ -79,6 +79,7 @@ enum {
 	NPF_NAT_MAP_EVEN_PORT	= (1u <<  5),
 	NPF_NAT_PINHOLE		= (1u <<  6),
 	NPF_NAT_OBEY_DF		= (1u <<  7),	/* npf_nat_t only */
+	NPF_NAT_PA_SEQ		= (1u <<  8),	/* alloc ports sequentially */
 };
 
 npf_natpolicy_t *npf_nat_policy_get(npf_natpolicy_t *np);

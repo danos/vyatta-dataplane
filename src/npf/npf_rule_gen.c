@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -1805,6 +1805,22 @@ npf_process_nat_config(npf_rule_t *rl, zhashx_t *config_ht)
 		} else if (strcmp(value, "n") != 0) {
 			RTE_LOG(ERR, FIREWALL, "NPF: unexpected value in rule: "
 				"nat-pinhole=%s\n", value);
+			return -EINVAL;
+		}
+	}
+
+	/*
+	 * NAT port allocation.  Allowed values are "sequential" and "random".
+	 * However only one flag is used, and this denotes when "sequential"
+	 * is configured.
+	 */
+	value = zhashx_lookup(config_ht, "trans-port-alloc");
+	if (value) {
+		if (strcmp(value, "sequential") == 0)
+			flags |= NPF_NAT_PA_SEQ;
+		else if (strcmp(value, "random") != 0) {
+			RTE_LOG(ERR, FIREWALL, "NPF: unexpected value in rule: "
+				"trans-port-alloc=%s\n", value);
 			return -EINVAL;
 		}
 	}

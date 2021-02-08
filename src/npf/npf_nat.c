@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  */
@@ -667,6 +667,9 @@ npf_nat_create(npf_rule_t *rl, npf_cache_t *npc, npf_natpolicy_t *np,
 		}
 	} else
 		nt->nt_oport = nt->nt_tport = 0;
+
+	if ((np->n_flags & NPF_NAT_PA_SEQ) != 0)
+		nt->nt_map_flags |= NPF_NAT_PA_SEQ;
 
 	int error;
 	error = npf_nat_alloc_map(np, rl, nt->nt_map_flags,

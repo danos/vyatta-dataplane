@@ -545,13 +545,20 @@ static int map_allocate_ports(struct npf_apm_range *ar, uint32_t map_flags,
 		return -NPF_RC_NAT_ERANGE;
 
 	/*
-	 * If the port(s) are in the range, use it, otherwise
-	 * choose a random start port in the range, but ensure
-	 * we do not exceed the range.
+	 * If the port(s) are in the range, use it, otherwise either choose a
+	 * random start port in the range (but ensure we do not exceed the
+	 * range), or choose the next sequential port that is not in use.
 	 */
-	if (!ports_in_range(ar, nr_ports, *port))
-		*port = ar->ar_port_start +
-			(random() % (ar->ar_port_range - (nr_ports - 1)));
+	if (!ports_in_range(ar, nr_ports, *port)) {
+		if ((map_flags & NPF_NAT_PA_SEQ) == 0)
+			/* Random port allocation */
+			*port = ar->ar_port_start +
+				(random() % (ar->ar_port_range -
+					     (nr_ports - 1)));
+		else
+			/* Sequential port allocation */
+			*port = ar->ar_port_start;
+	}
 
 	rte_spinlock_lock(&pm->pm_lock);
 
