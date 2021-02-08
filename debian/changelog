@@ -1,3 +1,13 @@
+vyatta-dataplane (3.11.72.8) unstable; urgency=medium
+
+  [ Gavin Shearer ]
+  * nat: split map_rcu_free sanity check into a different function
+  * nat: only call map_rcu_free sanity if from GC function
+
+  [ Simon Barber ]
+
+ -- Simon Barber <sbarber@mail.eng.vyatta.net>  Mon, 08 Feb 2021 12:31:18 +0000
+
 vyatta-dataplane (3.11.72.7) unstable; urgency=medium
 
   [ Gavin Shearer ]
