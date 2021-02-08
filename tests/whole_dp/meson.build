@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: LGPL-2.1-only
-# Copyright (c) 2020, AT&T Intellectual Property. All rights reserved.
+# Copyright (c) 2020-2021, AT&T Intellectual Property. All rights reserved.
 
 internal_test_inc = include_directories(
         'src'
@@ -24,9 +24,6 @@ test_lib_sources = files(
         'src/dp_test_lib_tcp.c',
         'src/dp_test_netlink_state.c',
         'src/dp_test_npf_alg_lib.c',
-        'src/dp_test_npf_alg_sip_call.c',
-        'src/dp_test_npf_alg_sip_lib.c',
-        'src/dp_test_npf_alg_sip_parse.c',
         'src/dp_test_npf_fw_lib.c',
         'src/dp_test_npf_lib.c',
         'src/dp_test_npf_nat_lib.c',
@@ -85,10 +82,6 @@ check_tests = [
         'dp_test_npf_addrgrp.c',
         'dp_test_npf_alg_ftp.c',
         'dp_test_npf_alg_rpc.c',
-        'dp_test_npf_alg_sip_1.c',
-        'dp_test_npf_alg_sip_2.c',
-        'dp_test_npf_alg_sip_3.c',
-        'dp_test_npf_alg_sip_4.c',
         'dp_test_npf_alg_tftp.c',
         'dp_test_npf_bridge.c',
         'dp_test_npf_cgnat.c',
