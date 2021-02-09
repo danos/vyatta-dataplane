@@ -23,6 +23,8 @@ extern const uint sipd1_rtp_index;
 extern const char *sipd1[SIPD1_SZ];
 extern const char *sipd1_pre_snat[SIPD1_SZ];
 extern const char *sipd1_post_snat[SIPD1_SZ];
+extern const char *sipd1_pre_dnat[SIPD1_SZ];
+extern const char *sipd1_post_dnat[SIPD1_SZ];
 
 char *sipd_descr(uint index, bool forw, const char *pload);
 bool sipd_check_content_length(const char *pload, uint *hdr_clen,

@@ -361,3 +361,206 @@ const char *sipd1_post_snat[SIPD1_SZ] = {
 	"\r\n",
 };
 
+/*
+ * DNAT
+ *
+ * Forw:  Dest 1.1.1.22 translated to 22.22.22.2
+ * Back:  Src  22.22.22.2 translated to 1.1.1.22
+ */
+const char *sipd1_pre_dnat[SIPD1_SZ] = {
+	/*
+	 * 0. Forward. INVITE
+	 */
+	"INVITE sip:B.Boss@1.1.1.22 SIP/2.0\r\n"
+	"Via: SIP/2.0/UDP 1.1.1.2:5060;branch=z9hG4bKfw19b\r\n"
+	"Record-Route: <sip:1.1.1.2;lr>\r\n"
+	"From: A. Workman <sip:workman@1.1.1.2>;tag=76341\r\n"
+	"To: B.Boss <sip:B.Boss@work.co.uk>\r\n"
+	"Call-ID: j2qu348ek2328ws\r\n"
+	"CSeq: 1 INVITE\r\n"
+	"Contact: <sip:workman@1.1.1.2>\r\n"
+	"Content-Type: application/sdp\r\n"
+	"Max-forwards: 70\r\n"
+	"Subject: About That Power Outage...\r\n"
+	"Content-Length:   139\r\n"
+	"\r\n"
+	"v=0\r\n"
+	"o=Workman 2890844526 2890844526 IN IP4 1.1.1.2\r\n"
+	"s=Phone Call\r\n"
+	"c=IN IP4 1.1.1.2\r\n"
+	"t=0 0\r\n"
+	"m=audio 10000 RTP/AVP 0\r\n"
+	"a=rtpmap:0 PCMU/8000\r\n",
+
+	/*
+	 * 1. Back.  180 Ringing
+	 */
+	"SIP/2.0 180 Ringing\r\n"
+	"Via: SIP/2.0/UDP 1.1.1.2:5060;branch=z9hG4bKfw19b\r\n"
+	"Record-Route: <sip:22.22.22.2;lr>\r\n"
+	"From: A. Workman <sip:workman@1.1.1.2>;tag=76341\r\n"
+	"To: B.Boss <sip:boss@22.22.22.2>;tag=a53e42\r\n"
+	"Call-ID: j2qu348ek2328ws\r\n"
+	"CSeq: 1 INVITE\r\n"
+	"Contact: <sip:boss@22.22.22.2>\r\n"
+	"Content-Length: 0\r\n"
+	"\r\n",
+
+	/*
+	 * 2. Back. 200 OK
+	 */
+	"SIP/2.0 200 OK\r\n"
+	"Via: SIP/2.0/UDP 1.1.1.2:5060;branch=z9hG4bKfw19b\r\n"
+	"From: A. Workman <sip:workman@1.1.1.2>;tag=76341\r\n"
+	"To: B.Boss <sip:boss@work.co.uk>;tag=a53e42\r\n"
+	"Call-ID: j2qu348ek2328ws\r\n"
+	"CSeq: 1 INVITE\r\n"
+	"Contact: <sip:boss@22.22.22.2>\r\n"
+	"Content-Type: application/sdp\r\n"
+	"Content-Length:   144\r\n"
+	"\r\n"
+	"v=0\r\n"
+	"o=B.Boss 2890844528 2890844528 IN IP4 22.22.22.2\r\n"
+	"s=Phone Call\r\n"
+	"c=IN IP4 22.22.22.2\r\n"
+	"t=0 0\r\n"
+	"m=audio 60000 RTP/AVP 0\r\n"
+	"a=rtpmap:0 PCMU/8000\r\n",
+
+	/*
+	 * 3. Forward. ACK
+	 */
+	"ACK sip:boss@1.1.1.22 SIP/2.0\r\n"
+	"Via: SIP/2.0/UDP 1.1.1.2:5060;branch=z9hG4bK321g\r\n"
+	"From: A. Workman <sip:workman@home.com>;tag=76341\r\n"
+	"To: B.Boss <sip:boss@work.co.uk>;tag=a53e42\r\n"
+	"Call-ID: j2qu348ek2328ws\r\n"
+	"CSeq: 1 ACK\r\n"
+	"Max-forwards: 70\r\n"
+	"Content-Length: 0\r\n"
+	"\r\n",
+
+	/*
+	 * 4. Back: BYE
+	 */
+	"BYE sip:workman@1.1.1.2 SIP/2.0\r\n"
+	"Via: SIP/2.0/UDP 22.22.22.2:5060;branch=z9hG4bK392kf\r\n"
+	"From: B.Boss <sip:boss@22.22.22.2>;tag=a53e42\r\n"
+	"To: A. Workman <sip:workman@1.1.1.2>;tag=76341\r\n"
+	"Call-ID: j2qu348ek2328ws\r\n"
+	"CSeq: 1392 BYE\r\n"
+	"Max-forwards: 70\r\n"
+	"Content-Length: 0\r\n"
+	"\r\n",
+
+	/*
+	 * 5. Forward. 200 OK
+	 */
+	"SIP/2.0 200 OK\r\n"
+	"Via: SIP/2.0/UDP 22.22.22.2:5060;branch=z9hG4bK392kf\r\n"
+	"From: B.Boss <sip:boss@22.22.22.2>;tag=a53e42\r\n"
+	"To: A. Workman <sip:workman@1.1.1.2>;tag=76341\r\n"
+	"Call-ID: j2qu348ek2328ws\r\n"
+	"CSeq: 1392 BYE\r\n"
+	"Content-Length: 0\r\n"
+	"\r\n",
+};
+
+const char *sipd1_post_dnat[SIPD1_SZ] = {
+	/*
+	 * 0. Forward. INVITE
+	 */
+	"INVITE sip:B.Boss@22.22.22.2 SIP/2.0\r\n"
+	"Via: SIP/2.0/UDP 1.1.1.2:5060;branch=z9hG4bKfw19b\r\n"
+	"Record-Route: <sip:1.1.1.2;lr>\r\n"
+	"From: A. Workman <sip:workman@1.1.1.2>;tag=76341\r\n"
+	"To: B.Boss <sip:B.Boss@work.co.uk>\r\n"
+	"Call-ID: j2qu348ek2328ws\r\n"
+	"CSeq: 1 INVITE\r\n"
+	"Contact: <sip:workman@1.1.1.2>\r\n"
+	"Content-Type: application/sdp\r\n"
+	"Max-forwards: 70\r\n"
+	"Subject: About That Power Outage...\r\n"
+	"Content-Length:   139\r\n"
+	"\r\n"
+	"v=0\r\n"
+	"o=Workman 2890844526 2890844526 IN IP4 1.1.1.2\r\n"
+	"s=Phone Call\r\n"
+	"c=IN IP4 1.1.1.2\r\n"
+	"t=0 0\r\n"
+	"m=audio 10000 RTP/AVP 0\r\n"
+	"a=rtpmap:0 PCMU/8000\r\n",
+
+	/*
+	 * 1. Back.  180 Ringing
+	 */
+	"SIP/2.0 180 Ringing\r\n"
+	"Via: SIP/2.0/UDP 1.1.1.2:5060;branch=z9hG4bKfw19b\r\n"
+	"Record-Route: <sip:1.1.1.22;lr>\r\n"
+	"From: A. Workman <sip:workman@1.1.1.2>;tag=76341\r\n"
+	"To: B.Boss <sip:boss@1.1.1.22>;tag=a53e42\r\n"
+	"Call-ID: j2qu348ek2328ws\r\n"
+	"CSeq: 1 INVITE\r\n"
+	"Contact: <sip:boss@1.1.1.22>\r\n"
+	"Content-Length: 0\r\n"
+	"\r\n",
+
+	/*
+	 * 2. Back. 200 OK.
+	 */
+	"SIP/2.0 200 OK\r\n"
+	"Via: SIP/2.0/UDP 1.1.1.2:5060;branch=z9hG4bKfw19b\r\n"
+	"From: A. Workman <sip:workman@1.1.1.2>;tag=76341\r\n"
+	"To: B.Boss <sip:boss@work.co.uk>;tag=a53e42\r\n"
+	"Call-ID: j2qu348ek2328ws\r\n"
+	"CSeq: 1 INVITE\r\n"
+	"Contact: <sip:boss@1.1.1.22>\r\n"
+	"Content-Type: application/sdp\r\n"
+	"Content-Length:   142\r\n"
+	"\r\n"
+	"v=0\r\n"
+	"o=B.Boss 2890844528 2890844528 IN IP4 22.22.22.2\r\n"
+	"s=Phone Call\r\n"
+	"c=IN IP4 1.1.1.22\r\n"
+	"t=0 0\r\n"
+	"m=audio 60000 RTP/AVP 0\r\n"
+	"a=rtpmap:0 PCMU/8000\r\n",
+
+	/*
+	 * 3. Forward. ACK
+	 */
+	"ACK sip:boss@22.22.22.2 SIP/2.0\r\n"
+	"Via: SIP/2.0/UDP 1.1.1.2:5060;branch=z9hG4bK321g\r\n"
+	"From: A. Workman <sip:workman@home.com>;tag=76341\r\n"
+	"To: B.Boss <sip:boss@work.co.uk>;tag=a53e42\r\n"
+	"Call-ID: j2qu348ek2328ws\r\n"
+	"CSeq: 1 ACK\r\n"
+	"Max-forwards: 70\r\n"
+	"Content-Length: 0\r\n"
+	"\r\n",
+
+	/*
+	 * 4. Back: BYE
+	 */
+	"BYE sip:workman@1.1.1.2 SIP/2.0\r\n"
+	"Via: SIP/2.0/UDP 22.22.22.2:5060;branch=z9hG4bK392kf\r\n"
+	"From: B.Boss <sip:boss@22.22.22.2>;tag=a53e42\r\n"
+	"To: A. Workman <sip:workman@1.1.1.2>;tag=76341\r\n"
+	"Call-ID: j2qu348ek2328ws\r\n"
+	"CSeq: 1392 BYE\r\n"
+	"Max-forwards: 70\r\n"
+	"Content-Length: 0\r\n"
+	"\r\n",
+
+	/*
+	 * 5. Forward. 200 OK
+	 */
+	"SIP/2.0 200 OK\r\n"
+	"Via: SIP/2.0/UDP 22.22.22.2:5060;branch=z9hG4bK392kf\r\n"
+	"From: B.Boss <sip:boss@22.22.22.2>;tag=a53e42\r\n"
+	"To: A. Workman <sip:workman@1.1.1.2>;tag=76341\r\n"
+	"Call-ID: j2qu348ek2328ws\r\n"
+	"CSeq: 1392 BYE\r\n"
+	"Content-Length: 0\r\n"
+	"\r\n",
+};

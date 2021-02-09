@@ -172,6 +172,109 @@ DP_START_TEST(sip_nat11, test)
 
 } DP_END_TEST; /* sip_nat11 */
 
+/*
+ * sip_nat12.  Data Set #1. DNAT.
+ */
+DP_DECL_TEST_CASE(sip_nat, sip_nat12, dpt_alg_sipd1_setup,
+		  dpt_alg_sipd1_teardown);
+DP_START_TEST(sip_nat12, test)
+{
+	const char *desc, *pre_pload, *pst_pload;
+	uint hdr_clen, body_clen;
+	bool forw, rv;
+	uint i;
+
+	assert(ARRAY_SIZE(sipd1_pre_dnat) == ARRAY_SIZE(sipd1_post_dnat));
+	assert(ARRAY_SIZE(sipd1_pre_dnat) == ARRAY_SIZE(sipd1_dir));
+
+	struct dp_test_npf_nat_rule_t dnat = {
+		.desc		= "dnat rule",
+		.rule		= "10",
+		.ifname		= "dp1T0",
+		.proto		= NAT_NULL_PROTO,
+		.map		= "dynamic",
+		.from_addr	= NULL,
+		.from_port	= NULL,
+		.to_addr	= "1.1.1.22/24",
+		.to_port	= NULL,
+		.trans_addr	= "22.22.22.2",
+		.trans_port	= NULL,
+		.port_alloc	= NULL,
+	};
+	dp_test_npf_dnat_add(&dnat, true);
+
+	/* For each SIP msg payload */
+	for (i = 0; i < ARRAY_SIZE(sipd1_pre_dnat); i++) {
+		pre_pload = sipd1_pre_dnat[i];
+		pst_pload = sipd1_post_dnat[i];
+		forw = (sipd1_dir[i] == SIP_FORW);
+		desc = sipd_descr(i, forw, pst_pload);
+
+		/* Check content-length value matches actual content-length */
+		rv = sipd_check_content_length(pre_pload, &hdr_clen,
+					       &body_clen);
+		dp_test_fail_unless(rv, "[%s] Pre hdr=%u, body=%u",
+				    desc, hdr_clen, body_clen);
+
+		rv = sipd_check_content_length(pst_pload, &hdr_clen,
+					       &body_clen);
+		dp_test_fail_unless(rv, "[%s] Post hdr=%u, body=%u",
+				    desc, hdr_clen, body_clen);
+
+		if (forw) {
+			dpt_udp_pl("dp1T0", "aa:bb:cc:16:0:20",
+				   "1.1.1.2", 5060, "1.1.1.22", 5060,
+				   "1.1.1.2", 5060, "22.22.22.2", 5060,
+				   "aa:bb:cc:18:0:1", "dp2T1",
+				   DP_TEST_FWD_FORWARDED,
+				   pre_pload, strlen(pre_pload),
+				   pst_pload, strlen(pst_pload), desc);
+		} else {
+			dpt_udp_pl("dp2T1", "aa:bb:cc:18:0:1",
+				   "22.22.22.2", 5060, "1.1.1.2", 5060,
+				   "1.1.1.22", 5060, "1.1.1.2", 5060,
+				   "aa:bb:cc:16:0:20", "dp1T0",
+				   DP_TEST_FWD_FORWARDED,
+				   pre_pload, strlen(pre_pload),
+				   pst_pload, strlen(pst_pload), desc);
+		}
+
+		if (i == sipd1_rtp_index) {
+			/* RTP Forw (Initial) */
+			dpt_udp("dp1T0", "aa:bb:cc:16:0:20",
+				"1.1.1.2", 10000, "1.1.1.22", 60000,
+				"1.1.1.2", 10000, "22.22.22.2", 60000,
+				"aa:bb:cc:18:0:1", "dp2T1",
+				DP_TEST_FWD_FORWARDED);
+
+			/* RTP Back */
+			dpt_udp("dp2T1", "aa:bb:cc:18:0:1",
+				"22.22.22.2", 60000, "1.1.1.2", 10000,
+				"1.1.1.22", 60000, "1.1.1.2", 10000,
+				"aa:bb:cc:16:0:20", "dp1T0",
+				DP_TEST_FWD_FORWARDED);
+
+			/* RTCP Back  (Initial) */
+			dpt_udp("dp2T1", "aa:bb:cc:18:0:1",
+				"22.22.22.2", 60001, "1.1.1.2", 10001,
+				"1.1.1.22", 60001, "1.1.1.2", 10001,
+				"aa:bb:cc:16:0:20", "dp1T0",
+				DP_TEST_FWD_FORWARDED);
+
+			/* RTCP Forw */
+			dpt_udp("dp1T0", "aa:bb:cc:16:0:20",
+				"1.1.1.2", 10001, "1.1.1.22", 60001,
+				"1.1.1.2", 10001, "22.22.22.2", 60001,
+				"aa:bb:cc:18:0:1", "dp2T1",
+				DP_TEST_FWD_FORWARDED);
+
+		}
+	}
+
+	dp_test_npf_dnat_del(dnat.ifname, dnat.rule, true);
+
+} DP_END_TEST; /* sip_nat12 */
+
 
 static void dpt_alg_sipd1_setup(void)
 {
