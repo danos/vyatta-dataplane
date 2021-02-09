@@ -156,3 +156,213 @@ const char *sipd2[SIPD2_SZ] = {
 	"Content-Length: 0\r\n"
 	"\r\n",
 };
+
+const char *sipd2_pre_snat[SIPD1_SZ] = {
+	/*
+	 * 0. Forward. INVITE (M1)
+	 */
+	"INVITE sip:joe.bloggs@200.201.202.203 SIP/2.0\r\n"
+	"Via: SIP/2.0/UDP 100.101.102.103:5060;branch=z9hG4bKmp17a\r\n"
+	"From: J. Doe <sip:doe123@example.com>;tag=42\r\n"
+	"To: Bloggs <sip:joe.bloggs@200.201.202.203>\r\n"
+	"Call-ID: 4827311-391-32934\r\n"
+	"CSeq: 1 INVITE\r\n"
+	"Contact: <sip:doe123@pc33.example.com>\r\n"
+	"Content-Type: application/sdp\r\n"
+	"Max-forwards: 70\r\n"
+	"Subject: Where are you exactly?\r\n"
+	"Content-Length:   154\r\n"
+	"\r\n"
+	"v=0\r\n"
+	"o=doe123 2890844526 2890844526 IN IP4 100.101.102.103\r\n"
+	"s=Phone Call\r\n"
+	"c=IN IP4 100.101.102.103\r\n"
+	"t=0 0\r\n"
+	"m=audio 10000 RTP/AVP 0\r\n"
+	"a=rtpmap:0 PCMU/8000\r\n",
+
+	/*
+	 * 1. Back. 180 RINGING (M4)
+	 */
+	"SIP/2.0 180 Ringing\r\n"
+	"Via: SIP/2.0/UDP 200.201.202.1:5060;branch=z9hG4bKmp17a\r\n"
+	"From: J. Doe <sip:doe123@example.com>;tag=42\r\n"
+	"To: Bloggs <sip:joe.bloggs@200.201.202.203>;"
+	"tag=314159\r\n"
+	"Call-ID: 4827311-391-32934\r\n"
+	"CSeq: 1 INVITE\r\n"
+	"Contact: <sip:joe.bloggs@200.201.202.203>\r\n"
+	"Content-Length: 0\r\n"
+	"\r\n",
+
+	/*
+	 * 2. Back. 200 OK (M6)
+	 */
+	"SIP/2.0 200 OK\r\n"
+	"Via: SIP/2.0/UDP 200.201.202.1:5060;branch=z9hG4bKmp17a\r\n"
+	"From: J. Doe <sip:doe123@example.com>;tag=42\r\n"
+	"To: Bloggs <sip:joe.bloggs@200.201.202.203>;"
+	"tag=314159\r\n"
+	"Call-ID: 4827311-391-32934\r\n"
+	"CSeq: 1 INVITE\r\n"
+	"Contact: <sip:joe.bloggs@200.201.202.203>\r\n"
+	"Content-Type: application/sdp\r\n"
+	"Content-Length:   154\r\n"
+	"\r\n"
+	"v=0\r\n"
+	"o=bloggs 2890844526 2890844526 IN IP4 200.201.202.203\r\n"
+	"s=phone call\r\n"
+	"c=IN IP4 200.201.202.203\r\n"
+	"t=0 0\r\n"
+	"m=audio 60000 RTP/AVP 0\r\n"
+	"a=rtpmap:0 PCMU/8000\r\n",
+
+	/*
+	 * 3. Forw. ACK (M7).  Caller to Callee.
+	 */
+	"ACK sip:joe.bloggs@200.201.202.203 SIP/2.0\r\n"
+	"Via: SIP/2.0/UDP 100.101.102.103:5060;branch=z9hG4bKka42\r\n"
+	"From: J. Doe <sip:doe123@example.com>;tag=42\r\n"
+	"To: Bloggs <sip:joe.bloggs@200.201.202.203>;"
+	"tag=314159\r\n"
+	"Call-ID: 4827311-391-32934\r\n"
+	"CSeq: 1 ACK\r\n"
+	"Max-forwards: 70\r\n"
+	"Content-Length: 0\r\n"
+	"\r\n",
+
+	/* Data flow occurs here */
+
+	/*
+	 * 4. Back. BYE (M8)
+	 */
+	"BYE sip:doe123@pc33.example.com SIP/2.0\r\n"
+	"Via: SIP/2.0/UDP 200.201.202.203:5060;branch=z9hG4bK4332\r\n"
+	"From: Bloggs <sip:joe.bloggs@200.201.202.203>;"
+	"tag=314159\r\n"
+	"To: J. Doe <sip:doe123@example.com>;tag=42\r\n"
+	"Call-ID: 4827311-391-32934\r\n"
+	"CSeq: 2000 BYE\r\n"
+	"Max-forwards: 70\r\n"
+	"Content-Length: 0\r\n"
+	"\r\n",
+
+	/*
+	 * 5. Forw. 200 OK (M9)
+	 */
+	"SIP/2.0 200 OK\r\n"
+	"Via: SIP/2.0/UDP 200.201.202.203:5060;branch=z9hG4bK4332\r\n"
+	"From: Bloggs <sip:joe.bloggs@200.201.202.203>;"
+	"tag=314159\r\n"
+	"To: J. Doe <sip:doe123@example.com>;tag=42\r\n"
+	"Call-ID: 4827311-391-32934\r\n"
+	"CSeq: 2000 BYE\r\n"
+	"Content-Length: 0\r\n"
+	"\r\n",
+};
+
+const char *sipd2_post_snat[SIPD1_SZ] = {
+	/*
+	 * 0. Forward. INVITE (M1)
+	 */
+	"INVITE sip:joe.bloggs@200.201.202.203 SIP/2.0\r\n"
+	"Via: SIP/2.0/UDP 200.201.202.1:5060;branch=z9hG4bKmp17a\r\n"
+	"From: J. Doe <sip:doe123@example.com>;tag=42\r\n"
+	"To: Bloggs <sip:joe.bloggs@200.201.202.203>\r\n"
+	"Call-ID: 4827311-391-32934\r\n"
+	"CSeq: 1 INVITE\r\n"
+	"Contact: <sip:doe123@pc33.example.com>\r\n"
+	"Content-Type: application/sdp\r\n"
+	"Max-forwards: 70\r\n"
+	"Subject: Where are you exactly?\r\n"
+	"Content-Length:   150\r\n"
+	"\r\n"
+	"v=0\r\n"
+	"o=doe123 2890844526 2890844526 IN IP4 200.201.202.1\r\n"
+	"s=Phone Call\r\n"
+	"c=IN IP4 200.201.202.1\r\n"
+	"t=0 0\r\n"
+	"m=audio 10000 RTP/AVP 0\r\n"
+	"a=rtpmap:0 PCMU/8000\r\n",
+
+	/*
+	 * 1. Back. 180 RINGING (M4)
+	 */
+	"SIP/2.0 180 Ringing\r\n"
+	"Via: SIP/2.0/UDP 100.101.102.103:5060;branch=z9hG4bKmp17a\r\n"
+	"From: J. Doe <sip:doe123@example.com>;tag=42\r\n"
+	"To: Bloggs <sip:joe.bloggs@200.201.202.203>;"
+	"tag=314159\r\n"
+	"Call-ID: 4827311-391-32934\r\n"
+	"CSeq: 1 INVITE\r\n"
+	"Contact: <sip:joe.bloggs@200.201.202.203>\r\n"
+	"Content-Length: 0\r\n"
+	"\r\n",
+
+	/*
+	 * 2. Back. 200 OK (M6)
+	 */
+	"SIP/2.0 200 OK\r\n"
+	"Via: SIP/2.0/UDP 100.101.102.103:5060;branch=z9hG4bKmp17a\r\n"
+	"From: J. Doe <sip:doe123@example.com>;tag=42\r\n"
+	"To: Bloggs <sip:joe.bloggs@200.201.202.203>;"
+	"tag=314159\r\n"
+	"Call-ID: 4827311-391-32934\r\n"
+	"CSeq: 1 INVITE\r\n"
+	"Contact: <sip:joe.bloggs@200.201.202.203>\r\n"
+	"Content-Type: application/sdp\r\n"
+	"Content-Length:   154\r\n"
+	"\r\n"
+	"v=0\r\n"
+	"o=bloggs 2890844526 2890844526 IN IP4 200.201.202.203\r\n"
+	"s=phone call\r\n"
+	"c=IN IP4 200.201.202.203\r\n"
+	"t=0 0\r\n"
+	"m=audio 60000 RTP/AVP 0\r\n"
+	"a=rtpmap:0 PCMU/8000\r\n",
+
+	/*
+	 * 3. Forw. ACK (M7).  Caller to Callee.  New session created, with src
+	 * port 5061.
+	 */
+	"ACK sip:joe.bloggs@200.201.202.203 SIP/2.0\r\n"
+	"Via: SIP/2.0/UDP 200.201.202.1:5061;branch=z9hG4bKka42\r\n"
+	"From: J. Doe <sip:doe123@example.com>;tag=42\r\n"
+	"To: Bloggs <sip:joe.bloggs@200.201.202.203>;"
+	"tag=314159\r\n"
+	"Call-ID: 4827311-391-32934\r\n"
+	"CSeq: 1 ACK\r\n"
+	"Max-forwards: 70\r\n"
+	"Content-Length: 0\r\n"
+	"\r\n",
+
+	/* Data flow occurs here */
+
+	/*
+	 * 4. Back. BYE (M8)
+	 */
+	"BYE sip:doe123@pc33.example.com SIP/2.0\r\n"
+	"Via: SIP/2.0/UDP 200.201.202.203:5060;branch=z9hG4bK4332\r\n"
+	"From: Bloggs <sip:joe.bloggs@200.201.202.203>;"
+	"tag=314159\r\n"
+	"To: J. Doe <sip:doe123@example.com>;tag=42\r\n"
+	"Call-ID: 4827311-391-32934\r\n"
+	"CSeq: 2000 BYE\r\n"
+	"Max-forwards: 70\r\n"
+	"Content-Length: 0\r\n"
+	"\r\n",
+
+	/*
+	 * 5. Forw. 200 OK (M9)
+	 */
+	"SIP/2.0 200 OK\r\n"
+	"Via: SIP/2.0/UDP 200.201.202.203:5060;branch=z9hG4bK4332\r\n"
+	"From: Bloggs <sip:joe.bloggs@200.201.202.203>;"
+	"tag=314159\r\n"
+	"To: J. Doe <sip:doe123@example.com>;tag=42\r\n"
+	"Call-ID: 4827311-391-32934\r\n"
+	"CSeq: 2000 BYE\r\n"
+	"Content-Length: 0\r\n"
+	"\r\n",
+};
+

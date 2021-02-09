@@ -371,6 +371,151 @@ DP_START_TEST(sip_nat20, test)
 } DP_END_TEST; /* sip_nat20 */
 
 
+/*
+ * sip_nat21.  Data set #2. SNAT.
+ */
+DP_DECL_TEST_CASE(sip_nat, sip_nat21, dpt_alg_sipd2_setup,
+		  dpt_alg_sipd2_teardown);
+DP_START_TEST(sip_nat21, test)
+{
+	const char *desc, *pre_pload, *pst_pload;
+	uint hdr_clen, body_clen;
+	bool forw, rv;
+	uint i;
+
+	assert(ARRAY_SIZE(sipd2_pre_snat) == ARRAY_SIZE(sipd2_post_snat));
+	assert(ARRAY_SIZE(sipd2_pre_snat) == ARRAY_SIZE(sipd2_dir));
+
+	struct dp_test_npf_nat_rule_t snat = {
+		.desc		= "snat rule",
+		.rule		= "10",
+		.ifname		= "dp2T1",
+		.proto		= IPPROTO_UDP,
+		.map		= "dynamic",
+		.port_alloc	= "sequential",
+		.from_addr	= "100.101.102.0/24",
+		.from_port	= NULL,
+		.to_addr	= NULL,
+		.to_port	= NULL,
+		.trans_addr	= "masquerade", /* 200.201.202.1 */
+		.trans_port	= "1024-65535"
+	};
+	dp_test_npf_snat_add(&snat, true);
+
+	/*
+	 * Caller to/from Proxy Server
+	 */
+#define SIPD2_PROXY_INDEX 3
+	for (i = 0; i < SIPD2_PROXY_INDEX; i++) {
+		pre_pload = sipd2_pre_snat[i];
+		pst_pload = sipd2_post_snat[i];
+		forw = (sipd2_dir[i] == SIP_FORW);
+		desc = sipd_descr(i, forw, pst_pload);
+
+		/* Check content-length value matches actual content-length */
+		rv = sipd_check_content_length(pre_pload, &hdr_clen,
+					       &body_clen);
+		dp_test_fail_unless(rv, "[%s] hdr=%u, body=%u",
+				    desc, hdr_clen, body_clen);
+
+		rv = sipd_check_content_length(pst_pload, &hdr_clen,
+					       &body_clen);
+		dp_test_fail_unless(rv, "[%s] hdr=%u, body=%u",
+				    desc, hdr_clen, body_clen);
+
+		if (forw) {
+			dpt_udp_pl("dp1T0", "aa:bb:cc:16:0:20",
+				   "100.101.102.103", 5060, /* pre src */
+				   "200.201.202.205", 5060, /* pre dst */
+				   "200.201.202.1", 5060,   /* post src */
+				   "200.201.202.205", 5060, /* post dst */
+				   "aa:bb:cc:18:0:5", "dp2T1",
+				   DP_TEST_FWD_FORWARDED,
+				   pre_pload, strlen(pre_pload),
+				   pst_pload, strlen(pst_pload), desc);
+		} else {
+			dpt_udp_pl("dp2T1", "aa:bb:cc:18:0:5",
+				   "200.201.202.205", 5060, /* pre src */
+				   "200.201.202.1", 5060, /* pre dst */
+				   "200.201.202.205", 5060, /* post src */
+				   "100.101.102.103", 5060, /* post dst */
+				   "aa:bb:cc:16:0:20", "dp1T0",
+				   DP_TEST_FWD_FORWARDED,
+				   pre_pload, strlen(pre_pload),
+				   pst_pload, strlen(pst_pload), desc);
+		}
+	}
+
+	/*
+	 * Caller to/from Callee
+	 */
+	for (i = SIPD2_PROXY_INDEX; i < ARRAY_SIZE(sipd2); i++) {
+		pre_pload = sipd2_pre_snat[i];
+		pst_pload = sipd2_post_snat[i];
+		forw = (sipd2_dir[i] == SIP_FORW);
+		desc = sipd_descr(i, forw, pst_pload);
+
+		/* Check content-length value matches actual content-length */
+		rv = sipd_check_content_length(pre_pload, &hdr_clen,
+					       &body_clen);
+		dp_test_fail_unless(rv, "[%s] hdr=%u, body=%u",
+				    desc, hdr_clen, body_clen);
+
+		rv = sipd_check_content_length(pst_pload, &hdr_clen,
+					       &body_clen);
+		dp_test_fail_unless(rv, "[%s] hdr=%u, body=%u",
+				    desc, hdr_clen, body_clen);
+
+		if (forw) {
+			dpt_udp_pl("dp1T0", "aa:bb:cc:16:0:20",
+				   "100.101.102.103", 5060, /* pre src */
+				   "200.201.202.203", 5060, /* pre dst */
+				   "200.201.202.1", 5061, /* post src */
+				   "200.201.202.203", 5060, /* post dst */
+				   "aa:bb:cc:18:0:1", "dp2T1",
+				   DP_TEST_FWD_FORWARDED,
+				   pre_pload, strlen(pre_pload),
+				   pst_pload, strlen(pst_pload), desc);
+		} else {
+			dpt_udp_pl("dp2T1", "aa:bb:cc:18:0:1",
+				   "200.201.202.203", 5060, /* pre src */
+				   "200.201.202.1", 5061, /* pre dst */
+				   "200.201.202.203", 5060, /* post src */
+				   "100.101.102.103", 5060, /* post dst */
+				   "aa:bb:cc:16:0:20", "dp1T0",
+				   DP_TEST_FWD_FORWARDED,
+				   pre_pload, strlen(pre_pload),
+				   pst_pload, strlen(pst_pload), desc);
+		}
+
+		/* RTP Data flow */
+		if (i == sipd2_rtp_index) {
+			/* RTP Back  (Initial) */
+			dpt_udp("dp2T1", "aa:bb:cc:18:0:1",
+				"200.201.202.203", 60000,
+				"200.201.202.1", 10000,
+				"200.201.202.203", 60000,
+				"100.101.102.103", 10000,
+				"aa:bb:cc:16:0:20", "dp1T0",
+				DP_TEST_FWD_FORWARDED);
+
+			/* RTP Forw */
+			dpt_udp("dp1T0", "aa:bb:cc:16:0:20",
+				"100.101.102.103", 10000,
+				"200.201.202.203", 60000,
+				"200.201.202.1", 10000,
+				"200.201.202.203", 60000,
+				"aa:bb:cc:18:0:1", "dp2T1",
+				DP_TEST_FWD_FORWARDED);
+
+		}
+	}
+
+	dp_test_npf_snat_del(snat.ifname, snat.rule, true);
+
+} DP_END_TEST; /* sip_nat21 */
+
+
 static void dpt_alg_sipd1_setup(void)
 {
 	/* Setup interfaces and neighbours */
