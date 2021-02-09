@@ -26,6 +26,14 @@ extern const char *sipd1_post_snat[SIPD1_SZ];
 extern const char *sipd1_pre_dnat[SIPD1_SZ];
 extern const char *sipd1_post_dnat[SIPD1_SZ];
 
+/*
+ * SIP Data Set #2
+ */
+#define SIPD2_SZ 6
+extern const bool sipd2_dir[SIPD2_SZ];
+extern const uint sipd2_rtp_index;
+extern const char *sipd2[SIPD2_SZ];
+
 char *sipd_descr(uint index, bool forw, const char *pload);
 bool sipd_check_content_length(const char *pload, uint *hdr_clen,
 			       uint *body_clen);

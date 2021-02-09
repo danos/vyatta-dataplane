@@ -17,6 +17,9 @@
 static void dpt_alg_sipd1_setup(void);
 static void dpt_alg_sipd1_teardown(void);
 
+static void dpt_alg_sipd2_setup(void);
+static void dpt_alg_sipd2_teardown(void);
+
 DP_DECL_TEST_SUITE(sip_nat);
 
 /*
@@ -276,6 +279,98 @@ DP_START_TEST(sip_nat12, test)
 } DP_END_TEST; /* sip_nat12 */
 
 
+/*
+ * sip_nat20.  Data set #2. No NAT.
+ */
+DP_DECL_TEST_CASE(sip_nat, sip_nat20, dpt_alg_sipd2_setup,
+		  dpt_alg_sipd2_teardown);
+DP_START_TEST(sip_nat20, test)
+{
+	const char *desc, *pload;
+	uint hdr_clen, body_clen;
+	bool forw, rv;
+	uint i;
+
+	assert(ARRAY_SIZE(sipd2) == ARRAY_SIZE(sipd2_dir));
+
+	/*
+	 * Caller to/from Proxy Server
+	 */
+#define SIPD2_PROXY_INDEX 3
+	for (i = 0; i < SIPD2_PROXY_INDEX; i++) {
+		pload = sipd2[i];
+		forw = (sipd2_dir[i] == SIP_FORW);
+		desc = sipd_descr(i, forw, pload);
+
+		/* Check content-length value matches actual content-length */
+		rv = sipd_check_content_length(pload, &hdr_clen,
+					       &body_clen);
+		dp_test_fail_unless(rv, "[%s] hdr=%u, body=%u",
+				    desc, hdr_clen, body_clen);
+
+		if (forw) {
+			dpt_udp_pl("dp1T0", "aa:bb:cc:16:0:20",
+				   "100.101.102.103", 5060, /* pre src */
+				   "200.201.202.205", 5060, /* pre dst */
+				   "100.101.102.103", 5060, /* post src */
+				   "200.201.202.205", 5060, /* post dst */
+				   "aa:bb:cc:18:0:5", "dp2T1",
+				   DP_TEST_FWD_FORWARDED,
+				   pload, strlen(pload),
+				   pload, strlen(pload), desc);
+		} else {
+			dpt_udp_pl("dp2T1", "aa:bb:cc:18:0:5",
+				   "200.201.202.205", 5060, /* pre src */
+				   "100.101.102.103", 5060, /* pre dst */
+				   "200.201.202.205", 5060, /* post src */
+				   "100.101.102.103", 5060, /* post dst */
+				   "aa:bb:cc:16:0:20", "dp1T0",
+				   DP_TEST_FWD_FORWARDED,
+				   pload, strlen(pload),
+				   pload, strlen(pload), desc);
+		}
+	}
+
+	/*
+	 * Caller to/from Callee
+	 */
+	for (i = SIPD2_PROXY_INDEX; i < ARRAY_SIZE(sipd2); i++) {
+		pload = sipd2[i];
+		forw = (sipd2_dir[i] == SIP_FORW);
+		desc = sipd_descr(i, forw, pload);
+
+		/* Check content-length value matches actual content-length */
+		rv = sipd_check_content_length(pload, &hdr_clen,
+					       &body_clen);
+		dp_test_fail_unless(rv, "[%s] hdr=%u, body=%u",
+				    desc, hdr_clen, body_clen);
+
+		if (forw) {
+			dpt_udp_pl("dp1T0", "aa:bb:cc:16:0:20",
+				   "100.101.102.103", 5060, /* pre src */
+				   "200.201.202.203", 5060, /* pre dst */
+				   "100.101.102.103", 5060, /* post src */
+				   "200.201.202.203", 5060, /* post dst */
+				   "aa:bb:cc:18:0:1", "dp2T1",
+				   DP_TEST_FWD_FORWARDED,
+				   pload, strlen(pload),
+				   pload, strlen(pload), desc);
+		} else {
+			dpt_udp_pl("dp2T1", "aa:bb:cc:18:0:1",
+				   "200.201.202.203", 5060, /* pre src */
+				   "100.101.102.103", 5060, /* pre dst */
+				   "200.201.202.203", 5060, /* post src */
+				   "100.101.102.103", 5060, /* post dst */
+				   "aa:bb:cc:16:0:20", "dp1T0",
+				   DP_TEST_FWD_FORWARDED,
+				   pload, strlen(pload),
+				   pload, strlen(pload), desc);
+		}
+	}
+
+} DP_END_TEST; /* sip_nat20 */
+
+
 static void dpt_alg_sipd1_setup(void)
 {
 	/* Setup interfaces and neighbours */
@@ -299,4 +394,37 @@ static void dpt_alg_sipd1_teardown(void)
 
 	dp_test_nl_del_ip_addr_and_connected("dp1T0", "1.1.1.254/24");
 	dp_test_nl_del_ip_addr_and_connected("dp2T1", "22.22.22.254/24");
+}
+
+static void dpt_alg_sipd2_setup(void)
+{
+	/* Setup interfaces and neighbours */
+	dp_test_nl_add_ip_addr_and_connected("dp1T0", "100.101.102.1/24");
+	dp_test_nl_add_ip_addr_and_connected("dp2T1", "200.201.202.1/24");
+
+	dp_test_netlink_add_neigh("dp1T0", "100.101.102.103",
+				  "aa:bb:cc:16:0:20");
+	dp_test_netlink_add_neigh("dp2T1", "200.201.202.203",
+				  "aa:bb:cc:18:0:1");
+
+	/* Proxy server */
+	dp_test_netlink_add_neigh("dp2T1", "200.201.202.205",
+				  "aa:bb:cc:18:0:5");
+}
+
+static void dpt_alg_sipd2_teardown(void)
+{
+	dp_test_npf_cleanup();
+
+	dp_test_netlink_del_neigh("dp1T0", "100.101.102.103",
+				  "aa:bb:cc:16:0:20");
+	dp_test_netlink_del_neigh("dp2T1", "200.201.202.203",
+				  "aa:bb:cc:18:0:1");
+
+	/* Proxy server */
+	dp_test_netlink_del_neigh("dp2T1", "200.201.202.205",
+				  "aa:bb:cc:18:0:5");
+
+	dp_test_nl_del_ip_addr_and_connected("dp1T0", "100.101.102.1/24");
+	dp_test_nl_del_ip_addr_and_connected("dp2T1", "200.201.202.1/24");
 }
