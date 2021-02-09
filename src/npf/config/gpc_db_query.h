@@ -17,10 +17,23 @@ struct gpc_rule;
 
 struct pmf_rule;
 
+/*
+ * When adding new features, check existing static arrays of
+ * GPC_FEAT__MAX elements, initialised based on the feature
+ * index. Also update the GPC_FEAT__LAST definition.
+ */
+#define GPC_FEAT__FIRST 1
 enum gpc_feature {
-	GPC_FEAT_ACL = 1,
+	GPC_FEAT_ACL = GPC_FEAT__FIRST,
 	GPC_FEAT_QOS,
 };
+#define GPC_FEAT__LAST (GPC_FEAT_QOS)
+#define GPC_FEAT__MAX (GPC_FEAT__LAST + 1)
+
+static inline bool gpc_feature_is_valid(enum gpc_feature feat)
+{
+	return (feat >= GPC_FEAT__FIRST && feat <= GPC_FEAT__LAST);
+}
 
 char const *gpc_feature_get_name(enum gpc_feature feat);
 

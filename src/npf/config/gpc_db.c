@@ -87,14 +87,18 @@ static TAILQ_HEAD(, gpc_rlset) att_rlsets
 char const *
 gpc_feature_get_name(enum gpc_feature feat)
 {
+	if (!gpc_feature_is_valid(feat))
+		goto error;
+
 	switch (feat) {
 	case GPC_FEAT_ACL:
 		return "ACL";
 	case GPC_FEAT_QOS:
 		return "QOS";
-	default:
-		return "Error";
 	}
+
+error:
+	return "Error";
 }
 
 /* -- ruleset accessors -- */
