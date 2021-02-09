@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2020-2021, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -71,11 +71,6 @@ struct gpc_group *gpc_group_next(struct gpc_group const *cursor);
 /* -- counter accessors -- */
 
 struct gpc_group *gpc_cntr_get_group(struct gpc_cntr const *ark);
-uintptr_t gpc_cntr_get_objid(struct gpc_cntr const *ark);
-void gpc_cntr_set_objid(struct gpc_cntr *ark, uintptr_t objid);
-char const *gpc_cntr_get_name(struct gpc_cntr const *ark);
-bool gpc_cntr_pkt_enabled(struct gpc_cntr const *ark);
-bool gpc_cntr_byt_enabled(struct gpc_cntr const *ark);
 
 /* -- rule accessors -- */
 

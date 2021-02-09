@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2020-2021, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -10,6 +10,7 @@
 #include "vplane_log.h"
 #include "if_var.h"
 
+#include "npf/config/gpc_cntr_query.h"
 #include "npf/config/gpc_db_control.h"
 #include "npf/config/gpc_db_query.h"
 #include "npf/config/pmf_att_rlgrp.h"
