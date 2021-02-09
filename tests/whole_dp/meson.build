@@ -28,6 +28,7 @@ test_lib_sources = files(
         'src/dp_test_npf_alg_sip_data1.c',
         'src/dp_test_npf_alg_sip_data2.c',
         'src/dp_test_npf_alg_sip_data3.c',
+        'src/dp_test_npf_alg_sip_data4.c',
         'src/dp_test_npf_fw_lib.c',
         'src/dp_test_npf_lib.c',
         'src/dp_test_npf_nat_lib.c',

@@ -47,6 +47,15 @@ extern const char *sipd3_pre_snat[SIPD3_SZ];
 extern const char *sipd3_post_snat[SIPD3_SZ];
 
 
+/*
+ * SIP Data Set #4
+ */
+#define SIPD4_SZ 7
+extern const bool sipd4_dir[SIPD4_SZ];
+extern const char *sipd4_pre_dnat[SIPD4_SZ];
+extern const char *sipd4_post_dnat[SIPD4_SZ];
+
+
 char *sipd_descr(uint index, bool forw, const char *pload);
 bool sipd_check_content_length(const char *pload, uint *hdr_clen,
 			       uint *body_clen);
