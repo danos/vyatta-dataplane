@@ -3,6 +3,9 @@
 use strict;
 use warnings;
 
+use lib '/opt/vyatta/share/perl5';
+use Vyatta::Vplane;
+
 #
 # As per the performance tuning guide from Mellanox, the following parameters
 # need to be set to achieve the best performance from the NIC:
@@ -20,11 +23,16 @@ use warnings;
 # 3. https://community.mellanox.com/s/article/understanding-mlx5-ethtool-counters
 #
 sub mlx_setup {
-    my @mlx_pcis =
-      `lspci | grep Mellanox | grep 'ConnectX-5 Ex' | cut -d ' ' -f 1`;
+    my @mlx_pcis = `lspci -n -d 0x15b3:`;
 
-    foreach my $pci (@mlx_pcis) {
-        $pci =~ s/\n//;
+    foreach my $line (@mlx_pcis) {
+        chop($line);
+        (my $pci, undef, my $vendor_device) = split(' ', $line);
+        (my $vendor, my $device) = split(':', $vendor_device);
+        $vendor = hex($vendor);
+        $device = hex($device);
+
+        next unless is_supported_ib_device($vendor, $device);
 
         my $cur_val = `setpci -s $pci 68.w`;
         $cur_val =~ s/\n//;
