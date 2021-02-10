@@ -19,6 +19,10 @@ ifneq (,$(filter no_lto,$(DEB_BUILD_OPTIONS)))
 	DATAPLANE_LTO="-Db_lto=false"
 endif
 
+ifneq (,$(filter nofused,$(DEB_BUILD_OPTIONS)))
+	DATAPLANE_FUSED="-Dfused_mode=disabled"
+endif
+
 ifneq (,$(filter nocheck,$(DEB_BUILD_PROFILES)))
 	DATAPLANE_WITH_TESTS="-Dwith_tests=disabled"
 endif
@@ -28,6 +32,7 @@ DATAPLANE_CONFIGURE_FLAGS= \
 	$(WHOLE_DP_ALL_TESTS) \
 	$(DATAPLANE_SANITIZER) \
 	$(DATAPLANE_LTO) \
+	$(DATAPLANE_FUSED) \
 	$(DATAPLANE_WITH_TESTS)
 
 # Don't override the optimisation flags as they differ for different
