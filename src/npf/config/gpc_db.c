@@ -658,9 +658,7 @@ gpc_rule_get_owner(struct gpc_rule const *gprl)
 struct gpc_cntr *
 gpc_rule_get_cntr(struct gpc_rule const *gprl)
 {
-	struct pmf_cntr *eark
-		= pmf_arlg_attrl_get_cntr(gprl->gprl_owner);
-	return (struct gpc_cntr *)eark;
+	return gprl->gprl_cntr;
 }
 
 uintptr_t

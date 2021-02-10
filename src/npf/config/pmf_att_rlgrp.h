@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2019,2021, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -25,8 +25,6 @@ int pmf_arlg_cmd_show_counters(FILE *fp, char const *ifname, int dir,
 				char const *rgname);
 int pmf_arlg_cmd_clear_counters(char const *ifname, int dir,
 				char const *rgname);
-
-struct pmf_cntr *pmf_arlg_attrl_get_cntr(struct pmf_attrl *earl);
 
 struct gpc_group *pmf_arlg_cntr_get_grp(struct pmf_cntr const *eark);
 uintptr_t pmf_arlg_cntr_get_objid(struct pmf_cntr const *eark);

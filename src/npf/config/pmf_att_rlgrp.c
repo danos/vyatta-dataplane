@@ -44,7 +44,6 @@ struct pmf_cntr {
 
 struct pmf_attrl {
 	struct gpc_rule		*earl_gprl;	/* strong */
-	struct pmf_cntr		*earl_cntr;
 };
 
 enum pmf_earg_flags {
@@ -67,19 +66,6 @@ static bool deferrals;
 static bool commit_pending;
 
 /* ---- */
-
-struct pmf_cntr *
-pmf_arlg_attrl_get_cntr(struct pmf_attrl *earl)
-{
-	struct pmf_cntr *eark = earl->earl_cntr;
-	if (!eark)
-		return NULL;
-
-	if (!(eark->eark_flags & PMF_EARKF_PUBLISHED))
-		return NULL;
-
-	return eark;
-}
 
 struct gpc_group *
 pmf_arlg_cntr_get_grp(struct pmf_cntr const *eark)
@@ -328,7 +314,7 @@ pmf_arlg_hw_ntfy_cntr_add(struct pmf_group_ext *earg, struct pmf_attrl *earl)
 		eark = pmf_arlg_alloc_numbered_cntr(earg, earl);
 		if (!eark)
 			return;
-		earl->earl_cntr = eark;
+		gpc_rule_set_cntr(earl->earl_gprl, (struct gpc_cntr *)eark);
 	} else if (pmf_arlg_cntr_type_named(earg)) {
 		/* Counter type: auto-per-action: */
 
@@ -344,7 +330,7 @@ pmf_arlg_hw_ntfy_cntr_add(struct pmf_group_ext *earg, struct pmf_attrl *earl)
 		if (!eark)
 			return;
 
-		earl->earl_cntr = eark;
+		gpc_rule_set_cntr(earl->earl_gprl, (struct gpc_cntr *)eark);
 	} else
 		return;
 
@@ -366,11 +352,12 @@ pmf_arlg_hw_ntfy_cntr_del(struct pmf_group_ext *earg, struct pmf_attrl *earl)
 	if (!gpc_group_is_published(earg->earg_gprg))
 		return;
 
-	struct pmf_cntr *eark = earl->earl_cntr;
+	struct gpc_cntr *cntr = gpc_rule_get_cntr(earl->earl_gprl);
+	struct pmf_cntr *eark = (struct pmf_cntr *)cntr;
 	if (!eark)
 		return;
 
-	earl->earl_cntr = NULL;
+	gpc_rule_set_cntr(earl->earl_gprl, NULL);
 
 	if (pmf_arlg_cntr_refcount_dec(eark))
 		return;
