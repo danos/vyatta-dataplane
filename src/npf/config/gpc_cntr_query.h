@@ -75,4 +75,13 @@ struct gpc_cntr *gpc_cntr_next(struct gpc_cntr const *cursor);
 	     (var); \
 	     (var) = gpc_cntr_next((var)))
 
+/* -- old shimmed counter accessors -- */
+
+struct gpc_group *gpc_cntr_old_get_group(struct gpc_cntr const *ark);
+uintptr_t gpc_cntr_old_get_objid(struct gpc_cntr const *cntr);
+void gpc_cntr_old_set_objid(struct gpc_cntr *ark, uintptr_t objid);
+char const *gpc_cntr_old_get_name(struct gpc_cntr const *cntr);
+bool gpc_cntr_old_pkt_enabled(struct gpc_cntr const *cntr);
+bool gpc_cntr_old_byt_enabled(struct gpc_cntr const *cntr);
+
 #endif /* GPC_CNTR_QUERY_H */

@@ -83,10 +83,6 @@ struct gpc_group *gpc_group_next(struct gpc_group const *cursor);
 	    (var); \
 	    (var) = gpc_group_next((var)))
 
-/* -- counter accessors -- */
-
-struct gpc_group *gpc_cntr_get_group(struct gpc_cntr const *ark);
-
 /* -- rule accessors -- */
 
 uint16_t gpc_rule_get_index(struct gpc_rule const *gprl);

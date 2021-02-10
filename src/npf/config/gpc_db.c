@@ -591,44 +591,6 @@ gpc_group_hw_ntfy_rules_delete(struct gpc_group *gprg)
 }
 
 
-/* -- counter accessors -- */
-
-struct gpc_group *
-gpc_cntr_get_group(struct gpc_cntr const *ark)
-{
-	return pmf_arlg_cntr_get_grp((struct pmf_cntr const *)ark);
-}
-
-uintptr_t
-gpc_cntr_get_objid(struct gpc_cntr const *ark)
-{
-	return pmf_arlg_cntr_get_objid((struct pmf_cntr const *)ark);
-}
-
-void
-gpc_cntr_set_objid(struct gpc_cntr *ark, uintptr_t objid)
-{
-	pmf_arlg_cntr_set_objid((struct pmf_cntr *)ark, objid);
-}
-
-char const *
-gpc_cntr_get_name(struct gpc_cntr const *ark)
-{
-	return pmf_arlg_cntr_get_name((struct pmf_cntr const *)ark);
-}
-
-bool
-gpc_cntr_pkt_enabled(struct gpc_cntr const *ark)
-{
-	return pmf_arlg_cntr_pkt_enabled((struct pmf_cntr const *)ark);
-}
-
-bool
-gpc_cntr_byt_enabled(struct gpc_cntr const *ark)
-{
-	return pmf_arlg_cntr_byt_enabled((struct pmf_cntr const *)ark);
-}
-
 /* -- rule accessors -- */
 
 uint16_t
@@ -845,6 +807,7 @@ gpc_rule_create(struct gpc_group *gprg, uint32_t rl_idx, void *owner)
 
 	return gprl;
 }
+
 /* -- rule hardware notify -- */
 
 void

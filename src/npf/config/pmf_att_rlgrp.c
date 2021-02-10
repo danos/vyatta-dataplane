@@ -14,6 +14,7 @@
 #include "vplane_log.h"
 #include "if_var.h"
 
+#include "npf/config/gpc_cntr_query.h"
 #include "npf/config/gpc_db_control.h"
 #include "npf/config/gpc_db_query.h"
 #include "npf/config/pmf_rule.h"
@@ -64,14 +65,17 @@ static bool commit_pending;
 /* ---- */
 
 struct gpc_group *
-pmf_arlg_cntr_get_grp(struct pmf_cntr const *eark)
+gpc_cntr_old_get_group(struct gpc_cntr const *ark)
 {
+	struct pmf_cntr const *eark = (struct pmf_cntr const *)ark;
+
 	return eark->eark_group->earg_gprg;
 }
 
 uintptr_t
-pmf_arlg_cntr_get_objid(struct pmf_cntr const *eark)
+gpc_cntr_old_get_objid(struct gpc_cntr const *ark)
 {
+	struct pmf_cntr const *eark = (struct pmf_cntr const *)ark;
 	if (!eark)
 		return 0;
 
@@ -79,26 +83,34 @@ pmf_arlg_cntr_get_objid(struct pmf_cntr const *eark)
 }
 
 void
-pmf_arlg_cntr_set_objid(struct pmf_cntr *eark, uintptr_t objid)
+gpc_cntr_old_set_objid(struct gpc_cntr *ark, uintptr_t objid)
 {
+	struct pmf_cntr *eark = (struct pmf_cntr *)ark;
+
 	eark->eark_objid = objid;
 }
 
 char const *
-pmf_arlg_cntr_get_name(struct pmf_cntr const *eark)
+gpc_cntr_old_get_name(struct gpc_cntr const *ark)
 {
+	struct pmf_cntr const *eark = (struct pmf_cntr const *)ark;
+
 	return eark->eark_name;
 }
 
 bool
-pmf_arlg_cntr_pkt_enabled(struct pmf_cntr const *eark)
+gpc_cntr_old_pkt_enabled(struct gpc_cntr const *ark)
 {
+	struct pmf_cntr const *eark = (struct pmf_cntr const *)ark;
+
 	return (eark->eark_flags & PMF_EARKF_CNT_PACKET);
 }
 
 bool
-pmf_arlg_cntr_byt_enabled(struct pmf_cntr const *eark)
+gpc_cntr_old_byt_enabled(struct gpc_cntr const *ark)
 {
+	struct pmf_cntr const *eark = (struct pmf_cntr const *)ark;
+
 	return (eark->eark_flags & PMF_EARKF_CNT_BYTE);
 }
 
@@ -338,7 +350,7 @@ pmf_arlg_hw_ntfy_cntr_add(struct pmf_group_ext *earg, struct gpc_rule *gprl)
 	}
 
 	if (!(eark->eark_flags & PMF_EARKF_LL_CREATED))
-		if (pmf_hw_counter_create(eark))
+		if (pmf_hw_counter_create((struct gpc_cntr *)eark))
 			eark->eark_flags |= PMF_EARKF_LL_CREATED;
 }
 
@@ -359,7 +371,7 @@ pmf_arlg_hw_ntfy_cntr_del(struct pmf_group_ext *earg, struct gpc_rule *gprl)
 		return;
 
 	if (eark->eark_flags & PMF_EARKF_LL_CREATED)
-		pmf_hw_counter_delete(eark);
+		pmf_hw_counter_delete((struct gpc_cntr *)eark);
 
 	pmf_arlg_free_cntr(earg, eark);
 }
@@ -1131,7 +1143,8 @@ pmf_arlg_dump(FILE *fp)
 					);
 				uint64_t val_pkt = -1;
 				uint64_t val_byt = -1;
-				pmf_hw_counter_read(eark, &val_pkt, &val_byt);
+				pmf_hw_counter_read((struct gpc_cntr *)eark,
+						    &val_pkt, &val_byt);
 				fprintf(fp, "      %s(%lu/%lx)) %s(%lu/%lx)\n",
 					ct_cnt_packet ? "Pkt" : "-",
 					(unsigned long)val_pkt,
@@ -1184,7 +1197,8 @@ pmf_arlg_show_hw_cntr(json_writer_t *json, struct pmf_cntr *eark)
 
 	uint64_t val_pkt = -1;
 	uint64_t val_byt = -1;
-	bool ok = pmf_hw_counter_read(eark, &val_pkt, &val_byt);
+	bool ok = pmf_hw_counter_read((struct gpc_cntr *)eark,
+				      &val_pkt, &val_byt);
 	if (!ok)
 		return;
 
@@ -1344,7 +1358,8 @@ pmf_arlg_cmd_clear_counters(char const *ifname, int dir, char const *rgname)
 				uint32_t ct_flags = eark->eark_flags;
 				if (!(ct_flags & PMF_EARKF_PUBLISHED))
 					continue;
-				if (!pmf_hw_counter_clear(eark))
+				if (!pmf_hw_counter_clear(
+						(struct gpc_cntr *)eark))
 					rc = -EIO;
 			}
 		}

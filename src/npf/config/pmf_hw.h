@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2019-2021, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -9,7 +9,7 @@
 
 struct gpc_group;
 struct gpc_rule;
-struct pmf_cntr;
+struct gpc_cntr;
 struct pmf_rule;
 struct ifnet;
 
@@ -23,9 +23,9 @@ bool pmf_hw_group_create(struct gpc_group *gprg);
 void pmf_hw_group_mod(struct gpc_group *gprg, uint32_t new);
 void pmf_hw_group_delete(struct gpc_group *gprg);
 
-bool pmf_hw_counter_create(struct pmf_cntr *eark);
-void pmf_hw_counter_delete(struct pmf_cntr *eark);
-bool pmf_hw_counter_clear(struct pmf_cntr const *eark);
-bool pmf_hw_counter_read(struct pmf_cntr const *eark,
+bool pmf_hw_counter_create(struct gpc_cntr *gprk);
+void pmf_hw_counter_delete(struct gpc_cntr *gprk);
+bool pmf_hw_counter_clear(struct gpc_cntr const *gprk);
+bool pmf_hw_counter_read(struct gpc_cntr const *gprk,
 			 uint64_t *pkts, uint64_t *bytes);
 void pmf_hw_commit(void);
