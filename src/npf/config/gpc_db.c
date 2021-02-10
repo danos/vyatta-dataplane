@@ -52,6 +52,7 @@ struct gpc_group {
 	TAILQ_HEAD(gpc_rlqh, gpc_rule) gprg_rules;
 	void			*gprg_owner;	/* weak */
 	struct gpc_rlset	*gprg_rlset;
+	struct gpc_cntg		*gprg_cntg;	/* strong */
 	enum gpc_feature	gprg_feature;
 	char const		*gprg_rgname;	/* weak */
 	uintptr_t		gprg_objid;	/* FAL object */
@@ -71,6 +72,7 @@ struct gpc_rule {
 	TAILQ_ENTRY(gpc_rule)	gprl_list;
 	void			*gprl_owner;	/* weak */
 	struct gpc_group	*gprl_group;
+	struct gpc_cntr		*gprl_cntr;	/* strong */
 	struct pmf_rule		*gprl_rule;
 	uintptr_t		gprl_objid;	/* FAL object */
 	uint16_t		gprl_index;
@@ -298,6 +300,12 @@ gpc_group_get_objid(struct gpc_group const *gprg)
 	return gprg->gprg_objid;
 }
 
+struct gpc_cntg *
+gpc_group_get_cntg(struct gpc_group const *gprg)
+{
+	return gprg->gprg_cntg;
+}
+
 /* -- group manipulators -- */
 
 void
@@ -385,6 +393,12 @@ gpc_group_set_objid(struct gpc_group *gprg, uintptr_t objid)
 	gprg->gprg_objid = objid;
 }
 
+void
+gpc_group_set_cntg(struct gpc_group *gprg, struct gpc_cntg *cntg)
+{
+	gprg->gprg_cntg = cntg;
+}
+
 /* -- group DB misc -- */
 
 /*
@@ -444,6 +458,7 @@ gpc_group_create(struct gpc_rlset *gprs, enum gpc_feature feat,
 
 	gprg->gprg_owner = owner;
 	gprg->gprg_rlset = gprs;
+	gprg->gprg_cntg = NULL;
 	gprg->gprg_feature = feat;
 	gprg->gprg_rgname = rg_name;
 	TAILQ_INIT(&gprg->gprg_rules);
@@ -641,7 +656,7 @@ gpc_rule_get_owner(struct gpc_rule const *gprl)
 }
 
 struct gpc_cntr *
-gpc_rule_get_cntr(struct gpc_rule *gprl)
+gpc_rule_get_cntr(struct gpc_rule const *gprl)
 {
 	struct pmf_cntr *eark
 		= pmf_arlg_attrl_get_cntr(gprl->gprl_owner);
@@ -696,6 +711,12 @@ void
 gpc_rule_set_objid(struct gpc_rule *gprl, uintptr_t objid)
 {
 	gprl->gprl_objid = objid;
+}
+
+void
+gpc_rule_set_cntr(struct gpc_rule *gprl, struct gpc_cntr *cntr)
+{
+	gprl->gprl_cntr = cntr;
 }
 
 /* -- rule DB walk -- */

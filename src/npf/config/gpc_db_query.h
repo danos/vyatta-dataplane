@@ -12,8 +12,9 @@
 
 struct gpc_rlset;
 struct gpc_group;
-struct gpc_cntr;
+struct gpc_cntg;
 struct gpc_rule;
+struct gpc_cntr;
 
 struct pmf_rule;
 
@@ -67,6 +68,7 @@ bool gpc_group_is_ll_created(struct gpc_group const *gprg);
 bool gpc_group_is_attached(struct gpc_group const *gprg);
 bool gpc_group_is_ll_attached(struct gpc_group const *gprg);
 bool gpc_group_is_deferred(struct gpc_group const *gprg);
+struct gpc_cntg *gpc_group_get_cntg(struct gpc_group const *gprg);
 uintptr_t gpc_group_get_objid(struct gpc_group const *gprg);
 
 void gpc_group_set_objid(struct gpc_group *gprg, uintptr_t objid);
@@ -91,7 +93,7 @@ uint16_t gpc_rule_get_index(struct gpc_rule const *gprl);
 struct pmf_rule *gpc_rule_get_rule(struct gpc_rule const *gprl);
 struct gpc_group *gpc_rule_get_group(struct gpc_rule const *gprl);
 void *gpc_rule_get_owner(struct gpc_rule const *gprl);
-struct gpc_cntr *gpc_rule_get_cntr(struct gpc_rule *gprl);
+struct gpc_cntr *gpc_rule_get_cntr(struct gpc_rule const *gprl);
 uintptr_t gpc_rule_get_objid(struct gpc_rule const *gprl);
 void gpc_rule_set_objid(struct gpc_rule *gprl, uintptr_t objid);
 bool gpc_rule_is_published(struct gpc_rule const *gprl);
