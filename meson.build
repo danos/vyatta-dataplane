@@ -18,6 +18,7 @@ configure_file(
         configuration : {
                 'PACKAGE_VERSION' : '"' + meson.project_version() + '"',
                 'HAVE_SYSTEMD' : get_option('use_systemd').enabled(),
+                'FUSED_MODE' : get_option('fused_mode').enabled(),
                 'VYATTA_SYSCONF_DIR' : '"' + get_option('prefix') / get_option('sysconfdir') / 'vyatta' + '"',
                 'VYATTA_DATA_DIR' : '"' + get_option('prefix') / get_option('datadir') / 'vyatta' + '"',
                 'PKGLIB_DIR' : '"' + get_option('prefix') / get_option('libdir') / meson.project_name() + '"'

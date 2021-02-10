@@ -1,3 +1,4 @@
 option('all_tests', type : 'boolean', value : 'false')
 option('with_tests', type : 'feature', value : 'enabled')
 option('use_systemd', type : 'feature', value : 'enabled')
+option('fused_mode', type : 'feature', value : 'enabled')

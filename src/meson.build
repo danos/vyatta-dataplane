@@ -341,7 +341,6 @@ executable(
         override_options: [
                 'b_ndebug=true'
         ],
-        c_args: ['-DFUSED_MODE'],
         dependencies: dataplane_deps,
         include_directories: [public_include, internal_inc],
         link_with: [jsonw_library],

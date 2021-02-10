@@ -181,7 +181,6 @@ dataplane_test = executable(
         ],
         c_args: [
                 dataplane_test_full_run,
-                '-DFUSED_MODE',
                 '-U_FILE_OFFSET_BITS', # dp_test_stubs_linux.c does not like this
                 cc.get_supported_arguments([
                         '-Wno-unused-parameter',
