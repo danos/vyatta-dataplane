@@ -42,10 +42,6 @@ struct pmf_cntr {
 	uint16_t		eark_refcount;
 };
 
-struct pmf_attrl {
-	struct gpc_rule		*earl_gprl;	/* strong */
-};
-
 enum pmf_earg_flags {
 	PMF_EARGF_RULE_ATTR	= (1 << 0),
 };
@@ -238,15 +234,15 @@ pmf_arlg_get_or_alloc_cntr(struct pmf_group_ext *earg, const char *name)
 }
 
 static struct pmf_cntr *
-pmf_arlg_alloc_numbered_cntr(struct pmf_group_ext *earg, struct pmf_attrl *earl)
+pmf_arlg_alloc_numbered_cntr(struct pmf_group_ext *earg, struct gpc_rule *gprl)
 {
 	char eark_name[CNTR_NAME_LEN];
 	struct pmf_cntr *eark;
 
-	if (!earg || !earl)
+	if (!earg || !gprl)
 		return NULL;
 
-	uint32_t rule_index = gpc_rule_get_index(earl->earl_gprl);
+	uint32_t rule_index = gpc_rule_get_index(gprl);
 	snprintf(eark_name, sizeof(eark_name), "%u", rule_index);
 	if (pmf_arlg_find_cntr(earg, eark_name)) {
 		RTE_LOG(ERR, FIREWALL,
@@ -297,12 +293,12 @@ pmf_arlg_get_or_alloc_action_cntr_drop(struct pmf_group_ext *earg)
 /* ---- */
 
 void
-pmf_arlg_hw_ntfy_cntr_add(struct pmf_group_ext *earg, struct pmf_attrl *earl)
+pmf_arlg_hw_ntfy_cntr_add(struct pmf_group_ext *earg, struct gpc_rule *gprl)
 {
 	if (!gpc_group_is_published(earg->earg_gprg))
 		return;
 
-	struct pmf_rule *rule = gpc_rule_get_rule(earl->earl_gprl);
+	struct pmf_rule *rule = gpc_rule_get_rule(gprl);
 
 	if (!(rule->pp_summary & PMF_RAS_COUNT_REF))
 		return;
@@ -311,10 +307,10 @@ pmf_arlg_hw_ntfy_cntr_add(struct pmf_group_ext *earg, struct pmf_attrl *earl)
 
 	if (pmf_arlg_cntr_type_numbered(earg)) {
 		/* Counter type: auto-per-rule: */
-		eark = pmf_arlg_alloc_numbered_cntr(earg, earl);
+		eark = pmf_arlg_alloc_numbered_cntr(earg, gprl);
 		if (!eark)
 			return;
-		gpc_rule_set_cntr(earl->earl_gprl, (struct gpc_cntr *)eark);
+		gpc_rule_set_cntr(gprl, (struct gpc_cntr *)eark);
 	} else if (pmf_arlg_cntr_type_named(earg)) {
 		/* Counter type: auto-per-action: */
 
@@ -330,7 +326,7 @@ pmf_arlg_hw_ntfy_cntr_add(struct pmf_group_ext *earg, struct pmf_attrl *earl)
 		if (!eark)
 			return;
 
-		gpc_rule_set_cntr(earl->earl_gprl, (struct gpc_cntr *)eark);
+		gpc_rule_set_cntr(gprl, (struct gpc_cntr *)eark);
 	} else
 		return;
 
@@ -347,17 +343,17 @@ pmf_arlg_hw_ntfy_cntr_add(struct pmf_group_ext *earg, struct pmf_attrl *earl)
 }
 
 void
-pmf_arlg_hw_ntfy_cntr_del(struct pmf_group_ext *earg, struct pmf_attrl *earl)
+pmf_arlg_hw_ntfy_cntr_del(struct pmf_group_ext *earg, struct gpc_rule *gprl)
 {
 	if (!gpc_group_is_published(earg->earg_gprg))
 		return;
 
-	struct gpc_cntr *cntr = gpc_rule_get_cntr(earl->earl_gprl);
+	struct gpc_cntr *cntr = gpc_rule_get_cntr(gprl);
 	struct pmf_cntr *eark = (struct pmf_cntr *)cntr;
 	if (!eark)
 		return;
 
-	gpc_rule_set_cntr(earl->earl_gprl, NULL);
+	gpc_rule_set_cntr(gprl, NULL);
 
 	if (pmf_arlg_cntr_refcount_dec(eark))
 		return;
@@ -500,14 +496,11 @@ rule_del_error:
 	}
 
 	uint32_t old_summary = gpc_group_get_summary(gprg);
-	struct pmf_attrl *earl = gpc_rule_get_owner(gprl);
 
 	--earg->earg_num_rules;
 
 	gpc_rule_hw_ntfy_delete(gprg, gprl);
 	gpc_rule_delete(gprl);
-
-	free(earl);
 
 	/* If any were published, recalculate and notify */
 	if (old_summary) {
@@ -589,9 +582,10 @@ pmf_arlg_rl_add(struct pmf_group_ext *earg,
 		return true;
 	}
 
-	struct pmf_attrl *earl = calloc(1, sizeof(*earl));
-	if (!earl) {
-rule_add_error:
+	++earg->earg_num_rules;
+
+	struct gpc_rule *gprl = gpc_rule_create(gprg, rl_idx, NULL);
+	if (!gprl) {
 		RTE_LOG(ERR, FIREWALL,
 			"Error: OOM for ACL attached group rule"
 			" %s/%s|%s:%u\n",
@@ -599,16 +593,6 @@ rule_add_error:
 			gpc_group_get_name(gprg), rl_idx);
 		return false;
 	}
-
-	++earg->earg_num_rules;
-
-	struct gpc_rule *gprl = gpc_rule_create(gprg, rl_idx, earl);
-	if (!gprl) {
-		free(earl);
-		goto rule_add_error;
-	}
-
-	earl->earl_gprl = gprl;
 
 	gpc_rule_change_rule(gprl, rule);
 
@@ -806,12 +790,8 @@ pmf_arlg_attpt_grp_ev_handler(enum npf_attpt_ev_type event,
 		while (!!(cursor = gpc_rule_last(gprg))) {
 			--earg->earg_num_rules;
 
-			struct pmf_attrl *earl = gpc_rule_get_owner(cursor);
-
 			/* gpc_rule_hw_ntfy_delete(gprg, cursor); is a NO-OP */
 			gpc_rule_delete(cursor);
-
-			free(earl);
 		}
 
 		/* Sanity before freeing */

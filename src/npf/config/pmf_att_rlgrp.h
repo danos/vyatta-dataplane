@@ -13,7 +13,6 @@
 struct pmf_rlset_ext;
 struct pmf_group_ext;
 struct pmf_cntr;
-struct pmf_attrl;
 struct pmf_rule;
 
 struct gpc_group;
@@ -35,9 +34,10 @@ bool pmf_arlg_cntr_byt_enabled(struct pmf_cntr const *eark);
 
 /* temporary visibility */
 
+struct gpc_rule;
 void pmf_arlg_hw_ntfy_cntr_add(struct pmf_group_ext *earg,
-				struct pmf_attrl *earl);
+			       struct gpc_rule *gprl);
 void pmf_arlg_hw_ntfy_cntr_del(struct pmf_group_ext *earg,
-				struct pmf_attrl *earl);
+			       struct gpc_rule *gprl);
 
 #endif /* PMF_ATT_RLGRP_H */
