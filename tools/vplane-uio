@@ -49,13 +49,6 @@ sub vmbus_match {
     return $class eq "{$VMBUS_NETWORK_DEVICE}";
 }
 
-# how to identify network device in xen
-sub xen_match {
-    my $id = shift;
-
-    return $id =~ /^vif-\d+$/;
-}
-
 sub ib_match {
     my ( $id, $path ) = @_;
     my $vendor = hex( read_value("$path/vendor") );
@@ -289,11 +282,6 @@ my @buses = (
         driver => 'uio_hv_generic',
         type   => 'vmbus',
         match  => \&vmbus_match,
-    },
-    {
-        driver => 'xen_uio',
-        type   => 'xen',
-        match  => \&xen_match,
     },
     {
         driver => 'net_mlx',
