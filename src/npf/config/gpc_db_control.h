@@ -68,5 +68,7 @@ void gpc_rule_hw_ntfy_modify(struct gpc_group *gprg, struct gpc_rule *gprl,
 				struct pmf_rule *old_rule);
 void gpc_rule_hw_ntfy_delete(struct gpc_group *gprg, struct gpc_rule *gprl);
 
+/* Temporary */
+void gpc_rule_hack_owner(struct gpc_rule *gprl, void *owner);
 
 #endif /* GPC_DB_CONTROL_H */

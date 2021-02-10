@@ -322,7 +322,7 @@ pmf_arlg_hw_ntfy_cntr_add(struct pmf_group_ext *earg, struct gpc_rule *gprl)
 		eark = pmf_arlg_alloc_numbered_cntr(earg, gprl);
 		if (!eark)
 			return;
-		gpc_rule_set_cntr(gprl, (struct gpc_cntr *)eark);
+		gpc_rule_hack_owner(gprl, eark);
 	} else if (pmf_arlg_cntr_type_named(earg)) {
 		/* Counter type: auto-per-action: */
 
@@ -338,7 +338,7 @@ pmf_arlg_hw_ntfy_cntr_add(struct pmf_group_ext *earg, struct gpc_rule *gprl)
 		if (!eark)
 			return;
 
-		gpc_rule_set_cntr(gprl, (struct gpc_cntr *)eark);
+		gpc_rule_hack_owner(gprl, eark);
 	} else
 		return;
 
@@ -360,12 +360,11 @@ pmf_arlg_hw_ntfy_cntr_del(struct pmf_group_ext *earg, struct gpc_rule *gprl)
 	if (!gpc_group_is_published(earg->earg_gprg))
 		return;
 
-	struct gpc_cntr *cntr = gpc_rule_get_cntr(gprl);
-	struct pmf_cntr *eark = (struct pmf_cntr *)cntr;
+	struct pmf_cntr *eark = gpc_rule_get_owner(gprl);
 	if (!eark)
 		return;
 
-	gpc_rule_set_cntr(gprl, NULL);
+	gpc_rule_hack_owner(gprl, NULL);
 
 	if (pmf_arlg_cntr_refcount_dec(eark))
 		return;

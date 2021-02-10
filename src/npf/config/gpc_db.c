@@ -679,6 +679,12 @@ gpc_rule_set_cntr(struct gpc_rule *gprl, struct gpc_cntr *cntr)
 	gprl->gprl_cntr = cntr;
 }
 
+void
+gpc_rule_hack_owner(struct gpc_rule *gprl, void *owner)
+{
+	gprl->gprl_owner = owner;
+}
+
 /* -- rule DB walk -- */
 
 struct gpc_rule *
