@@ -218,7 +218,44 @@ gpc_cntr_get_cntg(struct gpc_cntr const *cntr)
 	return cntr->cntr_cntg;
 }
 
+char const *
+gpc_cntr_get_name(struct gpc_cntr const *cntr)
+{
+	return cntr->cntr_name;
+}
+
+bool
+gpc_cntr_pkt_enabled(struct gpc_cntr const *cntr)
+{
+	enum gpc_cntr_what what = gpc_cntg_what(cntr->cntr_cntg);
+
+	return (what & GPC_CNTW_PACKET);
+}
+
+bool
+gpc_cntr_byt_enabled(struct gpc_cntr const *cntr)
+{
+	enum gpc_cntr_what what = gpc_cntg_what(cntr->cntr_cntg);
+
+	return (what & GPC_CNTW_L3BYTE);
+}
+
+uintptr_t
+gpc_cntr_get_objid(struct gpc_cntr const *cntr)
+{
+	if (!cntr)
+		return 0;
+
+	return cntr->cntr_objid;
+}
+
 /* -- counter manipulators -- */
+
+void
+gpc_cntr_set_objid(struct gpc_cntr *cntr, uintptr_t objid)
+{
+	cntr->cntr_objid = objid;
+}
 
 /* -- counter DB walk -- */
 
