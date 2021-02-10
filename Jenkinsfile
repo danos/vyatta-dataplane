@@ -174,7 +174,7 @@ EOF
                                 tool: clangTidy(pattern: "${env.BUILD_ROOT_RELATIVE}/usr/src/packages/BUILD/builddir/clang-tidy.log"),
                                 sourceDirectory: 'vyatta-dataplane',
                                 referenceJobName: "DANOS/vyatta-dataplane/${env.REF_BRANCH}",
-                                qualityGates: [[type: 'NEW', threshold: 1, unstable: true]]
+                                qualityGates: [[type: 'NEW', threshold: 1]]
                 }
             }
         }
