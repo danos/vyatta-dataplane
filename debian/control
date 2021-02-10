@@ -50,6 +50,7 @@ Depends: adduser,
          rte-acl-rebuild-support,
          vyatta-cpu-shield (>> 0.2.6),
          vyatta-platform-util,
+         libvyatta-vplane,
          ${misc:Depends},
          ${perl:Depends},
          ${shlibs:Depends}
@@ -227,6 +228,13 @@ Depends: ${misc:Depends}, ${shlibs:Depends}
 Multi-Arch: same
 Description: Provides C++ language bindings for the dataplane API.
  C++ bindings for the dataplane API.
+
+Package: libvyatta-vplane
+Architecture: any
+Depends: ${misc:Depends}, ${perl:Depends}, ${shlibs:Depends}
+Multi-Arch: same
+Description: Provides Vyatta Vplane.pm modules
+ Perl modules that supports system initialization for the dataplane.
 
 Package: libvyatta-dataplane-proto-dev
 Section: non-free/libdevel
