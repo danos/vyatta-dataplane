@@ -15,6 +15,7 @@
 #include "if_var.h"
 
 #include "npf/config/gpc_cntr_query.h"
+#include "npf/config/gpc_cntr_control.h"
 #include "npf/config/gpc_db_control.h"
 #include "npf/config/gpc_db_query.h"
 #include "npf/config/pmf_rule.h"
@@ -380,6 +381,48 @@ pmf_arlg_hw_ntfy_cntr_del(struct pmf_group_ext *earg, struct gpc_rule *gprl)
 
 /* ---- */
 
+static bool
+pmf_arlg_rule_needs_cntr(struct gpc_cntg const *cntg,
+			 struct pmf_rule const *rule)
+{
+	enum gpc_cntr_type type = gpc_cntg_type(cntg);
+
+	switch (type) {
+	case GPC_CNTT_NUMBERED:
+		return true;
+	case GPC_CNTT_NAMED:
+		break;
+	default:
+		return false;
+	}
+
+	if (!(rule->pp_summary & PMF_RAS_COUNT_REF))
+		return false;
+
+	return true;
+}
+
+static struct gpc_cntr *
+pmf_arlg_rule_get_cntr(struct gpc_cntg *cntg,
+		       struct pmf_rule const *rule,
+		       uint32_t rl_number)
+{
+	enum gpc_cntr_type type = gpc_cntg_type(cntg);
+	struct gpc_cntr *cntr = NULL;
+
+	if (type == GPC_CNTT_NUMBERED)
+		cntr = gpc_cntr_create_numbered(cntg, rl_number);
+	else if (type == GPC_CNTT_NAMED) {
+		/* This needs to be done better */
+		if (rule->pp_summary & PMF_RAS_PASS)
+			cntr = gpc_cntr_find_and_retain(cntg, "accept");
+		else if (rule->pp_summary & PMF_RAS_DROP)
+			cntr = gpc_cntr_find_and_retain(cntg, "drop");
+	}
+
+	return cntr;
+}
+
 /* ---- */
 
 /*
@@ -511,7 +554,13 @@ rule_del_error:
 	--earg->earg_num_rules;
 
 	gpc_rule_hw_ntfy_delete(gprg, gprl);
+
+	struct gpc_cntr *cntr = gpc_rule_get_cntr(gprl);
+
 	gpc_rule_delete(gprl);
+
+	if (cntr)
+		gpc_cntr_release(cntr);
 
 	/* If any were published, recalculate and notify */
 	if (old_summary) {
@@ -552,6 +601,49 @@ rule_chg_error:
 		return false;
 	}
 
+	/* Adjust a counter if necessary */
+	struct gpc_cntg *cntg = gpc_group_get_cntg(gprg);
+	struct gpc_cntr *rel_cntr = NULL;
+
+	/* If the group has counters configured */
+	if (cntg) {
+		struct gpc_cntr *cntr = gpc_rule_get_cntr(gprl);
+		bool need_counter = pmf_arlg_rule_needs_cntr(cntg, new_rule);
+		if (!need_counter) {
+			/* This rule should release its counter (if any) */
+			rel_cntr = cntr;
+		} else if (!cntr) {
+			/* Need a counter, but don't have one - acquire one */
+			cntr = pmf_arlg_rule_get_cntr(cntg, new_rule, rl_idx);
+			gpc_rule_set_cntr(gprl, cntr);
+		} else {
+			/* Counter needed, and/or rule match have changed */
+			if (gpc_cntg_type(cntg) == GPC_CNTT_NAMED) {
+				struct gpc_cntr *new_cntr
+					= pmf_arlg_rule_get_cntr(cntg,
+								 new_rule, 0);
+				if (new_cntr == cntr) {
+					gpc_cntr_release(new_cntr);
+					/* Do we need to clear the counter? */
+				} else {
+					gpc_rule_set_cntr(gprl, new_cntr);
+					rel_cntr = cntr;
+				}
+			}
+			/*
+			 * The below call to gpc_rule_change_rule() will
+			 * eventually publish the rule if unpublished,
+			 * or delete it and add a new one (which we desire
+			 * here) if already published.
+			 *
+			 * This is necessary as at the FAL layer, a rule
+			 * references a counter, so changing the counter
+			 * requires changing the rule; and we don't have
+			 * support for in-place modify.
+			 */
+		}
+	}
+
 	/* If any were published, update and notify */
 	uint32_t old_summary = gpc_group_get_summary(gprg);
 
@@ -563,6 +655,10 @@ rule_chg_error:
 		uint32_t summary = gpc_group_recalc_summary(gprg, attr_rule);
 		gpc_group_hw_ntfy_modify(gprg, summary);
 	}
+
+	/* Release a counter, possibly freeing it */
+	if (rel_cntr)
+		gpc_cntr_release(rel_cntr);
 
 	return true;
 }
@@ -595,6 +691,13 @@ pmf_arlg_rl_add(struct pmf_group_ext *earg,
 
 	++earg->earg_num_rules;
 
+	/* Find a counter if necessary */
+	struct gpc_cntr *cntr = NULL;
+	struct gpc_cntg *cntg = gpc_group_get_cntg(gprg);
+	if (cntg && pmf_arlg_rule_needs_cntr(cntg, rule))
+		cntr = pmf_arlg_rule_get_cntr(cntg, rule, rl_idx);
+
+	/* Create the GPC rule, or fail and clean up */
 	struct gpc_rule *gprl = gpc_rule_create(gprg, rl_idx, NULL);
 	if (!gprl) {
 		RTE_LOG(ERR, FIREWALL,
@@ -602,8 +705,12 @@ pmf_arlg_rl_add(struct pmf_group_ext *earg,
 			" %s/%s|%s:%u\n",
 			(dir_in) ? " In" : "Out", gpc_rlset_get_ifname(gprs),
 			gpc_group_get_name(gprg), rl_idx);
+		if (cntr)
+			gpc_cntr_release(cntr);
 		return false;
 	}
+
+	gpc_rule_set_cntr(gprl, cntr);
 
 	gpc_rule_change_rule(gprl, rule);
 
@@ -801,8 +908,23 @@ pmf_arlg_attpt_grp_ev_handler(enum npf_attpt_ev_type event,
 		while (!!(cursor = gpc_rule_last(gprg))) {
 			--earg->earg_num_rules;
 
+			struct gpc_cntr *cntr = gpc_rule_get_cntr(cursor);
 			/* gpc_rule_hw_ntfy_delete(gprg, cursor); is a NO-OP */
 			gpc_rule_delete(cursor);
+			if (cntr)
+				gpc_cntr_release(cntr);
+		}
+
+		/* Deallocate remaining counters */
+		struct gpc_cntg *cntg = gpc_group_get_cntg(gprg);
+		if (cntg) {
+			if (gpc_cntg_type(cntg) == GPC_CNTT_NAMED) {
+				struct gpc_cntr *cntr;
+				while (!!(cntr = gpc_cntr_last(cntg)))
+					gpc_cntr_release(cntr);
+			}
+			gpc_cntg_release(cntg);
+			gpc_group_set_cntg(gprg, NULL);
 		}
 
 		/* Sanity before freeing */
