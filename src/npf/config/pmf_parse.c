@@ -230,17 +230,17 @@ static const struct pkp_key match_keys[] = {
 static struct pkp_key action_keys[] = {
 	/* Actions */
 	{"action",		PKP_ACT_FATE,		0, pkp_fate},
-	{"stateful",		PKP_ACT_STATEFUL,	0, pkp_stateful},
 	{"qos-colour",		PKP_ACT_QOS_COLOUR,	0, pkp_qos_colour},
 	{"qos-desig",		PKP_ACT_QOS_DESIG,	0, pkp_qos_desig},
-	{"nat-type",		PKP_ACT_NAT_TYPE,	0, pkp_nat_type},
-	{"nat-pinhole",		PKP_ACT_NAT_PINHOLE,	0, pkp_nat_pinhole},
+	{"stateful",		PKP_ACT_STATEFUL,	0, pkp_stateful},
 	{"nat-exclude",		PKP_ACT_NAT_EXCLUDE,	0, pkp_nat_exclude},
+	{"nat-pinhole",		PKP_ACT_NAT_PINHOLE,	0, pkp_nat_pinhole},
+	{"nat-type",		PKP_ACT_NAT_TYPE,	0, pkp_nat_type},
+	{"trans-addr",		PKP_ACT_NAT_ADDR,	0, pkp_nat_arange},
+	{"trans-addr-group",	PKP_ACT_NAT_ADDR_GROUP,	0, pkp_nat_addr_grp},
 	{"trans-addr-masquerade", PKP_ACT_NAT_MASQ,	0, pkp_nat_masq},
 	{"trans-port",		PKP_ACT_NAT_PORT,	0, pkp_nat_port},
 	{"trans-port-alloc",	PKP_ACT_NAT_PORT_ALLOC,	0, pkp_nat_port_alloc},
-	{"trans-addr-group",	PKP_ACT_NAT_ADDR_GROUP,	0, pkp_nat_addr_grp},
-	{"trans-addr",		PKP_ACT_NAT_ADDR,	0, pkp_nat_arange},
 };
 static const struct pkp_key rproc_keys[] = {
 	{"match",		PKP_RP_MATCH,		0, pkp_rproc},
