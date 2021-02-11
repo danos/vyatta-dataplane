@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: LGPL-2.1-only
-# Copyright (c) 2020, AT&T Intellectual Property. All rights reserved.
+# Copyright (c) 2020-2021, AT&T Intellectual Property. All rights reserved.
 
 project('vyatta-dataplane', ['c', 'cpp'],
         version: run_command('dpkg-parsechangelog', '-S', 'Version', check : true).stdout().strip(),
@@ -63,9 +63,9 @@ pcap_dep = cc.find_library('libpcap', required: true)
 protobuf_dep = dependency('protobuf')
 proto_c_dep = dependency('libprotobuf-c', version: '>= 1.0.0')
 rte_bus_vdev_dep = cc.find_library('rte_bus_vdev', required : true)
-rte_pmd_bond_dep = cc.find_library('rte_pmd_bond', required : true)
-rte_pmd_ring_dep = cc.find_library('rte_pmd_ring', required: get_option('with_tests'))
-rte_pmd_vhost_dep = cc.find_library('rte_pmd_vhost', required : true)
+rte_net_bond_dep = cc.find_library('rte_net_bond', required : true)
+rte_net_ring_dep = cc.find_library('rte_net_ring', required: get_option('with_tests'))
+rte_net_vhost_dep = cc.find_library('rte_net_vhost', required : true)
 swport_dep = dependency('vyatta-dpdk-swport', version: '>= 0.1.3')
 systemd_dep = dependency('libsystemd', required: get_option('use_systemd'))
 threads_dep = dependency('threads')

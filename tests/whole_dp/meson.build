@@ -167,7 +167,7 @@ dataplane_test = executable(
                 check_dep,
                 dataplane_deps,
                 json_dep,
-                rte_pmd_ring_dep,
+                rte_net_ring_dep,
         ],
         include_directories: [
                 public_include,
