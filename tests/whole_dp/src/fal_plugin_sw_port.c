@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2020, AT&T Intellectual Property.
+ * Copyright (c) 2018-2021, AT&T Intellectual Property.
  * All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
@@ -74,10 +74,11 @@ eth_dev_start(struct rte_eth_dev *dev)
 	return 0;
 }
 
-static void
+static int
 eth_dev_stop(struct rte_eth_dev *dev)
 {
 	eth_dev_set_link_down(dev);
+	return 0;
 }
 
 static int
