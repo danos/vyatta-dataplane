@@ -24,21 +24,31 @@
 /* Same as PL_DLL_LOC */
 const char *pl_path = PKGLIB_DIR"/pipeline/plugins";
 
+static bool starts_with(const char *needle, const char *haystack)
+{
+	if (!needle || !haystack)
+		return false;
+
+	if (strlen(needle) > strlen(haystack))
+		return false;
+
+	return !memcmp(needle, haystack, strlen(needle));
+}
+
 static bool path_needs_redirected(const char *path)
 {
-	if (!path)
-		return 0;
-	size_t pathlen = strlen(path);
 	bool match = false;
 
-	match = !memcmp(path, "/run", MIN(pathlen, strlen("/run")));
+	if (starts_with("/run", path))
+		match = true;
 
 	if (!from_external)
 		/*
 		 * Don't redirect paths if running in external mode as these
 		 * need to be picked up from where the dev package put them
 		 */
-		match |= !memcmp(path, pl_path, MIN(pathlen, strlen(pl_path)));
+		if (starts_with(pl_path, path))
+			match = true;
 
 	return match;
 }
