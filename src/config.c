@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2020, AT&T Intellectual Property. All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property. All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  *
@@ -122,7 +122,7 @@ static void parse_exclude(char *list)
 		if (get_eth_pci_addr(ifname, addr_str, sizeof(addr_str)))
 			continue;
 
-		if (rte_devargs_add(RTE_DEVTYPE_BLACKLISTED_PCI,
+		if (rte_devargs_add(RTE_DEVTYPE_BLOCKED,
 					addr_str) < 0)
 			/* can't use rte_log yet, EAL not started */
 			fprintf(stderr,

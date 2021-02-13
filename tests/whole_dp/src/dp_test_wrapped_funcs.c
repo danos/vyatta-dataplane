@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2015-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -76,7 +76,7 @@ struct rte_mempool *__wrap_rte_pktmbuf_pool_create(
 				  sizeof(struct rte_pktmbuf_pool_private),
 				  rte_pktmbuf_pool_init, &mbp_priv,
 				  rte_pktmbuf_init, NULL,
-				  socket_id, MEMPOOL_F_NO_PHYS_CONTIG);
+				  socket_id, MEMPOOL_F_NO_IOVA_CONTIG);
 }
 
 struct rte_mempool *__wrap_rte_mempool_create(
@@ -90,7 +90,7 @@ struct rte_mempool *__wrap_rte_mempool_create(
 					 private_data_size, mp_init,
 					 mp_init_arg, obj_init, obj_init_arg,
 					 socket_id,
-					 flags | MEMPOOL_F_NO_PHYS_CONTIG);
+					 flags | MEMPOOL_F_NO_IOVA_CONTIG);
 }
 
 int __wrap_rte_eal_init(int argc, char **argv)
