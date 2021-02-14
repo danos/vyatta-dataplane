@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2019-2021, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2015-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -9,6 +9,7 @@
 #include <czmq.h>
 #include <errno.h>
 #include <linux/capability.h>
+#define ALLOW_INTERNAL_API /* so we can use use rte_eth_dev_allocated() */
 #include <rte_debug.h>
 #include <rte_ethdev.h>
 #include <rte_ethdev_driver.h>
