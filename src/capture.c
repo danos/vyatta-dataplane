@@ -22,6 +22,7 @@
 #include <rte_log.h>
 #include <rte_malloc.h>
 #include <rte_mbuf.h>
+#include <rte_mbuf_dyn.h>
 #include <rte_ring.h>
 #include <stdbool.h>
 #include <stdlib.h>
@@ -67,6 +68,14 @@ static zsock_t *capture_sock_console;
 static pthread_mutex_t capture_sock_lock = PTHREAD_MUTEX_INITIALIZER;
 
 typedef int (*fal_func_t)(void *arg);
+
+static const struct rte_mbuf_dynfield capture_ts = {
+	.name = "dp_capture_ts",
+	.size = sizeof(uint64_t),
+	.align = __alignof__(uint64_t),
+	.flags = 0,
+};
+static int capture_ts_offset;
 
 static int capture_main_send(fal_func_t func, void *arg);
 
@@ -336,12 +345,12 @@ static int64_t capture_usec_from_tod_base(uint64_t ts, uint64_t base,
 /* Read timestamp from packet and convert it to system time of day format */
 static void capture_get_timestamp(struct rte_mbuf *m, struct timeval *tv)
 {
-	uint64_t ts = m->udata64;
+	uint64_t ts = *RTE_MBUF_DYNFIELD(m, capture_ts_offset, uint64_t *);
 	int64_t us;
 	uint64_t base;
 	uint64_t hz;
 
-	m->udata64 = 0;
+	*RTE_MBUF_DYNFIELD(m, capture_ts_offset, uint64_t *) = 0;
 
 	/* protect against resync happening in another thread */
 	rte_spinlock_lock(&capture_time_lock);
@@ -393,7 +402,7 @@ static int capture_mbuf_copy(struct rte_mbuf *mbi[], struct rte_mbuf *mbo[],
 		if (!m)
 			goto nomem;
 
-		m->udata64 = ts;
+		*RTE_MBUF_DYNFIELD(m, capture_ts_offset, uint64_t *) = ts;
 		mbo[i] = m;
 	}
 	return 0;
@@ -427,7 +436,8 @@ static int capture_enqueue(struct capture_info *cap_info,
  */
 void capture_hardware(const struct ifnet *ifp, struct rte_mbuf *mbuf)
 {
-	mbuf->udata64 = rte_get_timer_cycles();
+	*RTE_MBUF_DYNFIELD(mbuf, capture_ts_offset, uint64_t *) =
+							rte_get_timer_cycles();
 
 	if (unlikely(!ifp->hw_capturing) ||
 	    (unlikely(capture_enqueue(ifp->cap_info, &mbuf, 1) == 0)))
@@ -1182,6 +1192,10 @@ void capture_destroy(void)
 void capture_init(uint16_t mbuf_sz)
 {
 	unsigned int nbufs;
+
+	capture_ts_offset = rte_mbuf_dynfield_register(&capture_ts);
+	if (capture_ts_offset == -1)
+		rte_panic("can not initialize capture timestamps dynfield\n");
 
 	nbufs = CAPTURE_MAX_PORTS * CAPTURE_RING_SZ + CAP_PKT_BURST;
 	nbufs = rte_align32pow2(nbufs) - 1;
