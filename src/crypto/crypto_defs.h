@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2020-2021, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -32,5 +32,10 @@ enum {
 	 */
 	IPSEC_3DES_IV_SIZE = sizeof(uint64_t),
 };
+
+/* These values are known to be invalid. */
+#define RTE_CRYPTO_AUTH_LIST_END INT_MAX
+#define RTE_CRYPTO_CIPHER_LIST_END INT_MAX
+#define RTE_CRYPTO_AEAD_LIST_END INT_MAX
 
 #endif

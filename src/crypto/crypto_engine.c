@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2015-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -53,11 +53,6 @@
 	DP_DEBUG(CRYPTO, INFO, ENGINE, args)
 
 typedef EVP_MD * (*evp_md_fn_t)(void);
-
-struct md_algo_table {
-	const char *name;
-	evp_md_fn_t fn;
-};
 
 const char *eng_cmd_str[] = {"ENG_CIPHER_INIT |", "ENG_DIGEST_INIT |",
 			     "ENG_CIPHER_BLOCK |", "ENG_DIGEST_BLOCK |",
@@ -596,27 +591,34 @@ static int setup_cipher_type(struct crypto_session *ctx)
 
 static int setup_md_type(struct crypto_session *ctx)
 {
-	static evp_md_fn_t evp_fns[RTE_CRYPTO_AUTH_LIST_END] = {
-		[RTE_CRYPTO_AUTH_NULL]        = (evp_md_fn_t)EVP_md_null,
-		[RTE_CRYPTO_AUTH_SHA1_HMAC]   = (evp_md_fn_t)EVP_sha1,
-		[RTE_CRYPTO_AUTH_SHA256_HMAC] = (evp_md_fn_t)EVP_sha256,
-		[RTE_CRYPTO_AUTH_SHA384_HMAC] =	(evp_md_fn_t)EVP_sha384,
-		[RTE_CRYPTO_AUTH_SHA512_HMAC] =	(evp_md_fn_t)EVP_sha512,
-		[RTE_CRYPTO_AUTH_MD5_HMAC]    = (evp_md_fn_t)EVP_md5,
-	};
+	evp_md_fn_t evp_fn;
 
-	if (ctx->auth_algo == RTE_CRYPTO_AUTH_LIST_END) {
-		RTE_LOG(ERR, DATAPLANE, "Invalid digest algorithm\n");
-		return -EINVAL;
-	}
-
-	if (!evp_fns[ctx->auth_algo]) {
+	switch (ctx->auth_algo) {
+	case RTE_CRYPTO_AUTH_NULL:
+		evp_fn = (evp_md_fn_t) EVP_md_null;
+		break;
+	case RTE_CRYPTO_AUTH_SHA1_HMAC:
+		evp_fn = (evp_md_fn_t) EVP_sha1;
+		break;
+	case RTE_CRYPTO_AUTH_SHA256_HMAC:
+		evp_fn = (evp_md_fn_t) EVP_sha256;
+		break;
+	case RTE_CRYPTO_AUTH_SHA384_HMAC:
+		evp_fn = (evp_md_fn_t) EVP_sha384;
+		break;
+	case RTE_CRYPTO_AUTH_SHA512_HMAC:
+		evp_fn = (evp_md_fn_t) EVP_sha512;
+		break;
+	case RTE_CRYPTO_AUTH_MD5_HMAC:
+		evp_fn = (evp_md_fn_t) EVP_md5;
+		break;
+	default:
 		RTE_LOG(ERR, DATAPLANE, "Unsupported digest algo %s\n",
 			rte_crypto_auth_algorithm_strings[ctx->auth_algo]);
 		return -EOPNOTSUPP;
 	}
 
-	ctx->o_info->md = evp_fns[ctx->auth_algo]();
+	ctx->o_info->md = (evp_fn)();
 	if (!ctx->o_info->md) {
 		RTE_LOG(ERR, DATAPLANE,
 			"Could not set up openssl context for %s\n",
