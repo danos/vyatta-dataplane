@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2019-2021, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  *
@@ -12,6 +12,7 @@
 #include <rte_malloc.h>
 #include <rte_pci.h>
 #include <rte_bus_pci.h>
+#include <rte_ethdev_driver.h>
 
 #include "dpdk_eth_if.h"
 #include "dpdk_eth_linkwatch.h"
