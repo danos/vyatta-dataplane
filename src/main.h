@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2011-2017 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -112,6 +112,7 @@ void crypto_unassign_from_engine(int lcore);
 void register_forwarding_cores(void);
 int reconfigure_queues(portid_t portid, uint16_t nb_rx_queues,
 		       uint16_t nb_tx_queues);
+void pktmbuf_init(void);
 
 /* Rate states */
 struct rate_stats {

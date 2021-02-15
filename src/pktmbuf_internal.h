@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2017-2020, AT&T Intellectual Property. All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property. All rights reserved.
  * Copyright (c) 2011-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -24,6 +24,7 @@
 #include <rte_config.h>
 #include <rte_memcpy.h>
 #include <rte_mbuf.h>
+#include <rte_mbuf_dyn.h>
 #include <rte_port.h>
 
 #include "compat.h"
@@ -153,78 +154,84 @@ pktmbuf_mdata(const struct rte_mbuf *m)
 		RTE_MBUF_METADATA_UINT8_PTR(m, sizeof(struct rte_mbuf));
 }
 
+#define PKT_VRF_OFFSET 92
+#define PKT_MDATA_OFFSET 96
+#define PKT_MDATA_INVAR_OFFSET 98
+
 static inline void
 pktmbuf_mdata_invar_set(struct rte_mbuf *m,
 			enum pkt_mdata_invar_type pkt_meta_flags)
 {
-	/* userdata repurposed as flags + vrf field */
-	m->udata64 |= (pkt_meta_flags & UINT16_MAX) << 16;
+	*RTE_MBUF_DYNFIELD(m,
+			   PKT_MDATA_INVAR_OFFSET,
+			   uint16_t *) |= pkt_meta_flags;
 }
 
-/*
- * 2nd mbuf cache line check, to see if there is mdata in the 3rd cache line
- */
 static inline bool
 pktmbuf_mdata_invar_exists(const struct rte_mbuf *m,
 			   enum pkt_mdata_invar_type pkt_meta_flags)
 {
-	return m->udata64 & ((pkt_meta_flags & UINT16_MAX) << 16);
+	return *RTE_MBUF_DYNFIELD(m,
+				  PKT_MDATA_INVAR_OFFSET,
+				  uint16_t *) & pkt_meta_flags;
 }
 
 static inline void
 pktmbuf_mdata_invar_clear(struct rte_mbuf *m,
 			  enum pkt_mdata_invar_type pkt_meta_flags)
 {
-	m->udata64 &= ~((uint64_t)((pkt_meta_flags & UINT16_MAX) << 16));
+	*RTE_MBUF_DYNFIELD(m,
+			   PKT_MDATA_INVAR_OFFSET,
+			   uint16_t *) &= ~pkt_meta_flags;
 }
 
 static inline void
 pktmbuf_mdata_set(struct rte_mbuf *m, enum pkt_mdata_type pkt_meta_flags)
 {
-	/* userdata repurposed as flags + vrf field */
-	m->udata64 |= (pkt_meta_flags & UINT16_MAX);
+	*RTE_MBUF_DYNFIELD(m, PKT_MDATA_OFFSET, uint16_t *) |= pkt_meta_flags;
 }
 
-/*
- * 2nd mbuf cache line check, to see if there is mdata in the 3rd cache line
- */
 static inline bool
 pktmbuf_mdata_exists(const struct rte_mbuf *m,
 		     enum pkt_mdata_type pkt_meta_flags)
 {
-	return m->udata64 & (pkt_meta_flags & UINT16_MAX);
+	return *RTE_MBUF_DYNFIELD(m,
+				  PKT_MDATA_OFFSET,
+				  uint16_t *) & pkt_meta_flags;
 }
 
 static inline void
 pktmbuf_mdata_clear(struct rte_mbuf *m, enum pkt_mdata_type pkt_meta_flags)
 {
-	m->udata64 &= ~((uint64_t)(pkt_meta_flags & UINT16_MAX));
+	*RTE_MBUF_DYNFIELD(m,
+			   PKT_MDATA_OFFSET,
+			   uint16_t *) &= ~pkt_meta_flags;
 }
 
 static inline void
 pktmbuf_mdata_clear_all(struct rte_mbuf *m)
 {
-	m->udata64 = 0;
+	/* Do this in a single write for performance. */
+	*RTE_MBUF_DYNFIELD(m, PKT_VRF_OFFSET, uint64_t *) = 0;
 }
 
 /* clear all variant flags */
 static inline void
 pktmbuf_mdata_clear_variant(struct rte_mbuf *m)
 {
-	m->udata64 &= ~UINT16_MAX;
+	*RTE_MBUF_DYNFIELD(m, PKT_MDATA_OFFSET, uint16_t *) = 0;
 }
 
 static inline void
 pktmbuf_set_vrf(struct rte_mbuf *m, vrfid_t vrf_id)
 {
-	m->udata64 &= UINT32_MAX;
-	m->udata64 |= ((uint64_t)(vrf_id) << 32);
+	*RTE_MBUF_DYNFIELD(m, PKT_VRF_OFFSET, uint32_t *) = vrf_id;
 }
 
 static inline vrfid_t
 pktmbuf_get_vrf(const struct rte_mbuf *m)
 {
-	return (uint32_t)(m->udata64 >> 32);
+	return *RTE_MBUF_DYNFIELD(m, PKT_VRF_OFFSET, uint32_t *);
 }
 
 /**

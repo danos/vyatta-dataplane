@@ -22,6 +22,10 @@
 #include "netinet6/ip6_funcs.h"
 #include "pktmbuf_internal.h"
 
+int pkt_mdata_offset;
+int pkt_mdata_invar_offset;
+int pkt_vrf_offset;
+
 struct rte_mempool;
 
 void pktmbuf_free_bulk(struct rte_mbuf *pkts[], unsigned int n)
@@ -98,11 +102,9 @@ dp_pktmbuf_mdata_invar_ptr_set(struct rte_mbuf *m,
 {
 	struct pktmbuf_mdata *mdata = pktmbuf_mdata(m);
 
-	/* userdata repurposed as flags + vrf field */
 	mdata->md_feature_ptrs[feature_id] = ptr;
-	m->udata64 |=
-		((PKT_MDATA_INVAR_FEATURE_PTRS << feature_id) & UINT16_MAX)
-		<< 16;
+	pktmbuf_mdata_invar_set(m,
+				PKT_MDATA_INVAR_FEATURE_PTRS << feature_id);
 }
 
 ALWAYS_INLINE bool
@@ -112,9 +114,8 @@ dp_pktmbuf_mdata_invar_ptr_get(const struct rte_mbuf *m,
 {
 	assert(feature_id < DP_PKTMBUF_MAX_INVAR_FEATURE_PTRS);
 
-	if (m->udata64 &
-	    (((PKT_MDATA_INVAR_FEATURE_PTRS << feature_id) & UINT16_MAX)
-	     << 16)) {
+	if (pktmbuf_mdata_invar_exists(m,
+				PKT_MDATA_INVAR_FEATURE_PTRS << feature_id)) {
 		struct pktmbuf_mdata *mdata = pktmbuf_mdata(m);
 
 		*ptr = mdata->md_feature_ptrs[feature_id];
@@ -127,9 +128,8 @@ ALWAYS_INLINE void
 dp_pktmbuf_mdata_invar_ptr_clear(struct rte_mbuf *m,
 				 uint32_t feature_id)
 {
-	m->udata64 &= ~((uint64_t)
-			(((PKT_MDATA_INVAR_FEATURE_PTRS << feature_id) &
-			  UINT16_MAX) << 16));
+	pktmbuf_mdata_invar_clear(m,
+				  PKT_MDATA_INVAR_FEATURE_PTRS << feature_id);
 }
 
 void pktmbuf_move_mdata(struct rte_mbuf *md, struct rte_mbuf *ms)
@@ -563,4 +563,47 @@ int dp_pktmbuf_mdata_invar_feature_unregister(const char *name, int slot)
 		name, slot);
 
 	return 0;
+}
+
+static const struct rte_mbuf_dynfield pkt_mdata = {
+	.name = "dp_pkt_mdata",
+	.size = sizeof(uint16_t),
+	.align = __alignof__(uint16_t),
+	.flags = 0,
+};
+
+static const struct rte_mbuf_dynfield pkt_mdata_invar = {
+	.name = "dp_pkt_mdata_invar",
+	.size = sizeof(uint16_t),
+	.align = __alignof__(uint16_t),
+	.flags = 0,
+};
+
+static const struct rte_mbuf_dynfield pkt_vrf = {
+	.name = "dp_pkt_vrf",
+	.size = sizeof(uint32_t),
+	.align = __alignof__(uint32_t),
+	.flags = 0,
+};
+
+void pktmbuf_init(void)
+{
+	int pkt_mdata_invar_offset;
+	int pkt_mdata_offset;
+	int pkt_vrf_offset;
+
+	pkt_vrf_offset = rte_mbuf_dynfield_register(&pkt_vrf);
+	if (pkt_vrf_offset == -1)
+		rte_panic("cannot initialize packet vrf dynfield\n");
+	assert(pkt_vrf_offset == PKT_VRF_OFFSET);
+
+	pkt_mdata_offset = rte_mbuf_dynfield_register(&pkt_mdata);
+	if (pkt_mdata_offset == -1)
+		rte_panic("cannot initialize packet metadata dynfield\n");
+	assert(pkt_mdata_offset == PKT_MDATA_OFFSET);
+
+	pkt_mdata_invar_offset = rte_mbuf_dynfield_register(&pkt_mdata_invar);
+	if (pkt_mdata_invar_offset == -1)
+		rte_panic("cannot initialize packet invar metadata dynfield\n");
+	assert(pkt_mdata_invar_offset == PKT_MDATA_INVAR_OFFSET);
 }

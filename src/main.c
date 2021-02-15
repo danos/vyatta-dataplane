@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2011-2017 by Brocade Communications Systems, Inc.
  * All rights reserved.
  */
@@ -3645,6 +3645,7 @@ main(int argc, char **argv)
 
 	inet_netlink_init();
 
+	pktmbuf_init();
 	capture_init(max_mbuf_sz);
 	bitmask_zero(&crypto_active_cpus);
 	bitmask_zero(&crypto_cpus);
