@@ -13,7 +13,7 @@ Build-Depends: meson,
                libbsd-dev,
                libcap-dev,
                libczmq-dev,
-               libdpdk-dev (>= 19.11.4-0vyatta16),
+               libdpdk-dev (>= 20.11-2vyatta4),
                libgoogle-protocolbuffers-perl,
                libinih-dev,
                libjson-c-dev <!nocheck>,
@@ -114,7 +114,7 @@ Package: vyatta-dataplane-dev
 Section: non-free/devel
 Architecture: any
 Depends: check,
-         libdpdk-dev (>= 19.11.4-0vyatta16),
+       libdpdk-dev (>= 20.11-2vyatta4),
          libjson-c-dev,
          libvyattafal-dev,
          libvyatta-dataplane-proto-dev,
@@ -158,7 +158,7 @@ Description: Vyatta dataplane sample plugin library
 Package: libvyattafal-dev
 Section: non-free/libdevel
 Architecture: any
-Depends: libdpdk-dev (>= 19.11.4-0vyatta16), ${misc:Depends}
+Depends: libdpdk-dev (>= 20.11-2vyatta4), ${misc:Depends}
 Provides: fal-dev-acl,
           fal-dev-backplane,
           fal-dev-bfd-hw,
