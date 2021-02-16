@@ -38,6 +38,7 @@
 #include "in_cksum.h"
 #include "lcore_sched.h"
 #include "pktmbuf_internal.h"
+#include "rcu.h"
 #include "util.h"
 #include "vplane_debug.h"
 #include "vplane_log.h"

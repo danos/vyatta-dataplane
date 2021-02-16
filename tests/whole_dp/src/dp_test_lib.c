@@ -31,6 +31,7 @@
 #include "ip_forward.h"
 #include "ip_funcs.h"
 #include "in_cksum.h"
+#include "rcu.h"
 #include "vplane_debug.h"
 #include "crypto/crypto_main.h"
 #include "power.h"

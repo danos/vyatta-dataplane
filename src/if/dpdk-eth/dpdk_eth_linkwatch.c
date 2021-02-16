@@ -41,7 +41,7 @@
 #include "l2_rx_fltr.h"
 #include "lag.h"
 #include "main.h"
-#include "urcu.h"
+#include "rcu.h"
 #include "vhost.h"
 #include "vplane_debug.h"
 #include "vplane_log.h"

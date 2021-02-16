@@ -62,10 +62,10 @@
 #include "pktmbuf_internal.h"
 #include "pl_common.h"
 #include "pl_fused.h"
+#include "rcu.h"
 #include "route.h"
 #include "route_v6.h"
 #include "shadow.h"
-#include "urcu.h"
 #include "vplane_log.h"
 
 /* Get a port number for spathintf out of range of physical ports */
