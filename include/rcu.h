@@ -1,0 +1,31 @@
+/*
+ * Copyright (c) 2017-2021, AT&T Intellectual Property. All rights reserved.
+ *
+ * SPDX-License-Identifier: LGPL-2.1-only
+ *
+ */
+#ifndef VYATTA_DATAPLANE_RCU_H
+#define VYATTA_DATAPLANE_RCU_H
+
+/*
+ * The dataplane uses the QSBR flavour of userspace rcu
+ * and DPDk's RCU QSBR implementation.
+ */
+
+/*
+ * Register a thread for rcu. This is used when it is not known if a thread
+ * is already rcu registered. If the thread is already registered then this
+ * call will make the thread rcu_online.  If it is not registered then it
+ * will register it, and part of registration is to make the thread
+ * rcu_online.
+ */
+void dp_rcu_register_thread(void);
+
+/*
+ * Unregister a thread from rcu and track that it is no longer registered
+ * so that further calls to dp_rcu_register_thread() will then re-register
+ * it.
+ */
+void dp_rcu_unregister_thread(void);
+
+#endif /* VYATTA_DATAPLANE_RCU_H */
