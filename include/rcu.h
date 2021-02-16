@@ -1,5 +1,7 @@
 /*
  * Copyright (c) 2017-2021, AT&T Intellectual Property. All rights reserved.
+ * Copyright (c) 2011-2017 by Brocade Communications Systems, Inc.
+ * All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  *
@@ -7,10 +9,29 @@
 #ifndef VYATTA_DATAPLANE_RCU_H
 #define VYATTA_DATAPLANE_RCU_H
 
+#include <rte_rcu_qsbr.h>
+
+#include "urcu.h"
+
 /*
  * The dataplane uses the QSBR flavour of userspace rcu
  * and DPDk's RCU QSBR implementation.
  */
+
+/* dataplane global DPDK RCU QSBR variable */
+extern struct rte_rcu_qsbr *dp_qsbr_rcu_v;
+
+/*
+ * Allocate global DPDK RCU QSBR variable.
+ * Should be called only once by the main function/thread.
+ */
+int dp_rcu_qsbr_setup(void);
+
+/*
+ * Un-/Register thread for DPDK QSBR RCU usage.
+ */
+void dp_rcu_qsbr_register_thread(unsigned int lcore_id);
+void dp_rcu_qsbr_unregister_thread(unsigned int lcore_id);
 
 /*
  * Register a thread for rcu. This is used when it is not known if a thread
@@ -27,5 +48,48 @@ void dp_rcu_register_thread(void);
  * it.
  */
 void dp_rcu_unregister_thread(void);
+
+/*
+ * Get the dataplane global DPDK RCU QSBR variable.
+ *
+ * Use this method to make use of DPDK of rte_rcu_qsbr
+ * aware APIs.
+ */
+struct rte_rcu_qsbr *dp_rcu_qsbr_get(void);
+
+/*
+ * Mark long periods of the thread/lcore_id as inactive.
+ *
+ * Reader threads should call this  prior the call blocking
+ * methods/APIs.
+ */
+static __rte_always_inline void
+dp_rcu_thread_offline(unsigned int lcore_id)
+{
+	rcu_thread_offline();
+	rte_rcu_qsbr_thread_offline(dp_qsbr_rcu_v, lcore_id);
+}
+
+/*
+ * Mark long periods of the thread/lcore_id as active again.
+ * This should be called as counter operation to dp_rcu_thread_offline.
+ */
+static __rte_always_inline void
+dp_rcu_thread_online(unsigned int lcore_id)
+{
+	rcu_thread_online();
+	rte_rcu_qsbr_thread_online(dp_qsbr_rcu_v, lcore_id);
+}
+
+/*
+ * Update the quiescent state for the reader threads.
+ * All reader threads must call this periodically.
+ */
+static __rte_always_inline void
+dp_rcu_quiescent_state(unsigned int lcore_id)
+{
+	rcu_quiescent_state();
+	rte_rcu_qsbr_quiescent(dp_qsbr_rcu_v, lcore_id);
+}
 
 #endif /* VYATTA_DATAPLANE_RCU_H */

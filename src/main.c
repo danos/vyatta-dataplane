@@ -82,7 +82,6 @@
 #include <rte_mempool.h>
 #include <rte_per_lcore.h>
 #include <rte_prefetch.h>
-#include <rte_rcu_qsbr.h>
 #include <rte_ring.h>
 #include <rte_timer.h>
 #include <rte_version.h>
@@ -258,9 +257,6 @@ struct lcore_conf {
 } __rte_cache_aligned;
 
 static struct lcore_conf *lcore_conf[RTE_MAX_LCORE];
-
-/* DPDK's RCU QSBR variable */
-struct rte_rcu_qsbr *dp_qsbr_rcu_v;
 
 /* Is the rx/tx queue reusable.
  * Must be > maximum portid (RTE_MAX_ETHPORTS)
@@ -1011,75 +1007,6 @@ static void process_crypto(struct lcore_conf *conf)
 
 	cpq->packets += pkts;
 	pm_update(&cpq->gov, pkts);
-}
-
-static __thread int rcu_qsbr_registered;
-
-static
-int dp_rcu_qsbr_setup(void)
-{
-	size_t sz;
-
-	if (dp_qsbr_rcu_v)
-		return 0;
-
-	/* Allocate global QSBR RCU variable */
-	sz = rte_rcu_qsbr_get_memsize(RTE_MAX_LCORE);
-	dp_qsbr_rcu_v = rte_zmalloc(NULL, sz, RTE_CACHE_LINE_SIZE);
-	if (!dp_qsbr_rcu_v) {
-		RTE_LOG(ERR, DATAPLANE,
-			"Could not allocate DPDK QSBR RCU variable\n");
-		return -ENOMEM;
-	}
-
-	if (rte_rcu_qsbr_init(dp_qsbr_rcu_v, RTE_MAX_LCORE)) {
-		RTE_LOG(ERR, DATAPLANE,
-			"Failed to initialize DPDK QSBR RCU variable\n");
-		return -rte_errno;
-	}
-
-	return 0;
-}
-
-struct rte_rcu_qsbr *dp_rcu_qsbr_get(void)
-{
-	return dp_qsbr_rcu_v;
-}
-
-static
-void dp_rcu_qsbr_register_thread(unsigned int lcore_id)
-{
-	if (rcu_qsbr_registered++ == 0) {
-		/*
-		 * Register to RCU QSBR variable
-		 */
-
-		rte_rcu_qsbr_thread_register(dp_qsbr_rcu_v, lcore_id);
-		rte_rcu_qsbr_thread_online(dp_qsbr_rcu_v, lcore_id);
-	}
-}
-
-static
-void dp_rcu_qsbr_unregister_thread(unsigned int lcore_id)
-{
-	if (--rcu_qsbr_registered == 0) {
-		/*
-		 * Unregister from RCU QSBR variable
-		 */
-
-		rte_rcu_qsbr_thread_offline(dp_qsbr_rcu_v, lcore_id);
-		rte_rcu_qsbr_thread_unregister(dp_qsbr_rcu_v, lcore_id);
-	}
-}
-
-static inline void
-dp_rcu_quiescent_state(unsigned int lcore_id)
-{
-	/*urcu */
-	rcu_quiescent_state();
-
-	/* DPDK's QSBR RCU */
-	rte_rcu_qsbr_quiescent(dp_qsbr_rcu_v, lcore_id);
 }
 
 /* main processing loop */
@@ -4283,18 +4210,4 @@ int dp_unallocate_lcore_from_feature(unsigned int lcore)
 		return -EINVAL;
 	}
 	return 0;
-}
-
-static __thread int rcu_registered;
-
-void dp_rcu_register_thread(void)
-{
-	if (rcu_registered++ == 0)
-		rcu_register_thread();
-}
-
-void dp_rcu_unregister_thread(void)
-{
-	if (--rcu_registered == 0)
-		rcu_unregister_thread();
 }

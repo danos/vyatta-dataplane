@@ -141,6 +141,7 @@ core_sources = files(
         'qos_hw.c',
         'qos_hw_show.c',
         'qos_obj_db.c',
+        'rcu.c',
         'route.c',
         'route_broker.c',
         'rt_commands.c',
