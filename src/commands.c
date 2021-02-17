@@ -1954,7 +1954,7 @@ static int send_console_cmd(cmd_func_t fn, int argc, char **argv, bool async)
 		flags |= CONSOLE_CMD_ASYNC;
 
 	rcu_read_unlock();
-	rcu_thread_offline();
+	dp_rcu_thread_offline();
 
 	if (unsplit(line, MAX_CMDLINE, argc, argv) == NULL) {
 		RTE_LOG(ERR, DATAPLANE,
@@ -1980,7 +1980,7 @@ static int send_console_cmd(cmd_func_t fn, int argc, char **argv, bool async)
 	else
 		rv = cmd_response;
 out:
-	rcu_thread_online();
+	dp_rcu_thread_online();
 	rcu_read_lock();
 
 	return rv;
@@ -2044,7 +2044,7 @@ console_request(zloop_t *loop __rte_unused, zsock_t *sock,
 			"console msg receive failed: %s\n", strerror(errno));
 		return -1;
 	}
-	rcu_thread_online();
+	dp_rcu_thread_online();
 
 	char *outbuf = NULL;
 	size_t outsize = 0;
@@ -2063,7 +2063,7 @@ console_request(zloop_t *loop __rte_unused, zsock_t *sock,
 
 		zmsg_destroy(&msg);
 		rcu_read_unlock();
-		rcu_thread_offline();
+		dp_rcu_thread_offline();
 		zstr_free(&line);
 
 		return rc;
@@ -2073,7 +2073,7 @@ console_request(zloop_t *loop __rte_unused, zsock_t *sock,
 
 	rcu_read_unlock();
 
-	rcu_thread_offline();
+	dp_rcu_thread_offline();
 
 	zstr_free(&line);
 
@@ -2213,7 +2213,7 @@ console_handler(zsock_t *pipe, void *arg __rte_unused)
 	zstr_send(pipe, NULL);
 
 	dp_rcu_register_thread();
-	rcu_thread_offline();
+	dp_rcu_thread_offline();
 	while (!zsys_interrupted) {
 		if (zloop_start(loop) != 0)
 			break;	/* error detected */

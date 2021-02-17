@@ -1072,9 +1072,9 @@ forwarding_loop(unsigned int lcore_id)
 			usleep(us);
 			break;
 		case LCORE_STATE_IDLE:
-			rcu_thread_offline();
+			dp_rcu_thread_offline();
 			sleep(LCORE_IDLE_SLEEP_SECS);
-			rcu_thread_online();
+			dp_rcu_thread_online();
 			break;
 		}
 	} while (likely(state != LCORE_STATE_EXIT));
@@ -2454,10 +2454,10 @@ static int main_worker_event_handler(zloop_t *loop  __unused,
 				strerror(errno));
 				return -1;
 		}
-		rcu_thread_online();
+		dp_rcu_thread_online();
 		/* Call vhost event handler */
 		vhost_event_handler();
-		rcu_thread_offline();
+		dp_rcu_thread_offline();
 	}
 	return 0;
 }
@@ -2496,7 +2496,7 @@ static void *main_worker_thread_fn(void *args)
 	int ev_count = ARRAY_SIZE(event_poll);
 
 	dp_rcu_register_thread();
-	rcu_thread_offline();
+	dp_rcu_thread_offline();
 	while (!zsys_interrupted) {
 		if (zmq_poll(event_poll, ev_count, -1) < 0) {
 			if (errno == EINTR)

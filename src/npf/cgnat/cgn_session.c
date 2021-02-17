@@ -2914,17 +2914,17 @@ int cgn_helper_thread_func(unsigned int core_num, void *arg __unused)
 	CMM_STORE_SHARED(cgn_helper_thread_enabled, 1);
 
 	dp_rcu_register_thread();
-	rcu_thread_offline();
+	dp_rcu_thread_offline();
 
 	while (CMM_LOAD_SHARED(running) &&
 	       CMM_LOAD_SHARED(cgn_helper_thread_enabled)) {
-		rcu_thread_online();
+		dp_rcu_thread_online();
 		rcu_read_lock();
 
 		cgn_sleep_interval = cgn_log_sessions();
 
 		rcu_read_unlock();
-		rcu_thread_offline();
+		dp_rcu_thread_offline();
 		DP_DEBUG(CGNAT, DEBUG, CGNAT, "On core %u, thread %lu, "
 			 "enabled %d, interval %u\n", core_num,
 			 cgn_helper_pthread, cgn_helper_thread_enabled,

@@ -316,9 +316,9 @@ int cmd_hotplug(FILE *f, int argc, char **argv)
 		return -1;
 	}
 
-	rcu_thread_offline();
+	dp_rcu_thread_offline();
 	rc = send_device_event(argv[2], insert);
-	rcu_thread_online();
+	dp_rcu_thread_online();
 
 	return rc;
 }

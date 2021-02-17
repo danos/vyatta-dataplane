@@ -356,9 +356,9 @@ static int cmd_vhost_disable(char *ifname, bool on_main)
 	if (on_main) {
 		rc = detach_device(devargs_p);
 	} else {
-		rcu_thread_offline();
+		dp_rcu_thread_offline();
 		rc = send_device_event(devargs_p, false);
-		rcu_thread_online();
+		dp_rcu_thread_online();
 	}
 
 	free(devargs_p);
@@ -432,9 +432,9 @@ static int cmd_vhost_enable(char *ifname, char *queues, char *path, char *alias,
 	if (on_main) {
 		rc = attach_device(devargs_p);
 	} else {
-		rcu_thread_offline();
+		dp_rcu_thread_offline();
 		rc = send_device_event(devargs_p, true);
-		rcu_thread_online();
+		dp_rcu_thread_online();
 	}
 
 	/* vhost interfaces are created synchronously */

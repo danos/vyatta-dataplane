@@ -219,7 +219,7 @@ static void linkwatch_change_mark_state(portid_t port_id,
 		dp_rt_signal_path_state(linkscan_source, state, &key);
 	}
 
-	rcu_thread_offline();
+	dp_rcu_thread_offline();
 }
 
 static enum dp_rt_path_state
