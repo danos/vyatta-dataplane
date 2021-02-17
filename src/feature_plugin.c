@@ -178,7 +178,7 @@ void feature_unload_plugins(void)
 					"Cleaned up feature plug-in: %s\n",
 					pl_handle->lib_name);
 		}
-		rcu_barrier();
+		dp_rcu_barrier();
 		dlclose(pl_handle->handle);
 		call_rcu(&pl_handle->rcu_head, feature_plugin_free);
 	}

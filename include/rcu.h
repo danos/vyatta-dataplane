@@ -97,4 +97,13 @@ dp_rcu_quiescent_state(unsigned int lcore_id)
 	rte_rcu_qsbr_quiescent(dp_qsbr_rcu_v, lcore_id);
 }
 
+/*
+ * Wait for all outstanding RCU callbacks to complete.
+ */
+static __rte_always_inline void
+dp_rcu_barrier(void)
+{
+	rcu_barrier();
+}
+
 #endif /* VYATTA_DATAPLANE_RCU_H */

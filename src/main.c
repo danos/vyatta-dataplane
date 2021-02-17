@@ -3702,7 +3702,7 @@ main(int argc, char **argv)
 	main_worker_thread_cleanup();
 
 	/* wait for all RCU handlers */
-	rcu_barrier();
+	dp_rcu_barrier();
 	rcu_defer_unregister_thread();
 	dp_rcu_unregister_thread();
 
