@@ -3621,6 +3621,9 @@ main(int argc, char **argv)
 	lcore_init();
 	link_state_init();
 
+	if (dp_rcu_setup())
+		rte_panic("Setting up dataplane RCU environment failed\n");
+
 	init_port_configurations(0, nb_ports_total);
 	if (nb_ports)
 		max_mbuf_sz = mbuf_pool_init();
@@ -3671,10 +3674,6 @@ main(int argc, char **argv)
 	if (pthread_setname_np(rcu_thread, "dataplane/rcu"))
 		DP_DEBUG(INIT, INFO, DATAPLANE,
 			"naming of rcu thread failed\n");
-
-	/* Setup DPDK's QSBR RCU variable */
-	if (dp_rcu_qsbr_setup())
-		rte_panic("creating QSBR RCU variable failed\n");
 
 	main_loop();
 

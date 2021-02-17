@@ -8,7 +8,6 @@
 #include <rte_errno.h>
 
 #include "debug.h"
-#include "util.h"
 
 #include "rcu.h"
 
@@ -16,7 +15,7 @@ struct rte_rcu_qsbr *dp_qsbr_rcu_v;
 
 static __thread int rcu_qsbr_registered;
 
-int dp_rcu_qsbr_setup(void)
+int dp_rcu_setup(void)
 {
 	size_t sz;
 

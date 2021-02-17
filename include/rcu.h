@@ -12,6 +12,7 @@
 #include <rte_rcu_qsbr.h>
 
 #include "urcu.h"
+#include "util.h"
 
 /*
  * The dataplane uses the QSBR flavour of userspace rcu
@@ -22,10 +23,20 @@
 extern struct rte_rcu_qsbr *dp_qsbr_rcu_v;
 
 /*
- * Allocate global DPDK RCU QSBR variable.
+ * Setup RCU usage in the dataplane.
+ *
+ * This performs all prep work for all the used RCU
+ * implementations.
+ *
  * Should be called only once by the main function/thread.
+ *
+ * DPDK QSBR RCU:
+ * Allocates global DPDK RCU QSBR variable.
+ *
+ * userspace RCU:
+ * No special setup required.
  */
-int dp_rcu_qsbr_setup(void);
+int dp_rcu_setup(void);
 
 /*
  * Un-/Register thread for DPDK QSBR RCU usage.
@@ -64,10 +75,10 @@ struct rte_rcu_qsbr *dp_rcu_qsbr_get(void);
  * methods/APIs.
  */
 static __rte_always_inline void
-dp_rcu_thread_offline(unsigned int lcore_id)
+dp_rcu_thread_offline(void)
 {
 	rcu_thread_offline();
-	rte_rcu_qsbr_thread_offline(dp_qsbr_rcu_v, lcore_id);
+	rte_rcu_qsbr_thread_offline(dp_qsbr_rcu_v, dp_lcore_id());
 }
 
 /*
@@ -75,10 +86,10 @@ dp_rcu_thread_offline(unsigned int lcore_id)
  * This should be called as counter operation to dp_rcu_thread_offline.
  */
 static __rte_always_inline void
-dp_rcu_thread_online(unsigned int lcore_id)
+dp_rcu_thread_online(void)
 {
 	rcu_thread_online();
-	rte_rcu_qsbr_thread_online(dp_qsbr_rcu_v, lcore_id);
+	rte_rcu_qsbr_thread_online(dp_qsbr_rcu_v, dp_lcore_id());
 }
 
 /*
