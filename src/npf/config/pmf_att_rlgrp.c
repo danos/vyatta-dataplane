@@ -20,6 +20,7 @@
 #include "npf/config/gpc_db_query.h"
 #include "npf/config/pmf_rule.h"
 #include "npf/config/pmf_att_rlgrp.h"
+#include "npf/config/gpc_acl_cli.h"
 #include "npf/config/npf_attach_point.h"
 #include "npf/config/npf_rule_group.h"
 #include "npf/config/pmf_hw.h"
@@ -46,6 +47,30 @@ static bool deferrals;
 static bool commit_pending;
 
 /* ---- */
+
+void *
+pmf_arlg_earg_get_attr_rule(void *earg_ptr)
+{
+	struct pmf_group_ext *earg = earg_ptr;
+	if (!earg)
+		return NULL;
+
+	uint32_t rg_flags = earg->earg_flags;
+	if (!(rg_flags & PMF_EARGF_RULE_ATTR))
+		return NULL;
+
+	return earg->earg_attr_rule;
+}
+
+uint32_t
+pmf_arlg_earg_get_rule_count(void *earg_ptr)
+{
+	struct pmf_group_ext *earg = earg_ptr;
+	if (!earg)
+		return 0;
+
+	return earg->earg_num_rules;
+}
 
 static bool
 pmf_arlg_rule_needs_cntr(struct gpc_cntg const *cntg,
@@ -1086,7 +1111,7 @@ void pmf_arlg_init(void)
 /* Op-mode commands : dump internals */
 
 void
-pmf_arlg_dump(FILE *fp)
+gpc_acl_dump(FILE *fp)
 {
 	struct gpc_rlset *gprs;
 
@@ -1106,15 +1131,19 @@ pmf_arlg_dump(FILE *fp)
 		/* Groups - i.e. TABLES */
 		struct gpc_group *gprg;
 		GPC_GROUP_FOREACH(gprg, gprs) {
-			if (gpc_group_get_feature(gprg) != GPC_FEAT_ACL)
-				continue;
+			void *attr_rule = NULL;
+			uint32_t num_rules = 0;
 
-			struct pmf_group_ext *earg = gpc_group_get_owner(gprg);
-			uint32_t rg_flags = earg->earg_flags;
+			if (gpc_group_get_feature(gprg) == GPC_FEAT_ACL) {
+				void *earg = gpc_group_get_owner(gprg);
+				attr_rule = pmf_arlg_earg_get_attr_rule(earg);
+				num_rules = pmf_arlg_earg_get_rule_count(earg);
+			}
+
 			bool rg_published = gpc_group_is_published(gprg);
 			bool rg_attached = gpc_group_is_attached(gprg);
 			bool rg_deferred = gpc_group_is_deferred(gprg);
-			bool rg_attr_rl = (rg_flags & PMF_EARGF_RULE_ATTR);
+			bool rg_attr_rl = !!attr_rule;
 			bool rg_family = gpc_group_has_family(gprg);
 			bool rg_v6 = gpc_group_is_v6(gprg);
 			bool rg_ll_create = gpc_group_is_ll_created(gprg);
@@ -1123,7 +1152,7 @@ pmf_arlg_dump(FILE *fp)
 				"  GRP:%p(%lx): %s(%u/%x)%s%s%s%s%s%s%s\n",
 				gprg, gpc_group_get_objid(gprg),
 				gpc_group_get_name(gprg),
-				earg->earg_num_rules,
+				num_rules,
 				gpc_group_get_summary(gprg),
 				rg_published ? " Pub" : "",
 				rg_ll_create ? " LLcrt" : "",
@@ -1184,7 +1213,7 @@ pmf_arlg_dump(FILE *fp)
 /* Op-mode commands : show counters */
 
 static void
-pmf_arlg_show_cntr_ruleset(json_writer_t *json, struct gpc_rlset *gprs)
+gpc_acl_show_cntr_ruleset(json_writer_t *json, struct gpc_rlset *gprs)
 {
 	bool rs_in = gpc_rlset_is_ingress(gprs);
 
@@ -1193,7 +1222,7 @@ pmf_arlg_show_cntr_ruleset(json_writer_t *json, struct gpc_rlset *gprs)
 }
 
 static void
-pmf_arlg_show_hw_cntr(json_writer_t *json, struct gpc_cntr *cntr)
+gpc_acl_show_hw_cntr(json_writer_t *json, struct gpc_cntr *cntr)
 {
 	if (!gpc_cntr_is_ll_created(cntr))
 		return;
@@ -1219,7 +1248,7 @@ pmf_arlg_show_hw_cntr(json_writer_t *json, struct gpc_cntr *cntr)
 }
 
 static void
-pmf_arlg_show_cntr(json_writer_t *json, struct gpc_cntr *cntr)
+gpc_acl_show_cntr(json_writer_t *json, struct gpc_cntr *cntr)
 {
 	if (!gpc_cntr_is_published(cntr))
 		return;
@@ -1233,13 +1262,13 @@ pmf_arlg_show_cntr(json_writer_t *json, struct gpc_cntr *cntr)
 	jsonw_bool_field(json, "cnt-pkts", ct_cnt_packet);
 	jsonw_bool_field(json, "cnt-bytes", ct_cnt_byte);
 
-	pmf_arlg_show_hw_cntr(json, cntr);
+	gpc_acl_show_hw_cntr(json, cntr);
 
 	jsonw_end_object(json);
 }
 
 int
-pmf_arlg_cmd_show_counters(FILE *fp, char const *ifname, int dir,
+gpc_acl_cmd_show_counters(FILE *fp, char const *ifname, int dir,
 			   char const *rgname)
 {
 	json_writer_t *json = jsonw_new(fp);
@@ -1273,7 +1302,7 @@ pmf_arlg_cmd_show_counters(FILE *fp, char const *ifname, int dir,
 			continue;
 
 		jsonw_start_object(json);
-		pmf_arlg_show_cntr_ruleset(json, gprs);
+		gpc_acl_show_cntr_ruleset(json, gprs);
 
 		/* Groups - i.e. TABLES */
 		struct gpc_group *gprg;
@@ -1299,7 +1328,7 @@ pmf_arlg_cmd_show_counters(FILE *fp, char const *ifname, int dir,
 			jsonw_name(json, "counters");
 			jsonw_start_array(json);
 			GPC_CNTR_FOREACH(cntr, cntg)
-				pmf_arlg_show_cntr(json, cntr);
+				gpc_acl_show_cntr(json, cntr);
 			jsonw_end_array(json);
 
 			jsonw_end_object(json);
@@ -1318,7 +1347,7 @@ pmf_arlg_cmd_show_counters(FILE *fp, char const *ifname, int dir,
 /* Op-mode commands : clear counters */
 
 int
-pmf_arlg_cmd_clear_counters(char const *ifname, int dir, char const *rgname)
+gpc_acl_cmd_clear_counters(char const *ifname, int dir, char const *rgname)
 {
 	int rc = 0; /* Success */
 

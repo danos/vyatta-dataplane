@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2011-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -28,7 +28,7 @@
 #include "npf/config/npf_dump.h"
 #include "npf/config/npf_rule_group.h"
 #include "npf/config/npf_ruleset_type.h"
-#include "npf/config/pmf_att_rlgrp.h"
+#include "npf/config/gpc_acl_cli.h"
 #include "npf/npf_addrgrp.h"
 #include "npf/npf_apm.h"
 #include "npf/npf_cmd.h"
@@ -73,7 +73,7 @@ cmd_acl_show_counters(FILE *f, int argc, char **argv)
 	if (argc > 2)
 		rgname = argv[2];
 
-	return pmf_arlg_cmd_show_counters(f, ifname, dir, rgname);
+	return gpc_acl_cmd_show_counters(f, ifname, dir, rgname);
 }
 
 static int
@@ -105,7 +105,7 @@ cmd_acl_clear_counters(FILE *f, int argc, char **argv)
 	if (argc > 2)
 		rgname = argv[2];
 
-	return pmf_arlg_cmd_clear_counters(ifname, dir, rgname);
+	return gpc_acl_cmd_clear_counters(ifname, dir, rgname);
 }
 
 static int
@@ -139,7 +139,7 @@ cmd_dump_groups(FILE *f, int argc __unused, char **argv __unused)
 static int
 cmd_dump_acls(FILE *f, int argc __unused, char **argv __unused)
 {
-	pmf_arlg_dump(f);
+	gpc_acl_dump(f);
 	return 0;
 }
 

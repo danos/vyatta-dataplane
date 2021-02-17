@@ -7,14 +7,12 @@
 #ifndef PMF_ATT_RLGRP_H
 #define PMF_ATT_RLGRP_H
 
-#include <stdio.h>
+#include <stdint.h>
 
 void pmf_arlg_init(void);
 void pmf_arlg_commit(void);
-void pmf_arlg_dump(FILE *fp);
-int pmf_arlg_cmd_show_counters(FILE *fp, char const *ifname, int dir,
-				char const *rgname);
-int pmf_arlg_cmd_clear_counters(char const *ifname, int dir,
-				char const *rgname);
+
+void *pmf_arlg_earg_get_attr_rule(void *earg);
+uint32_t pmf_arlg_earg_get_rule_count(void *earg);
 
 #endif /* PMF_ATT_RLGRP_H */

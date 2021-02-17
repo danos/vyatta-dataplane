@@ -197,6 +197,7 @@ npf_sources = files(
         'npf/cgnat/cgn_sess_state.c',
         'npf/cgnat/cgn_source.c',
         'npf/cgnat/cgn_test.c',
+        'npf/config/gpc_acl_cli.c',
         'npf/config/gpc_cntr.c',
         'npf/config/gpc_db.c',
         'npf/config/npf_attach_point.c',
