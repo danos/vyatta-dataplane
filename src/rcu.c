@@ -13,7 +13,7 @@
 
 struct rte_rcu_qsbr *dp_qsbr_rcu_v;
 
-static __thread int rcu_qsbr_registered;
+static __thread int rcu_registered;
 
 int dp_rcu_setup(void)
 {
@@ -45,40 +45,30 @@ struct rte_rcu_qsbr *dp_rcu_qsbr_get(void)
 	return dp_qsbr_rcu_v;
 }
 
-void dp_rcu_qsbr_register_thread(unsigned int lcore_id)
+void dp_rcu_register_thread(void)
 {
-	if (rcu_qsbr_registered++ == 0) {
-		/*
-		 * Register to DPDK RCU QSBR variable
-		 */
+	unsigned int lcore_id = dp_lcore_id();
 
+	if (rcu_registered++ == 0) {
+		/* userspace RCU */
+		rcu_register_thread();
+
+		/* DPDK RCU QSBR */
 		rte_rcu_qsbr_thread_register(dp_qsbr_rcu_v, lcore_id);
 		rte_rcu_qsbr_thread_online(dp_qsbr_rcu_v, lcore_id);
 	}
 }
 
-void dp_rcu_qsbr_unregister_thread(unsigned int lcore_id)
+void dp_rcu_unregister_thread(void)
 {
-	if (--rcu_qsbr_registered == 0) {
-		/*
-		 * Unregister from DPDK RCU QSBR variable
-		 */
+	unsigned int lcore_id = dp_lcore_id();
 
+	if (--rcu_registered == 0) {
+		/* userspace RCU */
+		rcu_unregister_thread();
+
+		/* DPDK RCU QSBR */
 		rte_rcu_qsbr_thread_offline(dp_qsbr_rcu_v, lcore_id);
 		rte_rcu_qsbr_thread_unregister(dp_qsbr_rcu_v, lcore_id);
 	}
-}
-
-static __thread int rcu_registered;
-
-void dp_rcu_register_thread(void)
-{
-	if (rcu_registered++ == 0)
-		rcu_register_thread();
-}
-
-void dp_rcu_unregister_thread(void)
-{
-	if (--rcu_registered == 0)
-		rcu_unregister_thread();
 }

@@ -1037,7 +1037,6 @@ forwarding_loop(unsigned int lcore_id)
 	 * with rcu_register_thread() before calling rcu_read_lock().
 	 */
 	dp_rcu_register_thread();
-	dp_rcu_qsbr_register_thread(lcore_id);
 	do {
 		rcu_read_lock();
 
@@ -1079,7 +1078,6 @@ forwarding_loop(unsigned int lcore_id)
 			break;
 		}
 	} while (likely(state != LCORE_STATE_EXIT));
-	dp_rcu_qsbr_unregister_thread(lcore_id);
 	dp_rcu_unregister_thread();
 
 	dp_lcore_events_teardown(lcore_id);

@@ -39,12 +39,6 @@ extern struct rte_rcu_qsbr *dp_qsbr_rcu_v;
 int dp_rcu_setup(void);
 
 /*
- * Un-/Register thread for DPDK QSBR RCU usage.
- */
-void dp_rcu_qsbr_register_thread(unsigned int lcore_id);
-void dp_rcu_qsbr_unregister_thread(unsigned int lcore_id);
-
-/*
  * Register a thread for rcu. This is used when it is not known if a thread
  * is already rcu registered. If the thread is already registered then this
  * call will make the thread rcu_online.  If it is not registered then it
