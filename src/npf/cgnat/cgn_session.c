@@ -1492,6 +1492,8 @@ static int cgn_session_op_parse(FILE *f, int argc, char **argv,
 			tmp = (0xFFFFFFFF << (32 - pl)) & 0xFFFFFFFF;
 			fltr->cf_dst_mask = htonl(tmp);
 			fltr->cf_dst.k_addr &= fltr->cf_dst_mask;
+			/* iterate, or lookup, the 'out' sentries */
+			fltr->cf_dst.k_dir = CGN_DIR_OUT;
 
 			argc -= 2;
 			argv += 2;

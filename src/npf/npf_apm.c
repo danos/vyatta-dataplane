@@ -279,11 +279,12 @@ static void apm_free_map_sanity(struct port_map *pm)
 		for (i = 0; i < PM_SECTION_CNT; i++) {
 			assert((pp_sections[i] && pp_sections[i]->ps_used)
 			       == 0);
-			if (pp_sections[i] && pp_sections[i]->ps_used)
-				rte_panic("NPF port map: prot %s: section: "
-					  "%d used: %d\n",
-					   nat_proto_lc_str(nprot), i,
-					   pp_sections[i]->ps_used);
+			if (pp_sections[i] && pp_sections[i]->ps_used &&
+			    net_ratelimit())
+				RTE_LOG(ERR, FIREWALL,
+					"NPF port map: prot %s: section: %d used: %d\n",
+					nat_proto_lc_str(nprot), i,
+					pp_sections[i]->ps_used);
 		}
 	}
 }

@@ -395,26 +395,6 @@ void dpt_cgn_print_json(const char *cmd, bool print)
 	json_object_put(jobj);
 }
 
-
-/*
- * Some simply checks before real testing
- */
-DP_DECL_TEST_CASE(npf_cgnat, cgnat_pre, cgnat_setup, cgnat_teardown);
-DP_START_TEST(cgnat_pre, test)
-{
-	/* Ensure 2-tuple session fits in two cachelines */
-	dp_test_fail_unless(cgn_sess2_size() <= 128,
-			    "2-tuple session size %lu, expected <= 128",
-			    cgn_sess2_size());
-
-	/* Ensure 3-tuple session fits in four cachelines */
-	dp_test_fail_unless(cgn_session_size() <= 256,
-			    "3-tuple session size %lu, expected <= 256",
-			    cgn_session_size());
-
-} DP_END_TEST;
-
-
 /*
  * npf_cgnat_1 - 1 UDP forwards pkt
  *
@@ -731,7 +711,7 @@ DP_START_TEST(cgnat6, test)
 
 
 /*
- * npf_cgnat_7 - 1 UDP forwards pkt, 1 backwards pkt
+ * npf_cgnat_7 - 1 fwd pkt, 1 back pkt, 1 fwd pkt
  *
  *    Private                                       Public
  *                       dp1T0 +---+ dp2T1
@@ -794,7 +774,7 @@ DP_START_TEST_FULL_RUN(cgnat7, test)
 
 
 /*
- * npf_cgnat_8 - 1 TCP forwards pkt, 1 TCP backwards pkt
+ * npf_cgnat_8 - 1 fwd pkt, 1 back pkt, 1 fwd pkt
  *
  *    Private                                       Public
  *                       dp1T0 +---+ dp2T1
@@ -802,7 +782,7 @@ DP_START_TEST_FULL_RUN(cgnat7, test)
  *                             +---+
  */
 DP_DECL_TEST_CASE(npf_cgnat, cgnat8, cgnat_setup, cgnat_teardown);
-DP_START_TEST_FULL_RUN(cgnat8, test)
+DP_START_TEST(cgnat8, test)
 {
 	dpt_cgn_cmd_fmt(false, true,
 			"nat-ut pool add POOL1 "
@@ -846,7 +826,7 @@ DP_START_TEST_FULL_RUN(cgnat8, test)
 
 
 /*
- * npf_cgnat_9 - 1 ICMP echo req forwards pkt, 1 ICMP echo reply backwards pkt
+ * npf_cgnat_9 - ICMP 1 fwd pkt, 1 back pkt, 1 fwd pkt
  *
  *    Private                                       Public
  *                       dp1T0 +---+ dp2T1
@@ -953,7 +933,7 @@ DP_START_TEST_FULL_RUN(cgnat10, test)
  *                             +---+
  */
 DP_DECL_TEST_CASE(npf_cgnat, cgnat11, cgnat_setup, cgnat_teardown);
-DP_START_TEST_FULL_RUN(cgnat11, test)
+DP_START_TEST(cgnat11, test)
 {
 	dpt_cgn_cmd_fmt(false, true,
 			"nat-ut pool add POOL1 "
@@ -1880,7 +1860,9 @@ static json_object *dpt_cgn_sess_json(const char *fltr, bool debug)
 /*
  * Get json object for a 2-tuple session
  */
-static json_object *dpt_cgn_inr_sess_json(json_object *joutr, bool debug)
+static json_object *_dpt_cgn_inr_sess_json(json_object *joutr, bool debug,
+					   const char *file, const char *func,
+					   int line)
 {
 	json_object *jarray_inr;
 
@@ -1902,8 +1884,8 @@ static json_object *dpt_cgn_inr_sess_json(json_object *joutr, bool debug)
 
 	arraylen_inr = json_object_array_length(jarray_inr);
 
-	dp_test_fail_unless(arraylen_inr == 1,
-			    "Zero or more than one inner session");
+	_dp_test_fail_unless(arraylen_inr == 1, file, line,
+			     "Zero or more than one inner session");
 
 	json_object *jinr;
 
@@ -1919,7 +1901,13 @@ static json_object *dpt_cgn_inr_sess_json(json_object *joutr, bool debug)
 	return jinr;
 }
 
-static int dpt_cgn_sess_get_timeout(const char *fltr, bool outer)
+#define dpt_cgn_inr_sess_json(_a, _b)				\
+	_dpt_cgn_inr_sess_json(_a, _b,				\
+			       __FILE__, __func__, __LINE__)
+
+static int _dpt_cgn_sess_get_timeout(const char *fltr, bool outer,
+				     const char *file, const char *func,
+				     int line)
 {
 	json_object *joutr, *jinr;
 	int timeout = 0;
@@ -1933,7 +1921,7 @@ static int dpt_cgn_sess_get_timeout(const char *fltr, bool outer)
 		return timeout;
 	}
 
-	jinr = dpt_cgn_inr_sess_json(joutr, false);
+	jinr = _dpt_cgn_inr_sess_json(joutr, false, file, func, line);
 	dp_test_fail_unless(jinr, "Failed to get json object for 2-tuple");
 
 	dp_test_json_int_field_from_obj(jinr, "max_to", &timeout);
@@ -1943,6 +1931,10 @@ static int dpt_cgn_sess_get_timeout(const char *fltr, bool outer)
 
 	return timeout;
 }
+
+#define dpt_cgn_sess_get_timeout(_a, _b)			\
+	_dpt_cgn_sess_get_timeout(_a, _b,			\
+				  __FILE__, __func__, __LINE__)
 
 static void dpt_cgn_show_pool(bool print)
 {

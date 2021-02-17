@@ -52,6 +52,7 @@ struct cgn_state {
 	uint64_t	st_int_rtt;
 
 	rte_spinlock_t	st_lock;
+	uint8_t		st_pad2[4];	/* Pad to 32 bytes */
 };
 
 /*

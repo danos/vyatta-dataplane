@@ -1,7 +1,15 @@
 #! /usr/bin/perl
 
+# Copyright (c) 2021 AT&T Intellectual Property. All rights reserved.
+# All rights reserved.
+#
+# SPDX-License-Identifier: LGPL-2.1-only
+
 use strict;
 use warnings;
+
+use lib '/opt/vyatta/share/perl5';
+use Vyatta::Vplane;
 
 #
 # As per the performance tuning guide from Mellanox, the following parameters
@@ -20,18 +28,23 @@ use warnings;
 # 3. https://community.mellanox.com/s/article/understanding-mlx5-ethtool-counters
 #
 sub mlx_setup {
-    my @mlx_pcis =
-      `lspci | grep Mellanox | grep 'ConnectX-5 Ex' | cut -d ' ' -f 1`;
+    my @mlx_pcis = `lspci -n -d 0x15b3:`;
 
-    foreach my $pci (@mlx_pcis) {
-        $pci =~ s/\n//;
+    foreach my $line (@mlx_pcis) {
+        chop($line);
+        (my $pci, undef, my $vendor_device) = split(' ', $line);
+        (my $vendor, my $device) = split(':', $vendor_device);
+        $vendor = hex($vendor);
+        $device = hex($device);
+
+        next unless is_supported_ib_device($vendor, $device);
 
         my $cur_val = `setpci -s $pci 68.w`;
         $cur_val =~ s/\n//;
 
         my $new_val = sprintf( "0x%04x", 3 << 12 | hex($cur_val) & 0xfff );
 
-        `setpci -s $pci 68.w=$new_val`;
+        system("setpci -s $pci 68.w=$new_val");
         my $val =
           `lspci -vvv -s $pci | grep -o "MaxReadReq.*" | cut -d ' ' -f 2`;
         $val =~ s/\n//;
@@ -41,7 +54,7 @@ sub mlx_setup {
         #
         # Enable compression of completion queue events
         #
-        `mstconfig -d $pci set CQE_COMPRESSION=1`;
+        system("mstconfig -d $pci set CQE_COMPRESSION=1")
     }
 }
 
