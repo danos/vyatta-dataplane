@@ -4,6 +4,8 @@
  * SPDX-License-Identifier: LGPL-2.1-only
  */
 
+#include "urcu.h"
+
 #include "npf/cgnat/cgn_session.h"
 #include "npf/cgnat/cgn_log.h"
 
