@@ -119,4 +119,30 @@ dp_rcu_synchronize(void)
 	rte_rcu_qsbr_synchronize(dp_qsbr_rcu_v, dp_lcore_id());
 }
 
+/*
+ * Begin of an RCU read-side critical section.
+ *
+ * For DPDK RCU QSBR implementation this is NOOP, unless build
+ * with RTE_LIBRTE_RCU_DEBUG.
+ */
+static __rte_always_inline void
+dp_rcu_read_lock(void)
+{
+	rcu_read_lock();
+	rte_rcu_qsbr_lock(dp_qsbr_rcu_v, dp_lcore_id());
+}
+
+/*
+ * End of an RCU read-side critical section.
+ *
+ * For DPDK RCU QSBR implementation this is NOOP, unless build
+ * with RTE_LIBRTE_RCU_DEBUG.
+ */
+static __rte_always_inline void
+dp_rcu_read_unlock(void)
+{
+	rcu_read_unlock();
+	rte_rcu_qsbr_unlock(dp_qsbr_rcu_v, dp_lcore_id());
+}
+
 #endif /* VYATTA_DATAPLANE_RCU_H */

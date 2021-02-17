@@ -462,7 +462,7 @@ void lladdr_timer(struct rte_timer *tim __rte_unused, void *arg)
 		llt->lle_refresh_expire = cur_time + rte_get_timer_hz();
 	}
 
-	rcu_read_lock();
+	dp_rcu_read_lock();
 	cds_lfht_for_each_entry(llt->llt_hash, &iter, lle, ll_node) {
 		/*
 		 * If the delete flag is set (which can be done on any
@@ -502,7 +502,7 @@ void lladdr_timer(struct rte_timer *tim __rte_unused, void *arg)
 			SINGLE, rte_get_master_lcore(),
 			lladdr_timer, llt);
 
-	rcu_read_unlock();
+	dp_rcu_read_unlock();
 }
 
 static void lladdr_flush(struct ifnet *ifp, void *cont_src_p)

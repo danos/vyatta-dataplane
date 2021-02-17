@@ -1953,7 +1953,7 @@ static int send_console_cmd(cmd_func_t fn, int argc, char **argv, bool async)
 	if (async)
 		flags |= CONSOLE_CMD_ASYNC;
 
-	rcu_read_unlock();
+	dp_rcu_read_unlock();
 	dp_rcu_thread_offline();
 
 	if (unsplit(line, MAX_CMDLINE, argc, argv) == NULL) {
@@ -1981,7 +1981,7 @@ static int send_console_cmd(cmd_func_t fn, int argc, char **argv, bool async)
 		rv = cmd_response;
 out:
 	dp_rcu_thread_online();
-	rcu_read_lock();
+	dp_rcu_read_lock();
 
 	return rv;
 }
@@ -2048,7 +2048,7 @@ console_request(zloop_t *loop __rte_unused, zsock_t *sock,
 
 	char *outbuf = NULL;
 	size_t outsize = 0;
-	rcu_read_lock();
+	dp_rcu_read_lock();
 
 	int rc = 0;
 
@@ -2062,7 +2062,7 @@ console_request(zloop_t *loop __rte_unused, zsock_t *sock,
 		rc = pb_op_cmd(sock, data, len, NULL);
 
 		zmsg_destroy(&msg);
-		rcu_read_unlock();
+		dp_rcu_read_unlock();
 		dp_rcu_thread_offline();
 		zstr_free(&line);
 
@@ -2071,7 +2071,7 @@ console_request(zloop_t *loop __rte_unused, zsock_t *sock,
 
 	rc = console_cmd(line, &outbuf, &outsize, NULL, false);
 
-	rcu_read_unlock();
+	dp_rcu_read_unlock();
 
 	dp_rcu_thread_offline();
 

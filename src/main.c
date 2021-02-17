@@ -1034,11 +1034,11 @@ forwarding_loop(unsigned int lcore_id)
 		 conf->do_crypto ? "and crypto " : "", lcore_id);
 
 	/* Each thread containing read-side critical sections must be registered
-	 * with rcu_register_thread() before calling rcu_read_lock().
+	 * with rcu_register_thread() before calling dp_rcu_read_lock().
 	 */
 	dp_rcu_register_thread();
 	do {
-		rcu_read_lock();
+		dp_rcu_read_lock();
 
 		pm = get_current_pm();
 		for (i = 0; i < pm->idle_thresh ; i++) {
@@ -1057,7 +1057,7 @@ forwarding_loop(unsigned int lcore_id)
 
 		state = lcore_next_state(conf, pm, &us);
 
-		rcu_read_unlock();
+		dp_rcu_read_unlock();
 
 		switch (state) {
 		case LCORE_STATE_EXIT:

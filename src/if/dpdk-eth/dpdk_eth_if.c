@@ -294,7 +294,7 @@ void stop_all_ports(void)
 
 /* Timer for periodic check of link reset
  *
- * Note: rcu_read_lock not held here!
+ * Note: dp_rcu_read_lock not held here!
  * This can be run both via directly in response to a link reset interrupt
  * (tim will be NULL) or from an rte_timer callback (tim will be the actual
  * timer). In both cases it will be ran from the main thread.

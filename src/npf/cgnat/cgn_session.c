@@ -2919,11 +2919,11 @@ int cgn_helper_thread_func(unsigned int core_num, void *arg __unused)
 	while (CMM_LOAD_SHARED(running) &&
 	       CMM_LOAD_SHARED(cgn_helper_thread_enabled)) {
 		dp_rcu_thread_online();
-		rcu_read_lock();
+		dp_rcu_read_lock();
 
 		cgn_sleep_interval = cgn_log_sessions();
 
-		rcu_read_unlock();
+		dp_rcu_read_unlock();
 		dp_rcu_thread_offline();
 		DP_DEBUG(CGNAT, DEBUG, CGNAT, "On core %u, thread %lu, "
 			 "enabled %d, interval %u\n", core_num,

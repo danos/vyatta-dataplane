@@ -887,7 +887,7 @@ static int shadow_handle_event(zloop_t *loop, zsock_t *sock,
 	if (rv >= 0) {
 		*call_rv = 0;
 		dp_rcu_thread_online();
-		rcu_read_lock();
+		dp_rcu_read_lock();
 		switch (type) {
 		case SHADOW_ADD:
 			*call_rv = shadow_add_event(loop, port, ifname);
@@ -901,7 +901,7 @@ static int shadow_handle_event(zloop_t *loop, zsock_t *sock,
 			*call_rv = -EINVAL;
 			break;
 		}
-		rcu_read_unlock();
+		dp_rcu_read_unlock();
 		dp_rcu_thread_offline();
 	} else {
 		RTE_LOG(ERR, DATAPLANE,

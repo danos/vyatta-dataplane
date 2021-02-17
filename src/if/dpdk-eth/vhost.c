@@ -593,15 +593,15 @@ static void vhost_link_update_process(char *vhost_name)
 {
 	struct ifnet *ifp;
 
-	rcu_read_lock();
+	dp_rcu_read_lock();
 	ifp = dp_ifnet_byifname(vhost_name);
 	if (!ifp) {
-		rcu_read_unlock();
+		dp_rcu_read_unlock();
 		return;
 	}
 	vhost_link_update_core(ifp, NULL, true);
 
-	rcu_read_unlock();
+	dp_rcu_read_unlock();
 }
 
 void vhost_event_handler(void)
@@ -636,9 +636,9 @@ void vhost_update_guests(struct ifnet *ifp)
 	if (is_vhost(ifp))
 		vhost_link_update(ifp, NULL);
 	else {
-		rcu_read_lock();
+		dp_rcu_read_lock();
 		dp_ifnet_walk(vhost_link_update, ifp);
-		rcu_read_unlock();
+		dp_rcu_read_unlock();
 	}
 }
 

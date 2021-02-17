@@ -1284,14 +1284,14 @@ static void vxlan_timer(struct rte_timer *timer __rte_unused, void *arg)
 	struct cds_lfht_iter iter;
 	struct vxlan_rtnode *vxlrt;
 
-	rcu_read_lock();
+	dp_rcu_read_lock();
 	cds_lfht_for_each_entry(sc->scvx_rthash, &iter, vxlrt, vxlrt_node) {
 		if (vxlan_rtexpired(vxlrt)) {
 			cds_lfht_del(sc->scvx_rthash, &vxlrt->vxlrt_node);
 			vxlan_rtnode_destroy(vxlrt);
 		}
 	}
-	rcu_read_unlock();
+	dp_rcu_read_unlock();
 }
 
 
@@ -1759,7 +1759,7 @@ static void vxlan_delneigh(int ifindex, const struct rte_ether_addr *dst)
 
 		vxlan_rtnode_destroy(vrt);
 	} else {
-		rcu_read_unlock();
+		dp_rcu_read_unlock();
 		RTE_LOG(NOTICE, VXLAN,
 			"delneigh for %s but on %s not a in forwarding table\n",
 			ether_ntoa(dst), ifp->if_name);
@@ -1934,7 +1934,7 @@ static void vxlan_show_macs_one(struct vxlan_vninode *vni,
 	char addr_str[INET_ADDRSTRLEN];
 	uint8_t type;
 
-	rcu_read_lock();
+	dp_rcu_read_lock();
 	jsonw_start_object(wr);
 	jsonw_string_field(wr, "intf", ifp->if_name);
 	jsonw_name(wr, "entries");
@@ -1962,7 +1962,7 @@ static void vxlan_show_macs_one(struct vxlan_vninode *vni,
 	}
 	jsonw_end_array(wr);
 	jsonw_end_object(wr);
-	rcu_read_unlock();
+	dp_rcu_read_unlock();
 }
 
 static void vxlan_show_macs(FILE *f, int argc __unused, char *argv[] __unused)

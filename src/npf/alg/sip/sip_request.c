@@ -717,9 +717,9 @@ void sip_destroy_ht(struct npf_alg *sip)
 			sip_alg_request_free_sync(sip, sr);
 	}
 
-	rcu_read_unlock();
+	dp_rcu_read_unlock();
 	rc = cds_lfht_destroy(sp->sp_ht, NULL);
-	rcu_read_lock();
+	dp_rcu_read_lock();
 	if (rc)
 		RTE_LOG(ERR, FIREWALL, "ALG: SIP cds_lfht_destroy\n");
 

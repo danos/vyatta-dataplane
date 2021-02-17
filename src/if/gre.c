@@ -320,7 +320,7 @@ mgre_timer(struct rte_timer *tim __rte_unused, void *arg)
 	struct mgre_rt_info *rtinfo;
 	struct cds_lfht_iter iter;
 
-	rcu_read_lock();
+	dp_rcu_read_lock();
 	cds_lfht_for_each_entry(sc->scg_rtinfo_hash_nbma, &iter,
 				rtinfo, rtinfo_node_nbma) {
 		/*
@@ -341,7 +341,7 @@ mgre_timer(struct rte_timer *tim __rte_unused, void *arg)
 		}
 		CMM_ACCESS_ONCE(rtinfo->rt_info_bits) &= ~RT_INFO_BIT_IS_USED;
 	}
-	rcu_read_unlock();
+	dp_rcu_read_unlock();
 }
 
 /* mGRE peer management */

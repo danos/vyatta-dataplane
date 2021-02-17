@@ -619,10 +619,10 @@ process_topic_msg(enum cont_src_en cont_src,
 			     zmq_msg_data(&dpmsg->topic_msg),
 			     zmq_msg_size(&dpmsg->topic_msg));
 	if (h) {
-		rcu_read_lock();
+		dp_rcu_read_lock();
 		ret = (*h->handler)(cont_src, zmq_msg_data(&dpmsg->data_msg),
 				    zmq_msg_size(&dpmsg->data_msg), h);
-		rcu_read_unlock();
+		dp_rcu_read_unlock();
 
 		return ret;
 	}

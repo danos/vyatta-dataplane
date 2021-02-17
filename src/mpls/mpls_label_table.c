@@ -321,7 +321,7 @@ mpls_label_table_ins_lbl_internal(struct cds_lfht *label_table,
 	label_table_node->payload_type = (uint8_t)payload_type;
 	label_table_node->pd_created = false;
 
-	rcu_read_lock();
+	dp_rcu_read_lock();
 	node = cds_lfht_add_replace(label_table,
 				    mpls_label_table_node_hash(
 					    label_table_node),
@@ -346,7 +346,7 @@ mpls_label_table_ins_lbl_internal(struct cds_lfht *label_table,
 
 	DP_DEBUG(MPLS_CTRL, DEBUG, MPLS, "%s count = %lu\n", __func__,
 			mpls_label_table_count(label_table));
-	rcu_read_unlock();
+	dp_rcu_read_unlock();
 
 	return added_new;
 }
@@ -363,7 +363,7 @@ mpls_label_table_rem_lbl_internal(struct cds_lfht *label_table,
 	struct cds_lfht_node *node;
 	int rc;
 
-	rcu_read_lock();
+	dp_rcu_read_lock();
 
 	in.in_label = in_label;
 	cds_lfht_lookup(label_table, mpls_label_table_node_hash(&in),
@@ -393,7 +393,7 @@ mpls_label_table_rem_lbl_internal(struct cds_lfht *label_table,
 	DP_DEBUG(MPLS_CTRL, DEBUG, MPLS, "%s rc = %d count = %lu\n",
 		 __func__, rc,
 		 mpls_label_table_count(label_table));
-	rcu_read_unlock();
+	dp_rcu_read_unlock();
 	return rc;
 }
 
@@ -552,10 +552,10 @@ mpls_label_table_get_and_lock(int labelspace)
 	 */
 	if (labelspace == global_label_space_id) {
 		assert(!global_label_table);
-		rcu_read_lock();
+		dp_rcu_read_lock();
 		rcu_assign_pointer(global_label_table,
 				   ls_entry->label_table);
-		rcu_read_unlock();
+		dp_rcu_read_unlock();
 	}
 	return ls_entry->label_table;
 }
@@ -705,11 +705,11 @@ void mpls_label_table_resize(int labelspace, uint32_t max_label)
 	DP_DEBUG(MPLS_CTRL, INFO, MPLS, "mpls label table resize to %u\n",
 		 max_label);
 
-	rcu_read_lock();
+	dp_rcu_read_lock();
 
 	ls_entry = mpls_label_space_entry_get(labelspace);
 	if (!ls_entry) {
-		rcu_read_unlock();
+		dp_rcu_read_unlock();
 		return;
 	}
 
@@ -727,7 +727,7 @@ void mpls_label_table_resize(int labelspace, uint32_t max_label)
 		}
 	}
 
-	rcu_read_unlock();
+	dp_rcu_read_unlock();
 }
 
 static void
@@ -744,7 +744,7 @@ mpls_label_table_dump(struct cds_lfht *label_table, json_writer_t *json,
 		return;
 	jsonw_name(json, "mpls_routes");
 	jsonw_start_array(json);
-	rcu_read_lock();
+	dp_rcu_read_lock();
 	cds_lfht_for_each_entry(label_table, &iter, label_table_entry, node) {
 		/* use PD_OBJ_STATE_LAST to mean wildcard any state */
 		if (pd_state != PD_OBJ_STATE_LAST &&
@@ -774,7 +774,7 @@ mpls_label_table_dump(struct cds_lfht *label_table, json_writer_t *json,
 
 		jsonw_end_object(json);
 	}
-	rcu_read_unlock();
+	dp_rcu_read_unlock();
 	jsonw_end_array(json);
 }
 
@@ -838,28 +838,28 @@ mpls_oam_v4_lookup(int labelspace, uint8_t nlabels, const label_t *labels,
 	uint16_t payload, hlen = 0;
 	unsigned int oi;
 
-	rcu_read_lock();
+	dp_rcu_read_lock();
 
 	label_table = mpls_label_table_get_rcu(labelspace);
 	if (!label_table) {
-		rcu_read_unlock();
+		dp_rcu_read_unlock();
 		return;
 	}
 
 	out = mpls_label_table_lookup_internal(label_table, labels[0]);
 	if (!out) {
-		rcu_read_unlock();
+		dp_rcu_read_unlock();
 		return;
 	}
 
 	if (out->nh_type != NH_TYPE_V4GW) {
-		rcu_read_unlock();
+		dp_rcu_read_unlock();
 		return;
 	}
 
 	m = pktmbuf_alloc(mpls_oam_pool, VRF_DEFAULT_ID);
 	if (!m) {
-		rcu_read_unlock();
+		dp_rcu_read_unlock();
 		return;
 	}
 
@@ -868,7 +868,7 @@ mpls_oam_v4_lookup(int labelspace, uint8_t nlabels, const label_t *labels,
 	if (!rte_pktmbuf_append(m, sizeof(struct rte_ether_hdr) + hlen +
 				payload)) {
 		rte_pktmbuf_free(m);
-		rcu_read_unlock();
+		dp_rcu_read_unlock();
 		return;
 	}
 
@@ -972,7 +972,7 @@ mpls_oam_v4_lookup(int labelspace, uint8_t nlabels, const label_t *labels,
 	}
 
 	rte_pktmbuf_free(m);
-	rcu_read_unlock();
+	dp_rcu_read_unlock();
 }
 
 uint32_t *mpls_label_table_hw_stats_get(void)

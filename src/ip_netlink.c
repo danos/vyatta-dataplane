@@ -701,7 +701,7 @@ static int handle_route(vrfid_t vrf_id, uint16_t type, const struct rtmsg *rtm,
 	/* May resize route tables and that code calls defer_rcu
 	 * which is not safe inside RCU read lock
 	 */
-	rcu_read_unlock();
+	dp_rcu_read_unlock();
 
 	if (type == RTM_NEWROUTE) {
 		struct ifnet *ifp = dp_ifnet_byifindex(ifindex);
@@ -742,12 +742,12 @@ static int handle_route(vrfid_t vrf_id, uint16_t type, const struct rtmsg *rtm,
 			assert(num_labels == 0);
 			next = ecmp_create(mpath, &size, &missing_ifp);
 			if (missing_ifp) {
-				rcu_read_lock();
+				dp_rcu_read_lock();
 				return -1;
 			}
 		} else {
 			if (exp_ifp && !ifp && !is_ignored_interface(ifindex)) {
-				rcu_read_lock();
+				dp_rcu_read_lock();
 				return -1;
 			}
 			size = 1;
@@ -758,7 +758,7 @@ static int handle_route(vrfid_t vrf_id, uint16_t type, const struct rtmsg *rtm,
 		}
 
 		if (unlikely(!next)) {
-			rcu_read_lock();
+			dp_rcu_read_lock();
 			return 0;	/* no memory */
 		}
 
@@ -769,7 +769,7 @@ static int handle_route(vrfid_t vrf_id, uint16_t type, const struct rtmsg *rtm,
 	} else if (type == RTM_DELROUTE) {
 		rt_delete(vrf_id, dst, depth, table, scope);
 	}
-	rcu_read_lock();
+	dp_rcu_read_lock();
 	return 0;
 }
 
@@ -863,9 +863,9 @@ static int handle_route6(vrfid_t vrf_id, uint16_t type,
 		if (unlikely(!next))
 			return 0;
 
-		rcu_read_unlock();
+		dp_rcu_read_unlock();
 		rt6_add(vrf_id, &dst, depth, table, scope, next, size);
-		rcu_read_lock();
+		dp_rcu_read_lock();
 		free(next);
 	} else if (type == RTM_DELROUTE) {
 		rt6_delete(vrf_id, &dst, depth, table, scope,
