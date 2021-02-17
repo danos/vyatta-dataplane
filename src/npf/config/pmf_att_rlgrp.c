@@ -1468,40 +1468,6 @@ pmf_arlg_dump(FILE *fp)
 				rg_attr_rl ? " GAttr" : "",
 				rg_family ? rg_v6 ? " v6" : " v4" : ""
 				);
-			struct pmf_cntr *eark;
-			TAILQ_FOREACH(eark, &earg->earg_cntrs, eark_list) {
-				uint32_t ct_flags = eark->eark_flags;
-				bool ct_published
-					= (ct_flags & PMF_EARKF_PUBLISHED);
-				if (!ct_published)
-					continue;
-				bool ct_ll_create
-					= (ct_flags & PMF_EARKF_LL_CREATED);
-				bool ct_cnt_packet
-					= (ct_flags & PMF_EARKF_CNT_PACKET);
-				bool ct_cnt_byte
-					= (ct_flags & PMF_EARKF_CNT_BYTE);
-				fprintf(fp, "   KT:%p(%lx): %s%s%s%s%s\n",
-					eark, eark->eark_objid,
-					eark->eark_name,
-					ct_published ? " Pub" : "",
-					ct_ll_create ? " LLcrt" : "",
-					ct_cnt_packet ? " Pkt" : "",
-					ct_cnt_byte ? " Byte" : ""
-					);
-				uint64_t val_pkt = -1;
-				uint64_t val_byt = -1;
-				pmf_hw_counter_read((struct gpc_cntr *)eark,
-						    &val_pkt, &val_byt);
-				fprintf(fp, "      %s(%lu/%lx)) %s(%lu/%lx)\n",
-					ct_cnt_packet ? "Pkt" : "-",
-					(unsigned long)val_pkt,
-					(unsigned long)val_pkt,
-					ct_cnt_byte ? "Byte" : "-",
-					(unsigned long)val_byt,
-					(unsigned long)val_byt
-					);
-			}
 			struct gpc_cntg *cntg = gpc_group_get_cntg(gprg);
 			struct gpc_cntr *cntr;
 			GPC_CNTR_FOREACH(cntr, cntg) {
@@ -1562,21 +1528,17 @@ pmf_arlg_show_cntr_ruleset(json_writer_t *json, struct gpc_rlset *gprs)
 }
 
 static void
-pmf_arlg_show_hw_cntr(json_writer_t *json, struct pmf_cntr *eark)
+pmf_arlg_show_hw_cntr(json_writer_t *json, struct gpc_cntr *cntr)
 {
-	uint32_t ct_flags = eark->eark_flags;
-
-	bool ct_ll_create = (ct_flags & PMF_EARKF_LL_CREATED);
-	if (!ct_ll_create)
+	if (!gpc_cntr_is_ll_created(cntr))
 		return;
 
-	bool ct_cnt_packet = (ct_flags & PMF_EARKF_CNT_PACKET);
-	bool ct_cnt_byte = (ct_flags & PMF_EARKF_CNT_BYTE);
+	bool ct_cnt_packet = gpc_cntr_pkt_enabled(cntr);
+	bool ct_cnt_byte = gpc_cntr_byt_enabled(cntr);
 
 	uint64_t val_pkt = -1;
 	uint64_t val_byt = -1;
-	bool ok = pmf_hw_counter_read((struct gpc_cntr *)eark,
-				      &val_pkt, &val_byt);
+	bool ok = pmf_hw_counter_read(cntr, &val_pkt, &val_byt);
 	if (!ok)
 		return;
 
@@ -1592,24 +1554,21 @@ pmf_arlg_show_hw_cntr(json_writer_t *json, struct pmf_cntr *eark)
 }
 
 static void
-pmf_arlg_show_cntr(json_writer_t *json, struct pmf_cntr *eark)
+pmf_arlg_show_cntr(json_writer_t *json, struct gpc_cntr *cntr)
 {
-	uint32_t ct_flags = eark->eark_flags;
-
-	bool ct_published = (ct_flags & PMF_EARKF_PUBLISHED);
-	if (!ct_published)
+	if (!gpc_cntr_is_published(cntr))
 		return;
 
-	bool ct_cnt_packet = (ct_flags & PMF_EARKF_CNT_PACKET);
-	bool ct_cnt_byte = (ct_flags & PMF_EARKF_CNT_BYTE);
+	bool ct_cnt_packet = gpc_cntr_pkt_enabled(cntr);
+	bool ct_cnt_byte = gpc_cntr_byt_enabled(cntr);
 
 	jsonw_start_object(json);
 
-	jsonw_string_field(json, "name", eark->eark_name);
+	jsonw_string_field(json, "name", gpc_cntr_get_name(cntr));
 	jsonw_bool_field(json, "cnt-pkts", ct_cnt_packet);
 	jsonw_bool_field(json, "cnt-bytes", ct_cnt_byte);
 
-	pmf_arlg_show_hw_cntr(json, eark);
+	pmf_arlg_show_hw_cntr(json, cntr);
 
 	jsonw_end_object(json);
 }
@@ -1669,13 +1628,13 @@ pmf_arlg_cmd_show_counters(FILE *fp, char const *ifname, int dir,
 			jsonw_string_field(json, "name",
 					   gpc_group_get_name(gprg));
 
-			struct pmf_group_ext *earg = gpc_group_get_owner(gprg);
+			struct gpc_cntg *cntg = gpc_group_get_cntg(gprg);
 
-			struct pmf_cntr *eark;
+			struct gpc_cntr *cntr;
 			jsonw_name(json, "counters");
 			jsonw_start_array(json);
-			TAILQ_FOREACH(eark, &earg->earg_cntrs, eark_list)
-				pmf_arlg_show_cntr(json, eark);
+			GPC_CNTR_FOREACH(cntr, cntg)
+				pmf_arlg_show_cntr(json, cntr);
 			jsonw_end_array(json);
 
 			jsonw_end_object(json);
@@ -1729,15 +1688,15 @@ pmf_arlg_cmd_clear_counters(char const *ifname, int dir, char const *rgname)
 			    strcmp(rgname, gpc_group_get_name(gprg)) != 0)
 				continue;
 
-			struct pmf_group_ext *earg = gpc_group_get_owner(gprg);
+			struct gpc_cntg *cntg = gpc_group_get_cntg(gprg);
+			if (!cntg)
+				continue;
 
-			struct pmf_cntr *eark;
-			TAILQ_FOREACH(eark, &earg->earg_cntrs, eark_list) {
-				uint32_t ct_flags = eark->eark_flags;
-				if (!(ct_flags & PMF_EARKF_PUBLISHED))
+			struct gpc_cntr *cntr;
+			GPC_CNTR_FOREACH(cntr, cntg) {
+				if (!gpc_cntr_is_published(cntr))
 					continue;
-				if (!pmf_hw_counter_clear(
-						(struct gpc_cntr *)eark))
+				if (!pmf_hw_counter_clear(cntr))
 					rc = -EIO;
 			}
 		}

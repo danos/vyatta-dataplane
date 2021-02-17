@@ -36,7 +36,7 @@ pmf_hw_rule_add(struct gpc_rule *gprl)
 	struct gpc_rlset *gprs = gpc_group_get_rlset(gprg);
 	char const *ifname = gpc_rlset_get_ifname(gprs);
 	struct gpc_cntr *gprk = gpc_rule_get_cntr(gprl);
-	uintptr_t ctrobj = gpc_cntr_old_get_objid(gprk);
+	uintptr_t ctrobj = gpc_cntr_get_objid(gprk);
 	uintptr_t grpobj = gpc_group_get_objid(gprg);
 	bool grp_was_created = (grpobj != FAL_NULL_OBJECT_ID);
 	uintptr_t rlobj = FAL_NULL_OBJECT_ID;
@@ -982,18 +982,19 @@ log_detach:
 bool
 pmf_hw_counter_create(struct gpc_cntr *gprk)
 {
-	struct gpc_group *gprg = gpc_cntr_old_get_group(gprk);
+	struct gpc_cntg *cntg = gpc_cntr_get_cntg(gprk);
+	struct gpc_group *gprg = gpc_cntg_get_group(cntg);
 	struct gpc_rlset *gprs = gpc_group_get_rlset(gprg);
 	char const *ifname = gpc_rlset_get_ifname(gprs);
 	uintptr_t grpobj = gpc_group_get_objid(gprg);
 	bool grp_was_created = (grpobj != FAL_NULL_OBJECT_ID);
 	uintptr_t ctrobj = FAL_NULL_OBJECT_ID;
-	char const *ctname = gpc_cntr_old_get_name(gprk);
+	char const *ctname = gpc_cntr_get_name(gprk);
 	bool ingress = gpc_group_is_ingress(gprg);
 	bool is_v6 = gpc_group_is_v6(gprg);
 	char const *rgname = gpc_group_get_name(gprg);
-	bool cnt_pkt = gpc_cntr_old_pkt_enabled(gprk);
-	bool cnt_byt = gpc_cntr_old_byt_enabled(gprk);
+	bool cnt_pkt = gpc_cntr_pkt_enabled(gprk);
+	bool cnt_byt = gpc_cntr_byt_enabled(gprk);
 	bool ok = true;
 	char const *ok_str = "SK";
 	enum gpc_feature feat = gpc_group_get_feature(gprg);
@@ -1045,7 +1046,7 @@ pmf_hw_counter_create(struct gpc_cntr *gprk)
 	rc = fal_acl_create_counter(nattr, cnt_attrs, &ctrobj);
 
 	if (!rc)
-		gpc_cntr_old_set_objid(gprk, ctrobj);
+		gpc_cntr_set_objid(gprk, ctrobj);
 
 	ok = (!rc || (rc == -EOPNOTSUPP && !grp_was_created));
 	ok_str = ok ? ((!rc) ? "OK" : "UN") : "NO";
@@ -1069,12 +1070,13 @@ log_create:
 void
 pmf_hw_counter_delete(struct gpc_cntr *gprk)
 {
-	struct gpc_group *gprg = gpc_cntr_old_get_group(gprk);
+	struct gpc_cntg *cntg = gpc_cntr_get_cntg(gprk);
+	struct gpc_group *gprg = gpc_cntg_get_group(cntg);
 	struct gpc_rlset *gprs = gpc_group_get_rlset(gprg);
 	char const *ifname = gpc_rlset_get_ifname(gprs);
-	uintptr_t ctrobj = gpc_cntr_old_get_objid(gprk);
+	uintptr_t ctrobj = gpc_cntr_get_objid(gprk);
 	bool was_created = (ctrobj != FAL_NULL_OBJECT_ID);
-	char const *ctname = gpc_cntr_old_get_name(gprk);
+	char const *ctname = gpc_cntr_get_name(gprk);
 	bool ingress = gpc_group_is_ingress(gprg);
 	bool is_v6 = gpc_group_is_v6(gprg);
 	char const *rgname = gpc_group_get_name(gprg);
@@ -1092,7 +1094,7 @@ pmf_hw_counter_delete(struct gpc_cntr *gprk)
 
 	rc = fal_acl_delete_counter(ctrobj);
 	if (!rc)
-		gpc_cntr_old_set_objid(gprk, FAL_NULL_OBJECT_ID);
+		gpc_cntr_set_objid(gprk, FAL_NULL_OBJECT_ID);
 
 	ok = (!rc || (rc == -EOPNOTSUPP && !was_created));
 	ok_str = ok ? ((!rc) ? "OK" : "UN") : "NO";
@@ -1111,17 +1113,18 @@ log_delete:
 bool
 pmf_hw_counter_clear(struct gpc_cntr const *gprk)
 {
-	struct gpc_group *gprg = gpc_cntr_old_get_group(gprk);
+	struct gpc_cntg *cntg = gpc_cntr_get_cntg(gprk);
+	struct gpc_group *gprg = gpc_cntg_get_group(cntg);
 	struct gpc_rlset *gprs = gpc_group_get_rlset(gprg);
 	char const *ifname = gpc_rlset_get_ifname(gprs);
-	uintptr_t ctrobj = gpc_cntr_old_get_objid(gprk);
+	uintptr_t ctrobj = gpc_cntr_get_objid(gprk);
 	bool was_created = (ctrobj != FAL_NULL_OBJECT_ID);
-	char const *ctname = gpc_cntr_old_get_name(gprk);
+	char const *ctname = gpc_cntr_get_name(gprk);
 	bool ingress = gpc_group_is_ingress(gprg);
 	bool is_v6 = gpc_group_is_v6(gprg);
 	char const *rgname = gpc_group_get_name(gprg);
-	bool cnt_pkt = gpc_cntr_old_pkt_enabled(gprk);
-	bool cnt_byt = gpc_cntr_old_byt_enabled(gprk);
+	bool cnt_pkt = gpc_cntr_pkt_enabled(gprk);
+	bool cnt_byt = gpc_cntr_byt_enabled(gprk);
 	bool ok = true;
 	char const *ok_str_pkt = "SK";
 	char const *ok_str_byt = "SK";
@@ -1178,17 +1181,18 @@ bool
 pmf_hw_counter_read(struct gpc_cntr const *gprk,
 		    uint64_t *pkts, uint64_t *bytes)
 {
-	struct gpc_group *gprg = gpc_cntr_old_get_group(gprk);
+	struct gpc_cntg *cntg = gpc_cntr_get_cntg(gprk);
+	struct gpc_group *gprg = gpc_cntg_get_group(cntg);
 	struct gpc_rlset *gprs = gpc_group_get_rlset(gprg);
 	char const *ifname = gpc_rlset_get_ifname(gprs);
-	uintptr_t ctrobj = gpc_cntr_old_get_objid(gprk);
+	uintptr_t ctrobj = gpc_cntr_get_objid(gprk);
 	bool was_created = (ctrobj != FAL_NULL_OBJECT_ID);
-	char const *ctname = gpc_cntr_old_get_name(gprk);
+	char const *ctname = gpc_cntr_get_name(gprk);
 	bool ingress = gpc_group_is_ingress(gprg);
 	bool is_v6 = gpc_group_is_v6(gprg);
 	char const *rgname = gpc_group_get_name(gprg);
-	bool cnt_pkt = gpc_cntr_old_pkt_enabled(gprk);
-	bool cnt_byt = gpc_cntr_old_byt_enabled(gprk);
+	bool cnt_pkt = gpc_cntr_pkt_enabled(gprk);
+	bool cnt_byt = gpc_cntr_byt_enabled(gprk);
 	bool ok = true;
 	char const *ok_str = "SK";
 	enum gpc_feature feat = gpc_group_get_feature(gprg);

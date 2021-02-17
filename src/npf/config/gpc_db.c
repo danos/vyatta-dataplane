@@ -13,7 +13,6 @@
 #include "npf/config/gpc_cntr_query.h"
 #include "npf/config/gpc_db_control.h"
 #include "npf/config/gpc_db_query.h"
-#include "npf/config/pmf_att_rlgrp.h"
 #include "npf/config/pmf_rule.h"
 #include "npf/config/pmf_hw.h"
 
@@ -824,11 +823,6 @@ gpc_rule_hw_ntfy_create(struct gpc_group *gprg, struct gpc_rule *gprl)
 	if (gpc_rule_is_published(gprl))
 		return;
 
-	/* These counter related lines need to move */
-	struct pmf_group_ext *earg = gpc_group_get_owner(gprg);
-
-	pmf_arlg_hw_ntfy_cntr_add(earg, gprl);
-
 	if (pmf_hw_rule_add(gprl))
 		gpc_rule_set_ll_created(gprl);
 
@@ -861,10 +855,5 @@ gpc_rule_hw_ntfy_delete(struct gpc_group *gprg, struct gpc_rule *gprl)
 
 	gpc_rule_clear_ll_created(gprl);
 	gpc_rule_clear_published(gprl);
-
-	/* These counter related lines need to move */
-	struct pmf_group_ext *earg = gpc_group_get_owner(gprg);
-
-	pmf_arlg_hw_ntfy_cntr_del(earg, gprl);
 }
 
