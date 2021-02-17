@@ -269,31 +269,47 @@ static const uint8_t NO_OWNER = 255;
 
 /* Port configuration */
 static struct port_conf {
-	struct rte_ring *pkt_ring[MAX_TX_QUEUE_PER_PORT];
-	uint8_t		nrings;
-	uint8_t		max_rings;
-	bool		percoreq;
-	bitmask_t	tx_enabled_queues;
-	bitmask_t	rx_enabled_queues;
+	struct rte_ring *pkt_ring[MAX_TX_QUEUE_PER_PORT];	/*  0 32 */
+	uint8_t		nrings;					/* 32  1 */
+	uint8_t		max_rings;				/* 33  1 */
+	bool		percoreq;				/* 34  1 */
+
+	/* XXX 5 bytes hole, try to pack. */
+
+	bitmask_t	tx_enabled_queues;			/* 40 16 */
+	bitmask_t	rx_enabled_queues;			/* 56 16 */
+
+	/* size: 128, cachlines: 2, members: 6 */
+	/* sum members: 57, holes: 1, sum holes: 5 */
+	/* padding: 56 */
 } __rte_cache_aligned port_config[DATAPLANE_MAX_PORTS] __hot_data;
 
 /* Port allocations */
 static struct port_alloc {
-	uint64_t		 dev_flags;
-	uint32_t		 buf_size;
-	uint16_t		 rx_desc;
-	uint16_t		 tx_desc;
-	uint32_t		 buffers;
-	uint8_t			 rx_queues;
-	uint8_t			 tx_queues;
-	int8_t			 socketid;	/* NUMA socket */
-	bool			 uses_queue_state;
-	bitmask_t		 rx_cpu_affinity;
-	bitmask_t		 tx_cpu_affinity;
-	struct rte_eth_txconf    tx_conf;
-	struct rte_eth_rxconf    rx_conf;
-	enum rte_eth_rx_mq_mode  rx_mq_mode;
-	struct rte_mempool	*rx_pool;	/* Receive buffer pool */
+	uint64_t		 dev_flags;			/*   0  8 */
+	uint32_t		 buf_size;			/*   8  4 */
+	uint16_t		 rx_desc;			/*  12  2 */
+	uint16_t		 tx_desc;			/*  14  2 */
+	uint32_t		 buffers;			/*  16  4 */
+	uint8_t			 rx_queues;			/*  20  1 */
+	uint8_t			 tx_queues;			/*  20  1 */
+	int8_t			 socketid;			/*  22  1 */
+	bool			 uses_queue_state;		/*  23  1 */
+	bitmask_t		 rx_cpu_affinity;		/*  24 16 */
+	bitmask_t		 tx_cpu_affinity;		/*  40 16 */
+	struct rte_eth_txconf    tx_conf;			/*  56 56 */
+	/* --- cacheline 1 boundary (64 bytes) was 48 bytes ago --- */
+	struct rte_eth_rxconf    rx_conf;			/* 112 48 */
+	/* --- cacheline 2 boundary (128 bytes) was 32 bytes ago --- */
+	enum rte_eth_rx_mq_mode  rx_mq_mode;			/* 160  4 */
+
+	/* XXX 4 bytes hole, try to packet */
+
+	struct rte_mempool	*rx_pool;			/* 168  8 */
+
+	/* size: 176, cachelines: 3, members: 15 */
+	/* sum members: 172, holes: 1, sum holes: 4 */
+	/* last cacheline: 48 bytes */
 } port_allocations[DATAPLANE_MAX_PORTS];
 
 /* Per socket mbuf pool */
