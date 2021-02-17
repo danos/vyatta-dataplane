@@ -1482,7 +1482,7 @@ void main_loop(void)
 		}
 		rte_timer_manage();
 
-		rcu_quiescent_state();
+		dp_rcu_quiescent_state(rte_get_master_lcore());
 		switch (main_state_get(cont_src)) {
 		case MAIN_IDLE:
 			if (is_local_controller() ||
