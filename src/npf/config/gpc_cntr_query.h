@@ -63,6 +63,9 @@ char const *gpc_cntr_get_name(struct gpc_cntr const *cntr);
 bool gpc_cntr_pkt_enabled(struct gpc_cntr const *cntr);
 bool gpc_cntr_byt_enabled(struct gpc_cntr const *cntr);
 
+bool gpc_cntr_is_published(struct gpc_cntr const *cntr);
+bool gpc_cntr_is_ll_created(struct gpc_cntr const *cntr);
+
 uintptr_t gpc_cntr_get_objid(struct gpc_cntr const *cntr);
 void gpc_cntr_set_objid(struct gpc_cntr *cntr, uintptr_t objid);
 

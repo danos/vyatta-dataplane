@@ -14,6 +14,7 @@
 #include "npf/config/gpc_cntr_query.h"
 #include "npf/config/gpc_cntr_control.h"
 #include "npf/config/gpc_db_query.h"
+#include "npf/config/pmf_hw.h"
 
 /* -- counter group -- */
 
@@ -39,6 +40,8 @@ struct gpc_cntg {
 enum gpc_cntr_flags {
 	GPC_CNTF_CNT_PACKET	= (1 << 0),
 	GPC_CNTF_CNT_BYTE	= (1 << 1),
+	GPC_CNTF_PUBLISHED	= (1 << 2),
+	GPC_CNTF_LL_CREATED	= (1 << 3),
 };
 
 struct gpc_cntr {
@@ -209,6 +212,37 @@ gpc_cntg_delete(struct gpc_cntg *cntg)
 	free(cntg);
 }
 
+/*
+ * For a counter group, notify creation or deletion of all counters.
+ *
+ * These are used for deferred notifications based upon the
+ * change in the group status.
+ */
+void
+gpc_cntg_hw_ntfy_cntrs_create(struct gpc_cntg *cntg)
+{
+	struct gpc_group *gprg = cntg->cntg_gprg;
+
+	if (!gpc_group_is_published(gprg))
+		return;
+
+	struct gpc_cntr *cntr;
+	TAILQ_FOREACH(cntr, &cntg->cntg_cntrs, cntr_list)
+		gpc_cntr_hw_ntfy_create(cntg, cntr);
+}
+
+void
+gpc_cntg_hw_ntfy_cntrs_delete(struct gpc_cntg *cntg)
+{
+	struct gpc_group *gprg = cntg->cntg_gprg;
+
+	if (!gpc_group_is_published(gprg))
+		return;
+
+	struct gpc_cntr *cntr;
+	TAILQ_FOREACH(cntr, &cntg->cntg_cntrs, cntr_list)
+		gpc_cntr_hw_ntfy_delete(cntg, cntr);
+}
 
 /* -- counter accessors -- */
 
@@ -249,12 +283,48 @@ gpc_cntr_get_objid(struct gpc_cntr const *cntr)
 	return cntr->cntr_objid;
 }
 
+bool
+gpc_cntr_is_published(struct gpc_cntr const *cntr)
+{
+	return cntr->cntr_flags & GPC_CNTF_PUBLISHED;
+}
+
+bool
+gpc_cntr_is_ll_created(struct gpc_cntr const *cntr)
+{
+	return cntr->cntr_flags & GPC_CNTF_LL_CREATED;
+}
+
 /* -- counter manipulators -- */
 
 void
 gpc_cntr_set_objid(struct gpc_cntr *cntr, uintptr_t objid)
 {
 	cntr->cntr_objid = objid;
+}
+
+static void
+gpc_cntr_set_published(struct gpc_cntr *cntr)
+{
+	cntr->cntr_flags |= GPC_CNTF_PUBLISHED;
+}
+
+static void
+gpc_cntr_clear_published(struct gpc_cntr *cntr)
+{
+	cntr->cntr_flags &= ~GPC_CNTF_PUBLISHED;
+}
+
+static void
+gpc_cntr_set_ll_created(struct gpc_cntr *cntr)
+{
+	cntr->cntr_flags |= GPC_CNTF_LL_CREATED;
+}
+
+static void
+gpc_cntr_clear_ll_created(struct gpc_cntr *cntr)
+{
+	cntr->cntr_flags &= ~GPC_CNTF_LL_CREATED;
 }
 
 /* -- counter DB walk -- */
@@ -364,6 +434,8 @@ gpc_cntr_delete(struct gpc_cntr *cntr)
 {
 	struct gpc_cntg *cntg = cntr->cntr_cntg;
 
+	gpc_cntr_hw_ntfy_delete(cntg, cntr);
+
 	TAILQ_REMOVE(&cntg->cntg_cntrs, cntr, cntr_list);
 	gpc_cntg_release(cntg);
 	cntr->cntr_cntg = NULL;
@@ -398,3 +470,37 @@ gpc_cntr_create_numbered(struct gpc_cntg *cntg, uint16_t number)
 	return cntr;
 }
 
+/* -- counter hardware notify -- */
+
+void
+gpc_cntr_hw_ntfy_create(struct gpc_cntg *cntg, struct gpc_cntr *cntr)
+{
+	struct gpc_group *gprg = cntg->cntg_gprg;
+
+	if (!gpc_group_is_published(gprg))
+		return;
+	if (gpc_cntr_is_published(cntr))
+		return;
+
+	if (1 || pmf_hw_counter_create(cntr))
+		gpc_cntr_set_ll_created(cntr);
+
+	gpc_cntr_set_published(cntr);
+}
+
+void
+gpc_cntr_hw_ntfy_delete(struct gpc_cntg *cntg, struct gpc_cntr *cntr)
+{
+	struct gpc_group *gprg = cntg->cntg_gprg;
+
+	if (!gpc_group_is_published(gprg))
+		return;
+	if (!gpc_cntr_is_published(cntr))
+		return;
+
+	if (0)
+		pmf_hw_counter_delete(cntr);
+
+	gpc_cntr_clear_ll_created(cntr);
+	gpc_cntr_clear_published(cntr);
+}

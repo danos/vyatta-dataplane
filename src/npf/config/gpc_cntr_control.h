@@ -26,6 +26,9 @@ struct gpc_cntg *gpc_cntg_create(struct gpc_group *gprg,
 void gpc_cntg_retain(struct gpc_cntg *cntg);
 void gpc_cntg_release(struct gpc_cntg *cntg);
 
+void gpc_cntg_hw_ntfy_cntrs_create(struct gpc_cntg *cntg);
+void gpc_cntg_hw_ntfy_cntrs_delete(struct gpc_cntg *cntg);
+
 /* -- counter -- */
 
 struct gpc_cntr *gpc_cntr_create_named(struct gpc_cntg *cntg,
@@ -36,5 +39,8 @@ struct gpc_cntr *gpc_cntr_find_and_retain(struct gpc_cntg *cntg,
 					  char const *name);
 void gpc_cntr_retain(struct gpc_cntr *cntr);
 void gpc_cntr_release(struct gpc_cntr *cntr);
+
+void gpc_cntr_hw_ntfy_create(struct gpc_cntg *cntg, struct gpc_cntr *cntr);
+void gpc_cntr_hw_ntfy_delete(struct gpc_cntg *cntg, struct gpc_cntr *cntr);
 
 #endif /* GPC_CNTR_CONTROL_H */
