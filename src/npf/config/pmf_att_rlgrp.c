@@ -1057,6 +1057,9 @@ pmf_arlg_commit_deferrals(void)
 	GPC_RLSET_FOREACH(gprs) {
 		struct gpc_group *gprg;
 		GPC_GROUP_FOREACH(gprg, gprs) {
+			if (gpc_group_get_feature(gprg) != GPC_FEAT_ACL)
+				continue;
+
 			struct pmf_group_ext *earg
 				= gpc_group_get_owner(gprg);
 
@@ -1139,6 +1142,9 @@ pmf_arlg_dump(FILE *fp)
 		/* Groups - i.e. TABLES */
 		struct gpc_group *gprg;
 		GPC_GROUP_FOREACH(gprg, gprs) {
+			if (gpc_group_get_feature(gprg) != GPC_FEAT_ACL)
+				continue;
+
 			struct pmf_group_ext *earg = gpc_group_get_owner(gprg);
 			uint32_t rg_flags = earg->earg_flags;
 			bool rg_published = gpc_group_is_published(gprg);
@@ -1319,6 +1325,9 @@ pmf_arlg_cmd_show_counters(FILE *fp, char const *ifname, int dir,
 		jsonw_name(json, "groups");
 		jsonw_start_array(json);
 		GPC_GROUP_FOREACH(gprg, gprs) {
+			if (gpc_group_get_feature(gprg) != GPC_FEAT_ACL)
+				continue;
+
 			/* Filter on group name */
 			if (rgname &&
 			    strcmp(rgname, gpc_group_get_name(gprg)) != 0)
@@ -1381,6 +1390,9 @@ pmf_arlg_cmd_clear_counters(char const *ifname, int dir, char const *rgname)
 		/* Groups - i.e. TABLES */
 		struct gpc_group *gprg;
 		GPC_GROUP_FOREACH(gprg, gprs) {
+			if (gpc_group_get_feature(gprg) != GPC_FEAT_ACL)
+				continue;
+
 			/* Filter on group name */
 			if (rgname &&
 			    strcmp(rgname, gpc_group_get_name(gprg)) != 0)
