@@ -1481,7 +1481,7 @@ pmf_arlg_dump(FILE *fp)
 					= (ct_flags & PMF_EARKF_CNT_PACKET);
 				bool ct_cnt_byte
 					= (ct_flags & PMF_EARKF_CNT_BYTE);
-				fprintf(fp, "   CT:%p(%lx): %s%s%s%s%s\n",
+				fprintf(fp, "   KT:%p(%lx): %s%s%s%s%s\n",
 					eark, eark->eark_objid,
 					eark->eark_name,
 					ct_published ? " Pub" : "",
@@ -1493,6 +1493,36 @@ pmf_arlg_dump(FILE *fp)
 				uint64_t val_byt = -1;
 				pmf_hw_counter_read((struct gpc_cntr *)eark,
 						    &val_pkt, &val_byt);
+				fprintf(fp, "      %s(%lu/%lx)) %s(%lu/%lx)\n",
+					ct_cnt_packet ? "Pkt" : "-",
+					(unsigned long)val_pkt,
+					(unsigned long)val_pkt,
+					ct_cnt_byte ? "Byte" : "-",
+					(unsigned long)val_byt,
+					(unsigned long)val_byt
+					);
+			}
+			struct gpc_cntg *cntg = gpc_group_get_cntg(gprg);
+			struct gpc_cntr *cntr;
+			GPC_CNTR_FOREACH(cntr, cntg) {
+				bool ct_published = gpc_cntr_is_published(cntr);
+				if (!ct_published)
+					continue;
+				bool ct_ll_create
+					= gpc_cntr_is_ll_created(cntr);
+				bool ct_cnt_packet = gpc_cntr_pkt_enabled(cntr);
+				bool ct_cnt_byte = gpc_cntr_byt_enabled(cntr);
+				fprintf(fp, "   CT:%p(%lx): %s%s%s%s%s\n",
+					cntr, gpc_cntr_get_objid(cntr),
+					gpc_cntr_get_name(cntr),
+					ct_published ? " Pub" : "",
+					ct_ll_create ? " LLcrt" : "",
+					ct_cnt_packet ? " Pkt" : "",
+					ct_cnt_byte ? " Byte" : ""
+					);
+				uint64_t val_pkt = -1;
+				uint64_t val_byt = -1;
+				pmf_hw_counter_read(cntr, &val_pkt, &val_byt);
 				fprintf(fp, "      %s(%lu/%lx)) %s(%lu/%lx)\n",
 					ct_cnt_packet ? "Pkt" : "-",
 					(unsigned long)val_pkt,
