@@ -471,6 +471,7 @@ cntr_error:
 				gpc_group_get_name(gprg));
 			return;
 		}
+		gpc_cntr_hw_ntfy_create(cntg, cntr);
 	}
 
 	/* Make "drop" if needed and not present */
@@ -479,6 +480,7 @@ cntr_error:
 		cntr = gpc_cntr_create_named(cntg, cntr_name);
 		if (!cntr)
 			goto cntr_error;
+		gpc_cntr_hw_ntfy_create(cntg, cntr);
 	}
 }
 
@@ -631,6 +633,7 @@ static void
 pmf_arlg_rl_attr_check(struct pmf_group_ext *earg, struct pmf_rule *attr_rule)
 {
 	struct gpc_group *gprg = earg->earg_gprg;
+	struct gpc_cntg *cntg = gpc_group_get_cntg(gprg);
 	struct pmf_attr_ip_family *ipfam = NULL;
 
 	/* The group attribute rule has been removed */
@@ -642,7 +645,8 @@ unpublish_group:
 		if (gpc_group_is_published(gprg)) {
 			gpc_group_hw_ntfy_detach(gprg);
 			gpc_group_hw_ntfy_rules_delete(gprg);
-			/* eventually delete counters */
+			if (cntg)
+				gpc_cntg_hw_ntfy_cntrs_delete(cntg);
 			gpc_group_hw_ntfy_delete(gprg);
 			/* Enable deferred republish */
 			gpc_group_set_deferred(gprg);
@@ -673,7 +677,8 @@ publish_group:
 
 		/* Now publish everything referencing the group */
 		gpc_group_hw_ntfy_create(gprg, attr_rule);
-		/* eventually create counters */
+		if (cntg)
+			gpc_cntg_hw_ntfy_cntrs_create(cntg);
 		gpc_group_hw_ntfy_rules_create(gprg);
 		gpc_group_hw_ntfy_attach(gprg);
 
@@ -707,7 +712,8 @@ publish_group:
 	if (gpc_group_is_published(gprg)) {
 		gpc_group_hw_ntfy_detach(gprg);
 		gpc_group_hw_ntfy_rules_delete(gprg);
-		/* eventually delete counters */
+		if (cntg)
+			gpc_cntg_hw_ntfy_cntrs_delete(cntg);
 		gpc_group_hw_ntfy_delete(gprg);
 	}
 	earg->earg_flags &= ~PMF_EARGF_RULE_ATTR;
@@ -822,6 +828,7 @@ rule_chg_error:
 			/* Need a counter, but don't have one - acquire one */
 			cntr = pmf_arlg_rule_get_cntr(cntg, new_rule, rl_idx);
 			gpc_rule_set_cntr(gprl, cntr);
+			gpc_cntr_hw_ntfy_create(cntg, cntr);
 		} else {
 			/* Counter needed, and/or rule match have changed */
 			if (gpc_cntg_type(cntg) == GPC_CNTT_NAMED) {
@@ -833,6 +840,7 @@ rule_chg_error:
 					/* Do we need to clear the counter? */
 				} else {
 					gpc_rule_set_cntr(gprl, new_cntr);
+					gpc_cntr_hw_ntfy_create(cntg, new_cntr);
 					rel_cntr = cntr;
 				}
 			}
@@ -919,6 +927,9 @@ pmf_arlg_rl_add(struct pmf_group_ext *earg,
 	}
 
 	gpc_rule_set_cntr(gprl, cntr);
+
+	if (cntr)
+		gpc_cntr_hw_ntfy_create(cntg, cntr);
 
 	gpc_rule_change_rule(gprl, rule);
 
@@ -1111,6 +1122,10 @@ pmf_arlg_attpt_grp_ev_handler(enum npf_attpt_ev_type event,
 		/* Notify clients */
 		gpc_group_hw_ntfy_rules_delete(gprg);
 
+		struct gpc_cntg *cntg = gpc_group_get_cntg(gprg);
+		if (cntg)
+			gpc_cntg_hw_ntfy_cntrs_delete(cntg);
+
 		/* Deallocate all of the rules */
 		struct gpc_rule *cursor;
 		while (!!(cursor = gpc_rule_last(gprg))) {
@@ -1124,7 +1139,6 @@ pmf_arlg_attpt_grp_ev_handler(enum npf_attpt_ev_type event,
 		}
 
 		/* Deallocate remaining counters */
-		struct gpc_cntg *cntg = gpc_group_get_cntg(gprg);
 		if (cntg) {
 			if (gpc_cntg_type(cntg) == GPC_CNTT_NAMED) {
 				struct gpc_cntr *cntr;
@@ -1353,6 +1367,11 @@ pmf_arlg_commit_deferrals(void)
 			/* Could be blocked by lack of address family */
 			struct pmf_rule *attr_rule = earg->earg_attr_rule;
 			gpc_group_hw_ntfy_create(gprg, attr_rule);
+
+			/* Notify about all counters */
+			struct gpc_cntg *cntg = gpc_group_get_cntg(gprg);
+			if (cntg)
+				gpc_cntg_hw_ntfy_cntrs_create(cntg);
 
 			/* Notify about all rules */
 			gpc_group_hw_ntfy_rules_create(gprg);
