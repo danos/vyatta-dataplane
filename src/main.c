@@ -1600,7 +1600,7 @@ void unassign_queues(portid_t portid)
 		unassign_port_receive_queues(portid, conf);
 	}
 
-	synchronize_rcu();
+	dp_rcu_synchronize();
 	pkt_ring_empty(portid);
 	stop_cpus();
 }
@@ -1951,7 +1951,7 @@ int assign_queues(portid_t portid)
 			FOREACH_FORWARD_LCORE(lcore) {
 				struct lcore_conf *conf = lcore_conf[lcore];
 				unassign_port_receive_queues(portid, conf);
-				synchronize_rcu();
+				dp_rcu_synchronize();
 				pkt_ring_empty(portid);
 				stop_cpus();
 			}
@@ -1998,7 +1998,7 @@ void disable_transmit_thread(portid_t portid)
 		unassign_port_transmit_queues(portid, conf);
 	}
 
-	synchronize_rcu();
+	dp_rcu_synchronize();
 	pkt_ring_empty(portid);
 	stop_cpus();
 }

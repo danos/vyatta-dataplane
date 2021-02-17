@@ -97,7 +97,7 @@ static void notify_port_status(portid_t port,
 		/* Note: it is probably a good idea to drain the pkt
 		 * ring and burst at this point to avoid stale packets
 		 * going out once the link comes back up. However,
-		 * doing the necessary synchronize_rcu() here could
+		 * doing the necessary dp_rcu_synchronize() here could
 		 * potentially have a negative impact on link changes
 		 * for other interfaces and other events so isn't done
 		 * for the moment.

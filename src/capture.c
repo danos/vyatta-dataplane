@@ -764,7 +764,7 @@ static void *capture_thread(void *arg)
 	ifp->hw_capturing = 0;
 	ifp->capturing = 0;
 
-	synchronize_rcu();	/* all threads stop capturing */
+	dp_rcu_synchronize();	/* all threads stop capturing */
 
 	pthread_cleanup_pop(1);
 	ifp->cap_info = NULL;

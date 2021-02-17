@@ -106,4 +106,17 @@ dp_rcu_barrier(void)
 	rcu_barrier();
 }
 
+/*
+ * Block until all the readers threads enter the quiescent state or
+ * are offline.
+ *
+ * This is not a reader-writer lock.
+ */
+static __rte_always_inline void
+dp_rcu_synchronize(void)
+{
+	synchronize_rcu();
+	rte_rcu_qsbr_synchronize(dp_qsbr_rcu_v, dp_lcore_id());
+}
+
 #endif /* VYATTA_DATAPLANE_RCU_H */

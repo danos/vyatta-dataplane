@@ -86,7 +86,7 @@ int detach_device(const char *name)
 	if (ifp) {
 		/*
 		 * The following calls (unassign_queues and
-		 * dpdk_eth_if_stop) both call synchronize_rcu(), and
+		 * dpdk_eth_if_stop) both call dp_rcu_synchronize(), and
 		 * setting unplugged needs to be before that call.
 		 */
 		ifp->unplugged = 1;

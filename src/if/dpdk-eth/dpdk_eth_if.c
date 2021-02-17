@@ -142,7 +142,7 @@ static void soft_stop_port(struct ifnet *ifp)
 	qos_sched_stop(ifp);
 
 	/* make sure cores have drained */
-	synchronize_rcu();
+	dp_rcu_synchronize();
 
 	/* free any leftovers */
 	pkt_ring_empty(port);
