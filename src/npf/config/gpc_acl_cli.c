@@ -121,3 +121,136 @@ gpc_acl_dump(FILE *fp)
 		}
 	}
 }
+
+/* Op-mode commands : show counters */
+
+static void
+gpc_acl_show_cntr_ruleset(json_writer_t *json, struct gpc_rlset *gprs)
+{
+	bool rs_in = gpc_rlset_is_ingress(gprs);
+
+	jsonw_string_field(json, "interface", gpc_rlset_get_ifname(gprs));
+	jsonw_string_field(json, "direction", rs_in ? "in" : "out");
+}
+
+static void
+gpc_acl_show_hw_cntr(json_writer_t *json, struct gpc_cntr *cntr)
+{
+	if (!gpc_cntr_is_ll_created(cntr))
+		return;
+
+	bool ct_cnt_packet = gpc_cntr_pkt_enabled(cntr);
+	bool ct_cnt_byte = gpc_cntr_byt_enabled(cntr);
+
+	uint64_t val_pkt = -1;
+	uint64_t val_byt = -1;
+	bool ok = pmf_hw_counter_read(cntr, &val_pkt, &val_byt);
+	if (!ok)
+		return;
+
+	jsonw_name(json, "hw");
+	jsonw_start_object(json);
+
+	if (ct_cnt_packet)
+		jsonw_uint_field(json, "pkts", val_pkt);
+	if (ct_cnt_byte)
+		jsonw_uint_field(json, "bytes", val_byt);
+
+	jsonw_end_object(json);
+}
+
+static void
+gpc_acl_show_cntr(json_writer_t *json, struct gpc_cntr *cntr)
+{
+	if (!gpc_cntr_is_published(cntr))
+		return;
+
+	bool ct_cnt_packet = gpc_cntr_pkt_enabled(cntr);
+	bool ct_cnt_byte = gpc_cntr_byt_enabled(cntr);
+
+	jsonw_start_object(json);
+
+	jsonw_string_field(json, "name", gpc_cntr_get_name(cntr));
+	jsonw_bool_field(json, "cnt-pkts", ct_cnt_packet);
+	jsonw_bool_field(json, "cnt-bytes", ct_cnt_byte);
+
+	gpc_acl_show_hw_cntr(json, cntr);
+
+	jsonw_end_object(json);
+}
+
+int
+gpc_acl_cmd_show_counters(FILE *fp, char const *ifname, int dir,
+			   char const *rgname)
+{
+	json_writer_t *json = jsonw_new(fp);
+	if (!json) {
+		RTE_LOG(ERR, DATAPLANE, "failed to create json stream\n");
+		return -ENOMEM;
+	}
+
+	/* Enforce filter heirarchy */
+	if (!ifname)
+		dir = 0;
+	if (!dir)
+		rgname = NULL;
+
+	jsonw_pretty(json, true);
+
+	/* Rulesets */
+	struct gpc_rlset *gprs;
+	jsonw_name(json, "rulesets");
+	jsonw_start_array(json);
+	GPC_RLSET_FOREACH(gprs) {
+		/* Skip rulesets w/o an interface */
+		if (!gpc_rlset_get_ifp(gprs))
+			continue;
+		/* Filter on interface & direction */
+		if (ifname && strcmp(ifname, gpc_rlset_get_ifname(gprs)))
+			continue;
+		if (dir < 0 && !gpc_rlset_is_ingress(gprs))
+			continue;
+		if (dir > 0 && gpc_rlset_is_ingress(gprs))
+			continue;
+
+		jsonw_start_object(json);
+		gpc_acl_show_cntr_ruleset(json, gprs);
+
+		/* Groups - i.e. TABLES */
+		struct gpc_group *gprg;
+		jsonw_name(json, "groups");
+		jsonw_start_array(json);
+		GPC_GROUP_FOREACH(gprg, gprs) {
+			if (gpc_group_get_feature(gprg) != GPC_FEAT_ACL)
+				continue;
+
+			/* Filter on group name */
+			if (rgname && strcmp(rgname, gpc_group_get_name(gprg)))
+				continue;
+
+			jsonw_start_object(json);
+
+			jsonw_string_field(json, "name",
+					   gpc_group_get_name(gprg));
+
+			struct gpc_cntg *cntg = gpc_group_get_cntg(gprg);
+
+			struct gpc_cntr *cntr;
+			jsonw_name(json, "counters");
+			jsonw_start_array(json);
+			GPC_CNTR_FOREACH(cntr, cntg)
+				gpc_acl_show_cntr(json, cntr);
+			jsonw_end_array(json);
+
+			jsonw_end_object(json);
+		}
+		jsonw_end_array(json);
+
+		jsonw_end_object(json);
+	}
+	jsonw_end_array(json);
+
+	jsonw_destroy(&json);
+
+	return 0;
+}
