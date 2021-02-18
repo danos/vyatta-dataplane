@@ -482,7 +482,7 @@ gpc_cntr_hw_ntfy_create(struct gpc_cntg *cntg, struct gpc_cntr *cntr)
 	if (gpc_cntr_is_published(cntr))
 		return;
 
-	if (pmf_hw_counter_create(cntr))
+	if (gpc_hw_counter_create(cntr))
 		gpc_cntr_set_ll_created(cntr);
 
 	gpc_cntr_set_published(cntr);
@@ -498,7 +498,7 @@ gpc_cntr_hw_ntfy_delete(struct gpc_cntg *cntg, struct gpc_cntr *cntr)
 	if (!gpc_cntr_is_published(cntr))
 		return;
 
-	pmf_hw_counter_delete(cntr);
+	gpc_hw_counter_delete(cntr);
 
 	gpc_cntr_clear_ll_created(cntr);
 	gpc_cntr_clear_published(cntr);

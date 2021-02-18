@@ -485,7 +485,7 @@ gpc_group_hw_ntfy_create(struct gpc_group *gprg, struct pmf_rule *rule)
 	uint32_t summary = gpc_group_recalc_summary(gprg, rule);
 	gprg->gprg_summary = summary;
 
-	if (pmf_hw_group_create(gprg))
+	if (gpc_hw_group_create(gprg))
 		gpc_group_set_ll_created(gprg);
 
 	gpc_group_set_published(gprg);
@@ -497,7 +497,7 @@ gpc_group_hw_ntfy_delete(struct gpc_group *gprg)
 	if (!gpc_group_is_published(gprg))
 		return;
 
-	pmf_hw_group_delete(gprg);
+	gpc_hw_group_delete(gprg);
 
 	/* Rules summary cleared to optimise rule delete */
 	gprg->gprg_summary = 0;
@@ -515,7 +515,7 @@ gpc_group_hw_ntfy_modify(struct gpc_group *gprg, uint32_t new)
 	if (new == gprg->gprg_summary)
 		return;
 
-	pmf_hw_group_mod(gprg, new);
+	gpc_hw_group_mod(gprg, new);
 
 	gprg->gprg_summary = new;
 }
@@ -536,7 +536,7 @@ gpc_group_hw_ntfy_attach(struct gpc_group *gprg)
 	if (!att_ifp || !gpc_rlset_is_if_created(gprs))
 		return;
 
-	if (pmf_hw_group_attach(gprg, att_ifp))
+	if (gpc_hw_group_attach(gprg, att_ifp))
 		gpc_group_set_ll_attached(gprg);
 
 	gpc_group_set_attached(gprg);
@@ -553,7 +553,7 @@ gpc_group_hw_ntfy_detach(struct gpc_group *gprg)
 	struct gpc_rlset *gprs = gprg->gprg_rlset;
 	struct ifnet *att_ifp = gpc_rlset_get_ifp(gprs);
 
-	pmf_hw_group_detach(gprg, att_ifp);
+	gpc_hw_group_detach(gprg, att_ifp);
 
 	gpc_group_clear_ll_attached(gprg);
 	gpc_group_clear_attached(gprg);
@@ -817,7 +817,7 @@ gpc_rule_hw_ntfy_create(struct gpc_group *gprg, struct gpc_rule *gprl)
 	if (gpc_rule_is_published(gprl))
 		return;
 
-	if (pmf_hw_rule_add(gprl))
+	if (gpc_hw_rule_add(gprl))
 		gpc_rule_set_ll_created(gprl);
 
 	gpc_rule_set_published(gprl);
@@ -834,7 +834,7 @@ gpc_rule_hw_ntfy_modify(struct gpc_group *gprg, struct gpc_rule *gprl,
 		return;
 	}
 
-	pmf_hw_rule_mod(gprl, old_rule);
+	gpc_hw_rule_mod(gprl, old_rule);
 }
 
 void
@@ -845,7 +845,7 @@ gpc_rule_hw_ntfy_delete(struct gpc_group *gprg, struct gpc_rule *gprl)
 	if (!gpc_rule_is_published(gprl))
 		return;
 
-	pmf_hw_rule_del(gprl);
+	gpc_hw_rule_del(gprl);
 
 	gpc_rule_clear_ll_created(gprl);
 	gpc_rule_clear_published(gprl);

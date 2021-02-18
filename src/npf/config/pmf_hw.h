@@ -4,6 +4,9 @@
  * SPDX-License-Identifier: LGPL-2.1-only
  */
 
+#ifndef GPC_HW_H
+#define GPC_HW_H
+
 #include <stdbool.h>
 #include <stdint.h>
 
@@ -13,19 +16,21 @@ struct gpc_cntr;
 struct pmf_rule;
 struct ifnet;
 
-bool pmf_hw_rule_add(struct gpc_rule *gprl);
-void pmf_hw_rule_mod(struct gpc_rule *gprl, struct pmf_rule *old_rule);
-void pmf_hw_rule_del(struct gpc_rule *gprl);
+bool gpc_hw_rule_add(struct gpc_rule *gprl);
+void gpc_hw_rule_mod(struct gpc_rule *gprl, struct pmf_rule *old_rule);
+void gpc_hw_rule_del(struct gpc_rule *gprl);
 
-bool pmf_hw_group_attach(struct gpc_group *gprg, struct ifnet *ifp);
-void pmf_hw_group_detach(struct gpc_group *gprg, struct ifnet *ifp);
-bool pmf_hw_group_create(struct gpc_group *gprg);
-void pmf_hw_group_mod(struct gpc_group *gprg, uint32_t new);
-void pmf_hw_group_delete(struct gpc_group *gprg);
+bool gpc_hw_group_attach(struct gpc_group *gprg, struct ifnet *ifp);
+void gpc_hw_group_detach(struct gpc_group *gprg, struct ifnet *ifp);
+bool gpc_hw_group_create(struct gpc_group *gprg);
+void gpc_hw_group_mod(struct gpc_group *gprg, uint32_t new);
+void gpc_hw_group_delete(struct gpc_group *gprg);
 
-bool pmf_hw_counter_create(struct gpc_cntr *gprk);
-void pmf_hw_counter_delete(struct gpc_cntr *gprk);
-bool pmf_hw_counter_clear(struct gpc_cntr const *gprk);
-bool pmf_hw_counter_read(struct gpc_cntr const *gprk,
+bool gpc_hw_counter_create(struct gpc_cntr *gprk);
+void gpc_hw_counter_delete(struct gpc_cntr *gprk);
+bool gpc_hw_counter_clear(struct gpc_cntr const *gprk);
+bool gpc_hw_counter_read(struct gpc_cntr const *gprk,
 			 uint64_t *pkts, uint64_t *bytes);
-void pmf_hw_commit(void);
+void gpc_hw_commit(void);
+
+#endif /* GPC_HW_H */

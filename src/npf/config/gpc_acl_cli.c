@@ -94,7 +94,7 @@ gpc_acl_dump(FILE *fp)
 					);
 				uint64_t val_pkt = -1;
 				uint64_t val_byt = -1;
-				pmf_hw_counter_read(cntr, &val_pkt, &val_byt);
+				gpc_hw_counter_read(cntr, &val_pkt, &val_byt);
 				fprintf(fp, "      %s(%lu/%lx)) %s(%lu/%lx)\n",
 					ct_cnt_packet ? "Pkt" : "-",
 					(unsigned long)val_pkt,
@@ -144,7 +144,7 @@ gpc_acl_show_hw_cntr(json_writer_t *json, struct gpc_cntr *cntr)
 
 	uint64_t val_pkt = -1;
 	uint64_t val_byt = -1;
-	bool ok = pmf_hw_counter_read(cntr, &val_pkt, &val_byt);
+	bool ok = gpc_hw_counter_read(cntr, &val_pkt, &val_byt);
 	if (!ok)
 		return;
 
@@ -300,7 +300,7 @@ gpc_acl_cmd_clear_counters(char const *ifname, int dir, char const *rgname)
 			GPC_CNTR_FOREACH(cntr, cntg) {
 				if (!gpc_cntr_is_published(cntr))
 					continue;
-				if (!pmf_hw_counter_clear(cntr))
+				if (!gpc_hw_counter_clear(cntr))
 					rc = -EIO;
 			}
 		}

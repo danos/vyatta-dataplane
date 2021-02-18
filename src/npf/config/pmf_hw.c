@@ -25,12 +25,12 @@
 	rte_log((ok) ? RTE_LOG_DEBUG : RTE_LOG_ERR, \
 		RTE_LOGTYPE_ ## t, # t ": " __VA_ARGS__)
 
-static bool pmf_hw_commit_needed;
+static bool gpc_hw_commit_needed;
 
 /* ---- */
 
 bool
-pmf_hw_rule_add(struct gpc_rule *gprl)
+gpc_hw_rule_add(struct gpc_rule *gprl)
 {
 	struct gpc_group *gprg = gpc_rule_get_group(gprl);
 	struct gpc_rlset *gprs = gpc_group_get_rlset(gprg);
@@ -440,7 +440,7 @@ pmf_hw_rule_add(struct gpc_rule *gprl)
 #undef FAL_ENTRY_VAR_FIELDS
 #undef FAL_ENTRY_TOT_FIELDS
 
-	pmf_hw_commit_needed = true;
+	gpc_hw_commit_needed = true;
 
 	/* Call the FAL, and clean up */
 	rc = fal_acl_create_entry(nattr, ent_attrs, &rlobj);
@@ -468,7 +468,7 @@ log_add:
 }
 
 void
-pmf_hw_rule_del(struct gpc_rule *gprl)
+gpc_hw_rule_del(struct gpc_rule *gprl)
 {
 	struct gpc_group *gprg = gpc_rule_get_group(gprl);
 	struct gpc_rlset *gprs = gpc_group_get_rlset(gprg);
@@ -489,7 +489,7 @@ pmf_hw_rule_del(struct gpc_rule *gprl)
 	if (!was_created)
 		goto log_delete;
 
-	pmf_hw_commit_needed = true;
+	gpc_hw_commit_needed = true;
 
 	rc = fal_acl_delete_entry(rlobj);
 	if (!rc)
@@ -517,7 +517,7 @@ log_delete:
  * the FAL until such time as we generate proper modifies.
  */
 void
-pmf_hw_rule_mod(struct gpc_rule *gprl, struct pmf_rule *old_rule __unused)
+gpc_hw_rule_mod(struct gpc_rule *gprl, struct pmf_rule *old_rule __unused)
 {
 	struct gpc_group *gprg = gpc_rule_get_group(gprl);
 	struct gpc_rlset *gprs = gpc_group_get_rlset(gprg);
@@ -539,14 +539,14 @@ pmf_hw_rule_mod(struct gpc_rule *gprl, struct pmf_rule *old_rule __unused)
 			rlobj);
 	}
 
-	pmf_hw_rule_del(gprl);
-	pmf_hw_rule_add(gprl);
+	gpc_hw_rule_del(gprl);
+	gpc_hw_rule_add(gprl);
 }
 
 /* -- group FAL notification -- */
 
 bool
-pmf_hw_group_create(struct gpc_group *gprg)
+gpc_hw_group_create(struct gpc_group *gprg)
 {
 	struct gpc_rlset *gprs = gpc_group_get_rlset(gprg);
 	char const *ifname = gpc_rlset_get_ifname(gprs);
@@ -711,7 +711,7 @@ pmf_hw_group_create(struct gpc_group *gprg)
 #undef FAL_TABLE_VAR_FIELDS
 #undef FAL_TABLE_TOT_FIELDS
 
-	pmf_hw_commit_needed = true;
+	gpc_hw_commit_needed = true;
 
 	/* Call the FAL, and clean up */
 	int rc = fal_acl_create_table(nattr, tbl_attrs, &grpobj);
@@ -736,7 +736,7 @@ pmf_hw_group_create(struct gpc_group *gprg)
 }
 
 void
-pmf_hw_group_delete(struct gpc_group *gprg)
+gpc_hw_group_delete(struct gpc_group *gprg)
 {
 	struct gpc_rlset *gprs = gpc_group_get_rlset(gprg);
 	char const *ifname = gpc_rlset_get_ifname(gprs);
@@ -755,7 +755,7 @@ pmf_hw_group_delete(struct gpc_group *gprg)
 	if (!was_created)
 		goto log_delete;
 
-	pmf_hw_commit_needed = true;
+	gpc_hw_commit_needed = true;
 
 	rc = fal_acl_delete_table(grpobj);
 	if (!rc)
@@ -783,7 +783,7 @@ log_delete:
  * fields, treating this as a NO-OP is currently safe.
  */
 void
-pmf_hw_group_mod(struct gpc_group *gprg, uint32_t new)
+gpc_hw_group_mod(struct gpc_group *gprg, uint32_t new)
 {
 	struct gpc_rlset *gprs = gpc_group_get_rlset(gprg);
 	char const *ifname = gpc_rlset_get_ifname(gprs);
@@ -844,7 +844,7 @@ pmf_hw_rtr_intf_attr_qos(bool is_v6)
 }
 
 bool
-pmf_hw_group_attach(struct gpc_group *gprg, struct ifnet *ifp)
+gpc_hw_group_attach(struct gpc_group *gprg, struct ifnet *ifp)
 {
 	uintptr_t grpobj = gpc_group_get_objid(gprg);
 	bool is_attached = gpc_group_is_ll_attached(gprg);
@@ -893,7 +893,7 @@ pmf_hw_group_attach(struct gpc_group *gprg, struct ifnet *ifp)
 		break;
 	}
 
-	pmf_hw_commit_needed = true;
+	gpc_hw_commit_needed = true;
 
 	rc = if_set_l3_intf_attr(ifp, &acl);
 
@@ -913,7 +913,7 @@ log_attach:
 }
 
 void
-pmf_hw_group_detach(struct gpc_group *gprg, struct ifnet *ifp)
+gpc_hw_group_detach(struct gpc_group *gprg, struct ifnet *ifp)
 {
 	uintptr_t grpobj = gpc_group_get_objid(gprg);
 	bool was_attached = gpc_group_is_ll_attached(gprg);
@@ -960,7 +960,7 @@ pmf_hw_group_detach(struct gpc_group *gprg, struct ifnet *ifp)
 		break;
 	}
 
-	pmf_hw_commit_needed = true;
+	gpc_hw_commit_needed = true;
 
 	rc = if_set_l3_intf_attr(ifp, &acl);
 
@@ -980,7 +980,7 @@ log_detach:
 /* ---- */
 
 bool
-pmf_hw_counter_create(struct gpc_cntr *gprk)
+gpc_hw_counter_create(struct gpc_cntr *gprk)
 {
 	struct gpc_cntg *cntg = gpc_cntr_get_cntg(gprk);
 	struct gpc_group *gprg = gpc_cntg_get_group(cntg);
@@ -1040,7 +1040,7 @@ pmf_hw_counter_create(struct gpc_cntr *gprk)
 #undef FAL_COUNTER_VAR_FIELDS
 #undef FAL_COUNTER_TOT_FIELDS
 
-	pmf_hw_commit_needed = true;
+	gpc_hw_commit_needed = true;
 
 	/* Call the FAL, and clean up */
 	rc = fal_acl_create_counter(nattr, cnt_attrs, &ctrobj);
@@ -1068,7 +1068,7 @@ log_create:
 }
 
 void
-pmf_hw_counter_delete(struct gpc_cntr *gprk)
+gpc_hw_counter_delete(struct gpc_cntr *gprk)
 {
 	struct gpc_cntg *cntg = gpc_cntr_get_cntg(gprk);
 	struct gpc_group *gprg = gpc_cntg_get_group(cntg);
@@ -1090,7 +1090,7 @@ pmf_hw_counter_delete(struct gpc_cntr *gprk)
 	if (!was_created)
 		goto log_delete;
 
-	pmf_hw_commit_needed = true;
+	gpc_hw_commit_needed = true;
 
 	rc = fal_acl_delete_counter(ctrobj);
 	if (!rc)
@@ -1111,7 +1111,7 @@ log_delete:
 }
 
 bool
-pmf_hw_counter_clear(struct gpc_cntr const *gprk)
+gpc_hw_counter_clear(struct gpc_cntr const *gprk)
 {
 	struct gpc_cntg *cntg = gpc_cntr_get_cntg(gprk);
 	struct gpc_group *gprg = gpc_cntg_get_group(cntg);
@@ -1178,7 +1178,7 @@ log_clear:
 }
 
 bool
-pmf_hw_counter_read(struct gpc_cntr const *gprk,
+gpc_hw_counter_read(struct gpc_cntr const *gprk,
 		    uint64_t *pkts, uint64_t *bytes)
 {
 	struct gpc_cntg *cntg = gpc_cntr_get_cntg(gprk);
@@ -1253,13 +1253,13 @@ log_read:
 /* ---- */
 
 void
-pmf_hw_commit(void)
+gpc_hw_commit(void)
 {
 	bool ok = true;
 	int rc = 0;
 	char const *ok_str = "SK";
 
-	if (!pmf_hw_commit_needed)
+	if (!gpc_hw_commit_needed)
 		goto log_commit;
 
 	static uint32_t commit_counter;
@@ -1283,5 +1283,5 @@ log_commit:
 			commit_counter, ok_str, rc);
 	}
 
-	pmf_hw_commit_needed = false;
+	gpc_hw_commit_needed = false;
 }

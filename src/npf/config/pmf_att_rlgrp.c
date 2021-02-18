@@ -996,7 +996,7 @@ pmf_arlg_attpt_ap_ev_handler(enum npf_attpt_ev_type event,
 
 	/* If this occurs outside of config, force a commit */
 	if (any_sets && !commit_pending)
-		pmf_hw_commit();
+		gpc_hw_commit();
 }
 
 static void
@@ -1026,7 +1026,7 @@ pmf_arlg_if_feat_mode_change(struct ifnet *ifp,
 
 	/* If this occurs outside of config, force a commit */
 	if (any_sets && !commit_pending)
-		pmf_hw_commit();
+		gpc_hw_commit();
 }
 
 static const struct dp_event_ops pmf_arlg_events = {
@@ -1077,7 +1077,7 @@ pmf_arlg_commit(void)
 	if (deferrals)
 		pmf_arlg_commit_deferrals();
 
-	pmf_hw_commit();
+	gpc_hw_commit();
 	deferrals = false;
 	commit_pending = false;
 }
