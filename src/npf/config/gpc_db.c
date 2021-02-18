@@ -59,21 +59,6 @@ struct gpc_group {
 };
 
 
-/* -- feature -- */
-
-char const *
-gpc_feature_get_name(enum gpc_feature feat)
-{
-	switch (feat) {
-	case GPC_FEAT_ACL:
-		return "ACL";
-	case GPC_FEAT_QOS:
-		return "QOS";
-	default:
-		return "Error";
-	}
-}
-
 /* -- rule -- */
 
 enum gpc_rl_flags {
@@ -95,6 +80,21 @@ struct gpc_rule {
 
 static TAILQ_HEAD(, gpc_rlset) att_rlsets
 	= TAILQ_HEAD_INITIALIZER(att_rlsets);
+
+/* -- feature utility -- */
+
+char const *
+gpc_feature_get_name(enum gpc_feature feat)
+{
+	switch (feat) {
+	case GPC_FEAT_ACL:
+		return "ACL";
+	case GPC_FEAT_QOS:
+		return "QOS";
+	default:
+		return "Error";
+	}
+}
 
 /* -- ruleset accessors -- */
 
