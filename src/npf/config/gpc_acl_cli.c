@@ -254,3 +254,57 @@ gpc_acl_cmd_show_counters(FILE *fp, char const *ifname, int dir,
 
 	return 0;
 }
+
+/* Op-mode commands : clear counters */
+
+int
+gpc_acl_cmd_clear_counters(char const *ifname, int dir, char const *rgname)
+{
+	int rc = 0; /* Success */
+
+	/* Enforce filter heirarchy */
+	if (!ifname)
+		dir = 0;
+	if (!dir)
+		rgname = NULL;
+
+	/* Rulesets */
+	struct gpc_rlset *gprs;
+	GPC_RLSET_FOREACH(gprs) {
+		/* Skip rulesets w/o an interface */
+		if (!gpc_rlset_get_ifp(gprs))
+			continue;
+		/* Filter on interface & direction */
+		if (ifname && strcmp(ifname, gpc_rlset_get_ifname(gprs)))
+			continue;
+		if (dir < 0 && !gpc_rlset_is_ingress(gprs))
+			continue;
+		if (dir > 0 && gpc_rlset_is_ingress(gprs))
+			continue;
+
+		/* Groups - i.e. TABLES */
+		struct gpc_group *gprg;
+		GPC_GROUP_FOREACH(gprg, gprs) {
+			if (gpc_group_get_feature(gprg) != GPC_FEAT_ACL)
+				continue;
+
+			/* Filter on group name */
+			if (rgname && strcmp(rgname, gpc_group_get_name(gprg)))
+				continue;
+
+			struct gpc_cntg *cntg = gpc_group_get_cntg(gprg);
+			if (!cntg)
+				continue;
+
+			struct gpc_cntr *cntr;
+			GPC_CNTR_FOREACH(cntr, cntg) {
+				if (!gpc_cntr_is_published(cntr))
+					continue;
+				if (!pmf_hw_counter_clear(cntr))
+					rc = -EIO;
+			}
+		}
+	}
+
+	return rc;
+}
