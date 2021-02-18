@@ -14,7 +14,7 @@
 #include "npf/config/gpc_cntr_query.h"
 #include "npf/config/gpc_cntr_control.h"
 #include "npf/config/gpc_db_query.h"
-#include "npf/config/pmf_hw.h"
+#include "npf/config/gpc_hw.h"
 
 /* -- counter group -- */
 

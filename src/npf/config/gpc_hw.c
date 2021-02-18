@@ -17,7 +17,7 @@
 #include "npf/config/gpc_db_query.h"
 #include "npf/config/gpc_cntr_query.h"
 #include "npf/config/pmf_rule.h"
-#include "npf/config/pmf_hw.h"
+#include "npf/config/gpc_hw.h"
 #include "vplane_log.h"
 #include "vplane_debug.h"
 

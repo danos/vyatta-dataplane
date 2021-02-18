@@ -18,7 +18,7 @@
 #include "npf/config/pmf_att_rlgrp.h"
 #include "npf/config/pmf_rule.h"
 #include "npf/config/gpc_acl_cli.h"
-#include "npf/config/pmf_hw.h"
+#include "npf/config/gpc_hw.h"
 
 /* Op-mode commands : dump internals */
 

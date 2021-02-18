@@ -22,7 +22,7 @@
 #include "npf/config/pmf_att_rlgrp.h"
 #include "npf/config/npf_attach_point.h"
 #include "npf/config/npf_rule_group.h"
-#include "npf/config/pmf_hw.h"
+#include "npf/config/gpc_hw.h"
 #include "dp_event.h"
 
 #define CNTR_NAME_LEN	8
