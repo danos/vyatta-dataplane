@@ -60,11 +60,6 @@ struct pmf_group_ext {
 	uint32_t		earg_flags;
 };
 
-struct pmf_rlset_ext {
-	struct gpc_rlset	*ears_gprs;	/* strong */
-	struct npf_attpt_rlset	*ears_base;
-};
-
 /* ---- */
 
 static bool deferrals;
@@ -739,14 +734,12 @@ pmf_arlg_attpt_grp_ev_handler(enum npf_attpt_ev_type event,
 
 			return;
 		}
-		struct pmf_rlset_ext *ears
-			= npf_attpt_rlset_get_extend(ars);
 		earg->earg_base = agr;
 		TAILQ_INIT(&earg->earg_cntrs);
 
+		struct gpc_rlset *gprs = npf_attpt_rlset_get_extend(ars);
 		struct gpc_group *gprg
-			= gpc_group_create(ears->ears_gprs, GPC_FEAT_ACL,
-					   rg_name, earg);
+			= gpc_group_create(gprs, GPC_FEAT_ACL, rg_name, earg);
 		if (!gprg) {
 			RTE_LOG(ERR, FIREWALL,
 				"Error: Failed to create GPC group"
@@ -888,27 +881,25 @@ pmf_arlg_attpt_grp_updn_handler(const struct npf_attpt_group *rsg, void *ctx)
 static void
 pmf_arlg_attpt_rls_updn(struct npf_attpt_rlset *ars, bool is_up)
 {
-	struct pmf_rlset_ext *ears = npf_attpt_rlset_get_extend(ars);
-	if (!ears)
+	struct gpc_rlset *gprs = npf_attpt_rlset_get_extend(ars);
+	if (!gprs)
 		return;
 
-	if (is_up && !gpc_rlset_set_ifp(ears->ears_gprs))
+	if (is_up && !gpc_rlset_set_ifp(gprs))
 		return;
 
 	npf_attpt_walk_rlset_grps(ars, pmf_arlg_attpt_grp_updn_handler, &is_up);
 
 	if (!is_up)
-		gpc_rlset_clear_ifp(ears->ears_gprs);
+		gpc_rlset_clear_ifp(gprs);
 }
 
 static void
 pmf_arlg_attpt_rls_if_created(struct npf_attpt_rlset *ars)
 {
-	struct pmf_rlset_ext *ears = npf_attpt_rlset_get_extend(ars);
-	if (!ears)
+	struct gpc_rlset *gprs = npf_attpt_rlset_get_extend(ars);
+	if (!gprs)
 		return;
-
-	struct gpc_rlset *gprs = ears->ears_gprs;
 
 	if (gpc_rlset_is_if_created(gprs))
 		return;
@@ -944,50 +935,31 @@ pmf_arlg_attpt_rls_ev_handler(enum npf_attpt_ev_type event,
 
 	bool const dir_in = (rls_type == NPF_RS_ACL_IN);
 
-	struct pmf_rlset_ext *ears;
+	struct gpc_rlset *gprs;
 
 	if (!enabled) {
-		ears = npf_attpt_rlset_get_extend(ars);
+		gprs = npf_attpt_rlset_get_extend(ars);
 		npf_attpt_rlset_set_extend(ars, NULL);
-		struct gpc_rlset *gprs = ears->ears_gprs;
-		ears->ears_gprs = NULL;
 		gpc_rlset_delete(gprs);
-		free(ears);
 	} else {
-		ears = calloc(1, sizeof(*ears));
-		if (!ears) {
-			RTE_LOG(ERR, FIREWALL,
-				"Error: OOM for attached ruleset extension"
-				" (%s/%s/%s)\n",
-				"ACL", (dir_in) ? " In" : "Out", if_name);
-
-			return;
-		}
-		ears->ears_base = ars;
-
-		struct gpc_rlset *gprs
-			= gpc_rlset_create(dir_in, if_name, ears);
+		gprs = gpc_rlset_create(dir_in, if_name, ars);
 		if (!gprs) {
 			RTE_LOG(ERR, FIREWALL,
 				"Error: Failed to create GPC ruleset"
 				" (%s/%s/%s)\n",
 				"ACL", (dir_in) ? " In" : "Out", if_name);
 
-			free(ears);
 			return;
 		}
-		ears->ears_gprs = gprs;
 
-		bool ok = npf_attpt_rlset_set_extend(ars, ears);
+		bool ok = npf_attpt_rlset_set_extend(ars, gprs);
 		if (!ok) {
 			RTE_LOG(ERR, FIREWALL,
 				"Error: Failed to attach ruleset extension"
 				" (%s/%s/%s)\n",
 				"ACL", (dir_in) ? " In" : "Out", if_name);
 
-			ears->ears_gprs = NULL;
 			gpc_rlset_delete(gprs);
-			free(ears);
 			return;
 		}
 	}
