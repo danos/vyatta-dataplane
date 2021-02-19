@@ -1424,6 +1424,9 @@ static void crypto_npf_cfg_commit_flush(void)
 			vrf_ctx->crypto_total_ipv6_policies;
 	}
 	crypto_npf_cfg_commit_count = 0;
+	flow_cache_invalidate(flow_cache, flow_cache_disabled,
+			      false);
+
 }
 
 static void crypto_npf_cfg_commit_all_timer_handler(
