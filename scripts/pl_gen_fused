@@ -429,7 +429,7 @@ def gen_fused_graph(f, entry, dyn_feats):
     if not entry in nodes:
         raise RuntimeError('Unknown entry-point node: {}'.format(entry))
     node = nodes[entry]
-    write_indent(f, 0, 'inline __attribute__((always_inline)) bool')
+    write_indent(f, 0, 'ALWAYS_INLINE bool')
     if dyn_feats:
         write_indent(f, 0, 'pipeline_fused_{}(struct pl_packet *pl_pkt)'.format(node.c_name))
     else:
@@ -465,7 +465,7 @@ def gen_fused_feature_invoke_by_case_find(f, node, feat_point, dyn_feats):
     resp_written = False
     head_features = dict(features)
 
-    write_indent(f, 0, 'inline __attribute__((always_inline)) unsigned int')
+    write_indent(f, 0, 'ALWAYS_INLINE unsigned int')
     if dyn_feats:
         write_indent(f, 0, '{}_fused(unsigned int feat)'.format(node.feat_type_find))
     else:
@@ -509,7 +509,7 @@ def gen_fused_feature_invoke_by_case(f, node, feat_point, dyn_feats):
     resp_written = False
     head_features = dict(features)
 
-    write_indent(f, 0, 'inline __attribute__((always_inline)) bool')
+    write_indent(f, 0, 'ALWAYS_INLINE bool')
     if dyn_feats:
         write_indent(f, 0, 'pipeline_fused_{}_features(struct pl_packet *pl_pkt, unsigned int feat)'.format(node.c_name))
     else:
@@ -562,7 +562,7 @@ def gen_fused_features_invoke(f, feat_point, dyn_feats):
     else:
         features = {}
 
-    write_indent(f, 0, 'inline __attribute__((always_inline)) bool')
+    write_indent(f, 0, 'ALWAYS_INLINE bool')
     if dyn_feats:
         write_indent(f, 0, 'pipeline_fused_{}_features(struct pl_packet *pl_pkt, struct pl_node *node)'.format(node.c_name))
     else:
@@ -632,6 +632,7 @@ def gen_fused_impl(f, includes, entry_points, feat_points):
     gen_preamble(f)
     f.write('#include <pl_node.h>\n')
     f.write('#include <rte_branch_prediction.h>\n')
+    f.write('#include "compiler.h"\n')
     if includes:
         for include in includes:
             f.write('#include "{}"\n'.format(include))
@@ -690,14 +691,14 @@ def gen_node_fused_func_decls(f):
         if node.feat_iterate is not None or node.feat_type_find is not None:
             write_indent(f, 0, '')
             write_indent(f, 0, 'extern unsigned int {}_common(struct pl_packet *, void *context __unused, enum pl_mode);'.format(node.handler));
-            write_indent(f, 0, 'inline static __attribute__((always_inline)) unsigned int')
+            write_indent(f, 0, 'static ALWAYS_INLINE unsigned int')
             write_indent(f, 0, '{}(struct pl_packet *pl_pkt, void *context)'.format(node.fused_handler))
             write_indent(f, 0, '{')
             write_indent(f, 1, 'pl_inc_node_stat(PL_NODE_{}_ID);'.format(node.c_name.upper()))
             write_indent(f, 1, 'return {}_common(pl_pkt, context, PL_MODE_FUSED);'.format(node.handler))
             write_indent(f, 0, '}')
             write_indent(f, 0, '')
-            write_indent(f, 0, 'inline static __attribute__((always_inline)) unsigned int')
+            write_indent(f, 0, 'static ALWAYS_INLINE unsigned int')
             write_indent(f, 0, '{}(struct pl_packet *pl_pkt, void *context)'.format(node.fused_no_dyn_feats_handler))
             write_indent(f, 0, '{')
             write_indent(f, 1, 'pl_inc_node_stat(PL_NODE_{}_ID);'.format(node.c_name.upper()))
@@ -713,7 +714,7 @@ def gen_node_fused_func_decls(f):
                 write_indent(f, 0, 'unsigned int {}_fused(unsigned int feat);'.format(node.feat_type_find))
                 write_indent(f, 0, 'unsigned int {}_fused_no_dyn_features(unsigned int feat);'.format(node.feat_type_find))
         else:
-            write_indent(f, 0, 'inline static __attribute__((always_inline)) unsigned int')
+            write_indent(f, 0, 'static ALWAYS_INLINE unsigned int')
             write_indent(f, 0, '{}(struct pl_packet *pl_pkt, void *context)'.format(node.fused_handler))
             write_indent(f, 0, '{')
             write_indent(f, 1, 'pl_inc_node_stat(PL_NODE_{}_ID);'.format(node.c_name.upper()))
@@ -727,6 +728,7 @@ def gen_fused_header(f, c_file_name, entry_points, feat_points):
     f.write('#ifndef __{}__\n'.format(c_file_name))
     f.write('#define __{}__\n'.format(c_file_name))
     f.write('\n')
+    f.write('#include "compiler.h"\n')
     f.write('#include "pl_common.h"\n')
     f.write('#include "pl_internal.h"\n')
     f.write('#include "util.h"\n')
