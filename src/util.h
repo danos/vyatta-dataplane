@@ -140,6 +140,12 @@ unsigned int dp_lcore_id(void)
 #define FOREACH_DP_LCORE(_i) \
 	for ((_i) = 0; (_i) <= get_lcore_max(); (_i)++)
 
+/*
+ * Convert bytes to mertic kbits and vice versa
+ */
+#define BYTES_TO_METRIC_KBITS(bytes)   ((uint32_t)((bytes) / 125))
+#define METRIC_KBITS_TO_BYTES(kbits)   (((uint64_t)(kbits)) * 125)
+
 /* Current time in seconds since boot */
 static inline time_t get_dp_uptime(void)
 {

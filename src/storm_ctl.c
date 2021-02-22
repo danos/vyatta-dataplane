@@ -22,6 +22,7 @@
 #include "vplane_debug.h"
 #include "vplane_log.h"
 #include "zmq_dp.h"
+#include "util.h"
 
 enum dp_storm_ctl_threshold {
 	DP_STORM_CTL_THRESHOLD_NONE = 0,
@@ -466,9 +467,9 @@ static int fal_policer_get_cfg(struct storm_ctl_instance *instance,
 			instance->sci_ifp->if_name, instance->sci_vlan, rv);
 		return rv;
 	}
-	/* convert from bytes to kilobits */
-	*max_rate = policer_attr[0].value.u64 * 8 / 1024;
-	*max_burst = policer_attr[1].value.u64 * 8 / 1024;
+
+	*max_rate = BYTES_TO_METRIC_KBITS(policer_attr[0].value.u64);
+	*max_burst = BYTES_TO_METRIC_KBITS(policer_attr[1].value.u64);
 
 	return 0;
 }
@@ -498,7 +499,8 @@ static int fal_policer_apply_profile(struct storm_ctl_profile *profile,
 {
 	uint64_t rate = 0;
 	/* burst needs to be non 0 to start policer */
-	uint64_t burst = 1 * (1024 / 8);  /* convert from kilobits into bytes */
+	uint64_t burst = METRIC_KBITS_TO_BYTES(1);
+	uint64_t kbits;
 	int rv = 0;
 	struct if_vlan_feat *vlan_feat;
 	struct ifnet *ifp;
@@ -523,10 +525,9 @@ static int fal_policer_apply_profile(struct storm_ctl_profile *profile,
 	fal_object_t fal_obj;
 
 	/* Work out rate. If this is an absolute value then use it */
-	policer_attr[4].value.u64 = storm_ctl_policy_get_fal_rate(
-		&profile->scp_policies[traf], instance->sci_ifp)
-		* (1024 / 8);	/* convert from kilobits into bytes */
-
+	kbits = storm_ctl_policy_get_fal_rate(&profile->scp_policies[traf],
+					      instance->sci_ifp);
+	policer_attr[4].value.u64 = METRIC_KBITS_TO_BYTES(kbits);
 	rv = fal_policer_create(ARRAY_SIZE(policer_attr),
 				policer_attr,
 				&fal_obj);
@@ -685,6 +686,7 @@ static int fal_policer_modify_profile(struct storm_ctl_profile *profile,
 
 	struct fal_attribute_t policer_bind_attr = {};
 	int rv;
+	uint64_t kbits;
 
 	if (!storm_control_can_create_in_fal(instance->sci_ifp, vlan))
 		return 0;
@@ -698,10 +700,10 @@ static int fal_policer_modify_profile(struct storm_ctl_profile *profile,
 		return fal_policer_unapply_profile(instance->sci_ifp, vlan,
 						   instance, traf);
 
+	kbits = storm_ctl_policy_get_fal_rate(&profile->scp_policies[traf],
+					      instance->sci_ifp);
 	policer_bind_attr.id = FAL_POLICER_ATTR_CIR;
-	policer_bind_attr.value.u64 = storm_ctl_policy_get_fal_rate(
-		&profile->scp_policies[traf], instance->sci_ifp)
-		* (1024 / 8);	/* convert from kilobits into bytes */
+	policer_bind_attr.value.u64 = METRIC_KBITS_TO_BYTES(kbits);
 
 	rv = fal_policer_set_attr(instance->sci_fal_obj[traf],
 				  &policer_bind_attr);
