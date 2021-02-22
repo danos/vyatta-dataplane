@@ -6,6 +6,7 @@
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
+#include "compiler.h"
 #include "if_var.h"
 #include "ether.h"
 #include "util.h"
@@ -53,7 +54,7 @@ static struct rte_mbuf *vlan_modify_ingress(struct ifnet *ifp,
 	return ret;
 }
 
-inline __attribute__((always_inline)) unsigned int
+ALWAYS_INLINE unsigned int
 vlan_modify_in_check_process(struct pl_packet *pkt, void *context __unused)
 {
 	struct rte_mbuf *ret;
@@ -97,7 +98,7 @@ vlan_modify_egress(struct ifnet *ifp, struct rte_mbuf *m)
 	return ret;
 }
 
-inline __attribute__((always_inline)) unsigned int
+ALWAYS_INLINE unsigned int
 vlan_modify_out_check_process(struct pl_packet *pkt, void *context __unused)
 {
 	struct rte_mbuf *ret;

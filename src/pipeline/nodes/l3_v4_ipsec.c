@@ -51,7 +51,7 @@ ipv4_ipsec_out_process(struct pl_packet *pkt, void *context __unused)
 	return IPV4_IPSEC_OUT_ACCEPT;
 }
 
-inline __attribute__((always_inline)) unsigned int
+ALWAYS_INLINE unsigned int
 ipv4_ipsec_in_process(struct pl_packet *pkt, void *context __unused)
 {
 	struct rte_mbuf *m = pkt->mbuf;

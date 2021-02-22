@@ -46,7 +46,7 @@ ipv4_l4_feat_match(struct cds_lfht_node *node, const void *key)
 	return 0;
 }
 
-inline __attribute__((always_inline)) int
+ALWAYS_INLINE int
 ipv4_l4_find_feat_id_by_type(uint32_t feat_type)
 {
 	struct cds_lfht_iter iter;
@@ -70,7 +70,7 @@ ipv4_l4_find_feat_id_by_type(uint32_t feat_type)
 	return 0;
 }
 
-static inline __attribute__((always_inline)) int
+static ALWAYS_INLINE int
 ipv4_l4_feat_add_type(struct pl_node_registration *node __unused,
 		      struct pl_feature_registration *feat,
 		      uint32_t feat_type)
@@ -92,7 +92,7 @@ ipv4_l4_feat_add_type(struct pl_node_registration *node __unused,
 	return (ret_node != &feat->feat_node) ? EEXIST : 0;
 }
 
-static inline __attribute__((always_inline)) bool
+static ALWAYS_INLINE bool
 ipv4_l4_pre_process(struct pl_packet *pkt, struct ifnet *ifp)
 {
 	struct rte_mbuf *m = pkt->mbuf;
@@ -104,7 +104,7 @@ ipv4_l4_pre_process(struct pl_packet *pkt, struct ifnet *ifp)
 	return true;
 }
 
-inline __attribute__((always_inline)) unsigned int
+ALWAYS_INLINE unsigned int
 ipv4_l4_process_common(struct pl_packet *pkt, void *context __unused,
 		       enum pl_mode mode)
 {

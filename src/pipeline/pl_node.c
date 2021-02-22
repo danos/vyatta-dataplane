@@ -211,7 +211,7 @@ pl_node_invoke_feature(struct pl_node_registration *node_reg,
 			     pkt, storage_ctx);
 }
 
-inline __attribute__((always_inline)) bool
+ALWAYS_INLINE bool
 pl_node_invoke_feature_by_type(struct pl_node_registration *node_reg,
 			       uint32_t feature_type, struct pl_packet *pkt)
 {

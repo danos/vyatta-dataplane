@@ -9,6 +9,7 @@
 #include <rte_lcore.h>
 #include <rte_mempool.h>
 
+#include "compiler.h"
 #include "crypto_defs.h"
 #include "vplane_log.h"
 #include "compiler.h"
@@ -911,7 +912,7 @@ crypto_rte_outbound_cop_prepare(struct rte_crypto_op *cop,
 	return err;
 }
 
-inline __attribute__((always_inline)) uint16_t
+ALWAYS_INLINE uint16_t
 crypto_rte_xform_packets(struct crypto_pkt_ctx *cctx_arr[], uint16_t count)
 {
 	int err;
