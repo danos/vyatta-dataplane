@@ -16,6 +16,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include "compiler.h"
 #include "if_var.h"
 #include "mpls.h"
 #include "nh_common.h"
@@ -40,11 +41,11 @@ void mpls_global_set_defaultttl(int ttl);
 uint32_t mpls_ecmp_hash(const struct rte_mbuf *m);
 
 void mpls_labeled_input(struct ifnet *ifp, struct rte_mbuf *m)
-	__attribute__((hot));
+	__hot_func;
 void mpls_unlabeled_input(struct ifnet *ifp, struct rte_mbuf *m,
 			  enum mpls_payload_type payload_type,
 			  enum nh_type nh_type,
 			  struct next_hop *ip_nh, uint8_t ttl)
-	__attribute__((hot));
+	__hot_func;
 
 #endif

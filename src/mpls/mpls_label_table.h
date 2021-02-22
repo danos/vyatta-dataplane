@@ -19,6 +19,7 @@
 #include <stdint.h>
 #include <stdio.h>
 
+#include "compiler.h"
 #include "nh_common.h"
 #include "route.h"
 #include "mpls_forward.h"
@@ -57,7 +58,7 @@ mpls_label_table_lookup(struct cds_lfht *label_table, uint32_t in_label,
 			const struct rte_mbuf *m, uint16_t ether_type,
 			enum nh_type *nht,
 			enum mpls_payload_type *payload_type)
-	__attribute__((hot));
+	__hot_func;
 
 void mpls_label_table_resize(int labelspace, uint32_t max_label);
 void mpls_label_table_set_dump(FILE *fp, int labelspace,
