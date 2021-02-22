@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2014-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  */
@@ -1319,7 +1319,7 @@ void mrt_dump(FILE *f, struct vrf *vrf)
 	jsonw_start_array(wr);
 
 	memset(olist_buf, 0, (IFNAMSIZ+1) * MFC_MAX_MVIFS);
-	
+
 	cds_lfht_for_each_entry(vrf->v_mvrf4.mfchashtbl, &iter, rt, node) {
 		olist_index = 0;
 
