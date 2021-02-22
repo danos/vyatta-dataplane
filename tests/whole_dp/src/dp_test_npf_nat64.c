@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2020, AT&T Intellectual Property. All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property. All rights reserved.
  * Copyright (c) 2015 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -2033,6 +2033,7 @@ DP_START_TEST(nat64_b6, test1)
 		.ifname		= "dp2T1",
 		.proto		= NAT_NULL_PROTO,
 		.map		= "dynamic",
+		.port_alloc	= NULL,
 		.from_addr	= "10.10.1.1",
 		.from_port	= NULL,
 		.to_addr	= NULL,
@@ -2857,6 +2858,7 @@ DP_START_TEST(nat64_c4, test1)
 		.ifname		= "dp2T1",
 		.proto		= NAT_NULL_PROTO,
 		.map		= "dynamic",
+		.port_alloc	= NULL,
 		.from_addr	= NULL,
 		.from_port	= NULL,
 		.to_addr	= "10.10.1.254",

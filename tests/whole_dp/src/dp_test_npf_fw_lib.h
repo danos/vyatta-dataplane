@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2015 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -242,19 +242,31 @@ _dpt_udp(const char *rx_intf, const char *pre_smac,
 	 const char *post_daddr, uint16_t post_dport,
 	 const char *post_dmac, const char *tx_intf,
 	 int status, int pre_vlan, int post_vlan,
+	 const char *pre_pl, int pre_len,
+	 const char *post_pl, int post_len,
 	 const char *file, const char *func, int line);
 
 #define dpt_udp(_a, _b, _c, _d, _e, _f, _g, _h,				\
 		_i, _j, _k, _l, _m)					\
 	_dpt_udp(_a, _b, _c, _d, _e, _f, _g, _h,			\
 		 _i, _j, _k, _l, _m, 0, 0,				\
+		 NULL, 0, NULL, 0,					\
 		 __FILE__, __func__, __LINE__)
 
 #define dpt_vlan_udp(_a, _b, _c, _d, _e, _f, _g, _h,			\
 		     _i, _j, _k, _l, _m, _n, _o)			\
 	_dpt_udp(_a, _b, _c, _d, _e, _f, _g, _h,			\
 		 _i, _j, _k, _l, _m, _n, _o,				\
+		 NULL, 0, NULL, 0,					\
 		 __FILE__, __func__, __LINE__)
+
+#define dpt_udp_pl(_a, _b, _c, _d, _e, _f, _g, _h,			\
+		   _i, _j, _k, _l, _m, _n, _o, _p, _q, _r)		\
+	_dpt_udp(_a, _b, _c, _d, _e, _f, _g, _h,			\
+		 _i, _j, _k, _l, _m, 0, 0,				\
+		 _n, _o, _p, _q,					\
+		 __FILE__, _r ? _r : __func__, __LINE__)
+
 
 void
 _dpt_tcp(uint8_t flags,

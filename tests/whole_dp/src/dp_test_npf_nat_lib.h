@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2020, AT&T Intellectual Property. All rights reserved.
+ * Copyright (c) 2019-2021, AT&T Intellectual Property. All rights reserved.
  * Copyright (c) 2015 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -34,6 +34,7 @@ struct dp_test_npf_nat_rule_t {
 	const char *to_port;
 	const char *trans_addr;
 	const char *trans_port;
+	const char *port_alloc;
 };
 
 /* Simple SNAT and DNAT config */

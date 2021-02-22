@@ -181,6 +181,10 @@ int npf_dataplane_session_establish(npf_session_t *se, npf_cache_t *npc,
 	if (npf_session_is_fw(se))
 		session_set_fw(s);
 
+	/* If this is a DPI session, then mark it as such. */
+	if (npf_session_get_dpi(se))
+		session_set_app(npf_session_get_dp_session(se));
+
 	/*
 	 * If this is an ALG secondary session, link,
 	 * and mark it as such.

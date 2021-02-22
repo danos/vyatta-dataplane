@@ -467,6 +467,7 @@ pmf_nat_create(void)
 	nat->pan_masquerade = PMV_UNSET;
 	nat->pan_taddr.any = NULL;
 	nat->pan_tports = NULL;
+	nat->pan_port_alloc = PMPA_UNSET;
 
 	return nat;
 }

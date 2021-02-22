@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2015 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -358,6 +358,8 @@ _dpt_udp(const char *rx_intf, const char *pre_smac,
 	 const char *post_daddr, uint16_t post_dport,
 	 const char *post_dmac, const char *tx_intf,
 	 int status, int pre_vlan, int post_vlan,
+	 const char *pre_pl, int pre_len,
+	 const char *post_pl, int post_len,
 	 const char *file, const char *func, int line)
 {
 	struct dp_test_expected *test_exp;
@@ -384,7 +386,7 @@ _dpt_udp(const char *rx_intf, const char *pre_smac,
 	/* Pre UDP packet */
 	struct dp_test_pkt_desc_t pre_pkt_UDP = {
 		.text       = "UDP pre",
-		.len        = len,
+		.len        = pre_len ? pre_len : len,
 		.ether_type = ether_type,
 		.l3_src     = pre_saddr,
 		.l2_src     = pre_smac,
@@ -407,7 +409,7 @@ _dpt_udp(const char *rx_intf, const char *pre_smac,
 	/* Post UDP packet */
 	struct dp_test_pkt_desc_t post_pkt_UDP = {
 		.text       = "UDP post",
-		.len        = len,
+		.len        = post_len ? post_len : len,
 		.ether_type = ether_type,
 		.l3_src     = use_pre ? pre_saddr : post_saddr,
 		.l2_src     = pre_smac,
@@ -443,6 +445,34 @@ _dpt_udp(const char *rx_intf, const char *pre_smac,
 				&pre_pkt_UDP);
 
 		exp_pak = dp_test_v6_pkt_from_desc(&post_pkt_UDP);
+	}
+
+	if (pre_pl) {
+		struct rte_mbuf *m = test_pak;
+		struct iphdr *ip = iphdr(m);
+		struct udphdr *udp = (struct udphdr *)(ip + 1);
+
+		memcpy((char *)(udp + 1), pre_pl, pre_len);
+
+		ip->check = 0;
+		ip->check = ip_checksum(ip, ip->ihl*4);
+
+		udp->check = 0;
+		udp->check = dp_test_ipv4_udptcp_cksum(m, ip, udp);
+	}
+
+	if (post_pl) {
+		struct rte_mbuf *m = exp_pak;
+		struct iphdr *ip = iphdr(m);
+		struct udphdr *udp = (struct udphdr *)(ip + 1);
+
+		memcpy((char *)(udp + 1), post_pl, post_len);
+
+		ip->check = 0;
+		ip->check = ip_checksum(ip, ip->ihl*4);
+
+		udp->check = 0;
+		udp->check = dp_test_ipv4_udptcp_cksum(m, ip, udp);
 	}
 
 	test_exp = dp_test_exp_create(exp_pak);

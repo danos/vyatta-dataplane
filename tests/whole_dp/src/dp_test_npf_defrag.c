@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2019-2021, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  *
@@ -102,6 +102,7 @@ DP_START_TEST(defrag1, test)
 		.ifname		= "dp2T1",
 		.proto		= IPPROTO_UDP,
 		.map		= "dynamic",
+		.port_alloc	= NULL,
 		.from_addr	= "100.64.0.1",
 		.from_port	= NULL,
 		.to_addr	= NULL,

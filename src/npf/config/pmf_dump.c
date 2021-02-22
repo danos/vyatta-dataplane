@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2019-2021, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -564,6 +564,11 @@ pmf_dump_rule_nat_json(struct pmf_nat *nat, json_writer_t *json)
 	enum pmf_value masquerade = nat->pan_masquerade;
 	if (masquerade != PMV_UNSET)
 		jsonw_bool_field(json, "masquerade", (masquerade == PMV_TRUE));
+
+	enum pmf_nat_pa pa = nat->pan_port_alloc;
+	if (pa != PMPA_UNSET)
+		jsonw_bool_field(json, "trans-port-alloc",
+				 (pa == PMPA_SEQ) ? "sequential" : "random");
 
 	if (nat->pan_taddr.any)
 		pmf_dump_attr_json(json, "taddr", nat->pan_taddr.any);

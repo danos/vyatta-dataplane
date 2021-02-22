@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2020, AT&T Intellectual Property. All rights reserved.
+ * Copyright (c) 2018-2021, AT&T Intellectual Property. All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  *
@@ -83,6 +83,7 @@ dpt_dnat(const char *if_name, const char *rule, bool add)
 		.ifname		= if_name,
 		.proto		= IPPROTO_UDP,
 		.map		= "dynamic",
+		.port_alloc	= NULL,
 		.from_addr	= NULL,
 		.from_port	= NULL,
 		.to_addr	= "2.2.2.12",
@@ -109,6 +110,7 @@ dpt_snat(const char *if_name, const char *rule, bool add)
 		.ifname		= if_name,
 		.proto		= IPPROTO_UDP,
 		.map		= "dynamic",
+		.port_alloc	= NULL,
 		.from_addr	= "1.1.1.11",
 		.from_port	= NULL,
 		.to_addr	= NULL,

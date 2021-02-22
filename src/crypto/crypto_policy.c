@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2017-2020, AT&T Intellectual Property. All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property. All rights reserved.
  * Copyright (c) 2015-2017 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -1130,6 +1130,9 @@ void crypto_npf_cfg_commit_flush(void)
 	}
 
 	crypto_npf_cfg_commit_count = 0;
+	flow_cache_invalidate(flow_cache, flow_cache_disabled,
+			      false);
+
 }
 
 static void crypto_npf_cfg_commit_all_timer_handler(
@@ -1459,6 +1462,8 @@ void crypto_policy_delete(const struct xfrm_userpolicy_id *id,
 	struct crypto_vrf_ctx *vrf_ctx;
 
 	vrf_ctx = crypto_vrf_find(vrfid);
+	if (!vrf_ctx)
+		return;
 
 	pr = policy_rule_find_by_selector(vrfid, &id->sel, mark, id->dir);
 	if (!pr) {

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2020, AT&T Intellectual Property. All rights reserved.
+ * Copyright (c) 2018-2021, AT&T Intellectual Property. All rights reserved.
  * Copyright (c) 2015 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -97,6 +97,7 @@ DP_START_TEST(npf_snat_overrun_1, test1)
 		.ifname		= "dp2T1",
 		.proto		= IPPROTO_TCP,
 		.map		= "dynamic",
+		.port_alloc	= NULL,
 		.from_addr	= "10.0.1.1",
 		.from_port	= NULL,
 		.to_addr	= NULL,

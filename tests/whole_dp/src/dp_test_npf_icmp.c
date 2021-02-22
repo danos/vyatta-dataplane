@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2015 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -1791,6 +1791,7 @@ DP_START_TEST(icmpv4_6, test)
 		.ifname		= "dp2T1",
 		.proto		= IPPROTO_ICMP,
 		.map		= "dynamic",
+		.port_alloc	= NULL,
 		.from_addr	= "100.101.102.103",
 		.from_port	= NULL,
 		.to_addr	= NULL,

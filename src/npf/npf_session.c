@@ -1275,8 +1275,16 @@ bool npf_session_set_dpi(npf_session_t *se, void *data)
 	uint64_t const new = (uintptr_t)data;
 	uint64_t const expected = 0;
 
-	/* Mark this session as containing DPI */
-	session_set_app(npf_session_get_dp_session(se));
+	/* Mark this session as containing DPI.
+	 *
+	 * The dataplane session might not exist yet,
+	 * in which case session_set_app() will be called from
+	 * npf_dataplane_session_establish
+	 * when the session is activated.
+	 */
+	struct session *s = npf_session_get_dp_session(se);
+	if (s)
+		session_set_app(s);
 
 	if (rte_atomic64_cmpset(ptr, expected, new))
 		return true;
