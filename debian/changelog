@@ -1,3 +1,73 @@
+vyatta-dataplane (3.12.26) unstable; urgency=medium
+
+  [ Gavin Shearer ]
+  * nat: don't panic system on APM sanity failure
+
+  [ Nicholas Brown ]
+  * Add a fused_mode build option
+  * ability to disable fused_mode from package options
+  * Mark Static Analysis stage failed in quality gate
+
+  [ Ian Wilson ]
+  * ut: Check for session struct size is not needed
+  * cgnat: Re-arrange objects in 'struct cgn_sess2'
+  * cgnat: Change sub-session table init parameters
+  * cgnat: Add separate fwd and back hash table nodes for sub-session
+  * cgnat: Add direction param to sub-session hash table key
+  * cgnat: sub-session hash table changed to use forw and back sentries
+  * cgnat: Change sub-session iterators to iterate over 'out' sentries
+  * cgnat: Add two convenience sub-session key comparison functions
+  * cgnat: Replace defines of s2_addr and s2_port with functions
+  * cgnat: Replace define s2_expired with function
+  * ut: Changes to cgnat unit-test to pass line number into helper functions
+
+  [ Charles (Chas) Williams ]
+  * tests: fix path redirection checks (Bugfix: VRVDR-54471)
+  * vplane-uio: refactor supported devices into module
+  * vplane-mlx-setup: configure all supported adapters
+  * Remove xen support (Bugfix: VRVDR-54443)
+  * vplane-mlx-setup: perl cleanup (Bugfix: VRVDR-54443)
+
+  [ Paul Aitken ]
+  * NPF: only call session_set_app when the session exists
+
+  [ Nicholas Brown ]
+  * master-next branch targets Vyatta:Master
+  * Revert "master-next branch targets Vyatta:Master"
+
+  [ Daniel Gollub ]
+  * crypto: avoid dereferecing bad vrf_ctx pointer
+
+  [ Thomas Kiely ]
+  * Add kbits/bytes conversion macros
+
+  [ Srinivas Narayan ]
+  * crypto : Always flush flow cache after committing ruleset
+
+  [ Ian Wilson ]
+  * ut: Remove old SIP unit-test files
+  * npf: Add a "trans-port-alloc" optional param to NAT ruleset cstore cmd
+  * npf: Changed rule parsing action_keys array to be in alphabetic order
+  * ut: Add port_alloc object to struct 'dp_test_npf_nat_rule_t'
+  * ut: Add option to pass in payload parameters to dpt_udp
+  * ut: Add test sip_nat10 and data set 1 to dp_test_npf_alg_sip_nat.c
+  * ut: Add test sip_nat11 to dp_test_npf_alg_sip_nat.c
+  * ut: Add test sip_nat12 to dp_test_npf_alg_sip_nat.c
+  * ut: Add test sip_nat20 to dp_test_npf_alg_sip_nat.c
+  * ut: Add test sip_nat21 to dp_test_npf_alg_sip_nat.c
+  * ut: Add SIP data set #3
+  * ut: Add test sip_nat30 to dp_test_npf_alg_sip_nat.c
+  * ut: Add SIP data set #4
+  * ut: Add test sip_nat40 to dp_test_npf_alg_sip_nat.c
+  * Added SSCANF_TO_KSTRTO to check patch ignore list
+
+  [ Charles (Chas) Williams ]
+  * main: split port allocations out of port_conf (Bugfix: VRVDR-54440)
+  * main: fix overflow of buffers counter (Bugfix: VRVDR-54440)
+  * main: document struct offsets and sizes (Bugfix: VRVDR-54440)
+
+ -- Srinivas Narayan <narayan@vyatta.att-mail.com>  Mon, 22 Feb 2021 21:48:18 +0000
+
 vyatta-dataplane (3.12.25) unstable; urgency=medium
 
   [ Srinivas Narayan ]
