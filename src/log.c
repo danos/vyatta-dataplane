@@ -17,7 +17,7 @@
 #include "main.h"
 
 static ssize_t
-do_log_write(__attribute__((unused)) void *c, const char *buf, size_t bufsize)
+do_log_write(__unused void *c, const char *buf, size_t bufsize)
 {
 	const char *cp, *ep;
 	uint32_t loglevel;

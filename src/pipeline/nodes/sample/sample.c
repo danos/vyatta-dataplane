@@ -20,6 +20,7 @@
 #include <string.h>
 #include <urcu/uatomic.h>
 
+#include <compiler.h>
 #include <feature_commands.h>
 #include <feature_plugin.h>
 #include <json_writer.h>
@@ -37,7 +38,7 @@ static uint32_t sample_pkt_count;
 static uint32_t sample_ctx = 0x12345678;
 static uint32_t sample_cleanup_cb_count;
 
-static void sample_cleanup_cb(const char *instance __attribute__((unused)),
+static void sample_cleanup_cb(const char *instance __unused,
 			      void *context)
 {
 	sample_cleanup_cb_count++;
@@ -47,7 +48,7 @@ static void sample_cleanup_cb(const char *instance __attribute__((unused)),
 
 
 static unsigned int
-sample_process(struct pl_packet *pkt __attribute__((unused)),
+sample_process(struct pl_packet *pkt __unused,
 	       void *context)
 {
 	uatomic_inc(&sample_pkt_count);

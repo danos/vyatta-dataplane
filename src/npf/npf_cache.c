@@ -81,7 +81,7 @@ static int npf_rw_udp_len(npf_cache_t *npc,
  * Assumes header in one mbuf.
  */
 static inline void
-__nbuf_fetch_datum(struct rte_mbuf *m __attribute__((unused)),
+__nbuf_fetch_datum(struct rte_mbuf *m __unused,
 		   void *n_ptr, size_t len, void *buf)
 {
 	assert((char *)n_ptr + len

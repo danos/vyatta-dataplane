@@ -966,8 +966,8 @@ static int ip6_mforward(vrfid_t vrf_id, struct mcast6_vrf *mvrf6,
 
 #ifdef UPCALL_TIMER
 /* Clean up cache entries if upcalls are not serviced */
-static void expire_upcalls(__attribute__((unused)) struct rte_timer *rtetm,
-			   __attribute__((unused)) void *arg)
+static void expire_upcalls(__unused struct rte_timer *rtetm,
+			   __unused void *arg)
 {
 	struct mf6c *mfc;
 	struct cds_lfht_iter iter;
@@ -1263,8 +1263,8 @@ static void sg6_cnt_dump(void)
 	}
 }
 
-static void mrt6_stats(__attribute__((unused)) struct rte_timer *rtetm,
-		      __attribute__((unused)) void *arg)
+static void mrt6_stats(__unused struct rte_timer *rtetm,
+		      __unused void *arg)
 {
 	sg6_cnt_dump();
 }
@@ -1408,7 +1408,7 @@ void mrt6_stat(FILE *f, struct vrf *vrf)
 	jsonw_destroy(&wr);
 }
 
-void mvif6_dump(FILE *f, __attribute__((unused)) struct vrf *vrf)
+void mvif6_dump(FILE *f, __unused struct vrf *vrf)
 {
 	struct cds_lfht_iter iter;
 	struct mif6 *mifp;
