@@ -30,7 +30,7 @@ struct rte_mbuf;
 /*
  * Validate source address matches to prevent IP spoofing per RFC3704.
  */
-static __attribute__((noinline)) bool
+static __noinline bool
 verify_path(in_addr_t src, struct ifnet *ifp, uint32_t tbl,
 	    struct rte_mbuf *m)
 {
