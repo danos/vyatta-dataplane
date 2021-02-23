@@ -701,10 +701,10 @@ def gen_node_fused_func_decls(f):
     for node_name in sorted(nodes.keys()):
         node = nodes[node_name]
         gen_node_disps(f, node)
-        write_indent(f, 0, 'extern unsigned int {}(struct pl_packet *, void *context);'.format(node.handler));
+        write_indent(f, 0, 'extern unsigned int {}(struct pl_packet *, void *context);'.format(node.handler))
         if node.feat_iterate is not None or node.feat_type_find is not None:
             write_indent(f, 0, '')
-            write_indent(f, 0, 'extern unsigned int {}_common(struct pl_packet *, void *context __unused, enum pl_mode);'.format(node.handler));
+            write_indent(f, 0, 'extern unsigned int {}_common(struct pl_packet *, void *context __unused, enum pl_mode);'.format(node.handler))
             write_indent(f, 0, 'static ALWAYS_INLINE unsigned int')
             write_indent(f, 0, '{}(struct pl_packet *pl_pkt, void *context)'.format(node.fused_handler))
             write_indent(f, 0, '{')
@@ -756,7 +756,7 @@ def gen_fused_header(f, c_file_name, entry_points, feat_points):
     for node_name in sorted(nodes.keys()):
         node = nodes[node_name]
         write_indent(f, 1, 'PL_NODE_{}_ID,'.format(node.c_name.upper()))
-    f.write('PL_NODE_NUM_IDS};\n');
+    f.write('PL_NODE_NUM_IDS};\n')
 
     f.write('\n')
     f.write('enum pl_feature_point_id {\n')
@@ -765,7 +765,7 @@ def gen_fused_header(f, c_file_name, entry_points, feat_points):
         node = nodes[node_name]
         if node.feat_iterate or node.feat_type_find:
             write_indent(f, 1, 'PL_FEATURE_POINT_{}_ID,'.format(node.c_name.upper()))
-    f.write('PL_FEATURE_POINT_NUM_IDS};\n');
+    f.write('PL_FEATURE_POINT_NUM_IDS};\n')
 
     gen_node_fused_func_decls(f)
     write_indent(f, 0, '/* Fused-mode graph entry points */')
