@@ -370,7 +370,7 @@ def gen_invoke_fused_node(f, indent_lvl, from_feature_point, dyn_feats, from_cas
             write_indent(f, indent_lvl, 'return true;')
         else:
             write_indent(f, indent_lvl, 'continue;')
-        return
+        return False
     elif node.node_type == 'PL_OUTPUT':
         if node.next_nodes:
             raise RuntimeError(
@@ -383,7 +383,7 @@ def gen_invoke_fused_node(f, indent_lvl, from_feature_point, dyn_feats, from_cas
             write_indent(f, indent_lvl, 'return false;')
         else:
             write_indent(f, indent_lvl, 'goto cleanup;')
-        return
+        return False
     elif node.node_type == 'PL_PROC':
         if from_feature_point and not from_case_feature:
             storage_ctx = "storage_ctx"
