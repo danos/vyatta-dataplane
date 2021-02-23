@@ -786,7 +786,7 @@ def gen_fused_header(f, c_file_name, entry_points, feat_points):
             if not node.feat_type_find:
                 if not node.feat_iterate:
                     raise RuntimeError(
-                        'Feature point {} not declared as feature point node {}'.format(feat_point))
+                        'Feature point {} not declared as feature point node'.format(feat_point))
                 f.write('bool\n')
                 f.write('pipeline_fused_{}_features(struct pl_packet *pl_pkt, struct pl_node *node);\n'.format(node.c_name))
                 f.write('bool\n')
