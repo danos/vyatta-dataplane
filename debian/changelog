@@ -1,3 +1,15 @@
+vyatta-dataplane (3.12.28) unstable; urgency=medium
+
+  [ Nicholas Brown ]
+  * Consistently use compiler hot/cold defines/macros
+  * Consistently use ALWAYS_INLINE compiler macro
+  * make lpm_tbl24_get_next_hop_idx static
+  * pl_gen_fused should use compiler defines/macros
+  * Consistently use compiler __used define
+  * Consistently use compiler __noinline define
+
+ -- Srinivas Narayan <narayan@vyatta.att-mail.com>  Tue, 23 Feb 2021 15:52:15 +0000
+
 vyatta-dataplane (3.12.27) unstable; urgency=medium
 
   [ Nicholas Brown ]
