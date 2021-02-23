@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2018-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2018-2021, AT&T Intellectual Property.  All rights reserved.
  *
  *   BSD LICENSE
  *
@@ -108,7 +108,7 @@ struct lpm_walk_arg {
 /* A scope that is even lower than RT_SCOPE_UNIVERSE */
 #define LPM_SCOPE_PAN_DIMENSIONAL -1
 
-ALWAYS_INLINE uint32_t
+static ALWAYS_INLINE uint32_t
 lpm_tbl24_get_next_hop_idx(struct lpm_tbl24_entry *entry)
 {
 	return entry->next_hop;

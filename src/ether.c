@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2011-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -9,6 +9,7 @@
 
 #include "ether.h"
 
+#include "compiler.h"
 #include "dp_event.h"
 #include "l2_rx_fltr.h"
 #include "pl_common.h"
@@ -23,7 +24,7 @@ struct rte_mbuf;
  *
  * Always consumes the mbuf
  */
-__attribute__((noinline)) void
+__noinline void
 ether_input(struct ifnet *ifp, struct rte_mbuf *m)
 {
 	struct pl_packet pkt;
@@ -41,7 +42,7 @@ ether_input(struct ifnet *ifp, struct rte_mbuf *m)
  *
  * Always consumes the mbuf
  */
-__attribute__((noinline)) void
+__noinline void
 ether_input_no_dyn_feats(struct ifnet *ifp, struct rte_mbuf *m)
 {
 	struct pl_packet pkt;

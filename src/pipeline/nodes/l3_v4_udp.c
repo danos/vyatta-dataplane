@@ -1,11 +1,12 @@
 /*
- * Copyright (c) 2019-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2019-2021, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
 #include <stdlib.h>
 #include "ip_funcs.h"
 
+#include "compiler.h"
 #include "../pl_common.h"
 #include "../pl_node.h"
 #include "../pl_fused.h"
@@ -32,7 +33,7 @@ ipv4_udp_in_feat_match(struct cds_lfht_node *node, const void *key)
 	return 0;
 }
 
-inline __attribute__((always_inline)) int
+ALWAYS_INLINE int
 ipv4_udp_in_find_feat_id_by_type(uint32_t feat_type)
 {
 	struct cds_lfht_iter iter;
@@ -56,7 +57,7 @@ ipv4_udp_in_find_feat_id_by_type(uint32_t feat_type)
 	return 0;
 }
 
-static inline __attribute__((always_inline)) int
+static ALWAYS_INLINE int
 ipv4_udp_in_feat_add_type(struct pl_node_registration *node  __unused,
 			  struct pl_feature_registration *feat,
 			  uint32_t feat_type)
@@ -78,7 +79,7 @@ ipv4_udp_in_feat_add_type(struct pl_node_registration *node  __unused,
 	return (ret_node != &feat->feat_node) ? EEXIST : 0;
 }
 
-static inline __attribute__((always_inline)) int
+static ALWAYS_INLINE int
 ipv4_udp_in_feat_rem_type(struct pl_node_registration *node  __unused,
 			  struct pl_feature_registration *feat __unused,
 			  uint32_t feat_type)
@@ -100,7 +101,7 @@ ipv4_udp_in_feat_rem_type(struct pl_node_registration *node  __unused,
 	return cds_lfht_del(l3_v4_udp_feat_ht, ret_node);
 }
 
-inline __attribute__((always_inline)) unsigned int
+ALWAYS_INLINE unsigned int
 ipv4_udp_in_process_common(struct pl_packet *pkt, void *context __unused,
 			   enum pl_mode mode)
 {

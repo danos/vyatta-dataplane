@@ -1,7 +1,7 @@
 /*
  * Copyright (C) 1995, 1996, 1997, and 1998 WIDE Project.
  * All rights reserved.
- * Copyright (c) 2017,2019-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -68,6 +68,7 @@
 #include <string.h>
 #include <sys/types.h>
 
+#include "compiler.h"
 #include "if_var.h"
 #include "ip6_funcs.h"
 #include "pktmbuf_internal.h"
@@ -79,7 +80,7 @@
  * which is necessary if the IPv6 header the and option header and IPv6 header
  * is not continuous in order to return an ICMPv6 error.
  */
-static int __attribute__((cold))
+static int __cold_func
 ip6_unknown_opt(const uint8_t *optp, struct rte_mbuf *m,
 		struct ifnet *iif, int off)
 {

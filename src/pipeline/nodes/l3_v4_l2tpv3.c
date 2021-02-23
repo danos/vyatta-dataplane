@@ -1,8 +1,9 @@
 /*
- * Copyright (c) 2019-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2019-2021, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
+#include "compiler.h"
 #include "vrf_internal.h"
 #include "if/gre.h"
 #include "ip_funcs.h"
@@ -11,7 +12,7 @@
 #include "../pl_node.h"
 #include "../pl_fused.h"
 
-inline __attribute__((always_inline)) unsigned int
+ALWAYS_INLINE unsigned int
 ipv4_l2tpv3_in_process(struct pl_packet *pkt, void *context __unused)
 {
 	struct rte_mbuf *m = pkt->mbuf;

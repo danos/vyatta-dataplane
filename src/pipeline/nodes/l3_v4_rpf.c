@@ -1,7 +1,7 @@
 /*
  * l3_v4_rpf.c
  *
- * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2016, 2017 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -30,7 +30,7 @@ struct rte_mbuf;
 /*
  * Validate source address matches to prevent IP spoofing per RFC3704.
  */
-static __attribute__((noinline)) bool
+static __noinline bool
 verify_path(in_addr_t src, struct ifnet *ifp, uint32_t tbl,
 	    struct rte_mbuf *m)
 {

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2015-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -19,6 +19,7 @@
 #include <sys/types.h>
 #include <time.h>
 
+#include "compiler.h"
 #include "if_var.h"
 
 struct rte_mbuf;
@@ -82,8 +83,8 @@ void capture_destroy(void);
 void capture_init(uint16_t);
 void capture_cancel(struct ifnet *ifp);
 void capture_hardware(const struct ifnet *ifp, struct rte_mbuf *mbuf)
-	__attribute__((cold));
+	__cold_func;
 void capture_burst(const struct ifnet *ifp, struct rte_mbuf *pkts[], unsigned int n)
-	__attribute__((cold));
+	__cold_func;
 int cmd_capture(FILE *f, int argc, char **argv);
 #endif /* CAPTURE_H */

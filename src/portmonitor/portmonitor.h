@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2015-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -11,6 +11,8 @@
 #include <netinet/in.h>
 #include <linux/if.h>
 #include <fal_plugin.h>
+
+#include "compiler.h"
 
 #define MAX_PORTMONITOR_SESSIONS		8
 #define MAX_PORTMONITOR_SRC_INTF		8
@@ -148,15 +150,15 @@ struct portmonitor_info {
 };
 
 void portmonitor_src_vif_rx_output(struct ifnet *ifp, struct rte_mbuf **m)
-					__attribute__((cold));
+					__cold_func;
 void portmonitor_src_vif_tx_output(struct ifnet *ifp, struct rte_mbuf **m)
-					__attribute__((cold));
+					__cold_func;
 void portmonitor_src_phy_rx_output(struct ifnet *ifp, struct rte_mbuf *mbi[],
-					unsigned int n) __attribute__((cold));
+					unsigned int n) __cold_func;
 void portmonitor_src_phy_tx_output(struct ifnet *ifp, struct rte_mbuf *mbi[],
-					unsigned int n) __attribute__((cold));
+					unsigned int n) __cold_func;
 int portmonitor_dest_output(struct ifnet *ifp, struct rte_mbuf *m)
-	__attribute__((cold));
+	__cold_func;
 void portmonitor_cleanup(struct ifnet *ifp);
 
 #endif /* PORTMONITOR_H */

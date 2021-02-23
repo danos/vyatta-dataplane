@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2015-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -67,7 +67,7 @@ struct nlattr;
 
 /* Dummy logging function to force checking of args */
 static inline void __attribute__((format(printf, 1, 2)))
-no_printf(const char *fmt __attribute__((unused)), ...) {  }
+no_printf(const char *fmt __unused, ...) {  }
 
 #define VTI_DEBUG_PKT(args...) no_printf(args)
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2014-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  */
@@ -1018,8 +1018,8 @@ static int ip_mforward(vrfid_t vrf_id, struct mcast_vrf *mvrf,
 
 #ifdef UPCALL_TIMER
 /* Clean up the cache entry if upcall is not serviced */
-static void expire_upcalls(__attribute__((unused)) struct rte_timer *rtetm,
-			   __attribute__((unused)) void *arg)
+static void expire_upcalls(__unused struct rte_timer *rtetm,
+			   __unused void *arg)
 {
 	struct mfc *rt;
 	struct cds_lfht_iter iter;
@@ -1292,8 +1292,8 @@ static void sg_cnt_dump(void)
 	}
 }
 
-static void mrt_stats(__attribute__((unused)) struct rte_timer *rtetm,
-		      __attribute__((unused)) void *arg)
+static void mrt_stats(__unused struct rte_timer *rtetm,
+		      __unused void *arg)
 {
 	sg_cnt_dump();
 }
@@ -1319,7 +1319,7 @@ void mrt_dump(FILE *f, struct vrf *vrf)
 	jsonw_start_array(wr);
 
 	memset(olist_buf, 0, (IFNAMSIZ+1) * MFC_MAX_MVIFS);
-	
+
 	cds_lfht_for_each_entry(vrf->v_mvrf4.mfchashtbl, &iter, rt, node) {
 		olist_index = 0;
 
@@ -1432,7 +1432,7 @@ void mrt_stat(FILE *f, struct vrf *vrf)
 	jsonw_destroy(&wr);
 }
 
-void mvif_dump(FILE *f, __attribute__((unused)) struct vrf *vrf)
+void mvif_dump(FILE *f, __unused struct vrf *vrf)
 {
 	struct cds_lfht_iter iter;
 	struct vif *vifp;

@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2013-2017 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -17,7 +17,7 @@
 #include "main.h"
 
 static ssize_t
-do_log_write(__attribute__((unused)) void *c, const char *buf, size_t bufsize)
+do_log_write(__unused void *c, const char *buf, size_t bufsize)
 {
 	const char *cp, *ep;
 	uint32_t loglevel;

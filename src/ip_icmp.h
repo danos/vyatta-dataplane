@@ -1,7 +1,7 @@
 /*
  * Public functions defined in ip_icmp.c
  *
- * Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2011-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -14,6 +14,8 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include "compiler.h"
+
 struct ifnet;
 struct rte_mbuf;
 
@@ -24,11 +26,11 @@ void ip_redirects_set(bool enable);
 bool ip_redirects_get(void);
 void icmp_error(const struct ifnet *rcvif, struct rte_mbuf *n,
 		   int type, int code, uint32_t info)
-	 __attribute__((cold));
+	 __cold_func;
 void icmp_error_out(const struct ifnet *rcvif, struct rte_mbuf *n,
 			int type, int code, uint32_t info,
 			const struct ifnet *outif)
-	__attribute__((cold));
+	__cold_func;
 struct rte_mbuf *icmp_do_error(struct rte_mbuf *n, int type, int code,
 				uint32_t info, const struct ifnet *in,
 				const struct ifnet *out);
