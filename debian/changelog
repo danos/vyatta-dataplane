@@ -1,3 +1,9 @@
+vyatta-dataplane (3.10.70.21) unstable; urgency=medium
+
+  * crypto : Always flush flow cache after committing ruleset
+
+ -- Srinivas Narayan <narayan@vyatta.att-mail.com>  Tue, 23 Feb 2021 10:30:38 +0000
+
 vyatta-dataplane (3.10.70.20) unstable; urgency=medium
 
   [ Gavin Shearer ]
