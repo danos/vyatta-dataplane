@@ -273,7 +273,7 @@ def parse_source_file(filename):
         elif parsing_feature_decl is not None:
             if '};' in line:
                 if args.debug:
-                    print("{}: Feature '{}': node '{}', point '{}', id '{}', after '{}'".format(
+                    print("{}: Feature '{}': node '{}', point '{}', id '{}', after '{}', type '{}'".format(
                         filename, parsing_feature_decl.name,
                         parsing_feature_decl.node_name,
                         parsing_feature_decl.feature_point,
