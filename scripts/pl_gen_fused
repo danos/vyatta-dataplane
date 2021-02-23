@@ -126,7 +126,7 @@ class NodeDecl:
     def get_next_node(self, disp):
         """Returns the next node name corresponding to the given disposition"""
         next_node_name = self.next_nodes[disp]
-        if not ':' in next_node_name:
+        if ':' not in next_node_name:
             return self.domain + ':' + next_node_name
         return next_node_name
 
@@ -183,21 +183,21 @@ class FeatureDecl:
     @property
     def node_name(self):
         node_name = self.__node_name
-        if not ':' in node_name:
+        if ':' not in node_name:
             return self.domain + ':' + node_name
         return node_name
 
     @property
     def feature_point(self):
         feature_point = self.__feature_point
-        if not ':' in feature_point:
+        if ':' not in feature_point:
             return self.domain + ':' + feature_point
         return feature_point
 
     @property
     def visit_after(self):
         visit_after = self.__visit_after
-        if visit_after is not None and not ':' in visit_after:
+        if visit_after is not None and ':' not in visit_after:
             return self.domain + ':' + visit_after
         return visit_after
 
@@ -281,7 +281,7 @@ def parse_source_file(filename):
                         parsing_feature_decl.visit_after,
                         parsing_feature_decl.feat_type))
                 parsing_feature_decl.validate()
-                if not parsing_feature_decl.feature_point in feats_for_feat_point:
+                if parsing_feature_decl.feature_point not in feats_for_feat_point:
                     feats_for_feat_point[parsing_feature_decl.feature_point] = {}
                 feats_for_feat_point[parsing_feature_decl.feature_point][parsing_feature_decl.name] = parsing_feature_decl
                 parsing_feature_decl = None
@@ -433,7 +433,7 @@ def gen_invoke_fused_node(f, indent_lvl, from_feature_point, dyn_feats, from_cas
 
 def gen_fused_graph(f, entry, dyn_feats):
     """Generate fused mode graph starting from the given entry point"""
-    if not entry in nodes:
+    if entry not in nodes:
         raise RuntimeError('Unknown entry-point node: {}'.format(entry))
     node = nodes[entry]
     write_indent(f, 0, 'ALWAYS_INLINE bool')
@@ -554,7 +554,7 @@ def gen_fused_features_invoke(f, feat_point, dyn_feats):
     The features are listed in the order they get added to the feature
     point array
     """
-    if not feat_point in nodes:
+    if feat_point not in nodes:
         raise RuntimeError('Unknown feature point node: {}'.format(feat_point))
     node = nodes[feat_point]
 
@@ -583,14 +583,14 @@ def gen_fused_features_invoke(f, feat_point, dyn_feats):
     resp_written = False
     head_features = dict(features)
     for feature in features.values():
-        if not feature.node_name in nodes:
+        if feature.node_name not in nodes:
             raise RuntimeError(
                 "unknown node {} for feature {}".format(feature.node_name, feature.name))
         if len(nodes[feature.node_name].next_nodes) > 1 and not resp_written:
             write_indent(f, 1, 'int resp;')
             resp_written = True
         if feature.visit_after:
-            if not feature.visit_after in features:
+            if feature.visit_after not in features:
                 raise RuntimeError(
                     "unknown visit after {} for feature {}".format(feature.visit_after, feature.name))
             # We only support one feature referencing another feature
@@ -769,7 +769,7 @@ def gen_fused_header(f, c_file_name, entry_points, feat_points):
     write_indent(f, 0, '/* Fused-mode graph entry points */')
     if entry_points is not None:
         for entry in entry_points:
-            if not entry in nodes:
+            if entry not in nodes:
                 raise RuntimeError(
                     'Unknown entry-point node: {}'.format(entry))
             node = nodes[entry]
@@ -779,7 +779,7 @@ def gen_fused_header(f, c_file_name, entry_points, feat_points):
     write_indent(f, 0, '/* Fused-mode feature invocations */')
     if feat_points is not None:
         for feat_point in feat_points:
-            if not feat_point in nodes:
+            if feat_point not in nodes:
                 raise RuntimeError(
                     'Unknown feature point node: {}'.format(feat_point))
             node = nodes[feat_point]
