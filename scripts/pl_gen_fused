@@ -253,8 +253,8 @@ def parse_source_file(filename):
                         'handler': parsing_node_decl.set_handler,
                         'type': parsing_node_decl.set_type,
                         'num_next': parsing_node_decl.set_num_next_sym,
-                        'feat_iterate':  parsing_node_decl.set_feat_iterate,
-                        'feat_type_find':  parsing_node_decl.set_feat_type_find,
+                        'feat_iterate': parsing_node_decl.set_feat_iterate,
+                        'feat_type_find': parsing_node_decl.set_feat_type_find,
                     }
                     field_start = line.find('.')
                     if field_start < 0:
@@ -291,10 +291,10 @@ def parse_source_file(filename):
                     'node_name': parsing_feature_decl.set_node_name,
                     'feature_point': parsing_feature_decl.set_feature_point,
                     'visit_after': parsing_feature_decl.set_visit_after,
-                    'visit_before':  parsing_feature_decl.set_visit_before,
+                    'visit_before': parsing_feature_decl.set_visit_before,
                     'id': parsing_feature_decl.set_id,
                     'feat_type': parsing_feature_decl.set_feat_type,
-                    'always_on':  parsing_feature_decl.set_always_on,
+                    'always_on': parsing_feature_decl.set_always_on,
                 }
                 field_start = line.find('.')
                 if field_start < 0:
