@@ -40,7 +40,8 @@ DP_START_TEST(sip_nat10, test)
 	bool forw, rv;
 	uint i;
 
-	assert(ARRAY_SIZE(sipd1) == ARRAY_SIZE(sipd1_dir));
+	static_assert(ARRAY_SIZE(sipd1) == ARRAY_SIZE(sipd1_dir),
+		      "sipd1 array size incorrect");
 
 	/* For each SIP msg payload */
 	for (i = 0; i < ARRAY_SIZE(sipd1); i++) {
@@ -89,8 +90,11 @@ DP_START_TEST(sip_nat11, test)
 	bool forw, rv;
 	uint i;
 
-	assert(ARRAY_SIZE(sipd1_pre_snat) == ARRAY_SIZE(sipd1_post_snat));
-	assert(ARRAY_SIZE(sipd1_pre_snat) == ARRAY_SIZE(sipd1_dir));
+	static_assert(ARRAY_SIZE(sipd1_pre_snat) ==
+		      ARRAY_SIZE(sipd1_post_snat),
+		      "sipd pre and post array size don't match");
+	static_assert(ARRAY_SIZE(sipd1_pre_snat) == ARRAY_SIZE(sipd1_dir),
+		      "spid pre snat array size incorrect");
 
 	/* Configure SNAT with sequential port allocation */
 	struct dp_test_npf_nat_rule_t snat = {
@@ -193,8 +197,11 @@ DP_START_TEST(sip_nat12, test)
 	bool forw, rv;
 	uint i;
 
-	assert(ARRAY_SIZE(sipd1_pre_dnat) == ARRAY_SIZE(sipd1_post_dnat));
-	assert(ARRAY_SIZE(sipd1_pre_dnat) == ARRAY_SIZE(sipd1_dir));
+	static_assert(ARRAY_SIZE(sipd1_pre_dnat) ==
+		      ARRAY_SIZE(sipd1_post_dnat),
+		      "sipd1 pre and post dnat array size don't match");
+	static_assert(ARRAY_SIZE(sipd1_pre_dnat) == ARRAY_SIZE(sipd1_dir),
+		      "spid pre dnat array size incorrect");
 
 	struct dp_test_npf_nat_rule_t dnat = {
 		.desc		= "dnat rule",
@@ -297,7 +304,8 @@ DP_START_TEST(sip_nat20, test)
 	bool forw, rv;
 	uint i;
 
-	assert(ARRAY_SIZE(sipd2) == ARRAY_SIZE(sipd2_dir));
+	static_assert(ARRAY_SIZE(sipd2) == ARRAY_SIZE(sipd2_dir),
+		      "sipd2 array size incorrect");
 
 	/*
 	 * Caller to/from Proxy Server
@@ -389,8 +397,11 @@ DP_START_TEST(sip_nat21, test)
 	bool forw, rv;
 	uint i;
 
-	assert(ARRAY_SIZE(sipd2_pre_snat) == ARRAY_SIZE(sipd2_post_snat));
-	assert(ARRAY_SIZE(sipd2_pre_snat) == ARRAY_SIZE(sipd2_dir));
+	static_assert(ARRAY_SIZE(sipd2_pre_snat) ==
+		      ARRAY_SIZE(sipd2_post_snat),
+		      "sipd pre and post snat array size don't match");
+	static_assert(ARRAY_SIZE(sipd2_pre_snat) == ARRAY_SIZE(sipd2_dir),
+		      "spid2 pre snat array size incorrect");
 
 	struct dp_test_npf_nat_rule_t snat = {
 		.desc		= "snat rule",
@@ -533,8 +544,11 @@ DP_START_TEST(sip_nat30, test)
 	bool forw, rv;
 	uint i;
 
-	assert(ARRAY_SIZE(sipd3_pre_snat) == ARRAY_SIZE(sipd3_post_snat));
-	assert(ARRAY_SIZE(sipd3_pre_snat) == ARRAY_SIZE(sipd3_dir));
+	static_assert(ARRAY_SIZE(sipd3_pre_snat) ==
+		      ARRAY_SIZE(sipd3_post_snat),
+		      "sipd3 pre and post array size don't match");
+	static_assert(ARRAY_SIZE(sipd3_pre_snat) == ARRAY_SIZE(sipd3_dir),
+		      "spid3 pre snat array size incorrect");
 
 	struct dp_test_npf_nat_rule_t snat = {
 		.desc		= "snat rule",
@@ -634,8 +648,11 @@ DP_START_TEST(sip_nat40, test)
 	bool forw, rv;
 	uint i;
 
-	assert(ARRAY_SIZE(sipd4_pre_dnat) == ARRAY_SIZE(sipd4_post_dnat));
-	assert(ARRAY_SIZE(sipd4_pre_dnat) == ARRAY_SIZE(sipd4_dir));
+	static_assert(ARRAY_SIZE(sipd4_pre_dnat) ==
+		      ARRAY_SIZE(sipd4_post_dnat),
+		      "sipd4 pre and post array size don't match");
+	static_assert(ARRAY_SIZE(sipd4_pre_dnat) == ARRAY_SIZE(sipd4_dir),
+		      "spid4 pre snat array size incorrect");
 
 	struct dp_test_npf_nat_rule_t dnat = {
 		.desc		= "DNAT rule",
