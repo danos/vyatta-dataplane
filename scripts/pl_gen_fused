@@ -802,6 +802,7 @@ def gen_fused_header(f, c_file_name, entry_points, feat_points):
             f.write('\n')
     f.write('#endif /* __{}__ */\n'.format(c_file_name))
 
+
 arg_parser = argparse.ArgumentParser(description = 'Generate pipeline fused mode files')
 arg_parser.add_argument('--debug', action='store_true',
             help = 'Enable printing of debugging information')
