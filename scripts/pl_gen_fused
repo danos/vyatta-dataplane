@@ -416,7 +416,7 @@ def gen_invoke_fused_node(f, indent_lvl, from_feature_point, dyn_feats, from_cas
         write_indent(f, indent_lvl, '{}if (unlikely(resp == {})) {{'.format(else_str, disp))
         else_str = '} else '
         r = gen_invoke_fused_node(f, indent_lvl + 1, from_feature_point, dyn_feats, from_case_feature, nodes[next_node])
-        if r == True:
+        if r is True:
             ret = True
     if len(node.next_nodes) > 1:
         write_indent(f, indent_lvl, '}')
@@ -425,7 +425,7 @@ def gen_invoke_fused_node(f, indent_lvl, from_feature_point, dyn_feats, from_cas
         write_indent(f, indent_lvl, '}} while (unlikely(resp == {}));'.format(self_ref_disp))
     write_indent(f, indent_lvl, '')
     r = gen_invoke_fused_node(f, indent_lvl, from_feature_point, dyn_feats, from_case_feature, nodes[node.get_next_node(node.default_disp)])
-    if r == True:
+    if r is True:
         ret = True
 
     return ret
@@ -446,7 +446,7 @@ def gen_fused_graph(f, entry, dyn_feats):
     f_temp = io.StringIO()
 
     ret = gen_invoke_fused_node(f_temp, 1, False, dyn_feats, False, node)
-    if (ret == True):
+    if (ret is True):
         write_indent(f, 1, 'int resp;')
         write_indent(f, 0, '')
 
