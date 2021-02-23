@@ -470,7 +470,6 @@ def gen_fused_feature_invoke_by_case_find(f, node, feat_point, dyn_feats):
     else:
         features = {}
 
-    resp_written = False
     head_features = dict(features)
 
     write_indent(f, 0, 'ALWAYS_INLINE unsigned int')
@@ -515,7 +514,6 @@ def gen_fused_feature_invoke_by_case(f, node, feat_point, dyn_feats):
     else:
         features = {}
 
-    resp_written = False
     head_features = dict(features)
 
     write_indent(f, 0, 'ALWAYS_INLINE bool')
