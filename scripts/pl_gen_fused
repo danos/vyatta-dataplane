@@ -446,7 +446,7 @@ def gen_fused_graph(f, entry, dyn_feats):
     f_temp = io.StringIO()
 
     ret = gen_invoke_fused_node(f_temp, 1, False, dyn_feats, False, node)
-    if (ret is True):
+    if ret is True:
         write_indent(f, 1, 'int resp;')
         write_indent(f, 0, '')
 
