@@ -803,21 +803,21 @@ def gen_fused_header(f, c_file_name, entry_points, feat_points):
     f.write('#endif /* __{}__ */\n'.format(c_file_name))
 
 
-arg_parser = argparse.ArgumentParser(description = 'Generate pipeline fused mode files')
+arg_parser = argparse.ArgumentParser(description='Generate pipeline fused mode files')
 arg_parser.add_argument('--debug', action='store_true',
-                        help = 'Enable printing of debugging information')
+                        help='Enable printing of debugging information')
 arg_parser.add_argument('--entry', action='append',
-                        help = 'Generate function as an entry point into a fused graph')
-arg_parser.add_argument('--feature-point', action = 'append',
-                        help = 'Generate function for invoking fused features on a node')
+                        help='Generate function as an entry point into a fused graph')
+arg_parser.add_argument('--feature-point', action='append',
+                        help='Generate function for invoking fused features on a node')
 arg_parser.add_argument('source_files', nargs='+', metavar='source-file',
                         help='a source file containing node or feature declarations')
 arg_parser.add_argument('--impl-out', action='store',
-                        help = 'File to output generated fused implementation to')
+                        help='File to output generated fused implementation to')
 arg_parser.add_argument('--include', action='append',
-                        help = 'Name of header to include in implementation')
+                        help='Name of header to include in implementation')
 arg_parser.add_argument('--header-out', action='store',
-                        help = 'File to output generated fused header to')
+                        help='File to output generated fused header to')
 args = arg_parser.parse_args()
 
 for filename in args.source_files:
