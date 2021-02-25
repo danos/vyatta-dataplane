@@ -20,10 +20,15 @@
 #include "gpc_util.h"
 #include "json_writer.h"
 #include "npf/config/gpc_db_query.h"
+#include "npf/config/gpc_hw.h"
 #include "urcu.h"
 #include "util.h"
 
+/*
+ * Some maximum string lengths
+ */
 #define PREFIX_STRLEN (INET6_ADDRSTRLEN + sizeof("/128"))
+#define TABLE_ID_STRLEN (IFNAMSIZ + sizeof("/ingress/ipv4"))
 
 /*
  * Structure definitions
@@ -56,6 +61,7 @@ gpc_op_show_match(struct gpc_pb_match *match, struct gpc_walk_context *walk_ctx)
 	struct gpc_show_context *show_ctx =
 		(struct gpc_show_context *)walk_ctx->data;
 	json_writer_t *wr = show_ctx->wr;
+	uint16_t value;
 	char prefix_str[PREFIX_STRLEN];
 
 	jsonw_start_object(wr);
@@ -64,51 +70,63 @@ gpc_op_show_match(struct gpc_pb_match *match, struct gpc_walk_context *walk_ctx)
 		break;
 	case GPC_RULE_MATCH_VALUE_SRC_IP:
 		if (!gpc_ip_prefix_str(&match->match_value.src_ip,
-				       prefix_str, sizeof(prefix_str)))
-			jsonw_string_field(wr, "src-ip", prefix_str);
+				       prefix_str, sizeof(prefix_str))) {
+			jsonw_string_field(wr, "match", "src-ip");
+			jsonw_string_field(wr, "value", prefix_str);
+		}
 		break;
 	case GPC_RULE_MATCH_VALUE_DEST_IP:
 		if (!gpc_ip_prefix_str(&match->match_value.dest_ip,
-				       prefix_str, sizeof(prefix_str)))
-			jsonw_string_field(wr, "dest-ip", prefix_str);
+				       prefix_str, sizeof(prefix_str))) {
+			jsonw_string_field(wr, "match", "dest-ip");
+			jsonw_string_field(wr, "value", prefix_str);
+		}
 		break;
 	case GPC_RULE_MATCH_VALUE_SRC_PORT:
-		jsonw_uint_field(wr, "src-port", match->match_value.src_port);
+		jsonw_string_field(wr, "match", "src-port");
+		jsonw_uint_field(wr, "value", match->match_value.src_port);
 		break;
 	case GPC_RULE_MATCH_VALUE_DEST_PORT:
-		jsonw_uint_field(wr, "dest-port", match->match_value.dest_port);
+		jsonw_string_field(wr, "match", "dest-port");
+		jsonw_uint_field(wr, "value", match->match_value.dest_port);
 		break;
 	case GPC_RULE_MATCH_VALUE_FRAGMENT:
-		jsonw_uint_field(wr, "fragment", match->match_value.fragment);
+		jsonw_string_field(wr, "match", "fragment");
+		jsonw_uint_field(wr, "value", match->match_value.fragment);
 		break;
 	case GPC_RULE_MATCH_VALUE_DSCP:
-		jsonw_uint_field(wr, "dscp", match->match_value.dscp);
+		jsonw_string_field(wr, "match", "dscp");
+		jsonw_uint_field(wr, "value", match->match_value.dscp);
 		break;
 	case GPC_RULE_MATCH_VALUE_TTL:
-		jsonw_uint_field(wr, "ttl", match->match_value.ttl);
+		jsonw_string_field(wr, "match", "ttl");
+		jsonw_uint_field(wr, "value", match->match_value.ttl);
 		break;
 	case GPC_RULE_MATCH_VALUE_ICMPV4:
-		jsonw_uint_field(wr, "icmp-type",
-				 match->match_value.icmpv4.typenum);
-		jsonw_uint_field(wr, "icmp-code",
-				 match->match_value.icmpv4.code);
+		jsonw_string_field(wr, "match", "icmpv4");
+		value = match->match_value.icmpv4.typenum << 8;
+		value |= match->match_value.icmpv4.code;
+		jsonw_uint_field(wr, "value", value);
 		break;
 	case GPC_RULE_MATCH_VALUE_ICMPV6:
-		jsonw_uint_field(wr, "icmpv6-type",
-				 match->match_value.icmpv6.typenum);
-		jsonw_uint_field(wr, "icmpv6-code",
-				 match->match_value.icmpv6.code);
+		jsonw_string_field(wr, "match", "icmpv6");
+		value = match->match_value.icmpv6.typenum << 8;
+		value |= match->match_value.icmpv6.code;
+		jsonw_uint_field(wr, "value", value);
 		break;
 	case GPC_RULE_MATCH_VALUE_ICMPV6_CLASS:
-		jsonw_uint_field(wr, "icmpv6-class",
+		jsonw_string_field(wr, "match", "icmpv6-class");
+		jsonw_uint_field(wr, "value",
 				 match->match_value.icmpv6_class);
 		break;
 	case GPC_RULE_MATCH_VALUE_PROTO_BASE:
-		jsonw_uint_field(wr, "base-protocol",
+		jsonw_string_field(wr, "match", "base-protocol");
+		jsonw_uint_field(wr, "value",
 				 match->match_value.proto_base);
 		break;
 	case GPC_RULE_MATCH_VALUE_PROTO_FINAL:
-		jsonw_uint_field(wr, "final-protocol",
+		jsonw_string_field(wr, "match", "final-protocol");
+		jsonw_uint_field(wr, "value",
 				 match->match_value.proto_final);
 		break;
 	default:
@@ -130,7 +148,6 @@ gpc_op_show_action(struct gpc_pb_action *action,
 	json_writer_t *wr = show_ctx->wr;
 	struct gpc_pb_policer *policer;
 
-	jsonw_start_object(wr);
 	switch (action->action_type) {
 	case GPC_RULE_ACTION_VALUE_NOT_SET:
 		break;
@@ -148,8 +165,8 @@ gpc_op_show_action(struct gpc_pb_action *action,
 		break;
 	case GPC_RULE_ACTION_VALUE_POLICER:
 		policer = &action->action_value.policer;
-
-		jsonw_uint_field(wr, "flags", policer->flags);
+		jsonw_name(wr, "police");
+		jsonw_start_object(wr);
 		if (policer->flags & POLICER_HAS_BW)
 			jsonw_uint_field(wr, "bandwidth", policer->bw);
 		if (policer->flags & POLICER_HAS_BURST)
@@ -167,13 +184,13 @@ gpc_op_show_action(struct gpc_pb_action *action,
 		}
 		jsonw_uint_field(wr, "packets", 0);
 		jsonw_uint_field(wr, "drops", 0);
+		jsonw_end_object(wr);
 		break;
 	default:
 		RTE_LOG(ERR, GPC, "Unknown GPC Action action-type %u\n",
 			action->action_type);
 		break;
 	}
-	jsonw_end_object(wr);
 	return true;
 }
 
@@ -184,6 +201,14 @@ gpc_op_show_rule(struct gpc_pb_rule *rule, struct gpc_walk_context *walk_ctx)
 	struct gpc_show_context *show_ctx =
 		(struct gpc_show_context *)walk_ctx->data;
 	json_writer_t *wr = show_ctx->wr;
+	uint64_t bytes = 0;
+	uint64_t packets = 0;
+
+	/*
+	 * Rules with a number of zero are not being used
+	 */
+	if (rule->number == 0)
+		return true;
 
 	jsonw_start_object(wr);
 	jsonw_uint_field(wr, "rule-number", rule->number);
@@ -193,10 +218,7 @@ gpc_op_show_rule(struct gpc_pb_rule *rule, struct gpc_walk_context *walk_ctx)
 	gpc_pb_rule_match_walk(rule, gpc_op_show_match, walk_ctx);
 	jsonw_end_array(wr);
 
-	jsonw_name(wr, "actions");
-	jsonw_start_array(wr);
 	gpc_pb_rule_action_walk(rule, gpc_op_show_action, walk_ctx);
-	jsonw_end_array(wr);
 
 	if (rule->counter.counter_type != GPC_COUNTER_TYPE_UNKNOWN ||
 	    rule->counter.name) {
@@ -208,11 +230,16 @@ gpc_op_show_rule(struct gpc_pb_rule *rule, struct gpc_walk_context *walk_ctx)
 		if (rule->counter.name)
 			jsonw_string_field(wr, "counter-name",
 					   rule->counter.name);
-		jsonw_uint_field(wr, "packets", 0);
-		jsonw_uint_field(wr, "bytes", 0);
+
+		struct gpc_cntr *cntr = gpc_rule_get_cntr(rule->gpc_rule);
+
+		if (cntr)
+			(void)gpc_hw_counter_read(cntr, &packets, &bytes);
+
+		jsonw_uint_field(wr, "packets", packets);
+		jsonw_uint_field(wr, "bytes", bytes);
 		jsonw_end_object(wr);
 	}
-
 	jsonw_uint_field(wr, "table-index", rule->table_index);
 	jsonw_uint_field(wr, "orig-number", rule->orig_number);
 	if (rule->result)
@@ -229,20 +256,19 @@ gpc_op_show_table(struct gpc_pb_table *table,
 	struct gpc_show_context *show_ctx =
 		(struct gpc_show_context *)walk_ctx->data;
 	json_writer_t *wr = show_ctx->wr;
+	char table_id_str[TABLE_ID_STRLEN];
 	uint32_t i;
 
 	jsonw_start_object(wr);
-	jsonw_string_field(wr, "interface", table->ifname);
-	jsonw_string_field(wr, "location",
-			   gpc_get_table_location_str(table->location));
+	snprintf(table_id_str, TABLE_ID_STRLEN, "%s/%s/%s", table->ifname,
+		 gpc_get_table_location_str(table->location),
+		 gpc_get_traffic_type_str(table->traffic_type));
+	jsonw_string_field(wr, "table-id", table_id_str);
 
 	jsonw_name(wr, "rules");
 	jsonw_start_array(wr);
 	gpc_pb_table_rule_walk(table, gpc_op_show_rule, walk_ctx);
 	jsonw_end_array(wr);
-
-	jsonw_string_field(wr, "traffic-type",
-			   gpc_get_traffic_type_str(table->traffic_type));
 
 	jsonw_name(wr, "table-names");
 	jsonw_start_array(wr);
@@ -306,7 +332,7 @@ gpc_op_show_feature(struct gpc_pb_feature *feature,
  * Output in Yang compatible JSON.
  */
 static int
-gpc_show(FILE *f, int argc __unused, char **argv __unused)
+gpc_show(FILE *f, int argc, char **argv)
 {
 	struct gpc_show_context show_ctx;
 	struct gpc_walk_context walk_ctx;
@@ -337,9 +363,12 @@ gpc_show(FILE *f, int argc __unused, char **argv __unused)
 	jsonw_pretty(show_ctx.wr, true);
 
 	jsonw_name(show_ctx.wr, "gpc");
+	jsonw_start_object(show_ctx.wr);
+	jsonw_name(show_ctx.wr, "features");
 	jsonw_start_array(show_ctx.wr);
 	gpc_pb_feature_walk(gpc_op_show_feature, &walk_ctx);
 	jsonw_end_array(show_ctx.wr);
+	jsonw_end_object(show_ctx.wr);
 	jsonw_destroy(&show_ctx.wr);
 	return 0;
 }
