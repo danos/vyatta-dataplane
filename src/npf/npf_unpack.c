@@ -25,6 +25,7 @@ static int npf_pack_get_session_from_init_sentry(struct sentry_packet *sp,
 {
 	struct npf_session *se;
 	struct session *s;
+	struct sentry *sen;
 	bool forw;
 	int rc;
 
@@ -35,8 +36,11 @@ static int npf_pack_get_session_from_init_sentry(struct sentry_packet *sp,
 	if (rc)
 		return rc;
 
-	se = session_feature_get(s, s->se_sen->sen_ifindex,
-				 SESSION_FEATURE_NPF);
+	sen = rcu_dereference(s->se_sen);
+	if (!sen)
+		return -ENOENT;
+
+	se = session_feature_get(s, sen->sen_ifindex, SESSION_FEATURE_NPF);
 	if (!se)
 		return -ENOENT;
 

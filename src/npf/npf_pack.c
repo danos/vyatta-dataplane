@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2019-2021, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -298,6 +298,7 @@ static int npf_pack_session_pack_new(struct session *s,
 	struct npf_pack_session_new *csn_peer;
 	struct session *s_peer = NULL;
 	struct npf_session *se_peer = NULL;
+	struct sentry *sen;
 	npf_session_t *se;
 	int rc;
 
@@ -306,7 +307,11 @@ static int npf_pack_session_pack_new(struct session *s,
 	if (!s || !csn)
 		return -EINVAL;
 
-	se = session_feature_get(s, s->se_sen->sen_ifindex,
+	sen = rcu_dereference(s->se_sen);
+	if (!sen)
+		return -ENOENT;
+
+	se = session_feature_get(s, sen->sen_ifindex,
 				 SESSION_FEATURE_NPF);
 	if (!se)
 		return -ENOENT;
