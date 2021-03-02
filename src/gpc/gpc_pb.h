@@ -118,6 +118,7 @@ struct gpc_pb_match {
 
 struct gpc_pb_counter {
 	struct cds_list_head	counter_list;
+	struct rcu_head		counter_rcu;
 	/* format - packet-only/packets-and-bytes */
 	uint32_t		format;
 	char			*name;
@@ -134,8 +135,6 @@ struct gpc_pb_rule_counter {
  * so that they are guaranteed to arrive in numercial order.
  */
 struct gpc_pb_rule {
-	struct cds_list_head		rule_list;
-	struct rcu_head			rule_rcu;
 	/* The following field uniquely identifies the rule */
 	uint32_t			number;
 	/* Other operational fields */
@@ -159,24 +158,29 @@ struct gpc_pb_rule {
  * Some features, e.g. QoS, will only have a single table per interface.
  */
 struct gpc_pb_table {
-	struct cds_list_head	table_list;
-	struct rcu_head		table_rcu;
+	struct cds_list_head		table_list;
+	struct rcu_head			table_rcu;
 	/* The following two fields uniquely identify this table */
-	char			*ifname;
+	char				*ifname;
 	/* location - ingress/egress/punt-path */
-	uint32_t		location;
+	uint32_t			location;
 	/* Other operational fields */
-	struct cds_list_head	rule_list;
+	uint32_t			n_rules;
+	/*
+	 * The protobuf tells us how many rules are in the rules_table so
+	 * we can allocate memory for all the rules in a single chunk.
+	 */
+	struct gpc_pb_rule		*rules_table;
 	/* traffic-type - ipv4/ipv6 */
-	uint32_t		traffic_type;
+	uint32_t			traffic_type;
 	/*
 	 * The VCI code can collapse multiple tables into a single table.
 	 * The following fields allows us to identify the user-visible table's
 	 * name using the table_index field from the gpc_pb_rule struct.
 	 */
-	uint32_t		n_table_names;
+	uint32_t			n_table_names;
 	/* The following array is variable length */
-	char			*table_names[0];
+	char				*table_names[0];
 };
 
 /*
