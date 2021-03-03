@@ -375,7 +375,7 @@ storm_control_can_create_in_fal(struct ifnet *ifp, uint16_t vlan)
 		return false;
 	}
 
-	if (vlan &&
+	if (vlan && !ifp->if_l3_enabled &&
 	    (!ifp->if_brport ||
 	     !bridge_port_is_vlan_member(ifp->if_brport, vlan))) {
 		DP_DEBUG(STORM_CTL, DEBUG, DATAPLANE,
@@ -1394,7 +1394,7 @@ static int storm_ctl_set_intf_cfg(bool set, FILE *f, int argc, char **argv)
 	char *ifname;
 	struct ifnet *ifp = NULL;
 	struct storm_ctl_profile *profile;
-	int rv = 0;
+	int rv = 0, vlan;
 
 	if (argc < 4)
 		goto error;
@@ -1407,6 +1407,8 @@ static int storm_ctl_set_intf_cfg(bool set, FILE *f, int argc, char **argv)
 			ifname);
 		return -1;
 	}
+
+	vlan = ifp->if_vlan;
 
 	if (ifp->if_type != IFT_ETHER && ifp->if_type != IFT_L2VLAN) {
 		fprintf(f, "storm-ctl command not supported on %s",
@@ -1444,9 +1446,9 @@ static int storm_ctl_set_intf_cfg(bool set, FILE *f, int argc, char **argv)
 				}
 			}
 			return storm_ctl_set_profile_on_intf(set, ifp,
-							     profile, 0);
+							     profile, vlan);
 		}
-		storm_ctl_set_profile_on_intf(set, ifp, NULL, 0);
+		storm_ctl_set_profile_on_intf(set, ifp, NULL, vlan);
 		goto check_ifp_sc;
 	}
 
