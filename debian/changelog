@@ -1,3 +1,10 @@
+vyatta-dataplane (3.10.70.22) unstable; urgency=medium
+
+  [ Nachiketa Prachanda ]
+  * npf: use rcu safe null check for sentry
+
+ -- Srinivas Narayan <narayan@vyatta.att-mail.com>  Wed, 03 Mar 2021 13:38:12 +0000
+
 vyatta-dataplane (3.10.70.21) unstable; urgency=medium
 
   * crypto : Always flush flow cache after committing ruleset
