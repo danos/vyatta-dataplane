@@ -1,3 +1,40 @@
+vyatta-dataplane (3.12.30) unstable; urgency=medium
+
+  [ Nicholas Brown ]
+  * Tweak how Jenkins deals with rebuilding branches
+  * Build against DANOS:Shipping:2105 in Jenkinsfile
+
+  [ Thomas Kiely ]
+  * Populate sci_vlan for L3 VIFs
+  * Remove incorrect error message
+
+ -- Srinivas Narayan <narayan@vyatta.att-mail.com>  Thu, 04 Mar 2021 14:45:11 +0000
+
+vyatta-dataplane (3.12.29) unstable; urgency=medium
+
+  [ Paul Aitken ]
+  * pl_gen_fused: fix E302
+  * pl_gen_fused: fix E305
+  * pl_gen_fused: fix E703
+  * pl_gen_fused: fix E128
+  * pl_gen_fused: fix E251
+  * pl_gen_fused: fix E241
+  * pl_gen_fused: fix F841
+  * pl_gen_fused: fix F523
+  * pl_gen_fused: fix F524
+  * pl_gen_fused: fix E712
+  * pl_gen_fused: fix E713
+  * pl_gen_fused: fix C0325
+  * pl_gen_fused: fix R1710
+  * DPI: call ndpi_finalize_initalization
+
+  [ Nachiketa Prachanda ]
+  * npf: use rcu safe null check for sentry
+
+  [ Simon Barber ]
+
+ -- Simon Barber <sbarber@vyatta.att-mail.com>  Wed, 03 Mar 2021 10:08:00 +0000
+
 vyatta-dataplane (3.12.28) unstable; urgency=medium
 
   [ Nicholas Brown ]

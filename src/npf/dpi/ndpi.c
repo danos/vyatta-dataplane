@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020 AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2021 AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -203,6 +203,8 @@ dpi_ndpi_init(void)
 			ndpi_load_categories_file(detect, NDPI_CATEGORIES_PATH);
 			fclose(file);
 		}
+
+		ndpi_finalize_initalization(detect);
 
 		detection_modules[lcore] = detect;
 	}

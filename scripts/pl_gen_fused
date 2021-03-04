@@ -33,11 +33,13 @@ import io
 nodes = {}
 feats_for_feat_point = {}
 
+
 def remove_quotes(string):
     """Remove leading and trailing double quotes from a string"""
     if not (string.startswith('"') and string.endswith('"')):
         raise RuntimeError('expected double quotes around string "{}"'.format(string))
     return string[1:-1]
+
 
 class NodeDecl:
     """
@@ -124,7 +126,7 @@ class NodeDecl:
     def get_next_node(self, disp):
         """Returns the next node name corresponding to the given disposition"""
         next_node_name = self.next_nodes[disp]
-        if not ':' in next_node_name:
+        if ':' not in next_node_name:
             return self.domain + ':' + next_node_name
         return next_node_name
 
@@ -133,6 +135,7 @@ class NodeDecl:
             raise RuntimeError('no name for node')
         if self.handler is None:
             raise RuntimeError('handler not set for node {}'.format(self.name))
+
 
 class FeatureDecl:
     """
@@ -180,21 +183,21 @@ class FeatureDecl:
     @property
     def node_name(self):
         node_name = self.__node_name
-        if not ':' in node_name:
+        if ':' not in node_name:
             return self.domain + ':' + node_name
         return node_name
 
     @property
     def feature_point(self):
         feature_point = self.__feature_point
-        if not ':' in feature_point:
+        if ':' not in feature_point:
             return self.domain + ':' + feature_point
         return feature_point
 
     @property
     def visit_after(self):
         visit_after = self.__visit_after
-        if visit_after is not None and not ':' in visit_after:
+        if visit_after is not None and ':' not in visit_after:
             return self.domain + ':' + visit_after
         return visit_after
 
@@ -207,6 +210,7 @@ class FeatureDecl:
         if self.feature_point is None:
             raise RuntimeError(
                 'feature_point not set for feature {}'.format(self.name))
+
 
 def parse_source_file(filename):
     """
@@ -249,8 +253,8 @@ def parse_source_file(filename):
                         'handler': parsing_node_decl.set_handler,
                         'type': parsing_node_decl.set_type,
                         'num_next': parsing_node_decl.set_num_next_sym,
-                        'feat_iterate':  parsing_node_decl.set_feat_iterate,
-                        'feat_type_find':  parsing_node_decl.set_feat_type_find,
+                        'feat_iterate': parsing_node_decl.set_feat_iterate,
+                        'feat_type_find': parsing_node_decl.set_feat_type_find,
                     }
                     field_start = line.find('.')
                     if field_start < 0:
@@ -269,7 +273,7 @@ def parse_source_file(filename):
         elif parsing_feature_decl is not None:
             if '};' in line:
                 if args.debug:
-                    print("{}: Feature '{}': node '{}', point '{}', id '{}', after '{}'".format(
+                    print("{}: Feature '{}': node '{}', point '{}', id '{}', after '{}', type '{}'".format(
                         filename, parsing_feature_decl.name,
                         parsing_feature_decl.node_name,
                         parsing_feature_decl.feature_point,
@@ -277,7 +281,7 @@ def parse_source_file(filename):
                         parsing_feature_decl.visit_after,
                         parsing_feature_decl.feat_type))
                 parsing_feature_decl.validate()
-                if not parsing_feature_decl.feature_point in feats_for_feat_point:
+                if parsing_feature_decl.feature_point not in feats_for_feat_point:
                     feats_for_feat_point[parsing_feature_decl.feature_point] = {}
                 feats_for_feat_point[parsing_feature_decl.feature_point][parsing_feature_decl.name] = parsing_feature_decl
                 parsing_feature_decl = None
@@ -287,10 +291,10 @@ def parse_source_file(filename):
                     'node_name': parsing_feature_decl.set_node_name,
                     'feature_point': parsing_feature_decl.set_feature_point,
                     'visit_after': parsing_feature_decl.set_visit_after,
-                    'visit_before':  parsing_feature_decl.set_visit_before,
+                    'visit_before': parsing_feature_decl.set_visit_before,
                     'id': parsing_feature_decl.set_id,
                     'feat_type': parsing_feature_decl.set_feat_type,
-                    'always_on':  parsing_feature_decl.set_always_on,
+                    'always_on': parsing_feature_decl.set_always_on,
                 }
                 field_start = line.find('.')
                 if field_start < 0:
@@ -310,12 +314,14 @@ def parse_source_file(filename):
             elif 'PL_REGISTER_FEATURE(' in line:
                 parsing_feature_decl = FeatureDecl()
 
+
 def write_indent(f, indent_lvl, string):
     """Write to a file, indenting the string to the given level"""
     # Don't indent on empty lines
     if not string:
         indent_lvl = 0
     f.write('{}{}\n'.format('\t' * indent_lvl, string))
+
 
 def gen_invoke_fused_node(f, indent_lvl, from_feature_point, dyn_feats, from_case_feature, node):
     """
@@ -364,7 +370,7 @@ def gen_invoke_fused_node(f, indent_lvl, from_feature_point, dyn_feats, from_cas
             write_indent(f, indent_lvl, 'return true;')
         else:
             write_indent(f, indent_lvl, 'continue;')
-        return
+        return False
     elif node.node_type == 'PL_OUTPUT':
         if node.next_nodes:
             raise RuntimeError(
@@ -377,7 +383,7 @@ def gen_invoke_fused_node(f, indent_lvl, from_feature_point, dyn_feats, from_cas
             write_indent(f, indent_lvl, 'return false;')
         else:
             write_indent(f, indent_lvl, 'goto cleanup;')
-        return
+        return False
     elif node.node_type == 'PL_PROC':
         if from_feature_point and not from_case_feature:
             storage_ctx = "storage_ctx"
@@ -410,7 +416,7 @@ def gen_invoke_fused_node(f, indent_lvl, from_feature_point, dyn_feats, from_cas
         write_indent(f, indent_lvl, '{}if (unlikely(resp == {})) {{'.format(else_str, disp))
         else_str = '} else '
         r = gen_invoke_fused_node(f, indent_lvl + 1, from_feature_point, dyn_feats, from_case_feature, nodes[next_node])
-        if r == True:
+        if r is True:
             ret = True
     if len(node.next_nodes) > 1:
         write_indent(f, indent_lvl, '}')
@@ -419,14 +425,15 @@ def gen_invoke_fused_node(f, indent_lvl, from_feature_point, dyn_feats, from_cas
         write_indent(f, indent_lvl, '}} while (unlikely(resp == {}));'.format(self_ref_disp))
     write_indent(f, indent_lvl, '')
     r = gen_invoke_fused_node(f, indent_lvl, from_feature_point, dyn_feats, from_case_feature, nodes[node.get_next_node(node.default_disp)])
-    if r == True:
+    if r is True:
         ret = True
 
     return ret
 
+
 def gen_fused_graph(f, entry, dyn_feats):
     """Generate fused mode graph starting from the given entry point"""
-    if not entry in nodes:
+    if entry not in nodes:
         raise RuntimeError('Unknown entry-point node: {}'.format(entry))
     node = nodes[entry]
     write_indent(f, 0, 'ALWAYS_INLINE bool')
@@ -439,7 +446,7 @@ def gen_fused_graph(f, entry, dyn_feats):
     f_temp = io.StringIO()
 
     ret = gen_invoke_fused_node(f_temp, 1, False, dyn_feats, False, node)
-    if (ret == True):
+    if ret is True:
         write_indent(f, 1, 'int resp;')
         write_indent(f, 0, '')
 
@@ -450,6 +457,7 @@ def gen_fused_graph(f, entry, dyn_feats):
     write_indent(f, 1, 'pl_release_storage(pl_pkt);')
     write_indent(f, 1, 'return false;')
     write_indent(f, 0, '}')
+
 
 def gen_fused_feature_invoke_by_case_find(f, node, feat_point, dyn_feats):
     """
@@ -462,7 +470,6 @@ def gen_fused_feature_invoke_by_case_find(f, node, feat_point, dyn_feats):
     else:
         features = {}
 
-    resp_written = False
     head_features = dict(features)
 
     write_indent(f, 0, 'ALWAYS_INLINE unsigned int')
@@ -491,6 +498,7 @@ def gen_fused_feature_invoke_by_case_find(f, node, feat_point, dyn_feats):
         write_indent(f, 1, 'return 0;')
     write_indent(f, 0, '}')
 
+
 def gen_fused_feature_invoke_by_case(f, node, feat_point, dyn_feats):
     """
     Generate fused feature invocation for the given feature point
@@ -506,7 +514,6 @@ def gen_fused_feature_invoke_by_case(f, node, feat_point, dyn_feats):
     else:
         features = {}
 
-    resp_written = False
     head_features = dict(features)
 
     write_indent(f, 0, 'ALWAYS_INLINE bool')
@@ -539,6 +546,7 @@ def gen_fused_feature_invoke_by_case(f, node, feat_point, dyn_feats):
     write_indent(f, 1, 'return resp;')
     write_indent(f, 0, '}')
 
+
 def gen_fused_features_invoke(f, feat_point, dyn_feats):
     """
     Generate fused feature invocation for the given feature point
@@ -546,7 +554,7 @@ def gen_fused_features_invoke(f, feat_point, dyn_feats):
     The features are listed in the order they get added to the feature
     point array
     """
-    if not feat_point in nodes:
+    if feat_point not in nodes:
         raise RuntimeError('Unknown feature point node: {}'.format(feat_point))
     node = nodes[feat_point]
 
@@ -575,14 +583,14 @@ def gen_fused_features_invoke(f, feat_point, dyn_feats):
     resp_written = False
     head_features = dict(features)
     for feature in features.values():
-        if not feature.node_name in nodes:
+        if feature.node_name not in nodes:
             raise RuntimeError(
                 "unknown node {} for feature {}".format(feature.node_name, feature.name))
         if len(nodes[feature.node_name].next_nodes) > 1 and not resp_written:
             write_indent(f, 1, 'int resp;')
             resp_written = True
         if feature.visit_after:
-            if not feature.visit_after in features:
+            if feature.visit_after not in features:
                 raise RuntimeError(
                     "unknown visit after {} for feature {}".format(feature.visit_after, feature.name))
             # We only support one feature referencing another feature
@@ -618,6 +626,7 @@ def gen_fused_features_invoke(f, feat_point, dyn_feats):
     write_indent(f, 1, 'return true;')
     write_indent(f, 0, '}')
 
+
 def gen_preamble(f):
     """Write out preamble comment for generated source and header files"""
     f.write('/*\n')
@@ -626,6 +635,7 @@ def gen_preamble(f):
     for filename in args.source_files:
         f.write(' * {}\n'.format(filename))
     f.write(' */\n')
+
 
 def gen_fused_impl(f, includes, entry_points, feat_points):
     """Generate fused implementation source file"""
@@ -662,6 +672,7 @@ def gen_fused_impl(f, includes, entry_points, feat_points):
             write_indent(f, 2, 'node->feature_point_id = PL_FEATURE_POINT_NONE_ID; return; }')
     f.write('}\n')
 
+
 def gen_node_disps(f, node):
     """
     Generate disposition enum for nodes
@@ -677,6 +688,7 @@ def gen_node_disps(f, node):
         write_indent(f, 0, '};')
         write_indent(f, 0, '')
 
+
 def gen_node_fused_func_decls(f):
     """
     Generate node fused processing function declaration and feature
@@ -687,10 +699,10 @@ def gen_node_fused_func_decls(f):
     for node_name in sorted(nodes.keys()):
         node = nodes[node_name]
         gen_node_disps(f, node)
-        write_indent(f, 0, 'extern unsigned int {}(struct pl_packet *, void *context);'.format(node.handler));
+        write_indent(f, 0, 'extern unsigned int {}(struct pl_packet *, void *context);'.format(node.handler))
         if node.feat_iterate is not None or node.feat_type_find is not None:
             write_indent(f, 0, '')
-            write_indent(f, 0, 'extern unsigned int {}_common(struct pl_packet *, void *context __unused, enum pl_mode);'.format(node.handler));
+            write_indent(f, 0, 'extern unsigned int {}_common(struct pl_packet *, void *context __unused, enum pl_mode);'.format(node.handler))
             write_indent(f, 0, 'static ALWAYS_INLINE unsigned int')
             write_indent(f, 0, '{}(struct pl_packet *pl_pkt, void *context)'.format(node.fused_handler))
             write_indent(f, 0, '{')
@@ -721,6 +733,7 @@ def gen_node_fused_func_decls(f):
             write_indent(f, 1, 'return {}(pl_pkt, context);'.format(node.handler))
             write_indent(f, 0, '}')
 
+
 def gen_fused_header(f, c_file_name, entry_points, feat_points):
     """Generate fused header file"""
     gen_preamble(f)
@@ -741,7 +754,7 @@ def gen_fused_header(f, c_file_name, entry_points, feat_points):
     for node_name in sorted(nodes.keys()):
         node = nodes[node_name]
         write_indent(f, 1, 'PL_NODE_{}_ID,'.format(node.c_name.upper()))
-    f.write('PL_NODE_NUM_IDS};\n');
+    f.write('PL_NODE_NUM_IDS};\n')
 
     f.write('\n')
     f.write('enum pl_feature_point_id {\n')
@@ -750,13 +763,13 @@ def gen_fused_header(f, c_file_name, entry_points, feat_points):
         node = nodes[node_name]
         if node.feat_iterate or node.feat_type_find:
             write_indent(f, 1, 'PL_FEATURE_POINT_{}_ID,'.format(node.c_name.upper()))
-    f.write('PL_FEATURE_POINT_NUM_IDS};\n');
+    f.write('PL_FEATURE_POINT_NUM_IDS};\n')
 
     gen_node_fused_func_decls(f)
     write_indent(f, 0, '/* Fused-mode graph entry points */')
     if entry_points is not None:
         for entry in entry_points:
-            if not entry in nodes:
+            if entry not in nodes:
                 raise RuntimeError(
                     'Unknown entry-point node: {}'.format(entry))
             node = nodes[entry]
@@ -766,14 +779,14 @@ def gen_fused_header(f, c_file_name, entry_points, feat_points):
     write_indent(f, 0, '/* Fused-mode feature invocations */')
     if feat_points is not None:
         for feat_point in feat_points:
-            if not feat_point in nodes:
+            if feat_point not in nodes:
                 raise RuntimeError(
                     'Unknown feature point node: {}'.format(feat_point))
             node = nodes[feat_point]
             if not node.feat_type_find:
                 if not node.feat_iterate:
                     raise RuntimeError(
-                        'Feature point {} not declared as feature point node {}'.format(feat_point))
+                        'Feature point {} not declared as feature point node'.format(feat_point))
                 f.write('bool\n')
                 f.write('pipeline_fused_{}_features(struct pl_packet *pl_pkt, struct pl_node *node);\n'.format(node.c_name))
                 f.write('bool\n')
@@ -787,21 +800,22 @@ def gen_fused_header(f, c_file_name, entry_points, feat_points):
             f.write('\n')
     f.write('#endif /* __{}__ */\n'.format(c_file_name))
 
-arg_parser = argparse.ArgumentParser(description = 'Generate pipeline fused mode files')
+
+arg_parser = argparse.ArgumentParser(description='Generate pipeline fused mode files')
 arg_parser.add_argument('--debug', action='store_true',
-            help = 'Enable printing of debugging information')
+                        help='Enable printing of debugging information')
 arg_parser.add_argument('--entry', action='append',
-            help = 'Generate function as an entry point into a fused graph')
-arg_parser.add_argument('--feature-point', action = 'append',
-            help = 'Generate function for invoking fused features on a node')
+                        help='Generate function as an entry point into a fused graph')
+arg_parser.add_argument('--feature-point', action='append',
+                        help='Generate function for invoking fused features on a node')
 arg_parser.add_argument('source_files', nargs='+', metavar='source-file',
-            help='a source file containing node or feature declarations')
+                        help='a source file containing node or feature declarations')
 arg_parser.add_argument('--impl-out', action='store',
-            help = 'File to output generated fused implementation to')
+                        help='File to output generated fused implementation to')
 arg_parser.add_argument('--include', action='append',
-            help = 'Name of header to include in implementation')
+                        help='Name of header to include in implementation')
 arg_parser.add_argument('--header-out', action='store',
-            help = 'File to output generated fused header to')
+                        help='File to output generated fused header to')
 args = arg_parser.parse_args()
 
 for filename in args.source_files:

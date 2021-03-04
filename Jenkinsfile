@@ -47,9 +47,15 @@ pipeline {
     stages {
 
 	// A work around, until this feature is implemented: https://issues.jenkins-ci.org/browse/JENKINS-47503
-	stage('Cancel older builds') { steps { script {
-	    cancelPreviousBuilds()
-        }}}
+	stage('Cancel older builds') {
+	    when { allOf {
+                    // Only if this is a Pull Request
+                    expression { env.CHANGE_ID != null }
+                    expression { env.CHANGE_TARGET != null }
+                }}
+	    steps { script {
+	        cancelPreviousBuilds()
+            }}}
 
 	stage('OSC config') {
 	    steps {
@@ -79,7 +85,7 @@ OSC_BUILDPACKAGE_TMP=\"${WORKSPACE}\"
 OSC_BUILDPACKAGE_BUILDSCRIPT=\"${WORKSPACE}/osc-buildpackage_buildscript_default\"
 EOF
 """
-		    sh "osc-buildpkg -v -g -T -P ${env.OBS_TARGET_PROJECT} ${env.OBS_TARGET_REPO} -- --trust-all-projects --build-uid='caller'"
+		    sh "osc-buildpkg -v -g -T -A ${env.OBS_INSTANCE} -P ${env.OBS_TARGET_PROJECT} ${env.OBS_TARGET_REPO} -- --trust-all-projects --build-uid='caller'"
 		}
 	    }
 	    post {
@@ -164,7 +170,7 @@ EOF
                                 OSC_BUILDPACKAGE_TMP=\"${WORKSPACE}\"
                                 OSC_BUILDPACKAGE_BUILDSCRIPT=\"${WORKSPACE}/osc-buildpackage_buildscript_default\"
                                 """.stripIndent()
-                        sh "osc-buildpkg -v -g -T -P ${env.OBS_TARGET_PROJECT} ${env.OBS_TARGET_REPO} -- --trust-all-projects --build-uid='caller' --nochecks --extra-pkgs='clang-tidy-7' --extra-pkgs='llvm-7-dev'"
+                        sh "osc-buildpkg -v -g -T -A ${env.OBS_INSTANCE} -P ${env.OBS_TARGET_PROJECT} ${env.OBS_TARGET_REPO} -- --trust-all-projects --build-uid='caller' --nochecks --extra-pkgs='clang-tidy-7' --extra-pkgs='llvm-7-dev'"
                 }
             }
             post {
