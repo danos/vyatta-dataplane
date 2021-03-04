@@ -24,7 +24,8 @@ pipeline {
     agent any
 
     environment {
-	OBS_TARGET_PROJECT = 'DANOS:Inverness'
+	OBS_INSTANCE = 'build-release'
+	OBS_TARGET_PROJECT = 'DANOS:Shipping:2105'
 	OBS_TARGET_REPO = 'standard'
 	OBS_TARGET_ARCH = 'x86_64'
 	// # Replace : with _ in project name, as osc-buildpkg does
@@ -85,7 +86,7 @@ OSC_BUILDPACKAGE_TMP=\"${WORKSPACE}\"
 OSC_BUILDPACKAGE_BUILDSCRIPT=\"${WORKSPACE}/osc-buildpackage_buildscript_default\"
 EOF
 """
-		    sh "osc-buildpkg -v -g -T -P ${env.OBS_TARGET_PROJECT} ${env.OBS_TARGET_REPO} -- --trust-all-projects --build-uid='caller'"
+		    sh "osc-buildpkg -v -g -T -A ${env.OBS_INSTANCE} -P ${env.OBS_TARGET_PROJECT} ${env.OBS_TARGET_REPO} -- --trust-all-projects --build-uid='caller'"
 		}
 	    }
 	    post {
@@ -170,7 +171,7 @@ EOF
                                 OSC_BUILDPACKAGE_TMP=\"${WORKSPACE}\"
                                 OSC_BUILDPACKAGE_BUILDSCRIPT=\"${WORKSPACE}/osc-buildpackage_buildscript_default\"
                                 """.stripIndent()
-                        sh "osc-buildpkg -v -g -T -P ${env.OBS_TARGET_PROJECT} ${env.OBS_TARGET_REPO} -- --trust-all-projects --build-uid='caller' --nochecks --extra-pkgs='clang-tidy-7' --extra-pkgs='llvm-7-dev'"
+                        sh "osc-buildpkg -v -g -T -A ${env.OBS_INSTANCE} -P ${env.OBS_TARGET_PROJECT} ${env.OBS_TARGET_REPO} -- --trust-all-projects --build-uid='caller' --nochecks --extra-pkgs='clang-tidy-7' --extra-pkgs='llvm-7-dev'"
                 }
             }
             post {
