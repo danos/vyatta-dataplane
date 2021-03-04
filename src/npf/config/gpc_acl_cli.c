@@ -206,7 +206,7 @@ gpc_acl_cmd_show_counters(FILE *fp, char const *ifname, int dir,
 		if (!gpc_rlset_get_ifp(gprs))
 			continue;
 		/* Filter on interface & direction */
-		if (ifname && strcmp(ifname, gpc_rlset_get_ifname(gprs)))
+		if (ifname && !streq(ifname, gpc_rlset_get_ifname(gprs)))
 			continue;
 		if (dir < 0 && !gpc_rlset_is_ingress(gprs))
 			continue;
@@ -225,7 +225,7 @@ gpc_acl_cmd_show_counters(FILE *fp, char const *ifname, int dir,
 				continue;
 
 			/* Filter on group name */
-			if (rgname && strcmp(rgname, gpc_group_get_name(gprg)))
+			if (rgname && !streq(rgname, gpc_group_get_name(gprg)))
 				continue;
 
 			jsonw_start_object(json);
@@ -275,7 +275,7 @@ gpc_acl_cmd_clear_counters(char const *ifname, int dir, char const *rgname)
 		if (!gpc_rlset_get_ifp(gprs))
 			continue;
 		/* Filter on interface & direction */
-		if (ifname && strcmp(ifname, gpc_rlset_get_ifname(gprs)))
+		if (ifname && !streq(ifname, gpc_rlset_get_ifname(gprs)))
 			continue;
 		if (dir < 0 && !gpc_rlset_is_ingress(gprs))
 			continue;
@@ -289,7 +289,7 @@ gpc_acl_cmd_clear_counters(char const *ifname, int dir, char const *rgname)
 				continue;
 
 			/* Filter on group name */
-			if (rgname && strcmp(rgname, gpc_group_get_name(gprg)))
+			if (rgname && !streq(rgname, gpc_group_get_name(gprg)))
 				continue;
 
 			struct gpc_cntg *cntg = gpc_group_get_cntg(gprg);
