@@ -1241,10 +1241,6 @@ static void storm_ctl_trigger_actions(struct storm_ctl_instance *instance,
 			if_stop(ifp);
 			storm_ctl_recovery_tmr_start(ifp, interval);
 		}
-	} else {
-		RTE_LOG(ERR, STORM_CTL,
-			"Could not find storm-ctl instance for %s",
-			ifp->if_name);
 	}
 
 	if (storm_ctl_notification)
