@@ -87,7 +87,7 @@ nat64_session_find(npf_cache_t *npc, struct rte_mbuf *m, struct ifnet *ifp,
 /*
  * NAT64 Common Input Process
  */
-static ALWAYS_INLINE unsigned int
+static unsigned int
 nat64_in_process_common(struct pl_packet *pkt, struct npf_if *nif, bool v4,
 			uint16_t eth_type)
 {
@@ -201,7 +201,7 @@ end:
  *
  * This function will *only* be called for packets that have switched paths.
  */
-static ALWAYS_INLINE unsigned int
+static unsigned int
 nat64_out_process_common(struct pl_packet *pkt, bool v4, uint16_t eth_type)
 {
 	struct ifnet *ifp = pkt->out_ifp;
