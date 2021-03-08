@@ -1,3 +1,10 @@
+vyatta-dataplane (3.12.31) unstable; urgency=medium
+
+  [ Simon Barber ]
+  * Perf: Limit the nat64 processing pulled into the core pipeline
+
+ -- Srinivas Narayan <narayan@vyatta.att-mail.com>  Mon, 08 Mar 2021 09:57:03 +0000
+
 vyatta-dataplane (3.12.30) unstable; urgency=medium
 
   [ Nicholas Brown ]
