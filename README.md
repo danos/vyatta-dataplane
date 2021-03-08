@@ -1,5 +1,7 @@
 # vRouter software dataplane
 
+[![Codacy Badge](https://api.codacy.com/project/badge/Grade/a182163af5bf41f9a667b67210546520)](https://app.codacy.com/gh/danos/vyatta-dataplane?utm_source=github.com&utm_medium=referral&utm_content=danos/vyatta-dataplane&utm_campaign=Badge_Grade_Settings)
+
 The dataplane provides routing, forwarding, firewall and QoS
 fast path by use of the [Intel DPDK][0].
 
