@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2020-2021, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -8,7 +8,7 @@
 #define APP_GROUP_H
 
 #include <stdbool.h>
-#include <urcu.h>
+#include <urcu/list.h>
 
 /**
  * Application resource group.
@@ -18,7 +18,8 @@ struct app_group {
 	struct cds_lfht *ag_type_ht;	// App-group "type" hash table
 	struct cds_lfht *ag_proto_ht;	// App-group "protocol" hash table
 	uint32_t engine_refcount[2];	// DPI engine refcounts
-	struct rcu_head rcu;
+	struct cds_list_head deadlist;	// Memento mori
+	bool is_dead;
 };
 
 /**
@@ -37,6 +38,21 @@ app_group_init(void);
  */
 void
 app_group_destroy(struct app_group *group);
+
+/**
+ * Add the given application resource group to a GC list for later deletion.
+ *
+ * @param group Group to destroy, can be NULL.
+ * @return void.
+ */
+void
+app_group_rm_group(struct app_group *group);
+
+/**
+ * Periodic garbage collection.
+ */
+void
+app_group_gc(void);
 
 /**
  * Add an application to the given application resource group.
