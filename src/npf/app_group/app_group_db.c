@@ -12,16 +12,26 @@
 #include "src/npf/config/npf_config.h"
 #include "src/npf/dpi/dpi_internal.h"
 #include "app_group_db.h"
+#include "app_group.h"
 
 #define APP_GRP_NAME_HT_SIZE	32
 #define APP_GRP_NAME_HT_MIN	32
 #define APP_GRP_NAME_HT_MAX	8192
 #define APP_GRP_NAME_HT_FLAGS	(CDS_LFHT_AUTO_RESIZE | CDS_LFHT_ACCOUNTING)
 
+/* App group DB garbage collector. */
+static CDS_LIST_HEAD(app_group_db_gc_list);
+static struct rte_timer ag_gc_timer;
+#define AG_GC_INTERVAL     30
+
 /* Application resource group database hash table. */
 static struct cds_lfht *app_grp_ht;
 
 static uint32_t hash_seed;
+
+/* Forward */
+static void
+app_group_db_gc(struct rte_timer *t __rte_unused, void *arg __rte_unused);
 
 bool
 app_group_db_init(void)
@@ -39,16 +49,14 @@ app_group_db_init(void)
 		return false;
 
 	hash_seed = random();
+
+	/* Start the GC timer. */
+	rte_timer_init(&ag_gc_timer);
+	rte_timer_reset(&ag_gc_timer,
+			(AG_GC_INTERVAL * rte_get_timer_hz()), PERIODICAL,
+			rte_get_master_lcore(), app_group_db_gc, NULL);
+
 	return true;
-}
-
-static void
-ag_entry_free(struct rcu_head *head)
-{
-	struct agdb_entry *entry;
-	entry = caa_container_of(head, struct agdb_entry, rcu);
-
-	free(entry);
 }
 
 bool
@@ -58,10 +66,32 @@ app_group_db_rm_entry(struct agdb_entry *entry)
 		return false;
 
 	cds_lfht_del(app_grp_ht, &entry->ht_node);
-	app_group_destroy(entry->group);
-	call_rcu(&entry->rcu, ag_entry_free);
+	cds_list_add(&entry->deadlist, &app_group_db_gc_list);
 
 	return true;
+}
+
+/*
+ * Periodic garbage collection
+ */
+static void
+app_group_db_gc(struct rte_timer *t __rte_unused, void *arg __rte_unused)
+{
+	struct agdb_entry *entry, *tmp;
+
+	cds_list_for_each_entry_safe(entry, tmp, &app_group_db_gc_list,
+				     deadlist) {
+		if (entry->is_dead) {
+			cds_list_del(&entry->deadlist);
+			app_group_destroy(entry->group);
+			free(entry);
+		} else {
+			entry->is_dead = true;
+		}
+	}
+
+	/* Finally, remove any old app groups. */
+	app_group_gc();
 }
 
 /*
