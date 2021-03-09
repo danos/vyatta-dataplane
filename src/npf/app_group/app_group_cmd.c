@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2020-2021, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -264,7 +264,7 @@ app_group_add(char *name, char *args)
 	old_group->engine_refcount[1] = new_group->engine_refcount[1];
 
 	/* Delete the old stuff that's been swapped into new_group. */
-	app_group_destroy(new_group);
+	app_group_rm_group(new_group);
 
 	return 0;
 }
