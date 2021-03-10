@@ -6,7 +6,7 @@ Standards-Version: 3.9.8
 Build-Depends: meson,
                bvnos-linux-libc-dev-vyatta (>> 4.19.16-0vyatta6),
                check <!nocheck>,
-               debhelper (>= 9.20160709),
+               debhelper-compat (= 12),
                dh-exec,
                golang-goprotobuf-dev,
                lcov <!nocheck>,
@@ -39,6 +39,7 @@ Package: vyatta-dataplane
 Section: non-free/net
 Architecture: any
 Recommends: dpdk-modules
+Pre-Depends: ${misc:Pre-Depends}
 Depends: adduser,
          dmidecode [amd64],
          libconfig-tiny-perl,

@@ -47,13 +47,16 @@ export DEB_BUILD_MAINT_OPTIONS=hardening=+format,-fortify,-stackprotector,+relro
 
 # Build in a separate directory
 %:
-	dh $@ --builddirectory=build --parallel --with systemd --buildsystem=meson+ninja
+	dh $@ --builddirectory=build --parallel --buildsystem=meson
 
 override_dh_auto_configure:
 	dh_auto_configure -- $(DATAPLANE_CONFIGURE_FLAGS)
 
 override_dh_strip:
 	debian/bin/debug_strip --auto-dbgsym
+
+# Does not interact well with custom stripping above
+override_dh_dwz:
 
 # _ are replaced with - as the former are not allowed in package names.
 # The generated virtual packages have format:
@@ -73,6 +76,6 @@ override_dh_gencontrol: CFG_VERSIONS = $(shell ASAN_OPTIONS=verify_asan_link_ord
 override_dh_gencontrol:
 	dh_gencontrol -- -V'protocols:Provides=$(CFG_VERSIONS) $(OP_VERSIONS)'
 
-override_dh_systemd_enable:
-	dh_systemd_enable --name=vyatta-dataplane
-	dh_systemd_enable --name=proc-xen
+override_dh_installsystemd:
+	dh_installsystemd --name=vyatta-dataplane
+	dh_installsystemd --name=proc-xen
