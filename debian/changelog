@@ -1,3 +1,9 @@
+vyatta-dataplane (3.12.32) unstable; urgency=medium
+
+  * crypto : Fix up ICV
+
+ -- Srinivas Narayan <narayan@vyatta.att-mail.com>  Wed, 10 Mar 2021 11:50:07 +0000
+
 vyatta-dataplane (3.12.31) unstable; urgency=medium
 
   [ Simon Barber ]
