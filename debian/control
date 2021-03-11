@@ -115,6 +115,7 @@ Depends: check,
          libjson-c-dev,
          libvyattafal-dev,
          libvyatta-dataplane-proto-dev,
+         libvyatta-dataplane-proto-c-dev,
          libprotobuf-c-dev,
          libvyatta-jsonw1 (= ${binary:Version}),
          ${misc:Depends},
@@ -230,6 +231,13 @@ Multi-Arch: same
 Description: Provides C++ language bindings for the dataplane API.
  C++ bindings for the dataplane API.
 
+Package: libvyatta-dataplane-proto-c1
+Architecture: any
+Depends: ${misc:Depends}, ${shlibs:Depends}
+Multi-Arch: same
+Description: Provides C language bindings for the dataplane API.
+ C bindings for the dataplane API.
+
 Package: libvyatta-vplane
 Architecture: any
 Depends: ${misc:Depends}, ${perl:Depends}, ${shlibs:Depends}
@@ -243,6 +251,13 @@ Architecture: any
 Depends: libvyatta-dataplane-proto1 (= ${binary:Version}), ${misc:Depends}
 Description: Provides C++ headers for the dataplane API.
  C++ headers for the dataplane API.
+
+Package: libvyatta-dataplane-proto-c-dev
+Section: non-free/libdevel
+Architecture: any
+Depends: libvyatta-dataplane-proto-c1 (= ${binary:Version}), ${misc:Depends}
+Description: Provides C headers for the dataplane API.
+ C headers for the dataplane API.
 
 Package: libvyatta-jsonw1
 Architecture: any

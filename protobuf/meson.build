@@ -89,9 +89,18 @@ endforeach
 
 protobuf_generated_c_includes = include_directories('..')
 
+protobuf_c_library = shared_library(
+        'vyatta-dataplane-proto-c',
+        sources: [protobuf_generated_c],
+        dependencies: [proto_c_dep],
+        install: true,
+        version: '1.0.0'
+)
+
 protobuf_generated_c_dependency = declare_dependency(
         include_directories: protobuf_generated_c_includes,
-        sources: protobuf_generated_c_headers
+        sources: protobuf_generated_c_headers,
+        link_with: protobuf_c_library
 )
 
 protobuf_cxx_library = shared_library(
@@ -104,3 +113,4 @@ protobuf_cxx_library = shared_library(
 
 pkg = import('pkgconfig')
 pkg.generate(protobuf_cxx_library, subdirs: 'vyatta-dataplane/protobuf')
+pkg.generate(protobuf_c_library, subdirs: 'vyatta-dataplane/protobuf')

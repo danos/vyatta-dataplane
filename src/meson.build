@@ -336,7 +336,6 @@ dataplane_common_sources = [
         pipeline_node_sources,
         pipeline_sources,
         pl_fused_gen_c,
-        protobuf_generated_c,
         session_sources
 ]
 

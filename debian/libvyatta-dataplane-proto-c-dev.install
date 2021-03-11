@@ -1,0 +1,5 @@
+#!/usr/bin/dh-exec
+
+usr/include/vyatta-dataplane/protobuf/*.pb-c.h
+usr/lib/${DEB_HOST_MULTIARCH}/libvyatta-dataplane-proto-c.so
+usr/lib/${DEB_HOST_MULTIARCH}/pkgconfig/vyatta-dataplane-proto-c.pc

@@ -1,0 +1,3 @@
+#!/usr/bin/dh-exec
+
+usr/lib/${DEB_HOST_MULTIARCH}/libvyatta-dataplane-proto-c.so.*
