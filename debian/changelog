@@ -1,3 +1,10 @@
+vyatta-dataplane (3.12.34) unstable; urgency=medium
+
+  [ Nicholas Brown ]
+  * Add support for libcheck 0.15
+
+ -- Srinivas Narayan <narayan@vyatta.att-mail.com>  Fri, 12 Mar 2021 16:15:09 +0000
+
 vyatta-dataplane (3.12.33) unstable; urgency=medium
 
   [ Charles (Chas) Williams ]
