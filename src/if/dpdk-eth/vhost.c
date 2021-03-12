@@ -356,9 +356,9 @@ static int cmd_vhost_disable(char *ifname, bool on_main)
 	if (on_main) {
 		rc = detach_device(devargs_p);
 	} else {
-		rcu_thread_offline();
+		dp_rcu_thread_offline();
 		rc = send_device_event(devargs_p, false);
-		rcu_thread_online();
+		dp_rcu_thread_online();
 	}
 
 	free(devargs_p);
@@ -432,9 +432,9 @@ static int cmd_vhost_enable(char *ifname, char *queues, char *path, char *alias,
 	if (on_main) {
 		rc = attach_device(devargs_p);
 	} else {
-		rcu_thread_offline();
+		dp_rcu_thread_offline();
 		rc = send_device_event(devargs_p, true);
-		rcu_thread_online();
+		dp_rcu_thread_online();
 	}
 
 	/* vhost interfaces are created synchronously */
@@ -593,15 +593,15 @@ static void vhost_link_update_process(char *vhost_name)
 {
 	struct ifnet *ifp;
 
-	rcu_read_lock();
+	dp_rcu_read_lock();
 	ifp = dp_ifnet_byifname(vhost_name);
 	if (!ifp) {
-		rcu_read_unlock();
+		dp_rcu_read_unlock();
 		return;
 	}
 	vhost_link_update_core(ifp, NULL, true);
 
-	rcu_read_unlock();
+	dp_rcu_read_unlock();
 }
 
 void vhost_event_handler(void)
@@ -636,9 +636,9 @@ void vhost_update_guests(struct ifnet *ifp)
 	if (is_vhost(ifp))
 		vhost_link_update(ifp, NULL);
 	else {
-		rcu_read_lock();
+		dp_rcu_read_lock();
 		dp_ifnet_walk(vhost_link_update, ifp);
-		rcu_read_unlock();
+		dp_rcu_read_unlock();
 	}
 }
 

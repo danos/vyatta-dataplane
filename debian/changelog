@@ -1,3 +1,59 @@
+vyatta-dataplane (3.12.36) unstable; urgency=medium
+
+  [ Daniel Gollub ]
+  * debian: bump DPDK version depedency for rte-acl API changes
+
+ -- Srinivas Narayan <narayan@vyatta.att-mail.com>  Fri, 12 Mar 2021 16:51:24 +0000
+
+vyatta-dataplane (3.12.35) unstable; urgency=medium
+
+  [ Daniel Gollub ]
+  * cgnat: include userspace RCU header
+  * rcu: introduce generic rcu header
+  * rcu: prefer generic rcu header include
+  * rcu: refactor existing RCU code
+  * rcu: prepare unified RCU API for general use
+  * rcu: perform unified RCU thread registration
+  * rcu: cutover to dp_rcu_thread_online/offline API
+  * controller: use dp_rcu_ wrapper for quiescent state
+  * rcu: introduce dp_rcu_barrier() wrapper
+  * rcu: introduce dp_rcu_synchronize
+  * rcu: introduce dp_rcu_read_(un)lock API
+  * npf_rte_acl: report thread id to the RCU QS variable
+
+ -- Srinivas Narayan <narayan@vyatta.att-mail.com>  Fri, 12 Mar 2021 16:39:17 +0000
+
+vyatta-dataplane (3.12.34) unstable; urgency=medium
+
+  [ Nicholas Brown ]
+  * Add support for libcheck 0.15
+
+ -- Srinivas Narayan <narayan@vyatta.att-mail.com>  Fri, 12 Mar 2021 16:15:09 +0000
+
+vyatta-dataplane (3.12.33) unstable; urgency=medium
+
+  [ Charles (Chas) Williams ]
+  * flow: ensure flow cache entry is zeroed for hashing (Bugfix: VRVDR-54681)
+
+  [ Paul Aitken ]
+  * DPI: change app group deletion from RCU to GC
+  * DPI: change app group DB deletion from RCU to GC
+
+ -- Srinivas Narayan <narayan@vyatta.att-mail.com>  Fri, 12 Mar 2021 10:52:02 +0000
+
+vyatta-dataplane (3.12.32) unstable; urgency=medium
+
+  * crypto : Fix up ICV
+
+ -- Srinivas Narayan <narayan@vyatta.att-mail.com>  Wed, 10 Mar 2021 11:50:07 +0000
+
+vyatta-dataplane (3.12.31) unstable; urgency=medium
+
+  [ Simon Barber ]
+  * Perf: Limit the nat64 processing pulled into the core pipeline
+
+ -- Srinivas Narayan <narayan@vyatta.att-mail.com>  Mon, 08 Mar 2021 09:57:03 +0000
+
 vyatta-dataplane (3.12.30) unstable; urgency=medium
 
   [ Nicholas Brown ]

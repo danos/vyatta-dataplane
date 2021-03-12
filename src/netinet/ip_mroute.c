@@ -308,7 +308,7 @@ static inline struct mfc *mfc_find(struct mcast_vrf *mvrf,
 }
 
 /*
- * This MUST be called with a rcu_read_lock and only unlocked after vif is
+ * This MUST be called with a dp_rcu_read_lock and only unlocked after vif is
  * no longer used.
  */
 struct vif *get_vif_by_ifindex(unsigned int ifindex)

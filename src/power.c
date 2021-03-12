@@ -46,12 +46,12 @@ static void change_power_mode(struct power_profile *pm)
 	struct power_profile *old = rcu_xchg_pointer(&cur_pm, pm);
 
 	/* unsafe to call defer_rcu with rcu read lock held. */
-	rcu_read_unlock();
+	dp_rcu_read_unlock();
 
 	if (!strcmp(old->name, "custom"))
 		defer_rcu(free, old);
 
-	rcu_read_lock();
+	dp_rcu_read_lock();
 }
 
 

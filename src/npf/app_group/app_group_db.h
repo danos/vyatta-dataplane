@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2020-2021, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -19,7 +19,8 @@ struct agdb_entry {
 	struct app_group *group;		/* Application group */
 	uint32_t refcount;			/* Refcount */
 	struct cds_lfht_node ht_node;		/* Group hash table */
-	struct rcu_head rcu;
+	struct cds_list_head deadlist;		/* Memento mori */
+	bool is_dead;
 };
 
 typedef int (*app_grp_walker_t)(void *ctx, struct agdb_entry *entry);

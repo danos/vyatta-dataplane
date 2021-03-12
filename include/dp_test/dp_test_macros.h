@@ -98,6 +98,36 @@ Suite * dp_test_get_suite(const char *filename);
  *            been declared using DP_DECL_TEST_CASE above.
  * TEST     - is the name of the individual test being applied.
  */
+ #if ((CHECK_MAJOR_VERSION > 0) || (CHECK_MINOR_VERSION >= 13))
+
+#define _DP_START_TEST(TESTCASE, TEST, CONSTRUCT)		 \
+	void dp_test_##TESTCASE##_##TEST##_register(void);	 \
+								 \
+	static void dp_test_##TESTCASE##_##TEST##_fn(int);	 \
+								 \
+	static const TTest dp_test_##TESTCASE##_##TEST##_ttest	 \
+		= {"dp_test_##TESTCASE##_##TEST",		 \
+		   dp_test_##TESTCASE##_##TEST##_fn,		 \
+		   __FILE__, __LINE__};				 \
+	static const TTest * dp_test_##TESTCASE##_##TEST = 	 \
+		& dp_test_##TESTCASE##_##TEST##_ttest;		 \
+								 \
+	CONSTRUCT                                                \
+	void							 \
+	dp_test_##TESTCASE##_##TEST##_register(void)		 \
+	{							 \
+		TCase *tc = get_tcase_##TESTCASE();		 \
+		tcase_add_test(tc, dp_test_##TESTCASE##_##TEST); \
+	}							 \
+								 \
+	static void dp_test_##TESTCASE##_##TEST##_fn		 \
+		(int _i CK_ATTRIBUTE_UNUSED)			 \
+	{							 \
+		bool _do_clean_check =				 \
+			!dp_test_##TESTCASE##_teardown_fn;	 \
+
+#else
+
 #define _DP_START_TEST(TESTCASE, TEST, CONSTRUCT)		 \
 	void dp_test_##TESTCASE##_##TEST##_register(void);	 \
 								 \
@@ -115,6 +145,8 @@ Suite * dp_test_get_suite(const char *filename);
 	{							 \
 		bool _do_clean_check =				 \
 			!dp_test_##TESTCASE##_teardown_fn;	 \
+
+#endif
 
 /*
  * Start defining a test function.
@@ -200,7 +232,9 @@ static inline void _dp_test_fail_unless(bool condition, const char *file,
 			abort();
 		}
 
-#if ((CHECK_MAJOR_VERSION > 0) || (CHECK_MINOR_VERSION > 9) ||	\
+#if ((CHECK_MAJOR_VERSION > 0) || (CHECK_MINOR_VERSION >= 15))
+		_ck_assert_failed(file, line, "", "%s",  tmp_str);
+#elif ((CHECK_MAJOR_VERSION > 0) || (CHECK_MINOR_VERSION > 9) || \
 	(CHECK_MICRO_VERSION >= 13))
 		_ck_assert_failed(file, line, "%s",  tmp_str);
 #elif ((CHECK_MAJOR_VERSION > 0) || (CHECK_MINOR_VERSION > 9) || \

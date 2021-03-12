@@ -280,7 +280,8 @@ int npf_rte_acl_init(int af, const char *name, uint32_t max_rules,
 	};
 	struct rte_acl_rcu_config rcu_conf = {
 		.v = rcu_v,
-		.mode = RTE_ACL_QSBR_MODE_SYNC
+		.mode = RTE_ACL_QSBR_MODE_SYNC,
+		.thread_id = dp_lcore_id()
 	};
 	char acl_name[RTE_ACL_NAMESIZE];
 	npf_match_ctx_t *tmp_ctx;

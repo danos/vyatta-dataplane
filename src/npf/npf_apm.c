@@ -1022,9 +1022,9 @@ void npf_apm_uninit(void)
 	/* Ensure all is deleted */
 	apm_delete_all();
 
-	rcu_read_unlock();
+	dp_rcu_read_unlock();
 	cds_lfht_destroy(apm_ht, NULL);
-	rcu_read_lock();
+	dp_rcu_read_lock();
 }
 
 /* jsonify a section */

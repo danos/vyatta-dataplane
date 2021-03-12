@@ -772,7 +772,7 @@ void if_disable_poll(portid_t port_id);
 static inline void if_disable_poll_rcu(portid_t port_id)
 {
 	if_disable_poll(port_id);
-	synchronize_rcu();
+	dp_rcu_synchronize();
 }
 
 static inline bool if_port_isup(portid_t portid)

@@ -86,7 +86,7 @@ int detach_device(const char *name)
 	if (ifp) {
 		/*
 		 * The following calls (unassign_queues and
-		 * dpdk_eth_if_stop) both call synchronize_rcu(), and
+		 * dpdk_eth_if_stop) both call dp_rcu_synchronize(), and
 		 * setting unplugged needs to be before that call.
 		 */
 		ifp->unplugged = 1;
@@ -316,9 +316,9 @@ int cmd_hotplug(FILE *f, int argc, char **argv)
 		return -1;
 	}
 
-	rcu_thread_offline();
+	dp_rcu_thread_offline();
 	rc = send_device_event(argv[2], insert);
-	rcu_thread_online();
+	dp_rcu_thread_online();
 
 	return rc;
 }

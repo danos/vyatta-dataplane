@@ -31,6 +31,7 @@
 #include "ip_forward.h"
 #include "ip_funcs.h"
 #include "in_cksum.h"
+#include "rcu.h"
 #include "vplane_debug.h"
 #include "crypto/crypto_main.h"
 #include "power.h"
@@ -1262,18 +1263,18 @@ dp_test_wait_until_tx_processed(void)
 	 * Ensure all packets have been dequeued from
 	 * the TX ring and processed.
 	 */
-	synchronize_rcu();
+	dp_rcu_synchronize();
 	/*
 	 * Ensure that if portmonitoring is enabled
 	 * that all packets have been dequeued from
 	 * the second TX ring and processed.
 	 */
-	synchronize_rcu();
+	dp_rcu_synchronize();
 	/*
 	 * Just in case QOS has been configured and is
 	 * using a transmit thread.
 	 */
-	synchronize_rcu();
+	dp_rcu_synchronize();
 }
 
 /*
@@ -1302,7 +1303,7 @@ void dp_test_intf_wait_until_processed(struct rte_ring *ring)
 			 * Ensure all packets have made it from an RX
 			 * thread to a TX ring, having drained the pkt-burst.
 			 */
-			synchronize_rcu();
+			dp_rcu_synchronize();
 			dp_test_wait_until_tx_processed();
 			return;
 		}
@@ -1892,11 +1893,11 @@ static void nh_set_state(struct dp_rt_path_unusable_key *key,
 			 enum dp_rt_path_state state)
 {
 	dp_rcu_register_thread();
-	rcu_thread_online();
+	dp_rcu_thread_online();
 
 	dp_rt_signal_path_state("tests", state, key);
 
-	rcu_thread_offline();
+	dp_rcu_thread_offline();
 	dp_rcu_unregister_thread();
 }
 

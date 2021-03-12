@@ -82,7 +82,6 @@
 #include <rte_mempool.h>
 #include <rte_per_lcore.h>
 #include <rte_prefetch.h>
-#include <rte_rcu_qsbr.h>
 #include <rte_ring.h>
 #include <rte_timer.h>
 #include <rte_version.h>
@@ -122,12 +121,12 @@
 #include "portmonitor/portmonitor.h"
 #include "power.h"
 #include "qos.h"
+#include "rcu.h"
 #include "route.h"
 #include "session/session.h"
 #include "lcore_sched.h"
 #include "lcore_sched_internal.h"
 #include "udp_handler.h"
-#include "urcu.h"
 #include "util.h"
 #include "version.h"
 #include "vplane_debug.h"
@@ -258,9 +257,6 @@ struct lcore_conf {
 } __rte_cache_aligned;
 
 static struct lcore_conf *lcore_conf[RTE_MAX_LCORE];
-
-/* DPDK's RCU QSBR variable */
-struct rte_rcu_qsbr *dp_qsbr_rcu_v;
 
 /* Is the rx/tx queue reusable.
  * Must be > maximum portid (RTE_MAX_ETHPORTS)
@@ -1013,75 +1009,6 @@ static void process_crypto(struct lcore_conf *conf)
 	pm_update(&cpq->gov, pkts);
 }
 
-static __thread int rcu_qsbr_registered;
-
-static
-int dp_rcu_qsbr_setup(void)
-{
-	size_t sz;
-
-	if (dp_qsbr_rcu_v)
-		return 0;
-
-	/* Allocate global QSBR RCU variable */
-	sz = rte_rcu_qsbr_get_memsize(RTE_MAX_LCORE);
-	dp_qsbr_rcu_v = rte_zmalloc(NULL, sz, RTE_CACHE_LINE_SIZE);
-	if (!dp_qsbr_rcu_v) {
-		RTE_LOG(ERR, DATAPLANE,
-			"Could not allocate DPDK QSBR RCU variable\n");
-		return -ENOMEM;
-	}
-
-	if (rte_rcu_qsbr_init(dp_qsbr_rcu_v, RTE_MAX_LCORE)) {
-		RTE_LOG(ERR, DATAPLANE,
-			"Failed to initialize DPDK QSBR RCU variable\n");
-		return -rte_errno;
-	}
-
-	return 0;
-}
-
-struct rte_rcu_qsbr *dp_rcu_qsbr_get(void)
-{
-	return dp_qsbr_rcu_v;
-}
-
-static
-void dp_rcu_qsbr_register_thread(unsigned int lcore_id)
-{
-	if (rcu_qsbr_registered++ == 0) {
-		/*
-		 * Register to RCU QSBR variable
-		 */
-
-		rte_rcu_qsbr_thread_register(dp_qsbr_rcu_v, lcore_id);
-		rte_rcu_qsbr_thread_online(dp_qsbr_rcu_v, lcore_id);
-	}
-}
-
-static
-void dp_rcu_qsbr_unregister_thread(unsigned int lcore_id)
-{
-	if (--rcu_qsbr_registered == 0) {
-		/*
-		 * Unregister from RCU QSBR variable
-		 */
-
-		rte_rcu_qsbr_thread_offline(dp_qsbr_rcu_v, lcore_id);
-		rte_rcu_qsbr_thread_unregister(dp_qsbr_rcu_v, lcore_id);
-	}
-}
-
-static inline void
-dp_rcu_quiescent_state(unsigned int lcore_id)
-{
-	/*urcu */
-	rcu_quiescent_state();
-
-	/* DPDK's QSBR RCU */
-	rte_rcu_qsbr_quiescent(dp_qsbr_rcu_v, lcore_id);
-}
-
 /* main processing loop */
 static int __hot_func
 forwarding_loop(unsigned int lcore_id)
@@ -1107,12 +1034,11 @@ forwarding_loop(unsigned int lcore_id)
 		 conf->do_crypto ? "and crypto " : "", lcore_id);
 
 	/* Each thread containing read-side critical sections must be registered
-	 * with rcu_register_thread() before calling rcu_read_lock().
+	 * with rcu_register_thread() before calling dp_rcu_read_lock().
 	 */
 	dp_rcu_register_thread();
-	dp_rcu_qsbr_register_thread(lcore_id);
 	do {
-		rcu_read_lock();
+		dp_rcu_read_lock();
 
 		pm = get_current_pm();
 		for (i = 0; i < pm->idle_thresh ; i++) {
@@ -1131,7 +1057,7 @@ forwarding_loop(unsigned int lcore_id)
 
 		state = lcore_next_state(conf, pm, &us);
 
-		rcu_read_unlock();
+		dp_rcu_read_unlock();
 
 		switch (state) {
 		case LCORE_STATE_EXIT:
@@ -1146,13 +1072,12 @@ forwarding_loop(unsigned int lcore_id)
 			usleep(us);
 			break;
 		case LCORE_STATE_IDLE:
-			rcu_thread_offline();
+			dp_rcu_thread_offline();
 			sleep(LCORE_IDLE_SLEEP_SECS);
-			rcu_thread_online();
+			dp_rcu_thread_online();
 			break;
 		}
 	} while (likely(state != LCORE_STATE_EXIT));
-	dp_rcu_qsbr_unregister_thread(lcore_id);
 	dp_rcu_unregister_thread();
 
 	dp_lcore_events_teardown(lcore_id);
@@ -1675,7 +1600,7 @@ void unassign_queues(portid_t portid)
 		unassign_port_receive_queues(portid, conf);
 	}
 
-	synchronize_rcu();
+	dp_rcu_synchronize();
 	pkt_ring_empty(portid);
 	stop_cpus();
 }
@@ -2026,7 +1951,7 @@ int assign_queues(portid_t portid)
 			FOREACH_FORWARD_LCORE(lcore) {
 				struct lcore_conf *conf = lcore_conf[lcore];
 				unassign_port_receive_queues(portid, conf);
-				synchronize_rcu();
+				dp_rcu_synchronize();
 				pkt_ring_empty(portid);
 				stop_cpus();
 			}
@@ -2073,7 +1998,7 @@ void disable_transmit_thread(portid_t portid)
 		unassign_port_transmit_queues(portid, conf);
 	}
 
-	synchronize_rcu();
+	dp_rcu_synchronize();
 	pkt_ring_empty(portid);
 	stop_cpus();
 }
@@ -2529,10 +2454,10 @@ static int main_worker_event_handler(zloop_t *loop  __unused,
 				strerror(errno));
 				return -1;
 		}
-		rcu_thread_online();
+		dp_rcu_thread_online();
 		/* Call vhost event handler */
 		vhost_event_handler();
-		rcu_thread_offline();
+		dp_rcu_thread_offline();
 	}
 	return 0;
 }
@@ -2571,7 +2496,7 @@ static void *main_worker_thread_fn(void *args)
 	int ev_count = ARRAY_SIZE(event_poll);
 
 	dp_rcu_register_thread();
-	rcu_thread_offline();
+	dp_rcu_thread_offline();
 	while (!zsys_interrupted) {
 		if (zmq_poll(event_poll, ev_count, -1) < 0) {
 			if (errno == EINTR)
@@ -3694,6 +3619,9 @@ main(int argc, char **argv)
 	lcore_init();
 	link_state_init();
 
+	if (dp_rcu_setup())
+		rte_panic("Setting up dataplane RCU environment failed\n");
+
 	init_port_configurations(0, nb_ports_total);
 	if (nb_ports)
 		max_mbuf_sz = mbuf_pool_init();
@@ -3745,10 +3673,6 @@ main(int argc, char **argv)
 		DP_DEBUG(INIT, INFO, DATAPLANE,
 			"naming of rcu thread failed\n");
 
-	/* Setup DPDK's QSBR RCU variable */
-	if (dp_rcu_qsbr_setup())
-		rte_panic("creating QSBR RCU variable failed\n");
-
 	main_loop();
 
 	crypto_pmd_remove_all();
@@ -3778,7 +3702,7 @@ main(int argc, char **argv)
 	main_worker_thread_cleanup();
 
 	/* wait for all RCU handlers */
-	rcu_barrier();
+	dp_rcu_barrier();
 	rcu_defer_unregister_thread();
 	dp_rcu_unregister_thread();
 
@@ -4283,18 +4207,4 @@ int dp_unallocate_lcore_from_feature(unsigned int lcore)
 		return -EINVAL;
 	}
 	return 0;
-}
-
-static __thread int rcu_registered;
-
-void dp_rcu_register_thread(void)
-{
-	if (rcu_registered++ == 0)
-		rcu_register_thread();
-}
-
-void dp_rcu_unregister_thread(void)
-{
-	if (--rcu_registered == 0)
-		rcu_unregister_thread();
 }

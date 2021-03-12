@@ -31,7 +31,6 @@
 
 #include "compiler.h"
 #include "soft_ticks.h"
-#include "urcu.h"
 #include "vrf.h"
 
 struct cds_lfht;

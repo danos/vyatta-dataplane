@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2020-2021, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -22,6 +22,9 @@
 #define AG_PROTO_HT_MIN         4
 #define AG_PROTO_HT_MAX         1024
 #define AG_PROTO_HT_FLAGS       (CDS_LFHT_AUTO_RESIZE | CDS_LFHT_ACCOUNTING)
+
+/* App group garbage collection list. */
+static CDS_LIST_HEAD(app_group_gc_list);
 
 /* Application ID hash table entry. */
 struct ag_app_entry {
@@ -142,21 +145,12 @@ app_group_init(void)
 	return group;
 }
 
-static void
-app_group_free(struct rcu_head *head)
-{
-	struct app_group *group;
-	group = caa_container_of(head, struct app_group, rcu);
-
-	free(group);
-}
-
+/*
+ * Delete the given application group.
+ */
 void
 app_group_destroy(struct app_group *group)
 {
-	if (!group)
-		return;
-
 	if (group->ag_app_ht) {
 		app_group_del_all_apps(group);
 		cds_lfht_destroy(group->ag_app_ht, NULL);
@@ -179,7 +173,35 @@ app_group_destroy(struct app_group *group)
 	group->engine_refcount[0] = 0;
 	group->engine_refcount[1] = 0;
 
-	call_rcu(&group->rcu, app_group_free);
+	free(group);
+}
+
+/*
+ * Add app group to the GC list for later deletion.
+ */
+void
+app_group_rm_group(struct app_group *group)
+{
+	if (group)
+		cds_list_add(&group->deadlist, &app_group_gc_list);
+}
+
+/*
+ * Periodic garbage collection.
+ */
+void
+app_group_gc(void)
+{
+	struct app_group *ag, *tmp;
+
+	cds_list_for_each_entry_safe(ag, tmp, &app_group_gc_list, deadlist) {
+		if (ag->is_dead) {
+			cds_list_del(&ag->deadlist);
+			app_group_destroy(ag);
+		} else {
+			ag->is_dead = true;
+		}
+	}
 }
 
 static int

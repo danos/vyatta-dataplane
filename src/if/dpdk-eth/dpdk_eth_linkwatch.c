@@ -41,7 +41,7 @@
 #include "l2_rx_fltr.h"
 #include "lag.h"
 #include "main.h"
-#include "urcu.h"
+#include "rcu.h"
 #include "vhost.h"
 #include "vplane_debug.h"
 #include "vplane_log.h"
@@ -97,7 +97,7 @@ static void notify_port_status(portid_t port,
 		/* Note: it is probably a good idea to drain the pkt
 		 * ring and burst at this point to avoid stale packets
 		 * going out once the link comes back up. However,
-		 * doing the necessary synchronize_rcu() here could
+		 * doing the necessary dp_rcu_synchronize() here could
 		 * potentially have a negative impact on link changes
 		 * for other interfaces and other events so isn't done
 		 * for the moment.
@@ -107,7 +107,7 @@ static void notify_port_status(portid_t port,
 
 /* Timer for peroidic check of link state
  *
- * Note: rcu_read_lock not held here!
+ * Note: dp_rcu_read_lock not held here!
  */
 void linkwatch_timer(struct rte_timer *tim __rte_unused, void *arg)
 {
@@ -160,7 +160,7 @@ void linkwatch_update_port_status(portid_t port, enum linkwatch_flags flags)
  * the callback was received, so now we need to bring the state into line
  * with the configured set of queues here.
  *
- * Note: rcu_read_lock not held here!
+ * Note: dp_rcu_read_lock not held here!
  */
 static int link_state_event(void *arg)
 {
@@ -219,7 +219,7 @@ static void linkwatch_change_mark_state(portid_t port_id,
 		dp_rt_signal_path_state(linkscan_source, state, &key);
 	}
 
-	rcu_thread_offline();
+	dp_rcu_thread_offline();
 }
 
 static enum dp_rt_path_state

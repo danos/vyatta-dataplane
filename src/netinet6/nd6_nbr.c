@@ -1335,7 +1335,7 @@ nd6_entry_destroy(struct lltable *llt, struct llentry *lle)
 
 /*
  * Fast link layer address lookup function for IPv6
- * Assumes rcu_read_lock
+ * Assumes dp_rcu_read_lock
  */
 struct llentry *
 lla_lookup6(struct lltable *llt, const struct in6_addr *addr)
@@ -1489,7 +1489,7 @@ nd6_lladdr_add(struct ifnet *ifp, struct in6_addr *addr,
 	if (!(state & (NUD_PERMANENT | NUD_REACHABLE | NUD_FAILED)))
 		return 0;
 
-	rcu_read_lock();
+	dp_rcu_read_lock();
 
 	lle = in6_lltable_lookup(ifp, 0, addr);
 
@@ -1524,7 +1524,7 @@ nd6_lladdr_add(struct ifnet *ifp, struct in6_addr *addr,
 		}
 	}
 
-	rcu_read_unlock();
+	dp_rcu_read_unlock();
 
 	return 0;
 }
@@ -1801,7 +1801,7 @@ void in6_lladdr_timer(struct rte_timer *tim __rte_unused, void *arg)
 		llt->lle_refresh_expire = cur_time + rte_get_timer_hz();
 	}
 
-	rcu_read_lock();
+	dp_rcu_read_lock();
 	if (!(ifp->if_flags & IFF_UP))
 		nd6_cache_purge(llt);
 	else
@@ -1813,7 +1813,7 @@ void in6_lladdr_timer(struct rte_timer *tim __rte_unused, void *arg)
 			llt->lle_refresh_expire - cur_time,
 			SINGLE, rte_get_master_lcore(),
 			in6_lladdr_timer, llt);
-	rcu_read_unlock();
+	dp_rcu_read_unlock();
 }
 
 /*

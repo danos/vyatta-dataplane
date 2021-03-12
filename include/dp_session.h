@@ -128,7 +128,7 @@ struct session;
  *
  * Session watch function called by the dataplane session
  * management code as packets causes changes to the session.
- * This function call is rcu_read_lock() protected.
+ * This function call is dp_rcu_read_lock() protected.
  *
  * @param[in] session - pointer to the affected session.
  * The existence of the session pointer is guaranteed only

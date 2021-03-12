@@ -205,7 +205,7 @@ ppp_lookup_ses(struct ifnet *underlying_interface, uint16_t session)
 
 	struct cds_lfht_iter iter;
 
-	rcu_read_lock();
+	dp_rcu_read_lock();
 	cds_lfht_lookup(p_map_htbl, pppoe_classify_map_hash(&key),
 			pppoe_classify_map_match, &key, &iter);
 	struct cds_lfht_node *node = cds_lfht_iter_get_node(&iter);
@@ -214,11 +214,11 @@ ppp_lookup_ses(struct ifnet *underlying_interface, uint16_t session)
 		struct pppoe_map_node *pnode =
 			caa_container_of(node, struct pppoe_map_node, pnode);
 		if (pnode->ppp) {
-			rcu_read_unlock();
+			dp_rcu_read_unlock();
 			return pnode->ppp;
 		}
 	}
-	rcu_read_unlock();
+	dp_rcu_read_unlock();
 	return NULL;
 }
 
@@ -243,7 +243,7 @@ ppp_remove_ses(uint32_t ifindex, uint16_t session)
 
 	struct cds_lfht_iter iter;
 
-	rcu_read_lock();
+	dp_rcu_read_lock();
 	cds_lfht_lookup(p_map_htbl, pppoe_classify_map_hash(&key),
 			pppoe_classify_map_match, &key, &iter);
 	struct cds_lfht_node *node = cds_lfht_iter_get_node(&iter);
@@ -256,7 +256,7 @@ ppp_remove_ses(uint32_t ifindex, uint16_t session)
 		call_rcu(&pnode->pppoe_rcu, pppoe_entry_free);
 	}
 
-	rcu_read_unlock();
+	dp_rcu_read_unlock();
 }
 
 bool
@@ -295,7 +295,7 @@ pppoe_init_session(struct ifnet *ppp_dev, uint16_t session)
 	struct cds_lfht_node *node;
 
 	/* Does session already exist? */
-	rcu_read_lock();
+	dp_rcu_read_lock();
 	cds_lfht_lookup(pppoe_tbl, pppoe_classify_map_hash(&key),
 			pppoe_classify_map_match, &key, &iter);
 	node = cds_lfht_iter_get_node(&iter);
@@ -310,7 +310,7 @@ pppoe_init_session(struct ifnet *ppp_dev, uint16_t session)
 					&pnode->pnode);
 		}
 	}
-	rcu_read_unlock();
+	dp_rcu_read_unlock();
 
 	return true;
 }

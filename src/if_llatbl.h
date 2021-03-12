@@ -172,7 +172,7 @@ int lla_match(struct cds_lfht_node *node, const void *key)
 
 /*
  * Fast link layer address lookup function.
- * Assumes rcu_read_lock
+ * Assumes dp_rcu_read_lock
  */
 static inline struct llentry *
 lla_lookup(struct lltable *llt, unsigned long hash, in_addr_t addr)

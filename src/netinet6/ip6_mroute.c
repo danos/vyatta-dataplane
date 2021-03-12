@@ -334,7 +334,7 @@ static struct mf6c *mf6c_find(struct mcast6_vrf *mvrf6,
 }
 
 /*
- * This MUST be called with a rcu_read_lock and only unlocked after mif6 is
+ * This MUST be called with a dp_rcu_read_lock and only unlocked after mif6 is
  * no longer used.
  */
 struct mif6* get_mif_by_ifindex(unsigned int ifindex)
@@ -976,7 +976,7 @@ static void expire_upcalls(__unused struct rte_timer *rtetm,
 
 	VRF_FOREACH(vrf, vrf_id) {
 		struct mcast6_vrf *mvrf6 = &vrf->v_mvrf6;
-		rcu_read_lock();
+		dp_rcu_read_lock();
 		cds_lfht_for_each_entry(mvrf6->mf6ctable, &iter, mfc, node) {
 			/* Skip real cache entries. Make sure it wasn't
 			 * marked to not expire (shouldn't happen)
@@ -991,7 +991,7 @@ static void expire_upcalls(__unused struct rte_timer *rtetm,
 				MRT6STAT_INC(mvrf6, mrt6s_cache_cleanups);
 			}
 		}
-		rcu_read_unlock();
+		dp_rcu_read_unlock();
 	}
 }
 #endif

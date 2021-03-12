@@ -198,9 +198,9 @@ int get_next_event(enum cont_src_en cont_src, long ms, bool cont_src_all)
 
 	rebuild_poll_list();
 
-	rcu_thread_offline();
+	dp_rcu_thread_offline();
 	n = zmq_poll(todo.items, todo.list_size, ms * ZMQ_POLL_MSEC);
-	rcu_thread_online();
+	dp_rcu_thread_online();
 
 	if (n < 0) {
 		if (errno == EINTR || errno == EAGAIN)

@@ -759,12 +759,12 @@ static void bridge_timer(struct rte_timer *timer __rte_unused,
 	struct cds_lfht_iter iter;
 	struct bridge_rtnode *brt;
 
-	rcu_read_lock();
+	dp_rcu_read_lock();
 	cds_lfht_for_each_entry(sc->scbr_rthash, &iter, brt, brt_node) {
 		if (bridge_rtexpired(brt, sc->scbr_ageing_ticks))
 			bridge_rtnode_destroy(sc->scbr_rthash, brt);
 	}
-	rcu_read_unlock();
+	dp_rcu_read_unlock();
 }
 
 static int bridge_if_init(struct ifnet *ifp, void *ctx __unused)

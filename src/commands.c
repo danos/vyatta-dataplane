@@ -79,11 +79,11 @@
 #include "protobuf/SpeedConfig.pb-c.h"
 #include "protobuf/SynceConfig.pb-c.h"
 #include "protobuf/BreakoutConfig.pb-c.h"
+#include "rcu.h"
 #include "rt_tracker.h"
 #include "session/session_cmds.h"
 #include "shadow.h"
 #include "snmp_mib.h"
-#include "urcu.h"
 #include "util.h"
 #include "vplane_debug.h"
 #include "vplane_log.h"
@@ -1953,8 +1953,8 @@ static int send_console_cmd(cmd_func_t fn, int argc, char **argv, bool async)
 	if (async)
 		flags |= CONSOLE_CMD_ASYNC;
 
-	rcu_read_unlock();
-	rcu_thread_offline();
+	dp_rcu_read_unlock();
+	dp_rcu_thread_offline();
 
 	if (unsplit(line, MAX_CMDLINE, argc, argv) == NULL) {
 		RTE_LOG(ERR, DATAPLANE,
@@ -1980,8 +1980,8 @@ static int send_console_cmd(cmd_func_t fn, int argc, char **argv, bool async)
 	else
 		rv = cmd_response;
 out:
-	rcu_thread_online();
-	rcu_read_lock();
+	dp_rcu_thread_online();
+	dp_rcu_read_lock();
 
 	return rv;
 }
@@ -2044,11 +2044,11 @@ console_request(zloop_t *loop __rte_unused, zsock_t *sock,
 			"console msg receive failed: %s\n", strerror(errno));
 		return -1;
 	}
-	rcu_thread_online();
+	dp_rcu_thread_online();
 
 	char *outbuf = NULL;
 	size_t outsize = 0;
-	rcu_read_lock();
+	dp_rcu_read_lock();
 
 	int rc = 0;
 
@@ -2062,8 +2062,8 @@ console_request(zloop_t *loop __rte_unused, zsock_t *sock,
 		rc = pb_op_cmd(sock, data, len, NULL);
 
 		zmsg_destroy(&msg);
-		rcu_read_unlock();
-		rcu_thread_offline();
+		dp_rcu_read_unlock();
+		dp_rcu_thread_offline();
 		zstr_free(&line);
 
 		return rc;
@@ -2071,9 +2071,9 @@ console_request(zloop_t *loop __rte_unused, zsock_t *sock,
 
 	rc = console_cmd(line, &outbuf, &outsize, NULL, false);
 
-	rcu_read_unlock();
+	dp_rcu_read_unlock();
 
-	rcu_thread_offline();
+	dp_rcu_thread_offline();
 
 	zstr_free(&line);
 
@@ -2213,7 +2213,7 @@ console_handler(zsock_t *pipe, void *arg __rte_unused)
 	zstr_send(pipe, NULL);
 
 	dp_rcu_register_thread();
-	rcu_thread_offline();
+	dp_rcu_thread_offline();
 	while (!zsys_interrupted) {
 		if (zloop_start(loop) != 0)
 			break;	/* error detected */

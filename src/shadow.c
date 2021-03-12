@@ -62,10 +62,10 @@
 #include "pktmbuf_internal.h"
 #include "pl_common.h"
 #include "pl_fused.h"
+#include "rcu.h"
 #include "route.h"
 #include "route_v6.h"
 #include "shadow.h"
-#include "urcu.h"
 #include "vplane_log.h"
 
 /* Get a port number for spathintf out of range of physical ports */
@@ -296,7 +296,7 @@ static int shadow_writer(zloop_t *loop __rte_unused,
 		return -1;
 	}
 
-	rcu_thread_online();
+	dp_rcu_thread_online();
 
 	for (i = 0; i < SHADOW_WRITE_POLLS; i++) {
 		npkts = 0;
@@ -341,7 +341,7 @@ static int shadow_writer(zloop_t *loop __rte_unused,
 				strerror(errno));
 	}
 
-	rcu_thread_offline();
+	dp_rcu_thread_offline();
 	return 0;
 }
 
@@ -468,19 +468,19 @@ int tap_reader(zloop_t *loop, zmq_pollitem_t *item, void *arg)
 	if (ret <= 0)
 		return ret;
 
-	rcu_thread_online();
+	dp_rcu_thread_online();
 
 	if (shadow_output(sii, m, ifp) < 0)
 		goto drop;
 
 	++sii->ts_packets;
-	rcu_thread_offline();
+	dp_rcu_thread_offline();
 	return 0;
  drop:
 	++sii->ts_errors;
 	rte_pktmbuf_free(m);
 
-	rcu_thread_offline();
+	dp_rcu_thread_offline();
 	return 0;
 }
 
@@ -502,7 +502,7 @@ int spath_reader(zloop_t *loop __rte_unused, zmq_pollitem_t *item,
 	if (ret <= 0)
 		return ret;
 
-	rcu_thread_online();
+	dp_rcu_thread_online();
 
 	if (!(meta.flags & TUN_META_FLAG_IIF)) {
 		RTE_LOG(ERR, DATAPLANE,	"spath missing iif\n");
@@ -673,7 +673,7 @@ int spath_reader(zloop_t *loop __rte_unused, zmq_pollitem_t *item,
 rcu_offline:
 	if (sii)
 		++sii->ts_packets;
-	rcu_thread_offline();
+	dp_rcu_thread_offline();
 	return 0;
 }
 
@@ -886,8 +886,8 @@ static int shadow_handle_event(zloop_t *loop, zsock_t *sock,
 			 &call_rv);
 	if (rv >= 0) {
 		*call_rv = 0;
-		rcu_thread_online();
-		rcu_read_lock();
+		dp_rcu_thread_online();
+		dp_rcu_read_lock();
 		switch (type) {
 		case SHADOW_ADD:
 			*call_rv = shadow_add_event(loop, port, ifname);
@@ -901,8 +901,8 @@ static int shadow_handle_event(zloop_t *loop, zsock_t *sock,
 			*call_rv = -EINVAL;
 			break;
 		}
-		rcu_read_unlock();
-		rcu_thread_offline();
+		dp_rcu_read_unlock();
+		dp_rcu_thread_offline();
 	} else {
 		RTE_LOG(ERR, DATAPLANE,
 			"shadow-event: failed to receive event\n");
@@ -962,7 +962,7 @@ static void *shadow_handler(void *args)
 		rte_panic("spath poller setup failed\n");
 
 	dp_rcu_register_thread();
-	rcu_thread_offline();
+	dp_rcu_thread_offline();
 
 	while (!zsys_interrupted) {
 		if (zloop_start(loop) != 0)
