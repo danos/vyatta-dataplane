@@ -1,3 +1,11 @@
+vyatta-dataplane (3.11.72.12) unstable; urgency=medium
+
+  [ Paul Aitken ]
+  * DPI: change app group deletion from RCU to GC
+  * DPI: change app group DB deletion from RCU to GC
+
+ -- Srinivas Narayan <narayan@vyatta.att-mail.com>  Fri, 12 Mar 2021 10:56:34 +0000
+
 vyatta-dataplane (3.11.72.11) unstable; urgency=medium
 
   * crypto : Fix up ICV
