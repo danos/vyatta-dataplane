@@ -28,7 +28,10 @@ struct cgn_3tuple_key {
 	uint16_t  k_port;     /* port or id (net order) */
 	uint8_t	  k_ipproto;  /* not cgn_proto */
 	bool	  k_expired;  /* Expired session */
-} __attribute__((__packed__));
+};
+
+static_assert(sizeof(struct cgn_3tuple_key) == 12,
+	      "Expected struct cgn_3tuple_key size to be 12 bytes");
 
 /*
  * Key for CGNAT 2-tuple hash table
@@ -41,6 +44,9 @@ struct cgn_2tuple_key {
 	uint16_t  k_port;     /* port or id (net order) */
 	bool	  k_expired;  /* Expired session */
 	enum cgn_dir k_dir;
-} __attribute__((__packed__));
+};
+
+static_assert(sizeof(struct cgn_2tuple_key) == 8,
+	      "Expected struct cgn_2tuple_key size to be 8 bytes");
 
 #endif /* _CGN_HASH_KEY_H_ */
