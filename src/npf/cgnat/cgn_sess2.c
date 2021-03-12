@@ -1174,7 +1174,8 @@ uint cgn_sess_s2_fltr_count(struct cgn_sess_s2 *cs2,
 	if (fltr->cf_dst_mask == 0xffffffff &&
 	    cgn_s2_key_valid(&fltr->cf_dst)) {
 
-		s2 = cgn_sess2_lookup(cs2, &fltr->cf_dst, fltr->cf_dir);
+		/* The 'out' sentry is the reference sentry */
+		s2 = cgn_sess2_lookup(cs2, &fltr->cf_dst, CGN_DIR_OUT);
 		if (s2 && cgn_sess2_show_fltr(s2, fltr))
 			return 1;
 	}
@@ -1226,7 +1227,8 @@ uint cgn_sess_s2_show(json_writer_t *json, struct cgn_sess_s2 *cs2,
 	if (fltr->cf_dst_mask == 0xffffffff &&
 	    cgn_s2_key_valid(&fltr->cf_dst)) {
 
-		s2 = cgn_sess2_lookup(cs2, &fltr->cf_dst, fltr->cf_dir);
+		/* The 'out' sentry is the reference sentry */
+		s2 = cgn_sess2_lookup(cs2, &fltr->cf_dst, CGN_DIR_OUT);
 
 		if (s2 && cgn_sess2_show_fltr(s2, fltr)) {
 			cgn_sess2_jsonw_one(json, s2);
