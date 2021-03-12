@@ -125,7 +125,7 @@ static struct dp_test_crypto_policy output_passthru_policy = {
 	.mark = 0,
 	.action = XFRM_POLICY_ALLOW,
 	.vrfid = VRF_DEFAULT_ID,
-	.passthrough = TRUE
+	.passthrough = true
 };
 
 static struct dp_test_crypto_policy output_policy6 = {
@@ -157,7 +157,7 @@ static struct dp_test_crypto_policy output_passthru_policy6 = {
 	.mark = 0,
 	.action = XFRM_POLICY_ALLOW,
 	.vrfid = VRF_DEFAULT_ID,
-	.passthrough = TRUE
+	.passthrough = true
 };
 
 static struct dp_test_crypto_policy input_policy = {
@@ -189,7 +189,7 @@ static struct dp_test_crypto_policy input_passthru_policy = {
 	.mark = 0,
 	.action = XFRM_POLICY_ALLOW,
 	.vrfid = VRF_DEFAULT_ID,
-	.passthrough = TRUE
+	.passthrough = true
 };
 
 static struct dp_test_crypto_policy input_policy6 = {
@@ -221,7 +221,7 @@ static struct dp_test_crypto_policy input_passthru_policy6 = {
 	.mark = 0,
 	.action = XFRM_POLICY_ALLOW,
 	.vrfid = VRF_DEFAULT_ID,
-	.passthrough = TRUE
+	.passthrough = true
 
 };
 
