@@ -733,16 +733,12 @@ out:
 	return rc;
 }
 
-/*
- * There is no wrapper for this function. The value returned by
- * gettid is the thread id and this is not the same as the pid
- * or the POSIX thread id. It represents the value used by
- * the kernel's native thread implementation.
- */
+#ifndef HAVE_GETTID
 static unsigned long gettid(void)
 {
 	return syscall(SYS_gettid);
 }
+#endif
 
 /* Change the nice value of the current thread (not pthread) */
 void renice(int value)

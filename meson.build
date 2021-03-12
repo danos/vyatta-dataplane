@@ -13,6 +13,8 @@ project('vyatta-dataplane', ['c', 'cpp'],
         ]
 )
 
+cc = meson.get_compiler('c')
+
 configure_file(
         output : 'build_config.h',
         configuration : {
@@ -21,11 +23,10 @@ configure_file(
                 'FUSED_MODE' : get_option('fused_mode').enabled(),
                 'VYATTA_SYSCONF_DIR' : '"' + get_option('prefix') / get_option('sysconfdir') / 'vyatta' + '"',
                 'VYATTA_DATA_DIR' : '"' + get_option('prefix') / get_option('datadir') / 'vyatta' + '"',
-                'PKGLIB_DIR' : '"' + get_option('prefix') / get_option('libdir') / meson.project_name() + '"'
+                'PKGLIB_DIR' : '"' + get_option('prefix') / get_option('libdir') / meson.project_name() + '"',
+                'HAVE_GETTID' : cc.has_function('gettid')
         }
 )
-
-cc = meson.get_compiler('c')
 
 add_project_arguments(
         '-include', 'build_config.h',
