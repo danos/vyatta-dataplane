@@ -1,3 +1,14 @@
+vyatta-dataplane (3.12.33) unstable; urgency=medium
+
+  [ Charles (Chas) Williams ]
+  * flow: ensure flow cache entry is zeroed for hashing (Bugfix: VRVDR-54681)
+
+  [ Paul Aitken ]
+  * DPI: change app group deletion from RCU to GC
+  * DPI: change app group DB deletion from RCU to GC
+
+ -- Srinivas Narayan <narayan@vyatta.att-mail.com>  Fri, 12 Mar 2021 10:52:02 +0000
+
 vyatta-dataplane (3.12.32) unstable; urgency=medium
 
   * crypto : Fix up ICV
