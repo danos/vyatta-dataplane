@@ -1,3 +1,10 @@
+vyatta-dataplane (3.12.36) unstable; urgency=medium
+
+  [ Daniel Gollub ]
+  * debian: bump DPDK version depedency for rte-acl API changes
+
+ -- Srinivas Narayan <narayan@vyatta.att-mail.com>  Fri, 12 Mar 2021 16:51:24 +0000
+
 vyatta-dataplane (3.12.35) unstable; urgency=medium
 
   [ Daniel Gollub ]
