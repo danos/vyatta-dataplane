@@ -12,7 +12,7 @@
 #include <rte_rcu_qsbr.h>
 
 #include "urcu.h"
-#include "util.h"
+#include "lcore_sched.h"
 
 /*
  * The dataplane uses the QSBR flavour of userspace rcu

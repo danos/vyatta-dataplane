@@ -26,6 +26,7 @@ usr/include/vyatta-dataplane/lcore_sched.h
 usr/include/vyatta-dataplane/pipeline.h
 usr/include/vyatta-dataplane/protobuf_util.h
 usr/include/vyatta-dataplane/pktmbuf.h
+usr/include/vyatta-dataplane/rcu.h
 usr/include/vyatta-dataplane/urcu.h
 usr/include/vyatta-dataplane/vrf.h
 

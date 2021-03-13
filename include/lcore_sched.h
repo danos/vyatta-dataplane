@@ -7,8 +7,11 @@
 #ifndef VYATTA_DATAPLANE_LCORE_SCHED_H
 #define VYATTA_DATAPLANE_LCORE_SCHED_H
 
+#include <rte_lcore.h>
 #include <stdbool.h>
 #include <stdint.h>
+
+#include "compiler.h"
 
 /*
  * Intro
@@ -68,6 +71,16 @@
  * forwarding lcore, but it is too much for a single lcore to do then the
  * feature can request a forwarding thread where it can do this work.
  */
+
+/* Like rte_lcore_id()
+ * but for all non-dataplane threads returns 0 instead of LCORE_ID_ANY
+ */
+RTE_DECLARE_PER_LCORE(unsigned int, _dp_lcore_id);
+static ALWAYS_INLINE
+unsigned int dp_lcore_id(void)
+{
+	return RTE_PER_LCORE(_dp_lcore_id);
+}
 
 /*
  * A callback function type for the foreach lcore iterator funcs.

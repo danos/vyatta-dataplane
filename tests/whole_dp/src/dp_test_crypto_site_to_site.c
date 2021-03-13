@@ -2558,7 +2558,7 @@ static void rx_match_policy_proto(vrfid_t vrfid)
 		.mark = 0,
 		.vrfid = VRF_DEFAULT_ID,
 		.action = XFRM_POLICY_ALLOW,
-		.passthrough = TRUE
+		.passthrough = true
 		},
 		{
 		.d_prefix = NETWORK_WEST,
@@ -2634,7 +2634,7 @@ static void rx_match_policy_proto6(vrfid_t vrfid)
 		.mark = 0,
 		.vrfid = VRF_DEFAULT_ID,
 		.action = XFRM_POLICY_ALLOW,
-		.passthrough = TRUE
+		.passthrough = true
 		},
 		{
 		.d_prefix = NETWORK_WEST6,

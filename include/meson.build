@@ -23,6 +23,7 @@ install_headers(
         'pktmbuf.h',
         'pipeline.h',
         'protobuf_util.h',
+        'rcu.h',
         'urcu.h',
         'vrf.h',
         subdir: meson.project_name()
