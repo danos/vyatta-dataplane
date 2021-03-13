@@ -30,6 +30,7 @@
 #include <time.h>
 
 #include "compiler.h"
+#include "lcore_sched.h"
 #include "soft_ticks.h"
 #include "vrf.h"
 
@@ -123,16 +124,6 @@ static inline void set_bit_32(uint32_t *field32, uint8_t bit_num)
 	if (bit_num >= 32)
 		return;
 	*field32 |= (1U << bit_num);
-}
-
-/* Like rte_lcore_id()
- * but for all non-dataplane threads returns 0 instead of LCORE_ID_ANY
- */
-RTE_DECLARE_PER_LCORE(unsigned int, _dp_lcore_id);
-static ALWAYS_INLINE
-unsigned int dp_lcore_id(void)
-{
-	return RTE_PER_LCORE(_dp_lcore_id);
 }
 
 /* Iterate each lcore id that dp_lcore_id could return */
