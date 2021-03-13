@@ -1,3 +1,13 @@
+vyatta-dataplane (3.12.37) unstable; urgency=medium
+
+  [ Nicholas Brown ]
+  * fix gcc 10 compiler error
+
+  [ Srinivas Narayan ]
+  * Include rcu.h in vyatta-dataplane-dev
+
+ -- Srinivas Narayan <narayan@vyatta.att-mail.com>  Sat, 13 Mar 2021 12:14:03 +0000
+
 vyatta-dataplane (3.12.36) unstable; urgency=medium
 
   [ Daniel Gollub ]
