@@ -2497,6 +2497,8 @@ routing_remove_arp_safe(struct llentry *lle)
 	if (lpm_lookup_exact(lpm, ntohl(ip->s_addr), 32, &nh_idx) == 0) {
 		/* We have a /32 so unlink the arp (if there) */
 		nextl = rcu_dereference(nh_tbl.entry[nh_idx]);
+		if (unlikely(!nextl))
+			goto unlock;
 
 		/* Do we already have a nh for this interface? */
 		nh = next_hop_list_find_path_using_ifp(nextl, ifp, &sibling);
@@ -2534,6 +2536,7 @@ routing_remove_arp_safe(struct llentry *lle)
 					routing_arp_del_nh_replace_cb, ifp);
 		}
 	}
+unlock:
 	pthread_mutex_unlock(&route_mutex);
 
 	/*

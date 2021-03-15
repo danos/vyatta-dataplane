@@ -2698,6 +2698,8 @@ void routing6_remove_neigh_safe(struct llentry *lle)
 	if (lpm6_lookup_exact(lpm, ip->s6_addr, 128, &nh_idx) == 0) {
 		/* We have a /128 so unlink the arp (if there) */
 		nextl = rcu_dereference(nh6_tbl.entry[nh_idx]);
+		if (unlikely(!nextl))
+			goto unlock;
 
 		/* Do we already have a nh for this interface? */
 		nh = next_hop_list_find_path_using_ifp(nextl, ifp, &sibling);
@@ -2734,6 +2736,7 @@ void routing6_remove_neigh_safe(struct llentry *lle)
 					  routing_neigh_del_nh_replace_cb, ifp);
 		}
 	}
+unlock:
 	pthread_mutex_unlock(&route6_mutex);
 
 	/*

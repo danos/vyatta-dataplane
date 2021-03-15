@@ -1327,12 +1327,14 @@ void nexthop_put(int family, uint32_t idx)
 	}
 
 	nextl = rcu_dereference(nh_table->entry[idx]);
+	if (unlikely(!nextl))
+		return;
 	if (--nextl->refcount == 0) {
 		struct next_hop *array = nextl->siblings;
 		int ret;
 		int i;
 
-		nh_table->entry[idx] = NULL;
+		rcu_assign_pointer(nh_table->entry[idx],  NULL);
 		--nh_table->in_use;
 
 		for (i = 0; i < nextl->nsiblings; i++) {
@@ -1561,8 +1563,12 @@ struct next_hop *next_hop_list_find_path_using_ifp(struct next_hop_list *nhl,
 						   int *sibling)
 {
 	uint32_t i;
-	struct next_hop *array = rcu_dereference(nhl->siblings);
+	struct next_hop *array;
 
+	if (unlikely(!nhl))
+		return NULL;
+
+	array = rcu_dereference(nhl->siblings);
 	for (i = 0; i < nhl->nsiblings; i++) {
 		struct next_hop *next = array + i;
 
@@ -1577,8 +1583,12 @@ struct next_hop *next_hop_list_find_path_using_ifp(struct next_hop_list *nhl,
 bool next_hop_list_is_any_connected(const struct next_hop_list *nhl)
 {
 	uint32_t i;
-	struct next_hop *array = rcu_dereference(nhl->siblings);
+	struct next_hop *array;
 
+	if (unlikely(!nhl))
+		return false;
+
+	array = rcu_dereference(nhl->siblings);
 	for (i = 0; i < nhl->nsiblings; i++) {
 		struct next_hop *next = array + i;
 
