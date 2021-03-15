@@ -49,16 +49,18 @@
  * receiver.  Tests ftp8 and ftp9 test that the FTP ALG adjusts the TCP header
  * accordingly.
  *
- * ftp1  - No NAT. Passive ftp. '227' back.
- * ftp2  - No NAT. Passive ftp. Stateful firewall. IPv4. '227' back.
- * ftp3  - No NAT. Passive ftp. Stateful firewall. IPv6. '227' back.
- * ftp4  - SNAT.   Passive ftp. '227' back.
- * ftp5  - DNAT.   Passive ftp. '227' back.
- * ftp6  - DNAT.   Passive ftp. No parenthesis in 227 message.
- * ftp7  - SNAT.   Active ftp. 'PORT' forw.
- * ftp8  - SNAT.   Active ftp. Translating to a larger address. 'PORT' forw.
- * ftp9  - SNAT.   Active ftp. Translating to a smaller address. 'PORT' forw.
- * ftp10 - DNAT.   Active ftp. 'PORT' forw.
+ * ftp1  - No NAT Passive ftp. '227' back.
+ * ftp2  - No NAT Passive ftp. Stateful firewall. IPv4. '227' back.
+ * ftp3  - No NAT Passive ftp. Stateful firewall. IPv6. '227' back.
+ * ftp4  - SNAT   Passive ftp. '227' back.
+ * ftp5  - DNAT   Passive ftp. '227' back.
+ * ftp6  - DNAT   Passive ftp. No parenthesis in 227 message.
+ * ftp7  - SNAT   Active ftp. 'PORT' forw.
+ * ftp8  - SNAT   Active ftp. Translating to a larger address. 'PORT' forw.
+ * ftp9  - SNAT   Active ftp. Translating to a smaller address. 'PORT' forw.
+ * ftp10 - DNAT   Active ftp. 'PORT' forw.
+ * ftp11 - SNAT   Ext. Passive ftp. Src port is outside of trans port range.
+ * ftp12 - SNAT   Active ftp. Src port is outside of trans port range.
  */
 
 static void dpt_alg_ftp_setup(void);
@@ -2158,6 +2160,225 @@ DP_START_TEST(ftp10, test)
 } DP_END_TEST;
 
 
+/*
+ * ftp11 - SNAT, Extended Passive ftp.  Source port is outside of trans port
+ * range.
+ *
+ * Earlier SNAT tests relied on 'port preservation', in that the inside port
+ * was within the translation port range and hence the same same port nu,ber
+ * could be used (provided it was available).
+ *
+ * This test forces the SNAT to change the port number during the translation.
+ */
+DP_DECL_TEST_CASE(npf_alg_ftp, ftp11, dpt_alg_ftp_setup, dpt_alg_ftp_teardown);
+DP_START_TEST(ftp11, test)
+{
+	struct dp_test_pkt_desc_t *ctrl_fw_pre, *ctrl_fw_pst;
+	struct dp_test_pkt_desc_t *ctrl_bk_pre, *ctrl_bk_pst;
+	struct dp_test_pkt_desc_t *data_fw_pre, *data_fw_pst;
+	struct dp_test_pkt_desc_t *data_bk_pre, *data_bk_pst;
+
+	/*
+	 * Add SNAT rule.
+	 */
+	struct dp_test_npf_nat_rule_t snat = {
+		.desc		= "snat rule",
+		.rule		= "10",
+		.ifname		= "dp2T1",
+		.proto		= IPPROTO_TCP,
+		.map		= "dynamic",
+		.port_alloc	= "sequential",
+		.from_addr	= "1.1.1.11",
+		.from_port	= NULL,
+		.to_addr	= NULL,
+		.to_port	= NULL,
+		.trans_addr	= "2.2.2.20",
+		.trans_port	= "10000-20000"
+	};
+
+	dp_test_npf_snat_add(&snat, true);
+
+	/* Data port is 2559 */
+	uint16_t data_port = 2559;
+
+	/*
+	 * ftp control flow packets
+	 */
+	ctrl_fw_pre = dpt_pdesc_v4_create(
+		"ctrl_fw_pre", IPPROTO_TCP,
+		"aa:bb:cc:dd:1:11", "1.1.1.11", 46682,
+		"aa:bb:cc:dd:2:11", "2.2.2.11", 21,
+		"dp1T0", "dp2T1");
+
+	ctrl_fw_pst = dpt_pdesc_v4_create(
+		"ctrl_fw_pst", IPPROTO_TCP,
+		"aa:bb:cc:dd:1:11", "2.2.2.20", 10000,
+		"aa:bb:cc:dd:2:11", "2.2.2.11", 21,
+		"dp1T0", "dp2T1");
+
+	ctrl_bk_pre = dpt_pdesc_v4_create(
+		"ctrl_bk_pre", IPPROTO_TCP,
+		"aa:bb:cc:dd:2:11", "2.2.2.11", 21,
+		"aa:bb:cc:dd:1:11", "2.2.2.20", 10000,
+		"dp2T1", "dp1T0");
+
+	ctrl_bk_pst = dpt_pdesc_v4_create(
+		"ctrl_bk_pst", IPPROTO_TCP,
+		"aa:bb:cc:dd:2:11", "2.2.2.11", 21,
+		"aa:bb:cc:dd:1:11", "1.1.1.11", 46682,
+		"dp2T1", "dp1T0");
+
+	/*
+	 * ftp data flow packets
+	 */
+	data_fw_pre = dpt_pdesc_v4_create(
+		"data_fw_pre", IPPROTO_TCP,
+		"aa:bb:cc:dd:1:11", "1.1.1.11", 49888,
+		"aa:bb:cc:dd:2:11", "2.2.2.11", data_port,
+		"dp1T0", "dp2T1");
+
+	data_fw_pst = dpt_pdesc_v4_create(
+		"data_fw_pst", IPPROTO_TCP,
+		"aa:bb:cc:dd:1:11", "2.2.2.20", 10001,
+		"aa:bb:cc:dd:2:11", "2.2.2.11", data_port,
+		"dp1T0", "dp2T1");
+
+	data_bk_pre = dpt_pdesc_v4_create(
+		"data_bk_pre", IPPROTO_TCP,
+		"aa:bb:cc:dd:2:11", "2.2.2.11", data_port,
+		"aa:bb:cc:dd:1:11", "2.2.2.20", 10001,
+		"dp2T1", "dp1T0");
+
+	data_bk_pst = dpt_pdesc_v4_create(
+		"data_bk_pst", IPPROTO_TCP,
+		"aa:bb:cc:dd:2:11", "2.2.2.11", data_port,
+		"aa:bb:cc:dd:1:11", "1.1.1.11", 49888,
+		"dp2T1", "dp1T0");
+
+	/*
+	 * Packet descriptors for ftp ctrl flow
+	 */
+	struct dpt_tcp_flow ftp_ctrl_call = {
+		.text[0] = '\0',	/* description */
+		.isn = {0, 0},		/* initial seq no */
+		.desc[DPT_FORW] = {	/* Forw pkt descriptors */
+			.pre = ctrl_fw_pre,
+			.pst = ctrl_fw_pst,
+		},
+		.desc[DPT_BACK] = {	/* Back pkt descriptors */
+			.pre = ctrl_bk_pre,
+			.pst = ctrl_bk_pst,
+		},
+		.test_cb = NULL,	/* Prep and send pkt */
+		.post_cb = NULL,	/* Fixup pkt exp */
+	};
+	snprintf(ftp_ctrl_call.text, sizeof(ftp_ctrl_call),
+		 "Ctrl");
+
+	/*
+	 * Per-packet flags and data for ftp ctrl flow
+	 */
+	struct dpt_tcp_flow_pkt ftp_ctrl_pkts[] = {
+		{ DPT_FORW, TH_SYN, 0, NULL, 0, NULL },
+		{ DPT_BACK, TH_SYN | TH_ACK, 0, NULL, 0, NULL },
+		{ DPT_FORW, TH_ACK, 0, NULL, 0, NULL },
+
+		/* session established */
+		{ DPT_FORW, TH_ACK,
+		  0, (char *)"SYST\x0d\x0a", 0, NULL },
+
+		{ DPT_BACK, TH_ACK,
+		  0, (char *)"215 UNIX Type: L8\x0d\x0a", 0, NULL },
+
+		{ DPT_FORW, TH_ACK,
+		  0, (char *)"TYPE I\x0d\x0a", 0, NULL },
+
+		{ DPT_BACK, TH_ACK,
+		  0,
+		  (char *)"200 Switching to Binary mode.\x0d\x0a",
+		  0, NULL },
+
+		{ DPT_FORW, TH_ACK,
+		  0, (char *)"EPSV\x0d\x0a", 0, NULL },
+
+		/*
+		 * #8. Response: 229.  Server telling client which
+		 * address and port to use for data channel. port is 2559.
+		 */
+		{ DPT_BACK, TH_ACK, 0,
+		  (char *)"229 Entering Extended Passive Mode (|||2559|)\r\n",
+		  0,
+		  (char *)"229 Entering Extended Passive Mode (|||2559|)\r\n" },
+
+		{ DPT_FORW, TH_ACK | TH_FIN, 0, NULL, 0, NULL },
+		{ DPT_BACK, TH_ACK | TH_FIN, 0, NULL, 0, NULL },
+		{ DPT_FORW, TH_ACK, 0, NULL, 0, NULL },
+	};
+
+	/*
+	 * Packet descriptors for ftp data flow
+	 */
+	struct dpt_tcp_flow ftp_data_call = {
+		.text[0] = '\0',	/* description */
+		.isn = {0, 0},		/* initial seq no */
+		.desc[DPT_FORW] = {	/* Forw pkt descriptors */
+			.pre = data_fw_pre,
+			.pst = data_fw_pst,
+		},
+		.desc[DPT_BACK] = {	/* Back pkt descriptors */
+			.pre = data_bk_pre,
+			.pst = data_bk_pst,
+		},
+		.test_cb = NULL,	/* Prep and send pkt */
+		.post_cb = NULL,	/* Fixup pkt exp */
+	};
+
+	snprintf(ftp_data_call.text, sizeof(ftp_data_call),
+		 "Data, port %u", data_port);
+
+	struct dpt_tcp_flow_pkt ftp_data_pkts[] = {
+		{ DPT_FORW, TH_SYN, 0, NULL, 0, NULL },
+		{ DPT_BACK, TH_SYN | TH_ACK, 0, NULL, 0, NULL },
+		{ DPT_FORW, TH_ACK, 0, NULL, 0, NULL },
+
+		{ DPT_BACK, TH_ACK, 100, NULL, 0, NULL },
+		{ DPT_FORW, TH_ACK, 0, NULL, 0, NULL },
+
+		{ DPT_FORW, TH_ACK | TH_FIN, 0, NULL, 0, NULL },
+		{ DPT_BACK, TH_ACK | TH_FIN, 0, NULL, 0, NULL },
+		{ DPT_FORW, TH_ACK, 0, NULL, 0, NULL },
+	};
+
+	/* Start of ftp ctrl flow (pkts 0 - 8) */
+	dpt_tcp_call(&ftp_ctrl_call, ftp_ctrl_pkts,
+		     ARRAY_SIZE(ftp_ctrl_pkts),
+		     0, 8, NULL, 0);
+
+	/* ftp data flow */
+	dpt_tcp_call(&ftp_data_call, ftp_data_pkts,
+		     ARRAY_SIZE(ftp_data_pkts),
+		     0, 0, NULL, 0);
+
+	/* End of ftp ctrl flow (pkts 9 - end) */
+	dpt_tcp_call(&ftp_ctrl_call, ftp_ctrl_pkts,
+		     ARRAY_SIZE(ftp_ctrl_pkts),
+		     9, 0, NULL, 0);
+
+	free(ctrl_fw_pre);
+	free(ctrl_fw_pst);
+	free(ctrl_bk_pre);
+	free(ctrl_bk_pst);
+
+	free(data_fw_pre);
+	free(data_fw_pst);
+	free(data_bk_pre);
+	free(data_bk_pst);
+
+	dp_test_npf_snat_del(snat.ifname, snat.rule, true);
+
+	dp_test_npf_cleanup();
+
+} DP_END_TEST;
 
 static void dpt_alg_ftp_setup(void)
 {
