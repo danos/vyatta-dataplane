@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020, AT&T Intellectual Property.
+ * Copyright (c) 2020-2021, AT&T Intellectual Property.
  * All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
@@ -86,7 +86,7 @@ static void _show_mac_limit_info(const char *intf, uint16_t vlan,
 
 	_dp_test_check_json_poll_state(cmd_str, jexp, NULL,
 				       DP_TEST_JSON_CHECK_SUBSET,
-				       false, 0, file,
+				       false, 0, false, file,
 				       "", line);
 	json_object_put(jexp);
 }
@@ -114,7 +114,7 @@ static void _verify_plugin_limit(const char *intf, uint16_t vlan,
 
 	_dp_test_check_json_poll_state(cmd_str, jexp, NULL,
 				       DP_TEST_JSON_CHECK_SUBSET,
-				       false, 0, __FILE__,
+				       false, 0, false, __FILE__,
 				       "", __LINE__);
 	json_object_put(jexp);
 }

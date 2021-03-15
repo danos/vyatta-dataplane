@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2020, AT&T Intellectual Property.
+ * Copyright (c) 2018-2021, AT&T Intellectual Property.
  * All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
@@ -94,7 +94,7 @@ _dp_test_verify_storm_ctl_profile_state(const char *profile_name,
 
 	_dp_test_check_json_poll_state(cmd_str, jexp, NULL,
 				       DP_TEST_JSON_CHECK_SUBSET,
-				       false, 0, file,
+				       false, 0, false, file,
 				       function, line);
 	json_object_put(jexp);
 }
@@ -193,7 +193,7 @@ _dp_test_verify_storm_ctl_state(bool monitoring, int count,
 
 	_dp_test_check_json_poll_state(cmd_str, jexp, NULL,
 				       DP_TEST_JSON_CHECK_SUBSET,
-				       negate_match, 0, file,
+				       negate_match, 0, false, file,
 				       function, line);
 	json_object_put(jexp);
 }

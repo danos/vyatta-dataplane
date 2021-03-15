@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2015-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -285,13 +285,13 @@ dp_test_netlink_interface_l2_all(const char *ifname, int mtu,
 			nl_propagate(topic, nlh);
 		_dp_test_check_json_state(cmd, expected, NULL,
 					  DP_TEST_JSON_CHECK_SUBSET,
-					  false,
+					  false, false,
 					  file, func, line);
 		if (nlmsg_type == RTM_DELLINK) {
 			nl_propagate(topic, nlh);
 			_dp_test_check_json_state(cmd, expected, NULL,
 						  DP_TEST_JSON_CHECK_SUBSET,
-						  true,
+						  true, false,
 						  file, func, line);
 		}
 		json_object_put(expected);
@@ -618,13 +618,13 @@ dp_test_netlink_tunnel(const char *tun_name,
 			nl_propagate(topic, nlh);
 		_dp_test_check_json_state(cmd, expected, NULL,
 					  DP_TEST_JSON_CHECK_SUBSET,
-					  false,
+					  false, false,
 					  file, func, line);
 		if (nlmsg_type == RTM_DELLINK) {
 			nl_propagate(topic, nlh);
 			_dp_test_check_json_state(cmd, expected, NULL,
 						  DP_TEST_JSON_CHECK_SUBSET,
-						  true,
+						  true, false,
 						  file, func, line);
 		}
 		json_object_put(expected);
@@ -724,13 +724,13 @@ dp_test_netlink_ppp(const char *intf_name,
 			nl_propagate(topic, nlh);
 		_dp_test_check_json_state(cmd, expected, NULL,
 					  DP_TEST_JSON_CHECK_SUBSET,
-					  false,
+					  false, false,
 					  file, func, line);
 		if (nlmsg_type == RTM_DELLINK) {
 			nl_propagate(topic, nlh);
 			_dp_test_check_json_state(cmd, expected, NULL,
 						  DP_TEST_JSON_CHECK_SUBSET,
-						  true,
+						  true, false,
 						  file, func, line);
 		}
 		json_object_put(expected);
@@ -865,7 +865,7 @@ _dp_test_verify_neigh(const char *ifname, const char *ipaddr,
 
 	_dp_test_check_json_state(cmd, expected, NULL,
 				  DP_TEST_JSON_CHECK_SUBSET,
-				  negate_match, file, func, line);
+				  negate_match, false, file, func, line);
 	json_object_put(expected);
 }
 
@@ -1031,13 +1031,13 @@ dp_test_verify_interface_ip_address(const char *ifname, const char *prefix_str,
 		_dp_test_check_json_state(cmd, expected,
 					  NULL,
 					  DP_TEST_JSON_CHECK_SUBSET,
-					  false,
+					  false, false,
 					  file, func, line);
 	else
 		_dp_test_check_json_state(cmd, expected,
 					  NULL,
 					  DP_TEST_JSON_CHECK_SUBSET,
-					  true,
+					  true, false,
 					  file, func, line);
 
 	json_object_put(expected);
@@ -1336,7 +1336,7 @@ _dp_test_netlink_set_mpls_forwarding(const char *ifname, bool enable,
 				       enable ? "on" : "off");
 	_dp_test_check_json_state(cmd, expected, NULL,
 				  DP_TEST_JSON_CHECK_SUBSET,
-				  false,
+				  false, false,
 				  file, func, line);
 	json_object_put(expected);
 }
@@ -2136,7 +2136,7 @@ _dp_test_wait_for_mroute(const char *source, const char *group,
 		 v6 ? "route6" : "route");
 
 	_dp_test_check_json_state(cmd, expected_json, NULL,
-				  DP_TEST_JSON_CHECK_SUBSET, gone,
+				  DP_TEST_JSON_CHECK_SUBSET, gone, false,
 				  file, func, line);
 	json_object_put(expected_json);
 }
@@ -2283,12 +2283,13 @@ dp_test_netlink_bridge(const char *br_name, uint16_t nlmsg_type, bool verify,
 			nl_propagate(topic, nlh);
 		_dp_test_check_json_state(cmd, expected, NULL,
 					  DP_TEST_JSON_CHECK_SUBSET,
-					  false, file, func, line);
+					  false, false, file, func, line);
 		if (nlmsg_type == RTM_DELLINK) {
 			nl_propagate(topic, nlh);
 			_dp_test_check_json_state(cmd, expected, NULL,
 						  DP_TEST_JSON_CHECK_SUBSET,
-						  true, file, func, line);
+						  true, false,
+						  file, func, line);
 		}
 		json_object_put(expected);
 	} else
@@ -2388,13 +2389,13 @@ dp_test_netlink_bridge_port_state(const char *br_name, const char *eth_name,
 			nl_propagate(topic, nlh);
 		_dp_test_check_json_state(cmd, expected, NULL,
 					  DP_TEST_JSON_CHECK_SUBSET,
-					  false,
+					  false, false,
 					  file, func, line);
 		if (nlmsg_type == RTM_DELLINK) {
 			nl_propagate(topic, nlh);
 			_dp_test_check_json_state(cmd, expected, NULL,
 						  DP_TEST_JSON_CHECK_SUBSET,
-						  true,
+						  true, false,
 						  file, func, line);
 		}
 		json_object_put(expected);
@@ -2561,13 +2562,13 @@ _dp_test_netlink_bridge_port_set(const char *br_name,
 			nl_propagate(topic, nlh);
 		_dp_test_check_json_state(cmd, expected, NULL,
 					  DP_TEST_JSON_CHECK_SUBSET,
-					  false,
+					  false, false,
 					  file, func, line);
 		if (nlmsg_type == RTM_DELLINK) {
 			nl_propagate(topic, nlh);
 			_dp_test_check_json_state(cmd, expected, NULL,
 						  DP_TEST_JSON_CHECK_SUBSET,
-						  true,
+						  true, false,
 						  file, func, line);
 		}
 		json_object_put(expected);
@@ -2663,12 +2664,13 @@ void _dp_test_netlink_set_bridge_vlan_filter(const char *br_name, bool verify,
 			nl_propagate(topic, nlh);
 		_dp_test_check_json_state(cmd, expected, NULL,
 					  DP_TEST_JSON_CHECK_SUBSET,
-					  false, file, func, line);
+					  false, false, file, func, line);
 		if (nlmsg_type == RTM_DELLINK) {
 			nl_propagate(topic, nlh);
 			_dp_test_check_json_state(cmd, expected, NULL,
 						  DP_TEST_JSON_CHECK_SUBSET,
-						  true, file, func, line);
+						  true, false,
+						  file, func, line);
 		}
 		json_object_put(expected);
 	} else
@@ -2862,13 +2864,13 @@ dp_test_netlink_vxlan(const char *vxlan_name, uint16_t nlmsg_type,
 			nl_propagate(topic, nlh);
 		_dp_test_check_json_state(cmd, expected, NULL,
 					  DP_TEST_JSON_CHECK_SUBSET,
-					  false,
+					  false, false,
 					  file, func, line);
 		if (nlmsg_type == RTM_DELLINK) {
 			nl_propagate(topic, nlh);
 			_dp_test_check_json_state(cmd, expected, NULL,
 						  DP_TEST_JSON_CHECK_SUBSET,
-						  true,
+						  true, false,
 						  file, func, line);
 		}
 		json_object_put(expected);
@@ -3010,13 +3012,13 @@ dp_test_netlink_vlan(const char *vif_name, uint16_t nlmsg_type,
 			nl_propagate(topic, nlh);
 		_dp_test_check_json_state(cmd, expected, NULL,
 					  DP_TEST_JSON_CHECK_SUBSET,
-					  false,
+					  false, false,
 					  file, func, line);
 		if (nlmsg_type == RTM_DELLINK) {
 			nl_propagate(topic, nlh);
 			_dp_test_check_json_state(cmd, expected, NULL,
 						  DP_TEST_JSON_CHECK_SUBSET,
-						  true,
+						  true, false,
 						  file, func, line);
 		}
 		json_object_put(expected);
@@ -3142,13 +3144,13 @@ dp_test_netlink_macvlan(const char *vif_name, uint16_t nlmsg_type,
 			nl_propagate(topic, nlh);
 		_dp_test_check_json_state(cmd, expected, NULL,
 					  DP_TEST_JSON_CHECK_SUBSET,
-					  false,
+					  false, false,
 					  file, func, line);
 		if (nlmsg_type == RTM_DELLINK) {
 			nl_propagate(topic, nlh);
 			_dp_test_check_json_state(cmd, expected, NULL,
 						  DP_TEST_JSON_CHECK_SUBSET,
-						  true,
+						  true, false,
 						  file, func, line);
 		}
 		json_object_put(expected);
@@ -3366,13 +3368,13 @@ dp_test_netlink_lo_or_vfp(const char *name, bool verify, uint16_t nl_type,
 			nl_propagate(topic, nlh);
 		_dp_test_check_json_state(cmd, expected, NULL,
 					  DP_TEST_JSON_CHECK_SUBSET,
-					  false,
+					  false, false,
 					  file, func, line);
 		if (nl_type == RTM_DELLINK) {
 			nl_propagate(topic, nlh);
 			_dp_test_check_json_state(cmd, expected, NULL,
 						  DP_TEST_JSON_CHECK_SUBSET,
-						  true,
+						  true, false,
 						  file, func, line);
 		}
 		json_object_put(expected);
@@ -3475,13 +3477,13 @@ dp_test_netlink_vrf_if(const char *name, bool verify, uint16_t nl_type,
 			nl_propagate(topic, nlh);
 		_dp_test_check_json_state(cmd, expected, NULL,
 					  DP_TEST_JSON_CHECK_SUBSET,
-					  false,
+					  false, false,
 					  file, func, line);
 		if (nl_type == RTM_DELLINK) {
 			nl_propagate(topic, nlh);
 			_dp_test_check_json_state(cmd, expected, NULL,
 						  DP_TEST_JSON_CHECK_SUBSET,
-						  true,
+						  true, false,
 						  file, func, line);
 		}
 		json_object_put(expected);

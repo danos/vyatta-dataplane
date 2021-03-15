@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2015-2017 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -425,7 +425,7 @@ static void dp_test_verify_intf_garp_state(struct ifnet *ifp,
 
 	_dp_test_check_json_poll_state(cmd_str, jexp, NULL,
 				       DP_TEST_JSON_CHECK_SUBSET,
-				       false, 0, ctx->file,
+				       false, 0, false, ctx->file,
 				       ctx->func, ctx->line);
 
 	json_object_put(jexp);

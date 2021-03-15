@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2018-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2018-2021, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  *
@@ -90,7 +90,7 @@ _dp_test_create_pppoe_session(const char *ppp_intf, const char *under_intf,
 
 		_dp_test_check_json_state("pipeline pppoe show", expected, NULL,
 					  DP_TEST_JSON_CHECK_SUBSET,
-					  false,
+					  false, false,
 					  file, func, line);
 		json_object_put(expected);
 	}

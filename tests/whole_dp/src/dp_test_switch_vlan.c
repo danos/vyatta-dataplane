@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2019-2021, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -80,7 +80,7 @@ static void _dp_test_verify_vlan_stats(const char *name,
 
 	_dp_test_check_json_poll_state(show_stats_cmd, jexp, NULL,
 				       DP_TEST_JSON_CHECK_SUBSET,
-				       false, 0, file,
+				       false, 0, false, file,
 				       func, line);
 	json_object_put(jexp);
 }

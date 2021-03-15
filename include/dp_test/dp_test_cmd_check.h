@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2015-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -110,10 +110,11 @@ _dp_test_check_json_poll_state(const char *cmd_str,
 			       json_object *filter_json,
 			       enum dp_test_check_json_mode mode,
 			       bool negate_match, int poll_cnt,
+			       bool pretty_print,
 			       const char *file, const char *func, int line);
 #define dp_test_check_json_poll_state(cmd, expected, mode, gone, poll_cnt) \
-	_dp_test_check_json_poll_state(cmd, expected, NULL, mode,	   \
-				       gone, poll_cnt,			   \
+	_dp_test_check_json_poll_state(cmd, expected, NULL, mode,	\
+				       gone, poll_cnt, false,		\
 				       __FILE__, __func__, __LINE__)
 
 void
@@ -123,12 +124,14 @@ _dp_test_check_json_poll_state_interval(const char *cmd_str,
 					enum dp_test_check_json_mode mode,
 					bool negate_match, int poll_cnt,
 					unsigned int poll_interval,
+					bool pretty_print,
 					const char *file, const char *func,
 					int line);
 #define dp_test_check_json_poll_state_interval(cmd, expected, mode, gone, \
 					       poll_cnt, poll_interval)   \
 	_dp_test_check_json_poll_state_interval(cmd, expected, NULL, mode, \
 						gone, poll_cnt, poll_interval, \
+						false,			\
 						__FILE__, __func__, __LINE__)
 
 typedef bool (*dp_test_state_pb_cb)(void *data, int len, void *arg);
@@ -148,12 +151,13 @@ void
 _dp_test_check_json_state(const char *cmd_str, json_object *expected_json,
 			  json_object *filter_json,
 			  enum dp_test_check_json_mode mode,
-			  bool negate_match,
+			  bool negate_match, bool pretty_print,
 			  const char *file, const char *func,
 			  int line);
 #define dp_test_check_json_state(cmd_str, expected_json, mode, gone)	\
 	_dp_test_check_json_state(cmd_str, expected_json, NULL, mode,	\
-				  gone, __FILE__, __func__, __LINE__)
+				  gone, false,				\
+				  __FILE__, __func__, __LINE__)
 
 void
 _dp_test_check_pb_state(void *buf, int len,

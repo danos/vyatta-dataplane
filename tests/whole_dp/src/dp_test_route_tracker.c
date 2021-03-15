@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2020, AT&T Intellectual Property. All rights reserved.
+ * Copyright (c) 2019-2021, AT&T Intellectual Property. All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  *
@@ -138,7 +138,7 @@ static void _dp_test_verify_tracker(const char *addr, int count,
 
 	_dp_test_check_json_poll_state(cmd_str, jexp, NULL,
 				       DP_TEST_JSON_CHECK_SUBSET,
-				       count == 0, 0, file,
+				       count == 0, 0, false, file,
 				       function, line);
 	json_object_put(jexp);
 }

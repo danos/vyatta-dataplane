@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2018-2021, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -215,7 +215,7 @@ static void dp_test_verify_intf_sfp_state(struct ifnet *ifp,
 
 	_dp_test_check_json_poll_state(cmd_str, jexp, NULL,
 				       DP_TEST_JSON_CHECK_SUBSET,
-				       false, 0, file,
+				       false, 0, false, file,
 				       function, line);
 	json_object_put(jexp);
 }
