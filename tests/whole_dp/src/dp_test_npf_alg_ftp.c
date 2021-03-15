@@ -28,6 +28,16 @@
 
 
 /*
+ * In the SNAT tests, client is on the inside and server on the outside.
+ *
+ * With Passive FTP and SNAT (ftp4), the packet containing the data address
+ * and port is from the server, so does not need translated.  Initial data pkt
+ * is *from* the client.
+ *
+ * With Active FTP and SNAT (ftp7), the packet containing the data address and
+ * port is from the client, so *does* need translated.  And may result in
+ * change of length of payload.  Initial data pkt is *from* the server.
+ *
  * With Passive FTP, the control and data flows both start in the same
  * direction (i.e. forwards).
  *
@@ -36,20 +46,19 @@
  * With SNAT and Active FTP, the difference in size between the source address
  * string and the translation address string will alter the length of the TCP
  * data, and hence cause a difference in TCP seq and ack between sender and
- * receiver.  Tests alg_ftp5a and alg_ftp5b test that the FTP ALG adjusts the
- * TCP header accordingly.
+ * receiver.  Tests ftp8 and ftp9 test that the FTP ALG adjusts the TCP header
+ * accordingly.
  *
- *
- * alg_ftp1  - No NAT. Passive ftp.
- * alg_ftp1b - No NAT. Passive ftp. Stateful firewall. IPv4.
- * alg_ftp1c - No NAT. Passive ftp. Stateful firewall. IPv6.
- * alg_ftp2  - SNAT.   Passive ftp.
- * alg_ftp3  - DNAT.   Passive ftp.
- * alg_ftp4  - DNAT.   Passive ftp. No parenthesis in 227 message.
- * alg_ftp5  - SNAT.   Active ftp.
- * alg_ftp5a - SNAT.   Active ftp. Translating to a larger address.
- * alg_ftp5b - SNAT.   Active ftp. Translating to a smaller address.
- * alg_ftp6  - DNAT.   Active ftp.
+ * ftp1  - No NAT. Passive ftp. '227' back.
+ * ftp2  - No NAT. Passive ftp. Stateful firewall. IPv4. '227' back.
+ * ftp3  - No NAT. Passive ftp. Stateful firewall. IPv6. '227' back.
+ * ftp4  - SNAT.   Passive ftp. '227' back.
+ * ftp5  - DNAT.   Passive ftp. '227' back.
+ * ftp6  - DNAT.   Passive ftp. No parenthesis in 227 message.
+ * ftp7  - SNAT.   Active ftp. 'PORT' forw.
+ * ftp8  - SNAT.   Active ftp. Translating to a larger address. 'PORT' forw.
+ * ftp9  - SNAT.   Active ftp. Translating to a smaller address. 'PORT' forw.
+ * ftp10 - DNAT.   Active ftp. 'PORT' forw.
  */
 
 static void dpt_alg_ftp_setup(void);
@@ -59,11 +68,10 @@ static void dpt_alg_ftp_teardown(void);
 DP_DECL_TEST_SUITE(npf_alg_ftp);
 
 /*
- * alg_ftp1 - Passive ftp.  No firewall or NAT.
+ * ftp1 - Passive ftp.  No firewall or NAT.
  */
-DP_DECL_TEST_CASE(npf_alg_ftp, alg_ftp1, dpt_alg_ftp_setup,
-		  dpt_alg_ftp_teardown);
-DP_START_TEST(alg_ftp1, test)
+DP_DECL_TEST_CASE(npf_alg_ftp, ftp1, dpt_alg_ftp_setup, dpt_alg_ftp_teardown);
+DP_START_TEST(ftp1, test)
 {
 	struct dp_test_pkt_desc_t *ctrl_fw_pre, *ctrl_fw_pst;
 	struct dp_test_pkt_desc_t *ctrl_bk_pre, *ctrl_bk_pst;
@@ -245,11 +253,10 @@ DP_START_TEST(alg_ftp1, test)
 
 
 /*
- * alg_ftp1b - Passive ftp.  Stateful firewall on output interface.
+ * ftp2 - Passive ftp.  Stateful firewall on output interface.
  */
-DP_DECL_TEST_CASE(npf_alg_ftp, alg_ftp1b, dpt_alg_ftp_setup,
-		  dpt_alg_ftp_teardown);
-DP_START_TEST(alg_ftp1b, test)
+DP_DECL_TEST_CASE(npf_alg_ftp, ftp2, dpt_alg_ftp_setup, dpt_alg_ftp_teardown);
+DP_START_TEST(ftp2, test)
 {
 	struct dp_test_pkt_desc_t *ctrl_fw_pre, *ctrl_fw_pst;
 	struct dp_test_pkt_desc_t *ctrl_bk_pre, *ctrl_bk_pst;
@@ -463,10 +470,10 @@ DP_START_TEST(alg_ftp1b, test)
 
 
 /*
- * alg_ftp1c - Passive ftp.  Stateful firewall. IPv6.
+ * ftp3 - Passive ftp.  Stateful firewall. IPv6.
  */
-DP_DECL_TEST_CASE(npf_alg_ftp, alg_ftp1c, NULL, NULL);
-DP_START_TEST(alg_ftp1c, test)
+DP_DECL_TEST_CASE(npf_alg_ftp, ftp3, NULL, NULL);
+DP_START_TEST(ftp3, test)
 {
 	struct dp_test_pkt_desc_t *ctrl_fw_pre, *ctrl_fw_pst;
 	struct dp_test_pkt_desc_t *ctrl_bk_pre, *ctrl_bk_pst;
@@ -701,11 +708,13 @@ DP_START_TEST(alg_ftp1c, test)
 
 
 /*
- * alg_ftp2 - SNAT, Passive ftp.
+ * ftp4 - SNAT, Passive ftp.
+ *
+ * The packet containing the data address and port is from the server, so does
+ * not need translated.  Initial data pkt is *from* the client.
  */
-DP_DECL_TEST_CASE(npf_alg_ftp, alg_ftp2, dpt_alg_ftp_setup,
-		  dpt_alg_ftp_teardown);
-DP_START_TEST(alg_ftp2, test)
+DP_DECL_TEST_CASE(npf_alg_ftp, ftp4, dpt_alg_ftp_setup, dpt_alg_ftp_teardown);
+DP_START_TEST(ftp4, test)
 {
 	struct dp_test_pkt_desc_t *ctrl_fw_pre, *ctrl_fw_pst;
 	struct dp_test_pkt_desc_t *ctrl_bk_pre, *ctrl_bk_pst;
@@ -924,14 +933,13 @@ DP_START_TEST(alg_ftp2, test)
 
 
 /*
- * alg_ftp3 - DNAT, Passive ftp.
+ * ftp5 - DNAT, Passive ftp.
  *
  * With Passive FTP, the control and data flows both start in the same
  * direction (i.e. forwards).
  */
-DP_DECL_TEST_CASE(npf_alg_ftp, alg_ftp3, dpt_alg_ftp_setup,
-		  dpt_alg_ftp_teardown);
-DP_START_TEST(alg_ftp3, test)
+DP_DECL_TEST_CASE(npf_alg_ftp, ftp5, dpt_alg_ftp_setup, dpt_alg_ftp_teardown);
+DP_START_TEST(ftp5, test)
 {
 	struct dp_test_pkt_desc_t *ctrl_fw_pre, *ctrl_fw_pst;
 	struct dp_test_pkt_desc_t *ctrl_bk_pre, *ctrl_bk_pst;
@@ -1144,14 +1152,13 @@ DP_START_TEST(alg_ftp3, test)
 
 
 /*
- * alg_ftp4 - DNAT, Passive ftp. No parenthesis in 227 message.
+ * ftp6 - DNAT, Passive ftp. No parenthesis in 227 message.
  *
  * With Passive FTP, the control and data flows both start in the same
  * direction (i.e. forwards).
  */
-DP_DECL_TEST_CASE(npf_alg_ftp, alg_ftp4, dpt_alg_ftp_setup,
-		  dpt_alg_ftp_teardown);
-DP_START_TEST(alg_ftp4, test)
+DP_DECL_TEST_CASE(npf_alg_ftp, ftp6, dpt_alg_ftp_setup, dpt_alg_ftp_teardown);
+DP_START_TEST(ftp6, test)
 {
 	struct dp_test_pkt_desc_t *ctrl_fw_pre, *ctrl_fw_pst;
 	struct dp_test_pkt_desc_t *ctrl_bk_pre, *ctrl_bk_pst;
@@ -1241,7 +1248,7 @@ DP_START_TEST(alg_ftp4, test)
 	  * Packet descriptors for ftp ctrl flow
 	  */
 	struct dpt_tcp_flow ftp_ctrl_call = {
-		.text[0] = '\0',			/* description */
+		.text[0] = '\0',		/* description */
 		.isn = {0, 0},			/* initial seq no */
 		.desc[DPT_FORW] = {		/* Forw pkt descriptors */
 			.pre = ctrl_fw_pre,
@@ -1364,11 +1371,10 @@ DP_START_TEST(alg_ftp4, test)
 
 
 /*
- * alg_ftp5 - SNAT, Active ftp.
+ * ftp7 - SNAT, Active ftp.
  */
-DP_DECL_TEST_CASE(npf_alg_ftp, alg_ftp5, dpt_alg_ftp_setup,
-		  dpt_alg_ftp_teardown);
-DP_START_TEST(alg_ftp5, test)
+DP_DECL_TEST_CASE(npf_alg_ftp, ftp7, dpt_alg_ftp_setup, dpt_alg_ftp_teardown);
+DP_START_TEST(ftp7, test)
 {
 	struct dp_test_pkt_desc_t *ctrl_fw_pre, *ctrl_fw_pst;
 	struct dp_test_pkt_desc_t *ctrl_bk_pre, *ctrl_bk_pst;
@@ -1562,11 +1568,10 @@ DP_START_TEST(alg_ftp5, test)
 
 
 /*
- * alg_ftp5a - SNAT, Active ftp.  Translation address is larger.
+ * ftp9 - SNAT, Active ftp.  Translation address is larger.
  */
-DP_DECL_TEST_CASE(npf_alg_ftp, alg_ftp5a, dpt_alg_ftp_setup,
-		  dpt_alg_ftp_teardown);
-DP_START_TEST(alg_ftp5a, test)
+DP_DECL_TEST_CASE(npf_alg_ftp, ftp8, dpt_alg_ftp_setup, dpt_alg_ftp_teardown);
+DP_START_TEST(ftp8, test)
 {
 	struct dp_test_pkt_desc_t *ctrl_fw_pre, *ctrl_fw_pst;
 	struct dp_test_pkt_desc_t *ctrl_bk_pre, *ctrl_bk_pst;
@@ -1760,11 +1765,10 @@ DP_START_TEST(alg_ftp5a, test)
 
 
 /*
- * alg_ftp5b - SNAT, Active ftp.  Translation address is smaller.
+ * ftp9 - SNAT, Active ftp.  Translation address is smaller.
  */
-DP_DECL_TEST_CASE(npf_alg_ftp, alg_ftp5b, dpt_alg_ftp_setup,
-		  dpt_alg_ftp_teardown);
-DP_START_TEST(alg_ftp5b, test)
+DP_DECL_TEST_CASE(npf_alg_ftp, ftp9, dpt_alg_ftp_setup, dpt_alg_ftp_teardown);
+DP_START_TEST(ftp9, test)
 {
 	struct dp_test_pkt_desc_t *ctrl_fw_pre, *ctrl_fw_pst;
 	struct dp_test_pkt_desc_t *ctrl_bk_pre, *ctrl_bk_pst;
@@ -1958,11 +1962,10 @@ DP_START_TEST(alg_ftp5b, test)
 
 
 /*
- * alg_ftp6 - DNAT, Active ftp.
+ * ftp10 - DNAT, Active ftp.
  */
-DP_DECL_TEST_CASE(npf_alg_ftp, alg_ftp6, dpt_alg_ftp_setup,
-		  dpt_alg_ftp_teardown);
-DP_START_TEST(alg_ftp6, test)
+DP_DECL_TEST_CASE(npf_alg_ftp, ftp10, dpt_alg_ftp_setup, dpt_alg_ftp_teardown);
+DP_START_TEST(ftp10, test)
 {
 	struct dp_test_pkt_desc_t *ctrl_fw_pre, *ctrl_fw_pst;
 	struct dp_test_pkt_desc_t *ctrl_bk_pre, *ctrl_bk_pst;
