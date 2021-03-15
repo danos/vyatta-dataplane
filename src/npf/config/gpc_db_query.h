@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2020-2021, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -12,15 +12,29 @@
 
 struct gpc_rlset;
 struct gpc_group;
-struct gpc_cntr;
+struct gpc_cntg;
 struct gpc_rule;
+struct gpc_cntr;
 
 struct pmf_rule;
 
+/*
+ * When adding new features, check existing static arrays of
+ * GPC_FEAT__MAX elements, initialised based on the feature
+ * index. Also update the GPC_FEAT__LAST definition.
+ */
+#define GPC_FEAT__FIRST 1
 enum gpc_feature {
-	GPC_FEAT_ACL = 1,
+	GPC_FEAT_ACL = GPC_FEAT__FIRST,
 	GPC_FEAT_QOS,
 };
+#define GPC_FEAT__LAST (GPC_FEAT_QOS)
+#define GPC_FEAT__MAX (GPC_FEAT__LAST + 1)
+
+static inline bool gpc_feature_is_valid(enum gpc_feature feat)
+{
+	return (feat >= GPC_FEAT__FIRST && feat <= GPC_FEAT__LAST);
+}
 
 char const *gpc_feature_get_name(enum gpc_feature feat);
 
@@ -54,6 +68,7 @@ bool gpc_group_is_ll_created(struct gpc_group const *gprg);
 bool gpc_group_is_attached(struct gpc_group const *gprg);
 bool gpc_group_is_ll_attached(struct gpc_group const *gprg);
 bool gpc_group_is_deferred(struct gpc_group const *gprg);
+struct gpc_cntg *gpc_group_get_cntg(struct gpc_group const *gprg);
 uintptr_t gpc_group_get_objid(struct gpc_group const *gprg);
 
 void gpc_group_set_objid(struct gpc_group *gprg, uintptr_t objid);
@@ -68,22 +83,13 @@ struct gpc_group *gpc_group_next(struct gpc_group const *cursor);
 	    (var); \
 	    (var) = gpc_group_next((var)))
 
-/* -- counter accessors -- */
-
-struct gpc_group *gpc_cntr_get_group(struct gpc_cntr const *ark);
-uintptr_t gpc_cntr_get_objid(struct gpc_cntr const *ark);
-void gpc_cntr_set_objid(struct gpc_cntr *ark, uintptr_t objid);
-char const *gpc_cntr_get_name(struct gpc_cntr const *ark);
-bool gpc_cntr_pkt_enabled(struct gpc_cntr const *ark);
-bool gpc_cntr_byt_enabled(struct gpc_cntr const *ark);
-
 /* -- rule accessors -- */
 
 uint16_t gpc_rule_get_index(struct gpc_rule const *gprl);
 struct pmf_rule *gpc_rule_get_rule(struct gpc_rule const *gprl);
 struct gpc_group *gpc_rule_get_group(struct gpc_rule const *gprl);
 void *gpc_rule_get_owner(struct gpc_rule const *gprl);
-struct gpc_cntr *gpc_rule_get_cntr(struct gpc_rule *gprl);
+struct gpc_cntr *gpc_rule_get_cntr(struct gpc_rule const *gprl);
 uintptr_t gpc_rule_get_objid(struct gpc_rule const *gprl);
 void gpc_rule_set_objid(struct gpc_rule *gprl, uintptr_t objid);
 bool gpc_rule_is_published(struct gpc_rule const *gprl);

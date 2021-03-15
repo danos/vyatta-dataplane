@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2020-2021, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -10,11 +10,11 @@
 #include "vplane_log.h"
 #include "if_var.h"
 
+#include "npf/config/gpc_cntr_query.h"
 #include "npf/config/gpc_db_control.h"
 #include "npf/config/gpc_db_query.h"
-#include "npf/config/pmf_att_rlgrp.h"
 #include "npf/config/pmf_rule.h"
-#include "npf/config/pmf_hw.h"
+#include "npf/config/gpc_hw.h"
 
 /* -- ruleset -- */
 
@@ -51,6 +51,7 @@ struct gpc_group {
 	TAILQ_HEAD(gpc_rlqh, gpc_rule) gprg_rules;
 	void			*gprg_owner;	/* weak */
 	struct gpc_rlset	*gprg_rlset;
+	struct gpc_cntg		*gprg_cntg;	/* strong */
 	enum gpc_feature	gprg_feature;
 	char const		*gprg_rgname;	/* weak */
 	uintptr_t		gprg_objid;	/* FAL object */
@@ -58,21 +59,6 @@ struct gpc_group {
 	uint32_t		gprg_flags;
 };
 
-
-/* -- feature -- */
-
-char const *
-gpc_feature_get_name(enum gpc_feature feat)
-{
-	switch (feat) {
-	case GPC_FEAT_ACL:
-		return "ACL";
-	case GPC_FEAT_QOS:
-		return "QOS";
-	default:
-		return "Error";
-	}
-}
 
 /* -- rule -- */
 
@@ -85,6 +71,7 @@ struct gpc_rule {
 	TAILQ_ENTRY(gpc_rule)	gprl_list;
 	void			*gprl_owner;	/* weak */
 	struct gpc_group	*gprl_group;
+	struct gpc_cntr		*gprl_cntr;	/* strong */
 	struct pmf_rule		*gprl_rule;
 	uintptr_t		gprl_objid;	/* FAL object */
 	uint16_t		gprl_index;
@@ -95,6 +82,25 @@ struct gpc_rule {
 
 static TAILQ_HEAD(, gpc_rlset) att_rlsets
 	= TAILQ_HEAD_INITIALIZER(att_rlsets);
+
+/* -- feature utility -- */
+
+char const *
+gpc_feature_get_name(enum gpc_feature feat)
+{
+	if (!gpc_feature_is_valid(feat))
+		goto error;
+
+	switch (feat) {
+	case GPC_FEAT_ACL:
+		return "ACL";
+	case GPC_FEAT_QOS:
+		return "QOS";
+	}
+
+error:
+	return "Error";
+}
 
 /* -- ruleset accessors -- */
 
@@ -293,6 +299,12 @@ gpc_group_get_objid(struct gpc_group const *gprg)
 	return gprg->gprg_objid;
 }
 
+struct gpc_cntg *
+gpc_group_get_cntg(struct gpc_group const *gprg)
+{
+	return gprg->gprg_cntg;
+}
+
 /* -- group manipulators -- */
 
 void
@@ -380,6 +392,12 @@ gpc_group_set_objid(struct gpc_group *gprg, uintptr_t objid)
 	gprg->gprg_objid = objid;
 }
 
+void
+gpc_group_set_cntg(struct gpc_group *gprg, struct gpc_cntg *cntg)
+{
+	gprg->gprg_cntg = cntg;
+}
+
 /* -- group DB misc -- */
 
 /*
@@ -439,6 +457,7 @@ gpc_group_create(struct gpc_rlset *gprs, enum gpc_feature feat,
 
 	gprg->gprg_owner = owner;
 	gprg->gprg_rlset = gprs;
+	gprg->gprg_cntg = NULL;
 	gprg->gprg_feature = feat;
 	gprg->gprg_rgname = rg_name;
 	TAILQ_INIT(&gprg->gprg_rules);
@@ -466,7 +485,7 @@ gpc_group_hw_ntfy_create(struct gpc_group *gprg, struct pmf_rule *rule)
 	uint32_t summary = gpc_group_recalc_summary(gprg, rule);
 	gprg->gprg_summary = summary;
 
-	if (pmf_hw_group_create(gprg))
+	if (gpc_hw_group_create(gprg))
 		gpc_group_set_ll_created(gprg);
 
 	gpc_group_set_published(gprg);
@@ -478,7 +497,7 @@ gpc_group_hw_ntfy_delete(struct gpc_group *gprg)
 	if (!gpc_group_is_published(gprg))
 		return;
 
-	pmf_hw_group_delete(gprg);
+	gpc_hw_group_delete(gprg);
 
 	/* Rules summary cleared to optimise rule delete */
 	gprg->gprg_summary = 0;
@@ -496,7 +515,7 @@ gpc_group_hw_ntfy_modify(struct gpc_group *gprg, uint32_t new)
 	if (new == gprg->gprg_summary)
 		return;
 
-	pmf_hw_group_mod(gprg, new);
+	gpc_hw_group_mod(gprg, new);
 
 	gprg->gprg_summary = new;
 }
@@ -517,7 +536,7 @@ gpc_group_hw_ntfy_attach(struct gpc_group *gprg)
 	if (!att_ifp || !gpc_rlset_is_if_created(gprs))
 		return;
 
-	if (pmf_hw_group_attach(gprg, att_ifp))
+	if (gpc_hw_group_attach(gprg, att_ifp))
 		gpc_group_set_ll_attached(gprg);
 
 	gpc_group_set_attached(gprg);
@@ -534,7 +553,7 @@ gpc_group_hw_ntfy_detach(struct gpc_group *gprg)
 	struct gpc_rlset *gprs = gprg->gprg_rlset;
 	struct ifnet *att_ifp = gpc_rlset_get_ifp(gprs);
 
-	pmf_hw_group_detach(gprg, att_ifp);
+	gpc_hw_group_detach(gprg, att_ifp);
 
 	gpc_group_clear_ll_attached(gprg);
 	gpc_group_clear_attached(gprg);
@@ -571,44 +590,6 @@ gpc_group_hw_ntfy_rules_delete(struct gpc_group *gprg)
 }
 
 
-/* -- counter accessors -- */
-
-struct gpc_group *
-gpc_cntr_get_group(struct gpc_cntr const *ark)
-{
-	return pmf_arlg_cntr_get_grp((struct pmf_cntr const *)ark);
-}
-
-uintptr_t
-gpc_cntr_get_objid(struct gpc_cntr const *ark)
-{
-	return pmf_arlg_cntr_get_objid((struct pmf_cntr const *)ark);
-}
-
-void
-gpc_cntr_set_objid(struct gpc_cntr *ark, uintptr_t objid)
-{
-	pmf_arlg_cntr_set_objid((struct pmf_cntr *)ark, objid);
-}
-
-char const *
-gpc_cntr_get_name(struct gpc_cntr const *ark)
-{
-	return pmf_arlg_cntr_get_name((struct pmf_cntr const *)ark);
-}
-
-bool
-gpc_cntr_pkt_enabled(struct gpc_cntr const *ark)
-{
-	return pmf_arlg_cntr_pkt_enabled((struct pmf_cntr const *)ark);
-}
-
-bool
-gpc_cntr_byt_enabled(struct gpc_cntr const *ark)
-{
-	return pmf_arlg_cntr_byt_enabled((struct pmf_cntr const *)ark);
-}
-
 /* -- rule accessors -- */
 
 uint16_t
@@ -636,11 +617,9 @@ gpc_rule_get_owner(struct gpc_rule const *gprl)
 }
 
 struct gpc_cntr *
-gpc_rule_get_cntr(struct gpc_rule *gprl)
+gpc_rule_get_cntr(struct gpc_rule const *gprl)
 {
-	struct pmf_cntr *eark
-		= pmf_arlg_attrl_get_cntr(gprl->gprl_owner);
-	return (struct gpc_cntr *)eark;
+	return gprl->gprl_cntr;
 }
 
 uintptr_t
@@ -691,6 +670,12 @@ void
 gpc_rule_set_objid(struct gpc_rule *gprl, uintptr_t objid)
 {
 	gprl->gprl_objid = objid;
+}
+
+void
+gpc_rule_set_cntr(struct gpc_rule *gprl, struct gpc_cntr *cntr)
+{
+	gprl->gprl_cntr = cntr;
 }
 
 /* -- rule DB walk -- */
@@ -821,6 +806,7 @@ gpc_rule_create(struct gpc_group *gprg, uint32_t rl_idx, void *owner)
 
 	return gprl;
 }
+
 /* -- rule hardware notify -- */
 
 void
@@ -831,12 +817,7 @@ gpc_rule_hw_ntfy_create(struct gpc_group *gprg, struct gpc_rule *gprl)
 	if (gpc_rule_is_published(gprl))
 		return;
 
-	/* These counter related lines need to move */
-	struct pmf_group_ext *earg = gpc_group_get_owner(gprg);
-
-	pmf_arlg_hw_ntfy_cntr_add(earg, gpc_rule_get_owner(gprl));
-
-	if (pmf_hw_rule_add(gprl))
+	if (gpc_hw_rule_add(gprl))
 		gpc_rule_set_ll_created(gprl);
 
 	gpc_rule_set_published(gprl);
@@ -853,7 +834,7 @@ gpc_rule_hw_ntfy_modify(struct gpc_group *gprg, struct gpc_rule *gprl,
 		return;
 	}
 
-	pmf_hw_rule_mod(gprl, old_rule);
+	gpc_hw_rule_mod(gprl, old_rule);
 }
 
 void
@@ -864,14 +845,9 @@ gpc_rule_hw_ntfy_delete(struct gpc_group *gprg, struct gpc_rule *gprl)
 	if (!gpc_rule_is_published(gprl))
 		return;
 
-	pmf_hw_rule_del(gprl);
+	gpc_hw_rule_del(gprl);
 
 	gpc_rule_clear_ll_created(gprl);
 	gpc_rule_clear_published(gprl);
-
-	/* These counter related lines need to move */
-	struct pmf_group_ext *earg = gpc_group_get_owner(gprg);
-
-	pmf_arlg_hw_ntfy_cntr_del(earg, gpc_rule_get_owner(gprl));
 }
 

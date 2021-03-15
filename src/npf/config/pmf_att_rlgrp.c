@@ -14,38 +14,18 @@
 #include "vplane_log.h"
 #include "if_var.h"
 
+#include "npf/config/gpc_cntr_query.h"
+#include "npf/config/gpc_cntr_control.h"
 #include "npf/config/gpc_db_control.h"
 #include "npf/config/gpc_db_query.h"
 #include "npf/config/pmf_rule.h"
 #include "npf/config/pmf_att_rlgrp.h"
 #include "npf/config/npf_attach_point.h"
 #include "npf/config/npf_rule_group.h"
-#include "npf/config/pmf_hw.h"
+#include "npf/config/gpc_hw.h"
 #include "dp_event.h"
 
 #define CNTR_NAME_LEN	8
-
-enum pmf_eark_flags {
-	PMF_EARKF_PUBLISHED	= (1 << 0),
-	PMF_EARKF_LL_CREATED	= (1 << 1),
-	PMF_EARKF_CNT_PACKET	= (1 << 2),
-	PMF_EARKF_CNT_BYTE	= (1 << 3),
-	PMF_EARKF_TYPE_NAMED	= (1 << 4),
-};
-
-struct pmf_cntr {
-	TAILQ_ENTRY(pmf_cntr)	eark_list;
-	struct pmf_group_ext	*eark_group;
-	char			eark_name[CNTR_NAME_LEN];
-	uintptr_t		eark_objid;	/* FAL object */
-	uint16_t		eark_flags;
-	uint16_t		eark_refcount;
-};
-
-struct pmf_attrl {
-	struct gpc_rule		*earl_gprl;	/* strong */
-	struct pmf_cntr		*earl_cntr;
-};
 
 enum pmf_earg_flags {
 	PMF_EARGF_RULE_ATTR	= (1 << 0),
@@ -53,16 +33,10 @@ enum pmf_earg_flags {
 
 struct pmf_group_ext {
 	struct gpc_group	*earg_gprg;	/* strong */
-	TAILQ_HEAD(pmf_cnqh, pmf_cntr) earg_cntrs;
 	struct npf_attpt_group	*earg_base;
 	struct pmf_rule		*earg_attr_rule;
 	uint32_t		earg_num_rules;
 	uint32_t		earg_flags;
-};
-
-struct pmf_rlset_ext {
-	struct gpc_rlset	*ears_gprs;	/* strong */
-	struct npf_attpt_rlset	*ears_base;
 };
 
 /* ---- */
@@ -73,323 +47,272 @@ static bool commit_pending;
 
 /* ---- */
 
-struct pmf_cntr *
-pmf_arlg_attrl_get_cntr(struct pmf_attrl *earl)
+void *
+pmf_arlg_earg_get_attr_rule(void *earg_ptr)
 {
-	struct pmf_cntr *eark = earl->earl_cntr;
-	if (!eark)
+	struct pmf_group_ext *earg = earg_ptr;
+	if (!earg)
 		return NULL;
 
-	if (!(eark->eark_flags & PMF_EARKF_PUBLISHED))
+	uint32_t rg_flags = earg->earg_flags;
+	if (!(rg_flags & PMF_EARGF_RULE_ATTR))
 		return NULL;
 
-	return eark;
+	return earg->earg_attr_rule;
 }
 
-struct gpc_group *
-pmf_arlg_cntr_get_grp(struct pmf_cntr const *eark)
+uint32_t
+pmf_arlg_earg_get_rule_count(void *earg_ptr)
 {
-	return eark->eark_group->earg_gprg;
-}
-
-uintptr_t
-pmf_arlg_cntr_get_objid(struct pmf_cntr const *eark)
-{
-	if (!eark)
+	struct pmf_group_ext *earg = earg_ptr;
+	if (!earg)
 		return 0;
 
-	return eark->eark_objid;
+	return earg->earg_num_rules;
 }
 
-void
-pmf_arlg_cntr_set_objid(struct pmf_cntr *eark, uintptr_t objid)
-{
-	eark->eark_objid = objid;
-}
-
-char const *
-pmf_arlg_cntr_get_name(struct pmf_cntr const *eark)
-{
-	return eark->eark_name;
-}
-
-bool
-pmf_arlg_cntr_pkt_enabled(struct pmf_cntr const *eark)
-{
-	return (eark->eark_flags & PMF_EARKF_CNT_PACKET);
-}
-
-bool
-pmf_arlg_cntr_byt_enabled(struct pmf_cntr const *eark)
-{
-	return (eark->eark_flags & PMF_EARKF_CNT_BYTE);
-}
-
-/*
- * Returns true if the group has named counters (e.g. auto-per-action).
- */
 static bool
-pmf_arlg_cntr_type_named(struct pmf_group_ext const *earg)
+pmf_arlg_rule_needs_cntr(struct gpc_cntg const *cntg,
+			 struct pmf_rule const *rule)
 {
-	uint32_t summary = gpc_group_get_summary(earg->earg_gprg);
+	enum gpc_cntr_type type = gpc_cntg_type(cntg);
 
-	if (summary & PMF_RAS_COUNT_DEF)
-		return (summary & PMF_SUMMARY_COUNT_DEF_NAMED_FLAGS);
-	return false;
-}
-
-/*
- * Returns true if the group has numbered counters (auto-per-rule).
- */
-static bool
-pmf_arlg_cntr_type_numbered(struct pmf_group_ext const *earg)
-{
-	uint32_t summary = gpc_group_get_summary(earg->earg_gprg);
-
-	if (summary & PMF_RAS_COUNT_DEF)
-		return !pmf_arlg_cntr_type_named(earg);
-	return false;
-}
-
-/*
- * Returns true if the auto-per-action group has action "accept" counters.
- */
-static bool
-pmf_arlg_cntr_type_named_accept(struct pmf_group_ext const *earg)
-{
-	uint32_t summary = gpc_group_get_summary(earg->earg_gprg);
-
-	if (summary & PMF_RAS_COUNT_DEF)
-		return (summary & PMF_RAS_COUNT_DEF_PASS);
-	return false;
-}
-
-/*
- * Returns true if the auto-per-action group has action "drop" counters.
- */
-static bool
-pmf_arlg_cntr_type_named_drop(struct pmf_group_ext const *earg)
-{
-	uint32_t summary = gpc_group_get_summary(earg->earg_gprg);
-
-	if (summary & PMF_RAS_COUNT_DEF)
-		return (summary & PMF_RAS_COUNT_DEF_DROP);
-	return false;
-}
-
-static struct pmf_cntr *
-pmf_arlg_find_cntr(struct pmf_group_ext *earg, const char *name)
-{
-	struct pmf_cntr *eark;
-
-	TAILQ_FOREACH(eark, &earg->earg_cntrs, eark_list)
-		if (strcmp(name, eark->eark_name) == 0)
-			return eark;
-
-	return NULL;
-}
-
-static void
-pmf_arlg_cntr_refcount_inc(struct pmf_cntr *eark)
-{
-	eark->eark_refcount++;
-}
-
-/*
- * Decrements the number of users of the counter.
- * Returns true if the counter still has users left.
- */
-static bool
-pmf_arlg_cntr_refcount_dec(struct pmf_cntr *eark)
-{
-	if (--eark->eark_refcount > 0)
+	switch (type) {
+	case GPC_CNTT_NUMBERED:
 		return true;
-
-	return false;
-}
-
-static struct pmf_cntr *
-pmf_arlg_alloc_cntr(struct pmf_group_ext *earg, const char *name)
-{
-	struct pmf_cntr *eark;
-
-	eark = calloc(1, sizeof(*eark));
-	if (!eark) {
-		RTE_LOG(ERR, FIREWALL,
-			"Error: OOM for counter %s\n", name);
-		return NULL;
+	case GPC_CNTT_NAMED:
+		break;
+	default:
+		return false;
 	}
-	snprintf(eark->eark_name, sizeof(eark->eark_name), "%s", name);
-	TAILQ_INSERT_HEAD(&earg->earg_cntrs, eark, eark_list);
-
-	return eark;
-}
-
-static void
-pmf_arlg_free_cntr(struct pmf_group_ext *earg, struct pmf_cntr *eark)
-{
-	if (!earg || !eark)
-		return;
-
-	TAILQ_REMOVE(&earg->earg_cntrs, eark, eark_list);
-	free(eark);
-}
-
-static struct pmf_cntr *
-pmf_arlg_get_or_alloc_cntr(struct pmf_group_ext *earg, const char *name)
-{
-	struct pmf_cntr *eark;
-
-	if (!earg || !name)
-		return NULL;
-
-	eark = pmf_arlg_find_cntr(earg, name);
-
-	if (!eark) {
-		eark = pmf_arlg_alloc_cntr(earg, name);
-		if (!eark)
-			return NULL;
-	}
-
-	pmf_arlg_cntr_refcount_inc(eark);
-
-	return eark;
-}
-
-static struct pmf_cntr *
-pmf_arlg_alloc_numbered_cntr(struct pmf_group_ext *earg, struct pmf_attrl *earl)
-{
-	char eark_name[CNTR_NAME_LEN];
-	struct pmf_cntr *eark;
-
-	if (!earg || !earl)
-		return NULL;
-
-	uint32_t rule_index = gpc_rule_get_index(earl->earl_gprl);
-	snprintf(eark_name, sizeof(eark_name), "%u", rule_index);
-	if (pmf_arlg_find_cntr(earg, eark_name)) {
-		RTE_LOG(ERR, FIREWALL,
-			"Error: Attempt to alloc numbered counter that already exists (%d)\n",
-			rule_index);
-		return NULL;
-	}
-
-	eark = pmf_arlg_alloc_cntr(earg, eark_name);
-	if (!eark)
-		return NULL;
-
-	pmf_arlg_cntr_refcount_inc(eark);
-
-	return eark;
-}
-
-static struct pmf_cntr *
-pmf_arlg_get_or_alloc_named_cntr(struct pmf_group_ext *earg, const char *name)
-{
-	struct pmf_cntr *eark;
-
-	eark = pmf_arlg_get_or_alloc_cntr(earg, name);
-	if (!eark)
-		return NULL;
-
-	/* Is it a new counter? */
-	if (!(eark->eark_flags & PMF_EARKF_PUBLISHED))
-		eark->eark_flags |= PMF_EARKF_TYPE_NAMED;
-
-	return eark;
-}
-
-static struct pmf_cntr *
-pmf_arlg_get_or_alloc_action_cntr_accept(struct pmf_group_ext *earg)
-{
-	return pmf_arlg_get_or_alloc_named_cntr(earg, "accept");
-}
-
-static struct pmf_cntr *
-pmf_arlg_get_or_alloc_action_cntr_drop(struct pmf_group_ext *earg)
-{
-	return pmf_arlg_get_or_alloc_named_cntr(earg, "drop");
-}
-
-/* ---- */
-
-/* ---- */
-
-void
-pmf_arlg_hw_ntfy_cntr_add(struct pmf_group_ext *earg, struct pmf_attrl *earl)
-{
-	if (!gpc_group_is_published(earg->earg_gprg))
-		return;
-
-	struct pmf_rule *rule = gpc_rule_get_rule(earl->earl_gprl);
 
 	if (!(rule->pp_summary & PMF_RAS_COUNT_REF))
-		return;
+		return false;
 
-	struct pmf_cntr *eark = NULL;
+	return true;
+}
 
-	if (pmf_arlg_cntr_type_numbered(earg)) {
-		/* Counter type: auto-per-rule: */
-		eark = pmf_arlg_alloc_numbered_cntr(earg, earl);
-		if (!eark)
-			return;
-		earl->earl_cntr = eark;
-	} else if (pmf_arlg_cntr_type_named(earg)) {
-		/* Counter type: auto-per-action: */
+static struct gpc_cntr *
+pmf_arlg_rule_get_cntr(struct gpc_cntg *cntg,
+		       struct pmf_rule const *rule,
+		       uint32_t rl_number)
+{
+	enum gpc_cntr_type type = gpc_cntg_type(cntg);
+	struct gpc_cntr *cntr = NULL;
 
-		/* Rule's action should have a counter? */
-		if (pmf_arlg_cntr_type_named_accept(earg) &&
-		    (rule->pp_summary & PMF_RAS_PASS))
-			eark = pmf_arlg_get_or_alloc_action_cntr_accept(earg);
-
-		if (pmf_arlg_cntr_type_named_drop(earg) &&
-		    (rule->pp_summary & PMF_RAS_DROP))
-			eark = pmf_arlg_get_or_alloc_action_cntr_drop(earg);
-
-		if (!eark)
-			return;
-
-		earl->earl_cntr = eark;
-	} else
-		return;
-
-	if (!(eark->eark_flags & PMF_EARKF_PUBLISHED)) {
-		eark->eark_group = earg;
-		eark->eark_objid = 0;
-		eark->eark_flags |= PMF_EARKF_CNT_PACKET;
-		eark->eark_flags |= PMF_EARKF_PUBLISHED;
+	if (type == GPC_CNTT_NUMBERED)
+		cntr = gpc_cntr_create_numbered(cntg, rl_number);
+	else if (type == GPC_CNTT_NAMED) {
+		/* This needs to be done better */
+		if (rule->pp_summary & PMF_RAS_PASS)
+			cntr = gpc_cntr_find_and_retain(cntg, "accept");
+		else if (rule->pp_summary & PMF_RAS_DROP)
+			cntr = gpc_cntr_find_and_retain(cntg, "drop");
 	}
 
-	if (!(eark->eark_flags & PMF_EARKF_LL_CREATED))
-		if (pmf_hw_counter_create(eark))
-			eark->eark_flags |= PMF_EARKF_LL_CREATED;
+	return cntr;
 }
 
-void
-pmf_arlg_hw_ntfy_cntr_del(struct pmf_group_ext *earg, struct pmf_attrl *earl)
+/*
+ * The logic in here should really be based upon the names extracted
+ * as part of the rproc.
+ */
+static void
+pmf_arlg_rule_create_cntg_rules(struct gpc_group *gprg,
+				struct gpc_cntg *cntg,
+				struct pmf_rule const *attr_rule)
 {
-	if (!gpc_group_is_published(earg->earg_gprg))
-		return;
+	struct gpc_cntr *cntr = NULL;
+	char const *cntr_name;
 
-	struct pmf_cntr *eark = earl->earl_cntr;
-	if (!eark)
-		return;
+	/* What do we need? */
+	bool const need_accept = attr_rule->pp_summary & PMF_RAS_COUNT_DEF_PASS;
+	bool const need_drop = attr_rule->pp_summary & PMF_RAS_COUNT_DEF_DROP;
 
-	earl->earl_cntr = NULL;
+	/* Have we got "accept"? */
+	bool got_accept = false;
+	cntr = gpc_cntr_find_and_retain(cntg, "accept");
+	got_accept = !!cntr;
+	if (cntr)
+		gpc_cntr_release(cntr);
 
-	if (pmf_arlg_cntr_refcount_dec(eark))
-		return;
+	/* Have we got "drop"? */
+	bool got_drop = false;
+	cntr = gpc_cntr_find_and_retain(cntg, "drop");
+	got_drop = !!cntr;
+	if (cntr)
+		gpc_cntr_release(cntr);
 
-	if (eark->eark_flags & PMF_EARKF_LL_CREATED)
-		pmf_hw_counter_delete(eark);
+	/* Make "accept" if needed and not present */
+	if (need_accept && !got_accept) {
+		cntr_name = "accept";
+		cntr = gpc_cntr_create_named(cntg, cntr_name);
+		if (!cntr) {
+cntr_error:
+			;/* semi-colon for goto target */
+			struct gpc_rlset *gprs = gpc_group_get_rlset(gprg);
+			bool dir_in = gpc_rlset_is_ingress(gprs);
+			RTE_LOG(ERR, FIREWALL,
+				"Error: OOM for ACL attached group cntr=%s"
+				" %s/%s|%s\n",
+				cntr_name,
+				(dir_in) ? " In" : "Out",
+				gpc_rlset_get_ifname(gprs),
+				gpc_group_get_name(gprg));
+			return;
+		}
+		gpc_cntr_hw_ntfy_create(cntg, cntr);
+	}
 
-	pmf_arlg_free_cntr(earg, eark);
+	/* Make "drop" if needed and not present */
+	if (need_drop && !got_drop) {
+		cntr_name = "drop";
+		cntr = gpc_cntr_create_named(cntg, cntr_name);
+		if (!cntr)
+			goto cntr_error;
+		gpc_cntr_hw_ntfy_create(cntg, cntr);
+	}
 }
 
-/* ---- */
+static void
+pmf_arlg_rule_create_cntg(struct gpc_group *gprg,
+			  struct pmf_rule const *attr_rule)
+{
+	struct gpc_cntg *cntg;
 
+	if (!(attr_rule->pp_summary & PMF_RAS_COUNT_DEF))
+		return;
 
-/* ---- */
+	/*
+	 * This should be changed to depend upon information extracted
+	 * from the rproc, specifically the 'type=' key/value pair.
+	 */
+	enum gpc_cntr_type type = GPC_CNTT_NUMBERED;
+	if (attr_rule->pp_summary & PMF_SUMMARY_COUNT_DEF_NAMED_FLAGS)
+		type = GPC_CNTT_NAMED;
+
+	cntg = gpc_cntg_create(gprg, type,
+			       GPC_CNTW_PACKET, GPC_CNTS_INTERFACE);
+	if (!cntg) {
+		struct gpc_rlset *gprs = gpc_group_get_rlset(gprg);
+		bool dir_in = gpc_rlset_is_ingress(gprs);
+		RTE_LOG(ERR, FIREWALL,
+			"Error: OOM for ACL attached group cntg"
+			" %s/%s|%s\n",
+			(dir_in) ? " In" : "Out", gpc_rlset_get_ifname(gprs),
+			gpc_group_get_name(gprg));
+		return;
+	}
+
+	gpc_group_set_cntg(gprg, cntg);
+
+	if (type != GPC_CNTT_NAMED)
+		return;
+
+	pmf_arlg_rule_create_cntg_rules(gprg, cntg, attr_rule);
+}
+
+static void
+pmf_arlg_rule_delete_cntg(struct gpc_cntg *cntg)
+{
+	if (gpc_cntg_type(cntg) == GPC_CNTT_NAMED) {
+		struct gpc_cntr *cntr;
+		GPC_CNTR_FOREACH(cntr, cntg) {
+			gpc_cntr_release(cntr);
+		}
+	}
+
+	gpc_cntg_release(cntg);
+}
+
+static void
+pmf_arlg_rl_attr_check(struct pmf_group_ext *earg, struct pmf_rule *attr_rule);
+
+static void
+pmf_arlg_rule_change_cntg(struct pmf_group_ext *earg,
+			  struct gpc_group *gprg,
+			  struct pmf_rule *attr_rule)
+{
+	struct gpc_cntg *cntg = gpc_group_get_cntg(gprg);
+	if (!cntg) {
+		pmf_arlg_rule_create_cntg(gprg, attr_rule);
+		pmf_arlg_rl_attr_check(earg, attr_rule);
+		return;
+	}
+
+	if (!(attr_rule->pp_summary & PMF_RAS_COUNT_DEF)) {
+		pmf_arlg_rule_delete_cntg(cntg);
+		gpc_group_set_cntg(gprg, NULL);
+		return;
+	}
+
+	/* Check if the counter type has changed */
+	enum gpc_cntr_type type = GPC_CNTT_NUMBERED;
+	if (attr_rule->pp_summary & PMF_SUMMARY_COUNT_DEF_NAMED_FLAGS)
+		type = GPC_CNTT_NAMED;
+
+	if (type != gpc_cntg_type(cntg)) {
+		pmf_arlg_rl_attr_check(earg, NULL);
+
+		pmf_arlg_rule_delete_cntg(cntg);
+		gpc_group_set_cntg(gprg, NULL);
+		pmf_arlg_rule_create_cntg(gprg, attr_rule);
+
+		pmf_arlg_rl_attr_check(earg, attr_rule);
+		return;
+	}
+
+	/* Same type of counters, nothing to do for numbered */
+	if (type == GPC_CNTT_NUMBERED)
+		return;
+
+	/* We could have changed the specific named counters */
+	bool const need_accept = attr_rule->pp_summary & PMF_RAS_COUNT_DEF_PASS;
+	bool const need_drop = attr_rule->pp_summary & PMF_RAS_COUNT_DEF_DROP;
+
+	bool got_accept = false;
+	struct gpc_cntr *cntr_accept
+		= gpc_cntr_find_and_retain(cntg, "accept");
+	got_accept = !!cntr_accept;
+
+	bool got_drop = false;
+	struct gpc_cntr *cntr_drop = gpc_cntr_find_and_retain(cntg, "drop");
+	got_drop = !!cntr_drop;
+
+	/* If we have what we need, nothing to do */
+	if ((got_accept == need_accept) && (got_drop == need_drop)) {
+		if (cntr_accept)
+			gpc_cntr_release(cntr_accept);
+		if (cntr_drop)
+			gpc_cntr_release(cntr_drop);
+		return;
+	}
+
+	/* Force all rules to be unpublished (inefficient, but simple) */
+	pmf_arlg_rl_attr_check(earg, NULL);
+
+	/* Create any missing counters */
+	if ((need_accept && !got_accept) || (need_drop && !got_drop))
+		pmf_arlg_rule_create_cntg_rules(gprg, cntg, attr_rule);
+
+	/* Release unneeded counters */
+
+	if (got_accept && !need_accept)
+		gpc_cntr_release(cntr_accept);
+
+	if (got_drop && !need_drop)
+		gpc_cntr_release(cntr_drop);
+
+	/* Force all to be republished */
+	pmf_arlg_rl_attr_check(earg, attr_rule);
+
+	/* Release references from lookup */
+	if (cntr_accept)
+		gpc_cntr_release(cntr_accept);
+	if (cntr_drop)
+		gpc_cntr_release(cntr_drop);
+}
+
 
 /* ---- */
 
@@ -400,6 +323,7 @@ static void
 pmf_arlg_rl_attr_check(struct pmf_group_ext *earg, struct pmf_rule *attr_rule)
 {
 	struct gpc_group *gprg = earg->earg_gprg;
+	struct gpc_cntg *cntg = gpc_group_get_cntg(gprg);
 	struct pmf_attr_ip_family *ipfam = NULL;
 
 	/* The group attribute rule has been removed */
@@ -411,7 +335,8 @@ unpublish_group:
 		if (gpc_group_is_published(gprg)) {
 			gpc_group_hw_ntfy_detach(gprg);
 			gpc_group_hw_ntfy_rules_delete(gprg);
-			/* eventually delete counters */
+			if (cntg)
+				gpc_cntg_hw_ntfy_cntrs_delete(cntg);
 			gpc_group_hw_ntfy_delete(gprg);
 			/* Enable deferred republish */
 			gpc_group_set_deferred(gprg);
@@ -442,7 +367,8 @@ publish_group:
 
 		/* Now publish everything referencing the group */
 		gpc_group_hw_ntfy_create(gprg, attr_rule);
-		/* eventually create counters */
+		if (cntg)
+			gpc_cntg_hw_ntfy_cntrs_create(cntg);
 		gpc_group_hw_ntfy_rules_create(gprg);
 		gpc_group_hw_ntfy_attach(gprg);
 
@@ -476,7 +402,8 @@ publish_group:
 	if (gpc_group_is_published(gprg)) {
 		gpc_group_hw_ntfy_detach(gprg);
 		gpc_group_hw_ntfy_rules_delete(gprg);
-		/* eventually delete counters */
+		if (cntg)
+			gpc_cntg_hw_ntfy_cntrs_delete(cntg);
 		gpc_group_hw_ntfy_delete(gprg);
 	}
 	earg->earg_flags &= ~PMF_EARGF_RULE_ATTR;
@@ -503,6 +430,12 @@ pmf_arlg_rl_del(struct pmf_group_ext *earg, uint32_t rl_idx)
 		pmf_arlg_rl_attr_check(earg, NULL);
 		earg->earg_attr_rule = NULL;
 		pmf_rule_free(attr_rule);
+
+		struct gpc_cntg *cntg = gpc_group_get_cntg(gprg);
+		if (cntg) {
+			pmf_arlg_rule_delete_cntg(cntg);
+			gpc_group_set_cntg(gprg, NULL);
+		}
 		return true;
 	}
 
@@ -518,14 +451,17 @@ rule_del_error:
 	}
 
 	uint32_t old_summary = gpc_group_get_summary(gprg);
-	struct pmf_attrl *earl = gpc_rule_get_owner(gprl);
 
 	--earg->earg_num_rules;
 
 	gpc_rule_hw_ntfy_delete(gprg, gprl);
+
+	struct gpc_cntr *cntr = gpc_rule_get_cntr(gprl);
+
 	gpc_rule_delete(gprl);
 
-	free(earl);
+	if (cntr)
+		gpc_cntr_release(cntr);
 
 	/* If any were published, recalculate and notify */
 	if (old_summary) {
@@ -549,7 +485,8 @@ pmf_arlg_rl_chg(struct pmf_group_ext *earg,
 		struct pmf_rule *old_attr_rule = earg->earg_attr_rule;
 		if (!old_attr_rule)
 			goto rule_chg_error;
-		pmf_arlg_rl_attr_check(earg, new_rule);
+		pmf_arlg_rule_change_cntg(earg, gprg, new_rule);
+
 		earg->earg_attr_rule = pmf_rule_copy(new_rule);
 		pmf_rule_free(old_attr_rule);
 		return true;
@@ -566,6 +503,51 @@ rule_chg_error:
 		return false;
 	}
 
+	/* Adjust a counter if necessary */
+	struct gpc_cntg *cntg = gpc_group_get_cntg(gprg);
+	struct gpc_cntr *rel_cntr = NULL;
+
+	/* If the group has counters configured */
+	if (cntg) {
+		struct gpc_cntr *cntr = gpc_rule_get_cntr(gprl);
+		bool need_counter = pmf_arlg_rule_needs_cntr(cntg, new_rule);
+		if (!need_counter) {
+			/* This rule should release its counter (if any) */
+			rel_cntr = cntr;
+		} else if (!cntr) {
+			/* Need a counter, but don't have one - acquire one */
+			cntr = pmf_arlg_rule_get_cntr(cntg, new_rule, rl_idx);
+			gpc_rule_set_cntr(gprl, cntr);
+			gpc_cntr_hw_ntfy_create(cntg, cntr);
+		} else {
+			/* Counter needed, and/or rule match have changed */
+			if (gpc_cntg_type(cntg) == GPC_CNTT_NAMED) {
+				struct gpc_cntr *new_cntr
+					= pmf_arlg_rule_get_cntr(cntg,
+								 new_rule, 0);
+				if (new_cntr == cntr) {
+					gpc_cntr_release(new_cntr);
+					/* Do we need to clear the counter? */
+				} else {
+					gpc_rule_set_cntr(gprl, new_cntr);
+					gpc_cntr_hw_ntfy_create(cntg, new_cntr);
+					rel_cntr = cntr;
+				}
+			}
+			/*
+			 * The below call to gpc_rule_change_rule() will
+			 * eventually publish the rule if unpublished,
+			 * or delete it and add a new one (which we desire
+			 * here) if already published.
+			 *
+			 * This is necessary as at the FAL layer, a rule
+			 * references a counter, so changing the counter
+			 * requires changing the rule; and we don't have
+			 * support for in-place modify.
+			 */
+		}
+	}
+
 	/* If any were published, update and notify */
 	uint32_t old_summary = gpc_group_get_summary(gprg);
 
@@ -577,6 +559,10 @@ rule_chg_error:
 		uint32_t summary = gpc_group_recalc_summary(gprg, attr_rule);
 		gpc_group_hw_ntfy_modify(gprg, summary);
 	}
+
+	/* Release a counter, possibly freeing it */
+	if (rel_cntr)
+		gpc_cntr_release(rel_cntr);
 
 	return true;
 }
@@ -601,32 +587,39 @@ pmf_arlg_rl_add(struct pmf_group_ext *earg,
 			return false;
 		}
 
-		earg->earg_attr_rule = pmf_rule_copy(rule);
+		rule = pmf_rule_copy(rule);
+		pmf_arlg_rule_create_cntg(gprg, rule);
 		pmf_arlg_rl_attr_check(earg, rule);
+		earg->earg_attr_rule = rule;
 
 		return true;
 	}
 
-	struct pmf_attrl *earl = calloc(1, sizeof(*earl));
-	if (!earl) {
-rule_add_error:
+	++earg->earg_num_rules;
+
+	/* Find a counter if necessary */
+	struct gpc_cntr *cntr = NULL;
+	struct gpc_cntg *cntg = gpc_group_get_cntg(gprg);
+	if (cntg && pmf_arlg_rule_needs_cntr(cntg, rule))
+		cntr = pmf_arlg_rule_get_cntr(cntg, rule, rl_idx);
+
+	/* Create the GPC rule, or fail and clean up */
+	struct gpc_rule *gprl = gpc_rule_create(gprg, rl_idx, NULL);
+	if (!gprl) {
 		RTE_LOG(ERR, FIREWALL,
 			"Error: OOM for ACL attached group rule"
 			" %s/%s|%s:%u\n",
 			(dir_in) ? " In" : "Out", gpc_rlset_get_ifname(gprs),
 			gpc_group_get_name(gprg), rl_idx);
+		if (cntr)
+			gpc_cntr_release(cntr);
 		return false;
 	}
 
-	++earg->earg_num_rules;
+	gpc_rule_set_cntr(gprl, cntr);
 
-	struct gpc_rule *gprl = gpc_rule_create(gprg, rl_idx, earl);
-	if (!gprl) {
-		free(earl);
-		goto rule_add_error;
-	}
-
-	earl->earl_gprl = gprl;
+	if (cntr)
+		gpc_cntr_hw_ntfy_create(cntg, cntr);
 
 	gpc_rule_change_rule(gprl, rule);
 
@@ -739,14 +732,11 @@ pmf_arlg_attpt_grp_ev_handler(enum npf_attpt_ev_type event,
 
 			return;
 		}
-		struct pmf_rlset_ext *ears
-			= npf_attpt_rlset_get_extend(ars);
 		earg->earg_base = agr;
-		TAILQ_INIT(&earg->earg_cntrs);
 
+		struct gpc_rlset *gprs = npf_attpt_rlset_get_extend(ars);
 		struct gpc_group *gprg
-			= gpc_group_create(ears->ears_gprs, GPC_FEAT_ACL,
-					   rg_name, earg);
+			= gpc_group_create(gprs, GPC_FEAT_ACL, rg_name, earg);
 		if (!gprg) {
 			RTE_LOG(ERR, FIREWALL,
 				"Error: Failed to create GPC group"
@@ -821,17 +811,31 @@ pmf_arlg_attpt_grp_ev_handler(enum npf_attpt_ev_type event,
 		/* Notify clients */
 		gpc_group_hw_ntfy_rules_delete(gprg);
 
+		struct gpc_cntg *cntg = gpc_group_get_cntg(gprg);
+		if (cntg)
+			gpc_cntg_hw_ntfy_cntrs_delete(cntg);
+
 		/* Deallocate all of the rules */
 		struct gpc_rule *cursor;
 		while (!!(cursor = gpc_rule_last(gprg))) {
 			--earg->earg_num_rules;
 
-			struct pmf_attrl *earl = gpc_rule_get_owner(cursor);
-
+			struct gpc_cntr *cntr = gpc_rule_get_cntr(cursor);
 			/* gpc_rule_hw_ntfy_delete(gprg, cursor); is a NO-OP */
 			gpc_rule_delete(cursor);
+			if (cntr)
+				gpc_cntr_release(cntr);
+		}
 
-			free(earl);
+		/* Deallocate remaining counters */
+		if (cntg) {
+			if (gpc_cntg_type(cntg) == GPC_CNTT_NAMED) {
+				struct gpc_cntr *cntr;
+				while (!!(cntr = gpc_cntr_last(cntg)))
+					gpc_cntr_release(cntr);
+			}
+			gpc_cntg_release(cntg);
+			gpc_group_set_cntg(gprg, NULL);
 		}
 
 		/* Sanity before freeing */
@@ -888,27 +892,25 @@ pmf_arlg_attpt_grp_updn_handler(const struct npf_attpt_group *rsg, void *ctx)
 static void
 pmf_arlg_attpt_rls_updn(struct npf_attpt_rlset *ars, bool is_up)
 {
-	struct pmf_rlset_ext *ears = npf_attpt_rlset_get_extend(ars);
-	if (!ears)
+	struct gpc_rlset *gprs = npf_attpt_rlset_get_extend(ars);
+	if (!gprs)
 		return;
 
-	if (is_up && !gpc_rlset_set_ifp(ears->ears_gprs))
+	if (is_up && !gpc_rlset_set_ifp(gprs))
 		return;
 
 	npf_attpt_walk_rlset_grps(ars, pmf_arlg_attpt_grp_updn_handler, &is_up);
 
 	if (!is_up)
-		gpc_rlset_clear_ifp(ears->ears_gprs);
+		gpc_rlset_clear_ifp(gprs);
 }
 
 static void
 pmf_arlg_attpt_rls_if_created(struct npf_attpt_rlset *ars)
 {
-	struct pmf_rlset_ext *ears = npf_attpt_rlset_get_extend(ars);
-	if (!ears)
+	struct gpc_rlset *gprs = npf_attpt_rlset_get_extend(ars);
+	if (!gprs)
 		return;
-
-	struct gpc_rlset *gprs = ears->ears_gprs;
 
 	if (gpc_rlset_is_if_created(gprs))
 		return;
@@ -944,50 +946,31 @@ pmf_arlg_attpt_rls_ev_handler(enum npf_attpt_ev_type event,
 
 	bool const dir_in = (rls_type == NPF_RS_ACL_IN);
 
-	struct pmf_rlset_ext *ears;
+	struct gpc_rlset *gprs;
 
 	if (!enabled) {
-		ears = npf_attpt_rlset_get_extend(ars);
+		gprs = npf_attpt_rlset_get_extend(ars);
 		npf_attpt_rlset_set_extend(ars, NULL);
-		struct gpc_rlset *gprs = ears->ears_gprs;
-		ears->ears_gprs = NULL;
 		gpc_rlset_delete(gprs);
-		free(ears);
 	} else {
-		ears = calloc(1, sizeof(*ears));
-		if (!ears) {
-			RTE_LOG(ERR, FIREWALL,
-				"Error: OOM for attached ruleset extension"
-				" (%s/%s/%s)\n",
-				"ACL", (dir_in) ? " In" : "Out", if_name);
-
-			return;
-		}
-		ears->ears_base = ars;
-
-		struct gpc_rlset *gprs
-			= gpc_rlset_create(dir_in, if_name, ears);
+		gprs = gpc_rlset_create(dir_in, if_name, ars);
 		if (!gprs) {
 			RTE_LOG(ERR, FIREWALL,
 				"Error: Failed to create GPC ruleset"
 				" (%s/%s/%s)\n",
 				"ACL", (dir_in) ? " In" : "Out", if_name);
 
-			free(ears);
 			return;
 		}
-		ears->ears_gprs = gprs;
 
-		bool ok = npf_attpt_rlset_set_extend(ars, ears);
+		bool ok = npf_attpt_rlset_set_extend(ars, gprs);
 		if (!ok) {
 			RTE_LOG(ERR, FIREWALL,
 				"Error: Failed to attach ruleset extension"
 				" (%s/%s/%s)\n",
 				"ACL", (dir_in) ? " In" : "Out", if_name);
 
-			ears->ears_gprs = NULL;
 			gpc_rlset_delete(gprs);
-			free(ears);
 			return;
 		}
 	}
@@ -1013,7 +996,7 @@ pmf_arlg_attpt_ap_ev_handler(enum npf_attpt_ev_type event,
 
 	/* If this occurs outside of config, force a commit */
 	if (any_sets && !commit_pending)
-		pmf_hw_commit();
+		gpc_hw_commit();
 }
 
 static void
@@ -1043,7 +1026,7 @@ pmf_arlg_if_feat_mode_change(struct ifnet *ifp,
 
 	/* If this occurs outside of config, force a commit */
 	if (any_sets && !commit_pending)
-		pmf_hw_commit();
+		gpc_hw_commit();
 }
 
 static const struct dp_event_ops pmf_arlg_events = {
@@ -1057,6 +1040,9 @@ pmf_arlg_commit_deferrals(void)
 	GPC_RLSET_FOREACH(gprs) {
 		struct gpc_group *gprg;
 		GPC_GROUP_FOREACH(gprg, gprs) {
+			if (gpc_group_get_feature(gprg) != GPC_FEAT_ACL)
+				continue;
+
 			struct pmf_group_ext *earg
 				= gpc_group_get_owner(gprg);
 
@@ -1070,6 +1056,11 @@ pmf_arlg_commit_deferrals(void)
 			/* Could be blocked by lack of address family */
 			struct pmf_rule *attr_rule = earg->earg_attr_rule;
 			gpc_group_hw_ntfy_create(gprg, attr_rule);
+
+			/* Notify about all counters */
+			struct gpc_cntg *cntg = gpc_group_get_cntg(gprg);
+			if (cntg)
+				gpc_cntg_hw_ntfy_cntrs_create(cntg);
 
 			/* Notify about all rules */
 			gpc_group_hw_ntfy_rules_create(gprg);
@@ -1086,7 +1077,7 @@ pmf_arlg_commit(void)
 	if (deferrals)
 		pmf_arlg_commit_deferrals();
 
-	pmf_hw_commit();
+	gpc_hw_commit();
 	deferrals = false;
 	commit_pending = false;
 }
@@ -1114,290 +1105,4 @@ void pmf_arlg_init(void)
 	if (npf_attpt_ev_listen(NPF_ATTACH_TYPE_INTERFACE, grp_events,
 				pmf_arlg_attpt_grp_ev_handler) < 0)
 		rte_panic("PMF FAL top cannot listen to attpt grp events\n");
-}
-
-/* Op-mode commands : dump internals */
-
-void
-pmf_arlg_dump(FILE *fp)
-{
-	struct gpc_rlset *gprs;
-
-	/* Rulesets */
-	GPC_RLSET_FOREACH(gprs) {
-		bool rs_in = gpc_rlset_is_ingress(gprs);
-		struct ifnet *rs_ifp = gpc_rlset_get_ifp(gprs);
-		bool rs_if_created = gpc_rlset_is_if_created(gprs);
-		char const *ifname = gpc_rlset_get_ifname(gprs);
-		uint32_t if_index = rs_ifp ? rs_ifp->if_index : 0;
-		fprintf(fp, " RLS:%p: %s(%u)/%s%s%s\n",
-			gprs, ifname, if_index,
-			rs_in ? "In " : "Out",
-			rs_ifp ? " IFP" : "",
-			rs_if_created ? " IfCrt" : ""
-			);
-		/* Groups - i.e. TABLES */
-		struct gpc_group *gprg;
-		GPC_GROUP_FOREACH(gprg, gprs) {
-			struct pmf_group_ext *earg = gpc_group_get_owner(gprg);
-			uint32_t rg_flags = earg->earg_flags;
-			bool rg_published = gpc_group_is_published(gprg);
-			bool rg_attached = gpc_group_is_attached(gprg);
-			bool rg_deferred = gpc_group_is_deferred(gprg);
-			bool rg_attr_rl = (rg_flags & PMF_EARGF_RULE_ATTR);
-			bool rg_family = gpc_group_has_family(gprg);
-			bool rg_v6 = gpc_group_is_v6(gprg);
-			bool rg_ll_create = gpc_group_is_ll_created(gprg);
-			bool rg_ll_attach = gpc_group_is_ll_attached(gprg);
-			fprintf(fp,
-				"  GRP:%p(%lx): %s(%u/%x)%s%s%s%s%s%s%s\n",
-				gprg, gpc_group_get_objid(gprg),
-				gpc_group_get_name(gprg),
-				earg->earg_num_rules,
-				gpc_group_get_summary(gprg),
-				rg_published ? " Pub" : "",
-				rg_ll_create ? " LLcrt" : "",
-				rg_attached ? " Att" : "",
-				rg_ll_attach ? " LLatt" : "",
-				rg_deferred ? " Defr" : "",
-				rg_attr_rl ? " GAttr" : "",
-				rg_family ? rg_v6 ? " v6" : " v4" : ""
-				);
-			struct pmf_cntr *eark;
-			TAILQ_FOREACH(eark, &earg->earg_cntrs, eark_list) {
-				uint32_t ct_flags = eark->eark_flags;
-				bool ct_published
-					= (ct_flags & PMF_EARKF_PUBLISHED);
-				if (!ct_published)
-					continue;
-				bool ct_ll_create
-					= (ct_flags & PMF_EARKF_LL_CREATED);
-				bool ct_cnt_packet
-					= (ct_flags & PMF_EARKF_CNT_PACKET);
-				bool ct_cnt_byte
-					= (ct_flags & PMF_EARKF_CNT_BYTE);
-				fprintf(fp, "   CT:%p(%lx): %s%s%s%s%s\n",
-					eark, eark->eark_objid,
-					eark->eark_name,
-					ct_published ? " Pub" : "",
-					ct_ll_create ? " LLcrt" : "",
-					ct_cnt_packet ? " Pkt" : "",
-					ct_cnt_byte ? " Byte" : ""
-					);
-				uint64_t val_pkt = -1;
-				uint64_t val_byt = -1;
-				pmf_hw_counter_read(eark, &val_pkt, &val_byt);
-				fprintf(fp, "      %s(%lu/%lx)) %s(%lu/%lx)\n",
-					ct_cnt_packet ? "Pkt" : "-",
-					(unsigned long)val_pkt,
-					(unsigned long)val_pkt,
-					ct_cnt_byte ? "Byte" : "-",
-					(unsigned long)val_byt,
-					(unsigned long)val_byt
-					);
-			}
-			/* Rules - i.e. ENTRIES */
-			struct gpc_rule *gprl;
-			GPC_RULE_FOREACH(gprl, gprg) {
-				bool rl_published = gpc_rule_is_published(gprl);
-				bool rl_ll_create
-					= gpc_rule_is_ll_created(gprl);
-				fprintf(fp, "   RL:%p(%lx): %u(%x)%s%s\n",
-					gprl, gpc_rule_get_objid(gprl),
-					gpc_rule_get_index(gprl),
-					gpc_rule_get_rule(gprl)->pp_summary,
-					rl_published ? " Pub" : "",
-					rl_ll_create ? " LLcrt" : ""
-					);
-			}
-		}
-	}
-}
-
-/* Op-mode commands : show counters */
-
-static void
-pmf_arlg_show_cntr_ruleset(json_writer_t *json, struct gpc_rlset *gprs)
-{
-	bool rs_in = gpc_rlset_is_ingress(gprs);
-
-	jsonw_string_field(json, "interface", gpc_rlset_get_ifname(gprs));
-	jsonw_string_field(json, "direction", rs_in ? "in" : "out");
-}
-
-static void
-pmf_arlg_show_hw_cntr(json_writer_t *json, struct pmf_cntr *eark)
-{
-	uint32_t ct_flags = eark->eark_flags;
-
-	bool ct_ll_create = (ct_flags & PMF_EARKF_LL_CREATED);
-	if (!ct_ll_create)
-		return;
-
-	bool ct_cnt_packet = (ct_flags & PMF_EARKF_CNT_PACKET);
-	bool ct_cnt_byte = (ct_flags & PMF_EARKF_CNT_BYTE);
-
-	uint64_t val_pkt = -1;
-	uint64_t val_byt = -1;
-	bool ok = pmf_hw_counter_read(eark, &val_pkt, &val_byt);
-	if (!ok)
-		return;
-
-	jsonw_name(json, "hw");
-	jsonw_start_object(json);
-
-	if (ct_cnt_packet)
-		jsonw_uint_field(json, "pkts", val_pkt);
-	if (ct_cnt_byte)
-		jsonw_uint_field(json, "bytes", val_byt);
-
-	jsonw_end_object(json);
-}
-
-static void
-pmf_arlg_show_cntr(json_writer_t *json, struct pmf_cntr *eark)
-{
-	uint32_t ct_flags = eark->eark_flags;
-
-	bool ct_published = (ct_flags & PMF_EARKF_PUBLISHED);
-	if (!ct_published)
-		return;
-
-	bool ct_cnt_packet = (ct_flags & PMF_EARKF_CNT_PACKET);
-	bool ct_cnt_byte = (ct_flags & PMF_EARKF_CNT_BYTE);
-
-	jsonw_start_object(json);
-
-	jsonw_string_field(json, "name", eark->eark_name);
-	jsonw_bool_field(json, "cnt-pkts", ct_cnt_packet);
-	jsonw_bool_field(json, "cnt-bytes", ct_cnt_byte);
-
-	pmf_arlg_show_hw_cntr(json, eark);
-
-	jsonw_end_object(json);
-}
-
-int
-pmf_arlg_cmd_show_counters(FILE *fp, char const *ifname, int dir,
-			   char const *rgname)
-{
-	json_writer_t *json = jsonw_new(fp);
-	if (!json) {
-		RTE_LOG(ERR, DATAPLANE, "failed to create json stream\n");
-		return -ENOMEM;
-	}
-
-	/* Enforce filter heirarchy */
-	if (!ifname)
-		dir = 0;
-	if (!dir)
-		rgname = NULL;
-
-	jsonw_pretty(json, true);
-
-	/* Rulesets */
-	struct gpc_rlset *gprs;
-	jsonw_name(json, "rulesets");
-	jsonw_start_array(json);
-	GPC_RLSET_FOREACH(gprs) {
-		/* Skip rulesets w/o an interface */
-		if (!gpc_rlset_get_ifp(gprs))
-			continue;
-		/* Filter on interface & direction */
-		if (ifname && strcmp(ifname, gpc_rlset_get_ifname(gprs)) != 0)
-			continue;
-		if (dir < 0 && !gpc_rlset_is_ingress(gprs))
-			continue;
-		if (dir > 0 && gpc_rlset_is_ingress(gprs))
-			continue;
-
-		jsonw_start_object(json);
-		pmf_arlg_show_cntr_ruleset(json, gprs);
-
-		/* Groups - i.e. TABLES */
-		struct gpc_group *gprg;
-		jsonw_name(json, "groups");
-		jsonw_start_array(json);
-		GPC_GROUP_FOREACH(gprg, gprs) {
-			/* Filter on group name */
-			if (rgname &&
-			    strcmp(rgname, gpc_group_get_name(gprg)) != 0)
-				continue;
-
-			jsonw_start_object(json);
-
-			jsonw_string_field(json, "name",
-					   gpc_group_get_name(gprg));
-
-			struct pmf_group_ext *earg = gpc_group_get_owner(gprg);
-
-			struct pmf_cntr *eark;
-			jsonw_name(json, "counters");
-			jsonw_start_array(json);
-			TAILQ_FOREACH(eark, &earg->earg_cntrs, eark_list)
-				pmf_arlg_show_cntr(json, eark);
-			jsonw_end_array(json);
-
-			jsonw_end_object(json);
-		}
-		jsonw_end_array(json);
-
-		jsonw_end_object(json);
-	}
-	jsonw_end_array(json);
-
-	jsonw_destroy(&json);
-
-	return 0;
-}
-
-/* Op-mode commands : clear counters */
-
-int
-pmf_arlg_cmd_clear_counters(char const *ifname, int dir, char const *rgname)
-{
-	int rc = 0; /* Success */
-
-	/* Enforce filter heirarchy */
-	if (!ifname)
-		dir = 0;
-	if (!dir)
-		rgname = NULL;
-
-	/* Rulesets */
-	struct gpc_rlset *gprs;
-	GPC_RLSET_FOREACH(gprs) {
-		/* Skip rulesets w/o an interface */
-		if (!gpc_rlset_get_ifp(gprs))
-			continue;
-		/* Filter on interface & direction */
-		if (ifname && strcmp(ifname, gpc_rlset_get_ifname(gprs)) != 0)
-			continue;
-		if (dir < 0 && !gpc_rlset_is_ingress(gprs))
-			continue;
-		if (dir > 0 && gpc_rlset_is_ingress(gprs))
-			continue;
-
-		/* Groups - i.e. TABLES */
-		struct gpc_group *gprg;
-		GPC_GROUP_FOREACH(gprg, gprs) {
-			/* Filter on group name */
-			if (rgname &&
-			    strcmp(rgname, gpc_group_get_name(gprg)) != 0)
-				continue;
-
-			struct pmf_group_ext *earg = gpc_group_get_owner(gprg);
-
-			struct pmf_cntr *eark;
-			TAILQ_FOREACH(eark, &earg->earg_cntrs, eark_list) {
-				uint32_t ct_flags = eark->eark_flags;
-				if (!(ct_flags & PMF_EARKF_PUBLISHED))
-					continue;
-				if (!pmf_hw_counter_clear(eark))
-					rc = -EIO;
-			}
-		}
-	}
-
-	return rc;
 }
