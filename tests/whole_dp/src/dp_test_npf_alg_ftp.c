@@ -49,13 +49,13 @@
  * receiver.  Tests ftp8 and ftp9 test that the FTP ALG adjusts the TCP header
  * accordingly.
  *
- * ftp1  - No NAT Passive ftp. '227' back.
- * ftp2  - No NAT Passive ftp. Stateful firewall. IPv4. '227' back.
- * ftp3  - No NAT Passive ftp. Stateful firewall. IPv6. '227' back.
+ * ftp1  ~ No NAT Passive ftp. '227' back.
+ * ftp2  ~ No NAT Passive ftp. Stateful firewall. IPv4. '227' back.
+ * ftp3  ~ No NAT Passive ftp. Stateful firewall. IPv6. '227' back.
  * ftp4  - SNAT   Passive ftp. '227' back.
  * ftp5  - DNAT   Passive ftp. '227' back.
- * ftp6  - DNAT   Passive ftp. No parenthesis in 227 message.
- * ftp7  - SNAT   Active ftp. 'PORT' forw.
+ * ftp6  ~ DNAT   Passive ftp. No parenthesis in 227 message.
+ * ftp7  ~ SNAT   Active ftp. 'PORT' forw.
  * ftp8  - SNAT   Active ftp. Translating to a larger address. 'PORT' forw.
  * ftp9  - SNAT   Active ftp. Translating to a smaller address. 'PORT' forw.
  * ftp10 - DNAT   Active ftp. 'PORT' forw.
@@ -73,7 +73,7 @@ DP_DECL_TEST_SUITE(npf_alg_ftp);
  * ftp1 - Passive ftp.  No firewall or NAT.
  */
 DP_DECL_TEST_CASE(npf_alg_ftp, ftp1, dpt_alg_ftp_setup, dpt_alg_ftp_teardown);
-DP_START_TEST(ftp1, test)
+DP_START_TEST_FULL_RUN(ftp1, test)
 {
 	struct dp_test_pkt_desc_t *ctrl_fw_pre, *ctrl_fw_pst;
 	struct dp_test_pkt_desc_t *ctrl_bk_pre, *ctrl_bk_pst;
@@ -258,7 +258,7 @@ DP_START_TEST(ftp1, test)
  * ftp2 - Passive ftp.  Stateful firewall on output interface.
  */
 DP_DECL_TEST_CASE(npf_alg_ftp, ftp2, dpt_alg_ftp_setup, dpt_alg_ftp_teardown);
-DP_START_TEST(ftp2, test)
+DP_START_TEST_FULL_RUN(ftp2, test)
 {
 	struct dp_test_pkt_desc_t *ctrl_fw_pre, *ctrl_fw_pst;
 	struct dp_test_pkt_desc_t *ctrl_bk_pre, *ctrl_bk_pst;
@@ -475,7 +475,7 @@ DP_START_TEST(ftp2, test)
  * ftp3 - Passive ftp.  Stateful firewall. IPv6.
  */
 DP_DECL_TEST_CASE(npf_alg_ftp, ftp3, NULL, NULL);
-DP_START_TEST(ftp3, test)
+DP_START_TEST_FULL_RUN(ftp3, test)
 {
 	struct dp_test_pkt_desc_t *ctrl_fw_pre, *ctrl_fw_pst;
 	struct dp_test_pkt_desc_t *ctrl_bk_pre, *ctrl_bk_pst;
@@ -1160,7 +1160,7 @@ DP_START_TEST(ftp5, test)
  * direction (i.e. forwards).
  */
 DP_DECL_TEST_CASE(npf_alg_ftp, ftp6, dpt_alg_ftp_setup, dpt_alg_ftp_teardown);
-DP_START_TEST(ftp6, test)
+DP_START_TEST_FULL_RUN(ftp6, test)
 {
 	struct dp_test_pkt_desc_t *ctrl_fw_pre, *ctrl_fw_pst;
 	struct dp_test_pkt_desc_t *ctrl_bk_pre, *ctrl_bk_pst;
@@ -1376,7 +1376,7 @@ DP_START_TEST(ftp6, test)
  * ftp7 - SNAT, Active ftp.
  */
 DP_DECL_TEST_CASE(npf_alg_ftp, ftp7, dpt_alg_ftp_setup, dpt_alg_ftp_teardown);
-DP_START_TEST(ftp7, test)
+DP_START_TEST_FULL_RUN(ftp7, test)
 {
 	struct dp_test_pkt_desc_t *ctrl_fw_pre, *ctrl_fw_pst;
 	struct dp_test_pkt_desc_t *ctrl_bk_pre, *ctrl_bk_pst;
