@@ -85,6 +85,8 @@ struct qos_external_buffer_congest_stats {
 	struct tm initial_tm;
 };
 
+extern struct qos_external_buffer_congest_stats buf_stats;
+
 int qos_ext_buf_state_transit(
 	struct qos_ext_buf_state_record *cur_state,
 	enum qos_ext_buf_event evt);

@@ -37,8 +37,6 @@ DP_DECL_TEST_SUITE(qos_ext_buf_monitor);
 
 DP_DECL_TEST_CASE(qos_ext_buf_monitor, ext_buf_monitor_test, NULL, NULL);
 
-struct qos_external_buffer_congest_stats buf_stats;
-
 static void qos_ext_buf_test_init(void)
 {
 	memset(&buf_stats, 0, sizeof(buf_stats));
