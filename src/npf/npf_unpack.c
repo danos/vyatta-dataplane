@@ -63,7 +63,7 @@ int npf_pack_session_unpack_update(struct npf_pack_session_update *csu)
 	if (!csu)
 		return -EINVAL;
 
-	psp = &csu->psp;
+	psp = &csu->psu_psp;
 	if (!psp)
 		return -EINVAL;
 
@@ -75,20 +75,22 @@ int npf_pack_session_unpack_update(struct npf_pack_session_update *csu)
 	if (rc)
 		goto error;
 
-	if (s && !csu->se_feature_count) {
+	if (s && !csu->psu_se_feature_count) {
 		session_expire(s, NULL);
 		return 0;
 	}
 
 	if (s && se) {
 		if (s->se_protocol == IPPROTO_TCP)
-			rc = npf_session_pack_state_update_tcp(se, &csu->pst);
+			rc = npf_session_pack_state_update_tcp(se,
+							       &csu->psu_pst);
 		else
-			rc = npf_session_pack_state_update_gen(se, &csu->pst);
+			rc = npf_session_pack_state_update_gen(se,
+							       &csu->psu_pst);
 		if (rc)
 			goto error;
 
-		stats = &csu->stats;
+		stats = &csu->psu_stats;
 		rc = session_npf_pack_stats_restore(s, stats);
 		if (rc)
 			goto error;
@@ -467,7 +469,7 @@ uint64_t npf_pack_get_session_id(struct npf_pack_message *msg)
 	}
 	if (hdr->pmh_type == SESSION_PACK_UPDATE) {
 		csu = &msg->data.cs_update;
-		return csu->se_id;
+		return csu->psu_se_id;
 	}
 	return 0;
 }
@@ -490,7 +492,7 @@ npf_pack_get_session_stats(struct npf_pack_message *msg)
 	}
 	if (hdr->pmh_type == SESSION_PACK_UPDATE) {
 		csu = &msg->data.cs_update;
-		return &csu->stats;
+		return &csu->psu_stats;
 	}
 	return NULL;
 }

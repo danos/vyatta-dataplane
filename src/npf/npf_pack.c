@@ -38,21 +38,21 @@ static int npf_pack_session_pack_update(struct session *s,
 	if (!s || !csu)
 		return -EINVAL;
 
-	csu->se_id = session_get_id(s);
-	psp = &csu->psp;
+	csu->psu_se_id = session_get_id(s);
+	psp = &csu->psu_psp;
 	rc = session_npf_pack_sentry_pack(s, psp);
 	if (rc)
 		return rc;
 
 	*len = sizeof(*csu);
 
-	stats = &csu->stats;
+	stats = &csu->psu_stats;
 	rc = session_npf_pack_stats_pack(s, stats);
 	if (rc)
 		return rc;
 
-	csu->se_feature_count = rte_atomic16_read(&s->se_feature_count);
-	if (!csu->se_feature_count)
+	csu->psu_se_feature_count = rte_atomic16_read(&s->se_feature_count);
+	if (!csu->psu_se_feature_count)
 		return 0;
 
 	ifp = dp_ifnet_byifname(psp->psp_ifname);
@@ -61,11 +61,11 @@ static int npf_pack_session_pack_update(struct session *s,
 
 	se = session_feature_get(s, ifp->if_index, SESSION_FEATURE_NPF);
 	if (!se) {
-		csu->se_feature_count = 0;
+		csu->psu_se_feature_count = 0;
 		return 0;
 	}
 
-	pst = &csu->pst;
+	pst = &csu->psu_pst;
 
 	if (psp->psp_forw.sp_protocol == IPPROTO_TCP)
 		rc = npf_session_pack_state_pack_tcp(se, pst);
@@ -73,7 +73,7 @@ static int npf_pack_session_pack_update(struct session *s,
 		rc = npf_session_pack_state_pack_gen(se, pst);
 
 	if (rc)
-		csu->se_feature_count = 0;
+		csu->psu_se_feature_count = 0;
 
 	return 0;
 }
