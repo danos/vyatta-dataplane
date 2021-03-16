@@ -29,7 +29,7 @@
 #define DP_TEST_TMP_BUF_SMALL 100
 #define DP_TEST_INTF_BUF IFNAMSIZ
 
-char *dp_test_pname; /* Program name for logging */
+extern char *dp_test_pname; /* Program name for logging */
 extern struct rte_mempool *dp_test_pool;
 
 /*

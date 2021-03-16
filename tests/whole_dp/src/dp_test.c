@@ -645,7 +645,7 @@ static void unit_test_load_plugins(const char *directory)
 	closedir(dp);
 }
 
-
+char *dp_test_pname; /* Program name for logging */
 
 bool dp_test_fal_plugin_called;
 uint32_t dp_test_fal_plugin_state;
