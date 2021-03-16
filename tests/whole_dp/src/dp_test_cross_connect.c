@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2021, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  *
@@ -49,7 +49,7 @@ _dp_test_wait_for_xconnect(const char *src_intf, const char *dst_intf,
 		real_ifname_src, real_ifname_dst);
 	_dp_test_check_json_state("pipeline xconnect cmd -s", expected_json,
 				  NULL, DP_TEST_JSON_CHECK_SUBSET,
-				  gone, false, file, func, line);
+				  gone, file, func, line);
 	json_object_put(expected_json);
 }
 

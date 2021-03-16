@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2021, AT&T Intellectual Property. All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property. All rights reserved.
  * Copyright (c) 2015-2017 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -565,7 +565,7 @@ _dp_test_check_state_clean(const char *file, int line, bool print)
 					  expected_json,
 					  filter_json,
 					  cmd_expect_clean_json[i].mode,
-					  false, false, file, "", line);
+					  false, file, "", line);
 		json_object_put(expected_json);
 		if (filter_json)
 			json_object_put(filter_json);
@@ -774,7 +774,6 @@ _dp_test_check_json_poll_state_internal(const char *cmd_str,
 					enum dp_test_check_json_mode mode,
 					bool negate_match, int poll_cnt,
 					unsigned int poll_interval,
-					bool pretty_print,
 					const char *file,
 					const char *func __unused,
 					int line)
@@ -817,25 +816,6 @@ _dp_test_check_json_poll_state_internal(const char *cmd_str,
 	if (cmd.mismatches)
 		dp_test_json_mismatch_print(cmd.mismatches, 2, mismatch_str,
 					    sizeof(mismatch_str));
-
-	const char *expected_str, *actual_str;
-
-	if (pretty_print) {
-		expected_str = json_object_to_json_string_ext(
-			expected_json, JSON_C_TO_STRING_PRETTY);
-		if (actual_json)
-			actual_str = json_object_to_json_string_ext(
-				actual_json, JSON_C_TO_STRING_PRETTY);
-		else
-			actual_str = "<nothing>";
-	} else {
-		expected_str = json_object_to_json_string(expected_json);
-		if (actual_json)
-			actual_str = json_object_to_json_string(actual_json);
-		else
-			actual_str = "<nothing>";
-	}
-
 	if (cmd.negate_match)
 		_dp_test_fail_unless(result,
 				     file, line,
@@ -843,8 +823,10 @@ _dp_test_check_json_poll_state_internal(const char *cmd_str,
 				     "\ndid not expect to find:\n  '%s'"
 				     "\ngot:\n  '%s'",
 				     cmd.request_str,
-				     expected_str,
-				     actual_str);
+				     json_object_to_json_string(expected_json),
+				     actual_json ?
+				     json_object_to_json_string(actual_json) :
+				     "<nothing>");
 	else
 		_dp_test_fail_unless(result,
 				     file, line,
@@ -854,8 +836,10 @@ _dp_test_check_json_poll_state_internal(const char *cmd_str,
 				     "\ngot:\n  '%s'",
 				     cmd.request_str,
 				     mismatch_str,
-				     expected_str,
-				     actual_str);
+				     json_object_to_json_string(expected_json),
+				     actual_json ?
+				     json_object_to_json_string(actual_json) :
+				     "<nothing>");
 
 	dp_test_json_mismatch_free(cmd.mismatches);
 	json_object_put(actual_json);
@@ -866,14 +850,13 @@ _dp_test_check_json_poll_state(const char *cmd_str, json_object *expected_json,
 			       json_object *filter_json,
 			       enum dp_test_check_json_mode mode,
 			       bool negate_match, int poll_cnt,
-			       bool pretty_print,
 			       const char *file, const char *func,
 			       int line)
 {
 	_dp_test_check_json_poll_state_internal(cmd_str, expected_json,
 						filter_json, mode, negate_match,
 						poll_cnt, DP_TEST_POLL_INTERVAL,
-						pretty_print, file, func, line);
+						file, func, line);
 }
 
 void
@@ -883,14 +866,12 @@ _dp_test_check_json_poll_state_interval(const char *cmd_str,
 					enum dp_test_check_json_mode mode,
 					bool negate_match, int poll_cnt,
 					unsigned int poll_interval,
-					bool pretty_print,
 					const char *file, const char *func,
 					int line)
 {
 	_dp_test_check_json_poll_state_internal(cmd_str, expected_json,
 						filter_json, mode, negate_match,
 						poll_cnt, poll_interval,
-						pretty_print,
 						file, func, line);
 }
 
@@ -930,13 +911,13 @@ void
 _dp_test_check_json_state(const char *cmd_str, json_object *expected_json,
 			  json_object *filter_json,
 			  enum dp_test_check_json_mode mode,
-			  bool negate_match, bool pretty_print,
+			  bool negate_match,
 			  const char *file, const char *func __unused,
 			  int line)
 {
 	_dp_test_check_json_poll_state(cmd_str, expected_json, filter_json,
 				       mode, negate_match, DP_TEST_POLL_COUNT,
-				       pretty_print, file, func, line);
+				       file, func, line);
 }
 
 void
@@ -1479,7 +1460,7 @@ dp_test_wait_for_route_internal(const char *route_string, bool match_nh,
 
 	_dp_test_check_json_state(oper_state_req, expected_json,
 				  NULL, DP_TEST_JSON_CHECK_SUBSET,
-				  gone, false, file, func, line);
+				  gone, file, func, line);
 	json_object_put(expected_json);
 	dp_test_free_route(route);
 }
@@ -1885,7 +1866,7 @@ _dp_test_wait_for_vrf(uint32_t vrf_id,
 	_dp_test_check_json_state(oper_state_req, expected_json,
 				  NULL,
 				  DP_TEST_JSON_CHECK_SUBSET,
-				  (refcount == 0), false, file, func, line);
+				  (refcount == 0), file, func, line);
 	json_object_put(expected_json);
 }
 
@@ -1971,7 +1952,7 @@ _dp_test_wait_for_pl_feat(const char *intf, const char *feature, const
 		gone ?  "" : "\",");
 	_dp_test_check_json_state("ifconfig", expected_json,
 				  NULL, DP_TEST_JSON_CHECK_SUBSET,
-				  false, false, file, func, line);
+				  false, file, func, line);
 	json_object_put(expected_json);
 }
 

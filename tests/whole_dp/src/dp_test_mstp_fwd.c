@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2021, AT&T Intellectual Property.
+ * Copyright (c) 2018-2020, AT&T Intellectual Property.
  * All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
@@ -106,7 +106,7 @@ _mstp_msti_set_state(const char *sw, int state, struct ifnet *port, int mstid,
 		 "mstp-op %s show state", sw);
 	_dp_test_check_json_state(test_mstp_cmd, expected, NULL,
 				  DP_TEST_JSON_CHECK_SUBSET, false,
-				  false, file, func, line);
+				  file, func, line);
 	json_object_put(expected);
 }
 

@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2017-2021, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2015-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -534,7 +534,7 @@ void _wait_for_policy(const struct dp_test_crypto_policy *policy,
 	_dp_test_check_json_state(cmd_str,
 				  expected_json, NULL,
 				  DP_TEST_JSON_CHECK_SUBSET,
-				  !check_present, false,
+				  !check_present,
 				  file, "", line);
 
 	json_object_put(expected_json);
@@ -681,7 +681,7 @@ void _wait_for_sa(const struct dp_test_crypto_sa *sa,
 	_dp_test_check_json_state(cmd_str,
 				  expected_json, NULL,
 				  DP_TEST_JSON_CHECK_SUBSET,
-				  !check_present, false,
+				  !check_present,
 				  file, "", line);
 
 	json_object_put(expected_json);
