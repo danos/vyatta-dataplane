@@ -28,7 +28,6 @@
 struct nlattr;
 
 struct ipstats_mib ip6stats[RTE_MAX_LCORE] __rte_cache_aligned;
-uint64_t icmp6stats[ICMP6_MIB_MAX];
 
 /* Attribute changed */
 void ipv6_netconf_change(struct ifnet *ifp, struct nlattr *tb[])

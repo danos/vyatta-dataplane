@@ -51,7 +51,6 @@
 #define ICMP6_OPT_LEN(opttype, len) (((sizeof(struct opttype) + (len)) + 7) / 8)
 
 static bool ip6_redirects = true;
-uint64_t icmp6stats[ICMP6_MIB_MAX];
 
 /*
  * Get a value for an address' scope
