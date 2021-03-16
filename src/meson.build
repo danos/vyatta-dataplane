@@ -165,7 +165,9 @@ not_for_test_sources = files(
 )
 
 gpc_sources = files(
-        'gpc/gpc_config.c'
+        'gpc/gpc_op_mode.c',
+        'gpc/gpc_pb_config.c',
+        'gpc/gpc_util.c'
 )
 
 npf_sources = files(

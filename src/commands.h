@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2017-2020, AT&T Intellectual Property.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property.
  * All rights reserved.
  * Copyright (c) 2011-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
@@ -45,6 +45,7 @@ int cmd_xconnect_cfg(FILE *f, int argc, char **argv);
 int cmd_poe(FILE *f, int argc, char **argv);
 int cmd_ip(FILE *f, int argc, char **argv);
 int cmd_cpp_rl_op(FILE *f, int argc, char **argv);
+int cmd_gpc_op(FILE *f, int argc, char **argv);
 
 void list_all_cmd_versions(FILE *f);
 
