@@ -71,8 +71,6 @@ struct pppoe_map_tbl {
 	struct cds_lfht *ht;
 };
 
-struct pppoe_map_tbl *pppoe_map_tbl;
-
 struct pppoe_map_node {
 	uint16_t session;
 	struct rcu_head pppoe_rcu;

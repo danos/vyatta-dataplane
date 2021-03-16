@@ -15,6 +15,8 @@
 #include "pppoe.h"
 #include "vplane_log.h"
 
+static struct pppoe_map_tbl *pppoe_map_tbl;
+
 static bool pppoe_track_underlying;
 CDS_LIST_HEAD(pppoe_conn_list);
 
