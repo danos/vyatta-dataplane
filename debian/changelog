@@ -1,3 +1,20 @@
+vyatta-dataplane (3.13.1) unstable; urgency=medium
+
+  [ Nicholas Brown ]
+  * master-next branch targets Vyatta:Master
+  * Specify the OBS instance to use
+  * Use gettid() from libc is available
+
+  [ Ian Wilson ]
+  * cgnat: Removed packed attribute from CGNAT session key structures
+  * cgnat: Use 'out' sentry for sub-session table lookups for op-mode cmds
+  * ut: Rename npf alg ftp unit-tests
+  * ut: Add npf alg ftp11 tests for source ports outside trans range
+  * ut: Add npf alg ftp12 test for source ports outside trans range
+  * ut: Change 5 of the npf alg ftp unit-tests to DP_START_TEST_FULL_RUN
+
+ -- Srinivas Narayan <narayan@vyatta.att-mail.com>  Tue, 16 Mar 2021 11:27:06 +0000
+
 vyatta-dataplane (3.12.39) unstable; urgency=medium
 
   [ Alan Dewar ]
