@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2020, AT&T Intellectual Property. All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property. All rights reserved.
  * Copyright (c) 2015-2017 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -774,6 +774,7 @@ _dp_test_check_json_poll_state_internal(const char *cmd_str,
 					enum dp_test_check_json_mode mode,
 					bool negate_match, int poll_cnt,
 					unsigned int poll_interval,
+					bool pretty_print,
 					const char *file,
 					const char *func __unused,
 					int line)
@@ -816,6 +817,25 @@ _dp_test_check_json_poll_state_internal(const char *cmd_str,
 	if (cmd.mismatches)
 		dp_test_json_mismatch_print(cmd.mismatches, 2, mismatch_str,
 					    sizeof(mismatch_str));
+
+	const char *expected_str, *actual_str;
+
+	if (pretty_print) {
+		expected_str = json_object_to_json_string_ext(
+			expected_json, JSON_C_TO_STRING_PRETTY);
+		if (actual_json)
+			actual_str = json_object_to_json_string_ext(
+				actual_json, JSON_C_TO_STRING_PRETTY);
+		else
+			actual_str = "<nothing>";
+	} else {
+		expected_str = json_object_to_json_string(expected_json);
+		if (actual_json)
+			actual_str = json_object_to_json_string(actual_json);
+		else
+			actual_str = "<nothing>";
+	}
+
 	if (cmd.negate_match)
 		_dp_test_fail_unless(result,
 				     file, line,
@@ -823,10 +843,8 @@ _dp_test_check_json_poll_state_internal(const char *cmd_str,
 				     "\ndid not expect to find:\n  '%s'"
 				     "\ngot:\n  '%s'",
 				     cmd.request_str,
-				     json_object_to_json_string(expected_json),
-				     actual_json ?
-				     json_object_to_json_string(actual_json) :
-				     "<nothing>");
+				     expected_str,
+				     actual_str);
 	else
 		_dp_test_fail_unless(result,
 				     file, line,
@@ -836,10 +854,8 @@ _dp_test_check_json_poll_state_internal(const char *cmd_str,
 				     "\ngot:\n  '%s'",
 				     cmd.request_str,
 				     mismatch_str,
-				     json_object_to_json_string(expected_json),
-				     actual_json ?
-				     json_object_to_json_string(actual_json) :
-				     "<nothing>");
+				     expected_str,
+				     actual_str);
 
 	dp_test_json_mismatch_free(cmd.mismatches);
 	json_object_put(actual_json);
@@ -856,7 +872,7 @@ _dp_test_check_json_poll_state(const char *cmd_str, json_object *expected_json,
 	_dp_test_check_json_poll_state_internal(cmd_str, expected_json,
 						filter_json, mode, negate_match,
 						poll_cnt, DP_TEST_POLL_INTERVAL,
-						file, func, line);
+						false, file, func, line);
 }
 
 void
@@ -872,6 +888,7 @@ _dp_test_check_json_poll_state_interval(const char *cmd_str,
 	_dp_test_check_json_poll_state_internal(cmd_str, expected_json,
 						filter_json, mode, negate_match,
 						poll_cnt, poll_interval,
+						false,
 						file, func, line);
 }
 
