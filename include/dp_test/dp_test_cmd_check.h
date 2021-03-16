@@ -131,6 +131,19 @@ _dp_test_check_json_poll_state_interval(const char *cmd_str,
 						gone, poll_cnt, poll_interval, \
 						__FILE__, __func__, __LINE__)
 
+/* Pretty-print json if a mismatch is detected */
+void
+_dp_test_check_json_poll_state_pp(const char *cmd_str,
+				  json_object *expected_json,
+				  json_object *filter_json,
+				  enum dp_test_check_json_mode mode,
+				  bool negate_match, int poll_cnt,
+				  const char *file, const char *func, int line);
+#define dp_test_check_json_poll_state_pp(cmd, expected, mode, gone, poll_cnt) \
+	_dp_test_check_json_poll_state_pp(cmd, expected, NULL, mode,	\
+					  gone, poll_cnt,		\
+					  __FILE__, __func__, __LINE__)
+
 typedef bool (*dp_test_state_pb_cb)(void *data, int len, void *arg);
 
 void

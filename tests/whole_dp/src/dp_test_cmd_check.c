@@ -876,6 +876,21 @@ _dp_test_check_json_poll_state(const char *cmd_str, json_object *expected_json,
 }
 
 void
+_dp_test_check_json_poll_state_pp(const char *cmd_str,
+				  json_object *expected_json,
+				  json_object *filter_json,
+				  enum dp_test_check_json_mode mode,
+				  bool negate_match, int poll_cnt,
+				  const char *file, const char *func,
+				  int line)
+{
+	_dp_test_check_json_poll_state_internal(cmd_str, expected_json,
+						filter_json, mode, negate_match,
+						poll_cnt, DP_TEST_POLL_INTERVAL,
+						true, file, func, line);
+}
+
+void
 _dp_test_check_json_poll_state_interval(const char *cmd_str,
 					json_object *expected_json,
 					json_object *filter_json,
