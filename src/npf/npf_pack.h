@@ -116,10 +116,21 @@ static_assert(sizeof(struct npf_pack_npf_session) == 12,
 	      "Expected npf_pack_npf_session to be 12 bytes");
 
 /*
- * Packed npf_state_t
+ * Packed 'struct npf_tcp_window'
  */
+struct npf_pack_tcp_window {
+	uint32_t	ptw_end;
+	uint32_t	ptw_maxend;
+	uint32_t	ptw_maxwin;
+	uint8_t		ptw_wscale;
+	uint8_t		ptw_pad[3];
+};
+
+static_assert(sizeof(struct npf_pack_tcp_window) == 16,
+	      "Expected npf_pack_tcp_window to be 16 bytes");
+
 struct npf_pack_session_state {
-	struct npf_tcp_window	pst_tcp_win[2];
+	struct npf_pack_tcp_window	pst_tcp_win[2];
 	union {
 		enum tcp_session_state	pst_tcp_state;
 		enum dp_session_state	pst_gen_state;

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  */
@@ -657,11 +657,19 @@ void npf_state_pack_gen(npf_state_t *nst, struct npf_pack_session_state *pst)
 /* Pack TCP session state */
 void npf_state_pack_tcp(npf_state_t *nst, struct npf_pack_session_state *pst)
 {
+	struct npf_pack_tcp_window *ptw;
+	struct npf_tcp_window *ntw;
 	enum npf_flow_dir fl;
 
-	for (fl = NPF_FLOW_FIRST; fl <= NPF_FLOW_LAST; fl++)
-		memcpy(&pst->pst_tcp_win[fl], &nst->nst_tcp_win[fl],
-		       sizeof(*pst->pst_tcp_win));
+	for (fl = NPF_FLOW_FIRST; fl <= NPF_FLOW_LAST; fl++) {
+		ptw = &pst->pst_tcp_win[fl];
+		ntw = &nst->nst_tcp_win[fl];
+
+		ptw->ptw_end = ntw->nst_end;
+		ptw->ptw_maxend = ntw->nst_maxend;
+		ptw->ptw_maxwin = ntw->nst_maxwin;
+		ptw->ptw_wscale = ntw->nst_wscale;
+	}
 
 	pst->pst_tcp_state = nst->nst_tcp_state;
 }
@@ -684,13 +692,21 @@ void npf_state_pack_update_tcp(npf_state_t *nst,
 			       struct npf_pack_session_state *pst,
 			       bool *state_changed)
 {
+	struct npf_pack_tcp_window *ptw;
+	struct npf_tcp_window *ntw;
 	enum npf_flow_dir fl;
 
 	rte_spinlock_lock(&nst->nst_lock);
 
-	for (fl = NPF_FLOW_FIRST; fl <= NPF_FLOW_LAST; fl++)
-		memcpy(&nst->nst_tcp_win[fl], &pst->pst_tcp_win[fl],
-		       sizeof(*nst->nst_tcp_win));
+	for (fl = NPF_FLOW_FIRST; fl <= NPF_FLOW_LAST; fl++) {
+		ptw = &pst->pst_tcp_win[fl];
+		ntw = &nst->nst_tcp_win[fl];
+
+		ntw->nst_end = ptw->ptw_end;
+		ntw->nst_maxend = ptw->ptw_maxend;
+		ntw->nst_maxwin = ptw->ptw_maxwin;
+		ntw->nst_wscale = ptw->ptw_wscale;
+	}
 
 	npf_state_set_tcp(nst, pst->pst_tcp_state, state_changed);
 
