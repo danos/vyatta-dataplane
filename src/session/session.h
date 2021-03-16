@@ -137,7 +137,11 @@ struct sentry {
 	uint32_t		sen_addrids[];	/* ids/addrs, must be last */
 };
 
-/* sentry_packet - decomposition of the packet */
+/*
+ * sentry_packet - decomposition of the packet
+ *
+ * This is used in the connsync pack structures, so we assert its length.
+ */
 struct sentry_packet {
 	vrfid_t		sp_vrfid;			/* VRF id */
 	uint32_t	sp_ifindex;			/* Interface index */
@@ -146,6 +150,9 @@ struct sentry_packet {
 	uint8_t		sp_len;				/* match len */
 	uint32_t	sp_addrids[SENTRY_LEN_IPV6];	/* ids and addrs */
 };
+
+static_assert(sizeof(struct sentry_packet) == 48,
+	      "Expected sentry_packet to be 48 bytes");
 
 /* Session link - Used by algs to link sessions */
 struct session_link {
