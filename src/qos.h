@@ -360,7 +360,7 @@ struct qos_dev {
 
 extern struct qos_dev qos_devices[];
 
-fal_object_t qos_global_map_obj;
+extern fal_object_t qos_global_map_obj;
 
 /* Encode DPDK Traffic-Class and Queue */
 #define QMAP(tc, wrr)	(wrr << RTE_SCHED_TC_BITS | (tc))
