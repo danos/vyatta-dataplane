@@ -1,3 +1,28 @@
+vyatta-dataplane (3.12.39) unstable; urgency=medium
+
+  [ Alan Dewar ]
+  * GPC: add utility functions for later use
+  * GPC: add GPC structs and enums
+  * GPC: give gpc_config.c a better name
+  * GPC: add feature and table parsing
+  * GPC: add rule and counter parsing
+  * GPC: add match and action parsing
+  * GPC: add more utility functions
+  * GPC: add config walk functions
+  * GPC: add initial no-op op-mode code
+  * GPC: complete initial op-mode code
+  * GPC: add rule action code and empty match code
+  * GPC: fill in most empty rule match functions
+  * GPC: add ip-prefix and icmp parse functions
+  * UT: add initial protobuf utility functions
+  * UT: extend the GPC unit-test to test something
+  * GPC: create a FAL policer when necessary
+  * GPC: call new gpc_db APIs to instantiate config
+  * GPC: add new QoS actions to pmf_rule struct
+  * GPC: add zeroed counters to op-mode json
+
+ -- Srinivas Narayan <narayan@vyatta.att-mail.com>  Tue, 16 Mar 2021 08:57:07 +0000
+
 vyatta-dataplane (3.12.38) unstable; urgency=medium
 
   [ Simon Barber ]
