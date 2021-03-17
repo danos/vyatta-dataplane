@@ -1617,7 +1617,7 @@ int npf_nat_npf_pack_restore(struct npf_session *se,
 	nt->nt_rl = npf_rule_get(rl);
 
 	np = npf_rule_get_natpolicy(rl);
-	if (!np || np->n_apm)
+	if (!np || !np->n_apm)
 		goto error;
 	nt->nt_natpolicy = np;
 

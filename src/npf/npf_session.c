@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  */
@@ -2010,7 +2010,17 @@ int npf_session_npf_pack_pack(npf_session_t *se,
 	if (!se || !pns)
 		return -EINVAL;
 
-	pns->pns_flags = se->s_flags;
+
+	/*
+	 * Do not sync SE_ACTIVE flag.  The rcvr will call
+	 * npf_session_npf_pack_activate to set the SE_ACTIVE flag and
+	 * increment the intf session count.  If the SE_ACTIVE flag is already
+	 * set, then an error in the unpacking routine *before*
+	 * npf_session_npf_pack_activate is called can result in
+	 * npf_if_session_dec decrementing the session count erroneously.
+	 */
+	pns->pns_flags = se->s_flags & ~SE_ACTIVE;
+
 	rule = npf_session_get_fw_rule(se);
 	pns->pns_fw_rule_hash = (rule ? npf_rule_get_hash(rule) : 0);
 	rule = npf_session_get_rproc_rule(se);
