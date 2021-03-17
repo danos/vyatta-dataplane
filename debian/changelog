@@ -1,3 +1,10 @@
+vyatta-dataplane (3.10.70.24) unstable; urgency=medium
+
+  [ Mark Gillott ]
+  * capture: on cleanup serialise access to console socket (Fixes: VRVDR-53851)
+
+ -- Srinivas Narayan <narayan@vyatta.att-mail.com>  Wed, 17 Mar 2021 18:05:21 +0000
+
 vyatta-dataplane (3.10.70.23) unstable; urgency=medium
 
   [ Paul Aitken ]
