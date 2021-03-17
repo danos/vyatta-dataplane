@@ -1,3 +1,13 @@
+vyatta-dataplane (3.12.40) unstable; urgency=medium
+
+  [ Mark Gillott ]
+  * capture: on cleanup serialise access to console socket (Fixes: VRVDR-53851)
+
+  [ Charles (Chas) Williams ]
+  * nh_common: avoid route/neighbor update races (Bugfix: VRVDR-53960)
+
+ -- Srinivas Narayan <narayan@vyatta.att-mail.com>  Wed, 17 Mar 2021 14:27:36 +0000
+
 vyatta-dataplane (3.12.39) unstable; urgency=medium
 
   [ Alan Dewar ]
