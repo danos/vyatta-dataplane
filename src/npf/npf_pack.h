@@ -110,10 +110,11 @@ struct npf_pack_npf_session {
 	int		pns_flags;
 	uint32_t	pns_fw_rule_hash;
 	uint32_t	pns_rproc_rule_hash;
+	uint8_t		pns_pad[4];
 };
 
-static_assert(sizeof(struct npf_pack_npf_session) == 12,
-	      "Expected npf_pack_npf_session to be 12 bytes");
+static_assert(sizeof(struct npf_pack_npf_session) == 16,
+	      "Expected npf_pack_npf_session to be 16 bytes");
 
 /*
  * Packed 'struct npf_tcp_window'
@@ -135,7 +136,7 @@ struct npf_pack_session_state {
 		enum tcp_session_state	pst_tcp_state;
 		enum dp_session_state	pst_gen_state;
 	};
-	uint8_t			pst_pad[3];
+	uint8_t			pst_pad[7];
 };
 
 /*
@@ -232,10 +233,9 @@ struct npf_pack_session_update {
 	uint64_t			psu_se_id;	/* for UT */
 	struct npf_pack_sentry_packet	psu_psp;
 	struct npf_pack_session_state	psu_pst;
-	uint8_t				psu_pad1[4];
 	struct npf_pack_dp_sess_stats	psu_stats;
 	uint16_t			psu_se_feature_count;
-	uint8_t				psu_pad2[6];
+	uint8_t				psu_pad[6];
 };
 
 struct npf_pack_message {
