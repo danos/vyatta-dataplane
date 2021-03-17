@@ -159,10 +159,9 @@ EOF
                         text: """\
                         export BUILD_ID=\"${BUILD_ID}\"
                         export JENKINS_NODE_COOKIE=\"${JENKINS_NODE_COOKIE}\"
-                        export CC=clang-7
-                        export CCX=clang++-7
-                        meson builddir && cd builddir && ninja -k999
-                        run-clang-tidy-7 '.*(?<!pb.cc)(?<!pb-c.c)(?<!pl_fused_gen.[ch])\$' >& clang-tidy.log
+                        export CC=clang CCX=clang++
+                        meson builddir && cd builddir
+                        ninja clang-tidy >& clang-tidy.log
                         sed -i 's|/usr/src/packages/BUILD|${WORKSPACE}/vyatta-dataplane|g' clang-tidy.log
                         """.stripIndent()
                 dir('vyatta-dataplane') {
@@ -171,7 +170,7 @@ EOF
                                 OSC_BUILDPACKAGE_TMP=\"${WORKSPACE}\"
                                 OSC_BUILDPACKAGE_BUILDSCRIPT=\"${WORKSPACE}/osc-buildpackage_buildscript_default\"
                                 """.stripIndent()
-                        sh "osc-buildpkg -v -g -T -A ${env.OBS_INSTANCE} -P ${env.OBS_TARGET_PROJECT} ${env.OBS_TARGET_REPO} -- --trust-all-projects --build-uid='caller' --nochecks --extra-pkgs='clang-tidy-7' --extra-pkgs='llvm-7-dev'"
+                        sh "osc-buildpkg -v -g -T -A ${env.OBS_INSTANCE} -P ${env.OBS_TARGET_PROJECT} ${env.OBS_TARGET_REPO} -- --trust-all-projects --build-uid='caller' --nochecks --extra-pkgs='clang-tidy' --extra-pkgs='clang'"
                 }
             }
             post {

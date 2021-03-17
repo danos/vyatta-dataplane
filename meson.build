@@ -110,3 +110,14 @@ pkg.generate(
         subdirs: 'vyatta-dataplane',
         libraries: []
 )
+
+run_clang_tidy = find_program('run-clang-tidy', required: false)
+if run_clang_tidy.found() and (cc.get_id() == 'clang')
+        run_target('clang-tidy',
+                command: [ 'scripts/run-clang-tidy_wrapper.sh' ],
+                depends: [pl_fused_gen_c, protobuf_generated_c, sample_generated_protobuf_c]
+        )
+else
+        run_target('clang-tidy',
+                command: ['echo', 'install clang-tidy and configure CC=clang', '&&', 'false'])
+endif
