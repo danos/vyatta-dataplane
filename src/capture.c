@@ -1,7 +1,7 @@
 /*
  * Simple data capture output.
  *
- * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2011-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -1169,7 +1169,10 @@ void capture_destroy(void)
 {
 	dp_unregister_event_socket(zsock_resolve(capture_sock_main));
 	zsock_destroy(&capture_sock_main);
+
+	pthread_mutex_lock(&capture_sock_lock);
 	zsock_destroy(&capture_sock_console);
+	pthread_mutex_unlock(&capture_sock_lock);
 }
 
 /*
@@ -1196,7 +1199,7 @@ void capture_init(uint16_t mbuf_sz)
 		rte_panic("capture main socket failed");
 
 	capture_sock_console = zsock_new_pair(">inproc://capture_main_event");
-	if (capture_sock_main == NULL)
+	if (capture_sock_console == NULL)
 		rte_panic("capture console socket failed");
 
 	dp_register_event_socket(zsock_resolve(capture_sock_main),
