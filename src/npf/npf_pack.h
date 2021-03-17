@@ -44,7 +44,7 @@
 #define NPF_PACK_MESSAGE_MAX_SIZE     NPF_PACK_NEW_SESSION_MAX_SIZE
 #define NPF_PACK_MESSAGE_MIN_SIZE     (sizeof(struct npf_pack_message_hdr))
 
-#define SESSION_PACK_VERSION	      (0x0102)
+#define SESSION_PACK_VERSION	      (0x0103)
 
 enum pack_session_new {
 	NPF_PACK_SESSION_NEW_FW = 1,
