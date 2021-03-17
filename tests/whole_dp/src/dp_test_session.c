@@ -1163,6 +1163,312 @@ DP_START_TEST(session_link_walk, test18)
 
 
 /*
+ * Expected connsync data structures and member offsets and sizes
+ */
+static const char *connsync_pack_version =
+	"Connsync Message Data Structures\n"
+	"\n"
+	"npf_pack_sentry_packet\n"
+	"    size                        112 (mod8 0)\n"
+	"    offs psp_forw               0   (sz 48)\n"
+	"    offs psp_back               48  (sz 48)\n"
+	"    offs psp_ifname             96  (sz 16)\n"
+	"\n"
+	"npf_pack_session_state\n"
+	"    size                        40  (mod8 0)\n"
+	"    offs pst_tcp_win            0   (sz 32)\n"
+	"    offs pst_tcp_state          32  (sz 1)\n"
+	"    offs pst_pad                33  (sz 3)\n"
+	"\n"
+	"npf_pack_session_fw\n"
+	"    size                        224 (mod8 0)\n"
+	"    offs pds                    0   (sz 24)\n"
+	"    offs psp                    24  (sz 112)\n"
+	"    offs pns                    136 (sz 16)\n"
+	"    offs pst                    152 (sz 40)\n"
+	"    offs stats                  192 (sz 32)\n"
+	"\n"
+	"npf_pack_session_nat\n"
+	"    size                        248 (mod8 0)\n"
+	"    offs pds                    0   (sz 24)\n"
+	"    offs psp                    24  (sz 112)\n"
+	"    offs pns                    136 (sz 16)\n"
+	"    offs pst                    152 (sz 40)\n"
+	"    offs stats                  192 (sz 32)\n"
+	"    offs pnt                    224 (sz 24)\n"
+	"\n"
+	"npf_pack_session_nat64\n"
+	"    size                        256 (mod8 0)\n"
+	"    offs pds                    0   (sz 24)\n"
+	"    offs psp                    24  (sz 112)\n"
+	"    offs pns                    136 (sz 16)\n"
+	"    offs pst                    152 (sz 40)\n"
+	"    offs stats                  192 (sz 32)\n"
+	"    offs pn64                   224 (sz 32)\n"
+	"\n"
+	"npf_pack_session_nat_nat64\n"
+	"    size                        280 (mod8 0)\n"
+	"    offs pds                    0   (sz 24)\n"
+	"    offs psp                    24  (sz 112)\n"
+	"    offs pns                    136 (sz 16)\n"
+	"    offs pst                    152 (sz 40)\n"
+	"    offs stats                  192 (sz 32)\n"
+	"    offs pnt                    224 (sz 24)\n"
+	"    offs pn64                   248 (sz 32)\n"
+	"\n"
+	"npf_pack_session_update\n"
+	"    size                        200 (mod8 0)\n"
+	"    offs psu_se_id              0   (sz 8)\n"
+	"    offs psu_psp                8   (sz 112)\n"
+	"    offs psu_pst                120 (sz 40)\n"
+	"    offs psu_stats              160 (sz 32)\n"
+	"    offs psu_se_feature_count   192 (sz 2)\n"
+	"    offs psu_pad                194 (sz 6)\n"
+	"\n"
+	"NPF_PACK_MESSAGE_MAX_SIZE == 592\n";
+
+/*
+ * Test session sync data structure analysis
+ */
+DP_DECL_TEST_CASE(session_suite, ssync0, NULL, NULL);
+DP_START_TEST(ssync0, test)
+{
+	char buf[3000];
+	int l = 0;
+
+	size_t psp_sz = sizeof(struct npf_pack_sentry_packet);
+	size_t psp_forw = offsetof(struct npf_pack_sentry_packet, psp_forw);
+	size_t psp_back = offsetof(struct npf_pack_sentry_packet, psp_back);
+	size_t psp_ifname = offsetof(struct npf_pack_sentry_packet, psp_ifname);
+
+	size_t sp_sz = sizeof(struct sentry_packet);
+
+	l += snprintf(buf + l, sizeof(buf) - l,
+		      "Connsync Message Data Structures\n");
+
+	l += snprintf(buf + l, sizeof(buf) - l,
+		      "\nnpf_pack_sentry_packet\n");
+	l += snprintf(buf + l, sizeof(buf) - l,
+		      "    %-26s  %-3lu (mod8 %lu)\n", "size",
+		      psp_sz, psp_sz % 8);
+	l += snprintf(buf + l, sizeof(buf) - l,
+		      "    %-26s  %-3lu (sz %lu)\n", "offs psp_forw",
+		      psp_forw, sp_sz);
+	l += snprintf(buf + l, sizeof(buf) - l,
+		      "    %-26s  %-3lu (sz %lu)\n", "offs psp_back",
+		      psp_back, sp_sz);
+	l += snprintf(buf + l, sizeof(buf) - l,
+		      "    %-26s  %-3lu (sz %d)\n", "offs psp_ifname",
+		      psp_ifname, IFNAMSIZ);
+
+	size_t pst_sz = sizeof(struct npf_pack_session_state);
+	size_t pst_tcp_win = offsetof(struct npf_pack_session_state,
+				      pst_tcp_win);
+	size_t pst_tcp_state = offsetof(struct npf_pack_session_state,
+					pst_tcp_state);
+	size_t pst_pad = offsetof(struct npf_pack_session_state, pst_pad);
+
+	l += snprintf(buf + l, sizeof(buf) - l,
+		      "\nnpf_pack_session_state\n");
+	l += snprintf(buf + l, sizeof(buf) - l,
+		      "    %-26s  %-3lu (mod8 %lu)\n", "size",
+		      pst_sz, pst_sz % 8);
+	l += snprintf(buf + l, sizeof(buf) - l,
+		      "    %-26s  %-3lu (sz %lu)\n", "offs pst_tcp_win",
+		      pst_tcp_win,
+	       sizeof(struct npf_pack_tcp_window) * 2);
+	l += snprintf(buf + l, sizeof(buf) - l,
+		      "    %-26s  %-3lu (sz %lu)\n", "offs pst_tcp_state",
+		      pst_tcp_state,
+	       sizeof(enum tcp_session_state));
+	l += snprintf(buf + l, sizeof(buf) - l,
+		      "    %-26s  %-3lu (sz %u)\n", "offs pst_pad",
+		      pst_pad, 3);
+
+	size_t psf_sz = sizeof(struct npf_pack_session_fw);
+	size_t psf_pds = offsetof(struct npf_pack_session_fw, pds);
+	size_t psf_psp = offsetof(struct npf_pack_session_fw, psp);
+	size_t psf_pns = offsetof(struct npf_pack_session_fw, pns);
+	size_t psf_pst = offsetof(struct npf_pack_session_fw, pst);
+	size_t psf_stats = offsetof(struct npf_pack_session_fw, stats);
+
+	size_t pds_sz = sizeof(struct npf_pack_dp_session);
+	size_t pns_sz = sizeof(struct npf_pack_npf_session);
+	size_t stats_sz = sizeof(struct npf_pack_dp_sess_stats);
+
+	l += snprintf(buf + l, sizeof(buf) - l,
+		      "\nnpf_pack_session_fw\n");
+	l += snprintf(buf + l, sizeof(buf) - l,
+		      "    %-26s  %-3lu (mod8 %lu)\n", "size",
+		      psf_sz, psf_sz % 8);
+	l += snprintf(buf + l, sizeof(buf) - l,
+		      "    %-26s  %-3lu (sz %lu)\n", "offs pds",
+		      psf_pds, pds_sz);
+	l += snprintf(buf + l, sizeof(buf) - l,
+		      "    %-26s  %-3lu (sz %lu)\n", "offs psp",
+		      psf_psp, psp_sz);
+	l += snprintf(buf + l, sizeof(buf) - l,
+		      "    %-26s  %-3lu (sz %lu)\n", "offs pns",
+		      psf_pns, pns_sz);
+	l += snprintf(buf + l, sizeof(buf) - l,
+		      "    %-26s  %-3lu (sz %lu)\n", "offs pst",
+		      psf_pst, pst_sz);
+	l += snprintf(buf + l, sizeof(buf) - l,
+		      "    %-26s  %-3lu (sz %lu)\n", "offs stats",
+		      psf_stats, stats_sz);
+
+	size_t pnt_sz = sizeof(struct npf_pack_nat);
+	size_t pn64_sz = sizeof(struct npf_pack_nat64);
+
+	size_t psn_sz = sizeof(struct npf_pack_session_nat);
+	size_t psn_pds = offsetof(struct npf_pack_session_nat, pds);
+	size_t psn_psp = offsetof(struct npf_pack_session_nat, psp);
+	size_t psn_pns = offsetof(struct npf_pack_session_nat, pns);
+	size_t psn_pst = offsetof(struct npf_pack_session_nat, pst);
+	size_t psn_stats = offsetof(struct npf_pack_session_nat, stats);
+	size_t psn_nat = offsetof(struct npf_pack_session_nat, pnt);
+
+	l += snprintf(buf + l, sizeof(buf) - l,
+		      "\nnpf_pack_session_nat\n");
+	l += snprintf(buf + l, sizeof(buf) - l,
+		      "    %-26s  %-3lu (mod8 %lu)\n", "size",
+		      psn_sz, psn_sz % 8);
+	l += snprintf(buf + l, sizeof(buf) - l,
+		      "    %-26s  %-3lu (sz %lu)\n", "offs pds",
+		      psn_pds, pds_sz);
+	l += snprintf(buf + l, sizeof(buf) - l,
+		      "    %-26s  %-3lu (sz %lu)\n", "offs psp",
+		      psn_psp, psp_sz);
+	l += snprintf(buf + l, sizeof(buf) - l,
+		      "    %-26s  %-3lu (sz %lu)\n", "offs pns",
+		      psn_pns, pns_sz);
+	l += snprintf(buf + l, sizeof(buf) - l,
+		      "    %-26s  %-3lu (sz %lu)\n", "offs pst",
+		      psn_pst, pst_sz);
+	l += snprintf(buf + l, sizeof(buf) - l,
+		      "    %-26s  %-3lu (sz %lu)\n", "offs stats",
+		      psn_stats, stats_sz);
+	l += snprintf(buf + l, sizeof(buf) - l,
+		      "    %-26s  %-3lu (sz %lu)\n", "offs pnt",
+		      psn_nat, pnt_sz);
+
+	size_t psn64_sz = sizeof(struct npf_pack_session_nat64);
+	size_t psn64_pds = offsetof(struct npf_pack_session_nat64, pds);
+	size_t psn64_psp = offsetof(struct npf_pack_session_nat64, psp);
+	size_t psn64_pns = offsetof(struct npf_pack_session_nat64, pns);
+	size_t psn64_pst = offsetof(struct npf_pack_session_nat64, pst);
+	size_t psn64_stats = offsetof(struct npf_pack_session_nat64, stats);
+	size_t psn64_pn64 = offsetof(struct npf_pack_session_nat64, pn64);
+
+	l += snprintf(buf + l, sizeof(buf) - l,
+		      "\nnpf_pack_session_nat64\n");
+	l += snprintf(buf + l, sizeof(buf) - l,
+		      "    %-26s  %-3lu (mod8 %lu)\n", "size",
+		      psn64_sz, psn64_sz % 8);
+	l += snprintf(buf + l, sizeof(buf) - l,
+		      "    %-26s  %-3lu (sz %lu)\n", "offs pds",
+		      psn64_pds, pds_sz);
+	l += snprintf(buf + l, sizeof(buf) - l,
+		      "    %-26s  %-3lu (sz %lu)\n", "offs psp",
+		      psn64_psp, psp_sz);
+	l += snprintf(buf + l, sizeof(buf) - l,
+		      "    %-26s  %-3lu (sz %lu)\n", "offs pns",
+		      psn64_pns, pns_sz);
+	l += snprintf(buf + l, sizeof(buf) - l,
+		      "    %-26s  %-3lu (sz %lu)\n", "offs pst",
+		      psn64_pst, pst_sz);
+	l += snprintf(buf + l, sizeof(buf) - l,
+		      "    %-26s  %-3lu (sz %lu)\n", "offs stats",
+		      psn64_stats, stats_sz);
+	l += snprintf(buf + l, sizeof(buf) - l,
+		      "    %-26s  %-3lu (sz %lu)\n", "offs pn64",
+		      psn64_pn64, pn64_sz);
+
+	size_t pnn64_sz = sizeof(struct npf_pack_session_nat_nat64);
+	size_t pnn64_pds = offsetof(struct npf_pack_session_nat_nat64, pds);
+	size_t pnn64_psp = offsetof(struct npf_pack_session_nat_nat64, psp);
+	size_t pnn64_pns = offsetof(struct npf_pack_session_nat_nat64, pns);
+	size_t pnn64_pst = offsetof(struct npf_pack_session_nat_nat64, pst);
+	size_t pnn64_stats = offsetof(struct npf_pack_session_nat_nat64, stats);
+	size_t pnn64_pnt = offsetof(struct npf_pack_session_nat_nat64, pnt);
+	size_t pnn64_pn64 = offsetof(struct npf_pack_session_nat_nat64, pn64);
+
+
+	l += snprintf(buf + l, sizeof(buf) - l,
+		      "\nnpf_pack_session_nat_nat64\n");
+	l += snprintf(buf + l, sizeof(buf) - l,
+		      "    %-26s  %-3lu (mod8 %lu)\n", "size",
+		      pnn64_sz, pnn64_sz % 8);
+	l += snprintf(buf + l, sizeof(buf) - l,
+		      "    %-26s  %-3lu (sz %lu)\n", "offs pds",
+		      pnn64_pds, pds_sz);
+	l += snprintf(buf + l, sizeof(buf) - l,
+		      "    %-26s  %-3lu (sz %lu)\n", "offs psp",
+		      pnn64_psp, psp_sz);
+	l += snprintf(buf + l, sizeof(buf) - l,
+		      "    %-26s  %-3lu (sz %lu)\n", "offs pns",
+		      pnn64_pns, pns_sz);
+	l += snprintf(buf + l, sizeof(buf) - l,
+		      "    %-26s  %-3lu (sz %lu)\n", "offs pst",
+		      pnn64_pst, pst_sz);
+	l += snprintf(buf + l, sizeof(buf) - l,
+		      "    %-26s  %-3lu (sz %lu)\n", "offs stats",
+		      pnn64_stats, stats_sz);
+	l += snprintf(buf + l, sizeof(buf) - l,
+		      "    %-26s  %-3lu (sz %lu)\n", "offs pnt",
+		      pnn64_pnt, pnt_sz);
+	l += snprintf(buf + l, sizeof(buf) - l,
+		      "    %-26s  %-3lu (sz %lu)\n", "offs pn64",
+		      pnn64_pn64, pn64_sz);
+
+	size_t psu_sz = sizeof(struct npf_pack_session_update);
+	size_t psu_se_id = offsetof(struct npf_pack_session_update, psu_se_id);
+	size_t psu_psp = offsetof(struct npf_pack_session_update, psu_psp);
+	size_t psu_pst = offsetof(struct npf_pack_session_update, psu_pst);
+	size_t psu_stats = offsetof(struct npf_pack_session_update, psu_stats);
+	size_t psu_se_feature_count = offsetof(struct npf_pack_session_update,
+					       psu_se_feature_count);
+	size_t psu_pad = offsetof(struct npf_pack_session_update, psu_pad);
+
+	l += snprintf(buf + l, sizeof(buf) - l,
+		      "\nnpf_pack_session_update\n");
+	l += snprintf(buf + l, sizeof(buf) - l,
+		      "    %-26s  %-3lu (mod8 %lu)\n", "size",
+		      psu_sz, psu_sz % 8);
+	l += snprintf(buf + l, sizeof(buf) - l,
+		      "    %-26s  %-3lu (sz %u)\n", "offs psu_se_id",
+		      psu_se_id, 8);
+	l += snprintf(buf + l, sizeof(buf) - l,
+		      "    %-26s  %-3lu (sz %lu)\n", "offs psu_psp",
+		      psu_psp, psp_sz);
+	l += snprintf(buf + l, sizeof(buf) - l,
+		      "    %-26s  %-3lu (sz %lu)\n", "offs psu_pst",
+		      psu_pst, pst_sz);
+	l += snprintf(buf + l, sizeof(buf) - l,
+		      "    %-26s  %-3lu (sz %lu)\n", "offs psu_stats",
+		      psu_stats, stats_sz);
+	l += snprintf(buf + l, sizeof(buf) - l,
+		      "    %-26s  %-3lu (sz %u)\n", "offs psu_se_feature_count",
+		      psu_se_feature_count, 2);
+	l += snprintf(buf + l, sizeof(buf) - l,
+		      "    %-26s  %-3lu (sz %u)\n", "offs psu_pad",
+		      psu_pad, 6);
+
+	l += snprintf(buf + l, sizeof(buf) - l, "\n");
+	snprintf(buf + l, sizeof(buf) - l,
+		 "NPF_PACK_MESSAGE_MAX_SIZE == %lu\n",
+		 NPF_PACK_MESSAGE_MAX_SIZE);
+
+	if (strncmp(buf, connsync_pack_version, sizeof(buf)) != 0) {
+		printf("Expected:\n%s\n", connsync_pack_version);
+		printf("Got:\n%s\n", buf);
+		dp_test_fail("Connsync data structures");
+	}
+
+
+} DP_END_TEST;
+
+/*
  * Test session sync for a UDP firewall session
  *
  * Creates a firewall session, saves it to a connsync buffer, clears the
