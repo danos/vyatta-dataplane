@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2020, AT&T Intellectual Property. All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property. All rights reserved.
  * Copyright (c) 2017 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -41,6 +41,7 @@
 #include "dp_test_session_internal_lib.h"
 #include "dp_test_npf_fw_lib.h"
 #include "dp_test_npf_sess_lib.h"
+#include "dp_test_npf_nat_lib.h"
 
 #define TEST_VRF 69
 #define IF_NAME "dp1T0"
@@ -1623,5 +1624,185 @@ DP_START_TEST(ssync2, test20)
 				  "aa:bb:cc:dd:1:12");
 	dp_test_netlink_del_neigh("dp2T1", "2.2.2.11",
 				  "aa:bb:cc:dd:2:11");
+
+} DP_END_TEST;
+
+/*
+ * Test session sync for an SNAT session
+ *
+ * 1. Create SNAT session
+ * 2. Verify incoming pkt is translated ok
+ * 3. Pack session into connsync buffer
+ * 4. Clear session
+ * 5. Verify incoming pkt is now dropped
+ * 6. Unpack connsync buffer and restore session
+ * 7. Verify incoming pkt is now translated ok
+ */
+DP_DECL_TEST_CASE(session_suite, ssync3, NULL, NULL);
+DP_START_TEST(ssync3, test19)
+{
+	/* Setup interfaces and neighbours */
+	dp_test_nl_add_ip_addr_and_connected("dp1T0", "192.0.2.1/24");
+	dp_test_nl_add_ip_addr_and_connected("dp2T1", "203.0.113.1/24");
+
+	dp_test_netlink_add_neigh("dp1T0", "192.0.2.103",
+				  "aa:bb:cc:16:0:20");
+	dp_test_netlink_add_neigh("dp2T1", "203.0.113.203",
+				  "aa:bb:cc:18:0:1");
+
+	struct dp_test_npf_nat_rule_t snat = {
+		.desc		= "snat rule",
+		.rule		= "10",
+		.ifname		= "dp2T1",
+		.proto		= NAT_NULL_PROTO,
+		.map		= "dynamic",
+		.port_alloc	= NULL,
+		.from_addr	= "192.0.2.0/24",
+		.from_port	= NULL,
+		.to_addr	= NULL,
+		.to_port	= NULL,
+		.trans_addr	= "203.0.113.2",
+		.trans_port	= NULL,
+	};
+	dp_test_npf_snat_add(&snat, true);
+
+	/* Block inbound pkts that do not match a session */
+	struct dp_test_npf_rule_t rules[] = {
+		{
+			.rule = "10",
+			.pass = BLOCK,
+			.stateful = STATELESS,
+			.npf = "dst-addr=203.0.113.2"
+		},
+		RULE_DEF_BLOCK,
+		NULL_RULE
+	};
+
+	struct dp_test_npf_ruleset_t rset = {
+		.rstype = "fw-in",
+		.name	= "FW1",
+		.enable = 1,
+		.attach_point = "dp2T1",
+		.fwd	= FWD,
+		.dir	= "in",
+		.rules	= rules
+	};
+	dp_test_npf_fw_add(&rset, false);
+
+	/* UDP Forwards */
+	dpt_udp("dp1T0", "aa:bb:cc:16:0:20",
+		"192.0.2.103", 10000, "203.0.113.203", 60000,
+		"203.0.113.2", 10000, "203.0.113.203", 60000,
+		"aa:bb:cc:18:0:1", "dp2T1",
+		DP_TEST_FWD_FORWARDED);
+
+	/* UDP Backwards */
+	dpt_udp("dp2T1", "aa:bb:cc:18:0:1",
+		"203.0.113.203", 60000, "203.0.113.2", 10000,
+		"203.0.113.203", 60000, "192.0.2.103", 10000,
+		"aa:bb:cc:16:0:20", "dp1T0",
+		DP_TEST_FWD_FORWARDED);
+
+	/*
+	 * Create a sentry_packet to match the forward flow
+	 */
+	uint32_t saddr;
+	uint32_t daddr;
+	const struct ifnet *ifp;
+	char realname[IFNAMSIZ];
+	struct sentry_packet sp_forw;
+	int rc;
+
+	dp_test_intf_real("dpT21", realname);
+	ifp = dp_ifnet_byifname(realname);
+
+	inet_pton(AF_INET, "192.0.2.103", &saddr);
+	inet_pton(AF_INET, "203.0.113.203", &daddr);
+
+	rc = dp_test_session_init_sentry_packet(&sp_forw, ifp->if_index,
+			SENTRY_IPv4, (uint8_t) IPPROTO_UDP, 1, htons(10000),
+			&saddr, htons(60000), &daddr);
+	dp_test_fail_unless(rc == 0, "session init sentry_packet: %d\n", rc);
+
+	/*
+	 * Use sentry_packet to lookup dataplane session
+	 */
+	struct session *s = NULL;
+	struct npf_session *se = NULL;
+	bool forw;
+
+	rc = session_lookup_by_sentry_packet(&sp_forw, &s, &forw);
+	dp_test_fail_unless(rc == 0 && s != NULL,
+			    "session_lookup_by_sentry_packet failed\n");
+
+	/*
+	 * Get the npf session from the dataplane session
+	 */
+	se = session_feature_get(s, s->se_sen->sen_ifindex,
+				 SESSION_FEATURE_NPF);
+	dp_test_fail_unless(se != NULL, "Failed to get npf session\n");
+
+	/*
+	 * Pack session.  Returns pmh_len if successful
+	 */
+	struct session *peer = NULL;
+	struct npf_pack_message buf;
+
+	memset(&buf, 0, sizeof(buf));
+
+	rc = dp_session_pack(s, &buf, sizeof(buf), SESSION_PACK_FULL, &peer);
+	dp_test_fail_unless(rc > 0, "dp_session_pack failed\n");
+
+	/*
+	 * There may be a good reason this changes if the data structs change
+	 */
+	dp_test_fail_unless(rc == 256,
+			    "Expected pack msg length 256, got %d\n", rc);
+
+	/*
+	 * Clear the SNAT session.  Without the session, an incoming pkt will
+	 * hit the block firewall rule instead.
+	 */
+	dp_test_npf_clear_sessions();
+
+	dpt_udp("dp2T1", "aa:bb:cc:18:0:1",
+		"203.0.113.203", 60000, "203.0.113.2", 10000,
+		"203.0.113.203", 60000, "192.0.2.103", 10000,
+		"aa:bb:cc:16:0:20", "dp1T0",
+		DP_TEST_FWD_DROPPED);
+
+	/*
+	 * Unpack and restore session from buffer
+	 */
+	enum session_pack_type spt = SESSION_PACK_NONE;
+
+	rc = dp_session_restore(&buf, buf.hdr.pmh_len, &spt);
+	dp_test_fail_unless(rc == 0 && spt == SESSION_PACK_FULL,
+			    "dp_session_restore failed\n");
+
+	/*
+	 * With the SNAT session restored, a backwards packet should now be
+	 * translated and forwarded.
+	 */
+	dpt_udp("dp2T1", "aa:bb:cc:18:0:1",
+		"203.0.113.203", 60000, "203.0.113.2", 10000,
+		"203.0.113.203", 60000, "192.0.2.103", 10000,
+		"aa:bb:cc:16:0:20", "dp1T0",
+		DP_TEST_FWD_FORWARDED);
+
+	/*
+	 * Cleanup
+	 */
+	dp_test_npf_fw_del(&rset, false);
+	dp_test_npf_snat_del(snat.ifname, snat.rule, true);
+	dp_test_npf_cleanup();
+
+	dp_test_netlink_del_neigh("dp1T0", "192.0.2.103",
+				  "aa:bb:cc:16:0:20");
+	dp_test_netlink_del_neigh("dp2T1", "203.0.113.203",
+				  "aa:bb:cc:18:0:1");
+
+	dp_test_nl_del_ip_addr_and_connected("dp1T0", "192.0.2.1/24");
+	dp_test_nl_del_ip_addr_and_connected("dp2T1", "203.0.113.1/24");
 
 } DP_END_TEST;
