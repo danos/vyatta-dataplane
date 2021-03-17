@@ -232,10 +232,11 @@ struct npf_pack_session_update {
 	uint64_t			psu_se_id;	/* for UT */
 	struct npf_pack_sentry_packet	psu_psp;
 	struct npf_pack_session_state	psu_pst;
+	uint8_t				psu_pad1[4];
 	struct npf_pack_dp_sess_stats	psu_stats;
 	uint16_t			psu_se_feature_count;
-	uint8_t				psu_pad[2];
-} __attribute__ ((__packed__));
+	uint8_t				psu_pad2[6];
+};
 
 struct npf_pack_message {
 	struct		npf_pack_message_hdr hdr;
