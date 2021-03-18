@@ -613,12 +613,15 @@ int spath_reader(zloop_t *loop __rte_unused, zmq_pollitem_t *item,
 			dp_pktmbuf_l2_len(m) = RTE_ETHER_HDR_LEN;
 			shadow_feature_if_output(ifp, m, ether);
 		} else if (is_gre(ifp)) {
+			in_addr_t dst_addr;
 			const in_addr_t *dst;
 
 			if (!(meta.flags & TUN_META_FLAG_MARK))
 				dst = NULL;
-			else
-				dst = mgre_nbma_to_tun_addr(ifp, &meta.mark);
+			else {
+				dst_addr = meta.mark;
+				dst = mgre_nbma_to_tun_addr(ifp, &dst_addr);
+			}
 
 			bool consumed = false;
 			if (likely(pi.proto == htons(RTE_ETHER_TYPE_IPV4)))
