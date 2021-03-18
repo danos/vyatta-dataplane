@@ -1627,6 +1627,131 @@ DP_START_TEST(ssync2, test20)
 
 } DP_END_TEST;
 
+
+/*
+ * Verify the normal SNAT session
+ *
+ * "time_to_expire" has been removed from the expected json
+ */
+static void session_suite_ssync3_verify_sess1(void)
+{
+	json_object *exp;
+
+	exp = dp_test_json_create(
+		"{"
+		"  \"config\":{"
+		"    \"sessions\":{"
+		"      \"1\":{"
+		"        \"vrf_id\":1,"
+		"        \"src_addr\":\"192.0.2.103\","
+		"        \"src_port\":10000,"
+		"        \"dst_addr\":\"203.0.113.203\","
+		"        \"dst_port\":60000,"
+		"        \"proto\":17,"
+		"        \"interface\":\"dpT21\","
+		"        \"state_expire_window\":60,"
+		"        \"state\":2,"
+		"        \"gen_state\":2,"
+		"        \"parent\":0,"
+		"        \"duration\":0,"
+		"        \"feature_type\":2,"
+		"        \"features_count\":1,"
+		"        \"features\":["
+		"          {"
+		"            \"type\":3,"
+		"            \"interface\":\"dpT21\","
+		"            \"flags\":518,"
+		"            \"nat\":{"
+		"              \"trans_type\":2,"
+		"              \"trans_addr\":\"203.0.113.2\","
+		"              \"trans_port\":10000,"
+		"              \"masquerade\":0,"
+		"              \"rule\":{"
+		"                \"name\":\"dpT21\","
+		"                \"number\":10"
+		"              }"
+		"            }"
+		"          }"
+		"        ],"
+		"        \"counters\":{"
+		"          \"packets_in\":1,"
+		"          \"bytes_in\":62,"
+		"          \"packets_out\":1,"
+		"          \"bytes_out\":62"
+		"        }"
+		"      }"
+		"    }"
+		"  }"
+		"}");
+
+	dp_test_check_json_poll_state_pp("session-op show sessions full", exp,
+					 DP_TEST_JSON_CHECK_SUBSET,
+					 false, 1);
+}
+
+/*
+ * Verify the SNAT session created from connsync restoration.
+ *
+ * "time_to_expire" has been removed from the expected json
+ *
+ * The *only* line that should have changed is line 4, the session ID.
+ */
+static void session_suite_ssync3_verify_sess2(void)
+{
+	json_object *exp;
+
+	exp = dp_test_json_create(
+		"{"
+		"  \"config\":{"
+		"    \"sessions\":{"
+		"      \"2\":{"
+		"        \"vrf_id\":1,"
+		"        \"src_addr\":\"192.0.2.103\","
+		"        \"src_port\":10000,"
+		"        \"dst_addr\":\"203.0.113.203\","
+		"        \"dst_port\":60000,"
+		"        \"proto\":17,"
+		"        \"interface\":\"dpT21\","
+		"        \"state_expire_window\":60,"
+		"        \"state\":2,"
+		"        \"gen_state\":2,"
+		"        \"parent\":0,"
+		"        \"duration\":0,"
+		"        \"feature_type\":2,"
+		"        \"features_count\":1,"
+		"        \"features\":["
+		"          {"
+		"            \"type\":3,"
+		"            \"interface\":\"dpT21\","
+		"            \"flags\":518,"
+		"            \"nat\":{"
+		"              \"trans_type\":2,"
+		"              \"trans_addr\":\"203.0.113.2\","
+		"              \"trans_port\":10000,"
+		"              \"masquerade\":0,"
+		"              \"rule\":{"
+		"                \"name\":\"dpT21\","
+		"                \"number\":10"
+		"              }"
+		"            }"
+		"          }"
+		"        ],"
+		"        \"counters\":{"
+		"          \"packets_in\":1,"
+		"          \"bytes_in\":62,"
+		"          \"packets_out\":1,"
+		"          \"bytes_out\":62"
+		"        }"
+		"      }"
+		"    }"
+		"  }"
+		"}");
+
+	dp_test_check_json_poll_state_pp("session-op show sessions full", exp,
+					 DP_TEST_JSON_CHECK_SUBSET,
+					 false, 1);
+}
+
 /*
  * Test session sync for an SNAT session
  *
@@ -1689,6 +1814,9 @@ DP_START_TEST(ssync3, test19)
 	};
 	dp_test_npf_fw_add(&rset, false);
 
+	/* Ensure session ID is 0 */
+	dp_test_session_reset_session_id();
+
 	/* UDP Forwards */
 	dpt_udp("dp1T0", "aa:bb:cc:16:0:20",
 		"192.0.2.103", 10000, "203.0.113.203", 60000,
@@ -1702,6 +1830,9 @@ DP_START_TEST(ssync3, test19)
 		"203.0.113.203", 60000, "192.0.2.103", 10000,
 		"aa:bb:cc:16:0:20", "dp1T0",
 		DP_TEST_FWD_FORWARDED);
+
+	/* Verify session */
+	session_suite_ssync3_verify_sess1();
 
 	/*
 	 * Create a sentry_packet to match the forward flow
@@ -1779,6 +1910,9 @@ DP_START_TEST(ssync3, test19)
 	rc = dp_session_restore(&buf, buf.hdr.pmh_len, &spt);
 	dp_test_fail_unless(rc == 0 && spt == SESSION_PACK_FULL,
 			    "dp_session_restore failed\n");
+
+	/* Verify restored session */
+	session_suite_ssync3_verify_sess2();
 
 	/*
 	 * With the SNAT session restored, a backwards packet should now be
