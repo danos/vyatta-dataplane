@@ -767,6 +767,61 @@ dp_test_wait_for_expected_pb(struct dp_test_show_cmd_poll_state *cmd)
 	return cmd->result;
 }
 
+/*
+ * Take two strings and compare them line by line.  Stop and prints lines when
+ * first difference encountered
+ */
+static void dpt_show_first_diff_line(const char *exp, const char *act)
+{
+	const char *e1, *a1, *e2, *a2;
+	ptrdiff_t el, al;
+	int line = 0;
+	char buf1[100];
+	char buf2[100];
+
+	e1 = exp;
+	a1 = act;
+
+	while (e1[0] && a1[0]) {
+		line++;
+		e2 = strchr(e1, '\n');
+		a2 = strchr(a1, '\n');
+		if (!e2 || !a2)
+			return;
+
+		el = e2 - e1;
+		al = a2 - a1;
+
+		if (el != al || strncmp(e1, a1, el) != 0) {
+			if (el >= (long)sizeof(buf1))
+				return;
+			if (al >= (long)sizeof(buf2))
+				return;
+
+			strncpy(buf1, e1, el);
+			buf1[el] = '\0';
+
+			strncpy(buf2, a1, al);
+			buf2[al] = '\0';
+
+			/* Bold red */
+			printf("\033[31m\033[1mFirst difference on line %d\n"
+			       "\033[0m", line);
+
+			printf("Expected:\n");
+			printf("%s\n", buf1);
+
+			printf("Got:\n");
+			printf("%s\n", buf2);
+			return;
+		}
+
+		/* Next line */
+		e1 = e2 + 1;
+		a1 = a2 + 1;
+	}
+}
+
 static void
 _dp_test_check_json_poll_state_internal(const char *cmd_str,
 					json_object *expected_json,
@@ -835,6 +890,9 @@ _dp_test_check_json_poll_state_internal(const char *cmd_str,
 		else
 			actual_str = "<nothing>";
 	}
+
+	if (!result && mode == DP_TEST_JSON_CHECK_EXACT && pretty_print)
+		dpt_show_first_diff_line(expected_str, actual_str);
 
 	if (cmd.negate_match)
 		_dp_test_fail_unless(result,
