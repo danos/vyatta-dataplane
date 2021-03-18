@@ -31,6 +31,13 @@
 #define TABLE_ID_STRLEN (IFNAMSIZ + sizeof("/ingress/ipv4"))
 
 /*
+ * For the policer we are only interested in red/dropped packets.
+ */
+static enum fal_policer_stat_type policer_cntr_id[] = {
+	FAL_POLICER_STAT_RED_PACKETS
+};
+
+/*
  * Structure definitions
  */
 struct gpc_show_context {
@@ -182,8 +189,21 @@ gpc_op_show_action(struct gpc_pb_action *action,
 			const char *aware = gpc_get_policer_awareness_str(val);
 			jsonw_string_field(wr, "awareness", aware);
 		}
-		jsonw_uint_field(wr, "packets", 0);
-		jsonw_uint_field(wr, "drops", 0);
+		if (policer->objid != FAL_NULL_OBJECT_ID) {
+			uint64_t drops = 0;
+			int rv;
+
+			rv = fal_policer_get_stats_ext(policer->objid, 1,
+						       policer_cntr_id,
+						       FAL_STATS_MODE_READ,
+						       &drops);
+			if (rv != 0)
+				RTE_LOG(ERR, DATAPLANE,
+					"Failed to get GPC policer stats: %s\n",
+					strerror(-rv));
+
+			jsonw_uint_field(wr, "drops", drops);
+		}
 		jsonw_end_object(wr);
 		break;
 	default:
