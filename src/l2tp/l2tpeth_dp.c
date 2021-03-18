@@ -164,7 +164,7 @@ l2tp_output(struct ifnet *ifp, struct rte_mbuf *m)
 	}
 
 	/* udp hdr */
-	uint16_t *udp_cksum = NULL;
+	bool fix_cksum = false;
 	uint16_t orig_cksum = 0;
 	struct ip6_hdr *ip6hdr = NULL;
 	struct rte_udp_hdr *udp_header = (struct rte_udp_hdr *)
@@ -186,7 +186,7 @@ l2tp_output(struct ifnet *ifp, struct rte_mbuf *m)
 				    ((char *)orig_ip + offset))->dgram_cksum;
 
 			ip6hdr = (struct ip6_hdr *)encap->iphdr;
-			udp_cksum = &udp_header->dgram_cksum;
+			fix_cksum = true;
 
 		}
 	}
@@ -218,7 +218,7 @@ l2tp_output(struct ifnet *ifp, struct rte_mbuf *m)
 	}
 
 	/* udp checksum for ipv6 + udp encap. */
-	if (udp_cksum) {
+	if (fix_cksum) {
 		if (orig_cksum == 0) {
 			udp_header->dgram_cksum = htons(in6_cksum(ip6hdr,
 						     IPPROTO_UDP,
