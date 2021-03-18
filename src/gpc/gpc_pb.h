@@ -83,9 +83,10 @@ struct gpc_pb_policer {
 	uint64_t        burst;
 	uint64_t        excess_bw;
 	uint64_t        excess_burst;
+	uint64_t        reset_drops;
+	fal_object_t    objid;
 	uint32_t        flags;
 	uint8_t         awareness;
-	fal_object_t    objid;
 };
 
 /*
@@ -143,6 +144,8 @@ struct gpc_pb_counter {
 };
 
 struct gpc_pb_rule_counter {
+	uint64_t		reset_packets;
+	uint64_t		reset_bytes;
 	uint32_t		counter_type;
 	char			*name;
 };

@@ -190,18 +190,21 @@ gpc_op_show_action(struct gpc_pb_action *action,
 			jsonw_string_field(wr, "awareness", aware);
 		}
 		if (policer->objid != FAL_NULL_OBJECT_ID) {
-			uint64_t drops = 0;
+			uint64_t drops;
 			int rv;
 
 			rv = fal_policer_get_stats_ext(policer->objid, 1,
 						       policer_cntr_id,
 						       FAL_STATS_MODE_READ,
 						       &drops);
-			if (rv != 0)
+			if (rv != 0) {
 				RTE_LOG(ERR, DATAPLANE,
 					"Failed to get GPC policer stats: %s\n",
 					strerror(-rv));
-
+				drops = 0;
+			} else {
+				drops = drops - policer->reset_drops;
+			}
 			jsonw_uint_field(wr, "drops", drops);
 		}
 		jsonw_end_object(wr);
@@ -253,9 +256,10 @@ gpc_op_show_rule(struct gpc_pb_rule *rule, struct gpc_walk_context *walk_ctx)
 
 		struct gpc_cntr *cntr = gpc_rule_get_cntr(rule->gpc_rule);
 
-		if (cntr)
-			(void)gpc_hw_counter_read(cntr, &packets, &bytes);
-
+		if (cntr && gpc_hw_counter_read(cntr, &packets, &bytes)) {
+			packets = packets - rule->counter.reset_packets;
+			bytes = bytes - rule->counter.reset_bytes;
+		}
 		jsonw_uint_field(wr, "packets", packets);
 		jsonw_uint_field(wr, "bytes", bytes);
 		jsonw_end_object(wr);
@@ -393,6 +397,130 @@ gpc_show(FILE *f, int argc, char **argv)
 	return 0;
 }
 
+/*
+ * The clear functions - to reset the visible counters to zero.
+ */
+
+static gpc_pb_rule_action_walker_cb gpc_op_clear_action;
+static bool
+gpc_op_clear_action(struct gpc_pb_action *action,
+		    struct gpc_walk_context *walk_ctx __unused)
+{
+	struct gpc_pb_policer *policer;
+	uint64_t drops;
+	int rv;
+
+	/*
+	 * The only action we need to clear is the policer
+	 */
+	if (action->action_type == GPC_RULE_ACTION_VALUE_POLICER) {
+		policer = &action->action_value.policer;
+		if (policer->objid != FAL_NULL_OBJECT_ID) {
+			rv = fal_policer_get_stats_ext(policer->objid, 1,
+						       policer_cntr_id,
+						       FAL_STATS_MODE_READ,
+						       &drops);
+			if (rv != 0)
+				RTE_LOG(ERR, DATAPLANE,
+					"Could not retrieve GPC policer stats: %s\n",
+					strerror(-rv));
+			else
+				policer->reset_drops = drops;
+		}
+	}
+	return true;
+}
+
+static gpc_pb_table_rule_walker_cb gpc_op_clear_rule;
+static bool
+gpc_op_clear_rule(struct gpc_pb_rule *rule, struct gpc_walk_context *walk_ctx)
+{
+	uint64_t bytes;
+	uint64_t packets;
+
+	/*
+	 * Rules with a number of zero are not being used
+	 */
+	if (rule->number == 0)
+		return true;
+
+	gpc_pb_rule_action_walk(rule, gpc_op_clear_action, walk_ctx);
+
+	if (rule->counter.counter_type != GPC_COUNTER_TYPE_UNKNOWN ||
+	    rule->counter.name) {
+		struct gpc_cntr *cntr = gpc_rule_get_cntr(rule->gpc_rule);
+
+		if (cntr && gpc_hw_counter_read(cntr, &packets, &bytes)) {
+			rule->counter.reset_packets = packets;
+			rule->counter.reset_bytes = bytes;
+		}
+	}
+	return true;
+}
+
+static gpc_pb_feature_table_walker_cb gpc_op_clear_table;
+static bool
+gpc_op_clear_table(struct gpc_pb_table *table,
+		   struct gpc_walk_context *walk_ctx)
+{
+	gpc_pb_table_rule_walk(table, gpc_op_clear_rule, walk_ctx);
+	return true; // keep walking
+}
+
+static gpc_pb_feature_counter_walker_cb gpc_op_clear_counter;
+static bool
+gpc_op_clear_counter(struct gpc_pb_counter *counter __unused,
+		     struct gpc_walk_context *walk_ctx __unused)
+{
+	/*
+	 * We don't support named counters yet
+	 */
+	return true; // keep walking
+}
+
+static gpc_pb_feature_walker_cb gpc_op_clear_feature;
+static bool
+gpc_op_clear_feature(struct gpc_pb_feature *feature,
+		     struct gpc_walk_context *walk_ctx)
+{
+	gpc_pb_feature_table_walk(feature, gpc_op_clear_table, walk_ctx);
+	gpc_pb_feature_counter_walk(feature, gpc_op_clear_counter, walk_ctx);
+	return true; // keep walking
+}
+
+/*
+ * Handle: "gpc clear [<feature-name> [<ifname> [<location> [<traffic-type>]]]]"
+ * Output in Yang compatible JSON.
+ */
+static int
+gpc_clear(FILE * f __unused, int argc, char **argv)
+{
+	struct gpc_walk_context walk_ctx;
+
+	--argc, ++argv;		/* skip "clear" */
+
+	walk_ctx.data = NULL;
+	walk_ctx.feature_type = 0;
+	walk_ctx.ifname = NULL;
+	walk_ctx.location = 0;
+	walk_ctx.traffic_type = 0;
+
+	if (argc > 0)
+		walk_ctx.feature_type = gpc_feature_str_to_type(argv[0]);
+
+	if (argc > 1)
+		walk_ctx.ifname = argv[1];
+
+	if (argc > 2)
+		walk_ctx.location = gpc_table_location_str_to_value(argv[2]);
+
+	if (argc > 3)
+		walk_ctx.traffic_type = gpc_traffic_type_str_to_value(argv[3]);
+
+	gpc_pb_feature_walk(gpc_op_clear_feature, &walk_ctx);
+	return 0;
+}
+
 int
 cmd_gpc_op(FILE *f, int argc, char **argv)
 {
@@ -405,6 +533,8 @@ cmd_gpc_op(FILE *f, int argc, char **argv)
 	/* Check for op-mode commands first */
 	if (strcmp(argv[0], "show") == 0)
 		return gpc_show(f, argc, argv);
+	if (strcmp(argv[0], "clear") == 0)
+		return gpc_clear(f, argc, argv);
 
 	return 0;
 }

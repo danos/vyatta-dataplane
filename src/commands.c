@@ -1744,7 +1744,7 @@ static const cmd_t cmd_table[] = {
 	{ 0,	"debug",	cmd_debug,	"Debug logging level" },
 	{ 0,	"ecmp",		cmd_ecmp,	"Show/set ecmp options" },
 	{ 0,	"fal",		cmd_fal,	"FAL debugging commands" },
-	{ 0,    "gpc",          cmd_gpc_op,     "GPC OP mode information" },
+	{ 1,    "gpc",          cmd_gpc_op,     "GPC OP mode information" },
 	{ 0,	"gre",		cmd_gre,	"Show gre information" },
 	{ 0,	"help",		cmd_help,	"This help" },
 	{ 0,	"hotplug",	cmd_hotplug,	"Hotplug event" },
