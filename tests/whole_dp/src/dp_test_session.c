@@ -1887,8 +1887,8 @@ DP_START_TEST(ssync3, test19)
 	/*
 	 * There may be a good reason this changes if the data structs change
 	 */
-	dp_test_fail_unless(rc == 256,
-			    "Expected pack msg length 256, got %d\n", rc);
+	dp_test_fail_unless(rc == 264,
+			    "Expected pack msg length 264, got %d\n", rc);
 
 	/*
 	 * Clear the SNAT session.  Without the session, an incoming pkt will
