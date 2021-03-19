@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2017 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -1220,6 +1220,15 @@ static struct session *se_alloc(void)
 	}
 
 	return s;
+}
+
+/*
+ * Reset the session_id to 0.  Used by UTs between tests so we start each test
+ * with a known session ID value.
+ */
+void session_reset_session_id(void)
+{
+	rte_atomic64_set(&session_id, 0);
 }
 
 /* Initialise the logging requirements of the session */

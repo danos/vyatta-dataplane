@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2020, AT&T Intellectual Property. All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property. All rights reserved.
  * Copyright (c) 2015 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -838,6 +838,14 @@ typedef bool (*dp_test_npf_json_session_cb)(json_object *jvalue, void *arg);
 
 static uint first_session_id;
 static uint first_nat_session_id;
+
+/* Reset dataplane session ID to 0 */
+void dp_test_npf_reset_session_id(void)
+{
+	dp_test_session_reset_session_id();
+	first_session_id = 0;
+	first_nat_session_id = 0;
+}
 
 json_object *
 dp_test_npf_json_fw_session_iterate(dp_test_npf_json_session_cb cb, void *arg,

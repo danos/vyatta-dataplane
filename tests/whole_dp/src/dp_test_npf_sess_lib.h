@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2020, AT&T Intellectual Property. All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property. All rights reserved.
  * Copyright (c) 2015 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -61,6 +61,8 @@ _dp_test_npf_nat_session_count_verify(uint exp_count, bool warn,
 void
 dp_test_npf_expire_sessions(void);
 
+/* Reset session ID to 0 */
+void dp_test_npf_reset_session_id(void);
 
 /**
  * Extract source and destination IDs from a packet descriptor. e.g. for TCP

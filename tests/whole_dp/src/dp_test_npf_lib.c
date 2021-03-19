@@ -1225,6 +1225,9 @@ dp_test_npf_cleanup(void)
 	/* Clear sessions */
 	dp_test_npf_clear_sessions();
 
+	/* Reset session ID to 0 */
+	dp_test_npf_reset_session_id();
+
 	/* Clear portmaps */
 	dp_test_npf_flush_portmap();
 

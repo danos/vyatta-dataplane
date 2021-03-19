@@ -202,6 +202,11 @@ void _dp_test_session_reset(const char *file, int line)
 			"session table counts: sessions: %lu\n", se);
 }
 
+void dp_test_session_reset_session_id(void)
+{
+	session_reset_session_id();
+}
+
 int _dp_test_session_feature_add(struct session *s, uint32_t if_index,
 		enum session_feature_type type, void *data,
 		const char *file, int line)
