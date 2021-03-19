@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2020, AT&T Intellectual Property. All rights reserved.
+ * Copyright (c) 2018-2021, AT&T Intellectual Property. All rights reserved.
  * Copyright (c) 2015 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -61,6 +61,8 @@ int _dp_test_session_init_sentry_packet(struct sentry_packet *sp,
 void _dp_test_session_reset(const char *file, int line);
 #define dp_test_session_reset() \
 		_dp_test_session_reset(__FILE__, __LINE__)
+
+void dp_test_session_reset_session_id(void);
 
 int _dp_test_session_feature_add(struct session *se, uint32_t if_index,
 		enum session_feature_type type, void *data,

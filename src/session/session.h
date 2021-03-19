@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2017 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -877,6 +877,13 @@ void session_link_walk(struct session *s, bool do_unlink,
  * Used by UTs to force a cleanup between tests.
  */
 int session_table_destroy_all(void);
+
+/**
+ * Reset the session_id to 0.
+ *
+ * Used by UTs between tests.
+ */
+void session_reset_session_id(void);
 
 /**
  * Extract elements of a sentry.

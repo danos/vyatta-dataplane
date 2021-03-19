@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020, AT&T Intellectual Property. All rights reserved.
+ * Copyright (c) 2020-2021, AT&T Intellectual Property. All rights reserved.
  * Copyright (c) 2017 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -200,6 +200,11 @@ void _dp_test_session_reset(const char *file, int line)
 			"session table counts: sentries: %lu\n", sen);
 	_dp_test_fail_unless(se == 0, file, line,
 			"session table counts: sessions: %lu\n", se);
+}
+
+void dp_test_session_reset_session_id(void)
+{
+	session_reset_session_id();
 }
 
 int _dp_test_session_feature_add(struct session *s, uint32_t if_index,
