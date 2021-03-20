@@ -8,6 +8,7 @@
 #define _CGN_HASH_KEY_H_
 
 #include <stdint.h>
+#include "npf/cgnat/cgn_dir.h"
 
 /*
  * Key for CGNAT 3-tuple hash table

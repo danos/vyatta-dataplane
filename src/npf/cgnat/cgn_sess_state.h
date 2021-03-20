@@ -13,7 +13,7 @@
 #include "json_writer.h"
 
 #include "npf/nat/nat_proto.h"
-#include "npf/cgnat/cgn.h"
+#include "npf/cgnat/cgn_dir.h"
 #include "npf/cgnat/cgn_mbuf.h"
 
 
@@ -249,17 +249,6 @@ static inline const char *cgn_sess_event_str(enum cgn_sess_event event)
 		return "PKT";
 	case CGN_SESS_EVENT_TO:
 		return "TIMEOUT";
-	};
-	return "???";
-}
-
-static inline const char *cgn_dir_str(enum cgn_dir dir)
-{
-	switch (dir) {
-	case CGN_DIR_OUT:
-		return "OUT";
-	case CGN_DIR_IN:
-		return "IN";
 	};
 	return "???";
 }

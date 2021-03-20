@@ -17,6 +17,7 @@
 #include <netinet/udp.h>
 
 #include "pktmbuf_internal.h"
+#include "npf/cgnat/cgn_dir.h"
 #include "npf/cgnat/cgn_hash_key.h"
 #include "npf/nat/nat_proto.h"
 

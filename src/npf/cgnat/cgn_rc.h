@@ -12,7 +12,7 @@
 #ifndef _CGN_RC_H_
 #define _CGN_RC_H_
 
-#include "npf/cgnat/cgn.h"
+#include "npf/cgnat/cgn_dir.h"
 
 /*
  * cgnat error numbers

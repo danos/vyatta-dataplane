@@ -13,6 +13,7 @@
 
 #include "urcu.h"
 #include "json_writer.h"
+#include "npf/cgnat/cgn_dir.h"
 #include "npf/cgnat/cgn_hash_key.h"
 
 struct cgn_session;

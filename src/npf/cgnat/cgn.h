@@ -8,26 +8,8 @@
 #define _CGN_H_
 
 #include <stdbool.h>
-#include <stddef.h>
 #include <stdint.h>
-
 #include <rte_atomic.h>
-
-/*
- * Packet direction relative to interface with cgnat policy.  Note that this
- * is 1 bit in 'struct cgn_sess2'.
- */
-enum cgn_dir {
-	CGN_DIR_IN = 0,
-	CGN_DIR_OUT = 1
-} __attribute__ ((__packed__));
-
-#define CGN_DIR_SZ 2
-
-static inline enum cgn_dir cgn_reverse_dir(enum cgn_dir dir)
-{
-	return (dir == CGN_DIR_OUT) ? CGN_DIR_IN : CGN_DIR_OUT;
-}
 
 /**************************************************************************
  * CGNAT Global Variables

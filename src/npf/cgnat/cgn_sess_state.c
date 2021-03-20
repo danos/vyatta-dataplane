@@ -14,7 +14,7 @@
 
 #include "util.h"
 
-#include "npf/cgnat/cgn.h"
+#include "npf/cgnat/cgn_dir.h"
 #include "npf/cgnat/cgn_limits.h"
 #include "npf/cgnat/cgn_mbuf.h"
 #include "npf/cgnat/cgn_sess2.h"

@@ -7,7 +7,7 @@
 #ifndef _CGN_POLICY_H_
 #define _CGN_POLICY_H_
 
-#include "npf/cgnat/cgn.h"
+#include "npf/cgnat/cgn_dir.h"
 
 struct cgn_policy;
 struct cgn_session;

@@ -10,6 +10,7 @@
 #include "compiler.h"
 #include "util.h"
 
+#include "npf/cgnat/cgn_dir.h"
 #include "npf/cgnat/cgn_rc.h"
 
 /* Return code and error counters. */

@@ -8,7 +8,7 @@
 #define _CGN_SESSION_H_
 
 #include "util.h"
-#include "npf/cgnat/cgn.h"
+#include "npf/cgnat/cgn_dir.h"
 
 struct cgn_3tuple_key;
 struct cgn_session;

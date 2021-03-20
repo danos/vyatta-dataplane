@@ -11,7 +11,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include "npf/cgnat/cgn.h"
+#include "npf/cgnat/cgn_dir.h"
 
 /*
  * Used by CGNAT unit-tests only

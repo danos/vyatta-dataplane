@@ -25,6 +25,7 @@
 
 #include "npf/nat/nat_proto.h"
 #include "npf/cgnat/cgn.h"
+#include "npf/cgnat/cgn_dir.h"
 #include "npf/cgnat/cgn_rc.h"
 #include "npf/cgnat/cgn_limits.h"
 #include "npf/cgnat/cgn_log.h"
