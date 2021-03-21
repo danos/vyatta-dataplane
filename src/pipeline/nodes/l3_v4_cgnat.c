@@ -71,32 +71,28 @@ ipv4_cgnat_out_bypass(struct ifnet *ifp, struct rte_mbuf *mbuf)
  * cgnat_try_initial.  Sessions are always created in an 'outbound' context.
  */
 static struct cgn_session *
-cgnat_try_initial(struct ifnet *ifp, struct cgn_packet *cpk,
-		  struct rte_mbuf *mbuf, int *error)
+cgnat_try_initial(struct cgn_map *cmi, struct ifnet *ifp,
+		  struct cgn_packet *cpk, struct rte_mbuf *mbuf, int *error)
 {
 	struct cgn_session *cse;
 	struct cgn_policy *cp;
+	uint32_t oaddr;
 	int rc = 0;
 	vrfid_t vrfid = cpk->cpk_vrfid;
-
-	/* Mapping info */
-	struct cgn_map cmi;
-
-	memset(&cmi, 0, sizeof(cmi));
-	cmi.cmi_proto = cpk->cpk_proto;
-	cmi.cmi_oid = cpk->cpk_sid;
-	cmi.cmi_oaddr = cpk->cpk_saddr;
-
-	/* Find policy from the source address */
-	cp = cgn_if_find_policy_by_addr(ifp, cmi.cmi_oaddr);
-	if (!cp) {
-		*error = -CGN_PCY_ENOENT;
-		goto error;
-	}
 
 	/* Should SNAT-ALG pkts bypass CGNAT? */
 	if (unlikely(ipv4_cgnat_out_bypass(ifp, mbuf))) {
 		*error = -CGN_PCY_BYPASS;
+		goto error;
+	}
+
+	/* Get subscriber address */
+	oaddr = cpk->cpk_saddr;
+
+	/* Find policy from the source address */
+	cp = cgn_if_find_policy_by_addr(ifp, oaddr);
+	if (!cp) {
+		*error = -CGN_PCY_ENOENT;
 		goto error;
 	}
 
@@ -112,8 +108,12 @@ cgnat_try_initial(struct ifnet *ifp, struct cgn_packet *cpk,
 		goto error;
 	}
 
+	cmi->cmi_proto = cpk->cpk_proto;
+	cmi->cmi_oid = cpk->cpk_sid;
+	cmi->cmi_oaddr = oaddr;
+
 	/* Allocate public address and port */
-	rc = cgn_map_get(&cmi, cp, vrfid);
+	rc = cgn_map_get(cmi, cp, vrfid);
 
 	if (rc) {
 		*error = rc;
@@ -121,19 +121,19 @@ cgnat_try_initial(struct ifnet *ifp, struct cgn_packet *cpk,
 	}
 
 	/* Create a session. */
-	cse = cgn_session_establish(cpk, &cmi, error);
+	cse = cgn_session_establish(cpk, cmi, error);
 	if (!cse)
 		goto error;
 
 	/* Check if we want to record sub-sessions */
-	cgn_session_try_enable_sub_sess(cse, cp, cmi.cmi_oaddr);
+	cgn_session_try_enable_sub_sess(cse, cp, oaddr);
 
 	return cse;
 
 error:
-	if (cmi.cmi_reserved)
+	if (cmi->cmi_reserved)
 		/* Release mapping */
-		cgn_map_put(&cmi, vrfid);
+		cgn_map_put(cmi, vrfid);
 
 	return NULL;
 }
@@ -506,11 +506,16 @@ static int ipv4_cgnat_common(struct cgn_packet *cpk, struct ifnet *ifp,
 		return error;
 
 	if (unlikely(!cse)) {
+		struct cgn_map cmi;
+
+		/* Only create sessions for outbound flows */
 		if (!cpk->cpk_keepalive)
 			return -CGN_SESS_ENOENT;
 
+		memset(&cmi, 0, sizeof(cmi));
+
 		/* Get policy and mapping.  Create a session. */
-		cse = cgnat_try_initial(ifp, cpk, *mbufp, &error);
+		cse = cgnat_try_initial(&cmi, ifp, cpk, *mbufp, &error);
 		if (!cse)
 			return error;
 
