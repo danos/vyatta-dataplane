@@ -614,6 +614,7 @@ translate:
 				goto error;
 
 			cgn_rc_inc(CGN_DIR_OUT, CGN_HAIRPINNED);
+			cpk->cpk_pkt_hpinned = true;
 			dir = CGN_DIR_IN;
 			result = CGNAT_REFLECT;
 			goto translate;
