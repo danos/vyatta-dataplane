@@ -414,8 +414,9 @@ void cgn_session_destroy(struct cgn_session *cse, bool rcu_free)
 	if (rte_atomic16_cmpset(&cse->cs_map_flag, true, false)) {
 
 		/* Release address and port mapping */
-		struct cgn_map cmi = {0};
+		struct cgn_map cmi;
 
+		memset(&cmi, 0, sizeof(cmi));
 		cgn_session_get_back(cse, &cmi.cmi_taddr, &cmi.cmi_tid);
 		cmi.cmi_reserved = true;
 		cmi.cmi_src = cse->cs_src;
@@ -726,15 +727,14 @@ cgn_session_map(struct ifnet *ifp, struct cgn_packet *cpk,
 	}
 
 	/* Mapping info */
-	struct cgn_map cmi = {
-		.cmi_reserved = false,
-		.cmi_proto = cpk->cpk_proto,
-		.cmi_oid = cpk->cpk_sid,
-		.cmi_oaddr = cpk->cpk_saddr,
-		.cmi_tid = pub_port,
-		.cmi_taddr = pub_addr,
-		.cmi_src = NULL,
-	};
+	struct cgn_map cmi;
+
+	memset(&cmi, 0, sizeof(cmi));
+	cmi.cmi_proto = cpk->cpk_proto;
+	cmi.cmi_oid = cpk->cpk_sid;
+	cmi.cmi_oaddr = cpk->cpk_saddr;
+	cmi.cmi_tid = pub_port;
+	cmi.cmi_taddr = pub_addr;
 
 	/*
 	 * Lookup source address in policy list on the interface
@@ -2253,8 +2253,9 @@ static void cgn_session_clear_mapping(struct cgn_session *cse)
 
 	/* Release mapping immediately */
 	if (rte_atomic16_cmpset(&cse->cs_map_flag, true, false)) {
-		struct cgn_map cmi = {0};
+		struct cgn_map cmi;
 
+		memset(&cmi, 0, sizeof(cmi));
 		cgn_session_get_back(cse, &cmi.cmi_taddr, &cmi.cmi_tid);
 		cmi.cmi_reserved = true;
 		cmi.cmi_src = cse->cs_src;

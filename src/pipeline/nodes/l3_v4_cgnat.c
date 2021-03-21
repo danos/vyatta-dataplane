@@ -80,15 +80,12 @@ cgnat_try_initial(struct ifnet *ifp, struct cgn_packet *cpk,
 	vrfid_t vrfid = cpk->cpk_vrfid;
 
 	/* Mapping info */
-	struct cgn_map cmi = {
-		.cmi_reserved = false,
-		.cmi_proto = cpk->cpk_proto,
-		.cmi_oid = cpk->cpk_sid,
-		.cmi_oaddr = cpk->cpk_saddr,
-		.cmi_tid = 0,
-		.cmi_taddr = 0,
-		.cmi_src = NULL,
-	};
+	struct cgn_map cmi;
+
+	memset(&cmi, 0, sizeof(cmi));
+	cmi.cmi_proto = cpk->cpk_proto;
+	cmi.cmi_oid = cpk->cpk_sid;
+	cmi.cmi_oaddr = cpk->cpk_saddr;
 
 	/* Find policy from the source address */
 	cp = cgn_if_find_policy_by_addr(ifp, cmi.cmi_oaddr);
