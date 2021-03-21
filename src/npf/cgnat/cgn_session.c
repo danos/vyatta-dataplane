@@ -1248,6 +1248,9 @@ cgn_session_inspect(struct cgn_packet *cpk, enum cgn_dir dir, int *error)
 	if (unlikely(!cse->cs_pkt_instd))
 		cse->cs_pkt_instd = true;
 
+	/* If we find a session then it must be a CGNAT packet */
+	cpk->cpk_pkt_cgnat = true;
+
 	/*
 	 * If we have nested 2-tuple sessions then they take care of sessions
 	 * idle monitoring and stats.

@@ -111,6 +111,12 @@ cgnat_try_initial(struct ifnet *ifp, struct cgn_packet *cpk,
 		goto error;
 	}
 
+	/*
+	 * If we find a policy then it must be a CGNAT packet.  (But do not
+	 * mark SNAT-ALG pkts as being CGNAT if bypass is enabled.)
+	 */
+	cpk->cpk_pkt_cgnat = true;
+
 	/* Check if session table is full *before* getting a mapping. */
 	if (unlikely(cgn_session_table_full)) {
 		*error = -CGN_S1_ENOSPC;

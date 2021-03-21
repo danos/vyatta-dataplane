@@ -43,6 +43,7 @@ struct cgn_packet {
 	vrfid_t		cpk_vrfid;	/* VRF id */
 	uint8_t		cpk_keepalive:1; /* Can we clear idle flag? */
 	uint8_t		cpk_pkt_instd:1;
+	uint8_t		cpk_pkt_cgnat:1; /* CGNAT pkt? */
 	uint8_t		cpk_tcp_flags;
 	enum nat_proto	cpk_proto;	/* tcp, udp, other enum */
 	uint8_t		cpk_l4ports;	/* true if there are l4ports*/
