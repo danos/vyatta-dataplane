@@ -218,33 +218,26 @@ int cgn_cache_all(struct rte_mbuf *m, uint l3_offset, struct ifnet *ifp,
 	if (unlikely(!ip))
 		return -CGN_BUF_ENOL3;
 
-	cpk->cpk_info     = 0;
+	memset(cpk, 0, sizeof(*cpk));
+
 	cpk->cpk_ipproto  = ip->protocol;
 	cpk->cpk_proto    = nat_proto_from_ipproto(ip->protocol);
+	cpk->cpk_saddr    = ip->saddr;
+	cpk->cpk_daddr    = ip->daddr;
 	cpk->cpk_vrfid    = pktmbuf_get_vrf(m);
 	cpk->cpk_len      = rte_pktmbuf_pkt_len(m) - dp_pktmbuf_l2_len(m);
 	cpk->cpk_l3_len   = ip->ihl << 2;
-	cpk->cpk_l4_len   = 0;
-	cpk->cpk_keepalive = true;
 	cpk->cpk_pkt_instd = true;
-	cpk->cpk_sid      = 0;
-	cpk->cpk_did      = 0;
-	cpk->cpk_l4ports  = false;
-	cpk->cpk_cksum    = 0;
 	cpk->cpk_ifindex = ifp->if_index;
 	cpk->cpk_key.k_ifindex = cgn_if_key_index(ifp);
-	cpk->cpk_key.k_expired = false;
 
-	if (dir == CGN_DIR_IN || icmp_err)
-		cpk->cpk_keepalive = false;
+	if (dir == CGN_DIR_OUT && !icmp_err)
+		cpk->cpk_keepalive = true;
 
 	rc = cgn_parse_l4(m, l3_offset + cpk->cpk_l3_len, ip->protocol, cpk,
 			  icmp_err);
 	if (unlikely(rc))
 		return rc;
-
-	cpk->cpk_saddr = ip->saddr;
-	cpk->cpk_daddr = ip->daddr;
 
 	/* Setup direction dependent part of hash key */
 	cgn_pkt_key_init(cpk, dir);
