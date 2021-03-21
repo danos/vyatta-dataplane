@@ -46,14 +46,6 @@
 #include "npf/cgnat/cgn_test.h"
 
 
-enum cgnat_result {
-	CGNAT_DROP,
-	CGNAT_DROP_NO_MAP,	/* Failed to get a mapping */
-	CGNAT_DROP_NO_PROTO,	/* Protocol cannot be translated */
-	CGNAT_ACCEPT,
-	CGNAT_REFLECT,
-};
-
 #include "npf/npf_if.h"
 #include "npf/alg/alg_npf.h"
 
@@ -490,11 +482,9 @@ ipv4_cgnat_icmp_err(struct cgn_packet *ocpk, struct ifnet *ifp,
 /*
  * ipv4_cgnat_common
  */
-static enum cgnat_result
-ipv4_cgnat_common(struct cgn_packet *cpk, struct ifnet *ifp,
-		  struct rte_mbuf **mbufp, enum cgn_dir dir, int *errorp)
+static int ipv4_cgnat_common(struct cgn_packet *cpk, struct ifnet *ifp,
+			     struct rte_mbuf **mbufp, enum cgn_dir dir)
 {
-	enum cgnat_result result = CGNAT_ACCEPT;
 	struct rte_mbuf *mbuf = NULL;
 	struct cgn_session *cse;
 	void *n_ptr = NULL;
@@ -505,33 +495,27 @@ ipv4_cgnat_common(struct cgn_packet *cpk, struct ifnet *ifp,
 	if (unlikely((cpk->cpk_info & CPK_ICMP_ERR) != 0)) {
 		/* look for embedded packet to translate */
 		error = ipv4_cgnat_icmp_err(cpk, ifp, mbufp, dir);
-		if (error)
-			goto error;
-
-		return CGNAT_ACCEPT;
+		return error;
 	}
 
 	/* Look for existing session */
 	cse = cgn_session_inspect(cpk, dir, &error);
 
 	/*
-	 * One reason the inspect might fail is if max-dest-per-session is
-	 * reached.
+	 * The most likely reason the inspect might fail is if
+	 * max-dest-per-session is reached.
 	 */
 	if (unlikely(error < 0))
-		goto error;
+		return error;
 
 	if (unlikely(!cse)) {
-		/* Only create sessions for outbound flows */
-		if (dir == CGN_DIR_IN) {
-			error = -CGN_SESS_ENOENT;
-			goto error;
-		}
+		if (!cpk->cpk_keepalive)
+			return -CGN_SESS_ENOENT;
 
 		/* Get policy and mapping.  Create a session. */
 		cse = cgnat_try_initial(ifp, cpk, *mbufp, &error);
 		if (!cse)
-			goto error;
+			return error;
 
 		/*
 		 * If we fail after this point, and before the session is
@@ -553,8 +537,9 @@ ipv4_cgnat_common(struct cgn_packet *cpk, struct ifnet *ifp,
 
 	error = pktmbuf_prepare_for_header_change(mbufp, min_len);
 	if (unlikely(error)) {
-		error = -CGN_BUF_ENOMEM;
-		goto error;
+		if (new_inactive_session)
+			cgn_session_destroy(cse, false);
+		return -CGN_BUF_ENOMEM;
 	}
 
 	/* We can jump back here for hairpinned packets */
@@ -578,14 +563,16 @@ translate:
 	if (new_inactive_session) {
 		/* Activate new session */
 		error = cgn_session_activate(cse, cpk, dir);
-		if (unlikely(error))
+		if (unlikely(error)) {
 			/*
 			 * Session activate can fail for three reasons:
 			 * 1. Max cgnat sessions has been reached,
 			 * 2. This thread lost the race to create a nested sess
 			 * 3. No memory for nested session
 			 */
-			goto error;
+			cgn_session_destroy(cse, false);
+			return error;
+		}
 
 		/*
 		 * Session is now activated and in hash tables, so clear
@@ -620,12 +607,11 @@ translate:
 			error = cgn_cache_all(mbuf, dp_pktmbuf_l2_len(mbuf),
 					      ifp, dir, cpk, false);
 			if (error)
-				goto error;
+				return error;
 
 			cgn_rc_inc(CGN_DIR_OUT, CGN_HAIRPINNED);
 			cpk->cpk_pkt_hpinned = true;
 			dir = CGN_DIR_IN;
-			result = CGNAT_REFLECT;
 			goto translate;
 		}
 	}
@@ -636,47 +622,7 @@ translate:
 	mdata->md_cgn_session = cse;
 	pktmbuf_mdata_set(mbuf, PKT_MDATA_CGNAT_SESSION);
 
-	return result;
-
-error:
-
-	/*
-	 * Either the packet could not be translated, or an error occurred
-	 * either before or during session activate.  cgn_session_activate
-	 * cleans up after itself if it encounters an error, so all we need to
-	 * do here is destroy a new session, if one was created.
-	 */
-	if (new_inactive_session)
-		cgn_session_destroy(cse, false);
-
-	switch (error) {
-	case -CGN_PCY_ENOENT:
-		/*
-		 * Accept packets that do not match a CGNAT policy.  A later
-		 * release will add a config option to toggle this behaviour.
-		 */
-		result = CGNAT_ACCEPT;
-		break;
-	case -CGN_PCY_BYPASS:
-		/*
-		 * Bypass CGNAT for packets matching SNAT-ALG flows.
-		 */
-		result = CGNAT_ACCEPT;
-		break;
-	case -CGN_BUF_PROTO:
-	case -CGN_BUF_ICMP:
-		result = CGNAT_DROP_NO_PROTO;
-		break;
-	case -CGN_SESS_ENOENT:
-		result = CGNAT_DROP;
-		break;
-	default:
-		result = CGNAT_DROP_NO_MAP;
-		break;
-	};
-
-	*errorp = error;
-	return result;
+	return CGN_RC_OK;
 }
 
 /*
@@ -685,7 +631,6 @@ error:
 bool ipv4_cgnat_test(struct rte_mbuf **mbufp, struct ifnet *ifp,
 		     enum cgn_dir dir, int *error)
 {
-	enum cgnat_result result;
 	struct rte_mbuf *mbuf = *mbufp;
 	struct cgn_packet cpk;
 	bool rv = true;
@@ -695,23 +640,15 @@ bool ipv4_cgnat_test(struct rte_mbuf **mbufp, struct ifnet *ifp,
 			      &cpk, false);
 
 	if (likely(*error == 0)) {
-		result = ipv4_cgnat_common(&cpk, ifp, &mbuf,
-					   dir, error);
+		*error = ipv4_cgnat_common(&cpk, ifp, &mbuf, dir);
 
 		if (unlikely(mbuf != *mbufp))
 			*mbufp = mbuf;
-	} else
-		/* Packet not suitable for translation */
-		result = CGNAT_DROP;
+	}
 
-	switch (result) {
-	case CGNAT_ACCEPT:
-		break;
+	if (*error < 0) {
+		rv = false;
 
-	case CGNAT_DROP_NO_MAP:
-	case CGNAT_DROP_NO_PROTO:
-		/* fall through (No ICMP error sent for incoming traffic) */
-	case CGNAT_DROP:
 		/*
 		 * Allow packets that matched a firewall or nat session to
 		 * bypass CGNAT drops
@@ -719,16 +656,11 @@ bool ipv4_cgnat_test(struct rte_mbuf **mbufp, struct ifnet *ifp,
 		if (pktmbuf_mdata_exists(mbuf, PKT_MDATA_SESSION)) {
 			*error = 0;
 			rv = true;
-		} else
-			rv = false;
-		break;
-
-	case CGNAT_REFLECT:
-		break;
+		}
 	}
 
 	if (unlikely(*error))
-		cgn_rc_inc(CGN_DIR_IN, *error);
+		cgn_rc_inc(dir, *error);
 
 	return rv;
 }
@@ -763,7 +695,6 @@ ALWAYS_INLINE unsigned int
 ipv4_cgnat_in_process(struct pl_packet *pkt, void *context __unused)
 {
 	struct ifnet *ifp = pkt->in_ifp;
-	enum cgnat_result result;
 	struct rte_mbuf *mbuf = pkt->mbuf;
 	struct cgn_packet cpk;
 	int error = 0;
@@ -774,25 +705,20 @@ ipv4_cgnat_in_process(struct pl_packet *pkt, void *context __unused)
 			      &cpk, false);
 
 	if (likely(error == 0)) {
-		result = ipv4_cgnat_common(&cpk, ifp, &mbuf,
-					   CGN_DIR_IN, &error);
+		error = ipv4_cgnat_common(&cpk, ifp, &mbuf, CGN_DIR_IN);
 
 		if (unlikely(mbuf != pkt->mbuf)) {
 			pkt->mbuf = mbuf;
 			pkt->l3_hdr = dp_pktmbuf_mtol3(mbuf, void *);
 		}
-	} else
-		/* Packet not suitable for translation */
-		result = CGNAT_DROP;
+	}
 
-	switch (result) {
-	case CGNAT_ACCEPT:
-		break;
+	/*
+	 * Drop pkt on error, subject to exceptions below
+	 */
+	if (unlikely(error < 0)) {
+		rc = IPV4_CGNAT_IN_DROP;
 
-	case CGNAT_DROP_NO_MAP:
-	case CGNAT_DROP_NO_PROTO:
-		/* fall through (No ICMP error sent for incoming traffic) */
-	case CGNAT_DROP:
 		/*
 		 * Allow packets that matched a firewall or nat session to
 		 * bypass CGNAT drops
@@ -800,40 +726,54 @@ ipv4_cgnat_in_process(struct pl_packet *pkt, void *context __unused)
 		if (pktmbuf_mdata_exists(mbuf, PKT_MDATA_SESSION)) {
 			rc = IPV4_CGNAT_IN_ACCEPT;
 			error = 0;
-		} else
-			rc = IPV4_CGNAT_IN_DROP;
+			goto end;
+
+		}
+
+		/*
+		 * Did pkt match a CGNAT session?  If so, then we apply the
+		 * 'drop' decision.
+		 */
+		if (cpk.cpk_pkt_cgnat)
+			goto end;
 
 		/*
 		 * Allow packets through if the destination address is *not*
 		 * in any NAT pool used by CGNAT policies on this interface.
 		 */
 		if (!cgn_is_pool_address(ifp, cpk.cpk_daddr)) {
-			cgn_rc_inc(CGN_DIR_IN, CGN_POOL_ENOENT);
+
 			rc = IPV4_CGNAT_IN_ACCEPT;
-			error = 0;
-
-		} else if ((cpk.cpk_info & CPK_ICMP_ECHO_REQ) != 0) {
-			/*
-			 * If pkt is an ICMP echo req sent to a CGNAT pool
-			 * address then send an echo reply to the sender, and
-			 * drop the original pkt.
-			 */
-			if (icmp_echo_reply_out(pkt->in_ifp, pkt->mbuf, true)) {
-				/*
-				 * Echo reply successfully sent. Set 'error'
-				 * so that there are accounted for, and then
-				 * drop the original packet.
-				 */
-				rc = IPV4_CGNAT_IN_DROP;
-				error = -CGN_ICMP_ECHOREQ;
-			}
+			error = -CGN_POOL_ENOENT;
+			goto end;
 		}
-		break;
 
-	case CGNAT_REFLECT:
-		break;
+		/*
+		 * Pkt did *not* match a CGNAT session, but *is* addressed to
+		 * a CGNAT public address.
+		 */
+
+		/*
+		 * If pkt is an ICMP echo req sent to a CGNAT pool address
+		 * then send an echo reply to the sender, and drop the
+		 * original pkt.
+		 */
+		if ((cpk.cpk_info & CPK_ICMP_ECHO_REQ) != 0) {
+			bool sent;
+			sent = icmp_echo_reply_out(pkt->in_ifp, pkt->mbuf,
+						   true);
+			/*
+			 * Set 'error' if reply was sent ok so that
+			 * these are accounted for.  Orig pkt is
+			 * dropped regardless.
+			 */
+			if (sent)
+				error = -CGN_ICMP_ECHOREQ;
+			goto end;
+		}
 	}
 
+end:
 	if (unlikely(error))
 		cgn_rc_inc(CGN_DIR_IN, error);
 
@@ -848,7 +788,6 @@ ALWAYS_INLINE unsigned int ipv4_cgnat_out_process(struct pl_packet *pkt,
 {
 	struct ifnet *ifp = pkt->out_ifp;
 	struct rte_mbuf *mbuf = pkt->mbuf;
-	enum cgnat_result result;
 	struct cgn_packet cpk;
 	int error = 0;
 	uint rc = IPV4_CGNAT_OUT_ACCEPT;
@@ -863,51 +802,58 @@ ALWAYS_INLINE unsigned int ipv4_cgnat_out_process(struct pl_packet *pkt,
 		 * ACCEPT.  For example, if the packet does not match a CGNAT
 		 * policy.
 		 */
-		result = ipv4_cgnat_common(&cpk, ifp, &mbuf,
-					   CGN_DIR_OUT, &error);
+		error = ipv4_cgnat_common(&cpk, ifp, &mbuf, CGN_DIR_OUT);
 
 		if (unlikely(mbuf != pkt->mbuf)) {
 			pkt->mbuf = mbuf;
 			pkt->l3_hdr = dp_pktmbuf_mtol3(mbuf, void *);
 		}
-	} else
-		/* Packet not suitable for translation */
-		result = CGNAT_DROP;
-
-	switch (result) {
-	case CGNAT_ACCEPT:
-		rc = IPV4_CGNAT_OUT_ACCEPT;
-		break;
-
-	case CGNAT_DROP:
-		rc = IPV4_CGNAT_OUT_DROP;
-		break;
-
-	case CGNAT_DROP_NO_MAP:
-		/* No mapping - soft error */
-		icmp_error(pkt->in_ifp, pkt->mbuf, ICMP_DEST_UNREACH,
-			   ICMP_HOST_UNREACH, 0);
-		rc = IPV4_CGNAT_OUT_DROP;
-		break;
-
-	case CGNAT_DROP_NO_PROTO:
-		/* Protocol cannot be translated - hard error */
-		icmp_error(pkt->in_ifp, pkt->mbuf, ICMP_DEST_UNREACH,
-			   ICMP_PROT_UNREACH, 0);
-		rc = IPV4_CGNAT_OUT_DROP;
-		break;
-
-	case CGNAT_REFLECT:
-		/*
-		 * Hairpinning
-		 */
-		ip_lookup_and_forward(pkt->mbuf, pkt->in_ifp, true,
-				      NPF_FLAG_CACHE_EMPTY);
-
-		rc = IPV4_CGNAT_OUT_CONSUME;
-		break;
 	}
 
+	/*
+	 * Hairpinned packet?
+	 */
+	if (unlikely(error == 0 && cpk.cpk_pkt_hpinned)) {
+		ip_lookup_and_forward(pkt->mbuf, pkt->in_ifp, true,
+				      NPF_FLAG_CACHE_EMPTY);
+		rc = IPV4_CGNAT_OUT_CONSUME;
+		goto end;
+	}
+
+	/*
+	 * Drop pkt on error, subject to exceptions below
+	 */
+	if (unlikely(error < 0)) {
+		rc = IPV4_CGNAT_OUT_DROP;
+
+		/*
+		 * If a pkt failed to match a CGNAT policy or session then it
+		 * is not a CGNAT pkt.
+		 */
+		if (!cpk.cpk_pkt_cgnat) {
+			rc = IPV4_CGNAT_OUT_ACCEPT;
+			goto end;
+		}
+
+		/*
+		 * Send ICMP Unreachable?
+		 */
+		if (error == -CGN_BUF_PROTO || error == -CGN_BUF_ICMP) {
+			/* Hard error.  Could not translate. */
+			icmp_error(pkt->in_ifp, pkt->mbuf, ICMP_DEST_UNREACH,
+				   ICMP_PROT_UNREACH, 0);
+			goto end;
+		}
+
+		if (cpk.cpk_pkt_cgnat) {
+			/* Soft error.  Should have translated, but failed. */
+			icmp_error(pkt->in_ifp, pkt->mbuf, ICMP_DEST_UNREACH,
+				   ICMP_HOST_UNREACH, 0);
+			goto end;
+		}
+	}
+
+end:
 	if (unlikely(error))
 		cgn_rc_inc(CGN_DIR_OUT, error);
 
