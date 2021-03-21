@@ -532,24 +532,33 @@ ipv4_cgnat_common(struct cgn_packet *cpk, struct ifnet *ifp,
 		cse = cgnat_try_initial(ifp, cpk, *mbufp, &error);
 		if (!cse)
 			goto error;
+
+		/*
+		 * If we fail after this point, and before the session is
+		 * activated, then the new session needs to be destroyed.  We
+		 * need this because of the jump backwards for hairpinned
+		 * pkts.
+		 */
 		new_inactive_session = true;
 	}
-
-	/* We can jump back here for hairpinned packets */
-translate:
 
 	/*
 	 * Copy the l3 and l4 headers into a new segment if they are not all
 	 * in the first segment, or if the mbuf is shared.
 	 */
-	error = pktmbuf_prepare_for_header_change(mbufp,
-						  dp_pktmbuf_l2_len(*mbufp) +
-						  cpk->cpk_l3_len +
-						  cpk->cpk_l4_len);
+	int min_len = 0;
+
+	min_len = dp_pktmbuf_l2_len(*mbufp) + cpk->cpk_l3_len +
+		cpk->cpk_l4_len;
+
+	error = pktmbuf_prepare_for_header_change(mbufp, min_len);
 	if (unlikely(error)) {
 		error = -CGN_BUF_ENOMEM;
 		goto error;
 	}
+
+	/* We can jump back here for hairpinned packets */
+translate:
 
 	/* mbuf might have changed above, so dereference here */
 	mbuf = *mbufp;
