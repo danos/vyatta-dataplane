@@ -7,6 +7,9 @@
 #ifndef _CGN_MAP_H_
 #define _CGN_MAP_H_
 
+#include <stdbool.h>
+#include <stdint.h>
+#include "vrf.h"
 #include "npf/nat/nat_proto.h"
 
 struct cgn_policy;

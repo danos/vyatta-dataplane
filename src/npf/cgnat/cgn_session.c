@@ -47,7 +47,6 @@
 #include "npf/nat/nat_pool_public.h"
 
 #include "npf/cgnat/cgn.h"
-#include "npf/apm/apm.h"
 #include "npf/cgnat/cgn_cmd_cfg.h"
 #include "npf/cgnat/cgn_dir.h"
 #include "npf/cgnat/cgn_rc.h"

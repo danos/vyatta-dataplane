@@ -18,8 +18,15 @@
 
 #include "pktmbuf_internal.h"
 #include "npf/cgnat/cgn_dir.h"
-#include "npf/cgnat/cgn_hash_key.h"
+#include "vrf.h"
+
 #include "npf/nat/nat_proto.h"
+#include "npf/cgnat/cgn_hash_key.h"
+#include "npf/cgnat/cgn.h"
+
+struct cgn_sess2;
+struct cgn_source;
+struct cgn_policy;
 
 /*
  * cgn_packet - decomposition of a packet

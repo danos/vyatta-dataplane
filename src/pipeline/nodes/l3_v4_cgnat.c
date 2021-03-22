@@ -29,7 +29,9 @@
 #include "in_cksum.h"
 
 #include "npf/npf.h"
+#include "npf/npf_if.h"
 #include "npf/npf_mbuf.h"
+#include "npf/alg/alg_npf.h"
 
 #include "npf/nat/nat_pool_public.h"
 #include "npf/cgnat/cgn.h"
@@ -41,13 +43,11 @@
 #include "npf/cgnat/cgn_mbuf.h"
 #include "npf/cgnat/cgn_policy.h"
 #include "npf/cgnat/cgn_public.h"
+#include "npf/cgnat/cgn_sess_state.h"
 #include "npf/cgnat/cgn_session.h"
 #include "npf/cgnat/cgn_source.h"
 #include "npf/cgnat/cgn_test.h"
 
-
-#include "npf/npf_if.h"
-#include "npf/alg/alg_npf.h"
 
 static inline bool
 ipv4_cgnat_out_bypass(struct ifnet *ifp, struct rte_mbuf *mbuf)

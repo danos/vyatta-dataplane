@@ -9,9 +9,11 @@
 
 #include "npf/cgnat/cgn_dir.h"
 
+struct json_writer;
 struct cgn_policy;
 struct cgn_session;
 struct nat_pool;
+struct ifnet;
 
 /* Max length of names, enforced by config, is 42 */
 #define NAT_POLICY_NAME_MAX	43
@@ -166,7 +168,7 @@ int cgn_policy_cfg_delete(FILE *f, int argc, char **argv);
 
 void cgn_policy_if_disable(struct ifnet *ifp);
 
-void cgn_policy_jsonw_summary(json_writer_t *json);
+void cgn_policy_jsonw_summary(struct json_writer *json);
 void cgn_policy_show(FILE *f, int argc, char **argv);
 void cgn_policy_clear(int argc, char **argv);
 

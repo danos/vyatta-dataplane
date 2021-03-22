@@ -12,10 +12,10 @@
 #define _CGN_SESS2_H_
 
 #include "urcu.h"
-#include "json_writer.h"
 #include "npf/cgnat/cgn_dir.h"
 #include "npf/cgnat/cgn_hash_key.h"
 
+struct json_writer;
 struct cgn_session;
 struct cgn_packet;
 struct cgn_sess2;
@@ -141,7 +141,7 @@ uint32_t cgn_sess_s2_unexpired(struct cgn_sess_s2 *cs2);
 uint cgn_sess_s2_expire_all(struct cgn_sess_s2 *cs2);
 uint cgn_sess_s2_expire_id(struct cgn_sess_s2 *cs2, uint32_t s2_id);
 void cgn_sess2_clear_or_update_stats(struct cgn_sess_s2 *cs2, bool clear);
-uint cgn_sess_s2_show(json_writer_t *json, struct cgn_sess_s2 *cs2,
+uint cgn_sess_s2_show(struct json_writer *json, struct cgn_sess_s2 *cs2,
 		      struct cgn_sess_fltr *fltr);
 void cgn_sess_s2_gc_walk(struct cgn_sess_s2 *cs2, uint *unexpd, uint *expd);
 int cgn_sess_s2_log_walk(struct cgn_sess_s2 *cs2);
