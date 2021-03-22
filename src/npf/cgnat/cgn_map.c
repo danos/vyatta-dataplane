@@ -844,13 +844,12 @@ int cgn_map_put(struct cgn_map *cmi, vrfid_t vrfid)
 	struct nat_pool *np;
 	struct apm *apm;
 
+	if (!cmi->cmi_reserved)
+		return 0;
+
 	assert(cmi->cmi_src);
 	assert(cmi->cmi_taddr);
 	assert(cmi->cmi_tid);
-	assert(cmi->cmi_reserved);
-
-	if (!cmi->cmi_reserved)
-		return 0;
 
 	if (unlikely(!cmi->cmi_src || cmi->cmi_taddr == 0 ||
 		     cmi->cmi_tid == 0))
@@ -863,13 +862,17 @@ int cgn_map_put(struct cgn_map *cmi, vrfid_t vrfid)
 
 	/* Get pool from subscriber (not policy) */
 	np = cgn_source_get_pool(src);
-	if (unlikely(!np))
-		goto unlock_end;
+	if (unlikely(!np)) {
+		rte_spinlock_unlock(&src->sr_lock);
+		return 0;
+	}
 
 	/* Lookup public address in apm table */
 	apm = apm_lookup(ntohl(cmi->cmi_taddr), vrfid);
-	if (unlikely(!apm))
-		goto unlock_end;
+	if (unlikely(!apm)) {
+		rte_spinlock_unlock(&src->sr_lock);
+		return 0;
+	}
 
 	uint16_t port, block;
 	struct apm_port_block *pb;
@@ -880,11 +883,12 @@ int cgn_map_put(struct cgn_map *cmi, vrfid_t vrfid)
 	pb = apm->apm_blocks[block];
 
 	/* Should never happen */
-	if (unlikely(!pb))
-		goto unlock_end;
+	if (unlikely(!pb)) {
+		rte_spinlock_unlock(&src->sr_lock);
+		return 0;
+	}
 
-	assert(apm_block_get_source(pb) &&
-	       apm_block_get_source(pb) == src);
+	assert(apm_block_get_source(pb) && apm_block_get_source(pb) == src);
 
 	/* Clear bit in port-block bitmap */
 	apm_block_release_port(pb, cmi->cmi_proto, port);
@@ -926,7 +930,6 @@ int cgn_map_put(struct cgn_map *cmi, vrfid_t vrfid)
 	/* Reservation has been released */
 	cmi->cmi_reserved = false;
 
-unlock_end:
 	/* Unlock source */
 	rte_spinlock_unlock(&src->sr_lock);
 
