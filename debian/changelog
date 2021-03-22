@@ -1,3 +1,22 @@
+vyatta-dataplane (3.13.3) unstable; urgency=medium
+
+  [ Derek Fawcus ]
+  * lttp: Do not take address of packed field
+  * shadow: Do not take address of packed field
+
+  [ Ian Wilson ]
+  * ut: Display first different line when using pretty-print cmd check
+  * npf: Allow unit-tests to reset session ID to 0
+  * ut: Test connsync packing and restoration of SNAT session
+  * ut: Verify the SNAT session json ssync3 test
+  * npf: Fix SNAT session restoration from connsync buffer
+
+  [ Nicholas Brown ]
+  * Provide and use a C protobuf library
+  * Add break/conflicts for moving protobuf C headers
+
+ -- Srinivas Narayan <narayan@vyatta.att-mail.com>  Mon, 22 Mar 2021 11:08:08 +0000
+
 vyatta-dataplane (3.13.2) unstable; urgency=medium
 
   [ Ian Wilson ]
