@@ -68,9 +68,18 @@ bool cgn_policy_record_dest(struct cgn_policy *cp, uint32_t addr)
 	return false;
 }
 
+/*
+ * rte_jhash reads from memory in 4-byte chunks.  If the length of 'name' is
+ * not a multiple of 4 bytes then it may try and read memory that is not
+ * mapped.  Issue was detected by valgrind.
+ */
 static ulong cgn_policy_hash(const char *name)
 {
-	return rte_jhash(name, strlen(name), 0);
+	int len = strlen(name);
+	char __name[RTE_ALIGN(len, 4)] __rte_aligned(sizeof(uint32_t));
+
+	memcpy(__name, name, len);
+	return rte_jhash(__name, len, 0);
 }
 
 /*
