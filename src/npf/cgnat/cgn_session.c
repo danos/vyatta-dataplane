@@ -427,6 +427,26 @@ void cgn_session_destroy(struct cgn_session *cse, bool rcu_free)
 }
 
 /*
+ * Take reference on session
+ */
+static struct cgn_session *cgn_session_get(struct cgn_session *cse)
+{
+	if (cse)
+		rte_atomic16_inc(&cse->cs_refcnt);
+
+	return cse;
+}
+
+/*
+ * Release reference on session
+ */
+static void cgn_session_put(struct cgn_session *cse)
+{
+	if (cse && rte_atomic16_dec_and_test(&cse->cs_refcnt))
+		cgn_session_destroy(cse, true);
+}
+
+/*
  * Set maximum CGN sessions;
  * recalc session table threshold.
  */
@@ -888,6 +908,9 @@ int cgn_session_activate(struct cgn_session *cse,
 		goto end;
 	}
 
+	/* Hold reference on session while it it in the table */
+	(void)cgn_session_get(cse);
+
 	/* Increment 3-tuple sessions created in subscriber */
 	cgn_source_stats_sess_created(cse->cs_src);
 
@@ -942,6 +965,9 @@ cgn_session_deactivate(struct cgn_session *cse)
 
 		/* Increment 3-tuple sessions destroyed in subscriber */
 		cgn_source_stats_sess_destroyed(cse->cs_src);
+
+		/* Release reference on session */
+		cgn_session_put(cse);
 	}
 }
 
@@ -2797,18 +2823,11 @@ cgn_session_gc_inspect(struct cgn_session *cse)
 	if (likely(!cgn_session_expired(cse)))
 		return;
 
-	/* Wait until all references on the session have been removed */
-	if (rte_atomic16_read(&cse->cs_refcnt))
-		return;
-
 	if (cse->cs_gc_pass++ < CGN_SESS_GC_COUNT)
 		return;
 
-	/* Remove sentrys' from table */
+	/* Remove sentrys' from table, release mapping */
 	cgn_session_deactivate(cse);
-
-	/* Release map and policy, schedule rcu-free */
-	cgn_session_destroy(cse, true);
 }
 
 static inline void start_timer(struct rte_timer *timer);
