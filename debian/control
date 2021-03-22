@@ -256,6 +256,8 @@ Package: libvyatta-dataplane-proto-c-dev
 Section: non-free/libdevel
 Architecture: any
 Depends: libvyatta-dataplane-proto-c1 (= ${binary:Version}), ${misc:Depends}
+Breaks: libvyatta-dataplane-proto-dev (<<3.13.3)
+Replaces: libvyatta-dataplane-proto-dev (<<3.13.3)
 Description: Provides C headers for the dataplane API.
  C headers for the dataplane API.
 
