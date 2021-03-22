@@ -265,6 +265,111 @@ cgn_sess_state_init(struct cgn_state *st, enum nat_proto proto, uint16_t port)
 }
 
 /*
+ * Inspect TCP state
+ */
+static void
+cgn_sess_state_inspect_tcp(struct cgn_state *st, uint8_t tcp_flags,
+			   enum cgn_dir dir, uint64_t start_time)
+{
+	bool forw = (dir == CGN_DIR_OUT);
+	enum cgn_tcp_event event;
+	uint64_t rtt;
+	uint8_t new;
+
+	/*
+	 * Inspect TCP flags in order to determine event type, rtt
+	 * times, and to record TCP flow history.
+	 */
+
+	/* hist_bit relies on these asserts */
+	static_assert(CGN_SESS_HIST_FFIN == 0x02,
+		      "cgn sess hist flag is wrong");
+	static_assert(CGN_SESS_HIST_BFIN == 0x04,
+		      "cgn sess hist flag is wrong");
+	static_assert(CGN_SESS_HIST_FRST == 0x08,
+		      "cgn sess hist flag is wrong");
+	static_assert(CGN_SESS_HIST_BRST == 0x10,
+		      "cgn sess hist flag is wrong");
+	static_assert(CGN_SESS_HIST_FACK == 0x20,
+		      "cgn sess hist flag is wrong");
+	static_assert(CGN_SESS_HIST_BACK == 0x40,
+		      "cgn sess hist flag is wrong");
+
+	uint8_t hist_bit = 0x02;
+	if (!forw)
+		hist_bit <<= 1;
+
+	if (tcp_flags & TH_RST) {
+		/* RST event */
+		event = CGN_TCP_EVENT_RST;
+		hist_bit <<= 2;
+
+		/* Record forw or back RST seen */
+		if ((st->st_hist & hist_bit) == 0)
+			st->st_hist |= hist_bit;
+
+	} else if (tcp_flags & TH_SYN) {
+		/* SYN event */
+		event = CGN_TCP_EVENT_SYN;
+
+		/* External rtt.  Look for incoming SYN-ACK. */
+		if (!forw && (tcp_flags & TH_ACK)) {
+			rtt = cgn_sess2_timestamp() - start_time;
+			st->st_ext_rtt = rtt;
+		}
+
+	} else if (tcp_flags & TH_FIN) {
+		/* FIN event */
+		event = CGN_TCP_EVENT_FIN;
+
+		/* Record forw or back FIN seen */
+		if ((st->st_hist & hist_bit) == 0)
+			st->st_hist |= hist_bit;
+
+	} else if (tcp_flags & TH_ACK) {
+		event = CGN_TCP_EVENT_ACK;
+		hist_bit <<= 4;
+
+		/* Record forw or back ACK seen */
+		if ((st->st_hist & hist_bit) == 0) {
+			st->st_hist |= hist_bit;
+
+			/* Int rtt. Look for first forw ACK */
+			if (forw) {
+				rtt = cgn_sess2_timestamp() -
+					start_time - st->st_ext_rtt;
+				st->st_int_rtt = rtt;
+			}
+		}
+
+	} else
+		event = CGN_TCP_EVENT_NONE;
+
+	/* Crank TCP state machine */
+	new = cgn_tcp_fsm[st->st_state][dir][event];
+
+	if (new != CGN_TCP_STATE_NONE && new != st->st_state) {
+		st->st_state = new;
+		if (new == CGN_TCP_STATE_ESTABLISHED)
+			st->st_hist |= CGN_SESS_HIST_ESTD;
+	}
+}
+
+/*
+ * Inspect non-TCP state
+ */
+static void cgn_sess_state_inspect_other(struct cgn_state *st, enum cgn_dir dir)
+{
+	uint8_t new;
+
+	/* Crank non-TCP state machine */
+	new = cgn_sess_fsm[st->st_state][dir][CGN_SESS_EVENT_PKT];
+
+	if (new != CGN_SESS_STATE_NONE && new != st->st_state)
+		st->st_state = new;
+}
+
+/*
  * Evaluate session state
  *
  * start_time	Session start time, unix epoch microseconds
@@ -273,102 +378,22 @@ void
 cgn_sess_state_inspect(struct cgn_state *st, struct cgn_packet *cpk,
 		       enum cgn_dir dir, uint64_t start_time)
 {
-	uint8_t new;
-
 	rte_spinlock_lock(&st->st_lock);
 
-	if (st->st_proto == NAT_PROTO_TCP) {
-		bool forw = (dir == CGN_DIR_OUT);
-		enum cgn_tcp_event event;
-		uint64_t rtt;
+	if (st->st_proto == NAT_PROTO_TCP)
+		cgn_sess_state_inspect_tcp(st, cpk->cpk_tcp_flags, dir,
+					   start_time);
+	else
+		cgn_sess_state_inspect_other(st, dir);
 
-		/*
-		 * Inspect TCP flags in order to determine event type, rtt
-		 * times, and to record TCP flow history.
-		 */
-
-		/* hist_bit relies on these asserts */
-		static_assert(CGN_SESS_HIST_FFIN == 0x02,
-			      "cgn sess hist flag is wrong");
-		static_assert(CGN_SESS_HIST_BFIN == 0x04,
-			      "cgn sess hist flag is wrong");
-		static_assert(CGN_SESS_HIST_FRST == 0x08,
-			      "cgn sess hist flag is wrong");
-		static_assert(CGN_SESS_HIST_BRST == 0x10,
-			      "cgn sess hist flag is wrong");
-		static_assert(CGN_SESS_HIST_FACK == 0x20,
-			      "cgn sess hist flag is wrong");
-		static_assert(CGN_SESS_HIST_BACK == 0x40,
-			      "cgn sess hist flag is wrong");
-
-		uint8_t hist_bit = 0x02;
-		if (!forw)
-			hist_bit <<= 1;
-
-		if (cpk->cpk_tcp_flags & TH_RST) {
-			/* RST event */
-			event = CGN_TCP_EVENT_RST;
-			hist_bit <<= 2;
-
-			/* Record forw or back RST seen */
-			if ((st->st_hist & hist_bit) == 0)
-				st->st_hist |= hist_bit;
-
-		} else if (cpk->cpk_tcp_flags & TH_SYN) {
-			/* SYN event */
-			event = CGN_TCP_EVENT_SYN;
-
-			/* External rtt.  Look for incoming SYN-ACK. */
-			if (!forw && (cpk->cpk_tcp_flags & TH_ACK)) {
-				rtt = cgn_sess2_timestamp() - start_time;
-				st->st_ext_rtt = rtt;
-			}
-
-		} else if (cpk->cpk_tcp_flags & TH_FIN) {
-			/* FIN event */
-			event = CGN_TCP_EVENT_FIN;
-
-			/* Record forw or back FIN seen */
-			if ((st->st_hist & hist_bit) == 0)
-				st->st_hist |= hist_bit;
-
-		} else if (cpk->cpk_tcp_flags & TH_ACK) {
-			event = CGN_TCP_EVENT_ACK;
-			hist_bit <<= 4;
-
-			/* Record forw or back ACK seen */
-			if ((st->st_hist & hist_bit) == 0) {
-				st->st_hist |= hist_bit;
-
-				/* Int rtt. Look for first forw ACK */
-				if (forw) {
-					rtt = cgn_sess2_timestamp() -
-						start_time -
-						st->st_ext_rtt;
-					st->st_int_rtt = rtt;
-				}
-			}
-
-		} else
-			event = CGN_TCP_EVENT_NONE;
-
-		/* Crank TCP state machine */
-		new = cgn_tcp_fsm[st->st_state][dir][event];
-
-		if (new != CGN_TCP_STATE_NONE && new != st->st_state) {
-			st->st_state = new;
-			if (new == CGN_TCP_STATE_ESTABLISHED)
-				st->st_hist |= CGN_SESS_HIST_ESTD;
-		}
-	} else {
-		/* Crank non-TCP state machine */
-		new = cgn_sess_fsm[st->st_state][dir][CGN_SESS_EVENT_PKT];
-
-		if (new != CGN_SESS_STATE_NONE && new != st->st_state)
-			st->st_state = new;
-	}
-
-	/* Clear idle flag, if packet is eligible */
+	/*
+	 * Clear idle flag, if packet is eligible.
+	 *
+	 * cpk_keepalive is initially set 'true' for all outbound pkts.  It
+	 * may also be set 'true' if an ALG pinhole is matched in either
+	 * direction.  It is not set (or it is reset) for TCP reset or ICMP
+	 * error pkts.
+	 */
 	if (cpk->cpk_keepalive && rte_atomic16_read(&st->st_idle) != 0)
 		rte_atomic16_clear(&st->st_idle);
 
