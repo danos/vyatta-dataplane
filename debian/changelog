@@ -1,3 +1,14 @@
+vyatta-dataplane (3.12.41) unstable; urgency=medium
+
+  [ Gavin Shearer ]
+  * ippf/gpc: add missing refcount decrements when counters released
+
+  [ Nicholas Brown ]
+  * Use custom_target instead of generator for sample
+  * Add a build target to run clang-tidy
+
+ -- Srinivas Narayan <narayan@vyatta.att-mail.com>  Mon, 22 Mar 2021 17:05:24 +0000
+
 vyatta-dataplane (3.12.40) unstable; urgency=medium
 
   [ Mark Gillott ]
