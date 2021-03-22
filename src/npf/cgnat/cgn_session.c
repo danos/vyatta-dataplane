@@ -658,8 +658,8 @@ cgn_session_establish(struct cgn_packet *cpk, struct cgn_map *cmi,
  * that mapping.   pub_addr and pub_port are in network byte order.
  */
 struct cgn_session *
-cgn_session_map(struct ifnet *ifp, struct cgn_packet *cpk,
-		uint32_t pub_addr, uint16_t pub_port, int *error)
+cgn_session_map(struct ifnet *ifp, struct cgn_packet *cpk, struct cgn_map *cmi,
+		int *error)
 {
 	struct cgn_session *cse, *in_cse = NULL;
 	struct cgn_policy *cp;
@@ -670,7 +670,7 @@ cgn_session_map(struct ifnet *ifp, struct cgn_packet *cpk,
 	 * Currently only support both public address and port being
 	 * specified, or neither being specified.
 	 */
-	if (!!pub_addr ^ !!pub_port) {
+	if (!!cmi->cmi_taddr ^ !!cmi->cmi_tid) {
 		*error = -CGN_PCP_EINVAL;
 		return NULL;
 	}
@@ -679,7 +679,7 @@ cgn_session_map(struct ifnet *ifp, struct cgn_packet *cpk,
 	cse = cgn_session_lookup(&cpk->cpk_key, CGN_DIR_OUT);
 
 	/* Look for existing backwards, or inbound, session */
-	if (pub_addr && pub_port) {
+	if (cmi->cmi_taddr && cmi->cmi_tid) {
 		in_cse = cgn_session_lookup(&cpk->cpk_key, CGN_DIR_IN);
 
 		/*
@@ -714,30 +714,24 @@ cgn_session_map(struct ifnet *ifp, struct cgn_packet *cpk,
 		return cse;
 	}
 
-	/* Mapping info */
-	struct cgn_map cmi;
-
-	memset(&cmi, 0, sizeof(cmi));
-	cmi.cmi_proto = cpk->cpk_proto;
-	cmi.cmi_oid = cpk->cpk_sid;
-	cmi.cmi_oaddr = cpk->cpk_saddr;
-	cmi.cmi_tid = pub_port;
-	cmi.cmi_taddr = pub_addr;
-
 	/*
 	 * Lookup source address in policy list on the interface
 	 */
-	cp = cgn_if_find_policy_by_addr(ifp, cmi.cmi_oaddr);
+	cp = cgn_if_find_policy_by_addr(ifp, cmi->cmi_oaddr);
 	if (!cp) {
 		*error = -CGN_PCY_ENOENT;
+
 		return NULL;
 	}
 
 	/* Check if session table is full *before* getting a mapping. */
 	if (unlikely(cgn_session_table_full)) {
 		*error = -CGN_S1_ENOSPC;
+
 		return NULL;
 	}
+
+	assert(cmi->cmi_oaddr);
 
 	/*
 	 * Allocate public address and port.
@@ -746,11 +740,11 @@ cgn_session_map(struct ifnet *ifp, struct cgn_packet *cpk,
 	 * function as packet flows, cgn_map_get.  This obtains a mapping
 	 * using the config in the relevant policy.
 	 */
-	if (cmi.cmi_taddr == 0 && cmi.cmi_tid == 0)
-		rc = cgn_map_get(&cmi, cp, vrfid);
+	if (cmi->cmi_taddr == 0 && cmi->cmi_tid == 0)
+		rc = cgn_map_get(cmi, cp, vrfid);
 	else
 		/* Use specified public address and port */
-		rc = cgn_map_get2(&cmi, cp, vrfid);
+		rc = cgn_map_get2(cmi, cp, vrfid);
 
 	if (rc) {
 		*error = rc;
@@ -758,12 +752,12 @@ cgn_session_map(struct ifnet *ifp, struct cgn_packet *cpk,
 	}
 
 	/* Create a session. */
-	cse = cgn_session_establish(cpk, &cmi, error);
+	cse = cgn_session_establish(cpk, cmi, error);
 	if (!cse)
 		goto error;
 
 	/* Check if we want to record sub-sessions */
-	cgn_session_try_enable_sub_sess(cse, cp, cmi.cmi_oaddr);
+	cgn_session_try_enable_sub_sess(cse, cp, cmi->cmi_oaddr);
 
 	/* Add session to hash tables */
 	rc = cgn_session_activate(cse, cpk, CGN_DIR_OUT);
@@ -776,9 +770,11 @@ cgn_session_map(struct ifnet *ifp, struct cgn_packet *cpk,
 	return cse;
 
 error:
-	if (cmi.cmi_reserved)
+	if (cmi->cmi_reserved) {
 		/* Release mapping */
-		cgn_map_put(&cmi, vrfid);
+		cgn_map_put(cmi, vrfid);
+		assert(!cmi->cmi_reserved);
+	}
 
 	return NULL;
 }
@@ -1781,9 +1777,18 @@ int cgn_op_session_map(FILE *f, int argc, char **argv)
 	/* Setup direction dependent part of hash key */
 	cgn_pkt_key_init(&cpk, CGN_DIR_OUT);
 
+	struct cgn_map cmi;
+
+	memset(&cmi, 0, sizeof(cmi));
+
+	cmi.cmi_proto = cpk.cpk_proto;
+	cmi.cmi_oid = fltr.cf_subs.k_port;
+	cmi.cmi_oaddr = fltr.cf_subs.k_addr;
+	cmi.cmi_tid = fltr.cf_pub.k_port;
+	cmi.cmi_taddr = fltr.cf_pub.k_addr;
+
 	/* Get mapping, create a session, and activate session */
-	cse = cgn_session_map(ifp, &cpk, fltr.cf_pub.k_addr,
-			      fltr.cf_pub.k_port, &error);
+	cse = cgn_session_map(ifp, &cpk, &cmi, &error);
 	if (!cse)
 		goto error;
 

@@ -93,8 +93,7 @@ void cgn_session_expire_pool(bool restart_timer, struct nat_pool *np,
 
 int cgn_op_session_map(FILE *f, int argc, char **argv);
 struct cgn_session *cgn_session_map(struct ifnet *ifp, struct cgn_packet *cpk,
-				    uint32_t pub_addr, uint16_t pub_port,
-				    int *error);
+				    struct cgn_map *cmi, int *error);
 
 /*
  * Session walk

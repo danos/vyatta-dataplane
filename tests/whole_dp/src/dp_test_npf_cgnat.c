@@ -39,6 +39,7 @@
 #include "npf/cgnat/cgn_sess_state.h"
 #include "npf/cgnat/cgn_session.h"
 #include "npf/cgnat/cgn_sess2.h"
+#include "npf/cgnat/cgn_map.h"
 #include "npf/cgnat/cgn_mbuf.h"
 #include "npf/cgnat/cgn_log.h"
 #include "npf/cgnat/cgn_if.h"
@@ -2076,9 +2077,19 @@ dpt_cgn_map2(struct ifnet *ifp, uint timeout, uint8_t ipproto,
 	/* Setup direction dependent part of hash key */
 	cgn_pkt_key_init(&cpk, CGN_DIR_OUT);
 
-	cse = cgn_session_map(ifp, &cpk,
-			      pub_addr ? *pub_addr : 0,
-			      pub_port ? *pub_port : 0, &error);
+	struct cgn_map cmi;
+
+	memset(&cmi, 0, sizeof(cmi));
+
+	cmi.cmi_reserved = false;
+	cmi.cmi_proto = cpk.cpk_proto;
+	cmi.cmi_oid = cpk.cpk_sid;
+	cmi.cmi_oaddr = cpk.cpk_saddr;
+	cmi.cmi_tid = pub_port ? *pub_port : 0;
+	cmi.cmi_taddr = pub_addr ? *pub_addr : 0;
+	cmi.cmi_src = NULL;
+
+	cse = cgn_session_map(ifp, &cpk, &cmi, &error);
 	if (!cse)
 		return -1;
 
