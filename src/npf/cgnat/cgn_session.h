@@ -21,11 +21,15 @@ struct cgn_map;
 struct nat_pool;
 struct ifnet;
 
+bool cgn_session_is_expired(struct cgn_session *cse);
 uint32_t cgn_session_ifindex(struct cgn_session *cse);
 uint32_t cgn_session_id(struct cgn_session *cse);
 
 struct cgn_session *cgn_sess_from_cs2(struct cgn_sess_s2 *cs2);
+struct cgn_sess2 *cgn_s2_from_cse(struct cgn_session *cse);
 struct cgn_source *cgn_src_from_cs2(struct cgn_sess_s2 *cs2);
+struct cgn_source *cgn_src_from_cse(struct cgn_session *cse);
+struct cgn_policy *cgn_policy_from_cse(struct cgn_session *cse);
 
 /*
  * Update 3-tuple session stats from a just-expired 2-tuple session.  This is
@@ -35,9 +39,10 @@ void cgn_session_update_stats(struct cgn_session *cse,
 			      uint32_t pkts_out, uint32_t bytes_out,
 			      uint32_t pkts_in, uint32_t bytes_in);
 
+uint8_t cgn_session_ipproto(struct cgn_session *cse);
+vrfid_t cgn_session_vrfid(struct cgn_session *cse);
 uint32_t cgn_session_forw_addr(struct cgn_session *cse);
 uint32_t cgn_session_forw_id(struct cgn_session *cse);
-uint8_t cgn_session_ipproto(struct cgn_session *cse);
 uint32_t cgn_session_back_addr(struct cgn_session *cse);
 uint32_t cgn_session_back_id(struct cgn_session *cse);
 

@@ -309,6 +309,16 @@ static inline struct cgn_sentry *dir2sentry(struct cgn_session *cse,
 	return &cse->cs_back_entry;
 }
 
+uint8_t cgn_session_ipproto(struct cgn_session *cse)
+{
+	return cse->cs_forw_entry.ce_ipproto;
+}
+
+vrfid_t cgn_session_vrfid(struct cgn_session *cse)
+{
+	return cse->cs_vrfid;
+}
+
 uint32_t cgn_session_forw_addr(struct cgn_session *cse)
 {
 	return cse->cs_forw_entry.ce_addr;
@@ -317,11 +327,6 @@ uint32_t cgn_session_forw_addr(struct cgn_session *cse)
 uint32_t cgn_session_forw_id(struct cgn_session *cse)
 {
 	return cse->cs_forw_entry.ce_port;
-}
-
-uint8_t cgn_session_ipproto(struct cgn_session *cse)
-{
-	return cse->cs_forw_entry.ce_ipproto;
 }
 
 uint32_t cgn_session_back_addr(struct cgn_session *cse)
@@ -361,6 +366,24 @@ uint16_t cgn_session_get_l3_delta(const struct cgn_session *cse, bool forw)
 uint16_t cgn_session_get_l4_delta(const struct cgn_session *cse, bool forw)
 {
 	return forw ? cse->cs_l4_chk_delta : ~cse->cs_l4_chk_delta;
+}
+
+/* Get pointer to the subscriber of this cse structure */
+struct cgn_source *cgn_src_from_cse(struct cgn_session *cse)
+{
+	if (cse)
+		return rcu_dereference(cse->cs_src);
+	return NULL;
+}
+
+/* Get pointer to the policy of this cse structure. */
+struct cgn_policy *cgn_policy_from_cse(struct cgn_session *cse)
+{
+	struct cgn_source *src = cgn_src_from_cse(cse);
+
+	if (src)
+		return rcu_dereference(src->sr_policy);
+	return NULL;
 }
 
 /*
@@ -809,6 +832,12 @@ struct cgn_session *cgn_sess_from_cs2(struct cgn_sess_s2 *cs2)
 	if (cs2)
 		cse = caa_container_of(cs2, struct cgn_session, cs_s2);
 	return cse;
+}
+
+/* Get the cached sub-session */
+struct cgn_sess2 *cgn_s2_from_cse(struct cgn_session *cse)
+{
+	return cse ? cse->cs_s2.cs2_s2 : NULL;
 }
 
 /*
@@ -2241,6 +2270,12 @@ void cgn_session_id_list(FILE *f, int argc __unused, char **argv __unused)
 end:
 	jsonw_end_array(json);
 	jsonw_destroy(&json);
+}
+
+/* Is this session expired? */
+bool cgn_session_is_expired(struct cgn_session *cse)
+{
+	return cse->cs_forw_entry.ce_expired && cse->cs_back_entry.ce_expired;
 }
 
 /*
