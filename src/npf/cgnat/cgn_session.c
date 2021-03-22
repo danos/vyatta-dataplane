@@ -157,6 +157,7 @@ static rte_atomic32_t cgn_id_resource;
 
 
 /* Forward references */
+static void cgn_session_clear_mapping(struct cgn_session *cse);
 static void cgn_session_expire_all(bool clear_map, bool restart_timer);
 
 static void session_table_threshold_timer_expiry(
@@ -411,20 +412,7 @@ void cgn_session_destroy(struct cgn_session *cse, bool rcu_free)
 	assert(cse->cs_src);
 
 	/* Release mapping if one exists */
-	if (rte_atomic16_cmpset(&cse->cs_map_flag, true, false)) {
-
-		/* Release address and port mapping */
-		struct cgn_map cmi;
-
-		memset(&cmi, 0, sizeof(cmi));
-		cgn_session_get_back(cse, &cmi.cmi_taddr, &cmi.cmi_tid);
-		cmi.cmi_reserved = true;
-		cmi.cmi_src = cse->cs_src;
-		cmi.cmi_proto = nat_proto_from_ipproto(
-			cse->cs_forw_entry.ce_ipproto);
-
-		cgn_map_put(&cmi, cse->cs_vrfid);
-	}
+	cgn_session_clear_mapping(cse);
 
 	/* Release reference on source */
 	cgn_source_put(cse->cs_src);
@@ -2248,9 +2236,6 @@ cgn_session_set_expired(struct cgn_session *cse, bool update_stats)
  */
 static void cgn_session_clear_mapping(struct cgn_session *cse)
 {
-	if (cse->cs_src)
-		cse->cs_src->sr_paired_addr = 0;
-
 	/* Release mapping immediately */
 	if (rte_atomic16_cmpset(&cse->cs_map_flag, true, false)) {
 		struct cgn_map cmi;
