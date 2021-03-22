@@ -916,7 +916,7 @@ int cgn_session_activate(struct cgn_session *cse,
 	int rc = 0;
 
 	/*
-	 * Already active?  (Both or  neither are active,  so just  check forw
+	 * Already active? (Both or neither are active, so just check forw
 	 * sentry)
 	 */
 	if (cse->cs_forw_entry.ce_active)
@@ -926,7 +926,7 @@ int cgn_session_activate(struct cgn_session *cse,
 	rc = cgn_sentry_insert(&cse->cs_forw_entry, &old, CGN_DIR_OUT);
 	if (unlikely(rc < 0)) {
 		cgn_session_slot_put();
-		goto end;
+		return rc;
 	}
 
 	/* Insert back sentry into table */
@@ -934,7 +934,7 @@ int cgn_session_activate(struct cgn_session *cse,
 	if (unlikely(rc < 0)) {
 		cgn_sentry_delete(&cse->cs_forw_entry, CGN_DIR_OUT);
 		cgn_session_slot_put();
-		goto end;
+		return rc;
 	}
 
 	/* Hold reference on session while it it in the table */
@@ -973,8 +973,6 @@ int cgn_session_activate(struct cgn_session *cse,
 			rte_atomic64_add(&ce->ce_bytes, cpk->cpk_len);
 		}
 	}
-
-end:
 	return rc;
 }
 
