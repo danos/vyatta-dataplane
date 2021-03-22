@@ -2147,15 +2147,82 @@ cgn_session_show_fltr(struct cgn_session *cse, struct cgn_sess_fltr *fltr)
 	return true;
 }
 
+static void
+cgn_session_show_json(json_writer_t *json, struct cgn_sess_fltr *fltr)
+{
+	struct cgn_session *cse;
+	uint count = 0;
+
+	jsonw_name(json, "sessions");
+	jsonw_start_array(json);
+
+	if (!cgn_sess_ht[CGN_DIR_OUT])
+		return;
+
+	/*
+	 * Are there enough filter params to do a hash lookup in the forwards
+	 * sentries?  We need subscriber (source) address and port, interface,
+	 * and protocol.
+	 */
+	if (fltr->cf_subs_mask == 0xffffffff &&
+	    cgn_sess_key_valid(&fltr->cf_subs)) {
+
+		cse = cgn_session_lookup(&fltr->cf_subs, CGN_DIR_OUT);
+
+		if (cse && cgn_session_show_fltr(cse, fltr))
+			cgn_session_jsonw_one(json, fltr, cse);
+		return;
+	}
+
+	/*
+	 * Are there enough filter params to do a hash lookup in the backwards
+	 * sentries?  We need public (dest) address and port, interface, and
+	 * protocol.
+	 */
+	if (fltr->cf_pub_mask == 0xffffffff &&
+	    cgn_sess_key_valid(&fltr->cf_pub)) {
+
+		cse = cgn_session_lookup(&fltr->cf_pub, CGN_DIR_IN);
+
+		if (cse && cgn_session_show_fltr(cse, fltr))
+			cgn_session_jsonw_one(json, fltr, cse);
+		return;
+	}
+
+	struct cds_lfht_iter iter;
+	struct cds_lfht_node *node;
+	struct cgn_sentry *ce;
+
+	/* Start at the node *after* the specified target, if any */
+	if (cgn_sess_key_valid(&fltr->cf_tgt))
+		node = cgn_session_node_next(&fltr->cf_tgt, CGN_DIR_OUT, &iter);
+	else
+		/* else start at start */
+		node = cgn_session_node_first(CGN_DIR_OUT, &iter);
+
+	for (; node != NULL;
+	     cds_lfht_next(cgn_sess_ht[CGN_DIR_OUT], &iter),
+		     node = cds_lfht_iter_get_node(&iter)) {
+
+		ce = caa_container_of(node, struct cgn_sentry, ce_node);
+		cse = sentry2session(ce, CGN_DIR_OUT);
+
+		if (cgn_session_show_fltr(cse, fltr))
+			count += cgn_session_jsonw_one(json, fltr, cse);
+
+		/* Have we added enough sessions yet? */
+		if (fltr->cf_count > 0 && count >= fltr->cf_count)
+			break;
+	}
+}
+
 /*
  * cgn-op show session ...
  */
 void cgn_session_show(FILE *f, int argc, char **argv)
 {
 	struct cgn_sess_fltr fltr;
-	struct cgn_session *cse;
 	json_writer_t *json;
-	uint count = 0;
 	int rc;
 
 	/* Remove "cgn-op show session" */
@@ -2170,69 +2237,8 @@ void cgn_session_show(FILE *f, int argc, char **argv)
 	if (!json)
 		return;
 
-	jsonw_name(json, "sessions");
-	jsonw_start_array(json);
+	cgn_session_show_json(json, &fltr);
 
-	if (!cgn_sess_ht[CGN_DIR_OUT])
-		goto end;
-
-	/*
-	 * Are there enough filter params to do a hash lookup in the forwards
-	 * sentries?  We need subscriber (source) address and port, interface,
-	 * and protocol.
-	 */
-	if (fltr.cf_subs_mask == 0xffffffff &&
-	    cgn_sess_key_valid(&fltr.cf_subs)) {
-
-		cse = cgn_session_lookup(&fltr.cf_subs, CGN_DIR_OUT);
-
-		if (cse && cgn_session_show_fltr(cse, &fltr))
-			cgn_session_jsonw_one(json, &fltr, cse);
-		goto end;
-	}
-
-	/*
-	 * Are there enough filter params to do a hash lookup in the backwards
-	 * sentries?  We need public (dest) address and port, interface, and
-	 * protocol.
-	 */
-	if (fltr.cf_pub_mask == 0xffffffff &&
-	    cgn_sess_key_valid(&fltr.cf_pub)) {
-
-		cse = cgn_session_lookup(&fltr.cf_pub, CGN_DIR_IN);
-
-		if (cse && cgn_session_show_fltr(cse, &fltr))
-			cgn_session_jsonw_one(json, &fltr, cse);
-		goto end;
-	}
-
-	struct cds_lfht_iter iter;
-	struct cds_lfht_node *node;
-	struct cgn_sentry *ce;
-
-	/* Start at the node *after* the specified target, if any */
-	if (cgn_sess_key_valid(&fltr.cf_tgt))
-		node = cgn_session_node_next(&fltr.cf_tgt, CGN_DIR_OUT, &iter);
-	else
-		/* else start at start */
-		node = cgn_session_node_first(CGN_DIR_OUT, &iter);
-
-	for (; node != NULL;
-	     cds_lfht_next(cgn_sess_ht[CGN_DIR_OUT], &iter),
-		     node = cds_lfht_iter_get_node(&iter)) {
-
-		ce = caa_container_of(node, struct cgn_sentry, ce_node);
-		cse = sentry2session(ce, CGN_DIR_OUT);
-
-		if (cgn_session_show_fltr(cse, &fltr))
-			count += cgn_session_jsonw_one(json, &fltr, cse);
-
-		/* Have we added enough sessions yet? */
-		if (fltr.cf_count > 0 && count >= fltr.cf_count)
-			break;
-	}
-
-end:
 	jsonw_end_array(json);
 	jsonw_destroy(&json);
 }
