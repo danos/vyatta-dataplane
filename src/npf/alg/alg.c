@@ -394,6 +394,15 @@ void alg_expire_session_tuples(const struct npf_alg *alg, npf_session_t *se)
 		alg_apt_instance_expire_session(alg->na_ai->ai_apt, se);
 }
 
+/*
+ * Delete any tuples created by the given session
+ */
+void alg_destroy_session_tuples(const struct npf_alg *alg, npf_session_t *se)
+{
+	if (alg->na_ai)
+		alg_apt_instance_destroy_session(alg->na_ai->ai_apt, se);
+}
+
 /* Get alg from name */
 static struct npf_alg *alg_name_to_alg(struct npf_alg_instance *ai,
 					const char *name)
