@@ -741,7 +741,7 @@ static void ftp_alg_nat_inspect(npf_session_t *se, npf_cache_t *npc __unused,
 }
 
 /* Release reserve if present */
-static void ftp_alg_session_destroy(npf_session_t *se)
+void ftp_alg_session_destroy(struct npf_session *se)
 {
 	npf_nat_t *nat = npf_alg_session_get_private(se);
 
@@ -752,7 +752,6 @@ static void ftp_alg_session_destroy(npf_session_t *se)
 /* alg struct */
 static const struct npf_alg_ops ftp_ops = {
 	.name		= NPF_ALG_FTP_NAME,
-	.se_destroy	= ftp_alg_session_destroy,
 	.inspect	= ftp_alg_inspect,
 	.config		= ftp_alg_config,
 	.nat_inspect	= ftp_alg_nat_inspect,

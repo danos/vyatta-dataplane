@@ -61,7 +61,6 @@ struct npf_alg_instance {
 
 /* ALG operations struct */
 struct npf_alg_ops {
-	void		(*se_destroy)(npf_session_t *se);
 	void		(*se_expire)(npf_session_t *se);
 	void		(*inspect)(npf_session_t *, npf_cache_t *,
 				struct rte_mbuf *, struct ifnet *, int);

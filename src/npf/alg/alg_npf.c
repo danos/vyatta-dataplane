@@ -345,25 +345,67 @@ npf_alg_session_expire(struct npf_session *se, struct npf_session_alg *sa)
 
 
 /*
- * npf_alg_session_destroy.  Tell an alg one of its sessions is getting
- * destroyed
+ * npf_alg_session_destroy.  Called when an ALG session is being destroyed.
+ *
+ * npf_session_destroy (which calls this function) is called under two
+ * distinct circumstances:
+ *
+ * 1. The session was never activated (i.e. never added to the session table),
+ * in which case 'sa' will be NULL and this function will not be called, and
+ *
+ * 2. The dataplane session has expired and been removed from the session
+ * table, in which case this function is called from an RCU callback
+ * (sf_rcu_destroy).
  */
-void
-npf_alg_session_destroy(struct npf_session *se, struct npf_session_alg *sa)
+void npf_alg_session_destroy(struct npf_session *se, struct npf_session_alg *sa)
 {
-	if (!sa || !sa->sa_alg)
-		return;
-
 	const struct npf_alg *alg = sa->sa_alg;
 
-	if (alg_has_op(alg, se_destroy))
-		alg->na_ops->se_destroy(se);
+	if (!alg) {
+		npf_session_set_alg_ptr(se, NULL);
+		free(sa);
+		return;
+	}
+
+	switch (alg->na_id) {
+	case NPF_ALG_ID_FTP:
+		/*
+		 * ftp stores an SNAT mapping in the session private data
+		 * (sa_private).  This needs to be released if it was not used
+		 * by a tuple.
+		 */
+		ftp_alg_session_destroy(se);
+		break;
+	case NPF_ALG_ID_TFTP:
+		/* Nothing to do */
+		break;
+	case NPF_ALG_ID_RPC:
+		/*
+		 * rpc stores rpc request info in the session private data.
+		 * This needs to be freed.
+		 */
+		rpc_alg_session_destroy(se);
+		break;
+	case NPF_ALG_ID_SIP:
+		/*
+		 * sip stores a list of unresolved SIP Request call IDs in the
+		 * session private data.  Each call ID may have an entry in
+		 * the 'invite' hash table.  These need to be expired, and the
+		 * call ID info freed.
+		 */
+		sip_alg_session_destroy(se);
+		break;
+	};
 
 	/* Delete any tuples (pinholes) created by this session */
 	alg_destroy_session_tuples(alg, se);
 
 	sa->sa_alg = NULL;
 	npf_alg_put((struct npf_alg *)alg);
+
+	/* NULL the ALG session ptr in the session and free it */
+	npf_session_set_alg_ptr(se, NULL);
+	free(sa);
 }
 
 /*

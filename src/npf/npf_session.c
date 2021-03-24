@@ -1175,7 +1175,8 @@ void npf_session_destroy(npf_session_t *se)
 	}
 
 	/* Tell an alg that its session is being destroyed */
-	npf_alg_session_destroy(se, se->s_alg);
+	if (unlikely(se->s_alg))
+		npf_alg_session_destroy(se, se->s_alg);
 
 	/* Release the fw rule, if any */
 	npf_rule_put(se->s_fw_rule);
@@ -1195,7 +1196,6 @@ void npf_session_destroy(npf_session_t *se)
 	npf_state_destroy(&se->s_state, se->s_proto_idx);
 
 	dpi_session_flow_destroy(se->s_dpi);
-	free(se->s_alg);
 	free(se);
 }
 

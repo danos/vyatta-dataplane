@@ -603,7 +603,7 @@ static void sip_alg_session_expire(npf_session_t *se)
 /*
  * An SIP alg session is being destroyed.
  */
-static void sip_alg_session_destroy(npf_session_t *se)
+void sip_alg_session_destroy(struct npf_session *se)
 {
 	if (npf_alg_session_test_flag(se, SIP_ALG_CNTL_FLOW)) {
 		sip_flush_session_request(se);
@@ -813,7 +813,6 @@ sip_alg_session_json(json_writer_t *json, npf_session_t *se)
 /* alg struct */
 static const struct npf_alg_ops sip_ops = {
 	.name		= NPF_ALG_SIP_NAME,
-	.se_destroy	= sip_alg_session_destroy,
 	.se_expire	= sip_alg_session_expire,
 	.se_json	= sip_alg_session_json,
 	.inspect	= sip_alg_inspect,

@@ -551,7 +551,7 @@ int rpc_alg_session_init(struct npf_session *se, struct apt_tuple *nt)
 }
 
 /* ALG session destroy */
-static void rpc_alg_session_destroy(npf_session_t *se)
+void rpc_alg_session_destroy(struct npf_session *se)
 {
 	struct rpc_request *rr = npf_alg_session_get_and_set_private(se, NULL);
 
@@ -615,7 +615,6 @@ static int rpc_alg_reset(struct npf_alg *rpc, bool hard __unused)
 static const struct npf_alg_ops rpc_ops = {
 	.name		= NPF_ALG_RPC_NAME,
 	.inspect	= rpc_alg_inspect,
-	.se_destroy	= rpc_alg_session_destroy,
 	.nat_inspect	= rpc_alg_nat_inspect,
 	.nat_in		= rpc_alg_nat_in,
 	.nat_out	= rpc_alg_nat_out,

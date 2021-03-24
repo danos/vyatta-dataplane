@@ -53,13 +53,22 @@ bool npf_alg_bypass_cgnat(const struct ifnet *ifp, struct rte_mbuf *m);
  */
 int npf_alg_session_init(struct npf_session *se, struct npf_cache *npc, int di);
 
+/**
+ * ALG session destroy.  Called when an ALG session is being destroyed.  ALGs
+ * use this to clean up any session ALG state that is still present.  Normally
+ * called from a dataplane session RCU callback.
+ *
+ * @param se Pointer to the session
+ * @param sa Pointer to the ALG session data
+ */
+void npf_alg_session_destroy(struct npf_session *se,
+			     struct npf_session_alg *sa);
+
 struct npf_session *npf_alg_session(struct npf_cache *npc,
 				    struct rte_mbuf *nbuf,
 				    const struct ifnet *ifp, const int di,
 				    int *error);
 void npf_alg_session_expire(struct npf_session *se, struct npf_session_alg *sa);
-void npf_alg_session_destroy(struct npf_session *se,
-			     struct npf_session_alg *sa);
 int npf_alg_session_json(json_writer_t *json, struct npf_session *se,
 			 struct npf_session_alg *sa);
 
