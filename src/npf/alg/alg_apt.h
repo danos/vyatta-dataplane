@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2019-2021, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  *
@@ -118,6 +118,8 @@ void alg_apt_instance_jsonw(struct apt_instance *ai, json_writer_t *json);
 
 void alg_apt_instance_expire_session(struct apt_instance *ai,
 				     const void *session);
+void alg_apt_instance_destroy_session(struct apt_instance *ai,
+				      const void *session);
 void alg_apt_instance_client_reset(struct apt_instance *ai, const void *client);
 void alg_apt_instance_client_destroy(struct apt_instance *ai,
 				     const void *client);

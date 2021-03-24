@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2018-2021, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -392,6 +392,15 @@ void alg_expire_session_tuples(const struct npf_alg *alg, npf_session_t *se)
 {
 	if (alg->na_ai)
 		alg_apt_instance_expire_session(alg->na_ai->ai_apt, se);
+}
+
+/*
+ * Delete any tuples created by the given session
+ */
+void alg_destroy_session_tuples(const struct npf_alg *alg, npf_session_t *se)
+{
+	if (alg->na_ai)
+		alg_apt_instance_destroy_session(alg->na_ai->ai_apt, se);
 }
 
 /* Get alg from name */

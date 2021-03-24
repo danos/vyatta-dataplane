@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2018-2021, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2011-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -195,6 +195,7 @@ void npf_alg_timer_init(void);
 void npf_alg_timer_uninit(void);
 void npf_alg_timer_reset(void);
 void alg_expire_session_tuples(const struct npf_alg *alg, npf_session_t *se);
+void alg_destroy_session_tuples(const struct npf_alg *alg, npf_session_t *se);
 struct apt_tuple *alg_lookup_npc(struct npf_alg_instance *ai,
 				 npf_cache_t *npc, uint32_t ifx);
 
