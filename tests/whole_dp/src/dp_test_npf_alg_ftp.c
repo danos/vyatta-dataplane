@@ -9,6 +9,8 @@
 
 #include "in_cksum.h"
 
+#include "npf/alg/alg.h"
+
 #include "dp_test.h"
 #include "dp_test_controller.h"
 #include "dp_test_cmd_state.h"
@@ -2573,6 +2575,138 @@ DP_START_TEST(ftp12, test)
 	free(data_fw_pst);
 	free(data_bk_pre);
 	free(data_bk_pst);
+
+	dp_test_npf_cleanup();
+
+} DP_END_TEST;
+
+
+/*
+ * ftp13 - SNAT, Active ftp.  Tests when a session is destroyed before the
+ * tuple that is pointing to the session.
+ *
+ * 1. create SNAT ALG session
+ * 2. create ALG ftp tuple/pinhole
+ * 3. destroy sessions
+ * 4. destroy tuples
+ */
+DP_DECL_TEST_CASE(npf_alg_ftp, ftp13, dpt_alg_ftp_setup, dpt_alg_ftp_teardown);
+DP_START_TEST(ftp13, test)
+{
+	struct dp_test_pkt_desc_t *ctrl_fw_pre, *ctrl_fw_pst;
+	struct dp_test_pkt_desc_t *ctrl_bk_pre, *ctrl_bk_pst;
+
+	/*
+	 * Add SNAT rule.
+	 */
+	struct dp_test_npf_nat_rule_t snat = {
+		.desc		= "snat rule",
+		.rule		= "10",
+		.ifname		= "dp2T1",
+		.proto		= IPPROTO_TCP,
+		.map		= "dynamic",
+		.port_alloc	= NULL,
+		.from_addr	= "1.1.1.11",
+		.from_port	= NULL,
+		.to_addr	= NULL,
+		.to_port	= NULL,
+		.trans_addr	= "2.2.2.20",
+		.trans_port	= NULL
+	};
+
+	dp_test_npf_snat_add(&snat, true);
+
+	/*
+	 * ftp control flow packets
+	 */
+	 ctrl_fw_pre = dpt_pdesc_v4_create(
+		 "ctrl_fw_pre", IPPROTO_TCP,
+		 "aa:bb:cc:dd:1:11", "1.1.1.11", 46682,
+		 "aa:bb:cc:dd:2:11", "2.2.2.11", 21,
+		 "dp1T0", "dp2T1");
+
+	 ctrl_fw_pst = dpt_pdesc_v4_create(
+		 "ctrl_fw_pst", IPPROTO_TCP,
+		 "aa:bb:cc:dd:1:11", "2.2.2.20", 46682,
+		 "aa:bb:cc:dd:2:11", "2.2.2.11", 21,
+		 "dp1T0", "dp2T1");
+
+	 ctrl_bk_pre = dpt_pdesc_v4_create(
+		 "ctrl_bk_pre", IPPROTO_TCP,
+		 "aa:bb:cc:dd:2:11", "2.2.2.11", 21,
+		 "aa:bb:cc:dd:1:11", "2.2.2.20", 46682,
+		 "dp2T1", "dp1T0");
+
+	 ctrl_bk_pst = dpt_pdesc_v4_create(
+		 "ctrl_bk_pst", IPPROTO_TCP,
+		 "aa:bb:cc:dd:2:11", "2.2.2.11", 21,
+		 "aa:bb:cc:dd:1:11", "1.1.1.11", 46682,
+		 "dp2T1", "dp1T0");
+
+	 /*
+	  * Packet descriptors for ftp ctrl flow
+	  */
+	struct dpt_tcp_flow ftp_ctrl_call = {
+		.text[0] = '\0',		/* description */
+		.isn = {0, 0},			/* initial seq no */
+		.desc[DPT_FORW] = {		/* Forw pkt descriptors */
+			.pre = ctrl_fw_pre,
+			.pst = ctrl_fw_pst,
+		},
+		.desc[DPT_BACK] = {		/* Back pkt descriptors */
+			.pre = ctrl_bk_pre,
+			.pst = ctrl_bk_pst,
+		},
+		.test_cb = NULL,		/* Prep and send pkt */
+		.post_cb = NULL,		/* Fixup pkt exp */
+	};
+	snprintf(ftp_ctrl_call.text, sizeof(ftp_ctrl_call), "Ctrl");
+
+	/*
+	 * Per-packet flags and data for ftp ctrl flow
+	 */
+	struct dpt_tcp_flow_pkt ftp_ctrl_pkts[] = {
+		{ DPT_FORW, TH_SYN, 0, NULL, 0, NULL },
+		{ DPT_BACK, TH_SYN | TH_ACK, 0, NULL, 0, NULL },
+		{ DPT_FORW, TH_ACK, 0, NULL, 0, NULL },
+
+		/* session established */
+
+		/*
+		 * PORT command.  Client specifies which client-side port that
+		 * the server should use for data flow.  Port is
+		 * 9819.  (38 == 0x26, 91 == 0x5B, 0x265B == 9819)
+		 */
+		{ DPT_FORW, TH_ACK, 0,
+		  (char *)"PORT 1,1,1,11,38,91\x0d\x0a",
+		  0,
+		  (char *)"PORT 2,2,2,20,38,91\x0d\x0a" },
+
+		{ DPT_BACK, TH_ACK, 0, NULL, 0, NULL },
+
+		{ DPT_FORW, TH_ACK | TH_FIN, 0, NULL, 0, NULL },
+		{ DPT_BACK, TH_ACK | TH_FIN, 0, NULL, 0, NULL },
+		{ DPT_FORW, TH_ACK, 0, NULL, 0, NULL },
+	};
+
+	/*
+	 * Start of ftp ctrl flow (pkts 0 - 4).  Just enough to create a tuple.
+	 */
+	dpt_tcp_call(&ftp_ctrl_call, ftp_ctrl_pkts, ARRAY_SIZE(ftp_ctrl_pkts),
+		     0, 4, NULL, 0);
+
+	/*
+	 * Clear session before tuples
+	 */
+	dp_test_npf_clear_sessions();
+	npf_alg_flush_all();
+
+	dp_test_npf_snat_del(snat.ifname, snat.rule, true);
+
+	free(ctrl_fw_pre);
+	free(ctrl_fw_pst);
+	free(ctrl_bk_pre);
+	free(ctrl_bk_pst);
 
 	dp_test_npf_cleanup();
 
