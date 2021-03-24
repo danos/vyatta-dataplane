@@ -325,22 +325,23 @@ npf_alg_nat(struct npf_session *se, struct npf_cache *npc,
 }
 
 /*
- * npf_alg_session_expire.  Walk the MATCH_ALL/ANY_SPORT hash tables for all
- * protocols this alg supports and expire tuples that contain this session
- * handle.
+ * An ALG session is being expired.
  */
 void
 npf_alg_session_expire(struct npf_session *se, struct npf_session_alg *sa)
 {
-	if (!sa || !sa->sa_alg)
-		return;
-
+	assert(sa);
 	const struct npf_alg *alg = sa->sa_alg;
 
+	if (!alg)
+		return;
+
+	/* Expire any tuples created by this session */
 	alg_expire_session_tuples(alg, se);
 
-	if (alg_has_op(alg, se_expire))
-		alg->na_ops->se_expire(se);
+	/* SIP may also need to expire any unresolved Invites */
+	if (alg->na_id == NPF_ALG_ID_SIP)
+		sip_alg_session_expire(se);
 }
 
 

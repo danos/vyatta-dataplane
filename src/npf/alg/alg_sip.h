@@ -26,6 +26,13 @@ int sip_alg_session_init(struct npf_session *se, struct npf_cache *npc,
 			 struct apt_tuple *nt, const int di);
 
 /**
+ * An SIP ALG session is being expired
+ *
+ * @param se Pointer to the session
+ */
+void sip_alg_session_expire(struct npf_session *se);
+
+/**
  * An SIP ALG session is being destroyed
  *
  * @param se Pointer to the session

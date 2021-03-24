@@ -68,7 +68,17 @@ struct npf_session *npf_alg_session(struct npf_cache *npc,
 				    struct rte_mbuf *nbuf,
 				    const struct ifnet *ifp, const int di,
 				    int *error);
+
+/**
+ * ALG session expire.  Called when an ALG session has been expired. Expire
+ * any tuples (pinholes) created by this session.  Expire any unresolved SIP
+ * invites for this session.
+ *
+ * @param se Pointer to the session
+ * @param sa Pointer to the ALG session data
+ */
 void npf_alg_session_expire(struct npf_session *se, struct npf_session_alg *sa);
+
 int npf_alg_session_json(json_writer_t *json, struct npf_session *se,
 			 struct npf_session_alg *sa);
 

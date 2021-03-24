@@ -397,7 +397,8 @@ static void sess_set_expired(npf_session_t *se)
 	/* Must ensure this happens only once */
 	if (rte_atomic32_cmpset((uint32_t *) &se->s_flags, exp,
 				(exp | SE_EXPIRE))) {
-		npf_alg_session_expire(se, se->s_alg);
+		if (unlikely(se->s_alg))
+			npf_alg_session_expire(se, se->s_alg);
 		if (se->s_session)
 			session_feature_request_expiry(se->s_session,
 						       se->s_if_idx,

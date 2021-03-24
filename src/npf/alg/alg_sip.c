@@ -594,7 +594,7 @@ int sip_alg_session_init(struct npf_session *se, struct npf_cache *npc,
  * session.  We know this from the list of call IDs stored in the session
  * context private data.
  */
-static void sip_alg_session_expire(npf_session_t *se)
+void sip_alg_session_expire(struct npf_session *se)
 {
 	if (npf_alg_session_test_flag(se, SIP_ALG_CNTL_FLOW))
 		sip_expire_session_request(se);
@@ -813,7 +813,6 @@ sip_alg_session_json(json_writer_t *json, npf_session_t *se)
 /* alg struct */
 static const struct npf_alg_ops sip_ops = {
 	.name		= NPF_ALG_SIP_NAME,
-	.se_expire	= sip_alg_session_expire,
 	.se_json	= sip_alg_session_json,
 	.inspect	= sip_alg_inspect,
 	.config		= sip_alg_config,
