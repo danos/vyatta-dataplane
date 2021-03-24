@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2019-2021, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  *
@@ -1107,7 +1107,8 @@ static void apt_table_expire_session(struct apt_table *tbl, const void *session)
  * Notification that a session has been expired.
  *
  * Expire tuples all tuples that contain this session handle. Only applies to
- * 'all' and 'any_sport' tables.
+ * 'all' and 'any_sport' tables since these are the only ones created via a
+ * session.  (The 'dest' table is managed via config)
  */
 void alg_apt_instance_expire_session(struct apt_instance *ai,
 				     const void *session)
@@ -1116,6 +1117,34 @@ void alg_apt_instance_expire_session(struct apt_instance *ai,
 		/* dest port table tuples will never have a session */
 		apt_table_expire_session(&ai->ai_all, session);
 		apt_table_expire_session(&ai->ai_any_sport, session);
+	}
+}
+
+static void
+apt_table_destroy_session(struct apt_table *tbl, const void *session)
+{
+	struct cds_lfht_iter iter;
+	struct apt_tuple *at;
+
+	cds_lfht_for_each_entry(tbl->at_ht, &iter, at, at_node) {
+		if (at->at_session != session)
+			continue;
+
+		apt_tuple_delete(tbl, at);
+	}
+}
+
+/*
+ * Delete any tuples created by the given session.  Only applies to the 'all'
+ * and 'any_sport' tables since these are the only ones created via a session.
+ * (The 'dest' table is managed via config)
+ */
+void alg_apt_instance_destroy_session(struct apt_instance *ai,
+				      const void *session)
+{
+	if (ai) {
+		apt_table_destroy_session(&ai->ai_all, session);
+		apt_table_destroy_session(&ai->ai_any_sport, session);
 	}
 }
 
