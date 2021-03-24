@@ -39,6 +39,7 @@
 #include "util.h"
 #include "vplane_log.h"
 
+#include "npf/alg/alg_sip.h"
 #include "npf/alg/sip/sip.h"
 
 struct ifnet;
@@ -517,8 +518,8 @@ static void sip_alg_inspect(npf_session_t *se, npf_cache_t *npc,
 /*
  * New session has matched a tuple.
  */
-static int sip_alg_session_init(npf_session_t *se, npf_cache_t *npc,
-				struct apt_tuple *nt, const int di)
+int sip_alg_session_init(struct npf_session *se, struct npf_cache *npc,
+			 struct apt_tuple *nt, const int di)
 {
 	npf_session_t *parent;
 	uint32_t alg_flags;
@@ -812,7 +813,6 @@ sip_alg_session_json(json_writer_t *json, npf_session_t *se)
 /* alg struct */
 static const struct npf_alg_ops sip_ops = {
 	.name		= NPF_ALG_SIP_NAME,
-	.se_init	= sip_alg_session_init,
 	.se_destroy	= sip_alg_session_destroy,
 	.se_expire	= sip_alg_session_expire,
 	.se_json	= sip_alg_session_json,

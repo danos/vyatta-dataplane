@@ -41,8 +41,18 @@ int npf_alg_nat(struct npf_session *se, struct npf_cache *npc,
 
 bool npf_alg_bypass_cgnat(const struct ifnet *ifp, struct rte_mbuf *m);
 
-int npf_alg_session_init(struct npf_session *se, struct npf_cache *npc,
-			 const int di);
+/**
+ * ALG session init.  Called when a session has just been created, and has
+ * been identified as an ALG session.  If a data/child session has been
+ * identified then the tuple (pinhole) is attached to the packet cache.
+ *
+ * @param se Pointer to the session
+ * @param npc Pointer to the npf packet cache
+ * @param di Direction of packet relative to interface (in or out)
+ * @return 0 if successful else -errno
+ */
+int npf_alg_session_init(struct npf_session *se, struct npf_cache *npc, int di);
+
 struct npf_session *npf_alg_session(struct npf_cache *npc,
 				    struct rte_mbuf *nbuf,
 				    const struct ifnet *ifp, const int di,

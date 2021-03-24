@@ -17,6 +17,10 @@
 
 #include "npf/alg/alg_npf.h"
 #include "npf/alg/alg.h"
+#include "npf/alg/alg_ftp.h"
+#include "npf/alg/alg_tftp.h"
+#include "npf/alg/alg_rpc.h"
+#include "npf/alg/alg_sip.h"
 
 /*
  * One-time ALG initialisation function.  Initialises and starts a single
@@ -85,12 +89,18 @@ void npf_alg_put(struct npf_alg *alg)
 }
 
 /*
- * Session init.  Setup ALG parent session if packet matches a known protocol
- * and destination port.
+ * ALG session init.
+ *
+ * If this is a child/data flow, then the session will have been created
+ * because a tuple (pinhole) was matched.  In these cases, the tuple will be
+ * cached in 'npc'.  We get here when a session lookup does not find a
+ * session, and when npf_alg_session calls npf_session_establish.
+ *
+ * If not a child/data flow (i.e. no tuple found in cache) then check if the
+ * new session matches an known protocol and destination port.  This
+ * identifies ALG parent/control flows.
  */
-int
-npf_alg_session_init(struct npf_session *se, struct npf_cache *npc,
-		     const int di)
+int npf_alg_session_init(struct npf_session *se, struct npf_cache *npc, int di)
 {
 	const struct npf_alg *alg;
 	struct apt_tuple *nt;
@@ -103,19 +113,39 @@ npf_alg_session_init(struct npf_session *se, struct npf_cache *npc,
 		return 0;
 
 	/*
-	 * Expected flow?  First look for tuple in cache.  Then lookup
-	 * protocol and destination port in ALG tuple database.
+	 * Expected flow?  First look for tuple in cache (data flow).  Then
+	 * lookup protocol and destination port in ALG tuple database (control
+	 * flow).
 	 */
 	nt = alg_lookup_npc(ai, npc, npf_session_get_if_index(se));
 	if (!nt)
 		return 0;
 
+	/* Get the specific ALG (sip, ftp etc.) data from the tuple  */
 	alg = apt_tuple_get_client_handle(nt);
-	if (alg_has_op(alg, se_init) && alg->na_enabled) {
-		rc = npf_alg_session_set_alg(se, alg);
-		if (!rc)
-			rc = alg->na_ops->se_init(se, npc, nt, di);
-	}
+
+	if (!alg || !alg->na_enabled)
+		return 0;
+
+	/* Allocate and attach ALG data to the session */
+	rc = npf_alg_session_set_alg(se, alg);
+	if (rc)
+		return rc;
+
+	switch (alg->na_id) {
+	case NPF_ALG_ID_FTP:
+		rc = ftp_alg_session_init(se, npc, nt, di);
+		break;
+	case NPF_ALG_ID_TFTP:
+		rc = tftp_alg_session_init(se, npc, nt, di);
+		break;
+	case NPF_ALG_ID_RPC:
+		rc = rpc_alg_session_init(se, nt);
+		break;
+	case NPF_ALG_ID_SIP:
+		rc = sip_alg_session_init(se, npc, nt, di);
+		break;
+	};
 
 	if (rc && net_ratelimit()) {
 		char buf[64];

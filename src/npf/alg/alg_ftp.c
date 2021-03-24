@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2013-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -36,6 +36,7 @@
 #include "npf/npf_session.h"
 #include "util.h"
 #include "vplane_log.h"
+#include "npf/alg/alg_ftp.h"
 
 struct ifnet;
 struct rte_mbuf;
@@ -684,8 +685,8 @@ static void ftp_alg_inspect(npf_session_t *parent, npf_cache_t *npc,
 /*
  * Session init
  */
-static int ftp_alg_session_init(npf_session_t *se, npf_cache_t *npc,
-				struct apt_tuple *nt, const int di)
+int ftp_alg_session_init(struct npf_session *se, struct npf_cache *npc,
+			 struct apt_tuple *nt, const int di)
 {
 	npf_session_t *parent;
 	uint32_t alg_flags;
@@ -751,7 +752,6 @@ static void ftp_alg_session_destroy(npf_session_t *se)
 /* alg struct */
 static const struct npf_alg_ops ftp_ops = {
 	.name		= NPF_ALG_FTP_NAME,
-	.se_init	= ftp_alg_session_init,
 	.se_destroy	= ftp_alg_session_destroy,
 	.inspect	= ftp_alg_inspect,
 	.config		= ftp_alg_config,

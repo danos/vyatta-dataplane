@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2013-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -29,6 +29,7 @@
 #include "npf/npf_session.h"
 #include "util.h"
 #include "vplane_log.h"
+#include "npf/alg/alg_tftp.h"
 
 struct ifnet;
 struct rte_mbuf;
@@ -278,8 +279,8 @@ static void tftp_alg_inspect(npf_session_t *se, npf_cache_t *npc,
 /*
  * Session init
  */
-static int tftp_alg_session_init(npf_session_t *se, npf_cache_t *npc,
-				 struct apt_tuple *nt, const int di)
+int tftp_alg_session_init(struct npf_session *se, struct npf_cache *npc,
+			  struct apt_tuple *nt, const int di)
 {
 	npf_session_t *parent;
 	int rc = 0;
@@ -317,7 +318,6 @@ static int tftp_alg_session_init(npf_session_t *se, npf_cache_t *npc,
 /* alg struct */
 static const struct npf_alg_ops tftp_ops = {
 	.name		= NPF_ALG_TFTP_NAME,
-	.se_init	= tftp_alg_session_init,
 	.config		= tftp_alg_config,
 	.inspect	= tftp_alg_inspect,
 	.nat_inspect	= tftp_alg_nat_inspect,

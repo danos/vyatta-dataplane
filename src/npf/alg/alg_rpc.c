@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2014-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -30,6 +30,7 @@
 #include "urcu.h"
 #include "util.h"
 #include "vplane_log.h"
+#include "npf/alg/alg_rpc.h"
 
 struct ifnet;
 struct rte_mbuf;
@@ -512,8 +513,7 @@ static void rpc_alg_inspect(npf_session_t *se, npf_cache_t *npc,
 }
 
 /* ALG session initialization */
-static int rpc_alg_session_init(npf_session_t *se, npf_cache_t *npc __unused,
-				struct apt_tuple *nt, const int di __unused)
+int rpc_alg_session_init(struct npf_session *se, struct apt_tuple *nt)
 {
 	npf_session_t *parent;
 	uint32_t alg_flags;
@@ -615,7 +615,6 @@ static int rpc_alg_reset(struct npf_alg *rpc, bool hard __unused)
 static const struct npf_alg_ops rpc_ops = {
 	.name		= NPF_ALG_RPC_NAME,
 	.inspect	= rpc_alg_inspect,
-	.se_init	= rpc_alg_session_init,
 	.se_destroy	= rpc_alg_session_destroy,
 	.nat_inspect	= rpc_alg_nat_inspect,
 	.nat_in		= rpc_alg_nat_in,
