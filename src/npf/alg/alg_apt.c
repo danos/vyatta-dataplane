@@ -1068,6 +1068,9 @@ static void apt_table_jsonw(struct apt_table *tbl, json_writer_t *json)
 	if (!tbl->at_ht)
 		return;
 
+	if (rte_atomic32_read(&tbl->at_count) == 0)
+		return;
+
 	cds_lfht_for_each_entry(tbl->at_ht, &iter, at, at_node)
 		apt_tuple_jsonw(at, json);
 }
@@ -1094,6 +1097,9 @@ static void apt_table_expire_session(struct apt_table *tbl, const void *session)
 {
 	struct cds_lfht_iter iter;
 	struct apt_tuple *at;
+
+	if (rte_atomic32_read(&tbl->at_count) == 0)
+		return;
 
 	cds_lfht_for_each_entry(tbl->at_ht, &iter, at, at_node) {
 		if (at->at_session != session)
@@ -1125,6 +1131,9 @@ apt_table_destroy_session(struct apt_table *tbl, const void *session)
 {
 	struct cds_lfht_iter iter;
 	struct apt_tuple *at;
+
+	if (rte_atomic32_read(&tbl->at_count) == 0)
+		return;
 
 	cds_lfht_for_each_entry(tbl->at_ht, &iter, at, at_node) {
 		if (at->at_session != session)
@@ -1160,6 +1169,9 @@ static void apt_table_client_reset(struct apt_table *tbl, const void *client)
 	struct cds_lfht_iter iter;
 	struct apt_tuple *at;
 
+	if (rte_atomic32_read(&tbl->at_count) == 0)
+		return;
+
 	cds_lfht_for_each_entry(tbl->at_ht, &iter, at, at_node) {
 		if (at->at_client != client)
 			continue;
@@ -1190,6 +1202,9 @@ static void apt_table_client_destroy(struct apt_table *tbl, const void *client)
 	struct cds_lfht_iter iter;
 	struct apt_tuple *at;
 
+	if (rte_atomic32_read(&tbl->at_count) == 0)
+		return;
+
 	cds_lfht_for_each_entry(tbl->at_ht, &iter, at, at_node) {
 		if (at->at_client != client)
 			continue;
@@ -1217,6 +1232,9 @@ static void apt_table_flush(struct apt_table *tbl)
 {
 	struct cds_lfht_iter iter;
 	struct apt_tuple *at;
+
+	if (rte_atomic32_read(&tbl->at_count) == 0)
+		return;
 
 	/*
 	 * For each qualifying tuple in each hash table: remove from hash
@@ -1277,6 +1295,9 @@ static void apt_table_gc(struct apt_table *tbl, uint64_t current)
 {
 	struct cds_lfht_iter iter;
 	struct apt_tuple *at;
+
+	if (rte_atomic32_read(&tbl->at_count) == 0)
+		return;
 
 	cds_lfht_for_each_entry(tbl->at_ht, &iter, at, at_node) {
 		if (apt_tuple_is_expired(at, current)) {
