@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2018-2021, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -330,6 +330,9 @@ npf_alg_session_destroy(struct npf_session *se, struct npf_session_alg *sa)
 
 	if (alg_has_op(alg, se_destroy))
 		alg->na_ops->se_destroy(se);
+
+	/* Delete any tuples (pinholes) created by this session */
+	alg_destroy_session_tuples(alg, se);
 
 	sa->sa_alg = NULL;
 	npf_alg_put((struct npf_alg *)alg);
