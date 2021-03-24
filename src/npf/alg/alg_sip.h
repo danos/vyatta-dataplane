@@ -7,6 +7,7 @@
 #ifndef _ALG_SIP_H_
 #define _ALG_SIP_H_
 
+struct json_writer;
 struct npf_session;
 struct npf_cache;
 struct apt_tuple;
@@ -38,5 +39,13 @@ void sip_alg_session_expire(struct npf_session *se);
  * @param se Pointer to the session
  */
 void sip_alg_session_destroy(struct npf_session *se);
+
+/**
+ * Write ALG session json
+ *
+ * @param json JSON write structure
+ * @param se Pointer to the session
+ */
+void sip_alg_session_json(struct json_writer *json, struct npf_session *se);
 
 #endif

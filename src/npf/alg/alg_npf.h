@@ -8,13 +8,13 @@
 #define _ALG_NPF_H_
 
 #include <stdio.h>
-#include "json_writer.h"
 #include "util.h"
 
 struct npf_alg;
 struct npf_alg_instance;
 struct npf_session_alg;
 struct npf_session;
+struct json_writer;
 struct npf_cache;
 struct rte_mbuf;
 struct npf_nat;
@@ -79,7 +79,7 @@ struct npf_session *npf_alg_session(struct npf_cache *npc,
  */
 void npf_alg_session_expire(struct npf_session *se, struct npf_session_alg *sa);
 
-int npf_alg_session_json(json_writer_t *json, struct npf_session *se,
+int npf_alg_session_json(struct json_writer *json, struct npf_session *se,
 			 struct npf_session_alg *sa);
 
 void npf_alg_reset(bool hard);

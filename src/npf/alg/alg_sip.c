@@ -768,8 +768,7 @@ sip_alg_session_callid_json(json_writer_t *json, npf_session_t *se,
 	jsonw_end_object(json);
 }
 
-static void
-sip_alg_session_json(json_writer_t *json, npf_session_t *se)
+void sip_alg_session_json(struct json_writer *json, struct npf_session *se)
 {
 	struct sip_alg_session *ss;
 	char buf[INET6_ADDRSTRLEN];
@@ -813,7 +812,6 @@ sip_alg_session_json(json_writer_t *json, npf_session_t *se)
 /* alg struct */
 static const struct npf_alg_ops sip_ops = {
 	.name		= NPF_ALG_SIP_NAME,
-	.se_json	= sip_alg_session_json,
 	.inspect	= sip_alg_inspect,
 	.config		= sip_alg_config,
 	.nat_inspect	= sip_alg_nat_inspect,

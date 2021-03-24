@@ -538,22 +538,18 @@ static void npf_alg_child_session_json(struct session *child, void *data)
 /*
  * Add ALG info to session json
  */
-int npf_alg_session_json(json_writer_t *json,
-			 struct npf_session *se,
-			 struct npf_session_alg *sa __unused)
+int npf_alg_session_json(struct json_writer *json, struct npf_session *se,
+			 struct npf_session_alg *sa)
 {
-	const char *name;
 	struct npf_session *parent;
 	struct npf_session *base_parent;
-	struct npf_alg_child_json_ctx ctx = {
-		.json = json,
-		.s = npf_session_get_dp_session(se),
-	};
+	struct npf_alg *alg;
 
-	/* Name of specific alg */
-	name = npf_alg_name(se);
-	if (!name)
-		name = "unknown";
+	assert(sa);
+	alg = (struct npf_alg *)sa->sa_alg;
+
+	if (!alg)
+		return 0;
 
 	/* Will return NULL if this is a parent */
 	parent = npf_session_get_parent(se);
@@ -564,7 +560,7 @@ int npf_alg_session_json(json_writer_t *json,
 	jsonw_name(json, "alg");
 	jsonw_start_object(json);
 
-	jsonw_string_field(json, "name", name);
+	jsonw_string_field(json, "name", npf_alg_id2name(alg->na_id));
 
 	if (parent)
 		jsonw_uint_field(json, "parent",
@@ -585,16 +581,21 @@ int npf_alg_session_json(json_writer_t *json,
 	jsonw_name(json, "children");
 	jsonw_start_array(json);
 
+	struct npf_alg_child_json_ctx ctx = {
+		.json = json,
+		.s = npf_session_get_dp_session(se),
+	};
+
 	session_link_walk(npf_session_get_dp_session(se), false,
 			  npf_alg_child_session_json, &ctx);
 
 	jsonw_end_array(json);
 
-	/* ALG-specific session json */
-	struct npf_alg *alg = npf_alg_session_get_alg(se);
-
-	if (alg_has_op(alg, se_json))
-		alg->na_ops->se_json(json, se);
+	/*
+	 * ALG-specific session json
+	 */
+	if (alg->na_id == NPF_ALG_ID_SIP)
+		sip_alg_session_json(json, se);
 
 	jsonw_end_object(json);
 	return 0;
