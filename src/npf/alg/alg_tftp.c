@@ -253,17 +253,14 @@ static void tftp_alg_nat_inspect(npf_session_t *se, npf_cache_t *npc __unused,
 		npf_nat_setalg(nt, npf_alg_session_get_alg(se));
 }
 
-/* ALG inspect routine */
-static void tftp_alg_inspect(npf_session_t *se, npf_cache_t *npc,
-		struct rte_mbuf *nbuf, struct ifnet *ifp __unused,
-		int di __unused)
+/*
+ * ALG inspect for non-NATd pkts
+ */
+void tftp_alg_inspect(struct npf_session *se, struct npf_cache *npc,
+		      struct rte_mbuf *nbuf, struct npf_alg *tftp)
 {
-	struct npf_alg *tftp = npf_alg_session_get_alg(se);
 	struct udphdr *uh = &npc->npc_l4.udp;
 	bool insert = false;
-
-	if (npf_iscached(npc, NPC_NATTED))
-		return;
 
 	tftp_parse_and_decide(npc, nbuf, &insert);
 	if (insert) {
@@ -319,7 +316,6 @@ int tftp_alg_session_init(struct npf_session *se, struct npf_cache *npc,
 static const struct npf_alg_ops tftp_ops = {
 	.name		= NPF_ALG_TFTP_NAME,
 	.config		= tftp_alg_config,
-	.inspect	= tftp_alg_inspect,
 	.nat_inspect	= tftp_alg_nat_inspect,
 	.nat_in		= tftp_alg_nat_in,
 	.nat_out	= tftp_alg_nat_out,

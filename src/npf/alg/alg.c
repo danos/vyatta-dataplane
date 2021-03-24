@@ -251,17 +251,6 @@ npf_alg_session_get_flags(const struct npf_session *se)
 	return 0;
 }
 
-/* Get inspect */
-bool
-npf_alg_session_inspect(struct npf_session *se)
-{
-	struct npf_session_alg *sa = npf_session_get_alg_ptr(se);
-
-	if (sa)
-		return sa->sa_inspect;
-	return false;
-}
-
 /* Set inspect */
 void
 npf_alg_session_set_inspect(struct npf_session *se, bool v)

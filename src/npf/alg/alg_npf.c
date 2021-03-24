@@ -273,23 +273,60 @@ npf_alg_session(struct npf_cache *npc, struct rte_mbuf *nbuf,
 }
 
 /*
- * ALG inspect.  Packet matched a session that has an ALG associated with it.
- * Check if the ALG wants to inspect the packet.  Called for every packet of
- * an ALG flow.
+ * ALG inspect for (mostly) non-NATd pkts
  */
 void
 npf_alg_inspect(struct npf_session *se,	struct npf_cache *npc,
-		struct rte_mbuf *nbuf, struct ifnet *ifp, int di)
+		struct rte_mbuf *nbuf, int di, struct npf_session_alg *sa)
 {
+	assert(sa);
+
 	/* Is inspection enabled? */
-	if (!npf_alg_session_inspect(se))
+	if (!sa->sa_inspect || !sa->sa_alg)
 		return;
 
-	struct npf_alg *alg = npf_alg_session_get_alg(se);
+	struct npf_alg *alg = (struct npf_alg *)sa->sa_alg;
 
 	/* Call inspect function */
-	if (alg_has_op(alg, inspect))
-		alg->na_ops->inspect(se, npc, nbuf, ifp, di);
+	switch (alg->na_id) {
+	case NPF_ALG_ID_FTP:
+		/*
+		 * Active ftp requires a reverse pinhole in order to detect
+		 * data flow from server that might otherwise be blocked.
+		 *
+		 * Passive ftp requires a forwards 'any src port' pinhole.
+		 * This is necessary because we do not know what source port
+		 * the client will use for the data flow.
+		 */
+		if (!npf_iscached(npc, NPC_NATTED))
+			ftp_alg_inspect(se, npc, nbuf, alg);
+		break;
+
+	case NPF_ALG_ID_TFTP:
+		/*
+		 * tftp requires a forwards 'any src port' pinhole.  This is
+		 * necessary because we do not know what source port the
+		 * client will use for the data flow.
+		 */
+		if (!npf_iscached(npc, NPC_NATTED))
+			tftp_alg_inspect(se, npc, nbuf, alg);
+		break;
+
+	case NPF_ALG_ID_RPC:
+		if (!npf_iscached(npc, NPC_NATTED))
+			rpc_alg_inspect(se, npc, nbuf, alg);
+		break;
+
+	case NPF_ALG_ID_SIP:
+		/*
+		 * SIP is the exception here.  It wants to see some NATd pkts
+		 * as well.  SIP will only create tuples (pinholes) after
+		 * inspecting both Invite Request pkt and 200 Response pkt (or
+		 * one with SDP msg).
+		 */
+		sip_alg_inspect(se, npc, nbuf, alg, di);
+		break;
+	};
 }
 
 /*

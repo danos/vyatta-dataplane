@@ -418,9 +418,10 @@ pass:
 		}
 	}
 
-	/* ALGs may need/want to inspect. */
-	if (npf_session_uses_alg(se))
-		npf_alg_inspect(se, npc, *m, ifp, dir);
+	/* ALGs may need/want to inspect non-NATd pkts. */
+	struct npf_session_alg *sa = npf_session_get_alg_ptr(se);
+	if (unlikely(sa))
+		npf_alg_inspect(se, npc, *m, dir, sa);
 
 stats:
 	/* Stats and rule procedures. */

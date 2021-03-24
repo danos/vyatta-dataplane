@@ -10,6 +10,7 @@
 struct npf_session;
 struct npf_cache;
 struct apt_tuple;
+struct rte_mbuf;
 
 /**
  * Setup FTP ALG parent session.  Called a new npf session is created, and the
@@ -30,5 +31,16 @@ int ftp_alg_session_init(struct npf_session *se, struct npf_cache *npc,
  * @param se Pointer to the session
  */
 void ftp_alg_session_destroy(struct npf_session *se);
+
+/**
+ * Inspect non-NATd packets
+ *
+ * @param parent Pointer to the parent session
+ * @param npc Pointer to the npf packet cache
+ * @param nbuf Packet buffer
+ * @param ftp ALG data
+ */
+void ftp_alg_inspect(struct npf_session *parent, struct npf_cache *npc,
+		     struct rte_mbuf *nbuf, struct npf_alg *ftp);
 
 #endif

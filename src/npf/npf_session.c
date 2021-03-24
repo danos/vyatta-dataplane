@@ -460,13 +460,6 @@ npf_session_set_alg_ptr(npf_session_t *se, struct npf_session_alg *sa)
 		se->s_alg = sa;
 }
 
-bool npf_session_uses_alg(npf_session_t *se)
-{
-	if (se && se->s_alg)
-		return true;
-	return false;
-}
-
 /* Get session if index */
 uint32_t npf_session_get_if_index(npf_session_t *se)
 {

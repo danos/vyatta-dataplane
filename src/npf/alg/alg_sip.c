@@ -464,10 +464,10 @@ static void sip_translate_reply_path(npf_session_t *se, int di __unused,
  * Inspect for non-NATd pkts
  */
 static void sip_alg_inspect_packet(npf_session_t *se, npf_cache_t *npc,
-				struct rte_mbuf *nbuf, int di)
+				   struct rte_mbuf *nbuf, struct npf_alg *sip,
+				   int di)
 {
 	struct sip_alg_request *sr;
-	struct npf_alg *sip = npf_alg_session_get_alg(se);
 	bool consumed = false;
 
 	sr = sip_alg_parse(se, npc, nbuf);
@@ -488,11 +488,10 @@ static void sip_alg_inspect_packet(npf_session_t *se, npf_cache_t *npc,
 }
 
 /*
- * Inspect (mostly) non-NATd flow.
+ * ALG Inspect of (mostly) non-NATd pkts
  */
-static void sip_alg_inspect(npf_session_t *se, npf_cache_t *npc,
-		struct rte_mbuf *nbuf, struct ifnet *ifp __unused,
-		int di)
+void sip_alg_inspect(struct npf_session *se, struct npf_cache *npc,
+		     struct rte_mbuf *nbuf, struct npf_alg *alg, int di)
 {
 	uint32_t flags = npf_alg_session_get_flags(se);
 
@@ -512,7 +511,7 @@ static void sip_alg_inspect(npf_session_t *se, npf_cache_t *npc,
 	/*
 	 * Inspect for non-NATd pkts
 	 */
-	sip_alg_inspect_packet(se, npc, nbuf, di);
+	sip_alg_inspect_packet(se, npc, nbuf, alg, di);
 }
 
 /*
@@ -812,7 +811,6 @@ void sip_alg_session_json(struct json_writer *json, struct npf_session *se)
 /* alg struct */
 static const struct npf_alg_ops sip_ops = {
 	.name		= NPF_ALG_SIP_NAME,
-	.inspect	= sip_alg_inspect,
 	.config		= sip_alg_config,
 	.nat_inspect	= sip_alg_nat_inspect,
 	.nat_in		= sip_alg_nat_in,

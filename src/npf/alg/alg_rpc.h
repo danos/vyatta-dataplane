@@ -10,6 +10,7 @@
 struct npf_session;
 struct npf_cache;
 struct apt_tuple;
+struct rte_mbuf;
 
 /**
  * Setup RPC portmapper ALG parent session.  Called a new npf session is
@@ -28,5 +29,16 @@ int rpc_alg_session_init(struct npf_session *se, struct apt_tuple *nt);
  * @param se Pointer to the session
  */
 void rpc_alg_session_destroy(struct npf_session *se);
+
+/**
+ * Inspect non-NATd packets
+ *
+ * @param se Pointer to the parent session
+ * @param npc Pointer to the npf packet cache
+ * @param nbuf Packet buffer
+ * @param alg ALG data
+ */
+void rpc_alg_inspect(struct npf_session *se, struct npf_cache *npc,
+		     struct rte_mbuf *nbuf, struct npf_alg *alg);
 
 #endif

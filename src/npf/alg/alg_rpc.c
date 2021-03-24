@@ -485,12 +485,11 @@ static int rpc_parse_packet(npf_cache_t *npc, npf_session_t *se,
 
 /* Parse a portmap packet for tuple insertion */
 static int rpc_handle_packet(npf_cache_t *npc, npf_session_t *se,
-		struct rte_mbuf *nbuf, const npf_addr_t *srcip,
-		const npf_addr_t *dstip)
+			     struct rte_mbuf *nbuf, const npf_addr_t *srcip,
+			     const npf_addr_t *dstip, struct npf_alg *rpc)
 {
 	int rc;
 	uint16_t port = 0;
-	struct npf_alg *rpc = npf_alg_session_get_alg(se);
 
 	rc = rpc_parse_packet(npc, se, nbuf, &port);
 	if (rc)
@@ -501,15 +500,14 @@ static int rpc_handle_packet(npf_cache_t *npc, npf_session_t *se,
 	return rc;
 }
 
-/* ALG inspect routine */
-static void rpc_alg_inspect(npf_session_t *se, npf_cache_t *npc,
-				struct rte_mbuf *nbuf,
-				struct ifnet *ifp __unused,
-				int di __unused)
+/*
+ * ALG inspect for non-NATd pkts
+ */
+void rpc_alg_inspect(struct npf_session *se, struct npf_cache *npc,
+		     struct rte_mbuf *nbuf, struct npf_alg *alg)
 {
-	if (!npf_iscached(npc, NPC_NATTED))
-		rpc_handle_packet(npc, se, nbuf, npf_cache_dstip(npc),
-				npf_cache_srcip(npc));
+	rpc_handle_packet(npc, se, nbuf, npf_cache_dstip(npc),
+			  npf_cache_srcip(npc), alg);
 }
 
 /* ALG session initialization */
@@ -571,9 +569,11 @@ static int rpc_alg_nat_in(npf_session_t *se, npf_cache_t *npc,
 {
 	npf_addr_t addr;  /* where from expected packet (SNAT case)*/
 	in_port_t port __unused;
+	struct npf_alg *alg = npf_alg_session_get_alg(se);
 
 	npf_nat_get_orig(ns, &addr, &port);
-	return rpc_handle_packet(npc, se, nbuf, &addr, npf_cache_srcip(npc));
+	return rpc_handle_packet(npc, se, nbuf, &addr, npf_cache_srcip(npc),
+				 alg);
 }
 
 static int rpc_alg_nat_out(npf_session_t *se __unused, npf_cache_t *npc,
@@ -581,9 +581,11 @@ static int rpc_alg_nat_out(npf_session_t *se __unused, npf_cache_t *npc,
 {
 	npf_addr_t addr;  /* where to expected packet (DNAT case)*/
 	in_port_t port __unused;
+	struct npf_alg *alg = npf_alg_session_get_alg(se);
 
 	npf_nat_get_orig(ns, &addr, &port);
-	return rpc_handle_packet(npc, se, nbuf, npf_cache_dstip(npc), &addr);
+	return rpc_handle_packet(npc, se, nbuf, npf_cache_dstip(npc), &addr,
+				 alg);
 }
 
 /* Configuration */
@@ -614,7 +616,6 @@ static int rpc_alg_reset(struct npf_alg *rpc, bool hard __unused)
 /* RPC ALG operations struct */
 static const struct npf_alg_ops rpc_ops = {
 	.name		= NPF_ALG_RPC_NAME,
-	.inspect	= rpc_alg_inspect,
 	.nat_inspect	= rpc_alg_nat_inspect,
 	.nat_in		= rpc_alg_nat_in,
 	.nat_out	= rpc_alg_nat_out,

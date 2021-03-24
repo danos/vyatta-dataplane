@@ -30,11 +30,25 @@ void npf_alg_destroy_instance(struct npf_alg_instance *ai);
 struct npf_alg *npf_alg_get(struct npf_alg *alg);
 void npf_alg_put(struct npf_alg *alg);
 
+/**
+ * ALG inspect for (mostly) non-NATd packets.  Look for data flow port info in
+ * the packet payload, and create tuples (pinholes) if found.  Some ALGs
+ * (notably SIP) require to inspect multiple control packets before pinholes
+ * can be created, and store state locally during this time (e.g. SIP invite
+ * request hash table). Called at the end of npf_hook_track just before stats
+ * and rprocs.
+ *
+ * @param se Pointer to the session
+ * @param npc Pointer to the npf packet cache
+ * @param nbuf Packet buffer
+ * @param di Direction of packet relative to interface (in or out)
+ * @param sa Pointer to the ALG session data
+ */
 void npf_alg_inspect(struct npf_session *se, struct npf_cache *npc,
-		     struct rte_mbuf *nbuf, struct ifnet *ifp,
-		     int di) __cold_func;
-void npf_alg_nat_inspect(struct npf_session *se, struct npf_cache *npc,
-			 struct npf_nat *nat, int di);
+		     struct rte_mbuf *nbuf, int di,
+		     struct npf_session_alg *sa);
+
+void npf_alg_nat_inspect(struct npf_nat *nat, struct npf_session_alg *sa);
 int npf_alg_nat(struct npf_session *se, struct npf_cache *npc,
 		struct rte_mbuf *nbuf, struct npf_nat *nat,
 		const int di) __cold_func;

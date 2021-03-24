@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  */
@@ -84,7 +84,6 @@ npf_decision_t npf_session_get_appfw_decision(npf_session_t *);
 /* ALG-related */
 struct npf_session_alg *npf_session_get_alg_ptr(const npf_session_t *se);
 void npf_session_set_alg_ptr(npf_session_t *se, struct npf_session_alg *sa);
-bool npf_session_uses_alg(npf_session_t *se);
 
 uint32_t npf_session_get_if_index(npf_session_t *se);
 void npf_session_link_child(struct npf_session *parent, struct npf_session *c);

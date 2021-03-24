@@ -61,8 +61,6 @@ struct npf_alg_instance {
 
 /* ALG operations struct */
 struct npf_alg_ops {
-	void		(*inspect)(npf_session_t *, npf_cache_t *,
-				struct rte_mbuf *, struct ifnet *, int);
 	int		(*config)(struct npf_alg *, int type, int argc,
 				char *const argv[]);
 	int		(*reset)(struct npf_alg *, bool);
@@ -146,7 +144,6 @@ void *npf_alg_session_get_and_set_private(const npf_session_t *se, void *data);
 int npf_alg_session_test_flag(const struct npf_session *se, uint32_t flag);
 void npf_alg_session_set_flag(struct npf_session *se, uint32_t flag);
 uint32_t npf_alg_session_get_flags(const struct npf_session *se);
-bool npf_alg_session_inspect(struct npf_session *se);
 void npf_alg_session_set_inspect(struct npf_session *se, bool v);
 int npf_alg_session_set_alg(struct npf_session *se, const struct npf_alg *alg);
 struct npf_alg *npf_alg_session_get_alg(const struct npf_session *se);

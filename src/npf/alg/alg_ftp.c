@@ -640,11 +640,10 @@ static int ftp_alg_nat_in(npf_session_t *se, npf_cache_t *npc,
 }
 
 /*
- * ftp_alg_inspect() - Inspect non-natted flow
+ * ALG inspect for non-NATd pkts
  */
-static void ftp_alg_inspect(npf_session_t *parent, npf_cache_t *npc,
-			struct rte_mbuf *nbuf, struct ifnet *ifp __unused,
-			int di __unused)
+void ftp_alg_inspect(npf_session_t *parent, npf_cache_t *npc,
+		     struct rte_mbuf *nbuf, struct npf_alg *ftp)
 {
 	struct ftp_parse fp = { 0 };
 	char payload[FTP_MAX_PAYLOAD+1];
@@ -654,11 +653,6 @@ static void ftp_alg_inspect(npf_session_t *parent, npf_cache_t *npc,
 	in_port_t dport;
 	int rc;
 	int plen;
-	struct npf_alg *ftp = npf_alg_session_get_alg(parent);
-
-	/* If we already natted, nothing to do */
-	if (npf_iscached(npc, NPC_NATTED))
-		return;
 
 	rc = ftp_parse_payload(npc, nbuf, &fp, payload, &plen);
 	if (rc)
@@ -752,7 +746,6 @@ void ftp_alg_session_destroy(struct npf_session *se)
 /* alg struct */
 static const struct npf_alg_ops ftp_ops = {
 	.name		= NPF_ALG_FTP_NAME,
-	.inspect	= ftp_alg_inspect,
 	.config		= ftp_alg_config,
 	.nat_inspect	= ftp_alg_nat_inspect,
 	.nat_in		= ftp_alg_nat_in,
