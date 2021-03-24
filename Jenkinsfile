@@ -28,15 +28,13 @@ pipeline {
 	OBS_TARGET_PROJECT = 'DANOS:Shipping:2105'
 	OBS_TARGET_REPO = 'standard'
 	OBS_TARGET_ARCH = 'x86_64'
-	// # Replace : with _ in project name, as osc-buildpkg does
+	// Replace : with _ in project name so mountable paths can be used.
 	BUILD_ROOT_RELATIVE = 'build-root/' + "${env.OBS_TARGET_PROJECT.replace(':','_')}" + '-' + "${env.OBS_TARGET_REPO}" + '-' + "${OBS_TARGET_ARCH}"
+	// Workspace specific chroot location used instead of /var/tmp allows parallel builds between jobs
 	OSC_BUILD_ROOT = "${WORKSPACE}" + '/' + "${env.BUILD_ROOT_RELATIVE}"
 	// CHANGE_TARGET is set for PRs.
 	// When CHANGE_TARGET is not set it's a regular build so we use BRANCH_NAME.
 	REF_BRANCH = "${env.CHANGE_TARGET != null ? env.CHANGE_TARGET : env.BRANCH_NAME}"
-	DH_VERBOSE = 1
-	DH_QUIET = 0
-	DEB_BUILD_OPTIONS ='verbose all_tests sanitizer'
     }
 
     options {
@@ -58,36 +56,20 @@ pipeline {
 	        cancelPreviousBuilds()
             }}}
 
-	stage('OSC config') {
-	    steps {
-		sh 'printenv'
-		// Build scripts with tasks to perform in the chroot
-		sh """
-cat <<EOF > osc-buildpackage_buildscript_default
-export BUILD_ID=\"${BUILD_ID}\"
-export JENKINS_NODE_COOKIE=\"${JENKINS_NODE_COOKIE}\"
-dpkg-buildpackage -jauto -us -uc -b
-EOF
-"""
-	    }
-	}
-
-	// Workspace specific chroot location used instead of /var/tmp
-	// Allows parallel builds between jobs, but not between stages in a single job
-	// TODO: Enhance osc-buildpkg to support parallel builds from the same pkg_srcdir
-	// TODO: probably by allowing it to accept a .conf file from a location other than pkg_srcdir
-
 	stage('OSC Build') {
 	    steps {
 		dir('vyatta-dataplane') {
-		    sh """
-cat <<EOF > .osc-buildpackage.conf
-OSC_BUILDPACKAGE_TMP=\"${WORKSPACE}\"
-OSC_BUILDPACKAGE_BUILDSCRIPT=\"${WORKSPACE}/osc-buildpackage_buildscript_default\"
-EOF
-"""
-		    sh "osc-buildpkg -v -g -T -A ${env.OBS_INSTANCE} -P ${env.OBS_TARGET_PROJECT} ${env.OBS_TARGET_REPO} -- --trust-all-projects --build-uid='caller'"
+		    sh "gbp buildpackage --git-verbose --git-ignore-branch -S --no-check-builddeps -us -uc"
 		}
+		writeFile file: 'build.script',
+                        text: """\
+                        export BUILD_ID=\"${BUILD_ID}\"
+                        export JENKINS_NODE_COOKIE=\"${JENKINS_NODE_COOKIE}\"
+                        export DH_VERBOSE=1 DH_QUIET=0
+                        export DEB_BUILD_OPTIONS ='verbose all_tests sanitizer'
+                        dpkg-buildpackage -jauto -us -uc -b
+                        """.stripIndent()
+		sh "osc -v -A ${env.OBS_INSTANCE} build --download-api-only --local-package --no-service --trust-all-projects --build-uid=caller --alternative-project=${env.OBS_TARGET_PROJECT} ${env.OBS_TARGET_REPO} ${env.OBS_TARGET_ARCH}"
 	    }
 	    post {
 		    always {
@@ -155,7 +137,10 @@ EOF
 
         stage('Code Static Analysis') {
             steps {
-                writeFile file: 'osc-buildpackage_buildscript_default',
+                dir('vyatta-dataplane') {
+                    sh "gbp buildpackage --git-verbose --git-ignore-branch -S --no-check-builddeps -us -uc"
+                }
+                writeFile file: 'build.script',
                         text: """\
                         export BUILD_ID=\"${BUILD_ID}\"
                         export JENKINS_NODE_COOKIE=\"${JENKINS_NODE_COOKIE}\"
@@ -164,14 +149,7 @@ EOF
                         ninja clang-tidy >& clang-tidy.log
                         sed -i 's|/usr/src/packages/BUILD|${WORKSPACE}/vyatta-dataplane|g' clang-tidy.log
                         """.stripIndent()
-                dir('vyatta-dataplane') {
-                        writeFile file: '.osc-buildpackage.conf',
-                                text: """\
-                                OSC_BUILDPACKAGE_TMP=\"${WORKSPACE}\"
-                                OSC_BUILDPACKAGE_BUILDSCRIPT=\"${WORKSPACE}/osc-buildpackage_buildscript_default\"
-                                """.stripIndent()
-                        sh "osc-buildpkg -v -g -T -A ${env.OBS_INSTANCE} -P ${env.OBS_TARGET_PROJECT} ${env.OBS_TARGET_REPO} -- --trust-all-projects --build-uid='caller' --nochecks --extra-pkgs='clang-tidy' --extra-pkgs='clang'"
-                }
+                sh "osc -v -A ${env.OBS_INSTANCE} build --download-api-only --local-package --no-service --trust-all-projects --build-uid=caller --nochecks --extra-pkgs='clang-tidy' --extra-pkgs='clang' --alternative-project=${env.OBS_TARGET_PROJECT} ${env.OBS_TARGET_REPO} ${env.OBS_TARGET_ARCH}"
             }
             post {
                 always {
