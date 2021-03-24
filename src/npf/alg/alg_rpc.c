@@ -556,14 +556,6 @@ void rpc_alg_session_destroy(struct npf_session *se)
 	free(rr);
 }
 
-/* ALG nat inspect - associate nat struct with alg */
-static void rpc_alg_nat_inspect(npf_session_t *se,
-			npf_cache_t *npc __unused, npf_nat_t *ns,
-			int di __unused)
-{
-	npf_nat_setalg(ns, npf_alg_session_get_alg(se));
-}
-
 static int rpc_alg_nat_in(npf_session_t *se, npf_cache_t *npc,
 			struct rte_mbuf *nbuf, npf_nat_t *ns)
 {
@@ -616,7 +608,6 @@ static int rpc_alg_reset(struct npf_alg *rpc, bool hard __unused)
 /* RPC ALG operations struct */
 static const struct npf_alg_ops rpc_ops = {
 	.name		= NPF_ALG_RPC_NAME,
-	.nat_inspect	= rpc_alg_nat_inspect,
 	.nat_in		= rpc_alg_nat_in,
 	.nat_out	= rpc_alg_nat_out,
 	.config		= rpc_alg_config,

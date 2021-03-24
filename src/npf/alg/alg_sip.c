@@ -610,19 +610,10 @@ void sip_alg_session_destroy(struct npf_session *se)
 	}
 }
 
-/*
- * Called after NAT session is created, and IP header is translated.  Called
- * for first packet in a NATd flow.
- *
- * If its a parent session then sip_alg_session_init will already have set the
- * SIP_ALG_CNTL flag.
- */
-static void sip_alg_nat_inspect(npf_session_t *se, npf_cache_t *npc __unused,
-				npf_nat_t *nt, int di __unused)
+bool sip_alg_cntl_session(struct npf_session_alg *sa)
 {
-	if (npf_alg_session_test_flag(se, SIP_ALG_CNTL_FLOW |
-				      SIP_ALG_ALT_CNTL_FLOW))
-		npf_nat_setalg(nt, npf_alg_session_get_alg(se));
+	return (sa->sa_flags & (SIP_ALG_CNTL_FLOW |
+				SIP_ALG_ALT_CNTL_FLOW)) != 0;
 }
 
 /* sip_alg_config() - Config routine for sip */
@@ -812,7 +803,6 @@ void sip_alg_session_json(struct json_writer *json, struct npf_session *se)
 static const struct npf_alg_ops sip_ops = {
 	.name		= NPF_ALG_SIP_NAME,
 	.config		= sip_alg_config,
-	.nat_inspect	= sip_alg_nat_inspect,
 	.nat_in		= sip_alg_nat_in,
 	.nat_out	= sip_alg_nat_out,
 	.periodic	= sip_alg_periodic,

@@ -12,6 +12,7 @@ struct npf_session;
 struct npf_cache;
 struct apt_tuple;
 struct rte_mbuf;
+struct npf_nat;
 
 /**
  * Setup SIP ALG parent session.  Called a new npf session is created, and the
@@ -60,5 +61,13 @@ void sip_alg_session_json(struct json_writer *json, struct npf_session *se);
  */
 void sip_alg_inspect(struct npf_session *se, struct npf_cache *npc,
 		     struct rte_mbuf *nbuf, struct npf_alg *alg, int di);
+
+/**
+ * Is this a SIP control session?
+ *
+ * @param sa ALG session data
+ * @return true if SIP_ALG_CNTL_FLOW or SIP_ALG_ALT_CNTL_FLOW flag set
+ */
+bool sip_alg_cntl_session(struct npf_session_alg *sa);
 
 #endif

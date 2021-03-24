@@ -48,7 +48,17 @@ void npf_alg_inspect(struct npf_session *se, struct npf_cache *npc,
 		     struct rte_mbuf *nbuf, int di,
 		     struct npf_session_alg *sa);
 
+/**
+ * ALG NAT initial inspect.  Called for the first packet in an ALG NAT flow.
+ * Conditionally links the session NAT info with an ALG by setting the nt_alg
+ * pointer in the NAT data.  This determines if npf_alg_nat_inspect 'sees'
+ * subsequent pkts for this flow.
+ *
+ * @param nat Session NAT data
+ * @param sa Pointer to the ALG session data
+ */
 void npf_alg_nat_inspect(struct npf_nat *nat, struct npf_session_alg *sa);
+
 int npf_alg_nat(struct npf_session *se, struct npf_cache *npc,
 		struct rte_mbuf *nbuf, struct npf_nat *nat,
 		const int di) __cold_func;

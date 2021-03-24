@@ -244,13 +244,9 @@ static int tftp_create_nat(npf_session_t *se, npf_nat_t *pnat, npf_cache_t *npc,
 	return rc;
 }
 
-/* Nat inspect */
-static void tftp_alg_nat_inspect(npf_session_t *se, npf_cache_t *npc __unused,
-				npf_nat_t *nt, int di __unused)
+bool tftp_alg_cntl_session(struct npf_session_alg *sa)
 {
-	/* Only for the control flow */
-	if (npf_alg_session_test_flag(se, TFTP_ALG_CNTL))
-		npf_nat_setalg(nt, npf_alg_session_get_alg(se));
+	return (sa->sa_flags & TFTP_ALG_CNTL) != 0;
 }
 
 /*
@@ -316,7 +312,6 @@ int tftp_alg_session_init(struct npf_session *se, struct npf_cache *npc,
 static const struct npf_alg_ops tftp_ops = {
 	.name		= NPF_ALG_TFTP_NAME,
 	.config		= tftp_alg_config,
-	.nat_inspect	= tftp_alg_nat_inspect,
 	.nat_in		= tftp_alg_nat_in,
 	.nat_out	= tftp_alg_nat_out,
 };

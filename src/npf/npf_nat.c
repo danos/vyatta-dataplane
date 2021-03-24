@@ -1353,10 +1353,10 @@ no_nat_work:
 		*se_ptr = se = nse;
 	}
 
-	/*
-	 * Allow an ALG to inspect the nat struct.
-	 */
-	npf_alg_nat_inspect(se, npc, nt, di);
+	/* Associate nat struct with an alg */
+	struct npf_session_alg *sa = npf_session_get_alg_ptr(se);
+	if (unlikely(sa))
+		npf_alg_nat_inspect(nt, sa);
 
 	/* Finish setting the nat struct fields */
 	npf_nat_finalise(npc, se, di, nt);

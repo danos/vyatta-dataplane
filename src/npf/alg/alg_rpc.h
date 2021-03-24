@@ -11,6 +11,7 @@ struct npf_session;
 struct npf_cache;
 struct apt_tuple;
 struct rte_mbuf;
+struct npf_nat;
 
 /**
  * Setup RPC portmapper ALG parent session.  Called a new npf session is

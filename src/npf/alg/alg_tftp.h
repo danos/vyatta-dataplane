@@ -11,6 +11,7 @@ struct npf_session;
 struct npf_cache;
 struct apt_tuple;
 struct rte_mbuf;
+struct npf_nat;
 
 /**
  * Setup TFTP ALG parent session.  Called a new npf session is created, and
@@ -36,5 +37,13 @@ int tftp_alg_session_init(struct npf_session *se, struct npf_cache *npc,
  */
 void tftp_alg_inspect(struct npf_session *se, struct npf_cache *npc,
 		      struct rte_mbuf *nbuf, struct npf_alg *tftp);
+
+/**
+ * Is this a TFTP control session?
+ *
+ * @param sa ALG session data
+ * @return true is TFTP_ALG_CNTL flag set
+ */
+bool tftp_alg_cntl_session(struct npf_session_alg *sa);
 
 #endif

@@ -722,16 +722,9 @@ int ftp_alg_session_init(struct npf_session *se, struct npf_cache *npc,
 	return rc;
 }
 
-/*
- * ftp_alg_nat_inspect() - Inspect and assign the nat struct.
- */
-static void ftp_alg_nat_inspect(npf_session_t *se, npf_cache_t *npc __unused,
-			npf_nat_t *nat, int di __unused)
+bool ftp_alg_cntl_session(struct npf_session_alg *sa)
 {
-	uint32_t flags = npf_alg_session_get_flags(se);
-
-	if (flags & FTP_ALG_CNTL)
-		npf_nat_setalg(nat, npf_alg_session_get_alg(se));
+	return (sa->sa_flags & FTP_ALG_CNTL) != 0;
 }
 
 /* Release reserve if present */
@@ -747,7 +740,6 @@ void ftp_alg_session_destroy(struct npf_session *se)
 static const struct npf_alg_ops ftp_ops = {
 	.name		= NPF_ALG_FTP_NAME,
 	.config		= ftp_alg_config,
-	.nat_inspect	= ftp_alg_nat_inspect,
 	.nat_in		= ftp_alg_nat_in,
 	.nat_out	= ftp_alg_nat_out,
 };

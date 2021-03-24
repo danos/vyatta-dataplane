@@ -330,17 +330,46 @@ npf_alg_inspect(struct npf_session *se,	struct npf_cache *npc,
 }
 
 /*
- * npf_alg_nat_inspect. Give an ALG a chance to inspect/modify a resulting NAT
- * struct.  Called for first packet in a NAT flow.
+ * Associate nat struct with an ALG.  Called for the first packet in a NAT
+ * flow.
+ *
+ * This determines if we associate an ALG with the session nat structure,
+ * which in turn determines if npf_alg_nat sees further packets for this
+ * session.
  */
-void
-npf_alg_nat_inspect(struct npf_session *se, struct npf_cache *npc,
-		    struct npf_nat *nat, int di)
+void npf_alg_nat_inspect(struct npf_nat *nat, struct npf_session_alg *sa)
 {
-	struct npf_alg *alg = npf_alg_session_get_alg(se);
+	struct npf_alg *alg = (struct npf_alg *)sa->sa_alg;
+	if (!alg)
+		return;
 
-	if (nat && alg_has_op(alg, nat_inspect))
-		alg->na_ops->nat_inspect(se, npc, nat, di);
+	/* Return if *not* a control session (except rpc) */
+	switch (alg->na_id) {
+	case NPF_ALG_ID_FTP:
+		if (!ftp_alg_cntl_session(sa))
+			return;
+		break;
+
+	case NPF_ALG_ID_TFTP:
+		if (!tftp_alg_cntl_session(sa))
+			return;
+		break;
+
+	case NPF_ALG_ID_RPC:
+		/* Nothing to check */
+		break;
+
+	case NPF_ALG_ID_SIP:
+		if (!sip_alg_cntl_session(sa))
+			return;
+		break;
+	};
+
+	/*
+	 * Associate nat struct with alg.  Set 'nat->nt_alg = alg' and take a
+	 * reference on alg.
+	 */
+	npf_nat_setalg(nat, alg);
 }
 
 /*
