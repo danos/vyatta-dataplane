@@ -1168,10 +1168,13 @@ static void crypto_npf_cfg_commit_all(struct policy_rule *pr,
 
 	if (xfrm_direct)
 		batch_seq[crypto_npf_cfg_commit_count] = seq;
+	else
+		batch_seq[crypto_npf_cfg_commit_count] = 0;
 
 	if (!(pr->flags & POLICY_F_PENDING_DEL))
 		batch_pr[crypto_npf_cfg_commit_count] = pr;
-
+	else
+		batch_pr[crypto_npf_cfg_commit_count] = NULL;
 	crypto_npf_cfg_commit_count++;
 
 	/* Force the commit if we have batched up too many */
@@ -1269,9 +1272,13 @@ policy_rule_update(struct policy_rule *pr,
 			flow_cache_invalidate(flow_cache, flow_cache_disabled,
 					      false);
 	} else if (changed) {
-		*send_ack = false;
-		policy_rule_update_rldb(pr);
+		if (!policy_rule_update_rldb(pr)) {
+			POLICY_ERR("Failed to update rldb rule %u\n",
+				   pr->rule_index);
+			return false;
+		}
 		crypto_npf_cfg_commit_all(pr, seq);
+		*send_ack = false;
 	}
 
 	/* Check if this update means we need to rebind */
