@@ -102,9 +102,9 @@ struct pr_feat_attach {
 	struct rcu_head pr_feat_rcu;
 };
 
-#define POLICY_F_PENDING_ADD 0x0001
-#define POLICY_F_PENDING_DEL 0x0002
-
+#define POLICY_F_PENDING_ADD	0x0001
+#define POLICY_F_PENDING_DEL	0x0002
+#define POLICY_F_PENDING_UPDATE 0x0004
 /*
  * struct policy_rule
  *
@@ -1123,8 +1123,9 @@ void crypto_npf_cfg_commit_flush(void)
 	 */
 	for (i = 0; i < crypto_npf_cfg_commit_count ; i++) {
 		if (batch_pr[i])
-			batch_pr[i]->flags ^= POLICY_F_PENDING_ADD;
-
+			batch_pr[i]->flags &=
+				~(POLICY_F_PENDING_ADD |
+				  POLICY_F_PENDING_UPDATE);
 		if (xfrm_direct)
 			xfrm_client_send_ack(batch_seq[i], rc);
 	}
@@ -1266,6 +1267,7 @@ policy_rule_update(struct policy_rule *pr,
 		}
 
 		*send_ack = false;
+		pr->flags |= POLICY_F_PENDING_UPDATE;
 		crypto_npf_cfg_commit_all(pr, seq);
 		if ((pr->dir == XFRM_POLICY_OUT) &&
 		    (!was_vti_policy || !pr->vti_tunnel_policy))
@@ -1277,6 +1279,7 @@ policy_rule_update(struct policy_rule *pr,
 				   pr->rule_index);
 			return false;
 		}
+		pr->flags |= POLICY_F_PENDING_UPDATE;
 		crypto_npf_cfg_commit_all(pr, seq);
 		*send_ack = false;
 	}
