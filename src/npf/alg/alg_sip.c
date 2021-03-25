@@ -611,6 +611,14 @@ bool sip_alg_cntl_session(struct npf_session_alg *sa)
 				SIP_ALG_ALT_CNTL_FLOW)) != 0;
 }
 
+/*
+ * Notification that a SIP tuple has been deleted
+ */
+void sip_alg_apt_delete(struct apt_tuple *nt)
+{
+	sip_tuple_data_detach(nt);
+}
+
 /* sip_alg_config() - Config routine for sip */
 static int sip_alg_config(struct npf_alg *sip, int op, int argc,
 			char * const argv[])
@@ -801,7 +809,6 @@ void sip_alg_session_json(struct json_writer *json, struct npf_session *se)
 static const struct npf_alg_ops sip_ops = {
 	.name		= NPF_ALG_SIP_NAME,
 	.config		= sip_alg_config,
-	.tuple_delete	= sip_tuple_data_detach,
 };
 
 static const struct npf_alg_config_item sip_ports[] = {

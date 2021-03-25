@@ -92,4 +92,11 @@ int sip_alg_nat(struct npf_session *se, struct npf_cache *npc,
  */
 void sip_alg_periodic(struct npf_alg *sip);
 
+/**
+ * Notification from APT manager that a tuple is being deleted
+ *
+ * @param nt Tuple object
+ */
+void sip_alg_apt_delete(struct apt_tuple *nt);
+
 #endif

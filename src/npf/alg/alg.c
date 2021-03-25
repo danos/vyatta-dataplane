@@ -1098,8 +1098,8 @@ static void npf_alg_apt_delete_evt(struct apt_tuple *at)
 	struct npf_alg *alg;
 
 	alg = (struct npf_alg *)apt_tuple_get_client_handle(at);
-	if (alg && alg_has_op(alg, tuple_delete))
-		alg->na_ops->tuple_delete(at);
+	if (alg && alg->na_id == NPF_ALG_ID_SIP)
+		sip_alg_apt_delete(at);
 
 	/*
 	 * client_data should now be NULL

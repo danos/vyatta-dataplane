@@ -64,7 +64,6 @@ struct npf_alg_ops {
 	int		(*config)(struct npf_alg *, int type, int argc,
 				char *const argv[]);
 	int		(*reset)(struct npf_alg *, bool);
-	void		(*tuple_delete)(struct apt_tuple *at);
 	const char	*name;
 };
 
