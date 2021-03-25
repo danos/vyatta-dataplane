@@ -26,6 +26,7 @@ typedef struct npf_alg npf_alg_t;
 #include "npf/npf_session.h"
 #include "urcu.h"
 #include "util.h"
+#include "npf/alg/alg_defs.h"
 #include "npf/alg/alg_apt.h"
 #include "npf/alg/sip/sip.h"
 
@@ -105,14 +106,6 @@ struct npf_alg_config {
 	const struct npf_alg_config_item *ac_items;
 };
 
-/* ALG ID */
-enum npf_alg_id {
-	NPF_ALG_ID_FTP = 1,
-	NPF_ALG_ID_TFTP,
-	NPF_ALG_ID_RPC,
-	NPF_ALG_ID_SIP,
-};
-
 /* ALG application instance struct */
 struct npf_alg {
 	enum npf_alg_id			na_id;
@@ -140,12 +133,6 @@ struct npf_session_alg {
 #define NPF_ALG_TFTP_NAME	"tftp"
 #define NPF_ALG_RPC_NAME	"rpc"
 #define NPF_ALG_SIP_NAME	"sip"
-
-/* ALG config ops */
-#define NPF_ALG_CONFIG_SET      1
-#define NPF_ALG_CONFIG_DELETE   2
-#define NPF_ALG_CONFIG_ENABLE   3
-#define NPF_ALG_CONFIG_DISABLE  4
 
 const char *npf_alg_id2name(enum npf_alg_id id);
 
