@@ -85,4 +85,11 @@ int sip_alg_nat(struct npf_session *se, struct npf_cache *npc,
 		struct rte_mbuf *nbuf, struct npf_nat *nt,
 		const struct npf_alg *alg, int dir);
 
+/**
+ * ALG periodic function
+ *
+ * @param sip ALG data
+ */
+void sip_alg_periodic(struct npf_alg *sip);
+
 #endif

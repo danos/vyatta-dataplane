@@ -657,7 +657,10 @@ static int sip_alg_config(struct npf_alg *sip, int op, int argc,
 	return 0;
 }
 
-static void sip_alg_periodic(struct npf_alg *sip)
+/*
+ * ALG periodic hook
+ */
+void sip_alg_periodic(struct npf_alg *sip)
 {
 	sip_ht_gc(sip);
 }
@@ -798,7 +801,6 @@ void sip_alg_session_json(struct json_writer *json, struct npf_session *se)
 static const struct npf_alg_ops sip_ops = {
 	.name		= NPF_ALG_SIP_NAME,
 	.config		= sip_alg_config,
-	.periodic	= sip_alg_periodic,
 	.tuple_delete	= sip_tuple_data_detach,
 };
 
