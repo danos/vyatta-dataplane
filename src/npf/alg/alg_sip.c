@@ -364,20 +364,15 @@ int sip_alg_manage_sip(npf_session_t *se, npf_cache_t *npc,
 	return rc;
 }
 
-/* sip_alg_natout() - packet NAT (SNAT) out*/
-static int sip_alg_nat_out(npf_session_t *se, npf_cache_t *npc,
-		struct rte_mbuf *nbuf, npf_nat_t *ns)
+/*
+ * ALG inspect for NATd packets.
+ */
+int sip_alg_nat(struct npf_session *se, struct npf_cache *npc,
+		struct rte_mbuf *nbuf, struct npf_nat *nt,
+		const struct npf_alg *alg, int dir)
 {
-	/* This can only be the SIP flow */
-	return sip_alg_translate_packet(se, npc, ns, nbuf, PFIL_OUT);
-}
-
-/* sip_alg_nat_in() - Packet NAT in */
-static int sip_alg_nat_in(npf_session_t *se, npf_cache_t *npc,
-		struct rte_mbuf *nbuf, npf_nat_t *ns)
-{
-	/* This can only be the SIP flow */
-	return sip_alg_translate_packet(se, npc, ns, nbuf, PFIL_IN);
+	return sip_alg_translate_packet(se, npc, nt, nbuf,
+					(struct npf_alg *)alg, dir);
 }
 
 /*
@@ -803,8 +798,6 @@ void sip_alg_session_json(struct json_writer *json, struct npf_session *se)
 static const struct npf_alg_ops sip_ops = {
 	.name		= NPF_ALG_SIP_NAME,
 	.config		= sip_alg_config,
-	.nat_in		= sip_alg_nat_in,
-	.nat_out	= sip_alg_nat_out,
 	.periodic	= sip_alg_periodic,
 	.tuple_delete	= sip_tuple_data_detach,
 };

@@ -42,4 +42,19 @@ void rpc_alg_session_destroy(struct npf_session *se);
 void rpc_alg_inspect(struct npf_session *se, struct npf_cache *npc,
 		     struct rte_mbuf *nbuf, struct npf_alg *alg);
 
+/**
+ * Inspect NATd packets
+ *
+ * @param se Pointer to the parent session
+ * @param npc Pointer to the npf packet cache
+ * @param nbuf Packet buffer
+ * @param nt NAT data
+ * @param alg ALG data
+ * @param dir Direction of packet relative to interface (in or out)
+ * @return 0 if successful
+ */
+int rpc_alg_nat(struct npf_session *se, struct npf_cache *npc,
+		struct rte_mbuf *nbuf, struct npf_nat *nt,
+		const struct npf_alg *alg, int dir);
+
 #endif

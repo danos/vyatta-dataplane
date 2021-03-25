@@ -45,6 +45,19 @@ void ftp_alg_inspect(struct npf_session *parent, struct npf_cache *npc,
 		     struct rte_mbuf *nbuf, struct npf_alg *ftp);
 
 /**
+ * Inspect NATd packets
+ *
+ * @param se Pointer to the parent session
+ * @param npc Pointer to the npf packet cache
+ * @param nbuf Packet buffer
+ * @param ns NAT data
+ * @param di Direction of packet relative to interface (in or out)
+ * @return 0 if successful
+ */
+int ftp_alg_nat(struct npf_session *se, struct npf_cache *npc,
+		struct rte_mbuf *nbuf, struct npf_nat *ns, int di);
+
+/**
  * Is this an FTP control session?
  *
  * @param sa ALG session data

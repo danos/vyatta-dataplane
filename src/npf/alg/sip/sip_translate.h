@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2020-2021, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -37,6 +37,6 @@ void sip_init_nat(struct sip_alg_request *sr, bool forw,
  */
 int sip_alg_translate_packet(npf_session_t *se, npf_cache_t *npc,
 			     npf_nat_t *ns, struct rte_mbuf *nbuf,
-			     const int di);
+			     struct npf_alg *sip, const int di);
 
 #endif /* _SIP_TRANSLATE_H_ */

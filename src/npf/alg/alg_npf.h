@@ -59,9 +59,25 @@ void npf_alg_inspect(struct npf_session *se, struct npf_cache *npc,
  */
 void npf_alg_nat_inspect(struct npf_nat *nat, struct npf_session_alg *sa);
 
+/**
+ * ALG inspect for NATd packets.  Look for data flow port info in the packet
+ * payload, and creates NAT mappings and tuples (pinholes) if found.  Some
+ * ALGs (notably SIP) require to inspect multiple control packets before
+ * pinholes can be created, and store state locally during this time (e.g. SIP
+ * invite request hash table). Called *before* the layer 3 and layer 4 headers
+ * are translated.
+ *
+ * @param se Pointer to the session
+ * @param npc Pointer to the npf packet cache
+ * @param nbuf Packet buffer
+ * @param nat Session NAT data
+ * @param alg ALG instance data
+ * @param di Direction of packet relative to interface (in or out)
+ * @return 0 if successful else -errno
+ */
 int npf_alg_nat(struct npf_session *se, struct npf_cache *npc,
 		struct rte_mbuf *nbuf, struct npf_nat *nat,
-		const int di) __cold_func;
+		const struct npf_alg *alg, const int di);
 
 bool npf_alg_bypass_cgnat(const struct ifnet *ifp, struct rte_mbuf *m);
 

@@ -1210,8 +1210,11 @@ nat_do_subsequent(npf_cache_t *npc, struct rte_mbuf **nbuf,
 			npf_nat_adjust_seq_ack(asa, npc, *nbuf, di);
 
 		/* Perform the per ALG tasks */
-		if (npf_alg_nat(se, npc, *nbuf, nt, di))
-			return -NPF_RC_ALG_ERR;
+		const struct npf_alg *alg = npf_nat_getalg(nt);
+		if (unlikely(alg)) {
+			if (npf_alg_nat(se, npc, *nbuf, nt, alg, di))
+				return -NPF_RC_ALG_ERR;
+		}
 	}
 
 	error = npf_prepare_for_l4_header_change(nbuf, npc);

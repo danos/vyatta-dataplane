@@ -147,46 +147,45 @@ static int tftp_parse_and_decide(npf_cache_t *npc, struct rte_mbuf *nbuf,
 	return 0;
 }
 
-/* tftp_alg_natout() - Packet NAT out*/
-static int tftp_alg_nat_out(npf_session_t *se, npf_cache_t *npc,
-			struct rte_mbuf *nbuf __unused, npf_nat_t *nat)
+/*
+ * ALG inspect for NATd packets.
+ */
+int tftp_alg_nat(struct npf_session *se, struct npf_cache *npc,
+		 struct rte_mbuf *nbuf, struct npf_nat *nat,
+		 const struct npf_alg *alg, int dir)
 {
+	struct npf_alg *tftp = (struct npf_alg *)alg;
+	bool insert = false;
 	npf_addr_t taddr;
-	struct npf_alg *tftp = npf_alg_session_get_alg(se);
 	in_port_t tport;
-	bool insert = false;
 	int rc;
 
+	/* Parse packet */
 	rc = tftp_parse_and_decide(npc, nbuf, &insert);
-	if (insert) {
-		npf_nat_get_trans(nat, &taddr, &tport);
-		rc = tftp_alg_tuple_insert(tftp, npc, se, npf_cache_dstip(npc),
-				0, &taddr, tport, TFTP_ALG_SNAT);
-		/* Turn off inspection, we are natting */
-		npf_alg_session_set_inspect(se, false);
-	}
-	return rc;
-}
+	if (!insert)
+		return rc;
 
-/* tftp_alg_nat_in() - Packet NAT in */
-static int tftp_alg_nat_in(npf_session_t *se, npf_cache_t *npc,
-			struct rte_mbuf *nbuf __unused, npf_nat_t *nat)
-{
-	npf_addr_t addr;
-	struct npf_alg *tftp = npf_alg_session_get_alg(se);
-	in_port_t port;
-	struct udphdr *uh = &npc->npc_l4.udp;
-	bool insert = false;
-	int rc;
+	/* Get NAT translation addr and port */
+	npf_nat_get_trans(nat, &taddr, &tport);
 
-	rc = tftp_parse_and_decide(npc, nbuf, &insert);
-	if (insert) {
-		npf_nat_get_trans(nat, &addr, &port);
-		rc = tftp_alg_tuple_insert(tftp, npc, se, &addr, 0,
-			npf_cache_srcip(npc), uh->source, TFTP_ALG_DNAT);
-		/* Turn off inspection, we are natting */
-		npf_alg_session_set_inspect(se, false);
+	/* Insert tuple */
+	if (dir == PFIL_OUT)
+		rc = tftp_alg_tuple_insert(tftp, npc, se,
+					   npf_cache_dstip(npc), 0,
+					   &taddr, tport,
+					   TFTP_ALG_SNAT);
+	else {
+		struct udphdr *uh = &npc->npc_l4.udp;
+
+		rc = tftp_alg_tuple_insert(tftp, npc, se,
+					   &taddr, 0,
+					   npf_cache_srcip(npc), uh->source,
+					   TFTP_ALG_DNAT);
 	}
+
+	/* Turn off inspection, we are natting */
+	npf_alg_session_set_inspect(se, false);
+
 	return rc;
 }
 
@@ -312,8 +311,6 @@ int tftp_alg_session_init(struct npf_session *se, struct npf_cache *npc,
 static const struct npf_alg_ops tftp_ops = {
 	.name		= NPF_ALG_TFTP_NAME,
 	.config		= tftp_alg_config,
-	.nat_in		= tftp_alg_nat_in,
-	.nat_out	= tftp_alg_nat_out,
 };
 
 /* Default port config */

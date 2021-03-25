@@ -64,10 +64,6 @@ struct npf_alg_ops {
 	int		(*config)(struct npf_alg *, int type, int argc,
 				char *const argv[]);
 	int		(*reset)(struct npf_alg *, bool);
-	int		(*nat_in)(npf_session_t *, npf_cache_t *,
-				struct rte_mbuf *, struct npf_nat *);
-	int		(*nat_out)(npf_session_t *, npf_cache_t *,
-				 struct rte_mbuf *, struct npf_nat *);
 	void		(*periodic)(struct npf_alg *);
 	void		(*tuple_delete)(struct apt_tuple *at);
 	const char	*name;

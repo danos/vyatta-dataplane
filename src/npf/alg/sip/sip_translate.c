@@ -885,10 +885,10 @@ done:
  * sip_alg_translate_packet()
  */
 int sip_alg_translate_packet(npf_session_t *se, npf_cache_t *npc,
-			     npf_nat_t *ns, struct rte_mbuf *nbuf, const int di)
+			     npf_nat_t *ns, struct rte_mbuf *nbuf,
+			     struct npf_alg *sip, const int di)
 {
 	npf_addr_t taddr;
-	struct npf_alg *sip = npf_alg_session_get_alg(se);
 	in_port_t tport;
 	npf_addr_t oaddr;
 	in_port_t oport;

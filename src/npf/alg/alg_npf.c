@@ -373,20 +373,35 @@ void npf_alg_nat_inspect(struct npf_nat *nat, struct npf_session_alg *sa)
 }
 
 /*
- * npf_alg_nat. Execute the ALG nat in/out hooks. Called for subsequent
- * packets in a NAT flow.
+ * ALG inspect for NATd packets.
+ *
+ * Look for data flow port info in the packet payload, and creates NAT
+ * mappings and tuples (pinholes) if found.  Some ALGs (notably SIP) require
+ * to inspect multiple control packets before pinholes can be created, and
+ * store state locally during this time (e.g. SIP invite request hash
+ * table). Called *before* the layer 3 and layer 4 headers are translated.
  */
 int
 npf_alg_nat(struct npf_session *se, struct npf_cache *npc,
-	    struct rte_mbuf *nbuf, struct npf_nat *nat, const int di)
+	    struct rte_mbuf *nbuf, struct npf_nat *nat,
+	    const struct npf_alg *alg, const int di)
 {
-	const struct npf_alg *alg = npf_nat_getalg(nat);
 	int rc = 0;
 
-	if (alg_has_op(alg, nat_out) && di == PFIL_OUT)
-		rc = alg->na_ops->nat_out(se, npc, nbuf, nat);
-	else if (alg_has_op(alg, nat_in) && di == PFIL_IN)
-		rc = alg->na_ops->nat_in(se, npc, nbuf, nat);
+	switch (alg->na_id) {
+	case NPF_ALG_ID_FTP:
+		rc = ftp_alg_nat(se, npc, nbuf, nat, di);
+		break;
+	case NPF_ALG_ID_TFTP:
+		rc = tftp_alg_nat(se, npc, nbuf, nat, alg, di);
+		break;
+	case NPF_ALG_ID_RPC:
+		rc = rpc_alg_nat(se, npc, nbuf, nat, alg, di);
+		break;
+	case NPF_ALG_ID_SIP:
+		rc = sip_alg_nat(se, npc, nbuf, nat, alg, di);
+		break;
+	};
 	return rc;
 }
 

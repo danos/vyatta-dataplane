@@ -590,16 +590,16 @@ static int ftp_alg_dnat_active(npf_session_t *parent,
 	return rc;
 }
 
-static int ftp_alg_manage_packet(npf_session_t *se,
-		npf_cache_t *npc, struct rte_mbuf *nbuf, npf_nat_t *ns,
-		const int di)
+/*
+ * ALG inspect for NATd packets.
+ */
+int ftp_alg_nat(struct npf_session *se, struct npf_cache *npc,
+		struct rte_mbuf *nbuf, struct npf_nat *ns, int di)
 {
 	struct ftp_parse fp = { 0 };
 	char payload[FTP_MAX_PAYLOAD+1];
 	bool forw;
-	int rc;
-	int plen;
-	int type;
+	int rc, plen, type;
 
 	rc = ftp_parse_payload(npc, nbuf, &fp, payload, &plen);
 	if (rc) {
@@ -622,21 +622,8 @@ static int ftp_alg_manage_packet(npf_session_t *se,
 		rc = ftp_alg_snat_passive(se, npc, ns, &fp);
 	else
 		rc = -EINVAL;
+
 	return rc;
-}
-
-/* ftp_alg_nat_out() - Packet NAT out */
-static int ftp_alg_nat_out(npf_session_t *se, npf_cache_t *npc,
-			struct rte_mbuf *nbuf, npf_nat_t *ns)
-{
-	return ftp_alg_manage_packet(se, npc, nbuf, ns, PFIL_OUT);
-}
-
-/* ftp_alg_nat_in() - Packet NAT in */
-static int ftp_alg_nat_in(npf_session_t *se, npf_cache_t *npc,
-			struct rte_mbuf *nbuf, npf_nat_t *ns)
-{
-	return ftp_alg_manage_packet(se, npc, nbuf, ns, PFIL_IN);
 }
 
 /*
@@ -740,8 +727,6 @@ void ftp_alg_session_destroy(struct npf_session *se)
 static const struct npf_alg_ops ftp_ops = {
 	.name		= NPF_ALG_FTP_NAME,
 	.config		= ftp_alg_config,
-	.nat_in		= ftp_alg_nat_in,
-	.nat_out	= ftp_alg_nat_out,
 };
 
 /* Default port config */

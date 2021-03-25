@@ -46,4 +46,18 @@ void tftp_alg_inspect(struct npf_session *se, struct npf_cache *npc,
  */
 bool tftp_alg_cntl_session(struct npf_session_alg *sa);
 
+/**
+ * Inspect NATd packets
+ *
+ * @param se Pointer to the parent session
+ * @param npc Pointer to the npf packet cache
+ * @param nbuf Packet buffer
+ * @param nt NAT data
+ * @param alg ALG data
+ * @param dir Direction of packet relative to interface (in or out)
+ * @return 0 if successful
+ */
+int tftp_alg_nat(struct npf_session *se, struct npf_cache *npc,
+		 struct rte_mbuf *nbuf, struct npf_nat *nat,
+		 const struct npf_alg *alg, int dir);
 #endif

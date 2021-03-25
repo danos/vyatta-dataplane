@@ -556,28 +556,30 @@ void rpc_alg_session_destroy(struct npf_session *se)
 	free(rr);
 }
 
-static int rpc_alg_nat_in(npf_session_t *se, npf_cache_t *npc,
-			struct rte_mbuf *nbuf, npf_nat_t *ns)
+/*
+ * ALG inspect for NATd packets.
+ */
+int rpc_alg_nat(struct npf_session *se, struct npf_cache *npc,
+		struct rte_mbuf *nbuf, struct npf_nat *nt,
+		const struct npf_alg *alg, int dir)
 {
-	npf_addr_t addr;  /* where from expected packet (SNAT case)*/
+	npf_addr_t addr;
 	in_port_t port __unused;
-	struct npf_alg *alg = npf_alg_session_get_alg(se);
+	int rc;
 
-	npf_nat_get_orig(ns, &addr, &port);
-	return rpc_handle_packet(npc, se, nbuf, &addr, npf_cache_srcip(npc),
-				 alg);
-}
+	/* Get orig addr from the NAT data */
+	npf_nat_get_orig(nt, &addr, &port);
 
-static int rpc_alg_nat_out(npf_session_t *se __unused, npf_cache_t *npc,
-			struct rte_mbuf *nbuf, npf_nat_t *ns)
-{
-	npf_addr_t addr;  /* where to expected packet (DNAT case)*/
-	in_port_t port __unused;
-	struct npf_alg *alg = npf_alg_session_get_alg(se);
+	if (dir == PFIL_OUT)
+		rc = rpc_handle_packet(npc, se, nbuf,
+				       npf_cache_dstip(npc), &addr,
+				       (struct npf_alg *)alg);
+	else
+		rc = rpc_handle_packet(npc, se, nbuf,
+				       &addr, npf_cache_srcip(npc),
+				       (struct npf_alg *)alg);
 
-	npf_nat_get_orig(ns, &addr, &port);
-	return rpc_handle_packet(npc, se, nbuf, npf_cache_dstip(npc), &addr,
-				 alg);
+	return rc;
 }
 
 /* Configuration */
@@ -608,8 +610,6 @@ static int rpc_alg_reset(struct npf_alg *rpc, bool hard __unused)
 /* RPC ALG operations struct */
 static const struct npf_alg_ops rpc_ops = {
 	.name		= NPF_ALG_RPC_NAME,
-	.nat_in		= rpc_alg_nat_in,
-	.nat_out	= rpc_alg_nat_out,
 	.config		= rpc_alg_config,
 	.reset		= rpc_alg_reset,
 };
