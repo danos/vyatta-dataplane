@@ -309,7 +309,6 @@ int tftp_alg_session_init(struct npf_session *se, struct npf_cache *npc,
 
 /* alg struct */
 static const struct npf_alg_ops tftp_ops = {
-	.name		= NPF_ALG_TFTP_NAME,
 	.config		= tftp_alg_config,
 };
 

@@ -63,7 +63,6 @@ struct npf_alg_instance {
 struct npf_alg_ops {
 	int		(*config)(struct npf_alg *, int type, int argc,
 				char *const argv[]);
-	const char	*name;
 };
 
 #define alg_has_op(a, o) ((a) && (a)->na_ops && (a)->na_ops->o)

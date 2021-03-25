@@ -398,13 +398,13 @@ void alg_destroy_session_tuples(const struct npf_alg *alg, npf_session_t *se)
 static struct npf_alg *alg_name_to_alg(struct npf_alg_instance *ai,
 					const char *name)
 {
-	if (ai->ai_ftp && !strcmp(ai->ai_ftp->na_ops->name, name))
+	if (ai->ai_ftp && !strcmp(NPF_ALG_FTP_NAME, name))
 		return ai->ai_ftp;
-	if (ai->ai_tftp && !strcmp(ai->ai_tftp->na_ops->name, name))
+	if (ai->ai_tftp && !strcmp(NPF_ALG_TFTP_NAME, name))
 		return ai->ai_tftp;
-	if (ai->ai_sip && !strcmp(ai->ai_sip->na_ops->name, name))
+	if (ai->ai_sip && !strcmp(NPF_ALG_SIP_NAME, name))
 		return ai->ai_sip;
-	if (ai->ai_rpc && !strcmp(ai->ai_rpc->na_ops->name, name))
+	if (ai->ai_rpc && !strcmp(NPF_ALG_RPC_NAME, name))
 		return ai->ai_rpc;
 	return NULL;
 }
@@ -557,7 +557,7 @@ static void alg_reset_alg_module(struct npf_alg *alg)
 	rc = alg_reset_alg(alg);
 	if (rc)
 		RTE_LOG(ERR, FIREWALL, "ALG: Reset: %s rc: %d\n",
-				alg->na_ops->name, -rc);
+				npf_alg_id2name(alg->na_id), -rc);
 }
 
 /* Reset a specific alg instance */
@@ -775,7 +775,7 @@ int npf_alg_register(struct npf_alg *na)
 
 	if (rc)
 		RTE_LOG(ERR, FIREWALL, "ALG: register: %s failed: rc: %d\n",
-				na->na_ops->name, rc);
+			npf_alg_id2name(na->na_id), rc);
 
 	return rc;
 }
@@ -862,7 +862,7 @@ static void alg_info_json(struct npf_alg *alg, json_writer_t *json)
 {
 	if (alg) {
 		jsonw_start_object(json);
-		jsonw_string_field(json, "name", alg->na_ops->name);
+		jsonw_string_field(json, "name", npf_alg_id2name(alg->na_id));
 		jsonw_bool_field(json, "enabled", alg->na_enabled);
 		jsonw_end_object(json);
 	}

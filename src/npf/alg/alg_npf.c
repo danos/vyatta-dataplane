@@ -151,7 +151,8 @@ int npf_alg_session_init(struct npf_session *se, struct npf_cache *npc, int di)
 		char buf[64];
 
 		RTE_LOG(ERR, FIREWALL, "NPF ALG: %s: session init: %s\n",
-			alg->na_ops->name, strerror_r(-rc, buf, sizeof(buf)));
+			npf_alg_id2name(alg->na_id),
+			strerror_r(-rc, buf, sizeof(buf)));
 	}
 
 	return rc;
@@ -721,10 +722,10 @@ void npf_alg_dump(FILE *fp, vrfid_t vrfid)
  */
 const char *npf_alg_name(struct npf_session *se)
 {
-	struct npf_alg *npf_alg = npf_alg_session_get_alg(se);
+	struct npf_alg *alg = npf_alg_session_get_alg(se);
 
-	if (npf_alg)
-		return npf_alg->na_ops->name;
+	if (alg)
+		return npf_alg_id2name(alg->na_id);
 
 	return NULL;
 }

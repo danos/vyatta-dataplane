@@ -807,7 +807,6 @@ void sip_alg_session_json(struct json_writer *json, struct npf_session *se)
 
 /* alg struct */
 static const struct npf_alg_ops sip_ops = {
-	.name		= NPF_ALG_SIP_NAME,
 	.config		= sip_alg_config,
 };
 

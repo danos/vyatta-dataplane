@@ -612,7 +612,6 @@ int rpc_alg_reset(struct npf_alg *rpc)
 
 /* RPC ALG operations struct */
 static const struct npf_alg_ops rpc_ops = {
-	.name		= NPF_ALG_RPC_NAME,
 	.config		= rpc_alg_config,
 };
 

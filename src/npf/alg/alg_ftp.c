@@ -725,7 +725,6 @@ void ftp_alg_session_destroy(struct npf_session *se)
 
 /* alg struct */
 static const struct npf_alg_ops ftp_ops = {
-	.name		= NPF_ALG_FTP_NAME,
 	.config		= ftp_alg_config,
 };
 
