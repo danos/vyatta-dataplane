@@ -601,7 +601,10 @@ static int rpc_alg_config(struct npf_alg *rpc, int type, int argc,
 	return rc;
 }
 
-static int rpc_alg_reset(struct npf_alg *rpc, bool hard __unused)
+/*
+ * Notification ALG is being reset
+ */
+int rpc_alg_reset(struct npf_alg *rpc)
 {
 	rpc_destroy_list(rpc);
 	return 0;
@@ -611,7 +614,6 @@ static int rpc_alg_reset(struct npf_alg *rpc, bool hard __unused)
 static const struct npf_alg_ops rpc_ops = {
 	.name		= NPF_ALG_RPC_NAME,
 	.config		= rpc_alg_config,
-	.reset		= rpc_alg_reset,
 };
 
 /* Default port config */

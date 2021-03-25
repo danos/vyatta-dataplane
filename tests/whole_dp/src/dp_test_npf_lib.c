@@ -1234,7 +1234,7 @@ dp_test_npf_cleanup(void)
 	dp_test_npf_flush_rulesets();
 
 	/* Reset all algs. */
-	npf_alg_reset(true);
+	npf_alg_reset();
 }
 
 

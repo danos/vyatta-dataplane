@@ -65,6 +65,7 @@
 #include "npf/npf.h"
 #include "npf/alg/alg.h"
 #include "npf/alg/alg_sip.h"
+#include "npf/alg/alg_rpc.h"
 #include "npf/npf_nat.h"
 #include "npf/npf_session.h"
 #include "npf/npf_cache.h"
@@ -517,17 +518,14 @@ static int alg_manage_config(struct npf_alg *na, int op,
 }
 
 /* Called to reset an alg to a known state. */
-static int alg_reset_alg(struct npf_alg *alg, bool hard)
+static int alg_reset_alg(struct npf_alg *alg)
 {
 	uint8_t i;
 	int rc = 0;
 
-	/* First let the alg do whatever it needs */
-	if (alg_has_op(alg, reset)) {
-		rc = alg->na_ops->reset(alg, hard);
-		if (rc)
-			return rc;
-	}
+	/* Only rpc requires notification of a reset */
+	if (alg->na_id == NPF_ALG_ID_RPC)
+		rc = rpc_alg_reset(alg);
 
 	/* Delete 'keep' tuples; expire non-keep tuples */
 	alg_apt_instance_client_reset(alg->na_ai->ai_apt, alg);
@@ -549,23 +547,21 @@ static int alg_reset_alg(struct npf_alg *alg, bool hard)
 }
 
 
-static void alg_reset_alg_module(struct npf_alg *alg, bool hard)
+static void alg_reset_alg_module(struct npf_alg *alg)
 {
 	int rc;
 
 	if (!alg)
 		rte_panic("reset called on null alg");
 
-	rc = alg_reset_alg(alg, hard);
+	rc = alg_reset_alg(alg);
 	if (rc)
-		RTE_LOG(ERR, FIREWALL, "ALG: Reset: %s hard: %s rc: %d\n",
-				alg->na_ops->name,
-				hard ? "true" : "false", -rc);
+		RTE_LOG(ERR, FIREWALL, "ALG: Reset: %s rc: %d\n",
+				alg->na_ops->name, -rc);
 }
 
 /* Reset a specific alg instance */
-void
-alg_reset_instance(struct vrf *vrf, struct npf_alg_instance *ai, bool hard)
+void alg_reset_instance(struct vrf *vrf, struct npf_alg_instance *ai)
 {
 
 	uint32_t count;
@@ -577,10 +573,10 @@ alg_reset_instance(struct vrf *vrf, struct npf_alg_instance *ai, bool hard)
 	count = ai->ai_ref_count;
 	ai->ai_ref_count = 0;
 
-	alg_reset_alg_module(ai->ai_ftp, hard);
-	alg_reset_alg_module(ai->ai_tftp, hard);
-	alg_reset_alg_module(ai->ai_sip, hard);
-	alg_reset_alg_module(ai->ai_rpc, hard);
+	alg_reset_alg_module(ai->ai_ftp);
+	alg_reset_alg_module(ai->ai_tftp);
+	alg_reset_alg_module(ai->ai_sip);
+	alg_reset_alg_module(ai->ai_rpc);
 
 	while (count--)
 		vrf_delete_by_ptr(vrf);

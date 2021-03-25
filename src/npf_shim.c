@@ -741,7 +741,7 @@ void npf_reset_config(enum cont_src_en cont_src)
 	npf_reset_session_log();
 	npf_sess_limit_inst_destroy();
 	npf_timeout_reset();
-	npf_alg_reset(true);
+	npf_alg_reset();
 	npf_zone_inst_destroy();
 }
 

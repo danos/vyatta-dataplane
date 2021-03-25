@@ -122,7 +122,7 @@ void npf_alg_session_expire(struct npf_session *se, struct npf_session_alg *sa);
 int npf_alg_session_json(struct json_writer *json, struct npf_session *se,
 			 struct npf_session_alg *sa);
 
-void npf_alg_reset(bool hard);
+void npf_alg_reset(void);
 int npf_alg_cfg(FILE *f, int argc, char **argv);
 void npf_alg_dump(FILE *fp, vrfid_t vrfid);
 const char *npf_alg_name(struct npf_session *se);

@@ -450,7 +450,7 @@ cmd_reset_config(FILE *f, int argc, char **argv)
 			continue;
 		}
 		if (strcmp(argv[0], "alg") == 0) {
-			npf_alg_reset(true);
+			npf_alg_reset();
 			continue;
 		}
 

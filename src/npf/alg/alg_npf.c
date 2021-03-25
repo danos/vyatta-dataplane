@@ -493,13 +493,13 @@ void npf_alg_session_destroy(struct npf_session *se, struct npf_session_alg *sa)
 /*
  * Reset an alg. Re-installs the default config.
  */
-void npf_alg_reset(bool hard)
+void npf_alg_reset(void)
 {
 	struct vrf *vrf;
 	vrfid_t vrfid;
 
 	VRF_FOREACH(vrf, vrfid)
-		alg_reset_instance(vrf, vrf_get_npf_alg_rcu(vrfid), hard);
+		alg_reset_instance(vrf, vrf_get_npf_alg_rcu(vrfid));
 }
 
 /*

@@ -63,7 +63,6 @@ struct npf_alg_instance {
 struct npf_alg_ops {
 	int		(*config)(struct npf_alg *, int type, int argc,
 				char *const argv[]);
-	int		(*reset)(struct npf_alg *, bool);
 	const char	*name;
 };
 
@@ -146,8 +145,7 @@ struct apt_tuple *alg_search_all_then_any_sport(struct npf_alg_instance *ai,
 
 /* Protos */
 int npf_alg_register(struct npf_alg *na);
-void alg_reset_instance(struct vrf *vrf, struct npf_alg_instance *ai,
-			bool hard);
+void alg_reset_instance(struct vrf *vrf, struct npf_alg_instance *ai);
 int npf_alg_manage_config_item(struct npf_alg *na, struct npf_alg_config *ac,
 			       int op, struct npf_alg_config_item *ci);
 int npf_alg_port_handler(struct npf_alg *na, int op,

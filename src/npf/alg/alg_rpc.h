@@ -57,4 +57,12 @@ int rpc_alg_nat(struct npf_session *se, struct npf_cache *npc,
 		struct rte_mbuf *nbuf, struct npf_nat *nt,
 		const struct npf_alg *alg, int dir);
 
+/**
+ * Notification ALG is being reset
+ *
+ * @param rpc ALG data
+ * @return 0 is successful
+ */
+int rpc_alg_reset(struct npf_alg *rpc);
+
 #endif
