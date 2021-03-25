@@ -66,6 +66,8 @@
 #include "npf/alg/alg.h"
 #include "npf/alg/alg_sip.h"
 #include "npf/alg/alg_rpc.h"
+#include "npf/alg/alg_ftp.h"
+#include "npf/alg/alg_tftp.h"
 #include "npf/npf_nat.h"
 #include "npf/npf_session.h"
 #include "npf/npf_cache.h"
@@ -584,7 +586,8 @@ void alg_reset_instance(struct vrf *vrf, struct npf_alg_instance *ai)
 
 /* Called by algs to manage a CLI config item */
 int npf_alg_manage_config_item(struct npf_alg *na, struct npf_alg_config *ac,
-		int op, struct npf_alg_config_item *ci)
+			       enum alg_config_op op,
+			       struct npf_alg_config_item *ci)
 {
 	int rc;
 
@@ -611,6 +614,10 @@ int npf_alg_manage_config_item(struct npf_alg *na, struct npf_alg_config *ac,
 		if (!ac->ac_cli_refcnt)
 			(void) alg_manage_config(na, NPF_ALG_CONFIG_SET, ac);
 		break;
+	case NPF_ALG_CONFIG_ENABLE:
+	case NPF_ALG_CONFIG_DISABLE:
+		/* ENABLE and DISABLE are handled by npf_alg_state_set */
+		return -EINVAL;
 	}
 
 	return rc;
@@ -780,24 +787,41 @@ int npf_alg_register(struct npf_alg *na)
 	return rc;
 }
 
+/*
+ * ALG protocol and port configuration
+ */
 static int alg_config(struct npf_alg_instance *ai, const char *name, int op,
-				int argc, char **argv)
+		      int argc, char **argv)
 {
 	struct npf_alg *alg;
 	int rc = -ENOENT;
 
-
 	alg = alg_name_to_alg(ai, name);
-	assert(alg);
-	if (alg_has_op(alg, config))
-		rc = alg->na_ops->config(alg, op, argc, argv);
 
+	assert(alg);
+	if (!alg)
+		return rc;
+
+	switch (alg->na_id) {
+	case NPF_ALG_ID_FTP:
+		rc = ftp_alg_config(alg, op, argc, argv);
+		break;
+	case NPF_ALG_ID_TFTP:
+		rc = tftp_alg_config(alg, op, argc, argv);
+		break;
+	case NPF_ALG_ID_RPC:
+		rc = rpc_alg_config(alg, op, argc, argv);
+		break;
+	case NPF_ALG_ID_SIP:
+		rc = sip_alg_config(alg, op, argc, argv);
+		break;
+	};
 	return rc;
 }
 
 /* config() - Set/delete options to an alg */
-int npf_alg_config(uint32_t ext_vrfid, const char *name, int op,
-		int argc, char **argv)
+int npf_alg_config(uint32_t ext_vrfid, const char *name, enum alg_config_op op,
+		   int argc, char **argv)
 {
 	struct vrf *vrf;
 	struct npf_alg_instance *ai;
@@ -821,6 +845,10 @@ int npf_alg_config(uint32_t ext_vrfid, const char *name, int op,
 			vrf_delete_by_ptr(vrf);
 			ai->ai_ref_count++;
 			break;
+		case NPF_ALG_CONFIG_ENABLE:
+		case NPF_ALG_CONFIG_DISABLE:
+			/* Not used for ENABLE or DISABLE */
+			return -EINVAL;
 		}
 	}
 
@@ -889,7 +917,8 @@ alg_dump(struct npf_alg_instance *ai, vrfid_t vrfid, json_writer_t *json)
 }
 
 /* alg enable */
-int npf_alg_state_set(uint32_t ext_vrfid, const char *name, int op)
+int npf_alg_state_set(uint32_t ext_vrfid, const char *name,
+		      enum alg_config_op op)
 {
 	struct vrf *vrf;
 	struct npf_alg_instance *ai;
@@ -928,7 +957,9 @@ int npf_alg_state_set(uint32_t ext_vrfid, const char *name, int op)
 		if (alg->na_enabled)
 			alg->na_enabled = false;
 		break;
-	default:
+	case NPF_ALG_CONFIG_SET:
+	case NPF_ALG_CONFIG_DELETE:
+		/* SET and DELETE are handled by npf_alg_manage_config_item */
 		return -EINVAL;
 	}
 

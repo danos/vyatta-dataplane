@@ -7,6 +7,8 @@
 #ifndef _ALG_SIP_H_
 #define _ALG_SIP_H_
 
+#include "npf/alg/alg_defs.h"
+
 struct json_writer;
 struct npf_session;
 struct npf_cache;
@@ -98,5 +100,17 @@ void sip_alg_periodic(struct npf_alg *sip);
  * @param nt Tuple object
  */
 void sip_alg_apt_delete(struct apt_tuple *nt);
+
+/**
+ * ALG protocol and port configuration
+ *
+ * @param sip ALG data instance
+ * @param op ALG config operations
+ * @param argc Number of args
+ * @param argv Argument list
+ * @return 0 if successful
+ */
+int sip_alg_config(struct npf_alg *sip, enum alg_config_op op, int argc,
+		   char *const argv[]);
 
 #endif

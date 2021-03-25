@@ -370,9 +370,11 @@ static int ftp_nat_eprt(const struct ftp_parse *fp, char *payload)
 			ntohs(fp->fcp_port));
 }
 
-/* ftp_alg_config() - Config routine for ftp */
-static int ftp_alg_config(struct npf_alg *ftp, int op, int argc,
-			char * const argv[])
+/*
+ * ALG protocol and port configuration
+ */
+int ftp_alg_config(struct npf_alg *ftp, enum alg_config_op op, int argc,
+		   char *const argv[])
 {
 	int rc;
 	int i;
@@ -725,7 +727,6 @@ void ftp_alg_session_destroy(struct npf_session *se)
 
 /* alg struct */
 static const struct npf_alg_ops ftp_ops = {
-	.config		= ftp_alg_config,
 };
 
 /* Default port config */

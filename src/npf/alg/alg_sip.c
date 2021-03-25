@@ -619,9 +619,11 @@ void sip_alg_apt_delete(struct apt_tuple *nt)
 	sip_tuple_data_detach(nt);
 }
 
-/* sip_alg_config() - Config routine for sip */
-static int sip_alg_config(struct npf_alg *sip, int op, int argc,
-			char * const argv[])
+/*
+ * ALG protocol and port configuration
+ */
+int sip_alg_config(struct npf_alg *sip, enum alg_config_op op, int argc,
+		   char *const argv[])
 {
 	struct npf_alg_config_item ci = {
 		.ci_flags = NPF_TUPLE_KEEP | NPF_TUPLE_MATCH_PROTO_PORT,
@@ -807,7 +809,6 @@ void sip_alg_session_json(struct json_writer *json, struct npf_session *se)
 
 /* alg struct */
 static const struct npf_alg_ops sip_ops = {
-	.config		= sip_alg_config,
 };
 
 static const struct npf_alg_config_item sip_ports[] = {

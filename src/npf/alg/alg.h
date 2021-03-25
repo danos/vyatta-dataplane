@@ -61,8 +61,6 @@ struct npf_alg_instance {
 
 /* ALG operations struct */
 struct npf_alg_ops {
-	int		(*config)(struct npf_alg *, int type, int argc,
-				char *const argv[]);
 };
 
 #define alg_has_op(a, o) ((a) && (a)->na_ops && (a)->na_ops->o)
@@ -146,7 +144,8 @@ struct apt_tuple *alg_search_all_then_any_sport(struct npf_alg_instance *ai,
 int npf_alg_register(struct npf_alg *na);
 void alg_reset_instance(struct vrf *vrf, struct npf_alg_instance *ai);
 int npf_alg_manage_config_item(struct npf_alg *na, struct npf_alg_config *ac,
-			       int op, struct npf_alg_config_item *ci);
+			       enum alg_config_op op,
+			       struct npf_alg_config_item *ci);
 int npf_alg_port_handler(struct npf_alg *na, int op,
 			 const struct npf_alg_config_item *ci);
 int npf_alg_session_nat(npf_session_t *se, struct npf_nat *nat,
@@ -172,9 +171,10 @@ struct npf_nat *npf_alg_parent_nat(npf_session_t *se);
 
 int alg_dump(struct npf_alg_instance *ai, vrfid_t vrfid,
 	     json_writer_t *json);
-int npf_alg_config(uint32_t ext_vrfid, const char *name, int op, int argc,
-		   char **argv);
-int npf_alg_state_set(uint32_t ext_vrfid, const char *name, int op);
+int npf_alg_config(uint32_t ext_vrfid, const char *name, enum alg_config_op op,
+		   int argc, char **argv);
+int npf_alg_state_set(uint32_t ext_vrfid, const char *name,
+		      enum alg_config_op op);
 
 struct npf_alg *npf_alg_tftp_create_instance(struct npf_alg_instance *ai);
 void npf_alg_tftp_destroy_instance(struct npf_alg *tftp);

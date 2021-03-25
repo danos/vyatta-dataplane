@@ -45,9 +45,11 @@ struct rte_mbuf;
 #define TFTP_ALG_SNAT	0x000010
 #define TFTP_ALG_DNAT	0x000020
 
-/* tftp_alg_config() - Config routine for tftp */
-static int tftp_alg_config(struct npf_alg *tftp, int op, int argc,
-			char * const argv[])
+/*
+ * ALG protocol and port configuration
+ */
+int tftp_alg_config(struct npf_alg *tftp, enum alg_config_op op, int argc,
+		    char * const argv[])
 {
 	int rc = 0;
 	int i;
@@ -309,7 +311,6 @@ int tftp_alg_session_init(struct npf_session *se, struct npf_cache *npc,
 
 /* alg struct */
 static const struct npf_alg_ops tftp_ops = {
-	.config		= tftp_alg_config,
 };
 
 /* Default port config */

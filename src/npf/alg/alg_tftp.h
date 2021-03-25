@@ -7,6 +7,8 @@
 #ifndef _ALG_TFTP_H_
 #define _ALG_TFTP_H_
 
+#include "npf/alg/alg_defs.h"
+
 struct npf_session;
 struct npf_cache;
 struct apt_tuple;
@@ -60,4 +62,17 @@ bool tftp_alg_cntl_session(struct npf_session_alg *sa);
 int tftp_alg_nat(struct npf_session *se, struct npf_cache *npc,
 		 struct rte_mbuf *nbuf, struct npf_nat *nat,
 		 const struct npf_alg *alg, int dir);
+
+/**
+ * ALG protocol and port configuration
+ *
+ * @param tftp ALG data instance
+ * @param op ALG config operations
+ * @param argc Number of args
+ * @param argv Argument list
+ * @return 0 if successful
+ */
+int tftp_alg_config(struct npf_alg *tftp, enum alg_config_op op, int argc,
+		    char *const argv[]);
+
 #endif

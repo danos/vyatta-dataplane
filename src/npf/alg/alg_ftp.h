@@ -7,6 +7,8 @@
 #ifndef _ALG_FTP_H_
 #define _ALG_FTP_H_
 
+#include "npf/alg/alg_defs.h"
+
 struct npf_session;
 struct npf_cache;
 struct apt_tuple;

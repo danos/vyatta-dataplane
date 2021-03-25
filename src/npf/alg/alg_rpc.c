@@ -582,9 +582,11 @@ int rpc_alg_nat(struct npf_session *se, struct npf_cache *npc,
 	return rc;
 }
 
-/* Configuration */
-static int rpc_alg_config(struct npf_alg *rpc, int type, int argc,
-			char *const argv[])
+/*
+ * ALG protocol and port configuration
+ */
+int rpc_alg_config(struct npf_alg *rpc, enum alg_config_op op, int argc,
+		   char *const argv[])
 {
 	int i;
 	int rc = 0;
@@ -595,7 +597,7 @@ static int rpc_alg_config(struct npf_alg *rpc, int type, int argc,
 		if (ci.ci_datum)
 			rc = npf_alg_manage_config_item(rpc,
 					&rpc->na_configs[RPC_PROG_CONFIG],
-					type, &ci);
+					op, &ci);
 	}
 
 	return rc;
@@ -612,7 +614,6 @@ int rpc_alg_reset(struct npf_alg *rpc)
 
 /* RPC ALG operations struct */
 static const struct npf_alg_ops rpc_ops = {
-	.config		= rpc_alg_config,
 };
 
 /* Default port config */
