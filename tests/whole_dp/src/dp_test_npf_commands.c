@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2020, AT&T Intellectual Property. All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property. All rights reserved.
  * Copyright (c) 2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -41,7 +41,6 @@
 #define EXP_MISSING_CMD "missing command"
 #define EXP_MISSING_ARG "missing argument"
 
-#ifndef NALG
 #define EXP_ALG_DUMP							\
 	"{ \"alg\":"							\
 	"  { \"instances\": [ {"					\
@@ -82,13 +81,6 @@
 	"    ]}"							\
 	"  ]}"								\
 	"}"
-#else
-#define EXP_ALG_DUMP							\
-	"{ \"alg\":"							\
-	"   {"								\
-	"   }"								\
-	"}"
-#endif
 
 /*
  * Command to dataplane
@@ -111,7 +103,6 @@ static const struct dp_test_command_t npf_cmd[] = {
 		true,
 		true,
 	},
-#ifndef NALG
 	/*
 	 * cmd_npf_fw_alg
 	 *
@@ -168,7 +159,6 @@ static const struct dp_test_command_t npf_cmd[] = {
 		true,
 		false,
 	},
-#endif
 
 	/*
 	 * cmd_npf_fw_table

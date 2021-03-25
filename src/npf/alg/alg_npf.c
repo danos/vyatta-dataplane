@@ -18,8 +18,6 @@
 #include "npf/alg/alg_npf.h"
 #include "npf/alg/alg.h"
 
-#ifndef NALG
-
 /*
  * One-time ALG initialisation function.  Initialises and starts a single
  * global garbage collection timer.
@@ -576,4 +574,3 @@ const char *npf_alg_name(struct npf_session *se)
 	return NULL;
 }
 
-#endif /* NALG */
