@@ -334,6 +334,87 @@ cgn_source_find_port(struct apm_port_block **pbp, struct cgn_source *src,
 }
 
 /*
+ * Allocate a new public address and port-block to a new subscriber.
+ *
+ * Called when a subscriber source struct does *not* have an active
+ * port-block, which will be for the first flow (session) for this subscriber.
+ *
+ *  1. alloc a public address (apm),
+ *  2. alloc a port-block from that public address,
+ *  3. Add the port-block to the sources (subscribers) block list, and
+ *  4. Mark the port-block as the sources 'active' block
+ */
+static struct apm_port_block *
+cgn_alloc_addr_and_block_1(struct nat_pool *np, struct cgn_source *src,
+			   enum nat_proto proto, vrfid_t vrfid, int *error)
+{
+	struct nat_pool_range *pr = NULL;
+	struct apm_port_block *pb;
+	uint32_t addr_hint;
+	struct apm *apm;
+
+	/* We expect the source to be LOCKED and entry to this function */
+	assert(rte_spinlock_is_locked(&src->sr_lock));
+
+	/* Does subscriber already have a paired address? */
+	if (src->sr_paired_addr) {
+
+		/* Check paired address is still valid */
+		if (!nat_pool_is_pool_addr(np, htonl(src->sr_paired_addr)))
+			src->sr_paired_addr = 0;
+	}
+
+	/*
+	 * Get the address from the last successful allocation.  We start
+	 * looking after this point for a new address for this allocation so
+	 * that we do not always start at the beginning of the address pool
+	 * range.
+	 */
+	addr_hint = src->sr_paired_addr;
+	if (addr_hint == 0) {
+		/*
+		 * No valid paired address, so get next addr to try from pool
+		 */
+		addr_hint = nat_pool_hint(np, proto);
+		addr_hint = nat_pool_next_addr(np, addr_hint, &pr);
+	}
+
+	/*
+	 * Starting at addr_hint, iterate through addresses in the nat pool
+	 * until we find one with a free port-block.
+	 *
+	 * If successful, the returned apm will be LOCKED.
+	 */
+	apm = cgn_alloc_addr_rrobin(np, proto, addr_hint, pr, vrfid, error);
+
+	/*
+	 * Either out of memory, apm table is full, or all addresses in the
+	 * nat pool are in-use.
+	 */
+	if (!apm)
+		return NULL;
+
+	assert(rte_spinlock_is_locked(&apm->apm_lock));
+
+	pb = cgn_alloc_block(np, apm, 0, error);
+	if (!pb) {
+		rte_spinlock_unlock(&apm->apm_lock);
+		return NULL;
+	}
+
+	/* Add port-block to source list */
+	cgn_source_add_block(src, proto, pb, np);
+
+	/*
+	 * port-block is now under control of the source lock so we can
+	 * release the apm lock.
+	 */
+	rte_spinlock_unlock(&apm->apm_lock);
+
+	return pb;
+}
+
+/*
  * Allocate an address and port from the apm module.
  *
  * Inputs:
@@ -408,79 +489,23 @@ cgn_map_get(struct cgn_map *cmi, struct cgn_policy *cp, vrfid_t vrfid)
 	/* Get active port-block for this source and protocol */
 	pb = src->sr_active_block[proto];
 
-	/*
-	 * If there is no active port-block for this protocol:
-	 *  1. alloc a public address (apm),
-	 *  2. alloc a port-block from that public address,
-	 *  3. Add the port-block to the sources block list, and
-	 *  4. Mark the port-block as the sources active block
-	 */
 	if (unlikely(!pb)) {
 		/*
-		 * Allocate a public address.  First check if there is a valid
-		 * paired address for this subscriber.  Else get the next
-		 * address in the nat pool after the last allocated address.
+		 * First flow, or session, for this subscriber and protocol.
+		 * Allocate a new public address (apm) and port-block to this
+		 * subscriber.
 		 */
-		struct nat_pool_range *pr = NULL;
-		uint32_t addr_hint;
-
-		/* Does subscriber already have a paired address? */
-		if (src->sr_paired_addr) {
-
-			/* Check paired address is still valid */
-			if (!nat_pool_is_pool_addr(np,
-						   htonl(src->sr_paired_addr)))
-				src->sr_paired_addr = 0;
-		}
-
-		addr_hint = src->sr_paired_addr;
-		if (addr_hint == 0) {
-			/*
-			 * No valid paired address, so get next addr to try
-			 * from pool.
-			 */
-			addr_hint = nat_pool_hint(np, proto);
-			addr_hint = nat_pool_next_addr(np, addr_hint, &pr);
-		}
-
-		/*
-		 * Starting at addr_hint, iterate through addresses in the nat
-		 * pool until we find one with a free port-block.
-		 *
-		 * If successful, the returned apm will be LOCKED.
-		 */
-		apm = cgn_alloc_addr_rrobin(np, proto, addr_hint, pr,
-					    vrfid, &error);
-
-		/*
-		 * Either out of memory, apm table is full, or all addresses
-		 * in the nat pool are in-use.
-		 */
-		if (!apm)
-			goto error;
-
-		assert(rte_spinlock_is_locked(&apm->apm_lock));
-
-		pb = cgn_alloc_block(np, apm, 0, &error);
-		if (!pb) {
-			rte_spinlock_unlock(&apm->apm_lock);
-			goto error;
-		}
-
-		/*
-		 * Add port-block to source list.  port-block is now under
-		 * control of source lock so we can release the apm lock.
-		 */
-		cgn_source_add_block(src, proto, pb, np);
-		rte_spinlock_unlock(&apm->apm_lock);
-
-	} else {
-		apm = apm_block_get_apm(pb);
-
-		if (unlikely(!apm))
-			/* Should never happen */
+		pb = cgn_alloc_addr_and_block_1(np, src, proto, vrfid, &error);
+		if (!pb)
 			goto error;
 	}
+
+	apm = apm_block_get_apm(pb);
+
+	assert(apm);
+	if (unlikely(!apm))
+		/* Should never happen */
+		goto error;
 
 	/*
 	 * First we try and allocate a port from the active-block, pb.  This
