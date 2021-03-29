@@ -49,7 +49,7 @@
 #include "npf/cgnat/cgn_test.h"
 
 
-static inline bool
+static bool
 ipv4_cgnat_out_bypass(struct ifnet *ifp, struct rte_mbuf *mbuf)
 {
 	/* Check bypass enable/disable option */
@@ -152,7 +152,7 @@ error:
  * case for packets that cause the router to generate an ICMP error *after*
  * the translation has taken place.
  */
-static ALWAYS_INLINE void
+static void
 cgn_translate_at(struct cgn_packet *cpk, struct cgn_session *cse,
 		 enum cgn_dir dir, void *n_ptr, bool embd, bool undo)
 {
