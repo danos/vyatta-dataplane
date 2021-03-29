@@ -415,6 +415,97 @@ cgn_alloc_addr_and_block_1(struct nat_pool *np, struct cgn_source *src,
 }
 
 /*
+ * Allocate another port-block from an apm (public addr), or allocate a new
+ * apm and port-block if the initial apm has no free port-blocks.
+ */
+static struct apm_port_block *
+cgn_alloc_addr_and_block_2(struct apm *apm, struct nat_pool *np,
+			   struct cgn_source *src, enum nat_proto proto,
+			   vrfid_t vrfid, uint16_t block_hint, int *error)
+{
+	struct apm_port_block *pb;
+
+	/*
+	 * Before allocating a new port-block, check max-blocks-per-user
+	 * limit.
+	 */
+	if (src->sr_block_count >= nat_pool_get_mbpu(np)) {
+
+		nat_pool_incr_block_limit(np);
+		*error = -CGN_MBU_ENOSPC;
+
+		if (!src->sr_mbpu_full[proto]) {
+			cgn_log_resource_subscriber_mbpu(
+				CGN_RESOURCE_FULL,
+				src->sr_addr, nat_ipproto_from_proto(proto),
+				src->sr_block_count,
+				nat_pool_get_mbpu(np));
+
+			src->sr_mbpu_full[proto] = true;
+		}
+
+		return NULL;
+	}
+
+	/* LOCK apm */
+	assert(!rte_spinlock_is_locked(&apm->apm_lock));
+	rte_spinlock_lock(&apm->apm_lock);
+
+	/*
+	 * Are there any available port-blocks on this public address?
+	 */
+	if (apm->apm_blocks_used >= apm->apm_nblocks) {
+		/*
+		 * No free port-blocks.  Alloc a new public address if
+		 * address-pool pairing is not enabled.
+		 */
+		rte_spinlock_unlock(&apm->apm_lock);
+
+		if (nat_pool_is_ap_paired(np)) {
+			*error = -CGN_BLK_ENOSPC;
+			return NULL;
+		}
+
+		/* allocate a new public address */
+		struct nat_pool_range *pr = NULL;
+		uint32_t addr_hint;
+
+		/* Start looking just after the last allocd addr */
+		addr_hint = nat_pool_hint(np, proto);
+		addr_hint = nat_pool_next_addr(np, addr_hint, &pr);
+
+		/* If successful, the new apm will be LOCKED */
+		apm = cgn_alloc_addr_rrobin(np, proto, addr_hint, pr,
+					    vrfid, error);
+		if (!apm)
+			return NULL;
+
+		/* New apm so start at first block */
+		block_hint = 0;
+	}
+
+	assert(rte_spinlock_is_locked(&apm->apm_lock));
+
+	/* Allocate port-block from the apm */
+	pb = cgn_alloc_block(np, apm, block_hint, error);
+	if (!pb) {
+		rte_spinlock_unlock(&apm->apm_lock);
+		return NULL;
+	}
+
+	/* Add port-block to source list */
+	cgn_source_add_block(src, proto, pb, np);
+
+	/*
+	 * port-block is now under control of the source lock so we can
+	 * release the apm lock.
+	 */
+	rte_spinlock_unlock(&apm->apm_lock);
+
+	return pb;
+}
+
+/*
  * Allocate an address and port from the apm module.
  *
  * Inputs:
@@ -538,81 +629,26 @@ cgn_map_get(struct cgn_map *cmi, struct cgn_policy *cp, vrfid_t vrfid)
 	 */
 
 	/*
-	 * Before allocating a new port-block, check max-blocks-per-user
-	 * limit.
+	 * Allocate another port-block from this apm, or allocate a new apm
+	 * and port-block.  May return a different apm
 	 */
-	if (src->sr_block_count >= nat_pool_get_mbpu(np)) {
+	uint16_t block_hint = apm_block_get_block(pb) + 1;
 
-		nat_pool_incr_block_limit(np);
-		error = -CGN_MBU_ENOSPC;
-
-		if (!src->sr_mbpu_full[proto]) {
-			cgn_log_resource_subscriber_mbpu(
-				CGN_RESOURCE_FULL,
-				src->sr_addr, nat_ipproto_from_proto(proto),
-				src->sr_block_count,
-				nat_pool_get_mbpu(np));
-
-			src->sr_mbpu_full[proto] = true;
-		}
-
+	pb = cgn_alloc_addr_and_block_2(apm, np, src, proto, vrfid,
+					block_hint, &error);
+	if (!pb)
 		goto error;
-	}
 
-	/* LOCK apm */
-	assert(!rte_spinlock_is_locked(&apm->apm_lock));
-	rte_spinlock_lock(&apm->apm_lock);
-
-	/*
-	 * Are there any available port-blocks on this public address?
-	 */
-	if (apm->apm_blocks_used >= apm->apm_nblocks) {
-		/*
-		 * No free port-blocks.  Alloc a new public address if
-		 * address-pool pairing is not enabled.
-		 */
-		rte_spinlock_unlock(&apm->apm_lock);
-
-		if (nat_pool_is_ap_paired(np)) {
-			error = -CGN_BLK_ENOSPC;
-			goto error;
-		} else {
-			/* alloc a new public address */
-			struct nat_pool_range *pr = NULL;
-			uint32_t addr_hint;
-
-			addr_hint = nat_pool_hint(np, proto);
-			addr_hint = nat_pool_next_addr(np, addr_hint, &pr);
-
-			/* If successful, apm will be LOCKED */
-			apm = cgn_alloc_addr_rrobin(np, proto, addr_hint, pr,
-						    vrfid, &error);
-			if (!apm)
-				goto error;
-		}
-	}
-
-	assert(rte_spinlock_is_locked(&apm->apm_lock));
-
-	pb = cgn_alloc_block(np, apm, apm_block_get_block(pb) + 1, &error);
-	if (!pb) {
-		rte_spinlock_unlock(&apm->apm_lock);
-		goto error;
-	}
-
-	/*
-	 * Add port-block to source's block list, and set as active block.
-	 * port-block is now under control of source lock so we can release
-	 * the apm lock.
-	 */
-	cgn_source_add_block(src, proto, pb, np);
-	rte_spinlock_unlock(&apm->apm_lock);
+	apm = apm_block_get_apm(pb);
+	assert(apm);
 
 	/* Alloc port from new block */
 	if (nat_pool_is_pa_sequential(np))
 		port = apm_block_alloc_first_free_port(pb, proto);
 	else
 		port = apm_block_alloc_random_port(pb, proto);
+
+	assert(port);
 
 port_found:
 	/* Successful! */
