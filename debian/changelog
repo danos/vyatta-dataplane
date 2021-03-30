@@ -1,3 +1,15 @@
+vyatta-dataplane (3.11.72.14) unstable; urgency=medium
+
+  [ Ramkumar Ganapathysubramanian ]
+  * New FAL plugin to get L3 Interface attribute
+  * Dataplane changes for QoS DSCP remarking
+  * Creating new structures to hold QoS egress map information
+  * Qos changes to support hierarchical egress map
+
+  [ Simon Barber ]
+
+ -- Simon Barber <sbarber@vyatta.att-mail.com>  Tue, 30 Mar 2021 15:44:24 +0100
+
 vyatta-dataplane (3.11.72.13) unstable; urgency=medium
 
   [ Mark Gillott ]
