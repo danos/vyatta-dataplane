@@ -725,10 +725,6 @@ void ftp_alg_session_destroy(struct npf_session *se)
 		npf_nat_expire(nat, npf_session_get_vrfid(se));
 }
 
-/* alg struct */
-static const struct npf_alg_ops ftp_ops = {
-};
-
 /* Default port config */
 static const struct npf_alg_config_item ftp_ports[] = {
 	{ IPPROTO_TCP, (NPF_TUPLE_KEEP | NPF_TUPLE_MATCH_PROTO_PORT),
@@ -744,7 +740,6 @@ struct npf_alg *npf_alg_ftp_create_instance(struct npf_alg_instance *ai)
 	if (!ftp)
 		goto bad;
 
-	ftp->na_ops = &ftp_ops;
 	ftp->na_private = NULL;
 
 	/* setup default config */

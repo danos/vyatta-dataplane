@@ -985,8 +985,6 @@ void npf_alg_destroy_alg(struct npf_alg *alg)
 {
 
 	alg->na_enabled = false;
-	alg->na_ops = NULL;
-
 	alg_apt_instance_put(alg->na_ai_apt);
 	alg->na_ai_apt = NULL;
 

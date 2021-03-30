@@ -309,10 +309,6 @@ int tftp_alg_session_init(struct npf_session *se, struct npf_cache *npc,
 	return rc;
 }
 
-/* alg struct */
-static const struct npf_alg_ops tftp_ops = {
-};
-
 /* Default port config */
 static const struct npf_alg_config_item tftp_ports[] = {
 	{ IPPROTO_UDP, (NPF_TUPLE_KEEP | NPF_TUPLE_MATCH_PROTO_PORT),
@@ -328,8 +324,6 @@ struct npf_alg *npf_alg_tftp_create_instance(struct npf_alg_instance *ai)
 	tftp = npf_alg_create_alg(ai, NPF_ALG_ID_TFTP);
 	if (!tftp)
 		goto bad;
-
-	tftp->na_ops = &tftp_ops;
 
 	tftp->na_num_configs = 1;
 	tftp->na_configs[0].ac_items = tftp_ports;

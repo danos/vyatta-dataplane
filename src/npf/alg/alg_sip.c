@@ -807,10 +807,6 @@ void sip_alg_session_json(struct json_writer *json, struct npf_session *se)
 	jsonw_end_object(json);
 }
 
-/* alg struct */
-static const struct npf_alg_ops sip_ops = {
-};
-
 static const struct npf_alg_config_item sip_ports[] = {
 	{ IPPROTO_TCP, (NPF_TUPLE_KEEP | NPF_TUPLE_MATCH_PROTO_PORT),
 		SIP_ALG_CNTL_FLOW, SIP_DEFAULT_PORT },
@@ -827,8 +823,6 @@ struct npf_alg *npf_alg_sip_create_instance(struct npf_alg_instance *ai)
 	sip = npf_alg_create_alg(ai, NPF_ALG_ID_SIP);
 	if (!sip)
 		goto bad;
-
-	sip->na_ops = &sip_ops;
 
 	/* setup default config */
 	sip->na_num_configs = 1;

@@ -59,12 +59,6 @@ struct npf_alg_instance {
 	struct npf_alg			*ai_rpc;
 };
 
-/* ALG operations struct */
-struct npf_alg_ops {
-};
-
-#define alg_has_op(a, o) ((a) && (a)->na_ops && (a)->na_ops->o)
-
 /* A default config item */
 struct npf_alg_config_item {
 	uint8_t         ci_proto;
@@ -92,7 +86,6 @@ struct npf_alg {
 	enum npf_alg_id			na_id;
 	bool				na_enabled;
 	void				*na_private;
-	const struct npf_alg_ops	*na_ops;
 	struct npf_alg_instance		*na_ai;
 	struct apt_instance		*na_ai_apt;
 	rte_atomic32_t			na_refcnt;

@@ -612,10 +612,6 @@ int rpc_alg_reset(struct npf_alg *rpc)
 	return 0;
 }
 
-/* RPC ALG operations struct */
-static const struct npf_alg_ops rpc_ops = {
-};
-
 /* Default port config */
 static const struct npf_alg_config_item rpc_ports[] = {
 	{ IPPROTO_UDP, (NPF_TUPLE_KEEP | NPF_TUPLE_MATCH_PROTO_PORT),
@@ -642,8 +638,6 @@ struct npf_alg *npf_alg_rpc_create_instance(struct npf_alg_instance *ai)
 	rpc = npf_alg_create_alg(ai, NPF_ALG_ID_RPC);
 	if (!rpc)
 		goto bad;
-
-	rpc->na_ops = &rpc_ops;
 
 	/* setup default configs, one for ports, and one for programs */
 	rpc->na_num_configs = 2;
