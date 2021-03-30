@@ -25,6 +25,7 @@
 #include "npf/npf.h"
 #include "npf/alg/alg.h"
 #include "npf/alg/alg_session.h"
+#include "npf/alg/alg_rpc_msg.h"
 #include "npf/npf_cache.h"
 #include "npf/npf_nat.h"
 #include "npf/npf_session.h"
@@ -73,29 +74,6 @@ static_assert((RPC_ALG_DATA & ALG_MASK_DATA_FLOW) != 0,
  */
 #define RPC_PKT_EXCEEDED(read_pos, field_size, buf_start, rpc_len) \
 	(((uint8_t *)(read_pos)) + (field_size) > (buf_start) + (rpc_len))
-
-/*
- * Structs for RPC requests and replies.
- *
- * We only parse what we are interested in, not the full payload.
- * Note that all fields except for xid are in host order for
- * validation against header values
- */
-struct rpc_request {
-	uint32_t rr_xid;
-	uint32_t rr_rpc_version;
-	uint32_t rr_program;
-	uint32_t rr_program_version;
-	uint32_t rr_procedure;
-	uint32_t rr_pmap_program;
-};
-
-struct rpc_reply {
-	uint32_t rp_xid;
-	uint32_t rp_reply_state;
-	uint32_t rp_accept_state;
-	uint32_t rp_port;
-};
 
 /* Struct for maintaining configured RPC program #'s */
 struct rpc_node {
@@ -355,33 +333,36 @@ static int rpc_manage_request(npf_session_t *se, uint32_t xid,
 		uint32_t *rpc_data, uint8_t *buf_start, uint32_t rpc_len)
 {
 	int rc;
-	struct rpc_request r;
-	struct rpc_request *sr;
-	struct npf_alg *rpc = npf_alg_session_get_alg(se);
+	struct rpc_request *rr;
+	struct npf_alg *rpc;
+	struct npf_session_alg *sa;
 
-	rc = rpc_parse_request(&r, xid, rpc_data, buf_start, rpc_len);
-	if (rc)
-		return rc;
+	/* Get ALG session data */
+	sa = npf_session_get_alg_ptr(se);
+	if (!sa)
+		return -ENOENT;
 
-	rc = rpc_verify_request(rpc, &r);
-	if (rc)
-		return rc;
+	rpc = (struct npf_alg *)sa->sa_alg;
+	rr = &sa->sa_rpc.sar_request;
 
 	/*
-	 * Save the request on the session handle,
-	 * we will match it to a reply.
+	 * Populate the ALG session data with the objects from the RPC Request
+	 * msg that we are interested in.  Note that retransmissions may
+	 * occur, and it is ok if we overwrite existing values.
 	 *
-	 * Note we can have re-transmissions, so
-	 * ensure we don't have a leak
+	 * These saved values will be matched to the RCP Reply message.
 	 */
-	sr = malloc(sizeof(struct rpc_request));
-	if (!sr)
-		return -ENOMEM;
-	*sr = r;
+	rc = rpc_parse_request(rr, xid, rpc_data, buf_start, rpc_len);
+	if (rc < 0) {
+		rr->rr_xid = 0; /* Invalidate the stored request data */
+		return rc;
+	}
 
-	void *old_sr = npf_alg_session_get_and_set_private(se, sr);
-
-	free(old_sr);
+	rc = rpc_verify_request(rpc, rr);
+	if (rc) {
+		rr->rr_xid = 0; /* Invalidate the stored request data */
+		return rc;
+	}
 
 	return 0;
 }
@@ -394,18 +375,23 @@ static int rpc_manage_reply(npf_session_t *se, uint32_t xid, uint32_t *rpc_data,
 	int rc = 0;
 	struct rpc_reply rp;
 	struct rpc_request *rr;
+	struct npf_session_alg *sa;
+
+	/* Get ALG session data */
+	sa = npf_session_get_alg_ptr(se);
+	if (!sa)
+		return -ENOENT;
 
 	/*
-	 * Get the request from the session, and reset.
-	 * We must have a request if this is a reply
+	 * The ALG session data should have valid Request params saved from an
+	 * earlier Request msg.
 	 */
-	rr = npf_alg_session_get_and_set_private(se, NULL);
-
-	if (!rr)
+	rr = &sa->sa_rpc.sar_request;
+	if (!rr->rr_xid)
 		return -ENOENT;
 
 	rc = rpc_parse_reply(rr, &rp, rpc_data, xid, buf_start, rpc_len);
-	if (rc)
+	if (rc < 0)
 		goto done;
 
 	if (rr->rr_xid != rp.rp_xid) {
@@ -450,7 +436,8 @@ static int rpc_manage_reply(npf_session_t *se, uint32_t xid, uint32_t *rpc_data,
 	npf_alg_session_set_inspect(se, false);
 
 done:
-	free(rr);
+	/* Invalidate the stored request data */
+	rr->rr_xid = 0;
 	return rc;
 }
 
@@ -570,9 +557,16 @@ int rpc_alg_session_init(struct npf_session *se, struct apt_tuple *nt)
 /* ALG session destroy */
 void rpc_alg_session_destroy(struct npf_session *se)
 {
-	struct rpc_request *rr = npf_alg_session_get_and_set_private(se, NULL);
+	struct npf_session_alg *sa;
 
-	free(rr);
+	sa = npf_session_get_alg_ptr(se);
+	if (sa) {
+		struct rpc_request *rr;
+
+		/* Invalidate the stored request data */
+		rr = &sa->sa_rpc.sar_request;
+		rr->rr_xid = 0;
+	}
 }
 
 /*

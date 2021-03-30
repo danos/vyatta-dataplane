@@ -12,10 +12,23 @@
  */
 
 #include <stdint.h>
+#include "npf/alg/alg_rpc_msg.h"
 
 struct npf_session;
 struct npf_nat;
 struct npf_alg;
+
+/**
+ * RPC ALG session private data
+ *
+ * RPC stores the parsed request info until it sees the RPC response.
+ * Re-transmssions of the request may occur, in which case the pointer is
+ * simply replaced.
+ */
+struct rpc_alg_session {
+	/* Interesting params parsed from an RPC Request msg */
+	struct rpc_request	sar_request;
+};
 
 /**
  * ALG session context.
@@ -33,6 +46,10 @@ struct npf_session_alg {
 	void			*sa_private;
 	uint32_t		sa_flags;
 	bool			sa_inspect;
+
+	union {
+		struct rpc_alg_session	sa_rpc;
+	};
 };
 
 /* Masks for flag subsets within each ALG */
