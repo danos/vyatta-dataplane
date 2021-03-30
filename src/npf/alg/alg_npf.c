@@ -17,6 +17,7 @@
 
 #include "npf/alg/alg_npf.h"
 #include "npf/alg/alg.h"
+#include "npf/alg/alg_session.h"
 #include "npf/alg/alg_ftp.h"
 #include "npf/alg/alg_tftp.h"
 #include "npf/alg/alg_rpc.h"

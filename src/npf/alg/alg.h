@@ -31,6 +31,7 @@ typedef struct npf_alg npf_alg_t;
 #include "npf/alg/sip/sip.h"
 
 /* Forward Declarations */
+struct npf_session_alg;
 struct npf_session;
 struct ifnet;
 struct npf_alg;
@@ -91,14 +92,6 @@ struct npf_alg {
 	rte_atomic32_t			na_refcnt;
 	uint8_t				na_num_configs;
 	struct npf_alg_config		na_configs[NPF_ALG_MAX_CONFIG];
-};
-
-/* 'struct npf_session' s_alg handle */
-struct npf_session_alg {
-	const struct npf_alg	*sa_alg;	/* ALG handle */
-	void			*sa_private;	/* ALG private data */
-	uint32_t		sa_flags;	/* For ALG usage */
-	bool			sa_inspect;	/* inspect packets? */
 };
 
 

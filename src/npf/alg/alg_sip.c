@@ -32,6 +32,7 @@
 #include "in_cksum.h"
 #include "npf/npf.h"
 #include "npf/alg/alg.h"
+#include "npf/alg/alg_session.h"
 #include "npf/npf_cache.h"
 #include "npf/npf_nat.h"
 #include "npf/npf_session.h"

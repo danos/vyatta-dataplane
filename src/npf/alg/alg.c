@@ -64,6 +64,7 @@
 #include "json_writer.h"
 #include "npf/npf.h"
 #include "npf/alg/alg.h"
+#include "npf/alg/alg_session.h"
 #include "npf/alg/alg_sip.h"
 #include "npf/alg/alg_rpc.h"
 #include "npf/alg/alg_ftp.h"
