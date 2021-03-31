@@ -341,38 +341,15 @@ npf_alg_inspect(struct npf_session *se,	struct npf_cache *npc,
  */
 void npf_alg_nat_inspect(struct npf_nat *nat, struct npf_session_alg *sa)
 {
-	struct npf_alg *alg = (struct npf_alg *)sa->sa_alg;
-	if (!alg)
+	/* We only want to inspect NATd pkts for control flows */
+	if ((sa->sa_flags & ALG_MASK_CNTL_FLOW) == 0 || !sa->sa_alg)
 		return;
-
-	/* Return if *not* a control session (except rpc) */
-	switch (alg->na_id) {
-	case NPF_ALG_ID_FTP:
-		if (!ftp_alg_cntl_session(sa))
-			return;
-		break;
-
-	case NPF_ALG_ID_TFTP:
-		if (!tftp_alg_cntl_session(sa))
-			return;
-		break;
-
-	case NPF_ALG_ID_RPC:
-		if (!rpc_alg_cntl_session(sa))
-			return;
-		break;
-
-	case NPF_ALG_ID_SIP:
-		if (!sip_alg_cntl_session(sa))
-			return;
-		break;
-	};
 
 	/*
 	 * Associate nat struct with alg.  Set 'nat->nt_alg = alg' and take a
 	 * reference on alg.
 	 */
-	npf_nat_setalg(nat, alg);
+	npf_nat_setalg(nat, (struct npf_alg *)sa->sa_alg);
 }
 
 /*
