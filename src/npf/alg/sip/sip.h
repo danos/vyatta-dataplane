@@ -178,21 +178,30 @@ struct sip_alg_media {
 
 
 /*
- * SIP alg flags
+ * SIP ALG session flags (sa_flags, struct npf_session_alg)
+ *
+ * Also used in tuple flags (at_client_flags, struct apt_tuple)
  *
  * Flags defining the types of SIP/media flows.  Note that a SIP media UDP
  * flow is handled as a RTP flow.
+ *
+ * Least significant byte indicates flow type, of which lower nibble is
+ * control flow types and upper nibble is data flow types.
  */
-#define SIP_ALG_CNTL_FLOW	0x01
-#define SIP_ALG_ALT_CNTL_FLOW	0x02
-#define SIP_ALG_RTP_FLOW	0x04
-#define SIP_ALG_RTCP_FLOW	0x08
-#define SIP_ALG_REVERSE		0x10
-#define SIP_ALG_NAT		0x20
-#define SIP_ALG_ALT_TUPLE_SET	0x40
-#define SIP_ALG_MASK		(SIP_ALG_CNTL_FLOW | SIP_ALG_ALT_CNTL_FLOW | \
-				 SIP_ALG_RTP_FLOW | SIP_ALG_RTCP_FLOW)
+#define SIP_ALG_CNTL_FLOW	0x0001
+#define SIP_ALG_ALT_CNTL_FLOW	0x0002
 
+#define SIP_ALG_RTP_FLOW	0x0010
+#define SIP_ALG_RTCP_FLOW	0x0020
+
+#define SIP_ALG_REVERSE		0x0100
+#define SIP_ALG_NAT		0x0200
+#define SIP_ALG_ALT_TUPLE_SET	0x0400
+
+#define SIP_ALG_CNTL		(SIP_ALG_CNTL_FLOW | SIP_ALG_ALT_CNTL_FLOW)
+#define SIP_ALG_DATA		(SIP_ALG_RTP_FLOW | SIP_ALG_RTCP_FLOW)
+
+#define SIP_ALG_MASK		(SIP_ALG_CNTL | SIP_ALG_DATA)
 
 /*
  * SIP private session data.

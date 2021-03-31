@@ -33,4 +33,8 @@ struct npf_session_alg {
 	bool			sa_inspect;
 };
 
+/* Masks for flag subsets within each ALG */
+#define ALG_MASK_CNTL_FLOW	0x000F
+#define ALG_MASK_DATA_FLOW	0x00F0
+
 #endif

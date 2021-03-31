@@ -49,6 +49,23 @@ struct rte_mbuf;
 #define RPC_MAX_LENGTH 256
 
 /*
+ * RPC ALG session flags (sa_flags, struct npf_session_alg)
+ *
+ * Also used in tuple flags (at_client_flags, struct apt_tuple)
+ *
+ * Least significant byte indicates flow type, of which lower nibble is
+ * control flow types and upper nibble is data flow types.
+ */
+#define RPC_ALG_CNTL	0x0001
+#define RPC_ALG_DATA	0x0010
+
+static_assert((RPC_ALG_CNTL & ALG_MASK_CNTL_FLOW) != 0,
+	      "RPC_ALG_CNTL error");
+static_assert((RPC_ALG_DATA & ALG_MASK_DATA_FLOW) != 0,
+	      "RPC_ALG_DATA error");
+
+
+/*
  * Used to ensure not reading more bytes than was in the packet.
  *
  * It compares the field which is about to be read with the end
@@ -501,6 +518,11 @@ static int rpc_handle_packet(npf_cache_t *npc, npf_session_t *se,
 	return rc;
 }
 
+bool rpc_alg_cntl_session(struct npf_session_alg *sa)
+{
+	return (sa->sa_flags & RPC_ALG_CNTL) != 0;
+}
+
 /*
  * ALG inspect for non-NATd pkts
  */
@@ -523,6 +545,7 @@ int rpc_alg_session_init(struct npf_session *se, struct apt_tuple *nt)
 	switch (apt_tuple_get_table_type(nt)) {
 	case APT_MATCH_DPORT:
 		/* Parent flow */
+		npf_alg_session_set_flag(se, RPC_ALG_CNTL);
 		break;
 
 	case APT_MATCH_ANY_SPORT:
@@ -535,7 +558,7 @@ int rpc_alg_session_init(struct npf_session *se, struct apt_tuple *nt)
 
 		/* Transfer alg_flags from tuple to child session */
 		alg_flags = apt_tuple_get_client_flags(nt);
-		npf_alg_session_set_flag(se, alg_flags);
+		npf_alg_session_set_flag(se, alg_flags | RPC_ALG_DATA);
 
 		/* Link parent and child sessions */
 		npf_session_link_child(parent, se);

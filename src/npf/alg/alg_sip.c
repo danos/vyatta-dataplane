@@ -53,6 +53,11 @@ struct sip_alg_request;
 /* For one-time initialization of libosip. */
 static osip_t		*sip_osip;
 
+static_assert((SIP_ALG_CNTL & ALG_MASK_CNTL_FLOW) == SIP_ALG_CNTL,
+	      "SIP_ALG_CNTL error");
+static_assert((SIP_ALG_DATA & ALG_MASK_DATA_FLOW) == SIP_ALG_DATA,
+	      "SIP_ALG_DATA error");
+
 
 /*
  * sip_addr_from_str() - Convert a string addr into an Ipv4 or IPv6 addr

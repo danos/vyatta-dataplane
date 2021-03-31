@@ -41,10 +41,24 @@ struct rte_mbuf;
 /* Default port */
 #define TFTP_DEFAULT_PORT	69
 
-/* ALG's specific flags*/
-#define TFTP_ALG_CNTL	0x040000  /* tftp control flow. means WRQ or RRQ */
-#define TFTP_ALG_SNAT	0x000010
-#define TFTP_ALG_DNAT	0x000020
+/*
+ * TFTP ALG session flags (sa_flags, struct npf_session_alg)
+ *
+ * Also used in tuple flags (at_client_flags, struct apt_tuple)
+ *
+ * Least significant byte indicates flow type, of which lower nibble is
+ * control flow types and upper nibble is data flow types.
+ */
+#define TFTP_ALG_CNTL	0x0001  /* tftp control flow. means WRQ or RRQ */
+#define TFTP_ALG_DATA	0x0010
+
+#define TFTP_ALG_SNAT	0x0100	/* not transferred to data sess from tuple */
+#define TFTP_ALG_DNAT	0x0200	/* not transferred to data sess from tuple */
+
+static_assert((TFTP_ALG_CNTL & ALG_MASK_CNTL_FLOW) != 0,
+	      "TFTP_ALG_CNTL error");
+static_assert((TFTP_ALG_DATA & ALG_MASK_DATA_FLOW) != 0,
+	      "TFTP_ALG_DATA error");
 
 /*
  * ALG protocol and port configuration
@@ -295,6 +309,7 @@ int tftp_alg_session_init(struct npf_session *se, struct npf_cache *npc,
 			rc = -ENOENT;
 			break;
 		}
+		npf_alg_session_set_flag(se, TFTP_ALG_DATA);
 
 		rc = tftp_create_nat(se, npf_alg_parent_nat(parent),
 				     npc, di, nt);

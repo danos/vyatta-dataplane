@@ -70,17 +70,30 @@ struct ftp_parse {
  */
 #define FTP_TUPLE_TIMEOUT 120
 
-/* ALG specific flags */
-#define FTP_ALG_CNTL	0x10000000  /* Ftp control flow. */
-#define FTP_ALG_DATA	0x20000000  /* Ftp data flow. */
-#define FTP_ALG_EPRT	0x00000001  /* pkt contains EPRT cmd  */
-#define FTP_ALG_PORT	0x00000002  /* pkt contains PORT cmd  */
-#define FTP_ALG_227	0x00000004  /* pkt contains 227 rsp */
-#define FTP_ALG_229	0x00000008  /* pkt contains 229 rsp */
-#define FTP_ALG_PASSIVE	0x00000010  /* Passive connection */
-#define FTP_ALG_ACTIVE	0x00000020  /* Active connection */
+/*
+ * FTP ALG session flags (sa_flags, struct npf_session_alg)
+ *
+ * Also used in tuple flags (at_client_flags, struct apt_tuple)
+ *
+ * Least significant byte indicates flow type, of which lower nibble is
+ * control flow types and upper nibble is data flow types.
+ */
+#define FTP_ALG_CNTL	0x0001	/* Ftp control flow */
+#define FTP_ALG_DATA	0x0010	/* Ftp data flow */
+
+#define FTP_ALG_EPRT	0x0100	/* pkt contains EPRT cmd  */
+#define FTP_ALG_PORT	0x0200	/* pkt contains PORT cmd  */
+#define FTP_ALG_227	0x0400	/* pkt contains 227 rsp */
+#define FTP_ALG_229	0x0800	/* pkt contains 229 rsp */
+#define FTP_ALG_PASSIVE	0x1000	/* Passive connection */
+#define FTP_ALG_ACTIVE	0x2000	/* Active connection */
 
 #define FTP_ALG_MASK  (FTP_ALG_EPRT | FTP_ALG_PORT | FTP_ALG_227 | FTP_ALG_229)
+
+static_assert((FTP_ALG_CNTL & ALG_MASK_CNTL_FLOW) != 0,
+	      "FTP_ALG_CNTL error");
+static_assert((FTP_ALG_DATA & ALG_MASK_DATA_FLOW) != 0,
+	      "FTP_ALG_DATA error");
 
 #define ftp_passive(fp) ((fp)->fcp_flags & FTP_ALG_PASSIVE)
 #define ftp_active(fp)  ((fp)->fcp_flags & FTP_ALG_ACTIVE)
