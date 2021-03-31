@@ -1169,7 +1169,10 @@ void npf_session_destroy(npf_session_t *se)
 			npf_if_session_dec(ifp);
 	}
 
-	/* Tell an alg that its session is being destroyed */
+	/*
+	 * Tell an alg that its session is being destroyed.  This will free
+	 * se->s_alg
+	 */
 	if (unlikely(se->s_alg))
 		npf_alg_session_destroy(se, se->s_alg);
 

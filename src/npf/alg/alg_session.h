@@ -49,6 +49,8 @@ void npf_alg_session_set_flag(struct npf_session *se, uint32_t flag);
 uint32_t npf_alg_session_get_flags(const struct npf_session *se);
 void npf_alg_session_set_inspect(struct npf_session *se, bool v);
 int npf_alg_session_set_alg(struct npf_session *se, const struct npf_alg *alg);
+void npf_alg_session_clear_alg(struct npf_session *se,
+			       struct npf_session_alg *sa);
 struct npf_alg *npf_alg_session_get_alg(const struct npf_session *se);
 struct npf_nat *npf_alg_parent_nat(struct npf_session *se);
 

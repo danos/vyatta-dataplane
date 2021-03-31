@@ -114,6 +114,29 @@ int npf_alg_session_set_alg(struct npf_session *se, const struct npf_alg *alg)
 }
 
 /*
+ * Release reference that session ALG data holds on an ALG instance.
+ *
+ * Called via npf_session_destroy, npf_alg_session_destroy
+ */
+void npf_alg_session_clear_alg(struct npf_session *se,
+			       struct npf_session_alg *sa)
+{
+	struct npf_alg *alg = (struct npf_alg *)sa->sa_alg;
+
+	/* Clear s_alg pointer in the npf session */
+	npf_session_set_alg_ptr(se, NULL);
+
+	sa->sa_alg = NULL;
+
+	/* Release reference on ALG instance data */
+	if (alg)
+		npf_alg_put(alg);
+
+	/* Free ALG session data */
+	free(sa);
+}
+
+/*
  * Get the ALG instance (sip, ftp etc.) for this session
  */
 struct npf_alg *npf_alg_session_get_alg(const struct npf_session *se)

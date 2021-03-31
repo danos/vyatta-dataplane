@@ -447,8 +447,8 @@ void npf_alg_session_destroy(struct npf_session *se, struct npf_session_alg *sa)
 	const struct npf_alg *alg = sa->sa_alg;
 
 	if (!alg) {
-		npf_session_set_alg_ptr(se, NULL);
-		free(sa);
+		/* NULL pointer to 'sa' in npf_session, and free 'sa' */
+		npf_alg_session_clear_alg(se, sa);
 		return;
 	}
 
@@ -485,12 +485,11 @@ void npf_alg_session_destroy(struct npf_session *se, struct npf_session_alg *sa)
 	/* Delete any tuples (pinholes) created by this session */
 	alg_destroy_session_tuples(alg, se);
 
-	sa->sa_alg = NULL;
-	npf_alg_put((struct npf_alg *)alg);
-
-	/* NULL the ALG session ptr in the session and free it */
-	npf_session_set_alg_ptr(se, NULL);
-	free(sa);
+	/*
+	 * Release reference on sa->sa_alg, NULL pointer to 'sa' in
+	 * npf_session, and free 'sa'.
+	 */
+	npf_alg_session_clear_alg(se, sa);
 }
 
 /*
