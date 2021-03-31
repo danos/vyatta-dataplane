@@ -82,6 +82,31 @@ uint32_t npf_alg_session_get_flags(const struct npf_session *se)
 	return 0;
 }
 
+
+/*
+ * Is this an npf ALG control session
+ */
+bool npf_alg_cntl_session(struct npf_session *se)
+{
+	struct npf_session_alg *sa = npf_session_get_alg_ptr(se);
+	if (sa)
+		return (sa->sa_flags & ALG_MASK_CNTL_FLOW) != 0;
+
+	return false;
+}
+
+/*
+ * Is this an npf ALG data session
+ */
+bool npf_alg_data_session(struct npf_session *se)
+{
+	struct npf_session_alg *sa = npf_session_get_alg_ptr(se);
+	if (sa)
+		return (sa->sa_flags & ALG_MASK_DATA_FLOW) != 0;
+
+	return false;
+}
+
 /*
  * Set inspect state in ALG session data.  This determines if inspection of
  * (mostly) non-NATd packets will occur.

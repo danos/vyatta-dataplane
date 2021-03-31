@@ -39,7 +39,6 @@ struct npf_session_alg {
 #define ALG_MASK_CNTL_FLOW	0x000F
 #define ALG_MASK_DATA_FLOW	0x00F0
 
-
 void npf_alg_session_set_private(struct npf_session *se, void *data);
 void *npf_alg_session_get_private(const struct npf_session *se);
 void *npf_alg_session_get_and_set_private(const npf_session_t *se, void *data);
@@ -47,6 +46,8 @@ void *npf_alg_session_get_and_set_private(const npf_session_t *se, void *data);
 int npf_alg_session_test_flag(const struct npf_session *se, uint32_t flag);
 void npf_alg_session_set_flag(struct npf_session *se, uint32_t flag);
 uint32_t npf_alg_session_get_flags(const struct npf_session *se);
+bool npf_alg_cntl_session(struct npf_session *se);
+bool npf_alg_data_session(struct npf_session *se);
 void npf_alg_session_set_inspect(struct npf_session *se, bool v);
 int npf_alg_session_set_alg(struct npf_session *se, const struct npf_alg *alg);
 void npf_alg_session_clear_alg(struct npf_session *se,
