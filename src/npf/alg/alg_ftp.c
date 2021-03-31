@@ -725,15 +725,6 @@ int ftp_alg_session_init(struct npf_session *se, struct npf_cache *npc,
 	return rc;
 }
 
-/* Release reserve if present */
-void ftp_alg_session_destroy(struct npf_session *se)
-{
-	npf_nat_t *nat = npf_alg_session_get_private(se);
-
-	if (nat)
-		npf_nat_expire(nat, npf_session_get_vrfid(se));
-}
-
 /* Default port config */
 static const struct npf_alg_config_item ftp_ports[] = {
 	{ IPPROTO_TCP, (NPF_TUPLE_KEEP | NPF_TUPLE_MATCH_PROTO_PORT),

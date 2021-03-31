@@ -431,12 +431,7 @@ void npf_alg_session_destroy(struct npf_session *se, struct npf_session_alg *sa)
 
 	switch (alg->na_id) {
 	case NPF_ALG_ID_FTP:
-		/*
-		 * ftp stores an SNAT mapping in the session private data
-		 * (sa_private).  This needs to be released if it was not used
-		 * by a tuple.
-		 */
-		ftp_alg_session_destroy(se);
+		/* Nothing to do */
 		break;
 	case NPF_ALG_ID_TFTP:
 		/* Nothing to do */

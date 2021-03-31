@@ -29,13 +29,6 @@ int ftp_alg_session_init(struct npf_session *se, struct npf_cache *npc,
 			 struct apt_tuple *nt, const int di);
 
 /**
- * An FTP ALG session is being destroyed
- *
- * @param se Pointer to the session
- */
-void ftp_alg_session_destroy(struct npf_session *se);
-
-/**
  * Inspect non-NATd packets
  *
  * @param parent Pointer to the parent session
