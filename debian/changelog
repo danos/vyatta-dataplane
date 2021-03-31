@@ -1,3 +1,13 @@
+vyatta-dataplane (3.11.72.15) unstable; urgency=medium
+
+  [ Ian Wilson ]
+  * alg: Delete tuples created by a session when the session is destroyed
+  * alg: Only iterate over tuple tables if count is != 0
+
+  [ Simon Barber ]
+
+ -- Simon Barber <sbarber@vyatta.att-mail.com>  Wed, 31 Mar 2021 22:27:22 +0100
+
 vyatta-dataplane (3.11.72.14) unstable; urgency=medium
 
   [ Ramkumar Ganapathysubramanian ]
