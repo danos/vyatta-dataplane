@@ -2861,9 +2861,6 @@ qos_egress_map_subport_delete(struct ifnet *ifp, struct ifnet *parent_ifp,
 		}
 		if (list_cnt == 1) {
 			/* Only parent egress map info exists */
-			SLIST_REMOVE(&parent_ifp->egr_map_info->egr_map_head,
-					list_entry, egress_map_subport_info,
-					egr_map_list);
 			SLIST_REMOVE_HEAD(
 					&parent_ifp->egr_map_info->egr_map_head,
 					egr_map_list);
