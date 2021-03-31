@@ -358,7 +358,8 @@ void npf_alg_nat_inspect(struct npf_nat *nat, struct npf_session_alg *sa)
 		break;
 
 	case NPF_ALG_ID_RPC:
-		/* Nothing to check */
+		if (!rpc_alg_cntl_session(sa))
+			return;
 		break;
 
 	case NPF_ALG_ID_SIP:
