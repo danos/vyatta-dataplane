@@ -473,7 +473,7 @@ static void sip_request_flush(struct sip_alg_request *sr)
  */
 void sip_flush_session_request(struct npf_session *se)
 {
-	struct sip_alg_session *ss = npf_alg_session_get_private(se);
+	struct sip_alg_session *ss = npf_alg_session_get_sip(se);
 	struct npf_alg *sip = npf_alg_session_get_alg(se);
 	struct sip_private *sp = sip->na_private;
 	struct sip_alg_request *sr;

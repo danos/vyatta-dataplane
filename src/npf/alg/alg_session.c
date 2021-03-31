@@ -12,40 +12,6 @@
 
 
 /*
- * Set ALG session private data
- */
-void npf_alg_session_set_private(struct npf_session *se, void *data)
-{
-	struct npf_session_alg *sa = npf_session_get_alg_ptr(se);
-
-	if (sa)
-		sa->sa_private = data;
-}
-
-/*
- * Get ALG session private data
- */
-void *npf_alg_session_get_private(const struct npf_session *se)
-{
-	struct npf_session_alg *sa = npf_session_get_alg_ptr(se);
-
-	if (sa)
-		return sa->sa_private;
-	return NULL;
-}
-
-/*
- * Get previous ALG session private data, and set new value as one operation
- */
-void *npf_alg_session_get_and_set_private(const npf_session_t *se, void *data)
-{
-	struct npf_session_alg *sa = npf_session_get_alg_ptr(se);
-	if (sa)
-		return rcu_xchg_pointer(&(sa->sa_private), data);
-	return NULL;
-}
-
-/*
  * Test ALG session flag
  */
 int npf_alg_session_test_flag(const struct npf_session *se, uint32_t flag)

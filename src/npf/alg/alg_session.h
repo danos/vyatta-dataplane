@@ -38,13 +38,11 @@ struct rpc_alg_session {
  * session via npf_session_get_alg_ptr and npf_session_set_alg_ptr
  *
  * sa_alg  ALG instance handle
- * sa_private  Private data specific to each ALG
  * sa_flags  Flags specific to each ALG
  * sa_inspect  Enables inspection for (mostly) non-NATd pkts
  */
 struct npf_session_alg {
 	const struct npf_alg	*sa_alg;
-	void			*sa_private;
 	uint32_t		sa_flags;
 	bool			sa_inspect;
 
@@ -58,10 +56,6 @@ struct npf_session_alg {
 /* Masks for flag subsets within each ALG */
 #define ALG_MASK_CNTL_FLOW	0x000F
 #define ALG_MASK_DATA_FLOW	0x00F0
-
-void npf_alg_session_set_private(struct npf_session *se, void *data);
-void *npf_alg_session_get_private(const struct npf_session *se);
-void *npf_alg_session_get_and_set_private(const npf_session_t *se, void *data);
 
 int npf_alg_session_test_flag(const struct npf_session *se, uint32_t flag);
 void npf_alg_session_set_flag(struct npf_session *se, uint32_t flag);
