@@ -518,11 +518,6 @@ static int rpc_handle_packet(npf_cache_t *npc, npf_session_t *se,
 	return rc;
 }
 
-bool rpc_alg_cntl_session(struct npf_session_alg *sa)
-{
-	return (sa->sa_flags & RPC_ALG_CNTL) != 0;
-}
-
 /*
  * ALG inspect for non-NATd pkts
  */

@@ -65,14 +65,6 @@ void sip_alg_inspect(struct npf_session *se, struct npf_cache *npc,
 		     struct rte_mbuf *nbuf, struct npf_alg *alg, int di);
 
 /**
- * Is this a SIP control session?
- *
- * @param sa ALG session data
- * @return true if SIP_ALG_CNTL_FLOW or SIP_ALG_ALT_CNTL_FLOW flag set
- */
-bool sip_alg_cntl_session(struct npf_session_alg *sa);
-
-/**
  * Inspect NATd packets
  *
  * @param se Pointer to the parent session

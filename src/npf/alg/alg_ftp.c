@@ -725,11 +725,6 @@ int ftp_alg_session_init(struct npf_session *se, struct npf_cache *npc,
 	return rc;
 }
 
-bool ftp_alg_cntl_session(struct npf_session_alg *sa)
-{
-	return (sa->sa_flags & FTP_ALG_CNTL) != 0;
-}
-
 /* Release reserve if present */
 void ftp_alg_session_destroy(struct npf_session *se)
 {

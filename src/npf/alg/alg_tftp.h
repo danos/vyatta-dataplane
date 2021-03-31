@@ -41,14 +41,6 @@ void tftp_alg_inspect(struct npf_session *se, struct npf_cache *npc,
 		      struct rte_mbuf *nbuf, struct npf_alg *tftp);
 
 /**
- * Is this a TFTP control session?
- *
- * @param sa ALG session data
- * @return true is TFTP_ALG_CNTL flag set
- */
-bool tftp_alg_cntl_session(struct npf_session_alg *sa);
-
-/**
  * Inspect NATd packets
  *
  * @param se Pointer to the parent session

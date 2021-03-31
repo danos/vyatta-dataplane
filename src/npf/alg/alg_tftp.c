@@ -260,11 +260,6 @@ static int tftp_create_nat(npf_session_t *se, npf_nat_t *pnat, npf_cache_t *npc,
 	return rc;
 }
 
-bool tftp_alg_cntl_session(struct npf_session_alg *sa)
-{
-	return (sa->sa_flags & TFTP_ALG_CNTL) != 0;
-}
-
 /*
  * ALG inspect for non-NATd pkts
  */

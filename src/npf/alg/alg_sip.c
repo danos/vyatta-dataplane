@@ -611,12 +611,6 @@ void sip_alg_session_destroy(struct npf_session *se)
 	}
 }
 
-bool sip_alg_cntl_session(struct npf_session_alg *sa)
-{
-	return (sa->sa_flags & (SIP_ALG_CNTL_FLOW |
-				SIP_ALG_ALT_CNTL_FLOW)) != 0;
-}
-
 /*
  * Notification that a SIP tuple has been deleted
  */

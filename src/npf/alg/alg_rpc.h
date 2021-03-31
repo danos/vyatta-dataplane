@@ -45,14 +45,6 @@ void rpc_alg_inspect(struct npf_session *se, struct npf_cache *npc,
 		     struct rte_mbuf *nbuf, struct npf_alg *alg);
 
 /**
- * Is this a RPC control session?
- *
- * @param sa ALG session data
- * @return true is RPC_ALG_CNTL flag set
- */
-bool rpc_alg_cntl_session(struct npf_session_alg *sa);
-
-/**
  * Inspect NATd packets
  *
  * @param se Pointer to the parent session
