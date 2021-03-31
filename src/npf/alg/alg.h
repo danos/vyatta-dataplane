@@ -110,18 +110,6 @@ struct apt_tuple *alg_lookup_every_table(const struct ifnet *ifp,
 #define alg_to_alg_inst(a)	((a)->na_ai)
 #define alg_to_npf_inst(a)	(alg_to_alg_inst(a)->ai_ni)
 
-/* 'struct npf_session_alg' accessors */
-void npf_alg_session_set_private(struct npf_session *se, void *data);
-void *npf_alg_session_get_private(const struct npf_session *se);
-void *npf_alg_session_get_and_set_private(const npf_session_t *se, void *data);
-
-int npf_alg_session_test_flag(const struct npf_session *se, uint32_t flag);
-void npf_alg_session_set_flag(struct npf_session *se, uint32_t flag);
-uint32_t npf_alg_session_get_flags(const struct npf_session *se);
-void npf_alg_session_set_inspect(struct npf_session *se, bool v);
-int npf_alg_session_set_alg(struct npf_session *se, const struct npf_alg *alg);
-struct npf_alg *npf_alg_session_get_alg(const struct npf_session *se);
-
 struct apt_tuple *alg_search_all_then_any_sport(struct npf_alg_instance *ai,
 						struct npf_cache *npc,
 						uint32_t ifx);
@@ -152,8 +140,6 @@ void alg_expire_session_tuples(const struct npf_alg *alg, npf_session_t *se);
 void alg_destroy_session_tuples(const struct npf_alg *alg, npf_session_t *se);
 struct apt_tuple *alg_lookup_npc(struct npf_alg_instance *ai,
 				 npf_cache_t *npc, uint32_t ifx);
-
-struct npf_nat *npf_alg_parent_nat(npf_session_t *se);
 
 int alg_dump(struct npf_alg_instance *ai, vrfid_t vrfid,
 	     json_writer_t *json);

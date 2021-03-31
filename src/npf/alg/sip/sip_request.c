@@ -28,6 +28,7 @@
 #include "vplane_log.h"
 
 #include "npf/alg/alg.h"
+#include "npf/alg/alg_session.h"
 #include "npf/alg/sip/sip.h"
 #include "npf/alg/sip/sip_osip.h"
 

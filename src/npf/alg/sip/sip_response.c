@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2020-2021, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -26,6 +26,7 @@
 #include "vplane_log.h"
 
 #include "npf/alg/alg.h"
+#include "npf/alg/alg_session.h"
 #include "npf/alg/sip/sip.h"
 #include "npf/alg/sip/sip_osip.h"
 

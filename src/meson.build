@@ -176,6 +176,7 @@ npf_sources = files(
         'npf/apm/apm.c',
         'npf/alg/alg.c',
         'npf/alg/alg_npf.c',
+        'npf/alg/alg_session.c',
         'npf/alg/alg_ftp.c',
         'npf/alg/alg_tftp.c',
         'npf/alg/alg_rpc.c',

@@ -70,7 +70,6 @@
 #include "npf/alg/alg_ftp.h"
 #include "npf/alg/alg_tftp.h"
 #include "npf/npf_nat.h"
-#include "npf/npf_session.h"
 #include "npf/npf_cache.h"
 #include "npf/npf_vrf.h"
 #include "vplane_log.h"
@@ -191,112 +190,6 @@ npf_alg_late_vrf_set_alg(struct alg_late_vrf *late_vrf, char const *name,
 		if (alg_on)
 			*alg_on = on;
 	}
-}
-
-/* Set ALG private data */
-void
-npf_alg_session_set_private(struct npf_session *se, void *data)
-{
-	struct npf_session_alg *sa = npf_session_get_alg_ptr(se);
-
-	if (sa)
-		sa->sa_private = data;
-}
-
-/* Get ALG private data */
-void *
-npf_alg_session_get_private(const struct npf_session *se)
-{
-	struct npf_session_alg *sa = npf_session_get_alg_ptr(se);
-
-	if (sa)
-		return sa->sa_private;
-	return NULL;
-}
-
-/* Get previous ALG private data, and set new value as one operation */
-void *
-npf_alg_session_get_and_set_private(const npf_session_t *se, void *data)
-{
-	struct npf_session_alg *sa = npf_session_get_alg_ptr(se);
-	if (sa)
-		return rcu_xchg_pointer(&(sa->sa_private), data);
-	return NULL;
-}
-
-/* Test flag */
-int
-npf_alg_session_test_flag(const struct npf_session *se, uint32_t flag)
-{
-	struct npf_session_alg *sa = npf_session_get_alg_ptr(se);
-
-	if (sa)
-		return sa->sa_flags & flag;
-	return 0;
-}
-
-/* Set flag */
-void
-npf_alg_session_set_flag(struct npf_session *se, uint32_t flag)
-{
-	struct npf_session_alg *sa = npf_session_get_alg_ptr(se);
-
-	if (sa)
-		sa->sa_flags |= flag;
-}
-
-/* Get all flags */
-uint32_t
-npf_alg_session_get_flags(const struct npf_session *se)
-{
-	struct npf_session_alg *sa = npf_session_get_alg_ptr(se);
-
-	if (sa)
-		return sa->sa_flags;
-	return 0;
-}
-
-/* Set inspect */
-void
-npf_alg_session_set_inspect(struct npf_session *se, bool v)
-{
-	struct npf_session_alg *sa = npf_session_get_alg_ptr(se);
-
-	if (sa)
-		sa->sa_inspect = v;
-}
-
-/* Get the alg from this session */
-struct npf_alg *
-npf_alg_session_get_alg(const struct npf_session *se)
-{
-	struct npf_session_alg *sa = npf_session_get_alg_ptr(se);
-
-	if (sa)
-		return (struct npf_alg *)sa->sa_alg;
-	return NULL;
-}
-
-/*
- * Allocate ALG data on the session handle
- */
-int
-npf_alg_session_set_alg(struct npf_session *se, const struct npf_alg *alg)
-{
-
-	struct npf_session_alg *sa = malloc(sizeof(struct npf_session_alg));
-
-	if (!sa)
-		return -ENOMEM;
-
-	sa->sa_alg = npf_alg_get((struct npf_alg *)alg);
-	sa->sa_private = NULL;
-	sa->sa_flags = 0;
-	sa->sa_inspect = false;
-
-	npf_session_set_alg_ptr(se, sa);
-
-	return 0;
 }
 
 /*
@@ -704,9 +597,9 @@ int npf_alg_reserve_translations(npf_session_t *parent, int nr_ports,
 /*
  * Create and assign a nat struct to a session handle.
  *
- * Used by algs to create nat structs for reverse secondary flows.
- * On success, will consume the alg nat params.  Otherwise we leave
- * that to tuple destroy. (There may be a reservation)
+ * Used by algs to create nat structs for reverse secondary flows.  On
+ * success, will consume the alg nat params.  Otherwise we leave that to tuple
+ * destroy. (There may be a reservation)
  *
  * Called as desired by algs during their npf_alg_session_init().
  *
@@ -879,12 +772,6 @@ alg_search_all_then_any_sport(struct npf_alg_instance *ai,
 	at = apt_tuple_lookup_all_any(ai->ai_apt, &m);
 
 	return at;
-}
-
-/* Get the base parent's nat struct */
-struct npf_nat *npf_alg_parent_nat(npf_session_t *se)
-{
-	return npf_session_get_nat(npf_session_get_base_parent(se));
 }
 
 static void alg_info_json(struct npf_alg *alg, json_writer_t *json)
