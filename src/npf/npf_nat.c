@@ -186,7 +186,7 @@ struct npf_nat {
 	uint16_t		nt_l4_chk;	/* 0x0000 if no L4 update */
 	uint32_t		nt_map_flags;	/* flags for mapping */
 	npf_rule_t		*nt_rl;
-	const struct npf_alg	*nt_alg;
+	struct npf_alg		*nt_alg;
 	npf_session_t		*nt_session;
 	npf_natpolicy_t		*nt_natpolicy;
 	struct npf_seq_ack	*nt_sa;
@@ -1210,7 +1210,7 @@ nat_do_subsequent(npf_cache_t *npc, struct rte_mbuf **nbuf,
 			npf_nat_adjust_seq_ack(asa, npc, *nbuf, di);
 
 		/* Perform the per ALG tasks */
-		const struct npf_alg *alg = npf_nat_getalg(nt);
+		struct npf_alg *alg = npf_nat_getalg(nt);
 		if (unlikely(alg)) {
 			if (npf_alg_nat(se, npc, *nbuf, nt, alg, di))
 				return -NPF_RC_ALG_ERR;
@@ -1419,7 +1419,7 @@ void npf_nat_setalg(npf_nat_t *nt, struct npf_alg *alg)
 		alg = npf_alg_get(alg);
 	else if (nt->nt_alg)
 		/* Release reference on alg */
-		npf_alg_put((struct npf_alg *)nt->nt_alg);
+		npf_alg_put(nt->nt_alg);
 
 	nt->nt_alg = alg;
 }
@@ -1427,7 +1427,7 @@ void npf_nat_setalg(npf_nat_t *nt, struct npf_alg *alg)
 /*
  * npf_nat_getalg: get ALG in the NAT entry.
  */
-const struct npf_alg *npf_nat_getalg(npf_nat_t *nt)
+struct npf_alg *npf_nat_getalg(npf_nat_t *nt)
 {
 	if (!nt)
 		return NULL;

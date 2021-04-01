@@ -103,7 +103,7 @@ void npf_alg_put(struct npf_alg *alg)
  */
 int npf_alg_session_init(struct npf_session *se, struct npf_cache *npc, int di)
 {
-	const struct npf_alg *alg;
+	struct npf_alg *alg;
 	struct apt_tuple *nt;
 	int rc = 0;
 
@@ -287,7 +287,7 @@ npf_alg_inspect(struct npf_session *se,	struct npf_cache *npc,
 	if (!sa->sa_inspect || !sa->sa_alg)
 		return;
 
-	struct npf_alg *alg = (struct npf_alg *)sa->sa_alg;
+	struct npf_alg *alg = sa->sa_alg;
 
 	/* Call inspect function */
 	switch (alg->na_id) {
@@ -349,7 +349,7 @@ void npf_alg_nat_inspect(struct npf_nat *nat, struct npf_session_alg *sa)
 	 * Associate nat struct with alg.  Set 'nat->nt_alg = alg' and take a
 	 * reference on alg.
 	 */
-	npf_nat_setalg(nat, (struct npf_alg *)sa->sa_alg);
+	npf_nat_setalg(nat, sa->sa_alg);
 }
 
 /*
@@ -364,7 +364,7 @@ void npf_alg_nat_inspect(struct npf_nat *nat, struct npf_session_alg *sa)
 int
 npf_alg_nat(struct npf_session *se, struct npf_cache *npc,
 	    struct rte_mbuf *nbuf, struct npf_nat *nat,
-	    const struct npf_alg *alg, const int di)
+	    struct npf_alg *alg, const int di)
 {
 	int rc = 0;
 
@@ -392,7 +392,7 @@ void
 npf_alg_session_expire(struct npf_session *se, struct npf_session_alg *sa)
 {
 	assert(sa);
-	const struct npf_alg *alg = sa->sa_alg;
+	struct npf_alg *alg = sa->sa_alg;
 
 	if (!alg)
 		return;
@@ -421,7 +421,7 @@ npf_alg_session_expire(struct npf_session *se, struct npf_session_alg *sa)
  */
 void npf_alg_session_destroy(struct npf_session *se, struct npf_session_alg *sa)
 {
-	const struct npf_alg *alg = sa->sa_alg;
+	struct npf_alg *alg = sa->sa_alg;
 
 	if (!alg) {
 		/* NULL pointer to 'sa' in npf_session, and free 'sa' */
@@ -601,7 +601,7 @@ int npf_alg_session_json(struct json_writer *json, struct npf_session *se,
 	struct npf_alg *alg;
 
 	assert(sa);
-	alg = (struct npf_alg *)sa->sa_alg;
+	alg = sa->sa_alg;
 
 	if (!alg)
 		return 0;

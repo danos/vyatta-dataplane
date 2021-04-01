@@ -122,7 +122,7 @@ void npf_nat_get_orig(const npf_nat_t *nt, npf_addr_t *addr, in_port_t *oport);
 void npf_nat_set_trans(npf_nat_t *nt, const npf_addr_t *addr, in_port_t tport);
 void npf_nat_set_orig(npf_nat_t *nt, const npf_addr_t *addr, in_port_t oport);
 void npf_nat_setalg(npf_nat_t *nt, struct npf_alg *alg);
-const struct npf_alg *npf_nat_getalg(npf_nat_t *nt);
+struct npf_alg *npf_nat_getalg(npf_nat_t *nt);
 
 /* Get the NAT policy from a NAT struct.  Does *not* take a reference. */
 npf_natpolicy_t *npf_nat_get_policy(const npf_nat_t *nt);

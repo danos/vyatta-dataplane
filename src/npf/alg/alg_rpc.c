@@ -94,7 +94,7 @@ static void rpc_free_node(struct rcu_head *head)
 }
 
 /* Delete a rpc program from configuration */
-static int rpc_program_delete(const struct npf_alg *rpc, uint32_t program)
+static int rpc_program_delete(struct npf_alg *rpc, uint32_t program)
 {
 	struct rpc_node *node, *node2;
 	int ret = -ENOENT;
@@ -131,7 +131,7 @@ static void rpc_destroy_list(struct npf_alg *rpc)
 
 
 /* Lookup a RPC program in configuration */
-static int rpc_program_exists(const struct npf_alg *rpc, uint32_t program)
+static int rpc_program_exists(struct npf_alg *rpc, uint32_t program)
 {
 	struct rpc_node *node;
 	struct rpc_private *rp = rpc->na_private;
@@ -268,7 +268,7 @@ static int rpc_parse_request(struct rpc_request *rr, uint32_t xid,
 	return 0;
 }
 
-static int rpc_verify_request(const struct npf_alg *rpc, struct rpc_request *rr)
+static int rpc_verify_request(struct npf_alg *rpc, struct rpc_request *rr)
 {
 	if (!rr->rr_xid)
 		return -EINVAL;
@@ -342,7 +342,7 @@ static int rpc_manage_request(npf_session_t *se, uint32_t xid,
 	if (!sa)
 		return -ENOENT;
 
-	rpc = (struct npf_alg *)sa->sa_alg;
+	rpc = sa->sa_alg;
 	rr = &sa->sa_rpc.sar_request;
 
 	/*
@@ -574,7 +574,7 @@ void rpc_alg_session_destroy(struct npf_session *se)
  */
 int rpc_alg_nat(struct npf_session *se, struct npf_cache *npc,
 		struct rte_mbuf *nbuf, struct npf_nat *nt,
-		const struct npf_alg *alg, int dir)
+		struct npf_alg *alg, int dir)
 {
 	npf_addr_t addr;
 	in_port_t port __unused;
@@ -585,12 +585,10 @@ int rpc_alg_nat(struct npf_session *se, struct npf_cache *npc,
 
 	if (dir == PFIL_OUT)
 		rc = rpc_handle_packet(npc, se, nbuf,
-				       npf_cache_dstip(npc), &addr,
-				       (struct npf_alg *)alg);
+				       npf_cache_dstip(npc), &addr, alg);
 	else
 		rc = rpc_handle_packet(npc, se, nbuf,
-				       &addr, npf_cache_srcip(npc),
-				       (struct npf_alg *)alg);
+				       &addr, npf_cache_srcip(npc), alg);
 
 	return rc;
 }

@@ -33,7 +33,7 @@
 /*
  * sip_tuple_data_alloc() - Alloc a tuple data struct
  */
-static struct sip_tuple_data *sip_tuple_data_alloc(const struct npf_alg *sip,
+static struct sip_tuple_data *sip_tuple_data_alloc(struct npf_alg *sip,
 		struct sip_alg_request *sr, struct sip_alg_media *mi,
 		struct sip_alg_media *mr)
 {
@@ -116,7 +116,7 @@ void sip_tuple_data_detach(struct apt_tuple *nt)
 /*
  * sip_alg_handle_error_response()
  */
-static bool sip_alg_handle_error_response(const struct npf_alg *sip,
+static bool sip_alg_handle_error_response(struct npf_alg *sip,
 		struct sip_alg_request *sr)
 {
 	/*

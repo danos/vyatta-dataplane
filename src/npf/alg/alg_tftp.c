@@ -169,9 +169,9 @@ static int tftp_parse_and_decide(npf_cache_t *npc, struct rte_mbuf *nbuf,
  */
 int tftp_alg_nat(struct npf_session *se, struct npf_cache *npc,
 		 struct rte_mbuf *nbuf, struct npf_nat *nat,
-		 const struct npf_alg *alg, int dir)
+		 struct npf_alg *alg, int dir)
 {
-	struct npf_alg *tftp = (struct npf_alg *)alg;
+	struct npf_alg *tftp = alg;
 	bool insert = false;
 	npf_addr_t taddr;
 	in_port_t tport;

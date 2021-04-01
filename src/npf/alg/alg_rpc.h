@@ -57,7 +57,7 @@ void rpc_alg_inspect(struct npf_session *se, struct npf_cache *npc,
  */
 int rpc_alg_nat(struct npf_session *se, struct npf_cache *npc,
 		struct rte_mbuf *nbuf, struct npf_nat *nt,
-		const struct npf_alg *alg, int dir);
+		struct npf_alg *alg, int dir);
 
 /**
  * ALG protocol and port configuration

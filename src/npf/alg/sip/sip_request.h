@@ -33,8 +33,7 @@ int sip_media_count(struct cds_list_head *h);
  */
 struct sip_alg_request *sip_alg_request_alloc(bool init_sip,
 					      uint32_t if_idx);
-void sip_alg_request_free(const struct npf_alg *sip,
-			  struct sip_alg_request *sr);
+void sip_alg_request_free(struct npf_alg *sip, struct sip_alg_request *sr);
 
 void sip_expire_session_request(npf_session_t *se);
 void sip_flush_session_request(struct npf_session *se);
@@ -50,12 +49,12 @@ int sip_manage_request(npf_session_t *se, npf_cache_t *npc,
 /*
  * SIP request hash table
  */
-struct sip_alg_request *sip_request_lookup_by_call_id(const struct npf_alg *sip,
+struct sip_alg_request *sip_request_lookup_by_call_id(struct npf_alg *sip,
 						      uint32_t if_idx,
 						      osip_call_id_t *call_id);
-struct sip_alg_request *sip_request_lookup(const struct npf_alg *sip,
+struct sip_alg_request *sip_request_lookup(struct npf_alg *sip,
 					   struct sip_alg_request *incoming);
-void sip_request_lookup_and_expire(const struct npf_alg *sip,
+void sip_request_lookup_and_expire(struct npf_alg *sip,
 				   struct sip_alg_request *incoming);
 void sip_request_expire(struct sip_alg_request *sr);
 void sip_destroy_ht(struct npf_alg *sip);

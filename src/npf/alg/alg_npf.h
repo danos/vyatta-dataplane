@@ -77,7 +77,7 @@ void npf_alg_nat_inspect(struct npf_nat *nat, struct npf_session_alg *sa);
  */
 int npf_alg_nat(struct npf_session *se, struct npf_cache *npc,
 		struct rte_mbuf *nbuf, struct npf_nat *nat,
-		const struct npf_alg *alg, const int di);
+		struct npf_alg *alg, const int di);
 
 bool npf_alg_bypass_cgnat(const struct ifnet *ifp, struct rte_mbuf *m);
 

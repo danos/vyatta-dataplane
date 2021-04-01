@@ -275,7 +275,7 @@ struct apt_tuple *alg_lookup_npc(struct npf_alg_instance *ai,
  * Its possible that the alg vrf instance has been deleted, in which case
  * alg->na_ai will be NULL.  Just return in these cases.
  */
-void alg_expire_session_tuples(const struct npf_alg *alg, npf_session_t *se)
+void alg_expire_session_tuples(struct npf_alg *alg, npf_session_t *se)
 {
 	if (alg->na_ai)
 		alg_apt_instance_expire_session(alg->na_ai->ai_apt, se);
@@ -284,7 +284,7 @@ void alg_expire_session_tuples(const struct npf_alg *alg, npf_session_t *se)
 /*
  * Delete any tuples created by the given session
  */
-void alg_destroy_session_tuples(const struct npf_alg *alg, npf_session_t *se)
+void alg_destroy_session_tuples(struct npf_alg *alg, npf_session_t *se)
 {
 	if (alg->na_ai)
 		alg_apt_instance_destroy_session(alg->na_ai->ai_apt, se);
@@ -1010,7 +1010,7 @@ static void npf_alg_apt_delete_evt(struct apt_tuple *at)
 	 */
 	struct npf_alg *alg;
 
-	alg = (struct npf_alg *)apt_tuple_get_client_handle(at);
+	alg = apt_tuple_get_client_handle(at);
 	if (alg && alg->na_id == NPF_ALG_ID_SIP)
 		sip_alg_apt_delete(at);
 

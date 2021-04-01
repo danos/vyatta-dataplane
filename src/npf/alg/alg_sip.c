@@ -362,10 +362,9 @@ int sip_alg_manage_sip(npf_session_t *se, npf_cache_t *npc,
  */
 int sip_alg_nat(struct npf_session *se, struct npf_cache *npc,
 		struct rte_mbuf *nbuf, struct npf_nat *nt,
-		const struct npf_alg *alg, int dir)
+		struct npf_alg *alg, int dir)
 {
-	return sip_alg_translate_packet(se, npc, nt, nbuf,
-					(struct npf_alg *)alg, dir);
+	return sip_alg_translate_packet(se, npc, nt, nbuf, alg, dir);
 }
 
 /*

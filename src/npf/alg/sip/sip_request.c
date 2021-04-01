@@ -52,8 +52,7 @@ struct sip_request_match {
 
 
 /* Forward reference */
-static int sip_alg_add_invite(const struct npf_alg *sip,
-			      struct sip_alg_request *sr);
+static int sip_alg_add_invite(struct npf_alg *sip, struct sip_alg_request *sr);
 
 
 /***************************************************************
@@ -221,7 +220,7 @@ static void sip_request_free_rcu(struct rcu_head *head)
  * Free a sip msg, always via RCU.
  */
 void
-sip_alg_request_free(const struct npf_alg *sip, struct sip_alg_request *sr)
+sip_alg_request_free(struct npf_alg *sip, struct sip_alg_request *sr)
 {
 	if (sr) {
 		sr->sr_sip_alg = sip;
@@ -230,11 +229,12 @@ sip_alg_request_free(const struct npf_alg *sip, struct sip_alg_request *sr)
 }
 
 /*
- * Synchronously free a sip msg.
- * Used when destroying the sip instance.
+ * Synchronously free a sip msg. Used when destroying the sip instance.  The
+ * synchronous 'free' is required to ensure we return APM mappings prior to
+ * APM instance destroy.
  */
-static void sip_alg_request_free_sync(const struct npf_alg *sip,
-		struct sip_alg_request *sr)
+static void sip_alg_request_free_sync(struct npf_alg *sip,
+				      struct sip_alg_request *sr)
 {
 	if (sr) {
 		sr->sr_sip_alg = sip;
@@ -611,7 +611,7 @@ static int sip_ht_match(struct cds_lfht_node *node, const void *key)
  * sip_request_lookup_by_call_id() - Lookup by call id.
  */
 struct sip_alg_request *
-sip_request_lookup_by_call_id(const struct npf_alg *sip, uint32_t if_idx,
+sip_request_lookup_by_call_id(struct npf_alg *sip, uint32_t if_idx,
 			      osip_call_id_t *call_id)
 {
 	struct cds_lfht_iter iter;
@@ -648,7 +648,7 @@ sip_request_lookup_by_call_id(const struct npf_alg *sip, uint32_t if_idx,
 /*
  * sip_request_lookup() - Lookup a request
  */
-struct sip_alg_request *sip_request_lookup(const struct npf_alg *sip,
+struct sip_alg_request *sip_request_lookup(struct npf_alg *sip,
 					   struct sip_alg_request *incoming)
 {
 	osip_call_id_t *call_id;
@@ -669,7 +669,7 @@ void sip_request_expire(struct sip_alg_request *sr)
 /*
  * sip_request_lookup_and_expire() - Expire an invite from the hash table.
  */
-void sip_request_lookup_and_expire(const struct npf_alg *sip,
+void sip_request_lookup_and_expire(struct npf_alg *sip,
 				   struct sip_alg_request *incoming)
 {
 	struct sip_alg_request *sr;
@@ -711,8 +711,7 @@ static uint64_t sip_alg_expires(struct sip_alg_request *sr)
 /*
  * sip_alg_add_invite() - Add an invite to the hash table.
  */
-static int sip_alg_add_invite(const struct npf_alg *sip,
-			      struct sip_alg_request *sr)
+static int sip_alg_add_invite(struct npf_alg *sip, struct sip_alg_request *sr)
 {
 	unsigned long hash;
 	struct cds_lfht_node *node;
@@ -768,7 +767,7 @@ void sip_destroy_ht(struct npf_alg *sip)
 
 	/*
 	 * Free each request synchronously - ensures we
-	 * sync return APM mappings prior tp APM instance destroy
+	 * sync return APM mappings prior to APM instance destroy
 	 */
 	cds_lfht_for_each_entry(sp->sp_ht, &iter, sr, sr_node) {
 		if (!cds_lfht_del(sp->sp_ht, &sr->sr_node))

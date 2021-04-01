@@ -89,7 +89,7 @@ void npf_alg_session_set_inspect(struct npf_session *se, bool v)
  * Link session to specific ALG instance.  An ALG session struct is created to
  * hold a reference pointer to the specific ALG instance.
  */
-int npf_alg_session_set_alg(struct npf_session *se, const struct npf_alg *alg)
+int npf_alg_session_set_alg(struct npf_session *se, struct npf_alg *alg)
 {
 	struct npf_session_alg *sa = zmalloc_aligned(sizeof(*sa));
 
@@ -97,7 +97,7 @@ int npf_alg_session_set_alg(struct npf_session *se, const struct npf_alg *alg)
 		return -ENOMEM;
 
 	/* ALG session data takes a reference on ALG instance data */
-	sa->sa_alg = npf_alg_get((struct npf_alg *)alg);
+	sa->sa_alg = npf_alg_get(alg);
 
 	npf_session_set_alg_ptr(se, sa);
 
@@ -112,7 +112,7 @@ int npf_alg_session_set_alg(struct npf_session *se, const struct npf_alg *alg)
 void npf_alg_session_clear_alg(struct npf_session *se,
 			       struct npf_session_alg *sa)
 {
-	struct npf_alg *alg = (struct npf_alg *)sa->sa_alg;
+	struct npf_alg *alg = sa->sa_alg;
 
 	/* Clear s_alg pointer in the npf session */
 	npf_session_set_alg_ptr(se, NULL);
@@ -135,7 +135,8 @@ struct npf_alg *npf_alg_session_get_alg(const struct npf_session *se)
 	struct npf_session_alg *sa = npf_session_get_alg_ptr(se);
 
 	if (sa)
-		return (struct npf_alg *)sa->sa_alg;
+		return sa->sa_alg;
+
 	return NULL;
 }
 

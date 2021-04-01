@@ -42,7 +42,7 @@ struct rpc_alg_session {
  * sa_inspect  Enables inspection for (mostly) non-NATd pkts
  */
 struct npf_session_alg {
-	const struct npf_alg	*sa_alg;
+	struct npf_alg		*sa_alg;
 	uint32_t		sa_flags;
 	bool			sa_inspect;
 
@@ -63,7 +63,7 @@ uint32_t npf_alg_session_get_flags(const struct npf_session *se);
 bool npf_alg_cntl_session(struct npf_session *se);
 bool npf_alg_data_session(struct npf_session *se);
 void npf_alg_session_set_inspect(struct npf_session *se, bool v);
-int npf_alg_session_set_alg(struct npf_session *se, const struct npf_alg *alg);
+int npf_alg_session_set_alg(struct npf_session *se, struct npf_alg *alg);
 void npf_alg_session_clear_alg(struct npf_session *se,
 			       struct npf_session_alg *sa);
 struct npf_alg *npf_alg_session_get_alg(const struct npf_session *se);

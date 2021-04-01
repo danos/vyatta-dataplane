@@ -699,7 +699,7 @@ static int sip_alg_translate_dnat(struct sip_alg_request *tsr, bool forw,
 /*
  * sip_alg_translate_message() - Translate a sip msg.
  */
-static int sip_alg_translate_message(const struct npf_alg *sip,
+static int sip_alg_translate_message(struct npf_alg *sip,
 		struct sip_alg_request *sr, struct sip_alg_request **_tsr)
 {
 	int rc;

@@ -116,7 +116,7 @@ struct sip_alg_request {
 	uint32_t		sr_if_idx;
 	struct cds_list_head	sr_media_list_head;	/* media list head */
 	uint8_t			sr_flags;
-	const struct npf_alg	*sr_sip_alg;
+	struct npf_alg		*sr_sip_alg;
 	struct rcu_head		sr_rcu_head;
 	/*
 	 * Store session handle so that we can identify requests created by
@@ -210,7 +210,7 @@ struct sip_alg_media {
  * Note ports are in host format.
  */
 struct sip_tuple_data {
-	const struct npf_alg	*td_sip;
+	struct npf_alg		*td_sip;
 	struct sip_nat		td_nat;
 	struct sip_alg_media	*td_mi;
 	struct sip_alg_media	*td_mr;
