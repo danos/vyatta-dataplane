@@ -877,9 +877,9 @@ void npf_alg_sip_destroy_instance(struct npf_alg *sip)
 /*
  * Constructor for one-time libosip initialization
  */
-static void npf_alg_sip_init(void) __attribute__ ((__constructor__));
+static void npf_alg_sip_constructor(void) __attribute__ ((__constructor__));
 
-static void npf_alg_sip_init(void)
+static void npf_alg_sip_constructor(void)
 {
 	osip_init(&sip_osip);
 }
