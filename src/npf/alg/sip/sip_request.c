@@ -197,13 +197,13 @@ static void sip_request_free_rcu(struct rcu_head *head)
 {
 	struct sip_alg_request *sr = caa_container_of(head,
 				struct sip_alg_request, sr_rcu_head);
-	struct sip_private *sp = sr->sr_sip_alg->na_private;
+	struct sip_private *sp = &sr->sr_sip_alg->na_sip;
 
 	/*
 	 * Move medias to the instance for deletion
 	 * via the sip GC
 	 */
-	if (sp) {
+	if (sp->sp_ht) {
 		rte_spinlock_lock(&sp->sp_media_lock);
 		cds_list_splice(&sr->sr_media_list_head, &sp->sp_dead_media);
 		rte_spinlock_unlock(&sp->sp_media_lock);
@@ -475,7 +475,7 @@ void sip_flush_session_request(struct npf_session *se)
 {
 	struct sip_alg_session *ss = npf_alg_session_get_sip(se);
 	struct npf_alg *sip = npf_alg_session_get_alg(se);
-	struct sip_private *sp = sip->na_private;
+	struct sip_private *sp = &sip->na_sip;
 	struct sip_alg_request *sr;
 	struct cds_lfht_iter iter;
 
@@ -627,8 +627,8 @@ sip_request_lookup_by_call_id(struct npf_alg *sip, uint32_t if_idx,
 	if (!sip)
 		return NULL;
 
-	sp = sip->na_private;
-	if (!sp)
+	sp = &sip->na_sip;
+	if (!sp->sp_ht)
 		return NULL;
 
 	hash = sip_alg_hash(&sm);
@@ -716,12 +716,12 @@ static int sip_alg_add_invite(struct npf_alg *sip, struct sip_alg_request *sr)
 	unsigned long hash;
 	struct cds_lfht_node *node;
 	struct sip_request_match sm;
-	struct sip_private *sp = sip->na_private;
+	struct sip_private *sp = &sip->na_sip;
 
 	if (!MSG_IS_INVITE(sr->sr_sip))
 		return -EINVAL;
 
-	if (!sp)
+	if (!sp->sp_ht)
 		return -EINVAL;
 
 	sm.sm_call_id = osip_message_get_call_id(sr->sr_sip);
@@ -749,9 +749,9 @@ static int sip_alg_add_invite(struct npf_alg *sip, struct sip_alg_request *sr)
 static void sip_delete_request(struct npf_alg *sip,
 		struct sip_alg_request *sr)
 {
-	struct sip_private *sp = sip->na_private;
+	struct sip_private *sp = &sip->na_sip;
 
-	if (sr && sp && !cds_lfht_del(sp->sp_ht, &sr->sr_node))
+	if (sr && sp->sp_ht && !cds_lfht_del(sp->sp_ht, &sr->sr_node))
 		sip_alg_request_free(sip, sr);
 }
 
@@ -759,10 +759,10 @@ void sip_destroy_ht(struct npf_alg *sip)
 {
 	struct cds_lfht_iter iter;
 	struct sip_alg_request *sr;
-	struct sip_private *sp = sip->na_private;
+	struct sip_private *sp = &sip->na_sip;
 	int rc;
 
-	if (!sp)
+	if (!sp->sp_ht)
 		return;
 
 	/*
@@ -776,6 +776,7 @@ void sip_destroy_ht(struct npf_alg *sip)
 
 	dp_rcu_read_unlock();
 	rc = cds_lfht_destroy(sp->sp_ht, NULL);
+	sp->sp_ht = NULL;
 	dp_rcu_read_lock();
 	if (rc)
 		RTE_LOG(ERR, FIREWALL, "ALG: SIP cds_lfht_destroy\n");
@@ -820,9 +821,9 @@ void sip_ht_gc(struct npf_alg *sip)
 	struct cds_lfht_iter iter;
 	struct sip_alg_request *sr;
 	uint64_t current = rte_get_timer_cycles();
-	struct sip_private *sp = sip->na_private;
+	struct sip_private *sp = &sip->na_sip;
 
-	if (!sp)
+	if (!sp->sp_ht)
 		return;
 
 	/* Always free any medias first */

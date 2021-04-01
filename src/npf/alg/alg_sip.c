@@ -815,9 +815,7 @@ struct npf_alg *npf_alg_sip_create_instance(struct npf_alg_instance *ai)
 	sip->na_configs[0].ac_item_cnt = ARRAY_SIZE(sip_ports);
 	sip->na_configs[0].ac_handler = npf_alg_port_handler;
 
-	sp = zmalloc_aligned(sizeof(struct sip_private));
-	if (!sp)
-		goto bad;
+	sp = &sip->na_sip;
 
 	rc = sip_ht_create(sp);
 	if (rc < 0)
@@ -825,8 +823,6 @@ struct npf_alg *npf_alg_sip_create_instance(struct npf_alg_instance *ai)
 
 	rte_spinlock_init(&sp->sp_media_lock);
 	CDS_INIT_LIST_HEAD(&sp->sp_dead_media);
-
-	sip->na_private = sp;
 
 	rc = npf_alg_register(sip);
 	if (rc)
@@ -841,9 +837,8 @@ bad:
 	if (net_ratelimit())
 		RTE_LOG(ERR, FIREWALL, "ALG: SIP instance failed: %d\n", rc);
 
-	if (sp && sp->sp_ht)
+	if (sp->sp_ht)
 		cds_lfht_destroy(sp->sp_ht, NULL);
-	free(sp);
 	free(sip);
 	return NULL;
 }
@@ -862,9 +857,6 @@ void npf_alg_sip_destroy_instance(struct npf_alg *sip)
 	alg_apt_instance_client_destroy(sip->na_ai->ai_apt, sip);
 
 	sip_destroy_ht(sip);
-
-	free(sip->na_private);
-	sip->na_private = NULL;
 
 	sip->na_enabled = false;
 	sip->na_ai = NULL;

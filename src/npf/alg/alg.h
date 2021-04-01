@@ -80,6 +80,19 @@ struct npf_alg_config {
 	const struct npf_alg_config_item *ac_items;
 };
 
+/*
+ * SIP private data.
+ *
+ * We manage Invites and responses by using a hash table.  New invites are
+ * added to the table, and corresponding responses pull them from the hash
+ * table.
+ */
+struct sip_private {
+	struct cds_lfht		*sp_ht;
+	rte_spinlock_t		sp_media_lock; /* For media */
+	struct cds_list_head	sp_dead_media; /* for freeing media */
+};
+
 /* ALG application instance struct */
 struct npf_alg {
 	enum npf_alg_id			na_id;
@@ -90,6 +103,10 @@ struct npf_alg {
 	rte_atomic32_t			na_refcnt;
 	uint8_t				na_num_configs;
 	struct npf_alg_config		na_configs[NPF_ALG_MAX_CONFIG];
+
+	union {
+		struct sip_private	na_sip;
+	};
 };
 
 

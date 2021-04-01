@@ -12,7 +12,6 @@
 #define _SIP_H_
 
 #include <rte_atomic.h>
-#include <urcu.h>
 #include "json_writer.h"
 #include "util.h"
 
@@ -22,19 +21,6 @@
 #include "npf/alg/sip/sip_response.h"
 #include "npf/alg/sip/sip_parse.h"
 #include "npf/alg/sip/sip_translate.h"
-
-/*
- * SIP private data.
- *
- * We manage Invites and responses by using a hash table.  New invites are
- * added to the table, and corresponding responses pull them from the hash
- * table.
- */
-struct sip_private {
-	struct cds_lfht		*sp_ht;
-	rte_spinlock_t		sp_media_lock; /* For media */
-	struct cds_list_head	sp_dead_media; /* for freeing media */
-};
 
 /*
  * Type of nat being performed.
