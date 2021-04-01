@@ -82,10 +82,6 @@ struct rpc_node {
 	struct rcu_head		rcu_head;	/* For call_rcu() */
 };
 
-struct rpc_private {
-	struct cds_list_head rpc_lh;
-};
-
 static void rpc_free_node(struct rcu_head *head)
 {
 	struct rpc_node *node =
@@ -98,10 +94,7 @@ static int rpc_program_delete(struct npf_alg *rpc, uint32_t program)
 {
 	struct rpc_node *node, *node2;
 	int ret = -ENOENT;
-	struct rpc_private *rp = rpc->na_private;
-
-	if (!rp)
-		return -EINVAL;
+	struct rpc_private *rp = &rpc->na_rpc;
 
 	cds_list_for_each_entry_safe(node, node2, &rp->rpc_lh, list) {
 		if (node->rpc_program == program) {
@@ -118,10 +111,7 @@ static int rpc_program_delete(struct npf_alg *rpc, uint32_t program)
 static void rpc_destroy_list(struct npf_alg *rpc)
 {
 	struct rpc_node *node, *node2;
-	struct rpc_private *rp = rpc->na_private;
-
-	if (!rp)
-		return;
+	struct rpc_private *rp = &rpc->na_rpc;
 
 	cds_list_for_each_entry_safe(node, node2, &rp->rpc_lh, list) {
 		cds_list_del_rcu(&node->list);
@@ -134,10 +124,7 @@ static void rpc_destroy_list(struct npf_alg *rpc)
 static int rpc_program_exists(struct npf_alg *rpc, uint32_t program)
 {
 	struct rpc_node *node;
-	struct rpc_private *rp = rpc->na_private;
-
-	if (!rp)
-		return 0;
+	struct rpc_private *rp = &rpc->na_rpc;
 
 	cds_list_for_each_entry_rcu(node, &rp->rpc_lh, list)
 		if (node->rpc_program == program)
@@ -149,13 +136,10 @@ static int rpc_program_exists(struct npf_alg *rpc, uint32_t program)
 static int rpc_program_add(struct npf_alg *rpc, uint32_t program)
 {
 	struct rpc_node *node;
-	struct rpc_private *rp = rpc->na_private;
+	struct rpc_private *rp = &rpc->na_rpc;
 
 	if (rpc_program_exists(rpc, program))
 		return -1;
-
-	if (!rp)
-		return -EINVAL;
 
 	node = malloc(sizeof(struct rpc_node));
 	if (!node)
@@ -661,12 +645,8 @@ struct npf_alg *npf_alg_rpc_create_instance(struct npf_alg_instance *ai)
 	rpc->na_configs[RPC_PROG_CONFIG].ac_item_cnt = ARRAY_SIZE(rpc_programs);
 	rpc->na_configs[RPC_PROG_CONFIG].ac_handler = rpc_alg_program_handler;
 
-	/* Allocate program list */
-	rp = malloc_aligned(sizeof(struct rpc_private));
-	if (!rp)
-		goto bad;
-
-	rpc->na_private = rp;
+	/* Init RPC private data */
+	rp = &rpc->na_rpc;
 	CDS_INIT_LIST_HEAD(&rp->rpc_lh);
 
 	/* Now register */
@@ -682,7 +662,6 @@ struct npf_alg *npf_alg_rpc_create_instance(struct npf_alg_instance *ai)
 bad:
 	if (net_ratelimit())
 		RTE_LOG(ERR, FIREWALL, "ALG: RPC instance failed: %d\n", rc);
-	free(rp);
 	free(rpc);
 	return NULL;
 }
@@ -696,9 +675,7 @@ void npf_alg_rpc_destroy_instance(struct npf_alg *rpc)
 	alg_apt_instance_client_destroy(rpc->na_ai->ai_apt, rpc);
 
 	rpc_destroy_list(rpc);
-	free(rpc->na_private);
 
-	rpc->na_private = NULL;
 	rpc->na_enabled = false;
 	rpc->na_ai = NULL;
 

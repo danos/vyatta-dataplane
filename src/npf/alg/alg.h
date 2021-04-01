@@ -93,6 +93,13 @@ struct sip_private {
 	struct cds_list_head	sp_dead_media; /* for freeing media */
 };
 
+/*
+ * RPC private data
+ */
+struct rpc_private {
+	struct cds_list_head rpc_lh;
+};
+
 /* ALG application instance struct */
 struct npf_alg {
 	enum npf_alg_id			na_id;
@@ -106,6 +113,7 @@ struct npf_alg {
 
 	union {
 		struct sip_private	na_sip;
+		struct rpc_private	na_rpc;
 	};
 };
 
