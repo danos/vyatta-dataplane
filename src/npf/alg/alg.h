@@ -104,7 +104,6 @@ struct rpc_private {
 struct npf_alg {
 	enum npf_alg_id			na_id;
 	bool				na_enabled;
-	void				*na_private;
 	struct npf_alg_instance		*na_ai;
 	struct apt_instance		*na_ai_apt;
 	rte_atomic32_t			na_refcnt;

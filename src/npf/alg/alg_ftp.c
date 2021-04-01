@@ -740,8 +740,6 @@ struct npf_alg *npf_alg_ftp_create_instance(struct npf_alg_instance *ai)
 	if (!ftp)
 		goto bad;
 
-	ftp->na_private = NULL;
-
 	/* setup default config */
 	ftp->na_num_configs = 1;
 	ftp->na_configs[0].ac_items = ftp_ports;
