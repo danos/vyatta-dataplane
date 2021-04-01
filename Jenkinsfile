@@ -66,7 +66,7 @@ pipeline {
                         export BUILD_ID=\"${BUILD_ID}\"
                         export JENKINS_NODE_COOKIE=\"${JENKINS_NODE_COOKIE}\"
                         export DH_VERBOSE=1 DH_QUIET=0
-                        export DEB_BUILD_OPTIONS ='verbose all_tests sanitizer'
+                        export DEB_BUILD_OPTIONS='verbose all_tests sanitizer'
                         dpkg-buildpackage -jauto -us -uc -b
                         """.stripIndent()
 		sh "osc -v -A ${env.OBS_INSTANCE} build --download-api-only --local-package --no-service --trust-all-projects --build-uid=caller --alternative-project=${env.OBS_TARGET_PROJECT} ${env.OBS_TARGET_REPO} ${env.OBS_TARGET_ARCH}"
