@@ -112,30 +112,17 @@ char *sip_port_to_str(in_port_t n)
 	return osip_strdup(buf);
 }
 
-static int sip_alg_private_session_init(npf_session_t *se)
+/*
+ * Get pointer to SIP ALG session data.  Only valid for SIP control sessions.
+ */
+struct sip_alg_session *npf_alg_session_get_sip(struct npf_session *se)
 {
-	struct sip_alg_session *ss;
+	struct npf_session_alg *sa = npf_session_get_alg_ptr(se);
 
-	ss = npf_alg_session_get_private(se);
-	if (ss)
-		return -EINVAL;
-	ss = calloc(sizeof(struct sip_alg_session), 1);
-	if (!ss)
-		return -ENOMEM;
-	npf_alg_session_set_private(se, ss);
+	if (sa && (sa->sa_flags & SIP_ALG_CNTL_FLOW) != 0)
+		return &sa->sa_sip;
 
-	return 0;
-}
-
-static void sip_alg_private_session_free(npf_session_t *se)
-{
-	struct sip_alg_session *ss;
-
-
-	ss = npf_alg_session_get_private(se);
-	if (ss)
-		sip_expire_session_request(se);
-	free(ss);
+	return NULL;
 }
 
 /*
@@ -415,7 +402,7 @@ static void sip_translate_reply_path(npf_session_t *se, int di __unused,
 	return;
 
 
-	struct sip_alg_session *ss = npf_alg_session_get_private(se);
+	struct sip_alg_session *ss = npf_alg_session_get_sip(se);
 	void *n_ptr = npf_iphdr(nbuf);
 	struct udphdr *uh = &npc->npc_l4.udp;
 
@@ -532,7 +519,6 @@ int sip_alg_session_init(struct npf_session *se, struct npf_cache *npc,
 	switch (alg_flags & SIP_ALG_MASK) {
 	case SIP_ALG_CNTL_FLOW:
 		npf_alg_session_set_inspect(se, true);
-		rc = sip_alg_private_session_init(se);
 		break;
 
 	case SIP_ALG_ALT_CNTL_FLOW:
@@ -605,10 +591,10 @@ void sip_alg_session_expire(struct npf_session *se)
  */
 void sip_alg_session_destroy(struct npf_session *se)
 {
-	if (npf_alg_session_test_flag(se, SIP_ALG_CNTL_FLOW)) {
-		sip_flush_session_request(se);
-		sip_alg_private_session_free(se);
-	}
+		if (npf_alg_session_test_flag(se, SIP_ALG_CNTL_FLOW)) {
+			sip_flush_session_request(se);
+			sip_expire_session_request(se);
+		}
 }
 
 /*
@@ -774,7 +760,7 @@ void sip_alg_session_json(struct json_writer *json, struct npf_session *se)
 	if (!json || !se)
 		return;
 
-	ss = npf_alg_session_get_private(se);
+	ss = npf_alg_session_get_sip(se);
 	if (!ss)
 		return;
 

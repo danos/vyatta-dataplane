@@ -204,18 +204,6 @@ struct sip_alg_media {
 #define SIP_ALG_MASK		(SIP_ALG_CNTL | SIP_ALG_DATA)
 
 /*
- * SIP private session data.
- */
-struct sip_alg_session {
-	in_port_t		ss_via_port;
-	uint8_t			ss_via_alen;
-	uint32_t		ss_ifx;
-	npf_addr_t		ss_via_addr;
-	int			ss_call_id_count;
-	osip_call_id_t		**ss_call_ids;
-};
-
-/*
  * Struct for managing tuple data.  These are added to media (RTP and RTCP)
  * tuples.
  *
@@ -277,6 +265,9 @@ char *sip_addr_to_str(npf_addr_t *a, uint8_t alen);
 
 /* Convert a port to an (allocated) string */
 char *sip_port_to_str(in_port_t n);
+
+struct sip_alg_session *npf_alg_session_get_sip(
+	struct npf_session *se);
 
 int sip_alg_verify(struct sip_alg_request *sr);
 

@@ -435,7 +435,7 @@ static bool sip_alg_verify_session_call_id(npf_session_t *se,
 	int i;
 
 	/* Only CNTL sessions have private data */
-	ss = npf_alg_session_get_private(se);
+	ss = npf_alg_session_get_sip(se);
 	if (!ss)
 		return false;
 

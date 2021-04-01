@@ -13,6 +13,7 @@
 
 #include <stdint.h>
 #include "npf/alg/alg_rpc_msg.h"
+#include "npf/alg/alg_sip_session.h"
 
 struct npf_session;
 struct npf_nat;
@@ -47,8 +48,10 @@ struct npf_session_alg {
 	uint32_t		sa_flags;
 	bool			sa_inspect;
 
+	/* rtp and tftp ALGs do not have session data */
 	union {
 		struct rpc_alg_session	sa_rpc;
+		struct sip_alg_session	sa_sip;
 	};
 };
 

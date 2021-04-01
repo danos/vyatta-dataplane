@@ -248,7 +248,7 @@ static void sip_alg_request_free_sync(const struct npf_alg *sip,
  */
 static int sip_parse_reply_path(struct sip_alg_request *sr, npf_session_t *se)
 {
-	struct sip_alg_session *ss = npf_alg_session_get_private(se);
+	struct sip_alg_session *ss = npf_alg_session_get_sip(se);
 	int rc;
 
 	/*
@@ -361,7 +361,7 @@ static int sip_alg_manage_cntl(npf_session_t *se, npf_cache_t *npc,
 	if (!(flags & SIP_ALG_CNTL_FLOW))
 		return 0;
 
-	ss = npf_alg_session_get_private(se);
+	ss = npf_alg_session_get_sip(se);
 	if (!ss)
 		return 0;
 
@@ -392,7 +392,7 @@ static void sip_alg_add_session_call_id(npf_session_t *se,
 	size_t sz;
 
 	/* Only CNTL sessions have private data */
-	ss = npf_alg_session_get_private(se);
+	ss = npf_alg_session_get_sip(se);
 	if (!ss)
 		return;
 
@@ -421,7 +421,7 @@ static void sip_alg_add_session_call_id(npf_session_t *se,
 /* Expire all SIP requests on this session handle */
 void sip_expire_session_request(npf_session_t *se)
 {
-	struct sip_alg_session *ss = npf_alg_session_get_private(se);
+	struct sip_alg_session *ss = npf_alg_session_get_sip(se);
 	struct npf_alg *sip = npf_alg_session_get_alg(se);
 	struct sip_alg_request *sr;
 	uint32_t if_idx = npf_session_get_if_index(se);
