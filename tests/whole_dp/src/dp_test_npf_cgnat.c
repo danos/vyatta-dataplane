@@ -6761,12 +6761,17 @@ DP_START_TEST(cgnat54, test)
 	 *
 	 * Address-pool pairing means it should use the same public address,
 	 * 10.0.1.1.   But this public address is on the policy on dp2T1.
+	 *
+	 * CGNAT will detect that the policy determined from the src addr and
+	 * outbound interface does not match the policy previously used by
+	 * this subscriber.  The orig pkt will be dropped and an ICMP
+	 * unreachable will be sent to the subscriber.
 	 */
-	cgnat_udp("dp1T0", "aa:bb:cc:dd:1:a1", 0,
-		  "100.64.0.1", 30001, "3.3.3.4", 80,
-		  "10.0.1.1", 1025, "3.3.3.4", 80,
-		  "aa:bb:cc:dd:3:c1", 0, "dp2T2",
-		  DP_TEST_FWD_FORWARDED);
+	cgnat_udp_err("dp1T0", "aa:bb:cc:dd:1:a1", 0,
+		      "100.64.0.1", 30001, "3.3.3.4", 80,
+		      "10.0.1.1", 1025, "3.3.3.4", 80,
+		      "aa:bb:cc:dd:3:c1", 0, "dp2T2",
+		      DP_TEST_FWD_DROPPED);
 
 	dpt_cgn_print_json("cgn-op show interface", debug);
 

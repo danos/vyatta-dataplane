@@ -663,6 +663,16 @@ cgn_source_find_and_lock(struct cgn_policy *cp, uint32_t addr, vrfid_t vrfid,
 		src = cgn_source_create_and_insert(cp, addr, vrfid, error);
 		if (!src)
 			return NULL;
+	} else {
+		/*
+		 * New flow from this subscriber may have switched output
+		 * interfaces if there was a routing change.  Ensure the CGNAT
+		 * policy (and NAT pool) is the same.
+		 */
+		if (cp != src->sr_policy) {
+			*error = -CGN_SRC_ENOENT;
+			return NULL;
+		}
 	}
 
 	/*
