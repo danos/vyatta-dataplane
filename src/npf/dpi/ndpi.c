@@ -182,7 +182,7 @@ dpi_ndpi_init(void)
 	set_ndpi_malloc(zmalloc_aligned);
 	NDPI_BITMASK_SET_ALL(all);
 
-	RTE_LCORE_FOREACH(lcore) {
+	FOREACH_DP_LCORE(lcore) {
 		struct ndpi_detection_module_struct *detect
 			= ndpi_init_detection_module(ndpi_no_prefs);
 		if (!detect) {
