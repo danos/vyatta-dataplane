@@ -8,6 +8,7 @@
 
 #include "dp_test.h"
 #include "dp_test_netlink_state.h"
+#include "dp_test_lib_tcp.h"
 #include "dp_test_npf_lib.h"
 #include "dp_test_npf_fw_lib.h"
 #include "dp_test_npf_nat_lib.h"
@@ -275,6 +276,136 @@ DP_START_TEST(sip_nat12, test)
 	dp_test_npf_dnat_del(dnat.ifname, dnat.rule, true);
 
 } DP_END_TEST; /* sip_nat12 */
+
+
+/*
+ * sip_nat13.  Data Set #1. SNAT.  TCP.
+ *
+ * RTP flow started in forw direction.  RTCP flow started in back direction.
+ */
+DP_DECL_TEST_CASE(sip_nat, sip_nat13, dpt_alg_sipd1_setup,
+		  dpt_alg_sipd1_teardown);
+DP_START_TEST(sip_nat13, test)
+{
+	struct dp_test_pkt_desc_t *ctrl_fw_pre, *ctrl_fw_pst;
+	struct dp_test_pkt_desc_t *ctrl_bk_pre, *ctrl_bk_pst;
+
+	static_assert(ARRAY_SIZE(sipd1_pre_snat) ==
+		      ARRAY_SIZE(sipd1_post_snat),
+		      "sipd pre and post array size don't match");
+	static_assert(ARRAY_SIZE(sipd1_pre_snat) == ARRAY_SIZE(sipd1_dir),
+		      "spid pre snat array size incorrect");
+
+	/* Configure SNAT with sequential port allocation */
+	struct dp_test_npf_nat_rule_t snat = {
+		.desc		= "snat rule",
+		.rule		= "10",
+		.ifname		= "dp2T1",
+		.proto		= IPPROTO_TCP,
+		.map		= "dynamic",
+		.port_alloc	= "sequential",
+		.from_addr	= "1.1.1.0/24",
+		.from_port	= NULL,
+		.to_addr	= NULL,
+		.to_port	= NULL,
+		.trans_addr	= "30.30.30.2",
+		.trans_port	= "1024-2000",
+	};
+	dp_test_npf_snat_add(&snat, true);
+
+	ctrl_fw_pre = dpt_pdesc_v4_create(
+		"ctrl_fw_pre", IPPROTO_TCP,
+		"aa:bb:cc:16:0:20", "1.1.1.2", 5060,
+		"aa:bb:cc:18:0:1", "22.22.22.2", 5060,
+		"dp1T0", "dp2T1");
+
+	ctrl_fw_pst = dpt_pdesc_v4_create(
+		"ctrl_fw_pst", IPPROTO_TCP,
+		"aa:bb:cc:16:0:20", "30.30.30.2", 1024,
+		"aa:bb:cc:18:0:1", "22.22.22.2", 5060,
+		"dp1T0", "dp2T1");
+
+	ctrl_bk_pre = dpt_pdesc_v4_create(
+		"ctrl_bk_pre", IPPROTO_TCP,
+		"aa:bb:cc:18:0:1", "22.22.22.2", 5060,
+		"aa:bb:cc:16:0:20", "30.30.30.2", 1024,
+		"dp2T1", "dp1T0");
+
+	ctrl_bk_pst = dpt_pdesc_v4_create(
+		"ctrl_bk_pst", IPPROTO_TCP,
+		"aa:bb:cc:18:0:1", "22.22.22.2", 5060,
+		"aa:bb:cc:16:0:20", "1.1.1.2", 5060,
+		"dp2T1", "dp1T0");
+
+	/*
+	 * Packet descriptors for ctrl flow
+	 */
+	struct dpt_tcp_flow sip_ctrl_call = {
+		.text[0] = '\0',	/* description */
+		.isn = {0, 0},		/* initial seq no */
+		.desc[DPT_FORW] = {	/* Forw pkt descriptors */
+			.pre = ctrl_fw_pre,
+			.pst = ctrl_fw_pst,
+		},
+		.desc[DPT_BACK] = {	/* Back pkt descriptors */
+			.pre = ctrl_bk_pre,
+			.pst = ctrl_bk_pst,
+		},
+		.test_cb = NULL,	/* Prep and send pkt */
+		.post_cb = NULL,	/* Fixup pkt exp */
+	};
+	snprintf(sip_ctrl_call.text, sizeof(sip_ctrl_call), "Ctrl");
+
+	/*
+	 * Per-packet flags and data for sip ctrl flow
+	 */
+	struct dpt_tcp_flow_pkt sip_ctrl_pkts[] = {
+		{ DPT_FORW, TH_SYN, 0, NULL, 0, NULL },
+		{ DPT_BACK, TH_SYN | TH_ACK, 0, NULL, 0, NULL },
+		{ DPT_FORW, TH_ACK, 0, NULL, 0, NULL },
+
+		/* Invite */
+		{ DPT_FORW, TH_ACK,
+		  0, (char *)sipd1_pre_snat[0],
+		  0, (char *)sipd1_post_snat[0] },
+
+		/* 180 Ringing */
+		{ DPT_BACK, TH_ACK,
+		  0, (char *)sipd1_pre_snat[1],
+		  0, (char *)sipd1_post_snat[1] },
+
+		/* 200 Resp */
+		{ DPT_BACK, TH_ACK,
+		  0, (char *)sipd1_pre_snat[2],
+		  0, (char *)sipd1_post_snat[2] },
+
+		/* Ack */
+		{ DPT_FORW, TH_ACK,
+		  0, (char *)sipd1_pre_snat[3],
+		  0, (char *)sipd1_post_snat[3] },
+
+		/* Bye */
+		{ DPT_BACK, TH_ACK,
+		  0, (char *)sipd1_pre_snat[4],
+		  0, (char *)sipd1_post_snat[4] },
+
+		{ DPT_FORW, TH_ACK | TH_FIN, 0, NULL, 0, NULL },
+		{ DPT_BACK, TH_ACK | TH_FIN, 0, NULL, 0, NULL },
+		{ DPT_FORW, TH_ACK, 0, NULL, 0, NULL },
+	};
+
+	dpt_tcp_call(&sip_ctrl_call, sip_ctrl_pkts,
+		     ARRAY_SIZE(sip_ctrl_pkts),
+		     0, 0, NULL, 0);
+
+	dp_test_npf_snat_del(snat.ifname, snat.rule, true);
+
+	free(ctrl_fw_pre);
+	free(ctrl_fw_pst);
+	free(ctrl_bk_pre);
+	free(ctrl_bk_pst);
+
+} DP_END_TEST; /* sip_nat13 */
 
 
 /*
