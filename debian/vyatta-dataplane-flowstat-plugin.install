@@ -1,0 +1,5 @@
+usr/lib/*/vyatta-dataplane/pipeline/plugins/flowstat_plugin.so
+usr/share/flowstat_plugin/protobuf/* /usr/share/vyatta-dataplane/protobuf
+usr/share/perl5/flowstat_plugin/proto/* /usr/share/perl5/vyatta/proto
+src/pipeline/nodes/flowstat/yang/*.yang usr/share/configd/yang
+src/pipeline/nodes/flowstat/scripts/* opt/vyatta/bin

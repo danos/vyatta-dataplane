@@ -1,0 +1,54 @@
+#!/usr/bin/env python3
+#
+# Copyright (c) 2021, SafePoint.
+# Copyright (c) 2019, AT&T Intellectual Property.
+# All rights reserved.
+#
+# SPDX-License-Identifier: GPL-2.0-only
+#
+
+"""Script to configure logrotate of flowstat"""
+
+from vyatta import configd
+from vplaned import Controller
+
+LOG_FILE = "/var/log/flowstat.log"
+LOG_CONF = "/etc/logrotate.d/flowstat"
+
+
+def main():
+    try:
+        client = configd.Client()
+    except Exception as exc:
+        print("Cannot establish client session: '{}'".format(str(exc).strip()))
+        return 1
+
+    path = "service flow-stat logrotate"
+
+    try:
+        cfg = client.tree_get_dict(path)['logrotate']
+    except configd.Exception:
+        return 0
+
+    files_val = cfg.get('files')
+    size_val = cfg.get('size')
+    maxage_val = cfg.get('maxage')
+
+    with open(LOG_CONF, 'w') as f:
+        data = '''\
+%s {
+  hourly
+  missingok
+  rotate %d
+  size=%dk
+  maxage %d
+  nocompress
+}
+''' % (LOG_FILE, files_val, size_val, maxage_val)
+        f.write(data)
+
+    return 0
+
+
+if __name__ == '__main__':
+    main()

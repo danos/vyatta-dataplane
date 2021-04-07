@@ -1,0 +1,2 @@
+date=2021-03-11 time=03:44:47 timestamp=1615434287 tz="+07" session_id=0 src_addr=192.168.100.79 src_port=55923 dst_addr=192.168.200.9 dst_port=32620 in_bytes=1028 in_pkts=14 protocol=3 out_bytes=303 out_pkts=1 app_name=amqp app_proto=Syslog app_type= if_name="dp0p33p1"
+date=2021-03-11 time=03:44:48 timestamp=1615434288 tz="+07" session_id=0 src_addr=192.168.100.214 src_port=50821 dst_addr=192.168.200.157 dst_port=44221 in_bytes=953 in_pkts=9 protocol=13 out_bytes=619 out_pkts=5 app_name=googleplus app_proto=IPP app_type=download if_name="dp0p33p1"

@@ -1934,7 +1934,7 @@ int session_npf_pack_restore(struct npf_pack_dp_session *pds,
 	s->se_flags = SESSION_INSERTED;
 
 	rc = session_npf_pack_stats_restore(s, stats);
-	if (rc) 
+	if (rc)
 		goto error;
 
 	*session = s;
@@ -2023,4 +2023,80 @@ uint64_t dp_session_unique_id(const struct session *session)
 	if (!session)
 		return 0;
 	return session->se_id;
+}
+
+/* walk function for query features */
+static int se_feature_query(struct session *s, struct session_feature *sf,
+							void *data)
+{
+	struct dp_session_info *info = data;
+
+	if (sf->sf_ops && sf->sf_ops->query)
+		sf->sf_ops->query(info, s, sf);
+
+	return 0;
+}
+
+int dp_session_query(struct session *s, enum dp_session_attr query,
+					 struct dp_session_info *info)
+{
+	if (!s)
+		return -1;
+
+	info->se_id = s->se_id;
+
+	if (query & SESSION_ATTR_PROTOCOL) {
+		info->se_protocol = s->se_protocol;
+		info->se_protocol_state = s->se_protocol_state;
+	}
+	if (query & SESSION_ATTR_BYTES_IN)
+		info->se_bytes_in = rte_atomic64_read(&s->se_bytes_in);
+	if (query & SESSION_ATTR_PKTS_IN)
+		info->se_pkts_in = rte_atomic64_read(&s->se_pkts_in);
+	if (query & SESSION_ATTR_CREATE_TIME)
+		info->se_create_time = s->se_create_time;
+	if (query & SESSION_ATTR_BYTES_OUT)
+		info->se_bytes_out = rte_atomic64_read(&s->se_bytes_out);
+	if (query & SESSION_ATTR_PKTS_OUT)
+		info->se_pkts_out = rte_atomic64_read(&s->se_pkts_out);
+
+	if (query & SESSION_ATTR_SENTRY) {
+		const void *saddr;
+		const void *daddr;
+		uint32_t if_index;
+		uint16_t sid;
+		uint16_t did;
+
+		struct sentry *sen = rcu_dereference(s->se_sen);
+		if (sen) {
+			session_sentry_extract(sen, &if_index, &info->se_af,
+					       &saddr, &sid, &daddr, &did);
+
+			if (query & SESSION_ATTR_L4_SRC_PORT)
+				info->se_src_port = sid;
+			if (query & SESSION_ATTR_IPV4_SRC_ADDR)
+				info->se_src_addr = *(uint32_t *)saddr;
+			if (query & SESSION_ATTR_L4_DST_PORT)
+				info->se_dst_port = did;
+			if (query & SESSION_ATTR_IPV4_DST_ADDR)
+				info->se_dst_addr = *(uint32_t *)daddr;
+			if (query & SESSION_ATTR_IF_NAME)
+				info->se_ifname =
+					ifnet_indextoname_safe(if_index);
+		}
+	}
+
+	if (query & SESSION_ATTR_DPI) {
+		info->query = query;
+
+		/* set default value in case no info found */
+		info->se_app_name = NULL;
+		info->se_app_proto = NULL;
+		info->se_app_type = NULL;
+
+		session_feature_walk_session(s, SESSION_FEATURE_ALL,
+					     se_feature_query, info);
+	}
+
+	return 0;
 }

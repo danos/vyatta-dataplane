@@ -212,6 +212,27 @@ sample_test_plugin = shared_module('sample_test',
         dependencies: [dpdk_dep, protobuf_generated_c_dependency]
 )
 
+flowstat_test_plugin_sources = files(
+        'src/dp_test_pipeline_flowstat.c',
+)
+
+flowstat_test_plugin = shared_module('flowstat_test',
+        sources: [
+                flowstat_test_plugin_sources,
+                flowstat_generated_protobuf_c,
+                flowstat_plugin_sources,
+        ],
+        include_directories: [
+                public_include,
+                public_test_include,
+                internal_inc,
+                flowstat_include,
+                internal_test_inc,
+        ],
+        dependencies: [dpdk_dep, protobuf_generated_c_dependency],
+        c_args: ['-DUNIT_TEST', '-Wno-unused-function']
+)
+
 fal_test_plugin_sources = files(
         'src/fal_plugin_test.c',
         'src/fal_plugin_sw_port.c',
@@ -268,14 +289,20 @@ endif
 lcore_number = 0
 cores_available = run_command('nproc').stdout().to_int()
 
-foreach suite : check_tests + ['dp_test_pipeline.c']
+foreach suite : check_tests + ['dp_test_pipeline.c', 'dp_test_pipeline_flowstat.c']
 
         suite_env = ['CK_RUN_SUITE=@0@'.format(suite), 'CK_XML_LOG_FILE_NAME=test_@0@.xml'.format(suite)] + dataplane_test_env
 
+        if suite == 'dp_test_pipeline_flowstat.c'
+            test_fea_plugin_path = meson.current_build_dir()
+        else
+            test_fea_plugin_path = meson.build_root() / 'src/pipeline/nodes/sample'
+        endif
+
         test(suite, dataplane_test,
-                depends: [sample_plugin, sample_test_plugin, fal_test_plugin, dummyfs],
+                depends: [sample_plugin, sample_test_plugin, flowstat_plugin, flowstat_test_plugin, fal_test_plugin, dummyfs],
                 workdir: meson.current_build_dir(),
-                args: ['-l @0@'.format(lcore_number), '-d1', '-F', meson.build_root() / 'src/pipeline/nodes/sample', '-P', meson.current_build_dir()],
+                args: ['-l @0@'.format(lcore_number), '-d1', '-F', test_fea_plugin_path, '-P', meson.current_build_dir()],
                 env: suite_env,
                 timeout: test_timeout
         )

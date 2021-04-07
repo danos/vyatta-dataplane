@@ -2089,3 +2089,28 @@ int npf_session_npf_pack_activate(struct npf_session *se, struct ifnet *ifp)
 	se->s_flags |= SE_ACTIVE;
 	return 0;
 }
+
+static int get_dpi_info(uint8_t engine, uint32_t app, uint32_t proto,
+			uint32_t type, void *data)
+{
+	if (no_app_id(app) && no_app_id(proto) && no_app_type(type))
+		return 0;
+
+	struct dp_session_info *p = data;
+	p->se_app_name = dpi_app_id_to_name(engine, app);
+	p->se_app_proto = dpi_app_id_to_name(engine, proto);
+	p->se_app_type = dpi_app_type_to_name(engine, type);
+	return 1;
+}
+
+void npf_session_feature_query(struct dp_session_info *info,
+			       struct session *s __unused,
+			       struct session_feature *sf)
+{
+	npf_session_t *se = sf->sf_data;
+	enum dp_session_attr query = info->query;
+
+	/* DPI query */
+	if (query & SESSION_ATTR_DPI && se->s_dpi)
+		dpi_flow_for_each_engine(se->s_dpi, get_dpi_info, info);
+}

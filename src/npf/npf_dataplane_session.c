@@ -113,6 +113,12 @@ static int dps_feature_nat_info(void *data, uint32_t *taddr, uint16_t *tport)
 	return npf_session_feature_nat_info(se, taddr, tport);
 }
 
+static void dps_feature_query(struct dp_session_info *info, struct session *s,
+			      struct session_feature *sf)
+{
+	return npf_session_feature_query(info, s, sf);
+}
+
 /* Callbacks for the npf_session_t */
 static const struct session_feature_ops ops = {
 	.expired = dps_feature_expire,
@@ -120,6 +126,7 @@ static const struct session_feature_ops ops = {
 	.json = dps_feature_json,
 	.log = dps_feature_log,
 	.nat_info = dps_feature_nat_info,
+	.query = dps_feature_query,
 };
 
 /*

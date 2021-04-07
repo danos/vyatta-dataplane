@@ -149,6 +149,19 @@ Description: Vyatta dataplane sample plugin library
  A sample pipeline plugin for the Vyatta dataplane that illustrates
  how a plugin can work.
 
+Package: vyatta-dataplane-flowstat-plugin
+Section: non-free/net
+Architecture: any
+Depends: vyatta-dataplane | vyatta-dataplane-test,
+         ${misc:Depends},
+         ${perl:Depends},
+         ${python3:Depends},
+         ${shlibs:Depends},
+         python3
+Description: Vyatta dataplane plugin library.
+ A pipeline plugin for Vyatta dataplane that exports
+ flow statistics.
+
 Package: libvyattafal-dev
 Section: non-free/libdevel
 Architecture: any

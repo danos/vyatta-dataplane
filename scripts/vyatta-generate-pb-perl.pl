@@ -8,7 +8,10 @@ use Carp;
 use MIME::Base64;
 use Google::ProtocolBuffers;
 
-my ($first, $proto_dir, $proto_file) = split(/\//, $ARGV[0]);
+my @arg0 = split(/\//, $ARGV[0]);
+my $proto_dir = $arg0[$#arg0 - 1];
+my $proto_file = $arg0[$#arg0];
+
 my $target_dir = $ARGV[1];
 
 if (substr($proto_file, -6) eq ".proto") {

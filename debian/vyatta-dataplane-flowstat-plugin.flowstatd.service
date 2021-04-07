@@ -1,0 +1,10 @@
+[Unit]
+Description=Flowstat Daemon
+
+[Service]
+Type=simple
+ExecStart=/opt/vyatta/bin/flowstatd
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

@@ -80,6 +80,7 @@ subdir('src')
 
 if get_option('with_tests').enabled()
         subdir('src/pipeline/nodes/sample')
+        subdir('src/pipeline/nodes/flowstat')
         subdir('tests/whole_dp')
 endif
 

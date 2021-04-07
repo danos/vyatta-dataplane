@@ -1,0 +1,101 @@
+module vyatta-op-show-flowstat-v1 {
+	namespace "urn:vyatta.com:mgmt:vyatta-op-show-flowstat:1";
+	prefix vyatta-op-show-interfaces-dataplane-v1;
+
+	import vyatta-opd-extensions-v1 {
+		prefix opd;
+	}
+	import vyatta-op-show-v1 {
+		prefix show;
+	}
+	import vyatta-op-show-interfaces-v1 {
+		prefix if;
+	}
+	import vyatta-op-show-dataplane-v1 {
+        prefix show-dp;
+    }
+
+    organization "SafePoint.";
+    contact
+        "SafePoint";
+
+    description
+        "Copyright (c) 2021, SafePoint.
+         All rights reserved.
+
+         Copyright (c) 2018-2020, AT&T Intellectual Property.
+         All rights reserved.
+
+         Redistribution and use in source and binary forms, with or
+         without modification, are permitted provided that the following
+         conditions are met:
+
+         1. Redistributions of source code must retain the above copyright
+                notice, this list of conditions and the following disclaimer.
+         2. Redistributions in binary form must reproduce the above
+                copyright notice, this list of conditions and the following
+                disclaimer in the documentation and/or other materials provided
+                with the distribution.
+         3. Neither the name of the copyright holder nor the names of its
+                contributors may be used to endorse or promote products derived
+                from this software without specific prior written permission.
+
+         THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+         'AS IS' AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+         LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
+         FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
+         COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
+         INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
+         BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+         LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+         CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+         LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
+         ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+         POSSIBILITY OF SUCH DAMAGE.
+
+         SPDX-License-Identifier: BSD-3-Clause";
+
+	revision 2021-03-12 {
+		description "Initial version";
+	}
+
+    opd:augment /show:show/show-dp:dataplane {
+        opd:command flow-stat {
+            opd:help "Show dataplane flow statistics";
+            opd:inherit "" {
+                opd:privileged true;
+            }
+
+            opd:argument if-name {
+                opd:help "Show flow statistics for a given dataplane interface";
+                opd:allowed 'echo ALL; vyatta-interfaces.pl --show dataplane';
+                type string;
+
+                opd:argument period {
+                    opd:help "Period";
+                    opd:allowed "echo now; echo 5m; echo 1h; echo 1d";
+                    type string;
+
+                    opd:argument type {
+                        opd:help "Type";
+                        opd:allowed "echo top; echo timeseries";
+                        type string;
+
+                        opd:argument key {
+                            opd:help "Key";
+                            opd:allowed "echo src; echo dst; echo app; echo app_proto; echo app_type";
+                            type string;
+
+                            opd:argument unit {
+                                opd:help "Unit";
+                                opd:allowed "echo in_bytes; echo out_bytes; echo bytes";
+                                opd:on-enter 'flowstat_get_state.py --intf=$4 --period=$5 --type=$6 --key=$7 --unit=$8';
+                                type string;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

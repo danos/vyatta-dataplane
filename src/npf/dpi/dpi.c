@@ -523,6 +523,22 @@ dpi_app_type_name_to_id(uint8_t engine_id, const char *type_name)
 	return engine ? engine->type_to_id(type_name) : DPI_APP_ERROR;
 }
 
+const char*
+dpi_app_id_to_name(uint8_t engine_id, uint32_t app)
+{
+	struct dpi_engine_procs *engine = NULL_ENGINE;
+	ENGINE_PROC_FIND(engine, engine_id, appid_to_name);
+	return engine ? engine->appid_to_name(app) : NULL;
+}
+
+const char*
+dpi_app_type_to_name(uint8_t engine_id, uint32_t type)
+{
+	struct dpi_engine_procs *engine = NULL_ENGINE;
+	ENGINE_PROC_FIND(engine, engine_id, apptype_to_name);
+	return engine ? engine->apptype_to_name(type) : NULL;
+}
+
 void
 dpi_info_json(struct dpi_flow *dpi_flow, json_writer_t *json)
 {
