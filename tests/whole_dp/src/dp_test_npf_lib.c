@@ -1219,9 +1219,6 @@ dp_test_npf_cleanup(void)
 	/* flush alg tuples */
 	npf_alg_flush_all();
 
-	/* Reset all algs. */
-	npf_alg_reset(true);
-
 	/* Clear sessions */
 	dp_test_npf_clear_sessions();
 
@@ -1235,6 +1232,9 @@ dp_test_npf_cleanup(void)
 
 	/* Flush ruleset gc heap */
 	dp_test_npf_flush_rulesets();
+
+	/* Reset all algs. */
+	npf_alg_reset(true);
 }
 
 
