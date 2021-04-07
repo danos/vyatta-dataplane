@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -161,7 +161,7 @@ dpt_pdesc_v6_create(const char *text, uint8_t proto,
 /*
  * Write TCP payload, and re-calc checksums
  */
-static void
+void
 dpt_tcp_write_v4_payload(struct rte_mbuf *m, uint plen, const char *payload)
 {
 	struct iphdr *ip;
@@ -184,7 +184,7 @@ dpt_tcp_write_v4_payload(struct rte_mbuf *m, uint plen, const char *payload)
 	tcp->check = dp_test_ipv4_udptcp_cksum(m, ip, tcp);
 }
 
-static void
+void
 dpt_tcp_write_v6_payload(struct rte_mbuf *m, uint plen, const char *payload)
 {
 	struct ip6_hdr *ip6;
@@ -204,19 +204,83 @@ dpt_tcp_write_v6_payload(struct rte_mbuf *m, uint plen, const char *payload)
 	tcp->check = dp_test_ipv6_udptcp_cksum(m, ip6, tcp);
 }
 
+struct tcp_call_ctx {
+	bool		do_check;
+	validate_cb	saved_cb;
+};
+
+static struct tcp_call_ctx tcp_call_ctx = {
+	.do_check = true,
+	.saved_cb = dp_test_pak_verify,
+};
+
+static void
+dpt_tcp_call_validate_cb(struct rte_mbuf *pak, struct ifnet *ifp,
+			 struct dp_test_expected *exp,
+			 enum dp_test_fwd_result_e fwd_result)
+{
+	struct tcp_call_ctx *ctx = dp_test_exp_get_validate_ctx(exp);
+	struct tcphdr *tcp, *exp_tcp;
+	struct rte_mbuf *exp_pak;
+	struct iphdr *ip;
+	uint32_t l3_len;
+	bool dbg = false;
+
+	const char *file = exp->file;
+	int line = exp->line;
+
+	/* Rcvd pak */
+	ip = iphdr(pak);
+	l3_len = ip->ihl << 2;
+	tcp = (struct tcphdr *)((char *)ip + l3_len);
+
+	/* Exp pak */
+	exp_pak = dp_test_exp_get_pak(exp);
+	ip = iphdr(exp_pak);
+	l3_len = ip->ihl << 2;
+	exp_tcp = (struct tcphdr *)((char *)ip + l3_len);
+
+	if (dbg)
+		printf("TCP seq %u, ack %u\n",
+		       ntohl(tcp->th_seq), ntohl(tcp->th_ack));
+
+	/*
+	 * Highlight any errors with the TCP seq and ack numbers before the
+	 * main check routine
+	 */
+	if (tcp->th_seq != exp_tcp->th_seq || tcp->th_ack != exp_tcp->th_ack) {
+		printf("\033[1m\033[31m%s %i\033[0m\n", file,  line);
+
+		printf("  Expected TCP SEQ %u, rcvd %u\n",
+		       ntohl(exp_tcp->th_seq), ntohl(tcp->th_seq));
+
+		printf("  Expected TCP ACK %u, rcvd %u\n",
+		       ntohl(exp_tcp->th_ack), ntohl(tcp->th_ack));
+	}
+
+	/* call the saved check routine */
+	if (ctx->do_check) {
+		(ctx->saved_cb)(pak, ifp, exp, fwd_result);
+	} else {
+		exp->pak_correct[0] = true;
+		exp->pak_checked[0] = true;
+	}
+}
+
 /*
  * Setup and inject packet for a TCP flow
  */
-static void dpt_tcp_pak_receive(uint pktno, struct dpt_tcp_flow *call,
-				struct dpt_tcp_flow_pkt *df,
-				void *ctx_ptr, uint ctx_uint)
+static void _dpt_tcp_pak_receive(uint pktno, struct dpt_tcp_flow *call,
+				 struct dpt_tcp_flow_pkt *df,
+				 void *ctx_ptr, uint ctx_uint,
+				 const char *file, int line)
 {
 	struct dp_test_pkt_desc_t *pre;
 	struct dp_test_pkt_desc_t *post;
 	bool dir = df->forw;
 	bool rev = (dir == DPT_FORW) ? DPT_BACK : DPT_FORW;
 	uint8_t flags = df->flags;
-	char str[80];
+	char str[120];
 	bool is_v6;
 
 	pre = call->desc[dir].pre;
@@ -240,11 +304,11 @@ static void dpt_tcp_pak_receive(uint pktno, struct dpt_tcp_flow *call,
 				    "Pst data is not a string");
 	}
 
-	const char *dir_str = (dir == DPT_FORW) ? "FORW":"BACK";
+	const char *dir_str = (dir == DPT_FORW) ? "OUT" : "IN";
 
-	spush(str, sizeof(str),
-	      "[%2u] %s %s, flags 0x%02x", pktno, call->text,
-	      dir_str, flags);
+	snprintf(str, sizeof(str),
+		 "[%2u] %s %s, flags 0x%02x", pktno, call->text,
+		 dir_str, flags);
 
 	/*
 	 * Adjust the pre and post pkt descriptors
@@ -261,30 +325,22 @@ static void dpt_tcp_pak_receive(uint pktno, struct dpt_tcp_flow *call,
 	pre->len = df->pre_dlen;
 	post->len = df->pst_dlen;
 
-	pre->l4.tcp.seq = call->seq[dir] + call->isn[dir];
-	post->l4.tcp.seq = call->seq[dir] + call->isn[dir];
-
-	/*
-	 * Pre  ACK value is local ack number
-	 * Post ACK value is remote seq number
-	 */
+	/* Set pre-nat seq/ack */
+	pre->l4.tcp.seq = call->seq[dir];
 	pre->l4.tcp.ack = call->ack[dir];
-	post->l4.tcp.ack = call->seq[rev];
 
-	if (flags & (TH_FIN | TH_SYN)) {
-		call->seq[dir] += 1;
-		call->ack[rev] += 1;
-	} else {
-		/*
-		 * New local SEQ is SEQ + pre length
-		 */
-		call->seq[dir] += pre->len;
+	/* Adjust post-nat seq/ack with diffs */
+	post->l4.tcp.seq = pre->l4.tcp.seq + call->diff[dir];
+	post->l4.tcp.ack = pre->l4.tcp.ack - call->diff[rev];
 
-		/*
-		 * New remote ACK is ACK + post length
-		 */
-		call->ack[rev] += post->len;
-	}
+	/* Set ack that will be used in next pkt in other direction */
+	call->ack[rev] = call->seq[dir] + post->len;
+
+	/* Set seq for next pkt in this direction */
+	call->seq[dir] += pre->len;
+
+	/* Update cumulative payload difference for this direction */
+	call->diff[dir] += (post->len - pre->len);
 
 	/*
 	 * Callback may change the packet, result and/or next callback
@@ -332,8 +388,13 @@ static void dpt_tcp_pak_receive(uint pktno, struct dpt_tcp_flow *call,
 		spush(test_exp->description, sizeof(test_exp->description),
 		      "%s", str);
 
+		dp_test_exp_set_validate_ctx(test_exp, &tcp_call_ctx, false);
+		dp_test_exp_set_validate_cb(test_exp, dpt_tcp_call_validate_cb);
+
+
 		/* Run the test */
-		dp_test_pak_receive(pre_pak, pre->rx_intf, test_exp);
+		_dp_test_pak_receive(pre_pak, pre->rx_intf, test_exp,
+				     file, __func__, line);
 	}
 
 	if (call->post_cb)
@@ -353,34 +414,23 @@ static void dpt_tcp_pak_receive(uint pktno, struct dpt_tcp_flow *call,
  * ctx_ptr   Pointer context to pass to test_cb
  * ctx_uint  Uint context to pass to test_cb
  */
-void dpt_tcp_call(struct dpt_tcp_flow *call, struct dpt_tcp_flow_pkt *df_array,
-		  size_t df_array_size, uint first, uint last,
-		  void *ctx_ptr, uint ctx_uint)
+void _dpt_tcp_call(struct dpt_tcp_flow *call, struct dpt_tcp_flow_pkt *df_array,
+		   size_t df_array_size, uint first, uint last,
+		   void *ctx_ptr, uint ctx_uint, const char *file, int line)
 {
-	struct dpt_tcp_flow_pkt_desc *forw, *back;
 	uint pktno;
 
-	forw = &call->desc[DPT_FORW];
-	back = &call->desc[DPT_BACK];
-
-	call->seq[DPT_FORW] = 0;
-	call->seq[DPT_BACK] = 0;
+	call->seq[DPT_FORW] = 1;
+	call->seq[DPT_BACK] = 1;
 	call->ack[DPT_FORW] = 0;
 	call->ack[DPT_BACK] = 0;
-
-	forw->pre->l4.tcp.seq = 0;
-	forw->pre->l4.tcp.ack = 0;
-	forw->pst->l4.tcp.seq = 0;
-	forw->pst->l4.tcp.ack = 0;
-	back->pre->l4.tcp.seq = 0;
-	back->pre->l4.tcp.ack = 0;
-	back->pst->l4.tcp.seq = 0;
-	back->pst->l4.tcp.ack = 0;
+	call->diff[DPT_FORW] = 0;
+	call->diff[DPT_BACK] = 0;
 
 	if (last == 0 || last >= df_array_size)
 		last = df_array_size - 1;
 
 	for (pktno = first; pktno <= last; pktno++)
-		dpt_tcp_pak_receive(pktno, call, &df_array[pktno],
-				    ctx_ptr, ctx_uint);
+		_dpt_tcp_pak_receive(pktno, call, &df_array[pktno],
+				     ctx_ptr, ctx_uint, file, line);
 }

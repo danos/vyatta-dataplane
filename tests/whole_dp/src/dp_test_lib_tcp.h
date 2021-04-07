@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -71,6 +71,12 @@ struct dpt_tcp_flow_pkt_desc {
 	struct dp_test_pkt_desc_t *pst;
 };
 
+struct npf_seq_ack_diff {
+	uint32_t sad_position;/* Position of last modification */
+	int16_t sad_before;   /* Offset before and after last modification */
+	int16_t sad_after;
+};
+
 /*
  * TCP flow.
  *
@@ -88,6 +94,7 @@ struct dpt_tcp_flow {
 	/* seq and ack; start at zero */
 	uint32_t	seq[2];
 	uint32_t	ack[2];
+	int32_t		diff[2];
 
 	void (*test_cb)(const char *desc,
 			uint pktno, bool forw,
@@ -123,6 +130,11 @@ struct dp_test_pkt_desc_t *dpt_pdesc_v6_create(const char *text,
 					       const char *rx_intf,
 					       const char *tx_intf);
 
+void dpt_tcp_write_v4_payload(struct rte_mbuf *m, uint plen,
+			      const char *payload);
+void dpt_tcp_write_v6_payload(struct rte_mbuf *m, uint plen,
+			      const char *payload);
+
 /*
  * TCP call
  *
@@ -135,8 +147,11 @@ struct dp_test_pkt_desc_t *dpt_pdesc_v6_create(const char *text,
  * ctx_ptr   Pointer context to pass to test_cb
  * ctx_uint  Uint context to pass to test_cb
  */
-void dpt_tcp_call(struct dpt_tcp_flow *call, struct dpt_tcp_flow_pkt *df_array,
-		  size_t df_array_size, uint first, uint last,
-		  void *ctx_ptr, uint ctx_uint);
+void _dpt_tcp_call(struct dpt_tcp_flow *call, struct dpt_tcp_flow_pkt *df_array,
+		   size_t df_array_size, uint first, uint last,
+		   void *ctx_ptr, uint ctx_uint, const char *file, int line);
+
+#define dpt_tcp_call(a, b, c, d, e, f, g)			\
+	_dpt_tcp_call(a, b, c, d, e, f, g, __FILE__, __LINE__)
 
 #endif /* _DP_TEST_LIB_TCP_H_ */
