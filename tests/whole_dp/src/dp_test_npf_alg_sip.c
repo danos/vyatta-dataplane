@@ -788,6 +788,214 @@ DP_START_TEST(sip_nat40, test)
 } DP_END_TEST; /* sip_nat40 */
 
 
+/*
+ * Minimal SIP payload set to create ALG tuples (pinholes).  Also contains two
+ * m-lines so that 4 SNAT mappings occur when the Invite Request is processed.
+ */
+#define SIPD50_SZ 2
+const char *sipd50_pre_snat[SIPD50_SZ] = {
+	/*
+	 * 0. INVITE. Forward (inside)
+	 */
+	"INVITE sip:B.Boss@22.22.22.2 SIP/2.0\r\n"
+	"Via: SIP/2.0/UDP 1.1.1.2:5060;branch=z9hG4bKfw19b\r\n"
+	"From: A. Workman <sip:workman@1.1.1.2>;tag=76341\r\n"
+	"To: B.Boss <sip:B.Boss@work.co.uk>\r\n"
+	"Call-ID: j2qu348ek2328ws\r\n"
+	"CSeq: 1 INVITE\r\n"
+	"Content-Type: application/sdp\r\n"
+	"Content-Length: 142\r\n"
+	"\r\n"
+	"v=0\r\n"
+	"o=Workman 2890844526 2890844526 IN IP4 1.1.1.2\r\n"
+	"s=Phone Call\r\n"
+	"c=IN IP4 1.1.1.2\r\n"
+	"t=0 0\r\n"
+	"m=audio 10000 RTP/AVP 0\r\n"
+	"m=audio 10002 RTP/AVP 0\r\n",
+
+	"SIP/2.0 200 OK\r\n"
+	"Via: SIP/2.0/UDP 1.1.1.2:5060;branch=z9hG4bKfw19b\r\n"
+	"From: A. Workman <sip:workman@1.1.1.2>;tag=76341\r\n"
+	"To: B.Boss <sip:boss@work.co.uk>;tag=a53e42\r\n"
+	"Call-ID: j2qu348ek2328ws\r\n"
+	"CSeq: 1 INVITE\r\n"
+	"Content-Type: application/sdp\r\n"
+	"Content-Length:   169\r\n"
+	"\r\n"
+	"v=0\r\n"
+	"o=B.Boss 2890844528 2890844528 IN IP4 22.22.22.2\r\n"
+	"s=Phone Call\r\n"
+	"c=IN IP4 22.22.22.2\r\n"
+	"t=0 0\r\n"
+	"m=audio 60000 RTP/AVP 0\r\n"
+	"m=audio 60002 RTP/AVP 0\r\n"
+	"a=rtpmap:0 PCMU/8000\r\n",
+};
+
+const char *sipd50_pst_snat[SIPD50_SZ] = {
+	"INVITE sip:B.Boss@22.22.22.2 SIP/2.0\r\n"
+	"Via: SIP/2.0/UDP 30.30.30.2:1024;branch=z9hG4bKfw19b\r\n"
+	"From: A. Workman <sip:workman@30.30.30.2>;tag=76341\r\n"
+	"To: B.Boss <sip:B.Boss@work.co.uk>\r\n"
+	"Call-ID: j2qu348ek2328ws\r\n"
+	"CSeq: 1 INVITE\r\n"
+	"Content-Type: application/sdp\r\n"
+	"Content-Length:   146\r\n"
+	"\r\n"
+	"v=0\r\n"
+	"o=Workman 2890844526 2890844526 IN IP4 30.30.30.2\r\n"
+	"s=Phone Call\r\n"
+	"c=IN IP4 30.30.30.2\r\n"
+	"t=0 0\r\n"
+	"m=audio 1026 RTP/AVP 0\r\n"
+	"m=audio 1028 RTP/AVP 0\r\n",
+
+	"SIP/2.0 200 OK\r\n"
+	"Via: SIP/2.0/UDP 1.1.1.2:5060;branch=z9hG4bKfw19b\r\n"
+	"From: A. Workman <sip:workman@1.1.1.2>;tag=76341\r\n"
+	"To: B.Boss <sip:boss@work.co.uk>;tag=a53e42\r\n"
+	"Call-ID: j2qu348ek2328ws\r\n"
+	"CSeq: 1 INVITE\r\n"
+	"Content-Type: application/sdp\r\n"
+	"Content-Length:   169\r\n"
+	"\r\n"
+	"v=0\r\n"
+	"o=B.Boss 2890844528 2890844528 IN IP4 22.22.22.2\r\n"
+	"s=Phone Call\r\n"
+	"c=IN IP4 22.22.22.2\r\n"
+	"t=0 0\r\n"
+	"m=audio 60000 RTP/AVP 0\r\n"
+	"m=audio 60002 RTP/AVP 0\r\n"
+	"a=rtpmap:0 PCMU/8000\r\n",
+};
+
+/*
+ * sip_nat50.  SNAT.  Delete session and NAT rule while a SIP request struct
+ * is in the SIP request hash table.
+ *
+ * The SIP request struct points to a nat policy.  The nat policy is freed
+ * when the session and ruleset referenes are released.  When the SIP request
+ * is later freed, it dereferences the nat policy and the dataplane crashes.
+ */
+DP_DECL_TEST_CASE(sip_nat, sip_nat50, dpt_alg_sipd1_setup,
+		  dpt_alg_sipd1_teardown);
+DP_START_TEST_DONT_RUN(sip_nat50, test)
+{
+	/* Configure SNAT with sequential port allocation */
+	struct dp_test_npf_nat_rule_t snat = {
+		.desc		= "snat rule",
+		.rule		= "10",
+		.ifname		= "dp2T1",
+		.proto		= IPPROTO_UDP,
+		.map		= "dynamic",
+		.port_alloc	= "sequential",
+		.from_addr	= "1.1.1.0/24",
+		.from_port	= NULL,
+		.to_addr	= NULL,
+		.to_port	= NULL,
+		.trans_addr	= "30.30.30.2",
+		.trans_port	= "1024-2000",
+	};
+	dp_test_npf_snat_add(&snat, true);
+
+	sipd_check_content_len("sipd50_pre_snat", sipd50_pre_snat,
+			       ARRAY_SIZE(sipd50_pre_snat));
+	sipd_check_content_len("sipd50_pst_snat", sipd50_pst_snat,
+			       ARRAY_SIZE(sipd50_pst_snat));
+
+	/* INVITE, Forward */
+	dpt_udp_pl("dp1T0", "aa:bb:cc:16:0:20",
+		   "1.1.1.2", 5060, "22.22.22.2", 5060,
+		   "30.30.30.2", 1024, "22.22.22.2", 5060,
+		   "aa:bb:cc:18:0:1", "dp2T1",
+		   DP_TEST_FWD_FORWARDED,
+		   sipd50_pre_snat[0], strlen(sipd50_pre_snat[0]),
+		   sipd50_pst_snat[0], strlen(sipd50_pst_snat[0]),
+		   "0. INVITE, Forward");
+
+	/*
+	 * Clearing the session, and removing the SNAT rule and flushing
+	 * rulesets causes the removal of the two references held on the NAT
+	 * policy.  This causes it to be freed.
+	 */
+
+	/* Clear sessions */
+	dp_test_npf_clear_sessions();
+
+	/* Remove SNAT rule and flush rulesets */
+	dp_test_npf_snat_del(snat.ifname, snat.rule, true);
+	dp_test_npf_flush_rulesets();
+
+} DP_END_TEST; /* sip_nat50 */
+
+
+/*
+ * sip_nat51.  SNAT.  Delete session and NAT rule while SIP ALG tuples
+ * (pinholes) exist in the tuple hash table.
+ */
+DP_DECL_TEST_CASE(sip_nat, sip_nat51, dpt_alg_sipd1_setup,
+		  dpt_alg_sipd1_teardown);
+DP_START_TEST(sip_nat51, test)
+{
+	/* Configure SNAT with sequential port allocation */
+	struct dp_test_npf_nat_rule_t snat = {
+		.desc		= "snat rule",
+		.rule		= "10",
+		.ifname		= "dp2T1",
+		.proto		= IPPROTO_UDP,
+		.map		= "dynamic",
+		.port_alloc	= "sequential",
+		.from_addr	= "1.1.1.0/24",
+		.from_port	= NULL,
+		.to_addr	= NULL,
+		.to_port	= NULL,
+		.trans_addr	= "30.30.30.2",
+		.trans_port	= "1024-2000",
+	};
+	dp_test_npf_snat_add(&snat, true);
+
+	sipd_check_content_len("sipd50_pre_snat", sipd50_pre_snat,
+			       ARRAY_SIZE(sipd50_pre_snat));
+	sipd_check_content_len("sipd50_pst_snat", sipd50_pst_snat,
+			       ARRAY_SIZE(sipd50_pst_snat));
+
+	/* INVITE, Forward */
+	dpt_udp_pl("dp1T0", "aa:bb:cc:16:0:20",
+		   "1.1.1.2", 5060, "22.22.22.2", 5060,
+		   "30.30.30.2", 1024, "22.22.22.2", 5060,
+		   "aa:bb:cc:18:0:1", "dp2T1",
+		   DP_TEST_FWD_FORWARDED,
+		   sipd50_pre_snat[0], strlen(sipd50_pre_snat[0]),
+		   sipd50_pst_snat[0], strlen(sipd50_pst_snat[0]),
+		   "0. INVITE, Forward");
+
+	/* RESPONSE, Backward */
+	dpt_udp_pl("dp2T1", "aa:bb:cc:18:0:1",
+		   "22.22.22.2", 5060, "30.30.30.2", 1024,
+		   "22.22.22.2", 5060, "1.1.1.2", 5060,
+		   "aa:bb:cc:16:0:20", "dp1T0",
+		   DP_TEST_FWD_FORWARDED,
+		   sipd50_pre_snat[1], strlen(sipd50_pre_snat[1]),
+		   sipd50_pst_snat[1], strlen(sipd50_pst_snat[1]),
+		   "1. RESPONSE, Backward");
+
+	/*
+	 * Clearing the session, and removing the SNAT rule and flushing
+	 * rulesets causes the removal of the two references held on the NAT
+	 * policy.  This causes it to be freed.
+	 */
+
+	/* Clear sessions */
+	dp_test_npf_clear_sessions();
+
+	/* Remove SNAT rule and flush rulesets */
+	dp_test_npf_snat_del(snat.ifname, snat.rule, true);
+	dp_test_npf_flush_rulesets();
+
+} DP_END_TEST; /* sip_nat51 */
+
+
 static void dpt_alg_sipd1_setup(void)
 {
 	/* Setup interfaces and neighbours */
