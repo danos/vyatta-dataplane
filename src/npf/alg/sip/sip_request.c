@@ -66,9 +66,16 @@ static void sip_alg_release_translation(struct sip_alg_media *m,
 		npf_addr_t taddr, in_port_t port)
 {
 
-	if (m->m_np)
+	if (m->m_np) {
 		npf_nat_free_map(m->m_np, m->m_rl, m->m_nat_flags, m->m_ip_prot,
 				 m->m_vrfid, taddr, htons(port));
+
+		/*
+		 * We are finished with the NAT policy.  We do not hold a
+		 * reference on it, so just NULL the pointer.
+		 */
+		m->m_np = NULL;
+	}
 }
 
 /*
@@ -79,12 +86,16 @@ static void sip_media_release_translations(struct sip_alg_media *m)
 	if (!m || m->m_type == sip_nat_inspect)
 		return;
 
-	if (m->m_rtp_reserved)
+	if (m->m_rtp_reserved) {
 		sip_alg_release_translation(m, m->m_trtp_addr,
 					    m->m_trtp_port);
-	if (m->m_rtcp_reserved)
+		m->m_rtp_reserved = false;
+	}
+	if (m->m_rtcp_reserved) {
 		sip_alg_release_translation(m, m->m_trtcp_addr,
 					    m->m_trtcp_port);
+		m->m_rtcp_reserved = false;
+	}
 }
 
 /*
