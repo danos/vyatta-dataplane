@@ -1,3 +1,10 @@
+vyatta-dataplane (3.11.72.16) unstable; urgency=medium
+
+  [ Ramkumar Ganapathysubramanian ]
+  * Fixed crash in QoS when removing egress map
+
+ -- Srinivas Narayan <narayan@vyatta.att-mail.com>  Wed, 07 Apr 2021 15:32:42 +0100
+
 vyatta-dataplane (3.11.72.15) unstable; urgency=medium
 
   [ Ian Wilson ]
