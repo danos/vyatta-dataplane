@@ -1,3 +1,21 @@
+vyatta-dataplane (3.12.43) unstable; urgency=medium
+
+  [ Nicholas Brown ]
+  * properly export env var in Jenkinsfile
+
+  [ aroberts ]
+  * Add Aidan Gallagher to the reviewers for qos files
+
+  [ Paul Aitken ]
+  * DPI: ensure nDPI is init'd on all cores
+
+  [ Alan Dewar ]
+  * GPC: add initial counter support
+  * GPC: retrieve a policer's red packet count
+  * GPC: add support for resettable counters
+
+ -- Srinivas Narayan <narayan@vyatta.att-mail.com>  Wed, 07 Apr 2021 15:28:36 +0100
+
 vyatta-dataplane (3.12.42) unstable; urgency=medium
 
   [ Ian Wilson ]
