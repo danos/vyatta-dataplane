@@ -429,7 +429,6 @@ void sip_expire_session_request(npf_session_t *se)
 	if (!ss)
 		return;
 
-
 	for (i = 0 ; i < ss->ss_call_id_count; i++) {
 		sr = sip_request_lookup_by_call_id(sip, if_idx,
 				ss->ss_call_ids[i]);
@@ -443,6 +442,48 @@ void sip_expire_session_request(npf_session_t *se)
 	ss->ss_call_id_count = 0;
 	free(ss->ss_call_ids);
 	ss->ss_call_ids = NULL;
+}
+
+/*
+ * Release all SNAT reservations for the media contained in a SIP request
+ * structure.
+ */
+static void sip_request_flush(struct sip_alg_request *sr)
+{
+	struct sip_alg_media *m;
+
+	cds_list_for_each_entry(m, &sr->sr_media_list_head, m_node)
+		sip_media_release_translations(m);
+}
+
+/*
+ * Release all SNAT reservations for the media contained in all unresolved SIP
+ * requests for this session.
+ *
+ * If the garbage collector did not have time to free requests on the
+ * dead_media list then its likely that the sessions are being cleared.  In
+ * these cases we want to flush the NAT mappings held by requests sitting in
+ * the dead media list since the NAT policy that the request media points to
+ * may be freed.
+ *
+ * This is called when the session is being destroyed.  As such, the session
+ * will have been removed from the session table and will no longer be
+ * findable by forwarding threads.
+ */
+void sip_flush_session_request(struct npf_session *se)
+{
+	struct sip_alg_session *ss = npf_alg_session_get_private(se);
+	struct npf_alg *sip = npf_alg_session_get_alg(se);
+	struct sip_private *sp = sip->na_private;
+	struct sip_alg_request *sr;
+	struct cds_lfht_iter iter;
+
+	if (!ss || !sp)
+		return;
+
+	cds_lfht_for_each_entry(sp->sp_ht, &iter, sr, sr_node)
+		if (sr->sr_session == se)
+			sip_request_flush(sr);
 }
 
 /*

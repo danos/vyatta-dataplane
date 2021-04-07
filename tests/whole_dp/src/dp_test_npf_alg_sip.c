@@ -880,7 +880,7 @@ const char *sipd50_pst_snat[SIPD50_SZ] = {
  */
 DP_DECL_TEST_CASE(sip_nat, sip_nat50, dpt_alg_sipd1_setup,
 		  dpt_alg_sipd1_teardown);
-DP_START_TEST_DONT_RUN(sip_nat50, test)
+DP_START_TEST(sip_nat50, test)
 {
 	/* Configure SNAT with sequential port allocation */
 	struct dp_test_npf_nat_rule_t snat = {

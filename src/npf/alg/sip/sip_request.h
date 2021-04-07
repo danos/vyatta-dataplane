@@ -37,6 +37,7 @@ void sip_alg_request_free(const struct npf_alg *sip,
 			  struct sip_alg_request *sr);
 
 void sip_expire_session_request(npf_session_t *se);
+void sip_flush_session_request(struct npf_session *se);
 
 /*
  * Manage SIP request

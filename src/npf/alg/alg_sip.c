@@ -604,8 +604,10 @@ static void sip_alg_session_expire(npf_session_t *se)
  */
 static void sip_alg_session_destroy(npf_session_t *se)
 {
-	if (npf_alg_session_test_flag(se, SIP_ALG_CNTL_FLOW))
+	if (npf_alg_session_test_flag(se, SIP_ALG_CNTL_FLOW)) {
+		sip_flush_session_request(se);
 		sip_alg_private_session_free(se);
+	}
 }
 
 /*
