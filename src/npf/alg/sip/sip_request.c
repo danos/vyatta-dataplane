@@ -72,6 +72,22 @@ static void sip_alg_release_translation(struct sip_alg_media *m,
 }
 
 /*
+ * Release the SNAT port reservations for a SIP media structure
+ */
+static void sip_media_release_translations(struct sip_alg_media *m)
+{
+	if (!m || m->m_type == sip_nat_inspect)
+		return;
+
+	if (m->m_rtp_reserved)
+		sip_alg_release_translation(m, m->m_trtp_addr,
+					    m->m_trtp_port);
+	if (m->m_rtcp_reserved)
+		sip_alg_release_translation(m, m->m_trtcp_addr,
+					    m->m_trtcp_port);
+}
+
+/*
  * sip_media_alloc() - Allocate a media struct
  */
 struct sip_alg_media *sip_media_alloc(npf_session_t *se,
@@ -101,20 +117,9 @@ struct sip_alg_media *sip_media_alloc(npf_session_t *se,
  * Free a ports struct, if the ports were
  * allocated from a nat pool, return them.
  */
-void sip_media_free(void *_m)
+void sip_media_free(struct sip_alg_media *m)
 {
-	struct sip_alg_media *m = _m;
-
-	if (!m)
-		return;
-	if (m->m_type != sip_nat_inspect) {
-		if (m->m_rtp_reserved)
-			sip_alg_release_translation(m,
-					m->m_trtp_addr, m->m_trtp_port);
-		if (m->m_rtcp_reserved)
-			sip_alg_release_translation(m,
-					m->m_trtcp_addr, m->m_trtcp_port);
-	}
+	sip_media_release_translations(m);
 	free(m);
 }
 

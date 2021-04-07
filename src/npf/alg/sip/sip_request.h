@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2020-2021, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -25,7 +25,7 @@ struct npf_alg;
 struct sip_alg_media *sip_media_alloc(npf_session_t *se,
 				      struct sip_alg_request *sr,
 				      int m_proto);
-void sip_media_free(void *_m);
+void sip_media_free(struct sip_alg_media *m);
 int sip_media_count(struct cds_list_head *h);
 
 /*
