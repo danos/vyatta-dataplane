@@ -3608,7 +3608,6 @@ main(int argc, char **argv)
 
 	dp_crypto_shutdown();
 
-	capture_destroy();
 	device_server_destroy();
 	console_destroy();
 	zactor_destroy(&vplane_auth);
@@ -3619,6 +3618,7 @@ main(int argc, char **argv)
 	npf_cleanup();
 	mcast_stop_ipv6();
 	mcast_stop_ipv4();
+	capture_destroy();
 
 	dp_event(DP_EVT_UNINIT, 0, NULL, 0, 0, NULL);
 
