@@ -1164,6 +1164,7 @@ static int capture_main_send(fal_func_t func, void *arg)
 
 void capture_destroy(void)
 {
+	RTE_LOG(INFO, DATAPLANE, "Capture shutting down\n");
 	dp_unregister_event_socket(zsock_resolve(capture_sock_main));
 	zsock_destroy(&capture_sock_main);
 
