@@ -899,10 +899,10 @@ int sip_alg_translate_packet(npf_session_t *se, npf_cache_t *npc,
 	if (!npf_payload_len(npc))
 		return 0;
 
-       /*
-	* Parsed msg may have been placed into session provate data by tuple
-	* inspect
-	*/
+	/*
+	 * Parsed msg may have been placed into session private data by tuple
+	 * inspect
+	 */
 	sr = sip_alg_parse(se, npc, nbuf);
 	if (!sr)
 		return -EINVAL;
