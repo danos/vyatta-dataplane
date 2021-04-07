@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2013-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -469,7 +469,7 @@ static void sip_alg_inspect_packet(npf_session_t *se, npf_cache_t *npc,
 	struct npf_alg *sip = npf_alg_session_get_alg(se);
 	bool consumed = false;
 
-	sr = sip_alg_parse(sip, npc, npf_session_get_if_index(se), nbuf);
+	sr = sip_alg_parse(se, npc, nbuf);
 	if (!sr)
 		return;
 

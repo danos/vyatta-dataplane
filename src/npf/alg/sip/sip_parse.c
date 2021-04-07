@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2020-2021, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -627,12 +627,11 @@ static int sip_alg_get_sdp(struct sip_alg_request *sr)
 
 /*
  * Parse a sip packet using the osip library.  We are only interested in
- * packets containing an SDP message. Returns a sip_alg_request structure is
+ * packets containing an SDP message. Returns a sip_alg_request structure if
  * successful.
  */
-struct sip_alg_request *sip_alg_parse(const struct npf_alg *sip,
-				      npf_cache_t *npc, uint32_t if_idx,
-				      struct rte_mbuf *nbuf)
+struct sip_alg_request *sip_alg_parse(struct npf_session *se,
+				      npf_cache_t *npc, struct rte_mbuf *nbuf)
 {
 	struct sip_alg_request *sr = NULL;
 	uint16_t plen;
@@ -647,9 +646,12 @@ struct sip_alg_request *sip_alg_parse(const struct npf_alg *sip,
 	/* Make the payload a string */
 	payload[plen] = '\0';
 
-	sr = sip_alg_request_alloc(true, if_idx);
+	sr = sip_alg_request_alloc(true, npf_session_get_if_index(se));
 	if (!sr)
 		return NULL;
+
+	/* Store handle so we can ID requests from this session */
+	sr->sr_session = se;
 
 	rc = osip_message_parse(sr->sr_sip, payload, plen);
 	if (rc != 0)
@@ -663,7 +665,7 @@ struct sip_alg_request *sip_alg_parse(const struct npf_alg *sip,
 	return sr;
 
 bad:
-	sip_alg_request_free(sip, sr);
+	sip_alg_request_free(npf_alg_session_get_alg(se), sr);
 	return NULL;
 }
 

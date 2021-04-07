@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2020-2021, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -118,6 +118,11 @@ struct sip_alg_request {
 	uint8_t			sr_flags;
 	const struct npf_alg	*sr_sip_alg;
 	struct rcu_head		sr_rcu_head;
+	/*
+	 * Store session handle so that we can identify requests created by
+	 * this session.
+	 */
+	struct npf_session	*sr_session;
 };
 
 /* sr_flags */

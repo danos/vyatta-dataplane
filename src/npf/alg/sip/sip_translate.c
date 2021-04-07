@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2020-2021, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -710,6 +710,9 @@ static int sip_alg_translate_message(const struct npf_alg *sip,
 	if (!tsr)
 		return -ENOMEM;
 
+	/* Store handle so we can ID requests from this session */
+	tsr->sr_session = sr->sr_session;
+
 	/*
 	 * Clone the SIP and SDP messages.
 	 */
@@ -900,7 +903,7 @@ int sip_alg_translate_packet(npf_session_t *se, npf_cache_t *npc,
 	* Parsed msg may have been placed into session provate data by tuple
 	* inspect
 	*/
-	sr = sip_alg_parse(sip, npc, npf_session_get_if_index(se), nbuf);
+	sr = sip_alg_parse(se, npc, nbuf);
 	if (!sr)
 		return -EINVAL;
 
