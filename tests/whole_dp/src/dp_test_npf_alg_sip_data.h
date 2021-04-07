@@ -55,9 +55,14 @@ extern const bool sipd4_dir[SIPD4_SZ];
 extern const char *sipd4_pre_dnat[SIPD4_SZ];
 extern const char *sipd4_post_dnat[SIPD4_SZ];
 
-
+/* Derive a description from the first line of a SIP payload */
 char *sipd_descr(uint index, bool forw, const char *pload);
-bool sipd_check_content_length(const char *pload, uint *hdr_clen,
-			       uint *body_clen);
+
+/* Verify content length field */
+void _sipd_check_content_len(const char *desc, const char **arr, int sz,
+			     const char *file, int line);
+
+#define sipd_check_content_len(a, b, c)				\
+	_sipd_check_content_len(a, b, c, __FILE__, __LINE__)
 
 #endif /* __DP_TEST_NPF_ALG_SIP_DATA_H__ */

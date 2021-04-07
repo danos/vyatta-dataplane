@@ -9,6 +9,8 @@
 #include <stdio.h>
 #include <string.h>
 #include <ctype.h>
+
+#include "dp_test.h"
 #include "dp_test_npf_alg_sip_data.h"
 
 /*
@@ -40,8 +42,8 @@ char *sipd_descr(uint index, bool forw, const char *pload)
  * content-length.  Return false if both can be determined but are *not*
  * equal.
  */
-bool sipd_check_content_length(const char *pload, uint *hdr_clen,
-			       uint *body_clen)
+static bool sipd_check_one_content_len(const char *pload, uint *hdr_clen,
+				       uint *body_clen)
 {
 	char str[30];
 	char *p;
@@ -98,4 +100,32 @@ bool sipd_check_content_length(const char *pload, uint *hdr_clen,
 		*body_clen = body_cl;
 
 	return hdr_cl == body_cl;
+}
+
+/*
+ * Check the SDP content length against the SIP content length field in a set
+ * of SIP payload strings.
+ */
+void _sipd_check_content_len(const char *desc1, const char **arr, int sz,
+			     const char *file, int line)
+{
+	const char *pl, *desc2;
+	uint hdr_clen, body_clen;
+	int i;
+	bool rv;
+	uint errors = 0;
+
+	for (i = 0; i < sz; i++) {
+		pl = arr[i];
+
+		desc2 = sipd_descr(i, true, pl);
+
+		rv = sipd_check_one_content_len(pl, &hdr_clen, &body_clen);
+		if (!rv) {
+			errors++;
+			printf("[%s / %s]\n  hdr %u != body %u\n",
+			       desc1, desc2, hdr_clen, body_clen);
+		}
+	}
+	_dp_test_fail_unless(errors == 0, file, line, "%s error", desc1);
 }

@@ -11,6 +11,7 @@
 #include "dp_test_npf_lib.h"
 #include "dp_test_npf_fw_lib.h"
 #include "dp_test_npf_nat_lib.h"
+#include "dp_test_npf_sess_lib.h"
 
 #include "dp_test_npf_alg_sip_data.h"
 
@@ -36,24 +37,20 @@ DP_DECL_TEST_CASE(sip_nat, sip_nat10, dpt_alg_sipd1_setup,
 DP_START_TEST(sip_nat10, test)
 {
 	const char *desc, *pload;
-	uint hdr_clen, body_clen;
-	bool forw, rv;
+	bool forw;
 	uint i;
 
 	static_assert(ARRAY_SIZE(sipd1) == ARRAY_SIZE(sipd1_dir),
 		      "sipd1 array size incorrect");
+
+	/* Verify the test data */
+	sipd_check_content_len("sipd1", sipd1, ARRAY_SIZE(sipd1));
 
 	/* For each SIP msg payload */
 	for (i = 0; i < ARRAY_SIZE(sipd1); i++) {
 		pload = sipd1[i];
 		forw = (sipd1_dir[i] == SIP_FORW);
 		desc = sipd_descr(i, forw, pload);
-
-		/* Check content-length value matches actual content-length */
-		rv = sipd_check_content_length(pload, &hdr_clen,
-					       &body_clen);
-		dp_test_fail_unless(rv, "[%s] hdr=%u, body=%u",
-				    desc, hdr_clen, body_clen);
 
 		if (forw) {
 			dpt_udp_pl("dp1T0", "aa:bb:cc:16:0:20",
@@ -86,8 +83,7 @@ DP_DECL_TEST_CASE(sip_nat, sip_nat11, dpt_alg_sipd1_setup,
 DP_START_TEST(sip_nat11, test)
 {
 	const char *desc, *pre_pload, *pst_pload;
-	uint hdr_clen, body_clen;
-	bool forw, rv;
+	bool forw;
 	uint i;
 
 	static_assert(ARRAY_SIZE(sipd1_pre_snat) ==
@@ -113,23 +109,18 @@ DP_START_TEST(sip_nat11, test)
 	};
 	dp_test_npf_snat_add(&snat, true);
 
+	/* Verify the test data */
+	sipd_check_content_len("sipd1_pre_snat", sipd1_pre_snat,
+			       ARRAY_SIZE(sipd1_pre_snat));
+	sipd_check_content_len("sipd1_post_snat", sipd1_post_snat,
+			       ARRAY_SIZE(sipd1_post_snat));
+
 	/* For each SIP msg payload */
 	for (i = 0; i < ARRAY_SIZE(sipd1_pre_snat); i++) {
 		pre_pload = sipd1_pre_snat[i];
 		pst_pload = sipd1_post_snat[i];
 		forw = (sipd1_dir[i] == SIP_FORW);
 		desc = sipd_descr(i, forw, pst_pload);
-
-		/* Check content-length value matches actual content-length */
-		rv = sipd_check_content_length(pre_pload, &hdr_clen,
-					       &body_clen);
-		dp_test_fail_unless(rv, "[%s] Pre  hdr=%u, body=%u",
-				    desc, hdr_clen, body_clen);
-
-		rv = sipd_check_content_length(pst_pload, &hdr_clen,
-					       &body_clen);
-		dp_test_fail_unless(rv, "[%s] Post hdr=%u, body=%u",
-				    desc, hdr_clen, body_clen);
 
 		if (forw) {
 			dpt_udp_pl("dp1T0", "aa:bb:cc:16:0:20",
@@ -193,8 +184,7 @@ DP_DECL_TEST_CASE(sip_nat, sip_nat12, dpt_alg_sipd1_setup,
 DP_START_TEST(sip_nat12, test)
 {
 	const char *desc, *pre_pload, *pst_pload;
-	uint hdr_clen, body_clen;
-	bool forw, rv;
+	bool forw;
 	uint i;
 
 	static_assert(ARRAY_SIZE(sipd1_pre_dnat) ==
@@ -219,23 +209,18 @@ DP_START_TEST(sip_nat12, test)
 	};
 	dp_test_npf_dnat_add(&dnat, true);
 
+	/* Verify the test data */
+	sipd_check_content_len("sipd1_pre_dnat", sipd1_pre_dnat,
+			       ARRAY_SIZE(sipd1_pre_dnat));
+	sipd_check_content_len("sipd1_post_dnat", sipd1_post_dnat,
+			       ARRAY_SIZE(sipd1_post_dnat));
+
 	/* For each SIP msg payload */
 	for (i = 0; i < ARRAY_SIZE(sipd1_pre_dnat); i++) {
 		pre_pload = sipd1_pre_dnat[i];
 		pst_pload = sipd1_post_dnat[i];
 		forw = (sipd1_dir[i] == SIP_FORW);
 		desc = sipd_descr(i, forw, pst_pload);
-
-		/* Check content-length value matches actual content-length */
-		rv = sipd_check_content_length(pre_pload, &hdr_clen,
-					       &body_clen);
-		dp_test_fail_unless(rv, "[%s] Pre hdr=%u, body=%u",
-				    desc, hdr_clen, body_clen);
-
-		rv = sipd_check_content_length(pst_pload, &hdr_clen,
-					       &body_clen);
-		dp_test_fail_unless(rv, "[%s] Post hdr=%u, body=%u",
-				    desc, hdr_clen, body_clen);
 
 		if (forw) {
 			dpt_udp_pl("dp1T0", "aa:bb:cc:16:0:20",
@@ -300,12 +285,14 @@ DP_DECL_TEST_CASE(sip_nat, sip_nat20, dpt_alg_sipd2_setup,
 DP_START_TEST(sip_nat20, test)
 {
 	const char *desc, *pload;
-	uint hdr_clen, body_clen;
-	bool forw, rv;
+	bool forw;
 	uint i;
 
 	static_assert(ARRAY_SIZE(sipd2) == ARRAY_SIZE(sipd2_dir),
 		      "sipd2 array size incorrect");
+
+	/* Verify the test data */
+	sipd_check_content_len("sipd2", sipd2, ARRAY_SIZE(sipd2));
 
 	/*
 	 * Caller to/from Proxy Server
@@ -315,12 +302,6 @@ DP_START_TEST(sip_nat20, test)
 		pload = sipd2[i];
 		forw = (sipd2_dir[i] == SIP_FORW);
 		desc = sipd_descr(i, forw, pload);
-
-		/* Check content-length value matches actual content-length */
-		rv = sipd_check_content_length(pload, &hdr_clen,
-					       &body_clen);
-		dp_test_fail_unless(rv, "[%s] hdr=%u, body=%u",
-				    desc, hdr_clen, body_clen);
 
 		if (forw) {
 			dpt_udp_pl("dp1T0", "aa:bb:cc:16:0:20",
@@ -352,12 +333,6 @@ DP_START_TEST(sip_nat20, test)
 		pload = sipd2[i];
 		forw = (sipd2_dir[i] == SIP_FORW);
 		desc = sipd_descr(i, forw, pload);
-
-		/* Check content-length value matches actual content-length */
-		rv = sipd_check_content_length(pload, &hdr_clen,
-					       &body_clen);
-		dp_test_fail_unless(rv, "[%s] hdr=%u, body=%u",
-				    desc, hdr_clen, body_clen);
 
 		if (forw) {
 			dpt_udp_pl("dp1T0", "aa:bb:cc:16:0:20",
@@ -393,8 +368,7 @@ DP_DECL_TEST_CASE(sip_nat, sip_nat21, dpt_alg_sipd2_setup,
 DP_START_TEST(sip_nat21, test)
 {
 	const char *desc, *pre_pload, *pst_pload;
-	uint hdr_clen, body_clen;
-	bool forw, rv;
+	bool forw;
 	uint i;
 
 	static_assert(ARRAY_SIZE(sipd2_pre_snat) ==
@@ -419,6 +393,12 @@ DP_START_TEST(sip_nat21, test)
 	};
 	dp_test_npf_snat_add(&snat, true);
 
+	/* Verify the test data */
+	sipd_check_content_len("sipd2_pre_snat", sipd2_pre_snat,
+			       ARRAY_SIZE(sipd2_pre_snat));
+	sipd_check_content_len("sipd2_post_snat", sipd2_post_snat,
+			       ARRAY_SIZE(sipd2_post_snat));
+
 	/*
 	 * Caller to/from Proxy Server
 	 */
@@ -428,17 +408,6 @@ DP_START_TEST(sip_nat21, test)
 		pst_pload = sipd2_post_snat[i];
 		forw = (sipd2_dir[i] == SIP_FORW);
 		desc = sipd_descr(i, forw, pst_pload);
-
-		/* Check content-length value matches actual content-length */
-		rv = sipd_check_content_length(pre_pload, &hdr_clen,
-					       &body_clen);
-		dp_test_fail_unless(rv, "[%s] hdr=%u, body=%u",
-				    desc, hdr_clen, body_clen);
-
-		rv = sipd_check_content_length(pst_pload, &hdr_clen,
-					       &body_clen);
-		dp_test_fail_unless(rv, "[%s] hdr=%u, body=%u",
-				    desc, hdr_clen, body_clen);
 
 		if (forw) {
 			dpt_udp_pl("dp1T0", "aa:bb:cc:16:0:20",
@@ -471,17 +440,6 @@ DP_START_TEST(sip_nat21, test)
 		pst_pload = sipd2_post_snat[i];
 		forw = (sipd2_dir[i] == SIP_FORW);
 		desc = sipd_descr(i, forw, pst_pload);
-
-		/* Check content-length value matches actual content-length */
-		rv = sipd_check_content_length(pre_pload, &hdr_clen,
-					       &body_clen);
-		dp_test_fail_unless(rv, "[%s] hdr=%u, body=%u",
-				    desc, hdr_clen, body_clen);
-
-		rv = sipd_check_content_length(pst_pload, &hdr_clen,
-					       &body_clen);
-		dp_test_fail_unless(rv, "[%s] hdr=%u, body=%u",
-				    desc, hdr_clen, body_clen);
 
 		if (forw) {
 			dpt_udp_pl("dp1T0", "aa:bb:cc:16:0:20",
@@ -540,8 +498,7 @@ DP_DECL_TEST_CASE(sip_nat, sip_nat30, dpt_alg_sipd3_setup,
 DP_START_TEST(sip_nat30, test)
 {
 	const char *desc, *pre_pload, *pst_pload;
-	uint hdr_clen, body_clen;
-	bool forw, rv;
+	bool forw;
 	uint i;
 
 	static_assert(ARRAY_SIZE(sipd3_pre_snat) ==
@@ -566,22 +523,17 @@ DP_START_TEST(sip_nat30, test)
 	};
 	dp_test_npf_snat_add(&snat, true);
 
+	/* Verify the test data */
+	sipd_check_content_len("sipd3_pre_snat", sipd3_pre_snat,
+			       ARRAY_SIZE(sipd3_pre_snat));
+	sipd_check_content_len("sipd3_post_snat", sipd3_post_snat,
+			       ARRAY_SIZE(sipd3_post_snat));
+
 	for (i = 0; i < ARRAY_SIZE(sipd3_dir); i++) {
 		pre_pload = sipd3_pre_snat[i];
 		pst_pload = sipd3_post_snat[i];
 		forw = (sipd3_dir[i] == SIP_FORW);
 		desc = sipd_descr(i, forw, pst_pload);
-
-		/* Check content-length value matches actual content-length */
-		rv = sipd_check_content_length(pre_pload, &hdr_clen,
-					       &body_clen);
-		dp_test_fail_unless(rv, "[%s] hdr=%u, body=%u",
-				    desc, hdr_clen, body_clen);
-
-		rv = sipd_check_content_length(pst_pload, &hdr_clen,
-					       &body_clen);
-		dp_test_fail_unless(rv, "[%s] hdr=%u, body=%u",
-				    desc, hdr_clen, body_clen);
 
 		if (forw) {
 			dpt_udp_pl("dp1T0", "aa:bb:cc:16:0:20",
@@ -644,15 +596,14 @@ DP_DECL_TEST_CASE(sip_nat, sip_nat40, dpt_alg_sipd4_setup,
 DP_START_TEST(sip_nat40, test)
 {
 	const char *desc, *pre_pload, *pst_pload;
-	uint hdr_clen, body_clen;
-	bool forw, rv;
+	bool forw;
 	uint i;
 
 	static_assert(ARRAY_SIZE(sipd4_pre_dnat) ==
 		      ARRAY_SIZE(sipd4_post_dnat),
 		      "sipd4 pre and post array size don't match");
 	static_assert(ARRAY_SIZE(sipd4_pre_dnat) == ARRAY_SIZE(sipd4_dir),
-		      "spid4 pre snat array size incorrect");
+		      "spid4 pre dnat array size incorrect");
 
 	struct dp_test_npf_nat_rule_t dnat = {
 		.desc		= "DNAT rule",
@@ -669,22 +620,17 @@ DP_START_TEST(sip_nat40, test)
 	};
 	dp_test_npf_dnat_add(&dnat, true);
 
+	/* Verify the test data */
+	sipd_check_content_len("sipd4_pre_dnat", sipd4_pre_dnat,
+			       ARRAY_SIZE(sipd4_pre_dnat));
+	sipd_check_content_len("sipd4_post_dnat", sipd4_post_dnat,
+			       ARRAY_SIZE(sipd4_post_dnat));
+
 	for (i = 0; i < ARRAY_SIZE(sipd4_dir); i++) {
 		pre_pload = sipd4_pre_dnat[i];
 		pst_pload = sipd4_post_dnat[i];
 		forw = (sipd4_dir[i] == SIP_FORW);
 		desc = sipd_descr(i, forw, pst_pload);
-
-		/* Check content-length value matches actual content-length */
-		rv = sipd_check_content_length(pre_pload, &hdr_clen,
-					       &body_clen);
-		dp_test_fail_unless(rv, "[%s] hdr=%u, body=%u",
-				    desc, hdr_clen, body_clen);
-
-		rv = sipd_check_content_length(pst_pload, &hdr_clen,
-					       &body_clen);
-		dp_test_fail_unless(rv, "[%s] hdr=%u, body=%u",
-				    desc, hdr_clen, body_clen);
 
 		if (forw) {
 			dpt_udp_pl("dp1T1", "7c:69:f6:4a:3a:50",
