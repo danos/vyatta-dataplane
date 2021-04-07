@@ -19,6 +19,8 @@
 #include "gpc_pb.h"
 #include "gpc_util.h"
 #include "ip.h"
+#include "npf/config/gpc_cntr_control.h"
+#include "npf/config/gpc_cntr_query.h"
 #include "npf/config/gpc_db_control.h"
 #include "npf/config/gpc_db_query.h"
 #include "npf/config/pmf_rule.h"
@@ -999,9 +1001,13 @@ gpc_pb_rule_delete(struct gpc_pb_rule *rule)
 {
 	struct gpc_pb_match *match, *tmp_match;
 	struct gpc_pb_action *action, *tmp_action;
+	struct gpc_cntr *cntr;
 
 	assert(rule);
 
+	/*
+	 * Rules with a number of zero are not being used
+	 */
 	if (rule->number == 0)
 		return;
 
@@ -1014,16 +1020,27 @@ gpc_pb_rule_delete(struct gpc_pb_rule *rule)
 	rule->number = 0;
 
 	/*
+	 * Delete any counter and gpc_rule that might be associated with this
+	 * rule
+	 */
+	if (rule->gpc_rule) {
+		cntr = gpc_rule_get_cntr(rule->gpc_rule);
+		if (cntr) {
+			DP_DEBUG(GPC, DEBUG, GPC,
+				 "Releasing GPC counter %p from GPC rule %p\n",
+				 cntr, rule);
+			gpc_cntr_release(cntr);
+		}
+
+		gpc_rule_delete(rule->gpc_rule);
+		rule->gpc_rule = NULL;
+	}
+
+	/*
 	 * Delete the pmf_rule if we have one attached
 	 */
 	pmf_rule_free(rule->pmf_rule);
 	rule->pmf_rule = NULL;
-
-	/*
-	 * Delete the gpc_rule if we have one attached
-	 */
-	gpc_rule_delete(rule->gpc_rule);
-	rule->gpc_rule = NULL;
 
 	/*
 	 * Delete any matches and actions attached to this rule
@@ -1036,6 +1053,55 @@ gpc_pb_rule_delete(struct gpc_pb_rule *rule)
 				     action_list)
 		gpc_pb_action_delete(action);
 
+}
+
+static int
+gpc_pb_rule_counter_create(struct gpc_pb_table *table, struct gpc_pb_rule *rule)
+{
+	uint32_t counter_type = rule->counter.counter_type;
+	struct gpc_cntr *cntr = NULL;
+
+	if (counter_type <= GPC_COUNTER_TYPE_DISABLED)
+		return 0;
+
+	struct gpc_cntg *cntg = gpc_group_get_cntg(table->gpc_group);
+
+	if (!cntg) {
+		enum gpc_cntr_type type;
+
+		if (counter_type == GPC_COUNTER_TYPE_AUTO)
+			type = GPC_CNTT_NUMBERED;
+		else
+			type = GPC_CNTT_NAMED;
+
+		cntg = gpc_cntg_create(table->gpc_group, type,
+				       (GPC_CNTW_PACKET | GPC_CNTW_L3BYTE),
+				       GPC_CNTS_INTERFACE);
+		if (!cntg) {
+			RTE_LOG(ERR, GPC,
+				"Failed to allocate GPC counter group\n");
+			return -ENOMEM;
+		}
+		gpc_group_set_cntg(table->gpc_group, cntg);
+	}
+
+	if (counter_type == GPC_COUNTER_TYPE_AUTO) {
+		cntr = gpc_cntr_create_numbered(cntg, rule->number);
+	} else if (counter_type == GPC_COUNTER_TYPE_NAMED) {
+		cntr = gpc_cntr_find_and_retain(cntg, rule->counter.name);
+		if (!cntr)
+			cntr = gpc_cntr_create_named(cntg, rule->counter.name);
+	}
+	if (!cntr) {
+		RTE_LOG(ERR, GPC,
+			"Failed to allocate GPC counter\n");
+		return -ENOMEM;
+	}
+
+	DP_DEBUG(GPC, DEBUG, GPC, "Added GPC counter %p to GPC rule %p\n",
+		 cntr, rule);
+	gpc_rule_set_cntr(rule->gpc_rule, cntr);
+	return 0;
 }
 
 static int
@@ -1103,6 +1169,19 @@ gpc_pb_rule_parse(struct gpc_pb_table *table, Rule *msg)
 		rv = gpc_pb_rule_counter_parse(rule, msg->counter);
 		if (rv)
 			goto error_path;
+
+		rv = gpc_pb_rule_counter_create(table, rule);
+		if (rv)
+			goto error_path;
+
+		/*
+		 * As we have added a counter to this rule, update the
+		 * pmf_rule's summary and recalculate the gpc-group's
+		 * summary
+		 */
+		rule->pmf_rule->pp_summary |= PMF_RAS_COUNT_REF;
+		(void)gpc_group_recalc_summary(table->gpc_group,
+					       rule->pmf_rule);
 	}
 
 	if (msg->has_table_index)
@@ -1202,6 +1281,11 @@ gpc_pb_rules_parse(struct gpc_pb_table *table, Rules *msg)
  error_path:
 	RTE_LOG(ERR, GPC, "Problems parsing Rules protobuf: %d\n", rv);
 	if (table->rules_table) {
+		/*
+		 * We may enter this error path without all n_rules having been
+		 * initialised, gpc_pb_rule_delete will skip over any
+		 * uninitialised rules
+		 */
 		for (i = 0; i < table->n_rules; i++)
 			gpc_pb_rule_delete(&table->rules_table[i]);
 	}
@@ -1243,6 +1327,17 @@ gpc_pb_table_delete(struct gpc_pb_table *table)
 		gpc_pb_rule_delete(&table->rules_table[i]);
 
 	if (table->gpc_group) {
+		/*
+		 * Getting and releasing the gpc_cntg may be unnecessary as the
+		 * gpc_cntg is ref-counted by the number of rule counters
+		 * hanging of it, so by deleting all the rule counters in
+		 * gpc_pb_rule_delete, the gpc_cntg should have been freed.
+		 */
+		struct gpc_cntg *cntg = gpc_group_get_cntg(table->gpc_group);
+
+		if (cntg)
+			gpc_cntg_release(cntg);
+
 		/*
 		 * Tell the hardware that we are deleting a bunch of stuff
 		 */
@@ -1358,6 +1453,24 @@ gpc_pb_table_add(struct gpc_pb_feature *feature, GPCTable *msg)
 	 * Everything should be in place - tell the FAL about all this stuff
 	 */
 	gpc_group_hw_ntfy_create(table->gpc_group, NULL);
+
+	/*
+	 * Now the gpc_group has been created down in the GPC hw layer
+	 * we can now create any counters associated with the group's rules.
+	 */
+	for (i = 0; i < table->n_rules; i++) {
+		struct gpc_pb_rule *rule = &table->rules_table[i];
+
+		if (rule->number && rule->gpc_rule) {
+			struct gpc_cntg *cntg =
+				gpc_group_get_cntg(table->gpc_group);
+			struct gpc_cntr *cntr =
+				gpc_rule_get_cntr(rule->gpc_rule);
+
+			if (cntg && cntr)
+				gpc_cntr_hw_ntfy_create(cntg, cntr);
+		}
+	}
 	gpc_group_hw_ntfy_rules_create(table->gpc_group);
 	gpc_group_hw_ntfy_attach(table->gpc_group);
 	return rv;

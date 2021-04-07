@@ -102,9 +102,9 @@ struct pr_feat_attach {
 	struct rcu_head pr_feat_rcu;
 };
 
-#define POLICY_F_PENDING_ADD 0x0001
-#define POLICY_F_PENDING_DEL 0x0002
-
+#define POLICY_F_PENDING_ADD	0x0001
+#define POLICY_F_PENDING_DEL	0x0002
+#define POLICY_F_PENDING_UPDATE 0x0004
 /*
  * struct policy_rule
  *
@@ -1123,8 +1123,9 @@ void crypto_npf_cfg_commit_flush(void)
 	 */
 	for (i = 0; i < crypto_npf_cfg_commit_count ; i++) {
 		if (batch_pr[i])
-			batch_pr[i]->flags ^= POLICY_F_PENDING_ADD;
-
+			batch_pr[i]->flags &=
+				~(POLICY_F_PENDING_ADD |
+				  POLICY_F_PENDING_UPDATE);
 		if (xfrm_direct)
 			xfrm_client_send_ack(batch_seq[i], rc);
 	}
@@ -1168,10 +1169,13 @@ static void crypto_npf_cfg_commit_all(struct policy_rule *pr,
 
 	if (xfrm_direct)
 		batch_seq[crypto_npf_cfg_commit_count] = seq;
+	else
+		batch_seq[crypto_npf_cfg_commit_count] = 0;
 
 	if (!(pr->flags & POLICY_F_PENDING_DEL))
 		batch_pr[crypto_npf_cfg_commit_count] = pr;
-
+	else
+		batch_pr[crypto_npf_cfg_commit_count] = NULL;
 	crypto_npf_cfg_commit_count++;
 
 	/* Force the commit if we have batched up too many */
@@ -1263,15 +1267,21 @@ policy_rule_update(struct policy_rule *pr,
 		}
 
 		*send_ack = false;
+		pr->flags |= POLICY_F_PENDING_UPDATE;
 		crypto_npf_cfg_commit_all(pr, seq);
 		if ((pr->dir == XFRM_POLICY_OUT) &&
 		    (!was_vti_policy || !pr->vti_tunnel_policy))
 			flow_cache_invalidate(flow_cache, flow_cache_disabled,
 					      false);
 	} else if (changed) {
-		*send_ack = false;
-		policy_rule_update_rldb(pr);
+		if (!policy_rule_update_rldb(pr)) {
+			POLICY_ERR("Failed to update rldb rule %u\n",
+				   pr->rule_index);
+			return false;
+		}
+		pr->flags |= POLICY_F_PENDING_UPDATE;
 		crypto_npf_cfg_commit_all(pr, seq);
+		*send_ack = false;
 	}
 
 	/* Check if this update means we need to rebind */

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2020-2021, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -24,6 +24,9 @@
 
 /* The default hoplimit for locally generated IPv6 packets */
 #define IPV6_DEFAULT_HOPLIMIT	64
+
+/* Hoplimit for IPv6 packets that should remain on-link */
+#define IPV6_ONLINK_HOPLIMIT	255
 
 /*
  * Generate a random id to use in the Identification field of the IPv4 header.

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2014-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  */
@@ -622,7 +622,7 @@ nd6_na_output(struct ifnet *ifp, const struct rte_ether_addr *lladdr,
 	ip6->ip6_vfc &= ~IPV6_VERSION_MASK;
 	ip6->ip6_vfc |= IPV6_VERSION;
 	ip6->ip6_nxt = IPPROTO_ICMPV6;
-	ip6->ip6_hlim = 255;
+	ip6->ip6_hlim = IPV6_ONLINK_HOPLIMIT;
 	ip6->ip6_plen = htons((uint16_t)paylen);
 	ip6->ip6_dst = *daddr6;
 
@@ -1059,7 +1059,7 @@ nd6_ns_build(struct ifnet *ifp, const struct in6_addr *res_src,
 	ip6->ip6_vfc &= ~IPV6_VERSION_MASK;
 	ip6->ip6_vfc |= IPV6_VERSION;
 	ip6->ip6_nxt = IPPROTO_ICMPV6;
-	ip6->ip6_hlim = 255;
+	ip6->ip6_hlim = IPV6_ONLINK_HOPLIMIT;
 	ip6->ip6_plen = htons((uint16_t)paylen);
 
 	/*
@@ -1260,7 +1260,7 @@ int nd6_input(struct ifnet *ifp, struct rte_mbuf *m)
 		return 0;
 	}
 
-	if (unlikely(ip6->ip6_hlim != 255)) {
+	if (unlikely(ip6->ip6_hlim != IPV6_ONLINK_HOPLIMIT)) {
 		ND6NBR_INC(badpkt);
 		rte_pktmbuf_free(m);
 		return 0;

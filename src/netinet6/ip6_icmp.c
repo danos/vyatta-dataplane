@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2011-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -490,7 +490,7 @@ void icmp6_redirect(struct ifnet *ifp, struct rte_mbuf *n,
 	ip6->ip6_flow |= htonl(IPTOS_PREC_NETCONTROL << 20);
 	ip6->ip6_vfc = IPV6_VERSION;
 	ip6->ip6_nxt = IPPROTO_ICMPV6;
-	ip6->ip6_hlim = IPV6_DEFAULT_HOPLIMIT;
+	ip6->ip6_hlim = IPV6_ONLINK_HOPLIMIT;
 	ip6->ip6_plen = htons(plen);
 
 	/* ND Redirect */

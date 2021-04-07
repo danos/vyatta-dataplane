@@ -119,7 +119,7 @@ void gpc_cntg_release(struct gpc_cntg *cntg)
 	if (!cntg->cntg_refcount)
 		return;
 
-	if (!cntg->cntg_refcount)
+	if (!--cntg->cntg_refcount)
 		gpc_cntg_delete(cntg);
 }
 
@@ -365,7 +365,7 @@ void gpc_cntr_release(struct gpc_cntr *cntr)
 	if (!cntr->cntr_refcount)
 		return;
 
-	if (!cntr->cntr_refcount)
+	if (!--cntr->cntr_refcount)
 		gpc_cntr_delete(cntr);
 }
 

@@ -3,21 +3,22 @@
 
 sample_plugin_sources = files('sample.c')
 
-sample_protobuf_sources = files(
+sample_protobuf_sources = [
         'SampleFeatConfig.proto',
         'SampleFeatOp.proto'
-)
+]
 
-protoc_gen = generator(protoc,
-        output: ['@BASENAME@.pb-c.c', '@BASENAME@.pb-c.h'],
-        arguments: [
-                '--proto_path=@CURRENT_SOURCE_DIR@',
-                '--c_out=@BUILD_DIR@',
-                '@INPUT@'
-        ]
-)
-
-sample_generated_protobuf_c = protoc_gen.process(sample_protobuf_sources)
+sample_generated_protobuf_c = []
+sample_generated_protobuf_c_headers = []
+foreach protobuf_definition : sample_protobuf_sources
+        generated_c = custom_target('c_' + protobuf_definition,
+                command: [protoc, '--proto_path=@CURRENT_SOURCE_DIR@', '--c_out=@OUTDIR@', '@INPUT@'],
+                input: protobuf_definition,
+                output: ['@BASENAME@.pb-c.c', '@BASENAME@.pb-c.h'],
+        )
+        sample_generated_protobuf_c += generated_c
+        sample_generated_protobuf_c_headers += generated_c[1]
+endforeach
 
 sample_plugin = shared_module('sample_plugin',
         sources: [sample_plugin_sources, sample_generated_protobuf_c],

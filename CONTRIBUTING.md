@@ -58,9 +58,9 @@ during code review.
 [clang-tidy][3] should be used to check the code for Static Analysis warnings.
 
 ``` shell
-apt install clang-tidy-7
-meson build && cd build && ninja
-run-clang-tidy-7
+apt install clang-tidy clang
+export CC=clang CXX=clang++
+meson build && cd build && ninja clang-tidy
 ```
 
 You **must not** introduce any new warnings.
