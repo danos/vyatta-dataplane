@@ -87,7 +87,7 @@ check_tests = [
         'dp_test_npf_acl.c',
         'dp_test_npf_addrgrp.c',
         'dp_test_npf_alg_ftp.c',
-        'dp_test_npf_alg_sip_nat.c',
+        'dp_test_npf_alg_sip.c',
         'dp_test_npf_alg_rpc.c',
         'dp_test_npf_alg_tftp.c',
         'dp_test_npf_bridge.c',
