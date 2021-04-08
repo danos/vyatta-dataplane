@@ -996,6 +996,83 @@ DP_START_TEST(sip_nat51, test)
 } DP_END_TEST; /* sip_nat51 */
 
 
+/*
+ * sip_nat52.  SNAT.  Delete VRF while SIP ALG sessions and tuples (pinholes)
+ * exist.
+ */
+DP_DECL_TEST_CASE(sip_nat, sip_nat52, NULL, NULL);
+DP_START_TEST(sip_nat52, test)
+{
+	dp_test_intf_vif_create("dp2T1.100", "dp2T1", 100);
+
+	/* Setup interfaces and neighbours */
+	dp_test_nl_add_ip_addr_and_connected("dp1T0", "1.1.1.254/24");
+	dp_test_nl_add_ip_addr_and_connected("dp2T1.100", "22.22.22.254/24");
+
+	dp_test_netlink_add_neigh("dp1T0", "1.1.1.2",
+				  "aa:bb:cc:16:0:20");
+	dp_test_netlink_add_neigh("dp2T1.100", "22.22.22.2",
+				  "aa:bb:cc:18:0:1");
+
+	/* Configure SNAT with sequential port allocation */
+	struct dp_test_npf_nat_rule_t snat = {
+		.desc		= "snat rule",
+		.rule		= "10",
+		.ifname		= "dp2T1.100",
+		.proto		= IPPROTO_UDP,
+		.map		= "dynamic",
+		.port_alloc	= "sequential",
+		.from_addr	= "1.1.1.0/24",
+		.from_port	= NULL,
+		.to_addr	= NULL,
+		.to_port	= NULL,
+		.trans_addr	= "30.30.30.2",
+		.trans_port	= "1024-2000",
+	};
+	dp_test_npf_snat_add(&snat, true);
+
+	sipd_check_content_len("sipd50_pre_snat", sipd50_pre_snat,
+			       ARRAY_SIZE(sipd50_pre_snat));
+	sipd_check_content_len("sipd50_pst_snat", sipd50_pst_snat,
+			       ARRAY_SIZE(sipd50_pst_snat));
+
+	/* INVITE, Forward */
+	_dpt_udp("dp1T0", "aa:bb:cc:16:0:20",
+		 "1.1.1.2", 5060, "22.22.22.2", 5060,
+		 "30.30.30.2", 1024, "22.22.22.2", 5060,
+		 "aa:bb:cc:18:0:1", "dp2T1",
+		 DP_TEST_FWD_FORWARDED, 0, 100,
+		 sipd50_pre_snat[0], strlen(sipd50_pre_snat[0]),
+		 sipd50_pst_snat[0], strlen(sipd50_pst_snat[0]),
+		 __FILE__, "0. INVITE, Forward", __LINE__);
+
+	/* RESPONSE, Backward */
+	_dpt_udp("dp2T1", "aa:bb:cc:18:0:1",
+		 "22.22.22.2", 5060, "30.30.30.2", 1024,
+		 "22.22.22.2", 5060, "1.1.1.2", 5060,
+		 "aa:bb:cc:16:0:20", "dp1T0",
+		 DP_TEST_FWD_FORWARDED, 100, 0,
+		 sipd50_pre_snat[1], strlen(sipd50_pre_snat[1]),
+		 sipd50_pst_snat[1], strlen(sipd50_pst_snat[1]),
+		 __FILE__, "1. RESPONSE, Backward", __LINE__);
+
+	dp_test_npf_snat_del(snat.ifname, snat.rule, true);
+
+	dp_test_netlink_del_neigh("dp1T0", "1.1.1.2",
+				  "aa:bb:cc:16:0:20");
+	dp_test_netlink_del_neigh("dp2T1.100", "22.22.22.2",
+				  "aa:bb:cc:18:0:1");
+
+	dp_test_nl_del_ip_addr_and_connected("dp1T0", "1.1.1.254/24");
+	dp_test_nl_del_ip_addr_and_connected("dp2T1.100", "22.22.22.254/24");
+
+	dp_test_intf_vif_del("dp2T1.100", 100);
+
+	dp_test_npf_cleanup();
+
+} DP_END_TEST; /* sip_nat52 */
+
+
 static void dpt_alg_sipd1_setup(void)
 {
 	/* Setup interfaces and neighbours */
