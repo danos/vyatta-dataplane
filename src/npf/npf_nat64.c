@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2019-2021, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2011-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -764,7 +764,8 @@ npf_nat64_session_destroy(struct npf_session *se)
 				 nat64->n64_t_addr,
 				 nat64->n64_t_port);
 
-		npf_nat_policy_put(nat64->n64_np);
+		if (nat64->n64_np)
+			npf_nat_policy_put(nat64->n64_np);
 	}
 	npf_rule_put(nat64->n64_rule);
 
@@ -1578,8 +1579,18 @@ int npf_nat64_npf_pack_restore(struct npf_session *se,
 		npf_get_rule_by_hash(pn64->pn64_rule_hash) : NULL;
 
 	if (rl) {
+		npf_natpolicy_t *np;
+
 		n64->n64_rule = npf_rule_get(rl);
-		n64->n64_np = npf_rule_get_natpolicy(rl);
+
+		/*
+		 * A NAT policy only exists in a NAT64 rule with some configs.
+		 * We must take a reference on the NAT policy if we store it
+		 * in n64.
+		 */
+		np = npf_rule_get_natpolicy(rl);
+		if (np)
+			n64->n64_np = npf_nat_policy_get(np);
 	}
 
 	n64->n64_rproc_id = pn64->pn64_rproc_id;
@@ -1606,6 +1617,8 @@ int npf_nat64_npf_pack_restore(struct npf_session *se,
 	return 0;
 
 error:
+	if (n64->n64_np)
+		npf_nat_policy_put(n64->n64_np);
 	npf_rule_put(n64->n64_rule);
 	free(n64);
 	return rc;

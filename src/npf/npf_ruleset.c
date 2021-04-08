@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  */
@@ -175,6 +175,9 @@ struct npf_rule {
 	uint8_t				r_rproc_handle:1;
 };
 
+/* Forward reference */
+static void npf_rule_clear_natpolicy(npf_rule_t *rl);
+
 npf_ruleset_t *
 npf_ruleset_create(enum npf_ruleset_type ruleset_type,
 		   enum npf_attach_type attach_type, const char *attach_point)
@@ -274,8 +277,8 @@ static void rule_free(npf_rule_t *rl)
 		free((char *)rl->r_state->rs_rproc[i].config_arg);
 	}
 
-	if (rl->r_natp)
-		npf_nat_policy_put(rl->r_natp);
+	/* Clear r_natp and release reference on NAT policy */
+	npf_rule_clear_natpolicy(rl);
 
 	zhashx_destroy(&rl->r_state->rs_config_ht);
 	free(rl->r_state->rs_config_line);
@@ -2008,9 +2011,26 @@ void npf_ruleset_update_masquerade(const struct ifnet *ifp,
 	}
 }
 
+/*
+ * Set NAT policy in rule, and take reference on NAT policy
+ */
 void npf_rule_set_natpolicy(npf_rule_t *rl, npf_natpolicy_t *np)
 {
+	/* Take reference on NAT policy */
+	np = npf_nat_policy_get(np);
+
 	rcu_xchg_pointer(&rl->r_natp, np);
+}
+
+/*
+ * Clear NAT policy in rule, and release reference on NAT policy
+ */
+static void npf_rule_clear_natpolicy(npf_rule_t *rl)
+{
+	npf_natpolicy_t *np = rcu_xchg_pointer(&rl->r_natp, NULL);
+
+	if (np)
+		npf_nat_policy_put(np);
 }
 
 npf_natpolicy_t *npf_rule_get_natpolicy(const npf_rule_t *rl)

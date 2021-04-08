@@ -82,8 +82,12 @@ enum {
 	NPF_NAT_PA_SEQ		= (1u <<  8),	/* alloc ports sequentially */
 };
 
+/* Take reference on a NAT policy */
 npf_natpolicy_t *npf_nat_policy_get(npf_natpolicy_t *np);
+
+/* Release reference on a NAT policy */
 void npf_nat_policy_put(npf_natpolicy_t *np);
+
 uint32_t npf_nat_get_map_flags(npf_nat_t *nt);
 void npf_nat_set_seq_ack(npf_session_t *se, npf_cache_t *npc,
 			 int16_t diff, int di);
@@ -119,7 +123,10 @@ void npf_nat_set_trans(npf_nat_t *nt, const npf_addr_t *addr, in_port_t tport);
 void npf_nat_set_orig(npf_nat_t *nt, const npf_addr_t *addr, in_port_t oport);
 void npf_nat_setalg(npf_nat_t *nt, struct npf_alg *alg);
 const struct npf_alg *npf_nat_getalg(npf_nat_t *nt);
+
+/* Get the NAT policy from a NAT struct.  Does *not* take a reference. */
 npf_natpolicy_t *npf_nat_get_policy(const npf_nat_t *nt);
+
 npf_rule_t *npf_nat_get_rule(const npf_nat_t *nt);
 uint8_t npf_nat_type(npf_nat_t *nt);
 void npf_nat_destroy(npf_nat_t *nt);
