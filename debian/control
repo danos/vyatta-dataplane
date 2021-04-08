@@ -102,6 +102,7 @@ Provides: fal-acl,
           fal-qos-dscp-egressmap,
           fal-route-vrf-obj,
           fal-neigh-rtr-intf-obj,
+          fal-ret-plugin-consumed,
 Description: Vyatta optimized dataplane
  Vyatta dataplane is the set of tools to provide performance optimized routing
  and forwarding. It supports IPv4, IPv6, firewalling, bridging and more.
@@ -204,6 +205,7 @@ Provides: fal-dev-acl,
           fal-dev-invalid-vrf-id,
           fal-dev-route-vrf-obj,
           fal-dev-neigh-rtr-intf-obj,
+          fal-dev-ret-plugin-consumed,
 Description: Forwarding Abstraction Library plugin development files
  An API for dataplane FAL plugins
 

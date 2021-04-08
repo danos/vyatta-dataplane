@@ -3177,7 +3177,8 @@ union fal_pkt_feature_info {
 enum fal_feat_framer_ret_value {
 	FAL_RET_ETHER_INPUT,
 	FAL_RET_PORTMONITOR_HW_INPUT,
-	FAL_RET_CAPTURE_HW_INPUT
+	FAL_RET_CAPTURE_HW_INPUT,
+	FAL_RET_PLUGIN_CONSUMED,
 };
 
 /*

@@ -186,6 +186,9 @@ l2_hw_hdr_rx_process(struct pl_packet *pkt)
 		buff->port = dpdk_port;
 		capture_hardware(ifp, buff);
 		return HW_HDR_IN_CONSUME;
+
+	case FAL_RET_PLUGIN_CONSUMED:
+		return HW_HDR_IN_CONSUME;
 	}
 drop:
 	if_incr_dropped(pkt->in_ifp);
