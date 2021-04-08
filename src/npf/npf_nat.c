@@ -128,6 +128,15 @@ struct npf_session;
 
 /*
  * NAT policy structure.
+ *
+ * The two main places where a reference is held on a NAT policy are:
+ *
+ *   1. The ruleset (npf_rule_t, r_natp)
+ *   2. The NAT data for a session (struct npf_nat, nt_natpolicy)
+ *
+ * A pointer to a NAT policy is also stored for a short time in each media
+ * structure in a SIP ALG request structure stored in the request hash table.
+ * No reference is held on the NAT policy in this instance.
  */
 struct npf_natpolicy {
 	struct rcu_head	n_rcu_head;
@@ -199,7 +208,7 @@ static inline bool before(uint32_t n1, uint32_t n2)
 #define TCP_SACK_PERBLOCK 8
 
 /*
- * npf_nat_policy_get() - Get a ref to a nat policy
+ * npf_nat_policy_get() - Take a reference on a NAT policy
  */
 npf_natpolicy_t *npf_nat_policy_get(npf_natpolicy_t *np)
 {
@@ -222,16 +231,19 @@ static void npf_nat_policy_free(struct rcu_head *head)
 }
 
 /*
- * npf_nat_policy_put() - Release ref to nat policy
+ * npf_nat_policy_put() - Release reference on a NAT policy
  */
 void npf_nat_policy_put(npf_natpolicy_t *np)
 {
+	assert(np);
+	assert(rte_atomic32_read(&np->n_refcnt) > 0);
+
 	if (rte_atomic32_dec_and_test(&np->n_refcnt))
 		npf_nat_policy_free(&np->n_rcu_head);
 }
 
 /*
- * npf_nat_policy_put_rcu() - Release ref to nat policy
+ * npf_nat_policy_put_rcu() - Release reference on a NAT policy
  *
  * called during a nat masquerade address change.
  *
@@ -240,6 +252,9 @@ void npf_nat_policy_put(npf_natpolicy_t *np)
  */
 static void npf_nat_policy_put_rcu(npf_natpolicy_t *np)
 {
+	assert(np);
+	assert(rte_atomic32_read(&np->n_refcnt) > 0);
+
 	if (rte_atomic32_dec_and_test(&np->n_refcnt))
 		call_rcu(&np->n_rcu_head, npf_nat_policy_free);
 }
@@ -488,7 +503,7 @@ npf_create_natpolicy(npf_rule_t *rl, uint8_t type, uint32_t flags,
 		return -ENOMEM;
 	}
 
-	rte_atomic32_set(&np->n_refcnt, 1);
+	rte_atomic32_init(&np->n_refcnt);
 
 	np->n_type = type;
 	np->n_flags = flags;
@@ -1462,7 +1477,8 @@ void npf_nat_destroy(npf_nat_t *nt)
 {
 	npf_nat_setalg(nt, NULL);
 	npf_rule_put(nt->nt_rl);
-	npf_nat_policy_put(nt->nt_natpolicy);
+	if (nt->nt_natpolicy)
+		npf_nat_policy_put(nt->nt_natpolicy);
 	free(nt->nt_sa);
 	free(nt);
 }
@@ -1619,7 +1635,9 @@ int npf_nat_npf_pack_restore(struct npf_session *se,
 	np = npf_rule_get_natpolicy(rl);
 	if (!np || !np->n_apm)
 		goto error;
-	nt->nt_natpolicy = np;
+
+	/* Take a reference on the NAT policy */
+	nt->nt_natpolicy = npf_nat_policy_get(np);
 
 	nt->nt_l3_chk = pnt->pnt_l3_chk;
 	nt->nt_l4_chk = pnt->pnt_l4_chk;
@@ -1644,6 +1662,8 @@ int npf_nat_npf_pack_restore(struct npf_session *se,
 
 	return 0;
 error:
+	if (nt->nt_natpolicy)
+		npf_nat_policy_put(nt->nt_natpolicy);
 	npf_rule_put(nt->nt_rl);
 	free(nt);
 	return rc;
