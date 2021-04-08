@@ -1,4 +1,5 @@
 /*
+ * Copyright (c) 2021, SafePoint <info@safepoint.vn>.  All rights reserved.
  * Copyright (c) 2020, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
@@ -64,6 +65,56 @@ enum dp_session_state {
 	SESSION_STATE_TERMINATING,
 	SESSION_STATE_CLOSED,
 } __attribute__ ((__packed__));
+
+/**
+ * Session attribute.
+ */
+enum dp_session_attr {
+	SESSION_ATTR_BYTES_IN		= 1,
+	SESSION_ATTR_PKTS_IN		= (1 << 1),
+	SESSION_ATTR_PROTOCOL		= (1 << 2),
+	SESSION_ATTR_TCP_FLAGS		= (1 << 3),
+	SESSION_ATTR_L4_SRC_PORT	= (1 << 4),
+	SESSION_ATTR_IPV4_SRC_ADDR	= (1 << 5),
+	SESSION_ATTR_L4_DST_PORT	= (1 << 6),
+	SESSION_ATTR_IPV4_DST_ADDR	= (1 << 7),
+	SESSION_ATTR_CREATE_TIME	= (1 << 8),
+	SESSION_ATTR_BYTES_OUT		= (1 << 9),
+	SESSION_ATTR_PKTS_OUT		= (1 << 10),
+	SESSION_ATTR_IF_NAME		= (1 << 11),
+	SESSION_ATTR_DPI		= (1 << 12),
+};
+
+#define SESSION_ATTR_ALL	0xffffffff
+#define SESSION_ATTR_SENTRY	(SESSION_ATTR_L4_SRC_PORT \
+				| SESSION_ATTR_IPV4_SRC_ADDR \
+				| SESSION_ATTR_L4_DST_PORT \
+				| SESSION_ATTR_IPV4_DST_ADDR \
+				| SESSION_ATTR_IF_NAME)
+
+struct dp_session_info {
+	enum dp_session_attr query;
+	uint64_t	se_id;
+	uint16_t	se_flags;
+	uint8_t		se_protocol;
+	uint8_t		se_protocol_state;
+	uint64_t	se_pkts_in;
+	uint64_t	se_bytes_in;
+	uint64_t	se_create_time;	/* time session was created */
+	uint64_t	se_pkts_out;
+	uint64_t	se_bytes_out;
+
+	/* address */
+	int		se_af;
+	uint16_t	se_src_port;
+	uint32_t	se_src_addr;
+	uint16_t	se_dst_port;
+	uint32_t	se_dst_addr;
+	const char	*se_ifname;
+	const char	*se_app_name;
+	const char	*se_app_proto;
+	const char	*se_app_type;
+};
 
 #define SESSION_STATE_FIRST	SESSION_STATE_NONE
 #define SESSION_STATE_LAST	SESSION_STATE_CLOSED
@@ -232,6 +283,12 @@ void *dp_session_get_private(int id, const struct session *session);
  */
 int dp_session_table_walk(dp_session_walk_t *fn, void *data,
 			  unsigned int types);
+
+/**
+ * Query a session's info.
+ */
+int dp_session_query(struct session *s, enum dp_session_attr query,
+		     struct dp_session_info *info);
 
 /**
  * Get a session's unique id.

@@ -1,4 +1,5 @@
 /*
+ * Copyright (c) 2021, SafePoint <info@safepoint.vn>.  All rights reserved.
  * Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
@@ -135,6 +136,8 @@ npf_nat_t *npf_session_retnat(npf_session_t *se, const int di, bool *forw);
 void npf_session_feature_json(json_writer_t *json, npf_session_t *se);
 void npf_session_feature_log(enum session_log_event event, struct session *s,
 			    struct session_feature *sf);
+void npf_session_feature_query(struct dp_session_info *info, struct session *s,
+				struct session_feature *sf);
 int npf_session_feature_nat_info(npf_session_t *se, uint32_t *taddr,
 				 uint16_t *tport);
 
