@@ -1,3 +1,14 @@
+vyatta-dataplane (3.11.72.13.2) unstable; urgency=medium
+
+  [ Mark Gillott ]
+  * capture: ensure final cleanup occurs after interface cleanup
+    (Fixes: VRVDR-54831)
+
+  [ Srinivas Narayan ]
+  * Move crypto & UDP teardown to a later point
+
+ -- Srinivas Narayan <narayan@vyatta.att-mail.com>  Fri, 09 Apr 2021 12:44:45 +0100
+
 vyatta-dataplane (3.11.72.13.1) unstable; urgency=medium
 
   * UNRELEASED
