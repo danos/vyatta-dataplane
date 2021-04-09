@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2020 AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2021 Centre for Development of Telematics. All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -54,6 +55,7 @@ struct ndpi_flow {
 	uint32_t type;
 	struct ndpi_id_struct *src_id;
 	struct ndpi_id_struct *dest_id;
+	rte_spinlock_t fl_lock;
 	struct rcu_head n_rcu_head;
 };
 
@@ -150,6 +152,7 @@ dpi_ndpi_process_pkt(struct dpi_engine_flow *engine_flow,
 	if (unlikely(!flow->key))
 		return false;
 
+	rte_spinlock_lock(&flow->fl_lock);
 	if (!dpi_ndpi_process(detection_modules[dp_lcore_id()],
 				mbuf, flow)) {
 		flow->protocol = DPI_APP_ERROR;
@@ -157,6 +160,7 @@ dpi_ndpi_process_pkt(struct dpi_engine_flow *engine_flow,
 		flow->error = true;
 	}
 
+	rte_spinlock_unlock(&flow->fl_lock);
 	return true;
 }
 
@@ -302,6 +306,7 @@ dpi_ndpi_session_first_packet(struct npf_session *se __unused,
 	flow->type = DPI_APP_TYPE_NONE;
 	flow->error = false;
 	flow->offloaded = false;
+	rte_spinlock_init(&flow->fl_lock);
 
 	flow->key = ndpi_flow_malloc(SIZEOF_FLOW_STRUCT);
 	if (!flow->key)
