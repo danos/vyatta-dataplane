@@ -65,8 +65,7 @@ static gpc_pb_rule_match_walker_cb gpc_op_show_match;
 static bool
 gpc_op_show_match(struct gpc_pb_match *match, struct gpc_walk_context *walk_ctx)
 {
-	struct gpc_show_context *show_ctx =
-		(struct gpc_show_context *)walk_ctx->data;
+	struct gpc_show_context *show_ctx = walk_ctx->data;
 	json_writer_t *wr = show_ctx->wr;
 	uint16_t value;
 	char prefix_str[PREFIX_STRLEN];
@@ -150,8 +149,7 @@ static bool
 gpc_op_show_action(struct gpc_pb_action *action,
 		   struct gpc_walk_context *walk_ctx)
 {
-	struct gpc_show_context *show_ctx =
-		(struct gpc_show_context *)walk_ctx->data;
+	struct gpc_show_context *show_ctx = walk_ctx->data;
 	json_writer_t *wr = show_ctx->wr;
 	struct gpc_pb_policer *policer;
 
@@ -221,8 +219,7 @@ static gpc_pb_table_rule_walker_cb gpc_op_show_rule;
 static bool
 gpc_op_show_rule(struct gpc_pb_rule *rule, struct gpc_walk_context *walk_ctx)
 {
-	struct gpc_show_context *show_ctx =
-		(struct gpc_show_context *)walk_ctx->data;
+	struct gpc_show_context *show_ctx = walk_ctx->data;
 	json_writer_t *wr = show_ctx->wr;
 	uint64_t bytes = 0;
 	uint64_t packets = 0;
@@ -277,8 +274,7 @@ static bool
 gpc_op_show_table(struct gpc_pb_table *table,
 		  struct gpc_walk_context *walk_ctx)
 {
-	struct gpc_show_context *show_ctx =
-		(struct gpc_show_context *)walk_ctx->data;
+	struct gpc_show_context *show_ctx = walk_ctx->data;
 	json_writer_t *wr = show_ctx->wr;
 	char table_id_str[TABLE_ID_STRLEN];
 	uint32_t i;
@@ -316,8 +312,7 @@ static bool
 gpc_op_show_counter(struct gpc_pb_counter *counter,
 		    struct gpc_walk_context *walk_ctx)
 {
-	struct gpc_show_context *show_ctx =
-		(struct gpc_show_context *)walk_ctx->data;
+	struct gpc_show_context *show_ctx = walk_ctx->data;
 	json_writer_t *wr = show_ctx->wr;
 
 	jsonw_start_object(wr);
@@ -333,8 +328,7 @@ static bool
 gpc_op_show_feature(struct gpc_pb_feature *feature,
 		    struct gpc_walk_context *walk_ctx)
 {
-	struct gpc_show_context *show_ctx =
-		(struct gpc_show_context *)walk_ctx->data;
+	struct gpc_show_context *show_ctx = walk_ctx->data;
 	json_writer_t *wr = show_ctx->wr;
 
 	jsonw_start_object(wr);
@@ -366,7 +360,7 @@ gpc_show(FILE *f, int argc, char **argv)
 	if (!show_ctx.wr)
 		return -ENOMEM;
 
-	walk_ctx.data = (void *)&show_ctx;
+	walk_ctx.data = &show_ctx;
 	walk_ctx.feature_type = 0;
 	walk_ctx.ifname = NULL;
 	walk_ctx.location = 0;
