@@ -1,3 +1,11 @@
+vyatta-dataplane (3.10.70.26) unstable; urgency=medium
+
+  [ Mark Gillott ]
+  * capture: ensure final cleanup occurs after interface cleanup
+    (Fixes: VRVDR-54831)
+
+ -- Srinivas Narayan <narayan@vyatta.att-mail.com>  Fri, 09 Apr 2021 14:53:44 +0100
+
 vyatta-dataplane (3.10.70.25) unstable; urgency=medium
 
   [ Ian Wilson ]
