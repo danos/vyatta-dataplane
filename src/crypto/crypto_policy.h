@@ -36,9 +36,9 @@ int crypto_policy_update(const struct xfrm_userpolicy_info *usr_policy,
 			 const struct xfrm_user_tmpl *tmpl,
 			 const struct xfrm_mark *mark, vrfid_t vrfid,
 			 uint32_t seq, bool *send_ack);
-void crypto_policy_delete(const struct xfrm_userpolicy_id *id,
-			  const struct xfrm_mark *mark, vrfid_t vrfid,
-			  uint32_t seq, bool *send_ack);
+int crypto_policy_delete(const struct xfrm_userpolicy_id *id,
+			 const struct xfrm_mark *mark, vrfid_t vrfid,
+			 uint32_t seq, bool *send_ack);
 struct crypto_vrf_ctx;
 void crypto_policy_flush_vrf(struct crypto_vrf_ctx *vrf_ctx);
 void crypto_policy_update_pending_if(struct ifnet *ifp);

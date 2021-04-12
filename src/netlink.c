@@ -1340,14 +1340,14 @@ xfrm_nl_policy_decode(const struct nlmsghdr *nlh,
 	/* also checks that mnl_nlmsg_get_payload() below works */
 	if (offset > len) {
 		RTE_LOG(ERR, DATAPLANE, "Can't parse XFRM attributes\n");
-		return -1;
+		return -EINVAL;
 	}
 
 	/* xfrm_attr should always return successful */
 	ret = mnl_attr_parse(nlh, offset, xfrm_attr, tb);
 	if (ret != MNL_CB_OK) {
 		RTE_LOG(ERR, DATAPLANE, "Failed parsing XFRM attributes\n");
-		return -1;
+		return -EINVAL;
 	}
 
 	switch (nlh->nlmsg_type) {
@@ -1402,7 +1402,7 @@ xfrm_nl_policy_decode(const struct nlmsghdr *nlh,
 		RTE_LOG(ERR, DATAPLANE,
 			"xfrm: unexpected netlink policy msg %u\n",
 			nlh->nlmsg_type);
-		return -1;
+		return -EINVAL;
 	}
 
 	return 0;
@@ -1471,7 +1471,7 @@ int rtnl_process_xfrm(const struct nlmsghdr *nlh, void *data)
 	struct xfrm_userpolicy_id tmp_id;
 	const struct xfrm_selector *sel;
 	uint8_t dir;
-	int ret, status = MNL_CB_OK;
+	int ret, status = 0;
 	const xfrm_address_t *peer = NULL;
 	const struct xfrm_mark *mark = NULL;
 	vrfid_t vrfid;
@@ -1488,11 +1488,12 @@ int rtnl_process_xfrm(const struct nlmsghdr *nlh, void *data)
 	if (ret < 0) {
 		RTE_LOG(ERR, DATAPLANE,
 			"Failed to decode XFRM Policy message\n");
-		return MNL_CB_ERROR;
+		return ret;
 	}
 
 	if (policy == NULL && id == NULL) {
 		xfrm_aux->ack_msg = true;
+		status = -EINVAL;
 		goto out;
 	}
 
@@ -1518,7 +1519,7 @@ int rtnl_process_xfrm(const struct nlmsghdr *nlh, void *data)
 	if (crypto_incmpl_xfrm(ifindex)) {
 		RTE_LOG(NOTICE, DATAPLANE, "XFRM policy missing interface\n");
 		xfrm_aux->ack_msg = true;
-		status = -1;
+		status = -EINVAL;
 		goto out;
 	}
 
@@ -1562,20 +1563,18 @@ int rtnl_process_xfrm(const struct nlmsghdr *nlh, void *data)
 
 	switch (nlh->nlmsg_type) {
 	case XFRM_MSG_NEWPOLICY:
-		if (crypto_policy_add(policy, peer, tmpl, mark, vrfid,
-				      nlh->nlmsg_seq,
-				      &xfrm_aux->ack_msg) < 0) {
+		status = crypto_policy_add(policy, peer, tmpl, mark, vrfid,
+					   nlh->nlmsg_seq,
+					   &xfrm_aux->ack_msg);
+		if (status < 0)
 			RTE_LOG(ERR, DATAPLANE, "NEWPOLICY failure\n");
-			status = MNL_CB_ERROR;
-		}
 		break;
 	case XFRM_MSG_UPDPOLICY:
-		if (crypto_policy_update(policy, peer, tmpl, mark, vrfid,
-					 nlh->nlmsg_seq,
-					 &xfrm_aux->ack_msg) < 0) {
+		status = crypto_policy_update(policy, peer, tmpl, mark, vrfid,
+					      nlh->nlmsg_seq,
+					      &xfrm_aux->ack_msg);
+		if (status < 0)
 			RTE_LOG(ERR, DATAPLANE, "UPDPOLICY failure\n");
-			status = MNL_CB_ERROR;
-		}
 		break;
 	case XFRM_MSG_POLEXPIRE:
 		memcpy(&tmp_id.sel, sel, sizeof(tmp_id.sel));
@@ -1584,12 +1583,12 @@ int rtnl_process_xfrm(const struct nlmsghdr *nlh, void *data)
 		id = &tmp_id;
 		/* fall through */
 	case XFRM_MSG_DELPOLICY:
-		crypto_policy_delete(id, mark, vrfid, nlh->nlmsg_seq,
-				     &xfrm_aux->ack_msg);
+		status = crypto_policy_delete(id, mark, vrfid, nlh->nlmsg_seq,
+					      &xfrm_aux->ack_msg);
 		break;
 	default:
 		RTE_LOG(ERR, DATAPLANE, "Unhandled XFRM policy message\n");
-		status = MNL_CB_ERROR;
+		status = -EINVAL;
 		break;
 	}
 out:

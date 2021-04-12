@@ -104,7 +104,7 @@ int xfrm_client_send_expire(xfrm_address_t *dst, uint16_t family, uint32_t spi,
 	if (!expire) {
 		DP_DEBUG(CRYPTO, ERR, DATAPLANE,
 			 "XFRM expire failed SPI:%u\n", spi);
-		return -1;
+		return -ENOMSG;
 	}
 
 	expire->state.family = family;
@@ -119,7 +119,7 @@ int xfrm_client_send_expire(xfrm_address_t *dst, uint16_t family, uint32_t spi,
 		DP_DEBUG(CRYPTO, ERR, DATAPLANE,
 			 "XFRM expire can't create frame SPI:%u\n",
 			 spi);
-		return -1;
+		return -ENOMSG;
 	}
 
 	rc = zframe_send(&frame, xfrm_push_socket, 0);
@@ -128,7 +128,7 @@ int xfrm_client_send_expire(xfrm_address_t *dst, uint16_t family, uint32_t spi,
 			 "XFRM expire failed to send SPU:%u\n",
 			 spi);
 		zframe_destroy(&frame);
-		return -1;
+		return rc;
 	}
 	return rc;
 }
@@ -287,7 +287,7 @@ static int xfrm_netlink_recv(void *arg)
 		 */
 		rc = mnl_cb_run(nlh, len, 0, 0, rtnl_process_xfrm, &xfrm_aux);
 		/* Policy acks are batched in most cases */
-		if (rc != MNL_CB_OK || xfrm_aux.ack_msg)
+		if (rc  < 0 || xfrm_aux.ack_msg)
 			xfrm_client_send_ack(nlh->nlmsg_seq, rc);
 		if (strncmp("END", hdr, strlen("END")) == 0)
 			crypto_npf_cfg_commit_flush();
