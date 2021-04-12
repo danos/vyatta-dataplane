@@ -156,7 +156,7 @@ gpc_rlset_set_ifp(struct gpc_rlset *gprs)
 		return false;
 
 	gprs->gprs_ifp = iface;
-	if (iface->if_created)
+	if (iface->fal_l3)
 		gpc_rlset_set_if_created(gprs);
 
 	return true;
