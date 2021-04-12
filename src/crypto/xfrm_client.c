@@ -69,14 +69,13 @@ int xfrm_client_send_ack(uint32_t seq, int err)
 	if (!err_msg) {
 		DP_DEBUG(CRYPTO, ERR, DATAPLANE,
 			 "Failed to alloc xfrm ack error frame\n");
-		return -1;
+		return -ENOMSG;
 	}
-
-	err_msg->error = (err == MNL_CB_OK) ? 0 : -EPERM;
+	err_msg->error = -err;
 
 	frame = zframe_new(nlh, nlh->nlmsg_len);
 	if (!frame)
-		return -1;
+		return -ENOMSG;
 
 	rc = zframe_send(&frame, xfrm_push_socket, 0);
 	if (rc < 0)
@@ -302,21 +301,24 @@ static int xfrm_netlink_recv(void *arg)
 		rc = mnl_cb_run(nlh, len, 0, 0, rtnl_process_xfrm_sa,
 				&xfrm_aux);
 		/*
-		 * For all SA messages apart from the GETSA then the
-		 * ack response is always sent from here. Successful
-		 * GETSA processing generates an message back to the
-		 * server and so does not require an ACK, however if
-		 * it is unsuccessful an error is sent from here.
+		 * For all SA messages apart from a successful GETSA
+		 * then the ack response is always sent from here,
+		 * i.e. all other msg processing returns ack_msg =
+		 * True. Successful GETSA processing generates an
+		 * message back to the server and so does not require
+		 * an ACK, i.e. it sets ack_msg = false, however if it
+		 * is unsuccessful an error is sent from here as rc !=
+		 * 0.
 		 */
-		if (rc != MNL_CB_OK || xfrm_aux.ack_msg)
+		if (rc != 0 || xfrm_aux.ack_msg)
 			xfrm_client_send_ack(nlh->nlmsg_seq, rc);
 		break;
 	default:
-		rc = MNL_CB_ERROR;
+		rc = -EINVAL;
 		xfrm_client_send_ack(nlh->nlmsg_seq, rc);
 	}
 
-	if (rc != MNL_CB_OK) {
+	if (rc != 0) {
 		DP_DEBUG(CRYPTO, ERR, DATAPLANE,
 			 "XFRM netlink msg not handled\n");
 	}

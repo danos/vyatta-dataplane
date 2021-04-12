@@ -102,8 +102,8 @@ struct pr_feat_attach {
 	struct rcu_head pr_feat_rcu;
 };
 
-#define POLICY_F_PENDING_ADD	0x0001
-#define POLICY_F_PENDING_DEL	0x0002
+#define POLICY_F_PENDING_ADD 0x0001
+#define POLICY_F_PENDING_DEL 0x0002
 #define POLICY_F_PENDING_UPDATE 0x0004
 /*
  * struct policy_rule

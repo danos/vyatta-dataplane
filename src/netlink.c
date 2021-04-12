@@ -1615,7 +1615,7 @@ static int process_xfrm_newsa(struct xfrm_usersa_info *sa_info,
 	struct xfrm_mark *mark;
 	uint32_t mark_val;
 	uint32_t extra_flags = 0;
-	int rc = MNL_CB_OK;
+	int rc = 0;
 
 	/*
 	 * VRF. Use topic default if no attribute
@@ -1623,7 +1623,7 @@ static int process_xfrm_newsa(struct xfrm_usersa_info *sa_info,
 	xfrm_attr_vrf(&sa_info->sel, &vrf_id, ifindex);
 
 	if (crypto_incmpl_xfrm(*ifindex))
-		return MNL_CB_ERROR;
+		return -EINVAL;
 
 	/*
 	 * AEAD/crypto algorithm
@@ -1644,7 +1644,7 @@ static int process_xfrm_newsa(struct xfrm_usersa_info *sa_info,
 		RTE_LOG(ERR, DATAPLANE,
 			"Missing XFRMA_ALG_* attribute on XFRM %s message\n",
 			msg_type_str);
-		rc = MNL_CB_ERROR;
+		rc = -EINVAL;
 		goto scrub;
 	}
 
@@ -1653,7 +1653,7 @@ static int process_xfrm_newsa(struct xfrm_usersa_info *sa_info,
 		if (!mark) {
 			RTE_LOG(ERR, DATAPLANE,
 				"Could not decode MARK attr\n");
-			rc = MNL_CB_ERROR;
+			rc = -EINVAL;
 			goto scrub;
 		}
 		mark_val = mark->v;
@@ -1668,7 +1668,7 @@ static int process_xfrm_newsa(struct xfrm_usersa_info *sa_info,
 		if (!tmpl) {
 			RTE_LOG(ERR, DATAPLANE,
 				"Could not decode ENCAP attr\n");
-			rc = MNL_CB_ERROR;
+			rc = EINVAL;
 			goto scrub;
 		}
 	}
@@ -1684,9 +1684,9 @@ static int process_xfrm_newsa(struct xfrm_usersa_info *sa_info,
 		auth_trunc_algo = (struct xfrm_algo_auth *)aead_algo;
 	}
 
-	if (crypto_sadb_new_sa(sa_info, crypto_algo, auth_trunc_algo, auth_algo,
-			       tmpl, mark_val, extra_flags, vrf_id) != 0)
-		rc = MNL_CB_ERROR;
+	rc = crypto_sadb_new_sa(sa_info, crypto_algo, auth_trunc_algo,
+				auth_algo, tmpl, mark_val, extra_flags,
+				vrf_id);
 	/* The above failure case needs to fall into scrub */
 
  scrub:
@@ -1730,11 +1730,9 @@ static int process_xfrm_delsa(struct xfrm_usersa_info *sa_info,
 	xfrm_attr_vrf(sa_info ? &sa_info->sel : NULL, &vrfid, ifindex);
 
 	if (crypto_incmpl_xfrm(*ifindex))
-		return MNL_CB_ERROR;
+		return -EINVAL;
 
-	if (crypto_sadb_del_sa(sa_info, vrfid) != 0)
-		return MNL_CB_ERROR;
-	return MNL_CB_OK;
+	return crypto_sadb_del_sa(sa_info, vrfid);
 }
 
 static int
@@ -1770,6 +1768,7 @@ int rtnl_process_xfrm_sa(const struct nlmsghdr *nlh, void *data)
 	vrfid_t vrf_id;
 	uint32_t seq, ifindex = 0;
 	struct xfrm_client_aux_data *xfrm_aux;
+	int rc = 0;
 
 	xfrm_aux = (struct xfrm_client_aux_data *)data;
 	vrf_id = *xfrm_aux->vrf;
@@ -1785,7 +1784,7 @@ int rtnl_process_xfrm_sa(const struct nlmsghdr *nlh, void *data)
 		if (payload_size < sizeof(*sa_info)) {
 			RTE_LOG(ERR, DATAPLANE, "xfrm: too short for %s\n",
 				msg_type_str);
-			return MNL_CB_ERROR;
+			return -EINVAL;
 		}
 		sa_info = mnl_nlmsg_get_payload(nlh);
 		if (mnl_attr_parse(nlh, sizeof(*sa_info),
@@ -1793,50 +1792,52 @@ int rtnl_process_xfrm_sa(const struct nlmsghdr *nlh, void *data)
 			RTE_LOG(ERR, DATAPLANE,
 				"xfrm: can't parse attributes to %s\n",
 				msg_type_str);
-			return MNL_CB_ERROR;
+			return -EINVAL;
 		}
 
-		if (process_xfrm_newsa(sa_info, msg_type_str, attrs, vrf_id,
-				       &ifindex) != MNL_CB_OK)
-			return MNL_CB_ERROR;
+		rc  = process_xfrm_newsa(sa_info, msg_type_str, attrs, vrf_id,
+					 &ifindex);
+		if (rc != 0)
+			return rc;
 		break;
 
 	case XFRM_MSG_DELSA:
 		if (payload_size < sizeof(*sa_id)) {
 			RTE_LOG(ERR, DATAPLANE, "xfrm: too short for DELSA\n");
-			return MNL_CB_ERROR;
+			return -EINVAL;
 		}
 		mnl_nlmsg_get_payload(nlh);
 		if (mnl_attr_parse(nlh, sizeof(*sa_id),
 				   xfrm_attr, attrs)  != MNL_CB_OK) {
 			RTE_LOG(ERR, DATAPLANE,
 				"xfrm: can't parse attributes to DELSA\n");
-			return MNL_CB_ERROR;
+			return -EINVAL;
 		}
 		sa_info = get_nl_attr_payload(attrs[XFRMA_SA]);
 		if (!sa_info) {
 			RTE_LOG(ERR, DATAPLANE,
 				"Could not decode DELSA XFRM_SA attribute\n");
-			return MNL_CB_ERROR;
+			return -EINVAL;
 		}
-		if (process_xfrm_delsa(sa_info, vrf_id, &ifindex) != MNL_CB_OK)
-			return MNL_CB_ERROR;
+		rc = process_xfrm_delsa(sa_info, vrf_id, &ifindex);
+		if (rc != 0)
+			return rc;
 		break;
 
 	case XFRM_MSG_EXPIRE:
 		if (payload_size < sizeof(*expire)) {
 			RTE_LOG(ERR, DATAPLANE, "xfrm: too short for EXPIRE\n");
-			return MNL_CB_ERROR;
+			return -EINVAL;
 		}
 		expire = mnl_nlmsg_get_payload(nlh);
 		if (expire->hard)
-			crypto_sadb_del_sa(&expire->state, vrf_id);
+			rc = crypto_sadb_del_sa(&expire->state, vrf_id);
 		break;
 
 	case XFRM_MSG_GETSA:
 		if (payload_size < sizeof(*sa_id)) {
 			RTE_LOG(ERR, DATAPLANE, "xfrm: too short for GETSA\n");
-			return MNL_CB_ERROR;
+			return -EINVAL;
 		}
 
 		sa_id = mnl_nlmsg_get_payload(nlh);
@@ -1844,11 +1845,12 @@ int rtnl_process_xfrm_sa(const struct nlmsghdr *nlh, void *data)
 				   xfrm_attr, attrs)  != MNL_CB_OK) {
 			RTE_LOG(ERR, DATAPLANE,
 				"xfrm: can't parse attributes to GETA\n");
-			return MNL_CB_ERROR;
+			return -EINVAL;
 		}
 
-		if (process_xfrm_getsa(sa_id, vrf_id, seq) < 0)
-			return MNL_CB_ERROR;
+		rc = process_xfrm_getsa(sa_id, vrf_id, seq);
+		if (rc != 0)
+			return rc;
 		/*
 		 * If we have successfully processed the stats request
 		 * then we do not need to send an ack back, as the
@@ -1856,11 +1858,11 @@ int rtnl_process_xfrm_sa(const struct nlmsghdr *nlh, void *data)
 		 */
 		xfrm_aux->ack_msg = false;
 
-		return MNL_CB_OK;
+		return rc;
 	default:
 		RTE_LOG(ERR, DATAPLANE, "xfrm: unexpected netlink SA msg %u\n",
 			nlh->nlmsg_type);
-		return MNL_CB_ERROR;
+		return -EINVAL;
 	}
 
 	/*
@@ -1871,5 +1873,5 @@ int rtnl_process_xfrm_sa(const struct nlmsghdr *nlh, void *data)
 
 	if (crypto_incmpl_xfrm(ifindex))
 		crypto_incmpl_xfrm_sa_add(ifindex, nlh, sa_info);
-	return MNL_CB_OK;
+	return rc;
 }
