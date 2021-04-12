@@ -190,13 +190,17 @@ void npf_unpack_free_pb(PackedDPSessionMsg *pds)
 /*
  * restore a single session.
  */
-static int dp_session_msg_restore(DPSessionMsg *dpsm,
-				  struct session **rs, struct npf_session **rns)
+static int
+dp_session_msg_restore(DPSessionMsg *dpsm, enum session_pack_type spt,
+		       struct session **rs, struct npf_session **rns)
 {
 	DPSessionKeyMsg *skm;
 	struct ifnet *ifp = NULL;
 	struct npf_session *se = NULL;
 	struct session *s = NULL;
+	struct sentry_packet sp_forw;
+	struct sentry_packet sp_back;
+	bool forw;
 	int rc;
 
 	if (!dpsm || !dpsm->ds_npf_session || !dpsm->ds_key)
@@ -216,6 +220,22 @@ static int dp_session_msg_restore(DPSessionMsg *dpsm,
 		return -ENOENT;
 	}
 
+	rc = session_restore_sentry_packet_pb(&sp_forw, ifp, skm);
+	if (rc)
+		return -EINVAL;
+
+	rc = session_lookup_by_sentry_packet(&sp_forw, &s, &forw);
+	switch (spt) {
+	case SESSION_PACK_FULL:
+		if (!rc && s)
+			session_expire(s, NULL);
+		break;
+	case SESSION_PACK_UPDATE:
+		return -ENOTSUP;
+	case SESSION_PACK_NONE:
+		return -EINVAL;
+	}
+
 	se = npf_session_restore_pb(dpsm->ds_npf_session,
 			ifp, skm->sk_protocol);
 	if (!se) {
@@ -224,13 +244,19 @@ static int dp_session_msg_restore(DPSessionMsg *dpsm,
 		return -ENOMEM;
 	}
 
-	s = session_restore_pb(dpsm, ifp);
+	s = session_restore_pb(dpsm, ifp, sp_forw.sp_protocol);
 	if (!s) {
 		RTE_LOG(ERR, DATAPLANE,
 			"session restore failed %lu\n", dpsm->ds_id);
 		rc = -ENOMEM;
 		goto error;
 	}
+
+	sentry_packet_reverse(&sp_forw, &sp_back);
+	rc = session_insert_restored(s, &sp_forw, &sp_back);
+	if (rc)
+		goto error;
+
 	npf_session_set_dp_session(se, s);
 
 	rc = session_feature_add(s, ifp->if_index, SESSION_FEATURE_NPF, se);
@@ -277,15 +303,21 @@ int npf_pack_restore_pb(void *buf, uint32_t size, enum session_pack_type *spt)
 	*spt = pds->pds_pack_type;
 	dpsm = pds->pds_sessions[0];
 
-	switch (pds->pds_pack_type) {
-	case SESSION_PACK_FULL:
-		rc = dp_session_msg_restore(dpsm, &rs, &rns);
-		break;
-	case SESSION_PACK_UPDATE:
-		break;
-	default:
-		break;
-	}
+	rc = dp_session_msg_restore(dpsm, pds->pds_pack_type, &rs, &rns);
+
 	npf_unpack_free_pb(pds);
 	return rc;
+}
+
+int dp_session_restore(void *buf, uint32_t size, enum session_pack_type *spt)
+{
+	struct dp_session_pack_hdr *sph = buf;
+
+	if (buf == NULL || size < sizeof(*sph))
+		return -EINVAL;
+
+	if (is_npf_pack_pb_version(sph->sph_version))
+		return npf_pack_restore_pb(buf, size, spt);
+
+	return npf_pack_restore(buf, size, spt);
 }

@@ -407,8 +407,7 @@ bool npf_pack_validate_msg(struct npf_pack_message *msg, uint32_t size)
 	return true;
 }
 
-static int npf_pack_unpack_session(void *data, uint32_t size,
-				   enum session_pack_type *spt)
+int npf_pack_restore(void *data, uint32_t size, enum session_pack_type *spt)
 {
 	struct npf_pack_message *msg = data;
 	struct npf_pack_message_hdr *hdr;
@@ -435,11 +434,6 @@ static int npf_pack_unpack_session(void *data, uint32_t size,
 			return rc;
 	}
 	return 0;
-}
-
-int dp_session_restore(void *buf, uint32_t size, enum session_pack_type *spt)
-{
-	return npf_pack_unpack_session(buf, size, spt);
 }
 
 /* For npf_pack UT */

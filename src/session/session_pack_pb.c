@@ -257,17 +257,10 @@ struct session *session_restore_pb(DPSessionMsg *dpsm, struct ifnet *ifp,
 				   uint8_t protocol)
 {
 	struct session *s;
-	struct sentry_packet sp_forw;
-	struct sentry_packet sp_back;
 	int rc;
 
 	if (!dpsm || !ifp)
 		return NULL;
-
-	rc = session_restore_sentry_packet_pb(&sp_forw, ifp, dpsm->ds_key);
-	if (rc)
-		return NULL;
-	sentry_packet_reverse(&sp_forw, &sp_back);
 
 	if (!dpsm->ds_state)
 		return NULL;
@@ -285,11 +278,8 @@ struct session *session_restore_pb(DPSessionMsg *dpsm, struct ifnet *ifp,
 		goto error;
 
 	s->se_vrfid = ifp->if_vrfid;
-	s->se_protocol = sp_forw.sp_protocol;
+	s->se_protocol = protocol;
 
-	rc = session_insert_restored(s, &sp_forw, &sp_back);
-	if (rc)
-		goto error;
 	return s;
 error:
 	session_reclaim(s);
