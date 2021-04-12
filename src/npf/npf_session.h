@@ -182,5 +182,8 @@ int npf_session_activate_restored(struct npf_session *se, struct ifnet *ifp);
 
 /* Copy npf_session to a protobuf-c message struct */
 int npf_session_pack_pb(struct npf_session *se, NPFSessionMsg *nsm);
+struct npf_session *npf_session_restore_pb(NPFSessionMsg *nsm,
+					    struct ifnet *ifp,
+					    uint8_t protocol);
 
 #endif /* NPF_SESSION_H */

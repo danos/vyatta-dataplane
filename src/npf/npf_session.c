@@ -63,6 +63,7 @@
 #include "compiler.h"
 #include "if_var.h"
 #include "json_writer.h"
+#include "protobuf/SessionPack.pb-c.h"
 #include "npf/npf.h"
 #include "npf/alg/alg_npf.h"
 #include "npf/config/npf_config.h"
@@ -2137,4 +2138,64 @@ int npf_session_pack_pb(struct npf_session *se, NPFSessionMsg *nsm)
 		npf_state_pack_gen_pb(&se->s_state, nsm->ns_state);
 
 	return 0;
+}
+
+/* Allocate an npf_session and recover its state from protobuf-c
+ * NPFSessionMsg struct
+ */
+npf_session_t *npf_session_restore_pb(NPFSessionMsg *nsm, struct ifnet *ifp,
+				      uint8_t protocol)
+{
+	npf_rule_t *fw_rl = NULL;
+	npf_rule_t *rproc_rl = NULL;
+	npf_session_t *se;
+	int rc;
+	enum npf_proto_idx proto_idx = npf_proto_idx_from_proto(protocol);
+
+	if (!nsm)
+		return NULL;
+
+	se = zmalloc_aligned(sizeof(*se));
+	if (!se)
+		return NULL;
+
+	npf_state_init(ifp->if_vrfid, proto_idx, &se->s_state);
+
+	if (nsm->has_ns_rule_hash)
+		fw_rl = npf_get_rule_by_hash(nsm->ns_rule_hash);
+
+	if (fw_rl)
+		npf_session_add_fw_rule(se, fw_rl);
+
+	if (nsm->has_ns_rproc_rule_hash)
+		rproc_rl = npf_get_rule_by_hash(nsm->ns_rproc_rule_hash);
+
+	if (rproc_rl)
+		npf_session_add_rproc_rule(se, rproc_rl);
+
+	se->s_flags = nsm->ns_flags;
+	se->s_vrfid = ifp->if_vrfid;
+	se->s_if_idx = ifp->if_index;
+	se->s_proto = protocol;
+	se->s_proto_idx = proto_idx;
+
+	if (proto_idx == NPF_PROTO_IDX_TCP)
+		rc = npf_state_restore_tcp_pb(&se->s_state, nsm->ns_state);
+	else
+		rc = npf_state_restore_gen_pb(&se->s_state, nsm->ns_state);
+
+	if (rc)
+		goto error;
+
+	rte_spinlock_init(&se->s_state.nst_lock);
+
+	return se;
+
+error:
+	if (fw_rl)
+		npf_rule_put(fw_rl);
+	if (rproc_rl)
+		npf_rule_put(rproc_rl);
+	free(se);
+	return NULL;
 }
