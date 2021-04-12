@@ -176,7 +176,9 @@ npf_session_npf_pack_restore(struct npf_pack_npf_session *pns,
 			     struct npf_pack_session_state *pst,
 			     vrfid_t vrfid, uint8_t protocol,
 			     uint32_t ifindex);
-int npf_session_npf_pack_activate(struct npf_session *se, struct ifnet *ifp);
+
+/* activate a restored session */
+int npf_session_activate_restored(struct npf_session *se, struct ifnet *ifp);
 
 /* Copy npf_session to a protobuf-c message struct */
 int npf_session_pack_pb(struct npf_session *se, NPFSessionMsg *nsm);

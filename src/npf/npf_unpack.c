@@ -172,7 +172,7 @@ int npf_pack_restore_session(struct npf_pack_dp_session *pds,
 		goto error;
 	}
 
-	rc = npf_session_npf_pack_activate(se, ifp);
+	rc = npf_session_activate_restored(se, ifp);
 	if (rc) {
 		RTE_LOG(ERR, DATAPLANE,
 			"npf_pack npf session activate failed %lu\n",

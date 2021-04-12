@@ -2090,7 +2090,8 @@ error:
 	return NULL;
 }
 
-int npf_session_npf_pack_activate(struct npf_session *se, struct ifnet *ifp)
+/* Activate a restored session */
+int npf_session_activate_restored(struct npf_session *se, struct ifnet *ifp)
 {
 	if (!se || !ifp)
 		return -EINVAL;
