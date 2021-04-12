@@ -224,10 +224,12 @@ int session_restore_counters_pb(struct session *s, DPSessionCounterMsg *scm)
 /*
  * Copy a session to procbuf-c DPSessionMsg struct.
  *
- * All messages/strings/byte fields in the DPSessionMsg
- * message structure must already be allocated before.
+ * sessions flags and states will be copied only on if full_copy is true.
+ *
+ * All messages/strings/byte fields in the DPSessionMsg message structure must
+ * already be allocated before.
  */
-int session_pack_pb(struct session *s, DPSessionMsg *dpsm)
+int session_pack_pb(struct session *s, DPSessionMsg *dpsm, bool full_copy)
 {
 	int rc;
 
@@ -241,15 +243,20 @@ int session_pack_pb(struct session *s, DPSessionMsg *dpsm)
 	if (rc < 0)
 		return rc;
 
-	rc = session_pack_state_pb(s, dpsm->ds_state);
-	if (rc < 0)
-		return rc;
+	if (!dpsm->ds_counters)
+		return -EINVAL;
 
 	rc = session_pack_counters_pb(s, dpsm->ds_counters);
 	if (rc < 0)
 		return rc;
 
-	return 0;
+	if (!full_copy)
+		return 0;
+
+	if (!dpsm->ds_state)
+		return -EINVAL;
+
+	return session_pack_state_pb(s, dpsm->ds_state);
 }
 
 /*Allocate and restore a session's state from a protobuf message */

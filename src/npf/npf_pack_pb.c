@@ -18,11 +18,27 @@
 
 /*
  * Copy a session and its npf_session to DPSessionMsg struct.
+ * full_copy indicates if a fully restorable session is being copied,
+ * or this function is copying only the information needed to update
+ * a previously restored session.
+ *
+ * with full_copy == true,
+ *  - copy sentry
+ *  - copy states and counters from the dataplane session
+ *  - copy npf_session, if no npf_session found return -ENOENT.
+ * with full_copy == false:
+ *  - copy sentry
+ *  - copy dataplane session counters
+ *  - copy npf_session, if no npf_session set dpsm->ds_npf_session to NULL
+ *    indicating the session has expired.
  */
-static int npf_pack_full_pb(struct session *s, DPSessionMsg *dpsm)
+static int npf_pack_session_pb(struct session *s,
+			       DPSessionMsg *dpsm,
+			       bool full_copy)
 {
 	npf_session_t *se;
 	struct sentry *sen;
+	int rc;
 
 	if (!s || !dpsm)
 		return -EINVAL;
@@ -32,12 +48,23 @@ static int npf_pack_full_pb(struct session *s, DPSessionMsg *dpsm)
 		return -ENOENT;
 
 	se = session_feature_get(s, sen->sen_ifindex, SESSION_FEATURE_NPF);
-	if (!se)
+	if (full_copy && !se)
 		return -ENOENT;
 
-	session_pack_pb(s, dpsm);
-	npf_session_pack_pb(se, dpsm->ds_npf_session);
-	return 0;
+	rc = session_pack_pb(s, dpsm, full_copy);
+	if (rc)
+		return rc;
+
+	if (se)
+		rc = npf_session_pack_pb(se, dpsm->ds_npf_session);
+
+	if (!se || rc)
+		dpsm->ds_npf_session = NULL; /* indicate no npf_session */
+
+	/* partial copies are successful even if there is no npf_session or
+	 * npf_session couldn't be packed.
+	 */
+	return full_copy ? rc : 0;
 }
 
 /*
@@ -98,7 +125,9 @@ static int npf_pack_pb(struct session *s, void *pb_buf, size_t size,
 	pds.has_pds_pack_type = 1;
 	pds.pds_pack_type = spt;
 
-	rc = npf_pack_full_pb(s, &dps);
+	/* Packs a single session */
+	rc = npf_pack_session_pb(s, &dps, spt == SESSION_PACK_FULL);
+
 	if (rc < 0)
 		return rc;
 
@@ -131,6 +160,9 @@ int dp_session_pack_pb(struct session *session,
 
 	if (size < sizeof(*sph))
 		return -ENOSPC;
+
+	if (spt != SESSION_PACK_FULL && spt != SESSION_PACK_UPDATE)
+		return -EINVAL;
 
 	rc = npf_pack_pb(session,
 			 &sph[1], size - sizeof(*sph),
