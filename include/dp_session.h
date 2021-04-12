@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2021, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -308,5 +308,52 @@ int dp_session_pack(struct session *session, void *buf, uint32_t size,
  * @param [out] spt - pack type.
  */
 int dp_session_restore(void *buf, uint32_t size, enum session_pack_type *spt);
+
+/*
+ * a structure defining the header for the data returned by the
+ * dp_session_pack() and dp_session_pack_pb() functions.
+ */
+struct dp_session_pack_hdr {
+	uint32_t		sph_len;
+	uint16_t		sph_version;
+	uint8_t			sph_flags;
+	enum session_pack_type	sph_type;
+};
+
+static_assert(sizeof(struct dp_session_pack_hdr) == 8,
+	      "struct dp_session_pack_hdr: size != 8");
+
+/**
+ * Serialize a session to a packed protocol buffer prepended with a
+ * struct dp_session_pack_header.
+ *
+ * A packed buffer format looks like:
+ * +------------------------------------------------------------------------+
+ * | dsp_len | dsp_version | dsp_flags | dsp_type | packed session(s)       |
+ * +------------------------------------------------------------------------+
+ *
+ * The packed session buffers created from the firewall sessions on a rotuer can
+ * be used to restore/update those sessions on a different router.
+ *
+ * This function provides two different types of packing:
+ *  SESSION_PACK_FULL: pack a session and its associated sessions into a buffer.
+ *  dp_session_restore() can fully recreate the packed session later with same
+ *  state and statistics as the original session was at the time of packing.
+ *  SESSION_PACK_UPDATE: only pack the statistics and states of a session along
+ *  with the lookup keys. This update buffers can be used update the states of a
+ *  session restored using a packed session with SESSION_PACK_FULL type.
+ *
+ * @param [in] session - session to be packed
+ * @param [in, out] buf - session buffer pointer
+ * @param [in] size - size of buffer
+ * @param [in] spt - pack type
+ * @param [out] session_peer - peer session
+ *
+ * @return - packed length on success (includes header length)
+ *   -errno on error.
+ */
+int dp_session_pack_pb(struct session *session, void *buf, uint32_t size,
+		       enum session_pack_type spt,
+		       struct session **session_peer);
 
 #endif

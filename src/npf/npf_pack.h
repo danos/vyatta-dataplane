@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2019-2021, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -34,6 +34,14 @@
 #define NPF_PACK_MESSAGE_MIN_SIZE     (sizeof(struct npf_pack_message_hdr))
 
 #define SESSION_PACK_VERSION	      (0x0102)
+
+/*
+ * Used by packed protobuf messages.
+ * Changes to protobuf definitions should increase NPF_PACK_PB_CUR_VERSION
+ */
+#define NPF_PACK_PB_MIN_VERSION		(0x10)
+#define NPF_PACK_PB_CUR_VERSION		NPF_PACK_PB_MIN_VERSION
+#define NPF_PACK_PB_VERSION		(0x0100 | NPF_PACK_PB_CUR_VERSION)
 
 enum pack_session_new {
 	NPF_PACK_SESSION_NEW_FW = 1,
