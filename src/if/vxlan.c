@@ -1,7 +1,7 @@
 /*
  * VXLAN forwarding database
  *
- * Copyright (c) 2019-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2019-2021, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2011-2017 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -297,27 +297,31 @@ uint16_t vxlan_get_src_port(struct vxlan_vninode *vnode, uint8_t *entropy,
 static ALWAYS_INLINE
 int vxlan_ipv4_set_encap(struct vxlan_vninode *vnode, struct rte_mbuf *m,
 			 uint8_t tos, struct ip_addr *sip,
-			 struct ip_addr *dip, struct rte_udp_hdr **udp,
-			 struct rte_vxlan_hdr **vxhdr)
+			 struct ip_addr *dip, struct rte_udp_hdr **udpp,
+			 struct rte_vxlan_hdr **vxhdrp)
 {
 	uint16_t orig_pkt_data_len = rte_pktmbuf_pkt_len(m);
-	struct iphdr *iph;
-	struct vxlan_ipv4_encap *vhdr;
+	struct rte_ether_hdr *eth;
 
-	vhdr = (struct vxlan_ipv4_encap *)
-		rte_pktmbuf_prepend(m,
-				    (uint16_t)sizeof(struct vxlan_ipv4_encap));
-	if (unlikely(vhdr == NULL))
+	/* Allocate space for new ethernet, IPv4, UDP and VXLAN headers */
+	eth = (struct rte_ether_hdr *)rte_pktmbuf_prepend(
+		m, sizeof(struct rte_ether_hdr) + sizeof(struct iphdr) +
+		sizeof(struct rte_udp_hdr) + sizeof(struct rte_vxlan_hdr));
+
+	if (unlikely(eth == NULL))
 		return -ENOMEM;
 
-	/* Update L2 length in packet as vxlan_ipv4_encap includes ether_hdr */
+	struct iphdr *iph = (struct iphdr *)&eth[1];
+	struct rte_udp_hdr *udp = (struct rte_udp_hdr *)&iph[1];
+	struct rte_vxlan_hdr *vxhdr = (struct rte_vxlan_hdr *)&udp[1];
+
+	/* Update L2 length in packet as we have included rte_ether_hdr */
 	dp_pktmbuf_l2_len(m) = RTE_ETHER_HDR_LEN;
 
 	/* ethernet header */
-	vhdr->ether_header.ether_type = htons(RTE_ETHER_TYPE_IPV4);
+	eth->ether_type = htons(RTE_ETHER_TYPE_IPV4);
 
 	/* IPv4 header construction */
-	iph = &vhdr->ip_header;
 	iph->ihl = 5;
 	iph->version = 4;
 	iph->check = 0;
@@ -333,7 +337,7 @@ int vxlan_ipv4_set_encap(struct vxlan_vninode *vnode, struct rte_mbuf *m,
 	iph->id = 0;
 	iph->frag_off = htons(IP_DF);
 	iph->protocol = IPPROTO_UDP;
-	iph->tot_len = htons(sizeof(vhdr->ip_header) +
+	iph->tot_len = htons(sizeof(struct iphdr) +
 			     sizeof(struct rte_udp_hdr) +
 			     sizeof(struct rte_vxlan_hdr) +
 			     orig_pkt_data_len);
@@ -341,36 +345,45 @@ int vxlan_ipv4_set_encap(struct vxlan_vninode *vnode, struct rte_mbuf *m,
 	iph->daddr = dip->address.ip_v4.s_addr;
 	iph->check = dp_in_cksum_hdr(iph);
 
-	*udp = &vhdr->udp_header;
-	*vxhdr = &vhdr->vxlan_header;
+	*udpp = udp;
+	*vxhdrp = vxhdr;
+
 	return 0;
 }
 
 static ALWAYS_INLINE
 int vxlan_ipv6_set_encap(struct vxlan_vninode *vnode, struct rte_mbuf *m,
 			 uint8_t tc, struct ip_addr *sip,
-			 struct ip_addr *dip, struct rte_udp_hdr **udp,
-			 struct rte_vxlan_hdr **vxhdr)
+			 struct ip_addr *dip, struct rte_udp_hdr **udpp,
+			 struct rte_vxlan_hdr **vxhdrp)
 {
 	uint16_t orig_pkt_data_len = rte_pktmbuf_pkt_len(m);
-	struct ip6_hdr *ip6h;
-	struct vxlan_ipv6_encap *vhdr;
+	struct rte_ether_hdr *eth;
 	uint8_t tos = 0;
 
-	vhdr = (struct vxlan_ipv6_encap *)
-		rte_pktmbuf_prepend(m, (uint16_t)
-				    sizeof(struct vxlan_ipv6_encap));
-	if (unlikely(vhdr == NULL))
+	static_assert(sizeof(struct rte_ether_hdr) + sizeof(struct ip6_hdr) +
+		      sizeof(struct rte_udp_hdr) + sizeof(struct rte_vxlan_hdr)
+		      == VXLAN_OVERHEAD, "VXLAN_OVERHEAD mismatch");
+
+	/* Allocate space for new ethernet, IPv6, UDP and VXLAN headers */
+	eth = (struct rte_ether_hdr *)rte_pktmbuf_prepend(
+		m, sizeof(struct rte_ether_hdr) + sizeof(struct ip6_hdr) +
+		sizeof(struct rte_udp_hdr) + sizeof(struct rte_vxlan_hdr));
+
+	if (unlikely(eth == NULL))
 		return -ENOMEM;
 
-	/* Update L2 length in packet as vxlan_ipv6_encap includes ether_hdr */
+	struct ip6_hdr *ip6h = (struct ip6_hdr *)&eth[1];
+	struct rte_udp_hdr *udp = (struct rte_udp_hdr *)&ip6h[1];
+	struct rte_vxlan_hdr *vxhdr = (struct rte_vxlan_hdr *)&udp[1];
+
+	/* Update L2 length in packet as we have included rte_ether_hdr */
 	dp_pktmbuf_l2_len(m) = RTE_ETHER_HDR_LEN;
 
 	/* ethernet header */
-	vhdr->ether_header.ether_type = htons(RTE_ETHER_TYPE_IPV6);
+	eth->ether_type = htons(RTE_ETHER_TYPE_IPV6);
 
 	/* IPv6 header construction */
-	ip6h = &vhdr->ip6_header;
 	if (vnode->tos != 0)
 		tos = vnode->tos;
 	else
@@ -383,8 +396,9 @@ int vxlan_ipv6_set_encap(struct vxlan_vninode *vnode, struct rte_mbuf *m,
 	ip6h->ip6_plen = htons(sizeof(struct rte_udp_hdr) +
 			       sizeof(struct rte_vxlan_hdr) +
 			       orig_pkt_data_len);
-	*udp = &vhdr->udp_header;
-	*vxhdr = &vhdr->vxlan_header;
+	*udpp = udp;
+	*vxhdrp = vxhdr;
+
 	return 0;
 }
 
