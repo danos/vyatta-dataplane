@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  */
@@ -44,6 +44,7 @@ typedef struct npf_session	npf_session_t;
 #include <stdint.h>
 #include <stdio.h>
 
+#include "protobuf/SessionPack.pb-c.h"
 #include "util.h"
 #include "session/session.h"
 #include "session/session_feature.h"
@@ -176,5 +177,8 @@ npf_session_npf_pack_restore(struct npf_pack_npf_session *pns,
 			     vrfid_t vrfid, uint8_t protocol,
 			     uint32_t ifindex);
 int npf_session_npf_pack_activate(struct npf_session *se, struct ifnet *ifp);
+
+/* Copy npf_session to a protobuf-c message struct */
+int npf_session_pack_pb(struct npf_session *se, NPFSessionMsg *nsm);
 
 #endif /* NPF_SESSION_H */

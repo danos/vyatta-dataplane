@@ -2099,3 +2099,41 @@ int npf_session_npf_pack_activate(struct npf_session *se, struct ifnet *ifp)
 	se->s_flags |= SE_ACTIVE;
 	return 0;
 }
+
+/*
+ * copy npf_session information to a protobuf-c NPFSessionMsg structure.
+ * Data Copied:
+ *  - rule, rproc_rule: instead of serializing the rules or rproc_rule, only
+ *  copy a hash that can be verified during restoration of the npf_session.
+ *  - protocol state: tcp or generic state.
+ *  - other fields can be derived from the fields in dataplane session
+ */
+int npf_session_pack_pb(struct npf_session *se, NPFSessionMsg *nsm)
+{
+	npf_rule_t *rule;
+
+	if (!se)
+		return -EINVAL;
+
+	nsm->has_ns_flags = 1;
+	nsm->ns_flags = se->s_flags;
+
+	rule = npf_session_get_fw_rule(se);
+	if (rule) {
+		nsm->has_ns_rule_hash = 1;
+		nsm->ns_rule_hash = npf_rule_get_hash(rule);
+	}
+
+	rule = npf_session_get_rproc_rule(se);
+	if (rule) {
+		nsm->has_ns_rproc_rule_hash = 1;
+		nsm->ns_rproc_rule_hash = npf_rule_get_hash(rule);
+	}
+
+	if (se->s_proto_idx == NPF_PROTO_IDX_TCP)
+		npf_state_pack_tcp_pb(&se->s_state, nsm->ns_state);
+	else
+		npf_state_pack_gen_pb(&se->s_state, nsm->ns_state);
+
+	return 0;
+}

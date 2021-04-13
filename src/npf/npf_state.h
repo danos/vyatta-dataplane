@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2011-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  */
@@ -48,6 +48,7 @@
 #include "util.h"
 #include "vrf_internal.h"
 #include "dp_session.h"
+#include "protobuf/SessionPack.pb-c.h"
 
 struct rte_mbuf;
 struct npf_pack_session_state;
@@ -224,5 +225,11 @@ void npf_state_pack_update_gen(npf_state_t *nst,
 void npf_state_pack_update_tcp(npf_state_t *nst,
 			       struct npf_pack_session_state *pst,
 			       bool *state_changed);
+
+/* Copy non-TCP session state to a protobuf-c message */
+int npf_state_pack_gen_pb(npf_state_t *nst, NPFSessionStateMsg *nss);
+
+/* Copy TCP session state to a protobuf-c message */
+int npf_state_pack_tcp_pb(npf_state_t *nst, NPFSessionStateMsg *nss);
 
 #endif  /* NPF_STATE_H */
