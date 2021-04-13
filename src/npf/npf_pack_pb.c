@@ -9,10 +9,7 @@
 
 #include "dp_session.h"
 #include "npf/npf_session.h"
-#include "npf/npf_nat.h"
-#include "npf/npf_nat64.h"
 #include "npf/npf_pack.h"
-#include "npf/npf_state.h"
 #include "protobuf/SessionPack.pb-c.h"
 #include "session/session_feature.h"
 #include "session/session_pack_pb.h"
@@ -146,4 +143,149 @@ int dp_session_pack_pb(struct session *session,
 	sph->sph_flags = flags;
 	sph->sph_type = spt;
 	return sph->sph_len;
+}
+
+PackedDPSessionMsg *npf_unpack_pb(void *buf, uint32_t size)
+{
+	PackedDPSessionMsg *pds = NULL;
+	struct dp_session_pack_hdr *sph = buf;
+	const uint8_t *pb_buf = (const uint8_t *)buf + sizeof(*sph);
+
+	if (!sph || sph->sph_len > size)
+		return NULL;
+
+	pds = packed_dpsession_msg__unpack(NULL, size - sizeof(*sph), pb_buf);
+
+	if (!pds) {
+		RTE_LOG(ERR, DATAPLANE,
+			"SESSION_RESTORE: Invalid protobuf(size=%u)\n",
+			size);
+		return NULL;
+	}
+
+	if (!pds->n_pds_sessions) {
+		RTE_LOG(ERR, DATAPLANE,
+			"SESSION_RESTORE: no encoded sessions in protobuf\n");
+		goto error;
+	}
+
+	if (!pds->has_pds_pack_type) {
+		RTE_LOG(ERR, DATAPLANE,
+			"SESSION_RESTORE: no pack_type protobuf\n");
+		goto error;
+	}
+	return pds;
+error:
+	packed_dpsession_msg__free_unpacked(pds, NULL);
+	return NULL;
+
+}
+
+void npf_unpack_free_pb(PackedDPSessionMsg *pds)
+{
+	if (pds)
+		packed_dpsession_msg__free_unpacked(pds, NULL);
+}
+
+/*
+ * restore a single session.
+ */
+static int dp_session_msg_restore(DPSessionMsg *dpsm,
+				  struct session **rs, struct npf_session **rns)
+{
+	DPSessionKeyMsg *skm;
+	struct ifnet *ifp = NULL;
+	struct npf_session *se = NULL;
+	struct session *s = NULL;
+	int rc;
+
+	if (!dpsm || !dpsm->ds_npf_session || !dpsm->ds_key)
+		return -EINVAL;
+
+	skm = dpsm->ds_key;
+
+	if (skm->sk_ifname)
+		ifp = dp_ifnet_byifname(skm->sk_ifname);
+	else
+		return -EINVAL;
+
+	if (!ifp) {
+		RTE_LOG(ERR, DATAPLANE,
+			"SESSION_RESTORE: Failed to find interface %s\n",
+			skm->sk_ifname);
+		return -ENOENT;
+	}
+
+	se = npf_session_restore_pb(dpsm->ds_npf_session,
+			ifp, skm->sk_protocol);
+	if (!se) {
+		RTE_LOG(ERR, DATAPLANE,
+			"npf session restore failed %lu\n", dpsm->ds_id);
+		return -ENOMEM;
+	}
+
+	s = session_restore_pb(dpsm, ifp);
+	if (!s) {
+		RTE_LOG(ERR, DATAPLANE,
+			"session restore failed %lu\n", dpsm->ds_id);
+		rc = -ENOMEM;
+		goto error;
+	}
+	npf_session_set_dp_session(se, s);
+
+	rc = session_feature_add(s, ifp->if_index, SESSION_FEATURE_NPF, se);
+	if (rc) {
+		RTE_LOG(ERR, DATAPLANE,
+			"npf_session restore: NPF feature add failed %lu, %s\n",
+			session_get_id(s), strerror(-rc));
+		goto error;
+	}
+
+	rc = npf_session_activate_restored(se, ifp);
+	if (rc) {
+		RTE_LOG(ERR, DATAPLANE,
+			"npf session restore: session activate failed %lu\n",
+			session_get_id(s));
+		goto error;
+	}
+	*rns = se;
+	*rs = s;
+	return 0;
+error:
+	if (se)
+		npf_session_destroy(se);
+	if (s)
+		session_expire(s, NULL);
+	return rc;
+}
+
+int npf_pack_restore_pb(void *buf, uint32_t size, enum session_pack_type *spt)
+{
+	struct session *rs = NULL;
+	struct npf_session *rns = NULL;
+	int rc = -EINVAL;
+	DPSessionMsg *dpsm;
+	PackedDPSessionMsg *pds = npf_unpack_pb(buf, size);
+
+	if (pds == NULL) {
+		RTE_LOG(ERR, DATAPLANE,
+			"SESSION_RESTORE: protobuf unpack failed size = %u\n",
+			size);
+		return rc;
+	}
+
+	*spt = pds->pds_pack_type;
+	dpsm = pds->pds_sessions[0];
+
+	switch (pds->pds_pack_type) {
+	case SESSION_PACK_FULL:
+		rc = dp_session_msg_restore(dpsm, &rs, &rns);
+		break;
+	case SESSION_PACK_UPDATE:
+		break;
+	default:
+		break;
+	}
+	npf_unpack_free_pb(pds);
+	return rc;
 }
