@@ -53,6 +53,7 @@ session_sources = files(
         'session/session_cmds.c',
         'session/session_feature.c',
         'session/session_op.c',
+        'session/session_pack_pb.c',
         'session/session_watch.c'
 )
 
