@@ -24,6 +24,7 @@
 #include "npf/config/gpc_db_control.h"
 #include "npf/config/gpc_db_query.h"
 #include "npf/config/pmf_rule.h"
+#include "npf/config/gpc_hw.h"
 #include "protobuf.h"
 #include "protobuf/GPCConfig.pb-c.h"
 #include "protobuf/IPAddress.pb-c.h"
@@ -1785,6 +1786,10 @@ gpc_config(struct pb_msg *msg)
 	rv = gpc_pb_feature_parse(config_msg);
 
 	gpcconfig__free_unpacked(config_msg, NULL);
+
+	if (!rv)
+		gpc_hw_commit();
+
 	return rv;
 }
 
