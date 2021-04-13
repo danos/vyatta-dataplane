@@ -708,7 +708,7 @@ int npf_state_pack_gen_pb(npf_state_t *nst, NPFSessionStateMsg *nss)
 	return 0;
 }
 
-/* Restore non-TCP session state from protobuf-c message */
+/* Restore non-TCP session state from a protobuf-c message */
 int npf_state_restore_gen_pb(npf_state_t *nst, NPFSessionStateMsg *nss)
 {
 	if (!nst || !nss)
@@ -718,6 +718,22 @@ int npf_state_restore_gen_pb(npf_state_t *nst, NPFSessionStateMsg *nss)
 		return -EINVAL;
 
 	nst->nst_gen_state = nss->nss_state;
+	return 0;
+}
+
+/* update non-TCP session state from a protobuf-c message */
+int npf_state_update_gen_pb(npf_state_t *nst, NPFSessionStateMsg *nss,
+			    enum npf_proto_idx proto_idx, bool *state_changed)
+{
+	if (!nst || !nss)
+		return -EINVAL;
+
+	if (nss->nss_state > SESSION_STATE_LAST)
+		return -EINVAL;
+
+	rte_spinlock_lock(&nst->nst_lock);
+	npf_state_set_gen(nst, proto_idx, nss->nss_state, state_changed);
+	rte_spinlock_unlock(&nst->nst_lock);
 	return 0;
 }
 
@@ -782,22 +798,22 @@ int npf_state_restore_tcp_pb(npf_state_t *nst, NPFSessionStateMsg *nss)
 }
 
 /* update tcp state from protobuf-c message. */
-int npf_state_update_tcp_pb(npf_state_t *nst, NPFSessionStateMsg *nsm,
+int npf_state_update_tcp_pb(npf_state_t *nst, NPFSessionStateMsg *nss,
 			    bool *state_changed)
 {
 	int i;
 
-	if (!nst || !nsm)
+	if (!nst || !nss)
 		return -EINVAL;
 
-	if (nsm->nss_state > NPF_TCPS_LAST)
+	if (nss->nss_state > NPF_TCPS_LAST)
 		return -EINVAL;
 
 	rte_spinlock_lock(&nst->nst_lock);
 	for (i = NPF_FLOW_FIRST; i <= NPF_FLOW_LAST; i++)
 		npf_state_restore_tcpwin_pb(&nst->nst_tcp_win[i],
-					    nsm->nss_tcpwins[i]);
-	npf_state_set_tcp(nst, nsm->nss_state, state_changed);
+					    nss->nss_tcpwins[i]);
+	npf_state_set_tcp(nst, nss->nss_state, state_changed);
 	rte_spinlock_unlock(&nst->nst_lock);
 	return 0;
 }

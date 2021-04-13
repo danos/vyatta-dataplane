@@ -185,5 +185,6 @@ int npf_session_pack_pb(struct npf_session *se, NPFSessionMsg *nsm);
 struct npf_session *npf_session_restore_pb(NPFSessionMsg *nsm,
 					    struct ifnet *ifp,
 					    uint8_t protocol);
+int npf_session_update_pb(struct npf_session *se, NPFSessionMsg *nsm);
 
 #endif /* NPF_SESSION_H */

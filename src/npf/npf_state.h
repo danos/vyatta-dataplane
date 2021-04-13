@@ -235,9 +235,9 @@ int npf_state_restore_gen_pb(npf_state_t *nst,
 			     NPFSessionStateMsg *nss);
 int npf_state_restore_tcp_pb(npf_state_t *nst,
 			     NPFSessionStateMsg *nss);
-int npf_state_update_gen_pb(npf_state_t *nst, NPFSessionStateMsg *nsm,
+int npf_state_update_gen_pb(npf_state_t *nst, NPFSessionStateMsg *nss,
 			    enum npf_proto_idx proto_idx, bool *state_changed);
-int npf_state_update_tcp_pb(npf_state_t *nst, NPFSessionStateMsg *nsm,
+int npf_state_update_tcp_pb(npf_state_t *nst, NPFSessionStateMsg *nss,
 			    bool *state_changed);
 
 #endif  /* NPF_STATE_H */

@@ -2199,3 +2199,46 @@ error:
 	free(se);
 	return NULL;
 }
+
+/* update npf_session's state from protobuf-c NPFSessionMsg struct */
+int npf_session_update_pb(npf_session_t *se, NPFSessionMsg *nsm)
+{
+	npf_state_t *nst;
+	enum tcp_session_state old_tcp_state;
+	enum dp_session_state old_gen_state;
+	struct session *s;
+	bool state_changed = false;
+	int rc;
+
+	if (!se || !nsm)
+		return -EINVAL;
+
+	nst = &se->s_state;
+
+	if (se->s_proto_idx == NPF_PROTO_IDX_TCP) {
+		old_tcp_state = nst->nst_tcp_state;
+		rc = npf_state_update_tcp_pb(nst,
+				nsm->ns_state, &state_changed);
+		if (rc)
+			return rc;
+
+		if (state_changed)
+			npf_session_tcp_state_change(se, nst, old_tcp_state,
+				nsm->ns_state->nss_state);
+	} else {
+		old_gen_state = nst->nst_gen_state;
+		rc = npf_state_update_gen_pb(nst, nsm->ns_state,
+				se->s_proto_idx, &state_changed);
+		if (rc)
+			return rc;
+
+		if (state_changed)
+			npf_session_gen_state_change(se, nst, old_gen_state,
+				nsm->ns_state->nss_state, se->s_proto_idx);
+	}
+
+	s = se->s_session;
+	if (s)
+		s->se_etime = get_dp_uptime() + session_get_npf_pack_timeout(s);
+	return 0;
+}

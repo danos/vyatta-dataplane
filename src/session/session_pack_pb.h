@@ -14,6 +14,7 @@ int session_restore_sentry_packet_pb(struct sentry_packet *sp,
 				     const struct ifnet *ifp,
 				     DPSessionKeyMsg *sk);
 int session_pack_pb(struct session *s, DPSessionMsg *dpsm, bool full_copy);
+int session_restore_counters_pb(struct session *s, DPSessionCounterMsg *scm);
 struct session *session_restore_pb(DPSessionMsg *dpsm, struct ifnet *ifp,
 				   uint8_t protocol);
 

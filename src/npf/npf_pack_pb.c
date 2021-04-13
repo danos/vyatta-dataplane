@@ -219,6 +219,34 @@ void npf_unpack_free_pb(PackedDPSessionMsg *pds)
 		packed_dpsession_msg__free_unpacked(pds, NULL);
 }
 
+static int dp_session_msg_update(struct session *s, DPSessionMsg *dpsm)
+{
+	int rc;
+	struct sentry *sen;
+	struct npf_session *se;
+
+	if (!s)
+		return -EINVAL;
+
+	sen = rcu_dereference(s->se_sen);
+	if (!sen)
+		return -ENOENT;
+
+	if (!dpsm->ds_npf_session) {
+		session_expire(s, NULL);
+		return 0;
+	}
+	se = session_feature_get(s, sen->sen_ifindex, SESSION_FEATURE_NPF);
+	if (!se)
+		return -ENOENT;
+
+	rc = npf_session_update_pb(se, dpsm->ds_npf_session);
+	if (rc < 0)
+		return rc;
+
+	return session_restore_counters_pb(s, dpsm->ds_counters);
+}
+
 /*
  * restore a single session.
  */
@@ -263,7 +291,10 @@ dp_session_msg_restore(DPSessionMsg *dpsm, enum session_pack_type spt,
 			session_expire(s, NULL);
 		break;
 	case SESSION_PACK_UPDATE:
-		return -ENOTSUP;
+		if (!rc && s)
+			return dp_session_msg_update(s, dpsm);
+		else
+			return -ENOENT;
 	case SESSION_PACK_NONE:
 		return -EINVAL;
 	}
@@ -332,11 +363,14 @@ int npf_pack_restore_pb(void *buf, uint32_t size, enum session_pack_type *spt)
 		return rc;
 	}
 
+	if (pds->pds_pack_type != SESSION_PACK_FULL
+		&& pds->pds_pack_type != SESSION_PACK_UPDATE)
+		return rc;
+
 	*spt = pds->pds_pack_type;
 	dpsm = pds->pds_sessions[0];
 
 	rc = dp_session_msg_restore(dpsm, pds->pds_pack_type, &rs, &rns);
-
 	npf_unpack_free_pb(pds);
 	return rc;
 }
