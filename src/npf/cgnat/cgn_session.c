@@ -610,8 +610,22 @@ static void cgn_session_slot_put(void)
 }
 
 /*
- * cgn_session_establish.  Sessions are only ever created by outbound
- * flows/ctx.
+ * cgn_session_establish
+ *
+ * The session table entry is created from two main sources -
+ *
+ * 1. The packet cache, cpk
+ * 2. The mapping info, cmi
+ *
+ * Pkt dir	Sentry	Source			Destination
+ * -------	------	-----------------	------------------
+ * Out		Out	cmi_oaddr:cmi_oid	{cpk_daddr:cpk_did}
+ *		In	{cpk_daddr:cpk_did}	cmi_taddr:cmi_tport
+ *
+ * In		Out	cmi_oaddr:cmi_oid	{cpk_saddr:cpk_sid}
+ *		In	{cpk_saddr:cpk_sid}	cpk_daddr:cpk_did
+ *
+ * {} = sub-session, 'struct cgn_sess2'
  */
 struct cgn_session *
 cgn_session_establish(struct cgn_packet *cpk, struct cgn_map *cmi,

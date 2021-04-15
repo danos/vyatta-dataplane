@@ -20,9 +20,19 @@ struct apm;
 /*
  * Context that is required to create or release a CGNAT mapping.
  *
- * The policy and subscriber pointers are only valid if there is a current
- * mapping, as the mapping itself will have taken a reference on the policy
- * and subscriber.
+ * The subscriber pointer, cmi_src, is only valid if there is a current
+ * mapping.  The mapping itself will have taken a reference on the subscriber.
+ * Therefore if cmi_reserved is set and cmi_srci set then we know the cmi_src
+ * pointer is valid.
+ *
+ * The 'reserved' flag indicates that this cmi structure is responsible for
+ * the CGNAT mapping it contains.  It is only ever cleared when either:
+ *
+ *   1. The mapping is transferred to another cmi struct,
+ *   2. The mapping is used to create a session, or
+ *   3. The mapping is not used, and is released back to the apm pool
+ *
+ * Addresses and ports/IDs are in network order.
  */
 struct cgn_map {
 	uint8_t		cmi_reserved:1;	/* Contains a mapping? */
@@ -39,9 +49,7 @@ struct cgn_map {
  */
 int cgn_map_get(struct cgn_map *cmi, struct cgn_policy *cp, vrfid_t vrfid);
 
-/*
- * Use the mapping given in taddr and tport.  Used by PCP.
- */
+/* Use the mapping given in taddr and tport.  Used by PCP. */
 int cgn_map_get2(struct cgn_map *cmi, struct cgn_policy *cp, vrfid_t vrfid);
 
 int cgn_map_put(struct cgn_map *cmi, vrfid_t vrfid);

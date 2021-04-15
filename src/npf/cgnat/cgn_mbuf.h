@@ -38,8 +38,13 @@ struct cgn_policy;
  * Subsequently it may be set false if a packet is deemed unsuitable for
  * keeping a session alive, e.g. TCP resets.
  *
- * Any new fields added to this scructure MUST be explicitly set or
- * initialised by cgn_cache_all.
+ * oaddr and oid are the original subscriber address and port/id.
+ *
+ * taddr and tid are the translation address and port/id.  These may be set
+ * from an ALG pinhole.
+ *
+ * cpk_pkt_cgnat is set true if either: 1. Matched session, 2. Matched CGNAT
+ * policy.
  */
 struct cgn_packet {
 	struct cgn_3tuple_key	cpk_key; /* hash lookup key */
@@ -91,6 +96,7 @@ static inline void cgn_pkt_key_init(struct cgn_packet *cpk, enum cgn_dir dir)
 
 #define ICMP_ERROR_MIN_L4_SIZE	8
 
+/* cpk_info */
 #define CPK_ICMP		0x0001
 #define CPK_ICMP_ECHO		0x0002	/* REQ or REPLY */
 #define CPK_ICMP_ECHO_REQ	0x0004	/* REQ */

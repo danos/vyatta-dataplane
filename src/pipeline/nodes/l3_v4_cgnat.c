@@ -86,23 +86,23 @@ cgnat_try_initial(struct cgn_map *cmi, struct ifnet *ifp,
 		goto error;
 	}
 
-	/* Get subscriber address */
+	/* Get subscriber addr from pkt */
 	oaddr = cpk->cpk_saddr;
 
-	/* Find policy from the source address */
+	/*
+	 * Lookup subscriber address in policy list on the interface.  This is
+	 * how we determine that this is a CGNAT packet.
+	 */
 	cp = cgn_if_find_policy_by_addr(ifp, oaddr);
 	if (!cp) {
 		*error = -CGN_PCY_ENOENT;
 		goto error;
 	}
 
-	/*
-	 * If we find a policy then it must be a CGNAT packet.  (But do not
-	 * mark SNAT-ALG pkts as being CGNAT if bypass is enabled.)
-	 */
+	/* If we find a policy then it must be a CGNAT packet */
 	cpk->cpk_pkt_cgnat = true;
 
-	/* Check if session table is full *before* getting a mapping. */
+	/* Do not continue if session table is full */
 	if (unlikely(cgn_session_table_full)) {
 		*error = -CGN_S1_ENOSPC;
 		goto error;
@@ -125,7 +125,7 @@ cgnat_try_initial(struct cgn_map *cmi, struct ifnet *ifp,
 	if (!cse)
 		goto error;
 
-	/* Check if we want to record sub-sessions */
+	/* Check if we want to enable sub-sessions */
 	cgn_session_try_enable_sub_sess(cse, cp, oaddr);
 
 	return cse;
@@ -514,7 +514,15 @@ static int ipv4_cgnat_common(struct cgn_packet *cpk, struct ifnet *ifp,
 
 		memset(&cmi, 0, sizeof(cmi));
 
-		/* Get policy and mapping.  Create a session. */
+		/*
+		 * Get policy and mapping, and create a session.
+		 *
+		 * The mapping will be created during the call to
+		 * cgnat_try_initial.
+		 *
+		 * cgnat_try_initial always consumes the mapping.  Either it
+		 * is attached to the new session, or it is released.
+		 */
 		cse = cgnat_try_initial(&cmi, ifp, cpk, *mbufp, &error);
 		if (!cse)
 			return error;
