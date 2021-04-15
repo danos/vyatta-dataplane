@@ -197,4 +197,16 @@ int cgn_cache_all(struct rte_mbuf *m, uint l3_offset, struct ifnet *ifp,
 void cgn_rwrcksums(struct cgn_packet *cpk, void *n_ptr,
 		   uint16_t l3_chk_delta, uint16_t l4_chk_delta);
 
+/* Payload len *after* the L4 header */
+static inline uint cgn_payload_len(struct cgn_packet *cpk)
+{
+	return cpk->cpk_len - (cpk->cpk_l3_len + cpk->cpk_l4_len);
+}
+
+/* Pointer to CGNAT packet payload *after* the L4 header */
+static inline char *cgn_payload(struct cgn_packet *cpk, struct rte_mbuf *mbuf)
+{
+	return dp_pktmbuf_mtol3(mbuf, char *) + cpk->cpk_l3_len +
+		cpk->cpk_l4_len;
+}
 #endif /* _CGN_MBUF_H_ */
