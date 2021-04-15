@@ -61,17 +61,17 @@ struct cgn_packet {
 	enum nat_proto	cpk_proto;	/* tcp, udp, other enum */
 	uint8_t		cpk_l4ports;	/* true if there are l4ports*/
 
-	uint16_t	cpk_cksum;	/* l4 checksum */
-	uint16_t	cpk_sid;	/* source port or id */
-	uint16_t	cpk_did;	/* dest port or id */
-	uint8_t		cpk_pad1[2];
-
 	uint32_t	cpk_saddr;	/* source address */
 	uint32_t	cpk_daddr;	/* destination address */
 
 	uint16_t	cpk_l3_len;	/* IP header length */
 	uint16_t	cpk_l4_len;	/* L4 header length */
 	uint32_t	cpk_len;	/* l3 + l4 + data */
+
+	uint16_t	cpk_cksum;	/* l4 checksum */
+	uint16_t	cpk_sid;	/* source port or id */
+	uint16_t	cpk_did;	/* dest port or id */
+	uint8_t		cpk_pad1[2];
 };
 
 #define cpk_ipproto	cpk_key.k_ipproto
