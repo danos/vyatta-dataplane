@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2020-2021, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -29,6 +29,15 @@ struct rte_mbuf *dp_pktmbuf_alloc_from_default(vrfid_t vrf_id);
  */
 vrfid_t
 dp_pktmbuf_get_vrf(const struct rte_mbuf *m);
+
+/*
+ * Set the vrf associated with the packet.
+ *
+ * @param[in] m The buffer to set the vrf on.
+ * @param[in] vrf_id The vrf to set.
+ */
+void
+dp_pktmbuf_set_vrf(struct rte_mbuf *m, vrfid_t vrf_id);
 
 /*
  * Mark a packet as having been locally generated. Locally generated

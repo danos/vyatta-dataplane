@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2011-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -498,6 +498,12 @@ vrfid_t
 dp_pktmbuf_get_vrf(const struct rte_mbuf *m)
 {
 	return pktmbuf_get_vrf(m);
+}
+
+void
+dp_pktmbuf_set_vrf(struct rte_mbuf *m, vrfid_t vrf_id)
+{
+	pktmbuf_set_vrf(m, vrf_id);
 }
 
 void dp_pktmbuf_mark_locally_generated(struct rte_mbuf *m)

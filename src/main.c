@@ -3678,9 +3678,6 @@ main(int argc, char **argv)
 	crypto_pmd_remove_all();
 	stop_all_ports();
 
-	dp_crypto_shutdown();
-
-	capture_destroy();
 	device_server_destroy();
 	console_destroy();
 	zactor_destroy(&vplane_auth);
@@ -3689,13 +3686,13 @@ main(int argc, char **argv)
 	pkt_ring_destroy();
 	vrf_cleanup();
 	npf_cleanup();
+	capture_destroy();
 
 	dp_event(DP_EVT_UNINIT, 0, NULL, 0, 0, NULL);
 
 	close_all_regular_ports();
 	dp_lcore_events_teardown(rte_lcore_id());
 	feature_unload_plugins();
-	udp_handler_destroy();
 	platform_config_cleanup();
 	fal_cleanup();
 	close_all_backplane_ports();
@@ -3703,6 +3700,10 @@ main(int argc, char **argv)
 
 	/* wait for all RCU handlers */
 	dp_rcu_barrier();
+
+	dp_crypto_shutdown();
+	udp_handler_destroy();
+
 	rcu_defer_unregister_thread();
 	dp_rcu_unregister_thread();
 

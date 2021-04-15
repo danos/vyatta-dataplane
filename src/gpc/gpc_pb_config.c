@@ -24,6 +24,7 @@
 #include "npf/config/gpc_db_control.h"
 #include "npf/config/gpc_db_query.h"
 #include "npf/config/pmf_rule.h"
+#include "npf/config/gpc_hw.h"
 #include "protobuf.h"
 #include "protobuf/GPCConfig.pb-c.h"
 #include "protobuf/IPAddress.pb-c.h"
@@ -1176,12 +1177,11 @@ gpc_pb_rule_parse(struct gpc_pb_table *table, Rule *msg)
 
 		/*
 		 * As we have added a counter to this rule, update the
-		 * pmf_rule's summary and recalculate the gpc-group's
-		 * summary
+		 * pmf_rule's summary.  The group's summary will be
+		 * recalculated by gpc_group_hw_ntfy_create when we finally
+		 * push the group down to the FAL.
 		 */
 		rule->pmf_rule->pp_summary |= PMF_RAS_COUNT_REF;
-		(void)gpc_group_recalc_summary(table->gpc_group,
-					       rule->pmf_rule);
 	}
 
 	if (msg->has_table_index)
@@ -1785,6 +1785,10 @@ gpc_config(struct pb_msg *msg)
 	rv = gpc_pb_feature_parse(config_msg);
 
 	gpcconfig__free_unpacked(config_msg, NULL);
+
+	if (!rv)
+		gpc_hw_commit();
+
 	return rv;
 }
 
