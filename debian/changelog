@@ -1,3 +1,33 @@
+vyatta-dataplane (3.13.5) unstable; urgency=medium
+
+  [ Ian Wilson ]
+  * cgnat: Move enum cgn_dir from cgn.h to cgn_dir.h
+  * cgnat: Add cgnat cache boolean to denote cgnat pkt or non-cgnat pkt
+  * cgnat: Add cgnat cache boolean to denote hairpinned pkt
+  * cgnat: Move the jump label for hairpinned pkts
+  * cgnat: Simplify the CGNAT packet disposition decision
+  * cgnat: Zero the cgnat cache structure before initialising
+  * cgnat: Zero the cgnat mapping info struct before initialising
+  * cgnat: Move declaration of mapping info to ipv4_cgnat_common
+  * cgnat: Session destroy fn should call existing clear mapping fn
+  * cgnat: Pass a cgn_map pointer into cgn_session_map
+  * npf: Use refcnt to gate cgnat session destroy
+  * cgnat: Add session accessor functions
+  * cgnat: Remove two goto's from cgn_session_activate
+  * cgnat: Split cgn_session_show into two functions
+  * cgnat: Remove the gotos from cgn_map_put
+  * cgnat: Add RTE_ALIGN fix to the policy hash function
+  * cgnat: Split cgn_sess_state_inspect into three functions
+  * cgnat: The first 4 values of TCP and non-TCP state enums are identical
+  * cgnat: Fixup includes and add missing incomplete refs
+  * cgnat: Split up cgn_map_get function #1
+  * cgnat: Split up cgn_map_get function #2
+  * cgnat: Remove ALWAYS_INLINE from cgn_translate_at
+  * npf: Ensure NAT policy is ref-counted when stored in rule or session
+  * Replace packed VXLAN encap structures with individual ptrs
+
+ -- Srinivas Narayan <narayan@vyatta.att-mail.com>  Thu, 15 Apr 2021 13:22:23 +0100
+
 vyatta-dataplane (3.13.4) unstable; urgency=medium
 
   [ Gavin Shearer ]
