@@ -1,3 +1,16 @@
+vyatta-dataplane (3.12.45) unstable; urgency=medium
+
+  [ Ian Wilson ]
+  * npf: Ensure NAT policy is ref-counted when stored in rule or session
+
+  [ Gavin Shearer ]
+  * gpc: add request for hardware commit after processing GPC protobuf msg
+
+  [ Alan Dewar ]
+  * GPC: prevent crash when optimisation is off (Fixes: VRVDR-54885)
+
+ -- Srinivas Narayan <narayan@vyatta.att-mail.com>  Thu, 15 Apr 2021 12:33:39 +0100
+
 vyatta-dataplane (3.12.44) unstable; urgency=medium
 
   [ Ian Wilson ]
