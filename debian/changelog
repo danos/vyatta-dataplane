@@ -1,3 +1,39 @@
+vyatta-dataplane (3.13.6) unstable; urgency=medium
+
+  [ Ian Wilson ]
+  * npf: Allow unit-tests to reset session ID to 0
+  * ut: Test connsync packing and restoration of SNAT session
+  * ut: Verify the SNAT session json ssync3 test
+  * npf: Fix SNAT session restoration from connsync buffer
+
+  [ Mark Gillott ]
+  * capture: ensure final cleanup occurs after interface cleanup
+    (Fixes: VRVDR-54831)
+
+  [ Srinivas Narayan ]
+  * Move crypto & UDP teardown to a later point
+
+  [ Charles (Chas) Williams ]
+  * fal: add FAL_RET_PLUGIN_CONSUMED framer type (Bugfix: VRVDR-53937)
+  * pktmbuf: add public API to set vrf (Bugfix: VRVDR-54447)
+
+  [ Srinivas Narayan ]
+  * 3.12.44
+
+  [ Ian Wilson ]
+  * npf: Ensure NAT policy is ref-counted when stored in rule or session
+
+  [ Gavin Shearer ]
+  * gpc: add request for hardware commit after processing GPC protobuf msg
+
+  [ Alan Dewar ]
+  * GPC: prevent crash when optimisation is off (Fixes: VRVDR-54885)
+
+  [ Srinivas Narayan ]
+  * 3.12.45
+
+ -- Srinivas Narayan <narayan@vyatta.att-mail.com>  Thu, 15 Apr 2021 14:10:11 +0100
+
 vyatta-dataplane (3.13.5) unstable; urgency=medium
 
   [ Ian Wilson ]
