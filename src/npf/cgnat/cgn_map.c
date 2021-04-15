@@ -980,6 +980,7 @@ int cgn_map_put(struct cgn_map *cmi, vrfid_t vrfid)
 		rte_spinlock_unlock(&apm->apm_lock);
 	}
 
+	assert(rte_atomic32_read(&src->sr_map_active) > 0);
 	rte_atomic32_dec(&src->sr_map_active);
 
 	/*

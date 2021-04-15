@@ -182,9 +182,11 @@ static bool cgn_sess_s2_slot_get(struct cgn_sess_s2 *cs2)
 static void cgn_sess_s2_slot_put(struct cgn_sess_s2 *cs2)
 {
 	/* Decrement count on parent session */
+	assert(rte_atomic16_read(&cs2->cs2_used) > 0);
 	rte_atomic16_dec(&cs2->cs2_used);
 
 	/* Decrement global count */
+	assert(rte_atomic32_read(&cgn_sess2_used) > 0);
 	rte_atomic32_dec(&cgn_sess2_used);
 }
 

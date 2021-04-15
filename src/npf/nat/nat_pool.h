@@ -287,6 +287,7 @@ nat_pool_incr_block_active(struct nat_pool *np)
 static inline void
 nat_pool_decr_block_active(struct nat_pool *np)
 {
+	assert(rte_atomic32_read(&np->np_pb_active) > 0);
 	rte_atomic32_dec(&np->np_pb_active);
 }
 

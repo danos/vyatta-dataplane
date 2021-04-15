@@ -93,6 +93,7 @@ struct cgn_source *cgn_source_get(struct cgn_source *src)
 void cgn_source_put(struct cgn_source *src)
 {
 	assert(src);
+	assert(rte_atomic32_read(&src->sr_refcnt) > 0);
 	rte_atomic32_dec(&src->sr_refcnt);
 }
 
@@ -314,6 +315,7 @@ static bool cgn_src_slot_get(void)
 	if (val <= cgn_src_max)
 		return true;
 
+	assert(rte_atomic32_read(&cgn_src_used) > 0);
 	rte_atomic32_dec(&cgn_src_used);
 
 	if (!cgn_src_table_full)

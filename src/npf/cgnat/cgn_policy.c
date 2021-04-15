@@ -374,14 +374,15 @@ void cgn_policy_put(struct cgn_policy *cp)
 
 void cgn_policy_inc_source_count(struct cgn_policy *cp)
 {
-	if (cp)
-		rte_atomic32_inc(&cp->cp_source_count);
+	assert(cp);
+	rte_atomic32_inc(&cp->cp_source_count);
 }
 
 void cgn_policy_dec_source_count(struct cgn_policy *cp)
 {
-	if (cp)
-		rte_atomic32_dec(&cp->cp_source_count);
+	assert(cp);
+	assert(rte_atomic32_read(&cp->cp_source_count) > 0);
+	rte_atomic32_dec(&cp->cp_source_count);
 }
 
 /*
