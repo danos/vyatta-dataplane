@@ -155,6 +155,9 @@ uint32_t cgn_sess2_id(struct cgn_sess2 *s2);
 uint32_t cgn_sess2_ipproto(struct cgn_sess2 *s2);
 uint32_t cgn_sess2_addr(struct cgn_sess2 *s2);
 uint16_t cgn_sess2_port(struct cgn_sess2 *s2);
+uint16_t cgn_sess2_get_sentry_id(struct cgn_sess2 *s2, enum cgn_dir dir);
+void cgn_sess2_set_sentry_id(struct cgn_sess2 *s2, enum cgn_dir dir,
+			     uint16_t id);
 uint64_t cgn_sess2_start_time(struct cgn_sess2 *s2);
 uint32_t cgn_sess2_pkts_out_tot(struct cgn_sess2 *s2);
 uint64_t cgn_sess2_bytes_out_tot(struct cgn_sess2 *s2);

@@ -256,6 +256,17 @@ uint16_t cgn_sess2_port(struct cgn_sess2 *s2)
 	return s2->s2_sentry[CGN_DIR_OUT].s2e_key.k_port;
 }
 
+uint16_t cgn_sess2_get_sentry_id(struct cgn_sess2 *s2, enum cgn_dir dir)
+{
+	return s2->s2_sentry[dir].s2e_key.k_port;
+}
+
+void cgn_sess2_set_sentry_id(struct cgn_sess2 *s2, enum cgn_dir dir,
+			     uint16_t id)
+{
+	s2->s2_sentry[dir].s2e_key.k_port = id;
+}
+
 uint64_t cgn_sess2_start_time(struct cgn_sess2 *s2)
 {
 	return s2->s2_start_time;
