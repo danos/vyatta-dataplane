@@ -1103,17 +1103,38 @@ int cgn_sess_s2_log_walk(struct cgn_sess_s2 *cs2)
 static void
 cgn_sess2_jsonw_one(json_writer_t *json, struct cgn_sess2 *s2)
 {
-	char dst_str[16];
+	char dst_str[INET_ADDRSTRLEN];
 	uint32_t uptime = get_dp_uptime();
 	uint32_t max_timeout = cgn_sess2_expiry_time(s2);
 	uint32_t addr = cgn_sess2_addr(s2);
+	uint16_t port = ntohs(cgn_sess2_port(s2));
 
 	inet_ntop(AF_INET, &addr, dst_str, sizeof(dst_str));
 
 	jsonw_start_object(json);
 
+	/*
+	 * We default to show the outbound sentry addr and port.  These will
+	 * almost always be the same as the inbound sentry.  However some ALGs
+	 * may change the inbound sentry addr and port (e.g. PPTP GRE
+	 * sessions).
+	 */
 	jsonw_string_field(json, "dst_addr", dst_str);
-	jsonw_uint_field(json, "dst_port", htons(cgn_sess2_port(s2)));
+	jsonw_uint_field(json, "dst_port", port);
+
+	uint32_t in_addr = s2->s2_sentry[CGN_DIR_IN].s2e_key.k_addr;
+	uint16_t in_port = ntohs(s2->s2_sentry[CGN_DIR_IN].s2e_key.k_port);
+
+	if (in_addr != addr || in_port != port) {
+		jsonw_name(json, "in");
+		jsonw_start_object(json);
+		jsonw_string_field(json, "src_addr",
+				   inet_ntop(AF_INET, &in_addr, dst_str,
+					     sizeof(dst_str)));
+		jsonw_uint_field(json, "src_port", in_port);
+		jsonw_end_object(json);
+	}
+
 	jsonw_uint_field(json, "id", s2->s2_id);
 
 	cgn_sess_state_jsonw(json, &s2->s2_state);

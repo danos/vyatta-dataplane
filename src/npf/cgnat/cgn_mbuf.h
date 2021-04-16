@@ -209,4 +209,5 @@ static inline char *cgn_payload(struct cgn_packet *cpk, struct rte_mbuf *mbuf)
 	return dp_pktmbuf_mtol3(mbuf, char *) + cpk->cpk_l3_len +
 		cpk->cpk_l4_len;
 }
+
 #endif /* _CGN_MBUF_H_ */
