@@ -1,3 +1,13 @@
+vyatta-dataplane (3.12.46) unstable; urgency=medium
+
+  [ Nicholas Brown ]
+  * Add support for dpkg-mergechangelogs
+
+  [ Srinivas Narayan ]
+  * crypto: Move sa unbinding from PMD to rcu callback
+
+ -- Srinivas Narayan <narayan@vyatta.att-mail.com>  Fri, 16 Apr 2021 14:20:41 +0100
+
 vyatta-dataplane (3.12.45) unstable; urgency=medium
 
   [ Ian Wilson ]
