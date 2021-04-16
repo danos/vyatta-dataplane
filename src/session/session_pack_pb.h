@@ -11,5 +11,6 @@ struct session;
 
 int session_pack_sentry_pb(struct session *s, DPSessionKeyMsg *sk);
 int session_pack_pb(struct session *s, DPSessionMsg *dpsm);
+struct session *session_restore_pb(DPSessionMsg *dpsm, struct ifnet *ifp);
 
 #endif

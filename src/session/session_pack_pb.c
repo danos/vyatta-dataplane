@@ -57,6 +57,23 @@ static void session_pack_flags(struct session *s, uint32_t *flags)
 	*flags = psf.psf_allbits;
 }
 
+/* unpack an uint32_t to set the session's bit fields */
+static void session_restore_flags(struct session *s, uint32_t flags)
+{
+	struct pb_session_flags psf = { .psf_allbits = flags };
+
+	s->se_flags = psf.psf_bits.psf_flags;
+	s->se_fw = psf.psf_bits.psf_fw;
+	s->se_snat = psf.psf_bits.psf_snat;
+	s->se_dnat = psf.psf_bits.psf_dnat;
+	s->se_nat64 = psf.psf_bits.psf_nat64;
+	s->se_nat46 = psf.psf_bits.psf_nat46;
+	s->se_alg = psf.psf_bits.psf_alg;
+	s->se_in = psf.psf_bits.psf_in;
+	s->se_out = psf.psf_bits.psf_out;
+	s->se_app = psf.psf_bits.psf_app;
+}
+
 /*
  * Copy session's sentry to protobuf-c DPSessionKeyMsg struct.
  * DPSessionKeyMsg is equivalent to the forward sentry_packet information.
@@ -96,6 +113,37 @@ int session_pack_sentry_pb(struct session *s, DPSessionKeyMsg *sk)
 	return 0;
 }
 
+/* restore forward sentry_packet from protobuf-c DPSessionKeyMsg.
+ * This sentry_packet is used to lookup the restored session in sentry tables.
+ */
+int session_restore_sentry_packet_pb(struct sentry_packet *sp,
+				     const struct ifnet *ifp,
+				     DPSessionKeyMsg *sk)
+{
+	size_t i;
+
+	if (!sp || !sk || !ifp)
+		return -EINVAL;
+
+	if (!sk->has_sk_protocol || !sk->n_sk_addrids)
+		return -EINVAL;
+
+	sp->sp_vrfid = ifp->if_vrfid;
+	sp->sp_ifindex = ifp->if_index;
+	if (sk->has_sk_flags)
+		sp->sp_sentry_flags = sk->sk_flags;
+	else
+		sp->sp_sentry_flags = 0;
+
+	sp->sp_protocol = sk->sk_protocol;
+	sp->sp_len = sk->n_sk_addrids;
+
+	for (i = 0; i < sk->n_sk_addrids; ++i)
+		sp->sp_addrids[i] = sk->sk_addrids[i];
+
+	return 0;
+}
+
 /* pack  session timeouts, state, and flags to protobuf message */
 static int session_pack_state_pb(struct session *s, DPSessionStateMsg *ssm)
 {
@@ -116,6 +164,27 @@ static int session_pack_state_pb(struct session *s, DPSessionStateMsg *ssm)
 	return 0;
 }
 
+/* Restore session timeouts, state, and flags from protobuf message */
+int session_restore_state_pb(struct session *s, DPSessionStateMsg *ssm)
+{
+	if (!s || !ssm)
+		return -EINVAL;
+
+	if (!ssm->has_ss_custom_timeout || !ssm->has_ss_timeout ||
+	    !ssm->has_ss_protocol_state || !ssm->has_ss_generic_state ||
+	    !ssm->has_ss_flags)
+		return -EINVAL;
+
+	s->se_custom_timeout = ssm->ss_custom_timeout;
+	s->se_timeout = ssm->ss_timeout;
+	s->se_protocol_state = ssm->ss_protocol_state;
+	s->se_gen_state = ssm->ss_generic_state;
+
+	session_restore_flags(s, ssm->ss_flags);
+
+	return 0;
+}
+
 /* Copy session counters to protobuf-c DPSessionCounterMsg struct */
 static int session_pack_counters_pb(struct session *s, DPSessionCounterMsg *scm)
 {
@@ -130,6 +199,24 @@ static int session_pack_counters_pb(struct session *s, DPSessionCounterMsg *scm)
 	scm->sc_pkts_out = rte_atomic64_read(&s->se_pkts_out);
 	scm->has_sc_bytes_out = 1;
 	scm->sc_bytes_out = rte_atomic64_read(&s->se_bytes_out);
+
+	return 0;
+}
+
+/* Restore session counters from protobuf message */
+int session_restore_counters_pb(struct session *s, DPSessionCounterMsg *scm)
+{
+	if (!s || !scm)
+		return -EINVAL;
+
+	if (!scm->has_sc_pkts_in || !scm->has_sc_bytes_in ||
+	    !scm->has_sc_pkts_out || !scm->has_sc_bytes_out)
+		return -EINVAL;
+
+	rte_atomic64_set(&s->se_pkts_in, scm->sc_pkts_in);
+	rte_atomic64_set(&s->se_bytes_in, scm->sc_bytes_in);
+	rte_atomic64_set(&s->se_pkts_out, scm->sc_pkts_out);
+	rte_atomic64_set(&s->se_bytes_out, scm->sc_bytes_out);
 
 	return 0;
 }
@@ -163,4 +250,48 @@ int session_pack_pb(struct session *s, DPSessionMsg *dpsm)
 		return rc;
 
 	return 0;
+}
+
+/*Allocate and restore a session's state from a protobuf message */
+struct session *session_restore_pb(DPSessionMsg *dpsm, struct ifnet *ifp,
+				   uint8_t protocol)
+{
+	struct session *s;
+	struct sentry_packet sp_forw;
+	struct sentry_packet sp_back;
+	int rc;
+
+	if (!dpsm || !ifp)
+		return NULL;
+
+	rc = session_restore_sentry_packet_pb(&sp_forw, ifp, dpsm->ds_key);
+	if (rc)
+		return NULL;
+	sentry_packet_reverse(&sp_forw, &sp_back);
+
+	if (!dpsm->ds_state)
+		return NULL;
+
+	s = session_alloc();
+	if (!s)
+		return NULL;
+
+	rc = session_restore_state_pb(s, dpsm->ds_state);
+	if (rc < 0)
+		goto error;
+
+	rc = session_restore_counters_pb(s, dpsm->ds_counters);
+	if (rc < 0)
+		goto error;
+
+	s->se_vrfid = ifp->if_vrfid;
+	s->se_protocol = sp_forw.sp_protocol;
+
+	rc = session_insert_restored(s, &sp_forw, &sp_back);
+	if (rc)
+		goto error;
+	return s;
+error:
+	session_reclaim(s);
+	return NULL;
 }
