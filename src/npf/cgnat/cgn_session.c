@@ -631,7 +631,18 @@ struct cgn_session *
 cgn_session_establish(struct cgn_packet *cpk, struct cgn_map *cmi,
 		      int *error)
 {
+	struct cgn_source *src = cmi->cmi_src;
 	struct cgn_session *cse;
+
+	assert(src);
+	assert(cmi->cmi_oaddr);
+	assert(cmi->cmi_taddr);
+	assert(cmi->cmi_tid);
+	assert(cmi->cmi_reserved);
+
+	/* A policy and subscriber structure should already exist */
+	if (!src || !src->sr_policy)
+		return NULL;
 
 	/*
 	 * Reserve a slot from the counters.  The slot MUST be returned if an
