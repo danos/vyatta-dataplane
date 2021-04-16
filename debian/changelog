@@ -1,3 +1,9 @@
+vyatta-dataplane (3.11.72.13.3) unstable; urgency=medium
+
+  * crypto: Move sa unbinding from PMD to rcu callback
+
+ -- Srinivas Narayan <narayan@vyatta.att-mail.com>  Fri, 16 Apr 2021 14:25:06 +0100
+
 vyatta-dataplane (3.11.72.13.2) unstable; urgency=medium
 
   [ Mark Gillott ]
