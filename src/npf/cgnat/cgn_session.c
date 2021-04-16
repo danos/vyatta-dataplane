@@ -629,7 +629,7 @@ static void cgn_session_slot_put(void)
  */
 struct cgn_session *
 cgn_session_establish(struct cgn_packet *cpk, struct cgn_map *cmi,
-		      int *error)
+		      enum cgn_dir dir, int *error)
 {
 	struct cgn_source *src = cmi->cmi_src;
 	struct cgn_session *cse;
@@ -667,18 +667,23 @@ cgn_session_establish(struct cgn_packet *cpk, struct cgn_map *cmi,
 	 * latter is always ifp->if_index whereas cpk_key.k_ifindex will
 	 * either be ifp->if_index or a cgnat interface group index value.
 	 */
-	cse->cs_forw_entry.ce_ifindex =	cpk->cpk_key.k_ifindex;
-	cse->cs_forw_entry.ce_ipproto = cpk->cpk_ipproto;
-	cse->cs_forw_entry.ce_addr = cmi->cmi_oaddr;
-	cse->cs_forw_entry.ce_port = cmi->cmi_oid;
-	cse->cs_forw_entry.ce_established = false;
+	if (likely(dir == CGN_DIR_OUT)) {
+		cse->cs_forw_entry.ce_ifindex =	cpk->cpk_key.k_ifindex;
+		cse->cs_forw_entry.ce_ipproto = cpk->cpk_ipproto;
+		cse->cs_forw_entry.ce_addr = cmi->cmi_oaddr;
+		cse->cs_forw_entry.ce_port = cmi->cmi_oid;
+		cse->cs_forw_entry.ce_established = false;
 
-	/* Populate back entry */
-	cse->cs_back_entry.ce_ifindex =	cpk->cpk_key.k_ifindex;
-	cse->cs_back_entry.ce_ipproto = cpk->cpk_ipproto;
-	cse->cs_back_entry.ce_addr = cmi->cmi_taddr;
-	cse->cs_back_entry.ce_port = cmi->cmi_tid;
-	cse->cs_back_entry.ce_established = false;
+		/* Populate back entry */
+		cse->cs_back_entry.ce_ifindex =	cpk->cpk_key.k_ifindex;
+		cse->cs_back_entry.ce_ipproto = cpk->cpk_ipproto;
+		cse->cs_back_entry.ce_addr = cmi->cmi_taddr;
+		cse->cs_back_entry.ce_port = cmi->cmi_tid;
+		cse->cs_back_entry.ce_established = false;
+	} else {
+		cgn_session_destroy(cse, false);
+		return NULL;
+	}
 
 	rte_atomic16_set(&cse->cs_refcnt, 0);
 	rte_atomic16_set(&cse->cs_idle, 0);
@@ -819,7 +824,7 @@ cgn_session_map(struct ifnet *ifp, struct cgn_packet *cpk, struct cgn_map *cmi,
 	}
 
 	/* Create a session. */
-	cse = cgn_session_establish(cpk, cmi, error);
+	cse = cgn_session_establish(cpk, cmi, CGN_DIR_OUT, error);
 	if (!cse)
 		goto error;
 
@@ -976,10 +981,8 @@ int cgn_session_activate(struct cgn_session *cse,
 		struct cgn_sess2 *s2;
 		int error = 0;
 
-		assert(dir == CGN_DIR_OUT);
-
 		/* Create an s2 session */
-		s2 = cgn_sess_s2_establish(&cse->cs_s2, cpk, &error);
+		s2 = cgn_sess_s2_establish(&cse->cs_s2, cpk, dir, &error);
 		if (s2)
 			error = cgn_sess_s2_activate(&cse->cs_s2, s2);
 
@@ -1241,7 +1244,8 @@ cgn_session_inspect_s2(struct cgn_session *cse, struct cgn_sentry *ce,
 			assert(dir == CGN_DIR_OUT);
 
 			/* Create an s2 session */
-			s2 = cgn_sess_s2_establish(&cse->cs_s2, cpk, &error);
+			s2 = cgn_sess_s2_establish(&cse->cs_s2, cpk,
+						   dir, &error);
 			if (s2)
 				error = cgn_sess_s2_activate(&cse->cs_s2, s2);
 

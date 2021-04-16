@@ -369,7 +369,7 @@ uint64_t cgn_sess2_timestamp(void)
  */
 struct cgn_sess2 *
 cgn_sess_s2_establish(struct cgn_sess_s2 *cs2, struct cgn_packet *cpk,
-		      int *error)
+		      enum cgn_dir dir, int *error)
 {
 	struct cgn_sess2 *s2;
 
@@ -390,21 +390,22 @@ cgn_sess_s2_establish(struct cgn_sess_s2 *cs2, struct cgn_packet *cpk,
 		return NULL;
 	}
 
-	/*
-	 * Populate forw sentry.  Matched with outbound destination address
-	 * and port.
-	 */
-	s2->s2_sentry[CGN_DIR_OUT].s2e_key.k_addr = cpk->cpk_daddr;
-	s2->s2_sentry[CGN_DIR_OUT].s2e_key.k_port = cpk->cpk_did;
-	s2->s2_sentry[CGN_DIR_OUT].s2e_key.k_dir = CGN_DIR_OUT;
+	/* Populate forw and back sentries */
+	if (dir == CGN_DIR_OUT) {
+		/* Outbound packet */
+		s2->s2_sentry[CGN_DIR_OUT].s2e_key.k_addr = cpk->cpk_daddr;
+		s2->s2_sentry[CGN_DIR_OUT].s2e_key.k_port = cpk->cpk_did;
+		s2->s2_sentry[CGN_DIR_OUT].s2e_key.k_dir = CGN_DIR_OUT;
 
-	/*
-	 * Populate back sentry.  Matched with inbound source address and
-	 * port.
-	 */
-	s2->s2_sentry[CGN_DIR_IN].s2e_key.k_addr = cpk->cpk_daddr;
-	s2->s2_sentry[CGN_DIR_IN].s2e_key.k_port = cpk->cpk_did;
-	s2->s2_sentry[CGN_DIR_IN].s2e_key.k_dir = CGN_DIR_IN;
+		s2->s2_sentry[CGN_DIR_IN].s2e_key.k_addr = cpk->cpk_daddr;
+		s2->s2_sentry[CGN_DIR_IN].s2e_key.k_port = cpk->cpk_did;
+		s2->s2_sentry[CGN_DIR_IN].s2e_key.k_dir = CGN_DIR_IN;
+	} else {
+		/* Return reserved slot */
+		cgn_sess_s2_slot_put(cs2);
+		*error = -CGN_S2_ENOMEM;
+		return NULL;
+	}
 
 	rte_atomic32_inc(&s2->s2_pkts_out);
 	rte_atomic32_add(&s2->s2_bytes_out, cpk->cpk_len);

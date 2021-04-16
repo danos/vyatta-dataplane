@@ -58,7 +58,8 @@ void cgn_session_try_enable_sub_sess(struct cgn_session *cse,
 				     struct cgn_policy *cp, uint32_t oaddr);
 
 struct cgn_session *cgn_session_establish(struct cgn_packet *cpk,
-					  struct cgn_map *cmi, int *error);
+					  struct cgn_map *cmi,
+					  enum cgn_dir dir, int *error);
 
 int cgn_session_activate(struct cgn_session *cse,
 			 struct cgn_packet *cpk, enum cgn_dir dir);

@@ -68,11 +68,12 @@ ipv4_cgnat_out_bypass(struct ifnet *ifp, struct rte_mbuf *mbuf)
 }
 
 /*
- * cgnat_try_initial.  Sessions are always created in an 'outbound' context.
+ * cgnat_try_initial.
  */
 static struct cgn_session *
 cgnat_try_initial(struct cgn_map *cmi, struct ifnet *ifp,
-		  struct cgn_packet *cpk, struct rte_mbuf *mbuf, int *error)
+		  struct cgn_packet *cpk, struct rte_mbuf *mbuf,
+		  enum cgn_dir dir, int *error)
 {
 	struct cgn_session *cse;
 	struct cgn_policy *cp;
@@ -85,6 +86,8 @@ cgnat_try_initial(struct cgn_map *cmi, struct ifnet *ifp,
 		*error = -CGN_PCY_BYPASS;
 		goto error;
 	}
+
+	assert(dir == CGN_DIR_OUT);
 
 	/* Get subscriber addr from pkt */
 	oaddr = cpk->cpk_saddr;
@@ -121,9 +124,12 @@ cgnat_try_initial(struct cgn_map *cmi, struct ifnet *ifp,
 	}
 
 	/* Create a session. */
-	cse = cgn_session_establish(cpk, cmi, error);
+	cse = cgn_session_establish(cpk, cmi, dir, error);
 	if (!cse)
 		goto error;
+
+	/* The mapping should have been consumed by the session */
+	assert(!cmi->cmi_reserved);
 
 	/* Check if we want to enable sub-sessions */
 	cgn_session_try_enable_sub_sess(cse, cp, oaddr);
@@ -523,7 +529,7 @@ static int ipv4_cgnat_common(struct cgn_packet *cpk, struct ifnet *ifp,
 		 * cgnat_try_initial always consumes the mapping.  Either it
 		 * is attached to the new session, or it is released.
 		 */
-		cse = cgnat_try_initial(&cmi, ifp, cpk, *mbufp, &error);
+		cse = cgnat_try_initial(&cmi, ifp, cpk, *mbufp, dir, &error);
 		if (!cse)
 			return error;
 
