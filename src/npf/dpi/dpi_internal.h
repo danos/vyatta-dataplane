@@ -2,6 +2,8 @@
  * Copyright (c) 2017-2018,2020, AT&T Intellectual Property.
  * All rights reserved.
  *
+ * Copyright (c) 2021 Centre for Development of Telematics. All rights reserved.
+ *
  * Copyright (c) 2016-2017 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -228,8 +230,8 @@ bool dpi_flow_get_error(struct dpi_flow *flow);
  * Get the packet and byte statistics for the given flow in the given direction.
  * Returns a pointer to the flow stats in the given direction.
  */
-const struct dpi_flow_stats *dpi_flow_get_stats(struct dpi_engine_flow *flow,
-						bool forw);
+const struct dpi_flow_stats *dpi_flow_get_stats(
+		const struct dpi_engine_flow *flow, bool forw);
 
 /**
  * Get the ID corresponding to the given application name, according to the
