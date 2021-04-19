@@ -120,6 +120,7 @@ Depends: check,
          ${misc:Depends},
          ${shlibs:Depends}
 Provides: dp-pktmbuf-set-vrf,
+          dp-session-pack-protobuf
 Description: Vyatta dataplane pipeline node build support
  Set of headers required for dataplane compilation
 
