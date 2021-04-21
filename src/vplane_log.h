@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2013-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -50,6 +50,7 @@
 #define RTE_LOGTYPE_ACL_HW	RTE_LOGTYPE_USER4
 #define RTE_LOGTYPE_MAC_LIMIT	RTE_LOGTYPE_USER4
 #define RTE_LOGTYPE_GPC		RTE_LOGTYPE_USER4
+#define RTE_LOGTYPE_TWAMP	RTE_LOGTYPE_USER4
 
 /* USER5 - crypto */
 #define RTE_LOGTYPE_VTI		RTE_LOGTYPE_USER5

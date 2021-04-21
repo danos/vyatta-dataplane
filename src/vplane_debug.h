@@ -61,6 +61,7 @@
 #define DP_DBG_MAC_LIMIT	(1ull << 38)
 #define DP_DBG_GPC		(1ull << 39)
 #define DP_DBG_RLDB_ACL         (1ull << 40)
+#define DP_DBG_TWAMP		(1ull << 41)
 
 /* Default to only debugging startup and link events.
  * Skip ARP and route since they can flood log.
