@@ -120,7 +120,6 @@ Depends: check,
          libprotobuf-c-dev,
          libvyatta-jsonw1 (= ${binary:Version}),
          ${misc:Depends},
-         ${shlibs:Depends}
 Provides: dp-pktmbuf-set-vrf,
 Description: Vyatta dataplane pipeline node build support
  Set of headers required for dataplane compilation
@@ -138,7 +137,7 @@ Description: Vyatta dataplane test binary
 Package: libvyatta-dataplane-proto-support
 Section: non-free/devel
 Architecture: all
-Depends: ${misc:Depends}
+Depends: ${misc:Depends}, ${perl:Depends}
 Description: Vyatta dataplane protocol buffer files and support
  Set of files defining message formats accepted by the dataplane
 
@@ -243,7 +242,7 @@ Description: Provides C language bindings for the dataplane API.
 
 Package: libvyatta-vplane
 Architecture: any
-Depends: ${misc:Depends}, ${perl:Depends}, ${shlibs:Depends}
+Depends: ${misc:Depends}
 Multi-Arch: same
 Description: Provides Vyatta Vplane.pm modules
  Perl modules that supports system initialization for the dataplane.
