@@ -45,6 +45,10 @@ export DEB_CXXFLAGS_MAINT_APPEND
 # Some hardening options actually help with performance, but some harm it
 export DEB_BUILD_MAINT_OPTIONS=hardening=+format,-fortify,-stackprotector,+relro,+bindnow
 
+# To be really strict change this to level 4
+DPKG_GENSYMBOLS_CHECK_LEVEL ?= 1
+export DPKG_GENSYMBOLS_CHECK_LEVEL
+
 # Build in a separate directory
 %:
 	dh $@ --builddirectory=build --parallel --buildsystem=meson
