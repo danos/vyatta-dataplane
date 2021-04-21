@@ -51,7 +51,7 @@ export DPKG_GENSYMBOLS_CHECK_LEVEL
 
 # Build in a separate directory
 %:
-	dh $@ --builddirectory=build --parallel --buildsystem=meson
+	dh $@ --builddirectory=build --buildsystem=meson
 
 override_dh_auto_configure:
 	dh_auto_configure -- $(DATAPLANE_CONFIGURE_FLAGS)
