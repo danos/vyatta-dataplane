@@ -367,17 +367,19 @@ static int sadb_tunl_match(struct cds_lfht_node *node, const void *key)
  * This can be called from any thread that is registered as
  * an RCU read and is in a RCU read critical section
  */
-static struct sadb_peer *sadb_lookup_peer(vrfid_t vrfid,
-					  uint32_t req_id)
+static int sadb_lookup_peer(vrfid_t vrfid,
+			    uint32_t req_id, struct sadb_peer **peer_ret)
 {
 	struct sadb_tunl_key search_key;
 	struct crypto_vrf_ctx *vrf_ctx;
 	struct cds_lfht_node *node;
 	struct cds_lfht_iter iter;
 
+	*peer_ret = NULL;
+
 	vrf_ctx = crypto_vrf_find(vrfid);
 	if (!vrf_ctx)
-		return NULL;
+		return -EINVAL;
 
 	search_key.req_id = req_id;
 
@@ -386,28 +388,31 @@ static struct sadb_peer *sadb_lookup_peer(vrfid_t vrfid,
 
 	node = cds_lfht_iter_get_node(&iter);
 
-	return node ? caa_container_of(node, struct sadb_peer, ht_node) : NULL;
+	*peer_ret = node ?
+		caa_container_of(node, struct sadb_peer, ht_node) : NULL;
+	return 0;
 }
 
-static struct sadb_peer *sadb_create_peer(vrfid_t vrfid,
-					  uint32_t req_id)
+static int sadb_create_peer(vrfid_t vrfid,
+			    uint32_t req_id, struct sadb_peer **peer_ret)
 {
 	struct crypto_vrf_ctx *vrf_ctx;
 	struct cds_lfht_node *ret_node;
 	struct sadb_tunl_key key;
 	struct sadb_peer *peer;
 
+	*peer_ret = NULL;
 	/*
 	 * Lookup/create VRF context
 	 */
 	vrf_ctx = crypto_vrf_get(vrfid);
 	if (!vrf_ctx)
-		return NULL;
+		return -EINVAL;
 
 	peer = zmalloc_aligned(sizeof(*peer));
 	if (!peer) {
 		SADB_ERR("Failed to allocate IPsec peer\n");
-		return NULL;
+		return -ENOMEM;
 	}
 
 	peer->req_id = req_id;
@@ -427,11 +432,12 @@ static struct sadb_peer *sadb_create_peer(vrfid_t vrfid,
 	if (ret_node != &peer->ht_node) {
 		SADB_ERR("Failed to insert IPsec peer in hash table\n");
 		free(peer);
-		return NULL;
+		return -ENOTUNIQ;
 	}
 	vrf_ctx->count_of_peers++;
 
-	return peer;
+	*peer_ret = peer;
+	return 0;
 }
 /*
  * sadb_lookup_or_create_peer()
@@ -442,17 +448,27 @@ static struct sadb_peer *sadb_create_peer(vrfid_t vrfid,
  *
  * NOTE: This may only be called from the main thread.
  */
-static struct sadb_peer *sadb_lookup_or_create_peer(vrfid_t vrfid,
-						    uint32_t req_id)
+static int sadb_lookup_or_create_peer(vrfid_t vrfid,
+				      uint32_t req_id,
+				      struct sadb_peer **peer_ret)
 {
 	struct sadb_peer *peer;
+	int rc;
 
-	peer = sadb_lookup_peer(vrfid, req_id);
-	if (peer)
-		return peer;
-	peer = sadb_create_peer(vrfid, req_id);
+	*peer_ret = NULL;
 
-	return peer;
+	rc = sadb_lookup_peer(vrfid, req_id, &peer);
+	if (rc < 0)
+		return rc;
+	if (peer) {
+		*peer_ret = peer;
+		return 0;
+	}
+	rc = sadb_create_peer(vrfid, req_id, &peer);
+
+	*peer_ret = peer;
+
+	return rc;
 }
 
 /*
@@ -536,9 +552,12 @@ sadb_find_old_sa(struct sadb_sa *sa, vrfid_t vrfid, struct sadb_peer **ret_peer,
 	struct sadb_peer *peer;
 	struct cds_list_head *this_entry;
 	struct sadb_sa *tmp_sa, *match_sa = NULL;
+	int rc;
 
-	peer = sadb_lookup_peer(vrfid, req_id);
-	if (!peer)
+	*ret_peer = NULL;
+
+	rc = sadb_lookup_peer(vrfid, req_id, &peer);
+	if (rc < 0 || !peer)
 		return NULL;
 
 	cds_list_for_each(this_entry, &peer->sa_list) {
@@ -566,9 +585,10 @@ sadb_find_matching_sa(struct sadb_sa *sa, bool ign_pending_del, vrfid_t vrfid,
 	struct sadb_peer *peer;
 	struct cds_list_head *this_entry;
 	struct sadb_sa *tmp_sa;
+	int rc;
 
-	peer = sadb_lookup_peer(vrfid, req_id);
-	if (!peer) {
+	rc = sadb_lookup_peer(vrfid, req_id, &peer);
+	if (rc < 0 || !peer) {
 		*matching_peer = NULL;
 		return NULL;
 	}
@@ -599,27 +619,31 @@ static int
 sadb_insert_sa(struct sadb_sa *sa, struct crypto_vrf_ctx *vrf_ctx,
 	       struct sadb_peer *peer, uint32_t req_id)
 {
+	int rc;
 
 	if (!sa)
-		return -1;
+		return -EINVAL;
 
 	if (!sadb_add_sa_to_spi_in_hash(sa)) {
 		SADB_ERR("Failed to add SA to SPI in hash table");
-		return -1;
+		return -EINVAL;
 	}
 
 	if (!sadb_add_sa_to_spi_out_hash(sa, vrf_ctx)) {
 		SADB_ERR("Failed to add SA to SPI out hash table");
-		return -1;
+		return -EINVAL;
 	}
 
 	if (!peer)
-		peer = sadb_create_peer(vrf_ctx->vrfid, req_id);
-	if (!peer) {
+		rc = sadb_create_peer(vrf_ctx->vrfid, req_id, &peer);
+	else
+		rc = 0;
+
+	if (rc < 0) {
 		sadb_remove_sa_from_spi_in_hash(sa);
 		sadb_remove_sa_from_spi_out_hash(sa, vrf_ctx->vrfid);
 		SADB_ERR("Could not insert SA, failed to find IPsec peer\n");
-		return -2;
+		return rc;
 	}
 
 	cds_list_add_rcu(&sa->peer_links, &peer->sa_list);
@@ -630,7 +654,7 @@ sadb_insert_sa(struct sadb_sa *sa, struct crypto_vrf_ctx *vrf_ctx,
 	 */
 	sadb_refresh_osbervers_of_sa(sa, peer, false);
 
-	return 1;
+	return 0;
 }
 
 /*
@@ -654,12 +678,13 @@ static struct sadb_sa *sadb_remove_sa(const xfrm_address_t *dst,
 	struct cds_list_head *this_entry, *next_entry;
 	struct sadb_peer *peer;
 	struct sadb_sa *sa;
+	int rc;
 
 	if (!dst || !src || ((family != AF_INET) && (family != AF_INET6)))
 		return NULL;
 
-	peer = sadb_lookup_peer(vrfid, req_id);
-	if (!peer)
+	rc = sadb_lookup_peer(vrfid, req_id, &peer);
+	if (rc < 0 || !peer)
 		return NULL;
 
 	/*
@@ -733,16 +758,19 @@ struct sadb_sa *sadb_lookup_inbound(uint32_t spi)
 	return sa;
 }
 
-static void sadb_sa_destroy(struct sadb_sa *sa)
-{
-	cipher_teardown_ctx(sa);
-	free(sa);
-}
-
 static enum crypto_xfrm crypto_sa_to_xfrm(struct sadb_sa *sa)
 {
 	return sa->dir == CRYPTO_DIR_IN ?
 		CRYPTO_DECRYPT : CRYPTO_ENCRYPT;
+}
+
+static void sadb_sa_destroy(struct sadb_sa *sa)
+{
+	cipher_teardown_ctx(sa);
+	crypto_remove_sa_from_pmd(sa->del_pmd_dev_id,
+				  crypto_sa_to_xfrm(sa),
+				  sa->pending_del);
+	free(sa);
 }
 
 /*
@@ -807,18 +835,18 @@ int crypto_sadb_new_sa(const struct xfrm_usersa_info *sa_info,
 	struct crypto_vrf_ctx *vrf_ctx;
 	struct ifnet *ifp;
 	int pmd_dev_id;
-	int err;
+	int err, rc;
 	bool setup_openssl = false;
 	struct sadb_peer *peer;
 
 	if (!sa_info || !crypto_algo) {
 		SADB_ERR("Bad parameters on attempt to add SA\n");
-		return -1;
+		return -EINVAL;
 	}
 
 	vrf_ctx = crypto_vrf_get(vrf_id);
 	if (!vrf_ctx)
-		return -1;
+		return -EINVAL;
 
 	SADB_DEBUG("NEWSA SPI = %x Mark = %x VRF %d\n",
 		   ntohl(sa_info->id.spi), mark_val, vrf_id);
@@ -826,7 +854,7 @@ int crypto_sadb_new_sa(const struct xfrm_usersa_info *sa_info,
 	sa = zmalloc_aligned(sizeof(*sa));
 	if (!sa) {
 		SADB_ERR("Failed to allocate SA\n");
-		return -1;
+		return -ENOMEM;
 	}
 
 	sa->family = sa_info->family;
@@ -882,7 +910,7 @@ int crypto_sadb_new_sa(const struct xfrm_usersa_info *sa_info,
 		if (pmd_dev_id == CRYPTO_PMD_INVALID_ID) {
 			SADB_ERR("Failed to allocate PMD for SA\n");
 			sadb_sa_destroy(sa);
-			return -1;
+			return -ENOMEM;
 		}
 	} else
 		pmd_dev_id = CRYPTO_PMD_INVALID_ID;
@@ -898,11 +926,11 @@ int crypto_sadb_new_sa(const struct xfrm_usersa_info *sa_info,
 		if (err) {
 			SADB_ERR("Failed to set direction for SA\n");
 			sadb_sa_destroy(sa);
-			return -1;
+			return -EINVAL;
 		}
 	}
-
-	if (sadb_insert_sa(sa, vrf_ctx, peer, sa->reqid) < 0) {
+	rc = sadb_insert_sa(sa, vrf_ctx, peer, sa->reqid);
+	if (rc < 0) {
 		/*
 		 * Even though the SA insert failed, we know
 		 * there is a pending del on the retiring_sa,
@@ -911,7 +939,7 @@ int crypto_sadb_new_sa(const struct xfrm_usersa_info *sa_info,
 		 */
 		SADB_ERR("Failed to insert SA into SADB\n");
 		sadb_sa_destroy(sa);
-		return -1;
+		return rc;
 	}
 
 	/*
@@ -995,9 +1023,9 @@ static int crypto_sadb_del_sa_internal(const xfrm_address_t *dst,
 		inet_ntop(family, &dst,
 			  dstip_str, sizeof(dstip_str));
 
-		SADB_ERR("SA delete for %s SPI %x failed: not found\n",
-			 dstip_str, ntohl(spi));
-		return -1;
+		SADB_DEBUG("SA delete for %s SPI %x failed: not found\n",
+			   dstip_str, ntohl(spi));
+		return -ESRCH;
 	}
 
 	/* If this is an active SA, then we need to restore an old SA
@@ -1006,9 +1034,6 @@ static int crypto_sadb_del_sa_internal(const xfrm_address_t *dst,
 	if (resurrect_old_sa && !sa->pending_del)
 		crypto_sadb_resurrect_sa(sa, vrf_ctx->vrfid, sa->reqid);
 
-	crypto_remove_sa_from_pmd(sa->del_pmd_dev_id,
-				  crypto_sa_to_xfrm(sa),
-				  sa->pending_del);
 	crypto_sa_free_fwd_core(sa->fwd_core);
 	call_rcu(&sa->sa_rcu, sadb_sa_rcu_free);
 	vrf_ctx->count_of_sas--;
@@ -1030,11 +1055,11 @@ int crypto_sadb_del_sa(const struct xfrm_usersa_info *sa_info, vrfid_t vrfid)
 	struct crypto_vrf_ctx *vrf_ctx;
 
 	if (!sa_info)
-		return -1;
+		return -EINVAL;
 
 	vrf_ctx = crypto_vrf_find(vrfid);
 	if (!vrf_ctx)
-		return -1;
+		return -EINVAL;
 
 	return crypto_sadb_del_sa_internal(&sa_info->id.daddr,
 					   &sa_info->saddr,
@@ -1054,25 +1079,25 @@ void crypto_sadb_flush_vrf(struct crypto_vrf_ctx *vrf_ctx)
 
 	cds_lfht_for_each_entry(vrf_ctx->spi_out_hash_table,
 				&iter, sa, spi_ht_node) {
-		crypto_sadb_del_sa_internal(&sa->dst,
-					    &sa->src,
-					    sa->spi,
-					    sa->family,
-					    vrf_ctx,
-					    false,
-					    sa->reqid);
+		(void)crypto_sadb_del_sa_internal(&sa->dst,
+						  &sa->src,
+						  sa->spi,
+						  sa->family,
+						  vrf_ctx,
+						  false,
+						  sa->reqid);
 	}
 
 	cds_lfht_for_each_entry(spi_in_hash_table,
 				&iter, sa, spi_ht_node) {
 		if (sa->overlay_vrf_id == vrf_ctx->vrfid)
-			crypto_sadb_del_sa_internal(&sa->dst,
-						    &sa->src,
-						    sa->spi,
-						    sa->family,
-						    vrf_ctx,
-						    false,
-						    sa->reqid);
+			(void)crypto_sadb_del_sa_internal(&sa->dst,
+							  &sa->src,
+							  sa->spi,
+							  sa->family,
+							  vrf_ctx,
+							  false,
+							  sa->reqid);
 	}
 }
 
@@ -1383,8 +1408,7 @@ void crypto_sadb_tunl_overhead_subscribe(uint32_t reqid,
 {
 	struct sadb_peer *peer;
 
-	peer = sadb_lookup_or_create_peer(vrfid, reqid);
-	if (!peer) {
+	if (sadb_lookup_or_create_peer(vrfid, reqid, &peer) < 0) {
 		SADB_ERR("Could not subscribe to peer overhead\n");
 		return;
 	}
@@ -1403,9 +1427,10 @@ void crypto_sadb_tunl_overhead_unsubscribe(uint32_t reqid,
 					   vrfid_t vrfid)
 {
 	struct sadb_peer *peer;
+	int rc;
 
-	peer = sadb_lookup_peer(vrfid, reqid);
-	if (!peer) {
+	rc = sadb_lookup_peer(vrfid, reqid, &peer);
+	if (rc < 0 || !peer) {
 		SADB_ERR("Overhead unsubscribe failed: peer not found.\n");
 		return;
 	}

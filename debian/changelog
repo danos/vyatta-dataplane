@@ -238,6 +238,28 @@ vyatta-dataplane (3.13.1) unstable; urgency=medium
 
  -- Srinivas Narayan <narayan@vyatta.att-mail.com>  Tue, 16 Mar 2021 11:27:06 +0000
 
+vyatta-dataplane (3.12.47) unstable; urgency=medium
+
+  [ Shubham Shrivastava ]
+  * DPI: Avoid concurrent access of ndpi_flow_struct by multiple lcores
+  * DPI: Max packets check and detection giveup for ndpi flow
+
+  [ Simon Barber ]
+  * CRYPTO:Ensure SA return codes valid
+  * CRYPTO: Fix policy return codes
+
+ -- Srinivas Narayan <narayan@vyatta.att-mail.com>  Thu, 22 Apr 2021 14:51:42 +0100
+
+vyatta-dataplane (3.12.46) unstable; urgency=medium
+
+  [ Nicholas Brown ]
+  * Add support for dpkg-mergechangelogs
+
+  [ Srinivas Narayan ]
+  * crypto: Move sa unbinding from PMD to rcu callback
+
+ -- Srinivas Narayan <narayan@vyatta.att-mail.com>  Fri, 16 Apr 2021 14:20:41 +0100
+
 vyatta-dataplane (3.12.45) unstable; urgency=medium
 
   [ Ian Wilson ]

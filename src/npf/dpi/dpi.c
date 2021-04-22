@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  *
+ * Copyright (c) 2021 Centre for Development of Telematics. All rights reserved.
+ *
  * Copyright (c) 2016-2017 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -500,8 +502,8 @@ dpi_flow_get_error(struct dpi_flow *flow)
 	return true;
 }
 
-const struct dpi_flow_stats *dpi_flow_get_stats(struct dpi_engine_flow *flow,
-						bool forw)
+const struct dpi_flow_stats *dpi_flow_get_stats(
+		const struct dpi_engine_flow *flow, bool forw)
 {
 	unsigned int index = !forw;
 	return &flow->stats[index];

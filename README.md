@@ -9,6 +9,28 @@ Please see [CONTRIBUTING.md](CONTRIBUTING.md) for details of coding requirements
 
 [0]: http://dpdk.org/ "Data Plane Development Kit"
 
+## Package Maintenance
+
+### Changelog Merging
+When merging branches, particularly master -> master-next, conflicts can often be
+generated due to differing changelog entries. The `dpkg-mergechangelogs` tool can
+automatically resolve conflicts in debian/changelog and ensure consistent ordering
+of changelog entries.
+
+This repository is configured to use `dpkg-mergechangelogs` to resolve conflicts in
+debian/changelog. However to make use of it, a maintainer must install the tool and
+enable it. From `dpkg-mergechangelogs(1)`:
+
+> INTEGRATION WITH GIT
+>
+> If  you  want  to use this program to merge Debian changelog files in a
+> git repository, you have first  to  register  a  new  merge  driver  in
+> .git/config or ~/.gitconfig:
+>
+>     [merge "dpkg-mergechangelogs"]
+>         name = debian/changelog merge driver
+>         driver = dpkg-mergechangelogs -m %O %A %B %A
+
 ## Source Structure
 
 | Directory       | Description |

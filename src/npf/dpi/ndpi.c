@@ -1,5 +1,8 @@
 /*
  * Copyright (c) 2021 AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2021 Centre for Development of Telematics. All rights reserved.
+ *
+ * Copyright (c) 2021 Centre for Development of Telematics. All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -37,10 +40,17 @@
 #define NDPI_PROTOCOLS_PATH	"/opt/vyatta/etc/dpi/protocols.cfg"
 #define NDPI_CATEGORIES_PATH	"/opt/vyatta/etc/dpi/categories.cfg"
 
+#define NDPI_FLOW_PKT_MAX 10
+
 #define DPI_INTERNAL_UNKNOWN (DPI_ENGINE_NDPI | NDPI_PROTOCOL_UNKNOWN)
 
 /* Count of all nDPI uses. */
 static uint32_t ndpi_refcount;
+
+/* Flag to enable/ disable nDPI protocol guessing.
+ * 1 = enabled, 0 = disabled
+ */
+static uint8_t enable_protocol_guess = 1;
 
 static const char *dpi_ndpi_app_id_to_name(uint32_t app_id);
 
@@ -54,6 +64,7 @@ struct ndpi_flow {
 	uint32_t type;
 	struct ndpi_id_struct *src_id;
 	struct ndpi_id_struct *dest_id;
+	rte_spinlock_t fl_lock;
 	struct rcu_head n_rcu_head;
 };
 
@@ -73,6 +84,32 @@ static inline uint32_t
 dpi_from_ndpi_proto(uint16_t id)
 {
 	return DPI_ENGINE_NDPI | id;
+}
+
+/* Return true if the sum of the forward and backward packet counts
+ * for the given ndpi_flow is greater than or equal to the specified maximum.
+ */
+static bool
+dpi_ndpi_flow_pkt_count_maxed(const struct ndpi_flow *flow, uint32_t max)
+{
+	if (!flow)
+		return false;
+
+	const struct dpi_engine_flow *engine_flow =
+		(const struct dpi_engine_flow *)flow;
+	uint32_t cnt;
+	const struct dpi_flow_stats *ds;
+
+	ds = dpi_flow_get_stats(engine_flow, true);
+	cnt = ds->pkts;
+
+	ds = dpi_flow_get_stats(engine_flow, false);
+	cnt += ds->pkts;
+
+	if (cnt >= max)
+		return true;
+
+	return false;
 }
 
 /**
@@ -100,6 +137,25 @@ dpi_ndpi_process(struct ndpi_detection_module_struct *detect,
 			data, data_len, (uint64_t) get_time_uptime(),
 			flow->src_id, flow->dest_id);
 
+	/* Offload the given ndpi_flow if the protocol is known,
+	 * or if the sum of its forward and backward packet counts
+	 * is greater than or equal to NDPI_FLOW_PKT_MAX.
+	 */
+	flow->offloaded =
+		proto.master_protocol != NDPI_PROTOCOL_UNKNOWN ||
+		proto.app_protocol != NDPI_PROTOCOL_UNKNOWN ||
+		dpi_ndpi_flow_pkt_count_maxed(flow, NDPI_FLOW_PKT_MAX);
+
+	if (flow->offloaded) {
+		/* Give up protocol detection by nDPI. Update detected
+		 * protocols in ndpi_protocol structure using protocols
+		 * guessed by nDPI if enable_protocol_guess is set to 1.
+		 */
+		uint8_t proto_guessed = 0;
+		proto = ndpi_detection_giveup(detect, flow->key,
+				enable_protocol_guess, &proto_guessed);
+	}
+
 	/* Sometimes nDPI sets "app_protocol" without setting "master_protocol",
 	 * so we see app 'TLS' over protocol 'Unknown' which doesn't make sense.
 	 * In this case we swap the app and protocol to get 'Unknown over TLS'.
@@ -116,8 +172,6 @@ dpi_ndpi_process(struct ndpi_detection_module_struct *detect,
 	}
 
 	flow->type = ndpi_get_proto_category(detect, proto);
-	flow->offloaded = flow->protocol != DPI_INTERNAL_UNKNOWN
-		|| flow->application != DPI_INTERNAL_UNKNOWN;
 
 	if (unlikely(dp_debug & DP_DBG_DPI)) {
 		RTE_LOG(DEBUG, DATAPLANE, "ndpi: P='%s' A='%s' C='%s'\n",
@@ -150,6 +204,7 @@ dpi_ndpi_process_pkt(struct dpi_engine_flow *engine_flow,
 	if (unlikely(!flow->key))
 		return false;
 
+	rte_spinlock_lock(&flow->fl_lock);
 	if (!dpi_ndpi_process(detection_modules[dp_lcore_id()],
 				mbuf, flow)) {
 		flow->protocol = DPI_APP_ERROR;
@@ -157,6 +212,7 @@ dpi_ndpi_process_pkt(struct dpi_engine_flow *engine_flow,
 		flow->error = true;
 	}
 
+	rte_spinlock_unlock(&flow->fl_lock);
 	return true;
 }
 
@@ -304,6 +360,7 @@ dpi_ndpi_session_first_packet(struct npf_session *se __unused,
 	flow->type = DPI_APP_TYPE_NONE;
 	flow->error = false;
 	flow->offloaded = false;
+	rte_spinlock_init(&flow->fl_lock);
 
 	flow->key = ndpi_flow_malloc(SIZEOF_FLOW_STRUCT);
 	if (!flow->key)

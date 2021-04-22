@@ -102,8 +102,8 @@ struct pr_feat_attach {
 	struct rcu_head pr_feat_rcu;
 };
 
-#define POLICY_F_PENDING_ADD	0x0001
-#define POLICY_F_PENDING_DEL	0x0002
+#define POLICY_F_PENDING_ADD 0x0001
+#define POLICY_F_PENDING_DEL 0x0002
 #define POLICY_F_PENDING_UPDATE 0x0004
 /*
  * struct policy_rule
@@ -326,7 +326,7 @@ static int policy_rule_sel_match(struct cds_lfht_node *node, const void *key)
 		 (!search_key->mark && (pr->mark.v == 0))));
 }
 
-static bool policy_rule_add_to_selector_ht(struct policy_rule *pr)
+static int policy_rule_add_to_selector_ht(struct policy_rule *pr)
 {
 	struct cds_lfht_node *ret_node;
 	struct cds_lfht *hash_table;
@@ -335,7 +335,7 @@ static bool policy_rule_add_to_selector_ht(struct policy_rule *pr)
 
 	vrf_ctx = crypto_vrf_get(pr->vrfid);
 	if (!vrf_ctx)
-		return false;
+		return -EINVAL;
 
 	switch (pr->dir) {
 	case XFRM_POLICY_IN:
@@ -347,7 +347,7 @@ static bool policy_rule_add_to_selector_ht(struct policy_rule *pr)
 	default:
 		POLICY_ERR(
 			"Failed to add policy rule to hash table: Bad direction\n");
-		return false;
+		return -EINVAL;
 	}
 
 	key.sel = &pr->sel;
@@ -359,20 +359,20 @@ static bool policy_rule_add_to_selector_ht(struct policy_rule *pr)
 				       &key, &pr->sel_ht_node);
 	if (ret_node != &pr->sel_ht_node) {
 		POLICY_ERR("Failed to add rule to selector hash table\n");
-		return false;
+		return -EEXIST;
 	}
 
-	return true;
+	return 0;
 }
 
-static void policy_rule_remove_from_selector_ht(struct policy_rule *pr)
+static int policy_rule_remove_from_selector_ht(struct policy_rule *pr)
 {
 	struct cds_lfht *hash_table;
 	struct crypto_vrf_ctx *vrf_ctx;
 
 	vrf_ctx = crypto_vrf_find(pr->vrfid);
 	if (!vrf_ctx)
-		return;
+		return -EINVAL;
 
 	switch (pr->dir) {
 	case XFRM_POLICY_IN:
@@ -382,19 +382,19 @@ static void policy_rule_remove_from_selector_ht(struct policy_rule *pr)
 		hash_table = vrf_ctx->output_policy_rule_sel_ht;
 		break;
 	default:
-		POLICY_ERR(
-			"Failed to remove policy rule from hash table: Bad direction\n");
-		return;
+		return -EINVAL;
 	}
 
 	cds_lfht_del(hash_table, &pr->sel_ht_node);
+	return 0;
 }
 
-static struct policy_rule*
+static int
 policy_rule_find_by_selector(vrfid_t vrfid,
 			     const struct xfrm_selector *sel,
 			     const struct xfrm_mark *mark,
-			     int policy_direction)
+			     int policy_direction,
+			     struct policy_rule **pr)
 {
 	struct cds_lfht *hash_table;
 	struct policy_rule_key key;
@@ -404,7 +404,7 @@ policy_rule_find_by_selector(vrfid_t vrfid,
 
 	vrf_ctx = crypto_vrf_find(vrfid);
 	if (!vrf_ctx)
-		return NULL;
+		return -EINVAL;
 
 	switch (policy_direction) {
 	case XFRM_POLICY_IN:
@@ -416,7 +416,7 @@ policy_rule_find_by_selector(vrfid_t vrfid,
 	default:
 		POLICY_ERR(
 			"Failed to find policy rule in hash table: Bad direction\n");
-		return NULL;
+		return -EINVAL;
 	}
 
 	key.sel = sel;
@@ -427,12 +427,17 @@ policy_rule_find_by_selector(vrfid_t vrfid,
 			policy_rule_sel_match, &key, &iter);
 
 	node = cds_lfht_iter_get_node(&iter);
+	if (node) {
+		*pr = caa_container_of(node, struct policy_rule, sel_ht_node);
+		return 0;
+	}
 
-	return node ? caa_container_of(node, struct policy_rule, sel_ht_node)
-		    : NULL;
+	*pr = NULL;
+
+	return -ESRCH;
 }
 
-static bool policy_prepare_rldb_rule(struct policy_rule *pr,
+static int policy_prepare_rldb_rule(struct policy_rule *pr,
 				     struct rldb_rule_spec *rule)
 {
 	rule->rldb_user_data = (uintptr_t)pr;
@@ -488,7 +493,7 @@ static bool policy_prepare_rldb_rule(struct policy_rule *pr,
 	} else {
 		POLICY_ERR(
 			"Failed to add policy rule: AF not supported\n");
-		return false;
+		return -EAFNOSUPPORT;
 	}
 
 	/*
@@ -507,7 +512,7 @@ static bool policy_prepare_rldb_rule(struct policy_rule *pr,
 		rule->rldb_dst_port_range.npfrl_hiport = pr->sel.dport;
 	}
 
-	return true;
+	return 0;
 }
 
 static
@@ -538,7 +543,7 @@ struct rldb_db_handle *policy_rule_get_rldb(struct crypto_vrf_ctx *vrf_ctx,
 	return db;
 }
 
-static bool policy_rule_add_to_rldb(struct crypto_vrf_ctx *vrf_ctx,
+static int policy_rule_add_to_rldb(struct crypto_vrf_ctx *vrf_ctx,
 				    struct policy_rule *pr)
 {
 	int rc;
@@ -550,20 +555,20 @@ static bool policy_rule_add_to_rldb(struct crypto_vrf_ctx *vrf_ctx,
 	 * don't need to create RLDB rules for them.
 	 */
 	if (pr->vti_tunnel_policy)
-		return true;
+		return 0;
 
 	rc = policy_prepare_rldb_rule(pr, &rule);
 	if (rc < 0)
-		return false;
+		return rc;
 
 	db = policy_rule_get_rldb(vrf_ctx, pr);
 	if (!db)
-		return false;
+		return -ENOENT;
 
 	rc = rldb_add_rule(db, pr->rule_index, &rule, &pr->rh);
 	if (rc < 0) {
 		POLICY_ERR("Failed to add policy rule to rule database\n");
-		return false;
+		return rc;
 	}
 
 	if (pr->sel.family == AF_INET) {
@@ -576,7 +581,7 @@ static bool policy_rule_add_to_rldb(struct crypto_vrf_ctx *vrf_ctx,
 			     vrf_ctx->crypto_total_ipv6_policies);
 	}
 
-	return true;
+	return 0;
 }
 
 static void
@@ -620,19 +625,19 @@ policy_rule_set_mark(struct policy_rule *pr, const struct xfrm_mark *mark)
 	}
 }
 
-static struct policy_rule *
+static int
 policy_rule_create(const struct xfrm_userpolicy_info *usr_policy,
 		   const struct xfrm_user_tmpl *tmpl,
 		   const struct xfrm_mark *mark,
 		   const xfrm_address_t *dst,
-		   vrfid_t vrfid)
+		   vrfid_t vrfid, struct policy_rule **pr_ptr)
 {
 	struct policy_rule *pr;
 
 	pr = zmalloc_aligned(sizeof(*pr));
 	if (!pr) {
 		POLICY_ERR("Policy rule allocation failed\n");
-		return NULL;
+		return -ENOMEM;
 	}
 
 	/*
@@ -661,14 +666,16 @@ policy_rule_create(const struct xfrm_userpolicy_info *usr_policy,
 				"Mismatch of tmpl and dst\n");
 
 			free(pr);
-			return NULL;
+			return -EINVAL;
 		}
 		if (tmpl && dst)
 			policy_rule_set_peer_info(pr, tmpl, dst);
 	}
 
 	cds_lfht_node_init(&pr->sel_ht_node);
-	return pr;
+	*pr_ptr = pr;
+
+	return 0;
 }
 
 static void policy_feat_attach_free(struct rcu_head *head)
@@ -735,20 +742,24 @@ static void policy_rule_destroy(struct policy_rule *pr)
 	call_rcu(&pr->policy_rule_rcu, policy_rule_rcu_invalidate);
 }
 
-static bool policy_rule_add_to_hash_tables(struct policy_rule *pr)
+static int policy_rule_add_to_hash_tables(struct policy_rule *pr)
 {
-	if (!policy_rule_add_to_selector_ht(pr))
-		return false;
-
-	return true;
+	return policy_rule_add_to_selector_ht(pr);
 }
 
-static void policy_rule_remove_from_hash_tables(struct policy_rule *pr)
+static int policy_rule_remove_from_hash_tables(struct policy_rule *pr)
 {
-	policy_rule_remove_from_selector_ht(pr);
+	int rc;
+
+	rc =  policy_rule_remove_from_selector_ht(pr);
+	if (rc < 0)
+		POLICY_ERR(
+			"Failed to remove policy rule from hash table:"
+			"rc %d\n", rc);
+	return rc;
 }
 
-static bool policy_rule_update_rldb(struct policy_rule *pr)
+static int policy_rule_update_rldb(struct policy_rule *pr)
 {
 	int rc;
 	struct rldb_db_handle *db;
@@ -761,21 +772,21 @@ static bool policy_rule_update_rldb(struct policy_rule *pr)
 	 * so we don't have an rldb rule to update.
 	 */
 	if (pr->vti_tunnel_policy)
-		return true;
+		return 0;
 
 	vrf_ctx = crypto_vrf_get(pr->vrfid);
 	if (!vrf_ctx)
-		return false;
+		return -EINVAL;
 
 	db = policy_rule_get_rldb(vrf_ctx, pr);
 	if (!db)
-		return false;
+		return -ENOENT;
 
 	rc = rldb_del_rule(db, pr->rh);
 	if (rc < 0) {
 		POLICY_ERR("Failed to update rule %u: %d\n",
 			   pr->rule_index, -rc);
-		return false;
+		return rc;
 	}
 
 	rc = policy_prepare_rldb_rule(pr, &rule);
@@ -786,10 +797,10 @@ static bool policy_rule_update_rldb(struct policy_rule *pr)
 	if (rc < 0) {
 		POLICY_ERR("Failed to update rule %u: %d\n",
 			   pr->rule_index, -rc);
-		return false;
+		return rc;
 	}
 
-	return true;
+	return 0;
 }
 
 static bool all_other_policies_can_be_cached(struct crypto_vrf_ctx *vrf_ctx,
@@ -830,13 +841,13 @@ static int policy_rule_remove_from_rldb(struct policy_rule *pr,
 	db = policy_rule_get_rldb(vrf_ctx, pr);
 	if (!db) {
 		POLICY_ERR("Failed to delete policy\n");
-		return -1;
+		return -ENOENT;
 	}
 
 	rc = rldb_del_rule(db, rh);
 	if (rc < 0) {
 		POLICY_ERR("Failed to delete policy from rule database\n");
-		return -1;
+		return rc;
 	}
 
 	if (pr->sel.family == AF_INET) {
@@ -873,37 +884,43 @@ static int policy_bind_sel_match(struct cds_lfht_node *node, const void *key)
 	return policy_rule_sel_eq(sel, &bind->sel);
 }
 
-static void bind_table_vrf_inc(vrfid_t vrfid)
+static int bind_table_vrf_inc(vrfid_t vrfid)
 {
 	struct crypto_vrf_ctx *vrf_ctx;
 
 	vrf_ctx = crypto_vrf_get(vrfid);
 	if (!vrf_ctx)
-		return;
+		return -EINVAL;
 
 	vrf_ctx->s2s_bindings++;
+	return 0;
 }
 
-static void bind_table_vrf_dec(vrfid_t vrfid)
+static int bind_table_vrf_dec(vrfid_t vrfid)
 {
 	struct crypto_vrf_ctx *vrf_ctx;
 
 	vrf_ctx = crypto_vrf_get(vrfid);
 	if (!vrf_ctx)
-		return;
+		return -EINVAL;
 
 	vrf_ctx->s2s_bindings--;
+	return 0;
 }
 
-static struct cds_lfht *bind_table_vrf_get(vrfid_t vrfid)
+static int bind_table_vrf_get(vrfid_t vrfid, struct cds_lfht **table)
 {
 	struct crypto_vrf_ctx *vrf_ctx;
 
 	vrf_ctx = crypto_vrf_get(vrfid);
 	if (!vrf_ctx)
-		return NULL;
+		return -EINVAL;
 
-	return vrf_ctx->s2s_bind_hash_table;
+	if (vrf_ctx->s2s_bind_hash_table) {
+		*table = vrf_ctx->s2s_bind_hash_table;
+		return 0;
+	}
+	return -ENOENT;
 }
 
 static void policy_bind_free(struct rcu_head *rcu_head)
@@ -914,20 +931,24 @@ static void policy_bind_free(struct rcu_head *rcu_head)
 	free(bind);
 }
 
-static void policy_bind_del(struct s2s_binding *bind)
+static int policy_bind_del(struct s2s_binding *bind)
 {
 	struct cds_lfht *bind_table;
+	int rc;
 
-	bind_table = bind_table_vrf_get(bind->vrfid);
-
-	if (!bind_table) {
+	rc = bind_table_vrf_get(bind->vrfid, &bind_table);
+	if (rc < 0) {
 		POLICY_ERR("Failed to get binding table for del\n");
-		return;
+		return rc;
 	}
 
 	cds_lfht_del(bind_table, &bind->bind_ht_node);
-	bind_table_vrf_dec(bind->vrfid);
+	rc = bind_table_vrf_dec(bind->vrfid);
+	if (rc < 0)
+		POLICY_ERR("Failed to dec vrf binding table\n");
 	call_rcu(&bind->bind_rcu_head, policy_bind_free);
+
+	return rc;
 }
 
 static struct s2s_binding *policy_bind_lookup(vrfid_t vrfid,
@@ -936,10 +957,10 @@ static struct s2s_binding *policy_bind_lookup(vrfid_t vrfid,
 	struct cds_lfht *bind_table;
 	struct cds_lfht_node *node;
 	struct cds_lfht_iter iter;
+	int rc;
 
-	bind_table = bind_table_vrf_get(vrfid);
-
-	if (!bind_table) {
+	rc = bind_table_vrf_get(vrfid, &bind_table);
+	if (rc < 0) {
 		POLICY_ERR("Failed to get binding table for lookup\n");
 		return NULL;
 	}
@@ -964,11 +985,13 @@ static void policy_bind_feat_attach(vrfid_t vrfid,
 	struct xfrm_mark mark;
 	struct ifnet *ifp;
 	struct pr_feat_attach *attach;
+	int rc;
 
 	mark.v = mark.m = 0;
-	pr = policy_rule_find_by_selector(vrfid, sel, &mark, XFRM_POLICY_OUT);
+	rc = policy_rule_find_by_selector(vrfid, sel, &mark, XFRM_POLICY_OUT,
+					  &pr);
 
-	if (!pr) {
+	if (rc != 0) {
 		POLICY_DEBUG("Failed bind lookup for policy\n");
 		return;
 	}
@@ -1029,29 +1052,33 @@ static struct policy_rule *batch_pr[CRYPTO_NPF_CFG_COMMIT_FORCE_COUNT];
 
 static int crypto_policy_rldb_commit(struct crypto_vrf_ctx *vrf_ctx)
 {
-	int rc = 0;
+	int rc_ret, rc = 0;
 
-	if (rldb_commit_transaction(vrf_ctx->input_policy_v4_rldb) < 0) {
+	rc_ret = rldb_commit_transaction(vrf_ctx->input_policy_v4_rldb);
+	if (rc_ret <  0) {
 		POLICY_ERR("Policy commit for IPv4 inbound failed\n");
-		rc = -1;
+		rc = rc_ret;
 	}
 	rldb_start_transaction(vrf_ctx->input_policy_v4_rldb);
 
-	if (rldb_commit_transaction(vrf_ctx->output_policy_v4_rldb) < 0) {
+	rc_ret = rldb_commit_transaction(vrf_ctx->output_policy_v4_rldb);
+	if (rc_ret <  0) {
 		POLICY_ERR("Policy commit for IPv4 outbound failed\n");
-		rc = -1;
+		rc = rc_ret;
 	}
 	rldb_start_transaction(vrf_ctx->output_policy_v4_rldb);
 
-	if (rldb_commit_transaction(vrf_ctx->input_policy_v6_rldb) < 0) {
+	rc_ret = rldb_commit_transaction(vrf_ctx->input_policy_v6_rldb);
+	if (rc_ret <  0) {
 		POLICY_ERR("Policy commit for IPv6 inbound failed\n");
-		rc = -1;
+		rc = rc_ret;
 	}
 	rldb_start_transaction(vrf_ctx->input_policy_v6_rldb);
 
-	if (rldb_commit_transaction(vrf_ctx->output_policy_v6_rldb) < 0) {
+	rc_ret = rldb_commit_transaction(vrf_ctx->output_policy_v6_rldb);
+	if (rc_ret <  0) {
 		POLICY_ERR("Policy commit for IPv6 outbound failed\n");
-		rc = -1;
+		rc = rc_ret;
 	}
 	rldb_start_transaction(vrf_ctx->output_policy_v6_rldb);
 
@@ -1064,15 +1091,14 @@ void crypto_npf_cfg_commit_flush(void)
 	struct vrf *vrf;
 	struct crypto_vrf_ctx *vrf_ctx;
 	uint32_t i;
-	int rc = MNL_CB_OK;
+	int rc = 0;
 
 	VRF_FOREACH(vrf, vrf_id) {
 		vrf_ctx = crypto_vrf_find(vrf_id);
 		if (!vrf_ctx)
 			continue;
 
-		if (crypto_policy_rldb_commit(vrf_ctx) < 0)
-			rc = MNL_CB_ERROR;
+		rc  = (crypto_policy_rldb_commit(vrf_ctx));
 
 		/* Enable IPsec in IPv4 feature pipeline and
 		 * update live count.
@@ -1183,7 +1209,7 @@ static void crypto_npf_cfg_commit_all(struct policy_rule *pr,
 		crypto_npf_cfg_commit_flush();
 }
 
-static bool
+static int
 policy_rule_update(struct policy_rule *pr,
 		   struct crypto_vrf_ctx *vrf_ctx,
 		   const struct xfrm_userpolicy_info *usr_policy,
@@ -1195,6 +1221,7 @@ policy_rule_update(struct policy_rule *pr,
 {
 	bool was_vti_policy = pr->vti_tunnel_policy;
 	bool changed = false;
+	int rc;
 
 	*send_ack = true;
 
@@ -1210,7 +1237,7 @@ policy_rule_update(struct policy_rule *pr,
 			if (!tmpl || !dst) {
 				POLICY_ERR(
 					"Policy update to allow ignored: missing TMPL or destination\n");
-				return false;
+				return -EINVAL;
 			}
 
 			policy_rule_set_mark(pr, mark);
@@ -1257,13 +1284,20 @@ policy_rule_update(struct policy_rule *pr,
 		pr->policy_priority = usr_policy->priority;
 		pr->rule_index = usr_policy->index;
 
-		policy_rule_remove_from_rldb(pr, vrf_ctx, was_vti_policy,
-					     old_rh);
+		rc = policy_rule_remove_from_rldb(pr, vrf_ctx, was_vti_policy,
+						  old_rh);
+		if (rc < 0) {
+			POLICY_ERR(
+				"Failed to del policy rule from rldb\n");
+			return rc;
+		}
 
-		if (!policy_rule_add_to_rldb(vrf_ctx, pr)) {
+
+		rc = policy_rule_add_to_rldb(vrf_ctx, pr);
+		if (rc < 0) {
 			POLICY_ERR(
 				"Failed to add updated policy rule to rldb\n");
-			return false;
+			return rc;
 		}
 
 		*send_ack = false;
@@ -1274,10 +1308,11 @@ policy_rule_update(struct policy_rule *pr,
 			flow_cache_invalidate(flow_cache, flow_cache_disabled,
 					      false);
 	} else if (changed) {
-		if (!policy_rule_update_rldb(pr)) {
+		rc = policy_rule_update_rldb(pr);
+		if (rc < 0) {
 			POLICY_ERR("Failed to update rldb rule %u\n",
 				   pr->rule_index);
-			return false;
+			return rc;
 		}
 		pr->flags |= POLICY_F_PENDING_UPDATE;
 		crypto_npf_cfg_commit_all(pr, seq);
@@ -1286,7 +1321,7 @@ policy_rule_update(struct policy_rule *pr,
 
 	/* Check if this update means we need to rebind */
 	policy_update_pending_vfp_bind(pr->vrfid, pr);
-	return true;
+	return 0;
 }
 
 /*
@@ -1306,44 +1341,50 @@ int crypto_policy_add(const struct xfrm_userpolicy_info *usr_policy,
 {
 	struct policy_rule *pr;
 	struct crypto_vrf_ctx *vrf_ctx;
+	int rc;
 
 	vrf_ctx = crypto_vrf_get(vrfid);
 	if (!vrf_ctx)
-		return -1;
+		return -EINVAL;
 
 	*send_ack = true;
 
-	pr = policy_rule_find_by_selector(vrfid, &usr_policy->sel, mark,
-					  usr_policy->dir);
-	if (pr) {
-		if (!policy_rule_update(pr, vrf_ctx, usr_policy, dst, tmpl,
-					mark, seq, send_ack)) {
+	rc = policy_rule_find_by_selector(vrfid, &usr_policy->sel, mark,
+					  usr_policy->dir, &pr);
+	if (rc == 0 && pr) {
+		rc = policy_rule_update(pr, vrf_ctx, usr_policy, dst, tmpl,
+					mark, seq, send_ack);
+		if (rc < 0) {
 			POLICY_ERR(
 				"Policy add failed to update existing policy\n");
-			return -1;
+			return rc;
 		}
-		return 1;
+		return 0;
 	}
+	if (rc != -ESRCH)
+		return rc;
 
-	pr = policy_rule_create(usr_policy, tmpl, mark, dst, vrfid);
-	if (!pr) {
+	rc = policy_rule_create(usr_policy, tmpl, mark, dst, vrfid, &pr);
+	if (rc < 0) {
 		POLICY_ERR("Failed to create policy rule\n");
-		return -1;
+		return rc;
 	}
 
 	pr->flags = POLICY_F_PENDING_ADD;
 
-	if (!policy_rule_add_to_hash_tables(pr)) {
+	rc = policy_rule_add_to_hash_tables(pr);
+	if (rc != 0) {
 		POLICY_ERR("Failed to add policy rule to hash tables\n");
 		policy_rule_destroy(pr);
-		return -1;
+		return rc;
 	}
 
-	if (!policy_rule_add_to_rldb(vrf_ctx, pr)) {
+	rc = policy_rule_add_to_rldb(vrf_ctx, pr);
+	if (rc < 0) {
 		POLICY_ERR("Failed to add policy rule to rldb\n");
-		policy_rule_remove_from_hash_tables(pr);
+		(void)policy_rule_remove_from_hash_tables(pr);
 		policy_rule_destroy(pr);
-		return -1;
+		return rc;
 	}
 
 	*send_ack = false;
@@ -1367,7 +1408,7 @@ int crypto_policy_add(const struct xfrm_userpolicy_info *usr_policy,
 		policy_update_pending_vfp_bind(vrfid, pr);
 	}
 
-	return 1;
+	return 0;
 }
 
 /*
@@ -1387,14 +1428,15 @@ int crypto_policy_update(const struct xfrm_userpolicy_info *usr_policy,
 {
 	struct policy_rule *pr;
 	struct crypto_vrf_ctx *vrf_ctx;
+	int rc;
 
 	vrf_ctx = crypto_vrf_get(vrfid);
 	if (!vrf_ctx)
-		return -1;
+		return -EINVAL;
 
-	pr = policy_rule_find_by_selector(vrfid, &usr_policy->sel, mark,
-					  usr_policy->dir);
-	if (!pr) {
+	rc = policy_rule_find_by_selector(vrfid, &usr_policy->sel, mark,
+					  usr_policy->dir, &pr);
+	if (rc == -ESRCH) {
 		POLICY_INFO("Could not update policy: Not found\n");
 
 		/*
@@ -1405,14 +1447,15 @@ int crypto_policy_update(const struct xfrm_userpolicy_info *usr_policy,
 		return crypto_policy_add(usr_policy, dst, tmpl, mark, vrfid,
 					 seq, send_ack);
 	}
+	if (rc != 0)
+		return rc;
 
-	if (!policy_rule_update(pr, vrf_ctx, usr_policy, dst, tmpl, mark,
-				seq, send_ack)) {
+	rc = policy_rule_update(pr, vrf_ctx, usr_policy, dst, tmpl, mark,
+				seq, send_ack);
+	if (rc < 0)
 		POLICY_ERR("Failed to update existing policy\n");
-		return -1;
-	}
 
-	return 1;
+	return rc;
 }
 
 /*
@@ -1422,13 +1465,16 @@ int crypto_policy_update(const struct xfrm_userpolicy_info *usr_policy,
  *
  * MUST be called from the main thread
  */
-static void crypto_policy_delete_internal(struct policy_rule *pr,
+static int crypto_policy_delete_internal(struct policy_rule *pr,
 					  struct crypto_vrf_ctx *vrf_ctx,
 					  uint32_t seq, bool ack)
 {
-	policy_rule_remove_from_rldb(pr, vrf_ctx, pr->vti_tunnel_policy,
-				     pr->rh);
+	int rc;
 
+	rc = policy_rule_remove_from_rldb(pr, vrf_ctx, pr->vti_tunnel_policy,
+					  pr->rh);
+	if (rc < 0)
+		return rc;
 	/*
 	 * Is the policy is being purged as the result of a flush
 	 * style event?.  If so no ack needs to be generated, as the
@@ -1457,35 +1503,42 @@ static void crypto_policy_delete_internal(struct policy_rule *pr,
 					      false);
 	}
 
-	policy_rule_remove_from_hash_tables(pr);
+	rc = policy_rule_remove_from_hash_tables(pr);
 	policy_rule_destroy(pr);
 
 	crypto_vrf_check_remove(vrf_ctx);
+
+	return rc;
 }
 
-void crypto_policy_delete(const struct xfrm_userpolicy_id *id,
-			  const struct xfrm_mark *mark,
-			  vrfid_t vrfid,
-			  uint32_t seq, bool *send_ack)
+int crypto_policy_delete(const struct xfrm_userpolicy_id *id,
+			 const struct xfrm_mark *mark,
+			 vrfid_t vrfid,
+			 uint32_t seq, bool *send_ack)
 {
 	struct policy_rule *pr;
 	struct crypto_vrf_ctx *vrf_ctx;
+	int rc;
 
 	vrf_ctx = crypto_vrf_find(vrfid);
 	if (!vrf_ctx)
-		return;
+		return -EINVAL;
 
-	pr = policy_rule_find_by_selector(vrfid, &id->sel, mark, id->dir);
-	if (!pr) {
+	rc  = policy_rule_find_by_selector(vrfid, &id->sel, mark, id->dir,
+					   &pr);
+	if (rc == -ESRCH) {
 		/*
 		 * Might have been removed by a flush,
 		 * or never received if there was a dp restart
 		 */
 		*send_ack = true;
-		return;
+		return 0;
 	}
 
-	crypto_policy_delete_internal(pr, vrf_ctx, seq, true);
+	if (rc == 0)
+		rc = crypto_policy_delete_internal(pr, vrf_ctx, seq, true);
+
+	return rc;
 }
 
 void crypto_policy_flush_vrf(struct crypto_vrf_ctx *vrf_ctx)
@@ -1497,12 +1550,12 @@ void crypto_policy_flush_vrf(struct crypto_vrf_ctx *vrf_ctx)
 
 	cds_lfht_for_each_entry(vrf_ctx->input_policy_rule_sel_ht,
 				&iter, pr, sel_ht_node) {
-		crypto_policy_delete_internal(pr, vrf_ctx, 0, false);
+		(void)crypto_policy_delete_internal(pr, vrf_ctx, 0, false);
 	}
 
 	cds_lfht_for_each_entry(vrf_ctx->output_policy_rule_sel_ht,
 				&iter, pr, sel_ht_node) {
-		crypto_policy_delete_internal(pr, vrf_ctx, 0, false);
+		(void)crypto_policy_delete_internal(pr, vrf_ctx, 0, false);
 	}
 }
 
@@ -1513,6 +1566,7 @@ int crypto_policy_get_vti_reqid(vrfid_t vrfid,
 	struct xfrm_selector sel;
 	struct policy_rule *pr;
 	struct xfrm_mark mark;
+	int rc;
 
 	if (!peer || !reqid) {
 		POLICY_ERR("Bad parameters on VTI reqid lookup\n");
@@ -1524,8 +1578,9 @@ int crypto_policy_get_vti_reqid(vrfid_t vrfid,
 	mark.v = mark_value;
 	mark.m = 0;
 
-	pr = policy_rule_find_by_selector(vrfid, &sel, &mark, XFRM_POLICY_OUT);
-	if (!pr) {
+	rc = policy_rule_find_by_selector(vrfid, &sel, &mark, XFRM_POLICY_OUT,
+					  &pr);
+	if (rc != 0) {
 		POLICY_DEBUG("Policy not found for VTI reqid lookup\n");
 		return -1;
 	}
@@ -2565,10 +2620,10 @@ void crypto_policy_update_pending_if(struct ifnet *ifp)
 	struct cds_lfht *bind_table;
 	struct cds_lfht_iter iter;
 	struct cds_lfht_node *node;
+	int rc;
 
-	bind_table = bind_table_vrf_get(vrfid);
-
-	if (!bind_table) {
+	rc = bind_table_vrf_get(vrfid, &bind_table);
+	if (rc < 0) {
 		POLICY_ERR("Failed to get binding table for if walk\n");
 		return;
 	}
@@ -2594,14 +2649,17 @@ static int policy_feat_detach_internal(vrfid_t vrfid,
 {
 	struct policy_rule *pr;
 	struct xfrm_mark mark;
-
-	if (bind)
-		policy_bind_del(bind);
-
+	int rc;
+	if (bind) {
+		rc = policy_bind_del(bind);
+		if (rc < 0)
+			return rc;
+	}
 	mark.v = mark.m = 0;
-	pr = policy_rule_find_by_selector(vrfid, sel, &mark, XFRM_POLICY_OUT);
+	rc = policy_rule_find_by_selector(vrfid, sel, &mark, XFRM_POLICY_OUT,
+					  &pr);
 
-	if (pr) {
+	if (rc == 0 && pr) {
 		crypto_sadb_feat_attach_in(pr->reqid, NULL);
 		policy_feat_attach_destroy(pr);
 	}
@@ -2640,6 +2698,7 @@ static int policy_feat_attach(vrfid_t vrfid, const struct xfrm_selector *sel,
 	struct s2s_binding *bind;
 	struct cds_lfht_node *node;
 	struct cds_lfht *bind_table;
+	int rc;
 
 	bind = malloc(sizeof(*bind));
 
@@ -2650,12 +2709,11 @@ static int policy_feat_attach(vrfid_t vrfid, const struct xfrm_selector *sel,
 
 	cds_lfht_node_init(&bind->bind_ht_node);
 
-	bind_table = bind_table_vrf_get(vrfid);
-
-	if (!bind_table) {
+	rc = bind_table_vrf_get(vrfid, &bind_table);
+	if (rc < 0) {
 		POLICY_ERR("Failed to get binding table for add\n");
 		free(bind);
-		return -ENOENT;
+		return rc;
 	}
 
 	node = cds_lfht_add_unique(bind_table,
@@ -2666,9 +2724,11 @@ static int policy_feat_attach(vrfid_t vrfid, const struct xfrm_selector *sel,
 		/* existing binding, use it instead of the created one */
 		free(bind);
 		bind = caa_container_of(node, struct s2s_binding, bind_ht_node);
-	} else
-		bind_table_vrf_inc(vrfid);
-
+	} else {
+		rc = bind_table_vrf_inc(vrfid);
+		if (rc < 0)
+			POLICY_ERR("Failed inc vtf binding\n");
+	}
 	bind->sel = *sel;
 	bind->ifindex = ifindex;
 	bind->vrfid = vrfid;
