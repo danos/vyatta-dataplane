@@ -1,0 +1,65 @@
+// Copyright (c) 2021, AT&T Intellectual Property.  All rights reserved.
+//
+// TWAMP responder protobuf definitions
+//
+
+syntax="proto2";
+
+import "IPAddress.proto";
+
+message TWAMPInitialise {
+	optional string vrf_name = 1;
+}
+
+message TWAMPSessionKey {
+	optional IPAddress laddr = 1;
+	optional IPAddress raddr = 2;
+	optional uint32 lport = 3;
+	optional uint32 rport = 4;
+	optional string vrf_name = 5;
+}
+
+message TWAMPSessionDelete {
+	optional TWAMPSessionKey key = 1;
+}
+
+message TWAMPSessionCreate {
+	enum Mode {
+	     MODE_OPEN = 0;
+	     MODE_AUTHENTICATED = 1;
+	     MODE_ENCRYPTED = 2;
+	}
+
+	optional TWAMPSessionKey key = 1;
+	optional Mode mode = 2;
+	optional uint32 dscp = 3;
+	optional uint32 rx_payload_len = 4;
+	optional uint32 tx_payload_len = 5;
+	optional bytes hmac_key = 6;
+	optional bytes aes_key = 7;
+}
+
+message TWAMPSessionCounters {
+	optional TWAMPSessionKey key = 1;
+}
+
+message TWAMPSessionCounterResponse {
+	optional uint64 rx_pkts = 1;
+	optional uint64 rx_bad = 2;
+	optional uint64 tx_pkts = 3;
+	optional uint64 tx_bad = 4;
+}
+
+message TWAMPCmd {
+	oneof mtype {
+	      TWAMPInitialise tw_init = 1;
+	      TWAMPSessionDelete tws_delete = 2;
+	      TWAMPSessionCreate tws_create = 3;
+	      TWAMPSessionCounters tws_counters = 4;
+	}
+}
+
+message TWAMPCmdResponse {
+	optional int32 status = 1;
+	optional TWAMPSessionCounterResponse counters = 2;
+}

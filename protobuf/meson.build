@@ -27,7 +27,8 @@ protobuf_sources= [
         'FeatureAffinityConfig.proto',
         'NbrResConfig.proto',
         'SessionPack.proto',
-        'ICMPRateLimConfig.proto'
+        'ICMPRateLimConfig.proto',
+        'TwampResponder.proto',
 ]
 
 install_data(protobuf_sources,
