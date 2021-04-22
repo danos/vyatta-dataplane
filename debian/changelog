@@ -1,3 +1,29 @@
+vyatta-dataplane (3.13.7) unstable; urgency=medium
+
+  [ Ian Wilson ]
+  * ut: Rename dp_test_npf_alg_sip_nat.c to dp_test_npf_alg_sip.c
+  * ut: Change how SDP msgs are checked in SIP unit-tests
+  * ut: Fix TCP test utility used by npf ALG tests for TCP sequence numbers
+  * ut: Add test for SIP ALG with TCP transport
+  * ut: Test npf/alg/sip cleanup when session and NAT rule are destroyed
+  * alg: Store session handle in SIP request structure
+  * alg: Move code to release SIP media reservation into separate routine
+  * alg: Prevent SIP media reservations from being released more than once
+  * alg: Flush stored SIP NAT mappings when session is destroyed
+  * alg: Store session handle in SIP request structure
+  * ut: ALG reset should be last thing in dp_test_npf_cleanup
+  * ut: Delete VRF while SIP ALG session and tuples exist
+  * cgnat: Fixup some CGNAT code comments
+  * cgnat: Add asserts where counters are decremented
+  * cgnat: Move objects in struct cgn_packet
+  * cgnat: Add functions to get packet payload size and pointer
+  * cgnat: Add backwards sub-session sentry to json
+  * cgnat: Add functions to get and set sub-session sentry ID
+  * cgnat: Check or assert mapping params on entry to cgn_session_establish
+  * cgnat: Add direction param to session establish functions
+
+ -- Srinivas Narayan <narayan@vyatta.att-mail.com>  Thu, 22 Apr 2021 14:52:50 +0100
+
 vyatta-dataplane (3.13.6) unstable; urgency=medium
 
   [ Ian Wilson ]
