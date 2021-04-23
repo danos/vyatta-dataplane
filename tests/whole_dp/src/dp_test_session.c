@@ -1940,12 +1940,46 @@ DP_START_TEST(ssync3, test19)
 
 } DP_END_TEST;
 
+static void
+_dp_test_session_msg_pack_pb(PackedDPSessionMsg *pds, void *buf, uint32_t size,
+			     int *packed_size, const char *file, int line)
+{
+	struct dp_session_pack_hdr *sph = buf;
+
+	_dp_test_fail_unless((buf != NULL), file, line,
+			      "NULL pointer in free unpack pb\n");
+	uint32_t pb_size = packed_dpsession_msg__get_packed_size(pds);
+	_dp_test_fail_unless((pb_size + sizeof(*sph) <= size), file, line,
+			    "too small need %zu bytes but have %u bytes\n",
+			    pb_size + sizeof(*sph), size);
+	dp_test_fail_unless(
+		(pb_size == packed_dpsession_msg__pack(pds, (void *)(sph + 1))),
+		"protobuf size != %u\n", pb_size);
+	sph->sph_len = pb_size + sizeof(*sph);
+	sph->sph_type = pds->pds_pack_type;
+	sph->sph_flags = pds->pds_flags;
+	sph->sph_version = NPF_PACK_PB_VERSION;
+	*packed_size = sph->sph_len;
+}
+
 /*
  * Test session protobuf sync for a TCP firewall session with TCP
  * strict enabled
  *
- * Creates a firewall session, saves it to a connsync buffer, clears the
- * session, then restores session from the connsync buffer.
+ * Creates a firewall session,
+ * pack with PACK_TYPE_FULL and save buffer
+ * send some more traffic
+ * pack with PACK_TYPE_UPDATE and save update buffer
+ * clear session
+ * restore sync buffer with PACK_TYPE_FULL
+ * check counters
+ * restore the 2nd PACK_TYPE_UPDATE buffer
+ * check counters has been updated.
+ * send some more traffic (make sure new session is active).
+ * check counters.
+ * modify the update buffer to expire session.
+ * restore 2nd update buffer
+ * check session was cleared.
  */
 DP_DECL_TEST_CASE(session_suite, ssync_pb2, NULL, NULL);
 DP_START_TEST(ssync_pb2, test40)
@@ -2127,7 +2161,9 @@ DP_START_TEST(ssync_pb2, test40)
 	uint32_t pb_buf_size = dp_session_buf_size_max();
 	struct session *peer = NULL;
 	unsigned char pb_buf[pb_buf_size];
+	unsigned char pb_buf_update[pb_buf_size];
 	int pack_size = 0;
+	int pack_size_update = 0;
 
 	memset(&pb_buf, 0, pb_buf_size);
 
@@ -2137,10 +2173,26 @@ DP_START_TEST(ssync_pb2, test40)
 	pack_size = rc;
 
 	/*
+	 * Remainder of TCP call
+	 */
+	dpt_tcp_call(&tcp_call, tcp_pkt1, ARRAY_SIZE(tcp_pkt1), 4, 11, NULL, 0);
+
+	/* Create the update pack */
+	rc = dp_session_pack_pb(s, &pb_buf_update, pb_buf_size,
+				SESSION_PACK_UPDATE, &peer);
+	dp_test_fail_unless(rc > 0, "dp_session_pack failed\n");
+	pack_size_update = rc;
+
+	/*
 	 * Clear the session
 	 */
 	dp_test_npf_clear_sessions();
 
+	pkts_in = 0;
+	pkts_out = 0;
+	bytes_in = 0;
+	bytes_out = 0;
+	uint32_t sess_id2 = 0;
 	/*
 	 * Unpack and restore session from buffer
 	 */
@@ -2150,21 +2202,36 @@ DP_START_TEST(ssync_pb2, test40)
 	dp_test_fail_unless(rc == 0 && spt == SESSION_PACK_FULL,
 			    "dp_session_restore failed\n");
 
-	/*
-	 * Remainder of TCP call
-	 */
-	dpt_tcp_call(&tcp_call, tcp_pkt1, ARRAY_SIZE(tcp_pkt1), 4, 11, NULL, 0);
+	dp_test_session_counters("start 0 count 1 "
+			     "src-addr 1.1.1.11 src-port 1000 "
+			     "dst-addr 2.2.2.11 dst-port 80 "
+			     "proto 6 dir out intf dpT21",
+			     &pkts_in, &pkts_out, &bytes_in, &bytes_out,
+			     &sess_id2);
 
+	dp_test_fail_unless(pkts_out == 2, "Packets out %u, expected 8",
+			    pkts_out);
+	dp_test_fail_unless(bytes_out == 108, "Bytes out %u, expected 492",
+			    bytes_out);
+	dp_test_fail_unless(pkts_in == 2, "Packets in %u, expected 4",
+			    pkts_in);
+	dp_test_fail_unless(bytes_in == 128, "Bytes in %u, expected 236",
+			    bytes_in);
+	dp_test_fail_unless(sess_id2 == sess_id1 + 1,
+			    "Session ID %u, expected %u",
+			    sess_id2, sess_id1 + 1);
 
-	/*
-	 * An identical session should now exist, except for the session ID
-	 * which should be one greater than the first session
-	 */
 	pkts_in = 0;
 	pkts_out = 0;
 	bytes_in = 0;
 	bytes_out = 0;
-	uint32_t sess_id2 = 0;
+	sess_id2 = 0;
+	/*
+	 * Unpack and update session from buffer.
+	 */
+	rc = dp_session_restore(&pb_buf_update, pack_size_update, &spt);
+	dp_test_fail_unless(rc == 0 && spt == SESSION_PACK_UPDATE,
+			    "dp_session_restore update failed\n");
 
 	dp_test_session_counters("start 0 count 1 "
 			     "src-addr 1.1.1.11 src-port 1000 "
@@ -2184,6 +2251,67 @@ DP_START_TEST(ssync_pb2, test40)
 	dp_test_fail_unless(sess_id2 == sess_id1 + 1,
 			    "Session ID %u, expected %u",
 			    sess_id2, sess_id1 + 1);
+
+	pkts_in = 0;
+	pkts_out = 0;
+	bytes_in = 0;
+	bytes_out = 0;
+	sess_id2 = 0;
+	/*
+	 * Remainder of TCP call
+	 */
+	dpt_tcp_call(&tcp_call, tcp_pkt1, ARRAY_SIZE(tcp_pkt1), 4, 11, NULL, 0);
+
+
+	/*
+	 * An identical session should now exist, except for the session ID
+	 * which should be one greater than the first session
+	 */
+
+	dp_test_session_counters("start 0 count 1 "
+			     "src-addr 1.1.1.11 src-port 1000 "
+			     "dst-addr 2.2.2.11 dst-port 80 "
+			     "proto 6 dir out intf dpT21",
+			     &pkts_in, &pkts_out, &bytes_in, &bytes_out,
+			     &sess_id2);
+
+	dp_test_fail_unless(pkts_out == 14, "Packets out %u, expected 8",
+			    pkts_out);
+	dp_test_fail_unless(bytes_out == 876, "Bytes out %u, expected 492",
+			    bytes_out);
+	dp_test_fail_unless(pkts_in == 6, "Packets in %u, expected 4",
+			    pkts_in);
+	dp_test_fail_unless(bytes_in == 344, "Bytes in %u, expected 236",
+			    bytes_in);
+	dp_test_fail_unless(sess_id2 == sess_id1 + 1,
+			    "Session ID %u, expected %u",
+			    sess_id2, sess_id1 + 1);
+
+	/* delete the session buffer using update */
+	PackedDPSessionMsg *psm;
+	NPFSessionMsg *save_npf_session;
+	unsigned char pb_buf_expire[pb_buf_size];
+	int pack_size_expire;
+
+	psm = dp_test_session_msg_unpack_pb(pb_buf_update, pack_size_update);
+	save_npf_session = psm->pds_sessions[0]->ds_npf_session;
+	psm->pds_sessions[0]->ds_npf_session = NULL;
+
+	_dp_test_session_msg_pack_pb(psm, pb_buf_expire, pb_buf_size,
+				     &pack_size_expire, __FILE__, __LINE__);
+
+	dp_test_fail_unless(pack_size_expire > 0,
+			    "dp_session_restore failed\n");
+	psm->pds_sessions[0]->ds_npf_session = save_npf_session;
+	dp_test_session_msg_free_unpack_pb(psm);
+
+	rc = dp_session_restore(&pb_buf_expire, pack_size_expire, &spt);
+	dp_test_fail_unless(rc == 0 && spt == SESSION_PACK_UPDATE,
+			    "dp_session_restore update failed\n");
+
+	rc = session_lookup_by_sentry_packet(&sp_forw, &s, &forw);
+	dp_test_fail_unless(rc == -ENOENT,
+			    "restore didn't expire session\n");
 
 	/*
 	 * Cleanup
