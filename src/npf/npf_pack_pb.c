@@ -263,7 +263,14 @@ dp_session_msg_restore(DPSessionMsg *dpsm, enum session_pack_type spt,
 	bool forw;
 	int rc;
 
-	if (!dpsm || !dpsm->ds_npf_session || !dpsm->ds_key)
+	if (!dpsm || !dpsm->ds_key)
+		return -EINVAL;
+
+	/*
+	 * ds_npf_session may be NULL on update but must be
+	 * set for full restoration.
+	 */
+	if (spt == SESSION_PACK_FULL && !dpsm->ds_npf_session)
 		return -EINVAL;
 
 	skm = dpsm->ds_key;
