@@ -710,12 +710,6 @@ static void policy_rule_rcu_free(struct rcu_head *head)
 static void policy_rule_rcu_invalidate(struct rcu_head *head)
 {
 	/*
-	 * The callback to invalidate a policy rule. At this stage
-	 * we need to make sure that the policy rule is no longer in
-	 * any of the pr caches.
-	 */
-	flow_cache_invalidate(flow_cache, true, true);
-	/*
 	 * Now the PR is gone from the cache, but other threads
 	 * may still hold references to it, so wait for another
 	 * grace period before freeing the PR.
@@ -739,6 +733,13 @@ static void policy_rule_destroy(struct policy_rule *pr)
 
 	policy_feat_attach_destroy(pr);
 	pr->flags |= POLICY_F_PENDING_DEL;
+
+	/*
+	 * At this stage we need to make sure that the policy rule is no longer
+	 * in the flow cache.
+	 */
+	flow_cache_invalidate(flow_cache, flow_cache_disabled, true);
+
 	call_rcu(&pr->policy_rule_rcu, policy_rule_rcu_invalidate);
 }
 
