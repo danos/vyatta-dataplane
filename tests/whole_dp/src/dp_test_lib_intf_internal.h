@@ -219,17 +219,6 @@ void dp_test_intf_vti_delete(const char *vti_name,
 			     uint16_t mark,
 			     vrfid_t vrf_id);
 
-void _dp_test_intf_vfp_create(const char *name, vrfid_t vrf_id, bool verify,
-			      const char *file, const char *func, int line);
-#define dp_test_intf_vfp_create(name, vrf_id) \
-	_dp_test_intf_vfp_create(name, vrf_id, false, \
-				 __FILE__, __func__, __LINE__)
-
-void _dp_test_intf_vfp_delete(const char *name, vrfid_t vrf_id,
-			     const char *file, const char *func, int line);
-#define dp_test_intf_vfp_delete(name, vrfid)	\
-	_dp_test_intf_vfp_delete(name, vrfid, __FILE__, __func__, __LINE__)
-
 void _dp_test_intf_loopback_create(const char *name,
 				   const char *file, const char *func,
 				   int line);

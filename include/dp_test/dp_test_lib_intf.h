@@ -63,4 +63,15 @@ void _dp_test_intf_bridge_remove_port(const char *br_name, const char *if_name,
 	_dp_test_intf_bridge_remove_port(br_name, if_name, \
 					 __FILE__, __func__, __LINE__)
 
+void _dp_test_intf_vfp_create(const char *name, vrfid_t vrf_id, bool verify,
+			      const char *file, const char *func, int line);
+#define dp_test_intf_vfp_create(name, vrf_id) \
+	_dp_test_intf_vfp_create(name, vrf_id, false, \
+				 __FILE__, __func__, __LINE__)
+
+void _dp_test_intf_vfp_delete(const char *name, vrfid_t vrf_id,
+			     const char *file, const char *func, int line);
+#define dp_test_intf_vfp_delete(name, vrfid)	\
+	_dp_test_intf_vfp_delete(name, vrfid, __FILE__, __func__, __LINE__)
+
 #endif /* _DP_TEST_LIB_INTF_H_ */
