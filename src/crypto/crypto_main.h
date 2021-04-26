@@ -108,4 +108,11 @@ void crypto_create_fwd_queue(unsigned int lcore_id);
 void crypto_destroy_fwd_queue(void);
 void crypto_fwd_processed_packets(void);
 
+/* crypto garbage collection */
+void crypto_gc_timer_handler(struct rte_timer *tmr,
+			     void *arg);
+
+/* Invoked from rcu callback to signal unbind of SA from PMD */
+void crypto_sa_unbind_rcu(int dev_id);
+
 #endif /* _CRYPTO_MAIN_H_ */
