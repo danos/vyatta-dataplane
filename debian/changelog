@@ -1,3 +1,28 @@
+vyatta-dataplane (3.13.8) unstable; urgency=medium
+
+  [ Nicholas Brown ]
+  * Add support for dpkg-mergechangelogs
+
+  [ Srinivas Narayan ]
+  * crypto: Move sa unbinding from PMD to rcu callback
+  * 3.12.46
+
+  [ Shubham Shrivastava ]
+  * DPI: Avoid concurrent access of ndpi_flow_struct by multiple lcores
+  * DPI: Max packets check and detection giveup for ndpi flow
+
+  [ Simon Barber ]
+  * CRYPTO:Ensure SA return codes valid
+  * CRYPTO: Fix policy return codes
+
+  [ Srinivas Narayan ]
+  * 3.12.47
+
+  [ Nicholas Brown ]
+  * Move vfp create/del function to public header
+
+ -- Srinivas Narayan <narayan@vyatta.att-mail.com>  Mon, 26 Apr 2021 15:14:07 +0100
+
 vyatta-dataplane (3.13.7) unstable; urgency=medium
 
   [ Ian Wilson ]
