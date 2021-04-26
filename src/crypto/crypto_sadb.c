@@ -717,6 +717,7 @@ struct sadb_sa *sadb_lookup_inbound(uint32_t spi)
 static void sadb_sa_destroy(struct sadb_sa *sa)
 {
 	cipher_teardown_ctx(sa);
+	crypto_sa_unbind_rcu(sa->del_pmd_dev_id);
 	free(sa);
 }
 

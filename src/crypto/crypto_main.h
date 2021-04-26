@@ -88,4 +88,11 @@ void crypto_flow_cache_timer_handler(struct rte_timer *tmr, void *arg);
 int crypto_pmd_get_info(int pmd_dev_id, uint8_t *rte_dev_id,
 			enum cryptodev_type *dev_type);
 
+/* crypto garbage collection */
+void crypto_gc_timer_handler(struct rte_timer *tmr,
+			     void *arg);
+
+/* Invoked from rcu callback to signal unbind of SA from PMD */
+void crypto_sa_unbind_rcu(int dev_id);
+
 #endif /* _CRYPTO_MAIN_H_ */

@@ -71,6 +71,16 @@ struct cds_list_head;
 struct crypto_pkt_buffer *cpbdb[RTE_MAX_LCORE];
 
 /*
+ * crypto garbage collection timer
+ * Setting up a PMD is an expensive operation. Ideally, PMD setup/teardown
+ * should be triggered by configuration. However, since we create/destroy PMDs
+ * based on SA presence, it is efficient to dampen the deletion to ensure
+ * that a frequent transition of the SA count between zero and 1 does not result
+ * in a lot of unnecessary activity.
+ */
+#define CRYPTO_GC_TIMER_INTERVAL 10
+
+/*
  * The return ring size needs to be a multiple of the the PMD ring, as
  * an RX thread could have many packets queued to many PMD rings.
  */
@@ -79,6 +89,7 @@ struct crypto_pkt_buffer *cpbdb[RTE_MAX_LCORE];
 static struct crypto_dp g_crypto_dp;
 struct crypto_dp *crypto_dp_sp = &g_crypto_dp;
 static struct rte_timer flow_cache_timer;
+static struct rte_timer crypto_gc_timer;
 
 /* between crypto and main thread */
 static zsock_t *crypto_main_pull;
@@ -1355,6 +1366,13 @@ void dp_crypto_init(void)
 	rte_timer_init(&flow_cache_timer);
 	rte_timer_reset(&flow_cache_timer, rte_get_timer_hz(), PERIODICAL,
 			rte_get_master_lcore(), crypto_flow_cache_timer_handler,
+			NULL);
+
+	rte_timer_init(&crypto_gc_timer);
+	rte_timer_reset(&crypto_gc_timer,
+			rte_get_timer_hz() * CRYPTO_GC_TIMER_INTERVAL,
+			PERIODICAL, rte_get_master_lcore(),
+			crypto_gc_timer_handler,
 			NULL);
 
 	CRYPTO_INFO("Crypto initialised\n");
