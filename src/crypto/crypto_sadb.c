@@ -758,19 +758,16 @@ struct sadb_sa *sadb_lookup_inbound(uint32_t spi)
 	return sa;
 }
 
+static void sadb_sa_destroy(struct sadb_sa *sa)
+{
+	cipher_teardown_ctx(sa);
+	free(sa);
+}
+
 static enum crypto_xfrm crypto_sa_to_xfrm(struct sadb_sa *sa)
 {
 	return sa->dir == CRYPTO_DIR_IN ?
 		CRYPTO_DECRYPT : CRYPTO_ENCRYPT;
-}
-
-static void sadb_sa_destroy(struct sadb_sa *sa)
-{
-	cipher_teardown_ctx(sa);
-	crypto_remove_sa_from_pmd(sa->del_pmd_dev_id,
-				  crypto_sa_to_xfrm(sa),
-				  sa->pending_del);
-	free(sa);
 }
 
 /*
@@ -1034,6 +1031,9 @@ static int crypto_sadb_del_sa_internal(const xfrm_address_t *dst,
 	if (resurrect_old_sa && !sa->pending_del)
 		crypto_sadb_resurrect_sa(sa, vrf_ctx->vrfid, sa->reqid);
 
+	crypto_remove_sa_from_pmd(sa->del_pmd_dev_id,
+				  crypto_sa_to_xfrm(sa),
+				  sa->pending_del);
 	crypto_sa_free_fwd_core(sa->fwd_core);
 	call_rcu(&sa->sa_rcu, sadb_sa_rcu_free);
 	vrf_ctx->count_of_sas--;
