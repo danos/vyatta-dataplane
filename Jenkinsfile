@@ -24,7 +24,8 @@ pipeline {
     agent any
 
     environment {
-	OBS_TARGET_PROJECT = 'DANOS:Shipping:2012'
+	OBS_INSTANCE = 'build'
+	OBS_TARGET_PROJECT = 'DANOS:Shipping:2012:20210302'
 	OBS_TARGET_REPO = 'standard'
 	OBS_TARGET_ARCH = 'x86_64'
 	// # Replace : with _ in project name, as osc-buildpkg does
@@ -75,7 +76,7 @@ OSC_BUILDPACKAGE_TMP=\"${WORKSPACE}\"
 OSC_BUILDPACKAGE_BUILDSCRIPT=\"${WORKSPACE}/osc-buildpackage_buildscript_default\"
 EOF
 """
-		    sh "osc-buildpkg -v -g -T -P ${env.OBS_TARGET_PROJECT} ${env.OBS_TARGET_REPO} -- --trust-all-projects --build-uid='caller'"
+		    sh "osc-buildpkg -v -g -T -A ${env.OBS_INSTANCE} -P ${env.OBS_TARGET_PROJECT} ${env.OBS_TARGET_REPO} -- --trust-all-projects --build-uid='caller'"
 		}
 	    }
 	}
