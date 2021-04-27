@@ -99,9 +99,17 @@ enum cgn_rc_en {
 	CGN_PCP_ERR,	/* PCP request failed */
 	CGN_PCP_EINVAL,	/* PCP Invalid argument */
 	CGN_PCP_ENOSPC,	/* PCP one or both of reqd src or trans addrs inuse */
+
+	/*
+	 * There is one error return code per ALG hook in the CGNAT packet
+	 * pipeline.
+	 */
+	CGN_ALG_ERR_SESS,  /* ALG session init */
+	CGN_ALG_ERR_PHOLE, /* ALG pinhole lookup */
+	CGN_ALG_ERR_INSP,  /* ALG packet inspection */
 };
 
-#define CGN_RC_LAST	CGN_PCP_ENOSPC
+#define CGN_RC_LAST	CGN_ALG_ERR_INSP
 #define CGN_RC_SZ	(CGN_RC_LAST + 1)
 
 struct cgn_rc_dir {
@@ -201,6 +209,12 @@ static inline const char *cgn_rc_str(int error)
 		return "PCP_EINVAL";
 	case CGN_PCP_ENOSPC:
 		return "PCP_ENOSPC";
+	case CGN_ALG_ERR_SESS:
+		return "ALG_ERR_SESS";
+	case CGN_ALG_ERR_PHOLE:
+		return "ALG_ERR_PHOLE";
+	case CGN_ALG_ERR_INSP:
+		return "ALG_ERR_INSP";
 	case CGN_RC_UNKWN:
 		break;
 	}
@@ -304,6 +318,14 @@ static inline const char *cgn_rc_detail_str(int error)
 		return "PCP invalid or missing argument";
 	case CGN_PCP_ENOSPC:
 		return "PCP public address and port not available";
+
+	case CGN_ALG_ERR_SESS:
+		return "ALG session error";
+	case CGN_ALG_ERR_PHOLE:
+		return "ALG pinhole error";
+	case CGN_ALG_ERR_INSP:
+		return "ALG inspect error";
+
 	case CGN_RC_UNKWN:
 		break;
 	}
