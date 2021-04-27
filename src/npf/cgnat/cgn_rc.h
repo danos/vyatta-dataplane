@@ -12,6 +12,9 @@
 #ifndef _CGN_RC_H_
 #define _CGN_RC_H_
 
+#include <assert.h>
+#include "compiler.h"
+#include "lcore_sched.h"
 #include "npf/cgnat/cgn_dir.h"
 
 /*
@@ -111,7 +114,7 @@ struct cgn_rc_t {
 
 extern struct cgn_rc_t *cgn_rc;
 
-static ALWAYS_INLINE void cgn_rc_inc(enum cgn_dir dir, int error)
+static inline void cgn_rc_inc(enum cgn_dir dir, int error)
 {
 	assert(dir < CGN_DIR_SZ);
 	assert(cgn_rc);
