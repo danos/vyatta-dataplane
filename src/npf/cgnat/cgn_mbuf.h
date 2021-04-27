@@ -21,12 +21,14 @@
 #include "vrf.h"
 
 #include "npf/nat/nat_proto.h"
+#include "npf/cgnat/alg/alg_defs.h"
 #include "npf/cgnat/cgn_hash_key.h"
 #include "npf/cgnat/cgn.h"
 
 struct cgn_sess2;
 struct cgn_source;
 struct cgn_policy;
+struct alg_pinhole;
 
 /*
  * cgn_packet - decomposition of a packet
@@ -71,7 +73,21 @@ struct cgn_packet {
 	uint16_t	cpk_cksum;	/* l4 checksum */
 	uint16_t	cpk_sid;	/* source port or id */
 	uint16_t	cpk_did;	/* dest port or id */
-	uint8_t		cpk_pad1[2];
+	uint8_t		cpk_pad1[1];
+
+	/*
+	 * cpk_alg_id is *only* set for new ALG flows.
+	 *
+	 * For new parent flows, cpk_alg_id is set from cgn_session_establish
+	 * based on the return value of cgn_alg_dest_port_lookup.
+	 *
+	 * For new child/data flows, cpk_alg_id is set in
+	 * cgn_alg_pinhole_lookup.
+	 */
+	enum cgn_alg_id		cpk_alg_id;
+
+	/* Set for first pkt of a child/data flow */
+	struct alg_pinhole	*cpk_alg_pinhole;
 };
 
 #define cpk_ipproto	cpk_key.k_ipproto
