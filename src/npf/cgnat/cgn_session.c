@@ -2477,6 +2477,15 @@ static void cgn_session_clear_mapping(struct cgn_session *cse)
 	}
 }
 
+/* Expire a session */
+void cgn_session_expire_one(struct cgn_session *cse)
+{
+	if (cgn_sess_s2_is_enabled(cse))
+		cgn_sess_s2_expire_all(&cse->cs_s2);
+
+	cgn_session_set_expired(cse, true);
+}
+
 /*
  * addr must be specified.  port=0 means any/all ports.
  */

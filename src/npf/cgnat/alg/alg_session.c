@@ -42,6 +42,13 @@ uint cgn_alg_payload_min[CGN_ALG_MAX] = {
 	[CGN_ALG_SIP] = 200,
 };
 
+/* Forward references */
+static void cgn_alg_session_link(struct cgn_alg_sess_ctx *p_as,
+				struct cgn_alg_sess_ctx *c_as);
+static void cgn_alg_session_unlink_child(struct cgn_alg_sess_ctx *as);
+static void cgn_alg_session_expire_children(struct cgn_alg_sess_ctx *as);
+
+
 /*
  * Set the inspect flag in the ALG session data and in the main CGNAT session.
  * We mirror it in the main session to avoid packets having to dereference the
@@ -76,6 +83,11 @@ void cgn_alg_common_session_init(struct cgn_alg_sess_ctx *as,
 
 	/* Save pointer to alg ctx in main cgnat session */
 	cgn_session_alg_set(cse, as);
+
+	CDS_INIT_LIST_HEAD(&as->as_children);
+	CDS_INIT_LIST_HEAD(&as->as_link);
+	as->as_parent = NULL;
+	rte_spinlock_init(&as->as_lock);
 }
 
 /*
@@ -124,8 +136,11 @@ static struct cgn_alg_sess_ctx *
 cgn_alg_child_session_init(struct cgn_session *child_cse, enum nat_proto proto,
 			   struct alg_pinhole *ap)
 {
+	struct cgn_session *parent_cse = alg_pinhole_cse(ap);
 	struct cgn_alg_sess_ctx *as = NULL;
 	enum cgn_alg_id alg_id = alg_pinhole_alg_id(ap);
+
+	assert(parent_cse);
 
 	switch (alg_id) {
 	case CGN_ALG_FTP:
@@ -148,6 +163,8 @@ cgn_alg_child_session_init(struct cgn_session *child_cse, enum nat_proto proto,
 	as->as_proto = proto;
 
 	cgn_session_alg_set(child_cse, as);
+
+	cgn_alg_session_link(cgn_session_alg_get(parent_cse), as);
 
 	return as;
 }
@@ -218,6 +235,9 @@ int cgn_alg_session_init(struct cgn_packet *cpk, struct cgn_session *cse,
 void cgn_alg_session_uninit(struct cgn_session *cse __unused,
 			    struct cgn_alg_sess_ctx *as)
 {
+	/* If this is a parent session, then expire all children */
+	cgn_alg_session_expire_children(as);
+
 	switch (as->as_alg_id) {
 	case CGN_ALG_FTP:
 		break;
@@ -231,4 +251,115 @@ void cgn_alg_session_uninit(struct cgn_session *cse __unused,
 	case CGN_ALG_NONE:
 		break;
 	}
+
+	/* If this is a child session, then unlink from parent */
+	cgn_alg_session_unlink_child(as);
+}
+
+/*
+ * Link a child session to its parent
+ */
+static void cgn_alg_session_link(struct cgn_alg_sess_ctx *p_as,
+				 struct cgn_alg_sess_ctx *c_as)
+{
+	struct cgn_session *p_cse, *c_cse;
+
+	assert(p_as);
+	assert(c_as);
+	assert(p_as->as_cse);
+	assert(c_as->as_cse);
+
+	p_cse = p_as->as_cse;
+	c_cse = c_as->as_cse;
+
+	/* Lock parent while we link child session to it */
+	assert(!rte_spinlock_is_locked(&p_as->as_lock));
+	rte_spinlock_lock(&p_as->as_lock);
+
+	/* Add child to parents list, and refcnt child */
+	cds_list_add_tail(&c_as->as_link, &p_as->as_children);
+	(void)cgn_session_get(c_cse);
+
+	/* Add parent pointer to child session, and refcnt parent */
+	c_as->as_parent = p_as;
+	(void)cgn_session_get(p_cse);
+
+	rte_spinlock_unlock(&p_as->as_lock);
+}
+
+/*
+ * Unlink a child session from its parent.
+ */
+static void cgn_alg_session_unlink(struct cgn_alg_sess_ctx *c_as,
+				   struct cgn_session *c_cse,
+				   struct cgn_alg_sess_ctx *p_as __unused,
+				   struct cgn_session *p_cse)
+{
+	assert(rte_spinlock_is_locked(&p_as->as_lock));
+
+	/* Remove child from parent list and release reference on child */
+	cds_list_del_init(&c_as->as_link);
+	cgn_session_put(c_cse);
+
+	/* Remove parent pointer from child and release reference on parent */
+	c_as->as_parent = NULL;
+	cgn_session_put(p_cse);
+}
+
+/*
+ * Unlink a child session from its parent.  Called if the child session is
+ * expired before the parent session.
+ */
+static void cgn_alg_session_unlink_child(struct cgn_alg_sess_ctx *as)
+{
+	struct cgn_session *p_cse, *c_cse;
+	struct cgn_alg_sess_ctx *p_as;
+
+	p_as = rcu_dereference(as->as_parent);
+	if (!p_as)
+		return;
+
+	p_cse = p_as->as_cse;
+	c_cse = as->as_cse;
+
+	assert(p_as);
+	assert(c_cse);
+
+	/* Lock parent session */
+	assert(!rte_spinlock_is_locked(&as->as_lock));
+	rte_spinlock_lock(&p_as->as_lock);
+
+	/* Was as_parent cleared while waiting for lock? */
+	if (!rcu_dereference(as->as_parent)) {
+		rte_spinlock_unlock(&p_as->as_lock);
+		return;
+	}
+
+	cgn_alg_session_unlink(as, c_cse, p_as, p_cse);
+
+	rte_spinlock_unlock(&p_as->as_lock);
+}
+
+/*
+ * Unlink all child sessions from a parent session, and expire them.
+ *
+ * Called if the parent session is expired before the child sessions.
+ */
+static void cgn_alg_session_expire_children(struct cgn_alg_sess_ctx *as)
+{
+	struct cgn_alg_sess_ctx *c_as, *tmp;
+
+	if (rcu_dereference(as->as_parent))
+		/* Not a parent session */
+		return;
+
+	assert(!rte_spinlock_is_locked(&as->as_lock));
+	rte_spinlock_lock(&as->as_lock);
+
+	cds_list_for_each_entry_safe(c_as, tmp, &as->as_children, as_link) {
+		cgn_alg_session_unlink(c_as, c_as->as_cse, as, as->as_cse);
+		cgn_session_expire_one(c_as->as_cse);
+	}
+
+	rte_spinlock_unlock(&as->as_lock);
 }

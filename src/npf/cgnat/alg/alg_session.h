@@ -54,6 +54,12 @@ struct cgn_alg_sess_ctx {
 	 * inspect the TCP handchake pkts.
 	 */
 	uint16_t		as_min_payload;
+
+	/* Session link - Used by algs to link sessions */
+	struct cgn_alg_sess_ctx	*as_parent;
+	struct cds_list_head	as_children;
+	struct cds_list_head	as_link;
+	rte_spinlock_t		as_lock;
 };
 
 /**

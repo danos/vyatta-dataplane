@@ -103,6 +103,7 @@ void cgn_session_show(FILE *f, int argc, char **argv);
 void cgn_session_clear(FILE *f, int argc, char **argv);
 void cgn_session_update(FILE *f, int argc, char **argv);
 
+void cgn_session_expire_one(struct cgn_session *cse);
 void cgn_session_expire_policy(bool restart_timer, struct cgn_policy *cp);
 void cgn_session_expire_pool(bool restart_timer, struct nat_pool *np,
 			     bool clear_mapping);
