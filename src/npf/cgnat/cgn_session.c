@@ -46,6 +46,7 @@
 #include "npf/npf_addrgrp.h"
 #include "npf/nat/nat_pool_public.h"
 
+#include "npf/cgnat/alg/alg_public.h"
 #include "npf/cgnat/cgn.h"
 #include "npf/cgnat/cgn_cmd_cfg.h"
 #include "npf/cgnat/cgn_dir.h"
@@ -420,6 +421,7 @@ static void cgn_session_rcu_free(struct rcu_head *head)
 	struct cgn_session *cse = caa_container_of(head, struct cgn_session,
 						   cs_rcu_head);
 
+	free(cse->cs_alg);
 	free(cse);
 }
 
@@ -449,8 +451,10 @@ void cgn_session_destroy(struct cgn_session *cse, bool rcu_free)
 
 	if (rcu_free)
 		call_rcu(&cse->cs_rcu_head, cgn_session_rcu_free);
-	else
+	else {
+		free(cse->cs_alg);
 		free(cse);
+	}
 }
 
 /*
@@ -767,8 +771,24 @@ cgn_session_establish(struct cgn_packet *cpk, struct cgn_map *cmi,
 		cse->cs_back_entry.ce_port = cmi->cmi_tid;
 		cse->cs_back_entry.ce_established = false;
 	} else {
-		cgn_session_destroy(cse, false);
-		return NULL;
+		/*
+		 * We only ever get here if an inbound packet matched an ALG
+		 * pinhole, which means that this is an ALG data flow.
+		 */
+		assert(cpk->cpk_alg_id);
+
+		cse->cs_forw_entry.ce_ifindex =	cpk->cpk_key.k_ifindex;
+		cse->cs_forw_entry.ce_ipproto = cpk->cpk_ipproto;
+		cse->cs_forw_entry.ce_addr = cmi->cmi_oaddr;
+		cse->cs_forw_entry.ce_port = cmi->cmi_oid;
+		cse->cs_forw_entry.ce_established = false;
+
+		/* Populate back entry */
+		cse->cs_back_entry.ce_ifindex =	cpk->cpk_key.k_ifindex;
+		cse->cs_back_entry.ce_ipproto = cpk->cpk_ipproto;
+		cse->cs_back_entry.ce_addr = cpk->cpk_daddr;
+		cse->cs_back_entry.ce_port = cpk->cpk_did;
+		cse->cs_back_entry.ce_established = false;
 	}
 
 	rte_atomic16_set(&cse->cs_refcnt, 0);
@@ -805,6 +825,23 @@ cgn_session_establish(struct cgn_packet *cpk, struct cgn_map *cmi,
 	cmi->cmi_reserved = false;
 
 	cse->cs_id = rte_atomic32_add_return(&cgn_id_resource, 1);
+
+	/*
+	 * ALG session init.  This will add some ALG generic and specific
+	 * context to the session, and optionally allow ALGs to adjust the
+	 * sentries if a pinhole has been matched.
+	 *
+	 * cpk_alg_id is set when either 1. An ALG dest port is matched, or
+	 * 2. An ALG pinhole is matched.
+	 */
+	if (unlikely(cpk->cpk_alg_id)) {
+		int rc = cgn_alg_session_init(cpk, cse, dir);
+
+		if (unlikely(rc < 0)) {
+			*error = rc;
+			return NULL;
+		}
+	}
 
 	return cse;
 }
@@ -2406,6 +2443,11 @@ cgn_session_set_expired(struct cgn_session *cse, bool update_stats)
 	cse->cs_back_entry.ce_expired = true;
 	cse->cs_end_time = unix_epoch_us;
 	cse->cs_etime = 0;
+
+	/* ALG */
+	struct cgn_alg_sess_ctx *as = cgn_session_alg_get(cse);
+	if (as)
+		cgn_alg_session_uninit(cse, as);
 
 	/*
 	 * Add stats to source totals.  Do not do if called via gc, as this
