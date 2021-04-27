@@ -1,3 +1,16 @@
+vyatta-dataplane (3.11.72.19) unstable; urgency=medium
+
+  [ Nicholas Brown ]
+  * Have to specify a OBS instance to use
+
+  [ Srinivas Narayan ]
+  * crypto: Flow cache invalidation should occur from main thread
+  * Revert "crypto: Move sa unbinding from PMD to rcu callback"
+  * crypto: Rework SA cleanup sequence
+  * crypto: Ensure that the correct PMD is picked always
+
+ -- Srinivas Narayan <narayan@vyatta.att-mail.com>  Tue, 27 Apr 2021 16:50:11 +0100
+
 vyatta-dataplane (3.11.72.18) unstable; urgency=medium
 
   * crypto: Move sa unbinding from PMD to rcu callback
