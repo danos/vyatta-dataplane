@@ -1,0 +1,22 @@
+# Copyright (c) 2021, AT&T Intellectual Property.  All rights reserved.
+#
+# Run checkpatch on pull requests.
+# See https://github.com/webispy/checkpatch-action
+
+name: checkpatch
+
+on: pull_request
+
+jobs:
+  checkpatch:
+    name: checkpatch
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v1
+
+      - name: Run checkpatch review
+        uses: webispy/checkpatch-action@master
+
+      - run: echo "Job status is ${{ job.status }}."
