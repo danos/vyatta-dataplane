@@ -60,7 +60,7 @@
 #include "npf/cgnat/cgn_cmd_cfg.h"
 #include "npf/cgnat/cgn_log.h"
 #include "npf/cgnat/cgn_log_protobuf_zmq.h"
-
+#include "npf/cgnat/alg/alg_public.h"
 
 #include "npf/apm/apm.h"
 #include "npf/nat/nat_pool.h"
@@ -541,6 +541,31 @@ usage:
 }
 
 /*
+ * cgn-cfg alg {sip | ftp | pptp} {on | off}
+ */
+static int cgn_alg_cfg(FILE *f, int argc, char **argv)
+{
+	int rc;
+
+	if (argc < 4)
+		goto usage;
+
+	if (strcmp(argv[3], "on") == 0)
+		rc = cgn_alg_enable(argv[2]);
+	else
+		rc = cgn_alg_disable(argv[2]);
+
+	if (rc == 0)
+		return 0;
+usage:
+	if (f)
+		fprintf(f, "%s: cgn-cfg alg {sip|ftp|pptp} {on|off}",
+			__func__);
+
+	return -1;
+}
+
+/*
  * cgn-cfg max-sessions <num>
  */
 static int cgn_max_sessions_cfg(FILE *f, int argc, char **argv)
@@ -944,6 +969,9 @@ int cmd_cgn(FILE *f, int argc, char **argv)
 
 	else if (strcmp(argv[1], "snat-alg-bypass") == 0)
 		rc = cgn_snat_alg_bypass_cfg(f, argc, argv);
+
+	else if (strcmp(argv[1], "alg") == 0)
+		rc = cgn_alg_cfg(f, argc, argv);
 
 	else if (strcmp(argv[1], "max-sessions") == 0)
 		rc = cgn_max_sessions_cfg(f, argc, argv);
