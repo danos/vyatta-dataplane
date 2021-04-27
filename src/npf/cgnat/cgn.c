@@ -30,6 +30,7 @@
 #include "npf/cgnat/cgn_log.h"
 #include "npf/nat/nat_pool_event.h"
 #include "npf/nat/nat_pool_public.h"
+#include "npf/cgnat/alg/alg_public.h"
 
 
 /**************************************************************************
@@ -121,6 +122,7 @@ static void cgn_init(void)
  */
 static void cgn_uninit(void)
 {
+	cgn_alg_uninit();
 	cgn_session_uninit();
 	apm_uninit();
 	cgn_source_uninit();

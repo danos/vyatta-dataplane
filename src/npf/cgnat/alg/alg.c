@@ -19,6 +19,7 @@
 #include "npf/cgnat/cgn_session.h"
 
 #include "npf/cgnat/alg/alg_public.h"
+#include "npf/cgnat/alg/alg_pinhole.h"
 
 /*
  * Bitmap of enabled ALGs (CGN_ALG_BIT_FTP etc.)
@@ -152,6 +153,17 @@ int cgn_alg_enable(const char *name)
 		break;
 	};
 
+	/*
+	 * Create the pinhole table if this the first ALG to be enabled. (The
+	 * pinhole table remains in existence until the dataplane UNINIT event
+	 * occurs)
+	 */
+	if (cgn_alg_enabled == 0) {
+		int rc = alg_pinhole_init();
+		if (rc < 0)
+			return rc;
+	}
+
 	/* Setting cgn_alg_enabled will expose the ALG to packets */
 	cgn_alg_enabled |= id_bit;
 
@@ -193,4 +205,12 @@ int cgn_alg_disable(const char *name)
 	};
 
 	return 0;
+}
+
+/*
+ * Called via DP_EVT_UNINIT event handler
+ */
+void cgn_alg_uninit(void)
+{
+	alg_pinhole_uninit();
 }
