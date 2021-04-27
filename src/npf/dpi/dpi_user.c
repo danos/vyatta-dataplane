@@ -1,4 +1,5 @@
 /*
+ * Copyright (c) 2021 SafePoint <info@safepoint.vn>.  All rights reserved.
  * Copyright (c) 2020 AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
@@ -317,4 +318,6 @@ struct dpi_engine_procs user_engine_procs = {
 	.type_to_id = dpi_user_type_to_id,
 	.info_json = dpi_user_flow_json,
 	.info_log = dpi_user_flow_log,
+	.appid_to_name = dpi_user_id_to_name,
+	.apptype_to_name = dpi_user_type_to_name,
 };

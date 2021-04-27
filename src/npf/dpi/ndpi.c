@@ -1,4 +1,5 @@
 /*
+ * Copyright (c) 2021 SafePoint <info@safepoint.vn>.  All rights reserved.
  * Copyright (c) 2021 AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2021 Centre for Development of Telematics. All rights reserved.
  *
@@ -594,4 +595,6 @@ struct dpi_engine_procs ndpi_engine_procs = {
 	.type_to_id = dpi_ndpi_app_type_name_to_id,
 	.info_json = dpi_ndpi_info_json,
 	.info_log = dpi_ndpi_info_log,
+	.appid_to_name = dpi_ndpi_app_id_to_name,
+	.apptype_to_name = dpi_ndpi_app_type_to_name,
 };

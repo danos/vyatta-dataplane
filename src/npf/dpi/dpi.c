@@ -1,4 +1,5 @@
 /*
+ * Copyright (c) 2021, SafePoint <info@safepoint.vn>.  All rights reserved.
  * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  *
  * Copyright (c) 2021 Centre for Development of Telematics. All rights reserved.
@@ -523,6 +524,22 @@ dpi_app_type_name_to_id(uint8_t engine_id, const char *type_name)
 	struct dpi_engine_procs *engine = NULL_ENGINE;
 	ENGINE_PROC_FIND(engine, engine_id, type_to_id);
 	return engine ? engine->type_to_id(type_name) : DPI_APP_ERROR;
+}
+
+const char*
+dpi_app_id_to_name(uint8_t engine_id, uint32_t app)
+{
+	struct dpi_engine_procs *engine = NULL_ENGINE;
+	ENGINE_PROC_FIND(engine, engine_id, appid_to_name);
+	return engine ? engine->appid_to_name(app) : NULL;
+}
+
+const char*
+dpi_app_type_to_name(uint8_t engine_id, uint32_t type)
+{
+	struct dpi_engine_procs *engine = NULL_ENGINE;
+	ENGINE_PROC_FIND(engine, engine_id, apptype_to_name);
+	return engine ? engine->apptype_to_name(type) : NULL;
 }
 
 void

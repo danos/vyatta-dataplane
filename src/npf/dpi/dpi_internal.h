@@ -1,4 +1,5 @@
 /*
+ * Copyright (c) 2021, SafePoint <info@safepoint.vn>. All rights reserved.
  * Copyright (c) 2017-2018,2020, AT&T Intellectual Property.
  * All rights reserved.
  *
@@ -406,7 +407,20 @@ struct dpi_engine_procs {
 	 */
 	size_t (*info_log)(struct dpi_engine_flow *flow, char *buf,
 			   size_t buf_len);
+
+	/**
+	 * Get name of app id.
+	 */
+	const char* (*appid_to_name)(uint32_t app);
+
+	/**
+	 * Get type of type id.
+	 */
+	const char* (*apptype_to_name)(uint32_t type);
 };
+
+const char *dpi_app_id_to_name(uint8_t engine_id, uint32_t app);
+const char *dpi_app_type_to_name(uint8_t engine_id, uint32_t type);
 
 
 bool no_app_id(uint32_t app_id);
