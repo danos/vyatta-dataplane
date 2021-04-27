@@ -1,0 +1,26 @@
+# Copyright (c) 2021, AT&T Intellectual Property.  All rights reserved.
+#
+# Run gitlint on pull requests.
+
+name: gitlint
+
+on: pull_request
+
+jobs:
+  gitlint:
+
+    runs-on: ubuntu-latest
+
+    container:
+      image: jorisroovers/gitlint
+
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: git fetch
+      run: git fetch --no-tags --prune origin +refs/heads/*:refs/remotes/origin/*
+
+    - name: run gitlint
+      run: gitlint --commits origin/${GITHUB_BASE_REF}..origin/${GITHUB_HEAD_REF}
+
+    - run: echo "Job status is ${{ job.status }}."
