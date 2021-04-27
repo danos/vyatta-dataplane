@@ -15,6 +15,19 @@
 #include "npf/cgnat/cgn_map.h"
 #include "npf/cgnat/alg/alg_defs.h"
 
+struct alg_pinhole;
+struct cgn_session;
+
+/**
+ * Accessor to pinhole ALG ID
+ */
+enum cgn_alg_id alg_pinhole_alg_id(struct alg_pinhole *ap);
+
+/**
+ * Accessor to pinhole session pointer
+ */
+struct cgn_session *alg_pinhole_cse(struct alg_pinhole *ap);
+
 /**
  * Create pinhole table
  */

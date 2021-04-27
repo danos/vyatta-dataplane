@@ -72,6 +72,19 @@
  */
 
 /*
+ * Pinhole table entry
+ */
+struct alg_pinhole {
+
+	/* Session from which the pinhole was created */
+	struct cgn_session	*ap_cse;
+
+	/* ALG ID.  SIP, PPTP, or FTP */
+	enum cgn_alg_id		ap_alg_id;
+};
+
+
+/*
  * CGNAT ALG pinhole hash table
  *
  * The table is created when first ALG is enabled and remains in existence
@@ -140,6 +153,20 @@ static void alg_pinhole_tbl_destroy(struct alg_pinhole_tbl *tt)
 	ht = rcu_xchg_pointer(&tt->tt_ht, NULL);
 	if (ht)
 		dp_ht_destroy_deferred(ht);
+}
+
+/**************************************************************************
+ * Pinhole Entry Accessors
+ **************************************************************************/
+
+enum cgn_alg_id alg_pinhole_alg_id(struct alg_pinhole *ap)
+{
+	return ap->ap_alg_id;
+}
+
+struct cgn_session *alg_pinhole_cse(struct alg_pinhole *ap)
+{
+	return ap->ap_cse;
 }
 
 /**************************************************************************
