@@ -10,6 +10,7 @@
 #include "util.h"
 #include "npf/cgnat/cgn_dir.h"
 
+struct cgn_alg_sess_ctx;
 struct cgn_3tuple_key;
 struct cgn_session;
 struct cgn_sess_s2;
@@ -61,6 +62,9 @@ struct cgn_session *cgn_session_establish(struct cgn_packet *cpk,
 					  struct cgn_map *cmi,
 					  enum cgn_dir dir, int *error);
 
+struct cgn_session *cgn_session_get(struct cgn_session *cse);
+void cgn_session_put(struct cgn_session *cse);
+
 int cgn_session_activate(struct cgn_session *cse,
 			 struct cgn_packet *cpk, enum cgn_dir dir);
 
@@ -76,6 +80,17 @@ struct cgn_session *cgn_session_lookup_icmp_err(struct cgn_packet *cpk,
 struct cgn_session *cgn_session_find_cached(struct rte_mbuf *mbuf);
 
 void cgn_session_set_max(int32_t val);
+
+struct cgn_alg_sess_ctx *cgn_session_alg_set(struct cgn_session *cse,
+					     struct cgn_alg_sess_ctx *as);
+struct cgn_alg_sess_ctx *cgn_session_alg_get(struct cgn_session *cse);
+
+void cgn_session_set_alg_parent(struct cgn_session *cse, bool val);
+bool cgn_session_is_alg_parent(struct cgn_session *cse);
+void cgn_session_set_alg_child(struct cgn_session *cse, bool val);
+bool cgn_session_is_alg_child(struct cgn_session *cse);
+void cgn_session_set_alg_inspect(struct cgn_session *cse, bool val);
+bool cgn_session_get_alg_inspect(struct cgn_session *cse);
 
 /* Threshold */
 void session_table_threshold_set(int32_t threshold, uint32_t interval);

@@ -108,6 +108,9 @@ struct cgn_session {
 	/* Session instantiated by map cmd and/or a packet */
 	uint8_t			cs_pkt_instd:1;
 	uint8_t			cs_map_instd:1;
+	uint8_t			cs_alg_parent:1;  /* ALG parent session */
+	uint8_t			cs_alg_child:1;   /* ALG child session */
+	uint8_t			cs_alg_inspect:1; /* ALG inspect */
 	uint8_t			cs_pad1[1];
 
 	uint16_t		cs_l3_chk_delta;
@@ -123,13 +126,15 @@ struct cgn_session {
 	uint64_t		cs_start_time;	/* unix epoch us */
 	uint64_t		cs_end_time;	/* unix epoch us */
 
+	struct cgn_alg_sess_ctx	*cs_alg;	/* ALG session data */
+
 	uint32_t		cs_id;		/* unique identifier */
 	uint32_t		cs_ifindex;	/* Copy of ifp->ifindex */
 	rte_atomic16_t		cs_refcnt;	/* reference count */
 	uint16_t		cs_map_flag;	/* True if mapping exists */
 	uint8_t			cs_gc_pass;
 
-	uint8_t			cs_pad3[11];	/* pad to cacheline boundary */
+	uint8_t			cs_pad3[3];	/* pad to cacheline boundary */
 	/* --- cacheline 4 boundary (256 bytes) --- */
 };
 
@@ -449,9 +454,16 @@ void cgn_session_destroy(struct cgn_session *cse, bool rcu_free)
 }
 
 /*
- * Take reference on session
+ * Take reference on session.  A reference is held in two places:
+ *
+ * 1. While the session in in the session table.  A ref is taken by
+ * cgn_session_activate when the session is added to the table. It is released
+ * during garbage collection by cgn_session_deactivate when the session is
+ * removed from the table.
+ *
+ * 2. alg session back pointer (multiple per session)
  */
-static struct cgn_session *cgn_session_get(struct cgn_session *cse)
+struct cgn_session *cgn_session_get(struct cgn_session *cse)
 {
 	if (cse)
 		rte_atomic16_inc(&cse->cs_refcnt);
@@ -462,7 +474,7 @@ static struct cgn_session *cgn_session_get(struct cgn_session *cse)
 /*
  * Release reference on session
  */
-static void cgn_session_put(struct cgn_session *cse)
+void cgn_session_put(struct cgn_session *cse)
 {
 	if (cse && rte_atomic16_dec_and_test(&cse->cs_refcnt))
 		cgn_session_destroy(cse, true);
@@ -480,6 +492,80 @@ void cgn_session_set_max(int32_t val)
 	cgn_sessions_max = val;
 	session_table_threshold_set(session_table_threshold_cfg,
 				    session_table_threshold_time);
+}
+
+/*
+ * Set ALG session context
+ *
+ * Called when the session is created, and *before* it is added to the session
+ * table.  Once set, this is never cleared.
+ */
+struct cgn_alg_sess_ctx *cgn_session_alg_set(struct cgn_session *cse,
+					     struct cgn_alg_sess_ctx *as)
+{
+	if (cse)
+		return rcu_cmpxchg_pointer(&cse->cs_alg, NULL, as);
+	return NULL;
+}
+
+/* Get ALG session context */
+struct cgn_alg_sess_ctx *cgn_session_alg_get(struct cgn_session *cse)
+{
+	if (cse)
+		return rcu_dereference(cse->cs_alg);
+	return NULL;
+}
+
+/*
+ * ALG parent flag
+ *
+ * Examined by *every* CGNAT pkt to determine if the main ALG inspection
+ * routine is called at the end of the main pipeline routine,
+ * ipv4_cgnat_common.
+ */
+void cgn_session_set_alg_parent(struct cgn_session *cse, bool val)
+{
+	cse->cs_alg_parent = val;
+}
+
+bool cgn_session_is_alg_parent(struct cgn_session *cse)
+{
+	return cse->cs_alg_parent;
+}
+
+/*
+ * ALG child flag
+ *
+ * This determines if cgn_alg_sess2_init for new sub-sessions (some fixups are
+ * required for PPTP).
+ */
+void cgn_session_set_alg_child(struct cgn_session *cse, bool val)
+{
+	cse->cs_alg_child = val;
+}
+
+bool cgn_session_is_alg_child(struct cgn_session *cse)
+{
+	return cse->cs_alg_child;
+}
+
+/*
+ * ALG inspect flag
+ *
+ * Examined by *every* CGNAT pkt to determine if all of the packet should be
+ * pulled-up into the first packet segment.
+ *
+ * Initially set true for parent sessions, and false for child sessions.  Some
+ * parent sessions may later set it to false.
+ */
+void cgn_session_set_alg_inspect(struct cgn_session *cse, bool val)
+{
+	cse->cs_alg_inspect = val;
+}
+
+bool cgn_session_get_alg_inspect(struct cgn_session *cse)
+{
+	return cse->cs_alg_inspect;
 }
 
 /*
