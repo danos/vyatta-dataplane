@@ -73,6 +73,8 @@ pipeline {
 	    }
 	    post {
 		    always {
+			    archiveArtifacts artifacts: "${env.BUILD_ROOT_RELATIVE}/usr/src/packages/BUILD/build/meson-logs/testlog.txt"
+
 			    sh """
 				mkdir junit_results
 				for file in ${env.OSC_BUILD_ROOT}/usr/src/packages/BUILD/build/tests/whole_dp/*.xml
