@@ -30,6 +30,9 @@
 #include "vplane_log.h"
 #include "crypto_rte_pmd.h"
 
+#define PMD_DEBUG(args...)				\
+	DP_DEBUG(CRYPTO, DEBUG, PMD, args)
+
 #define MAX_CRYPTO_PMD 128
 
 /*
@@ -165,14 +168,15 @@ static int pmd_weighted_sa_cnt(struct crypto_pmd *pmd)
 }
 
 static struct crypto_pmd *
-crypto_pmd_alloc_loadshare(enum crypto_xfrm xfrm)
+crypto_pmd_alloc_loadshare(enum crypto_xfrm xfrm,
+			   enum cryptodev_type dev_type)
 {
 	struct crypto_pmd *pmd, *best_pmd = NULL;
 	unsigned int i, best_count = 0xffff, weight;
 
 	for (i = 0; i < MAX_CRYPTO_PMD; i++) {
 		pmd = crypto_pmd_devs[i];
-		if (!pmd)
+		if (!pmd || pmd->dev_type != dev_type)
 			continue;
 		weight = pmd_weighted_sa_cnt(pmd);
 		if (weight < best_count) {
@@ -183,6 +187,9 @@ crypto_pmd_alloc_loadshare(enum crypto_xfrm xfrm)
 				pmd_lb_tiebreak(best_pmd, pmd, xfrm);
 		}
 	}
+
+	PMD_DEBUG("Reusing pmd %s\n", best_pmd->dev_name);
+
 	return best_pmd;
 }
 
@@ -211,7 +218,7 @@ crypto_pmd_find_or_create(enum crypto_xfrm xfrm,
 		return NULL;
 
 	if (pmd_alloc >= max_pmds)
-		return crypto_pmd_alloc_loadshare(xfrm);
+		return crypto_pmd_alloc_loadshare(xfrm, dev_type);
 
 	/*
 	 * check if we have an existing PMD of the desired type
@@ -223,6 +230,8 @@ crypto_pmd_find_or_create(enum crypto_xfrm xfrm,
 
 	if (lcore_dev_ids[lcore][dev_type] != CRYPTO_PMD_INVALID_ID) {
 		dev_id = lcore_dev_ids[lcore][dev_type];
+		PMD_DEBUG("Found device %s\n",
+			  crypto_pmd_devs[dev_id]->dev_name);
 		return crypto_pmd_devs[dev_id];
 	}
 
@@ -347,7 +356,9 @@ int crypto_engine_probe(FILE *f)
 	bool sticky;
 
 	num = probe_crypto_engines(&sticky);
-	set_max_pmd(num);
+
+	/* each core can have one PMD of each type */
+	set_max_pmd(num * CRYPTODEV_MAX);
 
 	return  f ? crypto_cpu_describe(f, num, sticky) :
 		 (int) num;
