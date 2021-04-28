@@ -1,3 +1,31 @@
+vyatta-dataplane (3.13.11) unstable; urgency=medium
+
+  [ Nicholas Brown ]
+  * Artifact the meson testlog.txt file
+
+  [ Ian Wilson ]
+  * alg: Replace se_init function ptr with a switch statement
+  * alg: Replace se_destroy function ptr with a switch statement
+  * alg: Replace se_expire function ptr with a switch statement
+  * alg: Replace se_json function ptr with a switch statement
+  * alg: Replace inspect function ptr with a switch statement
+  * alg: Replace nat_inspect function ptr with a switch statement
+  * alg: Replace nat_in and nat_out function ptrs with a switch statement
+  * alg: Replace the periodic function ptr with a switch statement
+  * alg: Replace the tuple_delete function ptr with a switch statement
+  * alg: Replace the reset function ptr with a switch statement
+  * alg: Replace the name function ptr with a switch statement
+  * alg: Replace the config function ptr with a switch statement
+  * alg: Remove unused alg npf_alg_ops structure
+
+  [ Nicholas Brown ]
+  * Mention the DCO `Signed-off-by` requirement
+
+  [ Srinivas Narayan ]
+  * ut: Add markers at the beginning and end of testcases
+
+ -- Srinivas Narayan <narayan@vyatta.att-mail.com>  Wed, 28 Apr 2021 22:37:54 +0100
+
 vyatta-dataplane (3.13.10) unstable; urgency=medium
 
   [ Alan Dewar ]
