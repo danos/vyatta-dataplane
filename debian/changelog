@@ -1,3 +1,29 @@
+vyatta-dataplane (3.13.12) unstable; urgency=medium
+
+  [ Nachiketa Prachanda ]
+  * fwsync: session pack/restore protobuf messages
+  * fwsync: convert sessions to protobuf c struct
+  * fwsync: convert npf_session to protobuf-c message
+  * fwsync: pack a firewall session using protobuf
+  * session: add function to insert a restored session
+  * npf: rename npf_session_npf_pack_activate
+  * fwsync: session restore from protobuf-c structs
+  * fwsync: npf_session restore from protobuf structs
+  * fwsync: add firewall session restore from protobuf
+  * fwsync: add protobuf support to dp_session_restore
+  * fwsync: add session update to dp_session_pack_pb
+  * fwsync: update session from protobuf messages
+  * fwsync: protobuf session support in unit tests lib
+  * ut: unit test for protobuf session packing
+  * debian: virtual package for protobuf session pack
+  * fwsync: allow session deletion on update
+  * ut: add fwsync protobuf session update tests
+
+  [ Srinivas Narayan ]
+  * 3.12.49
+
+ -- Srinivas Narayan <narayan@vyatta.att-mail.com>  Wed, 28 Apr 2021 22:38:49 +0100
+
 vyatta-dataplane (3.13.11) unstable; urgency=medium
 
   [ Nicholas Brown ]
