@@ -30,6 +30,9 @@
 #include "vplane_log.h"
 #include "crypto_rte_pmd.h"
 
+#define PMD_DEBUG(args...)				\
+	DP_DEBUG(CRYPTO, DEBUG, PMD, args)
+
 #define MAX_CRYPTO_PMD 128
 
 /*
@@ -59,7 +62,7 @@ struct crypto_pmd {
 	struct crypto_pmd_q_pair q_pair;
 	unsigned int lcore;
 	int dev_id;
-	unsigned int sa_cnt;
+	enum cryptodev_type dev_type;
 	int rte_cdev_id;
 	struct rcu_head pmd_rcu;
 	/* --- cacheline 1 boundary (64 bytes) --- */
@@ -71,10 +74,10 @@ struct crypto_pmd {
 	char *padding[0] __rte_cache_aligned;
 	struct pmd_counters cnt[MAX_CRYPTO_XFRM];
 	struct rate_stats rates[MAX_CRYPTO_XFRM];
+	rte_atomic32_t sa_cnt;
 	unsigned int sa_cnt_per_type[MAX_CRYPTO_XFRM];
 	unsigned int pending_remove[MAX_CRYPTO_XFRM];
 	char dev_name[DEV_NAME_LEN];
-	enum cryptodev_type dev_type;
 };
 
 static_assert(offsetof(struct crypto_pmd, padding) == 64,
@@ -160,19 +163,20 @@ pmd_lb_tiebreak(struct crypto_pmd *best_pmd, struct crypto_pmd *pmd,
 
 static int pmd_weighted_sa_cnt(struct crypto_pmd *pmd)
 {
-	return pmd->sa_cnt -
+	return rte_atomic32_read(&pmd->sa_cnt) -
 		crypto_pmd_pend_rm_cnt(pmd, MAX_CRYPTO_XFRM);
 }
 
 static struct crypto_pmd *
-crypto_pmd_alloc_loadshare(enum crypto_xfrm xfrm)
+crypto_pmd_alloc_loadshare(enum crypto_xfrm xfrm,
+			   enum cryptodev_type dev_type)
 {
 	struct crypto_pmd *pmd, *best_pmd = NULL;
 	unsigned int i, best_count = 0xffff, weight;
 
 	for (i = 0; i < MAX_CRYPTO_PMD; i++) {
 		pmd = crypto_pmd_devs[i];
-		if (!pmd)
+		if (!pmd || pmd->dev_type != dev_type)
 			continue;
 		weight = pmd_weighted_sa_cnt(pmd);
 		if (weight < best_count) {
@@ -183,6 +187,9 @@ crypto_pmd_alloc_loadshare(enum crypto_xfrm xfrm)
 				pmd_lb_tiebreak(best_pmd, pmd, xfrm);
 		}
 	}
+
+	PMD_DEBUG("Reusing pmd %s\n", best_pmd->dev_name);
+
 	return best_pmd;
 }
 
@@ -211,7 +218,7 @@ crypto_pmd_find_or_create(enum crypto_xfrm xfrm,
 		return NULL;
 
 	if (pmd_alloc >= max_pmds)
-		return crypto_pmd_alloc_loadshare(xfrm);
+		return crypto_pmd_alloc_loadshare(xfrm, dev_type);
 
 	/*
 	 * check if we have an existing PMD of the desired type
@@ -223,6 +230,8 @@ crypto_pmd_find_or_create(enum crypto_xfrm xfrm,
 
 	if (lcore_dev_ids[lcore][dev_type] != CRYPTO_PMD_INVALID_ID) {
 		dev_id = lcore_dev_ids[lcore][dev_type];
+		PMD_DEBUG("Found device %s\n",
+			  crypto_pmd_devs[dev_id]->dev_name);
 		return crypto_pmd_devs[dev_id];
 	}
 
@@ -347,7 +356,9 @@ int crypto_engine_probe(FILE *f)
 	bool sticky;
 
 	num = probe_crypto_engines(&sticky);
-	set_max_pmd(num);
+
+	/* each core can have one PMD of each type */
+	set_max_pmd(num * CRYPTODEV_MAX);
 
 	return  f ? crypto_cpu_describe(f, num, sticky) :
 		 (int) num;
@@ -406,7 +417,7 @@ int crypto_allocate_pmd(enum crypto_xfrm xfrm,
 		return CRYPTO_PMD_INVALID_ID;
 	}
 
-	pmd->sa_cnt++;
+	rte_atomic32_inc(&pmd->sa_cnt);
 	pmd->sa_cnt_per_type[xfrm]++;
 	pmd_sa_active++;
 
@@ -469,6 +480,41 @@ void crypto_pmd_remove_all(void)
 			crypto_pmd_remove(i);
 }
 
+/*
+ * Invoked from SA cleanup RCU callback to signal completion
+ * of SA deletion. This is to ensure that each PMD gets deleted
+ * only after all SAs associated with it have been freed
+ */
+void crypto_sa_unbind_rcu(int dev_id)
+{
+	bool err;
+	struct crypto_pmd *pmd = crypto_dev_id_to_pmd(dev_id,
+						      &err);
+
+	if (!pmd) {
+		CRYPTO_ERR("No PMD for ID %d\n", dev_id);
+		return;
+	}
+
+	rte_atomic32_dec(&pmd->sa_cnt);
+}
+
+void crypto_gc_timer_handler(struct rte_timer *tmr __rte_unused,
+			     void *arg __rte_unused)
+{
+	struct crypto_pmd *pmd;
+	int i;
+
+	for (i = 0; i < MAX_CRYPTO_PMD; i++) {
+		pmd = crypto_pmd_devs[i];
+		if (!pmd)
+			continue;
+
+		if (!rte_atomic32_read(&pmd->sa_cnt))
+			crypto_pmd_remove(i);
+	}
+}
+
 void crypto_remove_sa_from_pmd(int dev_id, enum crypto_xfrm xfrm,
 			       bool pending)
 {
@@ -483,13 +529,9 @@ void crypto_remove_sa_from_pmd(int dev_id, enum crypto_xfrm xfrm,
 	}
 
 	pmd->sa_cnt_per_type[xfrm]--;
-	pmd->sa_cnt--;
 	pmd_sa_active--;
 	if (pending)
 		crypto_pmd_dec_pending_del(dev_id, xfrm);
-
-	if (!pmd->sa_cnt)
-		crypto_pmd_remove(dev_id);
 }
 
 /*
@@ -596,7 +638,7 @@ crypto_show_pmd_counters(json_writer_t *wr, struct crypto_pmd *pmd)
 	}
 
 	jsonw_string_field(wr, "dev_name", pmd->dev_name);
-	jsonw_uint_field(wr, "active_sa", pmd->sa_cnt);
+	jsonw_uint_field(wr, "active_sa", rte_atomic32_read(&pmd->sa_cnt));
 	jsonw_uint_field(wr, "lcore", pmd->lcore);
 	jsonw_start_array(wr);
 	jsonw_name(wr, "per_pmd_counters");

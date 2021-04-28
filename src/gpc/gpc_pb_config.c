@@ -14,15 +14,18 @@
 #include <vplane_log.h>
 #include <vplane_debug.h>
 #include <urcu/list.h>
+#include "dp_event.h"
 #include "fal.h"
 #include "fal_plugin.h"
 #include "gpc_pb.h"
 #include "gpc_util.h"
+#include "interface.h"
 #include "ip.h"
 #include "npf/config/gpc_cntr_control.h"
 #include "npf/config/gpc_cntr_query.h"
 #include "npf/config/gpc_db_control.h"
 #include "npf/config/gpc_db_query.h"
+#include "npf/config/gpc_hw.h"
 #include "npf/config/pmf_rule.h"
 #include "npf/config/gpc_hw.h"
 #include "protobuf.h"
@@ -35,6 +38,14 @@
  * Local storage
  */
 static struct cds_list_head *gpc_feature_list;
+
+/*
+ * Local structure definitions
+ */
+struct gpc_event_context {
+	enum if_feat_mode_event	event;
+	bool			commit_required;
+};
 
 /*
  * Protobuf parsing functions
@@ -1473,6 +1484,7 @@ gpc_pb_table_add(struct gpc_pb_feature *feature, GPCTable *msg)
 	}
 	gpc_group_hw_ntfy_rules_create(table->gpc_group);
 	gpc_group_hw_ntfy_attach(table->gpc_group);
+
 	return rv;
 
  error_path:
@@ -1762,6 +1774,93 @@ gpc_pb_feature_walk(gpc_pb_feature_walker_cb walker_cb,
 					return;
 }
 
+static gpc_pb_feature_table_walker_cb gpc_pb_table_mode_change_cb;
+static bool
+gpc_pb_table_mode_change_cb(struct gpc_pb_table *table,
+			    struct gpc_walk_context *walk_ctx)
+{
+	struct gpc_event_context *event_ctx = walk_ctx->data;
+	bool enabled = (event_ctx->event == IF_FEAT_MODE_EVENT_L3_FAL_ENABLED);
+	struct ifnet *ifp = dp_ifnet_byifname(table->ifname);
+
+	if (!ifp)
+		return true;  // keep walking
+
+	/*
+	 * This table is attached to an interface that has just changed its
+	 * FAL_L3 status.  We need to inform the FAL.
+	 */
+	DP_DEBUG(GPC, DEBUG, GPC,
+		 "%s if feature mode change: fal-l3 %sabled\n",
+		 table->ifname, (enabled ? "en" : "dis"));
+
+	if (enabled) {
+		/* L3 Fal enabled */
+		gpc_rlset_set_ifp(table->gpc_rlset);
+		gpc_group_hw_ntfy_attach(table->gpc_group);
+	} else {
+		gpc_group_hw_ntfy_detach(table->gpc_group);
+		gpc_rlset_clear_ifp(table->gpc_rlset);
+	}
+
+	/*
+	 * Signal that there has been a change that needs to be committed.
+	 */
+	event_ctx->commit_required = true;
+	return true;  // keep walking
+}
+
+static gpc_pb_feature_walker_cb gpc_pb_feature_mode_change_cb;
+static bool
+gpc_pb_feature_mode_change_cb(struct gpc_pb_feature *feature,
+			      struct gpc_walk_context *walk_ctx)
+{
+	gpc_pb_feature_table_walk(feature, gpc_pb_table_mode_change_cb,
+				  walk_ctx);
+	return true;  // keep walking
+}
+
+/*
+ * This function is called whenever an interface feature-mode change event
+ * happens.  The event its really interested in is when an interface becomes
+ * L3 FAL enabled.   On SIAD and J2 there can be some delay before this
+ * happens after boot, and so GPC initial attempts to program the FAL plugin
+ * may have failed.
+ */
+static void
+gpc_pb_if_feat_mode_change(struct ifnet *ifp, enum if_feat_mode_event event)
+{
+	struct gpc_walk_context walk_ctx;
+	struct gpc_event_context event_ctx;
+
+	if (event != IF_FEAT_MODE_EVENT_L3_FAL_ENABLED &&
+	    event != IF_FEAT_MODE_EVENT_L3_FAL_DISABLED)
+		return;
+
+	event_ctx.event = event;
+	event_ctx.commit_required = false;
+
+	/*
+	 * Walk all features, locations and traffic-types looking for
+	 * a matching interface name.
+	 */
+	walk_ctx.feature_type = 0;
+	walk_ctx.ifname = ifp->if_name;
+	walk_ctx.location = 0;
+	walk_ctx.traffic_type = 0;
+	walk_ctx.data = &event_ctx;
+
+	gpc_pb_feature_walk(gpc_pb_feature_mode_change_cb, &walk_ctx);
+
+	if (event_ctx.commit_required)
+		gpc_hw_commit();
+}
+
+static const struct dp_event_ops gpc_pb_config_events = {
+	.if_feat_mode_change = gpc_pb_if_feat_mode_change,
+};
+
+
 static int
 gpc_config(struct pb_msg *msg)
 {
@@ -1780,6 +1879,8 @@ gpc_config(struct pb_msg *msg)
 		}
 
 		CDS_INIT_LIST_HEAD(gpc_feature_list);
+
+		dp_event_register(&gpc_pb_config_events);
 	}
 
 	rv = gpc_pb_feature_parse(config_msg);
