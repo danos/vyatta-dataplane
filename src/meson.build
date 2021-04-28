@@ -53,6 +53,7 @@ session_sources = files(
         'session/session_cmds.c',
         'session/session_feature.c',
         'session/session_op.c',
+        'session/session_pack_pb.c',
         'session/session_watch.c'
 )
 
@@ -245,6 +246,7 @@ npf_sources = files(
         'npf/npf_nat.c',
         'npf/npf_ncgen.c',
         'npf/npf_pack.c',
+        'npf/npf_pack_pb.c',
         'npf/npf_unpack.c',
         'npf/npf_processor.c',
         'npf/npf_ptree.c',

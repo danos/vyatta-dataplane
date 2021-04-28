@@ -712,3 +712,124 @@ void npf_state_pack_update_tcp(npf_state_t *nst,
 
 	rte_spinlock_unlock(&nst->nst_lock);
 }
+
+/* Copy non-TCP session state to a protobuf-c message */
+int npf_state_pack_gen_pb(npf_state_t *nst, NPFSessionStateMsg *nss)
+{
+	if (!nst || !nss)
+		return -EINVAL;
+
+	nss->has_nss_state = 1;
+	nss->nss_state = nst->nst_gen_state;
+	return 0;
+}
+
+/* Restore non-TCP session state from a protobuf-c message */
+int npf_state_restore_gen_pb(npf_state_t *nst, NPFSessionStateMsg *nss)
+{
+	if (!nst || !nss)
+		return -EINVAL;
+
+	if (nss->nss_state > SESSION_STATE_LAST)
+		return -EINVAL;
+
+	nst->nst_gen_state = nss->nss_state;
+	return 0;
+}
+
+/* update non-TCP session state from a protobuf-c message */
+int npf_state_update_gen_pb(npf_state_t *nst, NPFSessionStateMsg *nss,
+			    enum npf_proto_idx proto_idx, bool *state_changed)
+{
+	if (!nst || !nss)
+		return -EINVAL;
+
+	if (nss->nss_state > SESSION_STATE_LAST)
+		return -EINVAL;
+
+	rte_spinlock_lock(&nst->nst_lock);
+	npf_state_set_gen(nst, proto_idx, nss->nss_state, state_changed);
+	rte_spinlock_unlock(&nst->nst_lock);
+	return 0;
+}
+
+/* Copy TCP session state to a protobuf-c message */
+int npf_state_pack_tcp_pb(npf_state_t *nst, NPFSessionStateMsg *nss)
+{
+	int i;
+	const struct npf_tcp_window *tcp_win;
+
+	if (!nst || !nss)
+		return -EINVAL;
+
+	nss->has_nss_state = 1;
+	nss->nss_state = nst->nst_tcp_state;
+
+	nss->n_nss_tcpwins = NPF_FLOW_SZ;
+	for (i = NPF_FLOW_FIRST; i <= NPF_FLOW_LAST; i++) {
+		tcp_win = &nst->nst_tcp_win[i];
+		nss->nss_tcpwins[i]->has_tw_end = 1;
+		nss->nss_tcpwins[i]->tw_end = tcp_win->nst_end;
+		nss->nss_tcpwins[i]->has_tw_maxend = 1;
+		nss->nss_tcpwins[i]->tw_maxend = tcp_win->nst_maxend;
+		nss->nss_tcpwins[i]->has_tw_maxwin = 1;
+		nss->nss_tcpwins[i]->tw_maxwin = tcp_win->nst_maxwin;
+		nss->nss_tcpwins[i]->has_tw_wscale = 1;
+		nss->nss_tcpwins[i]->tw_wscale = tcp_win->nst_wscale;
+	}
+	return 0;
+}
+
+/* restore npf_tcp_window from protobuf-c message */
+void npf_state_restore_tcpwin_pb(struct npf_tcp_window *tcp_win,
+				 TCPWindowMsg *pb_tcp_win)
+{
+	if (pb_tcp_win->has_tw_end)
+		tcp_win->nst_end = pb_tcp_win->tw_end;
+	if (pb_tcp_win->has_tw_maxend)
+		tcp_win->nst_maxend = pb_tcp_win->tw_maxend;
+	if (pb_tcp_win->has_tw_maxwin)
+		tcp_win->nst_maxwin = pb_tcp_win->tw_maxwin;
+	if (pb_tcp_win->has_tw_wscale)
+		tcp_win->nst_wscale = pb_tcp_win->tw_wscale;
+}
+
+/* restore initial tcp state from protobuf-c message - no locking is needed */
+int npf_state_restore_tcp_pb(npf_state_t *nst, NPFSessionStateMsg *nss)
+{
+	int i;
+
+	if (!nst || !nss)
+		return -EINVAL;
+
+	if (nss->nss_state > NPF_TCPS_LAST)
+		return -EINVAL;
+
+	nst->nst_tcp_state = nss->nss_state;
+
+	for (i = NPF_FLOW_FIRST; i <= NPF_FLOW_LAST; i++)
+		npf_state_restore_tcpwin_pb(&nst->nst_tcp_win[i],
+					    nss->nss_tcpwins[i]);
+	return 0;
+}
+
+/* update tcp state from protobuf-c message. */
+int npf_state_update_tcp_pb(npf_state_t *nst, NPFSessionStateMsg *nss,
+			    bool *state_changed)
+{
+	int i;
+
+	if (!nst || !nss)
+		return -EINVAL;
+
+	if (nss->nss_state > NPF_TCPS_LAST)
+		return -EINVAL;
+
+	rte_spinlock_lock(&nst->nst_lock);
+	for (i = NPF_FLOW_FIRST; i <= NPF_FLOW_LAST; i++)
+		npf_state_restore_tcpwin_pb(&nst->nst_tcp_win[i],
+					    nss->nss_tcpwins[i]);
+	npf_state_set_tcp(nst, nss->nss_state, state_changed);
+	rte_spinlock_unlock(&nst->nst_lock);
+	return 0;
+}

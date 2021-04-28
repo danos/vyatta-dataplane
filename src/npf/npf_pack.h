@@ -6,9 +6,11 @@
 
 #ifndef NPF_PACK_H
 #define NPF_PACK_H
+#include <stdbool.h>
 
 #include "dp_session.h"
 #include "npf/npf_state.h"
+#include "protobuf/SessionPack.pb-c.h"
 #include "session/session.h"
 
 /*
@@ -45,6 +47,19 @@
 #define NPF_PACK_MESSAGE_MIN_SIZE     (sizeof(struct npf_pack_message_hdr))
 
 #define SESSION_PACK_VERSION	      (0x0103)
+
+/*
+ * Used by packed protobuf messages.
+ * Changes to protobuf definitions should increase NPF_PACK_PB_CUR_VERSION
+ */
+#define NPF_PACK_PB_MIN_VERSION		(0x10)
+#define NPF_PACK_PB_CUR_VERSION		NPF_PACK_PB_MIN_VERSION
+#define NPF_PACK_PB_VERSION		(0x0100 | NPF_PACK_PB_CUR_VERSION)
+
+static inline bool is_npf_pack_pb_version(uint16_t version)
+{
+	return ((version & 0xFF) >= NPF_PACK_PB_MIN_VERSION);
+}
 
 enum pack_session_new {
 	NPF_PACK_SESSION_NEW_FW = 1,
@@ -253,5 +268,11 @@ uint64_t npf_pack_get_session_id(struct npf_pack_message *msg);
 
 struct npf_pack_dp_sess_stats *
 npf_pack_get_session_stats(struct npf_pack_message *msg);
+int npf_pack_restore(void *data, uint32_t size, enum session_pack_type *spt);
+
+/* For unit tests */
+PackedDPSessionMsg *npf_unpack_pb(void *buf, uint32_t size);
+void npf_unpack_free_pb(PackedDPSessionMsg *pds);
+int npf_pack_restore_pb(void *buf, uint32_t size, enum session_pack_type *spt);
 
 #endif	/* NPF_PACK_H */

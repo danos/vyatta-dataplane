@@ -1,0 +1,89 @@
+// Copyright (c) 2021, AT&T Intellectual Property.  All rights reserved.
+//
+// SPDX-License-Identifier: LGPL-2.1-only
+//
+// Session Packing Protobuf Messages
+//
+// This message definition is internal to the dataplane and used for
+// marshalling and unmarshalling a live dataplane firewall session.
+//
+// The session packing functions dp_session_pack_pb() returns a buffer that
+// contains a header followed by an encoded protobuf of PackedDPSessionMsg.
+
+// dp_session_restore() accepts a buffer encoded by dp_session_pack_pb() and
+// restores and activates a session.
+//
+// The buffer returned by the dp_session_pack_pb() or dp_session_pack() should
+// be considered opaque to any feature plugins and is recommended to be used
+// only to store an existing session and restore it later in the same
+// dataplane or a different dataplane.
+//
+
+syntax = "proto2";
+
+option go_package = "github.com/danos/vyatta-dataplane/protobuf/go/SessionPack";
+
+message PackedDPSessionMsg {
+	optional uint32 pds_pack_type = 1;
+	optional fixed32 pds_flags = 2;
+	repeated DPSessionMsg pds_sessions = 3;
+}
+
+// Single Session
+message DPSessionMsg {
+	optional fixed64	ds_id = 1;
+	optional DPSessionKeyMsg	ds_key = 2;
+	optional DPSessionStateMsg	ds_state = 3;
+	optional DPSessionCounterMsg	ds_counters = 4;
+	optional NPFSessionMsg	ds_npf_session = 5;
+}
+
+// Corresponds to a sentry_packet structure. The 5 tuple + interface.
+message DPSessionKeyMsg {
+	optional string sk_ifname = 1; // Interface name
+	optional fixed32 sk_flags = 2; // Opaque flags for the session key
+	optional fixed32 sk_protocol = 3; // IP Protocol
+	repeated fixed32 sk_addrids = 4 [packed=true]; // Opaque address key
+}
+
+
+// Session State = not needed for update
+message DPSessionStateMsg {
+	optional uint32 ss_custom_timeout = 1;
+	optional uint32 ss_timeout = 2;
+	optional uint32 ss_protocol_state = 3;
+	optional uint32 ss_generic_state = 4;
+	optional fixed32 ss_flags = 5; // packed struct session bit fields
+}
+
+// Session Counters - needed for both update and restore
+message DPSessionCounterMsg {
+	// Generic Session stats
+	optional uint64 sc_pkts_in = 1;
+	optional uint64 sc_bytes_in = 2;
+	optional uint64 sc_pkts_out = 3;
+	optional uint64 sc_bytes_out = 4;
+}
+
+// NPF session specific information - needed for both update and restore
+message NPFSessionMsg {
+	optional fixed32 ns_flags = 1;
+	optional fixed32 ns_rule_hash = 2;
+	optional fixed32 ns_rproc_rule_hash = 3;
+	optional NPFSessionStateMsg ns_state = 4;
+}
+
+// NPF specific state = nss_tcpwins will only be present for TCP sessions
+// Needed for both update and restore
+message NPFSessionStateMsg {
+	optional uint32	nss_state = 1;
+	repeated TCPWindowMsg nss_tcpwins = 2;
+}
+
+// TCPWindow information for TCP sessions
+message TCPWindowMsg {
+	optional fixed32 tw_end = 1;
+	optional fixed32 tw_maxend = 2;
+	optional fixed32 tw_maxwin = 3;
+	optional fixed32 tw_wscale = 4;
+}

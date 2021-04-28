@@ -378,7 +378,7 @@ static void expire_kids(struct session *s)
 }
 
 /* Reclaim session once all sentries are gone */
-static void session_reclaim(struct session *s)
+void session_reclaim(struct session *s)
 {
 	/*
 	 * N.B. This routine is called from both the GC as well
@@ -1713,7 +1713,17 @@ void session_gc(void)
 /* Allocate/init a session struct (for session syncing) */
 struct session *session_alloc(void)
 {
-	return se_alloc();
+	struct session *s;
+	int rc = slot_get();
+	if (rc)
+		return NULL;
+
+	s = se_alloc();
+	if (!s) {
+		slot_put();
+		return NULL;
+	}
+	return s;
 }
 
 void session_init(void)
@@ -1883,9 +1893,7 @@ int session_npf_pack_restore(struct npf_pack_dp_session *pds,
 	struct sentry_packet psp_back;
 	struct sentry_packet *forw = &psp_forw;
 	struct sentry_packet *back = &psp_back;
-	struct sentry *sen_forw;
 	struct ifnet *ifp;
-	bool created = false;
 	int rc;
 
 	if (!pds || !psp)
@@ -1895,15 +1903,9 @@ int session_npf_pack_restore(struct npf_pack_dp_session *pds,
 	if (rc)
 		return rc;
 
-	rc = slot_get();
-	if (rc)
-		return rc;
-
 	s = session_alloc();
-	if (!s) {
-		slot_put();
+	if (!s)
 		return -ENOMEM;
-	}
 
 	s->se_vrfid = ifp->if_vrfid;
 	s->se_flags = pds->pds_flags;
@@ -1930,29 +1932,59 @@ int session_npf_pack_restore(struct npf_pack_dp_session *pds,
 	rte_atomic64_init(&s->se_bytes_out);
 	se_init_logging(s);
 
-	memcpy(forw, &psp->psp_forw, sizeof(*forw));
-	memcpy(back, &psp->psp_back, sizeof(*back));
-
-	rc = sentry_packet_insert_both(s, forw, back, SENTRY_INIT,
-				       &sen_forw, &created);
-	if (rc || !created)
+	rc = session_npf_pack_stats_restore(s, stats);
+	if (rc)
 		goto error;
 
-	/* Add the session to the session hash table.  */
-	cds_lfht_add(session_ht, s->se_id, &s->se_node);
-	s->se_flags = SESSION_INSERTED;
+	memcpy(forw, &psp->psp_forw, sizeof(*forw));
+	memcpy(back, &psp->psp_back, sizeof(*back));
+	rc = session_insert_restored(s, forw, back);
 
-	rc = session_npf_pack_stats_restore(s, stats);
-	if (rc) 
+	if (rc)
 		goto error;
 
 	*session = s;
 	return 0;
 
 error:
-	slot_put();
-	free(s);
+	session_reclaim(s);
 	return rc;
+}
+
+/*
+ * insert a restored session into sentry tables.
+ * struct session must have been allocated with session_alloc().
+ * Before calling, caller must set the following fields:
+ * se_vrfid, se_protocol, se_ifindex, se_* bitfields, se_timeout,
+ * se_custom_timeout, se_protocol_state.
+ *
+ * logging, create_time and se_etime are initilized by this function.
+ */
+int session_insert_restored(struct session *s,
+			    struct sentry_packet *sp_forw,
+			    struct sentry_packet *sp_back)
+{
+	int rc;
+	struct sentry *dummy;
+	bool created = false;
+
+	s->se_etime = get_dp_uptime() + se_timeout(s);
+	s->se_create_time = rte_get_timer_cycles();
+	se_init_logging(s);
+
+	rc = sentry_packet_insert_both(s, sp_forw, sp_back, SENTRY_INIT,
+				       &dummy, &created);
+
+	if (rc)
+		return rc;
+	if (!created)
+		return -EEXIST;
+
+	/* Add the session to the session hash table.  */
+	cds_lfht_add(session_ht, s->se_id, &s->se_node);
+	s->se_flags = SESSION_INSERTED;
+
+	return 0;
 }
 
 uint32_t session_get_npf_pack_timeout(struct session *s)

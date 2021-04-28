@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020, AT&T Intellectual Property. All rights reserved.
+ * Copyright (c) 2020-2021, AT&T Intellectual Property. All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  *
@@ -19,6 +19,16 @@ struct dp_test_session {
 	uint64_t se_id; /**< session_id retrieved from packed session */
 	bool completed; /**< Is the received packed message complete */
 };
+
+void *_dp_test_session_msg_unpack_pb(void *buf, uint32_t size,
+				  const char *file, int line);
+#define dp_test_session_msg_unpack_pb(buf, size) \
+	_dp_test_session_msg_unpack_pb(buf, size, __FILE__, __LINE__)
+
+
+void _dp_test_session_msg_free_unpack_pb(void *buf, const char *file, int line);
+#define dp_test_session_msg_free_unpack_pb(buf) \
+	_dp_test_session_msg_free_unpack_pb(buf, __FILE__, __LINE__)
 
 void _dp_test_session_msg_valid(void *msg, uint32_t size,
 				const char *file, int line);

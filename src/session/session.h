@@ -940,6 +940,10 @@ void session_gc(void);
  * Allocate a session struct, for use by session syncing.
  */
 struct session *session_alloc(void);
+void session_reclaim(struct session *s);
+int session_insert_restored(struct session *s,
+			    struct sentry_packet *sp_forw,
+			    struct sentry_packet *sp_back);
 
 int session_npf_pack_pack(struct session *s, struct npf_pack_dp_session *pds,
 			  struct npf_pack_sentry_packet *psp,

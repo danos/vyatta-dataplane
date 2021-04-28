@@ -63,6 +63,7 @@
 #include "compiler.h"
 #include "if_var.h"
 #include "json_writer.h"
+#include "protobuf/SessionPack.pb-c.h"
 #include "npf/npf.h"
 #include "npf/alg/alg_npf.h"
 #include "npf/config/npf_config.h"
@@ -2084,12 +2085,154 @@ error:
 	return NULL;
 }
 
-int npf_session_npf_pack_activate(struct npf_session *se, struct ifnet *ifp)
+/* Activate a restored session */
+int npf_session_activate_restored(struct npf_session *se, struct ifnet *ifp)
 {
 	if (!se || !ifp)
 		return -EINVAL;
 
 	npf_if_session_inc(ifp);
 	se->s_flags |= SE_ACTIVE;
+	return 0;
+}
+
+/*
+ * copy npf_session information to a protobuf-c NPFSessionMsg structure.
+ * Data Copied:
+ *  - rule, rproc_rule: instead of serializing the rules or rproc_rule, only
+ *  copy a hash that can be verified during restoration of the npf_session.
+ *  - protocol state: tcp or generic state.
+ *  - other fields can be derived from the fields in dataplane session
+ */
+int npf_session_pack_pb(struct npf_session *se, NPFSessionMsg *nsm)
+{
+	npf_rule_t *rule;
+
+	if (!se)
+		return -EINVAL;
+
+	nsm->has_ns_flags = 1;
+	nsm->ns_flags = se->s_flags;
+
+	rule = npf_session_get_fw_rule(se);
+	if (rule) {
+		nsm->has_ns_rule_hash = 1;
+		nsm->ns_rule_hash = npf_rule_get_hash(rule);
+	}
+
+	rule = npf_session_get_rproc_rule(se);
+	if (rule) {
+		nsm->has_ns_rproc_rule_hash = 1;
+		nsm->ns_rproc_rule_hash = npf_rule_get_hash(rule);
+	}
+
+	if (se->s_proto_idx == NPF_PROTO_IDX_TCP)
+		npf_state_pack_tcp_pb(&se->s_state, nsm->ns_state);
+	else
+		npf_state_pack_gen_pb(&se->s_state, nsm->ns_state);
+
+	return 0;
+}
+
+/* Allocate an npf_session and recover its state from protobuf-c
+ * NPFSessionMsg struct
+ */
+npf_session_t *npf_session_restore_pb(NPFSessionMsg *nsm, struct ifnet *ifp,
+				      uint8_t protocol)
+{
+	npf_rule_t *fw_rl = NULL;
+	npf_rule_t *rproc_rl = NULL;
+	npf_session_t *se;
+	int rc;
+	enum npf_proto_idx proto_idx = npf_proto_idx_from_proto(protocol);
+
+	if (!nsm)
+		return NULL;
+
+	se = zmalloc_aligned(sizeof(*se));
+	if (!se)
+		return NULL;
+
+	npf_state_init(ifp->if_vrfid, proto_idx, &se->s_state);
+
+	if (nsm->has_ns_rule_hash)
+		fw_rl = npf_get_rule_by_hash(nsm->ns_rule_hash);
+
+	if (fw_rl)
+		npf_session_add_fw_rule(se, fw_rl);
+
+	if (nsm->has_ns_rproc_rule_hash)
+		rproc_rl = npf_get_rule_by_hash(nsm->ns_rproc_rule_hash);
+
+	if (rproc_rl)
+		npf_session_add_rproc_rule(se, rproc_rl);
+
+	se->s_flags = nsm->ns_flags;
+	se->s_vrfid = ifp->if_vrfid;
+	se->s_if_idx = ifp->if_index;
+	se->s_proto = protocol;
+	se->s_proto_idx = proto_idx;
+
+	if (proto_idx == NPF_PROTO_IDX_TCP)
+		rc = npf_state_restore_tcp_pb(&se->s_state, nsm->ns_state);
+	else
+		rc = npf_state_restore_gen_pb(&se->s_state, nsm->ns_state);
+
+	if (rc)
+		goto error;
+
+	rte_spinlock_init(&se->s_state.nst_lock);
+
+	return se;
+
+error:
+	if (fw_rl)
+		npf_rule_put(fw_rl);
+	if (rproc_rl)
+		npf_rule_put(rproc_rl);
+	free(se);
+	return NULL;
+}
+
+/* update npf_session's state from protobuf-c NPFSessionMsg struct */
+int npf_session_update_pb(npf_session_t *se, NPFSessionMsg *nsm)
+{
+	npf_state_t *nst;
+	enum tcp_session_state old_tcp_state;
+	enum dp_session_state old_gen_state;
+	struct session *s;
+	bool state_changed = false;
+	int rc;
+
+	if (!se || !nsm)
+		return -EINVAL;
+
+	nst = &se->s_state;
+
+	if (se->s_proto_idx == NPF_PROTO_IDX_TCP) {
+		old_tcp_state = nst->nst_tcp_state;
+		rc = npf_state_update_tcp_pb(nst,
+				nsm->ns_state, &state_changed);
+		if (rc)
+			return rc;
+
+		if (state_changed)
+			npf_session_tcp_state_change(se, nst, old_tcp_state,
+				nsm->ns_state->nss_state);
+	} else {
+		old_gen_state = nst->nst_gen_state;
+		rc = npf_state_update_gen_pb(nst, nsm->ns_state,
+				se->s_proto_idx, &state_changed);
+		if (rc)
+			return rc;
+
+		if (state_changed)
+			npf_session_gen_state_change(se, nst, old_gen_state,
+				nsm->ns_state->nss_state, se->s_proto_idx);
+	}
+
+	s = se->s_session;
+	if (s)
+		s->se_etime = get_dp_uptime() + session_get_npf_pack_timeout(s);
 	return 0;
 }
