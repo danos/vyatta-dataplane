@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2015-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -334,5 +334,12 @@ int dp_test_add_to_cfg_file(int argc, char **argv);
  * then free it.
  */
 void dp_test_lib_pb_set_ip_addr(IPAddress *addr, const char *str, void *data);
+
+
+/*
+ * Utility function to emit marker in the unit test log at the beginning and
+ * end of testcases.
+ */
+void dp_test_tcase_mark(bool begin, const char *name);
 
 #endif /*_DP_TEST_LIB_H_ */

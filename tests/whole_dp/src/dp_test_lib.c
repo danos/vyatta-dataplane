@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2015-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -1976,4 +1976,10 @@ void dp_test_make_nh_usable_other_thread(pthread_t *nh_unusable_thread,
 	 */
 	if (pthread_create(nh_unusable_thread, NULL, nh_usable, key) < 0)
 		dp_test_abort_internal();
+}
+
+void dp_test_tcase_mark(bool begin, const char *name)
+{
+	RTE_LOG(INFO, DATAPLANE, "----- %-5s %-40s -----\n",
+		begin ? "BEGIN" : "END", name);
 }

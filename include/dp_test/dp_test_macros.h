@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020, AT&T Intellectual Property. All rights reserved.
+ * Copyright (c) 2021, AT&T Intellectual Property. All rights reserved.
  * Copyright (c) 2015-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -125,6 +125,8 @@ Suite * dp_test_get_suite(const char *filename);
 	{							 \
 		bool _do_clean_check =				 \
 			!dp_test_##TESTCASE##_teardown_fn;	 \
+								 \
+		dp_test_tcase_mark(true, __func__);              \
 
 #else
 
@@ -145,6 +147,9 @@ Suite * dp_test_get_suite(const char *filename);
 	{							 \
 		bool _do_clean_check =				 \
 			!dp_test_##TESTCASE##_teardown_fn;	 \
+								 \
+		dp_test_tcase_mark(true, __func__);              \
+
 
 #endif
 
@@ -187,6 +192,8 @@ Suite * dp_test_get_suite(const char *filename);
 		mark_point();					\
 		if (_do_clean_check)				\
 			dp_test_check_state_clean(false);	\
+								\
+		dp_test_tcase_mark(false, __func__);            \
 	}							\
 	END_TEST
 
