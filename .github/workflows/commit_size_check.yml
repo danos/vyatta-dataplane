@@ -1,0 +1,23 @@
+# Copyright (c) 2021, AT&T Intellectual Property.  All rights reserved.
+#
+# Run size check on pull requests.
+
+name: size check
+
+on: pull_request
+
+jobs:
+  size_check:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: git fetch
+      run: git fetch --no-tags --prune origin +refs/heads/*:refs/remotes/origin/*
+
+    - name: run size check
+      run: ./scripts/commit_size_check.sh origin/${GITHUB_BASE_REF} origin/${GITHUB_HEAD_REF}
+
+    - run: echo "Job status is ${{ job.status }}."
