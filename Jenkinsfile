@@ -114,6 +114,23 @@ pipeline {
 	    }
 	}
 
+        stage('Commit Size') {
+            when {
+                allOf {
+                    // Only if this is a Pull Request
+                    expression { env.CHANGE_ID != null }
+                    expression { env.CHANGE_TARGET != null }
+                }
+            }
+            steps {
+                catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
+                    dir('vyatta-dataplane') {
+                        sh "./scripts/commit_size_check.sh upstream/${env.CHANGE_TARGET} origin/${env.BRANCH_NAME}"
+                    }
+                }
+            }
+        }
+
 	stage('gitlint') {
 	    when {
 		allOf {
