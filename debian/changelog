@@ -1,3 +1,10 @@
+vyatta-dataplane (3.12.51) unstable; urgency=medium
+
+  [ Alan Dewar ]
+  * GPC: prevent crash when GPC rules not contiguous (Fixes: VRVDR-54893)
+
+ -- Srinivas Narayan <narayan@vyatta.att-mail.com>  Fri, 30 Apr 2021 17:09:54 +0100
+
 vyatta-dataplane (3.12.50) unstable; urgency=medium
 
   * crypto: fix cleanup race
