@@ -1137,10 +1137,18 @@ gpc_pb_rule_parse(struct gpc_pb_table *table, Rule *msg)
 		return -EPERM;
 	}
 
+	if (table->free_rule_index == table->n_rules) {
+		RTE_LOG(ERR, GPC, "Rule table full with %u rules\n",
+			table->n_rules);
+		return -EPERM;
+	}
 	/*
-	 * We never have a rule 0, we always start with rule 1, hence the -1
+	 * We never have a rule 0, we always start with rule 1.
+	 * The rules don't arrive with their rule-numbers having been
+	 * compressed. We do that compression here, i.e. rules 2, 4, and 7,
+	 * will end up with rule numbers 1, 2 and 3.
 	 */
-	rule = &table->rules_table[msg->number - 1];
+	rule = &table->rules_table[table->free_rule_index++];
 
 	/*
 	 * Initialise the rule's list heads before we mark it as used
@@ -1151,9 +1159,9 @@ gpc_pb_rule_parse(struct gpc_pb_table *table, Rule *msg)
 	/*
 	 * Mark the rule as used, that is non-zero
 	 */
-	rule->number = msg->number;
+	rule->number = table->free_rule_index;
 
-	rule->gpc_rule = gpc_rule_create(table->gpc_group, rule->number, &rule);
+	rule->gpc_rule = gpc_rule_create(table->gpc_group, rule->number, rule);
 	if (!rule->gpc_rule) {
 		RTE_LOG(ERR, GPC, "Failed to allocate GPC rule\n");
 		goto error_path;
@@ -1281,6 +1289,7 @@ gpc_pb_rules_parse(struct gpc_pb_table *table, Rules *msg)
 		goto error_path;
 	}
 
+	table->free_rule_index = 0;
 	table->n_rules = msg->n_rules;
 	for (i = 0; i < table->n_rules; i++) {
 		rv = gpc_pb_rule_parse(table, msg->rules[i]);

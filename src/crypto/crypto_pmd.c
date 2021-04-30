@@ -437,15 +437,9 @@ static void pmd_purge_and_release_queues(struct crypto_pmd *pmd)
 static void pmd_rcu_free(struct rcu_head *head)
 {
 	struct crypto_pmd *pmd;
-	int err;
 
 	pmd  = caa_container_of(head, struct crypto_pmd, pmd_rcu);
 	pmd_purge_and_release_queues(pmd);
-
-	err = crypto_rte_destroy_pmd(pmd->dev_type, pmd->dev_name,
-				     pmd->dev_id);
-	if (err != 0)
-		CRYPTO_ERR("Could not destroy pmd %s\n", pmd->dev_name);
 
 	rte_free(pmd);
 }
@@ -453,9 +447,9 @@ static void pmd_rcu_free(struct rcu_head *head)
 static void crypto_pmd_remove(int dev_id)
 {
 	bool err;
+	int err2;
 	struct crypto_pmd *pmd = crypto_dev_id_to_pmd(dev_id,
 						      &err);
-
 	if (!pmd)
 		return;
 
@@ -467,6 +461,11 @@ static void crypto_pmd_remove(int dev_id)
 	cds_list_del_rcu(&pmd->next);
 
 	crypto_unassign_from_engine(pmd->lcore);
+
+	err2 = crypto_rte_destroy_pmd(pmd->dev_type, pmd->dev_name,
+				      pmd->dev_id);
+	if (err2 != 0)
+		CRYPTO_ERR("Could not destroy pmd %s\n", pmd->dev_name);
 
 	call_rcu(&pmd->pmd_rcu, pmd_rcu_free);
 }
@@ -496,7 +495,10 @@ void crypto_sa_unbind_rcu(int dev_id)
 		return;
 	}
 
-	rte_atomic32_dec(&pmd->sa_cnt);
+	if (rte_atomic32_read(&pmd->sa_cnt))
+		rte_atomic32_dec(&pmd->sa_cnt);
+	else
+		CRYPTO_ERR("Invalid SA unbind from dev %d\n", dev_id);
 }
 
 void crypto_gc_timer_handler(struct rte_timer *tmr __rte_unused,

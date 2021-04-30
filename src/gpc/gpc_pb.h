@@ -190,6 +190,7 @@ struct gpc_pb_table {
 	uint32_t			location;
 	/* Other operational fields */
 	uint32_t			n_rules;
+	uint32_t			free_rule_index;
 	/*
 	 * The protobuf tells us how many rules are in the rules_table so
 	 * we can allocate memory for all the rules in a single chunk.
