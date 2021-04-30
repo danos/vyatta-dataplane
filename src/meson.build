@@ -202,6 +202,7 @@ npf_sources = files(
         'npf/cgnat/cgn_test.c',
         'npf/cgnat/alg/alg.c',
         'npf/cgnat/alg/alg_pinhole.c',
+        'npf/cgnat/alg/alg_rc.c',
         'npf/cgnat/alg/alg_session.c',
         'npf/config/gpc_acl_cli.c',
         'npf/config/gpc_cntr.c',

@@ -20,6 +20,7 @@
 
 #include "npf/cgnat/alg/alg_public.h"
 #include "npf/cgnat/alg/alg_pinhole.h"
+#include "npf/cgnat/alg/alg_rc.h"
 
 /*
  * Bitmap of enabled ALGs (CGN_ALG_BIT_FTP etc.)
@@ -207,10 +208,23 @@ int cgn_alg_disable(const char *name)
 	return 0;
 }
 
+/**************************************************************************
+ * Initialisation
+ **************************************************************************/
+
+/*
+ * Called via DP_EVT_INIT event handler
+ */
+void cgn_alg_init(void)
+{
+	alg_rc_init();
+}
+
 /*
  * Called via DP_EVT_UNINIT event handler
  */
 void cgn_alg_uninit(void)
 {
 	alg_pinhole_uninit();
+	alg_rc_uninit();
 }

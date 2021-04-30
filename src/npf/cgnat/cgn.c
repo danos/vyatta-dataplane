@@ -115,6 +115,7 @@ static void cgn_init(void)
 	cgn_session_init();
 	cgn_source_init();
 	apm_init();
+	cgn_alg_init();
 }
 
 /*
