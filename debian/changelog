@@ -1,3 +1,21 @@
+vyatta-dataplane (3.13.13) unstable; urgency=medium
+
+  [ Nicholas Brown ]
+  * maximum line length is now 100
+  * Separate check patch and commit size check
+
+  [ Paul Aitken ]
+  * Don't ignore .github
+  * Add github check patch check
+  * Add github gitlint check
+  * Add github commit size check
+  * Reformat Jenkinsfile
+
+  [ Nicholas Brown ]
+  * jenkinsfile: catchError on build/SA stages
+
+ -- Srinivas Narayan <narayan@vyatta.att-mail.com>  Fri, 30 Apr 2021 17:15:21 +0100
+
 vyatta-dataplane (3.13.12) unstable; urgency=medium
 
   [ Nachiketa Prachanda ]
