@@ -60,18 +60,20 @@ pipeline {
 
         stage('OSC Build') {
             steps {
-                dir('vyatta-dataplane') {
-                    sh "gbp buildpackage --git-verbose --git-ignore-branch -S --no-check-builddeps -us -uc"
+                catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
+                    dir('vyatta-dataplane') {
+                        sh "gbp buildpackage --git-verbose --git-ignore-branch -S --no-check-builddeps -us -uc"
+                    }
+                    writeFile file: 'build.script',
+                        text: """\
+                            export BUILD_ID=\"${BUILD_ID}\"
+                            export JENKINS_NODE_COOKIE=\"${JENKINS_NODE_COOKIE}\"
+                            export DH_VERBOSE=1 DH_QUIET=0
+                            export DEB_BUILD_OPTIONS='verbose all_tests sanitizer'
+                            dpkg-buildpackage -jauto -us -uc -b
+                        """.stripIndent()
+                    sh "osc -v -A ${env.OBS_INSTANCE} build --download-api-only --local-package --no-service --trust-all-projects --build-uid=caller --alternative-project=${env.OBS_TARGET_PROJECT} ${env.OBS_TARGET_REPO} ${env.OBS_TARGET_ARCH}"
                 }
-                writeFile file: 'build.script',
-                    text: """\
-                        export BUILD_ID=\"${BUILD_ID}\"
-                        export JENKINS_NODE_COOKIE=\"${JENKINS_NODE_COOKIE}\"
-                        export DH_VERBOSE=1 DH_QUIET=0
-                        export DEB_BUILD_OPTIONS='verbose all_tests sanitizer'
-                        dpkg-buildpackage -jauto -us -uc -b
-                    """.stripIndent()
-                sh "osc -v -A ${env.OBS_INSTANCE} build --download-api-only --local-package --no-service --trust-all-projects --build-uid=caller --alternative-project=${env.OBS_TARGET_PROJECT} ${env.OBS_TARGET_REPO} ${env.OBS_TARGET_ARCH}"
             }
             post {
                 always {
@@ -158,19 +160,21 @@ pipeline {
 
         stage('Code Static Analysis') {
             steps {
-                dir('vyatta-dataplane') {
-                    sh "gbp buildpackage --git-verbose --git-ignore-branch -S --no-check-builddeps -us -uc"
+                catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
+                    dir('vyatta-dataplane') {
+                        sh "gbp buildpackage --git-verbose --git-ignore-branch -S --no-check-builddeps -us -uc"
+                    }
+                    writeFile file: 'build.script',
+                        text: """\
+                            export BUILD_ID=\"${BUILD_ID}\"
+                            export JENKINS_NODE_COOKIE=\"${JENKINS_NODE_COOKIE}\"
+                            export CC=clang CCX=clang++
+                            meson builddir && cd builddir
+                            ninja clang-tidy >& clang-tidy.log
+                            sed -i 's|/usr/src/packages/BUILD|${WORKSPACE}/vyatta-dataplane|g' clang-tidy.log
+                        """.stripIndent()
+                    sh "osc -v -A ${env.OBS_INSTANCE} build --download-api-only --local-package --no-service --trust-all-projects --build-uid=caller --nochecks --extra-pkgs='clang-tidy' --extra-pkgs='clang' --alternative-project=${env.OBS_TARGET_PROJECT} ${env.OBS_TARGET_REPO} ${env.OBS_TARGET_ARCH}"
                 }
-                writeFile file: 'build.script',
-                    text: """\
-                        export BUILD_ID=\"${BUILD_ID}\"
-                        export JENKINS_NODE_COOKIE=\"${JENKINS_NODE_COOKIE}\"
-                        export CC=clang CCX=clang++
-                        meson builddir && cd builddir
-                        ninja clang-tidy >& clang-tidy.log
-                        sed -i 's|/usr/src/packages/BUILD|${WORKSPACE}/vyatta-dataplane|g' clang-tidy.log
-                    """.stripIndent()
-                sh "osc -v -A ${env.OBS_INSTANCE} build --download-api-only --local-package --no-service --trust-all-projects --build-uid=caller --nochecks --extra-pkgs='clang-tidy' --extra-pkgs='clang' --alternative-project=${env.OBS_TARGET_PROJECT} ${env.OBS_TARGET_REPO} ${env.OBS_TARGET_ARCH}"
             }
             post {
                 always {
