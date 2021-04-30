@@ -16,3 +16,7 @@ max_line_length = 100
 [meson.build]
 indent_style = space
 indent_size = 8
+
+[Jenkinsfile]
+indent_style = space
+indent_size = 4
