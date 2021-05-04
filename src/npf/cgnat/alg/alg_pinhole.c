@@ -25,6 +25,7 @@
 #include "npf/cgnat/cgn_policy.h"
 
 #include "npf/cgnat/alg/alg_pinhole.h"
+#include "npf/cgnat/alg/alg_rc.h"
 
 /*
  * The ALG pinhole table is used to match secondary (data) flows for ALG
@@ -75,12 +76,42 @@
  * Pinhole table entry
  */
 struct alg_pinhole {
+	struct cds_lfht_node	ap_node;
+
+	/* Pinhole key contains the 6-tuple plus the 'expired' flag */
+	struct alg_pinhole_key	ap_key;
 
 	/* Session from which the pinhole was created */
 	struct cgn_session	*ap_cse;
 
+	/*
+	 * A simple monotonically increasing value.  It is used in show and
+	 * log commands in order to identify specific pinhole entries.
+	 */
+	uint32_t		ap_id;
+
 	/* ALG ID.  SIP, PPTP, or FTP */
 	enum cgn_alg_id		ap_alg_id;
+
+	enum cgn_dir		ap_dir;
+
+	/*
+	 * Expiry time is a future value of soft_ticks.  Entry is expired once
+	 * soft_ticks becomes greater than ap_expiry_time.  Timeout is the
+	 * millisec value that is added to soft_ticks to determine the expiry
+	 * time.
+	 */
+	uint64_t		ap_expiry_time;
+	uint64_t		ap_timeout;
+
+	rte_atomic16_t		ap_refcnt;
+
+	/*
+	 * Pinhole is activated only after is is added to the table and
+	 * individual ALGs pinhole have initialised the pinhole.  An inactive
+	 * pinhole will not be seen by packets.
+	 */
+	uint8_t			ap_active;
 };
 
 
@@ -111,6 +142,16 @@ static struct alg_pinhole_tbl {
 #define ALG_PINHOLE_TBL_MIN	256
 #define ALG_PINHOLE_TBL_MAX	0
 
+/*
+ * Monotonically increasing ID. Each pinhole created is assigned the next
+ * value.   Used for show and log purposes.
+ */
+static rte_atomic32_t alg_pinhole_id_resource;
+
+/* Forward references */
+static void alg_pinhole_set_expiry_time(struct alg_pinhole *ap,
+					uint16_t timeout);
+
 
 /*
  * Create CGNAT pinhole table.
@@ -134,8 +175,6 @@ static int alg_pinhole_tbl_create(struct alg_pinhole_tbl *tt)
 	if (old)
 		/* Lost race to assign tt_ht. Thats ok. */
 		dp_ht_destroy_deferred(ht);
-	else
-		tt->tt_active = true;
 
 	return 0;
 }
@@ -155,6 +194,163 @@ static void alg_pinhole_tbl_destroy(struct alg_pinhole_tbl *tt)
 		dp_ht_destroy_deferred(ht);
 }
 
+/*
+ * Create a pinhole entry
+ */
+static struct alg_pinhole *alg_pinhole_create(void)
+{
+	return zmalloc_aligned(sizeof(struct alg_pinhole));
+}
+
+/*
+ * Free a pinhole entry
+ */
+__attribute__((nonnull))
+static void alg_pinhole_destroy(struct alg_pinhole *ap)
+{
+	free(ap);
+}
+
+/*
+ * Take reference on ALG pinhole.  This happens when:
+ *
+ *   1. pinhole is added to the pinhole table,
+ *   2. pinhole is paired with another pinhole
+ */
+__attribute__((nonnull))
+static struct alg_pinhole *alg_pinhole_get(struct alg_pinhole *ap)
+{
+	rte_atomic16_inc(&ap->ap_refcnt);
+	return ap;
+}
+
+/*
+ * Pinhole table hash function
+ */
+__attribute__((nonnull))
+static ulong alg_pinhole_hash(const struct alg_pinhole_key *key)
+{
+	/*
+	 * A special optimized version of jhash that handles 1 or more of
+	 * uint32_ts.
+	 */
+	return rte_jhash_32b((const uint32_t *)key,
+			     sizeof(*key) / sizeof(uint32_t), 0);
+}
+
+/*
+ * Hash table match function.  Returns non-zero for a match.
+ */
+__attribute__((nonnull))
+static int alg_pinhole_match(struct cds_lfht_node *node, const void *key)
+{
+	struct alg_pinhole *ap;
+
+	ap = caa_container_of(node, struct alg_pinhole, ap_node);
+	return !memcmp(&ap->ap_key, key, sizeof(struct alg_pinhole_key));
+}
+
+/*
+ * Create and add a pinhole table entry.  Entry is not findable via the lookup
+ * mechanism until it has been activated.
+ */
+__attribute__((nonnull))
+struct alg_pinhole *
+alg_pinhole_add(const struct alg_pinhole_key *key, struct cgn_session *cse,
+		enum cgn_alg_id alg_id, enum cgn_dir dir, uint16_t timeout,
+		int *error)
+{
+	struct alg_pinhole_tbl *tt = &alg_pinhole_table;
+	struct alg_pinhole *ap;
+
+	/* Does table exist, and is it active? */
+	if (!tt->tt_ht || !tt->tt_active) {
+		*error = -ALG_ERR_INT;
+		return NULL;
+	}
+
+	/*
+	 * All elements of the key/tuple must be initialised except for the
+	 * source port (source port may be a wildcard).
+	 */
+	assert(key->pk_vrfid);
+	assert(key->pk_ipproto);
+	assert(key->pk_saddr);
+	assert(key->pk_daddr);
+	assert(key->pk_did);
+
+	ap = alg_pinhole_create();
+	if (!ap) {
+		*error = -ALG_ERR_PHOLE_NOMEM;
+		return NULL;
+	}
+
+	/* Direction in which the pinhole expects to match a pkt */
+	ap->ap_dir = dir;
+
+	/* Set expiry time */
+	alg_pinhole_set_expiry_time(ap, timeout);
+
+	/* Copy key to pinhole and initialise non-tuple params */
+	memcpy(&ap->ap_key, key, sizeof(ap->ap_key));
+
+	ap->ap_key.pk_expired = 0;
+	ap->ap_key.pk_pad1 = 0;
+	ap->ap_key.pk_pad2 = 0;
+
+	/* Do the table add */
+	struct cds_lfht_node *node;
+	ulong hash = alg_pinhole_hash(&ap->ap_key);
+
+	node = cds_lfht_add_unique(tt->tt_ht, hash, alg_pinhole_match,
+				   &ap->ap_key, &ap->ap_node);
+
+	/*
+	 * Did we lose the race to insert the pinhole entry?  If we did, then
+	 * that means another packet from the same data flow matched the
+	 * pinhole at the same time as this pkt, but created the pinhole
+	 * before us.  All we can do in this very unlikely scenario is drop
+	 * this packet.
+	 */
+	if (unlikely(node != &ap->ap_node)) {
+		alg_pinhole_destroy(ap);
+		*error = -ALG_ERR_PHOLE_EXIST;
+		return NULL;
+	}
+
+	rte_atomic32_inc(&tt->tt_count);
+	ap->ap_alg_id = alg_id;
+
+	/* The pinhole ID number is used for display purposes only */
+	ap->ap_id = rte_atomic32_add_return(&alg_pinhole_id_resource, 1);
+
+	/* Take reference on the pinhole while it is in the table */
+	alg_pinhole_get(ap);
+
+	/*
+	 * The pinhole stores a pointer to the session that created it, so we
+	 * take reference on the session
+	 */
+	ap->ap_cse = cgn_session_get(cse);
+
+	return ap;
+}
+
+/*
+ * Activate a new pinhole so that it is findable in the table.  This must be
+ * done *after* any ALG specific initialisation has been done.
+ *
+ * _alg_pinhole_lookup only returns a pinhole if ap_active is true.  However
+ * this field does not prevent a hash table match.  This ensures that a
+ * duplicate pinhole is not added to the table between when the earlier
+ * pinhole is added to the table and when it is activated.
+ */
+__attribute__((nonnull))
+void cgn_alg_pinhole_activate(struct alg_pinhole *ap)
+{
+	ap->ap_active = true;
+}
+
 /**************************************************************************
  * Pinhole Entry Accessors
  **************************************************************************/
@@ -167,6 +363,39 @@ enum cgn_alg_id alg_pinhole_alg_id(struct alg_pinhole *ap)
 struct cgn_session *alg_pinhole_cse(struct alg_pinhole *ap)
 {
 	return ap->ap_cse;
+}
+
+enum cgn_dir alg_pinhole_dir(struct alg_pinhole *ap)
+{
+	return ap->ap_dir;
+}
+
+/**************************************************************************
+ * Pinhole Expiry and Garbage Collection
+ **************************************************************************/
+
+/*
+ * Default timeout if one is not specified by individual ALG
+ */
+#define ALG_PINHOLE_TIMEOUT	10
+#define ALG_PINHOLE_TIMEOUT_MS	(ALG_PINHOLE_TIMEOUT * MSEC_PER_SEC)
+
+/*
+ * Set expiry time for new pinhole.  Expiry time is a future value of
+ * soft_ticks in millisecs.
+ */
+__attribute__((nonnull))
+static void alg_pinhole_set_expiry_time(struct alg_pinhole *ap,
+					uint16_t timeout)
+{
+	if (timeout) {
+		ap->ap_timeout = timeout * MSEC_PER_SEC;
+		ap->ap_expiry_time = soft_ticks + ap->ap_timeout;
+	} else {
+		/* Default expiry time */
+		ap->ap_timeout = 0;
+		ap->ap_expiry_time = soft_ticks + ALG_PINHOLE_TIMEOUT_MS;
+	}
 }
 
 /**************************************************************************
