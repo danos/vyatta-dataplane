@@ -93,6 +93,12 @@ enum cgn_dir alg_pinhole_dir(struct alg_pinhole *ap);
 int alg_pinhole_init(void);
 
 /**
+ * Expire and delete all pinhole table entries.  Called from
+ * alg_pinhole_uninit, or from the unit-tests
+ */
+void alg_pinhole_cleanup(void);
+
+/**
  * Destroy pinhole table
  */
 void alg_pinhole_uninit(void);

@@ -515,6 +515,59 @@ __attribute__((nonnull)) void alg_pinhole_expire(struct alg_pinhole *ap)
 		ap->ap_expired = true;
 }
 
+typedef bool (*ap_match_func_t)(struct alg_pinhole *ap, void *match_key);
+
+/*
+ * Expire all pinholes, or all pinholes matching a criteria.  They will no
+ * longer be found by a lookup or add.  The gc will delete the expired entries
+ * after two passes.
+ */
+static uint alg_pinhole_tbl_expire(ap_match_func_t match_fn, void *match_key)
+{
+	struct alg_pinhole_tbl *tt = &alg_pinhole_table;
+	struct cds_lfht_iter iter;
+	struct alg_pinhole *ap;
+	uint count = 0;
+
+	if (!tt->tt_ht)
+		return 0;
+
+	cds_lfht_for_each_entry(tt->tt_ht, &iter, ap, ap_node) {
+		if (ap->ap_expired)
+			continue;
+		if (match_fn && !(*match_fn)(ap, match_key))
+			continue;
+
+		alg_pinhole_expire(ap);
+		count++;
+	}
+	return count;
+}
+
+/*
+ * Flush entries by expiring unexpired entries and deleting expired entries.
+ */
+static void alg_pinhole_tbl_flush(ap_match_func_t match_fn, void *match_key)
+{
+	struct alg_pinhole_tbl *tt = &alg_pinhole_table;
+	struct cds_lfht_iter iter;
+	struct alg_pinhole *ap;
+
+	if (!tt->tt_ht)
+		return;
+
+	cds_lfht_for_each_entry(tt->tt_ht, &iter, ap, ap_node) {
+		if (match_fn && !(*match_fn)(ap, match_key))
+			continue;
+
+		if (ap->ap_expired)
+			alg_pinhole_del(tt, ap);
+		else
+			alg_pinhole_expire(ap);
+
+	}
+}
+
 static int alg_pinhole_timer_start(void);
 
 /*
@@ -614,5 +667,21 @@ void alg_pinhole_uninit(void)
 
 	alg_pinhole_timer_stop();
 
+	/* Expire and delete all pinhole table entries */
+	alg_pinhole_cleanup();
+
 	alg_pinhole_tbl_destroy(&alg_pinhole_table);
+}
+
+/*
+ * Expire and delete all pinhole table entries.  Called from
+ * alg_pinhole_uninit, or from the unit-tests.
+ */
+void alg_pinhole_cleanup(void)
+{
+	/* Expire all entries */
+	alg_pinhole_tbl_expire(NULL, NULL);
+
+	/* Delete all expired entries */
+	alg_pinhole_tbl_flush(NULL, NULL);
 }
