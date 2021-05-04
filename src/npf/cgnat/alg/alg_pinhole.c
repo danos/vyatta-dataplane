@@ -93,6 +93,13 @@ struct alg_pinhole {
 	/* ALG ID.  SIP, PPTP, or FTP */
 	enum cgn_alg_id		ap_alg_id;
 
+	/*
+	 * A CGNAT port mapping is allocated when a pinhole is created.  It is
+	 * subsequently used to create a session if and when the pinhole is
+	 * matched.  This mapping is stored in ap_cmi between these events.
+	 */
+	struct cgn_map		ap_cmi;
+
 	enum cgn_dir		ap_dir;
 
 	/*
@@ -114,9 +121,11 @@ struct alg_pinhole {
 	uint8_t			ap_active;
 
 	uint8_t			ap_removing;
+	struct rcu_head		ap_rcu;
 };
 
 /* Shortcuts to select items in the pinhole entry key */
+#define ap_vrfid	ap_key.pk_vrfid
 #define ap_expired	ap_key.pk_expired
 
 
@@ -217,6 +226,18 @@ static void alg_pinhole_destroy(struct alg_pinhole *ap)
 }
 
 /*
+ * Called when last reference is removed from pinhole
+ */
+__attribute__((nonnull))
+static void alg_pinhole_destroy_rcu(struct rcu_head *head)
+{
+	struct alg_pinhole *ap;
+
+	ap = caa_container_of(head, struct alg_pinhole, ap_rcu);
+	alg_pinhole_destroy(ap);
+}
+
+/*
  * Take reference on ALG pinhole.  This happens when:
  *
  *   1. pinhole is added to the pinhole table,
@@ -227,6 +248,18 @@ static struct alg_pinhole *alg_pinhole_get(struct alg_pinhole *ap)
 {
 	rte_atomic16_inc(&ap->ap_refcnt);
 	return ap;
+}
+
+/*
+ * Release reference on ALG pinhole
+ */
+__attribute__((nonnull))
+static void alg_pinhole_put(struct alg_pinhole *ap)
+{
+	assert(rte_atomic16_read(&ap->ap_refcnt) != 0);
+
+	if (rte_atomic16_dec_and_test(&ap->ap_refcnt))
+		call_rcu(&ap->ap_rcu, alg_pinhole_destroy_rcu);
 }
 
 /*
@@ -356,6 +389,59 @@ void cgn_alg_pinhole_activate(struct alg_pinhole *ap)
 	ap->ap_active = true;
 }
 
+/*
+ * Release any reservations held by the pinhole.
+ *
+ * This is required if a pinhole (or its owning session) is expired before the
+ * pinhole was matched.
+ */
+__attribute__((nonnull))
+static void alg_pinhole_release_reservation(struct alg_pinhole *ap)
+{
+	struct cgn_map *cmi;
+
+	cmi = &ap->ap_cmi;
+
+	if (cmi->cmi_reserved) {
+		cgn_map_put(cmi, ap->ap_vrfid);
+		assert(!cmi->cmi_reserved);
+	}
+}
+
+/*
+ * Delete pinhole table entry
+ */
+__attribute__((nonnull))
+static int alg_pinhole_del(struct alg_pinhole_tbl *tt, struct alg_pinhole *ap)
+{
+	struct cgn_session *cse;
+	int rc;
+
+	assert(ap->ap_expired);
+
+	/* Delete from pinhole table */
+	rc = cds_lfht_del(tt->tt_ht, &ap->ap_node);
+	if (rc < 0)
+		return rc;
+
+	assert(rte_atomic32_read(&tt->tt_count) > 0);
+	rte_atomic32_dec(&tt->tt_count);
+
+	/* Release any unused CGNAT port reservation */
+	alg_pinhole_release_reservation(ap);
+
+	/* Release hold on session */
+	cse = rcu_dereference(ap->ap_cse);
+	cse = rcu_cmpxchg_pointer(&ap->ap_cse, cse, NULL);
+	if (cse)
+		cgn_session_put(cse);
+
+	/* Release 'table' reference on pinhole entry */
+	alg_pinhole_put(ap);
+
+	return 0;
+}
+
 /**************************************************************************
  * Pinhole Entry Accessors
  **************************************************************************/
@@ -368,6 +454,16 @@ enum cgn_alg_id alg_pinhole_alg_id(struct alg_pinhole *ap)
 struct cgn_session *alg_pinhole_cse(struct alg_pinhole *ap)
 {
 	return ap->ap_cse;
+}
+
+struct cgn_map *alg_pinhole_map(struct alg_pinhole *ap)
+{
+	return &ap->ap_cmi;
+}
+
+bool alg_pinhole_has_mapping(struct alg_pinhole *ap)
+{
+	return ap->ap_cmi.cmi_reserved;
 }
 
 enum cgn_dir alg_pinhole_dir(struct alg_pinhole *ap)
@@ -449,6 +545,7 @@ static void alg_pinhole_gc(struct rte_timer *timer __unused, void *arg __unused)
 			ap->ap_removing = true;
 			continue;
 		}
+		alg_pinhole_del(tt, ap);
 	}
 
 	/* Restart timer if dataplane is still running. */

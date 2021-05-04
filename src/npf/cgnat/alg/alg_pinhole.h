@@ -73,6 +73,16 @@ enum cgn_alg_id alg_pinhole_alg_id(struct alg_pinhole *ap);
 struct cgn_session *alg_pinhole_cse(struct alg_pinhole *ap);
 
 /**
+ * Accessor to pinhole mapping
+ */
+struct cgn_map *alg_pinhole_map(struct alg_pinhole *ap);
+
+/**
+ * Does pinhole mapping have a CGNAT reservation
+ */
+bool alg_pinhole_has_mapping(struct alg_pinhole *ap);
+
+/**
  * Accessor to pinhole direction
  */
 enum cgn_dir alg_pinhole_dir(struct alg_pinhole *ap);
