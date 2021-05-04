@@ -168,6 +168,14 @@ static void alg_pinhole_set_expiry_time(struct alg_pinhole *ap,
 
 
 /*
+ * Get count of pinhole entries
+ */
+static uint32_t alg_pinhole_tbl_count(struct alg_pinhole_tbl *tt)
+{
+	return rte_atomic32_read(&tt->tt_count);
+}
+
+/*
  * Create CGNAT pinhole table.
  */
 __attribute__((nonnull))
@@ -438,6 +446,181 @@ static int alg_pinhole_del(struct alg_pinhole_tbl *tt, struct alg_pinhole *ap)
 
 	/* Release 'table' reference on pinhole entry */
 	alg_pinhole_put(ap);
+
+	return 0;
+}
+
+/*
+ * Lookup key in the pinhole hash table.
+ *
+ * This may be called twice from alg_pinhole_lookup_and_expire - once with a
+ * 6-tuple and once with a 5-tuple.
+ */
+__attribute__((nonnull))
+static struct alg_pinhole *
+_alg_pinhole_lookup(struct cds_lfht *tt_ht, const struct alg_pinhole_key *key)
+{
+	struct cds_lfht_node *node;
+	struct cds_lfht_iter iter;
+	struct alg_pinhole *ap;
+
+	/* This lookup will *not* find expired pinholes */
+	cds_lfht_lookup(tt_ht, alg_pinhole_hash(key), alg_pinhole_match, key,
+			&iter);
+
+	node = cds_lfht_iter_get_node(&iter);
+	if (!node)
+		return NULL;
+
+	ap = caa_container_of(node, struct alg_pinhole, ap_node);
+
+	if (unlikely(!ap->ap_active))
+		/* Do not match on inactive pinholes */
+		return NULL;
+
+	return ap;
+}
+
+/*
+ * Lookup pinhole table and expire entry if found.
+ *
+ * Pinhole entries are either 6-tuple or 5-tuple ('wildcard' source port/ID).
+ * Lookup for a 6-tuple entry first, then a 5-tuple entry.
+ */
+__attribute__((nonnull))
+static struct alg_pinhole *
+alg_pinhole_lookup_and_expire(struct alg_pinhole_tbl *tt,
+			      struct alg_pinhole_key *key, bool *drop __unused)
+{
+	struct alg_pinhole *ap;
+
+	/* Initialise non-tuple fields in the lookup key */
+	key->pk_expired = 0;
+	key->pk_pad1 = 0;
+	key->pk_pad2 = 0;
+
+	/* First try and match a 6-tuple key */
+	ap = _alg_pinhole_lookup(tt->tt_ht, key);
+
+	/* If no match, then try and match a 5-tuple key (any source port) */
+	if (!ap && key->pk_sid != 0) {
+		uint16_t tmp = key->pk_sid;
+
+		key->pk_sid = 0;
+		ap = _alg_pinhole_lookup(tt->tt_ht, key);
+		key->pk_sid = tmp;
+	}
+
+	if (!ap)
+		return NULL;
+
+	alg_pinhole_expire(ap);
+	return ap;
+}
+
+/*
+ * Lookup the ALG pinhole table for a secondary flow.  Called when a packet
+ * has failed to match a CGNAT session.
+ *
+ * If we find a pinhole, then the mapping info is copied to the cmi parameter
+ * so that the calling function can use it to create a session, and the
+ * pinhole is cached in cpk.
+ *
+ * Note that this ALG function is the one that will have the most impact on
+ * CGNAT performance for non-ALG flows.  It is *only* called if one or more
+ * ALGs are enabled.
+ */
+__attribute__((nonnull))
+int cgn_alg_pinhole_lookup(struct cgn_packet *cpk, struct cgn_map *cmi __unused,
+			   enum cgn_dir dir __unused)
+{
+	struct alg_pinhole_tbl *tt = &alg_pinhole_table;
+	struct alg_pinhole_key key;
+	struct alg_pinhole *ap;
+	bool do_drop = false;
+	int rc = 0;
+
+	if (!tt->tt_ht || alg_pinhole_tbl_count(tt) == 0)
+		return 0;
+
+	/* Ignore TCP resets */
+	if (unlikely(cpk->cpk_ipproto == NAT_PROTO_TCP &&
+		     (cpk->cpk_tcp_flags & TH_RST)))
+		return 0;
+
+	key.pk_ipproto = cpk->cpk_ipproto;
+	key.pk_did   = cpk->cpk_did;
+	key.pk_sid   = cpk->cpk_sid;
+	key.pk_vrfid = cpk->cpk_vrfid;
+	key.pk_daddr = cpk->cpk_daddr;
+	key.pk_saddr = cpk->cpk_saddr;
+
+	/*
+	 * Note, this relies on the pinhole being used *before* gc reclaims
+	 * it.  Thats ok as long as we use the pinhole during this call path,
+	 * and do not store a pointer to it anywhere.  (If something did decide
+	 * to hold onto a pointer to it then it could do that by taking a
+	 * reference on the pinhole.)
+	 */
+	ap = alg_pinhole_lookup_and_expire(tt, &key, &do_drop);
+	if (!ap)
+		return 0;
+
+	/* If we found a pinhole then it must be a CGNAT packet */
+	cpk->cpk_pkt_cgnat = true;
+
+	/* Cache the alg id */
+	cpk->cpk_alg_id = ap->ap_alg_id;
+
+	/*
+	 * ALGs may create a pair of pinholes if they do not know which
+	 * direction the secondary flow will start from.  In these cases there
+	 * is a small chance that both pinholes will be matched
+	 * simultaneously.  If that happens then alg_pinhole_lookup_and_expire
+	 * will set 'do_drop' for the loser in the race.
+	 */
+	if (do_drop)
+		return -CGN_ALG_ERR_PHOLE;
+
+	/*
+	 * Call out to the ALG in order to setup cpk taddr/oaddr, src, and cp
+	 * so that cgnat has all it needs to create a session when we exit
+	 * from this function.
+	 *
+	 * Transfers cmi reservation from pinhole to the cmi parameter.
+	 */
+	switch (ap->ap_alg_id) {
+	case CGN_ALG_FTP:
+		break;
+
+	case CGN_ALG_PPTP:
+		break;
+
+	case CGN_ALG_SIP:
+		break;
+
+	case CGN_ALG_NONE:
+		break;
+	};
+
+	if (rc < 0)
+		return rc;
+
+	/*
+	 * Set keepalive to indicate to ipv4_cgnat_common that a session may
+	 * be created.  (strictly only really necessary for inbound packets,
+	 * where cpk_keepalive defaults to false)
+	 */
+	cpk->cpk_keepalive = true;
+
+	/* Cache the pinhole pointer */
+	cpk->cpk_alg_pinhole = ap;
+
+	/*
+	 * Note that 'cmi->cmi_reserved' remains true until such time that the
+	 * mapping can be released, or control of the mapping passes to the
+	 * session.
+	 */
 
 	return 0;
 }

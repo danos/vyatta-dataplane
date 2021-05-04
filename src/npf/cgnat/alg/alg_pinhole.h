@@ -63,6 +63,13 @@ struct alg_pinhole *alg_pinhole_add(const struct alg_pinhole_key *key,
 void cgn_alg_pinhole_activate(struct alg_pinhole *ap);
 
 /**
+ * Expire a pinhole so that it is no longer findable by packets
+ *
+ * @param ap Pointer to the pinhole
+ */
+void alg_pinhole_expire(struct alg_pinhole *ap);
+
+/**
  * Accessor to pinhole ALG ID
  */
 enum cgn_alg_id alg_pinhole_alg_id(struct alg_pinhole *ap);

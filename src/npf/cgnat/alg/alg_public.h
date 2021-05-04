@@ -38,6 +38,21 @@ bool cgn_alg_is_enabled(void);
 enum cgn_alg_id cgn_alg_dest_port_lookup(enum nat_proto proto, uint16_t port);
 
 /**
+ * Lookup CGNAT ALG pinhole table.  Is this an ALG data (child) flow?
+ *
+ * Called after a pkt fails to match a CGNAT session.  If a pinhole is found
+ * then the mapping info, cmi, will be populated from the pinhole and
+ * subsequently used by CGNAT create a new CGNAT session.
+ *
+ * @param cpk Pointer to CGNAT packet cache
+ * @param cmi Pointer to mapping info to be populated from pinhole
+ * @param dir CGN_DIR_IN or CGN_DIR_OUT
+ * @return 0 or -CGN_ALG_ERR_PHOLE
+ */
+int cgn_alg_pinhole_lookup(struct cgn_packet *cpk, struct cgn_map *cmi,
+			   enum cgn_dir dir);
+
+/**
  * Initialisation routine for new CGNAT control (dest port match) or data
  * (pinhole match) sessions.
  *
