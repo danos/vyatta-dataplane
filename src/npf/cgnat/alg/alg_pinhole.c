@@ -100,6 +100,13 @@ struct alg_pinhole {
 	 */
 	struct cgn_map		ap_cmi;
 
+	/*
+	 * Some ALG secondary flows may start from either direction.  In these
+	 * cases a pair of pinholes are created and linked together.  The
+	 * mapping is stored in the 'out' pinhole.  When one is matched then
+	 * both are expired.
+	 */
+	struct alg_pinhole	*ap_paired;
 	enum cgn_dir		ap_dir;
 
 	/*
@@ -163,6 +170,7 @@ static struct alg_pinhole_tbl {
 static rte_atomic32_t alg_pinhole_id_resource;
 
 /* Forward references */
+static void alg_pinhole_unlink_pair(struct alg_pinhole *ap);
 static void alg_pinhole_set_expiry_time(struct alg_pinhole *ap,
 					uint16_t timeout);
 
@@ -435,6 +443,9 @@ static int alg_pinhole_del(struct alg_pinhole_tbl *tt, struct alg_pinhole *ap)
 	assert(rte_atomic32_read(&tt->tt_count) > 0);
 	rte_atomic32_dec(&tt->tt_count);
 
+	/* Ensure pinhole is no longer paired */
+	alg_pinhole_unlink_pair(ap);
+
 	/* Release any unused CGNAT port reservation */
 	alg_pinhole_release_reservation(ap);
 
@@ -514,7 +525,32 @@ alg_pinhole_lookup_and_expire(struct alg_pinhole_tbl *tt,
 	if (!ap)
 		return NULL;
 
-	alg_pinhole_expire(ap);
+	/* If not paired, then expire and return */
+	if (likely(!ap->ap_paired)) {
+		alg_pinhole_expire(ap);
+		return ap;
+	}
+
+	/*
+	 * Paired pinhole found.  There is one race we are concerned with -
+	 * possible receipt of both a forward and reverse packet.
+	 */
+	rte_spinlock_lock(&tt->tt_lock);
+
+	if (ap->ap_expired) {
+		/*
+		 * Lost race to match (and expire) pinhole.  Drop the
+		 * packet.
+		 */
+		*drop = true;
+	} else {
+		/* Note that pinholes remain paired until the delete */
+		alg_pinhole_expire(ap->ap_paired);
+		alg_pinhole_expire(ap);
+	}
+
+	rte_spinlock_unlock(&tt->tt_lock);
+
 	return ap;
 }
 
@@ -625,6 +661,45 @@ int cgn_alg_pinhole_lookup(struct cgn_packet *cpk, struct cgn_map *cmi __unused,
 	return 0;
 }
 
+/*
+ * Link two pinholes together.
+ *
+ * PPTP and SIP do not know which direction (in or out) the data flow2 will
+ * start so a pair of pinholes are created.
+ */
+__attribute__((nonnull))
+int alg_pinhole_link_pair(struct alg_pinhole *ap1, struct alg_pinhole *ap2)
+{
+	if (ap1->ap_paired || ap2->ap_paired)
+		return -EINVAL;
+
+	ap1->ap_paired = alg_pinhole_get(ap2);
+	ap2->ap_paired = alg_pinhole_get(ap1);
+
+	return 0;
+}
+
+/*
+ * Unlink two pinholes
+ */
+__attribute__((nonnull))
+static void alg_pinhole_unlink_pair(struct alg_pinhole *ap)
+{
+	struct alg_pinhole *ap2;
+
+	if (!ap->ap_paired)
+		return;
+
+	ap2 = ap->ap_paired;
+	assert(ap2->ap_paired == ap);
+
+	alg_pinhole_put(ap2);
+	ap->ap_paired = NULL;
+
+	alg_pinhole_put(ap2->ap_paired);
+	ap2->ap_paired = NULL;
+}
+
 /**************************************************************************
  * Pinhole Entry Accessors
  **************************************************************************/
@@ -647,6 +722,36 @@ struct cgn_map *alg_pinhole_map(struct alg_pinhole *ap)
 bool alg_pinhole_has_mapping(struct alg_pinhole *ap)
 {
 	return ap->ap_cmi.cmi_reserved;
+}
+
+/* Get the paired pinhole */
+struct alg_pinhole *alg_pinhole_pair(struct alg_pinhole *ap)
+{
+	return ap->ap_paired;
+}
+
+/*
+ * Get the pinhole for 'out' direction from a paired pinhole. SIP uses the
+ * 'out' pinhole of an RTP pinhole pair to store the RTCP data.
+ */
+struct alg_pinhole *alg_pinhole_out_pair(struct alg_pinhole *ap)
+{
+	if (ap->ap_dir == CGN_DIR_OUT)
+		return ap;
+	else				// NOLINT: silence clang-tidy
+		return ap->ap_paired;
+}
+
+/* Get whichever pinhole of a pair has the mapping */
+struct alg_pinhole *alg_pinhole_map_pair(struct alg_pinhole *ap)
+{
+	if (ap->ap_cmi.cmi_reserved)
+		return ap;
+
+	if (ap->ap_paired && ap->ap_paired->ap_cmi.cmi_reserved)
+		return ap->ap_paired;
+
+	return NULL;
 }
 
 enum cgn_dir alg_pinhole_dir(struct alg_pinhole *ap)

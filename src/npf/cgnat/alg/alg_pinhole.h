@@ -70,6 +70,16 @@ void cgn_alg_pinhole_activate(struct alg_pinhole *ap);
 void alg_pinhole_expire(struct alg_pinhole *ap);
 
 /**
+ * Link together a pair of pinholes.  Used when the ALG data flow may start
+ * from either direction.
+ *
+ * @param ap1 Pointer to the first pinhole
+ * @param ap2 Pointer to the second pinhole
+ * @return 0 if successful, else -errno
+ */
+int alg_pinhole_link_pair(struct alg_pinhole *ap1, struct alg_pinhole *ap2);
+
+/**
  * Expire all pinholes created from the specified session
  *
  * @param cse Pointer to CGNAT session
@@ -96,6 +106,21 @@ struct cgn_map *alg_pinhole_map(struct alg_pinhole *ap);
  * Does pinhole mapping have a CGNAT reservation
  */
 bool alg_pinhole_has_mapping(struct alg_pinhole *ap);
+
+/**
+ * Get whichever pinhole of a linked pair that has the mapping
+ */
+struct alg_pinhole *alg_pinhole_map_pair(struct alg_pinhole *ap);
+
+/**
+ * Get the pinhole for 'out' direction from a paired pinhole
+ */
+struct alg_pinhole *alg_pinhole_out_pair(struct alg_pinhole *ap);
+
+/**
+ * Accessor to pinhole pair
+ */
+struct alg_pinhole *alg_pinhole_pair(struct alg_pinhole *ap);
 
 /**
  * Accessor to pinhole direction
