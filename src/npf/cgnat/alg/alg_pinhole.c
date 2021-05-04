@@ -112,7 +112,12 @@ struct alg_pinhole {
 	 * pinhole will not be seen by packets.
 	 */
 	uint8_t			ap_active;
+
+	uint8_t			ap_removing;
 };
+
+/* Shortcuts to select items in the pinhole entry key */
+#define ap_expired	ap_key.pk_expired
 
 
 /*
@@ -374,6 +379,11 @@ enum cgn_dir alg_pinhole_dir(struct alg_pinhole *ap)
  * Pinhole Expiry and Garbage Collection
  **************************************************************************/
 
+struct rte_timer alg_pinhole_gc_timer;
+
+/* Seconds */
+#define ALG_PINHOLE_GC_INTERVAL 5
+
 /*
  * Default timeout if one is not specified by individual ALG
  */
@@ -398,6 +408,73 @@ static void alg_pinhole_set_expiry_time(struct alg_pinhole *ap,
 	}
 }
 
+/*
+ * Expire a pinhole.  This means it is no longer findable in the hash table
+ * lookup.  A pinhole will be deleted from the table 5-10 secs after being
+ * expired (1-2 GC periods).
+ */
+__attribute__((nonnull)) void alg_pinhole_expire(struct alg_pinhole *ap)
+{
+	if (!ap->ap_expired)
+		ap->ap_expired = true;
+}
+
+static int alg_pinhole_timer_start(void);
+
+/*
+ * Garbage collection.
+ *
+ * Pass #1: Expire pinhole
+ * Pass #2: Mark pinhole as 'removing'
+ * Pass #3: Delete pinhole
+ */
+static void alg_pinhole_gc(struct rte_timer *timer __unused, void *arg __unused)
+{
+	struct alg_pinhole_tbl *tt = &alg_pinhole_table;
+	struct cds_lfht_iter iter;
+	struct alg_pinhole *ap;
+
+	if (!tt->tt_ht)
+		return;
+
+	cds_lfht_for_each_entry(tt->tt_ht, &iter, ap, ap_node) {
+		if (soft_ticks <= ap->ap_expiry_time)
+			continue;
+
+		if (!ap->ap_expired) {
+			alg_pinhole_expire(ap);
+			continue;
+		}
+		if (!ap->ap_removing) {
+			ap->ap_removing = true;
+			continue;
+		}
+	}
+
+	/* Restart timer if dataplane is still running. */
+	if (running)
+		(void)alg_pinhole_timer_start();
+}
+
+/* Start or restart pinhole GC timer */
+static int alg_pinhole_timer_start(void)
+{
+	return rte_timer_reset(&alg_pinhole_gc_timer,
+			       ALG_PINHOLE_GC_INTERVAL * rte_get_timer_hz(),
+			       SINGLE, rte_get_master_lcore(), alg_pinhole_gc,
+			       NULL);
+}
+
+static void alg_pinhole_timer_stop(void)
+{
+	(void)rte_timer_stop(&alg_pinhole_gc_timer);
+}
+
+static void alg_pinhole_timer_init(void)
+{
+	rte_timer_init(&alg_pinhole_gc_timer);
+}
+
 /**************************************************************************
  * Initialisation and cleanup
  **************************************************************************/
@@ -415,6 +492,15 @@ int alg_pinhole_init(void)
 	if (rc < 0)
 		return rc;
 
+	alg_pinhole_timer_init();
+
+	rc = alg_pinhole_timer_start();
+	if (rc < 0)
+		return rc;
+
+	/* Allow entries to be added */
+	alg_pinhole_table.tt_active = true;
+
 	return 0;
 }
 
@@ -428,6 +514,8 @@ void alg_pinhole_uninit(void)
 
 	/* Prevent further entries being added */
 	alg_pinhole_table.tt_active = false;
+
+	alg_pinhole_timer_stop();
 
 	alg_pinhole_tbl_destroy(&alg_pinhole_table);
 }
