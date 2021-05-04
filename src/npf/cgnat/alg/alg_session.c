@@ -235,6 +235,9 @@ int cgn_alg_session_init(struct cgn_packet *cpk, struct cgn_session *cse,
 void cgn_alg_session_uninit(struct cgn_session *cse __unused,
 			    struct cgn_alg_sess_ctx *as)
 {
+	/* Expire all pinholes matching this session */
+	(void)alg_pinhole_tbl_expire_by_session(cse);
+
 	/* If this is a parent session, then expire all children */
 	cgn_alg_session_expire_children(as);
 

@@ -70,6 +70,14 @@ void cgn_alg_pinhole_activate(struct alg_pinhole *ap);
 void alg_pinhole_expire(struct alg_pinhole *ap);
 
 /**
+ * Expire all pinholes created from the specified session
+ *
+ * @param cse Pointer to CGNAT session
+ * @return Returns count of the number of pinholes expired
+ */
+uint alg_pinhole_tbl_expire_by_session(struct cgn_session *cse);
+
+/**
  * Accessor to pinhole ALG ID
  */
 enum cgn_alg_id alg_pinhole_alg_id(struct alg_pinhole *ap);

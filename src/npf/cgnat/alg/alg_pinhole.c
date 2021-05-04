@@ -751,6 +751,23 @@ static void alg_pinhole_tbl_flush(ap_match_func_t match_fn, void *match_key)
 	}
 }
 
+__attribute__((nonnull))
+static bool alg_pinhole_match_session_cb(struct alg_pinhole *ap, void *ctx)
+{
+	struct cgn_session *cse = ctx;
+	return ap->ap_cse == cse;
+}
+
+/*
+ * Expire all pinholes created by this session. Called when a session is
+ * expired.
+ */
+__attribute__((nonnull))
+uint alg_pinhole_tbl_expire_by_session(struct cgn_session *cse)
+{
+	return alg_pinhole_tbl_expire(alg_pinhole_match_session_cb, cse);
+}
+
 static int alg_pinhole_timer_start(void);
 
 /*
