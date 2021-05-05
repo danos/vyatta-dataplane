@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2017 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -372,29 +372,6 @@ ptree_table_destroy(struct ptree_table *pt)
 	free(pt);
 
 	return 0;
-}
-
-/*
- * Search for the given key, ignoring masks.  key is in network byte order.
- */
-struct ptree_node *
-ptree_find_key(struct ptree_table *pt, const uint8_t *key)
-{
-	uint8_t klen = pt->pt_keylen;
-	struct ptree_node *p, *t;
-
-	t = &pt->pt_root;
-
-	do {
-		p = t;
-		t = ptree_branch(p, key);
-	} while (pn_is_branch(t));
-
-	/* t is a leaf or NULL */
-	if (pn_is_leaf(t) && !memcmp(PL_KEY(t), key, klen))
-		return t;
-
-	return NULL;
 }
 
 /*
@@ -1212,11 +1189,6 @@ ptree_ipv4_table_range(struct ptree_table *pt)
 /*
  * Table accessor functions
  */
-struct ptree_node *ptree_get_table_root(struct ptree_table *pt)
-{
-	return pt ? &pt->pt_root : NULL;
-}
-
 uint8_t ptree_get_table_keylen(struct ptree_table *pt)
 {
 	return pt ? pt->pt_keylen : 0;

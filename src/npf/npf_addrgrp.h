@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -60,20 +60,6 @@ enum npf_addrgrp_af {
 int npf_addrgrp_lookup(enum npf_addrgrp_af af, uint32_t tid, npf_addr_t *addr);
 
 /**
- * @brief Lookup an IPv4 address in an address-group.
- *
- * Called from forwarding thread, so access to underlying ptree is protected
- * with read-write lock.
- *
- * @param tid  Address-group table ID
- * @param addr IPv4 address to lookup
- * @return 0 if address found else a negative error code if not found:
- *         -EINVAL if tid is invalid or address group is not found
- *         -ENOENT if entry in address-group not found
- */
-int npf_addrgrp_lookup_v4(uint32_t tid, uint32_t addr);
-
-/**
  * @brief Lookup an IPv4 address in an address-group by handle
  *
  * Called from forwarding thread, so access to underlying ptree is protected
@@ -86,35 +72,6 @@ int npf_addrgrp_lookup_v4(uint32_t tid, uint32_t addr);
  *         -ENOENT if entry in address-group not found
  */
 int npf_addrgrp_lookup_v4_by_handle(struct npf_addrgrp *ag, uint32_t addr);
-
-/**
- * @brief Lookup an IPv6 address in an address-group.
- *
- * Called from forwarding thread, so access to underlying ptree is protected
- * with read-write lock.
- *
- * @param tid  Address-group table ID
- * @param addr IPv6 address to lookup
- * @return 0 if address found else a negative error code if not found:
- *         -EINVAL if tid is invalid or address group is not found
- *         -ENOENT if entry in address-group not found
- */
-int npf_addrgrp_lookup_v6(uint32_t tid, uint8_t *addr);
-
-/**
- * @brief Lookup an IPv6 address in an address-group by handle.
- *
- * Called from forwarding thread, so access to underlying ptree is protected
- * with read-write lock.
- *
- * @param ag   Address-group handle
- * @param addr IPv6 address to lookup
- * @return 0 if address found else a negative error code if not found:
- *         -EINVAL if ag is NULL
- *         -ENOENT if entry in address-group not found
- */
-int npf_addrgrp_lookup_v6_by_handle(struct npf_addrgrp *ag, uint8_t *addr);
-
 
 /*************************************************************************
  * Address-group tableset management api
@@ -275,20 +232,6 @@ int npf_addrgrp_range_remove(const char *name, npf_addr_t *start,
 /********************************************************************
  * Address group walks
  *******************************************************************/
-
-/**
- * @brief Walk all entries in an address-group tree
- *
- * Walk terminates if callback returns non-zero.
- *
- * @return <0 if parameter error or address-group not found,
- *         0 if address-group tree has no entries
- *         else return value of callback function
- */
-typedef pt_walk_cb npf_ag_tree_walk_cb;
-
-int npf_addrgrp_tree_walk(enum npf_addrgrp_af af, int tid,
-			  npf_ag_tree_walk_cb *cb, void *ctx);
 
 /*
  * Walk IPv4 address group list, and callback for each list entry providing:

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2017 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -16,12 +16,6 @@ struct ptree_table;
 
 struct ptree_table *ptree_table_create(uint8_t keylen);
 int ptree_table_destroy(struct ptree_table *pt);
-
-/*
- * Lookup a key, ignoring mask.  key in network byte order.
- */
-struct ptree_node *ptree_find_key(struct ptree_table *pt,
-				  const uint8_t *key);
 
 /*
  * Find longest match. key in network byte order.
@@ -84,7 +78,6 @@ uint64_t ptree_ipv4_table_range(struct ptree_table *pt);
 /*
  * Table accessor functions
  */
-struct ptree_node *ptree_get_table_root(struct ptree_table *pt);
 uint8_t  ptree_get_table_keylen(struct ptree_table *pt);
 uint32_t ptree_get_table_leaf_count(struct ptree_table *pt);
 uint32_t ptree_get_table_branch_count(struct ptree_table *pt);

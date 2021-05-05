@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2015-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -92,16 +92,5 @@ void npf_apm_destroy(npf_apm_t *apm);
 npf_apm_t *npf_apm_clone(npf_apm_t *apm);
 void npf_apm_flush_all(void);
 void npf_apm_dump(FILE *fp);
-
-/*
- * Get the allocation status for a particular address and port.
- *
- * ip_prot	IP protocol to check the port for
- * ipaddr	translation address
- * port		port in host order
- */
-bool
-npf_apm_get_allocated(uint8_t ip_prot, vrfid_t ctfid, npf_addr_t ipaddr,
-		in_port_t port);
 
 #endif /* NPF_APM_H */

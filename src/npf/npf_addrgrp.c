@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -337,20 +337,6 @@ static ALWAYS_INLINE int ag_lookup_v4(struct npf_addrgrp *ag, uint32_t addr)
 	return (pn != NULL) ? 0 : -ENOENT;
 }
 
-/*
- * Lookup an IPv4 address-group by table ID
- */
-int npf_addrgrp_lookup_v4(uint32_t tid, uint32_t addr)
-{
-	struct npf_addrgrp *ag;
-
-	if (unlikely(!npf_tbl_id_is_valid(tid)))
-		return -EINVAL;
-
-	ag = npf_addrgrp_tid_lookup(tid);
-
-	return ag_lookup_v4(ag, addr);
-}
 
 /*
  * Lookup an IPv4 address-group by handle
@@ -358,52 +344,6 @@ int npf_addrgrp_lookup_v4(uint32_t tid, uint32_t addr)
 int npf_addrgrp_lookup_v4_by_handle(struct npf_addrgrp *ag, uint32_t addr)
 {
 	return ag_lookup_v4(ag, addr);
-}
-
-/*
- * Base IPv6 lookup function
- */
-static ALWAYS_INLINE int ag_lookup_v6(struct npf_addrgrp *ag, uint8_t *addr)
-{
-	struct ptree_node *pn;
-
-	if (unlikely(!ag))
-		return -EINVAL;
-
-	/* If 0::0/0 then we always match */
-	if (ag->ag_any[AG_IPv6])
-		return 0;
-
-	rte_rwlock_read_lock(&ag->ag_lock);
-
-	pn = ptree_shortest_match(ag->ag_tree[AG_IPv6], addr);
-
-	rte_rwlock_read_unlock(&ag->ag_lock);
-
-	return (pn != NULL) ? 0 : -ENOENT;
-}
-
-/*
- * Lookup an IPv6 address-group by table ID
- */
-int npf_addrgrp_lookup_v6(uint32_t tid, uint8_t *addr)
-{
-	struct npf_addrgrp *ag;
-
-	if (unlikely(!npf_tbl_id_is_valid(tid)))
-		return -EINVAL;
-
-	ag = npf_addrgrp_tid_lookup(tid);
-
-	return ag_lookup_v6(ag, addr);
-}
-
-/*
- * Lookup an IPv6 address-group by handle
- */
-int npf_addrgrp_lookup_v6_by_handle(struct npf_addrgrp *ag, uint8_t *addr)
-{
-	return ag_lookup_v6(ag, addr);
 }
 
 /*
@@ -1836,22 +1776,6 @@ _npf_addrgrp_tree_walk(enum npf_addrgrp_af af, struct npf_addrgrp *ag,
 		return 0;
 
 	return ptree_walk(ag->ag_tree[af], PT_UP, cb, ctx);
-}
-
-int
-npf_addrgrp_tree_walk(enum npf_addrgrp_af af, int tid,
-		      pt_walk_cb *cb, void *ctx)
-{
-	struct npf_addrgrp *ag;
-
-	ag = npf_addrgrp_tid_lookup(tid);
-	if (!ag)
-		return -EINVAL;
-
-	if (af != AG_IPv4 && af != AG_IPv6)
-		return -EINVAL;
-
-	return _npf_addrgrp_tree_walk(af, ag, cb, ctx);
 }
 
 /*
