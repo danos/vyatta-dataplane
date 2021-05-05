@@ -18,6 +18,7 @@
 struct cgn_alg_sess_ctx;
 struct cgn_session;
 struct cgn_packet;
+struct rte_mbuf;
 struct cgn_map;
 
 /**
@@ -51,6 +52,21 @@ enum cgn_alg_id cgn_alg_dest_port_lookup(enum nat_proto proto, uint16_t port);
  */
 int cgn_alg_pinhole_lookup(struct cgn_packet *cpk, struct cgn_map *cmi,
 			   enum cgn_dir dir);
+
+/**
+ * Main CGNAT ALG packet inspection and payload translation routine.
+ *
+ * Called at the end of the CGNAT packet pipeline node if session is an ALG
+ * control (parent) session.
+ *
+ * @param cse Pointer to main (3-tuple) session
+ * @param cpk Pointer to CGNAT packet cache
+ * @param mbuf Pointer to packet
+ * @param dir Direction of packet relative to CGNAT config (in or out)
+ * @return Error number or 0
+ */
+int cgn_alg_inspect(struct cgn_session *cse, struct cgn_packet *cpk,
+		    struct rte_mbuf *mbuf, enum cgn_dir dir);
 
 /**
  * Initialisation routine for new CGNAT control (dest port match) or data

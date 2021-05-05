@@ -19,6 +19,7 @@
 #include "npf/cgnat/cgn_session.h"
 
 #include "npf/cgnat/alg/alg_public.h"
+#include "npf/cgnat/alg/alg_session.h"
 #include "npf/cgnat/alg/alg_pinhole.h"
 #include "npf/cgnat/alg/alg_rc.h"
 
@@ -100,6 +101,64 @@ enum cgn_alg_id cgn_alg_dest_port_lookup(enum nat_proto proto, uint16_t port)
 			return alg_id;
 
 	return CGN_ALG_NONE;
+}
+
+/*
+ * Inspect and/or translate ALG packet payload for a parent/control flow.
+ * Last thing to be called in CGNAT path.
+ *
+ * If an error occurs we just count that error and return 0.  It is possible
+ * that we may later want to change that.
+ */
+int cgn_alg_inspect(struct cgn_session *cse, struct cgn_packet *cpk,
+		    struct rte_mbuf *mbuf __unused, enum cgn_dir dir)
+{
+	struct cgn_alg_sess_ctx *as;
+	int rc = ALG_INFO_OK;
+
+	assert(cgn_session_is_alg_parent(cse));
+	assert(cgn_session_alg_get(cse));
+
+	as = cgn_session_alg_get(cse);
+	if (!as) {
+		rc = -ALG_ERR_INT;
+		goto end;
+	}
+
+	/*
+	 * Is the ALG still interested in seeing pkts on this flow?  This will
+	 * also do any required payload translation.
+	 */
+	if (as->as_inspect) {
+
+		/*
+		 * Is the payload length a min length?  ALGs are not
+		 * interested in TCP handshake, for example.
+		 */
+		if (cgn_payload_len(cpk) < as->as_min_payload)
+			goto end;
+
+		switch (as->as_alg_id) {
+		case CGN_ALG_FTP:
+			break;
+
+		case CGN_ALG_PPTP:
+			break;
+
+		case CGN_ALG_SIP:
+			break;
+
+		case CGN_ALG_NONE:
+			rc = -ALG_ERR_INT;
+			break;
+		}
+	}
+
+end:
+	alg_rc_inc(dir, rc);
+
+	/* Condense to a single CGNAT return code */
+	return rc < 0 ? -CGN_ALG_ERR_INSP : 0;
 }
 
 /**************************************************************************
