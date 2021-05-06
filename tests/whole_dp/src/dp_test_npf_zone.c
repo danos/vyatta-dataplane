@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2020, AT&T Intellectual Property. All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property. All rights reserved.
  * Copyright (c) 2015 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -1471,7 +1471,7 @@ static void zone_teardown6(void)
  * This test checks that an encrypted packet received on a
  * VTI interface is correctly decrypted and and forwarded.
  */
-#include "dp_test_crypto_utils.h"
+#include "dp_test/dp_test_crypto_utils.h"
 
 #define SPI_OUTBOUND 0xd43d87c7
 #define SPI_INBOUND 0x10203040

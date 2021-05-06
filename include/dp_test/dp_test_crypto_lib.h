@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2018-2020, AT&T Intellectual Property. All rights reserved.
+ * Copyright (c) 2018-2021, AT&T Intellectual Property. All rights reserved.
  * Copyright (c) 2015-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -13,7 +13,8 @@
 #include <string.h>
 #include <stdint.h>
 #include <linux/xfrm.h>
-#include "../tests/whole_dp/src/dp_test_lib_internal.h"
+
+struct if_data;
 
 /*
  * A virtual feature point interface can be bound

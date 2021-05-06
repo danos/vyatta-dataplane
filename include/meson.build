@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: LGPL-2.1-only
-# Copyright (c) 2020, AT&T Intellectual Property. All rights reserved.
+# Copyright (c) 2020-2021, AT&T Intellectual Property. All rights reserved.
 
 install_headers(
         'bridge_flags.h',
@@ -33,6 +33,8 @@ public_include = include_directories('.')
 
 install_headers(
         'dp_test/dp_test_cmd_check.h',
+        'dp_test/dp_test_crypto_lib.h',
+        'dp_test/dp_test_crypto_utils.h',
         'dp_test/dp_test_lib.h',
         'dp_test/dp_test_lib_intf.h',
         'dp_test/dp_test_macros.h',

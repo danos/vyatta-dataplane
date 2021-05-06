@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2020, AT&T Intellectual Property. All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property. All rights reserved.
  * Copyright (c) 2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -22,7 +22,7 @@
 #include "dp_test_lib_exp.h"
 #include "dp_test_pktmbuf_lib_internal.h"
 #include "dp_test_netlink_state_internal.h"
-#include "dp_test_crypto_utils.h"
+#include "dp_test/dp_test_crypto_utils.h"
 
 DP_DECL_TEST_SUITE(slow_suite);
 

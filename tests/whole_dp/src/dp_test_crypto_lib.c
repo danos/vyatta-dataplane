@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2018-2020, AT&T Intellectual Property. All rights reserved.
+ * Copyright (c) 2018-2021, AT&T Intellectual Property. All rights reserved.
  * Copyright (c) 2015-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -16,7 +16,8 @@
 
 #include <linux/xfrm.h>
 
-#include "dp_test_crypto_lib.h"
+#include "dp_test_lib_internal.h"
+#include "dp_test/dp_test_crypto_lib.h"
 #include "dp_test_pktmbuf_lib_internal.h"
 
 /*

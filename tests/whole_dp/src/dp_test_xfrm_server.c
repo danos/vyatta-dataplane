@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2020-2021, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -20,7 +20,7 @@
 #include "util.h"
 #include "zmq_dp.h"
 #include "czmq.h"
-#include "dp_test_crypto_utils.h"
+#include "dp_test/dp_test_crypto_utils.h"
 
 static int process_xfrm_actor_message(zsock_t *sock)
 {

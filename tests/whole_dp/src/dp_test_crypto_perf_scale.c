@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020, AT&T Intellectual Property.
+ * Copyright (c) 2020-2021, AT&T Intellectual Property.
  * All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
@@ -19,7 +19,7 @@
 #include "dp_test/dp_test_macros.h"
 #include "dp_test/dp_test_lib_intf.h"
 #include "dp_test/dp_test_pktmbuf_lib.h"
-#include "dp_test_crypto_utils.h"
+#include "dp_test/dp_test_crypto_utils.h"
 #include "dp_test/dp_test_netlink_state.h"
 #include "dp_test_npf_lib.h"
 
