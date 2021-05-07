@@ -58,6 +58,11 @@ pipeline {
                 cancelPreviousBuilds()
             }}}
 
+        stage('Run tests') {
+            parallel {
+
+        stage('OSC') {
+         stages {
         stage('OSC Build') {
             steps {
                 catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
@@ -91,6 +96,38 @@ pipeline {
                 }
             }
         }
+
+        stage('Code Static Analysis') {
+            steps {
+                catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
+                    dir('vyatta-dataplane') {
+                        sh "gbp buildpackage --git-verbose --git-ignore-branch -S --no-check-builddeps -us -uc"
+                    }
+                    writeFile file: 'build.script',
+                        text: """\
+                            export BUILD_ID=\"${BUILD_ID}\"
+                            export JENKINS_NODE_COOKIE=\"${JENKINS_NODE_COOKIE}\"
+                            export CC=clang CCX=clang++
+                            meson builddir && cd builddir
+                            ninja clang-tidy >& clang-tidy.log
+                            sed -i 's|/usr/src/packages/BUILD|${WORKSPACE}/vyatta-dataplane|g' clang-tidy.log
+                        """.stripIndent()
+                    sh "osc -v -A ${env.OBS_INSTANCE} build --download-api-only --local-package --no-service --trust-all-projects --build-uid=caller --nochecks --extra-pkgs='clang-tidy' --extra-pkgs='clang' --alternative-project=${env.OBS_TARGET_PROJECT} ${env.OBS_TARGET_REPO} ${env.OBS_TARGET_ARCH}"
+                }
+            }
+            post {
+                always {
+                    archiveArtifacts artifacts: "${env.BUILD_ROOT_RELATIVE}/usr/src/packages/BUILD/builddir/clang-tidy.log"
+                    recordIssues enabledForFailure: true,
+                        tool: clangTidy(pattern: "${env.BUILD_ROOT_RELATIVE}/usr/src/packages/BUILD/builddir/clang-tidy.log"),
+                        sourceDirectory: 'vyatta-dataplane',
+                        referenceJobName: "DANOS/vyatta-dataplane/${env.REF_BRANCH}",
+                        qualityGates: [[type: 'NEW', threshold: 1]]
+                }
+            }
+        }
+        } // stages
+        } // OSC
 
         stage('Code Stats') {
             when {expression { env.CHANGE_ID == null }} // Not when this is a Pull Request
@@ -158,36 +195,8 @@ pipeline {
             }
         }
 
-        stage('Code Static Analysis') {
-            steps {
-                catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
-                    dir('vyatta-dataplane') {
-                        sh "gbp buildpackage --git-verbose --git-ignore-branch -S --no-check-builddeps -us -uc"
-                    }
-                    writeFile file: 'build.script',
-                        text: """\
-                            export BUILD_ID=\"${BUILD_ID}\"
-                            export JENKINS_NODE_COOKIE=\"${JENKINS_NODE_COOKIE}\"
-                            export CC=clang CCX=clang++
-                            meson builddir && cd builddir
-                            ninja clang-tidy >& clang-tidy.log
-                            sed -i 's|/usr/src/packages/BUILD|${WORKSPACE}/vyatta-dataplane|g' clang-tidy.log
-                        """.stripIndent()
-                    sh "osc -v -A ${env.OBS_INSTANCE} build --download-api-only --local-package --no-service --trust-all-projects --build-uid=caller --nochecks --extra-pkgs='clang-tidy' --extra-pkgs='clang' --alternative-project=${env.OBS_TARGET_PROJECT} ${env.OBS_TARGET_REPO} ${env.OBS_TARGET_ARCH}"
-                }
-            }
-            post {
-                always {
-                    archiveArtifacts artifacts: "${env.BUILD_ROOT_RELATIVE}/usr/src/packages/BUILD/builddir/clang-tidy.log"
-                    recordIssues enabledForFailure: true,
-                        tool: clangTidy(pattern: "${env.BUILD_ROOT_RELATIVE}/usr/src/packages/BUILD/builddir/clang-tidy.log"),
-                        sourceDirectory: 'vyatta-dataplane',
-                        referenceJobName: "DANOS/vyatta-dataplane/${env.REF_BRANCH}",
-                        qualityGates: [[type: 'NEW', threshold: 1]]
-                }
-            }
-        }
-
+    } // parallel
+    } // run tests
     } // stages
 
     post {
