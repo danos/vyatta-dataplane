@@ -61,142 +61,142 @@ pipeline {
         stage('Run tests') {
             parallel {
 
-        stage('OSC') {
-         stages {
-        stage('OSC Build') {
-            steps {
-                catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
-                    dir('vyatta-dataplane') {
-                        sh "gbp buildpackage --git-verbose --git-ignore-branch -S --no-check-builddeps -us -uc"
-                    }
-                    writeFile file: 'build.script',
-                        text: """\
-                            export BUILD_ID=\"${BUILD_ID}\"
-                            export JENKINS_NODE_COOKIE=\"${JENKINS_NODE_COOKIE}\"
-                            export DH_VERBOSE=1 DH_QUIET=0
-                            export DEB_BUILD_OPTIONS='verbose all_tests sanitizer'
-                            dpkg-buildpackage -jauto -us -uc -b
-                        """.stripIndent()
-                    sh "osc -v -A ${env.OBS_INSTANCE} build --download-api-only --local-package --no-service --trust-all-projects --build-uid=caller --alternative-project=${env.OBS_TARGET_PROJECT} ${env.OBS_TARGET_REPO} ${env.OBS_TARGET_ARCH}"
-                }
-            }
-            post {
-                always {
-                    archiveArtifacts artifacts: "${env.BUILD_ROOT_RELATIVE}/usr/src/packages/BUILD/build/meson-logs/testlog.txt"
+                stage('OSC') {
+                    stages {
+                        stage('OSC Build') {
+                            steps {
+                                catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
+                                    dir('vyatta-dataplane') {
+                                        sh "gbp buildpackage --git-verbose --git-ignore-branch -S --no-check-builddeps -us -uc"
+                                    }
+                                    writeFile file: 'build.script',
+                                        text: """\
+                                            export BUILD_ID=\"${BUILD_ID}\"
+                                            export JENKINS_NODE_COOKIE=\"${JENKINS_NODE_COOKIE}\"
+                                            export DH_VERBOSE=1 DH_QUIET=0
+                                            export DEB_BUILD_OPTIONS='verbose all_tests sanitizer'
+                                            dpkg-buildpackage -jauto -us -uc -b
+                                        """.stripIndent()
+                                    sh "osc -v -A ${env.OBS_INSTANCE} build --download-api-only --local-package --no-service --trust-all-projects --build-uid=caller --alternative-project=${env.OBS_TARGET_PROJECT} ${env.OBS_TARGET_REPO} ${env.OBS_TARGET_ARCH}"
+                                }
+                            }
+                            post {
+                                always {
+                                    archiveArtifacts artifacts: "${env.BUILD_ROOT_RELATIVE}/usr/src/packages/BUILD/build/meson-logs/testlog.txt"
 
-                    sh """
-                        mkdir junit_results
-                        for file in ${env.OSC_BUILD_ROOT}/usr/src/packages/BUILD/build/tests/whole_dp/*.xml
-                        do
-                        xsltproc --output junit_results/\$(basename \$file) vyatta-dataplane/tests/whole_dp/XML_for_JUnit.xsl \$file || true
-                        done
-                    """
+                                    sh """
+                                        mkdir junit_results
+                                        for file in ${env.OSC_BUILD_ROOT}/usr/src/packages/BUILD/build/tests/whole_dp/*.xml
+                                        do
+                                        xsltproc --output junit_results/\$(basename \$file) vyatta-dataplane/tests/whole_dp/XML_for_JUnit.xsl \$file || true
+                                        done
+                                    """
 
-                    junit 'junit_results/*.xml'
-                }
-            }
-        }
+                                    junit 'junit_results/*.xml'
+                                }
+                            }
+                        }
 
-        stage('Code Static Analysis') {
-            steps {
-                catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
-                    dir('vyatta-dataplane') {
-                        sh "gbp buildpackage --git-verbose --git-ignore-branch -S --no-check-builddeps -us -uc"
-                    }
-                    writeFile file: 'build.script',
-                        text: """\
-                            export BUILD_ID=\"${BUILD_ID}\"
-                            export JENKINS_NODE_COOKIE=\"${JENKINS_NODE_COOKIE}\"
-                            export CC=clang CCX=clang++
-                            meson builddir && cd builddir
-                            ninja clang-tidy >& clang-tidy.log
-                            sed -i 's|/usr/src/packages/BUILD|${WORKSPACE}/vyatta-dataplane|g' clang-tidy.log
-                        """.stripIndent()
-                    sh "osc -v -A ${env.OBS_INSTANCE} build --download-api-only --local-package --no-service --trust-all-projects --build-uid=caller --nochecks --extra-pkgs='clang-tidy' --extra-pkgs='clang' --alternative-project=${env.OBS_TARGET_PROJECT} ${env.OBS_TARGET_REPO} ${env.OBS_TARGET_ARCH}"
-                }
-            }
-            post {
-                always {
-                    archiveArtifacts artifacts: "${env.BUILD_ROOT_RELATIVE}/usr/src/packages/BUILD/builddir/clang-tidy.log"
-                    recordIssues enabledForFailure: true,
-                        tool: clangTidy(pattern: "${env.BUILD_ROOT_RELATIVE}/usr/src/packages/BUILD/builddir/clang-tidy.log"),
-                        sourceDirectory: 'vyatta-dataplane',
-                        referenceJobName: "DANOS/vyatta-dataplane/${env.REF_BRANCH}",
-                        qualityGates: [[type: 'NEW', threshold: 1]]
-                }
-            }
-        }
-        } // stages
-        } // OSC
+                        stage('Code Static Analysis') {
+                            steps {
+                                catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
+                                    dir('vyatta-dataplane') {
+                                        sh "gbp buildpackage --git-verbose --git-ignore-branch -S --no-check-builddeps -us -uc"
+                                    }
+                                    writeFile file: 'build.script',
+                                        text: """\
+                                            export BUILD_ID=\"${BUILD_ID}\"
+                                            export JENKINS_NODE_COOKIE=\"${JENKINS_NODE_COOKIE}\"
+                                            export CC=clang CCX=clang++
+                                            meson builddir && cd builddir
+                                            ninja clang-tidy >& clang-tidy.log
+                                            sed -i 's|/usr/src/packages/BUILD|${WORKSPACE}/vyatta-dataplane|g' clang-tidy.log
+                                        """.stripIndent()
+                                    sh "osc -v -A ${env.OBS_INSTANCE} build --download-api-only --local-package --no-service --trust-all-projects --build-uid=caller --nochecks --extra-pkgs='clang-tidy' --extra-pkgs='clang' --alternative-project=${env.OBS_TARGET_PROJECT} ${env.OBS_TARGET_REPO} ${env.OBS_TARGET_ARCH}"
+                                }
+                            }
+                            post {
+                                always {
+                                    archiveArtifacts artifacts: "${env.BUILD_ROOT_RELATIVE}/usr/src/packages/BUILD/builddir/clang-tidy.log"
+                                    recordIssues enabledForFailure: true,
+                                        tool: clangTidy(pattern: "${env.BUILD_ROOT_RELATIVE}/usr/src/packages/BUILD/builddir/clang-tidy.log"),
+                                        sourceDirectory: 'vyatta-dataplane',
+                                        referenceJobName: "DANOS/vyatta-dataplane/${env.REF_BRANCH}",
+                                        qualityGates: [[type: 'NEW', threshold: 1]]
+                                }
+                            }
+                        }
+                    } // stages
+                } // OSC
 
-        stage('Code Stats') {
-            when {expression { env.CHANGE_ID == null }} // Not when this is a Pull Request
-            steps {
-                sh 'sloccount --duplicates --wide --details vyatta-dataplane > sloccount.sc'
-                sloccountPublish pattern: '**/sloccount.sc'
-            }
-        }
-
-        stage('checkpatch') {
-            when {
-                allOf {
-                    // Only if this is a Pull Request
-                    expression { env.CHANGE_ID != null }
-                    expression { env.CHANGE_TARGET != null }
-                }
-            }
-            steps {
-                catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
-                    dir('vyatta-dataplane') {
-                    //TODO: Path to checkpatch.pl should not be hardcoded!
-                        sh "PATH=~/linux-vyatta/scripts:$PATH ./scripts/checkpatch_wrapper.sh upstream/${env.CHANGE_TARGET} origin/${env.BRANCH_NAME}"
+                stage('Code Stats') {
+                    when {expression { env.CHANGE_ID == null }} // Not when this is a Pull Request
+                    steps {
+                        sh 'sloccount --duplicates --wide --details vyatta-dataplane > sloccount.sc'
+                        sloccountPublish pattern: '**/sloccount.sc'
                     }
                 }
-            }
-        }
 
-        stage('Commit Size') {
-            when {
-                allOf {
-                    // Only if this is a Pull Request
-                    expression { env.CHANGE_ID != null }
-                    expression { env.CHANGE_TARGET != null }
-                }
-            }
-            steps {
-                catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
-                    dir('vyatta-dataplane') {
-                        sh "./scripts/commit_size_check.sh upstream/${env.CHANGE_TARGET} origin/${env.BRANCH_NAME}"
+                stage('checkpatch') {
+                    when {
+                        allOf {
+                            // Only if this is a Pull Request
+                            expression { env.CHANGE_ID != null }
+                            expression { env.CHANGE_TARGET != null }
+                        }
+                    }
+                    steps {
+                        catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
+                            dir('vyatta-dataplane') {
+                            //TODO: Path to checkpatch.pl should not be hardcoded!
+                                sh "PATH=~/linux-vyatta/scripts:$PATH ./scripts/checkpatch_wrapper.sh upstream/${env.CHANGE_TARGET} origin/${env.BRANCH_NAME}"
+                            }
+                        }
                     }
                 }
-            }
-        }
 
-        stage('gitlint') {
-            when {
-                allOf {
-                    // Only if this is a Pull Request
-                    expression { env.CHANGE_ID != null }
-                    expression { env.CHANGE_TARGET != null }
-                }
-            }
-            agent {
-                docker { image 'jorisroovers/gitlint'
-                         args '--entrypoint=""'
-                         reuseNode true
-                }
-            }
-            steps {
-                catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
-                    dir('vyatta-dataplane') {
-                        sh "gitlint --commits upstream/${env.CHANGE_TARGET}..origin/${env.BRANCH_NAME}"
+                stage('Commit Size') {
+                    when {
+                        allOf {
+                            // Only if this is a Pull Request
+                            expression { env.CHANGE_ID != null }
+                            expression { env.CHANGE_TARGET != null }
+                        }
+                    }
+                    steps {
+                        catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
+                            dir('vyatta-dataplane') {
+                                sh "./scripts/commit_size_check.sh upstream/${env.CHANGE_TARGET} origin/${env.BRANCH_NAME}"
+                            }
+                        }
                     }
                 }
-            }
-        }
 
-    } // parallel
-    } // run tests
+                stage('gitlint') {
+                    when {
+                        allOf {
+                            // Only if this is a Pull Request
+                            expression { env.CHANGE_ID != null }
+                            expression { env.CHANGE_TARGET != null }
+                        }
+                    }
+                    agent {
+                        docker { image 'jorisroovers/gitlint'
+                                 args '--entrypoint=""'
+                                 reuseNode true
+                        }
+                    }
+                    steps {
+                        catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
+                            dir('vyatta-dataplane') {
+                                sh "gitlint --commits upstream/${env.CHANGE_TARGET}..origin/${env.BRANCH_NAME}"
+                            }
+                        }
+                    }
+                }
+
+            } // parallel
+        } // run tests
     } // stages
 
     post {
