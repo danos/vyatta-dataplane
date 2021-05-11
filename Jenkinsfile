@@ -58,7 +58,7 @@ pipeline {
                 cancelPreviousBuilds()
             }}}
 
-        stage('Run tests') {
+        stage(' ') { // No name, looks better in the GUI
             parallel {
 
                 stage('OSC') {
@@ -130,10 +130,13 @@ pipeline {
                 } // OSC
 
                 stage('Code Stats') {
-                    when {expression { env.CHANGE_ID == null }} // Not when this is a Pull Request
                     steps {
-                        sh 'sloccount --duplicates --wide --details vyatta-dataplane > sloccount.sc'
-                        sloccountPublish pattern: '**/sloccount.sc'
+                        script {
+                            if (env.CHANGE_ID == null) { // Not when this is a Pull Request
+                                sh 'sloccount --duplicates --wide --details vyatta-dataplane > sloccount.sc'
+                                sloccountPublish pattern: '**/sloccount.sc'
+                            }
+                        }
                     }
                 }
 
