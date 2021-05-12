@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2020-2021, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -531,7 +531,8 @@ int rldb_add_rule(struct rldb_db_handle *db, uint32_t rule_no,
 	}
 
 	rc = npf_rte_acl_add_rule(db->af, db->match_ctx, rh->rule_no,
-				  match_addr, mask, NULL);
+				  rh->rule.rldb_priority, match_addr, mask,
+				  NULL);
 	if (rc < 0) {
 		RLDB_ERR("Failed to add ACL rule: %u\n", rh->rule_no);
 		goto delete_and_error;
@@ -586,7 +587,7 @@ int rldb_del_rule(struct rldb_db_handle *db, struct rldb_rule_handle *rh)
 	rule_no = rh->rule_no;
 
 	rc = npf_rte_acl_del_rule(db->af, db->match_ctx, rule_no,
-				  match_addr, mask);
+				  rh->rule.rldb_priority, match_addr, mask);
 	if (rc < 0) {
 		RLDB_ERR("Failed to remove ACL rule %u from ACL trie\n",
 			 rule_no);

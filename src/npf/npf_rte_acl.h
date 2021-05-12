@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2020-2021, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -20,12 +20,12 @@ int npf_rte_acl_start_transaction(int af, npf_match_ctx_t *m_ctx);
 int npf_rte_acl_commit_transaction(int af, npf_match_ctx_t *m_ctx);
 
 int npf_rte_acl_add_rule(int af, npf_match_ctx_t *m_ctx,
-			 uint32_t rule_no,
+			 uint32_t rule_no, uint32_t priority,
 			 uint8_t *match_add, uint8_t *mask,
 			 void *match_ctx);
 
 int npf_rte_acl_del_rule(int af, npf_match_ctx_t *m_ctx, uint32_t rule_no,
-			 uint8_t *match_addr, uint8_t *mask);
+			 uint32_t priority, uint8_t *match_addr, uint8_t *mask);
 
 int npf_rte_acl_match(int af, npf_match_ctx_t *m_ctx, npf_cache_t *npc,
 		      struct npf_match_cb_data *data, uint32_t *rule_no);
