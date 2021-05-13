@@ -791,6 +791,16 @@ cgn_session_establish(struct cgn_packet *cpk, struct cgn_map *cmi,
 		cse->cs_back_entry.ce_established = false;
 	}
 
+	/*
+	 * If algs are enabled we lookup the dest port and proto here so that
+	 * we can enable 5-tuple sessions if required.  If we matched a tuple
+	 * earlier in the pkt path then cpk_alg_id will already be set.
+	 */
+	if (dir == CGN_DIR_OUT && cgn_alg_is_enabled() &&
+	    cpk->cpk_alg_id == CGN_ALG_NONE)
+		cpk->cpk_alg_id = cgn_alg_dest_port_lookup(cpk->cpk_proto,
+							   cpk->cpk_did);
+
 	rte_atomic16_set(&cse->cs_refcnt, 0);
 	rte_atomic16_set(&cse->cs_idle, 0);
 	cse->cs_vrfid = cpk->cpk_vrfid;
