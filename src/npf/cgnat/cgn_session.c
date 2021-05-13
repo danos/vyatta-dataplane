@@ -1582,6 +1582,7 @@ static void __attribute__((format(printf, 2, 3))) cmd_err(FILE *f,
  * id <id1[.id2]>
  * intf <intf-name>
  * pool <pool-name>
+ * alg any | <alg-name>
  * detail
  * timeout <timeout>
  * count <num>
@@ -1832,6 +1833,10 @@ static int cgn_session_op_parse(FILE *f, int argc, char **argv,
 			argc -= 2;
 			argv += 2;
 			fltr->cf_all = false;
+
+		} else if (!strcmp(argv[0], "alg") && argc >= 2) {
+			fltr->cf_alg = true;
+			fltr->cf_alg_id = cgn_alg_name2id(argv[1]);
 
 		} else if (!strcmp(argv[0], "detail")) {
 			fltr->cf_detail = true;
@@ -2179,6 +2184,9 @@ cgn_session_jsonw_one(json_writer_t *json, struct cgn_sess_fltr *fltr,
 	jsonw_bool_field(json, "exprd", cse->cs_forw_entry.ce_expired);
 	jsonw_uint_field(json, "refcnt", rte_atomic16_read(&cse->cs_refcnt));
 
+	/* ALG info, if present */
+	cgn_alg_show_session(json, fltr, cgn_session_alg_get(cse));
+
 	/*
 	 * We use the 2-tuple expiry mechanism if 2-tuple session are enabled
 	 * and the session has seen at least one packet.
@@ -2284,6 +2292,16 @@ cgn_session_show_fltr(struct cgn_session *cse, struct cgn_sess_fltr *fltr)
 	/* Filter on interface */
 	if (fltr->cf_ifindex && fltr->cf_ifindex != cse->cs_ifindex)
 		return false;
+
+	/* Filter on ALG id */
+	if (fltr->cf_alg || fltr->cf_alg_id) {
+		if (cse->cs_alg == NULL)
+			return false;
+
+		if (fltr->cf_alg_id &&
+		    fltr->cf_alg_id != cgn_alg_get_id(cse->cs_alg))
+			return false;
+	}
 
 	/* Filter on Public address and port */
 	if (fltr->cf_pub_mask &&

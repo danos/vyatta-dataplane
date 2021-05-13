@@ -16,6 +16,7 @@
  */
 
 struct cgn_alg_sess_ctx;
+struct cgn_sess_fltr;
 struct cgn_session;
 struct cgn_packet;
 struct cgn_sess2;
@@ -102,6 +103,25 @@ void cgn_alg_session_uninit(struct cgn_session *cse,
  * @return Negative error number or 0
  */
 int cgn_alg_sess2_init(struct cgn_packet *cpk, struct cgn_sess2 *s2);
+
+/**
+ * Get the ALG ID from a CGNAT sessions ALG context.  Used in the show filter.
+ *
+ * @param as Pointer to ALG session context
+ * @return ALG ID enum
+ */
+enum cgn_alg_id cgn_alg_get_id(struct cgn_alg_sess_ctx *as);
+
+/**
+ * Get an ALG ID from a name.  Used in the show commands.
+ */
+enum cgn_alg_id cgn_alg_name2id(const char *name);
+
+/**
+ * Write the ALG specific json for a CGNAT ALG session
+ */
+void cgn_alg_show_session(struct json_writer *json, struct cgn_sess_fltr *fltr,
+			  struct cgn_alg_sess_ctx *as);
 
 /**
  * Enable ALG

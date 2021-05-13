@@ -15,6 +15,7 @@
 #include "npf/cgnat/cgn_sess2.h"
 
 #include "npf/cgnat/alg/alg_public.h"
+#include "npf/cgnat/alg/alg.h"
 #include "npf/cgnat/alg/alg_pinhole.h"
 #include "npf/cgnat/alg/alg_session.h"
 
@@ -48,6 +49,12 @@ static void cgn_alg_session_link(struct cgn_alg_sess_ctx *p_as,
 static void cgn_alg_session_unlink_child(struct cgn_alg_sess_ctx *as);
 static void cgn_alg_session_expire_children(struct cgn_alg_sess_ctx *as);
 
+
+static bool cgn_alg_session_is_parent(struct cgn_alg_sess_ctx *as)
+{
+	/* as_parent is NULL for parent session and non-NULL for child session */
+	return as->as_parent == NULL;
+}
 
 /*
  * Set the inspect flag in the ALG session data and in the main CGNAT session.
@@ -384,4 +391,76 @@ static void cgn_alg_session_expire_children(struct cgn_alg_sess_ctx *as)
 	}
 
 	rte_spinlock_unlock(&as->as_lock);
+}
+
+/*
+ * Write json for session ALG info
+ */
+void cgn_alg_show_session(json_writer_t *json, struct cgn_sess_fltr *fltr __unused,
+			  struct cgn_alg_sess_ctx *as)
+{
+	char str[INET_ADDRSTRLEN];
+	bool is_parent;
+
+	if (!as)
+		return;
+
+	is_parent = cgn_alg_session_is_parent(as);
+
+	jsonw_name(json, "alg");
+	jsonw_start_object(json);
+
+	jsonw_string_field(json, "name", cgn_alg_id_name(as->as_alg_id));
+
+	jsonw_string_field(json, "dst_addr",
+			   inet_ntop(AF_INET, &as->as_dst_addr,
+				     str, sizeof(str)));
+	jsonw_uint_field(json, "dst_port", ntohs(as->as_dst_port));
+
+	/*
+	 * Show parent or child specific fields, including IDs of linked
+	 * sessions
+	 */
+	if (is_parent) {
+		struct cgn_alg_sess_ctx *c_as;
+
+		jsonw_name(json, "children");
+		jsonw_start_array(json);
+
+		cds_list_for_each_entry(c_as, &as->as_children, as_link)
+			jsonw_uint(json, cgn_session_id(c_as->as_cse));
+
+		jsonw_end_array(json);
+
+		jsonw_bool_field(json, "inspect", as->as_inspect);
+		jsonw_uint_field(json, "min_payload", as->as_min_payload);
+	} else {
+		uint32_t p_id = 0;
+
+		if (as->as_parent)
+			p_id = cgn_session_id(as->as_parent->as_cse);
+
+		jsonw_uint_field(json, "parent", p_id);
+	}
+
+	/* ALG specific json */
+	switch (as->as_alg_id) {
+	case CGN_ALG_NONE:
+		break;
+	case CGN_ALG_FTP:
+		break;
+	case CGN_ALG_PPTP:
+		break;
+	case CGN_ALG_SIP:
+		break;
+	};
+
+	/*
+	 * Show pinholes created by this session.  Only parent sessions might
+	 * have created pinholes.
+	 */
+	if (is_parent)
+		cgn_show_pinholes_by_session(json, as);
+
+	jsonw_end_object(json);
 }

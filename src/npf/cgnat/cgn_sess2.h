@@ -14,6 +14,7 @@
 #include "urcu.h"
 #include "npf/cgnat/cgn_dir.h"
 #include "npf/cgnat/cgn_hash_key.h"
+#include "npf/cgnat/alg/alg_defs.h"
 
 struct json_writer;
 struct cgn_session;
@@ -114,6 +115,10 @@ struct cgn_sess_fltr {
 	/* Show related */
 	bool		cf_detail;
 	uint32_t	cf_count;
+
+	/* ALG related */
+	bool		cf_alg;
+	enum cgn_alg_id	cf_alg_id;
 
 	/* Op-mode map command */
 	uint16_t	cf_timeout;
