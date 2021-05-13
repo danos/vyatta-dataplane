@@ -20,6 +20,9 @@
 #include "util.h"
 #include "crypto/crypto.h"
 
+#include "protobuf/VFPSetConfig.pb-c.h"
+#include "protobuf/CryptoPolicyConfig.pb-c.h"
+
 #include "dp_test_lib_internal.h"
 #include "dp_test_lib_exp.h"
 #include "dp_test/dp_test_macros.h"
@@ -30,6 +33,7 @@
 #include "dp_test_json_utils.h"
 #include "dp_test_xfrm_server.h"
 #include "dp_test_controller.h"
+#include "dp_test_npf_lib.h"
 
 static const unsigned char default_cipher_key[] = {
 	0x1c, 0x53, 0xfa, 0xd5, 0xb5, 0x23, 0xb3, 0xe1,
@@ -950,4 +954,393 @@ void _dp_test_xfrm_poison_sa_stats(void)
 {
 	xfrm_packets = 0xcafe;
 	xfrm_bytes = 0xf00d;
+}
+
+static void
+dp_test_create_and_send_s2s_msg(CryptoPolicyConfig__Action action,
+				int af,
+				int ifindex,
+				int vrf,
+				const char *daddr,
+				uint32_t dprefix_len,
+				const char *saddr,
+				uint32_t sprefix_len,
+				uint32_t dport,
+				uint32_t sport,
+				uint32_t proto,
+				int sel_ifindex)
+{
+	int len;
+
+	CryptoPolicyConfig con = CRYPTO_POLICY_CONFIG__INIT;
+	con.has_action = true;
+	con.action = action;
+	con.has_ifindex = true;
+	con.ifindex = ifindex;
+	con.has_vrf = true;
+	con.vrf = vrf;
+	con.has_sel_dprefix_len = true;
+	con.sel_dprefix_len = dprefix_len;
+	con.has_sel_sprefix_len = true;
+	con.sel_sprefix_len = sprefix_len;
+	con.has_sel_dport = true;
+	con.sel_dport = dport;
+	con.has_sel_sport = true;
+	con.sel_sport = sport;
+	con.has_sel_ifindex = true;
+	con.sel_ifindex = sel_ifindex;
+
+	uint32_t v6_saddr[4], v6_daddr[4];
+	IPAddress ip_daddr = IPADDRESS__INIT;
+	IPAddress ip_saddr = IPADDRESS__INIT;
+
+	dp_test_lib_pb_set_ip_addr(&ip_saddr, saddr, &v6_saddr);
+	con.sel_saddr = &ip_saddr;
+
+	dp_test_lib_pb_set_ip_addr(&ip_daddr, daddr, &v6_daddr);
+	con.sel_daddr = &ip_daddr;
+
+	len = crypto_policy_config__get_packed_size(&con);
+	void *buf2 = malloc(len);
+	dp_test_assert_internal(buf2);
+
+	crypto_policy_config__pack(&con, buf2);
+
+	dp_test_lib_pb_wrap_and_send_pb("vyatta:crypto-policy", buf2, len);
+}
+
+static void
+dp_test_create_and_send_vfp_set_msg(const char *intf,
+				    uint32_t ifindex,
+				    VFPSetConfig__Action action)
+{
+	int len;
+
+	VFPSetConfig vfp = VFPSET_CONFIG__INIT;
+	vfp.if_name = (char *)intf;
+	vfp.has_if_index = true;
+	vfp.if_index = ifindex;
+	vfp.has_action = true;
+	vfp.action = action;
+	vfp.has_type = true;
+	vfp.type = VFPSET_CONFIG__VFPTYPE__VFP_S2S_CRYPTO;
+
+	len = vfpset_config__get_packed_size(&vfp);
+	void *buf2 = malloc(len);
+	dp_test_assert_internal(buf2);
+
+	vfpset_config__pack(&vfp, buf2);
+
+	dp_test_lib_pb_wrap_and_send_pb("vyatta:vfp-set", buf2, len);
+}
+
+void _dp_test_s2s_add_vfp_and_bind(struct dp_test_s2s_config *conf,
+				   const char *file, const char *func,
+				   int line)
+{
+	int ifi;
+	char vfp_match[256];
+
+	/*
+	 * If vfp_out_of_order is set then the vfp get and s2s binds
+	 * are sent before the interface netlink to check we can handle
+	 * this race condition.
+	 */
+
+	if (conf->vfp_out_of_order) {
+		dp_test_intf_virt_add(conf->iface_vfp);
+	} else {
+		dp_test_intf_vfp_create(conf->iface_vfp, conf->vrfid);
+		_dp_test_netlink_add_ip_address(conf->iface_vfp,
+						conf->iface_vfp_ip,
+						VRF_DEFAULT_ID, true, file,
+						func, line);
+	}
+
+	ifi = dp_test_intf_name2index(conf->iface_vfp);
+
+	dp_test_create_and_send_vfp_set_msg(conf->iface_vfp, ifi,
+		VFPSET_CONFIG__ACTION__VFP_ACTION_GET);
+
+	dp_test_create_and_send_s2s_msg(
+					CRYPTO_POLICY_CONFIG__ACTION__ATTACH,
+					conf->af,
+					ifi,
+					conf->vrfid,
+					conf->network_remote_ip,
+					conf->network_remote_mask,
+					conf->network_local_ip,
+					conf->network_local_mask,
+					0, 0, 0, 0);
+
+	snprintf(vfp_match, sizeof(vfp_match),
+		 "\"virtual-feature-point_name\": \"%s\"", conf->iface_vfp);
+
+	_dp_test_check_state_show(file, line, "ipsec bind", vfp_match, false,
+				  DP_TEST_CHECK_STR_SUBSET);
+
+	if (conf->vfp_out_of_order) {
+		_dp_test_netlink_create_vfp(conf->iface_vfp, conf->vrfid,
+					    false, file, func, line);
+		_dp_test_netlink_add_ip_address(conf->iface_vfp,
+						conf->iface_vfp_ip,
+						VRF_DEFAULT_ID, true, file,
+						func, line);
+	}
+}
+
+void _dp_test_s2s_del_vfp_and_unbind(struct dp_test_s2s_config *conf,
+				     const char *file, const char *func,
+				     int line)
+{
+	bool verify = true;
+	int ifi = dp_test_intf_name2index(conf->iface_vfp);
+
+	dp_test_create_and_send_s2s_msg(
+					CRYPTO_POLICY_CONFIG__ACTION__DETACH,
+					conf->af,
+					ifi,
+					conf->vrfid,
+					conf->network_remote_ip,
+					conf->network_remote_mask,
+					conf->network_local_ip,
+					conf->network_local_mask,
+					0, 0, 0, 0);
+
+	dp_test_create_and_send_vfp_set_msg(conf->iface_vfp,
+			    ifi, VFPSET_CONFIG__ACTION__VFP_ACTION_PUT);
+
+	_dp_test_netlink_del_ip_address(conf->iface_vfp, conf->iface_vfp_ip,
+					VRF_DEFAULT_ID, verify, file, func,
+					line);
+	_dp_test_intf_vfp_delete(conf->iface_vfp, conf->vrfid, file,
+				 func, line);
+}
+
+void _dp_test_s2s_setup_interfaces(struct dp_test_s2s_config *conf,
+				   const char *file, const char *func,
+				   int line)
+{
+	char route_name[DP_TEST_MAX_ROUTE_STRING_LEN];
+	bool verify = true;
+	bool incomplete = false;
+
+	if (conf->vrfid != VRF_DEFAULT_ID) {
+		if (conf->out_of_order == VRF_XFRM_IN_ORDER) {
+			_dp_test_netlink_add_vrf(conf->vrfid, 1, file, line);
+		} else {
+			_dp_test_netlink_add_vrf_incmpl(conf->vrfid, 1,
+							file, line);
+			return;
+		}
+	}
+
+	if (conf->with_vfp == VFP_TRUE)
+		_dp_test_s2s_add_vfp_and_bind(conf, file, func, line);
+	_dp_test_netlink_set_interface_vrf(conf->iface1, conf->vrfid, verify,
+					   file, func, line);
+	_dp_test_nl_add_ip_addr_and_connected(conf->iface1,
+					      conf->iface1_ip_with_mask,
+					      conf->vrfid, file, func, line);
+	_dp_test_netlink_add_neigh(conf->iface1, conf->client_local_ip,
+				   conf->client_local_mac,
+				   verify, file, func, line);
+	/* At the moment iface2 is the transport vrf, and always in default */
+	_dp_test_netlink_set_interface_vrf(conf->iface2, VRF_DEFAULT_ID,
+					   verify, file, func, line);
+	_dp_test_nl_add_ip_addr_and_connected(conf->iface2,
+					      conf->iface2_ip_with_mask,
+					      VRF_DEFAULT_ID,
+					      file, func, line);
+	_dp_test_netlink_add_neigh(conf->iface2, conf->peer_ip, conf->peer_mac,
+				   verify, file, func, line);
+
+	snprintf(route_name, sizeof(route_name),
+		 "vrf:%d %s nh %s int:%s", VRF_DEFAULT_ID,
+		 conf->network_remote_ip_with_mask, conf->peer_ip,
+		 conf->iface2);
+
+	_dp_test_netlink_add_route(route_name, verify, incomplete,
+				   file, func, line);
+}
+
+void _dp_test_s2s_setup_interfaces_finish(struct dp_test_s2s_config *conf,
+					  const char *file, const char *func,
+					  int line)
+{
+	char route_name[DP_TEST_MAX_ROUTE_STRING_LEN];
+
+	if (conf->vrfid != VRF_DEFAULT_ID)
+		_dp_test_netlink_add_vrf(conf->vrfid, 1, file, line);
+
+	if (conf->with_vfp == VFP_TRUE)
+		_dp_test_s2s_add_vfp_and_bind(conf, file, func, line);
+	dp_test_netlink_set_interface_vrf(conf->iface1, conf->vrfid);
+	dp_test_nl_add_ip_addr_and_connected_vrf(conf->iface1,
+						 conf->iface1_ip_with_mask,
+						 conf->vrfid);
+	dp_test_netlink_add_neigh(conf->iface1, conf->client_local_ip,
+				  conf->client_local_mac);
+	/* At the moment iface2 is the transport vrf, and always in default */
+	dp_test_netlink_set_interface_vrf(conf->iface2, VRF_DEFAULT_ID);
+	dp_test_nl_add_ip_addr_and_connected_vrf(conf->iface2,
+						 conf->iface2_ip_with_mask,
+						 VRF_DEFAULT_ID);
+	dp_test_netlink_add_neigh(conf->iface2, conf->peer_ip, conf->peer_mac);
+
+	snprintf(route_name, sizeof(route_name),
+		 "vrf:%d %s nh %s int:%s", VRF_DEFAULT_ID,
+		 conf->network_remote_ip_with_mask, conf->peer_ip,
+		 conf->iface2);
+
+	dp_test_netlink_add_route(route_name);
+}
+
+void dp_test_s2s_common_setup(struct dp_test_s2s_config *conf)
+{
+	/***************************************************
+	 * Configure underlying topology
+	 */
+	bool verify = true;
+	int i;
+
+	dp_test_s2s_setup_interfaces(conf);
+
+	if (conf->out_of_order == VRF_XFRM_OUT_OF_ORDER) {
+		verify = false;
+		/*
+		 * We expect the update to fail due to incomplete
+		 * interfaces so check for that
+		 */
+		dp_test_crypto_xfrm_set_nack(conf->nipols + conf->nopols);
+	}
+
+	for (i = 0; i < conf->nipols; i++) {
+		conf->ipolicy[i].vrfid = conf->vrfid;
+		dp_test_crypto_create_policy_verify(&(conf->ipolicy[i]),
+						    verify);
+	}
+
+	for (i = 0; i < conf->nopols; i++) {
+		conf->opolicy[i].vrfid = conf->vrfid;
+		dp_test_crypto_create_policy_verify(&(conf->opolicy[i]),
+						    verify);
+	}
+
+	dp_test_crypto_check_sa_count(VRF_DEFAULT_ID, 0);
+	if (conf->with_vfp == VFP_TRUE)
+		dp_test_check_state_show("ipsec spd",
+					 "virtual-feature-point", false);
+
+	conf->input_sa.auth_algo = conf->auth_algo;
+	conf->input_sa.cipher_algo = conf->cipher_algo;
+	conf->input_sa.mode = conf->mode;
+	conf->input_sa.vrfid = conf->vrfid;
+
+	conf->output_sa.auth_algo = conf->auth_algo;
+	conf->output_sa.cipher_algo = conf->cipher_algo;
+	conf->output_sa.mode = conf->mode;
+	conf->output_sa.vrfid = conf->vrfid;
+
+	if (conf->out_of_order == VRF_XFRM_OUT_OF_ORDER)
+		/*
+		 * We expect the sa creates to fail due to incomplete
+		 * interfaces so check for that
+		 */
+		dp_test_crypto_xfrm_set_nack(2);
+
+	dp_test_crypto_create_sa_verify(&(conf->input_sa), verify);
+	dp_test_crypto_create_sa_verify(&(conf->output_sa), verify);
+
+	if (conf->out_of_order == VRF_XFRM_OUT_OF_ORDER) {
+		/*
+		 * We need to put a scheduling barrier between the two
+		 * SA creations above and the completion of interface
+		 * setup up below.  There is a potential reordering
+		 * race where the the interface could become complete
+		 * in the dataplane before the attempted creation of
+		 * the SAs above in the dataplane, and so rather than
+		 * return an error as expected it returns OK.
+		 */
+		dp_test_crypto_check_xfrm_acks();
+
+		dp_test_s2s_setup_interfaces_finish(conf);
+
+		for (i = 0; i < conf->nipols; i++)
+			dp_test_crypto_create_policy_verify(
+				&(conf->ipolicy[i]), true);
+		for (i = 0; i < conf->nopols; i++)
+			dp_test_crypto_create_policy_verify(
+				&(conf->opolicy[i]), true);
+
+		dp_test_crypto_create_sa_verify(&(conf->input_sa), true);
+		dp_test_crypto_create_sa_verify(&(conf->output_sa), true);
+	}
+
+	if (conf->with_vfp == VFP_TRUE)
+		dp_test_check_state_show("ipsec sad",
+					 "virtual-feature-point", false);
+}
+
+void _dp_test_s2s_teardown_interfaces(struct dp_test_s2s_config *conf,
+				      bool leave_vrf, const char *file,
+				      const char *func, int line)
+{
+	bool verify = true;
+	char route_name[DP_TEST_MAX_ROUTE_STRING_LEN];
+
+	_dp_test_netlink_del_neigh(conf->iface2, conf->peer_ip,
+				   conf->peer_mac, verify, file, func, line);
+	snprintf(route_name, sizeof(route_name),
+		 "vrf:%d %s nh %s int:%s", VRF_DEFAULT_ID,
+		 conf->network_remote_ip_with_mask, conf->peer_ip,
+		 conf->iface2);
+	_dp_test_netlink_del_route(route_name, verify, file, func, line);
+	_dp_test_nl_del_ip_addr_and_connected(conf->iface2,
+					      conf->iface2_ip_with_mask,
+					      VRF_DEFAULT_ID,
+					      file, func, line);
+	_dp_test_netlink_del_neigh(conf->iface1, conf->client_local_ip,
+				   conf->client_local_mac,
+				   verify, file, func, line);
+	_dp_test_nl_del_ip_addr_and_connected(conf->iface1,
+					      conf->iface1_ip_with_mask,
+					      conf->vrfid, file, func, line);
+	_dp_test_netlink_set_interface_vrf(conf->iface1, VRF_DEFAULT_ID,
+					   verify, file, func, line);
+	_dp_test_netlink_set_interface_vrf(conf->iface1, VRF_DEFAULT_ID,
+					   verify, file, func, line);
+	if (conf->with_vfp == VFP_TRUE)
+		_dp_test_s2s_del_vfp_and_unbind(conf, file, func, line);
+	if (!leave_vrf && (conf->vrfid != VRF_DEFAULT_ID))
+		_dp_test_netlink_del_vrf(conf->vrfid, 0, file, line);
+}
+
+void dp_test_s2s_common_teardown(struct dp_test_s2s_config *conf)
+{
+	int i;
+
+	if (conf->out_of_order == VRF_XFRM_OUT_OF_ORDER) {
+		/*
+		 * Tear down the vrf first, this should cause
+		 * a flush of all the ipsec state.
+		 */
+		dp_test_s2s_teardown_interfaces(conf);
+		return;
+	}
+
+	dp_test_crypto_delete_sa(&(conf->input_sa));
+	dp_test_crypto_delete_sa(&(conf->output_sa));
+
+	for (i = 0; i < conf->nipols; i++)
+		dp_test_crypto_delete_policy(&(conf->ipolicy[i]));
+
+	for (i = 0; i < conf->nopols; i++)
+		dp_test_crypto_delete_policy(&(conf->opolicy[i]));
+
+	/***************************************************
+	 * Tear down topology
+	 */
+	dp_test_s2s_teardown_interfaces(conf);
+	dp_test_npf_cleanup();
 }

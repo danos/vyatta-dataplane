@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2015-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -15,7 +15,8 @@
 
 #include <linux/xfrm.h>
 #include <netinet/udp.h>
-#include "vrf_internal.h"
+
+#include "dp_test/dp_test_crypto_lib.h"
 
 struct dp_test_expected;
 
@@ -225,5 +226,99 @@ void  _dp_test_crypto_commit(void);
 void _dp_test_xfrm_poison_sa_stats(void);
 #define dp_test_xfrm_poison_sa_stats()	\
 	_dp_test_xfrm_poison_sa_stats()
+
+/*
+ * Note that the config and associated functions below is to set-up an IPSec
+ * site-to-site setup as shown below, with UUT being the device being tested.
+ *
+ *                       +---------+          +---------+
+ * +------------+        |         |          |         |         +----------+
+ * |            |        |         |          |         |         |          |
+ * | Client     +--------+   UUT   +----------+  PEER   +---------+ Client   |
+ * |  local     |        |         |          |         |         |  remote  |
+ * |            |        |         |          |         |         |          |
+ * +------------+        |         |          |         |         +----------+
+ *                       +---------+          +---------+
+ *
+ *     WEST <<<<<<<<<<<<<<         >>>>>>>>>>>>> EAST
+ */
+
+struct dp_test_s2s_config {
+	vrfid_t vrfid;
+	enum dp_test_crypo_cipher_algo cipher_algo;
+	enum dp_test_crypo_auth_algo auth_algo;
+	int af;		/* AF_INET or AF_INET6 */
+	char *iface1;
+	char *iface1_ip_with_mask;
+	char *client_local_ip;
+	char *network_local_ip_with_mask;
+	char *network_local_ip;
+	uint32_t network_local_mask;
+	char *client_local_mac;
+	char *port_west_ip;
+	char *iface2;
+	char *iface2_ip_with_mask;
+	char *peer_ip;
+	char *peer_mac;
+	char *network_east_ip_with_mask;
+	char *port_east_ip;
+	char *network_remote;
+	char *network_remote_ip_with_mask;
+	char *network_remote_ip;
+	uint32_t network_remote_mask;
+	char *client_remote_ip;
+	char *iface_vfp;
+	char *iface_vfp_ip;
+	bool vfp_out_of_order;
+	uint8_t nipols;
+	struct dp_test_crypto_policy *ipolicy;
+	struct dp_test_crypto_policy def_ipolicy;
+	uint8_t nopols;
+	struct dp_test_crypto_policy *opolicy;
+	struct dp_test_crypto_policy def_opolicy;
+	unsigned int mode;
+	enum vfp_presence with_vfp;
+	enum vrf_and_xfrm_order out_of_order;
+	struct dp_test_crypto_sa input_sa;
+	struct dp_test_crypto_sa output_sa;
+};
+
+void _dp_test_s2s_add_vfp_and_bind(struct dp_test_s2s_config *conf,
+				   const char *file, const char *func,
+				   int line);
+
+void _dp_test_s2s_del_vfp_and_unbind(struct dp_test_s2s_config *conf,
+				     const char *file, const char *func,
+				     int line);
+
+#define dp_test_s2s_setup_interfaces(conf) \
+	_dp_test_s2s_setup_interfaces(conf, __FILE__, __func__, __LINE__)
+
+void _dp_test_s2s_setup_interfaces(struct dp_test_s2s_config *conf,
+				   const char *file, const char *func,
+				   int line);
+
+#define dp_test_s2s_setup_interfaces_finish(conf) \
+	_dp_test_s2s_setup_interfaces_finish(conf, __FILE__, __func__, __LINE__)
+
+void _dp_test_s2s_setup_interfaces_finish(struct dp_test_s2s_config *conf,
+					  const char *file, const char *func,
+					  int line);
+
+void _dp_test_s2s_teardown_interfaces(struct dp_test_s2s_config *conf,
+				      bool leave_vrf, const char *file,
+				      const char *func, int line);
+
+#define dp_test_s2s_teardown_interfaces(conf) \
+	_dp_test_s2s_teardown_interfaces(conf, false, __FILE__, __func__, \
+					 __LINE__)
+
+#define dp_test_s2s_teardown_interfaces_leave_vrf(conf) \
+	_dp_test_s2s_teardown_interfaces(conf, true, __FILE__, __func__, \
+					 __LINE__)
+
+void dp_test_s2s_common_setup(struct dp_test_s2s_config *conf);
+
+void dp_test_s2s_common_teardown(struct dp_test_s2s_config *conf);
 
 #endif /*_DP_TEST_CRYPTO_UTILS_H_ */
