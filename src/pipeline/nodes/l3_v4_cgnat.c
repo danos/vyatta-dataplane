@@ -33,6 +33,7 @@
 #include "npf/npf_mbuf.h"
 #include "npf/alg/alg_npf.h"
 
+#include "npf/cgnat/alg/alg_public.h"
 #include "npf/nat/nat_pool_public.h"
 #include "npf/cgnat/cgn.h"
 #include "npf/apm/apm.h"
@@ -545,11 +546,15 @@ static int ipv4_cgnat_common(struct cgn_packet *cpk, struct ifnet *ifp,
 	/*
 	 * Copy the l3 and l4 headers into a new segment if they are not all
 	 * in the first segment, or if the mbuf is shared.
+	 *
+	 * For ALG parent/control we may need to ensure that *all* of the
+	 * packet is in the first segment, so we leave min_len at 0.
 	 */
 	int min_len = 0;
 
-	min_len = dp_pktmbuf_l2_len(*mbufp) + cpk->cpk_l3_len +
-		cpk->cpk_l4_len;
+	if (likely(!cgn_session_get_alg_inspect(cse)))
+		min_len = dp_pktmbuf_l2_len(*mbufp) + cpk->cpk_l3_len +
+			cpk->cpk_l4_len;
 
 	error = pktmbuf_prepare_for_header_change(mbufp, min_len);
 	if (unlikely(error)) {
@@ -630,6 +635,15 @@ translate:
 			dir = CGN_DIR_IN;
 			goto translate;
 		}
+	}
+
+	/*
+	 * Is this an ALG parent/control flow?
+	 */
+	if (unlikely(cgn_session_is_alg_parent(cse))) {
+		error = cgn_alg_inspect(cse, cpk, mbuf, dir);
+		if (error)
+			return error;
 	}
 
 	/* Attach the session to the packet */
