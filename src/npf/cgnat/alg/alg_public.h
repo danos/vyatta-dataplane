@@ -18,6 +18,7 @@
 struct cgn_alg_sess_ctx;
 struct cgn_session;
 struct cgn_packet;
+struct cgn_sess2;
 struct rte_mbuf;
 struct cgn_map;
 
@@ -89,6 +90,18 @@ int cgn_alg_session_init(struct cgn_packet *cpk, struct cgn_session *cse,
  */
 void cgn_alg_session_uninit(struct cgn_session *cse,
 			    struct cgn_alg_sess_ctx *as);
+
+/**
+ * Called when a 2-tuple sub-session is added to an ALG main session.
+ *
+ * Currently only of use to PPTP sessions, where the sub-session 'port' number
+ * needs to change to match the PPTP translation ID.
+ *
+ * @param cpk Pointer to CGNAT packet cache
+ * @param s2 Pointer to 2-tuple sub-session
+ * @return Negative error number or 0
+ */
+int cgn_alg_sess2_init(struct cgn_packet *cpk, struct cgn_sess2 *s2);
 
 /**
  * Enable ALG

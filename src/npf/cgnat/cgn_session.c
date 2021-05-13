@@ -693,6 +693,8 @@ static bool cgn_session_slot_get(void)
 
 static void cgn_session_slot_put(void)
 {
+	assert(rte_atomic32_read(&cgn_sessions_used) > 0);
+
 	int32_t val = rte_atomic32_sub_return(&cgn_sessions_used, 1);
 
 	if (val < session_table_threshold)
@@ -714,6 +716,11 @@ static void cgn_session_slot_put(void)
  *
  * In		Out	cmi_oaddr:cmi_oid	{cpk_saddr:cpk_sid}
  *		In	{cpk_saddr:cpk_sid}	cpk_daddr:cpk_did
+ *
+ * For normal traffic 'cmi_oaddr:cmi_oid' will be 'cpk_saddr:cpk_sid'. However
+ * these may be set differently if an ALG is in use.
+ *
+ * An inbound pkt will *only* create a session if an ALG pinhole is found.
  *
  * {} = sub-session, 'struct cgn_sess2'
  */

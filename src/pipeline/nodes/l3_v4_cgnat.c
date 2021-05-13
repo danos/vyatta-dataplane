@@ -69,7 +69,16 @@ ipv4_cgnat_out_bypass(struct ifnet *ifp, struct rte_mbuf *mbuf)
 }
 
 /*
- * cgnat_try_initial.
+ * cgnat_try_initial
+ *
+ * If we matched an ALG pinhole earlier then the mapping info 'cmi' may
+ * already be populated.
+ *
+ * Note that for inbound pkts matching an ALG tuple, cmi->cmi_oaddr will be
+ * different from cpk->cpk_saddr. Some ALGs *may* elect not to attach a
+ * mapping to an *outbound* pinhole.  Thats ok, as we will get a mapping here
+ * for those cases.  Inbound pinholes MUST always contain a
+ * mapping. (cmi_oaddr should *always* be a subscriber address.)
  */
 static struct cgn_session *
 cgnat_try_initial(struct cgn_map *cmi, struct ifnet *ifp,
@@ -88,14 +97,31 @@ cgnat_try_initial(struct cgn_map *cmi, struct ifnet *ifp,
 		goto error;
 	}
 
-	assert(dir == CGN_DIR_OUT);
+	/* cmi only has a reservation if an ALG pinhole was matched earlier */
+	assert(!!cmi->cmi_reserved == (cpk->cpk_alg_id != CGN_ALG_NONE));
 
-	/* Get subscriber addr from pkt */
-	oaddr = cpk->cpk_saddr;
+	/* Inbound pkts must have matched an ALG pinhole */
+	assert(dir == CGN_DIR_OUT || cpk->cpk_alg_id != CGN_ALG_NONE);
+
+	/*
+	 * Get subscriber address.  This is found in the mapping info if we
+	 * matched an ALG pinhole earlier, else it is found from the pkt
+	 * cache.
+	 */
+	if (unlikely(cmi->cmi_reserved))
+		/* Get subscriber addr from ALG pinhole */
+		oaddr = cmi->cmi_oaddr;
+	else
+		/* Get subscriber addr from pkt */
+		oaddr = cpk->cpk_saddr;
+
+	assert(oaddr != 0);
 
 	/*
 	 * Lookup subscriber address in policy list on the interface.  This is
-	 * how we determine that this is a CGNAT packet.
+	 * how we determine that this is a CGNAT packet.  (Note, this is not
+	 * strictly necessary for pkts that have matched an ALG, but we need
+	 * the policy pointer regardless).
 	 */
 	cp = cgn_if_find_policy_by_addr(ifp, oaddr);
 	if (!cp) {
@@ -112,16 +138,19 @@ cgnat_try_initial(struct cgn_map *cmi, struct ifnet *ifp,
 		goto error;
 	}
 
-	cmi->cmi_proto = cpk->cpk_proto;
-	cmi->cmi_oid = cpk->cpk_sid;
-	cmi->cmi_oaddr = oaddr;
+	/* Get a mapping if we don't already have one from an ALG pinhole */
+	if (!cmi->cmi_reserved) {
+		cmi->cmi_proto = cpk->cpk_proto;
+		cmi->cmi_oid = cpk->cpk_sid;
+		cmi->cmi_oaddr = oaddr;
 
-	/* Allocate public address and port */
-	rc = cgn_map_get(cmi, cp, vrfid);
+		/* Allocate public address and port */
+		rc = cgn_map_get(cmi, cp, vrfid);
 
-	if (rc) {
-		*error = rc;
-		goto error;
+		if (rc) {
+			*error = rc;
+			goto error;
+		}
 	}
 
 	/* Create a session. */
@@ -493,7 +522,7 @@ static int ipv4_cgnat_common(struct cgn_packet *cpk, struct ifnet *ifp,
 	struct cgn_session *cse;
 	void *n_ptr = NULL;
 	bool new_inactive_session = false;
-	int error = 0;
+	int error = CGN_RC_OK;
 
 	/* ICMP error message? */
 	if (unlikely((cpk->cpk_info & CPK_ICMP_ERR) != 0)) {
@@ -515,20 +544,41 @@ static int ipv4_cgnat_common(struct cgn_packet *cpk, struct ifnet *ifp,
 	if (unlikely(!cse)) {
 		struct cgn_map cmi;
 
-		/* Only create sessions for outbound flows */
+		memset(&cmi, 0, sizeof(cmi));
+
+		/*
+		 * Look for an ALG pinhole.  If the pinhole contains a mapping
+		 * then that will be transferred to cmi.  The only error
+		 * condition here is if we detect that inbound and outbound
+		 * paired pinholes have been matched simultaneously.
+		 */
+		if (unlikely(cgn_alg_is_enabled())) {
+			error = cgn_alg_pinhole_lookup(cpk, &cmi, dir);
+
+			/* Lost race to match pinhole? */
+			if (unlikely(error < 0))
+				return error;
+		}
+
+		/*
+		 * Only create sessions for outbound pkts, or inbound pkts
+		 * that match an ALG pinhole.
+		 */
 		if (!cpk->cpk_keepalive)
 			return -CGN_SESS_ENOENT;
-
-		memset(&cmi, 0, sizeof(cmi));
 
 		/*
 		 * Get policy and mapping, and create a session.
 		 *
-		 * The mapping will be created during the call to
-		 * cgnat_try_initial.
+		 * For ALGs the mapping will have already been added to cmi
+		 * via the above call to cgn_alg_pinhole_lookup.
 		 *
-		 * cgnat_try_initial always consumes the mapping.  Either it
-		 * is attached to the new session, or it is released.
+		 * For normal CGNAT, the mapping will be created during the
+		 * call to cgnat_try_initial.
+		 *
+		 * In either case, cgnat_try_initial always consumes the
+		 * mapping.  Either it is attached to the new session, or it
+		 * is released.
 		 */
 		cse = cgnat_try_initial(&cmi, ifp, cpk, *mbufp, dir, &error);
 		if (!cse)
@@ -761,8 +811,8 @@ ipv4_cgnat_in_process(struct pl_packet *pkt, void *context __unused)
 		}
 
 		/*
-		 * Did pkt match a CGNAT session?  If so, then we apply the
-		 * 'drop' decision.
+		 * Did pkt match a CGNAT session or ALG pinhole?  If so, then
+		 * we apply the 'drop' decision.
 		 */
 		if (cpk.cpk_pkt_cgnat)
 			goto end;
@@ -779,8 +829,8 @@ ipv4_cgnat_in_process(struct pl_packet *pkt, void *context __unused)
 		}
 
 		/*
-		 * Pkt did *not* match a CGNAT session, but *is* addressed to
-		 * a CGNAT public address.
+		 * Pkt did *not* match a CGNAT session or ALG pinhole, but
+		 * *is* addressed to a CGNAT public address.
 		 */
 
 		/*
@@ -857,8 +907,9 @@ ALWAYS_INLINE unsigned int ipv4_cgnat_out_process(struct pl_packet *pkt,
 		rc = IPV4_CGNAT_OUT_DROP;
 
 		/*
-		 * If a pkt failed to match a CGNAT policy or session then it
-		 * is not a CGNAT pkt.
+		 * If a pkt failed to match a CGNAT policy, session or ALG
+		 * pinhole then it is not a CGNAT pkt.  This also includes
+		 * SNAT ALG pkts (CGN_PCY_BYPASS).
 		 */
 		if (!cpk.cpk_pkt_cgnat) {
 			rc = IPV4_CGNAT_OUT_ACCEPT;
@@ -875,8 +926,13 @@ ALWAYS_INLINE unsigned int ipv4_cgnat_out_process(struct pl_packet *pkt,
 			goto end;
 		}
 
-		if (cpk.cpk_pkt_cgnat) {
-			/* Soft error.  Should have translated, but failed. */
+		/*
+		 * Initial CGNAT ALG release will *not* send ICMP Unreachable
+		 * messages.  Counters will be used to monitor failures, and
+		 * ICMP Unreachables may be enabled at a later time.
+		 */
+		if (cpk.cpk_pkt_cgnat && cpk.cpk_alg_id == CGN_ALG_NONE) {
+			/* Soft error.  Should have been translated, but failed. */
 			icmp_error(pkt->in_ifp, pkt->mbuf, ICMP_DEST_UNREACH,
 				   ICMP_HOST_UNREACH, 0);
 			goto end;

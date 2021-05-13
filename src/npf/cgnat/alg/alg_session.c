@@ -260,6 +260,25 @@ void cgn_alg_session_uninit(struct cgn_session *cse __unused,
 }
 
 /*
+ * Sub-session init.  Currently only called when the CGNAT main session is an
+ * ALG child sessions.
+ */
+int cgn_alg_sess2_init(struct cgn_packet *cpk __unused, struct cgn_sess2 *s2)
+{
+	struct cgn_session *cse = cgn_sess2_session(s2);
+	struct cgn_alg_sess_ctx *as;
+	int rc = 0;
+
+	as = cgn_session_alg_get(cse);
+	if (!as)
+		return -1;
+
+	/* Placeholder for hooks into individual ALGs */
+
+	return rc;
+}
+
+/*
  * Link a child session to its parent
  */
 static void cgn_alg_session_link(struct cgn_alg_sess_ctx *p_as,

@@ -23,6 +23,7 @@
 #include "soft_ticks.h"
 #include "if_var.h"
 
+#include "npf/cgnat/alg/alg_public.h"
 #include "npf/nat/nat_proto.h"
 #include "npf/cgnat/cgn.h"
 #include "npf/cgnat/cgn_dir.h"
@@ -371,6 +372,7 @@ struct cgn_sess2 *
 cgn_sess_s2_establish(struct cgn_sess_s2 *cs2, struct cgn_packet *cpk,
 		      enum cgn_dir dir, int *error)
 {
+	struct cgn_session *cse = cgn_sess_from_cs2(cs2);
 	struct cgn_sess2 *s2;
 
 	/*
@@ -401,10 +403,14 @@ cgn_sess_s2_establish(struct cgn_sess_s2 *cs2, struct cgn_packet *cpk,
 		s2->s2_sentry[CGN_DIR_IN].s2e_key.k_port = cpk->cpk_did;
 		s2->s2_sentry[CGN_DIR_IN].s2e_key.k_dir = CGN_DIR_IN;
 	} else {
-		/* Return reserved slot */
-		cgn_sess_s2_slot_put(cs2);
-		*error = -CGN_S2_ENOMEM;
-		return NULL;
+		/* Inbound packet */
+		s2->s2_sentry[CGN_DIR_OUT].s2e_key.k_addr = cpk->cpk_saddr;
+		s2->s2_sentry[CGN_DIR_OUT].s2e_key.k_port = cpk->cpk_sid;
+		s2->s2_sentry[CGN_DIR_OUT].s2e_key.k_dir = CGN_DIR_OUT;
+
+		s2->s2_sentry[CGN_DIR_IN].s2e_key.k_addr = cpk->cpk_saddr;
+		s2->s2_sentry[CGN_DIR_IN].s2e_key.k_port = cpk->cpk_sid;
+		s2->s2_sentry[CGN_DIR_IN].s2e_key.k_dir = CGN_DIR_IN;
 	}
 
 	rte_atomic32_inc(&s2->s2_pkts_out);
@@ -415,6 +421,10 @@ cgn_sess_s2_establish(struct cgn_sess_s2 *cs2, struct cgn_packet *cpk,
 	s2->s2_start_time = cgn_sess2_timestamp();
 	s2->s2_id = rte_atomic32_add_return(&cs2->cs2_id, 1);
 
+	/* ALG sub-session init */
+	if (unlikely(cgn_session_is_alg_child(cse)))
+		cgn_alg_sess2_init(cpk, s2);
+
 	/* Randomise the initial logging interval */
 	if (cs2->cs2_log_periodic > 0)
 		s2->s2_log_countdown = (random() % cs2->cs2_log_periodic) + 1;
@@ -422,8 +432,7 @@ cgn_sess_s2_establish(struct cgn_sess_s2 *cs2, struct cgn_packet *cpk,
 	cgn_sess_state_init(&s2->s2_state,
 			    nat_proto_from_ipproto(cpk->cpk_ipproto),
 			    ntohs(cgn_sess2_port(s2)));
-	cgn_sess_state_inspect(&s2->s2_state, cpk, CGN_DIR_OUT,
-			       s2->s2_start_time);
+	cgn_sess_state_inspect(&s2->s2_state, cpk, dir, s2->s2_start_time);
 
 	return s2;
 }

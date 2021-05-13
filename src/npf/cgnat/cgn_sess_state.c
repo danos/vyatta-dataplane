@@ -40,7 +40,7 @@ cgn_tcp_fsm[CGN_TCP_STATE_COUNT][CGN_DIR_SZ][CGN_TCP_EVENT_COUNT] = {
 		},
 		[CGN_DIR_IN] = {
 			[CGN_TCP_EVENT_NONE]     = 0,
-			[CGN_TCP_EVENT_SYN]      = 0,
+			[CGN_TCP_EVENT_SYN]      = CGN_TCP_STATE_INIT,
 			[CGN_TCP_EVENT_RST]      = 0,
 			[CGN_TCP_EVENT_ACK]      = 0,
 			[CGN_TCP_EVENT_FIN]      = 0,
@@ -50,7 +50,7 @@ cgn_tcp_fsm[CGN_TCP_STATE_COUNT][CGN_DIR_SZ][CGN_TCP_EVENT_COUNT] = {
 	[CGN_TCP_STATE_INIT] = {
 		[CGN_DIR_OUT] = {
 			[CGN_TCP_EVENT_NONE]     = 0,
-			[CGN_TCP_EVENT_SYN]      = 0,
+			[CGN_TCP_EVENT_SYN]      = CGN_TCP_STATE_ESTABLISHED,
 			[CGN_TCP_EVENT_RST]      = 0,
 			[CGN_TCP_EVENT_ACK]      = 0,
 			[CGN_TCP_EVENT_FIN]      = 0,
