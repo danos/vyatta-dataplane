@@ -116,6 +116,81 @@ enum cgn_alg_id cgn_alg_dest_port_lookup(enum nat_proto proto, uint16_t port)
 }
 
 /*
+ * ALGs work when CGNAT is in either 3-tuple (main sessions only) or 5-tuple
+ * mode (main sessions and sub-sessions).
+ *
+ * We record the (outbound) destination address and port/ID of the packet that
+ * caused the ALG session to be created, and use that here to verify that this
+ * packet belongs to that flow.
+ *
+ * The important check here is to match the address.  We will already have
+ * matched a main session (3-tuple), so also matching the address gives us a
+ * 4-tuple match.  That in itself should be sufficient to ensure that we do
+ * not inspect other packets that also match these 4 tuples.  However we do
+ * make a best effort to also check the port/ID ...
+ *
+ * The destination port/ID we initially save is treated somewhat differently
+ * depending on ALG type.
+ *
+ * FTP and PPTP control/parent sessions are the simple 'well known' cases as
+ * they use TCP.  Outbound we verify the destination address and port, and
+ * inbound we verify the source address and port.
+ *
+ * For SIP UDP sessions, the initial outbound INVITE Request is sent to port
+ * 5060.  However the initial inbound Response may use a different port than
+ * 5060 (this is one reason for the source port/ID wildcard in pinhole
+ * entries).
+ */
+static int cgn_alg_verify_remote_client(struct cgn_alg_sess_ctx *as,
+					struct cgn_packet *cpk,
+					enum cgn_dir dir)
+{
+	uint32_t remote_addr;	/* Remote client address */
+	uint16_t remote_id;	/* Remote client port/ID */
+
+	if (dir == CGN_DIR_IN) {
+		remote_addr = cpk->cpk_saddr;
+		remote_id = cpk->cpk_sid;
+	} else {
+		remote_addr = cpk->cpk_daddr;
+		remote_id = cpk->cpk_did;
+	}
+
+	switch (as->as_alg_id) {
+	case CGN_ALG_FTP:
+	case CGN_ALG_PPTP:
+		if (remote_addr != as->as_dst_addr ||
+		    remote_id != as->as_dst_port)
+			return -1;
+
+		break;
+
+	case CGN_ALG_SIP:
+		if (remote_addr != as->as_dst_addr)
+			return -1;
+
+		if (as->as_proto == NAT_PROTO_UDP &&
+		    remote_id != as->as_dst_port)
+			/*
+			 * Note, if 5-tuple sessions are enabled then this
+			 * change in port will cause a second sub-session
+			 * (dest record) to be created
+			 */
+			as->as_dst_port = remote_id;
+
+		if (remote_id != as->as_dst_port)
+			return -1;
+
+		break;
+
+	case CGN_ALG_NONE:
+		break;
+	}
+
+	return 0;
+}
+
+/*
  * Inspect and/or translate ALG packet payload for a parent/control flow.
  * Last thing to be called in CGNAT path.
  *
@@ -136,6 +211,10 @@ int cgn_alg_inspect(struct cgn_session *cse, struct cgn_packet *cpk,
 		rc = -ALG_ERR_INT;
 		goto end;
 	}
+
+	/* Do not inspect inbound pkts that are not part of the ALG flow */
+	if (cgn_alg_verify_remote_client(as, cpk, dir) < 0)
+		return 0;
 
 	/*
 	 * Is the ALG still interested in seeing pkts on this flow?  This will
