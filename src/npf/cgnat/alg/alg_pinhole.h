@@ -80,6 +80,17 @@ void alg_pinhole_expire(struct alg_pinhole *ap);
 int alg_pinhole_link_pair(struct alg_pinhole *ap1, struct alg_pinhole *ap2);
 
 /**
+ * Function to walk the pinhole table
+ *
+ * @param cb Callback function
+ * @param alg_id Match pinholes belonging to one or all ALGs
+ * @param data Context to be passed to match function
+ * @return Return value from the callback function if non-zero
+ */
+typedef int (*alg_pinhole_cb)(struct alg_pinhole *, void *);
+int alg_pinhole_walk(alg_pinhole_cb cb, enum cgn_alg_id alg_id, void *data);
+
+/**
  * Expire all pinholes created from the specified session
  *
  * @param cse Pointer to CGNAT session
@@ -142,5 +153,14 @@ void alg_pinhole_cleanup(void);
  * Destroy pinhole table
  */
 void alg_pinhole_uninit(void);
+
+/**
+ * Write json for all pinholes created by the specified session
+ *
+ * @param json Json write pointer
+ * @param as ALG session context
+ */
+void cgn_show_pinholes_by_session(struct json_writer *json,
+				  struct cgn_alg_sess_ctx *as);
 
 #endif /* ALG_PINHOLE_H */

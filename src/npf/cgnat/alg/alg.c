@@ -47,6 +47,11 @@ static uint8_t cgn_alg_enabled;
  */
 static uint16_t cgn_alg_dport[NAT_PROTO_COUNT][CGN_ALG_MAX];
 
+enum cgn_alg_id cgn_alg_get_id(struct cgn_alg_sess_ctx *as)
+{
+	return as ? as->as_alg_id : CGN_ALG_NONE;
+}
+
 static const char *_cgn_alg_id_name[CGN_ALG_MAX] = {
 	[CGN_ALG_NONE] = "-",
 	[CGN_ALG_FTP]  = "ftp",
@@ -54,7 +59,14 @@ static const char *_cgn_alg_id_name[CGN_ALG_MAX] = {
 	[CGN_ALG_SIP]  = "sip",
 };
 
-static enum cgn_alg_id cgn_alg_name2id(const char *name)
+const char *cgn_alg_id_name(enum cgn_alg_id id)
+{
+	if (id <= CGN_ALG_LAST)
+		return _cgn_alg_id_name[id];
+	return "-";
+};
+
+enum cgn_alg_id cgn_alg_name2id(const char *name)
 {
 	enum cgn_alg_id id;
 

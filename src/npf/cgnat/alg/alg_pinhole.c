@@ -24,8 +24,10 @@
 #include "npf/cgnat/cgn_map.h"
 #include "npf/cgnat/cgn_policy.h"
 
+#include "npf/cgnat/alg/alg.h"
 #include "npf/cgnat/alg/alg_pinhole.h"
 #include "npf/cgnat/alg/alg_rc.h"
+#include "npf/cgnat/alg/alg_session.h"
 
 /*
  * The ALG pinhole table is used to match secondary (data) flows for ALG
@@ -133,6 +135,7 @@ struct alg_pinhole {
 
 /* Shortcuts to select items in the pinhole entry key */
 #define ap_vrfid	ap_key.pk_vrfid
+#define ap_ipproto	ap_key.pk_ipproto
 #define ap_expired	ap_key.pk_expired
 
 
@@ -700,6 +703,33 @@ static void alg_pinhole_unlink_pair(struct alg_pinhole *ap)
 	ap2->ap_paired = NULL;
 }
 
+/*
+ * Walk pinhole table
+ *
+ * If alg_id is set then only walk pinholes matching that ALG.
+ */
+int alg_pinhole_walk(alg_pinhole_cb cb, enum cgn_alg_id alg_id, void *data)
+{
+	struct alg_pinhole_tbl *tt = &alg_pinhole_table;
+	struct cds_lfht_iter iter;
+	struct alg_pinhole *ap;
+	int rc;
+
+	if (!tt->tt_ht)
+		return -ENOENT;
+
+	cds_lfht_for_each_entry(tt->tt_ht, &iter, ap, ap_node) {
+		if (alg_id != CGN_ALG_NONE && alg_id != ap->ap_alg_id)
+			continue;
+
+		rc = cb(ap, data);
+		if (rc)
+			return rc;
+	}
+
+	return 0;
+}
+
 /**************************************************************************
  * Pinhole Entry Accessors
  **************************************************************************/
@@ -989,4 +1019,87 @@ void alg_pinhole_cleanup(void)
 
 	/* Delete all expired entries */
 	alg_pinhole_tbl_flush(NULL, NULL);
+}
+
+/**************************************************************************
+ * Show and Config
+ **************************************************************************/
+
+__attribute__((nonnull))
+static void
+csip_show_one_pinhole(json_writer_t *json, struct alg_pinhole *ap)
+{
+	uint timeout = 0;
+	struct alg_pinhole_key *k = &ap->ap_key;
+	char b1[INET_ADDRSTRLEN];
+
+	/*
+	 * Do not show pinholes that have just been used to create a session,
+	 * and are waiting for the GC to delete them.
+	 *
+	 * However we *do* want to show pinholes that have expired without
+	 * being used.
+	 */
+	if (ap->ap_expired && !ap->ap_cmi.cmi_reserved)
+		return;
+
+	jsonw_start_object(json);
+
+	if (!ap->ap_expired)
+		timeout = (uint)((ap->ap_timeout - soft_ticks) / 1000);
+
+	jsonw_uint_field(json, "id", ap->ap_id);
+	jsonw_uint_field(json, "pair_id",
+			 ap->ap_paired ? ap->ap_paired->ap_id : 0);
+
+	jsonw_uint_field(json, "session_id", cgn_session_id(ap->ap_cse));
+	jsonw_uint_field(json, "timeout", timeout);
+	jsonw_string_field(json, "dir", cgn_dir_str(ap->ap_dir));
+	jsonw_uint_field(json, "ipproto", ap->ap_ipproto);
+	jsonw_string_field(json, "saddr", inet_ntop(AF_INET, &k->pk_saddr,
+						    b1, sizeof(b1)));
+	jsonw_uint_field(json, "sport", ntohs(k->pk_sid));
+	jsonw_string_field(json, "daddr", inet_ntop(AF_INET, &k->pk_daddr,
+						    b1, sizeof(b1)));
+	jsonw_uint_field(json, "dport", ntohs(k->pk_did));
+	cgn_map_json(json, "mapping", &ap->ap_cmi);
+	jsonw_string_field(json, "alg", cgn_alg_id_name(ap->ap_alg_id));
+
+	jsonw_end_object(json);
+}
+
+struct csip_pinhole_sess_data {
+	uint32_t session_id;
+	json_writer_t *json;
+};
+
+static int
+csip_show_pinholes_by_sess_cb(struct alg_pinhole *ap, void *data)
+{
+	struct csip_pinhole_sess_data *ctx = data;
+
+	if (ctx->session_id == cgn_session_id(ap->ap_cse))
+		csip_show_one_pinhole(ctx->json, ap);
+
+	return 0;
+}
+
+void cgn_show_pinholes_by_session(json_writer_t *json,
+				  struct cgn_alg_sess_ctx *as)
+{
+	if (!as->as_cse)
+		return;
+
+	struct csip_pinhole_sess_data data = {
+		.session_id = cgn_session_id(as->as_cse),
+		.json = json,
+	};
+
+	jsonw_name(json, "pinholes");
+	jsonw_start_array(json);
+
+	alg_pinhole_walk(csip_show_pinholes_by_sess_cb,
+			 as->as_alg_id, &data);
+
+	jsonw_end_array(json);
 }

@@ -12,6 +12,7 @@
 #include "vrf.h"
 #include "npf/nat/nat_proto.h"
 
+struct json_writer;
 struct cgn_policy;
 struct cgn_source;
 struct nat_pool;
@@ -55,5 +56,20 @@ int cgn_map_get2(struct cgn_map *cmi, struct cgn_policy *cp, vrfid_t vrfid);
 int cgn_map_put(struct cgn_map *cmi, vrfid_t vrfid);
 
 void cgn_alloc_pool_available(struct nat_pool *np, struct apm *apm);
+
+/**
+ * Write json for a CGNAT mapping struct
+ *
+ * ALGs are the only place in CGNAT where a mapping can be allocated and then
+ * not immediately used to create a session.  They may be stored for some time
+ * in an ALG pinhole, or in a SIP media object.  This function will write the
+ * json for these when the relevant session json is being written.
+ *
+ * @param json Json pointer
+ * @param name Name to use for json object
+ * @param cmi Pointer to mapping struct
+ */
+void cgn_map_json(struct json_writer *json, const char *name,
+		  struct cgn_map *cmi);
 
 #endif

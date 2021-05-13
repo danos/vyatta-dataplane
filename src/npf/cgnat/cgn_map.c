@@ -997,3 +997,35 @@ int cgn_map_put(struct cgn_map *cmi, vrfid_t vrfid)
 
 	return 0;
 }
+
+/*
+ * Write json for a CGNAT mapping.
+ *
+ * ALGs are the only place in CGNAT where a mapping can be allocated and then
+ * not immediately used to create a session.  They may be stored for some time
+ * in an ALG pinhole, or in a SIP media object.  This function will write the
+ * json for these when the relevant session json is being written.
+ *
+ * Name will be "mapping" when used for pinholes, and either "rtp" or "rtcp"
+ * when used with a SIP media object.
+ */
+void cgn_map_json(json_writer_t *json, const char *name, struct cgn_map *cmi)
+{
+	char b1[INET_ADDRSTRLEN];
+
+	if (!cmi->cmi_reserved)
+		return;
+
+	jsonw_name(json, name ? name : "mapping");
+	jsonw_start_object(json);
+
+	jsonw_string_field(json, "proto", nat_proto_str(cmi->cmi_proto));
+	jsonw_string_field(json, "oaddr", inet_ntop(AF_INET, &cmi->cmi_oaddr,
+						    b1, sizeof(b1)));
+	jsonw_uint_field(json, "oport", ntohs(cmi->cmi_oid));
+	jsonw_string_field(json, "taddr", inet_ntop(AF_INET, &cmi->cmi_taddr,
+						    b1, sizeof(b1)));
+	jsonw_uint_field(json, "tport", ntohs(cmi->cmi_tid));
+
+	jsonw_end_object(json);
+}
