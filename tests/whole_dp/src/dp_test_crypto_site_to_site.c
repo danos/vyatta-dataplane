@@ -289,6 +289,9 @@ static void _setup_policies(struct dp_test_s2s_config *conf,
 	bool update = false;
 	int i;
 
+	dp_test_console_request_reply("debug rldb-acl", true);
+	dp_test_console_request_reply("debug crypto", true);
+
 	for (i = 0; i < conf->nipols; i++) {
 		conf->ipolicy[i].vrfid = conf->vrfid;
 		_dp_test_crypto_create_policy(file, line, &(conf->ipolicy[i]),
@@ -308,6 +311,9 @@ static void _teardown_policies(struct dp_test_s2s_config *conf,
 			       const char *file, int line)
 {
 	int i;
+
+	dp_test_console_request_reply("debug rldb-acl", true);
+	dp_test_console_request_reply("debug crypto", true);
 
 	for (i = 0; i < conf->nipols; i++) {
 		_dp_test_crypto_delete_policy(file, line, &(conf->ipolicy[i]),
