@@ -2124,6 +2124,24 @@ void crypto_policy_show_summary(FILE *f, vrfid_t vrfid, bool brief)
 			}
 		}
 		jsonw_end_array(wr);
+
+		if (vrf_ctx) {
+			jsonw_name(wr, "rule_databases");
+			jsonw_start_array(wr);
+			jsonw_start_object(wr);
+			rldb_dump(vrf_ctx->input_policy_v4_rldb, wr);
+			jsonw_end_object(wr);
+			jsonw_start_object(wr);
+			rldb_dump(vrf_ctx->output_policy_v4_rldb, wr);
+			jsonw_end_object(wr);
+			jsonw_start_object(wr);
+			rldb_dump(vrf_ctx->input_policy_v6_rldb, wr);
+			jsonw_end_object(wr);
+			jsonw_start_object(wr);
+			rldb_dump(vrf_ctx->output_policy_v6_rldb, wr);
+			jsonw_end_object(wr);
+			jsonw_end_array(wr);
+		}
 	}
 
 	jsonw_end_object(wr);
