@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: LGPL-2.1-only
  */
 
+#include <pthread.h>
 #include <rte_acl.h>
 #include <rte_atomic.h>
 #include <rte_rcu_qsbr.h>
@@ -16,6 +17,10 @@
 #include <rte_log.h>
 #include "../ip_funcs.h"
 #include "../netinet6/ip6_funcs.h"
+
+static uint32_t npf_match_ctx_cnt;
+static pthread_t acl_merge_tid;
+static void *npf_rte_acl_optimize(void *args);
 
 static struct rte_mempool *npr_mtrie_pool;
 static struct rte_mempool *npr_acl4_mempool;
@@ -79,7 +84,10 @@ struct npf_match_ctx_trie {
 
 #define MAX_TRANSACTION_ENTRIES 512
 
+static struct cds_list_head ctx_list;
+
 struct npf_match_ctx {
+	struct cds_list_head  ctx_link;   /* linkage for all ctx structures */
 	struct cds_list_head  trie_list;  /* linkage for tries in this ctx */
 	char                 *ctx_name;   /* name of match context. Needs to be
 					   * globally unique
@@ -598,6 +606,16 @@ int npf_rte_acl_init(int af, const char *name, uint32_t max_rules,
 	size_t tr_sz;
 	int err;
 
+	if (!npf_match_ctx_cnt) {
+		err = pthread_create(&acl_merge_tid, NULL, npf_rte_acl_optimize,
+				     NULL);
+		if (err) {
+			RTE_LOG(ERR, DATAPLANE,
+				"Could not create thread for ACL optimization");
+			return err;
+		}
+	}
+
 	if (af == AF_INET)
 		rule_size = RTE_ACL_RULE_SZ(RTE_DIM(ipv4_defs));
 	else if (af == AF_INET6)
@@ -645,6 +663,9 @@ int npf_rte_acl_init(int af, const char *name, uint32_t max_rules,
 		goto error;
 
 	*m_ctx = tmp_ctx;
+
+	cds_list_add(&tmp_ctx->ctx_link, &ctx_list);
+	npf_match_ctx_cnt++;
 
 	return 0;
 
@@ -1274,10 +1295,17 @@ int npf_rte_acl_destroy(int af __rte_unused, npf_match_ctx_t **m_ctx)
 			 rte_atomic16_read(&ctx->num_tries));
 	}
 
+	cds_list_del(&ctx->ctx_link);
 	free(ctx->ctx_name);
 	free(ctx);
 	*m_ctx = NULL;
 
+	npf_match_ctx_cnt--;
+
+	if (!npf_match_ctx_cnt) {
+		pthread_cancel(acl_merge_tid);
+		acl_merge_tid = 0;
+	}
 	return 0;
 }
 
@@ -1294,6 +1322,8 @@ size_t npf_rte_acl_rule_size(int af)
 int npf_rte_acl_setup(void)
 {
 	int err;
+
+	CDS_INIT_LIST_HEAD(&ctx_list);
 
 	npr_mtrie_pool = rte_mempool_create("npr_mtrie_pool", M_TRIE_POOL_SIZE,
 					    sizeof(struct npf_match_ctx_trie),
@@ -1420,4 +1450,37 @@ void npf_rte_acl_dump(npf_match_ctx_t *ctx, json_writer_t *wr)
 	}
 	jsonw_end_array(wr);
 	jsonw_end_object(wr);
+}
+
+static void npf_rte_acl_optimize_ctx(npf_match_ctx_t *ctx __rte_unused)
+{
+}
+
+#define NPF_RTE_ACL_MERGE_INTERVAL 5
+
+static void *npf_rte_acl_optimize(void *args __rte_unused)
+{
+	npf_match_ctx_t *ctx;
+	struct cds_list_head *list_entry, *next;
+
+	pthread_setname_np(pthread_self(), "dataplane/acl-opt");
+	dp_rcu_register_thread();
+	while (1) {
+		dp_rcu_thread_online();
+
+		cds_list_for_each_safe(list_entry, next, &ctx_list) {
+			ctx = cds_list_entry(list_entry, struct npf_match_ctx,
+					     ctx_link);
+
+			if (rte_atomic16_read(&ctx->num_tries) <= 2)
+				continue;
+
+			npf_rte_acl_optimize_ctx(ctx);
+		}
+
+		dp_rcu_thread_offline();
+		sleep(NPF_RTE_ACL_MERGE_INTERVAL);
+	}
+
+	return NULL;
 }
