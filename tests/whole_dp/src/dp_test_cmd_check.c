@@ -382,7 +382,7 @@ static struct cmd_expect_json cmd_expect_clean_json[] = {
 		"}",
 	},
 	{
-		"ipsec spd", DP_TEST_JSON_CHECK_EXACT,
+		"ipsec spd", DP_TEST_JSON_CHECK_SUBSET,
 		"{ \"ipsec_policies\": "
 		"  { \"vrf\": 1,"
 		"    \"policy_statistics\": "
