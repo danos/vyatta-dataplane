@@ -1,3 +1,14 @@
+vyatta-dataplane (3.13.16) unstable; urgency=medium
+
+  [ Daniel Gollub ]
+  * rldb: use dedicated priority value for ACL rules
+  * ut: crypto s2s passthrough correct priorities
+
+  [ Srinivas Narayan ]
+  * 3.12.52
+
+ -- Srinivas Narayan <narayan@vyatta.att-mail.com>  Fri, 14 May 2021 13:50:37 +0100
+
 vyatta-dataplane (3.13.15) unstable; urgency=medium
 
   [ Mike Larson ]
