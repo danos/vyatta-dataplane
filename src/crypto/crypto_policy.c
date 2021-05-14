@@ -2102,23 +2102,25 @@ void crypto_policy_show_summary(FILE *f, vrfid_t vrfid, bool brief)
 		jsonw_name(wr, "policies");
 		jsonw_start_array(wr);
 
-		ht = vrf_ctx ? vrf_ctx->output_policy_rule_sel_ht : NULL;
-		if (ht) {
-			cds_lfht_for_each_entry(ht, &iter, pr, sel_ht_node) {
-				if (pr->flags & POLICY_F_PENDING_ADD)
-					continue;
-				if (dp_vrf_get_external_id(pr->vrfid) == vrfid)
-					policy_rule_to_json(wr, pr);
+		if (vrf_ctx) {
+			ht = vrf_ctx->output_policy_rule_sel_ht;
+			if (ht) {
+				cds_lfht_for_each_entry(ht, &iter, pr, sel_ht_node) {
+					if (pr->flags & POLICY_F_PENDING_ADD)
+						continue;
+					if (dp_vrf_get_external_id(pr->vrfid) == vrfid)
+						policy_rule_to_json(wr, pr);
+				}
 			}
-		}
 
-		ht = vrf_ctx ? vrf_ctx->input_policy_rule_sel_ht : NULL;
-		if (ht) {
-			cds_lfht_for_each_entry(ht, &iter, pr, sel_ht_node) {
-				if (pr->flags & POLICY_F_PENDING_ADD)
-					continue;
-				if (dp_vrf_get_external_id(pr->vrfid) == vrfid)
-					policy_rule_to_json(wr, pr);
+			ht = vrf_ctx->input_policy_rule_sel_ht;
+			if (ht) {
+				cds_lfht_for_each_entry(ht, &iter, pr, sel_ht_node) {
+					if (pr->flags & POLICY_F_PENDING_ADD)
+						continue;
+					if (dp_vrf_get_external_id(pr->vrfid) == vrfid)
+						policy_rule_to_json(wr, pr);
+				}
 			}
 		}
 		jsonw_end_array(wr);
