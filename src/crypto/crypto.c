@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2017-2020, AT&T Intellectual Property. All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property. All rights reserved.
  * Copyright (c) 2015-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -70,7 +70,7 @@
 
 struct cds_list_head;
 
-struct crypto_pkt_buffer *cpbdb[RTE_MAX_LCORE];
+struct crypto_pkt_buffer *cpbdb[RTE_MAX_LCORE] __hot_data;
 
 /*
  * crypto garbage collection timer

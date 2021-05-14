@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2015-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -83,14 +83,12 @@ extern struct crypto_pkt_buffer *cpbdb[RTE_MAX_LCORE];
 int crypto_send_burst(struct crypto_pkt_buffer *cpb,
 		      enum crypto_xfrm xfrm, bool drop);
 
-static inline void crypto_send(struct crypto_pkt_buffer *cpb)
+static inline __hot_func void crypto_send(struct crypto_pkt_buffer *cpb)
 {
-	uint32_t q;
-	for (q = MIN_CRYPTO_XFRM;
-	     q < MAX_CRYPTO_XFRM; q++)
-		if (cpb->local_q_count[q])
-			(void)crypto_send_burst(cpb, (enum crypto_xfrm)q,
-						false);
+	if (cpb->local_q_count[CRYPTO_ENCRYPT])
+		(void)crypto_send_burst(cpb, CRYPTO_ENCRYPT, false);
+	if (cpb->local_q_count[CRYPTO_DECRYPT])
+		(void)crypto_send_burst(cpb, CRYPTO_DECRYPT, false);
 }
 
 void dp_crypto_init(void);
