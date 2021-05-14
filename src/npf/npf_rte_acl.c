@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2020-2021, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -427,14 +427,14 @@ static int npf_rte_acl_record_transaction_entry(npf_match_ctx_t *m_ctx,
  * However rte_acl expects the rules to be in host byte order.
  */
 static void npf_rte_acl_add_v4_rule(const uint8_t *match_addr, uint8_t *mask,
-				    uint32_t rule_no,
+				    uint32_t rule_no, uint32_t priority,
 				    struct acl4_rules *v4_rules)
 {
 	uint16_t val, val_mask;
 
 	memset(v4_rules, 0, sizeof(*v4_rules));
 	v4_rules->data.category_mask = 1;
-	v4_rules->data.priority = rule_no;
+	v4_rules->data.priority = priority;
 	v4_rules->data.userdata = rule_no;
 
 	/*
@@ -477,7 +477,7 @@ static void npf_rte_acl_add_v4_rule(const uint8_t *match_addr, uint8_t *mask,
  * However rte_acl expects the rules to be in host byte order.
  */
 static void npf_rte_acl_add_v6_rule(uint8_t *match_addr, uint8_t *mask,
-				    uint32_t rule_no,
+				    uint32_t rule_no, uint32_t priority,
 				    struct acl6_rules *v6_rules)
 {
 	uint16_t val, val_mask;
@@ -485,7 +485,7 @@ static void npf_rte_acl_add_v6_rule(uint8_t *match_addr, uint8_t *mask,
 
 	memset(v6_rules, 0, sizeof(*v6_rules));
 	v6_rules->data.category_mask = 1;
-	v6_rules->data.priority = rule_no;
+	v6_rules->data.priority = priority;
 	v6_rules->data.userdata = rule_no;
 
 	/*
@@ -583,7 +583,7 @@ static int _npf_rte_acl_add_rule(int af, npf_match_ctx_t *m_ctx,
 }
 
 int npf_rte_acl_add_rule(int af, npf_match_ctx_t *m_ctx, uint32_t rule_no,
-			 uint8_t *match_addr, uint8_t *mask,
+			 uint32_t priority, uint8_t *match_addr, uint8_t *mask,
 			 void *match_ctx __rte_unused)
 {
 	struct acl4_rules v4_rules;
@@ -600,11 +600,13 @@ int npf_rte_acl_add_rule(int af, npf_match_ctx_t *m_ctx, uint32_t rule_no,
 	}
 
 	if (af == AF_INET) {
-		npf_rte_acl_add_v4_rule(match_addr, mask, rule_no, &v4_rules);
+		npf_rte_acl_add_v4_rule(match_addr, mask, rule_no, priority,
+					&v4_rules);
 		acl_rule = (const struct rte_acl_rule *)&v4_rules;
 		rule_sz = sizeof(struct acl4_rules);
 	} else {
-		npf_rte_acl_add_v6_rule(match_addr, mask, rule_no, &v6_rules);
+		npf_rte_acl_add_v6_rule(match_addr, mask, rule_no, priority,
+					&v6_rules);
 		acl_rule = (const struct rte_acl_rule *)&v6_rules;
 		rule_sz = sizeof(struct acl6_rules);
 	}
@@ -678,7 +680,7 @@ _npf_rte_acl_del_rule(int af, struct npf_match_ctx *m_ctx,
 }
 
 int npf_rte_acl_del_rule(int af, npf_match_ctx_t *m_ctx, uint32_t rule_no,
-			 uint8_t *match_addr, uint8_t *mask)
+			 uint32_t priority, uint8_t *match_addr, uint8_t *mask)
 {
 	struct acl4_rules v4_rules;
 	struct acl6_rules v6_rules;
@@ -688,11 +690,13 @@ int npf_rte_acl_del_rule(int af, npf_match_ctx_t *m_ctx, uint32_t rule_no,
 
 
 	if (af == AF_INET) {
-		npf_rte_acl_add_v4_rule(match_addr, mask, rule_no, &v4_rules);
+		npf_rte_acl_add_v4_rule(match_addr, mask, rule_no, priority,
+					&v4_rules);
 		acl_rule = (const struct rte_acl_rule *)&v4_rules;
 		rule_sz = sizeof(struct acl4_rules);
 	} else {
-		npf_rte_acl_add_v6_rule(match_addr, mask, rule_no, &v6_rules);
+		npf_rte_acl_add_v6_rule(match_addr, mask, rule_no, priority,
+					&v6_rules);
 		acl_rule = (const struct rte_acl_rule *)&v6_rules;
 		rule_sz = sizeof(struct acl6_rules);
 	}
