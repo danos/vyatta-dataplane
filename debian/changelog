@@ -1,3 +1,45 @@
+vyatta-dataplane (3.13.15) unstable; urgency=medium
+
+  [ Mike Larson ]
+  * npf: minor cleanup--dead code removal
+
+  [ Paul Aitken ]
+  * parallelise Jenkinsfile
+  * reindent Jenkinsfile
+
+  [ Ian Wilson ]
+  * cgnat: Add missing includes to cgn_rc.h
+  * cgnat-alg: Add config command and port/protocol lookup table
+  * cgnat-alg: Create CGNAT ALG pinhole table
+  * cgnat-alg: Add CGNAT return codes for ALGs
+  * cgnat-alg: Add ALG params to CGNAT packet cache
+  * cgnat-alg: Add ALG params to CGNAT session
+  * cgnat-alg: Add stub ALG pinhole table entry structure
+  * cgnat-alg: Add CGNAT ALG session structure and handling
+  * cgnat-alg: Link child ALG sessions to parent ALG sessions
+  * cgnat-alg: Add CGNAT ALG return codes
+  * cgnat-alg: Pinhole table entry add
+  * cgnat-alg: Pinhole table garbage collection
+  * cgnat-alg: Pinhole table delete entry
+  * cgnat-alg: Pinhole table flush, expire and cleanup
+  * cgnat-alg: Pinhole table lookup
+  * cgnat-alg: Expire pinholes for a specific CGNAT session
+  * cgnat-alg: Add pinhole pairing
+  * cgnat-alg: Add ALG inspection routine
+
+  [ Paul Aitken ]
+  * Jenkinsfile improvements
+
+  [ Ian Wilson ]
+  * cgnat-alg: Lookup protocol and port to determine if new session is ALG
+  * cgnat-alg: Inspect packets of ALG control/parent sessions
+  * cgnat-alg: Add hooks for ALG data/child packets flows
+  * cgnat-alg: Write json for pinhole table entries for a specific session
+  * cgnat-alg: Write json for ALG sessions.  Filter on ALG sessions
+  * cgnat-alg: Ensure the ALG only inspects correct control session pkts
+
+ -- Srinivas Narayan <narayan@vyatta.att-mail.com>  Fri, 14 May 2021 13:49:45 +0100
+
 vyatta-dataplane (3.13.14) unstable; urgency=medium
 
   [ Srinivas Narayan ]
