@@ -108,6 +108,8 @@ int rldb_init(void)
 
 	rldb_disabled = false;
 
+	npf_rte_acl_setup();
+
 	return 0;
 
 error:
@@ -940,6 +942,8 @@ int rldb_cleanup(void)
 	rldb_global_ht = NULL;
 
 	rldb_disabled = true;
+
+	npf_rte_acl_teardown();
 
 	return rc;
 }

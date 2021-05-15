@@ -11,6 +11,10 @@
 #include "npf_cache.h"
 #include "npf_match.h"
 
+int npf_rte_acl_setup(void);
+
+int npf_rte_acl_teardown(void);
+
 int npf_rte_acl_init(int af, const char *name, uint32_t max_rules,
 		     struct rte_mempool *mempool, struct rte_rcu_qsbr *rcu_v,
 		     npf_match_ctx_t **m_ctx);

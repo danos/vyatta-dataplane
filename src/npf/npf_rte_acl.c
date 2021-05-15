@@ -7,11 +7,38 @@
 #include <rte_acl.h>
 #include <rte_rcu_qsbr.h>
 #include <rte_ip.h>
+#include <rte_mempool.h>
+#include <rte_ring.h>
 #include "vplane_log.h"
 #include "npf_rte_acl.h"
 #include <rte_log.h>
 #include "../ip_funcs.h"
 #include "../netinet6/ip6_funcs.h"
+
+static struct rte_mempool *npr_mtrie_pool;
+static struct rte_mempool *npr_acl4_mempool;
+static struct rte_mempool *npr_acl6_mempool;
+
+#define NPR_RULE_MAX_ELEMENTS (1 << 14)
+
+#define NPR_ACL_RING_SZ 512
+
+struct rte_ring *npr_acl4_ring, *npr_acl6_ring;
+
+/*
+ * A trie containing a subset of entries for a particular context.
+ * Used to optimize update operations
+ */
+
+#define NPF_M_TRIE_FLAG_POOL   0x8000   /* trie allocated from pool */
+
+struct npf_match_ctx_trie {
+	struct cds_list_head  trie_link;
+	char                 *trie_name;
+	uint16_t              num_rules;
+	uint16_t              flags;
+	struct rte_acl_ctx   *acl_ctx;
+};
 
 #define MAX_TRANSACTION_ENTRIES 512
 
@@ -345,7 +372,7 @@ int npf_rte_acl_init(int af, const char *name, uint32_t max_rules,
 
 	}
 
-	tr_sz = (sizeof(struct trans_entry) + rule_size)
+	tr_sz = (sizeof(struct trans_entry) + acl_param.rule_size)
 		* MAX_TRANSACTION_ENTRIES;
 	tmp_ctx->tr = rte_zmalloc("trie_transaction_records", tr_sz,
 				  RTE_CACHE_LINE_SIZE);
@@ -664,7 +691,7 @@ static int npf_rte_acl_build(int af, npf_match_ctx_t **m_ctx)
 
 static int
 _npf_rte_acl_del_rule(int af, struct npf_match_ctx *m_ctx,
-			   const struct rte_acl_rule *acl_rule)
+		      const struct rte_acl_rule *acl_rule)
 {
 	int err = 0;
 
@@ -690,7 +717,6 @@ int npf_rte_acl_del_rule(int af, npf_match_ctx_t *m_ctx, uint32_t rule_no,
 	const struct rte_acl_rule *acl_rule;
 	int err = 0;
 	size_t rule_sz;
-
 
 	if (af == AF_INET) {
 		npf_rte_acl_add_v4_rule(match_addr, mask, rule_no, priority,
@@ -852,4 +878,95 @@ size_t npf_rte_acl_rule_size(int af)
 		return RTE_ACL_RULE_SZ(RTE_DIM(ipv4_defs));
 
 	return RTE_ACL_RULE_SZ(RTE_DIM(ipv6_defs));
+}
+
+#define M_TRIE_POOL_SIZE 512
+
+int npf_rte_acl_setup(void)
+{
+	npr_mtrie_pool = rte_mempool_create("npr_mtrie_pool", M_TRIE_POOL_SIZE,
+					    sizeof(struct npf_match_ctx_trie),
+					    0, 0, NULL, NULL, NULL, NULL,
+					    SOCKET_ID_ANY, 0);
+	if (!npr_mtrie_pool) {
+		RTE_LOG(ERR, DATAPLANE,
+			"Could not create memory pool for ACL m-tries\n");
+		goto error;
+	}
+
+	npr_acl4_mempool = rte_mempool_create("npr_acl4_pool",
+					      NPR_RULE_MAX_ELEMENTS,
+					      npf_rte_acl_rule_size(AF_INET),
+					      0, 0, NULL, NULL, NULL, NULL,
+					      rte_socket_id(), 0);
+
+	if (!npr_acl4_mempool) {
+		RTE_LOG(ERR, DATAPLANE,
+			"Could not allocate acl rule pool for IPv4\n");
+		goto error;
+	}
+
+	npr_acl6_mempool = rte_mempool_create("npr_acl6_pool",
+					      NPR_RULE_MAX_ELEMENTS,
+					      npf_rte_acl_rule_size(AF_INET6),
+					      0, 0, NULL, NULL, NULL, NULL,
+					      rte_socket_id(), 0);
+
+	if (!npr_acl6_mempool) {
+		RTE_LOG(ERR, DATAPLANE,
+			"Could not allocate acl rule pool for IPv6\n");
+		goto error;
+	}
+
+	npr_acl4_ring = rte_ring_create("npr_acl4_ring", NPR_ACL_RING_SZ,
+					0, 0);
+	if (!npr_acl4_ring) {
+		RTE_LOG(ERR, DATAPLANE,
+			"Could not create ring for IPv4 ACL m-tries\n");
+		goto error;
+	}
+
+	npr_acl6_ring = rte_ring_create("npr_acl6_ring", NPR_ACL_RING_SZ,
+					0, 0);
+	if (!npr_acl6_ring) {
+		RTE_LOG(ERR, DATAPLANE,
+			"Could not create ring for IPv6 ACL m-tries\n");
+		goto error;
+	}
+
+	return 0;
+
+error:
+	npf_rte_acl_teardown();
+	return -ENOMEM;
+}
+
+int npf_rte_acl_teardown(void)
+{
+	if (npr_acl4_ring) {
+		rte_ring_free(npr_acl4_ring);
+		npr_acl4_ring = NULL;
+	}
+
+	if (npr_acl6_ring) {
+		rte_ring_free(npr_acl6_ring);
+		npr_acl6_ring = NULL;
+	}
+
+	if (npr_mtrie_pool) {
+		rte_mempool_free(npr_mtrie_pool);
+		npr_mtrie_pool = NULL;
+	}
+
+	if (npr_acl4_mempool) {
+		rte_mempool_free(npr_acl4_mempool);
+		npr_acl4_mempool = NULL;
+	}
+
+	if (npr_acl6_mempool) {
+		rte_mempool_free(npr_acl6_mempool);
+		npr_acl6_mempool = NULL;
+	}
+
+	return 0;
 }
