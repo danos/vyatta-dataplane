@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2020-2021, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -1199,6 +1199,39 @@ static void next_hop_list_setup_back_ptrs(struct next_hop_list *nextl)
 	}
 }
 
+/*
+ * On a hardware platform there may be a mismatch between the ECMP NH
+ * selection method employed by the hardware and that employed by the
+ * dataplane. This can lead to endless software forwarding:
+ *
+ *   o hardware needs NH resolution for a particular ECMP member
+ *
+ *   o frame is punted to the dataplane
+ *
+ *   o dataplane picks a *different* ECMP member and initiates ARP/ND
+ *     resolution
+ *
+ *   o hardware continues to punt, waiting for resolution
+ *
+ * A solution is to force ARP/ND resolution of all ECMP members
+ */
+static void next_hop_list_add_hardware_resolution(struct next_hop_list *nhl)
+{
+	struct next_hop *array;
+
+	if ((nhl == NULL) ||
+	    (nhl->nsiblings < 2) ||
+	    !fal_state_is_obj_present(nhl->pd_state))
+		return;
+
+	array = nhl->siblings;
+	for (int i = 0; i < nhl->nsiblings; i++) {
+		struct next_hop *nh = array + i;
+
+		nh->flags |= RTF_NH_NEEDS_HW_RES;
+	}
+}
+
 /* Lookup (or create) nexthop based on hop information */
 int nexthop_new(int family, const struct next_hop *nh, uint16_t size,
 		uint8_t proto, enum fal_next_hop_group_use use, uint32_t *slot)
@@ -1270,6 +1303,8 @@ int nexthop_new(int family, const struct next_hop *nh, uint16_t size,
 			"FAL IPv4 next-hop-group create failed: %s\n",
 			strerror(-ret));
 	nextl->pd_state = fal_state_to_pd_state(ret);
+
+	next_hop_list_add_hardware_resolution(nextl);
 
 	next_hop_list_track_protected_nh(nextl);
 
@@ -1724,6 +1759,8 @@ next_hop_list_create_copy_finish(int family,
 	memcpy(new->nh_fal_obj, old->nh_fal_obj,
 	       new->nsiblings * sizeof(*new->nh_fal_obj));
 	new->pd_state = old->pd_state;
+
+	next_hop_list_add_hardware_resolution(new);
 
 	assert(nh_table->entry[old_idx] == old);
 	rcu_xchg_pointer(&nh_table->entry[old_idx], new);

@@ -30,7 +30,7 @@
  */
 
 /*-
- * Copyright (c) 2017-2019, AT&T Intellectual Property.
+ * Copyright (c) 2017-2019, 2021 AT&T Intellectual Property.
  * All rights reserved.
  * Copyright (c) 2011-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
@@ -60,6 +60,11 @@
 
 #define RTF_NEIGH_CREATED  0x10000 /* Nexthop was created to store neigh info */
 #define RTF_NEIGH_PRESENT  0x20000 /* Nexthop contains neigh info */
+/*
+ * Used to indicate that NH resolution (ARP/ND) is required for ECMP
+ * members on a hardware platform.
+ */
+#define RTF_NH_NEEDS_HW_RES 0x40000
 
 /*
  * When comparing NHs for equality, mask the flags as the NEIGH_ ones are
