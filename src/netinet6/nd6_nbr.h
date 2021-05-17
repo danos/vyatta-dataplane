@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2021 AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2011-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -65,6 +65,7 @@ struct nd6_nbr_stats {
 };
 extern struct nd6_nbr_stats nd6nbrstat;
 
+void nd6_resolve_hw_ecmp(struct rte_mbuf *m, const struct next_hop *nh_prime);
 int nd6_resolve(struct ifnet *in_ifp, struct ifnet *ifp,
 		struct rte_mbuf *m, const struct in6_addr *addr,
 		struct rte_ether_addr *desten);
