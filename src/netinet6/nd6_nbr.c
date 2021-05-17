@@ -1130,6 +1130,35 @@ static void nd6_ns_output(struct ifnet *ifp,
 	}
 }
 
+static struct llentry *
+nd6_create_incomplete(struct ifnet *ifp, const struct in6_addr *addr)
+{
+	struct lltable *llt = ifp->if_lltable6;
+	struct llentry *la;
+
+	/*
+	 * Check resolution and cache size limits
+	 */
+	if (unlikely(rte_atomic16_read(&llt->lle_restoken) <= 0)) {
+		ND6NBR_INC(resthrot);
+		return NULL;
+	}
+	if (unlikely(rte_atomic32_read(&llt->lle_size) >=
+		     nd6_cfg.nd6_max_entry)) {
+		ND6NBR_INC(tablimit);
+		return NULL;
+	}
+
+	la = in6_lltable_lookup(ifp, LLE_CREATE, addr);
+	if (unlikely(la == NULL)) {
+		RTE_LOG(NOTICE, ND6,
+			"in6_lltable_lookup create failed\n");
+		return NULL;
+	}
+
+	return la;
+}
+
 /*
  * Resolve ipv6 destination for a forwarded data packet.
  * Return zero on success, non-zero if packet consumed
@@ -1138,7 +1167,6 @@ int nd6_resolve(struct ifnet *in_ifp, struct ifnet *ifp,
 		struct rte_mbuf *m, const struct in6_addr *addr,
 		struct rte_ether_addr *desten)
 {
-	struct lltable *llt = ifp->if_lltable6;
 	struct llentry *la;
 	char b[INET6_ADDRSTRLEN];
 	bool send_ns = false;
@@ -1154,26 +1182,8 @@ resolved:
 
 	/* Create if necessary */
 	if (la == NULL) {
-
-		/*
-		 * Check resolution and cache size limits
-		 */
-		if (unlikely(rte_atomic16_read(&llt->lle_restoken) <= 0)) {
-			ND6NBR_INC(resthrot);
-			rte_pktmbuf_free(m);
-			return -ENOMEM;
-		}
-		if (unlikely(rte_atomic32_read(&llt->lle_size) >=
-			     nd6_cfg.nd6_max_entry)) {
-			ND6NBR_INC(tablimit);
-			rte_pktmbuf_free(m);
-			return -ENOMEM;
-		}
-
-		la = in6_lltable_lookup(ifp, LLE_CREATE, addr);
-		if (unlikely(la == NULL)) {
-			RTE_LOG(NOTICE, ND6,
-				"in6_lltable_lookup create failed\n");
+		la = nd6_create_incomplete(ifp, addr);
+		if (la == NULL) {
 			rte_pktmbuf_free(m);
 			return -ENOMEM;
 		}
@@ -1227,6 +1237,70 @@ resolved:
 	}
 
 	return -EWOULDBLOCK;
+}
+
+void nd6_resolve_hw_ecmp(struct rte_mbuf *mbuf, const struct next_hop *nh_prime)
+{
+	struct next_hop_list *nhl = nh_prime->nhl;
+	struct next_hop *nhlist;
+	struct next_hop *nh;
+	struct llentry *la;
+	struct ifnet *ifp;
+	struct ip6_hdr *ip6;
+	struct in6_addr dst;
+	struct in6_addr addr;
+	char b1[INET6_ADDRSTRLEN];
+
+	if (nhl == NULL)
+		return;
+
+	ip6 = ip6hdr(mbuf);
+	dst = ip6->ip6_dst;
+	nhlist = nhl->siblings;
+	for (int path = 0; path < nhl->nsiblings; path++) {
+		nh = &nhlist[path];
+
+		nh->flags &= ~RTF_NH_NEEDS_HW_RES;
+
+		/*
+		 * Ignore the currently selected output path
+		 */
+		if (nh == nh_prime)
+			continue;
+
+		ifp = dp_nh_get_ifp(nh);
+		if ((ifp == NULL) ||
+		    ((ifp->if_flags & IFF_NOARP) != 0) ||
+		    ((nh->flags & (RTF_SLOWPATH | RTF_LOCAL)) != 0))
+			continue;
+
+		if (nh->flags & RTF_GATEWAY)
+			addr = nh->gateway.address.ip_v6;
+		else
+			addr = dst;
+
+		/*
+		 * If an entry is present, assume resolution is in
+		 * progress
+		 */
+		la = in6_lltable_lookup(ifp, 0, &addr);
+		if (la != NULL)
+			continue;
+
+		la = nd6_create_incomplete(ifp, &addr);
+		if (la == NULL) {
+			nh->flags |= RTF_NH_NEEDS_HW_RES;
+			continue;
+		}
+
+		/*
+		 * Send NS to solicited-node multicast address, using
+		 * a link-local address as the L3 source.
+		 */
+		ND6_DEBUG("%s/%s new entry (ECMP)\n", ifp->if_name,
+			  PRINT6(&addr, b1));
+		nd6_ns_output(ifp, NULL, &addr, NULL);
+	}
 }
 
 /*

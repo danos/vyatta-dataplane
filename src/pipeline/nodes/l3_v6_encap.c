@@ -1,7 +1,7 @@
 /*
  * l3_v6_encap.c
  *
- * Copyright (c) 2019-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2019-2021, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -121,6 +121,9 @@ ipv6_encap_process_internal(struct pl_packet *pkt, enum pl_mode mode)
 	struct ifnet *in_ifp = pkt->in_ifp;
 	struct ifnet *out_ifp = pkt->out_ifp;
 	struct rte_mbuf *mbuf = pkt->mbuf;
+
+	if (unlikely(nh->flags & RTF_NH_NEEDS_HW_RES))
+		nd6_resolve_hw_ecmp(mbuf, nh);
 
 	/* Get the nexthop address */
 	struct in6_addr addr;
