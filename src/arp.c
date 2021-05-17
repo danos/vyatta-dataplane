@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 1982, 1986, 1988, 1993
  *	The Regents of the University of California.  All rights reserved.
  *
@@ -55,6 +55,7 @@
 #include "if_llatbl.h"
 #include "if_var.h"
 #include "ip_addr.h"
+#include "ip_funcs.h"
 #include "main.h"
 #include "nh_common.h"
 #include "pktmbuf_internal.h"
@@ -321,6 +322,78 @@ resolved:
 	}
 
 	return -EWOULDBLOCK;
+}
+
+void arpresolve_hw_ecmp(struct rte_mbuf *m, const struct next_hop *nh_prime)
+{
+	struct next_hop_list *nhl = nh_prime->nhl;
+	struct next_hop *nhlist;
+	struct next_hop *nh;
+	struct llentry *la;
+	struct ifnet *ifp;
+	struct iphdr *ip;
+	in_addr_t daddr;
+	in_addr_t addr;
+	char b1[INET_ADDRSTRLEN];
+
+	if (nhl == NULL)
+		return;
+
+	ip = iphdr(m);
+	daddr = ip->daddr;
+	nhlist = nhl->siblings;
+	for (int path = 0; path < nhl->nsiblings; path++) {
+		nh = &nhlist[path];
+
+		nh->flags &= ~RTF_NH_NEEDS_HW_RES;
+
+		/*
+		 * Ignore the currently selected output path
+		 */
+		if (nh == nh_prime)
+			continue;
+
+		ifp = dp_nh_get_ifp(nh);
+		if ((ifp == NULL) ||
+		    ((ifp->if_flags & IFF_NOARP) != 0) ||
+		    ((nh->flags & (RTF_SLOWPATH | RTF_LOCAL)) != 0))
+			continue;
+
+		if (nh->flags & RTF_GATEWAY)
+			addr = nh->gateway.address.ip_v4.s_addr;
+		else
+			addr = daddr;
+
+		la = in_lltable_find(ifp, addr);
+
+		/*
+		 * If an entry is present, assume resolution is in
+		 * progress
+		 */
+		if (la != NULL)
+			continue;
+
+		/*
+		 * Create new entry and issue the ARP request
+		 */
+		la = in_lltable_lookup(ifp, LLE_CREATE|LLE_LOCAL, addr);
+		if (la == NULL) {
+			nh->flags |= RTF_NH_NEEDS_HW_RES;
+			continue;
+		}
+
+		ARP_DEBUG("%s/%s new entry (ECMP)\n", ifp->if_name,
+			  inet_ntop(AF_INET, &addr, b1, sizeof(b1)));
+
+		struct sockaddr_in taddr = {
+			.sin_family = AF_INET,
+			.sin_addr.s_addr = addr,
+		};
+
+		m = arprequest(ifp, (struct sockaddr *) &taddr);
+		if (m != NULL)
+			if_output(ifp, m, NULL, RTE_ETHER_TYPE_ARP);
+	}
 }
 
 /* Optimized inline version of arpresolve. */

@@ -12,6 +12,8 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include "route.h"
+
 struct ifnet;
 struct rte_mbuf;
 struct rte_ether_addr;
@@ -24,6 +26,7 @@ int arpresolve(struct ifnet *ifp, struct rte_mbuf *m,
 		      in_addr_t addr, struct rte_ether_addr *desten);
 int arpresolve_fast(struct ifnet *ifp, struct rte_mbuf *m,
 		in_addr_t addr, struct rte_ether_addr *desten);
+void arpresolve_hw_ecmp(struct rte_mbuf *m, const struct next_hop *nh_prime);
 
 struct arp_nbr_cfg {
 	uint32_t arp_aging_time;
