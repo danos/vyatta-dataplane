@@ -428,6 +428,13 @@ vyatta-dataplane (3.13.1) unstable; urgency=medium
 
  -- Srinivas Narayan <narayan@vyatta.att-mail.com>  Tue, 16 Mar 2021 11:27:06 +0000
 
+vyatta-dataplane (3.12.53) unstable; urgency=medium
+
+  [ Daniel Gollub ]
+  * npf_rte_acl: use rte-acl defer-queue
+
+ -- Srinivas Narayan <narayan@vyatta.att-mail.com>  Tue, 18 May 2021 06:40:28 +0100
+
 vyatta-dataplane (3.12.52) unstable; urgency=medium
 
   [ Daniel Gollub ]
