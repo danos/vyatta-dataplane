@@ -335,7 +335,8 @@ static const char *arpstat_names[] = {
 	"duplicate_ip",	"dropped",
 	"timeout",	"proxy",
 	"garp_reqs_dropped", "garp_reps_dropped",
-	"mpool_fail", "mem_fail", "cache_limit"
+	"mpool_fail", "mem_fail", "cache_limit",
+	"total_added", "total_deleted"
 };
 
 static void show_arpstat(json_writer_t *wr, struct vrf *vrf)

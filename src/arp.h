@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2011-2017 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -53,6 +53,9 @@ struct arp_stats {
 	uint64_t mpoolfail;	/* Memory pool limit hit */
 	uint64_t memfail;	/* Out of memory hit */
 	uint64_t tablimit;	/* Cache limit hit */
+
+	uint64_t total_added;	/* total # of valid/static ARP requests added to the table*/
+	uint64_t total_deleted;	/* total # of valid/static ARP requests deleted from the table*/
 };
 
 #define ARPSTAT_ADD(vrf_id, name, val)			\

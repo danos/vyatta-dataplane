@@ -125,8 +125,10 @@ void lladdr_update(struct ifnet *ifp, struct llentry *la,
 
 	rte_spinlock_lock(&la->ll_lock);
 	was_valid = la->la_flags & LLE_VALID;
-	if (!was_valid)
+	if (!was_valid) {
 		flags |= LLE_VALID;
+		ARPSTAT_INC(if_vrfid(ifp), total_added);
+	}
 
 	/* static update can update an existing static entry */
 

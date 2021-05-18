@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2015-2017 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -231,11 +231,12 @@ DP_START_TEST(valid_arp, request_ouraddr_rx_int)
 	dp_test_verify_neigh(IIFNAME, PEER_IP, PEER_MAC, false);
 
 	/*
-	 * 3 (and ONLY 3!) counters should have incrememted.
+	 * 4 (and ONLY 4!) counters should have incrememted.
 	 */
 	DP_TEST_VERIFY_AND_CLEAR_ARP_STAT(IIFNAME, received, 1);
 	DP_TEST_VERIFY_AND_CLEAR_ARP_STAT(IIFNAME, rxrequests, 1);
 	DP_TEST_VERIFY_AND_CLEAR_ARP_STAT(IIFNAME, txreplies, 1);
+	DP_TEST_VERIFY_AND_CLEAR_ARP_STAT(IIFNAME, total_added, 1);
 	dp_test_verify_all_arp_stats_zero(IIFNAME);
 
 	/*
@@ -302,6 +303,7 @@ DP_START_TEST(valid_arp, request_ouraddr_rx_int)
 
 	/* Clean Up */
 	dp_test_neigh_clear_entry(IIFNAME, PEER_IP);
+	DP_TEST_VERIFY_AND_CLEAR_ARP_STAT(IIFNAME, total_deleted, 1);
 
 	dp_test_nl_del_ip_addr_and_connected(IIFNAME, OUR_IP "/24");
 	dp_test_arp_teardown();
@@ -607,6 +609,7 @@ DP_START_TEST(garp, gratuitous_request)
 	DP_TEST_VERIFY_AND_CLEAR_ARP_STAT(IIFNAME, received, 1);
 	DP_TEST_VERIFY_AND_CLEAR_ARP_STAT(IIFNAME, rxrequests, 1);
 	DP_TEST_VERIFY_AND_CLEAR_ARP_STAT(IIFNAME, txreplies, 1);
+	DP_TEST_VERIFY_AND_CLEAR_ARP_STAT(IIFNAME, total_added, 1);
 	dp_test_verify_all_arp_stats_zero(IIFNAME);
 
 	/*
@@ -641,6 +644,7 @@ DP_START_TEST(garp, gratuitous_request)
 			  __FILE__, __func__, __LINE__);
 
 	dp_test_neigh_clear_entry(IIFNAME, PEER_IP);
+	DP_TEST_VERIFY_AND_CLEAR_ARP_STAT(IIFNAME, total_deleted, 1);
 
 	/*
 	 * Now try a gratuitous ARP using a source address which
@@ -696,6 +700,7 @@ DP_START_TEST(garp, gratuitous_reply)
 
 	DP_TEST_VERIFY_AND_CLEAR_ARP_STAT(IIFNAME, received, 1);
 	DP_TEST_VERIFY_AND_CLEAR_ARP_STAT(IIFNAME, rxreplies, 1);
+	DP_TEST_VERIFY_AND_CLEAR_ARP_STAT(IIFNAME, total_added, 1);
 	dp_test_verify_all_arp_stats_zero(IIFNAME);
 
 	/* test GARP drop command on interface */
@@ -703,6 +708,7 @@ DP_START_TEST(garp, gratuitous_reply)
 			  __FILE__, __func__, __LINE__);
 
 	dp_test_neigh_clear_entry(IIFNAME, PEER_IP);
+	DP_TEST_VERIFY_AND_CLEAR_ARP_STAT(IIFNAME, total_deleted, 1);
 
 	/* Clean Up */
 	dp_test_nl_del_ip_addr_and_connected(IIFNAME, "1.1.1.1/24");
@@ -800,11 +806,12 @@ DP_START_TEST(bridge_arp, eth_port)
 	dp_test_verify_neigh(bname, PEER_IP, PEER_MAC, false);
 
 	/*
-	 * 3 (and ONLY 3!) counters should have incrememted.
+	 * 4 (and ONLY 4!) counters should have incrememted.
 	 */
 	DP_TEST_VERIFY_AND_CLEAR_ARP_STAT(bname, received, 1);
 	DP_TEST_VERIFY_AND_CLEAR_ARP_STAT(bname, rxrequests, 1);
 	DP_TEST_VERIFY_AND_CLEAR_ARP_STAT(bname, txreplies, 1);
+	DP_TEST_VERIFY_AND_CLEAR_ARP_STAT(bname, total_added, 1);
 	dp_test_verify_all_arp_stats_zero(bname);
 
 	/*
@@ -872,6 +879,7 @@ DP_START_TEST(bridge_arp, eth_port)
 
 	/* Clean Up */
 	dp_test_neigh_clear_entry(bname, PEER_IP);
+	DP_TEST_VERIFY_AND_CLEAR_ARP_STAT(bname, total_deleted, 1);
 
 	dp_test_nl_del_ip_addr_and_connected(bname, OUR_IP "/24");
 
@@ -932,15 +940,17 @@ DP_START_TEST(l3_arp_vlan, l3_arp_vlan)
 	dp_test_verify_neigh(l3_vif_intf, PEER_IP, PEER_MAC, false);
 
 	/*
-	 * 3 (and ONLY 3!) counters should have incremented.
+	 * 4 (and ONLY 4!) counters should have incremented.
 	 */
 	DP_TEST_VERIFY_AND_CLEAR_ARP_STAT(l3_vif_intf, received, 1);
 	DP_TEST_VERIFY_AND_CLEAR_ARP_STAT(l3_vif_intf, rxrequests, 1);
 	DP_TEST_VERIFY_AND_CLEAR_ARP_STAT(l3_vif_intf, txreplies, 1);
+	DP_TEST_VERIFY_AND_CLEAR_ARP_STAT(l3_vif_intf, total_added, 1);
 	dp_test_verify_all_arp_stats_zero(l3_vif_intf);
 
 	/* Clean Up */
 	dp_test_neigh_clear_entry(l3_vif_intf, PEER_IP);
+	DP_TEST_VERIFY_AND_CLEAR_ARP_STAT(l3_vif_intf, total_deleted, 1);
 
 	dp_test_nl_del_ip_addr_and_connected(l3_vif_intf, OUR_IP "/24");
 
@@ -1005,11 +1015,12 @@ DP_START_TEST(l3_arp_vlan, l3_arp_vlan_proto)
 	dp_test_verify_neigh(l3_vif_intf, PEER_IP, PEER_MAC, false);
 
 	/*
-	 * 3 (and ONLY 3!) counters should have incremented.
+	 * 4 (and ONLY 4!) counters should have incremented.
 	 */
 	DP_TEST_VERIFY_AND_CLEAR_ARP_STAT(l3_vif_intf, received, 1);
 	DP_TEST_VERIFY_AND_CLEAR_ARP_STAT(l3_vif_intf, rxrequests, 1);
 	DP_TEST_VERIFY_AND_CLEAR_ARP_STAT(l3_vif_intf, txreplies, 1);
+	DP_TEST_VERIFY_AND_CLEAR_ARP_STAT(l3_vif_intf, total_added, 1);
 	dp_test_verify_all_arp_stats_zero(l3_vif_intf);
 
 	/*
@@ -1034,6 +1045,7 @@ DP_START_TEST(l3_arp_vlan, l3_arp_vlan_proto)
 
 	/* Clean Up */
 	dp_test_neigh_clear_entry(l3_vif_intf, PEER_IP);
+	DP_TEST_VERIFY_AND_CLEAR_ARP_STAT(l3_vif_intf, total_deleted, 1);
 
 	dp_test_nl_del_ip_addr_and_connected(l3_vif_intf, OUR_IP "/24");
 
@@ -1147,6 +1159,7 @@ DP_START_TEST(arp_macvlan, reply_dp_parent)
 	DP_TEST_VERIFY_AND_CLEAR_ARP_STAT(l3_macvlan_intf, received, 1);
 	DP_TEST_VERIFY_AND_CLEAR_ARP_STAT(l3_macvlan_intf, rxrequests, 1);
 	DP_TEST_VERIFY_AND_CLEAR_ARP_STAT(l3_macvlan_intf, txreplies, 1);
+	DP_TEST_VERIFY_AND_CLEAR_ARP_STAT(l3_macvlan_intf, total_added, 1);
 	dp_test_verify_all_arp_stats_zero(l3_macvlan_intf);
 
 	/*
@@ -1175,6 +1188,7 @@ DP_START_TEST(arp_macvlan, reply_dp_parent)
 
 	/* Clean Up */
 	dp_test_neigh_clear_entry(l3_macvlan_intf, PEER_IP);
+	DP_TEST_VERIFY_AND_CLEAR_ARP_STAT(l3_macvlan_intf, total_deleted, 1);
 
 	dp_test_netlink_del_ip_address(l3_macvlan_intf, OUR_IP "/24");
 	dp_test_nl_del_ip_addr_and_connected(l3_intf, "1.1.1.99/24");
@@ -1261,10 +1275,12 @@ DP_START_TEST(arp_macvlan, req_dp_parent)
 	DP_TEST_VERIFY_AND_CLEAR_ARP_STAT(l3_macvlan_intf, received, 1);
 	DP_TEST_VERIFY_AND_CLEAR_ARP_STAT(l3_macvlan_intf, txrequests, 1);
 	DP_TEST_VERIFY_AND_CLEAR_ARP_STAT(l3_macvlan_intf, rxreplies, 1);
+	DP_TEST_VERIFY_AND_CLEAR_ARP_STAT(l3_macvlan_intf, total_added, 1);
 	dp_test_verify_all_arp_stats_zero(l3_macvlan_intf);
 
 	/* Clean Up */
 	dp_test_neigh_clear_entry(l3_macvlan_intf, PEER_IP);
+	DP_TEST_VERIFY_AND_CLEAR_ARP_STAT(l3_macvlan_intf, total_deleted, 1);
 
 	dp_test_nl_del_ip_addr_and_connected(l3_macvlan_intf, OUR_IP "/24");
 	dp_test_nl_del_ip_addr_and_connected(l3_intf, "2.1.1.99/24");
@@ -1329,15 +1345,17 @@ DP_START_TEST(bridge_arp_vlan, vlan_port)
 	dp_test_verify_neigh(bname, PEER_IP, PEER_MAC, false);
 
 	/*
-	 * 3 (and ONLY 3!) counters should have incrememted.
+	 * 4 (and ONLY 4!) counters should have incrememted.
 	 */
 	DP_TEST_VERIFY_AND_CLEAR_ARP_STAT(bname, received, 1);
 	DP_TEST_VERIFY_AND_CLEAR_ARP_STAT(bname, rxrequests, 1);
 	DP_TEST_VERIFY_AND_CLEAR_ARP_STAT(bname, txreplies, 1);
+	DP_TEST_VERIFY_AND_CLEAR_ARP_STAT(bname, total_added, 1);
 	dp_test_verify_all_arp_stats_zero(bname);
 
 	/* Clean Up */
 	dp_test_neigh_clear_entry(bname, PEER_IP);
+	DP_TEST_VERIFY_AND_CLEAR_ARP_STAT(bname, total_deleted, 1);
 
 	dp_test_nl_del_ip_addr_and_connected(bname, OUR_IP "/24");
 

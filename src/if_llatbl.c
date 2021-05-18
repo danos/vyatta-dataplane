@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2004 Luigi Rizzo, Alessandro Cerri. All rights reserved.
  * Copyright (c) 2004-2008 Qing Li. All rights reserved.
  * Copyright (c) 2008 Kip Macy. All rights reserved.
@@ -174,6 +174,11 @@ unsigned
 llentry_destroy(struct lltable *llt, struct llentry *lle)
 {
 	unsigned int dropped = lle->la_numheld;
+
+	if (lle->la_flags & LLE_VALID) {
+		if (lle->ll_sock.ss_family == AF_INET)
+			ARPSTAT_INC(if_vrfid(llt->llt_ifp), total_deleted);
+	}
 
 	lle->la_flags |= LLE_DELETED;
 
