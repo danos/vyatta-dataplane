@@ -80,6 +80,8 @@ struct npf_match_ctx_trie {
 	uint16_t              flags;
 	enum trie_state       trie_state;
 	struct rte_acl_ctx   *acl_ctx;
+	bool                  rules_deleted;
+	struct rcu_head       npr_rcu;
 };
 
 #define MAX_TRANSACTION_ENTRIES 512
@@ -104,6 +106,7 @@ struct npf_match_ctx {
 	struct trans_entry   *tr;
 	uint32_t              tr_num_entries;
 	bool                  tr_in_progress;
+	rte_spinlock_t        merge_lock;
 };
 
 enum rule_op {
@@ -1049,6 +1052,9 @@ int npf_rte_acl_del_rule(int af, npf_match_ctx_t *m_ctx, uint32_t rule_no,
 	}
 
 	err = -ENOENT;
+
+	rte_spinlock_lock(&m_ctx->merge_lock);
+
 	cds_list_for_each_safe(list_entry, next, &m_ctx->trie_list) {
 		m_trie = cds_list_entry(list_entry, struct npf_match_ctx_trie,
 					trie_link);
@@ -1078,6 +1084,8 @@ int npf_rte_acl_del_rule(int af, npf_match_ctx_t *m_ctx, uint32_t rule_no,
 			break;
 		}
 	}
+
+	rte_spinlock_unlock(&m_ctx->merge_lock);
 
 	/* record a transaction entry only upon successful deletion */
 	if (!err)
@@ -1270,7 +1278,6 @@ npf_rte_acl_trie_destroy(int af, struct npf_match_ctx_trie *m_trie)
 		rte_acl_free(m_trie->acl_ctx);
 		free(m_trie->trie_name);
 	}
-
 	return 0;
 }
 
@@ -1452,8 +1459,113 @@ void npf_rte_acl_dump(npf_match_ctx_t *ctx, json_writer_t *wr)
 	jsonw_end_object(wr);
 }
 
-static void npf_rte_acl_optimize_ctx(npf_match_ctx_t *ctx __rte_unused)
+
+/*
+ * Small tries are created in the main thread in order to enable a high tunnel
+ * setup rate. However, keeping a long list of tries permanently can harm
+ * forwarding performance. So they are examined and consolidated in a background
+ * merge thread.
+
+ * In order to minimize contention between the merge thread and the main thread,
+ * and to ensure that the main thread does not stay locked for any extended
+ * period, the following technique is used. The main thread acquires a lock only
+ * during deletion of an entry from a trie. The merge thread acquires the same
+ * lock only to cache the rule counts in the tries being merged and finally at
+ * the time of replacing the tries being merged with the consolidated trie. If
+ * rules have been deleted from any of the tries being merged while the
+ * consolidated trie is being built, the consolidation is restarted
+ */
+
+/* limit number of rules in consolidated tries to 32K for optimal build time */
+#define NPR_TRIE_MAX_RULES (1 << 15)
+
+static void
+npf_rte_acl_select_candidate_tries(struct npf_match_ctx_trie *merge_start __rte_unused,
+				   uint16_t *num_tries __rte_unused,
+				   uint16_t *num_rules __rte_unused)
 {
+	/* merge_start - first trie to be merged
+	 * num_tries - number of tries to be merged
+	 * num_rules - total number of rules in new merged trie
+	 */
+}
+
+static int
+npf_rte_acl_copy_rules(struct npf_match_ctx_trie *merge_start __rte_unused,
+		       uint16_t num_tries __rte_unused,
+		       struct npf_match_ctx_trie *dst_trie __rte_unused)
+{
+	return 0;
+}
+
+static void
+npf_rte_acl_delete_merged_tries(struct npf_match_ctx_trie *merge_start,
+				uint16_t num_tries)
+{
+	struct cds_list_head *list_entry, *next;
+	uint16_t i = 0;
+
+	cds_list_for_each_safe(list_entry, next, &merge_start->trie_link) {
+		cds_list_del(list_entry);
+		if (++i == num_tries)
+			break;
+	}
+}
+
+static void npf_rte_acl_optimize_ctx(npf_match_ctx_t *ctx)
+{
+	struct cds_list_head *list_entry, *next;
+	struct npf_match_ctx_trie *m_trie, *merge_start = NULL,
+				  *new_trie = NULL;
+	uint16_t merge_trie_cnt = 0, merge_rule_cnt;
+
+	/* complete one full iteration over the list */
+	/* find first frozen trie */
+	cds_list_for_each_safe(list_entry, next, &ctx->trie_list) {
+		m_trie = cds_list_entry(list_entry, struct npf_match_ctx_trie,
+					trie_link);
+
+		if (m_trie->trie_state == TRIE_STATE_FROZEN) {
+			merge_start = m_trie;
+			break;
+		}
+	}
+
+	/* acquire merge lock */
+	rte_spinlock_lock(&ctx->merge_lock);
+
+	npf_rte_acl_select_candidate_tries(merge_start, &merge_trie_cnt,
+					   &merge_rule_cnt);
+	if (merge_trie_cnt <= 1) {
+		rte_spinlock_unlock(&ctx->merge_lock);
+		return;
+	}
+
+	/* allocate new trie */
+	npf_rte_acl_create_trie(ctx->af, merge_rule_cnt, &new_trie);
+
+	/* copy rules to new trie */
+	npf_rte_acl_copy_rules(merge_start, merge_trie_cnt, new_trie);
+
+	/* release merge lock */
+	rte_spinlock_unlock(&ctx->merge_lock);
+
+	/* build new trie */
+
+	/* acquire merge lock */
+	rte_spinlock_lock(&ctx->merge_lock);
+
+	/* delete rules in pending list */
+
+	/* rebuild trie */
+
+	/* insert new trie */
+
+	/* delete candidate tries */
+	npf_rte_acl_delete_merged_tries(merge_start, merge_trie_cnt);
+
+	/* release merge lock */
+	rte_spinlock_unlock(&ctx->merge_lock);
 }
 
 #define NPF_RTE_ACL_MERGE_INTERVAL 5
