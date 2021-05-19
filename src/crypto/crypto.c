@@ -1287,12 +1287,11 @@ static bool crypto_pmd_walk_cb(int pmd_dev_id __unused, enum crypto_xfrm xfrm,
 	struct crypto_pkt_ctx *contexts[MAX_CRYPTO_PKT_BURST];
 	unsigned int count, total_bytes = 0;
 
-	if (!rte_ring_empty(pmd_queue)) {
-		count = rte_ring_sc_dequeue_burst(pmd_queue,
-						  (void **)&contexts,
-						  MAX_CRYPTO_PKT_BURST,
-						  NULL);
-
+	count = rte_ring_sc_dequeue_burst(pmd_queue,
+					  (void **)&contexts,
+					  MAX_CRYPTO_PKT_BURST,
+					  NULL);
+	if (count > 0) {
 		total_bytes = crypto_pmd_process_packets(contexts, count, xfrm);
 
 		crypto_cb[xfrm].post_process(contexts, count);
