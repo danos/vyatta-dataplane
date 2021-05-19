@@ -1,3 +1,39 @@
+vyatta-dataplane (3.13.18) unstable; urgency=medium
+
+  [ Ian Wilson ]
+  * alg: Move ALG session data to alg_session.h
+  * alg: Add consistency to specific ALG flag defines
+  * alg: RPC alg is unnecessarily parsing rpc data flow packets
+  * alg: Move alg npf session accessors into alg_session.c
+  * alg: Move freeing of ALG session data to one function
+  * alg: Add functions to test if a session is an ALG cntl or data session
+  * alg: Simplify npf_alg_nat_inspect by using ALG_MASK_CNTL_FLOW
+  * alg: Delete individual ALG tests for a control session
+  * alg: Change rpc to use ALG session data union
+  * alg: Change sip to use ALG session data union
+  * alg: Remove ftp alg session destroy function
+  * alg: Remove sa_private and accessor functions
+  * alg: Rename one-time constructor function
+  * alg: Remove const from struct npf_alg
+  * alg: Move sip_private to a union in npf_alg
+  * alg: Move rpc_private to a union in npf_alg
+  * alg: Remove na_private from struct npf_alg
+
+  [ Charles (Chas) Williams ]
+  * meson: name changes for poll mode drivers (Bugfix: VRVDR-54129)
+  * tests: stop using deprecated constants (Bugfix: VRVDR-54129)
+  * tests: sw_port: update for API changes (Bugfix: VRVDR-54129)
+  * capture: convert to new mbuf dynfield API (Bugfix: VRVDR-54129)
+  * dpdk_eth_if: fix missing header file (Bugfix: VRVDR-54129)
+  * crypto: fix missing enumeration flags (Bugfix: VRVDR-54129)
+  * hotplug: fix internal API warnings (Bugfix: VRVDR-54129)
+  * pktmbuf: use mbuf dynfield instead of udata64 (Bugfix: VRVDR-54129)
+  * debian: depend on a later version of DPDK (Bugfix: VRVDR-54129)
+  * crypto: add hot marking and unroll loop (Bugfix: VRVDR-54129)
+  * crypto: rte_ring_sc_dequeue_burst can return 0 (Bugfix: VRVDR-54129)
+
+ -- Srinivas Narayan <narayan@vyatta.att-mail.com>  Wed, 19 May 2021 16:16:16 +0100
+
 vyatta-dataplane (3.13.17) unstable; urgency=medium
 
   [ Daniel Gollub ]
