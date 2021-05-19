@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2020, AT&T Intellectual Property. All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property. All rights reserved.
  * Copyright (c) 2011-2017 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -265,8 +265,10 @@ static unsigned int shadow_io_burst(struct shadow_if_info *sii)
 				      SHADOW_IO_RING_BURST,
 				      NULL);
 
-	for (i = 0; i < n; i++)
+	for (i = 0; i < n; i++) {
+		/* NOLINTNEXTLINE(clang-analyzer-core.CallAndMessage) */
 		shadow_io_write(sii, s_pkts[i]);
+	}
 
 	return n;
 }
