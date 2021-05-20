@@ -158,8 +158,6 @@ llentry_fal_destroy(struct lltable *llt, struct llentry *lle)
 void
 __llentry_destroy(struct lltable *llt, struct llentry *lle)
 {
-	llentry_routing_uninstall(lle);
-
 	llentry_fal_destroy(llt, lle);
 
 	cds_lfht_del(llt->llt_hash, &lle->ll_node);
