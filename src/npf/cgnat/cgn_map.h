@@ -45,6 +45,9 @@ struct cgn_map {
 	struct cgn_source *cmi_src;	/* Subscriber struct */
 };
 
+/* Transfer cgn_map to a different structure (used by ALGs) */
+void cgn_map_transfer(struct cgn_map *dst, struct cgn_map *src);
+
 /*
  * Addresses are in network byte-order.  proto is of type enum npf_proto_idx.
  */

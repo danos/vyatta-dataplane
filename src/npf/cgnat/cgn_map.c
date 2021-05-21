@@ -506,6 +506,22 @@ cgn_alloc_addr_and_block_2(struct apm *apm, struct nat_pool *np,
 }
 
 /*
+ * Copy mapping and transfer reservation control
+ *
+ * Used by ALGs, where a mapping may be stored for a period of time in a
+ * pinhole structure, or in an ALGs internal state.
+ */
+void cgn_map_transfer(struct cgn_map *dst, struct cgn_map *src)
+{
+	assert(src->cmi_reserved);
+
+	if (src->cmi_reserved) {
+		memcpy(dst, src, sizeof(*dst));
+		src->cmi_reserved = false;
+	}
+}
+
+/*
  * Allocate an address and port from the apm module.
  *
  * Inputs:
