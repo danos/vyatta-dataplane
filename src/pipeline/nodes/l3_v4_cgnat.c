@@ -243,11 +243,29 @@ cgn_translate_at(struct cgn_packet *cpk, struct cgn_session *cse,
 	/* Re-write address */
 	cgn_rwrip(l3_ptr, (dir == CGN_DIR_OUT), taddr);
 
-	/* Re-write l4 port or ICMP id */
+	/*
+	 * Re-write l4 port, ICMP ID or eGRE/GREv1
+	 */
 	if (likely(cpk->cpk_l4ports))
+		/* TCP, UDP etc */
 		cgn_rwrport(l4_ptr, (dir == CGN_DIR_OUT), tport);
+
 	else if ((cpk->cpk_info & CPK_ICMP_ECHO) != 0)
+		/* ICMP */
 		cgn_rwricmpid(l4_ptr, tport);
+
+	else if ((cpk->cpk_info & CPK_GRE) != 0) {
+		/*
+		 * GRE (PPTP)
+		 * Only translate call ID in inbound pkts
+		 */
+		if (dir == CGN_DIR_IN) {
+			tport = cgn_alg_pptp_orig_call_id(cse, cpk);
+			assert(tport != 0);
+
+			cgn_write_pptp_call_id(l4_ptr, tport);
+		}
+	}
 
 	/* Rewrite IP checksum and (possibly) the transport checksums */
 	uint16_t l3_chk_delta, l4_chk_delta;

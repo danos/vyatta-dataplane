@@ -118,6 +118,24 @@ enum cgn_alg_id cgn_alg_get_id(struct cgn_alg_sess_ctx *as);
 enum cgn_alg_id cgn_alg_name2id(const char *name);
 
 /**
+ * Get the PPTP Call ID of the inside client
+ *
+ * In order to translate inbound GRE packets we need to retrieve the Call ID
+ * of the inside client.
+ *
+ * If we have just matched an ALG PPTP pinhole then the child GRE session will
+ * not exist yet so we need get it from the parent PPTP session context.  For
+ * established GRE session the Call ID is cached in the PPTP specific session
+ * context (aps_orig_call_id)
+ *
+ * @param cse Pointer to main (3-tuple) session
+ * @param cpk Pointer to CGNAT packet cache
+ * @return Call ID
+ */
+uint16_t cgn_alg_pptp_orig_call_id(struct cgn_session *cse,
+				   struct cgn_packet *cpk);
+
+/**
  * Write the ALG specific json for a CGNAT ALG session
  */
 void cgn_alg_show_session(struct json_writer *json, struct cgn_sess_fltr *fltr,

@@ -293,6 +293,15 @@ static inline void cgn_rwricmpid(char *l4_ptr, uint16_t new_id)
 	*(uint16_t *)l4_ptr = new_id;
 }
 
+/*
+ * Extended GRE Call ID
+ */
+static inline void cgn_write_pptp_call_id(char *l4_ptr, uint16_t new_id)
+{
+	l4_ptr += offsetof(struct egre, egre_call_id);
+	*(uint16_t *)l4_ptr = new_id;
+}
+
 int cgn_cache_all(struct rte_mbuf *m, uint l3_offset, struct ifnet *ifp,
 		  enum cgn_dir dir, struct cgn_packet *cpk, bool icmp_err);
 

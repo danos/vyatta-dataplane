@@ -415,6 +415,38 @@ int cgn_alg_pptp_inspect(struct cgn_packet *cpk, struct rte_mbuf *mbuf,
 }
 
 /*
+ * Called when inbound GRE packets are rcvd in order to determine the client
+ * inside Call ID.  We need to handle two scenarios:
+ *
+ * 1. The GRE s2 session has already been setup, or
+ * 2. This is the first GRE packet in the data flow
+ *
+ * For the latter we need to get the client inside Call ID from the parent
+ * session attached to the pinhole that has just been matched.
+ */
+uint16_t cgn_alg_pptp_orig_call_id(struct cgn_session *cse,
+				   struct cgn_packet *cpk)
+{
+	struct cgn_alg_pptp_session *aps = NULL;
+	struct cgn_alg_sess_ctx *as = NULL;
+
+	if (!cse && cpk->cpk_alg_pinhole)
+		/* Get call ID from parent session */
+		cse = alg_pinhole_cse(cpk->cpk_alg_pinhole);
+
+	if (!cse)
+		return 0;
+
+	as = cgn_session_alg_get(cse);
+	if (!as)
+		return 0;
+
+	aps = caa_container_of(as, struct cgn_alg_pptp_session, aps_as);
+
+	return aps->aps_orig_call_id;
+}
+
+/*
  * A PPTP pinhole table entry has been matched.
  *
  * Populate the passed-in cgn_map struct so that cgnat has all it needs to
