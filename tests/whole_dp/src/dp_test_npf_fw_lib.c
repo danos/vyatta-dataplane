@@ -739,3 +739,125 @@ _dpt_icmp(uint8_t icmp_type,
 	_dp_test_pak_receive(test_pak, rx_intf, test_exp,
 			     file, func, line);
 }
+
+#define ETHER_TYPE_PPP	0x880b
+
+/* Enhanced GRE header (rfc2637) */
+struct gre_enhcd {
+	uint16_t	recur:3;
+	uint16_t	s_flag:1;
+	uint16_t	S_flag:1;
+	uint16_t	K_flag:1;	/* 'key' is payload_len and call_id */
+	uint16_t	R_flag:1;
+	uint16_t	C_flag:1;
+	uint16_t	ver:3;		/* Must be 1. Enhanced GRE */
+	uint16_t	flags:4;
+	uint16_t	A_flag:1;
+	uint16_t	protocol;
+	uint16_t	payload_len;
+	uint16_t	call_id;
+
+	/*
+	 * Optional:
+	 * uint32_t seq_number
+	 * uint32_t ack_number
+	 */
+	uint8_t		opt[0];
+} __attribute__((__packed__));
+
+/*
+ * dpt_gre
+ */
+void
+_dpt_gre(const char *rx_intf, const char *pre_smac,
+	 const char *pre_saddr, uint16_t pre_call_id,
+	 const char *pre_daddr,
+	 const char *post_saddr, uint16_t post_call_id,
+	 const char *post_daddr,
+	 const char *post_dmac, const char *tx_intf,
+	 int status, char *payload, uint plen,
+	 const char *file, const char *func, int line)
+{
+	struct dp_test_expected *test_exp;
+	struct rte_mbuf *test_pak, *exp_pak;
+
+	/* Length of IP payload */
+	uint ip_plen = sizeof(struct gre_enhcd) + plen;
+
+	/* dp_test_v4_pkt_from_desc adds 4 for a basic GRE header */
+	uint pkt_desc_len = ip_plen - 4;
+
+	/* Pre IPv4 GRE packet */
+	struct dp_test_pkt_desc_t pre_pkt_GRE = {
+		.text       = "IPv4 GRE",
+		.len        = pkt_desc_len,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
+		.l3_src     = pre_saddr,
+		.l2_src     = pre_smac,
+		.l3_dst     = pre_daddr,
+		.l2_dst     = "aa:bb:cc:dd:2:b1",
+		.proto      = IPPROTO_GRE,
+		.rx_intf    = rx_intf,
+		.tx_intf    = tx_intf
+	};
+
+	/* Post IPv4 GRE packet */
+	struct dp_test_pkt_desc_t post_pkt_GRE = {
+		.text       = "Packet A, IPv4 GRE",
+		.len        = pkt_desc_len,
+		.ether_type = RTE_ETHER_TYPE_IPV4,
+		.l3_src     = post_saddr,
+		.l2_src     = "aa:bb:cc:dd:2:b1",
+		.l3_dst     = post_daddr,
+		.l2_dst     = post_dmac,
+		.proto      = IPPROTO_GRE,
+		.rx_intf    = rx_intf,
+		.tx_intf    = tx_intf
+	};
+
+	struct gre_enhcd pre_gre = {
+		.K_flag      = 1,	/* 'key' is payload_len and call_id */
+		.ver         = 1,	/* Enhanced GRE */
+		.protocol    = htons(ETHER_TYPE_PPP),
+		.payload_len = htons(plen),
+		.call_id     = htons(pre_call_id),
+	};
+
+	struct gre_enhcd post_gre = {
+		.K_flag      = 1,
+		.ver         = 1,	/* Enhanced GRE */
+		.protocol    = htons(ETHER_TYPE_PPP),
+		.payload_len = htons(plen),
+		.call_id     = htons(post_call_id),
+	};
+
+	uint32_t poff;
+
+	test_pak = dp_test_v4_pkt_from_desc(&pre_pkt_GRE);
+
+	poff = test_pak->l2_len + test_pak->l3_len;
+	dp_test_pktmbuf_payload_init(test_pak, poff, (char *)&pre_gre,
+				     sizeof(struct gre_enhcd));
+	poff += sizeof(struct gre_enhcd);
+
+	if (plen && payload)
+		dp_test_pktmbuf_payload_init(test_pak, poff, payload, plen);
+
+	exp_pak = dp_test_v4_pkt_from_desc(&post_pkt_GRE);
+
+	poff = exp_pak->l2_len + exp_pak->l3_len;
+	dp_test_pktmbuf_payload_init(exp_pak, poff, (char *)&post_gre,
+				     sizeof(struct gre_enhcd));
+	poff += sizeof(struct gre_enhcd);
+
+	if (plen && payload)
+		dp_test_pktmbuf_payload_init(exp_pak, poff, payload, plen);
+
+	test_exp = dp_test_exp_from_desc(exp_pak, &post_pkt_GRE);
+	rte_pktmbuf_free(exp_pak);
+
+	dp_test_exp_set_fwd_status(test_exp, status);
+
+	_dp_test_pak_receive(test_pak, rx_intf, test_exp,
+			     file, func, line);
+}

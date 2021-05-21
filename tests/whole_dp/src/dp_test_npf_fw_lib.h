@@ -302,4 +302,25 @@ _dpt_icmp(uint8_t icmp_type,
 		  _h, _i, _j, _k, _l, 0, 0,				\
 		  __FILE__, __func__, __LINE__)
 
+/*
+ * Enhanced GRE packet (eth:ip:gre:?).   Used for PPTP.
+ *
+ * payload is the optional payload to add after the enhanced GRE header
+ */
+void
+_dpt_gre(const char *rx_intf, const char *pre_smac,
+	 const char *pre_saddr, uint16_t pre_call_id,
+	 const char *pre_daddr,
+	 const char *post_saddr, uint16_t post_call_id,
+	 const char *post_daddr,
+	 const char *post_dmac, const char *tx_intf,
+	 int status, char *payload, uint plen,
+	 const char *file, const char *func, int line);
+
+#define dpt_gre(_a, _b, _c, _d, _e, _f, _g, _h,				\
+		_i, _j, _k, _l, _m)					\
+	_dpt_gre(_a, _b, _c, _d, _e, _f, _g,				\
+		 _h, _i, _j, _k, _l, _m,				\
+		 __FILE__, __func__, __LINE__)
+
 #endif
