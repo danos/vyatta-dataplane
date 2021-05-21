@@ -479,7 +479,7 @@ void sip_flush_session_request(struct npf_session *se)
 	struct sip_alg_request *sr;
 	struct cds_lfht_iter iter;
 
-	if (!ss || !sp)
+	if (!ss || !sp || !sp->sp_ht)
 		return;
 
 	cds_lfht_for_each_entry(sp->sp_ht, &iter, sr, sr_node)
