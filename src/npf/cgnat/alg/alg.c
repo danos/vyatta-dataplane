@@ -21,6 +21,7 @@
 #include "npf/cgnat/alg/alg_public.h"
 #include "npf/cgnat/alg/alg_session.h"
 #include "npf/cgnat/alg/alg_pinhole.h"
+#include "npf/cgnat/alg/alg_pptp.h"
 #include "npf/cgnat/alg/alg_rc.h"
 
 /*
@@ -234,6 +235,7 @@ int cgn_alg_inspect(struct cgn_session *cse, struct cgn_packet *cpk,
 			break;
 
 		case CGN_ALG_PPTP:
+			rc = cgn_alg_pptp_inspect(cpk, mbuf, dir, as);
 			break;
 
 		case CGN_ALG_SIP:

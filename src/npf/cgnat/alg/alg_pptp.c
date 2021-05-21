@@ -73,6 +73,346 @@ static_assert(offsetof(struct cgn_alg_pptp_session, aps_as) == 0,
 #define aps_proto	aps_as.as_proto
 #define aps_min_payload	aps_as.as_min_payload
 
+#define PPTP_PINHOLE_TIMEOUT 10
+
+
+enum pptp_msg {
+	PPTP_MSG_CTRL = 1,
+	PPTP_MSG_MGMT = 2,
+};
+
+enum pptp_ctrl {
+	/* Control Connection Management */
+	PPTP_START_CTRL_CONN_REQ = 1,
+	PPTP_START_CTRL_CONN_REPLY = 2,
+	PPTP_STOP_CTRL_CONN_REQ = 3,
+	PPTP_STOP_CTRL_CONN_REPLY = 4,
+	PPTP_ECHO_REQ = 5,
+	PPTP_ECHO_REPLY = 6,
+
+	/* Call Management */
+	PPTP_OUT_CALL_REQ = 7,
+	PPTP_OUT_CALL_REPLY = 8,
+	PPTP_IN_CALL_REQ = 9,
+	PPTP_IN_CALL_REPLY = 10,
+	PPTP_IN_CALL_CONND = 11,
+	PPTP_CALL_CLEAR_REQ = 12,
+	PPTP_CALL_DISCONN_NOTIFY = 13,
+
+	/* Error Reporting */
+	PPTP_WAN_ERROR_NOTIFY = 14,
+
+	/* PPP Session Control */
+	PPTP_SET_LINK_INFO = 15,
+};
+
+/* Enum to bit */
+#define PPTP_CTRL_MSG_BIT(pc)	(1 << ((pc) - 1))
+
+/* These ctrl msgs require outbound payload translation */
+#define PPTP_MSG_CALL_ID						\
+	(PPTP_CTRL_MSG_BIT(PPTP_OUT_CALL_REQ) |				\
+	 PPTP_CTRL_MSG_BIT(PPTP_OUT_CALL_REPLY) |			\
+	 PPTP_CTRL_MSG_BIT(PPTP_IN_CALL_REQ) |				\
+	 PPTP_CTRL_MSG_BIT(PPTP_IN_CALL_REPLY) |			\
+	 PPTP_CTRL_MSG_BIT(PPTP_IN_CALL_CONND) |			\
+	 PPTP_CTRL_MSG_BIT(PPTP_CALL_CLEAR_REQ) |			\
+	 PPTP_CTRL_MSG_BIT(PPTP_CALL_DISCONN_NOTIFY) |			\
+	 PPTP_CTRL_MSG_BIT(PPTP_WAN_ERROR_NOTIFY))
+
+#define PPTP_MSG_HAS_CALL_ID(pc) (PPTP_CTRL_MSG_BIT(pc) & PPTP_MSG_CALL_ID)
+
+/* These ctrl msgs require inbound payload translation */
+#define PPTP_MSG_PEER_CALL_ID					\
+	(PPTP_CTRL_MSG_BIT(PPTP_OUT_CALL_REPLY) |		\
+	 PPTP_CTRL_MSG_BIT(PPTP_IN_CALL_REPLY))
+
+#define PPTP_MSG_HAS_PEER_CALL_ID(pc)			\
+	(PPTP_CTRL_MSG_BIT(pc) & PPTP_MSG_PEER_CALL_ID)
+
+#define PPTP_MAGIC_COOKIE	0x1A2B3C4D
+
+/*
+ * PPTP Packet Header
+ *
+ * Each PPTP Control Connection message begins with an 8 octet fixed header
+ * portion
+ */
+struct pptp {
+	uint16_t	pptp_length;
+	uint16_t	pptp_type;
+	uint32_t	pptp_magic_cookie;
+};
+
+/*
+ * PPTP Packet Header
+ *
+ * All the Call Management messages (7-13) and the WAN Error msg (14) have the
+ * Call ID in the same location.
+ *
+ * The peer Call ID field is only in PPTP_OUT_CALL_REPLY (8) and
+ * PPTP_IN_CALL_REPLY (10) messages.
+ */
+struct pptp_call_mgmt {
+	uint16_t	pptp_length;
+	uint16_t	pptp_type;
+	uint32_t	pptp_magic_cookie;
+	uint16_t	pptp_ctrl_type;
+	uint16_t	pptp_reserved0;
+	uint16_t	pptp_call_id;
+	uint16_t	pptp_peer_call_id;
+};
+
+
+/*
+ * PPTP_OUT_CALL_REQ.  Get CGNAT mapping, and store in session ctx.
+ */
+static int
+cgn_pptp_inspect_out_call_req(struct cgn_alg_pptp_session *aps,
+			      struct pptp_call_mgmt *pptp_call)
+{
+	struct cgn_alg_sess_ctx *as = &aps->aps_as;
+	struct cgn_policy *cp;
+	int rc;
+
+	assert(aps);
+	assert(as->as_cse);
+	/*
+	 * This mapping is for GRE PPTP, whereas the parent session is TCP.
+	 * GRE PPTP ports are allocated from the NAT_PROTO_OTHER space (along
+	 * with ICMP, SCCP etc.).
+	 *
+	 * cmi_oid is set to the server call ID when the PPTP_OUT_CALL_REPLY
+	 * msg from the server is seen.
+	 */
+	struct cgn_map *cmi = &aps->aps_cmi;
+
+	cmi->cmi_proto = NAT_PROTO_OTHER;
+	cmi->cmi_oaddr = cgn_session_forw_addr(as->as_cse);
+
+	assert(aps->aps_orig_call_id == 0);
+
+	/* Save inside Call ID to the parent session */
+	aps->aps_orig_call_id = pptp_call->pptp_call_id;
+
+	/* Get the CGNAT policy from the session */
+	cp = cgn_policy_from_cse(aps->aps_cse);
+
+	/* Get a new mapping */
+	rc = cgn_map_get(cmi, cp, as->as_vrfid);
+
+	if (rc < 0)
+		return -ALG_ERR_PPTP_MAP;
+
+	/* Store trans Call ID for subsequent use by cgn_pptp_translate */
+	aps->aps_trans_call_id = cmi->cmi_tid;
+
+	/*
+	 * Pinhole is not created until the out-call-reply has been seen.
+	 * However we need the mapping now to translate the Call ID in the
+	 * PPTP header.
+	 */
+
+	return 0;
+}
+
+/*
+ * PPTP_OUT_CALL_REPLY.  Create forw and back pinholes.  Fetch CGNAT mapping
+ * from session ctx, and store in a forw pinhole.
+ */
+static int
+cgn_pptp_inspect_out_call_reply(struct cgn_packet *cpk,
+				struct cgn_alg_pptp_session *aps,
+				struct pptp_call_mgmt *pptp_call)
+{
+	struct cgn_map *cmi = &aps->aps_cmi;
+	int rc = 0;
+
+	/* Do we already know the outside Call ID? */
+	if (aps->aps_peer_call_id)
+		/* Should not happen */
+		return -ALG_ERR_PPTP_REPLY;
+
+	/* Save outside Call ID to the parent session */
+	aps->aps_peer_call_id = pptp_call->pptp_call_id;
+
+	/* The session should have a mapping in the ALG mapping info */
+	if (!cmi->cmi_reserved)
+		return -ALG_ERR_PPTP_REPLY;
+
+	cmi->cmi_oid = aps->aps_peer_call_id; /* Server Call ID */
+
+	/*
+	 * Create forwards and reverse pinholes
+	 *
+	 * We can create pinhole now.  Inbound.  ip:gre.   Call ID == trans ID.
+	 *
+	 * Once GRE child session created:
+	 *    Out: GRE pkts require src IP translated only.
+	 *    In:  GRE pkts require dst IP *and* GRE Call ID translated.
+	 */
+	struct alg_pinhole_key key;
+	struct alg_pinhole *fw_ap, *bk_ap;
+
+	/* Forwards pinhole */
+	key.pk_vrfid = aps->aps_vrfid;
+	key.pk_ipproto = IPPROTO_GRE;
+
+	key.pk_saddr = cmi->cmi_oaddr;
+	key.pk_sid = cmi->cmi_oid;
+	key.pk_daddr = cpk->cpk_saddr;
+	key.pk_did = aps->aps_peer_call_id; /* Server Call ID */
+
+	fw_ap = alg_pinhole_add(&key, aps->aps_cse, CGN_ALG_PPTP, CGN_DIR_OUT,
+				PPTP_PINHOLE_TIMEOUT, &rc);
+	if (!fw_ap)
+		goto error;
+
+	/* Transfer mapping info responsibility to the fwds pinhole */
+	cgn_map_transfer(alg_pinhole_map(fw_ap), cmi);
+
+	/* Reverse pinhole */
+	key.pk_saddr = cpk->cpk_saddr;
+	key.pk_sid = cmi->cmi_tid; /* 'outside' client Call ID */;
+	key.pk_daddr = cmi->cmi_taddr;
+	key.pk_did = cmi->cmi_tid; /* 'outside' client Call ID */
+
+	bk_ap = alg_pinhole_add(&key, aps->aps_cse, CGN_ALG_PPTP, CGN_DIR_IN,
+				PPTP_PINHOLE_TIMEOUT, &rc);
+	if (!bk_ap) {
+		alg_pinhole_expire(fw_ap);
+		goto error;
+	}
+
+	/* Pair the two pinholes */
+	alg_pinhole_link_pair(fw_ap, bk_ap);
+
+	/* Activate pinholes so that they are findable by lookup */
+	cgn_alg_pinhole_activate(fw_ap);
+	cgn_alg_pinhole_activate(bk_ap);
+
+	return 0;
+
+error:
+	/* Release mapping if its still held in the the PPTP session ctx */
+	if (cmi->cmi_reserved)
+		cgn_map_put(cmi, aps->aps_vrfid);
+
+	return rc;
+}
+
+/* Translate PPTP header in TCP packet */
+static int
+cgn_pptp_translate(struct cgn_packet *cpk, struct rte_mbuf *mbuf,
+		   enum cgn_dir dir, struct cgn_alg_pptp_session *aps,
+		   struct pptp_call_mgmt *pptp_call)
+{
+	char *n_ptr = dp_pktmbuf_mtol3(mbuf, char *);
+	struct tcphdr *th = (struct tcphdr *)(n_ptr + cpk->cpk_l3_len);
+
+	/* Translate call ID */
+	if (dir == CGN_DIR_OUT && aps->aps_trans_call_id) {
+		assert(pptp_call->pptp_call_id == aps->aps_orig_call_id);
+
+		pptp_call->pptp_call_id = aps->aps_trans_call_id;
+
+		/* Update TCP checksum */
+		th->check = ip_fixup16_cksum(th->check, aps->aps_orig_call_id,
+					     pptp_call->pptp_call_id);
+	}
+
+	/* Translate peer call ID */
+	if (dir == CGN_DIR_IN && aps->aps_trans_call_id) {
+		assert(pptp_call->pptp_peer_call_id == aps->aps_trans_call_id);
+
+		pptp_call->pptp_peer_call_id = aps->aps_orig_call_id;
+
+		/* Update TCP checksum */
+		th->check = ip_fixup16_cksum(th->check, aps->aps_trans_call_id,
+					     pptp_call->pptp_peer_call_id);
+	}
+	return 0;
+}
+
+static int
+cgn_alg_pptp_inspect_out(struct cgn_packet *cpk, struct rte_mbuf *mbuf,
+			 struct cgn_alg_pptp_session *aps,
+			 struct pptp_call_mgmt *pptp_call,
+			 enum pptp_ctrl ctrl_type)
+{
+	int rc;
+
+	/* Inside peers Call ID is in the PPTP_OUT_CALL_REQ msg */
+	if (ctrl_type == PPTP_OUT_CALL_REQ) {
+		rc = cgn_pptp_inspect_out_call_req(aps, pptp_call);
+
+		if (rc < 0)
+			return rc;
+	}
+
+	if (PPTP_MSG_HAS_CALL_ID(ctrl_type))
+		cgn_pptp_translate(cpk, mbuf, CGN_DIR_OUT, aps, pptp_call);
+
+	return 0;
+}
+
+static int
+cgn_alg_pptp_inspect_in(struct cgn_packet *cpk, struct rte_mbuf *mbuf,
+			struct cgn_alg_pptp_session *aps,
+			struct pptp_call_mgmt *pptp_call,
+			enum pptp_ctrl ctrl_type)
+{
+	int rc;
+
+	/* Outside peers Call ID is in the PPTP_OUT_CALL_REPLY msg */
+	if (ctrl_type == PPTP_OUT_CALL_REPLY) {
+		rc = cgn_pptp_inspect_out_call_reply(cpk, aps, pptp_call);
+
+		if (rc < 0)
+			return rc;
+	}
+
+	if (PPTP_MSG_HAS_PEER_CALL_ID(ctrl_type))
+		cgn_pptp_translate(cpk, mbuf, CGN_DIR_IN, aps, pptp_call);
+
+	return 0;
+}
+
+/*
+ * Inspect PPTP control message
+ */
+int cgn_alg_pptp_inspect(struct cgn_packet *cpk, struct rte_mbuf *mbuf,
+			 enum cgn_dir dir, struct cgn_alg_sess_ctx *as)
+{
+	struct cgn_alg_pptp_session *aps;
+	struct pptp *pptp;
+	int rc;
+
+	pptp = (struct pptp *)(dp_pktmbuf_mtol3(mbuf, char *) +
+			       cpk->cpk_l3_len + cpk->cpk_l4_len);
+
+	aps = caa_container_of(as, struct cgn_alg_pptp_session, aps_as);
+
+	/* We are only interested in control messages */
+	if (pptp->pptp_type != ntohs(PPTP_MSG_CTRL))
+		return 0;
+
+	/* Verify magic cookie constant */
+	if (ntohl(PPTP_MAGIC_COOKIE) != pptp->pptp_magic_cookie)
+		return -ALG_ERR_PPTP_MC;
+
+	struct pptp_call_mgmt *pptp_call = (struct pptp_call_mgmt *)pptp;
+	enum pptp_ctrl ctrl_type = ntohs(pptp_call->pptp_ctrl_type);
+
+	if (dir == CGN_DIR_OUT)
+		rc = cgn_alg_pptp_inspect_out(cpk, mbuf, aps, pptp_call,
+					      ctrl_type);
+	else
+		rc = cgn_alg_pptp_inspect_in(cpk, mbuf, aps, pptp_call,
+					      ctrl_type);
+
+	return rc;
+}
 
 /*
  * Initialise PPTP child session (enhanced GRE)
