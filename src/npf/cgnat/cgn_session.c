@@ -2432,6 +2432,29 @@ void cgn_session_show(FILE *f, int argc, char **argv)
 	jsonw_destroy(&json);
 }
 
+void cgn_ut_show_sessions(char **buf, size_t *bufsz,
+			  struct cgn_sess_fltr *fltr)
+{
+	json_writer_t *json;
+	FILE *f = open_memstream(buf, bufsz);
+
+	if (!f)
+		return;
+
+	json = jsonw_new(f);
+	if (!json) {
+		fclose(f);
+		return;
+	}
+
+	cgn_session_show_json(json, fltr);
+
+	jsonw_end_array(json);
+	jsonw_destroy(&json);
+
+	fclose(f);
+}
+
 /*
  * Return list of session IDs
  */

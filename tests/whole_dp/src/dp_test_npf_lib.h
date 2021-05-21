@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2015 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -394,5 +394,7 @@ npf_decision_t _dp_test_npf_raw(int index, struct rte_mbuf *pkt,
 			 __FILE__, __LINE__)
 
 const char *npf_decision_str(npf_decision_t decision);
+
+void cgn_alg_show_sessions(void);
 
 #endif

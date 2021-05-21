@@ -20,6 +20,7 @@
 #include "npf/npf_timeouts.h"
 #include "npf/alg/alg_npf.h"
 #include "npf/alg/alg.h"
+#include "npf/cgnat/cgn_sess2.h"
 #include "npf/cgnat/cgn_test.h"
 
 #include "dp_test.h"
@@ -1325,4 +1326,31 @@ _dp_test_npf_raw(int index, struct rte_mbuf *pkt,
 	}
 
 	return decision;
+}
+
+void cgn_alg_show_sessions(void)
+{
+	char *buf = NULL;
+	size_t bufsz = 0;
+	struct cgn_sess_fltr fltr;
+
+	memset(&fltr, 0, sizeof(fltr));
+
+	cgn_ut_show_sessions(&buf, &bufsz, &fltr);
+
+	if (buf) {
+		char err_str[1000];
+		json_object *jobj;
+		const char *str;
+
+		jobj = parse_json(buf, err_str, sizeof(err_str));
+
+		str = json_object_to_json_string_ext(jobj,
+						     JSON_C_TO_STRING_PRETTY);
+		if (str)
+			printf("%s\n", str);
+
+		json_object_put(jobj);
+		free(buf);
+	}
 }

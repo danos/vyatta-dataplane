@@ -26,4 +26,11 @@ bool ipv4_cgnat_test(struct rte_mbuf **mbufp, struct ifnet *ifp,
 size_t cgn_session_size(void);
 size_t cgn_sess2_size(void);
 
+/*
+ * The following fetch json strings directly without going through opd
+ */
+struct cgn_sess_fltr;
+
+void cgn_ut_show_sessions(char **buf, size_t *bufsz, struct cgn_sess_fltr *fltr);
+
 #endif
