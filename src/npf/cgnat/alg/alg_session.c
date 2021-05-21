@@ -17,6 +17,7 @@
 #include "npf/cgnat/alg/alg_public.h"
 #include "npf/cgnat/alg/alg.h"
 #include "npf/cgnat/alg/alg_pinhole.h"
+#include "npf/cgnat/alg/alg_pptp.h"
 #include "npf/cgnat/alg/alg_session.h"
 
 
@@ -112,6 +113,7 @@ cgn_alg_parent_session_init(struct cgn_session *cse __unused,
 		break;
 
 	case CGN_ALG_PPTP:
+		as = cgn_alg_pptp_sess_init(cse, NULL);
 		break;
 
 	case CGN_ALG_SIP:
@@ -154,6 +156,7 @@ cgn_alg_child_session_init(struct cgn_session *child_cse, enum nat_proto proto,
 		break;
 
 	case CGN_ALG_PPTP:
+		as = cgn_alg_pptp_sess_init(child_cse, ap);
 		break;
 
 	case CGN_ALG_SIP:
@@ -253,6 +256,7 @@ void cgn_alg_session_uninit(struct cgn_session *cse __unused,
 		break;
 
 	case CGN_ALG_PPTP:
+		cgn_alg_pptp_sess_uninit(as);
 		break;
 
 	case CGN_ALG_SIP:
@@ -280,7 +284,12 @@ int cgn_alg_sess2_init(struct cgn_packet *cpk __unused, struct cgn_sess2 *s2)
 	if (!as)
 		return -1;
 
-	/* Placeholder for hooks into individual ALGs */
+	/*
+	 * New PPTP child/data sub-sessions need the session ID values changed
+	 * to that of the parent session Call ID.
+	 */
+	if (as->as_alg_id == CGN_ALG_PPTP && cpk->cpk_alg_pinhole)
+		rc = cgn_alg_pptp_child_sess2_init(as, s2);
 
 	return rc;
 }
@@ -450,6 +459,7 @@ void cgn_alg_show_session(json_writer_t *json, struct cgn_sess_fltr *fltr __unus
 	case CGN_ALG_FTP:
 		break;
 	case CGN_ALG_PPTP:
+		cgn_alg_show_pptp_session(json, as);
 		break;
 	case CGN_ALG_SIP:
 		break;
