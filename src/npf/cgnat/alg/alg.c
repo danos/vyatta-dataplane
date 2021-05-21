@@ -358,6 +358,64 @@ int cgn_alg_disable(const char *name)
 	return 0;
 }
 
+/*
+ * Show ALG status
+ */
+static void cgn_alg_show_status(json_writer_t *json)
+{
+	enum cgn_alg_id id;
+	uint8_t id_bit;
+
+	jsonw_name(json, "status");
+	jsonw_start_array(json);
+
+	for (id = CGN_ALG_FIRST; id <= CGN_ALG_LAST; id++) {
+		id_bit = CGN_ALG_BIT(id);
+
+		jsonw_start_object(json);
+		jsonw_string_field(json, "name", _cgn_alg_id_name[id]);
+		jsonw_uint_field(json, "enabled",
+				 (cgn_alg_enabled & id_bit) != 0);
+
+		if (cgn_alg_dport[NAT_PROTO_TCP][id])
+			jsonw_uint_field(json, "tcp",
+					 ntohs(cgn_alg_dport[NAT_PROTO_TCP][id]));
+
+		if (cgn_alg_dport[NAT_PROTO_UDP][id])
+			jsonw_uint_field(json, "udp",
+					 ntohs(cgn_alg_dport[NAT_PROTO_UDP][id]));
+
+		jsonw_end_object(json);
+	}
+	jsonw_end_array(json);
+}
+
+/*
+ * Show ALG
+ */
+void cgn_alg_show(FILE *f, int argc, char **argv)
+{
+	json_writer_t *json;
+
+	/* Remove "cgn-op show alg" */
+	argc -= 3;
+	argv += 3;
+
+	json = jsonw_new(f);
+	if (!json)
+		return;
+
+	jsonw_name(json, "alg");
+	jsonw_start_object(json);
+
+	if (argc == 0 || !strcmp(argv[0], "status"))
+		cgn_alg_show_status(json);
+
+	jsonw_end_object(json);
+	jsonw_destroy(&json);
+}
+
+
 /**************************************************************************
  * Initialisation
  **************************************************************************/

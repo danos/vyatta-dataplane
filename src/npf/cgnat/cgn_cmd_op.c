@@ -23,6 +23,7 @@
 #include "npf/npf_addr.h"
 
 #include "npf/nat/nat_pool_public.h"
+#include "npf/cgnat/alg/alg_public.h"
 
 #include "npf/cgnat/cgn.h"
 #include "npf/apm/apm.h"
@@ -290,6 +291,9 @@ int cmd_cgn_op(FILE *f, int argc, char **argv)
 
 		else if (!strcmp(argv[2], "interface"))
 			cgn_show_interface(f, argc, argv);
+
+		else if (!strcmp(argv[2], "alg"))
+			cgn_alg_show(f, argc, argv);
 
 		return 0;
 	}

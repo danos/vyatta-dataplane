@@ -124,6 +124,11 @@ void cgn_alg_show_session(struct json_writer *json, struct cgn_sess_fltr *fltr,
 			  struct cgn_alg_sess_ctx *as);
 
 /**
+ * Write CGNAT ALG summary json
+ */
+void cgn_alg_show(FILE *f, int argc, char **argv);
+
+/**
  * Enable ALG
  */
 int cgn_alg_enable(const char *name);
