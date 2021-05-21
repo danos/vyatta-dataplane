@@ -15,6 +15,7 @@ struct alg_pinhole;
 struct cgn_session;
 struct cgn_packet;
 struct rte_mbuf;
+struct cgn_map;
 
 struct cgn_alg_sess_ctx *cgn_alg_pptp_sess_init(struct cgn_session *cse,
 						struct alg_pinhole *ap);
@@ -25,6 +26,9 @@ int cgn_alg_pptp_child_sess2_init(struct cgn_alg_sess_ctx *as,
 
 int cgn_alg_pptp_inspect(struct cgn_packet *cpk, struct rte_mbuf *mbuf,
 			 enum cgn_dir dir, struct cgn_alg_sess_ctx *as);
+
+/* Returns a cgnat rc */
+int cgn_alg_pptp_pinhole_found(struct alg_pinhole *ap, struct cgn_map *cmi);
 
 void cgn_alg_show_pptp_session(struct json_writer *json,
 			       struct cgn_alg_sess_ctx *as);

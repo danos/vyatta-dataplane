@@ -27,6 +27,7 @@
 #include "npf/cgnat/alg/alg.h"
 #include "npf/cgnat/alg/alg_pinhole.h"
 #include "npf/cgnat/alg/alg_rc.h"
+#include "npf/cgnat/alg/alg_pptp.h"
 #include "npf/cgnat/alg/alg_session.h"
 
 /*
@@ -633,6 +634,7 @@ int cgn_alg_pinhole_lookup(struct cgn_packet *cpk, struct cgn_map *cmi __unused,
 		break;
 
 	case CGN_ALG_PPTP:
+		rc = cgn_alg_pptp_pinhole_found(ap, cmi);
 		break;
 
 	case CGN_ALG_SIP:

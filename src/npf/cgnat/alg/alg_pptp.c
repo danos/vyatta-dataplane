@@ -415,6 +415,46 @@ int cgn_alg_pptp_inspect(struct cgn_packet *cpk, struct rte_mbuf *mbuf,
 }
 
 /*
+ * A PPTP pinhole table entry has been matched.
+ *
+ * Populate the passed-in cgn_map struct so that cgnat has all it needs to
+ * create a session when we exit from this function.
+ */
+int cgn_alg_pptp_pinhole_found(struct alg_pinhole *ap, struct cgn_map *cmi)
+{
+	struct alg_pinhole *ap2, *map_ap = NULL;
+
+	/* PPTP pinholes should be in pairs */
+	ap2 = alg_pinhole_pair(ap);
+	if (!ap2)
+		return -CGN_ALG_ERR_PHOLE;
+
+	/* One of the pair of pinholes should have a mapping */
+	if (alg_pinhole_has_mapping(ap))
+		map_ap = ap;
+	else if (alg_pinhole_has_mapping(ap2))
+		map_ap = ap2;
+
+	if (!map_ap)
+		return -CGN_ALG_ERR_PHOLE;
+
+	/*
+	 * Transfer mapping info and reservation from the pinhole to the
+	 * passed-in map structure.
+	 */
+	cgn_map_transfer(cmi, alg_pinhole_map(map_ap));
+
+	/* Assert that all the required fields are initialized */
+	assert(cmi->cmi_taddr);
+	assert(cmi->cmi_tid);
+	assert(cmi->cmi_oaddr);
+	assert(cmi->cmi_oid);
+	assert(cmi->cmi_src);
+
+	return 0;
+}
+
+/*
  * Initialise PPTP child session (enhanced GRE)
  */
 static void
