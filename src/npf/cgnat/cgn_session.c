@@ -1048,6 +1048,9 @@ static inline bool cgn_sess_s2_is_enabled(struct cgn_session *cse)
 
 /*
  * Check if we can enable sub-sessions on this 3-tuple session
+ *
+ * sub-sessions are enabled for ALG sessions.  sub-sessions allows a much
+ * faster session expiry for TCP sessions since we can monitor FINs and RSTs.
  */
 void cgn_session_try_enable_sub_sess(struct cgn_session *cse,
 				     struct cgn_policy *cp, uint32_t oaddr)
@@ -1058,7 +1061,7 @@ void cgn_session_try_enable_sub_sess(struct cgn_session *cse,
 	if (cs2->cs2_enbld)
 		return;
 
-	if (cgn_policy_record_dest(cp, oaddr)) {
+	if (cgn_policy_record_dest(cp, oaddr) || cse->cs_alg) {
 		cs2->cs2_enbld = true;
 
 		/*
