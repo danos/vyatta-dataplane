@@ -118,6 +118,7 @@ static inline void cgn_pkt_key_init(struct cgn_packet *cpk, enum cgn_dir dir)
 #define CPK_ICMP_ECHO_REQ	0x0004	/* REQ */
 #define CPK_ICMP_ERR		0x0008
 #define CPK_ICMP_EMBD_SHORT	0x0010	/* Embedded packet with short L4 hdr */
+#define CPK_GRE			0x0020	/* Enhanced GRE (for PPTP) */
 
 
 /*
@@ -154,6 +155,91 @@ struct cgn_dccp {
 #define DCCP_REQ	0
 #define DCCP_RESP	1
 #define DCCP_RST	7
+
+/*
+ * GRE (for PPTP)
+ */
+#define GRE_VERSION_ENHANCED	1
+
+/*
+ * Enhanced GRE header (rfc2637).  This directly follows the IP header.
+ *
+ * The important parameter is the Call ID (egre_call_id).  This identifies the
+ * session (analogous to TCP/UDP source port)
+ */
+struct egre {
+	union {
+		struct {
+#if __BYTE_ORDER == __BIG_ENDIAN
+			uint16_t egre_A_flag:1;  /* ack number present */
+			uint16_t egre_flgs:4;    /* Must be set to zero */
+			uint16_t egre_ver:3;     /* Must be 1. Enhanced GRE */
+
+			uint16_t egre_C_flag:1;  /* checksum present */
+			uint16_t egre_R_flag:1;  /* routing present */
+			uint16_t egre_K_flag:1;  /* key present */
+			uint16_t egre_S_flag:1;  /* seq number present */
+
+			uint16_t egre_s_flag:1;  /* strict src route present */
+			uint16_t egre_recur:3;   /* recursion ctrl */
+#elif __BYTE_ORDER == __LITTLE_ENDIAN
+			uint16_t egre_recur:3;   /* recursion ctrl */
+			uint16_t egre_s_flag:1;  /* strict src route present */
+
+			uint16_t egre_S_flag:1;  /* seq number present */
+			uint16_t egre_K_flag:1;  /* key present */
+			uint16_t egre_R_flag:1;  /* routing present */
+			uint16_t egre_C_flag:1;  /* checksum present */
+
+			uint16_t egre_ver:3;     /* Must be 1. Enhanced GRE */
+			uint16_t egre_flgs:4;    /* Must be set to zero */
+			uint16_t egre_A_flag:1;  /* ack number present */
+#else
+#error "Please include <bits/endian.h>"
+#endif
+		};
+		uint16_t egre_flags;	/* Flags and version */
+	};
+	uint16_t	egre_protocol;  /* protocol type */
+	uint16_t	egre_pload_len; /* key payload length */
+	uint16_t	egre_call_id;   /* key Call ID */
+
+	/*
+	 * Optional:
+	 * uint32_t seq_number
+	 * uint32_t ack_number
+	 */
+	uint8_t		egre_opt[0];
+};
+
+/*
+ * Masks for flags/version word.
+ *
+ * Note that the #defines below will work with the egre_flags word (network
+ * byte order) in 'struct egre'
+ *
+ * The bit-map in the comment below is what you might expect to see in
+ * Wireshark as it will show the egre_flags word in host byte order.
+ *
+ * X... .... .... .... = Checksum bit
+ * .X.. .... .... .... = Routing bit
+ * ..X. .... .... .... = Key bit
+ * ...X .... .... .... = Seq number bit
+ * .... X... .... .... = Strict Source Route bit
+ * .... .XXX .... .... = Recursion control
+ * .... .... X... .... = Ack
+ * .... .... .XXX X... = Flags (Reserved)
+ * .... .... .... .XXX = Version
+ */
+#define EGRE_MASK_CKSUM	0x0080
+#define EGRE_MASK_RT	0x0040
+#define EGRE_MASK_KEY	0x0020
+#define EGRE_MASK_SEQ	0x0010
+#define EGRE_MASK_SSRT	0x0008
+#define EGRE_MASK_RCSN	0x0007
+#define EGRE_MASK_ACK	0x8000
+#define EGRE_MASK_FLAGS	0x7800
+#define EGRE_MASK_VERS	0x0700
 
 /*
  * Layer 4 checksum offset from start of layer 4 header.

@@ -42,6 +42,8 @@ static inline uint cgn_l4_max_rw_offset(uint8_t ipproto)
 		return offsetof(struct cgn_dccp, dc_res_type_x) + 1;
 	case IPPROTO_ICMP:
 		return offsetof(struct icmp, icmp_cksum) + 2;
+	case IPPROTO_GRE:
+		return offsetof(struct egre, egre_call_id) + 2;
 	default:
 		break;
 	}
@@ -83,6 +85,40 @@ static int cgn_decode_icmp(struct cgn_packet *cpk, void *l4)
 	default:
 		return -CGN_BUF_ICMP;
 	}
+	return 0;
+}
+
+/* Decode GRE Header */
+static int cgn_decode_gre(struct cgn_packet *cpk, void *l4)
+{
+	struct egre *gre = l4;
+
+	/* Version should be 'Enhanced GRE' */
+	if (gre->egre_ver != GRE_VERSION_ENHANCED)
+		return -CGN_BUF_PROTO;
+
+	/* 'Key' flag should be set */
+	if (!gre->egre_K_flag)
+		return -CGN_BUF_PROTO;
+
+	cpk->cpk_l4ports = false;
+	cpk->cpk_info |= CPK_GRE;
+
+	/*
+	 * Note that if an accurate cpk_l4_len is ever required then 4 will
+	 * need to be added if egre_S_flag is set, and similarly for
+	 * egre_A_flag.
+	 */
+	cpk->cpk_l4_len = sizeof(struct egre);
+
+	/*
+	 * The Call ID is that of the host that the pkt is destined.  The
+	 * senders Call ID is not available, so we simply set both src and dst
+	 * id to the destination Call ID.
+	 */
+	cpk->cpk_sid = gre->egre_call_id;
+	cpk->cpk_did = gre->egre_call_id;
+
 	return 0;
 }
 
@@ -204,6 +240,14 @@ cgn_parse_l4(struct rte_mbuf *m, uint l4_offset, uint8_t ipproto,
 		if (unlikely(rc < 0))
 			return rc;
 		break;
+	case IPPROTO_GRE:
+		/* Look for enhanced-GRE Header */
+		rc = cgn_decode_gre(cpk, l4);
+
+		if (unlikely(rc < 0))
+			return rc;
+
+		break;
 	default: /* All other IP protocols */
 		return -CGN_BUF_PROTO;
 	}
@@ -277,6 +321,9 @@ void cgn_rwrcksums(struct cgn_packet *cpk, void *n_ptr,
 	ip->ip_sum = ip_fixup16_cksum(ip->ip_sum, 0xffff, l3_chk_delta);
 
 	if (unlikely(cpk->cpk_ipproto == IPPROTO_UDP && cpk->cpk_cksum == 0))
+		return;
+
+	if (unlikely(cpk->cpk_info & CPK_GRE) != 0)
 		return;
 
 	/* L3 pseudo header is not included in ICMP checksum */
