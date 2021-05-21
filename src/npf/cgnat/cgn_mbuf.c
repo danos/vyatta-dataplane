@@ -25,6 +25,10 @@
 /*
  * Offset from start of layer 4 header to the furthest byte we will read/write
  * in the l4 header.
+ *
+ * Note that this function is only used to ensure that enough relevant bytes
+ * are contiguous in memory, either in the original buffer or in a temporary
+ * buffer, for the purposes of caching the packet.
  */
 static inline uint cgn_l4_max_rw_offset(uint8_t ipproto)
 {
@@ -95,14 +99,23 @@ cgn_parse_l4(struct rte_mbuf *m, uint l4_offset, uint8_t ipproto,
 	int rc;
 
 	/*
-	 * The ids (ports/etc)
+	 * For some protocols we just cache an ID value.  For others we need
+	 * to cache ID/ports' and a checksum.  The largest offset into the L4
+	 * header is for the TCP checksum, which is at offset 18.
 	 *
-	 * For all protocols we support that require an id, we can obtain the
-	 * id from the first two (32bit) words of the protocol header.
+	 * We need to ensure that all the L4 header that we will examine is in
+	 * contiguous memory.  This is achieved with rte_pktmbuf_read, which
+	 * will copy the relevant bytes to a temporary buffer if they are not
+	 * contiguous in the packet.
 	 *
-	 * However, we can only count on the IP header in the first segment,
-	 * so we may need to copy.
+	 * Note that if the packet is identified as a CGNAT packet then a
+	 * later routine will pull-up the message buffers to ensure they are
+	 * in a single contiguous buffer.
 	 */
+
+	assert(read_sz > 0 && read_sz < sizeof(buf));
+	if (read_sz == 0 || read_sz >= sizeof(buf))
+		return -CGN_BUF_ENOL4;
 
 	l4 = (void *)rte_pktmbuf_read(m, l4_offset, read_sz, buf);
 	if (unlikely(!l4)) {
@@ -148,7 +161,7 @@ cgn_parse_l4(struct rte_mbuf *m, uint l4_offset, uint8_t ipproto,
 				cpk->cpk_keepalive = false;
 
 			cpk->cpk_cksum = tcp->check;
-			cpk->cpk_l4_len = sizeof(struct tcphdr);
+			cpk->cpk_l4_len = tcp->doff << 2;
 			break;
 		}
 	case IPPROTO_DCCP:
