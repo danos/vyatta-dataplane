@@ -92,6 +92,7 @@ check_tests = [
         'dp_test_npf_alg_tftp.c',
         'dp_test_npf_bridge.c',
         'dp_test_npf_cgnat.c',
+        'dp_test_npf_cgnat_pptp.c',
         'dp_test_npf_commands.c',
         'dp_test_npf_defrag.c',
         'dp_test_npf_dscp.c',
