@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2020-2021, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  *
@@ -112,14 +112,14 @@ static int _add_rule(uint32_t rule_no, uint32_t prio, uint8_t proto,
 
 	if (sloport || shiport) {
 		rule.rldb_flags |= NPFRL_FLAG_SRC_PORT_RANGE;
-		rule.rldb_src_port_range.npfrl_loport = sloport;
-		rule.rldb_src_port_range.npfrl_hiport = shiport;
+		rule.rldb_src_port_range.npfrl_loport = htons(sloport);
+		rule.rldb_src_port_range.npfrl_hiport = htons(shiport);
 	}
 
 	if (dloport || dhiport) {
 		rule.rldb_flags |= NPFRL_FLAG_DST_PORT_RANGE;
-		rule.rldb_dst_port_range.npfrl_loport = dloport;
-		rule.rldb_dst_port_range.npfrl_hiport = dhiport;
+		rule.rldb_dst_port_range.npfrl_loport = htons(dloport);
+		rule.rldb_dst_port_range.npfrl_hiport = htons(dhiport);
 	}
 
 	return rldb_add_rule(dh, rule_no, &rule, rule_handle);

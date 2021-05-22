@@ -292,11 +292,11 @@ static void rldb_prepare_rule_v4(struct rldb_rule_spec *rule,
 		hiport = 0xFFFF;
 	}
 
-	match_addr[NPC_GPR_SPORT_OFF_v4 + 1] = loport >> 8;
-	match_addr[NPC_GPR_SPORT_OFF_v4] = loport & 0xFF;
+	match_addr[NPC_GPR_SPORT_OFF_v4] = loport >> 8;
+	match_addr[NPC_GPR_SPORT_OFF_v4 + 1] = loport & 0xFF;
 
-	mask[NPC_GPR_SPORT_OFF_v4 + 1] = hiport >> 8;
-	mask[NPC_GPR_SPORT_OFF_v4] = hiport & 0xFF;
+	mask[NPC_GPR_SPORT_OFF_v4] = hiport >> 8;
+	mask[NPC_GPR_SPORT_OFF_v4 + 1] = hiport & 0xFF;
 
 	/* dst port */
 	if (rule->rldb_flags & NPFRL_FLAG_DST_PORT_RANGE) {
@@ -307,11 +307,11 @@ static void rldb_prepare_rule_v4(struct rldb_rule_spec *rule,
 		hiport = 0xFFFF;
 	}
 
-	match_addr[NPC_GPR_DPORT_OFF_v4 + 1] = loport >> 8;
-	match_addr[NPC_GPR_DPORT_OFF_v4] = loport & 0xFF;
+	match_addr[NPC_GPR_DPORT_OFF_v4] = loport >> 8;
+	match_addr[NPC_GPR_DPORT_OFF_v4 + 1] = loport & 0xFF;
 
-	mask[NPC_GPR_DPORT_OFF_v4 + 1] = hiport >> 8;
-	mask[NPC_GPR_DPORT_OFF_v4] = hiport & 0xFF;
+	mask[NPC_GPR_DPORT_OFF_v4] = hiport >> 8;
+	mask[NPC_GPR_DPORT_OFF_v4 + 1] = hiport & 0xFF;
 }
 
 static void rldb_prepare_rule_v6(struct rldb_rule_spec *rule,
