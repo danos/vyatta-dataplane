@@ -14,6 +14,3 @@
 src/*qos* aroberts@vyatta.att-mail.com adewar@vyatta.att-mail.com ag474u@vyatta.att-mail.com
 
 /src/session/ ian.wilson@intl.att.com paitken@vyatta.att-mail.com dfawcus+atlassian@vyatta.att-mail.com gsheare@vyatta.att-mail.com
-
-meson.build   nick.brown@att.com
-/Jenkinsfile  nick.brown@att.com
