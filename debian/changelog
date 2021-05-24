@@ -1,3 +1,19 @@
+vyatta-dataplane (3.13.19) unstable; urgency=medium
+
+  [ ck407g ]
+  * Added 'Valid dynamic or static ARP entries added|deleted' to dataplane arp statistics
+  * Removed a duplicate call to llentry_routing_uninstall
+
+  [ Gavin Shearer ]
+  * ut: move crypto test header files so accessible by plugins
+  * ut: add s2s configure functions callable from plugins
+  * ut: update s2s regular tests to use new s2s crypto library code
+  * ut: update s2s passthru tests to use new s2s crypto library code
+
+  [ Simon Barber ]
+
+ -- Simon Barber <sbarber@vyatta.att-mail.com>  Mon, 24 May 2021 12:24:56 +0100
+
 vyatta-dataplane (3.13.18) unstable; urgency=medium
 
   [ Ian Wilson ]
