@@ -203,8 +203,7 @@ int rldb_create(const char *name, uint32_t flags, struct rldb_db_handle **_db)
 		goto error;
 	}
 
-	rc = npf_rte_acl_init(db->af, db->name, RLDB_MAX_RULES,
-			      dp_rcu_qsbr_get(), &db->match_ctx);
+	rc = npf_rte_acl_init(db->af, db->name, RLDB_MAX_RULES, &db->match_ctx);
 	if (rc < 0) {
 		RLDB_ERR
 		    ("Could not add rldb (%s): NPF rte_acl could not be "

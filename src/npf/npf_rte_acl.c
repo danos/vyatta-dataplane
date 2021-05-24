@@ -293,7 +293,7 @@ acl_rule_hash(const void *data, uint32_t data_len, uint32_t init_val)
  */
 
 int npf_rte_acl_init(int af, const char *name, uint32_t max_rules,
-		     struct rte_rcu_qsbr *rcu_v, npf_match_ctx_t **m_ctx)
+		     npf_match_ctx_t **m_ctx)
 {
 	size_t key_len = sizeof(((struct rte_acl_rule *) 0)->data.userdata);
 	struct rte_acl_param acl_param = {
@@ -304,7 +304,6 @@ int npf_rte_acl_init(int af, const char *name, uint32_t max_rules,
 		.hash_key_len = key_len,
 	};
 	struct rte_acl_rcu_config rcu_conf = {
-		.v = rcu_v,
 		.mode = RTE_ACL_QSBR_MODE_DQ,
 		.dq_size = max_rules,
 		.dq_trigger_reclaim_limit = 0,
@@ -316,6 +315,9 @@ int npf_rte_acl_init(int af, const char *name, uint32_t max_rules,
 	size_t tr_sz;
 	int32_t id;
 	int err;
+
+	rcu_conf.thread_id = dp_lcore_id();
+	rcu_conf.v = dp_rcu_qsbr_get();
 
 	if (af == AF_INET) {
 		acl_param.rule_size = RTE_ACL_RULE_SZ(RTE_DIM(ipv4_defs));
