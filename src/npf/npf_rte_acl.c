@@ -5,6 +5,7 @@
  */
 
 #include <rte_acl.h>
+#include <rte_atomic.h>
 #include <rte_rcu_qsbr.h>
 #include <rte_ip.h>
 #include <rte_mempool.h>
@@ -46,8 +47,15 @@ static rte_atomic32_t ctx_id;
 
 struct npf_match_ctx {
 	struct rte_acl_ctx *acl_ctx;
-	char *ctx_name;
-	uint16_t num_rules;
+	struct cds_list_head  trie_list;  /* linkage for tries in this ctx */
+	char                 *ctx_name;   /* name of match context. Needs to be
+					   * globally unique
+					   */
+	rte_atomic16_t        num_tries;  /* number of tries associated with
+					   * this context
+					   */
+	int                   af;
+	uint32_t              num_rules;
 	struct trans_entry   *tr;
 	uint32_t              tr_num_entries;
 	bool                  tr_in_progress;
@@ -288,9 +296,285 @@ acl_rule_hash(const void *data, uint32_t data_len, uint32_t init_val)
 	return rte_jhash(&rule->data.userdata, data_len, init_val);
 }
 
+#define NPR_MTRIE_MAX_RULES    MAX_TRANSACTION_ENTRIES
+#define NPR_POOL_DEF_MAX_TRIES 128
+
+static int npf_rte_acl_destroy_mtrie_pool(int af);
+
+static inline int npf_rte_acl_get_ring(int af, struct rte_ring **ring)
+{
+	if (af == AF_INET)
+		*ring = npr_acl4_ring;
+	else if (af == AF_INET6)
+		*ring = npr_acl6_ring;
+	else
+		return -EINVAL;
+
+	return 0;
+}
+
+__rte_unused
+static int npf_rte_acl_create_trie(int af, int max_rules,
+				   struct npf_match_ctx_trie **m_trie)
+{
+	int err;
+	size_t key_len = sizeof(((struct rte_acl_rule *) 0)->data.userdata);
+	struct rte_acl_param acl_param = {
+		.socket_id = SOCKET_ID_ANY,
+		.max_rule_num = max_rules,
+		.flags = ACL_F_USE_HASHTABLE,
+		.hash_func = acl_rule_hash,
+		.hash_key_len = key_len,
+	};
+	struct rte_acl_rcu_config rcu_conf = {
+		.mode = RTE_ACL_QSBR_MODE_DQ,
+		.dq_size = max_rules,
+		.dq_trigger_reclaim_limit = 0,
+		.dq_max_reclaim_size = ~0,
+		.thread_id = dp_lcore_id(),
+		.v = dp_rcu_qsbr_get(),
+	};
+	struct npf_match_ctx_trie *tmp_trie;
+	const char *pfx1, *pfx2;
+	char acl_name[RTE_ACL_NAMESIZE];
+	static uint16_t v4_cnt, v6_cnt;
+
+	if (af == AF_INET) {
+		acl_param.rule_size = RTE_ACL_RULE_SZ(RTE_DIM(ipv4_defs));
+		acl_param.rule_pool = npr_acl4_mempool;
+		pfx1 = "ipv4";
+	} else if (af == AF_INET6) {
+		acl_param.rule_size = RTE_ACL_RULE_SZ(RTE_DIM(ipv6_defs));
+		acl_param.rule_pool = npr_acl6_mempool;
+		pfx1 = "ipv6";
+	} else
+		return -EINVAL;
+
+	if (max_rules <= NPR_MTRIE_MAX_RULES) {
+		err = rte_mempool_get(npr_mtrie_pool, (void **)&tmp_trie);
+		if (err) {
+			RTE_LOG(ERR, DATAPLANE,
+				"Could not allocate %s mtrie for pool\n", pfx1);
+			return -ENOMEM;
+		}
+		tmp_trie->flags = NPF_M_TRIE_FLAG_POOL;
+		pfx2 = "pool";
+	} else {
+		tmp_trie = calloc(1, sizeof(*tmp_trie));
+		if (!tmp_trie)
+			return -ENOMEM;
+		pfx2 = "merge";
+	}
+
+	snprintf(acl_name, RTE_ACL_NAMESIZE, "%s-%s-%d", pfx1, pfx2,
+		 af == AF_INET ? v4_cnt++ : v6_cnt++);
+
+	tmp_trie->trie_name = strdup(acl_name);
+	if (!tmp_trie->trie_name) {
+		RTE_LOG(ERR, DATAPLANE,
+			"Could not allocate name %s for ACL ctx\n",
+			acl_name);
+		err = -ENOMEM;
+		goto error;
+	}
+
+	acl_param.name = acl_name;
+	tmp_trie->acl_ctx = rte_acl_create(&acl_param);
+	if (tmp_trie->acl_ctx == NULL) {
+		RTE_LOG(ERR, DATAPLANE,
+			"Could not allocate ACL context for %s\n", acl_name);
+		err = -ENOMEM;
+		goto error;
+	}
+
+	err = rte_acl_rcu_qsbr_add(tmp_trie->acl_ctx, &rcu_conf);
+	if (err) {
+		RTE_LOG(ERR, DATAPLANE, "Failed to enable RCU for ACL ctx %s\n",
+			tmp_trie->trie_name);
+		goto error;
+	}
+
+	*m_trie = tmp_trie;
+	return 0;
+
+error:
+	if (tmp_trie->acl_ctx)
+		rte_acl_free(tmp_trie->acl_ctx);
+
+	if (tmp_trie->trie_name)
+		free(tmp_trie->trie_name);
+
+	if (tmp_trie->flags == NPF_M_TRIE_FLAG_POOL)
+		rte_mempool_put(npr_mtrie_pool, tmp_trie);
+	else
+		free(tmp_trie);
+	return err;
+}
+
+__rte_unused
+static int
+npf_rte_acl_create_mtrie_pool(int af, int max_tries)
+{
+	int i, err;
+	static uint16_t v4_cnt, v6_cnt;
+	const char *pfx;
+	struct npf_match_ctx_trie *m_trie;
+	size_t key_len = sizeof(((struct rte_acl_rule *) 0)->data.userdata);
+	struct rte_acl_param acl_param = {
+		.socket_id = SOCKET_ID_ANY,
+		.max_rule_num = NPR_MTRIE_MAX_RULES,
+		.flags = ACL_F_USE_HASHTABLE,
+		.hash_func = acl_rule_hash,
+		.hash_key_len = key_len,
+	};
+	struct rte_acl_rcu_config rcu_conf = {
+		.mode = RTE_ACL_QSBR_MODE_DQ,
+		.dq_size = NPR_MTRIE_MAX_RULES,
+		.dq_trigger_reclaim_limit = 0,
+		.dq_max_reclaim_size = ~0,
+		.thread_id = dp_lcore_id()
+	};
+	struct rte_ring *ring;
+	char acl_name[RTE_ACL_NAMESIZE];
+
+	rcu_conf.thread_id = dp_lcore_id();
+	rcu_conf.v = dp_rcu_qsbr_get();
+
+	err = npf_rte_acl_get_ring(af, &ring);
+	if (err)
+		return err;
+
+	if (af == AF_INET) {
+		pfx = "ipv4";
+		acl_param.rule_size = RTE_ACL_RULE_SZ(RTE_DIM(ipv4_defs));
+		acl_param.rule_pool = npr_acl4_mempool;
+	} else if (af == AF_INET6) {
+		pfx = "ipv6";
+		acl_param.rule_size = RTE_ACL_RULE_SZ(RTE_DIM(ipv6_defs));
+		acl_param.rule_pool = npr_acl6_mempool;
+	} else
+		return -EINVAL;
+
+	for (i = 0; i < max_tries; i++) {
+		err = rte_mempool_get(npr_mtrie_pool, (void **)&m_trie);
+		if (err) {
+			RTE_LOG(ERR, DATAPLANE,
+				"Could not allocate %s mtrie for pool\n", pfx);
+			goto error;
+		}
+		snprintf(acl_name, RTE_ACL_NAMESIZE, "%s-%d", pfx,
+			 af == AF_INET ? v4_cnt++ : v6_cnt++);
+
+		m_trie->flags = NPF_M_TRIE_FLAG_POOL;
+		m_trie->trie_name = strdup(acl_name);
+		if (!m_trie->trie_name) {
+			RTE_LOG(ERR, DATAPLANE,
+				"Could not allocate name %s for ACL ctx\n",
+				acl_name);
+			goto error;
+		}
+		acl_param.name = acl_name;
+		m_trie->acl_ctx = rte_acl_create(&acl_param);
+		if (m_trie->acl_ctx == NULL) {
+			RTE_LOG(ERR, DATAPLANE,
+				"Could not allocate ACL context for %s\n", acl_name);
+			goto error;
+		}
+
+		err = rte_acl_rcu_qsbr_add(m_trie->acl_ctx, &rcu_conf);
+		if (err) {
+			RTE_LOG(ERR, DATAPLANE, "Failed to enable RCU for ACL ctx %s\n",
+				m_trie->trie_name);
+			goto error;
+		}
+
+		err = rte_ring_enqueue(ring, m_trie);
+		if (err) {
+			RTE_LOG(ERR, DATAPLANE, "Could not enqueue trie %s to ring\n",
+				m_trie->trie_name);
+			goto error;
+		}
+	}
+
+	return 0;
+
+error:
+	npf_rte_acl_destroy_mtrie_pool(af);
+	return -ENOMEM;
+}
+
+static int npf_rte_acl_destroy_mtrie_pool(int af)
+{
+	struct rte_ring *ring;
+	int err;
+	struct npf_match_ctx_trie *m_trie;
+
+	err = npf_rte_acl_get_ring(af, &ring);
+	if (err)
+		return err;
+
+	while ((err = rte_ring_dequeue(ring, (void **)&m_trie)) == 0) {
+		free(m_trie->trie_name);
+		rte_acl_free(m_trie->acl_ctx);
+		rte_mempool_put(npr_mtrie_pool, m_trie);
+	}
+
+	return 0;
+}
+
 /*
  * Packet matching callback functions which use the rte_acl API
  */
+
+__rte_unused
+static inline int
+npf_rte_acl_get_trie(int af, struct npf_match_ctx_trie **m_trie)
+{
+	int err;
+	struct rte_ring *ring;
+
+	if (!m_trie)
+		return -EINVAL;
+
+	err = npf_rte_acl_get_ring(af, &ring);
+	if (err)
+		return err;
+
+	err = rte_ring_dequeue(ring, (void **)m_trie);
+	return err;
+}
+
+__rte_unused
+static int
+npf_rte_acl_put_trie(int af, struct npf_match_ctx_trie *m_trie)
+{
+	int err;
+	struct rte_ring *ring;
+
+	err = npf_rte_acl_get_ring(af, &ring);
+	if (err)
+		return err;
+
+	err = rte_ring_enqueue(ring, (void **)m_trie);
+	return err;
+}
+
+__rte_unused
+static int
+npf_rte_acl_add_trie(npf_match_ctx_t *m_ctx)
+{
+	int err;
+	struct npf_match_ctx_trie *m_trie;
+
+	err = npf_rte_acl_get_trie(m_ctx->af, &m_trie);
+	if (err)
+		return err;
+
+	cds_list_add(&m_trie->trie_link, &m_ctx->trie_list);
+	rte_atomic16_inc(&m_ctx->num_tries);
+
+	return err;
+}
 
 int npf_rte_acl_init(int af, const char *name, uint32_t max_rules,
 		     npf_match_ctx_t **m_ctx)
