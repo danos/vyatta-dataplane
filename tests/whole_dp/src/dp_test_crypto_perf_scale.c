@@ -116,6 +116,7 @@ static void setup_or_teardown_tunnels(uint32_t tunnel_cnt, bool setup)
 	char remote_prefix[PREFIX_SIZE];
 	uint8_t i, j;
 	uint32_t reqid = TUN_1_REQID_START;
+	uint32_t rule_no = 0;
 	struct timespec start, end;
 	uint64_t ptime = 0;
 	uint32_t outer = tunnel_cnt / 253;
@@ -133,10 +134,12 @@ static void setup_or_teardown_tunnels(uint32_t tunnel_cnt, bool setup)
 			tun_1_in_policy.s_prefix = remote_prefix;
 			tun_1_in_policy.d_prefix = local_prefix;
 			tun_1_in_policy.reqid = reqid;
+			tun_1_in_policy.rule_no = ++rule_no;
 
 			tun_1_out_policy.s_prefix = local_prefix;
 			tun_1_out_policy.d_prefix = remote_prefix;
 			tun_1_out_policy.reqid = reqid++;
+			tun_1_out_policy.rule_no = ++rule_no;
 
 			if (setup) {
 				dp_test_crypto_create_policy_verify(
