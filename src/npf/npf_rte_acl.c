@@ -43,10 +43,7 @@ struct npf_match_ctx_trie {
 
 #define MAX_TRANSACTION_ENTRIES 512
 
-static rte_atomic32_t ctx_id;
-
 struct npf_match_ctx {
-	struct rte_acl_ctx *acl_ctx;
 	struct cds_list_head  trie_list;  /* linkage for tries in this ctx */
 	char                 *ctx_name;   /* name of match context. Needs to be
 					   * globally unique
@@ -54,7 +51,11 @@ struct npf_match_ctx {
 	rte_atomic16_t        num_tries;  /* number of tries associated with
 					   * this context
 					   */
+	uint32_t              ctx_id;     /* counter used to generate a unique
+					   * id
+					   */
 	int                   af;
+	uint32_t              max_rules;
 	uint32_t              num_rules;
 	struct trans_entry   *tr;
 	uint32_t              tr_num_entries;
@@ -68,8 +69,8 @@ enum rule_op {
 
 struct trans_entry {
 	enum rule_op               rule_op;
-	struct npf_match_ctx      *trie;
-	struct rte_acl_rule       *rule;
+	struct npf_match_ctx_trie *trie;
+	const struct rte_acl_rule *rule;
 };
 
 /* rte acl stuff */
@@ -313,7 +314,6 @@ static inline int npf_rte_acl_get_ring(int af, struct rte_ring **ring)
 	return 0;
 }
 
-__rte_unused
 static int npf_rte_acl_create_trie(int af, int max_rules,
 				   struct npf_match_ctx_trie **m_trie)
 {
@@ -411,80 +411,22 @@ error:
 	return err;
 }
 
-__rte_unused
 static int
 npf_rte_acl_create_mtrie_pool(int af, int max_tries)
 {
 	int i, err;
-	static uint16_t v4_cnt, v6_cnt;
-	const char *pfx;
 	struct npf_match_ctx_trie *m_trie;
-	size_t key_len = sizeof(((struct rte_acl_rule *) 0)->data.userdata);
-	struct rte_acl_param acl_param = {
-		.socket_id = SOCKET_ID_ANY,
-		.max_rule_num = NPR_MTRIE_MAX_RULES,
-		.flags = ACL_F_USE_HASHTABLE,
-		.hash_func = acl_rule_hash,
-		.hash_key_len = key_len,
-	};
-	struct rte_acl_rcu_config rcu_conf = {
-		.mode = RTE_ACL_QSBR_MODE_DQ,
-		.dq_size = NPR_MTRIE_MAX_RULES,
-		.dq_trigger_reclaim_limit = 0,
-		.dq_max_reclaim_size = ~0,
-		.thread_id = dp_lcore_id()
-	};
 	struct rte_ring *ring;
-	char acl_name[RTE_ACL_NAMESIZE];
-
-	rcu_conf.thread_id = dp_lcore_id();
-	rcu_conf.v = dp_rcu_qsbr_get();
 
 	err = npf_rte_acl_get_ring(af, &ring);
 	if (err)
 		return err;
 
-	if (af == AF_INET) {
-		pfx = "ipv4";
-		acl_param.rule_size = RTE_ACL_RULE_SZ(RTE_DIM(ipv4_defs));
-		acl_param.rule_pool = npr_acl4_mempool;
-	} else if (af == AF_INET6) {
-		pfx = "ipv6";
-		acl_param.rule_size = RTE_ACL_RULE_SZ(RTE_DIM(ipv6_defs));
-		acl_param.rule_pool = npr_acl6_mempool;
-	} else
-		return -EINVAL;
-
 	for (i = 0; i < max_tries; i++) {
-		err = rte_mempool_get(npr_mtrie_pool, (void **)&m_trie);
+		err = npf_rte_acl_create_trie(af, NPR_MTRIE_MAX_RULES, &m_trie);
 		if (err) {
 			RTE_LOG(ERR, DATAPLANE,
-				"Could not allocate %s mtrie for pool\n", pfx);
-			goto error;
-		}
-		snprintf(acl_name, RTE_ACL_NAMESIZE, "%s-%d", pfx,
-			 af == AF_INET ? v4_cnt++ : v6_cnt++);
-
-		m_trie->flags = NPF_M_TRIE_FLAG_POOL;
-		m_trie->trie_name = strdup(acl_name);
-		if (!m_trie->trie_name) {
-			RTE_LOG(ERR, DATAPLANE,
-				"Could not allocate name %s for ACL ctx\n",
-				acl_name);
-			goto error;
-		}
-		acl_param.name = acl_name;
-		m_trie->acl_ctx = rte_acl_create(&acl_param);
-		if (m_trie->acl_ctx == NULL) {
-			RTE_LOG(ERR, DATAPLANE,
-				"Could not allocate ACL context for %s\n", acl_name);
-			goto error;
-		}
-
-		err = rte_acl_rcu_qsbr_add(m_trie->acl_ctx, &rcu_conf);
-		if (err) {
-			RTE_LOG(ERR, DATAPLANE, "Failed to enable RCU for ACL ctx %s\n",
-				m_trie->trie_name);
+				"Could not allocate mtrie for pool\n");
 			goto error;
 		}
 
@@ -526,7 +468,6 @@ static int npf_rte_acl_destroy_mtrie_pool(int af)
  * Packet matching callback functions which use the rte_acl API
  */
 
-__rte_unused
 static inline int
 npf_rte_acl_get_trie(int af, struct npf_match_ctx_trie **m_trie)
 {
@@ -544,7 +485,6 @@ npf_rte_acl_get_trie(int af, struct npf_match_ctx_trie **m_trie)
 	return err;
 }
 
-__rte_unused
 static int
 npf_rte_acl_put_trie(int af, struct npf_match_ctx_trie *m_trie)
 {
@@ -559,7 +499,6 @@ npf_rte_acl_put_trie(int af, struct npf_match_ctx_trie *m_trie)
 	return err;
 }
 
-__rte_unused
 static int
 npf_rte_acl_add_trie(npf_match_ctx_t *m_ctx)
 {
@@ -579,37 +518,19 @@ npf_rte_acl_add_trie(npf_match_ctx_t *m_ctx)
 int npf_rte_acl_init(int af, const char *name, uint32_t max_rules,
 		     npf_match_ctx_t **m_ctx)
 {
-	size_t key_len = sizeof(((struct rte_acl_rule *) 0)->data.userdata);
-	struct rte_acl_param acl_param = {
-		.socket_id = SOCKET_ID_ANY,
-		.max_rule_num = max_rules,
-		.flags = ACL_F_USE_HASHTABLE,
-		.hash_func = acl_rule_hash,
-		.hash_key_len = key_len,
-	};
-	struct rte_acl_rcu_config rcu_conf = {
-		.mode = RTE_ACL_QSBR_MODE_DQ,
-		.dq_size = max_rules,
-		.dq_trigger_reclaim_limit = 0,
-		.dq_max_reclaim_size = ~0,
-		.thread_id = dp_lcore_id()
-	};
-	char acl_name[RTE_ACL_NAMESIZE];
+	char ctx_name[RTE_ACL_NAMESIZE];
 	npf_match_ctx_t *tmp_ctx;
+	uint16_t rule_size;
 	size_t tr_sz;
-	int32_t id;
 	int err;
 
-	rcu_conf.thread_id = dp_lcore_id();
-	rcu_conf.v = dp_rcu_qsbr_get();
+	if (af == AF_INET)
+		rule_size = RTE_ACL_RULE_SZ(RTE_DIM(ipv4_defs));
+	else if (af == AF_INET6)
+		rule_size = RTE_ACL_RULE_SZ(RTE_DIM(ipv6_defs));
+	else
+		return -EINVAL;
 
-	if (af == AF_INET) {
-		acl_param.rule_size = RTE_ACL_RULE_SZ(RTE_DIM(ipv4_defs));
-		acl_param.rule_pool = npr_acl4_mempool;
-	} else {
-		acl_param.rule_size = RTE_ACL_RULE_SZ(RTE_DIM(ipv6_defs));
-		acl_param.rule_pool = npr_acl6_mempool;
-	}
 	tmp_ctx = calloc(1, sizeof(npf_match_ctx_t));
 	if (!tmp_ctx) {
 		RTE_LOG(ERR, DATAPLANE,
@@ -617,46 +538,20 @@ int npf_rte_acl_init(int af, const char *name, uint32_t max_rules,
 		return -ENOMEM;
 	}
 
-	/*
-	 * rte_acl_create returns a pointer to an existing context if
-	 * there is one of the same name. The NPF call flow involves
-	 * re-creating an entire ruleset when there are changes to the
-	 * configuration. In order to ensure that a new context is created
-	 * each time, a unique number is suffixed to the name
-	 */
+	snprintf(ctx_name, RTE_ACL_NAMESIZE, "%s-%s", name,
+		 af == AF_INET ? "ipv4" : "ipv6");
 
-	id = rte_atomic32_add_return(&ctx_id, 1);
-	snprintf(acl_name, RTE_ACL_NAMESIZE, "%s-%d", name, id);
-	acl_param.name = acl_name;
-
-	tmp_ctx->ctx_name = strdup(acl_name);
+	tmp_ctx->ctx_name = strdup(ctx_name);
 	if (!tmp_ctx->ctx_name) {
 		RTE_LOG(ERR, DATAPLANE,
 			"Could not allocate name %s for ACL ctx\n",
-			acl_name);
-		free(tmp_ctx);
-		return -ENOMEM;
-	}
-
-	tmp_ctx->acl_ctx = rte_acl_create(&acl_param);
-	if (tmp_ctx->acl_ctx == NULL) {
-		RTE_LOG(ERR, DATAPLANE,
-			"Could not allocate ACL context for %s\n",
-			(af == AF_INET ? "ipv4" : "ipv6"));
-		free(tmp_ctx->ctx_name);
-		free(tmp_ctx);
-		return -ENOMEM;
-	}
-
-	err = rte_acl_rcu_qsbr_add(tmp_ctx->acl_ctx, &rcu_conf);
-	if (err) {
-		RTE_LOG(ERR, DATAPLANE, "Failed to enable RCU for ACL ctx %s\n",
-			tmp_ctx->ctx_name);
+			ctx_name);
+		err = -ENOMEM;
 		goto error;
-
 	}
+	tmp_ctx->max_rules = max_rules;
 
-	tr_sz = (sizeof(struct trans_entry) + acl_param.rule_size)
+	tr_sz = (sizeof(struct trans_entry) + rule_size)
 		* MAX_TRANSACTION_ENTRIES;
 	tmp_ctx->tr = rte_zmalloc("trie_transaction_records", tr_sz,
 				  RTE_CACHE_LINE_SIZE);
@@ -668,19 +563,23 @@ int npf_rte_acl_init(int af, const char *name, uint32_t max_rules,
 		goto error;
 	}
 
+	tmp_ctx->af = af;
+	CDS_INIT_LIST_HEAD(&tmp_ctx->trie_list);
+
+	err = npf_rte_acl_add_trie(tmp_ctx);
+	if (err)
+		goto error;
+
 	*m_ctx = tmp_ctx;
 
 	return 0;
 
 error:
-	if (tmp_ctx->acl_ctx)
-		rte_acl_free(tmp_ctx->acl_ctx);
-
+	if (tmp_ctx->tr)
+		rte_free(tmp_ctx->tr);
 	if (tmp_ctx->ctx_name)
 		free(tmp_ctx->ctx_name);
-
-	if (tmp_ctx)
-		free(tmp_ctx);
+	free(tmp_ctx);
 
 	return err;
 }
@@ -708,13 +607,14 @@ static inline uint8_t wc_mask_to_mask(const uint8_t *wc_mask, uint8_t len)
 	return ((len * 8) - mask);
 }
 
-static int npf_rte_acl_record_transaction_entry(npf_match_ctx_t *m_ctx,
-						enum rule_op rule_op,
-						const struct rte_acl_rule
-						*acl_rule, size_t rule_sz)
+static int
+npf_rte_acl_record_transaction_entry(npf_match_ctx_t *m_ctx,
+				     struct npf_match_ctx_trie *m_trie,
+				     enum rule_op rule_op,
+				     const struct rte_acl_rule *acl_rule,
+				     size_t rule_sz __rte_unused)
 {
 	struct trans_entry *t_entry = NULL;
-	uintptr_t ptr;
 
 	if (m_ctx->tr_num_entries >= MAX_TRANSACTION_ENTRIES) {
 		RTE_LOG(ERR, DATAPLANE,
@@ -725,13 +625,9 @@ static int npf_rte_acl_record_transaction_entry(npf_match_ctx_t *m_ctx,
 
 	t_entry = &m_ctx->tr[m_ctx->tr_num_entries++];
 	t_entry->rule_op = rule_op;
-	t_entry->trie = m_ctx;
+	t_entry->trie = m_trie;
+	t_entry->rule = acl_rule;
 
-	ptr = (uintptr_t) t_entry + sizeof(struct trans_entry);
-
-	t_entry->rule = (struct rte_acl_rule *)ptr;
-
-	memcpy(t_entry->rule, acl_rule, rule_sz);
 	return 0;
 }
 
@@ -881,17 +777,19 @@ static void npf_rte_acl_add_v6_rule(uint8_t *match_addr, uint8_t *mask,
 		*(uint16_t *)&mask[NPC_GPR_DPORT_OFF_v6];
 }
 
-static int _npf_rte_acl_add_rule(int af, npf_match_ctx_t *m_ctx,
-				 const struct rte_acl_rule *acl_rule)
+static int
+npf_rte_acl_trie_add_rule(int af, struct npf_match_ctx_trie *m_trie,
+			  const struct rte_acl_rule *acl_rule)
 {
 	int err;
 
-	err = rte_acl_add_rules(m_ctx->acl_ctx, acl_rule, 1);
+	err = rte_acl_add_rules(m_trie->acl_ctx, acl_rule, 1);
 	if (err) {
 		RTE_LOG(ERR, DATAPLANE, "Could not add rule for af %d : %d\n",
 			af, err);
 		return err;
 	}
+	m_trie->num_rules++;
 
 	return 0;
 }
@@ -905,6 +803,10 @@ int npf_rte_acl_add_rule(int af, npf_match_ctx_t *m_ctx, uint32_t rule_no,
 	const struct rte_acl_rule *acl_rule;
 	int err = 0;
 	size_t rule_sz;
+	struct npf_match_ctx_trie *m_trie;
+
+	if (!rte_atomic16_read(&m_ctx->num_tries))
+		return -EINVAL;
 
 	if (!m_ctx->tr_in_progress) {
 		RTE_LOG(ERR, DATAPLANE,
@@ -925,30 +827,30 @@ int npf_rte_acl_add_rule(int af, npf_match_ctx_t *m_ctx, uint32_t rule_no,
 		rule_sz = sizeof(struct acl6_rules);
 	}
 
-	err = npf_rte_acl_record_transaction_entry(m_ctx, RULE_OP_ADD,
-						   acl_rule, rule_sz);
-	if (err)
-		return err;
+	m_trie = cds_list_first_entry(&m_ctx->trie_list,
+				      struct npf_match_ctx_trie,
+				      trie_link);
 
-	err = _npf_rte_acl_add_rule(af, m_ctx, acl_rule);
+	err = npf_rte_acl_trie_add_rule(af, m_trie, acl_rule);
 	if (err < 0)
 		return err;
 
 	m_ctx->num_rules++;
 
+	err = npf_rte_acl_record_transaction_entry(m_ctx, m_trie, RULE_OP_ADD,
+						   acl_rule, rule_sz);
+	if (err)
+		return err;
+
 	return 0;
 }
 
-static int npf_rte_acl_build(int af, npf_match_ctx_t **m_ctx)
+static int npf_rte_acl_trie_build(int af, struct npf_match_ctx_trie *m_trie)
 {
 	struct rte_acl_config cfg = { 0 };
 	int err;
-	npf_match_ctx_t *ctx = *m_ctx;
 
-	if (!ctx)
-		return -EINVAL;
-
-	if (!ctx->num_rules)
+	if (!m_trie->num_rules)
 		return 0;
 
 	cfg.num_categories = 1;
@@ -961,25 +863,42 @@ static int npf_rte_acl_build(int af, npf_match_ctx_t **m_ctx)
 	}
 
 	/* build the runtime structures for added rules, with 2 categories. */
-	err = rte_acl_build(ctx->acl_ctx, &cfg);
+	err = rte_acl_build(m_trie->acl_ctx, &cfg);
 	if (err != 0) {
 		/* handle error at build runtime structures for ACL context. */
 		RTE_LOG(ERR, DATAPLANE,
 			"Could not build ACL rules for %s : %s\n",
-			(af == AF_INET ? "ipv4" : "ipv6"), strerror(-err));
+			m_trie->trie_name, strerror(-err));
 		return err;
 	}
 
 	return 0;
 }
 
+int npf_rte_acl_build(int af, npf_match_ctx_t **m_ctx)
+{
+	int err;
+	npf_match_ctx_t *ctx = *m_ctx;
+	struct npf_match_ctx_trie *m_trie;
+
+	if (!rte_atomic16_read(&ctx->num_tries))
+		return 0;
+
+	m_trie = cds_list_first_entry(&ctx->trie_list,
+				      struct npf_match_ctx_trie,
+				      trie_link);
+
+	err = npf_rte_acl_trie_build(af, m_trie);
+	return err;
+}
+
 static int
-_npf_rte_acl_del_rule(int af, struct npf_match_ctx *m_ctx,
-		      const struct rte_acl_rule *acl_rule)
+npf_rte_acl_trie_del_rule(int af, struct npf_match_ctx_trie *m_trie,
+			  const struct rte_acl_rule *acl_rule)
 {
 	int err = 0;
 
-	err = rte_acl_del_rule(m_ctx->acl_ctx, acl_rule);
+	err = rte_acl_del_rule(m_trie->acl_ctx, acl_rule);
 	if (err && err != -ENOENT) {
 		RTE_LOG(ERR, DATAPLANE,
 			"Could not remove rule for af %d : %d\n", af, err);
@@ -988,7 +907,7 @@ _npf_rte_acl_del_rule(int af, struct npf_match_ctx *m_ctx,
 
 	/* Only reduce counter if there was a matching delete */
 	if (err != -ENOENT)
-		m_ctx->num_rules--;
+		m_trie->num_rules--;
 
 	return err;
 }
@@ -996,6 +915,7 @@ _npf_rte_acl_del_rule(int af, struct npf_match_ctx *m_ctx,
 int npf_rte_acl_del_rule(int af, npf_match_ctx_t *m_ctx, uint32_t rule_no,
 			 uint32_t priority, uint8_t *match_addr, uint8_t *mask)
 {
+	struct npf_match_ctx_trie *m_trie;
 	struct acl4_rules v4_rules;
 	struct acl6_rules v6_rules;
 	const struct rte_acl_rule *acl_rule;
@@ -1021,18 +941,24 @@ int npf_rte_acl_del_rule(int af, npf_match_ctx_t *m_ctx, uint32_t rule_no,
 		return -EINVAL;
 	}
 
-	err = npf_rte_acl_record_transaction_entry(m_ctx, RULE_OP_DELETE,
+	m_trie = cds_list_first_entry(&m_ctx->trie_list,
+				      struct npf_match_ctx_trie,
+				      trie_link);
+
+	err = npf_rte_acl_record_transaction_entry(m_ctx, m_trie,
+						   RULE_OP_DELETE,
 						   acl_rule, rule_sz);
 	if (err)
 		return err;
 
-	return _npf_rte_acl_del_rule(af, m_ctx, acl_rule);
+	return npf_rte_acl_trie_del_rule(af, m_trie, acl_rule);
 }
 
-int npf_rte_acl_match(int af, npf_match_ctx_t *m_ctx,
-		      npf_cache_t *npc __rte_unused,
-		      struct npf_match_cb_data *data,
-		      uint32_t *rule_no)
+static int
+npf_rte_acl_trie_match(int af, struct npf_match_ctx_trie *m_trie,
+		       npf_cache_t *npc __rte_unused,
+		       struct npf_match_cb_data *data,
+		       uint32_t *rule_no)
 {
 	int ret;
 	uint32_t results = 0;
@@ -1040,7 +966,7 @@ int npf_rte_acl_match(int af, npf_match_ctx_t *m_ctx,
 	struct rte_mbuf *m = data->mbuf;
 	uint8_t *nlp;
 
-	if (!m_ctx->num_rules)
+	if (!m_trie->num_rules)
 		return -ENOENT;
 
 	if (af == AF_INET) {
@@ -1052,12 +978,31 @@ int npf_rte_acl_match(int af, npf_match_ctx_t *m_ctx,
 	}
 	pkt_data[0] = nlp;
 
-	ret = rte_acl_classify(m_ctx->acl_ctx, pkt_data, &results, 1, 1);
+	ret = rte_acl_classify(m_trie->acl_ctx, pkt_data, &results, 1, 1);
 	if (ret)
 		return -EINVAL;
 
 	*rule_no = results;
 	return results ? 0 : -ENOENT;
+}
+
+int npf_rte_acl_match(int af, npf_match_ctx_t *m_ctx,
+		      npf_cache_t *npc __rte_unused,
+		      struct npf_match_cb_data *data,
+		      uint32_t *rule_no)
+{
+	int err;
+	struct npf_match_ctx_trie *m_trie;
+
+	if (!m_ctx->num_rules || !rte_atomic16_read(&m_ctx->num_tries))
+		return -ENOENT;
+
+	m_trie = cds_list_first_entry(&m_ctx->trie_list,
+				      struct npf_match_ctx_trie,
+				      trie_link);
+
+	err = npf_rte_acl_trie_match(af, m_trie, npc, data, rule_no);
+	return err;
 }
 
 int npf_rte_acl_start_transaction(int af __unused, npf_match_ctx_t *m_ctx)
@@ -1096,11 +1041,13 @@ static int npf_rte_acl_rollback_transaction(int af, npf_match_ctx_t *m_ctx)
 
 		switch (te->rule_op) {
 		case RULE_OP_ADD:
-			if (_npf_rte_acl_del_rule(af, te->trie, te->rule) < 0)
+			if (npf_rte_acl_trie_del_rule(af, te->trie, te->rule)
+			    < 0)
 				rc = -1;
 			break;
 		case RULE_OP_DELETE:
-			if (_npf_rte_acl_add_rule(af, te->trie, te->rule) < 0)
+			if (npf_rte_acl_trie_add_rule(af, te->trie, te->rule)
+			    < 0)
 				rc = -1;
 			break;
 		default:
@@ -1124,6 +1071,7 @@ static int npf_rte_acl_rollback_transaction(int af, npf_match_ctx_t *m_ctx)
 int npf_rte_acl_commit_transaction(int af, npf_match_ctx_t *m_ctx)
 {
 	int rc = 0;
+
 	rc = npf_rte_acl_build(af, &m_ctx);
 
 	/* build failed -> rollback transaction */
@@ -1140,18 +1088,39 @@ int npf_rte_acl_commit_transaction(int af, npf_match_ctx_t *m_ctx)
 	return rc;
 }
 
+static int
+npf_rte_acl_trie_destroy(int af, struct npf_match_ctx_trie *m_trie)
+{
+	if (m_trie->flags & NPF_M_TRIE_FLAG_POOL)
+		npf_rte_acl_put_trie(af, m_trie);
+	else {
+		rte_acl_reset(m_trie->acl_ctx);
+		rte_acl_free(m_trie->acl_ctx);
+		free(m_trie->trie_name);
+	}
+
+	return 0;
+}
+
 int npf_rte_acl_destroy(int af __rte_unused, npf_match_ctx_t **m_ctx)
 {
 	npf_match_ctx_t *ctx = *m_ctx;
+	struct cds_list_head *list_entry, *next;
+	struct npf_match_ctx_trie *m_trie;
 
-	if (ctx) {
-		rte_acl_reset(ctx->acl_ctx);
-		rte_acl_free(ctx->acl_ctx);
-		free(ctx->ctx_name);
-		rte_free(ctx->tr);
-		free(ctx);
-		*m_ctx = NULL;
+	if (!rte_atomic16_read(&ctx->num_tries))
+		return 0;
+
+	cds_list_for_each_safe(list_entry, next, &ctx->trie_list) {
+		m_trie = cds_list_entry(list_entry, struct npf_match_ctx_trie,
+					trie_link);
+		cds_list_del(&m_trie->trie_link);
+		npf_rte_acl_trie_destroy(ctx->af, m_trie);
 	}
+
+	free(ctx->ctx_name);
+	free(ctx);
+	*m_ctx = NULL;
 
 	return 0;
 }
@@ -1168,6 +1137,8 @@ size_t npf_rte_acl_rule_size(int af)
 
 int npf_rte_acl_setup(void)
 {
+	int err;
+
 	npr_mtrie_pool = rte_mempool_create("npr_mtrie_pool", M_TRIE_POOL_SIZE,
 					    sizeof(struct npf_match_ctx_trie),
 					    0, 0, NULL, NULL, NULL, NULL,
@@ -1218,6 +1189,16 @@ int npf_rte_acl_setup(void)
 		goto error;
 	}
 
+	err = npf_rte_acl_create_mtrie_pool(AF_INET,
+					    NPR_POOL_DEF_MAX_TRIES);
+	if (err)
+		goto error;
+
+	err = npf_rte_acl_create_mtrie_pool(AF_INET6,
+					    NPR_POOL_DEF_MAX_TRIES);
+	if (err)
+		goto error;
+
 	return 0;
 
 error:
@@ -1228,18 +1209,15 @@ error:
 int npf_rte_acl_teardown(void)
 {
 	if (npr_acl4_ring) {
+		npf_rte_acl_destroy_mtrie_pool(AF_INET);
 		rte_ring_free(npr_acl4_ring);
 		npr_acl4_ring = NULL;
 	}
 
 	if (npr_acl6_ring) {
+		npf_rte_acl_destroy_mtrie_pool(AF_INET6);
 		rte_ring_free(npr_acl6_ring);
 		npr_acl6_ring = NULL;
-	}
-
-	if (npr_mtrie_pool) {
-		rte_mempool_free(npr_mtrie_pool);
-		npr_mtrie_pool = NULL;
 	}
 
 	if (npr_acl4_mempool) {
@@ -1250,6 +1228,11 @@ int npf_rte_acl_teardown(void)
 	if (npr_acl6_mempool) {
 		rte_mempool_free(npr_acl6_mempool);
 		npr_acl6_mempool = NULL;
+	}
+
+	if (npr_mtrie_pool) {
+		rte_mempool_free(npr_mtrie_pool);
+		npr_mtrie_pool = NULL;
 	}
 
 	return 0;
