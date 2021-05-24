@@ -46,7 +46,7 @@ static rte_atomic32_t ctx_id;
 
 struct npf_match_ctx {
 	struct rte_acl_ctx *acl_ctx;
-	char *name;
+	char *ctx_name;
 	uint16_t num_rules;
 	struct trans_entry   *tr;
 	uint32_t              tr_num_entries;
@@ -345,8 +345,8 @@ int npf_rte_acl_init(int af, const char *name, uint32_t max_rules,
 	snprintf(acl_name, RTE_ACL_NAMESIZE, "%s-%d", name, id);
 	acl_param.name = acl_name;
 
-	tmp_ctx->name = strdup(acl_name);
-	if (!tmp_ctx->name) {
+	tmp_ctx->ctx_name = strdup(acl_name);
+	if (!tmp_ctx->ctx_name) {
 		RTE_LOG(ERR, DATAPLANE,
 			"Could not allocate name %s for ACL ctx\n",
 			acl_name);
@@ -359,7 +359,7 @@ int npf_rte_acl_init(int af, const char *name, uint32_t max_rules,
 		RTE_LOG(ERR, DATAPLANE,
 			"Could not allocate ACL context for %s\n",
 			(af == AF_INET ? "ipv4" : "ipv6"));
-		free(tmp_ctx->name);
+		free(tmp_ctx->ctx_name);
 		free(tmp_ctx);
 		return -ENOMEM;
 	}
@@ -367,7 +367,7 @@ int npf_rte_acl_init(int af, const char *name, uint32_t max_rules,
 	err = rte_acl_rcu_qsbr_add(tmp_ctx->acl_ctx, &rcu_conf);
 	if (err) {
 		RTE_LOG(ERR, DATAPLANE, "Failed to enable RCU for ACL ctx %s\n",
-			tmp_ctx->name);
+			tmp_ctx->ctx_name);
 		goto error;
 
 	}
@@ -379,7 +379,7 @@ int npf_rte_acl_init(int af, const char *name, uint32_t max_rules,
 	if (!tmp_ctx->tr) {
 		RTE_LOG(ERR, DATAPLANE,
 			"Could not allocate transaction record memory pool for trie %s\n",
-			tmp_ctx->name);
+			tmp_ctx->ctx_name);
 		err = -ENOMEM;
 		goto error;
 	}
@@ -392,8 +392,8 @@ error:
 	if (tmp_ctx->acl_ctx)
 		rte_acl_free(tmp_ctx->acl_ctx);
 
-	if (tmp_ctx->name)
-		free(tmp_ctx->name);
+	if (tmp_ctx->ctx_name)
+		free(tmp_ctx->ctx_name);
 
 	if (tmp_ctx)
 		free(tmp_ctx);
@@ -435,7 +435,7 @@ static int npf_rte_acl_record_transaction_entry(npf_match_ctx_t *m_ctx,
 	if (m_ctx->tr_num_entries >= MAX_TRANSACTION_ENTRIES) {
 		RTE_LOG(ERR, DATAPLANE,
 			"Number of transaction entries for trie %s exceeded (%u).\n",
-			m_ctx->name, MAX_TRANSACTION_ENTRIES);
+			m_ctx->ctx_name, MAX_TRANSACTION_ENTRIES);
 		return -ENOMEM;
 	}
 
@@ -625,7 +625,7 @@ int npf_rte_acl_add_rule(int af, npf_match_ctx_t *m_ctx, uint32_t rule_no,
 	if (!m_ctx->tr_in_progress) {
 		RTE_LOG(ERR, DATAPLANE,
 			"Could not add rule %u for trie %s: no transaction in progress\n",
-			rule_no, m_ctx->name);
+			rule_no, m_ctx->ctx_name);
 		return -EINVAL;
 	}
 
@@ -733,7 +733,7 @@ int npf_rte_acl_del_rule(int af, npf_match_ctx_t *m_ctx, uint32_t rule_no,
 	if (!m_ctx->tr_in_progress) {
 		RTE_LOG(ERR, DATAPLANE,
 			"Could not delete rule %d from trie %s: no transaction in progress\n",
-			rule_no, m_ctx->name);
+			rule_no, m_ctx->ctx_name);
 		return -EINVAL;
 	}
 
@@ -781,7 +781,7 @@ int npf_rte_acl_start_transaction(int af __unused, npf_match_ctx_t *m_ctx)
 	if (m_ctx->tr_in_progress) {
 		RTE_LOG(ERR, DATAPLANE,
 			"Transaction already in progress for trie %s\n",
-			m_ctx->name);
+			m_ctx->ctx_name);
 		return -EINPROGRESS;
 	}
 
@@ -822,7 +822,7 @@ static int npf_rte_acl_rollback_transaction(int af, npf_match_ctx_t *m_ctx)
 		default:
 			RTE_LOG(ERR, DATAPLANE,
 				"Unexpected transaction rule operation (%d) for trie %s\n",
-				te->rule_op, m_ctx->name);
+				te->rule_op, m_ctx->ctx_name);
 			rc = -1;
 			break;
 		}
@@ -830,7 +830,7 @@ static int npf_rte_acl_rollback_transaction(int af, npf_match_ctx_t *m_ctx)
 		if (rc < 0) {
 			RTE_LOG(ERR, DATAPLANE,
 				"Failed to rollback rule on trie %s\n",
-				m_ctx->name);
+				m_ctx->ctx_name);
 		}
 	}
 
@@ -847,7 +847,7 @@ int npf_rte_acl_commit_transaction(int af, npf_match_ctx_t *m_ctx)
 		if (npf_rte_acl_rollback_transaction(af, m_ctx) < 0) {
 			RTE_LOG(ERR, DATAPLANE,
 				"FATAL: Transaction rollback of trie failed %s\n",
-				m_ctx->name);
+				m_ctx->ctx_name);
 		}
 	}
 
@@ -863,7 +863,7 @@ int npf_rte_acl_destroy(int af __rte_unused, npf_match_ctx_t **m_ctx)
 	if (ctx) {
 		rte_acl_reset(ctx->acl_ctx);
 		rte_acl_free(ctx->acl_ctx);
-		free(ctx->name);
+		free(ctx->ctx_name);
 		rte_free(ctx->tr);
 		free(ctx);
 		*m_ctx = NULL;
