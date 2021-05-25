@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2017-2020, AT&T Intellectual Property. All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property. All rights reserved.
  * Copyright (c) 2011-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -2110,6 +2110,44 @@ static double nexthop_hash_load_factor(void)
 	cds_lfht_count_nodes(nexthop_hash, &dummy, &count, &dummy);
 	factor = (double) count / (double) NEXTHOP_HASH_TBL_SIZE;
 	return factor;
+}
+
+static void rt_nexthop_count(struct lpm *lpm __rte_unused,
+			     struct lpm_walk_params *params,
+			     struct pd_obj_state_and_flags *pd_state __rte_unused,
+			     void *arg)
+{
+	struct nexthop_summary_ctx *rt_ctx = arg;
+	const struct next_hop_list *nextl =
+		rcu_dereference(nh_tbl.entry[params->next_hop]);
+
+	nexthop_summary_count_cb(nextl, rt_ctx);
+}
+
+int rt_show_nexthop_stats(struct route_head *rt_head, json_writer_t *json,
+			  uint32_t id, struct ip_addr *addr)
+{
+	char b[INET_ADDRSTRLEN];
+	struct nexthop_summary_ctx rt_ctx;
+	struct lpm *lpm = rt_get_lpm(rt_head, id);
+
+	if (lpm == NULL) {
+		RTE_LOG(DEBUG, ROUTE, "Unknown route table id %d\n", id);
+		return 0;
+	}
+
+	rt_ctx.count = 0;
+	rt_ctx.addr = addr;
+
+	lpm_walk_all_safe(lpm, rt_nexthop_count, &rt_ctx);
+	jsonw_start_object(json);
+	jsonw_string_field(json, "gateway",
+			   inet_ntop(AF_INET, &rt_ctx.addr->address.ip_v4.s_addr,
+				     b, sizeof(b)));
+	jsonw_uint_field(json, "count", rt_ctx.count);
+	jsonw_end_object(json);
+
+	return 0;
 }
 
 int rt_stats(struct route_head *rt_head, json_writer_t *json, uint32_t id)

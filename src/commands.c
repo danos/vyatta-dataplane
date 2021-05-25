@@ -1898,6 +1898,7 @@ static const cmd_t cmd_table[] = {
 	{ 0,	"ring",		cmd_ring,	"Display ring information" },
 	{ 0,	"route",	cmd_route,	"Display routing information" },
 	{ 1,	"route",	cmd_route,	"Display routing information" },
+	{ 2,	"route",	cmd_route,	"Display routing information" },
 	{ 0,	"route6",	cmd_route6,	"Display ipv6 routing information" },
 	{ 0,    "rt-tracker",   cmd_rt_tracker_op, "Route Tracker commands" },
 	{ 0,	"session-op",	cmd_session_op,	"Display session table info" },
