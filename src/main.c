@@ -3412,6 +3412,13 @@ fal_tx_pkt_burst(uint16_t tx_port, struct rte_mbuf **bufs, uint16_t nb_bufs)
 
 	if (unlikely(!bitmask_isset(&active_port_mask, tx_port))) {
 		/*
+		 * Guard against the ifport_table entry for a backplane not
+		 * having been created in time for a sw_port tx to queue packets
+		 * to the backplane interface. Packets will be requeued later.
+		 */
+		if (unlikely(ifp == NULL))
+		    return 0;
+		/*
 		 * Account drop against appropriate queue as if the
 		 * link down detection was not detected at this point
 		 * then this could equally happen due to the hardware
