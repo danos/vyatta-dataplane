@@ -423,6 +423,9 @@ int cgn_alg_pptp_inspect(struct cgn_packet *cpk, struct rte_mbuf *mbuf,
  *
  * For the latter we need to get the client inside Call ID from the parent
  * session attached to the pinhole that has just been matched.
+ *
+ * Note, may be also called with cpk == NULL in order to simply get the orig
+ * Call ID from a session.
  */
 uint16_t cgn_alg_pptp_orig_call_id(struct cgn_session *cse,
 				   struct cgn_packet *cpk)
@@ -430,7 +433,7 @@ uint16_t cgn_alg_pptp_orig_call_id(struct cgn_session *cse,
 	struct cgn_alg_pptp_session *aps = NULL;
 	struct cgn_alg_sess_ctx *as = NULL;
 
-	if (!cse && cpk->cpk_alg_pinhole)
+	if (!cse && cpk && cpk->cpk_alg_pinhole)
 		/* Get call ID from parent session */
 		cse = alg_pinhole_cse(cpk->cpk_alg_pinhole);
 
@@ -444,6 +447,26 @@ uint16_t cgn_alg_pptp_orig_call_id(struct cgn_session *cse,
 	aps = caa_container_of(as, struct cgn_alg_pptp_session, aps_as);
 
 	return aps->aps_orig_call_id;
+}
+
+/*
+ * Get peer Call ID
+ */
+uint16_t cgn_alg_pptp_peer_call_id(struct cgn_session *cse)
+{
+	struct cgn_alg_pptp_session *aps = NULL;
+	struct cgn_alg_sess_ctx *as = NULL;
+
+	if (!cse)
+		return 0;
+
+	as = cgn_session_alg_get(cse);
+	if (!as)
+		return 0;
+
+	aps = caa_container_of(as, struct cgn_alg_pptp_session, aps_as);
+
+	return aps->aps_peer_call_id;
 }
 
 /*

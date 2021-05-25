@@ -374,6 +374,10 @@ static void cgn_alg_show_status(json_writer_t *json)
 	for (id = CGN_ALG_FIRST; id <= CGN_ALG_LAST; id++) {
 		id_bit = CGN_ALG_BIT(id);
 
+		/* Temporary while PPTP is only alg available in Yang */
+		if (id != CGN_ALG_PPTP)
+			continue;
+
 		jsonw_start_object(json);
 		jsonw_string_field(json, "name", _cgn_alg_id_name[id]);
 		jsonw_uint_field(json, "enabled",

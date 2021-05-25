@@ -252,8 +252,18 @@ uint32_t cgn_sess2_addr(struct cgn_sess2 *s2)
 	return s2->s2_sentry[CGN_DIR_OUT].s2e_key.k_addr;
 }
 
+/*
+ * Get the outbound dest port for display and logging purposes.
+ */
 uint16_t cgn_sess2_port(struct cgn_sess2 *s2)
 {
+	struct cgn_session *cse;
+
+	cse = cgn_sess_from_cs2(s2->s2_cs2);
+
+	if (cgn_session_is_alg_pptp_child(cse))
+		return cgn_alg_pptp_peer_call_id(cse);
+
 	return s2->s2_sentry[CGN_DIR_OUT].s2e_key.k_port;
 }
 

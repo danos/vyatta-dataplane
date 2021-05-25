@@ -128,12 +128,25 @@ enum cgn_alg_id cgn_alg_name2id(const char *name);
  * established GRE session the Call ID is cached in the PPTP specific session
  * context (aps_orig_call_id)
  *
- * @param cse Pointer to main (3-tuple) session
- * @param cpk Pointer to CGNAT packet cache
- * @return Call ID
+ * Note, may be also called with cpk == NULL in order to simply get the orig
+ * Call ID from a session.
+ *
+ * At least one of cse and cpk must be non-NULL.
+ *
+ * @param cse Pointer to main (3-tuple) session.  May be NULL.
+ * @param cpk Pointer to CGNAT packet cache.  May be NULL.
+ * @return Call ID in network byte order.
  */
 uint16_t cgn_alg_pptp_orig_call_id(struct cgn_session *cse,
 				   struct cgn_packet *cpk);
+
+/**
+ * Get the PPTP Call ID of the peer (outside) server
+ *
+ * @param cse Pointer to main (3-tuple) session.
+ * @return Call ID in network byte order.
+ */
+uint16_t cgn_alg_pptp_peer_call_id(struct cgn_session *cse);
 
 /**
  * Write the ALG specific json for a CGNAT ALG session

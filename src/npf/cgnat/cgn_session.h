@@ -89,6 +89,7 @@ void cgn_session_set_alg_parent(struct cgn_session *cse, bool val);
 bool cgn_session_is_alg_parent(struct cgn_session *cse);
 void cgn_session_set_alg_child(struct cgn_session *cse, bool val);
 bool cgn_session_is_alg_child(struct cgn_session *cse);
+bool cgn_session_is_alg_pptp_child(struct cgn_session *cse);
 void cgn_session_set_alg_inspect(struct cgn_session *cse, bool val);
 bool cgn_session_get_alg_inspect(struct cgn_session *cse);
 

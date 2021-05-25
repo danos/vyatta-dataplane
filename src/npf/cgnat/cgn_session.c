@@ -553,6 +553,11 @@ bool cgn_session_is_alg_child(struct cgn_session *cse)
 	return cse->cs_alg_child;
 }
 
+bool cgn_session_is_alg_pptp_child(struct cgn_session *cse)
+{
+	return cse->cs_alg_child && cgn_alg_get_id(cse->cs_alg) == CGN_ALG_PPTP;
+}
+
 /*
  * ALG inspect flag
  *
@@ -2104,6 +2109,7 @@ cgn_session_jsonw_one(json_writer_t *json, struct cgn_sess_fltr *fltr,
 	struct ifnet *ifp;
 	uint count = 1;
 	uint64_t bk_pkts;
+	uint16_t subs_port;
 
 	/*
 	 * If nested sessions are enabled and the user has specified some
@@ -2130,7 +2136,14 @@ cgn_session_jsonw_one(json_writer_t *json, struct cgn_sess_fltr *fltr,
 	jsonw_uint_field(json, "id", cse->cs_id);
 
 	jsonw_string_field(json, "subs_addr", src_str);
-	jsonw_uint_field(json, "subs_port", htons(cse->cs_forw_entry.ce_port));
+
+	/* PPTP ALG subs_port needs fetched from the PPTP session context */
+	if (cgn_session_is_alg_pptp_child(cse))
+		subs_port = cgn_alg_pptp_orig_call_id(cse, NULL);
+	else
+		subs_port = cse->cs_forw_entry.ce_port;
+
+	jsonw_uint_field(json, "subs_port", htons(subs_port));
 
 	jsonw_string_field(json, "pub_addr", trans_str);
 	jsonw_uint_field(json, "pub_port", htons(cse->cs_back_entry.ce_port));
