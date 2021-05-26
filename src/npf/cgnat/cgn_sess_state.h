@@ -63,10 +63,11 @@ enum cgn_sess_state {
 	CGN_SESS_STATE_CLOSED,
 	CGN_SESS_STATE_INIT,
 	CGN_SESS_STATE_ESTABLISHED,
+	CGN_SESS_STATE_CLOSING,
 };
 
 #define CGN_SESS_STATE_FIRST	CGN_SESS_STATE_CLOSED
-#define CGN_SESS_STATE_LAST	CGN_SESS_STATE_ESTABLISHED
+#define CGN_SESS_STATE_LAST	CGN_SESS_STATE_CLOSING
 #define CGN_SESS_STATE_COUNT	(CGN_SESS_STATE_LAST + 1)
 
 enum cgn_sess_event {
@@ -89,6 +90,7 @@ enum cgn_tcp_state {
 	CGN_TCP_STATE_CLOSED	= CGN_SESS_STATE_CLOSED,
 	CGN_TCP_STATE_INIT	= CGN_SESS_STATE_INIT,
 	CGN_TCP_STATE_ESTABLISHED = CGN_SESS_STATE_ESTABLISHED,
+	CGN_TCP_STATE_CLOSING	= CGN_SESS_STATE_CLOSING,
 	CGN_TCP_STATE_TRANS,
 	CGN_TCP_STATE_C_FIN_RCV,
 	CGN_TCP_STATE_S_FIN_RCV,
@@ -185,6 +187,8 @@ static inline const char *cgn_tcp_state_str(enum cgn_tcp_state state)
 		return "opening";
 	case CGN_TCP_STATE_ESTABLISHED:
 		return "established";
+	case CGN_TCP_STATE_CLOSING:
+		return "closing";
 	case CGN_TCP_STATE_TRANS:
 		return "transitory";
 	case CGN_TCP_STATE_C_FIN_RCV:
@@ -209,6 +213,8 @@ cgn_tcp_state_str_short(enum cgn_tcp_state state)
 		return "OP";
 	case CGN_TCP_STATE_ESTABLISHED:
 		return "ES";
+	case CGN_TCP_STATE_CLOSING:
+		return "CG";
 	case CGN_TCP_STATE_TRANS:
 		return "TR";
 	case CGN_TCP_STATE_C_FIN_RCV:

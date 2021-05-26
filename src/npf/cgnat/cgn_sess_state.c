@@ -83,6 +83,24 @@ cgn_tcp_fsm[CGN_TCP_STATE_COUNT][CGN_DIR_SZ][CGN_TCP_EVENT_COUNT] = {
 			[CGN_TCP_EVENT_TO]       = CGN_TCP_STATE_TRANS,
 		},
 	},
+	[CGN_TCP_STATE_CLOSING] = {
+		[CGN_DIR_OUT] = {
+			[CGN_TCP_EVENT_NONE]     = 0,
+			[CGN_TCP_EVENT_SYN]      = 0,
+			[CGN_TCP_EVENT_RST]      = 0,
+			[CGN_TCP_EVENT_ACK]      = 0,
+			[CGN_TCP_EVENT_FIN]      = CGN_TCP_STATE_C_FIN_RCV,
+			[CGN_TCP_EVENT_TO]       = CGN_TCP_STATE_CLOSED,
+		},
+		[CGN_DIR_IN] = {
+			[CGN_TCP_EVENT_NONE]     = 0,
+			[CGN_TCP_EVENT_SYN]      = 0,
+			[CGN_TCP_EVENT_RST]      = 0,
+			[CGN_TCP_EVENT_ACK]      = 0,
+			[CGN_TCP_EVENT_FIN]      = CGN_TCP_STATE_S_FIN_RCV,
+			[CGN_TCP_EVENT_TO]       = CGN_TCP_STATE_CLOSED,
+		},
+	},
 	[CGN_TCP_STATE_TRANS] = {
 		[CGN_DIR_OUT] = {
 			[CGN_TCP_EVENT_NONE]     = 0,
@@ -187,6 +205,18 @@ cgn_sess_fsm[CGN_SESS_STATE_COUNT][CGN_DIR_SZ][CGN_SESS_EVENT_COUNT] = {
 		},
 	},
 	[CGN_SESS_STATE_ESTABLISHED] = {
+		[CGN_DIR_OUT] = {
+			[CGN_SESS_EVENT_NONE]     = 0,
+			[CGN_SESS_EVENT_PKT]      = 0,
+			[CGN_SESS_EVENT_TO]       = CGN_SESS_STATE_CLOSED,
+		},
+		[CGN_DIR_IN] = {
+			[CGN_SESS_EVENT_NONE]     = 0,
+			[CGN_SESS_EVENT_PKT]      = 0,
+			[CGN_SESS_EVENT_TO]       = CGN_SESS_STATE_CLOSED,
+		},
+	},
+	[CGN_SESS_STATE_CLOSING] = {
 		[CGN_DIR_OUT] = {
 			[CGN_SESS_EVENT_NONE]     = 0,
 			[CGN_SESS_EVENT_PKT]      = 0,
