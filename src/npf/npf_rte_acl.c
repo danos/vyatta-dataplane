@@ -460,6 +460,37 @@ error:
 	return err;
 }
 
+static inline int
+npf_rte_acl_get_trie(int af, struct npf_match_ctx_trie **m_trie)
+{
+	int err;
+	struct rte_ring *ring;
+
+	if (!m_trie)
+		return -EINVAL;
+
+	err = npf_rte_acl_get_ring(af, &ring);
+	if (err)
+		return err;
+
+	err = rte_ring_dequeue(ring, (void **)m_trie);
+	return err;
+}
+
+static int
+npf_rte_acl_put_trie(int af, struct npf_match_ctx_trie *m_trie)
+{
+	int err;
+	struct rte_ring *ring;
+
+	err = npf_rte_acl_get_ring(af, &ring);
+	if (err)
+		return err;
+
+	err = rte_ring_enqueue(ring, (void **)m_trie);
+	return err;
+}
+
 static int
 npf_rte_acl_create_mtrie_pool(int af, int max_tries)
 {
@@ -518,37 +549,6 @@ static int npf_rte_acl_destroy_mtrie_pool(int af)
 /*
  * Packet matching callback functions which use the rte_acl API
  */
-
-static inline int
-npf_rte_acl_get_trie(int af, struct npf_match_ctx_trie **m_trie)
-{
-	int err;
-	struct rte_ring *ring;
-
-	if (!m_trie)
-		return -EINVAL;
-
-	err = npf_rte_acl_get_ring(af, &ring);
-	if (err)
-		return err;
-
-	err = rte_ring_dequeue(ring, (void **)m_trie);
-	return err;
-}
-
-static int
-npf_rte_acl_put_trie(int af, struct npf_match_ctx_trie *m_trie)
-{
-	int err;
-	struct rte_ring *ring;
-
-	err = npf_rte_acl_get_ring(af, &ring);
-	if (err)
-		return err;
-
-	err = rte_ring_enqueue(ring, (void **)m_trie);
-	return err;
-}
 
 static int
 npf_rte_acl_add_trie(npf_match_ctx_t *m_ctx)
