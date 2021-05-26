@@ -25,6 +25,7 @@ static void *npf_rte_acl_optimize(void *args);
 static struct rte_mempool *npr_mtrie_pool;
 static struct rte_mempool *npr_acl4_mempool;
 static struct rte_mempool *npr_acl6_mempool;
+static struct rte_mempool *npr_pdel_pool;
 
 #define NPR_RULE_MAX_ELEMENTS (1 << 14)
 
@@ -107,6 +108,11 @@ struct npf_match_ctx {
 	uint32_t              tr_num_entries;
 	bool                  tr_in_progress;
 	rte_spinlock_t        merge_lock;
+};
+
+struct pending_delete {
+	struct cds_list_head       pending_link; /* linkage pendling_delete list */
+	struct rte_acl_rule       *rule;         /* copied rule to be deleted */
 };
 
 enum rule_op {
@@ -1325,12 +1331,24 @@ size_t npf_rte_acl_rule_size(int af)
 }
 
 #define M_TRIE_POOL_SIZE 512
+#define PENDING_DELETE_POOL_SIZE 512
 
 int npf_rte_acl_setup(void)
 {
 	int err;
 
 	CDS_INIT_LIST_HEAD(&ctx_list);
+
+	npr_pdel_pool = rte_mempool_create("npr_pdel_pool",
+					   PENDING_DELETE_POOL_SIZE,
+					   sizeof(struct pending_delete),
+					   0, 0, NULL, NULL, NULL, NULL,
+					   SOCKET_ID_ANY, 0);
+	if (!npr_pdel_pool) {
+		RTE_LOG(ERR, DATAPLANE,
+			"Could not create memory pool for pending deletes\n");
+		goto error;
+	}
 
 	npr_mtrie_pool = rte_mempool_create("npr_mtrie_pool", M_TRIE_POOL_SIZE,
 					    sizeof(struct npf_match_ctx_trie),
@@ -1428,6 +1446,11 @@ int npf_rte_acl_teardown(void)
 		npr_mtrie_pool = NULL;
 	}
 
+	if (npr_pdel_pool) {
+		rte_mempool_free(npr_pdel_pool);
+		npr_pdel_pool = NULL;
+	}
+
 	return 0;
 }
 
@@ -1488,6 +1511,44 @@ npf_rte_acl_select_candidate_tries(struct npf_match_ctx_trie *merge_start __rte_
 	 * num_tries - number of tries to be merged
 	 * num_rules - total number of rules in new merged trie
 	 */
+}
+
+__rte_unused
+static int
+npf_rte_acl_delete_pending_rules(int af, struct npf_match_ctx_trie *new_trie,
+				 struct cds_list_head *delete_list)
+{
+	int rc;
+	struct pending_delete *pd, *next;
+	struct rte_mempool *rule_pool;
+
+	if (af == AF_INET)
+		rule_pool = npr_acl4_mempool;
+	else if (af == AF_INET6)
+		rule_pool = npr_acl6_mempool;
+	else
+		return -EINVAL;
+
+	if (cds_list_empty(delete_list))
+		return 0;
+
+	cds_list_for_each_entry_safe(pd, next, delete_list, pending_link) {
+
+		rc = npf_rte_acl_trie_del_rule(af, new_trie, pd->rule);
+		if (rc < 0) {
+			RTE_LOG(ERR, DATAPLANE,
+				"Failed to delete pending rule from merged trie %s: %s\n",
+				new_trie->trie_name, rte_strerror(-rc));
+			return rc;
+		}
+
+		cds_list_del_rcu(&pd->pending_link);
+
+		rte_mempool_put(rule_pool, pd->rule);
+		rte_mempool_put(npr_pdel_pool, pd);
+	}
+
+	return 0;
 }
 
 static int
