@@ -538,6 +538,32 @@ void cgn_sess_state_close(struct cgn_state *st)
 	rte_spinlock_unlock(&st->st_lock);
 }
 
+/*
+ * Force a session to closing state
+ */
+void cgn_sess_state_closing(struct cgn_state *st)
+{
+	rte_spinlock_lock(&st->st_lock);
+
+	if (st->st_proto == NAT_PROTO_TCP) {
+		/*
+		 * Do not force to closing state if in one of the 'fin' states
+		 */
+		if (st->st_state == CGN_TCP_STATE_INIT ||
+		    st->st_state == CGN_TCP_STATE_ESTABLISHED ||
+			st->st_state == CGN_TCP_STATE_TRANS)
+			st->st_state = CGN_TCP_STATE_CLOSING;
+
+	} else {
+		/* UDP and 'other' */
+		if (st->st_state == CGN_SESS_STATE_INIT ||
+		    st->st_state == CGN_SESS_STATE_ESTABLISHED)
+			st->st_state = CGN_SESS_STATE_CLOSING;
+	}
+
+	rte_spinlock_unlock(&st->st_lock);
+}
+
 const char *cgn_sess_state_str(struct cgn_state *st)
 {
 	/* TCP string covers TCP and non TCP */

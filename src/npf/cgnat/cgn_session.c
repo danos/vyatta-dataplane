@@ -1352,6 +1352,20 @@ struct cgn_session *cgn_session_find_cached(struct rte_mbuf *mbuf)
 	return cse;
 }
 
+/*
+ * Change all sub-session to closing state if they are currently in init or
+ * established states.
+ */
+void cgn_session_set_closing(struct cgn_session *cse)
+{
+	/*
+	 * Only call cgn_sess_s2_set_all_closing if sub-sessions are enabled
+	 * for this main session.
+	 */
+	if (cgn_sess_s2_is_enabled(cse))
+		cgn_sess_s2_set_all_closing(&cse->cs_s2);
+}
+
 static int
 cgn_session_inspect_s2(struct cgn_session *cse, struct cgn_sentry *ce,
 		       struct cgn_packet *cpk, enum cgn_dir dir)

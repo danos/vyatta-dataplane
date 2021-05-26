@@ -145,6 +145,7 @@ uint cgn_sess_s2_fltr_count(struct cgn_sess_s2 *cs2,
 uint32_t cgn_sess_s2_unexpired(struct cgn_sess_s2 *cs2);
 uint cgn_sess_s2_expire_all(struct cgn_sess_s2 *cs2);
 uint cgn_sess_s2_expire_id(struct cgn_sess_s2 *cs2, uint32_t s2_id);
+void cgn_sess_s2_set_all_closing(struct cgn_sess_s2 *cs2);
 void cgn_sess2_clear_or_update_stats(struct cgn_sess_s2 *cs2, bool clear);
 uint cgn_sess_s2_show(struct json_writer *json, struct cgn_sess_s2 *cs2,
 		      struct cgn_sess_fltr *fltr);

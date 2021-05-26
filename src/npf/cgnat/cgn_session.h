@@ -77,6 +77,8 @@ struct cgn_session *cgn_session_inspect(struct cgn_packet *cpk,
 struct cgn_session *cgn_session_lookup_icmp_err(struct cgn_packet *cpk,
 						enum cgn_dir dir);
 
+void cgn_session_set_closing(struct cgn_session *cse);
+
 struct cgn_session *cgn_session_find_cached(struct rte_mbuf *mbuf);
 
 void cgn_session_set_max(int32_t val);

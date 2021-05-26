@@ -820,6 +820,37 @@ static inline bool cgn_sess2_expired(struct cgn_sess2 *s2)
 	return false;
 }
 
+/*
+ * Change all sub-session to closing state if they are currently in init or
+ * established states.
+ */
+void cgn_sess_s2_set_all_closing(struct cgn_sess_s2 *cs2)
+{
+	if (cs2->cs2_s2)
+		cgn_sess_state_closing(&cs2->cs2_s2->s2_state);
+
+	if (!cs2->cs2_ht)
+		return;
+
+	struct cds_lfht_iter iter;
+	struct cgn_sess2 *s2;
+	struct cgn_s2entry *s2e;
+
+	/*
+	 * There are two ht nodes per sub-session ('in' and 'out'), so to
+	 * iterate over each sub-session we only need to look at one of them.
+	 */
+	cds_lfht_for_each_entry(cs2->cs2_ht, &iter, s2e, s2e_node) {
+		if (s2e->s2e_key.k_dir != CGN_DIR_OUT)
+			continue;
+
+		s2 = caa_container_of(s2e, struct cgn_sess2,
+				      s2_sentry[CGN_DIR_OUT]);
+
+		cgn_sess_state_closing(&s2->s2_state);
+	}
+}
+
 static void cgn_sess2_rcu_free(struct rcu_head *head)
 {
 	struct cgn_sess2 *s2 = caa_container_of(head, struct cgn_sess2,
