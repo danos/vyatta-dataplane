@@ -1491,10 +1491,40 @@ npf_rte_acl_select_candidate_tries(struct npf_match_ctx_trie *merge_start __rte_
 }
 
 static int
-npf_rte_acl_copy_rules(struct npf_match_ctx_trie *merge_start __rte_unused,
-		       uint16_t num_tries __rte_unused,
-		       struct npf_match_ctx_trie *dst_trie __rte_unused)
+npf_rte_acl_copy_rules(npf_match_ctx_t *ctx,
+		       struct npf_match_ctx_trie *merge_start,
+		       uint16_t num_tries,
+		       struct npf_match_ctx_trie *dst_trie)
 {
+	int rc;
+	struct npf_match_ctx_trie *next, *m_trie = merge_start;
+	uint16_t i = 0;
+
+	cds_list_for_each_entry_safe_from(m_trie, next, &ctx->trie_list, trie_link) {
+
+		DP_DEBUG(RLDB_ACL, DEBUG, DATAPLANE, "Updating trie-state %s from %s to %s (%s)\n",
+				m_trie->trie_name, trie_state_strs[m_trie->trie_state],
+				trie_state_strs[TRIE_STATE_MERGING], __func__);
+		m_trie->trie_state = TRIE_STATE_MERGING;
+
+		DP_DEBUG(RLDB_ACL, DEBUG, DATAPLANE, "Merging %s (%u rules) into %s (%s)\n",
+				m_trie->trie_name, m_trie->num_rules, dst_trie->trie_name,
+				__func__);
+
+		rc = rte_acl_copy_rules(dst_trie->acl_ctx, m_trie->acl_ctx);
+		if (rc < 0) {
+			RTE_LOG(ERR, DATAPLANE,
+				"Could not copy rules into new trie %s: %s\n",
+				dst_trie->trie_name, rte_strerror(-rc));
+			return rc;
+		}
+
+		dst_trie->num_rules += m_trie->num_rules;
+
+		if (++i == num_tries)
+			break;
+	}
+
 	return 0;
 }
 
@@ -1514,6 +1544,7 @@ npf_rte_acl_delete_merged_tries(struct npf_match_ctx_trie *merge_start,
 
 static void npf_rte_acl_optimize_ctx(npf_match_ctx_t *ctx)
 {
+	int rc;
 	struct cds_list_head *list_entry, *next;
 	struct npf_match_ctx_trie *m_trie, *merge_start = NULL,
 				  *new_trie = NULL;
@@ -1545,7 +1576,13 @@ static void npf_rte_acl_optimize_ctx(npf_match_ctx_t *ctx)
 	npf_rte_acl_create_trie(ctx->af, merge_rule_cnt, &new_trie);
 
 	/* copy rules to new trie */
-	npf_rte_acl_copy_rules(merge_start, merge_trie_cnt, new_trie);
+	rc = npf_rte_acl_copy_rules(ctx, merge_start, merge_trie_cnt, new_trie);
+	if (rc < 0) {
+		RTE_LOG(ERR, DATAPLANE,
+			"Trie-Optimization: Failed to copy rules into new trie: %s\n",
+			strerror(-rc));
+		return;
+	}
 
 	/* release merge lock */
 	rte_spinlock_unlock(&ctx->merge_lock);
