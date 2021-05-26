@@ -374,6 +374,13 @@ static int npf_rte_acl_create_trie(int af, int max_rules,
 {
 	int err;
 	size_t key_len = sizeof(((struct rte_acl_rule *) 0)->data.userdata);
+
+	/* rte_acl in hashtable mode can only generate
+	 * rules with at least 8 entries.
+	 */
+	if (max_rules < 8)
+		max_rules = 8;
+
 	struct rte_acl_param acl_param = {
 		.socket_id = SOCKET_ID_ANY,
 		.max_rule_num = max_rules,
