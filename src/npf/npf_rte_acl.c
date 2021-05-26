@@ -94,6 +94,7 @@ struct npf_match_ctx {
 	struct rcu_head       rcu;
 	struct cds_list_head  ctx_link;   /* linkage for all ctx structures */
 	struct cds_list_head  trie_list;  /* linkage for tries in this ctx */
+	struct cds_list_head  pending_delete; /* list of rules pending delete */
 	char                 *ctx_name;   /* name of match context. Needs to be
 					   * globally unique
 					   */
@@ -701,6 +702,7 @@ int npf_rte_acl_init(int af, const char *name, uint32_t max_rules,
 
 	tmp_ctx->af = af;
 	CDS_INIT_LIST_HEAD(&tmp_ctx->trie_list);
+	CDS_INIT_LIST_HEAD(&tmp_ctx->pending_delete);
 
 	err = npf_rte_acl_get_trie(tmp_ctx->af, &m_trie);
 	if (err)
@@ -1072,6 +1074,45 @@ npf_rte_acl_trie_del_rule(int af, struct npf_match_ctx_trie *m_trie,
 	return err;
 }
 
+static int
+npf_rte_acl_add_pending_delete_rule(int af, npf_match_ctx_t *m_ctx,
+				    const struct rte_acl_rule *acl_rule, size_t rule_sz)
+{
+	int err;
+	struct pending_delete *pd;
+	struct rte_mempool *rule_mempool;
+
+	if (af == AF_INET)
+		rule_mempool = npr_acl4_mempool;
+	else if (af == AF_INET6)
+		rule_mempool = npr_acl6_mempool;
+	else
+		return -EINVAL;
+
+	err = rte_mempool_get(npr_pdel_pool, (void **)&pd);
+	if (err) {
+		RTE_LOG(ERR, DATAPLANE,
+			"Could not allocate pending-delete object from ctx %s\n",
+			m_ctx->ctx_name);
+		return err;
+	}
+	memset(pd, 0, sizeof(*pd));
+
+	err = rte_mempool_get(rule_mempool, (void **)&pd->rule);
+	if (err) {
+		RTE_LOG(ERR, DATAPLANE,
+			"Could not allocate memory pending-delete rule from ctx %s\n",
+			m_ctx->ctx_name);
+		return err;
+	}
+	memset(pd->rule, 0, rule_sz);
+	memcpy(pd->rule, acl_rule, rule_sz);
+
+	cds_list_add(&pd->pending_link, &m_ctx->pending_delete);
+
+	return 0;
+}
+
 int npf_rte_acl_del_rule(int af, npf_match_ctx_t *m_ctx, uint32_t rule_no,
 			 uint32_t priority, uint8_t *match_addr, uint8_t *mask)
 {
@@ -1112,11 +1153,12 @@ int npf_rte_acl_del_rule(int af, npf_match_ctx_t *m_ctx, uint32_t rule_no,
 
 		/*
 		 * deletes are only permitted on entries that have been
-		 * successfully added and committed. So only frozen tries
-		 * are consulted
+		 * successfully added and committed. So writable tries
+		 * get skipped. Delete is either done on a frozen or merging
+		 * trie.
 		 */
-		if (m_trie->trie_state != TRIE_STATE_FROZEN)
-			break;
+		if (m_trie->trie_state == TRIE_STATE_WRITABLE)
+			continue;
 
 		err = npf_rte_acl_trie_del_rule(af, m_trie, acl_rule);
 		if (!err) {
@@ -1126,6 +1168,16 @@ int npf_rte_acl_del_rule(int af, npf_match_ctx_t *m_ctx, uint32_t rule_no,
 			if (!m_trie->num_rules) {
 				npf_rte_acl_delete_trie(m_ctx, m_trie);
 			}
+
+			/* nothing more to do */
+			if (m_trie->trie_state != TRIE_STATE_MERGING)
+				break;
+
+			/* merge is in progress, put the rule on the pending-delete list
+			 * so the new merged trie has this rule deleted.
+			 */
+			err = npf_rte_acl_add_pending_delete_rule(af, m_ctx, acl_rule, rule_sz);
+
 			break;
 		}
 	}
@@ -1581,7 +1633,6 @@ npf_rte_acl_select_candidate_tries(npf_match_ctx_t *ctx,
 	*num_rules = cnt_rules;
 }
 
-__rte_unused
 static int
 npf_rte_acl_delete_pending_rules(int af, struct npf_match_ctx_trie *new_trie,
 				 struct cds_list_head *delete_list)
@@ -1736,6 +1787,13 @@ static void npf_rte_acl_optimize_ctx(npf_match_ctx_t *ctx)
 	rte_spinlock_lock(&ctx->merge_lock);
 
 	/* delete rules in pending list */
+	rc = npf_rte_acl_delete_pending_rules(ctx->af, new_trie, &ctx->pending_delete);
+	if (rc < 0) {
+		RTE_LOG(ERR, DATAPLANE,
+			"Trie-Optimization: Failed delete pending rules: %s\n",
+			strerror(-rc));
+		return;
+	}
 
 	/* rebuild trie */
 	rc = npf_rte_acl_trie_build(ctx->af, new_trie);
