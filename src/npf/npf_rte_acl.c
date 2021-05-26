@@ -576,6 +576,18 @@ npf_rte_acl_add_trie(npf_match_ctx_t *m_ctx)
 	return err;
 }
 
+static void
+npf_rte_acl_delete_trie(npf_match_ctx_t *ctx, struct npf_match_ctx_trie *m_trie)
+{
+	cds_list_del(&m_trie->trie_link);
+	npf_rte_acl_trie_destroy(ctx->af, m_trie);
+	rte_atomic16_dec(&ctx->num_tries);
+	DP_DEBUG(RLDB_ACL, DEBUG, DATAPLANE,
+		 "Delete trie %s from ctx %s (Trie count = %d)\n",
+		 m_trie->trie_name, ctx->ctx_name,
+		 rte_atomic16_read(&ctx->num_tries));
+}
+
 static int npf_rte_acl_get_writable_trie(npf_match_ctx_t *m_ctx,
 					 struct npf_match_ctx_trie **m_trie)
 {
@@ -1079,13 +1091,7 @@ int npf_rte_acl_del_rule(int af, npf_match_ctx_t *m_ctx, uint32_t rule_no,
 				 "Deleted rule %d from ctx %s\n", rule_no,
 				 m_ctx->ctx_name);
 			if (!m_trie->num_rules) {
-				cds_list_del(&m_trie->trie_link);
-				npf_rte_acl_trie_destroy(af, m_trie);
-				rte_atomic16_dec(&m_ctx->num_tries);
-				DP_DEBUG(RLDB_ACL, DEBUG, DATAPLANE,
-					 "Deleted trie %s from ctx %s. (Trie count = %d)\n",
-					 m_trie->trie_name, m_ctx->ctx_name,
-					 rte_atomic16_read(&m_ctx->num_tries));
+				npf_rte_acl_delete_trie(m_ctx, m_trie);
 			}
 			break;
 		}
@@ -1299,13 +1305,7 @@ int npf_rte_acl_destroy(int af __rte_unused, npf_match_ctx_t **m_ctx)
 	cds_list_for_each_safe(list_entry, next, &ctx->trie_list) {
 		m_trie = cds_list_entry(list_entry, struct npf_match_ctx_trie,
 					trie_link);
-		cds_list_del(&m_trie->trie_link);
-		npf_rte_acl_trie_destroy(ctx->af, m_trie);
-		rte_atomic16_dec(&ctx->num_tries);
-		DP_DEBUG(RLDB_ACL, DEBUG, DATAPLANE,
-			 "Deleted trie %s from ctx %s (Trie count = %d)\n",
-			 m_trie->trie_name, ctx->ctx_name,
-			 rte_atomic16_read(&ctx->num_tries));
+		npf_rte_acl_delete_trie(ctx, m_trie);
 	}
 
 	cds_list_del(&ctx->ctx_link);
