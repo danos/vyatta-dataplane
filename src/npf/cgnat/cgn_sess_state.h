@@ -120,10 +120,11 @@ enum cgn_tcp_event {
 enum cgn_state_etime_other {
 	CGN_ETIME_OPENING,
 	CGN_ETIME_ESTBD,
+	CGN_ETIME_CLOSING,
 };
 
 #define CGN_ETIME_FIRST		CGN_ETIME_OPENING
-#define CGN_ETIME_LAST		CGN_ETIME_ESTBD
+#define CGN_ETIME_LAST		CGN_ETIME_CLOSING
 #define CGN_ETIME_COUNT		(CGN_ETIME_LAST + 1)
 
 /*
@@ -133,6 +134,7 @@ enum cgn_state_etime_other {
  */
 #define CGN_DEF_ETIME_UDP_OPENING	(30 * ONE_SECOND)
 #define CGN_DEF_ETIME_UDP_ESTBD		(300 * ONE_SECOND)
+#define CGN_DEF_ETIME_UDP_CLOSING	(30 * ONE_SECOND)
 
 extern uint32_t cgn_sess_udp_etime[];
 
@@ -143,6 +145,7 @@ extern uint32_t cgn_sess_udp_etime[];
  */
 #define CGN_DEF_ETIME_OTHER_OPENING	(30 * ONE_SECOND)
 #define CGN_DEF_ETIME_OTHER_ESTBD	(240 * ONE_SECOND)
+#define CGN_DEF_ETIME_OTHER_CLOSING	(30 * ONE_SECOND)
 
 extern uint32_t cgn_sess_other_etime[];
 

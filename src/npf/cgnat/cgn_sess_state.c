@@ -237,6 +237,7 @@ cgn_sess_fsm[CGN_SESS_STATE_COUNT][CGN_DIR_SZ][CGN_SESS_EVENT_COUNT] = {
 uint32_t cgn_sess_other_etime[CGN_ETIME_COUNT] = {
 	[CGN_ETIME_OPENING]	= CGN_DEF_ETIME_OTHER_OPENING,
 	[CGN_ETIME_ESTBD]	= CGN_DEF_ETIME_OTHER_ESTBD,
+	[CGN_ETIME_CLOSING]	= CGN_DEF_ETIME_OTHER_CLOSING,
 };
 
 /*
@@ -245,6 +246,7 @@ uint32_t cgn_sess_other_etime[CGN_ETIME_COUNT] = {
 uint32_t cgn_sess_udp_etime[CGN_ETIME_COUNT] = {
 	[CGN_ETIME_OPENING]	= CGN_DEF_ETIME_UDP_OPENING,
 	[CGN_ETIME_ESTBD]	= CGN_DEF_ETIME_UDP_ESTBD,
+	[CGN_ETIME_CLOSING]	= CGN_DEF_ETIME_UDP_CLOSING,
 };
 
 /*
@@ -465,13 +467,17 @@ uint32_t cgn_sess_state_expiry_time(enum nat_proto proto, uint16_t port,
 				etime = cgn_port_udp_etime[port];
 			else
 				etime = cgn_sess_udp_etime[CGN_ETIME_ESTBD];
-		} else
+		} else if (state == CGN_SESS_STATE_INIT)
 			etime = cgn_sess_udp_etime[CGN_ETIME_OPENING];
+		else
+			etime = cgn_sess_udp_etime[CGN_ETIME_CLOSING];
 	} else {
 		if (state == CGN_SESS_STATE_ESTABLISHED)
 			etime = cgn_sess_other_etime[CGN_ETIME_ESTBD];
-		else
+		else if (state == CGN_SESS_STATE_INIT)
 			etime = cgn_sess_other_etime[CGN_ETIME_OPENING];
+		else
+			etime = cgn_sess_other_etime[CGN_ETIME_CLOSING];
 	}
 	return etime;
 }
