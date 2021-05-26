@@ -1640,14 +1640,15 @@ npf_rte_acl_copy_rules(npf_match_ctx_t *ctx,
 }
 
 static void
-npf_rte_acl_delete_merged_tries(struct npf_match_ctx_trie *merge_start,
+npf_rte_acl_delete_merged_tries(npf_match_ctx_t *ctx,
+				struct npf_match_ctx_trie *merge_start,
 				uint16_t num_tries)
 {
-	struct cds_list_head *list_entry, *next;
+	struct npf_match_ctx_trie *next, *m_trie = merge_start;
 	uint16_t i = 0;
 
-	cds_list_for_each_safe(list_entry, next, &merge_start->trie_link) {
-		cds_list_del(list_entry);
+	cds_list_for_each_entry_safe_from(m_trie, next, &ctx->trie_list, trie_link) {
+		npf_rte_acl_delete_trie(ctx, m_trie);
 		if (++i == num_tries)
 			break;
 	}
@@ -1716,7 +1717,7 @@ static void npf_rte_acl_optimize_ctx(npf_match_ctx_t *ctx)
 	/* insert new trie */
 
 	/* delete candidate tries */
-	npf_rte_acl_delete_merged_tries(merge_start, merge_trie_cnt);
+	npf_rte_acl_delete_merged_tries(ctx, merge_start, merge_trie_cnt);
 
 	/* release merge lock */
 	rte_spinlock_unlock(&ctx->merge_lock);
