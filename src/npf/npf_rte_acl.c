@@ -91,6 +91,7 @@ struct npf_match_ctx_trie {
 static struct cds_list_head ctx_list;
 
 struct npf_match_ctx {
+	struct rcu_head       rcu;
 	struct cds_list_head  ctx_link;   /* linkage for all ctx structures */
 	struct cds_list_head  trie_list;  /* linkage for tries in this ctx */
 	char                 *ctx_name;   /* name of match context. Needs to be
@@ -709,7 +710,7 @@ int npf_rte_acl_init(int af, const char *name, uint32_t max_rules,
 
 	*m_ctx = tmp_ctx;
 
-	cds_list_add(&tmp_ctx->ctx_link, &ctx_list);
+	cds_list_add_rcu(&tmp_ctx->ctx_link, &ctx_list);
 	npf_match_ctx_cnt++;
 
 	return 0;
@@ -1326,6 +1327,17 @@ npf_rte_acl_trie_destroy(int af, struct npf_match_ctx_trie *m_trie)
 	return 0;
 }
 
+static void
+npf_rte_acl_free(struct rcu_head *head)
+{
+	npf_match_ctx_t *m_ctx;
+
+	m_ctx = caa_container_of(head, npf_match_ctx_t, rcu);
+
+	free(m_ctx->ctx_name);
+	free(m_ctx);
+}
+
 int npf_rte_acl_destroy(int af __rte_unused, npf_match_ctx_t **m_ctx)
 {
 	npf_match_ctx_t *ctx = *m_ctx;
@@ -1343,15 +1355,17 @@ int npf_rte_acl_destroy(int af __rte_unused, npf_match_ctx_t **m_ctx)
 		acl_merge_running = false;
 	}
 
+	cds_list_del_rcu(&ctx->ctx_link);
+
+	dp_rcu_synchronize();
+
 	cds_list_for_each_safe(list_entry, next, &ctx->trie_list) {
 		m_trie = cds_list_entry(list_entry, struct npf_match_ctx_trie,
 					trie_link);
 		npf_rte_acl_delete_trie(ctx, m_trie);
 	}
 
-	cds_list_del(&ctx->ctx_link);
-	free(ctx->ctx_name);
-	free(ctx);
+	call_rcu(&ctx->rcu, npf_rte_acl_free);
 	*m_ctx = NULL;
 
 	return 0;
@@ -1733,16 +1747,13 @@ static void npf_rte_acl_optimize_ctx(npf_match_ctx_t *ctx)
 static void *npf_rte_acl_optimize(void *args __rte_unused)
 {
 	npf_match_ctx_t *ctx;
-	struct cds_list_head *list_entry, *next;
 
 	pthread_setname_np(pthread_self(), "dp/acl-opt");
 	dp_rcu_register_thread();
 	while (acl_merge_running) {
 		dp_rcu_thread_online();
 
-		cds_list_for_each_safe(list_entry, next, &ctx_list) {
-			ctx = cds_list_entry(list_entry, struct npf_match_ctx,
-					     ctx_link);
+		cds_list_for_each_entry_rcu(ctx, &ctx_list, ctx_link) {
 
 			if (rte_atomic16_read(&ctx->num_tries) <= 2)
 				continue;
