@@ -23,6 +23,8 @@
 #include "dp_test/dp_test_netlink_state.h"
 #include "dp_test_npf_lib.h"
 
+#include "dp_test_console.h"
+
 /*
  *                    +-----------+
  *                    |           |
@@ -120,13 +122,19 @@ static void setup_or_teardown_tunnels(uint32_t tunnel_cnt, bool setup)
 	struct timespec start, end;
 	uint64_t ptime = 0;
 	uint32_t outer = tunnel_cnt / 253;
+	uint32_t inner = 253;
 	uint64_t cur_cnt;
+
+	if (tunnel_cnt < 253) {
+		outer = 1;
+		inner = tunnel_cnt;
+	}
 
 	clock_gettime(CLOCK_REALTIME, &start);
 
 	cur_cnt = 0;
 	for (i = 1; i <= outer; i++) {
-		for (j = 1; j <= 253; j++) {
+		for (j = 1; j <= inner; j++) {
 			snprintf(local_prefix, PREFIX_SIZE,
 				 TUN_1_LOCAL_PREFIX, i, j);
 			snprintf(remote_prefix, PREFIX_SIZE,
@@ -153,7 +161,7 @@ static void setup_or_teardown_tunnels(uint32_t tunnel_cnt, bool setup)
 					&tun_1_out_policy, false);
 			}
 		}
-		cur_cnt += 253 * 2;
+		cur_cnt += inner * 2;
 	}
 
 	clock_gettime(CLOCK_REALTIME, &end);
@@ -198,13 +206,13 @@ DP_DECL_TEST_CASE(crypto_perf_scale_suite, crypto_policy_scale, NULL, NULL);
  * TESTCASE: Policy scale
  *
  * This testcase tests the amount of time taken to build a set of policies
- * incrementally. It is not run as part of the build as it can fail on
- * slow machines or machines with a heavy workload. It is however useful
- * for comparisons between different runs on the same machine.
+ * incrementally.
  */
-DP_START_TEST_DONT_RUN(crypto_policy_scale, policy_update_scale)
+DP_START_TEST_FULL_RUN(crypto_policy_scale, policy_update_scale)
 {
-#define MAX_TUNNEL_CNT 512
+	dp_test_console_request_reply("debug rldb-acl", true);
+
+#define MAX_TUNNEL_CNT 64
 	setup(VRF_DEFAULT_ID);
 
 	setup_or_teardown_tunnels(MAX_TUNNEL_CNT, true);
