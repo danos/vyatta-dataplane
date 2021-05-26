@@ -445,8 +445,9 @@ static int npf_rte_acl_create_trie(int af, int max_rules,
 	tmp_trie->acl_ctx = rte_acl_create(&acl_param);
 	if (tmp_trie->acl_ctx == NULL) {
 		RTE_LOG(ERR, DATAPLANE,
-			"Could not allocate ACL context for %s\n", acl_name);
-		err = -ENOMEM;
+			"Could not allocate ACL context for %s: %s\n", acl_name,
+			rte_strerror(rte_errno));
+		err = -rte_errno;
 		goto error;
 	}
 
