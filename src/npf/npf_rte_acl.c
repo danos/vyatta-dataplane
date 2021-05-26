@@ -1724,6 +1724,13 @@ static void npf_rte_acl_optimize_ctx(npf_match_ctx_t *ctx)
 	rte_spinlock_unlock(&ctx->merge_lock);
 
 	/* build new trie */
+	rc = npf_rte_acl_trie_build(ctx->af, new_trie);
+	if (rc < 0) {
+		RTE_LOG(ERR, DATAPLANE,
+			"Trie-Optimization: Failed build new trie: %s\n",
+			strerror(-rc));
+		return;
+	}
 
 	/* acquire merge lock */
 	rte_spinlock_lock(&ctx->merge_lock);
@@ -1731,6 +1738,13 @@ static void npf_rte_acl_optimize_ctx(npf_match_ctx_t *ctx)
 	/* delete rules in pending list */
 
 	/* rebuild trie */
+	rc = npf_rte_acl_trie_build(ctx->af, new_trie);
+	if (rc < 0) {
+		RTE_LOG(ERR, DATAPLANE,
+			"Trie-Optimization: Failed rebuild new trie: %s\n",
+			strerror(-rc));
+		return;
+	}
 
 	/* insert new trie */
 	npf_rte_acl_add_trie(ctx, new_trie);
