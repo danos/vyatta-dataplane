@@ -543,6 +543,10 @@ npf_rte_acl_create_mtrie_pool(int af, int max_tries)
 			goto error;
 		}
 
+		DP_DEBUG(RLDB_ACL, DEBUG, DATAPLANE, "Updating trie-state %s from %s to %s (%s)\n",
+				m_trie->trie_name, trie_state_strs[m_trie->trie_state],
+				trie_state_strs[TRIE_STATE_WRITABLE], __func__);
+
 		err = npf_rte_acl_put_trie(af, m_trie);
 		if (err)
 			goto error;
@@ -1012,6 +1016,10 @@ static int npf_rte_acl_trie_build(int af, struct npf_match_ctx_trie *m_trie)
 			m_trie->trie_name, strerror(-err));
 		return err;
 	}
+
+	DP_DEBUG(RLDB_ACL, DEBUG, DATAPLANE, "Updating trie-state %s from %s to %s (%s)\n",
+			m_trie->trie_name, trie_state_strs[m_trie->trie_state],
+			trie_state_strs[TRIE_STATE_FROZEN], __func__);
 	m_trie->trie_state = TRIE_STATE_FROZEN;
 	return 0;
 }
