@@ -1534,14 +1534,33 @@ void npf_rte_acl_dump(npf_match_ctx_t *ctx, json_writer_t *wr)
 #define NPR_TRIE_MAX_RULES (1 << 15)
 
 static void
-npf_rte_acl_select_candidate_tries(struct npf_match_ctx_trie *merge_start __rte_unused,
-				   uint16_t *num_tries __rte_unused,
-				   uint16_t *num_rules __rte_unused)
+npf_rte_acl_select_candidate_tries(npf_match_ctx_t *ctx,
+				   struct npf_match_ctx_trie *merge_start,
+				   uint16_t *num_tries,
+				   uint16_t *num_rules)
 {
+	struct npf_match_ctx_trie *next, *m_trie = merge_start;
+	uint16_t cnt_tries = 0, cnt_rules = 0;
+
+	if (!num_tries || !num_rules)
+		return;
+
 	/* merge_start - first trie to be merged
 	 * num_tries - number of tries to be merged
 	 * num_rules - total number of rules in new merged trie
 	 */
+
+	cds_list_for_each_entry_safe_from(m_trie, next, &ctx->trie_list, trie_link) {
+
+		if (m_trie->trie_state != TRIE_STATE_FROZEN)
+			continue;
+
+		cnt_tries++;
+		cnt_rules += m_trie->num_rules;
+	}
+
+	*num_tries = cnt_tries;
+	*num_rules = cnt_rules;
 }
 
 __rte_unused
@@ -1657,7 +1676,7 @@ static void npf_rte_acl_optimize_ctx(npf_match_ctx_t *ctx)
 	/* acquire merge lock */
 	rte_spinlock_lock(&ctx->merge_lock);
 
-	npf_rte_acl_select_candidate_tries(merge_start, &merge_trie_cnt,
+	npf_rte_acl_select_candidate_tries(ctx, merge_start, &merge_trie_cnt,
 					   &merge_rule_cnt);
 	if (merge_trie_cnt <= 1) {
 		rte_spinlock_unlock(&ctx->merge_lock);
