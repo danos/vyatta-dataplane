@@ -20,6 +20,7 @@
 
 static uint32_t npf_match_ctx_cnt;
 static pthread_t acl_merge_tid;
+static bool acl_merge_running;
 static void *npf_rte_acl_optimize(void *args);
 
 static struct rte_mempool *npr_mtrie_pool;
@@ -648,6 +649,7 @@ int npf_rte_acl_init(int af, const char *name, uint32_t max_rules,
 	int err;
 
 	if (!npf_match_ctx_cnt) {
+		acl_merge_running = true;
 		err = pthread_create(&acl_merge_tid, NULL, npf_rte_acl_optimize,
 				     NULL);
 		if (err) {
@@ -1333,6 +1335,14 @@ int npf_rte_acl_destroy(int af __rte_unused, npf_match_ctx_t **m_ctx)
 	if (!rte_atomic16_read(&ctx->num_tries))
 		return 0;
 
+	npf_match_ctx_cnt--;
+
+	if (!npf_match_ctx_cnt) {
+		pthread_cancel(acl_merge_tid);
+		acl_merge_tid = 0;
+		acl_merge_running = false;
+	}
+
 	cds_list_for_each_safe(list_entry, next, &ctx->trie_list) {
 		m_trie = cds_list_entry(list_entry, struct npf_match_ctx_trie,
 					trie_link);
@@ -1344,12 +1354,6 @@ int npf_rte_acl_destroy(int af __rte_unused, npf_match_ctx_t **m_ctx)
 	free(ctx);
 	*m_ctx = NULL;
 
-	npf_match_ctx_cnt--;
-
-	if (!npf_match_ctx_cnt) {
-		pthread_cancel(acl_merge_tid);
-		acl_merge_tid = 0;
-	}
 	return 0;
 }
 
@@ -1733,7 +1737,7 @@ static void *npf_rte_acl_optimize(void *args __rte_unused)
 
 	pthread_setname_np(pthread_self(), "dp/acl-opt");
 	dp_rcu_register_thread();
-	while (1) {
+	while (acl_merge_running) {
 		dp_rcu_thread_online();
 
 		cds_list_for_each_safe(list_entry, next, &ctx_list) {
