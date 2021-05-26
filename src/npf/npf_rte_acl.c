@@ -1313,9 +1313,10 @@ int npf_rte_acl_commit_transaction(int af, npf_match_ctx_t *m_ctx)
 static int
 npf_rte_acl_trie_destroy(int af, struct npf_match_ctx_trie *m_trie)
 {
-	if (m_trie->flags & NPF_M_TRIE_FLAG_POOL)
+	if (m_trie->flags & NPF_M_TRIE_FLAG_POOL) {
+		rte_acl_reset(m_trie->acl_ctx);
 		npf_rte_acl_put_trie(af, m_trie);
-	else {
+	} else {
 		rte_acl_reset(m_trie->acl_ctx);
 		rte_acl_free(m_trie->acl_ctx);
 		free(m_trie->trie_name);
