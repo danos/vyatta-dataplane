@@ -419,6 +419,7 @@ static int npf_rte_acl_create_trie(int af, int max_rules,
 				"Could not allocate %s mtrie for pool\n", pfx1);
 			return -ENOMEM;
 		}
+		memset(tmp_trie, 0, sizeof(*tmp_trie));
 		tmp_trie->flags = NPF_M_TRIE_FLAG_POOL;
 		pfx2 = "pool";
 	} else {
