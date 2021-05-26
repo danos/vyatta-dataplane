@@ -1575,7 +1575,7 @@ static void *npf_rte_acl_optimize(void *args __rte_unused)
 	npf_match_ctx_t *ctx;
 	struct cds_list_head *list_entry, *next;
 
-	pthread_setname_np(pthread_self(), "dataplane/acl-opt");
+	pthread_setname_np(pthread_self(), "dp/acl-opt");
 	dp_rcu_register_thread();
 	while (1) {
 		dp_rcu_thread_online();
