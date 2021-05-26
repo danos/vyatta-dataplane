@@ -582,24 +582,15 @@ static int npf_rte_acl_destroy_mtrie_pool(int af)
  * Packet matching callback functions which use the rte_acl API
  */
 
-static int
-npf_rte_acl_add_trie(npf_match_ctx_t *m_ctx)
+static void
+npf_rte_acl_add_trie(npf_match_ctx_t *m_ctx, struct npf_match_ctx_trie *m_trie)
 {
-	int err;
-	struct npf_match_ctx_trie *m_trie;
-
-	err = npf_rte_acl_get_trie(m_ctx->af, &m_trie);
-	if (err)
-		return err;
-
 	cds_list_add(&m_trie->trie_link, &m_ctx->trie_list);
 	rte_atomic16_inc(&m_ctx->num_tries);
 	DP_DEBUG(RLDB_ACL, DEBUG, DATAPLANE,
 		 "Added trie %s to ctx %s (Trie count = %d)\n",
 		 m_trie->trie_name, m_ctx->ctx_name,
 		 rte_atomic16_read(&m_ctx->num_tries));
-
-	return err;
 }
 
 static void
@@ -632,13 +623,15 @@ static int npf_rte_acl_get_writable_trie(npf_match_ctx_t *m_ctx,
 		}
 	}
 
-	err = npf_rte_acl_add_trie(m_ctx);
-	if (err)
+	err = npf_rte_acl_get_trie(m_ctx->af, &tmp_trie);
+	if (err) {
+		RTE_LOG(ERR, DATAPLANE,
+			"Could not add new writable trie to ctx (%s): %s\n",
+			m_ctx->ctx_name, strerror(-err));
 		return err;
+	}
 
-	tmp_trie = cds_list_first_entry(&m_ctx->trie_list,
-					struct npf_match_ctx_trie,
-					trie_link);
+	npf_rte_acl_add_trie(m_ctx, tmp_trie);
 
 	*m_trie = tmp_trie;
 	return 0;
@@ -649,6 +642,7 @@ int npf_rte_acl_init(int af, const char *name, uint32_t max_rules,
 {
 	char ctx_name[RTE_ACL_NAMESIZE];
 	npf_match_ctx_t *tmp_ctx;
+	struct npf_match_ctx_trie *m_trie;
 	uint16_t rule_size;
 	size_t tr_sz;
 	int err;
@@ -705,9 +699,11 @@ int npf_rte_acl_init(int af, const char *name, uint32_t max_rules,
 	tmp_ctx->af = af;
 	CDS_INIT_LIST_HEAD(&tmp_ctx->trie_list);
 
-	err = npf_rte_acl_add_trie(tmp_ctx);
+	err = npf_rte_acl_get_trie(tmp_ctx->af, &m_trie);
 	if (err)
 		goto error;
+
+	npf_rte_acl_add_trie(tmp_ctx, m_trie);
 
 	*m_ctx = tmp_ctx;
 
@@ -1715,6 +1711,7 @@ static void npf_rte_acl_optimize_ctx(npf_match_ctx_t *ctx)
 	/* rebuild trie */
 
 	/* insert new trie */
+	npf_rte_acl_add_trie(ctx, new_trie);
 
 	/* delete candidate tries */
 	npf_rte_acl_delete_merged_tries(ctx, merge_start, merge_trie_cnt);
