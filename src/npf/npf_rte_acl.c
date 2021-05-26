@@ -489,7 +489,14 @@ npf_rte_acl_get_trie(int af, struct npf_match_ctx_trie **m_trie)
 		return err;
 
 	err = rte_ring_dequeue(ring, (void **)m_trie);
-	return err;
+	if (err) {
+		RTE_LOG(ERR, DATAPLANE,
+			"Could not dequeue new trie for af %d ring: %s\n",
+			af, strerror(-err));
+		return err;
+	}
+
+	return 0;
 }
 
 static int
@@ -503,7 +510,14 @@ npf_rte_acl_put_trie(int af, struct npf_match_ctx_trie *m_trie)
 		return err;
 
 	err = rte_ring_enqueue(ring, (void **)m_trie);
-	return err;
+	if (err) {
+		RTE_LOG(ERR, DATAPLANE,
+			"Could not enqueue new trie for af %d ring: %s\n",
+			af, strerror(-err));
+		return err;
+	}
+
+	return 0;
 }
 
 static int
