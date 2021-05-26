@@ -496,6 +496,10 @@ npf_rte_acl_get_trie(int af, struct npf_match_ctx_trie **m_trie)
 		return err;
 	}
 
+	/* reset trie state for fresh use */
+	(*m_trie)->trie_state = TRIE_STATE_WRITABLE;
+	(*m_trie)->num_rules = 0;
+
 	return 0;
 }
 
