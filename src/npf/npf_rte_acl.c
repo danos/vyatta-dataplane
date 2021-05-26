@@ -954,8 +954,12 @@ int npf_rte_acl_add_rule(int af, npf_match_ctx_t *m_ctx, uint32_t rule_no,
 	}
 
 	err = npf_rte_acl_get_writable_trie(m_ctx, &m_trie);
-	if (err)
+	if (err) {
+		RTE_LOG(ERR, DATAPLANE,
+			"Could not add rule %u for trie %s: no writable trie available: %s\n",
+			rule_no, m_ctx->ctx_name, strerror(-err));
 		return err;
+	}
 
 	if (af == AF_INET) {
 		npf_rte_acl_add_v4_rule(match_addr, mask, rule_no, priority,
