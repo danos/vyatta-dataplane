@@ -1754,7 +1754,7 @@ static void npf_rte_acl_optimize_ctx(npf_match_ctx_t *ctx)
 	}
 
 	/* allocate new trie */
-	rc = npf_rte_acl_create_trie(ctx->af, merge_rule_cnt, &new_trie);
+	rc = npf_rte_acl_create_trie(ctx->af, NPR_TRIE_MAX_RULES, &new_trie);
 	if (rc < 0) {
 		RTE_LOG(ERR, DATAPLANE,
 			"Trie-Optimization: Failed to allocate new trie: %s\n",
