@@ -543,14 +543,9 @@ npf_rte_acl_create_mtrie_pool(int af, int max_tries)
 			goto error;
 		}
 
-		m_trie->trie_state = TRIE_STATE_WRITABLE;
-
-		err = rte_ring_enqueue(ring, m_trie);
-		if (err) {
-			RTE_LOG(ERR, DATAPLANE, "Could not enqueue trie %s to ring\n",
-				m_trie->trie_name);
+		err = npf_rte_acl_put_trie(af, m_trie);
+		if (err)
 			goto error;
-		}
 	}
 
 	return 0;
