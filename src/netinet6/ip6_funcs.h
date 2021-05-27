@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2011-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -150,4 +150,9 @@ ip6_refragment_packet(struct ifnet *o_ifp, struct rte_mbuf *m,
 
 int ip6_udp_tunnel_in(struct rte_mbuf *m, struct ifnet *ifp);
 int ip6_l4_input(struct rte_mbuf *m, struct ifnet *ifp);
+
+struct icmp_ratelimit_state *icmp6_get_rl_state(void);
+uint8_t icmp6_get_rl_state_entries(void);
+bool icmp6_msg_type_to_icmp_type(uint8_t msgtype, uint8_t *icmptype);
+
 #endif /*IP6_FUNCS_H*/

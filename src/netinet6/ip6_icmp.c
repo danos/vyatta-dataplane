@@ -43,6 +43,8 @@
 #include "ip_icmp.h"
 #include "vplane_log.h"
 #include "fal.h"
+#include "protobuf.h"
+#include "protobuf/ICMPRateLimConfig.pb-c.h"
 
 #define ICMP6_PLD_MAXLEN (1280 - sizeof(struct ip6_hdr))
 /* Option Formats
@@ -51,6 +53,27 @@
 #define ICMP6_OPT_LEN(opttype, len) (((sizeof(struct opttype) + (len)) + 7) / 8)
 
 static bool ip6_redirects = true;
+
+/*
+ * ICMP Rate limiting state for configurable types. Entry 0 holds
+ * default values.
+ */
+struct icmp_ratelimit_state icmp6_ratelimit_state[] = {
+	[ICMP6_DST_UNREACH] = {.name = "dest-unreach"},
+	[ICMP6_PACKET_TOO_BIG] = {.name = "pkt-toobig"},
+	[ICMP6_TIME_EXCEEDED] = {.name = "time-exceeded"},
+	[ICMP6_PARAM_PROB] = {.name = "param-prob"},
+};
+
+struct icmp_ratelimit_state *icmp6_get_rl_state(void)
+{
+	return icmp6_ratelimit_state;
+}
+
+uint8_t icmp6_get_rl_state_entries(void)
+{
+	return sizeof(icmp6_ratelimit_state)/sizeof(struct icmp_ratelimit_state);
+}
 
 /*
  * Get a value for an address' scope
@@ -276,6 +299,9 @@ struct rte_mbuf *icmp6_do_error(struct ifnet *rcvif, struct rte_mbuf *n,
 		return NULL;
 
 	if (icmp6_ignore(n))
+		return NULL;
+
+	if (icmp_ratelimit_drop(type, icmp6_ratelimit_state, icmp6_get_rl_state_entries()))
 		return NULL;
 
 	/* Find our source address on the interface */
@@ -526,4 +552,32 @@ void icmp6_redirect(struct ifnet *ifp, struct rte_mbuf *n,
 
 	pktmbuf_mdata_set(m, PKT_MDATA_FROM_US);
 	icmp6_reflect(ifp, m);
+}
+
+bool icmp6_msg_type_to_icmp_type(uint8_t msgtype, uint8_t *icmptype)
+{
+	switch (msgtype) {
+	case ICMPRATE_LIM_CONFIG__TYPE__DEFAULT:
+		*icmptype = 0;
+		return true;
+
+	case ICMPRATE_LIM_CONFIG__TYPE__TOOBIG:
+		*icmptype = ICMP6_PACKET_TOO_BIG;
+		return true;
+
+	case ICMPRATE_LIM_CONFIG__TYPE__TIMEEXCEEDED:
+		*icmptype = ICMP6_TIME_EXCEEDED;
+		return true;
+
+	case ICMPRATE_LIM_CONFIG__TYPE__DESTUNREACH:
+		*icmptype = ICMP6_DST_UNREACH;
+		return true;
+
+	case ICMPRATE_LIM_CONFIG__TYPE__PARAMPROB:
+		*icmptype = ICMP6_PARAM_PROB;
+		return true;
+
+	default:
+		return false;
+	}
 }

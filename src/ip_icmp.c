@@ -878,6 +878,10 @@ static int cmd_icmp_rate_limit_cfg_handler(struct pb_msg *pbmsg)
 		get_icmp_type = icmp_msg_type_to_icmp_type;
 		rl = icmp_get_rl_state();
 		entries = icmp_get_rl_state_entries();
+	} else {
+		get_icmp_type = icmp6_msg_type_to_icmp_type;
+		rl = icmp6_get_rl_state();
+		entries = icmp6_get_rl_state_entries();
 	}
 
 	if (msg->param != ICMPRATE_LIM_CONFIG__PARAM__MAXIMUM) {
@@ -953,6 +957,13 @@ static void icmp_ratelimit_refresh_tmr_hdlr(struct rte_timer *timer __rte_unused
 		if (icmp_ratelimit_second_count == 0)
 			rl[i].drop_stats[icmp_ratelimit_interval] = 0;
 	}
+
+	rl = icmp6_get_rl_state();
+	for (i = 0; i < icmp6_get_rl_state_entries(); i++) {
+		uatomic_set(&rl[i].tokens, rl[i].max_rate);
+		if (icmp_ratelimit_second_count == 0)
+			rl[i].drop_stats[icmp_ratelimit_interval] = 0;
+	}
 }
 
 static void icmp_ratelimit_set_timer(void)
@@ -1016,6 +1027,9 @@ int cmd_icmp_rl(FILE *f, int argc, char **argv)
 	if (!strncmp(argv[2], "v4", 2)) {
 		rl = icmp_get_rl_state();
 		entries = icmp_get_rl_state_entries();
+	} else if (!strncmp(argv[2], "v6", 2)) {
+		rl = icmp6_get_rl_state();
+		entries = icmp6_get_rl_state_entries();
 	} else
 		goto usage;
 
