@@ -53,29 +53,40 @@ struct dp_test_crypto_policy {
 
 void _dp_test_crypto_create_policy(const char *file, int line,
 				   const struct dp_test_crypto_policy *policy,
-				   bool verify, bool update);
+				   bool verify, bool update, bool commit);
 void _dp_test_crypto_delete_policy(const char *file, int line,
 				   const struct dp_test_crypto_policy *policy,
-				   bool verify);
+				   bool verify, bool commit);
 void _dp_test_crypto_check_policy_count(vrfid_t vrfid,
 					unsigned int num_policies, int af,
 					const char *file, int line);
 
 #define dp_test_crypto_create_policy(_policy)			\
-	_dp_test_crypto_create_policy(__FILE__, __LINE__, _policy, true, false)
+	_dp_test_crypto_create_policy(__FILE__, __LINE__, _policy, true, false, \
+				      true)
 
 #define dp_test_crypto_create_policy_verify(_policy, _verify)  \
 	_dp_test_crypto_create_policy(__FILE__, __LINE__, _policy, _verify, \
-				      false)
+				      false, true)
+
+#define dp_test_crypto_create_policy_commit(_policy, _commit)  \
+	_dp_test_crypto_create_policy(__FILE__, __LINE__, _policy, false, \
+				      false, _commit)
 
 #define dp_test_crypto_update_policy(_policy)		\
-	_dp_test_crypto_create_policy(__FILE__, __LINE__, _policy, true, true)
+	_dp_test_crypto_create_policy(__FILE__, __LINE__, _policy, true, true, \
+				      true)
 
 #define dp_test_crypto_delete_policy(_policy)		\
-	_dp_test_crypto_delete_policy(__FILE__, __LINE__, _policy, true)
+	_dp_test_crypto_delete_policy(__FILE__, __LINE__, _policy, true, true)
 
 #define dp_test_crypto_delete_policy_verify(_policy, _verify)		\
-	_dp_test_crypto_delete_policy(__FILE__, __LINE__, _policy, _verify)
+	_dp_test_crypto_delete_policy(__FILE__, __LINE__, _policy, _verify, \
+				      true)
+
+#define dp_test_crypto_delete_policy_commit(_policy, _commit)		\
+	_dp_test_crypto_delete_policy(__FILE__, __LINE__, _policy, false, \
+				      _commit)
 
 #define dp_test_crypto_check_policy_count(vrfid, num_policies, af)	      \
 	_dp_test_crypto_check_policy_count(vrfid, num_policies, af, __FILE__, \

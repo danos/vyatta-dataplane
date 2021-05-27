@@ -287,6 +287,7 @@ static void _setup_policies(struct dp_test_s2s_config *conf,
 {
 	bool verify = true;
 	bool update = false;
+	bool commit = true;
 	int i;
 
 	dp_test_console_request_reply("debug rldb-acl", true);
@@ -295,13 +296,13 @@ static void _setup_policies(struct dp_test_s2s_config *conf,
 	for (i = 0; i < conf->nipols; i++) {
 		conf->ipolicy[i].vrfid = conf->vrfid;
 		_dp_test_crypto_create_policy(file, line, &(conf->ipolicy[i]),
-					      verify, update);
+					      verify, update, commit);
 	}
 
 	for (i = 0; i < conf->nopols; i++) {
 		conf->opolicy[i].vrfid = conf->vrfid;
 		_dp_test_crypto_create_policy(file, line, &(conf->opolicy[i]),
-					      verify, update);
+					      verify, update, commit);
 	}
 }
 #define setup_policies(conf) \
@@ -311,18 +312,20 @@ static void _teardown_policies(struct dp_test_s2s_config *conf,
 			       const char *file, int line)
 {
 	int i;
+	bool commit = true;
+	bool verify = true;
 
 	dp_test_console_request_reply("debug rldb-acl", true);
 	dp_test_console_request_reply("debug crypto", true);
 
 	for (i = 0; i < conf->nipols; i++) {
 		_dp_test_crypto_delete_policy(file, line, &(conf->ipolicy[i]),
-					      true);
+					      verify, commit);
 	}
 
 	for (i = 0; i < conf->nopols; i++) {
 		_dp_test_crypto_delete_policy(file, line, &(conf->opolicy[i]),
-					      true);
+					      verify, commit);
 	}
 }
 #define teardown_policies(conf) \

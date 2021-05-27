@@ -550,7 +550,7 @@ void _wait_for_policy(const struct dp_test_crypto_policy *policy,
  */
 void _dp_test_crypto_create_policy(const char *file, int line,
 				   const struct dp_test_crypto_policy *policy,
-				   bool verify, bool update)
+				   bool verify, bool update, bool commit)
 {
 	struct xfrm_selector sel;
 	xfrm_address_t dst;
@@ -574,6 +574,7 @@ void _dp_test_crypto_create_policy(const char *file, int line,
 				     policy->vrfid,
 				     policy->passthrough,
 				     policy->rule_no,
+				     commit,
 				     file, line);
 
 
@@ -588,7 +589,7 @@ void _dp_test_crypto_create_policy(const char *file, int line,
  */
 void _dp_test_crypto_delete_policy(const char *file, int line,
 				   const struct dp_test_crypto_policy *policy,
-				   bool verify)
+				   bool verify, bool commit)
 {
 	struct xfrm_selector sel;
 	xfrm_address_t dst;
@@ -611,6 +612,7 @@ void _dp_test_crypto_delete_policy(const char *file, int line,
 				     policy->vrfid,
 				     policy->passthrough,
 				     policy->rule_no,
+				     commit,
 				     file, line);
 
 	if (verify)

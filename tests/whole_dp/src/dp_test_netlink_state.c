@@ -3735,6 +3735,7 @@ void _dp_test_netlink_xfrm_policy(uint16_t nlmsg_type,
 				  vrfid_t vrfid,
 				  bool passthrough,
 				  uint32_t rule_no,
+				  bool commit,
 				  const char *file,
 				  int line)
 {
@@ -3810,8 +3811,10 @@ void _dp_test_netlink_xfrm_policy(uint16_t nlmsg_type,
 
 	if (nl_generate_topic_xfrm(nlh, topic, sizeof(topic)) < 0)
 		dp_test_abort_internal();
+
 	/* Signal an end of batch. This is a single msg batch */
-	nl_propagate_xfrm(xfrm_server_push_sock, nlh, nlh->nlmsg_len, "END");
+	nl_propagate_xfrm(xfrm_server_push_sock, nlh, nlh->nlmsg_len,
+			  commit ? "END" : "");
 }
 
 void _dp_test_netlink_xfrm_newsa(uint32_t spi, /* Network byte order */
