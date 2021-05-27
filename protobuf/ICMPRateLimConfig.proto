@@ -1,0 +1,45 @@
+// Copyright (c) 2021, AT&T Intellectual Property.  All rights reserved.
+//
+// SPDX-License-Identifier: LGPL-2.1-only
+//
+// ICMP Rate Limit Configuration protobuf definitions
+//
+
+syntax="proto2";
+
+option go_package = "github.com/danos/vyatta-dataplane/protobuf/go/ICMPRateLimConfig";
+
+message ICMPRateLimConfig {
+	enum Prot {
+		ICMPV4	= 0;
+		ICMPV6	= 1;
+	}
+
+	enum Action {
+		SET	= 0;
+		DELETE	= 1;
+	}
+
+	enum Type {
+		DEFAULT      = 0;
+		TIMEEXCEEDED = 1;
+		DESTUNREACH  = 2;
+		REDIRECT     = 3;
+		PARAMPROB    = 4;
+		TOOBIG	     = 5;
+	}
+
+	enum Param {
+		MAXIMUM = 0;
+	}
+
+	optional Prot prot = 1;
+
+	optional Action	action = 2;
+
+	optional Type type = 3;
+
+	optional uint32 param = 4;
+
+	optional uint32 maximum = 5;
+}

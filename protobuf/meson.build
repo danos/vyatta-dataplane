@@ -26,7 +26,8 @@ protobuf_sources= [
         'GPCConfig.proto',
         'FeatureAffinityConfig.proto',
         'NbrResConfig.proto',
-        'SessionPack.proto'
+        'SessionPack.proto',
+        'ICMPRateLimConfig.proto'
 ]
 
 install_data(protobuf_sources,
