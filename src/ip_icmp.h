@@ -40,4 +40,29 @@ void icmp_prepare_send(struct rte_mbuf *m);
 bool icmp_echo_reply_out(struct ifnet *rcvifp, struct rte_mbuf *n,
 			 bool reflect);
 
+int cmd_icmp_rl(FILE *f, int argc, char **argv);
+
+#define ICMP_RATELIMIT_STATS_INTERVAL 20
+#define NUM_INTERVALS_PER_MIN (60/ICMP_RATELIMIT_STATS_INTERVAL)
+#define NUM_DROP_INTERVALS (300/ICMP_RATELIMIT_STATS_INTERVAL)
+
+struct icmp_ratelimit_state;
+
+void icmp_ratelimit_init(void);
+
+/*
+ * Test if we should drop generated ICMP packet
+ */
+bool icmp_ratelimit_drop(uint8_t type, struct icmp_ratelimit_state *rl, uint8_t entries);
+
+struct icmp_ratelimit_state {
+	char		*name;				/* type name */
+	uint32_t	max_rate;			/* limit per sec */
+	uint32_t	tokens;				/* remaining tokens for current second */
+	uint32_t	total_sent;
+	uint32_t	total_dropped;
+	uint32_t	drop_stats[NUM_DROP_INTERVALS];	/* drop counts per stats interval */
+	bool		limiting;			/* is rate limiting configured */
+	bool		explicit;			/* limiting is explicit, not default */
+};
 #endif

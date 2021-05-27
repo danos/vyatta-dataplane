@@ -65,6 +65,10 @@
 #include "fal.h"
 #include "netinet6/ip6_funcs.h"
 #include "vplane_log.h"
+#include <urcu/uatomic.h>
+#include "protobuf.h"
+#include "protobuf/ICMPRateLimConfig.pb-c.h"
+#include "json_writer.h"
 
 /*
  * RFC4884 extended header
@@ -92,6 +96,42 @@ struct icmp_ext_obj_hdr {
 
 static bool ip_redirects = true;
 uint64_t icmpstats[ICMP_MIB_MAX];
+
+/*
+ * ICMP Rate limiting state for configurable types. Entry 0 holds
+ * default values.
+ */
+#define ICMP_RATELIMIT_TYPE_DEFAULT 0
+struct icmp_ratelimit_state icmp_ratelimit_state[] = {
+	[ICMP_DEST_UNREACH] = {.name = "dest-unreach"},
+	[ICMP_TIME_EXCEEDED] = {.name = "time-exceeded"},
+	[ICMP_REDIRECT] = {.name = "redirect"},
+};
+
+static struct rte_timer icmp_ratelimit_refresh_tmr;
+
+static struct icmp_ratelimit_state *icmp_get_rl_state(void)
+{
+	return icmp_ratelimit_state;
+}
+
+static uint8_t icmp_get_rl_state_entries(void)
+{
+	return sizeof(icmp_ratelimit_state)/sizeof(struct icmp_ratelimit_state);
+}
+
+static uint8_t icmp_ratelimit_interval;
+static uint8_t icmp_ratelimit_second_count;
+
+static uint8_t icmp_ratelimit_prev_interval(uint8_t interval)
+{
+	return interval ? interval - 1 : (NUM_DROP_INTERVALS - 1);
+}
+
+static uint8_t icmp_ratelimit_next_interval(uint8_t interval)
+{
+	return interval < (NUM_DROP_INTERVALS - 1) ? interval + 1 : 0;
+}
 
 static void icmp_out_inc(vrfid_t vrf_id, uint8_t type)
 {
@@ -386,6 +426,27 @@ static bool is_icmp_info(const struct icmphdr *icmp)
 }
 
 /*
+ * Determine if we need to drop a generated ICMP packet.
+ */
+bool icmp_ratelimit_drop(uint8_t type, struct icmp_ratelimit_state *rl, uint8_t entries)
+{
+	if (type < entries) {
+		rl = &rl[type];
+
+		if (rl->limiting) {
+			if (rl->tokens <= 0 || uatomic_add_return(&rl->tokens, -1) <= 0) {
+				uatomic_add(&rl->total_dropped, 1);
+				uatomic_add(&rl->drop_stats[icmp_ratelimit_interval], 1);
+				return true;
+			}
+			uatomic_add(&rl->total_sent, 1);
+		}
+	}
+
+	return false;
+}
+
+/*
  * Generate an error packet of type error
  * in response to bad packet ip.
  */
@@ -399,6 +460,9 @@ icmp_do_error(struct rte_mbuf *n, int type, int code, uint32_t info,
 	struct icmphdr *icp;
 	struct rte_mbuf *m;
 	unsigned int icmplen, icmpelen, pktlen;
+
+	if (icmp_ratelimit_drop(type, icmp_ratelimit_state, icmp_get_rl_state_entries()))
+		return NULL;
 
 	if (n->ol_flags & PKT_RX_SEEN_BY_CRYPTO) {
 		if (!inif || (inif->if_type != IFT_TUNNEL_VTI))
@@ -749,3 +813,246 @@ icmp_do_exthdr(struct rte_mbuf *m, uint16_t class, uint8_t ctype, void *buf,
 
 	return 0;
 }
+
+/*
+ * Convert protobuf identifiers to ICMP packet type.
+ */
+static bool icmp_msg_type_to_icmp_type(uint8_t msgtype, uint8_t *icmptype)
+{
+	switch (msgtype) {
+	case ICMPRATE_LIM_CONFIG__TYPE__DEFAULT:
+		*icmptype = 0;
+		return true;
+
+	case ICMPRATE_LIM_CONFIG__TYPE__REDIRECT:
+		*icmptype = ICMP_REDIRECT;
+		return true;
+
+	case ICMPRATE_LIM_CONFIG__TYPE__TIMEEXCEEDED:
+		*icmptype = ICMP_TIME_EXCEEDED;
+		return true;
+
+	case ICMPRATE_LIM_CONFIG__TYPE__DESTUNREACH:
+		*icmptype = ICMP_DEST_UNREACH;
+		return true;
+
+	default:
+		return false;
+	}
+}
+
+static void icmp_ratelimit_reset_entry(struct icmp_ratelimit_state *rl,
+				       bool enable, bool explicit, uint32_t val)
+{
+	rl->total_sent = rl->total_dropped = 0;
+	rl->limiting = enable;
+	rl->explicit = explicit;
+	rl->max_rate = val;
+	rl->tokens = val;
+	memset(rl->drop_stats, 0, sizeof(rl->drop_stats));
+}
+
+/*
+ * ICMP Rate Limiting feature configuration.
+ */
+static int cmd_icmp_rate_limit_cfg_handler(struct pb_msg *pbmsg)
+{
+	int ret = -1;
+	bool set, explicit;
+	uint32_t val;
+	uint8_t icmptype;
+	struct icmp_ratelimit_state *rl, *rldef;
+	bool (*get_icmp_type)(uint8_t type, uint8_t *icmptype);
+	uint8_t entries, i;
+
+	ICMPRateLimConfig *msg = icmprate_lim_config__unpack(NULL,
+							     pbmsg->msg_len,
+							     pbmsg->msg);
+	if (!msg) {
+		RTE_LOG(ERR, DATAPLANE,
+			"Cfg failed to read ICMPRateLimitConfig protobuf cmd\n");
+		return ret;
+	}
+
+	if (msg->prot == ICMPRATE_LIM_CONFIG__PROT__ICMPV4) {
+		get_icmp_type = icmp_msg_type_to_icmp_type;
+		rl = icmp_get_rl_state();
+		entries = icmp_get_rl_state_entries();
+	}
+
+	if (msg->param != ICMPRATE_LIM_CONFIG__PARAM__MAXIMUM) {
+		RTE_LOG(ERR, DATAPLANE, "ICMP ratelimit: bad parameter %d\n",
+			msg->param);
+		goto end;
+	}
+
+	if (!get_icmp_type(msg->type, &icmptype)) {
+		RTE_LOG(ERR, DATAPLANE, "Type %d rate limiting not available\n",
+			msg->type);
+		goto end;
+	}
+
+	explicit = (icmptype != ICMP_RATELIMIT_TYPE_DEFAULT);
+	rldef = &rl[ICMP_RATELIMIT_TYPE_DEFAULT];
+
+	set = msg->action == ICMPRATE_LIM_CONFIG__ACTION__SET;
+
+	/*
+	 * If DELETE for "default" set val to 0 else use the defaults.
+	 */
+	if (set)
+		val = msg->maximum;
+	else if (!explicit)
+		val = 0;
+	else {
+		set = rldef->limiting;
+		val = rldef->max_rate;
+	}
+
+	icmp_ratelimit_reset_entry(&rl[icmptype], set, explicit, val);
+
+	/*
+	 * If default is being configured, update all types not explicitly configured.
+	 * Skip entry 0 as that holds the default values.
+	 */
+	if (!explicit) {
+		set = rldef->limiting;
+		val = rldef->max_rate;
+		for (i = 1; i < entries; i++) {
+			if (!rl[i].explicit && rl[i].name)
+				icmp_ratelimit_reset_entry(&rl[i], set, false, val);
+		}
+	}
+
+	ret = 0;
+
+end:
+	icmprate_lim_config__free_unpacked(msg, NULL);
+
+	return ret;
+}
+
+static void icmp_ratelimit_refresh_tmr_hdlr(struct rte_timer *timer __rte_unused,
+					    void *arg __rte_unused)
+{
+	struct icmp_ratelimit_state *rl;
+	int i;
+
+	/*
+	 * Jump to next stats interval if necessary.
+	 */
+	if (++icmp_ratelimit_second_count == ICMP_RATELIMIT_STATS_INTERVAL) {
+		icmp_ratelimit_second_count = 0;
+		icmp_ratelimit_interval = icmp_ratelimit_next_interval(icmp_ratelimit_interval);
+	}
+
+	/* Refresh v4 tokens and stats counters */
+	rl = icmp_get_rl_state();
+	for (i = 0; i < icmp_get_rl_state_entries(); i++) {
+		uatomic_set(&rl[i].tokens, rl[i].max_rate);
+		if (icmp_ratelimit_second_count == 0)
+			rl[i].drop_stats[icmp_ratelimit_interval] = 0;
+	}
+}
+
+static void icmp_ratelimit_set_timer(void)
+{
+	rte_timer_init(&icmp_ratelimit_refresh_tmr);
+	rte_timer_reset_sync(&icmp_ratelimit_refresh_tmr,
+			     rte_get_timer_hz() * 1,
+			     PERIODICAL, rte_get_master_lcore(),
+			     icmp_ratelimit_refresh_tmr_hdlr, NULL);
+}
+
+void icmp_ratelimit_init(void)
+{
+	icmp_ratelimit_set_timer();
+}
+
+static uint32_t icmp_ratelimit_get_n_min_drop_count(int mins, struct icmp_ratelimit_state *rl)
+{
+	uint8_t i, interval;
+	uint32_t total = 0;
+
+	interval = icmp_ratelimit_interval;
+
+	for (i = 0; i < mins * NUM_INTERVALS_PER_MIN; i++) {
+		total += rl->drop_stats[interval];
+		interval = icmp_ratelimit_prev_interval(interval);
+	}
+
+	return total;
+}
+
+static void json_one_entry(json_writer_t *wr, struct icmp_ratelimit_state *rl)
+{
+	jsonw_start_object(wr);
+	jsonw_name(wr, rl->name);
+	jsonw_start_object(wr);
+	jsonw_uint_field(wr, "limit", rl->max_rate);
+	jsonw_uint_field(wr, "sent", rl->total_sent);
+	jsonw_uint_field(wr, "dropped", rl->total_dropped);
+	jsonw_uint_field(wr, "1min_drop", icmp_ratelimit_get_n_min_drop_count(1, rl));
+	jsonw_uint_field(wr, "3min_drop", icmp_ratelimit_get_n_min_drop_count(3, rl));
+	jsonw_uint_field(wr, "5min_drop", icmp_ratelimit_get_n_min_drop_count(5, rl));
+	jsonw_end_object(wr);
+	jsonw_end_object(wr);
+}
+
+/*
+ * Rate limit op mode command handler.
+ *
+ * icmprl show|clear v4|v6
+ */
+int cmd_icmp_rl(FILE *f, int argc, char **argv)
+{
+	json_writer_t *wr;
+	struct icmp_ratelimit_state *rl;
+	uint8_t entries, i;
+
+	if (argc != 3)
+		goto usage;
+
+	if (!strncmp(argv[2], "v4", 2)) {
+		rl = icmp_get_rl_state();
+		entries = icmp_get_rl_state_entries();
+	} else
+		goto usage;
+
+	if (!strncmp(argv[1], "clear", 6)) {
+		for (int i = 0; i < entries; i++) {
+			rl[i].total_dropped = 0;
+			rl[i].total_sent = 0;
+			memset(&rl[i].drop_stats, 0, sizeof(rl->drop_stats));
+		}
+		return 0;
+	}
+
+	if (!strncmp(argv[1], "show", 5)) {
+		wr = jsonw_new(f);
+		jsonw_name(wr, "icmp-ratelimit");
+
+		jsonw_start_array(wr);
+
+		for (i = 0; i < entries; i++)
+			if (rl[i].name)
+				json_one_entry(wr, &rl[i]);
+
+		jsonw_end_array(wr);
+
+		jsonw_destroy(&wr);
+
+		return 0;
+	}
+
+usage:
+	fprintf(f, "usage: icmprl show|clear v4|v6\n");
+	return 1;
+}
+
+PB_REGISTER_CMD(icmp_ratelimit_cfg_cmd) = {
+	.cmd = "vyatta:icmp-ratelimit",
+	.handler = cmd_icmp_rate_limit_cfg_handler,
+};
+
+

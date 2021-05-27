@@ -133,6 +133,7 @@
 #include "vplane_log.h"
 #include "vrf_internal.h"
 #include "backplane.h"
+#include "ip_icmp.h"
 
 packet_input_t packet_input_func __hot_data = ether_input_no_dyn_feats;
 
@@ -3680,6 +3681,8 @@ main(int argc, char **argv)
 	if (pthread_setname_np(rcu_thread, "dataplane/rcu"))
 		DP_DEBUG(INIT, INFO, DATAPLANE,
 			"naming of rcu thread failed\n");
+
+	icmp_ratelimit_init();
 
 	main_loop();
 

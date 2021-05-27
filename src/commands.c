@@ -98,6 +98,7 @@
 #include "vlan_modify.h"
 #include "ptp.h"
 #include "protobuf/PauseConfig.pb-c.h"
+#include "protobuf/ICMPRateLimConfig.pb-c.h"
 
 #define MAX_CMDLINE 512
 #define MAX_ARGS    128
@@ -1749,6 +1750,7 @@ static const cmd_t cmd_table[] = {
 	{ 0,	"gre",		cmd_gre,	"Show gre information" },
 	{ 0,	"help",		cmd_help,	"This help" },
 	{ 0,	"hotplug",	cmd_hotplug,	"Hotplug event" },
+	{ 0,	"icmprl",	cmd_icmp_rl,	"ICMP rate limiting stats" },
 	{ 0,	"ifconfig",	cmd_ifconfig,	"Show interface settings" },
 	{ 1,	"ifconfig",	cmd_ifconfig,	"Show interface settings" },
 	{ 2,	"ifconfig",	cmd_ifconfig,	"Show interface settings" },
