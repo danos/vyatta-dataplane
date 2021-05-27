@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2020, AT&T Intellectual Property. All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property. All rights reserved.
  * Copyright (c) 2015-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -139,31 +139,6 @@ void _dp_test_intf_vxlan_del(const char *vxlan_name, uint32_t vni,
 #define dp_test_intf_vxlan_del(vxlan_name, vni) \
 	_dp_test_intf_vxlan_del(vxlan_name, vni, \
 			       __FILE__, __func__, __LINE__)
-
-void _dp_test_intf_vif_create(const char *vif_name,
-			      const char *parent_name, uint16_t vlan,
-			      uint16_t vlan_proto, const char *file,
-			      const char *func, int line);
-#define dp_test_intf_vif_create(vif_name, parent_name, vlan) \
-	_dp_test_intf_vif_create(vif_name, parent_name, vlan, ETH_P_8021Q, \
-				__FILE__, __func__, __LINE__)
-
-#define dp_test_intf_vif_create_tag_proto(vif_name, parent_name, vlan,	\
-					  vlan_proto)			\
-	_dp_test_intf_vif_create(vif_name, parent_name, vlan, vlan_proto, \
-				 __FILE__, __func__, __LINE__)
-
-
-void _dp_test_intf_vif_del(const char *vif_name, uint16_t vlan,
-			   uint16_t vlan_prot, const char *file,
-			   const char *func, int line);
-#define dp_test_intf_vif_del(vif_name, vlan) \
-	_dp_test_intf_vif_del(vif_name, vlan, ETH_P_8021Q,	\
-			      __FILE__, __func__, __LINE__)
-
-#define dp_test_intf_vif_del_tag_proto(vif_name, vlan, vlan_proto)	\
-	_dp_test_intf_vif_del(vif_name, vlan, vlan_proto,		\
-			      __FILE__, __func__, __LINE__)
 
 void dp_test_intf_vif_create_incmpl(const char *vif_name,
 				    const char *parent_name, uint16_t vlan);

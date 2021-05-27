@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2020, AT&T Intellectual Property. All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property. All rights reserved.
  * Copyright (c) 2011-2017 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -270,4 +270,18 @@ dp_test_ipv4_decrement_ttl(struct rte_mbuf *m);
 
 void
 dp_test_ipv6_decrement_ttl(struct rte_mbuf *m);
+
+/**
+ * Initialize packet to emulate reception on vlan.
+ *
+ * @param m          [in] Pointer to packet mbuf
+ * @param vlan       [in] vlan id
+ *
+ */
+void
+dp_test_pktmbuf_vlan_init(struct rte_mbuf *m,
+			  uint16_t vlan);
+
+void
+dp_test_pktmbuf_vlan_clear(struct rte_mbuf *m);
 #endif /* __DP_PKTMBUF_LIB_H__ */

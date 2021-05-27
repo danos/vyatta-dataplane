@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2020, AT&T Intellectual Property. All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property. All rights reserved.
  * Copyright (c) 2011-2017 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -407,20 +407,6 @@ dp_test_create_l2_pak(const char *d_addr,
 		      const char *s_addr,
 		      uint16_t ether_type,
 		      int n, const int *len);
-
-/**
- * Initialize packet to emulate reception on vlan.
- *
- * @param m          [in] Pointer to packet mbuf
- * @param vlan       [in] vlan id
- *
- */
-void
-dp_test_pktmbuf_vlan_init(struct rte_mbuf *m,
-			  uint16_t vlan);
-
-void
-dp_test_pktmbuf_vlan_clear(struct rte_mbuf *m);
 
 /**
  * Create and initialise an  802.1Q tagged packet
