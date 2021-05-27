@@ -26,8 +26,8 @@ pipeline {
     agent any
 
     environment {
-        OBS_INSTANCE = 'build'
-        OBS_TARGET_PROJECT = 'DANOS:Master'
+        OBS_INSTANCE = 'build-release'
+        OBS_TARGET_PROJECT = 'DANOS:Unstable'
         OBS_TARGET_REPO = 'standard'
         OBS_TARGET_ARCH = 'x86_64'
         // Replace : with _ in project name so mountable paths can be used.
