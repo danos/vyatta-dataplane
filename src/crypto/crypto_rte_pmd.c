@@ -22,6 +22,7 @@
  * Support for 16K sessions ( = 8K tunnels )
  */
 #define CRYPTO_MAX_SESSIONS (1 << 14)
+#define CRYPTO_MZ_ELEMS (1 << 14)
 
 #define CRYPTO_OP_CTX_OFFSET (sizeof(struct rte_crypto_op) + \
 			      sizeof(struct rte_crypto_sym_op))
@@ -40,6 +41,73 @@ static uint8_t dev_cnts[CRYPTODEV_MAX];
 /* per packet crypto op pool. This may eventually subsume crypto_pkt_ctx */
 static struct rte_mempool *crypto_op_pool;
 
+static void
+crypto_rte_mempool_mz_free(__rte_unused struct rte_mempool_memhdr *memhdr,
+			   void *opaque)
+{
+	const struct rte_memzone *mz = opaque;
+	rte_memzone_free(mz);
+}
+
+static int crypto_rte_sym_pool_grow(struct rte_mempool *pool)
+{
+	int rc;
+	const struct rte_memzone *mz;
+	size_t mz_len;
+	char mz_name[RTE_MEMZONE_NAMESIZE];
+
+	static uint32_t mz_id;
+
+	mz_len = rte_cryptodev_sym_get_header_session_size() * CRYPTO_MZ_ELEMS;
+
+	snprintf(mz_name, sizeof(mz_name), "crypto_sym_%u", mz_id++);
+	mz = rte_memzone_reserve_aligned(mz_name, mz_len, -1,
+					 RTE_MEMZONE_IOVA_CONTIG,
+					 RTE_CACHE_LINE_SIZE);
+	if (mz == NULL) {
+		RTE_LOG(ERR, DATAPLANE,
+			"Failed to allocate more memory for crypto session pool: %s\n",
+			rte_strerror(rte_errno));
+		return -rte_errno;
+	}
+
+	rc = rte_mempool_populate_iova(pool, mz->addr, mz->iova, mz->len,
+				       crypto_rte_mempool_mz_free, (void *) mz);
+	if (rc < 0) {
+		crypto_rte_mempool_mz_free(NULL, (void *) mz);
+		RTE_LOG(ERR, DATAPLANE, "Failed to grow crypto session pool: %s\n",
+			rte_strerror(-rc));
+		return rc;
+	}
+
+	return 0;
+}
+
+static struct rte_cryptodev_sym_session *
+crypto_rte_get_session(struct rte_mempool *pool)
+{
+	int rc;
+	struct rte_cryptodev_sym_session *session;
+
+	session = rte_cryptodev_sym_session_create(pool);
+
+	if (session)
+		return session;
+
+	if (rte_errno != ENOENT) {
+		RTE_LOG(ERR, DATAPLANE, "Failed to create crypto session: %s\n",
+			rte_strerror(rte_errno));
+		return NULL;
+	}
+
+	/* pool is empty, try to grow the pool */
+	rc = crypto_rte_sym_pool_grow(pool);
+	if (rc < 0)
+		return NULL;
+
+	return rte_cryptodev_sym_session_create(pool);
+}
+
 int crypto_rte_setup(void)
 {
 	int err = 0;
@@ -48,12 +116,29 @@ int crypto_rte_setup(void)
 	/*
 	 * allocate generic session context pool
 	 */
-	crypto_session_pool = rte_cryptodev_sym_session_pool_create(
+	crypto_session_pool = rte_cryptodev_sym_session_pool_create_empty(
 		"crypto_session_pool", CRYPTO_MAX_SESSIONS, 0, 0, 0, socket);
 	if (!crypto_session_pool) {
 		RTE_LOG(ERR, DATAPLANE,
 			"Could not allocate crypto session pool\n");
 		return -ENOMEM;
+	}
+
+	err = rte_mempool_set_ops_byname(crypto_session_pool, "ring_mp_mc",
+					 NULL);
+	if (err < 0) {
+		RTE_LOG(ERR, DATAPLANE,
+			"Failed to setup mempool handler for crypto session pool: %s\n",
+			rte_strerror(-err));
+		goto fail;
+	}
+
+	/* Initial population */
+	err = crypto_rte_sym_pool_grow(crypto_session_pool);
+	if (err < 0) {
+		RTE_LOG(ERR, DATAPLANE, "Failed initial crypto session pool population: %s\n",
+			rte_strerror(-err));
+		goto fail;
 	}
 
 	uint16_t crypto_op_data_size =
@@ -618,11 +703,11 @@ int crypto_rte_setup_session(struct crypto_session *session,
 	crypto_rte_setup_xform_chain(session, &cipher_xform, &auth_xform,
 				     &xform_chain);
 
-	session->rte_session =
-		rte_cryptodev_sym_session_create(crypto_session_pool);
+	session->rte_session = crypto_rte_get_session(crypto_session_pool);
 	if (!session->rte_session) {
-		RTE_LOG(ERR, DATAPLANE, "Could not create cryptodev session\n");
-		return -ENOMEM;
+		RTE_LOG(ERR, DATAPLANE, "Could not create cryptodev session: %s\n",
+			rte_strerror(rte_errno));
+		return -rte_errno;
 	}
 
 	err = rte_cryptodev_sym_session_init(
