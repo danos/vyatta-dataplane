@@ -28,7 +28,8 @@ static struct rte_mempool *npr_acl4_pool;
 static struct rte_mempool *npr_acl6_pool;
 static struct rte_mempool *npr_pdel_pool;
 
-#define NPR_RULE_MAX_ELEMENTS (1 << 14)
+#define NPR_RULE_MAX_ELEMENTS (1 << 18)
+#define NPR_RULE_GROW_ELEMENTS (1 << 14)
 
 #define NPR_ACL_RING_SZ 512
 
@@ -437,7 +438,6 @@ error:
 	return rc;
 }
 
-__rte_unused
 static int
 npf_rte_acl_mempool_get(struct rte_mempool *pool, size_t grow_nb, void **obj)
 {
@@ -465,7 +465,6 @@ npf_rte_acl_mempool_get(struct rte_mempool *pool, size_t grow_nb, void **obj)
 	return rte_mempool_get(pool, obj);
 }
 
-__rte_unused
 static int
 npf_rte_acl_mempool_create(const char *name, size_t max_elems, size_t elem_size,
 			   size_t grow_nb, int socket_id,
@@ -1066,18 +1065,42 @@ npf_rte_acl_trie_add_rule(int af, struct npf_match_ctx_trie *m_trie,
 {
 	int err;
 
+	struct rte_mempool *rule_mempool;
+
+	if (af == AF_INET)
+		rule_mempool = npr_acl4_pool;
+	else if (af == AF_INET6)
+		rule_mempool = npr_acl6_pool;
+	else
+		return -EINVAL;
+
 	err = rte_acl_add_rules(m_trie->acl_ctx, acl_rule, 1);
-	if (err) {
-		RTE_LOG(ERR, DATAPLANE,
-			"Could not add rule for af %d to trie %s (%s), max_rules %d, num_rules %d : %d\n",
-			af, m_trie->trie_name,
-			trie_state_strs[m_trie->trie_state],
-			NPR_MTRIE_MAX_RULES, m_trie->num_rules, err);
-		return err;
+	if (err < 0 && err != -ENOENT)
+		goto error;
+
+	if (err == -ENOENT) {
+		err = npf_rte_acl_mempool_grow(rule_mempool,
+					       NPR_RULE_GROW_ELEMENTS);
+		if (err < 0)
+			goto error;
+
+		err = rte_acl_add_rules(m_trie->acl_ctx, acl_rule, 1);
+		if (err)
+			goto error;
 	}
+
 	m_trie->num_rules++;
 
 	return 0;
+
+error:
+	RTE_LOG(ERR, DATAPLANE,
+		"Could not add rule for af %d to trie %s (%s), max_rules %d, num_rules %d : %s\n",
+		af, m_trie->trie_name,
+		trie_state_strs[m_trie->trie_state],
+		NPR_MTRIE_MAX_RULES, m_trie->num_rules, rte_strerror(-err));
+
+	return err;
 }
 
 int npf_rte_acl_add_rule(int af, npf_match_ctx_t *m_ctx, uint32_t rule_no,
@@ -1238,7 +1261,8 @@ npf_rte_acl_add_pending_delete_rule(int af, npf_match_ctx_t *m_ctx,
 	}
 	memset(pd, 0, sizeof(*pd));
 
-	err = rte_mempool_get(rule_mempool, (void **)&pd->rule);
+	err = npf_rte_acl_mempool_get(rule_mempool, NPR_RULE_GROW_ELEMENTS,
+				      (void **)&pd->rule);
 	if (err) {
 		RTE_LOG(ERR, DATAPLANE,
 			"Could not allocate memory pending-delete rule from ctx %s\n",
@@ -1601,25 +1625,21 @@ int npf_rte_acl_setup(void)
 		goto error;
 	}
 
-	npr_acl4_pool = rte_mempool_create("npr_acl4_pool",
-					   NPR_RULE_MAX_ELEMENTS,
-					   npf_rte_acl_rule_size(AF_INET),
-					   0, 0, NULL, NULL, NULL, NULL,
-					   rte_socket_id(), 0);
-
-	if (!npr_acl4_pool) {
+	err = npf_rte_acl_mempool_create("npr_acl4_pool", NPR_RULE_MAX_ELEMENTS,
+					 npf_rte_acl_rule_size(AF_INET),
+					 NPR_RULE_GROW_ELEMENTS, rte_socket_id(),
+					 &npr_acl4_pool);
+	if (err < 0) {
 		RTE_LOG(ERR, DATAPLANE,
 			"Could not allocate acl rule pool for IPv4\n");
 		goto error;
 	}
 
-	npr_acl6_pool = rte_mempool_create("npr_acl6_pool",
-					   NPR_RULE_MAX_ELEMENTS,
-					   npf_rte_acl_rule_size(AF_INET6),
-					   0, 0, NULL, NULL, NULL, NULL,
-					   rte_socket_id(), 0);
-
-	if (!npr_acl6_pool) {
+	err = npf_rte_acl_mempool_create("npr_acl6_pool", NPR_RULE_MAX_ELEMENTS,
+					 npf_rte_acl_rule_size(AF_INET6),
+					 NPR_RULE_GROW_ELEMENTS, rte_socket_id(),
+					 &npr_acl6_pool);
+	if (err < 0) {
 		RTE_LOG(ERR, DATAPLANE,
 			"Could not allocate acl rule pool for IPv6\n");
 		goto error;
