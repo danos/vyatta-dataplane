@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2013-2017 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -155,7 +155,7 @@ static void qos_sched_npf_commit(void)
 		if (qinfo->reset_port != QOS_NPF_COMMIT)
 			continue;
 
-		struct rte_eth_link link;
+		struct dp_ifnet_link_status link;
 
 		QOS_STOP(qinfo)(qinfo->ifp, qinfo);
 
@@ -172,7 +172,7 @@ static void qos_sched_npf_commit(void)
 			qos_global_map_obj = FAL_QOS_NULL_OBJECT_ID;
 		}
 
-		rte_eth_link_get_nowait(qinfo->ifp->if_port, &link);
+		dp_ifnet_link_status(qinfo->ifp, &link);
 		if (link.link_status) {
 			int ret;
 
@@ -5126,12 +5126,12 @@ qos_if_link_change(struct ifnet *ifp, bool up,
 static void
 qos_if_mtu_change(struct ifnet *ifp, uint32_t mtu __unused)
 {
-	struct rte_eth_link link;
+	struct dp_ifnet_link_status link;
 
 	if (!ifp->if_qos)
 		return;
 
-	rte_eth_link_get_nowait(ifp->if_port, &link);
+	dp_ifnet_link_status(ifp, &link);
 	if (link.link_status) {
 		/*
 		 * Since changing the MTU can influence the burst size and as
@@ -5189,9 +5189,9 @@ qos_if_feat_mode_change(struct ifnet *ifp, enum if_feat_mode_event event)
 	}
 
 	if (up) {
-		struct rte_eth_link link;
+		struct dp_ifnet_link_status link;
 
-		rte_eth_link_get_nowait(ifp->if_port, &link);
+		dp_ifnet_link_status(ifp, &link);
 		if (link.link_status && link.link_speed != ETH_SPEED_NUM_NONE)
 			qos_sched_start(ifp, link.link_speed);
 	} else {

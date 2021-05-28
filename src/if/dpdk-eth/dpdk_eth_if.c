@@ -1354,6 +1354,30 @@ dpdk_eth_if_set_speed(struct ifnet *ifp, bool autoneg,
 	return reconfigure_port(ifp, &dev_conf, NULL);
 }
 
+/*
+ * While speed/duplex for virtio in DPDK has changed from 10g/full to
+ * unknown/half, retain the former for reasons of backwards compatibility.
+ */
+int
+dpdk_eth_link_get_nowait(uint16_t port_id, struct rte_eth_link *eth_link)
+{
+	struct rte_eth_dev_info dev_info;
+	int rc;
+
+	rc = rte_eth_link_get_nowait(port_id, eth_link);
+
+	if (eth_link->link_speed == ETH_SPEED_NUM_UNKNOWN) {
+		rte_eth_dev_info_get(port_id, &dev_info);
+
+		if (strcmp(dev_info.driver_name, "net_virtio") == 0) {
+			eth_link->link_duplex = ETH_LINK_FULL_DUPLEX;
+			eth_link->link_speed = ETH_SPEED_NUM_10G;
+		}
+	}
+
+	return rc;
+}
+
 static int
 dpdk_eth_if_get_link_status(struct ifnet *ifp,
 			    struct dp_ifnet_link_status *if_link)
@@ -1364,7 +1388,7 @@ dpdk_eth_if_get_link_status(struct ifnet *ifp,
 
 	/* consider unplugged as down, but don't ask DPDK */
 	if (!ifp->unplugged)
-		rte_eth_link_get_nowait(ifp->if_port, &link);
+		dpdk_eth_link_get_nowait(ifp->if_port, &link);
 
 	if_link->link_status = link.link_status;
 	if_link->link_duplex =

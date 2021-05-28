@@ -1369,7 +1369,7 @@ int qos_hw_disable(struct ifnet *ifp, struct sched_info *qinfo)
 
 int qos_hw_enable(struct ifnet *ifp, struct sched_info *qinfo)
 {
-	struct rte_eth_link link;
+	struct dp_ifnet_link_status link;
 	int ret = 0;
 
 	DP_DEBUG(QOS_HW, DEBUG, DATAPLANE, "hardware enable, if-index: %u\n",
@@ -1381,7 +1381,7 @@ int qos_hw_enable(struct ifnet *ifp, struct sched_info *qinfo)
 		return 0;
 	}
 
-	rte_eth_link_get_nowait(ifp->if_port, &link);
+	dp_ifnet_link_status(ifp, &link);
 	if (link.link_status) {
 		ret = qos_sched_start(ifp, link.link_speed);
 		if (ret != 0)

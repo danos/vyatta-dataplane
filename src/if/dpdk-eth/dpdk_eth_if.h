@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2019-2020, AT&T Intellectual Property.
+ * Copyright (c) 2019-2021, AT&T Intellectual Property.
  * All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
@@ -54,6 +54,7 @@ char *dpdk_eth_vplaned_devinfo(portid_t port_id);
 
 int dpdk_name_to_eth_port_map_add(const char *ifname, portid_t port);
 void dpdk_eth_port_map_del_port(portid_t port);
+int dpdk_eth_link_get_nowait(uint16_t port_id, struct rte_eth_link *eth_link);
 
 struct ifnet *dpdk_eth_if_alloc(const char *if_name, unsigned int ifindex);
 struct ifnet *dpdk_eth_if_alloc_w_port(const char *if_name,

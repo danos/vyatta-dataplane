@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2019-2020, AT&T Intellectual Property.
+ * Copyright (c) 2019-2021, AT&T Intellectual Property.
  * All rights reserved.
  * Copyright (c) 2011-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
@@ -117,7 +117,7 @@ void linkwatch_timer(struct rte_timer *tim __rte_unused, void *arg)
 
 	/* ignore timer when race with admin down */
 	if (dpdk_eth_if_port_started(port)) {
-		rte_eth_link_get_nowait(port, &link);
+		dpdk_eth_link_get_nowait(port, &link);
 		bitmask_set(&lsc_irq_mask, port);	/* re-enable irq */
 
 		int old_status = if_port_isup(port);
@@ -134,7 +134,7 @@ void linkwatch_update_port_status(portid_t port, enum linkwatch_flags flags)
 	struct rte_eth_link link;
 	int old_status;
 
-	rte_eth_link_get_nowait(port, &link);
+	dpdk_eth_link_get_nowait(port, &link);
 	/* The kernel needs to be informed that the link is operationally down
 	 * when the port is stopped, so intervene in this case as the link state
 	 * in some if not all DPDK PMDs remains up.
