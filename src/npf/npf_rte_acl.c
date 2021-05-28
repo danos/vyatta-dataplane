@@ -24,8 +24,8 @@ static bool acl_merge_running;
 static void *npf_rte_acl_optimize(void *args);
 
 static struct rte_mempool *npr_mtrie_pool;
-static struct rte_mempool *npr_acl4_mempool;
-static struct rte_mempool *npr_acl6_mempool;
+static struct rte_mempool *npr_acl4_pool;
+static struct rte_mempool *npr_acl6_pool;
 static struct rte_mempool *npr_pdel_pool;
 
 #define NPR_RULE_MAX_ELEMENTS (1 << 14)
@@ -406,11 +406,11 @@ static int npf_rte_acl_create_trie(int af, int max_rules,
 
 	if (af == AF_INET) {
 		acl_param.rule_size = RTE_ACL_RULE_SZ(RTE_DIM(ipv4_defs));
-		acl_param.rule_pool = npr_acl4_mempool;
+		acl_param.rule_pool = npr_acl4_pool;
 		pfx1 = "ipv4";
 	} else if (af == AF_INET6) {
 		acl_param.rule_size = RTE_ACL_RULE_SZ(RTE_DIM(ipv6_defs));
-		acl_param.rule_pool = npr_acl6_mempool;
+		acl_param.rule_pool = npr_acl6_pool;
 		pfx1 = "ipv6";
 	} else
 		return -EINVAL;
@@ -1083,9 +1083,9 @@ npf_rte_acl_add_pending_delete_rule(int af, npf_match_ctx_t *m_ctx,
 	struct rte_mempool *rule_mempool;
 
 	if (af == AF_INET)
-		rule_mempool = npr_acl4_mempool;
+		rule_mempool = npr_acl4_pool;
 	else if (af == AF_INET6)
-		rule_mempool = npr_acl6_mempool;
+		rule_mempool = npr_acl6_pool;
 	else
 		return -EINVAL;
 
@@ -1461,25 +1461,25 @@ int npf_rte_acl_setup(void)
 		goto error;
 	}
 
-	npr_acl4_mempool = rte_mempool_create("npr_acl4_pool",
-					      NPR_RULE_MAX_ELEMENTS,
-					      npf_rte_acl_rule_size(AF_INET),
-					      0, 0, NULL, NULL, NULL, NULL,
-					      rte_socket_id(), 0);
+	npr_acl4_pool = rte_mempool_create("npr_acl4_pool",
+					   NPR_RULE_MAX_ELEMENTS,
+					   npf_rte_acl_rule_size(AF_INET),
+					   0, 0, NULL, NULL, NULL, NULL,
+					   rte_socket_id(), 0);
 
-	if (!npr_acl4_mempool) {
+	if (!npr_acl4_pool) {
 		RTE_LOG(ERR, DATAPLANE,
 			"Could not allocate acl rule pool for IPv4\n");
 		goto error;
 	}
 
-	npr_acl6_mempool = rte_mempool_create("npr_acl6_pool",
-					      NPR_RULE_MAX_ELEMENTS,
-					      npf_rte_acl_rule_size(AF_INET6),
-					      0, 0, NULL, NULL, NULL, NULL,
-					      rte_socket_id(), 0);
+	npr_acl6_pool = rte_mempool_create("npr_acl6_pool",
+					   NPR_RULE_MAX_ELEMENTS,
+					   npf_rte_acl_rule_size(AF_INET6),
+					   0, 0, NULL, NULL, NULL, NULL,
+					   rte_socket_id(), 0);
 
-	if (!npr_acl6_mempool) {
+	if (!npr_acl6_pool) {
 		RTE_LOG(ERR, DATAPLANE,
 			"Could not allocate acl rule pool for IPv6\n");
 		goto error;
@@ -1532,14 +1532,14 @@ int npf_rte_acl_teardown(void)
 		npr_acl6_ring = NULL;
 	}
 
-	if (npr_acl4_mempool) {
-		rte_mempool_free(npr_acl4_mempool);
-		npr_acl4_mempool = NULL;
+	if (npr_acl4_pool) {
+		rte_mempool_free(npr_acl4_pool);
+		npr_acl4_pool = NULL;
 	}
 
-	if (npr_acl6_mempool) {
-		rte_mempool_free(npr_acl6_mempool);
-		npr_acl6_mempool = NULL;
+	if (npr_acl6_pool) {
+		rte_mempool_free(npr_acl6_pool);
+		npr_acl6_pool = NULL;
 	}
 
 	if (npr_mtrie_pool) {
@@ -1642,9 +1642,9 @@ npf_rte_acl_delete_pending_rules(int af, struct npf_match_ctx_trie *new_trie,
 	struct rte_mempool *rule_pool;
 
 	if (af == AF_INET)
-		rule_pool = npr_acl4_mempool;
+		rule_pool = npr_acl4_pool;
 	else if (af == AF_INET6)
-		rule_pool = npr_acl6_mempool;
+		rule_pool = npr_acl6_pool;
 	else
 		return -EINVAL;
 
