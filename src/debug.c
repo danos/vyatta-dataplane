@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2020-2021, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -135,7 +135,7 @@ static const char *debug_bits[] = {
 	"vrf",		"multicast",		"mpls_control",
 	"mpls_pkterr",	"dpi",          "qos_dp",       "qos_hw",
 	"storm_ctl",	"cpp_rl",	"ptp",          "cgnat",
-	"flow-cache", "mac-limit",	"gpc",
+	"flow-cache",	"mac-limit",	"gpc",		"rldb-acl",
 };
 
 /* find debug bit based on name, allow abbreviation */

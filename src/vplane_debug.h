@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2013-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -60,6 +60,7 @@
 #define DP_DBG_FLOW_CACHE	(1ull << 37)
 #define DP_DBG_MAC_LIMIT	(1ull << 38)
 #define DP_DBG_GPC		(1ull << 39)
+#define DP_DBG_RLDB_ACL         (1ull << 40)
 
 /* Default to only debugging startup and link events.
  * Skip ARP and route since they can flood log.

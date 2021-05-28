@@ -11,6 +11,7 @@
 #include <rte_mempool.h>
 #include <rte_ring.h>
 #include "vplane_log.h"
+#include "vplane_debug.h"
 #include "npf_rte_acl.h"
 #include <rte_log.h>
 #include "../ip_funcs.h"
@@ -335,6 +336,8 @@ acl_rule_hash(const void *data, uint32_t data_len, uint32_t init_val)
 #define NPR_MTRIE_MAX_RULES    MAX_TRANSACTION_ENTRIES
 #define NPR_POOL_DEF_MAX_TRIES 128
 
+static int npf_rte_acl_trie_destroy(int af, struct npf_match_ctx_trie *m_trie);
+
 static int npf_rte_acl_destroy_mtrie_pool(int af);
 
 static inline int npf_rte_acl_get_ring(int af, struct rte_ring **ring)
@@ -548,6 +551,10 @@ npf_rte_acl_add_trie(npf_match_ctx_t *m_ctx)
 
 	cds_list_add(&m_trie->trie_link, &m_ctx->trie_list);
 	rte_atomic16_inc(&m_ctx->num_tries);
+	DP_DEBUG(RLDB_ACL, DEBUG, DATAPLANE,
+		 "Added trie %s to ctx %s (Trie count = %d)\n",
+		 m_trie->trie_name, m_ctx->ctx_name,
+		 rte_atomic16_read(&m_ctx->num_tries));
 
 	return err;
 }
@@ -904,6 +911,9 @@ int npf_rte_acl_add_rule(int af, npf_match_ctx_t *m_ctx, uint32_t rule_no,
 
 	m_ctx->num_rules++;
 
+	DP_DEBUG(RLDB_ACL, DEBUG, DATAPLANE,
+		 "Added rule %d to ctx %s\n", rule_no, m_ctx->ctx_name);
+
 	err = npf_rte_acl_record_transaction_entry(m_ctx, m_trie, RULE_OP_ADD,
 						   acl_rule, rule_sz);
 	if (err)
@@ -1031,8 +1041,21 @@ int npf_rte_acl_del_rule(int af, npf_match_ctx_t *m_ctx, uint32_t rule_no,
 			break;
 
 		err = npf_rte_acl_trie_del_rule(af, m_trie, acl_rule);
-		if (!err)
+		if (!err) {
+			DP_DEBUG(RLDB_ACL, DEBUG, DATAPLANE,
+				 "Deleted rule %d from ctx %s\n", rule_no,
+				 m_ctx->ctx_name);
+			if (!m_trie->num_rules) {
+				cds_list_del(&m_trie->trie_link);
+				npf_rte_acl_trie_destroy(af, m_trie);
+				rte_atomic16_dec(&m_ctx->num_tries);
+				DP_DEBUG(RLDB_ACL, DEBUG, DATAPLANE,
+					 "Deleted trie %s from ctx %s. (Trie count = %d)\n",
+					 m_trie->trie_name, m_ctx->ctx_name,
+					 rte_atomic16_read(&m_ctx->num_tries));
+			}
 			break;
+		}
 	}
 
 	/* record a transaction entry only upon successful deletion */
@@ -1091,18 +1114,30 @@ int npf_rte_acl_match(int af, npf_match_ctx_t *m_ctx,
 	if (!m_ctx->num_rules || !rte_atomic16_read(&m_ctx->num_tries))
 		return -ENOENT;
 
+	DP_DEBUG(RLDB_ACL, DEBUG, DATAPLANE, "Starting match on %s\n", m_ctx->ctx_name);
+
 	cds_list_for_each_safe(list_entry, next, &m_ctx->trie_list) {
 		m_trie = cds_list_entry(list_entry, struct npf_match_ctx_trie,
 					trie_link);
 
-		if (m_trie->trie_state == TRIE_STATE_WRITABLE)
+		if (m_trie->trie_state == TRIE_STATE_WRITABLE) {
+			DP_DEBUG(RLDB_ACL, DEBUG, DATAPLANE, "Skipping trie %s\n",
+				 m_trie->trie_name);
 			continue;
+		}
 
 		err = npf_rte_acl_trie_match(af, m_trie, npc, data, rule_no);
 		if (!err) {
+			DP_DEBUG(RLDB_ACL, DEBUG, DATAPLANE,
+				 "Matched rule %d in trie %s\n", *rule_no,
+				 m_trie->trie_name);
 			err = prio_map_cb(prio_map_userdata, *rule_no, &tmp_priority);
 			if (err)
 				break;
+
+			DP_DEBUG(RLDB_ACL, DEBUG, DATAPLANE,
+				 "Priority of rule %d = %d\n",
+				 *rule_no, tmp_priority);
 
 			if (tmp_priority > priority) {
 				priority = tmp_priority;
@@ -1233,6 +1268,10 @@ int npf_rte_acl_destroy(int af __rte_unused, npf_match_ctx_t **m_ctx)
 		cds_list_del(&m_trie->trie_link);
 		npf_rte_acl_trie_destroy(ctx->af, m_trie);
 		rte_atomic16_dec(&ctx->num_tries);
+		DP_DEBUG(RLDB_ACL, DEBUG, DATAPLANE,
+			 "Deleted trie %s from ctx %s (Trie count = %d)\n",
+			 m_trie->trie_name, ctx->ctx_name,
+			 rte_atomic16_read(&ctx->num_tries));
 	}
 
 	free(ctx->ctx_name);
