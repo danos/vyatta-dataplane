@@ -39,8 +39,9 @@ do
     #echo "Total Change:$TOTAL_CHANGE"
 
     if [ "$TOTAL_CHANGE" -gt "$MAX_CHANGED_LINES_ALLOWED" ]; then
-	echo "$COMMIT is greater than $MAX_CHANGED_LINES_ALLOWED lines,"\
-	     "please consider splitting into multiple commits."
+	echo "$COMMIT changes $TOTAL_CHANGE lines"\
+	     "which is greater than $MAX_CHANGED_LINES_ALLOWED."\
+	     "Please consider splitting into multiple commits."
 	COMMIT_TOO_LARGE=true
     fi
 done
