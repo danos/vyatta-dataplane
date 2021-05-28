@@ -27,6 +27,40 @@ static struct rte_mempool *npr_acl6_mempool;
 struct rte_ring *npr_acl4_ring, *npr_acl6_ring;
 
 /*
+ * Trie state contexts:
+ *
+ * - writable: trie is open to accept new rules, not yet build
+ *             nor used for matching/classification of traffic.
+ * - frozen: trie is closed and does no longer accept new rules.
+ *           Those tries usually are already in use for matching
+ *           classification. Or about to get staged for matching.
+ * - merging: trie is about to get merged into a consolidated trie.
+ *            It's closed and does not longer accept new rules,
+ *            but is used for matching.
+ *
+ *
+ * The usual state transitions of tries are:
+ *
+ * writable -> frozen -> merging (-> trie gets released)
+ *
+ * Note: those states are independent of higher-level APIs
+ * transaction logic/state.
+ */
+
+enum trie_state {
+	TRIE_STATE_WRITABLE = 0,
+	TRIE_STATE_FROZEN,
+	TRIE_STATE_MERGING,
+	TRIE_STATE_MAX
+};
+
+const char *trie_state_strs[TRIE_STATE_MAX] = {
+	[TRIE_STATE_WRITABLE] = "writable",
+	[TRIE_STATE_FROZEN]   = "frozen",
+	[TRIE_STATE_MERGING]  = "merging",
+};
+
+/*
  * A trie containing a subset of entries for a particular context.
  * Used to optimize update operations
  */
@@ -38,6 +72,7 @@ struct npf_match_ctx_trie {
 	char                 *trie_name;
 	uint16_t              num_rules;
 	uint16_t              flags;
+	enum trie_state       trie_state;
 	struct rte_acl_ctx   *acl_ctx;
 };
 
@@ -429,6 +464,8 @@ npf_rte_acl_create_mtrie_pool(int af, int max_tries)
 				"Could not allocate mtrie for pool\n");
 			goto error;
 		}
+
+		m_trie->trie_state = TRIE_STATE_WRITABLE;
 
 		err = rte_ring_enqueue(ring, m_trie);
 		if (err) {
@@ -871,6 +908,7 @@ static int npf_rte_acl_trie_build(int af, struct npf_match_ctx_trie *m_trie)
 			m_trie->trie_name, strerror(-err));
 		return err;
 	}
+	m_trie->trie_state = TRIE_STATE_FROZEN;
 
 	return 0;
 }
