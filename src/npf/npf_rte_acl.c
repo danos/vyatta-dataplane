@@ -1275,3 +1275,31 @@ int npf_rte_acl_teardown(void)
 
 	return 0;
 }
+
+void npf_rte_acl_dump(npf_match_ctx_t *ctx, json_writer_t *wr)
+{
+	struct cds_list_head *list_entry, *next;
+	struct npf_match_ctx_trie *m_trie;
+	uint16_t num_tries = rte_atomic16_read(&ctx->num_tries);
+
+	if (!num_tries)
+		return;
+
+	jsonw_name(wr, ctx->ctx_name);
+	jsonw_start_object(wr);
+	jsonw_uint_field(wr, "num_tries", num_tries);
+	jsonw_name(wr, "tries");
+	jsonw_start_array(wr);
+	cds_list_for_each_safe(list_entry, next, &ctx->trie_list) {
+		m_trie = cds_list_entry(list_entry, struct npf_match_ctx_trie,
+					trie_link);
+		jsonw_start_object(wr);
+		jsonw_string_field(wr, "trie-name", m_trie->trie_name);
+		jsonw_uint_field(wr, "num_rules", m_trie->num_rules);
+		jsonw_string_field(wr, "state",
+				   trie_state_strs[m_trie->trie_state]);
+		jsonw_end_object(wr);
+	}
+	jsonw_end_array(wr);
+	jsonw_end_object(wr);
+}

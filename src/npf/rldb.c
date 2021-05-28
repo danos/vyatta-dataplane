@@ -850,6 +850,8 @@ void rldb_dump(struct rldb_db_handle *db, json_writer_t *wr)
 		jsonw_end_object(wr);
 	}
 	jsonw_end_array(wr);
+
+	npf_rte_acl_dump(db->match_ctx, wr);
 }
 
 /*

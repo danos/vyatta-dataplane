@@ -8,6 +8,7 @@
 #define NPF_RTE_ACL_H
 
 #include <rte_acl.h>
+#include <json_writer.h>
 #include "npf_cache.h"
 #include "npf_match.h"
 
@@ -36,5 +37,7 @@ int npf_rte_acl_match(int af, npf_match_ctx_t *m_ctx, npf_cache_t *npc,
 int npf_rte_acl_destroy(int af, npf_match_ctx_t **m_ctx);
 
 size_t npf_rte_acl_rule_size(int af);
+
+void npf_rte_acl_dump(npf_match_ctx_t *ctx, json_writer_t *wr);
 
 #endif
