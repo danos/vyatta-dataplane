@@ -372,6 +372,134 @@ static inline int npf_rte_acl_get_ring(int af, struct rte_ring **ring)
 	return 0;
 }
 
+static void
+npf_rte_acl_mempool_mz_free(__rte_unused struct rte_mempool_memhdr *memhdr,
+		     void *opaque)
+{
+	const struct rte_memzone *mz = opaque;
+	rte_memzone_free(mz);
+}
+
+static int
+npf_rte_acl_mempool_grow(struct rte_mempool *pool, size_t nb)
+{
+	int rc;
+	size_t mz_len;
+	const struct rte_memzone *mz;
+	char mz_name[RTE_MEMZONE_NAMESIZE];
+
+	if (!pool || nb == 0)
+		return -EINVAL;
+
+	mz_len = pool->elt_size * nb;
+
+	rc = snprintf(mz_name, sizeof(mz_name), "%s_%u", pool->name,
+		      pool->nb_mem_chunks);
+	if (rc >= (int)sizeof(mz_name)) {
+		rc = -ENAMETOOLONG;
+		RTE_LOG(ERR, DATAPLANE,
+			"Could not reserve additional memory for %s: %s\n",
+			pool->name, rte_strerror(-rc));
+		return rc;
+	}
+	mz = rte_memzone_reserve_aligned(mz_name, mz_len, -1,
+					 RTE_MEMZONE_IOVA_CONTIG,
+					 RTE_CACHE_LINE_SIZE);
+	if (mz == NULL) {
+		RTE_LOG(ERR, DATAPLANE,
+			"Could not reserve additional memory for %s: %s\n",
+			pool->name, rte_strerror(rte_errno));
+		return -rte_errno;
+	}
+
+	rc = rte_mempool_populate_iova(pool, mz->addr, mz->iova,
+				       mz->len, npf_rte_acl_mempool_mz_free,
+				       (void *)(uintptr_t)mz);
+	if (rc < 0) {
+		RTE_LOG(ERR, DATAPLANE,
+			"Could not grow the memory pool %s: %s\n",
+			pool->name, rte_strerror(-rc));
+		return rc;
+	}
+
+	return 0;
+}
+
+__rte_unused
+static int
+npf_rte_acl_mempool_get(struct rte_mempool *pool, size_t grow_nb, void **obj)
+{
+	int rc;
+
+	rc = rte_mempool_get(pool, obj);
+	if (rc != -ENOBUFS) {
+		if (rc)
+			RTE_LOG(ERR, DATAPLANE,
+				"Failed request new element from %s: %s\n",
+				pool->name, rte_strerror(-rc));
+
+		return rc;
+	}
+
+	/* pool is empty, try to grow the pool */
+	rc = npf_rte_acl_mempool_grow(pool, grow_nb);
+	if (rc < 0) {
+		RTE_LOG(ERR, DATAPLANE,
+			"Failed to get new element from %s: %s\n",
+			pool->name, rte_strerror(-rc));
+		return rc;
+	}
+
+	return rte_mempool_get(pool, obj);
+}
+
+__rte_unused
+static int
+npf_rte_acl_mempool_create(const char *name, size_t max_elems, size_t elem_size,
+			   size_t grow_nb, int socket_id,
+			   struct rte_mempool **pool)
+{
+	int rc;
+	struct rte_mempool *mp;
+
+	if (!name || !pool || elem_size == 0 || grow_nb == 0)
+		return -EINVAL;
+
+	mp = rte_mempool_create_empty(name, max_elems, elem_size,
+					0, 0, socket_id, 0);
+	if (!mp) {
+		RTE_LOG(ERR, DATAPLANE,
+			"Could not create memory pool %s: %s\n", name,
+			rte_strerror(rte_errno));
+		return -rte_errno;
+	}
+
+	rc = rte_mempool_set_ops_byname(mp, "ring_mp_mc", NULL);
+	if (rc < 0) {
+		RTE_LOG(ERR, DATAPLANE,
+			"Could not set memory pool operations for %s: %s\n",
+			name, rte_strerror(-rc));
+		goto error;
+	}
+
+	rc = npf_rte_acl_mempool_grow(mp, grow_nb);
+	if (rc < 0) {
+		RTE_LOG(ERR, DATAPLANE,
+			"Failed initial memory pool population of %s: %s\n",
+			name, rte_strerror(-rc));
+		goto error;
+	}
+
+	*pool = mp;
+
+	return 0;
+
+error:
+	rte_mempool_free(mp);
+
+	return rc;
+}
+
 static int npf_rte_acl_create_trie(int af, int max_rules,
 				   struct npf_match_ctx_trie **m_trie)
 {
