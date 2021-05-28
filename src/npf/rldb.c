@@ -611,6 +611,22 @@ int rldb_find_rule(struct rldb_db_handle *db, uint32_t rule_no,
 	return 0;
 }
 
+static int rldb_rule_no_to_priority(void *userdata,
+				    uint32_t rule_no,
+				    uint32_t *priority)
+{
+	int err;
+	struct rldb_rule_handle *rh;
+	struct rldb_db_handle *db = (struct rldb_db_handle *) userdata;
+
+	err = rldb_find_rule(db, rule_no, &rh);
+	if (err)
+		return err;
+
+	*priority = rh->rule.rldb_priority;
+	return 0;
+}
+
 /*
  * match packets against rules in the specified database
  */
@@ -633,7 +649,8 @@ int rldb_match(struct rldb_db_handle *db,
 
 	/* non-npc variant. Supports only standard 5-tuple packets */
 	data.mbuf = m[0];
-	rc = npf_rte_acl_match(db->af, db->match_ctx, NULL, &data, &rule_no);
+	rc = npf_rte_acl_match(db->af, db->match_ctx, NULL, &data,
+			       rldb_rule_no_to_priority, (void *)db, &rule_no);
 	if (rc == -ENOENT)
 		goto error;
 

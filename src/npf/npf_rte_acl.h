@@ -12,6 +12,11 @@
 #include "npf_cache.h"
 #include "npf_match.h"
 
+/* get priority associated with rule */
+typedef int (*npf_rte_acl_prio_map_cb_t)(void *userdata,
+					 uint32_t rule_no,
+					 uint32_t *priority);
+
 int npf_rte_acl_setup(void);
 
 int npf_rte_acl_teardown(void);
@@ -32,7 +37,10 @@ int npf_rte_acl_del_rule(int af, npf_match_ctx_t *m_ctx, uint32_t rule_no,
 			 uint32_t priority, uint8_t *match_addr, uint8_t *mask);
 
 int npf_rte_acl_match(int af, npf_match_ctx_t *m_ctx, npf_cache_t *npc,
-		      struct npf_match_cb_data *data, uint32_t *rule_no);
+		      struct npf_match_cb_data *data,
+		      npf_rte_acl_prio_map_cb_t prio_map_cb,
+		      void *prio_map_userdata,
+		      uint32_t *rule_no);
 
 int npf_rte_acl_destroy(int af, npf_match_ctx_t **m_ctx);
 

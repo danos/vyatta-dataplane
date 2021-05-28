@@ -552,6 +552,36 @@ npf_rte_acl_add_trie(npf_match_ctx_t *m_ctx)
 	return err;
 }
 
+static int npf_rte_acl_get_writable_trie(npf_match_ctx_t *m_ctx,
+					 struct npf_match_ctx_trie **m_trie)
+{
+	int err;
+	struct npf_match_ctx_trie *tmp_trie;
+
+	if (rte_atomic16_read(&m_ctx->num_tries)) {
+		tmp_trie = cds_list_first_entry(&m_ctx->trie_list,
+						struct npf_match_ctx_trie,
+						trie_link);
+
+		if (tmp_trie->trie_state == TRIE_STATE_WRITABLE &&
+		    tmp_trie->num_rules < NPR_MTRIE_MAX_RULES) {
+			*m_trie = tmp_trie;
+			return 0;
+		}
+	}
+
+	err = npf_rte_acl_add_trie(m_ctx);
+	if (err)
+		return err;
+
+	tmp_trie = cds_list_first_entry(&m_ctx->trie_list,
+					struct npf_match_ctx_trie,
+					trie_link);
+
+	*m_trie = tmp_trie;
+	return 0;
+}
+
 int npf_rte_acl_init(int af, const char *name, uint32_t max_rules,
 		     npf_match_ctx_t **m_ctx)
 {
@@ -822,8 +852,11 @@ npf_rte_acl_trie_add_rule(int af, struct npf_match_ctx_trie *m_trie,
 
 	err = rte_acl_add_rules(m_trie->acl_ctx, acl_rule, 1);
 	if (err) {
-		RTE_LOG(ERR, DATAPLANE, "Could not add rule for af %d : %d\n",
-			af, err);
+		RTE_LOG(ERR, DATAPLANE,
+			"Could not add rule for af %d to trie %s (%s), max_rules %d, num_rules %d : %d\n",
+			af, m_trie->trie_name,
+			trie_state_strs[m_trie->trie_state],
+			NPR_MTRIE_MAX_RULES, m_trie->num_rules, err);
 		return err;
 	}
 	m_trie->num_rules++;
@@ -842,15 +875,16 @@ int npf_rte_acl_add_rule(int af, npf_match_ctx_t *m_ctx, uint32_t rule_no,
 	size_t rule_sz;
 	struct npf_match_ctx_trie *m_trie;
 
-	if (!rte_atomic16_read(&m_ctx->num_tries))
-		return -EINVAL;
-
 	if (!m_ctx->tr_in_progress) {
 		RTE_LOG(ERR, DATAPLANE,
 			"Could not add rule %u for trie %s: no transaction in progress\n",
 			rule_no, m_ctx->ctx_name);
 		return -EINVAL;
 	}
+
+	err = npf_rte_acl_get_writable_trie(m_ctx, &m_trie);
+	if (err)
+		return err;
 
 	if (af == AF_INET) {
 		npf_rte_acl_add_v4_rule(match_addr, mask, rule_no, priority,
@@ -863,10 +897,6 @@ int npf_rte_acl_add_rule(int af, npf_match_ctx_t *m_ctx, uint32_t rule_no,
 		acl_rule = (const struct rte_acl_rule *)&v6_rules;
 		rule_sz = sizeof(struct acl6_rules);
 	}
-
-	m_trie = cds_list_first_entry(&m_ctx->trie_list,
-				      struct npf_match_ctx_trie,
-				      trie_link);
 
 	err = npf_rte_acl_trie_add_rule(af, m_trie, acl_rule);
 	if (err < 0)
@@ -909,24 +939,31 @@ static int npf_rte_acl_trie_build(int af, struct npf_match_ctx_trie *m_trie)
 		return err;
 	}
 	m_trie->trie_state = TRIE_STATE_FROZEN;
-
 	return 0;
 }
 
 int npf_rte_acl_build(int af, npf_match_ctx_t **m_ctx)
 {
-	int err;
+	int err = 0;
 	npf_match_ctx_t *ctx = *m_ctx;
 	struct npf_match_ctx_trie *m_trie;
+	struct cds_list_head *list_entry, *next;
 
 	if (!rte_atomic16_read(&ctx->num_tries))
 		return 0;
 
-	m_trie = cds_list_first_entry(&ctx->trie_list,
-				      struct npf_match_ctx_trie,
-				      trie_link);
+	cds_list_for_each_safe(list_entry, next, &ctx->trie_list) {
+		m_trie = cds_list_entry(list_entry, struct npf_match_ctx_trie,
+					trie_link);
 
-	err = npf_rte_acl_trie_build(af, m_trie);
+		if (m_trie->trie_state != TRIE_STATE_WRITABLE)
+			break;
+
+		err = npf_rte_acl_trie_build(af, m_trie);
+		if (err)
+			return err;
+	}
+
 	return err;
 }
 
@@ -958,7 +995,15 @@ int npf_rte_acl_del_rule(int af, npf_match_ctx_t *m_ctx, uint32_t rule_no,
 	struct acl6_rules v6_rules;
 	const struct rte_acl_rule *acl_rule;
 	int err = 0;
+	struct cds_list_head *list_entry, *next;
 	size_t rule_sz;
+
+	if (!m_ctx->tr_in_progress) {
+		RTE_LOG(ERR, DATAPLANE,
+			"Could not delete rule %d from trie %s: no transaction in progress\n",
+			rule_no, m_ctx->ctx_name);
+		return -EINVAL;
+	}
 
 	if (af == AF_INET) {
 		npf_rte_acl_add_v4_rule(match_addr, mask, rule_no, priority,
@@ -972,24 +1017,31 @@ int npf_rte_acl_del_rule(int af, npf_match_ctx_t *m_ctx, uint32_t rule_no,
 		rule_sz = sizeof(struct acl6_rules);
 	}
 
-	if (!m_ctx->tr_in_progress) {
-		RTE_LOG(ERR, DATAPLANE,
-			"Could not delete rule %d from trie %s: no transaction in progress\n",
-			rule_no, m_ctx->ctx_name);
-		return -EINVAL;
+	err = -ENOENT;
+	cds_list_for_each_safe(list_entry, next, &m_ctx->trie_list) {
+		m_trie = cds_list_entry(list_entry, struct npf_match_ctx_trie,
+					trie_link);
+
+		/*
+		 * deletes are only permitted on entries that have been
+		 * successfully added and committed. So only frozen tries
+		 * are consulted
+		 */
+		if (m_trie->trie_state != TRIE_STATE_FROZEN)
+			break;
+
+		err = npf_rte_acl_trie_del_rule(af, m_trie, acl_rule);
+		if (!err)
+			break;
 	}
 
-	m_trie = cds_list_first_entry(&m_ctx->trie_list,
-				      struct npf_match_ctx_trie,
-				      trie_link);
+	/* record a transaction entry only upon successful deletion */
+	if (!err)
+		err = npf_rte_acl_record_transaction_entry(m_ctx, m_trie,
+							   RULE_OP_DELETE,
+							   acl_rule, rule_sz);
 
-	err = npf_rte_acl_record_transaction_entry(m_ctx, m_trie,
-						   RULE_OP_DELETE,
-						   acl_rule, rule_sz);
-	if (err)
-		return err;
-
-	return npf_rte_acl_trie_del_rule(af, m_trie, acl_rule);
+	return err;
 }
 
 static int
@@ -1027,19 +1079,45 @@ npf_rte_acl_trie_match(int af, struct npf_match_ctx_trie *m_trie,
 int npf_rte_acl_match(int af, npf_match_ctx_t *m_ctx,
 		      npf_cache_t *npc __rte_unused,
 		      struct npf_match_cb_data *data,
+		      npf_rte_acl_prio_map_cb_t prio_map_cb,
+		      void *prio_map_userdata,
 		      uint32_t *rule_no)
 {
 	int err;
+	struct cds_list_head *list_entry, *next;
 	struct npf_match_ctx_trie *m_trie;
+	uint32_t result, priority = 0, tmp_priority = 0;
 
 	if (!m_ctx->num_rules || !rte_atomic16_read(&m_ctx->num_tries))
 		return -ENOENT;
 
-	m_trie = cds_list_first_entry(&m_ctx->trie_list,
-				      struct npf_match_ctx_trie,
-				      trie_link);
+	cds_list_for_each_safe(list_entry, next, &m_ctx->trie_list) {
+		m_trie = cds_list_entry(list_entry, struct npf_match_ctx_trie,
+					trie_link);
 
-	err = npf_rte_acl_trie_match(af, m_trie, npc, data, rule_no);
+		if (m_trie->trie_state == TRIE_STATE_WRITABLE)
+			continue;
+
+		err = npf_rte_acl_trie_match(af, m_trie, npc, data, rule_no);
+		if (!err) {
+			err = prio_map_cb(prio_map_userdata, *rule_no, &tmp_priority);
+			if (err)
+				break;
+
+			if (tmp_priority > priority) {
+				priority = tmp_priority;
+				result = *rule_no;
+			}
+		}
+	}
+
+	if (!priority)
+		err = -ENOENT;
+	else {
+		*rule_no = result;
+		err = 0;
+	}
+
 	return err;
 }
 
@@ -1154,6 +1232,7 @@ int npf_rte_acl_destroy(int af __rte_unused, npf_match_ctx_t **m_ctx)
 					trie_link);
 		cds_list_del(&m_trie->trie_link);
 		npf_rte_acl_trie_destroy(ctx->af, m_trie);
+		rte_atomic16_dec(&ctx->num_tries);
 	}
 
 	free(ctx->ctx_name);
