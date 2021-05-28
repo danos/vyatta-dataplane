@@ -419,10 +419,22 @@ npf_rte_acl_mempool_grow(struct rte_mempool *pool, size_t nb)
 		RTE_LOG(ERR, DATAPLANE,
 			"Could not grow the memory pool %s: %s\n",
 			pool->name, rte_strerror(-rc));
-		return rc;
+		goto error;
+	} else if (rc == 0) {
+		RTE_LOG(ERR, DATAPLANE,
+			"Could not grow the memory pool %s: Not enough room for one contiguous object\n",
+			pool->name);
+		rc = -ENOBUFS;
+		goto error;
 	}
 
 	return 0;
+
+error:
+
+	npf_rte_acl_mempool_mz_free(NULL, (void *)mz);
+
+	return rc;
 }
 
 __rte_unused
@@ -1807,6 +1819,14 @@ npf_rte_acl_copy_rules(npf_match_ctx_t *ctx,
 	int rc;
 	struct npf_match_ctx_trie *next, *m_trie = merge_start;
 	uint16_t i = 0;
+	struct rte_mempool *rule_mempool;
+
+	if (ctx->af == AF_INET)
+		rule_mempool = npr_acl4_pool;
+	else if (ctx->af == AF_INET6)
+		rule_mempool = npr_acl6_pool;
+	else
+		return -EINVAL;
 
 	cds_list_for_each_entry_safe_from(m_trie, next, &ctx->trie_list, trie_link) {
 
@@ -1820,11 +1840,18 @@ npf_rte_acl_copy_rules(npf_match_ctx_t *ctx,
 				__func__);
 
 		rc = rte_acl_copy_rules(dst_trie->acl_ctx, m_trie->acl_ctx);
-		if (rc < 0) {
-			RTE_LOG(ERR, DATAPLANE,
-				"Could not copy rules into new trie %s: %s\n",
-				dst_trie->trie_name, rte_strerror(-rc));
-			return rc;
+		if (rc < 0 && rc != -ENOBUFS)
+			goto error;
+
+		if (rc == -ENOBUFS) {
+			rc = npf_rte_acl_mempool_grow(rule_mempool,
+						       NPR_RULE_GROW_ELEMENTS);
+			if (rc < 0)
+				goto error;
+
+			rc = rte_acl_copy_rules(dst_trie->acl_ctx, m_trie->acl_ctx);
+			if (rc < 0)
+				goto error;
 		}
 
 		dst_trie->num_rules += m_trie->num_rules;
@@ -1834,6 +1861,13 @@ npf_rte_acl_copy_rules(npf_match_ctx_t *ctx,
 	}
 
 	return 0;
+
+error:
+	RTE_LOG(ERR, DATAPLANE, "Could not copy rules into new trie %s: %s\n",
+		dst_trie->trie_name, rte_strerror(-rc));
+
+	return rc;
+
 }
 
 static void
