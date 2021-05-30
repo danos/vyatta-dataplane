@@ -1982,7 +1982,7 @@ static void npf_rte_acl_optimize_ctx(npf_match_ctx_t *ctx)
 		RTE_LOG(ERR, DATAPLANE,
 			"Trie-Optimization: Failed delete pending rules: %s\n",
 			strerror(-rc));
-		return;
+		goto done;
 	}
 
 	/* rebuild trie */
@@ -1991,6 +1991,7 @@ static void npf_rte_acl_optimize_ctx(npf_match_ctx_t *ctx)
 		RTE_LOG(ERR, DATAPLANE,
 			"Trie-Optimization: Failed rebuild new trie: %s\n",
 			strerror(-rc));
+		goto done;
 		return;
 	}
 
@@ -2000,6 +2001,7 @@ static void npf_rte_acl_optimize_ctx(npf_match_ctx_t *ctx)
 	/* delete candidate tries */
 	npf_rte_acl_delete_merged_tries(ctx, merge_start, merge_trie_cnt);
 
+done:
 	/* release merge lock */
 	rte_spinlock_unlock(&ctx->merge_lock);
 }
