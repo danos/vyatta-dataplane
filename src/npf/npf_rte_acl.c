@@ -1327,8 +1327,8 @@ int npf_rte_acl_del_rule(int af, npf_match_ctx_t *m_ctx, uint32_t rule_no,
 		err = npf_rte_acl_trie_del_rule(af, m_trie, acl_rule);
 		if (!err) {
 			DP_DEBUG(RLDB_ACL, DEBUG, DATAPLANE,
-				 "Deleted rule %d from ctx %s\n", rule_no,
-				 m_ctx->ctx_name);
+				 "Deleted rule %d from ctx %s (trie %s)\n", rule_no,
+				 m_ctx->ctx_name, m_trie->trie_name);
 			if (!m_trie->num_rules) {
 				npf_rte_acl_delete_trie(m_ctx, m_trie);
 			}
@@ -1936,6 +1936,10 @@ static void npf_rte_acl_optimize_ctx(npf_match_ctx_t *ctx)
 	}
 
 	/* allocate new trie */
+	DP_DEBUG(RLDB_ACL, DEBUG, DATAPLANE,
+		 "Merging %d tries with %u rules in ctx %s\n",
+		 merge_trie_cnt, merge_rule_cnt, ctx->ctx_name);
+
 	rc = npf_rte_acl_create_trie(ctx->af, NPR_TRIE_MAX_RULES, &new_trie);
 	if (rc < 0) {
 		RTE_LOG(ERR, DATAPLANE,
@@ -1943,6 +1947,10 @@ static void npf_rte_acl_optimize_ctx(npf_match_ctx_t *ctx)
 			strerror(-rc));
 		return;
 	}
+
+	DP_DEBUG(RLDB_ACL, DEBUG, DATAPLANE,
+		 "Allocated trie %s with %d rules\n",
+		 new_trie->trie_name, NPR_TRIE_MAX_RULES);
 
 	/* copy rules to new trie */
 	rc = npf_rte_acl_copy_rules(ctx, merge_start, merge_trie_cnt, new_trie);
