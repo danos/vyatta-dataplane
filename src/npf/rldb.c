@@ -83,7 +83,9 @@ int rldb_init(void)
 
 	rldb_disabled = false;
 
-	npf_rte_acl_setup();
+	rc = npf_rte_acl_setup();
+	if (rc)
+		goto error;
 
 	return 0;
 
