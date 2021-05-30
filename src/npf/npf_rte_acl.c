@@ -1911,7 +1911,7 @@ static void npf_rte_acl_optimize_ctx(npf_match_ctx_t *ctx)
 	struct cds_list_head *list_entry, *next;
 	struct npf_match_ctx_trie *m_trie, *merge_start = NULL,
 				  *new_trie = NULL;
-	uint16_t merge_trie_cnt = 0, merge_rule_cnt;
+	uint16_t merge_trie_cnt = 0, merge_rule_cnt, skip_cnt = 0;
 
 	/* complete one full iteration over the list */
 	/* find first frozen trie */
@@ -1923,6 +1923,14 @@ static void npf_rte_acl_optimize_ctx(npf_match_ctx_t *ctx)
 			merge_start = m_trie;
 			break;
 		}
+		skip_cnt++;
+	}
+
+	if (!merge_start) {
+		DP_DEBUG(RLDB_ACL, DEBUG, DATAPLANE,
+			 "Skipped %d writable tries. No mergeable tries\n",
+			 skip_cnt);
+		return;
 	}
 
 	/* acquire merge lock */
@@ -1976,23 +1984,27 @@ static void npf_rte_acl_optimize_ctx(npf_match_ctx_t *ctx)
 	/* acquire merge lock */
 	rte_spinlock_lock(&ctx->merge_lock);
 
-	/* delete rules in pending list */
-	rc = npf_rte_acl_delete_pending_rules(ctx->af, new_trie, &ctx->pending_delete);
-	if (rc < 0) {
-		RTE_LOG(ERR, DATAPLANE,
-			"Trie-Optimization: Failed delete pending rules: %s\n",
-			strerror(-rc));
-		goto done;
-	}
+	/* avoid rebuild if there are no pending deletes */
+	if (!cds_list_empty(&ctx->pending_delete)) {
 
-	/* rebuild trie */
-	rc = npf_rte_acl_trie_build(ctx->af, new_trie);
-	if (rc < 0) {
-		RTE_LOG(ERR, DATAPLANE,
-			"Trie-Optimization: Failed rebuild new trie: %s\n",
-			strerror(-rc));
-		goto done;
-		return;
+		/* delete rules in pending list */
+		rc = npf_rte_acl_delete_pending_rules(ctx->af, new_trie,
+						      &ctx->pending_delete);
+		if (rc < 0) {
+			RTE_LOG(ERR, DATAPLANE,
+				"Trie-Optimization: Failed delete pending rules: %s\n",
+				strerror(-rc));
+			goto done;
+		}
+
+		/* rebuild trie */
+		rc = npf_rte_acl_trie_build(ctx->af, new_trie);
+		if (rc < 0) {
+			RTE_LOG(ERR, DATAPLANE,
+				"Trie-Optimization: Failed rebuild new trie: %s\n",
+				strerror(-rc));
+			goto done;
+		}
 	}
 
 	/* insert new trie */
