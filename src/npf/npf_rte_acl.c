@@ -351,7 +351,7 @@ acl_rule_hash(const void *data, uint32_t data_len, uint32_t init_val)
 {
 	const struct rte_acl_rule *rule = (const struct rte_acl_rule *) data;
 
-	return rte_jhash(&rule->data.userdata, data_len, init_val);
+	return rte_hash_crc(&rule->data.userdata, data_len, init_val);
 }
 
 #define NPR_MTRIE_MAX_RULES    MAX_TRANSACTION_ENTRIES
