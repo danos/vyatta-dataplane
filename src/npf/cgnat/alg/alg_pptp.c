@@ -41,7 +41,13 @@
 struct cgn_alg_pptp_session {
 	/* Must always be first */
 	struct cgn_alg_sess_ctx	aps_as;
+
+	/* Map info temporarily stored in parent session */
 	struct cgn_map		aps_cmi;
+
+	/* Call state (parent session) */
+	enum cgn_dir		aps_call_dir;	/* dir of PPTP_OUT_CALL_REQ */
+	bool			aps_out_call_req;
 
 	/*
 	 * Call ID in outbound TCP control/parent pkts is translated from
@@ -164,6 +170,90 @@ struct pptp_call_mgmt {
 };
 
 
+/*
+ * Get a CGNAT mapping for the inside Peer ID.  This will most likely happen
+ * when the subscriber sends a PPTP_OUT_CALL_REQ msg, but we also allow for it
+ * to happen when the subscriber sends a PPTP_OUT_CALL_REPLY (in response to
+ * an PPTP_OUT_CALL_REQ)
+ *
+ * This mapping is for GRE PPTP, whereas the parent session is TCP.
+ * GRE PPTP ports are allocated from the NAT_PROTO_OTHER space (along
+ * with ICMP, SCCP etc.).
+ *
+ * cmi_oid is set to the server call ID when the PPTP_OUT_CALL_REPLY
+ * msg from the server is seen.
+ */
+static int cgn_alg_pptp_map_get(struct cgn_alg_sess_ctx *as)
+{
+	struct cgn_alg_pptp_session *aps;
+	struct cgn_policy *cp;
+	struct cgn_map *cmi;
+	int rc;
+
+	aps = caa_container_of(as, struct cgn_alg_pptp_session, aps_as);
+	cmi = &aps->aps_cmi;
+
+	cmi->cmi_proto = NAT_PROTO_OTHER;
+	cmi->cmi_oaddr = cgn_session_forw_addr(as->as_cse);
+
+	/* Get the CGNAT policy from the session */
+	cp = cgn_policy_from_cse(aps->aps_cse);
+
+	/* Get a new mapping */
+	rc = cgn_map_get(cmi, cp, as->as_vrfid);
+
+	if (rc < 0)
+		return -ALG_ERR_PPTP_MAP;
+
+	/* Store trans Call ID for subsequent use by cgn_pptp_translate */
+	aps->aps_trans_call_id = cmi->cmi_tid;
+
+	return 0;
+}
+
+/*
+ * PPTP_OUT_CALL_REQ
+ */
+static int
+cgn_alg_pptp_out_call_req(struct cgn_alg_sess_ctx *as,
+			  struct pptp_call_mgmt *pptp_call,
+			  enum cgn_dir dir)
+{
+	struct cgn_alg_pptp_session *aps;
+	int rc = 0;
+
+	aps = caa_container_of(as, struct cgn_alg_pptp_session, aps_as);
+
+	/* Do not process further PPTP_OUT_CALL_REQs */
+	if (aps->aps_out_call_req)
+		return -ALG_ERR_PPTP_OUT_REQ;
+
+	aps->aps_call_dir = dir;
+	aps->aps_out_call_req = true;
+
+	/*
+	 * The PPTP_OUT_CALL_REQ is mostly expected to be from inside
+	 * subscriber to outside server
+	 */
+	if (likely(dir == CGN_DIR_OUT)) {
+
+		/* Save inside Call ID to the parent session */
+		aps->aps_orig_call_id = pptp_call->pptp_call_id;
+
+		/* Get CGNAT mapping */
+		rc = cgn_alg_pptp_map_get(as);
+
+	} else {
+		/*
+		 * CGN_DIR_IN.  PPTP_OUT_CALL_REQ from server.  Nothing to do
+		 * here apart from note the servers Call ID.
+		 */
+		aps->aps_peer_call_id = pptp_call->pptp_call_id;
+	}
+
+	return rc;
+}
+
 /* Translate PPTP header in TCP packet */
 static int
 cgn_pptp_translate(struct cgn_packet *cpk, struct rte_mbuf *mbuf,
@@ -222,6 +312,22 @@ int cgn_alg_pptp_inspect(struct cgn_packet *cpk, struct rte_mbuf *mbuf,
 
 	struct pptp_call_mgmt *pptp_call = (struct pptp_call_mgmt *)pptp;
 	enum pptp_ctrl ctrl_type = ntohs(pptp_call->pptp_ctrl_type);
+
+	/*
+	 * Inspect PPTP header
+	 */
+	switch (ctrl_type) {
+	case PPTP_OUT_CALL_REQ:
+		rc = cgn_alg_pptp_out_call_req(as, pptp_call, dir);
+		break;
+
+	default:
+		/* Nothing to inspect */
+		break;
+	};
+
+	if (rc < 0)
+		return rc;
 
 	/*
 	 * Translate PPTP header

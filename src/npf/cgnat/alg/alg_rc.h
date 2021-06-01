@@ -36,7 +36,8 @@ enum alg_rc_en {
 	/* PPTP */
 	ALG_ERR_PPTP_MAP,
 	ALG_ERR_PPTP_MC,
-	ALG_ERR_PPTP_REPLY,
+	ALG_ERR_PPTP_OUT_REQ,
+	ALG_ERR_PPTP_OUT_REPLY,
 
 	/* SIP */
 	ALG_ERR_SIP_MAP,
@@ -132,8 +133,10 @@ static inline const char *alg_rc_str(int error)
 
 	case ALG_ERR_PPTP_MAP:
 		return "ERR_PPTP_MAP";
-	case ALG_ERR_PPTP_REPLY:
-		return "ERR_PPTP_REPLY";
+	case ALG_ERR_PPTP_OUT_REQ:
+		return "ERR_PPTP_OUT_REQ";
+	case ALG_ERR_PPTP_OUT_REPLY:
+		return "ERR_PPTP_OUT_REPLY";
 	case ALG_ERR_PPTP_MC:
 		return "ERR_PPTP_MC";
 
@@ -229,7 +232,10 @@ static inline const char *alg_rc_detail_str(int error)
 	case ALG_ERR_PPTP_MAP:
 		return "PPTP failed to get a mapping";
 
-	case ALG_ERR_PPTP_REPLY:
+	case ALG_ERR_PPTP_OUT_REQ:
+		return "PPTP out call request";
+
+	case ALG_ERR_PPTP_OUT_REPLY:
 		return "PPTP out call reply";
 
 	case ALG_ERR_PPTP_MC:
