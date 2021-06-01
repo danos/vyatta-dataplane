@@ -1224,6 +1224,7 @@ npf_rte_acl_trie_del_rule(int af, struct npf_match_ctx_trie *m_trie,
 	int err = 0;
 
 	err = rte_acl_del_rule(m_trie->acl_ctx, acl_rule);
+
 	if (err && err != -ENOENT) {
 		RTE_LOG(ERR, DATAPLANE,
 			"Could not remove rule for af %d : %d\n", af, err);
@@ -1325,6 +1326,21 @@ int npf_rte_acl_del_rule(int af, npf_match_ctx_t *m_ctx, uint32_t rule_no,
 			continue;
 
 		err = npf_rte_acl_trie_del_rule(af, m_trie, acl_rule);
+
+		/*
+		 * The deletion will only succeed on a single trie,
+		 * on all other tries the rule will not be found and
+		 * return ENOENT.
+		 *
+		 * All errors other than ENOENT are considered fatal.
+		 */
+		if (err && err != -ENOENT) {
+			RTE_LOG(ERR, DATAPLANE,
+				"Could not delete rule %d from trie %s: %s\n",
+				rule_no, m_ctx->ctx_name, rte_strerror(-err));
+			break;
+		}
+
 		if (!err) {
 			DP_DEBUG(RLDB_ACL, DEBUG, DATAPLANE,
 				 "Deleted rule %d from ctx %s (trie %s)\n", rule_no,
