@@ -1,3 +1,98 @@
+vyatta-dataplane (3.13.20) unstable; urgency=medium
+
+  [ Daniel Gollub ]
+  * crypto: netlink IPv4 selector is in network byte-order
+
+  [ Paul Aitken ]
+  * Remove NB from CODEOWNERS
+
+  [ Mike Manning ]
+  * Dataplane crash in fal_tx_pkt_burst
+
+  [ Charles (Chas) Williams ]
+  * clang: quiet warning about uninitialized value (Bugfix: VRVDR-55125)
+
+  [ Mark Gillott ]
+  * ecmp: add new next-hop flag - RTF_NH_NEEDS_HW_RES (Fixes: VRVDR-53410)
+  * ecmp: force IPv6 resolution (ND6) for each ECMP member (Fixes: VRVDR-53410)
+  * ecmp: force IPv4 resolution (ARP) for each ECMP member (Fixes: VRVDR-53410)
+
+  [ Ian Wilson ]
+  * npf-alg: Check SIP request hash table pointer is valid
+  * cgnat-alg: Enable sub-sessions for ALG sessions
+  * cgnat-alg: Add show alg status
+  * cgnat-alg: Caching of TCP pkts should use the 'doff' param for l4 size
+  * cgnat-alg-pptp: Cache Enhanced GRE header
+  * cgnat-alg-pptp: Initialize PPTP session
+  * cgnat-alg: Add function to transfer a mapping
+  * cgnat-alg-pptp: Adds inspection of PPTP control packets
+  * cgnat-alg-pptp: Adds lookup and processing of PPTP pinhole
+  * cgnat-alg-pptp: Add translation of enhanced GRE packets
+  * cgnat-alg-pptp-ut: Add function to send NATd enhanced GRE packet
+  * cgnat-alg-pptp-ut: Add test cgn_pptp1
+  * cgnat-alg-pptp-ut: Add function to fetch and print cgnat sessions json
+  * cgnat-alg-pptp-ut: Adds test cgn_pptp2
+  * cgnat-alg-pptp-ut: Adds test cgn_pptp3
+  * cgnat-alg-pptp-ut: Adds test cgn_pptp4
+  * cgnat-alg-pptp-ut: Adds test cgn_pptp5
+  * cgnat-alg-pptp: Tweaks to config and json output for PPTP ALG
+
+  [ Daniel Gollub ]
+  * ut: make use of unique rule_no in crypto_perf_scale
+
+  [ Srinivas Narayan ]
+  * npf-rte-acl: Add pools for subtries
+  * rldb: Move to using memory pools in npf_rte_acl
+  * npf-rte-acl: don't expose QSBR RCU via API
+  * npf-rte-acl: rename trie name to ctx_name
+  * npf-rte-acl: stage trie context as separate functions
+  * npf-rte-acl: Move trie context creation to separate function
+  * npf-rte-acl: Introduce state for trie context
+  * npf-rte-acl: Populate json dump callbacks
+  * npf-rte-acl: Add mechanism to consult multiple tries
+  * npf-rte-acl: Add debug cmd and messages for npf_rte_acl
+  * npf: Add background merge thread for ACLs
+  * crypto: print policies only if hash tables exist
+  * ut: Enable subset match for spd
+  * crypto: print rule databases
+  * ut: enable debugs for crypto & npf_rte_acl
+  * npf-rte-acl: Merge algorithm skeleton
+
+  [ Daniel Gollub ]
+  * ut: re-enable crypto_perf_scale for full runs
+  * npf-rte-acl: move mtrie put/get declarations
+  * npf-rte-acl: shorten acl optimization thread name
+  * npf-rte-acl: implement npf_rte_acl_copy_rules
+  * npf-rte-acl: stage npf_rte_acl_delete_pending_rules method
+  * npf-rte-acl: introduce npf_rte_acl_delete_trie method
+  * npf-rte-acl: always create tries with at least max_rules 8
+  * npf-rte-acl: use fresh tries from the mempool
+  * npf-rte-acl: let npf_rte_acl_create_trie report fine-grain errors
+  * npf-rte-acl: let npf_rte_acl_put/get_trie report fine-grain errors
+  * npf-rte-acl: use fresh tries from the ring
+  * npf-rte-acl: avoid direct access to trie ring
+  * npf-rte-acl: complete debug logging for trie-state updates
+  * npf-rte-acl: reset acl_ctx prior returning it to the mempool
+  * npf-rte-acl: implement npf_rte_acl_select_candidate_tries method
+  * npf-rte-acl: error handling for new trie creation in acl-opt thread
+  * npf-rte-acl: release merged tries to pool/ring
+  * npf-rte-acl: repurpose npf_rte_acl_add_trie for insert only
+  * npf-rte-acl: let npf_rte_acl_add_rule report fine-grain errors
+  * npf-rte-acl: make acl-opt thread teardown more robust
+  * npf-rte-acl: RCU protect the match_ctx list
+  * npf-rte-acl: build and rebuild the new merge-trie
+  * npf-rte-acl: implement pending_deletes
+  * npf-rte-acl: create new tries with maximum rule size
+  * jenkins: switch to DANOS:Unstable on build-release
+
+  [ Paul Aitken ]
+  * commit size check: show total lines changed
+
+  [ Gavin Shearer ]
+  * ut: allow some vif-related test library fns to be used by plugins
+
+ -- Srinivas Narayan <narayan@vyatta.att-mail.com>  Tue, 01 Jun 2021 15:36:13 +0100
+
 vyatta-dataplane (3.13.19) unstable; urgency=medium
 
   [ ck407g ]
