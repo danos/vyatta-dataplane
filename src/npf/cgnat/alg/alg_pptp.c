@@ -48,6 +48,7 @@ struct cgn_alg_pptp_session {
 	/* Call state (parent session) */
 	enum cgn_dir		aps_call_dir;	/* dir of PPTP_OUT_CALL_REQ */
 	bool			aps_out_call_req;
+	bool			aps_out_call_reply;
 
 	/*
 	 * Call ID in outbound TCP control/parent pkts is translated from
@@ -212,6 +213,78 @@ static int cgn_alg_pptp_map_get(struct cgn_alg_sess_ctx *as)
 }
 
 /*
+ * Create a pair of pinholes to detect GRE data flow
+ */
+static int cgn_alg_pptp_add_pinholes(struct cgn_alg_sess_ctx *as,
+				     uint32_t peer_addr)
+{
+	struct alg_pinhole *fw_ap, *bk_ap;
+	struct cgn_alg_pptp_session *aps;
+	struct alg_pinhole_key key;
+	struct cgn_map *cmi;
+	int rc = 0;
+
+	aps = caa_container_of(as, struct cgn_alg_pptp_session, aps_as);
+	cmi = &aps->aps_cmi;
+
+	/* The session should have a mapping in the ALG mapping info */
+	if (!cmi->cmi_reserved)
+		return -ALG_ERR_OTHER;
+
+	cmi->cmi_oid = aps->aps_peer_call_id;
+
+	/*
+	 * Forwards pinhole detects GRE pkts from inside subscriber
+	 */
+	key.pk_vrfid = aps->aps_vrfid;
+	key.pk_ipproto = IPPROTO_GRE;
+
+	key.pk_saddr = cmi->cmi_oaddr;
+	key.pk_sid = cmi->cmi_oid;
+	key.pk_daddr = peer_addr;
+	key.pk_did = aps->aps_peer_call_id;
+
+	fw_ap = alg_pinhole_add(&key, aps->aps_cse, CGN_ALG_PPTP, CGN_DIR_OUT,
+				PPTP_PINHOLE_TIMEOUT, &rc);
+	if (!fw_ap)
+		goto error;
+
+	/* Transfer mapping info responsibility to the fwds pinhole */
+	cgn_map_transfer(alg_pinhole_map(fw_ap), cmi);
+
+	/*
+	 * Reverse pinhole detects pkts from outside server
+	 */
+	key.pk_saddr = peer_addr;
+	key.pk_sid = cmi->cmi_tid;
+	key.pk_daddr = cmi->cmi_taddr;
+	key.pk_did = cmi->cmi_tid;
+
+	bk_ap = alg_pinhole_add(&key, aps->aps_cse, CGN_ALG_PPTP, CGN_DIR_IN,
+				PPTP_PINHOLE_TIMEOUT, &rc);
+	if (!bk_ap) {
+		alg_pinhole_expire(fw_ap);
+		goto error;
+	}
+
+	/* Pair the two pinholes */
+	alg_pinhole_link_pair(fw_ap, bk_ap);
+
+	/* Activate pinholes so that they are findable by lookup */
+	cgn_alg_pinhole_activate(fw_ap);
+	cgn_alg_pinhole_activate(bk_ap);
+
+	return 0;
+
+error:
+	/* Release mapping if its still held by the session */
+	if (cmi->cmi_reserved)
+		cgn_map_put(cmi, aps->aps_vrfid);
+
+	return rc;
+}
+
+/*
  * PPTP_OUT_CALL_REQ
  */
 static int
@@ -250,6 +323,65 @@ cgn_alg_pptp_out_call_req(struct cgn_alg_sess_ctx *as,
 		 */
 		aps->aps_peer_call_id = pptp_call->pptp_call_id;
 	}
+
+	return rc;
+}
+
+/*
+ * PPTP_OUT_CALL_REPLY
+ */
+static int
+cgn_alg_pptp_out_call_reply(struct cgn_packet *cpk,
+			    struct cgn_alg_sess_ctx *as,
+			    struct pptp_call_mgmt *pptp_call,
+			    enum cgn_dir dir)
+{
+	struct cgn_alg_pptp_session *aps;
+	uint32_t peer_addr;
+	int rc;
+
+	aps = caa_container_of(as, struct cgn_alg_pptp_session, aps_as);
+
+	/*
+	 * Check that call setup messages are in the expected order and
+	 * direction
+	 */
+	if (!aps->aps_out_call_req || aps->aps_out_call_reply ||
+	    dir == aps->aps_call_dir)
+		return -ALG_ERR_PPTP_OUT_REPLY;
+
+	aps->aps_out_call_reply = true;
+
+	if (unlikely(dir == CGN_DIR_OUT)) {
+		/*
+		 * Outbound PPTP_OUT_CALL_REPLY.  Get mapping and create
+		 * pinholes.
+		 */
+
+		/* Save inside Call ID to the parent session */
+		aps->aps_orig_call_id = pptp_call->pptp_call_id;
+
+		/* Get CGNAT mapping */
+		rc = cgn_alg_pptp_map_get(as);
+
+		if (rc < 0)
+			return rc;
+
+		peer_addr = cpk->cpk_daddr;
+
+	} else {
+		/*
+		 * Inbound PPTP_OUT_CALL_REPLY.  The pinholes should have been
+		 * created by the earlier outbound PPTP_OUT_CALL_REQ.
+		 */
+
+		/* Save outside Call ID to the parent session */
+		aps->aps_peer_call_id = pptp_call->pptp_call_id;
+
+		peer_addr = cpk->cpk_saddr;
+	}
+
+	rc = cgn_alg_pptp_add_pinholes(as, peer_addr);
 
 	return rc;
 }
@@ -319,6 +451,10 @@ int cgn_alg_pptp_inspect(struct cgn_packet *cpk, struct rte_mbuf *mbuf,
 	switch (ctrl_type) {
 	case PPTP_OUT_CALL_REQ:
 		rc = cgn_alg_pptp_out_call_req(as, pptp_call, dir);
+		break;
+
+	case PPTP_OUT_CALL_REPLY:
+		rc = cgn_alg_pptp_out_call_reply(cpk, as, pptp_call, dir);
 		break;
 
 	default:
