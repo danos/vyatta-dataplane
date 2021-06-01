@@ -1969,6 +1969,10 @@ static void npf_rte_acl_optimize_ctx(npf_match_ctx_t *ctx)
 		RTE_LOG(ERR, DATAPLANE,
 			"Trie-Optimization: Failed to allocate new trie: %s\n",
 			strerror(-rc));
+
+		/* release merge lock */
+		rte_spinlock_unlock(&ctx->merge_lock);
+
 		return;
 	}
 
@@ -1982,6 +1986,10 @@ static void npf_rte_acl_optimize_ctx(npf_match_ctx_t *ctx)
 		RTE_LOG(ERR, DATAPLANE,
 			"Trie-Optimization: Failed to copy rules into new trie: %s\n",
 			strerror(-rc));
+
+		/* release merge lock */
+		rte_spinlock_unlock(&ctx->merge_lock);
+
 		return;
 	}
 
