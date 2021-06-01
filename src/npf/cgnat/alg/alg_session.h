@@ -89,4 +89,12 @@ void cgn_alg_common_session_init(struct cgn_alg_sess_ctx *as,
  */
 void cgn_alg_set_inspect(struct cgn_alg_sess_ctx *as, bool val);
 
+/**
+ * Unlink ALG child sessions from parent session, and initiate a short timeout
+ * for the child sessions by setting the child session state to 'closing'.
+ *
+ * @param as Pointer to ALG session context
+ */
+void cgn_alg_session_unlink_and_timeout_children(struct cgn_alg_sess_ctx *as);
+
 #endif /* ALG_SESSION_H */

@@ -49,6 +49,7 @@ struct cgn_alg_pptp_session {
 	enum cgn_dir		aps_call_dir;	/* dir of PPTP_OUT_CALL_REQ */
 	bool			aps_out_call_req;
 	bool			aps_out_call_reply;
+	bool			aps_call_closed;
 
 	/*
 	 * Call ID in outbound TCP control/parent pkts is translated from
@@ -170,6 +171,21 @@ struct pptp_call_mgmt {
 	uint16_t	pptp_peer_call_id;
 };
 
+
+/*
+ * Prepare session to allow new GRE call to be setup.  Called if we detect a
+ * second (or later) PPTP_OUT_CALL_REQ, and the previous call has been closed.
+ */
+static void
+cgn_alg_pptp_clear_call_state(struct cgn_alg_pptp_session *aps)
+{
+	aps->aps_call_closed = false;
+	aps->aps_out_call_req = false;
+	aps->aps_out_call_reply = false;
+	aps->aps_orig_call_id = 0;
+	aps->aps_trans_call_id = 0;
+	aps->aps_peer_call_id = 0;
+}
 
 /*
  * Get a CGNAT mapping for the inside Peer ID.  This will most likely happen
@@ -297,9 +313,17 @@ cgn_alg_pptp_out_call_req(struct cgn_alg_sess_ctx *as,
 
 	aps = caa_container_of(as, struct cgn_alg_pptp_session, aps_as);
 
-	/* Do not process further PPTP_OUT_CALL_REQs */
-	if (aps->aps_out_call_req)
-		return -ALG_ERR_PPTP_OUT_REQ;
+	/*
+	 * Do not process further PPTP_OUT_CALL_REQs unless the previous call
+	 * has been closed.
+	 */
+	if (aps->aps_out_call_req) {
+		/* Clear call state if prev call was closed */
+		if (aps->aps_call_closed || cds_list_empty(&as->as_children))
+			cgn_alg_pptp_clear_call_state(aps);
+		else
+			return -ALG_ERR_PPTP_OUT_REQ;
+	}
 
 	aps->aps_call_dir = dir;
 	aps->aps_out_call_req = true;
@@ -386,6 +410,51 @@ cgn_alg_pptp_out_call_reply(struct cgn_packet *cpk,
 	return rc;
 }
 
+/*
+ * Outbound PPTP_CALL_CLEAR_REQ or inbound PPTP_CALL_DISCONN_NOTIFY
+ *
+ * Set child session to 'closing' state, and unlink from parent.
+ *
+ * We do not clear any of the session call state (aps_orig_call_id,
+ * aps->aps_out_call_req etc) just yet so as to allow further ctrl message to
+ * be translated.
+ *
+ * The session call state is only cleared when we receive a new
+ * PPTP_OUT_CALL_REQ message.
+ */
+static void cgn_alg_pptp_call_clear(struct cgn_alg_sess_ctx *as,
+				    struct pptp_call_mgmt *pptp_call)
+{
+	struct cgn_alg_pptp_session *aps;
+	struct cgn_map *cmi;
+	uint16_t call_id = pptp_call->pptp_call_id;
+
+	if (!call_id)
+		return;
+
+	aps = caa_container_of(as, struct cgn_alg_pptp_session, aps_as);
+	cmi = &aps->aps_cmi;
+
+	/*
+	 * Handle clearing the various stages of a call setup:
+	 *
+	 *  1. PPTP_OUT_CALL_REQ seen (clear mapping)
+	 *  2. PPTP_OUT_CALL_REQ and PPTP_OUT_CALL_REPLY seen (expire pinholes)
+	 *  3. Call fully established and child GRE session exists (close
+	 *     child session)
+	 */
+	if (cmi->cmi_reserved)
+		cgn_map_put(cmi, aps->aps_vrfid);
+
+	/* Expire all pinholes matching this session */
+	(void)alg_pinhole_tbl_expire_by_session(as->as_cse);
+
+	cgn_alg_session_unlink_and_timeout_children(as);
+
+	/* Mark call as 'closed' */
+	aps->aps_call_closed = true;
+}
+
 /* Translate PPTP header in TCP packet */
 static int
 cgn_pptp_translate(struct cgn_packet *cpk, struct rte_mbuf *mbuf,
@@ -455,6 +524,11 @@ int cgn_alg_pptp_inspect(struct cgn_packet *cpk, struct rte_mbuf *mbuf,
 
 	case PPTP_OUT_CALL_REPLY:
 		rc = cgn_alg_pptp_out_call_reply(cpk, as, pptp_call, dir);
+		break;
+
+	case PPTP_CALL_CLEAR_REQ:
+	case PPTP_CALL_DISCONN_NOTIFY:
+		cgn_alg_pptp_call_clear(as, pptp_call);
 		break;
 
 	default:
@@ -675,6 +749,13 @@ void cgn_alg_show_pptp_session(json_writer_t *json,
 	jsonw_uint_field(json, "orig_call_id", ntohs(aps->aps_orig_call_id));
 	jsonw_uint_field(json, "trans_call_id", ntohs(aps->aps_trans_call_id));
 	jsonw_uint_field(json, "peer_call_id", ntohs(aps->aps_peer_call_id));
+
+	jsonw_bool_field(json, "out_call_req", aps->aps_out_call_req);
+	jsonw_bool_field(json, "out_call_reply", aps->aps_out_call_reply);
+	jsonw_bool_field(json, "call_closed", aps->aps_call_closed);
+
+	jsonw_string_field(json, "call_dir", aps->aps_out_call_req ?
+			   cgn_dir_str(aps->aps_call_dir) : "-");
 
 	cgn_map_json(json, "mapping", &aps->aps_cmi);
 

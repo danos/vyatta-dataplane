@@ -398,6 +398,29 @@ static void cgn_alg_session_expire_children(struct cgn_alg_sess_ctx *as)
 }
 
 /*
+ * Unlink ALG child sessions from parent session, and initiate a short timeout
+ * for the child sessions by setting the child session state to 'closing'.
+ */
+void cgn_alg_session_unlink_and_timeout_children(struct cgn_alg_sess_ctx *as)
+{
+	struct cgn_alg_sess_ctx *c_as, *tmp;
+
+	if (as->as_is_child)
+		/* Not a parent session */
+		return;
+
+	assert(!rte_spinlock_is_locked(&as->as_lock));
+	rte_spinlock_lock(&as->as_lock);
+
+	cds_list_for_each_entry_safe(c_as, tmp, &as->as_children, as_link) {
+		cgn_alg_session_unlink(c_as, c_as->as_cse, as, as->as_cse);
+		cgn_session_set_closing(c_as->as_cse);
+	}
+
+	rte_spinlock_unlock(&as->as_lock);
+}
+
+/*
  * Write json for session ALG info
  */
 void cgn_alg_show_session(json_writer_t *json, struct cgn_sess_fltr *fltr __unused,
