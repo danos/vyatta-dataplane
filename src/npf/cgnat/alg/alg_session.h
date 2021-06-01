@@ -26,12 +26,18 @@ struct cgn_alg_sess_ctx {
 	/* Back pointer to CGNAT main session */
 	struct cgn_session	*as_cse;
 
+	/*
+	 * Do not rely on as_parent pointer or as_children list to determine
+	 * if a session is a parent or child session.
+	 */
+	bool			as_is_child;
+
 	/* ftp, pptp or sip */
 	enum cgn_alg_id		as_alg_id;
 
 	/* as_vrfid and as_proto are used for CGNAT mapping allocation */
-	vrfid_t			as_vrfid;
 	enum nat_proto		as_proto;
+	vrfid_t			as_vrfid;
 
 	/* Outbound dest addr and port */
 	uint32_t		as_dst_addr;

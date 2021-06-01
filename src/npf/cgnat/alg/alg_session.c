@@ -51,12 +51,6 @@ static void cgn_alg_session_unlink_child(struct cgn_alg_sess_ctx *as);
 static void cgn_alg_session_expire_children(struct cgn_alg_sess_ctx *as);
 
 
-static bool cgn_alg_session_is_parent(struct cgn_alg_sess_ctx *as)
-{
-	/* as_parent is NULL for parent session and non-NULL for child session */
-	return as->as_parent == NULL;
-}
-
 /*
  * Set the inspect flag in the ALG session data and in the main CGNAT session.
  * We mirror it in the main session to avoid packets having to dereference the
@@ -171,6 +165,7 @@ cgn_alg_child_session_init(struct cgn_session *child_cse, enum nat_proto proto,
 
 	as->as_alg_id = alg_id;
 	as->as_proto = proto;
+	as->as_is_child = true;
 
 	cgn_session_alg_set(child_cse, as);
 
@@ -387,7 +382,7 @@ static void cgn_alg_session_expire_children(struct cgn_alg_sess_ctx *as)
 {
 	struct cgn_alg_sess_ctx *c_as, *tmp;
 
-	if (rcu_dereference(as->as_parent))
+	if (as->as_is_child)
 		/* Not a parent session */
 		return;
 
@@ -409,17 +404,15 @@ void cgn_alg_show_session(json_writer_t *json, struct cgn_sess_fltr *fltr __unus
 			  struct cgn_alg_sess_ctx *as)
 {
 	char str[INET_ADDRSTRLEN];
-	bool is_parent;
 
 	if (!as)
 		return;
-
-	is_parent = cgn_alg_session_is_parent(as);
 
 	jsonw_name(json, "alg");
 	jsonw_start_object(json);
 
 	jsonw_string_field(json, "name", cgn_alg_id_name(as->as_alg_id));
+	jsonw_bool_field(json, "is_child", as->as_is_child);
 
 	jsonw_string_field(json, "dst_addr",
 			   inet_ntop(AF_INET, &as->as_dst_addr,
@@ -430,7 +423,7 @@ void cgn_alg_show_session(json_writer_t *json, struct cgn_sess_fltr *fltr __unus
 	 * Show parent or child specific fields, including IDs of linked
 	 * sessions
 	 */
-	if (is_parent) {
+	if (!as->as_is_child) {
 		struct cgn_alg_sess_ctx *c_as;
 
 		jsonw_name(json, "children");
@@ -466,10 +459,10 @@ void cgn_alg_show_session(json_writer_t *json, struct cgn_sess_fltr *fltr __unus
 	};
 
 	/*
-	 * Show pinholes created by this session.  Only parent sessions might
-	 * have created pinholes.
+	 * Show pinholes created by this session.  Only parent sessions or SIP
+	 * RTP child sessions might have created pinholes.
 	 */
-	if (is_parent)
+	if (!as->as_is_child || as->as_alg_id == CGN_ALG_SIP)
 		cgn_show_pinholes_by_session(json, as);
 
 	jsonw_end_object(json);

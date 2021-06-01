@@ -567,11 +567,15 @@ void cgn_alg_pptp_sess_uninit(struct cgn_alg_sess_ctx *as)
 {
 	struct cgn_alg_pptp_session *aps;
 
-	aps = caa_container_of(as, struct cgn_alg_pptp_session, aps_as);
+	/* If parent session */
+	if (!as->as_is_child) {
+		aps = caa_container_of(as, struct cgn_alg_pptp_session,
+				       aps_as);
 
-	/* free any unused GRE session mapping */
-	if (aps && aps->aps_cmi.cmi_reserved)
-		cgn_map_put(&aps->aps_cmi, aps->aps_vrfid);
+		/* free any unused GRE session mapping */
+		if (aps && aps->aps_cmi.cmi_reserved)
+			cgn_map_put(&aps->aps_cmi, aps->aps_vrfid);
+	}
 }
 
 /*
