@@ -98,6 +98,30 @@ struct pptp_call_reply {
 	uint32_t	pptp_channel_id;
 };
 
+struct pptp_call_clear_req {
+	uint16_t	pptp_length;
+	uint16_t	pptp_type;
+	uint32_t	pptp_magic_cookie;
+	uint16_t	pptp_ctrl_type;
+	uint16_t	pptp_reserved0;
+	uint16_t	pptp_call_id;
+	uint16_t	pptp_reserved1;
+};
+
+struct pptp_disc_notify {
+	uint16_t	pptp_length;
+	uint16_t	pptp_type;
+	uint32_t	pptp_magic_cookie;
+	uint16_t	pptp_ctrl_type;
+	uint16_t	pptp_reserved0;
+	uint16_t	pptp_call_id;
+	uint8_t		pptp_result_code;
+	uint8_t		pptp_error_code;
+	uint16_t	pptp_cause_code;
+	uint16_t	pptp_reserved1;
+	char		pptp_call_stats[128];
+};
+
 DP_DECL_TEST_SUITE(cgn_pptp);
 
 /*
@@ -1555,6 +1579,357 @@ DP_START_TEST(cgn_pptp6, test)
 	/* End of pptp ctrl flow (pkts 7 - end) */
 	dpt_tcp_call(&pptp_ctrl_call, pptp_ctrl_pkts, ARRAY_SIZE(pptp_ctrl_pkts),
 		     7, 0, NULL, 0);
+
+	/* Cleanup */
+	free(ctrl_fw_pre);
+	free(ctrl_fw_pst);
+	free(ctrl_bk_pre);
+	free(ctrl_bk_pst);
+
+	dp_test_npf_cmd_fmt(false, "cgn-ut alg pptp off");
+
+	cgnat_policy_del("POLICY1", 10, "dp2T1");
+	dp_test_npf_cmd_fmt(false, "nat-ut pool delete POOL1");
+
+	dp_test_netlink_del_neigh("dp1T0", "2.0.0.20", "0:14:0:0:2:0");
+	dp_test_netlink_del_neigh("dp2T1", "1.0.0.20", "0:9:e9:55:c0:1c");
+
+	dp_test_nl_del_ip_addr_and_connected("dp1T0", "2.0.0.1/24");
+	dp_test_nl_del_ip_addr_and_connected("dp2T1", "1.0.0.1/24");
+
+	dp_test_npf_cleanup();
+
+} DP_END_TEST;
+
+/*
+ * cgn_pptp7 - Tests call disconnect, followed by new call over same parent
+ *
+ * The initial call is cleared via a CLEAR_REQ from the client.  An ifdef
+ * allows the call to be cleared via a DISCONN_NOTIFY from the server.
+ */
+DP_DECL_TEST_CASE(cgn_pptp, cgn_pptp7, NULL, NULL);
+DP_START_TEST(cgn_pptp7, test)
+{
+	/* Setup interfaces and neighbours */
+	dp_test_nl_add_ip_addr_and_connected("dp1T0", "2.0.0.1/24");
+	dp_test_nl_add_ip_addr_and_connected("dp2T1", "1.0.0.1/24");
+
+	dp_test_netlink_add_neigh("dp1T0", "2.0.0.20", "0:14:0:0:2:0");
+	dp_test_netlink_add_neigh("dp2T1", "1.0.0.20", "0:9:e9:55:c0:1c");
+
+	dp_test_npf_cmd_fmt(false, "cgn-ut alg pptp on");
+
+	/*
+	 * Add CGNAT rule.
+	 */
+	dpt_cgn_cmd_fmt(false, true,
+			"nat-ut pool add POOL1 "
+			"type=cgnat "
+			"prefix=RANGE1/1.0.0.2 "
+			"log-pba=yes "
+			"");
+
+	cgnat_policy_add("POLICY1", 10, "2.0.0.20/32", "POOL1",
+			 "dp2T1", CGN_MAP_EIM, CGN_FLTR_EIF, CGN_3TUPLE, true);
+
+	struct dp_test_pkt_desc_t *ctrl_fw_pre, *ctrl_fw_pst;
+	struct dp_test_pkt_desc_t *ctrl_bk_pre, *ctrl_bk_pst;
+
+	ctrl_fw_pre = dpt_pdesc_v4_create(
+		 "ctrl_fw_pre", IPPROTO_TCP,
+		 "0:14:0:0:2:0", "2.0.0.20", 1999,
+		 "0:9:e9:55:c0:1c", "1.0.0.20", 1723,
+		 "dp1T0", "dp2T1");
+
+	 ctrl_fw_pst = dpt_pdesc_v4_create(
+		 "ctrl_fw_pst", IPPROTO_TCP,
+		 "0:14:0:0:2:0", "1.0.0.2", 1024,
+		 "0:9:e9:55:c0:1c", "1.0.0.20", 1723,
+		 "dp1T0", "dp2T1");
+
+	ctrl_bk_pre = dpt_pdesc_v4_create(
+		 "ctrl_fw_pre", IPPROTO_TCP,
+		 "0:9:e9:55:c0:1c", "1.0.0.20", 1723,
+		 "0:14:0:0:2:0", "1.0.0.2", 1024,
+		 "dp2T1", "dp1T0");
+
+	ctrl_bk_pst = dpt_pdesc_v4_create(
+		 "ctrl_fw_pst", IPPROTO_TCP,
+		 "0:9:e9:55:c0:1c", "1.0.0.20", 1723,
+		 "0:14:0:0:2:0", "2.0.0.20", 1999,
+		 "dp2T1", "dp1T0");
+
+	 /*
+	  * Packet descriptors for pptp ctrl flow
+	  */
+	struct dpt_tcp_flow pptp_ctrl_call = {
+		.text[0] = '\0',		/* description */
+		.isn = {0, 0},			/* initial seq no */
+		.desc[DPT_FORW] = {		/* Forw pkt descriptors */
+			.pre = ctrl_fw_pre,
+			.pst = ctrl_fw_pst,
+		},
+		.desc[DPT_BACK] = {		/* Back pkt descriptors */
+			.pre = ctrl_bk_pre,
+			.pst = ctrl_bk_pst,
+		},
+		.test_cb = NULL,		/* Prep and send pkt */
+		.post_cb = NULL,		/* Fixup pkt exp */
+	};
+	snprintf(pptp_ctrl_call.text, sizeof(pptp_ctrl_call), "Ctrl");
+
+	struct pptp_start_req start_req = {0};
+	struct pptp_start_reply start_reply = {0};
+	struct pptp_call_req call_req_pre = {0};
+	struct pptp_call_reply call_reply_pre = {0};
+	struct pptp_call_req call_req_pst;
+	struct pptp_call_reply call_reply_pst;
+
+	/*
+	 * Comment this out to test call being cleared by a DISCONN_NOTIFY
+	 * from the server.
+	 */
+#define PPTP7_CLEAR_REQ
+#ifdef PPTP7_CLEAR_REQ
+	struct pptp_call_clear_req call_clear_req_pre = {0};
+	struct pptp_call_clear_req call_clear_req_pst;
+#else
+	struct pptp_disc_notify call_disc_notify = {0};
+#endif
+
+	/* PPTP Start Request */
+	start_req.pptp_length	= htons(sizeof(start_req));
+	start_req.pptp_type		= htons(1);
+	start_req.pptp_magic_cookie	= htonl(0x1a2b3c4d);
+	start_req.pptp_ctrl_type	= htons(1);
+	start_req.pptp_version	= htons(0x100);
+	start_req.pptp_framing_cap	= htonl(1);
+	start_req.pptp_bearer_cap	= htonl(1);
+	start_req.pptp_max_channels	= htons(65535);
+	start_req.pptp_firmware	= htons(0x100);
+	snprintf(start_req.pptp_host_name, 64, "local");
+	snprintf(start_req.pptp_vendor_name, 64, "ixia");
+
+	/* PPTP Start Reply */
+	start_reply.pptp_length	= htons(sizeof(start_reply));
+	start_reply.pptp_type	= htons(1);
+	start_reply.pptp_magic_cookie = htonl(0x1a2b3c4d);
+	start_reply.pptp_ctrl_type	= htons(2);
+	start_reply.pptp_version	= htons(0x100);
+	start_reply.pptp_result_code = 1;
+	start_reply.pptp_error_code	= 0;
+
+	start_reply.pptp_framing_cap = htonl(3);
+	start_reply.pptp_bearer_cap	= htonl(3);
+	start_reply.pptp_max_channels = htons(0);
+	start_reply.pptp_firmware	= htons(0x1200);
+	snprintf(start_reply.pptp_host_name, 64, "ixro-smdev-r1");
+	snprintf(start_reply.pptp_vendor_name, 64, "Cisco Systems, Inc.");
+
+	/* Call Request */
+	call_req_pre.pptp_length	= htons(sizeof(call_req_pre));
+	call_req_pre.pptp_type		= htons(1);
+	call_req_pre.pptp_magic_cookie	= htonl(0x1a2b3c4d);
+	call_req_pre.pptp_ctrl_type	= htons(7);
+
+	call_req_pre.pptp_call_id	= htons(1);	/* Fwds 'source ID' */
+	call_req_pre.pptp_min_bps	= htonl(0x8000);
+	call_req_pre.pptp_max_bps	= htonl(0x80000000);
+	call_req_pre.pptp_bearer_type	= htonl(1);
+	call_req_pre.pptp_framing_type	= htonl(1);
+	call_req_pre.pptp_window	= htons(10);
+
+	call_req_pst = call_req_pre;
+	call_req_pst.pptp_call_id = htons(1024);	/* 'src ID' NATd to 1024 */
+
+	/* Call Reply */
+	call_reply_pre.pptp_length	= htons(sizeof(call_reply_pre));
+	call_reply_pre.pptp_type	= htons(1);
+	call_reply_pre.pptp_magic_cookie = htonl(0x1a2b3c4d);
+	call_reply_pre.pptp_ctrl_type	= htons(8);
+	call_reply_pre.pptp_call_id	= htons(24);
+	call_reply_pre.pptp_peer_call_id = htons(1024);
+	call_reply_pre.pptp_result_code	= 1;
+	call_reply_pre.pptp_conn_speed	= htonl(6400);
+	call_reply_pre.pptp_window	= htons(16);
+
+	call_reply_pst = call_reply_pre;
+	call_reply_pst.pptp_peer_call_id = htons(1);
+
+#ifdef PPTP7_CLEAR_REQ
+	/* Call clear request */
+	call_clear_req_pre.pptp_length	= htons(sizeof(call_clear_req_pre));
+	call_clear_req_pre.pptp_type		= htons(1);
+	call_clear_req_pre.pptp_magic_cookie	= htonl(0x1a2b3c4d);
+	call_clear_req_pre.pptp_ctrl_type	= htons(12);
+	call_clear_req_pre.pptp_call_id	= htons(1);
+
+	call_clear_req_pst = call_clear_req_pre;
+	call_clear_req_pst.pptp_call_id = htons(1024);
+#else
+	/* Call disconnect notify */
+	call_disc_notify.pptp_length	= htons(sizeof(call_disc_notify));
+	call_disc_notify.pptp_type		= htons(1);
+	call_disc_notify.pptp_magic_cookie	= htonl(0x1a2b3c4d);
+	call_disc_notify.pptp_ctrl_type	= htons(13);
+	call_disc_notify.pptp_call_id	= htons(24);
+#endif
+
+	struct dpt_tcp_flow_pkt pptp_ctrl_pkts[] = {
+		{ DPT_FORW, TH_SYN, 0, NULL, 0, NULL },
+		{ DPT_BACK, TH_SYN | TH_ACK, 0, NULL, 0, NULL },
+		{ DPT_FORW, TH_ACK, 0, NULL, 0, NULL},
+
+		/* PPTP Start Control Connection Request */
+		{ DPT_FORW, TH_ACK,
+		  sizeof(start_req), (char *)&start_req,
+		  sizeof(start_req), (char *)&start_req
+		},
+
+		/* PPTP Start Control Connection Reply */
+		{ DPT_BACK, TH_ACK,
+		  sizeof(start_reply), (char *)&start_reply,
+		  sizeof(start_reply), (char *)&start_reply
+		},
+
+		/* PPTP Outgoing Call Request */
+		{ DPT_FORW, TH_ACK,
+		  sizeof(call_req_pre), (char *)&call_req_pre,
+		  sizeof(call_req_pst), (char *)&call_req_pst
+		},
+
+		/* 6. PPTP Outgoing Call Reply */
+		{ DPT_BACK, TH_ACK,
+		  sizeof(call_reply_pre), (char *)&call_reply_pre,
+		  sizeof(call_reply_pst), (char *)&call_reply_pst
+		},
+#ifdef PPTP7_CLEAR_REQ
+		/* 7. Call clear req (client to server) */
+		{ DPT_FORW, TH_ACK,
+		  sizeof(call_clear_req_pre), (char *)&call_clear_req_pre,
+		  sizeof(call_clear_req_pst), (char *)&call_clear_req_pst
+		},
+#else
+		/* 7. PPTP disconnect notify (server to client) */
+		{ DPT_BACK, TH_ACK,
+		  sizeof(call_disc_notify), (char *)&call_disc_notify,
+		  sizeof(call_disc_notify), (char *)&call_disc_notify
+		},
+#endif
+		/* 8, 9, 10 */
+		{ DPT_FORW, TH_ACK | TH_FIN, 0, NULL, 0, NULL },
+		{ DPT_BACK, TH_ACK | TH_FIN, 0, NULL, 0, NULL },
+		{ DPT_FORW, TH_ACK, 0, NULL, 0, NULL },
+	};
+
+	/* Start of pptp ctrl flow (pkts 0 - 6) */
+	dpt_tcp_call(&pptp_ctrl_call, pptp_ctrl_pkts, ARRAY_SIZE(pptp_ctrl_pkts),
+		     0, 6, NULL, 0);
+
+	if (0)
+		cgn_alg_show_sessions();
+
+	/*
+	 * At this point the VPN call is negotiated via PPP:
+	 *  ip:gre:ppp:lcp
+	 *  ip:gre:ppp:pap
+	 *  ip:gre:ppp:ipcp
+	 *  ip:gre:ppp:lcp
+	 *
+	 * After which it continues with just IP and GRE headers:
+	 *  ip:gre
+	 *  FORW: Call ID 24 ---->
+	 *  BACK: Call ID 1  <----
+	 */
+
+	/* FORW */
+	dpt_gre("dp1T0", "0:14:0:0:2:0",
+		"2.0.0.20", 24, "1.0.0.20",
+		"1.0.0.2",  24, "1.0.0.20",
+		"0:9:e9:55:c0:1c", "dp2T1",
+		DP_TEST_FWD_FORWARDED, NULL, 0);
+
+	/* BACK */
+	dpt_gre("dp2T1", "0:9:e9:55:c0:1c",
+		"1.0.0.20", 1024, "1.0.0.2",
+		"1.0.0.20", 1, "2.0.0.20",
+		"0:14:0:0:2:0", "dp1T0",
+		DP_TEST_FWD_FORWARDED, NULL, 0);
+
+	/* FORW */
+	dpt_gre("dp1T0", "0:14:0:0:2:0",
+		"2.0.0.20", 24, "1.0.0.20",
+		"1.0.0.2",  24, "1.0.0.20",
+		"0:9:e9:55:c0:1c", "dp2T1",
+		DP_TEST_FWD_FORWARDED, NULL, 0);
+
+	/* BACK */
+	dpt_gre("dp2T1", "0:9:e9:55:c0:1c",
+		"1.0.0.20", 1024, "1.0.0.2",
+		"1.0.0.20", 1, "2.0.0.20",
+		"0:14:0:0:2:0", "dp1T0",
+		DP_TEST_FWD_FORWARDED, NULL, 0);
+
+	if (0)
+		cgn_alg_show_sessions();
+
+	/*
+	 * Call clear request or disconnect notify
+	 */
+	dpt_tcp_call(&pptp_ctrl_call, pptp_ctrl_pkts, ARRAY_SIZE(pptp_ctrl_pkts),
+		     7, 7, NULL, 0);
+
+	if (0)
+		cgn_alg_show_sessions();
+
+	/****************************************************************
+	 * Can we setup a second call over the same parent session?
+	 */
+
+	/*
+	 * Call Request.
+	 * client call ID changed from 1 to 2.  NATd to 1025
+	 */
+	call_req_pre.pptp_call_id = htons(2);
+	call_req_pst.pptp_call_id = htons(1025);
+
+	/*
+	 * Call Reply
+	 */
+	call_reply_pre.pptp_call_id	= htons(25);
+	call_reply_pst.pptp_call_id	= htons(25);
+	call_reply_pre.pptp_peer_call_id = htons(1025);
+	call_reply_pst.pptp_peer_call_id = htons(2);
+
+	/*
+	 * PPTP Call Req and Call Reply (pkts 5 - 6)
+	 */
+	dpt_tcp_call(&pptp_ctrl_call, pptp_ctrl_pkts, ARRAY_SIZE(pptp_ctrl_pkts),
+		     5, 6, NULL, 0);
+
+	if (0)
+		cgn_alg_show_sessions();
+
+	/* FORW */
+	dpt_gre("dp1T0", "0:14:0:0:2:0",
+		"2.0.0.20", 25, "1.0.0.20",
+		"1.0.0.2",  25, "1.0.0.20",
+		"0:9:e9:55:c0:1c", "dp2T1",
+		DP_TEST_FWD_FORWARDED, NULL, 0);
+
+	if (0)
+		cgn_alg_show_sessions();
+
+	/* BACK */
+	dpt_gre("dp2T1", "0:9:e9:55:c0:1c",
+		"1.0.0.20", 1025, "1.0.0.2",
+		"1.0.0.20", 2, "2.0.0.20",
+		"0:14:0:0:2:0", "dp1T0",
+		DP_TEST_FWD_FORWARDED, NULL, 0);
+
+	/* End of pptp ctrl flow (pkts 8 - end) */
+	dpt_tcp_call(&pptp_ctrl_call, pptp_ctrl_pkts, ARRAY_SIZE(pptp_ctrl_pkts),
+		     8, 0, NULL, 0);
 
 	/* Cleanup */
 	free(ctrl_fw_pre);
