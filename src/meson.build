@@ -149,6 +149,7 @@ core_sources = files(
         'rt_tracker.c',
         'storm_ctl.c',
         'sfp.c',
+        'sfp_permit_list.c',
         'switchport.c',
         'udp_handler.c',
         'util.c',
