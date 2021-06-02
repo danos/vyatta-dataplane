@@ -419,3 +419,105 @@ PB_REGISTER_CMD(sfppermitlist_cmd) = {
 	.cmd = "vyatta:sfppermitlist",
 	.handler = cmd_sfp_permit_list_cfg,
 };
+
+static void sfp_permit_dump_list(FILE *f)
+{
+	struct sfp_permit_list *entry;
+	struct sfp_part *part_entry;
+	json_writer_t *wr;
+
+	if (f == NULL)
+		f = stderr;
+
+	wr = jsonw_new(f);
+	jsonw_name(wr, "sfp-permit-list");
+	jsonw_start_object(wr);
+	jsonw_name(wr, "lists");
+	jsonw_start_array(wr);
+	if (sfp_permit_list_head)
+		cds_list_for_each_entry_rcu(entry, sfp_permit_list_head,
+					    permit_list_link) {
+			jsonw_start_object(wr);
+			jsonw_string_field(wr, "Name", entry->list_name);
+			jsonw_name(wr, "lists");
+			jsonw_start_array(wr);
+
+			cds_list_for_each_entry_rcu(part_entry,
+						    &entry->sfp_part_list_head,
+						    permit_list) {
+				jsonw_start_object(wr);
+
+				jsonw_string_field(wr, "vendor_part",
+						   part_entry->part_id);
+				jsonw_uint_field(wr, "flags", part_entry->flags);
+				if (strlen(part_entry->vendor_name) != 0)
+					jsonw_string_field(wr, "vendor",
+							   part_entry->vendor_name);
+				if (strlen(part_entry->vendor_oui) != 0)
+					jsonw_string_field(wr, "vendor_oui",
+							   part_entry->vendor_oui);
+				if (strlen(part_entry->vendor_rev) != 0)
+					jsonw_string_field(wr, "vendor_rev",
+							   part_entry->vendor_rev);
+				jsonw_end_object(wr);
+			}
+			jsonw_end_array(wr);
+			jsonw_end_object(wr);
+		}
+	jsonw_end_array(wr);
+
+	jsonw_end_object(wr);
+	jsonw_destroy(&wr);
+}
+static void sfp_permit_dump_search_list(FILE *f)
+{
+	struct sfp_part *part_entry;
+
+	json_writer_t *wr;
+
+	if (f == NULL)
+		f = stderr;
+
+	wr = jsonw_new(f);
+	jsonw_name(wr, "sfp-search-list");
+	jsonw_start_object(wr);
+	jsonw_name(wr, "list");
+
+	jsonw_start_array(wr);
+
+	cds_list_for_each_entry_rcu(part_entry,
+				    &sfp_permit_parts_list_head,
+				    search_list) {
+		jsonw_start_object(wr);
+		jsonw_string_field(wr, "vendor_part",
+				   part_entry->part_id);
+		jsonw_string_field(wr, "vendor_rev",
+				   part_entry->vendor_rev);
+		jsonw_uint_field(wr, "flags", part_entry->flags);
+		jsonw_end_object(wr);
+	}
+
+	jsonw_end_array(wr);
+
+	jsonw_end_object(wr);
+
+	jsonw_destroy(&wr);
+}
+
+int cmd_sfp_permit_op(FILE *f, int argc __unused, char **argv)
+{
+	if (!strcmp(argv[1], "dump")) {
+		if (!strcmp(argv[2], "list")) {
+			sfp_permit_dump_list(f);
+			return 0;
+		}
+
+		if (!strcmp(argv[2], "search-list")) {
+			sfp_permit_dump_search_list(f);
+			return 0;
+		}
+
+	}
+
+	return 0;
+}
