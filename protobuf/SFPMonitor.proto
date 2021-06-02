@@ -1,0 +1,60 @@
+// Copyright (c) 2021, AT&T Intellectual Property.  All rights reserved.
+//
+// SPDX-License-Identifier: LGPL-2.1-only
+//
+// SFP permit list config definitions
+//
+
+syntax="proto2";
+
+option go_package = "github.com/danos/vyatta-dataplane/protobuf/go/SFPmonitor";
+
+message SfpPermitConfig {
+	enum Action {
+		SET	= 0;
+		DELETE	= 1;
+	}
+
+	enum Logging {
+		ENABLE	= 0;
+		DISABLE = 1;
+	}
+
+	enum Enforcement {
+		ENFORCE	= 0;
+		MONITOR = 1;
+	}
+
+	message SfpPart {
+		required string part = 1;
+	}
+
+	message SfpPermitMisMatchConfig {
+		required Action action = 1 [default = SET];
+
+		required Logging logging = 2 [default = DISABLE];
+
+		required Enforcement enforcement = 3  [default = MONITOR];
+
+		required uint32 delay = 4 [default = 900];
+	}
+
+	message SfpPermitListConfig {
+		required Action action = 1 [default = SET];
+
+		required string name = 2;
+
+		optional string vendor = 3;
+
+		optional string vendor_oui = 4;
+
+		optional string vendor_rev = 5;
+
+		repeated SfpPart vendor_parts = 6;
+	}
+
+	oneof mtype {
+		SfpPermitMisMatchConfig mismatch = 1;
+		SfpPermitListConfig list = 2;
+	}
+}

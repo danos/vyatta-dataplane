@@ -21,6 +21,7 @@ protobuf_sources= [
         'RibUpdate.proto',
         'MacLimitConfig.proto',
         'PauseConfig.proto',
+        'SFPMonitor.proto',
         'SynceConfig.proto',
         'LAGConfig.proto',
         'GPCConfig.proto',
