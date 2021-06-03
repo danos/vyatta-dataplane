@@ -13,7 +13,7 @@
 #include "if_var.h"
 
 void
-sfp_status(const struct rte_eth_dev_module_info *module_info,
+sfp_status(bool up, const struct rte_eth_dev_module_info *module_info,
 	   const struct rte_dev_eeprom_info *eeprom_info,
 	   json_writer_t *wr);
 
