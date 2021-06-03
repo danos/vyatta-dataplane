@@ -426,7 +426,9 @@ qos_egress_map_subport_new(struct ifnet *ifp, struct ifnet *parent_ifp,
 	}
 
 	/* Create a entry for the sub-port now */
-	if (ifp->if_type == IFT_L2VLAN && ifp->if_vlan != 0) {
+	if (ifp->if_type == IFT_L2VLAN && ifp->if_vlan != 0 &&
+			!(qos_egress_map_subport_get(parent_ifp, ifp->if_vlan
+			))) {
 		egr_map_info = calloc(1, sizeof(
 				struct egress_map_subport_info));
 		if (!egr_map_info) {
