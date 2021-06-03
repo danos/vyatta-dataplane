@@ -1,7 +1,7 @@
 #ifndef VRF_INTERNAL_H
 #define VRF_INTERNAL_H
 /*-
- * Copyright (c) 2017-2020, AT&T Intellectual Property. All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property. All rights reserved.
  * Copyright (c) 2015-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -171,6 +171,7 @@ void vrf_delete_all(enum cont_src_en cont_src);
 void vrf_init(void);
 void vrf_cleanup(void);
 void vrf_set_external_id(struct vrf *vrf, uint32_t external_id);
+void vrf_set_name(struct vrf *vrf, const char *ifname);
 
 uint32_t *vrf_table_hw_stats_get(void);
 int vrf_table_get_pd_subset_data(json_writer_t *json,

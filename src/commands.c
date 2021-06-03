@@ -865,6 +865,9 @@ static int cmd_vrf(FILE *f, int argc __unused, char **argv __unused)
 		vrf = vrf_get_rcu(i);
 		if (vrf) {
 			jsonw_start_object(wr);
+			if (strlen(vrf->v_name) != 0)
+				jsonw_string_field(wr, "name",
+						   vrf->v_name);
 			jsonw_uint_field(wr, "vrf_id",
 					 dp_vrf_get_external_id(vrf->v_id));
 			jsonw_uint_field(wr, "internal_vrf_id", vrf->v_id);

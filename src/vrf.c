@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2017-2020, AT&T Intellectual Property. All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property. All rights reserved.
  * Copyright (c) 2015-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -397,6 +397,17 @@ void vrf_delete(vrfid_t vrf_id)
 			     "No VRF found\n");
 
 	vrf_delete_by_ptr(vrf_var);
+}
+
+void vrf_set_name(struct vrf *vrf, const char *ifname)
+{
+	if ((vrf == NULL) ||
+	    (ifname == NULL) ||
+	    (strncmp(ifname, "vrf", 3) != 0))
+		return;
+
+	strncpy(vrf->v_name, ifname+3, sizeof(vrf->v_name));
+	vrf->v_name[sizeof(vrf->v_name)-1] = '\0';
 }
 
 struct ifnet *vrf_if_create(const char *ifname, uint32_t if_index,

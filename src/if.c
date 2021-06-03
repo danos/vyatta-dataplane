@@ -735,6 +735,7 @@ if_set_vrf(struct ifnet *ifp, vrfid_t vrf_id)
 		if (ifp->if_type == IFT_VRF &&
 		    vrf_id != VRF_DEFAULT_ID) {
 			vrf_set_external_id(vrf, ifp->if_index);
+			vrf_set_name(vrf, ifp->if_name);
 
 			dp_event(DP_EVT_VRF_CREATE, 0, vrf, 0, 0, NULL);
 		}
