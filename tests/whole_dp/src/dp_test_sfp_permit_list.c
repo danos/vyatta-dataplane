@@ -16,6 +16,31 @@
 #include "protobuf/SFPMonitor.pb-c.h"
 
 static void
+_sfp_permit_match_check(const char *match_str, bool match,
+			const char *file, int line)
+{
+	json_object *jexp;
+	char cmd_str[50];
+
+	sprintf(cmd_str, "sfp-permit-list match %s", match_str);
+	jexp = dp_test_json_create(
+		"{ "
+		"\"sfp-permit-match\": "
+		"{ \"%s\":\"%s\" } }", match_str,
+		match ? "True" : "False");
+
+	_dp_test_check_json_poll_state(cmd_str, jexp, NULL,
+				       DP_TEST_JSON_CHECK_SUBSET,
+				       false, 0, file,
+				       "", line);
+	json_object_put(jexp);
+}
+
+#define sfp_permit_match_check(_match_string_, _match_)		\
+	_sfp_permit_match_check(_match_string_,			\
+				_match_, __FILE__, __LINE__)
+
+static void
 _show_sfp_permit_mismatch_info(const char *file, int line)
 {
 	json_object *jexp;
@@ -34,7 +59,8 @@ _show_sfp_permit_mismatch_info(const char *file, int line)
 	json_object_put(jexp);
 
 }
-#define show_sfp_permit_mismatch_info() \
+
+#define show_sfp_permit_mismatch_info()				\
 	_show_sfp_permit_mismatch_info(__FILE__, __LINE__)
 
 static void
@@ -205,6 +231,12 @@ DP_START_TEST(list, test1)
 	sfp_list_add("List_2", &Part_list[5], 5);
 
 	show_sfp_permit_list_info("List_2", "AL*", true);
+
+	sfp_permit_match_check("SIMON", true);
+	sfp_permit_match_check("DE", false);
+	sfp_permit_match_check("DES", true);
+	sfp_permit_match_check("DESa", true);
+	sfp_permit_match_check("Yoda", false);
 
 	sfp_list_delete("List_1", &Part_list[0], 5);
 

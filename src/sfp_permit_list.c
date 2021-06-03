@@ -414,6 +414,28 @@ static void dump_lists(void)
 	}
 }
 
+static bool sfp_permit_match_check(const char *part)
+{
+	struct sfp_part *part_entry;
+	int rc;
+
+	cds_list_for_each_entry_rcu(part_entry,
+				    sfp_permit_parts_list_head,
+				    search_list) {
+		if (part_entry->flags & SFP_PART_WILDCARD) {
+			rc = strncmp(part, part_entry->part_id,
+				     part_entry->len);
+		} else {
+			rc = strcmp(part_entry->part_id, part);
+		}
+
+		if (rc == 0)
+			return true;
+	}
+
+	return false;
+}
+
 static int
 cmd_sfp_permit_list_cfg(struct pb_msg *msg)
 {
@@ -563,6 +585,28 @@ static void sfp_permit_dump_mismatch(FILE *f)
 	jsonw_destroy(&wr);
 }
 
+static void
+sfp_permit_match_check_cmd(FILE *f, const char *match_string)
+{
+	json_writer_t *wr;
+	bool rc;
+
+	rc = sfp_permit_match_check(match_string);
+
+	if (f == NULL) {
+		RTE_LOG(ERR, DATAPLANE,
+			"%s no file\n", __func__);
+		f = stderr;
+	}
+	wr = jsonw_new(f);
+	jsonw_name(wr, "sfp-permit-match");
+	jsonw_start_object(wr);
+	jsonw_string_field(wr, match_string,
+			   YES_NO(rc));
+	jsonw_end_object(wr);
+	jsonw_destroy(&wr);
+}
+
 int cmd_sfp_permit_op(FILE *f, int argc __unused, char **argv)
 {
 	if (!strcmp(argv[1], "dump")) {
@@ -581,6 +625,11 @@ int cmd_sfp_permit_op(FILE *f, int argc __unused, char **argv)
 			return 0;
 		}
 
+	}
+
+	if (!strcmp(argv[1], "match")) {
+		sfp_permit_match_check_cmd(f, argv[2]);
+		return 0;
 	}
 
 	return 0;
