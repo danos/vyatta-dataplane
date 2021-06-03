@@ -22,6 +22,10 @@
 
 #include "urcu.h"
 
+#ifndef BITS_PER_BYTE
+#define BITS_PER_BYTE 8
+#endif
+
 #ifndef howmany
 #define howmany(x, y) (((x) + ((y) - 1)) / (y))
 #endif
