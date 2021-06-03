@@ -15,6 +15,52 @@
 #include "dp_test_lib_intf_internal.h"
 #include "protobuf/SFPMonitor.pb-c.h"
 
+static void
+_show_sfp_permit_list_info(const char *list_name, const char *part,
+			   bool present, const char *file, int line)
+{
+	json_object *jexp;
+	char cmd_str[50];
+
+	sprintf(cmd_str, "sfp-permit-list dump list");
+
+	/*
+	 * Expected JSON depends on whether an intf is specified
+	 * and if so, whether is it assigned a profile.
+	 */
+	if (present) {
+		jexp = dp_test_json_create(
+			"{"
+			"\"sfp-permit-list\":"
+			"{\"lists\":["
+			"{\"Name\":\"%s\","
+
+			"\"lists\":["
+
+			"{\"vendor_part\":"
+			"\"%s\"}"
+			"]"
+
+			"}"
+			"]}}", list_name, part);
+	} else {
+		jexp = dp_test_json_create(
+			"{ "
+			"\"sfp-permit-list\": "
+			"{ \"lists\" : [ "
+			"] } }");
+	}
+	_dp_test_check_json_poll_state(cmd_str, jexp, NULL,
+				       DP_TEST_JSON_CHECK_SUBSET,
+				       false, 0, file,
+				       "", line);
+	json_object_put(jexp);
+}
+
+#define show_sfp_permit_list_info(list_name, parts, present)	\
+	_show_sfp_permit_list_info(list_name, parts, present,	\
+				   __FILE__, __LINE__)
+
 static void sfp_permit_list_send(SfpPermitConfig *Cfg)
 {
 	void *buf;
@@ -64,12 +110,14 @@ SfpPermitConfig__SfpPart Part_10 = {
 	"CAT*"
 };
 
-SfpPermitConfig__SfpPart *Part[10] = {
+SfpPermitConfig__SfpPart *Part_list[10] = {
 	&Part_1, &Part_2, &Part_3, &Part_4, &Part_5,
 	&Part_6, &Part_7, &Part_8, &Part_9, &Part_10};
 
 static void sfp_list_build_and_send(const char *list_name,
-	int action)
+				    SfpPermitConfig__SfpPart **Part,
+				    uint32_t num_parts,
+				    int action)
 {
 
 	SfpPermitConfig Cfg = SFP_PERMIT_CONFIG__INIT;
@@ -80,20 +128,23 @@ static void sfp_list_build_and_send(const char *list_name,
 	ListCfg.vendor = "Cisco";
 	ListCfg.vendor_oui = "aa.bb.cc";
 	ListCfg.vendor_parts = Part;
-	ListCfg.n_vendor_parts = 10;
+	ListCfg.n_vendor_parts = num_parts;
 
 	sfp_permit_list_send(&Cfg);
 }
 
-static void sfp_list_add(const char *name)
+static void sfp_list_add(const char *name,
+			 SfpPermitConfig__SfpPart **Parts,
+			 uint32_t num_parts)
 {
-	sfp_list_build_and_send(name,
+	sfp_list_build_and_send(name, Parts, num_parts,
 				SFP_PERMIT_CONFIG__ACTION__SET);
 }
-
-static void sfp_list_delete(const char *name)
+static void sfp_list_delete(const char *name,
+			 SfpPermitConfig__SfpPart **Parts,
+			 uint32_t num_parts)
 {
-	sfp_list_build_and_send(name,
+	sfp_list_build_and_send(name, Parts, num_parts,
 				SFP_PERMIT_CONFIG__ACTION__DELETE);
 }
 
@@ -108,8 +159,22 @@ DP_START_TEST(list, test1)
 	/*
 	 * Set up a list.
 	 */
-	sfp_list_add("List_1");
-	sfp_list_delete("List_1");
+	sfp_list_add("List_1", &Part_list[0], 5);
+
+	show_sfp_permit_list_info("List_1", "SIMON", true);
+
+	sfp_list_add("List_2", &Part_list[5], 5);
+
+	show_sfp_permit_list_info("List_2", "AL*", true);
+
+	sfp_list_delete("List_1", &Part_list[0], 5);
+
+	show_sfp_permit_list_info("List_1", NULL, false);
+	show_sfp_permit_list_info("List_2", "AL*", true);
+
+	sfp_list_delete("List_2", &Part_list[5], 5);
+
+	show_sfp_permit_list_info("List_2", "NULL", false);
 
 	dp_test_console_request_reply("debug sfp-list", false);
 
