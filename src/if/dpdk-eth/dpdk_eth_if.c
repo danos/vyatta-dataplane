@@ -1110,7 +1110,8 @@ static void dpdk_eth_if_show_xcvr_info(struct ifnet *ifp, json_writer_t *wr)
 
 	jsonw_name(wr, "xcvr_info");
 	jsonw_start_object(wr);
-	sfp_status(&module_info, &eeprom_info, wr);
+	sfp_status((ifp->if_flags & IFF_UP ? true : false),
+		   &module_info, &eeprom_info, wr);
 	jsonw_end_object(wr);
 	free(buf);
 }

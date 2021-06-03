@@ -1411,16 +1411,28 @@ print_sfp_rx_power(const struct rte_dev_eeprom_info *eeprom_info,
 	convert_sff_power(wr, "rx_power_mW", xbuf, true, c_consts);
 }
 
+#define TX_POWER_FIELD_NAME "tx_power_mW"
+
 static void
-print_sfp_tx_power(const struct rte_dev_eeprom_info *eeprom_info,
+print_sfp_tx_power(bool up, const struct rte_dev_eeprom_info *eeprom_info,
 		   const struct sfp_calibration_constants *c_consts,
 		   json_writer_t *wr)
 {
 	uint8_t xbuf[2];
+	uint8_t status_byte;
 
-	memset(xbuf, 0, sizeof(xbuf));
-	get_eeprom_data(eeprom_info, SFF_8472_DIAG, SFF_8472_TX_POWER, 2, xbuf);
-	convert_sff_power(wr, "tx_power_mW", xbuf, false, c_consts);
+	if (get_eeprom_data(eeprom_info, SFF_8472_DIAG,
+			    SFF_8472_STATUS, 1, &status_byte))
+		return;
+
+	if (up || !(status_byte & SFF_8472_STATUS_TX_DISABLE)) {
+		memset(xbuf, 0, sizeof(xbuf));
+		get_eeprom_data(eeprom_info, SFF_8472_DIAG, SFF_8472_TX_POWER,
+				2, xbuf);
+		convert_sff_power(wr, TX_POWER_FIELD_NAME, xbuf, false,
+				  c_consts);
+	} else
+		jsonw_float_field(wr, TX_POWER_FIELD_NAME, 0);
 }
 
 static void
@@ -1448,15 +1460,18 @@ print_qsfp_rx_power(const struct rte_dev_eeprom_info *eeprom_info,
 }
 
 static void
-print_qsfp_tx_power(const struct rte_dev_eeprom_info *eeprom_info,
+print_qsfp_tx_power(bool up, const struct rte_dev_eeprom_info *eeprom_info,
 		    json_writer_t *wr, int chan)
 {
 	uint8_t xbuf[2];
 
-	memset(xbuf, 0, sizeof(xbuf));
-	get_eeprom_data(eeprom_info, SFF_8436_BASE,
-			SFF_8436_TX_CH1_MSB + (chan * 2), 2, xbuf);
-	convert_sff_power(wr, "tx_power_mW", xbuf, false, NULL);
+	if (up) {
+		memset(xbuf, 0, sizeof(xbuf));
+		get_eeprom_data(eeprom_info, SFF_8436_BASE,
+				SFF_8436_TX_CH1_MSB + (chan * 2), 2, xbuf);
+		convert_sff_power(wr, TX_POWER_FIELD_NAME, xbuf, false, NULL);
+	} else
+		jsonw_float_field(wr, TX_POWER_FIELD_NAME, 0);
 }
 
 static void
@@ -1900,7 +1915,7 @@ print_qsfp_aw_flags(const struct rte_dev_eeprom_info *eeprom_info,
 }
 
 static void
-print_sfp_status(const struct rte_eth_dev_module_info *module_info,
+print_sfp_status(bool up, const struct rte_eth_dev_module_info *module_info,
 		 const struct rte_dev_eeprom_info *eeprom_info,
 		 json_writer_t *wr)
 {
@@ -1951,7 +1966,7 @@ print_sfp_status(const struct rte_eth_dev_module_info *module_info,
 		print_sfp_temp(eeprom_info, c_const_p, wr);
 		print_sfp_voltage(eeprom_info, c_const_p, wr);
 		print_sfp_rx_power(eeprom_info, c_const_p, wr);
-		print_sfp_tx_power(eeprom_info, c_const_p, wr);
+		print_sfp_tx_power(up, eeprom_info, c_const_p, wr);
 		print_sfp_laser_bias(eeprom_info, c_const_p, wr);
 	}
 	print_sfp_thresholds(eeprom_info, wr);
@@ -1960,7 +1975,7 @@ print_sfp_status(const struct rte_eth_dev_module_info *module_info,
 }
 
 static void
-print_qsfp_status(const struct rte_dev_eeprom_info *eeprom_info,
+print_qsfp_status(bool up, const struct rte_dev_eeprom_info *eeprom_info,
 		  json_writer_t *wr)
 {
 	/* Transceiver type */
@@ -1992,7 +2007,7 @@ print_qsfp_status(const struct rte_dev_eeprom_info *eeprom_info,
 	for (int i = 0; i < 4; i++) {
 		jsonw_start_object(wr);
 		print_qsfp_rx_power(eeprom_info, wr, i);
-		print_qsfp_tx_power(eeprom_info, wr, i);
+		print_qsfp_tx_power(up, eeprom_info, wr, i);
 		print_qsfp_laser_bias(eeprom_info, wr, i);
 		jsonw_end_object(wr);
 	}
@@ -2008,7 +2023,7 @@ print_qsfp_status(const struct rte_dev_eeprom_info *eeprom_info,
 
 
 void
-sfp_status(const struct rte_eth_dev_module_info *module_info,
+sfp_status(bool up, const struct rte_eth_dev_module_info *module_info,
 	   const struct rte_dev_eeprom_info *eeprom_info,
 	   json_writer_t *wr)
 {
@@ -2031,10 +2046,10 @@ sfp_status(const struct rte_eth_dev_module_info *module_info,
 	case SFF_8024_ID_QSFP:
 	case SFF_8024_ID_QSFPPLUS:
 	case SFF_8024_ID_QSFP28:
-		print_qsfp_status(eeprom_info, wr);
+		print_qsfp_status(up, eeprom_info, wr);
 		break;
 	default:
-		print_sfp_status(module_info, eeprom_info, wr);
+		print_sfp_status(up, module_info, eeprom_info, wr);
 	}
 }
 
