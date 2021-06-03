@@ -75,11 +75,11 @@ PL_DECLARE_FEATURE(ipv6_acl_out_spath_feat);
 PL_DECLARE_FEATURE(ipv4_fw_in_feat);
 PL_DECLARE_FEATURE(ipv4_snat_feat);
 PL_DECLARE_FEATURE(ipv6_fw_in_feat);
-PL_DECLARE_FEATURE(ipv6_snat_feat);
+PL_DECLARE_FEATURE(ipv6_pre_fw_out_feat);
 PL_DECLARE_FEATURE(ipv4_fw_orig_feat);
 PL_DECLARE_FEATURE(ipv6_fw_orig_feat);
 PL_DECLARE_FEATURE(ipv4_snat_spath_feat);
-PL_DECLARE_FEATURE(ipv6_snat_spath_feat);
+PL_DECLARE_FEATURE(ipv6_pre_fw_out_spath_feat);
 
 PL_DECLARE_FEATURE(ipv4_pbr_feat);
 PL_DECLARE_FEATURE(ipv6_pbr_feat);

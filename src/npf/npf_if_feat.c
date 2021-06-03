@@ -91,16 +91,16 @@ static void npf_if_feat_enable_fw(struct ifnet *ifp, bool enable)
 		pl_node_add_feature_by_inst(&ipv4_fw_in_feat, ifp);
 		pl_node_add_feature_by_inst(&ipv6_fw_in_feat, ifp);
 		pl_node_add_feature_by_inst(&ipv4_snat_feat, ifp);
-		pl_node_add_feature_by_inst(&ipv6_snat_feat, ifp);
+		pl_node_add_feature_by_inst(&ipv6_pre_fw_out_feat, ifp);
 		pl_node_add_feature_by_inst(&ipv4_snat_spath_feat, ifp);
-		pl_node_add_feature_by_inst(&ipv6_snat_spath_feat, ifp);
+		pl_node_add_feature_by_inst(&ipv6_pre_fw_out_spath_feat, ifp);
 	} else {
 		pl_node_remove_feature_by_inst(&ipv4_fw_in_feat, ifp);
 		pl_node_remove_feature_by_inst(&ipv6_fw_in_feat, ifp);
 		pl_node_remove_feature_by_inst(&ipv4_snat_feat, ifp);
-		pl_node_remove_feature_by_inst(&ipv6_snat_feat, ifp);
+		pl_node_remove_feature_by_inst(&ipv6_pre_fw_out_feat, ifp);
 		pl_node_remove_feature_by_inst(&ipv4_snat_spath_feat, ifp);
-		pl_node_remove_feature_by_inst(&ipv6_snat_spath_feat, ifp);
+		pl_node_remove_feature_by_inst(&ipv6_pre_fw_out_spath_feat, ifp);
 	}
 }
 

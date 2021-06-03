@@ -16,17 +16,11 @@
 #include "ip_funcs.h"
 #include "fw_out_snat/npf_shim_out.h"
 
-enum {
-	V4_PKT = true,
-	V6_PKT = false
-};
-
 static ALWAYS_INLINE unsigned int
-ip_snat_process(struct pl_packet *pkt, bool v4)
+ip_snat_process(struct pl_packet *pkt)
 {
 	unsigned long bitmask =
-		NPF_IF_SESSION |
-		(v4 ? NPF_V4_TRACK_OUT : NPF_V6_TRACK_OUT);
+		NPF_IF_SESSION | NPF_V4_TRACK_OUT;
 
 	struct npf_if *nif = rcu_dereference(pkt->out_ifp->if_npf);
 	if  (npf_if_active(nif, bitmask)) {
@@ -34,7 +28,38 @@ ip_snat_process(struct pl_packet *pkt, bool v4)
 
 		npf_decision_t result = npf_hook_out_track_snat(pkt->in_ifp, &m, nif,
 								&pkt->npf_flags,
-								v4 ? htons(RTE_ETHER_TYPE_IPV4) :
+								htons(RTE_ETHER_TYPE_IPV4));
+
+		if (unlikely(m != pkt->mbuf)) {
+			pkt->mbuf = m;
+			pkt->l3_hdr = dp_pktmbuf_mtol3(m, void *);
+		}
+
+		if (result == NPF_DECISION_BLOCK)
+			return IPV4_SNAT_DROP;
+		if (result == NPF_DECISION_UNMATCHED)
+			return IPV4_SNAT_DOFW;
+
+	} else if ((pkt->npf_flags & NPF_FLAG_FROM_ZONE) &&
+		   !(pkt->npf_flags & NPF_FLAG_FROM_US))
+		/* Zone to non-zone (no fw) -> drop */
+		return IPV4_SNAT_DROP;
+
+	return IPV4_SNAT_ACCEPT;
+}
+
+static ALWAYS_INLINE unsigned int
+ip_pre_fw_out_process(struct pl_packet *pkt)
+{
+	unsigned long bitmask =
+		NPF_IF_SESSION | NPF_V6_TRACK_OUT;
+
+	struct npf_if *nif = rcu_dereference(pkt->out_ifp->if_npf);
+	if  (npf_if_active(nif, bitmask)) {
+		struct rte_mbuf *m = pkt->mbuf;
+
+		npf_decision_t result = npf_hook_out_track_snat(pkt->in_ifp, &m, nif,
+								&pkt->npf_flags,
 								htons(RTE_ETHER_TYPE_IPV6));
 
 		if (unlikely(m != pkt->mbuf)) {
@@ -43,40 +68,40 @@ ip_snat_process(struct pl_packet *pkt, bool v4)
 		}
 
 		if (result == NPF_DECISION_BLOCK)
-			return v4 ? IPV4_SNAT_DROP : IPV6_SNAT_DROP;
+			return IPV6_PRE_FW_OUT_DROP;
 		if (result == NPF_DECISION_UNMATCHED)
-			return v4 ? IPV4_SNAT_DOFW : IPV6_SNAT_DOFW;
+			return IPV6_PRE_FW_OUT_DOFW;
 
 	} else if ((pkt->npf_flags & NPF_FLAG_FROM_ZONE) &&
 		   !(pkt->npf_flags & NPF_FLAG_FROM_US))
 		/* Zone to non-zone (no fw) -> drop */
-		return v4 ? IPV4_SNAT_DROP : IPV6_SNAT_DROP;
+		return IPV6_PRE_FW_OUT_DROP;
 
-	return v4 ? IPV4_SNAT_ACCEPT : IPV6_SNAT_ACCEPT;
+	return IPV6_PRE_FW_OUT_ACCEPT;
 }
 
 ALWAYS_INLINE unsigned int
 ipv4_snat_process(struct pl_packet *pkt, void *context __unused)
 {
-	return ip_snat_process(pkt, V4_PKT);
+	return ip_snat_process(pkt);
 }
 
 ALWAYS_INLINE unsigned int
-ipv6_snat_process(struct pl_packet *pkt, void *context __unused)
+ipv6_pre_fw_out_process(struct pl_packet *pkt, void *context __unused)
 {
-	return ip_snat_process(pkt, V6_PKT);
+	return ip_pre_fw_out_process(pkt);
 }
 
 ALWAYS_INLINE unsigned int
 ipv4_snat_spath_process(struct pl_packet *pkt, void *context __unused)
 {
-	return ip_snat_process(pkt, V4_PKT);
+	return ip_snat_process(pkt);
 }
 
 ALWAYS_INLINE unsigned int
-ipv6_snat_spath_process(struct pl_packet *pkt, void *context __unused)
+ipv6_pre_fw_out_spath_process(struct pl_packet *pkt, void *context __unused)
 {
-	return ip_snat_process(pkt, V6_PKT);
+	return ip_pre_fw_out_process(pkt);
 }
 
 /* Register Node */
@@ -92,15 +117,15 @@ PL_REGISTER_NODE(ipv4_snat_node) = {
 	}
 };
 
-PL_REGISTER_NODE(ipv6_snat_node) = {
-	.name = "vyatta:ipv6-snat",
+PL_REGISTER_NODE(ipv6_pre_fw_out_node) = {
+	.name = "vyatta:ipv6-pre-fw-out",
 	.type = PL_PROC,
-	.handler = ipv6_snat_process,
-	.num_next = IPV6_SNAT_NUM,
+	.handler = ipv6_pre_fw_out_process,
+	.num_next = IPV6_PRE_FW_OUT_NUM,
 	.next = {
-		[IPV6_SNAT_DOFW]       = "ipv6-fw-out",
-		[IPV6_SNAT_ACCEPT]       = "term-noop",
-		[IPV6_SNAT_DROP]         = "ipv6-drop",
+		[IPV6_PRE_FW_OUT_DOFW]       = "ipv6-fw-out",
+		[IPV6_PRE_FW_OUT_ACCEPT]       = "term-noop",
+		[IPV6_PRE_FW_OUT_DROP]         = "ipv6-drop",
 	}
 };
 
@@ -116,15 +141,15 @@ PL_REGISTER_NODE(ipv4_snat_spath_node) = {
 	}
 };
 
-PL_REGISTER_NODE(ipv6_snat_spath_node) = {
-	.name = "vyatta:ipv6-snat-spath",
+PL_REGISTER_NODE(ipv6_pre_fw_out_spath_node) = {
+	.name = "vyatta:ipv6-pre-fw-out-spath",
 	.type = PL_PROC,
-	.handler = ipv6_snat_spath_process,
-	.num_next = IPV6_SNAT_SPATH_NUM,
+	.handler = ipv6_pre_fw_out_spath_process,
+	.num_next = IPV6_PRE_FW_OUT_SPATH_NUM,
 	.next = {
-		[IPV6_SNAT_SPATH_DOFW]  = "ipv6-fw-out",
-		[IPV6_SNAT_SPATH_ACCEPT]  = "term-noop",
-		[IPV6_SNAT_SPATH_DROP]    = "term-drop",
+		[IPV6_PRE_FW_OUT_SPATH_DOFW]  = "ipv6-fw-out",
+		[IPV6_PRE_FW_OUT_SPATH_ACCEPT]  = "term-noop",
+		[IPV6_PRE_FW_OUT_SPATH_DROP]    = "term-drop",
 	}
 };
 
@@ -137,11 +162,11 @@ PL_REGISTER_FEATURE(ipv4_snat_feat) = {
 	.visit_after = "vyatta:ipv4-cgnat-out",
 };
 
-PL_REGISTER_FEATURE(ipv6_snat_feat) = {
-	.name = "vyatta:ipv6-snat",
-	.node_name = "ipv6-snat",
+PL_REGISTER_FEATURE(ipv6_pre_fw_out_feat) = {
+	.name = "vyatta:ipv6-pre-fw-out",
+	.node_name = "ipv6-pre-fw-out",
 	.feature_point = "ipv6-out",
-	.id = PL_L3_V6_OUT_FUSED_FEAT_SNAT,
+	.id = PL_L3_V6_OUT_FUSED_FEAT_PRE_FW_OUT,
 	.visit_after = "vyatta:ipv6-defrag-out",
 };
 
@@ -152,9 +177,9 @@ PL_REGISTER_FEATURE(ipv4_snat_spath_feat) = {
 	.id = PL_L3_V4_OUT_SPATH_FUSED_FEAT_SNAT,
 };
 
-PL_REGISTER_FEATURE(ipv6_snat_spath_feat) = {
-	.name = "vyatta:ipv6-snat-spath",
-	.node_name = "ipv6-snat-spath",
+PL_REGISTER_FEATURE(ipv6_pre_fw_out_spath_feat) = {
+	.name = "vyatta:ipv6-pre-fw-out-spath",
+	.node_name = "ipv6-pre-fw-out-spath",
 	.feature_point = "ipv6-out-spath",
-	.id = PL_L3_V6_OUT_SPATH_FUSED_FEAT_SNAT,
+	.id = PL_L3_V6_OUT_SPATH_FUSED_FEAT_PRE_FW_OUT,
 };

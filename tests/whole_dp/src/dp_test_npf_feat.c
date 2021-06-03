@@ -135,7 +135,7 @@ _dp_test_wait_for_pl_fw(const char *ifname, bool exp_gone,
 				  "ipv4-out", exp_gone,
 				  file, func, line);
 
-	_dp_test_wait_for_pl_feat(ifname, "vyatta:ipv6-snat",
+	_dp_test_wait_for_pl_feat(ifname, "vyatta:ipv6-pre-fw-out",
 				  "ipv6-out", exp_gone,
 				  file, func, line);
 }
