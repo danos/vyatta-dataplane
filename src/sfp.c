@@ -1914,6 +1914,43 @@ print_qsfp_aw_flags(const struct rte_dev_eeprom_info *eeprom_info,
 	jsonw_end_array(wr);
 }
 
+static void print_sfp_status_byte(const struct rte_dev_eeprom_info *eeprom_info,
+				  json_writer_t *wr)
+{
+	uint8_t status_byte = 0, i;
+	/* strings match definitions of SFF_8472_STATUS_* in sff8472.h */
+	static const char *sfp_status_str[BITS_PER_BYTE] = {
+		"data_ready",
+		"rx_los",
+		"tx_fault_state",
+		"soft_rate_select",
+		"select_state",
+		"rs_state",
+		"soft_tx_disable",
+		"tx_disable"
+	};
+
+	if (get_eeprom_data(eeprom_info, SFF_8472_DIAG,
+			    SFF_8472_STATUS, 1, &status_byte))
+		return;
+
+	/*
+	 * return if the data is not ready to be read or if
+	 * there are no other bits set
+	 */
+	if (status_byte & SFF_8472_STATUS_DATA_READY ||
+	    !(status_byte & ~SFF_8472_STATUS_DATA_READY))
+		return;
+
+	jsonw_name(wr, "status_byte");
+	jsonw_start_object(wr);
+	for (i = 1; i < BITS_PER_BYTE; i++)
+		if (status_byte & (1 << i))
+			jsonw_uint_field(wr, sfp_status_str[i], 1);
+	jsonw_end_object(wr);
+}
+
+
 static void
 print_sfp_status(bool up, const struct rte_eth_dev_module_info *module_info,
 		 const struct rte_dev_eeprom_info *eeprom_info,
@@ -1968,6 +2005,7 @@ print_sfp_status(bool up, const struct rte_eth_dev_module_info *module_info,
 		print_sfp_rx_power(eeprom_info, c_const_p, wr);
 		print_sfp_tx_power(up, eeprom_info, c_const_p, wr);
 		print_sfp_laser_bias(eeprom_info, c_const_p, wr);
+		print_sfp_status_byte(eeprom_info, wr);
 	}
 	print_sfp_thresholds(eeprom_info, wr);
 	print_sfp_alarm_flags(eeprom_info, wr);
