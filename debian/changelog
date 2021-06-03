@@ -1,3 +1,20 @@
+vyatta-dataplane (3.13.21) unstable; urgency=medium
+
+  [ Ian Wilson ]
+  * cgnat-alg: Add a 'closing' state to CGNAT states
+  * cgnat-alg: Add timeouts for CGNAT 'closing' state
+  * cgnat-alg: Add functions to set sessions to closing state
+
+  [ Thomas Kiely ]
+  * Protobuf definition for ICMP Rate Limiting feature
+  * ICMP Rate Limiting for v4
+  * ICMP Rate Limiting for v6
+
+  [ Mike Manning ]
+  * VM interface speed and duplex incorrectly set on KVM
+
+ -- Srinivas Narayan <narayan@vyatta.att-mail.com>  Thu, 03 Jun 2021 07:54:50 +0100
+
 vyatta-dataplane (3.13.20) unstable; urgency=medium
 
   [ Daniel Gollub ]
