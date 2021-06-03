@@ -16,6 +16,28 @@
 #include "protobuf/SFPMonitor.pb-c.h"
 
 static void
+_show_sfp_permit_mismatch_info(const char *file, int line)
+{
+	json_object *jexp;
+	char cmd_str[50];
+
+	sprintf(cmd_str, "sfp-permit-list dump mismatch");
+	jexp = dp_test_json_create(
+		"{ "
+		"\"sfp-permit-list-mismatch\": "
+		"{ } }");
+
+	_dp_test_check_json_poll_state(cmd_str, jexp, NULL,
+				       DP_TEST_JSON_CHECK_SUBSET,
+				       false, 0, file,
+				       "", line);
+	json_object_put(jexp);
+
+}
+#define show_sfp_permit_mismatch_info() \
+	_show_sfp_permit_mismatch_info(__FILE__, __LINE__)
+
+static void
 _show_sfp_permit_list_info(const char *list_name, const char *part,
 			   bool present, const char *file, int line)
 {
@@ -148,6 +170,18 @@ static void sfp_list_delete(const char *name,
 				SFP_PERMIT_CONFIG__ACTION__DELETE);
 }
 
+SfpPermitConfig__SfpPermitMisMatchConfig MismatchCfg =
+	SFP_PERMIT_CONFIG__SFP_PERMIT_MIS_MATCH_CONFIG__INIT;
+
+static void sfp_mismatch_action_send(void)
+{
+	SfpPermitConfig Cfg = SFP_PERMIT_CONFIG__INIT;
+	Cfg.mtype_case = SFP_PERMIT_CONFIG__MTYPE_MISMATCH;
+	Cfg.mismatch = &MismatchCfg;
+
+	sfp_permit_list_send(&Cfg);
+}
+
 DP_DECL_TEST_SUITE(sfp_permit_list);
 
 DP_DECL_TEST_CASE(sfp_permit_list, list, NULL, NULL);
@@ -159,6 +193,11 @@ DP_START_TEST(list, test1)
 	/*
 	 * Set up a list.
 	 */
+
+	sfp_mismatch_action_send();
+
+	show_sfp_permit_mismatch_info();
+
 	sfp_list_add("List_1", &Part_list[0], 5);
 
 	show_sfp_permit_list_info("List_1", "SIMON", true);

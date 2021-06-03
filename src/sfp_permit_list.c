@@ -36,6 +36,14 @@ struct cds_list_head  sfp_permit_list_head;
 struct cds_list_head  sfp_permit_parts_list_head;
 bool sfp_pl_cfg_init;
 
+struct sfp_mismatch_global {
+	bool logging_enabled;
+	bool enforcement_enabled;
+	uint32_t enforcement_delay;
+};
+
+struct sfp_mismatch_global sfp_mismatch_cfg;
+
 struct sfp_part {
 	/* Search list ,contains all parts, in an ordered
 	 * list
@@ -314,6 +322,19 @@ sfp_permit_mismatch_cfg(SfpPermitConfig__SfpPermitMisMatchConfig *mismatch)
 		"SFP-PL:mismatch logging %d\n", mismatch->logging);
 	DP_DEBUG(SFP_LIST, DEBUG, DATAPLANE,
 		"SFP-PL:mismatch enforcement %d\n", mismatch->enforcement);
+
+	if (mismatch->logging == SFP_PERMIT_CONFIG__LOGGING__ENABLE)
+		sfp_mismatch_cfg.logging_enabled = true;
+	else
+		sfp_mismatch_cfg.logging_enabled = false;
+
+	if (mismatch->enforcement == SFP_PERMIT_CONFIG__ENFORCEMENT__ENFORCE)
+		sfp_mismatch_cfg.enforcement_enabled = true;
+	else
+		sfp_mismatch_cfg.enforcement_enabled = false;
+
+	sfp_mismatch_cfg.enforcement_delay = mismatch->delay;
+
 	return 0;
 }
 static void dump_lists(void) __attribute__((unused));
@@ -321,6 +342,23 @@ static void dump_lists(void)
 {
 	struct sfp_permit_list *entry, *next;
 	struct sfp_part *part_entry, *part_next;
+
+	DP_DEBUG(SFP_LIST, DEBUG, DATAPLANE,
+		 "Permit Lists Cfg Dump\n Permit Lists Global Cfg\n");
+
+	DP_DEBUG(SFP_LIST, DEBUG, DATAPLANE,
+		 "   logging enabled %s\n",
+		 sfp_mismatch_cfg.logging_enabled
+		 == true ? "True" : "False");
+
+	DP_DEBUG(SFP_LIST, DEBUG, DATAPLANE,
+		 "   enforcement enabled %s\n",
+		 sfp_mismatch_cfg.enforcement_enabled
+			 == true ? "True" : "False");
+
+	DP_DEBUG(SFP_LIST, DEBUG, DATAPLANE,
+		 "   enforcement delay %d Secs\n",
+		 sfp_mismatch_cfg.enforcement_delay);
 
 	if (cds_list_empty(&sfp_permit_list_head)) {
 		DP_DEBUG(SFP_LIST, DEBUG, DATAPLANE,
@@ -434,36 +472,35 @@ static void sfp_permit_dump_list(FILE *f)
 	jsonw_start_object(wr);
 	jsonw_name(wr, "lists");
 	jsonw_start_array(wr);
-	if (sfp_permit_list_head)
-		cds_list_for_each_entry_rcu(entry, sfp_permit_list_head,
-					    permit_list_link) {
+	cds_list_for_each_entry_rcu(entry, &sfp_permit_list_head,
+				    permit_list_link) {
+		jsonw_start_object(wr);
+		jsonw_string_field(wr, "Name", entry->list_name);
+		jsonw_name(wr, "lists");
+		jsonw_start_array(wr);
+
+		cds_list_for_each_entry_rcu(part_entry,
+					    &entry->sfp_part_list_head,
+					    permit_list) {
 			jsonw_start_object(wr);
-			jsonw_string_field(wr, "Name", entry->list_name);
-			jsonw_name(wr, "lists");
-			jsonw_start_array(wr);
 
-			cds_list_for_each_entry_rcu(part_entry,
-						    &entry->sfp_part_list_head,
-						    permit_list) {
-				jsonw_start_object(wr);
-
-				jsonw_string_field(wr, "vendor_part",
-						   part_entry->part_id);
-				jsonw_uint_field(wr, "flags", part_entry->flags);
-				if (strlen(part_entry->vendor_name) != 0)
-					jsonw_string_field(wr, "vendor",
-							   part_entry->vendor_name);
-				if (strlen(part_entry->vendor_oui) != 0)
-					jsonw_string_field(wr, "vendor_oui",
-							   part_entry->vendor_oui);
-				if (strlen(part_entry->vendor_rev) != 0)
-					jsonw_string_field(wr, "vendor_rev",
-							   part_entry->vendor_rev);
-				jsonw_end_object(wr);
-			}
-			jsonw_end_array(wr);
+			jsonw_string_field(wr, "vendor_part",
+					   part_entry->part_id);
+			jsonw_uint_field(wr, "flags", part_entry->flags);
+			if (strlen(part_entry->vendor_name) != 0)
+				jsonw_string_field(wr, "vendor",
+						   part_entry->vendor_name);
+			if (strlen(part_entry->vendor_oui) != 0)
+				jsonw_string_field(wr, "vendor_oui",
+						   part_entry->vendor_oui);
+			if (strlen(part_entry->vendor_rev) != 0)
+				jsonw_string_field(wr, "vendor_rev",
+						   part_entry->vendor_rev);
 			jsonw_end_object(wr);
 		}
+		jsonw_end_array(wr);
+		jsonw_end_object(wr);
+	}
 	jsonw_end_array(wr);
 
 	jsonw_end_object(wr);
@@ -504,11 +541,38 @@ static void sfp_permit_dump_search_list(FILE *f)
 	jsonw_destroy(&wr);
 }
 
+#define YES_NO(_x_) (((_x_)  ==  true) ? "True" : "False")
+
+static void sfp_permit_dump_mismatch(FILE *f)
+{
+	json_writer_t *wr;
+
+	if (f == NULL)
+		f = stderr;
+
+	wr = jsonw_new(f);
+	jsonw_name(wr, "sfp-permit-list-mismatch");
+	jsonw_start_object(wr);
+	jsonw_string_field(wr, "logging enabled",
+			   YES_NO(sfp_mismatch_cfg.logging_enabled));
+	jsonw_string_field(wr, "enforcement enabled",
+			   YES_NO(sfp_mismatch_cfg.enforcement_enabled));
+	jsonw_uint_field(wr, "enforcement delay",
+				 sfp_mismatch_cfg.enforcement_delay);
+	jsonw_end_object(wr);
+	jsonw_destroy(&wr);
+}
+
 int cmd_sfp_permit_op(FILE *f, int argc __unused, char **argv)
 {
 	if (!strcmp(argv[1], "dump")) {
 		if (!strcmp(argv[2], "list")) {
 			sfp_permit_dump_list(f);
+			return 0;
+		}
+
+		if (!strcmp(argv[2], "mismatch")) {
+			sfp_permit_dump_mismatch(f);
 			return 0;
 		}
 
