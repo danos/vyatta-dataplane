@@ -145,7 +145,7 @@ result:
 /*
  * Search firewall ruleset and return a decision for this packet.
  */
-static npf_decision_t
+npf_decision_t
 npf_apply_firewall(const struct npf_ruleset *rs,
 		   npf_session_t *se, npf_cache_t *npc,
 		   const struct ifnet *ifp, struct rte_mbuf *nbuf,
@@ -215,7 +215,7 @@ npf_apply_firewall(const struct npf_ruleset *rs,
 	return decision;
 }
 
-static inline void
+inline void
 npf_shim_rproc(npf_cache_t *npc, struct rte_mbuf **nbuf,
 		int dir, npf_rule_t *rl,
 		npf_session_t *se, npf_decision_t *decision)

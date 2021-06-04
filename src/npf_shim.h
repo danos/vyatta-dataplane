@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2011-2017 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -37,6 +37,17 @@ npf_result_t npf_hook_track(struct ifnet *in_ifp, struct rte_mbuf **m,
 npf_result_t npf_hook_notrack(const npf_ruleset_t *rlset, struct rte_mbuf **m,
 			      struct ifnet *ifp, int dir, uint16_t npf_flags,
 			      uint16_t eth_type, int *rcp);
+
+npf_decision_t
+npf_apply_firewall(const struct npf_ruleset *rs,
+		   npf_session_t *se, npf_cache_t *npc,
+		   const struct ifnet *ifp, struct rte_mbuf *nbuf,
+		   int dir, npf_rule_t **rl,
+		   uint16_t npf_flag, bool reverse_stateful);
+void
+npf_shim_rproc(npf_cache_t *npc, struct rte_mbuf **nbuf,
+	       int dir, npf_rule_t *rl,
+	       npf_session_t *se, npf_decision_t *decision);
 
 
 void npf_vrf_create(struct vrf *vrf);
