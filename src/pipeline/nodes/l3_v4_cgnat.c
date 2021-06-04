@@ -586,6 +586,15 @@ static int ipv4_cgnat_common(struct cgn_packet *cpk, struct ifnet *ifp,
 			return -CGN_SESS_ENOENT;
 
 		/*
+		 * If the PPTP ALG is enabled then we will parse GRE pkts.  Do
+		 * not allow GRE pkts to create a session unless they have
+		 * matched an ALG pinhole.
+		 */
+		if (unlikely((cpk->cpk_info & CPK_GRE) &&
+			     cpk->cpk_alg_id != CGN_ALG_PPTP))
+			return -CGN_SESS_ENOENT;
+
+		/*
 		 * Get policy and mapping, and create a session.
 		 *
 		 * For ALGs the mapping will have already been added to cmi
