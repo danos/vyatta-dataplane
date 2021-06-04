@@ -1612,6 +1612,7 @@ npf_rte_acl_free(struct rcu_head *head)
 	m_ctx = caa_container_of(head, npf_match_ctx_t, rcu);
 
 	rte_ring_free(m_ctx->pdel_ring);
+	rte_free(m_ctx->tr);
 	free(m_ctx->ctx_name);
 	free(m_ctx);
 }
