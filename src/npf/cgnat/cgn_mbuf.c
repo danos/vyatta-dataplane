@@ -17,6 +17,7 @@
 #include "npf/npf_mbuf.h"
 #include "npf/nat/nat_proto.h"
 
+#include "npf/cgnat/alg/alg_public.h"
 #include "npf/cgnat/cgn_dir.h"
 #include "npf/cgnat/cgn_rc.h"
 #include "npf/cgnat/cgn_if.h"
@@ -241,12 +242,15 @@ cgn_parse_l4(struct rte_mbuf *m, uint l4_offset, uint8_t ipproto,
 			return rc;
 		break;
 	case IPPROTO_GRE:
-		/* Look for enhanced-GRE Header */
-		rc = cgn_decode_gre(cpk, l4);
+		/* Only parse GRE pkts if PPTP ALG is enabled */
+		if (unlikely(cgn_alg_pptp_is_enabled())) {
+			/* Look for enhanced-GRE Header */
+			rc = cgn_decode_gre(cpk, l4);
 
-		if (unlikely(rc < 0))
-			return rc;
-
+			if (unlikely(rc < 0))
+				return rc;
+		} else
+			return -CGN_BUF_PROTO;
 		break;
 	default: /* All other IP protocols */
 		return -CGN_BUF_PROTO;

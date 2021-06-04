@@ -101,6 +101,14 @@ bool cgn_alg_is_enabled(void)
 	return cgn_alg_enabled != 0;
 }
 
+/**
+ * Is any CGNAT PPTP ALG enabled?
+ */
+bool cgn_alg_pptp_is_enabled(void)
+{
+	return cgn_alg_enabled & CGN_ALG_BIT_PPTP;
+}
+
 /*
  * Called by cgn_session_establish in order to identify ALG control, or
  * parent, flows.  'port' is in network byte order.

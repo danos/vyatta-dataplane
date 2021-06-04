@@ -29,6 +29,11 @@ struct cgn_map;
 bool cgn_alg_is_enabled(void);
 
 /**
+ * Is any CGNAT PPTP ALG enabled?
+ */
+bool cgn_alg_pptp_is_enabled(void);
+
+/**
  * Is this new session an ALG control (or parent) session?
  *
  * Lookup the destination port to determine if pkt belongs to an enabled ALG
