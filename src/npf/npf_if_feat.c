@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2019-2021, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -90,17 +90,17 @@ static void npf_if_feat_enable_fw(struct ifnet *ifp, bool enable)
 	if (enable) {
 		pl_node_add_feature_by_inst(&ipv4_fw_in_feat, ifp);
 		pl_node_add_feature_by_inst(&ipv6_fw_in_feat, ifp);
-		pl_node_add_feature_by_inst(&ipv4_fw_out_feat, ifp);
-		pl_node_add_feature_by_inst(&ipv6_fw_out_feat, ifp);
-		pl_node_add_feature_by_inst(&ipv4_fw_out_spath_feat, ifp);
-		pl_node_add_feature_by_inst(&ipv6_fw_out_spath_feat, ifp);
+		pl_node_add_feature_by_inst(&ipv4_snat_feat, ifp);
+		pl_node_add_feature_by_inst(&ipv6_snat_feat, ifp);
+		pl_node_add_feature_by_inst(&ipv4_snat_spath_feat, ifp);
+		pl_node_add_feature_by_inst(&ipv6_snat_spath_feat, ifp);
 	} else {
 		pl_node_remove_feature_by_inst(&ipv4_fw_in_feat, ifp);
 		pl_node_remove_feature_by_inst(&ipv6_fw_in_feat, ifp);
-		pl_node_remove_feature_by_inst(&ipv4_fw_out_feat, ifp);
-		pl_node_remove_feature_by_inst(&ipv6_fw_out_feat, ifp);
-		pl_node_remove_feature_by_inst(&ipv4_fw_out_spath_feat, ifp);
-		pl_node_remove_feature_by_inst(&ipv6_fw_out_spath_feat, ifp);
+		pl_node_remove_feature_by_inst(&ipv4_snat_feat, ifp);
+		pl_node_remove_feature_by_inst(&ipv6_snat_feat, ifp);
+		pl_node_remove_feature_by_inst(&ipv4_snat_spath_feat, ifp);
+		pl_node_remove_feature_by_inst(&ipv6_snat_spath_feat, ifp);
 	}
 }
 

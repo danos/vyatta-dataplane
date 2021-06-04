@@ -1,7 +1,7 @@
 /*
  * l3_nat64.c
  *
- * Copyright (c) 2019-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2019-2021, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -442,7 +442,7 @@ PL_REGISTER_FEATURE(ipv4_nat64_out_feat) = {
 	.node_name = "ipv4-nat64-out",
 	.feature_point = "ipv4-out",
 	.id = PL_L3_V4_OUT_FUSED_FEAT_NAT64,
-	.visit_after = "vyatta:ipv4-fw-out",
+	.visit_after = "vyatta:ipv4-snat",
 };
 
 /* Register Features */
@@ -459,5 +459,5 @@ PL_REGISTER_FEATURE(ipv6_nat46_out_feat) = {
 	.node_name = "ipv6-nat46-out",
 	.feature_point = "ipv6-out",
 	.id = PL_L3_V6_OUT_FUSED_FEAT_NAT46,
-	.visit_after = "vyatta:ipv6-fw-out",
+	.visit_after = "vyatta:ipv6-snat",
 };

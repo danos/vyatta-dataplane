@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2020, AT&T Intellectual Property. All rights reserved.
+ * Copyright (c) 2019-2021, AT&T Intellectual Property. All rights reserved.
  * All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
@@ -131,11 +131,11 @@ _dp_test_wait_for_pl_fw(const char *ifname, bool exp_gone,
 				  "ipv6-validate", exp_gone,
 				  file, func, line);
 
-	_dp_test_wait_for_pl_feat(ifname, "vyatta:ipv4-fw-out",
+	_dp_test_wait_for_pl_feat(ifname, "vyatta:ipv4-snat",
 				  "ipv4-out", exp_gone,
 				  file, func, line);
 
-	_dp_test_wait_for_pl_feat(ifname, "vyatta:ipv6-fw-out",
+	_dp_test_wait_for_pl_feat(ifname, "vyatta:ipv6-snat",
 				  "ipv6-out", exp_gone,
 				  file, func, line);
 }

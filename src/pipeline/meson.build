@@ -34,6 +34,7 @@ pipeline_node_sources = files(
 	'nodes/l3_dpi.c',
 	'nodes/l3_fw_in.c',
 	'nodes/fw_out_snat/npf_shim_out.c',
+	'nodes/l3_snat.c',
 	'nodes/l3_fw_out.c',
 	'nodes/l3_nat64.c',
 	'nodes/l3_pbr.c',
