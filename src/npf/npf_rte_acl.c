@@ -1879,6 +1879,7 @@ npf_rte_acl_copy_rules(npf_match_ctx_t *ctx,
 	struct npf_match_ctx_trie *next, *m_trie = merge_start;
 	uint16_t i = 0;
 	struct rte_mempool *rule_mempool;
+	size_t grow_nb = NPR_RULE_GROW_ELEMENTS;
 
 	if (ctx->af == AF_INET)
 		rule_mempool = npr_acl4_pool;
@@ -1898,26 +1899,28 @@ npf_rte_acl_copy_rules(npf_match_ctx_t *ctx,
 				m_trie->trie_name, m_trie->num_rules, dst_trie->trie_name,
 				__func__);
 
-		rc = rte_acl_copy_rules(dst_trie->acl_ctx, m_trie->acl_ctx);
-		if (rc < 0 && rc != -ENOBUFS)
-			goto error;
+		if (rte_mempool_avail_count(rule_mempool) < m_trie->num_rules) {
 
-		if (rc == -ENOBUFS) {
-			rc = npf_rte_acl_mempool_grow(rule_mempool,
-						       NPR_RULE_GROW_ELEMENTS);
-			if (rc < 0)
-				goto error;
+			if (grow_nb < m_trie->num_rules)
+				grow_nb = m_trie->num_rules;
 
-			rc = rte_acl_copy_rules(dst_trie->acl_ctx, m_trie->acl_ctx);
+			rc = npf_rte_acl_mempool_grow(rule_mempool, grow_nb);
 			if (rc < 0)
 				goto error;
 		}
+
+		rc = rte_acl_copy_rules(dst_trie->acl_ctx, m_trie->acl_ctx);
+		if (rc < 0)
+			goto error;
 
 		dst_trie->num_rules += m_trie->num_rules;
 
 		if (++i == num_tries)
 			break;
 	}
+
+	DP_DEBUG(RLDB_ACL, DEBUG, DATAPLANE, "Merge into %s completed (%u rules)\n",
+			dst_trie->trie_name, dst_trie->num_rules);
 
 	return 0;
 
