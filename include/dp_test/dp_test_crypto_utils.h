@@ -221,6 +221,12 @@ _dp_test_crypto_check_xfrm_resp(const char *file, int line,
 					DP_TEST_CHECK_CRYPTO_SA_STATS,	\
 					_pkts, _bytes, _match)
 
+void _dp_test_crypto_wait_for_xfrm_resp(const char *file, int line,
+					    uint32_t seq_no);
+
+#define dp_test_crypto_wait_for_xfrm_resp(seq_no)			\
+	_dp_test_crypto_wait_for_xfrm_resp(__FILE__, __LINE__, seq_no)
+
 void _dp_test_xfrm_set_nack(uint32_t err_count);
 
 #define dp_test_crypto_xfrm_set_nack(count)	\

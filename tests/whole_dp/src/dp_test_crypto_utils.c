@@ -379,6 +379,8 @@ struct dp_test_crypto_reponses_cb {
 	/* Expected values */
 	uint64_t pkts;
 	uint64_t bytes;
+	/* Wait for seq_no */
+	uint32_t seq_no;
 	/* Record the tested values */
 	uint32_t tx_ack;
 	uint32_t rx_ack;
@@ -467,6 +469,53 @@ _dp_test_crypto_check_xfrm_resp(const char *file, int line,
 		default:
 			dp_test_assert_internal(false);
 		}
+}
+
+static int
+_dp_test_crypto_poll_commit_response(zloop_t *loop, int poller, void *arg)
+{
+	struct dp_test_crypto_reponses_cb *aux;
+
+	aux = (struct dp_test_crypto_reponses_cb *) arg;
+
+	poll_cnt--;
+
+	/* return -1 to stop if we got what we want */
+	if (xfrm_seq_received >= aux->seq_no) {
+		aux->valid = true;
+		return -1;
+	}
+
+	if (poll_cnt == 0)
+		return -1;
+
+	return 0;
+}
+
+/*
+ * Check the xfrm responses received for a "commit".
+ */
+void
+_dp_test_crypto_wait_for_xfrm_resp(const char *file, int line, uint32_t seq_no)
+{
+	struct dp_test_crypto_reponses_cb aux;
+	int timer;
+	zloop_t *loop = zloop_new();
+
+	aux.seq_no = seq_no;
+
+	poll_cnt = DP_TEST_POLL_COUNT * 10;
+	timer = zloop_timer(loop, DP_TEST_POLL_INTERVAL, 0,
+			    _dp_test_crypto_poll_commit_response,
+			    &aux);
+	dp_test_assert_internal(timer >= 0);
+
+	zloop_start(loop);
+	zloop_destroy(&loop);
+
+	if (!aux.valid)
+		_dp_test_fail(file, line, "No commit response for seq_no: %u\n",
+			      seq_no);
 }
 
 /*

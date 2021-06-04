@@ -39,6 +39,7 @@
 #include "dp_test_str.h"
 #include "dp_test.h"
 #include "dp_test/dp_test_crypto_lib.h"
+#include "dp_test/dp_test_crypto_utils.h"
 #include "dp_test_xfrm_server.h"
 
 struct rtvia_v6 {
@@ -3743,12 +3744,13 @@ void _dp_test_netlink_xfrm_policy(uint16_t nlmsg_type,
 	struct xfrm_userpolicy_id *userpolicy_id;
 	struct nlmsghdr *nlh;
 	char *buf = malloc(MNL_SOCKET_BUFFER_SIZE);
+	uint32_t seq_no = ++xfrm_seq;
 
 	memset(buf, 0, MNL_SOCKET_BUFFER_SIZE);
 	nlh = mnl_nlmsg_put_header(buf);
 	nlh->nlmsg_type = nlmsg_type;
 	nlh->nlmsg_flags = NLM_F_ACK;
-	nlh->nlmsg_seq = ++xfrm_seq;
+	nlh->nlmsg_seq = seq_no;
 
 	switch (nlmsg_type) {
 	case XFRM_MSG_NEWPOLICY:
@@ -3815,6 +3817,9 @@ void _dp_test_netlink_xfrm_policy(uint16_t nlmsg_type,
 	/* Signal an end of batch. This is a single msg batch */
 	nl_propagate_xfrm(xfrm_server_push_sock, nlh, nlh->nlmsg_len,
 			  commit ? "END" : "");
+
+	if (commit)
+		dp_test_crypto_wait_for_xfrm_resp(seq_no-1);
 }
 
 void _dp_test_netlink_xfrm_newsa(uint32_t spi, /* Network byte order */
