@@ -564,8 +564,8 @@ int rldb_del_rule(struct rldb_db_handle *db, struct rldb_rule_handle *rh)
 	rc = npf_rte_acl_del_rule(db->af, db->match_ctx, rule_no,
 				  rh->rule.rldb_priority, match_addr, mask);
 	if (rc < 0) {
-		RLDB_ERR("Failed to remove ACL rule %u from ACL trie\n",
-			 rule_no);
+		RLDB_ERR("Failed to remove ACL rule %u from ACL trie: %s\n",
+			 rule_no, rte_strerror(-rc));
 		goto error;
 
 	}
