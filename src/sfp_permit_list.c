@@ -76,6 +76,37 @@ struct sfp_permit_list {
 	struct rcu_head rcu;
 };
 
+enum sfp_status {
+	SFP_STATUS_APPROVED = 1,
+	SFP_STATUS_UNAPPROVED = 2,
+};
+
+enum sfp_action {
+	SFP_ACTION_MONITOR = 1,
+	SFP_ACTION_DISABLED = 2
+};
+
+struct sfp_intf_record {
+	struct cds_lfht_node hnode;
+	uint32_t epoch;
+	uint16_t port;
+	char intf_name[IFNAMSIZ];
+	struct ifnet *intf;
+
+	/* SFP info */
+	uint64_t time_of_detection; /* secs since boot */
+	char part_id[SFP_MAX_PART_ID + 1];
+	char vendor_name[SFP_MAX_VENDOR_NAME + 1];
+	char vendor_oui[SFP_MAX_VENDOR_OUI + 1];
+	char vendor_rev[SFP_MAX_VENDOR_REV + 1];
+
+	/* Permit list outcome*/
+	enum sfp_status status;
+	enum sfp_action action;
+
+	struct rcu_head rcu;
+};
+
 static struct sfp_permit_list *sfp_find_permit_list(char *name)
 {
 	struct sfp_permit_list *entry, *next;
