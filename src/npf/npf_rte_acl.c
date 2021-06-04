@@ -743,7 +743,11 @@ static int npf_rte_acl_destroy_mtrie_pool(int af)
 static void
 npf_rte_acl_add_trie(npf_match_ctx_t *m_ctx, struct npf_match_ctx_trie *m_trie)
 {
-	cds_list_add(&m_trie->trie_link, &m_ctx->trie_list);
+	if (m_trie->flags & NPF_M_TRIE_FLAG_POOL)
+		cds_list_add(&m_trie->trie_link, &m_ctx->trie_list);
+	else
+		cds_list_add_tail(&m_trie->trie_link, &m_ctx->trie_list);
+
 	rte_atomic16_inc(&m_ctx->num_tries);
 	DP_DEBUG(RLDB_ACL, DEBUG, DATAPLANE,
 		 "Added trie %s to ctx %s (Trie count = %d)\n",
