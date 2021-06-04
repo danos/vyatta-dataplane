@@ -26,13 +26,12 @@ static void *npf_rte_acl_optimize(void *args);
 static struct rte_mempool *npr_mtrie_pool;
 static struct rte_mempool *npr_acl4_pool;
 static struct rte_mempool *npr_acl6_pool;
-static struct rte_mempool *npr_pdel_pool;
 
 #define NPR_RULE_MAX_ELEMENTS (1 << 18)
 #define NPR_RULE_GROW_ELEMENTS (1 << 14)
 
 #define NPR_ACL_RING_SZ 512
-#define PDEL_RING_SZ 512
+#define PDEL_RING_SZ 512 /* pending delete ring size */
 
 struct rte_ring *npr_acl4_ring, *npr_acl6_ring;
 
@@ -96,7 +95,6 @@ struct npf_match_ctx {
 	struct rcu_head       rcu;
 	struct cds_list_head  ctx_link;   /* linkage for all ctx structures */
 	struct cds_list_head  trie_list;  /* linkage for tries in this ctx */
-	struct cds_list_head  pending_delete; /* list of rules pending delete */
 	struct rte_ring	     *pdel_ring;  /* ring of rules pending delete */
 	char                 *ctx_name;   /* name of match context. Needs to be
 					   * globally unique
@@ -114,11 +112,6 @@ struct npf_match_ctx {
 	uint32_t              tr_num_entries;
 	bool                  tr_in_progress;
 	rte_spinlock_t        merge_lock;
-};
-
-struct pending_delete {
-	struct cds_list_head       pending_link; /* linkage pendling_delete list */
-	struct rte_acl_rule       *rule;         /* copied rule to be deleted */
 };
 
 enum rule_op {
@@ -865,7 +858,6 @@ int npf_rte_acl_init(int af, const char *name, uint32_t max_rules,
 
 	tmp_ctx->af = af;
 	CDS_INIT_LIST_HEAD(&tmp_ctx->trie_list);
-	CDS_INIT_LIST_HEAD(&tmp_ctx->pending_delete);
 
 	err = snprintf(ring_name, sizeof(ring_name), "%s_pdel", name);
 	if (err >= (int)sizeof(ring_name)) {
@@ -1288,7 +1280,7 @@ npf_rte_acl_add_pending_delete_rule(int af, npf_match_ctx_t *m_ctx,
 				    const struct rte_acl_rule *acl_rule, size_t rule_sz)
 {
 	int err;
-	struct pending_delete *pd;
+	struct rte_acl_rule *rule;
 	struct rte_mempool *rule_mempool;
 
 	if (af == AF_INET)
@@ -1298,27 +1290,25 @@ npf_rte_acl_add_pending_delete_rule(int af, npf_match_ctx_t *m_ctx,
 	else
 		return -EINVAL;
 
-	err = rte_mempool_get(npr_pdel_pool, (void **)&pd);
-	if (err) {
-		RTE_LOG(ERR, DATAPLANE,
-			"Could not allocate pending-delete object from ctx %s\n",
-			m_ctx->ctx_name);
-		return err;
-	}
-	memset(pd, 0, sizeof(*pd));
-
 	err = npf_rte_acl_mempool_get(rule_mempool, NPR_RULE_GROW_ELEMENTS,
-				      (void **)&pd->rule);
+				      (void **)&rule);
 	if (err) {
 		RTE_LOG(ERR, DATAPLANE,
 			"Could not allocate memory pending-delete rule from ctx %s\n",
 			m_ctx->ctx_name);
 		return err;
 	}
-	memset(pd->rule, 0, rule_sz);
-	memcpy(pd->rule, acl_rule, rule_sz);
+	memset(rule, 0, rule_sz);
+	memcpy(rule, acl_rule, rule_sz);
 
-	cds_list_add(&pd->pending_link, &m_ctx->pending_delete);
+	err = rte_ring_enqueue(m_ctx->pdel_ring, rule);
+	if (err < 0) {
+		RTE_LOG(ERR, DATAPLANE,
+			"Could not add entry to pending-delete ring from ctx %s: %s\n",
+			m_ctx->ctx_name,
+			rte_strerror(-err));
+		return err;
+	}
 
 	return 0;
 }
@@ -1659,24 +1649,12 @@ size_t npf_rte_acl_rule_size(int af)
 }
 
 #define M_TRIE_POOL_SIZE 512
-#define PENDING_DELETE_POOL_SIZE 512
 
 int npf_rte_acl_setup(void)
 {
 	int err;
 
 	CDS_INIT_LIST_HEAD(&ctx_list);
-
-	npr_pdel_pool = rte_mempool_create("npr_pdel_pool",
-					   PENDING_DELETE_POOL_SIZE,
-					   sizeof(struct pending_delete),
-					   0, 0, NULL, NULL, NULL, NULL,
-					   SOCKET_ID_ANY, 0);
-	if (!npr_pdel_pool) {
-		RTE_LOG(ERR, DATAPLANE,
-			"Could not create memory pool for pending deletes\n");
-		goto error;
-	}
 
 	npr_mtrie_pool = rte_mempool_create("npr_mtrie_pool", M_TRIE_POOL_SIZE,
 					    sizeof(struct npf_match_ctx_trie),
@@ -1770,11 +1748,6 @@ int npf_rte_acl_teardown(void)
 		npr_mtrie_pool = NULL;
 	}
 
-	if (npr_pdel_pool) {
-		rte_mempool_free(npr_pdel_pool);
-		npr_pdel_pool = NULL;
-	}
-
 	return 0;
 }
 
@@ -1857,26 +1830,23 @@ npf_rte_acl_select_candidate_tries(npf_match_ctx_t *ctx,
 }
 
 static int
-npf_rte_acl_delete_pending_rules(int af, struct npf_match_ctx_trie *new_trie,
-				 struct cds_list_head *delete_list)
+npf_rte_acl_delete_pending_rules(npf_match_ctx_t *ctx,
+				 struct npf_match_ctx_trie *new_trie)
 {
 	int rc;
-	struct pending_delete *pd, *next;
+	struct rte_acl_rule *rule;
 	struct rte_mempool *rule_pool;
 
-	if (af == AF_INET)
+	if (ctx->af == AF_INET)
 		rule_pool = npr_acl4_pool;
-	else if (af == AF_INET6)
+	else if (ctx->af == AF_INET6)
 		rule_pool = npr_acl6_pool;
 	else
 		return -EINVAL;
 
-	if (cds_list_empty(delete_list))
-		return 0;
+	while ((rc = rte_ring_dequeue(ctx->pdel_ring, (void **)&rule)) == 0) {
 
-	cds_list_for_each_entry_safe(pd, next, delete_list, pending_link) {
-
-		rc = npf_rte_acl_trie_del_rule(af, new_trie, pd->rule);
+		rc = npf_rte_acl_trie_del_rule(ctx->af, new_trie, rule);
 		if (rc < 0) {
 			RTE_LOG(ERR, DATAPLANE,
 				"Failed to delete pending rule from merged trie %s: %s\n",
@@ -1884,10 +1854,7 @@ npf_rte_acl_delete_pending_rules(int af, struct npf_match_ctx_trie *new_trie,
 			return rc;
 		}
 
-		cds_list_del_rcu(&pd->pending_link);
-
-		rte_mempool_put(rule_pool, pd->rule);
-		rte_mempool_put(npr_pdel_pool, pd);
+		rte_mempool_put(rule_pool, rule);
 	}
 
 	return 0;
@@ -2061,11 +2028,10 @@ static void npf_rte_acl_optimize_ctx(npf_match_ctx_t *ctx)
 	rte_spinlock_lock(&ctx->merge_lock);
 
 	/* avoid rebuild if there are no pending deletes */
-	if (!cds_list_empty(&ctx->pending_delete)) {
+	if (!rte_ring_empty(ctx->pdel_ring)) {
 
 		/* delete rules in pending list */
-		rc = npf_rte_acl_delete_pending_rules(ctx->af, new_trie,
-						      &ctx->pending_delete);
+		rc = npf_rte_acl_delete_pending_rules(ctx, new_trie);
 		if (rc < 0) {
 			RTE_LOG(ERR, DATAPLANE,
 				"Trie-Optimization: Failed delete pending rules: %s\n",
