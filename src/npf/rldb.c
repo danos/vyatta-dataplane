@@ -20,7 +20,7 @@
 
 #define RLDB_ERR(args...) RTE_LOG(ERR, DATAPLANE, args)
 
-#define RLDB_MAX_RULES    (1 << 13)
+#define RLDB_MAX_RULES    (1 << 17)
 #define RLDB_MAX_ELEMENTS (2 * RLDB_MAX_RULES)
 
 #define GLOBAL_MIN_BUCKETS (2 << 6)
