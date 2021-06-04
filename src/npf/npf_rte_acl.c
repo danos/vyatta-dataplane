@@ -30,8 +30,16 @@ static struct rte_mempool *npr_acl6_pool;
 #define NPR_RULE_MAX_ELEMENTS (1 << 18)
 #define NPR_RULE_GROW_ELEMENTS (1 << 14)
 
+/* limit number of rules in consolidated tries to 32K for optimal build time */
+#define NPR_TRIE_MAX_RULES (1 << 15)
+
+/* pending delete ring size: in worst-case all entries of a merge-trie
+ * might get deleted while the merge-build takes place. So there is need
+ * for pending-delete space for the maximum size of a merge trie
+ */
+#define PDEL_RING_SZ NPR_TRIE_MAX_RULES
+
 #define NPR_ACL_RING_SZ 512
-#define PDEL_RING_SZ 512 /* pending delete ring size */
 
 struct rte_ring *npr_acl4_ring, *npr_acl6_ring;
 
@@ -1799,9 +1807,6 @@ void npf_rte_acl_dump(npf_match_ctx_t *ctx, json_writer_t *wr)
  * rules have been deleted from any of the tries being merged while the
  * consolidated trie is being built, the consolidation is restarted
  */
-
-/* limit number of rules in consolidated tries to 32K for optimal build time */
-#define NPR_TRIE_MAX_RULES (1 << 15)
 
 static void
 npf_rte_acl_select_candidate_tries(npf_match_ctx_t *ctx,
