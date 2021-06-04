@@ -32,6 +32,7 @@ static struct rte_mempool *npr_pdel_pool;
 #define NPR_RULE_GROW_ELEMENTS (1 << 14)
 
 #define NPR_ACL_RING_SZ 512
+#define PDEL_RING_SZ 512
 
 struct rte_ring *npr_acl4_ring, *npr_acl6_ring;
 
@@ -96,6 +97,7 @@ struct npf_match_ctx {
 	struct cds_list_head  ctx_link;   /* linkage for all ctx structures */
 	struct cds_list_head  trie_list;  /* linkage for tries in this ctx */
 	struct cds_list_head  pending_delete; /* list of rules pending delete */
+	struct rte_ring	     *pdel_ring;  /* ring of rules pending delete */
 	char                 *ctx_name;   /* name of match context. Needs to be
 					   * globally unique
 					   */
@@ -804,6 +806,7 @@ int npf_rte_acl_init(int af, const char *name, uint32_t max_rules,
 		     npf_match_ctx_t **m_ctx)
 {
 	char ctx_name[RTE_ACL_NAMESIZE];
+	char ring_name[RTE_RING_NAMESIZE];
 	npf_match_ctx_t *tmp_ctx;
 	struct npf_match_ctx_trie *m_trie;
 	uint16_t rule_size;
@@ -864,6 +867,24 @@ int npf_rte_acl_init(int af, const char *name, uint32_t max_rules,
 	CDS_INIT_LIST_HEAD(&tmp_ctx->trie_list);
 	CDS_INIT_LIST_HEAD(&tmp_ctx->pending_delete);
 
+	err = snprintf(ring_name, sizeof(ring_name), "%s_pdel", name);
+	if (err >= (int)sizeof(ring_name)) {
+		err = -ENAMETOOLONG;
+		RTE_LOG(ERR, DATAPLANE,
+			"Ring name for %s pending-delete too long.\n",
+			name);
+		goto error;
+	}
+
+	tmp_ctx->pdel_ring = rte_ring_create(ring_name, PDEL_RING_SZ, 0, 0);
+	if (!tmp_ctx->pdel_ring) {
+		RTE_LOG(ERR, DATAPLANE,
+			"Could not create pending-delete ring for %s: %s\n",
+			name, rte_strerror(-rte_errno));
+		err = rte_errno;
+		goto error;
+	}
+
 	err = npf_rte_acl_get_trie(tmp_ctx->af, &m_trie);
 	if (err)
 		goto error;
@@ -882,6 +903,9 @@ error:
 		rte_free(tmp_ctx->tr);
 	if (tmp_ctx->ctx_name)
 		free(tmp_ctx->ctx_name);
+	if (tmp_ctx->pdel_ring)
+		rte_ring_free(tmp_ctx->pdel_ring);
+
 	free(tmp_ctx);
 
 	return err;
@@ -1587,6 +1611,7 @@ npf_rte_acl_free(struct rcu_head *head)
 
 	m_ctx = caa_container_of(head, npf_match_ctx_t, rcu);
 
+	rte_ring_free(m_ctx->pdel_ring);
 	free(m_ctx->ctx_name);
 	free(m_ctx);
 }
