@@ -837,7 +837,7 @@ bad:
 	if (net_ratelimit())
 		RTE_LOG(ERR, FIREWALL, "ALG: SIP instance failed: %d\n", rc);
 
-	if (sp->sp_ht) {
+	if (sp && sp->sp_ht) {
 		cds_lfht_destroy(sp->sp_ht, NULL);
 		sp->sp_ht = NULL;
 	}
