@@ -1,3 +1,10 @@
+vyatta-dataplane (3.12.55) unstable; urgency=medium
+
+  * sfp: Use eeprom value for tx power only if interface is up
+  * sfp: Print status byte read from EEPROM
+
+ -- Srinivas Narayan <narayan@vyatta.att-mail.com>  Tue, 08 Jun 2021 17:33:14 +0100
+
 vyatta-dataplane (3.12.54) unstable; urgency=medium
 
   [ Daniel Gollub ]
