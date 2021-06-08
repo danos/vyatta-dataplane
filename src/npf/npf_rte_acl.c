@@ -1987,6 +1987,8 @@ static void npf_rte_acl_optimize_ctx(npf_match_ctx_t *ctx)
 			"Trie-Optimization: Failed to copy rules into new trie: %s\n",
 			strerror(-rc));
 
+		npf_rte_acl_delete_trie(ctx, new_trie);
+
 		/* release merge lock */
 		rte_spinlock_unlock(&ctx->merge_lock);
 
@@ -2002,6 +2004,9 @@ static void npf_rte_acl_optimize_ctx(npf_match_ctx_t *ctx)
 		RTE_LOG(ERR, DATAPLANE,
 			"Trie-Optimization: Failed build new trie: %s\n",
 			strerror(-rc));
+
+		npf_rte_acl_delete_trie(ctx, new_trie);
+
 		return;
 	}
 
@@ -2018,6 +2023,9 @@ static void npf_rte_acl_optimize_ctx(npf_match_ctx_t *ctx)
 			RTE_LOG(ERR, DATAPLANE,
 				"Trie-Optimization: Failed delete pending rules: %s\n",
 				strerror(-rc));
+
+			npf_rte_acl_delete_trie(ctx, new_trie);
+
 			goto done;
 		}
 
@@ -2027,6 +2035,9 @@ static void npf_rte_acl_optimize_ctx(npf_match_ctx_t *ctx)
 			RTE_LOG(ERR, DATAPLANE,
 				"Trie-Optimization: Failed rebuild new trie: %s\n",
 				strerror(-rc));
+
+			npf_rte_acl_delete_trie(ctx, new_trie);
+
 			goto done;
 		}
 	}
