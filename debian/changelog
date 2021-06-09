@@ -1,3 +1,12 @@
+vyatta-dataplane (3.11.72.22) unstable; urgency=medium
+
+  [ Mark Gillott ]
+  * ecmp: add new next-hop flag - RTF_NH_NEEDS_HW_RES (Fixes: VRVDR-53410)
+  * ecmp: force IPv6 resolution (ND6) for each ECMP member (Fixes: VRVDR-53410)
+  * ecmp: force IPv4 resolution (ARP) for each ECMP member (Fixes: VRVDR-53410)
+
+ -- Srinivas Narayan <narayan@vyatta.att-mail.com>  Wed, 09 Jun 2021 10:07:49 +0100
+
 vyatta-dataplane (3.11.72.21) unstable; urgency=medium
 
   * sfp: Use eeprom value for tx power only if interface is up
