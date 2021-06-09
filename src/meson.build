@@ -171,6 +171,11 @@ gpc_sources = files(
         'gpc/gpc_util.c'
 )
 
+twamp_sources = files(
+        'twamp_ctrl.c',
+        'twamp_io.c',
+)
+
 npf_sources = files(
         'npf/alg/alg_apt.c',
         'npf/apm/apm.c',
@@ -338,6 +343,7 @@ dataplane_common_sources = [
         crypto_sources,
         dpi_sources,
         gpc_sources,
+        twamp_sources,
         ipv6_sources,
         mpls_sources,
         npf_sources,

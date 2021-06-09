@@ -126,6 +126,7 @@
 #include "session/session.h"
 #include "lcore_sched.h"
 #include "lcore_sched_internal.h"
+#include "twamp.h"
 #include "udp_handler.h"
 #include "util.h"
 #include "version.h"
@@ -3661,6 +3662,7 @@ main(int argc, char **argv)
 	dp_crypto_init();
 	vrf_init();
 	qos_init();
+	twamp_init();
 	main_worker_thread_init();
 	/* needs to be after features have had a chance to register */
 	dp_lcore_events_init(rte_lcore_id());
@@ -3689,6 +3691,7 @@ main(int argc, char **argv)
 	crypto_pmd_remove_all();
 	stop_all_ports();
 
+	twamp_shutdown();
 	device_server_destroy();
 	console_destroy();
 	zactor_destroy(&vplane_auth);
