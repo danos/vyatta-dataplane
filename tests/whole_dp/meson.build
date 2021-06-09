@@ -138,6 +138,7 @@ check_tests = [
         'dp_test_switch.c',
         'dp_test_switch_vlan.c',
         'dp_test_tcp_mss_clamp.c',
+        'dp_test_twamp.c',
         'dp_test_vrf.c',
         'dp_test_vti.c',
         'dp_test_vxlan.c',
