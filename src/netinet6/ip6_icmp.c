@@ -59,10 +59,10 @@ static bool ip6_redirects = true;
  * default values.
  */
 struct icmp_ratelimit_state icmp6_ratelimit_state[] = {
-	[ICMP6_DST_UNREACH] = {.name = "dest-unreach"},
-	[ICMP6_PACKET_TOO_BIG] = {.name = "pkt-toobig"},
+	[ICMP6_DST_UNREACH] = {.name = "destination-unreachable"},
+	[ICMP6_PACKET_TOO_BIG] = {.name = "too-big"},
 	[ICMP6_TIME_EXCEEDED] = {.name = "time-exceeded"},
-	[ICMP6_PARAM_PROB] = {.name = "param-prob"},
+	[ICMP6_PARAM_PROB] = {.name = "parameter-problem"},
 };
 
 struct icmp_ratelimit_state *icmp6_get_rl_state(void)

@@ -103,7 +103,7 @@ uint64_t icmpstats[ICMP_MIB_MAX];
  */
 #define ICMP_RATELIMIT_TYPE_DEFAULT 0
 struct icmp_ratelimit_state icmp_ratelimit_state[] = {
-	[ICMP_DEST_UNREACH] = {.name = "dest-unreach"},
+	[ICMP_DEST_UNREACH] = {.name = "destination-unreachable"},
 	[ICMP_TIME_EXCEEDED] = {.name = "time-exceeded"},
 	[ICMP_REDIRECT] = {.name = "redirect"},
 };
@@ -998,15 +998,13 @@ static uint32_t icmp_ratelimit_get_n_min_drop_count(int mins, struct icmp_rateli
 static void json_one_entry(json_writer_t *wr, struct icmp_ratelimit_state *rl)
 {
 	jsonw_start_object(wr);
-	jsonw_name(wr, rl->name);
-	jsonw_start_object(wr);
+	jsonw_string_field(wr, "icmp-type", rl->name);
 	jsonw_uint_field(wr, "limit", rl->max_rate);
 	jsonw_uint_field(wr, "sent", rl->total_sent);
 	jsonw_uint_field(wr, "dropped", rl->total_dropped);
-	jsonw_uint_field(wr, "1min_drop", icmp_ratelimit_get_n_min_drop_count(1, rl));
-	jsonw_uint_field(wr, "3min_drop", icmp_ratelimit_get_n_min_drop_count(3, rl));
-	jsonw_uint_field(wr, "5min_drop", icmp_ratelimit_get_n_min_drop_count(5, rl));
-	jsonw_end_object(wr);
+	jsonw_uint_field(wr, "dropped-1-min", icmp_ratelimit_get_n_min_drop_count(1, rl));
+	jsonw_uint_field(wr, "dropped-3-min", icmp_ratelimit_get_n_min_drop_count(3, rl));
+	jsonw_uint_field(wr, "dropped-5-min", icmp_ratelimit_get_n_min_drop_count(5, rl));
 	jsonw_end_object(wr);
 }
 
@@ -1044,7 +1042,7 @@ int cmd_icmp_rl(FILE *f, int argc, char **argv)
 
 	if (!strncmp(argv[1], "show", 5)) {
 		wr = jsonw_new(f);
-		jsonw_name(wr, "icmp-ratelimit");
+		jsonw_name(wr, "icmp-types");
 
 		jsonw_start_array(wr);
 
