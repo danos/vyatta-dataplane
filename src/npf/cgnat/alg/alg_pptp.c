@@ -529,10 +529,30 @@ int cgn_alg_pptp_inspect(struct cgn_packet *cpk, struct rte_mbuf *mbuf,
 	case PPTP_CALL_CLEAR_REQ:
 	case PPTP_CALL_DISCONN_NOTIFY:
 		cgn_alg_pptp_call_clear(as, pptp_call);
-		break;
 
+		/* Fall through */
 	default:
-		/* Nothing to inspect */
+		/*
+		 * It is useful to always note the Call ID values when message
+		 * types other than PPTP_OUT_CALL_REQ and PPTP_OUT_CALL_REPLY
+		 * are seen.  For example, if a session is manually closed on
+		 * the vRouter then msgs from the client may create new
+		 * short-lived parent sessions.  In these cases saving the
+		 * Call IDs helps identify them.
+		 */
+		if (PPTP_MSG_HAS_CALL_ID(ctrl_type)) {
+			if (dir == CGN_DIR_OUT) {
+				/* Out */
+				if (aps->aps_orig_call_id == 0)
+					aps->aps_orig_call_id =
+						pptp_call->pptp_call_id;
+			} else {
+				/* In */
+				if (aps->aps_peer_call_id == 0)
+					aps->aps_peer_call_id =
+						pptp_call->pptp_call_id;
+			}
+		}
 		break;
 	};
 
