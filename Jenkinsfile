@@ -37,6 +37,9 @@ pipeline {
         // CHANGE_TARGET is set for PRs.
         // When CHANGE_TARGET is not set it's a regular build so we use BRANCH_NAME.
         REF_BRANCH = "${env.CHANGE_TARGET != null ? env.CHANGE_TARGET : env.BRANCH_NAME}"
+        // Use env vars if set, else blank.
+        OSC_BUILD_ARGS = "${env.OSC_BUILD_ARGS != null ? env.OSC_BUILD_ARGS : ' '}"
+        NINJA_ARGS = "${env.NINJA_ARGS != null ? env.NINJA_ARGS : ' '}"
     }
 
     options {
@@ -75,9 +78,10 @@ pipeline {
                                             export JENKINS_NODE_COOKIE=\"${JENKINS_NODE_COOKIE}\"
                                             export DH_VERBOSE=1 DH_QUIET=0
                                             export DEB_BUILD_OPTIONS='verbose all_tests sanitizer'
+                                            export NINJA_ARGS=\"$NINJA_ARGS\"
                                             dpkg-buildpackage -jauto -us -uc -b
                                         """.stripIndent()
-                                    sh "osc -v -A ${env.OBS_INSTANCE} build --download-api-only --local-package --no-service --trust-all-projects --build-uid=caller --alternative-project=${env.OBS_TARGET_PROJECT} ${env.OBS_TARGET_REPO} ${env.OBS_TARGET_ARCH}"
+                                    sh "osc -v -A ${env.OBS_INSTANCE} build ${OSC_BUILD_ARGS} --download-api-only --local-package --no-service --trust-all-projects --build-uid=caller --alternative-project=${env.OBS_TARGET_PROJECT} ${env.OBS_TARGET_REPO} ${env.OBS_TARGET_ARCH}"
                                 }
                             }
                             post {
@@ -109,10 +113,10 @@ pipeline {
                                             export JENKINS_NODE_COOKIE=\"${JENKINS_NODE_COOKIE}\"
                                             export CC=clang CCX=clang++
                                             meson builddir && cd builddir
-                                            ninja clang-tidy >& clang-tidy.log
+                                            ninja ${NINJA_ARGS} clang-tidy >& clang-tidy.log
                                             sed -i 's|/usr/src/packages/BUILD|${WORKSPACE}/vyatta-dataplane|g' clang-tidy.log
                                         """.stripIndent()
-                                    sh "osc -v -A ${env.OBS_INSTANCE} build --download-api-only --local-package --no-service --trust-all-projects --build-uid=caller --nochecks --extra-pkgs='clang-tidy' --extra-pkgs='clang' --alternative-project=${env.OBS_TARGET_PROJECT} ${env.OBS_TARGET_REPO} ${env.OBS_TARGET_ARCH}"
+                                    sh "osc -v -A ${env.OBS_INSTANCE} build ${OSC_BUILD_ARGS} --download-api-only --local-package --no-service --trust-all-projects --build-uid=caller --nochecks --extra-pkgs='clang-tidy' --extra-pkgs='clang' --alternative-project=${env.OBS_TARGET_PROJECT} ${env.OBS_TARGET_REPO} ${env.OBS_TARGET_ARCH}"
                                 }
                             }
                             post {
