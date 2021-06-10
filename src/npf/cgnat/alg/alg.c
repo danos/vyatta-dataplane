@@ -23,6 +23,7 @@
 #include "npf/cgnat/alg/alg_pinhole.h"
 #include "npf/cgnat/alg/alg_pptp.h"
 #include "npf/cgnat/alg/alg_rc.h"
+#include "npf/cgnat/alg/alg.h"
 
 /*
  * Bitmap of enabled ALGs (CGN_ALG_BIT_FTP etc.)
@@ -47,6 +48,17 @@ static uint8_t cgn_alg_enabled;
  * control (or 'parent') session.
  */
 static uint16_t cgn_alg_dport[NAT_PROTO_COUNT][CGN_ALG_MAX];
+
+/* Simple global counters for non-packet inspection items */
+struct cgn_alg_stats_alg {
+	uint64_t	count[CGN_ALG_STATS_MAX];
+};
+
+struct cgn_alg_stats {
+	struct cgn_alg_stats_alg alg[CGN_ALG_MAX];
+};
+
+static struct cgn_alg_stats *cgn_alg_stats;
 
 enum cgn_alg_id cgn_alg_get_id(struct cgn_alg_sess_ctx *as)
 {
@@ -262,6 +274,78 @@ end:
 	return rc < 0 ? -CGN_ALG_ERR_INSP : 0;
 }
 
+uint64_t cgn_alg_stats_read(enum cgn_alg_id id, enum cgn_alg_stat_e stat)
+{
+	uint64_t sum;
+	uint i;
+
+	assert(id <= CGN_ALG_LAST);
+	assert(stat <= CGN_ALG_STATS_LAST);
+
+	if (!cgn_alg_stats)
+		return 0UL;
+
+	sum = 0UL;
+	FOREACH_DP_LCORE(i)
+		sum += cgn_alg_stats[i].alg[id].count[stat];
+
+	return sum;
+}
+
+/*
+ * These are ever increasing counts, so to 'clear' them we subtract the same
+ * 'destroyed' count value from both the 'destroyed' and 'created' counts.
+ */
+void cgn_alg_stats_clear(enum cgn_alg_id id)
+{
+	uint i;
+
+	assert(id <= CGN_ALG_LAST);
+
+	if (!cgn_alg_stats)
+		return;
+
+	FOREACH_DP_LCORE(i) {
+		uint64_t tmp;
+
+		tmp = cgn_alg_stats[i].alg[id].count[CAS_CTRL_SESS_DSTD];
+		if (tmp) {
+			cgn_alg_stats[i].alg[id].count[CAS_CTRL_SESS_DSTD] -= tmp;
+			cgn_alg_stats[i].alg[id].count[CAS_CTRL_SESS_CRTD] -= tmp;
+		}
+
+		tmp = cgn_alg_stats[i].alg[id].count[CAS_DATA_SESS_DSTD];
+		if (tmp) {
+			cgn_alg_stats[i].alg[id].count[CAS_DATA_SESS_DSTD] -= tmp;
+			cgn_alg_stats[i].alg[id].count[CAS_DATA_SESS_CRTD] -= tmp;
+		}
+	}
+}
+
+void cgn_alg_stats_inc(enum cgn_alg_id id, enum cgn_alg_stat_e stat)
+{
+	assert(id <= CGN_ALG_LAST);
+	assert(stat <= CGN_ALG_STATS_LAST);
+
+	if (likely(cgn_alg_stats != NULL))
+		cgn_alg_stats[dp_lcore_id()].alg[id].count[stat]++;
+}
+
+static void cgn_alg_stats_init(void)
+{
+	if (cgn_alg_stats)
+		return;
+
+	cgn_alg_stats = zmalloc_aligned((get_lcore_max() + 1) *
+					sizeof(*cgn_alg_stats));
+}
+
+static void cgn_alg_stats_uninit(void)
+{
+	free(cgn_alg_stats);
+	cgn_alg_stats = NULL;
+}
+
 /**************************************************************************
  * Configuration
  **************************************************************************/
@@ -383,7 +467,7 @@ static void cgn_alg_show_status(json_writer_t *json)
 		id_bit = CGN_ALG_BIT(id);
 
 		/* Temporary while PPTP is only alg available in Yang */
-		if (id != CGN_ALG_PPTP)
+		if (id != CGN_ALG_PPTP && (cgn_alg_enabled & id_bit) == 0)
 			continue;
 
 		jsonw_start_object(json);
@@ -405,6 +489,61 @@ static void cgn_alg_show_status(json_writer_t *json)
 }
 
 /*
+ * Show stats for ALG sessions
+ */
+static void cgn_alg_show_session_stats(json_writer_t *json)
+{
+	enum cgn_alg_id id;
+
+	jsonw_name(json, "sessions");
+	jsonw_start_object(json);
+
+	for (id = CGN_ALG_FIRST; id <= CGN_ALG_LAST; id++) {
+		uint8_t id_bit = CGN_ALG_BIT(id);
+
+		/* Temporary while PPTP is only alg available in Yang */
+		if (id != CGN_ALG_PPTP && (cgn_alg_enabled & id_bit) == 0)
+			continue;
+
+		jsonw_name(json, cgn_alg_id_name(id));
+		jsonw_start_object(json);
+
+		jsonw_uint_field(
+			json, "ctrl_sessions_crtd",
+			cgn_alg_stats_read(id, CAS_CTRL_SESS_CRTD));
+		jsonw_uint_field(
+			json, "data_sessions_crtd",
+			cgn_alg_stats_read(id, CAS_DATA_SESS_CRTD));
+		jsonw_uint_field(
+			json, "ctrl_sessions_dstd",
+			cgn_alg_stats_read(id, CAS_CTRL_SESS_DSTD));
+		jsonw_uint_field(
+			json, "data_sessions_dstd",
+			cgn_alg_stats_read(id, CAS_DATA_SESS_DSTD));
+
+		jsonw_end_object(json);
+	}
+
+	jsonw_end_object(json);
+}
+
+static void cgn_alg_show_summary(json_writer_t *json)
+{
+	jsonw_name(json, "summary");
+	jsonw_start_object(json);
+
+	cgn_alg_show_status(json);
+
+	jsonw_name(json, "stats");
+	jsonw_start_object(json);
+
+	cgn_alg_show_session_stats(json);
+
+	jsonw_end_object(json);
+	jsonw_end_object(json);
+}
+
+/*
  * Show ALG
  */
 void cgn_alg_show(FILE *f, int argc, char **argv)
@@ -422,13 +561,40 @@ void cgn_alg_show(FILE *f, int argc, char **argv)
 	jsonw_name(json, "alg");
 	jsonw_start_object(json);
 
+	/* Default to show status */
 	if (argc == 0 || !strcmp(argv[0], "status"))
 		cgn_alg_show_status(json);
+
+	if (argc >= 1 && !strcmp(argv[0], "summary"))
+		cgn_alg_show_summary(json);
 
 	jsonw_end_object(json);
 	jsonw_destroy(&json);
 }
 
+static void cgn_alg_clear_session_stats(void)
+{
+	enum cgn_alg_id id;
+
+	for (id = CGN_ALG_FIRST; id <= CGN_ALG_LAST; id++)
+		cgn_alg_stats_clear(id);
+}
+
+/*
+ * Clear ALG
+ */
+void cgn_alg_clear(int argc, char **argv)
+{
+	/* Remove "cgn-op clear alg" */
+	argc -= 3;
+	argv += 3;
+
+	if (argc == 0 || !strcmp(argv[0], "stats")) {
+
+		if (argc < 2 || !strcmp(argv[1], "session"))
+			cgn_alg_clear_session_stats();
+	}
+}
 
 /**************************************************************************
  * Initialisation
@@ -440,6 +606,7 @@ void cgn_alg_show(FILE *f, int argc, char **argv)
 void cgn_alg_init(void)
 {
 	alg_rc_init();
+	cgn_alg_stats_init();
 }
 
 /*
@@ -449,4 +616,5 @@ void cgn_alg_uninit(void)
 {
 	alg_pinhole_uninit();
 	alg_rc_uninit();
+	cgn_alg_stats_uninit();
 }

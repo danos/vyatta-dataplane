@@ -165,6 +165,11 @@ void cgn_alg_show_session(struct json_writer *json, struct cgn_sess_fltr *fltr,
 void cgn_alg_show(FILE *f, int argc, char **argv);
 
 /**
+ * Clear CGNAT ALG inspect and session stats
+ */
+void cgn_alg_clear(int argc, char **argv);
+
+/**
  * Enable ALG
  */
 int cgn_alg_enable(const char *name);

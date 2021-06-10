@@ -248,6 +248,9 @@ int cmd_cgn_op(FILE *f, int argc, char **argv)
 		else if (!strcmp(argv[2], "errors"))
 			cgn_clear_errors(argc, argv);
 
+		else if (!strcmp(argv[2], "alg"))
+			cgn_alg_clear(argc, argv);
+
 		return 0;
 	}
 

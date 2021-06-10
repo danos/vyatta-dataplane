@@ -96,7 +96,7 @@ void cgn_alg_common_session_init(struct cgn_alg_sess_ctx *as,
  * A new CGNAT ALG control session has just been created.
  */
 static struct cgn_alg_sess_ctx *
-cgn_alg_parent_session_init(struct cgn_session *cse __unused,
+cgn_alg_parent_session_init(struct cgn_session *cse,
 			    enum nat_proto proto,
 			    enum cgn_alg_id alg_id)
 {
@@ -128,6 +128,7 @@ cgn_alg_parent_session_init(struct cgn_session *cse __unused,
 	as->as_alg_id = alg_id;
 	as->as_proto = proto;
 	as->as_min_payload = cgn_alg_payload_min[alg_id];
+	cgn_alg_stats_inc(alg_id, CAS_CTRL_SESS_CRTD);
 
 	return as;
 }
@@ -166,6 +167,7 @@ cgn_alg_child_session_init(struct cgn_session *child_cse, enum nat_proto proto,
 	as->as_alg_id = alg_id;
 	as->as_proto = proto;
 	as->as_is_child = true;
+	cgn_alg_stats_inc(alg_id, CAS_DATA_SESS_CRTD);
 
 	cgn_session_alg_set(child_cse, as);
 
@@ -237,7 +239,7 @@ int cgn_alg_session_init(struct cgn_packet *cpk, struct cgn_session *cse,
  * Note that the session 'expired' flag will have already been set so the
  * session will no longer be findable by pkts in the session table.
  */
-void cgn_alg_session_uninit(struct cgn_session *cse __unused,
+void cgn_alg_session_uninit(struct cgn_session *cse,
 			    struct cgn_alg_sess_ctx *as)
 {
 	/* Expire all pinholes matching this session */
@@ -263,13 +265,18 @@ void cgn_alg_session_uninit(struct cgn_session *cse __unused,
 
 	/* If this is a child session, then unlink from parent */
 	cgn_alg_session_unlink_child(as);
+
+	if (!as->as_is_child)
+		cgn_alg_stats_inc(as->as_alg_id, CAS_CTRL_SESS_DSTD);
+	else
+		cgn_alg_stats_inc(as->as_alg_id, CAS_DATA_SESS_DSTD);
 }
 
 /*
  * Sub-session init.  Currently only called when the CGNAT main session is an
  * ALG child sessions.
  */
-int cgn_alg_sess2_init(struct cgn_packet *cpk __unused, struct cgn_sess2 *s2)
+int cgn_alg_sess2_init(struct cgn_packet *cpk, struct cgn_sess2 *s2)
 {
 	struct cgn_session *cse = cgn_sess2_session(s2);
 	struct cgn_alg_sess_ctx *as;
