@@ -329,6 +329,117 @@ DP_START_TEST(twamp_session, errors)
 
 } DP_END_TEST;
 
+DP_START_TEST(twamp_session, ip4createdelete)
+{
+	TWAMPSessionCreate create;
+	TWAMPSessionCounters counters;
+	TWAMPSessionDelete delete;
+	TWAMPSessionKey key;
+	struct tw_address laddr = {
+		.addrstr = "9.9.9.9"
+	};
+	struct tw_address raddr = {
+		.addrstr = "8.8.8.8"
+	};
+
+	uint16_t lport = PORT1;
+	uint16_t rport = PORT2;
+	struct dp_test_twamp_response resp;
+
+	dp_test_twamp_build_key(&key, &laddr, &raddr, lport, rport);
+	TWAMP_CREATE_DEFAULT(&create, &key, &resp);
+	dp_test_assert_internal(resp.status == 0);
+	dp_test_assert_internal(resp.has_counters == 0);
+
+	json_object *expected = dp_test_json_create(
+		"{\"twamp-sessions\":"
+		"["
+		"{\"local-port\":%d,\"remote-port\":%d,"
+		" \"local-address\":\"%s\",\"remote-address\":\"%s\"}"
+		"]}",
+		lport, rport, laddr.addrstr, raddr.addrstr);
+	dp_test_check_json_state("vyatta:twamp dump", expected,
+				 DP_TEST_JSON_CHECK_SUBSET, false);
+	json_object_put(expected);
+
+	dp_test_twamp_build_counters(&counters, &key, &resp);
+	dp_test_assert_internal(resp.status == 0);
+	dp_test_assert_internal(resp.has_counters == 1);
+	dp_test_assert_internal(resp.tx_pkts == 0);
+	dp_test_assert_internal(resp.rx_pkts == 0);
+
+	dp_test_twamp_build_delete(&delete, &key, &resp);
+	dp_test_assert_internal(resp.status == 0);
+	dp_test_assert_internal(resp.has_counters == 0);
+
+	expected = dp_test_json_create("{\"twamp-sessions\":[]}");
+	dp_test_check_json_state("vyatta:twamp dump", expected,
+				 DP_TEST_JSON_CHECK_EXACT, false);
+	json_object_put(expected);
+
+	dp_test_twamp_build_counters(&counters, &key, &resp);
+	dp_test_assert_internal(resp.status != 0);
+	dp_test_assert_internal(resp.has_counters == 0);
+	dp_test_twamp_build_delete(&delete, &key, &resp);
+	dp_test_assert_internal(resp.status == 0);
+	dp_test_assert_internal(resp.has_counters == 0);
+
+	expected = dp_test_json_create("{\"twamp-sessions\":[]}");
+	dp_test_check_json_state("vyatta:twamp dump", expected,
+				 DP_TEST_JSON_CHECK_EXACT, false);
+	json_object_put(expected);
+
+} DP_END_TEST;
+
+DP_START_TEST(twamp_session, ip6createdelete)
+{
+	TWAMPSessionCreate create;
+	TWAMPSessionCounters counters;
+	TWAMPSessionDelete delete;
+	TWAMPSessionKey key;
+	struct tw_address laddr = {
+		.addrstr = "2001:1::1"
+	};
+	struct tw_address raddr = {
+		.addrstr = "2001:1::2"
+	};
+	uint16_t lport = PORT1;
+	uint16_t rport = PORT2;
+	struct dp_test_twamp_response resp;
+
+	dp_test_twamp_build_key(&key, &laddr, &raddr, lport, rport);
+	TWAMP_CREATE_DEFAULT(&create, &key, &resp);
+	dp_test_assert_internal(resp.status == 0);
+	dp_test_assert_internal(resp.has_counters == 0);
+
+	json_object *expected = dp_test_json_create(
+		"{\"twamp-sessions\":"
+		"["
+		"{\"local-port\":%d,\"remote-port\":%d,"
+		" \"local-address\":\"%s\",\"remote-address\":\"%s\"}"
+		"]}",
+		lport, rport, laddr.addrstr, raddr.addrstr);
+	dp_test_check_json_state("vyatta:twamp dump", expected,
+				 DP_TEST_JSON_CHECK_SUBSET, false);
+	json_object_put(expected);
+
+	dp_test_twamp_build_counters(&counters, &key, &resp);
+	dp_test_assert_internal(resp.status == 0);
+	dp_test_assert_internal(resp.has_counters == 1);
+	dp_test_assert_internal(resp.tx_pkts == 0);
+	dp_test_assert_internal(resp.rx_pkts == 0);
+
+	dp_test_twamp_build_delete(&delete, &key, &resp);
+	dp_test_assert_internal(resp.status == 0);
+	dp_test_assert_internal(resp.has_counters == 0);
+
+	expected = dp_test_json_create("{\"twamp-sessions\":[]}");
+	dp_test_check_json_state("vyatta:twamp dump", expected,
+				 DP_TEST_JSON_CHECK_EXACT, false);
+	json_object_put(expected);
+
+} DP_END_TEST;
+
 DP_DECL_TEST_CASE(twamp_offload_suite, twamp_init, NULL, NULL);
 
 DP_START_TEST(twamp_init, init)
