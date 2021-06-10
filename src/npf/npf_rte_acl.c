@@ -385,48 +385,69 @@ static int
 npf_rte_acl_mempool_grow(struct rte_mempool *pool, size_t nb)
 {
 	int rc;
-	size_t mz_len;
 	const struct rte_memzone *mz;
 	char mz_name[RTE_MEMZONE_NAMESIZE];
+	size_t n, align, min_chunk_size;
+	ssize_t mem_size;
 
 	if (!pool || nb == 0)
 		return -EINVAL;
 
-	mz_len = pool->elt_size * nb;
+	/* don't grow larger then the pool allows */
+	nb = RTE_MIN(nb, pool->size - pool->populated_size);
 
-	rc = snprintf(mz_name, sizeof(mz_name), "%s_%u", pool->name,
-		      pool->nb_mem_chunks);
-	if (rc >= (int)sizeof(mz_name)) {
-		rc = -ENAMETOOLONG;
-		RTE_LOG(ERR, DATAPLANE,
-			"Could not reserve additional memory for %s: %s\n",
-			pool->name, rte_strerror(-rc));
-		return rc;
-	}
-	mz = rte_memzone_reserve_aligned(mz_name, mz_len, -1,
-					 RTE_MEMZONE_IOVA_CONTIG,
-					 RTE_CACHE_LINE_SIZE);
-	if (mz == NULL) {
-		RTE_LOG(ERR, DATAPLANE,
-			"Could not reserve additional memory for %s: %s\n",
-			pool->name, rte_strerror(rte_errno));
-		return -rte_errno;
-	}
+	for (n = nb; n > 0; n -= rc) {
 
-	rc = rte_mempool_populate_iova(pool, mz->addr, mz->iova,
-				       mz->len, npf_rte_acl_mempool_mz_free,
-				       (void *)(uintptr_t)mz);
-	if (rc < 0) {
-		RTE_LOG(ERR, DATAPLANE,
-			"Could not grow the memory pool %s: %s\n",
-			pool->name, rte_strerror(-rc));
-		goto error;
-	} else if (rc == 0) {
-		RTE_LOG(ERR, DATAPLANE,
-			"Could not grow the memory pool %s: Not enough room for one contiguous object\n",
-			pool->name);
-		rc = -ENOBUFS;
-		goto error;
+		mem_size = rte_mempool_op_calc_mem_size_default(pool, n, 0,
+								&min_chunk_size,
+								&align);
+		if (mem_size < 0) {
+			RTE_LOG(ERR, DATAPLANE,
+				"Failed to calculate memory size for memory pool %s: %s\n",
+				pool->name, rte_strerror(-mem_size));
+			return mem_size;
+		}
+
+		rc = snprintf(mz_name, sizeof(mz_name), "%s_%u", pool->name,
+			      pool->nb_mem_chunks);
+		if (rc >= (int)sizeof(mz_name)) {
+			rc = -ENAMETOOLONG;
+			RTE_LOG(ERR, DATAPLANE,
+				"Could not reserve additional memory for %s: %s\n",
+				pool->name, rte_strerror(-rc));
+			return rc;
+		}
+		mz = rte_memzone_reserve_aligned(mz_name, mem_size, -1,
+						 RTE_MEMZONE_IOVA_CONTIG,
+						 align);
+		if (mz == NULL) {
+			RTE_LOG(ERR, DATAPLANE,
+				"Could not reserve additional memory for %s: %s\n",
+				pool->name, rte_strerror(rte_errno));
+			return -rte_errno;
+		}
+
+		rc = rte_mempool_populate_iova(pool, mz->addr, mz->iova,
+					       mz->len,
+					       npf_rte_acl_mempool_mz_free,
+					       (void *)(uintptr_t)mz);
+
+		/* unexpected */
+		if (rc == 0)
+			rc = -ENOBUFS;
+
+		if (rc < 0) {
+			RTE_LOG(ERR, DATAPLANE,
+				"Could not grow the memory pool %s: %s\n",
+				pool->name, rte_strerror(-rc));
+			goto error;
+		} else if (rc == 0) {
+			RTE_LOG(ERR, DATAPLANE,
+				"Could not grow the memory pool %s: Not enough room for one contiguous object\n",
+				pool->name);
+			rc = -ENOBUFS;
+			goto error;
+		}
 	}
 
 	return 0;
