@@ -329,6 +329,72 @@ DP_START_TEST(twamp_session, errors)
 
 } DP_END_TEST;
 
+DP_START_TEST(twamp_session, scale)
+{
+#define SESSION_COUNT 128
+	TWAMPSessionCreate create;
+	TWAMPSessionDelete delete;
+	TWAMPInitialise init;
+	TWAMPSessionKey key[SESSION_COUNT];
+	struct tw_address laddr[SESSION_COUNT];
+	struct tw_address raddr[SESSION_COUNT];
+	uint16_t lport = PORT3;
+	uint16_t rport = PORT4;
+	struct dp_test_twamp_response resp;
+	json_object *expected;
+	int host;
+
+	for (host = 0; host < SESSION_COUNT; host++) {
+		struct tw_address *l = &laddr[host];
+		struct tw_address *r = &raddr[host];
+
+		snprintf(l->addrbuf, sizeof(l->addrbuf), "2001:1::%d", host+1);
+		snprintf(r->addrbuf, sizeof(r->addrbuf), "2002:2::%d", host+1);
+		l->addrstr = l->addrbuf;
+		r->addrstr = r->addrbuf;
+		dp_test_twamp_build_key(&key[host], l, r, lport, rport);
+	}
+
+	for (host = 0; host < SESSION_COUNT; host++) {
+		struct tw_address *l = &laddr[host];
+		struct tw_address *r = &raddr[host];
+
+		TWAMP_CREATE_DEFAULT(&create, &key[host], &resp);
+		dp_test_assert_internal(resp.status == 0);
+		dp_test_assert_internal(resp.has_counters == 0);
+
+		expected = dp_test_json_create(
+			"{\"twamp-sessions\":"
+			"["
+			"{\"local-port\":%d,\"remote-port\":%d,"
+			" \"local-address\":\"%s\",\"remote-address\":\"%s\"}"
+			"]}",
+			lport, rport, l->addrstr, r->addrstr);
+		dp_test_check_json_state("vyatta:twamp dump", expected,
+					 DP_TEST_JSON_CHECK_SUBSET, false);
+		json_object_put(expected);
+	}
+
+	for (host = 0; host < SESSION_COUNT; host++) {
+		dp_test_twamp_build_delete(&delete, &key[host], &resp);
+		dp_test_assert_internal(resp.status == 0);
+	}
+
+	for (host = 0; host < SESSION_COUNT; host++) {
+		TWAMP_CREATE_DEFAULT(&create, &key[host], &resp);
+		dp_test_assert_internal(resp.status == 0);
+		dp_test_assert_internal(resp.has_counters == 0);
+	}
+
+	dp_test_twamp_build_init(&init, NULL, &resp);
+	dp_test_assert_internal(resp.status == 0);
+
+	expected = dp_test_json_create("{\"twamp-sessions\":[]}");
+	dp_test_check_json_state("vyatta:twamp dump", expected,
+				 DP_TEST_JSON_CHECK_EXACT, false);
+	json_object_put(expected);
+} DP_END_TEST;
+
 DP_START_TEST(twamp_session, ip4createdelete)
 {
 	TWAMPSessionCreate create;
