@@ -343,10 +343,83 @@ tw_reflect(struct rte_mbuf *m, struct udphdr *udp, uint8_t ttlhop,
 	return rc;
 }
 
-int
-twamp_input_ipv4(struct rte_mbuf *m, void *l3hdr __unused,
-		 struct udphdr *udp __unused, struct ifnet *ifp __unused)
+static void
+tw_send_ipv4(struct rte_mbuf *m, struct iphdr *ip, struct udphdr *udp)
 {
+	struct in_addr ipaddr;
+	uint16_t port;
+
+	/*
+	 * Any stray IP options? If so squish them before generating
+	 * the reply header.
+	 */
+	if (dp_pktmbuf_l3_len(m) != sizeof(*ip)) {
+		struct iphdr *newip;
+		int trim;
+
+		trim = ((char *)udp - (char *)ip) - sizeof(*ip);
+		rte_pktmbuf_adj(m, trim);
+		newip = iphdr(m);
+		memmove(newip, ip, sizeof(*ip));
+		newip->ihl = 5;
+		dp_pktmbuf_l3_len(m) = sizeof(*newip);
+		ip = newip;
+	}
+
+	ipaddr.s_addr = ip->saddr;
+	ip->saddr = ip->daddr;
+	ip->daddr = ipaddr.s_addr;
+	ip->ttl = TWAMP_TEST_TX_PKT_IPV4_TTL;
+	ip->tot_len = htons(sizeof(*ip) + ntohs(udp->len));
+	ip->id = dp_ip_randomid(0);
+	ip->check = 0;
+	ip->check = dp_in_cksum_hdr(ip);
+
+	port = udp->dest;
+	udp->dest = udp->source;
+	udp->source = port;
+	if (udp->check != 0) {
+		udp->check = 0;
+		udp->check = dp_in4_cksum_mbuf(m, ip, udp);
+	}
+	ip_output(m, false);
+}
+
+int
+twamp_input_ipv4(struct rte_mbuf *m, void *l3hdr,
+		 struct udphdr *udp, struct ifnet *ifp)
+{
+	struct twamp_timestamp arrival_ts;
+	struct tw_session_entry *entry;
+	struct tw_session_entry *e;
+	struct iphdr *ip = l3hdr;
+
+	if (tw_clock_gettime(&arrival_ts, true, "arrival") < 0)
+		goto error;
+
+	pktmbuf_set_vrf(m, if_vrfid(ifp));
+	entry = NULL;
+	cds_list_for_each_entry_rcu(e, &tw_session_list_head, list)
+		if ((e->session.af == AF_INET) &&
+		    (udp->source == e->session.rport) &&
+		    (udp->dest == e->session.lport) &&
+		    (ip->saddr == e->session.raddr.address.ip_v4.s_addr) &&
+		    (ip->daddr == e->session.laddr.address.ip_v4.s_addr)) {
+			entry = e;
+			break;
+		}
+
+	if (entry == NULL)
+		goto error;
+
+	if (tw_reflect(m, udp, ip->ttl, &arrival_ts, entry) < 0)
+		goto error;
+
+	tw_send_ipv4(m, ip, udp);
+	entry->session.tx_pkts++;
+	return 0;
+
+error:
 	rte_pktmbuf_free(m);
 	return 0;
 }
