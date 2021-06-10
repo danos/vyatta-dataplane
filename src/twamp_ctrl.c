@@ -274,14 +274,143 @@ tw_get_vrf(const char *vrf_name, vrfid_t *vrfid)
 }
 
 static int
+tw_pb_session_key_get(TWAMPSessionKey *key, uint16_t *lport, uint16_t *rport,
+		      struct ip_addr *laddr, struct ip_addr *raddr,
+		      vrfid_t *vrf_id, const char *who)
+{
+	int rc = 0;
+
+	*lport = htons(key->lport);
+	*rport = htons(key->rport);
+
+	if (dp_protobuf_get_ipaddr(key->laddr, laddr) < 0)
+		rc = -EINVAL;
+
+	if (rc == 0)
+		if (dp_protobuf_get_ipaddr(key->raddr, raddr) < 0)
+			rc = -EINVAL;
+
+	if (rc == 0)
+		if (laddr->type != raddr->type)
+			rc = -EPROTO;
+
+	if (rc == 0)
+		rc = tw_get_vrf(key->vrf_name, vrf_id);
+
+	if (rc < 0) {
+		DP_DEBUG(TWAMP, ERR, TWAMP,
+			 "failed to extract PB %s key: %s\n",
+			 who, strerror(-rc));
+		return rc;
+	}
+
+	return 0;
+}
+
+static int
 tw_pb_session_delete(TWAMPSessionDelete *delete)
 {
 	return 0;
 }
 
 static int
+tw_pb_session_create_crypto(TWAMPSessionCreate *create __unused,
+			    struct tw_session_entry *entry __unused)
+{
+	return -ENOTSUP;
+}
+
+static int
 tw_pb_session_create(TWAMPSessionCreate *create)
 {
+	struct tw_session_entry *entry;
+	struct ip_addr laddr;
+	struct ip_addr raddr;
+	uint16_t lport;
+	uint16_t rport;
+	vrfid_t vrfid;
+	bool port_registered;
+	const char *mode;
+	char b1[INET6_ADDRSTRLEN];
+	char b2[INET6_ADDRSTRLEN];
+	int rc;
+
+	rc = tw_pb_session_key_get(create->key, &lport, &rport,
+				   &laddr, &raddr, &vrfid, "create");
+	if (rc < 0)
+		return rc;
+
+	entry = tw_session_find(lport, rport, &laddr, &raddr, vrfid);
+	if (entry != NULL) {
+		RTE_LOG(ERR, TWAMP,
+			"session create (%s:%u -> %s:%u) failed: exists\n",
+			tw_ip2str(&raddr, b1, sizeof(b1)), ntohs(rport),
+			tw_ip2str(&laddr, b2, sizeof(b2)), ntohs(lport));
+		return -EEXIST;
+	}
+
+	entry = tw_session_create(lport, rport, &laddr, &raddr, vrfid);
+	if (entry == NULL)
+		return -ENOMEM;
+
+	entry->session.mode = create->mode;
+	switch (entry->session.mode) {
+	case TWAMPSESSION_CREATE__MODE__MODE_OPEN:
+		entry->session.minrxpktsize = TWAMP_TEST_RX_PKT_SIZE_UNAUTH;
+		entry->session.mintxpktsize = TWAMP_TEST_TX_PKT_SIZE_UNAUTH;
+		mode = "open";
+		break;
+	case TWAMPSESSION_CREATE__MODE__MODE_AUTHENTICATED:
+		entry->session.minrxpktsize = TWAMP_TEST_RX_PKT_SIZE_AUTH;
+		entry->session.mintxpktsize = TWAMP_TEST_TX_PKT_SIZE_AUTH;
+		mode = "authenticated";
+		break;
+	case TWAMPSESSION_CREATE__MODE__MODE_ENCRYPTED:
+		entry->session.minrxpktsize = TWAMP_TEST_RX_PKT_SIZE_AUTH;
+		entry->session.mintxpktsize = TWAMP_TEST_TX_PKT_SIZE_AUTH;
+		mode = "encrypted";
+		break;
+	default:
+		tw_session_delete(entry);
+		RTE_LOG(ERR, TWAMP,
+			"%s session create failed: unknown mode %u\n",
+			entry->session.dbgstr, entry->session.mode);
+		return -EINVAL;
+	}
+
+	entry->session.rxpayloadlen = create->rx_payload_len;
+	entry->session.txpayloadlen = create->tx_payload_len;
+
+	if (entry->session.mode != TWAMPSESSION_CREATE__MODE__MODE_OPEN) {
+		int rc;
+
+		rc = tw_pb_session_create_crypto(create, entry);
+		if (rc < 0) {
+			RTE_LOG(ERR, TWAMP,
+				"%s session create (%s:%u -> %s:%u) failed: %s\n",
+				mode,
+				tw_ip2str(&raddr, b1, sizeof(b1)), ntohs(rport),
+				tw_ip2str(&laddr, b2, sizeof(b2)), ntohs(lport),
+				strerror(-rc));
+			tw_session_free(entry);
+			return rc;
+		}
+	}
+
+	port_registered = tw_session_lport_exists(entry->session.af, lport);
+
+	cds_list_add_rcu(&entry->list, &tw_session_list_head);
+
+	if (!port_registered)
+		tw_session_udp_port(true, entry->session.af, lport);
+
+	DP_DEBUG(TWAMP, INFO, TWAMP,
+		 "%s session created %s:%u -> %s:%u payload size %u %u\n",
+		 mode,
+		 tw_ip2str(&raddr, b1, sizeof(b1)), ntohs(rport),
+		 tw_ip2str(&laddr, b2, sizeof(b2)), ntohs(lport),
+		 entry->session.rxpayloadlen, entry->session.txpayloadlen);
+
 	return 0;
 }
 
