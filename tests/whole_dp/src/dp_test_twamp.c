@@ -491,6 +491,124 @@ DP_DECL_TEST_SUITE(twamp_offload_suite);
 
 DP_DECL_TEST_CASE(twamp_offload_suite, twamp_rxtx, NULL, NULL);
 
+DP_START_TEST(twamp_rxtx, pktsize)
+{
+	TWAMPSessionCreate create;
+	TWAMPSessionCounters counters;
+	TWAMPSessionDelete delete;
+	TWAMPSessionKey key4;
+	TWAMPSessionKey key6;
+	struct dp_test_twamp_response resp;
+	struct dp_test_expected *exp4_pak;
+	struct dp_test_expected *exp6_pak;
+	struct rte_mbuf *s4_pak;
+	struct rte_mbuf *s6_pak;
+	struct tw_pkt_desc pkt6 = {
+		.laddr.addrstr = "2001:1::1",
+		.raddr.addrstr = "2001:1::3",
+		.lport = PORT1,
+		.rport = PORT3,
+		.macaddr = "aa:bb:cc:dd:ee:ff",
+		.oif = "dp1T0",
+		.sndpktlen = MIN_RX_PKT_SIZE,
+		.rcvpktlen = MIN_TX_PKT_SIZE,
+	};
+	struct tw_pkt_desc pkt4 = {
+		.laddr.addrstr = "1.1.1.1",
+		.raddr.addrstr = "1.1.1.3",
+		.lport = PORT1,
+		.rport = PORT3,
+		.macaddr = "aa:bb:cc:dd:ee:ff",
+		.oif = "dp1T0",
+		.sndpktlen = MIN_RX_PKT_SIZE,
+		.rcvpktlen = MIN_TX_PKT_SIZE,
+	};
+
+	dp_test_nl_add_ip_addr_and_connected("dp1T0", "1.1.1.1/24");
+	dp_test_netlink_add_neigh("dp1T0", pkt4.raddr.addrstr, pkt4.macaddr);
+	dp_test_nl_add_ip_addr_and_connected("dp1T0", "2001:1::1/96");
+	dp_test_netlink_add_neigh("dp1T0", pkt6.raddr.addrstr, pkt6.macaddr);
+
+	exp6_pak = dp_test_twamp_build_ipv6_pkts(&pkt6, &s6_pak);
+	pkt6.sseqno++;
+	pkt6.rseqno++;
+
+	exp4_pak = dp_test_twamp_build_ipv4_pkts(&pkt4, &s4_pak, false);
+	pkt4.sseqno++;
+	pkt4.rseqno++;
+
+	/*
+	 * Build IPv6 & IPv4 sessions with minimum send/receive
+	 * message sizes (as opposed to adding padding such that the
+	 * received message is large enough to accommodate the
+	 * reflected message).
+	 */
+	dp_test_twamp_build_key(&key6, &pkt6.laddr, &pkt6.raddr,
+				pkt6.lport, pkt6.rport);
+	dp_test_twamp_build_create(&create, &key6,
+				   TWAMPSESSION_CREATE__MODE__MODE_OPEN,
+				   0,
+				   TWAMP_TEST_RX_PKT_SIZE_UNAUTH,
+				   TWAMP_TEST_TX_PKT_SIZE_UNAUTH,
+				   &resp);
+	dp_test_assert_internal(resp.status == 0);
+
+	dp_test_twamp_build_key(&key4, &pkt4.laddr, &pkt4.raddr,
+				pkt4.lport, pkt4.rport);
+	dp_test_twamp_build_create(&create, &key4,
+				   TWAMPSESSION_CREATE__MODE__MODE_OPEN,
+				   0,
+				   TWAMP_TEST_RX_PKT_SIZE_UNAUTH,
+				   TWAMP_TEST_TX_PKT_SIZE_UNAUTH,
+				   &resp);
+	dp_test_assert_internal(resp.status == 0);
+
+	dp_test_pak_receive(s4_pak, pkt4.oif, exp4_pak);
+	dp_test_pak_receive(s6_pak, pkt6.oif, exp6_pak);
+
+	dp_test_twamp_build_counters(&counters, &key4, &resp);
+	dp_test_assert_internal(resp.status == 0);
+	dp_test_assert_internal(resp.has_counters == 1);
+	dp_test_assert_internal(resp.tx_pkts == 1);
+	dp_test_assert_internal(resp.rx_pkts == 1);
+	dp_test_twamp_build_counters(&counters, &key6, &resp);
+	dp_test_assert_internal(resp.status == 0);
+	dp_test_assert_internal(resp.has_counters == 1);
+	dp_test_assert_internal(resp.tx_pkts == 1);
+	dp_test_assert_internal(resp.rx_pkts == 1);
+
+	json_object *jobj = dp_test_json_create(
+		"{\"twamp-sessions\":"
+		"["
+		"{\"local-port\":%d,\"remote-port\":%d,"
+		" \"local-address\":\"%s\",\"remote-address\":\"%s\","
+		" \"rx-pkts\":%d, \"tx-pkts\":%d},"
+		"{\"local-port\":%d,\"remote-port\":%d,"
+		" \"local-address\":\"%s\",\"remote-address\":\"%s\","
+		" \"rx-pkts\":%d,\"tx-pkts\":%d}"
+		"]}",
+		pkt4.lport, pkt4.rport, pkt4.laddr.addrstr, pkt4.raddr.addrstr, 1, 1,
+		pkt6.lport, pkt6.rport, pkt6.laddr.addrstr, pkt6.raddr.addrstr, 1, 1);
+	dp_test_check_json_state("vyatta:twamp dump", jobj,
+				 DP_TEST_JSON_CHECK_SUBSET, false);
+	json_object_put(jobj);
+
+	dp_test_twamp_build_delete(&delete, &key4, &resp);
+	dp_test_assert_internal(resp.status == 0);
+	dp_test_twamp_build_delete(&delete, &key6, &resp);
+	dp_test_assert_internal(resp.status == 0);
+
+	json_object *expected = dp_test_json_create("{\"twamp-sessions\":[]}");
+	dp_test_check_json_state("vyatta:twamp dump", expected,
+				 DP_TEST_JSON_CHECK_EXACT, false);
+	json_object_put(expected);
+
+	dp_test_netlink_del_neigh("dp1T0", pkt6.raddr.addrstr, pkt6.macaddr);
+	dp_test_nl_del_ip_addr_and_connected("dp1T0", "2001:1::1/96");
+	dp_test_netlink_del_neigh("dp1T0", pkt4.raddr.addrstr, pkt4.macaddr);
+	dp_test_nl_del_ip_addr_and_connected("dp1T0", "1.1.1.1/24");
+} DP_END_TEST;
+
 DP_START_TEST(twamp_rxtx, ip6)
 {
 	TWAMPSessionCreate create;
