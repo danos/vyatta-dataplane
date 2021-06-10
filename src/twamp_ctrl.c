@@ -447,6 +447,33 @@ static int
 tw_pb_session_counters(TWAMPSessionCounters *counters,
 		       TWAMPSessionCounterResponse *resp)
 {
+	struct tw_session_entry *entry;
+	struct ip_addr laddr;
+	struct ip_addr raddr;
+	uint16_t lport;
+	uint16_t rport;
+	vrfid_t vrfid;
+
+	if (tw_pb_session_key_get(counters->key, &lport, &rport,
+				  &laddr, &raddr, &vrfid, "counter") < 0) {
+		return -1;
+	}
+
+	entry = tw_session_find(lport, rport, &laddr, &raddr, vrfid);
+	if (entry == NULL) {
+		DP_DEBUG(TWAMP, DEBUG, TWAMP,
+			 "session counters failed: not found\n");
+		return -1;
+	}
+
+	resp->has_rx_pkts = true;
+	resp->rx_pkts = entry->session.rx_pkts;
+	resp->has_rx_bad = true;
+	resp->rx_bad = entry->session.rx_bad;
+	resp->has_tx_pkts = true;
+	resp->tx_pkts = entry->session.tx_pkts;
+	resp->has_tx_bad = true;
+	resp->tx_bad = entry->session.tx_bad;
 	return 0;
 }
 
