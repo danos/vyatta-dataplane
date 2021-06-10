@@ -19,9 +19,9 @@
 #include "esp.h"
 
 /*
- * Support for 16K sessions ( = 8K tunnels )
+ * Support for 256K sessions ( = 128K tunnels )
  */
-#define CRYPTO_MAX_SESSIONS (1 << 14)
+#define CRYPTO_MAX_SESSIONS (1 << 18)
 #define CRYPTO_MZ_ELEMS (1 << 14)
 
 #define CRYPTO_OP_CTX_OFFSET (sizeof(struct rte_crypto_op) + \
