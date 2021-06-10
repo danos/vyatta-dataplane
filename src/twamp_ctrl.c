@@ -310,6 +310,35 @@ tw_pb_session_key_get(TWAMPSessionKey *key, uint16_t *lport, uint16_t *rport,
 static int
 tw_pb_session_delete(TWAMPSessionDelete *delete)
 {
+	struct tw_session_entry *entry;
+	struct ip_addr laddr;
+	struct ip_addr raddr;
+	uint16_t lport;
+	uint16_t rport;
+	vrfid_t vrfid;
+
+	if (tw_pb_session_key_get(delete->key, &lport, &rport,
+				  &laddr, &raddr, &vrfid, "delete") < 0) {
+		return -1;
+	}
+
+	entry = tw_session_find(lport, rport, &laddr, &raddr, vrfid);
+	if (entry == NULL) {
+		DP_DEBUG(TWAMP, DEBUG, TWAMP,
+			 "session delete failed: not found\n");
+		return 0;
+	}
+
+	char b1[INET6_ADDRSTRLEN];
+	char b2[INET6_ADDRSTRLEN];
+
+	DP_DEBUG(TWAMP, INFO, TWAMP,
+		"session deleted %s:%u -> %s:%u (tx %lu rx %lu)\n",
+		tw_ip2str(&raddr, b1, sizeof(b1)), ntohs(rport),
+		tw_ip2str(&laddr, b2, sizeof(b2)), ntohs(lport),
+		entry->session.tx_pkts, entry->session.rx_pkts);
+
+	tw_session_delete(entry);
 	return 0;
 }
 
