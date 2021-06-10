@@ -26,13 +26,6 @@ enum alg_rc_en {
 	ALG_ERR_PHOLE_NOMEM,
 	ALG_ERR_PHOLE_EXIST,
 
-	/* FTP */
-	ALG_ERR_FTP_MAP,
-	ALG_ERR_FTP_PARSE_PORT,
-	ALG_ERR_FTP_PARSE_EPRT,
-	ALG_ERR_FTP_PARSE_227,
-	ALG_ERR_FTP_PARSE_229,
-
 	/* PPTP */
 	ALG_ERR_PPTP_MAP,
 	ALG_ERR_PPTP_MC,
@@ -63,6 +56,13 @@ enum alg_rc_en {
 	ALG_ERR_SIP_PARSE_C,	/* SDP Connection */
 	ALG_ERR_SIP_PARSE_M,	/* SDP media */
 	ALG_ERR_SIP_PARSE_A,	/* SDP attribute */
+
+	/* FTP */
+	ALG_ERR_FTP_MAP,
+	ALG_ERR_FTP_PARSE_PORT,
+	ALG_ERR_FTP_PARSE_EPRT,
+	ALG_ERR_FTP_PARSE_227,
+	ALG_ERR_FTP_PARSE_229,
 
 	ALG_ERR_INT,		/* Internal errors */
 	ALG_ERR_OTHER,
@@ -120,17 +120,6 @@ static inline const char *alg_rc_str(int error)
 	case ALG_ERR_PHOLE_EXIST:
 		return "ERR_PHOLE_EXIST";
 
-	case ALG_ERR_FTP_PARSE_PORT:
-		return "ERR_FTP_PARSE_PORT";
-	case ALG_ERR_FTP_PARSE_EPRT:
-		return "ERR_FTP_PARSE_EPRT";
-	case ALG_ERR_FTP_PARSE_227:
-		return "ERR_FTP_PARSE_227";
-	case ALG_ERR_FTP_PARSE_229:
-		return "ERR_FTP_PARSE_229";
-	case ALG_ERR_FTP_MAP:
-		return "ERR_FTP_MAP";
-
 	case ALG_ERR_PPTP_MAP:
 		return "ERR_PPTP_MAP";
 	case ALG_ERR_PPTP_OUT_REQ:
@@ -181,6 +170,17 @@ static inline const char *alg_rc_str(int error)
 	case ALG_ERR_SIP_PARSE_A:
 		return "ERR_SIP_PARSE_A";
 
+	case ALG_ERR_FTP_PARSE_PORT:
+		return "ERR_FTP_PARSE_PORT";
+	case ALG_ERR_FTP_PARSE_EPRT:
+		return "ERR_FTP_PARSE_EPRT";
+	case ALG_ERR_FTP_PARSE_227:
+		return "ERR_FTP_PARSE_227";
+	case ALG_ERR_FTP_PARSE_229:
+		return "ERR_FTP_PARSE_229";
+	case ALG_ERR_FTP_MAP:
+		return "ERR_FTP_MAP";
+
 	case ALG_ERR_INT:
 		return "ERR_INT";
 
@@ -206,28 +206,13 @@ static inline const char *alg_rc_detail_str(int error)
 		return "Payload update failed";
 
 	case ALG_ERR_PLOAD_NOSPC:
-		return "No space at end of payload buffer";
+		return "No space at end of buffer";
 
 	case ALG_ERR_PHOLE_NOMEM:
 		return "No memory for pinhole entry";
 
 	case ALG_ERR_PHOLE_EXIST:
 		return "Pinhole already exists";
-
-	case ALG_ERR_FTP_PARSE_PORT:
-		return "ftp parse PORT control";
-
-	case ALG_ERR_FTP_PARSE_EPRT:
-		return "ftp parse EPRT control";
-
-	case ALG_ERR_FTP_PARSE_227:
-		return "ftp parse 227 response";
-
-	case ALG_ERR_FTP_PARSE_229:
-		return "ftp parse 229 response";
-
-	case ALG_ERR_FTP_MAP:
-		return "ftp failed to get a mapping";
 
 	case ALG_ERR_PPTP_MAP:
 		return "PPTP failed to get a mapping";
@@ -257,7 +242,7 @@ static inline const char *alg_rc_detail_str(int error)
 		return "SIP media table does not exist";
 
 	case ALG_ERR_SIP_NOMEM:
-		return "SIP no memory for media table entry";
+		return "SIP no memory for media entry";
 
 	case ALG_ERR_SIP_MEDIA:
 		return "SIP failed to add media entry";
@@ -297,6 +282,21 @@ static inline const char *alg_rc_detail_str(int error)
 
 	case ALG_ERR_SIP_PARSE_A:
 		return "SDP parse a-header";
+
+	case ALG_ERR_FTP_PARSE_PORT:
+		return "ftp parse PORT control";
+
+	case ALG_ERR_FTP_PARSE_EPRT:
+		return "ftp parse EPRT control";
+
+	case ALG_ERR_FTP_PARSE_227:
+		return "ftp parse 227 response";
+
+	case ALG_ERR_FTP_PARSE_229:
+		return "ftp parse 229 response";
+
+	case ALG_ERR_FTP_MAP:
+		return "ftp failed to get a mapping";
 
 	case ALG_ERR_INT:
 		return "Internal";
