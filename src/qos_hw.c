@@ -2376,7 +2376,6 @@ qos_hw_new_pipe(uint32_t pipe_id, fal_object_t subport_sched_obj,
 	uint32_t tc_id;
 	char *out_str;
 	int ret;
-	uint8_t local_priority_wrr = RTE_SCHED_QUEUES_PER_TRAFFIC_CLASS;
 	uint8_t bit;
 	uint8_t cp;
 
@@ -2470,6 +2469,7 @@ qos_hw_new_pipe(uint32_t pipe_id, fal_object_t subport_sched_obj,
 		uint8_t wrr;
 		uint8_t wrr_weight[RTE_SCHED_QUEUES_PER_TRAFFIC_CLASS] = { 0 };
 		uint8_t designators[RTE_SCHED_QUEUES_PER_TRAFFIC_CLASS] = { 0 };
+		uint8_t local_priority_wrr = RTE_SCHED_QUEUES_PER_TRAFFIC_CLASS;
 		struct qos_red_pipe_params *q_wred_info
 			[RTE_SCHED_QUEUES_PER_TRAFFIC_CLASS] = { NULL };
 
