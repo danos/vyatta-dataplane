@@ -9,50 +9,54 @@
 
 #include "if_var.h"
 #include "ip_funcs.h"
+#include "npf/config/npf_config.h"
+#include "npf/npf_if.h"
 #include "netinet6/ip6_funcs.h"
 #include "pl_common.h"
 #include "pl_fused.h"
 #include "npf/npf.h"
 #include "fw_out_snat/npf_shim_out.h"
 
-enum {
-	V4_PKT = true,
-	V6_PKT = false
-};
-
-static ALWAYS_INLINE unsigned int
-ip_fw_out_process(struct pl_packet *pkt, bool v4)
+ALWAYS_INLINE unsigned int
+ipv4_fw_out_process(struct pl_packet *pkt, void *context __unused)
 {
 	npf_decision_t result = npf_hook_out_track_fw(pkt);
 
 	if (result != NPF_DECISION_PASS)
-		return v4 ? IPV4_FW_OUT_DROP : IPV6_FW_OUT_DROP;
+		return IPV4_FW_OUT_DROP;
 
-	return v4 ? IPV4_FW_OUT_ACCEPT : IPV6_FW_OUT_ACCEPT;
-}
-
-ALWAYS_INLINE unsigned int
-ipv4_fw_out_process(struct pl_packet *pkt, void *context __unused)
-{
-	return ip_fw_out_process(pkt, V4_PKT);
+	return IPV4_FW_OUT_ACCEPT;
 }
 
 ALWAYS_INLINE unsigned int
 ipv6_fw_out_process(struct pl_packet *pkt, void *context __unused)
 {
-	return ip_fw_out_process(pkt, V6_PKT);
+	unsigned long bitmask =
+		NPF_IF_SESSION | NPF_V6_TRACK_OUT;
+
+	struct npf_if *nif = rcu_dereference(pkt->out_ifp->if_npf);
+	if  (npf_if_active(nif, bitmask)) {
+		npf_decision_t result = npf_hook_out_track_v6_fw(pkt);
+		if (result != NPF_DECISION_PASS)
+			return IPV6_FW_OUT_DROP;
+	} else if ((pkt->npf_flags & NPF_FLAG_FROM_ZONE) &&
+		   !(pkt->npf_flags & NPF_FLAG_FROM_US))
+		/* Zone to non-zone (no fw) -> drop */
+		return IPV6_FW_OUT_DROP;
+
+	return IPV6_FW_OUT_ACCEPT;
 }
 
 ALWAYS_INLINE unsigned int
-ipv4_fw_out_spath_process(struct pl_packet *pkt, void *context __unused)
+ipv4_fw_out_spath_process(struct pl_packet *pkt, void *context)
 {
-	return ip_fw_out_process(pkt, V4_PKT);
+	return ipv4_fw_out_process(pkt, context);
 }
 
 ALWAYS_INLINE unsigned int
-ipv6_fw_out_spath_process(struct pl_packet *pkt, void *context __unused)
+ipv6_fw_out_spath_process(struct pl_packet *pkt, void *context)
 {
-	return ip_fw_out_process(pkt, V6_PKT);
+	return ipv6_fw_out_process(pkt, context);
 }
 
 ALWAYS_INLINE unsigned int
@@ -159,4 +163,19 @@ PL_REGISTER_FEATURE(ipv6_fw_orig_feat) = {
 	.node_name = "ipv6-fw-orig",
 	.feature_point = "ipv6-out-spath",
 	.id = PL_L3_V6_OUT_FUSED_FEAT_FW_ORIG,
+};
+
+PL_REGISTER_FEATURE(ipv6_fw_out_feat) = {
+	.name = "vyatta:ipv6-fw-out",
+	.node_name = "ipv6-fw-out",
+	.feature_point = "ipv6-out",
+	.id = PL_L3_V6_OUT_FUSED_FEAT_FW_OUT,
+	.visit_after = "vyatta:ipv6-defrag-out",
+};
+
+PL_REGISTER_FEATURE(ipv6_fw_out_spath_feat) = {
+	.name = "vyatta:ipv6-fw-out-spath",
+	.node_name = "ipv6-fw-out-spath",
+	.feature_point = "ipv6-out-spath",
+	.id = PL_L3_V6_OUT_SPATH_FUSED_FEAT_FW_OUT,
 };

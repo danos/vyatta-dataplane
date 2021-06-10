@@ -28,10 +28,9 @@
 #include "ip_icmp.h"
 
 static ALWAYS_INLINE npf_decision_t
-process_result(struct ifnet *ifp, npf_cache_t *npc, int rc, npf_decision_t decision)
+process_result(struct ifnet *ifp, uint16_t type, int rc, npf_decision_t decision)
 {
 	/* Increment return code counter */
-	enum npf_rc_type type = (npc->npc_info & NPC_IP4) ? NPF_RCT_FW4 : NPF_RCT_FW6;
 	npf_rc_inc(ifp, type, NPF_RC_OUT, rc, decision);
 	return decision;
 }
@@ -58,7 +57,8 @@ process_done(struct ifnet *ifp, struct rte_mbuf *m, npf_session_t *se, npf_cache
 			npf_session_expire(se);
 		}
 	}
-	return process_result(ifp, npc, rc, decision);
+	enum npf_rc_type type = (npc->npc_info & NPC_IP4) ? NPF_RCT_FW4 : NPF_RCT_FW6;
+	return process_result(ifp, type, rc, decision);
 }
 
 static ALWAYS_INLINE npf_decision_t
@@ -77,8 +77,8 @@ process_stats(struct ifnet *ifp, struct rte_mbuf *m, npf_session_t *se, npf_rule
 
 
 static ALWAYS_INLINE npf_decision_t
-process_pass(struct ifnet *ifp, struct rte_mbuf *m, npf_session_t *se, npf_rule_t *rl,
-	     npf_cache_t *npc, int rc)
+process_pass(struct ifnet *ifp, struct rte_mbuf *m, npf_session_t *se,
+	     npf_rule_t *rl, npf_cache_t *npc, int rc)
 {
 	/* Log any firewall matched rule now */
 	if (unlikely(npf_rule_has_rproc_logger(rl)))
@@ -172,9 +172,105 @@ npf_hook_out_track_fw(struct pl_packet *pkt)
  * Packets passed in here must not be fragments.
  */
 npf_decision_t
+npf_hook_out_track_v6_fw(struct pl_packet *pkt)
+{
+	uint16_t *npf_flags = &pkt->npf_flags;
+	struct rte_mbuf *m = pkt->mbuf;
+	struct npf_if *nif = rcu_dereference(pkt->out_ifp->if_npf);
+	npf_rule_t *rl = NULL;
+	bool internal_hairpin = false;
+	struct ifnet *ifp = nif->nif_ifp;
+	int rc = NPF_RC_UNMATCHED;
+	struct ifnet *in_ifp = pkt->in_ifp;
+	const npf_ruleset_t *rlset;
+	struct npf_config *fw_config = npf_if_conf(nif);
+	npf_decision_t decision = NPF_DECISION_UNMATCHED;
+
+	/*
+	 * Parse the packet, note this also clears any cached tag.
+	 *
+	 * If Firewall or NAT are enabled, we will never see a fragment,
+	 * however if we get here due to DPI, we may.  That is fine as
+	 * the subsequent logic should simply pass those fragments.
+	 */
+	npf_cache_t *npc = npf_get_cache(npf_flags, m, htons(RTE_ETHER_TYPE_IPV6), &rc);
+	if (unlikely(!npc))
+		return process_result(ifp, NPF_RCT_FW6, rc, NPF_DECISION_BLOCK);
+
+	/*
+	 * Try to find (and validate) an existing session, or failing that
+	 * try to create a 'parent' tuple based session.
+	 */
+	npf_session_t *se = npf_session_inspect_or_create(npc, m, ifp, PFIL_OUT,
+							  npf_flags, &rc, &internal_hairpin);
+	if (unlikely(rc < 0))
+		return process_result(ifp, NPF_RCT_FW6, rc, NPF_DECISION_BLOCK);
+
+	/*
+	 * If "passing" session found - skip the ruleset inspection.
+	 * Similarly, session backwards NAT packets, and secondary
+	 * sessions (i.e. ALG created) skip the firewall.
+	 */
+	if (se && (npf_session_is_pass(se, &rl) ||
+		   npf_session_is_child(se))) {
+		if (unlikely(internal_hairpin))
+			rl = NULL;	/* avoid running fw stats and rprocs */
+		return process_pass(ifp, m, se, rl, npc, rc);
+	}
+
+	/*
+	 * Determine the ruleset type and any reverse ruleset,
+	 * allowing for possible stateful ZBF pass session.
+	 */
+	bool reverse_stateful = false;
+	if (fw_config)
+		reverse_stateful = fw_config->nc_active_flags & NPF_FW_STATE_IN;
+
+	enum npf_ruleset_type rlset_type = NPF_RS_FW_OUT;
+
+	if (unlikely((*npf_flags & NPF_FLAG_FROM_ZONE) ||
+		     npf_nif_zone(nif))) {
+		if (npf_zone_hook(in_ifp, nif, *npf_flags, &fw_config,
+				  &decision, &rlset_type,
+				  &reverse_stateful))
+			return process_done(ifp, m, se, npc, NPF_RC_UNMATCHED, decision);
+	}
+
+	/* Inspect FW ruleset */
+	rlset = npf_get_ruleset(fw_config, rlset_type);
+
+	decision = npf_apply_firewall(rlset, se, npc, ifp, m, PFIL_OUT, &rl,
+				      *npf_flags, reverse_stateful);
+	if (decision == NPF_DECISION_UNMATCHED)
+		return process_done(ifp, m, se, npc, NPF_RC_UNMATCHED, NPF_DECISION_UNMATCHED);
+	if (decision == NPF_DECISION_BLOCK)
+		return process_stats(ifp, m, se, rl, npc, NPF_RC_UNMATCHED, NPF_DECISION_BLOCK);
+
+	/*
+	 * Establish a "pass" session, if required. Just proceed, if session
+	 * creation fails (e.g. due to unsupported protocol).
+	 */
+	if (rl && npf_rule_stateful(rl)) {
+		if (!se) {
+			int rc = NPF_RC_UNMATCHED;
+			se = npf_session_establish(npc, m, ifp, PFIL_OUT, &rc);
+			if (unlikely(rc < 0))
+				return process_stats(ifp, m, se, rl, npc, rc, NPF_DECISION_BLOCK);
+		}
+		npf_session_add_fw_rule(se, rl);
+	}
+	return process_pass(ifp, m, se, rl, npc, NPF_RC_UNMATCHED);
+}
+
+/*
+ * Processor entry point given packet, interface, direction
+ * and configuration set.
+ *
+ * Packets passed in here must not be fragments.
+ */
+npf_decision_t
 npf_hook_out_track_snat(struct ifnet *in_ifp, struct rte_mbuf **m,
-		   struct npf_if *nif, uint16_t *npf_flags,
-		   uint16_t eth_type)
+			struct npf_if *nif, uint16_t *npf_flags)
 {
 	struct npf_config *nif_config = npf_if_conf(nif);
 	npf_rule_t *rl = NULL;
@@ -189,9 +285,9 @@ npf_hook_out_track_snat(struct ifnet *in_ifp, struct rte_mbuf **m,
 	 * however if we get here due to DPI, we may.  That is fine as
 	 * the subsequent logic should simply pass those fragments.
 	 */
-	npf_cache_t *npc = npf_get_cache(npf_flags, *m, eth_type, &rc);
+	npf_cache_t *npc = npf_get_cache(npf_flags, *m, htons(RTE_ETHER_TYPE_IPV4), &rc);
 	if (unlikely(!npc))
-		return process_result(ifp, npc, rc, NPF_DECISION_BLOCK);
+		return process_result(ifp, NPF_RCT_FW4, rc, NPF_DECISION_BLOCK);
 
 	/*
 	 * Try to find (and validate) an existing session, or failing that
@@ -200,7 +296,7 @@ npf_hook_out_track_snat(struct ifnet *in_ifp, struct rte_mbuf **m,
 	npf_session_t *se = npf_session_inspect_or_create(npc, *m, ifp, PFIL_OUT,
 							  npf_flags, &rc, &internal_hairpin);
 	if (unlikely(rc < 0))
-		return process_result(ifp, npc, rc, NPF_DECISION_BLOCK);
+		return process_result(ifp, NPF_RCT_FW4, rc, NPF_DECISION_BLOCK);
 
 	/* SNAT forward (OUT), DNAT reply */
 	if (!internal_hairpin) {

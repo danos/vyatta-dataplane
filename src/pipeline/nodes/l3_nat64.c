@@ -459,5 +459,5 @@ PL_REGISTER_FEATURE(ipv6_nat46_out_feat) = {
 	.node_name = "ipv6-nat46-out",
 	.feature_point = "ipv6-out",
 	.id = PL_L3_V6_OUT_FUSED_FEAT_NAT46,
-	.visit_after = "vyatta:ipv6-pre-fw-out",
+	.visit_after = "vyatta:ipv6-fw-out",
 };
