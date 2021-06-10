@@ -79,6 +79,7 @@
 #include "vplane_debug.h"
 #include "ip_checksum.h"
 #include "ip_funcs.h"
+#include "netinet6/ip6_funcs.h"
 #include "udp_handler.h"
 #include "twamp_internal.h"
 
@@ -424,10 +425,66 @@ error:
 	return 0;
 }
 
-int
-twamp_input_ipv6(struct rte_mbuf *m, void *l3hdr __unused, struct udphdr *udp __unused,
-		 struct ifnet *ifp __unused)
+static void
+tw_send_ipv6(struct rte_mbuf *m, struct ip6_hdr *ip6, struct udphdr *udp)
 {
+	struct in6_addr ip6addr;
+	uint16_t port;
+
+	ip6addr = ip6->ip6_src;
+	ip6->ip6_src = ip6->ip6_dst;
+	ip6->ip6_dst = ip6addr;
+	ip6->ip6_hops = TWAMP_TEST_TX_PKT_IPV6_HOP;
+	ip6->ip6_plen = udp->len;
+
+	port = udp->dest;
+	udp->dest = udp->source;
+	udp->source = port;
+	udp->check = 0;
+	udp->check = dp_in6_cksum_mbuf(m, ip6, udp);
+
+	ip6_output(m, false);
+}
+
+int
+twamp_input_ipv6(struct rte_mbuf *m, void *l3hdr, struct udphdr *udp,
+		 struct ifnet *ifp)
+{
+	struct twamp_timestamp arrival_ts;
+	struct tw_session_entry *entry;
+	struct tw_session_entry *e;
+	struct ip6_hdr *ip6 = l3hdr;
+
+	if (tw_clock_gettime(&arrival_ts, true, "arrival") < 0)
+		goto error;
+
+	pktmbuf_set_vrf(m, if_vrfid(ifp));
+	entry = NULL;
+	cds_list_for_each_entry_rcu(e, &tw_session_list_head, list)
+		if ((e->session.af == AF_INET6) &&
+		    (udp->source == e->session.rport) &&
+		    (udp->dest == e->session.lport) &&
+		    IN6_ARE_ADDR_EQUAL(
+			    &ip6->ip6_src.s6_addr,
+			    &e->session.raddr.address.ip_v6.s6_addr) &&
+		    IN6_ARE_ADDR_EQUAL(
+			    &ip6->ip6_dst.s6_addr,
+			    &e->session.laddr.address.ip_v6.s6_addr)) {
+			entry = e;
+			break;
+		}
+
+	if (entry == NULL)
+		goto error;
+
+	if (tw_reflect(m, udp, ip6->ip6_hops, &arrival_ts, entry) < 0)
+		goto error;
+
+	tw_send_ipv6(m, ip6, udp);
+	entry->session.tx_pkts++;
+	return 0;
+
+error:
 	rte_pktmbuf_free(m);
 	return 0;
 }
