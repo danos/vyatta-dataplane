@@ -222,7 +222,7 @@ int cgn_alg_inspect(struct cgn_session *cse, struct cgn_packet *cpk,
 		    struct rte_mbuf *mbuf __unused, enum cgn_dir dir)
 {
 	struct cgn_alg_sess_ctx *as;
-	int rc = ALG_INFO_OK;
+	int rc = ALG_OK;
 
 	assert(cgn_session_is_alg_parent(cse));
 	assert(cgn_session_alg_get(cse));
@@ -256,6 +256,8 @@ int cgn_alg_inspect(struct cgn_session *cse, struct cgn_packet *cpk,
 
 		case CGN_ALG_PPTP:
 			rc = cgn_alg_pptp_inspect(cpk, mbuf, dir, as);
+			if (rc == 0)
+				rc = -ALG_OK_PPTP;
 			break;
 
 		case CGN_ALG_SIP:
@@ -271,7 +273,7 @@ end:
 	alg_rc_inc(dir, rc);
 
 	/* Condense to a single CGNAT return code */
-	return rc < 0 ? -CGN_ALG_ERR_INSP : 0;
+	return rc <= -ALG_RC_ERR_FIRST ? -CGN_ALG_ERR_INSP : 0;
 }
 
 uint64_t cgn_alg_stats_read(enum cgn_alg_id id, enum cgn_alg_stat_e stat)
@@ -489,6 +491,61 @@ static void cgn_alg_show_status(json_writer_t *json)
 }
 
 /*
+ * Show stats for ALG inspection of CGNAT control packets for one direcion
+ */
+static void
+cgn_alg_show_inspect_stats_dir(json_writer_t *json, enum cgn_dir dir,
+			       const char *name)
+{
+	uint64_t count;
+	int rc;
+
+	jsonw_name(json, name);
+	jsonw_start_array(json);
+
+	for (rc = ALG_RC_FIRST; rc <= ALG_RC_LAST; rc++) {
+		/*
+		 * Do not include SIP OK return code if SIP ALG is disabled.
+		 * This is a temporary measure that allows the SIP stats to
+		 * not show unless enabled in a dev dataplane image.
+		 */
+		if (rc == ALG_OK_SIP &&
+		    (cgn_alg_enabled & CGN_ALG_BIT_SIP) == 0)
+			continue;
+
+		if (rc == ALG_OK_FTP &&
+		    (cgn_alg_enabled & CGN_ALG_BIT_FTP) == 0)
+			continue;
+
+		jsonw_start_object(json);
+
+		count = alg_rc_read(dir, rc);
+		jsonw_string_field(json, "name", alg_rc_str(rc));
+		jsonw_string_field(json, "desc", alg_rc_detail_str(rc));
+		jsonw_uint_field(json, "rc", rc);
+		jsonw_uint_field(json, "count", count);
+
+		jsonw_end_object(json);
+	}
+
+	jsonw_end_array(json);
+}
+
+/*
+ * Show stats for ALG inspection of CGNAT control packets
+ */
+static void cgn_alg_show_inspect_stats(json_writer_t *json)
+{
+	jsonw_name(json, "inspect");
+	jsonw_start_object(json);
+
+	cgn_alg_show_inspect_stats_dir(json, CGN_DIR_OUT, "out");
+	cgn_alg_show_inspect_stats_dir(json, CGN_DIR_IN, "in");
+
+	jsonw_end_object(json);
+}
+
+/*
  * Show stats for ALG sessions
  */
 static void cgn_alg_show_session_stats(json_writer_t *json)
@@ -537,6 +594,7 @@ static void cgn_alg_show_summary(json_writer_t *json)
 	jsonw_name(json, "stats");
 	jsonw_start_object(json);
 
+	cgn_alg_show_inspect_stats(json);
 	cgn_alg_show_session_stats(json);
 
 	jsonw_end_object(json);
@@ -568,7 +626,6 @@ void cgn_alg_show(FILE *f, int argc, char **argv)
 	if (argc >= 1 && !strcmp(argv[0], "summary"))
 		cgn_alg_show_summary(json);
 
-
 	if (argc >= 1 && !strcmp(argv[0], "pinholes")) {
 		enum cgn_alg_id id = CGN_ALG_NONE;
 
@@ -580,6 +637,31 @@ void cgn_alg_show(FILE *f, int argc, char **argv)
 
 	jsonw_end_object(json);
 	jsonw_destroy(&json);
+}
+
+/*
+ * Add select ALG counts to the CGNAT summary json
+ */
+void cgn_alg_cgnat_summary(struct json_writer *json)
+{
+	uint64_t count;
+
+	count = alg_rc_read(CGN_DIR_OUT, ALG_OK_PPTP);
+	jsonw_uint_field(json, "alg_pptp_out", count);
+
+	count = alg_rc_read(CGN_DIR_IN, ALG_OK_PPTP);
+	jsonw_uint_field(json, "alg_pptp_in", count);
+
+}
+
+static void cgn_alg_clear_inspect_stats(void)
+{
+	int rc;
+
+	for (rc = ALG_RC_FIRST; rc <= ALG_RC_LAST; rc++) {
+		alg_rc_clear(CGN_DIR_OUT, rc);
+		alg_rc_clear(CGN_DIR_IN, rc);
+	}
 }
 
 static void cgn_alg_clear_session_stats(void)
@@ -600,6 +682,8 @@ void cgn_alg_clear(int argc, char **argv)
 	argv += 3;
 
 	if (argc == 0 || !strcmp(argv[0], "stats")) {
+		if (argc < 2 || !strcmp(argv[1], "inspect"))
+			cgn_alg_clear_inspect_stats();
 
 		if (argc < 2 || !strcmp(argv[1], "session"))
 			cgn_alg_clear_session_stats();

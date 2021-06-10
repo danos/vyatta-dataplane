@@ -1860,6 +1860,10 @@ static int cgn_session_op_parse(FILE *f, int argc, char **argv,
 			fltr->cf_alg = true;
 			fltr->cf_alg_id = cgn_alg_name2id(argv[1]);
 
+			argc -= 2;
+			argv += 2;
+			fltr->cf_all = false;
+
 		} else if (!strcmp(argv[0], "detail")) {
 			fltr->cf_detail = true;
 

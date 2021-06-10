@@ -620,7 +620,7 @@ int cgn_alg_pinhole_lookup(struct cgn_packet *cpk, struct cgn_map *cmi __unused,
 	 * will set 'do_drop' for the loser in the race.
 	 */
 	if (do_drop)
-		return -CGN_ALG_ERR_PHOLE;
+		return -CGN_SESS_ENOENT;
 
 	/*
 	 * Call out to the ALG in order to setup cpk taddr/oaddr, src, and cp

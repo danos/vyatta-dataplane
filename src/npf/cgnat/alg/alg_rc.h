@@ -17,7 +17,10 @@
  * the main parent flow inspection routine.
  */
 enum alg_rc_en {
-	ALG_INFO_OK = 0,
+	ALG_OK = 0,
+	ALG_OK_PPTP,
+	ALG_OK_SIP,
+	ALG_OK_FTP,
 
 	ALG_ERR_PLOAD_FETCH,
 	ALG_ERR_PLOAD_UPDATE,
@@ -65,11 +68,11 @@ enum alg_rc_en {
 	ALG_ERR_FTP_PARSE_229,
 
 	ALG_ERR_INT,		/* Internal errors */
-	ALG_ERR_OTHER,
 };
 
-#define ALG_RC_ERR_FIRST	ALG_ERR_PHOLE
-#define ALG_RC_LAST		ALG_ERR_OTHER
+#define ALG_RC_FIRST		ALG_OK_PPTP
+#define ALG_RC_ERR_FIRST	ALG_ERR_PLOAD_FETCH
+#define ALG_RC_LAST		ALG_ERR_INT
 #define ALG_RC_SZ		(ALG_RC_LAST + 1)
 
 struct alg_rc_dir {
@@ -88,7 +91,7 @@ static inline void alg_rc_inc(enum cgn_dir dir, int error)
 		error = -error;
 
 	if (unlikely(error > ALG_RC_LAST))
-		error = ALG_ERR_OTHER;
+		error = ALG_ERR_INT;
 
 	if (likely(alg_rc != NULL))
 		alg_rc[dp_lcore_id()].dir[dir].count[error]++;
@@ -105,8 +108,14 @@ static inline const char *alg_rc_str(int error)
 		error = -error;
 
 	switch ((enum alg_rc_en)error) {
-	case ALG_INFO_OK:
-		return "INFO_OK";
+	case ALG_OK:
+		return "OK";
+	case ALG_OK_PPTP:
+		return "OK_PPTP";
+	case ALG_OK_SIP:
+		return "OK_SIP";
+	case ALG_OK_FTP:
+		return "OK_FTP";
 
 	case ALG_ERR_PLOAD_FETCH:
 		return "ERR_PLOAD_FETCH";
@@ -183,9 +192,6 @@ static inline const char *alg_rc_str(int error)
 
 	case ALG_ERR_INT:
 		return "ERR_INT";
-
-	case ALG_ERR_OTHER:
-		break;
 	}
 	return "ERR_UNKWN";
 }
@@ -196,8 +202,14 @@ static inline const char *alg_rc_detail_str(int error)
 		error = -error;
 
 	switch ((enum alg_rc_en)error) {
-	case ALG_INFO_OK:
+	case ALG_OK:
 		return "ok";
+	case ALG_OK_PPTP:
+		return "PPTP control packets inspected";
+	case ALG_OK_SIP:
+		return "SIP control packets inspected";
+	case ALG_OK_FTP:
+		return "FTP control packets inspected";
 
 	case ALG_ERR_PLOAD_FETCH:
 		return "Payload fetch failed";
@@ -300,9 +312,6 @@ static inline const char *alg_rc_detail_str(int error)
 
 	case ALG_ERR_INT:
 		return "Internal";
-
-	case ALG_ERR_OTHER:
-		break;
 	}
 	return "Unknown";
 }

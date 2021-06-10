@@ -245,7 +245,7 @@ static int cgn_alg_pptp_add_pinholes(struct cgn_alg_sess_ctx *as,
 
 	/* The session should have a mapping in the ALG mapping info */
 	if (!cmi->cmi_reserved)
-		return -ALG_ERR_OTHER;
+		return -ALG_ERR_INT;
 
 	cmi->cmi_oid = aps->aps_peer_call_id;
 

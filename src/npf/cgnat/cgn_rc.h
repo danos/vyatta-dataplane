@@ -320,11 +320,11 @@ static inline const char *cgn_rc_detail_str(int error)
 		return "PCP public address and port not available";
 
 	case CGN_ALG_ERR_SESS:
-		return "ALG session error";
+		return "Failed to create ALG session";
 	case CGN_ALG_ERR_PHOLE:
 		return "ALG pinhole error";
 	case CGN_ALG_ERR_INSP:
-		return "ALG inspect error";
+		return "Error inspecting ALG control packet";
 
 	case CGN_RC_UNKWN:
 		break;

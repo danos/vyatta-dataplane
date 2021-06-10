@@ -136,6 +136,9 @@ static void cgn_show_summary(FILE *f, int argc __unused, char **argv __unused)
 	jsonw_uint_field(json, "pcp_err",
 			 cgn_rc_read(CGN_DIR_OUT, CGN_PCP_ERR));
 
+	/* Add select ALG counts */
+	cgn_alg_cgnat_summary(json);
+
 	jsonw_end_object(json);
 	jsonw_destroy(&json);
 }

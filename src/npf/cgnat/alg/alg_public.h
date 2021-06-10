@@ -170,6 +170,11 @@ void cgn_alg_show(FILE *f, int argc, char **argv);
 void cgn_alg_clear(int argc, char **argv);
 
 /**
+ * Add select ALG counts to the CGNAT summary json
+ */
+void cgn_alg_cgnat_summary(struct json_writer *json);
+
+/**
  * Enable ALG
  */
 int cgn_alg_enable(const char *name);
