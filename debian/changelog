@@ -1,3 +1,57 @@
+vyatta-dataplane (3.13.22) unstable; urgency=medium
+
+  [ Daniel Gollub ]
+  * debian: depend on rte-crytpodev-session-sym-pool-empty
+  * crypto: initial support for growing session pool
+
+  [ Mark Gillott ]
+  * vrf: populate the name field (Fixes: VRVDR-55262)
+
+  [ Daniel Gollub ]
+  * ut: support control of policy commits dp_test_crypto_utils
+
+  [ Srinivas Narayan ]
+  * sfp: Use eeprom value for tx power only if interface is up
+  * sfp: Print status byte read from EEPROM
+
+  [ Ian Wilson ]
+  * npf-alg: null deref in npf_alg_sip_create_instance
+
+  [ Ramkumar Ganapathysubramanian ]
+  * Fix issue in DSCP remark map on a vif sub-interface
+
+  [ Daniel Gollub ]
+  * npf-rte-acl: rename ACL rule pool
+  * npf-rte-acl: stage npf_rte_acl_mempool methods
+  * npf-rte-acl: prepare npf_rte_acl_copy_rules for growing rule pool
+  * npf-rte-acl: enable support for growing rule pool
+
+  [ Srinivas Narayan ]
+  * npf-rte-acl: Improve debugging
+  * npf-rte-acl: Unlock merge lock while returning prematurely
+  * npf-rte-acl: Minor optimizations
+  * rldb: Check for init failure in npf_rte_acl
+
+  [ Daniel Gollub ]
+  * npf-rte-acl: switch to CRC hashing
+  * npf-rte-acl: consider all rule deletion errors as fatal
+  * npf-rte-acl: Release merge lock in error conditions
+  * npf-rte-acl: release new merge trie in case optimization fails
+
+  [ Ian Wilson ]
+  * cgnat-alg: Add boolean to denote if ALG session is a parent or child
+  * cgnat-alg-pptp: Remove old PPTP header inspection
+  * cgnat-alg-pptp: Inspect PPTP_OUT_CALL_REQ messages
+  * cgnat-alg-pptp: Inspect PPTP_OUT_CALL_REPLY messages
+  * cgnat-alg: Parse PPTP_CALL_CLEAR_REQ and PPTP_CALL_DISCONN_NOTIFY msgs
+  * cgnat-alg-pptp: Add unit-test cgn_pptp6
+  * cgnat-alg-pptp: Add unit-test cgn_pptp7
+  * cgnat-alg-pptp: Only parse GRE pkts if PPTP ALG is enabled
+  * cgnat-alg-pptp: Do not allow non-ALG GRE pkts to create a session
+  * cgnat-alg-pptp: Note Call ID from message other than out-req/reply
+
+ -- Srinivas Narayan <narayan@vyatta.att-mail.com>  Thu, 10 Jun 2021 12:46:56 +0100
+
 vyatta-dataplane (3.13.21) unstable; urgency=medium
 
   [ Ian Wilson ]
