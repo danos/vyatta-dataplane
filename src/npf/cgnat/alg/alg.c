@@ -568,6 +568,16 @@ void cgn_alg_show(FILE *f, int argc, char **argv)
 	if (argc >= 1 && !strcmp(argv[0], "summary"))
 		cgn_alg_show_summary(json);
 
+
+	if (argc >= 1 && !strcmp(argv[0], "pinholes")) {
+		enum cgn_alg_id id = CGN_ALG_NONE;
+
+		if (argc >= 2)
+			id = cgn_alg_name2id(argv[1]);
+
+		cgn_alg_show_pinholes(json, id);
+	}
+
 	jsonw_end_object(json);
 	jsonw_destroy(&json);
 }

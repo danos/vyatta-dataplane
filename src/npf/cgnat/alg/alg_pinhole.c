@@ -1047,8 +1047,8 @@ csip_show_one_pinhole(json_writer_t *json, struct alg_pinhole *ap)
 
 	jsonw_start_object(json);
 
-	if (!ap->ap_expired)
-		timeout = (uint)((ap->ap_timeout - soft_ticks) / 1000);
+	if (!ap->ap_expired && ap->ap_timeout > soft_ticks)
+		timeout = (uint)((ap->ap_timeout - soft_ticks) / MSEC_PER_SEC);
 
 	jsonw_uint_field(json, "id", ap->ap_id);
 	jsonw_uint_field(json, "pair_id",
@@ -1068,6 +1068,28 @@ csip_show_one_pinhole(json_writer_t *json, struct alg_pinhole *ap)
 	jsonw_string_field(json, "alg", cgn_alg_id_name(ap->ap_alg_id));
 
 	jsonw_end_object(json);
+}
+
+/*
+ * Return json for pinhole table
+ */
+void cgn_alg_show_pinholes(struct json_writer *json, enum cgn_alg_id id)
+{
+	struct alg_pinhole_tbl *tt = &alg_pinhole_table;
+	struct cds_lfht_iter iter;
+	struct alg_pinhole *ap;
+
+	if (!tt->tt_ht)
+		return;
+
+	jsonw_name(json, "pinholes");
+	jsonw_start_array(json);
+
+	cds_lfht_for_each_entry(tt->tt_ht, &iter, ap, ap_node)
+		if (id == CGN_ALG_NONE || id == ap->ap_alg_id)
+			csip_show_one_pinhole(json, ap);
+
+	jsonw_end_array(json);
 }
 
 struct csip_pinhole_sess_data {

@@ -155,6 +155,14 @@ void alg_pinhole_cleanup(void);
 void alg_pinhole_uninit(void);
 
 /**
+ * Write json for pinhole table
+ *
+ * @param json Json write pointer
+ * @param id Filter by ALG id
+ */
+void cgn_alg_show_pinholes(struct json_writer *json, enum cgn_alg_id id);
+
+/**
  * Write json for all pinholes created by the specified session
  *
  * @param json Json write pointer
