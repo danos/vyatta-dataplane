@@ -53,31 +53,51 @@ static int crypto_rte_sym_pool_grow(struct rte_mempool *pool)
 {
 	int rc;
 	const struct rte_memzone *mz;
-	size_t mz_len;
 	char mz_name[RTE_MEMZONE_NAMESIZE];
+	size_t n, align, min_chunk_size, grow_nb;
+	ssize_t mem_size;
 
 	static uint32_t mz_id;
 
-	mz_len = rte_cryptodev_sym_get_header_session_size() * CRYPTO_MZ_ELEMS;
+	grow_nb = RTE_MIN((size_t) CRYPTO_MZ_ELEMS,
+			  pool->size - pool->populated_size);
 
-	snprintf(mz_name, sizeof(mz_name), "crypto_sym_%u", mz_id++);
-	mz = rte_memzone_reserve_aligned(mz_name, mz_len, -1,
-					 RTE_MEMZONE_IOVA_CONTIG,
-					 RTE_CACHE_LINE_SIZE);
-	if (mz == NULL) {
-		RTE_LOG(ERR, DATAPLANE,
-			"Failed to allocate more memory for crypto session pool: %s\n",
-			rte_strerror(rte_errno));
-		return -rte_errno;
-	}
+	for (n = grow_nb; n > 0; n -= rc) {
 
-	rc = rte_mempool_populate_iova(pool, mz->addr, mz->iova, mz->len,
-				       crypto_rte_mempool_mz_free, (void *) mz);
-	if (rc < 0) {
-		crypto_rte_mempool_mz_free(NULL, (void *) mz);
-		RTE_LOG(ERR, DATAPLANE, "Failed to grow crypto session pool: %s\n",
-			rte_strerror(-rc));
-		return rc;
+		mem_size = rte_mempool_op_calc_mem_size_default(pool, n, 0,
+								&min_chunk_size,
+								&align);
+		if (mem_size < 0) {
+			RTE_LOG(ERR, DATAPLANE,
+				"Failed to calculate memory size for crypto session pool: %s\n",
+				rte_strerror(-mem_size));
+			return mem_size;
+		}
+
+		snprintf(mz_name, sizeof(mz_name), "crypto_sym_%u", mz_id++);
+		mz = rte_memzone_reserve_aligned(mz_name, mem_size, -1,
+						 RTE_MEMZONE_IOVA_CONTIG,
+						 align);
+		if (mz == NULL) {
+			RTE_LOG(ERR, DATAPLANE,
+				"Failed to allocate more memory for crypto session pool: %s\n",
+				rte_strerror(rte_errno));
+			return -rte_errno;
+		}
+		rc = rte_mempool_populate_iova(pool, mz->addr, mz->iova,
+					       mz->len,
+					       crypto_rte_mempool_mz_free,
+					       (void *) mz);
+		/* unexpected */
+		if (rc == 0)
+			rc = -ENOBUFS;
+
+		if (rc < 0) {
+			crypto_rte_mempool_mz_free(NULL, (void *) mz);
+			RTE_LOG(ERR, DATAPLANE, "Failed to grow crypto session pool: %s\n",
+				rte_strerror(-rc));
+			return rc;
+		}
 	}
 
 	return 0;
