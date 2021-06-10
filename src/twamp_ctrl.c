@@ -253,6 +253,54 @@ tw_event_register_udp_port(void *arg)
 }
 
 static int
+tw_session_dump(FILE *f)
+{
+	struct tw_session_entry *entry;
+	json_writer_t *wr;
+	char b1[INET6_ADDRSTRLEN];
+
+	wr = jsonw_new(f);
+	jsonw_name(wr, "twamp-sessions");
+	jsonw_start_array(wr);
+	cds_list_for_each_entry_rcu(entry, &tw_session_list_head, list) {
+		const struct tw_session *tws = &entry->session;
+		const char *mode;
+
+		switch (entry->session.mode) {
+		case TWAMPSESSION_CREATE__MODE__MODE_OPEN:
+			mode = "open";
+			break;
+		case TWAMPSESSION_CREATE__MODE__MODE_AUTHENTICATED:
+			mode = "authenticated";
+			break;
+		case TWAMPSESSION_CREATE__MODE__MODE_ENCRYPTED:
+			mode = "encrypted";
+			break;
+		default:
+			mode = "???";
+			break;
+		}
+
+		jsonw_start_object(wr);
+		jsonw_uint_field(wr, "local-port", ntohs(tws->lport));
+		jsonw_uint_field(wr, "remote-port", ntohs(tws->rport));
+		jsonw_string_field(wr, "local-address",
+				   tw_ip2str(&tws->laddr, b1, sizeof(b1)));
+		jsonw_string_field(wr, "remote-address",
+				   tw_ip2str(&tws->raddr, b1, sizeof(b1)));
+		jsonw_string_field(wr, "mode", mode);
+		jsonw_uint_field(wr, "rx-pkts", tws->rx_pkts);
+		jsonw_uint_field(wr, "rx-bad-pkts", tws->rx_bad);
+		jsonw_uint_field(wr, "tx-pkts", tws->tx_pkts);
+		jsonw_uint_field(wr, "tx-bad-pkts", tws->tx_bad);
+		jsonw_end_object(wr);
+	}
+	jsonw_end_array(wr);
+	jsonw_destroy(&wr);
+	return 0;
+}
+
+static int
 tw_get_vrf(const char *vrf_name, vrfid_t *vrfid)
 {
 	struct vrf *vrf;
@@ -543,6 +591,19 @@ tw_protobuf_handler(struct pb_msg *msg)
 	return 0;
 }
 
+static int
+tw_server_ops(FILE *f, int argc, char **argv)
+{
+	if (argc != 2)
+		return -EINVAL;
+
+	if (streq(argv[1], "dump"))
+		return tw_session_dump(f);
+
+	fprintf(f, "Usage: vyatta:twamp dump");
+	return -EINVAL;
+}
+
 void
 twamp_shutdown(void)
 {
@@ -569,6 +630,13 @@ twamp_init(void)
 				     tw_event_register_udp_port,
 				     twamp_sock_main) < 0)
 		rte_panic("cannot registration UDP port handler\n");
+
+	rc = dp_feature_register_string_op_handler("vyatta:twamp",
+						   "TWAMP server control",
+						   tw_server_ops);
+	if (rc < 0)
+		RTE_LOG(ERR, TWAMP,
+			"can not register op-mode handler: %d\n", rc);
 
 	rc = dp_feature_register_pb_op_handler("vyatta:twamp",
 					       tw_protobuf_handler);
