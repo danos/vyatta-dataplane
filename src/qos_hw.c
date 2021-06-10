@@ -2521,7 +2521,6 @@ qos_hw_new_pipe(uint32_t pipe_id, fal_object_t subport_sched_obj,
 	for (tc_id = 0; !ret && tc_id < RTE_SCHED_TRAFFIC_CLASSES_PER_PIPE;
 	     tc_id++) {
 		uint64_t dscp_bitmap = 0;
-		uint8_t pcp_bitmap = 0;
 		uint8_t des_bitmap = 0;
 		uint8_t q;
 		uint8_t qindex;
@@ -2583,8 +2582,7 @@ qos_hw_new_pipe(uint32_t pipe_id, fal_object_t subport_sched_obj,
 		 * queue, don't create this TC as it isn't used.
 		 */
 		if (!ret &&
-		    ((local_priority_wrr <
-		      RTE_SCHED_QUEUES_PER_TRAFFIC_CLASS) || pcp_bitmap ||
+		    ((local_priority_wrr < RTE_SCHED_QUEUES_PER_TRAFFIC_CLASS) ||
 		     dscp_bitmap || des_bitmap)) {
 
 			uint32_t queue_limit =
