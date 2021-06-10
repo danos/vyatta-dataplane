@@ -295,6 +295,24 @@ tw_pb_session_counters(TWAMPSessionCounters *counters,
 static int
 tw_pb_init(TWAMPInitialise *init)
 {
+	const char *vrfname = init->vrf_name;
+	vrfid_t vrfid;
+	int rc;
+
+	if (vrfname == NULL)
+		vrfname = "DEFAULT";
+
+	rc = tw_get_vrf(init->vrf_name, &vrfid);
+	if (rc < 0) {
+		DP_DEBUG(TWAMP, ERR, TWAMP,
+			 "initialisation VRF '%s' failed: %s\n",
+			 vrfname, strerror(-rc));
+		return rc;
+	}
+
+	DP_DEBUG(TWAMP, INFO, TWAMP,
+		 "initialisation VRF '%s'\n", vrfname);
+	tw_session_clean_vrf(vrfid);
 	return 0;
 }
 
