@@ -94,7 +94,7 @@ process_pass(struct ifnet *ifp, struct rte_mbuf *m, npf_session_t *se,
 
 
 npf_decision_t
-npf_hook_out_track_fw(struct pl_packet *pkt)
+npf_out_track_fw(struct pl_packet *pkt)
 {
 	struct npf_if *nif = rcu_dereference(pkt->out_ifp->if_npf);
 	struct ifnet *in_ifp = pkt->in_ifp;
@@ -172,7 +172,7 @@ npf_hook_out_track_fw(struct pl_packet *pkt)
  * Packets passed in here must not be fragments.
  */
 npf_decision_t
-npf_hook_out_track_v6_fw(struct pl_packet *pkt)
+npf_out_track_v6_fw(struct pl_packet *pkt)
 {
 	uint16_t *npf_flags = &pkt->npf_flags;
 	struct rte_mbuf *m = pkt->mbuf;
@@ -269,7 +269,7 @@ npf_hook_out_track_v6_fw(struct pl_packet *pkt)
  * Packets passed in here must not be fragments.
  */
 npf_decision_t
-npf_hook_out_track_snat(struct ifnet *in_ifp, struct rte_mbuf **m,
+npf_out_track_snat(struct ifnet *in_ifp, struct rte_mbuf **m,
 			struct npf_if *nif, uint16_t *npf_flags)
 {
 	struct npf_config *nif_config = npf_if_conf(nif);

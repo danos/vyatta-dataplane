@@ -15,12 +15,12 @@
 #include "pl_common.h"
 #include "pl_fused.h"
 #include "npf/npf.h"
-#include "fw_out_snat/npf_shim_out.h"
+#include "snat_and_fwout/npf_out.h"
 
 ALWAYS_INLINE unsigned int
 ipv4_fw_out_process(struct pl_packet *pkt, void *context __unused)
 {
-	npf_decision_t result = npf_hook_out_track_fw(pkt);
+	npf_decision_t result = npf_out_track_fw(pkt);
 
 	if (result != NPF_DECISION_PASS)
 		return IPV4_FW_OUT_DROP;
@@ -36,7 +36,7 @@ ipv6_fw_out_process(struct pl_packet *pkt, void *context __unused)
 
 	struct npf_if *nif = rcu_dereference(pkt->out_ifp->if_npf);
 	if  (npf_if_active(nif, bitmask)) {
-		npf_decision_t result = npf_hook_out_track_v6_fw(pkt);
+		npf_decision_t result = npf_out_track_v6_fw(pkt);
 		if (result != NPF_DECISION_PASS)
 			return IPV6_FW_OUT_DROP;
 	} else if ((pkt->npf_flags & NPF_FLAG_FROM_ZONE) &&

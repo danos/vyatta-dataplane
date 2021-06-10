@@ -14,7 +14,7 @@
 #include "npf/npf_if.h"
 #include "npf/npf.h"
 #include "ip_funcs.h"
-#include "fw_out_snat/npf_shim_out.h"
+#include "snat_and_fwout/npf_out.h"
 
 static ALWAYS_INLINE unsigned int
 ip_snat_process(struct pl_packet *pkt)
@@ -26,7 +26,7 @@ ip_snat_process(struct pl_packet *pkt)
 	if  (npf_if_active(nif, bitmask)) {
 		struct rte_mbuf *m = pkt->mbuf;
 
-		npf_decision_t result = npf_hook_out_track_snat(pkt->in_ifp, &m, nif,
+		npf_decision_t result = npf_out_track_snat(pkt->in_ifp, &m, nif,
 								&pkt->npf_flags);
 
 		if (unlikely(m != pkt->mbuf)) {
