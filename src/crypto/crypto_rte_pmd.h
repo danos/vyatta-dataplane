@@ -44,6 +44,8 @@ enum cryptodev_type {
 
 #define MAX_CRYPTO_PMD 128
 
+unsigned int crypto_rte_dev_cnt(enum cryptodev_type type);
+
 int crypto_rte_select_pmd_type(enum rte_crypto_cipher_algorithm cipher_algo,
 			       enum rte_crypto_aead_algorithm aead_algo,
 			       enum cryptodev_type *dev_type,

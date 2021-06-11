@@ -41,6 +41,11 @@ static uint8_t dev_cnts[CRYPTODEV_MAX];
 /* per packet crypto op pool. This may eventually subsume crypto_pkt_ctx */
 static struct rte_mempool *crypto_op_pool;
 
+unsigned int crypto_rte_dev_cnt(enum cryptodev_type type)
+{
+	return dev_cnts[type];
+}
+
 static void
 crypto_rte_mempool_mz_free(__rte_unused struct rte_mempool_memhdr *memhdr,
 			   void *opaque)
