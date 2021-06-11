@@ -1130,32 +1130,33 @@ npf_rte_acl_trie_add_rule(int af, struct npf_match_ctx_trie *m_trie,
 	else
 		return -EINVAL;
 
-	err = rte_acl_add_rules(m_trie->acl_ctx, acl_rule, 1);
-	if (err < 0 && err != -ENOENT)
-		goto error;
-
-	if (err == -ENOENT) {
+	if (rte_mempool_avail_count(rule_mempool) == 0) {
 		err = npf_rte_acl_mempool_grow(rule_mempool);
-		if (err < 0)
-			goto error;
+		if (err < 0) {
+			RTE_LOG(ERR, DATAPLANE,
+				"Could not grow rule-pool to grow trie %s: %s\n",
+				m_trie->trie_name, rte_strerror(-err));
+			return err;
+		}
+	}
 
-		err = rte_acl_add_rules(m_trie->acl_ctx, acl_rule, 1);
-		if (err)
-			goto error;
+	err = rte_acl_add_rules(m_trie->acl_ctx, acl_rule, 1);
+	if (err < 0 && err != -ENOENT) {
+		RTE_LOG(ERR, DATAPLANE,
+			"Could not add rule to trie %s (%s), max_rules %d, num_rules %d : %s\n",
+			m_trie->trie_name,
+			trie_state_strs[m_trie->trie_state],
+			NPR_MTRIE_MAX_RULES, m_trie->num_rules,
+			rte_strerror(-err));
+		rte_mempool_dump(stdout, rule_mempool);
+		rte_acl_dump(m_trie->acl_ctx);
+
+		return err;
 	}
 
 	m_trie->num_rules++;
 
 	return 0;
-
-error:
-	RTE_LOG(ERR, DATAPLANE,
-		"Could not add rule for af %d to trie %s (%s), max_rules %d, num_rules %d : %s\n",
-		af, m_trie->trie_name,
-		trie_state_strs[m_trie->trie_state],
-		NPR_MTRIE_MAX_RULES, m_trie->num_rules, rte_strerror(-err));
-
-	return err;
 }
 
 int npf_rte_acl_add_rule(int af, npf_match_ctx_t *m_ctx, uint32_t rule_no,
