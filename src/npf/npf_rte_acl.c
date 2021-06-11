@@ -41,6 +41,13 @@ static struct rte_mempool *npr_acl6_pool;
 
 #define NPR_ACL_RING_SZ 512
 
+/* Maximum amount of new (merge) tries which get created per npf_match_ctx,
+ * per ACL optimization thread cycle. This allows to use fixed
+ * size arrays to perform the merge of group of tries into a
+ * new merge trie.
+ */
+#define OPTIMIZE_MAX_NEW_TRIES 1
+
 struct rte_ring *npr_acl4_ring, *npr_acl6_ring;
 
 /*
