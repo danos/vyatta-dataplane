@@ -1854,38 +1854,6 @@ npf_rte_acl_select_candidate_tries(npf_match_ctx_t *ctx,
 	*num_rules = cnt_rules;
 }
 
-__rte_unused
-static int
-npf_rte_acl_delete_pending_rules(npf_match_ctx_t *ctx,
-				 struct npf_match_ctx_trie *new_trie)
-{
-	int rc;
-	struct rte_acl_rule *rule;
-	struct rte_mempool *rule_pool;
-
-	if (ctx->af == AF_INET)
-		rule_pool = npr_acl4_pool;
-	else if (ctx->af == AF_INET6)
-		rule_pool = npr_acl6_pool;
-	else
-		return -EINVAL;
-
-	while ((rc = rte_ring_dequeue(ctx->pdel_ring, (void **)&rule)) == 0) {
-
-		rc = npf_rte_acl_trie_del_rule(ctx->af, new_trie, rule);
-		if (rc < 0) {
-			RTE_LOG(ERR, DATAPLANE,
-				"Failed to delete pending rule from merged trie %s: %s\n",
-				new_trie->trie_name, rte_strerror(-rc));
-			return rc;
-		}
-
-		rte_mempool_put(rule_pool, rule);
-	}
-
-	return 0;
-}
-
 static int
 npf_rte_acl_copy_rules(npf_match_ctx_t *ctx,
 		       struct npf_match_ctx_trie *m_trie,
