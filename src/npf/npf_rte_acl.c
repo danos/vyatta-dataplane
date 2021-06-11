@@ -1887,13 +1887,10 @@ npf_rte_acl_delete_pending_rules(npf_match_ctx_t *ctx,
 
 static int
 npf_rte_acl_copy_rules(npf_match_ctx_t *ctx,
-		       struct npf_match_ctx_trie *merge_start,
-		       uint16_t num_tries,
+		       struct npf_match_ctx_trie *m_trie,
 		       struct npf_match_ctx_trie *dst_trie)
 {
 	int rc;
-	struct npf_match_ctx_trie *next, *m_trie = merge_start;
-	uint16_t i = 0;
 	struct rte_mempool *rule_mempool;
 
 	if (ctx->af == AF_INET)
@@ -1903,48 +1900,45 @@ npf_rte_acl_copy_rules(npf_match_ctx_t *ctx,
 	else
 		return -EINVAL;
 
-	cds_list_for_each_entry_safe_from(m_trie, next, &ctx->trie_list, trie_link) {
+	DP_DEBUG(RLDB_ACL, DEBUG, DATAPLANE, "Updating trie-state %s from %s to %s (%s)\n",
+			m_trie->trie_name, trie_state_strs[m_trie->trie_state],
+			trie_state_strs[TRIE_STATE_MERGING], __func__);
 
-		if (m_trie->num_rules == NPR_TRIE_MAX_RULES)
-			continue;
+	m_trie->trie_state = TRIE_STATE_MERGING;
 
-		DP_DEBUG(RLDB_ACL, DEBUG, DATAPLANE, "Updating trie-state %s from %s to %s (%s)\n",
-				m_trie->trie_name, trie_state_strs[m_trie->trie_state],
-				trie_state_strs[TRIE_STATE_MERGING], __func__);
-		m_trie->trie_state = TRIE_STATE_MERGING;
+	DP_DEBUG(RLDB_ACL, DEBUG, DATAPLANE, "Merging %s (%p) (%u rules) into %s (%s)\n",
+			m_trie->trie_name, m_trie, m_trie->num_rules,
+			dst_trie->trie_name, __func__);
 
-		DP_DEBUG(RLDB_ACL, DEBUG, DATAPLANE, "Merging %s (%u rules) into %s (%s)\n",
-				m_trie->trie_name, m_trie->num_rules, dst_trie->trie_name,
-				__func__);
-
-		if (rte_mempool_avail_count(rule_mempool) < m_trie->num_rules) {
-
-			rc = npf_rte_acl_mempool_grow(rule_mempool);
-			if (rc < 0)
-				goto error;
+	if (rte_mempool_avail_count(rule_mempool) < m_trie->num_rules) {
+		rc = npf_rte_acl_mempool_grow(rule_mempool);
+		if (rc < 0) {
+			RTE_LOG(ERR, DATAPLANE,
+				"Could not grow (%u) rule mempool (%u/%u/%u) for trie merge %s: %s\n",
+				NPR_RULE_GROW_ELEMENTS,
+				rte_mempool_avail_count(rule_mempool),
+				rte_mempool_in_use_count(rule_mempool),
+				rule_mempool->size,
+				dst_trie->trie_name, rte_strerror(-rc));
+			return rc;
 		}
-
-		rc = rte_acl_copy_rules(dst_trie->acl_ctx, m_trie->acl_ctx);
-		if (rc < 0)
-			goto error;
-
-		dst_trie->num_rules += m_trie->num_rules;
-
-		if (++i == num_tries)
-			break;
 	}
+
+	rc = rte_acl_copy_rules(dst_trie->acl_ctx, m_trie->acl_ctx);
+	if (rc < 0) {
+		RTE_LOG(ERR, DATAPLANE,
+			"Could not copy rules (%u) into new trie %s (%u): %s\n",
+			m_trie->num_rules, dst_trie->trie_name,
+			dst_trie->num_rules, rte_strerror(-rc));
+		return  rc;
+	}
+
+	dst_trie->num_rules += m_trie->num_rules;
 
 	DP_DEBUG(RLDB_ACL, DEBUG, DATAPLANE, "Merge into %s completed (%u rules)\n",
 			dst_trie->trie_name, dst_trie->num_rules);
 
 	return 0;
-
-error:
-	RTE_LOG(ERR, DATAPLANE, "Could not copy rules into new trie %s: %s\n",
-		dst_trie->trie_name, rte_strerror(-rc));
-
-	return rc;
-
 }
 
 static void
@@ -2036,7 +2030,7 @@ npf_rte_acl_optimize_merge_prepare(npf_match_ctx_t *ctx,
 			new_trie = new_tries[++merged_trie_cnt];
 
 		/* copy rules to new trie */
-		rc = npf_rte_acl_copy_rules(ctx, m_trie, 1, new_trie);
+		rc = npf_rte_acl_copy_rules(ctx, m_trie, new_trie);
 		if (rc < 0) {
 			RTE_LOG(ERR, DATAPLANE,
 				"Trie-Optimization: Failed to copy rules into new trie: %s\n",
