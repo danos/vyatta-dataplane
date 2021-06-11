@@ -1961,7 +1961,6 @@ npf_rte_acl_delete_merged_tries(npf_match_ctx_t *ctx,
 	}
 }
 
-__rte_unused
 static int
 npf_rte_acl_optimize_merge_prepare(npf_match_ctx_t *ctx,
 				   struct npf_match_ctx_trie *merge_start,
@@ -2193,9 +2192,11 @@ static void npf_rte_acl_optimize_ctx(npf_match_ctx_t *ctx)
 {
 	int rc;
 	struct cds_list_head *list_entry, *next;
-	struct npf_match_ctx_trie *m_trie, *merge_start = NULL,
-				  *new_trie = NULL;
-	uint16_t merge_trie_cnt = 0, merge_rule_cnt, skip_cnt = 0;
+	struct npf_match_ctx_trie *m_trie, *merge_start = NULL;
+	struct npf_match_ctx_trie *new_trie;
+	struct npf_match_ctx_trie *new_tries[OPTIMIZE_MAX_NEW_TRIES] = { NULL };
+	uint16_t merge_trie_cnt = 0, new_trie_cnt = 0, merge_rule_cnt,
+		 skip_cnt = 0;
 
 	/* complete one full iteration over the list */
 	/* find first frozen trie */
@@ -2227,44 +2228,22 @@ static void npf_rte_acl_optimize_ctx(npf_match_ctx_t *ctx)
 		return;
 	}
 
-	/* allocate new trie */
 	DP_DEBUG(RLDB_ACL, DEBUG, DATAPLANE,
 		 "Merging %d tries with %u rules in ctx %s\n",
 		 merge_trie_cnt, merge_rule_cnt, ctx->ctx_name);
 
-	rc = npf_rte_acl_create_trie(ctx->af, NPR_TRIE_MAX_RULES, &new_trie);
-	if (rc < 0) {
-		RTE_LOG(ERR, DATAPLANE,
-			"Trie-Optimization: Failed to allocate new trie: %s\n",
-			strerror(-rc));
-
-		/* release merge lock */
-		rte_spinlock_unlock(&ctx->merge_lock);
-
-		return;
-	}
-
-	DP_DEBUG(RLDB_ACL, DEBUG, DATAPLANE,
-		 "Allocated trie %s with %d rules\n",
-		 new_trie->trie_name, NPR_TRIE_MAX_RULES);
-
-	/* copy rules to new trie */
-	rc = npf_rte_acl_copy_rules(ctx, merge_start, merge_trie_cnt, new_trie);
-	if (rc < 0) {
-		RTE_LOG(ERR, DATAPLANE,
-			"Trie-Optimization: Failed to copy rules into new trie: %s\n",
-			strerror(-rc));
-
-		npf_rte_acl_delete_trie(ctx, new_trie);
-
-		/* release merge lock */
-		rte_spinlock_unlock(&ctx->merge_lock);
-
-		return;
-	}
+	rc = npf_rte_acl_optimize_merge_prepare(ctx, merge_start,
+						merge_trie_cnt,
+						new_tries,
+						&new_trie_cnt);
+	if (rc < 0 || new_trie_cnt == 0)
+		goto done;
 
 	/* release merge lock */
 	rte_spinlock_unlock(&ctx->merge_lock);
+
+	/* code staging artifact */
+	new_trie = new_tries[0];
 
 	/* build new trie */
 	rc = npf_rte_acl_trie_build(ctx->af, new_trie);
