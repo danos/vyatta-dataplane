@@ -2125,7 +2125,6 @@ npf_rte_acl_optimize_merge_rebuild(npf_match_ctx_t *ctx,
 	return 0;
 }
 
-__rte_unused
 static int
 npf_rte_acl_optimize_merge_finalize(npf_match_ctx_t *ctx,
 				    struct npf_match_ctx_trie *merge_start,
@@ -2154,7 +2153,6 @@ static void npf_rte_acl_optimize_ctx(npf_match_ctx_t *ctx)
 	int rc;
 	struct cds_list_head *list_entry, *next;
 	struct npf_match_ctx_trie *m_trie, *merge_start = NULL;
-	struct npf_match_ctx_trie *new_trie;
 	struct npf_match_ctx_trie *new_tries[OPTIMIZE_MAX_NEW_TRIES] = { NULL };
 	uint16_t merge_trie_cnt = 0, new_trie_cnt = 0, merge_rule_cnt,
 		 skip_cnt = 0;
@@ -2203,9 +2201,6 @@ static void npf_rte_acl_optimize_ctx(npf_match_ctx_t *ctx)
 	/* release merge lock */
 	rte_spinlock_unlock(&ctx->merge_lock);
 
-	/* code staging artifact */
-	new_trie = new_tries[0];
-
 	rc = npf_rte_acl_optimize_merge_build(ctx, new_tries, new_trie_cnt);
 	if (rc < 0)
 		goto done;
@@ -2217,12 +2212,10 @@ static void npf_rte_acl_optimize_ctx(npf_match_ctx_t *ctx)
 	if (rc < 0)
 		goto done;
 
-	/* insert new trie */
-	npf_rte_acl_add_trie(ctx, new_trie);
-
-	/* delete candidate tries */
-	npf_rte_acl_delete_merged_tries(ctx, merge_start);
-
+	rc = npf_rte_acl_optimize_merge_finalize(ctx, merge_start,
+						 new_tries, new_trie_cnt);
+	if (rc < 0)
+		goto done;
 done:
 	/* release merge lock */
 	rte_spinlock_unlock(&ctx->merge_lock);
