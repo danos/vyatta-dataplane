@@ -1835,6 +1835,9 @@ npf_rte_acl_select_candidate_tries(npf_match_ctx_t *ctx,
 		if (m_trie->trie_state != TRIE_STATE_FROZEN)
 			continue;
 
+		if (m_trie->num_rules == NPR_TRIE_MAX_RULES)
+			continue;
+
 		cnt_tries++;
 		cnt_rules += m_trie->num_rules;
 	}
@@ -1893,6 +1896,9 @@ npf_rte_acl_copy_rules(npf_match_ctx_t *ctx,
 		return -EINVAL;
 
 	cds_list_for_each_entry_safe_from(m_trie, next, &ctx->trie_list, trie_link) {
+
+		if (m_trie->num_rules == NPR_TRIE_MAX_RULES)
+			continue;
 
 		DP_DEBUG(RLDB_ACL, DEBUG, DATAPLANE, "Updating trie-state %s from %s to %s (%s)\n",
 				m_trie->trie_name, trie_state_strs[m_trie->trie_state],
