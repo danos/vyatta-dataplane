@@ -36,10 +36,9 @@
 #define MAX_CRYPTO_PMD 128
 
 /*
- * Dynamic number of pmds supported. Based upon the number of crypto
- * engines available which is reported from either a probe or a set.
+ * number of cpus available/used for crypto processing
  */
-static unsigned int max_pmds;
+static unsigned int num_crypto_cpus;
 
 /*
  * A per pmd structure that is referenced by dev_id in the forwarding
@@ -217,7 +216,7 @@ crypto_pmd_find_or_create(enum crypto_xfrm xfrm,
 	if (xfrm == MAX_CRYPTO_XFRM)
 		return NULL;
 
-	if (pmd_alloc >= max_pmds)
+	if (crypto_rte_dev_cnt(dev_type) >= num_crypto_cpus)
 		return crypto_pmd_alloc_loadshare(xfrm, dev_type);
 
 	/*
@@ -344,24 +343,14 @@ static int crypto_cpu_describe(FILE *f, unsigned int count,
 	return 0;
 }
 
-static void set_max_pmd(unsigned int new)
-{
-	max_pmds = new < MAX_CRYPTO_PMD ?
-		new : MAX_CRYPTO_PMD;
-}
-
 int crypto_engine_probe(FILE *f)
 {
-	unsigned int num;
 	bool sticky;
 
-	num = probe_crypto_engines(&sticky);
+	num_crypto_cpus = probe_crypto_engines(&sticky);
 
-	/* each core can have one PMD of each type */
-	set_max_pmd(num * CRYPTODEV_MAX);
-
-	return  f ? crypto_cpu_describe(f, num, sticky) :
-		 (int) num;
+	return  f ? crypto_cpu_describe(f, num_crypto_cpus, sticky) :
+		(int) num_crypto_cpus;
 }
 
 int crypto_engine_set(uint8_t *bytes, uint8_t len)
@@ -375,7 +364,7 @@ int crypto_engine_set(uint8_t *bytes, uint8_t len)
 		return -EINVAL;
 	}
 
-	set_max_pmd(num);
+	num_crypto_cpus = num;
 
 	return 0;
 }
