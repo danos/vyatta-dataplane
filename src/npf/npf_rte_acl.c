@@ -1961,6 +1961,103 @@ npf_rte_acl_delete_merged_tries(npf_match_ctx_t *ctx,
 	}
 }
 
+__rte_unused
+static int
+npf_rte_acl_optimize_merge_prepare(npf_match_ctx_t *ctx,
+				   struct npf_match_ctx_trie *merge_start,
+				   uint16_t merge_trie_cnt,
+				   struct npf_match_ctx_trie **new_tries,
+				   uint16_t *new_trie_cnt)
+{
+	int rc;
+	struct npf_match_ctx_trie *new_trie = NULL;
+	struct npf_match_ctx_trie *next, *m_trie = merge_start;
+	uint16_t merged_trie_cnt = 0, trie_cnt = 0, rules_cnt = 0;
+	uint16_t total_rules_to_merge = 0;
+
+	cds_list_for_each_entry_safe_from(m_trie, next, &ctx->trie_list,
+					  trie_link) {
+
+
+		if (m_trie->trie_state != TRIE_STATE_FROZEN)
+			continue;
+
+		if (m_trie->num_rules == NPR_TRIE_MAX_RULES)
+			continue;
+
+		if (!new_trie
+		    || (rules_cnt + m_trie->num_rules) > NPR_TRIE_MAX_RULES) {
+
+
+			/* allocate new trie */
+			rc = npf_rte_acl_create_trie(ctx->af,
+						     NPR_TRIE_MAX_RULES,
+						     &new_trie);
+			if (rc < 0) {
+				RTE_LOG(ERR, DATAPLANE,
+					"Trie-Optimization: Failed to allocate new trie: %s\n",
+					strerror(-rc));
+
+				goto error;
+			}
+
+			DP_DEBUG(RLDB_ACL, DEBUG, DATAPLANE,
+				 "Allocated trie %s with %d rules\n",
+				 new_trie->trie_name, NPR_TRIE_MAX_RULES);
+
+			new_tries[trie_cnt++] = new_trie;
+			rules_cnt = 0;
+		}
+
+		rules_cnt += m_trie->num_rules;
+		total_rules_to_merge += rules_cnt;
+
+		if (trie_cnt >= OPTIMIZE_MAX_NEW_TRIES || trie_cnt >= merge_trie_cnt)
+			break;
+	}
+
+	if (trie_cnt == 0)
+		return 0;
+
+	new_trie = new_tries[0];
+
+	m_trie = merge_start;
+
+	cds_list_for_each_entry_safe_from(m_trie, next, &ctx->trie_list,
+					  trie_link) {
+
+		if (m_trie->trie_state != TRIE_STATE_FROZEN)
+			continue;
+
+		if (m_trie->num_rules == NPR_TRIE_MAX_RULES)
+			continue;
+
+		if ((new_trie->num_rules + m_trie->num_rules)
+		    > NPR_TRIE_MAX_RULES)
+			new_trie = new_tries[++merged_trie_cnt];
+
+		/* copy rules to new trie */
+		rc = npf_rte_acl_copy_rules(ctx, m_trie, 1, new_trie);
+		if (rc < 0) {
+			RTE_LOG(ERR, DATAPLANE,
+				"Trie-Optimization: Failed to copy rules into new trie: %s\n",
+				strerror(-rc));
+			goto error;
+		}
+
+	}
+
+	*new_trie_cnt = trie_cnt;
+
+	return 0;
+
+error:
+	while (merged_trie_cnt)
+		npf_rte_acl_trie_destroy(ctx->af, new_tries[--merged_trie_cnt]);
+
+	return rc;
+}
+
 static void npf_rte_acl_optimize_ctx(npf_match_ctx_t *ctx)
 {
 	int rc;
