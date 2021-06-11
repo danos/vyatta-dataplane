@@ -59,6 +59,9 @@ override_dh_auto_configure:
 override_dh_strip:
 	debian/bin/debug_strip --auto-dbgsym
 
+override_dh_auto_build:
+	ninja -C build -v $(NINJA_ARGS)
+
 # Does not interact well with custom stripping above
 override_dh_dwz:
 
