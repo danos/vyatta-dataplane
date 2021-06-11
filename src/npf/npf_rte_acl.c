@@ -2084,6 +2084,87 @@ npf_rte_acl_optimize_merge_build(npf_match_ctx_t *ctx,
 	return 0;
 }
 
+__rte_unused
+static int
+npf_rte_acl_optimize_merge_rebuild(npf_match_ctx_t *ctx,
+				   struct npf_match_ctx_trie **new_tries,
+				   uint16_t new_trie_cnt)
+{
+	int rc;
+	uint16_t i;
+	bool found;
+	struct npf_match_ctx_trie *new_trie;
+	struct rte_acl_rule *rule;
+	struct rte_mempool *rule_pool;
+
+	/* avoid rebuild if there are no pending deletes */
+	if (new_trie_cnt == 0 || rte_ring_count(ctx->pdel_ring) == 0)
+		return 0;
+
+	if (ctx->af == AF_INET)
+		rule_pool = npr_acl4_pool;
+	else if (ctx->af == AF_INET6)
+		rule_pool = npr_acl6_pool;
+	else
+		return -EINVAL;
+
+	/* delete rules in pending list */
+	while ((rc = rte_ring_dequeue(ctx->pdel_ring, (void **)&rule)) == 0) {
+		found = false;
+		for (i = 0; i < new_trie_cnt; i++) {
+			new_trie = new_tries[i];
+
+			rc = npf_rte_acl_trie_del_rule(ctx->af, new_trie, rule);
+			if (rc == -ENOENT)
+				continue;
+
+			if (rc < 0) {
+				RTE_LOG(ERR, DATAPLANE,
+					"Failed to delete pending rule %u from merged trie %s: %s\n",
+					rule->data.userdata,
+					new_trie->trie_name,
+					rte_strerror(-rc));
+				return rc;
+			}
+
+			rte_mempool_put(rule_pool, rule);
+
+			/* track changed tries which require rebuild */
+			new_trie->flags |= NPF_M_TRIE_FLAG_REBUILD;
+			found = true;
+			break;
+		}
+
+		if (!found) {
+			RTE_LOG(ERR, DATAPLANE,
+				"Could not find rule %u in ctx %s while performing pending delete.\n",
+				rule->data.userdata, ctx->ctx_name);
+			rte_mempool_put(rule_pool, rule);
+		}
+	}
+
+	/* rebuild trie */
+	for (i = 0; i < new_trie_cnt; i++) {
+		new_trie = new_tries[i];
+
+		/* only rebuild changed tries */
+		if (!(new_trie->flags & NPF_M_TRIE_FLAG_REBUILD))
+			continue;
+
+		new_trie->flags ^= NPF_M_TRIE_FLAG_REBUILD;
+
+		rc = npf_rte_acl_trie_build(ctx->af, new_trie);
+		if (rc < 0) {
+			RTE_LOG(ERR, DATAPLANE,
+				"Trie-Optimization: Failed rebuild new trie: %s\n",
+				strerror(-rc));
+			return rc;
+		}
+	}
+
+	return 0;
+}
+
 static void npf_rte_acl_optimize_ctx(npf_match_ctx_t *ctx)
 {
 	int rc;
