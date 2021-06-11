@@ -1854,6 +1854,7 @@ npf_rte_acl_select_candidate_tries(npf_match_ctx_t *ctx,
 	*num_rules = cnt_rules;
 }
 
+__rte_unused
 static int
 npf_rte_acl_delete_pending_rules(npf_match_ctx_t *ctx,
 				 struct npf_match_ctx_trie *new_trie)
@@ -2051,7 +2052,6 @@ error:
 	return rc;
 }
 
-__rte_unused
 static int
 npf_rte_acl_optimize_merge_build(npf_match_ctx_t *ctx,
 				 struct npf_match_ctx_trie **new_tries,
@@ -2077,7 +2077,6 @@ npf_rte_acl_optimize_merge_build(npf_match_ctx_t *ctx,
 	return 0;
 }
 
-__rte_unused
 static int
 npf_rte_acl_optimize_merge_rebuild(npf_match_ctx_t *ctx,
 				   struct npf_match_ctx_trie **new_tries,
@@ -2239,48 +2238,16 @@ static void npf_rte_acl_optimize_ctx(npf_match_ctx_t *ctx)
 	/* code staging artifact */
 	new_trie = new_tries[0];
 
-	/* build new trie */
-	rc = npf_rte_acl_trie_build(ctx->af, new_trie);
-	if (rc < 0) {
-		RTE_LOG(ERR, DATAPLANE,
-			"Trie-Optimization: Failed build new trie: %s\n",
-			strerror(-rc));
-
-		npf_rte_acl_delete_trie(ctx, new_trie);
-
-		return;
-	}
+	rc = npf_rte_acl_optimize_merge_build(ctx, new_tries, new_trie_cnt);
+	if (rc < 0)
+		goto done;
 
 	/* acquire merge lock */
 	rte_spinlock_lock(&ctx->merge_lock);
 
-	/* avoid rebuild if there are no pending deletes */
-	if (!rte_ring_empty(ctx->pdel_ring)) {
-
-		/* delete rules in pending list */
-		rc = npf_rte_acl_delete_pending_rules(ctx, new_trie);
-		if (rc < 0) {
-			RTE_LOG(ERR, DATAPLANE,
-				"Trie-Optimization: Failed delete pending rules: %s\n",
-				strerror(-rc));
-
-			npf_rte_acl_delete_trie(ctx, new_trie);
-
-			goto done;
-		}
-
-		/* rebuild trie */
-		rc = npf_rte_acl_trie_build(ctx->af, new_trie);
-		if (rc < 0) {
-			RTE_LOG(ERR, DATAPLANE,
-				"Trie-Optimization: Failed rebuild new trie: %s\n",
-				strerror(-rc));
-
-			npf_rte_acl_delete_trie(ctx, new_trie);
-
-			goto done;
-		}
-	}
+	rc = npf_rte_acl_optimize_merge_rebuild(ctx, new_tries, new_trie_cnt);
+	if (rc < 0)
+		goto done;
 
 	/* insert new trie */
 	npf_rte_acl_add_trie(ctx, new_trie);
