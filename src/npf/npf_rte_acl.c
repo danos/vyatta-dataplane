@@ -385,23 +385,26 @@ npf_rte_acl_mempool_mz_free(__rte_unused struct rte_mempool_memhdr *memhdr,
 }
 
 static int
-npf_rte_acl_mempool_grow(struct rte_mempool *pool, size_t nb)
+npf_rte_acl_mempool_grow(struct rte_mempool *pool)
 {
 	int rc;
 	const struct rte_memzone *mz;
 	char mz_name[RTE_MEMZONE_NAMESIZE];
-	size_t n, align, min_chunk_size;
-	ssize_t mem_size;
+	size_t align, min_chunk_size;
+	ssize_t n, mem_size;
 
-	if (!pool || nb == 0)
+	if (!pool)
 		return -EINVAL;
 
 	/* don't grow larger then the pool allows */
-	nb = RTE_MIN(nb, pool->size - pool->populated_size);
+	n = RTE_MIN((size_t)NPR_RULE_GROW_ELEMENTS,
+		    pool->size - pool->populated_size);
 
-	for (n = nb; n > 0; n -= rc) {
+	for (; n > 0; n -= rc) {
 
-		mem_size = rte_mempool_op_calc_mem_size_default(pool, n, 0,
+		mem_size = rte_mempool_op_calc_mem_size_default(pool,
+								NPR_RULE_GROW_ELEMENTS,
+								0,
 								&min_chunk_size,
 								&align);
 		if (mem_size < 0) {
@@ -436,8 +439,13 @@ npf_rte_acl_mempool_grow(struct rte_mempool *pool, size_t nb)
 					       (void *)(uintptr_t)mz);
 
 		/* unexpected */
-		if (rc == 0)
+		if (rc == 0) {
+			RTE_LOG(ERR, DATAPLANE,
+				"Could not grow the memory pool %s: populate 0/%lu objects for mem-size: %lu\n",
+				pool->name, n, mem_size);
+
 			rc = -ENOBUFS;
+		}
 
 		if (rc < 0) {
 			RTE_LOG(ERR, DATAPLANE,
@@ -463,7 +471,7 @@ error:
 }
 
 static int
-npf_rte_acl_mempool_get(struct rte_mempool *pool, size_t grow_nb, void **obj)
+npf_rte_acl_mempool_get(struct rte_mempool *pool, void **obj)
 {
 	int rc;
 
@@ -478,7 +486,7 @@ npf_rte_acl_mempool_get(struct rte_mempool *pool, size_t grow_nb, void **obj)
 	}
 
 	/* pool is empty, try to grow the pool */
-	rc = npf_rte_acl_mempool_grow(pool, grow_nb);
+	rc = npf_rte_acl_mempool_grow(pool);
 	if (rc < 0) {
 		RTE_LOG(ERR, DATAPLANE,
 			"Failed to get new element from %s: %s\n",
@@ -491,13 +499,12 @@ npf_rte_acl_mempool_get(struct rte_mempool *pool, size_t grow_nb, void **obj)
 
 static int
 npf_rte_acl_mempool_create(const char *name, size_t max_elems, size_t elem_size,
-			   size_t grow_nb, int socket_id,
-			   struct rte_mempool **pool)
+			   int socket_id, struct rte_mempool **pool)
 {
 	int rc;
 	struct rte_mempool *mp;
 
-	if (!name || !pool || elem_size == 0 || grow_nb == 0)
+	if (!name || !pool || elem_size == 0)
 		return -EINVAL;
 
 	mp = rte_mempool_create_empty(name, max_elems, elem_size,
@@ -517,7 +524,7 @@ npf_rte_acl_mempool_create(const char *name, size_t max_elems, size_t elem_size,
 		goto error;
 	}
 
-	rc = npf_rte_acl_mempool_grow(mp, grow_nb);
+	rc = npf_rte_acl_mempool_grow(mp);
 	if (rc < 0) {
 		RTE_LOG(ERR, DATAPLANE,
 			"Failed initial memory pool population of %s: %s\n",
@@ -1128,8 +1135,7 @@ npf_rte_acl_trie_add_rule(int af, struct npf_match_ctx_trie *m_trie,
 		goto error;
 
 	if (err == -ENOENT) {
-		err = npf_rte_acl_mempool_grow(rule_mempool,
-					       NPR_RULE_GROW_ELEMENTS);
+		err = npf_rte_acl_mempool_grow(rule_mempool);
 		if (err < 0)
 			goto error;
 
@@ -1302,8 +1308,7 @@ npf_rte_acl_add_pending_delete_rule(int af, npf_match_ctx_t *m_ctx,
 	else
 		return -EINVAL;
 
-	err = npf_rte_acl_mempool_get(rule_mempool, NPR_RULE_GROW_ELEMENTS,
-				      (void **)&rule);
+	err = npf_rte_acl_mempool_get(rule_mempool, (void **)&rule);
 	if (err) {
 		RTE_LOG(ERR, DATAPLANE,
 			"Could not allocate memory pending-delete rule from ctx %s\n",
@@ -1680,8 +1685,7 @@ int npf_rte_acl_setup(void)
 
 	err = npf_rte_acl_mempool_create("npr_acl4_pool", NPR_RULE_MAX_ELEMENTS,
 					 npf_rte_acl_rule_size(AF_INET),
-					 NPR_RULE_GROW_ELEMENTS, rte_socket_id(),
-					 &npr_acl4_pool);
+					 rte_socket_id(), &npr_acl4_pool);
 	if (err < 0) {
 		RTE_LOG(ERR, DATAPLANE,
 			"Could not allocate acl rule pool for IPv4\n");
@@ -1690,8 +1694,7 @@ int npf_rte_acl_setup(void)
 
 	err = npf_rte_acl_mempool_create("npr_acl6_pool", NPR_RULE_MAX_ELEMENTS,
 					 npf_rte_acl_rule_size(AF_INET6),
-					 NPR_RULE_GROW_ELEMENTS, rte_socket_id(),
-					 &npr_acl6_pool);
+					 rte_socket_id(), &npr_acl6_pool);
 	if (err < 0) {
 		RTE_LOG(ERR, DATAPLANE,
 			"Could not allocate acl rule pool for IPv6\n");
@@ -1879,7 +1882,6 @@ npf_rte_acl_copy_rules(npf_match_ctx_t *ctx,
 	struct npf_match_ctx_trie *next, *m_trie = merge_start;
 	uint16_t i = 0;
 	struct rte_mempool *rule_mempool;
-	size_t grow_nb = NPR_RULE_GROW_ELEMENTS;
 
 	if (ctx->af == AF_INET)
 		rule_mempool = npr_acl4_pool;
@@ -1901,10 +1903,7 @@ npf_rte_acl_copy_rules(npf_match_ctx_t *ctx,
 
 		if (rte_mempool_avail_count(rule_mempool) < m_trie->num_rules) {
 
-			if (grow_nb < m_trie->num_rules)
-				grow_nb = m_trie->num_rules;
-
-			rc = npf_rte_acl_mempool_grow(rule_mempool, grow_nb);
+			rc = npf_rte_acl_mempool_grow(rule_mempool);
 			if (rc < 0)
 				goto error;
 		}
