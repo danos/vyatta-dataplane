@@ -46,7 +46,7 @@ static struct rte_mempool *npr_acl6_pool;
  * size arrays to perform the merge of group of tries into a
  * new merge trie.
  */
-#define OPTIMIZE_MAX_NEW_TRIES 1
+#define OPTIMIZE_MAX_NEW_TRIES (NPR_RULE_MAX_ELEMENTS/NPR_TRIE_MAX_RULES)
 
 struct rte_ring *npr_acl4_ring, *npr_acl6_ring;
 
