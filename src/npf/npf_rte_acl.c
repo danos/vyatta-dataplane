@@ -2165,6 +2165,30 @@ npf_rte_acl_optimize_merge_rebuild(npf_match_ctx_t *ctx,
 	return 0;
 }
 
+__rte_unused
+static int
+npf_rte_acl_optimize_merge_finalize(npf_match_ctx_t *ctx,
+				    struct npf_match_ctx_trie *merge_start,
+				    struct npf_match_ctx_trie **new_tries,
+				    uint16_t new_trie_cnt)
+{
+	struct npf_match_ctx_trie *new_trie;
+	uint16_t i;
+
+	for (i = 0; i < new_trie_cnt; i++) {
+		new_trie = new_tries[i];
+
+		/* insert new trie */
+		npf_rte_acl_add_trie(ctx, new_trie);
+
+	}
+
+	/* delete candidate tries */
+	npf_rte_acl_delete_merged_tries(ctx, merge_start);
+
+	return 0;
+}
+
 static void npf_rte_acl_optimize_ctx(npf_match_ctx_t *ctx)
 {
 	int rc;
