@@ -1,3 +1,16 @@
+vyatta-dataplane (3.13.23) unstable; urgency=medium
+
+  [ Daniel Gollub ]
+  * crypto: fix SADB crypto sym session pool growing
+  * crypto: increase SA session limit to 256k
+  * npf-rte-acl: fix SPD pool growing
+
+  [ Alan Dewar ]
+  * QoS: remove unused pcp_bitmap variable
+  * QoS: stop requesting unnecessary traffic-class (Fixes: VRVDR-55318)
+
+ -- Srinivas Narayan <narayan@vyatta.att-mail.com>  Fri, 11 Jun 2021 11:27:08 +0100
+
 vyatta-dataplane (3.13.22) unstable; urgency=medium
 
   [ Daniel Gollub ]
