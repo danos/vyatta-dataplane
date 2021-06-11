@@ -1941,16 +1941,15 @@ error:
 
 static void
 npf_rte_acl_delete_merged_tries(npf_match_ctx_t *ctx,
-				struct npf_match_ctx_trie *merge_start,
-				uint16_t num_tries)
+				struct npf_match_ctx_trie *merge_start)
 {
 	struct npf_match_ctx_trie *next, *m_trie = merge_start;
-	uint16_t i = 0;
 
 	cds_list_for_each_entry_safe_from(m_trie, next, &ctx->trie_list, trie_link) {
+		if (m_trie->trie_state != TRIE_STATE_MERGING)
+			continue;
+
 		npf_rte_acl_delete_trie(ctx, m_trie);
-		if (++i == num_tries)
-			break;
 	}
 }
 
@@ -2078,7 +2077,7 @@ static void npf_rte_acl_optimize_ctx(npf_match_ctx_t *ctx)
 	npf_rte_acl_add_trie(ctx, new_trie);
 
 	/* delete candidate tries */
-	npf_rte_acl_delete_merged_tries(ctx, merge_start, merge_trie_cnt);
+	npf_rte_acl_delete_merged_tries(ctx, merge_start);
 
 done:
 	/* release merge lock */
