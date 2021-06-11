@@ -1398,7 +1398,8 @@ int npf_rte_acl_del_rule(int af, npf_match_ctx_t *m_ctx, uint32_t rule_no,
 			DP_DEBUG(RLDB_ACL, DEBUG, DATAPLANE,
 				 "Deleted rule %d from ctx %s (trie %s)\n", rule_no,
 				 m_ctx->ctx_name, m_trie->trie_name);
-			if (!m_trie->num_rules) {
+			if (!m_trie->num_rules
+			    && m_trie->trie_state != TRIE_STATE_MERGING) {
 				npf_rte_acl_delete_trie(m_ctx, m_trie);
 			}
 
