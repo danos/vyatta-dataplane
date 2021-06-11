@@ -28,7 +28,7 @@ static struct rte_mempool *npr_acl4_pool;
 static struct rte_mempool *npr_acl6_pool;
 
 #define NPR_RULE_MAX_ELEMENTS (1 << 18)
-#define NPR_RULE_GROW_ELEMENTS (1 << 14)
+#define NPR_RULE_GROW_ELEMENTS ((1 << 14)-1)
 
 /* limit number of rules in consolidated tries to 32K for optimal build time */
 #define NPR_TRIE_MAX_RULES (1 << 15)
