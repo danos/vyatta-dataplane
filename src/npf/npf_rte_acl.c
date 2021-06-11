@@ -2058,6 +2058,32 @@ error:
 	return rc;
 }
 
+__rte_unused
+static int
+npf_rte_acl_optimize_merge_build(npf_match_ctx_t *ctx,
+				 struct npf_match_ctx_trie **new_tries,
+				 uint16_t new_trie_cnt)
+{
+	int rc;
+	struct npf_match_ctx_trie *new_trie;
+	uint16_t i;
+
+	for (i = 0; i < new_trie_cnt; i++) {
+		new_trie = new_tries[i];
+
+		/* build new trie */
+		rc = npf_rte_acl_trie_build(ctx->af, new_trie);
+		if (rc < 0) {
+			RTE_LOG(ERR, DATAPLANE,
+				"Trie-Optimization: Failed build new trie: %s\n",
+				strerror(-rc));
+			return rc;
+		}
+	}
+
+	return 0;
+}
+
 static void npf_rte_acl_optimize_ctx(npf_match_ctx_t *ctx)
 {
 	int rc;
