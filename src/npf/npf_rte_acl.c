@@ -773,13 +773,13 @@ npf_rte_acl_add_trie(npf_match_ctx_t *m_ctx, struct npf_match_ctx_trie *m_trie)
 static void
 npf_rte_acl_delete_trie(npf_match_ctx_t *ctx, struct npf_match_ctx_trie *m_trie)
 {
-	cds_list_del(&m_trie->trie_link);
-	npf_rte_acl_trie_destroy(ctx->af, m_trie);
-	rte_atomic16_dec(&ctx->num_tries);
 	DP_DEBUG(RLDB_ACL, DEBUG, DATAPLANE,
 		 "Delete trie %s from ctx %s (Trie count = %d)\n",
 		 m_trie->trie_name, ctx->ctx_name,
 		 rte_atomic16_read(&ctx->num_tries));
+	cds_list_del(&m_trie->trie_link);
+	npf_rte_acl_trie_destroy(ctx->af, m_trie);
+	rte_atomic16_dec(&ctx->num_tries);
 }
 
 static int npf_rte_acl_get_writable_trie(npf_match_ctx_t *m_ctx,
