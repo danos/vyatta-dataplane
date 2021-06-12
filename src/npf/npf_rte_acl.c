@@ -89,7 +89,8 @@ const char *trie_state_strs[TRIE_STATE_MAX] = {
  * Used to optimize update operations
  */
 
-#define NPF_M_TRIE_FLAG_POOL   0x8000   /* trie allocated from pool */
+#define NPF_M_TRIE_FLAG_POOL    0x0001   /* trie allocated from pool */
+#define NPF_M_TRIE_FLAG_REBUILD 0x0002   /* trie scheduled for rebuild */
 
 struct npf_match_ctx_trie {
 	struct cds_list_head  trie_link;
@@ -648,7 +649,7 @@ error:
 	if (tmp_trie->trie_name)
 		free(tmp_trie->trie_name);
 
-	if (tmp_trie->flags == NPF_M_TRIE_FLAG_POOL)
+	if (tmp_trie->flags & NPF_M_TRIE_FLAG_POOL)
 		rte_mempool_put(npr_mtrie_pool, tmp_trie);
 	else
 		free(tmp_trie);
