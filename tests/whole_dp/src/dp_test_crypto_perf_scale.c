@@ -210,7 +210,10 @@ DP_DECL_TEST_CASE(crypto_perf_scale_suite, crypto_policy_scale, NULL, NULL);
  */
 DP_START_TEST_FULL_RUN(crypto_policy_scale, policy_update_scale)
 {
-	dp_test_console_request_reply("debug rldb-acl", true);
+	bool debug = false;
+
+	if (debug)
+		dp_test_console_request_reply("debug rldb-acl", true);
 
 #define MAX_TUNNEL_CNT 64
 	setup(VRF_DEFAULT_ID);
