@@ -40,4 +40,10 @@ struct tw_session_entry {
 
 extern struct cds_list_head tw_session_list_head;
 
+int twamp_input_ipv4(struct rte_mbuf *m, void *l3hdr,
+		     struct udphdr *udp, struct ifnet *ifp);
+
+int twamp_input_ipv6(struct rte_mbuf *m, void *l3hdr,
+		     struct udphdr *udp, struct ifnet *ifp);
+
 #endif
