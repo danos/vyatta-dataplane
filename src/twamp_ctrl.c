@@ -55,6 +55,23 @@
 struct cds_list_head tw_session_list_head =
 	CDS_LIST_HEAD_INIT(tw_session_list_head);
 
+static zsock_t *twamp_sock_main;
+static zsock_t *twamp_sock_console;
+
+static void tw_main_register_udp_port(uint8_t add, uint8_t af, uint16_t port);
+
+static void
+tw_session_udp_port(uint8_t add, uint8_t af, uint16_t port)
+{
+	if (is_main_thread())
+		tw_main_register_udp_port(add, af, port);
+	else
+		if (zsock_bsend(twamp_sock_console, "112", add, af,
+				port) < 0)
+			RTE_LOG(ERR, TWAMP,
+				"failed to send UDP port details to main\n");
+}
+
 static struct tw_session_entry *
 tw_session_find(uint16_t lport, uint16_t rport, const struct ip_addr *laddr,
 		const struct ip_addr *raddr, vrfid_t vrfid)
@@ -69,6 +86,19 @@ tw_session_find(uint16_t lport, uint16_t rport, const struct ip_addr *laddr,
 			return entry;
 
 	return NULL;
+}
+
+static bool
+tw_session_lport_exists(int af, uint16_t lport)
+{
+	struct tw_session_entry *entry;
+
+	cds_list_for_each_entry_rcu(entry, &tw_session_list_head, list)
+		if ((entry->session.af == af) &&
+		    (entry->session.lport == lport))
+			return true;
+
+	return false;
 }
 
 static void
@@ -93,6 +123,10 @@ tw_session_delete(struct tw_session_entry *entry)
 		return;
 
 	cds_list_del(&entry->list);
+
+	if (!tw_session_lport_exists(entry->session.af, entry->session.lport))
+		tw_session_udp_port(false, entry->session.af,
+				    entry->session.lport);
 
 	call_rcu(&entry->rcu, tw_session_rcu_free);
 }
@@ -155,6 +189,67 @@ static const char *
 tw_ip2str(const struct ip_addr *addr, char *buf, size_t len)
 {
 	return inet_ntop(addr->type, &addr->address, buf, len);
+}
+
+/*
+ * Register the IPv4/IPv6 UDP destination port with the main UDP
+ * dispatch component. This needs to occur on the master thread.
+ */
+static void
+tw_main_register_udp_port(uint8_t add, uint8_t af, uint16_t port)
+{
+	udp_port_handler handler;
+	const char *prot;
+
+	switch (af) {
+	case AF_INET:
+		handler = twamp_input_ipv4;
+		prot = "IPv4";
+		break;
+	case AF_INET6:
+		handler = twamp_input_ipv6;
+		prot = "IPv6";
+		break;
+	default:
+		RTE_LOG(ERR, TWAMP,
+			"unknown address family for main event: %u\n",
+			af);
+		return;
+	}
+
+	if (!add) {
+		udp_handler_unregister(af, port);
+		DP_DEBUG(TWAMP, INFO, TWAMP,
+			 "%s unregistered UDP port %u\n",
+			 prot, ntohs(port));
+	} else {
+		if (udp_handler_register(af, port, handler) != 0)
+			RTE_LOG(ERR, TWAMP,
+				"failed to register %s UDP port %u\n",
+				prot, port);
+		else
+			DP_DEBUG(TWAMP, INFO, TWAMP,
+				 "%s registered UDP port %u\n",
+				 prot, ntohs(port));
+	}
+}
+
+static int
+tw_event_register_udp_port(void *arg)
+{
+	zsock_t *s = arg;
+	uint16_t port;
+	uint8_t add;
+	uint8_t af;
+
+	if (zsock_brecv(s, "112", &add, &af, &port) < 0) {
+		RTE_LOG(ERR, TWAMP,
+			"failed to receive event for main thread\n");
+		return 0;
+	}
+
+	tw_main_register_udp_port(add, af, port);
+	return 0;
 }
 
 static int
@@ -249,12 +344,28 @@ void
 twamp_shutdown(void)
 {
 	tw_session_clean_all();
+	dp_unregister_event_socket(zsock_resolve(twamp_sock_main));
+	zsock_destroy(&twamp_sock_main);
+	zsock_destroy(&twamp_sock_console);
 }
 
 void
 twamp_init(void)
 {
 	int rc;
+
+	twamp_sock_main = zsock_new_pair("@inproc://twamp_main_event");
+	if (twamp_sock_main == NULL)
+		rte_panic("twamp main socket failed\n");
+
+	twamp_sock_console = zsock_new_pair(">inproc://twamp_main_event");
+	if (twamp_sock_console == NULL)
+		rte_panic("twamp console socket failed\n");
+
+	if (dp_register_event_socket(zsock_resolve(twamp_sock_main),
+				     tw_event_register_udp_port,
+				     twamp_sock_main) < 0)
+		rte_panic("cannot registration UDP port handler\n");
 
 	rc = dp_feature_register_pb_op_handler("vyatta:twamp",
 					       tw_protobuf_handler);
