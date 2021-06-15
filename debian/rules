@@ -62,7 +62,7 @@ override_dh_strip:
 override_dh_auto_build:
 	ninja -C build -v $(NINJA_ARGS)
 
-# Does not interact well with custom stripping above
+# Does not interact well with custom stripping above
 override_dh_dwz:
 
 # _ are replaced with - as the former are not allowed in package names.
