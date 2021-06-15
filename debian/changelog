@@ -1,3 +1,45 @@
+vyatta-dataplane (3.13.24) unstable; urgency=medium
+
+  [ Srinivas Narayan ]
+  * Use pmd type instance count to trigger loadshare
+
+  [ Charles (Chas) Williams ]
+  * Update clang-format to match checkpatch
+
+  [ Daniel Gollub ]
+  * rldb: bump allowed maximum of rules
+  * npf-rte-acl: introduce pending-delete ring
+  * npf-rte-acl: fix memory leak of transaction-entries array
+  * npf-rte-acl: cutover to pending-delete ring usage
+  * ut: introduce dp_test_crypto_wait_for_xfrm_resp
+  * rldb: let rldb_del_rule report fine-grain errors
+  * npf-rte-acl: keep writable entries at the head of the list
+  * npf-rte-acl: increase the pdel ring size to merge-trie size
+  * npf-rte-acl: check if trie needs to grow prior copying
+  * npf-rte-acl: grow rule pool by optimal mempool object number
+  * npf-rte-acl: avoid rule-pool growing in too small chunks
+  * npf-rte-acl: prevent dereferencing of release m_trie
+  * npf-rte-acl: grow the rule-pool if required before adding rules
+  * npf-rte-acl: don't destroy empty tries in merging state
+  * npf-rte-acl: full tries are no merge candidates
+  * npf-rte-acl: ACL opt thread should only delete tries in merging state
+  * npf-rte-acl: introduce OPTIMIZE_MAX_NEW_TRIES
+  * npf-rte-acl: introduce NPF_M_TRIE_FLAG_REBUILD
+  * npf-rte-acl: stage npf_rte_acl_optimize_merge_prepare
+  * npf-rte-acl: stage npf_rte_acl_optimize_merge_build
+  * npf-rte-acl: stage npf_rte_acl_optimize_merge_rebuild
+  * npf-rte-acl: stage npf_rte_acl_optimize_merge_finalize
+  * npf-rte-acl: switch to npf_rte_acl_optimize_merge_prepare
+  * npf-rte-acl: remove trie-loop from npf_rte_acl_copy_rules
+  * npf-rte-acl: switch to npf_rte_acl_optimize_merge_{re,}build
+  * npf-rte-acl: drop unused npf_rte_acl_delete_pending_rules method
+  * npf-rte-acl: switch to npf_rte_acl_optimize_merge_finalize
+  * npf-rte-acl: introduce max merge tries per ACL opt thread cycle define
+  * ut: disable debug logging by default in dp_test_crypto_perf_scale
+  * ut: dp_test_crypto_perf_scale perform policy batch commits
+
+ -- Srinivas Narayan <narayan@vyatta.att-mail.com>  Tue, 15 Jun 2021 07:15:04 +0100
+
 vyatta-dataplane (3.13.23) unstable; urgency=medium
 
   [ Daniel Gollub ]
