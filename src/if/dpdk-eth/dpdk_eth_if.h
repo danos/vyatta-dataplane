@@ -60,4 +60,8 @@ struct ifnet *dpdk_eth_if_alloc(const char *if_name, unsigned int ifindex);
 struct ifnet *dpdk_eth_if_alloc_w_port(const char *if_name,
 				       unsigned int ifindex, portid_t portid);
 
+typedef bool (*dpdk_eth_if_walker_t)(struct ifnet *ifp, void *arg);
+
+void dpdk_eth_if_walk(dpdk_eth_if_walker_t walker, void *arg);
+
 #endif /* DPDK_ETH_IF_H */

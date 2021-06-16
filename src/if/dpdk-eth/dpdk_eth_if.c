@@ -1581,3 +1581,19 @@ struct ifnet *dpdk_eth_if_alloc(const char *if_name, unsigned int ifindex)
 
 	return dpdk_eth_if_alloc_w_port(if_name, ifindex, portid);
 }
+
+void dpdk_eth_if_walk(dpdk_eth_if_walker_t walker, void *arg)
+{
+	int i;
+	struct ifnet *ifp;
+
+	for (i = 0; i < DATAPLANE_MAX_PORTS; i++) {
+		ifp = ifnet_byport(i);
+		if (!ifp || ifp->if_type != IFT_ETHER)
+			continue;
+
+		if (walker(ifp, arg))
+			break;
+
+	}
+}
