@@ -230,7 +230,7 @@ DP_START_TEST_FULL_RUN(crypto_policy_scale, policy_update_scale)
 		dp_test_console_request_reply("debug rldb-acl", true);
 
 #define POLICY_BATCH_SIZE 512
-#define MAX_TUNNEL_CNT (1 << 15)
+#define MAX_TUNNEL_CNT (1 << 13)
 	setup(VRF_DEFAULT_ID);
 
 	setup_or_teardown_tunnels(MAX_TUNNEL_CNT, POLICY_BATCH_SIZE, true);
