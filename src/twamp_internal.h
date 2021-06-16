@@ -12,6 +12,15 @@
 #include "urcu.h"
 #include "ip_addr.h"
 
+struct tw_hash_match_args {
+	vrfid_t vrfid;
+	const struct udphdr *udp;
+	union {
+		const struct iphdr *ip4;
+		const struct ip6_hdr *ip6;
+	};
+};
+
 struct tw_session {
 	struct ip_addr laddr;
 	struct ip_addr raddr;
@@ -34,15 +43,21 @@ struct tw_session {
 
 struct tw_session_entry {
 	struct tw_session session;
-	struct cds_list_head list;
+	struct cds_lfht_node tw_node;
 	struct rcu_head rcu;
 };
 
-extern struct cds_list_head tw_session_list_head;
+extern struct cds_lfht *tw_session_table;
 
+int twamp_hash_match_ipv4(struct cds_lfht_node *node, const void *arg);
+uint32_t twamp_hash_ipv4(vrfid_t vrfid, const struct iphdr *ip,
+			 const struct udphdr *udp);
 int twamp_input_ipv4(struct rte_mbuf *m, void *l3hdr,
 		     struct udphdr *udp, struct ifnet *ifp);
 
+int twamp_hash_match_ipv6(struct cds_lfht_node *node, const void *arg);
+uint32_t twamp_hash_ipv6(vrfid_t vrfid, const struct ip6_hdr *ip6,
+			 const struct udphdr *udp);
 int twamp_input_ipv6(struct rte_mbuf *m, void *l3hdr,
 		     struct udphdr *udp, struct ifnet *ifp);
 

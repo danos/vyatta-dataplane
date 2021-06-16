@@ -52,8 +52,20 @@
 #define TWAMP_TEST_RX_PKT_SIZE_AUTH   48
 #define TWAMP_TEST_TX_PKT_SIZE_AUTH   104
 
-struct cds_list_head tw_session_list_head =
-	CDS_LIST_HEAD_INIT(tw_session_list_head);
+#define TWAMP_SESSION_HASH_MIN 16
+#define TWAMP_SESSION_HASH_MAX 64
+
+struct tw_hash_key {
+	vrfid_t vrfid;
+	uint8_t af;
+	struct udphdr udp;
+	union {
+		struct iphdr ip4;
+		struct ip6_hdr ip6;
+	};
+};
+
+struct cds_lfht *tw_session_table;
 
 static zsock_t *twamp_sock_main;
 static zsock_t *twamp_sock_console;
@@ -72,18 +84,83 @@ tw_session_udp_port(uint8_t add, uint8_t af, uint16_t port)
 				"failed to send UDP port details to main\n");
 }
 
+/*
+ * Using the addressing details that have been extracted from the PB
+ * message, build fake UDP & IP headers. This allows for hashing &
+ * matching functions to be shared between control & data.
+ */
+static uint32_t
+tw_session_hash(uint16_t lport, uint16_t rport, const struct ip_addr *laddr,
+		const struct ip_addr *raddr, vrfid_t vrfid,
+		struct tw_hash_key *hkey)
+{
+	memset(hkey, 0, sizeof(*hkey));
+	hkey->vrfid = vrfid;
+	hkey->udp.source = rport;
+	hkey->udp.dest = lport;
+	hkey->af = laddr->type;
+	switch (hkey->af) {
+	case AF_INET:
+		hkey->ip4.saddr = raddr->address.ip_v4.s_addr;
+		hkey->ip4.daddr = laddr->address.ip_v4.s_addr;
+		return twamp_hash_ipv4(hkey->vrfid, &hkey->ip4, &hkey->udp);
+	case AF_INET6:
+		memcpy(&hkey->ip6.ip6_src.s6_addr,
+		       &raddr->address.ip_v6.s6_addr,
+		       sizeof(hkey->ip6.ip6_src));
+		memcpy(&hkey->ip6.ip6_dst.s6_addr,
+		       &laddr->address.ip_v6.s6_addr,
+		       sizeof(hkey->ip6.ip6_dst));
+		return twamp_hash_ipv6(hkey->vrfid, &hkey->ip6, &hkey->udp);
+	default:
+		rte_panic("unknown address family: %u\n", hkey->af);
+		break;
+	}
+
+	return 0;
+}
+
+static int
+tw_session_match(struct cds_lfht_node *node, const void *arg)
+{
+	const struct tw_hash_key *hkey = arg;
+	struct tw_hash_match_args match = {
+		.vrfid = hkey->vrfid,
+		.udp = &hkey->udp,
+	};
+
+	switch (hkey->af) {
+	case AF_INET:
+		match.ip4 = &hkey->ip4;
+		return twamp_hash_match_ipv4(node, &match);
+	case AF_INET6:
+		match.ip6 = &hkey->ip6;
+		return twamp_hash_match_ipv6(node, &match);
+	default:
+		rte_panic("unknown address family: %u\n", hkey->af);
+		break;
+	}
+
+	return 1;
+}
+
 static struct tw_session_entry *
 tw_session_find(uint16_t lport, uint16_t rport, const struct ip_addr *laddr,
-		const struct ip_addr *raddr, vrfid_t vrfid)
+		const struct ip_addr *raddr, vrfid_t vrfid, uint32_t *hashp)
 {
-	struct tw_session_entry *entry;
-	cds_list_for_each_entry_rcu(entry, &tw_session_list_head, list)
-		if ((entry->session.lport == lport) &&
-		    (entry->session.rport == rport) &&
-		    (entry->session.vrfid == vrfid) &&
-		    dp_addr_eq(&entry->session.laddr, laddr) &&
-		    dp_addr_eq(&entry->session.raddr, raddr))
-			return entry;
+	struct cds_lfht_iter iter;
+	struct cds_lfht_node *node;
+	struct tw_hash_key hkey;
+	uint32_t hash;
+
+	hash = tw_session_hash(lport, rport, laddr, raddr, vrfid, &hkey);
+	if (hashp != NULL)
+		*hashp = hash;
+
+	cds_lfht_lookup(tw_session_table, hash, tw_session_match, &hkey, &iter);
+	node = cds_lfht_iter_get_node(&iter);
+	if (node != NULL)
+		return caa_container_of(node, struct tw_session_entry, tw_node);
 
 	return NULL;
 }
@@ -92,8 +169,9 @@ static bool
 tw_session_lport_exists(int af, uint16_t lport)
 {
 	struct tw_session_entry *entry;
+	struct cds_lfht_iter iter;
 
-	cds_list_for_each_entry_rcu(entry, &tw_session_list_head, list)
+	cds_lfht_for_each_entry(tw_session_table, &iter, entry, tw_node)
 		if ((entry->session.af == af) &&
 		    (entry->session.lport == lport))
 			return true;
@@ -122,7 +200,7 @@ tw_session_delete(struct tw_session_entry *entry)
 	if (entry == NULL)
 		return;
 
-	cds_list_del(&entry->list);
+	cds_lfht_del(tw_session_table, &entry->tw_node);
 
 	if (!tw_session_lport_exists(entry->session.af, entry->session.lport))
 		tw_session_udp_port(false, entry->session.af,
@@ -135,9 +213,9 @@ static int
 tw_session_clean_vrf(vrfid_t vrfid)
 {
 	struct tw_session_entry *entry;
-	struct tw_session_entry *next;
+	struct cds_lfht_iter iter;
 
-	cds_list_for_each_entry_safe(entry, next, &tw_session_list_head, list)
+	cds_lfht_for_each_entry(tw_session_table, &iter, entry, tw_node)
 		if (entry->session.vrfid == vrfid)
 			tw_session_delete(entry);
 
@@ -148,9 +226,9 @@ static int
 tw_session_clean_all(void)
 {
 	struct tw_session_entry *entry;
-	struct tw_session_entry *next;
+	struct cds_lfht_iter iter;
 
-	cds_list_for_each_entry_safe(entry, next, &tw_session_list_head, list)
+	cds_lfht_for_each_entry(tw_session_table, &iter, entry, tw_node)
 		tw_session_delete(entry);
 
 	return 0;
@@ -256,13 +334,15 @@ static int
 tw_session_dump(FILE *f)
 {
 	struct tw_session_entry *entry;
+	struct cds_lfht_iter iter;
 	json_writer_t *wr;
 	char b1[INET6_ADDRSTRLEN];
 
 	wr = jsonw_new(f);
 	jsonw_name(wr, "twamp-sessions");
 	jsonw_start_array(wr);
-	cds_list_for_each_entry_rcu(entry, &tw_session_list_head, list) {
+
+	cds_lfht_for_each_entry(tw_session_table, &iter, entry, tw_node) {
 		const struct tw_session *tws = &entry->session;
 		const char *mode;
 
@@ -370,7 +450,7 @@ tw_pb_session_delete(TWAMPSessionDelete *delete)
 		return -1;
 	}
 
-	entry = tw_session_find(lport, rport, &laddr, &raddr, vrfid);
+	entry = tw_session_find(lport, rport, &laddr, &raddr, vrfid, NULL);
 	if (entry == NULL) {
 		DP_DEBUG(TWAMP, DEBUG, TWAMP,
 			 "session delete failed: not found\n");
@@ -411,13 +491,14 @@ tw_pb_session_create(TWAMPSessionCreate *create)
 	char b1[INET6_ADDRSTRLEN];
 	char b2[INET6_ADDRSTRLEN];
 	int rc;
+	uint32_t hash;
 
 	rc = tw_pb_session_key_get(create->key, &lport, &rport,
 				   &laddr, &raddr, &vrfid, "create");
 	if (rc < 0)
 		return rc;
 
-	entry = tw_session_find(lport, rport, &laddr, &raddr, vrfid);
+	entry = tw_session_find(lport, rport, &laddr, &raddr, vrfid, &hash);
 	if (entry != NULL) {
 		RTE_LOG(ERR, TWAMP,
 			"session create (%s:%u -> %s:%u) failed: exists\n",
@@ -476,7 +557,7 @@ tw_pb_session_create(TWAMPSessionCreate *create)
 
 	port_registered = tw_session_lport_exists(entry->session.af, lport);
 
-	cds_list_add_rcu(&entry->list, &tw_session_list_head);
+	cds_lfht_add(tw_session_table, hash, &entry->tw_node);
 
 	if (!port_registered)
 		tw_session_udp_port(true, entry->session.af, lport);
@@ -507,7 +588,7 @@ tw_pb_session_counters(TWAMPSessionCounters *counters,
 		return -1;
 	}
 
-	entry = tw_session_find(lport, rport, &laddr, &raddr, vrfid);
+	entry = tw_session_find(lport, rport, &laddr, &raddr, vrfid, NULL);
 	if (entry == NULL) {
 		DP_DEBUG(TWAMP, DEBUG, TWAMP,
 			 "session counters failed: not found\n");
@@ -611,12 +692,21 @@ twamp_shutdown(void)
 	dp_unregister_event_socket(zsock_resolve(twamp_sock_main));
 	zsock_destroy(&twamp_sock_main);
 	zsock_destroy(&twamp_sock_console);
+	cds_lfht_destroy(tw_session_table, NULL);
 }
 
 void
 twamp_init(void)
 {
 	int rc;
+
+	tw_session_table = cds_lfht_new(TWAMP_SESSION_HASH_MIN,
+					TWAMP_SESSION_HASH_MIN,
+					TWAMP_SESSION_HASH_MAX,
+					CDS_LFHT_AUTO_RESIZE,
+					NULL);
+	if (tw_session_table == NULL)
+		rte_panic("twamp session table failed\n");
 
 	twamp_sock_main = zsock_new_pair("@inproc://twamp_main_event");
 	if (twamp_sock_main == NULL)

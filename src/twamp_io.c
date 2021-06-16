@@ -344,6 +344,23 @@ tw_reflect(struct rte_mbuf *m, struct udphdr *udp, uint8_t ttlhop,
 	return rc;
 }
 
+static uint32_t
+tw_hash_l4(vrfid_t vrfid, const struct udphdr *udp)
+{
+	uint32_t ports = udp->source << 16 | udp->dest;
+
+	return rte_jhash_1word(ports, vrfid);
+}
+
+static bool
+tw_hash_match_l4(const struct tw_session *tws,
+		 const struct tw_hash_match_args *match)
+{
+	return (tws->lport == match->udp->dest) &&
+		(tws->rport == match->udp->source) &&
+		(tws->vrfid == match->vrfid);
+}
+
 static void
 tw_send_ipv4(struct rte_mbuf *m, struct iphdr *ip, struct udphdr *udp)
 {
@@ -387,31 +404,60 @@ tw_send_ipv4(struct rte_mbuf *m, struct iphdr *ip, struct udphdr *udp)
 }
 
 int
+twamp_hash_match_ipv4(struct cds_lfht_node *node, const void *arg)
+{
+	const struct tw_hash_match_args *match = arg;
+	const struct tw_session_entry *entry;
+	const struct tw_session *tws;
+
+	entry = caa_container_of(node, struct tw_session_entry, tw_node);
+	tws = &entry->session;
+	if (tw_hash_match_l4(tws, match) &&
+	    (tws->laddr.address.ip_v4.s_addr == match->ip4->daddr) &&
+	    (tws->raddr.address.ip_v4.s_addr == match->ip4->saddr))
+		return 1;
+
+	return 0;
+}
+
+uint32_t
+twamp_hash_ipv4(vrfid_t vrfid, const struct iphdr *ip,
+		const struct udphdr *udp)
+{
+	return rte_jhash_2words(ip->saddr, ip->daddr, tw_hash_l4(vrfid, udp));
+}
+
+int
 twamp_input_ipv4(struct rte_mbuf *m, void *l3hdr,
 		 struct udphdr *udp, struct ifnet *ifp)
 {
 	struct twamp_timestamp arrival_ts;
 	struct tw_session_entry *entry;
-	struct tw_session_entry *e;
+	struct cds_lfht_node *node;
+	struct cds_lfht_iter iter;
 	struct iphdr *ip = l3hdr;
+	vrfid_t vrfid;
+	struct tw_hash_match_args match = {
+		.ip4 = ip,
+		.udp = udp,
+	};
 
 	if (tw_clock_gettime(&arrival_ts, true, "arrival") < 0)
 		goto error;
 
-	pktmbuf_set_vrf(m, if_vrfid(ifp));
-	entry = NULL;
-	cds_list_for_each_entry_rcu(e, &tw_session_list_head, list)
-		if ((e->session.af == AF_INET) &&
-		    (udp->source == e->session.rport) &&
-		    (udp->dest == e->session.lport) &&
-		    (ip->saddr == e->session.raddr.address.ip_v4.s_addr) &&
-		    (ip->daddr == e->session.laddr.address.ip_v4.s_addr)) {
-			entry = e;
-			break;
-		}
+	vrfid = if_vrfid(ifp);
+	pktmbuf_set_vrf(m, vrfid);
+	match.vrfid = vrfid;
 
-	if (entry == NULL)
+	cds_lfht_lookup(tw_session_table,
+			twamp_hash_ipv4(vrfid, ip, udp),
+			twamp_hash_match_ipv4, &match,
+			&iter);
+	node = cds_lfht_iter_get_node(&iter);
+	if (node == NULL)
 		goto error;
+
+	entry = caa_container_of(node, struct tw_session_entry, tw_node);
 
 	if (tw_reflect(m, udp, ip->ttl, &arrival_ts, entry) < 0)
 		goto error;
@@ -447,35 +493,66 @@ tw_send_ipv6(struct rte_mbuf *m, struct ip6_hdr *ip6, struct udphdr *udp)
 }
 
 int
+twamp_hash_match_ipv6(struct cds_lfht_node *node, const void *arg)
+{
+	const struct tw_hash_match_args *match = arg;
+	const struct tw_session_entry *entry;
+	const struct tw_session *tws;
+
+	entry = caa_container_of(node, struct tw_session_entry, tw_node);
+	tws = &entry->session;
+	if (tw_hash_match_l4(tws, match) &&
+	    IN6_ARE_ADDR_EQUAL(
+		    &match->ip6->ip6_src.s6_addr,
+		    &tws->raddr.address.ip_v6.s6_addr) &&
+	    IN6_ARE_ADDR_EQUAL(
+		    &match->ip6->ip6_dst.s6_addr,
+		    &tws->laddr.address.ip_v6.s6_addr))
+		return 1;
+
+	return 0;
+}
+
+uint32_t
+twamp_hash_ipv6(vrfid_t vrfid, const struct ip6_hdr *ip6,
+		const struct udphdr *udp)
+{
+	return rte_jhash_32b((uint32_t *)&ip6->ip6_src,
+			     (sizeof(ip6->ip6_src) * 2) / sizeof(uint32_t),
+			     tw_hash_l4(vrfid, udp));
+}
+
+int
 twamp_input_ipv6(struct rte_mbuf *m, void *l3hdr, struct udphdr *udp,
 		 struct ifnet *ifp)
 {
 	struct twamp_timestamp arrival_ts;
 	struct tw_session_entry *entry;
-	struct tw_session_entry *e;
+	struct cds_lfht_node *node;
+	struct cds_lfht_iter iter;
 	struct ip6_hdr *ip6 = l3hdr;
+	vrfid_t vrfid;
+	struct tw_hash_match_args match = {
+		.ip6 = ip6,
+		.udp = udp,
+	};
 
 	if (tw_clock_gettime(&arrival_ts, true, "arrival") < 0)
 		goto error;
 
-	pktmbuf_set_vrf(m, if_vrfid(ifp));
-	entry = NULL;
-	cds_list_for_each_entry_rcu(e, &tw_session_list_head, list)
-		if ((e->session.af == AF_INET6) &&
-		    (udp->source == e->session.rport) &&
-		    (udp->dest == e->session.lport) &&
-		    IN6_ARE_ADDR_EQUAL(
-			    &ip6->ip6_src.s6_addr,
-			    &e->session.raddr.address.ip_v6.s6_addr) &&
-		    IN6_ARE_ADDR_EQUAL(
-			    &ip6->ip6_dst.s6_addr,
-			    &e->session.laddr.address.ip_v6.s6_addr)) {
-			entry = e;
-			break;
-		}
+	vrfid = if_vrfid(ifp);
+	pktmbuf_set_vrf(m, vrfid);
+	match.vrfid = vrfid;
 
-	if (entry == NULL)
+	cds_lfht_lookup(tw_session_table,
+			twamp_hash_ipv6(vrfid, ip6, udp),
+			twamp_hash_match_ipv6, &match,
+			&iter);
+	node = cds_lfht_iter_get_node(&iter);
+	if (node == NULL)
 		goto error;
+
+	entry = caa_container_of(node, struct tw_session_entry, tw_node);
 
 	if (tw_reflect(m, udp, ip6->ip6_hops, &arrival_ts, entry) < 0)
 		goto error;
