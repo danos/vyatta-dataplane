@@ -1,3 +1,40 @@
+vyatta-dataplane (3.13.25) unstable; urgency=medium
+
+  [ Paul Aitken ]
+  * Jenkinsfile
+  * debian rules
+  * debian rules
+
+  [ Mark Gillott ]
+  * twamp: add debugging symbols (Fixes: VRVDR-53580)
+  * twamp: add protobuf definitions (Fixes: VRVDR-53580)
+  * twamp: process twamp offload control messages (Fixes: VRVDR-53580)
+  * twamp: add stub I/O function (Fixes: VRVDR-53580)
+  * twamp: register local UDP port (Fixes: VRVDR-53580)
+  * twamp: process twamp init control message (Fixes: VRVDR-53580)
+  * twamp: process twamp create control message (Fixes: VRVDR-53580)
+  * twamp: process twamp delete control message (Fixes: VRVDR-53580)
+  * twamp: process twamp counters control message (Fixes: VRVDR-53580)
+  * twamp: add op-mode handler (Fixes: VRVDR-53580)
+  * twamp: UT for control messages (Fixes: VRVDR-53580)
+  * twamp: UT for IPv4 & IPv6 control messages (Fixes: VRVDR-53580)
+  * twamp: UT for scale testing of test sessions (Fixes: VRVDR-53580)
+  * twamp: process twamp un-authenticated data messages (Fixes: VRVDR-53580)
+  * twamp: process IPv4 twamp data messages (Fixes: VRVDR-53580)
+  * twamp: process IPv6 twamp data messages (Fixes: VRVDR-53580)
+  * twamp: UT for twamp offload of IPv4 & IPv6 data messages
+    (Fixes: VRVDR-53580)
+  * twamp: UT for twamp offload data message size (Fixes: VRVDR-53580)
+
+  [ Ian Wilson ]
+  * cgnat-alg: Re-order alg ID enum
+  * cgnat-alg: Add show and clear summary cmd handlers and add session stats
+  * cgnat-alg: Return json for ALG pinhole table entries
+  * cgnat-alg: Re-order the return code enums
+  * cgnat-alg: Return json for ALG ctrl packet inspection return code enums
+
+ -- Srinivas Narayan <narayan@vyatta.att-mail.com>  Wed, 16 Jun 2021 09:55:08 +0100
+
 vyatta-dataplane (3.13.24) unstable; urgency=medium
 
   [ Srinivas Narayan ]
