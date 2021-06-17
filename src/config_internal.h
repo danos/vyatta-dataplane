@@ -67,6 +67,8 @@ struct config_param {
 	char *rib_ctrl_url;	 /* rib control url */
 	char *xfrm_push_url;	/* xfrm push from the DP url */
 	char *xfrm_pull_url;	/* xfrm pull to the DP url */
+	char *sfpd_status_file;	/* Shared status file from SFPd */
+	char *sfpd_status_upd_url; /* Push to the dp notfications */
 };
 
 struct bkplane_pci {

@@ -213,6 +213,11 @@ static int parse_entry(void *user, const char *section,
 			return copy_str(&cfg->xfrm_pull_url, value);
 		if (strcmp(name, "push") == 0)
 			return copy_str(&cfg->xfrm_push_url, value);
+	} else if (strcasecmp(section, "sfpd_update") == 0) {
+		if (strcmp(name, "file") == 0)
+			return copy_str(&cfg->sfpd_status_file, value);
+		if (strcmp(name, "url") == 0)
+			return copy_str(&cfg->sfpd_status_upd_url, value);
 	}
 
 	return 1; /* good */
