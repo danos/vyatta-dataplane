@@ -68,6 +68,7 @@ int __wrap_rte_eal_init(int argc, char **argv);
 int __real_rte_eal_init(int argc, char **argv);
 FILE *__wrap_popen(const char *command, const char *type);
 int __wrap_pclose(FILE *stream);
+void sfpd_send_msg(void *data, size_t size, const char *hdr);
 
 extern bool from_external;
 extern char dp_ut_dummyfs_dir[PATH_MAX];

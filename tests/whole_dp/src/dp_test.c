@@ -468,11 +468,43 @@ static char *get_conf_file_name(void)
 	return cfgfile;
 }
 
+static zsock_t *dp_test_sfpd_sock;
+
+static void
+data_send_free(void *data, void *hint)
+{
+	free(data);
+}
+
+void sfpd_send_msg(void *data, size_t size, const char *hdr)
+{
+	zmq_msg_t m;
+
+	if (data)
+		zmq_msg_init_data(&m, data, size,
+				  data_send_free, NULL);
+	zmq_send_const(zsock_resolve(dp_test_sfpd_sock), hdr,
+		       strlen(hdr) + 1, data ? ZMQ_SNDMORE : 0);
+	if (data)
+		zmq_msg_send(&m, zsock_resolve(dp_test_sfpd_sock), 0);
+}
+
+static char *dp_test_sfpd_socket_open(void)
+{
+	dp_test_sfpd_sock = zsock_new_push(NULL);
+	assert(dp_test_sfpd_sock);
+	if (zsock_bind(dp_test_sfpd_sock, "%s", "ipc://*") < 0)
+		dp_test_abort_internal();
+	return zsock_last_endpoint(dp_test_sfpd_sock);
+}
+
 static void generate_conf_file(const char *cfgfile, const char *console_ep,
 			       char *req_ipc, char *req_ipc_uplink,
 			       const char *broker_ctrl_ep,
 			       const char *xfrm_server_push_ep,
-			       const char *xfrm_server_pull_ep)
+			       const char *xfrm_server_pull_ep,
+			       const char *sfpd_update_file,
+			       const char *sfpd_notify_url)
 {
 	char buf[1024];
 	FILE *f;
@@ -521,7 +553,10 @@ static void generate_conf_file(const char *cfgfile, const char *console_ep,
 		 "control=%s\n"
 		 "[XFRM_CLIENT]\n"
 		 "pull=%s\n"
-		 "push=%s\n",
+		 "push=%s\n"
+		 "[SFPD_UPDATE]\n"
+		 "file=%s\n"
+		 "url=%s\n",
 		 dp_test_pname,
 		 comment_str,
 		 controller_ip_str,
@@ -540,7 +575,9 @@ static void generate_conf_file(const char *cfgfile, const char *console_ep,
 		 dp_ip_str ? dp_ip_str : "",
 		 broker_ctrl_ep,
 		 xfrm_server_push_ep,
-		 xfrm_server_pull_ep);
+		 xfrm_server_pull_ep,
+		 sfpd_update_file,
+		 sfpd_notify_url);
 
 	if (fwrite(buf, 1, strlen(buf) + 1, f) != strlen(buf) + 1) {
 		fprintf(stderr, "Unable to write config\n");
@@ -658,6 +695,7 @@ int __wrap_main(int argc, char **argv)
 	char *cfgfile = get_conf_file_name();
 	const char *console_ep = dp_test_console_set_endpoint(CONT_SRC_MAIN);
 	char *broker_ctrl_ep;
+	char *sfpd_ep;
 	char *req_ipc, *req_ipc_uplink = NULL;
 	const char *rte_file_prefix = get_rte_file_prefix();
 	int ret;
@@ -720,10 +758,15 @@ int __wrap_main(int argc, char **argv)
 	dp_test_assert_internal(sscanf(xfrm_server_resp, "%s %s",
 				       xfrm_push_url, xfrm_pull_url) == 2);
 
+	sfpd_ep = dp_test_sfpd_socket_open();
+
 	generate_conf_file(cfgfile, console_ep, req_ipc,
 			   req_ipc_uplink, broker_ctrl_ep,
-			   xfrm_push_url, xfrm_pull_url);
+			   xfrm_push_url, xfrm_pull_url, "sfpd_status",
+			   sfpd_ep
+		);
 
+	free(sfpd_ep);
 	zstr_free(&xfrm_server_resp);
 	zstr_free(&broker_ctrl_ep);
 	zstr_free(&req_ipc);
