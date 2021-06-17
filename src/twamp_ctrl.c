@@ -226,7 +226,7 @@ tw_main_register_udp_port(uint8_t add, uint8_t af, uint16_t port)
 		if (udp_handler_register(af, port, handler) != 0)
 			RTE_LOG(ERR, TWAMP,
 				"failed to register %s UDP port %u\n",
-				prot, port);
+				prot, ntohs(port));
 		else
 			DP_DEBUG(TWAMP, INFO, TWAMP,
 				 "%s registered UDP port %u\n",
