@@ -51,6 +51,8 @@
 #include <string.h>
 #include <unistd.h>
 
+#include <vplane_log.h>
+#include <event.h>
 #include <json_writer.h>
 #include <rte_dev_info.h>
 #include <transceiver.h>
@@ -2090,3 +2092,127 @@ sfp_status(bool up, const struct rte_eth_dev_module_info *module_info,
 	}
 }
 
+static zsock_t *sfpd_notify_socket;
+
+static int
+sfpd_msg_recv(zsock_t *sock, zmq_msg_t *hdr, zmq_msg_t *msg)
+{
+	int more;
+
+	zmq_msg_init(hdr);
+	zmq_msg_init(msg);
+
+	if (zmq_msg_recv(hdr, zsock_resolve(sock), 0) <= 0)
+		goto error;
+
+	if (!zmq_msg_get(hdr, ZMQ_MORE))
+		return 0;
+
+	if (zmq_msg_recv(msg, zsock_resolve(sock), 0) <= 0)
+		goto error;
+
+	more = zmq_msg_get(msg, ZMQ_MORE);
+	while (more) {
+		zmq_msg_t sink;
+		zmq_msg_init(&sink);
+		zmq_msg_recv(&sink, zsock_resolve(sock), 0);
+		more = zmq_msg_get(&sink, ZMQ_MORE);
+		zmq_msg_close(&sink);
+	}
+
+	return 0;
+
+error:
+	zmq_msg_close(msg);
+	zmq_msg_close(hdr);
+	return -1;
+}
+
+static int sfpd_notify_recv(void *arg)
+{
+	zmq_msg_t sfpd_msg, sfpd_hdr;
+	zsock_t *sock = arg;
+	const char *hdr, *data;
+	uint32_t len;
+	int rc;
+	errno = 0;
+
+	rc = sfpd_msg_recv(sock, &sfpd_hdr, &sfpd_msg);
+
+	if (rc != 0) {
+		/* If the sfpd_msg_recv call failed it is possible for
+		 * errno to be set and so we need to clear it.
+		 */
+		if (errno == 0)
+			return 0;
+		return -1;
+	}
+	hdr = zmq_msg_data(&sfpd_hdr);
+	if (strncmp("MSG_TYPE_1", hdr,
+		    strlen("MSG_TYPE_1")) == 0) {
+		RTE_LOG(INFO, DATAPLANE,
+			"SFPd: MSG_TYPE_1\n");
+		goto end;
+	}
+	if (strncmp("MSG_TYPE_2", hdr, strlen("MSG_TYPE_2")) == 0) {
+		data = zmq_msg_data(&sfpd_msg);
+		len = zmq_msg_size(&sfpd_msg);
+
+		RTE_LOG(INFO, DATAPLANE,
+			 "SFPd: MSG_TYPE_2 data:%p len:%d\n",
+			 data, len);
+		goto end;
+	}
+
+	RTE_LOG(ERR, DATAPLANE,
+		"SFPd: SFPD unknwown msg received: %s\n", hdr);
+end:
+	zmq_msg_close(&sfpd_hdr);
+	zmq_msg_close(&sfpd_msg);
+
+	return 0;
+}
+
+static void sfpd_close_socket(void)
+{
+	if (sfpd_notify_socket) {
+		zsock_destroy(&sfpd_notify_socket);
+		sfpd_notify_socket = NULL;
+	}
+}
+
+int sfpd_open_socket(void)
+{
+	if (sfpd_notify_socket)
+		return -1;
+
+	sfpd_notify_socket = zsock_new(ZMQ_PULL);
+	if (!sfpd_notify_socket) {
+		RTE_LOG(ERR, DATAPLANE,
+			"Failed to open sfpd notify socket\n");
+		return -1;
+	}
+
+	if (zsock_connect(sfpd_notify_socket, "%s", config.sfpd_status_upd_url) < 0) {
+		RTE_LOG(ERR, DATAPLANE, "failed to connect sfpd notify URL %s\n",
+			config.sfpd_status_upd_url);
+		sfpd_close_socket();
+		return -1;
+	}
+
+	dp_register_event_socket(
+		zsock_resolve(sfpd_notify_socket),
+		sfpd_notify_recv,
+		sfpd_notify_socket);
+
+	return 0;
+}
+
+void sfpd_unsubscribe(void)
+{
+	if (sfpd_notify_socket)
+		dp_unregister_event_socket(
+			zsock_resolve(sfpd_notify_socket));
+
+	sfpd_close_socket();
+}

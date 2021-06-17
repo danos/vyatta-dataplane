@@ -68,6 +68,7 @@
 #include "vrf_internal.h"
 #include "crypto/xfrm_client.h"
 #include "zmq_dp.h"
+#include "transceiver.h"
 
 /* Frequency of updates to soft_ticks (i.e. every 10ms) */
 #define SOFT_CLOCK_HZ	    100
@@ -420,6 +421,7 @@ static void main_cleanup(enum cont_src_en cont_src)
 	controller_unsubscribe(cont_src);
 	route_broker_unsubscribe(cont_src);
 	xfrm_client_unsubscribe();
+	sfpd_unsubscribe();
 	cleanup_requests(cont_src);
 }
 
@@ -1333,6 +1335,7 @@ main_destroy_src(enum cont_src_en cont_src)
 	controller_unsubscribe(cont_src);
 	route_broker_unsubscribe(cont_src);
 	xfrm_client_unsubscribe();
+	sfpd_unsubscribe();
 }
 
 static void main_control_intf(struct ifnet *ifp, uint8_t family,
