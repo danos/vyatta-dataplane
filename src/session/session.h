@@ -504,26 +504,6 @@ int session_lookup(struct rte_mbuf *m, uint32_t if_index, struct session **s,
 void session_expire(struct session *s, struct rte_mbuf *m);
 
 /**
- * Add sentries to a session based on a packet.
- *
- * Add additional sentries to a session, both a FORW and BACK sentry
- * are added.  Features that decap and/or transform the src/dst sides of
- * a packet should call this to ensure that other features can locate
- * this session.
- *
- * @param s
- * The session.
- *
- * @param if_index
- * The index of the interface that the packet is being processed on.
- *
- * @param m
- * The packet to parse.
- */
-int session_sentry_insert_pkt(struct session *s, uint32_t if_index,
-			      struct rte_mbuf *m);
-
-/**
  * Sentry insert
  *
  * Create and insert an additional sentry for this session.

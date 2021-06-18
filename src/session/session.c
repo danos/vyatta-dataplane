@@ -1304,25 +1304,6 @@ void session_set_custom_timeout(struct session *s, uint32_t timeout)
 	s->se_custom_timeout = timeout;
 }
 
-/* Insert forw/back sentries based on packet. */
-int session_sentry_insert_pkt(struct session *s, uint32_t if_index,
-			      struct rte_mbuf *m)
-{
-	int rc;
-	struct sentry_packet sp_forw, sp_back;
-	struct sentry *old;
-	bool dummy; /* Unused */
-
-	rc = sentry_packet_from_mbuf(m, if_index, &sp_forw);
-	if (rc)
-		return rc;
-
-	sentry_packet_reverse(&sp_forw, &sp_back);
-
-	return sentry_packet_insert_both(s, &sp_forw, &sp_back, 0, &old,
-					 &dummy);
-}
-
 /* Insert another sentry for this session */
 int session_sentry_insert(struct session *se, uint32_t if_index, uint16_t flags,
 		uint16_t sid, const void *sa,
