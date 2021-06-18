@@ -9,7 +9,6 @@
 
 struct session;
 
-int session_pack_sentry_pb(struct session *s, DPSessionKeyMsg *sk);
 int session_restore_sentry_packet_pb(struct sentry_packet *sp,
 				     const struct ifnet *ifp,
 				     DPSessionKeyMsg *sk);

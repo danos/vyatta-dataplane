@@ -80,7 +80,7 @@ static void session_restore_flags(struct session *s, uint32_t flags)
  * Only the forward addrid key is used since the reverse addrid can be
  * constructed from the forward addrid keys.
  */
-int session_pack_sentry_pb(struct session *s, DPSessionKeyMsg *sk)
+static int session_pack_sentry_pb(struct session *s, DPSessionKeyMsg *sk)
 {
 	const struct sentry *sen;
 	const struct ifnet *ifp;
@@ -165,7 +165,7 @@ static int session_pack_state_pb(struct session *s, DPSessionStateMsg *ssm)
 }
 
 /* Restore session timeouts, state, and flags from protobuf message */
-int session_restore_state_pb(struct session *s, DPSessionStateMsg *ssm)
+static int session_restore_state_pb(struct session *s, DPSessionStateMsg *ssm)
 {
 	if (!s || !ssm)
 		return -EINVAL;
