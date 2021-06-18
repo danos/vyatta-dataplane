@@ -15,6 +15,41 @@
 #include "dp_test_lib_intf_internal.h"
 #include "protobuf/SFPMonitor.pb-c.h"
 
+#define SFPD_NOTIFY sfpd_send_msg(NULL, 0, "SFP_PRESENCE_NOTIFY")
+
+#define INTF1 "dpT10"
+#define INTF2 "dpT11"
+#define INTF3 "dpT12"
+#define INTF4 "dpT13"
+
+#define PORT1 1
+#define PORT2 2
+#define PORT3 3
+#define PORT4 4
+
+static void
+generate_sfpd_file(const char *sfpd_file, uint8_t port,
+		   const char *port_name,
+		   const char *part_id)
+{
+	FILE *f;
+
+	f = fopen(sfpd_file, "w");
+	if (!f) {
+		perror("fopen");
+		exit(2);
+	}
+
+	fprintf(f, "[%d]\n", port);
+	fprintf(f, "port_name = %s\n", port_name);
+	fprintf(f, "part_id = %s\n", part_id);
+	fprintf(f, "vendor_name = Cisco\n");
+	fprintf(f, "vendor_oui = aa.bb.cc\n");
+	fprintf(f, "vendor_rev = 44.5a\n");
+	fprintf(f, "detection_time = %d\n", dp_test_sys_uptime());
+	fclose(f);
+}
+
 static void
 _sfp_permit_match_check(const char *match_str, bool match,
 			const char *file, int line)
@@ -231,6 +266,10 @@ DP_START_TEST(list, test1)
 	sfp_list_add("List_2", &Part_list[5], 5);
 
 	show_sfp_permit_list_info("List_2", "AL*", true);
+
+	generate_sfpd_file("sfpd_status", PORT1, INTF1, "SIMON");
+
+	SFPD_NOTIFY;
 
 	sfp_permit_match_check("SIMON", true);
 	sfp_permit_match_check("DE", false);

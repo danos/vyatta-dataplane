@@ -13,6 +13,7 @@
 #include <stdlib.h>
 #include <stdarg.h>
 #include <stdbool.h>
+#include <sys/sysinfo.h>
 #include <arpa/inet.h>
 #include <linux/if_ether.h>
 #include <linux/mpls.h>
@@ -1982,4 +1983,15 @@ void dp_test_tcase_mark(bool begin, const char *name)
 {
 	RTE_LOG(INFO, DATAPLANE, "----- %-5s %-40s -----\n",
 		begin ? "BEGIN" : "END", name);
+}
+
+uint32_t dp_test_sys_uptime(void)
+{
+	struct sysinfo s_info;
+	uint32_t error = sysinfo(&s_info);
+
+	if (error != 0)
+		dp_test_abort_internal();
+
+	return s_info.uptime;
 }
