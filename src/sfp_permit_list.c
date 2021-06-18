@@ -15,11 +15,15 @@
 #include <fal.h>
 #include <if_var.h>
 #include <urcu/list.h>
+#include <ini.h>
+
+#include "config_internal.h"
 #include "feature_commands.h"
 #include "protobuf.h"
 #include "protobuf/SFPMonitor.pb-c.h"
 
 #include "sfp_permit_list.h"
+#include "transceiver.h"
 
 #define SFP_MAX_NAME_SIZE 64
 #define SFP_MAX_PART_ID 16
@@ -32,6 +36,10 @@
 #define SFP_PART_VENDOR_REV  4
 #define SFP_PART_WILDCARD    8
 
+#define SFPD_PORTS_MIN 32
+#define SFPD_PORTS_MAX 1024
+
+static bool sfp_permit_list_running;
 struct cds_list_head  sfp_permit_list_head;
 struct cds_list_head  sfp_permit_parts_list_head;
 bool sfp_pl_cfg_init;
@@ -164,6 +172,34 @@ sfpd_record_find(struct cds_lfht *hash_tbl, uint32_t port)
 		return caa_container_of(node, struct sfp_intf_record, hnode);
 
 	return NULL;
+}
+
+static void
+sfp_permit_list_lists_inits(void)
+{
+	if (!sfp_pl_cfg_init) {
+		CDS_INIT_LIST_HEAD(&sfp_permit_list_head);
+		CDS_INIT_LIST_HEAD(&sfp_permit_parts_list_head);
+		sfp_pl_cfg_init = true;
+	}
+}
+
+static void sfp_permit_list_init(void)
+{
+	sfp_permit_list_lists_inits();
+
+	if (sfp_permit_list_running)
+		return;
+
+	if (!config.sfpd_status_file || !config.sfpd_status_upd_url) {
+		RTE_LOG(ERR, DATAPLANE,
+			"SFP-PL:No sfp permit list ports SFPD update URL\n");
+		return;
+	}
+
+	sfpd_open_socket();
+
+	sfp_permit_list_running = true;
 }
 
 static struct sfp_permit_list *sfp_find_permit_list(char *name)
@@ -510,7 +546,7 @@ static bool sfp_permit_match_check(const char *part)
 	int rc;
 
 	cds_list_for_each_entry_rcu(part_entry,
-				    sfp_permit_parts_list_head,
+				    &sfp_permit_parts_list_head,
 				    search_list) {
 		if (part_entry->flags & SFP_PART_WILDCARD) {
 			rc = strncmp(part, part_entry->part_id,
@@ -540,11 +576,7 @@ cmd_sfp_permit_list_cfg(struct pb_msg *msg)
 		return -1;
 	}
 
-	if (!sfp_pl_cfg_init) {
-		CDS_INIT_LIST_HEAD(&sfp_permit_list_head);
-		CDS_INIT_LIST_HEAD(&sfp_permit_parts_list_head);
-		sfp_pl_cfg_init = true;
-	}
+	sfp_permit_list_init();
 
 	switch (sfpmsg->mtype_case) {
 	case SFP_PERMIT_CONFIG__MTYPE_LIST:
@@ -569,6 +601,142 @@ PB_REGISTER_CMD(sfppermitlist_cmd) = {
 	.cmd = "vyatta:sfppermitlist",
 	.handler = cmd_sfp_permit_list_cfg,
 };
+
+/*
+ * Callback from inih library for each name value
+ * return 0 = error, 1 = ok
+ */
+static int parse_sfpd_upd(void *user, const char *section,
+			  const char *name, const char *value)
+{
+	struct cds_lfht *hash_tbl = user;
+	struct sfp_intf_record *sfpd_section, *rc;
+	uint32_t port;
+
+	port  = atoi(section);
+
+	sfpd_section = sfpd_record_find(hash_tbl, port);
+	if (!sfpd_section) {
+		sfpd_section = calloc(1, sizeof(*sfpd_section));
+		if (!sfpd_section)
+			goto error;
+		sfpd_section->port = port;
+		rc = sfpd_record_store(hash_tbl, sfpd_section);
+		if (!rc)
+			goto error;
+	}
+
+	sfpd_section->port = port;
+
+	if (strcmp(name, "port_name") == 0)
+		return strncpy(sfpd_section->intf_name, value, 32);
+	if (strcmp(name, "part_id") == 0)
+		return strncpy(sfpd_section->part_id, value,
+				SFP_MAX_PART_ID + 1);
+	if (strcmp(name, "vendor_name") == 0)
+		return strncpy(sfpd_section->vendor_name, value,
+				SFP_MAX_VENDOR_NAME + 1);
+	if (strcmp(name, "vendor_oui") == 0)
+		return strncpy(sfpd_section->vendor_oui, value,
+				SFP_MAX_VENDOR_OUI + 1);
+	if (strcmp(name, "vendor_rev") == 0)
+		return strncpy(sfpd_section->vendor_rev, value,
+				SFP_MAX_VENDOR_REV + 1);
+	if (strcmp(name, "detection_time") == 0)
+		sfpd_section->time_of_detection = atoi(value);
+
+	return 1;
+
+error:
+	RTE_LOG(ERR, DATAPLANE,
+		"Failed to allocate SFP update section %d\n", port);
+	if (sfpd_section)
+		free(sfpd_section);
+	return 0;
+}
+
+static struct cds_lfht *
+sfpd_parse_status(const char *updfile, struct cds_lfht *hash_tbl)
+{
+	FILE *f;
+	int rc;
+
+	if (!updfile) {
+		RTE_LOG(ERR, DATAPLANE, "SFP: No status file\n");
+		return NULL;
+	}
+
+	hash_tbl = cds_lfht_new(SFPD_PORTS_MIN,
+				 SFPD_PORTS_MIN,
+				 SFPD_PORTS_MAX,
+				 CDS_LFHT_AUTO_RESIZE,
+				 NULL);
+	if (!hash_tbl) {
+		RTE_LOG(ERR, MAC_LIMIT,
+			"Could not allocate SFPd cfg table\n");
+		return NULL;
+	}
+
+	f = fopen(updfile, "r");
+	if (f == NULL) {
+		RTE_LOG(ERR, DATAPLANE,
+			"Can't open SFPd update file: %s\n",
+			updfile);
+		return NULL;
+	}
+
+	rc = ini_parse_file(f, parse_sfpd_upd, hash_tbl);
+	if (rc)
+		RTE_LOG(ERR, DATAPLANE,
+			"Can't parse SFPd update file: %s\n",
+			updfile);
+	fclose(f);
+
+	return hash_tbl;
+}
+
+static void sfp_delete_cb_free(struct rcu_head *head)
+{
+	struct sfp_intf_record *sfp;
+
+	sfp = caa_container_of(head, struct sfp_intf_record, rcu);
+	free(sfp);
+}
+
+static void
+sfp_delete(struct cds_lfht *hash_tbl, struct sfp_intf_record *sfp)
+{
+	if (hash_tbl)
+		cds_lfht_del(hash_tbl, &sfp->hnode);
+
+	call_rcu(&sfp->rcu, sfp_delete_cb_free);
+}
+
+void sfpd_process_presence_update(void)
+{
+	struct sfp_intf_record *section;
+	struct cds_lfht *hash_tbl = NULL, *sfpd_status;
+	struct cds_lfht_iter iter;
+
+	if (!sfp_permit_list_running)
+		return;
+
+	DP_DEBUG(SFP_LIST, DEBUG, DATAPLANE,
+		 "SFP: SFPD status update: %s\n", config.sfpd_status_file);
+
+	sfpd_status = sfpd_parse_status(config.sfpd_status_file, hash_tbl);
+	if (!sfpd_status)
+		return;
+
+	cds_lfht_for_each_entry(sfpd_status, &iter, section, hnode) {
+		DP_DEBUG(SFP_LIST, DEBUG, DATAPLANE,
+			 "SFPd status update for hw port %d %s\n",
+			 section->port, section->intf_name);
+		sfp_delete(sfpd_status, section);
+	}
+
+	cds_lfht_destroy(sfpd_status, NULL);
+}
 
 static void sfp_permit_dump_list(FILE *f)
 {
@@ -699,6 +867,11 @@ sfp_permit_match_check_cmd(FILE *f, const char *match_string)
 
 int cmd_sfp_permit_op(FILE *f, int argc __unused, char **argv)
 {
+	/* Init list heads if not aleady done, so we don't
+	 * need to check they are setup.
+	 */
+	sfp_permit_list_lists_inits();
+
 	if (!strcmp(argv[1], "dump")) {
 		if (!strcmp(argv[2], "list")) {
 			sfp_permit_dump_list(f);
