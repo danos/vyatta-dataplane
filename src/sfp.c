@@ -1076,10 +1076,10 @@ print_qsfp_vendor(const struct rte_dev_eeprom_info *eeprom_info,
  * that is considered valid between –40 and +125C.
  *
  */
-static void
-convert_sff_temp(json_writer_t *wr, const char *field_name,
-		 const uint8_t *xbuf,
-		 const struct sfp_calibration_constants *c_consts)
+
+static double
+__convert_sff_temp(const uint8_t *xbuf,
+		   const struct sfp_calibration_constants *c_consts)
 {
 	int16_t temp;
 	double d;
@@ -1093,6 +1093,18 @@ convert_sff_temp(json_writer_t *wr, const char *field_name,
 		so = &c_consts->slope_offs[SFP_CALIB_CONST_TEMPERATURE];
 		d = (so->slope * d) + so->offset;
 	}
+
+	return d;
+}
+
+static void
+convert_sff_temp(json_writer_t *wr, const char *field_name,
+		 const uint8_t *xbuf,
+		 const struct sfp_calibration_constants *c_consts)
+{
+	double d;
+
+	d = __convert_sff_temp(xbuf, c_consts);
 	jsonw_float_field(wr, field_name, d);
 }
 
@@ -1100,10 +1112,9 @@ convert_sff_temp(json_writer_t *wr, const char *field_name,
  * Retrieves supplied voltage (SFF-8472, SFF-8436).
  * 16-bit usigned value, treated as range 0..+6.55 Volts
  */
-static void
-convert_sff_voltage(json_writer_t *wr, const char *field_name,
-		    const uint8_t *xbuf,
-		    const struct sfp_calibration_constants *c_consts)
+static double
+__convert_sff_voltage(const uint8_t *xbuf,
+		      const struct sfp_calibration_constants *c_consts)
 {
 	double d;
 	const struct slope_off *so;
@@ -1114,6 +1125,17 @@ convert_sff_voltage(json_writer_t *wr, const char *field_name,
 		so = &c_consts->slope_offs[SFP_CALIB_CONST_VOLTAGE];
 		d = (so->slope * d) + so->offset;
 	}
+	return d;
+}
+
+static void
+convert_sff_voltage(json_writer_t *wr, const char *field_name,
+		    const uint8_t *xbuf,
+		    const struct sfp_calibration_constants *c_consts)
+{
+	double d;
+
+	d = __convert_sff_voltage(xbuf, c_consts);
 	jsonw_float_field(wr, field_name, d / 10000);
 }
 
@@ -1121,10 +1143,9 @@ convert_sff_voltage(json_writer_t *wr, const char *field_name,
  * Retrieves power in mW (SFF-8472).
  * 16-bit unsigned value, treated as a range of 0 - 6.5535 mW
  */
-static void
-convert_sff_power(json_writer_t *wr, const char *field_name,
-		  const uint8_t *xbuf, bool rx,
-		  const struct sfp_calibration_constants *c_consts)
+static double
+__convert_sff_power(const uint8_t *xbuf, bool rx,
+		    const struct sfp_calibration_constants *c_consts)
 {
 	double mW, tmp_mW;
 	int i;
@@ -1147,13 +1168,23 @@ convert_sff_power(json_writer_t *wr, const char *field_name,
 	} else
 		mW = tmp_mW;
 
-	jsonw_float_field(wr, field_name, mW / 10000);
+	return mW / 10000;
 }
 
 static void
-convert_sff_bias(json_writer_t *wr, const char *field_name,
-		 const uint8_t *xbuf,
-		 const struct sfp_calibration_constants *c_consts)
+convert_sff_power(json_writer_t *wr, const char *field_name,
+		  const uint8_t *xbuf, bool rx,
+		  const struct sfp_calibration_constants *c_consts)
+{
+	double mW;
+
+	mW = __convert_sff_power(xbuf, rx, c_consts);
+	jsonw_float_field(wr, field_name, mW);
+}
+
+static double
+__convert_sff_bias(const uint8_t *xbuf,
+		   const struct sfp_calibration_constants *c_consts)
 {
 	double mA;
 	const struct slope_off *so;
@@ -1164,7 +1195,20 @@ convert_sff_bias(json_writer_t *wr, const char *field_name,
 		so = &c_consts->slope_offs[SFP_CALIB_CONST_LASER_BIAS];
 		mA = (so->slope * mA) + so->offset;
 	}
-	jsonw_float_field(wr, field_name, mA / 500);
+	mA /= 500;
+
+	return mA;
+}
+
+static void
+convert_sff_bias(json_writer_t *wr, const char *field_name,
+		 const uint8_t *xbuf,
+		 const struct sfp_calibration_constants *c_consts)
+{
+	double mA;
+
+	mA = __convert_sff_bias(xbuf, c_consts);
+	jsonw_float_field(wr, field_name, mA);
 }
 
 static void
