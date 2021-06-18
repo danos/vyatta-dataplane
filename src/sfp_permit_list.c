@@ -44,6 +44,8 @@ struct cds_list_head  sfp_permit_list_head;
 struct cds_list_head  sfp_permit_parts_list_head;
 bool sfp_pl_cfg_init;
 
+static uint32_t sfp_permit_list_epoch;
+
 struct sfp_mismatch_global {
 	bool logging_enabled;
 	bool enforcement_enabled;
@@ -114,6 +116,9 @@ struct sfp_intf_record {
 
 	struct rcu_head rcu;
 };
+
+
+struct cds_lfht *sfp_ports_tbl;
 
 static inline uint32_t sfpd_record_hash(struct sfp_intf_record *rec)
 {
@@ -194,6 +199,20 @@ static void sfp_permit_list_init(void)
 	if (!config.sfpd_status_file || !config.sfpd_status_upd_url) {
 		RTE_LOG(ERR, DATAPLANE,
 			"SFP-PL:No sfp permit list ports SFPD update URL\n");
+		return;
+	}
+
+	/*
+	 * We only allocate the empty table and not the elements within
+	 */
+	sfp_ports_tbl = cds_lfht_new(SFPD_PORTS_MIN,
+				 SFPD_PORTS_MIN,
+				 SFPD_PORTS_MAX,
+				 CDS_LFHT_AUTO_RESIZE,
+				 NULL);
+	if (!sfp_ports_tbl) {
+		RTE_LOG(ERR, MAC_LIMIT,
+			"Could not allocate SFPd hash table\n");
 		return;
 	}
 
@@ -540,7 +559,8 @@ static void dump_lists(void)
 	}
 }
 
-static bool sfp_permit_match_check(const char *part)
+static struct sfp_part *
+sfp_permit_match_by_name(struct sfp_intf_record *sfp)
 {
 	struct sfp_part *part_entry;
 	int rc;
@@ -549,15 +569,26 @@ static bool sfp_permit_match_check(const char *part)
 				    &sfp_permit_parts_list_head,
 				    search_list) {
 		if (part_entry->flags & SFP_PART_WILDCARD) {
-			rc = strncmp(part, part_entry->part_id,
+			rc = strncmp(sfp->part_id, part_entry->part_id,
 				     part_entry->len);
 		} else {
-			rc = strcmp(part_entry->part_id, part);
+			rc = strcmp(part_entry->part_id, sfp->part_id);
 		}
 
 		if (rc == 0)
-			return true;
+			return part_entry;
 	}
+
+	return NULL;
+}
+
+static bool sfp_permit_match_check(struct sfp_intf_record *sfp)
+{
+	struct sfp_part *part_entry;
+
+	part_entry = sfp_permit_match_by_name(sfp);
+	if (part_entry)
+		return true;
 
 	return false;
 }
@@ -602,6 +633,49 @@ PB_REGISTER_CMD(sfppermitlist_cmd) = {
 	.handler = cmd_sfp_permit_list_cfg,
 };
 
+static void sfp_clear_holddown(struct ifnet *intf)
+{
+	if (intf->sfp_holddown == true) {
+		intf->sfp_holddown = false;
+		dpdk_eth_if_start_port(intf);
+	}
+}
+
+static void
+sfp_clear_holddown_cb(struct ifnet *intf, void *arg __unused)
+{
+	sfp_clear_holddown(intf);
+}
+
+static void sfp_set_holddown(struct ifnet *intf)
+{
+	if (intf->sfp_holddown == false) {
+		intf->sfp_holddown = true;
+		dpdk_eth_if_stop_port(intf);
+	}
+}
+
+static void sfp_clear_all_holddown(void)
+{
+	dp_ifnet_walk(sfp_clear_holddown_cb, NULL);
+}
+
+static void sfp_scan_for_holddown(void)
+{
+	struct sfp_intf_record *sfp;
+	struct cds_lfht_iter iter;
+
+	cds_lfht_for_each_entry(sfp_ports_tbl, &iter, sfp, hnode) {
+		if (!sfp->intf) {
+			RTE_LOG(ERR, DATAPLANE,
+				"SFP: Can't find intf for port %d : %s\n",
+				sfp->port, sfp->intf_name);
+			continue;
+		}
+		sfp_validate_sfp_against_pl(sfp);
+	}
+}
+
 /*
  * Callback from inih library for each name value
  * return 0 = error, 1 = ok
@@ -612,6 +686,9 @@ static int parse_sfpd_upd(void *user, const char *section,
 	struct cds_lfht *hash_tbl = user;
 	struct sfp_intf_record *sfpd_section, *rc;
 	uint32_t port;
+
+	if (strcmp(section, "epoch") == 0)
+		return 1;
 
 	port  = atoi(section);
 
@@ -628,20 +705,32 @@ static int parse_sfpd_upd(void *user, const char *section,
 
 	sfpd_section->port = port;
 
-	if (strcmp(name, "port_name") == 0)
-		return strncpy(sfpd_section->intf_name, value, 32);
-	if (strcmp(name, "part_id") == 0)
-		return strncpy(sfpd_section->part_id, value,
-				SFP_MAX_PART_ID + 1);
-	if (strcmp(name, "vendor_name") == 0)
-		return strncpy(sfpd_section->vendor_name, value,
-				SFP_MAX_VENDOR_NAME + 1);
-	if (strcmp(name, "vendor_oui") == 0)
-		return strncpy(sfpd_section->vendor_oui, value,
-				SFP_MAX_VENDOR_OUI + 1);
-	if (strcmp(name, "vendor_rev") == 0)
-		return strncpy(sfpd_section->vendor_rev, value,
-				SFP_MAX_VENDOR_REV + 1);
+	if (strcmp(name, "port_name") == 0) {
+		snprintf(sfpd_section->intf_name, sizeof(sfpd_section->intf_name),
+			 "%s", value);
+		return 1;
+	}
+	if (strcmp(name, "part_id") == 0) {
+		snprintf(sfpd_section->part_id, sizeof(sfpd_section->part_id),
+			 "%s", value);
+		return 1;
+	}
+
+	if (strcmp(name, "vendor_name") == 0) {
+		snprintf(sfpd_section->vendor_name, sizeof(sfpd_section->vendor_name),
+			 "%s", value);
+		return 1;
+	}
+	if (strcmp(name, "vendor_oui") == 0) {
+		snprintf(sfpd_section->vendor_oui, sizeof(sfpd_section->vendor_oui),
+			 "%s", value);
+		return 1;
+	}
+	if (strcmp(name, "vendor_rev") == 0) {
+		snprintf(sfpd_section->vendor_rev, sizeof(sfpd_section->vendor_rev),
+			 "%s", value);
+		return 1;
+	}
 	if (strcmp(name, "detection_time") == 0)
 		sfpd_section->time_of_detection = atoi(value);
 
@@ -712,11 +801,58 @@ sfp_delete(struct cds_lfht *hash_tbl, struct sfp_intf_record *sfp)
 	call_rcu(&sfp->rcu, sfp_delete_cb_free);
 }
 
+static struct sfp_intf_record *
+sfp_insertion(struct sfp_intf_record *insert_sfp)
+{
+	struct sfp_intf_record *sfp;
+	struct ifnet *intf;
+
+	DP_DEBUG(SFP_LIST, DEBUG, DATAPLANE,
+		 "New SFP for hw port %s\n", insert_sfp->intf_name);
+
+	sfp = calloc(1, sizeof(*sfp));
+	if (!sfp) {
+		RTE_LOG(ERR, DATAPLANE,
+			"SFP: Can't allocate SFD record for %s\n",
+			insert_sfp->intf_name);
+		return NULL;
+	}
+	sfp->epoch = sfp_permit_list_epoch;
+	sfp->port = insert_sfp->port;
+	intf =  dp_ifnet_byifname(insert_sfp->intf_name);
+	if (!intf) {
+		RTE_LOG(ERR, DATAPLANE,
+			"SFP: Can't find intf for port %d : %s\n",
+			insert_sfp->port, insert_sfp->intf_name);
+		goto error;
+	}
+	sfp->intf = intf;
+
+	strncpy(sfp->intf_name, insert_sfp->intf_name,
+		sizeof(sfp->intf_name));
+	strncpy(sfp->part_id, insert_sfp->part_id,
+		sizeof(sfp->part_id));
+	strncpy(sfp->vendor_name, insert_sfp->vendor_name,
+		sizeof(sfp->vendor_name));
+	strncpy(sfp->vendor_oui, insert_sfp->vendor_oui,
+		sizeof(sfp->vendor_oui));
+	strncpy(sfp->vendor_rev, insert_sfp->vendor_rev,
+		sizeof(sfp->vendor_rev));
+	sfp->time_of_detection = insert_sfp->time_of_detection;
+
+	return sfp;
+
+error:
+	free(sfp);
+	return NULL;
+}
+
 void sfpd_process_presence_update(void)
 {
-	struct sfp_intf_record *section;
+	struct sfp_intf_record *section, *rc;
 	struct cds_lfht *hash_tbl = NULL, *sfpd_status;
 	struct cds_lfht_iter iter;
+	struct sfp_intf_record *sfp;
 
 	if (!sfp_permit_list_running)
 		return;
@@ -728,14 +864,35 @@ void sfpd_process_presence_update(void)
 	if (!sfpd_status)
 		return;
 
+	/*
+	 * Increment the epoch to allow a mark and sweep
+	 * of delete SFPs.
+	 */
+	sfp_permit_list_epoch++;
+
 	cds_lfht_for_each_entry(sfpd_status, &iter, section, hnode) {
-		DP_DEBUG(SFP_LIST, DEBUG, DATAPLANE,
-			 "SFPd status update for hw port %d %s\n",
-			 section->port, section->intf_name);
+		sfp = sfpd_record_find(sfp_ports_tbl, section->port);
+		if (!sfp) {
+			sfp = sfp_insertion(section);
+			if (!sfp)
+				continue;
+			rc = sfpd_record_store(sfp_ports_tbl, sfp);
+			if (!rc)
+				free(sfp);
+		} else {
+			/* Refresh current SFP epoch */
+			sfp->epoch = sfp_permit_list_epoch;
+		}
 		sfp_delete(sfpd_status, section);
 	}
 
 	cds_lfht_destroy(sfpd_status, NULL);
+
+	/* Delete any removed SFPs */
+	cds_lfht_for_each_entry(sfp_ports_tbl, &iter,
+				sfp, hnode)
+		if (sfp->epoch != sfp_permit_list_epoch)
+			sfp_delete(sfp_ports_tbl, sfp);
 }
 
 static void sfp_permit_dump_list(FILE *f)
@@ -846,10 +1003,14 @@ static void sfp_permit_dump_mismatch(FILE *f)
 static void
 sfp_permit_match_check_cmd(FILE *f, const char *match_string)
 {
+	struct sfp_intf_record sfp;
 	json_writer_t *wr;
 	bool rc;
 
-	rc = sfp_permit_match_check(match_string);
+	memset(&sfp, 0, sizeof(sfp));
+	strncpy((char *)&sfp.part_id, match_string, sizeof(sfp.part_id));
+
+	rc = sfp_permit_match_check(&sfp);
 
 	if (f == NULL) {
 		RTE_LOG(ERR, DATAPLANE,

@@ -234,12 +234,18 @@ static void sfp_list_delete(const char *name,
 SfpPermitConfig__SfpPermitMisMatchConfig MismatchCfg =
 	SFP_PERMIT_CONFIG__SFP_PERMIT_MIS_MATCH_CONFIG__INIT;
 
-static void sfp_mismatch_action_send(void)
+static void sfp_mismatch_action_send(bool enforcement, bool logging, uint32_t delay)
 {
 	SfpPermitConfig Cfg = SFP_PERMIT_CONFIG__INIT;
 	Cfg.mtype_case = SFP_PERMIT_CONFIG__MTYPE_MISMATCH;
 	Cfg.mismatch = &MismatchCfg;
 
+	MismatchCfg.logging = logging ? SFP_PERMIT_CONFIG__LOGGING__ENABLE :
+		SFP_PERMIT_CONFIG__LOGGING__DISABLE;
+	MismatchCfg.enforcement = enforcement ? SFP_PERMIT_CONFIG__ENFORCEMENT__ENFORCE :
+		SFP_PERMIT_CONFIG__ENFORCEMENT__MONITOR;
+
+	MismatchCfg.delay = delay;
 	sfp_permit_list_send(&Cfg);
 }
 
@@ -255,7 +261,7 @@ DP_START_TEST(list, test1)
 	 * Set up a list.
 	 */
 
-	sfp_mismatch_action_send();
+	sfp_mismatch_action_send(TRUE, TRUE, 300);
 
 	show_sfp_permit_mismatch_info();
 
@@ -267,7 +273,7 @@ DP_START_TEST(list, test1)
 
 	show_sfp_permit_list_info("List_2", "AL*", true);
 
-	generate_sfpd_file("sfpd_status", PORT1, INTF1, "SIMON");
+	generate_sfpd_file("sfpd_status", PORT1, INTF1, "CATHERINE");
 
 	SFPD_NOTIFY;
 
@@ -276,6 +282,10 @@ DP_START_TEST(list, test1)
 	sfp_permit_match_check("DES", true);
 	sfp_permit_match_check("DESa", true);
 	sfp_permit_match_check("Yoda", false);
+
+	generate_sfpd_file("sfpd_status", PORT2, INTF2, "BILL");
+
+	SFPD_NOTIFY;
 
 	sfp_list_delete("List_1", &Part_list[0], 5);
 
