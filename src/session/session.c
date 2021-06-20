@@ -2035,11 +2035,6 @@ enum dp_session_state dp_session_get_state(const struct session *session)
 	return session->se_gen_state;
 }
 
-const char *dp_session_get_state_name(const struct session *session, bool upper)
-{
-	return dp_session_state_name(session->se_gen_state, upper);
-}
-
 uint64_t dp_session_unique_id(const struct session *session)
 {
 	if (!session)

@@ -248,15 +248,6 @@ uint64_t dp_session_unique_id(const struct session *session);
 enum dp_session_state dp_session_get_state(const struct session *session);
 
 /**
- * Get a sessions generic protocol state name
- *
- * @param [in] session
- * @param [in] upper
- */
-const char *dp_session_get_state_name(const struct session *session,
-				      bool upper);
-
-/**
  * is session in an expired state?
  *
  * @param [in] session
