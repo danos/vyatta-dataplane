@@ -56,6 +56,9 @@ struct cgn_policy_cfg {
 	/* Match config */
 	const char		*cp_match_ag_name; /* addr grp name */
 
+	/* Exclude config */
+	const char		*cp_exclude_ag_name; /* addr grp name */
+
 	/* Translation config */
 	const char		*cp_pool_name;
 	enum cgn_map_type	cp_map_type;

@@ -247,6 +247,7 @@ static struct cgn_policy *cgn_policy_create(struct cgn_policy_cfg *cpc)
 	strncpy(cp->cp_name, cpc->cp_name, sizeof(cp->cp_name));
 	rte_atomic32_set(&cp->cp_refcnt, 0);
 	cp->cp_match_ag = NULL;
+	cp->cp_exclude_ag = NULL;
 	CDS_INIT_LIST_HEAD(&cp->cp_list_node);
 	cp->cp_priority = cpc->cp_priority;
 
@@ -298,6 +299,11 @@ static struct cgn_policy *cgn_policy_create(struct cgn_policy_cfg *cpc)
 		npf_addrgrp_get(cp->cp_match_ag);
 	}
 
+	/* Exclude address-group */
+	const char *name = npf_addrgrp_handle2name(cp->cp_exclude_ag);
+	npf_addrgrp_update_handle(name, cpc->cp_exclude_ag_name,
+				  &cp->cp_exclude_ag);
+
 	/*
 	 * Find cgnat pool.  Takes a reference on the cgnat pool if found.
 	 */
@@ -343,7 +349,12 @@ static void cgn_policy_destroy(struct cgn_policy *cp, bool rcu_free)
 	if (ag)
 		npf_addrgrp_put(ag);
 
-	/* Release reference on session lof address-group */
+	/* Release reference on exclude address-group */
+	ag = rcu_xchg_pointer(&cp->cp_exclude_ag, NULL);
+	if (ag)
+		npf_addrgrp_put(ag);
+
+	/* Release reference on session log address-group */
 	ag = rcu_xchg_pointer(&cp->cp_log_sess_ag, NULL);
 	if (ag)
 		npf_addrgrp_put(ag);
@@ -645,6 +656,10 @@ cgn_policy_jsonw_one(json_writer_t *json, struct cgn_policy *cp)
 	jsonw_string_field(json, "match_group",
 			   name ? name : "(unknown)");
 
+	name = npf_addrgrp_handle2name(cp->cp_exclude_ag);
+	if (name)
+		jsonw_string_field(json, "exclude_ag", name);
+
 	if (ifp)
 		jsonw_string_field(json, "interface", ifp->if_name);
 	else
@@ -854,6 +869,15 @@ cgn_policy_cfg_parse_match(const char *value, struct cgn_policy_cfg *cgn)
 	return 0;
 }
 
+/* Exclude address-group name */
+static int
+cgn_policy_cfg_parse_exclude(const char *value, struct cgn_policy_cfg *cgn)
+{
+	cgn->cp_exclude_ag_name = value;
+
+	return 0;
+}
+
 /*
  * map-type=eim
  * map-type=edm
@@ -983,6 +1007,9 @@ int cgn_policy_cfg_add(FILE * f __unused, int argc, char **argv)
 		cfg.cp_match_ag_name =
 			npf_addrgrp_handle2name(cp->cp_match_ag);
 
+		/* Nothing is sent down when 'exclude_ag' is not cfgd */
+		cfg.cp_exclude_ag_name = NULL;
+
 		cfg.cp_pool_name = nat_pool_name(cp->cp_pool);
 		cfg.cp_map_type = cp->cp_map_type;
 		cfg.cp_fltr_type = cp->cp_fltr_type;
@@ -1006,6 +1033,7 @@ int cgn_policy_cfg_add(FILE * f __unused, int argc, char **argv)
 
 		cfg.cp_priority = 0;
 		cfg.cp_match_ag_name = NULL;
+		cfg.cp_exclude_ag_name = NULL;
 		cfg.cp_pool_name = NULL;
 		cfg.cp_map_type = CGN_MAP_EIM;
 		cfg.cp_fltr_type = CGN_FLTR_EIF;
@@ -1038,6 +1066,10 @@ int cgn_policy_cfg_add(FILE * f __unused, int argc, char **argv)
 		/* Match address-group */
 		} else if (!strcmp(item, "match-ag")) {
 			rc = cgn_policy_cfg_parse_match(value, &cfg);
+
+		/* Exclude address-group */
+		} else if (!strcmp(item, "exclude-ag")) {
+			rc = cgn_policy_cfg_parse_exclude(value, &cfg);
 
 		/* Priority */
 		} else if (!strcmp(item, "priority")) {
@@ -1102,6 +1134,11 @@ int cgn_policy_cfg_add(FILE * f __unused, int argc, char **argv)
 
 		npf_addrgrp_update_handle(name, cfg.cp_match_ag_name,
 					  &cp->cp_match_ag);
+
+		/* Exclude address-group */
+		name = npf_addrgrp_handle2name(cp->cp_exclude_ag);
+		npf_addrgrp_update_handle(name, cfg.cp_exclude_ag_name,
+					  &cp->cp_exclude_ag);
 
 		cp->cp_priority = cfg.cp_priority;
 
