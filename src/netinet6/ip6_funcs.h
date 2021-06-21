@@ -24,6 +24,13 @@
 #define IPV6_HLIMDEC 1
 
 #define V4MAPPED_IPV6_TO_IPV4(A)	((A).s6_addr32[3])
+#define V4MAPPED_IPV4_TO_IPV6(A, B)			\
+{							\
+	(A)->s6_addr32[0] = 0x0;			\
+	(A)->s6_addr32[1] = 0x0;			\
+	(A)->s6_addr32[2] = htonl(0xffff);		\
+	(A)->s6_addr32[3] = ((B).s_addr);		\
+}
 
 enum ip6_features {
 	IP6_FEA_REASSEMBLE	= (1u << 0),
