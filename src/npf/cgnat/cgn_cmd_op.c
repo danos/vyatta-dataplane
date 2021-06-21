@@ -64,6 +64,10 @@ static void cgn_show_summary(FILE *f, int argc __unused, char **argv __unused)
 
 	jsonw_uint_field(json, "pkts_hairpinned",
 			 cgn_rc_read(CGN_DIR_OUT, CGN_HAIRPINNED));
+	jsonw_uint_field(json, "excluded_out",
+			 cgn_rc_read(CGN_DIR_OUT, CGN_DST_EXCLUDED));
+	jsonw_uint_field(json, "excluded_in",
+			 cgn_rc_read(CGN_DIR_IN, CGN_DST_EXCLUDED));
 
 	if (rte_atomic64_read(&cgn_sess2_ht_created) > 0) {
 		jsonw_uint_field(json, "sess_ht_created",

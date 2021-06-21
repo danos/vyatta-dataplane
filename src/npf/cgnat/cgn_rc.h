@@ -87,6 +87,7 @@ enum cgn_rc_en {
 	CGN_RC_UNKWN,	/* Unknown return code */
 	CGN_HAIRPINNED,	/* Packets hairpinned */
 	CGN_ICMP_ECHOREQ, /* Echo req to CGNAT pool addr */
+	CGN_DST_EXCLUDED, /* Excluded dest addr */
 
 	/*
 	 * PCP.  All PCP requests will increment either CGN_PCP_OK or
@@ -201,6 +202,8 @@ static inline const char *cgn_rc_str(int error)
 		return "CGN_HAIRPINNED";
 	case CGN_ICMP_ECHOREQ:
 		return "ICMP_ECHOREQ";
+	case CGN_DST_EXCLUDED:
+		return "DST_EXCLUDED";
 	case CGN_PCP_OK:
 		return "PCP_OK";
 	case CGN_PCP_ERR:
@@ -310,6 +313,8 @@ static inline const char *cgn_rc_detail_str(int error)
 		return "Packets hairpinned";
 	case CGN_ICMP_ECHOREQ:
 		return "ICMP Echo Request for CGNAT public address";
+	case CGN_DST_EXCLUDED:
+		return "Excluded destination";
 	case CGN_PCP_OK:
 		return "Successful PCP requests";
 	case CGN_PCP_ERR:
