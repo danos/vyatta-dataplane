@@ -145,5 +145,6 @@ void dp_test_make_nh_usable_other_thread(pthread_t *nh_unusable_thread,
 					 const char *interface,
 					 const char *nexthop);
 uint32_t dp_test_sys_uptime(void);
+void dp_test_sys_uptime_inc(uint32_t inc);
 
 #endif /*_DP_TEST_LIB_H_ */

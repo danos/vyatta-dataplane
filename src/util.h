@@ -194,5 +194,6 @@ bool get_switch_dev_info(const char *drv_name,
 
 int change_capability(cap_value_t capability, bool on);
 void renice(int value);
+uint32_t system_uptime(void);
 
 #endif  /* UTIL_H */

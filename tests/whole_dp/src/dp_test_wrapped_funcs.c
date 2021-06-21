@@ -12,7 +12,7 @@
 
 #include <time.h>
 #include <string.h>
-
+#include <sys/sysinfo.h>
 #include <netinet/in.h>
 #include <netinet/ip.h>
 #include <linux/if_ether.h>
@@ -108,4 +108,17 @@ FILE *__wrap_popen(const char *command, const char *type)
 int __wrap_pclose(FILE *stream)
 {
 	return 0;
+}
+
+uint32_t dp_test_sys_update;
+
+uint32_t __wrap_sysinfo(struct sysinfo *s_info)
+{
+	s_info->uptime = dp_test_sys_update;
+	return 0;
+}
+
+void dp_test_sys_uptime_inc(uint32_t inc)
+{
+	dp_test_sys_update += inc;
 }

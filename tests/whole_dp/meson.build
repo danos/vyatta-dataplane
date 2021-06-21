@@ -197,7 +197,8 @@ dataplane_test = executable(
                 '-Wl,-wrap,rte_mempool_create',
                 '-Wl,-wrap,rte_eal_init',
                 '-Wl,-wrap,popen',
-                '-Wl,-wrap,pclose'
+                '-Wl,-wrap,pclose',
+                '-Wl,-wrap,sysinfo',
         ],
         link_with: [jsonw_library],
         export_dynamic: true,

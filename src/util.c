@@ -26,6 +26,7 @@
 #include <rte_spinlock.h>
 #include <rte_timer.h>
 #include <sys/capability.h>
+#include <sys/sysinfo.h>
 #include <sys/mman.h>
 #include <sys/resource.h>
 #include <sys/time.h>
@@ -756,4 +757,18 @@ void renice(int value)
 		RTE_LOG(ERR, DATAPLANE,
 			"%s: failed to set CAP_SYS_NICE: %s\n",
 			__func__,  strerror(errno));
+}
+/*
+ * Get the time in seconds since the system booted
+ */
+uint32_t system_uptime(void)
+{
+	struct sysinfo s_info;
+	uint32_t error = sysinfo(&s_info);
+
+	if (error != 0)
+		RTE_LOG(ERR, DATAPLANE,
+			"%s: failed to get uptime: %s\n",
+			__func__,  strerror(error));
+	return s_info.uptime;
 }
