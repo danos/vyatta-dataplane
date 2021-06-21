@@ -34,19 +34,19 @@ struct cgn_policy_sess_rate {
 enum cgn_map_type {
 	CGN_MAP_EIM,	/* Endpoint independent mapping */
 	CGN_MAP_EDM,	/* Endpoint dependent mapping */
-};
+} __attribute__ ((__packed__));
 
 /* cgm filter type */
 enum cgn_fltr_type {
 	CGN_FLTR_EIF,	/* Endpoint independent filtering */
 	CGN_FLTR_EDF,	/* Endpoint dependent filtering */
-};
+} __attribute__ ((__packed__));
 
 /* cgm translation type */
 enum cgn_trans_type {
 	CGN_TRANS_NAPT44_DYNAMIC,
 	CGN_TRANS_NAPT44_DETERMINISTIC,
-};
+} __attribute__ ((__packed__));
 
 struct cgn_policy_cfg {
 	/* Identity */
@@ -82,7 +82,8 @@ struct cgn_policy {
 	struct cds_list_head	cp_list_node;	/* Intf list node */
 	struct nat_pool		*cp_pool;	/* Public address pool */
 
-	struct npf_addrgrp	*cp_match_ag;	/* Match addess-group */
+	struct npf_addrgrp	*cp_match_ag;	/* Match address-group */
+	struct npf_addrgrp	*cp_exclude_ag;	/* Exclude address-group */
 
 	rte_atomic32_t		cp_refcnt;
 	rte_atomic32_t		cp_source_count;
@@ -92,12 +93,8 @@ struct cgn_policy {
 	enum cgn_trans_type	cp_trans_type; /* dynamic or deterministic */
 
 	uint8_t			cp_log_subs;	/* Log subs start/end */
-	uint8_t			cp_log_sess_start;
-	uint8_t			cp_log_sess_end;
-
-	uint16_t		cp_log_sess_periodic;
-	uint8_t			cp_log_sess_all;
-	uint8_t			cp_pad2[5];
+	uint8_t			cs_pad1[4];
+	uint64_t		cp_unk_pkts_in;
 
 	/* --- cacheline 1 boundary (64 bytes) --- */
 
@@ -110,31 +107,31 @@ struct cgn_policy {
 
 	/* --- cacheline 2 boundary (128 bytes) --- */
 
-	/* List of subscribers with highest 1 minute session rates */
-	struct cds_list_head	cp_sess_rate_list;
+	struct npf_addrgrp	*cp_log_sess_ag;
+	uint16_t		cp_log_sess_periodic;
+	uint8_t			cp_log_sess_all;
+	uint8_t			cp_log_sess_start;
+	uint8_t			cp_log_sess_end;
+	uint8_t			cs_pad2[7];
 	uint			cp_sess_rate_count;
-
-	uint			cp_priority;
+	struct cds_list_head	cp_sess_rate_list;
 	struct cds_lfht_node	cp_table_node;
-	struct rcu_head		cp_rcu_head;
 	struct cgn_intf		*cp_ci;
 
 	/* --- cacheline 3 boundary (192 bytes) --- */
 
-	char			cp_name[NAT_POLICY_NAME_MAX];
-	struct npf_addrgrp	*cp_log_sess_ag;
+	struct rcu_head		cp_rcu_head;
+	uint			cp_priority;
 	uint8_t			cp_sess2_enabled;
-	uint8_t			cs_pad5[4];
-	uint64_t		cp_unk_pkts_in;
-	uint64_t		cp_unk_pkts_in_tot;
+	char			cp_name[NAT_POLICY_NAME_MAX];
 
 };
 
 static_assert(offsetof(struct cgn_policy, cp_sess_created) == 64,
 	      "first cache line exceeded");
-static_assert(offsetof(struct cgn_policy, cp_sess_rate_list) == 128,
+static_assert(offsetof(struct cgn_policy, cp_log_sess_ag) == 128,
 	      "second cache line exceeded");
-static_assert(offsetof(struct cgn_policy, cp_name) == 192,
+static_assert(offsetof(struct cgn_policy, cp_rcu_head) == 192,
 	      "third cache line exceeded");
 
 bool cgn_policy_record_dest(struct cgn_policy *cp, uint32_t addr);
