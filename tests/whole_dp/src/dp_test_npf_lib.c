@@ -232,9 +232,46 @@ _cgnat_policy_add2(const char *policy, uint pri, const char *src,
 			     policy, real_ifname);
 }
 
+/*
+ * Adds an exclude address-group
+ */
+void
+_cgnat_policy_add3(const char *policy, uint pri,
+		   const char *match_pfx, const char *exclude_pfx,
+		   const char *pool, const char *intf,
+		   const char *other,
+		   const char *file, const char *func, int line)
+{
+	char real_ifname[IFNAMSIZ];
+	char match_grp[60];
+	char exclude_grp[60];
+
+	dp_test_intf_real(intf, real_ifname);
+
+	snprintf(match_grp, sizeof(match_grp), "%s_AG", policy);
+	snprintf(exclude_grp, sizeof(exclude_grp), "%s_EXCLUDE_AG", policy);
+
+	/* Add match address-group */
+	_dpt_addr_grp_create(match_grp, match_pfx, file, line);
+
+	/* Add exclude address-group */
+	_dpt_addr_grp_create(exclude_grp, exclude_pfx, file, line);
+
+	/* Add cgnat policy */
+	_dp_test_npf_cmd_fmt(false, file, line,
+			     "cgn-ut policy add %s priority=%u "
+			     "match-ag=%s exclude-ag=%s pool=%s %s",
+			     policy, pri, match_grp, exclude_grp, pool,
+			     other ? other : "");
+
+	_dp_test_npf_cmd_fmt(false, file, line,
+			     "cgn-ut policy attach name=%s intf=%s",
+			     policy, real_ifname);
+}
+
 void
 _cgnat_policy_del(const char *policy, uint pri, const char *intf,
-		 const char *file, const char *func, int line)
+		  const char *file, const char *func, int line)
 {
 	char real_ifname[IFNAMSIZ];
 	char addr_grp[60];
@@ -251,6 +288,31 @@ _cgnat_policy_del(const char *policy, uint pri, const char *intf,
 
 	snprintf(addr_grp, sizeof(addr_grp), "%s_AG", policy);
 	_dpt_addr_grp_destroy(addr_grp, NULL, file, line);
+}
+
+void
+_cgnat_policy_del3(const char *policy, uint pri, const char *intf,
+		   const char *file, const char *func, int line)
+{
+	char real_ifname[IFNAMSIZ];
+	char match_grp[60];
+	char exclude_grp[60];
+
+	dp_test_intf_real(intf, real_ifname);
+
+	_dp_test_npf_cmd_fmt(false, file, line,
+			     "cgn-ut policy detach name=%s intf=%s",
+			    policy, real_ifname);
+
+	/* Delete cgnat policy */
+	_dp_test_npf_cmd_fmt(false, file, line,
+			     "cgn-ut policy delete %s", policy);
+
+	snprintf(match_grp, sizeof(match_grp), "%s_AG", policy);
+	_dpt_addr_grp_destroy(match_grp, NULL, file, line);
+
+	snprintf(exclude_grp, sizeof(exclude_grp), "%s_EXCLUDE_AG", policy);
+	_dpt_addr_grp_destroy(exclude_grp, NULL, file, line);
 }
 
 

@@ -1994,7 +1994,7 @@ dpt_cgn_map(bool print, char *real_intf, uint timeout, uint8_t ipproto,
 
 	if (pub_port)
 		l += snprintf(cmd + l, sizeof(cmd) - l,
-			      " pub-port %u", *pub_port);
+			      " pub-port %d", *pub_port);
 
 	(void) l;
 
@@ -6930,7 +6930,7 @@ DP_START_TEST_DONT_RUN(cgnat100, test)
 	/*
 	 * Populate table
 	 */
-	printf("  Populate table with %u entries, table size %u\n",
+	printf("  Populate table with %u entries, table size %d\n",
 	       nentries, HASH_TEST_TABLE_SIZE);
 
 	for (i = 0; i < nentries; i++) {

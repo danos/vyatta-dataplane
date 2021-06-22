@@ -132,6 +132,18 @@ void _cgnat_policy_add2(const char *policy, uint pri, const char *src,
 	_cgnat_policy_add2(_a, _b, _c, _d, _e, _f,		\
 			   __FILE__, __func__, __LINE__)
 
+/*
+ * Adds an exclude address-group to the policy with name "<policy>_EXCLUDE_AG"
+ */
+void _cgnat_policy_add3(const char *policy, uint pri,
+			const char *match_pfx, const char *exclude_pfx,
+			const char *pool, const char *intf,
+			const char *other,
+			const char *file, const char *func, int line);
+#define cgnat_policy_add3(_a, _b, _c, _d, _e, _f, _g)		\
+	_cgnat_policy_add3(_a, _b, _c, _d, _e, _f, _g,		\
+			   __FILE__, __func__, __LINE__)
+
 
 /*
  * cgnat_policy_del("POLICY1", 10, "dp2T1");
@@ -141,6 +153,12 @@ void _cgnat_policy_del(const char *policy, uint pri, const char *intf,
 
 #define cgnat_policy_del(_a, _b, _c)					\
 	_cgnat_policy_del(_a, _b, _c, __FILE__, __func__, __LINE__)
+
+void _cgnat_policy_del3(const char *policy, uint pri, const char *intf,
+			const char *file, const char *func, int line);
+
+#define cgnat_policy_del3(_a, _b, _c)					\
+	_cgnat_policy_del3(_a, _b, _c, __FILE__, __func__, __LINE__)
 
 
 /*
