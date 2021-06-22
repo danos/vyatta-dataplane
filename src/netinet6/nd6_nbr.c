@@ -132,6 +132,8 @@ static struct nd6_nbr_cfg nd6_cfg = {
 	.nd6_maxhold		= ND6_MAXHOLD,
 };
 
+static uint8_t nd6_tclass = IPTOS_PREC_INTERNETCONTROL;
+
 static void nd6_log_conflict(struct ifnet *ifp,
 			     const struct rte_ether_addr *lladdr,
 			     struct in6_addr *saddr)
@@ -618,7 +620,7 @@ nd6_na_output(struct ifnet *ifp, const struct rte_ether_addr *lladdr,
 	eh->ether_type = htons(RTE_ETHER_TYPE_IPV6);
 
 	ip6 = (struct ip6_hdr *)(eh + 1);
-	ip6->ip6_flow = htonl(IPTOS_PREC_INTERNETCONTROL << 20);
+	ip6->ip6_flow = htonl(nd6_tclass << 20);
 	ip6->ip6_vfc &= ~IPV6_VERSION_MASK;
 	ip6->ip6_vfc |= IPV6_VERSION;
 	ip6->ip6_nxt = IPPROTO_ICMPV6;
@@ -1055,7 +1057,7 @@ nd6_ns_build(struct ifnet *ifp, const struct in6_addr *res_src,
 	eh->ether_type = htons(RTE_ETHER_TYPE_IPV6);
 
 	ip6 = (struct ip6_hdr *)(eh + 1);
-	ip6->ip6_flow = htonl(IPTOS_PREC_INTERNETCONTROL << 20);
+	ip6->ip6_flow = htonl(nd6_tclass << 20);
 	ip6->ip6_vfc &= ~IPV6_VERSION_MASK;
 	ip6->ip6_vfc |= IPV6_VERSION;
 	ip6->ip6_nxt = IPPROTO_ICMPV6;
@@ -2018,3 +2020,13 @@ static const struct dp_event_ops nd6_lladdr_events = {
 };
 
 DP_STARTUP_EVENT_REGISTER(nd6_lladdr_events);
+
+void nd6_tclass_set(uint8_t tclass)
+{
+	nd6_tclass = tclass;
+}
+
+uint8_t nd6_tclass_get(void)
+{
+	return nd6_tclass;
+}

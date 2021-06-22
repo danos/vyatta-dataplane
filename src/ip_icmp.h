@@ -39,6 +39,8 @@ int icmp_do_exthdr(struct rte_mbuf *m, uint16_t class, uint8_t ctype, void *buf,
 void icmp_prepare_send(struct rte_mbuf *m);
 bool icmp_echo_reply_out(struct ifnet *rcvifp, struct rte_mbuf *n,
 			 bool reflect);
+void icmp_error_tos_set(uint8_t tos);
+uint8_t icmp_error_tos_get(void);
 
 int cmd_icmp_rl(FILE *f, int argc, char **argv);
 

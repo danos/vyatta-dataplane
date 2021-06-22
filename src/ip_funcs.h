@@ -32,6 +32,15 @@
 
 #define IN_HOSTEQ(s, t)	((s).s_addr == (t).s_addr)
 
+/*
+ * To inherit the forwarding class from inner header.
+ * To copy the TOS/Tclass value for protocols like ESP, GRE
+ * from inner header yang layer sends the TOS/Tclass as 'inherit'.
+ * To distingush the 'inherit' value from normal 8-bit TOS/Tclass
+ * value, dataplane uses 256 to map it to 'inherit' instruction.
+ */
+#define IPTOS_INHERIT 256
+
 enum ip4_features {
 	IP4_FEA_REASSEMBLE	= (1u << 0),
 	IP4_FEA_ORIGINATE	= (1u << 1),

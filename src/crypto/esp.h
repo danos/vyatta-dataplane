@@ -55,4 +55,6 @@ int esp_generate_chain(struct sadb_sa *sa, struct rte_mbuf *mbuf,
 		       unsigned char *iv, uint32_t text_total_len,
 		       int8_t encrypt);
 
+void esp_tos_tclass_set(uint16_t family, uint16_t tos_tclass);
+uint16_t esp_tos_tclass_get(uint16_t family);
 #endif /* ESP_H */

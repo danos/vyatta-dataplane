@@ -99,6 +99,8 @@
 #include "ptp.h"
 #include "protobuf/PauseConfig.pb-c.h"
 #include "protobuf/ICMPRateLimConfig.pb-c.h"
+#include "protobuf/ForwardingClassConfig.pb-c.h"
+#include "crypto/esp.h"
 
 #define MAX_CMDLINE 512
 #define MAX_ARGS    128
@@ -1146,6 +1148,54 @@ static int cmd_lag(FILE *f, int argc __unused, char **argv __unused)
 	return 0;
 }
 
+static void show_forwarding_class_protocol(json_writer_t *wr, char *protocol, char *key,
+					   uint16_t tos_class)
+{
+	jsonw_start_object(wr);
+	jsonw_string_field(wr, "protocol", protocol);
+	jsonw_uint_field(wr, key, tos_class);
+	jsonw_end_object(wr);
+}
+
+/* Show forwarding class config */
+static int cmd_forwarding_class(FILE *f, int argc __unused, char **argv __unused)
+{
+	json_writer_t *wr = jsonw_new(f);
+
+	if (!wr)
+		return -1;
+
+	jsonw_pretty(wr, true);
+	jsonw_name(wr, "protocol-families");
+	jsonw_start_array(wr);
+	/** ip **/
+	jsonw_start_object(wr);
+	jsonw_string_field(wr, "family", "ip");
+	/** protocols **/
+	jsonw_name(wr, "protocols");
+	jsonw_start_array(wr);
+	show_forwarding_class_protocol(wr, "icmp", "tos", icmp_error_tos_get());
+	show_forwarding_class_protocol(wr, "esp", "tos", esp_tos_tclass_get(AF_INET));
+	jsonw_end_array(wr);
+	jsonw_end_object(wr);
+	/** ipv6 **/
+	jsonw_start_object(wr);
+	jsonw_string_field(wr, "family", "ipv6");
+	/** protocols **/
+	jsonw_name(wr, "protocols");
+	jsonw_start_array(wr);
+	show_forwarding_class_protocol(wr, "icmp", "tclass", icmp6_error_tclass_get());
+	show_forwarding_class_protocol(wr, "nd", "tclass", nd6_tclass_get());
+	show_forwarding_class_protocol(wr, "esp", "tclass", esp_tos_tclass_get(AF_INET6));
+	jsonw_end_array(wr);
+	jsonw_end_object(wr);
+
+	jsonw_end_array(wr);
+	jsonw_destroy(&wr);
+
+	return 0;
+}
+
 /*
  * Set the speed and duplex of an interface
  *
@@ -1716,6 +1766,59 @@ PB_REGISTER_CMD(breakout_cmd) = {
 	.handler = cmd_breakout_handler,
 };
 
+static int cmd_forwardingclass_handler(struct pb_msg *msg)
+{
+	void *payload = msg->msg;
+	int len = msg->msg_len;
+
+	ForwardingClassConfig *fccmsg = forwarding_class_config__unpack(NULL, len, payload);
+
+	if (!fccmsg) {
+		RTE_LOG(ERR, DATAPLANE, "failed to read ForwardingClassConfig protobuf command\n");
+		return -1;
+	}
+
+	if (fccmsg->af == FORWARDING_CLASS_CONFIG__ADDRESS_FAMILY__IPV4) {
+		switch (fccmsg->pt) {
+		case FORWARDING_CLASS_CONFIG__PROTOCOL_TYPE__ICMP:
+			icmp_error_tos_set(fccmsg->tos_traffic_class);
+			break;
+		case FORWARDING_CLASS_CONFIG__PROTOCOL_TYPE__ESP:
+			esp_tos_tclass_set(AF_INET, fccmsg->tos_traffic_class);
+			break;
+		default:
+			RTE_LOG(INFO, DATAPLANE,
+				"unhandled ForwardingClassConfig message protocol type %d\n",
+				fccmsg->pt);
+		}
+	} else {
+		switch (fccmsg->pt) {
+		case FORWARDING_CLASS_CONFIG__PROTOCOL_TYPE__ICMP:
+			icmp6_error_tclass_set(fccmsg->tos_traffic_class);
+			break;
+		case FORWARDING_CLASS_CONFIG__PROTOCOL_TYPE__ND:
+			nd6_tclass_set(fccmsg->tos_traffic_class);
+			break;
+		case FORWARDING_CLASS_CONFIG__PROTOCOL_TYPE__ESP:
+			esp_tos_tclass_set(AF_INET6, fccmsg->tos_traffic_class);
+			break;
+		default:
+			RTE_LOG(INFO, DATAPLANE,
+				"unhandled ForwardingClassConfig message protocol type %d\n",
+				fccmsg->pt);
+		}
+	}
+
+	forwarding_class_config__free_unpacked(fccmsg, NULL);
+
+	return 0;
+}
+
+PB_REGISTER_CMD(forwardingclass_cmd) = {
+	.cmd = "vyatta:forwardingclass",
+	.handler = cmd_forwardingclass_handler,
+};
+
 static int cmd_vlan_mod(FILE *f, int argc __unused, char **argv __unused)
 {
 	vlan_mod_cmd(f, argc, argv);
@@ -1811,6 +1914,7 @@ static const cmd_t cmd_table[] = {
 	{ 0,	"vrf",		cmd_vrf,	"Show VRF information" },
 	{ 0,	"vxlan",	cmd_vxlan,      "VXLAN commands" },
 	{ 0,	"mac-limit",    cmd_mac_limit_op, "MAC limiting commands" },
+	{ 0,	"forwarding-class", cmd_forwarding_class, "Display forwarding class information"},
 	{ 0,	NULL,		NULL,		NULL }
 };
 

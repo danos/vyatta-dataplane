@@ -97,6 +97,9 @@ struct icmp_ext_obj_hdr {
 static bool ip_redirects = true;
 uint64_t icmpstats[ICMP_MIB_MAX];
 
+/** TOS value to be used when dataplane sending ICMP error packets. **/
+static uint8_t icmp_error_tos = IPTOS_PREC_INTERNETCONTROL;
+
 /*
  * ICMP Rate limiting state for configurable types. Entry 0 holds
  * default values.
@@ -575,7 +578,7 @@ icmp_do_error(struct rte_mbuf *n, int type, int code, uint32_t info,
 	 */
 	nip->ihl	= 5;
 	nip->version	= IPVERSION;
-	nip->tos	= IPTOS_PREC_INTERNETCONTROL;
+	nip->tos = icmp_error_tos;
 	nip->tot_len	= htons(mlen);
 	nip->frag_off	= 0;
 	nip->protocol	= IPPROTO_ICMP;
@@ -1067,4 +1070,12 @@ PB_REGISTER_CMD(icmp_ratelimit_cfg_cmd) = {
 	.handler = cmd_icmp_rate_limit_cfg_handler,
 };
 
+void icmp_error_tos_set(uint8_t tos)
+{
+	icmp_error_tos = tos;
+}
 
+uint8_t icmp_error_tos_get(void)
+{
+	return icmp_error_tos;
+}

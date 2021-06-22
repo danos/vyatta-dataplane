@@ -54,6 +54,9 @@
 
 static bool ip6_redirects = true;
 
+/** Traffic class value to be used when dataplane sending ICMP error packets. **/
+static uint8_t icmp6_error_tclass = IPTOS_PREC_ROUTINE;
+
 /*
  * ICMP Rate limiting state for configurable types. Entry 0 holds
  * default values.
@@ -349,8 +352,8 @@ struct rte_mbuf *icmp6_do_error(struct ifnet *rcvif, struct rte_mbuf *n,
 	nip6->ip6_src = *saddr;
 	nip6->ip6_dst = oip6->ip6_src;
 	nip6->ip6_flow = oip6->ip6_flow & IPV6_FLOWLABEL_MASK;
-	nip6->ip6_flow |= htonl(IPTOS_PREC_NETCONTROL << 20);
-	nip6->ip6_vfc = IPV6_VERSION;
+	nip6->ip6_flow |= htonl(icmp6_error_tclass << 20);
+	nip6->ip6_vfc |= IPV6_VERSION;
 
 	nip6->ip6_plen = htons(plen);
 	nip6->ip6_nxt = IPPROTO_ICMPV6;
@@ -513,8 +516,8 @@ void icmp6_redirect(struct ifnet *ifp, struct rte_mbuf *n,
 	ip6->ip6_src = saddr6;
 	ip6->ip6_dst = sip6->ip6_src;
 	ip6->ip6_flow = sip6->ip6_flow & IPV6_FLOWLABEL_MASK;
-	ip6->ip6_flow |= htonl(IPTOS_PREC_NETCONTROL << 20);
-	ip6->ip6_vfc = IPV6_VERSION;
+	ip6->ip6_flow |= htonl(nd6_tclass_get() << 20);
+	ip6->ip6_vfc |= IPV6_VERSION;
 	ip6->ip6_nxt = IPPROTO_ICMPV6;
 	ip6->ip6_hlim = IPV6_ONLINK_HOPLIMIT;
 	ip6->ip6_plen = htons(plen);
@@ -580,4 +583,14 @@ bool icmp6_msg_type_to_icmp_type(uint8_t msgtype, uint8_t *icmptype)
 	default:
 		return false;
 	}
+}
+
+void icmp6_error_tclass_set(uint8_t tclass)
+{
+	icmp6_error_tclass = tclass;
+}
+
+uint8_t icmp6_error_tclass_get(void)
+{
+	return icmp6_error_tclass;
 }
