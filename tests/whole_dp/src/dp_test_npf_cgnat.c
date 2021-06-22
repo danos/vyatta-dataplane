@@ -164,8 +164,15 @@ DP_DECL_TEST_SUITE(npf_cgnat);
  *
  * cgnat54 - Tests interface failover
  *
- * make -j4 dataplane_test_run CK_RUN_SUITE=dp_test_npf_cgnat.c
- * make -j4 dataplane_test_run CK_RUN_CASE=cgnat1
+ * cgnat55 - Destination 'exclude' access-group
+ * cgnat56 - Destination 'exclude' access-group
+ * cgnat57 - Destination 'exclude' access-group
+ * cgnat58 - Destination 'exclude' access-group
+ * cgnat59 - Destination 'exclude' access-group
+ * cgnat60 - Destination 'exclude' access-group
+ *
+ * meson test -v --test-args='-d0' dp_test_npf_cgnat.c
+ * CK_RUN_CASE=cgnat1 meson test -v --test-args='-d0' dp_test_npf_cgnat.c
  */
 
 static void
@@ -6815,6 +6822,59 @@ DP_START_TEST(cgnat54, test)
 } DP_END_TEST; /* cgnat54 */
 
 
+/*
+ * cgnat55 -- Destination 'exclude' access-group
+ */
+DP_DECL_TEST_CASE(npf_cgnat, cgnat55, cgnat_setup, cgnat_teardown);
+DP_START_TEST(cgnat55, test)
+{
+	dpt_cgn_cmd_fmt(false, true,
+			"nat-ut pool add POOL1 "
+			"type=cgnat "
+			"address-range=RANGE1/1.1.1.11-1.1.1.20 "
+			"prefix=RANGE2/1.1.1.192/26 "
+			"prefix=RANGE3/204.112.12.224/28 "
+			"subnet=RANGE4/204.112.13.224/28 "
+			"log-pba=yes "
+			"");
+
+	/*
+	 * Match source 100.64.0.0/12
+	 * Exclude destination 1.1.1.2
+	 */
+	cgnat_policy_add3("POLICY1", 10, "100.64.0.0/12", "1.1.1.2",
+			  "POOL1", "dp2T1", NULL);
+
+
+	/*
+	 * 1. Send 1 pkt from same source to a exclude dest to verify CGNAT
+	 * translation does *not* occurs.
+	 */
+	cgnat_udp("dp1T0", "aa:bb:cc:dd:1:a1", 0,
+		  "100.64.0.1", 3023, "1.1.1.2", 80,
+		  "100.64.0.1", 3023, "1.1.1.2", 80,
+		  "aa:bb:cc:dd:2:b2", 0, "dp2T1",
+		  DP_TEST_FWD_FORWARDED);
+
+	/* 2. Repeat #1 */
+	cgnat_udp("dp1T0", "aa:bb:cc:dd:1:a1", 0,
+		  "100.64.0.1", 3023, "1.1.1.2", 80,
+		  "100.64.0.1", 3023, "1.1.1.2", 80,
+		  "aa:bb:cc:dd:2:b2", 0, "dp2T1",
+		  DP_TEST_FWD_FORWARDED);
+
+	/* 3. Inbound from excluded host */
+	cgnat_udp("dp2T1", "aa:bb:cc:dd:2:b2", 0,
+		  "1.1.1.2", 80, "100.64.0.1", 3023,
+		  "1.1.1.2", 80, "100.64.0.1", 3023,
+		  "aa:bb:cc:dd:1:a1", 0, "dp1T0",
+		  DP_TEST_FWD_FORWARDED);
+
+	cgnat_policy_del3("POLICY1", 10, "dp2T1");
+
+	dp_test_npf_cmd_fmt(false, "nat-ut pool delete POOL1");
+
+} DP_END_TEST; /* cgnat55 */
 
 
 #ifdef CGN_HASH_COMPARISON
