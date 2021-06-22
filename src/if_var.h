@@ -252,7 +252,7 @@ struct ifnet {
 			   padding0:1,
 			   qos_software_fwd:1,
 			   tpid_offloaded:1,
-			   unused:3,
+			   unused:2,
 			   ip_proxy_arp:1,
 			   ip_mc_forwarding:1,
 			   ip6_mc_forwarding:1,
@@ -260,7 +260,8 @@ struct ifnet {
 			   ip_rpf_strict:1,
 			   if_local_port:1, /* if_port is valid */
 			   qinq_outer:1,
-			   qinq_inner:1;
+			   qinq_inner:1,
+			   sfp_holddown:1;
 
 	vrfid_t		   if_vrfid;	/* vrf tag */
 	void               **node_instance_contexts;

@@ -24,6 +24,7 @@
 
 #include "sfp_permit_list.h"
 #include "transceiver.h"
+#include "if/dpdk-eth/dpdk_eth_if.h"
 
 #define SFP_MAX_NAME_SIZE 64
 #define SFP_MAX_PART_ID 16
@@ -45,6 +46,9 @@ struct cds_list_head  sfp_permit_parts_list_head;
 bool sfp_pl_cfg_init;
 
 static uint32_t sfp_permit_list_epoch;
+
+static void sfp_clear_all_holddown(void);
+static void sfp_scan_for_holddown(void);
 
 struct sfp_mismatch_global {
 	bool logging_enabled;
@@ -117,6 +121,7 @@ struct sfp_intf_record {
 	struct rcu_head rcu;
 };
 
+static void sfp_validate_sfp_against_pl(struct sfp_intf_record *sfp);
 
 struct cds_lfht *sfp_ports_tbl;
 
@@ -455,6 +460,8 @@ sfp_permit_list_cfg(SfpPermitConfig__SfpPermitListConfig *list)
 		return -1;
 	}
 
+	sfp_scan_for_holddown();
+
 	return 0;
 }
 
@@ -473,12 +480,16 @@ sfp_permit_mismatch_cfg(SfpPermitConfig__SfpPermitMisMatchConfig *mismatch)
 	else
 		sfp_mismatch_cfg.logging_enabled = false;
 
-	if (mismatch->enforcement == SFP_PERMIT_CONFIG__ENFORCEMENT__ENFORCE)
+	if (mismatch->enforcement == SFP_PERMIT_CONFIG__ENFORCEMENT__ENFORCE) {
 		sfp_mismatch_cfg.enforcement_enabled = true;
-	else
+	} else {
 		sfp_mismatch_cfg.enforcement_enabled = false;
+		sfp_clear_all_holddown();
+		return 0;
+	}
 
 	sfp_mismatch_cfg.enforcement_delay = mismatch->delay;
+	sfp_scan_for_holddown();
 
 	return 0;
 }
@@ -863,11 +874,14 @@ static void sfp_delete_cb_free(struct rcu_head *head)
 }
 
 static void
-sfp_delete(struct cds_lfht *hash_tbl, struct sfp_intf_record *sfp)
+sfp_delete(struct cds_lfht *hash_tbl, struct sfp_intf_record *sfp,
+	bool cfg_table)
 {
+	if (!cfg_table)
+		sfp_clear_holddown(sfp->intf);
+
 	if (hash_tbl)
 		cds_lfht_del(hash_tbl, &sfp->hnode);
-
 	call_rcu(&sfp->rcu, sfp_delete_cb_free);
 }
 
@@ -955,7 +969,7 @@ void sfpd_process_presence_update(void)
 			/* Refresh current SFP epoch */
 			sfp->epoch = sfp_permit_list_epoch;
 		}
-		sfp_delete(sfpd_status, section);
+		sfp_delete(sfpd_status, section, true);
 	}
 
 	cds_lfht_destroy(sfpd_status, NULL);
@@ -964,7 +978,7 @@ void sfpd_process_presence_update(void)
 	cds_lfht_for_each_entry(sfp_ports_tbl, &iter,
 				sfp, hnode)
 		if (sfp->epoch != sfp_permit_list_epoch)
-			sfp_delete(sfp_ports_tbl, sfp);
+			sfp_delete(sfp_ports_tbl, sfp, false);
 }
 
 static void sfp_permit_dump_list(FILE *f)
