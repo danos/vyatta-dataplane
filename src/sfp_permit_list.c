@@ -107,6 +107,65 @@ struct sfp_intf_record {
 	struct rcu_head rcu;
 };
 
+static inline uint32_t sfpd_record_hash(struct sfp_intf_record *rec)
+{
+	return rec->port;
+}
+
+static int sfpd_record_match_fn(struct cds_lfht_node *node,
+				const void *arg)
+{
+	struct sfp_intf_record *rec;
+	uint32_t port = *(uint32_t *)arg;
+
+	rec = caa_container_of(node, struct sfp_intf_record, hnode);
+
+	if (rec->port == port)
+		return 1;
+
+	return 0;
+}
+
+static struct sfp_intf_record *sfpd_record_store(struct cds_lfht *hash_tbl,
+						 struct sfp_intf_record *rec)
+{
+	uint32_t hash;
+	struct cds_lfht_node *ret_node;
+
+	cds_lfht_node_init(&rec->hnode);
+
+	hash = sfpd_record_hash(rec);
+	ret_node = cds_lfht_add_unique(hash_tbl, hash, sfpd_record_match_fn,
+				       &rec->port,
+				       &rec->hnode);
+	if (ret_node !=  &rec->hnode) {
+		RTE_LOG(ERR, DATAPLANE,
+			"SFP-PL: Failed to insert SFP %s into hash table\n",
+			rec->intf_name);
+		return NULL;
+	}
+	return rec;
+}
+
+static struct sfp_intf_record *
+sfpd_record_find(struct cds_lfht *hash_tbl, uint32_t port)
+{
+	struct cds_lfht_iter iter;
+	struct cds_lfht_node *node;
+
+	if (!hash_tbl)
+		return NULL;
+
+	cds_lfht_lookup(hash_tbl, port, sfpd_record_match_fn,
+			&port, &iter);
+
+	node = cds_lfht_iter_get_node(&iter);
+	if (node)
+		return caa_container_of(node, struct sfp_intf_record, hnode);
+
+	return NULL;
+}
+
 static struct sfp_permit_list *sfp_find_permit_list(char *name)
 {
 	struct sfp_permit_list *entry, *next;
