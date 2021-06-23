@@ -2,7 +2,7 @@
  * pl_fused.h
  *
  *
- * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2016, 2017 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -32,7 +32,8 @@ enum pl_ether_lookup_fused_feat {
 };
 
 enum pl_l3_v4_in_fused_feat {
-	PL_L3_V4_IN_FUSED_FEAT_RPF = 1,
+	/* Leave a gap to allow monitoring features */
+	PL_L3_V4_IN_FUSED_FEAT_RPF = 3,
 	PL_L3_V4_IN_FUSED_FEAT_ACL,
 	PL_L3_V4_IN_FUSED_FEAT_TCP_MSS,
 	PL_L3_V4_IN_FUSED_FEAT_DEFRAG,
@@ -50,7 +51,8 @@ enum pl_l3_v4_in_fused_feat {
 };
 
 enum pl_l3_v6_in_fused_feat {
-	PL_L3_V6_IN_FUSED_FEAT_ACL = 1,
+	/* Leave a gap to allow monitoring features */
+	PL_L3_V6_IN_FUSED_FEAT_ACL = 3,
 	PL_L3_V6_IN_FUSED_FEAT_TCP_MSS,
 	PL_L3_V6_IN_FUSED_FEAT_DEFRAG,
 	PL_L3_V6_IN_FUSED_FEAT_FW,
