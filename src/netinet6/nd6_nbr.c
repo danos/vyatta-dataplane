@@ -578,6 +578,40 @@ nd6_create_valid(struct ifnet *ifp, const struct in6_addr *addr,
 }
 
 /*
+ * This function invokes ipv6_encap_only pipeline node
+ * which calls the ACL feature (which does the Egress ACL filtering)
+ */
+
+static bool
+ip6_acl_filter(struct ifnet *ifp, struct rte_mbuf *m)
+{
+	struct next_hop nh6;
+
+	memset(&nh6, 0, sizeof(nh6));
+	nh_set_ifp(&nh6, ifp);
+	/*
+	 *  since next hop resolution is done explicitly by the caller,
+	 *  We are ignoring next hop resoution with the following flag
+	 */
+	nh6.flags |= RTF_DONT_RESOLVE_NH;
+
+	struct pl_packet pl_pkt = {
+		.mbuf = m,
+		.l2_pkt_type = pkt_mbuf_get_l2_traffic_type(m),
+		.l3_hdr = ip6hdr(m),
+		.in_ifp = NULL,
+		.out_ifp = dp_nh_get_ifp(&nh6),
+		.nxt.v6 = &nh6,
+		.l2_proto = ETH_P_IPV6,
+	};
+
+	if (!pipeline_fused_ipv6_encap_only(&pl_pkt))
+		return false;
+
+	return true;
+}
+
+/*
  * Send an NA packet
  */
 static void
@@ -667,6 +701,8 @@ nd6_na_output(struct ifnet *ifp, const struct rte_ether_addr *lladdr,
 		  lladdr ? 1 : 0);
 	ND6NBR_INC(natx);
 
+	if (!ip6_acl_filter(ifp, m))
+		return;
 
 	/*
 	 * Send NA. If we don't have dest MAC then resolve it
@@ -1125,7 +1161,8 @@ static void nd6_ns_output(struct ifnet *ifp,
 	m = nd6_ns_build(ifp, res_src, taddr6, dst_mac);
 
 	if (m) {
-		if_output(ifp, m, NULL, ETH_P_IPV6);
+		if (ip6_acl_filter(ifp, m))
+			if_output(ifp, m, NULL, ETH_P_IPV6);
 	}
 }
 
@@ -1796,7 +1833,8 @@ in6_ll_age(struct lltable *llt, struct llentry *lle, uint64_t cur_time)
 		rte_spinlock_unlock(&lle->ll_lock);
 
 		if (m) {
-			if_output(ifp, m, NULL, ETH_P_IPV6);
+			if (ip6_acl_filter(ifp, m))
+				if_output(ifp, m, NULL, ETH_P_IPV6);
 		}
 
 		if (m_for_icmp_unreach)

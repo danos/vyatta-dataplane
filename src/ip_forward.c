@@ -543,9 +543,6 @@ ip_lookup_and_originate(struct rte_mbuf *m, struct ifnet *in_ifp)
 	if (!nxt)
 		return;
 
-	if (ipv4_originate_filter(dp_nh4_get_ifp(nxt), m))
-		return;
-
 	enum ip4_features ip4_feat = IP4_FEA_ORIGINATE;
 	ip_switch(m, in_ifp, ip, nxt, ip4_feat, NPF_FLAG_CACHE_EMPTY);
 }

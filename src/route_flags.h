@@ -65,6 +65,7 @@
  * members on a hardware platform.
  */
 #define RTF_NH_NEEDS_HW_RES 0x40000
+#define RTF_DONT_RESOLVE_NH 0x80000 /*Nexthop resolution is skipped*/
 
 /*
  * When comparing NHs for equality, mask the flags as the NEIGH_ ones are
