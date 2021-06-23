@@ -630,7 +630,7 @@ move_bad_mbufs(struct crypto_pkt_ctx *ctx_arr[], uint16_t count,
 	}
 
 	/* copy bad ones after the good ones */
-	for (i = 0; i != bad_count; i++)
+	for (i = 0; i < j; i++)
 		ctx_arr[k + i] = tmp_ctx_arr[i];
 }
 
