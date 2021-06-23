@@ -103,6 +103,7 @@ check_tests = [
         'dp_test_npf_hairpin.c',
         'dp_test_npf_icmp.c',
         'dp_test_npf_local.c',
+        'dp_test_npf_mpls_icmp_originate.c',
         'dp_test_npf_mbuf.c',
         'dp_test_npf_nat.c',
         'dp_test_npf_nat64.c',

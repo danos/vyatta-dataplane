@@ -1416,3 +1416,130 @@ void cgn_alg_show_sessions(void)
 		free(buf);
 	}
 }
+
+static bool dp_test_get_forwardingclass_config(const char *family, const char *protocol,
+					       const char *field, int val)
+{
+	json_object *jresp;
+	json_object *jval;
+	struct dp_test_json_find_key key[] = {{"protocol-families", NULL},
+					      {"family", family},
+					      {"protocols", NULL},
+					      {"protocol", protocol} };
+	char *response;
+	int tos_tclass;
+	bool err;
+
+	response = dp_test_console_request_w_err("forwarding-class", &err, false);
+	if (!response || err)
+		return false;
+
+	jresp = parse_json(response, parse_err_str, sizeof(parse_err_str));
+	free(response);
+
+	if (!jresp)
+		return false;
+
+	jval = dp_test_json_find(jresp, key, ARRAY_SIZE(key));
+	json_object_put(jresp);
+	if (jval && dp_test_json_int_field_from_obj(jval, field, &tos_tclass)) {
+		if (tos_tclass == val) {
+			json_object_put(jval);
+			return true;
+		}
+	}
+
+	json_object_put(jval);
+	return false;
+}
+
+/*
+ * API to be used immediately after applying the forwardingclass configuration
+ * to check if configuration is ready for use.
+ * Input : family = ip/ipv6
+ *         protocol = icmp/nd/esp
+ *         field = tos/tclass
+ *         val = configured value of tos/tclass
+ * Output : true if configuration is ready for use
+ */
+static bool dp_test_get_forwardingclass_config_ready(const char *family, const char *protocol,
+						     const char *field, int val)
+{
+	int i;
+
+	for (i = 0; i < 100; i++) {
+		if (dp_test_get_forwardingclass_config(family, protocol, field, val))
+			return true;
+		usleep(10);
+	}
+
+	return false;
+}
+
+/*
+ * API to create GPB message
+ */
+static void dp_test_create_and_send_ForwardingClassConfig_msg(
+	const ForwardingClassConfig__AddressFamily af,
+	const ForwardingClassConfig__ProtocolType proto_type, uint16_t tos_traffic_class)
+{
+	int len;
+	ForwardingClassConfig fc_config = FORWARDING_CLASS_CONFIG__INIT;
+	fc_config.af = af;
+	fc_config.has_af = true;
+	fc_config.pt = proto_type;
+	fc_config.has_pt = true;
+	fc_config.tos_traffic_class = tos_traffic_class;
+	fc_config.has_tos_traffic_class = true;
+
+	len = forwarding_class_config__get_packed_size(&fc_config);
+
+	void *buf2 = malloc(len);
+	dp_test_assert_internal(buf2);
+
+	forwarding_class_config__pack(&fc_config, buf2);
+
+	dp_test_lib_pb_wrap_and_send_pb("vyatta:forwardingclass", buf2, len);
+}
+
+/*
+ * API to simulate vyatta-controller to configure TOS/tclass
+ */
+bool dp_test_ForwardingClassConfig_execute(const ForwardingClassConfig__AddressFamily af,
+					   const ForwardingClassConfig__ProtocolType proto_type,
+					   uint16_t tos_traffic_class)
+{
+	const char *family;
+	const char *protocol;
+	const char *field;
+
+	dp_test_create_and_send_ForwardingClassConfig_msg(af, proto_type, tos_traffic_class);
+
+	switch (af) {
+	case FORWARDING_CLASS_CONFIG__ADDRESS_FAMILY__IPV4:
+		family = "ip";
+		field = "tos";
+		break;
+	case FORWARDING_CLASS_CONFIG__ADDRESS_FAMILY__IPV6:
+		family = "ipv6";
+		field = "tclass";
+		break;
+	default:
+		return false;
+	}
+
+	switch (proto_type) {
+	case FORWARDING_CLASS_CONFIG__PROTOCOL_TYPE__ICMP:
+		protocol = "icmp";
+		break;
+	case FORWARDING_CLASS_CONFIG__PROTOCOL_TYPE__ND:
+		protocol = "nd";
+		break;
+	case FORWARDING_CLASS_CONFIG__PROTOCOL_TYPE__ESP:
+		protocol = "esp";
+		break;
+	default:
+		return false;
+	}
+	return dp_test_get_forwardingclass_config_ready(family, protocol, field, tos_traffic_class);
+}

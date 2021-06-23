@@ -19,6 +19,7 @@
 #include "npf/config/npf_ruleset_type.h"
 
 #include "dp_test/dp_test_firewall_lib.h"
+#include "protobuf/ForwardingClassConfig.pb-c.h"
 
 /*
  * Defines for backward compatibility.
@@ -415,4 +416,7 @@ const char *npf_decision_str(npf_decision_t decision);
 
 void cgn_alg_show_sessions(void);
 
+bool dp_test_ForwardingClassConfig_execute(const ForwardingClassConfig__AddressFamily af,
+					   const ForwardingClassConfig__ProtocolType proto_type,
+					   uint16_t tos_traffic_class);
 #endif
