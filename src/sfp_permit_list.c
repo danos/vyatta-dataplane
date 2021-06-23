@@ -837,10 +837,9 @@ static void sfp_validate_sfp_against_pl(struct sfp_intf_record *sfp)
 	} else {
 		sfp->status = SFP_STATUS_UNAPPROVED;
 
-
-		if (sfp_mismatch_cfg->enforcement_enabled &&
+		if (sfp_mismatch_cfg.enforcement_enabled &&
 		    (sfp->time_of_detection >=
-		     sfp_mismatch_cfg->enforcement_delay)) {
+		     sfp_mismatch_cfg.enforcement_delay)) {
 			sfp->action = SFP_ACTION_DISABLED;
 			sfp_set_holddown(sfp->intf);
 			DP_DEBUG(SFP_LIST, DEBUG, DATAPLANE,
@@ -981,6 +980,55 @@ void sfpd_process_presence_update(void)
 			sfp_delete(sfp_ports_tbl, sfp, false);
 }
 
+static void
+sfp_jsonw_device(json_writer_t *wr, struct sfp_intf_record *sfp)
+{
+	jsonw_start_object(wr);
+
+	jsonw_string_field(wr, "intf_name", sfp->intf_name);
+	jsonw_string_field(wr, "part_id", sfp->part_id);
+	jsonw_string_field(wr, "vendor_name", sfp->vendor_name);
+	jsonw_string_field(wr, "vendor_oui", sfp->vendor_oui);
+	jsonw_string_field(wr, "vendor_rev", sfp->vendor_rev);
+	jsonw_uint_field(wr, "detection_time", sfp->time_of_detection);
+	jsonw_bool_field(wr, "approved", sfp->status == SFP_STATUS_APPROVED ?
+			 true : false);
+	jsonw_bool_field(wr, "disabled", sfp->action == SFP_ACTION_DISABLED ?
+			 true : false);
+
+	jsonw_end_object(wr);
+}
+
+static void sfp_permit_dump_devices(FILE *f)
+{
+	json_writer_t *wr;
+	struct cds_lfht_iter iter;
+	struct sfp_intf_record *sfp;
+
+	wr = jsonw_new(f);
+
+	jsonw_name(wr, "sfp-permit-list-devices");
+
+	jsonw_start_object(wr);
+
+	jsonw_bool_field(wr, "enforcement-mode",
+			 sfp_mismatch_cfg.enforcement_enabled);
+	jsonw_uint_field(wr, "up-time", system_uptime());
+
+	jsonw_name(wr, "devices");
+
+	jsonw_start_array(wr);
+
+	if (sfp_ports_tbl)
+		cds_lfht_for_each_entry(sfp_ports_tbl, &iter, sfp, hnode)
+			sfp_jsonw_device(wr, sfp);
+
+	jsonw_end_array(wr);
+
+	jsonw_end_object(wr);
+
+	jsonw_destroy(&wr);
+}
 static void sfp_permit_dump_list(FILE *f)
 {
 	struct sfp_permit_list *entry;
@@ -1132,6 +1180,11 @@ int cmd_sfp_permit_op(FILE *f, int argc __unused, char **argv)
 
 		if (!strcmp(argv[2], "search-list")) {
 			sfp_permit_dump_search_list(f);
+			return 0;
+		}
+
+		if (!strcmp(argv[2], "devices")) {
+			sfp_permit_dump_devices(f);
 			return 0;
 		}
 
