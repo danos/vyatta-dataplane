@@ -508,6 +508,8 @@ void session_expire(struct session *s, struct rte_mbuf *m);
  *
  * Create and insert an additional sentry for this session.
  *
+ * Only used by UTs.
+ *
  * @param se
  * The session.
  *
@@ -573,7 +575,7 @@ void session_counts(uint32_t *used, uint32_t *max, struct session_counts *sc);
 /**
  * hash table counts.
  *
- * Used by UTs only.  Various counts of internal hash tables.
+ * Only used by UTs.  Various counts of internal hash tables.
  *
  * @param sen_cnt
  * Number of sentries in the sentry hash table.
@@ -804,6 +806,8 @@ void session_unlink(struct session *s);
 /**
  * Unlink all sessions from its parent.
  *
+ * Only used by UTs.
+ *
  * @param s
  * The session to unlink.
  */
@@ -861,14 +865,15 @@ void session_link_walk(struct session *s, bool do_unlink,
 /**
  * Destroy all sentries/sessions.
  *
- * Used by UTs to force a cleanup between tests.
+ * Only used by UTs to cleanup between tests.
  */
 int session_table_destroy_all(void);
 
 /**
  * Reset the session_id to 0.
  *
- * Used by UTs between tests.
+ * Only used by UTs between tests so each test starts
+ * with a known session ID value.
  */
 void session_reset_session_id(void);
 
@@ -908,9 +913,9 @@ void session_sentry_extract_addrs(const struct sentry *sen, int *af,
  * Execute the session GC path.
  *
  * This routine artbitrarily executes the GC path for the sentry
- * hash table.  It is only used by the Unit tests to simulate the
- * GC running over time.
+ * hash table.
  *
+ * Only used by UTs to simulate the GC running over time.
  */
 void session_gc(void);
 

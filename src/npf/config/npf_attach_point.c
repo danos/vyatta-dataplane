@@ -1,5 +1,7 @@
 /*
- * Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2021 AT&T Intellectual Property.
+ * All rights reserved.
+ *
  * Copyright (c) 2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -621,22 +623,6 @@ int npf_cfg_attach_group(enum npf_attach_type attach_type,
 	return npf_cfg_attach_masked_group(
 			attach_type, attach_point, ruleset_type,
 			group_class, group, 0);
-}
-
-int npf_cfg_attach_dir_group(
-	enum npf_attach_type attach_type, const char *attach_point,
-	enum npf_ruleset_type ruleset_type,
-	enum npf_rule_class group_class, const char *group,
-	uint32_t dir)
-{
-	if (!dir)
-		return -EINVAL;
-	if (dir & ~(NPF_RS_FLAG_DIR_IN|NPF_RS_FLAG_DIR_OUT))
-		return -EINVAL;
-
-	return npf_cfg_attach_masked_group(
-			attach_type, attach_point, ruleset_type,
-			group_class, group, ~dir);
 }
 
 int npf_cfg_detach_group(enum npf_attach_type attach_type,

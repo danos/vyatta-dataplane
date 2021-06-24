@@ -715,7 +715,8 @@ void session_link_walk(struct session *s, bool do_unlink,
 
 /*
  * Destroy the contents of the session table.
- * Used by UTs to cleanup between tests.
+ *
+ * Only used by UTs to cleanup between tests.
  */
 int session_table_destroy_all(void)
 {
@@ -750,7 +751,10 @@ int session_table_destroy_all(void)
 	return count;
 }
 
-/* Get counts of nodes in sentry and session ht's - for UTs */
+/* Get counts of nodes in sentry and session ht's.
+ *
+ * Only used by UTs.
+ */
 void session_table_counts(unsigned long *sen_cnt, unsigned long *sess_cnt)
 
 {
@@ -1223,7 +1227,9 @@ static struct session *se_alloc(void)
 }
 
 /*
- * Reset the session_id to 0.  Used by UTs between tests so we start each test
+ * Reset the session_id to 0.
+ *
+ * Only used by UTs between tests so each test starts
  * with a known session ID value.
  */
 void session_reset_session_id(void)
@@ -1304,7 +1310,10 @@ void session_set_custom_timeout(struct session *s, uint32_t timeout)
 	s->se_custom_timeout = timeout;
 }
 
-/* Insert another sentry for this session */
+/* Insert another sentry for this session.
+ *
+ * Only used by UTs.
+ */
 int session_sentry_insert(struct session *se, uint32_t if_index, uint16_t flags,
 		uint16_t sid, const void *sa,
 		uint16_t did, const void *da)
@@ -1548,7 +1557,10 @@ static void se_unlink_children(struct session_link *sl)
 	}
 }
 
-/* Unlink all sessions from its parent */
+/* Unlink all sessions from its parent
+ *
+ * Only used by UTs.
+ */
 void session_unlink_all(struct session *s)
 {
 	struct session_link *sl;
@@ -1679,7 +1691,8 @@ int session_lookup_by_sentry_packet(const struct sentry_packet *sp,
 	return rc;
 }
 
-/* Used by session UTs to simulate the GC clearing out idle sessions */
+/* Only used by UTs to simulate the GC clearing out idle sessions.
+ */
 void session_gc(void)
 {
 	uint64_t uptime = get_dp_uptime();

@@ -1,5 +1,7 @@
 /*
- * Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property.
+ * All rights reserved.
+ *
  * Copyright (c) 2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -149,31 +151,6 @@ int npf_cfg_attach_group(enum npf_attach_type attach_type,
 			 const char *attach_point,
 			 enum npf_ruleset_type ruleset_type,
 			 enum npf_rule_class group_class, const char *group);
-
-/**
- * Place a directional rule-group at an attach point
- *
- * This will mean that the rules will be executed at that attach point
- * at a location appropriate for the ruleset. Note that the rule-groups of
- * the same class will be executed in the order added.
- *
- * @param attach_type The type of the attach point (e.g. interface) that
- *                    the sets of rules should be associated with.
- * @param attach_point The name of the attach point (e.g. interface name).
- * @param ruleset_type Identifies the ruleset type which are being attached
- *                     (e.g. firewall in, NAT out, etc.)
- * @param group_class The class of the rule-group that is being attached.
- * @param group The name of the rule-group within the class.
- * @param dir The group direction, one of NPF_RS_FLAG_DIR_IN or
- *            NPF_RS_FLAG_DIR_OUT.
- *
- * @return Returns 0 on successfully attachment, or negative errno on failure.
- */
-int npf_cfg_attach_dir_group(
-	enum npf_attach_type attach_type, const char *attach_point,
-	enum npf_ruleset_type ruleset_type,
-	enum npf_rule_class group_class, const char *group,
-	uint32_t dir);
 
 /**
  * Remove a rule-group from an attach point
