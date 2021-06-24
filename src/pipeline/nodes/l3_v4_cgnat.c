@@ -31,6 +31,7 @@
 #include "npf/npf.h"
 #include "npf/npf_if.h"
 #include "npf/npf_mbuf.h"
+#include "npf/npf_addrgrp.h"
 #include "npf/alg/alg_npf.h"
 
 #include "npf/cgnat/alg/alg_public.h"
@@ -127,6 +128,15 @@ cgnat_try_initial(struct cgn_map *cmi, struct ifnet *ifp,
 	if (!cp) {
 		*error = -CGN_PCY_ENOENT;
 		goto error;
+	}
+
+	/* Is this dest addr 'excluded' from translation? */
+	if (unlikely(cp->cp_exclude_ag && dir == CGN_DIR_OUT)) {
+		if (npf_addrgrp_lookup_v4_by_handle(
+			    cp->cp_exclude_ag, cpk->cpk_daddr) == 0) {
+			*error = -CGN_DST_EXCLUDED;
+			goto error;
+		}
 	}
 
 	/* If we find a policy then it must be a CGNAT packet */
