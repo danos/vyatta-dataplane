@@ -10,9 +10,8 @@
 #include "npf/cgnat/cgn_test.h"
 
 /*
- * Used by CGNAT unit-tests
+ * Only used by CGNAT unit-tests
  */
-
 void dp_test_npf_clear_cgnat(void)
 {
 	cgn_session_cleanup();

@@ -734,6 +734,8 @@ translate:
 
 /*
  * Unit-test wrapper around cgnat
+ *
+ * Only used by UTs.
  */
 bool ipv4_cgnat_test(struct rte_mbuf **mbufp, struct ifnet *ifp,
 		     enum cgn_dir dir, int *error)

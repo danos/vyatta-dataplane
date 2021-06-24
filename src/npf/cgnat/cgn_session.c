@@ -2433,6 +2433,7 @@ void cgn_session_show(FILE *f, int argc, char **argv)
 	jsonw_destroy(&json);
 }
 
+/* Only used by UTs. */
 void cgn_ut_show_sessions(char **buf, size_t *bufsz,
 			  struct cgn_sess_fltr *fltr)
 {
