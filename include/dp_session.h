@@ -268,27 +268,6 @@ bool dp_session_is_established(const struct session *session);
  */
 uint32_t dp_session_buf_size_max(void);
 
-/**
- * Serialize a session into the buffer.
- *
- * This packed sessions are used to restore the session on a different router.
- * Two different packing functions are provided, the first packs complete
- * session information that can be used to fully recreate a session later using
- * dp_session_restore(). dp_session_pack() may also be used
- * to pack only stats and states of sessions and later the packed data may be
- * used to update an already restored session.
- *
- * @param [in] session - session to be packed
- * @param [in, out] buf - session buffer pointer.
- * @param [in] size - size of buffer,
- * @param [in] spt - SESSION_PACK_FULL, SESSION_PACK_UPDATE
- *
- * @return - packed length on success
- *   -errno on error.
- */
-int dp_session_pack(struct session *session, void *buf, uint32_t size,
-		 enum session_pack_type spt, struct session **session_peer);
-
 /*
  * restore a session from the packed data or update its state.
  * If the buf contains a SESSION_PACK_FULL payload any old session
@@ -302,7 +281,7 @@ int dp_session_restore(void *buf, uint32_t size, enum session_pack_type *spt);
 
 /*
  * a structure defining the header for the data returned by the
- * dp_session_pack() and dp_session_pack_pb() functions.
+ * dp_session_pack_pb() function.
  */
 struct dp_session_pack_hdr {
 	uint32_t		sph_len;

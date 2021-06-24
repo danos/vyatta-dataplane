@@ -1872,32 +1872,6 @@ void npf_save_stats(npf_session_t *se, int dir, uint64_t bytes)
 }
 
 /*
- * Pack session state for protocols other than TCP
- */
-int npf_session_pack_state_pack_gen(struct npf_session *se,
-				    struct npf_pack_session_state *pst)
-{
-	if (!se || !pst)
-		return -EINVAL;
-
-	npf_state_pack_gen(&se->s_state, pst);
-	return 0;
-}
-
-/*
- * Pack session state for TCP
- */
-int npf_session_pack_state_pack_tcp(struct npf_session *se,
-				    struct npf_pack_session_state *pst)
-{
-	if (!se || !pst)
-		return -EINVAL;
-
-	npf_state_pack_tcp(&se->s_state, pst);
-	return 0;
-}
-
-/*
  * Restore session state for protocols other than TCP
  */
 static int
@@ -1996,40 +1970,6 @@ int npf_session_pack_state_update_tcp(struct npf_session *se,
 				  session_get_npf_pack_timeout(s);
 
 	return 0;
-}
-
-int npf_session_npf_pack_pack(npf_session_t *se,
-			      struct npf_pack_npf_session *pns,
-			      struct npf_pack_session_state *pst)
-{
-	npf_rule_t *rule;
-	int rc;
-
-	if (!se || !pns)
-		return -EINVAL;
-
-
-	/*
-	 * Do not sync SE_ACTIVE flag.  The rcvr will call
-	 * npf_session_npf_pack_activate to set the SE_ACTIVE flag and
-	 * increment the intf session count.  If the SE_ACTIVE flag is already
-	 * set, then an error in the unpacking routine *before*
-	 * npf_session_npf_pack_activate is called can result in
-	 * npf_if_session_dec decrementing the session count erroneously.
-	 */
-	pns->pns_flags = se->s_flags & ~SE_ACTIVE;
-
-	rule = npf_session_get_fw_rule(se);
-	pns->pns_fw_rule_hash = (rule ? npf_rule_get_hash(rule) : 0);
-	rule = npf_session_get_rproc_rule(se);
-	pns->pns_rproc_rule_hash = (rule ? npf_rule_get_hash(rule) : 0);
-
-	if (se->s_proto_idx == NPF_PROTO_IDX_TCP)
-		rc = npf_session_pack_state_pack_tcp(se, pst);
-	else
-		rc = npf_session_pack_state_pack_gen(se, pst);
-
-	return rc;
 }
 
 struct npf_session *

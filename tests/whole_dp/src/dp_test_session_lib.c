@@ -98,17 +98,6 @@ static uint64_t _dp_test_session_msg_get_id_pb(void *msg, uint32_t size,
 	return id;
 }
 
-uint64_t _dp_test_session_msg_get_id(void *msg,
-				const char *file, int line)
-{
-	struct npf_pack_message *n_msg = msg;
-	if (is_npf_pack_pb_version(n_msg->hdr.pmh_version))
-		return _dp_test_session_msg_get_id_pb(msg, n_msg->hdr.pmh_len,
-						      file, line);
-
-	return npf_pack_get_session_id(n_msg);
-}
-
 void _dp_test_session_msg_get_cntrs_pb(void *msg, uint32_t size,
 				       uint64_t *pkts_in, uint64_t *bytes_in,
 				       uint64_t *pkts_out, uint64_t *bytes_out,
@@ -136,33 +125,6 @@ void _dp_test_session_msg_get_cntrs_pb(void *msg, uint32_t size,
 	if (bytes_out)
 		*bytes_out = cntrs->sc_bytes_out;
 	_dp_test_session_msg_free_unpack_pb(psm, file, line);
-}
-
-void _dp_test_session_msg_get_cntrs(void *msg,
-				    uint64_t *pkts_in, uint64_t *bytes_in,
-				    uint64_t *pkts_out, uint64_t *bytes_out,
-				    const char *file, int line)
-{
-	struct npf_pack_message *n_msg = msg;
-	struct npf_pack_dp_sess_stats *stats;
-
-	if (is_npf_pack_pb_version(n_msg->hdr.pmh_version)) {
-		_dp_test_session_msg_get_cntrs_pb(msg, n_msg->hdr.pmh_len,
-			pkts_in, bytes_in, pkts_out, bytes_out, file, line);
-		return;
-	}
-
-	stats = npf_pack_get_session_stats(n_msg);
-	_dp_test_fail_unless(stats, file, line,
-			"Couldn't get stats from npf_pack message\n");
-	if (pkts_in)
-		*pkts_in = stats->pdss_pkts_in;
-	if (bytes_in)
-		*bytes_in = stats->pdss_bytes_in;
-	if (pkts_out)
-		*pkts_out = stats->pdss_pkts_out;
-	if (bytes_out)
-		*bytes_out = stats->pdss_bytes_out;
 }
 
 void _dp_test_session_msg_check_rcvd(void *msg,
