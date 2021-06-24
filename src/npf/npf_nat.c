@@ -1579,38 +1579,6 @@ npf_nat_info(npf_nat_t *nat, int *type, npf_addr_t *addr,
 	return true;
 }
 
-int npf_nat_npf_pack_pack(npf_nat_t *nt, struct npf_pack_nat *pnt,
-			  struct sentry_packet *sp_back)
-{
-	npf_rule_t *rule;
-
-	if (!pnt)
-		return -EINVAL;
-
-	rule = npf_nat_get_rule(nt);
-	pnt->pnt_rule_hash = (rule ? npf_rule_get_hash(rule) : 0);
-
-	pnt->pnt_l3_chk = nt->nt_l3_chk;
-	pnt->pnt_l4_chk = nt->nt_l4_chk;
-	pnt->pnt_map_flags = npf_nat_get_map_flags(nt);
-	pnt->pnt_taddr = nt->nt_taddr;
-	pnt->pnt_tport = nt->nt_tport;
-	pnt->pnt_oaddr = nt->nt_oaddr;
-	pnt->pnt_oport = nt->nt_oport;
-
-	/* Set translation address in back sentry */
-	switch (nt->nt_natpolicy->n_type) {
-	case NPF_NATIN:
-		sp_back->sp_addrids[1] = nt->nt_taddr;
-		break;
-	case NPF_NATOUT:
-		sp_back->sp_addrids[2] = nt->nt_taddr;
-		break;
-	}
-
-	return 0;
-}
-
 int npf_nat_npf_pack_restore(struct npf_session *se,
 			     struct npf_pack_nat *pnt,
 			     struct ifnet *ifp)

@@ -437,9 +437,3 @@ int npf_pack_restore(void *data, uint32_t size, enum session_pack_type *spt)
 	}
 	return 0;
 }
-
-/* For npf_pack UT */
-uint8_t npf_pack_get_msg_type(struct npf_pack_message *msg)
-{
-	return msg->hdr.pmh_type;
-}

@@ -35,14 +35,6 @@ void _dp_test_session_msg_valid(void *msg, uint32_t size,
 #define dp_test_session_msg_valid(msg, size)     \
 	_dp_test_session_msg_valid(msg, size, __FILE__, __LINE__)
 
-bool _dp_test_session_msg_full(void *msg, const char *file, int line);
-#define dp_test_session_msg_full(msg)     \
-	_dp_test_session_msg_full(msg, __FILE__, __LINE__)
-
-bool _dp_test_session_msg_update(void *msg, const char *file, int line);
-#define dp_test_session_msg_update(msg)  \
-	_dp_test_session_msg_update(msg, __FILE__, __LINE__)
-
 uint64_t _dp_test_session_msg_get_id(void *msg, const char *file, int line);
 #define dp_test_session_msg_get_id(msg)	\
 	_dp_test_session_msg_get_id(msg, __FILE__, __LINE__)

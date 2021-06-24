@@ -58,26 +58,6 @@ void _dp_test_session_msg_valid(void *msg, uint32_t size,
 				"npf_pack message invalid\n");
 }
 
-bool _dp_test_session_msg_full(void *msg,
-				const char *file, int line)
-{
-	struct npf_pack_message *n_msg = msg;
-
-	if (npf_pack_get_msg_type(n_msg) == SESSION_PACK_FULL)
-		return true;
-	return false;
-}
-
-bool _dp_test_session_msg_update(void *msg,
-				const char *file, int line)
-{
-	struct npf_pack_message *n_msg = msg;
-
-	if (npf_pack_get_msg_type(n_msg) == SESSION_PACK_UPDATE)
-		return true;
-	return false;
-}
-
 static uint64_t _dp_test_session_msg_get_id_pb(void *msg, uint32_t size,
 					       const char *file, int line)
 {

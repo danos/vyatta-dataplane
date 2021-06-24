@@ -263,7 +263,6 @@ struct npf_pack_message {
 
 
 bool npf_pack_validate_msg(struct npf_pack_message *msg, uint32_t size);
-uint8_t npf_pack_get_msg_type(struct npf_pack_message *msg);
 
 int npf_pack_restore(void *data, uint32_t size, enum session_pack_type *spt);
 

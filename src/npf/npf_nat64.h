@@ -1,5 +1,7 @@
 /*
- * Copyright (c) 2019-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2019-2021, AT&T Intellectual Property.
+ * All rights reserved.
+ *
  * Copyright (c) 2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -100,8 +102,6 @@ void npf_nat64_get_trans(struct npf_nat64 *n64,
 bool npf_nat64_has_peer(struct npf_nat64 *n64);
 npf_session_t *npf_nat64_get_peer(struct npf_nat64 *n64);
 bool npf_nat64_session_log_enabled(struct npf_nat64 *n64);
-int npf_nat64_npf_pack_pack(struct npf_nat64 *n64,
-			    struct npf_pack_nat64 *pn64);
 int npf_nat64_npf_pack_restore(struct npf_session *se,
 			       struct npf_pack_nat64 *pn64);
 

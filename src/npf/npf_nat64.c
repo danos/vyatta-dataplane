@@ -1542,24 +1542,6 @@ stats:
 	return NAT64_DECISION_PASS;
 }
 
-int npf_nat64_npf_pack_pack(struct npf_nat64 *n64, struct npf_pack_nat64 *pn64)
-{
-	npf_rule_t *rule;
-
-	if (!n64 || !pn64)
-		return -EINVAL;
-
-	rule = npf_nat64_get_rule(n64);
-	pn64->pn64_rule_hash = (rule ? npf_rule_get_hash(rule) : 0);
-	pn64->pn64_rproc_id = npf_nat64_get_rproc_id(n64);
-	pn64->pn64_map_flags = n64->n64_map_flags;
-	pn64->pn64_v6 = npf_nat64_is_v6(n64);
-	pn64->pn64_linked = npf_nat64_is_linked(n64);
-	npf_nat64_get_trans(n64, &pn64->pn64_t_addr, &pn64->pn64_t_port);
-
-	return 0;
-}
-
 int npf_nat64_npf_pack_restore(struct npf_session *se,
 			       struct npf_pack_nat64 *pn64)
 {

@@ -648,32 +648,6 @@ npf_state_dump(const npf_state_t *nst __unused)
 }
 #endif
 
-/* Pack non-TCP session state */
-void npf_state_pack_gen(npf_state_t *nst, struct npf_pack_session_state *pst)
-{
-	pst->pst_gen_state = nst->nst_gen_state;
-}
-
-/* Pack TCP session state */
-void npf_state_pack_tcp(npf_state_t *nst, struct npf_pack_session_state *pst)
-{
-	struct npf_pack_tcp_window *ptw;
-	struct npf_tcp_window *ntw;
-	enum npf_flow_dir fl;
-
-	for (fl = NPF_FLOW_FIRST; fl <= NPF_FLOW_LAST; fl++) {
-		ptw = &pst->pst_tcp_win[fl];
-		ntw = &nst->nst_tcp_win[fl];
-
-		ptw->ptw_end = ntw->nst_end;
-		ptw->ptw_maxend = ntw->nst_maxend;
-		ptw->ptw_maxwin = ntw->nst_maxwin;
-		ptw->ptw_wscale = ntw->nst_wscale;
-	}
-
-	pst->pst_tcp_state = nst->nst_tcp_state;
-}
-
 /* Update non-TCP session state from a connsync restore or update */
 void npf_state_pack_update_gen(npf_state_t *nst,
 			       struct npf_pack_session_state *pst,
