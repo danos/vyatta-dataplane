@@ -178,8 +178,13 @@ void _dp_test_session_msg_check_rcvd(void *msg,
 
 	_dp_test_fail_unless(sess, file, line,
 			"npf_pack sess input invalid\n");
-	se_id = dp_test_session_msg_get_id(n_msg);
-	_dp_test_session_msg_get_cntrs(msg, &pkts_in, NULL,
+
+	_dp_test_fail_unless(is_npf_pack_pb_version(n_msg->hdr.pmh_version),
+			file, line, "Unexpected protobuf version\n");
+	se_id = _dp_test_session_msg_get_id_pb(n_msg,
+				n_msg->hdr.pmh_len, file, line);
+	_dp_test_session_msg_get_cntrs_pb(msg, n_msg->hdr.pmh_len,
+				&pkts_in, NULL,
 				&pkts_out, NULL, file, line);
 
 	if (pkts_in == pkts_per_session &&
