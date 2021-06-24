@@ -397,3 +397,372 @@ DP_START_TEST(mpls_icmp_ttl_v4, remark_dscp)
 }
 DP_END_TEST;
 
+/*
+ * Test creates ipv4 icmp packet with DF bit set and route it
+ * to dataplane interface that has mtu less than the packet size.
+ * Router creates and sends ipv4 icmp packet to big message back.
+ *
+ *               1.1.1.1/24 +-----+ 2.2.2.2/24
+ *                          |     |
+ * host 10.73.0.0   --------| uut |---------------router 2.2.2.1
+ *               MPLS dp1T1 |     | dp2T2 (mtu 1400)
+ *                    intf1 +-----+ intf2 (label 22, 23)
+ *                    Route:
+ *
+ *    122 mpt:ipv4 nh 2.2.2.1 int:dp2T2 lbls 22
+ *
+ *    10.73.0.0/24 nh int:lo lbls 123
+ *
+ *      --> Forwards (on output)
+ *      L2 MPLS: Label 122, TTL 10
+ *      Source 10.73.0.0 Destination 10.73.2.0 (DSCP 0xc0)
+ *
+ *      <-- Back ICMP time exceeded
+ *      L2 MPLS: Label 22, TTL 64
+ *      Source 1.1.1.1 Destination 10.73.0.0
+ */
+
+DP_DECL_TEST_CASE(npf_orig, mpls_icmp_df_v4, NULL, NULL);
+
+DP_START_TEST(mpls_icmp_df_v4, remark_dscp)
+{
+	struct iphdr *payload_pak_ip;
+	struct rte_mbuf *payload_pak;
+	struct rte_mbuf *test_pak;
+	struct rte_mbuf *expected_pak;
+	struct dp_test_expected *exp;
+	const char *nh_mac_str;
+	struct mpls_icmp_subcase test_data = {
+		.nlabels =  1,
+		.labels = {122,},
+		.ttl = {10,},
+		.plen = 1500,
+		.exp_nlabels = 1,
+		.exp_labels = {22,},
+		.exp_ttl = {64,}
+	};
+	char subcase_descr[200];
+	int icmp_intf_mtu = 1500;
+	const int icmp_max_orig_pak_size = 596;
+
+	dp_test_netlink_set_mpls_forwarding("dp1T1", true);
+
+	/* Set up the interface addresses */
+	dp_test_nl_add_ip_addr_and_connected("dp1T1", "1.1.1.1/24");
+	dp_test_nl_add_ip_addr_and_connected("dp2T2", "2.2.2.2/24");
+
+	/* Add lswitch entries */
+	dp_test_netlink_add_route("122 mpt:ipv4 nh 2.2.2.1 int:dp2T2 lbls 22");
+	nh_mac_str = "aa:bb:cc:dd:ee:ff";
+	dp_test_netlink_add_neigh("dp2T2", "2.2.2.1", nh_mac_str);
+
+	/* Create a test packet
+	 * + eth(mac not set, RTE_ETHER_TYPE_IPV4)
+	 * + IPv4 hdr
+	 * + UDP hdr(sport 2100, dport 21)
+	 * + payload(pak_len)
+	 */
+	payload_pak = dp_test_create_ipv4_pak("10.73.0.0", "2.2.2.1", 1, &test_data.plen);
+	payload_pak_ip = iphdr(payload_pak);
+	dp_test_set_pak_ip_field(payload_pak_ip, DP_TEST_SET_DF, 1);
+
+	/* Wrap test packet with mpls encapsulation by coping data from
+	 * payload_pak starting from iphdr into
+	 * newly allocated mbuf.
+	 *
+	 * eth(mac not set, RTE_ETHER_TYPE_MPLS)
+	 * + MPLS label stack
+	 * IPv4 hdr
+	 * UDP packet(sport 2100, dport 21)
+	 * payload(pak_len)
+	 */
+	test_pak = dp_test_create_mpls_pak(test_data.nlabels, test_data.labels, test_data.ttl,
+					   payload_pak);
+	dp_test_pktmbuf_eth_init(test_pak, dp_test_intf_name2mac_str("dp1T1"), NULL,
+				 RTE_ETHER_TYPE_MPLS);
+
+	/* Configure ICMPv4 error packets to be marked as AF12*/
+	dp_test_fail_unless(
+		(dp_test_ForwardingClassConfig_execute(
+			 FORWARDING_CLASS_CONFIG__ADDRESS_FAMILY__IPV4,
+			 FORWARDING_CLASS_CONFIG__PROTOCOL_TYPE__ICMP, IPTOS_DSCP_AF12) == true),
+		"TOS configuration is failed");
+	expected_pak = npf_orig_mpls_icmp_v4_create_exp_mpls_pack(
+		"2.2.2.2", "10.73.0.0",
+		/* icmp type = */ ICMP_DEST_UNREACH,
+		/* icmp code = */ ICMP_FRAG_NEEDED,
+		/* icmp frag.mtu = */ DPT_ICMP_FRAG_DATA(icmp_intf_mtu), nh_mac_str,
+		icmp_max_orig_pak_size, payload_pak_ip, test_pak, &test_data);
+
+	/* content of payload_pak has been copied
+	 * to expected_pak and test_pak so we don't need it anymore
+	 */
+	rte_pktmbuf_free(payload_pak);
+
+	exp = dp_test_exp_create(expected_pak);
+	rte_pktmbuf_free(expected_pak);
+	dp_test_exp_set_oif_name(exp, "dp2T2");
+
+	mpls_icmp_subcase_string(&test_data, subcase_descr, sizeof(subcase_descr));
+
+	/* Start test */
+	dp_test_pak_rx_for(test_pak, "dp1T1", exp, "for subcase : %s", subcase_descr);
+
+	/* Clean up */
+	/* Configure ICMPv4 error packets to be marked as default value*/
+	dp_test_fail_unless((dp_test_ForwardingClassConfig_execute(
+				     FORWARDING_CLASS_CONFIG__ADDRESS_FAMILY__IPV4,
+				     FORWARDING_CLASS_CONFIG__PROTOCOL_TYPE__ICMP,
+				     IPTOS_PREC_INTERNETCONTROL) == true),
+			    "TOS configuration is failed");
+	dp_test_netlink_del_neigh("dp2T2", "2.2.2.1", nh_mac_str);
+	dp_test_netlink_del_route("122 mpt:ipv4 nh 2.2.2.1 int:dp2T2 lbls 22");
+	dp_test_nl_del_ip_addr_and_connected("dp1T1", "1.1.1.1/24");
+	dp_test_nl_del_ip_addr_and_connected("dp2T2", "2.2.2.2/24");
+
+	dp_test_netlink_set_mpls_forwarding("dp1T1", false);
+}
+DP_END_TEST;
+
+/*
+ * Test sends IPv6 message with MPLS header TTL = 1 to uut and as result
+ * receives ICMPv6 message time exceed.
+ *
+ *           2001:1:1::1/64 +-----+ 2002:2:2::2/64
+ *                          |     |
+ * host 2001:1:1::2 --------| uut |---------------host 2002:2:2::1
+ *                    dp1T1 |     | dp2T2 (mtu 1400)
+ *                    intf1 +-----+ intf2
+ *                    Route:
+ *
+ *        --> Forwards
+ *      Source 2001:1:1::2 Destination 2002:2:2::1 (length 1572, DSCP 0)
+ *
+ *        <-- Back ICMP
+ *      Source 2002:2:2::2 Destination 2001:1:1::2 (DSCP AF12)
+ *
+ *      Route:
+ *           122 mpt:ipv6 nh 2002:2:2::1 int:dp2T2 lbls 22
+ */
+
+DP_DECL_TEST_CASE(npf_orig, mpls_icmp_ttl_v6, NULL, NULL);
+
+DP_START_TEST(mpls_icmp_ttl_v6, remark_dscp)
+{
+	struct ip6_hdr *payload_pak_ip;
+	struct rte_mbuf *payload_pak;
+	struct rte_mbuf *test_pak;
+	struct rte_mbuf *expected_pak;
+	struct dp_test_expected *exp;
+	const char *nh_mac_str;
+	struct mpls_icmp_subcase test_data = {
+		.nlabels =  1,
+		.labels = {122,},
+		.ttl = {1,},
+		.plen = 20,
+		.exp_nlabels = 1,
+		.exp_labels = {22,},
+		.exp_ttl = {64,}
+	};
+	char subcase_descr[200];
+	const int icmp_max_orig_pak_size = 128;
+
+	dp_test_netlink_set_mpls_forwarding("dp1T1", true);
+
+	/* Set up the interface addresses */
+	dp_test_nl_add_ip_addr_and_connected("dp1T1", "2001:1:1::1/64");
+	dp_test_nl_add_ip_addr_and_connected("dp2T2", "2002:2:2::2/64");
+
+	/* Add lswitch entries */
+	dp_test_netlink_add_route("122 mpt:ipv6 nh 2002:2:2::1 int:dp2T2 lbls 22");
+	nh_mac_str = "aa:bb:cc:dd:ee:ff";
+	dp_test_netlink_add_neigh("dp2T2", "2002:2:2::1", nh_mac_str);
+
+	/* Create a test packet
+	 * + eth(mac not set, RTE_ETHER_TYPE_IPV6)
+	 * + IPv6 hdr
+	 * + UDP hdr(sport 2100, dport 21)
+	 * + payload(pak_len)
+	 */
+	payload_pak = dp_test_create_ipv6_pak("2001:1:1::2", "2002:2:2::1", 1, &test_data.plen);
+	payload_pak_ip = ip6hdr(payload_pak);
+	/* Wrap test packet with mpls encapsulation by coping data from
+	 * payload_pak starting from iphdr into
+	 * newly allocated mbuf.
+	 *
+	 * eth(mac not set, RTE_ETHER_TYPE_MPLS)
+	 * + MPLS label stack
+	 * IPv6 hdr
+	 * UDP packet(sport 2100, dport 21)
+	 * payload(pak_len)
+	 */
+
+	/* Create ip packet to be payload */
+	test_pak = dp_test_create_mpls_pak(test_data.nlabels, test_data.labels, test_data.ttl,
+					   payload_pak);
+	dp_test_pktmbuf_eth_init(test_pak, dp_test_intf_name2mac_str("dp1T1"), NULL,
+				 RTE_ETHER_TYPE_MPLS);
+
+	/* Configure ICMPv6 error packets to be marked as AF12*/
+	dp_test_fail_unless(
+		(dp_test_ForwardingClassConfig_execute(
+			 FORWARDING_CLASS_CONFIG__ADDRESS_FAMILY__IPV6,
+			 FORWARDING_CLASS_CONFIG__PROTOCOL_TYPE__ICMP, IPTOS_DSCP_AF12) == true),
+		"TOS configuration is failed");
+	/*
+	 * Expected packet
+	 */
+	expected_pak = npf_orig_mpls_icmp_v6_create_exp_mpls_pack(
+		"2001:1:1::1", "2001:1:1::2",
+		/* icmp type = */ ICMP6_TIME_EXCEEDED,
+		/* icmp code = */ ICMP6_TIME_EXCEED_TRANSIT,
+		/* icmp frag.mtu = */ 0, nh_mac_str, icmp_max_orig_pak_size, payload_pak_ip,
+		test_pak, &test_data, "dp2T2");
+
+	/* content of payload_pak has been copied
+	 * to expected_pak and test_pak so we don't need it anymore
+	 */
+	rte_pktmbuf_free(payload_pak);
+
+	exp = dp_test_exp_create(expected_pak);
+	rte_pktmbuf_free(expected_pak);
+	dp_test_exp_set_oif_name(exp, "dp2T2");
+
+	mpls_icmp_subcase_string(&test_data, subcase_descr, sizeof(subcase_descr));
+
+	/* Start test */
+	dp_test_pak_rx_for(test_pak, "dp1T1", exp, "for subcase : %s", subcase_descr);
+
+	/* Clean up */
+	/* Configure ICMPv6 error packets to be marked as default*/
+	dp_test_fail_unless((dp_test_ForwardingClassConfig_execute(
+				     FORWARDING_CLASS_CONFIG__ADDRESS_FAMILY__IPV6,
+				     FORWARDING_CLASS_CONFIG__PROTOCOL_TYPE__ICMP,
+				     IPTOS_PREC_NETCONTROL) == true),
+			    "TOS configuration is failed");
+	dp_test_netlink_del_neigh("dp2T2", "2002:2:2::1", nh_mac_str);
+	dp_test_netlink_del_route("122 mpt:ipv6 nh 2002:2:2::1 int:dp2T2 lbls 22");
+
+	dp_test_nl_del_ip_addr_and_connected("dp1T1", "2001:1:1::1/64");
+	dp_test_nl_del_ip_addr_and_connected("dp2T2", "2002:2:2::2/64");
+
+	dp_test_netlink_set_mpls_forwarding("dp1T1", false);
+}
+DP_END_TEST;
+
+/*
+ * Test sends IPv6 message with MPLS header TTL = 1 to uut and as result
+ * receives ICMPv6 message time exceed as result of forwarding to IPv6
+ *
+ *           2001:1:1::1/64 +-----+ 2002:2:2::2/64
+ *                          |     |
+ * host 2001:1:1::2 --------| uut |---------------host 2002:2:2::1
+ *                    dp1T1 |     | dp2T2 (mtu 1400)
+ *                    intf1 +-----+ intf2
+ *                    Route:
+ *
+ *        --> Forwards
+ *      Source 2001:1:1::2 Destination 2002:2:2::1 (length 1572, DSCP 0)
+ *
+ *        <-- Back ICMP
+ *      Source 2002:2:2::2 Destination 2001:1:1::2 (DSCP AF12)
+ *
+ *      Route:
+ *           122 mpt:ipv6 nh 2002:2:2::1 int:dp2T2 lbls 22
+ */
+
+DP_DECL_TEST_CASE(npf_orig, mpls_icmp_ttl_v6_forward_to_ipv6, NULL, NULL);
+
+DP_START_TEST(mpls_icmp_ttl_v6_forward_to_ipv6, remark_dscp)
+{
+	struct ip6_hdr *payload_pak_ip;
+	struct rte_mbuf *payload_pak;
+	struct rte_mbuf *test_pak;
+	struct rte_mbuf *expected_pak;
+	struct dp_test_expected *exp;
+	const char *host_mac_str;
+	int icmplen;
+	struct mpls_icmp_subcase test_data = {
+		.nlabels =  1,
+		.labels = {122,},
+		.ttl = {10,},
+		.plen = 20,
+		.exp_nlabels = 1,
+		.exp_labels = {22,},
+		.exp_ttl = {64,}
+	};
+	char subcase_descr[200];
+
+	dp_test_netlink_set_mpls_forwarding("dp1T1", true);
+	dp_test_console_request_reply("mpls ipttlpropagate disable", false);
+
+	/* Set up the interface addresses */
+	dp_test_nl_add_ip_addr_and_connected("dp1T1", "2001:1:1::1/64");
+	dp_test_nl_add_ip_addr_and_connected("dp2T2", "2002:2:2::2/64");
+
+	host_mac_str = "bb:aa:cc:ee:dd:21";
+	dp_test_netlink_add_route("122 mpt:ipv6 nh 2002:2:2::1 int:dp2T2");
+
+	dp_test_netlink_add_neigh("dp1T1", "2001:1:1::2", host_mac_str);
+
+	/* Configure ICMPv6 error packets to be marked as AF12*/
+	dp_test_fail_unless(
+		(dp_test_ForwardingClassConfig_execute(
+			 FORWARDING_CLASS_CONFIG__ADDRESS_FAMILY__IPV6,
+			 FORWARDING_CLASS_CONFIG__PROTOCOL_TYPE__ICMP, IPTOS_DSCP_AF12) == true),
+		"TOS configuration is failed");
+
+	payload_pak = dp_test_create_ipv6_pak("2001:1:1::2", "2002:2:2::1", 1, &test_data.plen);
+	payload_pak_ip = ip6hdr(payload_pak);
+	payload_pak_ip->ip6_hlim = 1;
+
+	/* Create ip packet to be payload */
+	test_pak = dp_test_create_mpls_pak(test_data.nlabels, test_data.labels, test_data.ttl,
+					   payload_pak);
+	dp_test_pktmbuf_eth_init(test_pak, dp_test_intf_name2mac_str("dp1T1"), NULL,
+				 RTE_ETHER_TYPE_MPLS);
+
+	/*
+	 * Expected packet
+	 */
+	icmplen = test_data.plen + sizeof(struct ip6_hdr);
+	expected_pak = dp_test_create_icmp_ipv6_pak(
+		"2001:1:1::1", "2001:1:1::2", ICMP6_TIME_EXCEEDED, ICMP6_TIME_EXCEED_TRANSIT, 0, 1,
+		&icmplen, ip6hdr(payload_pak), NULL, NULL);
+
+	dp_test_set_pak_ip6_field(ip6hdr(expected_pak), DP_TEST_SET_TOS, IPTOS_DSCP_AF12);
+
+	(void)dp_test_pktmbuf_eth_init(expected_pak, host_mac_str,
+				       dp_test_intf_name2mac_str("dp1T1"), RTE_ETHER_TYPE_IPV6);
+
+	/* content of payload_pak has been copied
+	 * to expected_pak and test_pak so we don't need it anymore
+	 */
+	rte_pktmbuf_free(payload_pak);
+
+	exp = dp_test_exp_create(expected_pak);
+	rte_pktmbuf_free(expected_pak);
+	dp_test_exp_set_oif_name(exp, "dp1T1");
+
+	mpls_icmp_subcase_string(&test_data, subcase_descr, sizeof(subcase_descr));
+
+	/* Start test */
+	dp_test_pak_rx_for(test_pak, "dp1T1", exp, "for subcase : %s", subcase_descr);
+
+	/* Clean up */
+	dp_test_netlink_del_route("122 mpt:ipv6 nh 2002:2:2::1 int:dp2T2");
+
+	/* Configure ICMPv6 error packets to be marked as default*/
+	dp_test_fail_unless((dp_test_ForwardingClassConfig_execute(
+				     FORWARDING_CLASS_CONFIG__ADDRESS_FAMILY__IPV6,
+				     FORWARDING_CLASS_CONFIG__PROTOCOL_TYPE__ICMP,
+				     IPTOS_PREC_NETCONTROL) == true),
+			    "TOS configuration is failed");
+	dp_test_console_request_reply("mpls ipttlpropagate enable", false);
+	dp_test_netlink_del_neigh("dp1T1", "2001:1:1::2", host_mac_str);
+	dp_test_nl_del_ip_addr_and_connected("dp1T1", "2001:1:1::1/64");
+	dp_test_nl_del_ip_addr_and_connected("dp2T2", "2002:2:2::2/64");
+
+	dp_test_netlink_set_mpls_forwarding("dp1T1", false);
+}
+DP_END_TEST;
