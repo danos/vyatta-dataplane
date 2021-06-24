@@ -559,8 +559,28 @@ static void dump_lists(void)
 	}
 }
 
+static int
+sfp_permit_full_match(struct sfp_intf_record *sfp, struct sfp_part *part_entry)
+{
+	if (part_entry->flags & SFP_PART_VENDOR_NAME)
+		if (strncmp(part_entry->vendor_name, sfp->vendor_name,
+			    sizeof(part_entry->vendor_name)) != 0)
+			return -1;
+
+	if (part_entry->flags & SFP_PART_VENDOR_OUI)
+		if (strncmp(part_entry->vendor_oui, sfp->vendor_oui,
+			    sizeof(part_entry->vendor_oui)) != 0)
+			return -1;
+
+	if (part_entry->flags & SFP_PART_VENDOR_REV)
+		if (strncmp(part_entry->vendor_rev, sfp->vendor_rev,
+			    sizeof(part_entry->vendor_rev)) != 0)
+			return -1;
+	return 0;
+}
+
 static struct sfp_part *
-sfp_permit_match_by_name(struct sfp_intf_record *sfp)
+sfp_permit_match_by_name(struct sfp_intf_record *sfp, bool full_match)
 {
 	struct sfp_part *part_entry;
 	int rc;
@@ -575,8 +595,13 @@ sfp_permit_match_by_name(struct sfp_intf_record *sfp)
 			rc = strcmp(part_entry->part_id, sfp->part_id);
 		}
 
-		if (rc == 0)
-			return part_entry;
+		if (rc == 0) {
+			if (!full_match)
+				return part_entry;
+			rc = sfp_permit_full_match(sfp, part_entry);
+			if (rc == 0)
+				return part_entry;
+		}
 	}
 
 	return NULL;
@@ -586,7 +611,7 @@ static bool sfp_permit_match_check(struct sfp_intf_record *sfp)
 {
 	struct sfp_part *part_entry;
 
-	part_entry = sfp_permit_match_by_name(sfp);
+	part_entry = sfp_permit_match_by_name(sfp, false);
 	if (part_entry)
 		return true;
 
@@ -784,6 +809,51 @@ sfpd_parse_status(const char *updfile, struct cds_lfht *hash_tbl)
 	return hash_tbl;
 }
 
+static void sfp_validate_sfp_against_pl(struct sfp_intf_record *sfp)
+{
+	struct sfp_part *part_entry;
+
+	part_entry = sfp_permit_match_by_name(sfp, true);
+
+	DP_DEBUG(SFP_LIST, DEBUG, DATAPLANE,
+		 "SFP-PL: %s %sin permit list\n", sfp->part_id,
+		 part_entry ? "" : "not ");
+
+	if (part_entry) {
+		sfp->status = SFP_STATUS_APPROVED;
+		sfp->action = SFP_ACTION_MONITOR;
+		sfp_clear_holddown(sfp->intf);
+	} else {
+		sfp->status = SFP_STATUS_UNAPPROVED;
+
+
+		if (sfp_mismatch_cfg->enforcement_enabled &&
+		    (sfp->time_of_detection >=
+		     sfp_mismatch_cfg->enforcement_delay)) {
+			sfp->action = SFP_ACTION_DISABLED;
+			sfp_set_holddown(sfp->intf);
+			DP_DEBUG(SFP_LIST, DEBUG, DATAPLANE,
+				 "SFP-PL: %s Disabled SFP %s is unapproved\n",
+				 sfp->intf_name, sfp->part_id);
+			if (sfp_mismatch_cfg.logging_enabled)
+				RTE_LOG(WARNING, DATAPLANE,
+					"Interface %s Disabled: SFP not in permit-lists\n",
+					sfp->intf_name);
+		} else {
+			DP_DEBUG(SFP_LIST, DEBUG, DATAPLANE,
+				 "SFP-PL: %s Monitor SFP %s is unapproved\n",
+				 sfp->intf_name, sfp->part_id);
+
+			if (sfp_mismatch_cfg.logging_enabled)
+				RTE_LOG(WARNING, DATAPLANE,
+					"Interface %s SFP not in permit-lists\n",
+					sfp->intf_name);
+			sfp->action = SFP_ACTION_MONITOR;
+			sfp_clear_holddown(sfp->intf);
+		}
+	}
+}
+
 static void sfp_delete_cb_free(struct rcu_head *head)
 {
 	struct sfp_intf_record *sfp;
@@ -839,6 +909,8 @@ sfp_insertion(struct sfp_intf_record *insert_sfp)
 	strncpy(sfp->vendor_rev, insert_sfp->vendor_rev,
 		sizeof(sfp->vendor_rev));
 	sfp->time_of_detection = insert_sfp->time_of_detection;
+
+	sfp_validate_sfp_against_pl(sfp);
 
 	return sfp;
 
