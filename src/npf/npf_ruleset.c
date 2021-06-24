@@ -1954,12 +1954,6 @@ npf_type_of_ruleset(const npf_ruleset_t *ruleset)
 	return ruleset ? ruleset->rs_type : NPF_RS_TYPE_COUNT;
 }
 
-/* AF_INET, AF_INET6, or 0 if both or unknown */
-uint8_t npf_ruleset_af(npf_rule_group_t *rg)
-{
-	return rg->rg_af;
-}
-
 /*
  * returns true if the ruleset depends on the NPF cache
  * having been populated. Currently the only exception to this is
@@ -2112,27 +2106,3 @@ npf_rulenc_dump(const npf_rule_t *rl)
 	printf("-> %s\n", rl->r_pass ? "pass" : "block");
 }
 #endif
-
-npf_rule_t *npf_rule_group_find_rule(npf_rule_group_t *rg,
-				     uint32_t rule_no)
-{
-	npf_rule_t *rl;
-	struct cds_lfht_node *node;
-	struct cds_lfht_iter iter;
-
-	if (rg->rg_rules_ht) {
-		cds_lfht_lookup(rg->rg_rules_ht, rule_no, npf_rg_rule_match,
-				&rule_no, &iter);
-		node = cds_lfht_iter_get_node(&iter);
-		rl = node ? caa_container_of(node, npf_rule_t, r_entry_ht) :
-			NULL;
-		return rl;
-	}
-
-	cds_list_for_each_entry(rl, &rg->rg_rules, r_entry) {
-		if (rule_no == rl->r_state->rs_rule_no)
-			return rl;
-	}
-
-	return NULL;
-}

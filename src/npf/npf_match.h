@@ -1,5 +1,6 @@
 /*
- * Copyright (c) 2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2019-2021 AT&T Intellectual Property.
+ * All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -49,9 +50,6 @@ typedef struct npf_match_cb_tbl {
 	npf_match_classify_cb_t  npf_match_classify_cb;
 	npf_match_destroy_cb_t   npf_match_destroy_cb;
 } npf_match_cb_tbl;
-
-int npf_match_register_cb_tbl(enum npf_ruleset_type rs_type,
-			      npf_match_cb_tbl *tbl);
 
 int npf_match_init(enum npf_ruleset_type rs_type,
 		   int af, const char *name,

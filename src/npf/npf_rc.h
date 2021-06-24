@@ -1,5 +1,6 @@
 /*
- * Copyright (c) 2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2020-2021, AT&T Intellectual Property.
+ * All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -331,10 +332,9 @@ struct npf_rc_counts *npf_rc_counts_create(void);
 void npf_rc_counts_destroy(struct npf_rc_counts **rcc);
 
 /*
- * Return code short string and description
+ * Return code short string
  */
 const char *npf_rc_str(int rc);
-const char *npf_rc_detail_str(int rc);
 
 /*
  * Show/clear return code counters

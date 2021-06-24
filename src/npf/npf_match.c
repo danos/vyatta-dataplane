@@ -1,5 +1,6 @@
 /*
- * Copyright (c) 2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2020-2021, AT&T Intellectual Property.
+ * All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -15,19 +16,6 @@
 #include "npf_grouper.h"
 
 static npf_match_cb_tbl * npf_match_cbs[NPF_RS_TYPE_COUNT];
-
-int npf_match_register_cb_tbl(enum npf_ruleset_type rs_type,
-			      npf_match_cb_tbl *tbl)
-{
-	if (!tbl->npf_match_init_cb  || !tbl->npf_match_add_rule_cb  ||
-	    !tbl->npf_match_build_cb || !tbl->npf_match_classify_cb  ||
-	    !tbl->npf_match_destroy_cb)
-		return -EINVAL;
-
-	npf_match_cbs[rs_type] = tbl;
-
-	return 0;
-}
 
 int npf_match_init(enum npf_ruleset_type rs_type, int af, const char *name,
 		   uint32_t max_rules, npf_match_ctx_t **ctx)

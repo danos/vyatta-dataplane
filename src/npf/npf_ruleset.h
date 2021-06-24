@@ -175,7 +175,6 @@ void npf_ruleset_set_stateful(npf_rule_group_t *rg, bool value);
 bool npf_ruleset_is_stateful(const npf_ruleset_t *ruleset);
 bool npf_rule_stateful(const npf_rule_t *rl);
 enum npf_ruleset_type npf_type_of_ruleset(const npf_ruleset_t *ruleset);
-uint8_t npf_ruleset_af(npf_rule_group_t *rg);
 
 const char *npf_ruleset_get_name(npf_rule_group_t *rg);
 bool npf_ruleset_uses_cache(const npf_ruleset_t *ruleset);
@@ -205,15 +204,5 @@ void npf_rules_walk(npf_rule_group_t *rg, struct ruleset_select *sel,
 void npf_rulenc_dump(const npf_rule_t *rl);
 #endif
 int npf_flush_rulesets(void);
-
-/*
- * Find a rule matching the rule number.
- *
- * Used by clients of rte-acl since there is no
- * facility to store and directly return the pointer
- * to the rule (as is done with grouper)
- */
-npf_rule_t *npf_rule_group_find_rule(npf_rule_group_t *rg,
-				     uint32_t rule_no);
 
 #endif /* NPF_RULESET_H */

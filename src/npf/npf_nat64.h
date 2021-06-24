@@ -94,11 +94,6 @@ bool npf_nat64_session_is_nat64(npf_session_t *se);
 void npf_nat64_session_json(json_writer_t *json, npf_session_t *se);
 
 npf_rule_t *npf_nat64_get_rule(struct npf_nat64 *n64);
-int npf_nat64_get_rproc_id(struct npf_nat64 *n64);
-uint8_t npf_nat64_is_v6(struct npf_nat64 *n64);
-uint8_t npf_nat64_is_linked(struct npf_nat64 *n64);
-void npf_nat64_get_trans(struct npf_nat64 *n64,
-			npf_addr_t *addr, in_port_t *port);
 bool npf_nat64_has_peer(struct npf_nat64 *n64);
 npf_session_t *npf_nat64_get_peer(struct npf_nat64 *n64);
 bool npf_nat64_session_log_enabled(struct npf_nat64 *n64);

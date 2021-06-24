@@ -1,5 +1,6 @@
 /*
- * Copyright (c) 2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2020-2021, AT&T Intellectual Property.
+ * All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -315,91 +316,6 @@ const char *npf_rc_str(int rc)
 		break;
 	};
 	return "RC_INTL";
-}
-
-/*
- * return-code description
- */
-const char *npf_rc_detail_str(int rc)
-{
-	if (rc < 0)
-		rc = -rc;
-	if (rc > NPF_RC_LAST)
-		rc = NPF_RC_INTL;
-
-	switch ((enum npf_rc_en)rc) {
-	case NPF_RC_UNMATCHED:
-		return "unmatched";
-	case NPF_RC_PASS:
-		return "pass";
-	case NPF_RC_BLOCK:
-		return "block";
-	case NPF_RC_L3_HDR_VER:
-		return "invalid IP header version field";
-	case NPF_RC_L3_HDR_LEN:
-		return "invalid IP header length field";
-	case NPF_RC_NON_IP:
-		return "non-IP packet";
-	case NPF_RC_L3_PROTO:
-		return "protocol mismatch";
-	case NPF_RC_L3_SHORT:
-		return "invalid layer 3 header";
-	case NPF_RC_L4_SHORT:
-		return "invalid layer 4 header";
-	case NPF_RC_L4_PROTO:
-		return "invalid layer 4 protocol";
-	case NPF_RC_ICMP_ECHO:
-		return "unsolicited ICMP echo reply";
-	case NPF_RC_ENOSTR:
-		return "unknown TCP reset";
-	case NPF_RC_TCP_SYN:
-		return "missing TCP SYN";
-	case NPF_RC_TCP_STATE:
-		return "invalid TCP flags";
-	case NPF_RC_TCP_WIN:
-		return "TCP window error";
-	case NPF_RC_SESS_ENOMEM:
-		return "no memory to create session";
-	case NPF_RC_SESS_LIMIT:
-		return "session limiter";
-	case NPF_RC_SESS_HOOK:
-		return "session hook";
-	case NPF_RC_DP_SESS_ESTB:
-		return "failed to create dataplane session";
-	case NPF_RC_MBUF_ENOMEM:
-		return "failed to allocate packet memory";
-	case NPF_RC_MBUF_ERR:
-		return "failed to prepend or adjust packet buffer";
-	case NPF_RC_NAT_ENOSPC:
-		return "failed to get NAT port mapping";
-	case NPF_RC_NAT_ENOMEM:
-		return "no memory to create NAT";
-	case NPF_RC_NAT_EADDRINUSE:
-		return "fragmented NAT port map";
-	case NPF_RC_NAT_ERANGE:
-		return "NAT port range too small";
-	case NPF_RC_NAT_E2BIG:
-		return "unable to fragment packet";
-	case NPF_RC_ICMP_ERR_NAT:
-		return "failed to translate ICMP error embedded pkt";
-	case NPF_RC_ALG_EEXIST:
-		return "ALG race condition";
-	case NPF_RC_ALG_ERR:
-		return "ALG error";
-	case NPF_RC_NAT64_4T6:
-		return "IPv4 to IPv6";
-	case NPF_RC_NAT64_6T4:
-		return "IPv6 to IPv4";
-	case NPF_RC_NAT64_ENOSPC:
-		return "Failed to get NAT64 port mapping";
-	case NPF_RC_NAT64_ENOMEM:
-		return "Failed to allocate NAT64 memory";
-	case NPF_RC_NAT64_6052:
-		return "failed to extract or encode rfc6052 NAT64 addr";
-	case NPF_RC_INTL:
-		break;
-	};
-	return "internal error";
 }
 
 /*

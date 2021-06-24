@@ -98,23 +98,6 @@ npf_nat64_get_rule(struct npf_nat64 *n64)
 	return n64 ? n64->n64_rule : NULL;
 }
 
-uint8_t npf_nat64_is_v6(struct npf_nat64 *n64)
-{
-	return n64->n64_v6 ? 1 : 0;
-}
-
-uint8_t npf_nat64_is_linked(struct npf_nat64 *n64)
-{
-	return n64->n64_linked ? 1 : 0;
-}
-
-void npf_nat64_get_trans(struct npf_nat64 *n64,
-			npf_addr_t *addr, in_port_t *port)
-{
-	memcpy(addr, &n64->n64_t_addr, sizeof(npf_addr_t));
-	*port = n64->n64_t_port;
-}
-
 /*
  * Does this nat64 session have a peer session?
  */
@@ -773,12 +756,6 @@ npf_nat64_session_destroy(struct npf_session *se)
 	free(nat64->n64_stats_out);
 	free(nat64);
 	npf_session_set_nat64(se, NULL);
-}
-
-/* Get rproc_id */
-int npf_nat64_get_rproc_id(struct npf_nat64 *n64)
-{
-	return n64->n64_rproc_id;
 }
 
 /*
