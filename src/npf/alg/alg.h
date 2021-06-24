@@ -182,6 +182,10 @@ void npf_alg_sip_destroy_instance(struct npf_alg *sip);
 struct npf_alg *npf_alg_rpc_create_instance(struct npf_alg_instance *ai);
 void npf_alg_rpc_destroy_instance(struct npf_alg *rpc);
 
+/*
+ * Only used by UTs to delete all non-keep or multimatch
+ * tuples, and any expired 'keep' tuples.
+ */
 void npf_alg_flush_all(void);
 
 #endif /* End of _ALG_H_ */

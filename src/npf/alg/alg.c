@@ -1067,7 +1067,7 @@ npf_alg_timer_reset(void)
 }
 
 /*
- * Called from whole dp unit-tests to delete all non-keep or multimatch
+ * Only used by UTs to delete all non-keep or multimatch
  * tuples, and any expired 'keep' tuples.
  */
 void npf_alg_flush_all(void)

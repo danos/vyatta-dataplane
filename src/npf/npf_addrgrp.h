@@ -79,14 +79,15 @@ int npf_addrgrp_lookup_v4_by_handle(struct npf_addrgrp *ag, uint32_t addr);
 
 /**
  * @brief Get number of address-groups in the address-group tableset
+ *
+ * Only used by UTs.
  */
 uint npf_addrgrp_ntables(void);
 
 /**
  * @brief Is this a valid address-group table ID?
  *
- * Called by the bytecode verification function, so check the table ID is
- * valid *and* a table exists.
+ * Only used by UTs.
  */
 bool npf_addrgrp_tid_valid(uint32_t tid);
 
@@ -110,6 +111,8 @@ int npf_addrgrp_name2tid(const char *name, uint32_t *tid);
  *
  * If the handle is to be stored by a client then the client should take a
  * reference on the address-group by calling npf_addrgrp_get.
+ *
+ * Only used by UTs.
  */
 struct npf_addrgrp *npf_addrgrp_tid2handle(uint32_t tid);
 
@@ -162,6 +165,8 @@ void npf_addrgrp_put(struct npf_addrgrp *ag);
  *
  * @param name Address group name
  * @return Number of entries in the IPv4 and IPv6 lists
+ *
+ * Only used by UTs.
  */
 int npf_addrgrp_nentries(const char *name);
 

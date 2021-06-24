@@ -391,6 +391,8 @@ npf_addrgrp_tbl_destroy(void)
 
 /*
  * Return number of tables in the address-group tableset
+ *
+ * Only used by UTs.
  */
 uint npf_addrgrp_ntables(void)
 {
@@ -407,6 +409,8 @@ struct npf_addrgrp *npf_addrgrp_lookup_name(const char *name)
 
 /*
  * Returns number of entries in an address-group
+ *
+ * Only used by UTs.
  */
 int npf_addrgrp_nentries(const char *name)
 {
@@ -421,8 +425,9 @@ int npf_addrgrp_nentries(const char *name)
 }
 
 /*
- * Is this a valid address-group table ID?  Called by the bytecode
- * verification function, so check the table ID is valid *and* a table exists.
+ * Is this a valid address-group table ID?
+ *
+ * Only used by UTs.
  */
 bool
 npf_addrgrp_tid_valid(uint32_t tid)
@@ -478,6 +483,8 @@ int npf_addrgrp_name2tid(const char *name, uint32_t *tid)
  * Get an address-group handle from a table ID.  If this is to be stored by a
  * client then the client should take a reference on the address-group by
  * calling npf_addrgrp_get.
+ *
+ * Only used by UTs.
  */
 struct npf_addrgrp *npf_addrgrp_tid2handle(uint32_t tid)
 {
