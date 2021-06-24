@@ -93,7 +93,6 @@ sfp_list_add_partid(SfpPermitConfig__SfpPermitListConfig *list,  char *part)
 		return NULL;
 	}
 
-
 	strncpy(entry->part_id, part, sizeof(entry->part_id));
 	entry->len = strlen(entry->part_id);
 
@@ -111,17 +110,44 @@ sfp_list_add_partid(SfpPermitConfig__SfpPermitListConfig *list,  char *part)
 	}
 
 	if (list->vendor_oui) {
-		strcpy(entry->vendor_oui, list->vendor_oui);
+		strncpy(entry->vendor_oui, list->vendor_oui,
+			sizeof(entry->vendor_oui));
 		flags |= SFP_PART_VENDOR_OUI;
 	}
 
 	if (list->vendor_rev) {
-		strcpy(entry->vendor_rev, list->vendor_rev);
+		strncpy(entry->vendor_rev, list->vendor_rev,
+			sizeof(entry->vendor_rev));
 		flags |= SFP_PART_VENDOR_REV;
 	}
 
 	entry->flags = flags;
 	return entry;
+}
+
+static void sfp_ordered_list_add(struct sfp_part *part)
+{
+	int32_t rc;
+	struct sfp_part *entry;
+
+	cds_list_for_each_entry(entry, &sfp_permit_parts_list_head,
+				search_list) {
+		rc = strncmp(entry->part_id, part->part_id, part->len);
+		if (part->flags & SFP_PART_WILDCARD) {
+			if (rc >  0) {
+				cds_list_add_tail(&part->search_list,
+						  &entry->search_list);
+				return;
+			}
+		} else {
+			if (rc >=  0) {
+				cds_list_add_tail(&part->search_list,
+						  &entry->search_list);
+			return;
+			}
+		}
+	}
+	cds_list_add_tail(&part->search_list, &sfp_permit_parts_list_head);
 }
 
 static struct sfp_permit_list *
@@ -139,7 +165,7 @@ sfp_list_add_entry(SfpPermitConfig__SfpPermitListConfig *list)
 		return NULL;
 	}
 
-	strncpy(entry->list_name, name, sizeof(entry->list_name));
+	strncpy(entry->list_name, list->name, sizeof(entry->list_name));
 
 	CDS_INIT_LIST_HEAD(&entry->sfp_part_list_head);
 
@@ -153,6 +179,7 @@ sfp_list_add_entry(SfpPermitConfig__SfpPermitListConfig *list)
 			entry->num_parts++;
 			cds_list_add_tail(&part->permit_list,
 					  &entry->sfp_part_list_head);
+			sfp_ordered_list_add(part);
 		}
 	} else {
 	}
@@ -261,8 +288,7 @@ sfp_permit_list_cfg(SfpPermitConfig__SfpPermitListConfig *list)
 				 list->name);
 	} else {
 		/* Updates to the list are performed by deleting
-		 * the list and then adding a
-		 * new one
+		 * the list and then adding a new one.
 		 */
 		sfp_list_remove_entry(entry);
 		if (set)
@@ -321,15 +347,32 @@ static void dump_lists(void)
 				DP_DEBUG(SFP_LIST, DEBUG, DATAPLANE,
 					 "        vendor_name %s\n",
 					 part_entry->vendor_name);
-				if (strlen(part_entry->vendor_oui) != 0)
-					DP_DEBUG(SFP_LIST, DEBUG, DATAPLANE,
-						 "        vendor_oui %s\n",
-						 part_entry->vendor_oui);
-				if (strlen(part_entry->vendor_rev) != 0)
-					DP_DEBUG(SFP_LIST, DEBUG, DATAPLANE,
-						 "        vendor_rev %s\n",
-						 part_entry->vendor_rev);
+			if (strlen(part_entry->vendor_oui) != 0)
+				DP_DEBUG(SFP_LIST, DEBUG, DATAPLANE,
+					 "        vendor_oui %s\n",
+					 part_entry->vendor_oui);
+			if (strlen(part_entry->vendor_rev) != 0)
+				DP_DEBUG(SFP_LIST, DEBUG, DATAPLANE,
+					 "        vendor_rev %s\n",
+					 part_entry->vendor_rev);
 		}
+	}
+
+	if (cds_list_empty(&sfp_permit_parts_list_head)) {
+		DP_DEBUG(SFP_LIST, DEBUG, DATAPLANE,
+			 "Parts search List: EMPTY\n");
+		return;
+	}
+
+	DP_DEBUG(SFP_LIST, DEBUG, DATAPLANE, " SFP-PL:Parts search List\n");
+
+	cds_list_for_each_entry_safe(part_entry, part_next,
+				     &sfp_permit_parts_list_head,
+				     search_list) {
+		DP_DEBUG(SFP_LIST, DEBUG, DATAPLANE,
+			 "      part %s\n", part_entry->part_id);
+		DP_DEBUG(SFP_LIST, DEBUG, DATAPLANE,
+			 "        flags %x\n", part_entry->flags);
 	}
 }
 

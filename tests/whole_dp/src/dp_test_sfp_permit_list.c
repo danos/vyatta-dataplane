@@ -68,13 +68,14 @@ SfpPermitConfig__SfpPart *Part[10] = {
 	&Part_1, &Part_2, &Part_3, &Part_4, &Part_5,
 	&Part_6, &Part_7, &Part_8, &Part_9, &Part_10};
 
-static void sfp_list_build_and_send(const char *list_name)
+static void sfp_list_build_and_send(const char *list_name,
+	int action)
 {
 
 	SfpPermitConfig Cfg = SFP_PERMIT_CONFIG__INIT;
 	Cfg.mtype_case = SFP_PERMIT_CONFIG__MTYPE_LIST;
 	Cfg.list = &ListCfg;
-	ListCfg.action = SFP_PERMIT_CONFIG__ACTION__SET;
+	ListCfg.action = action;
 	ListCfg.name = (char *)list_name;
 	ListCfg.vendor = "Cisco";
 	ListCfg.vendor_oui = "aa.bb.cc";
@@ -82,6 +83,18 @@ static void sfp_list_build_and_send(const char *list_name)
 	ListCfg.n_vendor_parts = 10;
 
 	sfp_permit_list_send(&Cfg);
+}
+
+static void sfp_list_add(const char *name)
+{
+	sfp_list_build_and_send(name,
+				SFP_PERMIT_CONFIG__ACTION__SET);
+}
+
+static void sfp_list_delete(const char *name)
+{
+	sfp_list_build_and_send(name,
+				SFP_PERMIT_CONFIG__ACTION__DELETE);
 }
 
 DP_DECL_TEST_SUITE(sfp_permit_list);
@@ -95,7 +108,8 @@ DP_START_TEST(list, test1)
 	/*
 	 * Set up a list.
 	 */
-	sfp_list_build_and_send("List_1");
+	sfp_list_add("List_1");
+	sfp_list_delete("List_1");
 
 	dp_test_console_request_reply("debug sfp-list", false);
 
