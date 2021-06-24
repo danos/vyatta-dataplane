@@ -19,6 +19,7 @@
 #include "protobuf.h"
 #include "protobuf/SFPMonitor.pb-c.h"
 
+#include "sfp_permit_list.h"
 
 #define SFP_MAX_NAME_SIZE 64
 #define SFP_MAX_PART_ID 16
@@ -36,13 +37,17 @@ struct cds_list_head  sfp_permit_parts_list_head;
 bool sfp_pl_cfg_init;
 
 struct sfp_part {
-	/* Search list ,contains all parts*/
+	/* Search list ,contains all parts, in an ordered
+	 * list
+	 */
 	struct cds_list_head search_list;
 	/* permit_list contains all parts in a particular list.
 	 * Unordered
 	 */
 	struct cds_list_head permit_list;
-	uint32_t flags;
+
+	uint16_t flags;
+	uint16_t len;
 
 	char part_id[SFP_MAX_PART_ID + 1];
 
@@ -50,6 +55,8 @@ struct sfp_part {
 	char vendor_name[SFP_MAX_VENDOR_NAME + 1];
 	char vendor_oui[SFP_MAX_VENDOR_OUI + 1];
 	char vendor_rev[SFP_MAX_VENDOR_REV + 1];
+
+	struct rcu_head rcu;
 };
 
 struct sfp_permit_list {
@@ -58,6 +65,7 @@ struct sfp_permit_list {
 
 	char list_name[SFP_MAX_NAME_SIZE + 1];
 	uint8_t num_parts;
+	struct rcu_head rcu;
 };
 
 static struct sfp_permit_list *sfp_find_permit_list(char *name)
@@ -72,9 +80,57 @@ static struct sfp_permit_list *sfp_find_permit_list(char *name)
 	return NULL;
 }
 
-static struct sfp_permit_list *sfp_list_add_entry(char *name)
+static struct sfp_part *
+sfp_list_add_partid(SfpPermitConfig__SfpPermitListConfig *list,  char *part)
+{
+	struct sfp_part *entry;
+	uint32_t flags;
+
+	entry = calloc(1, sizeof(*entry));
+	if (!entry) {
+		RTE_LOG(ERR, DATAPLANE,
+			"SFP-PL:Failed to alloc sfp permit list entry");
+		return NULL;
+	}
+
+
+	strncpy(entry->part_id, part, sizeof(entry->part_id));
+	entry->len = strlen(entry->part_id);
+
+	if (strstr(part, "*")) {
+		flags = SFP_PART_WILDCARD;
+		entry->len -= 1;
+	} else {
+		flags = 0;
+	}
+
+	if (list->vendor) {
+		strncpy(entry->vendor_name, list->vendor,
+			sizeof(entry->vendor_name));
+		flags |= SFP_PART_VENDOR_NAME;
+	}
+
+	if (list->vendor_oui) {
+		strcpy(entry->vendor_oui, list->vendor_oui);
+		flags |= SFP_PART_VENDOR_OUI;
+	}
+
+	if (list->vendor_rev) {
+		strcpy(entry->vendor_rev, list->vendor_rev);
+		flags |= SFP_PART_VENDOR_REV;
+	}
+
+	entry->flags = flags;
+	return entry;
+}
+
+static struct sfp_permit_list *
+sfp_list_add_entry(SfpPermitConfig__SfpPermitListConfig *list)
 {
 	struct sfp_permit_list *entry;
+	struct sfp_part *part;
+	SfpPermitConfig__SfpPart **parts;
+	uint32_t i = 0;
 
 	entry = calloc(1, sizeof(*entry));
 	if (!entry) {
@@ -85,25 +141,76 @@ static struct sfp_permit_list *sfp_list_add_entry(char *name)
 
 	strncpy(entry->list_name, name, sizeof(entry->list_name));
 
+	CDS_INIT_LIST_HEAD(&entry->sfp_part_list_head);
+
+	parts = list->vendor_parts;
+
+	if (list->n_vendor_parts) {
+		while (i < list->n_vendor_parts) {
+			part = sfp_list_add_partid(list,
+						   parts[i]->part);
+			i++;
+			entry->num_parts++;
+			cds_list_add_tail(&part->permit_list,
+					  &entry->sfp_part_list_head);
+		}
+	} else {
+	}
+
 	cds_list_add_tail(&entry->permit_list_link, &sfp_permit_list_head);
 
 	DP_DEBUG(SFP_LIST, DEBUG, DATAPLANE,
-		 "SFP-PL:Allocated entry for list %s\n", name);
+		 "SFP-PL:Allocated entry for list %s\n", list->name);
 
 	return entry;
 }
 
-static int
-sfp_permit_list_cfg(SfpPermitConfig__SfpPermitListConfig *list)
+static void sfp_list_part_cb_free(struct rcu_head *head)
+{
+	struct sfp_part *entry;
+
+	entry = caa_container_of(head, struct sfp_part, rcu);
+	free(entry);
+}
+
+static void sfp_list_cb_free(struct rcu_head *head)
+{
+	struct sfp_permit_list *entry;
+
+	entry = caa_container_of(head, struct sfp_permit_list, rcu);
+	free(entry);
+}
+
+static struct sfp_permit_list *
+sfp_list_remove_entry(struct sfp_permit_list *entry)
+{
+	struct sfp_part *part_entry, *part_next;
+
+	cds_list_del(&entry->permit_list_link);
+
+	cds_list_for_each_entry_safe(part_entry, part_next,
+				     &entry->sfp_part_list_head,
+				     permit_list) {
+		cds_list_del(&part_entry->search_list);
+		cds_list_del(&part_entry->permit_list);
+		call_rcu(&part_entry->rcu, sfp_list_part_cb_free);
+	}
+
+	call_rcu(&entry->rcu, sfp_list_cb_free);
+
+	return NULL;
+}
+
+static void
+sfp_list_display(SfpPermitConfig__SfpPermitListConfig *list)
 {
 	SfpPermitConfig__SfpPart **parts;
-	struct sfp_permit_list *entry;
 	uint32_t i = 0;
+	bool set = list->action ==
+		SFP_PERMIT_CONFIG__ACTION__SET ? true : false;
 
 	DP_DEBUG(SFP_LIST, DEBUG, DATAPLANE,
-		"SFP-PL:Permit_list:%s %s\n", list->name,
-		list->action == SFP_PERMIT_CONFIG__ACTION__SET ?
-		"Set" : "Delete");
+		"SFP-PL:Permit_list:%s %s\n", list->name, set  ? "Set" : "Delete");
 
 	if (list->vendor)
 		DP_DEBUG(SFP_LIST, DEBUG, DATAPLANE,
@@ -129,10 +236,45 @@ sfp_permit_list_cfg(SfpPermitConfig__SfpPermitListConfig *list)
 			i++;
 		}
 	}
+}
+
+static int
+sfp_permit_list_cfg(SfpPermitConfig__SfpPermitListConfig *list)
+{
+	struct sfp_permit_list *entry;
+	bool set = list->action ==
+		SFP_PERMIT_CONFIG__ACTION__SET ? true : false;
+
+	DP_DEBUG(SFP_LIST, DEBUG, DATAPLANE,
+		"SFP-PL:Permit_list:%s %s\n", list->name,
+		set ? "SET" : "DELETE");
+	if (set)
+		sfp_list_display(list);
 
 	entry = sfp_find_permit_list(list->name);
-	if (!entry)
-		entry = sfp_list_add_entry(list->name);
+	if (!entry) {
+		if (set)
+			entry = sfp_list_add_entry(list);
+		else
+			DP_DEBUG(SFP_LIST, DEBUG, DATAPLANE,
+				 "SFP-PL:Delete %s failed\n",
+				 list->name);
+	} else {
+		/* Updates to the list are performed by deleting
+		 * the list and then adding a
+		 * new one
+		 */
+		sfp_list_remove_entry(entry);
+		if (set)
+			entry = sfp_list_add_entry(list);
+	}
+
+	if (set && !entry) {
+		RTE_LOG(ERR, DATAPLANE,
+			"SFP-PL:Set/update %s cfg entry failed\n",
+			list->name);
+		return -1;
+	}
 
 	return 0;
 }
@@ -152,11 +294,42 @@ static void dump_lists(void) __attribute__((unused));
 static void dump_lists(void)
 {
 	struct sfp_permit_list *entry, *next;
+	struct sfp_part *part_entry, *part_next;
 
-	cds_list_for_each_entry_safe(entry, next, &sfp_permit_list_head,
+	if (cds_list_empty(&sfp_permit_list_head)) {
+		DP_DEBUG(SFP_LIST, DEBUG, DATAPLANE,
+			"SFP-PL:List Name: EMPTY\n");
+		return;
+	}
+
+	DP_DEBUG(SFP_LIST, DEBUG, DATAPLANE, "SFP-PL:Permit Lists\n");
+
+	cds_list_for_each_entry_safe(entry, next,
+				     &sfp_permit_list_head,
 				     permit_list_link) {
 		DP_DEBUG(SFP_LIST, DEBUG, DATAPLANE,
-			"SFP-PL:List Name: %s\n", entry->list_name);
+			"  SFP-PL:List Name: %s\n", entry->list_name);
+
+		cds_list_for_each_entry_safe(part_entry, part_next,
+					     &entry->sfp_part_list_head,
+					     permit_list) {
+			DP_DEBUG(SFP_LIST, DEBUG, DATAPLANE,
+				 "      part %s\n", part_entry->part_id);
+			DP_DEBUG(SFP_LIST, DEBUG, DATAPLANE,
+				 "        flags %x\n", part_entry->flags);
+			if (strlen(part_entry->vendor_name) != 0)
+				DP_DEBUG(SFP_LIST, DEBUG, DATAPLANE,
+					 "        vendor_name %s\n",
+					 part_entry->vendor_name);
+				if (strlen(part_entry->vendor_oui) != 0)
+					DP_DEBUG(SFP_LIST, DEBUG, DATAPLANE,
+						 "        vendor_oui %s\n",
+						 part_entry->vendor_oui);
+				if (strlen(part_entry->vendor_rev) != 0)
+					DP_DEBUG(SFP_LIST, DEBUG, DATAPLANE,
+						 "        vendor_rev %s\n",
+						 part_entry->vendor_rev);
+		}
 	}
 }
 
@@ -176,7 +349,8 @@ cmd_sfp_permit_list_cfg(struct pb_msg *msg)
 
 	if (!sfp_pl_cfg_init) {
 		CDS_INIT_LIST_HEAD(&sfp_permit_list_head);
-		sfp_pl_cfg_init = true
+		CDS_INIT_LIST_HEAD(&sfp_permit_parts_list_head);
+		sfp_pl_cfg_init = true;
 	}
 
 	switch (sfpmsg->mtype_case) {
