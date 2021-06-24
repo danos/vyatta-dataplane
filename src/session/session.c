@@ -1741,21 +1741,6 @@ static void __attribute__ ((constructor)) session_event_init(void)
 	dp_event_register(&ops);
 }
 
-
-int session_npf_pack_stats_pack(struct session *s,
-				struct npf_pack_dp_sess_stats *stats)
-{
-	if (!s || !stats)
-		return -EINVAL;
-
-	stats->pdss_pkts_in = rte_atomic64_read(&s->se_pkts_in);
-	stats->pdss_bytes_in = rte_atomic64_read(&s->se_bytes_in);
-	stats->pdss_pkts_out = rte_atomic64_read(&s->se_pkts_out);
-	stats->pdss_bytes_out = rte_atomic64_read(&s->se_bytes_out);
-
-	return 0;
-}
-
 int session_npf_pack_stats_restore(struct session *s,
 				   struct npf_pack_dp_sess_stats *stats)
 {
@@ -1766,48 +1751,6 @@ int session_npf_pack_stats_restore(struct session *s,
 	rte_atomic64_set(&s->se_bytes_in, stats->pdss_bytes_in);
 	rte_atomic64_set(&s->se_pkts_out, stats->pdss_pkts_out);
 	rte_atomic64_set(&s->se_bytes_out, stats->pdss_bytes_out);
-
-	return 0;
-}
-
-int session_npf_pack_sentry_pack(struct session *s,
-				 struct npf_pack_sentry_packet *psp)
-{
-	struct sentry *s_sen;
-	struct sentry_packet *psp_forw;
-	struct sentry_packet *psp_back;
-	struct ifnet *ifp;
-	int i;
-
-	if (!s || !psp)
-		return -EINVAL;
-
-	s_sen = s->se_sen;
-	if (!s_sen)
-		return -EINVAL;
-
-	ifp = dp_ifnet_byifindex(s_sen->sen_ifindex);
-	if (!ifp)
-		return -EINVAL;
-	strncpy(psp->psp_ifname, ifp->if_name, IFNAMSIZ);
-
-	psp_forw = &psp->psp_forw;
-	psp_forw->sp_sentry_flags = s_sen->sen_flags;
-
-	if (s_sen->sen_flags & SENTRY_IPv4)
-		psp_forw->sp_sentry_flags = SENTRY_IPv4;
-	else
-		psp_forw->sp_sentry_flags = SENTRY_IPv6;
-
-	psp_forw->sp_protocol = s_sen->sen_protocol;
-	psp_forw->sp_len = s_sen->sen_len;
-
-	for (i = 0; i < s_sen->sen_len; i++)
-		psp_forw->sp_addrids[i] = s_sen->sen_addrids[i];
-
-	psp_back = &psp->psp_back;
-	memset(psp_back, 0, sizeof(*psp_back));
-	sentry_packet_reverse(psp_forw, psp_back);
 
 	return 0;
 }
@@ -1832,36 +1775,6 @@ int session_npf_pack_sentry_restore(struct npf_pack_sentry_packet *psp,
 	*ifp = s_ifp;
 
 	return 0;
-}
-
-int session_npf_pack_pack(struct session *s, struct npf_pack_dp_session *pds,
-			  struct npf_pack_sentry_packet *psp,
-			  struct npf_pack_dp_sess_stats *stats)
-{
-	if (!s || !pds || !psp || !stats)
-		return -EINVAL;
-
-	pds->pds_id = s->se_id;
-	pds->pds_flags = s->se_flags;
-	pds->pds_protocol = s->se_protocol;
-	pds->pds_custom_timeout = s->se_custom_timeout;
-	pds->pds_timeout = s->se_timeout;
-	pds->pds_protocol_state = s->se_protocol_state;
-	pds->pds_gen_state = s->se_gen_state;
-	pds->pds_fw = session_is_fw(s);
-	pds->pds_snat = session_is_snat(s);
-	pds->pds_dnat = session_is_dnat(s);
-	pds->pds_nat64 = session_is_nat64(s);
-	pds->pds_nat46 = session_is_nat46(s);
-	pds->pds_alg = session_is_alg(s);
-	pds->pds_in = session_is_in(s);
-	pds->pds_out = session_is_out(s);
-	pds->pds_app = session_is_app(s);
-
-	if (session_npf_pack_stats_pack(s, stats))
-		return -EINVAL;
-
-	return session_npf_pack_sentry_pack(s, psp);
 }
 
 int session_npf_pack_restore(struct npf_pack_dp_session *pds,

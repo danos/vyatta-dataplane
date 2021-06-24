@@ -925,11 +925,6 @@ int session_insert_restored(struct session *s,
 			    struct sentry_packet *sp_forw,
 			    struct sentry_packet *sp_back);
 
-int session_npf_pack_pack(struct session *s, struct npf_pack_dp_session *pds,
-			  struct npf_pack_sentry_packet *psp,
-			  struct npf_pack_dp_sess_stats *stats);
-int session_npf_pack_sentry_pack(struct session *s,
-				 struct npf_pack_sentry_packet *psp);
 int session_npf_pack_restore(struct npf_pack_dp_session *pds,
 			     struct npf_pack_sentry_packet *psp,
 			     struct npf_pack_dp_sess_stats *stats,
@@ -937,8 +932,6 @@ int session_npf_pack_restore(struct npf_pack_dp_session *pds,
 int session_npf_pack_sentry_restore(struct npf_pack_sentry_packet *psp,
 				    struct ifnet **ifp);
 uint32_t session_get_npf_pack_timeout(struct session *s);
-int session_npf_pack_stats_pack(struct session *s,
-				struct npf_pack_dp_sess_stats *stats);
 int session_npf_pack_stats_restore(struct session *s,
 				   struct npf_pack_dp_sess_stats *stats);
 int sess_time_to_expire(const struct session *s);
