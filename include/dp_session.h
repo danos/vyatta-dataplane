@@ -112,7 +112,7 @@ static inline enum dp_session_state dp_session_name2state(const char *name)
 /**
  * Session packing type.
  *
- * Used in dp_session_pack to indicate type of packing needed.
+ * Used in dp_session_pack_pb to indicate type of packing needed.
  */
 enum session_pack_type {
 	SESSION_PACK_NONE = 0,  /**< packing type not set */

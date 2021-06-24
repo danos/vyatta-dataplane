@@ -2475,7 +2475,7 @@ DP_START_TEST(ssync_pb2, test40)
 
 	rc = dp_session_pack_pb(s, &pb_buf, pb_buf_size, SESSION_PACK_FULL,
 				&peer);
-	dp_test_fail_unless(rc > 0, "dp_session_pack failed\n");
+	dp_test_fail_unless(rc > 0, "dp_session_pack_pb failed\n");
 	pack_size = rc;
 
 	/*
@@ -2486,7 +2486,7 @@ DP_START_TEST(ssync_pb2, test40)
 	/* Create the update pack */
 	rc = dp_session_pack_pb(s, &pb_buf_update, pb_buf_size,
 				SESSION_PACK_UPDATE, &peer);
-	dp_test_fail_unless(rc > 0, "dp_session_pack failed\n");
+	dp_test_fail_unless(rc > 0, "dp_session_pack_pb failed\n");
 	pack_size_update = rc;
 
 	/*
