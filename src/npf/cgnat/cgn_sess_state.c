@@ -564,12 +564,6 @@ void cgn_sess_state_closing(struct cgn_state *st)
 	rte_spinlock_unlock(&st->st_lock);
 }
 
-const char *cgn_sess_state_str(struct cgn_state *st)
-{
-	/* TCP string covers TCP and non TCP */
-	return cgn_tcp_state_str(st->st_state);
-}
-
 const char *cgn_sess_state_str_short(struct cgn_state *st)
 {
 	/* TCP string covers TCP and non TCP */

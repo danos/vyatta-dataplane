@@ -22,12 +22,10 @@ struct cgn_map;
 struct nat_pool;
 struct ifnet;
 
-bool cgn_session_is_expired(struct cgn_session *cse);
 uint32_t cgn_session_ifindex(struct cgn_session *cse);
 uint32_t cgn_session_id(struct cgn_session *cse);
 
 struct cgn_session *cgn_sess_from_cs2(struct cgn_sess_s2 *cs2);
-struct cgn_sess2 *cgn_s2_from_cse(struct cgn_session *cse);
 struct cgn_source *cgn_src_from_cs2(struct cgn_sess_s2 *cs2);
 struct cgn_source *cgn_src_from_cse(struct cgn_session *cse);
 struct cgn_policy *cgn_policy_from_cse(struct cgn_session *cse);
@@ -114,12 +112,6 @@ void cgn_session_expire_pool(bool restart_timer, struct nat_pool *np,
 int cgn_op_session_map(FILE *f, int argc, char **argv);
 struct cgn_session *cgn_session_map(struct ifnet *ifp, struct cgn_packet *cpk,
 				    struct cgn_map *cmi, int *error);
-
-/*
- * Session walk
- */
-typedef int (*cgn_sesswalk_cb)(struct cgn_session *, void *);
-int cgn_session_walk(cgn_sesswalk_cb cb, void *data);
 
 /* Used by unit-tests only to initiate a gc pass */
 void cgn_session_gc_pass(void);

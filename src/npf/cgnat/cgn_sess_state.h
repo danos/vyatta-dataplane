@@ -298,7 +298,6 @@ void cgn_sess_state_close(struct cgn_state *st);
  */
 void cgn_sess_state_closing(struct cgn_state *st);
 
-const char *cgn_sess_state_str(struct cgn_state *st);
 const char *cgn_sess_state_str_short(struct cgn_state *st);
 
 void cgn_sess_state_jsonw(json_writer_t *json, struct cgn_state *st);

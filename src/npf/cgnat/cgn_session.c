@@ -1008,12 +1008,6 @@ struct cgn_session *cgn_sess_from_cs2(struct cgn_sess_s2 *cs2)
 	return cse;
 }
 
-/* Get the cached sub-session */
-struct cgn_sess2 *cgn_s2_from_cse(struct cgn_session *cse)
-{
-	return cse ? cse->cs_s2.cs2_s2 : NULL;
-}
-
 /*
  * Get pointer to the subscriber of this cs2 structure
  */
@@ -1509,30 +1503,6 @@ cgn_session_inspect(struct cgn_packet *cpk, enum cgn_dir dir, int *error)
 	}
 
 	return cse;
-}
-
-/*
- * Session  walk
- */
-int cgn_session_walk(cgn_sesswalk_cb cb, void *data)
-{
-	struct cds_lfht_iter iter;
-	struct cgn_session *cse;
-	struct cgn_sentry *ce;
-	int rc;
-
-	if (!cgn_sess_ht[CGN_DIR_OUT])
-		return -ENOENT;
-
-	cds_lfht_for_each_entry(cgn_sess_ht[CGN_DIR_OUT], &iter, ce, ce_node) {
-
-		cse = caa_container_of(ce, struct cgn_session, cs_forw_entry);
-
-		rc = cb(cse, data);
-		if (rc)
-			return rc;
-	}
-	return 0;
 }
 
 /*
@@ -2519,12 +2489,6 @@ end:
 	jsonw_destroy(&json);
 }
 
-/* Is this session expired? */
-bool cgn_session_is_expired(struct cgn_session *cse)
-{
-	return cse->cs_forw_entry.ce_expired && cse->cs_back_entry.ce_expired;
-}
-
 /*
  * Mark session as expired
  */
@@ -3401,10 +3365,4 @@ void cgn_session_uninit(void)
 
 	dp_ht_destroy_deferred(cgn_sess_ht[CGN_DIR_IN]);
 	cgn_sess_ht[CGN_DIR_IN] = NULL;
-}
-
-/* Used by unit-tests only */
-size_t cgn_session_size(void)
-{
-	return sizeof(struct cgn_session);
 }
