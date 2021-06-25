@@ -48,7 +48,15 @@ enum pl_l3_v4_in_fused_feat {
 	 */
 	PL_L3_V4_IN_FUSED_FEAT_NO_ADDRESS = 15,
 	PL_L3_V4_IN_FUSED_FEAT_NO_FORWARDING = 16,
+	/*
+	 * note that a uint16_t is used for field ip_in_features of
+	 * struct ifnet, so the maximum enum value is 16 unless the
+	 * size of that field is increased.
+	 */
 };
+
+static_assert(PL_L3_V4_IN_FUSED_FEAT_PBR < PL_L3_V4_IN_FUSED_FEAT_NO_ADDRESS,
+	      "overlapping enums in pl_l3_v4_in_fused_feat");
 
 enum pl_l3_v6_in_fused_feat {
 	/* Leave a gap to allow monitoring features */
@@ -66,7 +74,15 @@ enum pl_l3_v6_in_fused_feat {
 	 */
 	PL_L3_V6_IN_FUSED_FEAT_NO_ADDRESS = 15,
 	PL_L3_V6_IN_FUSED_FEAT_NO_FORWARDING = 16,
+	/*
+	 * note that a uint16_t is used for field ip6_in_features of
+	 * struct ifnet, so the maximum enum value is 16 unless the
+	 * size of that field is increased.
+	 */
 };
+
+static_assert(PL_L3_V6_IN_FUSED_FEAT_PBR < PL_L3_V6_IN_FUSED_FEAT_NO_ADDRESS,
+	      "overlapping enums in pl_l3_v6_in_fused_feat");
 
 enum pl_l3_v4_out_fused_feat {
 	PL_L3_V4_OUT_FUSED_FEAT_DEFRAG = 1,
