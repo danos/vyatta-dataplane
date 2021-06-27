@@ -656,6 +656,8 @@ cmd_sfp_permit_list_cfg(struct pb_msg *msg)
 	}
 
 	sfp_permit_list_init();
+	if (!sfp_permit_list_running)
+		return ret;
 
 	switch (sfpmsg->mtype_case) {
 	case SFP_PERMIT_CONFIG__MTYPE_LIST:
@@ -1178,6 +1180,9 @@ int cmd_sfp_permit_op(FILE *f, int argc __unused, char **argv)
 	 * need to check they are setup.
 	 */
 	sfp_permit_list_lists_inits();
+
+	if (!sfp_permit_list_running)
+		return 0;
 
 	if (!strcmp(argv[1], "dump")) {
 		if (!strcmp(argv[2], "list")) {
