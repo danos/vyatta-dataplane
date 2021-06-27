@@ -811,6 +811,8 @@ int __wrap_main(int argc, char **argv)
 	zactor_destroy(&dp_test_actor);
 	zactor_destroy(&dp_test_broker_actor);
 	zactor_destroy(&dp_test_xfrm_server_actor);
+	zsock_destroy(&dp_test_sfpd_sock);
+
 	cleanup_temp_files(cfgfile);
 
 	/*
