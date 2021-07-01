@@ -723,11 +723,6 @@ npf_rte_acl_create_mtrie_pool(int af, int max_tries)
 {
 	int i, err;
 	struct npf_match_ctx_trie *m_trie;
-	struct rte_ring *ring;
-
-	err = npf_rte_acl_get_ring(af, &ring);
-	if (err)
-		return err;
 
 	for (i = 0; i < max_tries; i++) {
 		err = npf_rte_acl_create_trie(af, NPR_MTRIE_MAX_RULES, &m_trie);
