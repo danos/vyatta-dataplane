@@ -2234,7 +2234,8 @@ done:
 	rte_spinlock_unlock(&ctx->merge_lock);
 }
 
-#define NPF_RTE_ACL_MERGE_INTERVAL 5
+/* in milliseconds */
+#define NPF_RTE_ACL_MERGE_INTERVAL 1000
 
 static void *npf_rte_acl_optimize(void *args __rte_unused)
 {
@@ -2254,7 +2255,7 @@ static void *npf_rte_acl_optimize(void *args __rte_unused)
 		}
 
 		dp_rcu_thread_offline();
-		sleep(NPF_RTE_ACL_MERGE_INTERVAL);
+		usleep(NPF_RTE_ACL_MERGE_INTERVAL * USEC_PER_MSEC);
 	}
 
 	return NULL;
