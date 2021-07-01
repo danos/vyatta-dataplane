@@ -60,6 +60,30 @@
    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
  *
  *
+ * NOTES:
+ *
+ *    o The first Timestamp field, of both request & response packets,
+ *      is the timestamp of when the packet was sent (departure
+ *      time). In the response packet the Receive Timestamp represents
+ *      the arrival time of the request packet and the Sender
+ *      Timestamp is the timestamp from the received request packet.
+ *
+ *    o When looking at pcap traces wireshark cannot distinguish
+ *      between request & response messages. Consequently they are all
+ *      interpreted as response messages, but that means the request
+ *      packet display can appear very strange:
+ *
+ * TwoWay Active Measurement Test Protocol
+ *     Sequence Number: 0
+ *     Timestamp: Jul  1, 2021 10:43:30.768429516 BST
+ *     Error Estimate: 37001 (0x9089), S
+ *     MBZ: 29244 (0x723c)
+ *     Receive Timestamp: May 17, 1996 05:32:36.665197892 BST
+ *     Sender Sequence Number: 2220097002
+ *     Sender Timestamp: Feb  9, 2076 10:41:26.959155478 GMT
+ *     Sender Error Estimate: 64450 (0xfbc2)
+ *     MBZ: 41394 (0xa1b2)
+ *     Sender TTL: 15
  */
 
 #include <stdbool.h>
@@ -206,8 +230,8 @@ tw_reflect_crypto(struct rte_mbuf *m __unused, struct udphdr *udp __unused,
  *  - extract sequence number & timestamp from inbound message
  *  - overwrite inbound message with response message:
  *     o sequence number
- *     o arrival timestamp
  *     o departure timestamp
+ *     o arrival timestamp
  *     o sender sequence number
  *     o sender timestamp
  *     o received TTL/hop-count
@@ -221,7 +245,8 @@ tw_reflect_clear(struct rte_mbuf *m, struct udphdr *udp, uint8_t ttl,
 	uint32_t sender_ts_sec;
 	uint32_t sender_ts_msec;
 	uint16_t sender_err;
-	struct twamp_timestamp departure_ts;
+	struct twamp_timestamp departure_ts = {0};
+	char *departure_ts_tpkt;
 	int udppayloadlen;
 	char *tpkt;
 
@@ -268,14 +293,15 @@ tw_reflect_clear(struct rte_mbuf *m, struct udphdr *udp, uint8_t ttl,
 	*((uint32_t *)tpkt) = htonl(entry->session.seqno++);
 	tpkt += sizeof(uint32_t);
 
-	tpkt = tw_clock_encode(tpkt, arrival_ts, true);
+	/*
+	 * Skip over departure timestamp fields
+	 */
+	departure_ts_tpkt = tpkt;
+	tpkt = tw_clock_encode(tpkt, &departure_ts, true);
 	*((uint16_t *)tpkt) = 0;
 	tpkt += sizeof(uint16_t);
 
-	if (tw_clock_gettime(&departure_ts, false, "departure") < 0)
-		return -1;
-
-	tpkt = tw_clock_encode(tpkt, &departure_ts, false);
+	tpkt = tw_clock_encode(tpkt, arrival_ts, false);
 
 	*((uint32_t *)tpkt) = sender_seqno;
 	tpkt += sizeof(uint32_t);
@@ -291,6 +317,15 @@ tw_reflect_clear(struct rte_mbuf *m, struct udphdr *udp, uint8_t ttl,
 	tpkt += sizeof(uint16_t);
 
 	*((uint8_t *)tpkt) = ttl;
+
+	/*
+	 * Go back and add the departure timestamp (and error
+	 * estimate)
+	 */
+	if (tw_clock_gettime(&departure_ts, true, "departure") < 0)
+		return -1;
+
+	tw_clock_encode(departure_ts_tpkt, &departure_ts, true);
 
 	return 0;
 }
@@ -442,7 +477,7 @@ twamp_input_ipv4(struct rte_mbuf *m, void *l3hdr,
 		.udp = udp,
 	};
 
-	if (tw_clock_gettime(&arrival_ts, true, "arrival") < 0)
+	if (tw_clock_gettime(&arrival_ts, false, "arrival") < 0)
 		goto error;
 
 	vrfid = if_vrfid(ifp);
@@ -537,7 +572,7 @@ twamp_input_ipv6(struct rte_mbuf *m, void *l3hdr, struct udphdr *udp,
 		.udp = udp,
 	};
 
-	if (tw_clock_gettime(&arrival_ts, true, "arrival") < 0)
+	if (tw_clock_gettime(&arrival_ts, false, "arrival") < 0)
 		goto error;
 
 	vrfid = if_vrfid(ifp);
