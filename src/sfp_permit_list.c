@@ -247,7 +247,7 @@ static struct sfp_permit_list *sfp_find_permit_list(char *name)
 }
 
 static struct sfp_part *
-sfp_list_add_partid(SfpPermitConfig__SfpPermitListConfig *list,  char *part)
+sfp_list_add_partid(SfpPermitConfig__ListConfig *list,  char *part)
 {
 	struct sfp_part *entry;
 	uint32_t flags;
@@ -317,11 +317,11 @@ static void sfp_ordered_list_add(struct sfp_part *part)
 }
 
 static struct sfp_permit_list *
-sfp_list_add_entry(SfpPermitConfig__SfpPermitListConfig *list)
+sfp_list_add_entry(SfpPermitConfig__ListConfig *list)
 {
 	struct sfp_permit_list *entry;
 	struct sfp_part *part;
-	SfpPermitConfig__SfpPart **parts;
+	SfpPermitConfig__Part **parts;
 	uint32_t i = 0;
 
 	entry = calloc(1, sizeof(*entry));
@@ -395,9 +395,9 @@ sfp_list_remove_entry(struct sfp_permit_list *entry)
 }
 
 static void
-sfp_list_display(SfpPermitConfig__SfpPermitListConfig *list)
+sfp_list_display(SfpPermitConfig__ListConfig *list)
 {
-	SfpPermitConfig__SfpPart **parts;
+	SfpPermitConfig__Part **parts;
 	uint32_t i = 0;
 	bool set = list->action ==
 		SFP_PERMIT_CONFIG__ACTION__SET ? true : false;
@@ -432,7 +432,7 @@ sfp_list_display(SfpPermitConfig__SfpPermitListConfig *list)
 }
 
 static int
-sfp_permit_list_cfg(SfpPermitConfig__SfpPermitListConfig *list)
+sfp_permit_list_cfg(SfpPermitConfig__ListConfig *list)
 {
 	struct sfp_permit_list *entry;
 	bool set = list->action ==
@@ -474,7 +474,7 @@ sfp_permit_list_cfg(SfpPermitConfig__SfpPermitListConfig *list)
 }
 
 static int
-sfp_permit_mismatch_cfg(SfpPermitConfig__SfpPermitMisMatchConfig *mismatch)
+sfp_permit_mismatch_cfg(SfpPermitConfig__MisMatchConfig *mismatch)
 {
 	DP_DEBUG(SFP_LIST, DEBUG, DATAPLANE,
 		 "SFP-PL:mismatch enforcement delay %d\n", mismatch->delay);

@@ -221,52 +221,52 @@ static void sfp_permit_list_send(SfpPermitConfig *Cfg)
 	dp_test_lib_pb_wrap_and_send_pb("vyatta:sfppermitlist", buf, len);
 }
 
-SfpPermitConfig__SfpPermitListConfig ListCfg =
-	SFP_PERMIT_CONFIG__SFP_PERMIT_LIST_CONFIG__INIT;
+SfpPermitConfig__ListConfig ListCfg =
+	SFP_PERMIT_CONFIG__LIST_CONFIG__INIT;
 
-SfpPermitConfig__SfpPart Part_1 = {
-	PROTOBUF_C_MESSAGE_INIT(&sfp_permit_config__sfp_part__descriptor),
+SfpPermitConfig__Part Part_1 = {
+	PROTOBUF_C_MESSAGE_INIT(&sfp_permit_config__part__descriptor),
 	"SIMON"};
-SfpPermitConfig__SfpPart Part_2 = {
-	PROTOBUF_C_MESSAGE_INIT(&sfp_permit_config__sfp_part__descriptor),
+SfpPermitConfig__Part Part_2 = {
+	PROTOBUF_C_MESSAGE_INIT(&sfp_permit_config__part__descriptor),
 	"PAULINE"};
-SfpPermitConfig__SfpPart Part_3 = {
-	PROTOBUF_C_MESSAGE_INIT(&sfp_permit_config__sfp_part__descriptor),
+SfpPermitConfig__Part Part_3 = {
+	PROTOBUF_C_MESSAGE_INIT(&sfp_permit_config__part__descriptor),
 	"ALLAN"};
-SfpPermitConfig__SfpPart Part_4 = {
-	PROTOBUF_C_MESSAGE_INIT(&sfp_permit_config__sfp_part__descriptor),
+SfpPermitConfig__Part Part_4 = {
+	PROTOBUF_C_MESSAGE_INIT(&sfp_permit_config__part__descriptor),
 	"DESMOND"};
-SfpPermitConfig__SfpPart Part_5 = {
-	PROTOBUF_C_MESSAGE_INIT(&sfp_permit_config__sfp_part__descriptor),
+SfpPermitConfig__Part Part_5 = {
+	PROTOBUF_C_MESSAGE_INIT(&sfp_permit_config__part__descriptor),
 	"DES*"};
-SfpPermitConfig__SfpPart Part_6 = {
-	PROTOBUF_C_MESSAGE_INIT(&sfp_permit_config__sfp_part__descriptor),
+SfpPermitConfig__Part Part_6 = {
+	PROTOBUF_C_MESSAGE_INIT(&sfp_permit_config__part__descriptor),
 	"PAUL"};
-SfpPermitConfig__SfpPart Part_7 = {
-	PROTOBUF_C_MESSAGE_INIT(&sfp_permit_config__sfp_part__descriptor),
+SfpPermitConfig__Part Part_7 = {
+	PROTOBUF_C_MESSAGE_INIT(&sfp_permit_config__part__descriptor),
 	"AL*"};
-SfpPermitConfig__SfpPart Part_8 = {
-	PROTOBUF_C_MESSAGE_INIT(&sfp_permit_config__sfp_part__descriptor),
+SfpPermitConfig__Part Part_8 = {
+	PROTOBUF_C_MESSAGE_INIT(&sfp_permit_config__part__descriptor),
 	"THOMAS"};
-SfpPermitConfig__SfpPart Part_9 = {
-	PROTOBUF_C_MESSAGE_INIT(&sfp_permit_config__sfp_part__descriptor),
+SfpPermitConfig__Part Part_9 = {
+	PROTOBUF_C_MESSAGE_INIT(&sfp_permit_config__part__descriptor),
 	"TOM"};
-SfpPermitConfig__SfpPart Part_10 = {
-	PROTOBUF_C_MESSAGE_INIT(&sfp_permit_config__sfp_part__descriptor),
+SfpPermitConfig__Part Part_10 = {
+	PROTOBUF_C_MESSAGE_INIT(&sfp_permit_config__part__descriptor),
 	"CAT*"
 };
-SfpPermitConfig__SfpPart Part_11 = {
-	PROTOBUF_C_MESSAGE_INIT(&sfp_permit_config__sfp_part__descriptor),
+SfpPermitConfig__Part Part_11 = {
+	PROTOBUF_C_MESSAGE_INIT(&sfp_permit_config__part__descriptor),
 	"BI*"
 };
 
 
-SfpPermitConfig__SfpPart *Part_list[11] = {
+SfpPermitConfig__Part *Part_list[11] = {
 	&Part_1, &Part_2, &Part_3, &Part_4, &Part_5,
 	&Part_6, &Part_7, &Part_8, &Part_9, &Part_10, &Part_11};
 
 static void sfp_list_build_and_send(const char *list_name,
-				    SfpPermitConfig__SfpPart **Part,
+				    SfpPermitConfig__Part **Part,
 				    uint32_t num_parts,
 				    int action)
 {
@@ -285,22 +285,22 @@ static void sfp_list_build_and_send(const char *list_name,
 }
 
 static void sfp_list_add(const char *name,
-			 SfpPermitConfig__SfpPart **Parts,
+			 SfpPermitConfig__Part **Parts,
 			 uint32_t num_parts)
 {
 	sfp_list_build_and_send(name, Parts, num_parts,
 				SFP_PERMIT_CONFIG__ACTION__SET);
 }
 static void sfp_list_delete(const char *name,
-			 SfpPermitConfig__SfpPart **Parts,
+			 SfpPermitConfig__Part **Parts,
 			 uint32_t num_parts)
 {
 	sfp_list_build_and_send(name, Parts, num_parts,
 				SFP_PERMIT_CONFIG__ACTION__DELETE);
 }
 
-SfpPermitConfig__SfpPermitMisMatchConfig MismatchCfg =
-	SFP_PERMIT_CONFIG__SFP_PERMIT_MIS_MATCH_CONFIG__INIT;
+SfpPermitConfig__MisMatchConfig MismatchCfg =
+	SFP_PERMIT_CONFIG__MIS_MATCH_CONFIG__INIT;
 
 static void sfp_mismatch_action_send(bool enforcement, bool logging, uint32_t delay)
 {
