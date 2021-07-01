@@ -27,7 +27,9 @@ static struct rte_mempool *npr_mtrie_pool;
 static struct rte_mempool *npr_acl4_pool;
 static struct rte_mempool *npr_acl6_pool;
 
-#define NPR_RULE_MAX_ELEMENTS (1 << 18)
+#define MAX_TRANSACTION_ENTRIES 512
+
+#define NPR_RULE_MAX_ELEMENTS (1 << 19)
 #define NPR_RULE_GROW_ELEMENTS ((1 << 14)-1)
 
 /* limit number of rules in consolidated tries to 32K for optimal build time */
@@ -39,14 +41,35 @@ static struct rte_mempool *npr_acl6_pool;
  */
 #define PDEL_RING_SZ NPR_TRIE_MAX_RULES
 
-#define NPR_ACL_RING_SZ 512
-
 /* Maximum amount of new (merge) tries which get created per npf_match_ctx,
- * per ACL optimization thread cycle. This allows to use fixed
- * size arrays to perform the merge of group of tries into a
- * new merge trie.
+ * per ACL optimization thread cycle. This allows the use of a fixed size array
+ * for tries during trie consolidation operations.
  */
 #define OPTIMIZE_MAX_NEW_TRIES (NPR_RULE_MAX_ELEMENTS/NPR_TRIE_MAX_RULES)
+
+/* Maximum amount of rules per pool tries.
+ * The pool tries are kept small on purpose, so the build time of the
+ * trie is as short as possible.
+ */
+#define NPR_MTRIE_MAX_RULES 256
+
+/* Maximum length of the ACL ring size per address-family.
+ * This per-AF ring is used to act as list of all small pool tries.
+ * Size must be power of two.
+ */
+#define NPR_ACL_RING_SZ 512
+
+/* The number of pool tries to allocate, per address-family.
+ * Those tries get allocated up front, to quickly response
+ * on incoming rule installation requests on the control thread.
+ * The actual usable ring size is count-1.
+ */
+#define NPR_POOL_DEF_MAX_TRIES (NPR_ACL_RING_SZ-1)
+
+/* Total size of memory pool to store the pool tries for all
+ * address-families.
+ */
+#define M_TRIE_POOL_SIZE (NPR_POOL_DEF_MAX_TRIES * 2)
 
 struct rte_ring *npr_acl4_ring, *npr_acl6_ring;
 
@@ -102,8 +125,6 @@ struct npf_match_ctx_trie {
 	bool                  rules_deleted;
 	struct rcu_head       npr_rcu;
 };
-
-#define MAX_TRANSACTION_ENTRIES 512
 
 static struct cds_list_head ctx_list;
 
@@ -376,9 +397,6 @@ acl_rule_hash_cmp(const void *key1, const void *key2, size_t key_len __rte_unuse
 
 	return rule1->data.userdata < rule2->data.userdata ? -1 : 1;
 }
-
-#define NPR_MTRIE_MAX_RULES    MAX_TRANSACTION_ENTRIES
-#define NPR_POOL_DEF_MAX_TRIES 128
 
 static int npf_rte_acl_trie_destroy(int af, struct npf_match_ctx_trie *m_trie);
 
@@ -1682,8 +1700,6 @@ size_t npf_rte_acl_rule_size(int af)
 
 	return RTE_ACL_RULE_SZ(RTE_DIM(ipv6_defs));
 }
-
-#define M_TRIE_POOL_SIZE 512
 
 int npf_rte_acl_setup(void)
 {
