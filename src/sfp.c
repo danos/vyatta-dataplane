@@ -58,6 +58,7 @@
 #include <rte_dev_info.h>
 #include <transceiver.h>
 #include <ieee754.h>
+#include <sfp_permit_list.h>
 
 struct _nv {
 	int v;
@@ -2155,8 +2156,8 @@ static int sfpd_notify_recv(void *arg)
 	hdr = zmq_msg_data(&sfpd_hdr);
 
 	if (strncmp("SFP_PRESENCE_NOTIFY", hdr, strlen("SFP_PRESENCE_NOTIFY")) == 0) {
-		RTE_LOG(ERR, DATAPLANE,
-			"SFPd: SFPD msg SFP_PRESENCE_NOTIFY: %s\n", __func__);
+		DP_DEBUG(SFP_LIST, DEBUG, DATAPLANE,
+			 "SFPd: SFPD msg SFP_PRESENCE_NOTIFY: %s\n", __func__);
 		sfpd_process_presence_update();
 		goto end;
 	}
@@ -2173,6 +2174,7 @@ static int sfpd_notify_recv(void *arg)
 
 	RTE_LOG(ERR, DATAPLANE,
 		"SFPd: SFPD unknwown msg received: %s\n", hdr);
+
 end:
 	zmq_msg_close(&sfpd_hdr);
 	zmq_msg_close(&sfpd_msg);
