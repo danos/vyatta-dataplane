@@ -52,6 +52,7 @@
 #include <unistd.h>
 
 #include <vplane_log.h>
+#include <vplane_debug.h>
 #include <event.h>
 #include <json_writer.h>
 #include <rte_dev_info.h>
@@ -2137,6 +2138,9 @@ static int sfpd_notify_recv(void *arg)
 	int rc;
 	errno = 0;
 
+	DP_DEBUG(SFP_LIST, DEBUG, DATAPLANE,
+		 "SFPd: Notification\n");
+
 	rc = sfpd_msg_recv(sock, &sfpd_hdr, &sfpd_msg);
 
 	if (rc != 0) {
@@ -2147,13 +2151,16 @@ static int sfpd_notify_recv(void *arg)
 			return 0;
 		return -1;
 	}
+
 	hdr = zmq_msg_data(&sfpd_hdr);
-	if (strncmp("MSG_TYPE_1", hdr,
-		    strlen("MSG_TYPE_1")) == 0) {
-		RTE_LOG(INFO, DATAPLANE,
-			"SFPd: MSG_TYPE_1\n");
+
+	if (strncmp("SFP_PRESENCE_NOTIFY", hdr, strlen("SFP_PRESENCE_NOTIFY")) == 0) {
+		RTE_LOG(ERR, DATAPLANE,
+			"SFPd: SFPD msg SFP_PRESENCE_NOTIFY: %s\n", __func__);
+		sfpd_process_presence_update();
 		goto end;
 	}
+
 	if (strncmp("MSG_TYPE_2", hdr, strlen("MSG_TYPE_2")) == 0) {
 		data = zmq_msg_data(&sfpd_msg);
 		len = zmq_msg_size(&sfpd_msg);
@@ -2186,17 +2193,12 @@ int sfpd_open_socket(void)
 	if (sfpd_notify_socket)
 		return -1;
 
-	sfpd_notify_socket = zsock_new(ZMQ_PULL);
+	errno = 0;
+	sfpd_notify_socket = zsock_new_sub(config.sfpd_status_upd_url, "");
 	if (!sfpd_notify_socket) {
 		RTE_LOG(ERR, DATAPLANE,
-			"Failed to open sfpd notify socket\n");
-		return -1;
-	}
-
-	if (zsock_connect(sfpd_notify_socket, "%s", config.sfpd_status_upd_url) < 0) {
-		RTE_LOG(ERR, DATAPLANE, "failed to connect sfpd notify URL %s\n",
-			config.sfpd_status_upd_url);
-		sfpd_close_socket();
+			"SFP:Failed to open socket errno %d sfpd notify socket %s\n",
+			errno, config.sfpd_status_upd_url);
 		return -1;
 	}
 
