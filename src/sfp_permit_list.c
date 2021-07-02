@@ -247,7 +247,7 @@ static struct sfp_permit_list *sfp_find_permit_list(char *name)
 }
 
 static struct sfp_part *
-sfp_list_add_partid(SfpPermitConfig__ListConfig *list,  char *part)
+sfp_list_add_partid(SfpPermitConfig__Vendor *vendor,  char *part, char *rev)
 {
 	struct sfp_part *entry;
 	uint32_t flags;
@@ -269,20 +269,20 @@ sfp_list_add_partid(SfpPermitConfig__ListConfig *list,  char *part)
 		flags = 0;
 	}
 
-	if (list->vendor) {
-		strncpy(entry->vendor_name, list->vendor,
+	if (vendor->name) {
+		strncpy(entry->vendor_name, vendor->name,
 			sizeof(entry->vendor_name));
 		flags |= SFP_PART_VENDOR_NAME;
 	}
 
-	if (list->vendor_oui) {
-		strncpy(entry->vendor_oui, list->vendor_oui,
+	if (vendor->oui) {
+		strncpy(entry->vendor_oui, vendor->oui,
 			sizeof(entry->vendor_oui));
 		flags |= SFP_PART_VENDOR_OUI;
 	}
 
-	if (list->vendor_rev) {
-		strncpy(entry->vendor_rev, list->vendor_rev,
+	if (rev) {
+		strncpy(entry->vendor_rev, rev,
 			sizeof(entry->vendor_rev));
 		flags |= SFP_PART_VENDOR_REV;
 	}
@@ -316,13 +316,51 @@ static void sfp_ordered_list_add(struct sfp_part *part)
 	cds_list_add_tail(&part->search_list, &sfp_permit_parts_list_head);
 }
 
+static void
+sfp_list_add_entry_part(SfpPermitConfig__Vendor *vendor,
+			struct sfp_permit_list *entry)
+{
+	SfpPermitConfig__Part **parts;
+	struct sfp_part *part;
+	uint32_t i = 0, k;
+
+	parts  = vendor->parts;
+
+	while (i < vendor->n_parts) {
+		k = 0;
+		if (parts[i]->n_revs == 0) {
+			part = sfp_list_add_partid(vendor,
+						   parts[i]->part, NULL);
+			if (part) {
+				entry->num_parts++;
+				cds_list_add_tail(&part->permit_list,
+						  &entry->sfp_part_list_head);
+				sfp_ordered_list_add(part);
+			}
+		} else {
+			while (k < parts[i]->n_revs) {
+				part = sfp_list_add_partid(vendor,
+							   parts[i]->part,
+							   parts[i]->revs[k]->rev);
+				if (part) {
+					entry->num_parts++;
+					cds_list_add_tail(&part->permit_list,
+							  &entry->sfp_part_list_head);
+					sfp_ordered_list_add(part);
+				}
+				k++;
+			}
+		}
+		i++;
+	}
+}
+
+
 static struct sfp_permit_list *
 sfp_list_add_entry(SfpPermitConfig__ListConfig *list)
 {
 	struct sfp_permit_list *entry;
-	struct sfp_part *part;
-	SfpPermitConfig__Part **parts;
-	uint32_t i = 0;
+	uint32_t j = 0;
 
 	entry = calloc(1, sizeof(*entry));
 	if (!entry) {
@@ -335,19 +373,11 @@ sfp_list_add_entry(SfpPermitConfig__ListConfig *list)
 
 	CDS_INIT_LIST_HEAD(&entry->sfp_part_list_head);
 
-	parts = list->vendor_parts;
-
-	if (list->n_vendor_parts) {
-		while (i < list->n_vendor_parts) {
-			part = sfp_list_add_partid(list,
-						   parts[i]->part);
-			i++;
-			entry->num_parts++;
-			cds_list_add_tail(&part->permit_list,
-					  &entry->sfp_part_list_head);
-			sfp_ordered_list_add(part);
+	if (list->n_vendors) {
+		while (j < list->n_vendors) {
+			sfp_list_add_entry_part(list->vendors[j], entry);
+			j++;
 		}
-	} else {
 	}
 
 	cds_list_add_tail(&entry->permit_list_link, &sfp_permit_list_head);
@@ -395,40 +425,52 @@ sfp_list_remove_entry(struct sfp_permit_list *entry)
 }
 
 static void
-sfp_list_display(SfpPermitConfig__ListConfig *list)
+sfp_display_vendor(char *list_name, SfpPermitConfig__Vendor *vendor)
 {
 	SfpPermitConfig__Part **parts;
-	uint32_t i = 0;
+	uint32_t i = 0, k;
+
+	if (vendor->oui)
+		DP_DEBUG(SFP_LIST, DEBUG, DATAPLANE,
+			 "SFP-PL:Permit_list:%s vendor: %s oui: %s\n",
+			 list_name, vendor->name, vendor->oui);
+	else
+		DP_DEBUG(SFP_LIST, DEBUG, DATAPLANE,
+			 "SFP-PL:Permit_list:%s vendor: %s\n",
+			 list_name, vendor->name);
+
+	parts = vendor->parts;
+
+	while (i < vendor->n_parts) {
+		k = 0;
+		if (parts[i]->n_revs == 0)
+			DP_DEBUG(SFP_LIST, DEBUG, DATAPLANE,
+				 "SFP-PL:Permit_list:%s vendor Part:%s\n",
+				 vendor->name, parts[i]->part);
+		else
+			while (k < parts[i]->n_revs) {
+				DP_DEBUG(SFP_LIST, DEBUG, DATAPLANE,
+					 "SFP-PL:Permit_list:%s vendor Part:%s Rev:%s\n",
+					 vendor->name,
+					 parts[i]->part, parts[i]->revs[k]->rev);
+				k++;
+			}
+		i++;
+	}
+}
+
+static void
+sfp_list_display(SfpPermitConfig__ListConfig *list)
+{
+	uint32_t j = 0;
 	bool set = list->action ==
 		SFP_PERMIT_CONFIG__ACTION__SET ? true : false;
 
 	DP_DEBUG(SFP_LIST, DEBUG, DATAPLANE,
 		"SFP-PL:Permit_list:%s %s\n", list->name, set  ? "Set" : "Delete");
 
-	if (list->vendor)
-		DP_DEBUG(SFP_LIST, DEBUG, DATAPLANE,
-			"SFP-PL:Permit_list:%s vendor: %s\n", list->name,
-			list->vendor);
-
-	if (list->vendor_oui)
-		DP_DEBUG(SFP_LIST, DEBUG, DATAPLANE,
-			"SFP-PL:Permit_list:%s vendor oui: %s\n", list->name,
-			list->vendor_oui);
-
-	if (list->vendor_rev)
-		DP_DEBUG(SFP_LIST, DEBUG, DATAPLANE,
-			"SFP-PL:Permit_list:%s vendor rev:  %s\n", list->name,
-			list->vendor_rev);
-
-	if (list->n_vendor_parts) {
-		parts = list->vendor_parts;
-		while (i < list->n_vendor_parts) {
-			DP_DEBUG(SFP_LIST, DEBUG, DATAPLANE,
-				 "SFP-PL:Permit_list:%s vendor Part:%s\n",
-				 list->name, parts[i]->part);
-			i++;
-		}
-	}
+	while (j < list->n_vendors)
+		sfp_display_vendor(list->name, list->vendors[j++]);
 }
 
 static int

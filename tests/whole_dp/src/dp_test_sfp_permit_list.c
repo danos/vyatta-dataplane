@@ -224,6 +224,11 @@ static void sfp_permit_list_send(SfpPermitConfig *Cfg)
 SfpPermitConfig__ListConfig ListCfg =
 	SFP_PERMIT_CONFIG__LIST_CONFIG__INIT;
 
+SfpPermitConfig__Vendor Vendor =
+		SFP_PERMIT_CONFIG__VENDOR__INIT;
+
+SfpPermitConfig__Vendor *Vendor_list[1] = {&Vendor};
+
 SfpPermitConfig__Part Part_1 = {
 	PROTOBUF_C_MESSAGE_INIT(&sfp_permit_config__part__descriptor),
 	"SIMON"};
@@ -260,14 +265,15 @@ SfpPermitConfig__Part Part_11 = {
 	"BI*"
 };
 
-
 SfpPermitConfig__Part *Part_list[11] = {
 	&Part_1, &Part_2, &Part_3, &Part_4, &Part_5,
 	&Part_6, &Part_7, &Part_8, &Part_9, &Part_10, &Part_11};
 
+
+
 static void sfp_list_build_and_send(const char *list_name,
-				    SfpPermitConfig__Part **Part,
-				    uint32_t num_parts,
+					SfpPermitConfig__Part **Part,
+					uint32_t num_parts,
 				    int action)
 {
 
@@ -276,11 +282,12 @@ static void sfp_list_build_and_send(const char *list_name,
 	Cfg.list = &ListCfg;
 	ListCfg.action = action;
 	ListCfg.name = (char *)list_name;
-	ListCfg.vendor = "Cisco";
-	ListCfg.vendor_oui = "aa.bb.cc";
-	ListCfg.vendor_parts = Part;
-	ListCfg.n_vendor_parts = num_parts;
-
+	ListCfg.n_vendors = 1;
+	ListCfg.vendors = &Vendor_list[0];
+	Vendor_list[0]->n_parts = num_parts;
+	Vendor_list[0]->name = "Cisco";
+	Vendor_list[0]->oui = "aa.bb.cc";
+	Vendor_list[0]->parts = Part;
 	sfp_permit_list_send(&Cfg);
 }
 

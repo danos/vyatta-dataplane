@@ -25,8 +25,22 @@ message SfpPermitConfig {
 		MONITOR = 1;
 	}
 
+	message Rev {
+		optional string rev = 3;
+	}
+
 	message Part {
 		required string part = 1;
+
+		repeated Rev revs = 2;
+	}
+
+	message Vendor{
+		required string name = 1;
+
+		optional string oui = 2;
+
+		repeated Part parts = 3;
 	}
 
 	message MisMatchConfig {
@@ -44,13 +58,7 @@ message SfpPermitConfig {
 
 		required string name = 2;
 
-		optional string vendor = 3;
-
-		optional string vendor_oui = 4;
-
-		optional string vendor_rev = 5;
-
-		repeated Part vendor_parts = 6;
+		repeated Vendor vendors = 3;
 	}
 
 	oneof mtype {
