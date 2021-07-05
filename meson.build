@@ -2,7 +2,7 @@
 # Copyright (c) 2020-2021, AT&T Intellectual Property. All rights reserved.
 
 project('vyatta-dataplane', ['c', 'cpp'],
-        version: run_command('dpkg-parsechangelog', '-S', 'Version', check : true).stdout().strip(),
+        version: run_command('scripts/get_version', check : true).stdout().strip(),
         default_options: [
                 'debug=true',
                 'optimization=3',
