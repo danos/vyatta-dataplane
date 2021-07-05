@@ -423,7 +423,7 @@ npf_rte_acl_mempool_mz_free(__rte_unused struct rte_mempool_memhdr *memhdr,
 }
 
 static int
-npf_rte_acl_mempool_grow(struct rte_mempool *pool)
+npf_rte_acl_mempool_grow(struct rte_mempool *pool, size_t grow_nb)
 {
 	int rc;
 	const struct rte_memzone *mz;
@@ -435,13 +435,12 @@ npf_rte_acl_mempool_grow(struct rte_mempool *pool)
 		return -EINVAL;
 
 	/* don't grow larger then the pool allows */
-	n = RTE_MIN((size_t)NPR_RULE_GROW_ELEMENTS,
-		    pool->size - pool->populated_size);
+	n = RTE_MIN(grow_nb, pool->size - pool->populated_size);
 
 	for (; n > 0; n -= rc) {
 
 		mem_size = rte_mempool_op_calc_mem_size_default(pool,
-								NPR_RULE_GROW_ELEMENTS,
+								n,
 								0,
 								&min_chunk_size,
 								&align);
@@ -524,7 +523,7 @@ npf_rte_acl_mempool_get(struct rte_mempool *pool, void **obj)
 	}
 
 	/* pool is empty, try to grow the pool */
-	rc = npf_rte_acl_mempool_grow(pool);
+	rc = npf_rte_acl_mempool_grow(pool, NPR_RULE_GROW_ELEMENTS);
 	if (rc < 0) {
 		RTE_LOG(ERR, DATAPLANE,
 			"Failed to get new element from %s: %s\n",
@@ -562,7 +561,7 @@ npf_rte_acl_mempool_create(const char *name, size_t max_elems, size_t elem_size,
 		goto error;
 	}
 
-	rc = npf_rte_acl_mempool_grow(mp);
+	rc = npf_rte_acl_mempool_grow(mp, NPR_RULE_GROW_ELEMENTS);
 	if (rc < 0) {
 		RTE_LOG(ERR, DATAPLANE,
 			"Failed initial memory pool population of %s: %s\n",
@@ -1165,7 +1164,8 @@ npf_rte_acl_trie_add_rule(int af, struct npf_match_ctx_trie *m_trie,
 		return -EINVAL;
 
 	if (rte_mempool_avail_count(rule_mempool) == 0) {
-		err = npf_rte_acl_mempool_grow(rule_mempool);
+		err = npf_rte_acl_mempool_grow(rule_mempool,
+					       NPR_RULE_GROW_ELEMENTS);
 		if (err < 0) {
 			RTE_LOG(ERR, DATAPLANE,
 				"Could not grow rule-pool to grow trie %s: %s\n",
@@ -1903,12 +1903,13 @@ npf_rte_acl_copy_rules(npf_match_ctx_t *ctx,
 			m_trie->trie_name, m_trie, m_trie->num_rules,
 			dst_trie->trie_name, __func__);
 
-	if (rte_mempool_avail_count(rule_mempool) < m_trie->num_rules) {
-		rc = npf_rte_acl_mempool_grow(rule_mempool);
+	while (rte_mempool_avail_count(rule_mempool) < m_trie->num_rules) {
+		size_t grow_nb = MAX(m_trie->num_rules, NPR_RULE_GROW_ELEMENTS);
+		rc = npf_rte_acl_mempool_grow(rule_mempool, grow_nb);
 		if (rc < 0) {
 			RTE_LOG(ERR, DATAPLANE,
-				"Could not grow (%u) rule mempool (%u/%u/%u) for trie merge %s: %s\n",
-				NPR_RULE_GROW_ELEMENTS,
+				"Could not grow (%lu) rule mempool (%u/%u/%u) for trie merge %s: %s\n",
+				grow_nb,
 				rte_mempool_avail_count(rule_mempool),
 				rte_mempool_in_use_count(rule_mempool),
 				rule_mempool->size,
