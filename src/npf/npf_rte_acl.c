@@ -365,6 +365,18 @@ acl_rule_hash(const void *data, uint32_t data_len, uint32_t init_val)
 	return rte_hash_crc(&rule->data.userdata, data_len, init_val);
 }
 
+static int
+acl_rule_hash_cmp(const void *key1, const void *key2, size_t key_len __rte_unused)
+{
+	const struct rte_acl_rule *rule1 = (const struct rte_acl_rule *) key1;
+	const struct rte_acl_rule *rule2 = (const struct rte_acl_rule *) key2;
+
+	if (rule1->data.userdata == rule2->data.userdata)
+		return 0;
+
+	return rule1->data.userdata < rule2->data.userdata ? -1 : 1;
+}
+
 #define NPR_MTRIE_MAX_RULES    MAX_TRANSACTION_ENTRIES
 #define NPR_POOL_DEF_MAX_TRIES 128
 
@@ -554,7 +566,7 @@ static int npf_rte_acl_create_trie(int af, int max_rules,
 				   struct npf_match_ctx_trie **m_trie)
 {
 	int err;
-	size_t key_len = sizeof(((struct rte_acl_rule *) 0)->data.userdata);
+	size_t key_len = sizeof(struct rte_acl_rule_data);
 
 	/* rte_acl in hashtable mode can only generate
 	 * rules with at least 8 entries.
@@ -568,6 +580,7 @@ static int npf_rte_acl_create_trie(int af, int max_rules,
 		.flags = ACL_F_USE_HASHTABLE,
 		.hash_func = acl_rule_hash,
 		.hash_key_len = key_len,
+		.hash_cmp_func = acl_rule_hash_cmp,
 	};
 	struct rte_acl_rcu_config rcu_conf = {
 		.mode = RTE_ACL_QSBR_MODE_DQ,
