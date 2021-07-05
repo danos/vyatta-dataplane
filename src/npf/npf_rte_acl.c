@@ -261,6 +261,18 @@ acl_rule_hash(const void *data, uint32_t data_len, uint32_t init_val)
 	return rte_jhash(&rule->data.userdata, data_len, init_val);
 }
 
+static int
+acl_rule_hash_cmp(const void *key1, const void *key2, size_t key_len __rte_unused)
+{
+	const struct rte_acl_rule *rule1 = (const struct rte_acl_rule *) key1;
+	const struct rte_acl_rule *rule2 = (const struct rte_acl_rule *) key2;
+
+	if (rule1->data.userdata == rule2->data.userdata)
+		return 0;
+
+	return rule1->data.userdata < rule2->data.userdata ? -1 : 1;
+}
+
 /*
  * Packet matching callback functions which use the rte_acl API
  */
@@ -269,7 +281,8 @@ int npf_rte_acl_init(int af, const char *name, uint32_t max_rules,
 		     struct rte_mempool *mempool, struct rte_rcu_qsbr *rcu_v,
 		     npf_match_ctx_t **m_ctx)
 {
-	size_t key_len = sizeof(((struct rte_acl_rule *) 0)->data.userdata);
+	size_t key_len = sizeof(struct rte_acl_rule_data);
+
 	struct rte_acl_param acl_param = {
 		.socket_id = SOCKET_ID_ANY,
 		.max_rule_num = max_rules,
@@ -277,6 +290,7 @@ int npf_rte_acl_init(int af, const char *name, uint32_t max_rules,
 		.hash_func = acl_rule_hash,
 		.hash_key_len = key_len,
 		.rule_pool = mempool,
+		.hash_cmp_func = acl_rule_hash_cmp,
 	};
 	struct rte_acl_rcu_config rcu_conf = {
 		.v = rcu_v,
