@@ -1,3 +1,19 @@
+vyatta-dataplane (3.14.1) unstable; urgency=medium
+
+  [ vishal.dhingra ]
+  * Dataplane Infra: To use configured tos/tclass values
+
+  [ Manohar Rapeti ]
+  * NPF: Reverting the VRVDR-53551 & VRVDR-53233
+  * NFP: Removed the NPF calls
+  * UT: Updated UT Originated firewall
+  * UT: Updated UT for ND packets Originated firewall
+  * UT: Added UT for MPLS ICMP Originated firewall
+  * UT: Added UT for MPLS ICMP Originated firewall
+  * UT: Added UT for MPLS ICMP Originated firewall
+
+ -- Srinivas Narayan <narayan@vyatta.att-mail.com>  Thu, 08 Jul 2021 17:49:37 +0100
+
 vyatta-dataplane (3.13.28) unstable; urgency=medium
 
   [ Paul Aitken ]
