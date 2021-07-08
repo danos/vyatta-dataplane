@@ -1,3 +1,37 @@
+vyatta-dataplane (3.13.28) unstable; urgency=medium
+
+  [ Paul Aitken ]
+  * remove unused session_sentry_insert_pkt
+  * change session APIs to static
+  * remove unused dp_session_get_state_name
+  * correct dp_session_pack to dp_session_pack_pb
+  * convert _dp_test_session_msg_check_rcvd to PB
+  * remove unused dp_session_pack and associated infra
+  * remove unused session_npf_pack_* functions
+  * remove unused NPF code
+  * mark session UT helper functions
+  * mark NPF UT helper functions
+  * remove unused NPF functions
+  * remove unused CGNAT functions
+  * mark CGNAT UT helper functions
+
+  [ Ian Wilson ]
+  * cgnat: Add an exclude address-group to cgnat_policy
+  * cgnat: Add config for exclude policy address-group
+  * cgnat: Add return code counter for excluded packets
+  * cgnat-ut: Configure a cgnat policy with an exclude address-group
+  * cgnat-ut: Add unit-tests to for cgnat exclude address-group
+  * cgnat: Enable use of CGNAT exclude address-group
+
+  [ Mark Gillott ]
+  * twamp: correct the order of timestamps (Fixes: VRVDR-55567)
+
+  [ Daniel Gollub ]
+  * meson: strip buildsystem specific version additions
+  * npf-rte-acl: fix spurious lookup rte-acl rule failures
+
+ -- Srinivas Narayan <narayan@vyatta.att-mail.com>  Thu, 08 Jul 2021 10:37:32 +0100
+
 vyatta-dataplane (3.13.27) unstable; urgency=medium
 
   [ Kalaivani Vinothkumar ]
