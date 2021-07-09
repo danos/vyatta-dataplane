@@ -22,11 +22,11 @@
 #include <errno.h>
 #include <netinet/in.h>
 #include <linux/if.h>
-#include <dpdk/rte_jhash.h>
 #include <rte_malloc.h>
 #include <rte_log.h>
 
 #include "compiler.h"
+#include "dp_xor_hash.h"
 #include "vplane_log.h"
 #include "if_var.h"
 #include "urcu.h"
@@ -639,7 +639,7 @@ static void apm_destroy(struct apm *apm)
 
 static ulong apm_hash(uint32_t addr, vrfid_t vrfid)
 {
-	return rte_jhash_1word(addr, vrfid);
+	return dp_xor_1word(addr, vrfid);
 }
 
 /*
