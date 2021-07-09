@@ -1107,11 +1107,9 @@ void crypto_sadb_flush_vrf(struct crypto_vrf_ctx *vrf_ctx)
 
 /*
  * Hash table size parameters. These must be powers of two.
- * Since we expect a small number of IPsec peers, we keep
- * the initial size of the hash table small.
  */
-#define SADB_HT_MAX_BUCKETS 2048
-#define SADB_HT_MIN_BUCKETS  8
+#define SADB_HT_MAX_BUCKETS (1 << 19)
+#define SADB_HT_MIN_BUCKETS (1 << 10)
 
 /*
  * crypto_sadb_init()
