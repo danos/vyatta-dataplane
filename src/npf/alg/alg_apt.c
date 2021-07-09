@@ -6,7 +6,7 @@
  * ALG Protocol Tuple (APT) Database
  */
 
-#include <rte_jhash.h>
+#include "dp_xor_hash.h"
 #include "json_writer.h"
 #include "vplane_log.h"
 #include "util.h"
@@ -302,15 +302,17 @@ static uint32_t apt_table_hash(const struct apt_match_key *m)
 		src = m->m_srcip->s6_addr32;
 		dst = m->m_dstip->s6_addr32;
 
-		hash = rte_jhash_2words(m->m_dport, m->m_proto, 0);
-
 		if (m->m_alen == 4)
-			return rte_jhash_2words(src[0], dst[0], hash);
+			return dp_xor_3words(m->m_dport, m->m_proto, src[0],
+					     dst[0]);
 
-		const uint32_t sz = m->m_alen >> 2;
+		uint32_t src_addr_hash, dst_addr_hash;
 
-		hash = rte_jhash_32b(src, sz, hash);
-		hash = rte_jhash_32b(dst, sz, hash);
+		src_addr_hash = dp_xor_3words(src[0], src[1], src[2], src[3]);
+		dst_addr_hash = dp_xor_3words(dst[0], dst[1], dst[2], dst[3]);
+
+		hash = dp_xor_3words(m->m_dport, m->m_proto, src_addr_hash,
+				     dst_addr_hash);
 		break;
 
 	case APT_MATCH_NONE:
