@@ -71,6 +71,12 @@ static struct rte_mempool *npr_acl6_pool;
  */
 #define M_TRIE_POOL_SIZE (NPR_POOL_DEF_MAX_TRIES * 2)
 
+/* Threshold which defines a small pool trie as frozen, and no longer accepts
+ * additional rules. This threshold mitigates starvation of trie pools under
+ * high load conditions.
+ */
+#define TRIE_FREEZE_THRESHOLD  NPR_MTRIE_MAX_RULES
+
 struct rte_ring *npr_acl4_ring, *npr_acl6_ring;
 
 /*
@@ -1275,10 +1281,14 @@ static int npf_rte_acl_trie_build(int af, struct npf_match_ctx_trie *m_trie)
 		return err;
 	}
 
-	DP_DEBUG(RLDB_ACL, DEBUG, DATAPLANE, "Updating trie-state %s from %s to %s (%s)\n",
-			m_trie->trie_name, trie_state_strs[m_trie->trie_state],
-			trie_state_strs[TRIE_STATE_FROZEN], __func__);
-	m_trie->trie_state = TRIE_STATE_FROZEN;
+	if (m_trie->num_rules >= TRIE_FREEZE_THRESHOLD) {
+
+		DP_DEBUG(RLDB_ACL, DEBUG, DATAPLANE, "Updating trie-state %s from %s to %s (%s)\n",
+				m_trie->trie_name,
+				trie_state_strs[m_trie->trie_state],
+				trie_state_strs[TRIE_STATE_FROZEN], __func__);
+		m_trie->trie_state = TRIE_STATE_FROZEN;
+	}
 	return 0;
 }
 
@@ -1403,15 +1413,6 @@ int npf_rte_acl_del_rule(int af, npf_match_ctx_t *m_ctx, uint32_t rule_no,
 		m_trie = cds_list_entry(list_entry, struct npf_match_ctx_trie,
 					trie_link);
 
-		/*
-		 * deletes are only permitted on entries that have been
-		 * successfully added and committed. So writable tries
-		 * get skipped. Delete is either done on a frozen or merging
-		 * trie.
-		 */
-		if (m_trie->trie_state == TRIE_STATE_WRITABLE)
-			continue;
-
 		err = npf_rte_acl_trie_del_rule(af, m_trie, acl_rule);
 
 		/*
@@ -1513,12 +1514,6 @@ int npf_rte_acl_match(int af, npf_match_ctx_t *m_ctx,
 	cds_list_for_each_safe(list_entry, next, &m_ctx->trie_list) {
 		m_trie = cds_list_entry(list_entry, struct npf_match_ctx_trie,
 					trie_link);
-
-		if (m_trie->trie_state == TRIE_STATE_WRITABLE) {
-			DP_DEBUG(RLDB_ACL, DEBUG, DATAPLANE, "Skipping trie %s\n",
-				 m_trie->trie_name);
-			continue;
-		}
 
 		err = npf_rte_acl_trie_match(af, m_trie, npc, data, rule_no);
 		if (!err) {
