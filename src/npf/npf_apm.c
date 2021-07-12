@@ -13,7 +13,6 @@
 #include <rte_branch_prediction.h>
 #include <rte_config.h>
 #include <rte_debug.h>
-#include <rte_jhash.h>
 #include <rte_log.h>
 #include <rte_malloc.h>
 #include <rte_spinlock.h>
@@ -24,6 +23,7 @@
 #include <values.h>
 
 #include "compiler.h"
+#include "dp_xor_hash.h"
 #include "json_writer.h"
 #include "npf/npf_addrgrp.h"
 #include "npf/npf_apm.h"
@@ -393,7 +393,7 @@ static int map_match(struct cds_lfht_node *node, const void *key)
 
 static unsigned long apm_hash(uint32_t addr, vrfid_t vrfid)
 {
-	return rte_jhash_32b(&addr, 1, vrfid);
+	return dp_xor_1word(addr, vrfid);
 }
 
 static struct port_map *map_get(uint32_t addr, vrfid_t vrfid, bool create)
