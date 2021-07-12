@@ -10,9 +10,9 @@
 #include <time.h>
 #include <netinet/in.h>
 #include <linux/if.h>
-#include <rte_jhash.h>
 
 #include "compiler.h"
+#include "dp_xor_hash.h"
 #include "if_var.h"
 #include "util.h"
 #include "soft_ticks.h"
@@ -288,12 +288,8 @@ static void alg_pinhole_put(struct alg_pinhole *ap)
 __attribute__((nonnull))
 static ulong alg_pinhole_hash(const struct alg_pinhole_key *key)
 {
-	/*
-	 * A special optimized version of jhash that handles 1 or more of
-	 * uint32_ts.
-	 */
-	return rte_jhash_32b((const uint32_t *)key,
-			     sizeof(*key) / sizeof(uint32_t), 0);
+	return dp_xor_array32((const uint32_t *)key,
+			      sizeof(*key) / sizeof(uint32_t), 0);
 }
 
 /*
