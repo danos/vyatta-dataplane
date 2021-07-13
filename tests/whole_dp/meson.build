@@ -134,6 +134,7 @@ check_tests = [
         'dp_test_session.c',
         'dp_test_session_cmds.c',
         'dp_test_sfp.c',
+        'dp_test_sfp_permit_list.c',
         'dp_test_slow_path.c',
         'dp_test_storm_ctl.c',
         'dp_test_switch.c',
@@ -197,7 +198,8 @@ dataplane_test = executable(
                 '-Wl,-wrap,rte_mempool_create',
                 '-Wl,-wrap,rte_eal_init',
                 '-Wl,-wrap,popen',
-                '-Wl,-wrap,pclose'
+                '-Wl,-wrap,pclose',
+                '-Wl,-wrap,sysinfo',
         ],
         link_with: [jsonw_library],
         export_dynamic: true,

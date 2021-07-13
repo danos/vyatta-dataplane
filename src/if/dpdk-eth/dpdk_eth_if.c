@@ -1362,8 +1362,14 @@ dpdk_eth_if_set_speed(struct ifnet *ifp, bool autoneg,
 int
 dpdk_eth_link_get_nowait(uint16_t port_id, struct rte_eth_link *eth_link)
 {
+	struct ifnet *ifp = ifport_table[port_id];
 	struct rte_eth_dev_info dev_info;
 	int rc;
+
+	if (ifp->sfp_holddown) {
+		eth_link->link_status = ETH_LINK_DOWN;
+		return 0;
+	}
 
 	rc = rte_eth_link_get_nowait(port_id, eth_link);
 
@@ -1388,7 +1394,7 @@ dpdk_eth_if_get_link_status(struct ifnet *ifp,
 	memset(&link, 0, sizeof(link));
 
 	/* consider unplugged as down, but don't ask DPDK */
-	if (!ifp->unplugged)
+	if (!ifp->unplugged && !ifp->sfp_holddown)
 		dpdk_eth_link_get_nowait(ifp->if_port, &link);
 
 	if_link->link_status = link.link_status;

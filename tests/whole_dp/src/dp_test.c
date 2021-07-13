@@ -491,11 +491,14 @@ void sfpd_send_msg(void *data, size_t size, const char *hdr)
 
 static char *dp_test_sfpd_socket_open(void)
 {
-	dp_test_sfpd_sock = zsock_new_push(NULL);
+	char *ep;
+
+	dp_test_sfpd_sock = zsock_new_pub("ipc://*");
 	assert(dp_test_sfpd_sock);
-	if (zsock_bind(dp_test_sfpd_sock, "%s", "ipc://*") < 0)
-		dp_test_abort_internal();
-	return zsock_last_endpoint(dp_test_sfpd_sock);
+	ep = zsock_last_endpoint(dp_test_sfpd_sock);
+	assert(ep);
+
+	return ep;
 }
 
 static void generate_conf_file(const char *cfgfile, const char *console_ep,
@@ -808,6 +811,8 @@ int __wrap_main(int argc, char **argv)
 	zactor_destroy(&dp_test_actor);
 	zactor_destroy(&dp_test_broker_actor);
 	zactor_destroy(&dp_test_xfrm_server_actor);
+	zsock_destroy(&dp_test_sfpd_sock);
+
 	cleanup_temp_files(cfgfile);
 
 	/*

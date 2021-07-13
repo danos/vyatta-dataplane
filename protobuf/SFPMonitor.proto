@@ -25,11 +25,25 @@ message SfpPermitConfig {
 		MONITOR = 1;
 	}
 
-	message SfpPart {
-		required string part = 1;
+	message Rev {
+		optional string rev = 3;
 	}
 
-	message SfpPermitMisMatchConfig {
+	message Part {
+		required string part = 1;
+
+		repeated Rev revs = 2;
+	}
+
+	message Vendor{
+		required string name = 1;
+
+		optional string oui = 2;
+
+		repeated Part parts = 3;
+	}
+
+	message MisMatchConfig {
 		required Action action = 1 [default = SET];
 
 		required Logging logging = 2 [default = DISABLE];
@@ -39,22 +53,16 @@ message SfpPermitConfig {
 		required uint32 delay = 4 [default = 900];
 	}
 
-	message SfpPermitListConfig {
+	message ListConfig {
 		required Action action = 1 [default = SET];
 
 		required string name = 2;
 
-		optional string vendor = 3;
-
-		optional string vendor_oui = 4;
-
-		optional string vendor_rev = 5;
-
-		repeated SfpPart vendor_parts = 6;
+		repeated Vendor vendors = 3;
 	}
 
 	oneof mtype {
-		SfpPermitMisMatchConfig mismatch = 1;
-		SfpPermitListConfig list = 2;
+		MisMatchConfig mismatch = 1;
+		ListConfig list = 2;
 	}
 }

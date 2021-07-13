@@ -135,6 +135,7 @@
 #include "vrf_internal.h"
 #include "backplane.h"
 #include "ip_icmp.h"
+#include "transceiver.h"
 
 packet_input_t packet_input_func __hot_data = ether_input_no_dyn_feats;
 
@@ -3663,6 +3664,7 @@ main(int argc, char **argv)
 	vrf_init();
 	qos_init();
 	twamp_init();
+	sfpd_open_socket();
 	main_worker_thread_init();
 	/* needs to be after features have had a chance to register */
 	dp_lcore_events_init(rte_lcore_id());

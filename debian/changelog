@@ -14,6 +14,47 @@ vyatta-dataplane (3.14.1) unstable; urgency=medium
 
  -- Srinivas Narayan <narayan@vyatta.att-mail.com>  Thu, 08 Jul 2021 17:49:37 +0100
 
+vyatta-dataplane (3.13.29) unstable; urgency=medium
+
+  [ Gavin Shearer ]
+  * pipeline: add static assertions to detect too many feature enums
+
+  [ Simon Barber ]
+  * Add SFP debug flags
+  * Change SFPd socket to subscriber
+  * Add SFPd socket init
+  * Initial SFP permit list feature code
+  * UT: Add initial sfp permit-list UT framework
+  * UT: Send SFP permit list delete
+  * Add vplsh cmd to verify parts
+  * UT: Add check command to verify SFP permit-list
+  * Add global permit list mismatch cfg
+  * UT: Add code to validate the mismatch config
+  * Add SFP record structure
+  * Add common hash table functions
+  * Add SFPd socket  msg handler
+  * Start and Process updates from  the SFPd
+  * UT:Generate SFPd status file and notify system
+  * Process SFPd updates
+  * Validate SFPd  status against permit-list
+  * UT:Wrapper utility call to get system uptime
+  * Add sfp_holddown flag
+  * Add sfp device dump
+  * UT: Add support for retrieving known SFP devices
+  * Upon dataplane restart load any existing SFP status file
+  * Only walk SFP tables if feature is configured
+  * UT:Release SFPd socket at tidy update
+  * Process SFPd notifications event if permit-list not active
+
+  [ ck407g ]
+  * Shortened protobuf message names
+  * Changes to Data model
+
+  [ Simon Barber ]
+  * UT: Add UT support for the new multi level yang model
+
+ -- Srinivas Narayan <narayan@vyatta.att-mail.com>  Mon, 12 Jul 2021 09:28:51 +0100
+
 vyatta-dataplane (3.13.28) unstable; urgency=medium
 
   [ Paul Aitken ]
