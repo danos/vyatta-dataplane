@@ -1633,6 +1633,39 @@ nd6_lladdr_add(struct ifnet *ifp, struct in6_addr *addr,
 }
 
 /*
+ * Handles upper layer reachability updates
+ */
+void
+nd6_lladdr_ulr_update(struct ifnet *ifp, struct in6_addr *addr, const bool confirmed)
+{
+	struct llentry *lle;
+
+	dp_rcu_read_lock();
+	lle = in6_lltable_lookup(ifp, 0, addr);
+	if (!lle)
+		goto end;
+
+	if (lle->la_flags & (LLE_STATIC | LLE_DELETED))
+		goto end;
+
+	if (confirmed) {
+		ND6_DEBUG("Add ULR flag - interface:%s, ip:%s, current state:%s\n",
+				ifp->if_name, lladdr_ntop6(lle), nd6_dbgstate[lle->la_state]);
+		lle->la_flags |= LLE_ULR;
+		nd6_change_state(ifp, lle, ND6_LLINFO_REACHABLE, nd6_cfg.nd6_scavenge_time);
+
+	} else {
+		ND6_DEBUG("Remove ULR flag - interface:%s, ip:%s, current state:%s\n",
+				ifp->if_name, lladdr_ntop6(lle), nd6_dbgstate[lle->la_state]);
+		lle->la_flags &= ~LLE_ULR;
+		nd6_change_state(ifp, lle, ND6_LLINFO_STALE, nd6_cfg.nd6_scavenge_time);
+	}
+
+end:
+	dp_rcu_read_unlock();
+}
+
+/*
  * the caller acquires and releases the lock on the lltbls
  * Returns the llentry locked
  */
@@ -1872,6 +1905,9 @@ nd6_cache_age(struct lltable *llt, bool refresh_timer_expired)
 			llentry_routing_install(lle);
 
 		if (lle->la_flags & LLE_STATIC)
+			continue;
+
+		if (lle->la_flags & LLE_ULR)
 			continue;
 
 		if (lle->ll_expire == 0 || !refresh_timer_expired)

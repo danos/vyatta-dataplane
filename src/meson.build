@@ -108,6 +108,7 @@ core_sources = files(
         'ip_mcast.c',
         'ip_mcast_fal_interface.c',
         'ip_netlink.c',
+        'ip_nud_ulr.c',
         'ip_options.c',
         'ip_output.c',
         'ip_route.c',

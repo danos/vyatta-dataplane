@@ -24,6 +24,7 @@ usr/include/vyatta-dataplane/interface.h
 usr/include/vyatta-dataplane/ip.h
 usr/include/vyatta-dataplane/ip_checksum.h
 usr/include/vyatta-dataplane/ip_forward.h
+usr/include/vyatta-dataplane/ip_nud_ulr.h
 usr/include/vyatta-dataplane/json_writer.h
 usr/include/vyatta-dataplane/lcore_sched.h
 usr/include/vyatta-dataplane/pipeline.h

@@ -18,6 +18,7 @@ install_headers(
         'ip.h',
         'ip_checksum.h',
         'ip_forward.h',
+        'ip_nud_ulr.h',
         'json_writer.h',
         'lcore_sched.h',
         'pktmbuf.h',
