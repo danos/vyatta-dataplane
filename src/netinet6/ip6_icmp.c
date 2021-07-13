@@ -54,8 +54,8 @@
 
 static bool ip6_redirects = true;
 
-/** Traffic class value to be used when dataplane sending ICMP error packets. **/
-static uint8_t icmp6_error_tclass = IPTOS_PREC_ROUTINE;
+/* Traffic class value to be used when dataplane sending ICMP error packets. */
+static uint8_t icmp6_error_tclass = IPTOS_CLASS_CS6;
 
 /*
  * ICMP Rate limiting state for configurable types. Entry 0 holds

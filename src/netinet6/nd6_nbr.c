@@ -132,7 +132,8 @@ static struct nd6_nbr_cfg nd6_cfg = {
 	.nd6_maxhold		= ND6_MAXHOLD,
 };
 
-static uint8_t nd6_tclass = IPTOS_PREC_INTERNETCONTROL;
+/* Traffic class value to be used when dataplane sending ND packets. */
+static uint8_t nd6_tclass = IPTOS_CLASS_CS6;
 
 static void nd6_log_conflict(struct ifnet *ifp,
 			     const struct rte_ether_addr *lladdr,

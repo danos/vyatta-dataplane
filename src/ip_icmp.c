@@ -97,8 +97,8 @@ struct icmp_ext_obj_hdr {
 static bool ip_redirects = true;
 uint64_t icmpstats[ICMP_MIB_MAX];
 
-/** TOS value to be used when dataplane sending ICMP error packets. **/
-static uint8_t icmp_error_tos = IPTOS_PREC_INTERNETCONTROL;
+/* TOS value to be used when dataplane sending ICMP error packets. */
+static uint8_t icmp_error_tos = IPTOS_CLASS_CS6;
 
 /*
  * ICMP Rate limiting state for configurable types. Entry 0 holds
