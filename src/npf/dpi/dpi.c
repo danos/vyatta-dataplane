@@ -365,7 +365,7 @@ dpi_session_first_packet(struct npf_session *se, struct npf_cache *npc,
 
 free_flows:
 	for (unsigned int j = 0; j < i; j++) {
-		struct flow_procs_tup *tup = &flow->flows[i];
+		struct flow_procs_tup *tup = &flow->flows[j];
 		if (!tup)
 			continue;
 		if (!tup->procs)

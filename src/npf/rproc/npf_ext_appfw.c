@@ -389,10 +389,15 @@ appfw_action(npf_cache_t *npc, struct rte_mbuf **nbuf, void *arg,
 	 */
 	dpi_flow = npf_session_get_dpi(se);
 	if (!dpi_flow) {
+#ifdef USE_NDPI
 		uint8_t engines[] = { IANA_USER, IANA_NDPI };
-
+		size_t engines_len = 2;
+#else
+		uint8_t engines[] = { IANA_USER };
+		size_t engines_len = 1;
+#endif /* USER_NDPI */
 		rc = dpi_session_first_packet(se, npc, *nbuf,
-				ah->ah_initial_dir, 2, engines);
+				ah->ah_initial_dir, engines_len, engines);
 		if (rc != 0)
 			goto drop;
 		dpi_flow = npf_session_get_dpi(se);

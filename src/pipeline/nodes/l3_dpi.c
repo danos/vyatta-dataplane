@@ -75,8 +75,15 @@ ip_dpi_process_common(struct pl_packet *pkt, bool v4, int dir)
 	}
 
 	/* Attach the DPI flow info, do first packet inspection */
-	uint8_t engines[] = {IANA_USER, IANA_NDPI};
-	(void)dpi_session_first_packet(se, npc, m, dir, 2, engines);
+#ifdef USE_NDPI
+		uint8_t engines[] = {IANA_USER, IANA_NDPI};
+		size_t engines_len = 2;
+#else
+		uint8_t engines[] = {IANA_USER};
+		size_t engines_len = 1;
+#endif /* USER_NDPI */
+
+	(void)dpi_session_first_packet(se, npc, m, dir, engines_len, engines);
 
 done:
 	if (dir == PFIL_IN)
