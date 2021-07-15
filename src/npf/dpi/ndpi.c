@@ -37,8 +37,8 @@
 #include "util.h"
 #include "vplane_debug.h"
 
-#define NDPI_PROTOCOLS_PATH	"/opt/vyatta/etc/dpi/protocols.cfg"
-#define NDPI_CATEGORIES_PATH	"/opt/vyatta/etc/dpi/categories.cfg"
+#define NDPI_PROTOCOLS_PATH	"/config/ndpi/protocols.cfg"
+#define NDPI_CATEGORIES_PATH	"/config/ndpi/categories.cfg"
 
 #define NDPI_FLOW_PKT_MAX 10
 
