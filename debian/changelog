@@ -1,3 +1,11 @@
+vyatta-dataplane (3.12.55.3) unstable; urgency=medium
+
+  [ Daniel Gollub ]
+  * npf-rte-acl: fix spurious lookup rte-acl rule failures
+  * npf-rte-acl: switch to CRC hashing
+
+ -- Srinivas Narayan <narayan@vyatta.att-mail.com>  Fri, 16 Jul 2021 11:52:52 +0100
+
 vyatta-dataplane (3.12.55.2) unstable; urgency=medium
 
   * Use pmd type instance count to trigger loadshare
