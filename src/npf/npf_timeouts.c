@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -114,11 +114,15 @@ int npf_tcp_timeout_set(struct npf_timeout *to, enum tcp_session_state state,
  */
 uint32_t npf_gen_timeout_get(const npf_state_t *nst,
 			     enum dp_session_state state,
-			     enum npf_proto_idx proto_idx, uint32_t custom)
+			     enum npf_proto_idx proto_idx,
+			     const struct session *s)
 {
+	if (unlikely(!s))
+		return NPF_NEW_SESS_TIMEOUT;
+
 	/* Custom timeout only applies to Established sessions */
-	if (custom && state == SESSION_STATE_ESTABLISHED)
-		return custom;
+	if (s->se_custom_timeout && state == SESSION_STATE_ESTABLISHED)
+		return s->se_custom_timeout;
 
 	const struct npf_timeout *to;
 
@@ -134,11 +138,14 @@ uint32_t npf_gen_timeout_get(const npf_state_t *nst,
  */
 uint32_t npf_tcp_timeout_get(const npf_state_t *nst,
 			     enum tcp_session_state tcp_state,
-			     uint32_t custom)
+			     const struct session *s)
 {
+	if (unlikely(!s))
+		return NPF_NEW_SESS_TIMEOUT;
+
 	/* Custom timeout only applies to Established sessions */
-	if (custom && tcp_state == NPF_TCPS_ESTABLISHED)
-		return custom;
+	if (s->se_custom_timeout && tcp_state == NPF_TCPS_ESTABLISHED)
+		return s->se_custom_timeout;
 
 	const struct npf_timeout *to;
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  */
@@ -245,8 +245,7 @@ npf_session_tcp_log(npf_session_t *se, enum tcp_session_state state)
 
 	const char *state_name = npf_state_get_tcp_name(state);
 
-	timeout = npf_tcp_timeout_get(nst, state,
-				      se->s_session->se_custom_timeout);
+	timeout = npf_tcp_timeout_get(nst, state, se->s_session);
 
 	npf_session_log(se, state_name, timeout, IPPROTO_TCP, "tcp");
 }
@@ -265,8 +264,7 @@ npf_session_gen_log(npf_session_t *se, enum dp_session_state state,
 	const char *state_name = dp_session_state_name(state, true);
 	const char *proto_name = npf_get_protocol_name_from_idx(proto_idx);
 
-	timeout = npf_gen_timeout_get(nst, state, proto_idx,
-				      se->s_session->se_custom_timeout);
+	timeout = npf_gen_timeout_get(nst, state, proto_idx, se->s_session);
 
 	npf_session_log(se, state_name, timeout, se->s_proto, proto_name);
 }
