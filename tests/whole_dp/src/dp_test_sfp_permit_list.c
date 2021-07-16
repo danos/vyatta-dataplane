@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020, AT&T Intellectual Property.
+ * Copyright (c) 2021, AT&T Intellectual Property.
  * All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
@@ -93,16 +93,14 @@ _show_sfp_permit_mismatch_info(const char *file, int line)
 				       false, 0, file,
 				       "", line);
 	json_object_put(jexp);
-
 }
 
 #define show_sfp_permit_mismatch_info()				\
 	_show_sfp_permit_mismatch_info(__FILE__, __LINE__)
 
 static void
-_show_sfp_permit_list_info(const char *list_name, const char *part,
-			   const char *vendor, bool present,
-			   const char *file, int line)
+_show_sfp_permit_list_info(const char *list_name, uint32_t index,
+		const char *part, const char *vendor, const char *file, int line)
 {
 	json_object *jexp;
 	char cmd_str[50];
@@ -113,24 +111,23 @@ _show_sfp_permit_list_info(const char *list_name, const char *part,
 	 * Expected JSON depends on whether an intf is specified
 	 * and if so, whether is it assigned a profile.
 	 */
-	if (present) {
-		jexp = dp_test_json_create(
-			"{"
-			"\"sfp-permit-list\":"
-			"{\"lists\":["
-			"{\"Name\":\"%s\","
-
-			"\"lists\":["
-
-			"{\"vendor_part\":"
-			"\"%s\","
-			"\"vendor\":"
-			"\"%s\""
-			"}"
-			"]"
-
-			"}"
-			"]}}", list_name, part, vendor);
+	if (part != NULL) {
+		if (vendor != NULL) {
+			jexp = dp_test_json_create(
+				"{"
+				"\"sfp-permit-list\":"
+				"{\"lists\":["
+				"{\"Name\":\"%s\","
+				"\"lists\":["
+				"{\"part_index\":"
+				"%u,"
+				"\"vendor_part\":"
+				"\"%s\""
+				"}"
+				"]"
+				"}"
+				"]}}", list_name, index, part);
+		}
 	} else {
 		jexp = dp_test_json_create(
 			"{ "
@@ -145,8 +142,8 @@ _show_sfp_permit_list_info(const char *list_name, const char *part,
 	json_object_put(jexp);
 }
 
-#define show_sfp_permit_list_info(list_name, parts, vendor, present) \
-	_show_sfp_permit_list_info(list_name, parts, vendor, present, \
+#define show_sfp_permit_list_info(list_name, index, parts, vendor) \
+	_show_sfp_permit_list_info(list_name, index, parts, vendor, \
 				   __FILE__, __LINE__)
 
 static void
@@ -168,7 +165,7 @@ _show_sfp_permit_list_device(const char *intf_name, const char *part_id,
 			"{"
 			"\"sfp-permit-list-devices\":"
 			"{\"enforcement-mode\":true,"
-			"\"up-time\":%d,"
+			"\"up-time\":%u,"
 			"\"devices\": ["
 			"{"
 			"\"intf_name\":"
@@ -182,7 +179,7 @@ _show_sfp_permit_list_device(const char *intf_name, const char *part_id,
 			"\"vendor_rev\":"
 			"\"44.5\","
 			"\"detection_time\":"
-			"%d,"
+			"%u,"
 			"\"approved\":"
 			"%s,"
 			"\"disabled\":"
@@ -203,7 +200,6 @@ _show_sfp_permit_list_device(const char *intf_name, const char *part_id,
 				       false, 0, file,
 				       "", line);
 	json_object_put(jexp);
-
 }
 
 #define show_sfp_permit_list_device(intf_name, parts, time, approved, \
@@ -228,113 +224,70 @@ static void sfp_permit_list_send(SfpPermitConfig *Cfg)
 SfpPermitConfig__ListConfig ListCfg =
 	SFP_PERMIT_CONFIG__LIST_CONFIG__INIT;
 
-SfpPermitConfig__Vendor Vendor1 =
-		SFP_PERMIT_CONFIG__VENDOR__INIT;
-SfpPermitConfig__Vendor Vendor2 =
-		SFP_PERMIT_CONFIG__VENDOR__INIT;
+SfpPermitConfig__SFP SFP_1 = {
+	PROTOBUF_C_MESSAGE_INIT(&sfp_permit_config__sfp__descriptor),
+	true, 1, "SIMON", "Cisco", NULL, NULL};
+SfpPermitConfig__SFP SFP_2 = {
+	PROTOBUF_C_MESSAGE_INIT(&sfp_permit_config__sfp__descriptor),
+	true, 2, "PAULINE", "Brocade", NULL, NULL};
+SfpPermitConfig__SFP SFP_3 = {
+	PROTOBUF_C_MESSAGE_INIT(&sfp_permit_config__sfp__descriptor),
+	true, 3, "ALLAN", "Cisco", NULL, NULL };
+SfpPermitConfig__SFP SFP_4 = {
+	PROTOBUF_C_MESSAGE_INIT(&sfp_permit_config__sfp__descriptor),
+	true, 4, "DESMOND", NULL, NULL, NULL};
+SfpPermitConfig__SFP SFP_5 = {
+	PROTOBUF_C_MESSAGE_INIT(&sfp_permit_config__sfp__descriptor),
+	true, 5, "DES*", NULL, NULL, NULL};
+SfpPermitConfig__SFP SFP_6 = {
+	PROTOBUF_C_MESSAGE_INIT(&sfp_permit_config__sfp__descriptor),
+	true, 6, "PAUL", NULL, NULL, NULL};
+SfpPermitConfig__SFP SFP_7 = {
+	PROTOBUF_C_MESSAGE_INIT(&sfp_permit_config__sfp__descriptor),
+	true, 7, "AL*", "Cisco", NULL, NULL};
+SfpPermitConfig__SFP SFP_8 = {
+	PROTOBUF_C_MESSAGE_INIT(&sfp_permit_config__sfp__descriptor),
+	true, 8, "THOMAS", "Brocade", NULL, NULL};
+SfpPermitConfig__SFP SFP_9 = {
+	PROTOBUF_C_MESSAGE_INIT(&sfp_permit_config__sfp__descriptor),
+	true, 9, "THOMAS", "Brocade", NULL, NULL};
+SfpPermitConfig__SFP SFP_10 = {
+	PROTOBUF_C_MESSAGE_INIT(&sfp_permit_config__sfp__descriptor),
+	true, 10, "CAT*", NULL, NULL, NULL};
+SfpPermitConfig__SFP SFP_11 = {
+	PROTOBUF_C_MESSAGE_INIT(&sfp_permit_config__sfp__descriptor),
+	true, 11, "BI*", NULL, NULL, NULL};
 
-SfpPermitConfig__Vendor *Vendor_list[] = {&Vendor1,
-					  &Vendor2};
-SfpPermitConfig__Rev Rev1 = {
-	PROTOBUF_C_MESSAGE_INIT(&sfp_permit_config__rev__descriptor),
-	"Rev1"};
-SfpPermitConfig__Rev Rev2 = {
-	PROTOBUF_C_MESSAGE_INIT(&sfp_permit_config__rev__descriptor),
-	"Rev2"};
-
-
-SfpPermitConfig__Rev *Rev[2] = {
-	&Rev1, &Rev2};
-
-SfpPermitConfig__Part Part_1 = {
-	PROTOBUF_C_MESSAGE_INIT(&sfp_permit_config__part__descriptor),
-	"SIMON", 0, NULL};
-SfpPermitConfig__Part Part_2 = {
-	PROTOBUF_C_MESSAGE_INIT(&sfp_permit_config__part__descriptor),
-	"PAULINE", 0, NULL};
-SfpPermitConfig__Part Part_3 = {
-	PROTOBUF_C_MESSAGE_INIT(&sfp_permit_config__part__descriptor),
-	"ALLAN", 0, NULL};
-SfpPermitConfig__Part Part_4 = {
-	PROTOBUF_C_MESSAGE_INIT(&sfp_permit_config__part__descriptor),
-	"DESMOND", 2, Rev};
-SfpPermitConfig__Part Part_5 = {
-	PROTOBUF_C_MESSAGE_INIT(&sfp_permit_config__part__descriptor),
-	"DES*", 0, NULL};
-SfpPermitConfig__Part Part_6 = {
-	PROTOBUF_C_MESSAGE_INIT(&sfp_permit_config__part__descriptor),
-	"PAUL", 0, NULL};
-SfpPermitConfig__Part Part_7 = {
-	PROTOBUF_C_MESSAGE_INIT(&sfp_permit_config__part__descriptor),
-	"AL*", 0, NULL};
-SfpPermitConfig__Part Part_8 = {
-	PROTOBUF_C_MESSAGE_INIT(&sfp_permit_config__part__descriptor),
-	"THOMAS", 0, NULL};
-SfpPermitConfig__Part Part_9 = {
-	PROTOBUF_C_MESSAGE_INIT(&sfp_permit_config__part__descriptor),
-	"TOM", 0, NULL};
-SfpPermitConfig__Part Part_10 = {
-	PROTOBUF_C_MESSAGE_INIT(&sfp_permit_config__part__descriptor),
-	"CAT*", 0, NULL};
-SfpPermitConfig__Part Part_11 = {
-	PROTOBUF_C_MESSAGE_INIT(&sfp_permit_config__part__descriptor),
-	"BI*", 0, NULL};
-
-SfpPermitConfig__Part *Part_list[11] = {
-	&Part_1, &Part_2, &Part_3, &Part_4, &Part_5,
-	&Part_6, &Part_7, &Part_8, &Part_9, &Part_10, &Part_11};
-
+SfpPermitConfig__SFP *SFP_list[11] = {
+	&SFP_1, &SFP_2, &SFP_3, &SFP_4, &SFP_5,
+	&SFP_6, &SFP_7, &SFP_8, &SFP_9, &SFP_10, &SFP_11};
 
 static void sfp_list_build_and_send(const char *list_name,
-				    SfpPermitConfig__Part **Part,
-				    uint32_t num_parts,
-				    uint32_t num_vendors,
-				    int action)
+				    SfpPermitConfig__SFP **sfps, uint32_t num_sfps,
+					int action)
 {
-
-	uint vendor1_size;
-
-	if (num_vendors == 2)
-		vendor1_size = num_parts / num_vendors;
-	else
-		vendor1_size = num_parts;
 
 	SfpPermitConfig Cfg = SFP_PERMIT_CONFIG__INIT;
 	Cfg.mtype_case = SFP_PERMIT_CONFIG__MTYPE_LIST;
 	Cfg.list = &ListCfg;
 	ListCfg.action = action;
 	ListCfg.name = (char *)list_name;
-	ListCfg.n_vendors = num_vendors;
-	ListCfg.vendors = &Vendor_list[0];
-
-	Vendor_list[0]->n_parts = vendor1_size;
-	Vendor_list[0]->name = "Cisco";
-	Vendor_list[0]->oui = "aa.bb.cc";
-	Vendor_list[0]->parts = Part;
-
-	/* Second Vendor not always sent */
-	if (num_vendors == 2) {
-		int vendor2_size = num_parts - vendor1_size;
-
-		Vendor_list[1]->n_parts = vendor2_size;
-		Vendor_list[1]->name = "Brocade";
-		Vendor_list[1]->oui = "dd.ee.ff";
-		Vendor_list[1]->parts = &Part[vendor2_size];
-	}
+	ListCfg.n_sfps = num_sfps;
+	ListCfg.sfps = sfps;
 
 	sfp_permit_list_send(&Cfg);
 }
 
 static void sfp_list_add(const char *name,
-			 SfpPermitConfig__Part **Parts,
-			 uint32_t num_parts, uint32_t num_vendors)
+			 SfpPermitConfig__SFP **Indices,
+			 uint32_t num_indices)
 {
-	sfp_list_build_and_send(name, Parts, num_parts, num_vendors,
+	sfp_list_build_and_send(name, Indices, num_indices,
 				SFP_PERMIT_CONFIG__ACTION__SET);
 }
 static void sfp_list_delete(const char *name)
 {
-	sfp_list_build_and_send(name, NULL, 0, 0,
+	sfp_list_build_and_send(name, NULL, 0,
 				SFP_PERMIT_CONFIG__ACTION__DELETE);
 }
 
@@ -347,11 +300,15 @@ static void sfp_mismatch_action_send(bool enforcement, bool logging, uint32_t de
 	Cfg.mtype_case = SFP_PERMIT_CONFIG__MTYPE_MISMATCH;
 	Cfg.mismatch = &MismatchCfg;
 
+	MismatchCfg.has_logging = true;
 	MismatchCfg.logging = logging ? SFP_PERMIT_CONFIG__LOGGING__ENABLE :
 		SFP_PERMIT_CONFIG__LOGGING__DISABLE;
+
+	MismatchCfg.has_enforcement = true;
 	MismatchCfg.enforcement = enforcement ? SFP_PERMIT_CONFIG__ENFORCEMENT__ENFORCE :
 		SFP_PERMIT_CONFIG__ENFORCEMENT__MONITOR;
 
+	MismatchCfg.has_delay = true;
 	MismatchCfg.delay = delay;
 	sfp_permit_list_send(&Cfg);
 }
@@ -374,8 +331,8 @@ DP_START_TEST(list, test1)
 	dp_test_sys_uptime_inc(10);
 
 	/* Add a list of allowed SFPs */
-	sfp_list_add("List_1", &Part_list[0], 5, 1);
-	show_sfp_permit_list_info("List_1", "SIMON", "Cisco", true);
+	sfp_list_add("List_1", &SFP_list[0], 5);
+	show_sfp_permit_list_info("List_1", 1, "SIMON", "Cisco");
 
 	/* Add an SFP of part_id 'CATHERINE' that is not in the list */
 	generate_sfpd_file("sfpd_status", PORT1, INTF1, "CATHERINE");
@@ -383,9 +340,9 @@ DP_START_TEST(list, test1)
 	show_sfp_permit_list_device(INTF1, "CATHERINE", 10, false, false, true);
 
 	/* Add a second list of allowed SFPs */
-	sfp_list_add("List_2", &Part_list[5], 5, 1);
+	sfp_list_add("List_2", &SFP_list[5], 5);
 
-	show_sfp_permit_list_info("List_2", "AL*", "Cisco", true);
+	show_sfp_permit_list_info("List_2", 7, "AL*", "Cisco");
 
 	/* Check a few part_id matches in the permit list */
 	sfp_permit_match_check("SIMON", true);
@@ -404,7 +361,7 @@ DP_START_TEST(list, test1)
 	show_sfp_permit_list_device(INTF2, "BILL", 20, false, false, true);
 
 	/* Add 'BILL' to the allowed list */
-	sfp_list_add("List_2", &Part_list[5], 6, 1);
+	sfp_list_add("List_2", &SFP_list[5], 6);
 
 	show_sfp_permit_list_device(INTF2, "BILL", 20, true, false, true);
 
@@ -420,18 +377,18 @@ DP_START_TEST(list, test1)
 	/* Now start to clean up */
 	sfp_list_delete("List_1");
 
-	show_sfp_permit_list_info("List_1", NULL, NULL, false);
-	show_sfp_permit_list_info("List_2", "AL*", "Cisco", true);
+	show_sfp_permit_list_info("List_1", 0, NULL, NULL);
+	show_sfp_permit_list_info("List_2", 7, "AL*", "Cisco");
 
 	sfp_list_delete("List_2");
 
-	show_sfp_permit_list_info("List_2", "NULL", NULL, false);
+	show_sfp_permit_list_info("List_2", 0, NULL, NULL);
 
 	/* Now try some two vendor tests in one list */
 
-	sfp_list_add("List_1", &Part_list[0], 10, 2);
-	show_sfp_permit_list_info("List_1", "SIMON", "Cisco", true);
-	show_sfp_permit_list_info("List_1", "AL*", "Brocade", true);
+	sfp_list_add("List_1", &SFP_list[0], 10);
+	show_sfp_permit_list_info("List_1", 1, "SIMON", "Cisco");
+	show_sfp_permit_list_info("List_1", 2, "PAULINE", "Brocade");
 
 	sfp_list_delete("List_1");
 
