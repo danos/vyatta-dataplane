@@ -1,9 +1,13 @@
 /*
- * Copyright (c) 2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2020-2021, AT&T Intellectual Property.
+ * All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  *
  */
+
+#ifndef DP_TEST_PPP_H
+#define DP_TEST_PPP_H
 
 struct rte_mbuf;
 
@@ -49,3 +53,5 @@ dp_test_ipv4_pktmbuf_ppp_prepend(struct rte_mbuf *m,
 				 const char *src_mac,
 				 int v4_len,
 				 uint16_t session);
+
+#endif /* DP_TEST_PPP_H */
