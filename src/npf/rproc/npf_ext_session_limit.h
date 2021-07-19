@@ -1,5 +1,6 @@
 /*
- * Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property.
+ * All rights reserved.
  * Copyright (c) 2017 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -37,5 +38,3 @@ void npf_sess_limit_state_change(void *handle, enum dp_session_state prev_state,
 				 enum dp_session_state state);
 
 #endif
-
-

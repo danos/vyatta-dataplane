@@ -1,5 +1,6 @@
 /*
- * Copyright (c) 2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2020-2021, AT&T Intellectual Property.
+ * All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -18,5 +19,5 @@ bool is_watch_on(void);
  * Skip session with pending acks.
  */
 void session_do_watch(struct session *session, enum dp_session_hook hook);
-#endif
 
+#endif

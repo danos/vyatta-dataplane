@@ -1,5 +1,6 @@
 /*
- * Copyright (c) 2019-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2019-2021, AT&T Intellectual Property.
+ * All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -16,5 +17,4 @@ void feature_unregister_all_string_cfg_handlers(void);
 
 void set_feat_plugin_dir(const char *filename);
 
-#endif /*  FEATURE_PLUGIN_INTERNAL_H */
-
+#endif /* FEATURE_PLUGIN_INTERNAL_H */
