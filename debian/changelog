@@ -1,3 +1,10 @@
+vyatta-dataplane (3.12.55.4) unstable; urgency=medium
+
+  [ Gavin Shearer ]
+  * npf: ensure timeout-get functions cope with no dataplane session
+
+ -- Srinivas Narayan <narayan@vyatta.att-mail.com>  Tue, 20 Jul 2021 16:48:01 +0100
+
 vyatta-dataplane (3.12.55.3) unstable; urgency=medium
 
   [ Daniel Gollub ]
