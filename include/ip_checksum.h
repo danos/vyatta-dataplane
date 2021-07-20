@@ -1,5 +1,6 @@
 /*
- * Copyright (c) 2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2020-2021, AT&T Intellectual Property.
+ * All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -57,4 +58,3 @@ dp_in6_cksum_mbuf(const struct rte_mbuf *m, const struct ip6_hdr *ip,
 		  const void *l4_hdr);
 
 #endif /* VYATTA_DATAPLANE_IP_CHECKSUM_H */
-

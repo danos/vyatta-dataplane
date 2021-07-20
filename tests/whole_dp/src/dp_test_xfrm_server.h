@@ -1,8 +1,12 @@
 /*-
- * Copyright (c) 2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2020-2021, AT&T Intellectual Property.
+ * All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
+
+#ifndef DP_TEST_XFRM_SERVER_H
+#define DP_TEST_XFRM_SERVER_H
 
 /*
  * A test version of the route broker process, running as its own thread.
@@ -23,3 +27,5 @@ extern uint64_t xfrm_bytes;
 extern uint64_t xfrm_packets;
 
 void dp_test_xfrm_server_thread_run(zsock_t *pipe, void *args);
+
+#endif /* DP_TEST_XFRM_SERVER_H */

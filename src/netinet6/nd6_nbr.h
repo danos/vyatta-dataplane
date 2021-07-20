@@ -6,6 +6,9 @@
  * SPDX-License-Identifier: LGPL-2.1-only
  */
 
+#ifndef ND6_NBR_H
+#define ND6_NBR_H
+
 #include <netinet/in.h>
 #include <rte_atomic.h>
 #include <rte_branch_prediction.h>
@@ -113,3 +116,6 @@ nd6_resolve_fast(struct ifnet *in_ifp, struct ifnet *ifp, struct rte_mbuf *m,
 
 void nd6_tclass_set(uint8_t tclass);
 uint8_t nd6_tclass_get(void);
+
+#endif /* ND6_NBR_H */
+

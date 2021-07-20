@@ -4,6 +4,10 @@
  * - addition of a pre-processor guard
  * - formatting changes to comply with checkpatch
  */
+
+#ifndef SFF8436_H
+#define SFF8436_H
+
 /*-
  * Copyright (c) 2014 Yandex LLC.
  *
@@ -434,3 +438,4 @@ enum {
 						 */
 };
 
+#endif /* SFF8436_H */

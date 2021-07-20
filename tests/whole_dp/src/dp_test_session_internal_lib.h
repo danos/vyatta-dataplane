@@ -106,4 +106,3 @@ void _dp_test_session_unlink_all(struct session *s, const char *file, int line);
 	_dp_test_session_unlink_all(s, __FILE__, __LINE__)
 
 #endif  /* __DP_TEST_SESSION_LIB_H__ */
-

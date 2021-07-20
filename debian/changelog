@@ -58,6 +58,17 @@ vyatta-dataplane (3.14.1) unstable; urgency=medium
 
  -- Srinivas Narayan <narayan@vyatta.att-mail.com>  Thu, 08 Jul 2021 17:49:37 +0100
 
+vyatta-dataplane (3.13.30) unstable; urgency=medium
+
+  [ Gavin Shearer ]
+  * npf: ensure timeout-get functions cope with no dataplane session
+
+  [ Paul Aitken ]
+  * add missing idempotency
+  * remove trailing blank lines
+
+ -- Srinivas Narayan <narayan@vyatta.att-mail.com>  Tue, 20 Jul 2021 13:00:39 +0100
+
 vyatta-dataplane (3.13.29) unstable; urgency=medium
 
   [ Gavin Shearer ]

@@ -1,5 +1,6 @@
 /*
- * Copyright (c) 2019-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2019-2021, AT&T Intellectual Property.
+ * All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -76,4 +77,3 @@ int dp_feature_plugin_init(const char **name);
 int dp_feature_plugin_cleanup(void);
 
 #endif /* VYATTA_DATAPLANE_FEATURE_PLUGIN_H */
-
