@@ -1,3 +1,13 @@
+vyatta-dataplane (3.11.72.23) unstable; urgency=medium
+
+  [ Paul Aitken ]
+  * NPF: only call session_set_app when the session exists
+
+  [ Gavin Shearer ]
+  * npf: ensure timeout-get functions cope with no dataplane session
+
+ -- Srinivas Narayan <narayan@vyatta.att-mail.com>  Tue, 20 Jul 2021 13:41:49 +0100
+
 vyatta-dataplane (3.11.72.22) unstable; urgency=medium
 
   [ Mark Gillott ]
