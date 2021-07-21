@@ -434,7 +434,7 @@ bool icmp_ratelimit_drop(uint8_t type, struct icmp_ratelimit_state *rl, uint8_t 
 		rl = &rl[type];
 
 		if (rl->limiting) {
-			if (rl->tokens <= 0 || uatomic_add_return(&rl->tokens, -1) <= 0) {
+			if (uatomic_add_return(&rl->sent_this_second, 1) > rl->max_rate) {
 				uatomic_add(&rl->total_dropped, 1);
 				uatomic_add(&rl->drop_stats[icmp_ratelimit_interval], 1);
 				return true;
@@ -848,7 +848,7 @@ static void icmp_ratelimit_reset_entry(struct icmp_ratelimit_state *rl,
 	rl->limiting = enable;
 	rl->explicit = explicit;
 	rl->max_rate = val;
-	rl->tokens = val;
+	rl->sent_this_second = 0;
 	memset(rl->drop_stats, 0, sizeof(rl->drop_stats));
 }
 
@@ -953,14 +953,14 @@ static void icmp_ratelimit_refresh_tmr_hdlr(struct rte_timer *timer __rte_unused
 	/* Refresh v4 tokens and stats counters */
 	rl = icmp_get_rl_state();
 	for (i = 0; i < icmp_get_rl_state_entries(); i++) {
-		uatomic_set(&rl[i].tokens, rl[i].max_rate);
+		uatomic_set(&rl[i].sent_this_second, 0);
 		if (icmp_ratelimit_second_count == 0)
 			rl[i].drop_stats[icmp_ratelimit_interval] = 0;
 	}
 
 	rl = icmp6_get_rl_state();
 	for (i = 0; i < icmp6_get_rl_state_entries(); i++) {
-		uatomic_set(&rl[i].tokens, rl[i].max_rate);
+		uatomic_set(&rl[i].sent_this_second, 0);
 		if (icmp_ratelimit_second_count == 0)
 			rl[i].drop_stats[icmp_ratelimit_interval] = 0;
 	}
