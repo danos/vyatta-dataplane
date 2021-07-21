@@ -22,24 +22,25 @@
 
 
 /*
- * Min and max payload lengths:
- *
- *		Min
- * pptp		16
- * sip		200
+ * Min and max payload lengths.
  *
  * The minimum payload length helps to determine if we should inspect the
  * packet or not.  For example, there is no point in passing the SIP TCP
  * handshake pkts to the SIP ALG inspection function.
  *
- * However, the minimums specified here may be 'minimum minimums'.  In other
- * words, once an ALG parses a pkt further it may then determine that the pkt
- * still does not meet the min pkt size requirement.
+ * The PPTP minimum length, for example, is determined by the size of the PPTP
+ * packet header (struct pptp_call_mgmt).
  */
-uint cgn_alg_payload_min[CGN_ALG_MAX] = {
+static uint cgn_alg_payload_min[CGN_ALG_MAX] = {
 	[CGN_ALG_NONE] = 0,
 	[CGN_ALG_PPTP] = 16,
-	[CGN_ALG_SIP] = 200,
+	[CGN_ALG_SIP] = 0,
+};
+
+static uint cgn_alg_payload_max[CGN_ALG_MAX] = {
+	[CGN_ALG_NONE] = 0,
+	[CGN_ALG_PPTP] = 0,
+	[CGN_ALG_SIP] = 0,
 };
 
 /* Forward references */
@@ -123,6 +124,7 @@ cgn_alg_parent_session_init(struct cgn_session *cse,
 	as->as_alg_id = alg_id;
 	as->as_proto = proto;
 	as->as_min_payload = cgn_alg_payload_min[alg_id];
+	as->as_max_payload = cgn_alg_payload_max[alg_id];
 	cgn_alg_stats_inc(alg_id, CAS_CTRL_SESS_CRTD);
 
 	return as;

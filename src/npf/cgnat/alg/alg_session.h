@@ -54,6 +54,9 @@ struct cgn_alg_sess_ctx {
 	/* Each ALG will have its own min payload requirement */
 	uint16_t		as_min_payload;
 
+	/* SIP has a max payload limitation */
+	uint16_t		as_max_payload;
+
 	/* Session link - Used by algs to link sessions */
 	struct cgn_alg_sess_ctx	*as_parent;
 	struct cds_list_head	as_children;

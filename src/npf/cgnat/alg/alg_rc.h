@@ -24,6 +24,7 @@ enum alg_rc_en {
 	ALG_ERR_PLOAD_FETCH,
 	ALG_ERR_PLOAD_UPDATE,
 	ALG_ERR_PLOAD_NOSPC,
+	ALG_ERR_PLOAD_MAX,
 
 	ALG_ERR_PHOLE_NOMEM,
 	ALG_ERR_PHOLE_EXIST,
@@ -113,6 +114,8 @@ static inline const char *alg_rc_str(int error)
 		return "ERR_PLOAD_UPDATE";
 	case ALG_ERR_PLOAD_NOSPC:
 		return "ERR_PLOAD_NOSPC";
+	case ALG_ERR_PLOAD_MAX:
+		return "ERR_PLOAD_MAX";
 
 	case ALG_ERR_PHOLE_NOMEM:
 		return "ERR_PHOLE_NOMEM";
@@ -196,6 +199,9 @@ static inline const char *alg_rc_detail_str(int error)
 
 	case ALG_ERR_PLOAD_NOSPC:
 		return "No space at end of buffer";
+
+	case ALG_ERR_PLOAD_MAX:
+		return "Payload size exceeds max";
 
 	case ALG_ERR_PHOLE_NOMEM:
 		return "No memory for pinhole entry";

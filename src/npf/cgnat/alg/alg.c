@@ -247,6 +247,13 @@ int cgn_alg_inspect(struct cgn_session *cse, struct cgn_packet *cpk,
 		if (cgn_payload_len(cpk) < as->as_min_payload)
 			goto end;
 
+		/* SIP has a max payload size that it can parse */
+		if (as->as_max_payload != 0 &&
+		    cgn_payload_len(cpk) > as->as_max_payload) {
+			rc = -ALG_ERR_PLOAD_MAX;
+			goto end;
+		}
+
 		switch (as->as_alg_id) {
 		case CGN_ALG_PPTP:
 			rc = cgn_alg_pptp_inspect(cpk, mbuf, dir, as);
