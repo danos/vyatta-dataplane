@@ -1801,7 +1801,7 @@ static const cmd_t cmd_table[] = {
 	{ 0,	"session-ut",	cmd_session_ut,	"session table UT cmds" },
 	{ 0,	"slowpath",	cmd_shadow,	"Slow path statistics" },
 	{ 0,	"snmp",		cmd_snmp,	"SNMP network statistics" },
-	{ 0,	"sfp-permit-list", cmd_sfp_permit_op, "SFP permit list" },
+	{ 1,	"sfp-permit-list", cmd_sfp_permit_op, "SFP permit list" },
 	{ 2,    "storm-ctl",    cmd_storm_ctl_op, "Storm control commands" },
 	{ 0,    "switch",       cmd_switch_op,  "Switch op-mode commands" },
 	{ 0,	"vhost-client",	cmd_vhost_client,
