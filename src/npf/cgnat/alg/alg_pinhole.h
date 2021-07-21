@@ -15,6 +15,7 @@
 #include "npf/cgnat/cgn_map.h"
 #include "npf/cgnat/alg/alg_defs.h"
 
+struct cgn_alg_sess_ctx;
 struct alg_pinhole;
 struct cgn_session;
 

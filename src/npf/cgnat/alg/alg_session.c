@@ -24,14 +24,13 @@
 /*
  * Min and max payload lengths:
  *
- *		Min	Max
- * ftp		11	255
- * sip		200	8000
- * rpc		28	256
+ *		Min
+ * pptp		16
+ * sip		200
  *
  * The minimum payload length helps to determine if we should inspect the
- * packet or not.  For example, there is no point in passing the FTP TCP
- * handshake pkts to the FTP ALG inspection function.
+ * packet or not.  For example, there is no point in passing the SIP TCP
+ * handshake pkts to the SIP ALG inspection function.
  *
  * However, the minimums specified here may be 'minimum minimums'.  In other
  * words, once an ALG parses a pkt further it may then determine that the pkt
@@ -39,7 +38,6 @@
  */
 uint cgn_alg_payload_min[CGN_ALG_MAX] = {
 	[CGN_ALG_NONE] = 0,
-	[CGN_ALG_FTP] = 11,
 	[CGN_ALG_PPTP] = 16,
 	[CGN_ALG_SIP] = 200,
 };
@@ -103,9 +101,6 @@ cgn_alg_parent_session_init(struct cgn_session *cse,
 	struct cgn_alg_sess_ctx *as = NULL;
 
 	switch (alg_id) {
-	case CGN_ALG_FTP:
-		break;
-
 	case CGN_ALG_PPTP:
 		as = cgn_alg_pptp_sess_init(cse, NULL);
 		break;
@@ -147,9 +142,6 @@ cgn_alg_child_session_init(struct cgn_session *child_cse, enum nat_proto proto,
 	assert(parent_cse);
 
 	switch (alg_id) {
-	case CGN_ALG_FTP:
-		break;
-
 	case CGN_ALG_PPTP:
 		as = cgn_alg_pptp_sess_init(child_cse, ap);
 		break;
@@ -181,7 +173,7 @@ cgn_alg_child_session_init(struct cgn_session *child_cse, enum nat_proto proto,
  *
  * An ALG flow is identified by either:
  *
- * 1. the destination port matching a well-known port value (ftp, sip etc), or
+ * 1. the destination port matching a well-known port value (sip etc), or
  * 2. the packet matching an ALG pinhole tuple.
  *
  * #1 is a parent/control flow.  #2 is a child/data flow.
@@ -249,9 +241,6 @@ void cgn_alg_session_uninit(struct cgn_session *cse,
 	cgn_alg_session_expire_children(as);
 
 	switch (as->as_alg_id) {
-	case CGN_ALG_FTP:
-		break;
-
 	case CGN_ALG_PPTP:
 		cgn_alg_pptp_sess_uninit(as);
 		break;
@@ -478,8 +467,6 @@ void cgn_alg_show_session(json_writer_t *json, struct cgn_sess_fltr *fltr __unus
 	/* ALG specific json */
 	switch (as->as_alg_id) {
 	case CGN_ALG_NONE:
-		break;
-	case CGN_ALG_FTP:
 		break;
 	case CGN_ALG_PPTP:
 		cgn_alg_show_pptp_session(json, as);

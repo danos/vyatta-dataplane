@@ -20,7 +20,6 @@ enum alg_rc_en {
 	ALG_OK = 0,
 	ALG_OK_PPTP,
 	ALG_OK_SIP,
-	ALG_OK_FTP,
 
 	ALG_ERR_PLOAD_FETCH,
 	ALG_ERR_PLOAD_UPDATE,
@@ -59,13 +58,6 @@ enum alg_rc_en {
 	ALG_ERR_SIP_PARSE_C,	/* SDP Connection */
 	ALG_ERR_SIP_PARSE_M,	/* SDP media */
 	ALG_ERR_SIP_PARSE_A,	/* SDP attribute */
-
-	/* FTP */
-	ALG_ERR_FTP_MAP,
-	ALG_ERR_FTP_PARSE_PORT,
-	ALG_ERR_FTP_PARSE_EPRT,
-	ALG_ERR_FTP_PARSE_227,
-	ALG_ERR_FTP_PARSE_229,
 
 	ALG_ERR_INT,		/* Internal errors */
 };
@@ -114,8 +106,6 @@ static inline const char *alg_rc_str(int error)
 		return "OK_PPTP";
 	case ALG_OK_SIP:
 		return "OK_SIP";
-	case ALG_OK_FTP:
-		return "OK_FTP";
 
 	case ALG_ERR_PLOAD_FETCH:
 		return "ERR_PLOAD_FETCH";
@@ -179,17 +169,6 @@ static inline const char *alg_rc_str(int error)
 	case ALG_ERR_SIP_PARSE_A:
 		return "ERR_SIP_PARSE_A";
 
-	case ALG_ERR_FTP_PARSE_PORT:
-		return "ERR_FTP_PARSE_PORT";
-	case ALG_ERR_FTP_PARSE_EPRT:
-		return "ERR_FTP_PARSE_EPRT";
-	case ALG_ERR_FTP_PARSE_227:
-		return "ERR_FTP_PARSE_227";
-	case ALG_ERR_FTP_PARSE_229:
-		return "ERR_FTP_PARSE_229";
-	case ALG_ERR_FTP_MAP:
-		return "ERR_FTP_MAP";
-
 	case ALG_ERR_INT:
 		return "ERR_INT";
 	}
@@ -208,8 +187,6 @@ static inline const char *alg_rc_detail_str(int error)
 		return "PPTP control packets inspected";
 	case ALG_OK_SIP:
 		return "SIP control packets inspected";
-	case ALG_OK_FTP:
-		return "FTP control packets inspected";
 
 	case ALG_ERR_PLOAD_FETCH:
 		return "Payload fetch failed";
@@ -294,21 +271,6 @@ static inline const char *alg_rc_detail_str(int error)
 
 	case ALG_ERR_SIP_PARSE_A:
 		return "SDP parse a-header";
-
-	case ALG_ERR_FTP_PARSE_PORT:
-		return "ftp parse PORT control";
-
-	case ALG_ERR_FTP_PARSE_EPRT:
-		return "ftp parse EPRT control";
-
-	case ALG_ERR_FTP_PARSE_227:
-		return "ftp parse 227 response";
-
-	case ALG_ERR_FTP_PARSE_229:
-		return "ftp parse 229 response";
-
-	case ALG_ERR_FTP_MAP:
-		return "ftp failed to get a mapping";
 
 	case ALG_ERR_INT:
 		return "Internal";

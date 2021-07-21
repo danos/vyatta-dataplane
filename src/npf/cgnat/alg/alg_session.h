@@ -20,7 +20,7 @@ struct cgn_session;
 
 /*
  * ALG session context.  This is embedded at the start of every specific ALG
- * session context, e.g. 'struct cgn_alg_ftp_session'.
+ * session context.
  */
 struct cgn_alg_sess_ctx {
 	/* Back pointer to CGNAT main session */
@@ -32,7 +32,7 @@ struct cgn_alg_sess_ctx {
 	 */
 	bool			as_is_child;
 
-	/* ftp, pptp or sip */
+	/* pptp or sip */
 	enum cgn_alg_id		as_alg_id;
 
 	/* as_vrfid and as_proto are used for CGNAT mapping allocation */
@@ -46,19 +46,12 @@ struct cgn_alg_sess_ctx {
 	/*
 	 * as_inspect is set true while we need to examine and/or translate a
 	 * packet payload. Only ever set for the parent 'control' session.
-	 * Some ALGs such as FTP will set as_inspect to false one the data
-	 * flow info has been identified.  Others such as SIP always have
-	 * as_inspect enabled.
 	 *
 	 * Mirrored by cs_alg_inspect in main CGNAT session.
 	 */
 	bool			as_inspect;
 
-	/*
-	 * Each ALG will have its own minimum payload requirement.  This
-	 * ensures that, for example, the ftp ALG does not unnecessarily
-	 * inspect the TCP handchake pkts.
-	 */
+	/* Each ALG will have its own min payload requirement */
 	uint16_t		as_min_payload;
 
 	/* Session link - Used by algs to link sessions */

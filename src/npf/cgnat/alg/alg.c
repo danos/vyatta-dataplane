@@ -26,14 +26,13 @@
 #include "npf/cgnat/alg/alg.h"
 
 /*
- * Bitmap of enabled ALGs (CGN_ALG_BIT_FTP etc.)
+ * Bitmap of enabled ALGs (CGN_ALG_BIT_PPTP etc.)
  */
 static uint8_t cgn_alg_enabled;
 
 /*
  * Well-known TCP/UDP ports
  */
-#define FTP_PORT	21
 #define PPTP_PORT	1723	/* PPTP VPN */
 #define SIP_PORT	5060
 
@@ -67,7 +66,6 @@ enum cgn_alg_id cgn_alg_get_id(struct cgn_alg_sess_ctx *as)
 
 static const char *_cgn_alg_id_name[CGN_ALG_MAX] = {
 	[CGN_ALG_NONE] = "-",
-	[CGN_ALG_FTP]  = "ftp",
 	[CGN_ALG_PPTP] = "pptp",
 	[CGN_ALG_SIP]  = "sip",
 };
@@ -153,9 +151,9 @@ enum cgn_alg_id cgn_alg_dest_port_lookup(enum nat_proto proto, uint16_t port)
  * The destination port/ID we initially save is treated somewhat differently
  * depending on ALG type.
  *
- * FTP and PPTP control/parent sessions are the simple 'well known' cases as
- * they use TCP.  Outbound we verify the destination address and port, and
- * inbound we verify the source address and port.
+ * PPTP control/parent sessions are the simple 'well known' cases as they use
+ * TCP.  Outbound we verify the destination address and port, and inbound we
+ * verify the source address and port.
  *
  * For SIP UDP sessions, the initial outbound INVITE Request is sent to port
  * 5060.  However the initial inbound Response may use a different port than
@@ -178,7 +176,6 @@ static int cgn_alg_verify_remote_client(struct cgn_alg_sess_ctx *as,
 	}
 
 	switch (as->as_alg_id) {
-	case CGN_ALG_FTP:
 	case CGN_ALG_PPTP:
 		if (remote_addr != as->as_dst_addr ||
 		    remote_id != as->as_dst_port)
@@ -219,7 +216,7 @@ static int cgn_alg_verify_remote_client(struct cgn_alg_sess_ctx *as,
  * that we may later want to change that.
  */
 int cgn_alg_inspect(struct cgn_session *cse, struct cgn_packet *cpk,
-		    struct rte_mbuf *mbuf __unused, enum cgn_dir dir)
+		    struct rte_mbuf *mbuf, enum cgn_dir dir)
 {
 	struct cgn_alg_sess_ctx *as;
 	int rc = ALG_OK;
@@ -251,9 +248,6 @@ int cgn_alg_inspect(struct cgn_session *cse, struct cgn_packet *cpk,
 			goto end;
 
 		switch (as->as_alg_id) {
-		case CGN_ALG_FTP:
-			break;
-
 		case CGN_ALG_PPTP:
 			rc = cgn_alg_pptp_inspect(cpk, mbuf, dir, as);
 			if (rc == 0)
@@ -388,9 +382,6 @@ int cgn_alg_enable(const char *name)
 	switch (id) {
 	case CGN_ALG_NONE:
 		break;
-	case CGN_ALG_FTP:
-		apt_dport_add(CGN_ALG_FTP, NAT_PROTO_TCP, FTP_PORT);
-		break;
 	case CGN_ALG_PPTP:
 		apt_dport_add(CGN_ALG_PPTP, NAT_PROTO_TCP, PPTP_PORT);
 		break;
@@ -438,9 +429,6 @@ int cgn_alg_disable(const char *name)
 
 	switch (id) {
 	case CGN_ALG_NONE:
-		break;
-	case CGN_ALG_FTP:
-		apt_dport_del(CGN_ALG_FTP, NAT_PROTO_TCP);
 		break;
 	case CGN_ALG_PPTP:
 		apt_dport_del(CGN_ALG_PPTP, NAT_PROTO_TCP);
@@ -511,10 +499,6 @@ cgn_alg_show_inspect_stats_dir(json_writer_t *json, enum cgn_dir dir,
 		 */
 		if (rc == ALG_OK_SIP &&
 		    (cgn_alg_enabled & CGN_ALG_BIT_SIP) == 0)
-			continue;
-
-		if (rc == ALG_OK_FTP &&
-		    (cgn_alg_enabled & CGN_ALG_BIT_FTP) == 0)
 			continue;
 
 		jsonw_start_object(json);
