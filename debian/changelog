@@ -84,6 +84,19 @@ vyatta-dataplane (3.14.1) unstable; urgency=medium
 
  -- Srinivas Narayan <narayan@vyatta.att-mail.com>  Thu, 08 Jul 2021 17:49:37 +0100
 
+vyatta-dataplane (3.13.31) unstable; urgency=medium
+
+  [ Thomas Kiely ]
+  * ICMP rate limiting off-by-one
+
+  [ Gaurav Gehani ]
+  * vyatta-dataplane: fix coverity errors
+
+  [ Cian O'Sullivan ]
+  * Make SFP feature return valid JSON
+
+ -- Srinivas Narayan <narayan@vyatta.att-mail.com>  Thu, 22 Jul 2021 13:20:50 +0100
+
 vyatta-dataplane (3.13.30) unstable; urgency=medium
 
   [ Gavin Shearer ]

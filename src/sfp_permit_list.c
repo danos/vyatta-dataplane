@@ -1068,13 +1068,10 @@ sfp_jsonw_device(json_writer_t *wr, struct sfp_intf_record *sfp)
 	jsonw_end_object(wr);
 }
 
-static void sfp_permit_dump_devices(FILE *f)
+static void sfp_permit_dump_devices(json_writer_t *wr)
 {
-	json_writer_t *wr;
 	struct cds_lfht_iter iter;
 	struct sfp_intf_record *sfp;
-
-	wr = jsonw_new(f);
 
 	jsonw_name(wr, "sfp-permit-list-devices");
 
@@ -1096,18 +1093,12 @@ static void sfp_permit_dump_devices(FILE *f)
 
 	jsonw_end_object(wr);
 
-	jsonw_destroy(&wr);
 }
-static void sfp_permit_dump_list(FILE *f)
+static void sfp_permit_dump_list(json_writer_t *wr)
 {
 	struct sfp_permit_list *entry;
 	struct sfp_part *part_entry;
-	json_writer_t *wr;
 
-	if (f == NULL)
-		f = stderr;
-
-	wr = jsonw_new(f);
 	jsonw_name(wr, "sfp-permit-list");
 	jsonw_start_object(wr);
 	jsonw_name(wr, "lists");
@@ -1144,18 +1135,11 @@ static void sfp_permit_dump_list(FILE *f)
 	jsonw_end_array(wr);
 
 	jsonw_end_object(wr);
-	jsonw_destroy(&wr);
 }
-static void sfp_permit_dump_search_list(FILE *f)
+static void sfp_permit_dump_search_list(json_writer_t *wr)
 {
 	struct sfp_part *part_entry;
 
-	json_writer_t *wr;
-
-	if (f == NULL)
-		f = stderr;
-
-	wr = jsonw_new(f);
 	jsonw_name(wr, "sfp-search-list");
 	jsonw_start_object(wr);
 	jsonw_name(wr, "list");
@@ -1177,20 +1161,12 @@ static void sfp_permit_dump_search_list(FILE *f)
 	jsonw_end_array(wr);
 
 	jsonw_end_object(wr);
-
-	jsonw_destroy(&wr);
 }
 
 #define YES_NO(_x_) (((_x_)  ==  true) ? "True" : "False")
 
-static void sfp_permit_dump_mismatch(FILE *f)
+static void sfp_permit_dump_mismatch(json_writer_t *wr)
 {
-	json_writer_t *wr;
-
-	if (f == NULL)
-		f = stderr;
-
-	wr = jsonw_new(f);
 	jsonw_name(wr, "sfp-permit-list-mismatch");
 	jsonw_start_object(wr);
 	jsonw_string_field(wr, "logging enabled",
@@ -1200,14 +1176,12 @@ static void sfp_permit_dump_mismatch(FILE *f)
 	jsonw_uint_field(wr, "enforcement delay",
 				 sfp_mismatch_cfg.enforcement_delay);
 	jsonw_end_object(wr);
-	jsonw_destroy(&wr);
 }
 
 static void
-sfp_permit_match_check_cmd(FILE *f, const char *match_string)
+sfp_permit_match_check_cmd(const char *match_string, json_writer_t *wr)
 {
 	struct sfp_intf_record sfp;
-	json_writer_t *wr;
 	bool rc;
 
 	memset(&sfp, 0, sizeof(sfp));
@@ -1215,57 +1189,57 @@ sfp_permit_match_check_cmd(FILE *f, const char *match_string)
 
 	rc = sfp_permit_match_check(&sfp);
 
-	if (f == NULL) {
-		RTE_LOG(ERR, DATAPLANE,
-			"%s no file\n", __func__);
-		f = stderr;
-	}
-	wr = jsonw_new(f);
 	jsonw_name(wr, "sfp-permit-match");
 	jsonw_start_object(wr);
 	jsonw_string_field(wr, match_string,
 			   YES_NO(rc));
 	jsonw_end_object(wr);
-	jsonw_destroy(&wr);
 }
 
 int cmd_sfp_permit_op(FILE *f, int argc __unused, char **argv)
 {
+	json_writer_t *wr;
+
 	/* Init list heads if not aleady done, so we don't
 	 * need to check they are setup.
 	 */
 	sfp_permit_list_lists_inits();
 
+	if (f == NULL)
+		f = stderr;
+
+	/* Create top-level JSON container
+	 */
+	wr = jsonw_new(f);
+
 	if (!sfp_permit_list_running)
-		return 0;
+		goto done;
 
 	if (!strcmp(argv[1], "dump")) {
 		if (!strcmp(argv[2], "list")) {
-			sfp_permit_dump_list(f);
-			return 0;
+			sfp_permit_dump_list(wr);
 		}
 
 		if (!strcmp(argv[2], "mismatch")) {
-			sfp_permit_dump_mismatch(f);
-			return 0;
+			sfp_permit_dump_mismatch(wr);
 		}
 
 		if (!strcmp(argv[2], "search-list")) {
-			sfp_permit_dump_search_list(f);
-			return 0;
+			sfp_permit_dump_search_list(wr);
 		}
 
 		if (!strcmp(argv[2], "devices")) {
-			sfp_permit_dump_devices(f);
-			return 0;
+			sfp_permit_dump_devices(wr);
 		}
-
+		goto done;
 	}
 
 	if (!strcmp(argv[1], "match")) {
-		sfp_permit_match_check_cmd(f, argv[2]);
-		return 0;
+		sfp_permit_match_check_cmd(argv[2], wr);
+		goto done;
 	}
 
+done:
+	jsonw_destroy(&wr);
 	return 0;
 }

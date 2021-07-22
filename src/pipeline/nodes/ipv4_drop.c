@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2020-2021, AT&T Intellectual Property.  All rights reserved.
  * SPDX-License-Identifier: LGPL-2.1-only
  */
 #include <netinet/in.h>
@@ -63,10 +63,8 @@ ipv4_drop_process_common(struct pl_packet *pkt, void *context __unused,
 			pkt, ipv4_drop_feat_list_to_node());
 		break;
 	case PL_MODE_REGULAR:
-		pl_node_invoke_enabled_features(
-			    ipv4_drop_node_ptr,
-			    ipv4_drop_feat_list_to_node(),
-			    pkt);
+		(void)pl_node_invoke_enabled_features(ipv4_drop_node_ptr,
+						      ipv4_drop_feat_list_to_node(), pkt);
 		break;
 	}
 
