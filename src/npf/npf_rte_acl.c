@@ -41,6 +41,14 @@ static struct rte_mempool *npr_acl6_pool;
  */
 #define PDEL_RING_SZ NPR_TRIE_MAX_RULES
 
+/* try to keep the trie merging logic simple and keep merging
+ * until the tries are to 90% full. This prevents an endless merge attempts
+ * if individual tries are not entirely full.
+ * The downside is that this might result in one or few more merge-tries
+ * than required. For now it's preferred to have a simpler merge logic.
+ */
+#define NPR_TRIE_MERGE_THRESHOLD (NPR_TRIE_MAX_RULES * 0.9)
+
 /* Maximum amount of new (merge) tries which get created per npf_match_ctx,
  * per ACL optimization thread cycle. This allows the use of a fixed size array
  * for tries during trie consolidation operations.
@@ -1840,6 +1848,18 @@ void npf_rte_acl_dump(npf_match_ctx_t *ctx, json_writer_t *wr)
  * consolidated trie is being built, the consolidation is restarted
  */
 
+static bool
+is_merge_candidate(struct npf_match_ctx_trie *m_trie)
+{
+	if (m_trie->trie_state != TRIE_STATE_FROZEN)
+		return false;
+
+	if (m_trie->num_rules >= NPR_TRIE_MERGE_THRESHOLD)
+		return false;
+
+	return true;
+}
+
 static void
 npf_rte_acl_select_candidate_tries(npf_match_ctx_t *ctx,
 				   struct npf_match_ctx_trie *merge_start,
@@ -1859,10 +1879,7 @@ npf_rte_acl_select_candidate_tries(npf_match_ctx_t *ctx,
 
 	cds_list_for_each_entry_safe_from(m_trie, next, &ctx->trie_list, trie_link) {
 
-		if (m_trie->trie_state != TRIE_STATE_FROZEN)
-			continue;
-
-		if (m_trie->num_rules == NPR_TRIE_MAX_RULES)
+		if (!is_merge_candidate(m_trie))
 			continue;
 
 		cnt_tries++;
@@ -1880,6 +1897,9 @@ npf_rte_acl_copy_rules(npf_match_ctx_t *ctx,
 {
 	int rc;
 	struct rte_mempool *rule_mempool;
+
+	if (!ctx || !m_trie || !dst_trie)
+		return -EINVAL;
 
 	if (ctx->af == AF_INET)
 		rule_mempool = npr_acl4_pool;
@@ -1960,11 +1980,7 @@ npf_rte_acl_optimize_merge_prepare(npf_match_ctx_t *ctx,
 	cds_list_for_each_entry_safe_from(m_trie, next, &ctx->trie_list,
 					  trie_link) {
 
-
-		if (m_trie->trie_state != TRIE_STATE_FROZEN)
-			continue;
-
-		if (m_trie->num_rules == NPR_TRIE_MAX_RULES)
+		if (!is_merge_candidate(m_trie))
 			continue;
 
 		if (!new_trie
@@ -2008,10 +2024,7 @@ npf_rte_acl_optimize_merge_prepare(npf_match_ctx_t *ctx,
 	cds_list_for_each_entry_safe_from(m_trie, next, &ctx->trie_list,
 					  trie_link) {
 
-		if (m_trie->trie_state != TRIE_STATE_FROZEN)
-			continue;
-
-		if (m_trie->num_rules == NPR_TRIE_MAX_RULES)
+		if (!is_merge_candidate(m_trie))
 			continue;
 
 		if ((new_trie->num_rules + m_trie->num_rules)
