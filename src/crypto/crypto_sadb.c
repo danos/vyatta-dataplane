@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2017-2020, AT&T Intellectual Property. All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property. All rights reserved.
  * Copyright (c) 2015-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -831,7 +831,6 @@ int crypto_sadb_new_sa(const struct xfrm_usersa_info *sa_info,
 	const struct xfrm_lifetime_cfg *lft = &sa_info->lft;
 	struct sadb_sa *sa, *retiring_sa;
 	struct crypto_vrf_ctx *vrf_ctx;
-	struct ifnet *ifp;
 	int pmd_dev_id;
 	int err, rc;
 	bool setup_openssl = false;
@@ -942,11 +941,15 @@ int crypto_sadb_new_sa(const struct xfrm_usersa_info *sa_info,
 
 	/*
 	 * Check if the policy matching this reqid has a virtual feature
-	 * point bound to it.
+	 * point bound to it. But only do this expensive check if there are any
+	 * bindings existing.
 	 */
-	ifp = (sa->dir == CRYPTO_DIR_IN) ?
-		crypto_policy_feat_attach_by_reqid(vrf_ctx, sa->reqid) : NULL;
-	rcu_assign_pointer(sa->feat_attach_ifp, ifp);
+	if (vrf_ctx->s2s_bindings) {
+		struct ifnet *ifp = (sa->dir == CRYPTO_DIR_IN) ?
+			crypto_policy_feat_attach_by_reqid(vrf_ctx, sa->reqid)
+			: NULL;
+		rcu_assign_pointer(sa->feat_attach_ifp, ifp);
+	}
 
 	/* allocate a core for post crypto processing */
 	sa->fwd_core = crypto_sa_alloc_fwd_core();
