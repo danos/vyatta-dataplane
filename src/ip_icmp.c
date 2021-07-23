@@ -430,18 +430,18 @@ static bool is_icmp_info(const struct icmphdr *icmp)
  */
 bool icmp_ratelimit_drop(uint8_t type, struct icmp_ratelimit_state *rl, uint8_t entries)
 {
-	if (type < entries) {
-		rl = &rl[type];
+	if (type >= entries || !rl[type].limiting)
+		return false;
 
-		if (rl->limiting) {
-			if (uatomic_add_return(&rl->sent_this_second, 1) > rl->max_rate) {
-				uatomic_add(&rl->total_dropped, 1);
-				uatomic_add(&rl->drop_stats[icmp_ratelimit_interval], 1);
-				return true;
-			}
-			uatomic_add(&rl->total_sent, 1);
-		}
+	rl = &rl[type];
+
+	if (uatomic_add_return(&rl->sent_this_second, 1) > rl->max_rate) {
+		uatomic_add(&rl->total_dropped, 1);
+		uatomic_add(&rl->drop_stats[icmp_ratelimit_interval], 1);
+		return true;
 	}
+
+	uatomic_add(&rl->total_sent, 1);
 
 	return false;
 }
@@ -940,7 +940,7 @@ static void icmp_ratelimit_refresh_tmr_hdlr(struct rte_timer *timer __rte_unused
 					    void *arg __rte_unused)
 {
 	struct icmp_ratelimit_state *rl;
-	int i;
+	int i, j, entries;
 
 	/*
 	 * Jump to next stats interval if necessary.
@@ -950,19 +950,18 @@ static void icmp_ratelimit_refresh_tmr_hdlr(struct rte_timer *timer __rte_unused
 		icmp_ratelimit_interval = icmp_ratelimit_next_interval(icmp_ratelimit_interval);
 	}
 
-	/* Refresh v4 tokens and stats counters */
-	rl = icmp_get_rl_state();
-	for (i = 0; i < icmp_get_rl_state_entries(); i++) {
-		uatomic_set(&rl[i].sent_this_second, 0);
-		if (icmp_ratelimit_second_count == 0)
-			rl[i].drop_stats[icmp_ratelimit_interval] = 0;
-	}
-
-	rl = icmp6_get_rl_state();
-	for (i = 0; i < icmp6_get_rl_state_entries(); i++) {
-		uatomic_set(&rl[i].sent_this_second, 0);
-		if (icmp_ratelimit_second_count == 0)
-			rl[i].drop_stats[icmp_ratelimit_interval] = 0;
+	/*
+	 * For each (v4, v6): for each ICMP type:
+	 *    Update per-second counters.
+	 */
+	for (j = 0, rl = icmp_get_rl_state(), entries = icmp_get_rl_state_entries();
+	     j < 2;
+	     rl = icmp6_get_rl_state(), entries = icmp6_get_rl_state_entries(), j++) {
+		for (i = 0; i < entries; rl++, i++) {
+			uatomic_set(&rl->sent_this_second, 0);
+			if (icmp_ratelimit_second_count == 0)
+				rl->drop_stats[icmp_ratelimit_interval] = 0;
+		}
 	}
 }
 
