@@ -26,6 +26,7 @@ pipeline {
     agent any
 
     environment {
+        BITBUCKET_REPO = 'vyatta-dataplane'
         OBS_INSTANCE = 'build-release'
         OBS_TARGET_PROJECT = 'DANOS:Jarrow'
         OBS_TARGET_REPO = 'standard'
@@ -40,6 +41,11 @@ pipeline {
         // Use env vars if set, else blank.
         OSC_BUILD_ARGS = "${env.OSC_BUILD_ARGS != null ? env.OSC_BUILD_ARGS : ' '}"
         NINJA_ARGS = "${env.NINJA_ARGS != null ? env.NINJA_ARGS : ' '}"
+
+        OBS_USR = 'stashykins'
+        OBS_PRJ = "${BITBUCKET_REPO}-pr-${env.CHANGE_ID}"
+        OBS_PRJ_PATH ="home:${env.OBS_USR}:stash:${env.OBS_PRJ}"
+        TMPDIR = "/tmp/$BITBUCKET_REPO/${env.CHANGE_ID}"
     }
 
     options {
@@ -63,6 +69,30 @@ pipeline {
 
         stage(' ') { // No name, looks better in the GUI
             parallel {
+
+                stage('OBS Build') {
+                    when { allOf {
+                        // Only if this is a Pull Request
+                        expression { env.CHANGE_ID != null }
+                        expression { env.CHANGE_TARGET != null }
+                    }}
+                    steps {
+                        dir ('vyatta-dataplane') {
+                            sh "rm -Rf ${env.TMPDIR}; mkdir -p ${env.TMPDIR}"
+                            sh "scripts/obs-build"
+                            writeFile file: "${env.TMPDIR}/env.txt",
+                                text: """\
+                                    USR=\"${OBS_USR}\"
+                                    PRJ=\"${BITBUCKET_REPO}-pr-${CHANGE_ID}\"
+                                    BASE=\"Vyatta:Jarrow\"
+                                    PR=danos:${BITBUCKET_REPO}:${CHANGE_ID}
+                                """.stripIndent()
+                            sh "scripts/obs-check-build"
+                            sh "docker run --env-file ${env.TMPDIR}/env.txt dp-perf"
+                            sh "rm -Rf ${env.TMPDIR}/osc ${env.TMPDIR}/build ${env.TMPDIR}/env.txt"
+                        }
+                    }
+                }
 
                 stage('OSC') {
                     stages {
@@ -100,7 +130,6 @@ pipeline {
                                 }
                             }
                         }
-
                         stage('Code Static Analysis') {
                             steps {
                                 catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
@@ -201,7 +230,6 @@ pipeline {
                         }
                     }
                 }
-
             } // parallel
         } // run tests
     } // stages
