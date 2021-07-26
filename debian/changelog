@@ -1,3 +1,14 @@
+vyatta-dataplane (3.12.55.5) unstable; urgency=medium
+
+  [ Nicholas Brown ]
+  * maximum line length is now 100
+
+  [ Alan Dewar ]
+  * QoS: remove unused pcp_bitmap variable
+  * QoS: stop requesting unnecessary traffic-class (Fixes: VRVDR-55318)
+
+ -- Srinivas Narayan <narayan@vyatta.att-mail.com>  Tue, 27 Jul 2021 00:54:48 +0100
+
 vyatta-dataplane (3.12.55.4) unstable; urgency=medium
 
   [ Gavin Shearer ]
