@@ -1,3 +1,14 @@
+vyatta-dataplane (3.13.32) unstable; urgency=medium
+
+  [ Mike Larson ]
+  * Initial groundwork for pipeline refactoring: outfw and snat
+  * Separate output FW and SNAT into pipeline nodes
+  * split v4 and v6 out fw entry nodes
+  * Collapse v6 pre-out-fw and out-fw into single node
+  * Remove hook/shim from function names
+
+ -- Srinivas Narayan <narayan@vyatta.att-mail.com>  Tue, 27 Jul 2021 00:48:50 +0100
+
 vyatta-dataplane (3.13.31) unstable; urgency=medium
 
   [ Thomas Kiely ]
