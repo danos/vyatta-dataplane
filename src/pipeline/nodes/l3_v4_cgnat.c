@@ -543,8 +543,8 @@ ipv4_cgnat_icmp_err(struct cgn_packet *ocpk, struct ifnet *ifp,
 /*
  * ipv4_cgnat_common
  */
-static int ipv4_cgnat_common(struct cgn_packet *cpk, struct ifnet *ifp,
-			     struct rte_mbuf **mbufp, enum cgn_dir dir)
+static int ipv4_cgnat_common(struct pl_packet *pkt, struct cgn_packet *cpk,
+			     struct ifnet *ifp, struct rte_mbuf **mbufp, enum cgn_dir dir)
 {
 	struct rte_mbuf *mbuf = NULL;
 	struct cgn_session *cse;
@@ -668,6 +668,13 @@ translate:
 
 	pktmbuf_mdata_set(mbuf, pkt_flags);
 
+	/*
+	 * If pkt was cached on input to firewall etc. then the CGNAT
+	 * translation will have invalidated that cache.  Mark as empty so any
+	 * output firewall will re-cache it.
+	 */
+	pkt->npf_flags |= NPF_FLAG_CACHE_EMPTY;
+
 	if (new_inactive_session) {
 		/* Activate new session */
 		error = cgn_session_activate(cse, cpk, dir);
@@ -751,6 +758,7 @@ bool ipv4_cgnat_test(struct rte_mbuf **mbufp, struct ifnet *ifp,
 		     enum cgn_dir dir, int *error)
 {
 	struct rte_mbuf *mbuf = *mbufp;
+	struct pl_packet pkt;
 	struct cgn_packet cpk;
 	bool rv = true;
 
@@ -759,7 +767,7 @@ bool ipv4_cgnat_test(struct rte_mbuf **mbufp, struct ifnet *ifp,
 			      &cpk, false);
 
 	if (likely(*error == 0)) {
-		*error = ipv4_cgnat_common(&cpk, ifp, &mbuf, dir);
+		*error = ipv4_cgnat_common(&pkt, &cpk, ifp, &mbuf, dir);
 
 		if (unlikely(mbuf != *mbufp))
 			*mbufp = mbuf;
@@ -824,7 +832,7 @@ ipv4_cgnat_in_process(struct pl_packet *pkt, void *context __unused)
 			      &cpk, false);
 
 	if (likely(error == 0)) {
-		error = ipv4_cgnat_common(&cpk, ifp, &mbuf, CGN_DIR_IN);
+		error = ipv4_cgnat_common(pkt, &cpk, ifp, &mbuf, CGN_DIR_IN);
 
 		if (unlikely(mbuf != pkt->mbuf)) {
 			pkt->mbuf = mbuf;
@@ -921,7 +929,7 @@ ALWAYS_INLINE unsigned int ipv4_cgnat_out_process(struct pl_packet *pkt,
 		 * ACCEPT.  For example, if the packet does not match a CGNAT
 		 * policy.
 		 */
-		error = ipv4_cgnat_common(&cpk, ifp, &mbuf, CGN_DIR_OUT);
+		error = ipv4_cgnat_common(pkt, &cpk, ifp, &mbuf, CGN_DIR_OUT);
 
 		if (unlikely(mbuf != pkt->mbuf)) {
 			pkt->mbuf = mbuf;
