@@ -47,7 +47,7 @@ generate_sfpd_file(const char *sfpd_file, uint8_t port,
 	fprintf(f, "vendor_name = Cisco\n");
 	fprintf(f, "vendor_oui = aa.bb.cc\n");
 	fprintf(f, "vendor_rev = 44.5a\n");
-	fprintf(f, "detection_time = %d\n", dp_test_sys_uptime());
+	fprintf(f, "detection_time = %u\n", dp_test_sys_uptime());
 	fclose(f);
 }
 
@@ -207,7 +207,7 @@ _show_sfp_permit_list_device(const char *intf_name, const char *part_id,
 			"{"
 			"\"sfp-permit-list-devices\":"
 			"{\"enforcement-mode\":true,"
-			"\"up-time\":%u,"
+			"\"up-time\":%d,"
 			"\"devices\": ["
 			"{"
 			"\"intf_name\":"

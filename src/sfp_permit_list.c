@@ -197,7 +197,7 @@ sfp_permit_list_lists_inits(void)
 	}
 }
 
-static void sfp_permit_list_init(bool check_sfpd_update)
+static void sfp_permit_list_init(const bool check_sfpd_update)
 {
 
 	if (sfp_permit_list_running)
@@ -322,7 +322,7 @@ static void sfp_ordered_list_add(struct sfp_part *part)
 }
 
 static void
-sfp_list_add_entry_part(SfpPermitConfig__SFP *sfp,
+sfp_list_add_entry_part(const SfpPermitConfig__SFP *sfp,
 			struct sfp_permit_list *entry)
 {
 	struct sfp_part *part;
@@ -339,7 +339,7 @@ sfp_list_add_entry_part(SfpPermitConfig__SFP *sfp,
 
 
 static struct sfp_permit_list *
-sfp_list_add_entry(SfpPermitConfig__ListConfig *list)
+sfp_list_add_entry(const SfpPermitConfig__ListConfig *list)
 {
 	struct sfp_permit_list *entry;
 
@@ -414,7 +414,7 @@ sfp_display_sfp(const char *list_name, const SfpPermitConfig__SFP *sfp)
 }
 
 static void
-sfp_list_display(SfpPermitConfig__ListConfig *list)
+sfp_list_display(const SfpPermitConfig__ListConfig *list)
 {
 	bool set = list->action ==
 		SFP_PERMIT_CONFIG__ACTION__SET ? true : false;
@@ -427,7 +427,7 @@ sfp_list_display(SfpPermitConfig__ListConfig *list)
 }
 
 static int
-sfp_permit_list_cfg(SfpPermitConfig__ListConfig *list)
+sfp_permit_list_cfg(const SfpPermitConfig__ListConfig *list)
 {
 	struct sfp_permit_list *saved_list;
 	bool set = list->action ==
@@ -469,7 +469,7 @@ sfp_permit_list_cfg(SfpPermitConfig__ListConfig *list)
 }
 
 static int
-sfp_permit_mismatch_cfg(SfpPermitConfig__MisMatchConfig *mismatch)
+sfp_permit_mismatch_cfg(const SfpPermitConfig__MisMatchConfig *mismatch)
 {
 	DP_DEBUG(SFP_LIST, DEBUG, DATAPLANE,
 		 "SFP-PL:mismatch enforcement delay %u\n", mismatch->delay);
@@ -574,7 +574,7 @@ static void dump_lists(void)
 }
 
 static int
-sfp_permit_full_match(struct sfp_intf_record *sfp, struct sfp_part *part_entry)
+sfp_permit_full_match(const struct sfp_intf_record *sfp, const struct sfp_part *part_entry)
 {
 	if (part_entry->flags & SFP_PART_VENDOR_NAME)
 		if (strncmp(part_entry->vendor_name, sfp->vendor_name,
@@ -594,7 +594,7 @@ sfp_permit_full_match(struct sfp_intf_record *sfp, struct sfp_part *part_entry)
 }
 
 static struct sfp_part *
-sfp_permit_match_by_name(struct sfp_intf_record *sfp, bool full_match)
+sfp_permit_match_by_name(const struct sfp_intf_record *sfp, const bool full_match)
 {
 	struct sfp_part *part_entry;
 	int rc;
@@ -627,7 +627,7 @@ sfp_permit_match_by_name(struct sfp_intf_record *sfp, bool full_match)
 	return NULL;
 }
 
-static bool sfp_permit_match_check(struct sfp_intf_record *sfp)
+static bool sfp_permit_match_check(const struct sfp_intf_record *sfp)
 {
 	struct sfp_part *part_entry;
 
