@@ -1,0 +1,17 @@
+#!/bin/bash
+
+set -x
+
+# wait for build to complete
+result=(`osc results -w $OBS_PRJ_PATH $BITBUCKET_REPO`)
+
+# check result again after the publish
+result=(`osc results $OBS_PRJ_PATH $BITBUCKET_REPO`)
+
+if [[ ! ${result[2]} =~ succeeded ]]; then
+    echo OBS build not successful
+    echo $result
+    exit 1
+fi
+
+echo "REPO=${result[0]}" >> $TMPDIR/env.txt

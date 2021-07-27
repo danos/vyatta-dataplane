@@ -40,6 +40,8 @@
 #define SFPD_PORTS_MIN 32
 #define SFPD_PORTS_MAX 1024
 
+#define MAX_DEBUG_MSG_LEN 200
+
 static bool sfp_permit_list_running;
 struct cds_list_head  sfp_permit_list_head;
 struct cds_list_head  sfp_permit_parts_list_head;
@@ -71,6 +73,7 @@ struct sfp_part {
 	uint16_t flags;
 	uint16_t len;
 
+	uint32_t part_index;
 	char part_id[SFP_MAX_PART_ID + 1];
 
 	/* optional, as indicated by flags */
@@ -194,7 +197,7 @@ sfp_permit_list_lists_inits(void)
 	}
 }
 
-static void sfp_permit_list_init(bool check_sfpd_update)
+static void sfp_permit_list_init(const bool check_sfpd_update)
 {
 
 	if (sfp_permit_list_running)
@@ -234,7 +237,7 @@ static void sfp_permit_list_init(bool check_sfpd_update)
 		sfpd_process_presence_update();
 }
 
-static struct sfp_permit_list *sfp_find_permit_list(char *name)
+static struct sfp_permit_list *sfp_find_permit_list(const char *name)
 {
 	struct sfp_permit_list *entry, *next;
 
@@ -247,7 +250,7 @@ static struct sfp_permit_list *sfp_find_permit_list(char *name)
 }
 
 static struct sfp_part *
-sfp_list_add_partid(SfpPermitConfig__Vendor *vendor,  char *part, char *rev)
+sfp_list_add_partid(const SfpPermitConfig__SFP *sfp)
 {
 	struct sfp_part *entry;
 	uint32_t flags;
@@ -259,30 +262,32 @@ sfp_list_add_partid(SfpPermitConfig__Vendor *vendor,  char *part, char *rev)
 		return NULL;
 	}
 
-	strncpy(entry->part_id, part, sizeof(entry->part_id));
+	strncpy(entry->part_id, sfp->part, sizeof(entry->part_id));
 	entry->len = strlen(entry->part_id);
 
-	if (strstr(part, "*")) {
+	entry->part_index = sfp->index;
+
+	if (strstr(sfp->part, "*")) {
 		flags = SFP_PART_WILDCARD;
 		entry->len -= 1;
 	} else {
 		flags = 0;
 	}
 
-	if (vendor->name) {
-		strncpy(entry->vendor_name, vendor->name,
+	if (sfp->vendor) {
+		strncpy(entry->vendor_name, sfp->vendor,
 			sizeof(entry->vendor_name));
 		flags |= SFP_PART_VENDOR_NAME;
 	}
 
-	if (vendor->oui) {
-		strncpy(entry->vendor_oui, vendor->oui,
+	if (sfp->oui) {
+		strncpy(entry->vendor_oui, sfp->oui,
 			sizeof(entry->vendor_oui));
 		flags |= SFP_PART_VENDOR_OUI;
 	}
 
-	if (rev) {
-		strncpy(entry->vendor_rev, rev,
+	if (sfp->rev) {
+		strncpy(entry->vendor_rev, sfp->rev,
 			sizeof(entry->vendor_rev));
 		flags |= SFP_PART_VENDOR_REV;
 	}
@@ -317,50 +322,26 @@ static void sfp_ordered_list_add(struct sfp_part *part)
 }
 
 static void
-sfp_list_add_entry_part(SfpPermitConfig__Vendor *vendor,
+sfp_list_add_entry_part(const SfpPermitConfig__SFP *sfp,
 			struct sfp_permit_list *entry)
 {
-	SfpPermitConfig__Part **parts;
 	struct sfp_part *part;
-	uint32_t i = 0, k;
 
-	parts  = vendor->parts;
+	part = sfp_list_add_partid(sfp);
 
-	while (i < vendor->n_parts) {
-		k = 0;
-		if (parts[i]->n_revs == 0) {
-			part = sfp_list_add_partid(vendor,
-						   parts[i]->part, NULL);
-			if (part) {
-				entry->num_parts++;
-				cds_list_add_tail(&part->permit_list,
-						  &entry->sfp_part_list_head);
-				sfp_ordered_list_add(part);
-			}
-		} else {
-			while (k < parts[i]->n_revs) {
-				part = sfp_list_add_partid(vendor,
-							   parts[i]->part,
-							   parts[i]->revs[k]->rev);
-				if (part) {
-					entry->num_parts++;
-					cds_list_add_tail(&part->permit_list,
-							  &entry->sfp_part_list_head);
-					sfp_ordered_list_add(part);
-				}
-				k++;
-			}
-		}
-		i++;
+	if (part) {
+		entry->num_parts++;
+		cds_list_add_tail(&part->permit_list,
+				  &entry->sfp_part_list_head);
+		sfp_ordered_list_add(part);
 	}
 }
 
 
 static struct sfp_permit_list *
-sfp_list_add_entry(SfpPermitConfig__ListConfig *list)
+sfp_list_add_entry(const SfpPermitConfig__ListConfig *list)
 {
 	struct sfp_permit_list *entry;
-	uint32_t j = 0;
 
 	entry = calloc(1, sizeof(*entry));
 	if (!entry) {
@@ -373,12 +354,8 @@ sfp_list_add_entry(SfpPermitConfig__ListConfig *list)
 
 	CDS_INIT_LIST_HEAD(&entry->sfp_part_list_head);
 
-	if (list->n_vendors) {
-		while (j < list->n_vendors) {
-			sfp_list_add_entry_part(list->vendors[j], entry);
-			j++;
-		}
-	}
+	for (uint32_t j = 0; j < list->n_sfps; j++)
+		sfp_list_add_entry_part(list->sfps[j], entry);
 
 	cds_list_add_tail(&entry->permit_list_link, &sfp_permit_list_head);
 
@@ -425,58 +402,34 @@ sfp_list_remove_entry(struct sfp_permit_list *entry)
 }
 
 static void
-sfp_display_vendor(char *list_name, SfpPermitConfig__Vendor *vendor)
+sfp_display_sfp(const char *list_name, const SfpPermitConfig__SFP *sfp)
 {
-	SfpPermitConfig__Part **parts;
-	uint32_t i = 0, k;
 
-	if (vendor->oui)
-		DP_DEBUG(SFP_LIST, DEBUG, DATAPLANE,
-			 "SFP-PL:Permit_list:%s vendor: %s oui: %s\n",
-			 list_name, vendor->name, vendor->oui);
-	else
-		DP_DEBUG(SFP_LIST, DEBUG, DATAPLANE,
-			 "SFP-PL:Permit_list:%s vendor: %s\n",
-			 list_name, vendor->name);
-
-	parts = vendor->parts;
-
-	while (i < vendor->n_parts) {
-		k = 0;
-		if (parts[i]->n_revs == 0)
-			DP_DEBUG(SFP_LIST, DEBUG, DATAPLANE,
-				 "SFP-PL:Permit_list:%s vendor Part:%s\n",
-				 vendor->name, parts[i]->part);
-		else
-			while (k < parts[i]->n_revs) {
-				DP_DEBUG(SFP_LIST, DEBUG, DATAPLANE,
-					 "SFP-PL:Permit_list:%s vendor Part:%s Rev:%s\n",
-					 vendor->name,
-					 parts[i]->part, parts[i]->revs[k]->rev);
-				k++;
-			}
-		i++;
-	}
+	DP_DEBUG(SFP_LIST, DEBUG, DATAPLANE, "SFP-PL: Permit_list:%s "
+			"index:%u part:%s vendor:%s oui:%s rev:%s",
+			list_name, sfp->index, sfp->part,
+			sfp->vendor ? sfp->vendor : "",
+			sfp->oui ? sfp->oui : "",
+			sfp->rev ? sfp->rev : "");
 }
 
 static void
-sfp_list_display(SfpPermitConfig__ListConfig *list)
+sfp_list_display(const SfpPermitConfig__ListConfig *list)
 {
-	uint32_t j = 0;
 	bool set = list->action ==
 		SFP_PERMIT_CONFIG__ACTION__SET ? true : false;
 
 	DP_DEBUG(SFP_LIST, DEBUG, DATAPLANE,
-		"SFP-PL:Permit_list:%s %s\n", list->name, set  ? "Set" : "Delete");
+		"SFP-PL:Permit_list:%s %s\n", list->name, set  ? "SET" : "DELETE");
 
-	while (j < list->n_vendors)
-		sfp_display_vendor(list->name, list->vendors[j++]);
+	for (uint32_t j = 0; j < list->n_sfps; j++)
+		sfp_display_sfp(list->name, list->sfps[j++]);
 }
 
 static int
-sfp_permit_list_cfg(SfpPermitConfig__ListConfig *list)
+sfp_permit_list_cfg(const SfpPermitConfig__ListConfig *list)
 {
-	struct sfp_permit_list *entry;
+	struct sfp_permit_list *saved_list;
 	bool set = list->action ==
 		SFP_PERMIT_CONFIG__ACTION__SET ? true : false;
 
@@ -486,10 +439,10 @@ sfp_permit_list_cfg(SfpPermitConfig__ListConfig *list)
 	if (set)
 		sfp_list_display(list);
 
-	entry = sfp_find_permit_list(list->name);
-	if (!entry) {
+	saved_list = sfp_find_permit_list(list->name);
+	if (!saved_list) {
 		if (set)
-			entry = sfp_list_add_entry(list);
+			saved_list = sfp_list_add_entry(list);
 		else
 			DP_DEBUG(SFP_LIST, DEBUG, DATAPLANE,
 				 "SFP-PL:Delete %s failed\n",
@@ -498,12 +451,12 @@ sfp_permit_list_cfg(SfpPermitConfig__ListConfig *list)
 		/* Updates to the list are performed by deleting
 		 * the list and then adding a new one.
 		 */
-		sfp_list_remove_entry(entry);
+		sfp_list_remove_entry(saved_list);
 		if (set)
-			entry = sfp_list_add_entry(list);
+			saved_list = sfp_list_add_entry(list);
 	}
 
-	if (set && !entry) {
+	if (set && !saved_list) {
 		RTE_LOG(ERR, DATAPLANE,
 			"SFP-PL:Set/update %s cfg entry failed\n",
 			list->name);
@@ -516,14 +469,14 @@ sfp_permit_list_cfg(SfpPermitConfig__ListConfig *list)
 }
 
 static int
-sfp_permit_mismatch_cfg(SfpPermitConfig__MisMatchConfig *mismatch)
+sfp_permit_mismatch_cfg(const SfpPermitConfig__MisMatchConfig *mismatch)
 {
 	DP_DEBUG(SFP_LIST, DEBUG, DATAPLANE,
-		 "SFP-PL:mismatch enforcement delay %d\n", mismatch->delay);
+		 "SFP-PL:mismatch enforcement delay %u\n", mismatch->delay);
 	DP_DEBUG(SFP_LIST, DEBUG, DATAPLANE,
-		"SFP-PL:mismatch logging %d\n", mismatch->logging);
+		"SFP-PL:mismatch logging %u\n", mismatch->logging);
 	DP_DEBUG(SFP_LIST, DEBUG, DATAPLANE,
-		"SFP-PL:mismatch enforcement %d\n", mismatch->enforcement);
+		"SFP-PL:mismatch enforcement %u\n", mismatch->enforcement);
 
 	if (mismatch->logging == SFP_PERMIT_CONFIG__LOGGING__ENABLE)
 		sfp_mismatch_cfg.logging_enabled = true;
@@ -563,7 +516,7 @@ static void dump_lists(void)
 			 == true ? "True" : "False");
 
 	DP_DEBUG(SFP_LIST, DEBUG, DATAPLANE,
-		 "   enforcement delay %d Secs\n",
+		 "   enforcement delay %u Secs\n",
 		 sfp_mismatch_cfg.enforcement_delay);
 
 	if (cds_list_empty(&sfp_permit_list_head)) {
@@ -621,7 +574,7 @@ static void dump_lists(void)
 }
 
 static int
-sfp_permit_full_match(struct sfp_intf_record *sfp, struct sfp_part *part_entry)
+sfp_permit_full_match(const struct sfp_intf_record *sfp, const struct sfp_part *part_entry)
 {
 	if (part_entry->flags & SFP_PART_VENDOR_NAME)
 		if (strncmp(part_entry->vendor_name, sfp->vendor_name,
@@ -641,7 +594,7 @@ sfp_permit_full_match(struct sfp_intf_record *sfp, struct sfp_part *part_entry)
 }
 
 static struct sfp_part *
-sfp_permit_match_by_name(struct sfp_intf_record *sfp, bool full_match)
+sfp_permit_match_by_name(const struct sfp_intf_record *sfp, const bool full_match)
 {
 	struct sfp_part *part_entry;
 	int rc;
@@ -674,7 +627,7 @@ sfp_permit_match_by_name(struct sfp_intf_record *sfp, bool full_match)
 	return NULL;
 }
 
-static bool sfp_permit_match_check(struct sfp_intf_record *sfp)
+static bool sfp_permit_match_check(const struct sfp_intf_record *sfp)
 {
 	struct sfp_part *part_entry;
 
@@ -1094,6 +1047,7 @@ static void sfp_permit_dump_devices(json_writer_t *wr)
 	jsonw_end_object(wr);
 
 }
+
 static void sfp_permit_dump_list(json_writer_t *wr)
 {
 	struct sfp_permit_list *entry;
@@ -1115,6 +1069,8 @@ static void sfp_permit_dump_list(json_writer_t *wr)
 					    permit_list) {
 			jsonw_start_object(wr);
 
+			jsonw_uint_field(wr, "part_index",
+					   part_entry->part_index);
 			jsonw_string_field(wr, "vendor_part",
 					   part_entry->part_id);
 			jsonw_uint_field(wr, "flags", part_entry->flags);
@@ -1136,6 +1092,7 @@ static void sfp_permit_dump_list(json_writer_t *wr)
 
 	jsonw_end_object(wr);
 }
+
 static void sfp_permit_dump_search_list(json_writer_t *wr)
 {
 	struct sfp_part *part_entry;
@@ -1150,8 +1107,12 @@ static void sfp_permit_dump_search_list(json_writer_t *wr)
 				    &sfp_permit_parts_list_head,
 				    search_list) {
 		jsonw_start_object(wr);
+		jsonw_uint_field(wr, "part_index",
+						   part_entry->part_index);
 		jsonw_string_field(wr, "vendor_part",
 				   part_entry->part_id);
+		jsonw_string_field(wr, "vendor_oui",
+						   part_entry->vendor_oui);
 		jsonw_string_field(wr, "vendor_rev",
 				   part_entry->vendor_rev);
 		jsonw_uint_field(wr, "flags", part_entry->flags);

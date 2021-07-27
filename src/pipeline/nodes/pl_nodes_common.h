@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2020, AT&T Intellectual Property. All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property. All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  *
@@ -73,13 +73,13 @@ PL_DECLARE_FEATURE(ipv4_acl_out_spath_feat);
 PL_DECLARE_FEATURE(ipv6_acl_out_spath_feat);
 
 PL_DECLARE_FEATURE(ipv4_fw_in_feat);
-PL_DECLARE_FEATURE(ipv4_fw_out_feat);
+PL_DECLARE_FEATURE(ipv4_snat_feat);
 PL_DECLARE_FEATURE(ipv6_fw_in_feat);
-PL_DECLARE_FEATURE(ipv6_fw_out_feat);
 PL_DECLARE_FEATURE(ipv4_fw_orig_feat);
 PL_DECLARE_FEATURE(ipv6_fw_orig_feat);
-PL_DECLARE_FEATURE(ipv4_fw_out_spath_feat);
+PL_DECLARE_FEATURE(ipv6_fw_out_feat);
 PL_DECLARE_FEATURE(ipv6_fw_out_spath_feat);
+PL_DECLARE_FEATURE(ipv4_snat_spath_feat);
 
 PL_DECLARE_FEATURE(ipv4_pbr_feat);
 PL_DECLARE_FEATURE(ipv6_pbr_feat);

@@ -1,94 +1,62 @@
 /*
- * Copyright (c) 2017-2020, AT&T Intellectual Property. All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property. All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  *
  */
-#include <netinet/in.h>
-#include <rte_branch_prediction.h>
-#include <rte_ether.h>
+
 #include <stdbool.h>
 
-#include "compiler.h"
 #include "if_var.h"
+#include "ip_funcs.h"
 #include "npf/config/npf_config.h"
-#include "npf/npf.h"
 #include "npf/npf_if.h"
-#include "npf_shim.h"
-#include "pktmbuf_internal.h"
+#include "netinet6/ip6_funcs.h"
 #include "pl_common.h"
 #include "pl_fused.h"
-#include "urcu.h"
-#include "ip_funcs.h"
-#include "ip6_funcs.h"
-
-enum {
-	V4_PKT = true,
-	V6_PKT = false
-};
-
-static ALWAYS_INLINE unsigned int
-ip_fw_out_process_common(struct pl_packet *pkt, bool v4)
-{
-	struct ifnet *ifp = pkt->out_ifp;
-	unsigned long bitmask;
-
-	if (v4)
-		bitmask = NPF_IF_SESSION | NPF_V4_TRACK_OUT;
-	else
-		bitmask = NPF_IF_SESSION | NPF_V6_TRACK_OUT;
-
-	struct npf_if *nif = rcu_dereference(ifp->if_npf);
-
-	/* Output NPF Firewall and NAT or Zone and NAT */
-	if  (npf_if_active(nif, bitmask)) {
-		npf_result_t result;
-		struct rte_mbuf *m = pkt->mbuf;
-
-		result = npf_hook_track(pkt->in_ifp, &m, nif, PFIL_OUT,
-					pkt->npf_flags,
-					v4 ? htons(RTE_ETHER_TYPE_IPV4) :
-					htons(RTE_ETHER_TYPE_IPV6));
-		if (unlikely(m != pkt->mbuf)) {
-			pkt->mbuf = m;
-			pkt->l3_hdr = dp_pktmbuf_mtol3(m, void *);
-		}
-		if (unlikely(result.decision != NPF_DECISION_PASS))
-			return v4 ? IPV4_FW_OUT_DROP : IPV6_FW_OUT_DROP;
-
-		/* Update npf_flags for nat64 */
-		pkt->npf_flags = result.flags;
-
-	} else if ((pkt->npf_flags & NPF_FLAG_FROM_ZONE) &&
-		   !(pkt->npf_flags & NPF_FLAG_FROM_US))
-		/* Zone to non-zone (no fw) -> drop */
-		return v4 ? IPV4_FW_OUT_DROP : IPV6_FW_OUT_DROP;
-
-	return v4 ? IPV4_FW_OUT_ACCEPT : IPV6_FW_OUT_ACCEPT;
-}
+#include "npf/npf.h"
+#include "snat_and_fwout/npf_out.h"
 
 ALWAYS_INLINE unsigned int
 ipv4_fw_out_process(struct pl_packet *pkt, void *context __unused)
 {
-	return ip_fw_out_process_common(pkt, V4_PKT);
+	npf_decision_t result = npf_out_track_fw(pkt);
+
+	if (result != NPF_DECISION_PASS)
+		return IPV4_FW_OUT_DROP;
+
+	return IPV4_FW_OUT_ACCEPT;
 }
 
 ALWAYS_INLINE unsigned int
 ipv6_fw_out_process(struct pl_packet *pkt, void *context __unused)
 {
-	return ip_fw_out_process_common(pkt, V6_PKT);
+	unsigned long bitmask =
+		NPF_IF_SESSION | NPF_V6_TRACK_OUT;
+
+	struct npf_if *nif = rcu_dereference(pkt->out_ifp->if_npf);
+	if  (npf_if_active(nif, bitmask)) {
+		npf_decision_t result = npf_out_track_v6_fw(pkt);
+		if (result != NPF_DECISION_PASS)
+			return IPV6_FW_OUT_DROP;
+	} else if ((pkt->npf_flags & NPF_FLAG_FROM_ZONE) &&
+		   !(pkt->npf_flags & NPF_FLAG_FROM_US))
+		/* Zone to non-zone (no fw) -> drop */
+		return IPV6_FW_OUT_DROP;
+
+	return IPV6_FW_OUT_ACCEPT;
 }
 
 ALWAYS_INLINE unsigned int
-ipv4_fw_out_spath_process(struct pl_packet *pkt, void *context __unused)
+ipv4_fw_out_spath_process(struct pl_packet *pkt, void *context)
 {
-	return ip_fw_out_process_common(pkt, V4_PKT);
+	return ipv4_fw_out_process(pkt, context);
 }
 
 ALWAYS_INLINE unsigned int
-ipv6_fw_out_spath_process(struct pl_packet *pkt, void *context __unused)
+ipv6_fw_out_spath_process(struct pl_packet *pkt, void *context)
 {
-	return ip_fw_out_process_common(pkt, V6_PKT);
+	return ipv6_fw_out_process(pkt, context);
 }
 
 ALWAYS_INLINE unsigned int
@@ -183,22 +151,6 @@ PL_REGISTER_NODE(ipv6_fw_out_spath_node) = {
 };
 
 /* Register Features */
-PL_REGISTER_FEATURE(ipv4_fw_out_feat) = {
-	.name = "vyatta:ipv4-fw-out",
-	.node_name = "ipv4-fw-out",
-	.feature_point = "ipv4-out",
-	.id = PL_L3_V4_OUT_FUSED_FEAT_FW,
-	.visit_after = "vyatta:ipv4-cgnat-out",
-};
-
-PL_REGISTER_FEATURE(ipv6_fw_out_feat) = {
-	.name = "vyatta:ipv6-fw-out",
-	.node_name = "ipv6-fw-out",
-	.feature_point = "ipv6-out",
-	.id = PL_L3_V6_OUT_FUSED_FEAT_FW,
-	.visit_after = "vyatta:ipv6-defrag-out",
-};
-
 PL_REGISTER_FEATURE(ipv4_fw_orig_feat) = {
 	.name = "vyatta:ipv4-fw-orig",
 	.node_name = "ipv4-fw-orig",
@@ -213,16 +165,17 @@ PL_REGISTER_FEATURE(ipv6_fw_orig_feat) = {
 	.id = PL_L3_V6_OUT_FUSED_FEAT_FW_ORIG,
 };
 
-PL_REGISTER_FEATURE(ipv4_fw_out_spath_feat) = {
-	.name = "vyatta:ipv4-fw-out-spath",
-	.node_name = "ipv4-fw-out-spath",
-	.feature_point = "ipv4-out-spath",
-	.id = PL_L3_V4_OUT_SPATH_FUSED_FEAT_FW,
+PL_REGISTER_FEATURE(ipv6_fw_out_feat) = {
+	.name = "vyatta:ipv6-fw-out",
+	.node_name = "ipv6-fw-out",
+	.feature_point = "ipv6-out",
+	.id = PL_L3_V6_OUT_FUSED_FEAT_FW_OUT,
+	.visit_after = "vyatta:ipv6-defrag-out",
 };
 
 PL_REGISTER_FEATURE(ipv6_fw_out_spath_feat) = {
 	.name = "vyatta:ipv6-fw-out-spath",
 	.node_name = "ipv6-fw-out-spath",
 	.feature_point = "ipv6-out-spath",
-	.id = PL_L3_V6_OUT_SPATH_FUSED_FEAT_FW,
+	.id = PL_L3_V6_OUT_SPATH_FUSED_FEAT_FW_OUT,
 };

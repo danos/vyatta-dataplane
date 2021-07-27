@@ -7,7 +7,7 @@
  *   - checkpatch fixup
  */
 /*-
- * Copyright (c) 2018-2019, AT&T Intellectual Property. All rights reserved.
+ * Copyright (c) 2018-2021, AT&T Intellectual Property. All rights reserved.
  * Copyright (c) 2014 Alexander V. Chernikov. All rights reserved.
  *
  * SPDX-License-Identifier: (LGPL-2.1-only AND BSD-2-Clause-FREEBSD)
@@ -832,8 +832,6 @@ convert_sff_name(json_writer_t *wr, const char *field_name, char *xbuf,
 			jsonw_string_field(wr, field_name, "");
 			return;
 		}
-		if (*p == 0x20)
-			break;
 		p++;
 	}
 	*p = '\0';

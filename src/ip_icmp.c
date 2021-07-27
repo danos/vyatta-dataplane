@@ -432,20 +432,28 @@ static bool is_icmp_info(const struct icmphdr *icmp)
 /*
  * Determine if we need to drop a generated ICMP packet.
  */
-bool icmp_ratelimit_drop(uint8_t type, struct icmp_ratelimit_state *rl, uint8_t entries)
+bool icmp_ratelimit_drop(uint8_t type, int af, struct icmp_ratelimit_state *rl, uint8_t entries)
 {
-	if (type < entries) {
-		rl = &rl[type];
+	if (type >= entries || !rl[type].limiting)
+		return false;
 
-		if (rl->limiting) {
-			if (uatomic_add_return(&rl->sent_this_second, 1) > rl->max_rate) {
-				uatomic_add(&rl->total_dropped, 1);
-				uatomic_add(&rl->drop_stats[icmp_ratelimit_interval], 1);
-				return true;
-			}
-			uatomic_add(&rl->total_sent, 1);
+	rl = &rl[type];
+
+	if (uatomic_add_return(&rl->sent_this_second, 1) > rl->max_rate) {
+		if (!rl->dropping) {
+			RTE_LOG(WARNING, DATAPLANE,
+				"ICMP%s rate limiting started for type \"%s\"\n",
+				af == AF_INET6 ? "v6" : "", rl->name);
+			rl->dropping = true;
 		}
+		uatomic_add(&rl->dropped_this_second, 1);
+		uatomic_add(&rl->dropped_consecutive_seconds, 1);
+		uatomic_add(&rl->total_dropped, 1);
+		uatomic_add(&rl->drop_stats[icmp_ratelimit_interval], 1);
+		return true;
 	}
+
+	uatomic_add(&rl->total_sent, 1);
 
 	return false;
 }
@@ -465,7 +473,7 @@ icmp_do_error(struct rte_mbuf *n, int type, int code, uint32_t info,
 	struct rte_mbuf *m;
 	unsigned int icmplen, icmpelen, pktlen;
 
-	if (icmp_ratelimit_drop(type, icmp_ratelimit_state, icmp_get_rl_state_entries()))
+	if (icmp_ratelimit_drop(type, AF_INET, icmp_ratelimit_state, icmp_get_rl_state_entries()))
 		return NULL;
 
 	if (n->ol_flags & PKT_RX_SEEN_BY_CRYPTO) {
@@ -853,6 +861,9 @@ static void icmp_ratelimit_reset_entry(struct icmp_ratelimit_state *rl,
 	rl->explicit = explicit;
 	rl->max_rate = val;
 	rl->sent_this_second = 0;
+	rl->dropping = false;
+	rl->dropped_this_second = 0;
+	rl->dropped_consecutive_seconds = 0;
 	memset(rl->drop_stats, 0, sizeof(rl->drop_stats));
 }
 
@@ -944,7 +955,7 @@ static void icmp_ratelimit_refresh_tmr_hdlr(struct rte_timer *timer __rte_unused
 					    void *arg __rte_unused)
 {
 	struct icmp_ratelimit_state *rl;
-	int i;
+	int i, j, entries;
 
 	/*
 	 * Jump to next stats interval if necessary.
@@ -954,19 +965,30 @@ static void icmp_ratelimit_refresh_tmr_hdlr(struct rte_timer *timer __rte_unused
 		icmp_ratelimit_interval = icmp_ratelimit_next_interval(icmp_ratelimit_interval);
 	}
 
-	/* Refresh v4 tokens and stats counters */
-	rl = icmp_get_rl_state();
-	for (i = 0; i < icmp_get_rl_state_entries(); i++) {
-		uatomic_set(&rl[i].sent_this_second, 0);
-		if (icmp_ratelimit_second_count == 0)
-			rl[i].drop_stats[icmp_ratelimit_interval] = 0;
-	}
+	/*
+	 * For each (v4, v6): for each ICMP type:
+	 *    Emit syslog if we had been dropping ICMPs of that type for consecutive seconds
+	 *    but have not dropped any in the most recent second.
+	 *    Update per-second counters.
+	 */
+	for (j = 0, rl = icmp_get_rl_state(), entries = icmp_get_rl_state_entries();
+	     j < 2;
+	     rl = icmp6_get_rl_state(), entries = icmp6_get_rl_state_entries(), j++) {
+		for (i = 0; i < entries; rl++, i++) {
+			if (rl->dropping && rl->dropped_this_second == 0) {
+				RTE_LOG(INFO, DATAPLANE,
+				       "ICMP%s rate limiting stopped for type \"%s\", dropped %d\n",
+					j ? "v6" : "",
+					rl->name, rl->dropped_consecutive_seconds);
+				rl->dropping = false;
+				uatomic_set(&rl->dropped_consecutive_seconds, 0);
+			}
 
-	rl = icmp6_get_rl_state();
-	for (i = 0; i < icmp6_get_rl_state_entries(); i++) {
-		uatomic_set(&rl[i].sent_this_second, 0);
-		if (icmp_ratelimit_second_count == 0)
-			rl[i].drop_stats[icmp_ratelimit_interval] = 0;
+			uatomic_set(&rl->dropped_this_second, 0);
+			uatomic_set(&rl->sent_this_second, 0);
+			if (icmp_ratelimit_second_count == 0)
+				rl->drop_stats[icmp_ratelimit_interval] = 0;
+		}
 	}
 }
 

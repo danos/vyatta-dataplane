@@ -55,12 +55,15 @@ void icmp_ratelimit_init(void);
 /*
  * Test if we should drop generated ICMP packet
  */
-bool icmp_ratelimit_drop(uint8_t type, struct icmp_ratelimit_state *rl, uint8_t entries);
+bool icmp_ratelimit_drop(uint8_t type, int af, struct icmp_ratelimit_state *rl, uint8_t entries);
 
 struct icmp_ratelimit_state {
 	char		*name;				/* type name */
 	uint32_t	max_rate;			/* limit per sec */
 	uint32_t	sent_this_second;		/* total sent in current second */
+	bool		dropping;			/* currently dropping due to limit */
+	uint32_t	dropped_this_second;		/* total dropped in current second */
+	uint32_t	dropped_consecutive_seconds;	/* total dropped in consecutive second */
 	uint32_t	total_sent;
 	uint32_t	total_dropped;
 	uint32_t	drop_stats[NUM_DROP_INTERVALS];	/* drop counts per stats interval */

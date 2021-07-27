@@ -304,7 +304,8 @@ struct rte_mbuf *icmp6_do_error(struct ifnet *rcvif, struct rte_mbuf *n,
 	if (icmp6_ignore(n))
 		return NULL;
 
-	if (icmp_ratelimit_drop(type, icmp6_ratelimit_state, icmp6_get_rl_state_entries()))
+	if (icmp_ratelimit_drop(type, AF_INET6, icmp6_ratelimit_state,
+				icmp6_get_rl_state_entries()))
 		return NULL;
 
 	/* Find our source address on the interface */

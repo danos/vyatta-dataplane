@@ -1,0 +1,46 @@
+#!/bin/bash
+
+set -x
+
+REPO=vyatta-dataplane
+BLDDIR=$TMPDIR/build
+TMPDIR=$TMPDIR/osc
+
+GIT_REPO="danos/$REPO.git"
+GIT_COMMIT_ID=`git rev-parse HEAD~1`
+
+# For future use - when package builds are moved completely to OBS
+# enable verbose, all tests and sanitizer
+#sed -i '6i DEB_BUILD_OPTIONS=verbose all_tests sanitizer' debian/rules
+
+# include commit id
+sed -i "/^Maintainer:.*$/ a\XBS-Vyatta-Git-Repo: ${GIT_REPO}" debian/control
+sed -i "/^Maintainer:.*$/ a\XBS-Vyatta-Git-Id: ${GIT_COMMIT_ID}" debian/control
+
+git commit -a -m "Include git commit hash in control file"
+
+# create source artefact
+gbp buildpackage --git-verbose --git-ignore-branch -S --no-check-builddeps -us -uc --git-export-dir=$BLDDIR
+
+# create OBS project
+osc-create -u $OBS_USR $OBS_PRJ BUILD-RELEASE:$OBS_TARGET_PROJECT
+
+# copy service file from parent project
+osc copypac BUILD-RELEASE:$OBS_TARGET_PROJECT $REPO $OBS_PRJ_PATH
+
+# check out OBS project and repo
+osc co $OBS_PRJ_PATH -o $TMPDIR
+
+# copy source artefact to directory
+mv $BLDDIR/*.dsc $BLDDIR/*.tar.xz $TMPDIR/$REPO
+
+# disable service
+sed -i 's/<service\ /<service\ mode=\"disabled\"\ /' $TMPDIR/$REPO/_service
+cat $TMPDIR/$REPO/_service
+
+# copy source artefact to OBS package directory
+pushd $TMPDIR
+osc add $REPO/*.tar.xz $REPO/*.dsc
+
+# check in project
+osc ci -m 'stashykins build and perf test'

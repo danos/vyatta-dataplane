@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: LGPL-2.1-only
-# Copyright (c) 2020, AT&T Intellectual Property. All rights reserved.
+# Copyright (c) 2020-2021, AT&T Intellectual Property. All rights reserved.
 
 pipeline_sources = files(
 	'pl_commands.c',
@@ -33,6 +33,8 @@ pipeline_node_sources = files(
 	'nodes/l3_arp.c',
 	'nodes/l3_dpi.c',
 	'nodes/l3_fw_in.c',
+	'nodes/snat_and_fwout/npf_out.c',
+	'nodes/l3_snat.c',
 	'nodes/l3_fw_out.c',
 	'nodes/l3_nat64.c',
 	'nodes/l3_pbr.c',
