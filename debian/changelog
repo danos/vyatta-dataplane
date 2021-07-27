@@ -1,3 +1,14 @@
+vyatta-dataplane (3.14.5) unstable; urgency=medium
+
+  [ Ian Wilson ]
+  * cgnat-alg: Remove references to the FTP ALG
+  * cgnat-alg: Allow ALGs to specify a max payload size
+
+  [ Manohar Rapeti ]
+  * IPv6 :Modified default TCLASS value
+
+ -- Srinivas Narayan <narayan@vyatta.att-mail.com>  Tue, 27 Jul 2021 18:31:19 +0100
+
 vyatta-dataplane (3.14.4) unstable; urgency=medium
 
   [ Thomas Kiely ]
