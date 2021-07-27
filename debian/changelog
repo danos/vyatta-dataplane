@@ -1,3 +1,35 @@
+vyatta-dataplane (3.14.6) unstable; urgency=medium
+
+  [ Mike Larson ]
+  * Initial groundwork for pipeline refactoring: outfw and snat
+  * Separate output FW and SNAT into pipeline nodes
+  * split v4 and v6 out fw entry nodes
+  * Collapse v6 pre-out-fw and out-fw into single node
+  * Remove hook/shim from function names
+
+  [ Srinivas Narayan ]
+  * 3.13.32
+
+  [ Thomas Kiely ]
+  * Minor refactor - no functional change
+  * Logging for ICMP rate limiting feature
+
+  [ kalaivani vinothkumar ]
+  * change in 'interface data X phy' show command
+
+  [ ck407g ]
+  * Rework SFP permit list to make vendor name optional
+  * Added tests
+  * Code fixes
+
+  [ Srinivas Narayan ]
+  * Change branch to Jarrow
+  * Add a stage to build on OBS and submit for perf test
+  * 3.13.33
+  * Change OBS Project to Unstable after merge
+
+ -- Srinivas Narayan <narayan@vyatta.att-mail.com>  Tue, 27 Jul 2021 18:35:58 +0100
+
 vyatta-dataplane (3.14.5) unstable; urgency=medium
 
   [ Ian Wilson ]
