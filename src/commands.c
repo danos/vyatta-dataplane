@@ -1850,7 +1850,7 @@ static const cmd_t cmd_table[] = {
 	{ 0,	"cgn-ut",	cmd_cgn_ut,	"CG-NAT UT mode" },
 	{ 0,	"cpp-rl-op",	cmd_cpp_rl_op,	"Show/clear CPP stats" },
 	{ 0,	"cpu",		cmd_cpu,	"Show CPU load" },
-	{ 0,	"debug",	cmd_debug,	"Debug logging level" },
+	{ 1,	"debug",	cmd_debug,	"Debug logging level" },
 	{ 0,	"ecmp",		cmd_ecmp,	"Show/set ecmp options" },
 	{ 0,	"fal",		cmd_fal,	"FAL debugging commands" },
 	{ 1,    "gpc",          cmd_gpc_op,     "GPC OP mode information" },
