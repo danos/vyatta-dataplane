@@ -27,9 +27,16 @@ static struct rte_mempool *npr_mtrie_pool;
 static struct rte_mempool *npr_acl4_pool;
 static struct rte_mempool *npr_acl6_pool;
 
+/* Maximum amount of rule changes/actions per transaction. */
 #define MAX_TRANSACTION_ENTRIES 512
 
+/* Global per-address family maximum of rules */
 #define NPR_RULE_MAX_ELEMENTS (1 << 19)
+
+/* The minimum size to grow the rule memory pools.
+ * On the acl-opt thread the memory pools might grow
+ * even larger, if a trie merge requires that.
+ */
 #define NPR_RULE_GROW_ELEMENTS ((1 << 14)-1)
 
 /* limit number of rules in consolidated tries to 32K for optimal build time */
