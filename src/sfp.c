@@ -59,6 +59,8 @@
 #include <transceiver.h>
 #include <ieee754.h>
 #include <sfp_permit_list.h>
+#include "protobuf.h"
+#include "protobuf/SFPMonitor.pb-c.h"
 
 struct _nv {
 	int v;
@@ -2262,3 +2264,84 @@ void sfpd_unsubscribe(void)
 
 	sfpd_close_socket();
 }
+
+#define SFPD_REP_SOCKET "ipc:///var/run/vyatta/sfp_rep.socket"
+
+static int
+sfpd_command(const char *format, ...)
+	__attribute__ ((__format__(__printf__, 1, 2)));
+static int
+sfpd_command(const char *format, ...)
+{
+	int ret;
+	va_list ap;
+	zsock_t *req;
+	char *command;
+	char *str;
+
+	va_start(ap, format);
+	ret = vasprintf(&command, format, ap);
+	va_end(ap);
+	if (ret < 0)
+		return -ENOMEM;
+
+	req = zsock_new_req(SFPD_REP_SOCKET);
+	if (!req) {
+		RTE_LOG(ERR, DATAPLANE,
+			"unable to create SFP request socket\n");
+		ret = -ENOMEM;
+		goto exit;
+	}
+
+	if (zstr_send(req, command) < 0) {
+		RTE_LOG(ERR, DATAPLANE, "unable to send SFP command\n");
+		ret = -ECONNREFUSED;
+		goto exit;
+	}
+
+	do {
+		str = zstr_recv(req);
+	} while (!str && errno == EINTR && !zsys_interrupted);
+
+	if (str) {
+		if (strcmp(str, "{\"result\":\"OK\"}") != 0)
+			RTE_LOG(ERR, DATAPLANE,
+				"unexpected response: %s to command %s\n",
+				str, command);
+		free(str);
+	}
+
+exit:
+	zsock_destroy(&req);
+	free(command);
+	return ret;
+}
+
+static int
+cmd_sfp_monitor_cfg(struct pb_msg *msg)
+{
+	int ret = 0;
+	SfpMonitorCfg *sfp_msg =
+	       sfp_monitor_cfg__unpack(NULL, msg->msg_len, msg->msg);
+
+	if (!sfp_msg->has_interval) {
+		ret = -EINVAL;
+		goto done;
+	}
+
+	ret = sfpd_command(
+		"{"
+		"    \"command\": \"SFPMONITORINTERVAL\","
+		"    \"value\": \"%u\""
+		"}", sfp_msg->interval);
+
+done:
+	sfp_monitor_cfg__free_unpacked(sfp_msg, NULL);
+
+	return ret;
+}
+
+PB_REGISTER_CMD(sfp_monitor_cmd) = {
+	.cmd = "vyatta:sfpmonitor",
+	.handler = cmd_sfp_monitor_cfg,
+};

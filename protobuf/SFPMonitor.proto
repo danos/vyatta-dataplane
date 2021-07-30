@@ -9,6 +9,10 @@ syntax="proto2";
 
 option go_package = "github.com/danos/vyatta-dataplane/protobuf/go/SFPmonitor";
 
+message SfpMonitorCfg {
+	optional uint32 interval = 1;
+}
+
 message SfpPermitConfig {
 	enum Action {
 		SET	= 0;
