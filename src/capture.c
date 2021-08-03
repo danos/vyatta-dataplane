@@ -409,7 +409,7 @@ static int capture_mbuf_copy(struct rte_mbuf *mbi[], struct rte_mbuf *mbo[],
 
  nomem:
 	for (j = 0; j < i; j++)
-		rte_pktmbuf_free(mbo[j]);
+		dp_pktmbuf_notify_and_free(mbo[j]);
 
 	return -ENOBUFS;
 }
@@ -441,7 +441,7 @@ void capture_hardware(const struct ifnet *ifp, struct rte_mbuf *mbuf)
 
 	if (unlikely(!ifp->hw_capturing) ||
 	    (unlikely(capture_enqueue(ifp->cap_info, &mbuf, 1) == 0)))
-		rte_pktmbuf_free(mbuf);
+		dp_pktmbuf_notify_and_free(mbuf);
 }
 
 /* Put mbuf(s) in capture ring. */
@@ -574,7 +574,7 @@ static void capture_flush(const struct capture_info *cap_info)
 
 	while (rte_ring_sc_dequeue(cap_info->cap_ring, (void **)&m) == 0)
 		if (m)
-			rte_pktmbuf_free(m);
+			dp_pktmbuf_notify_and_free(m);
 }
 
 /*
@@ -694,7 +694,7 @@ static void capture_loop(struct ifnet *ifp)
 
 			ret = capture_write(m, ifp);
 
-			rte_pktmbuf_free(m);
+			dp_pktmbuf_notify_and_free(m);
 
 			if (ret < 0) {
 				cap_info->pkt_drops++;

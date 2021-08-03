@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2012-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -77,7 +77,7 @@ static struct rte_mbuf *pkt_to_mbuf(struct rte_mempool *mp, vrfid_t vrf_id,
 
 		if (unlikely(m == NULL)) {
 			if (m0)
-				rte_pktmbuf_free(m0);
+				dp_pktmbuf_notify_and_free(m0);
 			return NULL;
 		}
 
@@ -136,7 +136,7 @@ int tap_receive(zloop_t *loop, zmq_pollitem_t *item,
 	len = read(item->fd, base, max_pkt);
 	if (len < 0) {
 		if (m)
-			rte_pktmbuf_free(m);
+			dp_pktmbuf_notify_and_free(m);
 
 		if (errno == EINTR || errno == EAGAIN)
 			return 0;

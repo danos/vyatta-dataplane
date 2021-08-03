@@ -204,7 +204,7 @@ arprequest(struct ifnet *ifp, struct sockaddr *sa)
 	eh = (struct rte_ether_hdr *) rte_pktmbuf_append(m, len);
 	if (!eh) {
 		ARP_DEBUG("no space in packet for arp request\n");
-		rte_pktmbuf_free(m);
+		dp_pktmbuf_notify_and_free(m);
 		return NULL;
 	}
 	memset(&eh->d_addr, 0xff, RTE_ETHER_ADDR_LEN);
@@ -263,7 +263,7 @@ resolved:
 
 		/* out of memory or cache limit hit */
 		if (unlikely(la == NULL)) {
-			rte_pktmbuf_free(m);
+			dp_pktmbuf_notify_and_free(m);
 			return -ENOMEM;
 		}
 
@@ -298,7 +298,7 @@ resolved:
 	 */
 	if (la->la_numheld >= ARP_MAXHOLD) {
 		ARPSTAT_INC(if_vrfid(ifp), dropped);
-		rte_pktmbuf_free(la->la_held[0]);
+		dp_pktmbuf_notify_and_free(la->la_held[0]);
 		memmove(&la->la_held[0], &la->la_held[1],
 			(ARP_MAXHOLD-1) * sizeof(la->la_held[0]));
 		la->la_held[ARP_MAXHOLD-1] = m;

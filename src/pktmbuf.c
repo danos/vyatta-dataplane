@@ -33,7 +33,7 @@ void pktmbuf_free_bulk(struct rte_mbuf *pkts[], unsigned int n)
 	unsigned int i;
 
 	for (i = 0; i < n; i++)
-		rte_pktmbuf_free(pkts[i]);
+		dp_pktmbuf_notify_and_free(pkts[i]);
 }
 
 struct rte_mbuf *pktmbuf_allocseg(struct rte_mempool *mpool, vrfid_t vrf_id,
@@ -45,7 +45,7 @@ struct rte_mbuf *pktmbuf_allocseg(struct rte_mempool *mpool, vrfid_t vrf_id,
 		m = pktmbuf_alloc(mpool, vrf_id);
 
 		if (unlikely(m == NULL)) {
-			rte_pktmbuf_free(m0);
+			dp_pktmbuf_notify_and_free(m0);
 			return NULL;
 		}
 
@@ -264,7 +264,7 @@ struct rte_mbuf *pktmbuf_copy(const struct rte_mbuf *ms, struct rte_mempool *mp)
 			 */
 			md_next = pktmbuf_alloc(mp, pktmbuf_get_vrf(ms));
 			if (unlikely(!md_next)) {
-				rte_pktmbuf_free(md);
+				dp_pktmbuf_notify_and_free(md);
 				return NULL;
 			}
 
@@ -311,7 +311,7 @@ int pktmbuf_prepare_for_header_change(struct rte_mbuf **m, uint16_t header_len)
 			return -ENOMEM;
 
 		pktmbuf_move_mdata(mc, *m);
-		rte_pktmbuf_free(*m);
+		dp_pktmbuf_notify_and_free(*m);
 		*m = mc;
 		return 0;
 	}
@@ -494,7 +494,7 @@ struct rte_mbuf *dp_pktmbuf_alloc_from_default(vrfid_t vrf_id)
 	return pktmbuf_alloc(mbuf_pool(0), vrf_id);
 }
 
-void dp_pktmbuf_free_and_notify(struct rte_mbuf *m)
+void dp_pktmbuf_notify_and_free(struct rte_mbuf *m)
 {
 	struct pl_packet p = {
 		.mbuf = m,

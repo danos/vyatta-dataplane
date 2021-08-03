@@ -4020,7 +4020,7 @@ void if_output_internal(struct pl_packet *pkt)
 		 */
 out:
 		assert(0);
-		rte_pktmbuf_free(pkt->mbuf);
+		dp_pktmbuf_notify_and_free(pkt->mbuf);
 		if_incr_dropped(ifp);
 	}
 }

@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2011-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -104,7 +104,7 @@ void ip_output(struct rte_mbuf *m, bool srced_forus)
 
 	return;
 drop:
-	rte_pktmbuf_free(m);
+	dp_pktmbuf_notify_and_free(m);
 }
 
 /*
@@ -286,7 +286,7 @@ void ip_fragment_mtu(struct ifnet *ifp, unsigned int mtu, struct rte_mbuf *m0,
 		mhip->check = in_cksum(mhip, mhlen);
 
 		if (ip_mbuf_copy(m, m0, off + dp_pktmbuf_l2_len(m0), sz) < 0) {
-			rte_pktmbuf_free(m);
+			dp_pktmbuf_notify_and_free(m);
 			goto drop;
 		}
 
@@ -320,17 +320,17 @@ void ip_fragment_mtu(struct ifnet *ifp, unsigned int mtu, struct rte_mbuf *m0,
 
 	int res = ip_mbuf_copy(m, m0, dp_pktmbuf_l2_len(m0) + hlen, len);
 	if (res < 0) {
-		rte_pktmbuf_free(m);
+		dp_pktmbuf_notify_and_free(m);
 		goto drop;
 	}
 
 	IPSTAT_INC_VRF(vrf, IPSTATS_MIB_FRAGCREATES);
 	IPSTAT_INC_VRF(vrf, IPSTATS_MIB_FRAGOKS);
-	rte_pktmbuf_free(m0);
+	dp_pktmbuf_notify_and_free(m0);
 
 	frag_out(ifp, m, ctx);
 	return;
 drop: __cold_label;
 	IPSTAT_INC_VRF(vrf, IPSTATS_MIB_OUTDISCARDS);
-	rte_pktmbuf_free(m0);
+	dp_pktmbuf_notify_and_free(m0);
 }

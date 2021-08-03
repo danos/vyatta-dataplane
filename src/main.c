@@ -491,7 +491,7 @@ void pkt_ring_empty(portid_t port)
 		ring = port_config[port].pkt_ring[r];
 
 		while (rte_ring_sc_dequeue(ring, (void **)&m) == 0)
-			rte_pktmbuf_free(m);
+			dp_pktmbuf_notify_and_free(m);
 	}
 
 	FOREACH_FORWARD_LCORE(lcore) {
@@ -690,12 +690,12 @@ void pkt_ring_output(struct ifnet *ifp, struct rte_mbuf *m)
 
 full_txring: __cold_label;
 	if_incr_full_txring(ifp, 1);
-	rte_pktmbuf_free(m);
+	dp_pktmbuf_notify_and_free(m);
 	return;
 
 full_hwq: __cold_label;
 	if_incr_full_hwq(ifp, 1);
-	rte_pktmbuf_free(m);
+	dp_pktmbuf_notify_and_free(m);
 }
 
 void dp_pkt_burst_flush(void)

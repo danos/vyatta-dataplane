@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2011-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -273,7 +273,7 @@ ipv6_frag_process(struct cds_lfht *frag_table, struct ipv6_frag_pkt *fp,
 		if (fp->frags[FIRST_FRAG_IDX].mb == NULL) {
 			idx = FIRST_FRAG_IDX;
 		} else {
-			rte_pktmbuf_free(m);
+			dp_pktmbuf_notify_and_free(m);
 			m = NULL;
 			goto done;
 		}
@@ -317,7 +317,7 @@ ipv6_frag_process(struct cds_lfht *frag_table, struct ipv6_frag_pkt *fp,
 		 */
 		for (i = 0; i < fp->last_idx; i++) {
 			if (fp->frags[i].ofs == npc->fh_offset) {
-				rte_pktmbuf_free(m);
+				dp_pktmbuf_notify_and_free(m);
 				m = NULL;
 				goto done;
 			}
@@ -329,7 +329,7 @@ ipv6_frag_process(struct cds_lfht *frag_table, struct ipv6_frag_pkt *fp,
 				 * We already have a fragment that includes
 				 * the start byte of this one.
 				 */
-				rte_pktmbuf_free(m);
+				dp_pktmbuf_notify_and_free(m);
 				m = NULL;
 				goto done;
 			}
@@ -342,7 +342,7 @@ ipv6_frag_process(struct cds_lfht *frag_table, struct ipv6_frag_pkt *fp,
 				 * We already have a fragment that includes
 				 * the end byte of this one.
 				 */
-				rte_pktmbuf_free(m);
+				dp_pktmbuf_notify_and_free(m);
 				m = NULL;
 				goto done;
 			}
@@ -369,7 +369,7 @@ ipv6_frag_process(struct cds_lfht *frag_table, struct ipv6_frag_pkt *fp,
 		fp->frags[idx].mb != NULL) {
 		ipv6_frag_free(frag_table, fp);
 		IP6STAT_INC(vrf_id, IPSTATS_MIB_REASMFAILS);
-		rte_pktmbuf_free(m);	/* drop bad packet as well */
+		dp_pktmbuf_notify_and_free(m);	/* drop bad packet as well */
 		m = NULL;
 		goto done;
 	}
@@ -480,7 +480,7 @@ ipv6_frag_mbuf(struct rte_mbuf *m, npf_cache_t *npc,
 	fp = ipv6_frag_find_or_create(vrf, &key);
 	if (fp == NULL) {
 		IP6STAT_INC_VRF(vrf, IPSTATS_MIB_REASMFAILS);
-		rte_pktmbuf_free(m);
+		dp_pktmbuf_notify_and_free(m);
 		return NULL;
 	}
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2011-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  */
@@ -72,7 +72,7 @@ static void ipv4_frag_free_pkt(struct rcu_head *head)
 
 	for (i = 0; i != pkt->last_idx; i++) {
 		if (pkt->frags[i].mb)
-			rte_pktmbuf_free(pkt->frags[i].mb);
+			dp_pktmbuf_notify_and_free(pkt->frags[i].mb);
 	}
 	free(pkt);
 }

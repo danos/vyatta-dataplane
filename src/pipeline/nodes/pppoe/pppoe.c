@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2020, AT&T Intellectual Property. All rights reserved.
+ * Copyright (c) 2018-2021, AT&T Intellectual Property. All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  *
@@ -392,7 +392,7 @@ ppp_tunnel_output(struct ifnet *ifp, struct rte_mbuf *m,
 		 */
 		if (!input_ifp) {
 			if_incr_oerror(ifp);
-			rte_pktmbuf_free(m);
+			dp_pktmbuf_notify_and_free(m);
 			return;
 		}
 		local_packet(input_ifp, m);
@@ -401,7 +401,7 @@ ppp_tunnel_output(struct ifnet *ifp, struct rte_mbuf *m,
 
 	if (!ppp_do_encap(m, conn, proto, true)) {
 		if_incr_oerror(ifp);
-		rte_pktmbuf_free(m);
+		dp_pktmbuf_notify_and_free(m);
 		return;
 	}
 

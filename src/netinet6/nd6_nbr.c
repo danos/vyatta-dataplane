@@ -632,7 +632,7 @@ nd6_na_output(struct ifnet *ifp, const struct rte_ether_addr *lladdr,
 	src = nd6_select_source(ifp, 0);
 	if (!src) {
 		ND6_DEBUG("No source for NA\n");
-		rte_pktmbuf_free(m);
+		dp_pktmbuf_notify_and_free(m);
 		return;
 	}
 	ip6->ip6_src = *src;
@@ -819,12 +819,12 @@ nd6_ns_input(struct ifnet *ifp, struct rte_mbuf *m, unsigned int off,
 		return 1;
 	}
 freeit:
-	rte_pktmbuf_free(m);
+	dp_pktmbuf_notify_and_free(m);
 	return 0;
 bad:
 	ND6_DEBUG("Bad NS on %s\n", ifp->if_name);
 	ND6NBR_INC(badpkt);
-	rte_pktmbuf_free(m);
+	dp_pktmbuf_notify_and_free(m);
 	return 0;
 }
 
@@ -1009,12 +1009,12 @@ done:
 		return 1;
 	}
 freeit:
-	rte_pktmbuf_free(m);
+	dp_pktmbuf_notify_and_free(m);
 	return 0;
 bad:
 	ND6_DEBUG("Bad NA on %s\n", ifp->if_name);
 	ND6NBR_INC(badpkt);
-	rte_pktmbuf_free(m);
+	dp_pktmbuf_notify_and_free(m);
 	return 0;
 }
 
@@ -1088,7 +1088,7 @@ nd6_ns_build(struct ifnet *ifp, const struct in6_addr *res_src,
 	src = nd6_select_source(ifp, res_src);
 	if (!src) {
 		ND6_DEBUG("No source for NS\n");
-		rte_pktmbuf_free(m);
+		dp_pktmbuf_notify_and_free(m);
 		return NULL;
 	}
 	ip6->ip6_src = *src;
@@ -1184,7 +1184,7 @@ resolved:
 	if (la == NULL) {
 		la = nd6_create_incomplete(ifp, addr);
 		if (la == NULL) {
-			rte_pktmbuf_free(m);
+			dp_pktmbuf_notify_and_free(m);
 			return -ENOMEM;
 		}
 
@@ -1213,7 +1213,7 @@ resolved:
 		pktmbuf_save_ifp(m, in_ifp);
 	if (la->la_numheld >= nd6_cfg.nd6_maxhold) {
 		ND6NBR_INC(dropped);
-		rte_pktmbuf_free(la->la_held[0]);
+		dp_pktmbuf_notify_and_free(la->la_held[0]);
 		memmove(&la->la_held[0], &la->la_held[1],
 			(nd6_cfg.nd6_maxhold - 1) * sizeof(la->la_held[0]));
 		la->la_held[nd6_cfg.nd6_maxhold - 1] = m;
@@ -1320,7 +1320,7 @@ int nd6_input(struct ifnet *ifp, struct rte_mbuf *m)
 	icmp6 = ip6_exthdr(m, off, sizeof(*icmp6));
 	if (unlikely(!icmp6)) {
 		IP6STAT_INC(if_vrfid(ifp), IPSTATS_MIB_INDISCARDS);
-		rte_pktmbuf_free(m);
+		dp_pktmbuf_notify_and_free(m);
 		return 0;
 	}
 
@@ -1330,13 +1330,13 @@ int nd6_input(struct ifnet *ifp, struct rte_mbuf *m)
 
 	if (unlikely(icmp6->icmp6_code != 0)) {
 		ND6NBR_INC(badpkt);
-		rte_pktmbuf_free(m);
+		dp_pktmbuf_notify_and_free(m);
 		return 0;
 	}
 
 	if (unlikely(ip6->ip6_hlim != IPV6_ONLINK_HOPLIMIT)) {
 		ND6NBR_INC(badpkt);
-		rte_pktmbuf_free(m);
+		dp_pktmbuf_notify_and_free(m);
 		return 0;
 	}
 
@@ -1347,7 +1347,7 @@ int nd6_input(struct ifnet *ifp, struct rte_mbuf *m)
 	if (in6_cksum(ip6, IPPROTO_ICMPV6, sizeof(*ip6), plen) != 0) {
 		ND6_DEBUG("Bad ND cksum on %s\n", ifp->if_name);
 		ND6NBR_INC(badpkt);
-		rte_pktmbuf_free(m);
+		dp_pktmbuf_notify_and_free(m);
 		return 0;
 	}
 

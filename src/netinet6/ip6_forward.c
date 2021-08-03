@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2011-2017 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -162,7 +162,7 @@ int ipv6_originate_filter_flags(struct ifnet *out_ifp, struct rte_mbuf *m,
 	if (npf_originate_fw(out_ifp, npf_flags, &m,
 			htons(RTE_ETHER_TYPE_IPV6))) {
 		IPSTAT_INC_VRF(if_vrf(out_ifp), IPSTATS_MIB_OUTDISCARDS);
-		rte_pktmbuf_free(m);
+		dp_pktmbuf_notify_and_free(m);
 		return 1;
 	}
 	return 0;
@@ -206,7 +206,7 @@ ip6_local_deliver(struct ifnet *ifp, struct rte_mbuf *m)
 	return;
 discard:
 	IP6STAT_INC_IFP(ifp, IPSTATS_MIB_INDISCARDS);
-	rte_pktmbuf_free(m);
+	dp_pktmbuf_notify_and_free(m);
 }
 
 void mcast_ip6_deliver(struct ifnet *ifp, struct rte_mbuf *m)
@@ -267,7 +267,7 @@ int ip6_fragment_mtu(struct ifnet *ifp, unsigned int mtu_size,
 				 dp_pktmbuf_l2_len(m_in) +
 				 sizeof(struct ip6_hdr) + frag_off,
 				 copy_len)) {
-			rte_pktmbuf_free(m_frag);
+			dp_pktmbuf_notify_and_free(m_frag);
 			goto failed;
 		}
 
@@ -304,7 +304,7 @@ int ip6_fragment_mtu(struct ifnet *ifp, unsigned int mtu_size,
 
 		m_table[nfrags++] = m_frag;
 	}
-	rte_pktmbuf_free(m_in);
+	dp_pktmbuf_notify_and_free(m_in);
 
 	/*
 	 * Send the fragments
@@ -318,7 +318,7 @@ int ip6_fragment_mtu(struct ifnet *ifp, unsigned int mtu_size,
 	return nfrags;
 failed:
 	while (nfrags)
-		rte_pktmbuf_free(m_table[--nfrags]);
+		dp_pktmbuf_notify_and_free(m_table[--nfrags]);
 	return nfrags;
 }
 
@@ -381,7 +381,7 @@ ip6_refragment_packet(struct ifnet *o_ifp, struct rte_mbuf *m,
 					  mtu, m->pool, m->pool);
 
 	/* Free the input packet */
-	rte_pktmbuf_free(m);
+	dp_pktmbuf_notify_and_free(m);
 	m = NULL;
 
 	if (nfrags > 0 && nfrags <= IPV6_MAX_FRAGS_PER_SET) {
@@ -547,7 +547,7 @@ void ip6_switch(struct rte_mbuf *m, struct ifnet *ifp,
 {
 	/* Immediately drop blackholed traffic. */
 	if (unlikely(nxt->flags & RTF_BLACKHOLE)) {
-		rte_pktmbuf_free(m);
+		dp_pktmbuf_notify_and_free(m);
 		return;
 	}
 
@@ -719,7 +719,7 @@ void ip6_input_from_ipsec(struct ifnet *ifp, struct rte_mbuf *m)
 
  drop:	__cold_label;
 	IP6STAT_INC_IFP(ifp, IPSTATS_MIB_INDISCARDS);
-	rte_pktmbuf_free(m);
+	dp_pktmbuf_notify_and_free(m);
 	return;
 
  slow_path: __cold_label;
@@ -768,7 +768,7 @@ void ip6_output(struct rte_mbuf *m, bool srced_forus)
 	return;
 
 drop:
-	rte_pktmbuf_free(m);
+	dp_pktmbuf_notify_and_free(m);
 }
 
 /*
@@ -792,7 +792,7 @@ ip6_lookup_and_originate(struct rte_mbuf *m, struct ifnet *in_ifp)
 	 */
 	if (IN6_IS_ADDR_UNSPECIFIED(&ip6->ip6_dst) ||
 	    IN6_IS_ADDR_LOOPBACK(&ip6->ip6_dst)) {
-		rte_pktmbuf_free(m);
+		dp_pktmbuf_notify_and_free(m);
 		return;
 	}
 
@@ -837,7 +837,7 @@ ip6_lookup_and_forward(struct rte_mbuf *m, struct ifnet *in_ifp,
 	 */
 	if (unlikely(IN6_IS_ADDR_UNSPECIFIED(&ip6->ip6_src))) {
 		IP6STAT_INC_IFP(in_ifp, IPSTATS_MIB_INADDRERRORS);
-		rte_pktmbuf_free(m);
+		dp_pktmbuf_notify_and_free(m);
 		return;
 	}
 
@@ -847,7 +847,7 @@ ip6_lookup_and_forward(struct rte_mbuf *m, struct ifnet *in_ifp,
 	if (IN6_IS_ADDR_UNSPECIFIED(&ip6->ip6_dst) ||
 	    IN6_IS_ADDR_LOOPBACK(&ip6->ip6_dst)) {
 		IP6STAT_INC_IFP(in_ifp, IPSTATS_MIB_INADDRERRORS);
-		rte_pktmbuf_free(m);
+		dp_pktmbuf_notify_and_free(m);
 		return;
 	}
 

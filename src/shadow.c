@@ -251,7 +251,7 @@ static void shadow_io_write(struct shadow_if_info *sii, struct rte_mbuf *m)
 	} else
 		++sii->rs_packets;
 
-	rte_pktmbuf_free(m);
+	dp_pktmbuf_notify_and_free(m);
 }
 
 /* Get a burst of packets from ring and forward them to kernel */
@@ -480,7 +480,7 @@ int tap_reader(zloop_t *loop, zmq_pollitem_t *item, void *arg)
 	return 0;
  drop:
 	++sii->ts_errors;
-	rte_pktmbuf_free(m);
+	dp_pktmbuf_notify_and_free(m);
 
 	dp_rcu_thread_offline();
 	return 0;
@@ -673,7 +673,7 @@ int spath_reader(zloop_t *loop __rte_unused, zmq_pollitem_t *item,
 	else
 		++sii->ts_errors;
 
-	rte_pktmbuf_free(m);
+	dp_pktmbuf_notify_and_free(m);
 
 rcu_offline:
 	if (sii)
@@ -863,7 +863,7 @@ static void shadow_remove_event(zloop_t *loop, portid_t port)
 	 * Drain ring
 	 */
 	while (rte_ring_sc_dequeue(sii->rx_slow_ring, (void **) &m) == 0)
-		rte_pktmbuf_free(m);
+		dp_pktmbuf_notify_and_free(m);
 
 	call_rcu(&sii->rcu, shadow_free_rcu);
 }

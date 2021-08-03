@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2019-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2019-2021, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2011-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -1674,7 +1674,7 @@ int ip_gre_tunnel_in(struct rte_mbuf **m0, struct iphdr *ip)
 	case ETH_P_TEB:
 		if (rte_pktmbuf_data_len(m) < sizeof(struct rte_ether_hdr)) {
 			if_incr_error(tun_ifp);
-			rte_pktmbuf_free(m);
+			dp_pktmbuf_notify_and_free(m);
 			return 0;
 		}
 
@@ -1686,7 +1686,7 @@ int ip_gre_tunnel_in(struct rte_mbuf **m0, struct iphdr *ip)
 						     &ethhdr(m)->s_addr,
 						     ip->saddr, 0);
 			if (unlikely(err != 0)) {
-				rte_pktmbuf_free(m);
+				dp_pktmbuf_notify_and_free(m);
 				return 0;
 			}
 		}
@@ -1722,7 +1722,7 @@ gre_tunnel_do_send(struct ifnet *tunnel_ifp, struct rte_mbuf *m)
 	if (likely(ip_gre_tunnel_in(&m, outer_ip) == 0))
 		return;
 
-	rte_pktmbuf_free(m);
+	dp_pktmbuf_notify_and_free(m);
 }
 
 static bool
@@ -1821,7 +1821,7 @@ gre_tunnel_add_encap(struct ifnet *tunnel_ifp, struct rte_mbuf *m,
 	return true;
 
 drop:
-	rte_pktmbuf_free(m);
+	dp_pktmbuf_notify_and_free(m);
 	return false;
 }
 
@@ -1970,7 +1970,7 @@ gre_tunnel_fragment_and_send(struct ifnet *input_ifp, struct ifnet *tunnel_ifp,
 	return;
 
 drop:
-	rte_pktmbuf_free(m);
+	dp_pktmbuf_notify_and_free(m);
 }
 
 /*
@@ -2182,7 +2182,7 @@ gre_tunnel_encap(struct ifnet *input_ifp, struct ifnet *tunnel_ifp,
 				    outer_ip);
 
 drop:
-	rte_pktmbuf_free(m);
+	dp_pktmbuf_notify_and_free(m);
 	return false;
 
 slow_path:
@@ -2246,7 +2246,7 @@ gre6_tunnel_add_encap(struct ifnet *tunnel_ifp, struct rte_mbuf *m,
 	return true;
 
 drop:
-	rte_pktmbuf_free(m);
+	dp_pktmbuf_notify_and_free(m);
 	return false;
 }
 
@@ -2348,7 +2348,7 @@ gre6_tunnel_encap(struct ifnet *tunnel_ifp,
 				     inner_tos, hdr, greinfo, outer_ip);
 
 drop:
-	rte_pktmbuf_free(m);
+	dp_pktmbuf_notify_and_free(m);
 	return false;
 }
 
@@ -2377,7 +2377,7 @@ gre6_tunnel_do_send(struct ifnet *tunnel_ifp, struct rte_mbuf *m)
 	if (likely(ip6_gre_tunnel_in(&m, outer_ip) == 0))
 		return;
 
-	rte_pktmbuf_free(m);
+	dp_pktmbuf_notify_and_free(m);
 }
 
 /*
@@ -2399,7 +2399,7 @@ gre_tunnel_send(struct ifnet *input_ifp, struct ifnet *tunnel_ifp,
 	sc = rcu_dereference(tunnel_ifp->if_softc);
 	if (!sc || !sc->scg_gre_info) {
 		if_incr_oerror(tunnel_ifp);
-		rte_pktmbuf_free(m);
+		dp_pktmbuf_notify_and_free(m);
 		return;
 	}
 

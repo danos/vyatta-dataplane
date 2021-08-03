@@ -620,7 +620,7 @@ void vti_tunnel_out(struct ifnet *in_ifp, struct ifnet *nxt_ifp,
 	return;
 
 drop:
-	rte_pktmbuf_free(m);
+	dp_pktmbuf_notify_and_free(m);
 }
 
 int vti_handle_inbound(const xfrm_address_t *dst, const uint8_t family,

@@ -2,7 +2,7 @@
  * l3_v4_post_route_lookup.c
  *
  *
- * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2016, 2017 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -69,7 +69,7 @@ ipv6_post_route_lookup_process(struct pl_packet *pkt, void *context __unused)
 			if (pkt->in_ifp)
 				IP6STAT_INC_IFP(pkt->in_ifp,
 						IPSTATS_MIB_INADDRERRORS);
-			rte_pktmbuf_free(pkt->mbuf);
+			dp_pktmbuf_notify_and_free(pkt->mbuf);
 			pkt->mbuf = NULL;
 			return IPV6_POST_ROUTE_LOOKUP_FINISH;
 		}

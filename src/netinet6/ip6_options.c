@@ -100,14 +100,14 @@ ip6_unknown_opt(const uint8_t *optp, struct rte_mbuf *m,
 		IP6STAT_INC(if_vrfid(iif), IPSTATS_MIB_INHDRERRORS);
 		ip6 = ip6hdr(m);
 		if (IN6_IS_ADDR_MULTICAST(&ip6->ip6_dst))
-			rte_pktmbuf_free(m);
+			dp_pktmbuf_notify_and_free(m);
 		else
 			icmp6_error(iif, m, ICMP6_PARAM_PROB,
 				    ICMP6_PARAMPROB_OPTION, htonl(off));
 		return -1;
 	}
 
-	rte_pktmbuf_free(m);
+	dp_pktmbuf_notify_and_free(m);
 	return -1;
 }
 
@@ -184,7 +184,7 @@ ip6_process_hopopts(struct rte_mbuf *m, struct ifnet *iif,
 	return 0;
 
 bad:
-	rte_pktmbuf_free(m);
+	dp_pktmbuf_notify_and_free(m);
 	return -1;
 }
 
@@ -202,14 +202,14 @@ ip6_hopopts_input(struct rte_mbuf *m, struct ifnet *iif, uint32_t *rtalertp)
 	l3_data_len = rte_pktmbuf_data_len(m) - dp_pktmbuf_l2_len(m);
 	if (l3_data_len - sizeof(struct ip6_hdr) < sizeof(*hbh)) {
 		IP6STAT_INC(if_vrfid(iif), IPSTATS_MIB_INHDRERRORS);
-		rte_pktmbuf_free(m);
+		dp_pktmbuf_notify_and_free(m);
 		return -1;
 	}
 	hbh = (struct ip6_hbh *)(ip6hdr(m) + 1);
 	hbhlen = (hbh->ip6h_len + 1) * 8;
 	if (l3_data_len - sizeof(struct ip6_hdr) < hbhlen) {
 		IP6STAT_INC(if_vrfid(iif), IPSTATS_MIB_INHDRERRORS);
-		rte_pktmbuf_free(m);
+		dp_pktmbuf_notify_and_free(m);
 		return -1;
 	}
 	hbhlen -= sizeof(struct ip6_hbh);

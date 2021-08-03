@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2011-2017 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -165,7 +165,7 @@ int ipv4_originate_filter_flags(struct ifnet *out_ifp, struct rte_mbuf *m,
 	if (npf_originate_fw(out_ifp, npf_flags,
 			&m, htons(RTE_ETHER_TYPE_IPV4))) {
 		IPSTAT_INC_VRF(if_vrf(out_ifp), IPSTATS_MIB_OUTDISCARDS);
-		rte_pktmbuf_free(m);
+		dp_pktmbuf_notify_and_free(m);
 		return 1;
 	}
 	return 0;
@@ -196,7 +196,7 @@ ip_local_deliver(struct ifnet *ifp, struct rte_mbuf *m)
 			IPSTAT_INC_VRF(vrf, IPSTATS_MIB_FRAGFAILS);
 			icmp_error(ifp, m, ICMP_DEST_UNREACH, ICMP_FRAG_NEEDED,
 				   htons(slowpath_mtu));
-			rte_pktmbuf_free(m);
+			dp_pktmbuf_notify_and_free(m);
 			return;
 		}
 		/* Let raw socket in kernel handle fragmentation */
@@ -216,7 +216,7 @@ ip_local_deliver(struct ifnet *ifp, struct rte_mbuf *m)
 
 discard:
 	IPSTAT_INC_VRF(vrf, IPSTATS_MIB_INDISCARDS);
-	rte_pktmbuf_free(m);
+	dp_pktmbuf_notify_and_free(m);
 }
 
 void mcast_ip_deliver(struct ifnet *ifp, struct rte_mbuf *m)
@@ -230,7 +230,7 @@ static void ip_unreach(struct ifnet *ifp, struct rte_mbuf *m)
 {
 	IPSTAT_INC_IFP(ifp, IPSTATS_MIB_INNOROUTES);
 	icmp_error(ifp, m, ICMP_DEST_UNREACH, ICMP_NET_UNREACH, 0);
-	rte_pktmbuf_free(m);
+	dp_pktmbuf_notify_and_free(m);
 }
 
 static ALWAYS_INLINE
@@ -335,7 +335,7 @@ void ip_out_features(struct rte_mbuf *m, struct ifnet *ifp,
 	return;
 
  drop:	__cold_label;
-	rte_pktmbuf_free(m);
+	dp_pktmbuf_notify_and_free(m);
 }
 
 static ALWAYS_INLINE
@@ -381,7 +381,7 @@ void ip_switch(struct rte_mbuf *m, struct ifnet *ifp,
 	 */
 	if (unlikely(IN_LOOPBACK(ntohl(ip->daddr))))
 		IPSTAT_INC(if_vrfid(ifp), IPSTATS_MIB_INADDRERRORS);
-	rte_pktmbuf_free(m);
+	dp_pktmbuf_notify_and_free(m);
 }
 
 static ALWAYS_INLINE
@@ -521,7 +521,7 @@ void ip_input_from_ipsec(struct ifnet *ifp, struct rte_mbuf *m)
 
 	if (unlikely(!ip_validate_packet_and_count(m, ip, ifp,
 						   &needs_slow_path))) {
-		rte_pktmbuf_free(m);
+		dp_pktmbuf_notify_and_free(m);
 		return;
 	}
 
@@ -585,7 +585,7 @@ ip_lookup_and_forward(struct rte_mbuf *m, struct ifnet *in_ifp,
 	/* Don't forward packets with unspecified source address */
 	if (unlikely(!ip->saddr)) {
 		IPSTAT_INC_IFP(in_ifp, IPSTATS_MIB_INADDRERRORS);
-		rte_pktmbuf_free(m);
+		dp_pktmbuf_notify_and_free(m);
 		return;
 	}
 
@@ -722,6 +722,6 @@ ip_spath_output(struct ifnet *l2_ifp, struct rte_mbuf *m)
 	return 0;
 
 drop:
-	rte_pktmbuf_free(m);
+	dp_pktmbuf_notify_and_free(m);
 	return -1;
 }

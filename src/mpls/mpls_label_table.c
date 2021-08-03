@@ -1,7 +1,7 @@
 /*
  * MPLS label table manipulation
  *
- * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2015 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -867,7 +867,7 @@ mpls_oam_v4_lookup(int labelspace, uint8_t nlabels, const label_t *labels,
 	payload = sizeof(struct udphdr) + sizeof(struct iphdr);
 	if (!rte_pktmbuf_append(m, sizeof(struct rte_ether_hdr) + hlen +
 				payload)) {
-		rte_pktmbuf_free(m);
+		dp_pktmbuf_notify_and_free(m);
 		dp_rcu_read_unlock();
 		return;
 	}
@@ -971,7 +971,7 @@ mpls_oam_v4_lookup(int labelspace, uint8_t nlabels, const label_t *labels,
 		}
 	}
 
-	rte_pktmbuf_free(m);
+	dp_pktmbuf_notify_and_free(m);
 	dp_rcu_read_unlock();
 }
 

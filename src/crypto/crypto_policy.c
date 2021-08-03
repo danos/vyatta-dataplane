@@ -1799,7 +1799,7 @@ crypto_policy_handle_packet_outbound(struct ifnet *vfp_ifp,
 	return;
 
 drop:
-	rte_pktmbuf_free(mbuf);
+	dp_pktmbuf_notify_and_free(mbuf);
 }
 
 /*
@@ -1912,7 +1912,7 @@ crypto_policy_handle_packet6_outbound(struct ifnet *vfp_ifp,
 	return;
 
 drop:
-	rte_pktmbuf_free(mbuf);
+	dp_pktmbuf_notify_and_free(mbuf);
 }
 
 #define PREFIX_STRLEN (INET6_ADDRSTRLEN + sizeof("/128"))
@@ -2245,7 +2245,7 @@ crypto_policy_post_features_outbound(struct ifnet *vfp_ifp,
 	if (!crypto_policy_check_outbound(in_ifp, &m, RT_TABLE_MAIN,
 					  htons(proto), NULL)) {
 		POLICY_ERR("Packet on vfp with no policy rule\n");
-		rte_pktmbuf_free(m);
+		dp_pktmbuf_notify_and_free(m);
 		IPSEC_CNT_INC(DROPPED_ON_FP_NO_PR);
 		if_incr_dropped(vfp_ifp);
 		return;
@@ -2463,7 +2463,7 @@ drop:
 
 	IPSEC_CNT_INC(DROPPED_POLICY_BLOCK);
 	if (!freed)
-		rte_pktmbuf_free(*mbuf);
+		dp_pktmbuf_notify_and_free(*mbuf);
 	return true;
 }
 
@@ -2580,7 +2580,7 @@ drop:
 
 	IPSEC_CNT_INC(DROPPED_POLICY_BLOCK);
 	if (!freed)
-		rte_pktmbuf_free(*mbuf);
+		dp_pktmbuf_notify_and_free(*mbuf);
 	return true;
 }
 
