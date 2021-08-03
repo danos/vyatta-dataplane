@@ -366,7 +366,7 @@ DP_START_TEST(list, test1)
 	/*
 	 * Set up the mismatch global info.
 	 */
-	sfp_mismatch_action_send(TRUE, TRUE, 300);
+	sfp_mismatch_action_send(true, true, 300);
 
 	show_sfp_permit_mismatch_info();
 
@@ -438,7 +438,7 @@ DP_START_TEST(list, test1)
 	sfp_list_delete("List_1");
 
 	/* Disable enforcement */
-	sfp_mismatch_action_send(false, TRUE, 300);
+	sfp_mismatch_action_send(false, true, 300);
 
 	dp_test_console_request_reply("debug sfp-list", false);
 
