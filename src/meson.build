@@ -70,6 +70,7 @@ core_sources = files(
         'cpp_rate_limiter.c',
         'dealer.c',
         'debug.c',
+        'dp_control_thread.c',
         'dp_event.c',
         'ecmp.c',
         'ether.c',

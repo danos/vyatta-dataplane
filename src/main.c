@@ -96,6 +96,7 @@
 #include "config_internal.h"
 #include "crypto/crypto_forward.h"
 #include "crypto/crypto_main.h"
+#include "dp_control_thread.h"
 #include "dp_event.h"
 #include "ether.h"
 #include "event_internal.h"
@@ -3523,6 +3524,9 @@ main(int argc, char **argv)
 
 	/* Must be before any threads are created, and before eal_init */
 	cpuset_init();
+
+	dp_control_thread_init();
+	dp_control_thread_set_affinity(&config.control_cpumask);
 
 	/* Go into daemon mode.
 	   Must be before EAL init or ZMQ init. */
