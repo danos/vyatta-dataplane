@@ -17,6 +17,7 @@
 #include <rte_log.h>
 #include "../ip_funcs.h"
 #include "../netinet6/ip6_funcs.h"
+#include "dp_control_thread.h"
 
 static uint32_t npf_match_ctx_cnt;
 static pthread_t acl_merge_tid;
@@ -2269,6 +2270,8 @@ static void *npf_rte_acl_optimize(void *args __rte_unused)
 	npf_match_ctx_t *ctx;
 
 	pthread_setname_np(pthread_self(), "dp/acl-opt");
+
+	dp_control_thread_register();
 	dp_rcu_register_thread();
 	while (acl_merge_running) {
 		dp_rcu_thread_online();
@@ -2284,6 +2287,7 @@ static void *npf_rte_acl_optimize(void *args __rte_unused)
 		dp_rcu_thread_offline();
 		usleep(NPF_RTE_ACL_MERGE_INTERVAL * USEC_PER_MSEC);
 	}
+	dp_control_thread_unregister();
 
 	return NULL;
 }
