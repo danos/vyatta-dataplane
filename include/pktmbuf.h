@@ -21,6 +21,13 @@
 struct rte_mbuf *dp_pktmbuf_alloc_from_default(vrfid_t vrf_id);
 
 /*
+ * Free an mbuf while notifying features registered for packet drop
+ *
+ * @param[in] m The mbuf being freed.
+ */
+void dp_pktmbuf_notify_and_free(struct rte_mbuf *m);
+
+/*
  * Get the vrf associated with the packet.
  *
  * @param[in] m The buffer to get the vrf from.

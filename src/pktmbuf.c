@@ -494,6 +494,15 @@ struct rte_mbuf *dp_pktmbuf_alloc_from_default(vrfid_t vrf_id)
 	return pktmbuf_alloc(mbuf_pool(0), vrf_id);
 }
 
+void dp_pktmbuf_free_and_notify(struct rte_mbuf *m)
+{
+	struct pl_packet p = {
+		.mbuf = m,
+	};
+
+	term_drop_process(&p, NULL);
+}
+
 vrfid_t
 dp_pktmbuf_get_vrf(const struct rte_mbuf *m)
 {
