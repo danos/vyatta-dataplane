@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2020-2021, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2011-2017 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -68,7 +68,8 @@ struct config_param {
 	char *xfrm_push_url;	/* xfrm push from the DP url */
 	char *xfrm_pull_url;	/* xfrm pull to the DP url */
 	char *sfpd_status_file;	/* Shared status file from SFPd */
-	char *sfpd_status_upd_url; /* Push to the dp notfications */
+	char *sfpd_status_upd_url; /* Push to the dp notifications */
+	cpu_set_t control_cpumask; /* Control threads cpumask */
 };
 
 struct bkplane_pci {
