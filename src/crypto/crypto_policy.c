@@ -586,17 +586,20 @@ static int policy_rule_add_to_rldb(struct crypto_vrf_ctx *vrf_ctx,
 
 static void
 policy_rule_set_peer_info(struct policy_rule *pr,
+			  const struct crypto_vrf_ctx *vrf_ctx,
 			  const struct xfrm_user_tmpl *tmpl,
 			  const xfrm_address_t *dst)
 {
-	struct ifnet *ifp;
-
-	ifp = pr->feat_attach ?
-		dp_nh_get_ifp(&pr->feat_attach->nh) : NULL;
 	pr->reqid = tmpl->reqid;
 	pr->output_peer_af = tmpl->family;
 	memcpy(&pr->output_peer, dst, sizeof(pr->output_peer));
-	crypto_sadb_feat_attach_in(pr->reqid, ifp);
+
+	if (vrf_ctx->s2s_bindings) {
+		struct ifnet *ifp = pr->feat_attach ?
+			dp_nh_get_ifp(&pr->feat_attach->nh) : NULL;
+
+		crypto_sadb_feat_attach_in(pr->reqid, ifp);
+	}
 
 	if (pr->vti_tunnel_policy)
 		vti_reqid_set(&pr->output_peer, pr->output_peer_af,
@@ -630,7 +633,8 @@ policy_rule_create(const struct xfrm_userpolicy_info *usr_policy,
 		   const struct xfrm_user_tmpl *tmpl,
 		   const struct xfrm_mark *mark,
 		   const xfrm_address_t *dst,
-		   vrfid_t vrfid, struct policy_rule **pr_ptr)
+		   const struct crypto_vrf_ctx *vrf_ctx,
+		   struct policy_rule **pr_ptr)
 {
 	struct policy_rule *pr;
 
@@ -653,7 +657,7 @@ policy_rule_create(const struct xfrm_userpolicy_info *usr_policy,
 	memcpy(&pr->sel, &usr_policy->sel, sizeof(pr->sel));
 
 	policy_rule_set_mark(pr, mark);
-	pr->vrfid = vrfid;
+	pr->vrfid = vrf_ctx->vrfid;
 
 	if ((usr_policy->dir == XFRM_POLICY_OUT) &&
 	    (usr_policy->action == XFRM_POLICY_ALLOW)) {
@@ -669,7 +673,7 @@ policy_rule_create(const struct xfrm_userpolicy_info *usr_policy,
 			return -EINVAL;
 		}
 		if (tmpl && dst)
-			policy_rule_set_peer_info(pr, tmpl, dst);
+			policy_rule_set_peer_info(pr, vrf_ctx, tmpl, dst);
 	}
 
 	cds_lfht_node_init(&pr->sel_ht_node);
@@ -1242,7 +1246,7 @@ policy_rule_update(struct policy_rule *pr,
 			}
 
 			policy_rule_set_mark(pr, mark);
-			policy_rule_set_peer_info(pr, tmpl, dst);
+			policy_rule_set_peer_info(pr, vrf_ctx, tmpl, dst);
 			changed = true;
 
 		} else if ((usr_policy->action == XFRM_POLICY_BLOCK) &&
@@ -1365,7 +1369,7 @@ int crypto_policy_add(const struct xfrm_userpolicy_info *usr_policy,
 	if (rc != -ESRCH)
 		return rc;
 
-	rc = policy_rule_create(usr_policy, tmpl, mark, dst, vrfid, &pr);
+	rc = policy_rule_create(usr_policy, tmpl, mark, dst, vrf_ctx, &pr);
 	if (rc < 0) {
 		POLICY_ERR("Failed to create policy rule\n");
 		return rc;

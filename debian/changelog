@@ -143,6 +143,34 @@ vyatta-dataplane (3.14.1) unstable; urgency=medium
 
  -- Srinivas Narayan <narayan@vyatta.att-mail.com>  Thu, 08 Jul 2021 17:49:37 +0100
 
+vyatta-dataplane (3.13.34) unstable; urgency=medium
+
+  [ Ian Wilson ]
+  * cgnat: Invalidate npf cache if a CGNAT translation occurs
+
+  [ Daniel Gollub ]
+  * npf-rte-acl: increase acl-opt frequency
+  * npf-rte-acl: remove unused ring lookup
+  * npf-rte-acl: adjust merge-trie parameters for high scale/TPS-rate
+  * npf-rte-acl: grow rule-pool faster when merging
+  * npf-rte-acl: introduce freeze threshold
+  * npf-rte-acl: prevent infinite merge attempts
+  * npf-rte-acl: document grow/max-rules/max-transaction defines
+  * crypto: prepare best_weight for more then 64k SAs
+  * crypto: avoid VFP lookups if there no bindings
+
+  [ Paul Aitken ]
+  * DPI: remove unused NPF_RPROC_ID_APP_GRP
+
+  [ Daniel Gollub ]
+  * crypto: bump SADB HT min/max bucket size
+  * crypto: bump SPD HT max/min bucket size
+
+  [ Cian O'Sullivan ]
+  * Fix usage of undeclared TRUE/FALSE macros
+
+ -- Srinivas Narayan <narayan@vyatta.att-mail.com>  Wed, 04 Aug 2021 12:53:42 +0100
+
 vyatta-dataplane (3.13.33) unstable; urgency=medium
 
   [ Thomas Kiely ]

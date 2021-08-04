@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2017-2019, AT&T Intellectual Property. All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property. All rights reserved.
  * Copyright (c) 2015-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -19,12 +19,10 @@ struct ifnet;
 struct rte_mbuf;
 
 /*
- * Policy tag map hash table size parameters. These must be powers of two.
- * Since we expect a small number policies, we keep the initial size of
- * the hash table small.
+ * Policy hash table size parameters. These must be powers of two.
  */
-#define POLICY_RULE_HT_MAX_BUCKETS 64
-#define POLICY_RULE_HT_MIN_BUCKETS  8
+#define POLICY_RULE_HT_MAX_BUCKETS (1 << 19)
+#define POLICY_RULE_HT_MIN_BUCKETS (1 << 10)
 
 int crypto_policy_add(const struct xfrm_userpolicy_info *usr_policy,
 		      const xfrm_address_t *dst,

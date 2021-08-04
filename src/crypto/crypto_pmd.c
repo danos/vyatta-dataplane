@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2017 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -171,7 +171,7 @@ crypto_pmd_alloc_loadshare(enum crypto_xfrm xfrm,
 			   enum cryptodev_type dev_type)
 {
 	struct crypto_pmd *pmd, *best_pmd = NULL;
-	unsigned int i, best_count = 0xffff, weight;
+	unsigned int i, best_count = ~0, weight;
 
 	for (i = 0; i < MAX_CRYPTO_PMD; i++) {
 		pmd = crypto_pmd_devs[i];

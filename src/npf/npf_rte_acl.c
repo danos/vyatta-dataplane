@@ -27,7 +27,16 @@ static struct rte_mempool *npr_mtrie_pool;
 static struct rte_mempool *npr_acl4_pool;
 static struct rte_mempool *npr_acl6_pool;
 
-#define NPR_RULE_MAX_ELEMENTS (1 << 18)
+/* Maximum amount of rule changes/actions per transaction. */
+#define MAX_TRANSACTION_ENTRIES 512
+
+/* Global per-address family maximum of rules */
+#define NPR_RULE_MAX_ELEMENTS (1 << 19)
+
+/* The minimum size to grow the rule memory pools.
+ * On the acl-opt thread the memory pools might grow
+ * even larger, if a trie merge requires that.
+ */
 #define NPR_RULE_GROW_ELEMENTS ((1 << 14)-1)
 
 /* limit number of rules in consolidated tries to 32K for optimal build time */
@@ -39,14 +48,49 @@ static struct rte_mempool *npr_acl6_pool;
  */
 #define PDEL_RING_SZ NPR_TRIE_MAX_RULES
 
-#define NPR_ACL_RING_SZ 512
+/* try to keep the trie merging logic simple and keep merging
+ * until the tries are to 90% full. This prevents an endless merge attempts
+ * if individual tries are not entirely full.
+ * The downside is that this might result in one or few more merge-tries
+ * than required. For now it's preferred to have a simpler merge logic.
+ */
+#define NPR_TRIE_MERGE_THRESHOLD (NPR_TRIE_MAX_RULES * 0.9)
 
 /* Maximum amount of new (merge) tries which get created per npf_match_ctx,
- * per ACL optimization thread cycle. This allows to use fixed
- * size arrays to perform the merge of group of tries into a
- * new merge trie.
+ * per ACL optimization thread cycle. This allows the use of a fixed size array
+ * for tries during trie consolidation operations.
  */
 #define OPTIMIZE_MAX_NEW_TRIES (NPR_RULE_MAX_ELEMENTS/NPR_TRIE_MAX_RULES)
+
+/* Maximum amount of rules per pool tries.
+ * The pool tries are kept small on purpose, so the build time of the
+ * trie is as short as possible.
+ */
+#define NPR_MTRIE_MAX_RULES 256
+
+/* Maximum length of the ACL ring size per address-family.
+ * This per-AF ring is used to act as list of all small pool tries.
+ * Size must be power of two.
+ */
+#define NPR_ACL_RING_SZ 512
+
+/* The number of pool tries to allocate, per address-family.
+ * Those tries get allocated up front, to quickly response
+ * on incoming rule installation requests on the control thread.
+ * The actual usable ring size is count-1.
+ */
+#define NPR_POOL_DEF_MAX_TRIES (NPR_ACL_RING_SZ-1)
+
+/* Total size of memory pool to store the pool tries for all
+ * address-families.
+ */
+#define M_TRIE_POOL_SIZE (NPR_POOL_DEF_MAX_TRIES * 2)
+
+/* Threshold which defines a small pool trie as frozen, and no longer accepts
+ * additional rules. This threshold mitigates starvation of trie pools under
+ * high load conditions.
+ */
+#define TRIE_FREEZE_THRESHOLD  NPR_MTRIE_MAX_RULES
 
 struct rte_ring *npr_acl4_ring, *npr_acl6_ring;
 
@@ -102,8 +146,6 @@ struct npf_match_ctx_trie {
 	bool                  rules_deleted;
 	struct rcu_head       npr_rcu;
 };
-
-#define MAX_TRANSACTION_ENTRIES 512
 
 static struct cds_list_head ctx_list;
 
@@ -377,9 +419,6 @@ acl_rule_hash_cmp(const void *key1, const void *key2, size_t key_len __rte_unuse
 	return rule1->data.userdata < rule2->data.userdata ? -1 : 1;
 }
 
-#define NPR_MTRIE_MAX_RULES    MAX_TRANSACTION_ENTRIES
-#define NPR_POOL_DEF_MAX_TRIES 128
-
 static int npf_rte_acl_trie_destroy(int af, struct npf_match_ctx_trie *m_trie);
 
 static int npf_rte_acl_destroy_mtrie_pool(int af);
@@ -405,7 +444,7 @@ npf_rte_acl_mempool_mz_free(__rte_unused struct rte_mempool_memhdr *memhdr,
 }
 
 static int
-npf_rte_acl_mempool_grow(struct rte_mempool *pool)
+npf_rte_acl_mempool_grow(struct rte_mempool *pool, size_t grow_nb)
 {
 	int rc;
 	const struct rte_memzone *mz;
@@ -417,13 +456,12 @@ npf_rte_acl_mempool_grow(struct rte_mempool *pool)
 		return -EINVAL;
 
 	/* don't grow larger then the pool allows */
-	n = RTE_MIN((size_t)NPR_RULE_GROW_ELEMENTS,
-		    pool->size - pool->populated_size);
+	n = RTE_MIN(grow_nb, pool->size - pool->populated_size);
 
 	for (; n > 0; n -= rc) {
 
 		mem_size = rte_mempool_op_calc_mem_size_default(pool,
-								NPR_RULE_GROW_ELEMENTS,
+								n,
 								0,
 								&min_chunk_size,
 								&align);
@@ -506,7 +544,7 @@ npf_rte_acl_mempool_get(struct rte_mempool *pool, void **obj)
 	}
 
 	/* pool is empty, try to grow the pool */
-	rc = npf_rte_acl_mempool_grow(pool);
+	rc = npf_rte_acl_mempool_grow(pool, NPR_RULE_GROW_ELEMENTS);
 	if (rc < 0) {
 		RTE_LOG(ERR, DATAPLANE,
 			"Failed to get new element from %s: %s\n",
@@ -544,7 +582,7 @@ npf_rte_acl_mempool_create(const char *name, size_t max_elems, size_t elem_size,
 		goto error;
 	}
 
-	rc = npf_rte_acl_mempool_grow(mp);
+	rc = npf_rte_acl_mempool_grow(mp, NPR_RULE_GROW_ELEMENTS);
 	if (rc < 0) {
 		RTE_LOG(ERR, DATAPLANE,
 			"Failed initial memory pool population of %s: %s\n",
@@ -723,11 +761,6 @@ npf_rte_acl_create_mtrie_pool(int af, int max_tries)
 {
 	int i, err;
 	struct npf_match_ctx_trie *m_trie;
-	struct rte_ring *ring;
-
-	err = npf_rte_acl_get_ring(af, &ring);
-	if (err)
-		return err;
 
 	for (i = 0; i < max_tries; i++) {
 		err = npf_rte_acl_create_trie(af, NPR_MTRIE_MAX_RULES, &m_trie);
@@ -1152,7 +1185,8 @@ npf_rte_acl_trie_add_rule(int af, struct npf_match_ctx_trie *m_trie,
 		return -EINVAL;
 
 	if (rte_mempool_avail_count(rule_mempool) == 0) {
-		err = npf_rte_acl_mempool_grow(rule_mempool);
+		err = npf_rte_acl_mempool_grow(rule_mempool,
+					       NPR_RULE_GROW_ELEMENTS);
 		if (err < 0) {
 			RTE_LOG(ERR, DATAPLANE,
 				"Could not grow rule-pool to grow trie %s: %s\n",
@@ -1262,10 +1296,14 @@ static int npf_rte_acl_trie_build(int af, struct npf_match_ctx_trie *m_trie)
 		return err;
 	}
 
-	DP_DEBUG(RLDB_ACL, DEBUG, DATAPLANE, "Updating trie-state %s from %s to %s (%s)\n",
-			m_trie->trie_name, trie_state_strs[m_trie->trie_state],
-			trie_state_strs[TRIE_STATE_FROZEN], __func__);
-	m_trie->trie_state = TRIE_STATE_FROZEN;
+	if (m_trie->num_rules >= TRIE_FREEZE_THRESHOLD) {
+
+		DP_DEBUG(RLDB_ACL, DEBUG, DATAPLANE, "Updating trie-state %s from %s to %s (%s)\n",
+				m_trie->trie_name,
+				trie_state_strs[m_trie->trie_state],
+				trie_state_strs[TRIE_STATE_FROZEN], __func__);
+		m_trie->trie_state = TRIE_STATE_FROZEN;
+	}
 	return 0;
 }
 
@@ -1390,15 +1428,6 @@ int npf_rte_acl_del_rule(int af, npf_match_ctx_t *m_ctx, uint32_t rule_no,
 		m_trie = cds_list_entry(list_entry, struct npf_match_ctx_trie,
 					trie_link);
 
-		/*
-		 * deletes are only permitted on entries that have been
-		 * successfully added and committed. So writable tries
-		 * get skipped. Delete is either done on a frozen or merging
-		 * trie.
-		 */
-		if (m_trie->trie_state == TRIE_STATE_WRITABLE)
-			continue;
-
 		err = npf_rte_acl_trie_del_rule(af, m_trie, acl_rule);
 
 		/*
@@ -1500,12 +1529,6 @@ int npf_rte_acl_match(int af, npf_match_ctx_t *m_ctx,
 	cds_list_for_each_safe(list_entry, next, &m_ctx->trie_list) {
 		m_trie = cds_list_entry(list_entry, struct npf_match_ctx_trie,
 					trie_link);
-
-		if (m_trie->trie_state == TRIE_STATE_WRITABLE) {
-			DP_DEBUG(RLDB_ACL, DEBUG, DATAPLANE, "Skipping trie %s\n",
-				 m_trie->trie_name);
-			continue;
-		}
 
 		err = npf_rte_acl_trie_match(af, m_trie, npc, data, rule_no);
 		if (!err) {
@@ -1688,8 +1711,6 @@ size_t npf_rte_acl_rule_size(int af)
 	return RTE_ACL_RULE_SZ(RTE_DIM(ipv6_defs));
 }
 
-#define M_TRIE_POOL_SIZE 512
-
 int npf_rte_acl_setup(void)
 {
 	int err;
@@ -1834,6 +1855,18 @@ void npf_rte_acl_dump(npf_match_ctx_t *ctx, json_writer_t *wr)
  * consolidated trie is being built, the consolidation is restarted
  */
 
+static bool
+is_merge_candidate(struct npf_match_ctx_trie *m_trie)
+{
+	if (m_trie->trie_state != TRIE_STATE_FROZEN)
+		return false;
+
+	if (m_trie->num_rules >= NPR_TRIE_MERGE_THRESHOLD)
+		return false;
+
+	return true;
+}
+
 static void
 npf_rte_acl_select_candidate_tries(npf_match_ctx_t *ctx,
 				   struct npf_match_ctx_trie *merge_start,
@@ -1853,10 +1886,7 @@ npf_rte_acl_select_candidate_tries(npf_match_ctx_t *ctx,
 
 	cds_list_for_each_entry_safe_from(m_trie, next, &ctx->trie_list, trie_link) {
 
-		if (m_trie->trie_state != TRIE_STATE_FROZEN)
-			continue;
-
-		if (m_trie->num_rules == NPR_TRIE_MAX_RULES)
+		if (!is_merge_candidate(m_trie))
 			continue;
 
 		cnt_tries++;
@@ -1875,6 +1905,9 @@ npf_rte_acl_copy_rules(npf_match_ctx_t *ctx,
 	int rc;
 	struct rte_mempool *rule_mempool;
 
+	if (!ctx || !m_trie || !dst_trie)
+		return -EINVAL;
+
 	if (ctx->af == AF_INET)
 		rule_mempool = npr_acl4_pool;
 	else if (ctx->af == AF_INET6)
@@ -1892,12 +1925,13 @@ npf_rte_acl_copy_rules(npf_match_ctx_t *ctx,
 			m_trie->trie_name, m_trie, m_trie->num_rules,
 			dst_trie->trie_name, __func__);
 
-	if (rte_mempool_avail_count(rule_mempool) < m_trie->num_rules) {
-		rc = npf_rte_acl_mempool_grow(rule_mempool);
+	while (rte_mempool_avail_count(rule_mempool) < m_trie->num_rules) {
+		size_t grow_nb = MAX(m_trie->num_rules, NPR_RULE_GROW_ELEMENTS);
+		rc = npf_rte_acl_mempool_grow(rule_mempool, grow_nb);
 		if (rc < 0) {
 			RTE_LOG(ERR, DATAPLANE,
-				"Could not grow (%u) rule mempool (%u/%u/%u) for trie merge %s: %s\n",
-				NPR_RULE_GROW_ELEMENTS,
+				"Could not grow (%lu) rule mempool (%u/%u/%u) for trie merge %s: %s\n",
+				grow_nb,
 				rte_mempool_avail_count(rule_mempool),
 				rte_mempool_in_use_count(rule_mempool),
 				rule_mempool->size,
@@ -1953,11 +1987,7 @@ npf_rte_acl_optimize_merge_prepare(npf_match_ctx_t *ctx,
 	cds_list_for_each_entry_safe_from(m_trie, next, &ctx->trie_list,
 					  trie_link) {
 
-
-		if (m_trie->trie_state != TRIE_STATE_FROZEN)
-			continue;
-
-		if (m_trie->num_rules == NPR_TRIE_MAX_RULES)
+		if (!is_merge_candidate(m_trie))
 			continue;
 
 		if (!new_trie
@@ -2001,10 +2031,7 @@ npf_rte_acl_optimize_merge_prepare(npf_match_ctx_t *ctx,
 	cds_list_for_each_entry_safe_from(m_trie, next, &ctx->trie_list,
 					  trie_link) {
 
-		if (m_trie->trie_state != TRIE_STATE_FROZEN)
-			continue;
-
-		if (m_trie->num_rules == NPR_TRIE_MAX_RULES)
+		if (!is_merge_candidate(m_trie))
 			continue;
 
 		if ((new_trie->num_rules + m_trie->num_rules)
@@ -2234,7 +2261,8 @@ done:
 	rte_spinlock_unlock(&ctx->merge_lock);
 }
 
-#define NPF_RTE_ACL_MERGE_INTERVAL 5
+/* in milliseconds */
+#define NPF_RTE_ACL_MERGE_INTERVAL 1000
 
 static void *npf_rte_acl_optimize(void *args __rte_unused)
 {
@@ -2254,7 +2282,7 @@ static void *npf_rte_acl_optimize(void *args __rte_unused)
 		}
 
 		dp_rcu_thread_offline();
-		sleep(NPF_RTE_ACL_MERGE_INTERVAL);
+		usleep(NPF_RTE_ACL_MERGE_INTERVAL * USEC_PER_MSEC);
 	}
 
 	return NULL;

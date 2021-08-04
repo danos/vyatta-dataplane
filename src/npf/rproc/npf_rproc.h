@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  */
@@ -83,7 +83,6 @@ enum npf_rproc_id {
 	NPF_RPROC_ID_CTR_DEF,
 	NPF_RPROC_ID_CTR_REF,
 	NPF_RPROC_ID_COUNTER,
-	NPF_RPROC_ID_APP_GRP,
 	/* Insert new ID above this comment */
 	NPF_RPROC_ID_LAST,
 };
