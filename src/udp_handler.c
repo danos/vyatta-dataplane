@@ -3,7 +3,7 @@
  *
  * Copyright (c) 2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
- * Copyright (c) 2017,2019-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017,2019-2021, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -31,7 +31,7 @@ struct ifnet;
  * should be kept <25%. Please consider increasing this value as you add
  * port handlers.
  */
-#define UDP_PORT_TABLE_MAX 16
+#define UDP_PORT_TABLE_MAX 4096
 
 static struct rte_hash *ipv4_udp_table;
 static struct rte_hash *ipv6_udp_table;
