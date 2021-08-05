@@ -71,7 +71,7 @@ int xfrm_client_send_ack(uint32_t seq, int err)
 			 "Failed to alloc xfrm ack error frame\n");
 		return -ENOMSG;
 	}
-	err_msg->error = -err;
+	err_msg->error = err;
 
 	frame = zframe_new(nlh, nlh->nlmsg_len);
 	if (!frame)
