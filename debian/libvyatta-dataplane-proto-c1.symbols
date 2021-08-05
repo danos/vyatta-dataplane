@@ -53,6 +53,34 @@ libvyatta-dataplane-proto-c.so.1 libvyatta-dataplane-proto-c1 #MINVER#
  dataplane_envelope__pack_to_buffer@Base 3.13.6
  dataplane_envelope__unpack@Base 3.13.6
  direction__descriptor@Base 3.13.6
+ dpsession_counter_msg__descriptor@Base 3.13.34
+ dpsession_counter_msg__free_unpacked@Base 3.13.34
+ dpsession_counter_msg__get_packed_size@Base 3.13.34
+ dpsession_counter_msg__init@Base 3.13.34
+ dpsession_counter_msg__pack@Base 3.13.34
+ dpsession_counter_msg__pack_to_buffer@Base 3.13.34
+ dpsession_counter_msg__unpack@Base 3.13.34
+ dpsession_key_msg__descriptor@Base 3.13.34
+ dpsession_key_msg__free_unpacked@Base 3.13.34
+ dpsession_key_msg__get_packed_size@Base 3.13.34
+ dpsession_key_msg__init@Base 3.13.34
+ dpsession_key_msg__pack@Base 3.13.34
+ dpsession_key_msg__pack_to_buffer@Base 3.13.34
+ dpsession_key_msg__unpack@Base 3.13.34
+ dpsession_msg__descriptor@Base 3.13.34
+ dpsession_msg__free_unpacked@Base 3.13.34
+ dpsession_msg__get_packed_size@Base 3.13.34
+ dpsession_msg__init@Base 3.13.34
+ dpsession_msg__pack@Base 3.13.34
+ dpsession_msg__pack_to_buffer@Base 3.13.34
+ dpsession_msg__unpack@Base 3.13.34
+ dpsession_state_msg__descriptor@Base 3.13.34
+ dpsession_state_msg__free_unpacked@Base 3.13.34
+ dpsession_state_msg__get_packed_size@Base 3.13.34
+ dpsession_state_msg__init@Base 3.13.34
+ dpsession_state_msg__pack@Base 3.13.34
+ dpsession_state_msg__pack_to_buffer@Base 3.13.34
+ dpsession_state_msg__unpack@Base 3.13.34
  feature_affinity_config__descriptor@Base 3.13.6
  feature_affinity_config__feature__descriptor@Base 3.13.6
  feature_affinity_config__free_unpacked@Base 3.13.6
@@ -94,6 +122,17 @@ libvyatta-dataplane-proto-c.so.1 libvyatta-dataplane-proto-c1 #MINVER#
  gpctable__pack@Base 3.13.6
  gpctable__pack_to_buffer@Base 3.13.6
  gpctable__unpack@Base 3.13.6
+ icmprate_lim_config__action__descriptor@Base 3.13.34
+ icmprate_lim_config__descriptor@Base 3.13.34
+ icmprate_lim_config__free_unpacked@Base 3.13.34
+ icmprate_lim_config__get_packed_size@Base 3.13.34
+ icmprate_lim_config__init@Base 3.13.34
+ icmprate_lim_config__pack@Base 3.13.34
+ icmprate_lim_config__pack_to_buffer@Base 3.13.34
+ icmprate_lim_config__param__descriptor@Base 3.13.34
+ icmprate_lim_config__prot__descriptor@Base 3.13.34
+ icmprate_lim_config__type__descriptor@Base 3.13.34
+ icmprate_lim_config__unpack@Base 3.13.34
  ip6_redirects_config__descriptor@Base 3.13.6
  ip6_redirects_config__free_unpacked@Base 3.13.6
  ip6_redirects_config__get_packed_size@Base 3.13.6
@@ -160,6 +199,27 @@ libvyatta-dataplane-proto-c.so.1 libvyatta-dataplane-proto-c1 #MINVER#
  nbr_res_config__param__descriptor@Base 3.13.6
  nbr_res_config__prot__descriptor@Base 3.13.6
  nbr_res_config__unpack@Base 3.13.6
+ npfsession_msg__descriptor@Base 3.13.34
+ npfsession_msg__free_unpacked@Base 3.13.34
+ npfsession_msg__get_packed_size@Base 3.13.34
+ npfsession_msg__init@Base 3.13.34
+ npfsession_msg__pack@Base 3.13.34
+ npfsession_msg__pack_to_buffer@Base 3.13.34
+ npfsession_msg__unpack@Base 3.13.34
+ npfsession_state_msg__descriptor@Base 3.13.34
+ npfsession_state_msg__free_unpacked@Base 3.13.34
+ npfsession_state_msg__get_packed_size@Base 3.13.34
+ npfsession_state_msg__init@Base 3.13.34
+ npfsession_state_msg__pack@Base 3.13.34
+ npfsession_state_msg__pack_to_buffer@Base 3.13.34
+ npfsession_state_msg__unpack@Base 3.13.34
+ packed_dpsession_msg__descriptor@Base 3.13.34
+ packed_dpsession_msg__free_unpacked@Base 3.13.34
+ packed_dpsession_msg__get_packed_size@Base 3.13.34
+ packed_dpsession_msg__init@Base 3.13.34
+ packed_dpsession_msg__pack@Base 3.13.34
+ packed_dpsession_msg__pack_to_buffer@Base 3.13.34
+ packed_dpsession_msg__unpack@Base 3.13.34
  path__descriptor@Base 3.13.6
  path__free_unpacked@Base 3.13.6
  path__get_packed_size@Base 3.13.6
@@ -275,6 +335,22 @@ libvyatta-dataplane-proto-c.so.1 libvyatta-dataplane-proto-c1 #MINVER#
  session_log__pack_to_buffer@Base 3.13.6
  session_log__unpack@Base 3.13.6
  session_state__descriptor@Base 3.13.6
+ sfp_permit_config__action__descriptor@Base 3.13.34
+ sfp_permit_config__descriptor@Base 3.13.34
+ sfp_permit_config__enforcement__descriptor@Base 3.13.34
+ sfp_permit_config__free_unpacked@Base 3.13.34
+ sfp_permit_config__get_packed_size@Base 3.13.34
+ sfp_permit_config__init@Base 3.13.34
+ sfp_permit_config__list_config__descriptor@Base 3.13.34
+ sfp_permit_config__list_config__init@Base 3.13.34
+ sfp_permit_config__logging__descriptor@Base 3.13.34
+ sfp_permit_config__mis_match_config__descriptor@Base 3.13.34
+ sfp_permit_config__mis_match_config__init@Base 3.13.34
+ sfp_permit_config__pack@Base 3.13.34
+ sfp_permit_config__pack_to_buffer@Base 3.13.34
+ sfp_permit_config__sfp__descriptor@Base 3.13.34
+ sfp_permit_config__sfp__init@Base 3.13.34
+ sfp_permit_config__unpack@Base 3.13.34
  speed_config__descriptor@Base 3.13.6
  speed_config__duplex__descriptor@Base 3.13.6
  speed_config__free_unpacked@Base 3.13.6
@@ -308,6 +384,13 @@ libvyatta-dataplane-proto-c.so.1 libvyatta-dataplane-proto-c1 #MINVER#
  tcpmssconfig__pack@Base 3.13.6
  tcpmssconfig__pack_to_buffer@Base 3.13.6
  tcpmssconfig__unpack@Base 3.13.6
+ tcpwindow_msg__descriptor@Base 3.13.34
+ tcpwindow_msg__free_unpacked@Base 3.13.34
+ tcpwindow_msg__get_packed_size@Base 3.13.34
+ tcpwindow_msg__init@Base 3.13.34
+ tcpwindow_msg__pack@Base 3.13.34
+ tcpwindow_msg__pack_to_buffer@Base 3.13.34
+ tcpwindow_msg__unpack@Base 3.13.34
  timestamp__descriptor@Base 3.13.6
  timestamp__free_unpacked@Base 3.13.6
  timestamp__get_packed_size@Base 3.13.6
@@ -316,6 +399,63 @@ libvyatta-dataplane-proto-c.so.1 libvyatta-dataplane-proto-c1 #MINVER#
  timestamp__pack_to_buffer@Base 3.13.6
  timestamp__unpack@Base 3.13.6
  traffic_type__descriptor@Base 3.13.6
+ twampcmd__descriptor@Base 3.13.34
+ twampcmd__free_unpacked@Base 3.13.34
+ twampcmd__get_packed_size@Base 3.13.34
+ twampcmd__init@Base 3.13.34
+ twampcmd__pack@Base 3.13.34
+ twampcmd__pack_to_buffer@Base 3.13.34
+ twampcmd__unpack@Base 3.13.34
+ twampcmd_response__descriptor@Base 3.13.34
+ twampcmd_response__free_unpacked@Base 3.13.34
+ twampcmd_response__get_packed_size@Base 3.13.34
+ twampcmd_response__init@Base 3.13.34
+ twampcmd_response__pack@Base 3.13.34
+ twampcmd_response__pack_to_buffer@Base 3.13.34
+ twampcmd_response__unpack@Base 3.13.34
+ twampinitialise__descriptor@Base 3.13.34
+ twampinitialise__free_unpacked@Base 3.13.34
+ twampinitialise__get_packed_size@Base 3.13.34
+ twampinitialise__init@Base 3.13.34
+ twampinitialise__pack@Base 3.13.34
+ twampinitialise__pack_to_buffer@Base 3.13.34
+ twampinitialise__unpack@Base 3.13.34
+ twampsession_counter_response__descriptor@Base 3.13.34
+ twampsession_counter_response__free_unpacked@Base 3.13.34
+ twampsession_counter_response__get_packed_size@Base 3.13.34
+ twampsession_counter_response__init@Base 3.13.34
+ twampsession_counter_response__pack@Base 3.13.34
+ twampsession_counter_response__pack_to_buffer@Base 3.13.34
+ twampsession_counter_response__unpack@Base 3.13.34
+ twampsession_counters__descriptor@Base 3.13.34
+ twampsession_counters__free_unpacked@Base 3.13.34
+ twampsession_counters__get_packed_size@Base 3.13.34
+ twampsession_counters__init@Base 3.13.34
+ twampsession_counters__pack@Base 3.13.34
+ twampsession_counters__pack_to_buffer@Base 3.13.34
+ twampsession_counters__unpack@Base 3.13.34
+ twampsession_create__descriptor@Base 3.13.34
+ twampsession_create__free_unpacked@Base 3.13.34
+ twampsession_create__get_packed_size@Base 3.13.34
+ twampsession_create__init@Base 3.13.34
+ twampsession_create__mode__descriptor@Base 3.13.34
+ twampsession_create__pack@Base 3.13.34
+ twampsession_create__pack_to_buffer@Base 3.13.34
+ twampsession_create__unpack@Base 3.13.34
+ twampsession_delete__descriptor@Base 3.13.34
+ twampsession_delete__free_unpacked@Base 3.13.34
+ twampsession_delete__get_packed_size@Base 3.13.34
+ twampsession_delete__init@Base 3.13.34
+ twampsession_delete__pack@Base 3.13.34
+ twampsession_delete__pack_to_buffer@Base 3.13.34
+ twampsession_delete__unpack@Base 3.13.34
+ twampsession_key__descriptor@Base 3.13.34
+ twampsession_key__free_unpacked@Base 3.13.34
+ twampsession_key__get_packed_size@Base 3.13.34
+ twampsession_key__init@Base 3.13.34
+ twampsession_key__pack@Base 3.13.34
+ twampsession_key__pack_to_buffer@Base 3.13.34
+ twampsession_key__unpack@Base 3.13.34
  vfpset_config__action__descriptor@Base 3.13.6
  vfpset_config__descriptor@Base 3.13.6
  vfpset_config__free_unpacked@Base 3.13.6
