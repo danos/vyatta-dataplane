@@ -1,3 +1,26 @@
+vyatta-dataplane (3.14.9) unstable; urgency=medium
+
+  [ Daniel Gollub ]
+  * xfrm_client: don't negate the error-code twice
+
+  [ Mark Gillott ]
+  * twamp: propagate any UDP port registration error up to daemon
+    (Fixes: VRVDR-55838)
+  * twamp: increase the size of the UDP hash table (Fixes: VRVDR-55838)
+
+  [ Daniel Gollub ]
+  * debian: generate unversioned symbols/shlibs files
+  * debian: update protobuf symbols
+  * debian: ignore for disappearing symbols in Debian Bullseye builds
+
+  [ ck407g ]
+  * Changes to SFP disabling behaviour
+
+  [ Srinivas Narayan ]
+  * 3.13.35
+
+ -- Srinivas Narayan <narayan@vyatta.att-mail.com>  Fri, 06 Aug 2021 13:02:26 +0100
+
 vyatta-dataplane (3.14.8) unstable; urgency=medium
 
   [ Cian O'Sullivan ]
