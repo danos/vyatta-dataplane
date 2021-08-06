@@ -40,8 +40,6 @@
 #define SFPD_PORTS_MIN 32
 #define SFPD_PORTS_MAX 1024
 
-#define MAX_DEBUG_MSG_LEN 200
-
 static bool sfp_permit_list_running;
 struct cds_list_head  sfp_permit_list_head;
 struct cds_list_head  sfp_permit_parts_list_head;
@@ -124,7 +122,14 @@ struct sfp_intf_record {
 	struct rcu_head rcu;
 };
 
+struct sfp_permit_config {
+	uint32_t effective_enforcement_time;
+};
+
 static void sfp_validate_sfp_against_pl(struct sfp_intf_record *sfp);
+
+struct sfp_permit_config sfp_permit_cfg;
+static bool effective_enforcement_time_initialised;
 
 struct cds_lfht *sfp_ports_tbl;
 
@@ -185,6 +190,104 @@ sfpd_record_find(struct cds_lfht *hash_tbl, uint32_t port)
 		return caa_container_of(node, struct sfp_intf_record, hnode);
 
 	return NULL;
+}
+
+static int sfp_parse_sfp_permit_config(void *user, const char *section,
+	       const char *name, const char *value)
+{
+	struct sfp_permit_config *permit_config = user;
+
+	if (streq(section, "Effective_Enforcement_Time"))
+		if (streq(name, "time")) {
+			permit_config->effective_enforcement_time = atoi(value);
+			return 1;
+		}
+
+	RTE_LOG(ERR, DATAPLANE,
+		"Failed to parse SFP permit config\n");
+
+	return 0;
+}
+
+static void sfp_write_sfp_permit_config(struct sfp_permit_config *config)
+{
+	FILE *f;
+
+	f = fopen(SFP_PERMIT_CONFIG_FILE, "w");
+	if (f) {
+		fprintf(f, "[Effective_Enforcement_Time]\n");
+		fprintf(f, "time = %u\n", config->effective_enforcement_time);
+		fclose(f);
+	} else {
+		RTE_LOG(ERR, DATAPLANE,
+			"Can't write to the SPF permit configuration file %s: %s\n",
+			SFP_PERMIT_CONFIG_FILE, strerror(errno));
+	}
+}
+
+static void set_effective_enforcement_time(const uint32_t time)
+{
+	sfp_permit_cfg.effective_enforcement_time = time;
+	sfp_write_sfp_permit_config(&sfp_permit_cfg);
+	DP_DEBUG(SFP_LIST, DEBUG, DATAPLANE,
+		"SFP-PL: Setting effective enforcement time to %us\n",
+		time);
+}
+
+static int sfp_read_sfp_permit_config(struct sfp_permit_config *config)
+{
+	FILE *f;
+	int rc;
+
+	f = fopen(SFP_PERMIT_CONFIG_FILE, "r");
+	if (f == NULL) {
+		RTE_LOG(ERR, DATAPLANE,
+			"Can't read the SPF permit configuration file %s: %s\n",
+			SFP_PERMIT_CONFIG_FILE, strerror(errno));
+		return 1;
+	}
+	rc = ini_parse_file(f, sfp_parse_sfp_permit_config, config);
+	fclose(f);
+
+	if (rc) {
+		RTE_LOG(ERR, DATAPLANE,
+			"Can't parse SFP permit configuration file: %s\n",
+			SFP_PERMIT_CONFIG_FILE);
+		return 2;
+	}
+
+	return 0;
+}
+
+static void init_effective_enforcement_time(void)
+{
+	struct sfp_permit_config config;
+	int ret;
+
+	if (effective_enforcement_time_initialised)
+		return;
+	effective_enforcement_time_initialised = true;
+
+	ret = sfp_read_sfp_permit_config(&config);
+	if (ret == 0)
+		/* set the effective_enforcement_time to the value read from the file
+		 * (eg: dataplane restart event).
+		 */
+		sfp_permit_cfg.effective_enforcement_time = config.effective_enforcement_time;
+	else if (ret == 1)
+		/* set the effective_enforcement_time to enforcement delay if the file
+		 * not found (reboot event).
+		 */
+		set_effective_enforcement_time(sfp_mismatch_cfg.enforcement_delay);
+	else
+		/* set the effective_enforcement_time to current time in case of a
+		 * file parsing issue to avoid SFPs brought down without an OIR event.
+		 */
+		set_effective_enforcement_time(system_uptime());
+
+	DP_DEBUG(SFP_LIST, DEBUG, DATAPLANE,
+		"SFP-PL: Initialised effective enforcement time to %us\n ",
+		sfp_permit_cfg.effective_enforcement_time);
 }
 
 static void
@@ -472,30 +575,42 @@ static int
 sfp_permit_mismatch_cfg(const SfpPermitConfig__MisMatchConfig *mismatch)
 {
 	DP_DEBUG(SFP_LIST, DEBUG, DATAPLANE,
-		 "SFP-PL:mismatch enforcement delay %u\n", mismatch->delay);
+		 "SFP-PL: mismatch enforcement delay %u\n", mismatch->delay);
 	DP_DEBUG(SFP_LIST, DEBUG, DATAPLANE,
-		"SFP-PL:mismatch logging %u\n", mismatch->logging);
+		"SFP-PL: mismatch logging %u\n", mismatch->logging);
 	DP_DEBUG(SFP_LIST, DEBUG, DATAPLANE,
-		"SFP-PL:mismatch enforcement %u\n", mismatch->enforcement);
+		"SFP-PL: mismatch enforcement %u\n", mismatch->enforcement);
 
 	if (mismatch->logging == SFP_PERMIT_CONFIG__LOGGING__ENABLE)
 		sfp_mismatch_cfg.logging_enabled = true;
 	else
 		sfp_mismatch_cfg.logging_enabled = false;
 
+	sfp_mismatch_cfg.enforcement_delay = mismatch->delay;
+
 	if (mismatch->enforcement == SFP_PERMIT_CONFIG__ENFORCEMENT__ENFORCE) {
+		if (!sfp_mismatch_cfg.enforcement_enabled) {
+			/* record time of transition from monitor to enforcement */
+			uint32_t time_now = system_uptime();
+			if (effective_enforcement_time_initialised &&
+					sfp_permit_cfg.effective_enforcement_time < time_now) {
+				set_effective_enforcement_time(time_now);
+			} else
+				init_effective_enforcement_time();
+		}
 		sfp_mismatch_cfg.enforcement_enabled = true;
 	} else {
 		sfp_mismatch_cfg.enforcement_enabled = false;
+		if (!effective_enforcement_time_initialised)
+			init_effective_enforcement_time();
 		sfp_clear_all_holddown();
-		return 0;
 	}
 
-	sfp_mismatch_cfg.enforcement_delay = mismatch->delay;
 	sfp_scan_for_holddown();
 
 	return 0;
 }
+
 static void dump_lists(void) __attribute__((unused));
 static void dump_lists(void)
 {
@@ -849,13 +964,14 @@ static void sfp_validate_sfp_against_pl(struct sfp_intf_record *sfp)
 		sfp->status = SFP_STATUS_UNAPPROVED;
 
 		if (sfp_mismatch_cfg.enforcement_enabled &&
-		    (sfp->time_of_detection >=
-		     sfp_mismatch_cfg.enforcement_delay)) {
+			effective_enforcement_time_initialised &&
+			sfp->time_of_detection >= sfp_permit_cfg.effective_enforcement_time){
 			sfp->action = SFP_ACTION_DISABLED;
 			sfp_set_holddown(sfp->intf);
 			DP_DEBUG(SFP_LIST, DEBUG, DATAPLANE,
 				 "SFP-PL: %s Disabled SFP %s is unapproved\n",
 				 sfp->intf_name, sfp->part_id);
+
 			if (sfp_mismatch_cfg.logging_enabled)
 				RTE_LOG(WARNING, DATAPLANE,
 					"Interface %s Disabled: SFP not in permit-lists\n",
@@ -960,8 +1076,8 @@ void sfpd_process_presence_update(void)
 
 	if (!sfp_permit_list_running) {
 		sfp_permit_list_init(false);
-			if (!sfp_permit_list_running)
-				return;
+		if (!sfp_permit_list_running)
+			return;
 	}
 
 	DP_DEBUG(SFP_LIST, DEBUG, DATAPLANE,

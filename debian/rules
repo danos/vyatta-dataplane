@@ -46,8 +46,13 @@ export DEB_CXXFLAGS_MAINT_APPEND
 export DEB_BUILD_MAINT_OPTIONS=hardening=+format,-fortify,-stackprotector,+relro,+bindnow
 
 # To be really strict change this to level 4
-DPKG_GENSYMBOLS_CHECK_LEVEL ?= 1
+# Newer protobuf versions than the one in Debian Buster (3.6.1)
+# reduce less C++ symbols. Tolerate for now until this branch
+# is no longer used between different Debian relases or protobuf versions.
+DPKG_GENSYMBOLS_CHECK_LEVEL ?= $(shell pkg-config --exists 'protobuf > 3.6.1' && echo 0 || echo 1)
 export DPKG_GENSYMBOLS_CHECK_LEVEL
+
+VERSION=$(shell scripts/get_version)
 
 # Build in a separate directory
 %:
@@ -86,3 +91,11 @@ override_dh_gencontrol:
 override_dh_installsystemd:
 	dh_installsystemd --name=vyatta-dataplane
 	dh_installsystemd --name=proc-xen
+
+# Do not generate package-build-time versioned shlibs/symbols files.
+# dh_makeshlibs behavior got changed with debian compat 12.
+# This breaks building DANOS images based on a slightly outdated dataplane fork/branch,
+# if version dependent packages got already build against a newer dataplane version.
+# This breaks a very common private-build / continuous integration workflow.
+override_dh_makeshlibs:
+	dh_makeshlibs -VNone -- -v$(VERSION)

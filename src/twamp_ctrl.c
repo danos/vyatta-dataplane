@@ -70,18 +70,29 @@ struct cds_lfht *tw_session_table;
 static zsock_t *twamp_sock_main;
 static zsock_t *twamp_sock_console;
 
-static void tw_main_register_udp_port(uint8_t add, uint8_t af, uint16_t port);
+static int tw_main_register_udp_port(uint8_t add, uint8_t af, uint16_t port);
 
-static void
+static int
 tw_session_udp_port(uint8_t add, uint8_t af, uint16_t port)
 {
+	int rc;
+
 	if (is_main_thread())
-		tw_main_register_udp_port(add, af, port);
-	else
-		if (zsock_bsend(twamp_sock_console, "112", add, af,
-				port) < 0)
-			RTE_LOG(ERR, TWAMP,
-				"failed to send UDP port details to main\n");
+		return tw_main_register_udp_port(add, af, port);
+
+	if (zsock_bsend(twamp_sock_console, "112", add, af, port) < 0) {
+		RTE_LOG(ERR, TWAMP,
+			"failed to send UDP port details to main\n");
+		return -EIO;
+	}
+
+	if (zsock_recv(twamp_sock_console, "i", &rc) < 0) {
+		RTE_LOG(ERR, DATAPLANE,
+			"failed to get UDP port response from main\n");
+		return -EIO;
+	}
+
+	return rc;
 }
 
 /*
@@ -195,18 +206,26 @@ tw_session_rcu_free(struct rcu_head *rcuhead)
 }
 
 static void
-tw_session_delete(struct tw_session_entry *entry)
+tw_session_delete_port_check(struct tw_session_entry *entry,
+			     bool port_check)
 {
 	if (entry == NULL)
 		return;
 
 	cds_lfht_del(tw_session_table, &entry->tw_node);
 
-	if (!tw_session_lport_exists(entry->session.af, entry->session.lport))
+	if (port_check &&
+	    !tw_session_lport_exists(entry->session.af, entry->session.lport))
 		tw_session_udp_port(false, entry->session.af,
 				    entry->session.lport);
 
 	call_rcu(&entry->rcu, tw_session_rcu_free);
+}
+
+static void
+tw_session_delete(struct tw_session_entry *entry)
+{
+	tw_session_delete_port_check(entry, true);
 }
 
 static int
@@ -273,11 +292,12 @@ tw_ip2str(const struct ip_addr *addr, char *buf, size_t len)
  * Register the IPv4/IPv6 UDP destination port with the main UDP
  * dispatch component. This needs to occur on the master thread.
  */
-static void
+static int
 tw_main_register_udp_port(uint8_t add, uint8_t af, uint16_t port)
 {
 	udp_port_handler handler;
 	const char *prot;
+	int rc;
 
 	switch (af) {
 	case AF_INET:
@@ -292,7 +312,7 @@ tw_main_register_udp_port(uint8_t add, uint8_t af, uint16_t port)
 		RTE_LOG(ERR, TWAMP,
 			"unknown address family for main event: %u\n",
 			af);
-		return;
+		return -EPROTO;
 	}
 
 	if (!add) {
@@ -300,16 +320,20 @@ tw_main_register_udp_port(uint8_t add, uint8_t af, uint16_t port)
 		DP_DEBUG(TWAMP, INFO, TWAMP,
 			 "%s unregistered UDP port %u\n",
 			 prot, ntohs(port));
-	} else {
-		if (udp_handler_register(af, port, handler) != 0)
-			RTE_LOG(ERR, TWAMP,
-				"failed to register %s UDP port %u\n",
-				prot, ntohs(port));
-		else
-			DP_DEBUG(TWAMP, INFO, TWAMP,
-				 "%s registered UDP port %u\n",
-				 prot, ntohs(port));
+		return 0;
 	}
+
+	rc = udp_handler_register(af, port, handler);
+	if (rc < 0)
+		RTE_LOG(ERR, TWAMP,
+			"failed to register %s UDP port %u ('%s')\n",
+			prot, ntohs(port), strerror(-rc));
+	else
+		DP_DEBUG(TWAMP, INFO, TWAMP,
+			 "%s registered UDP port %u\n",
+			 prot, ntohs(port));
+
+	return rc;
 }
 
 static int
@@ -319,6 +343,7 @@ tw_event_register_udp_port(void *arg)
 	uint16_t port;
 	uint8_t add;
 	uint8_t af;
+	int rc;
 
 	if (zsock_brecv(s, "112", &add, &af, &port) < 0) {
 		RTE_LOG(ERR, TWAMP,
@@ -326,7 +351,14 @@ tw_event_register_udp_port(void *arg)
 		return 0;
 	}
 
-	tw_main_register_udp_port(add, af, port);
+	rc = tw_main_register_udp_port(add, af, port);
+
+	if (zsock_send(s, "i", rc) < 0) {
+		RTE_LOG(ERR, DATAPLANE,
+			"failed to send response to main thread\n");
+		return -EIO;
+	}
+
 	return 0;
 }
 
@@ -559,8 +591,13 @@ tw_pb_session_create(TWAMPSessionCreate *create)
 
 	cds_lfht_add(tw_session_table, hash, &entry->tw_node);
 
-	if (!port_registered)
-		tw_session_udp_port(true, entry->session.af, lport);
+	if (!port_registered) {
+		rc = tw_session_udp_port(true, entry->session.af, lport);
+		if (rc < 0) {
+			tw_session_delete_port_check(entry, false);
+			return rc;
+		}
+	}
 
 	DP_DEBUG(TWAMP, INFO, TWAMP,
 		 "%s session created %s:%u -> %s:%u payload size %u %u\n",

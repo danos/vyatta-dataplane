@@ -4,12 +4,17 @@ libvyatta-dataplane-proto.so.1 libvyatta-dataplane-proto1 #MINVER#
  _CgnatLog_default_instance_@Base 3.13.6
  _ConstraintLog_default_instance_@Base 3.13.6
  _CryptoPolicyConfig_default_instance_@Base 3.13.6
+ _DPSessionCounterMsg_default_instance_@Base 3.13.34
+ _DPSessionKeyMsg_default_instance_@Base 3.13.34
+ _DPSessionMsg_default_instance_@Base 3.13.34
+ _DPSessionStateMsg_default_instance_@Base 3.13.34
  _DataplaneEnvelope_default_instance_@Base 3.13.6
  _FeatureAffinityConfig_default_instance_@Base 3.13.6
  _GArpConfig_default_instance_@Base 3.13.6
  _GPCConfig_default_instance_@Base 3.13.6
  _GPCCounter_default_instance_@Base 3.13.6
  _GPCTable_default_instance_@Base 3.13.6
+ _ICMPRateLimConfig_default_instance_@Base 3.13.34
  _IP6RedirectsConfig_default_instance_@Base 3.13.6
  _IPAddressOrLabel_default_instance_@Base 3.13.6
  _IPAddress_default_instance_@Base 3.13.6
@@ -21,8 +26,11 @@ libvyatta-dataplane-proto.so.1 libvyatta-dataplane-proto1 #MINVER#
  _MacLimitConfig_MacLimitIfVLANConfig_default_instance_@Base 3.13.6
  _MacLimitConfig_MacLimitProfileConfig_default_instance_@Base 3.13.6
  _MacLimitConfig_default_instance_@Base 3.13.6
+ _NPFSessionMsg_default_instance_@Base 3.13.34
+ _NPFSessionStateMsg_default_instance_@Base 3.13.34
  _NbrResConfig_default_instance_@Base 3.13.6
  _PPPOEConfig_default_instance_@Base 3.13.6
+ _PackedDPSessionMsg_default_instance_@Base 3.13.34
  _Path_default_instance_@Base 3.13.6
  _PauseConfig_PauseIfConfig_default_instance_@Base 3.13.6
  _PauseConfig_default_instance_@Base 3.13.6
@@ -38,10 +46,23 @@ libvyatta-dataplane-proto.so.1 libvyatta-dataplane-proto1 #MINVER#
  _Rule_default_instance_@Base 3.13.6
  _Rules_default_instance_@Base 3.13.6
  _SessionLog_default_instance_@Base 3.13.6
+ _SfpPermitConfig_ListConfig_default_instance_@Base 3.13.34
+ _SfpPermitConfig_MisMatchConfig_default_instance_@Base 3.13.34
+ _SfpPermitConfig_SFP_default_instance_@Base 3.13.34
+ _SfpPermitConfig_default_instance_@Base 3.13.34
  _SpeedConfig_default_instance_@Base 3.13.6
  _SubscriberLog_default_instance_@Base 3.13.6
  _SynceConfig_default_instance_@Base 3.13.6
  _TCPMSSConfig_default_instance_@Base 3.13.6
+ _TCPWindowMsg_default_instance_@Base 3.13.34
+ _TWAMPCmdResponse_default_instance_@Base 3.13.34
+ _TWAMPCmd_default_instance_@Base 3.13.34
+ _TWAMPInitialise_default_instance_@Base 3.13.34
+ _TWAMPSessionCounterResponse_default_instance_@Base 3.13.34
+ _TWAMPSessionCounters_default_instance_@Base 3.13.34
+ _TWAMPSessionCreate_default_instance_@Base 3.13.34
+ _TWAMPSessionDelete_default_instance_@Base 3.13.34
+ _TWAMPSessionKey_default_instance_@Base 3.13.34
  _Timestamp_default_instance_@Base 3.13.6
  _VFPSetConfig_default_instance_@Base 3.13.6
  _XConnectConfig_default_instance_@Base 3.13.6
@@ -87,36 +108,51 @@ libvyatta-dataplane-proto.so.1 libvyatta-dataplane-proto1 #MINVER#
  _Z29SpeedConfig_Duplex_descriptorv@Base 3.13.6
  _Z29SynceConfig_Action_descriptorv@Base 3.13.6
  _Z30ConstraintEventType_descriptorv@Base 3.13.6
+ _Z30ICMPRateLimConfig_Prot_IsValidi@Base 3.13.34
+ _Z30ICMPRateLimConfig_Type_IsValidi@Base 3.13.34
  _Z30LAGConfig_LacpActivity_IsValidi@Base 3.13.6
  _Z30NbrResConfig_Action_descriptorv@Base 3.13.6
  _Z30PauseConfig_PauseValue_IsValidi@Base 3.13.6
  _Z30RuleAction_ColourValue_IsValidi@Base 3.13.6
  _Z30RuleMatch_FragValue_descriptorv@Base 3.13.6
+ _Z30SfpPermitConfig_Action_IsValidi@Base 3.13.34
  _Z30SubscriberEventType_descriptorv@Base 3.13.6
  _Z30VFPSetConfig_Action_descriptorv@Base 3.13.6
+ _Z31ICMPRateLimConfig_Param_IsValidi@Base 3.13.34
  _Z31PortAllocationEventType_IsValidi@Base 3.13.6
  _Z31RuleCounter_CounterType_IsValidi@Base 3.13.6
+ _Z31SfpPermitConfig_Logging_IsValidi@Base 3.13.34
  _Z31TCPMSSConfig_MTUType_descriptorv@Base 3.13.6
+ _Z31TWAMPSessionCreate_Mode_IsValidi@Base 3.13.34
  _Z31VFPSetConfig_VFPType_descriptorv@Base 3.13.6
  _Z32BreakoutConfig_Action_descriptorv@Base 3.13.6
  _Z32GPCConfig_FeatureType_descriptorv@Base 3.13.6
  _Z32GPCCounter_CounterFormat_IsValidi@Base 3.13.6
  _Z32GPCTable_FeatureLocation_IsValidi@Base 3.13.6
+ _Z32ICMPRateLimConfig_Action_IsValidi@Base 3.13.34
  _Z32MacLimitConfig_Action_descriptorv@Base 3.13.6
  _Z32RuleMatch_ICMPV6Class_descriptorv@Base 3.13.6
  _Z33CryptoPolicyConfig_Action_IsValidi@Base 3.13.6
+ _Z33ICMPRateLimConfig_Prot_descriptorv@Base 3.13.34
+ _Z33ICMPRateLimConfig_Type_descriptorv@Base 3.13.34
  _Z33LAGConfig_LacpActivity_descriptorv@Base 3.13.6
  _Z33PauseConfig_PauseValue_descriptorv@Base 3.13.6
  _Z33RuleAction_ColourValue_descriptorv@Base 3.13.6
  _Z33RuleAction_PacketDecision_IsValidi@Base 3.13.6
+ _Z33SfpPermitConfig_Action_descriptorv@Base 3.13.34
  _Z34GArpConfig_garp_pkt_action_IsValidi@Base 3.13.6
+ _Z34ICMPRateLimConfig_Param_descriptorv@Base 3.13.34
  _Z34LAGConfig_LacpPeriodicRate_IsValidi@Base 3.13.6
  _Z34PortAllocationEventType_descriptorv@Base 3.13.6
  _Z34RuleCounter_CounterType_descriptorv@Base 3.13.6
+ _Z34SfpPermitConfig_Logging_descriptorv@Base 3.13.34
  _Z34TCPMSSConfig_AddressFamily_IsValidi@Base 3.13.6
+ _Z34TWAMPSessionCreate_Mode_descriptorv@Base 3.13.34
  _Z34XConnectConfig_CommandType_IsValidi@Base 3.13.6
  _Z35GPCCounter_CounterFormat_descriptorv@Base 3.13.6
  _Z35GPCTable_FeatureLocation_descriptorv@Base 3.13.6
+ _Z35ICMPRateLimConfig_Action_descriptorv@Base 3.13.34
+ _Z35SfpPermitConfig_Enforcement_IsValidi@Base 3.13.34
  _Z36CryptoPolicyConfig_Action_descriptorv@Base 3.13.6
  _Z36RuleAction_PacketDecision_descriptorv@Base 3.13.6
  _Z37FeatureAffinityConfig_Feature_IsValidi@Base 3.13.6
@@ -124,6 +160,7 @@ libvyatta-dataplane-proto.so.1 libvyatta-dataplane-proto1 #MINVER#
  _Z37LAGConfig_LacpPeriodicRate_descriptorv@Base 3.13.6
  _Z37TCPMSSConfig_AddressFamily_descriptorv@Base 3.13.6
  _Z37XConnectConfig_CommandType_descriptorv@Base 3.13.6
+ _Z38SfpPermitConfig_Enforcement_descriptorv@Base 3.13.34
  _Z40FeatureAffinityConfig_Feature_descriptorv@Base 3.13.6
  _ZN10GArpConfig10SharedCtorEv@Base 3.13.6
  _ZN10GArpConfig10SharedDtorEv@Base 3.13.6
@@ -410,6 +447,31 @@ libvyatta-dataplane-proto.so.1 libvyatta-dataplane-proto1 #MINVER#
  _ZN11SynceConfigD0Ev@Base 3.13.6
  _ZN11SynceConfigD1Ev@Base 3.13.6
  _ZN11SynceConfigD2Ev@Base 3.13.6
+ _ZN12DPSessionMsg10SharedCtorEv@Base 3.13.34
+ _ZN12DPSessionMsg10SharedDtorEv@Base 3.13.34
+ _ZN12DPSessionMsg10descriptorEv@Base 3.13.34
+ _ZN12DPSessionMsg12InternalSwapEPS_@Base 3.13.34
+ _ZN12DPSessionMsg16default_instanceEv@Base 3.13.34
+ _ZN12DPSessionMsg16kDsIdFieldNumberE@Base 3.13.34
+ _ZN12DPSessionMsg17kDsKeyFieldNumberE@Base 3.13.34
+ _ZN12DPSessionMsg19kDsStateFieldNumberE@Base 3.13.34
+ _ZN12DPSessionMsg21InitAsDefaultInstanceEv@Base 3.13.34
+ _ZN12DPSessionMsg22kDsCountersFieldNumberE@Base 3.13.34
+ _ZN12DPSessionMsg24kDsNpfSessionFieldNumberE@Base 3.13.34
+ _ZN12DPSessionMsg27MergePartialFromCodedStreamEPN6google8protobuf2io16CodedInputStreamE@Base 3.13.34
+ _ZN12DPSessionMsg4SwapEPS_@Base 3.13.34
+ _ZN12DPSessionMsg5ClearEv@Base 3.13.34
+ _ZN12DPSessionMsg8CopyFromERKN6google8protobuf7MessageE@Base 3.13.34
+ _ZN12DPSessionMsg8CopyFromERKS_@Base 3.13.34
+ _ZN12DPSessionMsg9MergeFromERKN6google8protobuf7MessageE@Base 3.13.34
+ _ZN12DPSessionMsg9MergeFromERKS_@Base 3.13.34
+ _ZN12DPSessionMsgC1ERKS_@Base 3.13.34
+ _ZN12DPSessionMsgC1Ev@Base 3.13.34
+ _ZN12DPSessionMsgC2ERKS_@Base 3.13.34
+ _ZN12DPSessionMsgC2Ev@Base 3.13.34
+ _ZN12DPSessionMsgD0Ev@Base 3.13.34
+ _ZN12DPSessionMsgD1Ev@Base 3.13.34
+ _ZN12DPSessionMsgD2Ev@Base 3.13.34
  _ZN12NbrResConfig10AGING_TIMEE@Base 3.13.6
  _ZN12NbrResConfig10Action_MAXE@Base 3.13.6
  _ZN12NbrResConfig10Action_MINE@Base 3.13.6
@@ -488,6 +550,30 @@ libvyatta-dataplane-proto.so.1 libvyatta-dataplane-proto1 #MINVER#
  _ZN12TCPMSSConfigD0Ev@Base 3.13.6
  _ZN12TCPMSSConfigD1Ev@Base 3.13.6
  _ZN12TCPMSSConfigD2Ev@Base 3.13.6
+ _ZN12TCPWindowMsg10SharedCtorEv@Base 3.13.34
+ _ZN12TCPWindowMsg10SharedDtorEv@Base 3.13.34
+ _ZN12TCPWindowMsg10descriptorEv@Base 3.13.34
+ _ZN12TCPWindowMsg12InternalSwapEPS_@Base 3.13.34
+ _ZN12TCPWindowMsg16default_instanceEv@Base 3.13.34
+ _ZN12TCPWindowMsg17kTwEndFieldNumberE@Base 3.13.34
+ _ZN12TCPWindowMsg20kTwMaxendFieldNumberE@Base 3.13.34
+ _ZN12TCPWindowMsg20kTwMaxwinFieldNumberE@Base 3.13.34
+ _ZN12TCPWindowMsg20kTwWscaleFieldNumberE@Base 3.13.34
+ _ZN12TCPWindowMsg21InitAsDefaultInstanceEv@Base 3.13.34
+ _ZN12TCPWindowMsg27MergePartialFromCodedStreamEPN6google8protobuf2io16CodedInputStreamE@Base 3.13.34
+ _ZN12TCPWindowMsg4SwapEPS_@Base 3.13.34
+ _ZN12TCPWindowMsg5ClearEv@Base 3.13.34
+ _ZN12TCPWindowMsg8CopyFromERKN6google8protobuf7MessageE@Base 3.13.34
+ _ZN12TCPWindowMsg8CopyFromERKS_@Base 3.13.34
+ _ZN12TCPWindowMsg9MergeFromERKN6google8protobuf7MessageE@Base 3.13.34
+ _ZN12TCPWindowMsg9MergeFromERKS_@Base 3.13.34
+ _ZN12TCPWindowMsgC1ERKS_@Base 3.13.34
+ _ZN12TCPWindowMsgC1Ev@Base 3.13.34
+ _ZN12TCPWindowMsgC2ERKS_@Base 3.13.34
+ _ZN12TCPWindowMsgC2Ev@Base 3.13.34
+ _ZN12TCPWindowMsgD0Ev@Base 3.13.34
+ _ZN12TCPWindowMsgD1Ev@Base 3.13.34
+ _ZN12TCPWindowMsgD2Ev@Base 3.13.34
  _ZN12VFPSetConfig10Action_MAXE@Base 3.13.6
  _ZN12VFPSetConfig10Action_MINE@Base 3.13.6
  _ZN12VFPSetConfig10SharedCtorEv@Base 3.13.6
@@ -555,6 +641,30 @@ libvyatta-dataplane-proto.so.1 libvyatta-dataplane-proto1 #MINVER#
  _ZN13ConstraintLogD0Ev@Base 3.13.6
  _ZN13ConstraintLogD1Ev@Base 3.13.6
  _ZN13ConstraintLogD2Ev@Base 3.13.6
+ _ZN13NPFSessionMsg10SharedCtorEv@Base 3.13.34
+ _ZN13NPFSessionMsg10SharedDtorEv@Base 3.13.34
+ _ZN13NPFSessionMsg10descriptorEv@Base 3.13.34
+ _ZN13NPFSessionMsg12InternalSwapEPS_@Base 3.13.34
+ _ZN13NPFSessionMsg16default_instanceEv@Base 3.13.34
+ _ZN13NPFSessionMsg19kNsFlagsFieldNumberE@Base 3.13.34
+ _ZN13NPFSessionMsg19kNsStateFieldNumberE@Base 3.13.34
+ _ZN13NPFSessionMsg21InitAsDefaultInstanceEv@Base 3.13.34
+ _ZN13NPFSessionMsg22kNsRuleHashFieldNumberE@Base 3.13.34
+ _ZN13NPFSessionMsg27MergePartialFromCodedStreamEPN6google8protobuf2io16CodedInputStreamE@Base 3.13.34
+ _ZN13NPFSessionMsg27kNsRprocRuleHashFieldNumberE@Base 3.13.34
+ _ZN13NPFSessionMsg4SwapEPS_@Base 3.13.34
+ _ZN13NPFSessionMsg5ClearEv@Base 3.13.34
+ _ZN13NPFSessionMsg8CopyFromERKN6google8protobuf7MessageE@Base 3.13.34
+ _ZN13NPFSessionMsg8CopyFromERKS_@Base 3.13.34
+ _ZN13NPFSessionMsg9MergeFromERKN6google8protobuf7MessageE@Base 3.13.34
+ _ZN13NPFSessionMsg9MergeFromERKS_@Base 3.13.34
+ _ZN13NPFSessionMsgC1ERKS_@Base 3.13.34
+ _ZN13NPFSessionMsgC1Ev@Base 3.13.34
+ _ZN13NPFSessionMsgC2ERKS_@Base 3.13.34
+ _ZN13NPFSessionMsgC2Ev@Base 3.13.34
+ _ZN13NPFSessionMsgD0Ev@Base 3.13.34
+ _ZN13NPFSessionMsgD1Ev@Base 3.13.34
+ _ZN13NPFSessionMsgD2Ev@Base 3.13.34
  _ZN13PolicerParams10SharedCtorEv@Base 3.13.6
  _ZN13PolicerParams10SharedDtorEv@Base 3.13.6
  _ZN13PolicerParams10descriptorEv@Base 3.13.6
@@ -696,6 +806,118 @@ libvyatta-dataplane-proto.so.1 libvyatta-dataplane-proto1 #MINVER#
  _ZN14XConnectConfigD0Ev@Base 3.13.6
  _ZN14XConnectConfigD1Ev@Base 3.13.6
  _ZN14XConnectConfigD2Ev@Base 3.13.6
+ _ZN15DPSessionKeyMsg10SharedCtorEv@Base 3.13.34
+ _ZN15DPSessionKeyMsg10SharedDtorEv@Base 3.13.34
+ _ZN15DPSessionKeyMsg10descriptorEv@Base 3.13.34
+ _ZN15DPSessionKeyMsg12InternalSwapEPS_@Base 3.13.34
+ _ZN15DPSessionKeyMsg16default_instanceEv@Base 3.13.34
+ _ZN15DPSessionKeyMsg19kSkFlagsFieldNumberE@Base 3.13.34
+ _ZN15DPSessionKeyMsg20kSkIfnameFieldNumberE@Base 3.13.34
+ _ZN15DPSessionKeyMsg21InitAsDefaultInstanceEv@Base 3.13.34
+ _ZN15DPSessionKeyMsg21kSkAddridsFieldNumberE@Base 3.13.34
+ _ZN15DPSessionKeyMsg22kSkProtocolFieldNumberE@Base 3.13.34
+ _ZN15DPSessionKeyMsg27MergePartialFromCodedStreamEPN6google8protobuf2io16CodedInputStreamE@Base 3.13.34
+ _ZN15DPSessionKeyMsg4SwapEPS_@Base 3.13.34
+ _ZN15DPSessionKeyMsg5ClearEv@Base 3.13.34
+ _ZN15DPSessionKeyMsg8CopyFromERKN6google8protobuf7MessageE@Base 3.13.34
+ _ZN15DPSessionKeyMsg8CopyFromERKS_@Base 3.13.34
+ _ZN15DPSessionKeyMsg9MergeFromERKN6google8protobuf7MessageE@Base 3.13.34
+ _ZN15DPSessionKeyMsg9MergeFromERKS_@Base 3.13.34
+ _ZN15DPSessionKeyMsgC1ERKS_@Base 3.13.34
+ _ZN15DPSessionKeyMsgC1Ev@Base 3.13.34
+ _ZN15DPSessionKeyMsgC2ERKS_@Base 3.13.34
+ _ZN15DPSessionKeyMsgC2Ev@Base 3.13.34
+ _ZN15DPSessionKeyMsgD0Ev@Base 3.13.34
+ _ZN15DPSessionKeyMsgD1Ev@Base 3.13.34
+ _ZN15DPSessionKeyMsgD2Ev@Base 3.13.34
+ _ZN15SfpPermitConfig10Action_MAXE@Base 3.13.34
+ _ZN15SfpPermitConfig10Action_MINE@Base 3.13.34
+ _ZN15SfpPermitConfig10SharedCtorEv@Base 3.13.34
+ _ZN15SfpPermitConfig10SharedDtorEv@Base 3.13.34
+ _ZN15SfpPermitConfig10descriptorEv@Base 3.13.34
+ _ZN15SfpPermitConfig11Logging_MAXE@Base 3.13.34
+ _ZN15SfpPermitConfig11Logging_MINE@Base 3.13.34
+ _ZN15SfpPermitConfig11clear_mtypeEv@Base 3.13.34
+ _ZN15SfpPermitConfig12InternalSwapEPS_@Base 3.13.34
+ _ZN15SfpPermitConfig15Enforcement_MAXE@Base 3.13.34
+ _ZN15SfpPermitConfig15Enforcement_MINE@Base 3.13.34
+ _ZN15SfpPermitConfig16Action_ARRAYSIZEE@Base 3.13.34
+ _ZN15SfpPermitConfig16default_instanceEv@Base 3.13.34
+ _ZN15SfpPermitConfig16kListFieldNumberE@Base 3.13.34
+ _ZN15SfpPermitConfig17Logging_ARRAYSIZEE@Base 3.13.34
+ _ZN15SfpPermitConfig18set_allocated_listEP26SfpPermitConfig_ListConfig@Base 3.13.34
+ _ZN15SfpPermitConfig20kMismatchFieldNumberE@Base 3.13.34
+ _ZN15SfpPermitConfig21Enforcement_ARRAYSIZEE@Base 3.13.34
+ _ZN15SfpPermitConfig21InitAsDefaultInstanceEv@Base 3.13.34
+ _ZN15SfpPermitConfig22set_allocated_mismatchEP30SfpPermitConfig_MisMatchConfig@Base 3.13.34
+ _ZN15SfpPermitConfig27MergePartialFromCodedStreamEPN6google8protobuf2io16CodedInputStreamE@Base 3.13.34
+ _ZN15SfpPermitConfig3SETE@Base 3.13.34
+ _ZN15SfpPermitConfig4SwapEPS_@Base 3.13.34
+ _ZN15SfpPermitConfig5ClearEv@Base 3.13.34
+ _ZN15SfpPermitConfig6DELETEE@Base 3.13.34
+ _ZN15SfpPermitConfig6ENABLEE@Base 3.13.34
+ _ZN15SfpPermitConfig7DISABLEE@Base 3.13.34
+ _ZN15SfpPermitConfig7ENFORCEE@Base 3.13.34
+ _ZN15SfpPermitConfig7MONITORE@Base 3.13.34
+ _ZN15SfpPermitConfig8CopyFromERKN6google8protobuf7MessageE@Base 3.13.34
+ _ZN15SfpPermitConfig8CopyFromERKS_@Base 3.13.34
+ _ZN15SfpPermitConfig9MergeFromERKN6google8protobuf7MessageE@Base 3.13.34
+ _ZN15SfpPermitConfig9MergeFromERKS_@Base 3.13.34
+ _ZN15SfpPermitConfigC1ERKS_@Base 3.13.34
+ _ZN15SfpPermitConfigC1Ev@Base 3.13.34
+ _ZN15SfpPermitConfigC2ERKS_@Base 3.13.34
+ _ZN15SfpPermitConfigC2Ev@Base 3.13.34
+ _ZN15SfpPermitConfigD0Ev@Base 3.13.34
+ _ZN15SfpPermitConfigD1Ev@Base 3.13.34
+ _ZN15SfpPermitConfigD2Ev@Base 3.13.34
+ _ZN15TWAMPInitialise10SharedCtorEv@Base 3.13.34
+ _ZN15TWAMPInitialise10SharedDtorEv@Base 3.13.34
+ _ZN15TWAMPInitialise10descriptorEv@Base 3.13.34
+ _ZN15TWAMPInitialise12InternalSwapEPS_@Base 3.13.34
+ _ZN15TWAMPInitialise16default_instanceEv@Base 3.13.34
+ _ZN15TWAMPInitialise19kVrfNameFieldNumberE@Base 3.13.34
+ _ZN15TWAMPInitialise21InitAsDefaultInstanceEv@Base 3.13.34
+ _ZN15TWAMPInitialise27MergePartialFromCodedStreamEPN6google8protobuf2io16CodedInputStreamE@Base 3.13.34
+ _ZN15TWAMPInitialise4SwapEPS_@Base 3.13.34
+ _ZN15TWAMPInitialise5ClearEv@Base 3.13.34
+ _ZN15TWAMPInitialise8CopyFromERKN6google8protobuf7MessageE@Base 3.13.34
+ _ZN15TWAMPInitialise8CopyFromERKS_@Base 3.13.34
+ _ZN15TWAMPInitialise9MergeFromERKN6google8protobuf7MessageE@Base 3.13.34
+ _ZN15TWAMPInitialise9MergeFromERKS_@Base 3.13.34
+ _ZN15TWAMPInitialiseC1ERKS_@Base 3.13.34
+ _ZN15TWAMPInitialiseC1Ev@Base 3.13.34
+ _ZN15TWAMPInitialiseC2ERKS_@Base 3.13.34
+ _ZN15TWAMPInitialiseC2Ev@Base 3.13.34
+ _ZN15TWAMPInitialiseD0Ev@Base 3.13.34
+ _ZN15TWAMPInitialiseD1Ev@Base 3.13.34
+ _ZN15TWAMPInitialiseD2Ev@Base 3.13.34
+ _ZN15TWAMPSessionKey10SharedCtorEv@Base 3.13.34
+ _ZN15TWAMPSessionKey10SharedDtorEv@Base 3.13.34
+ _ZN15TWAMPSessionKey10descriptorEv@Base 3.13.34
+ _ZN15TWAMPSessionKey11clear_laddrEv@Base 3.13.34
+ _ZN15TWAMPSessionKey11clear_raddrEv@Base 3.13.34
+ _ZN15TWAMPSessionKey12InternalSwapEPS_@Base 3.13.34
+ _ZN15TWAMPSessionKey16default_instanceEv@Base 3.13.34
+ _ZN15TWAMPSessionKey17kLaddrFieldNumberE@Base 3.13.34
+ _ZN15TWAMPSessionKey17kLportFieldNumberE@Base 3.13.34
+ _ZN15TWAMPSessionKey17kRaddrFieldNumberE@Base 3.13.34
+ _ZN15TWAMPSessionKey17kRportFieldNumberE@Base 3.13.34
+ _ZN15TWAMPSessionKey19kVrfNameFieldNumberE@Base 3.13.34
+ _ZN15TWAMPSessionKey21InitAsDefaultInstanceEv@Base 3.13.34
+ _ZN15TWAMPSessionKey27MergePartialFromCodedStreamEPN6google8protobuf2io16CodedInputStreamE@Base 3.13.34
+ _ZN15TWAMPSessionKey4SwapEPS_@Base 3.13.34
+ _ZN15TWAMPSessionKey5ClearEv@Base 3.13.34
+ _ZN15TWAMPSessionKey8CopyFromERKN6google8protobuf7MessageE@Base 3.13.34
+ _ZN15TWAMPSessionKey8CopyFromERKS_@Base 3.13.34
+ _ZN15TWAMPSessionKey9MergeFromERKN6google8protobuf7MessageE@Base 3.13.34
+ _ZN15TWAMPSessionKey9MergeFromERKS_@Base 3.13.34
+ _ZN15TWAMPSessionKeyC1ERKS_@Base 3.13.34
+ _ZN15TWAMPSessionKeyC1Ev@Base 3.13.34
+ _ZN15TWAMPSessionKeyC2ERKS_@Base 3.13.34
+ _ZN15TWAMPSessionKeyC2Ev@Base 3.13.34
+ _ZN15TWAMPSessionKeyD0Ev@Base 3.13.34
+ _ZN15TWAMPSessionKeyD1Ev@Base 3.13.34
+ _ZN15TWAMPSessionKeyD2Ev@Base 3.13.34
  _ZN16IPAddressOrLabel10SharedCtorEv@Base 3.13.6
  _ZN16IPAddressOrLabel10SharedDtorEv@Base 3.13.6
  _ZN16IPAddressOrLabel10descriptorEv@Base 3.13.6
@@ -720,6 +942,53 @@ libvyatta-dataplane-proto.so.1 libvyatta-dataplane-proto1 #MINVER#
  _ZN16IPAddressOrLabelD0Ev@Base 3.13.6
  _ZN16IPAddressOrLabelD1Ev@Base 3.13.6
  _ZN16IPAddressOrLabelD2Ev@Base 3.13.6
+ _ZN16TWAMPCmdResponse10SharedCtorEv@Base 3.13.34
+ _ZN16TWAMPCmdResponse10SharedDtorEv@Base 3.13.34
+ _ZN16TWAMPCmdResponse10descriptorEv@Base 3.13.34
+ _ZN16TWAMPCmdResponse12InternalSwapEPS_@Base 3.13.34
+ _ZN16TWAMPCmdResponse16default_instanceEv@Base 3.13.34
+ _ZN16TWAMPCmdResponse18kStatusFieldNumberE@Base 3.13.34
+ _ZN16TWAMPCmdResponse20kCountersFieldNumberE@Base 3.13.34
+ _ZN16TWAMPCmdResponse21InitAsDefaultInstanceEv@Base 3.13.34
+ _ZN16TWAMPCmdResponse27MergePartialFromCodedStreamEPN6google8protobuf2io16CodedInputStreamE@Base 3.13.34
+ _ZN16TWAMPCmdResponse4SwapEPS_@Base 3.13.34
+ _ZN16TWAMPCmdResponse5ClearEv@Base 3.13.34
+ _ZN16TWAMPCmdResponse8CopyFromERKN6google8protobuf7MessageE@Base 3.13.34
+ _ZN16TWAMPCmdResponse8CopyFromERKS_@Base 3.13.34
+ _ZN16TWAMPCmdResponse9MergeFromERKN6google8protobuf7MessageE@Base 3.13.34
+ _ZN16TWAMPCmdResponse9MergeFromERKS_@Base 3.13.34
+ _ZN16TWAMPCmdResponseC1ERKS_@Base 3.13.34
+ _ZN16TWAMPCmdResponseC1Ev@Base 3.13.34
+ _ZN16TWAMPCmdResponseC2ERKS_@Base 3.13.34
+ _ZN16TWAMPCmdResponseC2Ev@Base 3.13.34
+ _ZN16TWAMPCmdResponseD0Ev@Base 3.13.34
+ _ZN16TWAMPCmdResponseD1Ev@Base 3.13.34
+ _ZN16TWAMPCmdResponseD2Ev@Base 3.13.34
+ _ZN17DPSessionStateMsg10SharedCtorEv@Base 3.13.34
+ _ZN17DPSessionStateMsg10SharedDtorEv@Base 3.13.34
+ _ZN17DPSessionStateMsg10descriptorEv@Base 3.13.34
+ _ZN17DPSessionStateMsg12InternalSwapEPS_@Base 3.13.34
+ _ZN17DPSessionStateMsg16default_instanceEv@Base 3.13.34
+ _ZN17DPSessionStateMsg19kSsFlagsFieldNumberE@Base 3.13.34
+ _ZN17DPSessionStateMsg21InitAsDefaultInstanceEv@Base 3.13.34
+ _ZN17DPSessionStateMsg21kSsTimeoutFieldNumberE@Base 3.13.34
+ _ZN17DPSessionStateMsg26kSsGenericStateFieldNumberE@Base 3.13.34
+ _ZN17DPSessionStateMsg27MergePartialFromCodedStreamEPN6google8protobuf2io16CodedInputStreamE@Base 3.13.34
+ _ZN17DPSessionStateMsg27kSsCustomTimeoutFieldNumberE@Base 3.13.34
+ _ZN17DPSessionStateMsg27kSsProtocolStateFieldNumberE@Base 3.13.34
+ _ZN17DPSessionStateMsg4SwapEPS_@Base 3.13.34
+ _ZN17DPSessionStateMsg5ClearEv@Base 3.13.34
+ _ZN17DPSessionStateMsg8CopyFromERKN6google8protobuf7MessageE@Base 3.13.34
+ _ZN17DPSessionStateMsg8CopyFromERKS_@Base 3.13.34
+ _ZN17DPSessionStateMsg9MergeFromERKN6google8protobuf7MessageE@Base 3.13.34
+ _ZN17DPSessionStateMsg9MergeFromERKS_@Base 3.13.34
+ _ZN17DPSessionStateMsgC1ERKS_@Base 3.13.34
+ _ZN17DPSessionStateMsgC1Ev@Base 3.13.34
+ _ZN17DPSessionStateMsgC2ERKS_@Base 3.13.34
+ _ZN17DPSessionStateMsgC2Ev@Base 3.13.34
+ _ZN17DPSessionStateMsgD0Ev@Base 3.13.34
+ _ZN17DPSessionStateMsgD1Ev@Base 3.13.34
+ _ZN17DPSessionStateMsgD2Ev@Base 3.13.34
  _ZN17DataplaneEnvelope10SharedCtorEv@Base 3.13.6
  _ZN17DataplaneEnvelope10SharedDtorEv@Base 3.13.6
  _ZN17DataplaneEnvelope10descriptorEv@Base 3.13.6
@@ -742,6 +1011,54 @@ libvyatta-dataplane-proto.so.1 libvyatta-dataplane-proto1 #MINVER#
  _ZN17DataplaneEnvelopeD0Ev@Base 3.13.6
  _ZN17DataplaneEnvelopeD1Ev@Base 3.13.6
  _ZN17DataplaneEnvelopeD2Ev@Base 3.13.6
+ _ZN17ICMPRateLimConfig10Action_MAXE@Base 3.13.34
+ _ZN17ICMPRateLimConfig10Action_MINE@Base 3.13.34
+ _ZN17ICMPRateLimConfig10SharedCtorEv@Base 3.13.34
+ _ZN17ICMPRateLimConfig10SharedDtorEv@Base 3.13.34
+ _ZN17ICMPRateLimConfig10descriptorEv@Base 3.13.34
+ _ZN17ICMPRateLimConfig11DESTUNREACHE@Base 3.13.34
+ _ZN17ICMPRateLimConfig12InternalSwapEPS_@Base 3.13.34
+ _ZN17ICMPRateLimConfig12TIMEEXCEEDEDE@Base 3.13.34
+ _ZN17ICMPRateLimConfig14Prot_ARRAYSIZEE@Base 3.13.34
+ _ZN17ICMPRateLimConfig14Type_ARRAYSIZEE@Base 3.13.34
+ _ZN17ICMPRateLimConfig15Param_ARRAYSIZEE@Base 3.13.34
+ _ZN17ICMPRateLimConfig16Action_ARRAYSIZEE@Base 3.13.34
+ _ZN17ICMPRateLimConfig16default_instanceEv@Base 3.13.34
+ _ZN17ICMPRateLimConfig16kProtFieldNumberE@Base 3.13.34
+ _ZN17ICMPRateLimConfig16kTypeFieldNumberE@Base 3.13.34
+ _ZN17ICMPRateLimConfig17kParamFieldNumberE@Base 3.13.34
+ _ZN17ICMPRateLimConfig18kActionFieldNumberE@Base 3.13.34
+ _ZN17ICMPRateLimConfig19kMaximumFieldNumberE@Base 3.13.34
+ _ZN17ICMPRateLimConfig21InitAsDefaultInstanceEv@Base 3.13.34
+ _ZN17ICMPRateLimConfig27MergePartialFromCodedStreamEPN6google8protobuf2io16CodedInputStreamE@Base 3.13.34
+ _ZN17ICMPRateLimConfig3SETE@Base 3.13.34
+ _ZN17ICMPRateLimConfig4SwapEPS_@Base 3.13.34
+ _ZN17ICMPRateLimConfig5ClearEv@Base 3.13.34
+ _ZN17ICMPRateLimConfig6DELETEE@Base 3.13.34
+ _ZN17ICMPRateLimConfig6ICMPV4E@Base 3.13.34
+ _ZN17ICMPRateLimConfig6ICMPV6E@Base 3.13.34
+ _ZN17ICMPRateLimConfig6TOOBIGE@Base 3.13.34
+ _ZN17ICMPRateLimConfig7DEFAULTE@Base 3.13.34
+ _ZN17ICMPRateLimConfig7MAXIMUME@Base 3.13.34
+ _ZN17ICMPRateLimConfig8CopyFromERKN6google8protobuf7MessageE@Base 3.13.34
+ _ZN17ICMPRateLimConfig8CopyFromERKS_@Base 3.13.34
+ _ZN17ICMPRateLimConfig8Prot_MAXE@Base 3.13.34
+ _ZN17ICMPRateLimConfig8Prot_MINE@Base 3.13.34
+ _ZN17ICMPRateLimConfig8REDIRECTE@Base 3.13.34
+ _ZN17ICMPRateLimConfig8Type_MAXE@Base 3.13.34
+ _ZN17ICMPRateLimConfig8Type_MINE@Base 3.13.34
+ _ZN17ICMPRateLimConfig9MergeFromERKN6google8protobuf7MessageE@Base 3.13.34
+ _ZN17ICMPRateLimConfig9MergeFromERKS_@Base 3.13.34
+ _ZN17ICMPRateLimConfig9PARAMPROBE@Base 3.13.34
+ _ZN17ICMPRateLimConfig9Param_MAXE@Base 3.13.34
+ _ZN17ICMPRateLimConfig9Param_MINE@Base 3.13.34
+ _ZN17ICMPRateLimConfigC1ERKS_@Base 3.13.34
+ _ZN17ICMPRateLimConfigC1Ev@Base 3.13.34
+ _ZN17ICMPRateLimConfigC2ERKS_@Base 3.13.34
+ _ZN17ICMPRateLimConfigC2Ev@Base 3.13.34
+ _ZN17ICMPRateLimConfigD0Ev@Base 3.13.34
+ _ZN17ICMPRateLimConfigD1Ev@Base 3.13.34
+ _ZN17ICMPRateLimConfigD2Ev@Base 3.13.34
  _ZN17PortAllocationLog10SharedCtorEv@Base 3.13.6
  _ZN17PortAllocationLog10SharedDtorEv@Base 3.13.6
  _ZN17PortAllocationLog10descriptorEv@Base 3.13.6
@@ -830,6 +1147,129 @@ libvyatta-dataplane-proto.so.1 libvyatta-dataplane-proto1 #MINVER#
  _ZN18IP6RedirectsConfigD0Ev@Base 3.13.6
  _ZN18IP6RedirectsConfigD1Ev@Base 3.13.6
  _ZN18IP6RedirectsConfigD2Ev@Base 3.13.6
+ _ZN18NPFSessionStateMsg10SharedCtorEv@Base 3.13.34
+ _ZN18NPFSessionStateMsg10SharedDtorEv@Base 3.13.34
+ _ZN18NPFSessionStateMsg10descriptorEv@Base 3.13.34
+ _ZN18NPFSessionStateMsg12InternalSwapEPS_@Base 3.13.34
+ _ZN18NPFSessionStateMsg16default_instanceEv@Base 3.13.34
+ _ZN18NPFSessionStateMsg20kNssStateFieldNumberE@Base 3.13.34
+ _ZN18NPFSessionStateMsg21InitAsDefaultInstanceEv@Base 3.13.34
+ _ZN18NPFSessionStateMsg22kNssTcpwinsFieldNumberE@Base 3.13.34
+ _ZN18NPFSessionStateMsg27MergePartialFromCodedStreamEPN6google8protobuf2io16CodedInputStreamE@Base 3.13.34
+ _ZN18NPFSessionStateMsg4SwapEPS_@Base 3.13.34
+ _ZN18NPFSessionStateMsg5ClearEv@Base 3.13.34
+ _ZN18NPFSessionStateMsg8CopyFromERKN6google8protobuf7MessageE@Base 3.13.34
+ _ZN18NPFSessionStateMsg8CopyFromERKS_@Base 3.13.34
+ _ZN18NPFSessionStateMsg9MergeFromERKN6google8protobuf7MessageE@Base 3.13.34
+ _ZN18NPFSessionStateMsg9MergeFromERKS_@Base 3.13.34
+ _ZN18NPFSessionStateMsgC1ERKS_@Base 3.13.34
+ _ZN18NPFSessionStateMsgC1Ev@Base 3.13.34
+ _ZN18NPFSessionStateMsgC2ERKS_@Base 3.13.34
+ _ZN18NPFSessionStateMsgC2Ev@Base 3.13.34
+ _ZN18NPFSessionStateMsgD0Ev@Base 3.13.34
+ _ZN18NPFSessionStateMsgD1Ev@Base 3.13.34
+ _ZN18NPFSessionStateMsgD2Ev@Base 3.13.34
+ _ZN18PackedDPSessionMsg10SharedCtorEv@Base 3.13.34
+ _ZN18PackedDPSessionMsg10SharedDtorEv@Base 3.13.34
+ _ZN18PackedDPSessionMsg10descriptorEv@Base 3.13.34
+ _ZN18PackedDPSessionMsg12InternalSwapEPS_@Base 3.13.34
+ _ZN18PackedDPSessionMsg16default_instanceEv@Base 3.13.34
+ _ZN18PackedDPSessionMsg20kPdsFlagsFieldNumberE@Base 3.13.34
+ _ZN18PackedDPSessionMsg21InitAsDefaultInstanceEv@Base 3.13.34
+ _ZN18PackedDPSessionMsg23kPdsPackTypeFieldNumberE@Base 3.13.34
+ _ZN18PackedDPSessionMsg23kPdsSessionsFieldNumberE@Base 3.13.34
+ _ZN18PackedDPSessionMsg27MergePartialFromCodedStreamEPN6google8protobuf2io16CodedInputStreamE@Base 3.13.34
+ _ZN18PackedDPSessionMsg4SwapEPS_@Base 3.13.34
+ _ZN18PackedDPSessionMsg5ClearEv@Base 3.13.34
+ _ZN18PackedDPSessionMsg8CopyFromERKN6google8protobuf7MessageE@Base 3.13.34
+ _ZN18PackedDPSessionMsg8CopyFromERKS_@Base 3.13.34
+ _ZN18PackedDPSessionMsg9MergeFromERKN6google8protobuf7MessageE@Base 3.13.34
+ _ZN18PackedDPSessionMsg9MergeFromERKS_@Base 3.13.34
+ _ZN18PackedDPSessionMsgC1ERKS_@Base 3.13.34
+ _ZN18PackedDPSessionMsgC1Ev@Base 3.13.34
+ _ZN18PackedDPSessionMsgC2ERKS_@Base 3.13.34
+ _ZN18PackedDPSessionMsgC2Ev@Base 3.13.34
+ _ZN18PackedDPSessionMsgD0Ev@Base 3.13.34
+ _ZN18PackedDPSessionMsgD1Ev@Base 3.13.34
+ _ZN18PackedDPSessionMsgD2Ev@Base 3.13.34
+ _ZN18TWAMPSessionCreate10SharedCtorEv@Base 3.13.34
+ _ZN18TWAMPSessionCreate10SharedDtorEv@Base 3.13.34
+ _ZN18TWAMPSessionCreate10descriptorEv@Base 3.13.34
+ _ZN18TWAMPSessionCreate12InternalSwapEPS_@Base 3.13.34
+ _ZN18TWAMPSessionCreate14MODE_ENCRYPTEDE@Base 3.13.34
+ _ZN18TWAMPSessionCreate14Mode_ARRAYSIZEE@Base 3.13.34
+ _ZN18TWAMPSessionCreate15kKeyFieldNumberE@Base 3.13.34
+ _ZN18TWAMPSessionCreate16default_instanceEv@Base 3.13.34
+ _ZN18TWAMPSessionCreate16kDscpFieldNumberE@Base 3.13.34
+ _ZN18TWAMPSessionCreate16kModeFieldNumberE@Base 3.13.34
+ _ZN18TWAMPSessionCreate18MODE_AUTHENTICATEDE@Base 3.13.34
+ _ZN18TWAMPSessionCreate18kAesKeyFieldNumberE@Base 3.13.34
+ _ZN18TWAMPSessionCreate19kHmacKeyFieldNumberE@Base 3.13.34
+ _ZN18TWAMPSessionCreate21InitAsDefaultInstanceEv@Base 3.13.34
+ _ZN18TWAMPSessionCreate24kRxPayloadLenFieldNumberE@Base 3.13.34
+ _ZN18TWAMPSessionCreate24kTxPayloadLenFieldNumberE@Base 3.13.34
+ _ZN18TWAMPSessionCreate27MergePartialFromCodedStreamEPN6google8protobuf2io16CodedInputStreamE@Base 3.13.34
+ _ZN18TWAMPSessionCreate4SwapEPS_@Base 3.13.34
+ _ZN18TWAMPSessionCreate5ClearEv@Base 3.13.34
+ _ZN18TWAMPSessionCreate8CopyFromERKN6google8protobuf7MessageE@Base 3.13.34
+ _ZN18TWAMPSessionCreate8CopyFromERKS_@Base 3.13.34
+ _ZN18TWAMPSessionCreate8Mode_MAXE@Base 3.13.34
+ _ZN18TWAMPSessionCreate8Mode_MINE@Base 3.13.34
+ _ZN18TWAMPSessionCreate9MODE_OPENE@Base 3.13.34
+ _ZN18TWAMPSessionCreate9MergeFromERKN6google8protobuf7MessageE@Base 3.13.34
+ _ZN18TWAMPSessionCreate9MergeFromERKS_@Base 3.13.34
+ _ZN18TWAMPSessionCreateC1ERKS_@Base 3.13.34
+ _ZN18TWAMPSessionCreateC1Ev@Base 3.13.34
+ _ZN18TWAMPSessionCreateC2ERKS_@Base 3.13.34
+ _ZN18TWAMPSessionCreateC2Ev@Base 3.13.34
+ _ZN18TWAMPSessionCreateD0Ev@Base 3.13.34
+ _ZN18TWAMPSessionCreateD1Ev@Base 3.13.34
+ _ZN18TWAMPSessionCreateD2Ev@Base 3.13.34
+ _ZN18TWAMPSessionDelete10SharedCtorEv@Base 3.13.34
+ _ZN18TWAMPSessionDelete10SharedDtorEv@Base 3.13.34
+ _ZN18TWAMPSessionDelete10descriptorEv@Base 3.13.34
+ _ZN18TWAMPSessionDelete12InternalSwapEPS_@Base 3.13.34
+ _ZN18TWAMPSessionDelete15kKeyFieldNumberE@Base 3.13.34
+ _ZN18TWAMPSessionDelete16default_instanceEv@Base 3.13.34
+ _ZN18TWAMPSessionDelete21InitAsDefaultInstanceEv@Base 3.13.34
+ _ZN18TWAMPSessionDelete27MergePartialFromCodedStreamEPN6google8protobuf2io16CodedInputStreamE@Base 3.13.34
+ _ZN18TWAMPSessionDelete4SwapEPS_@Base 3.13.34
+ _ZN18TWAMPSessionDelete5ClearEv@Base 3.13.34
+ _ZN18TWAMPSessionDelete8CopyFromERKN6google8protobuf7MessageE@Base 3.13.34
+ _ZN18TWAMPSessionDelete8CopyFromERKS_@Base 3.13.34
+ _ZN18TWAMPSessionDelete9MergeFromERKN6google8protobuf7MessageE@Base 3.13.34
+ _ZN18TWAMPSessionDelete9MergeFromERKS_@Base 3.13.34
+ _ZN18TWAMPSessionDeleteC1ERKS_@Base 3.13.34
+ _ZN18TWAMPSessionDeleteC1Ev@Base 3.13.34
+ _ZN18TWAMPSessionDeleteC2ERKS_@Base 3.13.34
+ _ZN18TWAMPSessionDeleteC2Ev@Base 3.13.34
+ _ZN18TWAMPSessionDeleteD0Ev@Base 3.13.34
+ _ZN18TWAMPSessionDeleteD1Ev@Base 3.13.34
+ _ZN18TWAMPSessionDeleteD2Ev@Base 3.13.34
+ _ZN19DPSessionCounterMsg10SharedCtorEv@Base 3.13.34
+ _ZN19DPSessionCounterMsg10SharedDtorEv@Base 3.13.34
+ _ZN19DPSessionCounterMsg10descriptorEv@Base 3.13.34
+ _ZN19DPSessionCounterMsg12InternalSwapEPS_@Base 3.13.34
+ _ZN19DPSessionCounterMsg16default_instanceEv@Base 3.13.34
+ _ZN19DPSessionCounterMsg20kScPktsInFieldNumberE@Base 3.13.34
+ _ZN19DPSessionCounterMsg21InitAsDefaultInstanceEv@Base 3.13.34
+ _ZN19DPSessionCounterMsg21kScBytesInFieldNumberE@Base 3.13.34
+ _ZN19DPSessionCounterMsg21kScPktsOutFieldNumberE@Base 3.13.34
+ _ZN19DPSessionCounterMsg22kScBytesOutFieldNumberE@Base 3.13.34
+ _ZN19DPSessionCounterMsg27MergePartialFromCodedStreamEPN6google8protobuf2io16CodedInputStreamE@Base 3.13.34
+ _ZN19DPSessionCounterMsg4SwapEPS_@Base 3.13.34
+ _ZN19DPSessionCounterMsg5ClearEv@Base 3.13.34
+ _ZN19DPSessionCounterMsg8CopyFromERKN6google8protobuf7MessageE@Base 3.13.34
+ _ZN19DPSessionCounterMsg8CopyFromERKS_@Base 3.13.34
+ _ZN19DPSessionCounterMsg9MergeFromERKN6google8protobuf7MessageE@Base 3.13.34
+ _ZN19DPSessionCounterMsg9MergeFromERKS_@Base 3.13.34
+ _ZN19DPSessionCounterMsgC1ERKS_@Base 3.13.34
+ _ZN19DPSessionCounterMsgC1Ev@Base 3.13.34
+ _ZN19DPSessionCounterMsgC2ERKS_@Base 3.13.34
+ _ZN19DPSessionCounterMsgC2Ev@Base 3.13.34
+ _ZN19DPSessionCounterMsgD0Ev@Base 3.13.34
+ _ZN19DPSessionCounterMsgD1Ev@Base 3.13.34
+ _ZN19DPSessionCounterMsgD2Ev@Base 3.13.34
  _ZN19LAGConfig_LagCreate10SharedCtorEv@Base 3.13.6
  _ZN19LAGConfig_LagCreate10SharedDtorEv@Base 3.13.6
  _ZN19LAGConfig_LagCreate10descriptorEv@Base 3.13.6
@@ -896,6 +1336,52 @@ libvyatta-dataplane-proto.so.1 libvyatta-dataplane-proto1 #MINVER#
  _ZN19PipelineStatsConfigD0Ev@Base 3.13.6
  _ZN19PipelineStatsConfigD1Ev@Base 3.13.6
  _ZN19PipelineStatsConfigD2Ev@Base 3.13.6
+ _ZN19SfpPermitConfig_SFP10SharedCtorEv@Base 3.13.34
+ _ZN19SfpPermitConfig_SFP10SharedDtorEv@Base 3.13.34
+ _ZN19SfpPermitConfig_SFP10descriptorEv@Base 3.13.34
+ _ZN19SfpPermitConfig_SFP12InternalSwapEPS_@Base 3.13.34
+ _ZN19SfpPermitConfig_SFP15kOuiFieldNumberE@Base 3.13.34
+ _ZN19SfpPermitConfig_SFP15kRevFieldNumberE@Base 3.13.34
+ _ZN19SfpPermitConfig_SFP16default_instanceEv@Base 3.13.34
+ _ZN19SfpPermitConfig_SFP16kPartFieldNumberE@Base 3.13.34
+ _ZN19SfpPermitConfig_SFP17kIndexFieldNumberE@Base 3.13.34
+ _ZN19SfpPermitConfig_SFP18kVendorFieldNumberE@Base 3.13.34
+ _ZN19SfpPermitConfig_SFP21InitAsDefaultInstanceEv@Base 3.13.34
+ _ZN19SfpPermitConfig_SFP27MergePartialFromCodedStreamEPN6google8protobuf2io16CodedInputStreamE@Base 3.13.34
+ _ZN19SfpPermitConfig_SFP4SwapEPS_@Base 3.13.34
+ _ZN19SfpPermitConfig_SFP5ClearEv@Base 3.13.34
+ _ZN19SfpPermitConfig_SFP8CopyFromERKN6google8protobuf7MessageE@Base 3.13.34
+ _ZN19SfpPermitConfig_SFP8CopyFromERKS_@Base 3.13.34
+ _ZN19SfpPermitConfig_SFP9MergeFromERKN6google8protobuf7MessageE@Base 3.13.34
+ _ZN19SfpPermitConfig_SFP9MergeFromERKS_@Base 3.13.34
+ _ZN19SfpPermitConfig_SFPC1ERKS_@Base 3.13.34
+ _ZN19SfpPermitConfig_SFPC1Ev@Base 3.13.34
+ _ZN19SfpPermitConfig_SFPC2ERKS_@Base 3.13.34
+ _ZN19SfpPermitConfig_SFPC2Ev@Base 3.13.34
+ _ZN19SfpPermitConfig_SFPD0Ev@Base 3.13.34
+ _ZN19SfpPermitConfig_SFPD1Ev@Base 3.13.34
+ _ZN19SfpPermitConfig_SFPD2Ev@Base 3.13.34
+ _ZN20TWAMPSessionCounters10SharedCtorEv@Base 3.13.34
+ _ZN20TWAMPSessionCounters10SharedDtorEv@Base 3.13.34
+ _ZN20TWAMPSessionCounters10descriptorEv@Base 3.13.34
+ _ZN20TWAMPSessionCounters12InternalSwapEPS_@Base 3.13.34
+ _ZN20TWAMPSessionCounters15kKeyFieldNumberE@Base 3.13.34
+ _ZN20TWAMPSessionCounters16default_instanceEv@Base 3.13.34
+ _ZN20TWAMPSessionCounters21InitAsDefaultInstanceEv@Base 3.13.34
+ _ZN20TWAMPSessionCounters27MergePartialFromCodedStreamEPN6google8protobuf2io16CodedInputStreamE@Base 3.13.34
+ _ZN20TWAMPSessionCounters4SwapEPS_@Base 3.13.34
+ _ZN20TWAMPSessionCounters5ClearEv@Base 3.13.34
+ _ZN20TWAMPSessionCounters8CopyFromERKN6google8protobuf7MessageE@Base 3.13.34
+ _ZN20TWAMPSessionCounters8CopyFromERKS_@Base 3.13.34
+ _ZN20TWAMPSessionCounters9MergeFromERKN6google8protobuf7MessageE@Base 3.13.34
+ _ZN20TWAMPSessionCounters9MergeFromERKS_@Base 3.13.34
+ _ZN20TWAMPSessionCountersC1ERKS_@Base 3.13.34
+ _ZN20TWAMPSessionCountersC1Ev@Base 3.13.34
+ _ZN20TWAMPSessionCountersC2ERKS_@Base 3.13.34
+ _ZN20TWAMPSessionCountersC2Ev@Base 3.13.34
+ _ZN20TWAMPSessionCountersD0Ev@Base 3.13.34
+ _ZN20TWAMPSessionCountersD1Ev@Base 3.13.34
+ _ZN20TWAMPSessionCountersD2Ev@Base 3.13.34
  _ZN21FeatureAffinityConfig10CRYPTO_FWDE@Base 3.13.6
  _ZN21FeatureAffinityConfig10SharedCtorEv@Base 3.13.6
  _ZN21FeatureAffinityConfig10SharedDtorEv@Base 3.13.6
@@ -992,6 +1478,29 @@ libvyatta-dataplane-proto.so.1 libvyatta-dataplane-proto1 #MINVER#
  _ZN25protobuf_cpp_5frl_2eproto30protobuf_AssignDescriptorsOnceEv@Base 3.13.6
  _ZN25protobuf_cpp_5frl_2eproto34scc_info_CPP_limiter_CPP_attributeE@Base 3.13.6
  _ZN25protobuf_cpp_5frl_2eproto48scc_info_CPP_limiter_CPP_attribute_CPP_parameterE@Base 3.13.6
+ _ZN26SfpPermitConfig_ListConfig10SharedCtorEv@Base 3.13.34
+ _ZN26SfpPermitConfig_ListConfig10SharedDtorEv@Base 3.13.34
+ _ZN26SfpPermitConfig_ListConfig10descriptorEv@Base 3.13.34
+ _ZN26SfpPermitConfig_ListConfig12InternalSwapEPS_@Base 3.13.34
+ _ZN26SfpPermitConfig_ListConfig16default_instanceEv@Base 3.13.34
+ _ZN26SfpPermitConfig_ListConfig16kNameFieldNumberE@Base 3.13.34
+ _ZN26SfpPermitConfig_ListConfig16kSFPsFieldNumberE@Base 3.13.34
+ _ZN26SfpPermitConfig_ListConfig18kActionFieldNumberE@Base 3.13.34
+ _ZN26SfpPermitConfig_ListConfig21InitAsDefaultInstanceEv@Base 3.13.34
+ _ZN26SfpPermitConfig_ListConfig27MergePartialFromCodedStreamEPN6google8protobuf2io16CodedInputStreamE@Base 3.13.34
+ _ZN26SfpPermitConfig_ListConfig4SwapEPS_@Base 3.13.34
+ _ZN26SfpPermitConfig_ListConfig5ClearEv@Base 3.13.34
+ _ZN26SfpPermitConfig_ListConfig8CopyFromERKN6google8protobuf7MessageE@Base 3.13.34
+ _ZN26SfpPermitConfig_ListConfig8CopyFromERKS_@Base 3.13.34
+ _ZN26SfpPermitConfig_ListConfig9MergeFromERKN6google8protobuf7MessageE@Base 3.13.34
+ _ZN26SfpPermitConfig_ListConfig9MergeFromERKS_@Base 3.13.34
+ _ZN26SfpPermitConfig_ListConfigC1ERKS_@Base 3.13.34
+ _ZN26SfpPermitConfig_ListConfigC1Ev@Base 3.13.34
+ _ZN26SfpPermitConfig_ListConfigC2ERKS_@Base 3.13.34
+ _ZN26SfpPermitConfig_ListConfigC2Ev@Base 3.13.34
+ _ZN26SfpPermitConfig_ListConfigD0Ev@Base 3.13.34
+ _ZN26SfpPermitConfig_ListConfigD1Ev@Base 3.13.34
+ _ZN26SfpPermitConfig_ListConfigD2Ev@Base 3.13.34
  _ZN26protobuf_GPCConfig_2eproto11TableStruct7offsetsE@Base 3.13.6
  _ZN26protobuf_GPCConfig_2eproto12InitDefaultsEv@Base 3.13.6
  _ZN26protobuf_GPCConfig_2eproto13scc_info_RuleE@Base 3.13.6
@@ -1048,6 +1557,30 @@ libvyatta-dataplane-proto.so.1 libvyatta-dataplane-proto1 #MINVER#
  _ZN26protobuf_RibUpdate_2eproto27file_level_enum_descriptorsE@Base 3.13.6
  _ZN26protobuf_RibUpdate_2eproto29static_descriptor_initializerE@Base 3.13.6
  _ZN26protobuf_RibUpdate_2eproto30protobuf_AssignDescriptorsOnceEv@Base 3.13.6
+ _ZN27TWAMPSessionCounterResponse10SharedCtorEv@Base 3.13.34
+ _ZN27TWAMPSessionCounterResponse10SharedDtorEv@Base 3.13.34
+ _ZN27TWAMPSessionCounterResponse10descriptorEv@Base 3.13.34
+ _ZN27TWAMPSessionCounterResponse12InternalSwapEPS_@Base 3.13.34
+ _ZN27TWAMPSessionCounterResponse16default_instanceEv@Base 3.13.34
+ _ZN27TWAMPSessionCounterResponse17kRxBadFieldNumberE@Base 3.13.34
+ _ZN27TWAMPSessionCounterResponse17kTxBadFieldNumberE@Base 3.13.34
+ _ZN27TWAMPSessionCounterResponse18kRxPktsFieldNumberE@Base 3.13.34
+ _ZN27TWAMPSessionCounterResponse18kTxPktsFieldNumberE@Base 3.13.34
+ _ZN27TWAMPSessionCounterResponse21InitAsDefaultInstanceEv@Base 3.13.34
+ _ZN27TWAMPSessionCounterResponse27MergePartialFromCodedStreamEPN6google8protobuf2io16CodedInputStreamE@Base 3.13.34
+ _ZN27TWAMPSessionCounterResponse4SwapEPS_@Base 3.13.34
+ _ZN27TWAMPSessionCounterResponse5ClearEv@Base 3.13.34
+ _ZN27TWAMPSessionCounterResponse8CopyFromERKN6google8protobuf7MessageE@Base 3.13.34
+ _ZN27TWAMPSessionCounterResponse8CopyFromERKS_@Base 3.13.34
+ _ZN27TWAMPSessionCounterResponse9MergeFromERKN6google8protobuf7MessageE@Base 3.13.34
+ _ZN27TWAMPSessionCounterResponse9MergeFromERKS_@Base 3.13.34
+ _ZN27TWAMPSessionCounterResponseC1ERKS_@Base 3.13.34
+ _ZN27TWAMPSessionCounterResponseC1Ev@Base 3.13.34
+ _ZN27TWAMPSessionCounterResponseC2ERKS_@Base 3.13.34
+ _ZN27TWAMPSessionCounterResponseC2Ev@Base 3.13.34
+ _ZN27TWAMPSessionCounterResponseD0Ev@Base 3.13.34
+ _ZN27TWAMPSessionCounterResponseD1Ev@Base 3.13.34
+ _ZN27TWAMPSessionCounterResponseD2Ev@Base 3.13.34
  _ZN27protobuf_GArpConfig_2eproto11TableStruct7offsetsE@Base 3.13.6
  _ZN27protobuf_GArpConfig_2eproto12InitDefaultsEv@Base 3.13.6
  _ZN27protobuf_GArpConfig_2eproto14AddDescriptorsEv@Base 3.13.6
@@ -1059,6 +1592,20 @@ libvyatta-dataplane-proto.so.1 libvyatta-dataplane-proto1 #MINVER#
  _ZN27protobuf_GArpConfig_2eproto27file_level_enum_descriptorsE@Base 3.13.6
  _ZN27protobuf_GArpConfig_2eproto29static_descriptor_initializerE@Base 3.13.6
  _ZN27protobuf_GArpConfig_2eproto30protobuf_AssignDescriptorsOnceEv@Base 3.13.6
+ _ZN27protobuf_SFPMonitor_2eproto11TableStruct7offsetsE@Base 3.13.34
+ _ZN27protobuf_SFPMonitor_2eproto12InitDefaultsEv@Base 3.13.34
+ _ZN27protobuf_SFPMonitor_2eproto14AddDescriptorsEv@Base 3.13.34
+ _ZN27protobuf_SFPMonitor_2eproto18AddDescriptorsImplEv@Base 3.13.34
+ _ZN27protobuf_SFPMonitor_2eproto19file_level_metadataE@Base 3.13.34
+ _ZN27protobuf_SFPMonitor_2eproto22protobuf_RegisterTypesERKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEE@Base 3.13.34
+ _ZN27protobuf_SFPMonitor_2eproto24scc_info_SfpPermitConfigE@Base 3.13.34
+ _ZN27protobuf_SFPMonitor_2eproto26protobuf_AssignDescriptorsEv@Base 3.13.34
+ _ZN27protobuf_SFPMonitor_2eproto27file_level_enum_descriptorsE@Base 3.13.34
+ _ZN27protobuf_SFPMonitor_2eproto28scc_info_SfpPermitConfig_SFPE@Base 3.13.34
+ _ZN27protobuf_SFPMonitor_2eproto29static_descriptor_initializerE@Base 3.13.34
+ _ZN27protobuf_SFPMonitor_2eproto30protobuf_AssignDescriptorsOnceEv@Base 3.13.34
+ _ZN27protobuf_SFPMonitor_2eproto35scc_info_SfpPermitConfig_ListConfigE@Base 3.13.34
+ _ZN27protobuf_SFPMonitor_2eproto39scc_info_SfpPermitConfig_MisMatchConfigE@Base 3.13.34
  _ZN28protobuf_PPPOEConfig_2eproto11TableStruct7offsetsE@Base 3.13.6
  _ZN28protobuf_PPPOEConfig_2eproto12InitDefaultsEv@Base 3.13.6
  _ZN28protobuf_PPPOEConfig_2eproto14AddDescriptorsEv@Base 3.13.6
@@ -1081,6 +1628,23 @@ libvyatta-dataplane-proto.so.1 libvyatta-dataplane-proto1 #MINVER#
  _ZN28protobuf_PauseConfig_2eproto29static_descriptor_initializerE@Base 3.13.6
  _ZN28protobuf_PauseConfig_2eproto30protobuf_AssignDescriptorsOnceEv@Base 3.13.6
  _ZN28protobuf_PauseConfig_2eproto34scc_info_PauseConfig_PauseIfConfigE@Base 3.13.6
+ _ZN28protobuf_SessionPack_2eproto11TableStruct7offsetsE@Base 3.13.34
+ _ZN28protobuf_SessionPack_2eproto12InitDefaultsEv@Base 3.13.34
+ _ZN28protobuf_SessionPack_2eproto14AddDescriptorsEv@Base 3.13.34
+ _ZN28protobuf_SessionPack_2eproto18AddDescriptorsImplEv@Base 3.13.34
+ _ZN28protobuf_SessionPack_2eproto19file_level_metadataE@Base 3.13.34
+ _ZN28protobuf_SessionPack_2eproto21scc_info_DPSessionMsgE@Base 3.13.34
+ _ZN28protobuf_SessionPack_2eproto21scc_info_TCPWindowMsgE@Base 3.13.34
+ _ZN28protobuf_SessionPack_2eproto22protobuf_RegisterTypesERKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEE@Base 3.13.34
+ _ZN28protobuf_SessionPack_2eproto22scc_info_NPFSessionMsgE@Base 3.13.34
+ _ZN28protobuf_SessionPack_2eproto24scc_info_DPSessionKeyMsgE@Base 3.13.34
+ _ZN28protobuf_SessionPack_2eproto26protobuf_AssignDescriptorsEv@Base 3.13.34
+ _ZN28protobuf_SessionPack_2eproto26scc_info_DPSessionStateMsgE@Base 3.13.34
+ _ZN28protobuf_SessionPack_2eproto27scc_info_NPFSessionStateMsgE@Base 3.13.34
+ _ZN28protobuf_SessionPack_2eproto27scc_info_PackedDPSessionMsgE@Base 3.13.34
+ _ZN28protobuf_SessionPack_2eproto28scc_info_DPSessionCounterMsgE@Base 3.13.34
+ _ZN28protobuf_SessionPack_2eproto29static_descriptor_initializerE@Base 3.13.34
+ _ZN28protobuf_SessionPack_2eproto30protobuf_AssignDescriptorsOnceEv@Base 3.13.34
  _ZN28protobuf_SpeedConfig_2eproto11TableStruct7offsetsE@Base 3.13.6
  _ZN28protobuf_SpeedConfig_2eproto12InitDefaultsEv@Base 3.13.6
  _ZN28protobuf_SpeedConfig_2eproto14AddDescriptorsEv@Base 3.13.6
@@ -1152,6 +1716,30 @@ libvyatta-dataplane-proto.so.1 libvyatta-dataplane-proto1 #MINVER#
  _ZN29protobuf_VFPSetConfig_2eproto27file_level_enum_descriptorsE@Base 3.13.6
  _ZN29protobuf_VFPSetConfig_2eproto29static_descriptor_initializerE@Base 3.13.6
  _ZN29protobuf_VFPSetConfig_2eproto30protobuf_AssignDescriptorsOnceEv@Base 3.13.6
+ _ZN30SfpPermitConfig_MisMatchConfig10SharedCtorEv@Base 3.13.34
+ _ZN30SfpPermitConfig_MisMatchConfig10SharedDtorEv@Base 3.13.34
+ _ZN30SfpPermitConfig_MisMatchConfig10descriptorEv@Base 3.13.34
+ _ZN30SfpPermitConfig_MisMatchConfig12InternalSwapEPS_@Base 3.13.34
+ _ZN30SfpPermitConfig_MisMatchConfig16default_instanceEv@Base 3.13.34
+ _ZN30SfpPermitConfig_MisMatchConfig17kDelayFieldNumberE@Base 3.13.34
+ _ZN30SfpPermitConfig_MisMatchConfig18kActionFieldNumberE@Base 3.13.34
+ _ZN30SfpPermitConfig_MisMatchConfig19kLoggingFieldNumberE@Base 3.13.34
+ _ZN30SfpPermitConfig_MisMatchConfig21InitAsDefaultInstanceEv@Base 3.13.34
+ _ZN30SfpPermitConfig_MisMatchConfig23kEnforcementFieldNumberE@Base 3.13.34
+ _ZN30SfpPermitConfig_MisMatchConfig27MergePartialFromCodedStreamEPN6google8protobuf2io16CodedInputStreamE@Base 3.13.34
+ _ZN30SfpPermitConfig_MisMatchConfig4SwapEPS_@Base 3.13.34
+ _ZN30SfpPermitConfig_MisMatchConfig5ClearEv@Base 3.13.34
+ _ZN30SfpPermitConfig_MisMatchConfig8CopyFromERKN6google8protobuf7MessageE@Base 3.13.34
+ _ZN30SfpPermitConfig_MisMatchConfig8CopyFromERKS_@Base 3.13.34
+ _ZN30SfpPermitConfig_MisMatchConfig9MergeFromERKN6google8protobuf7MessageE@Base 3.13.34
+ _ZN30SfpPermitConfig_MisMatchConfig9MergeFromERKS_@Base 3.13.34
+ _ZN30SfpPermitConfig_MisMatchConfigC1ERKS_@Base 3.13.34
+ _ZN30SfpPermitConfig_MisMatchConfigC1Ev@Base 3.13.34
+ _ZN30SfpPermitConfig_MisMatchConfigC2ERKS_@Base 3.13.34
+ _ZN30SfpPermitConfig_MisMatchConfigC2Ev@Base 3.13.34
+ _ZN30SfpPermitConfig_MisMatchConfigD0Ev@Base 3.13.34
+ _ZN30SfpPermitConfig_MisMatchConfigD1Ev@Base 3.13.34
+ _ZN30SfpPermitConfig_MisMatchConfigD2Ev@Base 3.13.34
  _ZN31BreakoutConfig_BreakoutIfConfig10SharedCtorEv@Base 3.13.6
  _ZN31BreakoutConfig_BreakoutIfConfig10SharedDtorEv@Base 3.13.6
  _ZN31BreakoutConfig_BreakoutIfConfig10descriptorEv@Base 3.13.6
@@ -1224,6 +1812,24 @@ libvyatta-dataplane-proto.so.1 libvyatta-dataplane-proto1 #MINVER#
  _ZN31protobuf_MacLimitConfig_2eproto30protobuf_AssignDescriptorsOnceEv@Base 3.13.6
  _ZN31protobuf_MacLimitConfig_2eproto44scc_info_MacLimitConfig_MacLimitIfVLANConfigE@Base 3.13.6
  _ZN31protobuf_MacLimitConfig_2eproto45scc_info_MacLimitConfig_MacLimitProfileConfigE@Base 3.13.6
+ _ZN31protobuf_TwampResponder_2eproto11TableStruct7offsetsE@Base 3.13.34
+ _ZN31protobuf_TwampResponder_2eproto12InitDefaultsEv@Base 3.13.34
+ _ZN31protobuf_TwampResponder_2eproto14AddDescriptorsEv@Base 3.13.34
+ _ZN31protobuf_TwampResponder_2eproto17scc_info_TWAMPCmdE@Base 3.13.34
+ _ZN31protobuf_TwampResponder_2eproto18AddDescriptorsImplEv@Base 3.13.34
+ _ZN31protobuf_TwampResponder_2eproto19file_level_metadataE@Base 3.13.34
+ _ZN31protobuf_TwampResponder_2eproto22protobuf_RegisterTypesERKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEE@Base 3.13.34
+ _ZN31protobuf_TwampResponder_2eproto24scc_info_TWAMPInitialiseE@Base 3.13.34
+ _ZN31protobuf_TwampResponder_2eproto24scc_info_TWAMPSessionKeyE@Base 3.13.34
+ _ZN31protobuf_TwampResponder_2eproto25scc_info_TWAMPCmdResponseE@Base 3.13.34
+ _ZN31protobuf_TwampResponder_2eproto26protobuf_AssignDescriptorsEv@Base 3.13.34
+ _ZN31protobuf_TwampResponder_2eproto27file_level_enum_descriptorsE@Base 3.13.34
+ _ZN31protobuf_TwampResponder_2eproto27scc_info_TWAMPSessionCreateE@Base 3.13.34
+ _ZN31protobuf_TwampResponder_2eproto27scc_info_TWAMPSessionDeleteE@Base 3.13.34
+ _ZN31protobuf_TwampResponder_2eproto29scc_info_TWAMPSessionCountersE@Base 3.13.34
+ _ZN31protobuf_TwampResponder_2eproto29static_descriptor_initializerE@Base 3.13.34
+ _ZN31protobuf_TwampResponder_2eproto30protobuf_AssignDescriptorsOnceEv@Base 3.13.34
+ _ZN31protobuf_TwampResponder_2eproto36scc_info_TWAMPSessionCounterResponseE@Base 3.13.34
  _ZN31protobuf_XConnectConfig_2eproto11TableStruct7offsetsE@Base 3.13.6
  _ZN31protobuf_XConnectConfig_2eproto12InitDefaultsEv@Base 3.13.6
  _ZN31protobuf_XConnectConfig_2eproto14AddDescriptorsEv@Base 3.13.6
@@ -1255,6 +1861,17 @@ libvyatta-dataplane-proto.so.1 libvyatta-dataplane-proto1 #MINVER#
  _ZN34protobuf_DataplaneEnvelope_2eproto26scc_info_DataplaneEnvelopeE@Base 3.13.6
  _ZN34protobuf_DataplaneEnvelope_2eproto29static_descriptor_initializerE@Base 3.13.6
  _ZN34protobuf_DataplaneEnvelope_2eproto30protobuf_AssignDescriptorsOnceEv@Base 3.13.6
+ _ZN34protobuf_ICMPRateLimConfig_2eproto11TableStruct7offsetsE@Base 3.13.34
+ _ZN34protobuf_ICMPRateLimConfig_2eproto12InitDefaultsEv@Base 3.13.34
+ _ZN34protobuf_ICMPRateLimConfig_2eproto14AddDescriptorsEv@Base 3.13.34
+ _ZN34protobuf_ICMPRateLimConfig_2eproto18AddDescriptorsImplEv@Base 3.13.34
+ _ZN34protobuf_ICMPRateLimConfig_2eproto19file_level_metadataE@Base 3.13.34
+ _ZN34protobuf_ICMPRateLimConfig_2eproto22protobuf_RegisterTypesERKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEE@Base 3.13.34
+ _ZN34protobuf_ICMPRateLimConfig_2eproto26protobuf_AssignDescriptorsEv@Base 3.13.34
+ _ZN34protobuf_ICMPRateLimConfig_2eproto26scc_info_ICMPRateLimConfigE@Base 3.13.34
+ _ZN34protobuf_ICMPRateLimConfig_2eproto27file_level_enum_descriptorsE@Base 3.13.34
+ _ZN34protobuf_ICMPRateLimConfig_2eproto29static_descriptor_initializerE@Base 3.13.34
+ _ZN34protobuf_ICMPRateLimConfig_2eproto30protobuf_AssignDescriptorsOnceEv@Base 3.13.34
  _ZN35MacLimitConfig_MacLimitIfVLANConfig10SharedCtorEv@Base 3.13.6
  _ZN35MacLimitConfig_MacLimitIfVLANConfig10SharedDtorEv@Base 3.13.6
  _ZN35MacLimitConfig_MacLimitIfVLANConfig10descriptorEv@Base 3.13.6
@@ -1564,26 +2181,46 @@ libvyatta-dataplane-proto.so.1 libvyatta-dataplane-proto1 #MINVER#
  _ZN6google8protobuf5Arena18CreateMaybeMessageI11RuleCounterJEEEPT_PS1_DpOT0_@Base 3.13.6
  _ZN6google8protobuf5Arena18CreateMaybeMessageI11SpeedConfigJEEEPT_PS1_DpOT0_@Base 3.13.6
  _ZN6google8protobuf5Arena18CreateMaybeMessageI11SynceConfigJEEEPT_PS1_DpOT0_@Base 3.13.6
+ _ZN6google8protobuf5Arena18CreateMaybeMessageI12DPSessionMsgJEEEPT_PS1_DpOT0_@Base 3.13.34
  _ZN6google8protobuf5Arena18CreateMaybeMessageI12NbrResConfigJEEEPT_PS1_DpOT0_@Base 3.13.6
  _ZN6google8protobuf5Arena18CreateMaybeMessageI12TCPMSSConfigJEEEPT_PS1_DpOT0_@Base 3.13.6
+ _ZN6google8protobuf5Arena18CreateMaybeMessageI12TCPWindowMsgJEEEPT_PS1_DpOT0_@Base 3.13.34
  _ZN6google8protobuf5Arena18CreateMaybeMessageI12VFPSetConfigJEEEPT_PS1_DpOT0_@Base 3.13.6
  _ZN6google8protobuf5Arena18CreateMaybeMessageI13ConstraintLogJEEEPT_PS1_DpOT0_@Base 3.13.6
+ _ZN6google8protobuf5Arena18CreateMaybeMessageI13NPFSessionMsgJEEEPT_PS1_DpOT0_@Base 3.13.34
  _ZN6google8protobuf5Arena18CreateMaybeMessageI13PolicerParamsJEEEPT_PS1_DpOT0_@Base 3.13.6
  _ZN6google8protobuf5Arena18CreateMaybeMessageI13SubscriberLogJEEEPT_PS1_DpOT0_@Base 3.13.6
  _ZN6google8protobuf5Arena18CreateMaybeMessageI14BreakoutConfigJEEEPT_PS1_DpOT0_@Base 3.13.6
  _ZN6google8protobuf5Arena18CreateMaybeMessageI14MacLimitConfigJEEEPT_PS1_DpOT0_@Base 3.13.6
  _ZN6google8protobuf5Arena18CreateMaybeMessageI14XConnectConfigJEEEPT_PS1_DpOT0_@Base 3.13.6
+ _ZN6google8protobuf5Arena18CreateMaybeMessageI15DPSessionKeyMsgJEEEPT_PS1_DpOT0_@Base 3.13.34
+ _ZN6google8protobuf5Arena18CreateMaybeMessageI15SfpPermitConfigJEEEPT_PS1_DpOT0_@Base 3.13.34
+ _ZN6google8protobuf5Arena18CreateMaybeMessageI15TWAMPInitialiseJEEEPT_PS1_DpOT0_@Base 3.13.34
+ _ZN6google8protobuf5Arena18CreateMaybeMessageI15TWAMPSessionKeyJEEEPT_PS1_DpOT0_@Base 3.13.34
  _ZN6google8protobuf5Arena18CreateMaybeMessageI16IPAddressOrLabelJEEEPT_PS1_DpOT0_@Base 3.13.6
+ _ZN6google8protobuf5Arena18CreateMaybeMessageI16TWAMPCmdResponseJEEEPT_PS1_DpOT0_@Base 3.13.34
+ _ZN6google8protobuf5Arena18CreateMaybeMessageI17DPSessionStateMsgJEEEPT_PS1_DpOT0_@Base 3.13.34
  _ZN6google8protobuf5Arena18CreateMaybeMessageI17DataplaneEnvelopeJEEEPT_PS1_DpOT0_@Base 3.13.6
+ _ZN6google8protobuf5Arena18CreateMaybeMessageI17ICMPRateLimConfigJEEEPT_PS1_DpOT0_@Base 3.13.34
  _ZN6google8protobuf5Arena18CreateMaybeMessageI17PortAllocationLogJEEEPT_PS1_DpOT0_@Base 3.13.6
  _ZN6google8protobuf5Arena18CreateMaybeMessageI18CryptoPolicyConfigJEEEPT_PS1_DpOT0_@Base 3.13.6
  _ZN6google8protobuf5Arena18CreateMaybeMessageI18IP6RedirectsConfigJEEEPT_PS1_DpOT0_@Base 3.13.6
+ _ZN6google8protobuf5Arena18CreateMaybeMessageI18NPFSessionStateMsgJEEEPT_PS1_DpOT0_@Base 3.13.34
+ _ZN6google8protobuf5Arena18CreateMaybeMessageI18PackedDPSessionMsgJEEEPT_PS1_DpOT0_@Base 3.13.34
+ _ZN6google8protobuf5Arena18CreateMaybeMessageI18TWAMPSessionCreateJEEEPT_PS1_DpOT0_@Base 3.13.34
+ _ZN6google8protobuf5Arena18CreateMaybeMessageI18TWAMPSessionDeleteJEEEPT_PS1_DpOT0_@Base 3.13.34
+ _ZN6google8protobuf5Arena18CreateMaybeMessageI19DPSessionCounterMsgJEEEPT_PS1_DpOT0_@Base 3.13.34
  _ZN6google8protobuf5Arena18CreateMaybeMessageI19LAGConfig_LagCreateJEEEPT_PS1_DpOT0_@Base 3.13.6
  _ZN6google8protobuf5Arena18CreateMaybeMessageI19LAGConfig_LagDeleteJEEEPT_PS1_DpOT0_@Base 3.13.6
  _ZN6google8protobuf5Arena18CreateMaybeMessageI19PipelineStatsConfigJEEEPT_PS1_DpOT0_@Base 3.13.6
+ _ZN6google8protobuf5Arena18CreateMaybeMessageI19SfpPermitConfig_SFPJEEEPT_PS1_DpOT0_@Base 3.13.34
+ _ZN6google8protobuf5Arena18CreateMaybeMessageI20TWAMPSessionCountersJEEEPT_PS1_DpOT0_@Base 3.13.34
  _ZN6google8protobuf5Arena18CreateMaybeMessageI21FeatureAffinityConfigJEEEPT_PS1_DpOT0_@Base 3.13.6
  _ZN6google8protobuf5Arena18CreateMaybeMessageI25PauseConfig_PauseIfConfigJEEEPT_PS1_DpOT0_@Base 3.13.6
  _ZN6google8protobuf5Arena18CreateMaybeMessageI25RuleMatch_ICMPTypeAndCodeJEEEPT_PS1_DpOT0_@Base 3.13.6
+ _ZN6google8protobuf5Arena18CreateMaybeMessageI26SfpPermitConfig_ListConfigJEEEPT_PS1_DpOT0_@Base 3.13.34
+ _ZN6google8protobuf5Arena18CreateMaybeMessageI27TWAMPSessionCounterResponseJEEEPT_PS1_DpOT0_@Base 3.13.34
+ _ZN6google8protobuf5Arena18CreateMaybeMessageI30SfpPermitConfig_MisMatchConfigJEEEPT_PS1_DpOT0_@Base 3.13.34
  _ZN6google8protobuf5Arena18CreateMaybeMessageI31BreakoutConfig_BreakoutIfConfigJEEEPT_PS1_DpOT0_@Base 3.13.6
  _ZN6google8protobuf5Arena18CreateMaybeMessageI31LAGConfig_LagCreate_LacpOptionsJEEEPT_PS1_DpOT0_@Base 3.13.6
  _ZN6google8protobuf5Arena18CreateMaybeMessageI35MacLimitConfig_MacLimitIfVLANConfigJEEEPT_PS1_DpOT0_@Base 3.13.6
@@ -1595,6 +2232,7 @@ libvyatta-dataplane-proto.so.1 libvyatta-dataplane-proto1 #MINVER#
  _ZN6google8protobuf5Arena18CreateMaybeMessageI8CgnatLogJEEEPT_PS1_DpOT0_@Base 3.13.6
  _ZN6google8protobuf5Arena18CreateMaybeMessageI8GPCTableJEEEPT_PS1_DpOT0_@Base 3.13.6
  _ZN6google8protobuf5Arena18CreateMaybeMessageI8IPPrefixJEEEPT_PS1_DpOT0_@Base 3.13.6
+ _ZN6google8protobuf5Arena18CreateMaybeMessageI8TWAMPCmdJEEEPT_PS1_DpOT0_@Base 3.13.34
  _ZN6google8protobuf5Arena18CreateMaybeMessageI9GPCConfigJEEEPT_PS1_DpOT0_@Base 3.13.6
  _ZN6google8protobuf5Arena18CreateMaybeMessageI9IPAddressJEEEPT_PS1_DpOT0_@Base 3.13.6
  _ZN6google8protobuf5Arena18CreateMaybeMessageI9LAGConfigJEEEPT_PS1_DpOT0_@Base 3.13.6
@@ -1606,6 +2244,9 @@ libvyatta-dataplane-proto.so.1 libvyatta-dataplane-proto1 #MINVER#
  _ZN6google8protobuf5Arena18CreateMaybeMessageIN6cpp_rl39CPP_limiter_CPP_attribute_CPP_parameterEJEEEPT_PS1_DpOT0_@Base 3.13.6
  _ZN6google8protobuf8internal20RepeatedPtrFieldBase18MergeFromInnerLoopINS0_16RepeatedPtrFieldI10GPCCounterE11TypeHandlerEEEvPPvS9_ii@Base 3.13.6
  _ZN6google8protobuf8internal20RepeatedPtrFieldBase18MergeFromInnerLoopINS0_16RepeatedPtrFieldI10RuleActionE11TypeHandlerEEEvPPvS9_ii@Base 3.13.6
+ _ZN6google8protobuf8internal20RepeatedPtrFieldBase18MergeFromInnerLoopINS0_16RepeatedPtrFieldI12DPSessionMsgE11TypeHandlerEEEvPPvS9_ii@Base 3.13.34
+ _ZN6google8protobuf8internal20RepeatedPtrFieldBase18MergeFromInnerLoopINS0_16RepeatedPtrFieldI12TCPWindowMsgE11TypeHandlerEEEvPPvS9_ii@Base 3.13.34
+ _ZN6google8protobuf8internal20RepeatedPtrFieldBase18MergeFromInnerLoopINS0_16RepeatedPtrFieldI19SfpPermitConfig_SFPE11TypeHandlerEEEvPPvS9_ii@Base 3.13.34
  _ZN6google8protobuf8internal20RepeatedPtrFieldBase18MergeFromInnerLoopINS0_16RepeatedPtrFieldI4PathE11TypeHandlerEEEvPPvS9_ii@Base 3.13.6
  _ZN6google8protobuf8internal20RepeatedPtrFieldBase18MergeFromInnerLoopINS0_16RepeatedPtrFieldI4RuleE11TypeHandlerEEEvPPvS9_ii@Base 3.13.6
  _ZN6google8protobuf8internal20RepeatedPtrFieldBase18MergeFromInnerLoopINS0_16RepeatedPtrFieldI8GPCTableE11TypeHandlerEEEvPPvS9_ii@Base 3.13.6
@@ -1622,26 +2263,46 @@ libvyatta-dataplane-proto.so.1 libvyatta-dataplane-proto1 #MINVER#
  _ZN6google8protobuf8internal21arena_destruct_objectI11RuleCounterEEvPv@Base 3.13.6
  _ZN6google8protobuf8internal21arena_destruct_objectI11SpeedConfigEEvPv@Base 3.13.6
  _ZN6google8protobuf8internal21arena_destruct_objectI11SynceConfigEEvPv@Base 3.13.6
+ _ZN6google8protobuf8internal21arena_destruct_objectI12DPSessionMsgEEvPv@Base 3.13.34
  _ZN6google8protobuf8internal21arena_destruct_objectI12NbrResConfigEEvPv@Base 3.13.6
  _ZN6google8protobuf8internal21arena_destruct_objectI12TCPMSSConfigEEvPv@Base 3.13.6
+ _ZN6google8protobuf8internal21arena_destruct_objectI12TCPWindowMsgEEvPv@Base 3.13.34
  _ZN6google8protobuf8internal21arena_destruct_objectI12VFPSetConfigEEvPv@Base 3.13.6
  _ZN6google8protobuf8internal21arena_destruct_objectI13ConstraintLogEEvPv@Base 3.13.6
+ _ZN6google8protobuf8internal21arena_destruct_objectI13NPFSessionMsgEEvPv@Base 3.13.34
  _ZN6google8protobuf8internal21arena_destruct_objectI13PolicerParamsEEvPv@Base 3.13.6
  _ZN6google8protobuf8internal21arena_destruct_objectI13SubscriberLogEEvPv@Base 3.13.6
  _ZN6google8protobuf8internal21arena_destruct_objectI14BreakoutConfigEEvPv@Base 3.13.6
  _ZN6google8protobuf8internal21arena_destruct_objectI14MacLimitConfigEEvPv@Base 3.13.6
  _ZN6google8protobuf8internal21arena_destruct_objectI14XConnectConfigEEvPv@Base 3.13.6
+ _ZN6google8protobuf8internal21arena_destruct_objectI15DPSessionKeyMsgEEvPv@Base 3.13.34
+ _ZN6google8protobuf8internal21arena_destruct_objectI15SfpPermitConfigEEvPv@Base 3.13.34
+ _ZN6google8protobuf8internal21arena_destruct_objectI15TWAMPInitialiseEEvPv@Base 3.13.34
+ _ZN6google8protobuf8internal21arena_destruct_objectI15TWAMPSessionKeyEEvPv@Base 3.13.34
  _ZN6google8protobuf8internal21arena_destruct_objectI16IPAddressOrLabelEEvPv@Base 3.13.6
+ _ZN6google8protobuf8internal21arena_destruct_objectI16TWAMPCmdResponseEEvPv@Base 3.13.34
+ _ZN6google8protobuf8internal21arena_destruct_objectI17DPSessionStateMsgEEvPv@Base 3.13.34
  _ZN6google8protobuf8internal21arena_destruct_objectI17DataplaneEnvelopeEEvPv@Base 3.13.6
+ _ZN6google8protobuf8internal21arena_destruct_objectI17ICMPRateLimConfigEEvPv@Base 3.13.34
  _ZN6google8protobuf8internal21arena_destruct_objectI17PortAllocationLogEEvPv@Base 3.13.6
  _ZN6google8protobuf8internal21arena_destruct_objectI18CryptoPolicyConfigEEvPv@Base 3.13.6
  _ZN6google8protobuf8internal21arena_destruct_objectI18IP6RedirectsConfigEEvPv@Base 3.13.6
+ _ZN6google8protobuf8internal21arena_destruct_objectI18NPFSessionStateMsgEEvPv@Base 3.13.34
+ _ZN6google8protobuf8internal21arena_destruct_objectI18PackedDPSessionMsgEEvPv@Base 3.13.34
+ _ZN6google8protobuf8internal21arena_destruct_objectI18TWAMPSessionCreateEEvPv@Base 3.13.34
+ _ZN6google8protobuf8internal21arena_destruct_objectI18TWAMPSessionDeleteEEvPv@Base 3.13.34
+ _ZN6google8protobuf8internal21arena_destruct_objectI19DPSessionCounterMsgEEvPv@Base 3.13.34
  _ZN6google8protobuf8internal21arena_destruct_objectI19LAGConfig_LagCreateEEvPv@Base 3.13.6
  _ZN6google8protobuf8internal21arena_destruct_objectI19LAGConfig_LagDeleteEEvPv@Base 3.13.6
  _ZN6google8protobuf8internal21arena_destruct_objectI19PipelineStatsConfigEEvPv@Base 3.13.6
+ _ZN6google8protobuf8internal21arena_destruct_objectI19SfpPermitConfig_SFPEEvPv@Base 3.13.34
+ _ZN6google8protobuf8internal21arena_destruct_objectI20TWAMPSessionCountersEEvPv@Base 3.13.34
  _ZN6google8protobuf8internal21arena_destruct_objectI21FeatureAffinityConfigEEvPv@Base 3.13.6
  _ZN6google8protobuf8internal21arena_destruct_objectI25PauseConfig_PauseIfConfigEEvPv@Base 3.13.6
  _ZN6google8protobuf8internal21arena_destruct_objectI25RuleMatch_ICMPTypeAndCodeEEvPv@Base 3.13.6
+ _ZN6google8protobuf8internal21arena_destruct_objectI26SfpPermitConfig_ListConfigEEvPv@Base 3.13.34
+ _ZN6google8protobuf8internal21arena_destruct_objectI27TWAMPSessionCounterResponseEEvPv@Base 3.13.34
+ _ZN6google8protobuf8internal21arena_destruct_objectI30SfpPermitConfig_MisMatchConfigEEvPv@Base 3.13.34
  _ZN6google8protobuf8internal21arena_destruct_objectI31BreakoutConfig_BreakoutIfConfigEEvPv@Base 3.13.6
  _ZN6google8protobuf8internal21arena_destruct_objectI31LAGConfig_LagCreate_LacpOptionsEEvPv@Base 3.13.6
  _ZN6google8protobuf8internal21arena_destruct_objectI35MacLimitConfig_MacLimitIfVLANConfigEEvPv@Base 3.13.6
@@ -1653,6 +2314,7 @@ libvyatta-dataplane-proto.so.1 libvyatta-dataplane-proto1 #MINVER#
  _ZN6google8protobuf8internal21arena_destruct_objectI8CgnatLogEEvPv@Base 3.13.6
  _ZN6google8protobuf8internal21arena_destruct_objectI8GPCTableEEvPv@Base 3.13.6
  _ZN6google8protobuf8internal21arena_destruct_objectI8IPPrefixEEvPv@Base 3.13.6
+ _ZN6google8protobuf8internal21arena_destruct_objectI8TWAMPCmdEEvPv@Base 3.13.34
  _ZN6google8protobuf8internal21arena_destruct_objectI9GPCConfigEEvPv@Base 3.13.6
  _ZN6google8protobuf8internal21arena_destruct_objectI9IPAddressEEvPv@Base 3.13.6
  _ZN6google8protobuf8internal21arena_destruct_objectI9LAGConfigEEvPv@Base 3.13.6
@@ -1748,6 +2410,35 @@ libvyatta-dataplane-proto.so.1 libvyatta-dataplane-proto1 #MINVER#
  _ZN8IPPrefixD0Ev@Base 3.13.6
  _ZN8IPPrefixD1Ev@Base 3.13.6
  _ZN8IPPrefixD2Ev@Base 3.13.6
+ _ZN8TWAMPCmd10SharedCtorEv@Base 3.13.34
+ _ZN8TWAMPCmd10SharedDtorEv@Base 3.13.34
+ _ZN8TWAMPCmd10descriptorEv@Base 3.13.34
+ _ZN8TWAMPCmd11clear_mtypeEv@Base 3.13.34
+ _ZN8TWAMPCmd12InternalSwapEPS_@Base 3.13.34
+ _ZN8TWAMPCmd16default_instanceEv@Base 3.13.34
+ _ZN8TWAMPCmd18kTwInitFieldNumberE@Base 3.13.34
+ _ZN8TWAMPCmd21InitAsDefaultInstanceEv@Base 3.13.34
+ _ZN8TWAMPCmd21kTwsCreateFieldNumberE@Base 3.13.34
+ _ZN8TWAMPCmd21kTwsDeleteFieldNumberE@Base 3.13.34
+ _ZN8TWAMPCmd21set_allocated_tw_initEP15TWAMPInitialise@Base 3.13.34
+ _ZN8TWAMPCmd23kTwsCountersFieldNumberE@Base 3.13.34
+ _ZN8TWAMPCmd24set_allocated_tws_createEP18TWAMPSessionCreate@Base 3.13.34
+ _ZN8TWAMPCmd24set_allocated_tws_deleteEP18TWAMPSessionDelete@Base 3.13.34
+ _ZN8TWAMPCmd26set_allocated_tws_countersEP20TWAMPSessionCounters@Base 3.13.34
+ _ZN8TWAMPCmd27MergePartialFromCodedStreamEPN6google8protobuf2io16CodedInputStreamE@Base 3.13.34
+ _ZN8TWAMPCmd4SwapEPS_@Base 3.13.34
+ _ZN8TWAMPCmd5ClearEv@Base 3.13.34
+ _ZN8TWAMPCmd8CopyFromERKN6google8protobuf7MessageE@Base 3.13.34
+ _ZN8TWAMPCmd8CopyFromERKS_@Base 3.13.34
+ _ZN8TWAMPCmd9MergeFromERKN6google8protobuf7MessageE@Base 3.13.34
+ _ZN8TWAMPCmd9MergeFromERKS_@Base 3.13.34
+ _ZN8TWAMPCmdC1ERKS_@Base 3.13.34
+ _ZN8TWAMPCmdC1Ev@Base 3.13.34
+ _ZN8TWAMPCmdC2ERKS_@Base 3.13.34
+ _ZN8TWAMPCmdC2Ev@Base 3.13.34
+ _ZN8TWAMPCmdD0Ev@Base 3.13.34
+ _ZN8TWAMPCmdD1Ev@Base 3.13.34
+ _ZN8TWAMPCmdD2Ev@Base 3.13.34
  _ZN9GPCConfig10SharedCtorEv@Base 3.13.6
  _ZN9GPCConfig10SharedDtorEv@Base 3.13.6
  _ZN9GPCConfig10descriptorEv@Base 3.13.6
@@ -1997,6 +2688,12 @@ libvyatta-dataplane-proto.so.1 libvyatta-dataplane-proto1 #MINVER#
  _ZNK11SynceConfig13SetCachedSizeEi@Base 3.13.6
  _ZNK11SynceConfig24SerializeWithCachedSizesEPN6google8protobuf2io17CodedOutputStreamE@Base 3.13.6
  _ZNK11SynceConfig39InternalSerializeWithCachedSizesToArrayEbPh@Base 3.13.6
+ _ZNK12DPSessionMsg11GetMetadataEv@Base 3.13.34
+ _ZNK12DPSessionMsg12ByteSizeLongEv@Base 3.13.34
+ _ZNK12DPSessionMsg13IsInitializedEv@Base 3.13.34
+ _ZNK12DPSessionMsg13SetCachedSizeEi@Base 3.13.34
+ _ZNK12DPSessionMsg24SerializeWithCachedSizesEPN6google8protobuf2io17CodedOutputStreamE@Base 3.13.34
+ _ZNK12DPSessionMsg39InternalSerializeWithCachedSizesToArrayEbPh@Base 3.13.34
  _ZNK12NbrResConfig11GetMetadataEv@Base 3.13.6
  _ZNK12NbrResConfig12ByteSizeLongEv@Base 3.13.6
  _ZNK12NbrResConfig13IsInitializedEv@Base 3.13.6
@@ -2009,6 +2706,12 @@ libvyatta-dataplane-proto.so.1 libvyatta-dataplane-proto1 #MINVER#
  _ZNK12TCPMSSConfig13SetCachedSizeEi@Base 3.13.6
  _ZNK12TCPMSSConfig24SerializeWithCachedSizesEPN6google8protobuf2io17CodedOutputStreamE@Base 3.13.6
  _ZNK12TCPMSSConfig39InternalSerializeWithCachedSizesToArrayEbPh@Base 3.13.6
+ _ZNK12TCPWindowMsg11GetMetadataEv@Base 3.13.34
+ _ZNK12TCPWindowMsg12ByteSizeLongEv@Base 3.13.34
+ _ZNK12TCPWindowMsg13IsInitializedEv@Base 3.13.34
+ _ZNK12TCPWindowMsg13SetCachedSizeEi@Base 3.13.34
+ _ZNK12TCPWindowMsg24SerializeWithCachedSizesEPN6google8protobuf2io17CodedOutputStreamE@Base 3.13.34
+ _ZNK12TCPWindowMsg39InternalSerializeWithCachedSizesToArrayEbPh@Base 3.13.34
  _ZNK12VFPSetConfig11GetMetadataEv@Base 3.13.6
  _ZNK12VFPSetConfig12ByteSizeLongEv@Base 3.13.6
  _ZNK12VFPSetConfig13IsInitializedEv@Base 3.13.6
@@ -2021,6 +2724,12 @@ libvyatta-dataplane-proto.so.1 libvyatta-dataplane-proto1 #MINVER#
  _ZNK13ConstraintLog13SetCachedSizeEi@Base 3.13.6
  _ZNK13ConstraintLog24SerializeWithCachedSizesEPN6google8protobuf2io17CodedOutputStreamE@Base 3.13.6
  _ZNK13ConstraintLog39InternalSerializeWithCachedSizesToArrayEbPh@Base 3.13.6
+ _ZNK13NPFSessionMsg11GetMetadataEv@Base 3.13.34
+ _ZNK13NPFSessionMsg12ByteSizeLongEv@Base 3.13.34
+ _ZNK13NPFSessionMsg13IsInitializedEv@Base 3.13.34
+ _ZNK13NPFSessionMsg13SetCachedSizeEi@Base 3.13.34
+ _ZNK13NPFSessionMsg24SerializeWithCachedSizesEPN6google8protobuf2io17CodedOutputStreamE@Base 3.13.34
+ _ZNK13NPFSessionMsg39InternalSerializeWithCachedSizesToArrayEbPh@Base 3.13.34
  _ZNK13PolicerParams11GetMetadataEv@Base 3.13.6
  _ZNK13PolicerParams12ByteSizeLongEv@Base 3.13.6
  _ZNK13PolicerParams13IsInitializedEv@Base 3.13.6
@@ -2051,12 +2760,48 @@ libvyatta-dataplane-proto.so.1 libvyatta-dataplane-proto1 #MINVER#
  _ZNK14XConnectConfig13SetCachedSizeEi@Base 3.13.6
  _ZNK14XConnectConfig24SerializeWithCachedSizesEPN6google8protobuf2io17CodedOutputStreamE@Base 3.13.6
  _ZNK14XConnectConfig39InternalSerializeWithCachedSizesToArrayEbPh@Base 3.13.6
+ _ZNK15DPSessionKeyMsg11GetMetadataEv@Base 3.13.34
+ _ZNK15DPSessionKeyMsg12ByteSizeLongEv@Base 3.13.34
+ _ZNK15DPSessionKeyMsg13IsInitializedEv@Base 3.13.34
+ _ZNK15DPSessionKeyMsg13SetCachedSizeEi@Base 3.13.34
+ _ZNK15DPSessionKeyMsg24SerializeWithCachedSizesEPN6google8protobuf2io17CodedOutputStreamE@Base 3.13.34
+ _ZNK15DPSessionKeyMsg39InternalSerializeWithCachedSizesToArrayEbPh@Base 3.13.34
+ _ZNK15SfpPermitConfig11GetMetadataEv@Base 3.13.34
+ _ZNK15SfpPermitConfig12ByteSizeLongEv@Base 3.13.34
+ _ZNK15SfpPermitConfig13IsInitializedEv@Base 3.13.34
+ _ZNK15SfpPermitConfig13SetCachedSizeEi@Base 3.13.34
+ _ZNK15SfpPermitConfig24SerializeWithCachedSizesEPN6google8protobuf2io17CodedOutputStreamE@Base 3.13.34
+ _ZNK15SfpPermitConfig39InternalSerializeWithCachedSizesToArrayEbPh@Base 3.13.34
+ _ZNK15TWAMPInitialise11GetMetadataEv@Base 3.13.34
+ _ZNK15TWAMPInitialise12ByteSizeLongEv@Base 3.13.34
+ _ZNK15TWAMPInitialise13IsInitializedEv@Base 3.13.34
+ _ZNK15TWAMPInitialise13SetCachedSizeEi@Base 3.13.34
+ _ZNK15TWAMPInitialise24SerializeWithCachedSizesEPN6google8protobuf2io17CodedOutputStreamE@Base 3.13.34
+ _ZNK15TWAMPInitialise39InternalSerializeWithCachedSizesToArrayEbPh@Base 3.13.34
+ _ZNK15TWAMPSessionKey11GetMetadataEv@Base 3.13.34
+ _ZNK15TWAMPSessionKey12ByteSizeLongEv@Base 3.13.34
+ _ZNK15TWAMPSessionKey13IsInitializedEv@Base 3.13.34
+ _ZNK15TWAMPSessionKey13SetCachedSizeEi@Base 3.13.34
+ _ZNK15TWAMPSessionKey24SerializeWithCachedSizesEPN6google8protobuf2io17CodedOutputStreamE@Base 3.13.34
+ _ZNK15TWAMPSessionKey39InternalSerializeWithCachedSizesToArrayEbPh@Base 3.13.34
  _ZNK16IPAddressOrLabel11GetMetadataEv@Base 3.13.6
  _ZNK16IPAddressOrLabel12ByteSizeLongEv@Base 3.13.6
  _ZNK16IPAddressOrLabel13IsInitializedEv@Base 3.13.6
  _ZNK16IPAddressOrLabel13SetCachedSizeEi@Base 3.13.6
  _ZNK16IPAddressOrLabel24SerializeWithCachedSizesEPN6google8protobuf2io17CodedOutputStreamE@Base 3.13.6
  _ZNK16IPAddressOrLabel39InternalSerializeWithCachedSizesToArrayEbPh@Base 3.13.6
+ _ZNK16TWAMPCmdResponse11GetMetadataEv@Base 3.13.34
+ _ZNK16TWAMPCmdResponse12ByteSizeLongEv@Base 3.13.34
+ _ZNK16TWAMPCmdResponse13IsInitializedEv@Base 3.13.34
+ _ZNK16TWAMPCmdResponse13SetCachedSizeEi@Base 3.13.34
+ _ZNK16TWAMPCmdResponse24SerializeWithCachedSizesEPN6google8protobuf2io17CodedOutputStreamE@Base 3.13.34
+ _ZNK16TWAMPCmdResponse39InternalSerializeWithCachedSizesToArrayEbPh@Base 3.13.34
+ _ZNK17DPSessionStateMsg11GetMetadataEv@Base 3.13.34
+ _ZNK17DPSessionStateMsg12ByteSizeLongEv@Base 3.13.34
+ _ZNK17DPSessionStateMsg13IsInitializedEv@Base 3.13.34
+ _ZNK17DPSessionStateMsg13SetCachedSizeEi@Base 3.13.34
+ _ZNK17DPSessionStateMsg24SerializeWithCachedSizesEPN6google8protobuf2io17CodedOutputStreamE@Base 3.13.34
+ _ZNK17DPSessionStateMsg39InternalSerializeWithCachedSizesToArrayEbPh@Base 3.13.34
  _ZNK17DataplaneEnvelope11GetMetadataEv@Base 3.13.6
  _ZNK17DataplaneEnvelope12ByteSizeLongEv@Base 3.13.6
  _ZNK17DataplaneEnvelope13IsInitializedEv@Base 3.13.6
@@ -2064,6 +2809,12 @@ libvyatta-dataplane-proto.so.1 libvyatta-dataplane-proto1 #MINVER#
  _ZNK17DataplaneEnvelope24SerializeWithCachedSizesEPN6google8protobuf2io17CodedOutputStreamE@Base 3.13.6
  _ZNK17DataplaneEnvelope30RequiredFieldsByteSizeFallbackEv@Base 3.13.6
  _ZNK17DataplaneEnvelope39InternalSerializeWithCachedSizesToArrayEbPh@Base 3.13.6
+ _ZNK17ICMPRateLimConfig11GetMetadataEv@Base 3.13.34
+ _ZNK17ICMPRateLimConfig12ByteSizeLongEv@Base 3.13.34
+ _ZNK17ICMPRateLimConfig13IsInitializedEv@Base 3.13.34
+ _ZNK17ICMPRateLimConfig13SetCachedSizeEi@Base 3.13.34
+ _ZNK17ICMPRateLimConfig24SerializeWithCachedSizesEPN6google8protobuf2io17CodedOutputStreamE@Base 3.13.34
+ _ZNK17ICMPRateLimConfig39InternalSerializeWithCachedSizesToArrayEbPh@Base 3.13.34
  _ZNK17PortAllocationLog11GetMetadataEv@Base 3.13.6
  _ZNK17PortAllocationLog12ByteSizeLongEv@Base 3.13.6
  _ZNK17PortAllocationLog13IsInitializedEv@Base 3.13.6
@@ -2082,6 +2833,36 @@ libvyatta-dataplane-proto.so.1 libvyatta-dataplane-proto1 #MINVER#
  _ZNK18IP6RedirectsConfig13SetCachedSizeEi@Base 3.13.6
  _ZNK18IP6RedirectsConfig24SerializeWithCachedSizesEPN6google8protobuf2io17CodedOutputStreamE@Base 3.13.6
  _ZNK18IP6RedirectsConfig39InternalSerializeWithCachedSizesToArrayEbPh@Base 3.13.6
+ _ZNK18NPFSessionStateMsg11GetMetadataEv@Base 3.13.34
+ _ZNK18NPFSessionStateMsg12ByteSizeLongEv@Base 3.13.34
+ _ZNK18NPFSessionStateMsg13IsInitializedEv@Base 3.13.34
+ _ZNK18NPFSessionStateMsg13SetCachedSizeEi@Base 3.13.34
+ _ZNK18NPFSessionStateMsg24SerializeWithCachedSizesEPN6google8protobuf2io17CodedOutputStreamE@Base 3.13.34
+ _ZNK18NPFSessionStateMsg39InternalSerializeWithCachedSizesToArrayEbPh@Base 3.13.34
+ _ZNK18PackedDPSessionMsg11GetMetadataEv@Base 3.13.34
+ _ZNK18PackedDPSessionMsg12ByteSizeLongEv@Base 3.13.34
+ _ZNK18PackedDPSessionMsg13IsInitializedEv@Base 3.13.34
+ _ZNK18PackedDPSessionMsg13SetCachedSizeEi@Base 3.13.34
+ _ZNK18PackedDPSessionMsg24SerializeWithCachedSizesEPN6google8protobuf2io17CodedOutputStreamE@Base 3.13.34
+ _ZNK18PackedDPSessionMsg39InternalSerializeWithCachedSizesToArrayEbPh@Base 3.13.34
+ _ZNK18TWAMPSessionCreate11GetMetadataEv@Base 3.13.34
+ _ZNK18TWAMPSessionCreate12ByteSizeLongEv@Base 3.13.34
+ _ZNK18TWAMPSessionCreate13IsInitializedEv@Base 3.13.34
+ _ZNK18TWAMPSessionCreate13SetCachedSizeEi@Base 3.13.34
+ _ZNK18TWAMPSessionCreate24SerializeWithCachedSizesEPN6google8protobuf2io17CodedOutputStreamE@Base 3.13.34
+ _ZNK18TWAMPSessionCreate39InternalSerializeWithCachedSizesToArrayEbPh@Base 3.13.34
+ _ZNK18TWAMPSessionDelete11GetMetadataEv@Base 3.13.34
+ _ZNK18TWAMPSessionDelete12ByteSizeLongEv@Base 3.13.34
+ _ZNK18TWAMPSessionDelete13IsInitializedEv@Base 3.13.34
+ _ZNK18TWAMPSessionDelete13SetCachedSizeEi@Base 3.13.34
+ _ZNK18TWAMPSessionDelete24SerializeWithCachedSizesEPN6google8protobuf2io17CodedOutputStreamE@Base 3.13.34
+ _ZNK18TWAMPSessionDelete39InternalSerializeWithCachedSizesToArrayEbPh@Base 3.13.34
+ _ZNK19DPSessionCounterMsg11GetMetadataEv@Base 3.13.34
+ _ZNK19DPSessionCounterMsg12ByteSizeLongEv@Base 3.13.34
+ _ZNK19DPSessionCounterMsg13IsInitializedEv@Base 3.13.34
+ _ZNK19DPSessionCounterMsg13SetCachedSizeEi@Base 3.13.34
+ _ZNK19DPSessionCounterMsg24SerializeWithCachedSizesEPN6google8protobuf2io17CodedOutputStreamE@Base 3.13.34
+ _ZNK19DPSessionCounterMsg39InternalSerializeWithCachedSizesToArrayEbPh@Base 3.13.34
  _ZNK19LAGConfig_LagCreate11GetMetadataEv@Base 3.13.6
  _ZNK19LAGConfig_LagCreate12ByteSizeLongEv@Base 3.13.6
  _ZNK19LAGConfig_LagCreate13IsInitializedEv@Base 3.13.6
@@ -2100,6 +2881,18 @@ libvyatta-dataplane-proto.so.1 libvyatta-dataplane-proto1 #MINVER#
  _ZNK19PipelineStatsConfig13SetCachedSizeEi@Base 3.13.6
  _ZNK19PipelineStatsConfig24SerializeWithCachedSizesEPN6google8protobuf2io17CodedOutputStreamE@Base 3.13.6
  _ZNK19PipelineStatsConfig39InternalSerializeWithCachedSizesToArrayEbPh@Base 3.13.6
+ _ZNK19SfpPermitConfig_SFP11GetMetadataEv@Base 3.13.34
+ _ZNK19SfpPermitConfig_SFP12ByteSizeLongEv@Base 3.13.34
+ _ZNK19SfpPermitConfig_SFP13IsInitializedEv@Base 3.13.34
+ _ZNK19SfpPermitConfig_SFP13SetCachedSizeEi@Base 3.13.34
+ _ZNK19SfpPermitConfig_SFP24SerializeWithCachedSizesEPN6google8protobuf2io17CodedOutputStreamE@Base 3.13.34
+ _ZNK19SfpPermitConfig_SFP39InternalSerializeWithCachedSizesToArrayEbPh@Base 3.13.34
+ _ZNK20TWAMPSessionCounters11GetMetadataEv@Base 3.13.34
+ _ZNK20TWAMPSessionCounters12ByteSizeLongEv@Base 3.13.34
+ _ZNK20TWAMPSessionCounters13IsInitializedEv@Base 3.13.34
+ _ZNK20TWAMPSessionCounters13SetCachedSizeEi@Base 3.13.34
+ _ZNK20TWAMPSessionCounters24SerializeWithCachedSizesEPN6google8protobuf2io17CodedOutputStreamE@Base 3.13.34
+ _ZNK20TWAMPSessionCounters39InternalSerializeWithCachedSizesToArrayEbPh@Base 3.13.34
  _ZNK21FeatureAffinityConfig11GetMetadataEv@Base 3.13.6
  _ZNK21FeatureAffinityConfig12ByteSizeLongEv@Base 3.13.6
  _ZNK21FeatureAffinityConfig13IsInitializedEv@Base 3.13.6
@@ -2118,6 +2911,24 @@ libvyatta-dataplane-proto.so.1 libvyatta-dataplane-proto1 #MINVER#
  _ZNK25RuleMatch_ICMPTypeAndCode13SetCachedSizeEi@Base 3.13.6
  _ZNK25RuleMatch_ICMPTypeAndCode24SerializeWithCachedSizesEPN6google8protobuf2io17CodedOutputStreamE@Base 3.13.6
  _ZNK25RuleMatch_ICMPTypeAndCode39InternalSerializeWithCachedSizesToArrayEbPh@Base 3.13.6
+ _ZNK26SfpPermitConfig_ListConfig11GetMetadataEv@Base 3.13.34
+ _ZNK26SfpPermitConfig_ListConfig12ByteSizeLongEv@Base 3.13.34
+ _ZNK26SfpPermitConfig_ListConfig13IsInitializedEv@Base 3.13.34
+ _ZNK26SfpPermitConfig_ListConfig13SetCachedSizeEi@Base 3.13.34
+ _ZNK26SfpPermitConfig_ListConfig24SerializeWithCachedSizesEPN6google8protobuf2io17CodedOutputStreamE@Base 3.13.34
+ _ZNK26SfpPermitConfig_ListConfig39InternalSerializeWithCachedSizesToArrayEbPh@Base 3.13.34
+ _ZNK27TWAMPSessionCounterResponse11GetMetadataEv@Base 3.13.34
+ _ZNK27TWAMPSessionCounterResponse12ByteSizeLongEv@Base 3.13.34
+ _ZNK27TWAMPSessionCounterResponse13IsInitializedEv@Base 3.13.34
+ _ZNK27TWAMPSessionCounterResponse13SetCachedSizeEi@Base 3.13.34
+ _ZNK27TWAMPSessionCounterResponse24SerializeWithCachedSizesEPN6google8protobuf2io17CodedOutputStreamE@Base 3.13.34
+ _ZNK27TWAMPSessionCounterResponse39InternalSerializeWithCachedSizesToArrayEbPh@Base 3.13.34
+ _ZNK30SfpPermitConfig_MisMatchConfig11GetMetadataEv@Base 3.13.34
+ _ZNK30SfpPermitConfig_MisMatchConfig12ByteSizeLongEv@Base 3.13.34
+ _ZNK30SfpPermitConfig_MisMatchConfig13IsInitializedEv@Base 3.13.34
+ _ZNK30SfpPermitConfig_MisMatchConfig13SetCachedSizeEi@Base 3.13.34
+ _ZNK30SfpPermitConfig_MisMatchConfig24SerializeWithCachedSizesEPN6google8protobuf2io17CodedOutputStreamE@Base 3.13.34
+ _ZNK30SfpPermitConfig_MisMatchConfig39InternalSerializeWithCachedSizesToArrayEbPh@Base 3.13.34
  _ZNK31BreakoutConfig_BreakoutIfConfig11GetMetadataEv@Base 3.13.6
  _ZNK31BreakoutConfig_BreakoutIfConfig12ByteSizeLongEv@Base 3.13.6
  _ZNK31BreakoutConfig_BreakoutIfConfig13IsInitializedEv@Base 3.13.6
@@ -2202,6 +3013,12 @@ libvyatta-dataplane-proto.so.1 libvyatta-dataplane-proto1 #MINVER#
  _ZNK8IPPrefix13SetCachedSizeEi@Base 3.13.6
  _ZNK8IPPrefix24SerializeWithCachedSizesEPN6google8protobuf2io17CodedOutputStreamE@Base 3.13.6
  _ZNK8IPPrefix39InternalSerializeWithCachedSizesToArrayEbPh@Base 3.13.6
+ _ZNK8TWAMPCmd11GetMetadataEv@Base 3.13.34
+ _ZNK8TWAMPCmd12ByteSizeLongEv@Base 3.13.34
+ _ZNK8TWAMPCmd13IsInitializedEv@Base 3.13.34
+ _ZNK8TWAMPCmd13SetCachedSizeEi@Base 3.13.34
+ _ZNK8TWAMPCmd24SerializeWithCachedSizesEPN6google8protobuf2io17CodedOutputStreamE@Base 3.13.34
+ _ZNK8TWAMPCmd39InternalSerializeWithCachedSizesToArrayEbPh@Base 3.13.34
  _ZNK9GPCConfig11GetMetadataEv@Base 3.13.6
  _ZNK9GPCConfig12ByteSizeLongEv@Base 3.13.6
  _ZNK9GPCConfig13IsInitializedEv@Base 3.13.6
@@ -2247,26 +3064,46 @@ libvyatta-dataplane-proto.so.1 libvyatta-dataplane-proto1 #MINVER#
  _ZTI11RuleCounter@Base 3.13.6
  _ZTI11SpeedConfig@Base 3.13.6
  _ZTI11SynceConfig@Base 3.13.6
+ _ZTI12DPSessionMsg@Base 3.13.34
  _ZTI12NbrResConfig@Base 3.13.6
  _ZTI12TCPMSSConfig@Base 3.13.6
+ _ZTI12TCPWindowMsg@Base 3.13.34
  _ZTI12VFPSetConfig@Base 3.13.6
  _ZTI13ConstraintLog@Base 3.13.6
+ _ZTI13NPFSessionMsg@Base 3.13.34
  _ZTI13PolicerParams@Base 3.13.6
  _ZTI13SubscriberLog@Base 3.13.6
  _ZTI14BreakoutConfig@Base 3.13.6
  _ZTI14MacLimitConfig@Base 3.13.6
  _ZTI14XConnectConfig@Base 3.13.6
+ _ZTI15DPSessionKeyMsg@Base 3.13.34
+ _ZTI15SfpPermitConfig@Base 3.13.34
+ _ZTI15TWAMPInitialise@Base 3.13.34
+ _ZTI15TWAMPSessionKey@Base 3.13.34
  _ZTI16IPAddressOrLabel@Base 3.13.6
+ _ZTI16TWAMPCmdResponse@Base 3.13.34
+ _ZTI17DPSessionStateMsg@Base 3.13.34
  _ZTI17DataplaneEnvelope@Base 3.13.6
+ _ZTI17ICMPRateLimConfig@Base 3.13.34
  _ZTI17PortAllocationLog@Base 3.13.6
  _ZTI18CryptoPolicyConfig@Base 3.13.6
  _ZTI18IP6RedirectsConfig@Base 3.13.6
+ _ZTI18NPFSessionStateMsg@Base 3.13.34
+ _ZTI18PackedDPSessionMsg@Base 3.13.34
+ _ZTI18TWAMPSessionCreate@Base 3.13.34
+ _ZTI18TWAMPSessionDelete@Base 3.13.34
+ _ZTI19DPSessionCounterMsg@Base 3.13.34
  _ZTI19LAGConfig_LagCreate@Base 3.13.6
  _ZTI19LAGConfig_LagDelete@Base 3.13.6
  _ZTI19PipelineStatsConfig@Base 3.13.6
+ _ZTI19SfpPermitConfig_SFP@Base 3.13.34
+ _ZTI20TWAMPSessionCounters@Base 3.13.34
  _ZTI21FeatureAffinityConfig@Base 3.13.6
  _ZTI25PauseConfig_PauseIfConfig@Base 3.13.6
  _ZTI25RuleMatch_ICMPTypeAndCode@Base 3.13.6
+ _ZTI26SfpPermitConfig_ListConfig@Base 3.13.34
+ _ZTI27TWAMPSessionCounterResponse@Base 3.13.34
+ _ZTI30SfpPermitConfig_MisMatchConfig@Base 3.13.34
  _ZTI31BreakoutConfig_BreakoutIfConfig@Base 3.13.6
  _ZTI31LAGConfig_LagCreate_LacpOptions@Base 3.13.6
  _ZTI35MacLimitConfig_MacLimitIfVLANConfig@Base 3.13.6
@@ -2278,6 +3115,7 @@ libvyatta-dataplane-proto.so.1 libvyatta-dataplane-proto1 #MINVER#
  _ZTI8CgnatLog@Base 3.13.6
  _ZTI8GPCTable@Base 3.13.6
  _ZTI8IPPrefix@Base 3.13.6
+ _ZTI8TWAMPCmd@Base 3.13.34
  _ZTI9GPCConfig@Base 3.13.6
  _ZTI9IPAddress@Base 3.13.6
  _ZTI9LAGConfig@Base 3.13.6
@@ -2298,26 +3136,46 @@ libvyatta-dataplane-proto.so.1 libvyatta-dataplane-proto1 #MINVER#
  _ZTS11RuleCounter@Base 3.13.6
  _ZTS11SpeedConfig@Base 3.13.6
  _ZTS11SynceConfig@Base 3.13.6
+ _ZTS12DPSessionMsg@Base 3.13.34
  _ZTS12NbrResConfig@Base 3.13.6
  _ZTS12TCPMSSConfig@Base 3.13.6
+ _ZTS12TCPWindowMsg@Base 3.13.34
  _ZTS12VFPSetConfig@Base 3.13.6
  _ZTS13ConstraintLog@Base 3.13.6
+ _ZTS13NPFSessionMsg@Base 3.13.34
  _ZTS13PolicerParams@Base 3.13.6
  _ZTS13SubscriberLog@Base 3.13.6
  _ZTS14BreakoutConfig@Base 3.13.6
  _ZTS14MacLimitConfig@Base 3.13.6
  _ZTS14XConnectConfig@Base 3.13.6
+ _ZTS15DPSessionKeyMsg@Base 3.13.34
+ _ZTS15SfpPermitConfig@Base 3.13.34
+ _ZTS15TWAMPInitialise@Base 3.13.34
+ _ZTS15TWAMPSessionKey@Base 3.13.34
  _ZTS16IPAddressOrLabel@Base 3.13.6
+ _ZTS16TWAMPCmdResponse@Base 3.13.34
+ _ZTS17DPSessionStateMsg@Base 3.13.34
  _ZTS17DataplaneEnvelope@Base 3.13.6
+ _ZTS17ICMPRateLimConfig@Base 3.13.34
  _ZTS17PortAllocationLog@Base 3.13.6
  _ZTS18CryptoPolicyConfig@Base 3.13.6
  _ZTS18IP6RedirectsConfig@Base 3.13.6
+ _ZTS18NPFSessionStateMsg@Base 3.13.34
+ _ZTS18PackedDPSessionMsg@Base 3.13.34
+ _ZTS18TWAMPSessionCreate@Base 3.13.34
+ _ZTS18TWAMPSessionDelete@Base 3.13.34
+ _ZTS19DPSessionCounterMsg@Base 3.13.34
  _ZTS19LAGConfig_LagCreate@Base 3.13.6
  _ZTS19LAGConfig_LagDelete@Base 3.13.6
  _ZTS19PipelineStatsConfig@Base 3.13.6
+ _ZTS19SfpPermitConfig_SFP@Base 3.13.34
+ _ZTS20TWAMPSessionCounters@Base 3.13.34
  _ZTS21FeatureAffinityConfig@Base 3.13.6
  _ZTS25PauseConfig_PauseIfConfig@Base 3.13.6
  _ZTS25RuleMatch_ICMPTypeAndCode@Base 3.13.6
+ _ZTS26SfpPermitConfig_ListConfig@Base 3.13.34
+ _ZTS27TWAMPSessionCounterResponse@Base 3.13.34
+ _ZTS30SfpPermitConfig_MisMatchConfig@Base 3.13.34
  _ZTS31BreakoutConfig_BreakoutIfConfig@Base 3.13.6
  _ZTS31LAGConfig_LagCreate_LacpOptions@Base 3.13.6
  _ZTS35MacLimitConfig_MacLimitIfVLANConfig@Base 3.13.6
@@ -2329,6 +3187,7 @@ libvyatta-dataplane-proto.so.1 libvyatta-dataplane-proto1 #MINVER#
  _ZTS8CgnatLog@Base 3.13.6
  _ZTS8GPCTable@Base 3.13.6
  _ZTS8IPPrefix@Base 3.13.6
+ _ZTS8TWAMPCmd@Base 3.13.34
  _ZTS9GPCConfig@Base 3.13.6
  _ZTS9IPAddress@Base 3.13.6
  _ZTS9LAGConfig@Base 3.13.6
@@ -2349,26 +3208,46 @@ libvyatta-dataplane-proto.so.1 libvyatta-dataplane-proto1 #MINVER#
  _ZTV11RuleCounter@Base 3.13.6
  _ZTV11SpeedConfig@Base 3.13.6
  _ZTV11SynceConfig@Base 3.13.6
+ _ZTV12DPSessionMsg@Base 3.13.34
  _ZTV12NbrResConfig@Base 3.13.6
  _ZTV12TCPMSSConfig@Base 3.13.6
+ _ZTV12TCPWindowMsg@Base 3.13.34
  _ZTV12VFPSetConfig@Base 3.13.6
  _ZTV13ConstraintLog@Base 3.13.6
+ _ZTV13NPFSessionMsg@Base 3.13.34
  _ZTV13PolicerParams@Base 3.13.6
  _ZTV13SubscriberLog@Base 3.13.6
  _ZTV14BreakoutConfig@Base 3.13.6
  _ZTV14MacLimitConfig@Base 3.13.6
  _ZTV14XConnectConfig@Base 3.13.6
+ _ZTV15DPSessionKeyMsg@Base 3.13.34
+ _ZTV15SfpPermitConfig@Base 3.13.34
+ _ZTV15TWAMPInitialise@Base 3.13.34
+ _ZTV15TWAMPSessionKey@Base 3.13.34
  _ZTV16IPAddressOrLabel@Base 3.13.6
+ _ZTV16TWAMPCmdResponse@Base 3.13.34
+ _ZTV17DPSessionStateMsg@Base 3.13.34
  _ZTV17DataplaneEnvelope@Base 3.13.6
+ _ZTV17ICMPRateLimConfig@Base 3.13.34
  _ZTV17PortAllocationLog@Base 3.13.6
  _ZTV18CryptoPolicyConfig@Base 3.13.6
  _ZTV18IP6RedirectsConfig@Base 3.13.6
+ _ZTV18NPFSessionStateMsg@Base 3.13.34
+ _ZTV18PackedDPSessionMsg@Base 3.13.34
+ _ZTV18TWAMPSessionCreate@Base 3.13.34
+ _ZTV18TWAMPSessionDelete@Base 3.13.34
+ _ZTV19DPSessionCounterMsg@Base 3.13.34
  _ZTV19LAGConfig_LagCreate@Base 3.13.6
  _ZTV19LAGConfig_LagDelete@Base 3.13.6
  _ZTV19PipelineStatsConfig@Base 3.13.6
+ _ZTV19SfpPermitConfig_SFP@Base 3.13.34
+ _ZTV20TWAMPSessionCounters@Base 3.13.34
  _ZTV21FeatureAffinityConfig@Base 3.13.6
  _ZTV25PauseConfig_PauseIfConfig@Base 3.13.6
  _ZTV25RuleMatch_ICMPTypeAndCode@Base 3.13.6
+ _ZTV26SfpPermitConfig_ListConfig@Base 3.13.34
+ _ZTV27TWAMPSessionCounterResponse@Base 3.13.34
+ _ZTV30SfpPermitConfig_MisMatchConfig@Base 3.13.34
  _ZTV31BreakoutConfig_BreakoutIfConfig@Base 3.13.6
  _ZTV31LAGConfig_LagCreate_LacpOptions@Base 3.13.6
  _ZTV35MacLimitConfig_MacLimitIfVLANConfig@Base 3.13.6
@@ -2380,6 +3259,7 @@ libvyatta-dataplane-proto.so.1 libvyatta-dataplane-proto1 #MINVER#
  _ZTV8CgnatLog@Base 3.13.6
  _ZTV8GPCTable@Base 3.13.6
  _ZTV8IPPrefix@Base 3.13.6
+ _ZTV8TWAMPCmd@Base 3.13.34
  _ZTV9GPCConfig@Base 3.13.6
  _ZTV9IPAddress@Base 3.13.6
  _ZTV9LAGConfig@Base 3.13.6
