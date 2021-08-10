@@ -42,6 +42,9 @@
 #include "dp_test/dp_test_crypto_utils.h"
 #include "dp_test_xfrm_server.h"
 
+#define BRIDGE_RTABLE_PRUNE_PERIOD 2 /* secs between each expire tick */
+#define BRIDGE_RTABLE_EXPIRE    (300 / BRIDGE_RTABLE_PRUNE_PERIOD)
+
 struct rtvia_v6 {
 	__kernel_sa_family_t rtvia_family;
 	__u8 rtvia_addr[sizeof(struct in6_addr)];
@@ -2259,6 +2262,9 @@ dp_test_netlink_bridge(const char *br_name, uint16_t nlmsg_type, bool verify,
 	struct nlattr *br_link = mnl_attr_nest_start(nlh, IFLA_LINKINFO);
 	br_link->nla_type &= ~NLA_F_NESTED;
 	mnl_attr_put_strz(nlh, IFLA_INFO_KIND, "bridge");
+	struct nlattr *kdata = mnl_attr_nest_start(nlh, IFLA_INFO_DATA);
+	mnl_attr_put_u32(nlh, IFLA_BR_AGEING_TIME, BRIDGE_RTABLE_EXPIRE);
+	mnl_attr_nest_end(nlh, kdata);
 	mnl_attr_nest_end(nlh, br_link);
 
 

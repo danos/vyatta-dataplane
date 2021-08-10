@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2019-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2019-2021, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2011-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -149,7 +149,8 @@ fal_object_t bridge_fal_stp_object(const struct ifnet *ifp);
 
 struct ifnet *bridge_create(int ifindex, const char *ifname,
 			    unsigned int mtu,
-			    const struct rte_ether_addr *eth_addr);
+			    const struct rte_ether_addr *eth_addr,
+			    struct nl_bridge_info *br_info);
 void bridge_update(const char *ifname,
 		   struct nl_bridge_info *br_info);
 void bridge_nl_modify(struct ifnet *ifp, struct nlattr *kdata);

@@ -631,7 +631,8 @@ static void bridge_upd_hw_forwarding(const struct ifnet *ifp)
 /* Create bridge in response to netlink */
 struct ifnet *bridge_create(int ifindex, const char *ifname,
 			    unsigned int mtu,
-			    const struct rte_ether_addr *addr)
+			    const struct rte_ether_addr *addr,
+			    struct nl_bridge_info *br_info)
 {
 	struct ifnet *ifp;
 
@@ -662,6 +663,12 @@ struct ifnet *bridge_create(int ifindex, const char *ifname,
 		if_free(ifp);
 		return NULL;
 	}
+
+	/* set bridge attributes */
+	((struct bridge_softc *)ifp->if_softc)->scbr_ageing_ticks = br_info->br_ageing_time;
+	((struct bridge_softc *)ifp->if_softc)->scbr_vlan_filter = br_info->br_vlan_filter;
+	((struct bridge_softc *)ifp->if_softc)->scbr_vlan_default_pvid =
+		br_info->br_vlan_default_pvid;
 
 	return ifp;
 }
@@ -697,7 +704,7 @@ void bridge_update(const char *ifname, struct nl_bridge_info *br_info)
 	 */
 	cur_ageing_time = sc->scbr_ageing_ticks * BRIDGE_RTABLE_PRUNE_PERIOD;
 
-	if (cur_ageing_time != br_info->br_ageing_time &&
+	if ((cur_ageing_time != br_info->br_ageing_time || cur_ageing_time == 0) &&
 	    (br_info->br_ageing_time == 0 ||
 	     (br_info->br_ageing_time >= BRIDGE_AGEING_TIME_MIN &&
 	      br_info->br_ageing_time <= BRIDGE_AGEING_TIME_MAX))) {
