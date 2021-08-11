@@ -1,3 +1,9 @@
+vyatta-dataplane (3.11.72.25) unstable; urgency=medium
+
+  * Jumbo MTU capability omitted
+
+ -- Thomas Kiely <thomas.kiely@att.com>  Wed, 11 Aug 2021 14:56:13 +0100
+
 vyatta-dataplane (3.11.72.24) unstable; urgency=medium
 
   [ Nicholas Brown ]
