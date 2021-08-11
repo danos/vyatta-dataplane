@@ -285,4 +285,44 @@ dp_test_pktmbuf_vlan_init(struct rte_mbuf *m,
 void
 dp_test_pktmbuf_vlan_clear(struct rte_mbuf *m);
 
+/**
+ * Create and initialise an IPv4 GRE packet
+ *
+ * @param saddr [in]  Source address string, e.g. "10.0.1.0"
+ * @param daddr [in]  Dest address string
+ * @param n     [in]  Number of mbufs
+ * @param len   [in]  Array of 'n' per-mbuf payload lengths
+ * @param gre_prot [in]  GRE payload protocol in host byte order
+ * @param gre_key  [in]  GRE key in host byte order
+ * @param gre_seq  [in]  GRE sequence number in host byte order
+ * @param payload [out]  Pointer to start of payload of GRE packet
+ *
+ * @return pak        Pointer to mbuf if successful, else NULL
+ */
+struct rte_mbuf *
+dp_test_create_gre_ipv4_pak(const char *saddr, const char *daddr,
+			    int n, const int *len, uint16_t gre_prot,
+			    uint32_t gre_key, uint32_t gre_seq,
+			    void **payload);
+
+/**
+ * Create and initialise an IPv6 GRE packet
+ *
+ * @param saddr [in]  Source address string, e.g. "10:0:1:0"
+ * @param daddr [in]  Dest address string
+ * @param n     [in]  Number of mbufs
+ * @param len   [in]  Array of 'n' per-mbuf payload lengths
+ * @param gre_prot [in]  GRE payload protocol in host byte order
+ * @param gre_key  [in]  GRE key in host byte order
+ * @param gre_seq  [in]  GRE sequence number in host byte order
+ * @param payload [out]  Pointer to start of payload of GRE packet
+ *
+ * @return pak        Pointer to mbuf if successful, else NULL
+ */
+struct rte_mbuf *
+dp_test_create_gre_ipv6_pak(const char *saddr, const char *daddr,
+			    int n, const int *len, uint16_t gre_prot,
+			    uint32_t gre_key, uint32_t gre_seq,
+			    void **payload);
+
 #endif /* DP_TEST_PKTMBUF_LIB_H */
