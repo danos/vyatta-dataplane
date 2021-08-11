@@ -1,3 +1,10 @@
+vyatta-dataplane (3.12.55.6) unstable; urgency=medium
+
+  [ Thomas Kiely ]
+  * Jumbo MTU capability omitted
+
+ -- Srinivas Narayan <narayan@vyatta.att-mail.com>  Wed, 11 Aug 2021 16:45:39 +0100
+
 vyatta-dataplane (3.12.55.5) unstable; urgency=medium
 
   [ Nicholas Brown ]
