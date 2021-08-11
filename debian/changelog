@@ -1,3 +1,13 @@
+vyatta-dataplane (3.13.37) unstable; urgency=medium
+
+  [ Thomas Kiely ]
+  * Jumbo MTU capability omitted
+
+  [ ck407g ]
+  * Remove SFP state when nodes are deleted
+
+ -- Srinivas Narayan <narayan@vyatta.att-mail.com>  Wed, 11 Aug 2021 16:44:50 +0100
+
 vyatta-dataplane (3.13.36) unstable; urgency=medium
 
   [ Gavin Shearer ]
