@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2020-2021, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  *
@@ -35,7 +35,7 @@
 #include "dp_test_npf_nat_lib.h"
 #include "dp_test_npf_sess_lib.h"
 #include "dp_test_ppp.h"
-#include "dp_test_gre.h"
+#include "dp_test/dp_test_gre.h"
 
 DP_DECL_TEST_SUITE(npf_acl);
 

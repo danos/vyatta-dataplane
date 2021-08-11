@@ -35,6 +35,7 @@ install_headers(
         'dp_test/dp_test_cmd_check.h',
         'dp_test/dp_test_crypto_lib.h',
         'dp_test/dp_test_crypto_utils.h',
+        'dp_test/dp_test_gre.h',
         'dp_test/dp_test_lib.h',
         'dp_test/dp_test_lib_intf.h',
         'dp_test/dp_test_macros.h',
