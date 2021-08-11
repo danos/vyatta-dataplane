@@ -124,6 +124,7 @@ struct sfp_intf_record {
 
 struct sfp_permit_config {
 	uint32_t effective_enforcement_time;
+	uint32_t boot_enforcement_time;
 };
 
 static void sfp_validate_sfp_against_pl(struct sfp_intf_record *sfp);
@@ -205,6 +206,12 @@ static int sfp_parse_sfp_permit_config(void *user, const char *section,
 			return 1;
 		}
 
+	if (streq(section, "Boot_Enforcement_Time"))
+		if (streq(name, "time")) {
+			permit_config->boot_enforcement_time = atoi(value);
+			return 1;
+		}
+
 	RTE_LOG(ERR, DATAPLANE,
 		"Failed to parse SFP permit config\n");
 
@@ -219,6 +226,9 @@ static void sfp_write_sfp_permit_config(struct sfp_permit_config *config)
 	if (f) {
 		fprintf(f, "[Effective_Enforcement_Time]\n");
 		fprintf(f, "time = %u\n", config->effective_enforcement_time);
+
+		fprintf(f, "[Boot_Enforcement_Time]\n");
+		fprintf(f, "time = %u\n", config->boot_enforcement_time);
 		fclose(f);
 	} else {
 		RTE_LOG(ERR, DATAPLANE,
@@ -271,17 +281,20 @@ static void init_effective_enforcement_time(void)
 	effective_enforcement_time_initialised = true;
 
 	ret = sfp_read_sfp_permit_config(&config);
-	if (ret == 0)
+	if (ret == 0) {
 		/* set the effective_enforcement_time to the value read from the file
 		 * (eg: dataplane restart event).
 		 */
 		sfp_permit_cfg.effective_enforcement_time = config.effective_enforcement_time;
-	else if (ret == 1)
+		sfp_permit_cfg.boot_enforcement_time = config.boot_enforcement_time;
+	} else if (ret == 1) {
 		/* set the effective_enforcement_time to enforcement delay if the file
-		 * not found (reboot event).
+		 * is not found (reboot event). Update the enforcement delay set at
+		 * boot time.
 		 */
+		sfp_permit_cfg.boot_enforcement_time = sfp_mismatch_cfg.enforcement_delay;
 		set_effective_enforcement_time(sfp_mismatch_cfg.enforcement_delay);
-	else
+	} else
 		/* set the effective_enforcement_time to current time in case of a
 		 * file parsing issue to avoid SFPs brought down without an OIR event.
 		 */
@@ -1172,8 +1185,14 @@ static void sfp_permit_dump_devices(json_writer_t *wr)
 
 	jsonw_start_object(wr);
 
-	jsonw_bool_field(wr, "enforcement-mode",
+	if (sfp_mismatch_cfg.enforcement_enabled &&
+			system_uptime() > sfp_mismatch_cfg.enforcement_delay)
+		jsonw_bool_field(wr, "enforcement-mode",
 			 sfp_mismatch_cfg.enforcement_enabled);
+	else
+		jsonw_bool_field(wr, "enforcement-mode",
+			 false);
+
 	jsonw_uint_field(wr, "up-time", system_uptime());
 
 	jsonw_name(wr, "devices");
@@ -1334,6 +1353,7 @@ int cmd_sfp_permit_op(FILE *f, int argc __unused, char **argv)
 		if (!strcmp(argv[2], "devices")) {
 			sfp_permit_dump_devices(wr);
 		}
+
 		goto done;
 	}
 

@@ -396,7 +396,7 @@ DP_START_TEST(list, test1)
 	/* Add an SFP of part_id 'CATHERINE' that is not in the list */
 	generate_sfpd_file("sfpd_status", PORT1, INTF1, "CATHERINE");
 	SFPD_NOTIFY;
-	show_sfp_permit_list_device(INTF1, true, "CATHERINE", 10, false, false, true);
+	show_sfp_permit_list_device(INTF1, false, "CATHERINE", 10, false, false, true);
 
 	/* Add a second list of allowed SFPs */
 	sfp_list_add("List_2", &SFP_list[5], 5);
@@ -419,12 +419,12 @@ DP_START_TEST(list, test1)
 
 	generate_sfpd_file("sfpd_status", PORT2, INTF2, "BILL");
 	SFPD_NOTIFY;
-	show_sfp_permit_list_device(INTF2, true,  "BILL", 20, false, false, true);
+	show_sfp_permit_list_device(INTF2, false,  "BILL", 20, false, false, true);
 
 	/* Add 'BILL' to the allowed list */
 	sfp_list_add("List_2", &SFP_list[5], 6);
 
-	show_sfp_permit_list_device(INTF2, true, "BILL", 20, true, false, true);
+	show_sfp_permit_list_device(INTF2, false, "BILL", 20, true, false, true);
 
 	/* Walk past the enforcement delay and add a disallowed SFP
 	 * 'HUGH'
