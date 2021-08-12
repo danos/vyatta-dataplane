@@ -71,7 +71,7 @@ ipv6_drop_process_common(struct pl_packet *pkt, void *context __unused,
 	if (pkt->in_ifp)
 		IP6STAT_INC_IFP(pkt->in_ifp, IPSTATS_MIB_INDISCARDS);
 
-	rte_pktmbuf_free(pkt->mbuf);
+	dp_pktmbuf_notify_and_free(pkt->mbuf);
 	pkt->mbuf = NULL;
 
 	return IPV6_DROP_ACCEPT;

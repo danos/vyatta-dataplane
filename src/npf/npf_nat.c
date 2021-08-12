@@ -1068,7 +1068,7 @@ npf_nat_clone_and_undo(struct rte_mbuf *mbuf, const struct ifnet *in_ifp,
 	if (npf_cache_all(&npc, unnat, htons(RTE_ETHER_TYPE_IPV4)) < 0 ||
 	    !npf_iscached(&npc, NPC_IP4) ||
 	    (npc.npc_info & NPC_ICMP_ERR)) {
-		rte_pktmbuf_free(unnat);
+		dp_pktmbuf_notify_and_free(unnat);
 		return NULL;
 	}
 
@@ -1078,7 +1078,7 @@ npf_nat_clone_and_undo(struct rte_mbuf *mbuf, const struct ifnet *in_ifp,
 	int error =
 		npf_nat_untranslate_at(&npc, unnat, nt, forw, dir, n_ptr);
 	if (error) {
-		rte_pktmbuf_free(unnat);
+		dp_pktmbuf_notify_and_free(unnat);
 		return NULL;
 	}
 
@@ -1140,7 +1140,7 @@ npf_nat_copy_and_undo(struct rte_mbuf *mbuf, const struct ifnet *in_ifp,
 	if (npf_cache_all(&npc, unnat, htons(RTE_ETHER_TYPE_IPV4)) < 0 ||
 	    !npf_iscached(&npc, NPC_IP4) ||
 	    (npc.npc_info & NPC_ICMP_ERR)) {
-		rte_pktmbuf_free(unnat);
+		dp_pktmbuf_notify_and_free(unnat);
 		return NULL;
 	}
 
@@ -1150,7 +1150,7 @@ npf_nat_copy_and_undo(struct rte_mbuf *mbuf, const struct ifnet *in_ifp,
 	int error =
 		npf_nat_untranslate_at(&npc, unnat, nt, forw, dir, n_ptr);
 	if (error) {
-		rte_pktmbuf_free(unnat);
+		dp_pktmbuf_notify_and_free(unnat);
 		return NULL;
 	}
 

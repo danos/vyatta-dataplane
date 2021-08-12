@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2019-2021, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  *
@@ -18,7 +18,7 @@ void unsup_tunnel_output(struct ifnet *ifp, struct rte_mbuf *m,
 			 struct ifnet *input_ifp, uint16_t proto)
 {
 	if (!input_ifp) {
-		rte_pktmbuf_free(m);
+		dp_pktmbuf_notify_and_free(m);
 		if_incr_dropped(ifp);
 		return;
 	}

@@ -1066,7 +1066,7 @@ static void mcast_tunnel_send(struct ifnet *in_ifp,  struct vif *out_vifp,
 	 * Decrement ref count on original mbuf as new mbuf
 	 * was transmitted in replication loop.
 	 */
-	rte_pktmbuf_free(m);
+	dp_pktmbuf_notify_and_free(m);
 }
 
 /*
@@ -1211,14 +1211,14 @@ static int ip_mdq(struct mcast_vrf *mvrf, struct rte_mbuf *m, struct ip *ip,
 				/* send the newly created packet chain */
 				vif_send(in_ifp, vifp, mh, plen);
 			} else {
-				rte_pktmbuf_free(md);
+				dp_pktmbuf_notify_and_free(md);
 				return -ENOBUFS;
 			}
 		}
 	}
 	/* We still hold a lock on the newly created initial data segment and
 	 *  its children, so release that now */
-	rte_pktmbuf_free(md);
+	dp_pktmbuf_notify_and_free(md);
 	return 0;
 }
 
@@ -1507,7 +1507,7 @@ reject:
 drop:
 	MRTSTAT_INC(mvrf, mrts_drop);
 free:
-	rte_pktmbuf_free(m);
+	dp_pktmbuf_notify_and_free(m);
 	return err;
 }
 

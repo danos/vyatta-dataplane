@@ -1,6 +1,6 @@
 
 /*-
- * Copyright (c) 2018-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2018-2021, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -733,7 +733,7 @@ static int qos_classify(struct ifnet *ifp, struct sched_info *qinfo,
 	for (i = j = 0; i < n_pkts; i++) {
 		if (qos_npf_classify(ifp, qinfo,
 				     &(enq_pkts[i])) == NPF_DECISION_BLOCK) {
-			rte_pktmbuf_free(enq_pkts[i]);
+			dp_pktmbuf_notify_and_free(enq_pkts[i]);
 			continue;
 		}
 

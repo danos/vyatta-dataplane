@@ -1,7 +1,7 @@
 /*
  * l2_ether_lookup.c
  *
- * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2016, 2017 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -84,7 +84,7 @@ static struct ifnet *vlan_lookup(struct ifnet *ifp,
 	return ifp;
 
 drop: __cold_label;
-	rte_pktmbuf_free(m);
+	dp_pktmbuf_notify_and_free(m);
 	return NULL;
 
 no_vlan: __cold_label;
@@ -178,7 +178,7 @@ ether_lookup_process_common(struct pl_packet *pkt, void *context __unused,
 	}
 
 	if (unlikely(!(ifp->if_flags & IFF_UP))) {
-		rte_pktmbuf_free(m);
+		dp_pktmbuf_notify_and_free(m);
 		goto no_address;
 	}
 

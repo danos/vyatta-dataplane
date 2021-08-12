@@ -388,7 +388,7 @@ struct rte_mbuf *cgn_copy_or_clone_and_undo(struct rte_mbuf *mbuf,
 	error = cgn_cache_all(unnat, dp_pktmbuf_l2_len(unnat), cse_ifp, dir,
 			      &cpk, false);
 	if (error) {
-		rte_pktmbuf_free(unnat);
+		dp_pktmbuf_notify_and_free(unnat);
 		return NULL;
 	}
 

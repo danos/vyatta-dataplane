@@ -502,7 +502,7 @@ twamp_input_ipv4(struct rte_mbuf *m, void *l3hdr,
 	return 0;
 
 error:
-	rte_pktmbuf_free(m);
+	dp_pktmbuf_notify_and_free(m);
 	return 0;
 }
 
@@ -597,6 +597,6 @@ twamp_input_ipv6(struct rte_mbuf *m, void *l3hdr, struct udphdr *udp,
 	return 0;
 
 error:
-	rte_pktmbuf_free(m);
+	dp_pktmbuf_notify_and_free(m);
 	return 0;
 }

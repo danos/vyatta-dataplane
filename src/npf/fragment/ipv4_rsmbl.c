@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2011-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  */
@@ -191,7 +191,7 @@ ipv4_frag_process(struct cds_lfht *frag_tables, struct ipv4_frag_pkt *fp,
 		if (fp->frags[FIRST_FRAG_IDX].mb == NULL) {
 			idx = FIRST_FRAG_IDX;
 		} else {
-			rte_pktmbuf_free(mb);
+			dp_pktmbuf_notify_and_free(mb);
 			mb = NULL;
 			goto done;
 		}
@@ -209,7 +209,7 @@ ipv4_frag_process(struct cds_lfht *frag_tables, struct ipv4_frag_pkt *fp,
 		 */
 		for (i = 0; i < fp->last_idx; i++) {
 			if (fp->frags[i].ofs == ofs) {
-				rte_pktmbuf_free(mb);
+				dp_pktmbuf_notify_and_free(mb);
 				mb = NULL;
 				goto done;
 			}
@@ -220,7 +220,7 @@ ipv4_frag_process(struct cds_lfht *frag_tables, struct ipv4_frag_pkt *fp,
 				 * We already have a fragment that includes
 				 * the start byte of this one.
 				 */
-				rte_pktmbuf_free(mb);
+				dp_pktmbuf_notify_and_free(mb);
 				mb = NULL;
 				goto done;
 			}
@@ -232,7 +232,7 @@ ipv4_frag_process(struct cds_lfht *frag_tables, struct ipv4_frag_pkt *fp,
 				 * We already have a fragment that includes
 				 * the end byte of this one.
 				 */
-				rte_pktmbuf_free(mb);
+				dp_pktmbuf_notify_and_free(mb);
 				mb = NULL;
 				goto done;
 			}
@@ -246,7 +246,7 @@ ipv4_frag_process(struct cds_lfht *frag_tables, struct ipv4_frag_pkt *fp,
 	if (idx >= ARRAY_SIZE(fp->frags)) {
 		ipv4_frag_free(frag_tables, fp);
 		IPSTAT_INC(vrf_id, IPSTATS_MIB_REASMFAILS);
-		rte_pktmbuf_free(mb);	/* drop bad packet as well */
+		dp_pktmbuf_notify_and_free(mb);	/* drop bad packet as well */
 		mb = NULL;
 		goto done;
 	}
@@ -338,7 +338,7 @@ static struct rte_mbuf *ipv4_frag_mbuf(struct rte_mbuf *mb)
 	fp = ipv4_frag_find(vrf, &key);
 	if (fp == NULL) {
 		IPSTAT_INC(pktmbuf_get_vrf(mb), IPSTATS_MIB_REASMFAILS);
-		rte_pktmbuf_free(mb);
+		dp_pktmbuf_notify_and_free(mb);
 		return NULL;
 	}
 

@@ -251,7 +251,7 @@ icmp_send_no_route(struct rte_mbuf *m, struct ifnet *in_ifp,
 	struct next_hop *nh = NULL;
 
 	if (!(out_ifp->if_flags & IFF_UP)) {
-		rte_pktmbuf_free(m);
+		dp_pktmbuf_notify_and_free(m);
 		return false;
 	}
 
@@ -320,7 +320,7 @@ icmp_reflect(const struct ifnet *ifp, struct rte_mbuf *m)
 	icmp_send(m, srced_forus);
 	return;
 drop:
-	rte_pktmbuf_free(m);
+	dp_pktmbuf_notify_and_free(m);
 }
 
 /*
@@ -526,7 +526,7 @@ icmp_do_error(struct rte_mbuf *n, int type, int code, uint32_t info,
 		/* Cannot undo both SNAT/DNAT and CGNAT just now */
 		if (pktmbuf_mdata_exists(n, PKT_MDATA_CGNAT_IN |
 					 PKT_MDATA_CGNAT_OUT)) {
-			rte_pktmbuf_free(m);
+			dp_pktmbuf_notify_and_free(m);
 			return NULL;
 		}
 
@@ -536,7 +536,7 @@ icmp_do_error(struct rte_mbuf *n, int type, int code, uint32_t info,
 			unnat = npf_nat_clone_and_undo(n, inif, outif);
 
 		if (!unnat) {
-			rte_pktmbuf_free(m);
+			dp_pktmbuf_notify_and_free(m);
 			return NULL;
 		}
 
@@ -550,7 +550,7 @@ icmp_do_error(struct rte_mbuf *n, int type, int code, uint32_t info,
 		/* Copy or clone pkt, and undo translation */
 		unnat = cgn_copy_or_clone_and_undo(n, inif, outif, copy);
 		if (!unnat) {
-			rte_pktmbuf_free(m);
+			dp_pktmbuf_notify_and_free(m);
 			return NULL;
 		}
 
@@ -601,7 +601,7 @@ icmp_do_error(struct rte_mbuf *n, int type, int code, uint32_t info,
 	memcpy(icp + 1, oip, icmplen);
 
 	if (unnat)
-		rte_pktmbuf_free(unnat);
+		dp_pktmbuf_notify_and_free(unnat);
 
 	pktmbuf_mdata_set(m, PKT_MDATA_FROM_US);
 	return m;
@@ -680,7 +680,7 @@ icmp_do_echo_reply(struct ifnet *ifp, struct rte_mbuf *n, bool reflect)
 	 * assumes these are contiguous.
 	 */
 	if (rte_pktmbuf_data_len(m) != rte_pktmbuf_pkt_len(m)) {
-		rte_pktmbuf_free(m);
+		dp_pktmbuf_notify_and_free(m);
 		return NULL;
 	}
 

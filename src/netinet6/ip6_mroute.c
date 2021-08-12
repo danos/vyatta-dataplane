@@ -1019,7 +1019,7 @@ static void mcast6_tunnel_send(struct ifnet *in_ifp, struct mif6 *out_mifp,
 	 * Decrement ref count on original mbuf as new mbuf
 	 * was transmitted in replication loop.
 	 */
-	rte_pktmbuf_free(m);
+	dp_pktmbuf_notify_and_free(m);
 }
 
 /*
@@ -1183,12 +1183,12 @@ static int ip6_mdq(struct mcast6_vrf *mvrf6, struct rte_mbuf *m,
 				/* send the newly created packet chain */
 				mif6_send(in_ifp, mifp, mh, plen);
 			} else {
-				rte_pktmbuf_free(md);
+				dp_pktmbuf_notify_and_free(md);
 				return -ENOBUFS;
 			}
 		}
 	}
-	rte_pktmbuf_free(md);
+	dp_pktmbuf_notify_and_free(md);
 	return 0;
 }
 
@@ -1485,7 +1485,7 @@ reject:
 drop:
 	MRT6STAT_INC(mvrf6, mrt6s_drop);
 free:
-	rte_pktmbuf_free(m);
+	dp_pktmbuf_notify_and_free(m);
 	return err;
 }
 

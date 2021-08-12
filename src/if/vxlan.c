@@ -771,7 +771,7 @@ static int vxlan_resolve_send_pak(struct rte_mbuf *m, struct ip_addr *nhip,
 		}
 		IP6STAT_INC_IFP(dif, IPSTATS_MIB_OUTPKTS);
 	} else {
-		rte_pktmbuf_free(m);
+		dp_pktmbuf_notify_and_free(m);
 		goto err;
 	}
 
@@ -836,7 +836,7 @@ vxlan_send_packet(struct ifnet *ifp, uint32_t vni, struct ip_addr *dip,
 	return vxlan_resolve_send_pak(m, &nhip, dip, ifp, dif);
 
  drop:
-	rte_pktmbuf_free(m);
+	dp_pktmbuf_notify_and_free(m);
 	IPSTAT_INC_IFP(ifp, IPSTATS_MIB_OUTDISCARDS);
 	if_incr_dropped(ifp);
 	return -EFAULT;
@@ -1168,7 +1168,7 @@ vxlan_recv_encap(struct rte_mbuf *m, uint16_t ether_type,
 
 drop:
 	VXLAN_STAT_INC(cntr);
-	rte_pktmbuf_free(m);
+	dp_pktmbuf_notify_and_free(m);
 }
 
 static int vxlan_recv_encap_ipv4(struct rte_mbuf *m,
@@ -1181,7 +1181,7 @@ static int vxlan_recv_encap_ipv4(struct rte_mbuf *m,
 	if (ip->ihl << 2 != sizeof(struct iphdr)) {
 		/* no IP options allowed in outer header */
 		VXLAN_STAT_INC(VXLAN_STATS_INDISCARDS_OPTIONS);
-		rte_pktmbuf_free(m);
+		dp_pktmbuf_notify_and_free(m);
 		return 0;
 	}
 
@@ -1270,7 +1270,7 @@ vxlan_output(struct ifnet *ifp, struct rte_mbuf *m, uint16_t proto)
 
 drop:
 	VXLAN_STAT_INC(VXLAN_STATS_OUTDISCARDS);
-	rte_pktmbuf_free(m);
+	dp_pktmbuf_notify_and_free(m);
 }
 
 /* Should route entry be expired?

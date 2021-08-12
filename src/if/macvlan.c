@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2019-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2019-2021, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2011-2017 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -393,7 +393,7 @@ macvlan_input(struct ifnet *ifp, struct rte_mbuf *m)
 	ifp = mvlt ? macvlan_lookup(mvlt, &eth->d_addr, true) : NULL;
 
 	if (!ifp)
-		rte_pktmbuf_free(m);
+		dp_pktmbuf_notify_and_free(m);
 
 	return ifp;
 }

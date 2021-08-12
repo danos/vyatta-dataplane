@@ -1,7 +1,7 @@
 /*
  * L2TPETH Forwarding
  *
- * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2014-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -253,5 +253,5 @@ l2tp_output(struct ifnet *ifp, struct rte_mbuf *m)
 	return;
 drop:
 	if_incr_oerror(ifp);
-	rte_pktmbuf_free(m);
+	dp_pktmbuf_notify_and_free(m);
 }

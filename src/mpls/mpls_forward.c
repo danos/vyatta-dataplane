@@ -1,7 +1,7 @@
 /*
  * MPLS forwarder
  *
- * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2015-2017 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -513,7 +513,7 @@ mpls_error(struct ifnet *ifp, struct rte_mbuf *m,
 		if (icmp_do_exthdr(n, ICMP_EXT_MPLS_LS,
 				   ICMP_EXT_MPLS_LS_INCOMING, lstack,
 				   lssize * sizeof(struct mplshdr))) {
-			rte_pktmbuf_free(n);
+			dp_pktmbuf_notify_and_free(n);
 			return NULL;
 		}
 
@@ -533,7 +533,7 @@ mpls_error(struct ifnet *ifp, struct rte_mbuf *m,
 			 * Should never get here. it means packet was received
 			 * on an interface without any IP address
 			 */
-			rte_pktmbuf_free(n);
+			dp_pktmbuf_notify_and_free(n);
 			return NULL;
 		}
 
@@ -566,7 +566,7 @@ mpls_error(struct ifnet *ifp, struct rte_mbuf *m,
 		if (icmp6_do_exthdr(n, ICMP_EXT_MPLS_LS,
 				    ICMP_EXT_MPLS_LS_INCOMING, lstack,
 				    lssize * sizeof(struct mplshdr))) {
-			rte_pktmbuf_free(n);
+			dp_pktmbuf_notify_and_free(n);
 			return NULL;
 		}
 
@@ -838,7 +838,7 @@ static inline void nh_eth_output_mpls(enum nh_type nh_type,
 	if (unlikely(!mpls_label_cache_write(m,
 					     cache, ttl, RTE_ETHER_HDR_LEN))) {
 		mpls_if_incr_out_errors(dp_nh_get_ifp(nh));
-		rte_pktmbuf_free(m);
+		dp_pktmbuf_notify_and_free(m);
 		return;
 	}
 
@@ -859,7 +859,7 @@ static inline void nh_eth_output_mpls(enum nh_type nh_type,
 		/* must at least have an IPv6 header */
 		if (len < sizeof(struct ip6_hdr)) {
 			mpls_if_incr_out_errors(dp_nh_get_ifp(nh));
-			rte_pktmbuf_free(m);
+			dp_pktmbuf_notify_and_free(m);
 			return;
 		}
 
@@ -906,7 +906,7 @@ static inline void nh_eth_output_mpls(enum nh_type nh_type,
 		/* must at least have an IPv4 header */
 		if (len < sizeof(struct iphdr)) {
 			mpls_if_incr_out_errors(dp_nh_get_ifp(nh));
-			rte_pktmbuf_free(m);
+			dp_pktmbuf_notify_and_free(m);
 			return;
 		}
 
@@ -946,7 +946,7 @@ nh_mpls_frag_out(struct ifnet *out_ifp, struct rte_mbuf *m, void *obj)
 				"Not enough room for pushing %d label\n",
 				fobj->num_labels);
 		mpls_if_incr_out_errors(out_ifp);
-		rte_pktmbuf_free(m);
+		dp_pktmbuf_notify_and_free(m);
 		return;
 	}
 
@@ -992,7 +992,7 @@ nh_mpls_ip_fragment(struct ifnet *out_ifp, enum mpls_payload_type payload_type,
 				DBG_MPLS_PKTERR(out_ifp, m,
 						"Packet needing fragmentation label stack not valid\n");
 				mpls_if_incr_out_errors(out_ifp);
-				rte_pktmbuf_free(m);
+				dp_pktmbuf_notify_and_free(m);
 				return;
 			}
 			if (mpls_ls_get_bos(hdr->ls))
@@ -1022,7 +1022,7 @@ nh_mpls_ip_fragment(struct ifnet *out_ifp, enum mpls_payload_type payload_type,
 			DBG_MPLS_PKTERR(out_ifp, m,
 				 "Packet needing fragmentation not valid\n");
 			mpls_if_incr_out_errors(out_ifp);
-			rte_pktmbuf_free(m);
+			dp_pktmbuf_notify_and_free(m);
 			return;
 		}
 
@@ -1046,7 +1046,7 @@ nh_mpls_ip_fragment(struct ifnet *out_ifp, enum mpls_payload_type payload_type,
 					   ICMP_FRAG_NEEDED,
 					   htons(out_ifp->if_mtu));
 			}
-			rte_pktmbuf_free(m);
+			dp_pktmbuf_notify_and_free(m);
 			return;
 		}
 
@@ -1055,7 +1055,7 @@ nh_mpls_ip_fragment(struct ifnet *out_ifp, enum mpls_payload_type payload_type,
 			DP_DEBUG(MPLS_PKTERR, ERR, MPLS,
 				 "%s assert for rte_pktmbuf_adj\n",
 				 __func__);
-			rte_pktmbuf_free(m);
+			dp_pktmbuf_notify_and_free(m);
 			return;
 		}
 		dp_pktmbuf_l2_len(m) = RTE_ETHER_HDR_LEN;
@@ -1075,7 +1075,7 @@ nh_mpls_ip_fragment(struct ifnet *out_ifp, enum mpls_payload_type payload_type,
 		ip_fragment_mtu(out_ifp, mpls_mtu, m, &fobj, nh_mpls_frag_out);
 	} else {
 		mpls_if_incr_out_errors(out_ifp);
-		rte_pktmbuf_free(m);
+		dp_pktmbuf_notify_and_free(m);
 	}
 }
 
@@ -1181,7 +1181,7 @@ mpls_forward_to_ipv4(struct ifnet *ifp, bool local,
 			__func__);
 		if (likely(ifp != NULL))
 			mpls_if_incr_in_errors(ifp);
-		rte_pktmbuf_free(m);
+		dp_pktmbuf_notify_and_free(m);
 		return;
 	}
 
@@ -1198,7 +1198,7 @@ mpls_forward_to_ipv4(struct ifnet *ifp, bool local,
 			 len);
 		if (likely(ifp != NULL))
 			mpls_if_incr_in_errors(ifp);
-		rte_pktmbuf_free(m);
+		dp_pktmbuf_notify_and_free(m);
 		return;
 	}
 
@@ -1209,7 +1209,7 @@ mpls_forward_to_ipv4(struct ifnet *ifp, bool local,
 		IPSTAT_INC_IFP(ifp, IPSTATS_MIB_INHDRERRORS);
 		if (ip_valid_packet(m, ip))
 			icmp_error(ifp, m, ICMP_TIME_EXCEEDED, ICMP_EXC_TTL, 0);
-		rte_pktmbuf_free(m);
+		dp_pktmbuf_notify_and_free(m);
 		return;
 	}
 
@@ -1222,7 +1222,7 @@ mpls_forward_to_ipv4(struct ifnet *ifp, bool local,
 		 */
 		ifp = dp_nh_get_ifp(v4nh);
 		if (!ifp) {
-			rte_pktmbuf_free(m);
+			dp_pktmbuf_notify_and_free(m);
 			return;
 		}
 	}
@@ -1259,7 +1259,7 @@ static void mpls_forward_to_ipv6(struct ifnet *ifp, bool local,
 			__func__);
 		if (likely(ifp != NULL))
 			mpls_if_incr_in_errors(ifp);
-		rte_pktmbuf_free(m);
+		dp_pktmbuf_notify_and_free(m);
 		return;
 	}
 
@@ -1276,7 +1276,7 @@ static void mpls_forward_to_ipv6(struct ifnet *ifp, bool local,
 			len);
 		if (likely(ifp != NULL))
 			mpls_if_incr_in_errors(ifp);
-		rte_pktmbuf_free(m);
+		dp_pktmbuf_notify_and_free(m);
 		return;
 	}
 
@@ -1294,7 +1294,7 @@ static void mpls_forward_to_ipv6(struct ifnet *ifp, bool local,
 			if (n)
 				icmp6_reflect(ifp, n);
 		}
-		rte_pktmbuf_free(m);
+		dp_pktmbuf_notify_and_free(m);
 		return;
 	}
 
@@ -1308,7 +1308,7 @@ static void mpls_forward_to_ipv6(struct ifnet *ifp, bool local,
 		 */
 		ifp = dp_nh_get_ifp(v6nh);
 		if (!ifp) {
-			rte_pktmbuf_free(m);
+			dp_pktmbuf_notify_and_free(m);
 			return;
 		}
 	}
@@ -1335,7 +1335,7 @@ static void mpls_vpnv4_local_deliver(struct ifnet *ifp, struct rte_mbuf *m)
 			IPSTAT_INC_VRF(vrf, IPSTATS_MIB_FRAGFAILS);
 			icmp_error(ifp, m, ICMP_DEST_UNREACH, ICMP_FRAG_NEEDED,
 				   htonl(slowpath_mtu));
-			rte_pktmbuf_free(m);
+			dp_pktmbuf_notify_and_free(m);
 			return;
 		}
 		/* Let raw socket in kernel handle fragmentation */
@@ -1355,7 +1355,7 @@ static void mpls_vpnv4_local_deliver(struct ifnet *ifp, struct rte_mbuf *m)
 
 discard:
 	IPSTAT_INC_VRF(vrf, IPSTATS_MIB_INDISCARDS);
-	rte_pktmbuf_free(m);
+	dp_pktmbuf_notify_and_free(m);
 }
 
 static bool mpls_reswitch_as_ipv4(struct ifnet *input_ifp,
@@ -1466,7 +1466,7 @@ static void mpls_vpnv6_local_deliver(struct ifnet *ifp, struct rte_mbuf *m)
 
 discard:
 	IP6STAT_INC_IFP(ifp, IPSTATS_MIB_INDISCARDS);
-	rte_pktmbuf_free(m);
+	dp_pktmbuf_notify_and_free(m);
 }
 
 static bool mpls_reswitch_as_ipv6(struct ifnet *input_ifp,
@@ -1601,7 +1601,7 @@ mpls_labeled_forward(struct ifnet *input_ifp, bool local,
 		icmp = mpls_icmp_ttl(input_ifp, m, &cache);
 		if (!icmp)
 			goto drop;
-		rte_pktmbuf_free(m);
+		dp_pktmbuf_notify_and_free(m);
 		mpls_output(icmp);
 		return;
 	}
@@ -1705,7 +1705,7 @@ drop:
 				"Dropping mpls pkt\n");
 		mpls_if_incr_in_errors(input_ifp);
 	}
-	rte_pktmbuf_free(m);
+	dp_pktmbuf_notify_and_free(m);
 }
 
 void mpls_labeled_input(struct ifnet *input_ifp, struct rte_mbuf *m)
@@ -1836,5 +1836,5 @@ void mpls_unlabeled_input(struct ifnet *input_ifp, struct rte_mbuf *m,
 drop:
 	if (likely(input_ifp != NULL))
 		mpls_if_incr_in_errors(input_ifp);
-	rte_pktmbuf_free(m);
+	dp_pktmbuf_notify_and_free(m);
 }

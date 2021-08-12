@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2019-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2019-2021, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2013-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -57,7 +57,7 @@ static void lacp_recv_cb(portid_t member_id, struct rte_mbuf *lacp_pkt)
 	struct ifnet *ifp = ifnet_byport(member_id);
 
 	if (unlikely(ifp == NULL)) {
-		rte_pktmbuf_free(lacp_pkt);
+		dp_pktmbuf_notify_and_free(lacp_pkt);
 		return;
 	}
 

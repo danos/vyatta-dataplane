@@ -405,7 +405,7 @@ void icmp6_error(struct ifnet *rcvif, struct rte_mbuf *n,
 	if (m)
 		icmp6_reflect(rcvif, m);
 
-	rte_pktmbuf_free(n);
+	dp_pktmbuf_notify_and_free(n);
 }
 
 void ip6_redirects_set(bool enable)

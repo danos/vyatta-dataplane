@@ -133,6 +133,8 @@ static bool effective_enforcement_time_initialised;
 
 struct cds_lfht *sfp_ports_tbl;
 
+static bool permit_mismatch_cfg_not_present = true;
+
 static inline uint32_t sfpd_record_hash(struct sfp_intf_record *rec)
 {
 	return rec->port;
@@ -323,7 +325,7 @@ static void sfp_permit_list_init(const bool check_sfpd_update)
 				 CDS_LFHT_AUTO_RESIZE,
 				 NULL);
 	if (!sfp_ports_tbl) {
-		RTE_LOG(ERR, MAC_LIMIT,
+		RTE_LOG(ERR, DATAPLANE,
 			"Could not allocate SFPd hash table\n");
 		return;
 	}
@@ -539,6 +541,7 @@ sfp_permit_list_cfg(const SfpPermitConfig__ListConfig *list)
 	DP_DEBUG(SFP_LIST, DEBUG, DATAPLANE,
 		"SFP-PL:Permit_list:%s %s\n", list->name,
 		set ? "SET" : "DELETE");
+
 	if (set)
 		sfp_list_display(list);
 
@@ -580,15 +583,23 @@ sfp_permit_mismatch_cfg(const SfpPermitConfig__MisMatchConfig *mismatch)
 		"SFP-PL: mismatch logging %u\n", mismatch->logging);
 	DP_DEBUG(SFP_LIST, DEBUG, DATAPLANE,
 		"SFP-PL: mismatch enforcement %u\n", mismatch->enforcement);
+	DP_DEBUG(SFP_LIST, DEBUG, DATAPLANE,
+		"SFP-PL: mismatch action %s\n",
+		mismatch->action == SFP_PERMIT_CONFIG__ACTION__SET ? "SET" : "DELETE");
 
-	if (mismatch->logging == SFP_PERMIT_CONFIG__LOGGING__ENABLE)
+	permit_mismatch_cfg_not_present =
+		mismatch->action == SFP_PERMIT_CONFIG__ACTION__SET ? false : true;
+
+	if (mismatch->logging == SFP_PERMIT_CONFIG__LOGGING__ENABLE &&
+		!permit_mismatch_cfg_not_present)
 		sfp_mismatch_cfg.logging_enabled = true;
 	else
 		sfp_mismatch_cfg.logging_enabled = false;
 
 	sfp_mismatch_cfg.enforcement_delay = mismatch->delay;
 
-	if (mismatch->enforcement == SFP_PERMIT_CONFIG__ENFORCEMENT__ENFORCE) {
+	if (mismatch->enforcement == SFP_PERMIT_CONFIG__ENFORCEMENT__ENFORCE &&
+		!permit_mismatch_cfg_not_present) {
 		if (!sfp_mismatch_cfg.enforcement_enabled) {
 			/* record time of transition from monitor to enforcement */
 			uint32_t time_now = system_uptime();
@@ -923,7 +934,7 @@ sfpd_parse_status(const char *updfile, struct cds_lfht *hash_tbl)
 				 CDS_LFHT_AUTO_RESIZE,
 				 NULL);
 	if (!hash_tbl) {
-		RTE_LOG(ERR, MAC_LIMIT,
+		RTE_LOG(ERR, DATAPLANE,
 			"Could not allocate SFPd cfg table\n");
 		return NULL;
 	}
@@ -1137,10 +1148,25 @@ sfp_jsonw_device(json_writer_t *wr, struct sfp_intf_record *sfp)
 	jsonw_end_object(wr);
 }
 
+static bool sfp_permit_config_present(void)
+{
+	bool permit_list_empty;
+
+	if (sfp_pl_cfg_init)
+		permit_list_empty = cds_list_empty(&sfp_permit_list_head) == 1;
+	else
+		permit_list_empty = true;
+
+	return permit_mismatch_cfg_not_present && permit_list_empty;
+}
+
 static void sfp_permit_dump_devices(json_writer_t *wr)
 {
 	struct cds_lfht_iter iter;
 	struct sfp_intf_record *sfp;
+
+	if (sfp_permit_config_present())
+		return;
 
 	jsonw_name(wr, "sfp-permit-list-devices");
 

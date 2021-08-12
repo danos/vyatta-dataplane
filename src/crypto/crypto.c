@@ -739,7 +739,7 @@ static void crypto_pkt_ctx_forward_and_free(struct crypto_pkt_ctx *ctx)
 	case CRYPTO_ACT_DROP: /* fall through */
 	default:
 		IPSEC_CNT_INC(DROPPED);
-		rte_pktmbuf_free(ctx->mbuf);
+		dp_pktmbuf_notify_and_free(ctx->mbuf);
 		break;
 	}
 	release_crypto_packet_ctx(ctx);
@@ -792,7 +792,7 @@ drop_check:
 			struct crypto_pkt_ctx *ctx =
 				cpb->local_crypto_q[xfrm][i];
 
-			rte_pktmbuf_free(ctx->mbuf);
+			dp_pktmbuf_notify_and_free(ctx->mbuf);
 			release_crypto_packet_ctx(ctx);
 			IPSEC_CNT_INC(FAILED_TO_BURST);
 		}
@@ -921,7 +921,7 @@ static int crypto_enqueue_internal(enum crypto_xfrm xfrm,
 	return 0;
 
 free_mbuf_on_error:
-	rte_pktmbuf_free(m);
+	dp_pktmbuf_notify_and_free(m);
 	return -1;
 }
 
@@ -1050,7 +1050,7 @@ void crypto_enqueue_outbound(struct rte_mbuf *m, uint16_t orig_family,
 	if (!dst) {
 		CRYPTO_DATA_ERR("No destination address\n");
 		IPSEC_CNT_INC(NO_DST_SUPPLIED);
-		rte_pktmbuf_free(m);
+		dp_pktmbuf_notify_and_free(m);
 		return;
 	}
 
@@ -1079,7 +1079,7 @@ crypto_redirect_packet_batch(uint8_t core,
 		 */
 		for (unsigned int j = 0; j < batch_cnt; j++) {
 			IPSEC_CNT_INC(CRYPTO_PP_ENQ_FAILED);
-			rte_pktmbuf_free(contexts[j]->mbuf);
+			dp_pktmbuf_notify_and_free(contexts[j]->mbuf);
 			release_crypto_packet_ctx(contexts[j]);
 		}
 	}
@@ -1188,7 +1188,7 @@ void crypto_purge_queue(struct rte_ring *pmd_queue)
 			struct crypto_pkt_ctx *ctx =
 				contexts[i];
 
-			rte_pktmbuf_free(ctx->mbuf);
+			dp_pktmbuf_notify_and_free(ctx->mbuf);
 			release_crypto_packet_ctx(ctx);
 		}
 	}
@@ -1530,7 +1530,7 @@ void crypto_sa_free_fwd_core(uint8_t fwd_core)
 			/* drain queue & free */
 			while (!rte_ring_mc_dequeue(fwd_info->fwd_q,
 						    (void **)&ctx)) {
-				rte_pktmbuf_free(ctx->mbuf);
+				dp_pktmbuf_notify_and_free(ctx->mbuf);
 				release_crypto_packet_ctx(ctx);
 			}
 		}

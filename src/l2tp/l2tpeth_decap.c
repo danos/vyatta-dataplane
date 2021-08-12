@@ -1,7 +1,7 @@
 /*
  * Functions for handling l2tpeth data path operations.
  *
- * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2014-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -169,7 +169,7 @@ static int l2tp_recv_encap(struct rte_mbuf *m,
 
 	if (rte_pktmbuf_data_len(m) < sizeof(struct rte_ether_hdr)) {
 		if_incr_error(ifp);
-		rte_pktmbuf_free(m);
+		dp_pktmbuf_notify_and_free(m);
 		return 0;
 	}
 

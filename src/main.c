@@ -491,7 +491,7 @@ void pkt_ring_empty(portid_t port)
 		ring = port_config[port].pkt_ring[r];
 
 		while (rte_ring_sc_dequeue(ring, (void **)&m) == 0)
-			rte_pktmbuf_free(m);
+			dp_pktmbuf_notify_and_free(m);
 	}
 
 	FOREACH_FORWARD_LCORE(lcore) {
@@ -690,12 +690,12 @@ void pkt_ring_output(struct ifnet *ifp, struct rte_mbuf *m)
 
 full_txring: __cold_label;
 	if_incr_full_txring(ifp, 1);
-	rte_pktmbuf_free(m);
+	dp_pktmbuf_notify_and_free(m);
 	return;
 
 full_hwq: __cold_label;
 	if_incr_full_hwq(ifp, 1);
-	rte_pktmbuf_free(m);
+	dp_pktmbuf_notify_and_free(m);
 }
 
 void dp_pkt_burst_flush(void)
@@ -2608,6 +2608,8 @@ static int port_conf_final(portid_t portid, struct rte_eth_conf *dev_conf)
 	dev_conf->rxmode.mq_mode = port_alloc->rx_mq_mode;
 
 	/* DPDK 18.08 errors if offload flags don't match PMD caps */
+	if (dev_info.rx_offload_capa & DEV_RX_OFFLOAD_JUMBO_FRAME)
+		dev_conf->rxmode.offloads |= DEV_RX_OFFLOAD_JUMBO_FRAME;
 	if (dev_info.rx_offload_capa & DEV_RX_OFFLOAD_VLAN_FILTER)
 		dev_conf->rxmode.offloads |= DEV_RX_OFFLOAD_VLAN_FILTER;
 	if (dev_info.rx_offload_capa & DEV_RX_OFFLOAD_VLAN_STRIP)

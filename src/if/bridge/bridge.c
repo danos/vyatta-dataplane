@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2011-2017 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -351,7 +351,7 @@ bridge_tx_frame(struct ifnet *br_ifp, struct ifnet *in_ifp,
 drop:
 	if_incr_dropped(br_ifp);
 drop_no_stat:
-	rte_pktmbuf_free(m);
+	dp_pktmbuf_notify_and_free(m);
 }
 
 static inline bool
@@ -1167,7 +1167,7 @@ bridge_forward_via_tunnel(struct ifnet *br_ifp,
 
 drop:
 	if_incr_dropped(br_ifp);
-	rte_pktmbuf_free(m);
+	dp_pktmbuf_notify_and_free(m);
 }
 
 /*
@@ -1342,7 +1342,7 @@ static void bridge_flood_local(struct bridge_softc *sc, struct ifnet *in_ifp,
 		if (lastif->if_type == IFT_TUNNEL_GRE) {
 			bridge_flood_on_gre_tunnel(lastif, m);
 			/* bridge flood over tunnel always sends a copy */
-			rte_pktmbuf_free(m);
+			dp_pktmbuf_notify_and_free(m);
 		} else
 			bridge_tx_frame(br_ifp, in_ifp, lastif, m);
 	} else {
@@ -1352,7 +1352,7 @@ static void bridge_flood_local(struct bridge_softc *sc, struct ifnet *in_ifp,
 	return;
 
 drop:
-	rte_pktmbuf_free(m);
+	dp_pktmbuf_notify_and_free(m);
 }
 
 /*
@@ -1452,7 +1452,7 @@ void bridge_output(struct ifnet *ifp, struct rte_mbuf *m,
 drop:
 	if_incr_oerror(ifp);
 	if_vlan_out_drop_stats_incr(sc, vlan);
-	rte_pktmbuf_free(m);
+	dp_pktmbuf_notify_and_free(m);
 }
 
 /* frame destined to bridge mac, or l2 multicast, it is always consumed */
@@ -1477,14 +1477,14 @@ bridge_input_local(struct rte_mbuf *m, struct ifnet *input_if,
 				"%u on bridge %s\n",
 				vlan, input_if->if_name);
 			if_incr_no_vlan(input_if);
-			rte_pktmbuf_free(m);
+			dp_pktmbuf_notify_and_free(m);
 			return;
 		}
 		/* vlan interface must be up */
 		if (!(brvlan->if_flags & IFF_UP)) {
 			/* Bump counter on the bridge not the bridge vif */
 			if_incr_no_vlan(input_if);
-			rte_pktmbuf_free(m);
+			dp_pktmbuf_notify_and_free(m);
 			return;
 		}
 
@@ -1657,12 +1657,12 @@ void bridge_input(struct bridge_port *port, struct rte_mbuf *m)
 
 errorpath:
 	if_incr_error(brif);
-	rte_pktmbuf_free(m);
+	dp_pktmbuf_notify_and_free(m);
 	return;
 drop:
 	if_incr_dropped(brif);
 ignore:
-	rte_pktmbuf_free(m);
+	dp_pktmbuf_notify_and_free(m);
 }
 
 /*

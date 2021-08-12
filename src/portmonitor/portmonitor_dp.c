@@ -1,7 +1,7 @@
 /*
  * SPAN, RSPAN and ERSPAN Port Monitoring
  *
- * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2015-2017 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -120,7 +120,7 @@ int portmonitor_dest_output(struct ifnet *ifp, struct rte_mbuf *m)
 	return 1;
 
 drop:
-	rte_pktmbuf_free(m);
+	dp_pktmbuf_notify_and_free(m);
 	return 1;
 }
 
@@ -263,7 +263,7 @@ static void portmonitor_source_output(struct ifnet *ifp,
 	if (((*m)->ol_flags & PKT_RX_VLAN) && ifp->qinq_inner) {
 		if (unlikely(vid_encap(ifp->if_vlan, &mirror_pkt,
 				RTE_ETHER_TYPE_VLAN) == NULL)) {
-			rte_pktmbuf_free(mirror_pkt);
+			dp_pktmbuf_notify_and_free(mirror_pkt);
 			return;
 		}
 		ifp = ifp->if_parent;
@@ -283,13 +283,13 @@ static void portmonitor_source_output(struct ifnet *ifp,
 			capture_burst(dest_ifp, &mirror_pkt, 1);
 		if (!portmonitor_encap_erspan_hdr(ifp, pmsess, mirror_pkt,
 							direction)) {
-			rte_pktmbuf_free(mirror_pkt);
+			dp_pktmbuf_notify_and_free(mirror_pkt);
 			return;
 		}
 		if_output(dest_ifp, mirror_pkt, ifp, pmsess->gre_proto);
 		break;
 	default:
-		rte_pktmbuf_free(mirror_pkt);
+		dp_pktmbuf_notify_and_free(mirror_pkt);
 		break;
 	}
 }
