@@ -225,6 +225,16 @@ struct crypto_vrf_ctx *crypto_vrf_find_external(vrfid_t vrfid)
 	return rcu_dereference(vrf->crypto);
 }
 
+bool crypto_on(struct ifnet *ifp)
+{
+	if (!crypto_vrf_find(if_vrfid(ifp))) {
+		/* no crypto for this VRF */
+		return false;
+	}
+
+	return true;
+}
+
 static int crypto_rldb_create(struct crypto_vrf_ctx *vrf_ctx, const char *name,
 			      int flags, struct rldb_db_handle **db)
 {

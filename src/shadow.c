@@ -48,6 +48,7 @@
 #include "compat.h"
 #include "compiler.h"
 #include "config_internal.h"
+#include "crypto/crypto.h"
 #include "crypto/crypto_forward.h"
 #include "crypto/vti.h"
 #include "dp_event.h"
@@ -421,14 +422,14 @@ shadow_feature_if_output(struct ifnet *ifp, struct rte_mbuf *m,
 {
 	struct ifnet *host_ifp = NULL;
 	if (hdr->ether_type == htons(RTE_ETHER_TYPE_IPV4)) {
-		if (shadow_crypto_output(&ifp, &host_ifp, m, hdr))
+		if (unlikely(crypto_on(ifp) && shadow_crypto_output(&ifp, &host_ifp, m, hdr)))
 			/* pak freed */
 			goto done;
 		if (ip_spath_output(ifp, host_ifp, m) < 0)
 			/* pak freed, but not yet counted */
 			return 1;
 	} else if (hdr->ether_type == htons(RTE_ETHER_TYPE_IPV6)) {
-		if (shadow_crypto_output(&ifp, &host_ifp, m, hdr))
+		if (unlikely(crypto_on(ifp) && shadow_crypto_output(&ifp, &host_ifp, m, hdr)))
 			/* pak freed */
 			goto done;
 		if (ip6_spath_output(ifp, host_ifp, m) < 0)

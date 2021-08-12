@@ -62,6 +62,7 @@ int crypto_retrieve_spi(unsigned char *data)
 	return esp->spi;
 }
 
+bool crypto_on(struct ifnet *ifp);
 void crypto_enqueue_fragment(struct ifnet *ifp, struct rte_mbuf *m, void *ctx);
 int crypto_enqueue_inbound_v4(struct rte_mbuf *m, const struct iphdr *ip,
 			      struct ifnet *input_if, uint32_t spi);
