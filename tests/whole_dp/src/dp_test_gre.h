@@ -30,7 +30,7 @@ struct rte_mbuf *dp_test_gre_build_encapped_pak(const struct iphdr *payload_ip,
 						struct iphdr **outer_ip,
 						struct iphdr **inner_ip);
 
-struct dp_test_expected *gre_test_build_expected_ecn_pak(
+struct dp_test_expected *dp_test_gre_build_expected_ecn_pak(
 	struct rte_mbuf **exp_mbuf_p);
 
 #endif /* DP_TEST_GRE_H */
