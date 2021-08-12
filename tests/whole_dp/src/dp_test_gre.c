@@ -898,7 +898,7 @@ DP_START_TEST(gre_encap, no_route)
 } DP_END_TEST;
 
 
-static struct rte_mbuf *
+struct rte_mbuf *
 dp_test_gre_build_encapped_pak(const struct iphdr *payload_ip,
 			       struct iphdr **outer_ip,
 			       struct iphdr **inner_ip)
@@ -919,7 +919,7 @@ dp_test_gre_build_encapped_pak(const struct iphdr *payload_ip,
 DP_DECL_TEST_CASE(gre_suite, gre_decap, NULL, NULL);
 
 
-static struct dp_test_expected *gre_test_build_expected_ecn_pak(
+struct dp_test_expected *gre_test_build_expected_ecn_pak(
 	struct rte_mbuf **exp_mbuf_p)
 {
 	struct dp_test_expected *exp;
