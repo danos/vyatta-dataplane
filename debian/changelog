@@ -1,3 +1,23 @@
+vyatta-dataplane (3.14.10) unstable; urgency=medium
+
+  [ Gavin Shearer ]
+  * add function which notifies features then frees an mbuf
+  * replace calls to rte_pktmbuf_free() to calls to fn which notifies
+
+  [ Srinivas Narayan ]
+  * 3.13.36
+
+  [ Thomas Kiely ]
+  * Jumbo MTU capability omitted
+
+  [ ck407g ]
+  * Remove SFP state when nodes are deleted
+
+  [ Srinivas Narayan ]
+  * 3.13.37
+
+ -- Srinivas Narayan <narayan@vyatta.att-mail.com>  Thu, 12 Aug 2021 11:11:19 +0100
+
 vyatta-dataplane (3.14.9) unstable; urgency=medium
 
   [ Daniel Gollub ]
