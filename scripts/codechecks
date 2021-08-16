@@ -1,0 +1,80 @@
+#!/bin/bash
+#
+# Copyright (c) 2021, AT&T Intellectual Property.
+# All rights reserved.
+#
+# SPDX-License-Identifier: GPL-2.0-only
+#
+
+# $1: TARGET - most likely "origin/master"
+# $2: SOURCE - most likely "bugfix/foo" or "feature/bar"
+
+usage () {
+    echo "Usage: $(basename $0) target source" >&2
+    echo "target: something like 'origin/master'" >&2
+    echo "source: something like 'bugfix/foo' or 'feature/bar'" >&2
+}
+
+[ "$#" -ne 2 ] && { usage; exit 1; }
+
+
+# Look for commits without "VRVDR" or "VYINT"
+# in the last line of the log message.
+#
+missing=""
+for commit in `git log --oneline $1..$2 --pretty=format:"%h"`; do
+    if [ "`git show $commit --quiet | tail -n 1 | egrep 'VRVDR|VYINT'`" == "" ]; then
+        missing+="`git show --pretty=oneline --abbrev-commit --quiet $commit`\n"
+    fi
+done
+
+if [ -n "$missing" ]; then
+    echo -e "* Please add the VRVDR or VYINT jira ID to these commits:\n\n$missing"
+fi
+
+
+# List of files to ignore.
+IGN_FILES="debian\/.*\n.*\.conf$\n.*\.md$\nCODEOWNERS\n^.git.*\n.*\.gitignore\n^\.clang-.*\n\.editorconfig\niwyu.mapping\nLICENSE\ndataplane\.section-ordering\nmeson_options.txt\nsrc\/sff8436.h\nsrc\/sff8472.h"
+
+# All files in the diff, except deleted files.
+all_files=`git diff --diff-filter=d --name-only --format=format:'' $1..$2`
+
+# Strip out the ignored files.
+check_files=`sed -e "$(sed 's:.*:s/&//ig:' <<< $(echo -e $IGN_FILES))" <<< $all_files`
+
+# Bail out if there's nothing to check.
+if [ -z "$check_files" ]; then
+    exit 0
+fi
+
+
+# Ensure all files contain a copyright message with the current year.
+#
+YEAR=`date +%Y`
+copyright=`egrep -d skip -L "Copyright \(c) .*$YEAR,{,1} AT&T Intellectual Property" $check_files`
+if [ -n "$copyright" ]; then
+    echo -e "* Add or update the copyright message in these files:\n$copyright\n"
+fi
+
+
+# Ensure all files contain an SPDX license.
+#
+spdx=`grep -L "SPDX-License-Identifier: " $check_files`
+if [ -n "$spdx" ]; then
+    echo -e "* Missing SPDX-License-Identifier in these files:\n$spdx\n"
+fi
+
+
+# Idempotent headers - .h files must end "#endif /* $FILENAME */"
+#
+h_files=`echo $check_files | grep -Po "[^[:blank:]]*\.h( |$)"`
+idem=`for h in $h_files; do FN=\`basename $h | sed s/\.h$/_h/ | tr [a-z] [A-Z]\`; tail -n 1 $h | grep -L "^#endif.*$FN" > /tmp/x && echo $h; done`
+
+if [ -n "$idem" ]; then
+    echo -e "* Check the idempotency of these files:\n$idem\n"
+fi
+
+
+# Always successful.
+#
+exit 0
