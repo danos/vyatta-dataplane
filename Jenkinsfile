@@ -5,6 +5,8 @@
 // Pull Request builds might fail due to missing diffs: https://issues.jenkins-ci.org/browse/JENKINS-45997
 // Pull Request builds relationship to their targets branch: https://issues.jenkins-ci.org/browse/JENKINS-37491
 
+@Library('Stashykins shared library@master')
+
 @NonCPS
 def cancelPreviousBuilds() {
     def jobName = env.JOB_NAME
@@ -236,6 +238,7 @@ pipeline {
 
     post {
         always {
+            prComment()
             sh 'rm -f *.deb'
             sh "osc chroot --wipe --force --root ${env.OSC_BUILD_ROOT}"
             deleteDir()
