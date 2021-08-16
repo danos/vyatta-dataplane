@@ -149,4 +149,40 @@ void _dp_test_netlink_add_route(const char *route_str, bool verify,
 void _dp_test_netlink_del_route(const char *route_str, bool verify,
 				const char *file, const char *func, int line);
 
+/*
+ * Add addresses to an interface
+ */
+void _dp_test_netlink_add_ip_address(const char *ifname, const char *prefix,
+				     uint32_t vrf, bool verify,
+				     const char *file, const char *func,
+				     int line);
+#define dp_test_netlink_add_ip_address(ifname, prefix)			\
+	_dp_test_netlink_add_ip_address(ifname, prefix, VRF_DEFAULT_ID, true, \
+					__FILE__, __func__, __LINE__)
+
+#define dp_test_netlink_add_ip_address_noverify(ifname, prefix)		       \
+	_dp_test_netlink_add_ip_address(ifname, prefix, VRF_DEFAULT_ID, false, \
+					__FILE__, __func__, __LINE__)
+
+#define dp_test_netlink_add_ip_address_vrf(ifname, prefix, vrf)	\
+	_dp_test_netlink_add_ip_address(ifname, prefix, vrf, true,	\
+					__FILE__, __func__, __LINE__)
+
+/*
+ * Delete addresses from an interface
+ */
+void _dp_test_netlink_del_ip_address(const char *ifname, const char *prefix,
+				     uint32_t vrf, bool verify,
+				     const char *file, const char *func,
+				     int line);
+#define dp_test_netlink_del_ip_address(ifname, prefix)			\
+	_dp_test_netlink_del_ip_address(ifname,	prefix, VRF_DEFAULT_ID, true, \
+					__FILE__, __func__, __LINE__)
+#define dp_test_netlink_del_ip_address_noverify(ifname, prefix)		       \
+	_dp_test_netlink_del_ip_address(ifname,	prefix, VRF_DEFAULT_ID, false, \
+					__FILE__, __func__, __LINE__)
+#define dp_test_netlink_del_ip_address_vrf(ifname, prefix, vrf)	\
+	_dp_test_netlink_del_ip_address(ifname,	prefix,  vrf, \
+					true,				\
+					__FILE__, __func__, __LINE__)
 #endif /* DP_TEST_NETLINK_STATE_H */
