@@ -96,7 +96,7 @@ pipeline {
                     }
                 }
 
-                stage('OSC') {
+                stage(' ') {
                     stages {
                         stage('OSC Build') {
                             steps {
