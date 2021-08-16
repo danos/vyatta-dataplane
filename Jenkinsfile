@@ -240,6 +240,28 @@ pipeline {
                         }
                     }
                 }
+
+                stage('Codechecks') {
+                    when {
+                        allOf {
+                            // Only if this is a Pull Request
+                            expression { env.CHANGE_ID != null }
+                            expression { env.CHANGE_TARGET != null }
+                        }
+                    }
+                    steps {
+                        dir("${SRC_DIR}") {
+                            script {
+                                checks = sh(returnStdout: true,
+                                            script: "scripts/codechecks upstream/${env.CHANGE_TARGET} origin/${env.BRANCH_NAME}")
+                                if (checks != "") {
+                                    prComment(checks)
+                                    error "Codechecks failed"
+                                }
+                            }
+                        }
+                    }
+                }
             } // parallel
         } // run tests
     } // stages
