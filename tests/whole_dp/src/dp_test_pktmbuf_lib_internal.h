@@ -443,34 +443,6 @@ dp_test_insert_8021q_hdr(struct rte_mbuf *pak, uint16_t vlan_id,
 			 uint16_t payload_ether_type);
 
 /**
- * Create and initialise an IPv4 ICMP packet
- *
- * @param saddr [in]  Source address string, e.g. "10.0.1.0"
- * @param daddr [in]  Dest address string
- * @param icmp_type [in]  ICMP type
- * @param icmp_code [in]  ICMP code
- * @param data      [in]  ICMP header data
- * @param n     [in]  Number of mbufs
- * @param len   [in]  Array of 'n' per-mbuf payload lengths
- * @param payload [in] Payload to copy into packet, or NULL to fill
- *                     with default pattern
- * @param ipp   [out] pointer to the struct iphdr within the packet
- * @param icmpp [out] pointer to the struct icmphdr within the packet
- *
- * @return pak        Pointer to mbuf if successful, else NULL
- *
- * Note, Conversion of 'data' parameter to network byte order occurs in
- * dp_test_pktmbuf_icmp_init for types ICMP_ECHO, ICMP_ECHOREPLY,
- * ICMP_REDIRECT, and ICMP_DEST_UNREACH only.
- */
-struct rte_mbuf *
-dp_test_create_icmp_ipv4_pak(const char *saddr, const char *daddr,
-			     uint8_t icmp_type, uint8_t icmp_code,
-			     uint32_t data, int n, const int *len,
-			     const void *payload,
-			     struct iphdr **ipp, struct icmphdr **icmpp);
-
-/**
  * Create and initialise an IPv6 ICMP packet
  *
  * @param saddr [in]  Source address string, e.g. "2001:101:8::1"
