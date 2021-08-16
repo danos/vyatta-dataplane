@@ -99,4 +99,15 @@ void _dp_test_intf_vif_del(const char *vif_name, uint16_t vlan,
 	_dp_test_intf_vif_del(vif_name, vlan, vlan_proto,		\
 			      __FILE__, __func__, __LINE__)
 
+void dp_test_intf_vti_create(const char *vti_name,
+			     const char *vti_local,
+			     const char *vti_remote,
+			     uint16_t mark,
+			     vrfid_t vrf_id);
+
+void dp_test_intf_vti_delete(const char *vti_name,
+			     const char *vti_local,
+			     const char *vti_remote,
+			     uint16_t mark,
+			     vrfid_t vrf_id);
 #endif /* DP_TEST_LIB_INTF_H */

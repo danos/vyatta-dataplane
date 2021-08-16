@@ -183,16 +183,6 @@ void dp_test_intf_erspan_delete(const char *erspan_name,
 				const char *erspan_remote,
 				uint32_t gre_key, bool gre_seq,
 				uint32_t vrf_id);
-void dp_test_intf_vti_create(const char *vti_name,
-			     const char *vti_local,
-			     const char *vti_remote,
-			     uint16_t mark,
-			     vrfid_t vrf_id);
-void dp_test_intf_vti_delete(const char *vti_name,
-			     const char *vti_local,
-			     const char *vti_remote,
-			     uint16_t mark,
-			     vrfid_t vrf_id);
 
 void _dp_test_intf_loopback_create(const char *name,
 				   const char *file, const char *func,
