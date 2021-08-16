@@ -4,6 +4,11 @@
 
 // SPDX-License-Identifier: LGPL-2.1-only
 
+/* SRC_DIR is where the project will be checked out,
+ * and where all the steps will be run.
+ */
+def SRC_DIR="vyatta-dataplane"
+
 // Pull Request builds might fail due to missing diffs: https://issues.jenkins-ci.org/browse/JENKINS-45997
 // Pull Request builds relationship to their targets branch: https://issues.jenkins-ci.org/browse/JENKINS-37491
 
@@ -50,11 +55,12 @@ pipeline {
         OBS_PRJ = "${BITBUCKET_REPO}-pr-${env.CHANGE_ID}"
         OBS_PRJ_PATH ="home:${env.OBS_USR}:stash:${env.OBS_PRJ}"
         TMPDIR = "/tmp/$BITBUCKET_REPO/${env.CHANGE_ID}"
+        SRC_DIR = "${SRC_DIR}"
     }
 
     options {
         timeout(time: 60, unit: 'MINUTES')
-        checkoutToSubdirectory("vyatta-dataplane")
+        checkoutToSubdirectory("${SRC_DIR}")
         quietPeriod(90) // Wait 90 seconds in case there are more SCM pushes/PR merges coming
     }
 
@@ -81,7 +87,7 @@ pipeline {
                         expression { env.CHANGE_TARGET != null }
                     }}
                     steps {
-                        dir ('vyatta-dataplane') {
+                        dir("${SRC_DIR}") {
                             sh "rm -Rf ${env.TMPDIR}; mkdir -p ${env.TMPDIR}"
                             sh "scripts/obs-build"
                             writeFile file: "${env.TMPDIR}/env.txt",
@@ -103,7 +109,7 @@ pipeline {
                         stage('OSC Build') {
                             steps {
                                 catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
-                                    dir('vyatta-dataplane') {
+                                    dir("${SRC_DIR}") {
                                         sh "gbp buildpackage --git-verbose --git-ignore-branch -S --no-check-builddeps -us -uc"
                                     }
                                     writeFile file: 'build.script',
@@ -137,7 +143,7 @@ pipeline {
                         stage('Code Static Analysis') {
                             steps {
                                 catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
-                                    dir('vyatta-dataplane') {
+                                    dir("${SRC_DIR}") {
                                         sh "gbp buildpackage --git-verbose --git-ignore-branch -S --no-check-builddeps -us -uc"
                                     }
                                     writeFile file: 'build.script',
@@ -157,7 +163,7 @@ pipeline {
                                     archiveArtifacts artifacts: "${env.BUILD_ROOT_RELATIVE}/usr/src/packages/BUILD/builddir/clang-tidy.log"
                                     recordIssues enabledForFailure: true,
                                         tool: clangTidy(pattern: "${env.BUILD_ROOT_RELATIVE}/usr/src/packages/BUILD/builddir/clang-tidy.log"),
-                                        sourceDirectory: 'vyatta-dataplane',
+                                        sourceDirectory: "${SRC_DIR}",
                                         referenceJobName: "DANOS/vyatta-dataplane/${env.REF_BRANCH}",
                                         qualityGates: [[type: 'NEW', threshold: 1]]
                                 }
@@ -187,7 +193,7 @@ pipeline {
                     }
                     steps {
                         catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
-                            dir('vyatta-dataplane') {
+                            dir("${SRC_DIR}") {
                             //TODO: Path to checkpatch.pl should not be hardcoded!
                                 sh "PATH=~/linux-vyatta/scripts:$PATH ./scripts/checkpatch_wrapper.sh upstream/${env.CHANGE_TARGET} origin/${env.BRANCH_NAME}"
                             }
@@ -205,7 +211,7 @@ pipeline {
                     }
                     steps {
                         catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
-                            dir('vyatta-dataplane') {
+                            dir("${SRC_DIR}") {
                                 sh "./scripts/commit_size_check.sh upstream/${env.CHANGE_TARGET} origin/${env.BRANCH_NAME}"
                             }
                         }
@@ -228,7 +234,7 @@ pipeline {
                     }
                     steps {
                         catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
-                            dir('vyatta-dataplane') {
+                            dir("${SRC_DIR}") {
                                 sh "gitlint --commits upstream/${env.CHANGE_TARGET}..origin/${env.BRANCH_NAME}"
                             }
                         }
