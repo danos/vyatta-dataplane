@@ -127,6 +127,9 @@ struct sfp_permit_config {
 	uint32_t boot_enforcement_time;
 };
 
+uint32_t boot_scan_end_time;
+uint32_t add_boot_scan_end_time;
+
 static void sfp_validate_sfp_against_pl(struct sfp_intf_record *sfp);
 
 struct sfp_permit_config sfp_permit_cfg;
@@ -287,6 +290,9 @@ static void init_effective_enforcement_time(void)
 		 */
 		sfp_permit_cfg.effective_enforcement_time = config.effective_enforcement_time;
 		sfp_permit_cfg.boot_enforcement_time = config.boot_enforcement_time;
+		add_boot_scan_end_time = sfp_permit_cfg.boot_enforcement_time ==
+			sfp_permit_cfg.effective_enforcement_time;
+
 	} else if (ret == 1) {
 		/* set the effective_enforcement_time to enforcement delay if the file
 		 * is not found (reboot event). Update the enforcement delay set at
@@ -294,15 +300,19 @@ static void init_effective_enforcement_time(void)
 		 */
 		sfp_permit_cfg.boot_enforcement_time = sfp_mismatch_cfg.enforcement_delay;
 		set_effective_enforcement_time(sfp_mismatch_cfg.enforcement_delay);
-	} else
+		add_boot_scan_end_time = true;
+	} else {
 		/* set the effective_enforcement_time to current time in case of a
 		 * file parsing issue to avoid SFPs brought down without an OIR event.
 		 */
 		set_effective_enforcement_time(system_uptime());
+		add_boot_scan_end_time = true;
+	}
 
 	DP_DEBUG(SFP_LIST, DEBUG, DATAPLANE,
 		"SFP-PL: Initialised effective enforcement time to %us\n ",
 		sfp_permit_cfg.effective_enforcement_time);
+
 }
 
 static void
@@ -619,6 +629,7 @@ sfp_permit_mismatch_cfg(const SfpPermitConfig__MisMatchConfig *mismatch)
 			if (effective_enforcement_time_initialised &&
 					sfp_permit_cfg.effective_enforcement_time < time_now) {
 				set_effective_enforcement_time(time_now);
+				add_boot_scan_end_time = false;
 			} else
 				init_effective_enforcement_time();
 		}
@@ -876,6 +887,13 @@ static int parse_sfpd_upd(void *user, const char *section,
 	if (strcmp(section, "epoch") == 0)
 		return 1;
 
+	if (strcmp(section, "boot_scan_end_time") == 0) {
+		if (strcmp(name, "value") == 0) {
+			boot_scan_end_time = atoi(value);
+			return 1;
+		}
+	}
+
 	port  = atoi(section);
 
 	sfpd_section = sfpd_record_find(hash_tbl, port);
@@ -986,12 +1004,18 @@ static void sfp_validate_sfp_against_pl(struct sfp_intf_record *sfp)
 		sfp_clear_holddown(sfp->intf);
 	} else {
 		sfp->status = SFP_STATUS_UNAPPROVED;
+		uint32_t effective_enforcement_time;
+		effective_enforcement_time = add_boot_scan_end_time ?
+			sfp_permit_cfg.effective_enforcement_time + boot_scan_end_time :
+			sfp_permit_cfg.effective_enforcement_time;
 
 		if (sfp_mismatch_cfg.enforcement_enabled &&
 			effective_enforcement_time_initialised &&
-			sfp->time_of_detection >= sfp_permit_cfg.effective_enforcement_time){
+			sfp->time_of_detection > effective_enforcement_time) {
+
 			sfp->action = SFP_ACTION_DISABLED;
 			sfp_set_holddown(sfp->intf);
+
 			DP_DEBUG(SFP_LIST, DEBUG, DATAPLANE,
 				 "SFP-PL: %s Disabled SFP %s is unapproved\n",
 				 sfp->intf_name, sfp->part_id);
@@ -1185,15 +1209,21 @@ static void sfp_permit_dump_devices(json_writer_t *wr)
 
 	jsonw_start_object(wr);
 
+	uint32_t uptime  = system_uptime();
+	uint32_t activation_delay_left  = 0;
+
 	if (sfp_mismatch_cfg.enforcement_enabled &&
-			system_uptime() > sfp_mismatch_cfg.enforcement_delay)
+		uptime >= (sfp_permit_cfg.boot_enforcement_time + boot_scan_end_time))
 		jsonw_bool_field(wr, "enforcement-mode",
 			 sfp_mismatch_cfg.enforcement_enabled);
-	else
-		jsonw_bool_field(wr, "enforcement-mode",
-			 false);
+	else {
+		jsonw_bool_field(wr, "enforcement-mode", false);
+		if (uptime < (sfp_permit_cfg.boot_enforcement_time + boot_scan_end_time))
+			activation_delay_left =
+				sfp_permit_cfg.boot_enforcement_time + boot_scan_end_time - uptime;
+	}
 
-	jsonw_uint_field(wr, "up-time", system_uptime());
+	jsonw_uint_field(wr, "activation-delay-left", activation_delay_left);
 
 	jsonw_name(wr, "devices");
 
