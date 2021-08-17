@@ -113,6 +113,9 @@
 #include "protobuf.h"
 #include "protobuf/VFPSetConfig.pb-c.h"
 
+/* Total number of fal attributes */
+#define NATTRS 11
+
 struct pl_feature_registration;
 
 static void **if_node_instance_cleanup_cbs;
@@ -2819,7 +2822,7 @@ void if_finish_create(struct ifnet *ifp, const char *ifi_type,
 		      const char *kind,
 		      const struct rte_ether_addr *mac_addr)
 {
-	struct fal_attribute_t attrs[10];
+	struct fal_attribute_t attrs[NATTRS];
 	unsigned int nattrs = 5;
 
 	attrs[0].id = FAL_PORT_ATTR_KIND;
@@ -2860,6 +2863,12 @@ void if_finish_create(struct ifnet *ifp, const char *ifi_type,
 		       sizeof(attrs[nattrs].value.mac));
 		nattrs++;
 	}
+	if (ifp->if_type == IFT_BRIDGE) {
+		attrs[nattrs].id = FAL_PORT_ATTR_FDB_AGING_TIME;
+		attrs[nattrs].value.u32 = ((struct bridge_softc *)ifp->if_softc)->scbr_ageing_ticks;
+		nattrs++;
+	}
+	assert(nattrs <= NATTRS);
 	fal_l2_new_port(ifp->if_index, nattrs, attrs);
 
 	ifp->if_created = true;

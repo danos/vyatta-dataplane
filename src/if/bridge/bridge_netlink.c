@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2019, AT&T Intellectual Property. All rights reserved.
+ * Copyright (c) 2019-2021, AT&T Intellectual Property. All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -118,19 +118,20 @@ void bridge_nl_modify(struct ifnet *ifp, struct nlattr *kdata)
 }
 
 /*
- * Create a bridge interface and then process any associated netlink
- * attributes
+ * Process any associated netlink attributes and
+ * then create a bridge interface
  */
 struct ifnet *bridge_nl_create(int ifindex, const char *ifname,
 			       unsigned int mtu,
 			       const struct rte_ether_addr *eth_addr,
 			       struct nlattr *kdata)
 {
-	struct ifnet *ifp = bridge_create(ifindex, ifname,
-					  mtu, eth_addr);
+	struct nl_bridge_info br_info = {0};
 
-	if (ifp != NULL)
-		bridge_nl_modify(ifp, kdata);
+	if (nl_bridge_parse_linkinfo(kdata, &br_info))
+		return NULL;
 
-	return ifp;
+	return bridge_create(ifindex, ifname,
+						mtu, eth_addr, &br_info);
+
 }
