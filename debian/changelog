@@ -1,3 +1,17 @@
+vyatta-dataplane (3.13.38) unstable; urgency=medium
+
+  [ kalaivani vinothkumar ]
+  * Dataplane restart resets mac aging to default val
+
+  [ Cian O'Sullivan ]
+  * Store SFP enforcement delay value on boot
+
+  [ Paul Aitken ]
+  * Add prComment to Jenkinsfile
+  * Remove "OSC" stage name from Jenkinsfile
+
+ -- Srinivas Narayan <narayan@vyatta.att-mail.com>  Tue, 17 Aug 2021 19:27:04 +0100
+
 vyatta-dataplane (3.13.37) unstable; urgency=medium
 
   [ Thomas Kiely ]
