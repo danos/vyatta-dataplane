@@ -15,8 +15,8 @@
  * Note that the high bit of ->alloc is used to indicate a managed buffer.
  */
 
-#define BSTR_MANAGED(bs)	(!bs->allocated || (bs->allocated & BSTR_MANAGED_BIT))
-#define BSTR_ALLOCATED(bs)	((int)(bs->allocated & ~BSTR_MANAGED_BIT))
+#define BSTR_MANAGED(bs)	(!(bs)->allocated || ((bs)->allocated & BSTR_MANAGED_BIT))
+#define BSTR_ALLOCATED(bs)	((int)((bs)->allocated & ~BSTR_MANAGED_BIT))
 
 #if BSTR_SMALL
  #define BSTR_MANAGED_BIT	(1 << 15)
