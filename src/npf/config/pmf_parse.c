@@ -1805,8 +1805,10 @@ pkp_rproc(struct pmf_rule *rule, struct pkp_key const *key, char *value)
 		case NPF_RPROC_ID_CTR_DEF:
 			summary |= PMF_RAS_COUNT_DEF;
 
-			if (!pkp_parse_rproc_ctrdef(rule, praw))
+			if (!pkp_parse_rproc_ctrdef(rule, praw)) {
+				pmf_rule_extension_free(&rpexts);
 				return false;
+			}
 			break;
 		case NPF_RPROC_ID_CTR_REF:
 			summary |= PMF_RAS_COUNT_REF;
