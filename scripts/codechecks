@@ -29,7 +29,7 @@ for commit in `git log --oneline $1..$2 --pretty=format:"%h"`; do
 done
 
 if [ -n "$missing" ]; then
-    echo -e "* Please add the VRVDR or VYINT jira ID to these commits:\n\n$missing"
+    echo -e "* Please add the VRVDR or VYINT jira ID to these commits:\n$missing\n"
 fi
 
 
