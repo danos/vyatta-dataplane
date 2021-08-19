@@ -21,6 +21,7 @@
 #include "feature_commands.h"
 #include "protobuf.h"
 #include "protobuf/SFPMonitor.pb-c.h"
+#include "util.h"
 
 #include "sfp_permit_list.h"
 #include "transceiver.h"
@@ -390,7 +391,7 @@ sfp_list_add_partid(const SfpPermitConfig__SFP *sfp)
 		return NULL;
 	}
 
-	strncpy(entry->part_id, sfp->part, sizeof(entry->part_id));
+	sstrncpy(entry->part_id, sfp->part, sizeof(entry->part_id));
 	entry->len = strlen(entry->part_id);
 
 	entry->part_index = sfp->index;
@@ -403,19 +404,19 @@ sfp_list_add_partid(const SfpPermitConfig__SFP *sfp)
 	}
 
 	if (sfp->vendor) {
-		strncpy(entry->vendor_name, sfp->vendor,
+		sstrncpy(entry->vendor_name, sfp->vendor,
 			sizeof(entry->vendor_name));
 		flags |= SFP_PART_VENDOR_NAME;
 	}
 
 	if (sfp->oui) {
-		strncpy(entry->vendor_oui, sfp->oui,
+		sstrncpy(entry->vendor_oui, sfp->oui,
 			sizeof(entry->vendor_oui));
 		flags |= SFP_PART_VENDOR_OUI;
 	}
 
 	if (sfp->rev) {
-		strncpy(entry->vendor_rev, sfp->rev,
+		sstrncpy(entry->vendor_rev, sfp->rev,
 			sizeof(entry->vendor_rev));
 		flags |= SFP_PART_VENDOR_REV;
 	}
@@ -478,7 +479,7 @@ sfp_list_add_entry(const SfpPermitConfig__ListConfig *list)
 		return NULL;
 	}
 
-	strncpy(entry->list_name, list->name, sizeof(entry->list_name));
+	sstrncpy(entry->list_name, list->name, sizeof(entry->list_name));
 
 	CDS_INIT_LIST_HEAD(&entry->sfp_part_list_head);
 
@@ -1086,18 +1087,17 @@ sfp_insertion(struct sfp_intf_record *insert_sfp)
 	}
 	sfp->intf = intf;
 
-	strncpy(sfp->intf_name, insert_sfp->intf_name,
+	sstrncpy(sfp->intf_name, insert_sfp->intf_name,
 		sizeof(sfp->intf_name));
-	strncpy(sfp->part_id, insert_sfp->part_id,
+	sstrncpy(sfp->part_id, insert_sfp->part_id,
 		sizeof(sfp->part_id));
-	strncpy(sfp->vendor_name, insert_sfp->vendor_name,
+	sstrncpy(sfp->vendor_name, insert_sfp->vendor_name,
 		sizeof(sfp->vendor_name));
-	strncpy(sfp->vendor_oui, insert_sfp->vendor_oui,
+	sstrncpy(sfp->vendor_oui, insert_sfp->vendor_oui,
 		sizeof(sfp->vendor_oui));
-	strncpy(sfp->vendor_rev, insert_sfp->vendor_rev,
+	sstrncpy(sfp->vendor_rev, insert_sfp->vendor_rev,
 		sizeof(sfp->vendor_rev));
 	sfp->time_of_detection = insert_sfp->time_of_detection;
-
 	sfp_validate_sfp_against_pl(sfp);
 
 	return sfp;
@@ -1337,8 +1337,7 @@ sfp_permit_match_check_cmd(const char *match_string, json_writer_t *wr)
 	bool rc;
 
 	memset(&sfp, 0, sizeof(sfp));
-	strncpy((char *)&sfp.part_id, match_string, sizeof(sfp.part_id));
-
+	sstrncpy((char *)&sfp.part_id, match_string, sizeof(sfp.part_id));
 	rc = sfp_permit_match_check(&sfp);
 
 	jsonw_name(wr, "sfp-permit-match");
