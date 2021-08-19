@@ -2132,6 +2132,17 @@ struct rte_mempool *mbuf_pool(unsigned int portid)
 	return port_alloc->rx_pool;
 }
 
+/* Get a reference to mbuf pool; usually, for creating control packets. */
+struct rte_mempool *mbuf_pool_default(void)
+{
+	unsigned int socket_id;
+
+	socket_id = rte_socket_id();
+	if (socket_id == (unsigned int) SOCKET_ID_ANY)
+		socket_id = 0;
+	return numa_pool[socket_id];
+}
+
 /* Create a standard mbuf pool */
 struct rte_mempool *mbuf_pool_create(const char *name,
 				     unsigned int n,
@@ -2200,6 +2211,8 @@ static uint16_t mbuf_pool_init(void)
 	/* Allocate mbuf pool per NUMA socket */
 	for (socketid = 0; socketid < RTE_MAX_NUMA_NODES; ++socketid) {
 		unsigned int bufsz = buf_size[socketid];
+
+		numa_pool[socketid] = NULL;
 
 		if (bufs_per_socket[socketid] == 0)
 			continue;

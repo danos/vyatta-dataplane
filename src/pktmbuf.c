@@ -491,7 +491,15 @@ int pktmbuf_udp_header_is_usable(struct rte_mbuf *m)
 
 struct rte_mbuf *dp_pktmbuf_alloc_from_default(vrfid_t vrf_id)
 {
-	return pktmbuf_alloc(mbuf_pool(0), vrf_id);
+	struct rte_mempool *mp;
+
+	mp = mbuf_pool_default();
+	if (!mp) {
+		RTE_LOG(ERR, DATAPLANE, "Missing default mbuf pool!\n");
+		return NULL;
+	}
+
+	return pktmbuf_alloc(mp, vrf_id);
 }
 
 void dp_pktmbuf_notify_and_free(struct rte_mbuf *m)

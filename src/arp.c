@@ -188,13 +188,10 @@ arprequest(struct ifnet *ifp, struct sockaddr *sa)
 			  ifp->if_name);
 		return NULL;
 	}
-	/*
-	 * ARP is L2 so does not belong to a VRF.
-	 * Virtual interfaces have no valid portid, so use portid 0. And do so
-	 * for all interfaces for reasons of consistency. This is safe as the
-	 * mbuf pool stays in use even if the device for portid 0 is unplugged.
+	/* ARP is L2 so does not belong to a VRF.
+	 * Virtual interfaces have no valid portid, so use the default pool.
 	 */
-	m = pktmbuf_alloc(mbuf_pool(0), VRF_INVALID_ID);
+	m = dp_pktmbuf_alloc_from_default(VRF_INVALID_ID);
 	if (!m)	{
 		ARPSTAT_INC(if_vrfid(ifp), mpoolfail);
 		return NULL;

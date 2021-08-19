@@ -40,6 +40,7 @@ extern bitmask_t poll_port_mask;
 extern bitmask_t enabled_port_mask;
 extern unsigned int slowpath_mtu;
 
+struct rte_mempool *mbuf_pool_default(void);
 struct rte_mempool *mbuf_pool(unsigned int portid);
 struct rte_mempool *mbuf_pool_create(const char *name,
 				     unsigned int n,
