@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2020, AT&T Intellectual Property. All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property. All rights reserved.
  * Copyright (c) 2011-2017 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -771,4 +771,11 @@ uint32_t system_uptime(void)
 			"%s: failed to get uptime: %s\n",
 			__func__,  strerror(error));
 	return s_info.uptime;
+}
+
+/* safe strncpy */
+char *sstrncpy(char *dest, const char *src, size_t dest_size)
+{
+	dest[dest_size - 1] = '\0';
+	return strncpy(dest, src, dest_size - 1);
 }

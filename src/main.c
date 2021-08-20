@@ -96,6 +96,7 @@
 #include "config_internal.h"
 #include "crypto/crypto_forward.h"
 #include "crypto/crypto_main.h"
+#include "dp_control_thread.h"
 #include "dp_event.h"
 #include "ether.h"
 #include "event_internal.h"
@@ -2608,8 +2609,6 @@ static int port_conf_final(portid_t portid, struct rte_eth_conf *dev_conf)
 	dev_conf->rxmode.mq_mode = port_alloc->rx_mq_mode;
 
 	/* DPDK 18.08 errors if offload flags don't match PMD caps */
-	if (dev_info.rx_offload_capa & DEV_RX_OFFLOAD_JUMBO_FRAME)
-		dev_conf->rxmode.offloads |= DEV_RX_OFFLOAD_JUMBO_FRAME;
 	if (dev_info.rx_offload_capa & DEV_RX_OFFLOAD_VLAN_FILTER)
 		dev_conf->rxmode.offloads |= DEV_RX_OFFLOAD_VLAN_FILTER;
 	if (dev_info.rx_offload_capa & DEV_RX_OFFLOAD_VLAN_STRIP)
@@ -3525,6 +3524,9 @@ main(int argc, char **argv)
 
 	/* Must be before any threads are created, and before eal_init */
 	cpuset_init();
+
+	dp_control_thread_init();
+	dp_control_thread_set_affinity(&config.control_cpumask);
 
 	/* Go into daemon mode.
 	   Must be before EAL init or ZMQ init. */

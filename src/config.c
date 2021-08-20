@@ -153,6 +153,50 @@ uint32_t config_ctrl_ip_af(void)
 	return config.local_ip.type;
 }
 
+/*
+ * Parse a cpumask in from a list of ranges. Example: "0,2-14".
+ * Maximum number of supported CPUs is defined by CPU_SETSIZE (1024),
+ * limited by CPU_SET(3).
+ */
+static void parse_cpumask(cpu_set_t *cpumask, const char *value, const char *key)
+{
+	int rc;
+	char *cpurange;
+	static const char sep[] = " ,\t\r\n";
+	int start, end;
+
+	CPU_ZERO(cpumask);
+
+	for (cpurange = strtok((char *) value, sep); cpurange != NULL;
+	     cpurange = strtok(NULL, sep)) {
+
+		rc = sscanf(cpurange, "%d-%d", &start, &end);
+		if (start >= CPU_SETSIZE || end >= CPU_SETSIZE) {
+			fprintf(stderr,
+				"Error: parsing %s: %s. Maximum of supported CPUs (%u) exceeded\n",
+				key, cpurange, CPU_SETSIZE);
+			CPU_ZERO(cpumask);
+			return;
+		}
+		if (rc == 2) {
+			for (int i = start; i <= end; i++)
+				CPU_SET(i, cpumask);
+
+			continue;
+		}
+
+		rc = sscanf(cpurange, "%d", &start);
+		if (rc != 1) {
+			fprintf(stderr, "Error: parsing %s: %s\n", key,
+				cpurange);
+			return;
+		}
+
+		CPU_SET(start, cpumask);
+	}
+
+}
+
 /* Callback from inih library for each name value
  * return 0 = error, 1 = ok
  */
@@ -203,6 +247,8 @@ static int parse_entry(void *user, const char *section,
 			cfg->dp_index = atoi(value);
 		else if (strcmp(name, "uplink-mac") == 0)
 			return ether_aton_r(value, &cfg->uplink_addr) != NULL;
+		else if (strcmp(name, "control_cpumask") == 0)
+			parse_cpumask(&cfg->control_cpumask, value, name);
 	} else if (strcasecmp(section, "rib") == 0) {
 		if (strcmp(name, "ip") == 0)
 			return parse_ipaddr(&cfg->rib_ip, value);
