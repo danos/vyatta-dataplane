@@ -1,4 +1,10 @@
 /*
+ * Copyright (c) 2021, AT&T Intellectual Property.  All rights reserved.
+ *
+ * SPDX-License-Identifier: BSD-3-Clause
+ */
+
+/*
  * Copyright 2010, Derek Fawcus.
  *
  * SPDX-License-Identifier: BSD-3-Clause
@@ -23,7 +29,7 @@
  #define BSTR_MAX_ALLOCATED	(INT16_MAX)
  #define BSTR_MAX_LEN		(INT16_MAX - 1)
 #else
- #define BSTR_MANAGED_BIT	(1 << 31)
+ #define BSTR_MANAGED_BIT	(1U << 31)
  #define BSTR_MAX_ALLOCATED	(INT32_MAX)
  #define BSTR_MAX_LEN		(INT32_MAX - 1)
 #endif /* BSTR_SMALL */
@@ -35,13 +41,13 @@
  */
 uint8_t bstr_empty[1];
 
-static void bstr_zinit (bstr_t *bs)
+static void bstr_zinit(bstr_t *bs)
 {
 	bs->allocated = bs->len = 0;
 	bs->buf = bstr_empty;
 }
 
-bool bstr_init (bstr_t *bs, int length_hint)
+bool bstr_init(bstr_t *bs, int length_hint)
 {
 	bool rc;
 
@@ -52,32 +58,31 @@ bool bstr_init (bstr_t *bs, int length_hint)
 	return rc;
 }
 
-void bstr_release (bstr_t *bs)
+void bstr_release(bstr_t *bs)
 {
-	if (bs->allocated & BSTR_MANAGED_BIT) {
+	if (bs->allocated & BSTR_MANAGED_BIT)
 		free(bs->buf);
-	}
 
 	bstr_zinit(bs);
 }
 
-void *bstr_detach (bstr_t *bs, int *length, bool *managed)
+void *bstr_detach(bstr_t *bs, int *length, bool *managed)
 {
 	uint8_t *cstr;
 
 	cstr = bs->allocated ? bs->buf : NULL;
-	if (managed) {
+	if (managed)
 		*managed = BSTR_MANAGED(bs) ? true : false;
-	}
-	if (length) {
+
+	if (length)
 		*length = bs->len;
-	}
+
 	bstr_zinit(bs);
 
 	return cstr;
 }
 
-static bool bstr_attach_internal (bstr_t *bs, void *str, int str_len, int allocated)
+static bool bstr_attach_internal(bstr_t *bs, void *str, int str_len, int allocated)
 {
 	bstr_release(bs);
 	bs->buf = str;
@@ -97,49 +102,45 @@ static bool bstr_attach_internal (bstr_t *bs, void *str, int str_len, int alloca
 	 str_len > BSTR_MAX_LEN || allocated > BSTR_MAX_ALLOCATED || \
 	 str_len < 0 || allocated < 1 || !str)
 
-bool bstr_attach_managed (bstr_t *bs, void *str, int str_len, int allocated)
+bool bstr_attach_managed(bstr_t *bs, void *str, int str_len, int allocated)
 {
-	if (ATTACH_INVALID) {
+	if (ATTACH_INVALID)
 		return false;
-	}
 
 	return bstr_attach_internal(bs, str, str_len, allocated | BSTR_MANAGED_BIT);
 }
 
-bool bstr_attach_unmanaged (bstr_t *bs, void *str, int str_len, int allocated)
+bool bstr_attach_unmanaged(bstr_t *bs, void *str, int str_len, int allocated)
 {
-	if (ATTACH_INVALID) {
+	if (ATTACH_INVALID)
 		return false;
-	}
+
 	return bstr_attach_internal(bs, str, str_len, allocated);
 }
 
-int bstr_avail (bstr_t *bs)
+int bstr_avail(bstr_t *bs)
 {
 	int allocated;
 
-	if (!bs->allocated) {
+	if (!bs->allocated)
 		return 0;
-	}
 
 	allocated = BSTR_ALLOCATED(bs);
 
 	return (allocated - 1 - bs->len);
 }
 
-bool bstr_grow (bstr_t *bs, int extra)
+bool bstr_grow(bstr_t *bs, int extra)
 {
 	uint8_t *new_str;
 	int target, allocated;
 
-	if (extra > BSTR_MAX_ALLOCATED || extra < 0) {
+	if (extra > BSTR_MAX_ALLOCATED || extra < 0)
 		return false;
-	}
 
 	target = bs->len + 1 + extra;
-	if (target > BSTR_MAX_ALLOCATED) {
+	if (target > BSTR_MAX_ALLOCATED)
 		return false;
-	}
 
 	allocated = BSTR_ALLOCATED(bs);
 
@@ -147,9 +148,8 @@ bool bstr_grow (bstr_t *bs, int extra)
 	 * Unmanaged must simply compare to the available allocation.
 	 * Likewise for a managed and fully allocated string.
 	 */
-	if (!BSTR_MANAGED(bs) || allocated == BSTR_MAX_ALLOCATED) {
+	if (!BSTR_MANAGED(bs) || allocated == BSTR_MAX_ALLOCATED)
 		return (target > allocated) ? false : true;
-	}
 
 	target += 15;
 	target &= ~15;
@@ -157,66 +157,66 @@ bool bstr_grow (bstr_t *bs, int extra)
 		target = BSTR_MAX_ALLOCATED;
 	}
 	new_str = allocated ? realloc(bs->buf, target) : malloc(target);
-	if (!new_str) {
+	if (!new_str)
 		return false;
-	}
+
 	bs->buf = new_str;
 	bs->allocated = target;
 
 	return true;
 }
 
-bool bstr_setlen (bstr_t *bs, int len)
+bool bstr_setlen(bstr_t *bs, int len)
 {
-	if (len > BSTR_MAX_LEN) {
+	if (len > BSTR_MAX_LEN)
 		return false;
-	}
-	if (!bstr_grow(bs, 0)) {
+
+	if (!bstr_grow(bs, 0))
 		return false;
-	}
-	if (len >= BSTR_ALLOCATED(bs)) {
+
+	if (len >= BSTR_ALLOCATED(bs))
 		return false;
-	}
+
 	bs->len = len;
 	bs->buf[len] = '\0';
 
 	return true;
 }
 
-bool bstr_addch (bstr_t *bs, uint8_t c)
+bool bstr_addch(struct bstr_t_ *bs, uint8_t c)
 {
-	if (!bstr_grow(bs, 1)) {
+	if (!bstr_grow(bs, 1))
 		return false;
-	}
+
 	bs->buf[bs->len++] = c;
 	bs->buf[bs->len] = '\0';
 
 	return true;
 }
 
-bool bstr_add (bstr_t *bs, void const *str, int str_len)
+bool bstr_add(bstr_t *bs, void const *str, int str_len)
 {
-	if (!str_len) {
+	if (!str_len)
 		return true;
-	}
-	if (!bstr_grow(bs, str_len)) {
+
+	if (!bstr_grow(bs, str_len))
 		return false;
-	}
+
 	memcpy(bs->buf + bs->len, str, str_len);
 	return bstr_setlen(bs, bs->len + str_len);
 }
 
-bool bstr_addstr (bstr_t *bs, char const *cstr)
+bool bstr_addstr(bstr_t *bs, char const *cstr)
 {
 	return bstr_add(bs, cstr, strlen(cstr));
 }
 
-bool bstr_addbuf (bstr_t *bs, bstr_t const *bs2)
+bool bstr_addbuf(bstr_t *bs, bstr_t const *bs2)
 {
 	return bstr_add(bs, bs2->buf, bs2->len);
 }
 
-bool bstr_addf (bstr_t *bs, char const *fmt, ...)
+bool bstr_addf(bstr_t *bs, char const *fmt, ...)
 {
 	va_list ap;
 	char *cp;
@@ -233,25 +233,23 @@ bool bstr_addf (bstr_t *bs, char const *fmt, ...)
 	/*
 	 * A format error can return zero.
 	 */
-	if (len < 0 || len + bs->len > BSTR_MAX_LEN) {
+	if (len < 0 || len + bs->len > BSTR_MAX_LEN)
 		return false;
-	}
 
 	/*
 	 * Try to grow the buffer if it is too small.
 	 */
 	if (len > bstr_avail(bs)) {
-		if (!bstr_grow(bs, len)) {
+		if (!bstr_grow(bs, len))
 			return false;
-		}
+
 		cp = (char *)bs->buf + bs->len;
 		va_start(ap, fmt);
 		len = VSNPRINTF(cp, bs->allocated - bs->len, fmt, ap);
 		va_end(ap);
 
-		if (len > bstr_avail(bs)) {
+		if (len > bstr_avail(bs))
 			return false;
-		}
 	}
 
 	return (bstr_setlen(bs, bs->len + len));
@@ -259,18 +257,16 @@ bool bstr_addf (bstr_t *bs, char const *fmt, ...)
 
 bool bstr_eq(bstr_t const *bs1, bstr_t const *bs2)
 {
-	if (bs1->len != bs2->len) {
+	if (bs1->len != bs2->len)
 		return false;
-	}
 
 	return (memcmp(bs1->buf, bs2->buf, bs1->len) == 0);
 }
 
 bool bstr_prefix(bstr_t const *text, bstr_t const *prefix)
 {
-	if (text->len < prefix->len) {
+	if (text->len < prefix->len)
 		return false;
-	}
 
 	return (memcmp(text->buf, prefix->buf, prefix->len) == 0);
 }
@@ -307,9 +303,9 @@ bool bstr_split_term(bstr_t const *parent, uint8_t terminator, bstr_t *headp, bs
 	}
 
 	uint8_t *match = memchr(parent->buf, terminator, parent->len);
-	if (!match) {
+	if (!match)
 		return false;
-	}
+
 	uint32_t index = match - parent->buf;
 
 	return bstr_split_length(parent, index + 1, headp, tailp);
@@ -317,14 +313,13 @@ bool bstr_split_term(bstr_t const *parent, uint8_t terminator, bstr_t *headp, bs
 
 bool bstr_split_prec(bstr_t const *parent, uint8_t preceder, bstr_t *headp, bstr_t *tailp)
 {
-	if (!parent->len) {
+	if (!parent->len)
 		return false;
-	}
 
 	uint8_t *match = memrchr(parent->buf, preceder, parent->len);
-	if (!match) {
+	if (!match)
 		return false;
-	}
+
 	uint32_t index = match - parent->buf;
 
 	return bstr_split_length(parent, index + 1, headp, tailp);
@@ -332,9 +327,8 @@ bool bstr_split_prec(bstr_t const *parent, uint8_t preceder, bstr_t *headp, bstr
 
 bool bstr_split_terms(bstr_t const *parent, bstr_t const *terms, bstr_t *headp, bstr_t *tailp)
 {
-	if (!parent->len || !terms->len) {
+	if (!parent->len || !terms->len)
 		return false;
-	}
 
 	/* Walk along parent, looking for terminator */
 	int const plen = parent->len;
@@ -357,9 +351,8 @@ found:
 
 bool bstr_split_precs(bstr_t const *parent, bstr_t const *precs, bstr_t *headp, bstr_t *tailp)
 {
-	if (!parent->len || !precs->len) {
+	if (!parent->len || !precs->len)
 		return false;
-	}
 
 	/* Walk along parent, looking for preceeder */
 	int const plen = parent->len;
@@ -383,19 +376,16 @@ found:
 int bstr_find(bstr_t const *hs, bstr_t const *nd)
 {
 	/* Empty needle always matches */
-	if (!nd->len) {
+	if (!nd->len)
 		return 0;
-	}
 
 	/* An empty haystack can never match, nor can too big a needle */
-	if (!hs->len || nd->len > hs->len) {
+	if (!hs->len || nd->len > hs->len)
 		return -1;
-	}
 
 	uint8_t *match = memmem(hs->buf, hs->len, nd->buf, nd->len);
-	if (!match) {
+	if (!match)
 		return -1;
-	}
 
 	return match - hs->buf;
 }

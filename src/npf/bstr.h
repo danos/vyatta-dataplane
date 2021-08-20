@@ -2,8 +2,8 @@
  * Copyright (c) 2021, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: BSD-3-Clause
- *
  */
+
 /*
  * Copyright 2010, Derek Fawcus.
  *
@@ -51,7 +51,7 @@
  * calls without risking suspending, and then pass the build string to
  * printf() which may suspend.
  *
- * The code always ensures that once initialsed (either by the static
+ * The code always ensures that once initialised (either by the static
  * initialiser BSTR_INIT,  or via calling bstr_init()),  the
  * string will always be '\0' terminated,  and that the ->buf element
  * will be valid.  Hence maintaining easy of use and compatibility
@@ -189,7 +189,7 @@ extern uint8_t bstr_empty[];
 /*
  * Useful for constants in array / structure definitions.
  */
-#define BSTR_K(str) {.buf = (uint8_t *)(str), .len = sizeof (str) - 1, .allocated = sizeof (str)}
+#define BSTR_K(str) {.buf = (uint8_t *)(str), .len = sizeof(str) - 1, .allocated = sizeof(str)}
 
 /*
  * Building blocks for the BSTRL() macro.
@@ -201,7 +201,8 @@ extern uint8_t bstr_empty[];
  * The GCC form is also safer, in that it fails to compile if the argument is not
  * a quoted string.
  */
-#define BSTRL_GCC(str) ({static const uint8_t _bc[] = (str); static const bstr_t _bb = BSTR_K(_bc); &_bb;})
+#define BSTRL_GCC(str) ({static const uint8_t _bc[] = (str); \
+			static const bstr_t _bb = BSTR_K(_bc); &_bb; })
 #define BSTRL_STANDARD(str) (&(const bstr_t)BSTR_K(str))
 
 /* A Literal string */
@@ -262,9 +263,9 @@ bool bstr_addstr(bstr_t *bs, char const *cstr);
 /* Add bytes from one string to end of another (c.f. strcat) */
 bool bstr_addbuf(bstr_t *bs, bstr_t const *bs2);
 
-/* Add formatted byte to a string (c.f. snprint) */
+/* Add formatted bytes to a string (c.f. snprint) */
 bool bstr_addf(bstr_t *bs, char const *fmt, ...)
-	__attribute__((format(__printf__,2,3)));
+	__attribute__((format(__printf__, 2, 3)));
 
 /* Are the two strings identical */
 bool bstr_eq(bstr_t const *bs1, bstr_t const *bs2);
