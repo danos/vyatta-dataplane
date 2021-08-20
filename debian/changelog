@@ -1,3 +1,10 @@
+vyatta-dataplane (3.11.72.26) unstable; urgency=medium
+
+  [ Thomas Kiely ]
+  * Revert "Jumbo MTU capability omitted"
+
+ -- Srinivas Narayan <narayan@vyatta.att-mail.com>  Fri, 20 Aug 2021 17:27:10 +0100
+
 vyatta-dataplane (3.11.72.25) unstable; urgency=medium
 
   * Jumbo MTU capability omitted
