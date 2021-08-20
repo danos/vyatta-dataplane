@@ -2608,8 +2608,6 @@ static int port_conf_final(portid_t portid, struct rte_eth_conf *dev_conf)
 	dev_conf->rxmode.mq_mode = port_alloc->rx_mq_mode;
 
 	/* DPDK 18.08 errors if offload flags don't match PMD caps */
-	if (dev_info.rx_offload_capa & DEV_RX_OFFLOAD_JUMBO_FRAME)
-		dev_conf->rxmode.offloads |= DEV_RX_OFFLOAD_JUMBO_FRAME;
 	if (dev_info.rx_offload_capa & DEV_RX_OFFLOAD_VLAN_FILTER)
 		dev_conf->rxmode.offloads |= DEV_RX_OFFLOAD_VLAN_FILTER;
 	if (dev_info.rx_offload_capa & DEV_RX_OFFLOAD_VLAN_STRIP)
